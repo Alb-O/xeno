@@ -22,6 +22,7 @@
           rustToolchain
           pkgs.cargo-watch
           pkgs.cargo-edit
+          pkgs.cargo-insta
           pkgs.rust-analyzer
           self'.formatter
         ];

@@ -1,0 +1,15 @@
+---
+source: crates/tome-term/src/main.rs
+assertion_line: 560
+expression: terminal.backend()
+---
+"Hello, World!                                                                   "
+"This is a test.                                                                 "
+"Line 3.                                                                         "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+" NORMAL  test.txt  1:1                                                          "
+"                                                                                "

@@ -1,0 +1,15 @@
+---
+source: crates/tome-term/src/main.rs
+assertion_line: 579
+expression: terminal.backend()
+---
+"abc                                                                             "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+" INSERT  test.txt [+]  1:4                                                      "
+"                                                                                "

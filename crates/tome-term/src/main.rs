@@ -52,7 +52,11 @@ impl Editor {
             String::new()
         };
 
-        Ok(Self {
+        Ok(Self::from_content(content, path))
+    }
+
+    fn from_content(content: String, path: PathBuf) -> Self {
+        Self {
             doc: Rope::from(content.as_str()),
             selection: Selection::point(0),
             mode: Mode::Normal,
@@ -60,7 +64,7 @@ impl Editor {
             modified: false,
             scroll_offset: 0,
             message: None,
-        })
+        }
     }
 
     fn cursor_line(&self) -> usize {
@@ -464,6 +468,21 @@ impl Editor {
         let text = self.message.as_deref().unwrap_or("");
         Paragraph::new(text).style(Style::default().fg(Color::Yellow))
     }
+
+    fn render(&self, frame: &mut ratatui::Frame) {
+        let chunks = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([
+                Constraint::Min(1),
+                Constraint::Length(1),
+                Constraint::Length(1),
+            ])
+            .split(frame.area());
+
+        frame.render_widget(self.render_document(chunks[0]), chunks[0]);
+        frame.render_widget(self.render_status_line(), chunks[1]);
+        frame.render_widget(self.render_message_line(), chunks[2]);
+    }
 }
 
 fn run_editor(mut editor: Editor) -> io::Result<()> {
@@ -479,20 +498,7 @@ fn run_editor(mut editor: Editor) -> io::Result<()> {
             let viewport_height = terminal.size()?.height.saturating_sub(2) as usize;
             editor.adjust_scroll(viewport_height);
 
-            terminal.draw(|frame| {
-                let chunks = Layout::default()
-                    .direction(Direction::Vertical)
-                    .constraints([
-                        Constraint::Min(1),
-                        Constraint::Length(1),
-                        Constraint::Length(1),
-                    ])
-                    .split(frame.area());
-
-                frame.render_widget(editor.render_document(chunks[0]), chunks[0]);
-                frame.render_widget(editor.render_status_line(), chunks[1]);
-                frame.render_widget(editor.render_message_line(), chunks[2]);
-            })?;
+            terminal.draw(|frame| editor.render(frame))?;
 
             if let Event::Key(key) = crossterm::event::read()? {
                 if editor.handle_key(key) {
@@ -525,4 +531,73 @@ fn main() -> io::Result<()> {
     let path = PathBuf::from(&args[1]);
     let editor = Editor::new(path)?;
     run_editor(editor)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crossterm::event::KeyModifiers;
+    use insta::assert_snapshot;
+    use ratatui::{Terminal, backend::TestBackend};
+
+    fn test_editor(content: &str) -> Editor {
+        Editor::from_content(content.to_string(), PathBuf::from("test.txt"))
+    }
+
+    #[test]
+    fn test_render_empty() {
+        let editor = test_editor("");
+        let mut terminal = Terminal::new(TestBackend::new(80, 10)).unwrap();
+        terminal.draw(|frame| editor.render(frame)).unwrap();
+        assert_snapshot!(terminal.backend());
+    }
+
+    #[test]
+    fn test_render_with_content() {
+        let editor = test_editor("Hello, World!\nThis is a test.\nLine 3.");
+        let mut terminal = Terminal::new(TestBackend::new(80, 10)).unwrap();
+        terminal.draw(|frame| editor.render(frame)).unwrap();
+        assert_snapshot!(terminal.backend());
+    }
+
+    #[test]
+    fn test_render_insert_mode() {
+        let mut editor = test_editor("Hello");
+        editor.mode = Mode::Insert;
+        let mut terminal = Terminal::new(TestBackend::new(80, 10)).unwrap();
+        terminal.draw(|frame| editor.render(frame)).unwrap();
+        assert_snapshot!(terminal.backend());
+    }
+
+    #[test]
+    fn test_render_after_typing() {
+        let mut editor = test_editor("");
+        editor.mode = Mode::Insert;
+        editor.insert_text("abc");
+        let mut terminal = Terminal::new(TestBackend::new(80, 10)).unwrap();
+        terminal.draw(|frame| editor.render(frame)).unwrap();
+        assert_snapshot!(terminal.backend());
+    }
+
+    #[test]
+    fn test_render_with_selection() {
+        let mut editor = test_editor("Hello, World!");
+        editor.handle_key(KeyEvent::new(KeyCode::Char('l'), KeyModifiers::SHIFT));
+        editor.handle_key(KeyEvent::new(KeyCode::Char('l'), KeyModifiers::SHIFT));
+        editor.handle_key(KeyEvent::new(KeyCode::Char('l'), KeyModifiers::SHIFT));
+        let mut terminal = Terminal::new(TestBackend::new(80, 10)).unwrap();
+        terminal.draw(|frame| editor.render(frame)).unwrap();
+        assert_snapshot!(terminal.backend());
+    }
+
+    #[test]
+    fn test_render_cursor_movement() {
+        let mut editor = test_editor("Hello\nWorld");
+        editor.handle_key(KeyEvent::new(KeyCode::Char('j'), KeyModifiers::NONE));
+        editor.handle_key(KeyEvent::new(KeyCode::Char('l'), KeyModifiers::NONE));
+        editor.handle_key(KeyEvent::new(KeyCode::Char('l'), KeyModifiers::NONE));
+        let mut terminal = Terminal::new(TestBackend::new(80, 10)).unwrap();
+        terminal.draw(|frame| editor.render(frame)).unwrap();
+        assert_snapshot!(terminal.backend());
+    }
 }
