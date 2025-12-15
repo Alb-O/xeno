@@ -1072,11 +1072,11 @@ mod tests {
             KeyResult::ActionWithChar { name: "find_char", char_arg: 'x', .. }
         ));
 
-        // Repeat with alt+. (still uses legacy system for now)
+        // Repeat with alt+. now uses the new action system
         let result = handler.handle_key(Key::alt('.'));
         assert!(matches!(
             result,
-            KeyResult::Command(Command::FindCharForward { inclusive: true, ch: Some('x') }, _)
+            KeyResult::Action { name: "repeat_last_object", .. }
         ));
 
         // alt+f for reverse find
@@ -1090,11 +1090,11 @@ mod tests {
             KeyResult::ActionWithChar { name: "find_char_reverse", char_arg: 'y', .. }
         ));
 
-        // Repeat with alt+. uses legacy repeat
+        // Repeat with alt+. uses the new action system
         let result = handler.handle_key(Key::alt('.'));
         assert!(matches!(
             result,
-            KeyResult::Command(Command::FindCharBackward { inclusive: true, ch: Some('y') }, _)
+            KeyResult::Action { name: "repeat_last_object", .. }
         ));
     }
 }

@@ -158,3 +158,7 @@ bind!(KB_Z, Key::char('z'), "restore_selections");
 
 // Redraw
 bind!(KB_CTRL_L, Key::ctrl('l'), "force_redraw");
+
+// Repeat
+bind!(KB_DOT, Key::char('.'), "repeat_last_insert");
+bind!(KB_DOT_ALT, Key::alt('.'), "repeat_last_object");

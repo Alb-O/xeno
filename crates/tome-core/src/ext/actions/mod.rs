@@ -70,6 +70,10 @@ pub enum ActionResult {
     RestoreSelections,
     /// Force redraw of the screen.
     ForceRedraw,
+    /// Repeat the last insert/change action.
+    RepeatLastInsert,
+    /// Repeat the last object/find operation.
+    RepeatLastObject,
 }
 
 /// An edit operation to apply to the document.

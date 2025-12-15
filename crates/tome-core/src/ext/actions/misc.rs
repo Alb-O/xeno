@@ -89,3 +89,18 @@ action!(
     "Add empty line above cursor",
     |_ctx: &ActionContext| ActionResult::Edit(EditAction::AddLineAbove)
 );
+
+// Repeat
+action!(
+    ACTION_REPEAT_LAST_INSERT,
+    "repeat_last_insert",
+    "Repeat the last insert/change action",
+    |_ctx: &ActionContext| ActionResult::RepeatLastInsert
+);
+
+action!(
+    ACTION_REPEAT_LAST_OBJECT,
+    "repeat_last_object",
+    "Repeat the last object/find operation",
+    |_ctx: &ActionContext| ActionResult::RepeatLastObject
+);

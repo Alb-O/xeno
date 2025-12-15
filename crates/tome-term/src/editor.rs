@@ -649,6 +649,14 @@ impl Editor {
             ActionResult::ForceRedraw => {
                 false
             }
+            ActionResult::RepeatLastInsert => {
+                self.message = Some("Repeat insert not yet implemented".to_string());
+                false
+            }
+            ActionResult::RepeatLastObject => {
+                self.message = Some("Repeat object not yet implemented".to_string());
+                false
+            }
         }
     }
 
@@ -751,6 +759,14 @@ impl Editor {
                 false
             }
             ActionResult::ForceRedraw => {
+                false
+            }
+            ActionResult::RepeatLastInsert => {
+                self.message = Some("Repeat insert not yet implemented".to_string());
+                false
+            }
+            ActionResult::RepeatLastObject => {
+                self.message = Some("Repeat object not yet implemented".to_string());
                 false
             }
         }
