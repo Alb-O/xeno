@@ -7,6 +7,7 @@
 mod editing;
 mod find;
 mod insert;
+mod misc;
 mod modes;
 mod motions;
 mod regex_select;
@@ -53,6 +54,22 @@ pub enum ActionResult {
     UseSelectionAsSearch,
     /// Split selection into lines.
     SplitLines,
+    /// Jump forward in jump list.
+    JumpForward,
+    /// Jump backward in jump list.
+    JumpBackward,
+    /// Save current position to jump list.
+    SaveJump,
+    /// Record or stop recording macro.
+    RecordMacro,
+    /// Play macro.
+    PlayMacro,
+    /// Save current selections to mark.
+    SaveSelections,
+    /// Restore selections from mark.
+    RestoreSelections,
+    /// Force redraw of the screen.
+    ForceRedraw,
 }
 
 /// An edit operation to apply to the document.
@@ -96,6 +113,10 @@ pub enum EditAction {
     MoveVisual { direction: VisualDirection, count: usize, extend: bool },
     /// Scroll view (move viewport and optionally cursor).
     Scroll { direction: ScrollDir, amount: ScrollAmount },
+    /// Add empty line below (without entering insert mode).
+    AddLineBelow,
+    /// Add empty line above (without entering insert mode).
+    AddLineAbove,
 }
 
 /// Direction for visual movement (respects soft wrap).

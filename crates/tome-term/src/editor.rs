@@ -618,6 +618,37 @@ impl Editor {
             ActionResult::SplitLines => {
                 self.split_lines()
             }
+            ActionResult::JumpForward => {
+                self.message = Some("Jump list not yet implemented".to_string());
+                false
+            }
+            ActionResult::JumpBackward => {
+                self.message = Some("Jump list not yet implemented".to_string());
+                false
+            }
+            ActionResult::SaveJump => {
+                self.message = Some("Jump list not yet implemented".to_string());
+                false
+            }
+            ActionResult::RecordMacro => {
+                self.message = Some("Macros not yet implemented".to_string());
+                false
+            }
+            ActionResult::PlayMacro => {
+                self.message = Some("Macros not yet implemented".to_string());
+                false
+            }
+            ActionResult::SaveSelections => {
+                self.message = Some("Marks not yet implemented".to_string());
+                false
+            }
+            ActionResult::RestoreSelections => {
+                self.message = Some("Marks not yet implemented".to_string());
+                false
+            }
+            ActionResult::ForceRedraw => {
+                false
+            }
         }
     }
 
@@ -690,6 +721,37 @@ impl Editor {
             }
             ActionResult::SplitLines => {
                 self.split_lines()
+            }
+            ActionResult::JumpForward => {
+                self.message = Some("Jump list not yet implemented".to_string());
+                false
+            }
+            ActionResult::JumpBackward => {
+                self.message = Some("Jump list not yet implemented".to_string());
+                false
+            }
+            ActionResult::SaveJump => {
+                self.message = Some("Jump list not yet implemented".to_string());
+                false
+            }
+            ActionResult::RecordMacro => {
+                self.message = Some("Macros not yet implemented".to_string());
+                false
+            }
+            ActionResult::PlayMacro => {
+                self.message = Some("Macros not yet implemented".to_string());
+                false
+            }
+            ActionResult::SaveSelections => {
+                self.message = Some("Marks not yet implemented".to_string());
+                false
+            }
+            ActionResult::RestoreSelections => {
+                self.message = Some("Marks not yet implemented".to_string());
+                false
+            }
+            ActionResult::ForceRedraw => {
+                false
             }
         }
     }
@@ -891,6 +953,24 @@ impl Editor {
                     ScrollDir::Down => MoveDir::Forward,
                 };
                 self.move_visual_vertical(dir, count, false);
+            }
+            EditAction::AddLineBelow => {
+                let slice = self.doc.slice(..);
+                let current_pos = self.selection.primary().head;
+                self.selection.transform_mut(|r| {
+                    *r = movement::move_to_line_end(slice, *r, false);
+                });
+                self.insert_text("\n");
+                self.selection = Selection::point(current_pos);
+            }
+            EditAction::AddLineAbove => {
+                let slice = self.doc.slice(..);
+                let current_pos = self.selection.primary().head;
+                self.selection.transform_mut(|r| {
+                    *r = movement::move_to_line_start(slice, *r, false);
+                });
+                self.insert_text("\n");
+                self.selection = Selection::point(current_pos + 1);
             }
         }
         false

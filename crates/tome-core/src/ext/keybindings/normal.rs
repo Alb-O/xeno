@@ -71,6 +71,8 @@ bind!(KB_I_UPPER, Key::char('I'), "insert_line_start");
 bind!(KB_A_UPPER, Key::char('A'), "insert_line_end");
 bind!(KB_O, Key::char('o'), "open_below");
 bind!(KB_O_UPPER, Key::char('O'), "open_above");
+bind!(KB_O_ALT, Key::alt('o'), "add_line_below");
+bind!(KB_O_ALT_UPPER, Key::alt('O'), "add_line_above");
 
 // Selection manipulation
 bind!(KB_SEMI, Key::char(';'), "collapse_selection");
@@ -140,3 +142,19 @@ bind!(KB_S_UPPER, Key::char('S'), "split_regex");
 bind!(KB_S_ALT, Key::alt('s'), "split_lines");
 bind!(KB_K_ALT, Key::alt('k'), "keep_matching");
 bind!(KB_K_ALT_UPPER, Key::alt('K'), "keep_not_matching");
+
+// Jump list
+bind!(KB_CTRL_I, Key::ctrl('i'), "jump_forward");
+bind!(KB_CTRL_O, Key::ctrl('o'), "jump_backward");
+bind!(KB_CTRL_S, Key::ctrl('s'), "save_jump");
+
+// Macros
+bind!(KB_Q_UPPER, Key::char('Q'), "record_macro");
+bind!(KB_Q, Key::char('q'), "play_macro");
+
+// Marks/Selections
+bind!(KB_Z_UPPER, Key::char('Z'), "save_selections");
+bind!(KB_Z, Key::char('z'), "restore_selections");
+
+// Redraw
+bind!(KB_CTRL_L, Key::ctrl('l'), "force_redraw");
