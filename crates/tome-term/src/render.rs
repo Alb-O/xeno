@@ -37,6 +37,8 @@ impl Editor {
         let viewport_height = area.height as usize;
         let cursor_line = self.cursor_line();
 
+        self.text_width = text_width;
+
         if cursor_line < self.scroll_offset {
             self.scroll_offset = cursor_line;
             return;

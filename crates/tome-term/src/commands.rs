@@ -104,14 +104,10 @@ pub fn execute_command(editor: &mut Editor, cmd: Command, count: u32, extend: bo
             });
         }
         Command::MoveUp => {
-            editor.selection.transform_mut(|r| {
-                *r = movement::move_vertically(slice, *r, MoveDir::Backward, count_usize, extend);
-            });
+            editor.move_visual_vertical(MoveDir::Backward, count_usize, extend);
         }
         Command::MoveDown => {
-            editor.selection.transform_mut(|r| {
-                *r = movement::move_vertically(slice, *r, MoveDir::Forward, count_usize, extend);
-            });
+            editor.move_visual_vertical(MoveDir::Forward, count_usize, extend);
         }
 
         Command::MoveNextWordStart => {

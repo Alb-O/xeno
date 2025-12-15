@@ -9,6 +9,7 @@ use tome_core::{
 };
 
 use crate::commands;
+use crate::render::WrapSegment;
 
 /// A history entry for undo/redo.
 #[derive(Clone)]
@@ -33,6 +34,7 @@ pub struct Editor {
     pub registers: Registers,
     pub undo_stack: Vec<HistoryEntry>,
     pub redo_stack: Vec<HistoryEntry>,
+    pub text_width: usize,
 }
 
 impl Editor {
@@ -58,6 +60,7 @@ impl Editor {
             registers: Registers::default(),
             undo_stack: Vec::new(),
             redo_stack: Vec::new(),
+            text_width: 80,
         }
     }
 
@@ -80,6 +83,105 @@ impl Editor {
         let line = self.cursor_line();
         let line_start = self.doc.line_to_char(line);
         head.saturating_sub(line_start)
+    }
+
+    pub fn move_visual_vertical(&mut self, direction: MoveDir, count: usize, extend: bool) {
+        for _ in 0..count {
+            let head = self.selection.primary().head;
+            let doc_line = self.doc.char_to_line(head);
+            let line_start = self.doc.line_to_char(doc_line);
+            let col_in_line = head - line_start;
+
+            let total_lines = self.doc.len_lines();
+            let line_end = if doc_line + 1 < total_lines {
+                self.doc.line_to_char(doc_line + 1)
+            } else {
+                self.doc.len_chars()
+            };
+            let line_text: String = self.doc.slice(line_start..line_end).into();
+            let line_text = line_text.trim_end_matches('\n');
+
+            let segments = self.wrap_line(line_text, self.text_width);
+            let current_seg_idx = self.find_segment_for_col(&segments, col_in_line);
+            let col_in_seg = if current_seg_idx < segments.len() {
+                col_in_line.saturating_sub(segments[current_seg_idx].start_offset)
+            } else {
+                col_in_line
+            };
+
+            let new_pos = match direction {
+                MoveDir::Forward => {
+                    if current_seg_idx + 1 < segments.len() {
+                        let next_seg = &segments[current_seg_idx + 1];
+                        let new_col = next_seg.start_offset + col_in_seg.min(next_seg.text.chars().count().saturating_sub(1));
+                        line_start + new_col
+                    } else if doc_line + 1 < total_lines {
+                        let next_line_start = self.doc.line_to_char(doc_line + 1);
+                        let next_line_end = if doc_line + 2 < total_lines {
+                            self.doc.line_to_char(doc_line + 2)
+                        } else {
+                            self.doc.len_chars()
+                        };
+                        let next_line_text: String = self.doc.slice(next_line_start..next_line_end).into();
+                        let next_line_text = next_line_text.trim_end_matches('\n');
+                        let next_segments = self.wrap_line(next_line_text, self.text_width);
+
+                        if next_segments.is_empty() {
+                            next_line_start
+                        } else {
+                            let first_seg = &next_segments[0];
+                            let new_col = col_in_seg.min(first_seg.text.chars().count().saturating_sub(1).max(0));
+                            next_line_start + new_col
+                        }
+                    } else {
+                        head
+                    }
+                }
+                MoveDir::Backward => {
+                    if current_seg_idx > 0 {
+                        let prev_seg = &segments[current_seg_idx - 1];
+                        let new_col = prev_seg.start_offset + col_in_seg.min(prev_seg.text.chars().count().saturating_sub(1));
+                        line_start + new_col
+                    } else if doc_line > 0 {
+                        let prev_line = doc_line - 1;
+                        let prev_line_start = self.doc.line_to_char(prev_line);
+                        let prev_line_end = line_start;
+                        let prev_line_text: String = self.doc.slice(prev_line_start..prev_line_end).into();
+                        let prev_line_text = prev_line_text.trim_end_matches('\n');
+                        let prev_segments = self.wrap_line(prev_line_text, self.text_width);
+
+                        if prev_segments.is_empty() {
+                            prev_line_start
+                        } else {
+                            let last_seg = &prev_segments[prev_segments.len() - 1];
+                            let new_col = last_seg.start_offset + col_in_seg.min(last_seg.text.chars().count().saturating_sub(1).max(0));
+                            prev_line_start + new_col
+                        }
+                    } else {
+                        head
+                    }
+                }
+            };
+
+            self.selection.transform_mut(|r| {
+                if extend {
+                    r.head = new_pos;
+                } else {
+                    r.anchor = new_pos;
+                    r.head = new_pos;
+                }
+            });
+        }
+    }
+
+    fn find_segment_for_col(&self, segments: &[WrapSegment], col: usize) -> usize {
+        for (i, seg) in segments.iter().enumerate() {
+            let seg_end = seg.start_offset + seg.text.chars().count();
+            if col < seg_end || i == segments.len() - 1 {
+                return i;
+            }
+        }
+        0
     }
 
     pub fn save_undo_state(&mut self) {

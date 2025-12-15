@@ -354,4 +354,45 @@ mod tests {
             editor.scroll_offset
         );
     }
+
+    #[test]
+    fn test_visual_vertical_movement_in_wrapped_line() {
+        let long_line = "The quick brown fox jumps over the lazy dog and keeps running";
+        let mut editor = test_editor(long_line);
+        
+        editor.text_width = 20;
+        
+        assert_eq!(editor.selection.primary().head, 0, "starts at 0");
+        
+        editor.handle_key(KeyEvent::new(KeyCode::Char('j'), KeyModifiers::NONE));
+        
+        let head = editor.selection.primary().head;
+        assert!(
+            head > 0 && head < long_line.len(),
+            "cursor should move within wrapped line segments, got head={}",
+            head
+        );
+        assert_eq!(editor.cursor_line(), 0, "should still be on doc line 0");
+        
+        editor.handle_key(KeyEvent::new(KeyCode::Char('k'), KeyModifiers::NONE));
+        
+        assert_eq!(editor.selection.primary().head, 0, "should return to start");
+    }
+
+    #[test]
+    fn test_visual_movement_across_doc_lines() {
+        let text = "short\nanother short";
+        let mut editor = test_editor(text);
+        editor.text_width = 80;
+        
+        assert_eq!(editor.cursor_line(), 0);
+        
+        editor.handle_key(KeyEvent::new(KeyCode::Char('j'), KeyModifiers::NONE));
+        
+        assert_eq!(editor.cursor_line(), 1, "should move to next doc line");
+        
+        editor.handle_key(KeyEvent::new(KeyCode::Char('k'), KeyModifiers::NONE));
+        
+        assert_eq!(editor.cursor_line(), 0, "should return to first doc line");
+    }
 }
