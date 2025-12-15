@@ -342,7 +342,11 @@ impl Editor {
         };
 
         let modified = if self.modified { " [+]" } else { "" };
-        let path = self.path.display().to_string();
+        let path = self
+            .path
+            .as_ref()
+            .map(|p| p.display().to_string())
+            .unwrap_or_else(|| "[scratch]".to_string());
         let cursor_info = format!(" {}:{} ", self.cursor_line() + 1, self.cursor_col() + 1);
 
         let count_str = if self.input.count() > 0 {

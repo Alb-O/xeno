@@ -1,11 +1,12 @@
+mod cli;
 mod commands;
 mod editor;
 mod render;
+mod styles;
 
-use std::env;
 use std::io;
-use std::path::PathBuf;
 
+use clap::Parser;
 use crossterm::event::{DisableMouseCapture, EnableMouseCapture, Event};
 use crossterm::terminal::{
     EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode,
@@ -13,6 +14,7 @@ use crossterm::terminal::{
 use ratatui::Terminal;
 use ratatui::backend::CrosstermBackend;
 
+use cli::Cli;
 pub use editor::Editor;
 
 fn run_editor(mut editor: Editor) -> io::Result<()> {
@@ -55,28 +57,27 @@ fn run_editor(mut editor: Editor) -> io::Result<()> {
 }
 
 fn main() -> io::Result<()> {
-    let args: Vec<String> = env::args().collect();
+    let cli = Cli::parse();
 
-    if args.len() < 2 {
-        eprintln!("Usage: tome <file>");
-        std::process::exit(1);
-    }
+    let editor = match cli.file {
+        Some(path) => Editor::new(path)?,
+        None => Editor::new_scratch(),
+    };
 
-    let path = PathBuf::from(&args[1]);
-    let editor = Editor::new(path)?;
     run_editor(editor)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::path::PathBuf;
     use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
     use insta::assert_snapshot;
     use ratatui::{Terminal, backend::TestBackend};
     use tome_core::Mode;
 
     fn test_editor(content: &str) -> Editor {
-        Editor::from_content(content.to_string(), PathBuf::from("test.txt"))
+        Editor::from_content(content.to_string(), Some(PathBuf::from("test.txt")))
     }
 
     #[test]

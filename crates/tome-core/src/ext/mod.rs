@@ -91,8 +91,8 @@ pub enum CommandOutcome {
 /// This trait abstracts editor functionality so commands can be defined
 /// in `tome-core` without depending on the terminal layer.
 pub trait EditorOps {
-    /// Get the file path being edited.
-    fn path(&self) -> &std::path::Path;
+    /// Get the file path being edited, if any.
+    fn path(&self) -> Option<&std::path::Path>;
 
     /// Get the document text as a rope slice.
     fn text(&self) -> RopeSlice<'_>;
@@ -108,6 +108,9 @@ pub trait EditorOps {
 
     /// Save the buffer to disk.
     fn save(&mut self) -> Result<(), CommandError>;
+
+    /// Save the buffer to a new file path.
+    fn save_as(&mut self, path: std::path::PathBuf) -> Result<(), CommandError>;
 
     /// Insert text at the current selection.
     fn insert_text(&mut self, text: &str);

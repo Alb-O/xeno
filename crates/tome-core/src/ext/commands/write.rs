@@ -1,4 +1,5 @@
 use linkme::distributed_slice;
+use std::path::PathBuf;
 
 use crate::ext::{CommandContext, CommandDef, CommandError, CommandOutcome, COMMANDS};
 
@@ -11,7 +12,11 @@ static CMD_WRITE: CommandDef = CommandDef {
 };
 
 fn cmd_write(ctx: &mut CommandContext) -> Result<CommandOutcome, CommandError> {
-    ctx.editor.save()?;
+    if let Some(&filename) = ctx.args.first() {
+        ctx.editor.save_as(PathBuf::from(filename))?;
+    } else {
+        ctx.editor.save()?;
+    }
     Ok(CommandOutcome::Ok)
 }
 
@@ -24,6 +29,10 @@ static CMD_WRITE_QUIT: CommandDef = CommandDef {
 };
 
 fn cmd_write_quit(ctx: &mut CommandContext) -> Result<CommandOutcome, CommandError> {
-    ctx.editor.save()?;
+    if let Some(&filename) = ctx.args.first() {
+        ctx.editor.save_as(PathBuf::from(filename))?;
+    } else {
+        ctx.editor.save()?;
+    }
     Ok(CommandOutcome::Quit)
 }

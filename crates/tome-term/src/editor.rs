@@ -28,7 +28,7 @@ pub struct Editor {
     pub doc: Rope,
     pub selection: Selection,
     pub input: InputHandler,
-    pub path: PathBuf,
+    pub path: Option<PathBuf>,
     pub modified: bool,
     pub scroll_line: usize,
     pub scroll_segment: usize,
@@ -47,17 +47,26 @@ impl Editor {
             String::new()
         };
 
-        Ok(Self::from_content(content, path))
+        Ok(Self::from_content(content, Some(path)))
     }
 
-    pub fn from_content(content: String, path: PathBuf) -> Self {
-        let file_type = ext::detect_file_type(path.to_str().unwrap_or(""))
+    pub fn new_scratch() -> Self {
+        Self::from_content(String::new(), None)
+    }
+
+    pub fn from_content(content: String, path: Option<PathBuf>) -> Self {
+        let file_type = path
+            .as_ref()
+            .and_then(|p| ext::detect_file_type(p.to_str().unwrap_or("")))
             .map(|ft| ft.name);
 
         let doc = Rope::from(content.as_str());
 
+        let scratch_path = PathBuf::from("[scratch]");
+        let hook_path = path.as_ref().unwrap_or(&scratch_path);
+
         emit_hook(&HookContext::BufferOpen {
-            path: &path,
+            path: hook_path,
             text: doc.slice(..),
             file_type,
         });
@@ -251,21 +260,36 @@ impl Editor {
     }
 
     pub fn save(&mut self) -> io::Result<()> {
+        let path = match &self.path {
+            Some(p) => p,
+            None => {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    "No filename. Use :write <filename>",
+                ));
+            }
+        };
+
         emit_hook(&HookContext::BufferWritePre {
-            path: &self.path,
+            path,
             text: self.doc.slice(..),
         });
 
-        let mut f = fs::File::create(&self.path)?;
+        let mut f = fs::File::create(path)?;
         for chunk in self.doc.chunks() {
             f.write_all(chunk.as_bytes())?;
         }
         self.modified = false;
-        self.message = Some(format!("Saved {}", self.path.display()));
+        self.message = Some(format!("Saved {}", path.display()));
 
-        emit_hook(&HookContext::BufferWrite { path: &self.path });
+        emit_hook(&HookContext::BufferWrite { path });
 
         Ok(())
+    }
+
+    pub fn save_as(&mut self, path: PathBuf) -> io::Result<()> {
+        self.path = Some(path);
+        self.save()
     }
 
     pub fn yank_selection(&mut self) {
@@ -534,8 +558,8 @@ impl Editor {
 }
 
 impl ext::EditorOps for Editor {
-    fn path(&self) -> &std::path::Path {
-        &self.path
+    fn path(&self) -> Option<&std::path::Path> {
+        self.path.as_deref()
     }
 
     fn text(&self) -> tome_core::RopeSlice<'_> {
@@ -556,6 +580,10 @@ impl ext::EditorOps for Editor {
 
     fn save(&mut self) -> Result<(), ext::CommandError> {
         Editor::save(self).map_err(|e| ext::CommandError::Io(e.to_string()))
+    }
+
+    fn save_as(&mut self, path: std::path::PathBuf) -> Result<(), ext::CommandError> {
+        Editor::save_as(self, path).map_err(|e| ext::CommandError::Io(e.to_string()))
     }
 
     fn insert_text(&mut self, text: &str) {
