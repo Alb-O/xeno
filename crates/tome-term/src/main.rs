@@ -711,22 +711,20 @@ impl Editor {
                 spans.push(Span::styled(ch.to_string(), style));
             }
 
-            if primary.head == line_end.saturating_sub(1) && line_text.is_empty() {
-                spans.push(Span::styled(
-                    " ",
-                    Style::default()
-                        .bg(Color::White)
-                        .fg(Color::Black)
-                        .add_modifier(Modifier::BOLD),
-                ));
-            } else if primary.head == line_end && line_idx + 1 >= self.doc.len_lines() {
-                spans.push(Span::styled(
-                    " ",
-                    Style::default()
-                        .bg(Color::White)
-                        .fg(Color::Black)
-                        .add_modifier(Modifier::BOLD),
-                ));
+            // Cursor at end of line (after last char, on or past the newline)
+            let line_content_end = line_start + line_text.chars().count();
+            if primary.head >= line_content_end && primary.head <= line_end {
+                // Only show cursor here if it wasn't already rendered in the loop
+                let cursor_in_content = primary.head < line_content_end;
+                if !cursor_in_content {
+                    spans.push(Span::styled(
+                        " ",
+                        Style::default()
+                            .bg(Color::White)
+                            .fg(Color::Black)
+                            .add_modifier(Modifier::BOLD),
+                    ));
+                }
             }
 
             lines.push(Line::from(spans));
