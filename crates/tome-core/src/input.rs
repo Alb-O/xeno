@@ -253,6 +253,12 @@ impl InputHandler {
     }
 
     fn handle_insert_key(&mut self, key: Key) -> KeyResult {
+        if key.modifiers.shift {
+            self.extend = true;
+        }
+
+        let key = key.normalize().without_shift();
+
         match key.code {
             KeyCode::Special(SpecialKey::Escape) => {
                 self.mode = Mode::Normal;
