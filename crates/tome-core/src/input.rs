@@ -2,7 +2,7 @@
 //! New action-only path (legacy Command path removed).
 
 use crate::ext::{find_binding, BindingMode, ObjectSelectionKind, PendingKind};
-use crate::key::{Key, KeyCode, MouseButton, MouseEvent, ScrollDirection, SpecialKey};
+use crate::key::{Key, KeyCode, Modifiers, MouseButton, MouseEvent, ScrollDirection, SpecialKey};
 
 /// Editor mode.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
@@ -228,14 +228,10 @@ impl InputHandler {
             return KeyResult::Consumed;
         }
 
-        if key.modifiers.shift {
-            self.extend = true;
-        }
-
-        // Treat Shift as extend; drop it for key matching (Kakoune-style)
-        let key = key.drop_shift();
+        let key = self.extend_and_lower_if_shift(key);
 
         if let Some(binding) = find_binding(BindingMode::Normal, key) {
+
             let count = if self.count > 0 { self.count as usize } else { 1 };
             let extend = self.extend;
             let register = self.register;
@@ -253,49 +249,58 @@ impl InputHandler {
     }
 
     fn handle_insert_key(&mut self, key: Key) -> KeyResult {
-        if key.modifiers.shift {
-            self.extend = true;
+        // Escape exits insert mode
+        if matches!(key.code, KeyCode::Special(SpecialKey::Escape)) {
+            self.mode = Mode::Normal;
+            self.reset_params();
+            return KeyResult::ModeChange(Mode::Normal);
         }
 
-        let key = key.drop_shift();
+        // Backspace in insert mode deletes backward
+        if matches!(key.code, KeyCode::Special(SpecialKey::Backspace)) {
+            return KeyResult::Action {
+                name: "delete_back",
+                count: 1,
+                extend: false,
+                register: None,
+            };
+        }
 
+        // Try insert-mode keybindings first
+        if let Some(binding) = find_binding(BindingMode::Insert, key) {
+            let count = if self.count > 0 { self.count as usize } else { 1 };
+            let extend = self.extend;
+            let register = self.register;
+            self.reset_params();
+            return KeyResult::Action {
+                name: binding.action,
+                count,
+                extend,
+                register,
+            };
+        }
+
+        // Fall back to normal mode bindings for navigation (arrows, etc.)
+        if let Some(binding) = find_binding(BindingMode::Normal, key) {
+            let count = if self.count > 0 { self.count as usize } else { 1 };
+            let extend = self.extend;
+            let register = self.register;
+            self.reset_params();
+            return KeyResult::Action {
+                name: binding.action,
+                count,
+                extend,
+                register,
+            };
+        }
+
+        // Regular character insertion
         match key.code {
-            KeyCode::Special(SpecialKey::Escape) => {
-                self.mode = Mode::Normal;
-                self.reset_params();
-                KeyResult::ModeChange(Mode::Normal)
+            KeyCode::Char(c) if key.modifiers.is_empty() || key.modifiers == Modifiers::SHIFT => {
+                KeyResult::InsertChar(c)
             }
-
-            KeyCode::Char(c) if key.modifiers.is_empty() => KeyResult::InsertChar(c),
             KeyCode::Special(SpecialKey::Enter) => KeyResult::InsertChar('\n'),
             KeyCode::Special(SpecialKey::Tab) => KeyResult::InsertChar('\t'),
-
-            KeyCode::Special(SpecialKey::Backspace) => self.simple_action("delete_back"),
-            KeyCode::Special(SpecialKey::Delete) => self.simple_action("delete_no_yank"),
-
-            KeyCode::Special(SpecialKey::Left) if key.modifiers.ctrl => {
-                self.simple_action("prev_word_start")
-            }
-            KeyCode::Special(SpecialKey::Right) if key.modifiers.ctrl => {
-                self.simple_action("next_word_end")
-            }
-            KeyCode::Special(SpecialKey::Left) => self.simple_action("move_left"),
-            KeyCode::Special(SpecialKey::Right) => self.simple_action("move_right"),
-            KeyCode::Special(SpecialKey::Up) => self.simple_action("move_up_visual"),
-            KeyCode::Special(SpecialKey::Down) => self.simple_action("move_down_visual"),
-
-            KeyCode::Special(SpecialKey::Home) if key.modifiers.ctrl => {
-                self.simple_action("document_start")
-            }
-            KeyCode::Special(SpecialKey::End) if key.modifiers.ctrl => {
-                self.simple_action("document_end")
-            }
-            KeyCode::Special(SpecialKey::Home) => self.simple_action("move_line_start"),
-            KeyCode::Special(SpecialKey::End) => self.simple_action("move_line_end"),
-
-            KeyCode::Special(SpecialKey::PageUp) => self.simple_action("scroll_page_up"),
-            KeyCode::Special(SpecialKey::PageDown) => self.simple_action("scroll_page_down"),
-
             _ => KeyResult::Consumed,
         }
     }
@@ -311,11 +316,9 @@ impl InputHandler {
         let extend = self.extend;
         let register = self.register;
 
-        let key = key.drop_shift();
+        let key = self.extend_and_lower_if_shift(key);
 
-        // Try new keybinding registry first
         if let Some(binding) = find_binding(BindingMode::Goto, key) {
-
             self.mode = Mode::Normal;
             self.reset_params();
             return KeyResult::Action {
@@ -342,7 +345,7 @@ impl InputHandler {
         let extend = self.extend;
         let register = self.register;
 
-        let key = key.drop_shift();
+        let key = key.normalize().drop_shift();
 
         // Try new keybinding registry first
         if let Some(binding) = find_binding(BindingMode::View, key) {
@@ -531,17 +534,42 @@ impl InputHandler {
         }
     }
 
-    fn simple_action(&mut self, name: &'static str) -> KeyResult {
-        let count = if self.count > 0 { self.count as usize } else { 1 };
-        let extend = self.extend;
-        let register = self.register;
-        self.reset_params();
-        KeyResult::Action {
-            name,
-            count,
-            extend,
-            register,
+    /// If shift is held, set extend mode. For uppercase letters, use the uppercase binding
+    /// if it exists, otherwise lowercase for binding lookup.
+    ///
+    /// This implements Kakoune-style shift behavior:
+    /// - Shift+w (sent as 'W' with shift) → extend + W binding (WORD motion)
+    /// - Shift+l (sent as 'L' with shift) → extend + l binding (L has no binding, use l)
+    /// - Shift+u (sent as 'U' with shift) → extend + U binding (redo, which ignores extend)
+    fn extend_and_lower_if_shift(&mut self, key: Key) -> Key {
+        if key.modifiers.shift {
+            self.extend = true;
+            if let KeyCode::Char(c) = key.code
+                && c.is_ascii_uppercase()
+            {
+                // Check if uppercase has its own binding
+                let upper_key = Key {
+                    code: KeyCode::Char(c),
+                    modifiers: Modifiers {
+                        shift: false,
+                        ..key.modifiers
+                    },
+                };
+                if find_binding(BindingMode::Normal, upper_key).is_some() {
+                    // Uppercase has its own binding, use it with extend
+                    return upper_key;
+                }
+                // No uppercase binding, lowercase for lookup
+                return Key {
+                    code: KeyCode::Char(c.to_ascii_lowercase()),
+                    modifiers: Modifiers {
+                        shift: false,
+                        ..key.modifiers
+                    },
+                };
+            }
         }
+        key.drop_shift()
     }
 }
 
@@ -549,6 +577,7 @@ impl InputHandler {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::{KeyCode, Modifiers};
 
     #[test]
     fn test_digit_count_accumulates() {
@@ -556,5 +585,132 @@ mod tests {
         h.handle_key(Key::char('2'));
         h.handle_key(Key::char('3'));
         assert_eq!(h.effective_count(), 23);
+    }
+
+    fn key_with_shift(c: char) -> Key {
+        Key { code: KeyCode::Char(c), modifiers: Modifiers { shift: true, ..Modifiers::NONE } }
+    }
+
+    #[test]
+    fn test_word_motion_sets_extend_with_shift() {
+        let mut h = InputHandler::new();
+        let res = h.handle_key(key_with_shift('w'));
+        match res {
+            KeyResult::Action { name, extend, .. } => {
+                assert_eq!(name, "next_word_start");
+                assert!(extend);
+            }
+            other => panic!("unexpected result: {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_word_motion_no_shift_not_extend() {
+        let mut h = InputHandler::new();
+        let res = h.handle_key(Key::char('w'));
+        match res {
+            KeyResult::Action { name, extend, .. } => {
+                assert_eq!(name, "next_word_start");
+                assert!(!extend);
+            }
+            other => panic!("unexpected result: {:?}", other),
+        }
+    }
+
+    /// Simulates what crossterm actually sends: Shift+w comes as uppercase 'W' with shift modifier.
+    /// (We no longer call normalize() in the From<KeyEvent> impl)
+    fn key_from_crossterm_shifted(c: char) -> Key {
+        // Crossterm sends: Char(uppercase) + Shift modifier
+        Key {
+            code: KeyCode::Char(c.to_ascii_uppercase()),
+            modifiers: Modifiers { shift: true, ..Modifiers::NONE },
+        }
+    }
+
+    #[test]
+    fn test_shift_w_from_crossterm_sets_extend() {
+        // Crossterm sends 'W' with shift=true
+        // Since W has its own binding (next_long_word_start), we use that with extend
+        let key = key_from_crossterm_shifted('w');
+        assert_eq!(key.code, KeyCode::Char('W'));
+        assert!(key.modifiers.shift, "crossterm preserves shift modifier");
+
+        let mut h = InputHandler::new();
+        let res = h.handle_key(key);
+        match res {
+            KeyResult::Action { name, extend, .. } => {
+                assert_eq!(name, "next_long_word_start", "should match 'W' binding");
+                assert!(extend, "shift should set extend=true");
+            }
+            other => panic!("unexpected result: {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_shift_l_from_crossterm_sets_extend() {
+        let key = key_from_crossterm_shifted('l');
+        assert_eq!(key.code, KeyCode::Char('L'));
+        assert!(key.modifiers.shift);
+
+        let mut h = InputHandler::new();
+        let res = h.handle_key(key);
+        match res {
+            KeyResult::Action { name, extend, .. } => {
+                assert_eq!(name, "move_right", "should match 'l' binding");
+                assert!(extend, "shift should set extend=true");
+            }
+            other => panic!("unexpected result: {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_uppercase_w_means_long_word_not_extend() {
+        // Pressing 'W' (capital) without shift modifier - this is next_long_word_start
+        // In Kakoune, W is bound to WORD motion, not extend
+        let mut h = InputHandler::new();
+        let res = h.handle_key(Key::char('W'));
+        match res {
+            KeyResult::Action { name, extend, .. } => {
+                assert_eq!(name, "next_long_word_start", "W should be WORD motion");
+                assert!(!extend, "no shift means no extend");
+            }
+            other => panic!("unexpected result: {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_shift_u_is_redo_with_extend() {
+        // Shift+U triggers U binding (redo) with extend=true
+        // Redo ignores extend, but it's still set
+        let key = key_from_crossterm_shifted('u');
+        assert_eq!(key.code, KeyCode::Char('U'));
+        assert!(key.modifiers.shift);
+
+        let mut h = InputHandler::new();
+        let res = h.handle_key(key);
+        match res {
+            KeyResult::Action { name, extend, .. } => {
+                assert_eq!(name, "redo", "Shift+U should be redo");
+                assert!(extend, "shift always sets extend");
+            }
+            other => panic!("unexpected result: {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_shift_w_uses_uppercase_w_binding_with_extend() {
+        // W has its own binding (next_long_word_start)
+        // Shift+W should use W binding with extend=true
+        let key = key_from_crossterm_shifted('w');
+
+        let mut h = InputHandler::new();
+        let res = h.handle_key(key);
+        match res {
+            KeyResult::Action { name, extend, .. } => {
+                assert_eq!(name, "next_long_word_start", "Shift+W should use W binding");
+                assert!(extend, "shift should set extend=true");
+            }
+            other => panic!("unexpected result: {:?}", other),
+        }
     }
 }

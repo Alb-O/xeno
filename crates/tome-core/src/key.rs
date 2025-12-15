@@ -428,7 +428,7 @@ impl From<crossterm::event::KeyEvent> for Key {
             _ => KeyCode::Char('\0'),
         };
 
-        Self { code, modifiers }.normalize()
+        Self { code, modifiers }
     }
 }
 
