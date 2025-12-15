@@ -25,9 +25,6 @@ fn run_editor(mut editor: Editor) -> io::Result<()> {
 
     let result = (|| {
         loop {
-            let viewport_height = terminal.size()?.height.saturating_sub(2) as usize;
-            editor.adjust_scroll(viewport_height);
-
             terminal.draw(|frame| editor.render(frame))?;
 
             if let Event::Key(key) = crossterm::event::read()? {
@@ -78,7 +75,7 @@ mod tests {
 
     #[test]
     fn test_render_empty() {
-        let editor = test_editor("");
+        let mut editor = test_editor("");
         let mut terminal = Terminal::new(TestBackend::new(80, 10)).unwrap();
         terminal.draw(|frame| editor.render(frame)).unwrap();
         assert_snapshot!(terminal.backend());
@@ -86,7 +83,7 @@ mod tests {
 
     #[test]
     fn test_render_with_content() {
-        let editor = test_editor("Hello, World!\nThis is a test.\nLine 3.");
+        let mut editor = test_editor("Hello, World!\nThis is a test.\nLine 3.");
         let mut terminal = Terminal::new(TestBackend::new(80, 10)).unwrap();
         terminal.draw(|frame| editor.render(frame)).unwrap();
         assert_snapshot!(terminal.backend());
@@ -242,7 +239,7 @@ mod tests {
     #[test]
     fn test_soft_wrap_long_line() {
         let long_line = "The quick brown fox jumps over the lazy dog and keeps on running";
-        let editor = test_editor(long_line);
+        let mut editor = test_editor(long_line);
         
         let mut terminal = Terminal::new(TestBackend::new(40, 10)).unwrap();
         terminal.draw(|frame| editor.render(frame)).unwrap();
@@ -252,7 +249,7 @@ mod tests {
     #[test]
     fn test_soft_wrap_word_boundary() {
         let text = "hello world this is a test of word wrapping behavior";
-        let editor = test_editor(text);
+        let mut editor = test_editor(text);
         
         let mut terminal = Terminal::new(TestBackend::new(30, 10)).unwrap();
         terminal.draw(|frame| editor.render(frame)).unwrap();
@@ -262,7 +259,7 @@ mod tests {
     #[test]
     fn test_line_numbers_multiple_lines() {
         let text = "Line 1\nLine 2\nLine 3\nLine 4\nLine 5";
-        let editor = test_editor(text);
+        let mut editor = test_editor(text);
         
         let mut terminal = Terminal::new(TestBackend::new(40, 10)).unwrap();
         terminal.draw(|frame| editor.render(frame)).unwrap();
@@ -274,7 +271,7 @@ mod tests {
         use ratatui::style::Color;
         
         let long_line = "This is a very long line that should wrap to multiple virtual lines";
-        let editor = test_editor(long_line);
+        let mut editor = test_editor(long_line);
         
         let mut terminal = Terminal::new(TestBackend::new(30, 10)).unwrap();
         terminal.draw(|frame| editor.render(frame)).unwrap();
@@ -305,5 +302,56 @@ mod tests {
         editor.handle_key(KeyEvent::new(KeyCode::Backspace, KeyModifiers::NONE));
         assert_eq!(editor.doc.to_string(), "ello", "no change when at start");
         assert_eq!(editor.selection.primary().head, 0, "cursor stays at 0");
+    }
+
+    #[test]
+    fn test_scroll_down_when_cursor_at_bottom() {
+        let text = (1..=20).map(|i| format!("Line {}", i)).collect::<Vec<_>>().join("\n");
+        let mut editor = test_editor(&text);
+        
+        let viewport_height = 8;
+        
+        assert_eq!(editor.scroll_offset, 0, "starts at top");
+        assert_eq!(editor.cursor_line(), 0, "cursor on line 0");
+        
+        for _ in 0..10 {
+            editor.handle_key(KeyEvent::new(KeyCode::Char('j'), KeyModifiers::NONE));
+        }
+        
+        assert_eq!(editor.cursor_line(), 10, "cursor on line 10");
+        
+        let mut terminal = Terminal::new(TestBackend::new(40, viewport_height as u16 + 2)).unwrap();
+        terminal.draw(|frame| editor.render(frame)).unwrap();
+        
+        assert!(
+            editor.scroll_offset + viewport_height > editor.cursor_line(),
+            "cursor line {} should be visible in viewport (scroll_offset={}, height={})",
+            editor.cursor_line(),
+            editor.scroll_offset,
+            viewport_height
+        );
+    }
+
+    #[test]
+    fn test_scroll_with_soft_wrapped_lines() {
+        let long_line = "This is a very long line that will wrap multiple times in the viewport";
+        let text = format!("{}\n{}\n{}\nshort\nshort", long_line, long_line, long_line);
+        let mut editor = test_editor(&text);
+        
+        let mut terminal = Terminal::new(TestBackend::new(20, 6)).unwrap();
+        
+        for _ in 0..4 {
+            editor.handle_key(KeyEvent::new(KeyCode::Char('j'), KeyModifiers::NONE));
+        }
+        
+        assert_eq!(editor.cursor_line(), 4, "cursor on line 4 (last 'short')");
+        
+        terminal.draw(|frame| editor.render(frame)).unwrap();
+        
+        assert!(
+            editor.scroll_offset > 0,
+            "scroll_offset should be > 0 to show cursor through wrapped lines, got {}",
+            editor.scroll_offset
+        );
     }
 }

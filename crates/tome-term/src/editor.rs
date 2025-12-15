@@ -82,15 +82,6 @@ impl Editor {
         head.saturating_sub(line_start)
     }
 
-    pub fn adjust_scroll(&mut self, viewport_height: usize) {
-        let cursor_line = self.cursor_line();
-        if cursor_line < self.scroll_offset {
-            self.scroll_offset = cursor_line;
-        } else if cursor_line >= self.scroll_offset + viewport_height {
-            self.scroll_offset = cursor_line.saturating_sub(viewport_height - 1);
-        }
-    }
-
     pub fn save_undo_state(&mut self) {
         self.undo_stack.push(HistoryEntry {
             doc: self.doc.clone(),

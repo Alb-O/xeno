@@ -14,7 +14,7 @@ pub struct WrapSegment {
 }
 
 impl Editor {
-    pub fn render(&self, frame: &mut ratatui::Frame) {
+    pub fn render(&mut self, frame: &mut ratatui::Frame) {
         let chunks = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
@@ -24,9 +24,55 @@ impl Editor {
             ])
             .split(frame.area());
 
+        self.ensure_cursor_visible(chunks[0]);
         frame.render_widget(self.render_document(chunks[0]), chunks[0]);
         frame.render_widget(self.render_status_line(), chunks[1]);
         frame.render_widget(self.render_message_line(), chunks[2]);
+    }
+
+    fn ensure_cursor_visible(&mut self, area: Rect) {
+        let total_lines = self.doc.len_lines();
+        let gutter_width = total_lines.max(1).ilog10() as u16 + 2;
+        let text_width = area.width.saturating_sub(gutter_width) as usize;
+        let viewport_height = area.height as usize;
+        let cursor_line = self.cursor_line();
+
+        if cursor_line < self.scroll_offset {
+            self.scroll_offset = cursor_line;
+            return;
+        }
+
+        let mut visual_rows = 0;
+        let mut line_idx = self.scroll_offset;
+
+        while line_idx < total_lines && visual_rows < viewport_height {
+            let line_start = self.doc.line_to_char(line_idx);
+            let line_end = if line_idx + 1 < total_lines {
+                self.doc.line_to_char(line_idx + 1)
+            } else {
+                self.doc.len_chars()
+            };
+
+            let line_text: String = self.doc.slice(line_start..line_end).into();
+            let line_text = line_text.trim_end_matches('\n');
+            let wrapped = self.wrap_line(line_text, text_width);
+            let rows_for_line = wrapped.len().max(1);
+
+            if line_idx == cursor_line {
+                if visual_rows + rows_for_line <= viewport_height {
+                    return;
+                }
+                break;
+            }
+
+            visual_rows += rows_for_line;
+            line_idx += 1;
+        }
+
+        if line_idx <= cursor_line {
+            self.scroll_offset += 1;
+            self.ensure_cursor_visible(area);
+        }
     }
 
     pub fn render_document(&self, area: Rect) -> impl Widget + '_ {
