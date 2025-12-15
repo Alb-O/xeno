@@ -23,7 +23,7 @@ pub fn find_char_forward(
             found_count += 1;
             if found_count >= count {
                 let final_pos = if inclusive { pos } else { pos.saturating_sub(1) };
-                return make_range(range.anchor, final_pos, extend);
+                return make_range(range, final_pos, extend);
             }
         }
         pos += 1;
@@ -53,7 +53,7 @@ pub fn find_char_backward(
             found_count += 1;
             if found_count >= count {
                 let final_pos = if inclusive { pos } else { pos + 1 };
-                return make_range(range.anchor, final_pos, extend);
+                return make_range(range, final_pos, extend);
             }
         }
         if pos == 0 {

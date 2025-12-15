@@ -57,7 +57,7 @@ pub fn move_to_next_word_start(
         }
     }
 
-    make_range(range.anchor, pos.min(len), extend)
+    make_range(range, pos.min(len), extend)
 }
 
 /// Move to next word end (Kakoune's `e` command).
@@ -113,7 +113,7 @@ pub fn move_to_next_word_end(
     // End position is one before where we stopped (last char of word)
     let end_pos = pos.saturating_sub(1).min(len.saturating_sub(1));
 
-    make_range(range.anchor, end_pos, extend)
+    make_range(range, end_pos, extend)
 }
 
 /// Move to previous word start (Kakoune's `b` command).
@@ -164,7 +164,7 @@ pub fn move_to_prev_word_start(
         }
     }
 
-    make_range(range.anchor, pos, extend)
+    make_range(range, pos, extend)
 }
 
 #[cfg(test)]

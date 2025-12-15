@@ -32,11 +32,12 @@ pub(crate) fn is_word_char(c: char) -> bool {
     c.is_alphanumeric() || c == '_'
 }
 
-pub(crate) fn make_range(anchor: usize, new_head: usize, extend: bool) -> Range {
+pub(crate) fn make_range(range: Range, new_head: usize, extend: bool) -> Range {
     if extend {
-        Range::new(anchor, new_head)
+        Range::new(range.anchor, new_head)
     } else {
-        Range::point(new_head)
+        // Kakoune-style: anchor stays at previous head when not extending
+        Range::new(range.head, new_head)
     }
 }
 
@@ -65,7 +66,7 @@ pub fn move_horizontally(
         }
     };
 
-    make_range(range.anchor, new_pos, extend)
+    make_range(range, new_pos, extend)
 }
 
 pub fn move_vertically(
@@ -96,13 +97,13 @@ pub fn move_vertically(
     let new_col = col.min(line_end_offset);
     let new_pos = new_line_start + new_col;
 
-    make_range(range.anchor, new_pos, extend)
+    make_range(range, new_pos, extend)
 }
 
 pub fn move_to_line_start(text: RopeSlice, range: Range, extend: bool) -> Range {
     let line = text.char_to_line(range.head);
     let line_start = text.line_to_char(line);
-    make_range(range.anchor, line_start, extend)
+    make_range(range, line_start, extend)
 }
 
 pub fn move_to_line_end(text: RopeSlice, range: Range, extend: bool) -> Range {
@@ -117,7 +118,7 @@ pub fn move_to_line_end(text: RopeSlice, range: Range, extend: bool) -> Range {
         line_start + line_len.saturating_sub(1)
     };
 
-    make_range(range.anchor, line_end, extend)
+    make_range(range, line_end, extend)
 }
 
 pub fn move_to_first_nonwhitespace(text: RopeSlice, range: Range, extend: bool) -> Range {
@@ -133,17 +134,17 @@ pub fn move_to_first_nonwhitespace(text: RopeSlice, range: Range, extend: bool) 
         }
     }
 
-    make_range(range.anchor, first_non_ws, extend)
+    make_range(range, first_non_ws, extend)
 }
 
 /// Move to document start.
 pub fn move_to_document_start(_text: RopeSlice, range: Range, extend: bool) -> Range {
-    make_range(range.anchor, 0, extend)
+    make_range(range, 0, extend)
 }
 
 /// Move to document end.
 pub fn move_to_document_end(text: RopeSlice, range: Range, extend: bool) -> Range {
-    make_range(range.anchor, text.len_chars(), extend)
+    make_range(range, text.len_chars(), extend)
 }
 
 #[cfg(test)]

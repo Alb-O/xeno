@@ -29,7 +29,7 @@ static MOTION_DOCUMENT_END: MotionDef = MotionDef {
 };
 
 fn find_char_forward(_text: RopeSlice, range: Range, _count: usize, extend: bool) -> Range {
-    movement::make_range(range.anchor, range.head, extend)
+    movement::make_range(range, range.head, extend)
 }
 
 #[distributed_slice(MOTIONS)]
