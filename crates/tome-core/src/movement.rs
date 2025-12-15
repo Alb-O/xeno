@@ -15,19 +15,11 @@ fn is_word_char(c: char) -> bool {
     c.is_alphanumeric() || c == '_'
 }
 
-#[allow(dead_code)]
-fn is_word_boundary(prev: char, curr: char, word_type: WordType) -> bool {
-    match word_type {
-        WordType::Word => {
-            let prev_word = is_word_char(prev);
-            let curr_word = is_word_char(curr);
-            prev_word != curr_word
-        }
-        WordType::WORD => {
-            let prev_space = prev.is_whitespace();
-            let curr_space = curr.is_whitespace();
-            prev_space != curr_space
-        }
+fn make_range(anchor: usize, new_head: usize, extend: bool) -> Range {
+    if extend {
+        Range::new(anchor, new_head)
+    } else {
+        Range::point(new_head)
     }
 }
 
@@ -56,11 +48,7 @@ pub fn move_horizontally(
         }
     };
 
-    if extend {
-        Range::new(range.anchor, new_pos)
-    } else {
-        Range::point(new_pos)
-    }
+    make_range(range.anchor, new_pos, extend)
 }
 
 pub fn move_vertically(
@@ -91,22 +79,13 @@ pub fn move_vertically(
     let new_col = col.min(line_end_offset);
     let new_pos = new_line_start + new_col;
 
-    if extend {
-        Range::new(range.anchor, new_pos)
-    } else {
-        Range::point(new_pos)
-    }
+    make_range(range.anchor, new_pos, extend)
 }
 
 pub fn move_to_line_start(text: RopeSlice, range: Range, extend: bool) -> Range {
     let line = text.char_to_line(range.head);
     let line_start = text.line_to_char(line);
-
-    if extend {
-        Range::new(range.anchor, line_start)
-    } else {
-        Range::point(line_start)
-    }
+    make_range(range.anchor, line_start, extend)
 }
 
 pub fn move_to_line_end(text: RopeSlice, range: Range, extend: bool) -> Range {
@@ -121,11 +100,7 @@ pub fn move_to_line_end(text: RopeSlice, range: Range, extend: bool) -> Range {
         line_start + line_len.saturating_sub(1)
     };
 
-    if extend {
-        Range::new(range.anchor, line_end)
-    } else {
-        Range::point(line_end)
-    }
+    make_range(range.anchor, line_end, extend)
 }
 
 pub fn move_to_first_nonwhitespace(text: RopeSlice, range: Range, extend: bool) -> Range {
@@ -141,11 +116,7 @@ pub fn move_to_first_nonwhitespace(text: RopeSlice, range: Range, extend: bool) 
         }
     }
 
-    if extend {
-        Range::new(range.anchor, first_non_ws)
-    } else {
-        Range::point(first_non_ws)
-    }
+    make_range(range.anchor, first_non_ws, extend)
 }
 
 /// Move to next word start (Kakoune's `w` command).
@@ -200,11 +171,7 @@ pub fn move_to_next_word_start(
         }
     }
 
-    if extend {
-        Range::new(range.anchor, pos.min(len))
-    } else {
-        Range::point(pos.min(len))
-    }
+    make_range(range.anchor, pos.min(len), extend)
 }
 
 /// Move to next word end (Kakoune's `e` command).
@@ -260,11 +227,7 @@ pub fn move_to_next_word_end(
     // End position is one before where we stopped (last char of word)
     let end_pos = pos.saturating_sub(1).min(len.saturating_sub(1));
 
-    if extend {
-        Range::new(range.anchor, end_pos)
-    } else {
-        Range::point(end_pos)
-    }
+    make_range(range.anchor, end_pos, extend)
 }
 
 /// Move to previous word start (Kakoune's `b` command).
@@ -317,31 +280,17 @@ pub fn move_to_prev_word_start(
         }
     }
 
-    if extend {
-        Range::new(range.anchor, pos)
-    } else {
-        Range::point(pos)
-    }
+    make_range(range.anchor, pos, extend)
 }
 
 /// Move to document start.
-pub fn move_to_document_start(text: RopeSlice, range: Range, extend: bool) -> Range {
-    let _ = text;
-    if extend {
-        Range::new(range.anchor, 0)
-    } else {
-        Range::point(0)
-    }
+pub fn move_to_document_start(_text: RopeSlice, range: Range, extend: bool) -> Range {
+    make_range(range.anchor, 0, extend)
 }
 
 /// Move to document end.
 pub fn move_to_document_end(text: RopeSlice, range: Range, extend: bool) -> Range {
-    let end = text.len_chars();
-    if extend {
-        Range::new(range.anchor, end)
-    } else {
-        Range::point(end)
-    }
+    make_range(range.anchor, text.len_chars(), extend)
 }
 
 /// Find character forward (Kakoune's `f` and `t` commands).
@@ -362,11 +311,7 @@ pub fn find_char_forward(
             found_count += 1;
             if found_count >= count {
                 let final_pos = if inclusive { pos } else { pos.saturating_sub(1) };
-                return if extend {
-                    Range::new(range.anchor, final_pos)
-                } else {
-                    Range::point(final_pos)
-                };
+                return make_range(range.anchor, final_pos, extend);
             }
         }
         pos += 1;
@@ -396,11 +341,7 @@ pub fn find_char_backward(
             found_count += 1;
             if found_count >= count {
                 let final_pos = if inclusive { pos } else { pos + 1 };
-                return if extend {
-                    Range::new(range.anchor, final_pos)
-                } else {
-                    Range::point(final_pos)
-                };
+                return make_range(range.anchor, final_pos, extend);
             }
         }
         if pos == 0 {

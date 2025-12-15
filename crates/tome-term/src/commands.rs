@@ -4,6 +4,36 @@ use tome_core::keymap::ObjectSelection;
 
 use crate::editor::Editor;
 
+const SCROLL_HALF_PAGE: usize = 10;
+const SCROLL_FULL_PAGE: usize = 20;
+
+fn apply_case_conversion<F>(editor: &mut Editor, char_mapper: F)
+where
+    F: Fn(char) -> Box<dyn Iterator<Item = char>>,
+{
+    let primary = editor.selection.primary();
+    let from = primary.from();
+    let to = primary.to();
+    if from < to {
+        editor.save_undo_state();
+        let text: String = editor
+            .doc
+            .slice(from..to)
+            .chars()
+            .flat_map(|c| char_mapper(c))
+            .collect();
+        let new_len = text.chars().count();
+        let tx = Transaction::delete(editor.doc.slice(..), &editor.selection);
+        editor.selection = tx.map_selection(&editor.selection);
+        tx.apply(&mut editor.doc);
+        let tx = Transaction::insert(editor.doc.slice(..), &editor.selection, text);
+        tx.apply(&mut editor.doc);
+        let head = editor.selection.primary().head + new_len;
+        editor.selection = Selection::point(head);
+        editor.modified = true;
+    }
+}
+
 pub fn execute_command_line(editor: &mut Editor, cmd: &str) -> bool {
     let cmd = cmd.trim();
     match cmd {
@@ -244,63 +274,35 @@ pub fn execute_command(editor: &mut Editor, cmd: Command, count: u32, extend: bo
         }
 
         Command::ScrollHalfPageUp => {
-            editor.scroll_offset = editor.scroll_offset.saturating_sub(10);
+            editor.scroll_offset = editor.scroll_offset.saturating_sub(SCROLL_HALF_PAGE);
             editor.selection.transform_mut(|r| {
-                *r = movement::move_vertically(slice, *r, MoveDir::Backward, 10, false);
+                *r = movement::move_vertically(slice, *r, MoveDir::Backward, SCROLL_HALF_PAGE, false);
             });
         }
         Command::ScrollHalfPageDown => {
-            editor.scroll_offset = editor.scroll_offset.saturating_add(10);
+            editor.scroll_offset = editor.scroll_offset.saturating_add(SCROLL_HALF_PAGE);
             editor.selection.transform_mut(|r| {
-                *r = movement::move_vertically(slice, *r, MoveDir::Forward, 10, false);
+                *r = movement::move_vertically(slice, *r, MoveDir::Forward, SCROLL_HALF_PAGE, false);
             });
         }
         Command::ScrollPageUp => {
-            editor.scroll_offset = editor.scroll_offset.saturating_sub(20);
+            editor.scroll_offset = editor.scroll_offset.saturating_sub(SCROLL_FULL_PAGE);
             editor.selection.transform_mut(|r| {
-                *r = movement::move_vertically(slice, *r, MoveDir::Backward, 20, false);
+                *r = movement::move_vertically(slice, *r, MoveDir::Backward, SCROLL_FULL_PAGE, false);
             });
         }
         Command::ScrollPageDown => {
-            editor.scroll_offset = editor.scroll_offset.saturating_add(20);
+            editor.scroll_offset = editor.scroll_offset.saturating_add(SCROLL_FULL_PAGE);
             editor.selection.transform_mut(|r| {
-                *r = movement::move_vertically(slice, *r, MoveDir::Forward, 20, false);
+                *r = movement::move_vertically(slice, *r, MoveDir::Forward, SCROLL_FULL_PAGE, false);
             });
         }
 
         Command::ToLowerCase => {
-            let primary = editor.selection.primary();
-            let from = primary.from();
-            let to = primary.to();
-            if from < to {
-                editor.save_undo_state();
-                let text: String = editor.doc.slice(from..to).chars().flat_map(|c| c.to_lowercase()).collect();
-                let tx = Transaction::delete(editor.doc.slice(..), &editor.selection);
-                editor.selection = tx.map_selection(&editor.selection);
-                tx.apply(&mut editor.doc);
-                let tx = Transaction::insert(editor.doc.slice(..), &editor.selection, text);
-                tx.apply(&mut editor.doc);
-                let head = editor.selection.primary().head + (to - from);
-                editor.selection = Selection::point(head);
-                editor.modified = true;
-            }
+            apply_case_conversion(editor, |c| Box::new(c.to_lowercase()));
         }
         Command::ToUpperCase => {
-            let primary = editor.selection.primary();
-            let from = primary.from();
-            let to = primary.to();
-            if from < to {
-                editor.save_undo_state();
-                let text: String = editor.doc.slice(from..to).chars().flat_map(|c| c.to_uppercase()).collect();
-                let tx = Transaction::delete(editor.doc.slice(..), &editor.selection);
-                editor.selection = tx.map_selection(&editor.selection);
-                tx.apply(&mut editor.doc);
-                let tx = Transaction::insert(editor.doc.slice(..), &editor.selection, text.clone());
-                tx.apply(&mut editor.doc);
-                let head = editor.selection.primary().head + text.chars().count();
-                editor.selection = Selection::point(head);
-                editor.modified = true;
-            }
+            apply_case_conversion(editor, |c| Box::new(c.to_uppercase()));
         }
 
         Command::JoinLines => {
