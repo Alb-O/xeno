@@ -104,3 +104,60 @@ action!(
     "Repeat the last object/find operation",
     |_ctx: &ActionContext| ActionResult::RepeatLastObject
 );
+
+// Selection operations
+action!(
+    ACTION_DUPLICATE_DOWN,
+    "duplicate_selections_down",
+    "Duplicate selections on next lines",
+    |_ctx: &ActionContext| ActionResult::DuplicateSelectionsDown
+);
+
+action!(
+    ACTION_DUPLICATE_UP,
+    "duplicate_selections_up",
+    "Duplicate selections on previous lines",
+    |_ctx: &ActionContext| ActionResult::DuplicateSelectionsUp
+);
+
+action!(
+    ACTION_MERGE_SELECTIONS,
+    "merge_selections",
+    "Merge overlapping selections",
+    |_ctx: &ActionContext| ActionResult::MergeSelections
+);
+
+action!(
+    ACTION_ALIGN,
+    "align",
+    "Align cursors",
+    |_ctx: &ActionContext| ActionResult::Align
+);
+
+action!(
+    ACTION_COPY_INDENT,
+    "copy_indent",
+    "Copy indent from previous line",
+    |_ctx: &ActionContext| ActionResult::CopyIndent
+);
+
+action!(
+    ACTION_TABS_TO_SPACES,
+    "tabs_to_spaces",
+    "Convert tabs to spaces",
+    |_ctx: &ActionContext| ActionResult::TabsToSpaces
+);
+
+action!(
+    ACTION_SPACES_TO_TABS,
+    "spaces_to_tabs",
+    "Convert spaces to tabs",
+    |_ctx: &ActionContext| ActionResult::SpacesToTabs
+);
+
+action!(
+    ACTION_TRIM_SELECTIONS,
+    "trim_selections",
+    "Trim whitespace from selections",
+    |_ctx: &ActionContext| ActionResult::TrimSelections
+);

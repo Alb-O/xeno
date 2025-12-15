@@ -168,3 +168,14 @@ bind!(KB_PIPE, Key::char('|'), "pipe_replace");
 bind!(KB_PIPE_ALT, Key::alt('|'), "pipe_ignore");
 bind!(KB_BANG, Key::char('!'), "insert_output");
 bind!(KB_BANG_ALT, Key::alt('!'), "append_output");
+
+// Misc selection operations
+bind!(KB_PLUS_DUP, Key::char('+'), "duplicate_selections_down");
+bind!(KB_C_DUP, Key::char('C'), "duplicate_selections_down");
+bind!(KB_C_ALT_DUP, Key::alt('C'), "duplicate_selections_up");
+bind!(KB_PLUS_ALT_MERGE, Key::alt('+'), "merge_selections");
+bind!(KB_AMP_ALIGN, Key::char('&'), "align");
+bind!(KB_AMP_ALT_COPY_INDENT, Key::alt('&'), "copy_indent");
+bind!(KB_AT_TABS, Key::char('@'), "tabs_to_spaces");
+bind!(KB_AT_ALT_SPACES, Key::alt('@'), "spaces_to_tabs");
+bind!(KB_UNDERSCORE_TRIM, Key::char('_'), "trim_selections");

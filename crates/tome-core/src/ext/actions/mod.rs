@@ -75,6 +75,22 @@ pub enum ActionResult {
     RepeatLastInsert,
     /// Repeat the last object/find operation.
     RepeatLastObject,
+    /// Duplicate selections on next lines (C).
+    DuplicateSelectionsDown,
+    /// Duplicate selections on previous lines (alt-C).
+    DuplicateSelectionsUp,
+    /// Merge overlapping selections (alt-+).
+    MergeSelections,
+    /// Align cursors (&).
+    Align,
+    /// Copy indent from previous line (alt-&).
+    CopyIndent,
+    /// Convert tabs to spaces (@).
+    TabsToSpaces,
+    /// Convert spaces to tabs (alt-@).
+    SpacesToTabs,
+    /// Trim whitespace from selections (_).
+    TrimSelections,
 }
 
 /// An edit operation to apply to the document.

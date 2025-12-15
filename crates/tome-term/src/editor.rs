@@ -673,6 +673,38 @@ impl Editor {
                 self.message = Some("Repeat object not yet implemented".to_string());
                 false
             }
+            ActionResult::DuplicateSelectionsDown => {
+                self.message = Some("Duplicate down not yet implemented".to_string());
+                false
+            }
+            ActionResult::DuplicateSelectionsUp => {
+                self.message = Some("Duplicate up not yet implemented".to_string());
+                false
+            }
+            ActionResult::MergeSelections => {
+                self.message = Some("Merge selections not yet implemented".to_string());
+                false
+            }
+            ActionResult::Align => {
+                self.message = Some("Align not yet implemented".to_string());
+                false
+            }
+            ActionResult::CopyIndent => {
+                self.message = Some("Copy indent not yet implemented".to_string());
+                false
+            }
+            ActionResult::TabsToSpaces => {
+                self.message = Some("Tabs to spaces not yet implemented".to_string());
+                false
+            }
+            ActionResult::SpacesToTabs => {
+                self.message = Some("Spaces to tabs not yet implemented".to_string());
+                false
+            }
+            ActionResult::TrimSelections => {
+                self.message = Some("Trim selections not yet implemented".to_string());
+                false
+            }
         }
     }
 
@@ -783,6 +815,38 @@ impl Editor {
             }
             ActionResult::RepeatLastObject => {
                 self.message = Some("Repeat object not yet implemented".to_string());
+                false
+            }
+            ActionResult::DuplicateSelectionsDown => {
+                self.message = Some("Duplicate down not yet implemented".to_string());
+                false
+            }
+            ActionResult::DuplicateSelectionsUp => {
+                self.message = Some("Duplicate up not yet implemented".to_string());
+                false
+            }
+            ActionResult::MergeSelections => {
+                self.message = Some("Merge selections not yet implemented".to_string());
+                false
+            }
+            ActionResult::Align => {
+                self.message = Some("Align not yet implemented".to_string());
+                false
+            }
+            ActionResult::CopyIndent => {
+                self.message = Some("Copy indent not yet implemented".to_string());
+                false
+            }
+            ActionResult::TabsToSpaces => {
+                self.message = Some("Tabs to spaces not yet implemented".to_string());
+                false
+            }
+            ActionResult::SpacesToTabs => {
+                self.message = Some("Spaces to tabs not yet implemented".to_string());
+                false
+            }
+            ActionResult::TrimSelections => {
+                self.message = Some("Trim selections not yet implemented".to_string());
                 false
             }
         }
