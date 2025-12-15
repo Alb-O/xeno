@@ -7,6 +7,7 @@ use tome_core::{
     InputHandler, Key, KeyResult, Mode, Rope, Selection, Transaction,
     ext, movement,
 };
+use tome_core::ext::{HookContext, emit_hook};
 
 use crate::commands;
 use crate::render::WrapSegment;
@@ -50,8 +51,19 @@ impl Editor {
     }
 
     pub fn from_content(content: String, path: PathBuf) -> Self {
+        let file_type = ext::detect_file_type(path.to_str().unwrap_or(""))
+            .map(|ft| ft.name);
+
+        let doc = Rope::from(content.as_str());
+
+        emit_hook(&HookContext::BufferOpen {
+            path: &path,
+            text: doc.slice(..),
+            file_type,
+        });
+
         Self {
-            doc: Rope::from(content.as_str()),
+            doc,
             selection: Selection::point(0),
             input: InputHandler::new(),
             path,
@@ -239,12 +251,20 @@ impl Editor {
     }
 
     pub fn save(&mut self) -> io::Result<()> {
+        emit_hook(&HookContext::BufferWritePre {
+            path: &self.path,
+            text: self.doc.slice(..),
+        });
+
         let mut f = fs::File::create(&self.path)?;
         for chunk in self.doc.chunks() {
             f.write_all(chunk.as_bytes())?;
         }
         self.modified = false;
         self.message = Some(format!("Saved {}", self.path.display()));
+
+        emit_hook(&HookContext::BufferWrite { path: &self.path });
+
         Ok(())
     }
 
@@ -316,6 +336,7 @@ impl Editor {
     pub fn handle_key(&mut self, key: crossterm::event::KeyEvent) -> bool {
         self.message = None;
 
+        let old_mode = self.mode();
         let key: Key = key.into();
         let result = self.input.handle_key(key);
 
@@ -323,8 +344,15 @@ impl Editor {
             KeyResult::Command(cmd, params) => {
                 commands::execute_command(self, cmd, params.count, params.extend)
             }
-            KeyResult::ModeChange(mode) => {
-                if matches!(mode, Mode::Normal) {
+            KeyResult::ModeChange(new_mode) => {
+                let is_normal = matches!(new_mode, Mode::Normal);
+                if new_mode != old_mode {
+                    emit_hook(&HookContext::ModeChange {
+                        old_mode,
+                        new_mode,
+                    });
+                }
+                if is_normal {
                     self.message = None;
                 }
                 false

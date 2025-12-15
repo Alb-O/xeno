@@ -10,6 +10,7 @@
 //! - [`MotionDef`]: Movement operations that modify selections
 //! - [`TextObjectDef`]: Text object selectors (word, paragraph, quotes)
 //! - [`FileTypeDef`]: File type detection and configuration
+//! - [`HookDef`]: Event hooks for editor lifecycle events
 //!
 //! # Registration
 //!
@@ -28,10 +29,14 @@
 //! };
 //! ```
 
+mod builtin_hooks;
 mod commands;
 mod filetypes;
+mod hooks;
 mod motions;
 mod objects;
+
+pub use hooks::{emit as emit_hook, find_hooks, all_hooks, HookContext, HookDef, HookEvent, HOOKS};
 
 use linkme::distributed_slice;
 use ropey::RopeSlice;
@@ -336,5 +341,35 @@ mod tests {
 
         let word = find_motion("next_word_start").expect("next_word_start motion should exist");
         assert_eq!(word.name, "next_word_start");
+    }
+
+    #[test]
+    fn test_hooks_accessible() {
+        // HOOKS slice should have builtin hooks registered
+        assert!(HOOKS.len() >= 2, "should have at least 2 builtin hooks");
+        
+        // all_hooks should work
+        let hooks = all_hooks();
+        assert!(hooks.len() >= 2);
+        
+        // find_hooks should find our mode change hook
+        let mode_hooks: Vec<_> = find_hooks(HookEvent::ModeChange).collect();
+        assert!(!mode_hooks.is_empty(), "should have mode change hooks");
+        
+        // find_hooks should find our buffer open hook
+        let open_hooks: Vec<_> = find_hooks(HookEvent::BufferOpen).collect();
+        assert!(!open_hooks.is_empty(), "should have buffer open hooks");
+    }
+
+    #[test]
+    fn test_emit_hook() {
+        use crate::Mode;
+        
+        // This should not panic even with no handlers
+        let ctx = HookContext::ModeChange {
+            old_mode: Mode::Normal,
+            new_mode: Mode::Insert,
+        };
+        emit_hook(&ctx);
     }
 }
