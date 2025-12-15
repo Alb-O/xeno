@@ -1,6 +1,5 @@
 ---
 source: crates/tome-term/src/main.rs
-assertion_line: 590
 expression: terminal.backend()
 ---
 "Hello, World!                                                                   "
@@ -11,5 +10,5 @@ expression: terminal.backend()
 "                                                                                "
 "                                                                                "
 "                                                                                "
-" NORMAL  test.txt  1:4                                                          "
+" NORMAL  test.txt  1:1                                                          "
 "                                                                                "

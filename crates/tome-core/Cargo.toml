@@ -5,7 +5,12 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 
+[features]
+default = []
+crossterm = ["dep:crossterm"]
+
 [dependencies]
+crossterm = { workspace = true, optional = true }
 ropey.workspace = true
 smallvec.workspace = true
 unicode-segmentation.workspace = true

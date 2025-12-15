@@ -115,6 +115,38 @@ impl ChangeSet {
         }
     }
 
+    /// Invert this changeset to create one that undoes its effects.
+    /// Must be called with the original document (before apply).
+    pub fn invert(&self, doc: &Rope) -> ChangeSet {
+        let mut result = ChangeSet {
+            changes: Vec::new(),
+            len: self.len_after,
+            len_after: self.len,
+        };
+
+        let mut pos = 0;
+        for op in &self.changes {
+            match op {
+                Operation::Retain(n) => {
+                    result.retain(*n);
+                    pos += n;
+                }
+                Operation::Delete(n) => {
+                    // To undo a delete, we insert what was deleted
+                    let deleted_text: String = doc.slice(pos..pos + n).chars().collect();
+                    result.insert(deleted_text);
+                    pos += n;
+                }
+                Operation::Insert(text) => {
+                    // To undo an insert, we delete what was inserted
+                    result.delete(text.chars().count());
+                }
+            }
+        }
+
+        result
+    }
+
     pub fn map_pos(&self, pos: usize, bias_right: bool) -> usize {
         let mut old_pos = 0;
         let mut new_pos = 0;
@@ -332,6 +364,15 @@ impl Transaction {
     pub fn apply(&self, doc: &mut Rope) -> Option<Selection> {
         self.changes.apply(doc);
         self.selection.clone()
+    }
+
+    /// Create a transaction that undoes this one.
+    /// Must be called with the original document (before apply).
+    pub fn invert(&self, doc: &Rope) -> Self {
+        Self {
+            changes: self.changes.invert(doc),
+            selection: None,
+        }
     }
 
     pub fn map_selection(&self, selection: &Selection) -> Selection {
