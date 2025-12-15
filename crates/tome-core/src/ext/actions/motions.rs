@@ -40,16 +40,30 @@ fn selection_motion_action(ctx: &ActionContext, motion_name: &str) -> ActionResu
     };
 
     // For selection-creating motions, we create a selection from cursor to new position
-    let current_range = if ctx.extend {
-        // When extending, use existing selection anchor
-        ctx.selection.primary()
+    if ctx.extend {
+        // Extend each selection from its anchor using the detached cursor for the primary head
+        let primary_index = ctx.selection.primary_index();
+        let new_ranges: Vec<Range> = ctx
+            .selection
+            .ranges()
+            .iter()
+            .enumerate()
+            .map(|(i, range)| {
+                let seed = if i == primary_index {
+                    Range::new(range.anchor, ctx.cursor)
+                } else {
+                    *range
+                };
+                (motion.handler)(ctx.text, seed, ctx.count, true)
+            })
+            .collect();
+        ActionResult::Motion(crate::selection::Selection::from_vec(new_ranges, primary_index))
     } else {
         // Otherwise start fresh from cursor
-        Range::point(ctx.cursor)
-    };
-
-    let new_range = (motion.handler)(ctx.text, current_range, ctx.count, ctx.extend);
-    ActionResult::Motion(crate::selection::Selection::single(new_range.anchor, new_range.head))
+        let current_range = Range::point(ctx.cursor);
+        let new_range = (motion.handler)(ctx.text, current_range, ctx.count, false);
+        ActionResult::Motion(crate::selection::Selection::single(new_range.anchor, new_range.head))
+    }
 }
 
 macro_rules! cursor_action {

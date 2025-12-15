@@ -486,6 +486,36 @@ mod tests {
     }
 
     #[test]
+    fn test_shift_motion_uses_detached_cursor() {
+        let mut editor = test_editor("one two three four");
+
+        // Build an initial selection from the start to the second word
+        for _ in 0..4 {
+            editor.handle_key(KeyEvent::new(KeyCode::Right, KeyModifiers::SHIFT));
+        }
+        assert_eq!(editor.selection.primary().anchor, 0);
+        assert_eq!(editor.selection.primary().head, 4);
+        assert_eq!(editor.cursor, 4);
+
+        // Move cursor forward without extending, detaching it from the selection head
+        for _ in 0..6 {
+            editor.handle_key(KeyEvent::new(KeyCode::Right, KeyModifiers::NONE));
+        }
+        assert_eq!(editor.cursor, 10);
+        let sel = editor.selection.primary();
+        assert_eq!(sel.anchor, 0);
+        assert_eq!(sel.head, 4);
+
+        // Shift+W should extend from the detached cursor position, not snap back to the old head
+        editor.handle_key(KeyEvent::new(KeyCode::Char('W'), KeyModifiers::SHIFT));
+
+        let sel = editor.selection.primary();
+        assert_eq!(sel.anchor, 0);
+        assert_eq!(sel.head, 14, "should extend from cursor to next WORD start");
+        assert_eq!(editor.cursor, 14, "cursor moves with updated head");
+    }
+
+    #[test]
     fn test_shift_right_extends_selection() {
         let mut editor = test_editor("hello");
         assert_eq!(editor.cursor, 0);
