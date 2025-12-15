@@ -430,4 +430,88 @@ mod tests {
         let total2: usize = segments2.iter().map(|s| s.text.chars().count()).sum();
         assert_eq!(total2, 19, "all characters preserved");
     }
+
+    #[test]
+    fn test_shift_end_extends_selection() {
+        let mut editor = test_editor("hello world");
+        // Start at position 0
+        assert_eq!(editor.selection.primary().head, 0);
+        assert_eq!(editor.selection.primary().anchor, 0);
+
+        // Shift+End should select from current position to end of line
+        editor.handle_key(KeyEvent::new(KeyCode::End, KeyModifiers::SHIFT));
+
+        let sel = editor.selection.primary();
+        assert_eq!(sel.anchor, 0, "anchor should stay at start");
+        assert_eq!(sel.head, 11, "head should move to end of line");
+        assert!(!sel.is_empty(), "selection should not be empty");
+    }
+
+    #[test]
+    fn test_shift_home_extends_selection() {
+        // In Kakoune, we start with a point selection and use extend to select
+        let mut editor = test_editor("hello world");
+        
+        // Shift+End to select to end (extend from current position)
+        editor.handle_key(KeyEvent::new(KeyCode::End, KeyModifiers::SHIFT));
+        let sel_after_end = editor.selection.primary();
+        assert_eq!(sel_after_end.anchor, 0, "anchor stays at start");
+        assert_eq!(sel_after_end.head, 11, "head moves to end");
+
+        // Shift+Home should extend back to start (anchor stays, head moves)
+        editor.handle_key(KeyEvent::new(KeyCode::Home, KeyModifiers::SHIFT));
+
+        let sel = editor.selection.primary();
+        assert_eq!(sel.head, 0, "head should move to start");
+        assert_eq!(sel.anchor, 0, "anchor stays at original position");
+    }
+
+    #[test]
+    fn test_shift_end_then_non_shift_home() {
+        // Start at 0, Shift+End to select, then Home (no shift) moves without extending
+        let mut editor = test_editor("hello world");
+        
+        editor.handle_key(KeyEvent::new(KeyCode::End, KeyModifiers::SHIFT));
+        let sel = editor.selection.primary();
+        assert_eq!(sel.anchor, 0);
+        assert_eq!(sel.head, 11);
+        
+        // Home without shift - in Kakoune, this creates a new selection from 11 to 0
+        editor.handle_key(KeyEvent::new(KeyCode::Home, KeyModifiers::NONE));
+        let sel = editor.selection.primary();
+        // anchor becomes previous head (11), head becomes new position (0)
+        assert_eq!(sel.anchor, 11, "anchor becomes previous head");
+        assert_eq!(sel.head, 0, "head moves to start");
+    }
+
+    #[test]
+    fn test_shift_right_extends_selection() {
+        let mut editor = test_editor("hello");
+        assert_eq!(editor.selection.primary().head, 0);
+
+        // Shift+Right three times should extend selection
+        editor.handle_key(KeyEvent::new(KeyCode::Right, KeyModifiers::SHIFT));
+        editor.handle_key(KeyEvent::new(KeyCode::Right, KeyModifiers::SHIFT));
+        editor.handle_key(KeyEvent::new(KeyCode::Right, KeyModifiers::SHIFT));
+
+        let sel = editor.selection.primary();
+        assert_eq!(sel.anchor, 0, "anchor should stay at start");
+        assert_eq!(sel.head, 3, "head should move 3 positions");
+    }
+
+    #[test]
+    fn test_end_without_shift_collapses_selection() {
+        let mut editor = test_editor("hello world");
+        // First select some text
+        editor.handle_key(KeyEvent::new(KeyCode::Right, KeyModifiers::SHIFT));
+        editor.handle_key(KeyEvent::new(KeyCode::Right, KeyModifiers::SHIFT));
+        assert!(!editor.selection.primary().is_empty(), "should have selection");
+
+        // End without shift should move cursor without extending
+        editor.handle_key(KeyEvent::new(KeyCode::End, KeyModifiers::NONE));
+
+        let sel = editor.selection.primary();
+        // After non-extend motion, selection should be at new position
+        assert_eq!(sel.head, 11, "head should be at end");
+    }
 }
