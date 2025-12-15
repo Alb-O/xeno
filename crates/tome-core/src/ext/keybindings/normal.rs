@@ -3,7 +3,7 @@
 use linkme::distributed_slice;
 
 use crate::ext::keybindings::{BindingMode, KeyBindingDef, KEYBINDINGS};
-use crate::key::Key;
+use crate::key::{Key, SpecialKey};
 
 const DEFAULT_PRIORITY: i16 = 100;
 
@@ -24,6 +24,16 @@ bind!(KB_H, Key::char('h'), "move_left");
 bind!(KB_L, Key::char('l'), "move_right");
 bind!(KB_J, Key::char('j'), "move_down_visual");
 bind!(KB_K, Key::char('k'), "move_up_visual");
+bind!(KB_LEFT, Key::special(SpecialKey::Left), "move_left");
+bind!(KB_RIGHT, Key::special(SpecialKey::Right), "move_right");
+bind!(KB_DOWN, Key::special(SpecialKey::Down), "move_down_visual");
+bind!(KB_UP, Key::special(SpecialKey::Up), "move_up_visual");
+bind!(KB_HOME, Key::special(SpecialKey::Home), "move_line_start");
+bind!(KB_END, Key::special(SpecialKey::End), "move_line_end");
+bind!(KB_HOME_CTRL, Key::special(SpecialKey::Home).with_ctrl(), "document_start");
+bind!(KB_END_CTRL, Key::special(SpecialKey::End).with_ctrl(), "document_end");
+bind!(KB_PAGE_UP, Key::special(SpecialKey::PageUp), "scroll_page_up");
+bind!(KB_PAGE_DOWN, Key::special(SpecialKey::PageDown), "scroll_page_down");
 
 // Word movement
 bind!(KB_W, Key::char('w'), "next_word_start");
