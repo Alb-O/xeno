@@ -2,7 +2,7 @@
 source: crates/tome-term/src/main.rs
 expression: terminal.backend()
 ---
-"1 hello world this is a test  "
+"1 hello world this is a test ·"
 "┆ of word wrapping behavior   "
 "~                             "
 "~                             "

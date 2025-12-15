@@ -2,7 +2,7 @@
 source: crates/tome-term/src/main.rs
 expression: terminal.backend()
 ---
-"1 The quick brown fox jumps over the    "
+"1 The quick brown fox jumps over the ···"
 "┆ lazy dog and keeps on running         "
 "~                                       "
 "~                                       "

@@ -170,6 +170,7 @@ impl Editor {
                 let mut spans = vec![Span::styled(line_num_str, gutter_style)];
 
                 let seg_char_offset = segment.start_offset;
+                let seg_char_count = segment.text.chars().count();
                 for (i, ch) in segment.text.chars().enumerate() {
                     let doc_pos = line_start + seg_char_offset + i;
                     let in_selection = doc_pos >= sel_start && doc_pos < sel_end;
@@ -187,6 +188,12 @@ impl Editor {
                     };
 
                     spans.push(Span::styled(ch.to_string(), style));
+                }
+
+                if !is_last_segment && seg_char_count < text_width {
+                    let fill_count = text_width - seg_char_count;
+                    let fill_style = Style::default().fg(Color::Rgb(60, 60, 60));
+                    spans.push(Span::styled("·".repeat(fill_count), fill_style));
                 }
 
                 if is_last_segment {

@@ -2,8 +2,8 @@
 source: crates/tome-term/src/main.rs
 expression: terminal.backend()
 ---
-"1 This is a very long line    "
-"┆ that should wrap to         "
+"1 This is a very long line ···"
+"┆ that should wrap to ········"
 "┆ multiple virtual lines      "
 "~                             "
 "~                             "
