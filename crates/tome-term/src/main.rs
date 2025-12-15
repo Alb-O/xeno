@@ -27,12 +27,18 @@ fn run_editor(mut editor: Editor) -> io::Result<()> {
         loop {
             terminal.draw(|frame| editor.render(frame))?;
 
-            if let Event::Key(key) = crossterm::event::read()? {
-                if key.kind == crossterm::event::KeyEventKind::Press {
+            match crossterm::event::read()? {
+                Event::Key(key) if key.kind == crossterm::event::KeyEventKind::Press => {
                     if editor.handle_key(key) {
                         break;
                     }
                 }
+                Event::Mouse(mouse) => {
+                    if editor.handle_mouse(mouse) {
+                        break;
+                    }
+                }
+                _ => {}
             }
         }
         Ok(())

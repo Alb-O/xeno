@@ -4,7 +4,7 @@ use std::path::PathBuf;
 
 use tome_core::range::Direction as MoveDir;
 use tome_core::{
-    InputHandler, Key, KeyResult, Mode, Rope, Selection, Transaction,
+    InputHandler, Key, KeyResult, Mode, MouseEvent, Rope, ScrollDirection, Selection, Transaction,
     ext, movement,
 };
 use tome_core::ext::{HookContext, emit_hook};
@@ -377,7 +377,159 @@ impl Editor {
             KeyResult::Consumed => false,
             KeyResult::Unhandled => false,
             KeyResult::Quit => true,
+            KeyResult::MouseClick { row, col, extend } => {
+                self.handle_mouse_click(row, col, extend);
+                false
+            }
+            KeyResult::MouseDrag { row, col } => {
+                self.handle_mouse_drag(row, col);
+                false
+            }
+            KeyResult::MouseScroll { direction, count } => {
+                self.handle_mouse_scroll(direction, count);
+                false
+            }
         }
+    }
+
+    pub fn handle_mouse(&mut self, mouse: crossterm::event::MouseEvent) -> bool {
+        self.message = None;
+        let event: MouseEvent = mouse.into();
+        let result = self.input.handle_mouse(event);
+
+        match result {
+            KeyResult::MouseClick { row, col, extend } => {
+                self.handle_mouse_click(row, col, extend);
+                false
+            }
+            KeyResult::MouseDrag { row, col } => {
+                self.handle_mouse_drag(row, col);
+                false
+            }
+            KeyResult::MouseScroll { direction, count } => {
+                self.handle_mouse_scroll(direction, count);
+                false
+            }
+            KeyResult::Consumed => false,
+            _ => false,
+        }
+    }
+
+    fn handle_mouse_click(&mut self, screen_row: u16, screen_col: u16, extend: bool) {
+        if let Some(doc_pos) = self.screen_to_doc_position(screen_row, screen_col) {
+            if extend {
+                let anchor = self.selection.primary().anchor;
+                self.selection = Selection::single(anchor, doc_pos);
+            } else {
+                self.selection = Selection::point(doc_pos);
+            }
+        }
+    }
+
+    fn handle_mouse_drag(&mut self, screen_row: u16, screen_col: u16) {
+        if let Some(doc_pos) = self.screen_to_doc_position(screen_row, screen_col) {
+            let anchor = self.selection.primary().anchor;
+            self.selection = Selection::single(anchor, doc_pos);
+        }
+    }
+
+    fn handle_mouse_scroll(&mut self, direction: ScrollDirection, count: usize) {
+        match direction {
+            ScrollDirection::Up => {
+                for _ in 0..count {
+                    if self.scroll_segment > 0 {
+                        self.scroll_segment -= 1;
+                    } else if self.scroll_line > 0 {
+                        self.scroll_line -= 1;
+                        let line_start = self.doc.line_to_char(self.scroll_line);
+                        let line_end = if self.scroll_line + 1 < self.doc.len_lines() {
+                            self.doc.line_to_char(self.scroll_line + 1)
+                        } else {
+                            self.doc.len_chars()
+                        };
+                        let line_text: String = self.doc.slice(line_start..line_end).into();
+                        let line_text = line_text.trim_end_matches('\n');
+                        let segments = self.wrap_line(line_text, self.text_width);
+                        self.scroll_segment = segments.len().saturating_sub(1);
+                    }
+                }
+            }
+            ScrollDirection::Down => {
+                for _ in 0..count {
+                    let total_lines = self.doc.len_lines();
+                    if self.scroll_line < total_lines {
+                        let line_start = self.doc.line_to_char(self.scroll_line);
+                        let line_end = if self.scroll_line + 1 < total_lines {
+                            self.doc.line_to_char(self.scroll_line + 1)
+                        } else {
+                            self.doc.len_chars()
+                        };
+                        let line_text: String = self.doc.slice(line_start..line_end).into();
+                        let line_text = line_text.trim_end_matches('\n');
+                        let segments = self.wrap_line(line_text, self.text_width);
+                        let num_segments = segments.len().max(1);
+
+                        if self.scroll_segment + 1 < num_segments {
+                            self.scroll_segment += 1;
+                        } else if self.scroll_line + 1 < total_lines {
+                            self.scroll_line += 1;
+                            self.scroll_segment = 0;
+                        }
+                    }
+                }
+            }
+            ScrollDirection::Left | ScrollDirection::Right => {
+                // Horizontal scroll not implemented yet
+            }
+        }
+    }
+
+    fn screen_to_doc_position(&self, screen_row: u16, screen_col: u16) -> Option<usize> {
+        let total_lines = self.doc.len_lines();
+        let gutter_width = total_lines.max(1).ilog10() as u16 + 2;
+
+        if screen_col < gutter_width {
+            return None;
+        }
+
+        let text_col = (screen_col - gutter_width) as usize;
+        let mut visual_row = 0;
+        let mut line_idx = self.scroll_line;
+        let mut start_segment = self.scroll_segment;
+
+        while line_idx < total_lines {
+            let line_start = self.doc.line_to_char(line_idx);
+            let line_end = if line_idx + 1 < total_lines {
+                self.doc.line_to_char(line_idx + 1)
+            } else {
+                self.doc.len_chars()
+            };
+
+            let line_text: String = self.doc.slice(line_start..line_end).into();
+            let line_text = line_text.trim_end_matches('\n');
+            let segments = self.wrap_line(line_text, self.text_width);
+
+            if segments.is_empty() {
+                if visual_row == screen_row as usize {
+                    return Some(line_start);
+                }
+                visual_row += 1;
+            } else {
+                for (_seg_idx, segment) in segments.iter().enumerate().skip(start_segment) {
+                    if visual_row == screen_row as usize {
+                        let seg_len = segment.text.chars().count();
+                        let col_in_seg = text_col.min(seg_len.saturating_sub(1).max(0));
+                        return Some(line_start + segment.start_offset + col_in_seg);
+                    }
+                    visual_row += 1;
+                }
+            }
+
+            start_segment = 0;
+            line_idx += 1;
+        }
+
+        Some(self.doc.len_chars().saturating_sub(1).max(0))
     }
 }
 

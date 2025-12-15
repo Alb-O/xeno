@@ -13,7 +13,7 @@ pub use ext::{
     TextObjectDef, COMMANDS, FILE_TYPES, MOTIONS, TEXT_OBJECTS,
 };
 pub use input::{InputHandler, KeyResult};
-pub use key::{Key, KeyCode, Modifiers, SpecialKey};
+pub use key::{Key, KeyCode, Modifiers, MouseButton, MouseEvent, ScrollDirection, SpecialKey};
 pub use keymap::{Command, CommandParams, Mode, SelectMode};
 pub use movement::WordType;
 pub use range::Range;

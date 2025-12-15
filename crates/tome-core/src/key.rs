@@ -4,6 +4,7 @@
 //! - Regular character keys
 //! - Special keys (Escape, Enter, Tab, arrows, etc.)
 //! - Modifier combinations (Ctrl, Alt, Shift)
+//! - Mouse events (clicks, drags, scrolls)
 
 use std::fmt;
 
@@ -220,6 +221,150 @@ impl Key {
             }
         }
         self
+    }
+}
+
+/// Mouse button types.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum MouseButton {
+    Left,
+    Right,
+    Middle,
+}
+
+/// Mouse event types.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MouseEvent {
+    /// Mouse button pressed at position.
+    Press {
+        button: MouseButton,
+        row: u16,
+        col: u16,
+        modifiers: Modifiers,
+    },
+    /// Mouse released at position.
+    Release {
+        row: u16,
+        col: u16,
+    },
+    /// Mouse dragged to position (button held).
+    Drag {
+        button: MouseButton,
+        row: u16,
+        col: u16,
+        modifiers: Modifiers,
+    },
+    /// Scroll wheel moved.
+    Scroll {
+        direction: ScrollDirection,
+        row: u16,
+        col: u16,
+        modifiers: Modifiers,
+    },
+}
+
+/// Scroll direction.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum ScrollDirection {
+    Up,
+    Down,
+    Left,
+    Right,
+}
+
+impl MouseEvent {
+    pub fn row(&self) -> u16 {
+        match self {
+            MouseEvent::Press { row, .. } => *row,
+            MouseEvent::Release { row, .. } => *row,
+            MouseEvent::Drag { row, .. } => *row,
+            MouseEvent::Scroll { row, .. } => *row,
+        }
+    }
+
+    pub fn col(&self) -> u16 {
+        match self {
+            MouseEvent::Press { col, .. } => *col,
+            MouseEvent::Release { col, .. } => *col,
+            MouseEvent::Drag { col, .. } => *col,
+            MouseEvent::Scroll { col, .. } => *col,
+        }
+    }
+
+    pub fn modifiers(&self) -> Modifiers {
+        match self {
+            MouseEvent::Press { modifiers, .. } => *modifiers,
+            MouseEvent::Release { .. } => Modifiers::NONE,
+            MouseEvent::Drag { modifiers, .. } => *modifiers,
+            MouseEvent::Scroll { modifiers, .. } => *modifiers,
+        }
+    }
+}
+
+/// Conversion from crossterm's MouseEvent.
+#[cfg(feature = "crossterm")]
+impl From<crossterm::event::MouseEvent> for MouseEvent {
+    fn from(event: crossterm::event::MouseEvent) -> Self {
+        use crossterm::event::{MouseButton as CtButton, MouseEventKind, KeyModifiers};
+
+        let modifiers = Modifiers {
+            ctrl: event.modifiers.contains(KeyModifiers::CONTROL),
+            alt: event.modifiers.contains(KeyModifiers::ALT),
+            shift: event.modifiers.contains(KeyModifiers::SHIFT),
+        };
+
+        let convert_button = |btn: CtButton| match btn {
+            CtButton::Left => MouseButton::Left,
+            CtButton::Right => MouseButton::Right,
+            CtButton::Middle => MouseButton::Middle,
+        };
+
+        match event.kind {
+            MouseEventKind::Down(btn) => MouseEvent::Press {
+                button: convert_button(btn),
+                row: event.row,
+                col: event.column,
+                modifiers,
+            },
+            MouseEventKind::Up(_) => MouseEvent::Release {
+                row: event.row,
+                col: event.column,
+            },
+            MouseEventKind::Drag(btn) => MouseEvent::Drag {
+                button: convert_button(btn),
+                row: event.row,
+                col: event.column,
+                modifiers,
+            },
+            MouseEventKind::ScrollUp => MouseEvent::Scroll {
+                direction: ScrollDirection::Up,
+                row: event.row,
+                col: event.column,
+                modifiers,
+            },
+            MouseEventKind::ScrollDown => MouseEvent::Scroll {
+                direction: ScrollDirection::Down,
+                row: event.row,
+                col: event.column,
+                modifiers,
+            },
+            MouseEventKind::ScrollLeft => MouseEvent::Scroll {
+                direction: ScrollDirection::Left,
+                row: event.row,
+                col: event.column,
+                modifiers,
+            },
+            MouseEventKind::ScrollRight => MouseEvent::Scroll {
+                direction: ScrollDirection::Right,
+                row: event.row,
+                col: event.column,
+                modifiers,
+            },
+            MouseEventKind::Moved => MouseEvent::Release {
+                row: event.row,
+                col: event.column,
+            },
+        }
     }
 }
 

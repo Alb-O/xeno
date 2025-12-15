@@ -4,7 +4,7 @@
 //! manages the mode stack (Normal, Insert, Goto, View, etc.),
 //! and handles count prefixes like Kakoune.
 
-use crate::key::{Key, KeyCode, SpecialKey};
+use crate::key::{Key, KeyCode, MouseButton, MouseEvent, ScrollDirection, SpecialKey};
 use crate::keymap::{
     lookup, Command, CommandParams, Mode, ObjectSelection, PendingCommand, GOTO_KEYMAP,
     NORMAL_KEYMAP, VIEW_KEYMAP,
@@ -31,6 +31,22 @@ pub enum KeyResult {
     ExecuteSearch { pattern: String, reverse: bool },
     /// Request to quit.
     Quit,
+    /// Mouse click at screen coordinates.
+    MouseClick {
+        row: u16,
+        col: u16,
+        extend: bool,
+    },
+    /// Mouse drag to screen coordinates (extend selection).
+    MouseDrag {
+        row: u16,
+        col: u16,
+    },
+    /// Mouse scroll.
+    MouseScroll {
+        direction: ScrollDirection,
+        count: usize,
+    },
 }
 
 /// Manages input state and key processing.
@@ -147,6 +163,31 @@ impl InputHandler {
                 let pending = *pending;
                 self.handle_pending_key(key, pending)
             }
+        }
+    }
+
+    /// Process a mouse event and return the result.
+    pub fn handle_mouse(&mut self, event: MouseEvent) -> KeyResult {
+        match event {
+            MouseEvent::Press { button: MouseButton::Left, row, col, modifiers } => {
+                KeyResult::MouseClick {
+                    row,
+                    col,
+                    extend: modifiers.shift,
+                }
+            }
+            MouseEvent::Drag { button: MouseButton::Left, row, col, .. } => {
+                KeyResult::MouseDrag { row, col }
+            }
+            MouseEvent::Scroll { direction, .. } => {
+                let count = 3; // scroll 3 lines at a time
+                KeyResult::MouseScroll { direction, count }
+            }
+            MouseEvent::Press { button: MouseButton::Right, .. }
+            | MouseEvent::Press { button: MouseButton::Middle, .. }
+            | MouseEvent::Drag { button: MouseButton::Right, .. }
+            | MouseEvent::Drag { button: MouseButton::Middle, .. }
+            | MouseEvent::Release { .. } => KeyResult::Consumed,
         }
     }
 
