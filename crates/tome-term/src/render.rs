@@ -38,10 +38,10 @@ impl Editor {
 
         self.text_width = text_width;
 
-        let cursor_pos = self.selection.primary().head;
+        let cursor_pos = self.cursor;
         let cursor_line = self.cursor_line();
         let cursor_line_start = self.doc.line_to_char(cursor_line);
-        let cursor_col = cursor_pos - cursor_line_start;
+        let cursor_col = cursor_pos.saturating_sub(cursor_line_start);
 
         let cursor_line_end = if cursor_line + 1 < total_lines {
             self.doc.line_to_char(cursor_line + 1)
@@ -124,6 +124,7 @@ impl Editor {
         let gutter_width = self.gutter_width();
         let text_width = area.width.saturating_sub(gutter_width) as usize;
 
+        let cursor = self.cursor;
         let primary = self.selection.primary();
         let sel_start = primary.from();
         let sel_end = primary.to();
@@ -173,7 +174,7 @@ impl Editor {
                 for (i, ch) in segment.text.chars().enumerate() {
                     let doc_pos = line_start + seg_char_offset + i;
                     let in_selection = doc_pos >= sel_start && doc_pos < sel_end;
-                    let is_cursor = doc_pos == primary.head;
+                    let is_cursor = doc_pos == cursor;
 
                     let style = if is_cursor {
                         Style::default()
@@ -199,11 +200,11 @@ impl Editor {
                     let line_content_end = line_start + line_text.chars().count();
                     let is_last_doc_line = current_line_idx + 1 >= total_lines;
                     let cursor_at_eol = if is_last_doc_line {
-                        primary.head >= line_content_end && primary.head <= line_end
+                        cursor >= line_content_end && cursor <= line_end
                     } else {
-                        primary.head >= line_content_end && primary.head < line_end
+                        cursor >= line_content_end && cursor < line_end
                     };
-                    if cursor_at_eol && primary.head >= line_content_end {
+                    if cursor_at_eol && cursor >= line_content_end {
                         spans.push(Span::styled(
                             " ",
                             Style::default()
@@ -225,9 +226,9 @@ impl Editor {
 
                     let is_last_doc_line = current_line_idx + 1 >= total_lines;
                     let cursor_at_eol = if is_last_doc_line {
-                        primary.head >= line_start && primary.head <= line_end
+                        cursor >= line_start && cursor <= line_end
                     } else {
-                        primary.head >= line_start && primary.head < line_end
+                        cursor >= line_start && cursor < line_end
                     };
                     if cursor_at_eol {
                         spans.push(Span::styled(

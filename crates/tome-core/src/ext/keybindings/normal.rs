@@ -85,6 +85,7 @@ bind!(KB_O_ALT, Key::alt('o'), "add_line_below");
 bind!(KB_O_ALT_UPPER, Key::alt('O'), "add_line_above");
 
 // Selection manipulation
+bind!(KB_ESC, Key::special(SpecialKey::Escape), "collapse_selection");
 bind!(KB_SEMI, Key::char(';'), "collapse_selection");
 bind!(KB_SEMI_ALT, Key::alt(';'), "flip_selection");
 bind!(KB_COLON_ALT, Key::alt(':'), "ensure_forward");

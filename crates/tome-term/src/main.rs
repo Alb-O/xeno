@@ -140,7 +140,7 @@ mod tests {
     fn test_word_movement() {
         let mut editor = test_editor("hello world test");
         editor.handle_key(KeyEvent::new(KeyCode::Char('w'), KeyModifiers::NONE));
-        assert_eq!(editor.selection.primary().head, 6);
+        assert_eq!(editor.cursor, 6);
     }
 
     #[test]
@@ -149,7 +149,7 @@ mod tests {
         editor.handle_key(KeyEvent::new(KeyCode::Char('g'), KeyModifiers::NONE));
         assert!(matches!(editor.mode(), Mode::Goto));
         editor.handle_key(KeyEvent::new(KeyCode::Char('g'), KeyModifiers::NONE));
-        assert_eq!(editor.selection.primary().head, 0);
+        assert_eq!(editor.cursor, 0);
     }
 
     #[test]
@@ -187,7 +187,7 @@ mod tests {
         editor.handle_key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE));
         
         assert_eq!(editor.doc.len_lines(), 2, "should have 2 lines after Enter");
-        assert_eq!(editor.selection.primary().head, 1, "cursor should be at position 1");
+        assert_eq!(editor.cursor, 1, "cursor should be at position 1");
         
         let mut terminal = Terminal::new(TestBackend::new(80, 10)).unwrap();
         terminal.draw(|frame| editor.render(frame)).unwrap();
@@ -224,19 +224,19 @@ mod tests {
     #[test]
     fn test_insert_mode_arrow_keys() {
         let mut editor = test_editor("hello world");
-        assert_eq!(editor.selection.primary().head, 0, "start at position 0");
+        assert_eq!(editor.cursor, 0, "start at position 0");
 
         editor.handle_key(KeyEvent::new(KeyCode::Char('i'), KeyModifiers::NONE));
         assert!(matches!(editor.mode(), Mode::Insert), "should be in insert mode");
 
         editor.handle_key(KeyEvent::new(KeyCode::Right, KeyModifiers::NONE));
-        assert_eq!(editor.selection.primary().head, 1, "after Right arrow, cursor at 1");
+        assert_eq!(editor.cursor, 1, "after Right arrow, cursor at 1");
 
         editor.handle_key(KeyEvent::new(KeyCode::Right, KeyModifiers::NONE));
-        assert_eq!(editor.selection.primary().head, 2, "after Right arrow, cursor at 2");
+        assert_eq!(editor.cursor, 2, "after Right arrow, cursor at 2");
 
         editor.handle_key(KeyEvent::new(KeyCode::Left, KeyModifiers::NONE));
-        assert_eq!(editor.selection.primary().head, 1, "after Left arrow, cursor at 1");
+        assert_eq!(editor.cursor, 1, "after Left arrow, cursor at 1");
 
         editor.handle_key(KeyEvent::new(KeyCode::Down, KeyModifiers::NONE));
         assert!(matches!(editor.mode(), Mode::Insert), "still in insert mode after arrows");
@@ -299,15 +299,15 @@ mod tests {
         
         editor.handle_key(KeyEvent::new(KeyCode::Char('a'), KeyModifiers::NONE));
         assert!(matches!(editor.mode(), Mode::Insert));
-        assert_eq!(editor.selection.primary().head, 1, "cursor at 1 after 'a'");
+        assert_eq!(editor.cursor, 1, "cursor at 1 after 'a'");
         
         editor.handle_key(KeyEvent::new(KeyCode::Backspace, KeyModifiers::NONE));
         assert_eq!(editor.doc.to_string(), "ello", "first char deleted");
-        assert_eq!(editor.selection.primary().head, 0, "cursor moved back to 0");
+        assert_eq!(editor.cursor, 0, "cursor moved back to 0");
         
         editor.handle_key(KeyEvent::new(KeyCode::Backspace, KeyModifiers::NONE));
         assert_eq!(editor.doc.to_string(), "ello", "no change when at start");
-        assert_eq!(editor.selection.primary().head, 0, "cursor stays at 0");
+        assert_eq!(editor.cursor, 0, "cursor stays at 0");
     }
 
     #[test]
@@ -369,11 +369,11 @@ mod tests {
         
         editor.text_width = 20;
         
-        assert_eq!(editor.selection.primary().head, 0, "starts at 0");
+        assert_eq!(editor.cursor, 0, "starts at 0");
         
         editor.handle_key(KeyEvent::new(KeyCode::Char('j'), KeyModifiers::NONE));
         
-        let head = editor.selection.primary().head;
+        let head = editor.cursor;
         assert!(
             head > 0 && head < long_line.len(),
             "cursor should move within wrapped line segments, got head={}",
@@ -383,7 +383,7 @@ mod tests {
         
         editor.handle_key(KeyEvent::new(KeyCode::Char('k'), KeyModifiers::NONE));
         
-        assert_eq!(editor.selection.primary().head, 0, "should return to start");
+        assert_eq!(editor.cursor, 0, "should return to start");
     }
 
     #[test]
@@ -435,7 +435,7 @@ mod tests {
     fn test_shift_end_extends_selection() {
         let mut editor = test_editor("hello world");
         // Start at position 0
-        assert_eq!(editor.selection.primary().head, 0);
+        assert_eq!(editor.cursor, 0);
         assert_eq!(editor.selection.primary().anchor, 0);
 
         // Shift+End should select from current position to end of line
@@ -468,26 +468,27 @@ mod tests {
 
     #[test]
     fn test_shift_end_then_non_shift_home() {
-        // Start at 0, Shift+End to select, then Home (no shift) moves without extending
+        // Start at 0, Shift+End to select, then Home (no shift) moves cursor but keeps selection
         let mut editor = test_editor("hello world");
         
         editor.handle_key(KeyEvent::new(KeyCode::End, KeyModifiers::SHIFT));
         let sel = editor.selection.primary();
         assert_eq!(sel.anchor, 0);
         assert_eq!(sel.head, 11);
+        assert_eq!(editor.cursor, 11, "cursor at end after Shift+End");
         
-        // Home without shift - in Kakoune, this creates a new selection from 11 to 0
+        // Home without shift - cursor moves to 0, but selection stays (anchor=0, head=11)
         editor.handle_key(KeyEvent::new(KeyCode::Home, KeyModifiers::NONE));
+        assert_eq!(editor.cursor, 0, "cursor moves to start");
         let sel = editor.selection.primary();
-        // anchor becomes previous head (11), head becomes new position (0)
-        assert_eq!(sel.anchor, 11, "anchor becomes previous head");
-        assert_eq!(sel.head, 0, "head moves to start");
+        assert_eq!(sel.anchor, 0, "selection anchor unchanged");
+        assert_eq!(sel.head, 11, "selection head unchanged");
     }
 
     #[test]
     fn test_shift_right_extends_selection() {
         let mut editor = test_editor("hello");
-        assert_eq!(editor.selection.primary().head, 0);
+        assert_eq!(editor.cursor, 0);
 
         // Shift+Right three times should extend selection
         editor.handle_key(KeyEvent::new(KeyCode::Right, KeyModifiers::SHIFT));
@@ -500,18 +501,23 @@ mod tests {
     }
 
     #[test]
-    fn test_end_without_shift_collapses_selection() {
+    fn test_end_without_shift_preserves_selection() {
         let mut editor = test_editor("hello world");
-        // First select some text
+        // First select some text with Shift+Right
         editor.handle_key(KeyEvent::new(KeyCode::Right, KeyModifiers::SHIFT));
         editor.handle_key(KeyEvent::new(KeyCode::Right, KeyModifiers::SHIFT));
-        assert!(!editor.selection.primary().is_empty(), "should have selection");
+        let sel = editor.selection.primary();
+        assert_eq!(sel.anchor, 0, "anchor at start");
+        assert_eq!(sel.head, 2, "head at 2 after two Shift+Right");
 
-        // End without shift should move cursor without extending
+        // End without shift should move cursor only, selection stays
         editor.handle_key(KeyEvent::new(KeyCode::End, KeyModifiers::NONE));
 
+        // Cursor moved to end
+        assert_eq!(editor.cursor, 11, "cursor should be at end");
+        // Selection unchanged
         let sel = editor.selection.primary();
-        // After non-extend motion, selection should be at new position
-        assert_eq!(sel.head, 11, "head should be at end");
+        assert_eq!(sel.anchor, 0, "selection anchor unchanged");
+        assert_eq!(sel.head, 2, "selection head unchanged");
     }
 }

@@ -32,11 +32,19 @@ pub(crate) fn is_word_char(c: char) -> bool {
     c.is_alphanumeric() || c == '_'
 }
 
-pub(crate) fn make_range(range: Range, new_head: usize, extend: bool) -> Range {
+/// Make a range for cursor movement - anchor stays, only head moves.
+pub(crate) fn make_range(range: Range, new_head: usize, _extend: bool) -> Range {
+    // Anchor stays where it is, cursor (head) moves freely
+    Range::new(range.anchor, new_head)
+}
+
+/// Make a range for selection-creating motions - creates new selection from old head to new head.
+/// With extend, keeps existing anchor. Without extend, anchor moves to old head position.
+pub(crate) fn make_range_select(range: Range, new_head: usize, extend: bool) -> Range {
     if extend {
         Range::new(range.anchor, new_head)
     } else {
-        // Kakoune-style: anchor stays at previous head when not extending
+        // Selection-creating motion: anchor at previous head, creates selection to new position
         Range::new(range.head, new_head)
     }
 }

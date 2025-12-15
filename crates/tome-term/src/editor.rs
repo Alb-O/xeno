@@ -25,6 +25,7 @@ pub struct Registers {
 
 pub struct Editor {
     pub doc: Rope,
+    pub cursor: usize,
     pub selection: Selection,
     pub input: InputHandler,
     pub path: Option<PathBuf>,
@@ -114,6 +115,7 @@ impl Editor {
 
         Self {
             doc,
+            cursor: 0,
             selection: Selection::point(0),
             input: InputHandler::new(),
             path,
@@ -137,16 +139,14 @@ impl Editor {
     }
 
     pub fn cursor_line(&self) -> usize {
-        let head = self.selection.primary().head;
         self.doc
-            .char_to_line(head.min(self.doc.len_chars().saturating_sub(1).max(0)))
+            .char_to_line(self.cursor.min(self.doc.len_chars().saturating_sub(1).max(0)))
     }
 
     pub fn cursor_col(&self) -> usize {
-        let head = self.selection.primary().head;
         let line = self.cursor_line();
         let line_start = self.doc.line_to_char(line);
-        head.saturating_sub(line_start)
+        self.cursor.saturating_sub(line_start)
     }
 
     /// Minimum gutter width padding (extra digits reserved beyond current line count).
@@ -160,10 +160,10 @@ impl Editor {
 
     pub fn move_visual_vertical(&mut self, direction: MoveDir, count: usize, extend: bool) {
         for _ in 0..count {
-            let head = self.selection.primary().head;
-            let doc_line = self.doc.char_to_line(head);
+            let cursor = self.cursor;
+            let doc_line = self.doc.char_to_line(cursor);
             let line_start = self.doc.line_to_char(doc_line);
-            let col_in_line = head - line_start;
+            let col_in_line = cursor - line_start;
 
             let total_lines = self.doc.len_lines();
             let line_end = if doc_line + 1 < total_lines {
@@ -207,7 +207,7 @@ impl Editor {
                             next_line_start + new_col
                         }
                     } else {
-                        head
+                        cursor
                     }
                 }
                 MoveDir::Backward => {
@@ -231,19 +231,17 @@ impl Editor {
                             prev_line_start + new_col
                         }
                     } else {
-                        head
+                        cursor
                     }
                 }
             };
 
-            self.selection.transform_mut(|r| {
-                if extend {
+            self.cursor = new_pos;
+            if extend {
+                self.selection.transform_mut(|r| {
                     r.head = new_pos;
-                } else {
-                    r.anchor = new_pos;
-                    r.head = new_pos;
-                }
-            });
+                });
+            }
         }
     }
 
@@ -302,10 +300,12 @@ impl Editor {
 
     pub fn insert_text(&mut self, text: &str) {
         self.save_undo_state();
-        let tx = Transaction::insert(self.doc.slice(..), &self.selection, text.to_string());
+        // Insert at cursor position
+        let cursor_sel = Selection::point(self.cursor);
+        let tx = Transaction::insert(self.doc.slice(..), &cursor_sel, text.to_string());
         tx.apply(&mut self.doc);
-        let head = self.selection.primary().head + text.chars().count();
-        self.selection = Selection::point(head);
+        self.cursor += text.chars().count();
+        self.selection = tx.map_selection(&self.selection);
         self.modified = true;
     }
 
@@ -442,14 +442,14 @@ impl Editor {
             }
             KeyResult::ExecuteSearch { pattern, reverse } => {
                 self.input.set_last_search(pattern.clone(), reverse);
-                let pos = self.selection.primary().head;
                 let result = if reverse {
-                    movement::find_prev(self.doc.slice(..), &pattern, pos)
+                    movement::find_prev(self.doc.slice(..), &pattern, self.cursor)
                 } else {
-                    movement::find_next(self.doc.slice(..), &pattern, pos + 1)
+                    movement::find_next(self.doc.slice(..), &pattern, self.cursor + 1)
                 };
                 match result {
                     Ok(Some(range)) => {
+                        self.cursor = range.head;
                         self.selection = Selection::single(range.from(), range.to());
                         self.message = Some(format!("Found: {}", pattern));
                     }
@@ -633,6 +633,7 @@ impl Editor {
 
         let ctx = ActionContext {
             text: self.doc.slice(..),
+            cursor: self.cursor,
             selection: &self.selection,
             count,
             extend,
@@ -644,11 +645,17 @@ impl Editor {
 
         match result {
             ActionResult::Ok => false,
+            ActionResult::CursorMove(new_cursor) => {
+                self.cursor = new_cursor;
+                false
+            }
             ActionResult::Motion(new_selection) => {
+                self.cursor = new_selection.primary().head;
                 self.selection = new_selection;
                 false
             }
             ActionResult::InsertWithMotion(new_selection) => {
+                self.cursor = new_selection.primary().head;
                 self.selection = new_selection;
                 self.input.set_mode(Mode::Insert);
                 false
@@ -776,6 +783,7 @@ impl Editor {
 
         let ctx = ActionContext {
             text: self.doc.slice(..),
+            cursor: self.cursor,
             selection: &self.selection,
             count,
             extend,
@@ -788,11 +796,17 @@ impl Editor {
 
         match (action.handler)(&ctx) {
             ActionResult::Ok => false,
+            ActionResult::CursorMove(new_cursor) => {
+                self.cursor = new_cursor;
+                false
+            }
             ActionResult::Motion(new_selection) => {
+                self.cursor = new_selection.primary().head;
                 self.selection = new_selection;
                 false
             }
             ActionResult::InsertWithMotion(new_selection) => {
+                self.cursor = new_selection.primary().head;
                 self.selection = new_selection;
                 self.input.set_mode(Mode::Insert);
                 false
@@ -966,8 +980,8 @@ impl Editor {
                     tx.apply(&mut self.doc);
                     let tx = Transaction::insert(self.doc.slice(..), &self.selection, replacement);
                     tx.apply(&mut self.doc);
-                    let head = self.selection.primary().head + len;
-                    self.selection = Selection::point(head);
+                    self.cursor = self.selection.primary().head + len;
+                    self.selection = Selection::point(self.cursor);
                     self.modified = true;
                 } else {
                     self.save_undo_state();
@@ -977,8 +991,8 @@ impl Editor {
                     tx.apply(&mut self.doc);
                     let tx = Transaction::insert(self.doc.slice(..), &self.selection, ch.to_string());
                     tx.apply(&mut self.doc);
-                    let head = self.selection.primary().head + 1;
-                    self.selection = Selection::point(head);
+                    self.cursor = self.selection.primary().head + 1;
+                    self.selection = Selection::point(self.cursor);
                     self.modified = true;
                 }
             }
@@ -996,7 +1010,7 @@ impl Editor {
                 self.insert_text("    ");
             }
             EditAction::Deindent => {
-                let line = self.doc.char_to_line(self.selection.primary().head);
+                let line = self.doc.char_to_line(self.cursor);
                 let line_start = self.doc.line_to_char(line);
                 let line_text: String = self.doc.line(line).chars().take(4).collect();
                 let spaces = line_text.chars().take_while(|c| *c == ' ').count().min(4);
@@ -1006,6 +1020,7 @@ impl Editor {
                     let tx = Transaction::delete(self.doc.slice(..), &self.selection);
                     self.selection = tx.map_selection(&self.selection);
                     tx.apply(&mut self.doc);
+                    self.cursor = self.cursor.saturating_sub(spaces);
                     self.modified = true;
                 }
             }
@@ -1036,19 +1051,19 @@ impl Editor {
                     tx.apply(&mut self.doc);
                     let tx = Transaction::insert(self.doc.slice(..), &self.selection, " ".to_string());
                     tx.apply(&mut self.doc);
-                    let head = self.selection.primary().head + 1;
-                    self.selection = Selection::point(head);
+                    self.cursor = self.selection.primary().head + 1;
+                    self.selection = Selection::point(self.cursor);
                     self.modified = true;
                 }
             }
             EditAction::DeleteBack => {
-                let head = self.selection.primary().head;
-                if head > 0 {
+                if self.cursor > 0 {
                     self.save_undo_state();
-                    self.selection = Selection::single(head - 1, head);
+                    self.selection = Selection::single(self.cursor - 1, self.cursor);
                     let tx = Transaction::delete(self.doc.slice(..), &self.selection);
                     self.selection = tx.map_selection(&self.selection);
                     tx.apply(&mut self.doc);
+                    self.cursor -= 1;
                     self.modified = true;
                 }
             }
@@ -1099,21 +1114,26 @@ impl Editor {
                 self.move_visual_vertical(dir, count, scroll_extend);
             }
             EditAction::AddLineBelow => {
-                let slice = self.doc.slice(..);
-                let current_pos = self.selection.primary().head;
-                self.selection.transform_mut(|r| {
-                    *r = movement::move_to_line_end(slice, *r, false);
-                });
+                let current_pos = self.cursor;
+                // Move cursor to line end, insert newline, then restore cursor
+                let line = self.doc.char_to_line(current_pos);
+                let line_end = if line + 1 < self.doc.len_lines() {
+                    self.doc.line_to_char(line + 1).saturating_sub(1)
+                } else {
+                    self.doc.len_chars()
+                };
+                self.cursor = line_end;
                 self.insert_text("\n");
+                self.cursor = current_pos;
                 self.selection = Selection::point(current_pos);
             }
             EditAction::AddLineAbove => {
-                let slice = self.doc.slice(..);
-                let current_pos = self.selection.primary().head;
-                self.selection.transform_mut(|r| {
-                    *r = movement::move_to_line_start(slice, *r, false);
-                });
+                let current_pos = self.cursor;
+                let line = self.doc.char_to_line(current_pos);
+                let line_start = self.doc.line_to_char(line);
+                self.cursor = line_start;
                 self.insert_text("\n");
+                self.cursor = current_pos + 1;
                 self.selection = Selection::point(current_pos + 1);
             }
         }
@@ -1141,8 +1161,8 @@ impl Editor {
             tx.apply(&mut self.doc);
             let tx = Transaction::insert(self.doc.slice(..), &self.selection, text);
             tx.apply(&mut self.doc);
-            let head = self.selection.primary().head + new_len;
-            self.selection = Selection::point(head);
+            self.cursor = self.selection.primary().head + new_len;
+            self.selection = Selection::point(self.cursor);
             self.modified = true;
         }
     }
@@ -1226,9 +1246,9 @@ impl Editor {
 
     fn search_next(&mut self, add_selection: bool, extend: bool) -> bool {
         if let Some((pattern, _reverse)) = self.input.last_search() {
-            let pos = self.selection.primary().head;
-            match movement::find_next(self.doc.slice(..), pattern, pos + 1) {
+            match movement::find_next(self.doc.slice(..), pattern, self.cursor + 1) {
                 Ok(Some(range)) => {
+                    self.cursor = range.head;
                     if add_selection {
                         self.selection.push(range);
                     } else if extend {
@@ -1253,9 +1273,9 @@ impl Editor {
 
     fn search_prev(&mut self, add_selection: bool, extend: bool) -> bool {
         if let Some((pattern, _reverse)) = self.input.last_search() {
-            let pos = self.selection.primary().head;
-            match movement::find_prev(self.doc.slice(..), pattern, pos) {
+            match movement::find_prev(self.doc.slice(..), pattern, self.cursor) {
                 Ok(Some(range)) => {
+                    self.cursor = range.head;
                     if add_selection {
                         self.selection.push(range);
                     } else if extend {

@@ -33,6 +33,8 @@ pub enum ActionResult {
     Ok,
     /// Action requests a mode change.
     ModeChange(ActionMode),
+    /// Action is a cursor movement (moves cursor only, preserves selections).
+    CursorMove(usize),
     /// Action is a motion that produces a new selection.
     Motion(Selection),
     /// Apply motion then enter insert mode.
@@ -227,6 +229,8 @@ pub enum ObjectSelectionKind {
 pub struct ActionContext<'a> {
     /// The document text.
     pub text: RopeSlice<'a>,
+    /// Current cursor position (independent of selections).
+    pub cursor: usize,
     /// Current selection.
     pub selection: &'a Selection,
     /// Count prefix (defaults to 1).
