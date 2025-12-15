@@ -405,11 +405,25 @@ impl Editor {
             }
             KeyResult::ExecuteCommand(cmd) => commands::execute_command_line(self, &cmd),
             KeyResult::ExecuteSearch { pattern, reverse } => {
-                self.message = Some(format!(
-                    "Search '{}' {}",
-                    pattern,
-                    if reverse { "(reverse)" } else { "" }
-                ));
+                self.input.set_last_search(pattern.clone(), reverse);
+                let pos = self.selection.primary().head;
+                let result = if reverse {
+                    movement::find_prev(self.doc.slice(..), &pattern, pos)
+                } else {
+                    movement::find_next(self.doc.slice(..), &pattern, pos + 1)
+                };
+                match result {
+                    Ok(Some(range)) => {
+                        self.selection = Selection::single(range.from(), range.to());
+                        self.message = Some(format!("Found: {}", pattern));
+                    }
+                    Ok(None) => {
+                        self.message = Some(format!("Pattern not found: {}", pattern));
+                    }
+                    Err(e) => {
+                        self.message = Some(format!("Regex error: {}", e));
+                    }
+                }
                 false
             }
             KeyResult::Consumed => false,
@@ -563,20 +577,7 @@ impl Editor {
                 self.execute_edit_action(edit_action, extend)
             }
             ActionResult::ModeChange(mode) => {
-                use ext::ActionMode;
-                match mode {
-                    ActionMode::Normal => self.input.set_mode(Mode::Normal),
-                    ActionMode::Insert => self.input.set_mode(Mode::Insert),
-                    ActionMode::Goto => self.input.set_mode(Mode::Goto),
-                    ActionMode::View => self.input.set_mode(Mode::View),
-                    ActionMode::Command => {
-                        self.input.set_mode(Mode::Command {
-                            prompt: ':',
-                            input: String::new(),
-                        });
-                    }
-                }
-                false
+                self.apply_mode_change(mode)
             }
             ActionResult::Quit => true,
             ActionResult::ForceQuit => true,
@@ -588,6 +589,15 @@ impl Editor {
                 self.message = Some(pending.prompt.clone());
                 self.input.set_mode(Mode::PendingAction(pending.kind));
                 false
+            }
+            ActionResult::SearchNext { add_selection } => {
+                self.search_next(add_selection, extend)
+            }
+            ActionResult::SearchPrev { add_selection } => {
+                self.search_prev(add_selection, extend)
+            }
+            ActionResult::UseSelectionAsSearch => {
+                self.use_selection_as_search()
             }
         }
     }
@@ -637,20 +647,7 @@ impl Editor {
                 self.execute_edit_action(edit_action, extend)
             }
             ActionResult::ModeChange(mode) => {
-                use ext::ActionMode;
-                match mode {
-                    ActionMode::Normal => self.input.set_mode(Mode::Normal),
-                    ActionMode::Insert => self.input.set_mode(Mode::Insert),
-                    ActionMode::Goto => self.input.set_mode(Mode::Goto),
-                    ActionMode::View => self.input.set_mode(Mode::View),
-                    ActionMode::Command => {
-                        self.input.set_mode(Mode::Command {
-                            prompt: ':',
-                            input: String::new(),
-                        });
-                    }
-                }
-                false
+                self.apply_mode_change(mode)
             }
             ActionResult::Quit => true,
             ActionResult::ForceQuit => true,
@@ -662,6 +659,15 @@ impl Editor {
                 self.message = Some(pending.prompt.clone());
                 self.input.set_mode(Mode::PendingAction(pending.kind));
                 false
+            }
+            ActionResult::SearchNext { add_selection } => {
+                self.search_next(add_selection, extend)
+            }
+            ActionResult::SearchPrev { add_selection } => {
+                self.search_prev(add_selection, extend)
+            }
+            ActionResult::UseSelectionAsSearch => {
+                self.use_selection_as_search()
             }
         }
     }
@@ -893,6 +899,116 @@ impl Editor {
             self.selection = Selection::point(head);
             self.modified = true;
         }
+    }
+
+    fn apply_mode_change(&mut self, mode: ext::ActionMode) -> bool {
+        use ext::ActionMode;
+        match mode {
+            ActionMode::Normal => self.input.set_mode(Mode::Normal),
+            ActionMode::Insert => self.input.set_mode(Mode::Insert),
+            ActionMode::Goto => self.input.set_mode(Mode::Goto),
+            ActionMode::View => self.input.set_mode(Mode::View),
+            ActionMode::Command => {
+                self.input.set_mode(Mode::Command {
+                    prompt: ':',
+                    input: String::new(),
+                });
+            }
+            ActionMode::SearchForward => {
+                self.input.set_mode(Mode::Command {
+                    prompt: '/',
+                    input: String::new(),
+                });
+            }
+            ActionMode::SearchBackward => {
+                self.input.set_mode(Mode::Command {
+                    prompt: '?',
+                    input: String::new(),
+                });
+            }
+        }
+        false
+    }
+
+    fn search_next(&mut self, add_selection: bool, extend: bool) -> bool {
+        if let Some((pattern, _reverse)) = self.input.last_search() {
+            let pos = self.selection.primary().head;
+            match movement::find_next(self.doc.slice(..), pattern, pos + 1) {
+                Ok(Some(range)) => {
+                    if add_selection {
+                        self.selection.push(range);
+                    } else if extend {
+                        let anchor = self.selection.primary().anchor;
+                        self.selection = Selection::single(anchor, range.to());
+                    } else {
+                        self.selection = Selection::single(range.from(), range.to());
+                    }
+                }
+                Ok(None) => {
+                    self.message = Some("Pattern not found".to_string());
+                }
+                Err(e) => {
+                    self.message = Some(format!("Regex error: {}", e));
+                }
+            }
+        } else {
+            self.message = Some("No search pattern".to_string());
+        }
+        false
+    }
+
+    fn search_prev(&mut self, add_selection: bool, extend: bool) -> bool {
+        if let Some((pattern, _reverse)) = self.input.last_search() {
+            let pos = self.selection.primary().head;
+            match movement::find_prev(self.doc.slice(..), pattern, pos) {
+                Ok(Some(range)) => {
+                    if add_selection {
+                        self.selection.push(range);
+                    } else if extend {
+                        let anchor = self.selection.primary().anchor;
+                        self.selection = Selection::single(anchor, range.from());
+                    } else {
+                        self.selection = Selection::single(range.from(), range.to());
+                    }
+                }
+                Ok(None) => {
+                    self.message = Some("Pattern not found".to_string());
+                }
+                Err(e) => {
+                    self.message = Some(format!("Regex error: {}", e));
+                }
+            }
+        } else {
+            self.message = Some("No search pattern".to_string());
+        }
+        false
+    }
+
+    fn use_selection_as_search(&mut self) -> bool {
+        let primary = self.selection.primary();
+        let from = primary.from();
+        let to = primary.to();
+        if from < to {
+            let text: String = self.doc.slice(from..to).chars().collect();
+            let pattern = movement::escape_pattern(&text);
+            self.input.set_last_search(pattern.clone(), false);
+            self.message = Some(format!("Search: {}", text));
+            // Go to next match
+            match movement::find_next(self.doc.slice(..), &pattern, to) {
+                Ok(Some(range)) => {
+                    self.selection = Selection::single(range.from(), range.to());
+                }
+                Ok(None) => {
+                    self.message = Some("No more matches".to_string());
+                }
+                Err(e) => {
+                    self.message = Some(format!("Regex error: {}", e));
+                }
+            }
+        } else {
+            self.message = Some("No selection".to_string());
+        }
+        false
     }
 
     fn screen_to_doc_position(&self, screen_row: u16, screen_col: u16) -> Option<usize> {

@@ -77,6 +77,8 @@ pub struct InputHandler {
     last_find: Option<(char, bool, bool)>, // (char, inclusive, reverse)
     /// Last object selection for repeat.
     last_object: Option<(ObjectSelection, char)>,
+    /// Last search pattern for n/N repeat.
+    last_search: Option<(String, bool)>, // (pattern, reverse)
 }
 
 impl Default for InputHandler {
@@ -94,6 +96,7 @@ impl InputHandler {
             extend: false,
             last_find: None,
             last_object: None,
+            last_search: None,
         }
     }
 
@@ -152,6 +155,16 @@ impl InputHandler {
         if matches!(mode, Mode::Normal) {
             self.reset_params();
         }
+    }
+
+    /// Set the last search pattern (called by editor after executing search).
+    pub fn set_last_search(&mut self, pattern: String, reverse: bool) {
+        self.last_search = Some((pattern, reverse));
+    }
+
+    /// Get the last search pattern.
+    pub fn last_search(&self) -> Option<(&str, bool)> {
+        self.last_search.as_ref().map(|(p, r)| (p.as_str(), *r))
     }
 
     fn reset_params(&mut self) {

@@ -124,3 +124,12 @@ bind!(KB_BRACKET_OPEN, Key::char('['), "select_object_to_start");
 bind!(KB_BRACKET_CLOSE, Key::char(']'), "select_object_to_end");
 bind!(KB_BRACE_OPEN, Key::char('{'), "select_object_to_start");
 bind!(KB_BRACE_CLOSE, Key::char('}'), "select_object_to_end");
+
+// Search
+bind!(KB_SLASH, Key::char('/'), "search_forward");
+bind!(KB_QUESTION, Key::char('?'), "search_backward");
+bind!(KB_N, Key::char('n'), "search_next");
+bind!(KB_N_UPPER, Key::char('N'), "search_next_add");
+bind!(KB_N_ALT, Key::alt('n'), "search_prev");
+bind!(KB_N_ALT_UPPER, Key::alt('N'), "search_prev_add");
+bind!(KB_STAR, Key::char('*'), "use_selection_as_search");

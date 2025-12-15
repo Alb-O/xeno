@@ -10,6 +10,7 @@ mod insert;
 mod modes;
 mod motions;
 mod scroll;
+mod search;
 mod selection_ops;
 mod text_objects;
 
@@ -43,6 +44,12 @@ pub enum ActionResult {
     Error(String),
     /// Action needs more input (e.g., awaiting a character for 'f' find).
     Pending(PendingAction),
+    /// Go to next search match.
+    SearchNext { add_selection: bool },
+    /// Go to previous search match.
+    SearchPrev { add_selection: bool },
+    /// Use selection as search pattern and go to next match.
+    UseSelectionAsSearch,
 }
 
 /// An edit operation to apply to the document.
@@ -118,6 +125,8 @@ pub enum ActionMode {
     Goto,
     View,
     Command,
+    SearchForward,
+    SearchBackward,
 }
 
 /// An action that needs additional input to complete.

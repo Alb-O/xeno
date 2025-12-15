@@ -7,10 +7,12 @@
 
 mod find;
 mod objects;
+mod search;
 mod word;
 
 pub use find::{find_char_backward, find_char_forward};
 pub use objects::{select_surround_object, select_word_object};
+pub use search::{escape_pattern, find_all_matches, find_next, find_prev};
 pub use word::{move_to_next_word_end, move_to_next_word_start, move_to_prev_word_start};
 
 use crate::graphemes::{next_grapheme_boundary, prev_grapheme_boundary};

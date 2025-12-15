@@ -13,6 +13,7 @@ crossterm = ["dep:crossterm"]
 crossterm = { workspace = true, optional = true }
 linkme.workspace = true
 paste.workspace = true
+regex.workspace = true
 ropey.workspace = true
 smallvec.workspace = true
 unicode-segmentation.workspace = true
