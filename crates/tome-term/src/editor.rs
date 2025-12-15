@@ -442,6 +442,22 @@ impl Editor {
                 self.keep_matching(&pattern, true);
                 false
             }
+            KeyResult::PipeReplace { command } => {
+                self.message = Some(format!("Pipe (replace) not yet implemented: {}", command));
+                false
+            }
+            KeyResult::PipeIgnore { command } => {
+                self.message = Some(format!("Pipe (ignore) not yet implemented: {}", command));
+                false
+            }
+            KeyResult::InsertOutput { command } => {
+                self.message = Some(format!("Insert output not yet implemented: {}", command));
+                false
+            }
+            KeyResult::AppendOutput { command } => {
+                self.message = Some(format!("Append output not yet implemented: {}", command));
+                false
+            }
             KeyResult::Consumed => false,
             KeyResult::Unhandled => false,
             KeyResult::Quit => true,
@@ -1065,6 +1081,30 @@ impl Editor {
             ActionMode::KeepNotMatching => {
                 self.input.set_mode(Mode::Command {
                     prompt: 'K',
+                    input: String::new(),
+                });
+            }
+            ActionMode::PipeReplace => {
+                self.input.set_mode(Mode::Command {
+                    prompt: '|',
+                    input: String::new(),
+                });
+            }
+            ActionMode::PipeIgnore => {
+                self.input.set_mode(Mode::Command {
+                    prompt: '\\',
+                    input: String::new(),
+                });
+            }
+            ActionMode::InsertOutput => {
+                self.input.set_mode(Mode::Command {
+                    prompt: '!',
+                    input: String::new(),
+                });
+            }
+            ActionMode::AppendOutput => {
+                self.input.set_mode(Mode::Command {
+                    prompt: '@',
                     input: String::new(),
                 });
             }

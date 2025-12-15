@@ -10,6 +10,7 @@ mod insert;
 mod misc;
 mod modes;
 mod motions;
+mod pipe;
 mod regex_select;
 mod scroll;
 mod search;
@@ -163,6 +164,14 @@ pub enum ActionMode {
     KeepMatching,
     /// Keep selections not matching regex (alt-K)
     KeepNotMatching,
+    /// Pipe through shell command, replace selection (|)
+    PipeReplace,
+    /// Pipe through shell command, ignore output (alt-|)
+    PipeIgnore,
+    /// Insert shell command output (!)
+    InsertOutput,
+    /// Append shell command output (alt-!)
+    AppendOutput,
 }
 
 /// An action that needs additional input to complete.

@@ -53,6 +53,14 @@ pub enum KeyResult {
     KeepMatching { pattern: String },
     /// Keep selections not matching regex (from `alt-K` prompt).
     KeepNotMatching { pattern: String },
+    /// Pipe selection through shell command, replace with output.
+    PipeReplace { command: String },
+    /// Pipe selection through shell command, ignore output.
+    PipeIgnore { command: String },
+    /// Insert shell command output before selection.
+    InsertOutput { command: String },
+    /// Append shell command output after selection.
+    AppendOutput { command: String },
     /// Request to quit.
     Quit,
     /// Mouse click at screen coordinates.
@@ -627,6 +635,10 @@ impl InputHandler {
                     'S' => KeyResult::SplitRegex { pattern: input },
                     'k' => KeyResult::KeepMatching { pattern: input },
                     'K' => KeyResult::KeepNotMatching { pattern: input },
+                    '|' => KeyResult::PipeReplace { command: input },
+                    '\\' => KeyResult::PipeIgnore { command: input },
+                    '!' => KeyResult::InsertOutput { command: input },
+                    '@' => KeyResult::AppendOutput { command: input },
                     _ => KeyResult::Consumed,
                 }
             }

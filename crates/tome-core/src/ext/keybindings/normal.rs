@@ -162,3 +162,9 @@ bind!(KB_CTRL_L, Key::ctrl('l'), "force_redraw");
 // Repeat
 bind!(KB_DOT, Key::char('.'), "repeat_last_insert");
 bind!(KB_DOT_ALT, Key::alt('.'), "repeat_last_object");
+
+// Pipe/Shell
+bind!(KB_PIPE, Key::char('|'), "pipe_replace");
+bind!(KB_PIPE_ALT, Key::alt('|'), "pipe_ignore");
+bind!(KB_BANG, Key::char('!'), "insert_output");
+bind!(KB_BANG_ALT, Key::alt('!'), "append_output");
