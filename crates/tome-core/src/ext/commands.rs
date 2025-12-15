@@ -1,17 +1,11 @@
 //! Built-in command registrations for command-line mode.
 //!
 //! These are the `:commands` that users can invoke from the command prompt.
-//! The internal `Command` enum in keymap.rs handles key-bound actions,
-//! while these `CommandDef` entries handle user-facing command-line commands.
+//! Commands now use the `EditorOps` trait to perform real operations.
 
 use linkme::distributed_slice;
 
-use super::{CommandContext, CommandDef, CommandResult, COMMANDS};
-
-// Note: Most commands need access to Editor state that isn't in CommandContext.
-// For now, we register placeholders. The actual implementation will be in tome-term.
-// CommandContext provides: text, selection, args, count, register
-// It does NOT provide: file I/O, undo/redo, message display
+use super::{CommandContext, CommandDef, CommandError, CommandOutcome, COMMANDS};
 
 #[distributed_slice(COMMANDS)]
 static CMD_HELP: CommandDef = CommandDef {
@@ -21,8 +15,20 @@ static CMD_HELP: CommandDef = CommandDef {
     handler: cmd_help,
 };
 
-fn cmd_help(_ctx: &mut CommandContext) -> CommandResult {
-    Ok(())
+fn cmd_help(ctx: &mut CommandContext) -> Result<CommandOutcome, CommandError> {
+    let help_text: Vec<String> = super::COMMANDS
+        .iter()
+        .map(|c| {
+            let aliases = if c.aliases.is_empty() {
+                String::new()
+            } else {
+                format!(" ({})", c.aliases.join(", "))
+            };
+            format!(":{}{} - {}", c.name, aliases, c.description)
+        })
+        .collect();
+    ctx.message(&help_text.join(" | "));
+    Ok(CommandOutcome::Ok)
 }
 
 #[distributed_slice(COMMANDS)]
@@ -33,10 +39,12 @@ static CMD_QUIT: CommandDef = CommandDef {
     handler: cmd_quit,
 };
 
-fn cmd_quit(_ctx: &mut CommandContext) -> CommandResult {
-    // This is handled specially by the command executor
-    // Returning Ok signals the intent to quit
-    Ok(())
+fn cmd_quit(ctx: &mut CommandContext) -> Result<CommandOutcome, CommandError> {
+    if ctx.editor.is_modified() {
+        ctx.error("Buffer has unsaved changes (use :q! to force quit)");
+        return Ok(CommandOutcome::Ok);
+    }
+    Ok(CommandOutcome::Quit)
 }
 
 #[distributed_slice(COMMANDS)]
@@ -47,8 +55,8 @@ static CMD_QUIT_FORCE: CommandDef = CommandDef {
     handler: cmd_quit_force,
 };
 
-fn cmd_quit_force(_ctx: &mut CommandContext) -> CommandResult {
-    Ok(())
+fn cmd_quit_force(_ctx: &mut CommandContext) -> Result<CommandOutcome, CommandError> {
+    Ok(CommandOutcome::ForceQuit)
 }
 
 #[distributed_slice(COMMANDS)]
@@ -59,9 +67,9 @@ static CMD_WRITE: CommandDef = CommandDef {
     handler: cmd_write,
 };
 
-fn cmd_write(_ctx: &mut CommandContext) -> CommandResult {
-    // File I/O is handled by the terminal layer
-    Ok(())
+fn cmd_write(ctx: &mut CommandContext) -> Result<CommandOutcome, CommandError> {
+    ctx.editor.save()?;
+    Ok(CommandOutcome::Ok)
 }
 
 #[distributed_slice(COMMANDS)]
@@ -72,8 +80,9 @@ static CMD_WRITE_QUIT: CommandDef = CommandDef {
     handler: cmd_write_quit,
 };
 
-fn cmd_write_quit(_ctx: &mut CommandContext) -> CommandResult {
-    Ok(())
+fn cmd_write_quit(ctx: &mut CommandContext) -> Result<CommandOutcome, CommandError> {
+    ctx.editor.save()?;
+    Ok(CommandOutcome::Quit)
 }
 
 #[distributed_slice(COMMANDS)]
@@ -84,9 +93,12 @@ static CMD_EDIT: CommandDef = CommandDef {
     handler: cmd_edit,
 };
 
-fn cmd_edit(_ctx: &mut CommandContext) -> CommandResult {
-    // Requires filename argument from ctx.args
-    Ok(())
+fn cmd_edit(ctx: &mut CommandContext) -> Result<CommandOutcome, CommandError> {
+    if ctx.args.is_empty() {
+        return Err(CommandError::MissingArgument("filename"));
+    }
+    ctx.message(&format!("edit {} - not yet implemented", ctx.args[0]));
+    Ok(CommandOutcome::Ok)
 }
 
 #[distributed_slice(COMMANDS)]
@@ -97,8 +109,12 @@ static CMD_BUFFER: CommandDef = CommandDef {
     handler: cmd_buffer,
 };
 
-fn cmd_buffer(_ctx: &mut CommandContext) -> CommandResult {
-    Ok(())
+fn cmd_buffer(ctx: &mut CommandContext) -> Result<CommandOutcome, CommandError> {
+    if ctx.args.is_empty() {
+        return Err(CommandError::MissingArgument("buffer name or number"));
+    }
+    ctx.message(&format!("buffer {} - not yet implemented", ctx.args[0]));
+    Ok(CommandOutcome::Ok)
 }
 
 #[distributed_slice(COMMANDS)]
@@ -109,8 +125,9 @@ static CMD_BUFFER_NEXT: CommandDef = CommandDef {
     handler: cmd_buffer_next,
 };
 
-fn cmd_buffer_next(_ctx: &mut CommandContext) -> CommandResult {
-    Ok(())
+fn cmd_buffer_next(ctx: &mut CommandContext) -> Result<CommandOutcome, CommandError> {
+    ctx.message("buffer-next - not yet implemented");
+    Ok(CommandOutcome::Ok)
 }
 
 #[distributed_slice(COMMANDS)]
@@ -121,8 +138,9 @@ static CMD_BUFFER_PREV: CommandDef = CommandDef {
     handler: cmd_buffer_prev,
 };
 
-fn cmd_buffer_prev(_ctx: &mut CommandContext) -> CommandResult {
-    Ok(())
+fn cmd_buffer_prev(ctx: &mut CommandContext) -> Result<CommandOutcome, CommandError> {
+    ctx.message("buffer-previous - not yet implemented");
+    Ok(CommandOutcome::Ok)
 }
 
 #[distributed_slice(COMMANDS)]
@@ -133,6 +151,7 @@ static CMD_DELETE_BUFFER: CommandDef = CommandDef {
     handler: cmd_delete_buffer,
 };
 
-fn cmd_delete_buffer(_ctx: &mut CommandContext) -> CommandResult {
-    Ok(())
+fn cmd_delete_buffer(ctx: &mut CommandContext) -> Result<CommandOutcome, CommandError> {
+    ctx.message("delete-buffer - not yet implemented");
+    Ok(CommandOutcome::Ok)
 }

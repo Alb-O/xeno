@@ -42,7 +42,7 @@ pub fn execute_command_line(editor: &mut Editor, input: &str) -> bool {
         Some(name) => name,
         None => return false,
     };
-    let _args: Vec<&str> = parts.collect();
+    let args: Vec<&str> = parts.collect();
 
     let cmd = match ext::find_command(cmd_name) {
         Some(cmd) => cmd,
@@ -52,40 +52,23 @@ pub fn execute_command_line(editor: &mut Editor, input: &str) -> bool {
         }
     };
 
-    match cmd.name {
-        "help" => {
-            let help_text: Vec<String> = ext::COMMANDS
-                .iter()
-                .map(|c| {
-                    let aliases = if c.aliases.is_empty() {
-                        String::new()
-                    } else {
-                        format!(" ({})", c.aliases.join(", "))
-                    };
-                    format!(":{}{} - {}", c.name, aliases, c.description)
-                })
-                .collect();
-            editor.message = Some(help_text.join(" | "));
-        }
-        "quit" => return true,
-        "quit!" => return true,
-        "write" => {
-            match editor.save() {
-                Ok(()) => editor.message = Some("Written".into()),
-                Err(e) => editor.message = Some(format!("Error saving: {}", e)),
-            }
-        }
-        "wq" => {
-            match editor.save() {
-                Ok(()) => return true,
-                Err(e) => editor.message = Some(format!("Error saving: {}", e)),
-            }
-        }
-        _ => {
-            editor.message = Some(format!("{} not implemented", cmd.name));
+    let mut ctx = ext::CommandContext {
+        editor,
+        args: &args,
+        count: 1,
+        register: None,
+    };
+
+    match (cmd.handler)(&mut ctx) {
+        Ok(outcome) => match outcome {
+            ext::CommandOutcome::Ok => false,
+            ext::CommandOutcome::Quit | ext::CommandOutcome::ForceQuit => true,
+        },
+        Err(e) => {
+            ctx.editor.error(&e.to_string());
+            false
         }
     }
-    false
 }
 
 pub fn execute_command(editor: &mut Editor, cmd: Command, count: u32, extend: bool) -> bool {

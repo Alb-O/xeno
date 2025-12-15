@@ -76,21 +76,84 @@ impl std::fmt::Display for CommandError {
 
 impl std::error::Error for CommandError {}
 
+/// Result type for commands that may signal special behavior.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CommandOutcome {
+    /// Command completed normally.
+    Ok,
+    /// Command requests editor to quit.
+    Quit,
+    /// Command requests editor to quit without saving.
+    ForceQuit,
+}
+
+/// Operations that commands can perform on the editor.
+///
+/// This trait abstracts editor functionality so commands can be defined
+/// in `tome-core` without depending on the terminal layer.
+pub trait EditorOps {
+    /// Get the file path being edited.
+    fn path(&self) -> &std::path::Path;
+
+    /// Get the document text as a rope slice.
+    fn text(&self) -> RopeSlice<'_>;
+
+    /// Get mutable access to selection.
+    fn selection_mut(&mut self) -> &mut Selection;
+
+    /// Display a message to the user.
+    fn message(&mut self, msg: &str);
+
+    /// Display an error message.
+    fn error(&mut self, msg: &str);
+
+    /// Save the buffer to disk.
+    fn save(&mut self) -> Result<(), CommandError>;
+
+    /// Insert text at the current selection.
+    fn insert_text(&mut self, text: &str);
+
+    /// Delete the current selection.
+    fn delete_selection(&mut self);
+
+    /// Mark that the buffer has been modified.
+    fn set_modified(&mut self, modified: bool);
+
+    /// Check if buffer is modified.
+    fn is_modified(&self) -> bool;
+}
+
 /// Context passed to command handlers.
 ///
-/// This provides access to editor state without exposing internal details.
-/// Commands receive this context and can query/modify editor state through it.
+/// This provides access to editor state through the `EditorOps` trait,
+/// allowing commands to perform real operations without depending on
+/// the terminal layer.
 pub struct CommandContext<'a> {
-    /// The document text.
-    pub text: RopeSlice<'a>,
-    /// Current selection state.
-    pub selection: &'a mut Selection,
+    /// Editor operations.
+    pub editor: &'a mut dyn EditorOps,
     /// Command arguments (for `:command arg1 arg2`).
     pub args: &'a [&'a str],
     /// Numeric count prefix (1 if not specified).
     pub count: usize,
     /// Register to use (if any).
     pub register: Option<char>,
+}
+
+impl<'a> CommandContext<'a> {
+    /// Convenience: get document text.
+    pub fn text(&self) -> RopeSlice<'_> {
+        self.editor.text()
+    }
+
+    /// Convenience: show a message.
+    pub fn message(&mut self, msg: &str) {
+        self.editor.message(msg);
+    }
+
+    /// Convenience: show an error.
+    pub fn error(&mut self, msg: &str) {
+        self.editor.error(msg);
+    }
 }
 
 /// A named command that can be executed via command mode (`:name`).
@@ -106,7 +169,7 @@ pub struct CommandDef {
     /// Short description for help.
     pub description: &'static str,
     /// Command handler function.
-    pub handler: fn(&mut CommandContext) -> CommandResult,
+    pub handler: fn(&mut CommandContext) -> Result<CommandOutcome, CommandError>,
 }
 
 impl std::fmt::Debug for CommandDef {

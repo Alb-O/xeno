@@ -380,3 +380,51 @@ impl Editor {
         }
     }
 }
+
+impl ext::EditorOps for Editor {
+    fn path(&self) -> &std::path::Path {
+        &self.path
+    }
+
+    fn text(&self) -> tome_core::RopeSlice<'_> {
+        self.doc.slice(..)
+    }
+
+    fn selection_mut(&mut self) -> &mut Selection {
+        &mut self.selection
+    }
+
+    fn message(&mut self, msg: &str) {
+        self.message = Some(msg.to_string());
+    }
+
+    fn error(&mut self, msg: &str) {
+        self.message = Some(msg.to_string());
+    }
+
+    fn save(&mut self) -> Result<(), ext::CommandError> {
+        Editor::save(self).map_err(|e| ext::CommandError::Io(e.to_string()))
+    }
+
+    fn insert_text(&mut self, text: &str) {
+        Editor::insert_text(self, text);
+    }
+
+    fn delete_selection(&mut self) {
+        if !self.selection.primary().is_empty() {
+            self.save_undo_state();
+            let tx = Transaction::delete(self.doc.slice(..), &self.selection);
+            self.selection = tx.map_selection(&self.selection);
+            tx.apply(&mut self.doc);
+            self.modified = true;
+        }
+    }
+
+    fn set_modified(&mut self, modified: bool) {
+        self.modified = modified;
+    }
+
+    fn is_modified(&self) -> bool {
+        self.modified
+    }
+}
