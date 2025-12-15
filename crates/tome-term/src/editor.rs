@@ -29,7 +29,8 @@ pub struct Editor {
     pub input: InputHandler,
     pub path: PathBuf,
     pub modified: bool,
-    pub scroll_offset: usize,
+    pub scroll_line: usize,
+    pub scroll_segment: usize,
     pub message: Option<String>,
     pub registers: Registers,
     pub undo_stack: Vec<HistoryEntry>,
@@ -55,7 +56,8 @@ impl Editor {
             input: InputHandler::new(),
             path,
             modified: false,
-            scroll_offset: 0,
+            scroll_line: 0,
+            scroll_segment: 0,
             message: None,
             registers: Registers::default(),
             undo_stack: Vec::new(),
@@ -174,7 +176,7 @@ impl Editor {
         }
     }
 
-    fn find_segment_for_col(&self, segments: &[WrapSegment], col: usize) -> usize {
+    pub fn find_segment_for_col(&self, segments: &[WrapSegment], col: usize) -> usize {
         for (i, seg) in segments.iter().enumerate() {
             let seg_end = seg.start_offset + seg.text.chars().count();
             if col < seg_end || i == segments.len() - 1 {

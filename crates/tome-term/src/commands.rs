@@ -300,28 +300,16 @@ pub fn execute_command(editor: &mut Editor, cmd: Command, count: u32, extend: bo
         }
 
         Command::ScrollHalfPageUp => {
-            editor.scroll_offset = editor.scroll_offset.saturating_sub(SCROLL_HALF_PAGE);
-            editor.selection.transform_mut(|r| {
-                *r = movement::move_vertically(slice, *r, MoveDir::Backward, SCROLL_HALF_PAGE, false);
-            });
+            editor.move_visual_vertical(MoveDir::Backward, SCROLL_HALF_PAGE, false);
         }
         Command::ScrollHalfPageDown => {
-            editor.scroll_offset = editor.scroll_offset.saturating_add(SCROLL_HALF_PAGE);
-            editor.selection.transform_mut(|r| {
-                *r = movement::move_vertically(slice, *r, MoveDir::Forward, SCROLL_HALF_PAGE, false);
-            });
+            editor.move_visual_vertical(MoveDir::Forward, SCROLL_HALF_PAGE, false);
         }
         Command::ScrollPageUp => {
-            editor.scroll_offset = editor.scroll_offset.saturating_sub(SCROLL_FULL_PAGE);
-            editor.selection.transform_mut(|r| {
-                *r = movement::move_vertically(slice, *r, MoveDir::Backward, SCROLL_FULL_PAGE, false);
-            });
+            editor.move_visual_vertical(MoveDir::Backward, SCROLL_FULL_PAGE, false);
         }
         Command::ScrollPageDown => {
-            editor.scroll_offset = editor.scroll_offset.saturating_add(SCROLL_FULL_PAGE);
-            editor.selection.transform_mut(|r| {
-                *r = movement::move_vertically(slice, *r, MoveDir::Forward, SCROLL_FULL_PAGE, false);
-            });
+            editor.move_visual_vertical(MoveDir::Forward, SCROLL_FULL_PAGE, false);
         }
 
         Command::ToLowerCase => {

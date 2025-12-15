@@ -35,19 +35,37 @@ impl Editor {
         let gutter_width = total_lines.max(1).ilog10() as u16 + 2;
         let text_width = area.width.saturating_sub(gutter_width) as usize;
         let viewport_height = area.height as usize;
-        let cursor_line = self.cursor_line();
 
         self.text_width = text_width;
 
-        if cursor_line < self.scroll_offset {
-            self.scroll_offset = cursor_line;
+        let cursor_pos = self.selection.primary().head;
+        let cursor_line = self.cursor_line();
+        let cursor_line_start = self.doc.line_to_char(cursor_line);
+        let cursor_col = cursor_pos - cursor_line_start;
+
+        let cursor_line_end = if cursor_line + 1 < total_lines {
+            self.doc.line_to_char(cursor_line + 1)
+        } else {
+            self.doc.len_chars()
+        };
+        let cursor_line_text: String = self.doc.slice(cursor_line_start..cursor_line_end).into();
+        let cursor_line_text = cursor_line_text.trim_end_matches('\n');
+        let cursor_segments = self.wrap_line(cursor_line_text, text_width);
+        let cursor_segment = self.find_segment_for_col(&cursor_segments, cursor_col);
+
+        if cursor_line < self.scroll_line
+            || (cursor_line == self.scroll_line && cursor_segment < self.scroll_segment)
+        {
+            self.scroll_line = cursor_line;
+            self.scroll_segment = cursor_segment;
             return;
         }
 
-        let mut visual_rows = 0;
-        let mut line_idx = self.scroll_offset;
+        let mut visual_row = 0;
+        let mut line_idx = self.scroll_line;
+        let mut start_segment = self.scroll_segment;
 
-        while line_idx < total_lines && visual_rows < viewport_height {
+        while line_idx < total_lines && visual_row < viewport_height {
             let line_start = self.doc.line_to_char(line_idx);
             let line_end = if line_idx + 1 < total_lines {
                 self.doc.line_to_char(line_idx + 1)
@@ -57,23 +75,48 @@ impl Editor {
 
             let line_text: String = self.doc.slice(line_start..line_end).into();
             let line_text = line_text.trim_end_matches('\n');
-            let wrapped = self.wrap_line(line_text, text_width);
-            let rows_for_line = wrapped.len().max(1);
+            let segments = self.wrap_line(line_text, text_width);
+            let num_segments = segments.len().max(1);
 
-            if line_idx == cursor_line {
-                if visual_rows + rows_for_line <= viewport_height {
-                    return;
+            for seg_idx in start_segment..num_segments {
+                if line_idx == cursor_line && seg_idx == cursor_segment {
+                    if visual_row < viewport_height {
+                        return;
+                    }
                 }
-                break;
+                visual_row += 1;
+                if visual_row >= viewport_height {
+                    break;
+                }
             }
 
-            visual_rows += rows_for_line;
+            start_segment = 0;
             line_idx += 1;
         }
 
-        if line_idx <= cursor_line {
-            self.scroll_offset += 1;
-            self.ensure_cursor_visible(area);
+        self.scroll_down_one_visual_row(text_width);
+        self.ensure_cursor_visible(area);
+    }
+
+    fn scroll_down_one_visual_row(&mut self, text_width: usize) {
+        let total_lines = self.doc.len_lines();
+        let line_start = self.doc.line_to_char(self.scroll_line);
+        let line_end = if self.scroll_line + 1 < total_lines {
+            self.doc.line_to_char(self.scroll_line + 1)
+        } else {
+            self.doc.len_chars()
+        };
+
+        let line_text: String = self.doc.slice(line_start..line_end).into();
+        let line_text = line_text.trim_end_matches('\n');
+        let segments = self.wrap_line(line_text, text_width);
+        let num_segments = segments.len().max(1);
+
+        if self.scroll_segment + 1 < num_segments {
+            self.scroll_segment += 1;
+        } else {
+            self.scroll_line += 1;
+            self.scroll_segment = 0;
         }
     }
 
@@ -87,7 +130,8 @@ impl Editor {
         let sel_end = primary.to();
 
         let mut output_lines: Vec<Line> = Vec::new();
-        let mut current_line_idx = self.scroll_offset;
+        let mut current_line_idx = self.scroll_line;
+        let mut start_segment = self.scroll_segment;
         let viewport_height = area.height as usize;
 
         while output_lines.len() < viewport_height && current_line_idx < total_lines {
@@ -104,7 +148,7 @@ impl Editor {
             let wrapped_segments = self.wrap_line(line_text, text_width);
             let num_segments = wrapped_segments.len().max(1);
 
-            for (seg_idx, segment) in wrapped_segments.iter().enumerate() {
+            for (seg_idx, segment) in wrapped_segments.iter().enumerate().skip(start_segment) {
                 if output_lines.len() >= viewport_height {
                     break;
                 }
@@ -167,7 +211,7 @@ impl Editor {
                 output_lines.push(Line::from(spans));
             }
 
-            if wrapped_segments.is_empty() {
+            if wrapped_segments.is_empty() && start_segment == 0 {
                 if output_lines.len() < viewport_height {
                     let line_num_str = format!("{:>width$} ", current_line_idx + 1, width = gutter_width as usize - 1);
                     let gutter_style = Style::default().fg(Color::DarkGray);
@@ -193,6 +237,7 @@ impl Editor {
                 }
             }
 
+            start_segment = 0;
             current_line_idx += 1;
         }
 

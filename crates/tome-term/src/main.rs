@@ -311,7 +311,7 @@ mod tests {
         
         let viewport_height = 8;
         
-        assert_eq!(editor.scroll_offset, 0, "starts at top");
+        assert_eq!(editor.scroll_line, 0, "starts at top");
         assert_eq!(editor.cursor_line(), 0, "cursor on line 0");
         
         for _ in 0..10 {
@@ -324,10 +324,10 @@ mod tests {
         terminal.draw(|frame| editor.render(frame)).unwrap();
         
         assert!(
-            editor.scroll_offset + viewport_height > editor.cursor_line(),
-            "cursor line {} should be visible in viewport (scroll_offset={}, height={})",
+            editor.scroll_line + viewport_height > editor.cursor_line(),
+            "cursor line {} should be visible in viewport (scroll_line={}, height={})",
             editor.cursor_line(),
-            editor.scroll_offset,
+            editor.scroll_line,
             viewport_height
         );
     }
@@ -349,9 +349,10 @@ mod tests {
         terminal.draw(|frame| editor.render(frame)).unwrap();
         
         assert!(
-            editor.scroll_offset > 0,
-            "scroll_offset should be > 0 to show cursor through wrapped lines, got {}",
-            editor.scroll_offset
+            editor.scroll_line > 0 || editor.scroll_segment > 0,
+            "scroll should advance to show cursor through wrapped lines, got scroll_line={}, scroll_segment={}",
+            editor.scroll_line,
+            editor.scroll_segment
         );
     }
 
