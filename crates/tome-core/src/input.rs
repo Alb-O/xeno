@@ -192,27 +192,22 @@ impl InputHandler {
     }
 
     fn handle_normal_key(&mut self, key: Key) -> KeyResult {
-        // Handle count prefix (digits)
         if let Some(digit) = key.as_digit() {
-            // '0' is only a count if we already have a count
             if digit != 0 || self.count > 0 {
                 self.count = self.count.saturating_mul(10).saturating_add(digit);
                 return KeyResult::Consumed;
             }
         }
 
-        // Handle register prefix (")
         if key.is_char('"') && self.register.is_none() {
             self.mode = Mode::Pending(PendingCommand::Register);
             return KeyResult::Pending("register...".into());
         }
 
-        // Check if shift is held for extend mode
         if key.modifiers.shift {
             self.extend = true;
         }
 
-        // Look up in keymap
         if let Some(mapping) = lookup(NORMAL_KEYMAP, key) {
             self.process_command(mapping.command)
         } else {
@@ -225,7 +220,6 @@ impl InputHandler {
         let params = self.make_params();
 
         match command {
-            // Mode changes
             Command::InsertBefore
             | Command::InsertAfter
             | Command::InsertLineStart
@@ -244,13 +238,11 @@ impl InputHandler {
             }
 
             Command::EnterGotoMode => {
-                // If count is given, go to line number directly
                 if params.count > 1 || self.count > 0 {
                     self.reset_params();
                     return KeyResult::Command(Command::MoveDocumentStart, params);
                 }
                 self.mode = Mode::Goto;
-                // Note: self.extend is preserved for G (extend goto mode)
                 KeyResult::ModeChange(Mode::Goto)
             }
 
@@ -285,7 +277,6 @@ impl InputHandler {
 
             Command::FindCharForward { inclusive, ch } => {
                 if let Some(c) = ch {
-                    // Already have a char (from repeat)
                     self.last_find = Some((c, inclusive, false));
                     self.reset_params();
                     return KeyResult::Command(
@@ -302,7 +293,6 @@ impl InputHandler {
 
             Command::FindCharBackward { inclusive, ch } => {
                 if let Some(c) = ch {
-                    // Already have a char (from repeat)
                     self.last_find = Some((c, inclusive, true));
                     self.reset_params();
                     return KeyResult::Command(
@@ -421,29 +411,50 @@ impl InputHandler {
                 KeyResult::Command(Command::Delete { yank: false }, CommandParams::default())
             }
 
+            KeyCode::Special(SpecialKey::Left) if key.modifiers.ctrl => {
+                KeyResult::Command(Command::MovePrevWordStart, CommandParams::default())
+            }
+            KeyCode::Special(SpecialKey::Right) if key.modifiers.ctrl => {
+                KeyResult::Command(Command::MoveNextWordEnd, CommandParams::default())
+            }
             KeyCode::Special(SpecialKey::Left) => {
                 KeyResult::Command(Command::MoveLeft, CommandParams::default())
             }
-
             KeyCode::Special(SpecialKey::Right) => {
                 KeyResult::Command(Command::MoveRight, CommandParams::default())
             }
-
             KeyCode::Special(SpecialKey::Up) => {
                 KeyResult::Command(Command::MoveUp, CommandParams::default())
             }
-
             KeyCode::Special(SpecialKey::Down) => {
                 KeyResult::Command(Command::MoveDown, CommandParams::default())
             }
 
-            // Ctrl+r for register insert
+            KeyCode::Special(SpecialKey::Home) if key.modifiers.ctrl => {
+                KeyResult::Command(Command::MoveDocumentStart, CommandParams::default())
+            }
+            KeyCode::Special(SpecialKey::End) if key.modifiers.ctrl => {
+                KeyResult::Command(Command::MoveDocumentEnd, CommandParams::default())
+            }
+            KeyCode::Special(SpecialKey::Home) => {
+                KeyResult::Command(Command::MoveLineStart, CommandParams::default())
+            }
+            KeyCode::Special(SpecialKey::End) => {
+                KeyResult::Command(Command::MoveLineEnd, CommandParams::default())
+            }
+
+            KeyCode::Special(SpecialKey::PageUp) => {
+                KeyResult::Command(Command::ScrollPageUp, CommandParams::default())
+            }
+            KeyCode::Special(SpecialKey::PageDown) => {
+                KeyResult::Command(Command::ScrollPageDown, CommandParams::default())
+            }
+
             KeyCode::Char('r') if key.modifiers.ctrl => {
                 self.mode = Mode::Pending(PendingCommand::Register);
                 KeyResult::Pending("reg".into())
             }
 
-            // Alt+; to escape for one normal command
             KeyCode::Char(';') if key.modifiers.alt => {
                 // TODO: implement single-command escape
                 KeyResult::Consumed
@@ -454,7 +465,6 @@ impl InputHandler {
     }
 
     fn handle_goto_key(&mut self, key: Key) -> KeyResult {
-        // Escape returns to normal
         if matches!(key.code, KeyCode::Special(SpecialKey::Escape)) {
             self.mode = Mode::Normal;
             self.reset_params();
@@ -475,7 +485,6 @@ impl InputHandler {
     }
 
     fn handle_view_key(&mut self, key: Key) -> KeyResult {
-        // Escape returns to normal
         if matches!(key.code, KeyCode::Special(SpecialKey::Escape)) {
             self.mode = Mode::Normal;
             self.reset_params();
@@ -485,8 +494,6 @@ impl InputHandler {
         let params = self.make_params();
 
         if let Some(mapping) = lookup(VIEW_KEYMAP, key) {
-            // View mode stays in view mode (locked) unless escape
-            // For non-locked, we'd return to normal
             self.mode = Mode::Normal;
             self.reset_params();
             KeyResult::Command(mapping.command, params)
@@ -499,14 +506,12 @@ impl InputHandler {
 
     fn handle_command_key(&mut self, key: Key, prompt: char, mut input: String) -> KeyResult {
         match key.code {
-            // Escape cancels command mode
             KeyCode::Special(SpecialKey::Escape) => {
                 self.mode = Mode::Normal;
                 self.reset_params();
                 KeyResult::ModeChange(Mode::Normal)
             }
 
-            // Enter executes the command
             KeyCode::Special(SpecialKey::Enter) => {
                 self.mode = Mode::Normal;
                 self.reset_params();
@@ -529,7 +534,6 @@ impl InputHandler {
                 }
             }
 
-            // Backspace deletes last char
             KeyCode::Special(SpecialKey::Backspace) => {
                 if input.is_empty() {
                     self.mode = Mode::Normal;
@@ -542,14 +546,12 @@ impl InputHandler {
                 }
             }
 
-            // Regular character adds to input
             KeyCode::Char(c) if key.modifiers.is_empty() => {
                 input.push(c);
                 self.mode = Mode::Command { prompt, input };
                 KeyResult::Consumed
             }
 
-            // Space adds to input
             KeyCode::Char(' ') => {
                 input.push(' ');
                 self.mode = Mode::Command { prompt, input };
@@ -561,7 +563,6 @@ impl InputHandler {
     }
 
     fn handle_pending_key(&mut self, key: Key, pending: PendingCommand) -> KeyResult {
-        // Escape cancels pending
         if matches!(key.code, KeyCode::Special(SpecialKey::Escape)) {
             self.mode = Mode::Normal;
             self.reset_params();
@@ -775,7 +776,62 @@ mod tests {
         let result = handler.handle_key(Key::special(SpecialKey::Down));
         assert!(matches!(result, KeyResult::Command(Command::MoveDown, _)));
 
-        // Should still be in insert mode
+        assert!(matches!(handler.mode, Mode::Insert));
+    }
+
+    #[test]
+    fn test_insert_mode_navigation_keys() {
+        let mut handler = InputHandler::new();
+        handler.mode = Mode::Insert;
+
+        let result = handler.handle_key(Key::special(SpecialKey::Home));
+        assert!(matches!(
+            result,
+            KeyResult::Command(Command::MoveLineStart, _)
+        ));
+
+        let result = handler.handle_key(Key::special(SpecialKey::End));
+        assert!(matches!(
+            result,
+            KeyResult::Command(Command::MoveLineEnd, _)
+        ));
+
+        let result = handler.handle_key(Key::special(SpecialKey::PageUp));
+        assert!(matches!(
+            result,
+            KeyResult::Command(Command::ScrollPageUp, _)
+        ));
+
+        let result = handler.handle_key(Key::special(SpecialKey::PageDown));
+        assert!(matches!(
+            result,
+            KeyResult::Command(Command::ScrollPageDown, _)
+        ));
+
+        let result = handler.handle_key(Key::special(SpecialKey::Left).with_ctrl());
+        assert!(matches!(
+            result,
+            KeyResult::Command(Command::MovePrevWordStart, _)
+        ));
+
+        let result = handler.handle_key(Key::special(SpecialKey::Right).with_ctrl());
+        assert!(matches!(
+            result,
+            KeyResult::Command(Command::MoveNextWordEnd, _)
+        ));
+
+        let result = handler.handle_key(Key::special(SpecialKey::Home).with_ctrl());
+        assert!(matches!(
+            result,
+            KeyResult::Command(Command::MoveDocumentStart, _)
+        ));
+
+        let result = handler.handle_key(Key::special(SpecialKey::End).with_ctrl());
+        assert!(matches!(
+            result,
+            KeyResult::Command(Command::MoveDocumentEnd, _)
+        ));
+
         assert!(matches!(handler.mode, Mode::Insert));
     }
 
@@ -800,16 +856,13 @@ mod tests {
     fn test_command_mode() {
         let mut handler = InputHandler::new();
 
-        // Enter command mode with ':'
         let result = handler.handle_key(Key::char(':'));
         assert!(matches!(result, KeyResult::ModeChange(Mode::Command { .. })));
         assert!(matches!(handler.mode(), Mode::Command { prompt: ':', .. }));
 
-        // Type 'q'
         handler.handle_key(Key::char('q'));
         assert_eq!(handler.command_line(), Some((':', "q")));
 
-        // Press Enter to execute
         let result = handler.handle_key(Key::special(SpecialKey::Enter));
         assert!(matches!(result, KeyResult::ExecuteCommand(ref s) if s == "q"));
         assert!(matches!(handler.mode(), Mode::Normal));
@@ -823,7 +876,6 @@ mod tests {
         handler.handle_key(Key::char('w'));
         handler.handle_key(Key::char('q'));
 
-        // Escape cancels command mode
         let result = handler.handle_key(Key::special(SpecialKey::Escape));
         assert!(matches!(result, KeyResult::ModeChange(Mode::Normal)));
         assert!(matches!(handler.mode(), Mode::Normal));
@@ -833,25 +885,21 @@ mod tests {
     fn test_find_char_repeat() {
         let mut handler = InputHandler::new();
 
-        // 'f' enters pending mode for find char forward
         let result = handler.handle_key(Key::char('f'));
         assert!(matches!(result, KeyResult::Pending(_)));
 
-        // Type 'x' to find
         let result = handler.handle_key(Key::char('x'));
         assert!(matches!(
             result,
             KeyResult::Command(Command::FindCharForward { inclusive: true, ch: Some('x') }, _)
         ));
 
-        // alt-. repeats the find
         let result = handler.handle_key(Key::alt('.'));
         assert!(matches!(
             result,
             KeyResult::Command(Command::FindCharForward { inclusive: true, ch: Some('x') }, _)
         ));
 
-        // Now do a backward find with alt-f
         handler.handle_key(Key::alt('f'));
         let result = handler.handle_key(Key::char('y'));
         assert!(matches!(
@@ -859,7 +907,6 @@ mod tests {
             KeyResult::Command(Command::FindCharBackward { inclusive: true, ch: Some('y') }, _)
         ));
 
-        // alt-. now repeats backward find
         let result = handler.handle_key(Key::alt('.'));
         assert!(matches!(
             result,

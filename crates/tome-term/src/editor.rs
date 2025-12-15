@@ -350,7 +350,6 @@ impl Editor {
         if let Some(obj_def) = ext::find_text_object(trigger) {
             let slice = self.doc.slice(..);
             self.selection.transform_mut(|r| {
-                // Use 'around' to get the full object bounds
                 if let Some(obj_range) = (obj_def.around)(slice, r.head) {
                     let new_head = if to_start { obj_range.from() } else { obj_range.to() };
                     if extend {
