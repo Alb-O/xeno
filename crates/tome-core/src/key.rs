@@ -150,6 +150,17 @@ impl Key {
         }
     }
 
+    /// Drop the shift modifier (useful for treating Shift as “extend”).
+    pub const fn without_shift(self) -> Self {
+        Self {
+            modifiers: Modifiers {
+                shift: false,
+                ..self.modifiers
+            },
+            ..self
+        }
+    }
+
     /// Add Alt modifier.
     pub const fn with_alt(self) -> Self {
         Self {

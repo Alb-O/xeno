@@ -232,6 +232,9 @@ impl InputHandler {
             self.extend = true;
         }
 
+        // Treat Shift as extend; drop it for key matching (Kakoune-style)
+        let key = key.normalize().without_shift();
+
         if let Some(binding) = find_binding(BindingMode::Normal, key) {
             let count = if self.count > 0 { self.count as usize } else { 1 };
             let extend = self.extend;
@@ -302,7 +305,11 @@ impl InputHandler {
         let extend = self.extend;
         let register = self.register;
 
+        let key = key.normalize().without_shift();
+
+        // Try new keybinding registry first
         if let Some(binding) = find_binding(BindingMode::Goto, key) {
+
             self.mode = Mode::Normal;
             self.reset_params();
             return KeyResult::Action {
@@ -329,7 +336,11 @@ impl InputHandler {
         let extend = self.extend;
         let register = self.register;
 
+        let key = key.normalize().without_shift();
+
+        // Try new keybinding registry first
         if let Some(binding) = find_binding(BindingMode::View, key) {
+
             self.mode = Mode::Normal;
             self.reset_params();
             return KeyResult::Action {
