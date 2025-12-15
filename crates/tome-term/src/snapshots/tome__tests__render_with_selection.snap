@@ -2,13 +2,13 @@
 source: crates/tome-term/src/main.rs
 expression: terminal.backend()
 ---
-"Hello, World!                                                                   "
-"                                                                                "
-"                                                                                "
-"                                                                                "
-"                                                                                "
-"                                                                                "
-"                                                                                "
-"                                                                                "
+"1 Hello, World!                                                                 "
+"~                                                                               "
+"~                                                                               "
+"~                                                                               "
+"~                                                                               "
+"~                                                                               "
+"~                                                                               "
+"~                                                                               "
 " NORMAL  test.txt  1:1                                                          "
 "                                                                                "

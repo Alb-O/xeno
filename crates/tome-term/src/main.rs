@@ -29,6 +29,14 @@ struct HistoryEntry {
     selection: Selection,
 }
 
+/// A segment of a wrapped line.
+struct WrapSegment {
+    /// The text content of this segment.
+    text: String,
+    /// Character offset from the start of the original line.
+    start_offset: usize,
+}
+
 struct Editor {
     doc: Rope,
     selection: Selection,
@@ -671,19 +679,24 @@ impl Editor {
     }
 
     fn render_document(&self, area: Rect) -> impl Widget + '_ {
-        let start_line = self.scroll_offset;
-        let end_line = (start_line + area.height as usize).min(self.doc.len_lines());
+        // Calculate gutter width based on max line number
+        let total_lines = self.doc.len_lines();
+        let gutter_width = total_lines.max(1).ilog10() as u16 + 2; // +2 for padding
+        let text_width = area.width.saturating_sub(gutter_width) as usize;
 
         let primary = self.selection.primary();
         let sel_start = primary.from();
         let sel_end = primary.to();
 
-        let mut lines = Vec::with_capacity(end_line - start_line);
+        let mut output_lines: Vec<Line> = Vec::new();
+        let mut current_line_idx = self.scroll_offset;
+        let viewport_height = area.height as usize;
 
-        for line_idx in start_line..end_line {
-            let line_start = self.doc.line_to_char(line_idx);
-            let line_end = if line_idx + 1 < self.doc.len_lines() {
-                self.doc.line_to_char(line_idx + 1)
+        // Process document lines until we fill the viewport
+        while output_lines.len() < viewport_height && current_line_idx < total_lines {
+            let line_start = self.doc.line_to_char(current_line_idx);
+            let line_end = if current_line_idx + 1 < total_lines {
+                self.doc.line_to_char(current_line_idx + 1)
             } else {
                 self.doc.len_chars()
             };
@@ -691,57 +704,185 @@ impl Editor {
             let line_text: String = self.doc.slice(line_start..line_end).into();
             let line_text = line_text.trim_end_matches('\n');
 
-            let mut spans = Vec::new();
+            // Split line into wrapped segments with word-boundary intelligence
+            let wrapped_segments = self.wrap_line(line_text, text_width);
+            let num_segments = wrapped_segments.len().max(1);
 
-            for (char_idx, ch) in line_text.chars().enumerate() {
-                let doc_pos = line_start + char_idx;
-                let in_selection = doc_pos >= sel_start && doc_pos < sel_end;
-                let is_cursor = doc_pos == primary.head;
+            for (seg_idx, segment) in wrapped_segments.iter().enumerate() {
+                if output_lines.len() >= viewport_height {
+                    break;
+                }
 
-                let style = if is_cursor {
-                    Style::default()
-                        .bg(Color::White)
-                        .fg(Color::Black)
-                        .add_modifier(Modifier::BOLD)
-                } else if in_selection {
-                    Style::default().bg(Color::Blue).fg(Color::White)
+                let is_first_segment = seg_idx == 0;
+                let is_last_segment = seg_idx == num_segments - 1;
+
+                // Build gutter span
+                let line_num_str = if is_first_segment {
+                    format!("{:>width$} ", current_line_idx + 1, width = gutter_width as usize - 1)
                 } else {
-                    Style::default()
+                    format!("{:>width$} ", "┆", width = gutter_width as usize - 1)
+                };
+                let gutter_style = if is_first_segment {
+                    Style::default().fg(Color::DarkGray)
+                } else {
+                    Style::default().fg(Color::Rgb(60, 60, 60)) // Dimmer for wrapped lines
                 };
 
-                spans.push(Span::styled(ch.to_string(), style));
-            }
+                let mut spans = vec![Span::styled(line_num_str, gutter_style)];
 
-            // Cursor at end of line (after last char, before the next line starts)
-            // For lines ending with newline: cursor can be on the newline char (line_end - 1 if there's a newline)
-            // For last line without newline: cursor can be at line_end (EOF position)
-            let line_content_end = line_start + line_text.chars().count();
-            let is_last_line = line_idx + 1 >= self.doc.len_lines();
-            let cursor_at_eol = if is_last_line {
-                // Last line: cursor can be at or after content, up to and including EOF
-                primary.head >= line_content_end && primary.head <= line_end
-            } else {
-                // Non-last line: cursor can be at content end (on the newline), but not past it
-                primary.head >= line_content_end && primary.head < line_end
-            };
-            if cursor_at_eol {
-                // Only show cursor here if it wasn't already rendered in the loop
-                let cursor_in_content = primary.head < line_content_end;
-                if !cursor_in_content {
-                    spans.push(Span::styled(
-                        " ",
+                // Build content spans for this segment
+                let seg_char_offset = segment.start_offset;
+                for (i, ch) in segment.text.chars().enumerate() {
+                    let doc_pos = line_start + seg_char_offset + i;
+                    let in_selection = doc_pos >= sel_start && doc_pos < sel_end;
+                    let is_cursor = doc_pos == primary.head;
+
+                    let style = if is_cursor {
                         Style::default()
                             .bg(Color::White)
                             .fg(Color::Black)
-                            .add_modifier(Modifier::BOLD),
-                    ));
+                            .add_modifier(Modifier::BOLD)
+                    } else if in_selection {
+                        Style::default().bg(Color::Blue).fg(Color::White)
+                    } else {
+                        Style::default()
+                    };
+
+                    spans.push(Span::styled(ch.to_string(), style));
+                }
+
+                // Handle cursor at end of line (only on last segment)
+                if is_last_segment {
+                    let line_content_end = line_start + line_text.chars().count();
+                    let is_last_doc_line = current_line_idx + 1 >= total_lines;
+                    let cursor_at_eol = if is_last_doc_line {
+                        primary.head >= line_content_end && primary.head <= line_end
+                    } else {
+                        primary.head >= line_content_end && primary.head < line_end
+                    };
+                    if cursor_at_eol && primary.head >= line_content_end {
+                        spans.push(Span::styled(
+                            " ",
+                            Style::default()
+                                .bg(Color::White)
+                                .fg(Color::Black)
+                                .add_modifier(Modifier::BOLD),
+                        ));
+                    }
+                }
+
+                output_lines.push(Line::from(spans));
+            }
+
+            // Handle empty lines (no segments)
+            if wrapped_segments.is_empty() {
+                if output_lines.len() < viewport_height {
+                    let line_num_str = format!("{:>width$} ", current_line_idx + 1, width = gutter_width as usize - 1);
+                    let gutter_style = Style::default().fg(Color::DarkGray);
+                    let mut spans = vec![Span::styled(line_num_str, gutter_style)];
+
+                    // Cursor on empty line
+                    let is_last_doc_line = current_line_idx + 1 >= total_lines;
+                    let cursor_at_eol = if is_last_doc_line {
+                        primary.head >= line_start && primary.head <= line_end
+                    } else {
+                        primary.head >= line_start && primary.head < line_end
+                    };
+                    if cursor_at_eol {
+                        spans.push(Span::styled(
+                            " ",
+                            Style::default()
+                                .bg(Color::White)
+                                .fg(Color::Black)
+                                .add_modifier(Modifier::BOLD),
+                        ));
+                    }
+
+                    output_lines.push(Line::from(spans));
                 }
             }
 
-            lines.push(Line::from(spans));
+            current_line_idx += 1;
         }
 
-        Paragraph::new(lines)
+        // Fill remaining viewport with empty lines (tildes like vim, or just empty)
+        while output_lines.len() < viewport_height {
+            let line_num_str = format!("{:>width$} ", "~", width = gutter_width as usize - 1);
+            let gutter_style = Style::default().fg(Color::Rgb(60, 60, 60));
+            output_lines.push(Line::from(vec![Span::styled(line_num_str, gutter_style)]));
+        }
+
+        Paragraph::new(output_lines)
+    }
+
+    /// Wrap a line of text into segments that fit within the given width.
+    /// Uses word-boundary intelligence to break at word boundaries when possible.
+    fn wrap_line(&self, line: &str, max_width: usize) -> Vec<WrapSegment> {
+        if max_width == 0 {
+            return vec![];
+        }
+
+        let chars: Vec<char> = line.chars().collect();
+        if chars.is_empty() {
+            return vec![];
+        }
+
+        let mut segments = Vec::new();
+        let mut pos = 0;
+
+        while pos < chars.len() {
+            let remaining = chars.len() - pos;
+            if remaining <= max_width {
+                // Rest of line fits
+                segments.push(WrapSegment {
+                    text: chars[pos..].iter().collect(),
+                    start_offset: pos,
+                });
+                break;
+            }
+
+            // Need to wrap - find best break point
+            let segment_end = pos + max_width;
+            let break_pos = self.find_wrap_break(&chars, pos, segment_end);
+
+            segments.push(WrapSegment {
+                text: chars[pos..break_pos].iter().collect(),
+                start_offset: pos,
+            });
+
+            pos = break_pos;
+            // Skip leading whitespace on wrapped lines
+            while pos < chars.len() && chars[pos] == ' ' {
+                pos += 1;
+            }
+        }
+
+        segments
+    }
+
+    /// Find the best position to break a line for wrapping.
+    /// Prefers breaking at word boundaries (after spaces, before certain punctuation).
+    fn find_wrap_break(&self, chars: &[char], start: usize, max_end: usize) -> usize {
+        // Look backwards from max_end to find a good break point
+        let search_start = start + (max_end - start) / 2; // Don't search too far back
+
+        for i in (search_start..max_end).rev() {
+            let ch = chars[i];
+            // Break after whitespace
+            if ch == ' ' || ch == '\t' {
+                return i + 1;
+            }
+            // Break before certain punctuation
+            if i + 1 < chars.len() {
+                let next = chars[i + 1];
+                if next == '-' || next == '/' || next == '.' || next == ',' {
+                    return i + 1;
+                }
+            }
+        }
+
+        // No good break point found, hard break at max width
+        max_end
     }
 
     fn render_status_line(&self) -> impl Widget + '_ {
@@ -1027,6 +1168,7 @@ mod tests {
         }
         
         // Should have exactly ONE cursor cell, on line 2 (row index 1)
+        // With gutter, cursor is offset by gutter width (2 chars for "1 " or "2 ")
         assert_eq!(
             cursor_cells.len(), 
             1, 
@@ -1034,10 +1176,12 @@ mod tests {
             cursor_cells.len(), 
             cursor_cells
         );
+        // Cursor at column 2 (after gutter), row 1 (second line)
         assert_eq!(
-            cursor_cells[0], 
-            (0, 1), 
-            "Cursor should be at column 0, row 1 (second line)"
+            cursor_cells[0].1, 
+            1, 
+            "Cursor should be on row 1 (second line), found at {:?}", 
+            cursor_cells[0]
         );
         
         assert_snapshot!(terminal.backend());
@@ -1068,5 +1212,63 @@ mod tests {
         editor.handle_key(KeyEvent::new(KeyCode::Down, KeyModifiers::NONE));
         // Still in insert mode
         assert!(matches!(editor.mode(), Mode::Insert), "still in insert mode after arrows");
+    }
+
+    #[test]
+    fn test_soft_wrap_long_line() {
+        // Create a line that's longer than the viewport width
+        // With 40 char width terminal and ~2 char gutter, text area is ~38 chars
+        let long_line = "The quick brown fox jumps over the lazy dog and keeps on running";
+        let mut editor = test_editor(long_line);
+        
+        // Use a narrow terminal to force wrapping
+        let mut terminal = Terminal::new(TestBackend::new(40, 10)).unwrap();
+        terminal.draw(|frame| editor.render(frame)).unwrap();
+        assert_snapshot!(terminal.backend());
+    }
+
+    #[test]
+    fn test_soft_wrap_word_boundary() {
+        // Test that wrapping breaks at word boundaries, not mid-word
+        let text = "hello world this is a test of word wrapping behavior";
+        let mut editor = test_editor(text);
+        
+        let mut terminal = Terminal::new(TestBackend::new(30, 10)).unwrap();
+        terminal.draw(|frame| editor.render(frame)).unwrap();
+        assert_snapshot!(terminal.backend());
+    }
+
+    #[test]
+    fn test_line_numbers_multiple_lines() {
+        let text = "Line 1\nLine 2\nLine 3\nLine 4\nLine 5";
+        let editor = test_editor(text);
+        
+        let mut terminal = Terminal::new(TestBackend::new(40, 10)).unwrap();
+        terminal.draw(|frame| editor.render(frame)).unwrap();
+        assert_snapshot!(terminal.backend());
+    }
+
+    #[test]
+    fn test_wrapped_line_dim_gutter() {
+        use ratatui::style::Color;
+        
+        // Long line that will wrap
+        let long_line = "This is a very long line that should wrap to multiple virtual lines";
+        let editor = test_editor(long_line);
+        
+        let mut terminal = Terminal::new(TestBackend::new(30, 10)).unwrap();
+        terminal.draw(|frame| editor.render(frame)).unwrap();
+        
+        let buffer = terminal.backend().buffer();
+        
+        // First line gutter should be DarkGray (the normal line number color)
+        let first_gutter = &buffer[(0, 0)];
+        assert_eq!(first_gutter.fg, Color::DarkGray, "first line gutter should be DarkGray");
+        
+        // Second line (wrapped continuation) gutter should be dimmer (Rgb(60,60,60))
+        let second_gutter = &buffer[(0, 1)];
+        assert_eq!(second_gutter.fg, Color::Rgb(60, 60, 60), "wrapped line gutter should be dim");
+        
+        assert_snapshot!(terminal.backend());
     }
 }

@@ -1,15 +1,14 @@
 ---
 source: crates/tome-term/src/main.rs
-assertion_line: 552
 expression: terminal.backend()
 ---
-"                                                                                "
-"                                                                                "
-"                                                                                "
-"                                                                                "
-"                                                                                "
-"                                                                                "
-"                                                                                "
-"                                                                                "
+"1                                                                               "
+"~                                                                               "
+"~                                                                               "
+"~                                                                               "
+"~                                                                               "
+"~                                                                               "
+"~                                                                               "
+"~                                                                               "
 " NORMAL  test.txt  1:1                                                          "
 "                                                                                "
