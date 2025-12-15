@@ -713,4 +713,94 @@ mod tests {
             other => panic!("unexpected result: {:?}", other),
         }
     }
+
+    #[test]
+    fn test_shift_page_down_extends() {
+        let key = Key::special(SpecialKey::PageDown).with_shift();
+
+        let mut h = InputHandler::new();
+        let res = h.handle_key(key);
+        match res {
+            KeyResult::Action { name, extend, .. } => {
+                assert_eq!(name, "scroll_page_down");
+                assert!(extend, "shift+pagedown should extend");
+            }
+            other => panic!("unexpected result: {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_shift_page_up_extends() {
+        let key = Key::special(SpecialKey::PageUp).with_shift();
+
+        let mut h = InputHandler::new();
+        let res = h.handle_key(key);
+        match res {
+            KeyResult::Action { name, extend, .. } => {
+                assert_eq!(name, "scroll_page_up");
+                assert!(extend, "shift+pageup should extend");
+            }
+            other => panic!("unexpected result: {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_shift_home_extends() {
+        let key = Key::special(SpecialKey::Home).with_shift();
+
+        let mut h = InputHandler::new();
+        let res = h.handle_key(key);
+        match res {
+            KeyResult::Action { name, extend, .. } => {
+                assert_eq!(name, "move_line_start");
+                assert!(extend, "shift+home should extend");
+            }
+            other => panic!("unexpected result: {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_shift_end_extends() {
+        let key = Key::special(SpecialKey::End).with_shift();
+
+        let mut h = InputHandler::new();
+        let res = h.handle_key(key);
+        match res {
+            KeyResult::Action { name, extend, .. } => {
+                assert_eq!(name, "move_line_end");
+                assert!(extend, "shift+end should extend");
+            }
+            other => panic!("unexpected result: {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_page_down_no_shift_no_extend() {
+        let key = Key::special(SpecialKey::PageDown);
+
+        let mut h = InputHandler::new();
+        let res = h.handle_key(key);
+        match res {
+            KeyResult::Action { name, extend, .. } => {
+                assert_eq!(name, "scroll_page_down");
+                assert!(!extend, "pagedown without shift should not extend");
+            }
+            other => panic!("unexpected result: {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_shift_arrow_extends() {
+        let key = Key::special(SpecialKey::Right).with_shift();
+
+        let mut h = InputHandler::new();
+        let res = h.handle_key(key);
+        match res {
+            KeyResult::Action { name, extend, .. } => {
+                assert_eq!(name, "move_right");
+                assert!(extend, "shift+right should extend");
+            }
+            other => panic!("unexpected result: {:?}", other),
+        }
+    }
 }
