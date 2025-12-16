@@ -4,6 +4,8 @@ mod cli;
 mod editor;
 mod render;
 mod styles;
+pub mod theme;
+pub mod themes;
 
 use std::io::{self, Write};
 use std::time::Duration;
@@ -179,6 +181,85 @@ mod tests {
     }
 
     #[test]
+    fn test_themes_registry() {
+        use crate::theme::{get_theme, THEMES};
+        // We expect at least default, solarized_dark, monokai, one_dark, gruvbox
+        assert!(THEMES.len() >= 5);
+        
+        let default = get_theme("default");
+        assert!(default.is_some());
+        
+        // Solarized aliases
+        let solarized = get_theme("solarized_dark");
+        assert!(solarized.is_some());
+        assert_eq!(get_theme("solarized").unwrap().name, "solarized_dark");
+        assert_eq!(get_theme("solarized-dark").unwrap().name, "solarized_dark");
+
+        // Monokai aliases
+        let monokai = get_theme("monokai");
+        assert!(monokai.is_some());
+        assert_eq!(get_theme("monokai-extended").unwrap().name, "monokai");
+
+        // One Dark aliases
+        let one_dark = get_theme("one_dark");
+        assert!(one_dark.is_some());
+        assert_eq!(get_theme("onedark").unwrap().name, "one_dark");
+        assert_eq!(get_theme("one").unwrap().name, "one_dark");
+
+        // Gruvbox aliases
+        let gruvbox = get_theme("gruvbox");
+        assert!(gruvbox.is_some());
+        assert_eq!(get_theme("gruvbox-dark").unwrap().name, "gruvbox");
+    }
+
+    #[test]
+    fn test_theme_command() {
+        use crate::Editor;
+        use tome_core::ext::{CommandContext, CommandOutcome};
+        use crate::theme::CMD_THEME;
+
+        let mut editor = Editor::new_scratch();
+        
+        // Initial theme should be solarized_dark now
+        assert_eq!(editor.theme.name, "solarized_dark");
+
+        // Execute theme command to switch to default
+        let args = ["default"];
+        let mut ctx = CommandContext {
+            editor: &mut editor,
+            args: &args,
+            count: 1,
+            register: None,
+        };
+
+        let result = (CMD_THEME.handler)(&mut ctx);
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), CommandOutcome::Ok);
+        
+        // Theme should be updated
+        assert_eq!(editor.theme.name, "default");
+        
+        // Test invalid theme with suggestion
+        let args_invalid = ["solarizeddark"]; // Typo (missing separator, but normalized should handle it actually)
+        // Let's try a real typo "solarised"
+        let args_typo = ["solarised"];
+        let mut ctx_typo = CommandContext {
+            editor: &mut editor,
+            args: &args_typo,
+            count: 1,
+            register: None,
+        };
+        
+        let result_typo = (CMD_THEME.handler)(&mut ctx_typo);
+        assert!(result_typo.is_err());
+        if let Err(tome_core::ext::CommandError::Failed(msg)) = result_typo {
+            assert!(msg.contains("Did you mean 'solarized_dark'?"));
+        } else {
+            panic!("Expected Failed error with suggestion");
+        }
+    }
+
+    #[test]
     fn test_render_empty() {
         let mut editor = test_editor("");
         let mut terminal = Terminal::new(TestBackend::new(80, 10)).unwrap();
@@ -351,9 +432,12 @@ mod tests {
     #[test]
     fn test_wrapped_line_dim_gutter() {
         use ratatui::style::Color;
+        use tome_core::ext::EditorOps;
         
         let long_line = "This is a very long line that should wrap to multiple virtual lines";
         let mut editor = test_editor(long_line);
+        // Ensure default theme for this test since we assert specific colors
+        editor.set_theme("default").unwrap();
         
         let mut terminal = Terminal::new(TestBackend::new(30, 10)).unwrap();
         terminal.draw(|frame| editor.render(frame)).unwrap();
@@ -650,7 +734,7 @@ mod tests {
             editor
                 .message
                 .as_ref()
-                .map(|m| m.contains("Unknown command: foo"))
+                .map(|m| m.text.contains("Unknown command: foo"))
                 .unwrap_or(false),
             "expected unknown command message"
         );
@@ -669,7 +753,7 @@ mod tests {
             editor
                 .message
                 .as_ref()
-                .map(|m| m.contains("Unknown command: zzz"))
+                .map(|m| m.text.contains("Unknown command: zzz"))
                 .unwrap_or(false),
             "expected unknown command message"
         );
@@ -687,7 +771,7 @@ mod tests {
         });
 
         editor.handle_key(KeyEvent::new(KeyCode::Enter, Modifiers::NONE));
-        assert_eq!(editor.message, Some("Unknown command: foo".to_string()));
+        assert_eq!(editor.message.as_ref().map(|m| m.text.as_str()), Some("Unknown command: foo"));
     }
 
     #[test]
@@ -705,7 +789,7 @@ mod tests {
             editor
                 .message
                 .as_ref()
-                .map(|m| m.contains("Unknown command: ctrl-enter-test"))
+                .map(|m| m.text.contains("Unknown command: ctrl-enter-test"))
                 .unwrap_or(false),
             "expected unknown command message"
         );
@@ -728,7 +812,7 @@ mod tests {
             editor
                 .message
                 .as_ref()
-                .map(|m| m.contains("Unknown command: ctrl-j-test"))
+                .map(|m| m.text.contains("Unknown command: ctrl-j-test"))
                 .unwrap_or(false),
             "expected unknown command message"
         );

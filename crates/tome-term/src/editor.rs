@@ -12,6 +12,19 @@ use tome_core::{
 use tome_core::ext::{HookContext, emit_hook};
 
 use crate::render::WrapSegment;
+use crate::theme::{self, Theme};
+
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum MessageKind {
+    Info,
+    Error,
+}
+
+#[derive(Clone, Debug)]
+pub struct Message {
+    pub text: String,
+    pub kind: MessageKind,
+}
 
 /// A history entry for undo/redo.
 #[derive(Clone)]
@@ -68,7 +81,7 @@ pub struct Editor {
     pub modified: bool,
     pub scroll_line: usize,
     pub scroll_segment: usize,
-    pub message: Option<String>,
+    pub message: Option<Message>,
     pub registers: Registers,
     pub undo_stack: Vec<HistoryEntry>,
     pub redo_stack: Vec<HistoryEntry>,
@@ -80,9 +93,24 @@ pub struct Editor {
     pub scratch_focused: bool,
     in_scratch_context: bool,
     pub file_type: Option<String>,
+    pub theme: &'static Theme,
 }
 
 impl Editor {
+    pub fn show_message(&mut self, text: impl Into<String>) {
+        self.message = Some(Message {
+            text: text.into(),
+            kind: MessageKind::Info,
+        });
+    }
+
+    pub fn show_error(&mut self, text: impl Into<String>) {
+        self.message = Some(Message {
+            text: text.into(),
+            kind: MessageKind::Error,
+        });
+    }
+
     fn execute_command_line(&mut self, input: &str) -> bool {
 
         use ext::{find_command, CommandContext, CommandOutcome};
@@ -104,7 +132,7 @@ impl Editor {
         let cmd = match find_command(name) {
             Some(cmd) => cmd,
             None => {
-                self.message = Some(format!("Unknown command: {}", name));
+                self.show_error(format!("Unknown command: {}", name));
                 return false;
             }
         };
@@ -179,6 +207,7 @@ impl Editor {
             scratch_focused: false,
             in_scratch_context: false,
             file_type: file_type.map(|s| s.to_string()),
+            theme: &crate::themes::solarized::SOLARIZED_DARK,
         }
     }
 
@@ -272,7 +301,7 @@ impl Editor {
 
     pub(crate) fn do_execute_scratch(&mut self) -> bool {
         if !self.scratch_open {
-            self.message = Some("Scratch is not open".to_string());
+            self.show_error("Scratch is not open");
             return false;
         }
 
@@ -286,7 +315,7 @@ impl Editor {
 
         let trimmed = flattened.trim();
         if trimmed.is_empty() {
-            self.message = Some("Scratch buffer is empty".to_string());
+            self.show_error("Scratch buffer is empty");
             return false;
         }
 
@@ -449,9 +478,9 @@ impl Editor {
 
             self.doc = entry.doc;
             self.selection = entry.selection;
-            self.message = Some("Undo".to_string());
+            self.message = Some(Message { text: "Undo".to_string(), kind: MessageKind::Info });
         } else {
-            self.message = Some("Nothing to undo".to_string());
+            self.message = Some(Message { text: "Nothing to undo".to_string(), kind: MessageKind::Info });
         }
     }
 
@@ -464,9 +493,9 @@ impl Editor {
 
             self.doc = entry.doc;
             self.selection = entry.selection;
-            self.message = Some("Redo".to_string());
+            self.message = Some(Message { text: "Redo".to_string(), kind: MessageKind::Info });
         } else {
-            self.message = Some("Nothing to redo".to_string());
+            self.message = Some(Message { text: "Nothing to redo".to_string(), kind: MessageKind::Info });
         }
     }
 
@@ -482,8 +511,8 @@ impl Editor {
     }
 
     pub fn save(&mut self) -> io::Result<()> {
-        let path = match &self.path {
-            Some(p) => p,
+        let path_owned = match &self.path {
+            Some(p) => p.clone(),
             None => {
                 return Err(io::Error::new(
                     io::ErrorKind::InvalidInput,
@@ -493,18 +522,18 @@ impl Editor {
         };
 
         emit_hook(&HookContext::BufferWritePre {
-            path,
+            path: &path_owned,
             text: self.doc.slice(..),
         });
 
-        let mut f = fs::File::create(path)?;
+        let mut f = fs::File::create(&path_owned)?;
         for chunk in self.doc.chunks() {
             f.write_all(chunk.as_bytes())?;
         }
         self.modified = false;
-        self.message = Some(format!("Saved {}", path.display()));
+        self.show_message(format!("Saved {}", path_owned.display()));
 
-        emit_hook(&HookContext::BufferWrite { path });
+        emit_hook(&HookContext::BufferWrite { path: &path_owned });
 
         Ok(())
     }
@@ -520,7 +549,7 @@ impl Editor {
         let to = primary.to();
         if from < to {
             self.registers.yank = self.doc.slice(from..to).to_string();
-            self.message = Some(format!("Yanked {} chars", to - from));
+            self.show_message(format!("Yanked {} chars", to - from));
         }
     }
 
@@ -678,13 +707,13 @@ impl Editor {
                     Ok(Some(range)) => {
                         self.cursor = range.head;
                         self.selection = Selection::single(range.from(), range.to());
-                        self.message = Some(format!("Found: {}", pattern));
+                        self.show_message(format!("Found: {}", pattern));
                     }
                     Ok(None) => {
-                        self.message = Some(format!("Pattern not found: {}", pattern));
+                        self.show_message(format!("Pattern not found: {}", pattern));
                     }
                     Err(e) => {
-                        self.message = Some(format!("Regex error: {}", e));
+                        self.show_error(format!("Regex error: {}", e));
                     }
                 }
                 false
@@ -706,19 +735,19 @@ impl Editor {
                 false
             }
             KeyResult::PipeReplace { command } => {
-                self.message = Some(format!("Pipe (replace) not yet implemented: {}", command));
+                self.show_error(format!("Pipe (replace) not yet implemented: {}", command));
                 false
             }
             KeyResult::PipeIgnore { command } => {
-                self.message = Some(format!("Pipe (ignore) not yet implemented: {}", command));
+                self.show_error(format!("Pipe (ignore) not yet implemented: {}", command));
                 false
             }
             KeyResult::InsertOutput { command } => {
-                self.message = Some(format!("Insert output not yet implemented: {}", command));
+                self.show_error(format!("Insert output not yet implemented: {}", command));
                 false
             }
             KeyResult::AppendOutput { command } => {
-                self.message = Some(format!("Append output not yet implemented: {}", command));
+                self.show_error(format!("Append output not yet implemented: {}", command));
                 false
             }
             KeyResult::Consumed => false,
@@ -755,7 +784,7 @@ impl Editor {
         if matches!(self.mode(), Mode::Insert) {
             self.insert_text(&content);
         } else {
-            self.message = Some("Paste ignored outside insert mode".to_string());
+            self.show_error("Paste ignored outside insert mode");
         }
     }
 
@@ -886,7 +915,7 @@ impl Editor {
 
             Some(a) => a,
             None => {
-                self.message = Some(format!("Unknown action: {}", name));
+                self.show_error(format!("Unknown action: {}", name));
                 return false;
             }
         };
@@ -918,7 +947,7 @@ impl Editor {
         let action = match find_action(name) {
             Some(a) => a,
             None => {
-                self.message = Some(format!("Unknown action: {}", name));
+                self.show_error(format!("Unknown action: {}", name));
                 return false;
             }
         };
@@ -1216,14 +1245,14 @@ impl Editor {
                     }
                 }
                 Ok(None) => {
-                    self.message = Some("Pattern not found".to_string());
+                    self.show_message("Pattern not found");
                 }
                 Err(e) => {
-                    self.message = Some(format!("Regex error: {}", e));
+                    self.show_error(format!("Regex error: {}", e));
                 }
             }
         } else {
-            self.message = Some("No search pattern".to_string());
+            self.show_message("No search pattern");
         }
         false
     }
@@ -1243,14 +1272,14 @@ impl Editor {
                     }
                 }
                 Ok(None) => {
-                    self.message = Some("Pattern not found".to_string());
+                    self.show_message("Pattern not found");
                 }
                 Err(e) => {
-                    self.message = Some(format!("Regex error: {}", e));
+                    self.show_error(format!("Regex error: {}", e));
                 }
             }
         } else {
-            self.message = Some("No search pattern".to_string());
+            self.show_message("No search pattern");
         }
         false
     }
@@ -1263,21 +1292,21 @@ impl Editor {
             let text: String = self.doc.slice(from..to).chars().collect();
             let pattern = movement::escape_pattern(&text);
             self.input.set_last_search(pattern.clone(), false);
-            self.message = Some(format!("Search: {}", text));
+            self.show_message(format!("Search: {}", text));
             // Go to next match
             match movement::find_next(self.doc.slice(..), &pattern, to) {
                 Ok(Some(range)) => {
                     self.selection = Selection::single(range.from(), range.to());
                 }
                 Ok(None) => {
-                    self.message = Some("No more matches".to_string());
+                    self.show_message("No more matches");
                 }
                 Err(e) => {
-                    self.message = Some(format!("Regex error: {}", e));
+                    self.show_error(format!("Regex error: {}", e));
                 }
             }
         } else {
-            self.message = Some("No selection".to_string());
+            self.show_message("No selection");
         }
         false
     }
@@ -1287,7 +1316,7 @@ impl Editor {
         let from = primary.from();
         let to = primary.to();
         if from >= to {
-            self.message = Some("No selection to search in".to_string());
+            self.show_message("No selection to search in");
             return false;
         }
 
@@ -1298,13 +1327,13 @@ impl Editor {
                     .map(|r| tome_core::Range::new(from + r.from(), from + r.to()))
                     .collect();
                 self.selection = Selection::from_vec(new_ranges, 0);
-                self.message = Some(format!("{} matches", self.selection.len()));
+                self.show_message(format!("{} matches", self.selection.len()));
             }
             Ok(_) => {
-                self.message = Some("No matches found".to_string());
+                self.show_message("No matches found");
             }
             Err(e) => {
-                self.message = Some(format!("Regex error: {}", e));
+                self.show_error(format!("Regex error: {}", e));
             }
         }
         false
@@ -1315,7 +1344,7 @@ impl Editor {
         let from = primary.from();
         let to = primary.to();
         if from >= to {
-            self.message = Some("No selection to split".to_string());
+            self.show_message("No selection to split");
             return false;
         }
 
@@ -1335,16 +1364,16 @@ impl Editor {
                 }
                 if !new_ranges.is_empty() {
                     self.selection = Selection::from_vec(new_ranges, 0);
-                    self.message = Some(format!("{} splits", self.selection.len()));
+                    self.show_message(format!("{} splits", self.selection.len()));
                 } else {
-                    self.message = Some("Split produced no ranges".to_string());
+                    self.show_message("Split produced no ranges");
                 }
             }
             Ok(_) => {
-                self.message = Some("No matches found to split on".to_string());
+                self.show_message("No matches found to split on");
             }
             Err(e) => {
-                self.message = Some(format!("Regex error: {}", e));
+                self.show_error(format!("Regex error: {}", e));
             }
         }
         false
@@ -1355,7 +1384,7 @@ impl Editor {
         let from = primary.from();
         let to = primary.to();
         if from >= to {
-            self.message = Some("No selection to split".to_string());
+            self.show_message("No selection to split");
             return false;
         }
 
@@ -1377,7 +1406,7 @@ impl Editor {
 
         if !new_ranges.is_empty() {
             self.selection = Selection::from_vec(new_ranges, 0);
-            self.message = Some(format!("{} lines", self.selection.len()));
+            self.show_message(format!("{} lines", self.selection.len()));
         }
         false
     }
@@ -1396,7 +1425,7 @@ impl Editor {
                     }
                 }
                 Err(e) => {
-                    self.message = Some(format!("Regex error: {}", e));
+                    self.show_error(format!("Regex error: {}", e));
                     had_error = true;
                     break;
                 }
@@ -1408,11 +1437,11 @@ impl Editor {
         }
 
         if kept_ranges.is_empty() {
-            self.message = Some("No selections remain".to_string());
+            self.show_message("No selections remain");
         } else {
             let count = kept_ranges.len();
             self.selection = Selection::from_vec(kept_ranges, 0);
-            self.message = Some(format!("{} selections kept", count));
+            self.show_message(format!("{} selections kept", count));
         }
         false
     }
@@ -1480,11 +1509,11 @@ impl ext::EditorOps for Editor {
     }
 
     fn message(&mut self, msg: &str) {
-        self.message = Some(msg.to_string());
+        self.show_message(msg);
     }
 
     fn error(&mut self, msg: &str) {
-        self.message = Some(msg.to_string());
+        self.show_error(msg);
     }
 
     fn save(&mut self) -> Result<(), ext::CommandError> {
@@ -1515,5 +1544,18 @@ impl ext::EditorOps for Editor {
 
     fn is_modified(&self) -> bool {
         self.modified
+    }
+
+    fn set_theme(&mut self, theme_name: &str) -> Result<(), String> {
+        if let Some(theme) = crate::theme::get_theme(theme_name) {
+            self.theme = theme;
+            Ok(())
+        } else {
+            let mut err = format!("Theme not found: {}", theme_name);
+            if let Some(suggestion) = crate::theme::suggest_theme(theme_name) {
+                err.push_str(&format!(". Did you mean '{}'?", suggestion));
+            }
+            Err(err)
+        }
     }
 }

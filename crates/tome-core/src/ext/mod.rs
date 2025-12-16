@@ -187,6 +187,11 @@ pub trait EditorOps {
 
     /// Check if buffer is modified.
     fn is_modified(&self) -> bool;
+
+    /// Set the editor theme.
+    fn set_theme(&mut self, _theme_name: &str) -> Result<(), String> {
+        Err("Theme switching not supported".to_string())
+    }
 }
 
 /// Context passed to command handlers.

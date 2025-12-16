@@ -10,6 +10,8 @@ name = "tome"
 path = "src/main.rs"
 
 [dependencies]
+strsim = "0.11"
+linkme.workspace = true
 clap.workspace = true
 ratatui.workspace = true
 termina.workspace = true

@@ -1,5 +1,5 @@
 use ratatui::layout::{Constraint, Direction, Layout, Position, Rect};
-use ratatui::style::{Color, Modifier, Style};
+use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Clear, Paragraph, Widget};
 
@@ -8,7 +8,7 @@ use tome_core::ext::{
 };
 use tome_core::Mode;
 
-use crate::editor::Editor;
+use crate::editor::{Editor, MessageKind};
 
 /// A segment of a wrapped line.
 pub struct WrapSegment {
@@ -28,6 +28,10 @@ impl Editor {
         let use_block_cursor = !matches!(self.mode(), Mode::Insert);
 
         let area = frame.area();
+        
+        // Set background color for the whole screen
+        let bg_block = Block::default().style(Style::default().bg(self.theme.colors.ui.bg));
+        frame.render_widget(bg_block, area);
         
         let chunks = Layout::default()
             .direction(Direction::Vertical)
@@ -92,8 +96,9 @@ impl Editor {
             let block = Block::default()
                 .borders(Borders::ALL)
                 .title(" Command Palette ")
-                .title_style(Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD))
-                .style(Style::default().bg(Color::Rgb(10, 10, 10)).fg(Color::White));
+                .title_style(Style::default().fg(self.theme.colors.popup.title).add_modifier(Modifier::BOLD))
+                .border_style(Style::default().fg(self.theme.colors.popup.border))
+                .style(Style::default().bg(self.theme.colors.popup.bg).fg(self.theme.colors.popup.fg));
                 
             let inner_area = block.inner(popup_area);
             frame.render_widget(block, popup_area);
@@ -251,9 +256,9 @@ impl Editor {
                     format!("{:>width$} ", "┆", width = gutter_width as usize - 1)
                 };
                 let gutter_style = if is_first_segment {
-                    Style::default().fg(Color::DarkGray)
+                    Style::default().fg(self.theme.colors.ui.gutter_fg)
                 } else {
-                    Style::default().fg(Color::Rgb(60, 60, 60))
+                    Style::default().fg(self.theme.colors.ui.gutter_dim_fg)
                 };
 
                 let mut spans = vec![Span::styled(line_num_str, gutter_style)];
@@ -273,13 +278,13 @@ impl Editor {
 
                     let style = if is_cursor && use_block_cursor {
                         Style::default()
-                            .bg(Color::White)
-                            .fg(Color::Black)
+                            .bg(self.theme.colors.ui.cursor_bg)
+                            .fg(self.theme.colors.ui.cursor_fg)
                             .add_modifier(Modifier::BOLD)
                     } else if in_selection {
-                        Style::default().bg(Color::Blue).fg(Color::White)
+                        Style::default().bg(self.theme.colors.ui.selection_bg).fg(self.theme.colors.ui.selection_fg)
                     } else {
-                        Style::default()
+                        Style::default().fg(self.theme.colors.ui.fg).bg(self.theme.colors.ui.bg)
                     };
 
                     spans.push(Span::styled(ch.to_string(), style));
@@ -287,7 +292,7 @@ impl Editor {
 
                 if !is_last_segment && seg_char_count < text_width {
                     let fill_count = text_width - seg_char_count;
-                    let fill_style = Style::default().fg(Color::Rgb(60, 60, 60));
+                    let fill_style = Style::default().fg(self.theme.colors.ui.gutter_dim_fg);
                     spans.push(Span::styled("·".repeat(fill_count), fill_style));
                 }
 
@@ -308,8 +313,8 @@ impl Editor {
                             spans.push(Span::styled(
                                 " ",
                                 Style::default()
-                                    .bg(Color::White)
-                                    .fg(Color::Black)
+                                    .bg(self.theme.colors.ui.cursor_bg)
+                                    .fg(self.theme.colors.ui.cursor_fg)
                                     .add_modifier(Modifier::BOLD),
                             ));
                         }
@@ -323,7 +328,7 @@ impl Editor {
                 && output_lines.len() < viewport_height {
                     let visual_row = output_lines.len() as u16;
                     let line_num_str = format!("{:>width$} ", current_line_idx + 1, width = gutter_width as usize - 1);
-                    let gutter_style = Style::default().fg(Color::DarkGray);
+                    let gutter_style = Style::default().fg(self.theme.colors.ui.gutter_fg);
                     let mut spans = vec![Span::styled(line_num_str, gutter_style)];
 
                     let is_last_doc_line = current_line_idx + 1 >= total_lines;
@@ -341,8 +346,8 @@ impl Editor {
                             spans.push(Span::styled(
                                 " ",
                                 Style::default()
-                                    .bg(Color::White)
-                                    .fg(Color::Black)
+                                    .bg(self.theme.colors.ui.cursor_bg)
+                                    .fg(self.theme.colors.ui.cursor_fg)
                                     .add_modifier(Modifier::BOLD),
                             ));
                         }
@@ -357,7 +362,7 @@ impl Editor {
 
         while output_lines.len() < viewport_height {
             let line_num_str = format!("{:>width$} ", "~", width = gutter_width as usize - 1);
-            let gutter_style = Style::default().fg(Color::Rgb(60, 60, 60));
+            let gutter_style = Style::default().fg(self.theme.colors.ui.gutter_dim_fg);
             output_lines.push(Line::from(vec![Span::styled(line_num_str, gutter_style)]));
         }
 
@@ -462,23 +467,23 @@ impl Editor {
 
     fn segment_to_span(&self, segment: &RenderedSegment) -> Span<'static> {
         let style = match segment.style {
-            SegmentStyle::Normal => Style::default(),
+            SegmentStyle::Normal => Style::default().fg(self.theme.colors.ui.fg),
             SegmentStyle::Mode => {
                 let base = match self.mode() {
-                    Mode::Normal => Style::default().bg(Color::Blue).fg(Color::White),
-                    Mode::Insert => Style::default().bg(Color::Green).fg(Color::Black),
-                    Mode::Goto => Style::default().bg(Color::Magenta).fg(Color::White),
-                    Mode::View => Style::default().bg(Color::Cyan).fg(Color::Black),
-                    Mode::Command { .. } => Style::default().bg(Color::Yellow).fg(Color::Black),
-                    Mode::PendingAction(_) => Style::default().bg(Color::Yellow).fg(Color::Black),
+                    Mode::Normal => Style::default().bg(self.theme.colors.status.normal_bg).fg(self.theme.colors.status.normal_fg),
+                    Mode::Insert => Style::default().bg(self.theme.colors.status.insert_bg).fg(self.theme.colors.status.insert_fg),
+                    Mode::Goto => Style::default().bg(self.theme.colors.status.goto_bg).fg(self.theme.colors.status.goto_fg),
+                    Mode::View => Style::default().bg(self.theme.colors.status.view_bg).fg(self.theme.colors.status.view_fg),
+                    Mode::Command { .. } => Style::default().bg(self.theme.colors.status.command_bg).fg(self.theme.colors.status.command_fg),
+                    Mode::PendingAction(_) => Style::default().bg(self.theme.colors.status.command_bg).fg(self.theme.colors.status.command_fg),
                 };
                 base.add_modifier(Modifier::BOLD)
             }
             SegmentStyle::Inverted => Style::default().add_modifier(Modifier::REVERSED),
-            SegmentStyle::Dim => Style::default().fg(Color::DarkGray),
-            SegmentStyle::Warning => Style::default().fg(Color::Yellow),
-            SegmentStyle::Error => Style::default().fg(Color::Red),
-            SegmentStyle::Success => Style::default().fg(Color::Green),
+            SegmentStyle::Dim => Style::default().fg(self.theme.colors.status.dim_fg),
+            SegmentStyle::Warning => Style::default().fg(self.theme.colors.status.warning_fg),
+            SegmentStyle::Error => Style::default().fg(self.theme.colors.status.error_fg),
+            SegmentStyle::Success => Style::default().fg(self.theme.colors.status.success_fg),
         };
         Span::styled(segment.text.clone(), style)
     }
@@ -486,12 +491,15 @@ impl Editor {
     fn render_message_line(&self) -> impl Widget + '_ {
         if let Some((prompt, input)) = self.input.command_line() {
             return Paragraph::new(format!("{}{}", prompt, input))
-                .style(Style::default().fg(Color::White));
+                .style(Style::default().fg(self.theme.colors.ui.command_input_fg));
         }
-        if let Some(msg) = self.message.as_deref() {
-            return Paragraph::new(msg).style(Style::default().fg(Color::Yellow));
+        if let Some(msg) = &self.message {
+            let color = match msg.kind {
+                MessageKind::Info => self.theme.colors.ui.message_fg,
+                MessageKind::Error => self.theme.colors.status.error_fg,
+            };
+            return Paragraph::new(msg.text.as_str()).style(Style::default().fg(color));
         }
-        Paragraph::new("").style(Style::default().fg(Color::Yellow))
+        Paragraph::new("").style(Style::default().fg(self.theme.colors.ui.message_fg))
     }
 }
-

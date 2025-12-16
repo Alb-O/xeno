@@ -1127,7 +1127,9 @@ version = "0.1.0"
 dependencies = [
  "clap",
  "insta",
+ "linkme",
  "ratatui",
+ "strsim",
  "termina",
  "tome-core",
 ]
