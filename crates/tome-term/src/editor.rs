@@ -1,7 +1,9 @@
 use std::fs;
 use std::io::{self, Write};
+use std::mem;
 use std::path::PathBuf;
 
+use tome_core::key::{KeyCode, SpecialKey};
 use tome_core::range::Direction as MoveDir;
 use tome_core::{
     InputHandler, Key, KeyResult, Mode, MouseEvent, Rope, ScrollDirection, Selection, Transaction,
@@ -23,6 +25,39 @@ pub struct Registers {
     pub yank: String,
 }
 
+#[derive(Clone)]
+pub struct ScratchState {
+    pub doc: Rope,
+    pub cursor: usize,
+    pub selection: Selection,
+    pub input: InputHandler,
+    pub path: Option<PathBuf>,
+    pub modified: bool,
+    pub scroll_line: usize,
+    pub scroll_segment: usize,
+    pub undo_stack: Vec<HistoryEntry>,
+    pub redo_stack: Vec<HistoryEntry>,
+    pub text_width: usize,
+}
+
+impl Default for ScratchState {
+    fn default() -> Self {
+        Self {
+            doc: Rope::from(""),
+            cursor: 0,
+            selection: Selection::point(0),
+            input: InputHandler::new(),
+            path: None,
+            modified: false,
+            scroll_line: 0,
+            scroll_segment: 0,
+            undo_stack: Vec::new(),
+            redo_stack: Vec::new(),
+            text_width: 80,
+        }
+    }
+}
+
 pub struct Editor {
     pub doc: Rope,
     pub cursor: usize,
@@ -37,6 +72,12 @@ pub struct Editor {
     pub undo_stack: Vec<HistoryEntry>,
     pub redo_stack: Vec<HistoryEntry>,
     pub text_width: usize,
+    pub scratch: ScratchState,
+    pub scratch_open: bool,
+    pub scratch_height: u16,
+    pub scratch_keep_open: bool,
+    pub scratch_focused: bool,
+    in_scratch_context: bool,
 }
 
 impl Editor {
@@ -127,6 +168,12 @@ impl Editor {
             undo_stack: Vec::new(),
             redo_stack: Vec::new(),
             text_width: 80,
+            scratch: ScratchState::default(),
+            scratch_open: false,
+            scratch_height: 6,
+            scratch_keep_open: true,
+            scratch_focused: false,
+            in_scratch_context: false,
         }
     }
 
@@ -136,6 +183,108 @@ impl Editor {
 
     pub fn mode_name(&self) -> &'static str {
         self.input.mode_name()
+    }
+
+    pub(crate) fn enter_scratch_context(&mut self) {
+        if self.in_scratch_context {
+            return;
+        }
+        self.in_scratch_context = true;
+        mem::swap(&mut self.doc, &mut self.scratch.doc);
+        mem::swap(&mut self.cursor, &mut self.scratch.cursor);
+        mem::swap(&mut self.selection, &mut self.scratch.selection);
+        mem::swap(&mut self.input, &mut self.scratch.input);
+        mem::swap(&mut self.path, &mut self.scratch.path);
+        mem::swap(&mut self.modified, &mut self.scratch.modified);
+        mem::swap(&mut self.scroll_line, &mut self.scratch.scroll_line);
+        mem::swap(&mut self.scroll_segment, &mut self.scratch.scroll_segment);
+        mem::swap(&mut self.undo_stack, &mut self.scratch.undo_stack);
+        mem::swap(&mut self.redo_stack, &mut self.scratch.redo_stack);
+        mem::swap(&mut self.text_width, &mut self.scratch.text_width);
+    }
+
+    pub(crate) fn leave_scratch_context(&mut self) {
+        if !self.in_scratch_context {
+            return;
+        }
+        self.in_scratch_context = false;
+        mem::swap(&mut self.doc, &mut self.scratch.doc);
+        mem::swap(&mut self.cursor, &mut self.scratch.cursor);
+        mem::swap(&mut self.selection, &mut self.scratch.selection);
+        mem::swap(&mut self.input, &mut self.scratch.input);
+        mem::swap(&mut self.path, &mut self.scratch.path);
+        mem::swap(&mut self.modified, &mut self.scratch.modified);
+        mem::swap(&mut self.scroll_line, &mut self.scratch.scroll_line);
+        mem::swap(&mut self.scroll_segment, &mut self.scratch.scroll_segment);
+        mem::swap(&mut self.undo_stack, &mut self.scratch.undo_stack);
+        mem::swap(&mut self.redo_stack, &mut self.scratch.redo_stack);
+        mem::swap(&mut self.text_width, &mut self.scratch.text_width);
+    }
+
+    pub(crate) fn with_scratch_context<R>(&mut self, f: impl FnOnce(&mut Self) -> R) -> R {
+        self.enter_scratch_context();
+        let result = f(self);
+        self.leave_scratch_context();
+        result
+    }
+
+    fn open_scratch(&mut self, focus: bool) {
+        self.scratch_open = true;
+        if focus {
+            self.scratch_focused = true;
+            // Ensure scratch buffer starts in insert mode at top
+            self.with_scratch_context(|ed| {
+                if ed.doc.len_chars() == 0 {
+                    ed.cursor = 0;
+                    ed.selection = Selection::point(0);
+                }
+                ed.input.set_mode(Mode::Insert);
+            });
+        }
+    }
+
+    fn close_scratch(&mut self) {
+        if self.in_scratch_context {
+            self.leave_scratch_context();
+        }
+        self.scratch_open = false;
+        self.scratch_focused = false;
+    }
+
+    fn toggle_scratch(&mut self) {
+        if !self.scratch_open {
+            self.open_scratch(true);
+        } else if self.scratch_focused {
+            self.close_scratch();
+        } else {
+            self.scratch_focused = true;
+        }
+    }
+
+    fn execute_scratch(&mut self) -> bool {
+        if !self.scratch_open {
+            self.message = Some("Scratch is not open".to_string());
+            return false;
+        }
+
+        let text = self.with_scratch_context(|ed| ed.doc.slice(..).to_string());
+        let flattened = text
+            .lines()
+            .map(str::trim_end)
+            .filter(|l| !l.is_empty())
+            .collect::<Vec<_>>()
+            .join(" ");
+
+        if flattened.trim().is_empty() {
+            self.message = Some("Scratch buffer is empty".to_string());
+            return false;
+        }
+
+        let result = self.execute_command_line(&flattened);
+        if !self.scratch_keep_open {
+            self.close_scratch();
+        }
+        result
     }
 
     pub fn cursor_line(&self) -> usize {
@@ -407,10 +556,50 @@ impl Editor {
     }
 
     pub fn handle_key(&mut self, key: crossterm::event::KeyEvent) -> bool {
+        if self.scratch_open && self.scratch_focused {
+            return self.with_scratch_context(|ed| ed.handle_key_active(key));
+        }
+        self.handle_key_active(key)
+    }
+
+    fn handle_key_active(&mut self, key: crossterm::event::KeyEvent) -> bool {
         self.message = None;
 
         let old_mode = self.mode();
         let key: Key = key.into();
+        let in_scratch = self.in_scratch_context;
+        if self.scratch_open && self.scratch_focused {
+            if matches!(key.code, KeyCode::Special(SpecialKey::Escape)) {
+                if matches!(self.mode(), Mode::Insert) {
+                    self.input.set_mode(Mode::Normal);
+                } else {
+                    self.close_scratch();
+                }
+                return false;
+            }
+            if matches!(key.code, KeyCode::Special(SpecialKey::Enter)) && key.modifiers.ctrl {
+                return self.execute_scratch();
+            }
+        }
+
+        if in_scratch && matches!(self.mode(), Mode::Insert) && !key.modifiers.alt && !key.modifiers.ctrl {
+            match key.code {
+                KeyCode::Char(c) => {
+                    self.insert_text(&c.to_string());
+                    return false;
+                }
+                KeyCode::Special(SpecialKey::Enter) => {
+                    self.insert_text("\n");
+                    return false;
+                }
+                KeyCode::Special(SpecialKey::Tab) => {
+                    self.insert_text("\t");
+                    return false;
+                }
+                _ => {}
+            }
+        }
+
         let result = self.input.handle_key(key);
 
         match result {
@@ -513,6 +702,13 @@ impl Editor {
     }
 
     pub fn handle_mouse(&mut self, mouse: crossterm::event::MouseEvent) -> bool {
+        if self.scratch_open && self.scratch_focused {
+            return self.with_scratch_context(|ed| ed.handle_mouse_active(mouse));
+        }
+        self.handle_mouse_active(mouse)
+    }
+
+    fn handle_mouse_active(&mut self, mouse: crossterm::event::MouseEvent) -> bool {
         self.message = None;
         let event: MouseEvent = mouse.into();
         let result = self.input.handle_mouse(event);
@@ -740,6 +936,19 @@ impl Editor {
                 self.message = Some("Merge selections not yet implemented".to_string());
                 false
             }
+            ActionResult::OpenScratch { focus } => {
+                self.open_scratch(focus);
+                false
+            }
+            ActionResult::CloseScratch => {
+                self.close_scratch();
+                false
+            }
+            ActionResult::ToggleScratch => {
+                self.toggle_scratch();
+                false
+            }
+            ActionResult::ExecuteScratch => self.execute_scratch(),
             ActionResult::Align => {
                 self.message = Some("Align not yet implemented".to_string());
                 false
@@ -891,6 +1100,19 @@ impl Editor {
                 self.message = Some("Merge selections not yet implemented".to_string());
                 false
             }
+            ActionResult::OpenScratch { focus } => {
+                self.open_scratch(focus);
+                false
+            }
+            ActionResult::CloseScratch => {
+                self.close_scratch();
+                false
+            }
+            ActionResult::ToggleScratch => {
+                self.toggle_scratch();
+                false
+            }
+            ActionResult::ExecuteScratch => self.execute_scratch(),
             ActionResult::Align => {
                 self.message = Some("Align not yet implemented".to_string());
                 false

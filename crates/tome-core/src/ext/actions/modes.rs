@@ -38,12 +38,12 @@ static ACTION_INSERT_MODE: ActionDef = ActionDef {
 };
 
 fn action_command_mode(_ctx: &ActionContext) -> ActionResult {
-    ActionResult::ModeChange(ActionMode::Command)
+    ActionResult::ToggleScratch
 }
 
 #[distributed_slice(ACTIONS)]
 static ACTION_COMMAND_MODE: ActionDef = ActionDef {
     name: "command_mode",
-    description: "Enter command mode",
+    description: "Open command scratch buffer",
     handler: action_command_mode,
 };

@@ -161,3 +161,32 @@ action!(
     "Trim whitespace from selections",
     |_ctx: &ActionContext| ActionResult::TrimSelections
 );
+
+// Scratch command buffer controls
+action!(
+    ACTION_OPEN_SCRATCH,
+    "open_scratch",
+    "Open command scratch buffer",
+    |_ctx: &ActionContext| ActionResult::OpenScratch { focus: true }
+);
+
+action!(
+    ACTION_CLOSE_SCRATCH,
+    "close_scratch",
+    "Close command scratch buffer",
+    |_ctx: &ActionContext| ActionResult::CloseScratch
+);
+
+action!(
+    ACTION_TOGGLE_SCRATCH,
+    "toggle_scratch",
+    "Toggle command scratch buffer",
+    |_ctx: &ActionContext| ActionResult::ToggleScratch
+);
+
+action!(
+    ACTION_EXECUTE_SCRATCH,
+    "execute_scratch",
+    "Execute scratch buffer contents",
+    |_ctx: &ActionContext| ActionResult::ExecuteScratch
+);

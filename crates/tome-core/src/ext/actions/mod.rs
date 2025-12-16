@@ -93,6 +93,14 @@ pub enum ActionResult {
     SpacesToTabs,
     /// Trim whitespace from selections (_).
     TrimSelections,
+    /// Open the command scratch buffer (optionally focusing it).
+    OpenScratch { focus: bool },
+    /// Close the command scratch buffer.
+    CloseScratch,
+    /// Toggle the command scratch buffer visibility/focus.
+    ToggleScratch,
+    /// Execute the contents of the scratch buffer as commands.
+    ExecuteScratch,
 }
 
 /// An edit operation to apply to the document.

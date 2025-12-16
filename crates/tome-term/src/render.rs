@@ -15,19 +15,54 @@ pub struct WrapSegment {
 
 impl Editor {
     pub fn render(&mut self, frame: &mut ratatui::Frame) {
-        let chunks = Layout::default()
-            .direction(Direction::Vertical)
-            .constraints([
+        if self.scratch_open {
+            let constraints = [
                 Constraint::Min(1),
+                Constraint::Length(self.scratch_height),
                 Constraint::Length(1),
                 Constraint::Length(1),
-            ])
-            .split(frame.area());
+            ];
+            let chunks = Layout::default()
+                .direction(Direction::Vertical)
+                .constraints(constraints)
+                .split(frame.area());
 
-        self.ensure_cursor_visible(chunks[0]);
-        frame.render_widget(self.render_document(chunks[0]), chunks[0]);
-        frame.render_widget(self.render_status_line(), chunks[1]);
-        frame.render_widget(self.render_message_line(), chunks[2]);
+            // Main document
+            self.ensure_cursor_visible(chunks[0]);
+            frame.render_widget(self.render_document(chunks[0]), chunks[0]);
+
+            // Scratch buffer
+            self.enter_scratch_context();
+            self.ensure_cursor_visible(chunks[1]);
+            let scratch_view = self.render_document(chunks[1]);
+            frame.render_widget(scratch_view, chunks[1]);
+            self.leave_scratch_context();
+
+            // Status line reflects focused buffer
+            if self.scratch_focused {
+                self.enter_scratch_context();
+                let status = self.render_status_line();
+                frame.render_widget(status, chunks[2]);
+                self.leave_scratch_context();
+            } else {
+                frame.render_widget(self.render_status_line(), chunks[2]);
+            }
+            frame.render_widget(self.render_message_line(), chunks[3]);
+        } else {
+            let chunks = Layout::default()
+                .direction(Direction::Vertical)
+                .constraints([
+                    Constraint::Min(1),
+                    Constraint::Length(1),
+                    Constraint::Length(1),
+                ])
+                .split(frame.area());
+
+            self.ensure_cursor_visible(chunks[0]);
+            frame.render_widget(self.render_document(chunks[0]), chunks[0]);
+            frame.render_widget(self.render_status_line(), chunks[1]);
+            frame.render_widget(self.render_message_line(), chunks[2]);
+        }
     }
 
     fn ensure_cursor_visible(&mut self, area: Rect) {

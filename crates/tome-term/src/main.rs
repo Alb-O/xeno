@@ -550,4 +550,48 @@ mod tests {
         assert_eq!(sel.anchor, 0, "selection anchor unchanged");
         assert_eq!(sel.head, 2, "selection head unchanged");
     }
+
+    #[test]
+    fn test_scratch_exec_unknown_command_sets_message() {
+        let mut editor = test_editor("content");
+
+        // Open scratch with ':'
+        editor.handle_key(KeyEvent::new(KeyCode::Char(':'), KeyModifiers::NONE));
+        assert!(editor.scratch_open, "scratch should open");
+        assert!(editor.scratch_focused, "scratch should take focus");
+
+        // Type an unknown command into the scratch buffer
+        for ch in ['f', 'o', 'o'] {
+            editor.handle_key(KeyEvent::new(KeyCode::Char(ch), KeyModifiers::NONE));
+        }
+
+        let scratch_text = editor.with_scratch_context(|ed| ed.doc.to_string());
+        assert_eq!(scratch_text, "foo");
+
+        // Ctrl+Enter executes the scratch buffer
+        editor.handle_key(KeyEvent::new(KeyCode::Enter, KeyModifiers::CONTROL));
+        assert_eq!(editor.message, Some("Unknown command: foo".to_string()));
+    }
+
+    #[test]
+    fn test_scratch_escape_closes_panel() {
+        let mut editor = test_editor("content");
+        editor.handle_key(KeyEvent::new(KeyCode::Char(':'), KeyModifiers::NONE));
+        assert!(editor.scratch_open && editor.scratch_focused);
+
+        // Type something in insert mode
+        editor.handle_key(KeyEvent::new(KeyCode::Char('a'), KeyModifiers::NONE));
+        assert_eq!(editor.with_scratch_context(|ed| ed.doc.to_string()), "a");
+
+        // First escape should move to NORMAL within scratch
+        editor.handle_key(KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE));
+        assert!(editor.scratch_open, "scratch stays open after first escape");
+        assert!(editor.scratch_focused, "scratch remains focused after first escape");
+        assert!(matches!(editor.mode(), Mode::Normal));
+
+        // Second escape should close the scratch buffer
+        editor.handle_key(KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE));
+        assert!(!editor.scratch_open, "scratch should close on second escape");
+        assert!(!editor.scratch_focused, "scratch focus should be cleared");
+    }
 }
