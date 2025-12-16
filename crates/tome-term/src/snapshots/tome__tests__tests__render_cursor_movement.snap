@@ -1,0 +1,14 @@
+---
+source: crates/tome-term/src/tests.rs
+expression: terminal.backend()
+---
+"  1 Hello                                                                       "
+"  2 World                                                                       "
+"  ~                                                                             "
+"  ~                                                                             "
+"  ~                                                                             "
+"  ~                                                                             "
+"  ~                                                                             "
+"  ~                                                                             "
+" NORMAL  test.txt  2:3  Bot                                                     "
+"                                                                                "

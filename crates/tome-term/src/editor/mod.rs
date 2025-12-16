@@ -16,7 +16,7 @@ use tome_core::{
 };
 use tome_core::ext::{HookContext, emit_hook};
 
-use crate::theme::{self, Theme};
+use crate::theme::Theme;
 
 pub use types::{HistoryEntry, Message, MessageKind, Registers, ScratchState};
 
