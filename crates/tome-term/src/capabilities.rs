@@ -1,8 +1,9 @@
 //! Implementation of EditorCapabilities for Editor.
 
+use tome_core::ext::EditAction;
 use tome_core::ext::editor_ctx::{
-    CursorAccess, EditorCapabilities, MessageAccess, ModeAccess, ScratchAccess, SearchAccess,
-    SelectionAccess, TextAccess, UndoAccess,
+    CursorAccess, EditAccess, EditorCapabilities, MessageAccess, ModeAccess, ScratchAccess,
+    SearchAccess, SelectionAccess, SelectionOpsAccess, TextAccess, UndoAccess,
 };
 use tome_core::{Mode, RopeSlice, Selection};
 
@@ -130,6 +131,30 @@ impl UndoAccess for Editor {
     }
 }
 
+impl EditAccess for Editor {
+    fn execute_edit(&mut self, action: &EditAction, extend: bool) -> bool {
+        self.do_execute_edit_action(action.clone(), extend)
+    }
+}
+
+impl SelectionOpsAccess for Editor {
+    fn split_lines(&mut self) -> bool {
+        self.do_split_lines()
+    }
+
+    fn merge_selections(&mut self) {
+        // TODO: implement
+    }
+
+    fn duplicate_down(&mut self) {
+        // TODO: implement
+    }
+
+    fn duplicate_up(&mut self) {
+        // TODO: implement
+    }
+}
+
 impl EditorCapabilities for Editor {
     fn scratch(&mut self) -> Option<&mut dyn ScratchAccess> {
         Some(self)
@@ -140,6 +165,14 @@ impl EditorCapabilities for Editor {
     }
 
     fn undo(&mut self) -> Option<&mut dyn UndoAccess> {
+        Some(self)
+    }
+
+    fn edit(&mut self) -> Option<&mut dyn EditAccess> {
+        Some(self)
+    }
+
+    fn selection_ops(&mut self) -> Option<&mut dyn SelectionOpsAccess> {
         Some(self)
     }
 }

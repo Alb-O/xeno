@@ -76,6 +76,14 @@ impl<'a> EditorContext<'a> {
     pub fn undo(&mut self) -> Option<&mut dyn UndoAccess> {
         self.inner.undo()
     }
+
+    pub fn edit(&mut self) -> Option<&mut dyn EditAccess> {
+        self.inner.edit()
+    }
+
+    pub fn selection_ops(&mut self) -> Option<&mut dyn SelectionOpsAccess> {
+        self.inner.selection_ops()
+    }
 }
 
 /// Core capabilities that all editors must provide.
@@ -88,4 +96,10 @@ pub trait EditorCapabilities: CursorAccess + SelectionAccess + TextAccess + Mode
     
     /// Access to undo/redo operations (optional).
     fn undo(&mut self) -> Option<&mut dyn UndoAccess> { None }
+
+    /// Access to edit operations (optional).
+    fn edit(&mut self) -> Option<&mut dyn EditAccess> { None }
+
+    /// Access to selection manipulation operations (optional).
+    fn selection_ops(&mut self) -> Option<&mut dyn SelectionOpsAccess> { None }
 }

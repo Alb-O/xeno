@@ -2,6 +2,7 @@
 
 use ropey::RopeSlice;
 
+use crate::ext::actions::EditAction;
 use crate::selection::Selection;
 use crate::Mode;
 
@@ -64,7 +65,7 @@ pub trait UndoAccess {
 }
 
 /// Selection manipulation operations.
-pub trait SelectionOps {
+pub trait SelectionOpsAccess {
     fn split_lines(&mut self) -> bool;
     fn merge_selections(&mut self);
     fn duplicate_down(&mut self);
@@ -93,4 +94,9 @@ pub trait MacroAccess {
     fn stop_recording(&mut self);
     fn play(&mut self);
     fn is_recording(&self) -> bool;
+}
+
+/// Edit operations (delete, yank, paste, etc.).
+pub trait EditAccess {
+    fn execute_edit(&mut self, action: &EditAction, extend: bool) -> bool;
 }

@@ -62,9 +62,10 @@ pub use statusline::{
     STATUSLINE_SEGMENTS, all_segments, find_segment, render_position, segments_for_position,
 };
 pub use editor_ctx::{
-    CursorAccess, EditorCapabilities, EditorContext, HandleOutcome, JumpAccess, MacroAccess,
-    MessageAccess, ModeAccess, ResultHandler, SearchAccess, ScratchAccess, SelectionAccess,
-    SelectionOps, TextAccess, TransformAccess, UndoAccess, RESULT_HANDLERS, dispatch_result,
+    CursorAccess, EditAccess, EditorCapabilities, EditorContext, HandleOutcome, JumpAccess,
+    MacroAccess, MessageAccess, ModeAccess, ResultHandler, SearchAccess, ScratchAccess,
+    SelectionAccess, SelectionOpsAccess, TextAccess, TransformAccess, UndoAccess,
+    RESULT_HANDLERS, dispatch_result,
 };
 
 use linkme::distributed_slice;

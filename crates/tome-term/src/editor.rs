@@ -1081,25 +1081,11 @@ impl Editor {
     }
 
     fn apply_action_result(&mut self, result: ext::ActionResult, extend: bool) -> bool {
-        use ext::ActionResult;
-
-        // Handle Edit and SplitLines locally - they need direct editor access
-        match &result {
-            ActionResult::Edit(edit_action) => {
-                return self.execute_edit_action(edit_action.clone(), extend);
-            }
-            ActionResult::SplitLines => {
-                return self.split_lines();
-            }
-            _ => {}
-        }
-
-        // Dispatch to registered handlers
         let mut ctx = ext::EditorContext::new(self);
         ext::dispatch_result(&result, &mut ctx, extend)
     }
 
-    fn execute_edit_action(&mut self, action: ext::EditAction, _extend: bool) -> bool {
+    pub(crate) fn do_execute_edit_action(&mut self, action: ext::EditAction, _extend: bool) -> bool {
         use ext::EditAction;
         use tome_core::range::Direction as MoveDir;
 
@@ -1502,7 +1488,7 @@ impl Editor {
         false
     }
 
-    fn split_lines(&mut self) -> bool {
+    pub(crate) fn do_split_lines(&mut self) -> bool {
         let primary = self.selection.primary();
         let from = primary.from();
         let to = primary.to();

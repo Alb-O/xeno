@@ -21,7 +21,21 @@ macro_rules! unimplemented_handler {
     };
 }
 
-unimplemented_handler!(HANDLE_SPLIT_LINES, "split_lines", ActionResult::SplitLines, "Split lines not yet implemented");
+// SplitLines is handled via SelectionOpsAccess
+#[distributed_slice(RESULT_HANDLERS)]
+static HANDLE_SPLIT_LINES: ResultHandler = ResultHandler {
+    name: "split_lines",
+    handles: |r| matches!(r, ActionResult::SplitLines),
+    handle: |_, ctx, _| {
+        if let Some(ops) = ctx.selection_ops() {
+            ops.split_lines();
+            HandleOutcome::Handled
+        } else {
+            ctx.message("Split lines not available");
+            HandleOutcome::Handled
+        }
+    },
+};
 unimplemented_handler!(HANDLE_JUMP_FORWARD, "jump_forward", ActionResult::JumpForward, "Jump list not yet implemented");
 unimplemented_handler!(HANDLE_JUMP_BACKWARD, "jump_backward", ActionResult::JumpBackward, "Jump list not yet implemented");
 unimplemented_handler!(HANDLE_SAVE_JUMP, "save_jump", ActionResult::SaveJump, "Jump list not yet implemented");
