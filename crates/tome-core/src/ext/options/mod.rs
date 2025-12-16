@@ -3,8 +3,15 @@
 //! Options are named settings that can be configured globally or per-buffer.
 //! They are registered at compile-time using `linkme` and can be queried
 //! and modified at runtime.
+//!
+//! Each file in this directory defines options for a specific category.
 
-mod defaults;
+mod behavior;
+mod display;
+mod file;
+mod indent;
+mod scroll;
+mod search;
 
 use linkme::distributed_slice;
 
@@ -161,5 +168,13 @@ mod tests {
     fn test_all_options() {
         let opts = all_options();
         assert!(opts.len() >= 6);
+    }
+
+    #[test]
+    fn test_new_options_registered() {
+        assert!(find_option("cursorline").is_some());
+        assert!(find_option("search_smart_case").is_some());
+        assert!(find_option("mouse").is_some());
+        assert!(find_option("final_newline").is_some());
     }
 }

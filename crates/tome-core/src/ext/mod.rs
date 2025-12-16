@@ -34,6 +34,7 @@ mod commands;
 mod filetypes;
 mod hooks;
 mod keybindings;
+pub mod macros;
 mod motions;
 mod objects;
 mod options;
@@ -361,10 +362,11 @@ mod tests {
     #[test]
     fn test_distributed_slices_accessible() {
         // Verify builtin registrations are present
-        assert!(TEXT_OBJECTS.len() >= 9); // word, WORD, parens, braces, brackets, angle, quotes x3
-        assert!(FILE_TYPES.len() >= 15); // rust, python, js, ts, c, cpp, go, etc.
+        assert!(TEXT_OBJECTS.len() >= 13); // word, WORD, parens, braces, brackets, angle, quotes x3, line, paragraph, argument, number
+        assert!(FILE_TYPES.len() >= 25); // rust, python, js, ts, c, cpp, go, java, data formats, web, docs, shell, config
         assert!(MOTIONS.len() >= 10); // basic movement, word, line, document
         assert!(COMMANDS.len() >= 5); // quit, write, edit, buffer commands
+        assert!(OPTIONS.len() >= 15); // indent, display, scroll, search, file, behavior options
     }
 
     #[test]
@@ -379,6 +381,21 @@ mod tests {
 
         let parens2 = find_text_object('b').expect("parens object should exist via primary trigger");
         assert_eq!(parens2.name, "parentheses");
+    }
+
+    #[test]
+    fn test_new_text_objects() {
+        let line = find_text_object('x').expect("line object should exist");
+        assert_eq!(line.name, "line");
+
+        let para = find_text_object('p').expect("paragraph object should exist");
+        assert_eq!(para.name, "paragraph");
+
+        let arg = find_text_object('c').expect("argument object should exist");
+        assert_eq!(arg.name, "argument");
+
+        let num = find_text_object('n').expect("number object should exist");
+        assert_eq!(num.name, "number");
     }
 
     #[test]

@@ -4,6 +4,7 @@
 //! triggered by keybindings. This replaces the hardcoded `Command` enum with
 //! a dynamic, extensible registry.
 
+mod delete;
 mod editing;
 mod find;
 mod insert;

@@ -4,6 +4,7 @@
 //! the hardcoded keymap arrays with an extensible registry.
 
 mod goto;
+mod insert;
 mod normal;
 mod view;
 
@@ -154,5 +155,8 @@ mod tests {
 
         let view_bindings: Vec<_> = bindings_for_mode(BindingMode::View).collect();
         assert!(view_bindings.len() >= 4);
+
+        let insert_bindings: Vec<_> = bindings_for_mode(BindingMode::Insert).collect();
+        assert!(insert_bindings.len() >= 6, "should have insert mode bindings");
     }
 }
