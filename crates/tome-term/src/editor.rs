@@ -735,6 +735,18 @@ impl Editor {
         }
     }
 
+    pub fn handle_window_resize(&mut self, width: u16, height: u16) {
+        emit_hook(&HookContext::WindowResize { width, height });
+    }
+
+    pub fn handle_focus_in(&mut self) {
+        emit_hook(&HookContext::FocusGained);
+    }
+
+    pub fn handle_focus_out(&mut self) {
+        emit_hook(&HookContext::FocusLost);
+    }
+
     fn handle_mouse_active(&mut self, mouse: termina::event::MouseEvent) -> bool {
         self.message = None;
         let event: MouseEvent = mouse.into();

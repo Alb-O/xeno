@@ -5,10 +5,11 @@ mod styles;
 mod backend;
 
 use std::io::{self, Write};
+use std::time::Duration;
 
 use clap::Parser;
 use ratatui::Terminal;
-use termina::{PlatformTerminal, Terminal as _};
+use termina::{EventReader, PlatformTerminal, Terminal as _, WindowSize};
 use termina::event::{Event, KeyEventKind};
 use termina::escape::csi::{Csi, Keyboard, KittyKeyboardFlags, Mode, DecPrivateMode, DecPrivateModeCode};
 
@@ -67,6 +68,19 @@ fn install_panic_hook(terminal: &mut PlatformTerminal) {
     });
 }
 
+fn coalesce_resize_events(events: &EventReader, first: WindowSize) -> io::Result<WindowSize> {
+    let mut filter = |event: &Event| matches!(event, Event::WindowResized(_));
+    let mut latest = first;
+
+    while events.poll(Some(Duration::from_millis(0)), &mut filter)? {
+        if let Event::WindowResized(size) = events.read(&mut filter)? {
+            latest = size;
+        }
+    }
+
+    Ok(latest)
+}
+
 fn run_editor(mut editor: Editor) -> io::Result<()> {
     let mut terminal = PlatformTerminal::new()?;
     install_panic_hook(&mut terminal);
@@ -98,8 +112,15 @@ fn run_editor(mut editor: Editor) -> io::Result<()> {
                 Event::Paste(content) => {
                     editor.handle_paste(content);
                 }
-                Event::WindowResized(_size) => {
-                    // Ratatui handles resize on draw
+                Event::WindowResized(size) => {
+                    let size = coalesce_resize_events(&events, size)?;
+                    editor.handle_window_resize(size.cols, size.rows);
+                }
+                Event::FocusIn => {
+                    editor.handle_focus_in();
+                }
+                Event::FocusOut => {
+                    editor.handle_focus_out();
                 }
                 _ => {}
             }
