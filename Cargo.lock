@@ -1094,6 +1094,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "demo-plugin"
+version = "0.1.0"
+dependencies = [
+ "extism-pdk",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "deranged"
 version = "0.5.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1331,6 +1340,32 @@ dependencies = [
  "base64 0.22.1",
  "serde",
  "serde_json",
+]
+
+[[package]]
+name = "extism-pdk"
+version = "1.4.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "352fcb5a66eb74145a1c4a01f2bd15d59c62c85be73aac8471880c65b26b798f"
+dependencies = [
+ "anyhow",
+ "base64 0.22.1",
+ "extism-convert",
+ "extism-manifest",
+ "extism-pdk-derive",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "extism-pdk-derive"
+version = "1.4.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d086daea5fd844e3c5ac69ddfe36df4a9a43e7218cf7d1f888182b089b09806c"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.111",
 ]
 
 [[package]]
@@ -3228,7 +3263,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9120690fafc389a67ba3803df527d0ec9cbbc9cc45e4cc20b332996dfb672425"
 dependencies = [
  "anyhow",
- "itertools 0.13.0",
+ "itertools 0.14.0",
  "proc-macro2",
  "quote",
  "syn 2.0.111",
