@@ -88,6 +88,7 @@ pub struct Editor {
     pub scratch_keep_open: bool,
     pub scratch_focused: bool,
     in_scratch_context: bool,
+    pub file_type: Option<String>,
 }
 
 impl Editor {
@@ -184,6 +185,7 @@ impl Editor {
             scratch_keep_open: true,
             scratch_focused: false,
             in_scratch_context: false,
+            file_type: file_type.map(|s| s.to_string()),
         }
     }
 
@@ -1018,9 +1020,9 @@ impl Editor {
         name: &str,
         count: usize,
         extend: bool,
-        _register: Option<char>,
+        register: Option<char>,
     ) -> bool {
-        use ext::{ActionContext, ActionArgs, ActionResult, find_action};
+        use ext::{ActionContext, ActionArgs, find_action};
 
         let action = match find_action(name) {
             Some(a) => a,
@@ -1036,143 +1038,12 @@ impl Editor {
             selection: &self.selection,
             count,
             extend,
-            register: _register,
+            register,
             args: ActionArgs::default(),
         };
 
         let result = (action.handler)(&ctx);
-
-        match result {
-            ActionResult::Ok => false,
-            ActionResult::CursorMove(new_cursor) => {
-                self.cursor = new_cursor;
-                false
-            }
-            ActionResult::Motion(new_selection) => {
-                self.cursor = new_selection.primary().head;
-                self.selection = new_selection;
-                false
-            }
-            ActionResult::InsertWithMotion(new_selection) => {
-                self.cursor = new_selection.primary().head;
-                self.selection = new_selection;
-                self.input.set_mode(Mode::Insert);
-                false
-            }
-            ActionResult::Edit(edit_action) => {
-                self.execute_edit_action(edit_action, extend)
-            }
-            ActionResult::ModeChange(mode) => {
-                self.apply_mode_change(mode)
-            }
-            ActionResult::Quit => true,
-            ActionResult::ForceQuit => true,
-            ActionResult::Error(msg) => {
-                self.message = Some(msg);
-                false
-            }
-            ActionResult::Pending(pending) => {
-                self.message = Some(pending.prompt.clone());
-                self.input.set_mode(Mode::PendingAction(pending.kind));
-                false
-            }
-            ActionResult::SearchNext { add_selection } => {
-                self.search_next(add_selection, extend)
-            }
-            ActionResult::SearchPrev { add_selection } => {
-                self.search_prev(add_selection, extend)
-            }
-            ActionResult::UseSelectionAsSearch => {
-                self.use_selection_as_search()
-            }
-            ActionResult::SplitLines => {
-                self.split_lines()
-            }
-            ActionResult::JumpForward => {
-                self.message = Some("Jump list not yet implemented".to_string());
-                false
-            }
-            ActionResult::JumpBackward => {
-                self.message = Some("Jump list not yet implemented".to_string());
-                false
-            }
-            ActionResult::SaveJump => {
-                self.message = Some("Jump list not yet implemented".to_string());
-                false
-            }
-            ActionResult::RecordMacro => {
-                self.message = Some("Macros not yet implemented".to_string());
-                false
-            }
-            ActionResult::PlayMacro => {
-                self.message = Some("Macros not yet implemented".to_string());
-                false
-            }
-            ActionResult::SaveSelections => {
-                self.message = Some("Marks not yet implemented".to_string());
-                false
-            }
-            ActionResult::RestoreSelections => {
-                self.message = Some("Marks not yet implemented".to_string());
-                false
-            }
-            ActionResult::ForceRedraw => {
-                false
-            }
-            ActionResult::RepeatLastInsert => {
-                self.message = Some("Repeat insert not yet implemented".to_string());
-                false
-            }
-            ActionResult::RepeatLastObject => {
-                self.message = Some("Repeat object not yet implemented".to_string());
-                false
-            }
-            ActionResult::DuplicateSelectionsDown => {
-                self.message = Some("Duplicate down not yet implemented".to_string());
-                false
-            }
-            ActionResult::DuplicateSelectionsUp => {
-                self.message = Some("Duplicate up not yet implemented".to_string());
-                false
-            }
-            ActionResult::MergeSelections => {
-                self.message = Some("Merge selections not yet implemented".to_string());
-                false
-            }
-            ActionResult::OpenScratch { focus } => {
-                self.open_scratch(focus);
-                false
-            }
-            ActionResult::CloseScratch => {
-                self.close_scratch();
-                false
-            }
-            ActionResult::ToggleScratch => {
-                self.toggle_scratch();
-                false
-            }
-            ActionResult::ExecuteScratch => self.execute_scratch(),
-            ActionResult::Align => {
-                self.message = Some("Align not yet implemented".to_string());
-                false
-            }
-            ActionResult::CopyIndent => {
-                self.message = Some("Copy indent not yet implemented".to_string());
-                false
-            }
-            ActionResult::TabsToSpaces => {
-                self.message = Some("Tabs to spaces not yet implemented".to_string());
-                false
-            }
-            ActionResult::SpacesToTabs => {
-                self.message = Some("Spaces to tabs not yet implemented".to_string());
-                false
-            }
-            ActionResult::TrimSelections => {
-                self.message = Some("Trim selections not yet implemented".to_string());
-                false
-            }
-        }
+        self.apply_action_result(result, extend)
     }
 
     fn execute_action_with_char(
@@ -1183,7 +1054,7 @@ impl Editor {
         register: Option<char>,
         char_arg: char,
     ) -> bool {
-        use ext::{ActionContext, ActionArgs, ActionResult, find_action};
+        use ext::{ActionContext, ActionArgs, find_action};
 
         let action = match find_action(name) {
             Some(a) => a,
@@ -1206,7 +1077,14 @@ impl Editor {
             },
         };
 
-        match (action.handler)(&ctx) {
+        let result = (action.handler)(&ctx);
+        self.apply_action_result(result, extend)
+    }
+
+    fn apply_action_result(&mut self, result: ext::ActionResult, extend: bool) -> bool {
+        use ext::ActionResult;
+
+        match result {
             ActionResult::Ok => false,
             ActionResult::CursorMove(new_cursor) => {
                 self.cursor = new_cursor;

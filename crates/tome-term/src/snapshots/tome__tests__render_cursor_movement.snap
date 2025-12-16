@@ -10,5 +10,5 @@ expression: terminal.backend()
 "  ~                                                                             "
 "  ~                                                                             "
 "  ~                                                                             "
-" NORMAL  test.txt  2:3                                                          "
+" NORMAL  test.txt  2:3  Bot                                                     "
 "                                                                                "

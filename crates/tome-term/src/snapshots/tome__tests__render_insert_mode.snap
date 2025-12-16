@@ -10,5 +10,5 @@ expression: terminal.backend()
 "  ~                                                                             "
 "  ~                                                                             "
 "  ~                                                                             "
-" INSERT  test.txt  1:1                                                          "
+" INSERT  test.txt  1:1  Top                                                     "
 "                                                                                "

@@ -19,8 +19,8 @@ fn is_number_char(ch: char, allow_prefix: bool) -> bool {
         || ch == 'b' || ch == 'B'  // binary prefix
         || ch == 'o' || ch == 'O'  // octal prefix
         || (allow_prefix && (ch == '-' || ch == '+'))
-        || (ch >= 'a' && ch <= 'f')  // hex digits
-        || (ch >= 'A' && ch <= 'F')  // hex digits
+        || ('a'..='f').contains(&ch)  // hex digits
+        || ('A'..='F').contains(&ch)  // hex digits
         || ch == 'e' || ch == 'E'  // scientific notation
 }
 
@@ -52,7 +52,7 @@ fn number_inner(text: RopeSlice, pos: usize) -> Option<Range> {
     // Search forward
     while end < len {
         let ch = text.char(end);
-        if is_digit_or_separator(ch) || (ch >= 'a' && ch <= 'f') || (ch >= 'A' && ch <= 'F') 
+        if is_digit_or_separator(ch) || ('a'..='f').contains(&ch) || ('A'..='F').contains(&ch) 
             || ch == 'x' || ch == 'X' || ch == 'b' || ch == 'B' || ch == 'o' || ch == 'O'
             || ch == 'e' || ch == 'E' || ch == '+' || ch == '-'
         {

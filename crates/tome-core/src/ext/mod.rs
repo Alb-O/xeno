@@ -38,6 +38,7 @@ pub mod macros;
 mod motions;
 mod objects;
 mod options;
+pub mod statusline;
 
 pub use actions::{
     ActionArgs, ActionContext, ActionDef, ActionHandler, ActionMode, ActionResult, EditAction,
@@ -54,6 +55,10 @@ pub use keybindings::{
 };
 pub use options::{
     OptionDef, OptionScope, OptionType, OptionValue, OPTIONS, find_option, all_options,
+};
+pub use statusline::{
+    RenderedSegment, SegmentPosition, SegmentStyle, StatuslineContext, StatuslineSegmentDef,
+    STATUSLINE_SEGMENTS, all_segments, find_segment, render_position, segments_for_position,
 };
 
 use linkme::distributed_slice;

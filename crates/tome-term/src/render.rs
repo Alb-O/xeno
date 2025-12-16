@@ -3,6 +3,9 @@ use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Paragraph, Widget};
 
+use tome_core::ext::{
+    RenderedSegment, SegmentPosition, SegmentStyle, StatuslineContext, render_position,
+};
 use tome_core::Mode;
 
 use crate::editor::Editor;
@@ -50,18 +53,16 @@ impl Editor {
             frame.render_widget(scratch_result.widget, chunks[1]);
 
             // Set terminal cursor position for the focused buffer
-            if self.scratch_focused {
-                if let Some((row, col)) = scratch_result.cursor_position {
+            if self.scratch_focused
+                && let Some((row, col)) = scratch_result.cursor_position {
                     frame.set_cursor_position(Position::new(col, row));
                 }
-            }
             self.leave_scratch_context();
 
-            if !self.scratch_focused {
-                if let Some((row, col)) = main_result.cursor_position {
+            if !self.scratch_focused
+                && let Some((row, col)) = main_result.cursor_position {
                     frame.set_cursor_position(Position::new(col, row));
                 }
-            }
 
             // Status line reflects focused buffer
             if self.scratch_focused {
@@ -439,61 +440,58 @@ impl Editor {
     }
 
     fn render_status_line(&self) -> impl Widget + '_ {
-        let mode_style = match self.mode() {
-            Mode::Normal => Style::default()
-                .bg(Color::Blue)
-                .fg(Color::White)
-                .add_modifier(Modifier::BOLD),
-            Mode::Insert => Style::default()
-                .bg(Color::Green)
-                .fg(Color::Black)
-                .add_modifier(Modifier::BOLD),
-            Mode::Goto => Style::default()
-                .bg(Color::Magenta)
-                .fg(Color::White)
-                .add_modifier(Modifier::BOLD),
-            Mode::View => Style::default()
-                .bg(Color::Cyan)
-                .fg(Color::Black)
-                .add_modifier(Modifier::BOLD),
-            Mode::Command { .. } => Style::default()
-                .bg(Color::Yellow)
-                .fg(Color::Black)
-                .add_modifier(Modifier::BOLD),
-            Mode::PendingAction(_) => Style::default()
-                .bg(Color::Yellow)
-                .fg(Color::Black)
-                .add_modifier(Modifier::BOLD),
+        let ctx = StatuslineContext {
+            mode_name: self.mode_name(),
+            path: self.path.as_ref().map(|p| p.to_str().unwrap_or("[invalid path]")),
+            modified: self.modified,
+            line: self.cursor_line() + 1,
+            col: self.cursor_col() + 1,
+            count: self.input.count(),
+            total_lines: self.doc.len_lines(),
+            file_type: self.file_type.as_deref(),
         };
 
-        let modified = if self.modified { " [+]" } else { "" };
-        let path = self
-            .path
-            .as_ref()
-            .map(|p| p.display().to_string())
-            .unwrap_or_else(|| "[scratch]".to_string());
-        let cursor_info = format!(" {}:{} ", self.cursor_line() + 1, self.cursor_col() + 1);
+        let mut spans = Vec::new();
 
-        let count_str = if self.input.count() > 0 {
-            format!(" {} ", self.input.count())
-        } else {
-            String::new()
-        };
+        // Left segments
+        for seg in render_position(SegmentPosition::Left, &ctx) {
+            spans.push(self.segment_to_span(&seg));
+        }
 
-        let spans = vec![
-            Span::styled(format!(" {} ", self.mode_name()), mode_style),
-            Span::raw(count_str),
-            Span::styled(
-                format!(" {}{} ", path, modified),
-                Style::default().add_modifier(Modifier::REVERSED),
-            ),
-            Span::styled(
-                cursor_info,
-                Style::default().add_modifier(Modifier::REVERSED),
-            ),
-        ];
+        // Center segments
+        for seg in render_position(SegmentPosition::Center, &ctx) {
+            spans.push(self.segment_to_span(&seg));
+        }
+
+        // Right segments
+        for seg in render_position(SegmentPosition::Right, &ctx) {
+            spans.push(self.segment_to_span(&seg));
+        }
 
         Paragraph::new(Line::from(spans))
+    }
+
+    fn segment_to_span(&self, segment: &RenderedSegment) -> Span<'static> {
+        let style = match segment.style {
+            SegmentStyle::Normal => Style::default(),
+            SegmentStyle::Mode => {
+                let base = match self.mode() {
+                    Mode::Normal => Style::default().bg(Color::Blue).fg(Color::White),
+                    Mode::Insert => Style::default().bg(Color::Green).fg(Color::Black),
+                    Mode::Goto => Style::default().bg(Color::Magenta).fg(Color::White),
+                    Mode::View => Style::default().bg(Color::Cyan).fg(Color::Black),
+                    Mode::Command { .. } => Style::default().bg(Color::Yellow).fg(Color::Black),
+                    Mode::PendingAction(_) => Style::default().bg(Color::Yellow).fg(Color::Black),
+                };
+                base.add_modifier(Modifier::BOLD)
+            }
+            SegmentStyle::Inverted => Style::default().add_modifier(Modifier::REVERSED),
+            SegmentStyle::Dim => Style::default().fg(Color::DarkGray),
+            SegmentStyle::Warning => Style::default().fg(Color::Yellow),
+            SegmentStyle::Error => Style::default().fg(Color::Red),
+            SegmentStyle::Success => Style::default().fg(Color::Green),
+        };
+        Span::styled(segment.text.clone(), style)
     }
 
     fn render_message_line(&self) -> impl Widget + '_ {

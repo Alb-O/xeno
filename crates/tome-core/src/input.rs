@@ -285,8 +285,8 @@ impl InputHandler {
             || key.modifiers.ctrl
             || key.modifiers.alt;
 
-        if is_navigation_key {
-            if let Some(binding) = find_binding(BindingMode::Normal, key) {
+        if is_navigation_key
+            && let Some(binding) = find_binding(BindingMode::Normal, key) {
                 let count = if self.count > 0 { self.count as usize } else { 1 };
                 let extend = self.extend;
                 let register = self.register;
@@ -298,7 +298,6 @@ impl InputHandler {
                     register,
                 };
             }
-        }
 
         // Regular character insertion
         match key.code {
