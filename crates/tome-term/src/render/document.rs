@@ -53,8 +53,13 @@ impl Editor {
         // Render main document
         // When scratch is focused, we don't draw cursor on main doc
         self.ensure_cursor_visible(doc_area);
-        let main_result =
-            self.render_document_with_cursor(doc_area, use_block_cursor && !self.scratch_focused && !self.terminal_focused);
+        let main_result = self.render_document_with_cursor(
+            doc_area,
+            use_block_cursor
+                && !self.scratch_focused
+                && !self.terminal_focused
+                && !self.agent_panel.focused,
+        );
         frame.render_widget(main_result.widget, doc_area);
 
         // Render Terminal
@@ -68,9 +73,10 @@ impl Editor {
 
                 let screen = term.parser.screen();
 
-                let base_style = Style::default()
-                    .bg(self.theme.colors.popup.bg)
-                    .fg(self.theme.colors.popup.fg);
+                let base_style =
+                    Style::default()
+                        .bg(self.theme.colors.popup.bg)
+                        .fg(self.theme.colors.popup.fg);
 
                 let term_widget = ThemedVt100Terminal::new(screen, base_style);
                 frame.render_widget(term_widget, term_area);
@@ -87,9 +93,10 @@ impl Editor {
                 }
             } else {
                 // Terminal is starting: just paint the panel background.
-                let style = Style::default()
-                    .bg(self.theme.colors.popup.bg)
-                    .fg(self.theme.colors.popup.fg);
+                let style =
+                    Style::default()
+                        .bg(self.theme.colors.popup.bg)
+                        .fg(self.theme.colors.popup.fg);
                 frame.render_widget(Block::default().style(style), term_area);
             }
         }
@@ -155,6 +162,9 @@ impl Editor {
 
             self.leave_scratch_context();
         }
+
+        // Render Agent Panel if open
+        self.render_agent_panel(frame);
     }
 
     pub fn ensure_cursor_visible(&mut self, area: Rect) {
