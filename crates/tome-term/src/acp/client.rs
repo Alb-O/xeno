@@ -64,10 +64,7 @@ impl AcpClientRuntime {
     }
 
     pub fn send(&self, cmd: AgentCommand) {
-        let cmd_tx = self.cmd_tx.clone();
-        tokio::spawn(async move {
-            let _ = cmd_tx.send(cmd).await;
-        });
+        let _ = self.cmd_tx.try_send(cmd);
     }
 }
 
