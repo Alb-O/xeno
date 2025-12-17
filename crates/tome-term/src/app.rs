@@ -37,9 +37,10 @@ pub fn run_editor(mut editor: Editor) -> io::Result<()> {
 
             terminal.draw(|frame| editor.render(frame))?;
 
-            // Set terminal cursor style based on mode
+            // Set terminal cursor style based on mode.
+            // When the embedded terminal is focused, prefer the user's terminal default.
             let cursor_style = if editor.terminal_focused {
-                termina::style::CursorStyle::BlinkingBlock
+                termina::style::CursorStyle::Default
             } else {
                 cursor_style_for_mode(editor.mode())
             };

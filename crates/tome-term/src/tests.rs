@@ -814,8 +814,6 @@ mod suite {
 
     #[test]
     fn test_terminal_background_color_matches_popup() {
-        use ratatui::style::Color;
-
         let mut editor = test_editor("content");
         
         // Ensure theme is set to something known

@@ -1,12 +1,13 @@
 use std::collections::HashSet;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use ratatui::layout::{Constraint, Direction, Layout, Rect};
+use ratatui::layout::{Constraint, Direction, Layout, Position, Rect};
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Clear, Paragraph};
-use tui_term::widget::PseudoTerminal;
 use tome_core::Mode;
+
+use super::terminal::ThemedVt100Terminal;
 
 use crate::editor::Editor;
 use crate::theme::blend_colors;
@@ -65,15 +66,25 @@ impl Editor {
                     let _ = term.resize(term_area.width, term_area.height);
                 }
 
-                let pseudo_term = PseudoTerminal::new(term.parser.screen())
-                    .cursor(tui_term::widget::Cursor::default().symbol("█"))
-                    .style(Style::default().bg(self.theme.colors.popup.bg).fg(self.theme.colors.popup.fg));
-                
-                // We still render the background block to ensure the area is cleared/colored even if 
-                // the terminal screen size doesn't perfectly match the widget area (though we resize above).
-                let block = Block::default().style(Style::default().bg(self.theme.colors.popup.bg));
-                frame.render_widget(block, term_area);
-                frame.render_widget(pseudo_term, term_area);
+                let screen = term.parser.screen();
+
+                let base_style = Style::default()
+                    .bg(self.theme.colors.popup.bg)
+                    .fg(self.theme.colors.popup.fg);
+
+                let term_widget = ThemedVt100Terminal::new(screen, base_style);
+                frame.render_widget(term_widget, term_area);
+
+                // Use the real terminal cursor (so the emulator draws it with the user's preferred shape).
+                if self.terminal_focused && !screen.hide_cursor() {
+                    let (cur_row, cur_col) = screen.cursor_position();
+                    if cur_row < term_area.height && cur_col < term_area.width {
+                        frame.set_cursor_position(Position {
+                            x: term_area.x + cur_col,
+                            y: term_area.y + cur_row,
+                        });
+                    }
+                }
             }
         }
 
