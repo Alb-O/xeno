@@ -1,23 +1,20 @@
 //! File path and modified indicator segment.
 
-use linkme::distributed_slice;
+use crate::statusline_segment;
+use crate::ext::statusline::{RenderedSegment, SegmentPosition, SegmentStyle};
 
-use crate::ext::statusline::{
-    RenderedSegment, STATUSLINE_SEGMENTS, SegmentPosition, SegmentStyle, StatuslineSegmentDef,
-};
-
-#[distributed_slice(STATUSLINE_SEGMENTS)]
-static SEG_FILE: StatuslineSegmentDef = StatuslineSegmentDef {
-    name: "file",
-    position: SegmentPosition::Center,
-    priority: 0,
-    default_enabled: true,
-    render: |ctx| {
+statusline_segment!(
+    SEG_FILE,
+    "file",
+    SegmentPosition::Center,
+    0,
+    true,
+    |ctx| {
         let path = ctx.path.unwrap_or("[scratch]");
         let modified = if ctx.modified { " [+]" } else { "" };
         Some(RenderedSegment {
             text: format!(" {}{} ", path, modified),
             style: SegmentStyle::Inverted,
         })
-    },
-};
+    }
+);

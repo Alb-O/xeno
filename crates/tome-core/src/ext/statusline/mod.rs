@@ -129,6 +129,22 @@ pub fn all_segments() -> &'static [StatuslineSegmentDef] {
     &STATUSLINE_SEGMENTS
 }
 
+/// Helper macro to define statusline segments consistently.
+#[macro_export]
+macro_rules! statusline_segment {
+    ($static_name:ident, $name:literal, $position:expr, $priority:expr, $default_enabled:expr, $render:expr) => {
+        #[::linkme::distributed_slice($crate::ext::statusline::STATUSLINE_SEGMENTS)]
+        static $static_name: $crate::ext::statusline::StatuslineSegmentDef =
+            $crate::ext::statusline::StatuslineSegmentDef {
+                name: $name,
+                position: $position,
+                priority: $priority,
+                default_enabled: $default_enabled,
+                render: $render,
+            };
+    };
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

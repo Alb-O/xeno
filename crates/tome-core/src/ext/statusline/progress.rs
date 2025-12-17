@@ -1,18 +1,15 @@
 //! Percentage/progress segment.
 
-use linkme::distributed_slice;
+use crate::statusline_segment;
+use crate::ext::statusline::{RenderedSegment, SegmentPosition, SegmentStyle};
 
-use crate::ext::statusline::{
-    RenderedSegment, STATUSLINE_SEGMENTS, SegmentPosition, SegmentStyle, StatuslineSegmentDef,
-};
-
-#[distributed_slice(STATUSLINE_SEGMENTS)]
-static SEG_PROGRESS: StatuslineSegmentDef = StatuslineSegmentDef {
-    name: "progress",
-    position: SegmentPosition::Right,
-    priority: 20,
-    default_enabled: true,
-    render: |ctx| {
+statusline_segment!(
+    SEG_PROGRESS,
+    "progress",
+    SegmentPosition::Right,
+    20,
+    true,
+    |ctx| {
         let percent = if ctx.total_lines == 0 {
             100
         } else {
@@ -31,5 +28,5 @@ static SEG_PROGRESS: StatuslineSegmentDef = StatuslineSegmentDef {
             text,
             style: SegmentStyle::Dim,
         })
-    },
-};
+    }
+);

@@ -1,21 +1,18 @@
 //! Cursor position segment.
 
-use linkme::distributed_slice;
+use crate::statusline_segment;
+use crate::ext::statusline::{RenderedSegment, SegmentPosition, SegmentStyle};
 
-use crate::ext::statusline::{
-    RenderedSegment, STATUSLINE_SEGMENTS, SegmentPosition, SegmentStyle, StatuslineSegmentDef,
-};
-
-#[distributed_slice(STATUSLINE_SEGMENTS)]
-static SEG_POSITION: StatuslineSegmentDef = StatuslineSegmentDef {
-    name: "position",
-    position: SegmentPosition::Right,
-    priority: 0,
-    default_enabled: true,
-    render: |ctx| {
+statusline_segment!(
+    SEG_POSITION,
+    "position",
+    SegmentPosition::Right,
+    0,
+    true,
+    |ctx| {
         Some(RenderedSegment {
             text: format!(" {}:{} ", ctx.line, ctx.col),
             style: SegmentStyle::Inverted,
         })
-    },
-};
+    }
+);

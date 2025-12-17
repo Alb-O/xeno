@@ -1,0 +1,14 @@
+---
+source: crates/tome-term/src/tests.rs
+expression: terminal.backend()
+---
+"  1                                                                             "
+"  2                                                                             "
+"  ~                                                                             "
+"  ~                                                                             "
+"  ~                                                                             "
+"  ~                                                                             "
+"  ~                                                                             "
+"  ~                                                                             "
+" INSERT  test.txt [+]  2:1  Bot                                                 "
+"                                                                                "
