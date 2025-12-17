@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use ratatui::layout::{Constraint, Direction, Layout, Position, Rect};
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
@@ -221,6 +223,8 @@ impl Editor {
         let ranges = self.selection.ranges();
         let _primary_index = self.selection.primary_index();
         let primary_cursor = cursor;
+        let cursor_heads: HashSet<usize> = ranges.iter().map(|r| r.head).collect();
+        let has_multiple_cursors = cursor_heads.len() > 1;
 
         let mut output_lines: Vec<Line> = Vec::new();
         let mut current_line_idx = self.scroll_line;
@@ -277,7 +281,7 @@ impl Editor {
                 for (i, ch) in segment.text.chars().enumerate() {
                     let doc_pos = line_start + seg_char_offset + i;
 
-                    let cursor_match = ranges.iter().position(|r| r.head == doc_pos);
+                    let is_cursor = cursor_heads.contains(&doc_pos);
                     let is_primary_cursor = doc_pos == primary_cursor;
                     let in_selection = ranges.iter().any(|r| doc_pos >= r.from() && doc_pos < r.to());
 
@@ -287,15 +291,22 @@ impl Editor {
                         cursor_screen_pos = Some((screen_row, screen_col));
                     }
 
-                    let style = if is_primary_cursor && use_block_cursor {
+                    let draw_block_cursor = if is_primary_cursor {
+                        use_block_cursor
+                    } else {
+                        use_block_cursor || has_multiple_cursors
+                    };
+
+                    let style = if is_cursor && draw_block_cursor {
+                        // Draw block cursor for primary (when requested) and always for secondary cursors
                         Style::default()
                             .bg(self.theme.colors.ui.cursor_bg)
                             .fg(self.theme.colors.ui.cursor_fg)
                             .add_modifier(Modifier::BOLD)
-                    } else if cursor_match.is_some() && use_block_cursor {
-                        // Secondary cursors: draw block cursor but do not set terminal cursor position
+                    } else if is_cursor && !use_block_cursor && !is_primary_cursor {
+                        // In insert mode, still tint secondary cursor positions to hint placement
                         Style::default()
-                            .bg(self.theme.colors.ui.cursor_bg)
+                            .bg(self.theme.colors.ui.selection_bg)
                             .fg(self.theme.colors.ui.cursor_fg)
                     } else if in_selection {
                         Style::default().bg(self.theme.colors.ui.selection_bg).fg(self.theme.colors.ui.selection_fg)
@@ -320,18 +331,22 @@ impl Editor {
 
                 if is_last_segment {
                     let is_last_doc_line = current_line_idx + 1 >= total_lines;
-                    let cursor_at_eol = if is_last_doc_line {
-                        primary_cursor >= line_content_end && primary_cursor <= line_end
-                    } else {
-                        primary_cursor >= line_content_end && primary_cursor < line_end
-                    };
-                    if cursor_at_eol && primary_cursor >= line_content_end {
-                        if cursor_screen_pos.is_none() {
+                    let cursor_at_eol = cursor_heads.iter().any(|pos| {
+                        if is_last_doc_line {
+                            *pos >= line_content_end && *pos <= line_end
+                        } else {
+                            *pos >= line_content_end && *pos < line_end
+                        }
+                    });
+
+                    if cursor_at_eol {
+                        if cursor_screen_pos.is_none() && cursor_heads.contains(&primary_cursor) {
                             let screen_col = area.x + gutter_width + seg_char_count as u16;
                             let screen_row = area.y + visual_row;
                             cursor_screen_pos = Some((screen_row, screen_col));
                         }
-                        if use_block_cursor {
+                        let draw_block_cursor = use_block_cursor || has_multiple_cursors;
+                        if draw_block_cursor {
                             spans.push(Span::styled(
                                 " ",
                                 Style::default()
@@ -354,17 +369,22 @@ impl Editor {
                     let mut spans = vec![Span::styled(line_num_str, gutter_style)];
 
                     let is_last_doc_line = current_line_idx + 1 >= total_lines;
-                    let cursor_at_eol = if is_last_doc_line {
-                        primary_cursor >= line_start && primary_cursor <= line_end
-                    } else {
-                        primary_cursor >= line_start && primary_cursor < line_end
-                    };
+                    let cursor_at_eol = cursor_heads.iter().any(|pos| {
+                        if is_last_doc_line {
+                            *pos >= line_start && *pos <= line_end
+                        } else {
+                            *pos >= line_start && *pos < line_end
+                        }
+                    });
                     if cursor_at_eol {
                         let screen_col = area.x + gutter_width;
                         let screen_row = area.y + visual_row;
-                        cursor_screen_pos = Some((screen_row, screen_col));
+                        if cursor_heads.contains(&primary_cursor) {
+                            cursor_screen_pos = Some((screen_row, screen_col));
+                        }
 
-                        if use_block_cursor {
+                        let draw_block_cursor = use_block_cursor || has_multiple_cursors;
+                        if draw_block_cursor {
                             spans.push(Span::styled(
                                 " ",
                                 Style::default()
