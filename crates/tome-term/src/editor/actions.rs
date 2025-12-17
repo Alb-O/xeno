@@ -162,7 +162,11 @@ impl Editor {
                     return false;
                 }
 
-                self.save_undo_state();
+                if matches!(self.mode(), Mode::Insert) {
+                    self.save_insert_undo_state();
+                } else {
+                    self.save_undo_state();
+                }
                 let deletion_selection = Selection::from_vec(ranges, primary_index);
                 let tx = Transaction::delete(self.doc.slice(..), &deletion_selection);
                 let mut new_selection = tx.map_selection(&deletion_selection);

@@ -44,6 +44,7 @@ pub struct Editor {
     pub theme: &'static Theme,
     pub window_width: Option<u16>,
     pub window_height: Option<u16>,
+    insert_undo_active: bool,
 }
 
 impl Editor {
@@ -160,6 +161,7 @@ impl Editor {
             theme: &crate::themes::solarized::SOLARIZED_DARK,
             window_width: None,
             window_height: None,
+            insert_undo_active: false,
         }
     }
 
@@ -203,6 +205,7 @@ impl Editor {
         mem::swap(&mut self.undo_stack, &mut self.scratch.undo_stack);
         mem::swap(&mut self.redo_stack, &mut self.scratch.redo_stack);
         mem::swap(&mut self.text_width, &mut self.scratch.text_width);
+        mem::swap(&mut self.insert_undo_active, &mut self.scratch.insert_undo_active);
     }
 
     pub(crate) fn leave_scratch_context(&mut self) {
@@ -221,6 +224,7 @@ impl Editor {
         mem::swap(&mut self.undo_stack, &mut self.scratch.undo_stack);
         mem::swap(&mut self.redo_stack, &mut self.scratch.redo_stack);
         mem::swap(&mut self.text_width, &mut self.scratch.text_width);
+        mem::swap(&mut self.insert_undo_active, &mut self.scratch.insert_undo_active);
     }
 
     pub(crate) fn with_scratch_context<R>(&mut self, f: impl FnOnce(&mut Self) -> R) -> R {
@@ -302,8 +306,7 @@ impl Editor {
         result
     }
 
-    pub fn save_undo_state(&mut self) {
-
+    fn push_undo_snapshot(&mut self) {
         self.undo_stack.push(HistoryEntry {
             doc: self.doc.clone(),
             selection: self.selection.clone(),
@@ -316,7 +319,22 @@ impl Editor {
         }
     }
 
+    pub fn save_undo_state(&mut self) {
+        // Explicit calls reset any grouped insert session.
+        self.insert_undo_active = false;
+        self.push_undo_snapshot();
+    }
+
+    fn save_insert_undo_state(&mut self) {
+        if self.insert_undo_active {
+            return;
+        }
+        self.insert_undo_active = true;
+        self.push_undo_snapshot();
+    }
+
     pub fn undo(&mut self) {
+        self.insert_undo_active = false;
         if let Some(entry) = self.undo_stack.pop() {
             self.redo_stack.push(HistoryEntry {
                 doc: self.doc.clone(),
@@ -332,6 +350,7 @@ impl Editor {
     }
 
     pub fn redo(&mut self) {
+        self.insert_undo_active = false;
         if let Some(entry) = self.redo_stack.pop() {
             self.undo_stack.push(HistoryEntry {
                 doc: self.doc.clone(),
@@ -347,7 +366,7 @@ impl Editor {
     }
 
     pub fn insert_text(&mut self, text: &str) {
-        self.save_undo_state();
+        self.save_insert_undo_state();
 
         // Collapse all selections to their insertion points (line starts for ranges) so we insert at each cursor.
         let mut insertion_points = self.selection.clone();
@@ -539,14 +558,18 @@ impl Editor {
             }
             KeyResult::ModeChange(new_mode) => {
                 let is_normal = matches!(new_mode, Mode::Normal);
+                let leaving_insert = !matches!(new_mode, Mode::Insert);
                 if new_mode != old_mode {
                     emit_hook(&HookContext::ModeChange {
                         old_mode,
-                        new_mode,
+                        new_mode: new_mode.clone(),
                     });
                 }
                 if is_normal {
                     self.message = None;
+                }
+                if leaving_insert {
+                    self.insert_undo_active = false;
                 }
                 false
             }

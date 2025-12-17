@@ -216,6 +216,27 @@ fn run_key_sequence(editor: &mut Editor, steps: &[KeyStep]) -> Vec<String> {
     }
 
     #[test]
+    fn test_insert_grouped_undo() {
+        let mut editor = test_editor("");
+
+        // Enter insert mode and type multiple characters.
+        editor.handle_key(KeyEvent::new(KeyCode::Char('i'), Modifiers::NONE));
+        editor.handle_key(KeyEvent::new(KeyCode::Char('a'), Modifiers::NONE));
+        editor.handle_key(KeyEvent::new(KeyCode::Char('b'), Modifiers::NONE));
+        editor.handle_key(KeyEvent::new(KeyCode::Char('c'), Modifiers::NONE));
+
+        // Exit insert mode.
+        editor.handle_key(KeyEvent::new(KeyCode::Escape, Modifiers::NONE));
+
+        assert_eq!(editor.doc.to_string(), "abc");
+        assert_eq!(editor.undo_stack.len(), 1, "single undo entry for insert session");
+
+        editor.handle_key(KeyEvent::new(KeyCode::Char('u'), Modifiers::NONE));
+        assert_eq!(editor.doc.to_string(), "");
+        assert_eq!(editor.redo_stack.len(), 1);
+    }
+
+    #[test]
     fn test_insert_newline_single_cursor() {
         let mut editor = test_editor("");
         

@@ -38,6 +38,7 @@ pub struct ScratchState {
     pub undo_stack: Vec<HistoryEntry>,
     pub redo_stack: Vec<HistoryEntry>,
     pub text_width: usize,
+    pub insert_undo_active: bool,
 }
 
 impl Default for ScratchState {
@@ -54,6 +55,7 @@ impl Default for ScratchState {
             undo_stack: Vec::new(),
             redo_stack: Vec::new(),
             text_width: 80,
+            insert_undo_active: false,
         }
     }
 }
