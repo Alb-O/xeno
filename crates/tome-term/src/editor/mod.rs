@@ -36,9 +36,9 @@ pub struct Editor {
     pub text_width: usize,
     pub scratch: ScratchState,
     pub scratch_open: bool,
-    pub scratch_height: u16,
     pub scratch_keep_open: bool,
     pub scratch_focused: bool,
+
     in_scratch_context: bool,
     pub file_type: Option<String>,
     pub theme: &'static Theme,
@@ -153,7 +153,6 @@ impl Editor {
             text_width: 80,
             scratch: ScratchState::default(),
             scratch_open: false,
-            scratch_height: 6,
             scratch_keep_open: true,
             scratch_focused: false,
             in_scratch_context: false,
@@ -449,42 +448,6 @@ impl Editor {
             return;
         }
         self.insert_text(&self.registers.yank.clone());
-    }
-
-    /// Select a text object using the extension registry.
-    pub fn select_object_by_trigger(&mut self, trigger: char, inner: bool) -> bool {
-        if let Some(obj_def) = ext::find_text_object(trigger) {
-            let slice = self.doc.slice(..);
-            self.selection.transform_mut(|r| {
-                let handler = if inner { obj_def.inner } else { obj_def.around };
-                if let Some(new_range) = handler(slice, r.head) {
-                    *r = new_range;
-                }
-            });
-            true
-        } else {
-            false
-        }
-    }
-
-    /// Select to object boundary using the extension registry.
-    pub fn select_to_object_boundary(&mut self, trigger: char, to_start: bool, extend: bool) -> bool {
-        if let Some(obj_def) = ext::find_text_object(trigger) {
-            let slice = self.doc.slice(..);
-            self.selection.transform_mut(|r| {
-                if let Some(obj_range) = (obj_def.around)(slice, r.head) {
-                    let new_head = if to_start { obj_range.from() } else { obj_range.to() };
-                    if extend {
-                        *r = tome_core::Range::new(r.anchor, new_head);
-                    } else {
-                        *r = tome_core::Range::new(r.head, new_head);
-                    }
-                }
-            });
-            true
-        } else {
-            false
-        }
     }
 
     pub fn handle_key(&mut self, key: termina::event::KeyEvent) -> bool {

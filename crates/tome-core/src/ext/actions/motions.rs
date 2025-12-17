@@ -36,11 +36,7 @@ fn cursor_move_action(ctx: &ActionContext, motion_name: &str) -> ActionResult {
         })
         .collect();
 
-    if ctx.extend {
-        ActionResult::Motion(Selection::from_vec(new_ranges, primary_index))
-    } else {
-        ActionResult::Motion(Selection::from_vec(new_ranges, primary_index))
-    }
+    ActionResult::Motion(Selection::from_vec(new_ranges, primary_index))
 }
 
 /// Selection-creating motion - creates new selection from old cursor to new position.
