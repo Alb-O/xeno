@@ -22,17 +22,22 @@ pub fn run_editor(mut editor: Editor) -> io::Result<()> {
     let backend = TerminaBackend::new(terminal);
     let mut terminal = Terminal::new(backend)?;
 
+    // Pre-warm an embedded shell in the background so opening the terminal panel is instant.
+    editor.start_terminal_prewarm();
+
     let result = (|| {
         loop {
+            editor.poll_terminal_prewarm();
+
+            let mut terminal_exited = false;
             if let Some(term) = &mut editor.terminal {
                 term.update();
                 if !term.is_alive() {
-                     // Shell exited. Close terminal panel.
-                     editor.terminal_open = false;
-                     editor.terminal_focused = false;
-                     // We can drop the terminal state, next open will recreate it.
-                     editor.terminal = None;
+                    terminal_exited = true;
                 }
+            }
+            if terminal_exited {
+                editor.on_terminal_exit();
             }
 
             terminal.draw(|frame| editor.render(frame))?;

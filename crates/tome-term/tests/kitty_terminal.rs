@@ -37,6 +37,8 @@ fn terminal_can_be_toggled_and_input_commands() {
     reset_test_file(file);
     run_with_timeout(TEST_TIMEOUT, || {
         with_kitty_capture(&workspace_dir(), &tome_cmd_with_file_named(file), |kitty| {
+            // Allow the editor to boot and pre-warm the embedded shell.
+            pause_briefly();
             pause_briefly();
 
             // Open terminal with Ctrl+t

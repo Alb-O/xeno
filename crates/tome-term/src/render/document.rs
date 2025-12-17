@@ -85,6 +85,12 @@ impl Editor {
                         });
                     }
                 }
+            } else {
+                // Terminal is starting: just paint the panel background.
+                let style = Style::default()
+                    .bg(self.theme.colors.popup.bg)
+                    .fg(self.theme.colors.popup.fg);
+                frame.render_widget(Block::default().style(style), term_area);
             }
         }
 

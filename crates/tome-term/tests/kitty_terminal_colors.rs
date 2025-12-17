@@ -177,6 +177,7 @@ fn embedded_terminal_background_matches_popup_background_in_kitty_dump() {
             // Open the embedded terminal (keeps terminal focused, which disables the editor cursor overlay).
             kitty_send_keys!(kitty, (KeyCode::Char('t'), Modifiers::CTRL));
             pause_briefly();
+            pause_briefly();
 
             // Emit a marker from the shell so we can locate it in the captured raw dump.
             kitty_send_keys!(

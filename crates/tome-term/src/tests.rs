@@ -859,8 +859,18 @@ mod suite {
         editor.handle_key(KeyEvent::new(KeyCode::Char('t'), Modifiers::CONTROL));
         
         assert!(editor.terminal_open);
-        assert!(editor.terminal_focused);
+
+        // Terminal starts asynchronously now, so wait briefly for it to be ready.
+        for _ in 0..50 {
+            editor.poll_terminal_prewarm();
+            if editor.terminal.is_some() {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        }
+
         assert!(editor.terminal.is_some());
+        assert!(editor.terminal_focused);
 
         // Render with terminal open
         let mut terminal = Terminal::new(TestBackend::new(80, 24)).unwrap();
