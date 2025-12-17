@@ -1,3 +1,4 @@
+mod acp;
 mod app;
 mod backend;
 mod capabilities;

@@ -3,6 +3,7 @@
 //! Each file in this directory registers one or more commands.
 //! The linkme distributed slice collects them at link time.
 
+mod agent;
 mod buffer;
 mod cabi;
 mod edit;

@@ -14,6 +14,7 @@ license = "MIT"
 repository = "https://github.com/albertlarsan68/tome"
 
 [workspace.dependencies]
+agent-client-protocol = "0.9.1"
 clap = { version = "4", features = ["derive"] }
 criterion = "0.8"
 insta = "1.44"
@@ -29,6 +30,8 @@ serde_json = "1"
 serial_test = "3"
 smallvec = "1.15"
 termina = "0.1"
+tokio = { version = "1", features = ["full"] }
+tokio-util = { version = "0.7", features = ["compat"] }
 tome-cabi-types = { path = "crates/tome-cabi-types" }
 tome-core = { path = "crates/tome-core" }
 unicode-segmentation = "1.12"

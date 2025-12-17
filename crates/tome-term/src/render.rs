@@ -1,3 +1,4 @@
+mod agent;
 mod document;
 mod message;
 mod status;

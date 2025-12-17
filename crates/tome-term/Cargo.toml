@@ -10,12 +10,15 @@ name = "tome"
 path = "src/main.rs"
 
 [dependencies]
+agent-client-protocol = { workspace = true }
 clap.workspace = true
 linkme.workspace = true
 portable-pty = "0.9.0"
 ratatui.workspace = true
 strsim = "0.11"
 termina.workspace = true
+tokio = { workspace = true }
+tokio-util = { workspace = true }
 tome-core = { workspace = true }
 tui-term = "0.2.0"
 
