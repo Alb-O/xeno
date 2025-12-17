@@ -1,8 +1,7 @@
 use std::path::PathBuf;
-use std::process::Command;
 use std::time::Duration;
 
-use kitty_test_harness::{kitty_send_keys, with_kitty_capture, wait_for_screen_text_clean, pause_briefly, run_with_timeout};
+use kitty_test_harness::{kitty_send_keys, with_kitty_capture, wait_for_screen_text_clean, wait_for_clean_contains, pause_briefly, run_with_timeout, require_kitty};
 use termwiz::input::KeyCode;
 
 const TEST_TIMEOUT: Duration = Duration::from_secs(15);
@@ -24,32 +23,6 @@ fn reset_test_file(name: &str) {
     let _ = std::fs::remove_file(&path);
 }
 
-fn wait_for_text(kitty: &kitty_test_harness::KittyHarness, expected: &str) -> String {
-    let (_raw, clean) = wait_for_screen_text_clean(kitty, Duration::from_secs(3), |_r, clean| {
-        clean.contains(expected)
-    });
-    clean
-}
-
-fn require_kitty() -> bool {
-    let wants_kitty = std::env::var("KITTY_TESTS").unwrap_or_default();
-    if wants_kitty.is_empty() || wants_kitty == "0" || wants_kitty.eq_ignore_ascii_case("false") {
-        eprintln!("skipping kitty tests: set KITTY_TESTS=1 and run under a GUI session");
-        return false;
-    }
-
-    let has_display = std::env::var("DISPLAY").is_ok() || std::env::var("WAYLAND_DISPLAY").is_ok();
-    if !has_display {
-        eprintln!("skipping kitty tests: DISPLAY/WAYLAND_DISPLAY not set");
-        return false;
-    }
-
-    let kitty_ok = Command::new("kitty").arg("--version").output().is_ok();
-    if !kitty_ok {
-        eprintln!("skipping kitty tests: kitty binary not found on PATH");
-    }
-    kitty_ok
-}
 #[serial_test::serial]
 #[test]
 fn harness_can_insert_and_capture() {
@@ -131,7 +104,7 @@ fn split_lines_adds_multi_selection_highlights() {
             pause_briefly();
 
             // Ensure the text actually landed before proceeding.
-            let clean_initial = wait_for_text(kitty, "three");
+            let clean_initial = wait_for_clean_contains(kitty, Duration::from_secs(3), "three");
             assert!(clean_initial.contains("one"), "clean_initial: {clean_initial:?}");
 
             // Select everything then split into per-line selections (Alt-s).
@@ -175,7 +148,7 @@ fn duplicate_down_then_delete_removes_adjacent_line() {
             kitty_send_keys!(kitty, KeyCode::Escape);
             pause_briefly();
 
-            let clean_initial = wait_for_text(kitty, "gamma");
+            let clean_initial = wait_for_clean_contains(kitty, Duration::from_secs(3), "gamma");
             assert!(clean_initial.contains("alpha"), "clean_initial: {clean_initial:?}");
 
             // Move to the second line and select it.
