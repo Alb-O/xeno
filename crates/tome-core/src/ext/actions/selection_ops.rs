@@ -4,6 +4,7 @@ use linkme::distributed_slice;
 use smallvec::SmallVec;
 
 use crate::ext::actions::{ActionContext, ActionDef, ActionResult, ACTIONS};
+use crate::graphemes::prev_grapheme_boundary;
 use crate::range::Range;
 use crate::selection::Selection;
 
@@ -183,12 +184,25 @@ fn split_selection_lines(ctx: &ActionContext) -> ActionResult {
 
         for line in start_line..=end_line {
             let line_start = ctx.text.line_to_char(line);
-            let line_end = if line + 1 < ctx.text.len_lines() {
+            let next_line_start = if line + 1 < ctx.text.len_lines() {
                 ctx.text.line_to_char(line + 1)
             } else {
                 ctx.text.len_chars()
             };
-            ranges.push(Range::new(line_start, line_end));
+
+            // Exclude newline from selection so head stays on the current line.
+            // If we include the newline, the cursor head would be at the start of the *next* line,
+            // which causes insertions to happen on the wrong line.
+            let line_end = if line + 1 < ctx.text.len_lines() {
+                prev_grapheme_boundary(ctx.text, next_line_start)
+            } else {
+                next_line_start
+            };
+            
+            // Create a backward selection (head at start, anchor at end).
+            // This places the cursor at the beginning of the line, which is typically desired
+            // when splitting lines (e.g., for block editing or indentation).
+            ranges.push(Range::new(line_end, line_start));
         }
     }
 

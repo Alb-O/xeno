@@ -33,9 +33,17 @@ pub(crate) fn is_word_char(c: char) -> bool {
 }
 
 /// Make a range for cursor movement - anchor stays, only head moves.
-pub(crate) fn make_range(range: Range, new_head: usize, _extend: bool) -> Range {
-    // Anchor stays where it is, cursor (head) moves freely
-    Range::new(range.anchor, new_head)
+/// 
+/// If `extend` is false, this performs a "move": the range collapses to a single point at `new_head`.
+/// If `extend` is true, this performs a "selection extension": the anchor remains fixed, and the head moves to `new_head`.
+pub(crate) fn make_range(range: Range, new_head: usize, extend: bool) -> Range {
+    if extend {
+        // Extend: keep old anchor
+        Range::new(range.anchor, new_head)
+    } else {
+        // Move: collapse to new position (cursor becomes point at new head)
+        Range::point(new_head)
+    }
 }
 
 /// Make a range for selection-creating motions - creates new selection from old head to new head.
