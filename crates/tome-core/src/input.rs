@@ -1,7 +1,7 @@
 //! Input handling with mode stack and count prefixes.
 //! New action-only path (legacy Command path removed).
 
-use crate::ext::{find_binding, BindingMode, ObjectSelectionKind, PendingKind};
+use crate::ext::{BindingMode, ObjectSelectionKind, PendingKind, find_binding};
 use crate::key::{Key, KeyCode, Modifiers, MouseButton, MouseEvent, ScrollDirection, SpecialKey};
 
 /// Editor mode.
@@ -13,7 +13,10 @@ pub enum Mode {
     Goto,
     View,
     /// Command line input mode (for `:`, `/`, `?`, regex, pipe prompts).
-    Command { prompt: char, input: String },
+    Command {
+        prompt: char,
+        input: String,
+    },
     /// Waiting for character input to complete an action.
     PendingAction(PendingKind),
 }
@@ -67,16 +70,9 @@ pub enum KeyResult {
     /// Request to quit.
     Quit,
     /// Mouse click at screen coordinates.
-    MouseClick {
-        row: u16,
-        col: u16,
-        extend: bool,
-    },
+    MouseClick { row: u16, col: u16, extend: bool },
     /// Mouse drag to screen coordinates (extend selection).
-    MouseDrag {
-        row: u16,
-        col: u16,
-    },
+    MouseDrag { row: u16, col: u16 },
     /// Mouse scroll.
     MouseScroll {
         direction: ScrollDirection,
@@ -203,19 +199,42 @@ impl InputHandler {
 
     pub fn handle_mouse(&mut self, event: MouseEvent) -> KeyResult {
         match event {
-            MouseEvent::Press { button: MouseButton::Left, row, col, .. } => {
-                KeyResult::MouseClick { row, col, extend: self.extend }
+            MouseEvent::Press {
+                button: MouseButton::Left,
+                row,
+                col,
+                ..
+            } => KeyResult::MouseClick {
+                row,
+                col,
+                extend: self.extend,
+            },
+            MouseEvent::Drag {
+                button: MouseButton::Left,
+                row,
+                col,
+                ..
+            } => KeyResult::MouseDrag { row, col },
+            MouseEvent::Scroll { direction, .. } => KeyResult::MouseScroll {
+                direction,
+                count: 1,
+            },
+            MouseEvent::Press {
+                button: MouseButton::Right,
+                ..
             }
-            MouseEvent::Drag { button: MouseButton::Left, row, col, .. } => {
-                KeyResult::MouseDrag { row, col }
+            | MouseEvent::Press {
+                button: MouseButton::Middle,
+                ..
             }
-            MouseEvent::Scroll { direction, .. } => {
-                KeyResult::MouseScroll { direction, count: 1 }
+            | MouseEvent::Drag {
+                button: MouseButton::Right,
+                ..
             }
-            MouseEvent::Press { button: MouseButton::Right, .. }
-            | MouseEvent::Press { button: MouseButton::Middle, .. }
-            | MouseEvent::Drag { button: MouseButton::Right, .. }
-            | MouseEvent::Drag { button: MouseButton::Middle, .. }
+            | MouseEvent::Drag {
+                button: MouseButton::Middle,
+                ..
+            }
             | MouseEvent::Release { .. } => KeyResult::Consumed,
         }
     }
@@ -231,8 +250,11 @@ impl InputHandler {
         let key = self.extend_and_lower_if_shift(key);
 
         if let Some(binding) = find_binding(BindingMode::Normal, key) {
-
-            let count = if self.count > 0 { self.count as usize } else { 1 };
+            let count = if self.count > 0 {
+                self.count as usize
+            } else {
+                1
+            };
             let extend = self.extend;
             let register = self.register;
             self.reset_params();
@@ -249,7 +271,6 @@ impl InputHandler {
     }
 
     fn handle_insert_key(&mut self, key: Key) -> KeyResult {
-        // Escape exits insert mode
         if matches!(key.code, KeyCode::Special(SpecialKey::Escape)) {
             self.mode = Mode::Normal;
             self.reset_params();
@@ -268,18 +289,22 @@ impl InputHandler {
 
         // Normalize Shift+Letter -> Uppercase Letter (no shift)
         // This ensures typing Shift+a produces 'A' even if terminal sends 'a'+Shift.
-        let key = if key.modifiers.shift 
-            && let KeyCode::Char(c) = key.code 
-            && c.is_ascii_lowercase() 
+        let key = if key.modifiers.shift
+            && let KeyCode::Char(c) = key.code
+            && c.is_ascii_lowercase()
         {
-             key.normalize()
+            key.normalize()
         } else {
-             key
+            key
         };
 
         // Try insert-mode keybindings first
         if let Some(binding) = find_binding(BindingMode::Insert, key) {
-            let count = if self.count > 0 { self.count as usize } else { 1 };
+            let count = if self.count > 0 {
+                self.count as usize
+            } else {
+                1
+            };
             let extend = self.extend;
             let register = self.register;
             self.reset_params();
@@ -292,23 +317,25 @@ impl InputHandler {
         }
 
         // Fall back to normal mode bindings only for non-character keys (navigation)
-        let is_navigation_key = matches!(key.code, KeyCode::Special(_))
-            || key.modifiers.ctrl
-            || key.modifiers.alt;
+        let is_navigation_key =
+            matches!(key.code, KeyCode::Special(_)) || key.modifiers.ctrl || key.modifiers.alt;
 
-        if is_navigation_key
-            && let Some(binding) = find_binding(BindingMode::Normal, key) {
-                let count = if self.count > 0 { self.count as usize } else { 1 };
-                let extend = self.extend;
-                let register = self.register;
-                self.reset_params();
-                return KeyResult::Action {
-                    name: binding.action,
-                    count,
-                    extend,
-                    register,
-                };
-            }
+        if is_navigation_key && let Some(binding) = find_binding(BindingMode::Normal, key) {
+            let count = if self.count > 0 {
+                self.count as usize
+            } else {
+                1
+            };
+            let extend = self.extend;
+            let register = self.register;
+            self.reset_params();
+            return KeyResult::Action {
+                name: binding.action,
+                count,
+                extend,
+                register,
+            };
+        }
 
         // Regular character insertion
         match key.code {
@@ -328,7 +355,11 @@ impl InputHandler {
             return KeyResult::ModeChange(Mode::Normal);
         }
 
-        let count = if self.count > 0 { self.count as usize } else { 1 };
+        let count = if self.count > 0 {
+            self.count as usize
+        } else {
+            1
+        };
         let extend = self.extend;
         let register = self.register;
 
@@ -357,7 +388,11 @@ impl InputHandler {
             return KeyResult::ModeChange(Mode::Normal);
         }
 
-        let count = if self.count > 0 { self.count as usize } else { 1 };
+        let count = if self.count > 0 {
+            self.count as usize
+        } else {
+            1
+        };
         let extend = self.extend;
         let register = self.register;
 
@@ -365,7 +400,6 @@ impl InputHandler {
 
         // Try new keybinding registry first
         if let Some(binding) = find_binding(BindingMode::View, key) {
-
             self.mode = Mode::Normal;
             self.reset_params();
             return KeyResult::Action {
@@ -382,13 +416,13 @@ impl InputHandler {
     }
 
     fn handle_command_key(&mut self, key: Key, prompt: char, mut input: String) -> KeyResult {
-        let key = if key.modifiers.shift 
-            && let KeyCode::Char(c) = key.code 
-            && c.is_ascii_lowercase() 
+        let key = if key.modifiers.shift
+            && let KeyCode::Char(c) = key.code
+            && c.is_ascii_lowercase()
         {
-             key.normalize()
+            key.normalize()
         } else {
-             key
+            key
         };
 
         match key.code {
@@ -457,13 +491,13 @@ impl InputHandler {
     }
 
     fn handle_pending_action_key(&mut self, key: Key, pending: PendingKind) -> KeyResult {
-        let key = if key.modifiers.shift 
-            && let KeyCode::Char(c) = key.code 
-            && c.is_ascii_lowercase() 
+        let key = if key.modifiers.shift
+            && let KeyCode::Char(c) = key.code
+            && c.is_ascii_lowercase()
         {
-             key.normalize()
+            key.normalize()
         } else {
-             key
+            key
         };
 
         match pending {
@@ -585,11 +619,11 @@ impl InputHandler {
             // Check if uppercase key has its own binding (e.g. 'W')
             // We look up using the key without Shift modifier (since the char itself is uppercase)
             let lookup_key = key.drop_shift();
-            
+
             if find_binding(BindingMode::Normal, lookup_key).is_some() {
                 return lookup_key;
             }
-            
+
             // Fallback to lowercase
             return Key {
                 code: KeyCode::Char(c.to_ascii_lowercase()),
@@ -635,7 +669,13 @@ mod tests {
     }
 
     fn key_with_shift(c: char) -> Key {
-        Key { code: KeyCode::Char(c), modifiers: Modifiers { shift: true, ..Modifiers::NONE } }
+        Key {
+            code: KeyCode::Char(c),
+            modifiers: Modifiers {
+                shift: true,
+                ..Modifiers::NONE
+            },
+        }
     }
 
     #[test]
@@ -670,7 +710,10 @@ mod tests {
         // Terminal sends: Char(uppercase) + Shift modifier
         Key {
             code: KeyCode::Char(c.to_ascii_uppercase()),
-            modifiers: Modifiers { shift: true, ..Modifiers::NONE },
+            modifiers: Modifiers {
+                shift: true,
+                ..Modifiers::NONE
+            },
         }
     }
 

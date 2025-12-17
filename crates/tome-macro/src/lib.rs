@@ -1,18 +1,18 @@
 use proc_macro::TokenStream;
 use quote::{format_ident, quote};
-use syn::{parse_macro_input, FnArg, ItemTrait, ReturnType, TraitItem};
+use syn::{FnArg, ItemTrait, ReturnType, TraitItem, parse_macro_input};
 
 #[proc_macro_attribute]
 pub fn tome_api(attr: TokenStream, item: TokenStream) -> TokenStream {
     let input = parse_macro_input!(item as ItemTrait);
     let trait_name = &input.ident;
     let trait_items = &input.items;
-    
+
     // Parse context type from attribute (e.g. #[tome_api(PluginHostContext)])
     let context_type = if attr.is_empty() {
         // Default or error? We need the context type to be concrete.
         // Let's assume the user MUST provide it if they want host functions.
-        None 
+        None
     } else {
         Some(parse_macro_input!(attr as syn::Type))
     };
@@ -33,11 +33,10 @@ pub fn tome_api(attr: TokenStream, item: TokenStream) -> TokenStream {
                     None
                 }
             }).collect();
-            
+
             let arg_names: Vec<_> = args.iter().map(|(n, _)| n).collect();
             let arg_types: Vec<_> = args.iter().map(|(_, t)| t).collect();
 
-            // Host function name
             let host_fn_name = format_ident!("{}", name);
 
             // Determine return type logic
@@ -45,7 +44,7 @@ pub fn tome_api(attr: TokenStream, item: TokenStream) -> TokenStream {
                 ReturnType::Default => quote! { () },
                 ReturnType::Type(_, ty) => quote! { #ty },
             };
-            
+
             let has_args = !args.is_empty();
             let struct_def = if has_args {
                 quote! {
@@ -60,7 +59,7 @@ pub fn tome_api(attr: TokenStream, item: TokenStream) -> TokenStream {
                     struct Input {}
                 }
             };
-            
+
             let struct_init = if has_args {
                 quote! {
                     let input = Input { #(#arg_names: &#arg_names),* };
@@ -79,15 +78,15 @@ pub fn tome_api(attr: TokenStream, item: TokenStream) -> TokenStream {
                     }
 
                     #struct_def
-                    
+
                     #struct_init
-                    
+
                     let input_json = serde_json::to_vec(&input).expect("Failed to serialize input");
                     let input_mem = extism_pdk::Memory::from_bytes(input_json).expect("Failed to allocate memory");
-                    
+
                     let offset = unsafe { #host_fn_name(input_mem.offset()) };
                     let output_mem = extism_pdk::Memory::find(offset).expect("Failed to find output memory");
-                    
+
                     let output: #return_type = serde_json::from_slice(&output_mem.to_vec()).expect("Failed to deserialize output");
                     output
                 }
@@ -103,7 +102,7 @@ pub fn tome_api(attr: TokenStream, item: TokenStream) -> TokenStream {
                  let sig = &method.sig;
                  let name = &sig.ident;
                  let name_str = name.to_string();
-                 
+
                  let inputs = &sig.inputs;
                  let args: Vec<_> = inputs.iter().skip(1).filter_map(|arg| {
                     if let FnArg::Typed(pat) = arg {
@@ -114,11 +113,11 @@ pub fn tome_api(attr: TokenStream, item: TokenStream) -> TokenStream {
                 }).collect();
                 let arg_names: Vec<_> = args.iter().map(|(n, _)| n).collect();
                 let arg_types: Vec<_> = args.iter().map(|(_, t)| t).collect();
-                 
+
                  let is_mutable = if let Some(FnArg::Receiver(recv)) = inputs.first() {
                      recv.mutability.is_some()
                  } else {
-                     false 
+                     false
                  };
 
                  let ctx_binding = if is_mutable {
@@ -126,7 +125,7 @@ pub fn tome_api(attr: TokenStream, item: TokenStream) -> TokenStream {
                  } else {
                      quote! { let ctx }
                  };
-                 
+
                  let input_binding = if arg_names.is_empty() {
                      quote! { let _input }
                  } else {
@@ -139,15 +138,15 @@ pub fn tome_api(attr: TokenStream, item: TokenStream) -> TokenStream {
                         struct Input {
                             #(#arg_names: #arg_types),*
                         }
-                        
+
                         #input_binding: Input = serde_json::from_str(&input_str)
                             .map_err(|e| extism::Error::msg(format!("Invalid input for {}: {}", #name_str, e)))?;
-                            
+
                         let locked = user_data.get().map_err(|e| extism::Error::msg(e.to_string()))?;
                         #ctx_binding = locked.lock().map_err(|e| extism::Error::msg(e.to_string()))?;
-                        
+
                         let result = ctx.#name(#(input.#arg_names),*);
-                        
+
                         let output_json = serde_json::to_string(&result)
                              .map_err(|e| extism::Error::msg(format!("Failed to serialize output: {}", e)))?;
                         Ok(output_json)
@@ -159,26 +158,32 @@ pub fn tome_api(attr: TokenStream, item: TokenStream) -> TokenStream {
                  None
              }
         }).collect();
-        
-        let host_function_list: Vec<_> = trait_items.iter().filter_map(|item| {
-            if let TraitItem::Fn(method) = item {
-                let name = &method.sig.ident;
-                let name_str = name.to_string();
-                 Some(quote! {
-                     extism::Function::new(
-                         #name_str,
-                         [extism::ValType::I64],
-                         [extism::ValType::I64], 
-                         ctx.clone(),
-                         #name
-                     ),
-                 })
-            } else {
-                None
-            }
-        }).collect();
 
-        let host_function_list_fn_name = format_ident!("create_{}_host_functions", trait_name.to_string().to_lowercase());
+        let host_function_list: Vec<_> = trait_items
+            .iter()
+            .filter_map(|item| {
+                if let TraitItem::Fn(method) = item {
+                    let name = &method.sig.ident;
+                    let name_str = name.to_string();
+                    Some(quote! {
+                        extism::Function::new(
+                            #name_str,
+                            [extism::ValType::I64],
+                            [extism::ValType::I64],
+                            ctx.clone(),
+                            #name
+                        ),
+                    })
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        let host_function_list_fn_name = format_ident!(
+            "create_{}_host_functions",
+            trait_name.to_string().to_lowercase()
+        );
 
         quote! {
             #[cfg(not(target_arch = "wasm32"))]
@@ -209,6 +214,6 @@ pub fn tome_api(attr: TokenStream, item: TokenStream) -> TokenStream {
         }
 
         #host_code
-    }.into()
+    }
+    .into()
 }
-

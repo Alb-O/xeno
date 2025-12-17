@@ -14,7 +14,6 @@ pub mod selection;
 #[cfg(feature = "host")]
 pub mod transaction;
 
-// Core library re-exports
 #[cfg(feature = "host")]
 pub use ext::{
     COMMANDS, CommandContext, CommandDef, CommandError, CommandResult, FILE_TYPES, FileTypeDef,
