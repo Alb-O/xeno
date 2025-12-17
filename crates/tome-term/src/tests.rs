@@ -784,4 +784,18 @@ fn run_key_sequence(editor: &mut Editor, steps: &[KeyStep]) -> Vec<String> {
         assert!(!text.contains("beta"), "seq: {snapshots:?}");
         assert!(!text.contains("gamma"), "seq: {snapshots:?}");
     }
+
+    #[test]
+    fn test_insert_across_multiple_selections() {
+        let mut editor = test_editor("one\ntwo\nthree\n");
+
+        // Select all, split per line.
+        editor.handle_key(KeyEvent::new(KeyCode::Char('%'), Modifiers::NONE));
+        editor.handle_key(KeyEvent::new(KeyCode::Char('s'), Modifiers::ALT));
+
+        // Insert at all cursors.
+        editor.insert_text("X");
+
+        assert_eq!(editor.doc.to_string(), "Xone\nXtwo\nXthree\n");
+    }
 }

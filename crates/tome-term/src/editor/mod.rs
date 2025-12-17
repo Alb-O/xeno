@@ -9,7 +9,7 @@ use std::mem;
 use std::path::PathBuf;
 
 use tome_core::key::{KeyCode, SpecialKey};
-use tome_core::range::Direction as MoveDir;
+use tome_core::range::{Direction as MoveDir, Range};
 use tome_core::{
     InputHandler, Key, KeyResult, Mode, MouseEvent, Rope, Selection, Transaction,
     ext, movement,
@@ -347,14 +347,31 @@ impl Editor {
     }
 
     pub fn insert_text(&mut self, text: &str) {
-
         self.save_undo_state();
-        // Insert at cursor position
-        let cursor_sel = Selection::point(self.cursor);
-        let tx = Transaction::insert(self.doc.slice(..), &cursor_sel, text.to_string());
+
+        // Collapse all selections to their insertion points (line starts for ranges) so we insert at each cursor.
+        let mut insertion_points = self.selection.clone();
+        insertion_points.transform_mut(|r| {
+            let pos = r.from();
+            r.anchor = pos;
+            r.head = pos;
+        });
+
+        let insert_len = text.chars().count();
+        let tx = Transaction::insert(self.doc.slice(..), &insertion_points, text.to_string());
         tx.apply(&mut self.doc);
-        self.cursor += text.chars().count();
-        self.selection = tx.map_selection(&self.selection);
+
+        // Advance each cursor by the inserted text length.
+        let new_ranges: Vec<Range> = insertion_points
+            .ranges()
+            .iter()
+            .map(|r| {
+                let pos = r.head + insert_len;
+                Range::point(pos)
+            })
+            .collect();
+        self.selection = Selection::from_vec(new_ranges, insertion_points.primary_index());
+        self.cursor = self.selection.primary().head;
         self.modified = true;
     }
 

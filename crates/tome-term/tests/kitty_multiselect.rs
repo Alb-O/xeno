@@ -11,12 +11,24 @@ fn tome_cmd() -> String {
     env!("CARGO_BIN_EXE_tome").to_string()
 }
 
-fn tome_cmd_with_file() -> String {
-    format!("{} {}", tome_cmd(), "kitty-test.txt")
+fn tome_cmd_with_file_named(name: &str) -> String {
+    format!("{} {}", tome_cmd(), name)
 }
 
 fn workspace_dir() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+}
+
+fn reset_test_file(name: &str) {
+    let path = workspace_dir().join(name);
+    let _ = std::fs::remove_file(&path);
+}
+
+fn wait_for_text(kitty: &kitty_test_harness::KittyHarness, expected: &str) -> String {
+    let (_raw, clean) = wait_for_screen_text_clean(kitty, Duration::from_secs(3), |_r, clean| {
+        clean.contains(expected)
+    });
+    clean
 }
 
 fn require_kitty() -> bool {
@@ -38,37 +50,47 @@ fn require_kitty() -> bool {
     }
     kitty_ok
 }
+#[serial_test::serial]
 #[test]
 fn harness_can_insert_and_capture() {
     if !require_kitty() {
         return;
     }
 
+    let file = "kitty-test-insert.txt";
+    reset_test_file(file);
     run_with_timeout(TEST_TIMEOUT, || {
-        with_kitty_capture(&workspace_dir(), &tome_cmd_with_file(), |kitty| {
+        with_kitty_capture(&workspace_dir(), &tome_cmd_with_file_named(file), |kitty| {
             pause_briefly();
 
-            kitty_send_keys!(kitty, KeyCode::Char('i'));
-            kitty.send_text("hello kitty harness\n");
+            kitty_send_keys!(kitty,
+                KeyCode::Char('i'),
+                KeyCode::Char('h'), KeyCode::Char('e'), KeyCode::Char('l'), KeyCode::Char('l'), KeyCode::Char('o'), KeyCode::Char(' '),
+                KeyCode::Char('k'), KeyCode::Char('i'), KeyCode::Char('t'), KeyCode::Char('t'), KeyCode::Char('y'), KeyCode::Char(' '),
+                KeyCode::Char('h'), KeyCode::Char('a'), KeyCode::Char('r'), KeyCode::Char('n'), KeyCode::Char('e'), KeyCode::Char('s'), KeyCode::Char('s'), KeyCode::Enter,
+            );
             kitty_send_keys!(kitty, KeyCode::Escape);
 
             let (_raw, clean) = wait_for_screen_text_clean(kitty, Duration::from_secs(3), |_r, clean| {
                 clean.contains("hello kitty harness")
             });
 
-            assert!(clean.contains("hello kitty harness"));
+            assert!(clean.contains("hello kitty harness"), "clean: {clean:?}");
         });
     });
 }
 
+#[serial_test::serial]
 #[test]
 fn harness_macro_keys_handle_newlines() {
     if !require_kitty() {
         return;
     }
 
+    let file = "kitty-test-macro.txt";
+    reset_test_file(file);
     run_with_timeout(TEST_TIMEOUT, || {
-        with_kitty_capture(&workspace_dir(), &tome_cmd_with_file(), |kitty| {
+        with_kitty_capture(&workspace_dir(), &tome_cmd_with_file_named(file), |kitty| {
             pause_briefly();
 
             kitty_send_keys!(kitty, KeyCode::Char('i'));
@@ -79,33 +101,38 @@ fn harness_macro_keys_handle_newlines() {
                 clean.contains("AB") && clean.contains("C")
             });
 
-            assert!(clean.contains("AB"));
-            assert!(clean.contains("C"));
+            assert!(clean.contains("AB"), "clean: {clean:?}");
+            assert!(clean.contains("C"), "clean: {clean:?}");
         });
     });
 }
 
+#[serial_test::serial]
 #[test]
 fn split_lines_adds_multi_selection_highlights() {
     if !require_kitty() {
         return;
     }
 
+    let file = "kitty-test-split.txt";
+    reset_test_file(file);
     run_with_timeout(TEST_TIMEOUT, || {
-        with_kitty_capture(&workspace_dir(), &tome_cmd_with_file(), |kitty| {
+        with_kitty_capture(&workspace_dir(), &tome_cmd_with_file_named(file), |kitty| {
             pause_briefly();
 
-            // Populate a small buffer; direct text send is more reliable for setup.
-            kitty_send_keys!(kitty, KeyCode::Char('i'));
-            kitty.send_text("one\ntwo\nthree\n");
+            // Populate a small buffer via key events.
+            kitty_send_keys!(kitty,
+                KeyCode::Char('i'),
+                KeyCode::Char('o'), KeyCode::Char('n'), KeyCode::Char('e'), KeyCode::Enter,
+                KeyCode::Char('t'), KeyCode::Char('w'), KeyCode::Char('o'), KeyCode::Enter,
+                KeyCode::Char('t'), KeyCode::Char('h'), KeyCode::Char('r'), KeyCode::Char('e'), KeyCode::Char('e'), KeyCode::Enter,
+            );
             kitty_send_keys!(kitty, KeyCode::Escape);
             pause_briefly();
 
             // Ensure the text actually landed before proceeding.
-            let (_raw, clean_initial) = wait_for_screen_text_clean(kitty, Duration::from_secs(3), |_r, clean| {
-                clean.contains("three")
-            });
-            assert!(clean_initial.contains("one"));
+            let clean_initial = wait_for_text(kitty, "three");
+            assert!(clean_initial.contains("one"), "clean_initial: {clean_initial:?}");
 
             // Select everything then split into per-line selections (Alt-s).
             kitty_send_keys!(kitty, KeyCode::Char('%'));
@@ -126,14 +153,17 @@ fn split_lines_adds_multi_selection_highlights() {
     });
 }
 
+#[serial_test::serial]
 #[test]
 fn duplicate_down_then_delete_removes_adjacent_line() {
     if !require_kitty() {
         return;
     }
 
+    let file = "kitty-test-duplicate.txt";
+    reset_test_file(file);
     run_with_timeout(TEST_TIMEOUT, || {
-        with_kitty_capture(&workspace_dir(), &tome_cmd_with_file(), |kitty| {
+        with_kitty_capture(&workspace_dir(), &tome_cmd_with_file_named(file), |kitty| {
             pause_briefly();
 
             kitty_send_keys!(kitty,
@@ -145,11 +175,8 @@ fn duplicate_down_then_delete_removes_adjacent_line() {
             kitty_send_keys!(kitty, KeyCode::Escape);
             pause_briefly();
 
-            // Confirm text is present before manipulations.
-            let (_raw, clean_initial) = wait_for_screen_text_clean(kitty, Duration::from_secs(3), |_r, clean| {
-                clean.contains("gamma")
-            });
-            assert!(clean_initial.contains("alpha"));
+            let clean_initial = wait_for_text(kitty, "gamma");
+            assert!(clean_initial.contains("alpha"), "clean_initial: {clean_initial:?}");
 
             // Move to the second line and select it.
             kitty_send_keys!(kitty, KeyCode::Char('g'), KeyCode::Char('g'));
@@ -162,7 +189,6 @@ fn duplicate_down_then_delete_removes_adjacent_line() {
             kitty_send_keys!(kitty, KeyCode::Char('+'));
             kitty_send_keys!(kitty, KeyCode::Char('d'));
 
-
             let (_raw, clean) = wait_for_screen_text_clean(kitty, Duration::from_secs(3), |_raw, clean| {
                 clean.contains("alpha")
             });
@@ -174,4 +200,43 @@ fn duplicate_down_then_delete_removes_adjacent_line() {
     });
 }
 
+#[serial_test::serial]
+#[test]
+fn insert_mode_types_at_all_cursors() {
+    if !require_kitty() {
+        return;
+    }
 
+    let file = "kitty-test-insert-multi.txt";
+    reset_test_file(file);
+    run_with_timeout(TEST_TIMEOUT, || {
+        with_kitty_capture(&workspace_dir(), &tome_cmd_with_file_named(file), |kitty| {
+            pause_briefly();
+
+            // Seed three lines via key events.
+            kitty_send_keys!(kitty,
+                KeyCode::Char('i'),
+                KeyCode::Char('o'), KeyCode::Char('n'), KeyCode::Char('e'), KeyCode::Enter,
+                KeyCode::Char('t'), KeyCode::Char('w'), KeyCode::Char('o'), KeyCode::Enter,
+                KeyCode::Char('t'), KeyCode::Char('h'), KeyCode::Char('r'), KeyCode::Char('e'), KeyCode::Char('e'), KeyCode::Enter,
+            );
+            kitty_send_keys!(kitty, KeyCode::Escape);
+            pause_briefly();
+
+            // Select all, split per line, and enter insert mode to type 'X'.
+            kitty_send_keys!(kitty, KeyCode::Char('%'));
+            kitty_send_keys!(kitty, (KeyCode::Char('s'), termwiz::input::Modifiers::ALT));
+            kitty_send_keys!(kitty, KeyCode::Char('i'));
+            kitty_send_keys!(kitty, KeyCode::Char('X'));
+            kitty_send_keys!(kitty, KeyCode::Escape);
+
+            let (_raw, clean) = wait_for_screen_text_clean(kitty, Duration::from_secs(3), |_raw, clean| {
+                clean.contains("Xone") && clean.contains("Xtwo") && clean.contains("Xthree")
+            });
+
+            assert!(clean.contains("Xone"), "clean: {clean:?}");
+            assert!(clean.contains("Xtwo"), "clean: {clean:?}");
+            assert!(clean.contains("Xthree"), "clean: {clean:?}");
+        });
+    });
+}

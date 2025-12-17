@@ -21,10 +21,10 @@ Uses `linkme` for compile-time registration. Drop a file in, it's automatically 
 | `motions/` | Cursor movement |
 | `objects/` | Text object selection |
 
-## Build
+Running cargo: `nix develop -c cargo {build/test/etc}`
 
-```sh
-cargo build    # compile
-cargo test     # test
-nix develop    # dev shell
-```
+## Agent Notes: GUI-Driven Debugging
+
+- Approach: keep tight red/green loops with assertions in both unit tests and kitty GUI integration tests. Write failing assertions first, then iterate fixes in `tome-term` (movement/selection, multi-cursor insert) until GUI captures go green.
+- Harness: exercise the real terminal path via `kitty-test-harness`, sending actual key sequences and capturing rendered screens. Keep tests serial and isolated per file to avoid socket/file contention.
+- Why it matters: core selection ops can pass unit tests, but the live GUI harness exposes cursor/selection drift and per-cursor insert bugs. Running against the real terminal ensures fixes match user-facing behavior.
