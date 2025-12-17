@@ -8,6 +8,7 @@ mod suite {
     use std::path::PathBuf;
     use termina::event::{KeyCode, KeyEvent, Modifiers};
     use tome_core::{Mode, Rope, Selection};
+    use tome_core::ext::EditorOps;
 
     #[derive(Debug, Clone)]
     struct KeyStep {
@@ -808,6 +809,43 @@ mod suite {
         editor.handle_key(KeyEvent::new(KeyCode::End, Modifiers::NONE));
         editor.handle_key(KeyEvent::new(KeyCode::Char('X'), Modifiers::NONE));
         assert_eq!(editor.doc.to_string(), "oneX\ntwoX\nthreeX\n");
+    }
+
+
+    #[test]
+    fn test_terminal_background_color_matches_popup() {
+        use ratatui::style::Color;
+
+        let mut editor = test_editor("content");
+        
+        // Ensure theme is set to something known
+        editor.set_theme("solarized_dark").unwrap();
+        
+        // Open terminal
+        editor.handle_key(KeyEvent::new(KeyCode::Char('t'), Modifiers::CONTROL));
+        assert!(editor.terminal_open);
+        
+        // Render
+        let mut terminal = Terminal::new(TestBackend::new(80, 24)).unwrap();
+        terminal.draw(|frame| editor.render(frame)).unwrap();
+        
+        // Inspect buffer
+        let buffer = terminal.backend().buffer();
+        
+        // Terminal is at the bottom 30% of 24 rows = ~7 rows.
+        // Let's check the last row.
+        let last_row_cell = &buffer[(0, 23)];
+        
+        // It should match popup bg, NOT ui bg.
+        let popup_bg = editor.theme.colors.popup.bg;
+        let ui_bg = editor.theme.colors.ui.bg;
+        
+        assert_ne!(popup_bg, ui_bg, "Theme should have distinct popup and ui backgrounds for this test");
+        assert_eq!(last_row_cell.bg, popup_bg, "Terminal area background should match popup theme background");
+        
+        // Also check main doc area (top) matches UI bg
+        let doc_cell = &buffer[(0, 0)];
+        assert_eq!(doc_cell.bg, ui_bg, "Main doc area background should match UI theme background");
     }
 
     #[test]

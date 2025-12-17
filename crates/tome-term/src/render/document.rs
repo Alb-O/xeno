@@ -66,9 +66,12 @@ impl Editor {
                 }
 
                 let pseudo_term = PseudoTerminal::new(term.parser.screen())
-                    .cursor(tui_term::widget::Cursor::default().symbol("█"));
+                    .cursor(tui_term::widget::Cursor::default().symbol("█"))
+                    .style(Style::default().bg(self.theme.colors.popup.bg).fg(self.theme.colors.popup.fg));
                 
-                let block = Block::default().style(Style::default().bg(self.theme.colors.ui.bg));
+                // We still render the background block to ensure the area is cleared/colored even if 
+                // the terminal screen size doesn't perfectly match the widget area (though we resize above).
+                let block = Block::default().style(Style::default().bg(self.theme.colors.popup.bg));
                 frame.render_widget(block, term_area);
                 frame.render_widget(pseudo_term, term_area);
             }
