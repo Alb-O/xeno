@@ -4,7 +4,7 @@ use ropey::RopeSlice;
 use crate::movement::{move_to_first_nonwhitespace, move_to_line_end, move_to_line_start};
 use crate::range::Range;
 
-use crate::ext::{MotionDef, MOTIONS};
+use crate::ext::{MOTIONS, MotionDef};
 
 fn line_start(text: RopeSlice, range: Range, _count: usize, extend: bool) -> Range {
     move_to_line_start(text, range, extend)

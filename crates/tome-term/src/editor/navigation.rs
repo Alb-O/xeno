@@ -1,5 +1,5 @@
-use tome_core::ScrollDirection;
 use crate::render::WrapSegment;
+use tome_core::ScrollDirection;
 use tome_core::Selection;
 use tome_core::range::{Direction as MoveDir, Range};
 
@@ -88,7 +88,8 @@ impl Editor {
                     } else {
                         self.doc.len_chars()
                     };
-                    let next_line_text: String = self.doc.slice(next_line_start..next_line_end).into();
+                    let next_line_text: String =
+                        self.doc.slice(next_line_start..next_line_end).into();
                     let next_line_text = next_line_text.trim_end_matches('\n');
                     let next_segments = self.wrap_line(next_line_text, self.text_width);
 
@@ -96,7 +97,8 @@ impl Editor {
                         next_line_start
                     } else {
                         let first_seg = &next_segments[0];
-                        let new_col = col_in_seg.min(first_seg.text.chars().count().saturating_sub(1).max(0));
+                        let new_col =
+                            col_in_seg.min(first_seg.text.chars().count().saturating_sub(1).max(0));
                         next_line_start + new_col
                     }
                 } else {
@@ -113,7 +115,8 @@ impl Editor {
                     let prev_line = doc_line - 1;
                     let prev_line_start = self.doc.line_to_char(prev_line);
                     let prev_line_end = line_start;
-                    let prev_line_text: String = self.doc.slice(prev_line_start..prev_line_end).into();
+                    let prev_line_text: String =
+                        self.doc.slice(prev_line_start..prev_line_end).into();
                     let prev_line_text = prev_line_text.trim_end_matches('\n');
                     let prev_segments = self.wrap_line(prev_line_text, self.text_width);
 
@@ -122,7 +125,8 @@ impl Editor {
                     } else {
                         let last_seg = &prev_segments[prev_segments.len() - 1];
                         let new_col = last_seg.start_offset
-                            + col_in_seg.min(last_seg.text.chars().count().saturating_sub(1).max(0));
+                            + col_in_seg
+                                .min(last_seg.text.chars().count().saturating_sub(1).max(0));
                         prev_line_start + new_col
                     }
                 } else {

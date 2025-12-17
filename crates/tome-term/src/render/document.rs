@@ -21,15 +21,15 @@ impl Editor {
         // Cache last known terminal size for input handling (e.g., mouse hit-testing)
         self.window_width = Some(area.width);
         self.window_height = Some(area.height);
-        
+
         // Set background color for the whole screen
         let bg_block = Block::default().style(Style::default().bg(self.theme.colors.ui.bg));
         frame.render_widget(bg_block, area);
-        
+
         let chunks = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
-                Constraint::Min(1), // Main doc
+                Constraint::Min(1),    // Main doc
                 Constraint::Length(1), // Status
                 Constraint::Length(1), // Message
             ])
@@ -38,7 +38,8 @@ impl Editor {
         // Render main document
         // When scratch is focused, we don't draw cursor on main doc
         self.ensure_cursor_visible(chunks[0]);
-        let main_result = self.render_document_with_cursor(chunks[0], use_block_cursor && !self.scratch_focused);
+        let main_result =
+            self.render_document_with_cursor(chunks[0], use_block_cursor && !self.scratch_focused);
         frame.render_widget(main_result.widget, chunks[0]);
 
         // Render status line background (matches popup background)
@@ -55,11 +56,11 @@ impl Editor {
         } else {
             frame.render_widget(self.render_status_line(), chunks[1]);
         }
-        
+
         // Render message line background (matches popup background)
         let message_bg = Block::default().style(Style::default().bg(self.theme.colors.popup.bg));
         frame.render_widget(message_bg, chunks[2]);
-        
+
         // Render message line content
         frame.render_widget(self.render_message_line(), chunks[2]);
 
@@ -68,8 +69,8 @@ impl Editor {
             // Command palette layout: Bottom docked (above status bar), full width, no borders
             let popup_height = 12;
             let area = frame.area();
-            
-            // Layout: 
+
+            // Layout:
             // - Main Doc
             // - Popup (if open)
             // - Status Line
@@ -84,8 +85,11 @@ impl Editor {
 
             frame.render_widget(Clear, popup_area);
 
-            let block = Block::default()
-                .style(Style::default().bg(self.theme.colors.popup.bg).fg(self.theme.colors.popup.fg));
+            let block = Block::default().style(
+                Style::default()
+                    .bg(self.theme.colors.popup.bg)
+                    .fg(self.theme.colors.popup.fg),
+            );
 
             let inner_area = block.inner(popup_area);
             frame.render_widget(block, popup_area);
@@ -150,10 +154,12 @@ impl Editor {
             let num_segments = segments.len().max(1);
 
             for seg_idx in start_segment..num_segments {
-                if line_idx == cursor_line && seg_idx == cursor_segment
-                    && visual_row < viewport_height {
-                        return;
-                    }
+                if line_idx == cursor_line
+                    && seg_idx == cursor_segment
+                    && visual_row < viewport_height
+                {
+                    return;
+                }
                 visual_row += 1;
                 if visual_row >= viewport_height {
                     break;
@@ -207,7 +213,11 @@ impl Editor {
             .duration_since(UNIX_EPOCH)
             .unwrap_or_default()
             .as_millis();
-        let blink_on = if insert_mode { (now_ms / 200).is_multiple_of(2) } else { true };
+        let blink_on = if insert_mode {
+            (now_ms / 200).is_multiple_of(2)
+        } else {
+            true
+        };
 
         let primary_cursor_style = Style::default()
             .bg(self.theme.colors.ui.cursor_bg)
@@ -218,7 +228,9 @@ impl Editor {
             let fg = blend_colors(self.theme.colors.ui.cursor_fg, self.theme.colors.ui.fg, 0.4);
             Style::default().bg(bg).fg(fg).add_modifier(Modifier::BOLD)
         };
-        let base_style = Style::default().fg(self.theme.colors.ui.fg).bg(self.theme.colors.ui.bg);
+        let base_style = Style::default()
+            .fg(self.theme.colors.ui.fg)
+            .bg(self.theme.colors.ui.bg);
 
         let mut output_lines: Vec<Line> = Vec::new();
         let mut current_line_idx = self.scroll_line;
@@ -249,7 +261,11 @@ impl Editor {
                 let is_last_segment = seg_idx == num_segments - 1;
 
                 let line_num_str = if is_first_segment {
-                    format!("{:>width$} ", current_line_idx + 1, width = gutter_width as usize - 1)
+                    format!(
+                        "{:>width$} ",
+                        current_line_idx + 1,
+                        width = gutter_width as usize - 1
+                    )
                 } else {
                     format!("{:>width$} ", "┆", width = gutter_width as usize - 1)
                 };
@@ -257,9 +273,9 @@ impl Editor {
                     Style::default().fg(self.theme.colors.ui.gutter_fg)
                 } else {
                     let bg_color = if self.in_scratch_context() {
-                         self.theme.colors.popup.bg
+                        self.theme.colors.popup.bg
                     } else {
-                         self.theme.colors.ui.bg
+                        self.theme.colors.ui.bg
                     };
                     let dim_color = blend_colors(self.theme.colors.ui.gutter_fg, bg_color, 0.5);
                     Style::default().fg(dim_color)
@@ -274,7 +290,9 @@ impl Editor {
 
                     let is_cursor = cursor_heads.contains(&doc_pos);
                     let is_primary_cursor = doc_pos == primary_cursor;
-                    let in_selection = ranges.iter().any(|r| doc_pos >= r.from() && doc_pos < r.to());
+                    let in_selection = ranges
+                        .iter()
+                        .any(|r| doc_pos >= r.from() && doc_pos < r.to());
 
                     let style = if is_cursor && use_block_cursor {
                         if blink_on {
@@ -287,7 +305,9 @@ impl Editor {
                             base_style
                         }
                     } else if in_selection {
-                        Style::default().bg(self.theme.colors.ui.selection_bg).fg(self.theme.colors.ui.selection_fg)
+                        Style::default()
+                            .bg(self.theme.colors.ui.selection_bg)
+                            .fg(self.theme.colors.ui.selection_fg)
                     } else {
                         base_style
                     };
@@ -338,39 +358,45 @@ impl Editor {
                 output_lines.push(Line::from(spans));
             }
 
-            if wrapped_segments.is_empty() && start_segment == 0
-                && output_lines.len() < viewport_height {
-                    let line_num_str = format!("{:>width$} ", current_line_idx + 1, width = gutter_width as usize - 1);
-                    let gutter_style = Style::default().fg(self.theme.colors.ui.gutter_fg);
-                    let mut spans = vec![Span::styled(line_num_str, gutter_style)];
+            if wrapped_segments.is_empty()
+                && start_segment == 0
+                && output_lines.len() < viewport_height
+            {
+                let line_num_str = format!(
+                    "{:>width$} ",
+                    current_line_idx + 1,
+                    width = gutter_width as usize - 1
+                );
+                let gutter_style = Style::default().fg(self.theme.colors.ui.gutter_fg);
+                let mut spans = vec![Span::styled(line_num_str, gutter_style)];
 
-                    let is_last_doc_line = current_line_idx + 1 >= total_lines;
-                    let cursor_at_eol = cursor_heads.iter().any(|pos| {
-                        if is_last_doc_line {
-                            *pos >= line_start && *pos <= line_end
-                        } else {
-                            *pos >= line_start && *pos < line_end
-                        }
-                    });
-                    if cursor_at_eol {
-                        let primary_here = if is_last_doc_line {
-                            primary_cursor >= line_start && primary_cursor <= line_end
-                        } else {
-                            primary_cursor >= line_start && primary_cursor < line_end
-                        };
-
-                        if use_block_cursor && blink_on {
-                            let cursor_style = if primary_here {
-                                primary_cursor_style
-                            } else {
-                                secondary_cursor_style
-                            };
-                            spans.push(Span::styled(" ", cursor_style));
-                        }
+                let is_last_doc_line = current_line_idx + 1 >= total_lines;
+                let cursor_at_eol = cursor_heads.iter().any(|pos| {
+                    if is_last_doc_line {
+                        *pos >= line_start && *pos <= line_end
+                    } else {
+                        *pos >= line_start && *pos < line_end
                     }
+                });
+                if cursor_at_eol {
+                    let primary_here = if is_last_doc_line {
+                        primary_cursor >= line_start && primary_cursor <= line_end
+                    } else {
+                        primary_cursor >= line_start && primary_cursor < line_end
+                    };
 
-                    output_lines.push(Line::from(spans));
+                    if use_block_cursor && blink_on {
+                        let cursor_style = if primary_here {
+                            primary_cursor_style
+                        } else {
+                            secondary_cursor_style
+                        };
+                        spans.push(Span::styled(" ", cursor_style));
+                    }
                 }
+
+                output_lines.push(Line::from(spans));
+            }
 
             start_segment = 0;
             current_line_idx += 1;

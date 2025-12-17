@@ -1,6 +1,6 @@
-use tome_core::{Mode, Selection, Transaction, movement};
-use tome_core::ext::{EditAction, VisualDirection, ScrollAmount, ScrollDir};
+use tome_core::ext::{EditAction, ScrollAmount, ScrollDir, VisualDirection};
 use tome_core::range::{Direction as MoveDir, Range};
+use tome_core::{Mode, Selection, Transaction, movement};
 
 use super::Editor;
 
@@ -77,7 +77,8 @@ impl Editor {
                     let tx = Transaction::delete(self.doc.slice(..), &self.selection);
                     self.selection = tx.map_selection(&self.selection);
                     tx.apply(&mut self.doc);
-                    let tx = Transaction::insert(self.doc.slice(..), &self.selection, ch.to_string());
+                    let tx =
+                        Transaction::insert(self.doc.slice(..), &self.selection, ch.to_string());
                     tx.apply(&mut self.doc);
                     self.cursor = self.selection.primary().head + 1;
                     self.selection = Selection::point(self.cursor);
@@ -137,7 +138,8 @@ impl Editor {
                     let tx = Transaction::delete(self.doc.slice(..), &self.selection);
                     self.selection = tx.map_selection(&self.selection);
                     tx.apply(&mut self.doc);
-                    let tx = Transaction::insert(self.doc.slice(..), &self.selection, " ".to_string());
+                    let tx =
+                        Transaction::insert(self.doc.slice(..), &self.selection, " ".to_string());
                     tx.apply(&mut self.doc);
                     self.cursor = self.selection.primary().head + 1;
                     self.selection = Selection::point(self.cursor);
@@ -206,14 +208,22 @@ impl Editor {
                 });
                 self.input.set_mode(Mode::Insert);
             }
-            EditAction::MoveVisual { direction, count, extend } => {
+            EditAction::MoveVisual {
+                direction,
+                count,
+                extend,
+            } => {
                 let dir = match direction {
                     VisualDirection::Up => MoveDir::Backward,
                     VisualDirection::Down => MoveDir::Forward,
                 };
                 self.move_visual_vertical(dir, count, extend);
             }
-            EditAction::Scroll { direction, amount, extend: scroll_extend } => {
+            EditAction::Scroll {
+                direction,
+                amount,
+                extend: scroll_extend,
+            } => {
                 let count = match amount {
                     ScrollAmount::Line(n) => n,
                     ScrollAmount::HalfPage => 10,

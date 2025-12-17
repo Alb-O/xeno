@@ -1,10 +1,12 @@
-use std::io;
 use ratatui::backend::{Backend, WindowSize};
 use ratatui::buffer::Cell;
-use ratatui::layout::{Size, Position};
+use ratatui::layout::{Position, Size};
+use std::io;
 use std::num::NonZeroU16;
 use termina::Terminal;
-use termina::escape::csi::{Csi, Cursor, Edit, Mode, Sgr, EraseInDisplay, SgrAttributes, SgrModifiers};
+use termina::escape::csi::{
+    Csi, Cursor, Edit, EraseInDisplay, Mode, Sgr, SgrAttributes, SgrModifiers,
+};
 use termina::style::{ColorSpec, RgbaColor};
 
 pub struct TerminaBackend<T: Terminal> {
@@ -19,7 +21,7 @@ impl<T: Terminal> TerminaBackend<T> {
     pub fn _terminal(&self) -> &T {
         &self.terminal
     }
-    
+
     pub fn terminal_mut(&mut self) -> &mut T {
         &mut self.terminal
     }
@@ -29,7 +31,7 @@ impl<T: Terminal> Backend for TerminaBackend<T> {
     fn draw<'a, I>(&mut self, content: I) -> io::Result<()>
     where
         I: Iterator<Item = (u16, u16, &'a Cell)>,
-    {      
+    {
         let mut last_y = 0;
         let mut last_x = 0;
         let mut first = true;
@@ -39,26 +41,30 @@ impl<T: Terminal> Backend for TerminaBackend<T> {
                 // Termina uses 1-based coordinates
                 let line = NonZeroU16::new(y + 1).unwrap_or(NonZeroU16::MIN);
                 let col = NonZeroU16::new(x + 1).unwrap_or(NonZeroU16::MIN);
-                
-                write!(self.terminal, "{}", Csi::Cursor(Cursor::Position { 
-                    line: line.into(), 
-                    col: col.into() 
-                }))?;
+
+                write!(
+                    self.terminal,
+                    "{}",
+                    Csi::Cursor(Cursor::Position {
+                        line: line.into(),
+                        col: col.into()
+                    })
+                )?;
             }
             last_x = x;
             last_y = y;
             first = false;
 
             let mut attrs = SgrAttributes::default();
-            
+
             if let Some(color) = map_color(cell.fg) {
                 attrs.foreground = Some(color);
             }
-            
+
             if let Some(color) = map_color(cell.bg) {
                 attrs.background = Some(color);
             }
-            
+
             if cell.modifier.contains(ratatui::style::Modifier::BOLD) {
                 attrs.modifiers |= SgrModifiers::INTENSITY_BOLD;
             }
@@ -74,7 +80,10 @@ impl<T: Terminal> Backend for TerminaBackend<T> {
             if cell.modifier.contains(ratatui::style::Modifier::SLOW_BLINK) {
                 attrs.modifiers |= SgrModifiers::BLINK_SLOW;
             }
-            if cell.modifier.contains(ratatui::style::Modifier::RAPID_BLINK) {
+            if cell
+                .modifier
+                .contains(ratatui::style::Modifier::RAPID_BLINK)
+            {
                 attrs.modifiers |= SgrModifiers::BLINK_RAPID;
             }
             if cell.modifier.contains(ratatui::style::Modifier::REVERSED) {
@@ -83,7 +92,10 @@ impl<T: Terminal> Backend for TerminaBackend<T> {
             if cell.modifier.contains(ratatui::style::Modifier::HIDDEN) {
                 attrs.modifiers |= SgrModifiers::INVISIBLE;
             }
-            if cell.modifier.contains(ratatui::style::Modifier::CROSSED_OUT) {
+            if cell
+                .modifier
+                .contains(ratatui::style::Modifier::CROSSED_OUT)
+            {
                 attrs.modifiers |= SgrModifiers::STRIKE_THROUGH;
             }
 
@@ -98,11 +110,27 @@ impl<T: Terminal> Backend for TerminaBackend<T> {
     }
 
     fn hide_cursor(&mut self) -> io::Result<()> {
-        write!(self.terminal, "{}", Csi::Mode(Mode::ResetDecPrivateMode(termina::escape::csi::DecPrivateMode::Code(termina::escape::csi::DecPrivateModeCode::ShowCursor))))
+        write!(
+            self.terminal,
+            "{}",
+            Csi::Mode(Mode::ResetDecPrivateMode(
+                termina::escape::csi::DecPrivateMode::Code(
+                    termina::escape::csi::DecPrivateModeCode::ShowCursor
+                )
+            ))
+        )
     }
 
     fn show_cursor(&mut self) -> io::Result<()> {
-        write!(self.terminal, "{}", Csi::Mode(Mode::SetDecPrivateMode(termina::escape::csi::DecPrivateMode::Code(termina::escape::csi::DecPrivateModeCode::ShowCursor))))
+        write!(
+            self.terminal,
+            "{}",
+            Csi::Mode(Mode::SetDecPrivateMode(
+                termina::escape::csi::DecPrivateMode::Code(
+                    termina::escape::csi::DecPrivateModeCode::ShowCursor
+                )
+            ))
+        )
     }
 
     fn get_cursor_position(&mut self) -> io::Result<Position> {
@@ -113,22 +141,30 @@ impl<T: Terminal> Backend for TerminaBackend<T> {
         let pos = pos.into();
         let line = NonZeroU16::new(pos.y + 1).unwrap_or(NonZeroU16::MIN);
         let col = NonZeroU16::new(pos.x + 1).unwrap_or(NonZeroU16::MIN);
-        
-        write!(self.terminal, "{}", Csi::Cursor(Cursor::Position { 
-            line: line.into(), 
-            col: col.into() 
-        }))
+
+        write!(
+            self.terminal,
+            "{}",
+            Csi::Cursor(Cursor::Position {
+                line: line.into(),
+                col: col.into()
+            })
+        )
     }
 
     fn clear(&mut self) -> io::Result<()> {
-        write!(self.terminal, "{}", Csi::Edit(Edit::EraseInDisplay(EraseInDisplay::EraseDisplay)))
+        write!(
+            self.terminal,
+            "{}",
+            Csi::Edit(Edit::EraseInDisplay(EraseInDisplay::EraseDisplay))
+        )
     }
 
     fn size(&self) -> io::Result<Size> {
         let size = self.terminal.get_dimensions()?;
         Ok(Size::new(size.cols, size.rows))
     }
-    
+
     fn window_size(&mut self) -> io::Result<WindowSize> {
         let size = self.terminal.get_dimensions()?;
         Ok(WindowSize {
@@ -162,7 +198,12 @@ fn map_color(color: ratatui::style::Color) -> Option<ColorSpec> {
         Color::LightMagenta => Some(ColorSpec::BRIGHT_MAGENTA),
         Color::LightCyan => Some(ColorSpec::BRIGHT_CYAN),
         Color::White => Some(ColorSpec::BRIGHT_WHITE),
-        Color::Rgb(r, g, b) => Some(ColorSpec::TrueColor(RgbaColor { red: r, green: g, blue: b, alpha: 255 })),
+        Color::Rgb(r, g, b) => Some(ColorSpec::TrueColor(RgbaColor {
+            red: r,
+            green: g,
+            blue: b,
+            alpha: 255,
+        })),
         Color::Indexed(i) => Some(ColorSpec::PaletteIndex(i)),
     }
 }

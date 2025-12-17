@@ -10,8 +10,8 @@ mod view;
 
 use linkme::distributed_slice;
 
-use crate::key::Key;
 use crate::Mode;
+use crate::key::Key;
 
 macro_rules! keybinding_slices {
     ($($slice:ident),+ $(,)?) => {
@@ -193,6 +193,9 @@ mod tests {
         assert!(view_bindings.len() >= 4);
 
         let insert_bindings: Vec<_> = bindings_for_mode(BindingMode::Insert).collect();
-        assert!(insert_bindings.len() >= 6, "should have insert mode bindings");
+        assert!(
+            insert_bindings.len() >= 6,
+            "should have insert mode bindings"
+        );
     }
 }

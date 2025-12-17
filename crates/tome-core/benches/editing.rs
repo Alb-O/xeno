@@ -73,7 +73,6 @@ fn bench_transaction_insert(c: &mut Criterion) {
         let rope = Rope::from(text.as_str());
         let doc_len = rope.len_chars();
 
-        // Insert at beginning
         group.bench_with_input(BenchmarkId::new("at_start", name), &rope, |b, rope| {
             b.iter(|| {
                 let mut doc = rope.clone();
@@ -84,7 +83,6 @@ fn bench_transaction_insert(c: &mut Criterion) {
             })
         });
 
-        // Insert at middle
         let mid = doc_len / 2;
         group.bench_with_input(BenchmarkId::new("at_middle", name), &rope, |b, rope| {
             b.iter(|| {
@@ -96,7 +94,6 @@ fn bench_transaction_insert(c: &mut Criterion) {
             })
         });
 
-        // Insert at end
         group.bench_with_input(BenchmarkId::new("at_end", name), &rope, |b, rope| {
             b.iter(|| {
                 let mut doc = rope.clone();
@@ -124,7 +121,6 @@ fn bench_transaction_delete(c: &mut Criterion) {
         let doc_len = rope.len_chars();
         let delete_size = 100.min(doc_len / 10);
 
-        // Delete at beginning
         group.bench_with_input(BenchmarkId::new("at_start", name), &rope, |b, rope| {
             b.iter(|| {
                 let mut doc = rope.clone();
@@ -135,7 +131,6 @@ fn bench_transaction_delete(c: &mut Criterion) {
             })
         });
 
-        // Delete at middle
         let mid = doc_len / 2;
         group.bench_with_input(BenchmarkId::new("at_middle", name), &rope, |b, rope| {
             b.iter(|| {
@@ -147,7 +142,6 @@ fn bench_transaction_delete(c: &mut Criterion) {
             })
         });
 
-        // Delete at end
         group.bench_with_input(BenchmarkId::new("at_end", name), &rope, |b, rope| {
             b.iter(|| {
                 let mut doc = rope.clone();
@@ -403,7 +397,6 @@ fn bench_selection_normalize(c: &mut Criterion) {
             |b, ranges| b.iter(|| black_box(Selection::new(ranges.clone(), 0))),
         );
 
-        // Overlapping ranges (worst case for merge)
         let overlapping: smallvec::SmallVec<[Range; 1]> = (0..num_ranges)
             .map(|i| Range::new(i * 10, i * 10 + 50))
             .collect();
@@ -442,7 +435,6 @@ fn bench_selection_transform(c: &mut Criterion) {
 fn bench_grapheme_boundary(c: &mut Criterion) {
     let mut group = c.benchmark_group("grapheme_boundary");
 
-    // ASCII text
     let ascii = generate_text(1000, 80);
     let ascii_rope = Rope::from(ascii.as_str());
     let ascii_slice = ascii_rope.slice(..);
@@ -505,7 +497,6 @@ fn bench_map_selection(c: &mut Criterion) {
             .collect();
         let tx = Transaction::change(rope.slice(..), changes);
 
-        // Single selection
         let single_sel = Selection::point(mid);
         group.bench_with_input(
             BenchmarkId::new("single_cursor", name),
@@ -513,7 +504,6 @@ fn bench_map_selection(c: &mut Criterion) {
             |b, (tx, sel)| b.iter(|| black_box(tx.map_selection(sel))),
         );
 
-        // Multi-cursor selection
         let multi_ranges: smallvec::SmallVec<[Range; 1]> = (0..100.min(lines))
             .map(|i| Range::point(i * step.max(1)))
             .collect();
@@ -535,7 +525,6 @@ fn bench_changeset_compose(c: &mut Criterion) {
         let text = generate_text(lines, CHARS_PER_LINE);
         let rope = Rope::from(text.as_str());
 
-        // Create two changesets that can be composed
         let changes1: Vec<_> = (0..10)
             .map(|i| {
                 let pos = i * 100;

@@ -2,7 +2,7 @@
 
 use linkme::distributed_slice;
 
-use crate::ext::actions::{ActionContext, ActionDef, ActionMode, ActionResult, ACTIONS};
+use crate::ext::actions::{ACTIONS, ActionContext, ActionDef, ActionMode, ActionResult};
 
 fn action_goto_mode(_ctx: &ActionContext) -> ActionResult {
     ActionResult::ModeChange(ActionMode::Goto)

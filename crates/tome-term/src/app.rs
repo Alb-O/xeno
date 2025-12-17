@@ -2,13 +2,16 @@ use std::io::{self, Write};
 use std::time::Duration;
 
 use ratatui::Terminal;
-use termina::{PlatformTerminal, Terminal as _};
-use termina::event::{Event, KeyEventKind};
 use termina::escape::csi::{Csi, Cursor};
+use termina::event::{Event, KeyEventKind};
+use termina::{PlatformTerminal, Terminal as _};
 
 use crate::backend::TerminaBackend;
 use crate::editor::Editor;
-use crate::terminal::{coalesce_resize_events, cursor_style_for_mode, disable_terminal_features, enable_terminal_features, install_panic_hook};
+use crate::terminal::{
+    coalesce_resize_events, cursor_style_for_mode, disable_terminal_features,
+    enable_terminal_features, install_panic_hook,
+};
 
 pub fn run_editor(mut editor: Editor) -> io::Result<()> {
     let mut terminal = PlatformTerminal::new()?;

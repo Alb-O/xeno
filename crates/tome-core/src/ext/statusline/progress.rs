@@ -3,7 +3,7 @@
 use linkme::distributed_slice;
 
 use crate::ext::statusline::{
-    RenderedSegment, SegmentPosition, SegmentStyle, StatuslineSegmentDef, STATUSLINE_SEGMENTS,
+    RenderedSegment, STATUSLINE_SEGMENTS, SegmentPosition, SegmentStyle, StatuslineSegmentDef,
 };
 
 #[distributed_slice(STATUSLINE_SEGMENTS)]
@@ -18,7 +18,7 @@ static SEG_PROGRESS: StatuslineSegmentDef = StatuslineSegmentDef {
         } else {
             (ctx.line * 100) / ctx.total_lines
         };
-        
+
         let text = if ctx.line == 1 {
             " Top ".to_string()
         } else if ctx.line >= ctx.total_lines {
@@ -26,7 +26,7 @@ static SEG_PROGRESS: StatuslineSegmentDef = StatuslineSegmentDef {
         } else {
             format!(" {}% ", percent)
         };
-        
+
         Some(RenderedSegment {
             text,
             style: SegmentStyle::Dim,

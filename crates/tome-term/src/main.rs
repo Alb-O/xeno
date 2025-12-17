@@ -5,11 +5,11 @@ mod cli;
 mod editor;
 mod render;
 mod styles;
-pub mod theme;
-pub mod themes;
 mod terminal;
 #[cfg(test)]
 mod tests;
+pub mod theme;
+pub mod themes;
 
 use std::io;
 

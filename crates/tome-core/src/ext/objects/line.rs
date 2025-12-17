@@ -5,7 +5,7 @@ use ropey::RopeSlice;
 
 use crate::range::Range;
 
-use crate::ext::{TextObjectDef, TEXT_OBJECTS};
+use crate::ext::{TEXT_OBJECTS, TextObjectDef};
 
 fn line_inner(text: RopeSlice, pos: usize) -> Option<Range> {
     if text.len_chars() == 0 {
@@ -14,7 +14,7 @@ fn line_inner(text: RopeSlice, pos: usize) -> Option<Range> {
     let line = text.char_to_line(pos);
     let start = text.line_to_char(line);
     let line_len = text.line(line).len_chars();
-    
+
     let end = if line_len > 0 {
         let line_text = text.line(line);
         let last_char = line_text.char(line_len - 1);
@@ -26,7 +26,7 @@ fn line_inner(text: RopeSlice, pos: usize) -> Option<Range> {
     } else {
         start
     };
-    
+
     Some(Range::new(start, end))
 }
 
@@ -41,7 +41,7 @@ fn line_around(text: RopeSlice, pos: usize) -> Option<Range> {
     } else {
         text.len_chars()
     };
-    
+
     Some(Range::new(start, end))
 }
 

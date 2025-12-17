@@ -1,8 +1,8 @@
-use std::ffi::{c_char, CStr};
+use std::ffi::{CStr, c_char};
 use std::path::Path;
 
 use libloading::Library;
-use tome_cabi_types::{TomeGuestV1, TomeHostV1, TomePluginEntry, TomeStatus, TOME_C_ABI_VERSION};
+use tome_cabi_types::{TOME_C_ABI_VERSION, TomeGuestV1, TomeHostV1, TomePluginEntry, TomeStatus};
 
 /// Errors while loading a C-ABI plugin.
 #[derive(Debug)]
@@ -59,10 +59,14 @@ pub fn load_c_abi_plugin(path: &Path) -> Result<CAbiPlugin, CAbiLoadError> {
     let lib = unsafe { Library::new(path) }.map_err(CAbiLoadError::Load)?;
 
     let entry: libloading::Symbol<TomePluginEntry> = unsafe {
-        lib.get(b"tome_plugin_entry\0").map_err(|_| CAbiLoadError::MissingEntry)?
+        lib.get(b"tome_plugin_entry\0")
+            .map_err(|_| CAbiLoadError::MissingEntry)?
     };
 
-    let host = TomeHostV1 { abi_version: TOME_C_ABI_VERSION, log: Some(host_log) };
+    let host = TomeHostV1 {
+        abi_version: TOME_C_ABI_VERSION,
+        log: Some(host_log),
+    };
     let mut guest = TomeGuestV1::default();
 
     let status = unsafe { entry(&host, &mut guest) };
@@ -71,7 +75,10 @@ pub fn load_c_abi_plugin(path: &Path) -> Result<CAbiPlugin, CAbiLoadError> {
     }
 
     if guest.abi_version != TOME_C_ABI_VERSION {
-        return Err(CAbiLoadError::Incompatible { host: TOME_C_ABI_VERSION, guest: guest.abi_version });
+        return Err(CAbiLoadError::Incompatible {
+            host: TOME_C_ABI_VERSION,
+            guest: guest.abi_version,
+        });
     }
 
     let plugin = CAbiPlugin { _lib: lib, guest };
@@ -113,7 +120,11 @@ mod tests {
         };
         path.push(filename);
 
-        assert!(path.exists(), "demo cabi plugin not found at {:?}; build with `cargo build -p demo-cabi-plugin --release`", path);
+        assert!(
+            path.exists(),
+            "demo cabi plugin not found at {:?}; build with `cargo build -p demo-cabi-plugin --release`",
+            path
+        );
 
         let plugin = load_c_abi_plugin(&path).expect("should load demo cabi plugin");
         plugin.init().expect("demo cabi plugin init");

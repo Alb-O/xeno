@@ -1,6 +1,6 @@
 use linkme::distributed_slice;
 
-use super::{HookContext, HookDef, HookEvent, HOOKS};
+use super::{HOOKS, HookContext, HookDef, HookEvent};
 
 #[distributed_slice(HOOKS)]
 static HOOK_LOG_MODE_CHANGE: HookDef = HookDef {

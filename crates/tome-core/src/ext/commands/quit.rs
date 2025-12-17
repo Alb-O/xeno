@@ -1,6 +1,6 @@
 use linkme::distributed_slice;
 
-use crate::ext::{CommandContext, CommandDef, CommandError, CommandOutcome, COMMANDS};
+use crate::ext::{COMMANDS, CommandContext, CommandDef, CommandError, CommandOutcome};
 
 #[distributed_slice(COMMANDS)]
 static CMD_QUIT: CommandDef = CommandDef {

@@ -1,8 +1,10 @@
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Paragraph, Widget};
-use tome_core::ext::{render_position, RenderedSegment, SegmentPosition, SegmentStyle, StatuslineContext};
 use tome_core::Mode;
+use tome_core::ext::{
+    RenderedSegment, SegmentPosition, SegmentStyle, StatuslineContext, render_position,
+};
 
 use crate::editor::Editor;
 
@@ -10,7 +12,10 @@ impl Editor {
     pub fn render_status_line(&self) -> impl Widget + '_ {
         let ctx = StatuslineContext {
             mode_name: self.mode_name(),
-            path: self.path.as_ref().map(|p| p.to_str().unwrap_or("[invalid path]")),
+            path: self
+                .path
+                .as_ref()
+                .map(|p| p.to_str().unwrap_or("[invalid path]")),
             modified: self.modified,
             line: self.cursor_line() + 1,
             col: self.cursor_col() + 1,
@@ -39,12 +44,24 @@ impl Editor {
             SegmentStyle::Normal => Style::default().fg(self.theme.colors.ui.fg),
             SegmentStyle::Mode => {
                 let base = match self.mode() {
-                    Mode::Normal => Style::default().bg(self.theme.colors.status.normal_bg).fg(self.theme.colors.status.normal_fg),
-                    Mode::Insert => Style::default().bg(self.theme.colors.status.insert_bg).fg(self.theme.colors.status.insert_fg),
-                    Mode::Goto => Style::default().bg(self.theme.colors.status.goto_bg).fg(self.theme.colors.status.goto_fg),
-                    Mode::View => Style::default().bg(self.theme.colors.status.view_bg).fg(self.theme.colors.status.view_fg),
-                    Mode::Command { .. } => Style::default().bg(self.theme.colors.status.command_bg).fg(self.theme.colors.status.command_fg),
-                    Mode::PendingAction(_) => Style::default().bg(self.theme.colors.status.command_bg).fg(self.theme.colors.status.command_fg),
+                    Mode::Normal => Style::default()
+                        .bg(self.theme.colors.status.normal_bg)
+                        .fg(self.theme.colors.status.normal_fg),
+                    Mode::Insert => Style::default()
+                        .bg(self.theme.colors.status.insert_bg)
+                        .fg(self.theme.colors.status.insert_fg),
+                    Mode::Goto => Style::default()
+                        .bg(self.theme.colors.status.goto_bg)
+                        .fg(self.theme.colors.status.goto_fg),
+                    Mode::View => Style::default()
+                        .bg(self.theme.colors.status.view_bg)
+                        .fg(self.theme.colors.status.view_fg),
+                    Mode::Command { .. } => Style::default()
+                        .bg(self.theme.colors.status.command_bg)
+                        .fg(self.theme.colors.status.command_fg),
+                    Mode::PendingAction(_) => Style::default()
+                        .bg(self.theme.colors.status.command_bg)
+                        .fg(self.theme.colors.status.command_fg),
                 };
                 base.add_modifier(Modifier::BOLD)
             }

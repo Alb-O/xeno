@@ -2,9 +2,9 @@
 
 use ropey::RopeSlice;
 
+use crate::Mode;
 use crate::ext::actions::EditAction;
 use crate::selection::Selection;
-use crate::Mode;
 
 /// Cursor position access.
 pub trait CursorAccess {

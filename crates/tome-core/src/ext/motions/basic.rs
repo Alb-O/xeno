@@ -4,7 +4,7 @@ use ropey::RopeSlice;
 use crate::movement::move_horizontally;
 use crate::range::{Direction, Range};
 
-use crate::ext::{MotionDef, MOTIONS};
+use crate::ext::{MOTIONS, MotionDef};
 
 fn move_left(text: RopeSlice, range: Range, count: usize, extend: bool) -> Range {
     move_horizontally(text, range, Direction::Backward, count, extend)

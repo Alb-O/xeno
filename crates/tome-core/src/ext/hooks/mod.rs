@@ -107,50 +107,28 @@ pub enum HookContext<'a> {
     },
 
     /// Buffer is about to be written.
-    BufferWritePre {
-        path: &'a Path,
-        text: RopeSlice<'a>,
-    },
+    BufferWritePre { path: &'a Path, text: RopeSlice<'a> },
 
     /// Buffer was written.
-    BufferWrite {
-        path: &'a Path,
-    },
+    BufferWrite { path: &'a Path },
 
     /// Buffer was closed.
-    BufferClose {
-        path: &'a Path,
-    },
+    BufferClose { path: &'a Path },
 
     /// Buffer content changed.
-    BufferChange {
-        path: &'a Path,
-        text: RopeSlice<'a>,
-    },
+    BufferChange { path: &'a Path, text: RopeSlice<'a> },
 
     /// Mode changed.
-    ModeChange {
-        old_mode: Mode,
-        new_mode: Mode,
-    },
+    ModeChange { old_mode: Mode, new_mode: Mode },
 
     /// Cursor moved.
-    CursorMove {
-        line: usize,
-        col: usize,
-    },
+    CursorMove { line: usize, col: usize },
 
     /// Selection changed.
-    SelectionChange {
-        anchor: usize,
-        head: usize,
-    },
+    SelectionChange { anchor: usize, head: usize },
 
     /// Window resized.
-    WindowResize {
-        width: u16,
-        height: u16,
-    },
+    WindowResize { width: u16, height: u16 },
 
     /// Window focus gained.
     FocusGained,

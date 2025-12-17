@@ -41,4 +41,5 @@ pub struct TomeGuestV1 {
 }
 
 /// Signature of the plugin entry point.
-pub type TomePluginEntry = unsafe extern "C" fn(host: *const TomeHostV1, out_guest: *mut TomeGuestV1) -> TomeStatus;
+pub type TomePluginEntry =
+    unsafe extern "C" fn(host: *const TomeHostV1, out_guest: *mut TomeGuestV1) -> TomeStatus;

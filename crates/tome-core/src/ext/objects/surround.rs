@@ -4,7 +4,7 @@ use ropey::RopeSlice;
 use crate::movement::select_surround_object;
 use crate::range::Range;
 
-use crate::ext::{TextObjectDef, TEXT_OBJECTS};
+use crate::ext::{TEXT_OBJECTS, TextObjectDef};
 
 fn parens_inner(text: RopeSlice, pos: usize) -> Option<Range> {
     select_surround_object(text, Range::point(pos), '(', ')', true)

@@ -1,6 +1,6 @@
 use linkme::distributed_slice;
 
-use crate::ext::{FileTypeDef, FILE_TYPES};
+use crate::ext::{FILE_TYPES, FileTypeDef};
 
 #[distributed_slice(FILE_TYPES)]
 static FT_NIX: FileTypeDef = FileTypeDef {
@@ -60,7 +60,13 @@ static FT_INI: FileTypeDef = FileTypeDef {
 static FT_ENV: FileTypeDef = FileTypeDef {
     name: "env",
     extensions: &["env"],
-    filenames: &[".env", ".envrc", ".env.local", ".env.development", ".env.production"],
+    filenames: &[
+        ".env",
+        ".envrc",
+        ".env.local",
+        ".env.development",
+        ".env.production",
+    ],
     first_line_patterns: &[],
     description: "Environment file",
 };

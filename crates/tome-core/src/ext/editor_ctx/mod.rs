@@ -20,8 +20,8 @@ pub use handlers::*;
 
 use ropey::RopeSlice;
 
-use crate::selection::Selection;
 use crate::Mode;
+use crate::selection::Selection;
 
 /// Context passed to action result handlers.
 ///
@@ -87,19 +87,31 @@ impl<'a> EditorContext<'a> {
 }
 
 /// Core capabilities that all editors must provide.
-pub trait EditorCapabilities: CursorAccess + SelectionAccess + TextAccess + ModeAccess + MessageAccess {
+pub trait EditorCapabilities:
+    CursorAccess + SelectionAccess + TextAccess + ModeAccess + MessageAccess
+{
     /// Access to scratch buffer operations (optional).
-    fn scratch(&mut self) -> Option<&mut dyn ScratchAccess> { None }
-    
+    fn scratch(&mut self) -> Option<&mut dyn ScratchAccess> {
+        None
+    }
+
     /// Access to search operations (optional).
-    fn search(&mut self) -> Option<&mut dyn SearchAccess> { None }
-    
+    fn search(&mut self) -> Option<&mut dyn SearchAccess> {
+        None
+    }
+
     /// Access to undo/redo operations (optional).
-    fn undo(&mut self) -> Option<&mut dyn UndoAccess> { None }
+    fn undo(&mut self) -> Option<&mut dyn UndoAccess> {
+        None
+    }
 
     /// Access to edit operations (optional).
-    fn edit(&mut self) -> Option<&mut dyn EditAccess> { None }
+    fn edit(&mut self) -> Option<&mut dyn EditAccess> {
+        None
+    }
 
     /// Access to selection manipulation operations (optional).
-    fn selection_ops(&mut self) -> Option<&mut dyn SelectionOpsAccess> { None }
+    fn selection_ops(&mut self) -> Option<&mut dyn SelectionOpsAccess> {
+        None
+    }
 }

@@ -3,7 +3,7 @@
 use linkme::distributed_slice;
 use smallvec::SmallVec;
 
-use crate::ext::actions::{ActionContext, ActionDef, ActionResult, ACTIONS};
+use crate::ext::actions::{ACTIONS, ActionContext, ActionDef, ActionResult};
 use crate::graphemes::prev_grapheme_boundary;
 use crate::range::Range;
 use crate::selection::Selection;
@@ -198,7 +198,7 @@ fn split_selection_lines(ctx: &ActionContext) -> ActionResult {
             } else {
                 next_line_start
             };
-            
+
             // Create a backward selection (head at start, anchor at end).
             // This places the cursor at the beginning of the line, which is typically desired
             // when splitting lines (e.g., for block editing or indentation).

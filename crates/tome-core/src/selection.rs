@@ -105,13 +105,14 @@ impl Selection {
 
         for range in &self.ranges {
             if let Some(last) = merged.last_mut()
-                && (last.overlaps(range) || last.to() == range.from()) {
-                    *last = last.merge(range);
-                    if *range == primary || last.contains(primary.from()) {
-                        primary_index = merged.len() - 1;
-                    }
-                    continue;
+                && (last.overlaps(range) || last.to() == range.from())
+            {
+                *last = last.merge(range);
+                if *range == primary || last.contains(primary.from()) {
+                    primary_index = merged.len() - 1;
                 }
+                continue;
+            }
 
             if *range == primary {
                 primary_index = merged.len();
@@ -137,13 +138,14 @@ impl Selection {
 
         for range in &self.ranges {
             if let Some(last) = merged.last_mut()
-                && last.overlaps(range) {
-                    *last = last.merge(range);
-                    if *range == primary || last.contains(primary.from()) {
-                        primary_index = merged.len() - 1;
-                    }
-                    continue;
+                && last.overlaps(range)
+            {
+                *last = last.merge(range);
+                if *range == primary || last.contains(primary.from()) {
+                    primary_index = merged.len() - 1;
                 }
+                continue;
+            }
 
             if *range == primary {
                 primary_index = merged.len();

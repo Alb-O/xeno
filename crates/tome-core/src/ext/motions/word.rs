@@ -1,10 +1,12 @@
 use linkme::distributed_slice;
 use ropey::RopeSlice;
 
-use crate::movement::{move_to_next_word_end, move_to_next_word_start, move_to_prev_word_start, WordType};
+use crate::movement::{
+    WordType, move_to_next_word_end, move_to_next_word_start, move_to_prev_word_start,
+};
 use crate::range::Range;
 
-use crate::ext::{MotionDef, MOTIONS};
+use crate::ext::{MOTIONS, MotionDef};
 
 fn next_word_start(text: RopeSlice, range: Range, count: usize, extend: bool) -> Range {
     move_to_next_word_start(text, range, count, WordType::Word, extend)

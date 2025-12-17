@@ -2,7 +2,7 @@
 
 use linkme::distributed_slice;
 
-use crate::ext::actions::{ActionContext, ActionDef, ActionMode, ActionResult, ACTIONS};
+use crate::ext::actions::{ACTIONS, ActionContext, ActionDef, ActionMode, ActionResult};
 use crate::ext::find_motion;
 
 fn insert_before(_ctx: &ActionContext) -> ActionResult {

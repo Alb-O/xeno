@@ -2,7 +2,7 @@
 
 use linkme::distributed_slice;
 
-use crate::ext::options::{OptionDef, OptionScope, OptionType, OptionValue, OPTIONS};
+use crate::ext::options::{OPTIONS, OptionDef, OptionScope, OptionType, OptionValue};
 
 #[distributed_slice(OPTIONS)]
 static OPT_SEARCH_CASE_SENSITIVE: OptionDef = OptionDef {

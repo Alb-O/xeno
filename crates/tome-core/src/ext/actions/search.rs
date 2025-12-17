@@ -2,7 +2,7 @@
 
 use linkme::distributed_slice;
 
-use crate::ext::actions::{ActionDef, ActionMode, ActionResult, ACTIONS};
+use crate::ext::actions::{ACTIONS, ActionDef, ActionMode, ActionResult};
 
 #[distributed_slice(ACTIONS)]
 static ACTION_SEARCH_FORWARD: ActionDef = ActionDef {
@@ -22,28 +22,36 @@ static ACTION_SEARCH_BACKWARD: ActionDef = ActionDef {
 static ACTION_SEARCH_NEXT: ActionDef = ActionDef {
     name: "search_next",
     description: "Go to next search match",
-    handler: |_ctx| ActionResult::SearchNext { add_selection: false },
+    handler: |_ctx| ActionResult::SearchNext {
+        add_selection: false,
+    },
 };
 
 #[distributed_slice(ACTIONS)]
 static ACTION_SEARCH_PREV: ActionDef = ActionDef {
     name: "search_prev",
     description: "Go to previous search match",
-    handler: |_ctx| ActionResult::SearchPrev { add_selection: false },
+    handler: |_ctx| ActionResult::SearchPrev {
+        add_selection: false,
+    },
 };
 
 #[distributed_slice(ACTIONS)]
 static ACTION_SEARCH_NEXT_ADD: ActionDef = ActionDef {
     name: "search_next_add",
     description: "Add next search match to selections",
-    handler: |_ctx| ActionResult::SearchNext { add_selection: true },
+    handler: |_ctx| ActionResult::SearchNext {
+        add_selection: true,
+    },
 };
 
 #[distributed_slice(ACTIONS)]
 static ACTION_SEARCH_PREV_ADD: ActionDef = ActionDef {
     name: "search_prev_add",
     description: "Add previous search match to selections",
-    handler: |_ctx| ActionResult::SearchPrev { add_selection: true },
+    handler: |_ctx| ActionResult::SearchPrev {
+        add_selection: true,
+    },
 };
 
 #[distributed_slice(ACTIONS)]

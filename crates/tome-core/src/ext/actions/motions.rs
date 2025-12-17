@@ -2,7 +2,7 @@
 
 use linkme::distributed_slice;
 
-use crate::ext::actions::{ActionContext, ActionDef, ActionResult, ACTIONS};
+use crate::ext::actions::{ACTIONS, ActionContext, ActionDef, ActionResult};
 use crate::ext::find_motion;
 use crate::range::Range;
 use crate::selection::Selection;
@@ -64,12 +64,18 @@ fn selection_motion_action(ctx: &ActionContext, motion_name: &str) -> ActionResu
                 (motion.handler)(ctx.text, seed, ctx.count, true)
             })
             .collect();
-        ActionResult::Motion(crate::selection::Selection::from_vec(new_ranges, primary_index))
+        ActionResult::Motion(crate::selection::Selection::from_vec(
+            new_ranges,
+            primary_index,
+        ))
     } else {
         // Otherwise start fresh from cursor
         let current_range = Range::point(ctx.cursor);
         let new_range = (motion.handler)(ctx.text, current_range, ctx.count, false);
-        ActionResult::Motion(crate::selection::Selection::single(new_range.anchor, new_range.head))
+        ActionResult::Motion(crate::selection::Selection::single(
+            new_range.anchor,
+            new_range.head,
+        ))
     }
 }
 
@@ -112,17 +118,77 @@ cursor_action!(action_move_left, "move_left", "move_left", "Move left");
 cursor_action!(action_move_right, "move_right", "move_right", "Move right");
 cursor_action!(action_move_up, "move_up", "move_up", "Move up");
 cursor_action!(action_move_down, "move_down", "move_down", "Move down");
-cursor_action!(action_move_line_start, "move_line_start", "line_start", "Move to line start");
-cursor_action!(action_move_line_end, "move_line_end", "line_end", "Move to line end");
-cursor_action!(action_move_first_nonblank, "move_first_nonblank", "first_nonwhitespace", "Move to first non-blank");
-cursor_action!(action_document_start, "document_start", "document_start", "Move to document start");
-cursor_action!(action_document_end, "document_end", "document_end", "Move to document end");
+cursor_action!(
+    action_move_line_start,
+    "move_line_start",
+    "line_start",
+    "Move to line start"
+);
+cursor_action!(
+    action_move_line_end,
+    "move_line_end",
+    "line_end",
+    "Move to line end"
+);
+cursor_action!(
+    action_move_first_nonblank,
+    "move_first_nonblank",
+    "first_nonwhitespace",
+    "Move to first non-blank"
+);
+cursor_action!(
+    action_document_start,
+    "document_start",
+    "document_start",
+    "Move to document start"
+);
+cursor_action!(
+    action_document_end,
+    "document_end",
+    "document_end",
+    "Move to document end"
+);
 
 // Selection-creating motions - create selections
-selection_action!(action_next_word_start, "next_word_start", "next_word_start", "Move to next word start");
-selection_action!(action_next_word_end, "next_word_end", "next_word_end", "Move to next word end");
-selection_action!(action_prev_word_start, "prev_word_start", "prev_word_start", "Move to previous word start");
-selection_action!(action_prev_word_end, "prev_word_end", "prev_word_end", "Move to previous word end");
-selection_action!(action_next_long_word_start, "next_long_word_start", "next_long_word_start", "Move to next WORD start");
-selection_action!(action_next_long_word_end, "next_long_word_end", "next_long_word_end", "Move to next WORD end");
-selection_action!(action_prev_long_word_start, "prev_long_word_start", "prev_long_word_start", "Move to previous WORD start");
+selection_action!(
+    action_next_word_start,
+    "next_word_start",
+    "next_word_start",
+    "Move to next word start"
+);
+selection_action!(
+    action_next_word_end,
+    "next_word_end",
+    "next_word_end",
+    "Move to next word end"
+);
+selection_action!(
+    action_prev_word_start,
+    "prev_word_start",
+    "prev_word_start",
+    "Move to previous word start"
+);
+selection_action!(
+    action_prev_word_end,
+    "prev_word_end",
+    "prev_word_end",
+    "Move to previous word end"
+);
+selection_action!(
+    action_next_long_word_start,
+    "next_long_word_start",
+    "next_long_word_start",
+    "Move to next WORD start"
+);
+selection_action!(
+    action_next_long_word_end,
+    "next_long_word_end",
+    "next_long_word_end",
+    "Move to next WORD end"
+);
+selection_action!(
+    action_prev_long_word_start,
+    "prev_long_word_start",
+    "prev_long_word_start",
+    "Move to previous WORD start"
+);

@@ -3,7 +3,7 @@
 use crate::range::Range;
 use ropey::RopeSlice;
 
-use super::{is_word_char, make_range_select, WordType};
+use super::{WordType, is_word_char, make_range_select};
 
 /// Move to next word start (Kakoune's `w` command).
 /// Selects the word and following whitespace on the right.
@@ -32,7 +32,6 @@ pub fn move_to_next_word_start(
             WordType::WORD => !start_char.is_whitespace(),
         };
 
-        // Skip current word/WORD
         while pos < len {
             let c = text.char(pos);
             let is_word = match word_type {
@@ -45,7 +44,6 @@ pub fn move_to_next_word_start(
             pos += 1;
         }
 
-        // Skip whitespace
         while pos < len && text.char(pos).is_whitespace() {
             // For word movement, skip whitespace but also watch for newlines
             let c = text.char(pos);
@@ -81,7 +79,6 @@ pub fn move_to_next_word_end(
             pos += 1;
         }
 
-        // Skip whitespace
         while pos < len && text.char(pos).is_whitespace() {
             pos += 1;
         }
@@ -90,7 +87,6 @@ pub fn move_to_next_word_end(
             break;
         }
 
-        // Move to end of word
         let start_char = text.char(pos);
         let start_is_word = match word_type {
             WordType::Word => is_word_char(start_char),
@@ -144,7 +140,6 @@ pub fn move_to_prev_word_start(
             break;
         }
 
-        // Move to start of word
         let start_char = text.char(pos);
         let start_is_word = match word_type {
             WordType::Word => is_word_char(start_char),
@@ -178,11 +173,9 @@ mod tests {
         let slice = text.slice(..);
         let range = Range::point(0);
 
-        // From 'h', move to 'w'
         let moved = move_to_next_word_start(slice, range, 1, WordType::Word, false);
         assert_eq!(moved.head, 6);
 
-        // From 'w', move to 't'
         let moved2 = move_to_next_word_start(slice, moved, 1, WordType::Word, false);
         assert_eq!(moved2.head, 12);
     }
@@ -193,19 +186,18 @@ mod tests {
         let slice = text.slice(..);
         let range = Range::point(0);
 
-        // Move 2 words
         let moved = move_to_next_word_start(slice, range, 2, WordType::Word, false);
-        assert_eq!(moved.head, 8); // 't' of 'three'
+        assert_eq!(moved.head, 8);
     }
 
     #[test]
     fn test_move_to_prev_word_start() {
         let text = Rope::from("hello world test");
         let slice = text.slice(..);
-        let range = Range::point(12); // at 't' of 'test'
+        let range = Range::point(12);
 
         let moved = move_to_prev_word_start(slice, range, 1, WordType::Word, false);
-        assert_eq!(moved.head, 6); // 'w' of 'world'
+        assert_eq!(moved.head, 6);
     }
 
     #[test]
@@ -215,7 +207,7 @@ mod tests {
         let range = Range::point(0);
 
         let moved = move_to_next_word_end(slice, range, 1, WordType::Word, false);
-        assert_eq!(moved.head, 4); // 'o' of 'hello'
+        assert_eq!(moved.head, 4);
     }
 
     #[test]

@@ -17,23 +17,26 @@ pub fn matches_pattern(text: &str, pattern: &str) -> Result<bool, regex::Error> 
 pub fn find_all_matches(text: RopeSlice, pattern: &str) -> Result<Vec<Range>, regex::Error> {
     let re = Regex::new(pattern)?;
     let text_str: String = text.chars().collect();
-    
+
     let mut matches = Vec::new();
     for m in re.find_iter(&text_str) {
         let start = byte_to_char_offset(&text_str, m.start());
         let end = byte_to_char_offset(&text_str, m.end());
         matches.push(Range::new(start, end));
     }
-    
+
     Ok(matches)
 }
 
 /// Find the next match after the given position.
-pub fn find_next(text: RopeSlice, pattern: &str, pos: usize) -> Result<Option<Range>, regex::Error> {
+pub fn find_next(
+    text: RopeSlice,
+    pattern: &str,
+    pos: usize,
+) -> Result<Option<Range>, regex::Error> {
     let re = Regex::new(pattern)?;
     let text_str: String = text.chars().collect();
-    
-    // Search from pos to end
+
     let byte_pos = char_to_byte_offset(&text_str, pos);
     if byte_pos < text_str.len()
         && let Some(m) = re.find(&text_str[byte_pos..])
@@ -42,7 +45,7 @@ pub fn find_next(text: RopeSlice, pattern: &str, pos: usize) -> Result<Option<Ra
         let end = pos + byte_to_char_offset(&text_str[byte_pos..], m.end());
         return Ok(Some(Range::new(start, end)));
     }
-    
+
     // Wrap around: search from start to pos
     if let Some(m) = re.find(&text_str) {
         let start = byte_to_char_offset(&text_str, m.start());
@@ -51,15 +54,19 @@ pub fn find_next(text: RopeSlice, pattern: &str, pos: usize) -> Result<Option<Ra
             return Ok(Some(Range::new(start, end)));
         }
     }
-    
+
     Ok(None)
 }
 
 /// Find the previous match before the given position.
-pub fn find_prev(text: RopeSlice, pattern: &str, pos: usize) -> Result<Option<Range>, regex::Error> {
+pub fn find_prev(
+    text: RopeSlice,
+    pattern: &str,
+    pos: usize,
+) -> Result<Option<Range>, regex::Error> {
     let re = Regex::new(pattern)?;
     let text_str: String = text.chars().collect();
-    
+
     // Find all matches before pos
     let mut last_before: Option<Range> = None;
     for m in re.find_iter(&text_str) {
@@ -71,11 +78,11 @@ pub fn find_prev(text: RopeSlice, pattern: &str, pos: usize) -> Result<Option<Ra
             break;
         }
     }
-    
+
     if last_before.is_some() {
         return Ok(last_before);
     }
-    
+
     // Wrap around: find last match in document
     let mut last: Option<Range> = None;
     for m in re.find_iter(&text_str) {
@@ -83,7 +90,7 @@ pub fn find_prev(text: RopeSlice, pattern: &str, pos: usize) -> Result<Option<Ra
         let end = byte_to_char_offset(&text_str, m.end());
         last = Some(Range::new(start, end));
     }
-    
+
     Ok(last)
 }
 
@@ -107,15 +114,15 @@ mod tests {
     fn test_find_next() {
         let text = Rope::from("hello world hello");
         let slice = text.slice(..);
-        
+
         let m = find_next(slice, "hello", 0).unwrap().unwrap();
         assert_eq!(m.from(), 0);
         assert_eq!(m.to(), 5);
-        
+
         let m = find_next(slice, "hello", 1).unwrap().unwrap();
         assert_eq!(m.from(), 12);
         assert_eq!(m.to(), 17);
-        
+
         // Wrap around
         let m = find_next(slice, "hello", 13).unwrap().unwrap();
         assert_eq!(m.from(), 0);
@@ -125,13 +132,13 @@ mod tests {
     fn test_find_prev() {
         let text = Rope::from("hello world hello");
         let slice = text.slice(..);
-        
+
         let m = find_prev(slice, "hello", 17).unwrap().unwrap();
         assert_eq!(m.from(), 12);
-        
+
         let m = find_prev(slice, "hello", 12).unwrap().unwrap();
         assert_eq!(m.from(), 0);
-        
+
         // Wrap around
         let m = find_prev(slice, "hello", 0).unwrap().unwrap();
         assert_eq!(m.from(), 12);
@@ -141,7 +148,7 @@ mod tests {
     fn test_find_all_matches() {
         let text = Rope::from("foo bar foo baz foo");
         let slice = text.slice(..);
-        
+
         let matches = find_all_matches(slice, "foo").unwrap();
         assert_eq!(matches.len(), 3);
         assert_eq!(matches[0].from(), 0);

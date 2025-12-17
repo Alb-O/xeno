@@ -1,6 +1,6 @@
 use linkme::distributed_slice;
 
-use crate::ext::{FileTypeDef, FILE_TYPES};
+use crate::ext::{FILE_TYPES, FileTypeDef};
 
 #[distributed_slice(FILE_TYPES)]
 static FT_JAVA: FileTypeDef = FileTypeDef {

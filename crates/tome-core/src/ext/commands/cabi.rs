@@ -3,8 +3,8 @@ use std::sync::Mutex;
 
 use linkme::distributed_slice;
 
-use crate::ext::plugins::{load_c_abi_plugin, CAbiLoadError};
-use crate::ext::{CommandContext, CommandDef, CommandError, CommandOutcome, COMMANDS};
+use crate::ext::plugins::{CAbiLoadError, load_c_abi_plugin};
+use crate::ext::{COMMANDS, CommandContext, CommandDef, CommandError, CommandOutcome};
 
 static LOADED_C_ABI_PLUGINS: Mutex<Vec<crate::ext::plugins::CAbiPlugin>> = Mutex::new(Vec::new());
 
@@ -35,7 +35,9 @@ fn cmd_cabi_load(ctx: &mut CommandContext) -> Result<CommandOutcome, CommandErro
             "plugin ABI mismatch: host={} guest={}",
             host, guest
         ))),
-        Err(CAbiLoadError::MissingEntry) => Err(CommandError::Failed("missing entry symbol tome_plugin_entry".into())),
+        Err(CAbiLoadError::MissingEntry) => Err(CommandError::Failed(
+            "missing entry symbol tome_plugin_entry".into(),
+        )),
         Err(CAbiLoadError::Load(e)) => Err(CommandError::Failed(format!("dlopen failed: {e}"))),
     }
 }

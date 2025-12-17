@@ -1,20 +1,19 @@
-pub mod types;
 mod actions;
-mod search;
 mod navigation;
+mod search;
+pub mod types;
 
 use std::fs;
 use std::io::{self, Write};
 use std::mem;
 use std::path::PathBuf;
 
+use tome_core::ext::{HookContext, emit_hook};
 use tome_core::key::{KeyCode, SpecialKey};
 use tome_core::range::Direction as MoveDir;
 use tome_core::{
-    InputHandler, Key, KeyResult, Mode, MouseEvent, Rope, Selection, Transaction,
-    ext, movement,
+    InputHandler, Key, KeyResult, Mode, MouseEvent, Rope, Selection, Transaction, ext, movement,
 };
-use tome_core::ext::{HookContext, emit_hook};
 
 use crate::theme::Theme;
 
@@ -63,8 +62,7 @@ impl Editor {
     }
 
     fn execute_command_line(&mut self, input: &str) -> bool {
-
-        use ext::{find_command, CommandContext, CommandOutcome};
+        use ext::{CommandContext, CommandOutcome, find_command};
 
         let trimmed = input.trim();
         if trimmed.is_empty() {
@@ -126,7 +124,6 @@ impl Editor {
             .map(|ft| ft.name);
 
         let doc = Rope::from(content.as_str());
-
 
         let scratch_path = PathBuf::from("[scratch]");
         let hook_path = path.as_ref().unwrap_or(&scratch_path);
@@ -204,7 +201,10 @@ impl Editor {
         mem::swap(&mut self.undo_stack, &mut self.scratch.undo_stack);
         mem::swap(&mut self.redo_stack, &mut self.scratch.redo_stack);
         mem::swap(&mut self.text_width, &mut self.scratch.text_width);
-        mem::swap(&mut self.insert_undo_active, &mut self.scratch.insert_undo_active);
+        mem::swap(
+            &mut self.insert_undo_active,
+            &mut self.scratch.insert_undo_active,
+        );
     }
 
     pub(crate) fn leave_scratch_context(&mut self) {
@@ -223,7 +223,10 @@ impl Editor {
         mem::swap(&mut self.undo_stack, &mut self.scratch.undo_stack);
         mem::swap(&mut self.redo_stack, &mut self.scratch.redo_stack);
         mem::swap(&mut self.text_width, &mut self.scratch.text_width);
-        mem::swap(&mut self.insert_undo_active, &mut self.scratch.insert_undo_active);
+        mem::swap(
+            &mut self.insert_undo_active,
+            &mut self.scratch.insert_undo_active,
+        );
     }
 
     pub(crate) fn with_scratch_context<R>(&mut self, f: impl FnOnce(&mut Self) -> R) -> R {
@@ -290,18 +293,18 @@ impl Editor {
         } else {
             trimmed
         };
-        
+
         // Alias 'exit' to 'quit' if needed, or just rely on execute_command_line
         if command == "exit" {
-             return true; 
+            return true;
         }
 
         let result = self.execute_command_line(command);
-        
+
         if !self.scratch_keep_open {
             self.do_close_scratch();
         }
-        
+
         result
     }
 
@@ -342,9 +345,15 @@ impl Editor {
 
             self.doc = entry.doc;
             self.selection = entry.selection;
-            self.message = Some(Message { text: "Undo".to_string(), kind: MessageKind::Info });
+            self.message = Some(Message {
+                text: "Undo".to_string(),
+                kind: MessageKind::Info,
+            });
         } else {
-            self.message = Some(Message { text: "Nothing to undo".to_string(), kind: MessageKind::Info });
+            self.message = Some(Message {
+                text: "Nothing to undo".to_string(),
+                kind: MessageKind::Info,
+            });
         }
     }
 
@@ -358,9 +367,15 @@ impl Editor {
 
             self.doc = entry.doc;
             self.selection = entry.selection;
-            self.message = Some(Message { text: "Redo".to_string(), kind: MessageKind::Info });
+            self.message = Some(Message {
+                text: "Redo".to_string(),
+                kind: MessageKind::Info,
+            });
         } else {
-            self.message = Some(Message { text: "Nothing to redo".to_string(), kind: MessageKind::Info });
+            self.message = Some(Message {
+                text: "Nothing to redo".to_string(),
+                kind: MessageKind::Info,
+            });
         }
     }
 
@@ -458,9 +473,10 @@ impl Editor {
             // Many terminals send Ctrl+Enter as byte 0x0A (Line Feed = Ctrl+J).
             // Termina parses this as Char('j') with CONTROL modifier.
             // We accept all three variants: Enter, '\n', and 'j' with Ctrl.
-            let raw_ctrl_enter =
-                matches!(key.code, TmKeyCode::Enter | TmKeyCode::Char('\n') | TmKeyCode::Char('j'))
-                    && key.modifiers.contains(TmModifiers::CONTROL);
+            let raw_ctrl_enter = matches!(
+                key.code,
+                TmKeyCode::Enter | TmKeyCode::Char('\n') | TmKeyCode::Char('j')
+            ) && key.modifiers.contains(TmModifiers::CONTROL);
 
             if raw_ctrl_enter {
                 return self.with_scratch_context(|ed| ed.do_execute_scratch());
@@ -492,7 +508,11 @@ impl Editor {
             }
         }
 
-        if in_scratch && matches!(self.mode(), Mode::Insert) && !key.modifiers.alt && !key.modifiers.ctrl {
+        if in_scratch
+            && matches!(self.mode(), Mode::Insert)
+            && !key.modifiers.alt
+            && !key.modifiers.ctrl
+        {
             match key.code {
                 KeyCode::Char(c) => {
                     self.insert_text(&c.to_string());
@@ -513,12 +533,19 @@ impl Editor {
         let result = self.input.handle_key(key);
 
         match result {
-            KeyResult::Action { name, count, extend, register } => {
-                self.execute_action(name, count, extend, register)
-            }
-            KeyResult::ActionWithChar { name, count, extend, register, char_arg } => {
-                self.execute_action_with_char(name, count, extend, register, char_arg)
-            }
+            KeyResult::Action {
+                name,
+                count,
+                extend,
+                register,
+            } => self.execute_action(name, count, extend, register),
+            KeyResult::ActionWithChar {
+                name,
+                count,
+                extend,
+                register,
+                char_arg,
+            } => self.execute_action_with_char(name, count, extend, register, char_arg),
             KeyResult::ModeChange(new_mode) => {
                 let is_normal = matches!(new_mode, Mode::Normal);
                 let leaving_insert = !matches!(new_mode, Mode::Insert);
@@ -540,9 +567,7 @@ impl Editor {
                 self.insert_text(&c.to_string());
                 false
             }
-            KeyResult::ExecuteCommand(cmd) => {
-                self.execute_command_line(&cmd)
-            }
+            KeyResult::ExecuteCommand(cmd) => self.execute_command_line(&cmd),
             KeyResult::ExecuteSearch { pattern, reverse } => {
                 self.input.set_last_search(pattern.clone(), reverse);
                 let result = if reverse {
@@ -621,11 +646,11 @@ impl Editor {
             let popup_height = 12;
             let popup_y = height.saturating_sub(popup_height + 2); // +2 for status and message
             let popup_end = height.saturating_sub(2);
-            
+
             // Check if click is inside popup area
             if mouse.row >= popup_y && mouse.row < popup_end {
                 // If inside, we handle it in scratchpad
-                
+
                 // First ensure it is focused if it wasn't (e.g. click to focus)
                 if !self.scratch_focused {
                     self.scratch_focused = true;
@@ -634,7 +659,7 @@ impl Editor {
                 // Adjust mouse coordinates to be relative to the popup
                 let mut adj_mouse = mouse;
                 adj_mouse.row = mouse.row.saturating_sub(popup_y);
-                
+
                 return self.with_scratch_context(|ed| ed.handle_mouse_active(adj_mouse));
             } else {
                 // Click was outside
@@ -724,10 +749,9 @@ impl Editor {
         extend: bool,
         register: Option<char>,
     ) -> bool {
-        use ext::{ActionContext, ActionArgs, find_action};
+        use ext::{ActionArgs, ActionContext, find_action};
 
         let action = match find_action(name) {
-
             Some(a) => a,
             None => {
                 self.show_error(format!("Unknown action: {}", name));
@@ -757,7 +781,7 @@ impl Editor {
         register: Option<char>,
         char_arg: char,
     ) -> bool {
-        use ext::{ActionContext, ActionArgs, find_action};
+        use ext::{ActionArgs, ActionContext, find_action};
 
         let action = match find_action(name) {
             Some(a) => a,
@@ -791,7 +815,6 @@ impl Editor {
 }
 
 impl ext::EditorOps for Editor {
-
     fn path(&self) -> Option<&std::path::Path> {
         self.path.as_deref()
     }

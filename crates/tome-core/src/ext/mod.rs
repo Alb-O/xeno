@@ -55,15 +55,20 @@ pub mod statusline;
 
 #[cfg(feature = "host")]
 pub use actions::{
-    ActionArgs, ActionContext, ActionDef, ActionHandler, ActionMode, ActionResult, EditAction,
-    ObjectSelectionKind, PendingAction, PendingKind, ScrollAmount, ScrollDir, VisualDirection,
-    ACTIONS, execute_action, find_action,
+    ACTIONS, ActionArgs, ActionContext, ActionDef, ActionHandler, ActionMode, ActionResult,
+    EditAction, ObjectSelectionKind, PendingAction, PendingKind, ScrollAmount, ScrollDir,
+    VisualDirection, execute_action, find_action,
+};
+#[cfg(feature = "host")]
+pub use editor_ctx::{
+    CursorAccess, EditAccess, EditorCapabilities, EditorContext, HandleOutcome, JumpAccess,
+    MacroAccess, MessageAccess, ModeAccess, ResultHandler, ScratchAccess, SearchAccess,
+    SelectionAccess, SelectionOpsAccess, TextAccess, TransformAccess, UndoAccess, dispatch_result,
 };
 #[cfg(feature = "host")]
 pub use hooks::{
-    emit as emit_hook, emit_mutable as emit_mutable_hook, find_hooks, all_hooks,
-    HookContext, HookDef, HookEvent, HookResult, MutableHookContext, MutableHookDef,
-    HOOKS, MUTABLE_HOOKS,
+    HOOKS, HookContext, HookDef, HookEvent, HookResult, MUTABLE_HOOKS, MutableHookContext,
+    MutableHookDef, all_hooks, emit as emit_hook, emit_mutable as emit_mutable_hook, find_hooks,
 };
 #[cfg(feature = "host")]
 pub use keybindings::{
@@ -71,24 +76,17 @@ pub use keybindings::{
 };
 #[cfg(feature = "host")]
 pub use options::{
-    OptionDef, OptionScope, OptionType, OptionValue, OPTIONS, find_option, all_options,
-};
-#[cfg(feature = "host")]
-pub use statusline::{
-    RenderedSegment, SegmentPosition, SegmentStyle, StatuslineContext, StatuslineSegmentDef,
-    STATUSLINE_SEGMENTS, all_segments, find_segment, render_position, segments_for_position,
-};
-#[cfg(feature = "host")]
-pub use editor_ctx::{
-    CursorAccess, EditAccess, EditorCapabilities, EditorContext, HandleOutcome, JumpAccess,
-    MacroAccess, MessageAccess, ModeAccess, ResultHandler, SearchAccess, ScratchAccess,
-    SelectionAccess, SelectionOpsAccess, TextAccess, TransformAccess, UndoAccess,
-    dispatch_result,
+    OPTIONS, OptionDef, OptionScope, OptionType, OptionValue, all_options, find_option,
 };
 #[cfg(feature = "host")]
 pub use plugins::{
-    load_c_abi_plugin, CAbiLoadError, CAbiPlugin, TomeGuestV1, TomeHostV1, TomeStatus,
-    TOME_C_ABI_VERSION,
+    CAbiLoadError, CAbiPlugin, TOME_C_ABI_VERSION, TomeGuestV1, TomeHostV1, TomeStatus,
+    load_c_abi_plugin,
+};
+#[cfg(feature = "host")]
+pub use statusline::{
+    RenderedSegment, STATUSLINE_SEGMENTS, SegmentPosition, SegmentStyle, StatuslineContext,
+    StatuslineSegmentDef, all_segments, find_segment, render_position, segments_for_position,
 };
 
 #[cfg(feature = "host")]
@@ -378,9 +376,9 @@ pub static FILE_TYPES: [FileTypeDef];
 /// Look up a command by name or alias.
 #[cfg(feature = "host")]
 pub fn find_command(name: &str) -> Option<&'static CommandDef> {
-    COMMANDS.iter().find(|cmd| {
-        cmd.name == name || cmd.aliases.contains(&name)
-    })
+    COMMANDS
+        .iter()
+        .find(|cmd| cmd.name == name || cmd.aliases.contains(&name))
 }
 
 /// Look up a motion by name.
@@ -392,27 +390,43 @@ pub fn find_motion(name: &str) -> Option<&'static MotionDef> {
 /// Look up a text object by trigger character.
 #[cfg(feature = "host")]
 pub fn find_text_object(trigger: char) -> Option<&'static TextObjectDef> {
-    TEXT_OBJECTS.iter().find(|obj| {
-        obj.trigger == trigger || obj.alt_triggers.contains(&trigger)
-    })
+    TEXT_OBJECTS
+        .iter()
+        .find(|obj| obj.trigger == trigger || obj.alt_triggers.contains(&trigger))
 }
 
 /// Detect file type from filename.
+///
+/// Uses a two-step detection process:
+/// 1. First checks for exact filename matches (e.g., "Makefile", "Cargo.toml")
+/// 2. Falls back to extension-based detection (e.g., ".rs", ".py")
+///
+/// # Examples
+/// ```ignore
+/// // Exact filename match
+/// detect_file_type("Makefile") // Returns makefile type
+///
+/// // Extension-based match
+/// detect_file_type("/path/to/main.rs") // Returns rust type
+/// detect_file_type("script.py") // Returns python type
+/// ```
 #[cfg(feature = "host")]
 pub fn detect_file_type(filename: &str) -> Option<&'static FileTypeDef> {
     let basename = filename.rsplit('/').next().unwrap_or(filename);
-    
-    // Check exact filename match first
-    if let Some(ft) = FILE_TYPES.iter().find(|ft| ft.filenames.contains(&basename)) {
+
+    if let Some(ft) = FILE_TYPES
+        .iter()
+        .find(|ft| ft.filenames.contains(&basename))
+    {
         return Some(ft);
     }
-    
-    // Then check extension
+
     if let Some(ext) = basename.rsplit('.').next()
-        && let Some(ft) = FILE_TYPES.iter().find(|ft| ft.extensions.contains(&ext)) {
-            return Some(ft);
-        }
-    
+        && let Some(ft) = FILE_TYPES.iter().find(|ft| ft.extensions.contains(&ext))
+    {
+        return Some(ft);
+    }
+
     None
 }
 
@@ -420,7 +434,9 @@ pub fn detect_file_type(filename: &str) -> Option<&'static FileTypeDef> {
 #[cfg(feature = "host")]
 pub fn detect_file_type_from_content(first_line: &str) -> Option<&'static FileTypeDef> {
     FILE_TYPES.iter().find(|ft| {
-        ft.first_line_patterns.iter().any(|pattern| first_line.contains(pattern))
+        ft.first_line_patterns
+            .iter()
+            .any(|pattern| first_line.contains(pattern))
     })
 }
 
@@ -440,15 +456,14 @@ mod tests {
 
     #[test]
     fn test_find_text_object() {
-        // Test primary trigger
         let word = find_text_object('w').expect("word object should exist");
         assert_eq!(word.name, "word");
 
-        // Test alt trigger
         let parens = find_text_object('(').expect("parens object should exist via alt trigger");
         assert_eq!(parens.name, "parentheses");
 
-        let parens2 = find_text_object('b').expect("parens object should exist via primary trigger");
+        let parens2 =
+            find_text_object('b').expect("parens object should exist via primary trigger");
         assert_eq!(parens2.name, "parentheses");
     }
 
@@ -490,11 +505,9 @@ mod tests {
 
     #[test]
     fn test_find_command() {
-        // Test by primary name
         let quit = find_command("quit").expect("quit command should exist");
         assert_eq!(quit.name, "quit");
 
-        // Test by alias
         let quit_alias = find_command("q").expect("q alias should find quit");
         assert_eq!(quit_alias.name, "quit");
 
@@ -513,17 +526,15 @@ mod tests {
 
     #[test]
     fn test_hooks_accessible() {
-        // HOOKS slice should have builtin hooks registered
         assert!(HOOKS.len() >= 2, "should have at least 2 builtin hooks");
-        
-        // all_hooks should work
+
         let hooks = all_hooks();
         assert!(hooks.len() >= 2);
-        
+
         // find_hooks should find our mode change hook
         let mode_hooks: Vec<_> = find_hooks(HookEvent::ModeChange).collect();
         assert!(!mode_hooks.is_empty(), "should have mode change hooks");
-        
+
         // find_hooks should find our buffer open hook
         let open_hooks: Vec<_> = find_hooks(HookEvent::BufferOpen).collect();
         assert!(!open_hooks.is_empty(), "should have buffer open hooks");
@@ -532,7 +543,7 @@ mod tests {
     #[test]
     fn test_emit_hook() {
         use crate::Mode;
-        
+
         // This should not panic even with no handlers
         let ctx = HookContext::ModeChange {
             old_mode: Mode::Normal,

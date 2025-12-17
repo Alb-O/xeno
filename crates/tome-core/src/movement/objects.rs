@@ -3,7 +3,7 @@
 use crate::range::Range;
 use ropey::RopeSlice;
 
-use super::{is_word_char, WordType};
+use super::{WordType, is_word_char};
 
 /// Select a word object (inner or around).
 /// Inner: just the word characters
@@ -45,15 +45,12 @@ pub fn select_word_object(
         return Range::new(start, end);
     }
 
-    // Find word boundaries
     let mut start = pos;
     let mut end = pos;
 
-    // Extend backward through word chars
     while start > 0 && is_word(text.char(start - 1)) {
         start -= 1;
     }
-    // Extend forward through word chars
     while end + 1 < len && is_word(text.char(end + 1)) {
         end += 1;
     }

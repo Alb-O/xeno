@@ -89,7 +89,11 @@ pub struct InputHandler {
     /// For commands that extend selection.
     extend: bool,
     /// Last search pattern for n/N repeat.
-    last_search: Option<(String, bool)>, // (pattern, reverse)
+    ///
+    /// Tuple contains: (pattern, is_reverse)
+    /// - `pattern`: The regex pattern being searched
+    /// - `is_reverse`: True for backward search (?), false for forward (/)
+    last_search: Option<(String, bool)>,
 }
 
 impl Default for InputHandler {

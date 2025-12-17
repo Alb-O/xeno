@@ -42,10 +42,7 @@ impl Modifiers {
     };
 
     pub fn ctrl(self) -> Self {
-        Self {
-            ctrl: true,
-            ..self
-        }
+        Self { ctrl: true, ..self }
     }
 
     pub fn alt(self) -> Self {
@@ -186,9 +183,10 @@ impl Key {
     /// Check if this is a digit key (for count prefixes).
     pub fn as_digit(&self) -> Option<u32> {
         if self.modifiers.is_empty()
-            && let KeyCode::Char(c) = self.code {
-                return c.to_digit(10);
-            }
+            && let KeyCode::Char(c) = self.code
+        {
+            return c.to_digit(10);
+        }
         None
     }
 
@@ -209,26 +207,27 @@ impl Key {
     /// e.g., Shift+h -> H, Shift+U -> U (drop shift for uppercase letters)
     pub fn normalize(self) -> Self {
         if self.modifiers.shift
-            && let KeyCode::Char(c) = self.code {
-                if c.is_ascii_lowercase() {
-                    return Self {
-                        code: KeyCode::Char(c.to_ascii_uppercase()),
-                        modifiers: Modifiers {
-                            shift: false,
-                            ..self.modifiers
-                        },
-                    };
-                } else if c.is_ascii_uppercase() {
-                    // Already uppercase, just drop the shift modifier
-                    return Self {
-                        code: KeyCode::Char(c),
-                        modifiers: Modifiers {
-                            shift: false,
-                            ..self.modifiers
-                        },
-                    };
-                }
+            && let KeyCode::Char(c) = self.code
+        {
+            if c.is_ascii_lowercase() {
+                return Self {
+                    code: KeyCode::Char(c.to_ascii_uppercase()),
+                    modifiers: Modifiers {
+                        shift: false,
+                        ..self.modifiers
+                    },
+                };
+            } else if c.is_ascii_uppercase() {
+                // Already uppercase, just drop the shift modifier
+                return Self {
+                    code: KeyCode::Char(c),
+                    modifiers: Modifiers {
+                        shift: false,
+                        ..self.modifiers
+                    },
+                };
             }
+        }
         self
     }
 }
@@ -252,10 +251,7 @@ pub enum MouseEvent {
         modifiers: Modifiers,
     },
     /// Mouse released at position.
-    Release {
-        row: u16,
-        col: u16,
-    },
+    Release { row: u16, col: u16 },
     /// Mouse dragged to position (button held).
     Drag {
         button: MouseButton,
@@ -313,7 +309,7 @@ impl MouseEvent {
 /// Conversion from termina's MouseEvent.
 impl From<termina::event::MouseEvent> for MouseEvent {
     fn from(event: termina::event::MouseEvent) -> Self {
-        use termina::event::{MouseButton as TmButton, MouseEventKind, Modifiers as TmModifiers};
+        use termina::event::{Modifiers as TmModifiers, MouseButton as TmButton, MouseEventKind};
 
         let modifiers = Modifiers {
             ctrl: event.modifiers.contains(TmModifiers::CONTROL),
@@ -482,9 +478,6 @@ mod tests {
         assert_eq!(Key::char('h').to_string(), "h");
         assert_eq!(Key::ctrl('c').to_string(), "C-c");
         assert_eq!(Key::alt('w').to_string(), "A-w");
-        assert_eq!(
-            Key::special(SpecialKey::Escape).to_string(),
-            "<Escape>"
-        );
+        assert_eq!(Key::special(SpecialKey::Escape).to_string(), "<Escape>");
     }
 }

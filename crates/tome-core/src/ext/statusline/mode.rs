@@ -3,7 +3,7 @@
 use linkme::distributed_slice;
 
 use crate::ext::statusline::{
-    RenderedSegment, SegmentPosition, SegmentStyle, StatuslineSegmentDef, STATUSLINE_SEGMENTS,
+    RenderedSegment, STATUSLINE_SEGMENTS, SegmentPosition, SegmentStyle, StatuslineSegmentDef,
 };
 
 #[distributed_slice(STATUSLINE_SEGMENTS)]

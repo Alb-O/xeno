@@ -2,45 +2,44 @@
 mod suite {
     use crate::editor::Editor;
     use crate::theme::CMD_THEME;
-    use crate::theme::{get_theme, THEMES};
+    use crate::theme::{THEMES, get_theme};
+    use insta::assert_snapshot;
+    use ratatui::{Terminal, backend::TestBackend};
     use std::path::PathBuf;
     use termina::event::{KeyCode, KeyEvent, Modifiers};
-    use insta::assert_snapshot;
-use ratatui::{Terminal, backend::TestBackend};
-use tome_core::{Mode, Rope, Selection};
+    use tome_core::{Mode, Rope, Selection};
 
-#[derive(Debug, Clone)]
-struct KeyStep {
-    desc: &'static str,
-    key: KeyEvent,
-}
-
-fn run_key_sequence(editor: &mut Editor, steps: &[KeyStep]) -> Vec<String> {
-    let mut snapshots = Vec::new();
-    for step in steps {
-        editor.handle_key(step.key);
-        let ranges: Vec<(usize, usize)> = editor
-            .selection
-            .ranges()
-            .iter()
-            .map(|r| (r.from(), r.to()))
-            .collect();
-        snapshots.push(format!(
-            "{} -> cursor:{} line:{} sel:{:?} doc:{:?}",
-            step.desc,
-            editor.cursor,
-            editor.cursor_line(),
-            ranges,
-            editor.doc.to_string()
-        ));
+    #[derive(Debug, Clone)]
+    struct KeyStep {
+        desc: &'static str,
+        key: KeyEvent,
     }
-    snapshots
-}
+
+    fn run_key_sequence(editor: &mut Editor, steps: &[KeyStep]) -> Vec<String> {
+        let mut snapshots = Vec::new();
+        for step in steps {
+            editor.handle_key(step.key);
+            let ranges: Vec<(usize, usize)> = editor
+                .selection
+                .ranges()
+                .iter()
+                .map(|r| (r.from(), r.to()))
+                .collect();
+            snapshots.push(format!(
+                "{} -> cursor:{} line:{} sel:{:?} doc:{:?}",
+                step.desc,
+                editor.cursor,
+                editor.cursor_line(),
+                ranges,
+                editor.doc.to_string()
+            ));
+        }
+        snapshots
+    }
 
     use tome_core::ext::{CommandContext, CommandOutcome};
 
     fn test_editor(content: &str) -> Editor {
-
         Editor::from_content(content.to_string(), Some(PathBuf::from("test.txt")))
     }
 
@@ -48,10 +47,10 @@ fn run_key_sequence(editor: &mut Editor, steps: &[KeyStep]) -> Vec<String> {
     fn test_themes_registry() {
         // We expect at least default, solarized_dark, monokai, one_dark, gruvbox
         assert!(THEMES.len() >= 5);
-        
+
         let default = get_theme("default");
         assert!(default.is_some());
-        
+
         // Solarized aliases
         let solarized = get_theme("solarized_dark");
         assert!(solarized.is_some());
@@ -78,7 +77,7 @@ fn run_key_sequence(editor: &mut Editor, steps: &[KeyStep]) -> Vec<String> {
     #[test]
     fn test_theme_command() {
         let mut editor = Editor::new_scratch();
-        
+
         // Initial theme should be solarized_dark now
         assert_eq!(editor.theme.name, "solarized_dark");
 
@@ -94,10 +93,10 @@ fn run_key_sequence(editor: &mut Editor, steps: &[KeyStep]) -> Vec<String> {
         let result = (CMD_THEME.handler)(&mut ctx);
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), CommandOutcome::Ok);
-        
+
         // Theme should be updated
         assert_eq!(editor.theme.name, "default");
-        
+
         // Test invalid theme with suggestion
         let _args_invalid = ["solarizeddark"]; // Typo (missing separator, but normalized should handle it actually)
         // Let's try a real typo "solarised"
@@ -109,7 +108,7 @@ fn run_key_sequence(editor: &mut Editor, steps: &[KeyStep]) -> Vec<String> {
             count: 1,
             register: None,
         };
-        
+
         let result_typo = (CMD_THEME.handler)(&mut ctx_typo);
         assert!(result_typo.is_err());
         if let Err(tome_core::ext::CommandError::Failed(msg)) = result_typo {
@@ -211,7 +210,11 @@ fn run_key_sequence(editor: &mut Editor, steps: &[KeyStep]) -> Vec<String> {
         assert_eq!(editor.undo_stack.len(), 0, "undo stack should be empty");
 
         editor.handle_key(KeyEvent::new(KeyCode::Char('U'), Modifiers::SHIFT));
-        assert_eq!(editor.redo_stack.len(), 0, "redo stack should be empty after redo");
+        assert_eq!(
+            editor.redo_stack.len(),
+            0,
+            "redo stack should be empty after redo"
+        );
         assert_eq!(editor.doc.to_string(), "", "after redo");
     }
 
@@ -229,7 +232,11 @@ fn run_key_sequence(editor: &mut Editor, steps: &[KeyStep]) -> Vec<String> {
         editor.handle_key(KeyEvent::new(KeyCode::Escape, Modifiers::NONE));
 
         assert_eq!(editor.doc.to_string(), "abc");
-        assert_eq!(editor.undo_stack.len(), 1, "single undo entry for insert session");
+        assert_eq!(
+            editor.undo_stack.len(),
+            1,
+            "single undo entry for insert session"
+        );
 
         editor.handle_key(KeyEvent::new(KeyCode::Char('u'), Modifiers::NONE));
         assert_eq!(editor.doc.to_string(), "");
@@ -239,23 +246,27 @@ fn run_key_sequence(editor: &mut Editor, steps: &[KeyStep]) -> Vec<String> {
     #[test]
     fn test_insert_newline_single_cursor() {
         let mut editor = test_editor("");
-        
+
         editor.handle_key(KeyEvent::new(KeyCode::Char('i'), Modifiers::NONE));
         assert!(matches!(editor.mode(), Mode::Insert));
-        
+
         editor.handle_key(KeyEvent::new(KeyCode::Enter, Modifiers::NONE));
-        
+
         assert_eq!(editor.doc.len_lines(), 2, "should have 2 lines after Enter");
         assert_eq!(editor.cursor, 1, "cursor should be at position 1");
-        assert_eq!(editor.cursor_line(), 1, "cursor should be on line 1 (second line)");
-        
+        assert_eq!(
+            editor.cursor_line(),
+            1,
+            "cursor should be on line 1 (second line)"
+        );
+
         let mut terminal = Terminal::new(TestBackend::new(80, 10)).unwrap();
         terminal.draw(|frame| editor.render(frame)).unwrap();
-        
+
         // In insert mode, the terminal cursor is used instead of an inverted-color cell.
         // The TestBackend tracks cursor position - verify it was set.
         // Note: TestBackend returns (0,0) by default, but frame.set_cursor_position was called.
-        
+
         assert_snapshot!(terminal.backend());
     }
 
@@ -265,7 +276,10 @@ fn run_key_sequence(editor: &mut Editor, steps: &[KeyStep]) -> Vec<String> {
         assert_eq!(editor.cursor, 0, "start at position 0");
 
         editor.handle_key(KeyEvent::new(KeyCode::Char('i'), Modifiers::NONE));
-        assert!(matches!(editor.mode(), Mode::Insert), "should be in insert mode");
+        assert!(
+            matches!(editor.mode(), Mode::Insert),
+            "should be in insert mode"
+        );
 
         editor.handle_key(KeyEvent::new(KeyCode::Right, Modifiers::NONE));
         assert_eq!(editor.cursor, 1, "after Right arrow, cursor at 1");
@@ -277,14 +291,17 @@ fn run_key_sequence(editor: &mut Editor, steps: &[KeyStep]) -> Vec<String> {
         assert_eq!(editor.cursor, 1, "after Left arrow, cursor at 1");
 
         editor.handle_key(KeyEvent::new(KeyCode::Down, Modifiers::NONE));
-        assert!(matches!(editor.mode(), Mode::Insert), "still in insert mode after arrows");
+        assert!(
+            matches!(editor.mode(), Mode::Insert),
+            "still in insert mode after arrows"
+        );
     }
 
     #[test]
     fn test_soft_wrap_long_line() {
         let long_line = "The quick brown fox jumps over the lazy dog and keeps on running";
         let mut editor = test_editor(long_line);
-        
+
         let mut terminal = Terminal::new(TestBackend::new(40, 10)).unwrap();
         terminal.draw(|frame| editor.render(frame)).unwrap();
         assert_snapshot!(terminal.backend());
@@ -294,7 +311,7 @@ fn run_key_sequence(editor: &mut Editor, steps: &[KeyStep]) -> Vec<String> {
     fn test_soft_wrap_word_boundary() {
         let text = "hello world this is a test of word wrapping behavior";
         let mut editor = test_editor(text);
-        
+
         let mut terminal = Terminal::new(TestBackend::new(30, 10)).unwrap();
         terminal.draw(|frame| editor.render(frame)).unwrap();
         assert_snapshot!(terminal.backend());
@@ -304,7 +321,7 @@ fn run_key_sequence(editor: &mut Editor, steps: &[KeyStep]) -> Vec<String> {
     fn test_line_numbers_multiple_lines() {
         let text = "Line 1\nLine 2\nLine 3\nLine 4\nLine 5";
         let mut editor = test_editor(text);
-        
+
         let mut terminal = Terminal::new(TestBackend::new(40, 10)).unwrap();
         terminal.draw(|frame| editor.render(frame)).unwrap();
         assert_snapshot!(terminal.backend());
@@ -314,38 +331,46 @@ fn run_key_sequence(editor: &mut Editor, steps: &[KeyStep]) -> Vec<String> {
     fn test_wrapped_line_dim_gutter() {
         use ratatui::style::Color;
         use tome_core::ext::EditorOps;
-        
+
         let long_line = "This is a very long line that should wrap to multiple virtual lines";
         let mut editor = test_editor(long_line);
         // Ensure default theme for this test since we assert specific colors
         editor.set_theme("default").unwrap();
-        
+
         let mut terminal = Terminal::new(TestBackend::new(30, 10)).unwrap();
         terminal.draw(|frame| editor.render(frame)).unwrap();
-        
+
         let buffer = terminal.backend().buffer();
-        
+
         let first_gutter = &buffer[(0, 0)];
-        assert_eq!(first_gutter.fg, Color::DarkGray, "first line gutter should be DarkGray");
-        
+        assert_eq!(
+            first_gutter.fg,
+            Color::DarkGray,
+            "first line gutter should be DarkGray"
+        );
+
         let second_gutter = &buffer[(0, 1)];
-        assert_eq!(second_gutter.fg, Color::Rgb(60, 60, 60), "wrapped line gutter should be dim");
-        
+        assert_eq!(
+            second_gutter.fg,
+            Color::Rgb(60, 60, 60),
+            "wrapped line gutter should be dim"
+        );
+
         assert_snapshot!(terminal.backend());
     }
 
     #[test]
     fn test_backspace_deletes_backwards() {
         let mut editor = test_editor("hello");
-        
+
         editor.handle_key(KeyEvent::new(KeyCode::Char('a'), Modifiers::NONE));
         assert!(matches!(editor.mode(), Mode::Insert));
         assert_eq!(editor.cursor, 1, "cursor at 1 after 'a'");
-        
+
         editor.handle_key(KeyEvent::new(KeyCode::Backspace, Modifiers::NONE));
         assert_eq!(editor.doc.to_string(), "ello", "first char deleted");
         assert_eq!(editor.cursor, 0, "cursor moved back to 0");
-        
+
         editor.handle_key(KeyEvent::new(KeyCode::Backspace, Modifiers::NONE));
         assert_eq!(editor.doc.to_string(), "ello", "no change when at start");
         assert_eq!(editor.cursor, 0, "cursor stays at 0");
@@ -353,23 +378,26 @@ fn run_key_sequence(editor: &mut Editor, steps: &[KeyStep]) -> Vec<String> {
 
     #[test]
     fn test_scroll_down_when_cursor_at_bottom() {
-        let text = (1..=20).map(|i| format!("Line {}", i)).collect::<Vec<_>>().join("\n");
+        let text = (1..=20)
+            .map(|i| format!("Line {}", i))
+            .collect::<Vec<_>>()
+            .join("\n");
         let mut editor = test_editor(&text);
-        
+
         let viewport_height = 8;
-        
+
         assert_eq!(editor.scroll_line, 0, "starts at top");
         assert_eq!(editor.cursor_line(), 0, "cursor on line 0");
-        
+
         for _ in 0..10 {
             editor.handle_key(KeyEvent::new(KeyCode::Char('j'), Modifiers::NONE));
         }
-        
+
         assert_eq!(editor.cursor_line(), 10, "cursor on line 10");
-        
+
         let mut terminal = Terminal::new(TestBackend::new(40, viewport_height as u16 + 2)).unwrap();
         terminal.draw(|frame| editor.render(frame)).unwrap();
-        
+
         assert!(
             editor.scroll_line + viewport_height > editor.cursor_line(),
             "cursor line {} should be visible in viewport (scroll_line={}, height={})",
@@ -384,17 +412,17 @@ fn run_key_sequence(editor: &mut Editor, steps: &[KeyStep]) -> Vec<String> {
         let long_line = "This is a very long line that will wrap multiple times in the viewport";
         let text = format!("{}\n{}\n{}\nshort\nshort", long_line, long_line, long_line);
         let mut editor = test_editor(&text);
-        
+
         let mut terminal = Terminal::new(TestBackend::new(20, 6)).unwrap();
-        
+
         for _ in 0..4 {
             editor.handle_key(KeyEvent::new(KeyCode::Char('j'), Modifiers::NONE));
         }
-        
+
         assert_eq!(editor.cursor_line(), 4, "cursor on line 4 (last 'short')");
-        
+
         terminal.draw(|frame| editor.render(frame)).unwrap();
-        
+
         assert!(
             editor.scroll_line > 0 || editor.scroll_segment > 0,
             "scroll should advance to show cursor through wrapped lines, got scroll_line={}, scroll_segment={}",
@@ -407,13 +435,13 @@ fn run_key_sequence(editor: &mut Editor, steps: &[KeyStep]) -> Vec<String> {
     fn test_visual_vertical_movement_in_wrapped_line() {
         let long_line = "The quick brown fox jumps over the lazy dog and keeps running";
         let mut editor = test_editor(long_line);
-        
+
         editor.text_width = 20;
-        
+
         assert_eq!(editor.cursor, 0, "starts at 0");
-        
+
         editor.handle_key(KeyEvent::new(KeyCode::Char('j'), Modifiers::NONE));
-        
+
         let head = editor.cursor;
         assert!(
             head > 0 && head < long_line.len(),
@@ -421,9 +449,9 @@ fn run_key_sequence(editor: &mut Editor, steps: &[KeyStep]) -> Vec<String> {
             head
         );
         assert_eq!(editor.cursor_line(), 0, "should still be on doc line 0");
-        
+
         editor.handle_key(KeyEvent::new(KeyCode::Char('k'), Modifiers::NONE));
-        
+
         assert_eq!(editor.cursor, 0, "should return to start");
     }
 
@@ -432,15 +460,15 @@ fn run_key_sequence(editor: &mut Editor, steps: &[KeyStep]) -> Vec<String> {
         let text = "short\nanother short";
         let mut editor = test_editor(text);
         editor.text_width = 80;
-        
+
         assert_eq!(editor.cursor_line(), 0);
-        
+
         editor.handle_key(KeyEvent::new(KeyCode::Char('j'), Modifiers::NONE));
-        
+
         assert_eq!(editor.cursor_line(), 1, "should move to next doc line");
-        
+
         editor.handle_key(KeyEvent::new(KeyCode::Char('k'), Modifiers::NONE));
-        
+
         assert_eq!(editor.cursor_line(), 0, "should return to first doc line");
     }
 
@@ -492,7 +520,7 @@ fn run_key_sequence(editor: &mut Editor, steps: &[KeyStep]) -> Vec<String> {
     fn test_shift_home_extends_selection() {
         // In Kakoune, we start with a point selection and use extend to select
         let mut editor = test_editor("hello world");
-        
+
         // Shift+End to select to end (extend from current position)
         editor.handle_key(KeyEvent::new(KeyCode::End, Modifiers::SHIFT));
         let sel_after_end = editor.selection.primary();
@@ -511,13 +539,13 @@ fn run_key_sequence(editor: &mut Editor, steps: &[KeyStep]) -> Vec<String> {
     fn test_shift_end_then_non_shift_home() {
         // Start at 0, Shift+End to select, then Home (no shift) moves cursor but keeps selection
         let mut editor = test_editor("hello world");
-        
+
         editor.handle_key(KeyEvent::new(KeyCode::End, Modifiers::SHIFT));
         let sel = editor.selection.primary();
         assert_eq!(sel.anchor, 0);
         assert_eq!(sel.head, 11);
         assert_eq!(editor.cursor, 11, "cursor at end after Shift+End");
-        
+
         // Home without shift - cursor moves to 0, but selection stays (anchor=0, head=11)
         editor.handle_key(KeyEvent::new(KeyCode::Home, Modifiers::NONE));
         assert_eq!(editor.cursor, 0, "cursor moves to start");
@@ -652,7 +680,10 @@ fn run_key_sequence(editor: &mut Editor, steps: &[KeyStep]) -> Vec<String> {
         });
 
         editor.handle_key(KeyEvent::new(KeyCode::Enter, Modifiers::NONE));
-        assert_eq!(editor.message.as_ref().map(|m| m.text.as_str()), Some("Unknown command: foo"));
+        assert_eq!(
+            editor.message.as_ref().map(|m| m.text.as_str()),
+            Some("Unknown command: foo")
+        );
     }
 
     #[test]
@@ -712,12 +743,18 @@ fn run_key_sequence(editor: &mut Editor, steps: &[KeyStep]) -> Vec<String> {
         // First escape should move to NORMAL within scratch
         editor.handle_key(KeyEvent::new(KeyCode::Escape, Modifiers::NONE));
         assert!(editor.scratch_open, "scratch stays open after first escape");
-        assert!(editor.scratch_focused, "scratch remains focused after first escape");
+        assert!(
+            editor.scratch_focused,
+            "scratch remains focused after first escape"
+        );
         assert!(matches!(editor.mode(), Mode::Normal));
 
         // Second escape should close the scratch buffer
         editor.handle_key(KeyEvent::new(KeyCode::Escape, Modifiers::NONE));
-        assert!(!editor.scratch_open, "scratch should close on second escape");
+        assert!(
+            !editor.scratch_open,
+            "scratch should close on second escape"
+        );
         assert!(!editor.scratch_focused, "scratch focus should be cleared");
     }
 
@@ -763,7 +800,11 @@ fn run_key_sequence(editor: &mut Editor, steps: &[KeyStep]) -> Vec<String> {
         editor.selection = Selection::point(editor.cursor);
 
         editor.handle_key(KeyEvent::new(KeyCode::Char('x'), Modifiers::NONE));
-        assert_eq!(editor.selection.ranges().len(), 1, "expected single line selection after x");
+        assert_eq!(
+            editor.selection.ranges().len(),
+            1,
+            "expected single line selection after x"
+        );
         let ranges_after_select: Vec<(usize, usize)> = editor
             .selection
             .ranges()
@@ -773,7 +814,11 @@ fn run_key_sequence(editor: &mut Editor, steps: &[KeyStep]) -> Vec<String> {
 
         // Duplicate down then delete selections
         editor.handle_key(KeyEvent::new(KeyCode::Char('+'), Modifiers::NONE));
-        assert_eq!(editor.selection.ranges().len(), 2, "expected selection duplicated down");
+        assert_eq!(
+            editor.selection.ranges().len(),
+            2,
+            "expected selection duplicated down"
+        );
         let ranges_after_dup: Vec<(usize, usize)> = editor
             .selection
             .ranges()
@@ -785,7 +830,10 @@ fn run_key_sequence(editor: &mut Editor, steps: &[KeyStep]) -> Vec<String> {
         editor.handle_key(KeyEvent::new(KeyCode::Char('d'), Modifiers::NONE));
 
         let text = editor.doc.to_string();
-        assert!(text.contains("alpha"), "before delete: {before_delete:?} after: {text:?} ranges after select: {ranges_after_select:?} ranges after dup: {ranges_after_dup:?}");
+        assert!(
+            text.contains("alpha"),
+            "before delete: {before_delete:?} after: {text:?} ranges after select: {ranges_after_select:?} ranges after dup: {ranges_after_dup:?}"
+        );
         assert!(!text.contains("beta"), "doc after delete: {text:?}");
         assert!(!text.contains("gamma"), "doc after delete: {text:?}");
     }
@@ -794,10 +842,22 @@ fn run_key_sequence(editor: &mut Editor, steps: &[KeyStep]) -> Vec<String> {
     fn test_duplicate_down_then_delete_keypath() {
         let mut editor = test_editor("alpha\nbeta\ngamma\n");
         let steps = vec![
-            KeyStep { desc: "j to line 2", key: KeyEvent::new(KeyCode::Char('j'), Modifiers::NONE) },
-            KeyStep { desc: "x select line", key: KeyEvent::new(KeyCode::Char('x'), Modifiers::NONE) },
-            KeyStep { desc: "+ duplicate down", key: KeyEvent::new(KeyCode::Char('+'), Modifiers::NONE) },
-            KeyStep { desc: "d delete", key: KeyEvent::new(KeyCode::Char('d'), Modifiers::NONE) },
+            KeyStep {
+                desc: "j to line 2",
+                key: KeyEvent::new(KeyCode::Char('j'), Modifiers::NONE),
+            },
+            KeyStep {
+                desc: "x select line",
+                key: KeyEvent::new(KeyCode::Char('x'), Modifiers::NONE),
+            },
+            KeyStep {
+                desc: "+ duplicate down",
+                key: KeyEvent::new(KeyCode::Char('+'), Modifiers::NONE),
+            },
+            KeyStep {
+                desc: "d delete",
+                key: KeyEvent::new(KeyCode::Char('d'), Modifiers::NONE),
+            },
         ];
         let snapshots = run_key_sequence(&mut editor, &steps);
         let text = editor.doc.to_string();

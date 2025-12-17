@@ -11,17 +11,30 @@ fn is_digit_or_separator(ch: char) -> bool {
     ch.is_ascii_digit() || ch == '_' || ch == '.'
 }
 
+/// Check if a character is part of a number literal.
+///
+/// Supports various number formats:
+/// - Decimal: `123`, `3.14`, `1_000_000`
+/// - Hexadecimal: `0xFF`, `0xDEADBEEF`
+/// - Binary: `0b1010`, `0B11110000`
+/// - Octal: `0o755`, `0O644`
+/// - Scientific notation: `1.23e10`, `4.56E-8`
+/// - Signed numbers: `-42`, `+3.14`
 fn is_number_char(ch: char, allow_prefix: bool) -> bool {
     ch.is_ascii_digit()
         || ch == '_'
         || ch == '.'
-        || ch == 'x' || ch == 'X'  // hex prefix
-        || ch == 'b' || ch == 'B'  // binary prefix
-        || ch == 'o' || ch == 'O'  // octal prefix
+        || ch == 'x'
+        || ch == 'X'
+        || ch == 'b'
+        || ch == 'B'
+        || ch == 'o'
+        || ch == 'O'
         || (allow_prefix && (ch == '-' || ch == '+'))
         || ('a'..='f').contains(&ch)
         || ('A'..='F').contains(&ch)
-        || ch == 'e' || ch == 'E' // scientific notation
+        || ch == 'e'
+        || ch == 'E'
 }
 
 fn number_inner(text: RopeSlice, pos: usize) -> Option<Range> {
@@ -39,7 +52,6 @@ fn number_inner(text: RopeSlice, pos: usize) -> Option<Range> {
     let mut start = pos;
     let mut end = pos;
 
-    // Search backward
     while start > 0 {
         let ch = text.char(start - 1);
         if is_number_char(ch, start == pos) {
@@ -49,7 +61,6 @@ fn number_inner(text: RopeSlice, pos: usize) -> Option<Range> {
         }
     }
 
-    // Search forward
     while end < len {
         let ch = text.char(end);
         if is_digit_or_separator(ch)

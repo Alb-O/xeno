@@ -2,7 +2,7 @@
 
 use linkme::distributed_slice;
 
-use crate::ext::keybindings::{BindingMode, KeyBindingDef, KEYBINDINGS_VIEW};
+use crate::ext::keybindings::{BindingMode, KEYBINDINGS_VIEW, KeyBindingDef};
 use crate::key::Key;
 
 const DEFAULT_PRIORITY: i16 = 100;

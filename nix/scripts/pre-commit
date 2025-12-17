@@ -41,14 +41,17 @@ else
     echo "Warning: cargo not found, skipping check."
 fi
 
-# Run ast-grep lint scan
-if command -v ast-grep &> /dev/null; then
-    echo "Running ast-grep scan..."
-    if ! ast-grep scan; then
-        echo "ast-grep scan found issues. Please fix them before committing."
+# Run consolidated lint scan
+if command -v lint &> /dev/null; then
+    echo "Running lint scan..."
+    lint_output=$(lint)
+    
+    if [ -n "$lint_output" ]; then
+        echo "$lint_output"
+        echo "Lint scan found issues. Please fix them before committing."
         exit 1
     fi
-    echo "ast-grep scan passed."
+    echo "Lint scan passed."
 else
-    echo "Warning: ast-grep not found, skipping lint scan."
+    echo "Warning: lint command not found, skipping lint scan."
 fi

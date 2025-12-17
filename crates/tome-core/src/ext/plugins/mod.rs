@@ -5,6 +5,8 @@
 pub mod cabi;
 
 #[cfg(feature = "host")]
-pub use cabi::{load_c_abi_plugin, CAbiLoadError, CAbiPlugin};
+pub use cabi::{CAbiLoadError, CAbiPlugin, load_c_abi_plugin};
 #[cfg(feature = "host")]
-pub use tome_cabi_types::{TomeGuestV1, TomeHostV1, TomePluginEntry, TomeStatus, TOME_C_ABI_VERSION};
+pub use tome_cabi_types::{
+    TOME_C_ABI_VERSION, TomeGuestV1, TomeHostV1, TomePluginEntry, TomeStatus,
+};

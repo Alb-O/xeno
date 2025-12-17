@@ -2,7 +2,7 @@
 
 use linkme::distributed_slice;
 
-use crate::ext::actions::{ActionDef, ActionMode, ActionResult, ACTIONS};
+use crate::ext::actions::{ACTIONS, ActionDef, ActionMode, ActionResult};
 
 #[distributed_slice(ACTIONS)]
 static ACTION_SELECT_REGEX: ActionDef = ActionDef {

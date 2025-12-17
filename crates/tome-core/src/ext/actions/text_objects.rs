@@ -2,10 +2,10 @@
 
 use linkme::distributed_slice;
 
-use crate::ext::{find_text_object, TextObjectDef};
 use crate::ext::actions::{
-    ActionDef, ActionResult, ObjectSelectionKind, PendingAction, PendingKind, ACTIONS,
+    ACTIONS, ActionDef, ActionResult, ObjectSelectionKind, PendingAction, PendingKind,
 };
+use crate::ext::{TextObjectDef, find_text_object};
 use crate::range::Range;
 
 fn select_object_with_trigger(

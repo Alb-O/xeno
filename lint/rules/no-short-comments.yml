@@ -2,11 +2,14 @@ id: no-short-comments
 language: rust
 severity: info
 message: "Short single-line comments may not be necessary. Code should be self-explanatory."
+note: "Consider moving important context to function docstrings with examples, or removing if truly trivial."
 files:
   - crates/**/*.rs
+ignores:
+  - crates/tome-term/src/themes/**/*.rs
 rule:
   all:
     - kind: line_comment
-      regex: ^//\s*.{0,5}\s*$
+      regex: ^//\s*.{0,25}\s*$
     - not:
         regex: ^//[/!]

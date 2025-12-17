@@ -101,7 +101,9 @@ impl std::fmt::Debug for StatuslineSegmentDef {
 }
 
 /// Get all segments for a given position, sorted by priority.
-pub fn segments_for_position(position: SegmentPosition) -> impl Iterator<Item = &'static StatuslineSegmentDef> {
+pub fn segments_for_position(
+    position: SegmentPosition,
+) -> impl Iterator<Item = &'static StatuslineSegmentDef> {
     let mut segments: Vec<_> = STATUSLINE_SEGMENTS
         .iter()
         .filter(move |s| s.position == position && s.default_enabled)
@@ -134,7 +136,10 @@ mod tests {
     #[test]
     fn test_segments_registered() {
         let segments = all_segments();
-        assert!(segments.len() >= 4, "should have at least 4 default segments");
+        assert!(
+            segments.len() >= 4,
+            "should have at least 4 default segments"
+        );
     }
 
     #[test]

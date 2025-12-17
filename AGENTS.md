@@ -12,17 +12,17 @@ Kakoune-inspired modal text editor in Rust. Workspace crates:
 
 Uses `linkme` for compile-time registration. Drop a file in, it's automatically included.
 
-| Module | Purpose |
-|--------|---------|
-| `actions/` | Unified keybinding handlers returning `ActionResult` |
-| `keybindings/` | Key → action mappings per mode |
-| `commands/` | Ex-mode commands (`:write`, `:quit`) |
-| `hooks/` | Event lifecycle observers |
-| `options/` | Typed config settings |
-| `statusline/` | Modular status bar segments |
-| `filetypes/` | File type detection |
-| `motions/` | Cursor movement |
-| `objects/` | Text object selection |
+| Module         | Purpose                                              |
+| -------------- | ---------------------------------------------------- |
+| `actions/`     | Unified keybinding handlers returning `ActionResult` |
+| `keybindings/` | Key → action mappings per mode                       |
+| `commands/`    | Ex-mode commands (`:write`, `:quit`)                 |
+| `hooks/`       | Event lifecycle observers                            |
+| `options/`     | Typed config settings                                |
+| `statusline/`  | Modular status bar segments                          |
+| `filetypes/`   | File type detection                                  |
+| `motions/`     | Cursor movement                                      |
+| `objects/`     | Text object selection                                |
 
 Running cargo: `nix develop -c cargo {build/test/etc}`. Kitty GUI tests: `KITTY_TESTS=1 DISPLAY=:0 nix develop -c cargo test -p tome-term --test kitty_multiselect -- --nocapture --test-threads=1`.
 

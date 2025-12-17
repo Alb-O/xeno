@@ -26,7 +26,7 @@ pub struct StatusColors {
     pub view_fg: Color,
     pub command_bg: Color,
     pub command_fg: Color,
-    
+
     pub dim_fg: Color,
     pub warning_fg: Color,
     pub error_fg: Color,
@@ -85,7 +85,7 @@ pub static DEFAULT_THEME: Theme = Theme {
             view_fg: Color::Black,
             command_bg: Color::Yellow,
             command_fg: Color::Black,
-            
+
             dim_fg: Color::DarkGray,
             warning_fg: Color::Yellow,
             error_fg: Color::Red,
@@ -109,11 +109,10 @@ pub fn get_theme(name: &str) -> Option<&'static Theme> {
     };
 
     let search = normalize(name);
-    
-    THEMES.iter().find(|t| {
-        normalize(t.name) == search || 
-        t.aliases.iter().any(|a| normalize(a) == search)
-    })
+
+    THEMES
+        .iter()
+        .find(|t| normalize(t.name) == search || t.aliases.iter().any(|a| normalize(a) == search))
 }
 
 pub fn blend_colors(fg: Color, bg: Color, alpha: f32) -> Color {
@@ -145,24 +144,23 @@ pub fn suggest_theme(name: &str) -> Option<&'static str> {
             best_score = score;
             best_match = Some(theme.name);
         }
-        
+
         for alias in theme.aliases {
-             let score = strsim::jaro_winkler(&name, alias);
-             if score > best_score {
-                 best_score = score;
-                 best_match = Some(theme.name);
-             }
+            let score = strsim::jaro_winkler(&name, alias);
+            if score > best_score {
+                best_score = score;
+                best_match = Some(theme.name);
+            }
         }
     }
 
-    if best_score > 0.8 {
-        best_match
-    } else {
-        None
-    }
+    if best_score > 0.8 { best_match } else { None }
 }
 
-use tome_core::ext::{CommandDef, CommandOutcome, CommandError, COMMANDS, OptionDef, OptionScope, OptionType, OptionValue, OPTIONS};
+use tome_core::ext::{
+    COMMANDS, CommandDef, CommandError, CommandOutcome, OPTIONS, OptionDef, OptionScope,
+    OptionType, OptionValue,
+};
 
 #[distributed_slice(OPTIONS)]
 pub static OPT_THEME: OptionDef = OptionDef {
@@ -179,8 +177,13 @@ pub static CMD_THEME: CommandDef = CommandDef {
     aliases: &["colorscheme"],
     description: "Set the editor theme",
     handler: |ctx| {
-        let theme_name = ctx.args.first().ok_or(CommandError::MissingArgument("theme name"))?;
-        ctx.editor.set_theme(theme_name).map_err(CommandError::Failed)?;
+        let theme_name = ctx
+            .args
+            .first()
+            .ok_or(CommandError::MissingArgument("theme name"))?;
+        ctx.editor
+            .set_theme(theme_name)
+            .map_err(CommandError::Failed)?;
         ctx.message(&format!("Theme set to {}", theme_name));
         Ok(CommandOutcome::Ok)
     },

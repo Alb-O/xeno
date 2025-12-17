@@ -4,7 +4,7 @@ use ropey::RopeSlice;
 use crate::movement::{self, move_to_document_end, move_to_document_start};
 use crate::range::Range;
 
-use crate::ext::{MotionDef, MOTIONS};
+use crate::ext::{MOTIONS, MotionDef};
 
 fn document_start(text: RopeSlice, range: Range, _count: usize, extend: bool) -> Range {
     move_to_document_start(text, range, extend)

@@ -2,7 +2,7 @@
 
 use linkme::distributed_slice;
 
-use super::{ActionContext, ActionDef, ActionMode, ActionResult, ACTIONS};
+use super::{ACTIONS, ActionContext, ActionDef, ActionMode, ActionResult};
 
 macro_rules! action {
     ($name:ident, $id:expr, $desc:expr, $handler:expr) => {

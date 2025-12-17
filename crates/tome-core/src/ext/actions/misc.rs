@@ -2,7 +2,7 @@
 
 use linkme::distributed_slice;
 
-use super::{ActionContext, ActionDef, ActionResult, EditAction, ACTIONS};
+use super::{ACTIONS, ActionContext, ActionDef, ActionResult, EditAction};
 
 macro_rules! action {
     ($name:ident, $id:expr, $desc:expr, $handler:expr) => {
@@ -15,7 +15,6 @@ macro_rules! action {
     };
 }
 
-// Jump list
 action!(
     ACTION_JUMP_FORWARD,
     "jump_forward",
@@ -37,7 +36,6 @@ action!(
     |_ctx: &ActionContext| ActionResult::SaveJump
 );
 
-// Macros
 action!(
     ACTION_RECORD_MACRO,
     "record_macro",
@@ -52,7 +50,6 @@ action!(
     |_ctx: &ActionContext| ActionResult::PlayMacro
 );
 
-// Marks/Selections
 action!(
     ACTION_SAVE_SELECTIONS,
     "save_selections",
@@ -67,7 +64,6 @@ action!(
     |_ctx: &ActionContext| ActionResult::RestoreSelections
 );
 
-// Redraw
 action!(
     ACTION_FORCE_REDRAW,
     "force_redraw",
@@ -75,7 +71,6 @@ action!(
     |_ctx: &ActionContext| ActionResult::ForceRedraw
 );
 
-// Add empty lines
 action!(
     ACTION_ADD_LINE_BELOW,
     "add_line_below",
@@ -90,7 +85,6 @@ action!(
     |_ctx: &ActionContext| ActionResult::Edit(EditAction::AddLineAbove)
 );
 
-// Repeat
 action!(
     ACTION_REPEAT_LAST_INSERT,
     "repeat_last_insert",
@@ -105,7 +99,6 @@ action!(
     |_ctx: &ActionContext| ActionResult::RepeatLastObject
 );
 
-// Selection operations
 action!(
     ACTION_DUPLICATE_DOWN,
     "duplicate_selections_down",
@@ -162,7 +155,6 @@ action!(
     |_ctx: &ActionContext| ActionResult::TrimSelections
 );
 
-// Scratch command buffer controls
 action!(
     ACTION_OPEN_SCRATCH,
     "open_scratch",

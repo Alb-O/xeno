@@ -1,10 +1,12 @@
 use std::io::{self, Write};
 use std::time::Duration;
 
-use termina::{EventReader, PlatformTerminal, Terminal as _, WindowSize};
+use termina::escape::csi::{
+    Csi, Cursor, DecPrivateMode, DecPrivateModeCode, Keyboard, KittyKeyboardFlags, Mode,
+};
 use termina::event::Event;
-use termina::escape::csi::{Csi, Cursor, Keyboard, KittyKeyboardFlags, Mode, DecPrivateMode, DecPrivateModeCode};
 use termina::style::CursorStyle;
+use termina::{EventReader, PlatformTerminal, Terminal as _, WindowSize};
 
 pub fn enable_terminal_features(terminal: &mut PlatformTerminal) -> io::Result<()> {
     terminal.enter_raw_mode()?;
@@ -21,9 +23,15 @@ pub fn enable_terminal_features(terminal: &mut PlatformTerminal) -> io::Result<(
     write!(
         terminal,
         "{}{}{}",
-        Csi::Mode(Mode::SetDecPrivateMode(DecPrivateMode::Code(DecPrivateModeCode::MouseTracking))),
-        Csi::Mode(Mode::SetDecPrivateMode(DecPrivateMode::Code(DecPrivateModeCode::SGRMouse))),
-        Csi::Mode(Mode::SetDecPrivateMode(DecPrivateMode::Code(DecPrivateModeCode::AnyEventMouse))),
+        Csi::Mode(Mode::SetDecPrivateMode(DecPrivateMode::Code(
+            DecPrivateModeCode::MouseTracking
+        ))),
+        Csi::Mode(Mode::SetDecPrivateMode(DecPrivateMode::Code(
+            DecPrivateModeCode::SGRMouse
+        ))),
+        Csi::Mode(Mode::SetDecPrivateMode(DecPrivateMode::Code(
+            DecPrivateModeCode::AnyEventMouse
+        ))),
     )?;
     terminal.flush()
 }
@@ -34,10 +42,18 @@ pub fn disable_terminal_features(terminal: &mut PlatformTerminal) -> io::Result<
         "{}{}{}{}{}{}",
         Csi::Cursor(Cursor::CursorStyle(CursorStyle::Default)),
         Csi::Keyboard(Keyboard::PopFlags(1)),
-        Csi::Mode(Mode::ResetDecPrivateMode(DecPrivateMode::Code(DecPrivateModeCode::MouseTracking))),
-        Csi::Mode(Mode::ResetDecPrivateMode(DecPrivateMode::Code(DecPrivateModeCode::SGRMouse))),
-        Csi::Mode(Mode::ResetDecPrivateMode(DecPrivateMode::Code(DecPrivateModeCode::AnyEventMouse))),
-        Csi::Mode(Mode::ResetDecPrivateMode(DecPrivateMode::Code(DecPrivateModeCode::ClearAndEnableAlternateScreen)))
+        Csi::Mode(Mode::ResetDecPrivateMode(DecPrivateMode::Code(
+            DecPrivateModeCode::MouseTracking
+        ))),
+        Csi::Mode(Mode::ResetDecPrivateMode(DecPrivateMode::Code(
+            DecPrivateModeCode::SGRMouse
+        ))),
+        Csi::Mode(Mode::ResetDecPrivateMode(DecPrivateMode::Code(
+            DecPrivateModeCode::AnyEventMouse
+        ))),
+        Csi::Mode(Mode::ResetDecPrivateMode(DecPrivateMode::Code(
+            DecPrivateModeCode::ClearAndEnableAlternateScreen
+        )))
     )?;
     terminal.enter_cooked_mode()?;
     terminal.flush()
@@ -50,10 +66,18 @@ pub fn install_panic_hook(terminal: &mut PlatformTerminal) {
             "{}{}{}{}{}{}",
             Csi::Cursor(Cursor::CursorStyle(CursorStyle::Default)),
             Csi::Keyboard(Keyboard::PopFlags(1)),
-            Csi::Mode(Mode::ResetDecPrivateMode(DecPrivateMode::Code(DecPrivateModeCode::MouseTracking))),
-            Csi::Mode(Mode::ResetDecPrivateMode(DecPrivateMode::Code(DecPrivateModeCode::SGRMouse))),
-            Csi::Mode(Mode::ResetDecPrivateMode(DecPrivateMode::Code(DecPrivateModeCode::AnyEventMouse))),
-            Csi::Mode(Mode::ResetDecPrivateMode(DecPrivateMode::Code(DecPrivateModeCode::ClearAndEnableAlternateScreen)))
+            Csi::Mode(Mode::ResetDecPrivateMode(DecPrivateMode::Code(
+                DecPrivateModeCode::MouseTracking
+            ))),
+            Csi::Mode(Mode::ResetDecPrivateMode(DecPrivateMode::Code(
+                DecPrivateModeCode::SGRMouse
+            ))),
+            Csi::Mode(Mode::ResetDecPrivateMode(DecPrivateMode::Code(
+                DecPrivateModeCode::AnyEventMouse
+            ))),
+            Csi::Mode(Mode::ResetDecPrivateMode(DecPrivateMode::Code(
+                DecPrivateModeCode::ClearAndEnableAlternateScreen
+            )))
         );
         let _ = handle.flush();
     });

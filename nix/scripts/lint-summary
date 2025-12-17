@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+# Consolidated lint summary using ast-grep
+# Groups violations by rule and shows all file locations together
+
+set -euo pipefail
+
+cd "$(git rev-parse --show-toplevel)"
+
+ast-grep scan --json=stream 2>/dev/null | jq -s -r '
+  sort_by(.ruleId, .message, .note // "", .severity)
+  | group_by([.ruleId, .message, .note // "", .severity])
+  | .[]
+  | "\(.[0].severity | ascii_upcase): \(.[0].ruleId) - \(.[0].message)\n"
+    + (if (.[0].note? and .[0].note != "") then "NOTE: \(.[0].note)\n" else "" end)
+    + (map("  - \(.file):\(.range.start.line+1):\(.range.start.column+1) - \(.text)") | join("\n"))
+    + "\n"
+'
