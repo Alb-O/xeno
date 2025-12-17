@@ -465,22 +465,22 @@ ______________________________________________________________________
 
 ## 6) Migration plan (phased)
 
-### Phase 1: Build the v2 ABI + host plugin manager
+### Phase 1: Build the v2 ABI + host plugin manager (COMPLETED)
 
-- Implement `tome_plugin_entry_v2` discovery and new tables.
-- Add `PluginManager` in `tome-term`.
-- Add generic chat panel UI and event pump.
-- Upgrade `demo-cabi-plugin` to v2 to validate:
-  - command registration
-  - transcript append events
-  - panel submit callback
+- [x] Implement `tome_plugin_entry_v2` discovery and new tables.
+- [x] Add `PluginManager` in `tome-term`.
+- [x] Add generic chat panel UI and event pump.
+- [x] Upgrade `demo-cabi-plugin` to v2 to validate:
+  - [x] command registration
+  - [x] transcript append events
+  - [x] panel submit callback
 
 Exit criteria:
 
-- `:demo.hello` (or similar) works.
-- A panel can open and show lines emitted by the plugin.
+- [x] `:demo.hello` (or similar) works.
+- [x] A panel can open and show lines emitted by the plugin.
 
-### Phase 2: ACP plugin MVP
+### Phase 2: ACP plugin MVP (PENDING)
 
 - Implement `tome-acp-plugin`:
   - start/stop agent
@@ -491,7 +491,7 @@ Exit criteria:
 
 - `acp.start` and `acp.toggle` fully replace `:agent_start`/`:agent`.
 
-### Phase 3: Permissions + tools
+### Phase 3: Permissions + tools (PENDING)
 
 - Add permission UI plumbing.
 - Implement safe fs/terminal tool routing (either in host or plugin).
@@ -501,7 +501,7 @@ Exit criteria:
 - No more “always allow” permission stub.
 - Controlled file writes and terminal execution prompts.
 
-### Phase 4: Remove built-in ACP
+### Phase 4: Remove built-in ACP (PENDING)
 
 - Delete or gate `crates/tome-term/src/acp/*`.
 - Remove ACP-specific commands from `tome-core` if superseded.
@@ -512,26 +512,26 @@ ______________________________________________________________________
 
 ### 7.1 `tome-cabi-types`: v2 types + header generation
 
-- [ ] Add `TomeStr`, `TomeOwnedStr`, `TomeBool`, and event/command structs
-- [ ] Add `TomeHostV2`, `TomeGuestV2`, and `TomePluginEntryV2` signature
-- [ ] Keep v1 structs intact
-- [ ] Ensure `cbindgen` output remains stable (`crates/tome-cabi-types/build.rs`)
+- [x] Add `TomeStr`, `TomeOwnedStr`, `TomeBool`, and event/command structs
+- [x] Add `TomeHostV2`, `TomeGuestV2`, and `TomePluginEntryV2` signature
+- [x] Keep v1 structs intact
+- [x] Ensure `cbindgen` output remains stable (`crates/tome-cabi-types/build.rs`)
 
 ### 7.2 `tome-term`: plugin runtime
 
-- [ ] Implement `PluginManager::autoload()` with directory search
-- [ ] Implement load + symbol resolution with `libloading`
-- [ ] Implement namespaced runtime command registry
-- [ ] Update `Editor::execute_command_line` to consult plugins first
-- [ ] Add generic panel renderer + input routing
+- [x] Implement `PluginManager::autoload()` with directory search
+- [x] Implement load + symbol resolution with `libloading`
+- [x] Implement namespaced runtime command registry
+- [x] Update `Editor::execute_command_line` to consult plugins first
+- [x] Add generic panel renderer + input routing
 - [ ] Add permission prompt rendering (panel overlay)
-- [ ] Add per-tick event pumping (`poll_events`) from plugins
+- [x] Add per-tick event pumping (`poll_events`) from plugins
 
 ### 7.3 `demo-cabi-plugin`: v2 demo
 
-- [ ] Export `tome_plugin_entry_v2`
-- [ ] Register a namespaced command (`demo.hello`)
-- [ ] Create a chat panel and append a transcript line
+- [x] Export `tome_plugin_entry_v2`
+- [x] Register a namespaced command (`demo.hello`)
+- [x] Create a chat panel and append a transcript line
 
 ### 7.4 `tome-acp-plugin`: ACP-as-plugin
 

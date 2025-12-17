@@ -4,6 +4,7 @@ mod backend;
 mod capabilities;
 mod cli;
 mod editor;
+mod plugins;
 mod render;
 mod styles;
 mod terminal;

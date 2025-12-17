@@ -24,11 +24,13 @@ pub fn run_editor(mut editor: Editor) -> io::Result<()> {
 
     // Pre-warm an embedded shell in the background so opening the terminal panel is instant.
     editor.start_terminal_prewarm();
+    editor.plugins.autoload();
 
     let result = (|| {
         loop {
             editor.poll_terminal_prewarm();
             editor.poll_agent_events();
+            editor.poll_plugins();
 
             let mut terminal_exited = false;
             if let Some(term) = &mut editor.terminal {

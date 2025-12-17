@@ -163,8 +163,8 @@ impl Editor {
             self.leave_scratch_context();
         }
 
-        // Render Agent Panel if open
-        self.render_agent_panel(frame);
+        // Render Plugin Panels
+        self.render_plugin_panels(frame);
     }
 
     pub fn ensure_cursor_visible(&mut self, area: Rect) {

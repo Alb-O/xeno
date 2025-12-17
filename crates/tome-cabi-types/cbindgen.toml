@@ -1,0 +1,25 @@
+language = "C"
+include_guard = "TOME_CABI_H"
+
+[export]
+include = [
+    "TomeStatus",
+    "TomeStr",
+    "TomeStrArray",
+    "TomeBool",
+    "TomeOwnedStr",
+    "TomeMessageKind",
+    "TomeCommandSpecV1",
+    "TomeCommandContextV1",
+    "TomePanelKind",
+    "TomeChatRole",
+    "TomeHostPanelApiV1",
+    "TomePermissionOptionV1",
+    "TomePermissionRequestV1",
+    "TomePluginEventKind",
+    "TomePluginEventV1",
+    "TomeHostV2",
+    "TomeGuestV2",
+    "TomeHostV1",
+    "TomeGuestV1",
+]

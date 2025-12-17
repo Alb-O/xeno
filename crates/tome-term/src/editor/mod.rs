@@ -17,6 +17,7 @@ use tome_core::{
 };
 
 use crate::acp::{AcpClientRuntime, AgentCommand, AgentPanelState, AgentUiEvent};
+use crate::plugins::PluginManager;
 use crate::terminal_panel::TerminalState;
 use crate::theme::Theme;
 
@@ -56,6 +57,7 @@ pub struct Editor {
     pub agent_panel: AgentPanelState,
     pub agent_runtime: Option<AcpClientRuntime>,
     pub agent_events: Option<Receiver<AgentUiEvent>>,
+    pub plugins: PluginManager,
     insert_undo_active: bool,
 }
 
@@ -90,6 +92,10 @@ impl Editor {
 
         let arg_strings: Vec<String> = parts.map(|s| s.to_string()).collect();
         let args: Vec<&str> = arg_strings.iter().map(|s| s.as_str()).collect();
+
+        if self.try_execute_plugin_command(name, &args) {
+            return false;
+        }
 
         let cmd = match find_command(name) {
             Some(cmd) => cmd,
@@ -179,6 +185,7 @@ impl Editor {
             agent_panel: AgentPanelState::default(),
             agent_runtime: None,
             agent_events: None,
+            plugins: PluginManager::new(),
             insert_undo_active: false,
         }
     }
@@ -440,6 +447,166 @@ impl Editor {
             runtime.send(AgentCommand::Prompt { content: text });
         } else {
             self.show_error("Agent not running. Use :agent_start");
+        }
+    }
+
+    pub fn submit_plugin_panel(&mut self, id: u64) {
+        use crate::plugins::panels::ChatItem;
+        use tome_cabi_types::{TomeChatRole, TomeStr};
+
+        if let Some(panel) = self.plugins.panels.get_mut(&id) {
+            let text = panel.input.to_string();
+            if text.trim().is_empty() {
+                return;
+            }
+
+            panel.transcript.push(ChatItem {
+                role: TomeChatRole::User,
+                text: text.clone(),
+            });
+            panel.input = "".into();
+            panel.input_cursor = 0;
+
+            let text_tome = TomeStr {
+                ptr: text.as_ptr(),
+                len: text.len(),
+            };
+            for plugin in &self.plugins.plugins {
+                if let Some(on_submit) = plugin.guest.on_panel_submit {
+                    on_submit(id, text_tome);
+                }
+            }
+        }
+    }
+
+    pub fn try_execute_plugin_command(&mut self, full_name: &str, args: &[&str]) -> bool {
+        use crate::plugins::PluginManager;
+        use crate::plugins::manager::{
+            ACTIVE_EDITOR, ACTIVE_MANAGER, host_insert_text, host_log,
+            host_panel_append_transcript, host_panel_create, host_panel_set_focused,
+            host_panel_set_open, host_register_command, host_request_redraw, host_show_message,
+        };
+        use tome_cabi_types::{
+            TOME_C_ABI_VERSION_V2, TomeCommandContextV1, TomeHostPanelApiV1, TomeHostV2,
+            TomeStatus, TomeStr,
+        };
+
+        let cmd = match self.plugins.commands.get(full_name) {
+            Some(c) => c,
+            None => return false,
+        };
+
+        let handler = cmd.handler;
+
+        let arg_tome_strs: Vec<TomeStr> = args
+            .iter()
+            .map(|s| TomeStr {
+                ptr: s.as_ptr(),
+                len: s.len(),
+            })
+            .collect();
+
+        let host = TomeHostV2 {
+            abi_version: TOME_C_ABI_VERSION_V2,
+            log: Some(host_log),
+            panel: TomeHostPanelApiV1 {
+                create: host_panel_create,
+                set_open: host_panel_set_open,
+                set_focused: host_panel_set_focused,
+                append_transcript: host_panel_append_transcript,
+                request_redraw: host_request_redraw,
+            },
+            show_message: host_show_message,
+            insert_text: host_insert_text,
+            register_command: Some(host_register_command),
+            fs_read_text: None,
+            fs_write_text: None,
+        };
+
+        let mut ctx = TomeCommandContextV1 {
+            argc: args.len(),
+            argv: arg_tome_strs.as_ptr(),
+            host: &host,
+        };
+
+        let old_mgr =
+            ACTIVE_MANAGER.with(|ctx| ctx.replace(Some(&mut self.plugins as *mut PluginManager)));
+        let old_ed = ACTIVE_EDITOR.with(|ctx| ctx.replace(Some(self as *mut Editor)));
+
+        let status = handler(&mut ctx);
+
+        ACTIVE_MANAGER.with(|ctx| ctx.replace(old_mgr));
+        ACTIVE_EDITOR.with(|ctx| ctx.replace(old_ed));
+
+        if status != TomeStatus::Ok {
+            self.show_error(format!(
+                "Command {} failed with status {:?}",
+                full_name, status
+            ));
+        }
+        true
+    }
+
+    pub fn poll_plugins(&mut self) {
+        let mut events = Vec::new();
+        for (idx, plugin) in self.plugins.plugins.iter().enumerate() {
+            if let Some(poll_event) = plugin.guest.poll_event {
+                loop {
+                    let mut event =
+                        unsafe { std::mem::zeroed::<tome_cabi_types::TomePluginEventV1>() };
+                    let has_event = poll_event(&mut event);
+                    if has_event.0 == 0 {
+                        break;
+                    }
+                    events.push((idx, event));
+                }
+            }
+        }
+
+        for (idx, event) in events {
+            self.handle_plugin_event(idx, event);
+        }
+    }
+
+    fn handle_plugin_event(
+        &mut self,
+        plugin_idx: usize,
+        event: tome_cabi_types::TomePluginEventV1,
+    ) {
+        use crate::plugins::manager::tome_owned_to_string;
+        use crate::plugins::panels::ChatItem;
+        use tome_cabi_types::TomePluginEventKind;
+
+        let free_str_fn = self.plugins.plugins[plugin_idx].guest.free_str;
+
+        match event.kind {
+            TomePluginEventKind::PanelAppend => {
+                if let Some(panel) = self.plugins.panels.get_mut(&event.panel_id) {
+                    if let Some(text) = tome_owned_to_string(event.text) {
+                        panel.transcript.push(ChatItem {
+                            role: event.role,
+                            text,
+                        });
+                    }
+                }
+            }
+            TomePluginEventKind::PanelSetOpen => {
+                if let Some(panel) = self.plugins.panels.get_mut(&event.panel_id) {
+                    panel.open = event.bool_val.0 != 0;
+                }
+            }
+            TomePluginEventKind::ShowMessage => {
+                if let Some(text) = tome_owned_to_string(event.text) {
+                    self.show_message(text);
+                }
+            }
+            TomePluginEventKind::RequestPermission => {
+                // TODO
+            }
+        }
+
+        if let Some(free_str) = free_str_fn {
+            free_str(event.text);
         }
     }
 
@@ -777,6 +944,55 @@ impl Editor {
                 }
             }
 
+            return false;
+        }
+
+        // Check plugin panels
+        let mut panel_id_to_submit = None;
+        let mut panel_handled = false;
+        for panel in self.plugins.panels.values_mut() {
+            if panel.open && panel.focused {
+                let raw_ctrl_enter = matches!(
+                    key.code,
+                    TmKeyCode::Enter | TmKeyCode::Char('\n') | TmKeyCode::Char('j')
+                ) && key.modifiers.contains(TmModifiers::CONTROL);
+
+                if raw_ctrl_enter {
+                    panel_id_to_submit = Some(panel.id);
+                } else {
+                    match key.code {
+                        TmKeyCode::Char(c) => {
+                            panel.input.insert(panel.input_cursor, &c.to_string());
+                            panel.input_cursor += 1;
+                        }
+                        TmKeyCode::Backspace => {
+                            if panel.input_cursor > 0 {
+                                panel
+                                    .input
+                                    .remove(panel.input_cursor - 1..panel.input_cursor);
+                                panel.input_cursor -= 1;
+                            }
+                        }
+                        TmKeyCode::Enter => {
+                            panel.input.insert(panel.input_cursor, "\n");
+                            panel.input_cursor += 1;
+                        }
+                        TmKeyCode::Escape => {
+                            panel.focused = false;
+                        }
+                        _ => {}
+                    }
+                }
+                panel_handled = true;
+                break;
+            }
+        }
+
+        if let Some(panel_id) = panel_id_to_submit {
+            self.submit_plugin_panel(panel_id);
+            return false;
+        }
+        if panel_handled {
             return false;
         }
 
