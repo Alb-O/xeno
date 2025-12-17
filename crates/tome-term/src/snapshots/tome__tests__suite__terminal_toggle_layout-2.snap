@@ -1,0 +1,28 @@
+---
+source: crates/tome-term/src/tests.rs
+expression: terminal.backend()
+---
+"  1 some content                                                                "
+"  ~                                                                             "
+"  ~                                                                             "
+"  ~                                                                             "
+"  ~                                                                             "
+"  ~                                                                             "
+"  ~                                                                             "
+"  ~                                                                             "
+"  ~                                                                             "
+"  ~                                                                             "
+"  ~                                                                             "
+"  ~                                                                             "
+"  ~                                                                             "
+"  ~                                                                             "
+"  ~                                                                             "
+"  ~                                                                             "
+"  ~                                                                             "
+"  ~                                                                             "
+"  ~                                                                             "
+"  ~                                                                             "
+"  ~                                                                             "
+"  ~                                                                             "
+" NORMAL  test.txt  1:1  Top                                                     "
+"                                                                                "

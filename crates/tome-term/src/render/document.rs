@@ -5,6 +5,7 @@ use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Clear, Paragraph};
+use tui_term::widget::PseudoTerminal;
 use tome_core::Mode;
 
 use crate::editor::Editor;
@@ -29,18 +30,46 @@ impl Editor {
         let chunks = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
-                Constraint::Min(1),    // Main doc
+                Constraint::Min(1),    // Main doc area (potentially split with terminal)
                 Constraint::Length(1), // Status
                 Constraint::Length(1), // Message
             ])
             .split(area);
 
+        let (doc_area, terminal_area) = if self.terminal_open {
+            let sub = Layout::default()
+                .direction(Direction::Vertical)
+                .constraints([Constraint::Percentage(70), Constraint::Percentage(30)])
+                .split(chunks[0]);
+            (sub[0], Some(sub[1]))
+        } else {
+            (chunks[0], None)
+        };
+
         // Render main document
         // When scratch is focused, we don't draw cursor on main doc
-        self.ensure_cursor_visible(chunks[0]);
+        self.ensure_cursor_visible(doc_area);
         let main_result =
-            self.render_document_with_cursor(chunks[0], use_block_cursor && !self.scratch_focused);
-        frame.render_widget(main_result.widget, chunks[0]);
+            self.render_document_with_cursor(doc_area, use_block_cursor && !self.scratch_focused && !self.terminal_focused);
+        frame.render_widget(main_result.widget, doc_area);
+
+        // Render Terminal
+        if let Some(term_area) = terminal_area {
+            if let Some(term) = &mut self.terminal {
+                // Resize if needed
+                let (rows, cols) = term.parser.screen().size();
+                if rows != term_area.height || cols != term_area.width {
+                    let _ = term.resize(term_area.width, term_area.height);
+                }
+
+                let pseudo_term = PseudoTerminal::new(term.parser.screen())
+                    .cursor(tui_term::widget::Cursor::default().symbol("█"));
+                
+                let block = Block::default().style(Style::default().bg(self.theme.colors.ui.bg));
+                frame.render_widget(block, term_area);
+                frame.render_widget(pseudo_term, term_area);
+            }
+        }
 
         // Render status line background (matches popup background)
         let status_bg = Block::default().style(Style::default().bg(self.theme.colors.popup.bg));

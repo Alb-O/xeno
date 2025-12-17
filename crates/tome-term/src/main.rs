@@ -6,6 +6,7 @@ mod editor;
 mod render;
 mod styles;
 mod terminal;
+pub mod terminal_panel;
 #[cfg(test)]
 mod tests;
 pub mod theme;

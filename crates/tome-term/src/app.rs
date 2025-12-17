@@ -24,10 +24,18 @@ pub fn run_editor(mut editor: Editor) -> io::Result<()> {
 
     let result = (|| {
         loop {
+            if let Some(term) = &mut editor.terminal {
+                term.update();
+            }
+
             terminal.draw(|frame| editor.render(frame))?;
 
             // Set terminal cursor style based on mode
-            let cursor_style = cursor_style_for_mode(editor.mode());
+            let cursor_style = if editor.terminal_focused {
+                termina::style::CursorStyle::BlinkingBlock
+            } else {
+                cursor_style_for_mode(editor.mode())
+            };
             write!(
                 terminal.backend_mut().terminal_mut(),
                 "{}",
@@ -36,8 +44,8 @@ pub fn run_editor(mut editor: Editor) -> io::Result<()> {
             terminal.backend_mut().terminal_mut().flush()?;
 
             let mut filter = |e: &Event| !e.is_escape();
-            let timeout = if matches!(editor.mode(), tome_core::Mode::Insert) {
-                Some(Duration::from_millis(50))
+            let timeout = if matches!(editor.mode(), tome_core::Mode::Insert) || editor.terminal_open {
+                Some(Duration::from_millis(16)) // ~60fps
             } else {
                 None
             };

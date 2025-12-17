@@ -16,6 +16,7 @@ use tome_core::{
 };
 
 use crate::theme::Theme;
+use crate::terminal_panel::TerminalState;
 
 pub use types::{HistoryEntry, Message, MessageKind, Registers, ScratchState};
 
@@ -37,6 +38,10 @@ pub struct Editor {
     pub scratch_open: bool,
     pub scratch_keep_open: bool,
     pub scratch_focused: bool,
+
+    pub terminal: Option<TerminalState>,
+    pub terminal_open: bool,
+    pub terminal_focused: bool,
 
     in_scratch_context: bool,
     pub file_type: Option<String>,
@@ -152,6 +157,9 @@ impl Editor {
             scratch_open: false,
             scratch_keep_open: true,
             scratch_focused: false,
+            terminal: None,
+            terminal_open: false,
+            terminal_focused: false,
             in_scratch_context: false,
             file_type: file_type.map(|s| s.to_string()),
             theme: &crate::themes::solarized::SOLARIZED_DARK,
@@ -256,6 +264,27 @@ impl Editor {
         }
         self.scratch_open = false;
         self.scratch_focused = false;
+    }
+
+    pub(crate) fn do_toggle_terminal(&mut self) {
+        if self.terminal_open {
+            if self.terminal_focused {
+                self.terminal_open = false;
+                self.terminal_focused = false;
+            } else {
+                self.terminal_focused = true;
+            }
+        } else {
+            self.terminal_open = true;
+            self.terminal_focused = true;
+            if self.terminal.is_none() {
+                // Init with default size, resize later
+                match TerminalState::new(80, 24) {
+                    Ok(term) => self.terminal = Some(term),
+                    Err(e) => self.show_error(format!("Failed to start terminal: {}", e)),
+                }
+            }
+        }
     }
 
     pub(crate) fn do_toggle_scratch(&mut self) {
@@ -468,6 +497,60 @@ impl Editor {
     pub fn handle_key(&mut self, key: termina::event::KeyEvent) -> bool {
         use termina::event::KeyCode as TmKeyCode;
         use termina::event::Modifiers as TmModifiers;
+
+        // Toggle terminal with Ctrl+` (or similar, but let's just use a command for now, 
+        // wait, I can bind a key here or rely on command. 
+        // Let's add a check for a specific toggle key globally or just handle focus)
+        // Actually, keybinding system in tome-core handles global keys. 
+        // But if terminal is focused, we swallow keys.
+        // We need a way to toggle terminal even if focused.
+        // Let's say Ctrl+t toggles terminal for now (hardcoded)
+        if matches!(key.code, TmKeyCode::Char('t')) && key.modifiers.contains(TmModifiers::CONTROL) {
+            self.do_toggle_terminal();
+            return false;
+        }
+
+        if self.terminal_open && self.terminal_focused {
+             // Esc to exit terminal focus (but keep open)
+             // Check against termina's key code directly if possible, or convert
+             if matches!(key.code, TmKeyCode::Escape) {
+                 self.terminal_focused = false;
+                 return false;
+             }
+            
+            // Forward everything else to terminal
+            if let Some(term) = &mut self.terminal {
+                let bytes = match key.code {
+                    TmKeyCode::Char(c) => {
+                        if key.modifiers.contains(TmModifiers::CONTROL) {
+                             let byte = c.to_ascii_lowercase() as u8;
+                             if byte >= b'a' && byte <= b'z' {
+                                 vec![byte - b'a' + 1]
+                             } else {
+                                 // Handle other controls like Ctrl+[, etc if needed
+                                 vec![byte] 
+                             }
+                        } else {
+                            let mut b = [0; 4];
+                            c.encode_utf8(&mut b).as_bytes().to_vec()
+                        }
+                    }
+                    TmKeyCode::Enter => vec![b'\r'],
+                    TmKeyCode::Backspace => vec![0x7f],
+                    TmKeyCode::Tab => vec![b'\t'],
+                    TmKeyCode::Up => b"\x1b[A".to_vec(),
+                    TmKeyCode::Down => b"\x1b[B".to_vec(),
+                    TmKeyCode::Right => b"\x1b[C".to_vec(),
+                    TmKeyCode::Left => b"\x1b[D".to_vec(),
+                    _ => vec![],
+                };
+                
+                if !bytes.is_empty() {
+                    let _ = term.write_key(&bytes);
+                }
+            }
+            return false;
+        }
 
         if self.scratch_open && self.scratch_focused {
             // Many terminals send Ctrl+Enter as byte 0x0A (Line Feed = Ctrl+J).
