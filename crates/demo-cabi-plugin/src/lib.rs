@@ -32,6 +32,7 @@ pub unsafe extern "C" fn tome_plugin_entry_v2(
             free_str: None,
             on_panel_submit: None,
             on_permission_decision: None,
+            free_permission_request: None,
         };
     }
 

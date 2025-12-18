@@ -82,6 +82,7 @@ pub unsafe extern "C" fn tome_plugin_entry_v2(
             free_str: Some(plugin_free_str),
             on_panel_submit: Some(plugin_on_panel_submit),
             on_permission_decision: Some(plugin_on_permission_decision),
+            free_permission_request: Some(plugin_free_permission_request),
         };
     }
 
@@ -103,6 +104,7 @@ extern "C" fn plugin_init(host: *const TomeHostV2) -> TomeStatus {
     let pending_permissions_clone = pending_permissions.clone();
     let next_permission_id_clone = next_permission_id.clone();
     let workspace_root_clone = workspace_root.clone();
+    let host_send = SendPtr(host);
 
     thread::spawn(move || {
         let rt = Runtime::new().unwrap();
@@ -110,6 +112,7 @@ extern "C" fn plugin_init(host: *const TomeHostV2) -> TomeStatus {
 
         local.block_on(&rt, async {
             AcpBackend::new(
+                host_send,
                 cmd_rx,
                 events_clone,
                 panel_id_clone,
@@ -220,6 +223,20 @@ extern "C" fn plugin_free_str(s: TomeOwnedStr) {
     unsafe {
         let slice = std::ptr::slice_from_raw_parts_mut(s.ptr, s.len);
         drop(Box::from_raw(slice));
+    }
+}
+
+extern "C" fn plugin_free_permission_request(req: *mut TomePermissionRequestV1) {
+    if req.is_null() {
+        return;
+    }
+
+    unsafe {
+        let req = Box::from_raw(req);
+        if !req.options.is_null() {
+            let slice = std::ptr::slice_from_raw_parts_mut(req.options, req.options_len);
+            drop(Box::from_raw(slice));
+        }
     }
 }
 
@@ -339,6 +356,7 @@ extern "C" fn command_cancel(_ctx: *mut TomeCommandContextV1) -> TomeStatus {
 }
 
 struct AcpBackend {
+    host: SendPtr<TomeHostV2>,
     cmd_rx: Receiver<AgentCommand>,
     events: Arc<Mutex<VecDeque<SendEvent>>>,
     panel_id: Arc<Mutex<Option<TomePanelId>>>,
@@ -349,8 +367,14 @@ struct AcpBackend {
     session_id: Option<String>,
 }
 
+#[derive(Clone, Copy)]
+struct SendPtr<T>(*const T);
+unsafe impl<T> Send for SendPtr<T> {}
+unsafe impl<T> Sync for SendPtr<T> {}
+
 impl AcpBackend {
     fn new(
+        host: SendPtr<TomeHostV2>,
         cmd_rx: Receiver<AgentCommand>,
         events: Arc<Mutex<VecDeque<SendEvent>>>,
         panel_id: Arc<Mutex<Option<TomePanelId>>>,
@@ -360,6 +384,7 @@ impl AcpBackend {
         workspace_root: Arc<Mutex<Option<PathBuf>>>,
     ) -> Self {
         Self {
+            host,
             cmd_rx,
             events,
             panel_id,
@@ -434,6 +459,7 @@ impl AcpBackend {
         }
 
         let handler = PluginMessageHandler {
+            host: self.host,
             events: self.events.clone(),
             panel_id: self.panel_id.clone(),
             last_assistant_text: self.last_assistant_text.clone(),
@@ -631,6 +657,7 @@ fn strip_ansi_and_controls(s: &str) -> String {
 }
 
 struct PluginMessageHandler {
+    host: SendPtr<TomeHostV2>,
     events: Arc<Mutex<VecDeque<SendEvent>>>,
     panel_id: Arc<Mutex<Option<TomePanelId>>>,
     last_assistant_text: Arc<Mutex<String>>,
@@ -650,6 +677,7 @@ impl MessageHandler<ClientSide> for PluginMessageHandler {
         let pending_permissions = self.pending_permissions.clone();
         let next_permission_id = self.next_permission_id.clone();
         let workspace_root = self.workspace_root.clone();
+        let host_send_ptr = self.host;
 
         async move {
             match request {
@@ -677,6 +705,24 @@ impl MessageHandler<ClientSide> for PluginMessageHandler {
                             -32000,
                             "Permission denied by user".to_string(),
                         ));
+                    }
+
+                    let host = unsafe { &*host_send_ptr.0 };
+                    if let Some(fs_read) = host.fs_read_text {
+                        let mut owned = unsafe { std::mem::zeroed::<TomeOwnedStr>() };
+                        let ts = TomeStr {
+                            ptr: req.path.to_string_lossy().as_ptr(),
+                            len: req.path.to_string_lossy().len(),
+                        };
+                        if fs_read(ts, &mut owned) == TomeStatus::Ok {
+                            let content = tome_owned_to_string(owned).unwrap_or_default();
+                            if let Some(free_str) = host.free_str {
+                                free_str(owned);
+                            }
+                            return Ok(ClientResponse::ReadTextFileResponse(
+                                ReadTextFileResponse::new(content),
+                            ));
+                        }
                     }
 
                     let content = std::fs::read_to_string(&req.path)
@@ -711,6 +757,23 @@ impl MessageHandler<ClientSide> for PluginMessageHandler {
                         ));
                     }
 
+                    let host = unsafe { &*host_send_ptr.0 };
+                    if let Some(fs_write) = host.fs_write_text {
+                        let ts_path = TomeStr {
+                            ptr: req.path.to_string_lossy().as_ptr(),
+                            len: req.path.to_string_lossy().len(),
+                        };
+                        let ts_content = TomeStr {
+                            ptr: req.content.as_ptr(),
+                            len: req.content.len(),
+                        };
+                        if fs_write(ts_path, ts_content) == TomeStatus::Ok {
+                            return Ok(ClientResponse::WriteTextFileResponse(
+                                WriteTextFileResponse::new(),
+                            ));
+                        }
+                    }
+
                     std::fs::write(&req.path, &req.content)
                         .map_err(|e| agent_client_protocol::Error::new(-32000, e.to_string()))?;
                     Ok(ClientResponse::WriteTextFileResponse(
@@ -723,14 +786,15 @@ impl MessageHandler<ClientSide> for PluginMessageHandler {
                         format!("Agent requested permission for session {}", req.session_id);
                     // For now we just pick the first option if allowed, or deny if user says no.
                     // This is a bit simplified, but follows the "host-mediated" rule.
-                    if request_permission_internal(
-                        &prompt,
-                        &events,
-                        &panel_id,
-                        &pending_permissions,
-                        &next_permission_id,
-                    )
-                    .await?
+                    if !req.options.is_empty()
+                        && request_permission_internal(
+                            &prompt,
+                            &events,
+                            &panel_id,
+                            &pending_permissions,
+                            &next_permission_id,
+                        )
+                        .await?
                     {
                         let outcome = RequestPermissionOutcome::Selected(
                             SelectedPermissionOutcome::new(req.options[0].option_id.clone()),
@@ -743,7 +807,7 @@ impl MessageHandler<ClientSide> for PluginMessageHandler {
                         // Usually it's an error or a specific outcome.
                         Err(agent_client_protocol::Error::new(
                             -32000,
-                            "Permission denied by user".to_string(),
+                            "Permission denied by user or no options available".to_string(),
                         ))
                     }
                 }

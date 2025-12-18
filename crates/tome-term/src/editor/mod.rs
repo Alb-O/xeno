@@ -567,16 +567,14 @@ impl Editor {
             if !event.text.ptr.is_null() {
                 free_str(event.text);
             }
-            if !event.permission_request.is_null() {
-                let req = unsafe { &*event.permission_request };
-                free_str(req.prompt);
-                let options = unsafe { std::slice::from_raw_parts(req.options, req.options_len) };
-                for opt in options {
-                    free_str(opt.option_id);
-                    free_str(opt.label);
-                }
-                // We cannot safely free the permission_request pointer itself or req.options
-                // without knowing the guest's allocator. But at least we freed the strings.
+        }
+
+        if !event.permission_request.is_null() {
+            if let Some(free_perm) = self.plugins.plugins[plugin_idx]
+                .guest
+                .free_permission_request
+            {
+                free_perm(event.permission_request);
             }
         }
     }

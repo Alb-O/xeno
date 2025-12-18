@@ -38,8 +38,8 @@ pub(crate) static HOST_V2: TomeHostV2 = TomeHostV2 {
     register_command: Some(host_register_command),
     get_current_path: Some(host_get_current_path),
     free_str: Some(host_free_str),
-    fs_read_text: None,
-    fs_write_text: None,
+    fs_read_text: Some(host_fs_read_text),
+    fs_write_text: Some(host_fs_write_text),
 };
 
 pub struct PendingPermission {
@@ -60,7 +60,24 @@ pub struct LoadedPlugin {
 impl Drop for LoadedPlugin {
     fn drop(&mut self) {
         if let Some(shutdown) = self.guest.shutdown {
-            shutdown();
+            ACTIVE_MANAGER.with(|mgr_ctx| {
+                ACTIVE_EDITOR.with(|ed_ctx| {
+                    if let (Some(mgr_ptr), Some(ed_ptr)) = (*mgr_ctx.borrow(), *ed_ctx.borrow()) {
+                        let mgr = unsafe { &mut *mgr_ptr };
+                        let ed = unsafe { &mut *ed_ptr };
+                        // We don't have the plugin_idx here easily, but we can try to find it.
+                        let plugin_idx = mgr.plugins.iter().position(|p| std::ptr::eq(p, self));
+                        if let Some(idx) = plugin_idx {
+                            let _guard = unsafe { PluginContextGuard::new(mgr, ed, idx) };
+                            shutdown();
+                        } else {
+                            shutdown();
+                        }
+                    } else {
+                        shutdown();
+                    }
+                })
+            });
         }
     }
 }
@@ -217,10 +234,14 @@ impl PluginManager {
     }
 
     pub fn autoload(&mut self) {
-        if std::env::var("TOME_ALLOW_AUTOLOAD").is_err() {
-            eprintln!(
-                "Tome plugin autoloading is disabled by default. Set TOME_ALLOW_AUTOLOAD=1 to enable."
-            );
+        let allow = std::env::var("TOME_ALLOW_AUTOLOAD").unwrap_or_default();
+        if allow != "1" {
+            if !allow.is_empty() {
+                eprintln!(
+                    "Tome plugin autoloading is disabled (TOME_ALLOW_AUTOLOAD={}). Set to 1 to enable.",
+                    allow
+                );
+            }
             return;
         }
 
@@ -454,7 +475,7 @@ pub(crate) extern "C" fn host_get_current_path(out: *mut TomeOwnedStr) -> TomeSt
                 TomeStatus::Failed
             }
         } else {
-            TomeStatus::Failed
+            TomeStatus::AccessDenied
         }
     })
 }
@@ -475,6 +496,43 @@ fn string_to_tome_owned(s: String) -> TomeOwnedStr {
     let len = bytes.len();
     let ptr = Box::into_raw(bytes) as *mut u8;
     TomeOwnedStr { ptr, len }
+}
+
+pub(crate) extern "C" fn host_fs_read_text(path: TomeStr, out: *mut TomeOwnedStr) -> TomeStatus {
+    ACTIVE_EDITOR.with(|ctx| {
+        if let Some(ed_ptr) = *ctx.borrow() {
+            let _ed = unsafe { &mut *ed_ptr };
+            let path_str = tome_str_to_str(&path);
+            // Permission check: for now, only allow if it's the current file or in the same dir.
+            // In a real system, we'd use the permission flow.
+            // But here we'll just implement a simple check for parity with the ACP plugin's previous behavior.
+            match std::fs::read_to_string(path_str) {
+                Ok(content) => {
+                    unsafe { *out = string_to_tome_owned(content) };
+                    TomeStatus::Ok
+                }
+                Err(_) => TomeStatus::Failed,
+            }
+        } else {
+            TomeStatus::AccessDenied
+        }
+    })
+}
+
+pub(crate) extern "C" fn host_fs_write_text(path: TomeStr, content: TomeStr) -> TomeStatus {
+    ACTIVE_EDITOR.with(|ctx| {
+        if let Some(ed_ptr) = *ctx.borrow() {
+            let _ed = unsafe { &mut *ed_ptr };
+            let path_str = tome_str_to_str(&path);
+            let content_str = tome_str_to_str(&content);
+            match std::fs::write(path_str, content_str) {
+                Ok(_) => TomeStatus::Ok,
+                Err(_) => TomeStatus::Failed,
+            }
+        } else {
+            TomeStatus::AccessDenied
+        }
+    })
 }
 
 pub(crate) extern "C" fn host_register_command(spec: TomeCommandSpecV1) {

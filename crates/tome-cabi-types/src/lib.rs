@@ -19,6 +19,18 @@ pub enum TomeStatus {
     Ok = 0,
     Failed = 1,
     Incompatible = 2,
+    /// The operation is not allowed or context is missing.
+    ///
+    /// # Threading & Context
+    ///
+    /// Most host functions require an "active" context (set via `ACTIVE_MANAGER`
+    /// and `ACTIVE_EDITOR` TLS). This context is automatically set by the host
+    /// during host->guest calls (like `init`, `poll_event`, `on_panel_submit`).
+    ///
+    /// If a plugin calls host functions from a background thread or outside
+    /// of a host->guest call, the call may fail with `AccessDenied` or no-op
+    /// silently if the function signature does not return `TomeStatus`.
+    AccessDenied = 3,
 }
 
 #[repr(C)]
@@ -179,6 +191,7 @@ pub struct TomeGuestV2 {
     pub on_panel_submit: Option<extern "C" fn(panel: TomePanelId, text: TomeStr)>,
     pub on_permission_decision:
         Option<extern "C" fn(id: TomePermissionRequestId, option_id: TomeStr)>,
+    pub free_permission_request: Option<extern "C" fn(req: *mut TomePermissionRequestV1)>,
 }
 
 pub type TomePluginEntryV2 =
