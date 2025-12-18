@@ -17,6 +17,7 @@ libloading = "0.8"
 linkme.workspace = true
 portable-pty = "0.9.0"
 ratatui.workspace = true
+ratatui-notifications = { git = "https://github.com/5ocworkshop/ratatui-notifications" }
 strsim = "0.11"
 termina.workspace = true
 tokio = { workspace = true }

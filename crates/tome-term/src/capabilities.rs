@@ -7,7 +7,7 @@ use tome_core::ext::editor_ctx::{
 };
 use tome_core::{Mode, RopeSlice, Selection};
 
-use crate::editor::{Editor, Message, MessageKind};
+use crate::editor::Editor;
 
 impl CursorAccess for Editor {
     fn cursor(&self) -> usize {
@@ -47,17 +47,11 @@ impl ModeAccess for Editor {
 
 impl MessageAccess for Editor {
     fn show_message(&mut self, msg: &str) {
-        self.message = Some(Message {
-            text: msg.to_string(),
-            kind: MessageKind::Info,
-        });
+        self.show_message(msg);
     }
 
     fn show_error(&mut self, msg: &str) {
-        self.message = Some(Message {
-            text: msg.to_string(),
-            kind: MessageKind::Error,
-        });
+        self.show_error(msg);
     }
 
     fn clear_message(&mut self) {

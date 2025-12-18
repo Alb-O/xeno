@@ -20,6 +20,10 @@ use crate::plugins::PluginManager;
 use crate::plugins::manager::HOST_V2;
 use crate::terminal_panel::TerminalState;
 use crate::theme::Theme;
+use ratatui_notifications::{
+    Anchor, Animation, Level, Notification, Notifications, Overflow, SizeConstraint, Timing,
+};
+use std::time::Duration;
 use tome_cabi_types::{TomeCommandContextV1, TomeStatus, TomeStr};
 
 pub use types::{HistoryEntry, Message, MessageKind, Registers, ScratchState};
@@ -59,6 +63,8 @@ pub struct Editor {
     pub needs_redraw: bool,
     insert_undo_active: bool,
     pub pending_permissions: Vec<crate::plugins::manager::PendingPermission>,
+    pub notifications: Notifications,
+    pub last_tick: std::time::SystemTime,
 }
 
 impl Editor {
@@ -67,17 +73,59 @@ impl Editor {
     }
 
     pub fn show_message(&mut self, text: impl Into<String>) {
+        let text = text.into();
         self.message = Some(Message {
-            text: text.into(),
+            text: text.clone(),
             kind: MessageKind::Info,
         });
+
+        let style = ratatui::style::Style::default()
+            .bg(self.theme.colors.popup.bg)
+            .fg(self.theme.colors.popup.fg);
+
+        if let Ok(notif) = Notification::new(text)
+            .level(Level::Info)
+            .animation(Animation::Fade)
+            .anchor(Anchor::BottomRight)
+            .timing(
+                Timing::Fixed(Duration::from_millis(200)),
+                Timing::Fixed(Duration::from_secs(3)),
+                Timing::Fixed(Duration::from_millis(200)),
+            )
+            .max_size(SizeConstraint::Absolute(40), SizeConstraint::Absolute(5))
+            .style(style)
+            .build()
+        {
+            let _ = self.notifications.add(notif);
+        }
     }
 
     pub fn show_error(&mut self, text: impl Into<String>) {
+        let text = text.into();
         self.message = Some(Message {
-            text: text.into(),
+            text: text.clone(),
             kind: MessageKind::Error,
         });
+
+        let style = ratatui::style::Style::default()
+            .bg(self.theme.colors.popup.bg)
+            .fg(self.theme.colors.popup.fg);
+
+        if let Ok(notif) = Notification::new(text)
+            .level(Level::Error)
+            .animation(Animation::Fade)
+            .anchor(Anchor::BottomRight)
+            .timing(
+                Timing::Fixed(Duration::from_millis(200)),
+                Timing::Fixed(Duration::from_secs(5)),
+                Timing::Fixed(Duration::from_millis(200)),
+            )
+            .max_size(SizeConstraint::Absolute(40), SizeConstraint::Absolute(5))
+            .style(style)
+            .build()
+        {
+            let _ = self.notifications.add(notif);
+        }
     }
 
     pub fn execute_ex_command(&mut self, input: &str) -> bool {
@@ -196,6 +244,10 @@ impl Editor {
             needs_redraw: false,
             insert_undo_active: false,
             pending_permissions: Vec::new(),
+            notifications: Notifications::new()
+                .max_concurrent(Some(5))
+                .overflow(Overflow::DiscardOldest),
+            last_tick: std::time::SystemTime::now(),
         }
     }
 
@@ -661,15 +713,9 @@ impl Editor {
 
             self.doc = entry.doc;
             self.selection = entry.selection;
-            self.message = Some(Message {
-                text: "Undo".to_string(),
-                kind: MessageKind::Info,
-            });
+            self.show_message("Undo");
         } else {
-            self.message = Some(Message {
-                text: "Nothing to undo".to_string(),
-                kind: MessageKind::Info,
-            });
+            self.show_message("Nothing to undo");
         }
     }
 
@@ -683,15 +729,9 @@ impl Editor {
 
             self.doc = entry.doc;
             self.selection = entry.selection;
-            self.message = Some(Message {
-                text: "Redo".to_string(),
-                kind: MessageKind::Info,
-            });
+            self.show_message("Redo");
         } else {
-            self.message = Some(Message {
-                text: "Nothing to redo".to_string(),
-                kind: MessageKind::Info,
-            });
+            self.show_message("Nothing to redo");
         }
     }
 

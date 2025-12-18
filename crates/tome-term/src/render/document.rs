@@ -1,5 +1,5 @@
 use std::collections::HashSet;
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use ratatui::layout::{Constraint, Direction, Layout, Position, Rect};
 use ratatui::style::{Modifier, Style};
@@ -16,6 +16,14 @@ use super::types::{RenderResult, WrapSegment};
 
 impl Editor {
     pub fn render(&mut self, frame: &mut ratatui::Frame) {
+        // Update notifications
+        let now = SystemTime::now();
+        let delta = now
+            .duration_since(self.last_tick)
+            .unwrap_or(Duration::from_millis(16));
+        self.last_tick = now;
+        self.notifications.tick(delta);
+
         // Always render block cursors (primary and secondary).
         let use_block_cursor = true;
 
@@ -31,12 +39,15 @@ impl Editor {
         let bg_block = Block::default().style(Style::default().bg(self.theme.colors.ui.bg));
         frame.render_widget(bg_block, area);
 
+        let has_command_line = self.input.command_line().is_some();
+        let message_height = if has_command_line { 1 } else { 0 };
+
         let chunks = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
                 Constraint::Min(1),    // Main doc area (potentially split with terminal)
                 Constraint::Length(1), // Status
-                Constraint::Length(1), // Message
+                Constraint::Length(message_height), // Message/Command line
             ])
             .split(area);
 
@@ -113,12 +124,13 @@ impl Editor {
             frame.render_widget(self.render_status_line(), chunks[1]);
         }
 
-        // Render message line background (matches popup background)
-        let message_bg = Block::default().style(Style::default().bg(self.theme.colors.popup.bg));
-        frame.render_widget(message_bg, chunks[2]);
-
-        // Render message line content
-        frame.render_widget(self.render_message_line(), chunks[2]);
+        // Render message line if needed
+        if has_command_line {
+            let message_bg =
+                Block::default().style(Style::default().bg(self.theme.colors.popup.bg));
+            frame.render_widget(message_bg, chunks[2]);
+            frame.render_widget(self.render_message_line(), chunks[2]);
+        }
 
         // Render Scratch Popup if open
         if self.scratch_open {
@@ -162,6 +174,9 @@ impl Editor {
 
         // Render Plugin Panels
         self.render_plugin_panels(frame);
+
+        // Render notifications on top
+        self.notifications.render(frame, frame.area());
     }
 
     pub fn ensure_cursor_visible(&mut self, area: Rect) {
