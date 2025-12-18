@@ -190,6 +190,11 @@ pub trait EditorOps {
     fn set_theme(&mut self, _theme_name: &str) -> Result<(), String> {
         Err("Theme switching not supported".to_string())
     }
+
+    /// Handle a permission decision from the user.
+    fn on_permission_decision(&mut self, _request_id: u64, _option_id: &str) -> Result<(), String> {
+        Err("Permission handling not supported".to_string())
+    }
 }
 
 /// Context passed to command handlers.

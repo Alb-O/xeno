@@ -1,7 +1,8 @@
 use std::cell::RefCell;
-use std::collections::VecDeque;
-use std::path::PathBuf;
+use std::collections::{HashMap, VecDeque};
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::thread;
 
 use agent_client_protocol::{
@@ -16,12 +17,14 @@ use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Command;
 use tokio::runtime::Runtime;
 use tokio::sync::mpsc::{self, Receiver, Sender};
+use tokio::sync::oneshot;
 use tokio::task::LocalSet;
 use tokio_util::compat::{TokioAsyncReadCompatExt, TokioAsyncWriteCompatExt};
 use tome_cabi_types::{
     TOME_C_ABI_VERSION_V2, TomeBool, TomeChatRole, TomeCommandContextV1, TomeCommandSpecV1,
-    TomeGuestV2, TomeHostV2, TomeOwnedStr, TomePanelId, TomePanelKind, TomePluginEventKind,
-    TomePluginEventV1, TomeStatus, TomeStr, TomeStrArray,
+    TomeGuestV2, TomeHostV2, TomeOwnedStr, TomePanelId, TomePanelKind, TomePermissionOptionV1,
+    TomePermissionRequestId, TomePermissionRequestV1, TomePluginEventKind, TomePluginEventV1,
+    TomeStatus, TomeStr, TomeStrArray,
 };
 
 thread_local! {
@@ -35,6 +38,7 @@ struct AcpPlugin {
     events: Arc<Mutex<VecDeque<SendEvent>>>,
     panel_id: Arc<Mutex<Option<TomePanelId>>>,
     last_assistant_text: Arc<Mutex<String>>,
+    pending_permissions: Arc<Mutex<HashMap<TomePermissionRequestId, oneshot::Sender<String>>>>,
 }
 
 struct SendEvent(TomePluginEventV1);
@@ -77,7 +81,7 @@ pub unsafe extern "C" fn tome_plugin_entry_v2(
             poll_event: Some(plugin_poll_event),
             free_str: Some(plugin_free_str),
             on_panel_submit: Some(plugin_on_panel_submit),
-            on_permission_decision: None,
+            on_permission_decision: Some(plugin_on_permission_decision),
         };
     }
 
@@ -89,19 +93,33 @@ extern "C" fn plugin_init(host: *const TomeHostV2) -> TomeStatus {
     let events = Arc::new(Mutex::new(VecDeque::new()));
     let panel_id = Arc::new(Mutex::new(None));
     let last_assistant_text = Arc::new(Mutex::new(String::new()));
+    let pending_permissions = Arc::new(Mutex::new(HashMap::new()));
+    let next_permission_id = Arc::new(AtomicU64::new(1));
+    let workspace_root = Arc::new(Mutex::new(None));
 
     let events_clone = events.clone();
     let panel_id_clone = panel_id.clone();
     let last_text_clone = last_assistant_text.clone();
+    let pending_permissions_clone = pending_permissions.clone();
+    let next_permission_id_clone = next_permission_id.clone();
+    let workspace_root_clone = workspace_root.clone();
 
     thread::spawn(move || {
         let rt = Runtime::new().unwrap();
         let local = LocalSet::new();
 
         local.block_on(&rt, async {
-            AcpBackend::new(cmd_rx, events_clone, panel_id_clone, last_text_clone)
-                .run()
-                .await;
+            AcpBackend::new(
+                cmd_rx,
+                events_clone,
+                panel_id_clone,
+                last_text_clone,
+                pending_permissions_clone,
+                next_permission_id_clone,
+                workspace_root_clone,
+            )
+            .run()
+            .await;
         });
     });
 
@@ -112,6 +130,7 @@ extern "C" fn plugin_init(host: *const TomeHostV2) -> TomeStatus {
             events,
             panel_id,
             last_assistant_text,
+            pending_permissions,
         });
     });
 
@@ -324,6 +343,9 @@ struct AcpBackend {
     events: Arc<Mutex<VecDeque<SendEvent>>>,
     panel_id: Arc<Mutex<Option<TomePanelId>>>,
     last_assistant_text: Arc<Mutex<String>>,
+    pending_permissions: Arc<Mutex<HashMap<TomePermissionRequestId, oneshot::Sender<String>>>>,
+    next_permission_id: Arc<AtomicU64>,
+    workspace_root: Arc<Mutex<Option<PathBuf>>>,
     session_id: Option<String>,
 }
 
@@ -333,12 +355,18 @@ impl AcpBackend {
         events: Arc<Mutex<VecDeque<SendEvent>>>,
         panel_id: Arc<Mutex<Option<TomePanelId>>>,
         last_assistant_text: Arc<Mutex<String>>,
+        pending_permissions: Arc<Mutex<HashMap<TomePermissionRequestId, oneshot::Sender<String>>>>,
+        next_permission_id: Arc<AtomicU64>,
+        workspace_root: Arc<Mutex<Option<PathBuf>>>,
     ) -> Self {
         Self {
             cmd_rx,
             events,
             panel_id,
             last_assistant_text,
+            pending_permissions,
+            next_permission_id,
+            workspace_root,
             session_id: None,
         }
     }
@@ -347,6 +375,10 @@ impl AcpBackend {
         while let Some(cmd) = self.cmd_rx.recv().await {
             match cmd {
                 AgentCommand::Start { cwd } => {
+                    {
+                        let mut root = self.workspace_root.lock();
+                        *root = Some(cwd.clone());
+                    }
                     if let Err(e) = self.start_agent(cwd).await {
                         let msg = format!("Failed to start agent: {e:?}");
                         self.enqueue_message(msg);
@@ -405,6 +437,9 @@ impl AcpBackend {
             events: self.events.clone(),
             panel_id: self.panel_id.clone(),
             last_assistant_text: self.last_assistant_text.clone(),
+            pending_permissions: self.pending_permissions.clone(),
+            next_permission_id: self.next_permission_id.clone(),
+            workspace_root: self.workspace_root.clone(),
         };
 
         let (conn, io_fut) =
@@ -599,6 +634,9 @@ struct PluginMessageHandler {
     events: Arc<Mutex<VecDeque<SendEvent>>>,
     panel_id: Arc<Mutex<Option<TomePanelId>>>,
     last_assistant_text: Arc<Mutex<String>>,
+    pending_permissions: Arc<Mutex<HashMap<TomePermissionRequestId, oneshot::Sender<String>>>>,
+    next_permission_id: Arc<AtomicU64>,
+    workspace_root: Arc<Mutex<Option<PathBuf>>>,
 }
 
 impl MessageHandler<ClientSide> for PluginMessageHandler {
@@ -607,9 +645,40 @@ impl MessageHandler<ClientSide> for PluginMessageHandler {
         &self,
         request: AgentRequest,
     ) -> impl std::future::Future<Output = agent_client_protocol::Result<ClientResponse>> {
+        let events = self.events.clone();
+        let panel_id = self.panel_id.clone();
+        let pending_permissions = self.pending_permissions.clone();
+        let next_permission_id = self.next_permission_id.clone();
+        let workspace_root = self.workspace_root.clone();
+
         async move {
             match request {
                 AgentRequest::ReadTextFileRequest(req) => {
+                    let path = PathBuf::from(&req.path);
+                    let root = workspace_root.lock().clone();
+                    if !is_path_in_workspace(&path, &root) {
+                        return Err(agent_client_protocol::Error::new(
+                            -32000,
+                            "Access denied: path outside workspace".to_string(),
+                        ));
+                    }
+
+                    let prompt = format!("Allow reading file: {}", req.path.display());
+                    if !request_permission_internal(
+                        &prompt,
+                        &events,
+                        &panel_id,
+                        &pending_permissions,
+                        &next_permission_id,
+                    )
+                    .await?
+                    {
+                        return Err(agent_client_protocol::Error::new(
+                            -32000,
+                            "Permission denied by user".to_string(),
+                        ));
+                    }
+
                     let content = std::fs::read_to_string(&req.path)
                         .map_err(|e| agent_client_protocol::Error::new(-32000, e.to_string()))?;
                     Ok(ClientResponse::ReadTextFileResponse(
@@ -617,6 +686,31 @@ impl MessageHandler<ClientSide> for PluginMessageHandler {
                     ))
                 }
                 AgentRequest::WriteTextFileRequest(req) => {
+                    let path = PathBuf::from(&req.path);
+                    let root = workspace_root.lock().clone();
+                    if !is_path_in_workspace(&path, &root) {
+                        return Err(agent_client_protocol::Error::new(
+                            -32000,
+                            "Access denied: path outside workspace".to_string(),
+                        ));
+                    }
+
+                    let prompt = format!("Allow writing to file: {}", req.path.display());
+                    if !request_permission_internal(
+                        &prompt,
+                        &events,
+                        &panel_id,
+                        &pending_permissions,
+                        &next_permission_id,
+                    )
+                    .await?
+                    {
+                        return Err(agent_client_protocol::Error::new(
+                            -32000,
+                            "Permission denied by user".to_string(),
+                        ));
+                    }
+
                     std::fs::write(&req.path, &req.content)
                         .map_err(|e| agent_client_protocol::Error::new(-32000, e.to_string()))?;
                     Ok(ClientResponse::WriteTextFileResponse(
@@ -624,12 +718,34 @@ impl MessageHandler<ClientSide> for PluginMessageHandler {
                     ))
                 }
                 AgentRequest::RequestPermissionRequest(req) => {
-                    let outcome = RequestPermissionOutcome::Selected(
-                        SelectedPermissionOutcome::new(req.options[0].option_id.clone()),
-                    );
-                    Ok(ClientResponse::RequestPermissionResponse(
-                        RequestPermissionResponse::new(outcome),
-                    ))
+                    // Forward agent's permission request to Tome host
+                    let prompt =
+                        format!("Agent requested permission for session {}", req.session_id);
+                    // For now we just pick the first option if allowed, or deny if user says no.
+                    // This is a bit simplified, but follows the "host-mediated" rule.
+                    if request_permission_internal(
+                        &prompt,
+                        &events,
+                        &panel_id,
+                        &pending_permissions,
+                        &next_permission_id,
+                    )
+                    .await?
+                    {
+                        let outcome = RequestPermissionOutcome::Selected(
+                            SelectedPermissionOutcome::new(req.options[0].option_id.clone()),
+                        );
+                        Ok(ClientResponse::RequestPermissionResponse(
+                            RequestPermissionResponse::new(outcome),
+                        ))
+                    } else {
+                        // How to signal deny for a generic permission request?
+                        // Usually it's an error or a specific outcome.
+                        Err(agent_client_protocol::Error::new(
+                            -32000,
+                            "Permission denied by user".to_string(),
+                        ))
+                    }
                 }
                 _ => Err(agent_client_protocol::Error::method_not_found()),
             }
@@ -649,6 +765,105 @@ impl MessageHandler<ClientSide> for PluginMessageHandler {
             }
             Ok(())
         }
+    }
+}
+
+extern "C" fn plugin_on_permission_decision(id: TomePermissionRequestId, option_id: TomeStr) {
+    PLUGIN.with(|ctx| {
+        if let Some(plugin) = ctx.borrow().as_ref() {
+            let mut pending = plugin.pending_permissions.lock();
+            if let Some(tx) = pending.remove(&id) {
+                let s = tome_str_to_string(option_id);
+                let _ = tx.send(s);
+            }
+        }
+    });
+}
+
+fn is_path_in_workspace(path: &Path, root: &Option<PathBuf>) -> bool {
+    let root = match root {
+        Some(r) => r,
+        None => return false,
+    };
+
+    let canon = path.canonicalize().or_else(|_| {
+        path.parent()
+            .and_then(|p| {
+                p.canonicalize()
+                    .ok()
+                    .map(|cp| cp.join(path.file_name().unwrap_or_default()))
+            })
+            .ok_or(())
+    });
+
+    match canon {
+        Ok(p) => p.starts_with(root),
+        Err(_) => false,
+    }
+}
+
+async fn request_permission_internal(
+    prompt: &str,
+    events: &Arc<Mutex<VecDeque<SendEvent>>>,
+    panel_id: &Arc<Mutex<Option<TomePanelId>>>,
+    pending_permissions: &Arc<Mutex<HashMap<TomePermissionRequestId, oneshot::Sender<String>>>>,
+    next_permission_id: &Arc<AtomicU64>,
+) -> agent_client_protocol::Result<bool> {
+    let (tx, rx) = oneshot::channel();
+    let id = next_permission_id.fetch_add(1, Ordering::SeqCst);
+
+    {
+        let mut pending = pending_permissions.lock();
+        pending.insert(id, tx);
+    }
+
+    let pid = *panel_id.lock();
+    let pid = pid.unwrap_or(0);
+
+    let prompt_tome = string_to_tome_owned(prompt.to_string());
+
+    let options = vec![
+        TomePermissionOptionV1 {
+            option_id: string_to_tome_owned("allow".to_string()),
+            label: string_to_tome_owned("Allow".to_string()),
+        },
+        TomePermissionOptionV1 {
+            option_id: string_to_tome_owned("deny".to_string()),
+            label: string_to_tome_owned("Deny".to_string()),
+        },
+    ];
+    let options_len = options.len();
+    let options_ptr = Box::into_raw(options.into_boxed_slice()) as *mut TomePermissionOptionV1;
+
+    let req = Box::new(TomePermissionRequestV1 {
+        prompt: prompt_tome,
+        options: options_ptr,
+        options_len,
+    });
+    let req_ptr = Box::into_raw(req);
+
+    {
+        let mut events_guard = events.lock();
+        events_guard.push_back(SendEvent(TomePluginEventV1 {
+            kind: TomePluginEventKind::RequestPermission,
+            panel_id: pid,
+            role: TomeChatRole::System,
+            text: TomeOwnedStr {
+                ptr: std::ptr::null_mut(),
+                len: 0,
+            },
+            bool_val: TomeBool(0),
+            permission_request_id: id,
+            permission_request: req_ptr,
+        }));
+    }
+
+    match rx.await {
+        Ok(decision) => Ok(decision == "allow"),
+        Err(_) => Err(agent_client_protocol::Error::new(
+            -32603,
+            "Internal error: permission channel closed".to_string(),
+        )),
     }
 }
 

@@ -42,6 +42,13 @@ pub(crate) static HOST_V2: TomeHostV2 = TomeHostV2 {
     fs_write_text: None,
 };
 
+pub struct PendingPermission {
+    pub plugin_idx: usize,
+    pub request_id: u64,
+    pub prompt: String,
+    pub options: Vec<(String, String)>, // id, label
+}
+
 pub struct LoadedPlugin {
     #[allow(dead_code)]
     pub lib: Library,
@@ -120,7 +127,7 @@ impl PluginManager {
             ));
         }
 
-        let namespace = tome_str_to_str(guest.namespace).to_string();
+        let namespace = tome_str_to_str(&guest.namespace).to_string();
         self.current_namespace = Some(namespace);
 
         // Call init
@@ -155,37 +162,48 @@ impl PluginManager {
         };
 
         if let Some(handler) = spec.handler {
-            let name = tome_str_to_str(spec.name).to_string();
+            let name = tome_str_to_str(&spec.name).to_string();
             let full_name = format!("{}.{}", namespace, name);
 
-            self.commands.insert(
-                full_name,
-                PluginCommand {
-                    plugin_idx,
-                    namespace: namespace.clone(),
-                    name,
-                    handler,
-                    user_data: spec.user_data,
-                },
-            );
+            if self.commands.contains_key(&full_name) {
+                eprintln!(
+                    "Warning: Command {} already registered, skipping",
+                    full_name
+                );
+            } else {
+                self.commands.insert(
+                    full_name,
+                    PluginCommand {
+                        plugin_idx,
+                        namespace: namespace.clone(),
+                        name,
+                        handler,
+                        user_data: spec.user_data,
+                    },
+                );
+            }
 
             // Also handle aliases
             if !spec.aliases.ptr.is_null() && spec.aliases.len > 0 {
                 let aliases =
                     unsafe { std::slice::from_raw_parts(spec.aliases.ptr, spec.aliases.len) };
                 for alias in aliases {
-                    let alias_name = tome_str_to_str(*alias).to_string();
+                    let alias_name = tome_str_to_str(alias).to_string();
                     let full_alias = format!("{}.{}", namespace, alias_name);
-                    self.commands.insert(
-                        full_alias,
-                        PluginCommand {
-                            plugin_idx,
-                            namespace: namespace.clone(),
-                            name: alias_name,
-                            handler,
-                            user_data: spec.user_data,
-                        },
-                    );
+                    if self.commands.contains_key(&full_alias) {
+                        eprintln!("Warning: Alias {} already registered, skipping", full_alias);
+                    } else {
+                        self.commands.insert(
+                            full_alias,
+                            PluginCommand {
+                                plugin_idx,
+                                namespace: namespace.clone(),
+                                name: alias_name,
+                                handler,
+                                user_data: spec.user_data,
+                            },
+                        );
+                    }
                 }
             }
         }
@@ -229,12 +247,45 @@ impl PluginManager {
     }
 }
 
-fn is_dynamic_lib(path: &Path) -> bool {
+pub struct PluginContextGuard {
+    old_mgr: Option<*mut PluginManager>,
+    old_ed: Option<*mut Editor>,
+    old_plugin_idx: Option<usize>,
+    mgr_ptr: *mut PluginManager,
+}
+
+impl PluginContextGuard {
+    pub unsafe fn new(mgr_ptr: *mut PluginManager, ed_ptr: *mut Editor, plugin_idx: usize) -> Self {
+        let old_mgr = ACTIVE_MANAGER.with(|ctx| ctx.replace(Some(mgr_ptr)));
+        let old_ed = ACTIVE_EDITOR.with(|ctx| ctx.replace(Some(ed_ptr)));
+        let (old_plugin_idx, mgr_ptr_ref) =
+            unsafe { ((*mgr_ptr).current_plugin_idx, &mut *mgr_ptr) };
+        mgr_ptr_ref.current_plugin_idx = Some(plugin_idx);
+        Self {
+            old_mgr,
+            old_ed,
+            old_plugin_idx,
+            mgr_ptr,
+        }
+    }
+}
+
+impl Drop for PluginContextGuard {
+    fn drop(&mut self) {
+        ACTIVE_MANAGER.with(|ctx| ctx.replace(self.old_mgr));
+        ACTIVE_EDITOR.with(|ctx| ctx.replace(self.old_ed));
+        unsafe {
+            (*self.mgr_ptr).current_plugin_idx = self.old_plugin_idx;
+        }
+    }
+}
+
+pub fn is_dynamic_lib(path: &Path) -> bool {
     let ext = path.extension().and_then(OsStr::to_str);
     matches!(ext, Some("so") | Some("dylib") | Some("dll"))
 }
 
-pub fn tome_str_to_str<'a>(ts: TomeStr) -> &'a str {
+pub fn tome_str_to_str(ts: &TomeStr) -> &str {
     if ts.ptr.is_null() {
         return "";
     }
@@ -257,7 +308,7 @@ pub fn tome_owned_to_string(tos: TomeOwnedStr) -> Option<String> {
 // Host callbacks
 
 pub(crate) extern "C" fn host_log(msg: TomeStr) {
-    let s = tome_str_to_str(msg);
+    let s = tome_str_to_str(&msg);
     ACTIVE_EDITOR.with(|ctx| {
         if let Some(ed_ptr) = *ctx.borrow() {
             let ed = unsafe { &mut *ed_ptr };
@@ -277,7 +328,7 @@ pub(crate) extern "C" fn host_panel_create(kind: TomePanelKind, title: TomeStr) 
                 mgr.panel_owners.insert(id, plugin_idx);
             }
 
-            let title_str = tome_str_to_str(title).to_string();
+            let title_str = tome_str_to_str(&title).to_string();
             match kind {
                 TomePanelKind::Chat => {
                     mgr.panels.insert(id, ChatPanelState::new(id, title_str));
@@ -343,7 +394,7 @@ pub(crate) extern "C" fn host_panel_append_transcript(
             {
                 panel.transcript.push(ChatItem {
                     role,
-                    text: tome_str_to_str(text).to_string(),
+                    text: tome_str_to_str(&text).to_string(),
                 });
             }
         }
@@ -360,7 +411,7 @@ pub(crate) extern "C" fn host_request_redraw() {
 }
 
 pub(crate) extern "C" fn host_show_message(kind: TomeMessageKind, msg: TomeStr) {
-    let s = tome_str_to_str(msg);
+    let s = tome_str_to_str(&msg);
     ACTIVE_EDITOR.with(|ctx| {
         if let Some(ed_ptr) = *ctx.borrow() {
             let ed = unsafe { &mut *ed_ptr };
@@ -373,7 +424,7 @@ pub(crate) extern "C" fn host_show_message(kind: TomeMessageKind, msg: TomeStr) 
 }
 
 pub(crate) extern "C" fn host_insert_text(text: TomeStr) {
-    let s = tome_str_to_str(text);
+    let s = tome_str_to_str(&text);
     ACTIVE_EDITOR.with(|ctx| {
         if let Some(ed_ptr) = *ctx.borrow() {
             let ed = unsafe { &mut *ed_ptr };

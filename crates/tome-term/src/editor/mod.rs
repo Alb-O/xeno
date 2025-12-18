@@ -17,8 +17,10 @@ use tome_core::{
 };
 
 use crate::plugins::PluginManager;
+use crate::plugins::manager::HOST_V2;
 use crate::terminal_panel::TerminalState;
 use crate::theme::Theme;
+use tome_cabi_types::{TomeCommandContextV1, TomeStatus, TomeStr};
 
 pub use types::{HistoryEntry, Message, MessageKind, Registers, ScratchState};
 
@@ -56,6 +58,7 @@ pub struct Editor {
     pub plugins: PluginManager,
     pub needs_redraw: bool,
     insert_undo_active: bool,
+    pub pending_permissions: Vec<crate::plugins::manager::PendingPermission>,
 }
 
 impl Editor {
@@ -192,6 +195,7 @@ impl Editor {
             plugins: PluginManager::new(),
             needs_redraw: false,
             insert_undo_active: false,
+            pending_permissions: Vec::new(),
         }
     }
 
@@ -416,20 +420,20 @@ impl Editor {
                 len: text.len(),
             };
 
-            if let Some(owner_idx) = self.plugins.panel_owners.get(&id)
-                && let Some(plugin) = self.plugins.plugins.get(*owner_idx)
+            if let Some(owner_idx) = self.plugins.panel_owners.get(&id).copied()
+                && let Some(plugin) = self.plugins.plugins.get(owner_idx)
                 && let Some(on_submit) = plugin.guest.on_panel_submit
             {
+                use crate::plugins::manager::PluginContextGuard;
+                let ed_ptr = self as *mut Editor;
+                let mgr_ptr = unsafe { &mut (*ed_ptr).plugins as *mut _ };
+                let _guard = unsafe { PluginContextGuard::new(mgr_ptr, ed_ptr, owner_idx) };
                 on_submit(id, text_tome);
             }
         }
     }
 
     pub fn try_execute_plugin_command(&mut self, full_name: &str, args: &[&str]) -> bool {
-        use crate::plugins::PluginManager;
-        use crate::plugins::manager::{ACTIVE_EDITOR, ACTIVE_MANAGER, HOST_V2};
-        use tome_cabi_types::{TomeCommandContextV1, TomeStatus, TomeStr};
-
         let cmd = match self.plugins.commands.get(full_name) {
             Some(c) => c,
             None => return false,
@@ -452,16 +456,13 @@ impl Editor {
             host: &HOST_V2,
         };
 
-        let old_mgr =
-            ACTIVE_MANAGER.with(|ctx| ctx.replace(Some(&mut self.plugins as *mut PluginManager)));
-        let old_ed = ACTIVE_EDITOR.with(|ctx| ctx.replace(Some(self as *mut Editor)));
-
-        self.plugins.current_plugin_idx = Some(plugin_idx);
-        let status = handler(&mut ctx);
-        self.plugins.current_plugin_idx = None;
-
-        ACTIVE_MANAGER.with(|ctx| ctx.replace(old_mgr));
-        ACTIVE_EDITOR.with(|ctx| ctx.replace(old_ed));
+        let status = {
+            use crate::plugins::manager::PluginContextGuard;
+            let ed_ptr = self as *mut Editor;
+            let mgr_ptr = unsafe { &mut (*ed_ptr).plugins as *mut _ };
+            let _guard = unsafe { PluginContextGuard::new(mgr_ptr, ed_ptr, plugin_idx) };
+            handler(&mut ctx)
+        };
 
         if status != TomeStatus::Ok {
             self.show_error(format!(
@@ -473,9 +474,14 @@ impl Editor {
     }
 
     pub fn poll_plugins(&mut self) {
+        use crate::plugins::manager::PluginContextGuard;
         let mut events = Vec::new();
-        for (idx, plugin) in self.plugins.plugins.iter().enumerate() {
-            if let Some(poll_event) = plugin.guest.poll_event {
+        let num_plugins = self.plugins.plugins.len();
+        for idx in 0..num_plugins {
+            if let Some(poll_event) = self.plugins.plugins[idx].guest.poll_event {
+                let ed_ptr = self as *mut Editor;
+                let mgr_ptr = unsafe { &mut (*ed_ptr).plugins as *mut _ };
+                let _guard = unsafe { PluginContextGuard::new(mgr_ptr, ed_ptr, idx) };
                 loop {
                     let mut event =
                         std::mem::MaybeUninit::<tome_cabi_types::TomePluginEventV1>::uninit();
@@ -530,12 +536,48 @@ impl Editor {
                 }
             }
             TomePluginEventKind::RequestPermission => {
-                // TODO
+                let req = unsafe { &*event.permission_request };
+                let prompt = tome_owned_to_string(req.prompt).unwrap_or_default();
+                let options_slice =
+                    unsafe { std::slice::from_raw_parts(req.options, req.options_len) };
+                let mut options = Vec::new();
+                for opt in options_slice {
+                    options.push((
+                        tome_owned_to_string(opt.option_id).unwrap_or_default(),
+                        tome_owned_to_string(opt.label).unwrap_or_default(),
+                    ));
+                }
+
+                self.pending_permissions
+                    .push(crate::plugins::manager::PendingPermission {
+                        plugin_idx,
+                        request_id: event.permission_request_id,
+                        prompt: prompt.clone(),
+                        options: options.clone(),
+                    });
+
+                self.show_message(format!(
+                    "Permission requested: {}. Use :permit {} <option>",
+                    prompt, event.permission_request_id,
+                ));
             }
         }
 
         if let Some(free_str) = free_str_fn {
-            free_str(event.text);
+            if !event.text.ptr.is_null() {
+                free_str(event.text);
+            }
+            if !event.permission_request.is_null() {
+                let req = unsafe { &*event.permission_request };
+                free_str(req.prompt);
+                let options = unsafe { std::slice::from_raw_parts(req.options, req.options_len) };
+                for opt in options {
+                    free_str(opt.option_id);
+                    free_str(opt.label);
+                }
+                // We cannot safely free the permission_request pointer itself or req.options
+                // without knowing the guest's allocator. But at least we freed the strings.
+            }
         }
     }
 
@@ -1277,6 +1319,37 @@ impl ext::EditorOps for Editor {
 
     fn is_modified(&self) -> bool {
         self.modified
+    }
+
+    fn on_permission_decision(&mut self, request_id: u64, option_id: &str) -> Result<(), String> {
+        let pos = self
+            .pending_permissions
+            .iter()
+            .position(|p| p.request_id == request_id)
+            .ok_or_else(|| format!("No pending permission request with ID {}", request_id))?;
+
+        let pending = self.pending_permissions.remove(pos);
+        let plugin_idx = pending.plugin_idx;
+
+        if let Some(plugin) = self.plugins.plugins.get(plugin_idx) {
+            if let Some(on_decision) = plugin.guest.on_permission_decision {
+                use crate::plugins::manager::PluginContextGuard;
+                let ed_ptr = self as *mut Editor;
+                let mgr_ptr = unsafe { &mut (*ed_ptr).plugins as *mut _ };
+                let _guard = unsafe { PluginContextGuard::new(mgr_ptr, ed_ptr, plugin_idx) };
+                let option_tome = tome_cabi_types::TomeStr {
+                    ptr: option_id.as_ptr(),
+                    len: option_id.len(),
+                };
+                on_decision(request_id, option_tome);
+                return Ok(());
+            }
+        }
+
+        Err(format!(
+            "Plugin {} does not support permission decisions",
+            plugin_idx
+        ))
     }
 
     fn set_theme(&mut self, theme_name: &str) -> Result<(), String> {
