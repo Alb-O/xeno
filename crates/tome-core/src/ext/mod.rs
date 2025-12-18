@@ -49,7 +49,6 @@ mod motions;
 mod objects;
 #[cfg(feature = "host")]
 mod options;
-pub mod plugins;
 #[cfg(feature = "host")]
 pub mod statusline;
 
@@ -77,11 +76,6 @@ pub use keybindings::{
 #[cfg(feature = "host")]
 pub use options::{
     OPTIONS, OptionDef, OptionScope, OptionType, OptionValue, all_options, find_option,
-};
-#[cfg(feature = "host")]
-pub use plugins::{
-    CAbiLoadError, CAbiPlugin, TOME_C_ABI_VERSION, TomeGuestV1, TomeHostV1, TomeStatus,
-    load_c_abi_plugin,
 };
 #[cfg(feature = "host")]
 pub use statusline::{

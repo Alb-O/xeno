@@ -473,6 +473,11 @@ impl Editor {
         true
     }
 
+    pub fn autoload_plugins(&mut self) {
+        let mgr_ptr = &mut self.plugins as *mut PluginManager;
+        unsafe { (*mgr_ptr).autoload(self) };
+    }
+
     pub fn poll_plugins(&mut self) {
         use crate::plugins::manager::PluginContextGuard;
         let mut events = Vec::new();
@@ -552,8 +557,8 @@ impl Editor {
                     .push(crate::plugins::manager::PendingPermission {
                         plugin_idx,
                         request_id: event.permission_request_id,
-                        prompt: prompt.clone(),
-                        options: options.clone(),
+                        _prompt: prompt.clone(),
+                        _options: options.clone(),
                     });
 
                 self.show_message(format!(

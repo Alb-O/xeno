@@ -28,7 +28,7 @@ pub fn run_editor(
 
     // Pre-warm an embedded shell in the background so opening the terminal panel is instant.
     editor.start_terminal_prewarm();
-    editor.plugins.autoload();
+    editor.autoload_plugins();
 
     if let Some(cmd) = startup_ex.as_deref() {
         let should_quit = editor.execute_ex_command(cmd);

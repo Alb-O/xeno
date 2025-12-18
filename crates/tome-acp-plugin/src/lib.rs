@@ -203,6 +203,9 @@ extern "C" fn plugin_shutdown() {
 }
 
 extern "C" fn plugin_poll_event(out: *mut TomePluginEventV1) -> TomeBool {
+    if out.is_null() {
+        return TomeBool(0);
+    }
     PLUGIN.with(|ctx| {
         if let Some(plugin) = ctx.borrow().as_ref() {
             let mut events = plugin.events.lock();
@@ -233,9 +236,17 @@ extern "C" fn plugin_free_permission_request(req: *mut TomePermissionRequestV1) 
 
     unsafe {
         let req = Box::from_raw(req);
+        plugin_free_str(req.prompt);
         if !req.options.is_null() {
-            let slice = std::ptr::slice_from_raw_parts_mut(req.options, req.options_len);
-            drop(Box::from_raw(slice));
+            let slice = std::slice::from_raw_parts_mut(req.options, req.options_len);
+            for opt in slice.iter() {
+                plugin_free_str(opt.option_id);
+                plugin_free_str(opt.label);
+            }
+            drop(Box::from_raw(std::ptr::slice_from_raw_parts_mut(
+                req.options,
+                req.options_len,
+            )));
         }
     }
 }
@@ -710,9 +721,10 @@ impl MessageHandler<ClientSide> for PluginMessageHandler {
                     let host = unsafe { &*host_send_ptr.0 };
                     if let Some(fs_read) = host.fs_read_text {
                         let mut owned = unsafe { std::mem::zeroed::<TomeOwnedStr>() };
+                        let path_lossy = req.path.to_string_lossy();
                         let ts = TomeStr {
-                            ptr: req.path.to_string_lossy().as_ptr(),
-                            len: req.path.to_string_lossy().len(),
+                            ptr: path_lossy.as_ptr(),
+                            len: path_lossy.len(),
                         };
                         if fs_read(ts, &mut owned) == TomeStatus::Ok {
                             let content = tome_owned_to_string(owned).unwrap_or_default();
@@ -759,9 +771,10 @@ impl MessageHandler<ClientSide> for PluginMessageHandler {
 
                     let host = unsafe { &*host_send_ptr.0 };
                     if let Some(fs_write) = host.fs_write_text {
+                        let path_lossy = req.path.to_string_lossy();
                         let ts_path = TomeStr {
-                            ptr: req.path.to_string_lossy().as_ptr(),
-                            len: req.path.to_string_lossy().len(),
+                            ptr: path_lossy.as_ptr(),
+                            len: path_lossy.len(),
                         };
                         let ts_content = TomeStr {
                             ptr: req.content.as_ptr(),

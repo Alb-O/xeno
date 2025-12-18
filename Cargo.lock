@@ -1073,16 +1073,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "libloading"
-version = "0.9.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "754ca22de805bb5744484a5b151a9e1a8e837d5dc232c2d7d8c2e3492edc8b60"
-dependencies = [
- "cfg-if",
- "windows-link",
-]
-
-[[package]]
 name = "linkme"
 version = "0.3.35"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2194,7 +2184,6 @@ name = "tome-core"
 version = "0.1.0"
 dependencies = [
  "criterion",
- "libloading 0.9.0",
  "linkme",
  "paste",
  "regex",
@@ -2203,7 +2192,6 @@ dependencies = [
  "serde_json",
  "smallvec",
  "termina",
- "tome-cabi-types",
  "unicode-segmentation",
  "unicode-width 0.2.0",
 ]
@@ -2217,7 +2205,7 @@ dependencies = [
  "home",
  "insta",
  "kitty-test-harness",
- "libloading 0.8.9",
+ "libloading",
  "linkme",
  "portable-pty",
  "ratatui",

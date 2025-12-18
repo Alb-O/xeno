@@ -45,8 +45,8 @@ pub(crate) static HOST_V2: TomeHostV2 = TomeHostV2 {
 pub struct PendingPermission {
     pub plugin_idx: usize,
     pub request_id: u64,
-    pub prompt: String,
-    pub options: Vec<(String, String)>, // id, label
+    pub _prompt: String,
+    pub _options: Vec<(String, String)>, // id, label
 }
 
 pub struct LoadedPlugin {
@@ -55,6 +55,7 @@ pub struct LoadedPlugin {
     pub guest: TomeGuestV2,
     #[allow(dead_code)]
     pub path: PathBuf,
+    pub plugin_idx: usize,
 }
 
 impl Drop for LoadedPlugin {
@@ -63,17 +64,11 @@ impl Drop for LoadedPlugin {
             ACTIVE_MANAGER.with(|mgr_ctx| {
                 ACTIVE_EDITOR.with(|ed_ctx| {
                     if let (Some(mgr_ptr), Some(ed_ptr)) = (*mgr_ctx.borrow(), *ed_ctx.borrow()) {
-                        let mgr = unsafe { &mut *mgr_ptr };
-                        let ed = unsafe { &mut *ed_ptr };
-                        // We don't have the plugin_idx here easily, but we can try to find it.
-                        let plugin_idx = mgr.plugins.iter().position(|p| std::ptr::eq(p, self));
-                        if let Some(idx) = plugin_idx {
-                            let _guard = unsafe { PluginContextGuard::new(mgr, ed, idx) };
-                            shutdown();
-                        } else {
-                            shutdown();
-                        }
+                        let _guard =
+                            unsafe { PluginContextGuard::new(mgr_ptr, ed_ptr, self.plugin_idx) };
+                        shutdown();
                     } else {
+                        // Fallback if context is missing - but we should ensure it's set.
                         shutdown();
                     }
                 })
@@ -116,7 +111,7 @@ impl PluginManager {
         }
     }
 
-    pub fn load(&mut self, path: &Path) -> Result<(), String> {
+    pub fn load(&mut self, ed: &mut Editor, path: &Path) -> Result<(), String> {
         let lib =
             unsafe { Library::new(path) }.map_err(|e| format!("Failed to load library: {}", e))?;
 
@@ -130,7 +125,13 @@ impl PluginManager {
         let plugin_idx = self.plugins.len();
         self.current_plugin_idx = Some(plugin_idx);
 
-        let status = self.with_active(|_mgr| unsafe { entry(&HOST_V2, &mut guest) });
+        let mgr_ptr = self as *mut PluginManager;
+        let ed_ptr = ed as *mut Editor;
+
+        let status = unsafe {
+            let _guard = PluginContextGuard::new(mgr_ptr, ed_ptr, plugin_idx);
+            entry(&HOST_V2, &mut guest)
+        };
 
         if status != TomeStatus::Ok {
             self.current_plugin_idx = None;
@@ -149,7 +150,10 @@ impl PluginManager {
 
         // Call init
         if let Some(init) = guest.init {
-            let status = self.with_active(|_mgr| init(&HOST_V2));
+            let status = unsafe {
+                let _guard = PluginContextGuard::new(mgr_ptr, ed_ptr, plugin_idx);
+                init(&HOST_V2)
+            };
             if status != TomeStatus::Ok {
                 self.current_namespace = None;
                 self.current_plugin_idx = None;
@@ -161,6 +165,7 @@ impl PluginManager {
             lib,
             guest,
             path: path.to_path_buf(),
+            plugin_idx,
         });
 
         self.current_namespace = None;
@@ -226,14 +231,7 @@ impl PluginManager {
         }
     }
 
-    pub fn with_active<R>(&mut self, f: impl FnOnce(&mut Self) -> R) -> R {
-        let old = ACTIVE_MANAGER.with(|ctx| ctx.replace(Some(self as *mut Self)));
-        let res = f(self);
-        ACTIVE_MANAGER.with(|ctx| ctx.replace(old));
-        res
-    }
-
-    pub fn autoload(&mut self) {
+    pub fn autoload(&mut self, ed: &mut Editor) {
         let allow = std::env::var("TOME_ALLOW_AUTOLOAD").unwrap_or_default();
         if allow != "1" {
             if !allow.is_empty() {
@@ -258,7 +256,7 @@ impl PluginManager {
                 for entry in entries.flatten() {
                     let path = entry.path();
                     if is_dynamic_lib(&path)
-                        && let Err(e) = self.load(&path)
+                        && let Err(e) = self.load(ed, &path)
                     {
                         eprintln!("Failed to load plugin {:?}: {}", path, e);
                     }
@@ -501,12 +499,31 @@ fn string_to_tome_owned(s: String) -> TomeOwnedStr {
 pub(crate) extern "C" fn host_fs_read_text(path: TomeStr, out: *mut TomeOwnedStr) -> TomeStatus {
     ACTIVE_EDITOR.with(|ctx| {
         if let Some(ed_ptr) = *ctx.borrow() {
-            let _ed = unsafe { &mut *ed_ptr };
+            let ed = unsafe { &mut *ed_ptr };
             let path_str = tome_str_to_str(&path);
-            // Permission check: for now, only allow if it's the current file or in the same dir.
-            // In a real system, we'd use the permission flow.
-            // But here we'll just implement a simple check for parity with the ACP plugin's previous behavior.
-            match std::fs::read_to_string(path_str) {
+            let path_buf = PathBuf::from(path_str);
+
+            // Simplified check: allow if within workspace root (if we had one) or same dir as current file.
+            let allowed = if let Some(current_path) = ed.path.as_ref() {
+                if let Some(parent) = current_path.parent() {
+                    path_buf.starts_with(parent)
+                } else {
+                    false
+                }
+            } else {
+                false
+            };
+
+            if !allowed {
+                // In the future, this should trigger the RequestPermission flow if not headlessly auto-allowed.
+                ed.show_error(format!(
+                    "Plugin tried to read restricted path: {}",
+                    path_str
+                ));
+                return TomeStatus::AccessDenied;
+            }
+
+            match std::fs::read_to_string(path_buf) {
                 Ok(content) => {
                     unsafe { *out = string_to_tome_owned(content) };
                     TomeStatus::Ok
@@ -522,10 +539,31 @@ pub(crate) extern "C" fn host_fs_read_text(path: TomeStr, out: *mut TomeOwnedStr
 pub(crate) extern "C" fn host_fs_write_text(path: TomeStr, content: TomeStr) -> TomeStatus {
     ACTIVE_EDITOR.with(|ctx| {
         if let Some(ed_ptr) = *ctx.borrow() {
-            let _ed = unsafe { &mut *ed_ptr };
+            let ed = unsafe { &mut *ed_ptr };
             let path_str = tome_str_to_str(&path);
+            let path_buf = PathBuf::from(path_str);
             let content_str = tome_str_to_str(&content);
-            match std::fs::write(path_str, content_str) {
+
+            // Simplified check
+            let allowed = if let Some(current_path) = ed.path.as_ref() {
+                if let Some(parent) = current_path.parent() {
+                    path_buf.starts_with(parent)
+                } else {
+                    false
+                }
+            } else {
+                false
+            };
+
+            if !allowed {
+                ed.show_error(format!(
+                    "Plugin tried to write to restricted path: {}",
+                    path_str
+                ));
+                return TomeStatus::AccessDenied;
+            }
+
+            match std::fs::write(path_buf, content_str) {
                 Ok(_) => TomeStatus::Ok,
                 Err(_) => TomeStatus::Failed,
             }

@@ -32,7 +32,7 @@ fn main() -> io::Result<()> {
     if cli.quit_after_ex {
         if let Some(cmd) = cli.ex.as_deref() {
             editor.start_terminal_prewarm();
-            editor.plugins.autoload();
+            editor.autoload_plugins();
             editor.execute_ex_command(cmd);
 
             // Give plugins time to emit async errors/messages.
