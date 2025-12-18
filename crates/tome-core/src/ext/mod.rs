@@ -49,7 +49,6 @@ mod motions;
 mod objects;
 #[cfg(feature = "host")]
 mod options;
-pub mod plugins;
 #[cfg(feature = "host")]
 pub mod statusline;
 
@@ -77,11 +76,6 @@ pub use keybindings::{
 #[cfg(feature = "host")]
 pub use options::{
     OPTIONS, OptionDef, OptionScope, OptionType, OptionValue, all_options, find_option,
-};
-#[cfg(feature = "host")]
-pub use plugins::{
-    CAbiLoadError, CAbiPlugin, TOME_C_ABI_VERSION, TomeGuestV1, TomeHostV1, TomeStatus,
-    load_c_abi_plugin,
 };
 #[cfg(feature = "host")]
 pub use statusline::{
@@ -191,17 +185,10 @@ pub trait EditorOps {
         Err("Theme switching not supported".to_string())
     }
 
-    /// Toggle the agent panel.
-    fn agent_toggle(&mut self);
-
-    /// Start the agent.
-    fn agent_start(&mut self);
-
-    /// Stop the agent.
-    fn agent_stop(&mut self);
-
-    /// Insert the last assistant message.
-    fn agent_insert_last(&mut self);
+    /// Handle a permission decision from the user.
+    fn on_permission_decision(&mut self, _request_id: u64, _option_id: &str) -> Result<(), String> {
+        Err("Permission handling not supported".to_string())
+    }
 }
 
 /// Context passed to command handlers.

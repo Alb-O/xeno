@@ -55,10 +55,7 @@ impl Editor {
         self.ensure_cursor_visible(doc_area);
         let main_result = self.render_document_with_cursor(
             doc_area,
-            use_block_cursor
-                && !self.scratch_focused
-                && !self.terminal_focused
-                && !self.agent_panel.focused,
+            use_block_cursor && !self.scratch_focused && !self.terminal_focused,
         );
         frame.render_widget(main_result.widget, doc_area);
 
@@ -163,8 +160,8 @@ impl Editor {
             self.leave_scratch_context();
         }
 
-        // Render Agent Panel if open
-        self.render_agent_panel(frame);
+        // Render Plugin Panels
+        self.render_plugin_panels(frame);
     }
 
     pub fn ensure_cursor_visible(&mut self, area: Rect) {

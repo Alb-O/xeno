@@ -471,6 +471,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "crossbeam-channel"
+version = "0.5.15"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "82b8f8f868b36967f9606790d1903570de9ceaf870a7bf9fbbd3016d636a2cb2"
+dependencies = [
+ "crossbeam-utils",
+]
+
+[[package]]
 name = "crossbeam-deque"
 version = "0.8.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -906,6 +915,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7f24254aa9a54b5c858eaee2f5bccdb46aaf0e486a595ed5fd8f86ba55232a70"
 
 [[package]]
+name = "home"
+version = "0.5.12"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cc627f471c528ff0c4a49e1d5e60450c8f6461dd6d10ba9dcd3a61d3dff7728d"
+dependencies = [
+ "windows-sys 0.61.2",
+]
+
+[[package]]
 name = "ident_case"
 version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1046,9 +1064,9 @@ checksum = "37c93d8daa9d8a012fd8ab92f088405fb202ea0b6ab73ee2482ae66af4f42091"
 
 [[package]]
 name = "libloading"
-version = "0.9.0"
+version = "0.8.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "754ca22de805bb5744484a5b151a9e1a8e837d5dc232c2d7d8c2e3492edc8b60"
+checksum = "d7c4b02199fee7c5d21a5ae7d8cfa79a6ef5bb2fc834d6e9058e89c825efdc55"
 dependencies = [
  "cfg-if",
  "windows-link",
@@ -2139,6 +2157,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "tome-acp-plugin"
+version = "0.1.0"
+dependencies = [
+ "agent-client-protocol",
+ "crossbeam-channel",
+ "futures",
+ "once_cell",
+ "parking_lot",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tokio-util",
+ "tome-cabi-types",
+]
+
+[[package]]
 name = "tome-cabi-types"
 version = "0.1.0"
 dependencies = [
@@ -2150,7 +2184,6 @@ name = "tome-core"
 version = "0.1.0"
 dependencies = [
  "criterion",
- "libloading",
  "linkme",
  "paste",
  "regex",
@@ -2159,7 +2192,6 @@ dependencies = [
  "serde_json",
  "smallvec",
  "termina",
- "tome-cabi-types",
  "unicode-segmentation",
  "unicode-width 0.2.0",
 ]
@@ -2170,8 +2202,10 @@ version = "0.1.0"
 dependencies = [
  "agent-client-protocol",
  "clap",
+ "home",
  "insta",
  "kitty-test-harness",
+ "libloading",
  "linkme",
  "portable-pty",
  "ratatui",
@@ -2181,6 +2215,7 @@ dependencies = [
  "termwiz",
  "tokio",
  "tokio-util",
+ "tome-cabi-types",
  "tome-core",
  "tui-term",
 ]

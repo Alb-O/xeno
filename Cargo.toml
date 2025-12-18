@@ -2,6 +2,7 @@
 resolver = "3"
 members = [
     "crates/demo-cabi-plugin",
+    "crates/tome-acp-plugin",
     "crates/tome-cabi-types",
     "crates/tome-core",
     "crates/tome-term",

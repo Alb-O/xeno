@@ -9,7 +9,7 @@ use super::make_range_select;
 ///
 /// # Arguments
 /// * `inclusive` - If true, includes the target character (`f` command).
-///                 If false, stops before the target (`t` command).
+///   If false, stops before the target (`t` command).
 /// * `count` - Number of occurrences to skip (e.g., `2f` finds second 'f').
 ///
 /// # Examples

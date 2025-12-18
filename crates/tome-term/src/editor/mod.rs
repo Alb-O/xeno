@@ -16,9 +16,11 @@ use tome_core::{
     InputHandler, Key, KeyResult, Mode, MouseEvent, Rope, Selection, Transaction, ext, movement,
 };
 
-use crate::acp::{AcpClientRuntime, AgentCommand, AgentPanelState, AgentUiEvent};
+use crate::plugins::PluginManager;
+use crate::plugins::manager::HOST_V2;
 use crate::terminal_panel::TerminalState;
 use crate::theme::Theme;
+use tome_cabi_types::{TomeCommandContextV1, TomeStatus, TomeStr};
 
 pub use types::{HistoryEntry, Message, MessageKind, Registers, ScratchState};
 
@@ -53,13 +55,17 @@ pub struct Editor {
     pub theme: &'static Theme,
     pub window_width: Option<u16>,
     pub window_height: Option<u16>,
-    pub agent_panel: AgentPanelState,
-    pub agent_runtime: Option<AcpClientRuntime>,
-    pub agent_events: Option<Receiver<AgentUiEvent>>,
+    pub plugins: PluginManager,
+    pub needs_redraw: bool,
     insert_undo_active: bool,
+    pub pending_permissions: Vec<crate::plugins::manager::PendingPermission>,
 }
 
 impl Editor {
+    pub fn request_redraw(&mut self) {
+        self.needs_redraw = true;
+    }
+
     pub fn show_message(&mut self, text: impl Into<String>) {
         self.message = Some(Message {
             text: text.into(),
@@ -72,6 +78,12 @@ impl Editor {
             text: text.into(),
             kind: MessageKind::Error,
         });
+    }
+
+    pub fn execute_ex_command(&mut self, input: &str) -> bool {
+        let input = input.trim();
+        let input = input.strip_prefix(':').unwrap_or(input);
+        self.execute_command_line(input)
     }
 
     fn execute_command_line(&mut self, input: &str) -> bool {
@@ -90,6 +102,10 @@ impl Editor {
 
         let arg_strings: Vec<String> = parts.map(|s| s.to_string()).collect();
         let args: Vec<&str> = arg_strings.iter().map(|s| s.as_str()).collect();
+
+        if self.try_execute_plugin_command(name, &args) {
+            return false;
+        }
 
         let cmd = match find_command(name) {
             Some(cmd) => cmd,
@@ -176,10 +192,10 @@ impl Editor {
             theme: &crate::themes::solarized::SOLARIZED_DARK,
             window_width: None,
             window_height: None,
-            agent_panel: AgentPanelState::default(),
-            agent_runtime: None,
-            agent_events: None,
+            plugins: PluginManager::new(),
+            needs_redraw: false,
             insert_undo_active: false,
+            pending_permissions: Vec::new(),
         }
     }
 
@@ -350,14 +366,12 @@ impl Editor {
                 self.terminal_focused = false;
                 self.terminal_focus_pending = false;
                 self.terminal_input_buffer.clear();
+            } else if self.terminal.is_some() {
+                self.terminal_focused = true;
+                self.terminal_focus_pending = false;
             } else {
-                if self.terminal.is_some() {
-                    self.terminal_focused = true;
-                    self.terminal_focus_pending = false;
-                } else {
-                    self.start_terminal_prewarm();
-                    self.terminal_focus_pending = true;
-                }
+                self.start_terminal_prewarm();
+                self.terminal_focus_pending = true;
             }
             return;
         }
@@ -384,139 +398,189 @@ impl Editor {
         }
     }
 
-    pub fn do_agent_toggle(&mut self) {
-        self.agent_panel.open = !self.agent_panel.open;
-        if self.agent_panel.open {
-            self.agent_panel.focused = true;
-            self.scratch_focused = false;
-            self.terminal_focused = false;
-        } else {
-            self.agent_panel.focused = false;
+    pub fn submit_plugin_panel(&mut self, id: u64) {
+        use crate::plugins::panels::ChatItem;
+        use tome_cabi_types::{TomeChatRole, TomeStr};
+
+        if let Some(panel) = self.plugins.panels.get_mut(&id) {
+            let text = panel.input.to_string();
+            if text.trim().is_empty() {
+                return;
+            }
+
+            panel.transcript.push(ChatItem {
+                role: TomeChatRole::User,
+                text: text.clone(),
+            });
+            panel.input = "".into();
+            panel.input_cursor = 0;
+
+            let text_tome = TomeStr {
+                ptr: text.as_ptr(),
+                len: text.len(),
+            };
+
+            if let Some(owner_idx) = self.plugins.panel_owners.get(&id).copied()
+                && let Some(plugin) = self.plugins.plugins.get(owner_idx)
+                && let Some(on_submit) = plugin.guest.on_panel_submit
+            {
+                use crate::plugins::manager::PluginContextGuard;
+                let ed_ptr = self as *mut Editor;
+                let mgr_ptr = unsafe { &mut (*ed_ptr).plugins as *mut _ };
+                let _guard = unsafe { PluginContextGuard::new(mgr_ptr, ed_ptr, owner_idx) };
+                on_submit(id, text_tome);
+            }
         }
     }
 
-    pub fn do_agent_start(&mut self) {
-        if self.agent_runtime.is_some() {
-            self.show_message("Agent already running");
-            return;
-        }
-        let (ui_tx, ui_rx) = std::sync::mpsc::channel();
-        self.agent_events = Some(ui_rx);
-        let runtime = AcpClientRuntime::new(ui_tx);
-
-        let cwd = if let Some(path) = &self.path {
-            path.parent()
-                .map(|p| p.to_path_buf())
-                .unwrap_or_else(|| std::env::current_dir().unwrap_or_default())
-        } else {
-            std::env::current_dir().unwrap_or_default()
+    pub fn try_execute_plugin_command(&mut self, full_name: &str, args: &[&str]) -> bool {
+        let cmd = match self.plugins.commands.get(full_name) {
+            Some(c) => c,
+            None => return false,
         };
 
-        runtime.send(AgentCommand::Start { cwd });
-        self.agent_runtime = Some(runtime);
-        self.show_message("Starting agent...");
-    }
+        let plugin_idx = cmd.plugin_idx;
+        let handler = cmd.handler;
 
-    pub fn do_agent_stop(&mut self) {
-        if let Some(runtime) = self.agent_runtime.take() {
-            runtime.send(AgentCommand::Stop);
-            self.agent_events = None;
-            self.show_message("Agent stopped");
-        }
-    }
+        let arg_tome_strs: Vec<TomeStr> = args
+            .iter()
+            .map(|s| TomeStr {
+                ptr: s.as_ptr(),
+                len: s.len(),
+            })
+            .collect();
 
-    pub fn do_agent_send(&mut self) {
-        let text = self.agent_panel.input.to_string();
-        if text.trim().is_empty() {
-            return;
-        }
-        self.agent_panel
-            .transcript
-            .push(crate::acp::ChatItem::User(text.clone()));
-        self.agent_panel.input = "".into();
-        self.agent_panel.input_cursor = 0;
-
-        if let Some(runtime) = &self.agent_runtime {
-            runtime.send(AgentCommand::Prompt { content: text });
-        } else {
-            self.show_error("Agent not running. Use :agent_start");
-        }
-    }
-
-    pub fn poll_agent_events(&mut self) {
-        let rx = match self.agent_events.take() {
-            Some(rx) => rx,
-            None => return,
+        let mut ctx = TomeCommandContextV1 {
+            argc: args.len(),
+            argv: arg_tome_strs.as_ptr(),
+            host: &HOST_V2,
         };
 
-        let mut disconnected = false;
-        while let Ok(event) = rx.try_recv() {
-            match event {
-                AgentUiEvent::Connected { agent_name, .. } => {
-                    self.show_message(format!("Connected to agent: {}", agent_name));
+        let status = {
+            use crate::plugins::manager::PluginContextGuard;
+            let ed_ptr = self as *mut Editor;
+            let mgr_ptr = unsafe { &mut (*ed_ptr).plugins as *mut _ };
+            let _guard = unsafe { PluginContextGuard::new(mgr_ptr, ed_ptr, plugin_idx) };
+            handler(&mut ctx)
+        };
+
+        if status != TomeStatus::Ok {
+            self.show_error(format!(
+                "Command {} failed with status {:?}",
+                full_name, status
+            ));
+        }
+        true
+    }
+
+    pub fn autoload_plugins(&mut self) {
+        let mgr_ptr = &mut self.plugins as *mut PluginManager;
+        unsafe { (*mgr_ptr).autoload(self) };
+    }
+
+    pub fn poll_plugins(&mut self) {
+        use crate::plugins::manager::PluginContextGuard;
+        let mut events = Vec::new();
+        let num_plugins = self.plugins.plugins.len();
+        for idx in 0..num_plugins {
+            if let Some(poll_event) = self.plugins.plugins[idx].guest.poll_event {
+                let ed_ptr = self as *mut Editor;
+                let mgr_ptr = unsafe { &mut (*ed_ptr).plugins as *mut _ };
+                let _guard = unsafe { PluginContextGuard::new(mgr_ptr, ed_ptr, idx) };
+                loop {
+                    let mut event =
+                        std::mem::MaybeUninit::<tome_cabi_types::TomePluginEventV1>::uninit();
+                    let has_event = poll_event(event.as_mut_ptr());
+                    if has_event.0 == 0 {
+                        break;
+                    }
+                    let event = unsafe { event.assume_init() };
+                    events.push((idx, event));
                 }
-                AgentUiEvent::SessionStarted { .. } => {
-                    self.show_message("Session started");
-                }
-                AgentUiEvent::SessionUpdate(update) => {
-                    self.handle_session_update(update);
-                }
-                AgentUiEvent::ToolingError { message } => {
-                    self.show_error(format!("Agent error: {}", message));
-                }
-                AgentUiEvent::Disconnected { reason } => {
-                    self.show_message(format!("Agent disconnected: {}", reason));
-                    disconnected = true;
-                }
-                _ => {}
             }
         }
 
-        if !disconnected {
-            self.agent_events = Some(rx);
-        } else {
-            self.agent_runtime = None;
+        for (idx, event) in events {
+            self.handle_plugin_event(idx, event);
         }
     }
 
-    fn handle_session_update(&mut self, update: agent_client_protocol::SessionUpdate) {
-        use agent_client_protocol::{ContentBlock, SessionUpdate};
-        match update {
-            SessionUpdate::AgentMessageChunk(chunk) => {
-                if let ContentBlock::Text(text) = chunk.content {
-                    let mut found = false;
-                    if let Some(crate::acp::ChatItem::Assistant(existing)) =
-                        self.agent_panel.transcript.last_mut()
-                    {
-                        existing.push_str(&text.text);
-                        self.agent_panel.last_assistant_text.push_str(&text.text);
-                        found = true;
-                    }
-                    if !found {
-                        self.agent_panel
-                            .transcript
-                            .push(crate::acp::ChatItem::Assistant(text.text.clone()));
-                        self.agent_panel.last_assistant_text = text.text;
-                    }
+    fn handle_plugin_event(
+        &mut self,
+        plugin_idx: usize,
+        event: tome_cabi_types::TomePluginEventV1,
+    ) {
+        use crate::plugins::manager::tome_owned_to_string;
+        use crate::plugins::panels::ChatItem;
+        use tome_cabi_types::TomePluginEventKind;
+
+        let free_str_fn = self.plugins.plugins[plugin_idx].guest.free_str;
+
+        match event.kind {
+            TomePluginEventKind::PanelAppend => {
+                if self.plugins.panel_owners.get(&event.panel_id) == Some(&plugin_idx)
+                    && let Some(panel) = self.plugins.panels.get_mut(&event.panel_id)
+                    && let Some(text) = tome_owned_to_string(event.text)
+                {
+                    panel.transcript.push(ChatItem {
+                        role: event.role,
+                        text,
+                    });
                 }
             }
-            SessionUpdate::AgentThoughtChunk(chunk) => {
-                if let ContentBlock::Text(text) = chunk.content {
-                    let mut found = false;
-                    if let Some(crate::acp::ChatItem::Thought(existing)) =
-                        self.agent_panel.transcript.last_mut()
-                    {
-                        existing.push_str(&text.text);
-                        found = true;
-                    }
-                    if !found {
-                        self.agent_panel
-                            .transcript
-                            .push(crate::acp::ChatItem::Thought(text.text));
-                    }
+            TomePluginEventKind::PanelSetOpen => {
+                if self.plugins.panel_owners.get(&event.panel_id) == Some(&plugin_idx)
+                    && let Some(panel) = self.plugins.panels.get_mut(&event.panel_id)
+                {
+                    panel.open = event.bool_val.0 != 0;
                 }
             }
-            _ => {}
+            TomePluginEventKind::ShowMessage => {
+                if let Some(text) = tome_owned_to_string(event.text) {
+                    self.show_message(text);
+                }
+            }
+            TomePluginEventKind::RequestPermission => {
+                let req = unsafe { &*event.permission_request };
+                let prompt = tome_owned_to_string(req.prompt).unwrap_or_default();
+                let options_slice =
+                    unsafe { std::slice::from_raw_parts(req.options, req.options_len) };
+                let mut options = Vec::new();
+                for opt in options_slice {
+                    options.push((
+                        tome_owned_to_string(opt.option_id).unwrap_or_default(),
+                        tome_owned_to_string(opt.label).unwrap_or_default(),
+                    ));
+                }
+
+                self.pending_permissions
+                    .push(crate::plugins::manager::PendingPermission {
+                        plugin_idx,
+                        request_id: event.permission_request_id,
+                        _prompt: prompt.clone(),
+                        _options: options.clone(),
+                    });
+
+                self.show_message(format!(
+                    "Permission requested: {}. Use :permit {} <option>",
+                    prompt, event.permission_request_id,
+                ));
+            }
+        }
+
+        if let Some(free_str) = free_str_fn {
+            if !event.text.ptr.is_null() {
+                free_str(event.text);
+            }
+        }
+
+        if !event.permission_request.is_null() {
+            if let Some(free_perm) = self.plugins.plugins[plugin_idx]
+                .guest
+                .free_permission_request
+            {
+                free_perm(event.permission_request);
+            }
         }
     }
 
@@ -748,7 +812,7 @@ impl Editor {
                 TmKeyCode::Char(c) => {
                     if key.modifiers.contains(TmModifiers::CONTROL) {
                         let byte = c.to_ascii_lowercase() as u8;
-                        if byte >= b'a' && byte <= b'z' {
+                        if byte.is_ascii_lowercase() {
                             vec![byte - b'a' + 1]
                         } else {
                             vec![byte]
@@ -780,50 +844,52 @@ impl Editor {
             return false;
         }
 
-        if self.agent_panel.open && self.agent_panel.focused {
-            let raw_ctrl_enter = matches!(
-                key.code,
-                TmKeyCode::Enter | TmKeyCode::Char('\n') | TmKeyCode::Char('j')
-            ) && key.modifiers.contains(TmModifiers::CONTROL);
+        // Check plugin panels
+        let mut panel_id_to_submit = None;
+        let mut panel_handled = false;
+        for panel in self.plugins.panels.values_mut() {
+            if panel.open && panel.focused {
+                let raw_ctrl_enter = matches!(
+                    key.code,
+                    TmKeyCode::Enter | TmKeyCode::Char('\n') | TmKeyCode::Char('j')
+                ) && key.modifiers.contains(TmModifiers::CONTROL);
 
-            if raw_ctrl_enter {
-                self.do_agent_send();
-                return false;
-            }
-
-            match key.code {
-                TmKeyCode::Char(c) => {
-                    if key.modifiers.contains(TmModifiers::CONTROL) && c == 'c' {
-                        if let Some(runtime) = &self.agent_runtime {
-                            runtime.send(AgentCommand::Cancel);
-                            self.show_message("Cancellation sent");
+                if raw_ctrl_enter {
+                    panel_id_to_submit = Some(panel.id);
+                } else {
+                    match key.code {
+                        TmKeyCode::Char(c) => {
+                            panel.input.insert(panel.input_cursor, &c.to_string());
+                            panel.input_cursor += 1;
                         }
-                        return false;
+                        TmKeyCode::Backspace => {
+                            if panel.input_cursor > 0 {
+                                panel
+                                    .input
+                                    .remove(panel.input_cursor - 1..panel.input_cursor);
+                                panel.input_cursor -= 1;
+                            }
+                        }
+                        TmKeyCode::Enter => {
+                            panel.input.insert(panel.input_cursor, "\n");
+                            panel.input_cursor += 1;
+                        }
+                        TmKeyCode::Escape => {
+                            panel.focused = false;
+                        }
+                        _ => {}
                     }
-                    self.agent_panel
-                        .input
-                        .insert(self.agent_panel.input_cursor, &c.to_string());
-                    self.agent_panel.input_cursor += 1;
                 }
-                TmKeyCode::Backspace => {
-                    if self.agent_panel.input_cursor > 0 {
-                        self.agent_panel.input.remove(
-                            self.agent_panel.input_cursor - 1..self.agent_panel.input_cursor,
-                        );
-                        self.agent_panel.input_cursor -= 1;
-                    }
-                }
-                TmKeyCode::Enter => {
-                    self.agent_panel
-                        .input
-                        .insert(self.agent_panel.input_cursor, "\n");
-                    self.agent_panel.input_cursor += 1;
-                }
-                TmKeyCode::Escape => {
-                    self.agent_panel.focused = false;
-                }
-                _ => {}
+                panel_handled = true;
+                break;
             }
+        }
+
+        if let Some(panel_id) = panel_id_to_submit {
+            self.submit_plugin_panel(panel_id);
+            return false;
+        }
+        if panel_handled {
             return false;
         }
 
@@ -1258,6 +1324,37 @@ impl ext::EditorOps for Editor {
         self.modified
     }
 
+    fn on_permission_decision(&mut self, request_id: u64, option_id: &str) -> Result<(), String> {
+        let pos = self
+            .pending_permissions
+            .iter()
+            .position(|p| p.request_id == request_id)
+            .ok_or_else(|| format!("No pending permission request with ID {}", request_id))?;
+
+        let pending = self.pending_permissions.remove(pos);
+        let plugin_idx = pending.plugin_idx;
+
+        if let Some(plugin) = self.plugins.plugins.get(plugin_idx) {
+            if let Some(on_decision) = plugin.guest.on_permission_decision {
+                use crate::plugins::manager::PluginContextGuard;
+                let ed_ptr = self as *mut Editor;
+                let mgr_ptr = unsafe { &mut (*ed_ptr).plugins as *mut _ };
+                let _guard = unsafe { PluginContextGuard::new(mgr_ptr, ed_ptr, plugin_idx) };
+                let option_tome = tome_cabi_types::TomeStr {
+                    ptr: option_id.as_ptr(),
+                    len: option_id.len(),
+                };
+                on_decision(request_id, option_tome);
+                return Ok(());
+            }
+        }
+
+        Err(format!(
+            "Plugin {} does not support permission decisions",
+            plugin_idx
+        ))
+    }
+
     fn set_theme(&mut self, theme_name: &str) -> Result<(), String> {
         if let Some(theme) = crate::theme::get_theme(theme_name) {
             self.theme = theme;
@@ -1268,27 +1365,6 @@ impl ext::EditorOps for Editor {
                 err.push_str(&format!(". Did you mean '{}'?", suggestion));
             }
             Err(err)
-        }
-    }
-
-    fn agent_toggle(&mut self) {
-        self.do_agent_toggle();
-    }
-
-    fn agent_start(&mut self) {
-        self.do_agent_start();
-    }
-
-    fn agent_stop(&mut self) {
-        self.do_agent_stop();
-    }
-
-    fn agent_insert_last(&mut self) {
-        let text = self.agent_panel.last_assistant_text.clone();
-        if !text.is_empty() {
-            self.insert_text(&text);
-        } else {
-            self.show_error("No assistant message to insert");
         }
     }
 }

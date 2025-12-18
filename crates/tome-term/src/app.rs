@@ -13,7 +13,11 @@ use crate::terminal::{
     enable_terminal_features, install_panic_hook,
 };
 
-pub fn run_editor(mut editor: Editor) -> io::Result<()> {
+pub fn run_editor(
+    mut editor: Editor,
+    startup_ex: Option<String>,
+    quit_after_ex: bool,
+) -> io::Result<()> {
     let mut terminal = PlatformTerminal::new()?;
     install_panic_hook(&mut terminal);
     enable_terminal_features(&mut terminal)?;
@@ -24,11 +28,21 @@ pub fn run_editor(mut editor: Editor) -> io::Result<()> {
 
     // Pre-warm an embedded shell in the background so opening the terminal panel is instant.
     editor.start_terminal_prewarm();
+    editor.autoload_plugins();
+
+    if let Some(cmd) = startup_ex.as_deref() {
+        let should_quit = editor.execute_ex_command(cmd);
+        if quit_after_ex || should_quit {
+            let terminal_inner = terminal.backend_mut().terminal_mut();
+            let cleanup_result = disable_terminal_features(terminal_inner);
+            return cleanup_result;
+        }
+    }
 
     let result = (|| {
         loop {
             editor.poll_terminal_prewarm();
-            editor.poll_agent_events();
+            editor.poll_plugins();
 
             let mut terminal_exited = false;
             if let Some(term) = &mut editor.terminal {
@@ -60,8 +74,10 @@ pub fn run_editor(mut editor: Editor) -> io::Result<()> {
             let mut filter = |e: &Event| !e.is_escape();
             let timeout = if matches!(editor.mode(), tome_core::Mode::Insert)
                 || editor.terminal_open
-                || editor.agent_panel.open
+                || editor.plugins.panels.values().any(|p| p.open)
+                || editor.needs_redraw
             {
+                editor.needs_redraw = false;
                 Some(Duration::from_millis(16)) // ~60fps
             } else {
                 Some(Duration::from_millis(50))

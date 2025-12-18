@@ -16,12 +16,9 @@ host = [
     "dep:unicode-width",
     "dep:smallvec",
     "dep:paste",
-    "dep:libloading",
-    "dep:tome-cabi-types",
 ]
 
 [dependencies]
-libloading = { workspace = true, optional = true }
 linkme = { workspace = true, optional = true }
 paste = { workspace = true, optional = true }
 regex = { workspace = true, optional = true }
@@ -30,10 +27,8 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 smallvec = { workspace = true, optional = true }
 termina = { workspace = true, optional = true }
-tome-cabi-types = { path = "../tome-cabi-types", optional = true }
 unicode-segmentation = { workspace = true, optional = true }
 unicode-width = { workspace = true, optional = true }
-# tome-plugin removed
 
 [dev-dependencies]
 criterion.workspace = true
