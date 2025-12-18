@@ -50,6 +50,14 @@ pub struct LoadedPlugin {
     pub path: PathBuf,
 }
 
+impl Drop for LoadedPlugin {
+    fn drop(&mut self) {
+        if let Some(shutdown) = self.guest.shutdown {
+            shutdown();
+        }
+    }
+}
+
 pub struct PluginCommand {
     pub plugin_idx: usize,
     #[allow(dead_code)]
@@ -162,20 +170,23 @@ impl PluginManager {
             );
 
             // Also handle aliases
-            let aliases = unsafe { std::slice::from_raw_parts(spec.aliases.ptr, spec.aliases.len) };
-            for alias in aliases {
-                let alias_name = tome_str_to_str(*alias).to_string();
-                let full_alias = format!("{}.{}", namespace, alias_name);
-                self.commands.insert(
-                    full_alias,
-                    PluginCommand {
-                        plugin_idx,
-                        namespace: namespace.clone(),
-                        name: alias_name,
-                        handler,
-                        user_data: spec.user_data,
-                    },
-                );
+            if !spec.aliases.ptr.is_null() && spec.aliases.len > 0 {
+                let aliases =
+                    unsafe { std::slice::from_raw_parts(spec.aliases.ptr, spec.aliases.len) };
+                for alias in aliases {
+                    let alias_name = tome_str_to_str(*alias).to_string();
+                    let full_alias = format!("{}.{}", namespace, alias_name);
+                    self.commands.insert(
+                        full_alias,
+                        PluginCommand {
+                            plugin_idx,
+                            namespace: namespace.clone(),
+                            name: alias_name,
+                            handler,
+                            user_data: spec.user_data,
+                        },
+                    );
+                }
             }
         }
     }
@@ -188,6 +199,13 @@ impl PluginManager {
     }
 
     pub fn autoload(&mut self) {
+        if std::env::var("TOME_ALLOW_AUTOLOAD").is_err() {
+            eprintln!(
+                "Tome plugin autoloading is disabled by default. Set TOME_ALLOW_AUTOLOAD=1 to enable."
+            );
+            return;
+        }
+
         let dirs = vec![
             std::env::var("TOME_PLUGIN_DIR").ok().map(PathBuf::from),
             home::home_dir().map(|h| h.join(".config/tome/plugins")),
@@ -222,7 +240,7 @@ pub fn tome_str_to_str<'a>(ts: TomeStr) -> &'a str {
     }
     unsafe {
         let slice = std::slice::from_raw_parts(ts.ptr, ts.len);
-        std::str::from_utf8_unchecked(slice)
+        std::str::from_utf8(slice).unwrap_or("<invalid utf-8>")
     }
 }
 
@@ -280,6 +298,13 @@ pub(crate) extern "C" fn host_panel_set_open(id: TomePanelId, open: TomeBool) {
                 && let Some(panel) = mgr.panels.get_mut(&id)
             {
                 panel.open = open.0 != 0;
+                if panel.open {
+                    for (pid, p) in &mut mgr.panels {
+                        if *pid != id {
+                            p.open = false;
+                        }
+                    }
+                }
             }
         }
     })
@@ -325,7 +350,14 @@ pub(crate) extern "C" fn host_panel_append_transcript(
     })
 }
 
-pub(crate) extern "C" fn host_request_redraw() {}
+pub(crate) extern "C" fn host_request_redraw() {
+    ACTIVE_EDITOR.with(|ctx| {
+        if let Some(ed_ptr) = *ctx.borrow() {
+            let ed = unsafe { &mut *ed_ptr };
+            ed.request_redraw();
+        }
+    })
+}
 
 pub(crate) extern "C" fn host_show_message(kind: TomeMessageKind, msg: TomeStr) {
     let s = tome_str_to_str(msg);

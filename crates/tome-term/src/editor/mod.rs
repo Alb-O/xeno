@@ -54,10 +54,15 @@ pub struct Editor {
     pub window_width: Option<u16>,
     pub window_height: Option<u16>,
     pub plugins: PluginManager,
+    pub needs_redraw: bool,
     insert_undo_active: bool,
 }
 
 impl Editor {
+    pub fn request_redraw(&mut self) {
+        self.needs_redraw = true;
+    }
+
     pub fn show_message(&mut self, text: impl Into<String>) {
         self.message = Some(Message {
             text: text.into(),
@@ -185,6 +190,7 @@ impl Editor {
             window_width: None,
             window_height: None,
             plugins: PluginManager::new(),
+            needs_redraw: false,
             insert_undo_active: false,
         }
     }

@@ -75,7 +75,9 @@ pub fn run_editor(
             let timeout = if matches!(editor.mode(), tome_core::Mode::Insert)
                 || editor.terminal_open
                 || editor.plugins.panels.values().any(|p| p.open)
+                || editor.needs_redraw
             {
+                editor.needs_redraw = false;
                 Some(Duration::from_millis(16)) // ~60fps
             } else {
                 Some(Duration::from_millis(50))

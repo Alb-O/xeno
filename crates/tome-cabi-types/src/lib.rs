@@ -41,6 +41,18 @@ pub struct TomeBool(pub u8); // 0/1
 
 #[repr(C)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+/// A string owned by the creator.
+///
+/// # Ownership
+///
+/// The side that allocates the string (host or guest) is responsible for freeing it.
+/// If the host passes a `TomeOwnedStr` to the guest (e.g. in `get_current_path`),
+/// the guest MUST call `host.free_str` when done.
+/// If the guest passes a `TomeOwnedStr` to the host (e.g. in `TomePluginEventV1`),
+/// the host MUST call `guest.free_str` when done.
+///
+/// Never free a string allocated by the other side using your own allocator (e.g. `Box::from_raw`).
+/// Always use the provided `free_str` callback.
 pub struct TomeOwnedStr {
     pub ptr: *mut u8,
     pub len: usize,

@@ -1,3 +1,4 @@
+use std::cell::RefCell;
 use std::collections::VecDeque;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -23,7 +24,9 @@ use tome_cabi_types::{
     TomePluginEventV1, TomeStatus, TomeStr, TomeStrArray,
 };
 
-static PLUGIN: Mutex<Option<AcpPlugin>> = Mutex::new(None);
+thread_local! {
+    static PLUGIN: RefCell<Option<AcpPlugin>> = const { RefCell::new(None) };
+}
 
 struct AcpPlugin {
     #[allow(dead_code)]
@@ -37,9 +40,6 @@ struct AcpPlugin {
 struct SendEvent(TomePluginEventV1);
 unsafe impl Send for SendEvent {}
 unsafe impl Sync for SendEvent {}
-
-unsafe impl Send for AcpPlugin {}
-unsafe impl Sync for AcpPlugin {}
 
 enum AgentCommand {
     Start { cwd: PathBuf },
@@ -105,13 +105,14 @@ extern "C" fn plugin_init(host: *const TomeHostV2) -> TomeStatus {
         });
     });
 
-    let mut plugin_guard = PLUGIN.lock();
-    *plugin_guard = Some(AcpPlugin {
-        host,
-        cmd_tx,
-        events,
-        panel_id,
-        last_assistant_text,
+    PLUGIN.with(|ctx| {
+        *ctx.borrow_mut() = Some(AcpPlugin {
+            host,
+            cmd_tx,
+            events,
+            panel_id,
+            last_assistant_text,
+        });
     });
 
     let host_ref = unsafe { &*host };
@@ -172,22 +173,24 @@ extern "C" fn plugin_init(host: *const TomeHostV2) -> TomeStatus {
 }
 
 extern "C" fn plugin_shutdown() {
-    let mut plugin_guard = PLUGIN.lock();
-    if let Some(plugin) = plugin_guard.take() {
-        let _ = plugin.cmd_tx.try_send(AgentCommand::Stop);
-    }
+    PLUGIN.with(|ctx| {
+        if let Some(plugin) = ctx.borrow_mut().take() {
+            let _ = plugin.cmd_tx.try_send(AgentCommand::Stop);
+        }
+    });
 }
 
 extern "C" fn plugin_poll_event(out: *mut TomePluginEventV1) -> TomeBool {
-    let plugin_guard = PLUGIN.lock();
-    if let Some(plugin) = plugin_guard.as_ref() {
-        let mut events = plugin.events.lock();
-        if let Some(event) = events.pop_front() {
-            unsafe { *out = event.0 };
-            return TomeBool(1);
+    PLUGIN.with(|ctx| {
+        if let Some(plugin) = ctx.borrow().as_ref() {
+            let mut events = plugin.events.lock();
+            if let Some(event) = events.pop_front() {
+                unsafe { *out = event.0 };
+                return TomeBool(1);
+            }
         }
-    }
-    TomeBool(0)
+        TomeBool(0)
+    })
 }
 
 extern "C" fn plugin_free_str(s: TomeOwnedStr) {
@@ -202,112 +205,118 @@ extern "C" fn plugin_free_str(s: TomeOwnedStr) {
 }
 
 extern "C" fn plugin_on_panel_submit(id: TomePanelId, text: TomeStr) {
-    let plugin_guard = PLUGIN.lock();
-    if let Some(plugin) = plugin_guard.as_ref() {
-        let pid = plugin.panel_id.lock();
-        if Some(id) == *pid {
-            let s = tome_str_to_string(text);
-            let _ = plugin.cmd_tx.try_send(AgentCommand::Prompt { content: s });
+    PLUGIN.with(|ctx| {
+        if let Some(plugin) = ctx.borrow().as_ref() {
+            let pid = plugin.panel_id.lock();
+            if Some(id) == *pid {
+                let s = tome_str_to_string(text);
+                let _ = plugin.cmd_tx.try_send(AgentCommand::Prompt { content: s });
+            }
         }
-    }
+    });
 }
 
 extern "C" fn command_start(ctx: *mut TomeCommandContextV1) -> TomeStatus {
-    let plugin_guard = PLUGIN.lock();
-    if let Some(plugin) = plugin_guard.as_ref() {
-        let host = unsafe { &*(*ctx).host };
-        let mut cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+    PLUGIN.with(|p_ctx| {
+        if let Some(plugin) = p_ctx.borrow().as_ref() {
+            let host = unsafe { &*(*ctx).host };
+            let mut cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
 
-        if let (Some(get_path), Some(free_str)) = (host.get_current_path, host.free_str) {
-            let mut owned_str = unsafe { std::mem::zeroed::<TomeOwnedStr>() };
-            if get_path(&mut owned_str) == TomeStatus::Ok {
-                let path_str = tome_owned_to_string(owned_str);
-                free_str(owned_str);
+            if let (Some(get_path), Some(free_str)) = (host.get_current_path, host.free_str) {
+                let mut owned_str = unsafe { std::mem::zeroed::<TomeOwnedStr>() };
+                if get_path(&mut owned_str) == TomeStatus::Ok {
+                    let path_str = tome_owned_to_string(owned_str);
+                    free_str(owned_str);
 
-                if let Some(path_str) = path_str {
-                    let path = PathBuf::from(path_str);
-                    if let Some(parent) = path.parent() {
-                        cwd = parent.to_path_buf();
+                    if let Some(path_str) = path_str {
+                        let path = PathBuf::from(path_str);
+                        if let Some(parent) = path.parent() {
+                            cwd = parent.to_path_buf();
+                        }
                     }
                 }
             }
-        }
 
-        if !cwd.is_absolute()
-            && let Ok(base) = std::env::current_dir()
-        {
-            cwd = base.join(cwd);
-        }
-        if let Ok(canon) = cwd.canonicalize() {
-            cwd = canon;
-        }
-
-        let _ = plugin.cmd_tx.try_send(AgentCommand::Start { cwd });
-        TomeStatus::Ok
-    } else {
-        TomeStatus::Failed
-    }
-}
-
-extern "C" fn command_stop(_ctx: *mut TomeCommandContextV1) -> TomeStatus {
-    let plugin_guard = PLUGIN.lock();
-    if let Some(plugin) = plugin_guard.as_ref() {
-        let _ = plugin.cmd_tx.try_send(AgentCommand::Stop);
-        TomeStatus::Ok
-    } else {
-        TomeStatus::Failed
-    }
-}
-
-extern "C" fn command_toggle(ctx: *mut TomeCommandContextV1) -> TomeStatus {
-    let plugin_guard = PLUGIN.lock();
-    if let Some(plugin) = plugin_guard.as_ref() {
-        let host = unsafe { &*(*ctx).host };
-        let mut pid_guard = plugin.panel_id.lock();
-        let pid = match *pid_guard {
-            Some(id) => id,
-            None => {
-                let id = (host.panel.create)(TomePanelKind::Chat, tome_str("ACP Agent"));
-                *pid_guard = Some(id);
-                id
+            if !cwd.is_absolute()
+                && let Ok(base) = std::env::current_dir()
+            {
+                cwd = base.join(cwd);
             }
-        };
-        (host.panel.set_open)(pid, TomeBool(1));
-        (host.panel.set_focused)(pid, TomeBool(1));
-        TomeStatus::Ok
-    } else {
-        TomeStatus::Failed
-    }
-}
+            if let Ok(canon) = cwd.canonicalize() {
+                cwd = canon;
+            }
 
-extern "C" fn command_insert_last(ctx: *mut TomeCommandContextV1) -> TomeStatus {
-    let plugin_guard = PLUGIN.lock();
-    if let Some(plugin) = plugin_guard.as_ref() {
-        let text = plugin.last_assistant_text.lock().clone();
-        if !text.is_empty() {
-            let host = unsafe { &*(*ctx).host };
-            let ts = TomeStr {
-                ptr: text.as_ptr(),
-                len: text.len(),
-            };
-            (host.insert_text)(ts);
+            let _ = plugin.cmd_tx.try_send(AgentCommand::Start { cwd });
             TomeStatus::Ok
         } else {
             TomeStatus::Failed
         }
-    } else {
-        TomeStatus::Failed
-    }
+    })
+}
+
+extern "C" fn command_stop(_ctx: *mut TomeCommandContextV1) -> TomeStatus {
+    PLUGIN.with(|ctx| {
+        if let Some(plugin) = ctx.borrow().as_ref() {
+            let _ = plugin.cmd_tx.try_send(AgentCommand::Stop);
+            TomeStatus::Ok
+        } else {
+            TomeStatus::Failed
+        }
+    })
+}
+
+extern "C" fn command_toggle(ctx: *mut TomeCommandContextV1) -> TomeStatus {
+    PLUGIN.with(|p_ctx| {
+        if let Some(plugin) = p_ctx.borrow().as_ref() {
+            let host = unsafe { &*(*ctx).host };
+            let mut pid_guard = plugin.panel_id.lock();
+            let pid = match *pid_guard {
+                Some(id) => id,
+                None => {
+                    let id = (host.panel.create)(TomePanelKind::Chat, tome_str("ACP Agent"));
+                    *pid_guard = Some(id);
+                    id
+                }
+            };
+            (host.panel.set_open)(pid, TomeBool(1));
+            (host.panel.set_focused)(pid, TomeBool(1));
+            TomeStatus::Ok
+        } else {
+            TomeStatus::Failed
+        }
+    })
+}
+
+extern "C" fn command_insert_last(ctx: *mut TomeCommandContextV1) -> TomeStatus {
+    PLUGIN.with(|p_ctx| {
+        if let Some(plugin) = p_ctx.borrow().as_ref() {
+            let text = plugin.last_assistant_text.lock().clone();
+            if !text.is_empty() {
+                let host = unsafe { &*(*ctx).host };
+                let ts = TomeStr {
+                    ptr: text.as_ptr(),
+                    len: text.len(),
+                };
+                (host.insert_text)(ts);
+                TomeStatus::Ok
+            } else {
+                TomeStatus::Failed
+            }
+        } else {
+            TomeStatus::Failed
+        }
+    })
 }
 
 extern "C" fn command_cancel(_ctx: *mut TomeCommandContextV1) -> TomeStatus {
-    let plugin_guard = PLUGIN.lock();
-    if let Some(plugin) = plugin_guard.as_ref() {
-        let _ = plugin.cmd_tx.try_send(AgentCommand::Cancel);
-        TomeStatus::Ok
-    } else {
-        TomeStatus::Failed
-    }
+    PLUGIN.with(|ctx| {
+        if let Some(plugin) = ctx.borrow().as_ref() {
+            let _ = plugin.cmd_tx.try_send(AgentCommand::Cancel);
+            TomeStatus::Ok
+        } else {
+            TomeStatus::Failed
+        }
+    })
 }
 
 struct AcpBackend {
@@ -419,9 +428,9 @@ impl AcpBackend {
                     .client_capabilities(
                         ClientCapabilities::new()
                             .fs(FileSystemCapability::new()
-                                .read_text_file(true)
-                                .write_text_file(true))
-                            .terminal(true),
+                                .read_text_file(false)
+                                .write_text_file(false))
+                            .terminal(false),
                     )
                     .client_info(
                         Implementation::new("Tome-Plugin", "0.1.0").title("Tome ACP Plugin"),
