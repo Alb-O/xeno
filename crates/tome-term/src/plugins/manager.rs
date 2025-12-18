@@ -34,8 +34,10 @@ pub struct PluginManager {
     pub plugins: Vec<LoadedPlugin>,
     pub commands: HashMap<String, PluginCommand>,
     pub panels: HashMap<u64, ChatPanelState>,
+    pub panel_owners: HashMap<u64, usize>, // panel_id -> plugin_idx
     next_panel_id: u64,
     current_namespace: Option<String>,
+    pub(crate) current_plugin_idx: Option<usize>,
 }
 
 impl PluginManager {
@@ -44,8 +46,10 @@ impl PluginManager {
             plugins: Vec::new(),
             commands: HashMap::new(),
             panels: HashMap::new(),
+            panel_owners: HashMap::new(),
             next_panel_id: 1,
             current_namespace: None,
+            current_plugin_idx: None,
         }
     }
 
@@ -77,9 +81,13 @@ impl PluginManager {
 
         let mut guest = unsafe { std::mem::zeroed::<TomeGuestV2>() };
 
+        let plugin_idx = self.plugins.len();
+        self.current_plugin_idx = Some(plugin_idx);
+
         let status = self.with_active(|_mgr| unsafe { entry(&host, &mut guest) });
 
         if status != TomeStatus::Ok {
+            self.current_plugin_idx = None;
             return Err(format!("Plugin entry failed with status {:?}", status));
         }
 
@@ -98,6 +106,7 @@ impl PluginManager {
             let status = self.with_active(|_mgr| init(&host));
             if status != TomeStatus::Ok {
                 self.current_namespace = None;
+                self.current_plugin_idx = None;
                 return Err(format!("Plugin init failed with status {:?}", status));
             }
         }
@@ -109,6 +118,7 @@ impl PluginManager {
         });
 
         self.current_namespace = None;
+        self.current_plugin_idx = None;
 
         Ok(())
     }
@@ -226,6 +236,10 @@ pub(crate) extern "C" fn host_panel_create(kind: TomePanelKind, title: TomeStr) 
             let mgr = unsafe { &mut *mgr_ptr };
             let id = mgr.next_panel_id;
             mgr.next_panel_id += 1;
+
+            if let Some(plugin_idx) = mgr.current_plugin_idx {
+                mgr.panel_owners.insert(id, plugin_idx);
+            }
 
             let title_str = tome_str_to_str(title).to_string();
             match kind {

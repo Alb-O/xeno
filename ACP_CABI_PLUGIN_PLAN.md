@@ -317,7 +317,7 @@ ______________________________________________________________________
 
 ## 4) Host implementation plan (`tome-term`)
 
-### 4.1 Add a PluginManager
+### 4.1 Add a PluginManager (COMPLETED)
 
 Create a new module:
 
@@ -336,7 +336,7 @@ Responsibilities:
   - `panel_id → panel state + owner plugin`
 - Per tick: `poll_events()` for each plugin and apply to `Editor` state
 
-### 4.2 Integrate with `Editor::execute_command_line`
+### 4.2 Integrate with `Editor::execute_command_line` (COMPLETED)
 
 Current path: `crates/tome-term/src/editor/mod.rs` → `find_command(name)`.
 
@@ -347,7 +347,7 @@ New order:
 
 This allows runtime commands without touching the `linkme` system.
 
-### 4.3 Generic panel UI (replace ACP-specific)
+### 4.3 Generic panel UI (replace ACP-specific) (COMPLETED)
 
 Refactor:
 
@@ -362,7 +362,7 @@ Host sends submitted input back to the plugin owning the panel:
 
 - On Ctrl+Enter: `guest.on_panel_submit(panel_id, text)`
 
-### 4.4 Auto-load plugins
+### 4.4 Auto-load plugins (COMPLETED)
 
 Autoload should occur during startup, before the main loop.
 
@@ -383,7 +383,7 @@ Implementation detail:
 - Add `PluginManager::autoload()` invoked from `crates/tome-term/src/main.rs` or `run_editor` in `crates/tome-term/src/app.rs`.
 - Autoload errors are non-fatal: show a message line + log.
 
-### 4.5 Replace `:cabi_load` with term host load
+### 4.5 Replace `:cabi_load` with term host load (COMPLETED)
 
 Today `:cabi_load` lives in `tome-core` and loads plugins inside `tome-core` (`crates/tome-core/src/ext/commands/cabi.rs`). That cannot provide term-only host APIs.
 
@@ -397,7 +397,7 @@ This keeps command registration in `tome-core` but moves runtime load to the cor
 
 ______________________________________________________________________
 
-## 5) ACP plugin crate plan (`tome-acp-plugin`)
+## 5) ACP plugin crate plan (`tome-acp-plugin`) (COMPLETED)
 
 ### 5.1 New crate
 
@@ -445,7 +445,7 @@ Plugin behavior:
 - Clear input is host-owned; plugin does not mutate input state directly
 - Send ACP `PromptRequest`
 
-### 5.5 Permission requests
+### 5.5 Permission requests (PENDING)
 
 When ACP sends `session/request_permission`:
 
@@ -480,16 +480,16 @@ Exit criteria:
 - [x] `:demo.hello` (or similar) works.
 - [x] A panel can open and show lines emitted by the plugin.
 
-### Phase 2: ACP plugin MVP (PENDING)
+### Phase 2: ACP plugin MVP (COMPLETED)
 
-- Implement `tome-acp-plugin`:
-  - start/stop agent
-  - send prompt
-  - stream transcript updates
+- [x] Implement `tome-acp-plugin`:
+  - [x] start/stop agent
+  - [x] send prompt
+  - [x] stream transcript updates
 
 Exit criteria:
 
-- `acp.start` and `acp.toggle` fully replace `:agent_start`/`:agent`.
+- [x] `acp.start` and `acp.toggle` fully replace `:agent_start`/`:agent`.
 
 ### Phase 3: Permissions + tools (PENDING)
 
@@ -501,10 +501,10 @@ Exit criteria:
 - No more “always allow” permission stub.
 - Controlled file writes and terminal execution prompts.
 
-### Phase 4: Remove built-in ACP (PENDING)
+### Phase 4: Remove built-in ACP (COMPLETED)
 
-- Delete or gate `crates/tome-term/src/acp/*`.
-- Remove ACP-specific commands from `tome-core` if superseded.
+- [x] Delete or gate `crates/tome-term/src/acp/*`.
+- [x] Remove ACP-specific commands from `tome-core` if superseded.
 
 ______________________________________________________________________
 
@@ -526,6 +526,7 @@ ______________________________________________________________________
 - [x] Add generic panel renderer + input routing
 - [ ] Add permission prompt rendering (panel overlay)
 - [x] Add per-tick event pumping (`poll_events`) from plugins
+- [x] Implement panel ownership tracking
 
 ### 7.3 `demo-cabi-plugin`: v2 demo
 
@@ -535,10 +536,10 @@ ______________________________________________________________________
 
 ### 7.4 `tome-acp-plugin`: ACP-as-plugin
 
-- [ ] Port ACP runtime from `crates/tome-term/src/acp/client.rs`
-- [ ] Implement command handlers (`toggle/start/stop/insert_last`)
-- [ ] Implement `poll_event` queueing and `free_str`
-- [ ] Implement `on_panel_submit` to send prompts
+- [x] Port ACP runtime from `crates/tome-term/src/acp/client.rs`
+- [x] Implement command handlers (`toggle/start/stop/insert_last`)
+- [x] Implement `poll_event` queueing and `free_str`
+- [x] Implement `on_panel_submit` to send prompts
 - [ ] Implement permission request/decision flow
 
 ______________________________________________________________________

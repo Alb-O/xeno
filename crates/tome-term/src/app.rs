@@ -29,7 +29,6 @@ pub fn run_editor(mut editor: Editor) -> io::Result<()> {
     let result = (|| {
         loop {
             editor.poll_terminal_prewarm();
-            editor.poll_agent_events();
             editor.poll_plugins();
 
             let mut terminal_exited = false;
@@ -62,7 +61,7 @@ pub fn run_editor(mut editor: Editor) -> io::Result<()> {
             let mut filter = |e: &Event| !e.is_escape();
             let timeout = if matches!(editor.mode(), tome_core::Mode::Insert)
                 || editor.terminal_open
-                || editor.agent_panel.open
+                || !editor.plugins.panels.is_empty()
             {
                 Some(Duration::from_millis(16)) // ~60fps
             } else {

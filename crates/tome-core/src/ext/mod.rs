@@ -190,18 +190,6 @@ pub trait EditorOps {
     fn set_theme(&mut self, _theme_name: &str) -> Result<(), String> {
         Err("Theme switching not supported".to_string())
     }
-
-    /// Toggle the agent panel.
-    fn agent_toggle(&mut self);
-
-    /// Start the agent.
-    fn agent_start(&mut self);
-
-    /// Stop the agent.
-    fn agent_stop(&mut self);
-
-    /// Insert the last assistant message.
-    fn agent_insert_last(&mut self);
 }
 
 /// Context passed to command handlers.

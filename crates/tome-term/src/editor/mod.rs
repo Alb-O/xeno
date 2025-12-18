@@ -16,7 +16,6 @@ use tome_core::{
     InputHandler, Key, KeyResult, Mode, MouseEvent, Rope, Selection, Transaction, ext, movement,
 };
 
-use crate::acp::{AcpClientRuntime, AgentCommand, AgentPanelState, AgentUiEvent};
 use crate::plugins::PluginManager;
 use crate::terminal_panel::TerminalState;
 use crate::theme::Theme;
@@ -54,9 +53,6 @@ pub struct Editor {
     pub theme: &'static Theme,
     pub window_width: Option<u16>,
     pub window_height: Option<u16>,
-    pub agent_panel: AgentPanelState,
-    pub agent_runtime: Option<AcpClientRuntime>,
-    pub agent_events: Option<Receiver<AgentUiEvent>>,
     pub plugins: PluginManager,
     insert_undo_active: bool,
 }
@@ -182,9 +178,6 @@ impl Editor {
             theme: &crate::themes::solarized::SOLARIZED_DARK,
             window_width: None,
             window_height: None,
-            agent_panel: AgentPanelState::default(),
-            agent_runtime: None,
-            agent_events: None,
             plugins: PluginManager::new(),
             insert_undo_active: false,
         }
@@ -391,65 +384,6 @@ impl Editor {
         }
     }
 
-    pub fn do_agent_toggle(&mut self) {
-        self.agent_panel.open = !self.agent_panel.open;
-        if self.agent_panel.open {
-            self.agent_panel.focused = true;
-            self.scratch_focused = false;
-            self.terminal_focused = false;
-        } else {
-            self.agent_panel.focused = false;
-        }
-    }
-
-    pub fn do_agent_start(&mut self) {
-        if self.agent_runtime.is_some() {
-            self.show_message("Agent already running");
-            return;
-        }
-        let (ui_tx, ui_rx) = std::sync::mpsc::channel();
-        self.agent_events = Some(ui_rx);
-        let runtime = AcpClientRuntime::new(ui_tx);
-
-        let cwd = if let Some(path) = &self.path {
-            path.parent()
-                .map(|p| p.to_path_buf())
-                .unwrap_or_else(|| std::env::current_dir().unwrap_or_default())
-        } else {
-            std::env::current_dir().unwrap_or_default()
-        };
-
-        runtime.send(AgentCommand::Start { cwd });
-        self.agent_runtime = Some(runtime);
-        self.show_message("Starting agent...");
-    }
-
-    pub fn do_agent_stop(&mut self) {
-        if let Some(runtime) = self.agent_runtime.take() {
-            runtime.send(AgentCommand::Stop);
-            self.agent_events = None;
-            self.show_message("Agent stopped");
-        }
-    }
-
-    pub fn do_agent_send(&mut self) {
-        let text = self.agent_panel.input.to_string();
-        if text.trim().is_empty() {
-            return;
-        }
-        self.agent_panel
-            .transcript
-            .push(crate::acp::ChatItem::User(text.clone()));
-        self.agent_panel.input = "".into();
-        self.agent_panel.input_cursor = 0;
-
-        if let Some(runtime) = &self.agent_runtime {
-            runtime.send(AgentCommand::Prompt { content: text });
-        } else {
-            self.show_error("Agent not running. Use :agent_start");
-        }
-    }
-
     pub fn submit_plugin_panel(&mut self, id: u64) {
         use crate::plugins::panels::ChatItem;
         use tome_cabi_types::{TomeChatRole, TomeStr};
@@ -471,9 +405,12 @@ impl Editor {
                 ptr: text.as_ptr(),
                 len: text.len(),
             };
-            for plugin in &self.plugins.plugins {
-                if let Some(on_submit) = plugin.guest.on_panel_submit {
-                    on_submit(id, text_tome);
+
+            if let Some(owner_idx) = self.plugins.panel_owners.get(&id) {
+                if let Some(plugin) = self.plugins.plugins.get(*owner_idx) {
+                    if let Some(on_submit) = plugin.guest.on_panel_submit {
+                        on_submit(id, text_tome);
+                    }
                 }
             }
         }
@@ -607,83 +544,6 @@ impl Editor {
 
         if let Some(free_str) = free_str_fn {
             free_str(event.text);
-        }
-    }
-
-    pub fn poll_agent_events(&mut self) {
-        let rx = match self.agent_events.take() {
-            Some(rx) => rx,
-            None => return,
-        };
-
-        let mut disconnected = false;
-        while let Ok(event) = rx.try_recv() {
-            match event {
-                AgentUiEvent::Connected { agent_name, .. } => {
-                    self.show_message(format!("Connected to agent: {}", agent_name));
-                }
-                AgentUiEvent::SessionStarted { .. } => {
-                    self.show_message("Session started");
-                }
-                AgentUiEvent::SessionUpdate(update) => {
-                    self.handle_session_update(update);
-                }
-                AgentUiEvent::ToolingError { message } => {
-                    self.show_error(format!("Agent error: {}", message));
-                }
-                AgentUiEvent::Disconnected { reason } => {
-                    self.show_message(format!("Agent disconnected: {}", reason));
-                    disconnected = true;
-                }
-                _ => {}
-            }
-        }
-
-        if !disconnected {
-            self.agent_events = Some(rx);
-        } else {
-            self.agent_runtime = None;
-        }
-    }
-
-    fn handle_session_update(&mut self, update: agent_client_protocol::SessionUpdate) {
-        use agent_client_protocol::{ContentBlock, SessionUpdate};
-        match update {
-            SessionUpdate::AgentMessageChunk(chunk) => {
-                if let ContentBlock::Text(text) = chunk.content {
-                    let mut found = false;
-                    if let Some(crate::acp::ChatItem::Assistant(existing)) =
-                        self.agent_panel.transcript.last_mut()
-                    {
-                        existing.push_str(&text.text);
-                        self.agent_panel.last_assistant_text.push_str(&text.text);
-                        found = true;
-                    }
-                    if !found {
-                        self.agent_panel
-                            .transcript
-                            .push(crate::acp::ChatItem::Assistant(text.text.clone()));
-                        self.agent_panel.last_assistant_text = text.text;
-                    }
-                }
-            }
-            SessionUpdate::AgentThoughtChunk(chunk) => {
-                if let ContentBlock::Text(text) = chunk.content {
-                    let mut found = false;
-                    if let Some(crate::acp::ChatItem::Thought(existing)) =
-                        self.agent_panel.transcript.last_mut()
-                    {
-                        existing.push_str(&text.text);
-                        found = true;
-                    }
-                    if !found {
-                        self.agent_panel
-                            .transcript
-                            .push(crate::acp::ChatItem::Thought(text.text));
-                    }
-                }
-            }
-            _ => {}
         }
     }
 
@@ -993,53 +853,6 @@ impl Editor {
             return false;
         }
         if panel_handled {
-            return false;
-        }
-
-        if self.agent_panel.open && self.agent_panel.focused {
-            let raw_ctrl_enter = matches!(
-                key.code,
-                TmKeyCode::Enter | TmKeyCode::Char('\n') | TmKeyCode::Char('j')
-            ) && key.modifiers.contains(TmModifiers::CONTROL);
-
-            if raw_ctrl_enter {
-                self.do_agent_send();
-                return false;
-            }
-
-            match key.code {
-                TmKeyCode::Char(c) => {
-                    if key.modifiers.contains(TmModifiers::CONTROL) && c == 'c' {
-                        if let Some(runtime) = &self.agent_runtime {
-                            runtime.send(AgentCommand::Cancel);
-                            self.show_message("Cancellation sent");
-                        }
-                        return false;
-                    }
-                    self.agent_panel
-                        .input
-                        .insert(self.agent_panel.input_cursor, &c.to_string());
-                    self.agent_panel.input_cursor += 1;
-                }
-                TmKeyCode::Backspace => {
-                    if self.agent_panel.input_cursor > 0 {
-                        self.agent_panel.input.remove(
-                            self.agent_panel.input_cursor - 1..self.agent_panel.input_cursor,
-                        );
-                        self.agent_panel.input_cursor -= 1;
-                    }
-                }
-                TmKeyCode::Enter => {
-                    self.agent_panel
-                        .input
-                        .insert(self.agent_panel.input_cursor, "\n");
-                    self.agent_panel.input_cursor += 1;
-                }
-                TmKeyCode::Escape => {
-                    self.agent_panel.focused = false;
-                }
-                _ => {}
-            }
             return false;
         }
 
@@ -1484,27 +1297,6 @@ impl ext::EditorOps for Editor {
                 err.push_str(&format!(". Did you mean '{}'?", suggestion));
             }
             Err(err)
-        }
-    }
-
-    fn agent_toggle(&mut self) {
-        self.do_agent_toggle();
-    }
-
-    fn agent_start(&mut self) {
-        self.do_agent_start();
-    }
-
-    fn agent_stop(&mut self) {
-        self.do_agent_stop();
-    }
-
-    fn agent_insert_last(&mut self) {
-        let text = self.agent_panel.last_assistant_text.clone();
-        if !text.is_empty() {
-            self.insert_text(&text);
-        } else {
-            self.show_error("No assistant message to insert");
         }
     }
 }
