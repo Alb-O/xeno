@@ -1,5 +1,6 @@
-use clap::Parser;
 use std::path::PathBuf;
+
+use clap::Parser;
 
 use crate::styles::cli_styles;
 
@@ -9,14 +10,14 @@ use crate::styles::cli_styles;
 #[command(version)]
 #[command(styles = cli_styles())]
 pub struct Cli {
-    /// File to edit (opens scratch buffer if omitted)
-    pub file: Option<PathBuf>,
+	/// File to edit (opens scratch buffer if omitted)
+	pub file: Option<PathBuf>,
 
-    /// Execute an Ex command at startup (e.g. "acp.start")
-    #[arg(long = "ex")]
-    pub ex: Option<String>,
+	/// Execute an Ex command at startup (e.g. "acp.start")
+	#[arg(long = "ex")]
+	pub ex: Option<String>,
 
-    /// Exit immediately after running `--ex`
-    #[arg(long)]
-    pub quit_after_ex: bool,
+	/// Exit immediately after running `--ex`
+	#[arg(long)]
+	pub quit_after_ex: bool,
 }

@@ -30,43 +30,42 @@ use crate::widgets::Widget;
 pub struct Clear;
 
 impl Widget for Clear {
-    fn render(self, area: Rect, buf: &mut Buffer) {
-        Widget::render(&self, area, buf);
-    }
+	fn render(self, area: Rect, buf: &mut Buffer) {
+		Widget::render(&self, area, buf);
+	}
 }
 
 impl Widget for &Clear {
-    fn render(self, area: Rect, buf: &mut Buffer) {
-        for x in area.left()..area.right() {
-            for y in area.top()..area.bottom() {
-                buf[(x, y)].reset();
-            }
-        }
-    }
+	fn render(self, area: Rect, buf: &mut Buffer) {
+		for x in area.left()..area.right() {
+			for y in area.top()..area.bottom() {
+				buf[(x, y)].reset();
+			}
+		}
+	}
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::buffer::Buffer;
-    use crate::layout::Rect;
-    use crate::widgets::Widget;
+	use super::*;
+	use crate::buffer::Buffer;
+	use crate::layout::Rect;
+	use crate::widgets::Widget;
 
-    use super::*;
-
-    #[test]
-    fn render() {
-        let mut buffer = Buffer::with_lines(["xxxxxxxxxxxxxxx"; 7]);
-        let clear = Clear;
-        clear.render(Rect::new(1, 2, 3, 4), &mut buffer);
-        let expected = Buffer::with_lines([
-            "xxxxxxxxxxxxxxx",
-            "xxxxxxxxxxxxxxx",
-            "x   xxxxxxxxxxx",
-            "x   xxxxxxxxxxx",
-            "x   xxxxxxxxxxx",
-            "x   xxxxxxxxxxx",
-            "xxxxxxxxxxxxxxx",
-        ]);
-        assert_eq!(buffer, expected);
-    }
+	#[test]
+	fn render() {
+		let mut buffer = Buffer::with_lines(["xxxxxxxxxxxxxxx"; 7]);
+		let clear = Clear;
+		clear.render(Rect::new(1, 2, 3, 4), &mut buffer);
+		let expected = Buffer::with_lines([
+			"xxxxxxxxxxxxxxx",
+			"xxxxxxxxxxxxxxx",
+			"x   xxxxxxxxxxx",
+			"x   xxxxxxxxxxx",
+			"x   xxxxxxxxxxx",
+			"x   xxxxxxxxxxx",
+			"xxxxxxxxxxxxxxx",
+		]);
+		assert_eq!(buffer, expected);
+	}
 }

@@ -31,11 +31,10 @@
 #[cfg(feature = "crossterm")]
 pub use crate::backend::crossterm::{CrosstermBackend, FromCrossterm, IntoCrossterm};
 pub use crate::backend::{self, Backend};
-
 pub use crate::buffer::{self, Buffer};
 pub use crate::layout::{
-    self, Alignment, Constraint, Direction, HorizontalAlignment, Layout, Margin, Position, Rect,
-    Size, VerticalAlignment,
+	self, Alignment, Constraint, Direction, HorizontalAlignment, Layout, Margin, Position, Rect,
+	Size, VerticalAlignment,
 };
 pub use crate::style::{self, Color, Modifier, Style, Stylize};
 pub use crate::text::{self, Line, Masked, Span, Text};

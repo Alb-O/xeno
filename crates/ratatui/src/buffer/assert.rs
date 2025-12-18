@@ -41,31 +41,31 @@ macro_rules! assert_buffer_eq {
 #[expect(deprecated)]
 #[cfg(test)]
 mod tests {
-    use crate::buffer::Buffer;
-    use crate::layout::Rect;
-    use crate::style::{Color, Style};
+	use crate::buffer::Buffer;
+	use crate::layout::Rect;
+	use crate::style::{Color, Style};
 
-    #[test]
-    fn assert_buffer_eq_does_not_panic_on_equal_buffers() {
-        let buffer = Buffer::empty(Rect::new(0, 0, 5, 1));
-        let other_buffer = Buffer::empty(Rect::new(0, 0, 5, 1));
-        assert_buffer_eq!(buffer, other_buffer);
-    }
+	#[test]
+	fn assert_buffer_eq_does_not_panic_on_equal_buffers() {
+		let buffer = Buffer::empty(Rect::new(0, 0, 5, 1));
+		let other_buffer = Buffer::empty(Rect::new(0, 0, 5, 1));
+		assert_buffer_eq!(buffer, other_buffer);
+	}
 
-    #[should_panic = "buffer areas not equal"]
-    #[test]
-    fn assert_buffer_eq_panics_on_unequal_area() {
-        let buffer = Buffer::empty(Rect::new(0, 0, 5, 1));
-        let other_buffer = Buffer::empty(Rect::new(0, 0, 6, 1));
-        assert_buffer_eq!(buffer, other_buffer);
-    }
+	#[should_panic = "buffer areas not equal"]
+	#[test]
+	fn assert_buffer_eq_panics_on_unequal_area() {
+		let buffer = Buffer::empty(Rect::new(0, 0, 5, 1));
+		let other_buffer = Buffer::empty(Rect::new(0, 0, 6, 1));
+		assert_buffer_eq!(buffer, other_buffer);
+	}
 
-    #[should_panic = "buffer contents not equal"]
-    #[test]
-    fn assert_buffer_eq_panics_on_unequal_style() {
-        let buffer = Buffer::empty(Rect::new(0, 0, 5, 1));
-        let mut other_buffer = Buffer::empty(Rect::new(0, 0, 5, 1));
-        other_buffer.set_string(0, 0, " ", Style::default().fg(Color::Red));
-        assert_buffer_eq!(buffer, other_buffer);
-    }
+	#[should_panic = "buffer contents not equal"]
+	#[test]
+	fn assert_buffer_eq_panics_on_unequal_style() {
+		let buffer = Buffer::empty(Rect::new(0, 0, 5, 1));
+		let mut other_buffer = Buffer::empty(Rect::new(0, 0, 5, 1));
+		other_buffer.set_string(0, 0, " ", Style::default().fg(Color::Red));
+		assert_buffer_eq!(buffer, other_buffer);
+	}
 }

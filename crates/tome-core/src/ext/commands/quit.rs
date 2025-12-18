@@ -4,28 +4,28 @@ use crate::ext::{COMMANDS, CommandContext, CommandDef, CommandError, CommandOutc
 
 #[distributed_slice(COMMANDS)]
 static CMD_QUIT: CommandDef = CommandDef {
-    name: "quit",
-    aliases: &["q"],
-    description: "Quit the editor",
-    handler: cmd_quit,
+	name: "quit",
+	aliases: &["q"],
+	description: "Quit the editor",
+	handler: cmd_quit,
 };
 
 fn cmd_quit(ctx: &mut CommandContext) -> Result<CommandOutcome, CommandError> {
-    if ctx.editor.is_modified() {
-        ctx.error("Buffer has unsaved changes (use :q! to force quit)");
-        return Ok(CommandOutcome::Ok);
-    }
-    Ok(CommandOutcome::Quit)
+	if ctx.editor.is_modified() {
+		ctx.error("Buffer has unsaved changes (use :q! to force quit)");
+		return Ok(CommandOutcome::Ok);
+	}
+	Ok(CommandOutcome::Quit)
 }
 
 #[distributed_slice(COMMANDS)]
 static CMD_QUIT_FORCE: CommandDef = CommandDef {
-    name: "quit!",
-    aliases: &["q!"],
-    description: "Quit without saving",
-    handler: cmd_quit_force,
+	name: "quit!",
+	aliases: &["q!"],
+	description: "Quit without saving",
+	handler: cmd_quit_force,
 };
 
 fn cmd_quit_force(_ctx: &mut CommandContext) -> Result<CommandOutcome, CommandError> {
-    Ok(CommandOutcome::ForceQuit)
+	Ok(CommandOutcome::ForceQuit)
 }

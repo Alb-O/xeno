@@ -134,7 +134,7 @@ use std::io::{self, Stdout, stdout};
 use crate::backend::crossterm::CrosstermBackend;
 use crate::backend::crossterm::crossterm::execute;
 use crate::backend::crossterm::crossterm::terminal::{
-    EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode,
+	EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode,
 };
 use crate::terminal::{Terminal, TerminalOptions};
 
@@ -250,12 +250,12 @@ pub type DefaultTerminal = Terminal<CrosstermBackend<Stdout>>;
 /// ```
 pub fn run<F, R>(f: F) -> R
 where
-    F: FnOnce(&mut DefaultTerminal) -> R,
+	F: FnOnce(&mut DefaultTerminal) -> R,
 {
-    let mut terminal = init();
-    let result = f(&mut terminal);
-    restore();
-    result
+	let mut terminal = init();
+	let result = f(&mut terminal);
+	restore();
+	result
 }
 
 /// Initialize a terminal with reasonable defaults for most applications.
@@ -296,7 +296,7 @@ where
 /// let terminal = ratatui::init();
 /// ```
 pub fn init() -> DefaultTerminal {
-    try_init().expect("failed to initialize terminal")
+	try_init().expect("failed to initialize terminal")
 }
 
 /// Try to initialize a terminal using reasonable defaults for most applications.
@@ -328,11 +328,11 @@ pub fn init() -> DefaultTerminal {
 /// # Ok::<(), std::io::Error>(())
 /// ```
 pub fn try_init() -> io::Result<DefaultTerminal> {
-    set_panic_hook();
-    enable_raw_mode()?;
-    execute!(stdout(), EnterAlternateScreen)?;
-    let backend = CrosstermBackend::new(stdout());
-    Terminal::new(backend)
+	set_panic_hook();
+	enable_raw_mode()?;
+	execute!(stdout(), EnterAlternateScreen)?;
+	let backend = CrosstermBackend::new(stdout());
+	Terminal::new(backend)
 }
 
 /// Initialize a terminal with the given options and reasonable defaults.
@@ -380,7 +380,7 @@ pub fn try_init() -> io::Result<DefaultTerminal> {
 /// let terminal = ratatui::init_with_options(options);
 /// ```
 pub fn init_with_options(options: TerminalOptions) -> DefaultTerminal {
-    try_init_with_options(options).expect("failed to initialize terminal")
+	try_init_with_options(options).expect("failed to initialize terminal")
 }
 
 /// Try to initialize a terminal with the given options and reasonable defaults.
@@ -423,10 +423,10 @@ pub fn init_with_options(options: TerminalOptions) -> DefaultTerminal {
 /// # Ok::<(), std::io::Error>(())
 /// ```
 pub fn try_init_with_options(options: TerminalOptions) -> io::Result<DefaultTerminal> {
-    set_panic_hook();
-    enable_raw_mode()?;
-    let backend = CrosstermBackend::new(stdout());
-    Terminal::with_options(backend, options)
+	set_panic_hook();
+	enable_raw_mode()?;
+	let backend = CrosstermBackend::new(stdout());
+	Terminal::with_options(backend, options)
 }
 
 /// Restores the terminal to its original state.
@@ -455,10 +455,10 @@ pub fn try_init_with_options(options: TerminalOptions) -> io::Result<DefaultTerm
 /// ratatui::restore();
 /// ```
 pub fn restore() {
-    if let Err(err) = try_restore() {
-        // There's not much we can do if restoring the terminal fails, so we just print the error
-        std::eprintln!("Failed to restore terminal: {err}");
-    }
+	if let Err(err) = try_restore() {
+		// There's not much we can do if restoring the terminal fails, so we just print the error
+		std::eprintln!("Failed to restore terminal: {err}");
+	}
 }
 
 /// Restore the terminal to its original state.
@@ -485,11 +485,11 @@ pub fn restore() {
 /// # Ok::<(), std::io::Error>(())
 /// ```
 pub fn try_restore() -> io::Result<()> {
-    // disabling raw mode first is important as it has more side effects than leaving the alternate
-    // screen buffer
-    disable_raw_mode()?;
-    execute!(stdout(), LeaveAlternateScreen)?;
-    Ok(())
+	// disabling raw mode first is important as it has more side effects than leaving the alternate
+	// screen buffer
+	disable_raw_mode()?;
+	execute!(stdout(), LeaveAlternateScreen)?;
+	Ok(())
 }
 
 /// Sets a panic hook that restores the terminal before panicking.
@@ -497,9 +497,9 @@ pub fn try_restore() -> io::Result<()> {
 /// Replaces the panic hook with a one that will restore the terminal state before calling the
 /// original panic hook. This ensures that the terminal is left in a good state when a panic occurs.
 fn set_panic_hook() {
-    let hook = std::panic::take_hook();
-    std::panic::set_hook(alloc::boxed::Box::new(move |info| {
-        restore();
-        hook(info);
-    }));
+	let hook = std::panic::take_hook();
+	std::panic::set_hook(alloc::boxed::Box::new(move |info| {
+		restore();
+		hook(info);
+	}));
 }

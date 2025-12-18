@@ -44,104 +44,104 @@ use crate::layout::Rect;
 #[derive(Debug, Default, Clone, Copy, Eq, PartialEq, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Size {
-    /// The width in columns
-    pub width: u16,
-    /// The height in rows
-    pub height: u16,
+	/// The width in columns
+	pub width: u16,
+	/// The height in rows
+	pub height: u16,
 }
 
 impl Size {
-    /// A zero sized Size
-    pub const ZERO: Self = Self::new(0, 0);
+	/// A zero sized Size
+	pub const ZERO: Self = Self::new(0, 0);
 
-    /// The minimum possible Size
-    pub const MIN: Self = Self::ZERO;
+	/// The minimum possible Size
+	pub const MIN: Self = Self::ZERO;
 
-    /// The maximum possible Size
-    pub const MAX: Self = Self::new(u16::MAX, u16::MAX);
+	/// The maximum possible Size
+	pub const MAX: Self = Self::new(u16::MAX, u16::MAX);
 
-    /// Create a new `Size` struct
-    pub const fn new(width: u16, height: u16) -> Self {
-        Self { width, height }
-    }
+	/// Create a new `Size` struct
+	pub const fn new(width: u16, height: u16) -> Self {
+		Self { width, height }
+	}
 
-    /// Compute the total area of the size as a `u32`.
-    ///
-    /// The multiplication uses `u32` to avoid overflow when the width and height are at their
-    /// `u16` maximum values.
-    pub const fn area(self) -> u32 {
-        self.width as u32 * self.height as u32
-    }
+	/// Compute the total area of the size as a `u32`.
+	///
+	/// The multiplication uses `u32` to avoid overflow when the width and height are at their
+	/// `u16` maximum values.
+	pub const fn area(self) -> u32 {
+		self.width as u32 * self.height as u32
+	}
 }
 
 impl From<(u16, u16)> for Size {
-    fn from((width, height): (u16, u16)) -> Self {
-        Self { width, height }
-    }
+	fn from((width, height): (u16, u16)) -> Self {
+		Self { width, height }
+	}
 }
 
 impl From<Size> for (u16, u16) {
-    fn from(size: Size) -> Self {
-        (size.width, size.height)
-    }
+	fn from(size: Size) -> Self {
+		(size.width, size.height)
+	}
 }
 
 impl From<Rect> for Size {
-    fn from(rect: Rect) -> Self {
-        rect.as_size()
-    }
+	fn from(rect: Rect) -> Self {
+		rect.as_size()
+	}
 }
 
 impl fmt::Display for Size {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}x{}", self.width, self.height)
-    }
+	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+		write!(f, "{}x{}", self.width, self.height)
+	}
 }
 
 #[cfg(test)]
 mod tests {
-    use alloc::string::ToString;
+	use alloc::string::ToString;
 
-    use super::*;
+	use super::*;
 
-    #[test]
-    fn new() {
-        let size = Size::new(10, 20);
-        assert_eq!(size.width, 10);
-        assert_eq!(size.height, 20);
-    }
+	#[test]
+	fn new() {
+		let size = Size::new(10, 20);
+		assert_eq!(size.width, 10);
+		assert_eq!(size.height, 20);
+	}
 
-    #[test]
-    fn from_tuple() {
-        let size = Size::from((10, 20));
-        assert_eq!(size.width, 10);
-        assert_eq!(size.height, 20);
-    }
+	#[test]
+	fn from_tuple() {
+		let size = Size::from((10, 20));
+		assert_eq!(size.width, 10);
+		assert_eq!(size.height, 20);
+	}
 
-    #[test]
-    fn to_tuple() {
-        let size = Size::from((10, 20));
-        let (width, height) = size.into();
-        assert_eq!(size.width, width);
-        assert_eq!(size.height, height);
-    }
+	#[test]
+	fn to_tuple() {
+		let size = Size::from((10, 20));
+		let (width, height) = size.into();
+		assert_eq!(size.width, width);
+		assert_eq!(size.height, height);
+	}
 
-    #[test]
-    fn from_rect() {
-        let size = Size::from(Rect::new(0, 0, 10, 20));
-        assert_eq!(size.width, 10);
-        assert_eq!(size.height, 20);
-    }
+	#[test]
+	fn from_rect() {
+		let size = Size::from(Rect::new(0, 0, 10, 20));
+		assert_eq!(size.width, 10);
+		assert_eq!(size.height, 20);
+	}
 
-    #[test]
-    fn display() {
-        assert_eq!(Size::new(10, 20).to_string(), "10x20");
-    }
+	#[test]
+	fn display() {
+		assert_eq!(Size::new(10, 20).to_string(), "10x20");
+	}
 
-    #[test]
-    fn area() {
-        assert_eq!(Size::new(10, 20).area(), 200);
-        assert_eq!(Size::new(0, 0).area(), 0);
-        assert_eq!(Size::new(u16::MAX, u16::MAX).area(), 4_294_836_225_u32);
-    }
+	#[test]
+	fn area() {
+		assert_eq!(Size::new(10, 20).area(), 200);
+		assert_eq!(Size::new(0, 0).area(), 0);
+		assert_eq!(Size::new(u16::MAX, u16::MAX).area(), 4_294_836_225_u32);
+	}
 }

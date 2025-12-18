@@ -110,221 +110,221 @@ pub const THICK_CROSS: &str = "╋";
 /// A set of symbols used to draw lines.
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
 pub struct Set<'a> {
-    /// Vertical line.
-    pub vertical: &'a str,
-    /// Horizontal line.
-    pub horizontal: &'a str,
-    /// Top right corner.
-    pub top_right: &'a str,
-    /// Top left corner.
-    pub top_left: &'a str,
-    /// Bottom right corner.
-    pub bottom_right: &'a str,
-    /// Bottom left corner.
-    pub bottom_left: &'a str,
-    /// Vertical line with a left branch.
-    pub vertical_left: &'a str,
-    /// Vertical line with a right branch.
-    pub vertical_right: &'a str,
-    /// Horizontal line with a downward branch.
-    pub horizontal_down: &'a str,
-    /// Horizontal line with an upward branch.
-    pub horizontal_up: &'a str,
-    /// Cross symbol.
-    pub cross: &'a str,
+	/// Vertical line.
+	pub vertical: &'a str,
+	/// Horizontal line.
+	pub horizontal: &'a str,
+	/// Top right corner.
+	pub top_right: &'a str,
+	/// Top left corner.
+	pub top_left: &'a str,
+	/// Bottom right corner.
+	pub bottom_right: &'a str,
+	/// Bottom left corner.
+	pub bottom_left: &'a str,
+	/// Vertical line with a left branch.
+	pub vertical_left: &'a str,
+	/// Vertical line with a right branch.
+	pub vertical_right: &'a str,
+	/// Horizontal line with a downward branch.
+	pub horizontal_down: &'a str,
+	/// Horizontal line with an upward branch.
+	pub horizontal_up: &'a str,
+	/// Cross symbol.
+	pub cross: &'a str,
 }
 
 impl Default for Set<'_> {
-    fn default() -> Self {
-        NORMAL
-    }
+	fn default() -> Self {
+		NORMAL
+	}
 }
 
 /// Normal line symbols.
 pub const NORMAL: Set = Set {
-    vertical: VERTICAL,
-    horizontal: HORIZONTAL,
-    top_right: TOP_RIGHT,
-    top_left: TOP_LEFT,
-    bottom_right: BOTTOM_RIGHT,
-    bottom_left: BOTTOM_LEFT,
-    vertical_left: VERTICAL_LEFT,
-    vertical_right: VERTICAL_RIGHT,
-    horizontal_down: HORIZONTAL_DOWN,
-    horizontal_up: HORIZONTAL_UP,
-    cross: CROSS,
+	vertical: VERTICAL,
+	horizontal: HORIZONTAL,
+	top_right: TOP_RIGHT,
+	top_left: TOP_LEFT,
+	bottom_right: BOTTOM_RIGHT,
+	bottom_left: BOTTOM_LEFT,
+	vertical_left: VERTICAL_LEFT,
+	vertical_right: VERTICAL_RIGHT,
+	horizontal_down: HORIZONTAL_DOWN,
+	horizontal_up: HORIZONTAL_UP,
+	cross: CROSS,
 };
 
 /// Rounded line symbols.
 pub const ROUNDED: Set = Set {
-    top_right: ROUNDED_TOP_RIGHT,
-    top_left: ROUNDED_TOP_LEFT,
-    bottom_right: ROUNDED_BOTTOM_RIGHT,
-    bottom_left: ROUNDED_BOTTOM_LEFT,
-    ..NORMAL
+	top_right: ROUNDED_TOP_RIGHT,
+	top_left: ROUNDED_TOP_LEFT,
+	bottom_right: ROUNDED_BOTTOM_RIGHT,
+	bottom_left: ROUNDED_BOTTOM_LEFT,
+	..NORMAL
 };
 
 /// Double line symbols.
 pub const DOUBLE: Set = Set {
-    vertical: DOUBLE_VERTICAL,
-    horizontal: DOUBLE_HORIZONTAL,
-    top_right: DOUBLE_TOP_RIGHT,
-    top_left: DOUBLE_TOP_LEFT,
-    bottom_right: DOUBLE_BOTTOM_RIGHT,
-    bottom_left: DOUBLE_BOTTOM_LEFT,
-    vertical_left: DOUBLE_VERTICAL_LEFT,
-    vertical_right: DOUBLE_VERTICAL_RIGHT,
-    horizontal_down: DOUBLE_HORIZONTAL_DOWN,
-    horizontal_up: DOUBLE_HORIZONTAL_UP,
-    cross: DOUBLE_CROSS,
+	vertical: DOUBLE_VERTICAL,
+	horizontal: DOUBLE_HORIZONTAL,
+	top_right: DOUBLE_TOP_RIGHT,
+	top_left: DOUBLE_TOP_LEFT,
+	bottom_right: DOUBLE_BOTTOM_RIGHT,
+	bottom_left: DOUBLE_BOTTOM_LEFT,
+	vertical_left: DOUBLE_VERTICAL_LEFT,
+	vertical_right: DOUBLE_VERTICAL_RIGHT,
+	horizontal_down: DOUBLE_HORIZONTAL_DOWN,
+	horizontal_up: DOUBLE_HORIZONTAL_UP,
+	cross: DOUBLE_CROSS,
 };
 
 /// Thick line symbols.
 pub const THICK: Set = Set {
-    vertical: THICK_VERTICAL,
-    horizontal: THICK_HORIZONTAL,
-    top_right: THICK_TOP_RIGHT,
-    top_left: THICK_TOP_LEFT,
-    bottom_right: THICK_BOTTOM_RIGHT,
-    bottom_left: THICK_BOTTOM_LEFT,
-    vertical_left: THICK_VERTICAL_LEFT,
-    vertical_right: THICK_VERTICAL_RIGHT,
-    horizontal_down: THICK_HORIZONTAL_DOWN,
-    horizontal_up: THICK_HORIZONTAL_UP,
-    cross: THICK_CROSS,
+	vertical: THICK_VERTICAL,
+	horizontal: THICK_HORIZONTAL,
+	top_right: THICK_TOP_RIGHT,
+	top_left: THICK_TOP_LEFT,
+	bottom_right: THICK_BOTTOM_RIGHT,
+	bottom_left: THICK_BOTTOM_LEFT,
+	vertical_left: THICK_VERTICAL_LEFT,
+	vertical_right: THICK_VERTICAL_RIGHT,
+	horizontal_down: THICK_HORIZONTAL_DOWN,
+	horizontal_up: THICK_HORIZONTAL_UP,
+	cross: THICK_CROSS,
 };
 
 /// Light double-dashed line symbols.
 pub const LIGHT_DOUBLE_DASHED: Set = Set {
-    vertical: LIGHT_DOUBLE_DASH_VERTICAL,
-    horizontal: LIGHT_DOUBLE_DASH_HORIZONTAL,
-    ..NORMAL
+	vertical: LIGHT_DOUBLE_DASH_VERTICAL,
+	horizontal: LIGHT_DOUBLE_DASH_HORIZONTAL,
+	..NORMAL
 };
 
 /// Heavy double-dashed line symbols.
 pub const HEAVY_DOUBLE_DASHED: Set = Set {
-    vertical: HEAVY_DOUBLE_DASH_VERTICAL,
-    horizontal: HEAVY_DOUBLE_DASH_HORIZONTAL,
-    ..THICK
+	vertical: HEAVY_DOUBLE_DASH_VERTICAL,
+	horizontal: HEAVY_DOUBLE_DASH_HORIZONTAL,
+	..THICK
 };
 
 /// Light triple-dashed line symbols.
 pub const LIGHT_TRIPLE_DASHED: Set = Set {
-    vertical: LIGHT_TRIPLE_DASH_VERTICAL,
-    horizontal: LIGHT_TRIPLE_DASH_HORIZONTAL,
-    ..NORMAL
+	vertical: LIGHT_TRIPLE_DASH_VERTICAL,
+	horizontal: LIGHT_TRIPLE_DASH_HORIZONTAL,
+	..NORMAL
 };
 
 /// Heavy triple-dashed line symbols.
 pub const HEAVY_TRIPLE_DASHED: Set = Set {
-    vertical: HEAVY_TRIPLE_DASH_VERTICAL,
-    horizontal: HEAVY_TRIPLE_DASH_HORIZONTAL,
-    ..THICK
+	vertical: HEAVY_TRIPLE_DASH_VERTICAL,
+	horizontal: HEAVY_TRIPLE_DASH_HORIZONTAL,
+	..THICK
 };
 
 /// Light quadruple-dashed line symbols.
 pub const LIGHT_QUADRUPLE_DASHED: Set = Set {
-    vertical: LIGHT_QUADRUPLE_DASH_VERTICAL,
-    horizontal: LIGHT_QUADRUPLE_DASH_HORIZONTAL,
-    ..NORMAL
+	vertical: LIGHT_QUADRUPLE_DASH_VERTICAL,
+	horizontal: LIGHT_QUADRUPLE_DASH_HORIZONTAL,
+	..NORMAL
 };
 
 /// Heavy quadruple-dashed line symbols.
 pub const HEAVY_QUADRUPLE_DASHED: Set = Set {
-    vertical: HEAVY_QUADRUPLE_DASH_VERTICAL,
-    horizontal: HEAVY_QUADRUPLE_DASH_HORIZONTAL,
-    ..THICK
+	vertical: HEAVY_QUADRUPLE_DASH_VERTICAL,
+	horizontal: HEAVY_QUADRUPLE_DASH_HORIZONTAL,
+	..THICK
 };
 
 #[cfg(test)]
 mod tests {
-    use alloc::format;
-    use alloc::string::String;
+	use alloc::format;
+	use alloc::string::String;
 
-    use indoc::{formatdoc, indoc};
+	use indoc::{formatdoc, indoc};
 
-    use super::*;
+	use super::*;
 
-    #[test]
-    fn default() {
-        assert_eq!(Set::default(), NORMAL);
-    }
+	#[test]
+	fn default() {
+		assert_eq!(Set::default(), NORMAL);
+	}
 
-    /// A helper function to render a set of symbols.
-    fn render(set: Set) -> String {
-        formatdoc!(
-            "{}{}{}{}
+	/// A helper function to render a set of symbols.
+	fn render(set: Set) -> String {
+		formatdoc!(
+			"{}{}{}{}
              {}{}{}{}
              {}{}{}{}
              {}{}{}{}",
-            set.top_left,
-            set.horizontal,
-            set.horizontal_down,
-            set.top_right,
-            set.vertical,
-            " ",
-            set.vertical,
-            set.vertical,
-            set.vertical_right,
-            set.horizontal,
-            set.cross,
-            set.vertical_left,
-            set.bottom_left,
-            set.horizontal,
-            set.horizontal_up,
-            set.bottom_right
-        )
-    }
+			set.top_left,
+			set.horizontal,
+			set.horizontal_down,
+			set.top_right,
+			set.vertical,
+			" ",
+			set.vertical,
+			set.vertical,
+			set.vertical_right,
+			set.horizontal,
+			set.cross,
+			set.vertical_left,
+			set.bottom_left,
+			set.horizontal,
+			set.horizontal_up,
+			set.bottom_right
+		)
+	}
 
-    #[test]
-    fn normal() {
-        assert_eq!(
-            render(NORMAL),
-            indoc!(
-                "┌─┬┐
+	#[test]
+	fn normal() {
+		assert_eq!(
+			render(NORMAL),
+			indoc!(
+				"┌─┬┐
                  │ ││
                  ├─┼┤
                  └─┴┘"
-            )
-        );
-    }
+			)
+		);
+	}
 
-    #[test]
-    fn rounded() {
-        assert_eq!(
-            render(ROUNDED),
-            indoc!(
-                "╭─┬╮
+	#[test]
+	fn rounded() {
+		assert_eq!(
+			render(ROUNDED),
+			indoc!(
+				"╭─┬╮
                  │ ││
                  ├─┼┤
                  ╰─┴╯"
-            )
-        );
-    }
+			)
+		);
+	}
 
-    #[test]
-    fn double() {
-        assert_eq!(
-            render(DOUBLE),
-            indoc!(
-                "╔═╦╗
+	#[test]
+	fn double() {
+		assert_eq!(
+			render(DOUBLE),
+			indoc!(
+				"╔═╦╗
                  ║ ║║
                  ╠═╬╣
                  ╚═╩╝"
-            )
-        );
-    }
+			)
+		);
+	}
 
-    #[test]
-    fn thick() {
-        assert_eq!(
-            render(THICK),
-            indoc!(
-                "┏━┳┓
+	#[test]
+	fn thick() {
+		assert_eq!(
+			render(THICK),
+			indoc!(
+				"┏━┳┓
                  ┃ ┃┃
                  ┣━╋┫
                  ┗━┻┛"
-            )
-        );
-    }
+			)
+		);
+	}
 }

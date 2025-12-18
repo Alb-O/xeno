@@ -1,5 +1,6 @@
-use crate::notifications::types::AnimationPhase;
 use ratatui::prelude::*;
+
+use crate::notifications::types::AnimationPhase;
 
 /// Calculates the visible rectangle for a fade animation.
 ///
@@ -30,10 +31,10 @@ use ratatui::prelude::*;
 /// assert_eq!(result, full_rect);
 /// ```
 pub fn calculate_rect(
-    full_rect: Rect,
-    _frame_area: Rect,
-    _phase: AnimationPhase,
-    _progress: f32,
+	full_rect: Rect,
+	_frame_area: Rect,
+	_phase: AnimationPhase,
+	_progress: f32,
 ) -> Rect {
-    full_rect
+	full_rect
 }

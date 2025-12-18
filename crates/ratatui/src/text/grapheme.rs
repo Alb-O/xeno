@@ -10,78 +10,78 @@ const ZWSP: &str = "\u{200b}";
 /// can be split into `StyledGrapheme`s, but it does not contain a collection of `StyledGrapheme`s.
 #[derive(Debug, Default, Clone, Eq, PartialEq, Hash)]
 pub struct StyledGrapheme<'a> {
-    /// The symbol represented by this grapheme.
-    pub symbol: &'a str,
-    /// The style associated with this grapheme.
-    pub style: Style,
+	/// The symbol represented by this grapheme.
+	pub symbol: &'a str,
+	/// The style associated with this grapheme.
+	pub style: Style,
 }
 
 impl<'a> StyledGrapheme<'a> {
-    /// Creates a new `StyledGrapheme` with the given symbol and style.
-    ///
-    /// `style` accepts any type that is convertible to [`Style`] (e.g. [`Style`], [`Color`], or
-    /// your own type that implements [`Into<Style>`]).
-    ///
-    /// [`Color`]: crate::style::Color
-    pub fn new<S: Into<Style>>(symbol: &'a str, style: S) -> Self {
-        Self {
-            symbol,
-            style: style.into(),
-        }
-    }
+	/// Creates a new `StyledGrapheme` with the given symbol and style.
+	///
+	/// `style` accepts any type that is convertible to [`Style`] (e.g. [`Style`], [`Color`], or
+	/// your own type that implements [`Into<Style>`]).
+	///
+	/// [`Color`]: crate::style::Color
+	pub fn new<S: Into<Style>>(symbol: &'a str, style: S) -> Self {
+		Self {
+			symbol,
+			style: style.into(),
+		}
+	}
 
-    /// Returns true if the grapheme is whitespace.
-    pub fn is_whitespace(&self) -> bool {
-        let symbol = self.symbol;
-        symbol == ZWSP || symbol.chars().all(char::is_whitespace) && symbol != NBSP
-    }
+	/// Returns true if the grapheme is whitespace.
+	pub fn is_whitespace(&self) -> bool {
+		let symbol = self.symbol;
+		symbol == ZWSP || symbol.chars().all(char::is_whitespace) && symbol != NBSP
+	}
 }
 
 impl Styled for StyledGrapheme<'_> {
-    type Item = Self;
+	type Item = Self;
 
-    fn style(&self) -> Style {
-        self.style
-    }
+	fn style(&self) -> Style {
+		self.style
+	}
 
-    fn set_style<S: Into<Style>>(mut self, style: S) -> Self::Item {
-        self.style = style.into();
-        self
-    }
+	fn set_style<S: Into<Style>>(mut self, style: S) -> Self::Item {
+		self.style = style.into();
+		self
+	}
 }
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::style::Stylize;
+	use super::*;
+	use crate::style::Stylize;
 
-    #[test]
-    fn new() {
-        let style = Style::new().yellow();
-        let sg = StyledGrapheme::new("a", style);
-        assert_eq!(sg.symbol, "a");
-        assert_eq!(sg.style, style);
-    }
+	#[test]
+	fn new() {
+		let style = Style::new().yellow();
+		let sg = StyledGrapheme::new("a", style);
+		assert_eq!(sg.symbol, "a");
+		assert_eq!(sg.style, style);
+	}
 
-    #[test]
-    fn style() {
-        let style = Style::new().yellow();
-        let sg = StyledGrapheme::new("a", style);
-        assert_eq!(sg.style(), style);
-    }
+	#[test]
+	fn style() {
+		let style = Style::new().yellow();
+		let sg = StyledGrapheme::new("a", style);
+		assert_eq!(sg.style(), style);
+	}
 
-    #[test]
-    fn set_style() {
-        let style = Style::new().yellow().on_red();
-        let style2 = Style::new().green();
-        let sg = StyledGrapheme::new("a", style).set_style(style2);
-        assert_eq!(sg.style, style2);
-    }
+	#[test]
+	fn set_style() {
+		let style = Style::new().yellow().on_red();
+		let style2 = Style::new().green();
+		let sg = StyledGrapheme::new("a", style).set_style(style2);
+		assert_eq!(sg.style, style2);
+	}
 
-    #[test]
-    fn stylize() {
-        let style = Style::new().yellow().on_red();
-        let sg = StyledGrapheme::new("a", style).green();
-        assert_eq!(sg.style, Style::new().green().on_red());
-    }
+	#[test]
+	fn stylize() {
+		let style = Style::new().yellow().on_red();
+		let sg = StyledGrapheme::new("a", style).green();
+		assert_eq!(sg.style, Style::new().green().on_red());
+	}
 }

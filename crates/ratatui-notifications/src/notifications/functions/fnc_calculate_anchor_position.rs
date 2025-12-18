@@ -1,5 +1,6 @@
-use crate::notifications::types::Anchor;
 use ratatui::layout::{Position, Rect};
+
+use crate::notifications::types::Anchor;
 
 /// Calculate the anchor position within a frame area.
 ///
@@ -27,27 +28,27 @@ use ratatui::layout::{Position, Rect};
 /// assert_eq!(pos, Position::new(0, 0));
 /// ```
 pub fn calculate_anchor_position(anchor: Anchor, frame_area: Rect) -> Position {
-    match anchor {
-        Anchor::TopLeft => Position::new(frame_area.x, frame_area.y),
-        Anchor::TopCenter => Position::new(frame_area.x + frame_area.width / 2, frame_area.y),
-        Anchor::TopRight => Position::new(frame_area.right().saturating_sub(1), frame_area.y),
-        Anchor::MiddleLeft => Position::new(frame_area.x, frame_area.y + frame_area.height / 2),
-        Anchor::MiddleCenter => Position::new(
-            frame_area.x + frame_area.width / 2,
-            frame_area.y + frame_area.height / 2,
-        ),
-        Anchor::MiddleRight => Position::new(
-            frame_area.right().saturating_sub(1),
-            frame_area.y + frame_area.height / 2,
-        ),
-        Anchor::BottomLeft => Position::new(frame_area.x, frame_area.bottom().saturating_sub(1)),
-        Anchor::BottomCenter => Position::new(
-            frame_area.x + frame_area.width / 2,
-            frame_area.bottom().saturating_sub(1),
-        ),
-        Anchor::BottomRight => Position::new(
-            frame_area.right().saturating_sub(1),
-            frame_area.bottom().saturating_sub(1),
-        ),
-    }
+	match anchor {
+		Anchor::TopLeft => Position::new(frame_area.x, frame_area.y),
+		Anchor::TopCenter => Position::new(frame_area.x + frame_area.width / 2, frame_area.y),
+		Anchor::TopRight => Position::new(frame_area.right().saturating_sub(1), frame_area.y),
+		Anchor::MiddleLeft => Position::new(frame_area.x, frame_area.y + frame_area.height / 2),
+		Anchor::MiddleCenter => Position::new(
+			frame_area.x + frame_area.width / 2,
+			frame_area.y + frame_area.height / 2,
+		),
+		Anchor::MiddleRight => Position::new(
+			frame_area.right().saturating_sub(1),
+			frame_area.y + frame_area.height / 2,
+		),
+		Anchor::BottomLeft => Position::new(frame_area.x, frame_area.bottom().saturating_sub(1)),
+		Anchor::BottomCenter => Position::new(
+			frame_area.x + frame_area.width / 2,
+			frame_area.bottom().saturating_sub(1),
+		),
+		Anchor::BottomRight => Position::new(
+			frame_area.right().saturating_sub(1),
+			frame_area.bottom().saturating_sub(1),
+		),
+	}
 }

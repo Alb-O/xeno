@@ -127,11 +127,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1765449956,
-        "narHash": "sha256-5yNQ6jgd4ofo+Vk7odyxz2bX0YwLU5WnZEwDac7wTxg=",
+        "lastModified": 1766060128,
+        "narHash": "sha256-clRP3vIfmG78HZATgTfWAQA0MToJJznQjskllCOZtvc=",
         "owner": "imp-nix",
         "repo": "imp.fmt",
-        "rev": "c6a28a759760c559bc4a7a990fa986d25b8301a4",
+        "rev": "6f7eb3a2955648ee5398deb55040241b7067b1b0",
         "type": "github"
       },
       "original": {

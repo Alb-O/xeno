@@ -29,12 +29,12 @@ const ICON_TRACE: &str = " ⊙";
 /// assert_eq!(get_level_icon(None), None);
 /// ```
 pub fn get_level_icon(level: Option<Level>) -> Option<&'static str> {
-    match level {
-        Some(Level::Info) => Some(ICON_INFO),
-        Some(Level::Warn) => Some(ICON_WARN),
-        Some(Level::Error) => Some(ICON_ERROR),
-        Some(Level::Debug) => Some(ICON_DEBUG),
-        Some(Level::Trace) => Some(ICON_TRACE),
-        None => None,
-    }
+	match level {
+		Some(Level::Info) => Some(ICON_INFO),
+		Some(Level::Warn) => Some(ICON_WARN),
+		Some(Level::Error) => Some(ICON_ERROR),
+		Some(Level::Debug) => Some(ICON_DEBUG),
+		Some(Level::Trace) => Some(ICON_TRACE),
+		None => None,
+	}
 }

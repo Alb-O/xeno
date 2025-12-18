@@ -55,21 +55,22 @@ macro_rules! text {
 
 #[cfg(test)]
 mod tests {
-    use crate::text::Text;
-    use alloc::vec;
+	use alloc::vec;
 
-    #[test]
-    fn text() {
-        // literal
-        let text = text!["hello", "world"];
-        assert_eq!(text, Text::from(vec!["hello".into(), "world".into()]));
+	use crate::text::Text;
 
-        // explicit use of span and line
-        let text = text![crate::line!("hello"), crate::span!["world"]];
-        assert_eq!(text, Text::from(vec!["hello".into(), "world".into()]));
+	#[test]
+	fn text() {
+		// literal
+		let text = text!["hello", "world"];
+		assert_eq!(text, Text::from(vec!["hello".into(), "world".into()]));
 
-        // vec count syntax
-        let text = text!["hello"; 2];
-        assert_eq!(text, Text::from(vec!["hello".into(), "hello".into()]));
-    }
+		// explicit use of span and line
+		let text = text![crate::line!("hello"), crate::span!["world"]];
+		assert_eq!(text, Text::from(vec!["hello".into(), "world".into()]));
+
+		// vec count syntax
+		let text = text!["hello"; 2];
+		assert_eq!(text, Text::from(vec!["hello".into(), "hello".into()]));
+	}
 }

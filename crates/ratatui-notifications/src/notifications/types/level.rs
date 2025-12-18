@@ -4,19 +4,19 @@
 /// Higher severity levels typically use more prominent colors to draw attention.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub enum Level {
-    /// Informational message (default).
-    #[default]
-    Info,
+	/// Informational message (default).
+	#[default]
+	Info,
 
-    /// Warning message.
-    Warn,
+	/// Warning message.
+	Warn,
 
-    /// Error message.
-    Error,
+	/// Error message.
+	Error,
 
-    /// Debug message.
-    Debug,
+	/// Debug message.
+	Debug,
 
-    /// Trace message.
-    Trace,
+	/// Trace message.
+	Trace,
 }

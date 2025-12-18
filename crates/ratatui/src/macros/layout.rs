@@ -19,24 +19,24 @@
 /// [`constraints!`]: crate::constraints
 #[macro_export]
 macro_rules! constraint {
-    (== $token:tt %) => {
-        $crate::layout::Constraint::Percentage($token)
-    };
-    (>= $expr:expr) => {
-        $crate::layout::Constraint::Min($expr)
-    };
-    (<= $expr:expr) => {
-        $crate::layout::Constraint::Max($expr)
-    };
-    (== $num:tt / $denom:tt) => {
-        $crate::layout::Constraint::Ratio($num as u32, $denom as u32)
-    };
-    (== $expr:expr) => {
-        $crate::layout::Constraint::Length($expr)
-    };
-    (*= $expr:expr) => {
-        $crate::layout::Constraint::Fill($expr)
-    };
+	(== $token:tt %) => {
+		$crate::layout::Constraint::Percentage($token)
+	};
+	(>= $expr:expr) => {
+		$crate::layout::Constraint::Min($expr)
+	};
+	(<= $expr:expr) => {
+		$crate::layout::Constraint::Max($expr)
+	};
+	(== $num:tt / $denom:tt) => {
+		$crate::layout::Constraint::Ratio($num as u32, $denom as u32)
+	};
+	(== $expr:expr) => {
+		$crate::layout::Constraint::Length($expr)
+	};
+	(*= $expr:expr) => {
+		$crate::layout::Constraint::Fill($expr)
+	};
 }
 
 /// Creates an array of constraints.

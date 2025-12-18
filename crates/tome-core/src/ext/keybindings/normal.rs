@@ -8,15 +8,15 @@ use crate::key::{Key, SpecialKey};
 const DEFAULT_PRIORITY: i16 = 100;
 
 macro_rules! bind {
-    ($name:ident, $key:expr, $action:expr) => {
-        #[distributed_slice(KEYBINDINGS_NORMAL)]
-        static $name: KeyBindingDef = KeyBindingDef {
-            mode: BindingMode::Normal,
-            key: $key,
-            action: $action,
-            priority: DEFAULT_PRIORITY,
-        };
-    };
+	($name:ident, $key:expr, $action:expr) => {
+		#[distributed_slice(KEYBINDINGS_NORMAL)]
+		static $name: KeyBindingDef = KeyBindingDef {
+			mode: BindingMode::Normal,
+			key: $key,
+			action: $action,
+			priority: DEFAULT_PRIORITY,
+		};
+	};
 }
 
 bind!(KB_H, Key::char('h'), "move_left");
@@ -30,24 +30,24 @@ bind!(KB_UP, Key::special(SpecialKey::Up), "move_up_visual");
 bind!(KB_HOME, Key::special(SpecialKey::Home), "move_line_start");
 bind!(KB_END, Key::special(SpecialKey::End), "move_line_end");
 bind!(
-    KB_HOME_CTRL,
-    Key::special(SpecialKey::Home).with_ctrl(),
-    "document_start"
+	KB_HOME_CTRL,
+	Key::special(SpecialKey::Home).with_ctrl(),
+	"document_start"
 );
 bind!(
-    KB_END_CTRL,
-    Key::special(SpecialKey::End).with_ctrl(),
-    "document_end"
+	KB_END_CTRL,
+	Key::special(SpecialKey::End).with_ctrl(),
+	"document_end"
 );
 bind!(
-    KB_PAGE_UP,
-    Key::special(SpecialKey::PageUp),
-    "scroll_page_up"
+	KB_PAGE_UP,
+	Key::special(SpecialKey::PageUp),
+	"scroll_page_up"
 );
 bind!(
-    KB_PAGE_DOWN,
-    Key::special(SpecialKey::PageDown),
-    "scroll_page_down"
+	KB_PAGE_DOWN,
+	Key::special(SpecialKey::PageDown),
+	"scroll_page_down"
 );
 
 bind!(KB_W, Key::char('w'), "next_word_start");
@@ -93,9 +93,9 @@ bind!(KB_O_ALT, Key::alt('o'), "add_line_below");
 bind!(KB_O_ALT_UPPER, Key::alt('O'), "add_line_above");
 
 bind!(
-    KB_ESC,
-    Key::special(SpecialKey::Escape),
-    "collapse_selection"
+	KB_ESC,
+	Key::special(SpecialKey::Escape),
+	"collapse_selection"
 );
 bind!(KB_SEMI, Key::char(';'), "collapse_selection");
 bind!(KB_SEMI_ALT, Key::alt(';'), "flip_selection");

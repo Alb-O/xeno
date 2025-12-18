@@ -2,15 +2,14 @@
 //! The `widgets` module contains the `Widget` and `StatefulWidget` traits, which are used to
 //! render UI elements on the screen.
 
-pub use self::stateful_widget::StatefulWidget;
-pub use self::widget::Widget;
-
 pub use self::block::{Block, BlockExt};
 pub use self::borders::{BorderType, Borders};
 pub use self::clear::Clear;
 pub use self::list::{List, ListState};
 pub use self::paragraph::Paragraph;
+pub use self::stateful_widget::StatefulWidget;
 pub use self::table::{Table, TableState};
+pub use self::widget::Widget;
 
 mod stateful_widget;
 mod widget;

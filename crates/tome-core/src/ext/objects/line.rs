@@ -3,54 +3,53 @@
 use linkme::distributed_slice;
 use ropey::RopeSlice;
 
+use crate::ext::{TEXT_OBJECTS, TextObjectDef};
 use crate::range::Range;
 
-use crate::ext::{TEXT_OBJECTS, TextObjectDef};
-
 fn line_inner(text: RopeSlice, pos: usize) -> Option<Range> {
-    if text.len_chars() == 0 {
-        return None;
-    }
-    let line = text.char_to_line(pos);
-    let start = text.line_to_char(line);
-    let line_len = text.line(line).len_chars();
+	if text.len_chars() == 0 {
+		return None;
+	}
+	let line = text.char_to_line(pos);
+	let start = text.line_to_char(line);
+	let line_len = text.line(line).len_chars();
 
-    let end = if line_len > 0 {
-        let line_text = text.line(line);
-        let last_char = line_text.char(line_len - 1);
-        if last_char == '\n' {
-            start + line_len - 1
-        } else {
-            start + line_len
-        }
-    } else {
-        start
-    };
+	let end = if line_len > 0 {
+		let line_text = text.line(line);
+		let last_char = line_text.char(line_len - 1);
+		if last_char == '\n' {
+			start + line_len - 1
+		} else {
+			start + line_len
+		}
+	} else {
+		start
+	};
 
-    Some(Range::new(start, end))
+	Some(Range::new(start, end))
 }
 
 fn line_around(text: RopeSlice, pos: usize) -> Option<Range> {
-    if text.len_chars() == 0 {
-        return None;
-    }
-    let line = text.char_to_line(pos);
-    let start = text.line_to_char(line);
-    let end = if line + 1 < text.len_lines() {
-        text.line_to_char(line + 1)
-    } else {
-        text.len_chars()
-    };
+	if text.len_chars() == 0 {
+		return None;
+	}
+	let line = text.char_to_line(pos);
+	let start = text.line_to_char(line);
+	let end = if line + 1 < text.len_lines() {
+		text.line_to_char(line + 1)
+	} else {
+		text.len_chars()
+	};
 
-    Some(Range::new(start, end))
+	Some(Range::new(start, end))
 }
 
 #[distributed_slice(TEXT_OBJECTS)]
 static OBJ_LINE: TextObjectDef = TextObjectDef {
-    name: "line",
-    trigger: 'x',
-    alt_triggers: &[],
-    description: "Select line",
-    inner: line_inner,
-    around: line_around,
+	name: "line",
+	trigger: 'x',
+	alt_triggers: &[],
+	description: "Select line",
+	inner: line_inner,
+	around: line_around,
 };

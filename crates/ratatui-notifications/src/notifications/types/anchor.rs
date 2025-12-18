@@ -6,15 +6,15 @@
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 #[non_exhaustive]
 pub enum Anchor {
-    TopLeft,
-    TopCenter,
-    TopRight,
-    MiddleLeft,
-    MiddleCenter,
-    MiddleRight,
-    BottomLeft,
-    BottomCenter,
-    /// Default anchor position. Notifications expand from bottom-right.
-    #[default]
-    BottomRight,
+	TopLeft,
+	TopCenter,
+	TopRight,
+	MiddleLeft,
+	MiddleCenter,
+	MiddleRight,
+	BottomLeft,
+	BottomCenter,
+	/// Default anchor position. Notifications expand from bottom-right.
+	#[default]
+	BottomRight,
 }

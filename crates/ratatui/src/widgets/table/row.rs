@@ -1,8 +1,7 @@
 use alloc::vec::Vec;
 
-use crate::style::{Style, Styled};
-
 use super::Cell;
+use crate::style::{Style, Styled};
 
 /// A single row of data to be displayed in a [`Table`] widget.
 ///
@@ -73,273 +72,272 @@ use super::Cell;
 /// [`Stylize`]: crate::style::Stylize
 #[derive(Debug, Default, Clone, Eq, PartialEq, Hash)]
 pub struct Row<'a> {
-    pub(crate) cells: Vec<Cell<'a>>,
-    pub(crate) height: u16,
-    pub(crate) top_margin: u16,
-    pub(crate) bottom_margin: u16,
-    pub(crate) style: Style,
+	pub(crate) cells: Vec<Cell<'a>>,
+	pub(crate) height: u16,
+	pub(crate) top_margin: u16,
+	pub(crate) bottom_margin: u16,
+	pub(crate) style: Style,
 }
 
 impl<'a> Row<'a> {
-    /// Creates a new [`Row`]
-    ///
-    /// The `cells` parameter accepts any value that can be converted into an iterator of anything
-    /// that can be converted into a [`Cell`] (e.g. `Vec<&str>`, `&[Cell<'a>]`, `Vec<String>`, etc.)
-    ///
-    /// # Examples
-    ///
-    /// ```rust
-    /// use ratatui::widgets::{Cell, Row};
-    ///
-    /// let row = Row::new(vec!["Cell 1", "Cell 2", "Cell 3"]);
-    /// let row = Row::new(vec![
-    ///     Cell::new("Cell 1"),
-    ///     Cell::new("Cell 2"),
-    ///     Cell::new("Cell 3"),
-    /// ]);
-    /// ```
-    pub fn new<T>(cells: T) -> Self
-    where
-        T: IntoIterator,
-        T::Item: Into<Cell<'a>>,
-    {
-        Self {
-            cells: cells.into_iter().map(Into::into).collect(),
-            height: 1,
-            ..Default::default()
-        }
-    }
+	/// Creates a new [`Row`]
+	///
+	/// The `cells` parameter accepts any value that can be converted into an iterator of anything
+	/// that can be converted into a [`Cell`] (e.g. `Vec<&str>`, `&[Cell<'a>]`, `Vec<String>`, etc.)
+	///
+	/// # Examples
+	///
+	/// ```rust
+	/// use ratatui::widgets::{Cell, Row};
+	///
+	/// let row = Row::new(vec!["Cell 1", "Cell 2", "Cell 3"]);
+	/// let row = Row::new(vec![
+	///     Cell::new("Cell 1"),
+	///     Cell::new("Cell 2"),
+	///     Cell::new("Cell 3"),
+	/// ]);
+	/// ```
+	pub fn new<T>(cells: T) -> Self
+	where
+		T: IntoIterator,
+		T::Item: Into<Cell<'a>>,
+	{
+		Self {
+			cells: cells.into_iter().map(Into::into).collect(),
+			height: 1,
+			..Default::default()
+		}
+	}
 
-    /// Set the cells of the [`Row`]
-    ///
-    /// The `cells` parameter accepts any value that can be converted into an iterator of anything
-    /// that can be converted into a [`Cell`] (e.g. `Vec<&str>`, `&[Cell<'a>]`, `Vec<String>`, etc.)
-    ///
-    /// This is a fluent setter method which must be chained or used as it consumes self
-    ///
-    /// # Examples
-    ///
-    /// ```rust
-    /// use ratatui::widgets::{Cell, Row};
-    ///
-    /// let row = Row::default().cells(vec!["Cell 1", "Cell 2", "Cell 3"]);
-    /// let row = Row::default().cells(vec![
-    ///     Cell::new("Cell 1"),
-    ///     Cell::new("Cell 2"),
-    ///     Cell::new("Cell 3"),
-    /// ]);
-    /// ```
-    #[must_use = "method moves the value of self and returns the modified value"]
-    pub fn cells<T>(mut self, cells: T) -> Self
-    where
-        T: IntoIterator,
-        T::Item: Into<Cell<'a>>,
-    {
-        self.cells = cells.into_iter().map(Into::into).collect();
-        self
-    }
+	/// Set the cells of the [`Row`]
+	///
+	/// The `cells` parameter accepts any value that can be converted into an iterator of anything
+	/// that can be converted into a [`Cell`] (e.g. `Vec<&str>`, `&[Cell<'a>]`, `Vec<String>`, etc.)
+	///
+	/// This is a fluent setter method which must be chained or used as it consumes self
+	///
+	/// # Examples
+	///
+	/// ```rust
+	/// use ratatui::widgets::{Cell, Row};
+	///
+	/// let row = Row::default().cells(vec!["Cell 1", "Cell 2", "Cell 3"]);
+	/// let row = Row::default().cells(vec![
+	///     Cell::new("Cell 1"),
+	///     Cell::new("Cell 2"),
+	///     Cell::new("Cell 3"),
+	/// ]);
+	/// ```
+	#[must_use = "method moves the value of self and returns the modified value"]
+	pub fn cells<T>(mut self, cells: T) -> Self
+	where
+		T: IntoIterator,
+		T::Item: Into<Cell<'a>>,
+	{
+		self.cells = cells.into_iter().map(Into::into).collect();
+		self
+	}
 
-    /// Set the fixed height of the [`Row`]
-    ///
-    /// Any [`Cell`] whose content has more lines than this height will see its content truncated.
-    ///
-    /// By default, the height is `1`.
-    ///
-    /// This is a fluent setter method which must be chained or used as it consumes self
-    ///
-    /// # Examples
-    ///
-    /// ```rust
-    /// use ratatui::widgets::Row;
-    ///
-    /// let cells = vec!["Cell 1\nline 2", "Cell 2", "Cell 3"];
-    /// let row = Row::new(cells).height(2);
-    /// ```
-    #[must_use = "method moves the value of self and returns the modified value"]
-    pub const fn height(mut self, height: u16) -> Self {
-        self.height = height;
-        self
-    }
+	/// Set the fixed height of the [`Row`]
+	///
+	/// Any [`Cell`] whose content has more lines than this height will see its content truncated.
+	///
+	/// By default, the height is `1`.
+	///
+	/// This is a fluent setter method which must be chained or used as it consumes self
+	///
+	/// # Examples
+	///
+	/// ```rust
+	/// use ratatui::widgets::Row;
+	///
+	/// let cells = vec!["Cell 1\nline 2", "Cell 2", "Cell 3"];
+	/// let row = Row::new(cells).height(2);
+	/// ```
+	#[must_use = "method moves the value of self and returns the modified value"]
+	pub const fn height(mut self, height: u16) -> Self {
+		self.height = height;
+		self
+	}
 
-    /// Set the top margin. By default, the top margin is `0`.
-    ///
-    /// The top margin is the number of blank lines to be displayed before the row.
-    ///
-    /// This is a fluent setter method which must be chained or used as it consumes self
-    ///
-    /// # Examples
-    ///
-    /// ```rust
-    /// use ratatui::widgets::Row;
-    /// let cells = vec!["Cell 1", "Cell 2", "Cell 3"];
-    ///
-    /// let row = Row::default().top_margin(1);
-    /// ```
-    #[must_use = "method moves the value of self and returns the modified value"]
-    pub const fn top_margin(mut self, margin: u16) -> Self {
-        self.top_margin = margin;
-        self
-    }
+	/// Set the top margin. By default, the top margin is `0`.
+	///
+	/// The top margin is the number of blank lines to be displayed before the row.
+	///
+	/// This is a fluent setter method which must be chained or used as it consumes self
+	///
+	/// # Examples
+	///
+	/// ```rust
+	/// use ratatui::widgets::Row;
+	/// let cells = vec!["Cell 1", "Cell 2", "Cell 3"];
+	///
+	/// let row = Row::default().top_margin(1);
+	/// ```
+	#[must_use = "method moves the value of self and returns the modified value"]
+	pub const fn top_margin(mut self, margin: u16) -> Self {
+		self.top_margin = margin;
+		self
+	}
 
-    /// Set the bottom margin. By default, the bottom margin is `0`.
-    ///
-    /// The bottom margin is the number of blank lines to be displayed after the row.
-    ///
-    /// This is a fluent setter method which must be chained or used as it consumes self
-    ///
-    /// # Examples
-    ///
-    /// ```rust
-    /// use ratatui::widgets::Row;
-    ///
-    /// let cells = vec!["Cell 1", "Cell 2", "Cell 3"];
-    /// let row = Row::default().bottom_margin(1);
-    /// ```
-    #[must_use = "method moves the value of self and returns the modified value"]
-    pub const fn bottom_margin(mut self, margin: u16) -> Self {
-        self.bottom_margin = margin;
-        self
-    }
+	/// Set the bottom margin. By default, the bottom margin is `0`.
+	///
+	/// The bottom margin is the number of blank lines to be displayed after the row.
+	///
+	/// This is a fluent setter method which must be chained or used as it consumes self
+	///
+	/// # Examples
+	///
+	/// ```rust
+	/// use ratatui::widgets::Row;
+	///
+	/// let cells = vec!["Cell 1", "Cell 2", "Cell 3"];
+	/// let row = Row::default().bottom_margin(1);
+	/// ```
+	#[must_use = "method moves the value of self and returns the modified value"]
+	pub const fn bottom_margin(mut self, margin: u16) -> Self {
+		self.bottom_margin = margin;
+		self
+	}
 
-    /// Set the [`Style`] of the entire row
-    ///
-    /// `style` accepts any type that is convertible to [`Style`] (e.g. [`Style`], [`Color`], or
-    /// your own type that implements [`Into<Style>`]).
-    ///
-    /// This [`Style`] can be overridden by the [`Style`] of a any individual [`Cell`] or by their
-    /// [`Text`] content.
-    ///
-    /// This is a fluent setter method which must be chained or used as it consumes self
-    ///
-    /// # Examples
-    ///
-    /// ```rust
-    /// use ratatui::style::{Style, Stylize};
-    /// use ratatui::widgets::Row;
-    /// let cells = vec!["Cell 1", "Cell 2", "Cell 3"];
-    /// let row = Row::new(cells).style(Style::new().red().italic());
-    /// ```
-    ///
-    /// `Row` also implements the [`Styled`] trait, which means you can use style shorthands from
-    /// the [`Stylize`] trait to set the style of the widget more concisely.
-    ///
-    /// ```rust
-    /// use ratatui::style::Stylize;
-    /// use ratatui::widgets::Row;
-    ///
-    /// let cells = vec!["Cell 1", "Cell 2", "Cell 3"];
-    /// let row = Row::new(cells).red().italic();
-    /// ```
-    ///
-    /// [`Color`]: crate::style::Color
-    /// [`Stylize`]: crate::style::Stylize
-    /// [`Text`]: crate::text::Text
-    #[must_use = "method moves the value of self and returns the modified value"]
-    pub fn style<S: Into<Style>>(mut self, style: S) -> Self {
-        self.style = style.into();
-        self
-    }
+	/// Set the [`Style`] of the entire row
+	///
+	/// `style` accepts any type that is convertible to [`Style`] (e.g. [`Style`], [`Color`], or
+	/// your own type that implements [`Into<Style>`]).
+	///
+	/// This [`Style`] can be overridden by the [`Style`] of a any individual [`Cell`] or by their
+	/// [`Text`] content.
+	///
+	/// This is a fluent setter method which must be chained or used as it consumes self
+	///
+	/// # Examples
+	///
+	/// ```rust
+	/// use ratatui::style::{Style, Stylize};
+	/// use ratatui::widgets::Row;
+	/// let cells = vec!["Cell 1", "Cell 2", "Cell 3"];
+	/// let row = Row::new(cells).style(Style::new().red().italic());
+	/// ```
+	///
+	/// `Row` also implements the [`Styled`] trait, which means you can use style shorthands from
+	/// the [`Stylize`] trait to set the style of the widget more concisely.
+	///
+	/// ```rust
+	/// use ratatui::style::Stylize;
+	/// use ratatui::widgets::Row;
+	///
+	/// let cells = vec!["Cell 1", "Cell 2", "Cell 3"];
+	/// let row = Row::new(cells).red().italic();
+	/// ```
+	///
+	/// [`Color`]: crate::style::Color
+	/// [`Stylize`]: crate::style::Stylize
+	/// [`Text`]: crate::text::Text
+	#[must_use = "method moves the value of self and returns the modified value"]
+	pub fn style<S: Into<Style>>(mut self, style: S) -> Self {
+		self.style = style.into();
+		self
+	}
 }
 
 // private methods for rendering
 impl Row<'_> {
-    /// Returns the total height of the row.
-    pub(crate) const fn height_with_margin(&self) -> u16 {
-        self.height
-            .saturating_add(self.top_margin)
-            .saturating_add(self.bottom_margin)
-    }
+	/// Returns the total height of the row.
+	pub(crate) const fn height_with_margin(&self) -> u16 {
+		self.height
+			.saturating_add(self.top_margin)
+			.saturating_add(self.bottom_margin)
+	}
 }
 
 impl Styled for Row<'_> {
-    type Item = Self;
+	type Item = Self;
 
-    fn style(&self) -> Style {
-        self.style
-    }
+	fn style(&self) -> Style {
+		self.style
+	}
 
-    fn set_style<S: Into<Style>>(self, style: S) -> Self::Item {
-        self.style(style)
-    }
+	fn set_style<S: Into<Style>>(self, style: S) -> Self::Item {
+		self.style(style)
+	}
 }
 
 impl<'a, Item> FromIterator<Item> for Row<'a>
 where
-    Item: Into<Cell<'a>>,
+	Item: Into<Cell<'a>>,
 {
-    fn from_iter<IterCells: IntoIterator<Item = Item>>(cells: IterCells) -> Self {
-        Self::new(cells)
-    }
+	fn from_iter<IterCells: IntoIterator<Item = Item>>(cells: IterCells) -> Self {
+		Self::new(cells)
+	}
 }
 
 #[cfg(test)]
 mod tests {
-    use alloc::vec;
+	use alloc::vec;
 
-    use crate::style::{Color, Modifier, Stylize};
+	use super::*;
+	use crate::style::{Color, Modifier, Stylize};
 
-    use super::*;
+	#[test]
+	fn new() {
+		let cells = vec![Cell::from("")];
+		let row = Row::new(cells.clone());
+		assert_eq!(row.cells, cells);
+	}
 
-    #[test]
-    fn new() {
-        let cells = vec![Cell::from("")];
-        let row = Row::new(cells.clone());
-        assert_eq!(row.cells, cells);
-    }
+	#[test]
+	fn collect() {
+		let cells = vec![Cell::from("")];
+		let row: Row = cells.iter().cloned().collect();
+		assert_eq!(row.cells, cells);
+	}
 
-    #[test]
-    fn collect() {
-        let cells = vec![Cell::from("")];
-        let row: Row = cells.iter().cloned().collect();
-        assert_eq!(row.cells, cells);
-    }
+	#[test]
+	fn cells() {
+		let cells = vec![Cell::from("")];
+		let row = Row::default().cells(cells.clone());
+		assert_eq!(row.cells, cells);
+	}
 
-    #[test]
-    fn cells() {
-        let cells = vec![Cell::from("")];
-        let row = Row::default().cells(cells.clone());
-        assert_eq!(row.cells, cells);
-    }
+	#[test]
+	fn height() {
+		let row = Row::default().height(2);
+		assert_eq!(row.height, 2);
+	}
 
-    #[test]
-    fn height() {
-        let row = Row::default().height(2);
-        assert_eq!(row.height, 2);
-    }
+	#[test]
+	fn top_margin() {
+		let row = Row::default().top_margin(1);
+		assert_eq!(row.top_margin, 1);
+	}
 
-    #[test]
-    fn top_margin() {
-        let row = Row::default().top_margin(1);
-        assert_eq!(row.top_margin, 1);
-    }
+	#[test]
+	fn bottom_margin() {
+		let row = Row::default().bottom_margin(1);
+		assert_eq!(row.bottom_margin, 1);
+	}
 
-    #[test]
-    fn bottom_margin() {
-        let row = Row::default().bottom_margin(1);
-        assert_eq!(row.bottom_margin, 1);
-    }
+	#[test]
+	fn style() {
+		let style = Style::default().red().italic();
+		let row = Row::default().style(style);
+		assert_eq!(row.style, style);
+	}
 
-    #[test]
-    fn style() {
-        let style = Style::default().red().italic();
-        let row = Row::default().style(style);
-        assert_eq!(row.style, style);
-    }
-
-    #[test]
-    fn stylize() {
-        assert_eq!(
-            Row::new(vec![Cell::from("")])
-                .black()
-                .on_white()
-                .bold()
-                .not_italic()
-                .style,
-            Style::default()
-                .fg(Color::Black)
-                .bg(Color::White)
-                .add_modifier(Modifier::BOLD)
-                .remove_modifier(Modifier::ITALIC)
-        );
-    }
+	#[test]
+	fn stylize() {
+		assert_eq!(
+			Row::new(vec![Cell::from("")])
+				.black()
+				.on_white()
+				.bold()
+				.not_italic()
+				.style,
+			Style::default()
+				.fg(Color::Black)
+				.bg(Color::White)
+				.add_modifier(Modifier::BOLD)
+				.remove_modifier(Modifier::ITALIC)
+		);
+	}
 }

@@ -6,13 +6,13 @@ use std::time::Duration;
 /// automatically calculated based on content or system defaults.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum Timing {
-    /// Fixed duration specified by user.
-    Fixed(Duration),
+	/// Fixed duration specified by user.
+	Fixed(Duration),
 
-    /// Automatically calculated duration.
-    ///
-    /// Duration may be based on content length, animation type,
-    /// or system-wide defaults.
-    #[default]
-    Auto,
+	/// Automatically calculated duration.
+	///
+	/// Duration may be based on content length, animation type,
+	/// or system-wide defaults.
+	#[default]
+	Auto,
 }

@@ -14,6 +14,7 @@
       pkgs,
       treefmt-nix,
       imp-fmt-lib,
+      rootSrc,
       ...
     }:
     imp-fmt-lib.make {
@@ -22,6 +23,9 @@
         "target/*"
         "**/target/*"
       ];
-      rust.enable = true;
+      rust = {
+        enable = true;
+        package = pkgs.rust-bin.fromRustupToolchainFile (rootSrc + "/rust-toolchain.toml");
+      };
     };
 }

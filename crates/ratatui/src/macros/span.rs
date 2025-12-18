@@ -119,127 +119,125 @@ macro_rules! span {
 
 #[cfg(test)]
 mod tests {
-    use crate::{
-        style::{Color, Modifier, Style},
-        text::Span,
-    };
+	use crate::style::{Color, Modifier, Style};
+	use crate::text::Span;
 
-    #[test]
-    fn raw() {
-        let test = "test";
-        let content = "content";
-        let number = 123;
+	#[test]
+	fn raw() {
+		let test = "test";
+		let content = "content";
+		let number = 123;
 
-        // literal
-        let span = span!("test content");
-        assert_eq!(span, Span::raw("test content"));
+		// literal
+		let span = span!("test content");
+		assert_eq!(span, Span::raw("test content"));
 
-        // string
-        let span = span!("test {}", "content");
-        assert_eq!(span, Span::raw("test content"));
+		// string
+		let span = span!("test {}", "content");
+		assert_eq!(span, Span::raw("test content"));
 
-        // string variable
-        let span = span!("test {}", content);
-        assert_eq!(span, Span::raw("test content"));
+		// string variable
+		let span = span!("test {}", content);
+		assert_eq!(span, Span::raw("test content"));
 
-        // string variable in the format string
-        let span = span!("test {content}");
-        assert_eq!(span, Span::raw("test content"));
+		// string variable in the format string
+		let span = span!("test {content}");
+		assert_eq!(span, Span::raw("test content"));
 
-        // named variable
-        let span = span!("test {content}", content = "content");
-        assert_eq!(span, Span::raw("test content"));
+		// named variable
+		let span = span!("test {content}", content = "content");
+		assert_eq!(span, Span::raw("test content"));
 
-        // named variable pointing at a local variable
-        let span = span!("test {content}", content = content);
-        assert_eq!(span, Span::raw("test content"));
+		// named variable pointing at a local variable
+		let span = span!("test {content}", content = content);
+		assert_eq!(span, Span::raw("test content"));
 
-        // two strings
-        let span = span!("{} {}", "test", "content");
-        assert_eq!(span, Span::raw("test content"));
+		// two strings
+		let span = span!("{} {}", "test", "content");
+		assert_eq!(span, Span::raw("test content"));
 
-        // two string variables
-        let span = span!("{test} {content}");
-        assert_eq!(span, Span::raw("test content"));
+		// two string variables
+		let span = span!("{test} {content}");
+		assert_eq!(span, Span::raw("test content"));
 
-        // a number
-        let span = span!("test {number}");
-        assert_eq!(span, Span::raw("test 123"));
+		// a number
+		let span = span!("test {number}");
+		assert_eq!(span, Span::raw("test 123"));
 
-        // a number with a format specifier
-        let span = span!("test {number:04}");
-        assert_eq!(span, Span::raw("test 0123"));
+		// a number with a format specifier
+		let span = span!("test {number:04}");
+		assert_eq!(span, Span::raw("test 0123"));
 
-        // directly pass a number expression
-        let span = span!(number);
-        assert_eq!(span, Span::raw("123"));
+		// directly pass a number expression
+		let span = span!(number);
+		assert_eq!(span, Span::raw("123"));
 
-        // directly pass a string expression
-        let span = span!(test);
-        assert_eq!(span, Span::raw("test"));
-    }
+		// directly pass a string expression
+		let span = span!(test);
+		assert_eq!(span, Span::raw("test"));
+	}
 
-    #[test]
-    fn styled() {
-        const STYLE: Style = Style::new().fg(Color::Green);
+	#[test]
+	fn styled() {
+		const STYLE: Style = Style::new().fg(Color::Green);
 
-        let test = "test";
-        let content = "content";
-        let number = 123;
+		let test = "test";
+		let content = "content";
+		let number = 123;
 
-        // literal
-        let span = span!(STYLE; "test content");
-        assert_eq!(span, Span::styled("test content", STYLE));
+		// literal
+		let span = span!(STYLE; "test content");
+		assert_eq!(span, Span::styled("test content", STYLE));
 
-        // string
-        let span = span!(STYLE; "test {}", "content");
-        assert_eq!(span, Span::styled("test content", STYLE));
+		// string
+		let span = span!(STYLE; "test {}", "content");
+		assert_eq!(span, Span::styled("test content", STYLE));
 
-        // string variable
-        let span = span!(STYLE; "test {}", content);
-        assert_eq!(span, Span::styled("test content", STYLE));
+		// string variable
+		let span = span!(STYLE; "test {}", content);
+		assert_eq!(span, Span::styled("test content", STYLE));
 
-        // string variable in the format string
-        let span = span!(STYLE; "test {content}");
-        assert_eq!(span, Span::styled("test content", STYLE));
+		// string variable in the format string
+		let span = span!(STYLE; "test {content}");
+		assert_eq!(span, Span::styled("test content", STYLE));
 
-        // named variable
-        let span = span!(STYLE; "test {content}", content = "content");
-        assert_eq!(span, Span::styled("test content", STYLE));
+		// named variable
+		let span = span!(STYLE; "test {content}", content = "content");
+		assert_eq!(span, Span::styled("test content", STYLE));
 
-        // named variable pointing at a local variable
-        let span = span!(STYLE; "test {content}", content = content);
-        assert_eq!(span, Span::styled("test content", STYLE));
+		// named variable pointing at a local variable
+		let span = span!(STYLE; "test {content}", content = content);
+		assert_eq!(span, Span::styled("test content", STYLE));
 
-        // two strings
-        let span = span!(STYLE; "{} {}", "test", "content");
-        assert_eq!(span, Span::styled("test content", STYLE));
+		// two strings
+		let span = span!(STYLE; "{} {}", "test", "content");
+		assert_eq!(span, Span::styled("test content", STYLE));
 
-        // two string variables
-        let span = span!(STYLE; "{test} {content}");
-        assert_eq!(span, Span::styled("test content", STYLE));
+		// two string variables
+		let span = span!(STYLE; "{test} {content}");
+		assert_eq!(span, Span::styled("test content", STYLE));
 
-        // a number
-        let span = span!(STYLE; "test {number}");
-        assert_eq!(span, Span::styled("test 123", STYLE));
+		// a number
+		let span = span!(STYLE; "test {number}");
+		assert_eq!(span, Span::styled("test 123", STYLE));
 
-        // a number with a format specifier
-        let span = span!(STYLE; "test {number:04}");
-        assert_eq!(span, Span::styled("test 0123", STYLE));
+		// a number with a format specifier
+		let span = span!(STYLE; "test {number:04}");
+		assert_eq!(span, Span::styled("test 0123", STYLE));
 
-        // accepts any type that is convertible to Style
-        let span = span!(Color::Green; "test {content}");
-        assert_eq!(span, Span::styled("test content", STYLE));
+		// accepts any type that is convertible to Style
+		let span = span!(Color::Green; "test {content}");
+		assert_eq!(span, Span::styled("test content", STYLE));
 
-        let span = span!(Modifier::BOLD; "test {content}");
-        assert_eq!(span, Span::styled("test content", Style::new().bold()));
+		let span = span!(Modifier::BOLD; "test {content}");
+		assert_eq!(span, Span::styled("test content", Style::new().bold()));
 
-        // directly pass a number expression
-        let span = span!(STYLE; number);
-        assert_eq!(span, Span::styled("123", STYLE));
+		// directly pass a number expression
+		let span = span!(STYLE; number);
+		assert_eq!(span, Span::styled("123", STYLE));
 
-        // directly pass a string expression
-        let span = span!(STYLE; test);
-        assert_eq!(span, Span::styled("test", STYLE));
-    }
+		// directly pass a string expression
+		let span = span!(STYLE; test);
+		assert_eq!(span, Span::styled("test", STYLE));
+	}
 }

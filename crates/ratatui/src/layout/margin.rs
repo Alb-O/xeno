@@ -36,47 +36,47 @@ use core::fmt;
 #[derive(Debug, Default, Clone, Copy, Eq, PartialEq, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Margin {
-    /// Horizontal margin.
-    pub horizontal: u16,
-    /// Vertical margin.
-    pub vertical: u16,
+	/// Horizontal margin.
+	pub horizontal: u16,
+	/// Vertical margin.
+	pub vertical: u16,
 }
 
 impl Margin {
-    /// Create a new margin with the given horizontal and vertical values.
-    pub const fn new(horizontal: u16, vertical: u16) -> Self {
-        Self {
-            horizontal,
-            vertical,
-        }
-    }
+	/// Create a new margin with the given horizontal and vertical values.
+	pub const fn new(horizontal: u16, vertical: u16) -> Self {
+		Self {
+			horizontal,
+			vertical,
+		}
+	}
 }
 
 impl fmt::Display for Margin {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}x{}", self.horizontal, self.vertical)
-    }
+	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+		write!(f, "{}x{}", self.horizontal, self.vertical)
+	}
 }
 
 #[cfg(test)]
 mod tests {
-    use alloc::string::ToString;
+	use alloc::string::ToString;
 
-    use super::*;
+	use super::*;
 
-    #[test]
-    fn margin_to_string() {
-        assert_eq!(Margin::new(1, 2).to_string(), "1x2");
-    }
+	#[test]
+	fn margin_to_string() {
+		assert_eq!(Margin::new(1, 2).to_string(), "1x2");
+	}
 
-    #[test]
-    fn margin_new() {
-        assert_eq!(
-            Margin::new(1, 2),
-            Margin {
-                horizontal: 1,
-                vertical: 2
-            }
-        );
-    }
+	#[test]
+	fn margin_new() {
+		assert_eq!(
+			Margin::new(1, 2),
+			Margin {
+				horizontal: 1,
+				vertical: 2
+			}
+		);
+	}
 }

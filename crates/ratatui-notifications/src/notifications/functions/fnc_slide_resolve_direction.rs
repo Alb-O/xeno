@@ -35,18 +35,18 @@ use crate::notifications::types::{Anchor, SlideDirection};
 /// );
 /// ```
 pub fn resolve_slide_direction(direction: SlideDirection, anchor: Anchor) -> SlideDirection {
-    if direction != SlideDirection::Default {
-        return direction;
-    }
-    match anchor {
-        Anchor::TopLeft => SlideDirection::FromTopLeft,
-        Anchor::TopCenter => SlideDirection::FromTop,
-        Anchor::TopRight => SlideDirection::FromTopRight,
-        Anchor::MiddleLeft => SlideDirection::FromLeft,
-        Anchor::MiddleCenter => SlideDirection::FromLeft,
-        Anchor::MiddleRight => SlideDirection::FromRight,
-        Anchor::BottomLeft => SlideDirection::FromBottomLeft,
-        Anchor::BottomCenter => SlideDirection::FromBottom,
-        Anchor::BottomRight => SlideDirection::FromBottomRight,
-    }
+	if direction != SlideDirection::Default {
+		return direction;
+	}
+	match anchor {
+		Anchor::TopLeft => SlideDirection::FromTopLeft,
+		Anchor::TopCenter => SlideDirection::FromTop,
+		Anchor::TopRight => SlideDirection::FromTopRight,
+		Anchor::MiddleLeft => SlideDirection::FromLeft,
+		Anchor::MiddleCenter => SlideDirection::FromLeft,
+		Anchor::MiddleRight => SlideDirection::FromRight,
+		Anchor::BottomLeft => SlideDirection::FromBottomLeft,
+		Anchor::BottomCenter => SlideDirection::FromBottom,
+		Anchor::BottomRight => SlideDirection::FromBottomRight,
+	}
 }

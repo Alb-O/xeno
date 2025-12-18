@@ -8,15 +8,15 @@ use crate::key::Key;
 const DEFAULT_PRIORITY: i16 = 100;
 
 macro_rules! bind {
-    ($name:ident, $key:expr, $action:expr) => {
-        #[distributed_slice(KEYBINDINGS_GOTO)]
-        static $name: KeyBindingDef = KeyBindingDef {
-            mode: BindingMode::Goto,
-            key: $key,
-            action: $action,
-            priority: DEFAULT_PRIORITY,
-        };
-    };
+	($name:ident, $key:expr, $action:expr) => {
+		#[distributed_slice(KEYBINDINGS_GOTO)]
+		static $name: KeyBindingDef = KeyBindingDef {
+			mode: BindingMode::Goto,
+			key: $key,
+			action: $action,
+			priority: DEFAULT_PRIORITY,
+		};
+	};
 }
 
 bind!(KB_GOTO_H, Key::char('h'), "move_line_start");

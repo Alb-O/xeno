@@ -16,8 +16,8 @@ pub mod transaction;
 
 #[cfg(feature = "host")]
 pub use ext::{
-    COMMANDS, CommandContext, CommandDef, CommandError, CommandResult, FILE_TYPES, FileTypeDef,
-    MOTIONS, MotionDef, TEXT_OBJECTS, TextObjectDef,
+	COMMANDS, CommandContext, CommandDef, CommandError, CommandResult, FILE_TYPES, FileTypeDef,
+	MOTIONS, MotionDef, TEXT_OBJECTS, TextObjectDef,
 };
 #[cfg(feature = "host")]
 pub use input::{InputHandler, KeyResult, Mode};

@@ -174,5 +174,5 @@ mod text;
 // Re-export the core crate to use the types in macros
 #[doc(hidden)]
 pub mod ratatui_core {
-    pub use crate::*;
+	pub use crate::*;
 }

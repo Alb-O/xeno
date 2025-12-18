@@ -122,72 +122,72 @@ use crate::layout::Rect;
 /// }
 /// ```
 pub trait StatefulWidget {
-    /// State associated with the stateful widget.
-    ///
-    /// If you don't need this then you probably want to implement [`Widget`] instead.
-    ///
-    /// [`Widget`]: super::Widget
-    type State: ?Sized;
-    /// Draws the current state of the widget in the given buffer. That is the only method required
-    /// to implement a custom stateful widget.
-    fn render(self, area: Rect, buf: &mut Buffer, state: &mut Self::State);
+	/// State associated with the stateful widget.
+	///
+	/// If you don't need this then you probably want to implement [`Widget`] instead.
+	///
+	/// [`Widget`]: super::Widget
+	type State: ?Sized;
+	/// Draws the current state of the widget in the given buffer. That is the only method required
+	/// to implement a custom stateful widget.
+	fn render(self, area: Rect, buf: &mut Buffer, state: &mut Self::State);
 }
 
 #[cfg(test)]
 mod tests {
-    use alloc::format;
-    use alloc::string::{String, ToString};
+	use alloc::format;
+	use alloc::string::{String, ToString};
 
-    use rstest::{fixture, rstest};
+	use rstest::{fixture, rstest};
 
-    use super::*;
-    use crate::buffer::Buffer;
-    use crate::layout::Rect;
-    use crate::text::Line;
-    use crate::widgets::Widget;
+	use super::*;
+	use crate::buffer::Buffer;
+	use crate::layout::Rect;
+	use crate::text::Line;
+	use crate::widgets::Widget;
 
-    #[fixture]
-    fn buf() -> Buffer {
-        Buffer::empty(Rect::new(0, 0, 20, 1))
-    }
+	#[fixture]
+	fn buf() -> Buffer {
+		Buffer::empty(Rect::new(0, 0, 20, 1))
+	}
 
-    #[fixture]
-    fn state() -> String {
-        "world".to_string()
-    }
+	#[fixture]
+	fn state() -> String {
+		"world".to_string()
+	}
 
-    struct PersonalGreeting;
+	struct PersonalGreeting;
 
-    impl StatefulWidget for PersonalGreeting {
-        type State = String;
-        fn render(self, area: Rect, buf: &mut Buffer, state: &mut Self::State) {
-            Line::from(format!("Hello {state}")).render(area, buf);
-        }
-    }
+	impl StatefulWidget for PersonalGreeting {
+		type State = String;
+		fn render(self, area: Rect, buf: &mut Buffer, state: &mut Self::State) {
+			Line::from(format!("Hello {state}")).render(area, buf);
+		}
+	}
 
-    #[rstest]
-    fn render(mut buf: Buffer, mut state: String) {
-        let widget = PersonalGreeting;
-        widget.render(buf.area, &mut buf, &mut state);
-        assert_eq!(buf, Buffer::with_lines(["Hello world         "]));
-    }
+	#[rstest]
+	fn render(mut buf: Buffer, mut state: String) {
+		let widget = PersonalGreeting;
+		widget.render(buf.area, &mut buf, &mut state);
+		assert_eq!(buf, Buffer::with_lines(["Hello world         "]));
+	}
 
-    struct Bytes;
+	struct Bytes;
 
-    /// A widget with an unsized state type.
-    impl StatefulWidget for Bytes {
-        type State = [u8];
-        fn render(self, area: Rect, buf: &mut Buffer, state: &mut Self::State) {
-            let slice = core::str::from_utf8(state).unwrap();
-            Line::from(format!("Bytes: {slice}")).render(area, buf);
-        }
-    }
+	/// A widget with an unsized state type.
+	impl StatefulWidget for Bytes {
+		type State = [u8];
+		fn render(self, area: Rect, buf: &mut Buffer, state: &mut Self::State) {
+			let slice = core::str::from_utf8(state).unwrap();
+			Line::from(format!("Bytes: {slice}")).render(area, buf);
+		}
+	}
 
-    #[rstest]
-    fn render_unsized_state_type(mut buf: Buffer) {
-        let widget = Bytes;
-        let state = b"hello";
-        widget.render(buf.area, &mut buf, &mut state.clone());
-        assert_eq!(buf, Buffer::with_lines(["Bytes: hello        "]));
-    }
+	#[rstest]
+	fn render_unsized_state_type(mut buf: Buffer) {
+		let widget = Bytes;
+		let state = b"hello";
+		widget.render(buf.area, &mut buf, &mut state.clone());
+		assert_eq!(buf, Buffer::with_lines(["Bytes: hello        "]));
+	}
 }

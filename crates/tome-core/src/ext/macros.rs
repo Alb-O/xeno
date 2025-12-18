@@ -123,17 +123,17 @@ macro_rules! option {
 /// ```
 #[macro_export]
 macro_rules! command {
-    ($name:ident, $aliases:expr, $desc:expr, $handler:expr) => {
-        paste::paste! {
-            #[linkme::distributed_slice($crate::ext::COMMANDS)]
-            static [<CMD_ $name:upper>]: $crate::ext::CommandDef = $crate::ext::CommandDef {
-                name: stringify!($name),
-                aliases: $aliases,
-                description: $desc,
-                handler: $handler,
-            };
-        }
-    };
+	($name:ident, $aliases:expr, $desc:expr, $handler:expr) => {
+		paste::paste! {
+			#[linkme::distributed_slice($crate::ext::COMMANDS)]
+			static [<CMD_ $name:upper>]: $crate::ext::CommandDef = $crate::ext::CommandDef {
+				name: stringify!($name),
+				aliases: $aliases,
+				description: $desc,
+				handler: $handler,
+			};
+		}
+	};
 }
 
 /// Define an action and register it in the ACTIONS slice.
@@ -189,22 +189,22 @@ macro_rules! action {
 /// ```
 #[macro_export]
 macro_rules! hook {
-    ($name:ident, $event:ident, $priority:expr, $desc:expr, |$ctx:ident| $body:expr) => {
-        paste::paste! {
-            fn [<hook_handler_ $name>]($ctx: &$crate::ext::hooks::HookContext) {
-                $body
-            }
+	($name:ident, $event:ident, $priority:expr, $desc:expr, |$ctx:ident| $body:expr) => {
+		paste::paste! {
+			fn [<hook_handler_ $name>]($ctx: &$crate::ext::hooks::HookContext) {
+				$body
+			}
 
-            #[linkme::distributed_slice($crate::ext::hooks::HOOKS)]
-            static [<HOOK_ $name:upper>]: $crate::ext::hooks::HookDef = $crate::ext::hooks::HookDef {
-                name: stringify!($name),
-                event: $crate::ext::hooks::HookEvent::$event,
-                description: $desc,
-                priority: $priority,
-                handler: [<hook_handler_ $name>],
-            };
-        }
-    };
+			#[linkme::distributed_slice($crate::ext::hooks::HOOKS)]
+			static [<HOOK_ $name:upper>]: $crate::ext::hooks::HookDef = $crate::ext::hooks::HookDef {
+				name: stringify!($name),
+				event: $crate::ext::hooks::HookEvent::$event,
+				description: $desc,
+				priority: $priority,
+				handler: [<hook_handler_ $name>],
+			};
+		}
+	};
 }
 
 /// Define a keybinding and register it in the KEYBINDINGS slice.
@@ -246,22 +246,22 @@ macro_rules! keybind {
 /// ```
 #[macro_export]
 macro_rules! text_object {
-    ($name:ident, $trigger:expr, $alt_triggers:expr, $desc:expr, {
+	($name:ident, $trigger:expr, $alt_triggers:expr, $desc:expr, {
         inner: $inner:expr,
         around: $around:expr $(,)?
     }) => {
-        paste::paste! {
-            #[linkme::distributed_slice($crate::ext::TEXT_OBJECTS)]
-            static [<OBJ_ $name:upper>]: $crate::ext::TextObjectDef = $crate::ext::TextObjectDef {
-                name: stringify!($name),
-                trigger: $trigger,
-                alt_triggers: $alt_triggers,
-                description: $desc,
-                inner: $inner,
-                around: $around,
-            };
-        }
-    };
+		paste::paste! {
+			#[linkme::distributed_slice($crate::ext::TEXT_OBJECTS)]
+			static [<OBJ_ $name:upper>]: $crate::ext::TextObjectDef = $crate::ext::TextObjectDef {
+				name: stringify!($name),
+				trigger: $trigger,
+				alt_triggers: $alt_triggers,
+				description: $desc,
+				inner: $inner,
+				around: $around,
+			};
+		}
+	};
 }
 
 /// Define a motion and register it in the MOTIONS slice.
@@ -275,25 +275,25 @@ macro_rules! text_object {
 /// ```
 #[macro_export]
 macro_rules! motion {
-    ($name:ident, $desc:expr, |$text:ident, $range:ident, $count:ident, $extend:ident| $body:expr) => {
-        paste::paste! {
-            fn [<motion_handler_ $name>](
-                $text: ropey::RopeSlice,
-                $range: $crate::range::Range,
-                $count: usize,
-                $extend: bool,
-            ) -> $crate::range::Range {
-                $body
-            }
+	($name:ident, $desc:expr, |$text:ident, $range:ident, $count:ident, $extend:ident| $body:expr) => {
+		paste::paste! {
+			fn [<motion_handler_ $name>](
+				$text: ropey::RopeSlice,
+				$range: $crate::range::Range,
+				$count: usize,
+				$extend: bool,
+			) -> $crate::range::Range {
+				$body
+			}
 
-            #[linkme::distributed_slice($crate::ext::MOTIONS)]
-            static [<MOTION_ $name:upper>]: $crate::ext::MotionDef = $crate::ext::MotionDef {
-                name: stringify!($name),
-                description: $desc,
-                handler: [<motion_handler_ $name>],
-            };
-        }
-    };
+			#[linkme::distributed_slice($crate::ext::MOTIONS)]
+			static [<MOTION_ $name:upper>]: $crate::ext::MotionDef = $crate::ext::MotionDef {
+				name: stringify!($name),
+				description: $desc,
+				handler: [<motion_handler_ $name>],
+			};
+		}
+	};
 }
 
 pub use crate::{action, command, filetype, hook, keybind, motion, option, text_object};

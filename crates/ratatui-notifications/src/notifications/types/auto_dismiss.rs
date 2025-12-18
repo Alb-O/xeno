@@ -6,15 +6,15 @@ use std::time::Duration;
 /// a specified duration or remain visible until manually dismissed.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AutoDismiss {
-    /// Notification remains visible until manually dismissed.
-    Never,
+	/// Notification remains visible until manually dismissed.
+	Never,
 
-    /// Notification automatically dismisses after the specified duration.
-    After(Duration),
+	/// Notification automatically dismisses after the specified duration.
+	After(Duration),
 }
 
 impl Default for AutoDismiss {
-    fn default() -> Self {
-        Self::After(Duration::from_secs(4))
-    }
+	fn default() -> Self {
+		Self::After(Duration::from_secs(4))
+	}
 }

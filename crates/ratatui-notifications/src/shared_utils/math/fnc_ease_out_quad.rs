@@ -19,5 +19,5 @@
 /// ```
 #[inline]
 pub fn ease_out_quad(t: f32) -> f32 {
-    t * (2.0 - t)
+	t * (2.0 - t)
 }

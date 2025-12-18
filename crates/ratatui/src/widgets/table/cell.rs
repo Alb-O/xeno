@@ -49,174 +49,173 @@ use crate::widgets::Widget;
 /// [`Stylize`]: crate::style::Stylize
 #[derive(Debug, Default, Clone, Eq, PartialEq, Hash)]
 pub struct Cell<'a> {
-    content: Text<'a>,
-    style: Style,
+	content: Text<'a>,
+	style: Style,
 }
 
 impl<'a> Cell<'a> {
-    /// Creates a new [`Cell`]
-    ///
-    /// The `content` parameter accepts any value that can be converted into a [`Text`].
-    ///
-    /// # Examples
-    ///
-    /// ```rust
-    /// use ratatui::style::Stylize;
-    /// use ratatui::text::{Line, Span, Text};
-    /// use ratatui::widgets::Cell;
-    ///
-    /// Cell::new("simple string");
-    /// Cell::new(Span::from("span"));
-    /// Cell::new(Line::from(vec![
-    ///     Span::raw("a vec of "),
-    ///     Span::from("spans").bold(),
-    /// ]));
-    /// Cell::new(Text::from("a text"));
-    /// ```
-    pub fn new<T>(content: T) -> Self
-    where
-        T: Into<Text<'a>>,
-    {
-        Self {
-            content: content.into(),
-            style: Style::default(),
-        }
-    }
+	/// Creates a new [`Cell`]
+	///
+	/// The `content` parameter accepts any value that can be converted into a [`Text`].
+	///
+	/// # Examples
+	///
+	/// ```rust
+	/// use ratatui::style::Stylize;
+	/// use ratatui::text::{Line, Span, Text};
+	/// use ratatui::widgets::Cell;
+	///
+	/// Cell::new("simple string");
+	/// Cell::new(Span::from("span"));
+	/// Cell::new(Line::from(vec![
+	///     Span::raw("a vec of "),
+	///     Span::from("spans").bold(),
+	/// ]));
+	/// Cell::new(Text::from("a text"));
+	/// ```
+	pub fn new<T>(content: T) -> Self
+	where
+		T: Into<Text<'a>>,
+	{
+		Self {
+			content: content.into(),
+			style: Style::default(),
+		}
+	}
 
-    /// Set the content of the [`Cell`]
-    ///
-    /// The `content` parameter accepts any value that can be converted into a [`Text`].
-    ///
-    /// This is a fluent setter method which must be chained or used as it consumes self
-    ///
-    /// # Examples
-    ///
-    /// ```rust
-    /// use ratatui::style::Stylize;
-    /// use ratatui::text::{Line, Span, Text};
-    /// use ratatui::widgets::Cell;
-    ///
-    /// Cell::default().content("simple string");
-    /// Cell::default().content(Span::from("span"));
-    /// Cell::default().content(Line::from(vec![
-    ///     Span::raw("a vec of "),
-    ///     Span::from("spans").bold(),
-    /// ]));
-    /// Cell::default().content(Text::from("a text"));
-    /// ```
-    #[must_use = "method moves the value of self and returns the modified value"]
-    pub fn content<T>(mut self, content: T) -> Self
-    where
-        T: Into<Text<'a>>,
-    {
-        self.content = content.into();
-        self
-    }
+	/// Set the content of the [`Cell`]
+	///
+	/// The `content` parameter accepts any value that can be converted into a [`Text`].
+	///
+	/// This is a fluent setter method which must be chained or used as it consumes self
+	///
+	/// # Examples
+	///
+	/// ```rust
+	/// use ratatui::style::Stylize;
+	/// use ratatui::text::{Line, Span, Text};
+	/// use ratatui::widgets::Cell;
+	///
+	/// Cell::default().content("simple string");
+	/// Cell::default().content(Span::from("span"));
+	/// Cell::default().content(Line::from(vec![
+	///     Span::raw("a vec of "),
+	///     Span::from("spans").bold(),
+	/// ]));
+	/// Cell::default().content(Text::from("a text"));
+	/// ```
+	#[must_use = "method moves the value of self and returns the modified value"]
+	pub fn content<T>(mut self, content: T) -> Self
+	where
+		T: Into<Text<'a>>,
+	{
+		self.content = content.into();
+		self
+	}
 
-    /// Set the `Style` of this cell
-    ///
-    /// `style` accepts any type that is convertible to [`Style`] (e.g. [`Style`], [`Color`], or
-    /// your own type that implements [`Into<Style>`]).
-    ///
-    /// This `Style` will override the `Style` of the [`Row`] and can be overridden by the `Style`
-    /// of the [`Text`] content.
-    ///
-    /// This is a fluent setter method which must be chained or used as it consumes self
-    ///
-    /// # Examples
-    ///
-    /// ```rust
-    /// use ratatui::style::{Style, Stylize};
-    /// use ratatui::widgets::Cell;
-    ///
-    /// Cell::new("Cell 1").style(Style::new().red().italic());
-    /// ```
-    ///
-    /// `Cell` also implements the [`Styled`] trait, which means you can use style shorthands from
-    /// the [`Stylize`] trait to set the style of the widget more concisely.
-    ///
-    /// ```rust
-    /// use ratatui::style::Stylize;
-    /// use ratatui::widgets::Cell;
-    ///
-    /// Cell::new("Cell 1").red().italic();
-    /// ```
-    ///
-    /// [`Row`]: super::Row
-    /// [`Color`]: crate::style::Color
-    /// [`Stylize`]: crate::style::Stylize
-    #[must_use = "method moves the value of self and returns the modified value"]
-    pub fn style<S: Into<Style>>(mut self, style: S) -> Self {
-        self.style = style.into();
-        self
-    }
+	/// Set the `Style` of this cell
+	///
+	/// `style` accepts any type that is convertible to [`Style`] (e.g. [`Style`], [`Color`], or
+	/// your own type that implements [`Into<Style>`]).
+	///
+	/// This `Style` will override the `Style` of the [`Row`] and can be overridden by the `Style`
+	/// of the [`Text`] content.
+	///
+	/// This is a fluent setter method which must be chained or used as it consumes self
+	///
+	/// # Examples
+	///
+	/// ```rust
+	/// use ratatui::style::{Style, Stylize};
+	/// use ratatui::widgets::Cell;
+	///
+	/// Cell::new("Cell 1").style(Style::new().red().italic());
+	/// ```
+	///
+	/// `Cell` also implements the [`Styled`] trait, which means you can use style shorthands from
+	/// the [`Stylize`] trait to set the style of the widget more concisely.
+	///
+	/// ```rust
+	/// use ratatui::style::Stylize;
+	/// use ratatui::widgets::Cell;
+	///
+	/// Cell::new("Cell 1").red().italic();
+	/// ```
+	///
+	/// [`Row`]: super::Row
+	/// [`Color`]: crate::style::Color
+	/// [`Stylize`]: crate::style::Stylize
+	#[must_use = "method moves the value of self and returns the modified value"]
+	pub fn style<S: Into<Style>>(mut self, style: S) -> Self {
+		self.style = style.into();
+		self
+	}
 }
 
 impl Cell<'_> {
-    pub(crate) fn render(&self, area: Rect, buf: &mut Buffer) {
-        buf.set_style(area, self.style);
-        Widget::render(&self.content, area, buf);
-    }
+	pub(crate) fn render(&self, area: Rect, buf: &mut Buffer) {
+		buf.set_style(area, self.style);
+		Widget::render(&self.content, area, buf);
+	}
 }
 
 impl<'a, T> From<T> for Cell<'a>
 where
-    T: Into<Text<'a>>,
+	T: Into<Text<'a>>,
 {
-    fn from(content: T) -> Self {
-        Self {
-            content: content.into(),
-            style: Style::default(),
-        }
-    }
+	fn from(content: T) -> Self {
+		Self {
+			content: content.into(),
+			style: Style::default(),
+		}
+	}
 }
 
 impl Styled for Cell<'_> {
-    type Item = Self;
+	type Item = Self;
 
-    fn style(&self) -> Style {
-        self.style
-    }
+	fn style(&self) -> Style {
+		self.style
+	}
 
-    fn set_style<S: Into<Style>>(self, style: S) -> Self::Item {
-        self.style(style)
-    }
+	fn set_style<S: Into<Style>>(self, style: S) -> Self::Item {
+		self.style(style)
+	}
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::style::{Color, Modifier, Stylize};
+	use super::*;
+	use crate::style::{Color, Modifier, Stylize};
 
-    use super::*;
+	#[test]
+	fn new() {
+		let cell = Cell::new("");
+		assert_eq!(cell.content, Text::from(""));
+	}
 
-    #[test]
-    fn new() {
-        let cell = Cell::new("");
-        assert_eq!(cell.content, Text::from(""));
-    }
+	#[test]
+	fn content() {
+		let cell = Cell::default().content("");
+		assert_eq!(cell.content, Text::from(""));
+	}
 
-    #[test]
-    fn content() {
-        let cell = Cell::default().content("");
-        assert_eq!(cell.content, Text::from(""));
-    }
+	#[test]
+	fn style() {
+		let style = Style::default().red().italic();
+		let cell = Cell::default().style(style);
+		assert_eq!(cell.style, style);
+	}
 
-    #[test]
-    fn style() {
-        let style = Style::default().red().italic();
-        let cell = Cell::default().style(style);
-        assert_eq!(cell.style, style);
-    }
-
-    #[test]
-    fn stylize() {
-        assert_eq!(
-            Cell::from("").black().on_white().bold().not_dim().style,
-            Style::default()
-                .fg(Color::Black)
-                .bg(Color::White)
-                .add_modifier(Modifier::BOLD)
-                .remove_modifier(Modifier::DIM)
-        );
-    }
+	#[test]
+	fn stylize() {
+		assert_eq!(
+			Cell::from("").black().on_white().bold().not_dim().style,
+			Style::default()
+				.fg(Color::Black)
+				.bg(Color::White)
+				.add_modifier(Modifier::BOLD)
+				.remove_modifier(Modifier::DIM)
+		);
+	}
 }

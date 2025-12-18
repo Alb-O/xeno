@@ -280,28 +280,28 @@ use crate::style::Color;
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 /// A collection of colors that make up a Tailwind color palette.
 pub struct Palette {
-    /// Shade 50.
-    pub c50: Color,
-    /// Shade 100.
-    pub c100: Color,
-    /// Shade 200.
-    pub c200: Color,
-    /// Shade 300.
-    pub c300: Color,
-    /// Shade 400.
-    pub c400: Color,
-    /// Shade 500.
-    pub c500: Color,
-    /// Shade 600.
-    pub c600: Color,
-    /// Shade 700.
-    pub c700: Color,
-    /// Shade 800.
-    pub c800: Color,
-    /// Shade 900.
-    pub c900: Color,
-    /// Shade 950.
-    pub c950: Color,
+	/// Shade 50.
+	pub c50: Color,
+	/// Shade 100.
+	pub c100: Color,
+	/// Shade 200.
+	pub c200: Color,
+	/// Shade 300.
+	pub c300: Color,
+	/// Shade 400.
+	pub c400: Color,
+	/// Shade 500.
+	pub c500: Color,
+	/// Shade 600.
+	pub c600: Color,
+	/// Shade 700.
+	pub c700: Color,
+	/// Shade 800.
+	pub c800: Color,
+	/// Shade 900.
+	pub c900: Color,
+	/// Shade 950.
+	pub c950: Color,
 }
 
 #[rustfmt::skip]

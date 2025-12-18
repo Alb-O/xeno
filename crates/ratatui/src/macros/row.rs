@@ -66,79 +66,80 @@ macro_rules! row {
 
 #[cfg(test)]
 mod tests {
-    use crate::text::Text;
-    use crate::widgets::table::{Cell, Row};
-    use alloc::vec;
+	use alloc::vec;
 
-    #[test]
-    fn row_literal() {
-        let row = row!["hello", "world"];
-        assert_eq!(
-            row,
-            Row::new(vec![Cell::from("hello"), Cell::from("world")])
-        );
-    }
+	use crate::text::Text;
+	use crate::widgets::table::{Cell, Row};
 
-    #[test]
-    fn row_empty() {
-        let row = row![];
-        assert_eq!(row, Row::default());
-    }
+	#[test]
+	fn row_literal() {
+		let row = row!["hello", "world"];
+		assert_eq!(
+			row,
+			Row::new(vec![Cell::from("hello"), Cell::from("world")])
+		);
+	}
 
-    #[test]
-    fn row_single_cell() {
-        let row = row![Cell::from("foo")];
-        assert_eq!(row, Row::new(vec![Cell::from("foo")]));
-    }
+	#[test]
+	fn row_empty() {
+		let row = row![];
+		assert_eq!(row, Row::default());
+	}
 
-    #[test]
-    fn row_repeated_cell() {
-        let row = row![Cell::from("foo"); 2];
-        assert_eq!(row, Row::new(vec![Cell::from("foo"), Cell::from("foo")]));
-    }
+	#[test]
+	fn row_single_cell() {
+		let row = row![Cell::from("foo")];
+		assert_eq!(row, Row::new(vec![Cell::from("foo")]));
+	}
 
-    #[test]
-    fn row_explicit_use_of_span_and_line() {
-        let row = row![crate::line!("hello"), crate::span!["world"]];
-        assert_eq!(
-            row,
-            Row::new(vec![Cell::from("hello"), Cell::from("world")])
-        );
-    }
+	#[test]
+	fn row_repeated_cell() {
+		let row = row![Cell::from("foo"); 2];
+		assert_eq!(row, Row::new(vec![Cell::from("foo"), Cell::from("foo")]));
+	}
 
-    #[test]
-    fn row_vec_count_syntax() {
-        let row = row!["hello"; 2];
-        assert_eq!(
-            row,
-            Row::new(vec![Cell::from("hello"), Cell::from("hello")])
-        );
-    }
+	#[test]
+	fn row_explicit_use_of_span_and_line() {
+		let row = row![crate::line!("hello"), crate::span!["world"]];
+		assert_eq!(
+			row,
+			Row::new(vec![Cell::from("hello"), Cell::from("world")])
+		);
+	}
 
-    #[test]
-    fn multiple_rows() {
-        use crate::text;
-        let rows = [
-            row!["Find File", text!["ctrl+f"].right_aligned()],
-            row!["Open recent", text!["ctrl+r"].right_aligned()],
-            row!["Open config", text!["ctrl+k"].right_aligned()],
-        ];
-        assert_eq!(
-            rows,
-            [
-                Row::new([
-                    Cell::from("Find File"),
-                    Cell::from(Text::raw("ctrl+f").right_aligned()),
-                ]),
-                Row::new([
-                    Cell::from("Open recent"),
-                    Cell::from(Text::raw("ctrl+r").right_aligned()),
-                ]),
-                Row::new([
-                    Cell::from("Open config"),
-                    Cell::from(Text::raw("ctrl+k").right_aligned()),
-                ]),
-            ]
-        );
-    }
+	#[test]
+	fn row_vec_count_syntax() {
+		let row = row!["hello"; 2];
+		assert_eq!(
+			row,
+			Row::new(vec![Cell::from("hello"), Cell::from("hello")])
+		);
+	}
+
+	#[test]
+	fn multiple_rows() {
+		use crate::text;
+		let rows = [
+			row!["Find File", text!["ctrl+f"].right_aligned()],
+			row!["Open recent", text!["ctrl+r"].right_aligned()],
+			row!["Open config", text!["ctrl+k"].right_aligned()],
+		];
+		assert_eq!(
+			rows,
+			[
+				Row::new([
+					Cell::from("Find File"),
+					Cell::from(Text::raw("ctrl+f").right_aligned()),
+				]),
+				Row::new([
+					Cell::from("Open recent"),
+					Cell::from(Text::raw("ctrl+r").right_aligned()),
+				]),
+				Row::new([
+					Cell::from("Open config"),
+					Cell::from(Text::raw("ctrl+k").right_aligned()),
+				]),
+			]
+		);
+	}
 }

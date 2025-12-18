@@ -21,13 +21,13 @@ pub type Alignment = HorizontalAlignment;
 #[derive(Debug, Default, Display, EnumString, Clone, Copy, Eq, PartialEq, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum HorizontalAlignment {
-    /// Content is aligned to the left side of the area.
-    #[default]
-    Left,
-    /// Content is centered within the area.
-    Center,
-    /// Content is aligned to the right side of the area.
-    Right,
+	/// Content is aligned to the left side of the area.
+	#[default]
+	Left,
+	/// Content is centered within the area.
+	Center,
+	/// Content is aligned to the right side of the area.
+	Right,
 }
 
 /// Vertical content alignment within a layout area.
@@ -39,57 +39,57 @@ pub enum HorizontalAlignment {
 #[derive(Debug, Default, Display, EnumString, Clone, Copy, Eq, PartialEq, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum VerticalAlignment {
-    /// Content is aligned to the top of the area.
-    #[default]
-    Top,
-    /// Content is centered vertically within the area.
-    Center,
-    /// Content is aligned to the bottom of the area.
-    Bottom,
+	/// Content is aligned to the top of the area.
+	#[default]
+	Top,
+	/// Content is centered vertically within the area.
+	Center,
+	/// Content is aligned to the bottom of the area.
+	Bottom,
 }
 
 #[cfg(test)]
 mod tests {
-    use alloc::string::ToString;
+	use alloc::string::ToString;
 
-    use strum::ParseError;
+	use strum::ParseError;
 
-    use super::*;
+	use super::*;
 
-    #[test]
-    fn alignment_to_string() {
-        assert_eq!(Alignment::Left.to_string(), "Left");
-        assert_eq!(Alignment::Center.to_string(), "Center");
-        assert_eq!(Alignment::Right.to_string(), "Right");
-    }
+	#[test]
+	fn alignment_to_string() {
+		assert_eq!(Alignment::Left.to_string(), "Left");
+		assert_eq!(Alignment::Center.to_string(), "Center");
+		assert_eq!(Alignment::Right.to_string(), "Right");
+	}
 
-    #[test]
-    fn alignment_from_str() {
-        assert_eq!("Left".parse::<Alignment>(), Ok(Alignment::Left));
-        assert_eq!("Center".parse::<Alignment>(), Ok(Alignment::Center));
-        assert_eq!("Right".parse::<Alignment>(), Ok(Alignment::Right));
-        assert_eq!("".parse::<Alignment>(), Err(ParseError::VariantNotFound));
-    }
+	#[test]
+	fn alignment_from_str() {
+		assert_eq!("Left".parse::<Alignment>(), Ok(Alignment::Left));
+		assert_eq!("Center".parse::<Alignment>(), Ok(Alignment::Center));
+		assert_eq!("Right".parse::<Alignment>(), Ok(Alignment::Right));
+		assert_eq!("".parse::<Alignment>(), Err(ParseError::VariantNotFound));
+	}
 
-    #[test]
-    fn vertical_alignment_to_string() {
-        assert_eq!(VerticalAlignment::Top.to_string(), "Top");
-        assert_eq!(VerticalAlignment::Center.to_string(), "Center");
-        assert_eq!(VerticalAlignment::Bottom.to_string(), "Bottom");
-    }
+	#[test]
+	fn vertical_alignment_to_string() {
+		assert_eq!(VerticalAlignment::Top.to_string(), "Top");
+		assert_eq!(VerticalAlignment::Center.to_string(), "Center");
+		assert_eq!(VerticalAlignment::Bottom.to_string(), "Bottom");
+	}
 
-    #[test]
-    fn vertical_alignment_from_str() {
-        let top = "Top".parse::<VerticalAlignment>();
-        assert_eq!(top, Ok(VerticalAlignment::Top));
+	#[test]
+	fn vertical_alignment_from_str() {
+		let top = "Top".parse::<VerticalAlignment>();
+		assert_eq!(top, Ok(VerticalAlignment::Top));
 
-        let center = "Center".parse::<VerticalAlignment>();
-        assert_eq!(center, Ok(VerticalAlignment::Center));
+		let center = "Center".parse::<VerticalAlignment>();
+		assert_eq!(center, Ok(VerticalAlignment::Center));
 
-        let bottom = "Bottom".parse::<VerticalAlignment>();
-        assert_eq!(bottom, Ok(VerticalAlignment::Bottom));
+		let bottom = "Bottom".parse::<VerticalAlignment>();
+		assert_eq!(bottom, Ok(VerticalAlignment::Bottom));
 
-        let invalid = "".parse::<VerticalAlignment>();
-        assert_eq!(invalid, Err(ParseError::VariantNotFound));
-    }
+		let invalid = "".parse::<VerticalAlignment>();
+		assert_eq!(invalid, Err(ParseError::VariantNotFound));
+	}
 }
