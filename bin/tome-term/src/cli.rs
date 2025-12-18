@@ -14,11 +14,11 @@ pub struct Cli {
 	pub file: Option<PathBuf>,
 
 	/// Execute an Ex command at startup (e.g. "acp.start")
-	#[arg(long = "ex")]
+	#[arg(long = "ex", short = 'c')]
 	pub ex: Option<String>,
 
 	/// Exit immediately after running `--ex`
-	#[arg(long)]
+	#[arg(long, short = 'q')]
 	pub quit_after_ex: bool,
 
 	#[command(subcommand)]
@@ -39,23 +39,34 @@ pub struct PluginArgs {
 
 #[derive(Subcommand, Debug)]
 pub enum PluginCommands {
-	/// Register a plugin in development mode
-	DevAdd {
-		/// Path to the plugin crate
-		#[arg(long)]
-		path: PathBuf,
-	},
 	/// Add a plugin from a local path
 	Add {
+		/// Path to the plugin
+		path: PathBuf,
+		/// Register as a development plugin
 		#[arg(long)]
-		from_path: PathBuf,
+		dev: bool,
 	},
-	/// Remove a plugin
-	Remove { id: String },
-	/// Enable a plugin
-	Enable { id: String },
-	/// Disable a plugin
-	Disable { id: String },
-	/// Reload a plugin (experimental)
-	Reload { id: String },
+	/// List installed plugins
+	List,
+	/// Remove plugins
+	Remove {
+		/// IDs of the plugins to remove
+		ids: Vec<String>,
+	},
+	/// Enable plugins
+	Enable {
+		/// IDs of the plugins to enable
+		ids: Vec<String>,
+	},
+	/// Disable plugins
+	Disable {
+		/// IDs of the plugins to disable
+		ids: Vec<String>,
+	},
+	/// Reload plugins (experimental)
+	Reload {
+		/// IDs of the plugins to reload
+		ids: Vec<String>,
+	},
 }
