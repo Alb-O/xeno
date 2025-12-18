@@ -72,6 +72,12 @@ impl Editor {
         });
     }
 
+    pub fn execute_ex_command(&mut self, input: &str) -> bool {
+        let input = input.trim();
+        let input = input.strip_prefix(':').unwrap_or(input);
+        self.execute_command_line(input)
+    }
+
     fn execute_command_line(&mut self, input: &str) -> bool {
         use ext::{CommandContext, CommandOutcome, find_command};
 
@@ -415,15 +421,8 @@ impl Editor {
 
     pub fn try_execute_plugin_command(&mut self, full_name: &str, args: &[&str]) -> bool {
         use crate::plugins::PluginManager;
-        use crate::plugins::manager::{
-            ACTIVE_EDITOR, ACTIVE_MANAGER, host_free_str, host_get_current_path, host_insert_text,
-            host_log, host_panel_append_transcript, host_panel_create, host_panel_set_focused,
-            host_panel_set_open, host_register_command, host_request_redraw, host_show_message,
-        };
-        use tome_cabi_types::{
-            TOME_C_ABI_VERSION_V2, TomeCommandContextV1, TomeHostPanelApiV1, TomeHostV2,
-            TomeStatus, TomeStr,
-        };
+        use crate::plugins::manager::{ACTIVE_EDITOR, ACTIVE_MANAGER, HOST_V2};
+        use tome_cabi_types::{TomeCommandContextV1, TomeStatus, TomeStr};
 
         let cmd = match self.plugins.commands.get(full_name) {
             Some(c) => c,
@@ -441,29 +440,10 @@ impl Editor {
             })
             .collect();
 
-        let host = TomeHostV2 {
-            abi_version: TOME_C_ABI_VERSION_V2,
-            log: Some(host_log),
-            panel: TomeHostPanelApiV1 {
-                create: host_panel_create,
-                set_open: host_panel_set_open,
-                set_focused: host_panel_set_focused,
-                append_transcript: host_panel_append_transcript,
-                request_redraw: host_request_redraw,
-            },
-            show_message: host_show_message,
-            insert_text: host_insert_text,
-            register_command: Some(host_register_command),
-            get_current_path: Some(host_get_current_path),
-            free_str: Some(host_free_str),
-            fs_read_text: None,
-            fs_write_text: None,
-        };
-
         let mut ctx = TomeCommandContextV1 {
             argc: args.len(),
             argv: arg_tome_strs.as_ptr(),
-            host: &host,
+            host: &HOST_V2,
         };
 
         let old_mgr =
@@ -492,11 +472,12 @@ impl Editor {
             if let Some(poll_event) = plugin.guest.poll_event {
                 loop {
                     let mut event =
-                        unsafe { std::mem::zeroed::<tome_cabi_types::TomePluginEventV1>() };
-                    let has_event = poll_event(&mut event);
+                        std::mem::MaybeUninit::<tome_cabi_types::TomePluginEventV1>::uninit();
+                    let has_event = poll_event(event.as_mut_ptr());
                     if has_event.0 == 0 {
                         break;
                     }
+                    let event = unsafe { event.assume_init() };
                     events.push((idx, event));
                 }
             }

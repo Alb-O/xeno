@@ -17,6 +17,31 @@ thread_local! {
     pub(crate) static ACTIVE_EDITOR: RefCell<Option<*mut Editor>> = const { RefCell::new(None) };
 }
 
+const HOST_PANEL_API_V1: TomeHostPanelApiV1 = TomeHostPanelApiV1 {
+    create: host_panel_create,
+    set_open: host_panel_set_open,
+    set_focused: host_panel_set_focused,
+    append_transcript: host_panel_append_transcript,
+    request_redraw: host_request_redraw,
+};
+
+/// Stable host vtable storage for plugin lifetime.
+///
+/// Plugins may keep the host pointer around after init. This must not point
+/// at stack locals (use-after-return).
+pub(crate) static HOST_V2: TomeHostV2 = TomeHostV2 {
+    abi_version: TOME_C_ABI_VERSION_V2,
+    log: Some(host_log),
+    panel: HOST_PANEL_API_V1,
+    show_message: host_show_message,
+    insert_text: host_insert_text,
+    register_command: Some(host_register_command),
+    get_current_path: Some(host_get_current_path),
+    free_str: Some(host_free_str),
+    fs_read_text: None,
+    fs_write_text: None,
+};
+
 pub struct LoadedPlugin {
     #[allow(dead_code)]
     pub lib: Library,
@@ -68,31 +93,12 @@ impl PluginManager {
                 .map_err(|_| "Missing entry symbol 'tome_plugin_entry_v2'")?
         };
 
-        let host = TomeHostV2 {
-            abi_version: TOME_C_ABI_VERSION_V2,
-            log: Some(host_log),
-            panel: TomeHostPanelApiV1 {
-                create: host_panel_create,
-                set_open: host_panel_set_open,
-                set_focused: host_panel_set_focused,
-                append_transcript: host_panel_append_transcript,
-                request_redraw: host_request_redraw,
-            },
-            show_message: host_show_message,
-            insert_text: host_insert_text,
-            register_command: Some(host_register_command),
-            get_current_path: Some(host_get_current_path),
-            free_str: Some(host_free_str),
-            fs_read_text: None,
-            fs_write_text: None,
-        };
-
         let mut guest = unsafe { std::mem::zeroed::<TomeGuestV2>() };
 
         let plugin_idx = self.plugins.len();
         self.current_plugin_idx = Some(plugin_idx);
 
-        let status = self.with_active(|_mgr| unsafe { entry(&host, &mut guest) });
+        let status = self.with_active(|_mgr| unsafe { entry(&HOST_V2, &mut guest) });
 
         if status != TomeStatus::Ok {
             self.current_plugin_idx = None;
@@ -111,7 +117,7 @@ impl PluginManager {
 
         // Call init
         if let Some(init) = guest.init {
-            let status = self.with_active(|_mgr| init(&host));
+            let status = self.with_active(|_mgr| init(&HOST_V2));
             if status != TomeStatus::Ok {
                 self.current_namespace = None;
                 self.current_plugin_idx = None;
@@ -234,7 +240,12 @@ pub fn tome_owned_to_string(tos: TomeOwnedStr) -> Option<String> {
 
 pub(crate) extern "C" fn host_log(msg: TomeStr) {
     let s = tome_str_to_str(msg);
-    eprintln!("[plugin] {}", s);
+    ACTIVE_EDITOR.with(|ctx| {
+        if let Some(ed_ptr) = *ctx.borrow() {
+            let ed = unsafe { &mut *ed_ptr };
+            ed.show_message(format!("[plugin] {}", s));
+        }
+    });
 }
 
 pub(crate) extern "C" fn host_panel_create(kind: TomePanelKind, title: TomeStr) -> TomePanelId {

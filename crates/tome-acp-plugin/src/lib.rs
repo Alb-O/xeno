@@ -11,6 +11,7 @@ use agent_client_protocol::{
     SelectedPermissionOutcome, SessionUpdate, TextContent, WriteTextFileResponse,
 };
 use parking_lot::Mutex;
+use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Command;
 use tokio::runtime::Runtime;
 use tokio::sync::mpsc::{self, Receiver, Sender};
@@ -232,6 +233,15 @@ extern "C" fn command_start(ctx: *mut TomeCommandContextV1) -> TomeStatus {
             }
         }
 
+        if !cwd.is_absolute()
+            && let Ok(base) = std::env::current_dir()
+        {
+            cwd = base.join(cwd);
+        }
+        if let Ok(canon) = cwd.canonicalize() {
+            cwd = canon;
+        }
+
         let _ = plugin.cmd_tx.try_send(AgentCommand::Start { cwd });
         TomeStatus::Ok
     } else {
@@ -329,7 +339,8 @@ impl AcpBackend {
             match cmd {
                 AgentCommand::Start { cwd } => {
                     if let Err(e) = self.start_agent(cwd).await {
-                        self.enqueue_message(format!("Failed to start agent: {}", e));
+                        let msg = format!("Failed to start agent: {e:?}");
+                        self.enqueue_message(msg);
                     }
                 }
                 AgentCommand::Stop => break,
@@ -346,12 +357,40 @@ impl AcpBackend {
             .current_dir(&cwd)
             .stdin(std::process::Stdio::piped())
             .stdout(std::process::Stdio::piped())
-            .stderr(std::process::Stdio::inherit())
+            // Do not inherit stderr: it can corrupt the TUI.
+            .stderr(std::process::Stdio::piped())
             .spawn()
             .map_err(|e| agent_client_protocol::Error::new(-32603, e.to_string()))?;
 
         let stdin = child.stdin.take().unwrap();
         let stdout = child.stdout.take().unwrap();
+        let stderr = child.stderr.take();
+
+        let stderr_tail: Arc<Mutex<VecDeque<String>>> = Arc::new(Mutex::new(VecDeque::new()));
+        if let Some(stderr) = stderr {
+            let events = self.events.clone();
+            let panel_id = self.panel_id.clone();
+            let stderr_tail = stderr_tail.clone();
+            tokio::task::spawn_local(async move {
+                let mut lines = BufReader::new(stderr).lines();
+                while let Ok(Some(line)) = lines.next_line().await {
+                    let line = strip_ansi_and_controls(&line);
+                    if line.trim().is_empty() {
+                        continue;
+                    }
+
+                    {
+                        let mut tail = stderr_tail.lock();
+                        if tail.len() >= 50 {
+                            tail.pop_front();
+                        }
+                        tail.push_back(line.clone());
+                    }
+
+                    enqueue_line(events.clone(), panel_id.clone(), format!("[acp] {}", line));
+                }
+            });
+        }
 
         let handler = PluginMessageHandler {
             events: self.events.clone(),
@@ -364,15 +403,17 @@ impl AcpBackend {
                 tokio::task::spawn_local(fut);
             });
 
+        let events = self.events.clone();
+        let panel_id = self.panel_id.clone();
         tokio::task::spawn_local(async move {
             if let Err(e) = io_fut.await {
-                eprintln!("ACP IO error: {:?}", e);
+                enqueue_line(events, panel_id, format!("ACP IO error: {e:?}"));
             }
         });
 
         let conn = Arc::new(conn);
 
-        let init_res = conn
+        let init_res = match conn
             .initialize(
                 InitializeRequest::new(ProtocolVersion::from(1))
                     .client_capabilities(
@@ -386,7 +427,24 @@ impl AcpBackend {
                         Implementation::new("Tome-Plugin", "0.1.0").title("Tome ACP Plugin"),
                     ),
             )
-            .await?;
+            .await
+        {
+            Ok(res) => res,
+            Err(e) => {
+                let status = child
+                    .try_wait()
+                    .ok()
+                    .flatten()
+                    .map(|s| s.to_string())
+                    .unwrap_or_else(|| "(still running)".to_string());
+                let stderr_tail = format_stderr_tail(&stderr_tail);
+                let msg = format!(
+                    "ACP initialize failed: err={e:?} child_status={status} stderr_tail={stderr_tail}"
+                );
+                self.enqueue_message(msg.clone());
+                return Err(agent_client_protocol::Error::new(-32603, msg));
+            }
+        };
 
         let agent_info = init_res.agent_info.unwrap();
         self.enqueue_message(format!(
@@ -394,7 +452,23 @@ impl AcpBackend {
             agent_info.name, init_res.protocol_version
         ));
 
-        let session_res = conn.new_session(NewSessionRequest::new(cwd)).await?;
+        let session_res = match conn.new_session(NewSessionRequest::new(cwd.clone())).await {
+            Ok(res) => res,
+            Err(e) => {
+                let status = child
+                    .try_wait()
+                    .ok()
+                    .flatten()
+                    .map(|s| s.to_string())
+                    .unwrap_or_else(|| "(still running)".to_string());
+                let stderr_tail = format_stderr_tail(&stderr_tail);
+                let msg = format!(
+                    "ACP new_session failed: cwd={cwd:?} err={e:?} child_status={status} stderr_tail={stderr_tail}"
+                );
+                self.enqueue_message(msg.clone());
+                return Err(agent_client_protocol::Error::new(-32603, msg));
+            }
+        };
         self.session_id = Some(session_res.session_id.to_string());
         self.enqueue_message("Session started".to_string());
 
@@ -434,7 +508,29 @@ impl AcpBackend {
     }
 
     fn enqueue_message(&self, msg: String) {
-        let mut events = self.events.lock();
+        enqueue_line(self.events.clone(), self.panel_id.clone(), msg);
+    }
+}
+
+fn enqueue_line(
+    events: Arc<Mutex<VecDeque<SendEvent>>>,
+    panel_id: Arc<Mutex<Option<TomePanelId>>>,
+    msg: String,
+) {
+    let msg = strip_ansi_and_controls(&msg);
+
+    let mut events = events.lock();
+    if let Some(pid) = *panel_id.lock() {
+        events.push_back(SendEvent(TomePluginEventV1 {
+            kind: TomePluginEventKind::PanelAppend,
+            panel_id: pid,
+            role: TomeChatRole::System,
+            text: string_to_tome_owned(msg),
+            bool_val: TomeBool(0),
+            permission_request_id: 0,
+            permission_request: std::ptr::null_mut(),
+        }));
+    } else {
         events.push_back(SendEvent(TomePluginEventV1 {
             kind: TomePluginEventKind::ShowMessage,
             panel_id: 0,
@@ -445,6 +541,49 @@ impl AcpBackend {
             permission_request: std::ptr::null_mut(),
         }));
     }
+}
+
+fn format_stderr_tail(stderr_tail: &Mutex<VecDeque<String>>) -> String {
+    let tail = stderr_tail.lock();
+    if tail.is_empty() {
+        return "(empty)".to_string();
+    }
+
+    let mut joined = tail.iter().cloned().collect::<Vec<_>>().join(" | ");
+    const MAX_LEN: usize = 800;
+    if joined.len() > MAX_LEN {
+        joined.truncate(MAX_LEN);
+        joined.push_str("...");
+    }
+    format!("\"{}\"", joined)
+}
+
+fn strip_ansi_and_controls(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    let mut chars = s.chars().peekable();
+
+    while let Some(ch) = chars.next() {
+        if ch == '\u{1b}' {
+            // Drop CSI escape sequences (ESC [ ... <final byte>).
+            if matches!(chars.peek(), Some('[')) {
+                let _ = chars.next();
+                for c in chars.by_ref() {
+                    if ('@'..='~').contains(&c) {
+                        break;
+                    }
+                }
+            }
+            continue;
+        }
+
+        if ch.is_control() {
+            continue;
+        }
+
+        out.push(ch);
+    }
+
+    out
 }
 
 struct PluginMessageHandler {
