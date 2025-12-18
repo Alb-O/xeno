@@ -2,8 +2,8 @@ use std::path::PathBuf;
 use std::time::Duration;
 
 use kitty_test_harness::{
-    kitty_send_keys, pause_briefly, require_kitty, run_with_timeout,
-    wait_for_screen_text_clean, with_kitty_capture,
+    kitty_send_keys, pause_briefly, require_kitty, run_with_timeout, wait_for_screen_text_clean,
+    with_kitty_capture,
 };
 use termwiz::input::{KeyCode, Modifiers};
 
@@ -42,11 +42,8 @@ fn terminal_paste_sends_to_focused_terminal() {
             pause_briefly();
 
             // Open terminal with Ctrl+t (should auto-focus)
-            kitty_send_keys!(
-                kitty,
-                (KeyCode::Char('t'), Modifiers::CTRL)
-            );
-            
+            kitty_send_keys!(kitty, (KeyCode::Char('t'), Modifiers::CTRL));
+
             pause_briefly(); // wait for PTY init
 
             // Type echo command and a marker string
@@ -78,22 +75,35 @@ fn terminal_paste_sends_to_focused_terminal() {
                     clean.contains("pasted")
                 });
 
-            assert!(clean.contains("pasted"), "Terminal should display pasted text. Screen: {:?}", clean);
-            
+            assert!(
+                clean.contains("pasted"),
+                "Terminal should display pasted text. Screen: {:?}",
+                clean
+            );
+
             // Exit focus with Escape
             kitty_send_keys!(kitty, KeyCode::Escape);
-            
+
             // Verify we can now type in editor
             kitty_send_keys!(kitty, KeyCode::Char('i'));
-            kitty_send_keys!(kitty, KeyCode::Char('d'), KeyCode::Char('o'), KeyCode::Char('c'));
+            kitty_send_keys!(
+                kitty,
+                KeyCode::Char('d'),
+                KeyCode::Char('o'),
+                KeyCode::Char('c')
+            );
             kitty_send_keys!(kitty, KeyCode::Escape);
-            
+
             let (_raw, clean) =
                 wait_for_screen_text_clean(kitty, Duration::from_secs(3), |_raw, clean| {
                     clean.contains("doc")
                 });
-                
-            assert!(clean.contains("doc"), "Should be able to edit buffer after unfocusing terminal. Screen: {:?}", clean);
+
+            assert!(
+                clean.contains("doc"),
+                "Should be able to edit buffer after unfocusing terminal. Screen: {:?}",
+                clean
+            );
         });
     });
 }
@@ -128,14 +138,15 @@ fn mouse_click_in_terminal_focuses_it() {
                 wait_for_screen_text_clean(kitty, Duration::from_secs(3), |_raw, clean| {
                     clean.contains("edit")
                 });
-            assert!(clean.contains("edit"), "Should have typed in editor. Screen: {:?}", clean);
+            assert!(
+                clean.contains("edit"),
+                "Should have typed in editor. Screen: {:?}",
+                clean
+            );
 
             // Open terminal (should auto-focus)
-            kitty_send_keys!(
-                kitty,
-                (KeyCode::Char('t'), Modifiers::CTRL)
-            );
-            
+            kitty_send_keys!(kitty, (KeyCode::Char('t'), Modifiers::CTRL));
+
             pause_briefly();
 
             // Type in terminal to verify it's focused
@@ -158,8 +169,11 @@ fn mouse_click_in_terminal_focuses_it() {
                     clean.contains("test")
                 });
 
-            assert!(clean.contains("test") && clean.contains("edit"), 
-                "Terminal should show typed command while editor content remains. Screen: {:?}", clean);
+            assert!(
+                clean.contains("test") && clean.contains("edit"),
+                "Terminal should show typed command while editor content remains. Screen: {:?}",
+                clean
+            );
         });
     });
 }

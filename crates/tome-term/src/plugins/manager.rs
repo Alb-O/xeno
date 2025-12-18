@@ -187,22 +187,20 @@ impl PluginManager {
             let name = tome_str_to_str(&spec.name).to_string();
             let full_name = format!("{}.{}", namespace, name);
 
-            if self.commands.contains_key(&full_name) {
-                eprintln!(
-                    "Warning: Command {} already registered, skipping",
-                    full_name
-                );
-            } else {
-                self.commands.insert(
-                    full_name,
-                    PluginCommand {
+            use std::collections::hash_map::Entry;
+            match self.commands.entry(full_name) {
+                Entry::Occupied(oe) => {
+                    eprintln!("Warning: Command {} already registered, skipping", oe.key());
+                }
+                Entry::Vacant(ve) => {
+                    ve.insert(PluginCommand {
                         plugin_idx,
                         namespace: namespace.clone(),
                         name,
                         handler,
                         user_data: spec.user_data,
-                    },
-                );
+                    });
+                }
             }
 
             // Also handle aliases
@@ -212,19 +210,19 @@ impl PluginManager {
                 for alias in aliases {
                     let alias_name = tome_str_to_str(alias).to_string();
                     let full_alias = format!("{}.{}", namespace, alias_name);
-                    if self.commands.contains_key(&full_alias) {
-                        eprintln!("Warning: Alias {} already registered, skipping", full_alias);
-                    } else {
-                        self.commands.insert(
-                            full_alias,
-                            PluginCommand {
+                    match self.commands.entry(full_alias) {
+                        Entry::Occupied(oe) => {
+                            eprintln!("Warning: Alias {} already registered, skipping", oe.key());
+                        }
+                        Entry::Vacant(ve) => {
+                            ve.insert(PluginCommand {
                                 plugin_idx,
                                 namespace: namespace.clone(),
                                 name: alias_name,
                                 handler,
                                 user_data: spec.user_data,
-                            },
-                        );
+                            });
+                        }
                     }
                 }
             }

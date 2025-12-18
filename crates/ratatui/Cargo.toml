@@ -1,0 +1,75 @@
+[package]
+name = "ratatui"
+version = "0.30.0-hackable"
+authors = ["The Ratatui Developers", "Albert O'Shea"]
+edition = "2024"
+rust-version = "1.86.0"
+description = "A hackable TUI library"
+license = "MIT"
+
+[lib]
+path = "src/lib.rs"
+
+[features]
+default = [
+    "crossterm",
+    "crossterm_0_29",
+    "underline-color",
+    "all-widgets",
+    "macros",
+    "layout-cache",
+    "scrolling-regions",
+    "std",
+]
+crossterm = ["std"]
+crossterm_0_29 = []
+crossterm_0_28 = []
+std = [
+    "itertools/use_std",
+    "thiserror/std",
+    "kasuari/std",
+    "compact_str/std",
+    "unicode-truncate/std",
+    "strum/std",
+]
+underline-color = []
+macros = []
+layout-cache = ["std"]
+palette = ["std", "dep:palette"]
+serde = ["std", "dep:serde", "bitflags/serde", "compact_str/serde"]
+scrolling-regions = []
+all-widgets = ["calendar"]
+calendar = ["dep:time"]
+portable-atomic = ["kasuari/portable-atomic"]
+unstable = ["unstable-rendered-line-info"]
+unstable-rendered-line-info = []
+
+[dependencies]
+anstyle = { version = "1", optional = true }
+bitflags = "2.10"
+cfg-if = "1"
+compact_str = { version = "0.9", default-features = false }
+crossterm = "0.29"
+document-features = { version = "0.2", optional = true }
+hashbrown = "0.16"
+indoc = "2"
+instability = "0.3"
+itertools = { version = "0.14", default-features = false, features = ["use_alloc"] }
+kasuari = { version = "0.4", default-features = false }
+line-clipping = "0.3"
+lru = "0.16"
+palette = { version = "0.7", optional = true }
+serde = { version = "1", optional = true, features = ["derive"] }
+strum = { version = "0.27", default-features = false, features = ["derive"] }
+thiserror = { version = "2", default-features = false }
+time = { version = "0.3", optional = true, default-features = false, features = ["local-offset"] }
+unicode-segmentation = "1"
+unicode-truncate = { version = "2", default-features = false }
+unicode-width = ">=0.2.0, <=0.2.2"
+
+[dev-dependencies]
+color-eyre = "0.6"
+pretty_assertions = "1"
+rstest = "0.26"
+serde_json = "1"
+tokio = { version = "1", features = ["rt", "macros", "time", "rt-multi-thread"] }

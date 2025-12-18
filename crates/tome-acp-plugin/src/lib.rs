@@ -384,6 +384,7 @@ unsafe impl<T> Send for SendPtr<T> {}
 unsafe impl<T> Sync for SendPtr<T> {}
 
 impl AcpBackend {
+    #[allow(clippy::too_many_arguments)]
     fn new(
         host: SendPtr<TomeHostV2>,
         cmd_rx: Receiver<AgentCommand>,

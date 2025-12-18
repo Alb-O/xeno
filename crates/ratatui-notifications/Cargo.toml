@@ -1,0 +1,24 @@
+# FILE: Cargo.toml - Cargo manifest for ratatui-notifications library
+# VERSION: 1.1.0
+# WCTX: OFPF migration
+# CLOG: Updated example name from notification_demo to demo
+
+[package]
+name = "ratatui-notifications"
+version = "0.1.0"
+edition = "2021"
+description = "Animated notification system for Ratatui terminal applications"
+license = "MIT"
+repository = "https://github.com/your-org/ratatui-notifications"
+keywords = ["ratatui", "tui", "notifications", "terminal", "animation"]
+categories = ["command-line-interface", "gui"]
+
+[dependencies]
+chrono = "0.4"
+crossterm = "0.29.0"
+log = "0.4"
+ratatui = { path = "../ratatui", features = ["crossterm"] }
+thiserror = "2.0.12"
+
+# FILE: Cargo.toml - Cargo manifest for ratatui-notifications library
+# END OF VERSION: 1.1.0

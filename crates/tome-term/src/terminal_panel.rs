@@ -29,7 +29,7 @@ impl TerminalState {
         // Use shell from env or default to sh/bash
         let shell = std::env::var("SHELL").unwrap_or_else(|_| "sh".to_string());
         let cmd = CommandBuilder::new(shell);
-        
+
         let child = pair.slave.spawn_command(cmd).map_err(|e| e.to_string())?;
 
         let mut reader = pair.master.try_clone_reader().map_err(|e| e.to_string())?;
@@ -72,9 +72,10 @@ impl TerminalState {
                     // This is simple substring search, might miss fragmented sequences but covers most startup cases.
                     let da1_query = b"\x1b[c";
                     let da1_query_0 = b"\x1b[0c";
-                    
-                    if bytes.windows(da1_query.len()).any(|w| w == da1_query) || 
-                       bytes.windows(da1_query_0.len()).any(|w| w == da1_query_0) {
+
+                    if bytes.windows(da1_query.len()).any(|w| w == da1_query)
+                        || bytes.windows(da1_query_0.len()).any(|w| w == da1_query_0)
+                    {
                         // Respond as VT102 (\e[?6c)
                         let _ = self.pty_writer.write_all(b"\x1b[?6c");
                     }

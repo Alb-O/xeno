@@ -2,8 +2,8 @@ use std::path::PathBuf;
 use std::time::Duration;
 
 use kitty_test_harness::{
-    kitty_send_keys, pause_briefly, require_kitty, run_with_timeout,
-    wait_for_screen_text_clean, with_kitty_capture,
+    kitty_send_keys, pause_briefly, require_kitty, run_with_timeout, wait_for_screen_text_clean,
+    with_kitty_capture,
 };
 use termwiz::input::{KeyCode, Modifiers};
 
@@ -42,17 +42,14 @@ fn terminal_can_be_toggled_and_input_commands() {
             pause_briefly();
 
             // Open terminal with Ctrl+t
-            kitty_send_keys!(
-                kitty,
-                (KeyCode::Char('t'), Modifiers::CTRL)
-            );
-            
+            kitty_send_keys!(kitty, (KeyCode::Char('t'), Modifiers::CTRL));
+
             // Wait for shell prompt or at least some output indicating terminal is open.
             // Since we don't know the exact prompt, we can try to run a command that produces known output.
             // "echo hello-terminal"
-            
+
             pause_briefly(); // wait for PTY init
-            
+
             kitty_send_keys!(
                 kitty,
                 KeyCode::Char('e'),
@@ -78,27 +75,38 @@ fn terminal_can_be_toggled_and_input_commands() {
                     clean.contains("hello-term")
                 });
 
-            assert!(clean.contains("hello-term"), "Terminal should display echoed text. Screen: {:?}", clean);
-            
-            // Close terminal with Ctrl+t
-            kitty_send_keys!(
-                kitty,
-                (KeyCode::Char('t'), Modifiers::CTRL)
+            assert!(
+                clean.contains("hello-term"),
+                "Terminal should display echoed text. Screen: {:?}",
+                clean
             );
-            
+
+            // Close terminal with Ctrl+t
+            kitty_send_keys!(kitty, (KeyCode::Char('t'), Modifiers::CTRL));
+
             // Should be back to editor view (which is empty/file)
             // We can't easily assert absence without waiting, but we can verify we can type into editor now.
-            
+
             kitty_send_keys!(kitty, KeyCode::Char('i'));
-            kitty_send_keys!(kitty, KeyCode::Char('e'), KeyCode::Char('d'), KeyCode::Char('i'), KeyCode::Char('t'));
+            kitty_send_keys!(
+                kitty,
+                KeyCode::Char('e'),
+                KeyCode::Char('d'),
+                KeyCode::Char('i'),
+                KeyCode::Char('t')
+            );
             kitty_send_keys!(kitty, KeyCode::Escape);
-            
+
             let (_raw, clean) =
                 wait_for_screen_text_clean(kitty, Duration::from_secs(3), |_raw, clean| {
                     clean.contains("edit")
                 });
-                
-            assert!(clean.contains("edit"), "Should be able to edit buffer after closing terminal. Screen: {:?}", clean);
+
+            assert!(
+                clean.contains("edit"),
+                "Should be able to edit buffer after closing terminal. Screen: {:?}",
+                clean
+            );
         });
     });
 }

@@ -75,9 +75,7 @@ fn parse_bg_from_sgr_tokens(tokens: &[&[u8]], mut current: Option<Rgb>) -> Optio
 }
 
 fn bg_at_marker(raw: &[u8], marker: &[u8]) -> Option<Rgb> {
-    let marker_pos = raw
-        .windows(marker.len())
-        .position(|w| w == marker)?;
+    let marker_pos = raw.windows(marker.len()).position(|w| w == marker)?;
 
     let mut i = 0;
     let mut bg: Option<Rgb> = None;

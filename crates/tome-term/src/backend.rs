@@ -28,6 +28,8 @@ impl<T: Terminal> TerminaBackend<T> {
 }
 
 impl<T: Terminal> Backend for TerminaBackend<T> {
+    type Error = io::Error;
+
     fn draw<'a, I>(&mut self, content: I) -> io::Result<()>
     where
         I: Iterator<Item = (u16, u16, &'a Cell)>,
@@ -158,6 +160,51 @@ impl<T: Terminal> Backend for TerminaBackend<T> {
             "{}",
             Csi::Edit(Edit::EraseInDisplay(EraseInDisplay::EraseDisplay))
         )
+    }
+
+    fn clear_region(&mut self, clear_type: ratatui::backend::ClearType) -> io::Result<()> {
+        use ratatui::backend::ClearType;
+        match clear_type {
+            ClearType::All => self.clear(),
+            ClearType::AfterCursor => write!(
+                self.terminal,
+                "{}",
+                Csi::Edit(Edit::EraseInDisplay(EraseInDisplay::EraseToEndOfDisplay))
+            ),
+            ClearType::BeforeCursor => write!(
+                self.terminal,
+                "{}",
+                Csi::Edit(Edit::EraseInDisplay(EraseInDisplay::EraseToStartOfDisplay))
+            ),
+            ClearType::CurrentLine => write!(
+                self.terminal,
+                "{}",
+                Csi::Edit(Edit::EraseInLine(
+                    termina::escape::csi::EraseInLine::EraseLine
+                ))
+            ),
+            ClearType::UntilNewLine => write!(
+                self.terminal,
+                "{}",
+                Csi::Edit(Edit::EraseInLine(
+                    termina::escape::csi::EraseInLine::EraseToEndOfLine
+                ))
+            ),
+        }
+    }
+
+    fn scroll_region_up(&mut self, _region: std::ops::Range<u16>, _amount: u16) -> io::Result<()> {
+        // Not implemented for now
+        Ok(())
+    }
+
+    fn scroll_region_down(
+        &mut self,
+        _region: std::ops::Range<u16>,
+        _amount: u16,
+    ) -> io::Result<()> {
+        // Not implemented for now
+        Ok(())
     }
 
     fn size(&self) -> io::Result<Size> {

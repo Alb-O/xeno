@@ -103,7 +103,5 @@ impl Widget for ThemedVt100Terminal<'_> {
                 }
             }
         }
-
-
     }
 }

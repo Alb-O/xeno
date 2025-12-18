@@ -620,19 +620,18 @@ impl Editor {
             }
         }
 
-        if let Some(free_str) = free_str_fn {
-            if !event.text.ptr.is_null() {
-                free_str(event.text);
-            }
+        if let Some(free_str) = free_str_fn
+            && !event.text.ptr.is_null()
+        {
+            free_str(event.text);
         }
 
-        if !event.permission_request.is_null() {
-            if let Some(free_perm) = self.plugins.plugins[plugin_idx]
+        if !event.permission_request.is_null()
+            && let Some(free_perm) = self.plugins.plugins[plugin_idx]
                 .guest
                 .free_permission_request
-            {
-                free_perm(event.permission_request);
-            }
+        {
+            free_perm(event.permission_request);
         }
     }
 
@@ -1374,19 +1373,19 @@ impl ext::EditorOps for Editor {
         let pending = self.pending_permissions.remove(pos);
         let plugin_idx = pending.plugin_idx;
 
-        if let Some(plugin) = self.plugins.plugins.get(plugin_idx) {
-            if let Some(on_decision) = plugin.guest.on_permission_decision {
-                use crate::plugins::manager::PluginContextGuard;
-                let ed_ptr = self as *mut Editor;
-                let mgr_ptr = unsafe { &mut (*ed_ptr).plugins as *mut _ };
-                let _guard = unsafe { PluginContextGuard::new(mgr_ptr, ed_ptr, plugin_idx) };
-                let option_tome = tome_cabi_types::TomeStr {
-                    ptr: option_id.as_ptr(),
-                    len: option_id.len(),
-                };
-                on_decision(request_id, option_tome);
-                return Ok(());
-            }
+        if let Some(plugin) = self.plugins.plugins.get(plugin_idx)
+            && let Some(on_decision) = plugin.guest.on_permission_decision
+        {
+            use crate::plugins::manager::PluginContextGuard;
+            let ed_ptr = self as *mut Editor;
+            let mgr_ptr = unsafe { &mut (*ed_ptr).plugins as *mut _ };
+            let _guard = unsafe { PluginContextGuard::new(mgr_ptr, ed_ptr, plugin_idx) };
+            let option_tome = tome_cabi_types::TomeStr {
+                ptr: option_id.as_ptr(),
+                len: option_id.len(),
+            };
+            on_decision(request_id, option_tome);
+            return Ok(());
         }
 
         Err(format!(

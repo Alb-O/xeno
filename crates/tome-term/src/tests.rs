@@ -7,8 +7,8 @@ mod suite {
     use ratatui::{Terminal, backend::TestBackend};
     use std::path::PathBuf;
     use termina::event::{KeyCode, KeyEvent, Modifiers};
-    use tome_core::{Mode, Rope, Selection};
     use tome_core::ext::EditorOps;
+    use tome_core::{Mode, Rope, Selection};
 
     #[derive(Debug, Clone)]
     struct KeyStep {
@@ -328,7 +328,6 @@ mod suite {
         assert_snapshot!(terminal.backend());
     }
 
-
     #[test]
     fn test_backspace_deletes_backwards() {
         let mut editor = test_editor("hello");
@@ -505,7 +504,6 @@ mod suite {
         assert_eq!(sel.anchor, 0, "anchor stays at original position");
     }
 
-
     #[test]
     fn test_shift_right_extends_selection() {
         let mut editor = test_editor("hello");
@@ -520,7 +518,6 @@ mod suite {
         assert_eq!(sel.anchor, 0, "anchor should stay at start");
         assert_eq!(sel.head, 3, "head should move 3 positions");
     }
-
 
     #[test]
     fn test_scratch_exec_unknown_command_sets_message() {
@@ -782,7 +779,6 @@ mod suite {
         assert_eq!(editor.doc.to_string(), "Xone\nXtwo\nXthree\n");
     }
 
-
     #[test]
     fn test_duplicate_down_insert_inserts_at_all_cursors() {
         let mut editor = test_editor("one\ntwo\nthree\n");
@@ -811,45 +807,53 @@ mod suite {
         assert_eq!(editor.doc.to_string(), "oneX\ntwoX\nthreeX\n");
     }
 
-
     #[test]
     fn test_terminal_background_color_matches_popup() {
         let mut editor = test_editor("content");
-        
+
         // Ensure theme is set to something known
         editor.set_theme("solarized_dark").unwrap();
-        
+
         // Open terminal
         editor.handle_key(KeyEvent::new(KeyCode::Char('t'), Modifiers::CONTROL));
         assert!(editor.terminal_open);
-        
+
         // Render
         let mut terminal = Terminal::new(TestBackend::new(80, 24)).unwrap();
         terminal.draw(|frame| editor.render(frame)).unwrap();
-        
+
         // Inspect buffer
         let buffer = terminal.backend().buffer();
-        
+
         // Terminal is at the bottom 30% of 24 rows = ~7 rows.
         // Let's check the last row.
         let last_row_cell = &buffer[(0, 23)];
-        
+
         // It should match popup bg, NOT ui bg.
         let popup_bg = editor.theme.colors.popup.bg;
         let ui_bg = editor.theme.colors.ui.bg;
-        
-        assert_ne!(popup_bg, ui_bg, "Theme should have distinct popup and ui backgrounds for this test");
-        assert_eq!(last_row_cell.bg, popup_bg, "Terminal area background should match popup theme background");
-        
+
+        assert_ne!(
+            popup_bg, ui_bg,
+            "Theme should have distinct popup and ui backgrounds for this test"
+        );
+        assert_eq!(
+            last_row_cell.bg, popup_bg,
+            "Terminal area background should match popup theme background"
+        );
+
         // Also check main doc area (top) matches UI bg
         let doc_cell = &buffer[(0, 0)];
-        assert_eq!(doc_cell.bg, ui_bg, "Main doc area background should match UI theme background");
+        assert_eq!(
+            doc_cell.bg, ui_bg,
+            "Main doc area background should match UI theme background"
+        );
     }
 
     #[test]
     fn test_terminal_toggle_layout() {
         let mut editor = test_editor("some content");
-        
+
         // Initial state: terminal closed
         assert!(!editor.terminal_open);
         assert!(!editor.terminal_focused);
@@ -857,7 +861,7 @@ mod suite {
 
         // Toggle terminal with Ctrl+t
         editor.handle_key(KeyEvent::new(KeyCode::Char('t'), Modifiers::CONTROL));
-        
+
         assert!(editor.terminal_open);
 
         // Terminal starts asynchronously now, so wait briefly for it to be ready.
@@ -879,13 +883,13 @@ mod suite {
 
         // Toggle terminal off
         editor.handle_key(KeyEvent::new(KeyCode::Char('t'), Modifiers::CONTROL)); // Focused terminal intercepts keys?
-        
-        // Wait, if terminal is focused, does it intercept Ctrl+t? 
+
+        // Wait, if terminal is focused, does it intercept Ctrl+t?
         // My implementation checks for Ctrl+t BEFORE checking terminal focus in `handle_key_active`.
-        
+
         assert!(!editor.terminal_open);
         assert!(!editor.terminal_focused);
-        
+
         // Render with terminal closed
         terminal.draw(|frame| editor.render(frame)).unwrap();
         assert_snapshot!(terminal.backend());

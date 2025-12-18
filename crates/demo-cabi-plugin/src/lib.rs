@@ -6,6 +6,9 @@ use tome_cabi_types::{
     TomeGuestV2, TomeHostV2, TomePanelKind, TomeStatus, TomeStr, TomeStrArray,
 };
 
+/// # Safety
+/// This function is called by the host when the plugin is loaded.
+/// It must be called with valid pointers to `TomeHostV2` and `TomeGuestV2`.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn tome_plugin_entry_v2(
     host: *const TomeHostV2,
