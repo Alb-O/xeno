@@ -21,8 +21,8 @@ use tome_core::{
 };
 pub use types::{HistoryEntry, Message, MessageKind, Registers, ScratchState};
 
-use crate::plugins::PluginManager;
-use crate::plugins::manager::HOST_V2;
+use crate::plugin::PluginManager;
+use crate::plugin::manager::HOST_V2;
 use crate::terminal_panel::TerminalState;
 use crate::theme::Theme;
 
@@ -60,7 +60,7 @@ pub struct Editor {
 	pub plugins: PluginManager,
 	pub needs_redraw: bool,
 	insert_undo_active: bool,
-	pub pending_permissions: Vec<crate::plugins::manager::PendingPermission>,
+	pub pending_permissions: Vec<crate::plugin::manager::PendingPermission>,
 	pub notifications: Notifications,
 	pub last_tick: std::time::SystemTime,
 }
@@ -451,7 +451,7 @@ impl Editor {
 	pub fn submit_plugin_panel(&mut self, id: u64) {
 		use tome_cabi_types::{TomeChatRole, TomeStr};
 
-		use crate::plugins::panels::ChatItem;
+		use crate::plugin::panels::ChatItem;
 
 		if let Some(panel) = self.plugins.panels.get_mut(&id) {
 			let text = panel.input.to_string();
@@ -475,7 +475,7 @@ impl Editor {
 				&& let Some(plugin) = self.plugins.plugins.get(&owner_id)
 				&& let Some(on_submit) = plugin.guest.on_panel_submit
 			{
-				use crate::plugins::manager::PluginContextGuard;
+				use crate::plugin::manager::PluginContextGuard;
 				let ed_ptr = self as *mut Editor;
 				let mgr_ptr = unsafe { &mut (*ed_ptr).plugins as *mut _ };
 				let _guard = unsafe { PluginContextGuard::new(mgr_ptr, ed_ptr, &owner_id) };
@@ -508,7 +508,7 @@ impl Editor {
 		};
 
 		let status = {
-			use crate::plugins::manager::PluginContextGuard;
+			use crate::plugin::manager::PluginContextGuard;
 			let ed_ptr = self as *mut Editor;
 			let mgr_ptr = unsafe { &mut (*ed_ptr).plugins as *mut _ };
 			let _guard = unsafe { PluginContextGuard::new(mgr_ptr, ed_ptr, &plugin_id) };
@@ -534,7 +534,7 @@ impl Editor {
 	}
 
 	pub fn poll_plugins(&mut self) {
-		use crate::plugins::manager::PluginContextGuard;
+		use crate::plugin::manager::PluginContextGuard;
 		let mut events = Vec::new();
 		let plugin_ids: Vec<String> = self.plugins.plugins.keys().cloned().collect();
 		for id in plugin_ids {
@@ -565,8 +565,8 @@ impl Editor {
 	fn handle_plugin_event(&mut self, plugin_id: &str, event: tome_cabi_types::TomePluginEventV1) {
 		use tome_cabi_types::TomePluginEventKind;
 
-		use crate::plugins::manager::tome_owned_to_string;
-		use crate::plugins::panels::ChatItem;
+		use crate::plugin::manager::tome_owned_to_string;
+		use crate::plugin::panels::ChatItem;
 
 		let free_str_fn = self
 			.plugins
@@ -622,7 +622,7 @@ impl Editor {
 				}
 
 				self.pending_permissions
-					.push(crate::plugins::manager::PendingPermission {
+					.push(crate::plugin::manager::PendingPermission {
 						plugin_id: plugin_id.to_string(),
 						request_id: event.permission_request_id,
 						_prompt: prompt.clone(),
@@ -1442,7 +1442,7 @@ impl ext::EditorOps for Editor {
 		if let Some(plugin) = self.plugins.plugins.get(&plugin_id)
 			&& let Some(on_decision) = plugin.guest.on_permission_decision
 		{
-			use crate::plugins::manager::PluginContextGuard;
+			use crate::plugin::manager::PluginContextGuard;
 			let ed_ptr = self as *mut Editor;
 			let mgr_ptr = unsafe { &mut (*ed_ptr).plugins as *mut _ };
 			let _guard = unsafe { PluginContextGuard::new(mgr_ptr, ed_ptr, &plugin_id) };

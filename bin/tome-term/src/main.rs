@@ -3,7 +3,7 @@ mod backend;
 mod capabilities;
 mod cli;
 mod editor;
-mod plugins;
+mod plugin;
 mod render;
 mod styles;
 mod terminal;
@@ -19,7 +19,7 @@ use app::run_editor;
 use clap::Parser;
 use cli::{Cli, Commands, PluginCommands};
 use editor::Editor;
-use plugins::PluginManager;
+use plugin::PluginManager;
 
 fn main() -> io::Result<()> {
 	let cli = Cli::parse();
@@ -94,7 +94,7 @@ fn handle_plugin_command(cmd: PluginCommands) -> io::Result<()> {
 				));
 			}
 			let content = std::fs::read_to_string(&manifest_path)?;
-			let mut manifest = toml::from_str::<plugins::manager::PluginManifest>(&content)
+			let mut manifest = toml::from_str::<plugin::manager::PluginManifest>(&content)
 				.map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
 
 			// Guess the dev library path if not provided
@@ -131,7 +131,7 @@ fn handle_plugin_command(cmd: PluginCommands) -> io::Result<()> {
 		PluginCommands::Add { from_path } => {
 			let manifest_path = from_path.join("plugin.toml");
 			let content = std::fs::read_to_string(manifest_path)?;
-			let manifest: plugins::manager::PluginManifest = toml::from_str(&content)
+			let manifest: plugin::manager::PluginManifest = toml::from_str(&content)
 				.map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
 
 			let plugin_dir = home::home_dir()

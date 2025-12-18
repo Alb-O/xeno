@@ -135,16 +135,16 @@ impl Editor {
 			};
 
 			let status_str = match &entry.status {
-				crate::plugins::manager::PluginStatus::Installed => "Installed",
-				crate::plugins::manager::PluginStatus::Loaded => "Loaded",
-				crate::plugins::manager::PluginStatus::Failed(_) => "Failed",
-				crate::plugins::manager::PluginStatus::Disabled => "Disabled",
+				crate::plugin::manager::PluginStatus::Installed => "Installed",
+				crate::plugin::manager::PluginStatus::Loaded => "Loaded",
+				crate::plugin::manager::PluginStatus::Failed(_) => "Failed",
+				crate::plugin::manager::PluginStatus::Disabled => "Disabled",
 			};
 
 			let status_color = match &entry.status {
-				crate::plugins::manager::PluginStatus::Loaded => Color::Green,
-				crate::plugins::manager::PluginStatus::Failed(_) => Color::Red,
-				crate::plugins::manager::PluginStatus::Disabled => Color::DarkGray,
+				crate::plugin::manager::PluginStatus::Loaded => Color::Green,
+				crate::plugin::manager::PluginStatus::Failed(_) => Color::Red,
+				crate::plugin::manager::PluginStatus::Disabled => Color::DarkGray,
 				_ => Color::Gray,
 			};
 
@@ -166,7 +166,7 @@ impl Editor {
 						),
 					]));
 				}
-				if let crate::plugins::manager::PluginStatus::Failed(e) = &entry.status {
+				if let crate::plugin::manager::PluginStatus::Failed(e) = &entry.status {
 					lines.push(ratatui::text::Line::from(vec![
 						ratatui::text::Span::styled(
 							format!("  Error: {}", e),
