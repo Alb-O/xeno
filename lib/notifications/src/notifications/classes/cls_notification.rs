@@ -227,7 +227,7 @@ impl Default for Notification {
 			block_style: None,
 			border_style: None,
 			title_style: None,
-			border_type: Some(BorderType::Rounded),
+			border_type: Some(BorderType::Padded),
 			custom_entry_position: None,
 			custom_exit_position: None,
 			fade_effect: false,
@@ -521,7 +521,7 @@ mod tests {
 			notification.max_height,
 			Some(SizeConstraint::Percentage(0.2))
 		);
-		assert_eq!(notification.border_type, Some(BorderType::Rounded));
+		assert_eq!(notification.border_type, Some(BorderType::Padded));
 		assert_eq!(notification.padding, Padding::horizontal(1));
 
 		// Content should be empty by default

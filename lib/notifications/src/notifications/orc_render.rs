@@ -138,6 +138,16 @@ pub fn render_notifications<T: RenderableNotification>(
 					.border_style(final_border_style)
 					.padding(state.padding());
 
+				// If Padded border, add a colored stripe on the left
+				if state.border_type() == BorderType::Padded {
+					block = block.border_set(ratatui::symbols::border::Set {
+						top_left: "▏",
+						vertical_left: "▏",
+						bottom_left: "▏",
+						..ratatui::symbols::border::EMPTY
+					});
+				}
+
 				// Add title with icon if present
 				if let Some(mut title_line) = state.title() {
 					if let Some(icon_str) = get_level_icon(state.level()) {
@@ -243,6 +253,7 @@ fn get_border_set(border_type: BorderType) -> border::Set<'static> {
 		BorderType::Rounded => border::ROUNDED,
 		BorderType::Double => border::DOUBLE,
 		BorderType::Thick => border::THICK,
+		BorderType::Padded => border::EMPTY,
 		_ => border::PLAIN,
 	}
 }

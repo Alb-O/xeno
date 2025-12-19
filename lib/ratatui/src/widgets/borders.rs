@@ -150,6 +150,17 @@ pub enum BorderType {
 	/// ▌       ▐
 	/// ▙▄▄▄▄▄▄▄▟
 	QuadrantOutside,
+	/// A border that uses only spaces, effectively creating padding that uses the block's
+	/// background style.
+	///
+	/// # Example
+	///
+	/// ```plain
+	///  xxxxxxx
+	///  x     x
+	///  xxxxxxx
+	/// ```
+	Padded,
 }
 
 impl BorderType {
@@ -168,6 +179,7 @@ impl BorderType {
 			Self::HeavyQuadrupleDashed => border::HEAVY_QUADRUPLE_DASHED,
 			Self::QuadrantInside => border::QUADRANT_INSIDE,
 			Self::QuadrantOutside => border::QUADRANT_OUTSIDE,
+			Self::Padded => border::EMPTY,
 		}
 	}
 
