@@ -99,17 +99,17 @@ impl Selection {
 		}
 
 		let primary = self.ranges[self.primary_index];
-		self.ranges.sort_by_key(|r| r.from());
+		self.ranges.sort_by_key(|r: &Range| r.min());
 
 		let mut merged: SmallVec<[Range; 1]> = SmallVec::new();
 		let mut primary_index = 0;
 
 		for range in &self.ranges {
 			if let Some(last) = merged.last_mut()
-				&& (last.overlaps(range) || last.to() == range.from())
+				&& (last.overlaps(range) || last.max() == range.min())
 			{
 				*last = last.merge(range);
-				if *range == primary || last.contains(primary.from()) {
+				if *range == primary || last.contains(primary.min()) {
 					primary_index = merged.len() - 1;
 				}
 				continue;
@@ -132,7 +132,7 @@ impl Selection {
 
 		let primary = self.ranges[self.primary_index];
 
-		self.ranges.sort_by_key(|r| r.from());
+		self.ranges.sort_by_key(|r: &Range| r.min());
 
 		let mut merged: SmallVec<[Range; 1]> = SmallVec::new();
 		let mut primary_index = 0;
@@ -142,7 +142,7 @@ impl Selection {
 				&& last.overlaps(range)
 			{
 				*last = last.merge(range);
-				if *range == primary || last.contains(primary.from()) {
+				if *range == primary || last.contains(primary.min()) {
 					primary_index = merged.len() - 1;
 				}
 				continue;
@@ -162,14 +162,14 @@ impl Selection {
 		Self::new(
 			self.ranges
 				.into_iter()
-				.map(|r| r.grapheme_aligned(text))
+				.map(|r: Range| r.grapheme_aligned(text))
 				.collect(),
 			self.primary_index,
 		)
 	}
 
 	pub fn contains(&self, pos: usize) -> bool {
-		self.ranges.iter().any(|r| r.contains(pos))
+		self.ranges.iter().any(|r: &Range| r.contains(pos))
 	}
 
 	pub fn direction(&self) -> Direction {
@@ -242,8 +242,8 @@ mod tests {
 		let ranges = smallvec![Range::new(0, 10), Range::new(5, 15)];
 		let sel = Selection::new(ranges, 0);
 		assert_eq!(sel.len(), 1);
-		assert_eq!(sel.ranges()[0].from(), 0);
-		assert_eq!(sel.ranges()[0].to(), 15);
+		assert_eq!(sel.ranges()[0].min(), 0);
+		assert_eq!(sel.ranges()[0].max(), 15);
 	}
 
 	#[test]
@@ -259,10 +259,10 @@ mod tests {
 		let ranges = smallvec![Range::new(0, 5), Range::new(5, 10)];
 		let sel = Selection::new(ranges, 0);
 		assert_eq!(sel.len(), 2);
-		assert_eq!(sel.ranges()[0].from(), 0);
-		assert_eq!(sel.ranges()[0].to(), 5);
-		assert_eq!(sel.ranges()[1].from(), 5);
-		assert_eq!(sel.ranges()[1].to(), 10);
+		assert_eq!(sel.ranges()[0].min(), 0);
+		assert_eq!(sel.ranges()[0].max(), 5);
+		assert_eq!(sel.ranges()[1].min(), 5);
+		assert_eq!(sel.ranges()[1].max(), 10);
 	}
 
 	#[test]

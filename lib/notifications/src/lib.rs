@@ -24,7 +24,7 @@
 //! let mut notifications = Notifications::new();
 //!
 //! // Add a notification
-//! let notif = Notification::new("Operation completed!")
+//! let notif = Notification::builder("Operation completed!")
 //!     .title("Success")
 //!     .level(Level::Info)
 //!     .anchor(Anchor::BottomRight)
@@ -46,20 +46,20 @@
 //! use ratatui_notifications::{Notification, Animation, SlideDirection, Level};
 //!
 //! // Slide animation (direction set via slide_direction)
-//! let slide_notif = Notification::new("Sliding in!")
+//! let slide_notif = Notification::builder("Sliding in!")
 //!     .animation(Animation::Slide)
 //!     .slide_direction(SlideDirection::FromRight)
 //!     .build()
 //!     .unwrap();
 //!
 //! // Fade animation
-//! let fade_notif = Notification::new("Fading in...")
+//! let fade_notif = Notification::builder("Fading in...")
 //!     .animation(Animation::Fade)
 //!     .build()
 //!     .unwrap();
 //!
 //! // Expand/collapse animation
-//! let expand_notif = Notification::new("Expanding!")
+//! let expand_notif = Notification::builder("Expanding!")
 //!     .animation(Animation::ExpandCollapse)
 //!     .build()
 //!     .unwrap();
@@ -71,7 +71,7 @@
 //! use ratatui_notifications::{Notification, AutoDismiss};
 //! use std::time::Duration;
 //!
-//! let notif = Notification::new("This will disappear...")
+//! let notif = Notification::builder("This will disappear...")
 //!     .auto_dismiss(AutoDismiss::After(Duration::from_secs(5)))
 //!     .build()
 //!     .unwrap();
@@ -83,13 +83,13 @@
 //! use ratatui_notifications::{Notification, Anchor};
 //!
 //! // Top-left corner
-//! let top_left = Notification::new("Top left")
+//! let top_left = Notification::builder("Top left")
 //!     .anchor(Anchor::TopLeft)
 //!     .build()
 //!     .unwrap();
 //!
 //! // Bottom center
-//! let bottom_center = Notification::new("Bottom center")
+//! let bottom_center = Notification::builder("Bottom center")
 //!     .anchor(Anchor::BottomCenter)
 //!     .build()
 //!     .unwrap();
@@ -100,9 +100,9 @@ pub(crate) mod shared_utils;
 
 // Re-export public API at crate root for ergonomic imports
 pub use notifications::{
-	Anchor, Animation, AutoDismiss, Level, Notification, NotificationBuilder, NotificationError,
-	Notifications, Overflow, SizeConstraint, SlideDirection, Timing, calculate_anchor_position,
-	calculate_rect, calculate_size, generate_code,
+    Anchor, Animation, AutoDismiss, Level, Notification, NotificationBuilder, NotificationError,
+    Notifications, Overflow, SizeConstraint, SlideDirection, Timing, calculate_anchor_position,
+    calculate_rect, calculate_size, generate_code,
 };
 // Re-export ratatui Position for custom positioning
 pub use ratatui::layout::Position;

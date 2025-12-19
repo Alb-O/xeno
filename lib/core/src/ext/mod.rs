@@ -95,8 +95,6 @@ pub use statusline::{
 
 #[cfg(feature = "host")]
 use crate::range::Range;
-#[cfg(feature = "host")]
-use crate::selection::Selection;
 
 /// Result type for command execution.
 #[cfg(feature = "host")]
@@ -104,35 +102,27 @@ pub type CommandResult = Result<(), CommandError>;
 
 /// Error returned by command handlers.
 #[cfg(feature = "host")]
-#[derive(Debug, Clone)]
+#[derive(thiserror::Error, Debug, Clone)]
 pub enum CommandError {
 	/// Command failed with a message.
+	#[error("{0}")]
 	Failed(String),
 	/// Command requires an argument.
+	#[error("missing argument: {0}")]
 	MissingArgument(&'static str),
 	/// Invalid argument provided.
+	#[error("invalid argument: {0}")]
 	InvalidArgument(String),
 	/// File I/O error.
+	#[error("I/O error: {0}")]
 	Io(String),
 	/// Command not found.
+	#[error("command not found: {0}")]
 	NotFound(String),
+	/// General error.
+	#[error("{0}")]
+	Other(String),
 }
-
-#[cfg(feature = "host")]
-impl std::fmt::Display for CommandError {
-	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-		match self {
-			CommandError::Failed(msg) => write!(f, "{}", msg),
-			CommandError::MissingArgument(name) => write!(f, "missing argument: {}", name),
-			CommandError::InvalidArgument(msg) => write!(f, "invalid argument: {}", msg),
-			CommandError::Io(msg) => write!(f, "I/O error: {}", msg),
-			CommandError::NotFound(name) => write!(f, "command not found: {}", name),
-		}
-	}
-}
-
-#[cfg(feature = "host")]
-impl std::error::Error for CommandError {}
 
 /// Result type for commands that may signal special behavior.
 #[cfg(feature = "host")]
@@ -146,26 +136,15 @@ pub enum CommandOutcome {
 	ForceQuit,
 }
 
-/// Operations that commands can perform on the editor.
+/// Operations that editors must support.
 ///
-/// This trait abstracts editor functionality so commands can be defined
-/// in `tome-core` without depending on the terminal layer.
+/// This trait is now composed of the fine-grained capability traits.
 #[cfg(feature = "host")]
-pub trait EditorOps {
+pub trait EditorOps:
+	CursorAccess + SelectionAccess + TextAccess + ModeAccess + MessageAccess
+{
 	/// Get the file path being edited, if any.
 	fn path(&self) -> Option<&std::path::Path>;
-
-	/// Get the document text as a rope slice.
-	fn text(&self) -> RopeSlice<'_>;
-
-	/// Get mutable access to selection.
-	fn selection_mut(&mut self) -> &mut Selection;
-
-	/// Display a message to the user.
-	fn message(&mut self, msg: &str);
-
-	/// Display an error message.
-	fn error(&mut self, msg: &str);
 
 	/// Save the buffer to disk.
 	fn save(&mut self) -> Result<(), CommandError>;
@@ -186,18 +165,22 @@ pub trait EditorOps {
 	fn is_modified(&self) -> bool;
 
 	/// Set the editor theme.
-	fn set_theme(&mut self, _theme_name: &str) -> Result<(), String> {
-		Err("Theme switching not supported".to_string())
+	fn set_theme(&mut self, _theme_name: &str) -> Result<(), CommandError> {
+		Err(CommandError::Failed("Theme switching not supported".to_string()))
 	}
 
 	/// Handle a permission decision from the user.
-	fn on_permission_decision(&mut self, _request_id: u64, _option_id: &str) -> Result<(), String> {
-		Err("Permission handling not supported".to_string())
+	fn on_permission_decision(
+		&mut self,
+		_request_id: u64,
+		_option_id: &str,
+	) -> Result<(), CommandError> {
+		Err(CommandError::Failed("Permission handling not supported".to_string()))
 	}
 
 	/// Execute a plugin-related command.
-	fn plugin_command(&mut self, _args: &[&str]) -> Result<(), String> {
-		Err("Plugin commands not supported".to_string())
+	fn plugin_command(&mut self, _args: &[&str]) -> Result<(), CommandError> {
+		Err(CommandError::Failed("Plugin commands not supported".to_string()))
 	}
 }
 
@@ -216,6 +199,8 @@ pub struct CommandContext<'a> {
 	pub count: usize,
 	/// Register to use (if any).
 	pub register: Option<char>,
+	/// User data from the command definition.
+	pub user_data: Option<&'static (dyn std::any::Any + Sync)>,
 }
 
 #[cfg(feature = "host")]
@@ -227,12 +212,12 @@ impl<'a> CommandContext<'a> {
 
 	/// Convenience: show a message.
 	pub fn message(&mut self, msg: &str) {
-		self.editor.message(msg);
+		self.editor.show_message(msg);
 	}
 
 	/// Convenience: show an error.
 	pub fn error(&mut self, msg: &str) {
-		self.editor.error(msg);
+		self.editor.show_error(msg);
 	}
 }
 
@@ -251,6 +236,8 @@ pub struct CommandDef {
 	pub description: &'static str,
 	/// Command handler function.
 	pub handler: fn(&mut CommandContext) -> Result<CommandOutcome, CommandError>,
+	/// Optional user data passed to the handler.
+	pub user_data: Option<&'static (dyn std::any::Any + Sync)>,
 }
 
 #[cfg(feature = "host")]

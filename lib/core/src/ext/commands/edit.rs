@@ -8,6 +8,7 @@ static CMD_EDIT: CommandDef = CommandDef {
 	aliases: &["e"],
 	description: "Edit a file",
 	handler: cmd_edit,
+	user_data: None,
 };
 
 fn cmd_edit(ctx: &mut CommandContext) -> Result<CommandOutcome, CommandError> {

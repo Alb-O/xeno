@@ -8,6 +8,7 @@ static CMD_QUIT: CommandDef = CommandDef {
 	aliases: &["q"],
 	description: "Quit the editor",
 	handler: cmd_quit,
+	user_data: None,
 };
 
 fn cmd_quit(ctx: &mut CommandContext) -> Result<CommandOutcome, CommandError> {
@@ -24,6 +25,7 @@ static CMD_QUIT_FORCE: CommandDef = CommandDef {
 	aliases: &["q!"],
 	description: "Quit without saving",
 	handler: cmd_quit_force,
+	user_data: None,
 };
 
 fn cmd_quit_force(_ctx: &mut CommandContext) -> Result<CommandOutcome, CommandError> {

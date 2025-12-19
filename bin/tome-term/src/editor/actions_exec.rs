@@ -44,6 +44,7 @@ impl Editor {
 			args: &args,
 			count: 1,
 			register: None,
+			user_data: cmd.user_data,
 		};
 
 		match (cmd.handler)(&mut ctx) {
@@ -51,7 +52,7 @@ impl Editor {
 			Ok(CommandOutcome::Quit) => true,
 			Ok(CommandOutcome::ForceQuit) => true,
 			Err(e) => {
-				ctx.editor.error(&e.to_string());
+				ctx.editor.show_error(&e.to_string());
 				false
 			}
 		}

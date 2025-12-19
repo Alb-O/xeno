@@ -10,6 +10,7 @@ static CMD_WRITE: CommandDef = CommandDef {
 	aliases: &["w"],
 	description: "Write buffer to file",
 	handler: cmd_write,
+	user_data: None,
 };
 
 fn cmd_write(ctx: &mut CommandContext) -> Result<CommandOutcome, CommandError> {
@@ -27,6 +28,7 @@ static CMD_WRITE_QUIT: CommandDef = CommandDef {
 	aliases: &["x"],
 	description: "Write and quit",
 	handler: cmd_write_quit,
+	user_data: None,
 };
 
 fn cmd_write_quit(ctx: &mut CommandContext) -> Result<CommandOutcome, CommandError> {

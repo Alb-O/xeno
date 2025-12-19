@@ -25,6 +25,7 @@ pub unsafe extern "C" fn tome_plugin_entry_v2(
 
 	unsafe {
 		*out_guest = TomeGuestV2 {
+			struct_size: std::mem::size_of::<TomeGuestV2>(),
 			abi_version: TOME_C_ABI_VERSION_V2,
 			namespace: tome_str("demo"),
 			name: tome_str("Demo Plugin"),

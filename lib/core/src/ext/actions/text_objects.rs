@@ -53,9 +53,9 @@ fn select_to_boundary(
 ) -> Option<Range> {
 	let range = (obj.around)(ctx.text, pos)?;
 	if to_start {
-		Some(Range::new(pos, range.from()))
+		Some(Range::new(pos, range.min()))
 	} else {
-		Some(Range::new(pos, range.to()))
+		Some(Range::new(pos, range.max()))
 	}
 }
 

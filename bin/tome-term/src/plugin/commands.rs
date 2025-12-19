@@ -7,11 +7,9 @@ static CMD_PLUGINS: CommandDef = CommandDef {
 	aliases: &["plugin"],
 	description: "Manage plugins",
 	handler: cmd_plugins,
+	user_data: None,
 };
 
 fn cmd_plugins(ctx: &mut CommandContext) -> Result<CommandOutcome, CommandError> {
-	match ctx.editor.plugin_command(ctx.args) {
-		Ok(()) => Ok(CommandOutcome::Ok),
-		Err(e) => Err(CommandError::Failed(e)),
-	}
+	ctx.editor.plugin_command(ctx.args).map(|_| CommandOutcome::Ok)
 }

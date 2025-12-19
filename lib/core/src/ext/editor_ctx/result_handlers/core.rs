@@ -53,7 +53,7 @@ result_handler!(RESULT_QUIT_HANDLERS, HANDLE_QUIT, "quit", |_, _, _| {
 
 result_handler!(RESULT_ERROR_HANDLERS, HANDLE_ERROR, "error", |r, ctx, _| {
 	if let ActionResult::Error(msg) = r {
-		ctx.message(msg);
+		ctx.error(msg);
 	}
 	HandleOutcome::Handled
 });

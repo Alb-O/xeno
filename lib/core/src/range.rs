@@ -8,10 +8,15 @@ pub enum Direction {
 	Backward,
 }
 
+/// A position in the text, measured in characters (not bytes).
+///
+/// This is the canonical coordinate space for Tome.
+pub type CharIdx = usize;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Range {
-	pub anchor: usize,
-	pub head: usize,
+	pub anchor: CharIdx,
+	pub head: CharIdx,
 }
 
 impl Range {
@@ -24,18 +29,18 @@ impl Range {
 	}
 
 	#[inline]
-	pub fn from(&self) -> usize {
+	pub fn min(&self) -> usize {
 		std::cmp::min(self.anchor, self.head)
 	}
 
 	#[inline]
-	pub fn to(&self) -> usize {
+	pub fn max(&self) -> usize {
 		std::cmp::max(self.anchor, self.head)
 	}
 
 	#[inline]
 	pub fn len(&self) -> usize {
-		self.to() - self.from()
+		self.max() - self.min()
 	}
 
 	#[inline]
@@ -95,20 +100,20 @@ impl Range {
 	}
 
 	pub fn contains(&self, pos: usize) -> bool {
-		pos >= self.from() && pos < self.to()
+		pos >= self.min() && pos < self.max()
 	}
 
 	pub fn overlaps(&self, other: &Range) -> bool {
-		if self.from() < other.to() && other.from() < self.to() {
+		if self.min() < other.max() && other.min() < self.max() {
 			return true;
 		}
 
-		self.is_empty() && other.is_empty() && self.from() == other.from()
+		self.is_empty() && other.is_empty() && self.min() == other.min()
 	}
 
 	pub fn merge(&self, other: &Range) -> Self {
-		let from = std::cmp::min(self.from(), other.from());
-		let to = std::cmp::max(self.to(), other.to());
+		let from = std::cmp::min(self.min(), other.min());
+		let to = std::cmp::max(self.max(), other.max());
 
 		if self.direction() == Direction::Forward {
 			Self::new(from, to)
@@ -133,8 +138,8 @@ mod tests {
 	#[test]
 	fn test_range_basics() {
 		let r = Range::new(5, 10);
-		assert_eq!(r.from(), 5);
-		assert_eq!(r.to(), 10);
+		assert_eq!(r.min(), 5);
+		assert_eq!(r.max(), 10);
 		assert_eq!(r.len(), 5);
 		assert!(!r.is_empty());
 		assert_eq!(r.direction(), Direction::Forward);
@@ -143,8 +148,8 @@ mod tests {
 	#[test]
 	fn test_range_backward() {
 		let r = Range::new(10, 5);
-		assert_eq!(r.from(), 5);
-		assert_eq!(r.to(), 10);
+		assert_eq!(r.min(), 5);
+		assert_eq!(r.max(), 10);
 		assert_eq!(r.direction(), Direction::Backward);
 	}
 
@@ -196,8 +201,8 @@ mod tests {
 		let r1 = Range::new(5, 10);
 		let r2 = Range::new(8, 15);
 		let merged = r1.merge(&r2);
-		assert_eq!(merged.from(), 5);
-		assert_eq!(merged.to(), 15);
+		assert_eq!(merged.min(), 5);
+		assert_eq!(merged.max(), 15);
 	}
 
 	#[test]

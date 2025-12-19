@@ -1,6 +1,6 @@
 //! Implementation of EditorCapabilities for Editor.
 
-use tome_core::ext::EditAction;
+use tome_core::ext::{EditAction, EditorOps};
 use tome_core::ext::editor_ctx::{
 	CursorAccess, EditAccess, EditorCapabilities, MessageAccess, ModeAccess, SearchAccess,
 	SelectionAccess, SelectionOpsAccess, TextAccess, UndoAccess,
@@ -24,8 +24,58 @@ impl SelectionAccess for Editor {
 		&self.selection
 	}
 
+	fn selection_mut(&mut self) -> &mut Selection {
+		&mut self.selection
+	}
+
 	fn set_selection(&mut self, sel: Selection) {
 		self.selection = sel;
+	}
+}
+
+impl EditorOps for Editor {
+	fn path(&self) -> Option<&std::path::Path> {
+		self.path.as_deref()
+	}
+
+	fn save(&mut self) -> Result<(), tome_core::ext::CommandError> {
+		self.save()
+	}
+
+	fn save_as(&mut self, path: std::path::PathBuf) -> Result<(), tome_core::ext::CommandError> {
+		self.save_as(path)
+	}
+
+	fn insert_text(&mut self, text: &str) {
+		self.insert_text(text);
+	}
+
+	fn delete_selection(&mut self) {
+		self.delete_selection();
+	}
+
+	fn set_modified(&mut self, modified: bool) {
+		self.modified = modified;
+	}
+
+	fn is_modified(&self) -> bool {
+		self.modified
+	}
+
+	fn on_permission_decision(
+		&mut self,
+		request_id: u64,
+		option_id: &str,
+	) -> Result<(), tome_core::ext::CommandError> {
+		Editor::on_permission_decision(self, request_id, option_id)
+	}
+
+	fn plugin_command(&mut self, args: &[&str]) -> Result<(), tome_core::ext::CommandError> {
+		Editor::plugin_command(self, args)
+	}
+
+	fn set_theme(&mut self, theme_name: &str) -> Result<(), tome_core::ext::CommandError> {
+		Editor::set_theme(self, theme_name)
 	}
 }
 

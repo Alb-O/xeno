@@ -1,4 +1,3 @@
-use tome_core::ext::EditorOps;
 use tome_core::{Key, KeyCode, KeyResult, Mode, Selection, SpecialKey, movement};
 
 use crate::editor::Editor;
@@ -211,7 +210,7 @@ impl Editor {
 				match result {
 					Ok(Some(range)) => {
 						self.cursor = range.head;
-						self.selection = Selection::single(range.from(), range.to());
+						self.selection = Selection::single(range.min(), range.max());
 						self.show_message(format!("Found: {}", pattern));
 					}
 					Ok(None) => {

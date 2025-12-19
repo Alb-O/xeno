@@ -8,6 +8,7 @@ static CMD_HELP: CommandDef = CommandDef {
 	aliases: &["h"],
 	description: "Show help for commands",
 	handler: cmd_help,
+	user_data: None,
 };
 
 fn cmd_help(ctx: &mut CommandContext) -> Result<CommandOutcome, CommandError> {

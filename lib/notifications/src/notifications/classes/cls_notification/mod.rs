@@ -38,7 +38,8 @@ pub struct Notification {
 }
 
 impl Notification {
-	pub fn new(content: impl Into<Text<'static>>) -> NotificationBuilder {
+	/// Returns a new [`NotificationBuilder`] to configure a notification.
+	pub fn builder(content: impl Into<Text<'static>>) -> NotificationBuilder {
 		NotificationBuilder::new(content)
 	}
 

@@ -7,6 +7,7 @@ pub mod input;
 pub mod key;
 #[cfg(feature = "host")]
 pub mod movement;
+pub mod prelude;
 #[cfg(feature = "host")]
 pub mod range;
 #[cfg(feature = "host")]

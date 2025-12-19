@@ -90,7 +90,6 @@ impl Editor {
 	}
 
 	pub(crate) fn poll_ipc(&mut self) {
-		use tome_core::ext::EditorOps;
 		let mut reloads = Vec::new();
 		if let Some(ipc) = &self.ipc {
 			while let Some(msg) = ipc.poll() {

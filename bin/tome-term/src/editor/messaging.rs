@@ -24,7 +24,7 @@ impl Editor {
 			.bg(self.theme.colors.popup.bg)
 			.fg(self.theme.colors.popup.fg);
 
-		if let Ok(notif) = Notification::new(text)
+		if let Ok(notif) = Notification::builder(text)
 			.level(Level::Info)
 			.animation(Animation::Fade)
 			.anchor(Anchor::BottomRight)
@@ -52,7 +52,7 @@ impl Editor {
 			.bg(self.theme.colors.popup.bg)
 			.fg(self.theme.colors.status.error_fg);
 
-		if let Ok(notif) = Notification::new(text)
+		if let Ok(notif) = Notification::builder(text)
 			.level(Level::Error)
 			.animation(Animation::Fade)
 			.anchor(Anchor::BottomRight)

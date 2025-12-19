@@ -8,6 +8,7 @@ static CMD_BUFFER: CommandDef = CommandDef {
 	aliases: &["b"],
 	description: "Switch to buffer",
 	handler: cmd_buffer,
+	user_data: None,
 };
 
 fn cmd_buffer(ctx: &mut CommandContext) -> Result<CommandOutcome, CommandError> {
@@ -24,6 +25,7 @@ static CMD_BUFFER_NEXT: CommandDef = CommandDef {
 	aliases: &["bn"],
 	description: "Go to next buffer",
 	handler: cmd_buffer_next,
+	user_data: None,
 };
 
 fn cmd_buffer_next(ctx: &mut CommandContext) -> Result<CommandOutcome, CommandError> {
@@ -37,6 +39,7 @@ static CMD_BUFFER_PREV: CommandDef = CommandDef {
 	aliases: &["bp"],
 	description: "Go to previous buffer",
 	handler: cmd_buffer_prev,
+	user_data: None,
 };
 
 fn cmd_buffer_prev(ctx: &mut CommandContext) -> Result<CommandOutcome, CommandError> {
@@ -50,6 +53,7 @@ static CMD_DELETE_BUFFER: CommandDef = CommandDef {
 	aliases: &["db"],
 	description: "Delete current buffer",
 	handler: cmd_delete_buffer,
+	user_data: None,
 };
 
 fn cmd_delete_buffer(ctx: &mut CommandContext) -> Result<CommandOutcome, CommandError> {

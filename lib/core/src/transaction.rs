@@ -2,7 +2,11 @@ use crate::{Range, Rope, RopeSlice, Selection};
 
 pub type Tendril = String;
 
-pub type Change = (usize, usize, Option<Tendril>);
+pub struct Change {
+	pub start: usize,
+	pub end: usize,
+	pub replacement: Option<Tendril>,
+}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Operation {
@@ -305,7 +309,10 @@ impl Transaction {
 		let mut changeset = ChangeSet::new(doc);
 		let mut last = 0;
 
-		for (from, to, replacement) in changes {
+		for change in changes {
+			let from = change.start;
+			let to = change.end;
+			let replacement = change.replacement;
 			debug_assert!(from <= to);
 			debug_assert!(from >= last);
 
@@ -338,14 +345,23 @@ impl Transaction {
 	pub fn insert(doc: RopeSlice, selection: &Selection, text: Tendril) -> Self {
 		Self::change(
 			doc,
-			selection
-				.iter()
-				.map(|r| (r.from(), r.to(), Some(text.clone()))),
+			selection.iter().map(|r: &Range| Change {
+				start: r.min(),
+				end: r.max(),
+				replacement: Some(text.clone()),
+			}),
 		)
 	}
 
 	pub fn delete(doc: RopeSlice, selection: &Selection) -> Self {
-		Self::change(doc, selection.iter().map(|r| (r.from(), r.to(), None)))
+		Self::change(
+			doc,
+			selection.iter().map(|r: &Range| Change {
+				start: r.min(),
+				end: r.max(),
+				replacement: None,
+			}),
+		)
 	}
 
 	pub fn with_selection(mut self, selection: Selection) -> Self {
@@ -450,7 +466,11 @@ mod tests {
 	#[test]
 	fn test_transaction_change() {
 		let mut doc = Rope::from("hello world");
-		let changes = vec![(0, 5, Some("hi".into()))];
+		let changes = vec![Change {
+			start: 0,
+			end: 5,
+			replacement: Some("hi".into()),
+		}];
 		let tx = Transaction::change(doc.slice(..), changes);
 		tx.apply(&mut doc);
 		assert_eq!(doc.to_string(), "hi world");
@@ -460,7 +480,14 @@ mod tests {
 	fn test_map_selection() {
 		let doc = Rope::from("hello world");
 		let sel = Selection::single(6, 11);
-		let tx = Transaction::change(doc.slice(..), vec![(0, 0, Some("!! ".into()))]);
+		let tx = Transaction::change(
+			doc.slice(..),
+			vec![Change {
+				start: 0,
+				end: 0,
+				replacement: Some("!! ".into()),
+			}],
+		);
 		let mapped = tx.map_selection(&sel);
 		assert_eq!(mapped.primary().anchor, 9);
 		assert_eq!(mapped.primary().head, 14);

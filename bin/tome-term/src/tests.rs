@@ -26,8 +26,34 @@ mod suite {
 				.selection
 				.ranges()
 				.iter()
-				.map(|r| (r.from(), r.to()))
+				.map(|r| (r.min(), r.max()))
 				.collect();
+...
+		editor.handle_key(KeyEvent::new(KeyCode::Char('%'), Modifiers::NONE));
+		assert_eq!(editor.selection.primary().min(), 0);
+		assert_eq!(editor.selection.primary().max(), 5);
+...
+		assert_eq!(ranges[0].min(), 0);
+		assert_eq!(ranges[0].max(), line_ends[0]);
+		assert_eq!(ranges[1].min(), line_ends[0]);
+		assert_eq!(ranges[1].max(), line_ends[1]);
+		assert_eq!(ranges[2].min(), line_ends[1]);
+		assert_eq!(ranges[2].max(), line_ends[2]);
+...
+		let ranges_after_select: Vec<(usize, usize)> = editor
+			.selection
+			.ranges()
+			.iter()
+			.map(|r| (r.min(), r.max()))
+			.collect();
+...
+		let ranges_after_dup: Vec<(usize, usize)> = editor
+			.selection
+			.ranges()
+			.iter()
+			.map(|r| (r.min(), r.max()))
+			.collect();
+
 			snapshots.push(format!(
 				"{} -> cursor:{} line:{} sel:{:?} doc:{:?}",
 				step.desc,
@@ -91,7 +117,17 @@ mod suite {
 			args: &args,
 			count: 1,
 			register: None,
+			user_data: CMD_THEME.user_data,
 		};
+...
+		let mut ctx_typo = CommandContext {
+			editor: &mut editor,
+			args: &args_typo,
+			count: 1,
+			register: None,
+			user_data: CMD_THEME.user_data,
+		};
+
 
 		let result = (CMD_THEME.handler)(&mut ctx);
 		assert!(result.is_ok());

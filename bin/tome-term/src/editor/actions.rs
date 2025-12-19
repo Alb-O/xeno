@@ -57,8 +57,8 @@ impl Editor {
 			}
 			EditAction::ReplaceWithChar { ch } => {
 				let primary = self.selection.primary();
-				let from = primary.from();
-				let to = primary.to();
+				let from = primary.min();
+				let to = primary.max();
 				if from < to {
 					self.save_undo_state();
 					let len = to - from;
@@ -173,7 +173,7 @@ impl Editor {
 				let tx = Transaction::delete(self.doc.slice(..), &deletion_selection);
 				let mut new_selection = tx.map_selection(&deletion_selection);
 				new_selection.transform_mut(|r| {
-					let pos = r.from();
+					let pos = r.min();
 					r.anchor = pos;
 					r.head = pos;
 				});
@@ -267,8 +267,8 @@ impl Editor {
 		F: Fn(char) -> Box<dyn Iterator<Item = char>>,
 	{
 		let primary = self.selection.primary();
-		let from = primary.from();
-		let to = primary.to();
+		let from = primary.min();
+		let to = primary.max();
 		if from < to {
 			self.save_undo_state();
 			let text: String = self

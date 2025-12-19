@@ -8,6 +8,7 @@ static CMD_PERMIT: CommandDef = CommandDef {
 	aliases: &[],
 	description: "Respond to a plugin permission request (:permit <id> <option>)",
 	handler: cmd_permit,
+	user_data: None,
 };
 
 fn cmd_permit(ctx: &mut CommandContext) -> Result<CommandOutcome, CommandError> {
@@ -24,7 +25,7 @@ fn cmd_permit(ctx: &mut CommandContext) -> Result<CommandOutcome, CommandError> 
 
 	ctx.editor
 		.on_permission_decision(id, option)
-		.map_err(CommandError::Failed)?;
+		.map_err(|e| CommandError::Failed(e.to_string()))?;
 
 	Ok(CommandOutcome::Ok)
 }

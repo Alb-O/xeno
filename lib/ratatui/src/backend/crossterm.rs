@@ -55,8 +55,8 @@
 //!
 //! [`ratatui`]: https://crates.io/crates/ratatui
 //! [ARCHITECTURE.md]: https://github.com/ratatui/ratatui/blob/main/ARCHITECTURE.md
-#![cfg_attr(feature = "document-features", doc = "\n## Features")]
-#![cfg_attr(feature = "document-features", doc = document_features::document_features!())]
+// #![cfg_attr(feature = "document-features", doc = "\n## Features")]
+// #![cfg_attr(feature = "document-features", doc = document_features::document_features!())]
 
 use std::io::{self, Write};
 

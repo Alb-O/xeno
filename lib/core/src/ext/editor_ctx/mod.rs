@@ -64,20 +64,50 @@ impl<'a> EditorContext<'a> {
 		self.inner.show_message(msg);
 	}
 
+	pub fn error(&mut self, msg: &str) {
+		self.inner.show_error(msg);
+	}
+
 	pub fn search(&mut self) -> Option<&mut dyn SearchAccess> {
 		self.inner.search()
+	}
+
+	pub fn require_search(&mut self) -> Result<&mut dyn SearchAccess, crate::ext::CommandError> {
+		self.inner.search().ok_or_else(|| {
+			crate::ext::CommandError::Failed("Search capability not available".to_string())
+		})
 	}
 
 	pub fn undo(&mut self) -> Option<&mut dyn UndoAccess> {
 		self.inner.undo()
 	}
 
+	pub fn require_undo(&mut self) -> Result<&mut dyn UndoAccess, crate::ext::CommandError> {
+		self.inner.undo().ok_or_else(|| {
+			crate::ext::CommandError::Failed("Undo capability not available".to_string())
+		})
+	}
+
 	pub fn edit(&mut self) -> Option<&mut dyn EditAccess> {
 		self.inner.edit()
 	}
 
+	pub fn require_edit(&mut self) -> Result<&mut dyn EditAccess, crate::ext::CommandError> {
+		self.inner.edit().ok_or_else(|| {
+			crate::ext::CommandError::Failed("Edit capability not available".to_string())
+		})
+	}
+
 	pub fn selection_ops(&mut self) -> Option<&mut dyn SelectionOpsAccess> {
 		self.inner.selection_ops()
+	}
+
+	pub fn require_selection_ops(
+		&mut self,
+	) -> Result<&mut dyn SelectionOpsAccess, crate::ext::CommandError> {
+		self.inner.selection_ops().ok_or_else(|| {
+			crate::ext::CommandError::Failed("Selection operations not available".to_string())
+		})
 	}
 }
 

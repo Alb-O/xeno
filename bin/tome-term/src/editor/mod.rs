@@ -15,7 +15,7 @@ use std::path::PathBuf;
 use std::sync::mpsc::Receiver;
 
 use ratatui_notifications::{Notifications, Overflow};
-use tome_core::ext::{EditorOps, HookContext, emit_hook};
+use tome_core::ext::{HookContext, emit_hook};
 use tome_core::{InputHandler, Mode, Rope, Selection, Transaction, ext, movement};
 pub use types::{HistoryEntry, Message, MessageKind, Registers};
 
@@ -40,7 +40,7 @@ pub struct Editor {
 	pub text_width: usize,
 
 	pub terminal: Option<TerminalState>,
-	pub(crate) terminal_prewarm: Option<Receiver<Result<TerminalState, String>>>,
+	pub(crate) terminal_prewarm: Option<Receiver<Result<TerminalState, crate::terminal_panel::TerminalError>>>,
 	pub(crate) terminal_input_buffer: Vec<u8>,
 	pub terminal_open: bool,
 	pub terminal_focused: bool,
@@ -143,7 +143,7 @@ impl Editor {
 		// Collapse all selections to their insertion points (line starts for ranges) so we insert at each cursor.
 		let mut insertion_points = self.selection.clone();
 		insertion_points.transform_mut(|r| {
-			let pos = r.from();
+			let pos = r.min();
 			r.anchor = pos;
 			r.head = pos;
 		});
@@ -151,7 +151,7 @@ impl Editor {
 		let tx = Transaction::insert(self.doc.slice(..), &insertion_points, text.to_string());
 		let mut new_selection = tx.map_selection(&insertion_points);
 		new_selection.transform_mut(|r| {
-			let pos = r.to();
+			let pos = r.max();
 			r.anchor = pos;
 			r.head = pos;
 		});
@@ -162,13 +162,12 @@ impl Editor {
 		self.modified = true;
 	}
 
-	pub fn save(&mut self) -> io::Result<()> {
+	pub fn save(&mut self) -> Result<(), tome_core::ext::CommandError> {
 		let path_owned = match &self.path {
 			Some(p) => p.clone(),
 			None => {
-				return Err(io::Error::new(
-					io::ErrorKind::InvalidInput,
-					"No filename. Use :write <filename>",
+				return Err(tome_core::ext::CommandError::InvalidArgument(
+					"No filename. Use :write <filename>".to_string(),
 				));
 			}
 		};
@@ -178,9 +177,11 @@ impl Editor {
 			text: self.doc.slice(..),
 		});
 
-		let mut f = fs::File::create(&path_owned)?;
+		let mut f = fs::File::create(&path_owned)
+			.map_err(|e| tome_core::ext::CommandError::Io(e.to_string()))?;
 		for chunk in self.doc.chunks() {
-			f.write_all(chunk.as_bytes())?;
+			f.write_all(chunk.as_bytes())
+				.map_err(|e| tome_core::ext::CommandError::Io(e.to_string()))?;
 		}
 		self.modified = false;
 		self.show_message(format!("Saved {}", path_owned.display()));
@@ -190,15 +191,15 @@ impl Editor {
 		Ok(())
 	}
 
-	pub fn save_as(&mut self, path: PathBuf) -> io::Result<()> {
+	pub fn save_as(&mut self, path: PathBuf) -> Result<(), tome_core::ext::CommandError> {
 		self.path = Some(path);
 		self.save()
 	}
 
 	pub fn yank_selection(&mut self) {
 		let primary = self.selection.primary();
-		let from = primary.from();
-		let to = primary.to();
+		let from = primary.min();
+		let to = primary.max();
 		if from < to {
 			self.registers.yank = self.doc.slice(from..to).to_string();
 			self.show_message(format!("Yanked {} chars", to - from));
@@ -254,42 +255,8 @@ impl Editor {
 
 		self.insert_text(&content);
 	}
-}
 
-impl EditorOps for Editor {
-	fn path(&self) -> Option<&std::path::Path> {
-		self.path.as_deref()
-	}
-
-	fn text(&self) -> tome_core::RopeSlice<'_> {
-		self.doc.slice(..)
-	}
-
-	fn selection_mut(&mut self) -> &mut Selection {
-		&mut self.selection
-	}
-
-	fn message(&mut self, msg: &str) {
-		self.show_message(msg);
-	}
-
-	fn error(&mut self, msg: &str) {
-		self.show_error(msg);
-	}
-
-	fn save(&mut self) -> Result<(), tome_core::ext::CommandError> {
-		Editor::save(self).map_err(|e| tome_core::ext::CommandError::Io(e.to_string()))
-	}
-
-	fn save_as(&mut self, path: std::path::PathBuf) -> Result<(), tome_core::ext::CommandError> {
-		Editor::save_as(self, path).map_err(|e| tome_core::ext::CommandError::Io(e.to_string()))
-	}
-
-	fn insert_text(&mut self, text: &str) {
-		Editor::insert_text(self, text);
-	}
-
-	fn delete_selection(&mut self) {
+	pub fn delete_selection(&mut self) {
 		if !self.selection.primary().is_empty() {
 			self.save_undo_state();
 			let tx = Transaction::delete(self.doc.slice(..), &self.selection);
@@ -299,20 +266,34 @@ impl EditorOps for Editor {
 		}
 	}
 
-	fn set_modified(&mut self, modified: bool) {
-		self.modified = modified;
+	pub fn set_theme(&mut self, theme_name: &str) -> Result<(), tome_core::ext::CommandError> {
+		if let Some(theme) = crate::theme::get_theme(theme_name) {
+			self.theme = theme;
+			Ok(())
+		} else {
+			let mut err = format!("Theme not found: {}", theme_name);
+			if let Some(suggestion) = crate::theme::suggest_theme(theme_name) {
+				err.push_str(&format!(". Did you mean '{}'?", suggestion));
+			}
+			Err(tome_core::ext::CommandError::Failed(err))
+		}
 	}
 
-	fn is_modified(&self) -> bool {
-		self.modified
-	}
-
-	fn on_permission_decision(&mut self, request_id: u64, option_id: &str) -> Result<(), String> {
+	pub fn on_permission_decision(
+		&mut self,
+		request_id: u64,
+		option_id: &str,
+	) -> Result<(), tome_core::ext::CommandError> {
 		let pos = self
 			.pending_permissions
 			.iter()
 			.position(|p| p.request_id == request_id)
-			.ok_or_else(|| format!("No pending permission request with ID {}", request_id))?;
+			.ok_or_else(|| {
+				tome_core::ext::CommandError::Failed(format!(
+					"No pending permission request with ID {}",
+					request_id
+				))
+			})?;
 
 		let pending = self.pending_permissions.remove(pos);
 		let plugin_id = pending.plugin_id;
@@ -332,13 +313,13 @@ impl EditorOps for Editor {
 			return Ok(());
 		}
 
-		Err(format!(
+		Err(tome_core::ext::CommandError::Failed(format!(
 			"Plugin {} does not support permission decisions",
 			plugin_id
-		))
+		)))
 	}
 
-	fn plugin_command(&mut self, args: &[&str]) -> Result<(), String> {
+	pub fn plugin_command(&mut self, args: &[&str]) -> Result<(), tome_core::ext::CommandError> {
 		if args.is_empty() {
 			self.plugins.plugins_open = !self.plugins.plugins_open;
 			self.plugins.plugins_focused = self.plugins.plugins_open;
@@ -348,7 +329,7 @@ impl EditorOps for Editor {
 		match args[0] {
 			"enable" => {
 				if args.len() < 2 {
-					return Err("Usage: :plugins enable <id>".to_string());
+					return Err(tome_core::ext::CommandError::MissingArgument("id"));
 				}
 				let id = args[1];
 				if !self
@@ -362,12 +343,16 @@ impl EditorOps for Editor {
 					self.save_plugin_config();
 				}
 				let mgr_ptr = &mut self.plugins as *mut PluginManager;
-				unsafe { (*mgr_ptr).load(self, id)? };
+				unsafe {
+					(*mgr_ptr)
+						.load(self, id)
+						.map_err(|e| tome_core::ext::CommandError::Failed(e.to_string()))?
+				};
 				Ok(())
 			}
 			"disable" => {
 				if args.len() < 2 {
-					return Err("Usage: :plugins disable <id>".to_string());
+					return Err(tome_core::ext::CommandError::MissingArgument("id"));
 				}
 				let id = args[1];
 				self.plugins.config.plugins.enabled.retain(|e| e != id);
@@ -377,16 +362,20 @@ impl EditorOps for Editor {
 			}
 			"reload" => {
 				if args.len() < 2 {
-					return Err("Usage: :plugins reload <id>".to_string());
+					return Err(tome_core::ext::CommandError::MissingArgument("id"));
 				}
 				let id = args[1];
 				let mgr_ptr = &mut self.plugins as *mut PluginManager;
-				unsafe { (*mgr_ptr).load(self, id)? };
+				unsafe {
+					(*mgr_ptr)
+						.load(self, id)
+						.map_err(|e| tome_core::ext::CommandError::Failed(e.to_string()))?
+				};
 				Ok(())
 			}
 			"logs" => {
 				if args.len() < 2 {
-					return Err("Usage: :plugins logs <id>".to_string());
+					return Err(tome_core::ext::CommandError::MissingArgument("id"));
 				}
 				let id = args[1];
 				let logs = self.plugins.logs.get(id).cloned().unwrap_or_default();
@@ -395,20 +384,10 @@ impl EditorOps for Editor {
 				self.path = Some(std::path::PathBuf::from(format!("plugin-logs-{}", id)));
 				Ok(())
 			}
-			_ => Err(format!("Unknown plugin command: {}", args[0])),
-		}
-	}
-
-	fn set_theme(&mut self, theme_name: &str) -> Result<(), String> {
-		if let Some(theme) = crate::theme::get_theme(theme_name) {
-			self.theme = theme;
-			Ok(())
-		} else {
-			let mut err = format!("Theme not found: {}", theme_name);
-			if let Some(suggestion) = crate::theme::suggest_theme(theme_name) {
-				err.push_str(&format!(". Did you mean '{}'?", suggestion));
-			}
-			Err(err)
+			_ => Err(tome_core::ext::CommandError::Failed(format!(
+				"Unknown plugin command: {}",
+				args[0]
+			))),
 		}
 	}
 }

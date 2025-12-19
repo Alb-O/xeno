@@ -177,8 +177,8 @@ fn split_selection_lines(ctx: &ActionContext) -> ActionResult {
 	let primary_line = ctx.text.char_to_line(primary.head);
 
 	for r in ctx.selection.ranges().iter() {
-		let start = r.from().min(r.to());
-		let end = r.from().max(r.to());
+		let start = r.min();
+		let end = r.max();
 		let start_line = ctx.text.char_to_line(start);
 		let end_line = ctx.text.char_to_line(end);
 
@@ -233,8 +233,8 @@ static ACTION_SPLIT_SELECTION_LINES: ActionDef = ActionDef {
 
 fn clone_selections_to_matches(ctx: &ActionContext) -> ActionResult {
 	let primary = ctx.selection.primary();
-	let from = primary.from();
-	let to = primary.to();
+	let from = primary.min();
+	let to = primary.max();
 	if from == to {
 		return ActionResult::Ok;
 	}
@@ -257,7 +257,7 @@ fn clone_selections_to_matches(ctx: &ActionContext) -> ActionResult {
 		let pat_len_chars = pattern.chars().count();
 		let end_char = start_char + pat_len_chars;
 		let r = Range::new(start_char, end_char);
-		if r.from() == from && r.to() == to {
+		if r.min() == from && r.max() == to {
 			primary_index = ranges.len();
 		}
 		ranges.push(r);

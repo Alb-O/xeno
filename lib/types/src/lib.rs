@@ -160,6 +160,7 @@ pub struct TomePluginEventV1 {
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct TomeHostV2 {
+	pub struct_size: usize,
 	pub abi_version: u32,
 	pub log: Option<extern "C" fn(msg: TomeStr)>,
 	pub panel: TomeHostPanelApiV1,
@@ -176,6 +177,7 @@ pub struct TomeHostV2 {
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct TomeGuestV2 {
+	pub struct_size: usize,
 	pub abi_version: u32,
 	pub namespace: TomeStr,
 	pub name: TomeStr,

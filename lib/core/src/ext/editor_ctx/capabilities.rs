@@ -15,6 +15,7 @@ pub trait CursorAccess {
 /// Selection access.
 pub trait SelectionAccess {
 	fn selection(&self) -> &Selection;
+	fn selection_mut(&mut self) -> &mut Selection;
 	fn set_selection(&mut self, sel: Selection);
 }
 

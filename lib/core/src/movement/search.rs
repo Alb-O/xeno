@@ -116,15 +116,15 @@ mod tests {
 		let slice = text.slice(..);
 
 		let m = find_next(slice, "hello", 0).unwrap().unwrap();
-		assert_eq!(m.from(), 0);
-		assert_eq!(m.to(), 5);
+		assert_eq!(m.min(), 0);
+		assert_eq!(m.max(), 5);
 
 		let m = find_next(slice, "hello", 1).unwrap().unwrap();
-		assert_eq!(m.from(), 12);
-		assert_eq!(m.to(), 17);
+		assert_eq!(m.min(), 12);
+		assert_eq!(m.max(), 17);
 
 		let m = find_next(slice, "hello", 13).unwrap().unwrap();
-		assert_eq!(m.from(), 0);
+		assert_eq!(m.min(), 0);
 	}
 
 	#[test]
@@ -133,13 +133,13 @@ mod tests {
 		let slice = text.slice(..);
 
 		let m = find_prev(slice, "hello", 17).unwrap().unwrap();
-		assert_eq!(m.from(), 12);
+		assert_eq!(m.min(), 12);
 
 		let m = find_prev(slice, "hello", 12).unwrap().unwrap();
-		assert_eq!(m.from(), 0);
+		assert_eq!(m.min(), 0);
 
 		let m = find_prev(slice, "hello", 0).unwrap().unwrap();
-		assert_eq!(m.from(), 12);
+		assert_eq!(m.min(), 12);
 	}
 
 	#[test]
@@ -149,8 +149,8 @@ mod tests {
 
 		let matches = find_all_matches(slice, "foo").unwrap();
 		assert_eq!(matches.len(), 3);
-		assert_eq!(matches[0].from(), 0);
-		assert_eq!(matches[1].from(), 8);
-		assert_eq!(matches[2].from(), 16);
+		assert_eq!(matches[0].min(), 0);
+		assert_eq!(matches[1].min(), 8);
+		assert_eq!(matches[2].min(), 16);
 	}
 }

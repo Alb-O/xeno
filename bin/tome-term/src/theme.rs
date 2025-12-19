@@ -1,6 +1,7 @@
 use linkme::distributed_slice;
 use ratatui::style::Color;
 
+#[non_exhaustive]
 #[derive(Clone, Copy, Debug)]
 pub struct UiColors {
 	pub bg: Color,
@@ -14,6 +15,7 @@ pub struct UiColors {
 	pub command_input_fg: Color,
 }
 
+#[non_exhaustive]
 #[derive(Clone, Copy, Debug)]
 pub struct StatusColors {
 	pub normal_bg: Color,
@@ -33,6 +35,7 @@ pub struct StatusColors {
 	pub success_fg: Color,
 }
 
+#[non_exhaustive]
 #[derive(Clone, Copy, Debug)]
 pub struct PopupColors {
 	pub bg: Color,
@@ -41,6 +44,7 @@ pub struct PopupColors {
 	pub title: Color,
 }
 
+#[non_exhaustive]
 #[derive(Clone, Copy, Debug)]
 pub struct ThemeColors {
 	pub ui: UiColors,
@@ -48,6 +52,7 @@ pub struct ThemeColors {
 	pub popup: PopupColors,
 }
 
+#[non_exhaustive]
 #[derive(Clone, Copy, Debug)]
 pub struct Theme {
 	pub name: &'static str,
@@ -183,8 +188,9 @@ pub static CMD_THEME: CommandDef = CommandDef {
 			.ok_or(CommandError::MissingArgument("theme name"))?;
 		ctx.editor
 			.set_theme(theme_name)
-			.map_err(CommandError::Failed)?;
+			.map_err(|e| CommandError::Failed(e.to_string()))?;
 		ctx.message(&format!("Theme set to {}", theme_name));
 		Ok(CommandOutcome::Ok)
 	},
+	user_data: None,
 };

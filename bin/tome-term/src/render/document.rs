@@ -61,12 +61,12 @@ impl Editor {
 
 		if let Some(term_area) = terminal_area {
 			if let Some(term) = &mut self.terminal {
-				let (rows, cols) = term.parser.screen().size();
+				let (rows, cols) = term.screen().size();
 				if rows != term_area.height || cols != term_area.width {
 					let _ = term.resize(term_area.width, term_area.height);
 				}
 
-				let screen = term.parser.screen();
+				let screen = term.screen();
 
 				let base_style =
 					Style::default()
@@ -322,7 +322,7 @@ impl Editor {
 					let is_primary_cursor = doc_pos == primary_cursor;
 					let in_selection = ranges
 						.iter()
-						.any(|r| doc_pos >= r.from() && doc_pos < r.to());
+						.any(|r| doc_pos >= r.min() && doc_pos < r.max());
 
 					let style = if is_cursor && use_block_cursor {
 						if blink_on {

@@ -70,6 +70,7 @@ const HOST_PANEL_API_V1: TomeHostPanelApiV1 = TomeHostPanelApiV1 {
 /// Plugins may keep the host pointer around after init. This must not point
 /// at stack locals (use-after-return).
 pub(crate) static HOST_V2: TomeHostV2 = TomeHostV2 {
+	struct_size: std::mem::size_of::<TomeHostV2>(),
 	abi_version: TOME_C_ABI_VERSION_V2,
 	log: Some(host_log),
 	panel: HOST_PANEL_API_V1,
@@ -153,6 +154,28 @@ pub fn get_plugins_dir() -> Option<PathBuf> {
 	get_config_dir().map(|d| d.join("plugins"))
 }
 
+#[derive(thiserror::Error, Debug)]
+pub enum PluginError {
+	#[error("Plugin {0} not found")]
+	NotFound(String),
+	#[error("ABI version mismatch for plugin {id}: expected {expected}, got {actual}")]
+	AbiMismatch {
+		id: String,
+		expected: u32,
+		actual: u32,
+	},
+	#[error("Library error: {0}")]
+	Lib(String),
+	#[error("Plugin {0} has no library_path or dev_library_path")]
+	MissingLibraryPath(String),
+	#[error("Library not found at {0:?}")]
+	LibraryNotFound(PathBuf),
+	#[error("Entry point failed with status {0:?}")]
+	EntryPointFailed(TomeStatus),
+	#[error("Plugin {0} init failed with status {1:?}")]
+	InitFailed(String, TomeStatus),
+}
+
 impl PluginManager {
 	pub fn new() -> Self {
 		Self {
@@ -172,18 +195,19 @@ impl PluginManager {
 		}
 	}
 
-	pub fn load(&mut self, ed: &mut Editor, id: &str) -> Result<(), String> {
+	pub fn load(&mut self, ed: &mut Editor, id: &str) -> Result<(), PluginError> {
 		let lib_path = {
 			let entry = self
 				.entries
 				.get(id)
-				.ok_or_else(|| format!("Plugin {} not found", id))?;
+				.ok_or_else(|| PluginError::NotFound(id.to_string()))?;
 
 			if entry.manifest.abi != TOME_C_ABI_VERSION_V2 {
-				return Err(format!(
-					"Plugin {} ABI version mismatch: expected {}, got {}",
-					id, TOME_C_ABI_VERSION_V2, entry.manifest.abi
-				));
+				return Err(PluginError::AbiMismatch {
+					id: id.to_string(),
+					expected: TOME_C_ABI_VERSION_V2,
+					actual: entry.manifest.abi,
+				});
 			}
 
 			// Try dev_library_path first if it exists
@@ -197,39 +221,34 @@ impl PluginManager {
 			} else if let Some(lib_name) = &entry.manifest.library_path {
 				entry.path.join(lib_name)
 			} else {
-				return Err(format!(
-					"Plugin {} has no library_path or dev_library_path",
-					id
-				));
+				return Err(PluginError::MissingLibraryPath(id.to_string()));
 			}
 		};
 
 		if !lib_path.exists() {
-			return Err(format!("Library not found at {:?}", lib_path));
+			return Err(PluginError::LibraryNotFound(lib_path));
 		}
 
 		unsafe {
 			let lib =
-				Library::new(&lib_path).map_err(|e| format!("Failed to load library: {}", e))?;
+				Library::new(&lib_path).map_err(|e| PluginError::Lib(e.to_string()))?;
 			let entry_point: Symbol<TomePluginEntryV2> = lib
 				.get(b"tome_plugin_entry_v2")
-				.map_err(|e| format!("Failed to find entry point: {}", e))?;
+				.map_err(|e| PluginError::Lib(e.to_string()))?;
 
 			let mut guest = std::mem::MaybeUninit::<TomeGuestV2>::uninit();
 			let status = entry_point(&HOST_V2, guest.as_mut_ptr());
 			if status != TomeStatus::Ok {
-				return Err(format!(
-					"Plugin entry point failed with status {:?}",
-					status
-				));
+				return Err(PluginError::EntryPointFailed(status));
 			}
 			let guest = guest.assume_init();
 
 			if guest.abi_version != TOME_C_ABI_VERSION_V2 {
-				return Err(format!(
-					"Plugin {} guest ABI version mismatch: expected {}, got {}",
-					id, TOME_C_ABI_VERSION_V2, guest.abi_version
-				));
+				return Err(PluginError::AbiMismatch {
+					id: id.to_string(),
+					expected: TOME_C_ABI_VERSION_V2,
+					actual: guest.abi_version,
+				});
 			}
 
 			self.current_plugin_id = Some(id.to_string());
@@ -241,10 +260,7 @@ impl PluginManager {
 				let _guard = PluginContextGuard::new(mgr_ptr, ed_ptr, id);
 				let status = init(&HOST_V2);
 				if status != TomeStatus::Ok {
-					return Err(format!(
-						"Plugin {} init failed with status {:?}",
-						id, status
-					));
+					return Err(PluginError::InitFailed(id.to_string(), status));
 				}
 			}
 
