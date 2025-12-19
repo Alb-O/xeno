@@ -1,0 +1,15 @@
+id: no-spontaneous-thoughts
+language: rust
+severity: warning
+message: "Avoid conversational filler or spontaneous thoughts in comments."
+note: "Phrases like 'wait,' or 'hold on,' are noise and should be cleaned up. Be precise and technical in comments."
+files:
+  - bin/**/*.rs
+  - lib/**/*.rs
+  - plugins/**/*.rs
+rule:
+  any:
+    - kind: line_comment
+      regex: "(?i)\\b(wait|hold on|actually|hmm|maybe|hang on|oops|uhm?),"
+    - kind: block_comment
+      regex: "(?i)\\b(wait|hold on|actually|hmm|maybe|hang on|oops|uhm?),"

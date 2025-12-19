@@ -4,9 +4,11 @@ severity: info
 message: "Short single-line comments may not be necessary. Code should be self-explanatory."
 note: "Consider moving important context to function docstrings with examples, or removing if truly trivial."
 files:
-  - crates/**/*.rs
+  - bin/**/*.rs
+  - lib/**/*.rs
+  - plugins/**/*.rs
 ignores:
-  - crates/tome-term/src/themes/**/*.rs
+  - bin/tome-term/src/themes/**/*.rs
 rule:
   all:
     - kind: line_comment
