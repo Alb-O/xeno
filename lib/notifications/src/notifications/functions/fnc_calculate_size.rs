@@ -65,11 +65,11 @@ pub fn calculate_size(notification: &Notification, frame_area: Rect) -> (u16, u1
 		.content
 		.lines
 		.iter()
-		.map(|l| l.width())
+		.map(|l: &Line| l.width())
 		.max()
 		.unwrap_or(0) as u16;
 
-	let title_width = notification.title.as_ref().map_or(0, |t| t.width()) as u16;
+	let title_width = notification.title.as_ref().map_or(0, |t: &Line| t.width()) as u16;
 
 	let intrinsic_width =
 		(content_max_line_width.max(title_width) + border_h_offset + h_padding).max(min_width);
