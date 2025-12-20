@@ -129,6 +129,28 @@ mod suite {
 	}
 
 	#[test]
+	fn test_render_tabs_expand_and_cursor_visible() {
+		let mut editor = test_editor("\tX");
+		let gutter_width = editor.gutter_width();
+
+		let mut terminal = Terminal::new(TestBackend::new(20, 3)).unwrap();
+		terminal.draw(|frame| editor.render(frame)).unwrap();
+
+		let buffer = terminal.backend().buffer();
+		let x = gutter_width;
+		assert_eq!(
+			buffer.cell((x, 0)).unwrap().bg,
+			editor.theme.colors.ui.cursor_bg,
+			"cursor should render even when on a tab"
+		);
+		assert_eq!(
+			buffer.cell((x + 4, 0)).unwrap().symbol(),
+			"X",
+			"tab should expand to spaces"
+		);
+	}
+
+	#[test]
 	fn test_render_insert_mode() {
 		let mut editor = test_editor("Hello");
 		editor.input.set_mode(Mode::Insert);
@@ -351,8 +373,15 @@ mod suite {
 
 		assert_eq!(editor.cursor_line(), 10, "cursor on line 10");
 
-		let mut terminal = Terminal::new(TestBackend::new(40, viewport_height as u16 + 2)).unwrap();
+		let mut terminal = Terminal::new(TestBackend::new(40, viewport_height as u16 + 1)).unwrap();
 		terminal.draw(|frame| editor.render(frame)).unwrap();
+
+		assert_eq!(
+			editor.scroll_line,
+			3,
+			"should scroll down one line so cursor can fit in viewport"
+		);
+		assert_eq!(editor.scroll_segment, 0, "no wrapping in this test");
 
 		assert!(
 			editor.scroll_line + viewport_height > editor.cursor_line(),

@@ -237,11 +237,40 @@ impl Editor {
 				}
 				visual_row += 1;
 			} else {
+				let tab_width = 4usize;
 				for (_seg_idx, segment) in segments.iter().enumerate().skip(start_segment) {
 					if visual_row == screen_row as usize {
-						let seg_len = segment.text.chars().count();
-						let col_in_seg = text_col.min(seg_len.saturating_sub(1).max(0));
-						return Some(line_start + segment.start_offset + col_in_seg);
+						if segment.text.is_empty() {
+							return Some(line_start + segment.start_offset);
+						}
+
+						let mut col = 0usize;
+						let mut last_char_offset = 0usize;
+						for (i, ch) in segment.text.chars().enumerate() {
+							last_char_offset = i;
+							let mut w = if ch == '\t' {
+								tab_width.saturating_sub(col % tab_width)
+							} else {
+								1
+							};
+							if w == 0 {
+								w = 1;
+							}
+
+							let remaining = self.text_width.saturating_sub(col);
+							if remaining == 0 {
+								break;
+							}
+							if w > remaining {
+								w = remaining;
+							}
+
+							if text_col < col + w {
+								return Some(line_start + segment.start_offset + i);
+							}
+							col += w;
+						}
+						return Some(line_start + segment.start_offset + last_char_offset);
 					}
 					visual_row += 1;
 				}

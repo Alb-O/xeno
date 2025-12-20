@@ -140,6 +140,98 @@ impl Editor {
 		}
 	}
 
+	fn clamp_segment_for_line(&self, line: usize, segment: usize, text_width: usize) -> usize {
+		let total_lines = self.doc.len_lines();
+		if line >= total_lines {
+			return 0;
+		}
+
+		let line_start: CharIdx = self.doc.line_to_char(line);
+		let line_end: CharIdx = if line + 1 < total_lines {
+			self.doc.line_to_char(line + 1)
+		} else {
+			self.doc.len_chars()
+		};
+
+		let line_text: String = self.doc.slice(line_start..line_end).into();
+		let line_text = line_text.trim_end_matches('\n');
+		let segments = self.wrap_line(line_text, text_width);
+		let num_segments = segments.len().max(1);
+
+		segment.min(num_segments.saturating_sub(1))
+	}
+
+	fn advance_one_visual_row(
+		&self,
+		line: &mut usize,
+		segment: &mut usize,
+		text_width: usize,
+	) -> bool {
+		let total_lines = self.doc.len_lines();
+		if *line >= total_lines {
+			return false;
+		}
+
+		let line_start: CharIdx = self.doc.line_to_char(*line);
+		let line_end: CharIdx = if *line + 1 < total_lines {
+			self.doc.line_to_char(*line + 1)
+		} else {
+			self.doc.len_chars()
+		};
+
+		let line_text: String = self.doc.slice(line_start..line_end).into();
+		let line_text = line_text.trim_end_matches('\n');
+		let segments = self.wrap_line(line_text, text_width);
+		let num_segments = segments.len().max(1);
+
+		if *segment + 1 < num_segments {
+			*segment += 1;
+			return true;
+		}
+
+		if *line + 1 < total_lines {
+			*line += 1;
+			*segment = 0;
+			return true;
+		}
+
+		false
+	}
+
+	fn cursor_visible_from(
+		&self,
+		start_line: usize,
+		start_segment: usize,
+		cursor_line: usize,
+		cursor_segment: usize,
+		viewport_height: usize,
+		text_width: usize,
+	) -> bool {
+		if viewport_height == 0 {
+			return false;
+		}
+
+		let total_lines = self.doc.len_lines();
+		if start_line >= total_lines {
+			return false;
+		}
+
+		let mut line = start_line;
+		let mut segment = self.clamp_segment_for_line(line, start_segment, text_width);
+
+		for _ in 0..viewport_height {
+			if line == cursor_line && segment == cursor_segment {
+				return true;
+			}
+
+			if !self.advance_one_visual_row(&mut line, &mut segment, text_width) {
+				break;
+			}
+		}
+
+		false
+	}
+
 	pub fn ensure_cursor_visible(&mut self, area: Rect) {
 		let total_lines = self.doc.len_lines();
 		let gutter_width = self.gutter_width();
@@ -147,6 +239,13 @@ impl Editor {
 		let viewport_height = area.height as usize;
 
 		self.text_width = text_width;
+
+		if self.scroll_line >= total_lines {
+			self.scroll_line = total_lines.saturating_sub(1);
+			self.scroll_segment = 0;
+		}
+		self.scroll_segment =
+			self.clamp_segment_for_line(self.scroll_line, self.scroll_segment, text_width);
 
 		let cursor_pos: CharIdx = self.cursor;
 		let cursor_line = self.cursor_line();
@@ -171,63 +270,22 @@ impl Editor {
 			return;
 		}
 
-		let mut visual_row = 0;
-		let mut line_idx = self.scroll_line;
-		let mut start_segment = self.scroll_segment;
+		let mut prev_scroll = (self.scroll_line, self.scroll_segment);
+		while !self.cursor_visible_from(
+			self.scroll_line,
+			self.scroll_segment,
+			cursor_line,
+			cursor_segment,
+			viewport_height,
+			text_width,
+		) {
+			self.scroll_viewport_down();
 
-		while line_idx < total_lines && visual_row < viewport_height {
-			let line_start: CharIdx = self.doc.line_to_char(line_idx);
-			let line_end: CharIdx = if line_idx + 1 < total_lines {
-				self.doc.line_to_char(line_idx + 1)
-			} else {
-				self.doc.len_chars()
-			};
-
-			let line_text: String = self.doc.slice(line_start..line_end).into();
-			let line_text = line_text.trim_end_matches('\n');
-			let segments = self.wrap_line(line_text, text_width);
-			let num_segments = segments.len().max(1);
-
-			for seg_idx in start_segment..num_segments {
-				if line_idx == cursor_line
-					&& seg_idx == cursor_segment
-					&& visual_row < viewport_height
-				{
-					return;
-				}
-				visual_row += 1;
-				if visual_row >= viewport_height {
-					break;
-				}
+			let new_scroll = (self.scroll_line, self.scroll_segment);
+			if new_scroll == prev_scroll {
+				break;
 			}
-
-			start_segment = 0;
-			line_idx += 1;
-		}
-
-		self.scroll_down_one_visual_row(text_width);
-		self.ensure_cursor_visible(area);
-	}
-
-	fn scroll_down_one_visual_row(&mut self, text_width: usize) {
-		let total_lines = self.doc.len_lines();
-		let line_start: CharIdx = self.doc.line_to_char(self.scroll_line);
-		let line_end: CharIdx = if self.scroll_line + 1 < total_lines {
-			self.doc.line_to_char(self.scroll_line + 1)
-		} else {
-			self.doc.len_chars()
-		};
-
-		let line_text: String = self.doc.slice(line_start..line_end).into();
-		let line_text = line_text.trim_end_matches('\n');
-		let segments = self.wrap_line(line_text, text_width);
-		let num_segments = segments.len().max(1);
-
-		if self.scroll_segment + 1 < num_segments {
-			self.scroll_segment += 1;
-		} else {
-			self.scroll_line += 1;
-			self.scroll_segment = 0;
+			prev_scroll = new_scroll;
 		}
 	}
 
@@ -237,6 +295,8 @@ impl Editor {
 		let total_lines = self.doc.len_lines();
 		let gutter_width = self.gutter_width();
 		let text_width = area.width.saturating_sub(gutter_width) as usize;
+		let tab_width = 4usize;
+
 
 		let cursor = self.cursor;
 		let ranges = self.selection.ranges();
@@ -265,6 +325,9 @@ impl Editor {
 		let base_style = Style::default()
 			.fg(self.theme.colors.ui.fg)
 			.bg(self.theme.colors.ui.bg);
+		let selection_style = Style::default()
+			.bg(self.theme.colors.ui.selection_bg)
+			.fg(self.theme.colors.ui.selection_fg);
 
 		let mut output_lines: Vec<Line> = Vec::new();
 		let mut current_line_idx = self.scroll_line;
@@ -314,8 +377,12 @@ impl Editor {
 				let mut spans = vec![Span::styled(line_num_str, gutter_style)];
 
 				let seg_char_offset = segment.start_offset;
-				let seg_char_count = segment.text.chars().count();
+				let mut seg_col = 0usize;
 				for (i, ch) in segment.text.chars().enumerate() {
+					if seg_col >= text_width {
+						break;
+					}
+
 					let doc_pos: CharIdx = line_start + seg_char_offset + i;
 
 					let is_cursor = cursor_heads.contains(&doc_pos);
@@ -324,29 +391,47 @@ impl Editor {
 						.iter()
 						.any(|r: &tome_core::range::Range| doc_pos >= r.min() && doc_pos < r.max());
 
-					let style = if is_cursor && use_block_cursor {
-						if blink_on {
-							if is_primary_cursor {
-								primary_cursor_style
-							} else {
-								secondary_cursor_style
-							}
-						} else {
-							base_style
-						}
-					} else if in_selection {
-						Style::default()
-							.bg(self.theme.colors.ui.selection_bg)
-							.fg(self.theme.colors.ui.selection_fg)
+					let cursor_style = if is_primary_cursor {
+						primary_cursor_style
 					} else {
-						base_style
+						secondary_cursor_style
+					};
+					let non_cursor_style = if in_selection { selection_style } else { base_style };
+					let style = if is_cursor && use_block_cursor {
+						if blink_on { cursor_style } else { base_style }
+					} else {
+						non_cursor_style
 					};
 
-					spans.push(Span::styled(ch.to_string(), style));
+					if ch == '\t' {
+						let remaining = text_width.saturating_sub(seg_col);
+						if remaining == 0 {
+							break;
+						}
+						let mut tab_cells = tab_width.saturating_sub(seg_col % tab_width);
+						if tab_cells == 0 {
+							tab_cells = 1;
+						}
+						tab_cells = tab_cells.min(remaining);
+
+						if is_cursor && use_block_cursor && blink_on {
+							spans.push(Span::styled(" ", cursor_style));
+							if tab_cells > 1 {
+								spans.push(Span::styled(" ".repeat(tab_cells - 1), non_cursor_style));
+							}
+						} else {
+							spans.push(Span::styled(" ".repeat(tab_cells), style));
+						}
+
+						seg_col += tab_cells;
+					} else {
+						spans.push(Span::styled(ch.to_string(), style));
+						seg_col += 1;
+					}
 				}
 
-				if !is_last_segment && seg_char_count < text_width {
-					let fill_count = text_width - seg_char_count;
+				if !is_last_segment && seg_col < text_width {
+					let fill_count = text_width - seg_col;
 					let bg_color = self.theme.colors.ui.bg;
 					let dim_color = blend_colors(self.theme.colors.ui.gutter_fg, bg_color, 0.5);
 					spans.push(Span::styled(
@@ -455,21 +540,52 @@ impl Editor {
 			return vec![];
 		}
 
+		// Note: this currently uses the default `tab_width` option value.
+		let tab_width = 4usize;
+
 		let mut segments = Vec::new();
 		let mut pos = 0;
 
 		while pos < chars.len() {
-			let remaining = chars.len() - pos;
-			if remaining <= max_width {
-				segments.push(WrapSegment {
-					text: chars[pos..].iter().collect(),
-					start_offset: pos,
-				});
-				break;
+			let mut col = 0usize;
+			let mut end = pos;
+
+			while end < chars.len() {
+				let ch = chars[end];
+				let mut w = if ch == '\t' {
+					tab_width.saturating_sub(col % tab_width)
+				} else {
+					1
+				};
+				if w == 0 {
+					w = 1;
+				}
+
+				let remaining = max_width.saturating_sub(col);
+				if remaining == 0 {
+					break;
+				}
+				if w > remaining {
+					w = remaining;
+				}
+
+				col += w;
+				end += 1;
+				if col >= max_width {
+					break;
+				}
 			}
 
-			let segment_end = pos + max_width;
-			let break_pos = self.find_wrap_break(&chars, pos, segment_end);
+			if end == pos {
+				end = (pos + 1).min(chars.len());
+			}
+
+			let break_pos = if end < chars.len() {
+				let candidate = self.find_wrap_break(&chars, pos, end);
+				if candidate > pos { candidate } else { end }
+			} else {
+				chars.len()
+			};
 
 			segments.push(WrapSegment {
 				text: chars[pos..break_pos].iter().collect(),
