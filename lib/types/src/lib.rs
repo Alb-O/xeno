@@ -173,6 +173,40 @@ pub struct TomeHostV2 {
 	pub fs_write_text: Option<extern "C" fn(path: TomeStr, content: TomeStr) -> TomeStatus>,
 }
 
+impl TomeHostV2 {
+	/// Create a new TomeHostV2 with automatically filled struct_size and abi_version.
+	///
+	/// This is the recommended way to initialize TomeHostV2 to ensure correct
+	/// versioning and size information.
+	#[inline]
+	#[allow(clippy::too_many_arguments)]
+	pub const fn new(
+		log: Option<extern "C" fn(msg: TomeStr)>,
+		panel: TomeHostPanelApiV1,
+		show_message: extern "C" fn(kind: TomeMessageKind, msg: TomeStr),
+		insert_text: extern "C" fn(text: TomeStr),
+		register_command: Option<extern "C" fn(spec: TomeCommandSpecV1)>,
+		get_current_path: Option<extern "C" fn(out: *mut TomeOwnedStr) -> TomeStatus>,
+		free_str: Option<extern "C" fn(s: TomeOwnedStr)>,
+		fs_read_text: Option<extern "C" fn(path: TomeStr, out: *mut TomeOwnedStr) -> TomeStatus>,
+		fs_write_text: Option<extern "C" fn(path: TomeStr, content: TomeStr) -> TomeStatus>,
+	) -> Self {
+		Self {
+			struct_size: core::mem::size_of::<Self>(),
+			abi_version: TOME_C_ABI_VERSION_V2,
+			log,
+			panel,
+			show_message,
+			insert_text,
+			register_command,
+			get_current_path,
+			free_str,
+			fs_read_text,
+			fs_write_text,
+		}
+	}
+}
+
 /// Guest function table returned by the plugin (V2).
 #[repr(C)]
 #[derive(Clone, Copy)]
@@ -190,6 +224,44 @@ pub struct TomeGuestV2 {
 	pub on_permission_decision:
 		Option<extern "C" fn(id: TomePermissionRequestId, option_id: TomeStr)>,
 	pub free_permission_request: Option<extern "C" fn(req: *mut TomePermissionRequestV1)>,
+}
+
+impl TomeGuestV2 {
+	/// Create a new TomeGuestV2 with automatically filled struct_size and abi_version.
+	///
+	/// This is the recommended way to initialize TomeGuestV2 to ensure correct
+	/// versioning and size information.
+	#[inline]
+	#[allow(clippy::too_many_arguments)]
+	pub const fn new(
+		namespace: TomeStr,
+		name: TomeStr,
+		version: TomeStr,
+		init: Option<extern "C" fn(host: *const TomeHostV2) -> TomeStatus>,
+		shutdown: Option<extern "C" fn()>,
+		poll_event: Option<extern "C" fn(out: *mut TomePluginEventV1) -> TomeBool>,
+		free_str: Option<extern "C" fn(s: TomeOwnedStr)>,
+		on_panel_submit: Option<extern "C" fn(panel: TomePanelId, text: TomeStr)>,
+		on_permission_decision: Option<
+			extern "C" fn(id: TomePermissionRequestId, option_id: TomeStr),
+		>,
+		free_permission_request: Option<extern "C" fn(req: *mut TomePermissionRequestV1)>,
+	) -> Self {
+		Self {
+			struct_size: core::mem::size_of::<Self>(),
+			abi_version: TOME_C_ABI_VERSION_V2,
+			namespace,
+			name,
+			version,
+			init,
+			shutdown,
+			poll_event,
+			free_str,
+			on_panel_submit,
+			on_permission_decision,
+			free_permission_request,
+		}
+	}
 }
 
 pub type TomePluginEntryV2 =

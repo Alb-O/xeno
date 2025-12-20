@@ -174,9 +174,9 @@ fn bench_transaction_multi_cursor(c: &mut Criterion) {
 			}
 
 			let step = doc_len / num_cursors;
-			let ranges: smallvec::SmallVec<[Range; 1]> =
-				(0..num_cursors).map(|i| Range::point(i * step)).collect();
-			let selection = Selection::new(ranges, 0);
+			let mut ranges_iter = (0..num_cursors).map(|i| Range::point(i * step));
+			let primary = ranges_iter.next().unwrap();
+			let selection = Selection::new(primary, ranges_iter);
 
 			group.bench_with_input(
 				BenchmarkId::new(format!("{}_cursors", num_cursors), name),
@@ -393,7 +393,7 @@ fn bench_selection_normalize(c: &mut Criterion) {
 		group.bench_with_input(
 			BenchmarkId::new("non_overlapping", num_ranges),
 			&ranges,
-			|b, ranges| b.iter(|| black_box(Selection::new(ranges.clone(), 0))),
+			|b, ranges| b.iter(|| black_box(Selection::from_vec(ranges.clone().into_vec(), 0))),
 		);
 
 		let overlapping: smallvec::SmallVec<[Range; 1]> = (0..num_ranges)
@@ -403,7 +403,7 @@ fn bench_selection_normalize(c: &mut Criterion) {
 		group.bench_with_input(
 			BenchmarkId::new("overlapping", num_ranges),
 			&overlapping,
-			|b, ranges| b.iter(|| black_box(Selection::new(ranges.clone(), 0))),
+			|b, ranges| b.iter(|| black_box(Selection::from_vec(ranges.clone().into_vec(), 0))),
 		);
 	}
 
@@ -417,7 +417,7 @@ fn bench_selection_transform(c: &mut Criterion) {
 		let ranges: smallvec::SmallVec<[Range; 1]> = (0..num_ranges)
 			.map(|i| Range::new(i * 100, i * 100 + 50))
 			.collect();
-		let selection = Selection::new(ranges, 0);
+		let selection = Selection::from_vec(ranges.into_vec(), 0);
 
 		group.bench_with_input(
 			BenchmarkId::new("shift_all", num_ranges),

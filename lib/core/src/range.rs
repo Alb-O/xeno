@@ -13,6 +13,12 @@ pub enum Direction {
 /// This is the canonical coordinate space for Tome.
 pub type CharIdx = usize;
 
+/// A length or count in the text, measured in characters (not bytes).
+///
+/// This is distinct from CharIdx to avoid accidentally passing an index
+/// where a length is expected or vice versa.
+pub type CharLen = usize;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Range {
 	pub anchor: CharIdx,
@@ -39,7 +45,7 @@ impl Range {
 	}
 
 	#[inline]
-	pub fn len(&self) -> CharIdx {
+	pub fn len(&self) -> CharLen {
 		self.max() - self.min()
 	}
 

@@ -55,17 +55,14 @@ impl<'a> EditorContext<'a> {
 		self.inner.show_error(msg);
 	}
 
-	fn capability_error(&self, name: &str) -> crate::ext::CommandError {
-		crate::ext::CommandError::Failed(format!("{} capability not available", name))
-	}
-
 	pub fn search(&mut self) -> Option<&mut dyn SearchAccess> {
 		self.inner.search()
 	}
 
 	pub fn require_search(&mut self) -> Result<&mut dyn SearchAccess, crate::ext::CommandError> {
-		let err = self.capability_error("Search");
-		self.inner.search().ok_or(err)
+		self.inner
+			.search()
+			.ok_or(crate::ext::CommandError::MissingCapability("search"))
 	}
 
 	pub fn undo(&mut self) -> Option<&mut dyn UndoAccess> {
@@ -73,8 +70,9 @@ impl<'a> EditorContext<'a> {
 	}
 
 	pub fn require_undo(&mut self) -> Result<&mut dyn UndoAccess, crate::ext::CommandError> {
-		let err = self.capability_error("Undo");
-		self.inner.undo().ok_or(err)
+		self.inner
+			.undo()
+			.ok_or(crate::ext::CommandError::MissingCapability("undo"))
 	}
 
 	pub fn edit(&mut self) -> Option<&mut dyn EditAccess> {
@@ -82,8 +80,9 @@ impl<'a> EditorContext<'a> {
 	}
 
 	pub fn require_edit(&mut self) -> Result<&mut dyn EditAccess, crate::ext::CommandError> {
-		let err = self.capability_error("Edit");
-		self.inner.edit().ok_or(err)
+		self.inner
+			.edit()
+			.ok_or(crate::ext::CommandError::MissingCapability("edit"))
 	}
 
 	pub fn selection_ops(&mut self) -> Option<&mut dyn SelectionOpsAccess> {
@@ -93,8 +92,9 @@ impl<'a> EditorContext<'a> {
 	pub fn require_selection_ops(
 		&mut self,
 	) -> Result<&mut dyn SelectionOpsAccess, crate::ext::CommandError> {
-		let err = self.capability_error("Selection operations");
-		self.inner.selection_ops().ok_or(err)
+		self.inner
+			.selection_ops()
+			.ok_or(crate::ext::CommandError::MissingCapability("selection_ops"))
 	}
 }
 

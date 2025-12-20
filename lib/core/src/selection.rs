@@ -10,20 +10,40 @@ pub struct Selection {
 }
 
 impl Selection {
-	pub fn new(ranges: SmallVec<[Range; 1]>, primary_index: usize) -> Self {
-		assert!(!ranges.is_empty(), "Selection cannot be empty");
-		debug_assert!(primary_index < ranges.len());
+	/// Create a new selection with at least one range.
+	///
+	/// The `primary` range is the one that will be used for most operations
+	/// (like scrolling or cursor-based motions). Additional ranges can be
+	/// provided via the `others` iterator.
+	pub fn new(primary: Range, others: impl IntoIterator<Item = Range>) -> Self {
+		let mut ranges: SmallVec<[Range; 1]> = smallvec![primary];
+		ranges.extend(others);
 
 		let mut sel = Self {
 			ranges,
-			primary_index,
+			primary_index: 0,
 		};
 		sel.normalize();
 		sel
 	}
 
 	pub fn from_vec(ranges: Vec<Range>, primary_index: usize) -> Self {
-		Self::new(ranges.into_iter().collect(), primary_index)
+		assert!(!ranges.is_empty(), "Selection cannot be empty");
+		debug_assert!(primary_index < ranges.len());
+
+		// We need to preserve which one was primary before normalization
+		let primary = ranges[primary_index];
+
+		let mut sel = Self {
+			ranges: ranges.into_iter().collect(),
+			primary_index: 0,
+		};
+
+		// Re-find the primary after putting it into SmallVec
+		sel.primary_index = sel.ranges.iter().position(|&r| r == primary).unwrap_or(0);
+
+		sel.normalize();
+		sel
 	}
 
 	pub fn single(anchor: CharIdx, head: CharIdx) -> Self {
@@ -54,6 +74,10 @@ impl Selection {
 		&self.ranges
 	}
 
+	/// Returns the number of ranges in this selection.
+	///
+	/// This is always at least 1 (Selection cannot be empty).
+	#[allow(clippy::len_without_is_empty)]
 	pub fn len(&self) -> usize {
 		self.ranges.len()
 	}
@@ -72,11 +96,17 @@ impl Selection {
 		self.normalize();
 	}
 
-	pub fn transform<F>(&self, f: F) -> Self
+	pub fn transform<F>(&self, mut f: F) -> Self
 	where
 		F: FnMut(&Range) -> Range,
 	{
-		Self::new(self.ranges.iter().map(f).collect(), self.primary_index)
+		let primary = f(&self.primary());
+		let others = self.ranges.iter()
+			.enumerate()
+			.filter(|&(i, _)| i != self.primary_index)
+			.map(|(_, r)| f(r));
+
+		Self::new(primary, others)
 	}
 
 	pub fn transform_mut<F>(&mut self, mut f: F)
@@ -89,6 +119,14 @@ impl Selection {
 		self.normalize();
 	}
 
+	/// Merge overlapping AND adjacent ranges.
+	///
+	/// Unlike `normalize()` (which only merges overlapping ranges), this also
+	/// merges ranges that are adjacent (touching but not overlapping).
+	/// For example, `[0, 5)` and `[5, 10)` would be merged into `[0, 10)`.
+	///
+	/// Use this when you want to combine all contiguous selections into
+	/// single ranges (e.g., for visual selection operations).
 	pub fn merge_overlaps_and_adjacent(&mut self) {
 		if self.ranges.len() <= 1 {
 			return;
@@ -104,8 +142,9 @@ impl Selection {
 			if let Some(last) = merged.last_mut()
 				&& (last.overlaps(range) || last.max() == range.min())
 			{
+				let old_last = *last;
 				*last = last.merge(range);
-				if *range == primary || last.contains(primary.min()) {
+				if *range == primary || old_last == primary || last.contains(primary.min()) {
 					primary_index = merged.len() - 1;
 				}
 				continue;
@@ -121,6 +160,13 @@ impl Selection {
 		self.primary_index = primary_index.min(self.ranges.len().saturating_sub(1));
 	}
 
+	/// Normalize the selection by sorting ranges and merging overlaps.
+	///
+	/// This is the canonical normalization that is automatically called after
+	/// most operations. It merges ranges that overlap but keeps adjacent
+	/// ranges separate. For example, `[0, 5)` and `[5, 10)` remain separate.
+	///
+	/// If you want to also merge adjacent ranges, use `merge_overlaps_and_adjacent()`.
 	fn normalize(&mut self) {
 		if self.ranges.len() <= 1 {
 			return;
@@ -137,8 +183,9 @@ impl Selection {
 			if let Some(last) = merged.last_mut()
 				&& last.overlaps(range)
 			{
+				let old_last = *last;
 				*last = last.merge(range);
-				if *range == primary || last.contains(primary.min()) {
+				if *range == primary || old_last == primary || last.contains(primary.min()) {
 					primary_index = merged.len() - 1;
 				}
 				continue;
@@ -155,13 +202,13 @@ impl Selection {
 	}
 
 	pub fn grapheme_aligned(self, text: RopeSlice) -> Self {
-		Self::new(
-			self.ranges
-				.into_iter()
-				.map(|r: Range| r.grapheme_aligned(text))
-				.collect(),
-			self.primary_index,
-		)
+		let primary = self.primary().grapheme_aligned(text);
+		let others = self.ranges.iter()
+			.enumerate()
+			.filter(|&(i, _)| i != self.primary_index)
+			.map(|(_, r)| r.grapheme_aligned(text));
+
+		Self::new(primary, others)
 	}
 
 	pub fn contains(&self, pos: CharIdx) -> bool {
@@ -227,16 +274,18 @@ mod tests {
 
 	#[test]
 	fn test_multi_selection() {
-		let ranges = smallvec![Range::new(0, 5), Range::new(10, 15), Range::new(20, 25)];
-		let sel = Selection::new(ranges, 1);
+		let primary = Range::new(10, 15);
+		let others = vec![Range::new(0, 5), Range::new(20, 25)];
+		let sel = Selection::new(primary, others);
 		assert_eq!(sel.len(), 3);
 		assert_eq!(sel.primary(), Range::new(10, 15));
 	}
 
 	#[test]
 	fn test_merge_overlapping() {
-		let ranges = smallvec![Range::new(0, 10), Range::new(5, 15)];
-		let sel = Selection::new(ranges, 0);
+		let primary = Range::new(0, 10);
+		let others = vec![Range::new(5, 15)];
+		let sel = Selection::new(primary, others);
 		assert_eq!(sel.len(), 1);
 		assert_eq!(sel.ranges()[0].min(), 0);
 		assert_eq!(sel.ranges()[0].max(), 15);
@@ -244,16 +293,18 @@ mod tests {
 
 	#[test]
 	fn test_merge_duplicate_cursors() {
-		let ranges = smallvec![Range::point(5), Range::point(5)];
-		let sel = Selection::new(ranges, 0);
+		let primary = Range::point(5);
+		let others = vec![Range::point(5)];
+		let sel = Selection::new(primary, others);
 		assert_eq!(sel.len(), 1);
 		assert_eq!(sel.primary(), Range::point(5));
 	}
 
 	#[test]
 	fn test_do_not_merge_adjacent() {
-		let ranges = smallvec![Range::new(0, 5), Range::new(5, 10)];
-		let sel = Selection::new(ranges, 0);
+		let primary = Range::new(0, 5);
+		let others = vec![Range::new(5, 10)];
+		let sel = Selection::new(primary, others);
 		assert_eq!(sel.len(), 2);
 		assert_eq!(sel.ranges()[0].min(), 0);
 		assert_eq!(sel.ranges()[0].max(), 5);
@@ -263,15 +314,17 @@ mod tests {
 
 	#[test]
 	fn test_no_merge_gap() {
-		let ranges = smallvec![Range::new(0, 5), Range::new(6, 10)];
-		let sel = Selection::new(ranges, 0);
+		let primary = Range::new(0, 5);
+		let others = vec![Range::new(6, 10)];
+		let sel = Selection::new(primary, others);
 		assert_eq!(sel.len(), 2);
 	}
 
 	#[test]
 	fn test_merge_overlaps_and_adjacent_command() {
-		let ranges = smallvec![Range::new(0, 5), Range::new(5, 10), Range::new(12, 14)];
-		let mut sel = Selection::new(ranges, 0);
+		let primary = Range::new(0, 5);
+		let others = vec![Range::new(5, 10), Range::new(12, 14)];
+		let mut sel = Selection::new(primary, others);
 		sel.merge_overlaps_and_adjacent();
 		assert_eq!(sel.len(), 2);
 		assert_eq!(sel.ranges()[0], Range::new(0, 10));

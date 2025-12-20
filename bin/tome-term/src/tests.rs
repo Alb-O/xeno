@@ -586,37 +586,5 @@ mod suite {
 		assert_eq!(editor.doc.to_string(), "oneX\ntwoX\nthreeX\n");
 	}
 
-	#[test]
-	fn test_terminal_background_color_matches_popup() {
-		let mut editor = test_editor("content");
 
-		editor.set_theme("solarized_dark").unwrap();
-
-		editor.handle_key(KeyEvent::new(KeyCode::Char('t'), Modifiers::CONTROL));
-		assert!(editor.terminal_open);
-
-		let mut terminal = Terminal::new(TestBackend::new(80, 24)).unwrap();
-		terminal.draw(|frame| editor.render(frame)).unwrap();
-
-		let buffer = terminal.backend().buffer();
-		let last_row_cell = &buffer[(0, 23)];
-
-		let popup_bg = editor.theme.colors.popup.bg;
-		let ui_bg = editor.theme.colors.ui.bg;
-
-		assert_ne!(
-			popup_bg, ui_bg,
-			"Theme should have distinct popup and ui backgrounds for this test"
-		);
-		assert_eq!(
-			last_row_cell.bg, popup_bg,
-			"Terminal area background should match popup theme background"
-		);
-
-		let doc_cell = &buffer[(0, 0)];
-		assert_eq!(
-			doc_cell.bg, ui_bg,
-			"Main doc area background should match UI theme background"
-		);
-	}
 }

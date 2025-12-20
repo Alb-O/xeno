@@ -1,4 +1,4 @@
-use crate::range::CharIdx;
+use crate::range::{CharIdx, CharLen};
 use crate::{Range, Rope, RopeSlice, Selection};
 
 pub type Tendril = String;
@@ -17,8 +17,8 @@ pub enum Bias {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Operation {
-	Retain(usize),
-	Delete(usize),
+	Retain(CharLen),
+	Delete(CharLen),
 	Insert(Tendril),
 }
 
@@ -54,7 +54,7 @@ impl ChangeSet {
 		&self.changes
 	}
 
-	pub(crate) fn retain(&mut self, n: usize) {
+	pub(crate) fn retain(&mut self, n: CharLen) {
 		if n == 0 {
 			return;
 		}
@@ -69,7 +69,7 @@ impl ChangeSet {
 		}
 	}
 
-	pub(crate) fn delete(&mut self, n: usize) {
+	pub(crate) fn delete(&mut self, n: CharLen) {
 		if n == 0 {
 			return;
 		}

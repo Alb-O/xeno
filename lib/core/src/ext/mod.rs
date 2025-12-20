@@ -94,6 +94,12 @@ pub enum CommandError {
 	/// Command not found.
 	#[error("command not found: {0}")]
 	NotFound(String),
+	/// Missing capability required for this operation.
+	#[error("missing capability: {0}")]
+	MissingCapability(&'static str),
+	/// Operation not supported by this editor implementation.
+	#[error("unsupported operation: {0}")]
+	Unsupported(&'static str),
 	/// General error.
 	#[error("{0}")]
 	Other(String),
@@ -139,7 +145,7 @@ pub trait EditorOps:
 
 	/// Set the editor theme.
 	fn set_theme(&mut self, _theme_name: &str) -> Result<(), CommandError> {
-		Err(CommandError::Failed("Theme switching not supported".to_string()))
+		Err(CommandError::Unsupported("set_theme"))
 	}
 
 	/// Handle a permission decision from the user.
@@ -148,12 +154,12 @@ pub trait EditorOps:
 		_request_id: u64,
 		_option_id: &str,
 	) -> Result<(), CommandError> {
-		Err(CommandError::Failed("Permission handling not supported".to_string()))
+		Err(CommandError::Unsupported("on_permission_decision"))
 	}
 
 	/// Execute a plugin-related command.
 	fn plugin_command(&mut self, _args: &[&str]) -> Result<(), CommandError> {
-		Err(CommandError::Failed("Plugin commands not supported".to_string()))
+		Err(CommandError::Unsupported("plugin_command"))
 	}
 }
 

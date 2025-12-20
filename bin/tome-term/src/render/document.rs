@@ -248,7 +248,7 @@ impl Editor {
 			.unwrap_or_default()
 			.as_millis();
 		let blink_on = if insert_mode {
-			(now_ms / 200) % 2 == 0
+			(now_ms / 200).is_multiple_of(2)
 		} else {
 			true
 		};

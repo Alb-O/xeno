@@ -27,7 +27,8 @@ pub struct TerminalState {
 impl TerminalState {
 	/// Returns a reference to the terminal screen.
 	///
-	/// Note: Currently returns vt100::Screen, which may change in future versions.
+	/// The vt100::Screen type is part of tome-term's stable API for terminal
+	/// emulation. Extensions can rely on this type for parsing terminal output.
 	pub fn screen(&self) -> &tui_term::vt100::Screen {
 		self.parser.screen()
 	}

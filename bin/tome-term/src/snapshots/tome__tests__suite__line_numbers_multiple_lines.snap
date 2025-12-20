@@ -1,5 +1,5 @@
 ---
-source: crates/tome-term/src/tests.rs
+source: bin/tome-term/src/tests.rs
 expression: terminal.backend()
 ---
 "  1 Line 1                              "
@@ -10,5 +10,5 @@ expression: terminal.backend()
 "  ~                                     "
 "  ~                                     "
 "  ~                                     "
+"  ~                                     "
 " NORMAL  test.txt  1:1  Top             "
-"                                        "
