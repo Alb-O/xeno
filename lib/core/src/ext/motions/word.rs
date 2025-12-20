@@ -5,7 +5,7 @@ use crate::movement::{
 
 motion!(
 	next_word_start,
-	"Move to next word start",
+	{ description: "Move to next word start" },
 	|text, range, count, extend| {
 		move_to_next_word_start(text, range, count, WordType::Word, extend)
 	}
@@ -13,7 +13,7 @@ motion!(
 
 motion!(
 	prev_word_start,
-	"Move to previous word start",
+	{ description: "Move to previous word start" },
 	|text, range, count, extend| {
 		move_to_prev_word_start(text, range, count, WordType::Word, extend)
 	}
@@ -21,7 +21,7 @@ motion!(
 
 motion!(
 	next_word_end,
-	"Move to next word end",
+	{ description: "Move to next word end" },
 	|text, range, count, extend| {
 		move_to_next_word_end(text, range, count, WordType::Word, extend)
 	}
@@ -29,7 +29,7 @@ motion!(
 
 motion!(
 	next_WORD_start,
-	"Move to next WORD start",
+	{ description: "Move to next WORD start" },
 	|text, range, count, extend| {
 		move_to_next_word_start(text, range, count, WordType::WORD, extend)
 	}
@@ -37,7 +37,7 @@ motion!(
 
 motion!(
 	next_long_word_start,
-	"Move to next WORD start",
+	{ description: "Move to next WORD start" },
 	|text, range, count, extend| {
 		move_to_next_word_start(text, range, count, WordType::WORD, extend)
 	}
@@ -45,7 +45,7 @@ motion!(
 
 motion!(
 	prev_WORD_start,
-	"Move to previous WORD start",
+	{ description: "Move to previous WORD start" },
 	|text, range, count, extend| {
 		move_to_prev_word_start(text, range, count, WordType::WORD, extend)
 	}
@@ -53,7 +53,7 @@ motion!(
 
 motion!(
 	prev_long_word_start,
-	"Move to previous WORD start",
+	{ description: "Move to previous WORD start" },
 	|text, range, count, extend| {
 		move_to_prev_word_start(text, range, count, WordType::WORD, extend)
 	}
@@ -61,7 +61,7 @@ motion!(
 
 motion!(
 	next_WORD_end,
-	"Move to next WORD end",
+	{ description: "Move to next WORD end" },
 	|text, range, count, extend| {
 		move_to_next_word_end(text, range, count, WordType::WORD, extend)
 	}
@@ -69,7 +69,7 @@ motion!(
 
 motion!(
 	next_long_word_end,
-	"Move to next WORD end",
+	{ description: "Move to next WORD end" },
 	|text, range, count, extend| {
 		move_to_next_word_end(text, range, count, WordType::WORD, extend)
 	}

@@ -149,6 +149,95 @@ pub use statusline::{
 	StatuslineSegmentDef, all_segments, find_segment, render_position, segments_for_position,
 };
 
+/// Metadata common to all extension types.
+#[cfg(feature = "host")]
+pub trait ExtensionMetadata {
+	fn id(&self) -> &'static str;
+	fn name(&self) -> &'static str;
+	fn priority(&self) -> i16;
+	fn source(&self) -> ExtensionSource;
+}
+
+#[cfg(feature = "host")]
+impl ExtensionMetadata for CommandDef {
+	fn id(&self) -> &'static str {
+		self.id
+	}
+	fn name(&self) -> &'static str {
+		self.name
+	}
+	fn priority(&self) -> i16 {
+		self.priority
+	}
+	fn source(&self) -> ExtensionSource {
+		self.source
+	}
+}
+
+#[cfg(feature = "host")]
+impl ExtensionMetadata for ActionDef {
+	fn id(&self) -> &'static str {
+		self.id
+	}
+	fn name(&self) -> &'static str {
+		self.name
+	}
+	fn priority(&self) -> i16 {
+		self.priority
+	}
+	fn source(&self) -> ExtensionSource {
+		self.source
+	}
+}
+
+#[cfg(feature = "host")]
+impl ExtensionMetadata for MotionDef {
+	fn id(&self) -> &'static str {
+		self.id
+	}
+	fn name(&self) -> &'static str {
+		self.name
+	}
+	fn priority(&self) -> i16 {
+		self.priority
+	}
+	fn source(&self) -> ExtensionSource {
+		self.source
+	}
+}
+
+#[cfg(feature = "host")]
+impl ExtensionMetadata for TextObjectDef {
+	fn id(&self) -> &'static str {
+		self.id
+	}
+	fn name(&self) -> &'static str {
+		self.name
+	}
+	fn priority(&self) -> i16 {
+		self.priority
+	}
+	fn source(&self) -> ExtensionSource {
+		self.source
+	}
+}
+
+#[cfg(feature = "host")]
+impl ExtensionMetadata for FileTypeDef {
+	fn id(&self) -> &'static str {
+		self.id
+	}
+	fn name(&self) -> &'static str {
+		self.name
+	}
+	fn priority(&self) -> i16 {
+		self.priority
+	}
+	fn source(&self) -> ExtensionSource {
+		self.source
+	}
+}
+
 #[cfg(feature = "host")]
 impl std::fmt::Display for Capability {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -374,6 +463,8 @@ pub struct MotionDef {
 	pub id: &'static str,
 	/// Name used to identify the motion.
 	pub name: &'static str,
+	/// Alternative names for the motion.
+	pub aliases: &'static [&'static str],
 	/// Short description for help.
 	pub description: &'static str,
 	/// Motion handler function.
@@ -382,6 +473,8 @@ pub struct MotionDef {
 	pub priority: i16,
 	/// Origin of the motion.
 	pub source: ExtensionSource,
+	/// Capabilities required to run this motion.
+	pub required_caps: &'static [Capability],
 	/// Metadata flags.
 	pub flags: u32,
 }
@@ -399,6 +492,8 @@ pub struct TextObjectDef {
 	pub id: &'static str,
 	/// Name used to identify the text object.
 	pub name: &'static str,
+	/// Alternative names for the text object.
+	pub aliases: &'static [&'static str],
 	/// Character trigger (e.g., 'w' for word).
 	pub trigger: char,
 	/// Alternative character triggers.
@@ -413,6 +508,8 @@ pub struct TextObjectDef {
 	pub priority: i16,
 	/// Origin of the text object.
 	pub source: ExtensionSource,
+	/// Capabilities required to run this text object.
+	pub required_caps: &'static [Capability],
 	/// Metadata flags.
 	pub flags: u32,
 }
@@ -438,6 +535,8 @@ pub struct FileTypeDef {
 	pub first_line_patterns: &'static [&'static str],
 	/// Short description.
 	pub description: &'static str,
+	/// Priority for resolving collisions.
+	pub priority: i16,
 	/// Origin of the file type.
 	pub source: ExtensionSource,
 }
@@ -460,24 +559,23 @@ pub static FILE_TYPES: [FileTypeDef];
 /// Look up a command by name or alias.
 #[cfg(feature = "host")]
 pub use index::{
-	find_action, find_command, find_motion, find_text_object_by_name, find_text_object_by_trigger,
-	get_registry,
+	all_actions, all_commands, all_motions, all_text_objects, find_action, find_command,
+	find_motion, find_text_object_by_name, find_text_object_by_trigger, get_registry,
 };
 
 /// Detect file type from filename.
 #[cfg(feature = "host")]
 pub fn detect_file_type(filename: &str) -> Option<&'static FileTypeDef> {
+	let reg = get_registry();
 	let basename = filename.rsplit('/').next().unwrap_or(filename);
 
-	if let Some(ft) = FILE_TYPES
-		.iter()
-		.find(|ft| ft.filenames.contains(&basename))
-	{
+	// Check filenames/extensions via by_alias index
+	if let Some(ft) = reg.file_types.by_alias.get(basename) {
 		return Some(ft);
 	}
 
 	if let Some(ext) = basename.rsplit('.').next()
-		&& let Some(ft) = FILE_TYPES.iter().find(|ft| ft.extensions.contains(&ext))
+		&& let Some(ft) = reg.file_types.by_alias.get(ext)
 	{
 		return Some(ft);
 	}
@@ -488,11 +586,16 @@ pub fn detect_file_type(filename: &str) -> Option<&'static FileTypeDef> {
 /// Detect file type from first line (shebang).
 #[cfg(feature = "host")]
 pub fn detect_file_type_from_content(first_line: &str) -> Option<&'static FileTypeDef> {
-	FILE_TYPES.iter().find(|ft| {
-		ft.first_line_patterns
-			.iter()
-			.any(|pattern| first_line.contains(pattern))
-	})
+	let reg = get_registry();
+	reg.file_types
+		.by_name
+		.values()
+		.find(|ft| {
+			ft.first_line_patterns
+				.iter()
+				.any(|pattern| first_line.contains(pattern))
+		})
+		.copied()
 }
 
 #[cfg(all(test, feature = "host"))]

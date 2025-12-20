@@ -102,7 +102,11 @@ fn arg_around(text: RopeSlice, pos: usize) -> Option<Range> {
 
 use crate::text_object;
 
-text_object!(argument, 'c', &[], "Select function argument", {
-	inner: arg_inner,
-	around: arg_around,
-});
+text_object!(
+	argument,
+	{ trigger: 'c', description: "Select function argument" },
+	{
+		inner: arg_inner,
+		around: arg_around,
+	}
+);

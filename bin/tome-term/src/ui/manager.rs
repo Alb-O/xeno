@@ -69,9 +69,7 @@ impl UiManager {
 	}
 
 	pub fn cursor_style(&self) -> Option<termina::style::CursorStyle> {
-		let Some(panel_id) = self.focused_panel_id() else {
-			return None;
-		};
+		let panel_id = self.focused_panel_id()?;
 		self.panels
 			.get(panel_id)
 			.and_then(|p| p.cursor_style_when_focused())

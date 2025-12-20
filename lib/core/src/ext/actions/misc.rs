@@ -1,161 +1,124 @@
 //! Miscellaneous actions: jump list, macros, marks, redraw, and more.
 
-use linkme::distributed_slice;
-
-use super::{ACTIONS, ActionContext, ActionDef, ActionResult, EditAction};
-
-macro_rules! action {
-	($name:ident, $id:expr, $desc:expr, $handler:expr) => {
-		#[distributed_slice(ACTIONS)]
-		static $name: ActionDef = ActionDef {
-			id: $id,
-			name: $id,
-			description: $desc,
-			handler: $handler,
-			priority: 0,
-			source: crate::ext::ExtensionSource::Crate(env!("CARGO_PKG_NAME")),
-			required_caps: &[],
-			flags: crate::ext::flags::NONE,
-		};
-	};
-}
+use super::{ActionResult, EditAction};
+use crate::action;
 
 action!(
-	ACTION_JUMP_FORWARD,
-	"jump_forward",
-	"Jump forward in jump list",
-	|_ctx: &ActionContext| ActionResult::JumpForward
+	jump_forward,
+	{ description: "Jump forward in jump list" },
+	result: ActionResult::JumpForward
 );
 
 action!(
-	ACTION_JUMP_BACKWARD,
-	"jump_backward",
-	"Jump backward in jump list",
-	|_ctx: &ActionContext| ActionResult::JumpBackward
+	jump_backward,
+	{ description: "Jump backward in jump list" },
+	result: ActionResult::JumpBackward
 );
 
 action!(
-	ACTION_SAVE_JUMP,
-	"save_jump",
-	"Save current position to jump list",
-	|_ctx: &ActionContext| ActionResult::SaveJump
+	save_jump,
+	{ description: "Save current position to jump list" },
+	result: ActionResult::SaveJump
 );
 
 action!(
-	ACTION_RECORD_MACRO,
-	"record_macro",
-	"Start/stop recording macro",
-	|_ctx: &ActionContext| ActionResult::RecordMacro
+	record_macro,
+	{ description: "Start/stop recording macro" },
+	result: ActionResult::RecordMacro
 );
 
 action!(
-	ACTION_PLAY_MACRO,
-	"play_macro",
-	"Play recorded macro",
-	|_ctx: &ActionContext| ActionResult::PlayMacro
+	play_macro,
+	{ description: "Play recorded macro" },
+	result: ActionResult::PlayMacro
 );
 
 action!(
-	ACTION_SAVE_SELECTIONS,
-	"save_selections",
-	"Save current selections to mark",
-	|_ctx: &ActionContext| ActionResult::SaveSelections
+	save_selections,
+	{ description: "Save current selections to mark" },
+	result: ActionResult::SaveSelections
 );
 
 action!(
-	ACTION_RESTORE_SELECTIONS,
-	"restore_selections",
-	"Restore selections from mark",
-	|_ctx: &ActionContext| ActionResult::RestoreSelections
+	restore_selections,
+	{ description: "Restore selections from mark" },
+	result: ActionResult::RestoreSelections
 );
 
 action!(
-	ACTION_FORCE_REDRAW,
-	"force_redraw",
-	"Force screen redraw",
-	|_ctx: &ActionContext| ActionResult::ForceRedraw
+	force_redraw,
+	{ description: "Force screen redraw" },
+	result: ActionResult::ForceRedraw
 );
 
 action!(
-	ACTION_ADD_LINE_BELOW,
-	"add_line_below",
-	"Add empty line below cursor",
-	|_ctx: &ActionContext| ActionResult::Edit(EditAction::AddLineBelow)
+	add_line_below,
+	{ description: "Add empty line below cursor" },
+	result: ActionResult::Edit(EditAction::AddLineBelow)
 );
 
 action!(
-	ACTION_ADD_LINE_ABOVE,
-	"add_line_above",
-	"Add empty line above cursor",
-	|_ctx: &ActionContext| ActionResult::Edit(EditAction::AddLineAbove)
+	add_line_above,
+	{ description: "Add empty line above cursor" },
+	result: ActionResult::Edit(EditAction::AddLineAbove)
 );
 
 action!(
-	ACTION_REPEAT_LAST_INSERT,
-	"repeat_last_insert",
-	"Repeat the last insert/change action",
-	|_ctx: &ActionContext| ActionResult::RepeatLastInsert
+	repeat_last_insert,
+	{ description: "Repeat the last insert/change action" },
+	result: ActionResult::RepeatLastInsert
 );
 
 action!(
-	ACTION_REPEAT_LAST_OBJECT,
-	"repeat_last_object",
-	"Repeat the last object/find operation",
-	|_ctx: &ActionContext| ActionResult::RepeatLastObject
+	repeat_last_object,
+	{ description: "Repeat the last object/find operation" },
+	result: ActionResult::RepeatLastObject
 );
 
 action!(
-	ACTION_DUPLICATE_DOWN,
-	"duplicate_selections_down",
-	"Duplicate selections on next lines",
-	|_ctx: &ActionContext| ActionResult::DuplicateSelectionsDown
+	duplicate_selections_down,
+	{ description: "Duplicate selections on next lines" },
+	result: ActionResult::DuplicateSelectionsDown
 );
 
 action!(
-	ACTION_DUPLICATE_UP,
-	"duplicate_selections_up",
-	"Duplicate selections on previous lines",
-	|_ctx: &ActionContext| ActionResult::DuplicateSelectionsUp
+	duplicate_selections_up,
+	{ description: "Duplicate selections on previous lines" },
+	result: ActionResult::DuplicateSelectionsUp
 );
 
 action!(
-	ACTION_MERGE_SELECTIONS,
-	"merge_selections",
-	"Merge overlapping selections",
-	|_ctx: &ActionContext| ActionResult::MergeSelections
+	merge_selections,
+	{ description: "Merge overlapping selections" },
+	result: ActionResult::MergeSelections
 );
 
 action!(
-	ACTION_ALIGN,
-	"align",
-	"Align cursors",
-	|_ctx: &ActionContext| ActionResult::Align
+	align,
+	{ description: "Align cursors" },
+	result: ActionResult::Align
 );
 
 action!(
-	ACTION_COPY_INDENT,
-	"copy_indent",
-	"Copy indent from previous line",
-	|_ctx: &ActionContext| ActionResult::CopyIndent
+	copy_indent,
+	{ description: "Copy indent from previous line" },
+	result: ActionResult::CopyIndent
 );
 
 action!(
-	ACTION_TABS_TO_SPACES,
-	"tabs_to_spaces",
-	"Convert tabs to spaces",
-	|_ctx: &ActionContext| ActionResult::TabsToSpaces
+	tabs_to_spaces,
+	{ description: "Convert tabs to spaces" },
+	result: ActionResult::TabsToSpaces
 );
 
 action!(
-	ACTION_SPACES_TO_TABS,
-	"spaces_to_tabs",
-	"Convert spaces to tabs",
-	|_ctx: &ActionContext| ActionResult::SpacesToTabs
+	spaces_to_tabs,
+	{ description: "Convert spaces to tabs" },
+	result: ActionResult::SpacesToTabs
 );
 
 action!(
-	ACTION_TRIM_SELECTIONS,
-	"trim_selections",
-	"Trim whitespace from selections",
-	|_ctx: &ActionContext| ActionResult::TrimSelections
+	trim_selections,
+	{ description: "Trim whitespace from selections" },
+	result: ActionResult::TrimSelections
 );

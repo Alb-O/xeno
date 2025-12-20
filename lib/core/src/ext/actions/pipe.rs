@@ -1,49 +1,28 @@
 //! Pipe and shell command actions.
 
-use linkme::distributed_slice;
-
-use super::{ACTIONS, ActionContext, ActionDef, ActionMode, ActionResult};
-
-macro_rules! action {
-	($name:ident, $id:expr, $desc:expr, $handler:expr) => {
-		#[distributed_slice(ACTIONS)]
-		static $name: ActionDef = ActionDef {
-			id: $id,
-			name: $id,
-			description: $desc,
-			handler: $handler,
-			priority: 0,
-			source: crate::ext::ExtensionSource::Crate(env!("CARGO_PKG_NAME")),
-			required_caps: &[],
-			flags: crate::ext::flags::NONE,
-		};
-	};
-}
+use super::{ActionMode, ActionResult};
+use crate::action;
 
 action!(
-	ACTION_PIPE_REPLACE,
-	"pipe_replace",
-	"Pipe selection through command, replace with output",
-	|_ctx: &ActionContext| ActionResult::ModeChange(ActionMode::PipeReplace)
+	pipe_replace,
+	{ description: "Pipe selection through command, replace with output" },
+	result: ActionResult::ModeChange(ActionMode::PipeReplace)
 );
 
 action!(
-	ACTION_PIPE_IGNORE,
-	"pipe_ignore",
-	"Pipe selection through command, ignore output",
-	|_ctx: &ActionContext| ActionResult::ModeChange(ActionMode::PipeIgnore)
+	pipe_ignore,
+	{ description: "Pipe selection through command, ignore output" },
+	result: ActionResult::ModeChange(ActionMode::PipeIgnore)
 );
 
 action!(
-	ACTION_INSERT_OUTPUT,
-	"insert_output",
-	"Insert command output before selection",
-	|_ctx: &ActionContext| ActionResult::ModeChange(ActionMode::InsertOutput)
+	insert_output,
+	{ description: "Insert command output before selection" },
+	result: ActionResult::ModeChange(ActionMode::InsertOutput)
 );
 
 action!(
-	ACTION_APPEND_OUTPUT,
-	"append_output",
-	"Append command output after selection",
-	|_ctx: &ActionContext| ActionResult::ModeChange(ActionMode::AppendOutput)
+	append_output,
+	{ description: "Append command output after selection" },
+	result: ActionResult::ModeChange(ActionMode::AppendOutput)
 );

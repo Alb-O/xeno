@@ -103,8 +103,7 @@ impl DockManager {
 
 	pub fn compute_layout(&self, area: Rect) -> DockLayout {
 		let mut layout = DockLayout::default();
-		layout.doc_area = area;
-
+		
 		let has_top = self
 			.slots
 			.get(&DockSlot::Top)

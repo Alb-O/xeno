@@ -7,7 +7,10 @@ macro_rules! filetype {
         extensions: $ext:expr,
         $(filenames: $fnames:expr,)?
         $(first_line_patterns: $patterns:expr,)?
-        description: $desc:expr $(,)?
+        description: $desc:expr
+        $(, priority: $priority:expr)?
+        $(, source: $source:expr)?
+        $(,)?
     }) => {
         paste::paste! {
             #[allow(non_upper_case_globals)]
@@ -19,12 +22,15 @@ macro_rules! filetype {
                 filenames: $crate::filetype!(@opt_field $($fnames)?),
                 first_line_patterns: $crate::filetype!(@opt_field $($patterns)?),
                 description: $desc,
-                source: $crate::ext::ExtensionSource::Crate(env!("CARGO_PKG_NAME")),
+                priority: $crate::filetype!(@opt $({$priority})?, 0),
+                source: $crate::filetype!(@opt $({$source})?, $crate::ext::ExtensionSource::Crate(env!("CARGO_PKG_NAME"))),
             };
         }
     };
     (@opt_field $val:expr) => { $val };
     (@opt_field) => { &[] };
+    (@opt {$val:expr}, $default:expr) => { $val };
+    (@opt , $default:expr) => { $default };
 }
 
 /// Define an option and register it in the OPTIONS slice.
@@ -84,6 +90,7 @@ macro_rules! command {
 #[macro_export]
 macro_rules! action {
 	($name:ident, {
+		$(aliases: $aliases:expr,)?
 		description: $desc:expr
 		$(, priority: $priority:expr)?
 		$(, caps: $caps:expr)?
@@ -97,6 +104,7 @@ macro_rules! action {
 			static [<ACTION_ $name>]: $crate::ext::actions::ActionDef = $crate::ext::actions::ActionDef {
 				id: concat!(env!("CARGO_PKG_NAME"), "::", stringify!($name)),
 				name: stringify!($name),
+				aliases: $crate::action!(@opt $({$aliases})?, &[]),
 				description: $desc,
 				handler: $handler,
 				priority: $crate::action!(@opt $({$priority})?, 0),
@@ -107,6 +115,7 @@ macro_rules! action {
 		}
 	};
 	($name:ident, {
+		$(aliases: $aliases:expr,)?
 		description: $desc:expr
 		$(, priority: $priority:expr)?
 		$(, caps: $caps:expr)?
@@ -120,6 +129,7 @@ macro_rules! action {
 				$body
 			}
 			$crate::action!($name, {
+				$(aliases: $aliases,)?
 				description: $desc,
 				priority: $crate::action!(@opt $({$priority})?, 0),
 				caps: $crate::action!(@opt $({$caps})?, &[]),
@@ -129,6 +139,7 @@ macro_rules! action {
 		}
 	};
 	($name:ident, {
+		$(aliases: $aliases:expr,)?
 		description: $desc:expr
 		$(, priority: $priority:expr)?
 		$(, caps: $caps:expr)?
@@ -137,6 +148,7 @@ macro_rules! action {
 		$(,)?
 	}, result: $result:expr) => {
 		$crate::action!($name, {
+			$(aliases: $aliases,)?
 			description: $desc,
 			priority: $crate::action!(@opt $({$priority})?, 0),
 			caps: $crate::action!(@opt $({$caps})?, &[]),
@@ -175,7 +187,17 @@ macro_rules! hook {
 /// Define a text object and register it in the TEXT_OBJECTS slice.
 #[macro_export]
 macro_rules! text_object {
-	($name:ident, $trigger:expr, $alt_triggers:expr, $desc:expr, {
+	($name:ident, {
+        trigger: $trigger:expr,
+        $(alt_triggers: $alt_triggers:expr,)?
+        $(aliases: $aliases:expr,)?
+        description: $desc:expr
+        $(, priority: $priority:expr)?
+        $(, caps: $caps:expr)?
+        $(, flags: $flags:expr)?
+        $(, source: $source:expr)?
+        $(,)?
+    }, {
         inner: $inner:expr,
         around: $around:expr $(,)?
     }) => {
@@ -185,25 +207,37 @@ macro_rules! text_object {
 			static [<OBJ_ $name>]: $crate::ext::TextObjectDef = $crate::ext::TextObjectDef {
 				id: concat!(env!("CARGO_PKG_NAME"), "::", stringify!($name)),
 				name: stringify!($name),
+				aliases: $crate::text_object!(@opt $({$aliases})?, &[]),
 				trigger: $trigger,
-				alt_triggers: $alt_triggers,
+				alt_triggers: $crate::text_object!(@opt $({$alt_triggers})?, &[]),
 				description: $desc,
 				inner: $inner,
 				around: $around,
-				priority: 0,
-				source: $crate::ext::ExtensionSource::Crate(env!("CARGO_PKG_NAME")),
-				flags: $crate::ext::flags::NONE,
+				priority: $crate::text_object!(@opt $({$priority})?, 0),
+				source: $crate::text_object!(@opt $({$source})?, $crate::ext::ExtensionSource::Crate(env!("CARGO_PKG_NAME"))),
+				required_caps: $crate::text_object!(@opt $({$caps})?, &[]),
+				flags: $crate::text_object!(@opt $({$flags})?, $crate::ext::flags::NONE),
 			};
 		}
 	};
+	(@opt {$val:expr}, $default:expr) => { $val };
+	(@opt , $default:expr) => { $default };
 }
 
 /// Define a motion and register it in the MOTIONS slice.
 #[macro_export]
 macro_rules! motion {
-	($name:ident, $desc:expr, |$text:ident, $range:ident, $count:ident, $extend:ident| $body:expr) => {
+	($name:ident, {
+        $(aliases: $aliases:expr,)?
+        description: $desc:expr
+        $(, priority: $priority:expr)?
+        $(, caps: $caps:expr)?
+        $(, flags: $flags:expr)?
+        $(, source: $source:expr)?
+        $(,)?
+    }, |$text:ident, $range:ident, $count:ident, $extend:ident| $body:expr) => {
 		paste::paste! {
-			#[allow(unused_variables)]
+			#[allow(unused_variables, non_snake_case)]
 			fn [<motion_handler_ $name>](
 				$text: ropey::RopeSlice,
 				$range: $crate::range::Range,
@@ -218,14 +252,18 @@ macro_rules! motion {
 			static [<MOTION_ $name>]: $crate::ext::MotionDef = $crate::ext::MotionDef {
 				id: concat!(env!("CARGO_PKG_NAME"), "::", stringify!($name)),
 				name: stringify!($name),
+				aliases: $crate::motion!(@opt $({$aliases})?, &[]),
 				description: $desc,
 				handler: [<motion_handler_ $name>],
-				priority: 0,
-				source: $crate::ext::ExtensionSource::Crate(env!("CARGO_PKG_NAME")),
-				flags: $crate::ext::flags::NONE,
+				priority: $crate::motion!(@opt $({$priority})?, 0),
+				source: $crate::motion!(@opt $({$source})?, $crate::ext::ExtensionSource::Crate(env!("CARGO_PKG_NAME"))),
+				required_caps: $crate::motion!(@opt $({$caps})?, &[]),
+				flags: $crate::motion!(@opt $({$flags})?, $crate::ext::flags::NONE),
 			};
 		}
 	};
+	(@opt {$val:expr}, $default:expr) => { $val };
+	(@opt , $default:expr) => { $default };
 }
 
 pub use crate::{action, command, filetype, hook, motion, option, text_object};

@@ -44,7 +44,11 @@ fn line_around(text: RopeSlice, pos: usize) -> Option<Range> {
 
 use crate::text_object;
 
-text_object!(line, 'x', &[], "Select line", {
-	inner: line_inner,
-	around: line_around,
-});
+text_object!(
+	line,
+	{ trigger: 'x', description: "Select line" },
+	{
+		inner: line_inner,
+		around: line_around,
+	}
+);

@@ -90,6 +90,7 @@ macro_rules! cursor_action {
 			static [<ACTION_ $static_name:upper>]: ActionDef = ActionDef {
 				id: concat!(env!("CARGO_PKG_NAME"), "::", $action_name),
 				name: $action_name,
+				aliases: &[],
 				description: $description,
 				handler: [<handler_ $static_name>],
 				priority: 0,
@@ -112,6 +113,7 @@ macro_rules! selection_action {
 			static [<ACTION_ $static_name:upper>]: ActionDef = ActionDef {
 				id: concat!(env!("CARGO_PKG_NAME"), "::", $action_name),
 				name: $action_name,
+				aliases: &[],
 				description: $description,
 				handler: [<handler_ $static_name>],
 				priority: 0,

@@ -12,6 +12,7 @@ macro_rules! edit_action {
 		static $static_name: ActionDef = ActionDef {
 			id: concat!(env!("CARGO_PKG_NAME"), "::", $action_name),
 			name: $action_name,
+			aliases: &[],
 			description: $description,
 			handler: |_ctx| ActionResult::Edit($edit),
 			priority: 0,

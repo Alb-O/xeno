@@ -83,7 +83,11 @@ fn paragraph_around(text: RopeSlice, pos: usize) -> Option<Range> {
 
 use crate::text_object;
 
-text_object!(paragraph, 'p', &[], "Select paragraph", {
-	inner: paragraph_inner,
-	around: paragraph_around,
-});
+text_object!(
+	paragraph,
+	{ trigger: 'p', description: "Select paragraph" },
+	{
+		inner: paragraph_inner,
+		around: paragraph_around,
+	}
+);

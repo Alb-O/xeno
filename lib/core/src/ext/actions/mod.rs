@@ -267,6 +267,8 @@ pub struct ActionDef {
 	pub id: &'static str,
 	/// Unique name for the action (e.g., "move_left", "delete_selection").
 	pub name: &'static str,
+	/// Alternative names for the action.
+	pub aliases: &'static [&'static str],
 	/// Human-readable description.
 	pub description: &'static str,
 	/// The action handler function.

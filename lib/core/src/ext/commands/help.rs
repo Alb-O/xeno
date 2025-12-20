@@ -1,5 +1,5 @@
 use crate::command;
-use crate::ext::{CommandContext, CommandError, CommandOutcome, find_command, get_registry};
+use crate::ext::{CommandContext, CommandError, CommandOutcome, find_command};
 
 command!(help, { aliases: &["h"], description: "Show help for commands" }, handler: cmd_help);
 
@@ -25,8 +25,7 @@ fn cmd_help(ctx: &mut CommandContext) -> Result<CommandOutcome, CommandError> {
 		}
 	}
 
-	let reg = get_registry();
-	let mut sorted_commands: Vec<_> = reg.commands.by_name.values().collect();
+	let mut sorted_commands: Vec<_> = crate::ext::all_commands().collect();
 	sorted_commands.sort_by_key(|c| c.name);
 
 	let help_text: Vec<String> = sorted_commands

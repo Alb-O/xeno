@@ -94,7 +94,11 @@ fn number_around(text: RopeSlice, pos: usize) -> Option<Range> {
 
 use crate::text_object;
 
-text_object!(number, 'n', &[], "Select number", {
-	inner: number_inner,
-	around: number_around,
-});
+text_object!(
+	number,
+	{ trigger: 'n', description: "Select number" },
+	{
+		inner: number_inner,
+		around: number_around,
+	}
+);

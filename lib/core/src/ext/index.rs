@@ -2,7 +2,8 @@ use std::collections::HashMap;
 use std::sync::OnceLock;
 
 use crate::ext::{
-	ACTIONS, ActionDef, COMMANDS, CommandDef, MOTIONS, MotionDef, TEXT_OBJECTS, TextObjectDef,
+	ACTIONS, ActionDef, COMMANDS, CommandDef, ExtensionMetadata, FILE_TYPES, FileTypeDef, MOTIONS,
+	MotionDef, TEXT_OBJECTS, TextObjectDef,
 };
 
 pub struct RegistryIndex<T: 'static> {
@@ -10,15 +11,33 @@ pub struct RegistryIndex<T: 'static> {
 	pub by_name: HashMap<&'static str, &'static T>,
 	pub by_alias: HashMap<&'static str, &'static T>,
 	pub by_trigger: HashMap<char, &'static T>,
-	pub collisions: Vec<Collision>,
+	pub collisions: Vec<Collision<T>>,
 }
 
-#[derive(Debug, Clone)]
-pub struct Collision {
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CollisionKind {
+	Id,
+	Name,
+	Alias,
+	Trigger,
+}
+
+impl std::fmt::Display for CollisionKind {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		match self {
+			Self::Id => write!(f, "ID"),
+			Self::Name => write!(f, "name"),
+			Self::Alias => write!(f, "alias"),
+			Self::Trigger => write!(f, "trigger"),
+		}
+	}
+}
+
+pub struct Collision<T: 'static> {
+	pub kind: CollisionKind,
 	pub key: String,
-	pub first_id: &'static str,
-	pub second_id: &'static str,
-	pub source: &'static str, // "name" or "alias" or "trigger"
+	pub winner: &'static T,
+	pub shadowed: &'static T,
 }
 
 impl<T: 'static> Default for RegistryIndex<T> {
@@ -44,6 +63,7 @@ pub struct ExtensionRegistry {
 	pub actions: RegistryIndex<ActionDef>,
 	pub motions: RegistryIndex<MotionDef>,
 	pub text_objects: RegistryIndex<TextObjectDef>,
+	pub file_types: RegistryIndex<FileTypeDef>,
 }
 
 static REGISTRY: OnceLock<ExtensionRegistry> = OnceLock::new();
@@ -55,16 +75,15 @@ pub fn get_registry() -> &'static ExtensionRegistry {
 fn build_registry() -> ExtensionRegistry {
 	let mut commands: RegistryIndex<CommandDef> = RegistryIndex::new();
 	let mut sorted_commands: Vec<_> = COMMANDS.iter().collect();
-	// Deterministic ordering: higher priority first, then ID
 	sorted_commands.sort_by(|a, b| b.priority.cmp(&a.priority).then(a.id.cmp(b.id)));
 
 	for cmd in sorted_commands {
 		if let Some(existing) = commands.by_id.get(cmd.id) {
 			commands.collisions.push(Collision {
+				kind: CollisionKind::Id,
 				key: cmd.id.to_string(),
-				first_id: existing.id,
-				second_id: cmd.id,
-				source: "id",
+				winner: existing,
+				shadowed: cmd,
 			});
 		} else {
 			commands.by_id.insert(cmd.id, cmd);
@@ -72,22 +91,29 @@ fn build_registry() -> ExtensionRegistry {
 
 		if let Some(existing) = commands.by_name.get(cmd.name) {
 			commands.collisions.push(Collision {
+				kind: CollisionKind::Name,
 				key: cmd.name.to_string(),
-				first_id: existing.id,
-				second_id: cmd.id,
-				source: "name",
+				winner: existing,
+				shadowed: cmd,
 			});
 		} else {
 			commands.by_name.insert(cmd.name, cmd);
 		}
 
 		for alias in cmd.aliases {
-			if let Some(existing) = commands.by_alias.get(alias) {
+			if let Some(existing) = commands.by_name.get(alias) {
 				commands.collisions.push(Collision {
+					kind: CollisionKind::Alias,
 					key: alias.to_string(),
-					first_id: existing.id,
-					second_id: cmd.id,
-					source: "alias",
+					winner: existing,
+					shadowed: cmd,
+				});
+			} else if let Some(existing) = commands.by_alias.get(alias) {
+				commands.collisions.push(Collision {
+					kind: CollisionKind::Alias,
+					key: alias.to_string(),
+					winner: existing,
+					shadowed: cmd,
 				});
 			} else {
 				commands.by_alias.insert(alias, cmd);
@@ -102,10 +128,10 @@ fn build_registry() -> ExtensionRegistry {
 	for action in sorted_actions {
 		if let Some(existing) = actions.by_id.get(action.id) {
 			actions.collisions.push(Collision {
+				kind: CollisionKind::Id,
 				key: action.id.to_string(),
-				first_id: existing.id,
-				second_id: action.id,
-				source: "id",
+				winner: existing,
+				shadowed: action,
 			});
 		} else {
 			actions.by_id.insert(action.id, action);
@@ -113,13 +139,33 @@ fn build_registry() -> ExtensionRegistry {
 
 		if let Some(existing) = actions.by_name.get(action.name) {
 			actions.collisions.push(Collision {
+				kind: CollisionKind::Name,
 				key: action.name.to_string(),
-				first_id: existing.id,
-				second_id: action.id,
-				source: "name",
+				winner: existing,
+				shadowed: action,
 			});
 		} else {
 			actions.by_name.insert(action.name, action);
+		}
+
+		for alias in action.aliases {
+			if let Some(existing) = actions.by_name.get(alias) {
+				actions.collisions.push(Collision {
+					kind: CollisionKind::Alias,
+					key: alias.to_string(),
+					winner: existing,
+					shadowed: action,
+				});
+			} else if let Some(existing) = actions.by_alias.get(alias) {
+				actions.collisions.push(Collision {
+					kind: CollisionKind::Alias,
+					key: alias.to_string(),
+					winner: existing,
+					shadowed: action,
+				});
+			} else {
+				actions.by_alias.insert(alias, action);
+			}
 		}
 	}
 
@@ -130,10 +176,10 @@ fn build_registry() -> ExtensionRegistry {
 	for motion in sorted_motions {
 		if let Some(existing) = motions.by_id.get(motion.id) {
 			motions.collisions.push(Collision {
+				kind: CollisionKind::Id,
 				key: motion.id.to_string(),
-				first_id: existing.id,
-				second_id: motion.id,
-				source: "id",
+				winner: existing,
+				shadowed: motion,
 			});
 		} else {
 			motions.by_id.insert(motion.id, motion);
@@ -141,13 +187,33 @@ fn build_registry() -> ExtensionRegistry {
 
 		if let Some(existing) = motions.by_name.get(motion.name) {
 			motions.collisions.push(Collision {
+				kind: CollisionKind::Name,
 				key: motion.name.to_string(),
-				first_id: existing.id,
-				second_id: motion.id,
-				source: "name",
+				winner: existing,
+				shadowed: motion,
 			});
 		} else {
 			motions.by_name.insert(motion.name, motion);
+		}
+
+		for alias in motion.aliases {
+			if let Some(existing) = motions.by_name.get(alias) {
+				motions.collisions.push(Collision {
+					kind: CollisionKind::Alias,
+					key: alias.to_string(),
+					winner: existing,
+					shadowed: motion,
+				});
+			} else if let Some(existing) = motions.by_alias.get(alias) {
+				motions.collisions.push(Collision {
+					kind: CollisionKind::Alias,
+					key: alias.to_string(),
+					winner: existing,
+					shadowed: motion,
+				});
+			} else {
+				motions.by_alias.insert(alias, motion);
+			}
 		}
 	}
 
@@ -158,10 +224,10 @@ fn build_registry() -> ExtensionRegistry {
 	for obj in sorted_objects {
 		if let Some(existing) = text_objects.by_id.get(obj.id) {
 			text_objects.collisions.push(Collision {
+				kind: CollisionKind::Id,
 				key: obj.id.to_string(),
-				first_id: existing.id,
-				second_id: obj.id,
-				source: "id",
+				winner: existing,
+				shadowed: obj,
 			});
 		} else {
 			text_objects.by_id.insert(obj.id, obj);
@@ -169,22 +235,42 @@ fn build_registry() -> ExtensionRegistry {
 
 		if let Some(existing) = text_objects.by_name.get(obj.name) {
 			text_objects.collisions.push(Collision {
+				kind: CollisionKind::Name,
 				key: obj.name.to_string(),
-				first_id: existing.id,
-				second_id: obj.id,
-				source: "name",
+				winner: existing,
+				shadowed: obj,
 			});
 		} else {
 			text_objects.by_name.insert(obj.name, obj);
 		}
 
+		for alias in obj.aliases {
+			if let Some(existing) = text_objects.by_name.get(alias) {
+				text_objects.collisions.push(Collision {
+					kind: CollisionKind::Alias,
+					key: alias.to_string(),
+					winner: existing,
+					shadowed: obj,
+				});
+			} else if let Some(existing) = text_objects.by_alias.get(alias) {
+				text_objects.collisions.push(Collision {
+					kind: CollisionKind::Alias,
+					key: alias.to_string(),
+					winner: existing,
+					shadowed: obj,
+				});
+			} else {
+				text_objects.by_alias.insert(alias, obj);
+			}
+		}
+
 		// Index by primary trigger
 		if let Some(existing) = text_objects.by_trigger.get(&obj.trigger) {
 			text_objects.collisions.push(Collision {
+				kind: CollisionKind::Trigger,
 				key: obj.trigger.to_string(),
-				first_id: existing.id,
-				second_id: obj.id,
-				source: "trigger",
+				winner: existing,
+				shadowed: obj,
 			});
 		} else {
 			text_objects.by_trigger.insert(obj.trigger, obj);
@@ -194,13 +280,70 @@ fn build_registry() -> ExtensionRegistry {
 		for trigger in obj.alt_triggers {
 			if let Some(existing) = text_objects.by_trigger.get(trigger) {
 				text_objects.collisions.push(Collision {
+					kind: CollisionKind::Trigger,
 					key: trigger.to_string(),
-					first_id: existing.id,
-					second_id: obj.id,
-					source: "trigger",
+					winner: existing,
+					shadowed: obj,
 				});
 			} else {
 				text_objects.by_trigger.insert(*trigger, obj);
+			}
+		}
+	}
+
+	let mut file_types: RegistryIndex<FileTypeDef> = RegistryIndex::new();
+	let mut sorted_file_types: Vec<_> = FILE_TYPES.iter().collect();
+	sorted_file_types.sort_by(|a, b| b.priority.cmp(&a.priority).then(a.id.cmp(b.id)));
+
+	for ft in sorted_file_types {
+		if let Some(existing) = file_types.by_id.get(ft.id) {
+			file_types.collisions.push(Collision {
+				kind: CollisionKind::Id,
+				key: ft.id.to_string(),
+				winner: existing,
+				shadowed: ft,
+			});
+		} else {
+			file_types.by_id.insert(ft.id, ft);
+		}
+
+		// Index by name (used for :set ft=<name>)
+		if let Some(existing) = file_types.by_name.get(ft.name) {
+			file_types.collisions.push(Collision {
+				kind: CollisionKind::Name,
+				key: ft.name.to_string(),
+				winner: existing,
+				shadowed: ft,
+			});
+		} else {
+			file_types.by_name.insert(ft.name, ft);
+		}
+
+		// Index by extensions
+		for ext in ft.extensions {
+			if let Some(existing) = file_types.by_alias.get(ext) {
+				file_types.collisions.push(Collision {
+					kind: CollisionKind::Alias,
+					key: ext.to_string(),
+					winner: existing,
+					shadowed: ft,
+				});
+			} else {
+				file_types.by_alias.insert(ext, ft);
+			}
+		}
+
+		// Index by filenames
+		for fname in ft.filenames {
+			if let Some(existing) = file_types.by_alias.get(fname) {
+				file_types.collisions.push(Collision {
+					kind: CollisionKind::Alias,
+					key: fname.to_string(),
+					winner: existing,
+					shadowed: ft,
+				});
+			} else {
+				file_types.by_alias.insert(fname, ft);
 			}
 		}
 	}
@@ -210,25 +353,52 @@ fn build_registry() -> ExtensionRegistry {
 		actions,
 		motions,
 		text_objects,
+		file_types,
 	};
 
-	if cfg!(debug_assertions) {
-		let diag = diagnostics_internal(&registry);
-		if !diag.collisions.is_empty() {
-			let mut msg = String::from("Extension collisions detected in debug build:\n");
-			for c in &diag.collisions {
+	let diag = diagnostics_internal(&registry);
+	if !diag.collisions.is_empty() {
+		let fatal_collisions: Vec<_> = diag
+			.collisions
+			.iter()
+			.filter(|c| c.winner_priority == c.shadowed_priority)
+			.collect();
+
+		if !fatal_collisions.is_empty() && cfg!(debug_assertions) {
+			let mut msg =
+				String::from("Unresolved extension collisions (equal priority) in debug build:\n");
+			for c in &fatal_collisions {
 				msg.push_str(&format!(
-					"  {} collision on '{}': {} shadowed by {} (priority {} vs {})\n",
-					c.source_type,
+					"  {} collision on '{}': {} (from {}) and {} (from {}) both have priority {}\n",
+					c.kind,
 					c.key,
 					c.shadowed_id,
+					c.shadowed_source,
 					c.winner_id,
-					c.shadowed_priority,
+					c.winner_source,
 					c.winner_priority
 				));
 			}
 			msg.push_str("Please resolve these collisions by renaming or adjusting priorities.");
 			panic!("{}", msg);
+		}
+
+		if cfg!(debug_assertions) {
+			for c in &diag.collisions {
+				if c.winner_priority != c.shadowed_priority {
+					log::debug!(
+						"Extension shadowing: {} '{}' from {} shadowed by {} due to priority ({} vs {})",
+						c.kind,
+						c.key,
+						c.shadowed_source,
+						c.winner_id,
+						c.winner_priority,
+						c.shadowed_priority
+					);
+				}
+			}
+		} else {
+			log::warn!("Extension collisions detected. Use :ext doctor to resolve.");
 		}
 	}
 
@@ -255,12 +425,20 @@ pub fn find_action(name: &str) -> Option<&'static ActionDef> {
 
 pub fn find_motion(name: &str) -> Option<&'static MotionDef> {
 	let reg = get_registry();
-	reg.motions.by_name.get(name).copied()
+	reg.motions
+		.by_name
+		.get(name)
+		.or_else(|| reg.motions.by_alias.get(name))
+		.copied()
 }
 
 pub fn find_text_object_by_name(name: &str) -> Option<&'static TextObjectDef> {
 	let reg = get_registry();
-	reg.text_objects.by_name.get(name).copied()
+	reg.text_objects
+		.by_name
+		.get(name)
+		.or_else(|| reg.text_objects.by_alias.get(name))
+		.copied()
 }
 
 pub fn find_text_object_by_trigger(trigger: char) -> Option<&'static TextObjectDef> {
@@ -268,16 +446,47 @@ pub fn find_text_object_by_trigger(trigger: char) -> Option<&'static TextObjectD
 	reg.text_objects.by_trigger.get(&trigger).copied()
 }
 
+pub fn all_commands() -> impl Iterator<Item = &'static CommandDef> {
+	let mut v: Vec<_> = get_registry().commands.by_name.values().copied().collect();
+	v.sort_by_key(|c| c.name);
+	v.into_iter()
+}
+
+pub fn all_actions() -> impl Iterator<Item = &'static ActionDef> {
+	let mut v: Vec<_> = get_registry().actions.by_name.values().copied().collect();
+	v.sort_by_key(|a| a.name);
+	v.into_iter()
+}
+
+pub fn all_motions() -> impl Iterator<Item = &'static MotionDef> {
+	let mut v: Vec<_> = get_registry().motions.by_name.values().copied().collect();
+	v.sort_by_key(|m| m.name);
+	v.into_iter()
+}
+
+pub fn all_text_objects() -> impl Iterator<Item = &'static TextObjectDef> {
+	let mut v: Vec<_> = get_registry()
+		.text_objects
+		.by_name
+		.values()
+		.copied()
+		.collect();
+	v.sort_by_key(|o| o.name);
+	v.into_iter()
+}
+
 pub struct DiagnosticReport {
 	pub collisions: Vec<CollisionReport>,
 }
 
 pub struct CollisionReport {
+	pub kind: CollisionKind,
 	pub key: String,
 	pub winner_id: &'static str,
-	pub shadowed_id: &'static str,
-	pub source_type: &'static str,
+	pub winner_source: String,
 	pub winner_priority: i16,
+	pub shadowed_id: &'static str,
+	pub shadowed_source: String,
 	pub shadowed_priority: i16,
 }
 
@@ -287,15 +496,15 @@ fn diagnostics_internal(reg: &ExtensionRegistry) -> DiagnosticReport {
 	macro_rules! collect {
 		($index:expr) => {
 			for c in &$index.collisions {
-				let winner = $index.by_id.get(c.first_id).unwrap();
-				let shadowed = $index.by_id.get(c.second_id).unwrap();
 				reports.push(CollisionReport {
+					kind: c.kind,
 					key: c.key.clone(),
-					winner_id: c.first_id,
-					shadowed_id: c.second_id,
-					source_type: c.source,
-					winner_priority: winner.priority,
-					shadowed_priority: shadowed.priority,
+					winner_id: c.winner.id(),
+					winner_source: c.winner.source().to_string(),
+					winner_priority: c.winner.priority(),
+					shadowed_id: c.shadowed.id(),
+					shadowed_source: c.shadowed.source().to_string(),
+					shadowed_priority: c.shadowed.priority(),
 				});
 			}
 		};
@@ -305,6 +514,7 @@ fn diagnostics_internal(reg: &ExtensionRegistry) -> DiagnosticReport {
 	collect!(reg.actions);
 	collect!(reg.motions);
 	collect!(reg.text_objects);
+	collect!(reg.file_types);
 
 	DiagnosticReport {
 		collisions: reports,
