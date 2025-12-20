@@ -66,13 +66,11 @@ impl Editor {
 
 	pub(crate) fn do_toggle_terminal(&mut self) {
 		if self.terminal_open {
-			if self.terminal_focused {
-				self.terminal_focused = false;
-				self.terminal_focus_pending = false;
-			} else {
-				self.start_terminal_prewarm();
-				self.terminal_focus_pending = true;
-			}
+			// Closing the panel should remove it from layout and input hit-testing.
+			self.terminal_open = false;
+			self.terminal_focused = false;
+			self.terminal_focus_pending = false;
+			self.terminal_input_buffer.clear();
 			return;
 		}
 
@@ -142,8 +140,10 @@ impl Editor {
 		let height = self.window_height.unwrap_or(24);
 
 		if self.terminal_open {
-			// Terminal takes bottom 30% of main area, leaving 2 rows for status and message
-			let main_area_height = height.saturating_sub(2);
+			let message_height = if self.input.command_line().is_some() { 1 } else { 0 };
+			let main_area_height = height.saturating_sub(message_height + 1);
+
+			// Terminal takes bottom 30% of main area.
 			let doc_height = (main_area_height * 70) / 100;
 			let term_start = doc_height;
 			let term_end = main_area_height;

@@ -355,6 +355,44 @@ mod suite {
 	}
 
 	#[test]
+	fn test_toggle_terminal_panel_changes_layout() {
+		let text = (1..=20)
+			.map(|i| format!("Line {}", i))
+			.collect::<Vec<_>>()
+			.join("\n");
+		let mut editor = test_editor(&text);
+
+		let mut terminal = Terminal::new(TestBackend::new(40, 10)).unwrap();
+		terminal.draw(|frame| editor.render(frame)).unwrap();
+		let buffer = terminal.backend().buffer();
+		assert_eq!(
+			buffer.cell((2, 8)).unwrap().symbol(),
+			"9",
+			"when terminal is closed, document should reach the last row"
+		);
+
+		editor.do_toggle_terminal();
+		assert!(editor.terminal_open, "Ctrl+t should open terminal panel");
+		terminal.draw(|frame| editor.render(frame)).unwrap();
+		let buffer = terminal.backend().buffer();
+		assert_ne!(
+			buffer.cell((2, 8)).unwrap().symbol(),
+			"9",
+			"when terminal is open, document height should shrink"
+		);
+
+		editor.do_toggle_terminal();
+		assert!(!editor.terminal_open, "Ctrl+t should close terminal panel");
+		terminal.draw(|frame| editor.render(frame)).unwrap();
+		let buffer = terminal.backend().buffer();
+		assert_eq!(
+			buffer.cell((2, 8)).unwrap().symbol(),
+			"9",
+			"after closing terminal, document should fill the area again"
+		);
+	}
+
+	#[test]
 	fn test_scroll_down_when_cursor_at_bottom() {
 		let text = (1..=20)
 			.map(|i| format!("Line {}", i))
