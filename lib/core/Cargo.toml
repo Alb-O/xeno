@@ -22,11 +22,11 @@ host = [
 ]
 
 [dependencies]
+crossterm = { version = "0.29", optional = true }
 linkme = { workspace = true, optional = true }
+log = { version = "0.4", optional = true }
 paste = { workspace = true, optional = true }
 ratatui = { workspace = true, optional = true }
-log = { version = "0.4", optional = true }
-crossterm = { version = "0.29", optional = true }
 regex = { workspace = true, optional = true }
 ropey = { workspace = true, optional = true }
 serde = { workspace = true }

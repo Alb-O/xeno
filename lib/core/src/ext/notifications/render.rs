@@ -6,9 +6,11 @@ use ratatui::symbols::border;
 use ratatui::widgets::block::Padding;
 use ratatui::widgets::{Block, BorderType, Borders, Clear};
 
-use crate::ext::notifications::stacking::{calculate_stacking_positions, StackableNotification};
+use crate::ext::notifications::stacking::{StackableNotification, calculate_stacking_positions};
 use crate::ext::notifications::types::{Anchor, AnimationPhase, Level};
-use crate::ext::notifications::ui::{gutter_layout, render_body, render_icon_gutter, resolve_styles, split_inner, get_level_icon};
+use crate::ext::notifications::ui::{
+	get_level_icon, gutter_layout, render_body, render_icon_gutter, resolve_styles, split_inner,
+};
 
 pub trait RenderableNotification: StackableNotification {
 	fn level(&self) -> Option<Level>;
@@ -84,7 +86,12 @@ pub fn render_notifications<T: RenderableNotification>(
 				);
 
 				let (final_block_style, final_border_style, final_title_style, final_content_style) =
-					apply_fade_if_needed(state, base_block_style, base_border_style, base_title_style);
+					apply_fade_if_needed(
+						state,
+						base_block_style,
+						base_border_style,
+						base_title_style,
+					);
 
 				let mut block = Block::default()
 					.style(final_block_style)
@@ -125,13 +132,7 @@ pub fn render_notifications<T: RenderableNotification>(
 				if let (Some(g), Some(icon)) = (gutter, get_level_icon(state.level())) {
 					let (gutter_area, content_area) = split_inner(inner_area, g);
 					if gutter_area.width > 0 && content_area.width > 0 {
-						render_icon_gutter(
-							frame,
-							gutter_area,
-							g,
-							icon,
-							final_border_style,
-						);
+						render_icon_gutter(frame, gutter_area, g, icon, final_border_style);
 						render_body(frame, content_area, state.content(), final_content_style);
 					} else {
 						render_body(frame, inner_area, state.content(), final_content_style);
@@ -196,7 +197,12 @@ fn apply_fade_if_needed<T: RenderableNotification>(
 			base_block_style.patch(content_fade_override),
 		)
 	} else {
-		(base_block_style, base_border_style, base_title_style, base_block_style)
+		(
+			base_block_style,
+			base_border_style,
+			base_title_style,
+			base_block_style,
+		)
 	}
 }
 

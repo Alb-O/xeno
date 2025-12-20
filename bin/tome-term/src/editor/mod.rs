@@ -38,7 +38,6 @@ pub struct Editor {
 	pub redo_stack: Vec<HistoryEntry>,
 	pub text_width: usize,
 
-
 	pub file_type: Option<String>,
 	pub theme: &'static Theme,
 	pub window_width: Option<u16>,
@@ -346,7 +345,8 @@ impl Editor {
 
 	pub fn plugin_command(&mut self, args: &[&str]) -> Result<(), tome_core::ext::CommandError> {
 		if args.is_empty() {
-			self.ui.toggle_panel(crate::ui::panels::plugins::PLUGINS_PANEL_ID);
+			self.ui
+				.toggle_panel(crate::ui::panels::plugins::PLUGINS_PANEL_ID);
 			self.needs_redraw = true;
 			return Ok(());
 		}

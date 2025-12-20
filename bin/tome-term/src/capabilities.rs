@@ -1,10 +1,10 @@
 //! Implementation of EditorCapabilities for Editor.
 
-use tome_core::ext::{EditAction, EditorOps};
 use tome_core::ext::editor_ctx::{
 	CursorAccess, EditAccess, EditorCapabilities, MessageAccess, ModeAccess, SearchAccess,
 	SelectionAccess, SelectionOpsAccess, TextAccess, UndoAccess,
 };
+use tome_core::ext::{EditAction, EditorOps};
 use tome_core::range::CharIdx;
 use tome_core::{Mode, RopeSlice, Selection};
 

@@ -93,6 +93,8 @@ pub enum OptionScope {
 
 /// Definition of a configurable option.
 pub struct OptionDef {
+	/// Unique identifier.
+	pub id: &'static str,
 	/// Option name (e.g., "indent_width", "tab_stop").
 	pub name: &'static str,
 	/// Short description.
@@ -103,6 +105,8 @@ pub struct OptionDef {
 	pub default: fn() -> OptionValue,
 	/// Scope of the option.
 	pub scope: OptionScope,
+	/// Origin of the option.
+	pub source: crate::ext::ExtensionSource,
 }
 
 impl std::fmt::Debug for OptionDef {

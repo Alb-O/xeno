@@ -78,6 +78,8 @@ pub enum SegmentStyle {
 
 /// Definition of a statusline segment.
 pub struct StatuslineSegmentDef {
+	/// Unique identifier.
+	pub id: &'static str,
 	/// Unique name for the segment.
 	pub name: &'static str,
 	/// Position in the statusline.
@@ -88,6 +90,8 @@ pub struct StatuslineSegmentDef {
 	pub default_enabled: bool,
 	/// Render function.
 	pub render: fn(&StatuslineContext) -> Option<RenderedSegment>,
+	/// Origin of the segment.
+	pub source: crate::ext::ExtensionSource,
 }
 
 impl std::fmt::Debug for StatuslineSegmentDef {
@@ -132,15 +136,17 @@ pub fn all_segments() -> &'static [StatuslineSegmentDef] {
 /// Helper macro to define statusline segments consistently.
 #[macro_export]
 macro_rules! statusline_segment {
-	($static_name:ident, $name:literal, $position:expr, $priority:expr, $default_enabled:expr, $render:expr) => {
+	($static_name:ident, $name:expr, $position:expr, $priority:expr, $enabled:expr, $render:expr) => {
 		#[::linkme::distributed_slice($crate::ext::statusline::STATUSLINE_SEGMENTS)]
 		static $static_name: $crate::ext::statusline::StatuslineSegmentDef =
 			$crate::ext::statusline::StatuslineSegmentDef {
+				id: $name,
 				name: $name,
 				position: $position,
 				priority: $priority,
-				default_enabled: $default_enabled,
+				default_enabled: $enabled,
 				render: $render,
+				source: $crate::ext::ExtensionSource::Crate(env!("CARGO_PKG_NAME")),
 			};
 	};
 }

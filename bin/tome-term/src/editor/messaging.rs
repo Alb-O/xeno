@@ -1,6 +1,8 @@
 use std::time::Duration;
 
-use tome_core::ext::notifications::{Anchor, Animation, Level, Notification, SizeConstraint, Timing};
+use tome_core::ext::notifications::{
+	Anchor, Animation, Level, Notification, SizeConstraint, Timing,
+};
 use tome_core::ext::{
 	CommandSource, CompletionContext, CompletionItem, CompletionKind, CompletionSource,
 };
@@ -89,10 +91,10 @@ impl Editor {
 			)
 			.max_size(SizeConstraint::Absolute(40), SizeConstraint::Absolute(5));
 
-		if let Some(t) = type_def {
-			if let Some(style) = t.style {
-				builder = builder.style(style);
-			}
+		if let Some(t) = type_def
+			&& let Some(style) = t.style
+		{
+			builder = builder.style(style);
 		}
 
 		if let Ok(notif) = builder.build() {

@@ -47,6 +47,16 @@ impl Editor {
 			user_data: cmd.user_data,
 		};
 
+		// Check required capabilities
+		{
+			use tome_core::ext::EditorContext;
+			let mut e_ctx = EditorContext::new(ctx.editor);
+			if let Err(e) = e_ctx.check_all_capabilities(cmd.required_caps) {
+				ctx.editor.show_error(&e.to_string());
+				return false;
+			}
+		}
+
 		match (cmd.handler)(&mut ctx) {
 			Ok(CommandOutcome::Ok) => false,
 			Ok(CommandOutcome::Quit) => true,
@@ -72,6 +82,16 @@ impl Editor {
 				return false;
 			}
 		};
+
+		// Check required capabilities
+		{
+			use tome_core::ext::EditorContext;
+			let mut e_ctx = EditorContext::new(self);
+			if let Err(e) = e_ctx.check_all_capabilities(action.required_caps) {
+				self.show_error(e.to_string());
+				return false;
+			}
+		}
 
 		let ctx = ActionContext {
 			text: self.doc.slice(..),
@@ -102,6 +122,16 @@ impl Editor {
 				return false;
 			}
 		};
+
+		// Check required capabilities
+		{
+			use tome_core::ext::EditorContext;
+			let mut e_ctx = EditorContext::new(self);
+			if let Err(e) = e_ctx.check_all_capabilities(action.required_caps) {
+				self.show_error(e.to_string());
+				return false;
+			}
+		}
 
 		let ctx = ActionContext {
 			text: self.doc.slice(..),

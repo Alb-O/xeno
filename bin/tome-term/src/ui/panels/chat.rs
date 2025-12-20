@@ -5,9 +5,9 @@ use ratatui::widgets::{Block, Paragraph};
 use termina::event::{KeyCode as TmKeyCode, Modifiers as TmModifiers};
 
 use crate::theme::Theme;
+use crate::ui::FocusTarget;
 use crate::ui::dock::DockSlot;
 use crate::ui::panel::{CursorRequest, EventResult, Panel, UiEvent, UiRequest};
-use crate::ui::FocusTarget;
 
 pub fn chat_panel_ui_id(panel_id: u64) -> String {
 	format!("chat:{}", panel_id)
@@ -129,7 +129,9 @@ impl Panel for PluginChatPanel {
 		focused: bool,
 		theme: &Theme,
 	) -> Option<CursorRequest> {
-		let bg = Style::default().bg(theme.colors.popup.bg).fg(theme.colors.popup.fg);
+		let bg = Style::default()
+			.bg(theme.colors.popup.bg)
+			.fg(theme.colors.popup.fg);
 		let user_style = Style::default()
 			.fg(theme.colors.ui.fg)
 			.add_modifier(Modifier::BOLD);

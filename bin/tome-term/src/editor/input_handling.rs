@@ -12,7 +12,6 @@ impl Editor {
 			return false;
 		}
 
-
 		// Focused panel input
 		if self.ui.focused_panel_id().is_some() {
 			let mut ui = std::mem::take(&mut self.ui);
@@ -23,7 +22,6 @@ impl Editor {
 			self.ui = ui;
 			return false;
 		}
-
 
 		self.handle_key_active(key)
 	}

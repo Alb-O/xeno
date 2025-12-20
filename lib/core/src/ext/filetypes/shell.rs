@@ -1,48 +1,34 @@
-use linkme::distributed_slice;
+use crate::filetype;
 
-use crate::ext::{FILE_TYPES, FileTypeDef};
-
-#[distributed_slice(FILE_TYPES)]
-static FT_SH: FileTypeDef = FileTypeDef {
-	name: "sh",
+filetype!(sh, {
 	extensions: &["sh"],
 	filenames: &[".bashrc", ".profile", ".bash_profile", ".bash_logout"],
 	first_line_patterns: &["#!/bin/sh"],
 	description: "POSIX shell script",
-};
+});
 
-#[distributed_slice(FILE_TYPES)]
-static FT_BASH: FileTypeDef = FileTypeDef {
-	name: "bash",
+filetype!(bash, {
 	extensions: &["bash"],
 	filenames: &[".bashrc", ".bash_profile", ".bash_logout"],
 	first_line_patterns: &["#!/bin/bash", "#!/usr/bin/env bash"],
 	description: "Bash script",
-};
+});
 
-#[distributed_slice(FILE_TYPES)]
-static FT_ZSH: FileTypeDef = FileTypeDef {
-	name: "zsh",
+filetype!(zsh, {
 	extensions: &["zsh"],
 	filenames: &[".zshrc", ".zprofile", ".zshenv", ".zlogout"],
 	first_line_patterns: &["#!/bin/zsh", "#!/usr/bin/env zsh"],
 	description: "Zsh script",
-};
+});
 
-#[distributed_slice(FILE_TYPES)]
-static FT_FISH: FileTypeDef = FileTypeDef {
-	name: "fish",
+filetype!(fish, {
 	extensions: &["fish"],
-	filenames: &[],
 	first_line_patterns: &["#!/usr/bin/env fish"],
 	description: "Fish script",
-};
+});
 
-#[distributed_slice(FILE_TYPES)]
-static FT_NU: FileTypeDef = FileTypeDef {
-	name: "nu",
+filetype!(nu, {
 	extensions: &["nu"],
-	filenames: &[],
 	first_line_patterns: &["#!/usr/bin/env nu"],
 	description: "Nushell script",
-};
+});

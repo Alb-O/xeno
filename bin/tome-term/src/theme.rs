@@ -55,9 +55,12 @@ pub struct ThemeColors {
 #[non_exhaustive]
 #[derive(Clone, Copy, Debug)]
 pub struct Theme {
+	pub id: &'static str,
 	pub name: &'static str,
 	pub aliases: &'static [&'static str],
 	pub colors: ThemeColors,
+	pub priority: i16,
+	pub source: tome_core::ext::ExtensionSource,
 }
 
 #[distributed_slice]
@@ -65,6 +68,7 @@ pub static THEMES: [Theme] = [..];
 
 #[distributed_slice(THEMES)]
 pub static DEFAULT_THEME: Theme = Theme {
+	id: "default",
 	name: "default",
 	aliases: &[],
 	colors: ThemeColors {
@@ -103,6 +107,8 @@ pub static DEFAULT_THEME: Theme = Theme {
 			title: Color::Yellow,
 		},
 	},
+	priority: 0,
+	source: tome_core::ext::ExtensionSource::Builtin,
 };
 
 pub fn get_theme(name: &str) -> Option<&'static Theme> {
@@ -169,15 +175,18 @@ use tome_core::ext::{
 
 #[distributed_slice(OPTIONS)]
 pub static OPT_THEME: OptionDef = OptionDef {
+	id: "theme",
 	name: "theme",
 	description: "Editor color theme",
 	value_type: OptionType::String,
 	default: || OptionValue::String("solarized_dark".to_string()),
 	scope: OptionScope::Global,
+	source: tome_core::ext::ExtensionSource::Builtin,
 };
 
 #[distributed_slice(COMMANDS)]
 pub static CMD_THEME: CommandDef = CommandDef {
+	id: "theme",
 	name: "theme",
 	aliases: &["colorscheme"],
 	description: "Set the editor theme",
@@ -193,4 +202,8 @@ pub static CMD_THEME: CommandDef = CommandDef {
 		Ok(CommandOutcome::Ok)
 	},
 	user_data: None,
+	priority: 0,
+	source: tome_core::ext::ExtensionSource::Builtin,
+	required_caps: &[],
+	flags: tome_core::ext::flags::NONE,
 };

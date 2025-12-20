@@ -5,6 +5,62 @@
 //! runtime initialization.
 
 #[cfg(feature = "host")]
+use linkme::distributed_slice;
+
+/// Represents where an extension was defined.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg(feature = "host")]
+pub enum ExtensionSource {
+	/// Built directly into the tome-core crate.
+	Builtin,
+	/// Defined in a library crate.
+	Crate(&'static str),
+	/// Loaded at runtime via a plugin.
+	Plugin(&'static str),
+}
+
+#[cfg(feature = "host")]
+impl std::fmt::Display for ExtensionSource {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		match self {
+			Self::Builtin => write!(f, "builtin"),
+			Self::Crate(name) => write!(f, "crate:{}", name),
+			Self::Plugin(name) => write!(f, "plugin:{}", name),
+		}
+	}
+}
+
+/// Represents an editor capability required by an extension.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[cfg(feature = "host")]
+pub enum Capability {
+	/// Basic text access (reading content).
+	Text,
+	/// Cursor movement and querying.
+	Cursor,
+	/// Selection manipulation.
+	Selection,
+	/// Mode switching.
+	Mode,
+	/// Showing messages/notifications to the user.
+	Messaging,
+	/// Full edit access (modifying content).
+	Edit,
+	/// Search and find/replace.
+	Search,
+	/// Undo and redo history.
+	Undo,
+	/// Advanced selection operations (e.g. multi-cursor, select all).
+	SelectionOps,
+	/// Jumping to locations (e.g. definitions).
+	Jump,
+	/// Recording and playing macros.
+	Macro,
+	/// Applying transformations to text.
+	Transform,
+}
+
+#[cfg(feature = "host")]
 mod actions;
 #[cfg(feature = "host")]
 mod commands;
@@ -17,13 +73,15 @@ mod filetypes;
 #[cfg(feature = "host")]
 mod hooks;
 #[cfg(feature = "host")]
+pub mod index;
+#[cfg(feature = "host")]
 mod keybindings;
 #[cfg(feature = "host")]
 pub mod macros;
 #[cfg(feature = "host")]
-pub mod notifications;
-#[cfg(feature = "host")]
 mod motions;
+#[cfg(feature = "host")]
+pub mod notifications;
 #[cfg(feature = "host")]
 mod objects;
 #[cfg(feature = "host")]
@@ -57,8 +115,6 @@ pub use keybindings::{
 	BindingMode, KeyBindingDef, bindings_for_action, bindings_for_mode, find_binding,
 };
 #[cfg(feature = "host")]
-use linkme::distributed_slice;
-#[cfg(feature = "host")]
 pub use options::{
 	OPTIONS, OptionDef, OptionScope, OptionType, OptionValue, all_options, find_option,
 };
@@ -69,9 +125,6 @@ pub use statusline::{
 	RenderedSegment, STATUSLINE_SEGMENTS, SegmentPosition, SegmentStyle, StatuslineContext,
 	StatuslineSegmentDef, all_segments, find_segment, render_position, segments_for_position,
 };
-
-#[cfg(feature = "host")]
-use crate::range::{CharIdx, Range};
 
 /// Result type for command execution.
 #[cfg(feature = "host")]
@@ -121,9 +174,7 @@ pub enum CommandOutcome {
 
 /// Operations that editors must support.
 #[cfg(feature = "host")]
-pub trait EditorOps:
-	CursorAccess + SelectionAccess + TextAccess + ModeAccess + MessageAccess
-{
+pub trait EditorOps: EditorCapabilities {
 	/// Get the file path being edited, if any.
 	fn path(&self) -> Option<&std::path::Path>;
 
@@ -213,10 +264,24 @@ impl<'a> CommandContext<'a> {
 	}
 }
 
+/// Flags for extension behavior and metadata.
+#[cfg(feature = "host")]
+pub mod flags {
+	pub const NONE: u32 = 0;
+	/// Hidden from help and completion.
+	pub const HIDDEN: u32 = 1 << 0;
+	/// Mark as experimental.
+	pub const EXPERIMENTAL: u32 = 1 << 1;
+	/// Mark as potentially unsafe.
+	pub const UNSAFE: u32 = 1 << 2;
+}
+
 /// A named command that can be executed via command mode (`:name`).
 #[cfg(feature = "host")]
 #[derive(Clone, Copy)]
 pub struct CommandDef {
+	/// Unique identifier (usually same as name).
+	pub id: &'static str,
 	/// Primary command name (e.g., "write").
 	pub name: &'static str,
 	/// Alternative names (e.g., &["w"] for write).
@@ -224,85 +289,92 @@ pub struct CommandDef {
 	/// Short description for help.
 	pub description: &'static str,
 	/// Command handler function.
-	pub handler: fn(&mut CommandContext) -> Result<CommandOutcome, CommandError>,
+	pub handler: fn(_: &mut CommandContext<'_>) -> Result<CommandOutcome, CommandError>,
 	/// Optional user data passed to the handler.
 	pub user_data: Option<&'static (dyn std::any::Any + Sync)>,
+	/// Priority for resolving name collisions.
+	pub priority: i16,
+	/// Origin of the command.
+	pub source: ExtensionSource,
+	/// Capabilities required to run this command.
+	pub required_caps: &'static [Capability],
+	/// Metadata flags.
+	pub flags: u32,
 }
 
 #[cfg(feature = "host")]
 impl std::fmt::Debug for CommandDef {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
 		f.debug_struct("CommandDef")
+			.field("id", &self.id)
 			.field("name", &self.name)
 			.field("aliases", &self.aliases)
 			.field("description", &self.description)
+			.field("priority", &self.priority)
+			.field("source", &self.source)
+			.field("required_caps", &self.required_caps)
+			.field("flags", &self.flags)
 			.finish()
 	}
 }
 
-/// Registry of all command definitions.
+/// Distributed slice of all registered commands.
 #[cfg(feature = "host")]
 #[distributed_slice]
 pub static COMMANDS: [CommandDef];
 
 /// A motion that modifies the selection.
 #[cfg(feature = "host")]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub struct MotionDef {
-	/// Motion name for documentation/debugging.
+	/// Unique identifier.
+	pub id: &'static str,
+	/// Name used to identify the motion.
 	pub name: &'static str,
-	/// Short description.
+	/// Short description for help.
 	pub description: &'static str,
-	/// The motion function.
-	pub handler: fn(text: RopeSlice, range: Range, count: usize, extend: bool) -> Range,
+	/// Motion handler function.
+	pub handler: fn(ropey::RopeSlice, crate::range::Range, usize, bool) -> crate::range::Range,
+	/// Priority for resolving name collisions.
+	pub priority: i16,
+	/// Origin of the motion.
+	pub source: ExtensionSource,
+	/// Metadata flags.
+	pub flags: u32,
 }
 
-#[cfg(feature = "host")]
-impl std::fmt::Debug for MotionDef {
-	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-		f.debug_struct("MotionDef")
-			.field("name", &self.name)
-			.field("description", &self.description)
-			.finish()
-	}
-}
-
-/// Registry of all motion definitions.
+/// Distributed slice of all registered motions.
 #[cfg(feature = "host")]
 #[distributed_slice]
 pub static MOTIONS: [MotionDef];
 
 /// A text object that can be selected.
 #[cfg(feature = "host")]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub struct TextObjectDef {
-	/// Object name for documentation.
+	/// Unique identifier.
+	pub id: &'static str,
+	/// Name used to identify the text object.
 	pub name: &'static str,
-	/// Character that triggers this object (e.g., 'w' for word).
+	/// Character trigger (e.g., 'w' for word).
 	pub trigger: char,
-	/// Alternative trigger characters.
+	/// Alternative character triggers.
 	pub alt_triggers: &'static [char],
-	/// Short description.
+	/// Short description for help.
 	pub description: &'static str,
-	/// Select the inner content (without delimiters).
-	pub inner: fn(text: RopeSlice, pos: CharIdx) -> Option<Range>,
-	/// Select around the object (including delimiters).
-	pub around: fn(text: RopeSlice, pos: CharIdx) -> Option<Range>,
+	/// Function to select the inner part of the object.
+	pub inner: fn(ropey::RopeSlice, usize) -> Option<crate::range::Range>,
+	/// Function to select the object including surrounding whitespace/delimiters.
+	pub around: fn(ropey::RopeSlice, usize) -> Option<crate::range::Range>,
+	/// Priority for resolving trigger collisions.
+	pub priority: i16,
+	/// Origin of the text object.
+	pub source: ExtensionSource,
+	/// Metadata flags.
+	pub flags: u32,
 }
 
-#[cfg(feature = "host")]
-impl std::fmt::Debug for TextObjectDef {
-	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-		f.debug_struct("TextObjectDef")
-			.field("name", &self.name)
-			.field("trigger", &self.trigger)
-			.field("alt_triggers", &self.alt_triggers)
-			.field("description", &self.description)
-			.finish()
-	}
-}
-
-/// Registry of all text object definitions.
+/// Distributed slice of all registered text objects.
 #[cfg(feature = "host")]
 #[distributed_slice]
 pub static TEXT_OBJECTS: [TextObjectDef];
@@ -311,6 +383,8 @@ pub static TEXT_OBJECTS: [TextObjectDef];
 #[cfg(feature = "host")]
 #[derive(Clone, Copy)]
 pub struct FileTypeDef {
+	/// Unique identifier.
+	pub id: &'static str,
 	/// File type name (e.g., "rust", "python").
 	pub name: &'static str,
 	/// File extensions that match this type.
@@ -321,6 +395,8 @@ pub struct FileTypeDef {
 	pub first_line_patterns: &'static [&'static str],
 	/// Short description.
 	pub description: &'static str,
+	/// Origin of the file type.
+	pub source: ExtensionSource,
 }
 
 #[cfg(feature = "host")]
@@ -340,11 +416,7 @@ pub static FILE_TYPES: [FileTypeDef];
 
 /// Look up a command by name or alias.
 #[cfg(feature = "host")]
-pub fn find_command(name: &str) -> Option<&'static CommandDef> {
-	COMMANDS
-		.iter()
-		.find(|cmd| cmd.name == name || cmd.aliases.contains(&name))
-}
+pub use index::find_command;
 
 /// Look up a motion by name.
 #[cfg(feature = "host")]

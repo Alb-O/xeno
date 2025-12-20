@@ -1,10 +1,9 @@
-use std::fs;
-use std::io;
 use std::path::PathBuf;
 use std::sync::mpsc;
+use std::{fs, io};
 
-use tokio::net::{UnixListener, UnixStream};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::net::{UnixListener, UnixStream};
 
 use crate::plugin::manager::get_config_dir;
 
@@ -19,9 +18,8 @@ pub struct IpcServer {
 impl IpcServer {
 	pub fn start() -> io::Result<Self> {
 		let (sender, receiver) = mpsc::channel();
-		let socket_path = get_socket_path().ok_or_else(|| {
-			io::Error::other("Could not determine socket path")
-		})?;
+		let socket_path =
+			get_socket_path().ok_or_else(|| io::Error::other("Could not determine socket path"))?;
 
 		// Remove existing socket if any
 		if socket_path.exists() {
@@ -78,9 +76,8 @@ pub fn get_socket_path() -> Option<PathBuf> {
 }
 
 pub async fn send_client_msg(msg: &str) -> io::Result<()> {
-	let socket_path = get_socket_path().ok_or_else(|| {
-		io::Error::other("Could not determine socket path")
-	})?;
+	let socket_path =
+		get_socket_path().ok_or_else(|| io::Error::other("Could not determine socket path"))?;
 
 	let mut stream = UnixStream::connect(socket_path).await?;
 	stream.write_all(msg.as_bytes()).await?;

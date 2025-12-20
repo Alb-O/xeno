@@ -1,15 +1,12 @@
 //! Find character actions (f/t/F/T commands).
 
-use linkme::distributed_slice;
+use crate::ext::actions::{ActionResult, PendingAction, PendingKind};
+use crate::{action, movement};
 
-use crate::ext::actions::{ACTIONS, ActionDef, ActionResult, PendingAction, PendingKind};
-use crate::movement;
-
-#[distributed_slice(ACTIONS)]
-static ACTION_FIND_CHAR: ActionDef = ActionDef {
-	name: "find_char",
-	description: "Select to next occurrence of character (inclusive)",
-	handler: |ctx| match ctx.args.char {
+action!(
+	find_char,
+	"Select to next occurrence of character (inclusive)",
+	|ctx| match ctx.args.char {
 		Some(ch) => {
 			let mut new_sel = ctx.selection.clone();
 			new_sel.transform_mut(|r| {
@@ -21,14 +18,13 @@ static ACTION_FIND_CHAR: ActionDef = ActionDef {
 			kind: PendingKind::FindChar { inclusive: true },
 			prompt: "find→".into(),
 		}),
-	},
-};
+	}
+);
 
-#[distributed_slice(ACTIONS)]
-static ACTION_FIND_CHAR_TO: ActionDef = ActionDef {
-	name: "find_char_to",
-	description: "Select to next occurrence of character (exclusive)",
-	handler: |ctx| match ctx.args.char {
+action!(
+	find_char_to,
+	"Select to next occurrence of character (exclusive)",
+	|ctx| match ctx.args.char {
 		Some(ch) => {
 			let mut new_sel = ctx.selection.clone();
 			new_sel.transform_mut(|r| {
@@ -40,14 +36,13 @@ static ACTION_FIND_CHAR_TO: ActionDef = ActionDef {
 			kind: PendingKind::FindChar { inclusive: false },
 			prompt: "to→".into(),
 		}),
-	},
-};
+	}
+);
 
-#[distributed_slice(ACTIONS)]
-static ACTION_FIND_CHAR_REVERSE: ActionDef = ActionDef {
-	name: "find_char_reverse",
-	description: "Select to previous occurrence of character (inclusive)",
-	handler: |ctx| match ctx.args.char {
+action!(
+	find_char_reverse,
+	"Select to previous occurrence of character (inclusive)",
+	|ctx| match ctx.args.char {
 		Some(ch) => {
 			let mut new_sel = ctx.selection.clone();
 			new_sel.transform_mut(|r| {
@@ -59,14 +54,13 @@ static ACTION_FIND_CHAR_REVERSE: ActionDef = ActionDef {
 			kind: PendingKind::FindCharReverse { inclusive: true },
 			prompt: "find←".into(),
 		}),
-	},
-};
+	}
+);
 
-#[distributed_slice(ACTIONS)]
-static ACTION_FIND_CHAR_TO_REVERSE: ActionDef = ActionDef {
-	name: "find_char_to_reverse",
-	description: "Select to previous occurrence of character (exclusive)",
-	handler: |ctx| match ctx.args.char {
+action!(
+	find_char_to_reverse,
+	"Select to previous occurrence of character (exclusive)",
+	|ctx| match ctx.args.char {
 		Some(ch) => {
 			let mut new_sel = ctx.selection.clone();
 			new_sel.transform_mut(|r| {
@@ -78,5 +72,5 @@ static ACTION_FIND_CHAR_TO_REVERSE: ActionDef = ActionDef {
 			kind: PendingKind::FindCharReverse { inclusive: false },
 			prompt: "to←".into(),
 		}),
-	},
-};
+	}
+);

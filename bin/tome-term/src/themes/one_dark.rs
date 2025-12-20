@@ -5,6 +5,7 @@ use crate::theme::{PopupColors, StatusColors, THEMES, Theme, ThemeColors, UiColo
 
 #[distributed_slice(THEMES)]
 pub static ONE_DARK: Theme = Theme {
+	id: "one_dark",
 	name: "one_dark",
 	aliases: &["atom_one_dark", "one"],
 	colors: ThemeColors {
@@ -43,4 +44,6 @@ pub static ONE_DARK: Theme = Theme {
 			title: Color::Rgb(97, 175, 239), // #61AFEF
 		},
 	},
+	priority: 0,
+	source: tome_core::ext::ExtensionSource::Builtin,
 };

@@ -1,10 +1,6 @@
 //! Text object selection actions.
 
-use linkme::distributed_slice;
-
-use crate::ext::actions::{
-	ACTIONS, ActionDef, ActionResult, ObjectSelectionKind, PendingAction, PendingKind,
-};
+use crate::ext::actions::{ActionResult, ObjectSelectionKind, PendingAction, PendingKind};
 use crate::ext::{TextObjectDef, find_text_object};
 use crate::range::Range;
 
@@ -59,30 +55,17 @@ fn select_to_boundary(
 	}
 }
 
-#[distributed_slice(ACTIONS)]
-static ACTION_SELECT_OBJECT_INNER: ActionDef = ActionDef {
-	name: "select_object_inner",
-	description: "Select inner text object",
-	handler: |ctx| select_object_with_trigger(ctx, ObjectSelectionKind::Inner),
-};
+use crate::action;
 
-#[distributed_slice(ACTIONS)]
-static ACTION_SELECT_OBJECT_AROUND: ActionDef = ActionDef {
-	name: "select_object_around",
-	description: "Select around text object",
-	handler: |ctx| select_object_with_trigger(ctx, ObjectSelectionKind::Around),
-};
-
-#[distributed_slice(ACTIONS)]
-static ACTION_SELECT_OBJECT_TO_START: ActionDef = ActionDef {
-	name: "select_object_to_start",
-	description: "Select to object start",
-	handler: |ctx| select_object_with_trigger(ctx, ObjectSelectionKind::ToStart),
-};
-
-#[distributed_slice(ACTIONS)]
-static ACTION_SELECT_OBJECT_TO_END: ActionDef = ActionDef {
-	name: "select_object_to_end",
-	description: "Select to object end",
-	handler: |ctx| select_object_with_trigger(ctx, ObjectSelectionKind::ToEnd),
-};
+action!(select_object_inner, "Select inner text object", |ctx| {
+	select_object_with_trigger(ctx, ObjectSelectionKind::Inner)
+});
+action!(select_object_around, "Select around text object", |ctx| {
+	select_object_with_trigger(ctx, ObjectSelectionKind::Around)
+});
+action!(select_object_to_start, "Select to object start", |ctx| {
+	select_object_with_trigger(ctx, ObjectSelectionKind::ToStart)
+});
+action!(select_object_to_end, "Select to object end", |ctx| {
+	select_object_with_trigger(ctx, ObjectSelectionKind::ToEnd)
+});

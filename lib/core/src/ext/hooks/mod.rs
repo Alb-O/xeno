@@ -161,6 +161,8 @@ impl<'a> HookContext<'a> {
 /// A hook that responds to editor events.
 #[derive(Clone, Copy)]
 pub struct HookDef {
+	/// Unique identifier.
+	pub id: &'static str,
 	/// Hook name for debugging/logging.
 	pub name: &'static str,
 	/// The event this hook responds to.
@@ -171,6 +173,8 @@ pub struct HookDef {
 	pub priority: i32,
 	/// The hook handler function.
 	pub handler: fn(&HookContext),
+	/// Origin of the hook.
+	pub source: crate::ext::ExtensionSource,
 }
 
 impl std::fmt::Debug for HookDef {

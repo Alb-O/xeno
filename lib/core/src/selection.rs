@@ -101,7 +101,9 @@ impl Selection {
 		F: FnMut(&Range) -> Range,
 	{
 		let primary = f(&self.primary());
-		let others = self.ranges.iter()
+		let others = self
+			.ranges
+			.iter()
 			.enumerate()
 			.filter(|&(i, _)| i != self.primary_index)
 			.map(|(_, r)| f(r));
@@ -203,7 +205,9 @@ impl Selection {
 
 	pub fn grapheme_aligned(self, text: RopeSlice) -> Self {
 		let primary = self.primary().grapheme_aligned(text);
-		let others = self.ranges.iter()
+		let others = self
+			.ranges
+			.iter()
 			.enumerate()
 			.filter(|&(i, _)| i != self.primary_index)
 			.map(|(_, r)| r.grapheme_aligned(text));

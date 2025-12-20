@@ -1,15 +1,7 @@
-use linkme::distributed_slice;
+use crate::command;
+use crate::ext::{CommandContext, CommandError, CommandOutcome};
 
-use crate::ext::{COMMANDS, CommandContext, CommandDef, CommandError, CommandOutcome};
-
-#[distributed_slice(COMMANDS)]
-static CMD_PERMIT: CommandDef = CommandDef {
-	name: "permit",
-	aliases: &[],
-	description: "Respond to a plugin permission request (:permit <id> <option>)",
-	handler: cmd_permit,
-	user_data: None,
-};
+command!(permit, &[], "Respond to a plugin permission request (:permit <id> <option>)", handler: cmd_permit);
 
 fn cmd_permit(ctx: &mut CommandContext) -> Result<CommandOutcome, CommandError> {
 	let Some(&id_str) = ctx.args.first() else {

@@ -1,4 +1,5 @@
 use std::time::Duration;
+
 use thiserror::Error;
 
 /// Screen position from which notifications expand.

@@ -6,6 +6,7 @@
 mod buffer;
 mod cabi;
 mod edit;
+mod ext_diag;
 mod help;
 mod quit;
 mod test_notify;

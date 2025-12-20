@@ -7,7 +7,8 @@ use ratatui::widgets::paragraph::Wrap;
 use ratatui::widgets::{Block, BorderType, Borders, Paragraph};
 
 use crate::ext::notifications::types::{
-	Anchor, Animation, AutoDismiss, Level, NotificationError, SizeConstraint, SlideDirection, Timing,
+	Anchor, Animation, AutoDismiss, Level, NotificationError, SizeConstraint, SlideDirection,
+	Timing,
 };
 use crate::ext::notifications::ui::{gutter_layout, padding_with_gutter};
 
@@ -385,10 +386,10 @@ pub fn generate_code(notification: &Notification) -> String {
 		lines.push(format!("    .title(\"{}\")", title_str));
 	}
 
-	if notification.level() != defaults.level {
-		if let Some(level) = notification.level() {
-			lines.push(format!("    .level(Level::{:?})", level));
-		}
+	if notification.level() != defaults.level
+		&& let Some(level) = notification.level()
+	{
+		lines.push(format!("    .level(Level::{:?})", level));
 	}
 
 	if notification.anchor() != defaults.anchor {
@@ -433,14 +434,14 @@ pub fn generate_code(notification: &Notification) -> String {
 	let size_changed = notification.max_width() != defaults.max_width
 		|| notification.max_height() != defaults.max_height;
 
-	if size_changed {
-		if let (Some(w), Some(h)) = (notification.max_width(), notification.max_height()) {
-			lines.push(format!(
-				"    .max_size({}, {})",
-				format_size_constraint(w),
-				format_size_constraint(h)
-			));
-		}
+	if size_changed
+		&& let (Some(w), Some(h)) = (notification.max_width(), notification.max_height())
+	{
+		lines.push(format!(
+			"    .max_size({}, {})",
+			format_size_constraint(w),
+			format_size_constraint(h)
+		));
 	}
 
 	if notification.padding() != defaults.padding {
@@ -454,10 +455,10 @@ pub fn generate_code(notification: &Notification) -> String {
 		lines.push(format!("    .margin({})", notification.exterior_margin()));
 	}
 
-	if notification.border_type() != defaults.border_type {
-		if let Some(bt) = notification.border_type() {
-			lines.push(format!("    .border_type(BorderType::{:?})", bt));
-		}
+	if notification.border_type() != defaults.border_type
+		&& let Some(bt) = notification.border_type()
+	{
+		lines.push(format!("    .border_type(BorderType::{:?})", bt));
 	}
 
 	if let Some(pos) = notification.custom_entry_position() {
@@ -499,7 +500,7 @@ fn format_timing(timing: Timing) -> String {
 
 fn format_duration_as_timing(d: Duration) -> String {
 	let millis = d.as_millis();
-	if millis % 1000 == 0 {
+	if millis.is_multiple_of(1000) {
 		format!("Timing::Fixed(Duration::from_secs({}))", millis / 1000)
 	} else {
 		format!("Timing::Fixed(Duration::from_millis({}))", millis)
@@ -547,7 +548,9 @@ fn format_padding(p: Padding) -> String {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::ext::notifications::types::{Anchor, Animation, AutoDismiss, Level, SizeConstraint, SlideDirection};
+	use crate::ext::notifications::types::{
+		Anchor, Animation, AutoDismiss, Level, SizeConstraint, SlideDirection,
+	};
 
 	#[test]
 	fn test_default_notification_has_sensible_defaults() {

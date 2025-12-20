@@ -1,14 +1,12 @@
-use linkme::distributed_slice;
+use super::HookContext;
+use crate::hook;
 
-use super::{HOOKS, HookContext, HookDef, HookEvent};
-
-#[distributed_slice(HOOKS)]
-static HOOK_LOG_BUFFER_OPEN: HookDef = HookDef {
-	name: "log_buffer_open",
-	event: HookEvent::BufferOpen,
-	description: "Log when a buffer is opened",
-	priority: 1000,
-	handler: |ctx| {
+hook!(
+	log_buffer_open,
+	BufferOpen,
+	1000,
+	"Log when a buffer is opened",
+	|ctx| {
 		if let HookContext::BufferOpen {
 			path, file_type, ..
 		} = ctx
@@ -17,5 +15,5 @@ static HOOK_LOG_BUFFER_OPEN: HookDef = HookDef {
 			// In a real implementation, this would use a proper logging system
 			let _ = (path, ft);
 		}
-	},
-};
+	}
+);

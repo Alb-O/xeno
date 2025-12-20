@@ -1,9 +1,7 @@
 //! Paragraph text object.
 
-use linkme::distributed_slice;
 use ropey::RopeSlice;
 
-use crate::ext::{TEXT_OBJECTS, TextObjectDef};
 use crate::range::Range;
 
 fn is_blank_line(text: RopeSlice, line_idx: usize) -> bool {
@@ -83,12 +81,9 @@ fn paragraph_around(text: RopeSlice, pos: usize) -> Option<Range> {
 	Some(Range::new(inner.anchor, end))
 }
 
-#[distributed_slice(TEXT_OBJECTS)]
-static OBJ_PARAGRAPH: TextObjectDef = TextObjectDef {
-	name: "paragraph",
-	trigger: 'p',
-	alt_triggers: &[],
-	description: "Select paragraph",
+use crate::text_object;
+
+text_object!(paragraph, 'p', &[], "Select paragraph", {
 	inner: paragraph_inner,
 	around: paragraph_around,
-};
+});

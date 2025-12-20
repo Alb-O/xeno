@@ -8,8 +8,8 @@ pub use capabilities::*;
 pub use handlers::*;
 use ropey::RopeSlice;
 
-use crate::range::CharIdx;
 use crate::Mode;
+use crate::range::CharIdx;
 use crate::selection::Selection;
 
 /// Context passed to action result handlers.
@@ -99,6 +99,34 @@ impl<'a> EditorContext<'a> {
 		self.inner
 			.selection_ops()
 			.ok_or(crate::ext::CommandError::MissingCapability("selection_ops"))
+	}
+
+	pub fn check_capability(&mut self, cap: crate::ext::Capability) -> bool {
+		use crate::ext::Capability::*;
+		match cap {
+			Text | Cursor | Selection | Mode | Messaging => true, // Basic ones are required by trait
+			Edit => self.inner.edit().is_some(),
+			Search => self.inner.search().is_some(),
+			Undo => self.inner.undo().is_some(),
+			SelectionOps => self.inner.selection_ops().is_some(),
+			Jump => false,      // Not yet implemented in traits
+			Macro => false,     // Not yet implemented in traits
+			Transform => false, // Not yet implemented in traits
+		}
+	}
+
+	pub fn check_all_capabilities(
+		&mut self,
+		caps: &[crate::ext::Capability],
+	) -> Result<(), crate::ext::CommandError> {
+		for &cap in caps {
+			if !self.check_capability(cap) {
+				return Err(crate::ext::CommandError::MissingCapability(Box::leak(
+					format!("{:?}", cap).into_boxed_str(),
+				)));
+			}
+		}
+		Ok(())
 	}
 }
 

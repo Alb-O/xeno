@@ -1,16 +1,14 @@
-use linkme::distributed_slice;
+use super::HookContext;
+use crate::hook;
 
-use super::{HOOKS, HookContext, HookDef, HookEvent};
-
-#[distributed_slice(HOOKS)]
-static HOOK_LOG_MODE_CHANGE: HookDef = HookDef {
-	name: "log_mode_change",
-	event: HookEvent::ModeChange,
-	description: "Log mode changes",
-	priority: 1000,
-	handler: |ctx| {
+hook!(
+	log_mode_change,
+	ModeChange,
+	1000,
+	"Log mode changes",
+	|ctx| {
 		if let HookContext::ModeChange { old_mode, new_mode } = ctx {
 			let _ = (old_mode, new_mode);
 		}
-	},
-};
+	}
+);

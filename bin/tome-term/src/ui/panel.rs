@@ -1,12 +1,11 @@
-use ratatui::layout::{Position, Rect};
 use ratatui::Frame;
+use ratatui::layout::{Position, Rect};
 use termina::event::{KeyEvent, MouseEvent};
-
-use crate::editor::Editor;
-use crate::theme::Theme;
 
 use super::dock::DockSlot;
 use super::keymap::KeybindingRegistry;
+use crate::editor::Editor;
+use crate::theme::Theme;
 
 #[derive(Debug, Clone)]
 pub enum UiEvent {

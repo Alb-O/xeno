@@ -1,9 +1,9 @@
 use ratatui::layout::{Alignment, Rect};
 use ratatui::prelude::*;
 use ratatui::style::{Color, Modifier, Style};
+use ratatui::widgets::Paragraph;
 use ratatui::widgets::block::Padding;
 use ratatui::widgets::paragraph::Wrap;
-use ratatui::widgets::Paragraph;
 
 use crate::ext::notifications::types::Level;
 

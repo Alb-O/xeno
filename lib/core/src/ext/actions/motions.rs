@@ -88,9 +88,14 @@ macro_rules! cursor_action {
 
 			#[distributed_slice(ACTIONS)]
 			static [<ACTION_ $static_name:upper>]: ActionDef = ActionDef {
+				id: $action_name,
 				name: $action_name,
 				description: $description,
 				handler: [<handler_ $static_name>],
+				priority: 0,
+				source: crate::ext::ExtensionSource::Crate(env!("CARGO_PKG_NAME")),
+				required_caps: &[],
+				flags: crate::ext::flags::NONE,
 			};
 		}
 	};
@@ -105,9 +110,14 @@ macro_rules! selection_action {
 
 			#[distributed_slice(ACTIONS)]
 			static [<ACTION_ $static_name:upper>]: ActionDef = ActionDef {
+				id: $action_name,
 				name: $action_name,
 				description: $description,
 				handler: [<handler_ $static_name>],
+				priority: 0,
+				source: crate::ext::ExtensionSource::Crate(env!("CARGO_PKG_NAME")),
+				required_caps: &[],
+				flags: crate::ext::flags::NONE,
 			};
 		}
 	};

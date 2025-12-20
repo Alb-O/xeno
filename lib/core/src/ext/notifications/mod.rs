@@ -10,28 +10,29 @@ pub mod types;
 pub mod ui;
 pub mod utils;
 
+use linkme::distributed_slice;
 pub use manager::Notifications;
-pub use notification::{calculate_size, generate_code, Notification, NotificationBuilder};
+pub use notification::{Notification, NotificationBuilder, calculate_size, generate_code};
+// Re-export ratatui types for convenience
+pub use ratatui::layout::Position;
+use ratatui::style::Style;
 pub use types::{
 	Anchor, Animation, AnimationPhase, AutoDismiss, Level, NotificationError, Overflow,
 	SizeConstraint, SlideDirection, Timing,
 };
 
-// Re-export ratatui types for convenience
-pub use ratatui::layout::Position;
-
-use linkme::distributed_slice;
-use ratatui::style::Style;
-
 #[distributed_slice]
 pub static NOTIFICATION_TYPES: [NotificationTypeDef];
 
 pub struct NotificationTypeDef {
+	pub id: &'static str,
 	pub name: &'static str,
 	pub level: Level,
 	pub icon: Option<&'static str>,
 	pub style: Option<Style>,
 	pub auto_dismiss: Option<AutoDismiss>,
+	pub priority: i16,
+	pub source: crate::ext::ExtensionSource,
 }
 
 pub fn find_notification_type(name: &str) -> Option<&'static NotificationTypeDef> {
@@ -44,11 +45,14 @@ macro_rules! notification_type {
 		#[::linkme::distributed_slice($crate::ext::notifications::NOTIFICATION_TYPES)]
 		static $static_name: $crate::ext::notifications::NotificationTypeDef =
 			$crate::ext::notifications::NotificationTypeDef {
+				id: $name,
 				name: $name,
 				level: $level,
 				icon: $icon,
 				style: $style,
 				auto_dismiss: $auto_dismiss,
+				priority: 0,
+				source: $crate::ext::ExtensionSource::Crate(env!("CARGO_PKG_NAME")),
 			};
 	};
 }

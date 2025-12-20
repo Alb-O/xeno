@@ -9,11 +9,11 @@ mod render;
 mod styles;
 mod terminal;
 pub mod terminal_panel;
-mod ui;
 #[cfg(test)]
 mod tests;
 pub mod theme;
 pub mod themes;
+mod ui;
 
 use std::io;
 use std::path::PathBuf;

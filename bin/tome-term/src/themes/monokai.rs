@@ -5,6 +5,7 @@ use crate::theme::{PopupColors, StatusColors, THEMES, Theme, ThemeColors, UiColo
 
 #[distributed_slice(THEMES)]
 pub static MONOKAI: Theme = Theme {
+	id: "monokai",
 	name: "monokai",
 	aliases: &["monokai_extended"],
 	colors: ThemeColors {
@@ -43,4 +44,6 @@ pub static MONOKAI: Theme = Theme {
 			title: Color::Rgb(230, 219, 116), // #E6DB74
 		},
 	},
+	priority: 0,
+	source: tome_core::ext::ExtensionSource::Builtin,
 };

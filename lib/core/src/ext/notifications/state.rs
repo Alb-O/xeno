@@ -1,13 +1,14 @@
 use std::time::{Duration, Instant};
 
 use ratatui::prelude::*;
-use ratatui::widgets::{block::Padding, Block, BorderType};
+use ratatui::widgets::block::Padding;
+use ratatui::widgets::{Block, BorderType};
 
 use crate::ext::notifications::animation::{
-	expand_calculate_rect, fade_calculate_rect, slide_apply_border_effect, slide_calculate_rect,
-	FadeHandler,
+	FadeHandler, expand_calculate_rect, fade_calculate_rect, slide_apply_border_effect,
+	slide_calculate_rect,
 };
-use crate::ext::notifications::notification::{calculate_size, Notification};
+use crate::ext::notifications::notification::{Notification, calculate_size};
 use crate::ext::notifications::types::{Animation, AnimationPhase, AutoDismiss, Level, Timing};
 
 #[derive(Debug, Clone, Copy)]
@@ -132,17 +133,17 @@ impl NotificationState {
 			}
 		}
 
-		if self.current_phase == AnimationPhase::Dwelling {
-			if let Some(remaining) = self.remaining_display_time.as_mut() {
-				*remaining = remaining.saturating_sub(delta);
-				if remaining.is_zero() {
-					self.current_phase = match self.notification.animation {
-						Animation::Slide => AnimationPhase::SlidingOut,
-						Animation::ExpandCollapse => AnimationPhase::Collapsing,
-						Animation::Fade => AnimationPhase::FadingOut,
-					};
-					self.animation_progress = 0.0;
-				}
+		if self.current_phase == AnimationPhase::Dwelling
+			&& let Some(remaining) = self.remaining_display_time.as_mut()
+		{
+			*remaining = remaining.saturating_sub(delta);
+			if remaining.is_zero() {
+				self.current_phase = match self.notification.animation {
+					Animation::Slide => AnimationPhase::SlidingOut,
+					Animation::ExpandCollapse => AnimationPhase::Collapsing,
+					Animation::Fade => AnimationPhase::FadingOut,
+				};
+				self.animation_progress = 0.0;
 			}
 		}
 	}
@@ -218,12 +219,18 @@ impl crate::ext::notifications::render::RenderableNotification for NotificationS
 				self.custom_entry_pos,
 				self.custom_exit_pos,
 			),
-			Animation::ExpandCollapse => {
-				expand_calculate_rect(self.full_rect, frame_area, self.current_phase, self.animation_progress)
-			}
-			Animation::Fade => {
-				fade_calculate_rect(self.full_rect, frame_area, self.current_phase, self.animation_progress)
-			}
+			Animation::ExpandCollapse => expand_calculate_rect(
+				self.full_rect,
+				frame_area,
+				self.current_phase,
+				self.animation_progress,
+			),
+			Animation::Fade => fade_calculate_rect(
+				self.full_rect,
+				frame_area,
+				self.current_phase,
+				self.animation_progress,
+			),
 		}
 	}
 	fn apply_animation_block_effect<'a>(
@@ -256,7 +263,9 @@ impl crate::ext::notifications::render::RenderableNotification for NotificationS
 	) -> Option<Color> {
 		match self.notification.animation {
 			Animation::Fade => FadeHandler.interpolate_frame_foreground(base_fg, phase, progress),
-			_ if self.notification.fade_effect => FadeHandler.interpolate_frame_foreground(base_fg, phase, progress),
+			_ if self.notification.fade_effect => {
+				FadeHandler.interpolate_frame_foreground(base_fg, phase, progress)
+			}
 			_ => base_fg,
 		}
 	}
@@ -268,7 +277,9 @@ impl crate::ext::notifications::render::RenderableNotification for NotificationS
 	) -> Option<Color> {
 		match self.notification.animation {
 			Animation::Fade => FadeHandler.interpolate_content_foreground(base_fg, phase, progress),
-			_ if self.notification.fade_effect => FadeHandler.interpolate_content_foreground(base_fg, phase, progress),
+			_ if self.notification.fade_effect => {
+				FadeHandler.interpolate_content_foreground(base_fg, phase, progress)
+			}
 			_ => base_fg.or(Some(Color::White)),
 		}
 	}

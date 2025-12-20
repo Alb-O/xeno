@@ -5,6 +5,7 @@ use crate::theme::{PopupColors, StatusColors, THEMES, Theme, ThemeColors, UiColo
 
 #[distributed_slice(THEMES)]
 pub static GRUVBOX: Theme = Theme {
+	id: "gruvbox",
 	name: "gruvbox",
 	aliases: &["gruvbox_dark"],
 	colors: ThemeColors {
@@ -43,4 +44,6 @@ pub static GRUVBOX: Theme = Theme {
 			title: Color::Rgb(184, 187, 38),   // #B8BB26
 		},
 	},
+	priority: 0,
+	source: tome_core::ext::ExtensionSource::Builtin,
 };

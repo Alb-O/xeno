@@ -266,7 +266,6 @@ impl Editor {
 		let text_width = area.width.saturating_sub(gutter_width) as usize;
 		let tab_width = 4usize;
 
-
 		let cursor = self.cursor;
 		let ranges = self.selection.ranges();
 		let primary_cursor = cursor;
@@ -365,7 +364,11 @@ impl Editor {
 					} else {
 						secondary_cursor_style
 					};
-					let non_cursor_style = if in_selection { selection_style } else { base_style };
+					let non_cursor_style = if in_selection {
+						selection_style
+					} else {
+						base_style
+					};
 					let style = if is_cursor && use_block_cursor {
 						if blink_on { cursor_style } else { base_style }
 					} else {
@@ -386,7 +389,10 @@ impl Editor {
 						if is_cursor && use_block_cursor && blink_on {
 							spans.push(Span::styled(" ", cursor_style));
 							if tab_cells > 1 {
-								spans.push(Span::styled(" ".repeat(tab_cells - 1), non_cursor_style));
+								spans.push(Span::styled(
+									" ".repeat(tab_cells - 1),
+									non_cursor_style,
+								));
 							}
 						} else {
 							spans.push(Span::styled(" ".repeat(tab_cells), style));

@@ -42,7 +42,8 @@ pub fn expand_calculate_rect(
 	let current_height_f32 = lerp(start_height, end_height, progress);
 
 	let current_width = (current_width_f32.round() as u16).max(if progress > 0.0 { 1 } else { 0 });
-	let current_height = (current_height_f32.round() as u16).max(if progress > 0.0 { 1 } else { 0 });
+	let current_height =
+		(current_height_f32.round() as u16).max(if progress > 0.0 { 1 } else { 0 });
 
 	let center_x_full = full_rect.x as f32 + (full_rect.width as f32 / 2.0);
 	let center_y_full = full_rect.y as f32 + (full_rect.height as f32 / 2.0);
@@ -57,7 +58,12 @@ pub fn expand_calculate_rect(
 	}
 }
 
-pub fn fade_calculate_rect(full_rect: Rect, _frame_area: Rect, _phase: AnimationPhase, _progress: f32) -> Rect {
+pub fn fade_calculate_rect(
+	full_rect: Rect,
+	_frame_area: Rect,
+	_phase: AnimationPhase,
+	_progress: f32,
+) -> Rect {
 	full_rect
 }
 
@@ -92,8 +98,10 @@ pub fn interpolate_color(
 		let b = (b_f.round() as u8).clamp(min_b, max_b);
 
 		Some(Color::Rgb(r, g, b))
+	} else if linear_progress < 0.5 {
+		from
 	} else {
-		if linear_progress < 0.5 { from } else { to }
+		to
 	}
 }
 

@@ -1,9 +1,7 @@
 //! Argument/parameter text object.
 
-use linkme::distributed_slice;
 use ropey::RopeSlice;
 
-use crate::ext::{TEXT_OBJECTS, TextObjectDef};
 use crate::range::Range;
 
 /// Find argument boundaries, handling nested delimiters and whitespace.
@@ -102,12 +100,9 @@ fn arg_around(text: RopeSlice, pos: usize) -> Option<Range> {
 	Some(Range::new(start, end))
 }
 
-#[distributed_slice(TEXT_OBJECTS)]
-static OBJ_ARGUMENT: TextObjectDef = TextObjectDef {
-	name: "argument",
-	trigger: 'c',
-	alt_triggers: &[],
-	description: "Select function argument",
+use crate::text_object;
+
+text_object!(argument, 'c', &[], "Select function argument", {
 	inner: arg_inner,
 	around: arg_around,
-};
+});

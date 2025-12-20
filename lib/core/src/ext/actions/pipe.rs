@@ -8,9 +8,14 @@ macro_rules! action {
 	($name:ident, $id:expr, $desc:expr, $handler:expr) => {
 		#[distributed_slice(ACTIONS)]
 		static $name: ActionDef = ActionDef {
+			id: $id,
 			name: $id,
 			description: $desc,
 			handler: $handler,
+			priority: 0,
+			source: crate::ext::ExtensionSource::Crate(env!("CARGO_PKG_NAME")),
+			required_caps: &[],
+			flags: crate::ext::flags::NONE,
 		};
 	};
 }

@@ -5,9 +5,9 @@ use ratatui::widgets::{Block, Paragraph};
 use termina::event::{KeyCode as TmKeyCode, KeyEvent};
 
 use crate::theme::Theme;
+use crate::ui::FocusTarget;
 use crate::ui::dock::DockSlot;
 use crate::ui::panel::{CursorRequest, EventResult, Panel, UiEvent, UiRequest};
-use crate::ui::FocusTarget;
 
 pub const PLUGINS_PANEL_ID: &str = "plugins";
 
@@ -108,7 +108,9 @@ impl Panel for PluginsPanel {
 		_focused: bool,
 		theme: &Theme,
 	) -> Option<CursorRequest> {
-		let bg = Style::default().bg(theme.colors.popup.bg).fg(theme.colors.popup.fg);
+		let bg = Style::default()
+			.bg(theme.colors.popup.bg)
+			.fg(theme.colors.popup.fg);
 		let selected_style = Style::default()
 			.bg(theme.colors.ui.selection_bg)
 			.fg(theme.colors.ui.selection_fg)
@@ -134,13 +136,15 @@ impl Panel for PluginsPanel {
 				let name = entry
 					.map(|e| e.manifest.name.as_str())
 					.unwrap_or("<unknown>");
-				let version = entry
-					.map(|e| e.manifest.version.as_str())
-					.unwrap_or("?");
+				let version = entry.map(|e| e.manifest.version.as_str()).unwrap_or("?");
 
 				let prefix = if i == self.selected_idx { ">" } else { " " };
 				let text = format!("{} {:<8} {:<12} {} ({})", prefix, status, id, name, version);
-				let style = if i == self.selected_idx { selected_style } else { bg };
+				let style = if i == self.selected_idx {
+					selected_style
+				} else {
+					bg
+				};
 				lines.push(Line::from(vec![Span::styled(text, style)]));
 			}
 		}

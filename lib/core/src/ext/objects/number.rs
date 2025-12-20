@@ -1,9 +1,7 @@
 //! Number text object.
 
-use linkme::distributed_slice;
 use ropey::RopeSlice;
 
-use crate::ext::{TEXT_OBJECTS, TextObjectDef};
 use crate::range::Range;
 
 fn is_digit_or_separator(ch: char) -> bool {
@@ -94,12 +92,9 @@ fn number_around(text: RopeSlice, pos: usize) -> Option<Range> {
 	number_inner(text, pos)
 }
 
-#[distributed_slice(TEXT_OBJECTS)]
-static OBJ_NUMBER: TextObjectDef = TextObjectDef {
-	name: "number",
-	trigger: 'n',
-	alt_triggers: &[],
-	description: "Select number",
+use crate::text_object;
+
+text_object!(number, 'n', &[], "Select number", {
 	inner: number_inner,
 	around: number_around,
-};
+});

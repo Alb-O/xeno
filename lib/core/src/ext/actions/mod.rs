@@ -35,7 +35,7 @@ pub enum ActionResult {
 	/// Action requests a mode change.
 	ModeChange(ActionMode),
 	/// Action is a cursor movement (moves cursor only, preserves selections).
-	CursorMove(usize),
+	CursorMove(crate::range::CharIdx),
 	/// Action is a motion that produces a new selection.
 	Motion(Selection),
 	/// Apply motion then enter insert mode.
@@ -236,17 +236,17 @@ pub enum ObjectSelectionKind {
 
 /// Context passed to action handlers.
 pub struct ActionContext<'a> {
-	/// The document text.
+	/// Slice of the entire buffer.
 	pub text: RopeSlice<'a>,
-	/// Current cursor position (independent of selections).
-	pub cursor: usize,
-	/// Current selection.
+	/// Current primary cursor position.
+	pub cursor: crate::range::CharIdx,
+	/// Current selections.
 	pub selection: &'a Selection,
-	/// Count prefix (defaults to 1).
+	/// Repeat count (from numeric prefix).
 	pub count: usize,
-	/// Whether to extend selection instead of moving.
+	/// Whether to extend existing selections (shift-movement).
 	pub extend: bool,
-	/// Register name (if any).
+	/// The register to use for the action.
 	pub register: Option<char>,
 	/// Additional arguments (e.g., character for find).
 	pub args: ActionArgs,
@@ -263,21 +263,29 @@ pub struct ActionArgs {
 
 /// Definition of an action that can be registered.
 pub struct ActionDef {
+	/// Unique identifier (usually same as name).
+	pub id: &'static str,
 	/// Unique name for the action (e.g., "move_left", "delete_selection").
 	pub name: &'static str,
 	/// Human-readable description.
 	pub description: &'static str,
 	/// The action handler function.
 	pub handler: ActionHandler,
+	/// Priority for resolving name collisions.
+	pub priority: i16,
+	/// Origin of the action.
+	pub source: crate::ext::ExtensionSource,
+	/// Capabilities required to run this action.
+	pub required_caps: &'static [crate::ext::Capability],
+	/// Metadata flags.
+	pub flags: u32,
 }
 
 /// The type of action handler functions.
 pub type ActionHandler = fn(&ActionContext) -> ActionResult;
 
 /// Look up an action by name.
-pub fn find_action(name: &str) -> Option<&'static ActionDef> {
-	ACTIONS.iter().find(|a| a.name == name)
-}
+pub use crate::ext::index::find_action;
 
 /// Execute an action by name with the given context.
 pub fn execute_action(name: &str, ctx: &ActionContext) -> ActionResult {

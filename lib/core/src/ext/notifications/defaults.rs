@@ -1,6 +1,7 @@
-use crate::notification_type;
-use crate::ext::notifications::{Level, AutoDismiss};
 use std::time::Duration;
+
+use crate::ext::notifications::{AutoDismiss, Level};
+use crate::notification_type;
 
 notification_type!(
 	INFO,

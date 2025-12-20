@@ -6,13 +6,11 @@ mod suite {
 	use ratatui::Terminal;
 	use ratatui::backend::TestBackend;
 	use termina::event::{KeyCode, KeyEvent, Modifiers};
+	use tome_core::ext::{CommandContext, CommandOutcome};
 	use tome_core::{Mode, Selection};
 
 	use crate::editor::Editor;
 	use crate::theme::{CMD_THEME, THEMES, get_theme};
-
-
-	use tome_core::ext::{CommandContext, CommandOutcome};
 
 	fn test_editor(content: &str) -> Editor {
 		Editor::from_content(content.to_string(), Some(PathBuf::from("test.txt")))
@@ -402,8 +400,7 @@ mod suite {
 		terminal.draw(|frame| editor.render(frame)).unwrap();
 
 		assert_eq!(
-			editor.scroll_line,
-			3,
+			editor.scroll_line, 3,
 			"should scroll down one line so cursor can fit in viewport"
 		);
 		assert_eq!(editor.scroll_segment, 0, "no wrapping in this test");
@@ -639,6 +636,4 @@ mod suite {
 		editor.handle_key(KeyEvent::new(KeyCode::Char('X'), Modifiers::NONE));
 		assert_eq!(editor.doc.to_string(), "oneX\ntwoX\nthreeX\n");
 	}
-
-
 }

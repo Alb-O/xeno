@@ -8,10 +8,10 @@ use termina::event::{KeyCode as TmKeyCode, KeyEvent, Modifiers as TmModifiers};
 use crate::render::terminal::ThemedVt100Terminal;
 use crate::terminal_panel::{TerminalError, TerminalState};
 use crate::theme::Theme;
+use crate::ui::FocusTarget;
 use crate::ui::dock::DockSlot;
 use crate::ui::keymap::UiKeyChord;
 use crate::ui::panel::{CursorRequest, EventResult, Panel, PanelInitContext, UiEvent, UiRequest};
-use crate::ui::FocusTarget;
 
 pub const TERMINAL_PANEL_ID: &str = "terminal";
 
@@ -146,7 +146,12 @@ impl Panel for TerminalPanel {
 		Some(termina::style::CursorStyle::Default)
 	}
 
-	fn handle_event(&mut self, event: UiEvent, _editor: &mut crate::editor::Editor, _focused: bool) -> EventResult {
+	fn handle_event(
+		&mut self,
+		event: UiEvent,
+		_editor: &mut crate::editor::Editor,
+		_focused: bool,
+	) -> EventResult {
 		match event {
 			UiEvent::Tick => {
 				let mut changed = self.poll_prewarm();
@@ -176,7 +181,8 @@ impl Panel for TerminalPanel {
 			}
 			UiEvent::Key(key) => {
 				if matches!(key.code, TmKeyCode::Escape) {
-					return EventResult::consumed().with_request(UiRequest::Focus(FocusTarget::editor()));
+					return EventResult::consumed()
+						.with_request(UiRequest::Focus(FocusTarget::editor()));
 				}
 				self.handle_key_focused(&key);
 				EventResult::consumed().with_request(UiRequest::Redraw)

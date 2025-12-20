@@ -1,9 +1,7 @@
 //! Line text object.
 
-use linkme::distributed_slice;
 use ropey::RopeSlice;
 
-use crate::ext::{TEXT_OBJECTS, TextObjectDef};
 use crate::range::Range;
 
 fn line_inner(text: RopeSlice, pos: usize) -> Option<Range> {
@@ -44,12 +42,9 @@ fn line_around(text: RopeSlice, pos: usize) -> Option<Range> {
 	Some(Range::new(start, end))
 }
 
-#[distributed_slice(TEXT_OBJECTS)]
-static OBJ_LINE: TextObjectDef = TextObjectDef {
-	name: "line",
-	trigger: 'x',
-	alt_triggers: &[],
-	description: "Select line",
+use crate::text_object;
+
+text_object!(line, 'x', &[], "Select line", {
 	inner: line_inner,
 	around: line_around,
-};
+});

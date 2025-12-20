@@ -5,6 +5,7 @@ use crate::theme::{PopupColors, StatusColors, THEMES, Theme, ThemeColors, UiColo
 
 #[distributed_slice(THEMES)]
 pub static SOLARIZED_DARK: Theme = Theme {
+	id: "solarized_dark",
 	name: "solarized_dark",
 	aliases: &["solarized"],
 	colors: ThemeColors {
@@ -43,4 +44,6 @@ pub static SOLARIZED_DARK: Theme = Theme {
 			title: Color::Rgb(181, 137, 0),   // yellow
 		},
 	},
+	priority: 0,
+	source: tome_core::ext::ExtensionSource::Builtin,
 };

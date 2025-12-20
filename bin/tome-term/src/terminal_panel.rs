@@ -124,9 +124,7 @@ impl TerminalState {
 	}
 
 	pub fn write_key(&mut self, bytes: &[u8]) -> Result<(), TerminalError> {
-		self.pty_writer
-			.write_all(bytes)
-			.map_err(TerminalError::Io)
+		self.pty_writer.write_all(bytes).map_err(TerminalError::Io)
 	}
 
 	pub fn is_alive(&mut self) -> bool {

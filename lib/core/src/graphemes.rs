@@ -1,6 +1,7 @@
-use crate::range::CharIdx;
 use ropey::RopeSlice;
 use unicode_segmentation::UnicodeSegmentation;
+
+use crate::range::CharIdx;
 
 pub fn is_grapheme_boundary(text: RopeSlice, char_idx: CharIdx) -> bool {
 	if char_idx == 0 || char_idx == text.len_chars() {

@@ -10,9 +10,14 @@ macro_rules! edit_action {
 	($static_name:ident, $action_name:expr, $description:expr, $edit:expr) => {
 		#[distributed_slice(ACTIONS)]
 		static $static_name: ActionDef = ActionDef {
+			id: $action_name,
 			name: $action_name,
 			description: $description,
 			handler: |_ctx| ActionResult::Edit($edit),
+			priority: 0,
+			source: crate::ext::ExtensionSource::Crate(env!("CARGO_PKG_NAME")),
+			required_caps: &[],
+			flags: crate::ext::flags::NONE,
 		};
 	};
 }
@@ -123,15 +128,16 @@ edit_action!(
 	EditAction::OpenAbove
 );
 
-#[distributed_slice(ACTIONS)]
-static ACTION_REPLACE_CHAR: ActionDef = ActionDef {
-	name: "replace_char",
-	description: "Replace selection with character",
-	handler: |ctx| match ctx.args.char {
+use crate::action;
+
+action!(
+	replace_char,
+	"Replace selection with character",
+	|ctx| match ctx.args.char {
 		Some(ch) => ActionResult::Edit(EditAction::ReplaceWithChar { ch }),
 		None => ActionResult::Pending(PendingAction {
 			kind: PendingKind::ReplaceChar,
 			prompt: "replace".into(),
 		}),
-	},
-};
+	}
+);

@@ -1,18 +1,13 @@
-use linkme::distributed_slice;
+use crate::command;
+use crate::ext::{COMMANDS, CommandContext, CommandError, CommandOutcome};
 
-use crate::ext::{COMMANDS, CommandContext, CommandDef, CommandError, CommandOutcome};
-
-#[distributed_slice(COMMANDS)]
-static CMD_HELP: CommandDef = CommandDef {
-	name: "help",
-	aliases: &["h"],
-	description: "Show help for commands",
-	handler: cmd_help,
-	user_data: None,
-};
+command!(help, &["h"], "Show help for commands", handler: cmd_help);
 
 fn cmd_help(ctx: &mut CommandContext) -> Result<CommandOutcome, CommandError> {
-	let help_text: Vec<String> = COMMANDS
+	let mut sorted_commands: Vec<_> = COMMANDS.iter().collect();
+	sorted_commands.sort_by_key(|c| c.name);
+
+	let help_text: Vec<String> = sorted_commands
 		.iter()
 		.map(|c| {
 			let aliases = if c.aliases.is_empty() {

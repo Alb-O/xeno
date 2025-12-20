@@ -3,13 +3,11 @@ use std::collections::HashMap;
 use ratatui::layout::Rect;
 use termina::event::{KeyEvent, MouseEvent};
 
-use crate::theme::Theme;
-
-use super::dock::DockManager;
+use super::dock::{DockLayout, DockManager};
 use super::focus::{FocusManager, FocusTarget};
 use super::keymap::{BindingScope, KeybindingRegistry};
 use super::panel::{Panel, PanelInitContext, UiEvent, UiRequest};
-use super::dock::DockLayout;
+use crate::theme::Theme;
 
 #[derive(Default)]
 pub struct UiManager {
@@ -89,7 +87,11 @@ impl UiManager {
 		false
 	}
 
-	pub fn handle_focused_key(&mut self, editor: &mut crate::editor::Editor, key: KeyEvent) -> bool {
+	pub fn handle_focused_key(
+		&mut self,
+		editor: &mut crate::editor::Editor,
+		key: KeyEvent,
+	) -> bool {
 		let Some(panel_id) = self.focused_panel_id().map(|s| s.to_string()) else {
 			return false;
 		};
@@ -126,7 +128,11 @@ impl UiManager {
 
 		let mut hit_panel: Option<String> = None;
 		for (id, area) in &layout.panel_areas {
-			if row >= area.y && row < area.y + area.height && col >= area.x && col < area.x + area.width {
+			if row >= area.y
+				&& row < area.y + area.height
+				&& col >= area.x
+				&& col < area.x + area.width
+			{
 				hit_panel = Some(id.clone());
 				break;
 			}
@@ -164,12 +170,7 @@ impl UiManager {
 		self.apply_requests(requests);
 	}
 
-	pub fn notify_resize(
-		&mut self,
-		editor: &mut crate::editor::Editor,
-		_width: u16,
-		_height: u16,
-	) {
+	pub fn notify_resize(&mut self, editor: &mut crate::editor::Editor, _width: u16, _height: u16) {
 		let ids: Vec<String> = self.panels.keys().cloned().collect();
 		let mut requests = Vec::new();
 		for id in ids {
@@ -217,13 +218,15 @@ impl UiManager {
 					let old = self.focus.focused().clone();
 					if old != target {
 						if let Some(old_id) = old.panel_id()
-							&& let Some(panel) = self.panels.get_mut(old_id) {
-								panel.on_focus_changed(false);
-							}
+							&& let Some(panel) = self.panels.get_mut(old_id)
+						{
+							panel.on_focus_changed(false);
+						}
 						if let Some(new_id) = target.panel_id()
-							&& let Some(panel) = self.panels.get_mut(new_id) {
-								panel.on_focus_changed(true);
-							}
+							&& let Some(panel) = self.panels.get_mut(new_id)
+						{
+							panel.on_focus_changed(true);
+						}
 						self.focus.set_focused(target);
 						self.wants_redraw = true;
 					}
@@ -246,10 +249,9 @@ impl UiManager {
 			let focused = self.is_panel_focused(id);
 			if let Some(panel) = self.panels.get_mut(id) {
 				let cursor_req = panel.render(frame, *area, editor, focused, theme);
-				if focused
-					&& let Some(req) = cursor_req {
-						cursor = Some(req.pos);
-					}
+				if focused && let Some(req) = cursor_req {
+					cursor = Some(req.pos);
+				}
 			}
 		}
 		cursor

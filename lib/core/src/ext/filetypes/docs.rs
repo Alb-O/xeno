@@ -1,39 +1,22 @@
-use linkme::distributed_slice;
+use crate::filetype;
 
-use crate::ext::{FILE_TYPES, FileTypeDef};
-
-#[distributed_slice(FILE_TYPES)]
-static FT_MARKDOWN: FileTypeDef = FileTypeDef {
-	name: "markdown",
+filetype!(markdown, {
 	extensions: &["md", "markdown", "mkd", "mkdn"],
 	filenames: &["README", "CHANGELOG", "CONTRIBUTING", "LICENSE"],
-	first_line_patterns: &[],
 	description: "Markdown file",
-};
+});
 
-#[distributed_slice(FILE_TYPES)]
-static FT_RST: FileTypeDef = FileTypeDef {
-	name: "rst",
+filetype!(rst, {
 	extensions: &["rst", "rest"],
-	filenames: &[],
-	first_line_patterns: &[],
 	description: "reStructuredText file",
-};
+});
 
-#[distributed_slice(FILE_TYPES)]
-static FT_ASCIIDOC: FileTypeDef = FileTypeDef {
-	name: "asciidoc",
+filetype!(asciidoc, {
 	extensions: &["adoc", "asciidoc", "asc"],
-	filenames: &[],
-	first_line_patterns: &[],
 	description: "AsciiDoc file",
-};
+});
 
-#[distributed_slice(FILE_TYPES)]
-static FT_TEX: FileTypeDef = FileTypeDef {
-	name: "tex",
+filetype!(tex, {
 	extensions: &["tex", "sty", "cls"],
-	filenames: &[],
-	first_line_patterns: &[],
 	description: "LaTeX file",
-};
+});

@@ -220,8 +220,7 @@ impl PluginManager {
 		}
 
 		unsafe {
-			let lib =
-				Library::new(&lib_path).map_err(|e| PluginError::Lib(e.to_string()))?;
+			let lib = Library::new(&lib_path).map_err(|e| PluginError::Lib(e.to_string()))?;
 			let entry_point: Symbol<TomePluginEntryV2> = lib
 				.get(b"tome_plugin_entry_v2")
 				.map_err(|e| PluginError::Lib(e.to_string()))?;
@@ -431,8 +430,10 @@ pub struct PluginContextGuard {
 
 impl PluginContextGuard {
 	pub unsafe fn new(mgr_ptr: *mut PluginManager, ed_ptr: *mut Editor, plugin_id: &str) -> Self {
-		let old_mgr = ACTIVE_MANAGER.with(|ctx: &RefCell<Option<*mut PluginManager>>| ctx.replace(Some(mgr_ptr)));
-		let old_ed = ACTIVE_EDITOR.with(|ctx: &RefCell<Option<*mut Editor>>| ctx.replace(Some(ed_ptr)));
+		let old_mgr = ACTIVE_MANAGER
+			.with(|ctx: &RefCell<Option<*mut PluginManager>>| ctx.replace(Some(mgr_ptr)));
+		let old_ed =
+			ACTIVE_EDITOR.with(|ctx: &RefCell<Option<*mut Editor>>| ctx.replace(Some(ed_ptr)));
 		let (old_plugin_id, mgr_ptr_ref) =
 			unsafe { ((*mgr_ptr).current_plugin_id.clone(), &mut *mgr_ptr) };
 		mgr_ptr_ref.current_plugin_id = Some(plugin_id.to_string());

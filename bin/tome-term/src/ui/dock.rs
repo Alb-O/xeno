@@ -59,12 +59,18 @@ impl DockManager {
 		slots.insert(DockSlot::Top, DockSlotState::new(SizeSpec::Percent(25)));
 		slots.insert(DockSlot::Left, DockSlotState::new(SizeSpec::Percent(25)));
 		slots.insert(DockSlot::Right, DockSlotState::new(SizeSpec::Percent(25)));
-		slots.insert(DockSlot::Overlay, DockSlotState::new(SizeSpec::Percent(100)));
+		slots.insert(
+			DockSlot::Overlay,
+			DockSlotState::new(SizeSpec::Percent(100)),
+		);
 		Self { slots }
 	}
 
 	pub fn open_panel(&mut self, slot: DockSlot, id: String) {
-		let state = self.slots.entry(slot).or_insert_with(|| DockSlotState::new(SizeSpec::Percent(30)));
+		let state = self
+			.slots
+			.entry(slot)
+			.or_insert_with(|| DockSlotState::new(SizeSpec::Percent(30)));
 		if !state.open.iter().any(|p| p == &id) {
 			state.open.push(id.clone());
 		}
@@ -180,25 +186,25 @@ impl DockManager {
 				.direction(Direction::Horizontal)
 				.constraints([left_c, Constraint::Min(1), right_c])
 				.split(layout.doc_area);
-			if has_left
-				&& let Some(id) = self.active_in_slot(DockSlot::Left) {
-					layout.panel_areas.insert(id.to_string(), parts[0]);
-				}
-			if has_right
-				&& let Some(id) = self.active_in_slot(DockSlot::Right) {
-					layout.panel_areas.insert(id.to_string(), parts[2]);
-				}
+			if has_left && let Some(id) = self.active_in_slot(DockSlot::Left) {
+				layout.panel_areas.insert(id.to_string(), parts[0]);
+			}
+			if has_right && let Some(id) = self.active_in_slot(DockSlot::Right) {
+				layout.panel_areas.insert(id.to_string(), parts[2]);
+			}
 			layout.doc_area = parts[1];
 		}
 
 		if let Some(area) = top_area
-			&& let Some(id) = self.active_in_slot(DockSlot::Top) {
-				layout.panel_areas.insert(id.to_string(), area);
-			}
+			&& let Some(id) = self.active_in_slot(DockSlot::Top)
+		{
+			layout.panel_areas.insert(id.to_string(), area);
+		}
 		if let Some(area) = bottom_area
-			&& let Some(id) = self.active_in_slot(DockSlot::Bottom) {
-				layout.panel_areas.insert(id.to_string(), area);
-			}
+			&& let Some(id) = self.active_in_slot(DockSlot::Bottom)
+		{
+			layout.panel_areas.insert(id.to_string(), area);
+		}
 
 		layout
 	}
