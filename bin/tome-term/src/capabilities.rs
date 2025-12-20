@@ -5,16 +5,17 @@ use tome_core::ext::editor_ctx::{
 	CursorAccess, EditAccess, EditorCapabilities, MessageAccess, ModeAccess, SearchAccess,
 	SelectionAccess, SelectionOpsAccess, TextAccess, UndoAccess,
 };
+use tome_core::range::CharIdx;
 use tome_core::{Mode, RopeSlice, Selection};
 
 use crate::editor::Editor;
 
 impl CursorAccess for Editor {
-	fn cursor(&self) -> usize {
+	fn cursor(&self) -> CharIdx {
 		self.cursor
 	}
 
-	fn set_cursor(&mut self, pos: usize) {
+	fn set_cursor(&mut self, pos: CharIdx) {
 		self.cursor = pos;
 	}
 }
@@ -167,7 +168,7 @@ impl SelectionOpsAccess for Editor {
 	}
 
 	fn merge_selections(&mut self) {
-		// TODO: implement
+		self.selection.merge_overlaps_and_adjacent();
 	}
 
 	fn duplicate_down(&mut self) {

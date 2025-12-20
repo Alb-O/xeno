@@ -16,6 +16,7 @@ use std::sync::mpsc::Receiver;
 
 use ratatui_notifications::{Notifications, Overflow};
 use tome_core::ext::{HookContext, emit_hook};
+use tome_core::range::CharIdx;
 use tome_core::{InputHandler, Mode, Rope, Selection, Transaction, ext, movement};
 pub use types::{HistoryEntry, Message, MessageKind, Registers};
 
@@ -26,7 +27,7 @@ use crate::theme::Theme;
 
 pub struct Editor {
 	pub doc: Rope,
-	pub cursor: usize,
+	pub cursor: CharIdx,
 	pub selection: Selection,
 	pub input: InputHandler,
 	pub path: Option<PathBuf>,
@@ -53,7 +54,7 @@ pub struct Editor {
 	pub plugins: PluginManager,
 	pub needs_redraw: bool,
 	pub(crate) insert_undo_active: bool,
-	pub pending_permissions: Vec<crate::plugin::manager::PendingPermission>,
+	pub(crate) pending_permissions: Vec<crate::plugin::manager::PendingPermission>,
 	pub notifications: Notifications,
 	pub last_tick: std::time::SystemTime,
 	pub ipc: Option<crate::ipc::IpcServer>,

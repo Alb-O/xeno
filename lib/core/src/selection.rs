@@ -1,7 +1,7 @@
 use ropey::RopeSlice;
 use smallvec::{SmallVec, smallvec};
 
-use crate::range::{Direction, Range};
+use crate::range::{CharIdx, Direction, Range};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Selection {
@@ -11,7 +11,7 @@ pub struct Selection {
 
 impl Selection {
 	pub fn new(ranges: SmallVec<[Range; 1]>, primary_index: usize) -> Self {
-		debug_assert!(!ranges.is_empty());
+		assert!(!ranges.is_empty(), "Selection cannot be empty");
 		debug_assert!(primary_index < ranges.len());
 
 		let mut sel = Self {
@@ -26,14 +26,14 @@ impl Selection {
 		Self::new(ranges.into_iter().collect(), primary_index)
 	}
 
-	pub fn single(anchor: usize, head: usize) -> Self {
+	pub fn single(anchor: CharIdx, head: CharIdx) -> Self {
 		Self {
 			ranges: smallvec![Range::new(anchor, head)],
 			primary_index: 0,
 		}
 	}
 
-	pub fn point(pos: usize) -> Self {
+	pub fn point(pos: CharIdx) -> Self {
 		Self::single(pos, pos)
 	}
 
@@ -56,10 +56,6 @@ impl Selection {
 
 	pub fn len(&self) -> usize {
 		self.ranges.len()
-	}
-
-	pub fn is_empty(&self) -> bool {
-		self.ranges.is_empty()
 	}
 
 	pub fn iter(&self) -> impl Iterator<Item = &Range> {
@@ -168,7 +164,7 @@ impl Selection {
 		)
 	}
 
-	pub fn contains(&self, pos: usize) -> bool {
+	pub fn contains(&self, pos: CharIdx) -> bool {
 		self.ranges.iter().any(|r: &Range| r.contains(pos))
 	}
 

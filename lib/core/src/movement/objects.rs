@@ -3,7 +3,7 @@
 use ropey::RopeSlice;
 
 use super::{WordType, is_word_char};
-use crate::range::Range;
+use crate::range::{CharIdx, Range};
 
 /// Select a word object (inner or around).
 /// Inner: just the word characters
@@ -19,7 +19,7 @@ pub fn select_word_object(
 		return range;
 	}
 
-	let pos = range.head.min(len.saturating_sub(1));
+	let pos: CharIdx = range.head.min(len.saturating_sub(1));
 
 	let is_word = match word_type {
 		WordType::Word => is_word_char,
@@ -30,8 +30,8 @@ pub fn select_word_object(
 
 	// If we're on whitespace, select the whitespace
 	if !is_word(c) {
-		let mut start = pos;
-		let mut end = pos;
+		let mut start: CharIdx = pos;
+		let mut end: CharIdx = pos;
 
 		// Extend backward through whitespace
 		while start > 0 && !is_word(text.char(start - 1)) {
@@ -45,8 +45,8 @@ pub fn select_word_object(
 		return Range::new(start, end);
 	}
 
-	let mut start = pos;
-	let mut end = pos;
+	let mut start: CharIdx = pos;
+	let mut end: CharIdx = pos;
 
 	while start > 0 && is_word(text.char(start - 1)) {
 		start -= 1;
@@ -102,13 +102,13 @@ pub fn select_surround_object(
 		return None;
 	}
 
-	let pos = range.head.min(len.saturating_sub(1));
+	let pos: CharIdx = range.head.min(len.saturating_sub(1));
 	let balanced = open != close;
 
 	// Find opening delimiter (search backward)
-	let mut open_pos = None;
+	let mut open_pos: Option<CharIdx> = None;
 	let mut depth = 0i32;
-	let mut search_pos = pos;
+	let mut search_pos: CharIdx = pos;
 
 	// First check if we're on a delimiter
 	let c = text.char(pos);
@@ -146,9 +146,9 @@ pub fn select_surround_object(
 	let open_pos = open_pos?;
 
 	// Find closing delimiter (search forward from opening)
-	let mut close_pos = None;
+	let mut close_pos: Option<CharIdx> = None;
 	let mut depth = 0i32;
-	let mut search_pos = open_pos + 1;
+	let mut search_pos: CharIdx = open_pos + 1;
 
 	while search_pos < len {
 		let c = text.char(search_pos);

@@ -3,31 +3,6 @@
 //! This module provides zero-cost registration using `linkme`.
 //! Extensions are collected at link-time into static slices, requiring no
 //! runtime initialization.
-//!
-//! # Extension Types
-//!
-//! - [`CommandDef`]: Named commands that can be executed (`:write`, `:quit`)
-//! - [`MotionDef`]: Movement operations that modify selections
-//! - [`TextObjectDef`]: Text object selectors (word, paragraph, quotes)
-//! - [`FileTypeDef`]: File type detection and configuration
-//! - [`HookDef`]: Event hooks for editor lifecycle events
-//!
-//! # Registration
-//!
-//! Use `#[distributed_slice(SLICE_NAME)]` to register extensions:
-//!
-//! ```ignore
-//! use tome_core::ext::{CommandDef, COMMANDS};
-//! use linkme::distributed_slice;
-//!
-//! #[distributed_slice(COMMANDS)]
-//! static CMD_SAVE: CommandDef = CommandDef {
-//!     name: "write",
-//!     aliases: &["w"],
-//!     description: "Save buffer to file",
-//!     handler: |ctx| { /* ... */ Ok(()) },
-//! };
-//! ```
 
 #[cfg(feature = "host")]
 mod actions;
@@ -94,7 +69,7 @@ pub use statusline::{
 };
 
 #[cfg(feature = "host")]
-use crate::range::Range;
+use crate::range::{CharIdx, Range};
 
 /// Result type for command execution.
 #[cfg(feature = "host")]
@@ -137,8 +112,6 @@ pub enum CommandOutcome {
 }
 
 /// Operations that editors must support.
-///
-/// This trait is now composed of the fine-grained capability traits.
 #[cfg(feature = "host")]
 pub trait EditorOps:
 	CursorAccess + SelectionAccess + TextAccess + ModeAccess + MessageAccess
@@ -185,10 +158,6 @@ pub trait EditorOps:
 }
 
 /// Context passed to command handlers.
-///
-/// This provides access to editor state through the `EditorOps` trait,
-/// allowing commands to perform real operations without depending on
-/// the terminal layer.
 #[cfg(feature = "host")]
 pub struct CommandContext<'a> {
 	/// Editor operations.
@@ -219,12 +188,24 @@ impl<'a> CommandContext<'a> {
 	pub fn error(&mut self, msg: &str) {
 		self.editor.show_error(msg);
 	}
+
+	/// Try to retrieve typed user data from the command definition.
+	pub fn require_user_data<T: std::any::Any + Sync>(&self) -> Result<&'static T, CommandError> {
+		self.user_data
+			.and_then(|d| {
+				let any: &dyn std::any::Any = d;
+				any.downcast_ref::<T>()
+			})
+			.ok_or_else(|| {
+				CommandError::Other(format!(
+					"Missing or invalid user data for command (expected {})",
+					std::any::type_name::<T>()
+				))
+			})
+	}
 }
 
 /// A named command that can be executed via command mode (`:name`).
-///
-/// Commands are the primary way to add functionality to Tome.
-/// They can be invoked from the command line or bound to keys.
 #[cfg(feature = "host")]
 #[derive(Clone, Copy)]
 pub struct CommandDef {
@@ -257,9 +238,6 @@ impl std::fmt::Debug for CommandDef {
 pub static COMMANDS: [CommandDef];
 
 /// A motion that modifies the selection.
-///
-/// Motions are the building blocks of movement in Tome. Each motion
-/// takes the current document and selection, and returns a new selection.
 #[cfg(feature = "host")]
 #[derive(Clone, Copy)]
 pub struct MotionDef {
@@ -268,14 +246,6 @@ pub struct MotionDef {
 	/// Short description.
 	pub description: &'static str,
 	/// The motion function.
-	///
-	/// Parameters:
-	/// - `text`: Document slice
-	/// - `range`: Current range to move from
-	/// - `count`: Repeat count (1 if not specified)
-	/// - `extend`: If true, extend selection instead of moving
-	///
-	/// Returns the new range after applying the motion.
 	pub handler: fn(text: RopeSlice, range: Range, count: usize, extend: bool) -> Range,
 }
 
@@ -295,9 +265,6 @@ impl std::fmt::Debug for MotionDef {
 pub static MOTIONS: [MotionDef];
 
 /// A text object that can be selected.
-///
-/// Text objects define regions of text (word, sentence, quoted string, etc.)
-/// that can be selected with `inner` or `around` variants.
 #[cfg(feature = "host")]
 #[derive(Clone, Copy)]
 pub struct TextObjectDef {
@@ -305,20 +272,14 @@ pub struct TextObjectDef {
 	pub name: &'static str,
 	/// Character that triggers this object (e.g., 'w' for word).
 	pub trigger: char,
-	/// Alternative trigger characters (e.g., '(' and ')' both select parentheses).
+	/// Alternative trigger characters.
 	pub alt_triggers: &'static [char],
 	/// Short description.
 	pub description: &'static str,
 	/// Select the inner content (without delimiters).
-	///
-	/// Parameters:
-	/// - `text`: Document slice
-	/// - `pos`: Cursor position
-	///
-	/// Returns the range of the inner content, or None if not applicable.
-	pub inner: fn(text: RopeSlice, pos: usize) -> Option<Range>,
+	pub inner: fn(text: RopeSlice, pos: CharIdx) -> Option<Range>,
 	/// Select around the object (including delimiters).
-	pub around: fn(text: RopeSlice, pos: usize) -> Option<Range>,
+	pub around: fn(text: RopeSlice, pos: CharIdx) -> Option<Range>,
 }
 
 #[cfg(feature = "host")]
@@ -392,20 +353,6 @@ pub fn find_text_object(trigger: char) -> Option<&'static TextObjectDef> {
 }
 
 /// Detect file type from filename.
-///
-/// Uses a two-step detection process:
-/// 1. First checks for exact filename matches (e.g., "Makefile", "Cargo.toml")
-/// 2. Falls back to extension-based detection (e.g., ".rs", ".py")
-///
-/// # Examples
-/// ```ignore
-/// // Exact filename match
-/// detect_file_type("Makefile") // Returns makefile type
-///
-/// // Extension-based match
-/// detect_file_type("/path/to/main.rs") // Returns rust type
-/// detect_file_type("script.py") // Returns python type
-/// ```
 #[cfg(feature = "host")]
 pub fn detect_file_type(filename: &str) -> Option<&'static FileTypeDef> {
 	let basename = filename.rsplit('/').next().unwrap_or(filename);
@@ -443,11 +390,11 @@ mod tests {
 	#[test]
 	fn test_distributed_slices_accessible() {
 		// Verify builtin registrations are present
-		assert!(TEXT_OBJECTS.len() >= 13); // word, WORD, parens, braces, brackets, angle, quotes x3, line, paragraph, argument, number
-		assert!(FILE_TYPES.len() >= 25); // rust, python, js, ts, c, cpp, go, java, data formats, web, docs, shell, config
-		assert!(MOTIONS.len() >= 10); // basic movement, word, line, document
-		assert!(COMMANDS.len() >= 5); // quit, write, edit, buffer commands
-		assert!(OPTIONS.len() >= 15); // indent, display, scroll, search, file, behavior options
+		assert!(TEXT_OBJECTS.len() >= 13);
+		assert!(FILE_TYPES.len() >= 25);
+		assert!(MOTIONS.len() >= 10);
+		assert!(COMMANDS.len() >= 5);
+		assert!(OPTIONS.len() >= 15);
 	}
 
 	#[test]

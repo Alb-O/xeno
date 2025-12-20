@@ -15,7 +15,7 @@ impl Editor {
 			path: self
 				.path
 				.as_ref()
-				.map(|p| p.to_str().unwrap_or("[invalid path]")),
+				.map(|p: &std::path::PathBuf| p.to_str().unwrap_or("[invalid path]")),
 			modified: self.modified,
 			line: self.cursor_line() + 1,
 			col: self.cursor_col() + 1,

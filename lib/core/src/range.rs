@@ -20,26 +20,26 @@ pub struct Range {
 }
 
 impl Range {
-	pub fn new(anchor: usize, head: usize) -> Self {
+	pub fn new(anchor: CharIdx, head: CharIdx) -> Self {
 		Self { anchor, head }
 	}
 
-	pub fn point(pos: usize) -> Self {
+	pub fn point(pos: CharIdx) -> Self {
 		Self::new(pos, pos)
 	}
 
 	#[inline]
-	pub fn min(&self) -> usize {
+	pub fn min(&self) -> CharIdx {
 		std::cmp::min(self.anchor, self.head)
 	}
 
 	#[inline]
-	pub fn max(&self) -> usize {
+	pub fn max(&self) -> CharIdx {
 		std::cmp::max(self.anchor, self.head)
 	}
 
 	#[inline]
-	pub fn len(&self) -> usize {
+	pub fn len(&self) -> CharIdx {
 		self.max() - self.min()
 	}
 
@@ -72,7 +72,7 @@ impl Range {
 		}
 	}
 
-	pub fn map(self, mut f: impl FnMut(usize) -> usize) -> Self {
+	pub fn map(self, mut f: impl FnMut(CharIdx) -> CharIdx) -> Self {
 		Self {
 			anchor: f(self.anchor),
 			head: f(self.head),
@@ -99,7 +99,7 @@ impl Range {
 		Self { anchor, head }
 	}
 
-	pub fn contains(&self, pos: usize) -> bool {
+	pub fn contains(&self, pos: CharIdx) -> bool {
 		pos >= self.min() && pos < self.max()
 	}
 

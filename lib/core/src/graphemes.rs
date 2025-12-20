@@ -1,45 +1,46 @@
+use crate::range::CharIdx;
 use ropey::RopeSlice;
 use unicode_segmentation::UnicodeSegmentation;
 
-pub fn is_grapheme_boundary(text: RopeSlice, char_idx: usize) -> bool {
+pub fn is_grapheme_boundary(text: RopeSlice, char_idx: CharIdx) -> bool {
 	if char_idx == 0 || char_idx == text.len_chars() {
 		return true;
 	}
 
-	let start = char_idx.saturating_sub(1);
-	let end = (char_idx + 1).min(text.len_chars());
+	let start: CharIdx = char_idx.saturating_sub(1);
+	let end: CharIdx = (char_idx + 1).min(text.len_chars());
 	let chunk: String = text.slice(start..end).into();
 
 	let graphemes: Vec<&str> = chunk.graphemes(true).collect();
 	graphemes.len() > 1
 }
 
-pub fn next_grapheme_boundary(text: RopeSlice, char_idx: usize) -> usize {
+pub fn next_grapheme_boundary(text: RopeSlice, char_idx: CharIdx) -> CharIdx {
 	let len = text.len_chars();
 	if char_idx >= len {
 		return len;
 	}
 
-	let mut idx = char_idx + 1;
+	let mut idx: CharIdx = char_idx + 1;
 	while idx < len && !is_grapheme_boundary(text, idx) {
 		idx += 1;
 	}
 	idx
 }
 
-pub fn prev_grapheme_boundary(text: RopeSlice, char_idx: usize) -> usize {
+pub fn prev_grapheme_boundary(text: RopeSlice, char_idx: CharIdx) -> CharIdx {
 	if char_idx == 0 {
 		return 0;
 	}
 
-	let mut idx = char_idx - 1;
+	let mut idx: CharIdx = char_idx - 1;
 	while idx > 0 && !is_grapheme_boundary(text, idx) {
 		idx -= 1;
 	}
 	idx
 }
 
-pub fn ensure_grapheme_boundary_next(text: RopeSlice, char_idx: usize) -> usize {
+pub fn ensure_grapheme_boundary_next(text: RopeSlice, char_idx: CharIdx) -> CharIdx {
 	if is_grapheme_boundary(text, char_idx) {
 		char_idx
 	} else {
@@ -47,7 +48,7 @@ pub fn ensure_grapheme_boundary_next(text: RopeSlice, char_idx: usize) -> usize 
 	}
 }
 
-pub fn ensure_grapheme_boundary_prev(text: RopeSlice, char_idx: usize) -> usize {
+pub fn ensure_grapheme_boundary_prev(text: RopeSlice, char_idx: CharIdx) -> CharIdx {
 	if is_grapheme_boundary(text, char_idx) {
 		char_idx
 	} else {

@@ -3,7 +3,7 @@
 use ropey::RopeSlice;
 
 use super::{WordType, is_word_char, make_range_select};
-use crate::range::Range;
+use crate::range::{CharIdx, Range};
 
 /// Move to next word start (Kakoune's `w` command).
 /// Selects the word and following whitespace on the right.
@@ -19,7 +19,7 @@ pub fn move_to_next_word_start(
 		return range;
 	}
 
-	let mut pos = range.head;
+	let mut pos: CharIdx = range.head;
 
 	for _ in 0..count {
 		if pos >= len {
@@ -71,7 +71,7 @@ pub fn move_to_next_word_end(
 		return range;
 	}
 
-	let mut pos = range.head;
+	let mut pos: CharIdx = range.head;
 
 	for _ in 0..count {
 		// Move at least one position
@@ -125,7 +125,7 @@ pub fn move_to_prev_word_start(
 		return range;
 	}
 
-	let mut pos = range.head;
+	let mut pos: CharIdx = range.head;
 
 	for _ in 0..count {
 		// Move at least one position back

@@ -1,11 +1,18 @@
+use crate::range::CharIdx;
 use crate::{Range, Rope, RopeSlice, Selection};
 
 pub type Tendril = String;
 
 pub struct Change {
-	pub start: usize,
-	pub end: usize,
+	pub start: CharIdx,
+	pub end: CharIdx,
 	pub replacement: Option<Tendril>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Bias {
+	Left,
+	Right,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -151,7 +158,7 @@ impl ChangeSet {
 		result
 	}
 
-	pub fn map_pos(&self, pos: usize, bias_right: bool) -> usize {
+	pub fn map_pos(&self, pos: CharIdx, bias: Bias) -> CharIdx {
 		let mut old_pos = 0;
 		let mut new_pos = 0;
 
@@ -176,7 +183,7 @@ impl ChangeSet {
 				}
 				Operation::Insert(text) => {
 					let len = text.chars().count();
-					if old_pos == pos && !bias_right {
+					if old_pos == pos && bias == Bias::Left {
 						// Position is exactly at insert point, stay before
 					} else {
 						new_pos += len;
@@ -307,7 +314,7 @@ impl Transaction {
 		I: IntoIterator<Item = Change>,
 	{
 		let mut changeset = ChangeSet::new(doc);
-		let mut last = 0;
+		let mut last: CharIdx = 0;
 
 		for change in changes {
 			let from = change.start;
@@ -394,8 +401,8 @@ impl Transaction {
 	pub fn map_selection(&self, selection: &Selection) -> Selection {
 		selection.transform(|range| {
 			Range::new(
-				self.changes.map_pos(range.anchor, false),
-				self.changes.map_pos(range.head, true),
+				self.changes.map_pos(range.anchor, Bias::Left),
+				self.changes.map_pos(range.head, Bias::Right),
 			)
 		})
 	}

@@ -66,9 +66,6 @@ const HOST_PANEL_API_V1: TomeHostPanelApiV1 = TomeHostPanelApiV1 {
 };
 
 /// Stable host vtable storage for plugin lifetime.
-///
-/// Plugins may keep the host pointer around after init. This must not point
-/// at stack locals (use-after-return).
 pub(crate) static HOST_V2: TomeHostV2 = TomeHostV2 {
 	struct_size: std::mem::size_of::<TomeHostV2>(),
 	abi_version: TOME_C_ABI_VERSION_V2,
@@ -100,13 +97,12 @@ pub struct LoadedPlugin {
 impl Drop for LoadedPlugin {
 	fn drop(&mut self) {
 		if let Some(shutdown) = self.guest.shutdown {
-			ACTIVE_MANAGER.with(|mgr_ctx| {
-				ACTIVE_EDITOR.with(|ed_ctx| {
+			ACTIVE_MANAGER.with(|mgr_ctx: &RefCell<Option<*mut PluginManager>>| {
+				ACTIVE_EDITOR.with(|ed_ctx: &RefCell<Option<*mut Editor>>| {
 					if let (Some(mgr_ptr), Some(ed_ptr)) = (*mgr_ctx.borrow(), *ed_ctx.borrow()) {
 						let _guard = unsafe { PluginContextGuard::new(mgr_ptr, ed_ptr, &self.id) };
 						shutdown();
 					} else {
-						// Fallback if context is missing - but we should ensure it's set.
 						shutdown();
 					}
 				})
@@ -210,7 +206,6 @@ impl PluginManager {
 				});
 			}
 
-			// Try dev_library_path first if it exists
 			if let Some(dev_path) = &entry.manifest.dev_library_path {
 				let p = PathBuf::from(dev_path);
 				if p.is_absolute() {
@@ -356,15 +351,9 @@ impl PluginManager {
 		self.load_config();
 
 		if !self.config.plugins.autoload {
-			if !self.config.plugins.enabled.is_empty() {
-				eprintln!(
-					"Tome plugin autoloading is disabled (plugins.autoload = false in config.toml)."
-				);
-			}
 			return;
 		}
 
-		// Update status for disabled plugins
 		for (id, entry) in &mut self.entries {
 			if !self.config.plugins.enabled.contains(id) {
 				entry.status = PluginStatus::Disabled;
@@ -412,7 +401,6 @@ impl PluginManager {
 				}
 			}
 
-			// Also register command aliases if provided
 			if !spec.aliases.ptr.is_null() && spec.aliases.len > 0 {
 				let aliases =
 					unsafe { std::slice::from_raw_parts(spec.aliases.ptr, spec.aliases.len) };
@@ -448,8 +436,8 @@ pub struct PluginContextGuard {
 
 impl PluginContextGuard {
 	pub unsafe fn new(mgr_ptr: *mut PluginManager, ed_ptr: *mut Editor, plugin_id: &str) -> Self {
-		let old_mgr = ACTIVE_MANAGER.with(|ctx| ctx.replace(Some(mgr_ptr)));
-		let old_ed = ACTIVE_EDITOR.with(|ctx| ctx.replace(Some(ed_ptr)));
+		let old_mgr = ACTIVE_MANAGER.with(|ctx: &RefCell<Option<*mut PluginManager>>| ctx.replace(Some(mgr_ptr)));
+		let old_ed = ACTIVE_EDITOR.with(|ctx: &RefCell<Option<*mut Editor>>| ctx.replace(Some(ed_ptr)));
 		let (old_plugin_id, mgr_ptr_ref) =
 			unsafe { ((*mgr_ptr).current_plugin_id.clone(), &mut *mgr_ptr) };
 		mgr_ptr_ref.current_plugin_id = Some(plugin_id.to_string());
@@ -464,8 +452,8 @@ impl PluginContextGuard {
 
 impl Drop for PluginContextGuard {
 	fn drop(&mut self) {
-		ACTIVE_MANAGER.with(|ctx| ctx.replace(self.old_mgr));
-		ACTIVE_EDITOR.with(|ctx| ctx.replace(self.old_ed));
+		ACTIVE_MANAGER.with(|ctx: &RefCell<Option<*mut PluginManager>>| ctx.replace(self.old_mgr));
+		ACTIVE_EDITOR.with(|ctx: &RefCell<Option<*mut Editor>>| ctx.replace(self.old_ed));
 		unsafe {
 			(*self.mgr_ptr).current_plugin_id = self.old_plugin_id.take();
 		}
@@ -492,12 +480,10 @@ pub fn tome_owned_to_string(tos: TomeOwnedStr) -> Option<String> {
 	}
 }
 
-// Host callbacks exported to plugins
-
 pub(crate) extern "C" fn host_log(msg: TomeStr) {
 	let s = tome_str_to_str(&msg).to_string();
-	ACTIVE_MANAGER.with(|mgr_ctx| {
-		ACTIVE_EDITOR.with(|ed_ctx| {
+	ACTIVE_MANAGER.with(|mgr_ctx: &RefCell<Option<*mut PluginManager>>| {
+		ACTIVE_EDITOR.with(|ed_ctx: &RefCell<Option<*mut Editor>>| {
 			if let (Some(mgr_ptr), Some(ed_ptr)) = (*mgr_ctx.borrow(), *ed_ctx.borrow()) {
 				let mgr = unsafe { &mut *mgr_ptr };
 				let _ed = unsafe { &mut *ed_ptr };
@@ -511,7 +497,7 @@ pub(crate) extern "C" fn host_log(msg: TomeStr) {
 }
 
 pub(crate) extern "C" fn host_panel_create(kind: TomePanelKind, title: TomeStr) -> TomePanelId {
-	ACTIVE_MANAGER.with(|ctx| {
+	ACTIVE_MANAGER.with(|ctx: &RefCell<Option<*mut PluginManager>>| {
 		if let Some(mgr_ptr) = *ctx.borrow() {
 			let mgr = unsafe { &mut *mgr_ptr };
 			let id = mgr.next_panel_id;
@@ -535,7 +521,7 @@ pub(crate) extern "C" fn host_panel_create(kind: TomePanelKind, title: TomeStr) 
 }
 
 pub(crate) extern "C" fn host_panel_set_open(id: TomePanelId, open: TomeBool) {
-	ACTIVE_MANAGER.with(|ctx| {
+	ACTIVE_MANAGER.with(|ctx: &RefCell<Option<*mut PluginManager>>| {
 		if let Some(mgr_ptr) = *ctx.borrow() {
 			let mgr = unsafe { &mut *mgr_ptr };
 			if mgr.panel_owners.get(&id) == mgr.current_plugin_id.as_ref()
@@ -555,7 +541,7 @@ pub(crate) extern "C" fn host_panel_set_open(id: TomePanelId, open: TomeBool) {
 }
 
 pub(crate) extern "C" fn host_panel_set_focused(id: TomePanelId, focused: TomeBool) {
-	ACTIVE_MANAGER.with(|ctx| {
+	ACTIVE_MANAGER.with(|ctx: &RefCell<Option<*mut PluginManager>>| {
 		if let Some(mgr_ptr) = *ctx.borrow() {
 			let mgr = unsafe { &mut *mgr_ptr };
 			if mgr.panel_owners.get(&id) == mgr.current_plugin_id.as_ref()
@@ -579,7 +565,7 @@ pub(crate) extern "C" fn host_panel_append_transcript(
 	role: TomeChatRole,
 	text: TomeStr,
 ) {
-	ACTIVE_MANAGER.with(|ctx| {
+	ACTIVE_MANAGER.with(|ctx: &RefCell<Option<*mut PluginManager>>| {
 		if let Some(mgr_ptr) = *ctx.borrow() {
 			let mgr = unsafe { &mut *mgr_ptr };
 			if mgr.panel_owners.get(&id) == mgr.current_plugin_id.as_ref()
@@ -595,7 +581,7 @@ pub(crate) extern "C" fn host_panel_append_transcript(
 }
 
 pub(crate) extern "C" fn host_request_redraw() {
-	ACTIVE_EDITOR.with(|ctx| {
+	ACTIVE_EDITOR.with(|ctx: &RefCell<Option<*mut Editor>>| {
 		if let Some(ed_ptr) = *ctx.borrow() {
 			let ed = unsafe { &mut *ed_ptr };
 			ed.request_redraw();
@@ -605,7 +591,7 @@ pub(crate) extern "C" fn host_request_redraw() {
 
 pub(crate) extern "C" fn host_show_message(kind: TomeMessageKind, msg: TomeStr) {
 	let s = tome_str_to_str(&msg);
-	ACTIVE_EDITOR.with(|ctx| {
+	ACTIVE_EDITOR.with(|ctx: &RefCell<Option<*mut Editor>>| {
 		if let Some(ed_ptr) = *ctx.borrow() {
 			let ed = unsafe { &mut *ed_ptr };
 			match kind {
@@ -618,7 +604,7 @@ pub(crate) extern "C" fn host_show_message(kind: TomeMessageKind, msg: TomeStr) 
 
 pub(crate) extern "C" fn host_insert_text(text: TomeStr) {
 	let s = tome_str_to_str(&text);
-	ACTIVE_EDITOR.with(|ctx| {
+	ACTIVE_EDITOR.with(|ctx: &RefCell<Option<*mut Editor>>| {
 		if let Some(ed_ptr) = *ctx.borrow() {
 			let ed = unsafe { &mut *ed_ptr };
 			ed.insert_text(s);
@@ -627,7 +613,7 @@ pub(crate) extern "C" fn host_insert_text(text: TomeStr) {
 }
 
 pub(crate) extern "C" fn host_get_current_path(out: *mut TomeOwnedStr) -> TomeStatus {
-	ACTIVE_EDITOR.with(|ctx| {
+	ACTIVE_EDITOR.with(|ctx: &RefCell<Option<*mut Editor>>| {
 		if let Some(ed_ptr) = *ctx.borrow() {
 			let ed = unsafe { &*ed_ptr };
 
@@ -665,13 +651,12 @@ fn string_to_tome_owned(s: String) -> TomeOwnedStr {
 }
 
 pub(crate) extern "C" fn host_fs_read_text(path: TomeStr, out: *mut TomeOwnedStr) -> TomeStatus {
-	ACTIVE_EDITOR.with(|ctx| {
+	ACTIVE_EDITOR.with(|ctx: &RefCell<Option<*mut Editor>>| {
 		if let Some(ed_ptr) = *ctx.borrow() {
 			let ed = unsafe { &mut *ed_ptr };
 			let path_str = tome_str_to_str(&path);
 			let path_buf = PathBuf::from(path_str);
 
-			// Simplified check: allow if within workspace root (if we had one) or same dir as current file.
 			let allowed = if let Some(current_path) = ed.path.as_ref() {
 				if let Some(parent) = current_path.parent() {
 					path_buf.starts_with(parent)
@@ -683,7 +668,6 @@ pub(crate) extern "C" fn host_fs_read_text(path: TomeStr, out: *mut TomeOwnedStr
 			};
 
 			if !allowed {
-				// In the future, this should trigger the RequestPermission flow if not headlessly auto-allowed.
 				ed.show_error(format!(
 					"Plugin tried to read restricted path: {}",
 					path_str
@@ -705,14 +689,13 @@ pub(crate) extern "C" fn host_fs_read_text(path: TomeStr, out: *mut TomeOwnedStr
 }
 
 pub(crate) extern "C" fn host_fs_write_text(path: TomeStr, content: TomeStr) -> TomeStatus {
-	ACTIVE_EDITOR.with(|ctx| {
+	ACTIVE_EDITOR.with(|ctx: &RefCell<Option<*mut Editor>>| {
 		if let Some(ed_ptr) = *ctx.borrow() {
 			let ed = unsafe { &mut *ed_ptr };
 			let path_str = tome_str_to_str(&path);
 			let path_buf = PathBuf::from(path_str);
 			let content_str = tome_str_to_str(&content);
 
-			// Check if file path is under the current document's parent directory
 			let allowed = if let Some(current_path) = ed.path.as_ref() {
 				if let Some(parent) = current_path.parent() {
 					path_buf.starts_with(parent)
@@ -742,7 +725,7 @@ pub(crate) extern "C" fn host_fs_write_text(path: TomeStr, content: TomeStr) -> 
 }
 
 pub(crate) extern "C" fn host_register_command(spec: TomeCommandSpecV1) {
-	ACTIVE_MANAGER.with(|ctx| {
+	ACTIVE_MANAGER.with(|ctx: &RefCell<Option<*mut PluginManager>>| {
 		if let Some(mgr_ptr) = *ctx.borrow() {
 			let mgr = unsafe { &mut *mgr_ptr };
 			mgr.register_command(spec);

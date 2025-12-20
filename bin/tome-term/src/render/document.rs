@@ -6,6 +6,7 @@ use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Clear, Paragraph};
 use tome_core::Mode;
+use tome_core::range::CharIdx;
 
 use super::terminal::ThemedVt100Terminal;
 use super::types::{RenderResult, WrapSegment};
@@ -147,12 +148,12 @@ impl Editor {
 
 		self.text_width = text_width;
 
-		let cursor_pos = self.cursor;
+		let cursor_pos: CharIdx = self.cursor;
 		let cursor_line = self.cursor_line();
-		let cursor_line_start = self.doc.line_to_char(cursor_line);
+		let cursor_line_start: CharIdx = self.doc.line_to_char(cursor_line);
 		let cursor_col = cursor_pos.saturating_sub(cursor_line_start);
 
-		let cursor_line_end = if cursor_line + 1 < total_lines {
+		let cursor_line_end: CharIdx = if cursor_line + 1 < total_lines {
 			self.doc.line_to_char(cursor_line + 1)
 		} else {
 			self.doc.len_chars()
@@ -175,8 +176,8 @@ impl Editor {
 		let mut start_segment = self.scroll_segment;
 
 		while line_idx < total_lines && visual_row < viewport_height {
-			let line_start = self.doc.line_to_char(line_idx);
-			let line_end = if line_idx + 1 < total_lines {
+			let line_start: CharIdx = self.doc.line_to_char(line_idx);
+			let line_end: CharIdx = if line_idx + 1 < total_lines {
 				self.doc.line_to_char(line_idx + 1)
 			} else {
 				self.doc.len_chars()
@@ -210,8 +211,8 @@ impl Editor {
 
 	fn scroll_down_one_visual_row(&mut self, text_width: usize) {
 		let total_lines = self.doc.len_lines();
-		let line_start = self.doc.line_to_char(self.scroll_line);
-		let line_end = if self.scroll_line + 1 < total_lines {
+		let line_start: CharIdx = self.doc.line_to_char(self.scroll_line);
+		let line_end: CharIdx = if self.scroll_line + 1 < total_lines {
 			self.doc.line_to_char(self.scroll_line + 1)
 		} else {
 			self.doc.len_chars()
@@ -239,16 +240,15 @@ impl Editor {
 
 		let cursor = self.cursor;
 		let ranges = self.selection.ranges();
-		let _primary_index = self.selection.primary_index();
 		let primary_cursor = cursor;
-		let cursor_heads: HashSet<usize> = ranges.iter().map(|r| r.head).collect();
+		let cursor_heads: HashSet<CharIdx> = ranges.iter().map(|r| r.head).collect();
 		let insert_mode = matches!(self.mode(), Mode::Insert);
 		let now_ms = SystemTime::now()
 			.duration_since(UNIX_EPOCH)
 			.unwrap_or_default()
 			.as_millis();
 		let blink_on = if insert_mode {
-			(now_ms / 200).is_multiple_of(2)
+			(now_ms / 200) % 2 == 0
 		} else {
 			true
 		};
@@ -272,8 +272,8 @@ impl Editor {
 		let viewport_height = area.height as usize;
 
 		while output_lines.len() < viewport_height && current_line_idx < total_lines {
-			let line_start = self.doc.line_to_char(current_line_idx);
-			let line_end = if current_line_idx + 1 < total_lines {
+			let line_start: CharIdx = self.doc.line_to_char(current_line_idx);
+			let line_end: CharIdx = if current_line_idx + 1 < total_lines {
 				self.doc.line_to_char(current_line_idx + 1)
 			} else {
 				self.doc.len_chars()
@@ -281,7 +281,7 @@ impl Editor {
 
 			let line_text: String = self.doc.slice(line_start..line_end).into();
 			let line_text = line_text.trim_end_matches('\n');
-			let line_content_end = line_start + line_text.chars().count();
+			let line_content_end: CharIdx = line_start + line_text.chars().count();
 
 			let wrapped_segments = self.wrap_line(line_text, text_width);
 			let num_segments = wrapped_segments.len().max(1);
@@ -316,13 +316,13 @@ impl Editor {
 				let seg_char_offset = segment.start_offset;
 				let seg_char_count = segment.text.chars().count();
 				for (i, ch) in segment.text.chars().enumerate() {
-					let doc_pos = line_start + seg_char_offset + i;
+					let doc_pos: CharIdx = line_start + seg_char_offset + i;
 
 					let is_cursor = cursor_heads.contains(&doc_pos);
 					let is_primary_cursor = doc_pos == primary_cursor;
 					let in_selection = ranges
 						.iter()
-						.any(|r| doc_pos >= r.min() && doc_pos < r.max());
+						.any(|r: &tome_core::range::Range| doc_pos >= r.min() && doc_pos < r.max());
 
 					let style = if is_cursor && use_block_cursor {
 						if blink_on {
@@ -357,7 +357,7 @@ impl Editor {
 
 				if is_last_segment {
 					let is_last_doc_line = current_line_idx + 1 >= total_lines;
-					let cursor_at_eol = cursor_heads.iter().any(|pos| {
+					let cursor_at_eol = cursor_heads.iter().any(|pos: &CharIdx| {
 						if is_last_doc_line {
 							*pos >= line_content_end && *pos <= line_end
 						} else {
@@ -399,7 +399,7 @@ impl Editor {
 				let mut spans = vec![Span::styled(line_num_str, gutter_style)];
 
 				let is_last_doc_line = current_line_idx + 1 >= total_lines;
-				let cursor_at_eol = cursor_heads.iter().any(|pos| {
+				let cursor_at_eol = cursor_heads.iter().any(|pos: &CharIdx| {
 					if is_last_doc_line {
 						*pos >= line_start && *pos <= line_end
 					} else {

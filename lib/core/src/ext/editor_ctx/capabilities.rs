@@ -4,12 +4,13 @@ use ropey::RopeSlice;
 
 use crate::Mode;
 use crate::ext::actions::EditAction;
+use crate::range::CharIdx;
 use crate::selection::Selection;
 
 /// Cursor position access.
 pub trait CursorAccess {
-	fn cursor(&self) -> usize;
-	fn set_cursor(&mut self, pos: usize);
+	fn cursor(&self) -> CharIdx;
+	fn set_cursor(&mut self, pos: CharIdx);
 }
 
 /// Selection access.

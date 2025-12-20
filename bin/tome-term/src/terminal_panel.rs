@@ -25,6 +25,9 @@ pub struct TerminalState {
 }
 
 impl TerminalState {
+	/// Returns a reference to the terminal screen.
+	///
+	/// Note: Currently returns vt100::Screen, which may change in future versions.
 	pub fn screen(&self) -> &tui_term::vt100::Screen {
 		self.parser.screen()
 	}
@@ -40,7 +43,7 @@ impl TerminalState {
 			})
 			.map_err(|e| TerminalError::Pty(e.to_string()))?;
 
-		// Use shell from env or default to sh/bash
+		// Use shell from env or default to sh
 		let shell = std::env::var("SHELL").unwrap_or_else(|_| "sh".to_string());
 		let cmd = CommandBuilder::new(shell);
 
@@ -90,9 +93,6 @@ impl TerminalState {
 				Ok(bytes) => {
 					// Hack: Check for DA1 query (Primary Device Attributes) from shell (e.g. fish)
 					// The query is \e[c or \e[0c.
-					// If detected, we send a response manually because vt100 parser doesn't handle responses.
-					// We look for the sequence in the incoming bytes.
-					// This is simple substring search, might miss fragmented sequences but covers most startup cases.
 					let da1_query = b"\x1b[c";
 					let da1_query_0 = b"\x1b[0c";
 

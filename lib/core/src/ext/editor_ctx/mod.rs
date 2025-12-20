@@ -1,15 +1,4 @@
 //! Editor context and capability traits for action result handling.
-//!
-//! This module provides a capability-based abstraction for editor operations.
-//! Instead of one monolithic trait, we define fine-grained capabilities that
-//! handlers can request access to.
-//!
-//! # Architecture
-//!
-//! - `EditorContext`: Central context passed to result handlers
-//! - Capability traits: `CursorAccess`, `SelectionAccess`, `MessageAccess`, etc.
-//! - `tome-term` implements these traits on its Editor struct
-//! - Handlers request only the capabilities they need
 
 mod capabilities;
 mod handlers;
@@ -19,13 +8,11 @@ pub use capabilities::*;
 pub use handlers::*;
 use ropey::RopeSlice;
 
+use crate::range::{CharIdx, Range};
 use crate::Mode;
 use crate::selection::Selection;
 
 /// Context passed to action result handlers.
-///
-/// Provides capability-based access to editor state. Handlers downcast
-/// to the specific capability traits they need.
 pub struct EditorContext<'a> {
 	/// The capability provider (typically Editor from tome-term).
 	inner: &'a mut dyn EditorCapabilities,
@@ -36,11 +23,11 @@ impl<'a> EditorContext<'a> {
 		Self { inner }
 	}
 
-	pub fn cursor(&self) -> usize {
+	pub fn cursor(&self) -> CharIdx {
 		self.inner.cursor()
 	}
 
-	pub fn set_cursor(&mut self, pos: usize) {
+	pub fn set_cursor(&mut self, pos: CharIdx) {
 		self.inner.set_cursor(pos);
 	}
 
@@ -68,14 +55,23 @@ impl<'a> EditorContext<'a> {
 		self.inner.show_error(msg);
 	}
 
+	/// Generic helper to require a specific capability.
+	pub fn require_capability<T: ?Sized + 'static>(
+		&mut self,
+		name: &str,
+		accessor: impl FnOnce(&mut dyn EditorCapabilities) -> Option<&mut T>,
+	) -> Result<&mut T, crate::ext::CommandError> {
+		accessor(self.inner).ok_or_else(|| {
+			crate::ext::CommandError::Failed(format!("{} capability not available", name))
+		})
+	}
+
 	pub fn search(&mut self) -> Option<&mut dyn SearchAccess> {
 		self.inner.search()
 	}
 
 	pub fn require_search(&mut self) -> Result<&mut dyn SearchAccess, crate::ext::CommandError> {
-		self.inner.search().ok_or_else(|| {
-			crate::ext::CommandError::Failed("Search capability not available".to_string())
-		})
+		self.require_capability("Search", |i| i.search())
 	}
 
 	pub fn undo(&mut self) -> Option<&mut dyn UndoAccess> {
@@ -83,9 +79,7 @@ impl<'a> EditorContext<'a> {
 	}
 
 	pub fn require_undo(&mut self) -> Result<&mut dyn UndoAccess, crate::ext::CommandError> {
-		self.inner.undo().ok_or_else(|| {
-			crate::ext::CommandError::Failed("Undo capability not available".to_string())
-		})
+		self.require_capability("Undo", |i| i.undo())
 	}
 
 	pub fn edit(&mut self) -> Option<&mut dyn EditAccess> {
@@ -93,9 +87,7 @@ impl<'a> EditorContext<'a> {
 	}
 
 	pub fn require_edit(&mut self) -> Result<&mut dyn EditAccess, crate::ext::CommandError> {
-		self.inner.edit().ok_or_else(|| {
-			crate::ext::CommandError::Failed("Edit capability not available".to_string())
-		})
+		self.require_capability("Edit", |i| i.edit())
 	}
 
 	pub fn selection_ops(&mut self) -> Option<&mut dyn SelectionOpsAccess> {
@@ -105,9 +97,7 @@ impl<'a> EditorContext<'a> {
 	pub fn require_selection_ops(
 		&mut self,
 	) -> Result<&mut dyn SelectionOpsAccess, crate::ext::CommandError> {
-		self.inner.selection_ops().ok_or_else(|| {
-			crate::ext::CommandError::Failed("Selection operations not available".to_string())
-		})
+		self.require_capability("Selection operations", |i| i.selection_ops())
 	}
 }
 

@@ -5,6 +5,7 @@ pub use regex::escape as escape_pattern;
 use ropey::RopeSlice;
 
 use crate::Range;
+use crate::range::CharIdx;
 
 /// Check if text matches a regex pattern.
 pub fn matches_pattern(text: &str, pattern: &str) -> Result<bool, regex::Error> {
@@ -31,7 +32,7 @@ pub fn find_all_matches(text: RopeSlice, pattern: &str) -> Result<Vec<Range>, re
 pub fn find_next(
 	text: RopeSlice,
 	pattern: &str,
-	pos: usize,
+	pos: CharIdx,
 ) -> Result<Option<Range>, regex::Error> {
 	let re = Regex::new(pattern)?;
 	let text_str: String = text.chars().collect();
@@ -61,7 +62,7 @@ pub fn find_next(
 pub fn find_prev(
 	text: RopeSlice,
 	pattern: &str,
-	pos: usize,
+	pos: CharIdx,
 ) -> Result<Option<Range>, regex::Error> {
 	let re = Regex::new(pattern)?;
 	let text_str: String = text.chars().collect();
@@ -93,11 +94,11 @@ pub fn find_prev(
 	Ok(last)
 }
 
-fn byte_to_char_offset(s: &str, byte_offset: usize) -> usize {
+fn byte_to_char_offset(s: &str, byte_offset: usize) -> CharIdx {
 	s[..byte_offset].chars().count()
 }
 
-fn char_to_byte_offset(s: &str, char_offset: usize) -> usize {
+fn char_to_byte_offset(s: &str, char_offset: CharIdx) -> usize {
 	s.char_indices()
 		.nth(char_offset)
 		.map(|(i, _)| i)
