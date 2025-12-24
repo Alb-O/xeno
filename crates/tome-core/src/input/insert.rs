@@ -1,7 +1,7 @@
-use crate::ext::{BindingMode, find_binding_resolved, resolve_action_id};
 use crate::input::InputHandler;
 use crate::input::types::{KeyResult, Mode};
 use crate::key::{Key, KeyCode, Modifiers, SpecialKey};
+use crate::registry::{BindingMode, find_binding_resolved, resolve_action_id};
 
 impl InputHandler {
 	pub(crate) fn handle_insert_key(&mut self, key: Key) -> KeyResult {

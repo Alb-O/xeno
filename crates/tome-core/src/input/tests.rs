@@ -1,8 +1,8 @@
 #[cfg(test)]
 mod tests {
-	use crate::ext::find_action_by_id;
 	use crate::input::{InputHandler, KeyResult};
 	use crate::key::{Key, KeyCode, Modifiers, SpecialKey};
+	use crate::registry::find_action_by_id;
 
 	/// Helper to extract action name and extend flag from KeyResult.
 	/// Handles both string-based Action and typed ActionById.

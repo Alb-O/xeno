@@ -1,5 +1,5 @@
-use crate::ext::{ActionId, PendingKind};
 use crate::key::ScrollDirection;
+use crate::registry::{ActionId, PendingKind};
 
 /// Editor mode.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]

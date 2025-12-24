@@ -1,6 +1,6 @@
-use crate::ext::{BindingMode, find_binding, find_binding_resolved};
 use crate::input::types::{KeyResult, Mode};
 use crate::key::{Key, KeyCode, MouseButton, MouseEvent, SpecialKey};
+use crate::registry::{BindingMode, find_binding, find_binding_resolved};
 
 /// Manages input state and key processing.
 #[derive(Debug, Clone)]
@@ -40,7 +40,7 @@ impl InputHandler {
 	}
 
 	pub fn mode_name(&self) -> &'static str {
-		use crate::ext::PendingKind;
+		use crate::registry::PendingKind;
 		match &self.mode {
 			Mode::Normal => "NORMAL",
 			Mode::Insert => "INSERT",

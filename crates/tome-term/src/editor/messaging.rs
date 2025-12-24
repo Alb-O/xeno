@@ -1,9 +1,9 @@
 use std::time::Duration;
 
-use tome_core::ext::notifications::{
+use tome_core::registry::notifications::{
 	Anchor, Animation, Level, Notification, SizeConstraint, Timing,
 };
-use tome_core::ext::{CommandSource, CompletionContext, CompletionSource};
+use tome_core::registry::{CommandSource, CompletionContext, CompletionSource};
 
 use crate::editor::Editor;
 use crate::editor::types::{Message, MessageKind};
@@ -74,7 +74,7 @@ impl Editor {
 	}
 
 	pub fn notify(&mut self, type_name: &str, text: impl Into<String>) {
-		use tome_core::ext::notifications::find_notification_type;
+		use tome_core::registry::notifications::find_notification_type;
 		let text = text.into();
 		let type_def = find_notification_type(type_name);
 

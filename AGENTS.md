@@ -4,20 +4,20 @@ Kakoune-inspired modal text editor in Rust.
 
 ## Design Goals
 
-- **Orthogonal**: No tight coupling between modules, no dependency tangling. Event emitter/reciever pattern, emitters don't know what recievers may exist. Heavily utilize `linkme`'s `distributed_slices` for hiearchically inferred compile-time imports.
-- **Suckless plugin system**: Plugins are written in rust, the same language as the editor's source code, though pluigins do not need to compile/depend directly on it. This is done through C ABI typed schema. The schema should not need to be manually written/kept in sync with the source code (auto-generated types & API).
-- **Heavy proc macro usage**: Keeps repetative data-oriented patterns lean and composable.
+- **Orthogonal**: No tight coupling between modules, no dependency tangling. Event emitter/receiver pattern; emitters don't know what receivers may exist. Heavily utilize `linkme`'s `distributed_slices` for hierarchically inferred compile-time imports.
+- **Suckless extension system**: Extensions are written in Rust, the same language as the editor's source code. A two-tier system (Core Builtins + Host Extensions) ensures the editor remains agnostic of specific features while allowing deep integration via TypeMaps.
+- **Heavy proc macro usage**: Keeps repetitive data-oriented patterns lean and composable.
 
 ## Workspace Crates
 
-- **tome-core**: Core editing primitives and extension system; `host` feature pulls in ropey/regex/termina/linkme for embedded use.
-- **tome-term**: Terminal UI (ratatui) and CLI binary `tome`; houses kitty GUI integration tests.
+- **tome-core**: Core editing primitives and registry system; `host` feature pulls in ropey/regex/termina/linkme for embedded use.
+- **tome-term**: Terminal UI (ratatui) and CLI binary `tome`; houses kitty GUI integration tests and host extensions.
 - **tome-macro**: Proc-macro utilities.
 - **ratatui**: Forked/hackable TUI library.
 
 All crates live in `crates/` directory.
 
-## Extension System (`crates/tome-core/src/ext/`)
+## Registry System (`crates/tome-core/src/registry/`)
 
 Uses `linkme` for compile-time registration. Drop a file in, it's automatically included.
 
@@ -32,6 +32,10 @@ Uses `linkme` for compile-time registration. Drop a file in, it's automatically 
 | `filetypes/`   | File type detection                                  |
 | `motions/`     | Cursor movement                                      |
 | `objects/`     | Text object selection                                |
+
+## Extension System (`crates/tome-term/extensions/`)
+
+Host-side extensions that manage stateful services (like ACP/AI) and UI panels. Discovered at build-time via `build.rs`.
 
 Running cargo: `nix develop -c cargo {build/test/etc}`. Kitty GUI tests: `KITTY_TESTS=1 DISPLAY=:0 nix develop -c cargo test -p tome-term --test kitty_multiselect -- --nocapture --test-threads=1`.
 

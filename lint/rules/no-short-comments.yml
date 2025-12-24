@@ -6,7 +6,7 @@ note: "Consider moving important context to function docstrings with examples, o
 files:
   - bin/**/*.rs
   - lib/**/*.rs
-  - plugins/**/*.rs
+  - extensions/**/*.rs
 ignores:
   - bin/tome-term/src/themes/**/*.rs
   - lib/ratatui/**/*.rs

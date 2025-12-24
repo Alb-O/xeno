@@ -12,10 +12,10 @@ use std::fs;
 use std::io::{self, Write};
 use std::path::PathBuf;
 
-use tome_core::ext::notifications::{Notifications, Overflow};
-use tome_core::ext::{HookContext, emit_hook};
 use tome_core::range::CharIdx;
-use tome_core::{InputHandler, Mode, Rope, Selection, Transaction, ext, movement};
+use tome_core::registry::notifications::{Notifications, Overflow};
+use tome_core::registry::{HookContext, emit_hook};
+use tome_core::{InputHandler, Mode, Rope, Selection, Transaction, movement, registry};
 pub use types::{HistoryEntry, Message, MessageKind, Registers};
 
 use crate::editor::extensions::{EXTENSIONS, ExtensionMap};
@@ -74,7 +74,7 @@ impl Editor {
 	pub fn from_content(content: String, path: Option<PathBuf>) -> Self {
 		let file_type = path
 			.as_ref()
-			.and_then(|p| ext::detect_file_type(p.to_str().unwrap_or("")))
+			.and_then(|p| registry::detect_file_type(p.to_str().unwrap_or("")))
 			.map(|ft| ft.name);
 
 		let doc = Rope::from(content.as_str());
@@ -193,11 +193,11 @@ impl Editor {
 		self.modified = true;
 	}
 
-	pub fn save(&mut self) -> Result<(), tome_core::ext::CommandError> {
+	pub fn save(&mut self) -> Result<(), tome_core::registry::CommandError> {
 		let path_owned = match &self.path {
 			Some(p) => p.clone(),
 			None => {
-				return Err(tome_core::ext::CommandError::InvalidArgument(
+				return Err(tome_core::registry::CommandError::InvalidArgument(
 					"No filename. Use :write <filename>".to_string(),
 				));
 			}
@@ -209,10 +209,10 @@ impl Editor {
 		});
 
 		let mut f = fs::File::create(&path_owned)
-			.map_err(|e| tome_core::ext::CommandError::Io(e.to_string()))?;
+			.map_err(|e| tome_core::registry::CommandError::Io(e.to_string()))?;
 		for chunk in self.doc.chunks() {
 			f.write_all(chunk.as_bytes())
-				.map_err(|e| tome_core::ext::CommandError::Io(e.to_string()))?;
+				.map_err(|e| tome_core::registry::CommandError::Io(e.to_string()))?;
 		}
 		self.modified = false;
 		self.show_message(format!("Saved {}", path_owned.display()));
@@ -222,7 +222,7 @@ impl Editor {
 		Ok(())
 	}
 
-	pub fn save_as(&mut self, path: PathBuf) -> Result<(), tome_core::ext::CommandError> {
+	pub fn save_as(&mut self, path: PathBuf) -> Result<(), tome_core::registry::CommandError> {
 		self.path = Some(path);
 		self.save()
 	}
@@ -308,7 +308,7 @@ impl Editor {
 		}
 	}
 
-	pub fn set_theme(&mut self, theme_name: &str) -> Result<(), tome_core::ext::CommandError> {
+	pub fn set_theme(&mut self, theme_name: &str) -> Result<(), tome_core::registry::CommandError> {
 		if let Some(theme) = crate::theme::get_theme(theme_name) {
 			self.theme = theme;
 			Ok(())
@@ -317,7 +317,7 @@ impl Editor {
 			if let Some(suggestion) = crate::theme::suggest_theme(theme_name) {
 				err.push_str(&format!(". Did you mean '{}'?", suggestion));
 			}
-			Err(tome_core::ext::CommandError::Failed(err))
+			Err(tome_core::registry::CommandError::Failed(err))
 		}
 	}
 }

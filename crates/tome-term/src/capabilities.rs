@@ -1,11 +1,11 @@
 //! Implementation of EditorCapabilities for Editor.
 
-use tome_core::ext::editor_ctx::{
+use tome_core::range::CharIdx;
+use tome_core::registry::editor_ctx::{
 	CursorAccess, EditAccess, EditorCapabilities, MessageAccess, ModeAccess, SearchAccess,
 	SelectionAccess, SelectionOpsAccess, TextAccess, UndoAccess,
 };
-use tome_core::ext::{EditAction, EditorOps};
-use tome_core::range::CharIdx;
+use tome_core::registry::{EditAction, EditorOps};
 use tome_core::{Mode, RopeSlice, Selection};
 
 use crate::editor::Editor;
@@ -39,11 +39,14 @@ impl EditorOps for Editor {
 		self.path.as_deref()
 	}
 
-	fn save(&mut self) -> Result<(), tome_core::ext::CommandError> {
+	fn save(&mut self) -> Result<(), tome_core::registry::CommandError> {
 		self.save()
 	}
 
-	fn save_as(&mut self, path: std::path::PathBuf) -> Result<(), tome_core::ext::CommandError> {
+	fn save_as(
+		&mut self,
+		path: std::path::PathBuf,
+	) -> Result<(), tome_core::registry::CommandError> {
 		self.save_as(path)
 	}
 
@@ -63,7 +66,7 @@ impl EditorOps for Editor {
 		self.modified
 	}
 
-	fn set_theme(&mut self, theme_name: &str) -> Result<(), tome_core::ext::CommandError> {
+	fn set_theme(&mut self, theme_name: &str) -> Result<(), tome_core::registry::CommandError> {
 		Editor::set_theme(self, theme_name)
 	}
 }

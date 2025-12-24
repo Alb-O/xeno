@@ -5,14 +5,14 @@ fn main() {
 	let out_dir = env::var("OUT_DIR").unwrap();
 	let dest_path = Path::new(&out_dir).join("extensions.rs");
 
-	// Extensions are located in src/extensions/
+	// Extensions are located in extensions/ (sibling to src/)
 	let manifest_dir = env::var("CARGO_MANIFEST_DIR").unwrap();
-	let ext_dir = Path::new(&manifest_dir).join("src").join("extensions");
+	let extension_dir = Path::new(&manifest_dir).join("extensions");
 
 	let mut extensions = Vec::new();
 
-	if ext_dir.exists() {
-		for entry in fs::read_dir(&ext_dir).unwrap() {
+	if extension_dir.exists() {
+		for entry in fs::read_dir(&extension_dir).unwrap() {
 			let entry = entry.unwrap();
 			let path = entry.path();
 
@@ -99,5 +99,5 @@ fn main() {
 	fs::write(&dest_path, content).unwrap();
 
 	// Re-run if the extensions directory changes (new folders added/removed)
-	println!("cargo:rerun-if-changed=src/extensions");
+	println!("cargo:rerun-if-changed=extensions");
 }

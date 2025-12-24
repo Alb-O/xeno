@@ -6,7 +6,7 @@ mod suite {
 	use ratatui::Terminal;
 	use ratatui::backend::TestBackend;
 	use termina::event::{KeyCode, KeyEvent, Modifiers};
-	use tome_core::ext::{CommandContext, CommandOutcome};
+	use tome_core::registry::{CommandContext, CommandOutcome};
 	use tome_core::{Mode, Selection};
 
 	use crate::editor::Editor;
@@ -74,7 +74,7 @@ mod suite {
 
 		let result_typo = (CMD_THEME.handler)(&mut ctx_typo);
 		assert!(result_typo.is_err());
-		if let Err(tome_core::ext::CommandError::Failed(msg)) = result_typo {
+		if let Err(tome_core::registry::CommandError::Failed(msg)) = result_typo {
 			assert!(msg.contains("Did you mean 'solarized_dark'?"));
 		} else {
 			panic!("Expected Failed error with suggestion");

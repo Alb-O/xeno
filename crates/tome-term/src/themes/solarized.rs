@@ -45,5 +45,5 @@ pub static SOLARIZED_DARK: Theme = Theme {
 		},
 	},
 	priority: 0,
-	source: tome_core::ext::ExtensionSource::Builtin,
+	source: tome_core::registry::RegistrySource::Builtin,
 };

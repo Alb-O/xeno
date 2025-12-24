@@ -60,7 +60,7 @@ pub struct Theme {
 	pub aliases: &'static [&'static str],
 	pub colors: ThemeColors,
 	pub priority: i16,
-	pub source: tome_core::ext::ExtensionSource,
+	pub source: tome_core::registry::RegistrySource,
 }
 
 #[distributed_slice]
@@ -108,7 +108,7 @@ pub static DEFAULT_THEME: Theme = Theme {
 		},
 	},
 	priority: 0,
-	source: tome_core::ext::ExtensionSource::Builtin,
+	source: tome_core::registry::RegistrySource::Builtin,
 };
 
 pub fn get_theme(name: &str) -> Option<&'static Theme> {
@@ -168,7 +168,7 @@ pub fn suggest_theme(name: &str) -> Option<&'static str> {
 	if best_score > 0.8 { best_match } else { None }
 }
 
-use tome_core::ext::{
+use tome_core::registry::{
 	COMMANDS, CommandDef, CommandError, CommandOutcome, OPTIONS, OptionDef, OptionScope,
 	OptionType, OptionValue,
 };
@@ -181,7 +181,7 @@ pub static OPT_THEME: OptionDef = OptionDef {
 	value_type: OptionType::String,
 	default: || OptionValue::String("solarized_dark".to_string()),
 	scope: OptionScope::Global,
-	source: tome_core::ext::ExtensionSource::Builtin,
+	source: tome_core::registry::RegistrySource::Builtin,
 };
 
 #[distributed_slice(COMMANDS)]
@@ -203,7 +203,7 @@ pub static CMD_THEME: CommandDef = CommandDef {
 	},
 	user_data: None,
 	priority: 0,
-	source: tome_core::ext::ExtensionSource::Builtin,
+	source: tome_core::registry::RegistrySource::Builtin,
 	required_caps: &[],
-	flags: tome_core::ext::flags::NONE,
+	flags: tome_core::registry::flags::NONE,
 };

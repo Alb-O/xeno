@@ -26,7 +26,7 @@ impl Editor {
 	}
 
 	pub(crate) fn handle_key_active(&mut self, key: termina::event::KeyEvent) -> bool {
-		use tome_core::ext::{HookContext, emit_hook, find_action_by_id};
+		use tome_core::registry::{HookContext, emit_hook, find_action_by_id};
 
 		self.message = None;
 

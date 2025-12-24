@@ -19,7 +19,7 @@ Right now keystrokes ultimately resolve to `KeyResult::Action { name: ... }` sty
 
 - you lose refactorability (rename breaks at runtime),
 - you can’t easily prove “all actions are registered”,
-- plugins/higher layers end up relying on ad-hoc strings too.
+- extensions/higher layers end up relying on ad-hoc strings too.
 
 **Concrete improvement:** introduce a typed action identifier:
 

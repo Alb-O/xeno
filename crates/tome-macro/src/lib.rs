@@ -8,7 +8,7 @@ pub fn tome_api(attr: TokenStream, item: TokenStream) -> TokenStream {
 	let trait_name = &input.ident;
 	let trait_items = &input.items;
 
-	// Parse context type from attribute (e.g. #[tome_api(PluginHostContext)])
+	// Parse context type from attribute (e.g. #[tome_api(ExtensionHostContext)])
 	let context_type = if attr.is_empty() {
 		// Default or error? We need the context type to be concrete.
 		// Let's assume the user MUST provide it if they want host functions.

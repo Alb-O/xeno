@@ -1,5 +1,5 @@
-use tome_core::ext::{EditAction, ScrollAmount, ScrollDir, VisualDirection};
 use tome_core::range::{Direction as MoveDir, Range};
+use tome_core::registry::{EditAction, ScrollAmount, ScrollDir, VisualDirection};
 use tome_core::{Mode, Selection, Transaction, movement};
 
 use super::Editor;

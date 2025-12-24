@@ -6,7 +6,7 @@ note: "Phrases like 'wait,' or 'hold on,' are noise and should be cleaned up. Be
 files:
   - bin/**/*.rs
   - lib/**/*.rs
-  - plugins/**/*.rs
+  - extensions/**/*.rs
 rule:
   any:
     - kind: line_comment

@@ -1,7 +1,7 @@
-use crate::ext::{ObjectSelectionKind, PendingKind, resolve_action_id};
 use crate::input::InputHandler;
 use crate::input::types::{KeyResult, Mode};
 use crate::key::{Key, KeyCode, SpecialKey};
+use crate::registry::{ObjectSelectionKind, PendingKind, resolve_action_id};
 
 impl InputHandler {
 	pub(crate) fn handle_pending_action_key(

@@ -1,4 +1,4 @@
-use tome_core::ext::CompletionItem;
+use tome_core::registry::CompletionItem;
 use tome_core::{Rope, Selection};
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]

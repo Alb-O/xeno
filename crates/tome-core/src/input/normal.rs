@@ -1,7 +1,7 @@
-use crate::ext::{BindingMode, find_binding_resolved};
 use crate::input::InputHandler;
 use crate::input::types::KeyResult;
 use crate::key::Key;
+use crate::registry::{BindingMode, find_binding_resolved};
 
 impl InputHandler {
 	pub(crate) fn handle_normal_key(&mut self, key: Key) -> KeyResult {
