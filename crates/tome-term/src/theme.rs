@@ -168,9 +168,10 @@ pub fn suggest_theme(name: &str) -> Option<&'static str> {
 	if best_score > 0.8 { best_match } else { None }
 }
 
+use futures::future::LocalBoxFuture;
 use tome_core::registry::{
-	COMMANDS, CommandDef, CommandError, CommandOutcome, OPTIONS, OptionDef, OptionScope,
-	OptionType, OptionValue,
+	COMMANDS, CommandContext, CommandDef, CommandError, CommandOutcome, OPTIONS, OptionDef,
+	OptionScope, OptionType, OptionValue,
 };
 
 #[distributed_slice(OPTIONS)]
@@ -184,23 +185,29 @@ pub static OPT_THEME: OptionDef = OptionDef {
 	source: tome_core::registry::RegistrySource::Builtin,
 };
 
-#[distributed_slice(COMMANDS)]
-pub static CMD_THEME: CommandDef = CommandDef {
-	id: "theme",
-	name: "theme",
-	aliases: &["colorscheme"],
-	description: "Set the editor theme",
-	handler: |ctx| {
+fn cmd_theme<'a>(
+	ctx: &'a mut CommandContext<'a>,
+) -> LocalBoxFuture<'a, Result<CommandOutcome, CommandError>> {
+	Box::pin(async move {
 		let theme_name = ctx
 			.args
 			.first()
 			.ok_or(CommandError::MissingArgument("theme name"))?;
 		ctx.editor
 			.set_theme(theme_name)
-			.map_err(|e| CommandError::Failed(e.to_string()))?;
+			.map_err(|e: CommandError| CommandError::Failed(e.to_string()))?;
 		ctx.message(&format!("Theme set to {}", theme_name));
 		Ok(CommandOutcome::Ok)
-	},
+	})
+}
+
+#[distributed_slice(COMMANDS)]
+pub static CMD_THEME: CommandDef = CommandDef {
+	id: "theme",
+	name: "theme",
+	aliases: &["colorscheme"],
+	description: "Set the editor theme",
+	handler: cmd_theme,
 	user_data: None,
 	priority: 0,
 	source: tome_core::registry::RegistrySource::Builtin,

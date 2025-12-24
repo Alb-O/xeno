@@ -8,10 +8,10 @@ mod navigation;
 mod search;
 pub mod types;
 
-use std::fs;
-use std::io::{self, Write};
 use std::path::PathBuf;
+use std::sync::Arc;
 
+use async_trait::async_trait;
 use tome_core::range::CharIdx;
 use tome_core::registry::notifications::{Notifications, Overflow};
 use tome_core::registry::{HookContext, emit_hook};
@@ -54,24 +54,96 @@ pub struct Editor {
 	pub ipc: Option<crate::ipc::IpcServer>,
 	pub completions: CompletionState,
 	pub extensions: ExtensionMap,
+	pub fs: Arc<dyn FileSystem>,
+}
+
+#[async_trait(?Send)]
+impl tome_core::registry::EditorOps for Editor {
+	fn path(&self) -> Option<&std::path::Path> {
+		self.path.as_deref()
+	}
+
+	async fn save(&mut self) -> Result<(), tome_core::registry::CommandError> {
+		let path_owned = match &self.path {
+			Some(p) => p.clone(),
+			None => {
+				return Err(tome_core::registry::CommandError::InvalidArgument(
+					"No filename. Use :write <filename>".to_string(),
+				));
+			}
+		};
+
+		emit_hook(&HookContext::BufferWritePre {
+			path: &path_owned,
+			text: self.doc.slice(..),
+		});
+
+		let mut content = Vec::new();
+		for chunk in self.doc.chunks() {
+			content.extend_from_slice(chunk.as_bytes());
+		}
+
+		self.fs
+			.write_file(path_owned.to_str().unwrap_or(""), &content)
+			.await
+			.map_err(|e| tome_core::registry::CommandError::Io(e.to_string()))?;
+
+		self.modified = false;
+		self.show_message(format!("Saved {}", path_owned.display()));
+
+		emit_hook(&HookContext::BufferWrite { path: &path_owned });
+
+		Ok(())
+	}
+
+	async fn save_as(&mut self, path: PathBuf) -> Result<(), tome_core::registry::CommandError> {
+		self.path = Some(path);
+		self.save().await
+	}
+
+	fn insert_text(&mut self, text: &str) {
+		self.insert_text(text);
+	}
+
+	fn delete_selection(&mut self) {
+		self.delete_selection();
+	}
+
+	fn set_modified(&mut self, modified: bool) {
+		self.modified = modified;
+	}
+
+	fn is_modified(&self) -> bool {
+		self.modified
+	}
+
+	fn set_theme(&mut self, theme_name: &str) -> Result<(), tome_core::registry::CommandError> {
+		self.set_theme(theme_name)
+	}
 }
 
 impl Editor {
-	pub fn new(path: PathBuf) -> io::Result<Self> {
-		let content = if path.exists() {
-			fs::read_to_string(&path)?
+	pub async fn new(path: PathBuf) -> anyhow::Result<Self> {
+		let fs = Arc::new(HostFS::new(std::env::current_dir()?)?);
+		let content = if fs.stat(path.to_str().unwrap_or("")).await?.is_some() {
+			let bytes = fs
+				.read_file(path.to_str().unwrap_or(""))
+				.await?
+				.unwrap_or_default();
+			String::from_utf8_lossy(&bytes).to_string()
 		} else {
 			String::new()
 		};
 
-		Ok(Self::from_content(content, Some(path)))
+		Ok(Self::from_content(fs, content, Some(path)))
 	}
 
 	pub fn new_scratch() -> Self {
-		Self::from_content(String::new(), None)
+		let fs = Arc::new(HostFS::new(std::env::current_dir().unwrap()).unwrap());
+		Self::from_content(fs, String::new(), None)
 	}
 
-	pub fn from_content(content: String, path: Option<PathBuf>) -> Self {
+	pub fn from_content(fs: Arc<dyn FileSystem>, content: String, path: Option<PathBuf>) -> Self {
 		let file_type = path
 			.as_ref()
 			.and_then(|p| registry::detect_file_type(p.to_str().unwrap_or("")))
@@ -128,6 +200,7 @@ impl Editor {
 				}
 				map
 			},
+			fs,
 		}
 	}
 
@@ -191,40 +264,6 @@ impl Editor {
 		self.selection = new_selection;
 		self.cursor = self.selection.primary().head;
 		self.modified = true;
-	}
-
-	pub fn save(&mut self) -> Result<(), tome_core::registry::CommandError> {
-		let path_owned = match &self.path {
-			Some(p) => p.clone(),
-			None => {
-				return Err(tome_core::registry::CommandError::InvalidArgument(
-					"No filename. Use :write <filename>".to_string(),
-				));
-			}
-		};
-
-		emit_hook(&HookContext::BufferWritePre {
-			path: &path_owned,
-			text: self.doc.slice(..),
-		});
-
-		let mut f = fs::File::create(&path_owned)
-			.map_err(|e| tome_core::registry::CommandError::Io(e.to_string()))?;
-		for chunk in self.doc.chunks() {
-			f.write_all(chunk.as_bytes())
-				.map_err(|e| tome_core::registry::CommandError::Io(e.to_string()))?;
-		}
-		self.modified = false;
-		self.show_message(format!("Saved {}", path_owned.display()));
-
-		emit_hook(&HookContext::BufferWrite { path: &path_owned });
-
-		Ok(())
-	}
-
-	pub fn save_as(&mut self, path: PathBuf) -> Result<(), tome_core::registry::CommandError> {
-		self.path = Some(path);
-		self.save()
 	}
 
 	pub fn yank_selection(&mut self) {
@@ -319,5 +358,9 @@ impl Editor {
 			}
 			Err(tome_core::registry::CommandError::Failed(err))
 		}
+	}
+
+	pub fn set_filesystem(&mut self, fs: Arc<dyn FileSystem>) {
+		self.fs = fs;
 	}
 }

@@ -3,7 +3,7 @@ use tome_core::{Key, KeyCode, KeyResult, Mode, Selection, SpecialKey, movement};
 use crate::editor::Editor;
 
 impl Editor {
-	pub fn handle_key(&mut self, key: termina::event::KeyEvent) -> bool {
+	pub async fn handle_key(&mut self, key: termina::event::KeyEvent) -> bool {
 		// UI global bindings (panels, focus, etc.)
 		if self.ui.handle_global_key(&key) {
 			if self.ui.take_wants_redraw() {
@@ -22,10 +22,10 @@ impl Editor {
 			return false;
 		}
 
-		self.handle_key_active(key)
+		self.handle_key_active(key).await
 	}
 
-	pub(crate) fn handle_key_active(&mut self, key: termina::event::KeyEvent) -> bool {
+	pub(crate) async fn handle_key_active(&mut self, key: termina::event::KeyEvent) -> bool {
 		use tome_core::registry::{HookContext, emit_hook, find_action_by_id};
 
 		self.message = None;
@@ -135,7 +135,7 @@ impl Editor {
 				self.insert_text(&c.to_string());
 				false
 			}
-			KeyResult::ExecuteCommand(cmd) => self.execute_command_line(&cmd),
+			KeyResult::ExecuteCommand(cmd) => self.execute_command_line(&cmd).await,
 			KeyResult::ExecuteSearch { pattern, reverse } => {
 				self.input.set_last_search(pattern.clone(), reverse);
 				let result = if reverse {
@@ -208,7 +208,7 @@ impl Editor {
 		}
 	}
 
-	pub fn handle_mouse(&mut self, mouse: termina::event::MouseEvent) -> bool {
+	pub async fn handle_mouse(&mut self, mouse: termina::event::MouseEvent) -> bool {
 		let width = self.window_width.unwrap_or(80);
 		let height = self.window_height.unwrap_or(24);
 		let has_command_line = self.input.command_line().is_some();
@@ -236,10 +236,10 @@ impl Editor {
 		}
 		self.ui = ui;
 
-		self.handle_mouse_active(mouse)
+		self.handle_mouse_active(mouse).await
 	}
 
-	pub(crate) fn handle_mouse_active(&mut self, mouse: termina::event::MouseEvent) -> bool {
+	pub(crate) async fn handle_mouse_active(&mut self, mouse: termina::event::MouseEvent) -> bool {
 		let result = self.input.handle_mouse(mouse.into());
 		match result {
 			KeyResult::MouseClick { row, col, extend } => {

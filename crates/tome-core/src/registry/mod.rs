@@ -4,6 +4,8 @@
 //! Registry items are collected at link-time into static slices, requiring no
 //! runtime initialization.
 
+use async_trait::async_trait;
+use futures::future::LocalBoxFuture;
 #[cfg(feature = "host")]
 use linkme::distributed_slice;
 
@@ -304,15 +306,16 @@ pub enum CommandOutcome {
 
 /// Operations that editors must support.
 #[cfg(feature = "host")]
+#[async_trait(?Send)]
 pub trait EditorOps: EditorCapabilities {
 	/// Get the file path being edited, if any.
 	fn path(&self) -> Option<&std::path::Path>;
 
 	/// Save the buffer to disk.
-	fn save(&mut self) -> Result<(), CommandError>;
+	async fn save(&mut self) -> Result<(), CommandError>;
 
 	/// Save the buffer to a new file path.
-	fn save_as(&mut self, path: std::path::PathBuf) -> Result<(), CommandError>;
+	async fn save_as(&mut self, path: std::path::PathBuf) -> Result<(), CommandError>;
 
 	/// Insert text at the current selection.
 	fn insert_text(&mut self, text: &str);
@@ -405,7 +408,9 @@ pub struct CommandDef {
 	/// Short description for help.
 	pub description: &'static str,
 	/// Command handler function.
-	pub handler: fn(_: &mut CommandContext<'_>) -> Result<CommandOutcome, CommandError>,
+	pub handler: for<'a> fn(
+		_: &'a mut CommandContext<'a>,
+	) -> LocalBoxFuture<'a, Result<CommandOutcome, CommandError>>,
 	/// Optional user data passed to the handler.
 	pub user_data: Option<&'static (dyn std::any::Any + Sync)>,
 	/// Priority for resolving name collisions.

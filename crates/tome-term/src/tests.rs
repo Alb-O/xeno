@@ -1,6 +1,7 @@
 #[cfg(test)]
 mod suite {
 	use std::path::PathBuf;
+	use std::sync::Arc;
 
 	use insta::assert_snapshot;
 	use ratatui::Terminal;
@@ -13,7 +14,8 @@ mod suite {
 	use crate::theme::{CMD_THEME, THEMES, get_theme};
 
 	fn test_editor(content: &str) -> Editor {
-		Editor::from_content(content.to_string(), Some(PathBuf::from("test.txt")))
+		let fs = Arc::new(agentfs_sdk::HostFS::new(std::env::current_dir().unwrap()).unwrap());
+		Editor::from_content(fs, content.to_string(), Some(PathBuf::from("test.txt")))
 	}
 
 	#[test]
@@ -42,8 +44,8 @@ mod suite {
 		assert_eq!(get_theme("gruvbox-dark").unwrap().name, "gruvbox");
 	}
 
-	#[test]
-	fn test_theme_command() {
+	#[tokio::test]
+	async fn test_theme_command() {
 		let mut editor = Editor::new_scratch();
 
 		assert_eq!(editor.theme.name, "solarized_dark");
@@ -57,7 +59,7 @@ mod suite {
 			user_data: CMD_THEME.user_data,
 		};
 
-		let result = (CMD_THEME.handler)(&mut ctx);
+		let result = (CMD_THEME.handler)(&mut ctx).await;
 		assert!(result.is_ok());
 		assert_eq!(result.unwrap(), CommandOutcome::Ok);
 
@@ -72,7 +74,7 @@ mod suite {
 			user_data: CMD_THEME.user_data,
 		};
 
-		let result_typo = (CMD_THEME.handler)(&mut ctx_typo);
+		let result_typo = (CMD_THEME.handler)(&mut ctx_typo).await;
 		assert!(result_typo.is_err());
 		if let Err(tome_core::registry::CommandError::Failed(msg)) = result_typo {
 			assert!(msg.contains("Did you mean 'solarized_dark'?"));
@@ -81,24 +83,24 @@ mod suite {
 		}
 	}
 
-	#[test]
-	fn test_render_empty() {
+	#[tokio::test]
+	async fn test_render_empty() {
 		let mut editor = test_editor("");
 		let mut terminal = Terminal::new(TestBackend::new(80, 10)).unwrap();
 		terminal.draw(|frame| editor.render(frame)).unwrap();
 		assert_snapshot!(terminal.backend());
 	}
 
-	#[test]
-	fn test_render_with_content() {
+	#[tokio::test]
+	async fn test_render_with_content() {
 		let mut editor = test_editor("Hello, World!\nThis is a test.\nLine 3.");
 		let mut terminal = Terminal::new(TestBackend::new(80, 10)).unwrap();
 		terminal.draw(|frame| editor.render(frame)).unwrap();
 		assert_snapshot!(terminal.backend());
 	}
 
-	#[test]
-	fn test_render_tabs_expand_and_cursor_visible() {
+	#[tokio::test]
+	async fn test_render_tabs_expand_and_cursor_visible() {
 		let mut editor = test_editor("\tX");
 		let gutter_width = editor.gutter_width();
 
@@ -119,8 +121,8 @@ mod suite {
 		);
 	}
 
-	#[test]
-	fn test_render_insert_mode() {
+	#[tokio::test]
+	async fn test_render_insert_mode() {
 		let mut editor = test_editor("Hello");
 		editor.input.set_mode(Mode::Insert);
 		let mut terminal = Terminal::new(TestBackend::new(80, 10)).unwrap();
@@ -128,8 +130,8 @@ mod suite {
 		assert_snapshot!(terminal.backend());
 	}
 
-	#[test]
-	fn test_render_after_typing() {
+	#[tokio::test]
+	async fn test_render_after_typing() {
 		let mut editor = test_editor("");
 		editor.input.set_mode(Mode::Insert);
 		editor.insert_text("abc");
@@ -138,63 +140,89 @@ mod suite {
 		assert_snapshot!(terminal.backend());
 	}
 
-	#[test]
-	fn test_render_with_selection() {
+	#[tokio::test]
+	async fn test_render_with_selection() {
 		let mut editor = test_editor("Hello, World!");
-		editor.handle_key(KeyEvent::new(KeyCode::Char('L'), Modifiers::SHIFT));
-		editor.handle_key(KeyEvent::new(KeyCode::Char('L'), Modifiers::SHIFT));
-		editor.handle_key(KeyEvent::new(KeyCode::Char('L'), Modifiers::SHIFT));
+		editor
+			.handle_key(KeyEvent::new(KeyCode::Char('L'), Modifiers::SHIFT))
+			.await;
+		editor
+			.handle_key(KeyEvent::new(KeyCode::Char('L'), Modifiers::SHIFT))
+			.await;
+		editor
+			.handle_key(KeyEvent::new(KeyCode::Char('L'), Modifiers::SHIFT))
+			.await;
 		let mut terminal = Terminal::new(TestBackend::new(80, 10)).unwrap();
 		terminal.draw(|frame| editor.render(frame)).unwrap();
 		assert_snapshot!(terminal.backend());
 	}
 
-	#[test]
-	fn test_render_cursor_movement() {
+	#[tokio::test]
+	async fn test_render_cursor_movement() {
 		let mut editor = test_editor("Hello\nWorld");
-		editor.handle_key(KeyEvent::new(KeyCode::Char('j'), Modifiers::NONE));
-		editor.handle_key(KeyEvent::new(KeyCode::Char('l'), Modifiers::NONE));
-		editor.handle_key(KeyEvent::new(KeyCode::Char('l'), Modifiers::NONE));
+		editor
+			.handle_key(KeyEvent::new(KeyCode::Char('j'), Modifiers::NONE))
+			.await;
+		editor
+			.handle_key(KeyEvent::new(KeyCode::Char('l'), Modifiers::NONE))
+			.await;
+		editor
+			.handle_key(KeyEvent::new(KeyCode::Char('l'), Modifiers::NONE))
+			.await;
 		let mut terminal = Terminal::new(TestBackend::new(80, 10)).unwrap();
 		terminal.draw(|frame| editor.render(frame)).unwrap();
 		assert_snapshot!(terminal.backend());
 	}
 
-	#[test]
-	fn test_word_movement() {
+	#[tokio::test]
+	async fn test_word_movement() {
 		let mut editor = test_editor("hello world test");
-		editor.handle_key(KeyEvent::new(KeyCode::Char('w'), Modifiers::NONE));
+		editor
+			.handle_key(KeyEvent::new(KeyCode::Char('w'), Modifiers::NONE))
+			.await;
 		assert_eq!(editor.cursor, 6);
 	}
 
-	#[test]
-	fn test_goto_mode() {
+	#[tokio::test]
+	async fn test_goto_mode() {
 		let mut editor = test_editor("line1\nline2\nline3");
-		editor.handle_key(KeyEvent::new(KeyCode::Char('g'), Modifiers::NONE));
+		editor
+			.handle_key(KeyEvent::new(KeyCode::Char('g'), Modifiers::NONE))
+			.await;
 		assert!(matches!(editor.mode(), Mode::Goto));
-		editor.handle_key(KeyEvent::new(KeyCode::Char('g'), Modifiers::NONE));
+		editor
+			.handle_key(KeyEvent::new(KeyCode::Char('g'), Modifiers::NONE))
+			.await;
 		assert_eq!(editor.cursor, 0);
 	}
 
-	#[test]
-	fn test_undo_redo() {
+	#[tokio::test]
+	async fn test_undo_redo() {
 		let mut editor = test_editor("hello");
 		assert_eq!(editor.doc.to_string(), "hello");
 
-		editor.handle_key(KeyEvent::new(KeyCode::Char('%'), Modifiers::NONE));
+		editor
+			.handle_key(KeyEvent::new(KeyCode::Char('%'), Modifiers::NONE))
+			.await;
 		assert_eq!(editor.selection.primary().min(), 0);
 		assert_eq!(editor.selection.primary().max(), 5);
 
-		editor.handle_key(KeyEvent::new(KeyCode::Char('d'), Modifiers::NONE));
+		editor
+			.handle_key(KeyEvent::new(KeyCode::Char('d'), Modifiers::NONE))
+			.await;
 		assert_eq!(editor.doc.to_string(), "", "after delete");
 		assert_eq!(editor.undo_stack.len(), 1, "undo stack should have 1 entry");
 
-		editor.handle_key(KeyEvent::new(KeyCode::Char('u'), Modifiers::NONE));
+		editor
+			.handle_key(KeyEvent::new(KeyCode::Char('u'), Modifiers::NONE))
+			.await;
 		assert_eq!(editor.doc.to_string(), "hello", "after undo");
 		assert_eq!(editor.redo_stack.len(), 1, "redo stack should have 1 entry");
 		assert_eq!(editor.undo_stack.len(), 0, "undo stack should be empty");
 
-		editor.handle_key(KeyEvent::new(KeyCode::Char('U'), Modifiers::SHIFT));
+		editor
+			.handle_key(KeyEvent::new(KeyCode::Char('U'), Modifiers::SHIFT))
+			.await;
 		assert_eq!(
 			editor.redo_stack.len(),
 			0,
@@ -203,16 +231,26 @@ mod suite {
 		assert_eq!(editor.doc.to_string(), "", "after redo");
 	}
 
-	#[test]
-	fn test_insert_grouped_undo() {
+	#[tokio::test]
+	async fn test_insert_grouped_undo() {
 		let mut editor = test_editor("");
 
-		editor.handle_key(KeyEvent::new(KeyCode::Char('i'), Modifiers::NONE));
-		editor.handle_key(KeyEvent::new(KeyCode::Char('a'), Modifiers::NONE));
-		editor.handle_key(KeyEvent::new(KeyCode::Char('b'), Modifiers::NONE));
-		editor.handle_key(KeyEvent::new(KeyCode::Char('c'), Modifiers::NONE));
+		editor
+			.handle_key(KeyEvent::new(KeyCode::Char('i'), Modifiers::NONE))
+			.await;
+		editor
+			.handle_key(KeyEvent::new(KeyCode::Char('a'), Modifiers::NONE))
+			.await;
+		editor
+			.handle_key(KeyEvent::new(KeyCode::Char('b'), Modifiers::NONE))
+			.await;
+		editor
+			.handle_key(KeyEvent::new(KeyCode::Char('c'), Modifiers::NONE))
+			.await;
 
-		editor.handle_key(KeyEvent::new(KeyCode::Escape, Modifiers::NONE));
+		editor
+			.handle_key(KeyEvent::new(KeyCode::Escape, Modifiers::NONE))
+			.await;
 
 		assert_eq!(editor.doc.to_string(), "abc");
 		assert_eq!(
@@ -221,19 +259,25 @@ mod suite {
 			"single undo entry for insert session"
 		);
 
-		editor.handle_key(KeyEvent::new(KeyCode::Char('u'), Modifiers::NONE));
+		editor
+			.handle_key(KeyEvent::new(KeyCode::Char('u'), Modifiers::NONE))
+			.await;
 		assert_eq!(editor.doc.to_string(), "");
 		assert_eq!(editor.redo_stack.len(), 1);
 	}
 
-	#[test]
-	fn test_insert_newline_single_cursor() {
+	#[tokio::test]
+	async fn test_insert_newline_single_cursor() {
 		let mut editor = test_editor("");
 
-		editor.handle_key(KeyEvent::new(KeyCode::Char('i'), Modifiers::NONE));
+		editor
+			.handle_key(KeyEvent::new(KeyCode::Char('i'), Modifiers::NONE))
+			.await;
 		assert!(matches!(editor.mode(), Mode::Insert));
 
-		editor.handle_key(KeyEvent::new(KeyCode::Enter, Modifiers::NONE));
+		editor
+			.handle_key(KeyEvent::new(KeyCode::Enter, Modifiers::NONE))
+			.await;
 
 		assert_eq!(editor.doc.len_lines(), 2, "should have 2 lines after Enter");
 		assert_eq!(editor.cursor, 1, "cursor should be at position 1");
@@ -249,35 +293,45 @@ mod suite {
 		assert_snapshot!(terminal.backend());
 	}
 
-	#[test]
-	fn test_insert_mode_arrow_keys() {
+	#[tokio::test]
+	async fn test_insert_mode_arrow_keys() {
 		let mut editor = test_editor("hello world");
 		assert_eq!(editor.cursor, 0, "start at position 0");
 
-		editor.handle_key(KeyEvent::new(KeyCode::Char('i'), Modifiers::NONE));
+		editor
+			.handle_key(KeyEvent::new(KeyCode::Char('i'), Modifiers::NONE))
+			.await;
 		assert!(
 			matches!(editor.mode(), Mode::Insert),
 			"should be in insert mode"
 		);
 
-		editor.handle_key(KeyEvent::new(KeyCode::Right, Modifiers::NONE));
+		editor
+			.handle_key(KeyEvent::new(KeyCode::Right, Modifiers::NONE))
+			.await;
 		assert_eq!(editor.cursor, 1, "after Right arrow, cursor at 1");
 
-		editor.handle_key(KeyEvent::new(KeyCode::Right, Modifiers::NONE));
+		editor
+			.handle_key(KeyEvent::new(KeyCode::Right, Modifiers::NONE))
+			.await;
 		assert_eq!(editor.cursor, 2, "after Right arrow, cursor at 2");
 
-		editor.handle_key(KeyEvent::new(KeyCode::Left, Modifiers::NONE));
+		editor
+			.handle_key(KeyEvent::new(KeyCode::Left, Modifiers::NONE))
+			.await;
 		assert_eq!(editor.cursor, 1, "after Left arrow, cursor at 1");
 
-		editor.handle_key(KeyEvent::new(KeyCode::Down, Modifiers::NONE));
+		editor
+			.handle_key(KeyEvent::new(KeyCode::Down, Modifiers::NONE))
+			.await;
 		assert!(
 			matches!(editor.mode(), Mode::Insert),
 			"still in insert mode after arrows"
 		);
 	}
 
-	#[test]
-	fn test_soft_wrap_long_line() {
+	#[tokio::test]
+	async fn test_soft_wrap_long_line() {
 		let long_line = "The quick brown fox jumps over the lazy dog and keeps on running";
 		let mut editor = test_editor(long_line);
 
@@ -286,8 +340,8 @@ mod suite {
 		assert_snapshot!(terminal.backend());
 	}
 
-	#[test]
-	fn test_soft_wrap_word_boundary() {
+	#[tokio::test]
+	async fn test_soft_wrap_word_boundary() {
 		let text = "hello world this is a test of word wrapping behavior";
 		let mut editor = test_editor(text);
 
@@ -296,8 +350,8 @@ mod suite {
 		assert_snapshot!(terminal.backend());
 	}
 
-	#[test]
-	fn test_line_numbers_multiple_lines() {
+	#[tokio::test]
+	async fn test_line_numbers_multiple_lines() {
 		let text = "Line 1\nLine 2\nLine 3\nLine 4\nLine 5";
 		let mut editor = test_editor(text);
 
@@ -306,25 +360,31 @@ mod suite {
 		assert_snapshot!(terminal.backend());
 	}
 
-	#[test]
-	fn test_backspace_deletes_backwards() {
+	#[tokio::test]
+	async fn test_backspace_deletes_backwards() {
 		let mut editor = test_editor("hello");
 
-		editor.handle_key(KeyEvent::new(KeyCode::Char('a'), Modifiers::NONE));
+		editor
+			.handle_key(KeyEvent::new(KeyCode::Char('a'), Modifiers::NONE))
+			.await;
 		assert!(matches!(editor.mode(), Mode::Insert));
 		assert_eq!(editor.cursor, 1, "cursor at 1 after 'a'");
 
-		editor.handle_key(KeyEvent::new(KeyCode::Backspace, Modifiers::NONE));
+		editor
+			.handle_key(KeyEvent::new(KeyCode::Backspace, Modifiers::NONE))
+			.await;
 		assert_eq!(editor.doc.to_string(), "ello", "first char deleted");
 		assert_eq!(editor.cursor, 0, "cursor moved back to 0");
 
-		editor.handle_key(KeyEvent::new(KeyCode::Backspace, Modifiers::NONE));
+		editor
+			.handle_key(KeyEvent::new(KeyCode::Backspace, Modifiers::NONE))
+			.await;
 		assert_eq!(editor.doc.to_string(), "ello", "no change when at start");
 		assert_eq!(editor.cursor, 0, "cursor stays at 0");
 	}
 
-	#[test]
-	fn test_toggle_terminal_panel_changes_layout() {
+	#[tokio::test]
+	async fn test_toggle_terminal_panel_changes_layout() {
 		let text = (1..=20)
 			.map(|i| format!("Line {}", i))
 			.collect::<Vec<_>>()
@@ -377,8 +437,8 @@ mod suite {
 		);
 	}
 
-	#[test]
-	fn test_scroll_down_when_cursor_at_bottom() {
+	#[tokio::test]
+	async fn test_scroll_down_when_cursor_at_bottom() {
 		let text = (1..=20)
 			.map(|i| format!("Line {}", i))
 			.collect::<Vec<_>>()
@@ -391,7 +451,9 @@ mod suite {
 		assert_eq!(editor.cursor_line(), 0, "cursor on line 0");
 
 		for _ in 0..10 {
-			editor.handle_key(KeyEvent::new(KeyCode::Char('j'), Modifiers::NONE));
+			editor
+				.handle_key(KeyEvent::new(KeyCode::Char('j'), Modifiers::NONE))
+				.await;
 		}
 
 		assert_eq!(editor.cursor_line(), 10, "cursor on line 10");
@@ -414,8 +476,8 @@ mod suite {
 		);
 	}
 
-	#[test]
-	fn test_scroll_with_soft_wrapped_lines() {
+	#[tokio::test]
+	async fn test_scroll_with_soft_wrapped_lines() {
 		let long_line = "This is a very long line that will wrap multiple times in the viewport";
 		let text = format!("{}\n{}\n{}\nshort\nshort", long_line, long_line, long_line);
 		let mut editor = test_editor(&text);
@@ -423,7 +485,9 @@ mod suite {
 		let mut terminal = Terminal::new(TestBackend::new(20, 6)).unwrap();
 
 		for _ in 0..4 {
-			editor.handle_key(KeyEvent::new(KeyCode::Char('j'), Modifiers::NONE));
+			editor
+				.handle_key(KeyEvent::new(KeyCode::Char('j'), Modifiers::NONE))
+				.await;
 		}
 
 		assert_eq!(editor.cursor_line(), 4, "cursor on line 4 (last 'short')");
@@ -438,8 +502,8 @@ mod suite {
 		);
 	}
 
-	#[test]
-	fn test_visual_vertical_movement_in_wrapped_line() {
+	#[tokio::test]
+	async fn test_visual_vertical_movement_in_wrapped_line() {
 		let long_line = "The quick brown fox jumps over the lazy dog and keeps running";
 		let mut editor = test_editor(long_line);
 
@@ -447,7 +511,9 @@ mod suite {
 
 		assert_eq!(editor.cursor, 0, "starts at 0");
 
-		editor.handle_key(KeyEvent::new(KeyCode::Char('j'), Modifiers::NONE));
+		editor
+			.handle_key(KeyEvent::new(KeyCode::Char('j'), Modifiers::NONE))
+			.await;
 
 		let head = editor.cursor;
 		assert!(
@@ -457,30 +523,36 @@ mod suite {
 		);
 		assert_eq!(editor.cursor_line(), 0, "should still be on doc line 0");
 
-		editor.handle_key(KeyEvent::new(KeyCode::Char('k'), Modifiers::NONE));
+		editor
+			.handle_key(KeyEvent::new(KeyCode::Char('k'), Modifiers::NONE))
+			.await;
 
 		assert_eq!(editor.cursor, 0, "should return to start");
 	}
 
-	#[test]
-	fn test_visual_movement_across_doc_lines() {
+	#[tokio::test]
+	async fn test_visual_movement_across_doc_lines() {
 		let text = "short\nanother short";
 		let mut editor = test_editor(text);
 		editor.text_width = 80;
 
 		assert_eq!(editor.cursor_line(), 0);
 
-		editor.handle_key(KeyEvent::new(KeyCode::Char('j'), Modifiers::NONE));
+		editor
+			.handle_key(KeyEvent::new(KeyCode::Char('j'), Modifiers::NONE))
+			.await;
 
 		assert_eq!(editor.cursor_line(), 1, "should move to next doc line");
 
-		editor.handle_key(KeyEvent::new(KeyCode::Char('k'), Modifiers::NONE));
+		editor
+			.handle_key(KeyEvent::new(KeyCode::Char('k'), Modifiers::NONE))
+			.await;
 
 		assert_eq!(editor.cursor_line(), 0, "should return to first doc line");
 	}
 
-	#[test]
-	fn test_wrap_preserves_leading_spaces() {
+	#[tokio::test]
+	async fn test_wrap_preserves_leading_spaces() {
 		let mut editor = test_editor("hello");
 		editor.text_width = 10;
 
@@ -499,55 +571,71 @@ mod suite {
 		assert_eq!(total2, 19, "all characters preserved");
 	}
 
-	#[test]
-	fn test_shift_end_extends_selection() {
+	#[tokio::test]
+	async fn test_shift_end_extends_selection() {
 		let mut editor = test_editor("hello world");
 		assert_eq!(editor.cursor, 0);
 		assert_eq!(editor.selection.primary().anchor, 0);
 
-		editor.handle_key(KeyEvent::new(KeyCode::End, Modifiers::SHIFT));
+		editor
+			.handle_key(KeyEvent::new(KeyCode::End, Modifiers::SHIFT))
+			.await;
 
 		let sel = editor.selection.primary();
 		assert_eq!(sel.anchor, 0, "anchor should stay at start");
 		assert_eq!(sel.head, 11, "head should move to end of line");
 	}
 
-	#[test]
-	fn test_shift_home_extends_selection() {
+	#[tokio::test]
+	async fn test_shift_home_extends_selection() {
 		let mut editor = test_editor("hello world");
 
-		editor.handle_key(KeyEvent::new(KeyCode::End, Modifiers::SHIFT));
+		editor
+			.handle_key(KeyEvent::new(KeyCode::End, Modifiers::SHIFT))
+			.await;
 		let sel_after_end = editor.selection.primary();
 		assert_eq!(sel_after_end.anchor, 0, "anchor stays at start");
 		assert_eq!(sel_after_end.head, 11, "head moves to end");
 
-		editor.handle_key(KeyEvent::new(KeyCode::Home, Modifiers::SHIFT));
+		editor
+			.handle_key(KeyEvent::new(KeyCode::Home, Modifiers::SHIFT))
+			.await;
 
 		let sel = editor.selection.primary();
 		assert_eq!(sel.head, 0, "head should move to start");
 		assert_eq!(sel.anchor, 0, "anchor stays at original position");
 	}
 
-	#[test]
-	fn test_shift_right_extends_selection() {
+	#[tokio::test]
+	async fn test_shift_right_extends_selection() {
 		let mut editor = test_editor("hello");
 		assert_eq!(editor.cursor, 0);
 
-		editor.handle_key(KeyEvent::new(KeyCode::Right, Modifiers::SHIFT));
-		editor.handle_key(KeyEvent::new(KeyCode::Right, Modifiers::SHIFT));
-		editor.handle_key(KeyEvent::new(KeyCode::Right, Modifiers::SHIFT));
+		editor
+			.handle_key(KeyEvent::new(KeyCode::Right, Modifiers::SHIFT))
+			.await;
+		editor
+			.handle_key(KeyEvent::new(KeyCode::Right, Modifiers::SHIFT))
+			.await;
+		editor
+			.handle_key(KeyEvent::new(KeyCode::Right, Modifiers::SHIFT))
+			.await;
 
 		let sel = editor.selection.primary();
 		assert_eq!(sel.anchor, 0, "anchor should stay at start");
 		assert_eq!(sel.head, 3, "head should move 3 positions");
 	}
 
-	#[test]
-	fn test_split_lines_via_keybindings() {
+	#[tokio::test]
+	async fn test_split_lines_via_keybindings() {
 		let mut editor = test_editor("one\ntwo\nthree\n");
 
-		editor.handle_key(KeyEvent::new(KeyCode::Char('%'), Modifiers::NONE));
-		editor.handle_key(KeyEvent::new(KeyCode::Char('s'), Modifiers::ALT));
+		editor
+			.handle_key(KeyEvent::new(KeyCode::Char('%'), Modifiers::NONE))
+			.await;
+		editor
+			.handle_key(KeyEvent::new(KeyCode::Char('s'), Modifiers::ALT))
+			.await;
 
 		let ranges = editor.selection.ranges();
 		assert_eq!(ranges.len(), 3, "expected per-line selections after split");
@@ -572,28 +660,34 @@ mod suite {
 		assert_eq!(editor.doc.to_string(), "one\ntwo\nthree\n");
 	}
 
-	#[test]
-	fn test_duplicate_down_then_delete() {
+	#[tokio::test]
+	async fn test_duplicate_down_then_delete() {
 		let mut editor = test_editor("alpha\nbeta\ngamma\n");
 
 		editor.cursor = editor.doc.line_to_char(1);
 		editor.selection = Selection::point(editor.cursor);
 
-		editor.handle_key(KeyEvent::new(KeyCode::Char('x'), Modifiers::NONE));
+		editor
+			.handle_key(KeyEvent::new(KeyCode::Char('x'), Modifiers::NONE))
+			.await;
 		assert_eq!(
 			editor.selection.ranges().len(),
 			1,
 			"expected single line selection after x"
 		);
 
-		editor.handle_key(KeyEvent::new(KeyCode::Char('+'), Modifiers::NONE));
+		editor
+			.handle_key(KeyEvent::new(KeyCode::Char('+'), Modifiers::NONE))
+			.await;
 		assert_eq!(
 			editor.selection.ranges().len(),
 			2,
 			"expected selection duplicated down"
 		);
 
-		editor.handle_key(KeyEvent::new(KeyCode::Char('d'), Modifiers::NONE));
+		editor
+			.handle_key(KeyEvent::new(KeyCode::Char('d'), Modifiers::NONE))
+			.await;
 
 		let text = editor.doc.to_string();
 		assert!(text.contains("alpha"));
@@ -601,39 +695,61 @@ mod suite {
 		assert!(!text.contains("gamma"), "doc after delete: {text:?}");
 	}
 
-	#[test]
-	fn test_insert_across_multiple_selections() {
+	#[tokio::test]
+	async fn test_insert_across_multiple_selections() {
 		let mut editor = test_editor("one\ntwo\nthree\n");
 
-		editor.handle_key(KeyEvent::new(KeyCode::Char('%'), Modifiers::NONE));
-		editor.handle_key(KeyEvent::new(KeyCode::Char('s'), Modifiers::ALT));
+		editor
+			.handle_key(KeyEvent::new(KeyCode::Char('%'), Modifiers::NONE))
+			.await;
+		editor
+			.handle_key(KeyEvent::new(KeyCode::Char('s'), Modifiers::ALT))
+			.await;
 
 		editor.insert_text("X");
 
 		assert_eq!(editor.doc.to_string(), "Xone\nXtwo\nXthree\n");
 	}
 
-	#[test]
-	fn test_duplicate_down_insert_inserts_at_all_cursors() {
+	#[tokio::test]
+	async fn test_duplicate_down_insert_inserts_at_all_cursors() {
 		let mut editor = test_editor("one\ntwo\nthree\n");
 
-		editor.handle_key(KeyEvent::new(KeyCode::Char('C'), Modifiers::SHIFT));
-		editor.handle_key(KeyEvent::new(KeyCode::Char('C'), Modifiers::SHIFT));
+		editor
+			.handle_key(KeyEvent::new(KeyCode::Char('C'), Modifiers::SHIFT))
+			.await;
+		editor
+			.handle_key(KeyEvent::new(KeyCode::Char('C'), Modifiers::SHIFT))
+			.await;
 
-		editor.handle_key(KeyEvent::new(KeyCode::Char('i'), Modifiers::NONE));
-		editor.handle_key(KeyEvent::new(KeyCode::Char('a'), Modifiers::NONE));
-		editor.handle_key(KeyEvent::new(KeyCode::Char('b'), Modifiers::NONE));
+		editor
+			.handle_key(KeyEvent::new(KeyCode::Char('i'), Modifiers::NONE))
+			.await;
+		editor
+			.handle_key(KeyEvent::new(KeyCode::Char('a'), Modifiers::NONE))
+			.await;
+		editor
+			.handle_key(KeyEvent::new(KeyCode::Char('b'), Modifiers::NONE))
+			.await;
 
 		assert_eq!(editor.doc.to_string(), "abone\nabtwo\nabthree\n");
 
-		editor.handle_key(KeyEvent::new(KeyCode::Backspace, Modifiers::NONE));
+		editor
+			.handle_key(KeyEvent::new(KeyCode::Backspace, Modifiers::NONE))
+			.await;
 		assert_eq!(editor.doc.to_string(), "aone\natwo\nathree\n");
 
-		editor.handle_key(KeyEvent::new(KeyCode::Backspace, Modifiers::NONE));
+		editor
+			.handle_key(KeyEvent::new(KeyCode::Backspace, Modifiers::NONE))
+			.await;
 		assert_eq!(editor.doc.to_string(), "one\ntwo\nthree\n");
 
-		editor.handle_key(KeyEvent::new(KeyCode::End, Modifiers::NONE));
-		editor.handle_key(KeyEvent::new(KeyCode::Char('X'), Modifiers::NONE));
+		editor
+			.handle_key(KeyEvent::new(KeyCode::End, Modifiers::NONE))
+			.await;
+		editor
+			.handle_key(KeyEvent::new(KeyCode::Char('X'), Modifiers::NONE))
+			.await;
 		assert_eq!(editor.doc.to_string(), "oneX\ntwoX\nthreeX\n");
 	}
 }

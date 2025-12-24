@@ -22,7 +22,9 @@ host = [
 ]
 
 [dependencies]
+async-trait = "0.1"
 crossterm = { version = "0.29", optional = true }
+futures = "0.3"
 linkme = { workspace = true, optional = true }
 log = { version = "0.4", optional = true }
 paste = { workspace = true, optional = true }

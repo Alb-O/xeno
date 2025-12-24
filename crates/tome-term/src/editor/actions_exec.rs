@@ -6,13 +6,13 @@ use tome_core::registry::{
 use crate::editor::Editor;
 
 impl Editor {
-	pub fn execute_ex_command(&mut self, input: &str) -> bool {
+	pub async fn execute_ex_command(&mut self, input: &str) -> bool {
 		let input = input.trim();
 		let input = input.strip_prefix(':').unwrap_or(input);
-		self.execute_command_line(input)
+		self.execute_command_line(input).await
 	}
 
-	pub(crate) fn execute_command_line(&mut self, input: &str) -> bool {
+	pub(crate) async fn execute_command_line(&mut self, input: &str) -> bool {
 		let trimmed = input.trim();
 		if trimmed.is_empty() {
 			return false;
@@ -35,30 +35,34 @@ impl Editor {
 			}
 		};
 
-		let mut ctx = CommandContext {
-			editor: self,
-			args: &args,
-			count: 1,
-			register: None,
-			user_data: cmd.user_data,
-		};
-
-		// Check required capabilities
+		// Check required capabilities before creating ctx
 		{
 			use tome_core::registry::EditorContext;
-			let mut e_ctx = EditorContext::new(ctx.editor);
+			let mut e_ctx = EditorContext::new(self);
 			if let Err(e) = e_ctx.check_all_capabilities(cmd.required_caps) {
-				ctx.editor.show_error(&e.to_string());
+				self.show_error(e.to_string());
 				return false;
 			}
 		}
 
-		match (cmd.handler)(&mut ctx) {
+		let result = {
+			let mut ctx = CommandContext {
+				editor: self,
+				args: &args,
+				count: 1,
+				register: None,
+				user_data: cmd.user_data,
+			};
+
+			(cmd.handler)(&mut ctx).await
+		};
+
+		match result {
 			Ok(CommandOutcome::Ok) => false,
 			Ok(CommandOutcome::Quit) => true,
 			Ok(CommandOutcome::ForceQuit) => true,
 			Err(e) => {
-				ctx.editor.show_error(&e.to_string());
+				self.show_error(e.to_string());
 				false
 			}
 		}

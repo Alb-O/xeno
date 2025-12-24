@@ -18,25 +18,24 @@ pub mod theme;
 pub mod themes;
 mod ui;
 
-use std::io;
-
 use app::run_editor;
 use clap::Parser;
 use cli::Cli;
 use editor::Editor;
 
-fn main() -> io::Result<()> {
+#[tokio::main]
+async fn main() -> anyhow::Result<()> {
 	let cli = Cli::parse();
 
 	let mut editor = match cli.file {
-		Some(path) => Editor::new(path)?,
+		Some(path) => Editor::new(path).await?,
 		None => Editor::new_scratch(),
 	};
 
 	if cli.quit_after_ex {
 		if let Some(cmd) = cli.ex.as_deref() {
 			editor.ui_startup();
-			editor.execute_ex_command(cmd);
+			editor.execute_ex_command(cmd).await;
 
 			// Give async events time to process.
 			// Print messages as they arrive so failures are visible headlessly.
@@ -55,11 +54,11 @@ fn main() -> io::Result<()> {
 								|| message.text.starts_with("ACP initialize failed:")
 								|| message.text.starts_with("ACP new_session failed:")
 							{
-								return Err(io::Error::other(message.text.clone()));
+								return Err(anyhow::anyhow!(message.text.clone()));
 							}
 						}
 						editor::MessageKind::Error => {
-							return Err(io::Error::other(message.text.clone()));
+							return Err(anyhow::anyhow!(message.text.clone()));
 						}
 					}
 					last_text = Some(message.text.clone());
@@ -71,5 +70,6 @@ fn main() -> io::Result<()> {
 		return Ok(());
 	}
 
-	run_editor(editor, cli.ex, false)
+	run_editor(editor, cli.ex, false).await?;
+	Ok(())
 }
