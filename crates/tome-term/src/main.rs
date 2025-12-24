@@ -1,4 +1,6 @@
-mod acp;
+// Auto-discovered extensions
+include!(concat!(env!("OUT_DIR"), "/extensions.rs"));
+
 mod app;
 mod backend;
 mod capabilities;
