@@ -1,8 +1,8 @@
-mod dock;
+pub mod dock;
 mod focus;
 mod keymap;
 mod manager;
-mod panel;
+pub mod panel;
 pub mod panels;
 
 pub use focus::FocusTarget;

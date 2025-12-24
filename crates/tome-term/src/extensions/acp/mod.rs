@@ -15,8 +15,27 @@
 mod backend;
 mod commands;
 mod handler;
+pub mod panel;
 mod state;
 pub mod types;
+
+use linkme::distributed_slice;
+
+use crate::editor::extensions::{EXTENSIONS, ExtensionInitDef, ExtensionTickDef, TICK_EXTENSIONS};
+
+#[distributed_slice(EXTENSIONS)]
+static ACP_INIT: ExtensionInitDef = ExtensionInitDef {
+	init: |map| {
+		map.insert(AcpManager::new());
+	},
+};
+
+#[distributed_slice(TICK_EXTENSIONS)]
+static ACP_TICK: ExtensionTickDef = ExtensionTickDef {
+	tick: |editor| {
+		panel::poll_acp_events(editor);
+	},
+};
 
 // Re-export the manager and commonly used types at the module root
 pub use state::AcpManager;

@@ -330,31 +330,6 @@ pub trait EditorOps: EditorCapabilities {
 	fn set_theme(&mut self, _theme_name: &str) -> Result<(), CommandError> {
 		Err(CommandError::Unsupported("set_theme"))
 	}
-
-	/// Start the ACP agent in the given working directory.
-	fn acp_start(&mut self, _cwd: std::path::PathBuf) -> Result<(), CommandError> {
-		Err(CommandError::Unsupported("acp_start"))
-	}
-
-	/// Stop the ACP agent.
-	fn acp_stop(&mut self) -> Result<(), CommandError> {
-		Err(CommandError::Unsupported("acp_stop"))
-	}
-
-	/// Toggle the ACP chat panel.
-	fn acp_toggle(&mut self) -> Result<(), CommandError> {
-		Err(CommandError::Unsupported("acp_toggle"))
-	}
-
-	/// Insert the last ACP assistant response at the cursor.
-	fn acp_insert_last(&mut self) -> Result<(), CommandError> {
-		Err(CommandError::Unsupported("acp_insert_last"))
-	}
-
-	/// Cancel the current ACP request.
-	fn acp_cancel(&mut self) -> Result<(), CommandError> {
-		Err(CommandError::Unsupported("acp_cancel"))
-	}
 }
 
 /// Context passed to command handlers.

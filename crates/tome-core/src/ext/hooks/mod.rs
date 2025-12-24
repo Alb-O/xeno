@@ -42,6 +42,9 @@ pub enum HookEvent {
 	/// Editor is shutting down.
 	EditorQuit,
 
+	/// Periodic tick.
+	EditorTick,
+
 	/// A buffer was opened/created.
 	BufferOpen,
 	/// A buffer is about to be written to disk.
@@ -74,6 +77,7 @@ impl HookEvent {
 		match self {
 			HookEvent::EditorStart => "editor:start",
 			HookEvent::EditorQuit => "editor:quit",
+			HookEvent::EditorTick => "editor:tick",
 			HookEvent::BufferOpen => "buffer:open",
 			HookEvent::BufferWritePre => "buffer:write-pre",
 			HookEvent::BufferWrite => "buffer:write",
@@ -99,6 +103,9 @@ pub enum HookContext<'a> {
 
 	/// Editor quit context.
 	EditorQuit,
+
+	/// Editor tick context.
+	EditorTick,
 
 	/// Buffer was opened.
 	BufferOpen {
@@ -143,6 +150,7 @@ impl<'a> HookContext<'a> {
 		match self {
 			HookContext::EditorStart => HookEvent::EditorStart,
 			HookContext::EditorQuit => HookEvent::EditorQuit,
+			HookContext::EditorTick => HookEvent::EditorTick,
 			HookContext::BufferOpen { .. } => HookEvent::BufferOpen,
 			HookContext::BufferWritePre { .. } => HookEvent::BufferWritePre,
 			HookContext::BufferWrite { .. } => HookEvent::BufferWrite,

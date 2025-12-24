@@ -41,7 +41,7 @@ pub fn run_editor(
 	let result = (|| {
 		loop {
 			editor.ui_tick();
-			editor.poll_acp_events();
+			editor.tick();
 
 			terminal.draw(|frame| editor.render(frame))?;
 

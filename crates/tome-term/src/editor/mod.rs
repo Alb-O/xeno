@@ -1,6 +1,6 @@
-mod acp;
 mod actions;
 mod actions_exec;
+pub mod extensions;
 mod history;
 mod input_handling;
 mod messaging;
@@ -18,7 +18,7 @@ use tome_core::range::CharIdx;
 use tome_core::{InputHandler, Mode, Rope, Selection, Transaction, ext, movement};
 pub use types::{HistoryEntry, Message, MessageKind, Registers};
 
-use crate::acp::AcpManager;
+use crate::editor::extensions::{EXTENSIONS, ExtensionMap};
 use crate::editor::types::CompletionState;
 use crate::theme::Theme;
 use crate::ui::UiManager;
@@ -53,7 +53,7 @@ pub struct Editor {
 	)]
 	pub ipc: Option<crate::ipc::IpcServer>,
 	pub completions: CompletionState,
-	pub acp: AcpManager,
+	pub extensions: ExtensionMap,
 }
 
 impl Editor {
@@ -119,7 +119,13 @@ impl Editor {
 			last_tick: std::time::SystemTime::now(),
 			ipc: crate::ipc::IpcServer::start().ok(),
 			completions: CompletionState::default(),
-			acp: AcpManager::new(),
+			extensions: {
+				let mut map = ExtensionMap::new();
+				for ext in EXTENSIONS {
+					(ext.init)(&mut map);
+				}
+				map
+			},
 		}
 	}
 
@@ -145,6 +151,13 @@ impl Editor {
 			self.needs_redraw = true;
 		}
 		self.ui = ui;
+	}
+
+	pub fn tick(&mut self) {
+		use crate::editor::extensions::TICK_EXTENSIONS;
+		for ext in TICK_EXTENSIONS {
+			(ext.tick)(self);
+		}
 	}
 
 	pub fn any_panel_open(&self) -> bool {

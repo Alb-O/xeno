@@ -52,6 +52,9 @@ fn main() {
 			content.push_str(&format!("#[path = \"{}\"]\n", path.display()));
 		}
 		content.push_str(&format!("pub mod {};\n", ext));
+
+		// Emit a cfg flag for this extension
+		println!("cargo:rustc-cfg=extension_{}", ext);
 	}
 
 	fs::write(&dest_path, content).unwrap();

@@ -4,11 +4,12 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Paragraph};
 use termina::event::{KeyCode as TmKeyCode, Modifiers as TmModifiers};
 
-use crate::acp::ChatRole;
+use crate::acp::types::{ChatRole, ChatItem};
 use crate::theme::Theme;
 use crate::ui::FocusTarget;
 use crate::ui::dock::DockSlot;
 use crate::ui::panel::{CursorRequest, EventResult, Panel, UiEvent, UiRequest};
+use crate::acp::AcpManager;
 
 pub fn chat_panel_ui_id(panel_id: u64) -> String {
 	format!("chat:{}", panel_id)
@@ -64,7 +65,7 @@ impl Panel for AcpChatPanel {
 				) && key.modifiers.contains(TmModifiers::CONTROL);
 
 				if raw_ctrl_enter {
-					editor.submit_acp_panel();
+					submit_acp_panel(editor);
 					return EventResult::consumed().with_request(UiRequest::Redraw);
 				}
 
@@ -73,7 +74,8 @@ impl Panel for AcpChatPanel {
 						.with_request(UiRequest::Focus(FocusTarget::editor()));
 				}
 
-				let mut panels = editor.acp.state.panels.lock();
+				let acp = editor.extensions.get::<AcpManager>().expect("ACP extension missing");
+				let mut panels = acp.state.panels.lock();
 				let Some(panel) = panels.get_mut(&self.panel_id) else {
 					return EventResult::consumed();
 				};
@@ -111,7 +113,8 @@ impl Panel for AcpChatPanel {
 				EventResult::consumed().with_request(UiRequest::Redraw)
 			}
 			UiEvent::Paste(text) if focused => {
-				let mut panels = editor.acp.state.panels.lock();
+				let acp = editor.extensions.get::<AcpManager>().expect("ACP extension missing");
+				let mut panels = acp.state.panels.lock();
 				let Some(panel) = panels.get_mut(&self.panel_id) else {
 					return EventResult::consumed();
 				};
@@ -142,7 +145,8 @@ impl Panel for AcpChatPanel {
 
 		frame.render_widget(Block::default().style(bg), area);
 
-		let panels = editor.acp.state.panels.lock();
+		let acp = editor.extensions.get::<AcpManager>().expect("ACP extension missing");
+		let panels = acp.state.panels.lock();
 		let Some(state) = panels.get(&self.panel_id) else {
 			let w = Paragraph::new("[missing panel state]").style(bg);
 			frame.render_widget(w, area);
@@ -212,5 +216,71 @@ impl Panel for AcpChatPanel {
 		}
 
 		None
+	}
+}
+
+pub fn submit_acp_panel(editor: &mut crate::editor::Editor) {
+	let acp = editor.extensions.get::<AcpManager>().expect("ACP extension missing");
+	let panel_id = match acp.panel_id() {
+		Some(id) => id,
+		None => return,
+	};
+
+	let mut panels = acp.state.panels.lock();
+	if let Some(panel) = panels.get_mut(&panel_id) {
+		let text = panel.input.to_string();
+		if text.trim().is_empty() {
+			return;
+		}
+
+		// Add user message to transcript
+		panel.transcript.push(ChatItem {
+			role: ChatRole::User,
+			text: text.clone(),
+		});
+		panel.input = "".into();
+		panel.input_cursor = 0;
+
+		acp.prompt(text);
+	}
+}
+
+pub fn poll_acp_events(editor: &mut crate::editor::Editor) {
+	let acp = match editor.extensions.get::<AcpManager>() {
+		Some(acp) => acp,
+		None => return,
+	};
+	let events = acp.drain_events();
+	for event in events {
+		handle_acp_event(editor, event);
+	}
+}
+
+fn handle_acp_event(editor: &mut crate::editor::Editor, event: crate::acp::AcpEvent) {
+	use crate::acp::AcpEvent;
+	match event {
+		AcpEvent::PanelAppend { role, text } => {
+			let acp = editor.extensions.get::<AcpManager>().expect("ACP extension missing");
+			let panel_id = match acp.panel_id() {
+				Some(id) => id,
+				None => return,
+			};
+
+			let mut panels = acp.state.panels.lock();
+			if let Some(panel) = panels.get_mut(&panel_id) {
+				panel.transcript.push(ChatItem { role, text });
+				editor.needs_redraw = true;
+			}
+		}
+		AcpEvent::ShowMessage(msg) => {
+			editor.show_message(msg);
+		}
+		AcpEvent::RequestPermission { id, prompt, .. } => {
+			// For now, show a message and auto-allow
+			// TODO: implement proper permission UI
+			editor.show_message(format!("ACP permission request: {}", prompt));
+			let acp = editor.extensions.get::<AcpManager>().expect("ACP extension missing");
+			acp.on_permission_decision(id, "allow".to_string());
+		}
 	}
 }
