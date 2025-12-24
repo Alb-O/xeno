@@ -1,3 +1,4 @@
+mod acp;
 mod actions;
 mod actions_exec;
 mod history;
@@ -18,6 +19,7 @@ use tome_core::range::CharIdx;
 use tome_core::{InputHandler, Mode, Rope, Selection, Transaction, ext, movement};
 pub use types::{HistoryEntry, Message, MessageKind, Registers};
 
+use crate::acp::AcpManager;
 use crate::editor::types::CompletionState;
 use crate::plugin::PluginManager;
 use crate::theme::Theme;
@@ -51,6 +53,7 @@ pub struct Editor {
 	pub last_tick: std::time::SystemTime,
 	pub ipc: Option<crate::ipc::IpcServer>,
 	pub completions: CompletionState,
+	pub acp: AcpManager,
 }
 
 impl Editor {
@@ -119,6 +122,7 @@ impl Editor {
 			last_tick: std::time::SystemTime::now(),
 			ipc: crate::ipc::IpcServer::start().ok(),
 			completions: CompletionState::default(),
+			acp: AcpManager::new(),
 		}
 	}
 

@@ -64,7 +64,19 @@ impl Panel for PluginChatPanel {
 				) && key.modifiers.contains(TmModifiers::CONTROL);
 
 				if raw_ctrl_enter {
-					editor.submit_plugin_panel(self.panel_id);
+					// Check if this is an ACP panel or a plugin panel
+					let is_acp = editor
+						.plugins
+						.panel_owners
+						.get(&self.panel_id)
+						.map(|s| s == "__acp__")
+						.unwrap_or(false);
+
+					if is_acp {
+						editor.submit_acp_panel();
+					} else {
+						editor.submit_plugin_panel(self.panel_id);
+					}
 					return EventResult::consumed().with_request(UiRequest::Redraw);
 				}
 

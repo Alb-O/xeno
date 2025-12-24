@@ -1,6 +1,8 @@
 [workspace]
 resolver = "3"
 members = ["bin/*", "lib/*", "plugins/*"]
+# The acp plugin has been converted to a builtin extension; exclude it from the workspace
+exclude = ["plugins/acp"]
 
 [workspace.package]
 version = "0.1.0"

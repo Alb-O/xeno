@@ -78,6 +78,26 @@ impl EditorOps for Editor {
 	fn set_theme(&mut self, theme_name: &str) -> Result<(), tome_core::ext::CommandError> {
 		Editor::set_theme(self, theme_name)
 	}
+
+	fn acp_start(&mut self, cwd: std::path::PathBuf) -> Result<(), tome_core::ext::CommandError> {
+		Editor::acp_start(self, cwd)
+	}
+
+	fn acp_stop(&mut self) -> Result<(), tome_core::ext::CommandError> {
+		Editor::acp_stop(self)
+	}
+
+	fn acp_toggle(&mut self) -> Result<(), tome_core::ext::CommandError> {
+		Editor::acp_toggle(self)
+	}
+
+	fn acp_insert_last(&mut self) -> Result<(), tome_core::ext::CommandError> {
+		Editor::acp_insert_last(self)
+	}
+
+	fn acp_cancel(&mut self) -> Result<(), tome_core::ext::CommandError> {
+		Editor::acp_cancel(self)
+	}
 }
 
 impl TextAccess for Editor {

@@ -264,7 +264,6 @@ fn build_registry() -> ExtensionRegistry {
 			}
 		}
 
-		// Index by primary trigger
 		if let Some(existing) = text_objects.by_trigger.get(&obj.trigger) {
 			text_objects.collisions.push(Collision {
 				kind: CollisionKind::Trigger,
@@ -319,7 +318,6 @@ fn build_registry() -> ExtensionRegistry {
 			file_types.by_name.insert(ft.name, ft);
 		}
 
-		// Index by extensions
 		for ext in ft.extensions {
 			if let Some(existing) = file_types.by_alias.get(ext) {
 				file_types.collisions.push(Collision {
@@ -333,7 +331,6 @@ fn build_registry() -> ExtensionRegistry {
 			}
 		}
 
-		// Index by filenames
 		for fname in ft.filenames {
 			if let Some(existing) = file_types.by_alias.get(fname) {
 				file_types.collisions.push(Collision {

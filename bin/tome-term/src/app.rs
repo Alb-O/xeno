@@ -43,6 +43,7 @@ pub fn run_editor(
 		loop {
 			editor.ui_tick();
 			editor.poll_plugins();
+			editor.poll_acp_events();
 
 			terminal.draw(|frame| editor.render(frame))?;
 
