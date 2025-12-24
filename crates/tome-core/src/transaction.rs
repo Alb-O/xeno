@@ -15,11 +15,43 @@ pub enum Bias {
 	Right,
 }
 
+/// A text insertion with cached character length.
+///
+/// Storing the character count avoids repeated O(n) `.chars().count()` calls
+/// in hot paths like `apply()`, `map_pos()`, and `compose()`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Insertion {
+	pub text: Tendril,
+	pub char_len: CharLen,
+}
+
+impl Insertion {
+	/// Create a new insertion, computing the character length once.
+	#[inline]
+	pub fn new(text: Tendril) -> Self {
+		let char_len = text.chars().count();
+		Self { text, char_len }
+	}
+
+	/// Create an insertion from a substring, using pre-computed length.
+	#[inline]
+	pub fn from_chars(text: Tendril, char_len: CharLen) -> Self {
+		debug_assert_eq!(text.chars().count(), char_len);
+		Self { text, char_len }
+	}
+
+	/// Returns true if this insertion is empty.
+	#[inline]
+	pub fn is_empty(&self) -> bool {
+		self.char_len == 0
+	}
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Operation {
 	Retain(CharLen),
 	Delete(CharLen),
-	Insert(Tendril),
+	Insert(Insertion),
 }
 
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
@@ -88,18 +120,20 @@ impl ChangeSet {
 			return;
 		}
 
-		self.len_after += text.chars().count();
+		let ins = Insertion::new(text);
+		self.len_after += ins.char_len;
 
 		match self.changes.as_mut_slice() {
 			[.., Operation::Insert(prev)] | [.., Operation::Insert(prev), Operation::Delete(_)] => {
-				prev.push_str(&text);
+				prev.text.push_str(&ins.text);
+				prev.char_len += ins.char_len;
 			}
 			[.., last @ Operation::Delete(_)] => {
-				let del = std::mem::replace(last, Operation::Insert(text));
+				let del = std::mem::replace(last, Operation::Insert(ins));
 				self.changes.push(del);
 			}
 			_ => {
-				self.changes.push(Operation::Insert(text));
+				self.changes.push(Operation::Insert(ins));
 			}
 		}
 	}
@@ -118,9 +152,9 @@ impl ChangeSet {
 				Operation::Delete(n) => {
 					doc.remove(pos..pos + n);
 				}
-				Operation::Insert(text) => {
-					doc.insert(pos, text);
-					pos += text.chars().count();
+				Operation::Insert(ins) => {
+					doc.insert(pos, &ins.text);
+					pos += ins.char_len;
 				}
 			}
 		}
@@ -148,9 +182,9 @@ impl ChangeSet {
 					result.insert(deleted_text);
 					pos += n;
 				}
-				Operation::Insert(text) => {
+				Operation::Insert(ins) => {
 					// To undo an insert, we delete what was inserted
-					result.delete(text.chars().count());
+					result.delete(ins.char_len);
 				}
 			}
 		}
@@ -181,12 +215,11 @@ impl ChangeSet {
 					}
 					old_pos += n;
 				}
-				Operation::Insert(text) => {
-					let len = text.chars().count();
+				Operation::Insert(ins) => {
 					if old_pos == pos && bias == Bias::Left {
 						// Position is exactly at insert point, stay before
 					} else {
-						new_pos += len;
+						new_pos += ins.char_len;
 					}
 				}
 			}
@@ -215,8 +248,10 @@ impl ChangeSet {
 				Some(match a_iter.peek() {
 					Some(Operation::Retain(_)) => Operation::Retain(a_remaining),
 					Some(Operation::Delete(_)) => Operation::Delete(a_remaining),
-					Some(Operation::Insert(t)) => {
-						Operation::Insert(t.chars().take(a_remaining).collect())
+					Some(Operation::Insert(ins)) => {
+						// Take first a_remaining chars from the insertion
+						let text: String = ins.text.chars().take(a_remaining).collect();
+						Operation::Insert(Insertion::from_chars(text, a_remaining))
 					}
 					None => break,
 				})
@@ -228,8 +263,10 @@ impl ChangeSet {
 				Some(match b_iter.peek() {
 					Some(Operation::Retain(_)) => Operation::Retain(b_remaining),
 					Some(Operation::Delete(_)) => Operation::Delete(b_remaining),
-					Some(Operation::Insert(t)) => {
-						Operation::Insert(t.chars().take(b_remaining).collect())
+					Some(Operation::Insert(ins)) => {
+						// Take first b_remaining chars from the insertion
+						let text: String = ins.text.chars().take(b_remaining).collect();
+						Operation::Insert(Insertion::from_chars(text, b_remaining))
 					}
 					None => break,
 				})
@@ -242,7 +279,7 @@ impl ChangeSet {
 
 			match (a, b) {
 				(None, None) => break,
-				(None, Some(Operation::Insert(t))) => result.insert(t),
+				(None, Some(Operation::Insert(ins))) => result.insert(ins.text),
 				(Some(Operation::Delete(n)), None) => result.delete(n),
 				(Some(Operation::Delete(n)), b) => {
 					result.delete(n);
@@ -250,17 +287,17 @@ impl ChangeSet {
 						b_remaining = match op {
 							Operation::Retain(m) => m,
 							Operation::Delete(m) => m,
-							Operation::Insert(t) => t.chars().count(),
+							Operation::Insert(ins) => ins.char_len,
 						};
 					}
 				}
-				(a, Some(Operation::Insert(t))) => {
-					result.insert(t);
+				(a, Some(Operation::Insert(ins))) => {
+					result.insert(ins.text);
 					if let Some(op) = a {
 						a_remaining = match op {
 							Operation::Retain(m) => m,
 							Operation::Delete(m) => m,
-							Operation::Insert(t) => t.chars().count(),
+							Operation::Insert(ins) => ins.char_len,
 						};
 					}
 				}
@@ -270,15 +307,16 @@ impl ChangeSet {
 					a_remaining = n - len;
 					b_remaining = m - len;
 				}
-				(Some(Operation::Insert(t)), Some(Operation::Delete(m))) => {
-					let len = t.chars().count().min(m);
-					a_remaining = t.chars().count() - len;
+				(Some(Operation::Insert(ins)), Some(Operation::Delete(m))) => {
+					let len = ins.char_len.min(m);
+					a_remaining = ins.char_len - len;
 					b_remaining = m - len;
 				}
-				(Some(Operation::Insert(t)), Some(Operation::Retain(m))) => {
-					let len = t.chars().count().min(m);
-					result.insert(t.chars().take(len).collect());
-					a_remaining = t.chars().count() - len;
+				(Some(Operation::Insert(ins)), Some(Operation::Retain(m))) => {
+					let len = ins.char_len.min(m);
+					let text: String = ins.text.chars().take(len).collect();
+					result.insert(text);
+					a_remaining = ins.char_len - len;
 					b_remaining = m - len;
 				}
 				(Some(Operation::Retain(n)), Some(Operation::Delete(m))) => {

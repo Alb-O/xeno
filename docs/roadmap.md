@@ -37,8 +37,15 @@ ______________________________________________________________________
 
 ### 3) ChangeSet performance pass (avoid repeated `.chars().count()` hot paths)
 
-- [ ] Store cached char length in insert ops (`Insert { text, char_len }`)
-- [ ] Refactor apply/map/compose paths to reuse cached lengths
+- [x] Store cached char length in insert ops (`Insert { text, char_len }`)
+  \- Added `Insertion` struct with `text: Tendril` and `char_len: CharLen` fields
+  \- `Insertion::new()` computes length once at creation
+  \- `Insertion::from_chars()` accepts pre-computed length for substrings
+- [x] Refactor apply/map/compose paths to reuse cached lengths
+  \- `apply()`: uses `ins.char_len` instead of `text.chars().count()`
+  \- `map_pos()`: uses `ins.char_len` directly
+  \- `invert()`: uses `ins.char_len` for delete count
+  \- `compose()`: uses `ins.char_len` throughout, avoids repeated counting
 - [ ] Add microbenchmarks for large inserts and repeated compositions
 
 ### 4) Selection primary stability + property tests
