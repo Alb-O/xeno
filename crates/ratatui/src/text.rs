@@ -19,7 +19,7 @@
 //! property (which is a [`Line`] under the hood):
 //!
 //! ```rust,ignore
-//! use crate::{
+//! use ratatui::{
 //!     style::{Color, Style},
 //!     text::{Line, Span},
 //!     widgets::Block,

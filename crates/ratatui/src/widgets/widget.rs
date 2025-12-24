@@ -54,10 +54,10 @@ use crate::style::Style;
 /// It's common to render widgets inside other widgets:
 ///
 /// ```rust
-/// use crate::buffer::Buffer;
-/// use crate::layout::Rect;
-/// use crate::text::Line;
-/// use crate::widgets::Widget;
+/// use ratatui::buffer::Buffer;
+/// use ratatui::layout::Rect;
+/// use ratatui::text::Line;
+/// use ratatui::widgets::Widget;
 ///
 /// struct MyWidget;
 ///

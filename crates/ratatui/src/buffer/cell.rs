@@ -84,8 +84,8 @@ impl Cell {
 	/// # Example
 	///
 	/// ```
-	/// # use crate::buffer::Cell;
-	/// use crate::symbols::merge::MergeStrategy;
+	/// # use ratatui::buffer::Cell;
+	/// use ratatui::symbols::merge::MergeStrategy;
 	///
 	/// assert_eq!(
 	///     Cell::new("┘")

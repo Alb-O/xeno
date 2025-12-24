@@ -7,8 +7,8 @@
 /// * Create a [`Text`] containing a vector of [`Line`]s:
 ///
 /// ```rust
-/// # use crate::style::Stylize;
-/// use crate::macros::text;
+/// # use ratatui::style::Stylize;
+/// use ratatui::text;
 ///
 /// let text = text!["hello", "world"];
 /// let text = text!["hello".red(), "world".red().bold()];
@@ -17,15 +17,15 @@
 /// * Create a [`text`] from a given [`Line`] repeated some amount of times:
 ///
 /// ```rust
-/// # use crate::macros::text;
+/// # use ratatui::text;
 /// let text = text!["hello"; 2];
 /// ```
 ///
 /// * Use [`line!`] or [`span!`] macro inside [`text!`] macro.
 ///
 /// ```rust
-/// # use crate::style::{Modifier};
-/// use crate::macros::{line, text, span};
+/// # use ratatui::style::{Modifier};
+/// use ratatui::{line, text, span};
 ///
 /// let text = text![line!["hello", "world"], span!(Modifier::BOLD; "goodbye {}", "world")];
 /// ```

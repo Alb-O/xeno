@@ -65,26 +65,15 @@ pub struct RatatuiLogo {
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum Size {
-	/// A tiny logo
-	///
-	/// The default size of the logo (2x15 characters)
-	///
-	/// ```text
-	/// ▛▚▗▀▖▜▘▞▚▝▛▐ ▌▌
-	/// ▛▚▐▀▌▐ ▛▜ ▌▝▄▘▌
-	/// ```
+	/// Tiny logo (2x15 characters)
 	#[default]
 	Tiny,
-	/// A small logo
-	///
-	/// A slightly larger version of the logo (2x27 characters)
-	///
-	/// ```text
-	/// █▀▀▄ ▄▀▀▄▝▜▛▘▄▀▀▄▝▜▛▘█  █ █
-	/// █▀▀▄ █▀▀█ ▐▌ █▀▀█ ▐▌ ▀▄▄▀ █
-	/// ```
+	/// Small logo (2x27 characters)
 	Small,
 }
+
+/// A type alias for [`Size`] for backward compatibility
+pub type RatatuiLogoSize = Size;
 
 impl RatatuiLogo {
 	/// Create a new Ratatui logo widget

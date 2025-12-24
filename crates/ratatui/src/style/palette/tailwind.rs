@@ -268,8 +268,8 @@
 //! # Example
 //!
 //! ```rust
-//! use crate::style::Color;
-//! use crate::style::palette::tailwind::{BLUE, RED};
+//! use ratatui::style::Color;
+//! use ratatui::style::palette::tailwind::{BLUE, RED};
 //!
 //! assert_eq!(RED.c500, Color::Rgb(239, 68, 68));
 //! assert_eq!(BLUE.c500, Color::Rgb(59, 130, 246));

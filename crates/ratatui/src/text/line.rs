@@ -78,8 +78,8 @@ use crate::widgets::Widget;
 /// [`Style`].
 ///
 /// ```rust
-/// use crate::style::{Color, Modifier, Style, Stylize};
-/// use crate::text::{Line, Span};
+/// use ratatui::style::{Color, Modifier, Style, Stylize};
+/// use ratatui::text::{Line, Span};
 ///
 /// let style = Style::new().yellow();
 /// let line = Line::raw("Hello, world!").style(style);
@@ -103,8 +103,8 @@ use crate::widgets::Widget;
 /// methods of the [`Stylize`] trait.
 ///
 /// ```rust
-/// use crate::style::{Color, Modifier, Style, Stylize};
-/// use crate::text::Line;
+/// use ratatui::style::{Color, Modifier, Style, Stylize};
+/// use ratatui::text::Line;
 ///
 /// let line = Line::from("Hello world!").style(Style::new().yellow().italic());
 /// let line = Line::from("Hello world!").style(Color::Yellow);
@@ -120,8 +120,8 @@ use crate::widgets::Widget;
 /// ignored and the line is truncated.
 ///
 /// ```rust
-/// use crate::layout::Alignment;
-/// use crate::text::Line;
+/// use ratatui::layout::Alignment;
+/// use ratatui::text::Line;
 ///
 /// let line = Line::from("Hello world!").alignment(Alignment::Right);
 /// let line = Line::from("Hello world!").centered();
@@ -134,11 +134,11 @@ use crate::widgets::Widget;
 /// `Line` implements the [`Widget`] trait, which means it can be rendered to a [`Buffer`].
 ///
 /// ```rust
-/// use crate::buffer::Buffer;
-/// use crate::layout::Rect;
-/// use crate::style::{Style, Stylize};
-/// use crate::text::Line;
-/// use crate::widgets::Widget;
+/// use ratatui::buffer::Buffer;
+/// use ratatui::layout::Rect;
+/// use ratatui::style::{Style, Stylize};
+/// use ratatui::text::Line;
+/// use ratatui::widgets::Widget;
 ///
 /// # fn render(area: Rect, buf: &mut Buffer) {
 /// // in another widget's render method
@@ -241,7 +241,7 @@ impl<'a> Line<'a> {
 	/// ```rust
 	/// use std::borrow::Cow;
 	///
-	/// use crate::text::Line;
+	/// use ratatui::text::Line;
 	///
 	/// Line::raw("test content");
 	/// Line::raw(String::from("test content"));
@@ -272,8 +272,8 @@ impl<'a> Line<'a> {
 	/// ```rust
 	/// use std::borrow::Cow;
 	///
-	/// use crate::style::{Style, Stylize};
-	/// use crate::text::Line;
+	/// use ratatui::style::{Style, Stylize};
+	/// use ratatui::text::Line;
 	///
 	/// let style = Style::new().yellow().italic();
 	/// Line::styled("My text", style);
@@ -302,8 +302,8 @@ impl<'a> Line<'a> {
 	/// # Examples
 	///
 	/// ```rust
-	/// use crate::style::Stylize;
-	/// use crate::text::Line;
+	/// use ratatui::style::Stylize;
+	/// use ratatui::text::Line;
 	///
 	/// let line = Line::default().spans(vec!["Hello".blue(), " world!".green()]);
 	/// let line = Line::default().spans([1, 2, 3].iter().map(|i| format!("Item {}", i)));
@@ -331,8 +331,8 @@ impl<'a> Line<'a> {
 	///
 	/// # Examples
 	/// ```rust
-	/// use crate::style::{Style, Stylize};
-	/// use crate::text::Line;
+	/// use ratatui::style::{Style, Stylize};
+	/// use ratatui::text::Line;
 	///
 	/// let mut line = Line::from("foo").style(Style::new().red());
 	/// ```
@@ -353,8 +353,8 @@ impl<'a> Line<'a> {
 	/// # Examples
 	///
 	/// ```rust
-	/// use crate::layout::Alignment;
-	/// use crate::text::Line;
+	/// use ratatui::layout::Alignment;
+	/// use ratatui::text::Line;
 	///
 	/// let mut line = Line::from("Hi, what's up?");
 	/// assert_eq!(None, line.alignment);
@@ -380,7 +380,7 @@ impl<'a> Line<'a> {
 	/// # Examples
 	///
 	/// ```rust
-	/// use crate::text::Line;
+	/// use ratatui::text::Line;
 	///
 	/// let line = Line::from("Hi, what's up?").left_aligned();
 	/// ```
@@ -398,7 +398,7 @@ impl<'a> Line<'a> {
 	/// # Examples
 	///
 	/// ```rust
-	/// use crate::text::Line;
+	/// use ratatui::text::Line;
 	///
 	/// let line = Line::from("Hi, what's up?").centered();
 	/// ```
@@ -416,7 +416,7 @@ impl<'a> Line<'a> {
 	/// # Examples
 	///
 	/// ```rust
-	/// use crate::text::Line;
+	/// use ratatui::text::Line;
 	///
 	/// let line = Line::from("Hi, what's up?").right_aligned();
 	/// ```
@@ -430,8 +430,8 @@ impl<'a> Line<'a> {
 	/// # Examples
 	///
 	/// ```rust
-	/// use crate::style::Stylize;
-	/// use crate::text::Line;
+	/// use ratatui::style::Stylize;
+	/// use ratatui::text::Line;
 	///
 	/// let line = Line::from(vec!["Hello".blue(), " world!".green()]);
 	/// assert_eq!(12, line.width());
@@ -454,8 +454,8 @@ impl<'a> Line<'a> {
 	/// ```rust
 	/// use std::iter::Iterator;
 	///
-	/// use crate::style::{Color, Style};
-	/// use crate::text::{Line, StyledGrapheme};
+	/// use ratatui::style::{Color, Style};
+	/// use ratatui::text::{Line, StyledGrapheme};
 	///
 	/// let line = Line::styled("Text", Style::default().fg(Color::Yellow));
 	/// let style = Style::default().fg(Color::Green).bg(Color::Black);
@@ -496,8 +496,8 @@ impl<'a> Line<'a> {
 	/// # Examples
 	///
 	/// ```rust
-	/// use crate::style::{Color, Modifier};
-	/// use crate::text::Line;
+	/// use ratatui::style::{Color, Modifier};
+	/// use ratatui::text::Line;
 	///
 	/// let line = Line::styled("My text", Modifier::ITALIC);
 	///
@@ -523,8 +523,8 @@ impl<'a> Line<'a> {
 	///
 	/// ```rust
 	/// # let style = Style::default().yellow();
-	/// use crate::style::{Style, Stylize};
-	/// use crate::text::Line;
+	/// use ratatui::style::{Style, Stylize};
+	/// use ratatui::text::Line;
 	///
 	/// let line = Line::styled("My text", style);
 	///
@@ -553,7 +553,7 @@ impl<'a> Line<'a> {
 	/// # Examples
 	///
 	/// ```rust
-	/// use crate::text::{Line, Span};
+	/// use ratatui::text::{Line, Span};
 	///
 	/// let mut line = Line::from("Hello, ");
 	/// line.push_span(Span::raw("world!"));

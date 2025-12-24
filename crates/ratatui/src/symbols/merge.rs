@@ -46,7 +46,7 @@ use core::str::FromStr;
 /// # Examples
 ///
 /// ```
-/// # use crate::symbols::merge::MergeStrategy;
+/// # use ratatui::symbols::merge::MergeStrategy;
 ///
 /// assert_eq!(MergeStrategy::Replace.merge("│", "━"), "━");
 /// assert_eq!(MergeStrategy::Exact.merge("│", "─"), "┼");
@@ -84,7 +84,7 @@ pub enum MergeStrategy {
 	/// # Example
 	///
 	/// ```
-	/// # use crate::symbols::merge::MergeStrategy;
+	/// # use ratatui::symbols::merge::MergeStrategy;
 	/// let strategy = MergeStrategy::Replace;
 	/// assert_eq!(strategy.merge("│", "━"), "━");
 	/// ```
@@ -142,7 +142,7 @@ pub enum MergeStrategy {
 	/// # Example
 	///
 	/// ```
-	/// # use crate::symbols::merge::MergeStrategy;
+	/// # use ratatui::symbols::merge::MergeStrategy;
 	/// let strategy = MergeStrategy::Exact;
 	/// assert_eq!(strategy.merge("│", "━"), "┿"); // exact match exists
 	/// assert_eq!(strategy.merge("┘", "╔"), "╔"); // no exact match, falls back to Replace
@@ -248,7 +248,7 @@ pub enum MergeStrategy {
 	/// # Examples
 	///
 	/// ```
-	/// # use crate::symbols::merge::MergeStrategy;
+	/// # use ratatui::symbols::merge::MergeStrategy;
 	/// let strategy = MergeStrategy::Fuzzy;
 	///
 	/// // exact matches are merged normally
@@ -287,7 +287,7 @@ impl MergeStrategy {
 	/// # Example
 	///
 	/// ```
-	/// # use crate::symbols::merge::MergeStrategy;
+	/// # use ratatui::symbols::merge::MergeStrategy;
 	///
 	/// let strategy = MergeStrategy::Fuzzy;
 	/// assert_eq!(strategy.merge("┌", "┐"), "┬"); // merges to a single character

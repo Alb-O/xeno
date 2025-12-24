@@ -216,7 +216,7 @@ macro_rules! modifier {
 ///
 /// # Examples
 /// ```ignore
-/// use crate::{
+/// use ratatui::{
 ///     style::{Color, Modifier, Style, Stylize},
 ///     text::Line,
 ///     widgets::{Block, Paragraph},

@@ -167,10 +167,10 @@ impl From<i16> for Spacing {
 /// # Example
 ///
 /// ```rust
-/// use crate::buffer::Buffer;
-/// use crate::layout::{Constraint, Direction, Layout, Rect};
-/// use crate::text::Text;
-/// use crate::widgets::Widget;
+/// use ratatui::buffer::Buffer;
+/// use ratatui::layout::{Constraint, Direction, Layout, Rect};
+/// use ratatui::text::Text;
+/// use ratatui::widgets::Widget;
 ///
 /// fn render(area: Rect, buf: &mut Buffer) {
 ///     let layout = Layout::vertical([Constraint::Length(5), Constraint::Fill(1)]);
@@ -226,7 +226,7 @@ impl Layout {
 	/// # Examples
 	///
 	/// ```rust
-	/// use crate::layout::{Constraint, Direction, Layout};
+	/// use ratatui::layout::{Constraint, Direction, Layout};
 	///
 	/// Layout::new(
 	///     Direction::Horizontal,
@@ -260,7 +260,7 @@ impl Layout {
 	/// # Examples
 	///
 	/// ```rust
-	/// use crate::layout::{Constraint, Layout};
+	/// use ratatui::layout::{Constraint, Layout};
 	///
 	/// let layout = Layout::vertical([Constraint::Length(5), Constraint::Fill(1)]);
 	/// ```
@@ -280,7 +280,7 @@ impl Layout {
 	/// # Examples
 	///
 	/// ```rust
-	/// use crate::layout::{Constraint, Layout};
+	/// use ratatui::layout::{Constraint, Layout};
 	///
 	/// let layout = Layout::horizontal([Constraint::Length(5), Constraint::Fill(1)]);
 	/// ```
@@ -310,7 +310,7 @@ impl Layout {
 	/// # Examples
 	///
 	/// ```rust
-	/// use crate::layout::{Constraint, Direction, Layout, Rect};
+	/// use ratatui::layout::{Constraint, Direction, Layout, Rect};
 	///
 	/// let layout = Layout::default()
 	///     .direction(Direction::Horizontal)
@@ -345,7 +345,7 @@ impl Layout {
 	/// # Examples
 	///
 	/// ```rust
-	/// use crate::layout::{Constraint, Layout, Rect};
+	/// use ratatui::layout::{Constraint, Layout, Rect};
 	///
 	/// let layout = Layout::default()
 	///     .constraints([
@@ -390,7 +390,7 @@ impl Layout {
 	/// # Examples
 	///
 	/// ```rust
-	/// use crate::layout::{Constraint, Layout, Rect};
+	/// use ratatui::layout::{Constraint, Layout, Rect};
 	///
 	/// let layout = Layout::default()
 	///     .constraints([Constraint::Fill(1)])
@@ -412,7 +412,7 @@ impl Layout {
 	/// # Examples
 	///
 	/// ```rust
-	/// use crate::layout::{Constraint, Layout, Rect};
+	/// use ratatui::layout::{Constraint, Layout, Rect};
 	///
 	/// let layout = Layout::default()
 	///     .constraints([Constraint::Fill(1)])
@@ -431,7 +431,7 @@ impl Layout {
 	/// # Examples
 	///
 	/// ```rust
-	/// use crate::layout::{Constraint, Layout, Rect};
+	/// use ratatui::layout::{Constraint, Layout, Rect};
 	///
 	/// let layout = Layout::default()
 	///     .constraints([Constraint::Fill(1)])
@@ -465,8 +465,8 @@ impl Layout {
 	/// In this example, the items in the layout will be aligned to the start.
 	///
 	/// ```rust
-	/// use crate::layout::Constraint::*;
-	/// use crate::layout::{Flex, Layout};
+	/// use ratatui::layout::Constraint::*;
+	/// use ratatui::layout::{Flex, Layout};
 	///
 	/// let layout = Layout::horizontal([Length(20), Length(20), Length(20)]).flex(Flex::Start);
 	/// ```
@@ -475,8 +475,8 @@ impl Layout {
 	/// space.
 	///
 	/// ```rust
-	/// use crate::layout::Constraint::*;
-	/// use crate::layout::{Flex, Layout};
+	/// use ratatui::layout::Constraint::*;
+	/// use ratatui::layout::{Flex, Layout};
 	///
 	/// let layout = Layout::horizontal([Length(20), Length(20), Length(20)]).flex(Flex::Legacy);
 	/// ```
@@ -505,8 +505,8 @@ impl Layout {
 	/// In this example, the spacing between each item in the layout is set to 2 cells.
 	///
 	/// ```rust
-	/// use crate::layout::Constraint::*;
-	/// use crate::layout::Layout;
+	/// use ratatui::layout::Constraint::*;
+	/// use ratatui::layout::Layout;
 	///
 	/// let layout = Layout::horizontal([Length(20), Length(20), Length(20)]).spacing(2);
 	/// ```
@@ -515,8 +515,8 @@ impl Layout {
 	/// three segments will have an overlapping border.
 	///
 	/// ```rust
-	/// use crate::layout::Constraint::*;
-	/// use crate::layout::Layout;
+	/// use ratatui::layout::Constraint::*;
+	/// use ratatui::layout::Layout;
 	/// let layout = Layout::horizontal([Length(20), Length(20), Length(20)]).spacing(-1);
 	/// ```
 	#[must_use = "method moves the value of self and returns the modified value"]
@@ -543,7 +543,7 @@ impl Layout {
 	/// # Examples
 	///
 	/// ```rust
-	/// use crate::layout::{Constraint, Layout, Rect};
+	/// use ratatui::layout::{Constraint, Layout, Rect};
 	///
 	/// let area = Rect::new(0, 0, 10, 10);
 	/// let layout = Layout::vertical([Constraint::Length(1), Constraint::Fill(1)]);
@@ -578,7 +578,7 @@ impl Layout {
 	/// # Examples
 	///
 	/// ```rust
-	/// use crate::layout::{Constraint, Layout, Rect};
+	/// use ratatui::layout::{Constraint, Layout, Rect};
 	///
 	/// let area = Rect::new(0, 0, 10, 10);
 	/// let layout = Layout::vertical([Constraint::Length(1), Constraint::Min(0)]);
@@ -610,7 +610,7 @@ impl Layout {
 	/// # Examples
 	///
 	/// ```rust
-	/// use crate::layout::{Constraint, Layout, Rect};
+	/// use ratatui::layout::{Constraint, Layout, Rect};
 	///
 	/// let area = Rect::new(0, 0, 10, 10);
 	/// let layout = Layout::vertical([Constraint::Length(1), Constraint::Fill(1)]);
@@ -649,7 +649,7 @@ impl Layout {
 	/// # Examples
 	///
 	/// ```
-	/// use crate::layout::{Constraint, Direction, Layout, Rect};
+	/// use ratatui::layout::{Constraint, Direction, Layout, Rect};
 	/// let layout = Layout::default()
 	///     .direction(Direction::Vertical)
 	///     .constraints([Constraint::Length(5), Constraint::Fill(1)])
@@ -681,7 +681,7 @@ impl Layout {
 	/// # Examples
 	///
 	/// ```
-	/// use crate::layout::{Constraint, Direction, Layout, Rect};
+	/// use ratatui::layout::{Constraint, Direction, Layout, Rect};
 	///
 	/// let (areas, spacers) = Layout::default()
 	///     .direction(Direction::Vertical)

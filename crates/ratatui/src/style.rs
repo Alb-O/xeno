@@ -13,8 +13,8 @@
 //! ## Example
 //!
 //! ```
-//! use crate::style::{Color, Modifier, Style};
-//! use crate::text::Span;
+//! use ratatui::style::{Color, Modifier, Style};
+//! use ratatui::text::Span;
 //!
 //! let heading_style = Style::new()
 //!     .fg(Color::Black)
@@ -41,8 +41,8 @@
 //! ## Example
 //!
 //! ```
-//! use crate::style::{Color, Modifier, Style, Stylize};
-//! use crate::text::{Span, Text};
+//! use ratatui::style::{Color, Modifier, Style, Stylize};
+//! use ratatui::text::{Span, Text};
 //!
 //! assert_eq!(
 //!     "hello".red().on_blue().bold(),
@@ -95,7 +95,7 @@ bitflags! {
 	/// ## Examples
 	///
 	/// ```rust
-	/// use crate::style::Modifier;
+	/// use ratatui::style::Modifier;
 	///
 	/// let m = Modifier::BOLD | Modifier::ITALIC;
 	/// ```
@@ -140,7 +140,7 @@ impl fmt::Debug for Modifier {
 /// Style lets you control the main characteristics of the displayed elements.
 ///
 /// ```rust
-/// use crate::style::{Color, Modifier, Style};
+/// use ratatui::style::{Color, Modifier, Style};
 ///
 /// Style::default()
 ///     .fg(Color::Black)
@@ -151,7 +151,7 @@ impl fmt::Debug for Modifier {
 /// Styles can also be created with a [shorthand notation](crate::style#using-style-shorthands).
 ///
 /// ```rust
-/// use crate::style::{Style, Stylize};
+/// use ratatui::style::{Style, Stylize};
 ///
 /// Style::new().black().on_green().italic().bold();
 /// ```
@@ -162,8 +162,8 @@ impl fmt::Debug for Modifier {
 /// anywhere that accepts `Into<Style>`.
 ///
 /// ```rust
-/// use crate::style::{Color, Modifier, Style};
-/// use crate::text::Line;
+/// use ratatui::style::{Color, Modifier, Style};
+/// use ratatui::text::Line;
 ///
 /// Line::styled("hello", Style::new().fg(Color::Red));
 /// // simplifies to
@@ -179,9 +179,9 @@ impl fmt::Debug for Modifier {
 /// just S3.
 ///
 /// ```rust
-/// use crate::buffer::Buffer;
-/// use crate::layout::Rect;
-/// use crate::style::{Color, Modifier, Style};
+/// use ratatui::buffer::Buffer;
+/// use ratatui::layout::Rect;
+/// use ratatui::style::{Color, Modifier, Style};
 ///
 /// let styles = [
 ///     Style::default()
@@ -217,9 +217,9 @@ impl fmt::Debug for Modifier {
 /// reset all properties until that point use [`Style::reset`].
 ///
 /// ```
-/// use crate::buffer::Buffer;
-/// use crate::layout::Rect;
-/// use crate::style::{Color, Modifier, Style};
+/// use ratatui::buffer::Buffer;
+/// use ratatui::layout::Rect;
+/// use ratatui::style::{Color, Modifier, Style};
 ///
 /// let styles = [
 ///     Style::default()
@@ -334,7 +334,7 @@ impl Style {
 	/// ## Examples
 	///
 	/// ```rust
-	/// use crate::style::{Color, Style};
+	/// use ratatui::style::{Color, Style};
 	///
 	/// let style = Style::default().fg(Color::Blue);
 	/// let diff = Style::default().fg(Color::Red);
@@ -351,7 +351,7 @@ impl Style {
 	/// ## Examples
 	///
 	/// ```rust
-	/// use crate::style::{Color, Style};
+	/// use ratatui::style::{Color, Style};
 	///
 	/// let style = Style::default().bg(Color::Blue);
 	/// let diff = Style::default().bg(Color::Red);
@@ -376,7 +376,7 @@ impl Style {
 	/// ## Examples
 	///
 	/// ```rust
-	/// use crate::style::{Color, Modifier, Style};
+	/// use ratatui::style::{Color, Modifier, Style};
 	///
 	/// let style = Style::default()
 	///     .underline_color(Color::Blue)
@@ -405,7 +405,7 @@ impl Style {
 	/// ## Examples
 	///
 	/// ```rust
-	/// use crate::style::{Modifier, Style};
+	/// use ratatui::style::{Modifier, Style};
 	///
 	/// let style = Style::default().add_modifier(Modifier::BOLD);
 	/// let diff = Style::default().add_modifier(Modifier::ITALIC);
@@ -427,7 +427,7 @@ impl Style {
 	/// ## Examples
 	///
 	/// ```rust
-	/// use crate::style::{Modifier, Style};
+	/// use ratatui::style::{Modifier, Style};
 	///
 	/// let style = Style::default().add_modifier(Modifier::BOLD | Modifier::ITALIC);
 	/// let diff = Style::default().remove_modifier(Modifier::ITALIC);
@@ -447,7 +447,7 @@ impl Style {
 	/// ## Examples
 	///
 	/// ```rust
-	/// use crate::style::{Modifier, Style};
+	/// use ratatui::style::{Modifier, Style};
 	///
 	/// let style = Style::default().add_modifier(Modifier::BOLD | Modifier::ITALIC);
 	/// assert!(style.has_modifier(Modifier::BOLD));
@@ -466,7 +466,7 @@ impl Style {
 	///
 	/// ## Examples
 	/// ```
-	/// use crate::style::{Color, Modifier, Style};
+	/// use ratatui::style::{Color, Modifier, Style};
 	///
 	/// let style_1 = Style::default().fg(Color::Yellow);
 	/// let style_2 = Style::default().bg(Color::Red);
@@ -579,7 +579,7 @@ impl From<Color> for Style {
 	/// # Example
 	///
 	/// ```rust
-	/// use crate::style::{Color, Style};
+	/// use ratatui::style::{Color, Style};
 	///
 	/// let style = Style::from(Color::Red);
 	/// ```
@@ -594,7 +594,7 @@ impl From<(Color, Color)> for Style {
 	/// # Example
 	///
 	/// ```rust
-	/// use crate::style::{Color, Style};
+	/// use ratatui::style::{Color, Style};
 	///
 	/// // red foreground, blue background
 	/// let style = Style::from((Color::Red, Color::Blue));
@@ -617,7 +617,7 @@ impl From<Modifier> for Style {
 	/// # Example
 	///
 	/// ```rust
-	/// use crate::style::{Style, Modifier};
+	/// use ratatui::style::{Style, Modifier};
 	///
 	/// // add bold and italic
 	/// let style = Style::from(Modifier::BOLD|Modifier::ITALIC);
@@ -632,7 +632,7 @@ impl From<(Modifier, Modifier)> for Style {
 	/// # Example
 	///
 	/// ```rust
-	/// use crate::style::{Modifier, Style};
+	/// use ratatui::style::{Modifier, Style};
 	///
 	/// // add bold and italic, remove dim
 	/// let style = Style::from((Modifier::BOLD | Modifier::ITALIC, Modifier::DIM));
@@ -652,7 +652,7 @@ impl From<(Color, Modifier)> for Style {
 	/// # Example
 	///
 	/// ```rust
-	/// use crate::style::{Color, Modifier, Style};
+	/// use ratatui::style::{Color, Modifier, Style};
 	///
 	/// // red foreground, add bold and italic
 	/// let style = Style::from((Color::Red, Modifier::BOLD | Modifier::ITALIC));
@@ -670,7 +670,7 @@ impl From<(Color, Color, Modifier)> for Style {
 	/// # Example
 	///
 	/// ```rust
-	/// use crate::style::{Color, Modifier, Style};
+	/// use ratatui::style::{Color, Modifier, Style};
 	///
 	/// // red foreground, blue background, add bold and italic
 	/// let style = Style::from((Color::Red, Color::Blue, Modifier::BOLD | Modifier::ITALIC));
@@ -687,7 +687,7 @@ impl From<(Color, Color, Modifier, Modifier)> for Style {
 	/// # Example
 	///
 	/// ```rust
-	/// use crate::style::{Color, Modifier, Style};
+	/// use ratatui::style::{Color, Modifier, Style};
 	///
 	/// // red foreground, blue background, add bold and italic, remove dim
 	/// let style = Style::from((

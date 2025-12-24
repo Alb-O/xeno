@@ -7,8 +7,8 @@
 /// * Create a [`Row`] containing a vector of [`Cell`]s:
 ///
 /// ```rust
-/// # use crate::style::Stylize;
-/// use crate::macros::row;
+/// # use ratatui::style::Stylize;
+/// use ratatui::row;
 ///
 /// let row = row!["hello", "world"];
 /// let row = row!["hello".red(), "world".red().bold()];
@@ -17,22 +17,22 @@
 /// * Create an empty [`Row`]:
 ///
 /// ```rust
-/// # use crate::macros::row;
+/// # use ratatui::row;
 /// let empty_row = row![];
 /// ```
 ///
 /// * Create a [`Row`] from a given [`Cell`] repeated some amount of times:
 ///
 /// ```rust
-/// # use crate::macros::row;
+/// # use ratatui::row;
 /// let row = row!["hello"; 2];
 /// ```
 ///
 /// * Use [`text!`], [`line!`] or [`span!`] macro inside [`row!`] macro.
 ///
 /// ```rust
-/// # use crate::style::{Modifier};
-/// use crate::macros::{row, line, text, span};
+/// # use ratatui::style::{Modifier};
+/// use ratatui::{row, line, text, span};
 ///
 /// let row = row![
 ///     line!["hello", "world"], span!(Modifier::BOLD; "goodbye {}", "world"),

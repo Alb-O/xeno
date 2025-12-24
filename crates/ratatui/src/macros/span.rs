@@ -11,8 +11,8 @@
 /// # Examples
 ///
 /// ```rust
-/// # use crate::style::{Color, Modifier, Style, Stylize};
-/// use crate::macros::span;
+/// # use ratatui::style::{Color, Modifier, Style, Stylize};
+/// use ratatui::span;
 ///
 /// let content = "content";
 ///
@@ -61,15 +61,15 @@
 ///
 /// ```compile_fail
 /// # use ratatui::prelude::*;
-/// # use crate::macros::span;
+/// # use ratatui::span;
 /// let span = span!(Modifier::BOLD, "hello world");
 /// ```
 ///
 /// But this will work:
 ///
 /// ```rust
-/// # use crate::style::{Modifier};
-/// # use crate::macros::span;
+/// # use ratatui::style::{Modifier};
+/// # use ratatui::span;
 /// let span = span!(Modifier::BOLD; "hello world");
 /// ```
 ///
@@ -77,14 +77,14 @@
 ///
 /// ```compile_fail
 /// # use ratatui::prelude::*;
-/// # use crate::macros::span;
+/// # use ratatui::span;
 /// let span = span!("hello", "world");
 /// ```
 ///
 /// But this will work:
 ///
 /// ```rust
-/// # use crate::macros::span;
+/// # use ratatui::span;
 /// let span = span!("hello {}", "world");
 /// ```
 ///

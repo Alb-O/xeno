@@ -6,8 +6,8 @@
 /// # Examples
 ///
 /// ```
-/// # use crate::layout::Constraint;
-/// use crate::macros::constraint;
+/// # use ratatui::layout::Constraint;
+/// use ratatui::constraint;
 /// assert_eq!(constraint!(>= 3 + 4), Constraint::Min(7));
 /// assert_eq!(constraint!(<= 3 + 4), Constraint::Max(7));
 /// assert_eq!(constraint!(== 1 / 3), Constraint::Ratio(1, 3));
@@ -49,14 +49,14 @@ macro_rules! constraint {
 /// # Examples
 ///
 /// ```rust
-/// use crate::macros::constraints;
+/// use ratatui::constraints;
 /// assert_eq!(constraints![==5, ==30%, >=3, <=1, ==1/2].len(), 5);
 /// assert_eq!(constraints![==5; 5].len(), 5);
 /// ```
 ///
 /// ```rust
-/// # use crate::layout::Constraint;
-/// # use crate::macros::constraints;
+/// # use ratatui::layout::Constraint;
+/// # use ratatui::constraints;
 /// assert_eq!(
 ///     constraints![==50, ==30%, >=3, <=1, ==1/2, *=1],
 ///     [
@@ -171,7 +171,7 @@ macro_rules! constraints {
 ///
 /// ```
 /// // Vertical layout with a fixed size and a percentage constraint
-/// use crate::macros::vertical;
+/// use ratatui::vertical;
 /// vertical![== 50, == 30%];
 /// ```
 #[macro_export]
@@ -192,7 +192,7 @@ macro_rules! vertical {
 ///
 /// ```
 /// // Horizontal layout with a ratio constraint and a minimum size constraint
-/// use crate::macros::horizontal;
+/// use ratatui::horizontal;
 /// horizontal![== 1/3, >= 100];
 /// ```
 #[macro_export]
