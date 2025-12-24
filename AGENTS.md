@@ -19,7 +19,7 @@ Kakoune-inspired modal text editor in Rust.
 
 All crates live in `crates/` directory.
 
-## Registry System (`crates/tome-core/src/registry/`)
+## Registry System (`crates/core/src/registry/`)
 
 Uses `linkme` for compile-time registration. Drop a file in, it's automatically included.
 
@@ -35,14 +35,14 @@ Uses `linkme` for compile-time registration. Drop a file in, it's automatically 
 | `motions/`     | Cursor movement                                      |
 | `objects/`     | Text object selection                                |
 
-## Extension System (`crates/tome-extensions/`)
+## Extension System (`crates/extensions/`)
 
-Host-side extensions that manage stateful services (like ACP/AI) and UI panels. These are located in `crates/tome-extensions/extensions/` and are automatically discovered at build-time via `build.rs`. They depend on `tome-api`.
+Host-side extensions that manage stateful services (like ACP/AI) and UI panels. These are located in `crates/extensions/extensions/` and are automatically discovered at build-time via `build.rs`. They depend on `tome-api`.
 
 Running cargo: `nix develop -c cargo {build/test/etc}`. Kitty GUI tests: `KITTY_TESTS=1 DISPLAY=:0 nix develop -c cargo test -p tome-term --test kitty_multiselect -- --nocapture --test-threads=1`.
 
 ## Integration & GUI-Driven Testing
 
 - Approach: keep tight red/green loops with assertions in both unit tests and kitty GUI integration tests. Write failing assertions first, then iterate fixes until GUI captures go green.
-- Harness: `kitty-test-harness` (git dependency, own flake) drives the real terminal, sending key sequences and capturing screens. Defaults favor WSL/kitty (X11, software GL). Current GUI suite lives in `crates/tome-term/tests/kitty_multiselect.rs`; keep tests serial and isolated per file to avoid socket/file contention.
+- Harness: `kitty-test-harness` (git dependency, own flake) drives the real terminal, sending key sequences and capturing screens. Defaults favor WSL/kitty (X11, software GL). Current GUI suite lives in `crates/term/tests/kitty_multiselect.rs`; keep tests serial and isolated per file to avoid socket/file contention.
 - Why it matters: core selection ops can pass unit tests, but the live GUI harness exposes cursor/selection drift and per-cursor insert bugs. Running against the real terminal ensures fixes match user-facing behavior.

@@ -35,7 +35,7 @@ Host extensions define the **environment of the editor**. They handle stateful s
 
 To maintain stability and testability, dependency directions are strictly enforced:
 
-1. **Runner -> Extensions -> API -> Core**: `tome-term` (the runner) depends on `tome-extensions`, which depends on `tome-api` (the engine), which depends on `tome-core`.
+1. **Runner -> Extensions -> API -> Core**: `tome-term` (the runner in `crates/term`) depends on `tome-extensions` (in `crates/extensions`), which depends on `tome-api` (the engine in `crates/api`), which depends on `tome-core` (in `crates/core`).
 1. **Core -X API -X Extensions**: `tome-core` must **never** depend on higher-level crates.
 1. **Internal Decoupling**: The `Editor` struct (in `tome-api`) does not know about specific extensions. It only knows about the `ExtensionMap`. Extensions register themselves via the `EXTENSIONS` registry defined in `tome-api`.
 

@@ -21,9 +21,9 @@ termina.workspace = true
 thiserror.workspace = true
 tokio.workspace = true 
 tokio-util.workspace = true
-tome-api = { path = "../tome-api" }
+tome-api = { path = "../api" }
 tome-core.workspace = true
-tome-extensions = { path = "../tome-extensions" }
+tome-extensions = { path = "../extensions" }
 toml.workspace = true
 tui-term = "0.2.0"
 

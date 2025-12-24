@@ -18,5 +18,5 @@ serde.workspace = true
 termina.workspace = true
 tokio.workspace = true
 tokio-util = { version = "0.7", features = ["compat"] }
-tome-api = { path = "../tome-api" }
+tome-api = { path = "../api" }
 tome-core.workspace = true
