@@ -5,10 +5,10 @@ use ratatui::widgets::{Block, Paragraph};
 use termina::event::{KeyCode as TmKeyCode, Modifiers as TmModifiers};
 
 use crate::acp::types::{ChatRole, ChatItem};
-use crate::theme::Theme;
-use crate::ui::FocusTarget;
-use crate::ui::dock::DockSlot;
-use crate::ui::panel::{CursorRequest, EventResult, Panel, UiEvent, UiRequest};
+use tome_api::theme::Theme;
+use tome_api::ui::FocusTarget;
+use tome_api::ui::dock::DockSlot;
+use tome_api::ui::panel::{CursorRequest, EventResult, Panel, UiEvent, UiRequest};
 use crate::acp::AcpManager;
 
 pub fn chat_panel_ui_id(panel_id: u64) -> String {
@@ -54,7 +54,7 @@ impl Panel for AcpChatPanel {
 	fn handle_event(
 		&mut self,
 		event: UiEvent,
-		editor: &mut crate::editor::Editor,
+		editor: &mut tome_api::editor::Editor,
 		focused: bool,
 	) -> EventResult {
 		match event {
@@ -130,7 +130,7 @@ impl Panel for AcpChatPanel {
 		&mut self,
 		frame: &mut ratatui::Frame<'_>,
 		area: Rect,
-		editor: &mut crate::editor::Editor,
+		editor: &mut tome_api::editor::Editor,
 		focused: bool,
 		theme: &Theme,
 	) -> Option<CursorRequest> {
@@ -219,7 +219,7 @@ impl Panel for AcpChatPanel {
 	}
 }
 
-pub fn submit_acp_panel(editor: &mut crate::editor::Editor) {
+pub fn submit_acp_panel(editor: &mut tome_api::editor::Editor) {
 	let acp = editor.extensions.get::<AcpManager>().expect("ACP extension missing");
 	let panel_id = match acp.panel_id() {
 		Some(id) => id,
@@ -245,7 +245,7 @@ pub fn submit_acp_panel(editor: &mut crate::editor::Editor) {
 	}
 }
 
-pub fn poll_acp_events(editor: &mut crate::editor::Editor) {
+pub fn poll_acp_events(editor: &mut tome_api::editor::Editor) {
 	let acp = match editor.extensions.get::<AcpManager>() {
 		Some(acp) => acp,
 		None => return,
@@ -256,7 +256,7 @@ pub fn poll_acp_events(editor: &mut crate::editor::Editor) {
 	}
 }
 
-fn handle_acp_event(editor: &mut crate::editor::Editor, event: crate::acp::AcpEvent) {
+fn handle_acp_event(editor: &mut tome_api::editor::Editor, event: crate::acp::AcpEvent) {
 	use crate::acp::AcpEvent;
 	match event {
 		AcpEvent::PanelAppend { role, text } => {

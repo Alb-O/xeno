@@ -1,27 +1,17 @@
-// Auto-discovered extensions
-include!(concat!(env!("OUT_DIR"), "/extensions.rs"));
-
 mod app;
 mod backend;
-mod capabilities;
 mod cli;
-mod editor;
-mod ipc;
-mod paths;
-mod render;
-mod styles;
 mod terminal;
-pub mod terminal_panel;
 #[cfg(test)]
 mod tests;
-pub mod theme;
-pub mod themes;
-mod ui;
 
 use app::run_editor;
 use clap::Parser;
 use cli::Cli;
-use editor::Editor;
+use tome_api::Editor;
+// Force linking of tome-extensions so distributed_slices are registered
+#[allow(unused_imports)]
+use tome_extensions as _;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -38,7 +28,6 @@ async fn main() -> anyhow::Result<()> {
 			editor.execute_ex_command(cmd).await;
 
 			// Give async events time to process.
-			// Print messages as they arrive so failures are visible headlessly.
 			let mut last_text: Option<String> = None;
 			for _ in 0..500 {
 				editor.ui_tick();
@@ -47,7 +36,7 @@ async fn main() -> anyhow::Result<()> {
 					&& last_text.as_deref() != Some(message.text.as_str())
 				{
 					match message.kind {
-						editor::MessageKind::Info => {
+						tome_api::editor::MessageKind::Info => {
 							eprintln!("{}", message.text);
 							if message.text.starts_with("Failed to start agent:")
 								|| message.text.starts_with("ACP IO error:")
@@ -57,7 +46,7 @@ async fn main() -> anyhow::Result<()> {
 								return Err(anyhow::anyhow!(message.text.clone()));
 							}
 						}
-						editor::MessageKind::Error => {
+						tome_api::editor::MessageKind::Error => {
 							return Err(anyhow::anyhow!(message.text.clone()));
 						}
 					}

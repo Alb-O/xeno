@@ -1,6 +1,7 @@
 use ratatui::style::Style;
 use ratatui::widgets::{Paragraph, Widget};
-use tome_api::Editor;
+
+use crate::Editor;
 
 impl Editor {
 	pub fn render_message_line(&self) -> impl Widget + '_ {

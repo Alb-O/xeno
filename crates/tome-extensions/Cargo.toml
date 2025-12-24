@@ -1,0 +1,22 @@
+[package]
+name = "tome-extensions"
+description = "Built-in extensions for Tome"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+agent-client-protocol.workspace = true
+anyhow = "1.0"
+futures = "0.3"
+linkme.workspace = true
+parking_lot = "0.12"
+paste.workspace = true
+ratatui.workspace = true
+ropey.workspace = true
+serde.workspace = true
+termina.workspace = true
+tokio.workspace = true
+tokio-util = { version = "0.7", features = ["compat"] }
+tome-api = { path = "../tome-api" }
+tome-core.workspace = true

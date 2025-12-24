@@ -7,11 +7,10 @@ mod suite {
 	use ratatui::Terminal;
 	use ratatui::backend::TestBackend;
 	use termina::event::{KeyCode, KeyEvent, Modifiers};
+	use tome_api::Editor;
+	use tome_api::theme::{CMD_THEME, THEMES, get_theme};
 	use tome_core::registry::{CommandContext, CommandOutcome};
 	use tome_core::{Mode, Selection};
-
-	use crate::editor::Editor;
-	use crate::theme::{CMD_THEME, THEMES, get_theme};
 
 	fn test_editor(content: &str) -> Editor {
 		let fs = Arc::new(agentfs_sdk::HostFS::new(std::env::current_dir().unwrap()).unwrap());
@@ -402,12 +401,12 @@ mod suite {
 
 		editor
 			.ui
-			.toggle_panel(crate::ui::panels::terminal::TERMINAL_PANEL_ID);
+			.toggle_panel(tome_api::ui::panels::terminal::TERMINAL_PANEL_ID);
 		assert!(
 			editor
 				.ui
 				.dock
-				.is_open(crate::ui::panels::terminal::TERMINAL_PANEL_ID),
+				.is_open(tome_api::ui::panels::terminal::TERMINAL_PANEL_ID),
 			"Ctrl+t should open terminal panel"
 		);
 		terminal.draw(|frame| editor.render(frame)).unwrap();
@@ -420,12 +419,12 @@ mod suite {
 
 		editor
 			.ui
-			.toggle_panel(crate::ui::panels::terminal::TERMINAL_PANEL_ID);
+			.toggle_panel(tome_api::ui::panels::terminal::TERMINAL_PANEL_ID);
 		assert!(
 			!editor
 				.ui
 				.dock
-				.is_open(crate::ui::panels::terminal::TERMINAL_PANEL_ID),
+				.is_open(tome_api::ui::panels::terminal::TERMINAL_PANEL_ID),
 			"Ctrl+t should close terminal panel"
 		);
 		terminal.draw(|frame| editor.render(frame)).unwrap();

@@ -54,7 +54,7 @@ fn main() {
 		// 2) Name hygiene: sanitize for module identifier
 		let mod_name = raw_name.replace(['-', '.'], "_");
 
-		// Validate identifier (basic check: must start with letter/underscore)
+		// Validate identifier
 		if !mod_name
 			.chars()
 			.next()
@@ -67,7 +67,7 @@ fn main() {
 			);
 		}
 
-		// 3) Portable paths: Use debug representation for correct escaping
+		// 3) Portable paths
 		let path_str = if path.is_dir() {
 			if path.join("mod.rs").exists() {
 				format!("{:?}", path.join("mod.rs").display().to_string())
@@ -81,15 +81,12 @@ fn main() {
 		content.push_str(&format!("#[path = {}]\n", path_str));
 		content.push_str(&format!("pub mod {};\n", mod_name));
 
-		// Emit cfg flag
 		println!("cargo:rustc-cfg=extension_{}", mod_name);
-		// rerun-if-changed for each extension
 		println!("cargo:rerun-if-changed={}", path.display());
 
 		extension_names.push(raw_name);
 	}
 
-	// Generate a list of available extension names
 	content.push_str("\n/// List of all auto-discovered extension names.\n");
 	content.push_str(&format!(
 		"pub const EXTENSION_NAMES: &[&str] = &{:?};\n",
@@ -97,7 +94,5 @@ fn main() {
 	));
 
 	fs::write(&dest_path, content).unwrap();
-
-	// Re-run if the extensions directory changes (new folders added/removed)
 	println!("cargo:rerun-if-changed=extensions");
 }

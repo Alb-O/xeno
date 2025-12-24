@@ -2306,6 +2306,37 @@ dependencies = [
 ]
 
 [[package]]
+name = "tome-api"
+version = "0.1.0"
+dependencies = [
+ "agentfs-sdk",
+ "anyhow",
+ "async-trait",
+ "clap",
+ "futures",
+ "home",
+ "insta",
+ "linkme",
+ "parking_lot",
+ "paste",
+ "portable-pty",
+ "ratatui 0.30.0-hackable",
+ "regex",
+ "ropey",
+ "serde",
+ "strsim",
+ "termina",
+ "thiserror 2.0.17",
+ "tokio",
+ "tokio-util",
+ "tome-core",
+ "toml",
+ "tui-term",
+ "unicode-segmentation",
+ "unicode-width 0.2.0",
+]
+
+[[package]]
 name = "tome-core"
 version = "0.1.0"
 dependencies = [
@@ -2326,6 +2357,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "tome-extensions"
+version = "0.1.0"
+dependencies = [
+ "agent-client-protocol",
+ "agentfs-sdk",
+ "anyhow",
+ "futures",
+ "linkme",
+ "parking_lot",
+ "paste",
+ "ratatui 0.30.0-hackable",
+ "ropey",
+ "serde",
+ "termina",
+ "tokio",
+ "tokio-util",
+ "tome-api",
+ "tome-core",
+]
+
+[[package]]
 name = "tome-macro"
 version = "0.1.0"
 dependencies = [
@@ -2343,21 +2395,19 @@ dependencies = [
  "home",
  "insta",
  "kitty-test-harness",
- "libloading",
  "linkme",
  "parking_lot",
- "paste",
- "portable-pty",
  "ratatui 0.30.0-hackable",
  "serde",
  "serial_test",
- "strsim",
  "termina",
  "termwiz",
  "thiserror 2.0.17",
  "tokio",
  "tokio-util",
+ "tome-api",
  "tome-core",
+ "tome-extensions",
  "toml",
  "tui-term",
 ]

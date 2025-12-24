@@ -1,8 +1,7 @@
 use std::path::PathBuf;
 
 use clap::Parser;
-
-use crate::styles::cli_styles;
+use tome_api::styles::cli_styles;
 
 #[derive(Parser, Debug)]
 #[command(name = "tome")]

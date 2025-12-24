@@ -5,12 +5,12 @@ use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Clear, Paragraph};
-use tome_api::Editor;
-use tome_api::theme::blend_colors;
 use tome_core::Mode;
 use tome_core::range::CharIdx;
 
 use super::types::{RenderResult, WrapSegment};
+use crate::Editor;
+use crate::theme::blend_colors;
 
 impl Editor {
 	pub fn render(&mut self, frame: &mut ratatui::Frame) {

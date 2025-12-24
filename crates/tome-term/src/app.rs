@@ -5,9 +5,9 @@ use ratatui::Terminal;
 use termina::escape::csi::{Csi, Cursor};
 use termina::event::{Event, KeyEventKind};
 use termina::{PlatformTerminal, Terminal as _};
+use tome_api::Editor;
 
 use crate::backend::TerminaBackend;
-use crate::editor::Editor;
 use crate::terminal::{
 	coalesce_resize_events, cursor_style_for_mode, disable_terminal_features,
 	enable_terminal_features, install_panic_hook,

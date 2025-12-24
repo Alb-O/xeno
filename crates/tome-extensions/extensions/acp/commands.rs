@@ -153,15 +153,15 @@ fn cmd_acp_cancel<'a>(
 }
 
 trait CommandContextExt {
-	fn require_editor_mut(&mut self) -> &mut crate::editor::Editor;
+	fn require_editor_mut(&mut self) -> &mut tome_api::editor::Editor;
 }
 
 impl<'a> CommandContextExt for CommandContext<'a> {
-	fn require_editor_mut(&mut self) -> &mut crate::editor::Editor {
+	fn require_editor_mut(&mut self) -> &mut tome_api::editor::Editor {
 		// SAFETY: We know that in tome-term, EditorOps is implemented by Editor
 		unsafe {
 			&mut *(self.editor as *mut dyn tome_core::registry::EditorOps
-				as *mut crate::editor::Editor)
+				as *mut tome_api::editor::Editor)
 		}
 	}
 }

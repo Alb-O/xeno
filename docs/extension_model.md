@@ -17,9 +17,9 @@ Core builtins define the **language of the editor**. They are primarily register
   - **Portable**: They do not depend on any specific UI or terminal implementation.
   - **Static Registration**: Collected into static slices (e.g., `ACTIONS`, `COMMANDS`).
 
-## 2. Host Extensions (`tome-term`)
+## 2. Host Extensions (`tome-extensions`)
 
-Host extensions define the **environment of the editor**. They handle stateful services, UI components, and integration with the host operating system.
+Host extensions define the **environment of the editor**. They handle stateful services, UI components, and integration with the host operating system. These depend on `tome-api`.
 
 - **Responsibilities**:
   - **State Management**: Storing persistent data (e.g., ACP chat history, LSP client state) using the `ExtensionMap`.
@@ -28,33 +28,34 @@ Host extensions define the **environment of the editor**. They handle stateful s
   - **Initialization**: Populating the `ExtensionMap` during `Editor` creation.
 - **Characteristics**:
   - **Stateful**: They inject their own types into the `Editor.extensions` TypeMap.
-  - **Host-Specific**: They may depend on specific UI frameworks (e.g., Ratatui, Termina).
-  - **Auto-Discovered**: In `tome-term`, these are discovered at build-time from the `extensions/` directory.
+  - **Host-Specific**: They depend on the editor Engine API (`tome-api`).
+  - **Modular**: Built as a separate crate to avoid circular dependencies with the CLI runner.
 
 ## 3. Dependency Direction & Coupling
 
 To maintain stability and testability, dependency directions are strictly enforced:
 
-1. **Host -> Core**: Host implementations (`tome-term`) and Host extensions depend on `tome-core`.
-1. **Core -X Host**: `tome-core` must **never** depend on `tome-term` or any host-specific extensions.
-1. **Internal Decoupling**: The `Editor` struct (in `tome-term`) does not know about specific extensions. It only knows about the `ExtensionMap`. Extensions register themselves via the `EXTENSIONS` registry.
+1. **Runner -> Extensions -> API -> Core**: `tome-term` (the runner) depends on `tome-extensions`, which depends on `tome-api` (the engine), which depends on `tome-core`.
+1. **Core -X API -X Extensions**: `tome-core` must **never** depend on higher-level crates.
+1. **Internal Decoupling**: The `Editor` struct (in `tome-api`) does not know about specific extensions. It only knows about the `ExtensionMap`. Extensions register themselves via the `EXTENSIONS` registry defined in `tome-api`.
 
 ### Summary Table
 
-| Feature        | Core Builtin Extension                                        | Host Plugin                            |
-| -------------- | ------------------------------------------------------------- | -------------------------------------- |
-| **Crate**      | `tome-core`                                                   | `tome-term` (Host)                     |
-| **Storage**    | `RegistryIndex` (Static) ExtensionuginMap\` (Runtime TypeMap) |                                        |
-| **Logic Type** | Functional / Pure                                             | Stateful / Side-effectful              |
-| **Discovery**  | `linkme` (Global)                                             | `build.rs` + `linkme` (Local)          |
-| **Examples**   | `move_line_down`, `:quit`                                     | `AcpManager`, `LspClient`, `ChatPanel` |
+| Feature        | Core Builtin Extension    | Host Plugin                            |
+| -------------- | ------------------------- | -------------------------------------- |
+| **Crate**      | `tome-core`               | `tome-extensions`                      |
+| **API Crate**  | N/A                       | `tome-api`                             |
+| **Logic Type** | Functional / Pure         | Stateful / Side-effectful              |
+| **Discovery**  | `linkme` (Global)         | `linkme` (Local to host)               |
+| **Examples**   | `move_line_down`, `:quit` | `AcpManager`, `LspClient`, `ChatPanel` |
 
-## 4. Best Practices
+## 4. Stable Interface (`tome-api`)
 
-- **Prefer Builtins**: If a feature can be implemented as a stateless action or command, put it in `tome-core`.
-- **Use TypeMap for State**: Never add extension-specific fields to the `Editor` struct. Use `editor.extensions.insert(MyState::new())` during init.
-- **Poll Sparingly**: Only use `TICK_EXTENSIONS` if the extension truly needs to perform background work or event polling on every frame.
+The `tome-api` crate serves as the bridge between the editor engine and its extensions. It contains:
 
-## 5. Future: External Plugin Crates
+- The `Editor` struct and its public operations.
+- UI traits like `Panel`.
+- Theme definitions.
+- The `ExtensionMap` and registration slices (`EXTENSIONS`, `TICK_EXTENSIONS`).
 
-If the project grows to support third-party plugins as independent crates, a `tome-api` crate will be introduced. This crate will contain the stable interfaces (traits and TypeMap keys) that both `tome-term` (the host) and the plugins depend on, breaking the potential circular dependency.
+This decoupling ensures that adding a new UI panel to an extension doesn't require modifying the core engine or the CLI runner.

@@ -1,34 +1,34 @@
 [package]
-name = "tome-term"
-description = "Terminal frontend for Tome editor"
+name = "tome-api"
+description = "Terminal editor API and core logic for Tome"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 
-[[bin]]
-name = "tome"
-path = "src/main.rs"
-
 [dependencies]
-agent-client-protocol.workspace = true
+anyhow = "1.0"
+async-trait = "0.1"
 clap.workspace = true
+futures = "0.3"
 home = "0.5"
 linkme.workspace = true
 parking_lot = "0.12"
+paste.workspace = true
+portable-pty = "0.9.0"
 ratatui.workspace = true
+regex.workspace = true
+ropey.workspace = true
 serde.workspace = true
+strsim = "0.11"
 termina.workspace = true
 thiserror.workspace = true
-tokio.workspace = true 
+tokio.workspace = true
 tokio-util.workspace = true
-tome-api = { path = "../tome-api" }
 tome-core.workspace = true
-tome-extensions = { path = "../tome-extensions" }
 toml.workspace = true
 tui-term = "0.2.0"
+unicode-segmentation.workspace = true
+unicode-width.workspace = true
 
 [dev-dependencies]
 insta.workspace = true
-kitty-test-harness.workspace = true
-serial_test.workspace = true
-termwiz = "0.23"

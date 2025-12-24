@@ -1,11 +1,12 @@
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Paragraph, Widget};
-use tome_api::Editor;
 use tome_core::Mode;
 use tome_core::registry::{
 	RenderedSegment, SegmentPosition, SegmentStyle, StatuslineContext, render_position,
 };
+
+use crate::Editor;
 
 impl Editor {
 	pub fn render_status_line(&self) -> impl Widget + '_ {

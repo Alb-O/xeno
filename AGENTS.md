@@ -11,7 +11,9 @@ Kakoune-inspired modal text editor in Rust.
 ## Workspace Crates
 
 - **tome-core**: Core editing primitives and registry system; `host` feature pulls in ropey/regex/termina/linkme for embedded use.
-- **tome-term**: Terminal UI (ratatui) and CLI binary `tome`; houses kitty GUI integration tests and host extensions.
+- **tome-api**: Terminal editor Engine and shared interfaces (Editor, UI, Themes). Decoupled from CLI.
+- **tome-extensions**: Built-in host extensions (ACP, AgentFS). Depends on `tome-api`.
+- **tome-term**: Terminal UI (ratatui) and CLI binary `tome`. Orchestrates `tome-api` and `tome-extensions`.
 - **tome-macro**: Proc-macro utilities.
 - **ratatui**: Forked/hackable TUI library.
 
@@ -33,9 +35,9 @@ Uses `linkme` for compile-time registration. Drop a file in, it's automatically 
 | `motions/`     | Cursor movement                                      |
 | `objects/`     | Text object selection                                |
 
-## Extension System (`crates/tome-term/extensions/`)
+## Extension System (`crates/tome-extensions/`)
 
-Host-side extensions that manage stateful services (like ACP/AI) and UI panels. Discovered at build-time via `build.rs`.
+Host-side extensions that manage stateful services (like ACP/AI) and UI panels. These are located in `crates/tome-extensions/extensions/` and are automatically discovered at build-time via `build.rs`. They depend on `tome-api`.
 
 Running cargo: `nix develop -c cargo {build/test/etc}`. Kitty GUI tests: `KITTY_TESTS=1 DISPLAY=:0 nix develop -c cargo test -p tome-term --test kitty_multiselect -- --nocapture --test-threads=1`.
 
