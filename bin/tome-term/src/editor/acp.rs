@@ -2,8 +2,7 @@
 
 use std::path::PathBuf;
 
-use crate::acp::state::{ChatItem, ChatPanelState};
-use crate::acp::{AcpEvent, ChatRole};
+use crate::acp::{AcpEvent, ChatItem, ChatPanelState, ChatRole};
 use crate::editor::Editor;
 use crate::ui::panels::chat::{AcpChatPanel, chat_panel_ui_id};
 

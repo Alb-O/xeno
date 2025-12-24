@@ -4,7 +4,7 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Paragraph};
 use termina::event::{KeyCode as TmKeyCode, Modifiers as TmModifiers};
 
-use crate::acp::state::ChatRole;
+use crate::acp::ChatRole;
 use crate::theme::Theme;
 use crate::ui::FocusTarget;
 use crate::ui::dock::DockSlot;

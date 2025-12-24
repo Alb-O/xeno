@@ -12,7 +12,7 @@ use agent_client_protocol::{
 };
 
 use crate::acp::backend::enqueue_panel_append;
-use crate::acp::state::{AcpEvent, AcpState, ChatRole, PermissionOption};
+use crate::acp::types::{AcpEvent, AcpState, ChatRole, PermissionOption};
 
 /// Handler for ACP protocol messages.
 pub struct AcpMessageHandler {

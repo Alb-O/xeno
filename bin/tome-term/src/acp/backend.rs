@@ -19,7 +19,7 @@ use tokio::sync::mpsc::Receiver;
 use tokio_util::compat::{TokioAsyncReadCompatExt, TokioAsyncWriteCompatExt};
 
 use crate::acp::handler::AcpMessageHandler;
-use crate::acp::state::{AcpEvent, AcpState, AgentCommand, ChatRole};
+use crate::acp::types::{AcpEvent, AcpState, AgentCommand, ChatRole};
 
 /// Backend for ACP agent communication.
 pub struct AcpBackend {
