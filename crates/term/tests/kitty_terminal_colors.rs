@@ -1,33 +1,33 @@
 use std::path::PathBuf;
 use std::time::Duration;
 
-#[allow(unused_imports)]
+#[allow(unused_imports, reason = "test harness utilities for conditional test execution")]
 use kitty_test_harness::{
 	kitty_send_keys, pause_briefly, require_kitty, run_with_timeout, wait_for_screen_text_clean,
 	with_kitty_capture,
 };
-#[allow(unused_imports)]
+#[allow(unused_imports, reason = "shared test utilities for keyboard input simulation")]
 use termwiz::input::{KeyCode, Modifiers};
 
-#[allow(dead_code)]
+#[allow(dead_code, reason = "shared test constant")]
 const TEST_TIMEOUT: Duration = Duration::from_secs(15);
 
-#[allow(dead_code)]
+#[allow(dead_code, reason = "shared test helper")]
 fn tome_cmd() -> String {
 	env!("CARGO_BIN_EXE_tome").to_string()
 }
 
-#[allow(dead_code)]
+#[allow(dead_code, reason = "shared test helper")]
 fn tome_cmd_with_file_named(name: &str) -> String {
 	format!("{} {}", tome_cmd(), name)
 }
 
-#[allow(dead_code)]
+#[allow(dead_code, reason = "shared test helper")]
 fn workspace_dir() -> PathBuf {
 	PathBuf::from(env!("CARGO_MANIFEST_DIR"))
 }
 
-#[allow(dead_code)]
+#[allow(dead_code, reason = "shared test helper")]
 fn reset_test_file(name: &str) {
 	let path = workspace_dir().join(name);
 	let _ = std::fs::remove_file(&path);
@@ -36,13 +36,13 @@ fn reset_test_file(name: &str) {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct Rgb(u8, u8, u8);
 
-#[allow(dead_code)]
+#[allow(dead_code, reason = "color parsing utility")]
 fn parse_u8_ascii(bytes: &[u8]) -> Option<u8> {
 	let s = std::str::from_utf8(bytes).ok()?;
 	s.parse::<u8>().ok()
 }
 
-#[allow(dead_code)]
+#[allow(dead_code, reason = "SGR token parser for terminal color extraction")]
 fn parse_bg_from_sgr_tokens(tokens: &[&[u8]], mut current: Option<Rgb>) -> Option<Rgb> {
 	let mut i = 0;
 	while i < tokens.len() {
@@ -83,7 +83,7 @@ fn parse_bg_from_sgr_tokens(tokens: &[&[u8]], mut current: Option<Rgb>) -> Optio
 	current
 }
 
-#[allow(dead_code)]
+#[allow(dead_code, reason = "extracts background color at specific marker position")]
 fn bg_at_marker(raw: &[u8], marker: &[u8]) -> Option<Rgb> {
 	let marker_pos = raw.windows(marker.len()).position(|w| w == marker)?;
 

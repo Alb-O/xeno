@@ -94,7 +94,8 @@ pub struct NotificationTypeDef {
 	pub semantic: &'static str,
 	pub auto_dismiss: AutoDismiss,
 	pub animation: Animation,
-	pub timing: (Timing, Timing, Timing), // In, Dwell, Out
+	/// Animation timing phases: (In, Dwell, Out)
+	pub timing: (Timing, Timing, Timing),
 	pub priority: i16,
 	pub source: RegistrySource,
 }

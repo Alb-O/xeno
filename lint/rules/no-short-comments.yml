@@ -7,6 +7,7 @@ files:
   - "crates/**/*.rs"
 ignores:
   - "crates/ratatui/**/*.rs"
+  - "crates/theme/**/*.rs"
   - "crates/term/tests/**/*.rs"
   - "crates/term/src/tests.rs"
   - "crates/**/benches/**/*.rs"

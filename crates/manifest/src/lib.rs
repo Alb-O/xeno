@@ -3,15 +3,35 @@
 //! This crate contains type definitions, traits, and distributed slices for the
 //! tome editor's extension system. It does NOT contain implementations - those
 //! live in tome-stdlib.
+//!
+//! # Core Types
+//!
+//! - [`RegistrySource`] - Where a registry item was defined
+//! - [`Capability`] - Editor capabilities required by registry items
+//! - [`ActionId`] - Unique identifier for actions
+//! - [`CommandError`] / [`CommandResult`] - Command execution errors
+//!
+//! # Modules
+//!
+//! - [`actions`] - Action definitions and handlers
+//! - [`commands`] - Ex-mode command definitions
+//! - [`hooks`] - Event lifecycle observers
+//! - [`keybindings`] - Key to action mappings
+//! - [`notifications`] - UI notification system
+//!
+//! # Distributed Slices
+//!
+//! Compile-time registries using [`linkme`]:
+//! - [`ACTIONS`] - All registered actions
+//! - [`COMMANDS`] - All registered commands
+//! - [`MOTIONS`] - All registered motions
+//! - [`TEXT_OBJECTS`] - All registered text objects
+//! - [`FILE_TYPES`] - All registered file types
 
 use linkme::distributed_slice;
-// Re-export base types
+
 pub use tome_base::range::CharIdx;
 pub use tome_base::{Range, Selection};
-
-// ============================================================================
-// Core Types
-// ============================================================================
 
 /// Represents where a registry item was defined.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -138,10 +158,6 @@ pub enum CommandOutcome {
 	ForceQuit,
 }
 
-// ============================================================================
-// Modules
-// ============================================================================
-
 pub mod actions;
 pub mod commands;
 pub mod completion;
@@ -154,10 +170,6 @@ pub mod mode;
 pub mod notifications;
 pub mod options;
 pub mod statusline;
-
-// ============================================================================
-// Distributed Slices (compile-time registries)
-// ============================================================================
 
 #[distributed_slice]
 pub static ACTIONS: [actions::ActionDef];
@@ -215,10 +227,6 @@ pub struct FileTypeDef {
 #[distributed_slice]
 pub static FILE_TYPES: [FileTypeDef];
 
-// ============================================================================
-// RegistryMetadata implementations for type definitions in lib.rs
-// ============================================================================
-
 impl RegistryMetadata for MotionDef {
 	fn id(&self) -> &'static str {
 		self.id
@@ -263,10 +271,6 @@ impl RegistryMetadata for FileTypeDef {
 		self.source
 	}
 }
-
-// ============================================================================
-// Re-exports
-// ============================================================================
 
 pub use actions::{
 	ActionArgs, ActionContext, ActionDef, ActionHandler, ActionMode, ActionResult, EditAction,

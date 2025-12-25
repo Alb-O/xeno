@@ -1,6 +1,13 @@
 use std::path::Path;
 use std::{env, fs};
 
+/// Discovers and generates module declarations for all extensions in `extensions/`.
+///
+/// This build script:
+/// 1. Scans the `extensions/` directory for Rust modules and files
+/// 2. Sanitizes extension names to valid Rust identifiers
+/// 3. Validates module names and paths for portability
+/// 4. Generates `extensions.rs` with sorted module declarations
 fn main() {
 	let out_dir = env::var("OUT_DIR").unwrap();
 	let dest_path = Path::new(&out_dir).join("extensions.rs");
@@ -51,10 +58,8 @@ fn main() {
 	let mut extension_names = Vec::new();
 
 	for (raw_name, path) in extensions {
-		// 2) Name hygiene: sanitize for module identifier
 		let mod_name = raw_name.replace(['-', '.'], "_");
 
-		// Validate identifier
 		if !mod_name
 			.chars()
 			.next()
@@ -67,7 +72,6 @@ fn main() {
 			);
 		}
 
-		// 3) Portable paths
 		let path_str = if path.is_dir() {
 			if path.join("mod.rs").exists() {
 				format!("{:?}", path.join("mod.rs").display().to_string())

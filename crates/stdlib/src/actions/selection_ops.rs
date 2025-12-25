@@ -236,10 +236,10 @@ mod tests {
 	use super::*;
 	use crate::{Rope, Selection};
 
+	/// Tests line selection with extend mode starting from partial line selection.
 	#[test]
 	fn test_select_line_extend() {
 		let text = Rope::from("line 1\nline 2\nline 3\n");
-		// Select 'ine 1'
 		let sel = Selection::single(1, 6);
 
 		let ctx = ActionContext {
@@ -266,10 +266,10 @@ mod tests {
 		}
 	}
 
+	/// Tests repeated line selection replaces with next line in normal mode.
 	#[test]
 	fn test_select_line_repeated() {
 		let text = Rope::from("line 1\nline 2\nline 3\n");
-		// Select line 1
 		let sel = Selection::single(0, 7);
 
 		let ctx = ActionContext {
@@ -277,7 +277,7 @@ mod tests {
 			cursor: 7,
 			selection: &sel,
 			count: 1,
-			extend: false, // Normal 'x'
+			extend: false,
 			register: None,
 			args: ActionArgs::default(),
 		};
@@ -296,10 +296,10 @@ mod tests {
 		}
 	}
 
+	/// Tests line selection with count selects multiple lines.
 	#[test]
 	fn test_select_line_count() {
 		let text = Rope::from("line 1\nline 2\nline 3\n");
-		// Cursor at start
 		let sel = Selection::point(0);
 
 		let ctx = ActionContext {
@@ -316,7 +316,7 @@ mod tests {
 		if let ActionResult::Motion(new_sel) = result {
 			let primary = new_sel.primary();
 			assert_eq!(primary.anchor, 0);
-			assert_eq!(primary.head, 14); // Selects 2 lines
+			assert_eq!(primary.head, 14, "should select 2 complete lines");
 		} else {
 			panic!("Expected Motion result");
 		}

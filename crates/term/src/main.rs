@@ -10,7 +10,7 @@ use clap::Parser;
 use cli::Cli;
 use tome_api::Editor;
 // Force linking of tome-extensions so distributed_slices are registered
-#[allow(unused_imports)]
+#[allow(unused_imports, reason = "ensures tome-extensions distributed_slices are linked")]
 use tome_extensions as _;
 
 #[tokio::main]

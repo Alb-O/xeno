@@ -20,7 +20,7 @@ pub struct AcpMessageHandler {
 }
 
 impl MessageHandler<ClientSide> for AcpMessageHandler {
-	#[allow(clippy::manual_async_fn)]
+	#[allow(clippy::manual_async_fn, reason = "trait requires non-async signature with impl Future return")]
 	fn handle_request(
 		&self,
 		request: AgentRequest,
