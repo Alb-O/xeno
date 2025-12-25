@@ -26,19 +26,19 @@ pub(crate) fn diagnostics_internal(reg: &ExtensionRegistry) -> DiagnosticReport 
 				reports.push(CollisionReport {
 					kind: c.kind,
 					key: c.key.clone(),
-					winner_id: c.winner.id,
-					winner_source: c.winner.source.to_string(),
-					winner_priority: c.winner.priority,
-					shadowed_id: c.shadowed.id,
-					shadowed_source: c.shadowed.source.to_string(),
-					shadowed_priority: c.shadowed.priority,
+					winner_id: c.winner.id(),
+					winner_source: c.winner.source().to_string(),
+					winner_priority: c.winner.priority(),
+					shadowed_id: c.shadowed.id(),
+					shadowed_source: c.shadowed.source().to_string(),
+					shadowed_priority: c.shadowed.priority(),
 				});
 			}
 		};
 	}
 
 	collect!(reg.commands);
-	collect!(reg.actions);
+	collect!(reg.actions.base);
 	collect!(reg.motions);
 	collect!(reg.text_objects);
 	collect!(reg.file_types);
