@@ -22,9 +22,11 @@ thiserror.workspace = true
 tokio.workspace = true
 tokio-util.workspace = true
 tome-api.workspace = true
+tome-base.workspace = true
 tome-extensions.workspace = true
 tome-manifest.workspace = true
 tome-stdlib.workspace = true
+tome-theme.workspace = true
 toml.workspace = true
 tui-term.workspace = true
 

@@ -1,10 +1,9 @@
 use std::collections::HashMap;
 use std::sync::OnceLock;
 
-use crate::ActionId;
 use crate::{
-	ACTIONS, ActionDef, COMMANDS, CommandDef, RegistryMetadata, FILE_TYPES, FileTypeDef, MOTIONS,
-	MotionDef, TEXT_OBJECTS, TextObjectDef,
+	ACTIONS, ActionDef, ActionId, COMMANDS, CommandDef, FILE_TYPES, FileTypeDef, MOTIONS,
+	MotionDef, RegistryMetadata, TEXT_OBJECTS, TextObjectDef,
 };
 
 pub struct RegistryIndex<T: 'static> {
@@ -618,7 +617,7 @@ mod tests {
 
 	#[test]
 	fn test_action_id_resolution() {
-		use crate::actions::ActionId;
+		use crate::ActionId;
 
 		// Test that action names resolve to ActionIds
 		let move_left_id = resolve_action_id("move_left");

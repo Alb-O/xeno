@@ -2470,9 +2470,11 @@ dependencies = [
  "tokio",
  "tokio-util",
  "tome-api",
+ "tome-base",
  "tome-extensions",
  "tome-manifest",
  "tome-stdlib",
+ "tome-theme",
  "toml",
  "tui-term",
 ]

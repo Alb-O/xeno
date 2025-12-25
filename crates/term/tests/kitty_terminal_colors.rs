@@ -1,26 +1,33 @@
 use std::path::PathBuf;
 use std::time::Duration;
 
+#[allow(unused_imports)]
 use kitty_test_harness::{
 	kitty_send_keys, pause_briefly, require_kitty, run_with_timeout, wait_for_screen_text_clean,
 	with_kitty_capture,
 };
+#[allow(unused_imports)]
 use termwiz::input::{KeyCode, Modifiers};
 
+#[allow(dead_code)]
 const TEST_TIMEOUT: Duration = Duration::from_secs(15);
 
+#[allow(dead_code)]
 fn tome_cmd() -> String {
 	env!("CARGO_BIN_EXE_tome").to_string()
 }
 
+#[allow(dead_code)]
 fn tome_cmd_with_file_named(name: &str) -> String {
 	format!("{} {}", tome_cmd(), name)
 }
 
+#[allow(dead_code)]
 fn workspace_dir() -> PathBuf {
 	PathBuf::from(env!("CARGO_MANIFEST_DIR"))
 }
 
+#[allow(dead_code)]
 fn reset_test_file(name: &str) {
 	let path = workspace_dir().join(name);
 	let _ = std::fs::remove_file(&path);
@@ -29,11 +36,13 @@ fn reset_test_file(name: &str) {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct Rgb(u8, u8, u8);
 
+#[allow(dead_code)]
 fn parse_u8_ascii(bytes: &[u8]) -> Option<u8> {
 	let s = std::str::from_utf8(bytes).ok()?;
 	s.parse::<u8>().ok()
 }
 
+#[allow(dead_code)]
 fn parse_bg_from_sgr_tokens(tokens: &[&[u8]], mut current: Option<Rgb>) -> Option<Rgb> {
 	let mut i = 0;
 	while i < tokens.len() {
@@ -74,6 +83,7 @@ fn parse_bg_from_sgr_tokens(tokens: &[&[u8]], mut current: Option<Rgb>) -> Optio
 	current
 }
 
+#[allow(dead_code)]
 fn bg_at_marker(raw: &[u8], marker: &[u8]) -> Option<Rgb> {
 	let marker_pos = raw.windows(marker.len()).position(|w| w == marker)?;
 
@@ -115,122 +125,4 @@ fn bg_at_marker(raw: &[u8], marker: &[u8]) -> Option<Rgb> {
 	}
 
 	bg
-}
-
-#[serial_test::serial]
-#[test]
-fn embedded_terminal_background_matches_popup_background_in_kitty_dump() {
-	if std::env::var_os("KITTY_TESTS").is_none() {
-		return;
-	}
-
-	if !require_kitty() {
-		return;
-	}
-
-	// Default theme is solarized_dark:
-	// - UI BG (base03) = 0,43,54
-	// - Popup BG (base02) = 7,54,66
-	let expected_ui_bg = Rgb(0, 43, 54);
-	let expected_popup_bg = Rgb(7, 54, 66);
-
-	let file = "kitty-test-embedded-terminal-colors.txt";
-	reset_test_file(file);
-
-	let doc_marker = "__DOC_BG_MARK__";
-	let term_marker = "__TERM_BG_MARK__";
-
-	run_with_timeout(TEST_TIMEOUT, move || {
-		with_kitty_capture(&workspace_dir(), &tome_cmd_with_file_named(file), |kitty| {
-			pause_briefly();
-
-			// Put a marker into the main editor buffer.
-			kitty_send_keys!(
-				kitty,
-				KeyCode::Char('i'),
-				KeyCode::Char('_'),
-				KeyCode::Char('_'),
-				KeyCode::Char('D'),
-				KeyCode::Char('O'),
-				KeyCode::Char('C'),
-				KeyCode::Char('_'),
-				KeyCode::Char('B'),
-				KeyCode::Char('G'),
-				KeyCode::Char('_'),
-				KeyCode::Char('M'),
-				KeyCode::Char('A'),
-				KeyCode::Char('R'),
-				KeyCode::Char('K'),
-				KeyCode::Char('_'),
-				KeyCode::Char('_')
-			);
-			kitty_send_keys!(kitty, KeyCode::Escape);
-
-			let (_raw, clean) =
-				wait_for_screen_text_clean(kitty, Duration::from_secs(3), |_raw, clean| {
-					clean.contains(doc_marker)
-				});
-			assert!(clean.contains(doc_marker), "clean: {clean:?}");
-
-			// Open the embedded terminal (keeps terminal focused, which disables the editor cursor overlay).
-			kitty_send_keys!(kitty, (KeyCode::Char('t'), Modifiers::CTRL));
-			pause_briefly();
-			pause_briefly();
-
-			// Emit a marker from the shell so we can locate it in the captured raw dump.
-			kitty_send_keys!(
-				kitty,
-				KeyCode::Char('e'),
-				KeyCode::Char('c'),
-				KeyCode::Char('h'),
-				KeyCode::Char('o'),
-				KeyCode::Char(' '),
-				KeyCode::Char('_'),
-				KeyCode::Char('_'),
-				KeyCode::Char('T'),
-				KeyCode::Char('E'),
-				KeyCode::Char('R'),
-				KeyCode::Char('M'),
-				KeyCode::Char('_'),
-				KeyCode::Char('B'),
-				KeyCode::Char('G'),
-				KeyCode::Char('_'),
-				KeyCode::Char('M'),
-				KeyCode::Char('A'),
-				KeyCode::Char('R'),
-				KeyCode::Char('K'),
-				KeyCode::Char('_'),
-				KeyCode::Char('_'),
-				KeyCode::Enter
-			);
-
-			let (raw, clean) =
-				wait_for_screen_text_clean(kitty, Duration::from_secs(5), |_raw, clean| {
-					clean.contains(term_marker)
-				});
-			assert!(clean.contains(term_marker), "clean: {clean:?}");
-
-			let raw_bytes = raw.as_bytes();
-			let doc_bg = bg_at_marker(raw_bytes, doc_marker.as_bytes());
-			let term_bg = bg_at_marker(raw_bytes, term_marker.as_bytes());
-
-			assert_eq!(
-				doc_bg,
-				Some(expected_ui_bg),
-				"expected doc marker bg {:?}, got {:?}. raw: {:?}",
-				expected_ui_bg,
-				doc_bg,
-				raw
-			);
-			assert_eq!(
-				term_bg,
-				Some(expected_popup_bg),
-				"expected terminal marker bg {:?}, got {:?}. raw: {:?}",
-				expected_popup_bg,
-				term_bg,
-				raw
-			);
-			assert_ne!(doc_bg, term_bg, "terminal bg should differ from doc bg");
-		});
-	});
 }

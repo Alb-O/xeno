@@ -7,8 +7,8 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Clear, Paragraph};
 use tome_api::Editor;
 use tome_api::theme::blend_colors;
-use tome_core::Mode;
-use tome_core::range::CharIdx;
+use tome_base::range::CharIdx;
+use tome_manifest::Mode;
 
 use super::types::{RenderResult, WrapSegment};
 
@@ -357,7 +357,7 @@ impl Editor {
 					let is_primary_cursor = doc_pos == primary_cursor;
 					let in_selection = ranges
 						.iter()
-						.any(|r: &tome_core::range::Range| doc_pos >= r.min() && doc_pos < r.max());
+						.any(|r: &tome_base::range::Range| doc_pos >= r.min() && doc_pos < r.max());
 
 					let cursor_style = if is_primary_cursor {
 						primary_cursor_style

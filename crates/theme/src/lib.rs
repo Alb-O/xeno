@@ -176,13 +176,15 @@ use tome_manifest::{
 	OptionScope, OptionType, OptionValue,
 };
 
+pub const DEFAULT_THEME_ID: &str = "gruvbox";
+
 #[distributed_slice(OPTIONS)]
 pub static OPT_THEME: OptionDef = OptionDef {
 	id: "theme",
 	name: "theme",
 	description: "Editor color theme",
 	value_type: OptionType::String,
-	default: || OptionValue::String("solarized_dark".to_string()),
+	default: || OptionValue::String(DEFAULT_THEME_ID.to_string()),
 	scope: OptionScope::Global,
 	source: tome_manifest::RegistrySource::Builtin,
 };
@@ -196,7 +198,10 @@ fn cmd_theme<'a>(
 			.first()
 			.ok_or(CommandError::MissingArgument("theme name"))?;
 		// TODO: Implement theme access trait in EditorOps
-		ctx.message(&format!("Theme command not yet implemented: {}", theme_name));
+		ctx.message(&format!(
+			"Theme command not yet implemented: {}",
+			theme_name
+		));
 		Ok(CommandOutcome::Ok)
 	})
 }

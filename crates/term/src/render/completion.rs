@@ -4,7 +4,7 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::list::ListItem;
 use ratatui::widgets::{Block, Borders, List, Widget};
 use tome_api::Editor;
-use tome_core::registry::CompletionKind;
+use tome_manifest::CompletionKind;
 
 impl Editor {
 	pub fn render_completion_menu(&self, _area: Rect) -> impl Widget + '_ {

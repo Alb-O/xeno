@@ -170,7 +170,8 @@ impl Editor {
 			redo_stack: Vec::new(),
 			text_width: 80,
 			file_type,
-			theme: &tome_theme::themes::solarized::SOLARIZED_DARK,
+			theme: tome_theme::get_theme(tome_theme::DEFAULT_THEME_ID)
+				.unwrap_or(&tome_theme::DEFAULT_THEME),
 			window_width: None,
 			window_height: None,
 			ui: {
