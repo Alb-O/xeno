@@ -94,30 +94,13 @@ impl std::fmt::Display for ActionId {
 	}
 }
 
-/// Semantic styles for UI elements like notifications.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
-pub enum SemanticStyle {
-	#[default]
-	Normal,
-	Info,
-	Warning,
-	Error,
-	Success,
-	Dim,
-}
-
-impl std::fmt::Display for SemanticStyle {
-	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-		match self {
-			Self::Normal => write!(f, "Normal"),
-			Self::Info => write!(f, "Info"),
-			Self::Warning => write!(f, "Warning"),
-			Self::Error => write!(f, "Error"),
-			Self::Success => write!(f, "Success"),
-			Self::Dim => write!(f, "Dim"),
-		}
-	}
-}
+/// Common semantic color identifiers.
+pub const SEMANTIC_INFO: &str = "info";
+pub const SEMANTIC_WARNING: &str = "warning";
+pub const SEMANTIC_ERROR: &str = "error";
+pub const SEMANTIC_SUCCESS: &str = "success";
+pub const SEMANTIC_DIM: &str = "dim";
+pub const SEMANTIC_NORMAL: &str = "normal";
 
 pub trait RegistryMetadata {
 	fn id(&self) -> &'static str;

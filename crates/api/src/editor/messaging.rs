@@ -34,8 +34,8 @@ impl Editor {
 
 		// Resolve semantic style from theme (with inheritance)
 		let semantic = type_def
-			.map(|t| t.semantic_style)
-			.unwrap_or(tome_manifest::SemanticStyle::Info);
+			.map(|t| t.semantic)
+			.unwrap_or(tome_manifest::SEMANTIC_INFO);
 		let style = self.theme.colors.notification_style(semantic);
 
 		if let Ok(notif) = builder.style(style).build() {

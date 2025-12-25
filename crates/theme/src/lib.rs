@@ -60,36 +60,22 @@ impl SemanticColorPair {
 }
 
 /// Notification-specific color overrides.
-/// All fields are optional; None means inherit from popup/status colors.
+/// Uses a flat list of semantic identifiers mapped to color pairs.
 #[non_exhaustive]
-#[derive(Clone, Copy, Debug, Default)]
+#[derive(Clone, Copy, Debug)]
 pub struct NotificationColors {
-	/// Default/normal notification style
-	pub normal: SemanticColorPair,
-	/// Info notifications (inherits from popup.fg if None)
-	pub info: SemanticColorPair,
-	/// Warning notifications (inherits from status.warning_fg if None)
-	pub warning: SemanticColorPair,
-	/// Error notifications (inherits from status.error_fg if None)
-	pub error: SemanticColorPair,
-	/// Success notifications (inherits from status.success_fg if None)
-	pub success: SemanticColorPair,
-	/// Dim/debug notifications (inherits from status.dim_fg if None)
-	pub dim: SemanticColorPair,
 	/// Border color override (inherits from popup.border if None)
 	pub border: Option<Color>,
+	/// Map of semantic identifiers to color pairs.
+	/// In static contexts, we use a fixed-size array for simplicity.
+	pub overrides: &'static [(&'static str, SemanticColorPair)],
 }
 
 impl NotificationColors {
 	/// Const default with no overrides (inherit all colors from popup/status).
 	pub const INHERITED: Self = Self {
-		normal: SemanticColorPair::NONE,
-		info: SemanticColorPair::NONE,
-		warning: SemanticColorPair::NONE,
-		error: SemanticColorPair::NONE,
-		success: SemanticColorPair::NONE,
-		dim: SemanticColorPair::NONE,
 		border: None,
+		overrides: &[],
 	};
 }
 
@@ -164,31 +150,31 @@ pub static DEFAULT_THEME: Theme = Theme {
 };
 
 use ratatui::style::Style;
-use tome_manifest::SemanticStyle;
 
 impl ThemeColors {
-	/// Resolve notification style for a given semantic style.
+	/// Resolve notification style for a given semantic identifier.
 	/// Uses notification-specific overrides if set, otherwise inherits from popup/status colors.
-	pub fn notification_style(&self, semantic: SemanticStyle) -> Style {
-		let pair = match semantic {
-			SemanticStyle::Normal => &self.notification.normal,
-			SemanticStyle::Info => &self.notification.info,
-			SemanticStyle::Warning => &self.notification.warning,
-			SemanticStyle::Error => &self.notification.error,
-			SemanticStyle::Success => &self.notification.success,
-			SemanticStyle::Dim => &self.notification.dim,
-		};
+	pub fn notification_style(&self, semantic: &str) -> Style {
+		let override_pair = self
+			.notification
+			.overrides
+			.iter()
+			.find(|(id, _)| *id == semantic)
+			.map(|(_, pair)| pair);
 
 		// Resolve background: notification override -> popup.bg
-		let bg = pair.bg.unwrap_or(self.popup.bg);
+		let bg = override_pair.and_then(|p| p.bg).unwrap_or(self.popup.bg);
 
 		// Resolve foreground: notification override -> semantic fallback from status/popup
-		let fg = pair.fg.unwrap_or_else(|| match semantic {
-			SemanticStyle::Normal | SemanticStyle::Info => self.popup.fg,
-			SemanticStyle::Warning => self.status.warning_fg,
-			SemanticStyle::Error => self.status.error_fg,
-			SemanticStyle::Success => self.status.success_fg,
-			SemanticStyle::Dim => self.status.dim_fg,
+		let fg = override_pair.and_then(|p| p.fg).unwrap_or_else(|| {
+			use tome_manifest::*;
+			match semantic {
+				SEMANTIC_WARNING => self.status.warning_fg,
+				SEMANTIC_ERROR => self.status.error_fg,
+				SEMANTIC_SUCCESS => self.status.success_fg,
+				SEMANTIC_DIM => self.status.dim_fg,
+				_ => self.popup.fg, // Fallback for Info, Normal, and unknown semantics
+			}
 		});
 
 		Style::default().bg(bg).fg(fg)

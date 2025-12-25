@@ -264,7 +264,7 @@ pub fn register_notification(input: TokenStream) -> TokenStream {
 	} = parse_macro_input!(input as NotificationInput);
 
 	let mut level = quote! { tome_manifest::notifications::Level::Info };
-	let mut style = quote! { tome_manifest::SemanticStyle::Info };
+	let mut semantic = quote! { tome_manifest::SEMANTIC_INFO };
 	let mut dismiss = quote! { tome_manifest::notifications::AutoDismiss::default() };
 	let mut icon = quote! { None };
 	let mut animation = quote! { tome_manifest::notifications::Animation::Fade };
@@ -279,7 +279,8 @@ pub fn register_notification(input: TokenStream) -> TokenStream {
 	for (name, val) in fields {
 		match name.to_string().as_str() {
 			"level" => level = quote! { #val },
-			"style" => style = quote! { #val },
+			"semantic" => semantic = quote! { #val },
+			"style" => semantic = quote! { #val }, // Alias for backward compat during migration
 			"dismiss" => dismiss = quote! { #val },
 			"icon" => icon = quote! { Some(#val) },
 			"animation" => animation = quote! { #val },
@@ -303,7 +304,7 @@ pub fn register_notification(input: TokenStream) -> TokenStream {
 				name: #id,
 				level: #level,
 				icon: #icon,
-				semantic_style: #style,
+				semantic: #semantic,
 				auto_dismiss: #dismiss,
 				animation: #animation,
 				timing: #timing,

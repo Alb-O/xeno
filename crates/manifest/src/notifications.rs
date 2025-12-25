@@ -3,7 +3,7 @@ use std::time::Duration;
 use linkme::distributed_slice;
 use thiserror::Error;
 
-use crate::{RegistrySource, SemanticStyle};
+use crate::RegistrySource;
 
 /// Severity level of a notification.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
@@ -91,7 +91,7 @@ pub struct NotificationTypeDef {
 	pub name: &'static str,
 	pub level: Level,
 	pub icon: Option<&'static str>,
-	pub semantic_style: SemanticStyle,
+	pub semantic: &'static str,
 	pub auto_dismiss: AutoDismiss,
 	pub animation: Animation,
 	pub timing: (Timing, Timing, Timing), // In, Dwell, Out
