@@ -10,30 +10,35 @@ Kakoune-inspired modal text editor in Rust.
 
 ## Workspace Crates
 
-- **tome-core**: Core editing primitives and registry system; `host` feature pulls in ropey/regex/termina/linkme for embedded use.
-- **tome-api**: Terminal editor Engine and shared interfaces (Editor, UI, Themes). Decoupled from CLI.
-- **tome-extensions**: Built-in host extensions (ACP, AgentFS). Depends on `tome-api`.
-- **tome-term**: Terminal UI (ratatui) and CLI binary `tome`. Orchestrates `tome-api` and `tome-extensions`.
+- **tome-base**: Core primitives and low-level types (`Key`, `Range`, `Selection`, `Transaction`, `Rope`). Zero dependencies on editor logic.
+- **tome-manifest**: Registry schemas and interface definitions. Contains `distributed_slice` declarations for actions, commands, hooks, etc. and defines the `EditorOps` capability traits.
+- **tome-input**: Modal input handling logic. Maps keys to actions using the registry.
+- **tome-stdlib**: Standard library of editor features. Implements built-in actions, commands, motions, and text objects.
+- **tome-api**: Terminal editor Engine and shared interfaces (Editor, UI, Themes). Orchestrates the core crates into a functional editor.
+- **tome-theme**: Color theme system and built-in themes.
+- **tome-extensions**: Host-side extensions (ACP, AgentFS).
+- **tome-term**: Terminal UI (ratatui) and CLI binary `tome`. The entry point that ties everything together.
 - **tome-macro**: Proc-macro utilities.
 - **ratatui**: Forked/hackable TUI library.
 
 All crates live in `crates/` directory.
 
-## Registry System (`crates/core/src/registry/`)
+## Registry System
 
-Uses `linkme` for compile-time registration. Drop a file in, it's automatically included.
+Uses `linkme` for compile-time registration. The registry system is split between **tome-manifest** (definitions and indexing) and **tome-stdlib** (actual implementations).
 
-| Module         | Purpose                                              |
-| -------------- | ---------------------------------------------------- |
-| `actions/`     | Unified keybinding handlers returning `ActionResult` |
-| `keybindings/` | Key → action mappings per mode                       |
-| `commands/`    | Ex-mode commands (`:write`, `:quit`)                 |
-| `hooks/`       | Event lifecycle observers                            |
-| `options/`     | Typed config settings                                |
-| `statusline/`  | Modular status bar segments                          |
-| `filetypes/`   | File type detection                                  |
-| `motions/`     | Cursor movement                                      |
-| `objects/`     | Text object selection                                |
+| Module           | Location                           | Purpose                                              |
+| ---------------- | ---------------------------------- | ---------------------------------------------------- |
+| `actions/`       | `crates/stdlib/src/actions/`       | Unified keybinding handlers returning `ActionResult` |
+| `keybindings/`   | `crates/manifest/src/keybindings/` | Key → action mappings per mode                       |
+| `commands/`      | `crates/stdlib/src/commands/`      | Ex-mode commands (`:write`, `:quit`)                 |
+| `hooks/`         | `crates/stdlib/src/hooks/`         | Event lifecycle observers                            |
+| `options/`       | `crates/stdlib/src/options/`       | Typed config settings                                |
+| `statusline/`    | `crates/stdlib/src/statusline/`    | Modular status bar segments                          |
+| `filetypes/`     | `crates/stdlib/src/filetypes/`     | File type detection                                  |
+| `motions/`       | `crates/stdlib/src/motions/`       | Cursor movement                                      |
+| `objects/`       | `crates/stdlib/src/objects/`       | Text object selection                                |
+| `notifications/` | `crates/stdlib/src/notifications/` | UI notification system                               |
 
 ## Extension System (`crates/extensions/`)
 
