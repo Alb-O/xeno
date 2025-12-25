@@ -87,15 +87,12 @@ pub enum BuildStatus {
 	Built,
 }
 
-/// Load grammar configurations from languages.toml.
-pub fn load_grammar_configs() -> Result<Vec<GrammarConfig>> {
-	let config_path = runtime_dir().join("languages.toml");
-	if !config_path.exists() {
-		return Ok(Vec::new());
-	}
+/// Embedded languages.toml from the runtime directory.
+const LANGUAGES_TOML: &str = include_str!("../../../runtime/languages.toml");
 
-	let content = fs::read_to_string(&config_path)?;
-	let config: LanguagesConfig = toml::from_str(&content)?;
+/// Loads grammar configurations from the embedded `languages.toml`.
+pub fn load_grammar_configs() -> Result<Vec<GrammarConfig>> {
+	let config: LanguagesConfig = toml::from_str(LANGUAGES_TOML)?;
 	Ok(config.grammar)
 }
 

@@ -2429,6 +2429,7 @@ name = "tome-language"
 version = "0.1.0"
 dependencies = [
  "cc",
+ "include_dir",
  "libloading",
  "log",
  "once_cell",

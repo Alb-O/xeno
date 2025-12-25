@@ -25,6 +25,7 @@ pub mod highlight;
 pub mod language;
 pub mod loader;
 pub mod query;
+pub mod runtime;
 pub mod syntax;
 
 pub use grammar::{
@@ -35,3 +36,4 @@ pub use highlight::{Highlight, HighlightEvent, HighlightSpan, HighlightStyles, H
 pub use language::LanguageData;
 pub use loader::{LanguageId, LanguageLoader};
 pub use query::{CapturedNode, IndentQuery, RainbowQuery, TagQuery, TextObjectQuery, read_query};
+pub use runtime::{ensure_runtime, reseed_runtime};

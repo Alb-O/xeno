@@ -243,12 +243,15 @@ fn register_alias<T: RegistryMetadata>(
 	alias: &'static str,
 ) {
 	if let Some(&existing) = index.by_name.get(alias) {
-		index.collisions.push(Collision {
-			kind: CollisionKind::Alias,
-			key: alias.to_string(),
-			winner: existing,
-			shadowed: item,
-		});
+		// Not a collision if the alias matches the item's own name
+		if !std::ptr::eq(existing, item) {
+			index.collisions.push(Collision {
+				kind: CollisionKind::Alias,
+				key: alias.to_string(),
+				winner: existing,
+				shadowed: item,
+			});
+		}
 	} else if let Some(&existing) = index.by_alias.get(alias) {
 		index.collisions.push(Collision {
 			kind: CollisionKind::Alias,

@@ -25,6 +25,11 @@ async fn main() -> anyhow::Result<()> {
 		return handle_grammar_command(action);
 	}
 
+	// Ensure runtime directory is populated with query files
+	if let Err(e) = tome_language::ensure_runtime() {
+		eprintln!("Warning: failed to seed runtime: {e}");
+	}
+
 	let mut editor = match cli.file {
 		Some(path) => Editor::new(path).await?,
 		None => Editor::new_scratch(),
