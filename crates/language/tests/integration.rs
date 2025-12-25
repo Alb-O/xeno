@@ -352,3 +352,96 @@ fn test_incremental_syntax_update() {
 
 	println!("Incremental syntax updates work correctly!");
 }
+
+/// Tests that highlight spans have correct byte positions for doc comments.
+///
+/// This specifically tests the case where `//!` doc comments should have
+/// the entire comment (including the `//!` prefix) highlighted as a comment,
+/// not just the text after the prefix.
+#[test]
+fn test_highlight_span_positions_doc_comment() {
+	let mut loader = LanguageLoader::new();
+
+	let rust = LanguageData::new(
+		"rust".to_string(),
+		None,
+		vec!["rs".to_string()],
+		vec![],
+		vec![],
+		vec!["//".to_string()],
+		Some(("/*".to_string(), "*/".to_string())),
+		Some("rust"),
+	);
+	let rust_lang = loader.register(rust);
+
+	let source = Rope::from_str("//! Hello world\nfn main() {}");
+
+	let syntax = match Syntax::new(source.slice(..), rust_lang, &loader) {
+		Ok(s) => s,
+		Err(e) => {
+			println!(
+				"Skipping highlight span test - no grammar available: {:?}",
+				e
+			);
+			return;
+		}
+	};
+
+	let highlighter = syntax.highlighter(source.slice(..), &loader, ..);
+	let spans: Vec<_> = highlighter.collect();
+
+	println!("Source: {:?}", source.to_string());
+	println!("Highlight spans:");
+	for span in &spans {
+		let text = source.byte_slice(span.start as usize..span.end as usize);
+		println!(
+			"  bytes [{:2}-{:2}] highlight={:2} text={:?}",
+			span.start,
+			span.end,
+			span.highlight.idx(),
+			text.to_string()
+		);
+	}
+
+	// Find the span that covers the doc comment
+	// The `//!` should be at byte 0, and the comment should start there
+	let comment_spans: Vec<_> = spans
+		.iter()
+		.filter(|s| {
+			s.start == 0
+				|| source
+					.byte_slice(s.start as usize..s.end as usize)
+					.to_string()
+					.starts_with("//")
+		})
+		.collect();
+
+	println!("\nComment-related spans:");
+	for span in &comment_spans {
+		let text = source.byte_slice(span.start as usize..span.end as usize);
+		println!(
+			"  bytes [{:2}-{:2}] text={:?}",
+			span.start,
+			span.end,
+			text.to_string()
+		);
+	}
+
+	// The first span should start at byte 0 and include "//!"
+	// This is the key assertion - if highlights are offset, this will fail
+	let first_span = spans.first().expect("Should have at least one span");
+	assert_eq!(
+		first_span.start, 0,
+		"First highlight span should start at byte 0, not {}",
+		first_span.start
+	);
+
+	let first_text = source
+		.byte_slice(first_span.start as usize..first_span.end as usize)
+		.to_string();
+	assert!(
+		first_text.starts_with("//"),
+		"First span should contain the comment prefix '//', got: {:?}",
+		first_text
+	);
+}

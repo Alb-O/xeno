@@ -122,30 +122,34 @@ impl<'a> Iterator for Highlighter<'a> {
 	fn next(&mut self) -> Option<Self::Item> {
 		// Keep advancing until we have a span to emit or we're done
 		while self.inner.next_event_offset() < self.end_byte {
+			// Capture the event boundary position BEFORE advancing
+			let event_start = self.inner.next_event_offset();
 			let (event, mut highlights) = self.inner.advance();
 			let new_highlight = highlights.next_back();
-			let offset = self.inner.next_event_offset();
 
-			// Check if we need to emit a span for the previous highlight
+			// Emit a span for the region from current_start to event_start
+			// using the current (previous) highlight, if any
 			let span = match event {
 				HighlightEvent::Push | HighlightEvent::Refresh => {
 					let span = self.current_highlight.and_then(|h| {
-						if self.current_start < offset {
+						if self.current_start < event_start {
 							Some(HighlightSpan {
 								start: self.current_start,
-								end: offset,
+								end: event_start,
 								highlight: h,
 							})
 						} else {
 							None
 						}
 					});
-					self.current_start = offset;
+					// Update state: new highlight applies from event_start onwards
+					self.current_start = event_start;
 					self.current_highlight = new_highlight;
 					span
 				}
 			};
 
+			// If we emitted a span, return it; otherwise continue to next event
 			if span.is_some() {
 				return span;
 			}

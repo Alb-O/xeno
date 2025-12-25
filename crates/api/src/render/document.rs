@@ -212,8 +212,9 @@ impl Editor {
 					} else {
 						styles.secondary
 					};
-					// Apply syntax highlighting style, falling back to base style
-					let syntax_style = self.style_for_byte_pos(doc_pos, &highlight_spans);
+					// Convert char position to byte position for highlight lookup
+					let byte_pos = self.doc.char_to_byte(doc_pos);
+					let syntax_style = self.style_for_byte_pos(byte_pos, &highlight_spans);
 					let non_cursor_style = if in_selection {
 						styles.selection
 					} else {
