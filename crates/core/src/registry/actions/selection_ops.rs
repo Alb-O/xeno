@@ -1,8 +1,8 @@
 //! Selection manipulation actions (collapse, flip, select all, etc.).
 
 use crate::action;
-use crate::registry::actions::{ActionContext, ActionResult};
 use crate::range::Range;
+use crate::registry::actions::{ActionContext, ActionResult};
 use crate::selection::Selection;
 
 action!(collapse_selection, { description: "Collapse selection to cursor" }, handler: collapse_selection);
@@ -41,11 +41,12 @@ action!(select_line, { description: "Select current line" }, handler: select_lin
 
 fn select_line(ctx: &ActionContext) -> ActionResult {
 	let mut new_sel = ctx.selection.clone();
+	let count = ctx.count.max(1);
 	new_sel.transform_mut(|r| {
 		let line = ctx.text.char_to_line(r.head);
 		let start = ctx.text.line_to_char(line);
-		let end = if line + 1 < ctx.text.len_lines() {
-			ctx.text.line_to_char(line + 1)
+		let end = if line + count < ctx.text.len_lines() {
+			ctx.text.line_to_char(line + count)
 		} else {
 			ctx.text.len_chars()
 		};
@@ -53,23 +54,8 @@ fn select_line(ctx: &ActionContext) -> ActionResult {
 		if ctx.extend {
 			r.head = end;
 		} else {
-			// Check if we are already selecting exactly one or more full lines forward.
-			let is_full_line = !r.is_empty()
-				&& r.anchor <= r.head
-				&& r.anchor == ctx.text.line_to_char(ctx.text.char_to_line(r.anchor))
-				&& r.head
-					== if ctx.text.char_to_line(r.head) < ctx.text.len_lines() {
-						ctx.text.line_to_char(ctx.text.char_to_line(r.head))
-					} else {
-						ctx.text.len_chars()
-					};
-
-			if is_full_line {
-				r.head = end;
-			} else {
-				r.anchor = start;
-				r.head = end;
-			}
+			r.anchor = start;
+			r.head = end;
 		}
 	});
 	ActionResult::Motion(new_sel)
@@ -297,12 +283,38 @@ mod tests {
 		let result = select_line(&ctx);
 		if let ActionResult::Motion(new_sel) = result {
 			let primary = new_sel.primary();
-			// Should extend to include line 2
+			// Should replace with line 2
 			assert_eq!(
-				primary.anchor, 0,
-				"Anchor should be preserved when already full line"
+				primary.anchor, 7,
+				"Anchor should move to start of next line (replace behavior)"
 			);
 			assert_eq!(primary.head, 14, "Head should move to end of next line");
+		} else {
+			panic!("Expected Motion result");
+		}
+	}
+
+	#[test]
+	fn test_select_line_count() {
+		let text = Rope::from("line 1\nline 2\nline 3\n");
+		// Cursor at start
+		let sel = Selection::point(0);
+
+		let ctx = ActionContext {
+			text: text.slice(..),
+			cursor: 0,
+			selection: &sel,
+			count: 2,
+			extend: false,
+			register: None,
+			args: ActionArgs::default(),
+		};
+
+		let result = select_line(&ctx);
+		if let ActionResult::Motion(new_sel) = result {
+			let primary = new_sel.primary();
+			assert_eq!(primary.anchor, 0);
+			assert_eq!(primary.head, 14); // Selects 2 lines
 		} else {
 			panic!("Expected Motion result");
 		}
