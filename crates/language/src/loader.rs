@@ -75,11 +75,10 @@ impl LanguageLoader {
 	/// Finds a language by file path.
 	pub fn language_for_path(&self, path: &Path) -> Option<Language> {
 		// Check exact filename first
-		if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
-			if let Some(&idx) = self.by_filename.get(name) {
+		if let Some(name) = path.file_name().and_then(|n| n.to_str())
+			&& let Some(&idx) = self.by_filename.get(name) {
 				return Some(Language::new(idx as u32));
 			}
-		}
 
 		// Check extension
 		path.extension()
@@ -117,11 +116,10 @@ impl LanguageLoader {
 	/// Finds a language by injection regex match.
 	fn language_for_injection_match(&self, text: &str) -> Option<Language> {
 		for (idx, lang) in self.languages.iter().enumerate() {
-			if let Some(ref regex) = lang.injection_regex {
-				if regex.is_match(text) {
+			if let Some(ref regex) = lang.injection_regex
+				&& regex.is_match(text) {
 					return Some(Language::new(idx as u32));
 				}
-			}
 		}
 		None
 	}

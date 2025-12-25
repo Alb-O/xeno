@@ -120,8 +120,8 @@ impl<'a> Iterator for Highlighter<'a> {
 	fn next(&mut self) -> Option<Self::Item> {
 		// Keep advancing until we have a span to emit or we're done
 		while self.inner.next_event_offset() < self.end_byte {
-			let (event, highlights) = self.inner.advance();
-			let new_highlight = highlights.last();
+			let (event, mut highlights) = self.inner.advance();
+			let new_highlight = highlights.next_back();
 			let offset = self.inner.next_event_offset();
 
 			// Check if we need to emit a span for the previous highlight

@@ -243,7 +243,7 @@ impl RainbowQuery {
 
 #[cfg(test)]
 mod tests {
-	use super::*;
+	use super::read_query;
 
 	// Query tests require actual grammars, which are tested in integration tests
 	#[test]

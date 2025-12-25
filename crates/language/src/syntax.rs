@@ -160,7 +160,7 @@ fn generate_edits(old_text: RopeSlice, changeset: &tome_base::ChangeSet) -> Vec<
 
 	while let Some(change) = iter.next() {
 		let len = match change {
-			Operation::Delete(i) | Operation::Retain(i) => *i as usize,
+			Operation::Delete(i) | Operation::Retain(i) => *i,
 			Operation::Insert(_) => 0,
 		};
 		let mut old_end = old_pos + len;
@@ -288,8 +288,10 @@ mod tests {
 
 	#[test]
 	fn test_generate_edits_insert() {
+		use tome_base::transaction::Change;
 		let doc = Rope::from("hello world");
-		let tx = Transaction::change(&doc, vec![(5, 5, Some(" beautiful".into()))].into_iter());
+		let changes = vec![Change { start: 5, end: 5, replacement: Some(" beautiful".into()) }];
+		let tx = Transaction::change(doc.slice(..), changes.into_iter());
 
 		let edits = generate_edits(doc.slice(..), tx.changes());
 		assert_eq!(edits.len(), 1);
@@ -300,8 +302,10 @@ mod tests {
 
 	#[test]
 	fn test_generate_edits_delete() {
+		use tome_base::transaction::Change;
 		let doc = Rope::from("hello world");
-		let tx = Transaction::change(&doc, vec![(5, 11, None)].into_iter());
+		let changes = vec![Change { start: 5, end: 11, replacement: None }];
+		let tx = Transaction::change(doc.slice(..), changes.into_iter());
 
 		let edits = generate_edits(doc.slice(..), tx.changes());
 		assert_eq!(edits.len(), 1);
@@ -312,8 +316,10 @@ mod tests {
 
 	#[test]
 	fn test_generate_edits_replace() {
+		use tome_base::transaction::Change;
 		let doc = Rope::from("hello world");
-		let tx = Transaction::change(&doc, vec![(6, 11, Some("rust".into()))].into_iter());
+		let changes = vec![Change { start: 6, end: 11, replacement: Some("rust".into()) }];
+		let tx = Transaction::change(doc.slice(..), changes.into_iter());
 
 		let edits = generate_edits(doc.slice(..), tx.changes());
 		assert_eq!(edits.len(), 1);

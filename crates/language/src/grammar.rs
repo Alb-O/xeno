@@ -97,8 +97,8 @@ pub fn grammar_search_paths() -> Vec<PathBuf> {
 	}
 
 	// Bundled grammars relative to executable
-	if let Ok(exe_path) = std::env::current_exe() {
-		if let Some(exe_dir) = exe_path.parent() {
+	if let Ok(exe_path) = std::env::current_exe()
+		&& let Some(exe_dir) = exe_path.parent() {
 			dirs.push(exe_dir.join("grammars"));
 			// Also check ../share/tome/grammars for installed packages
 			dirs.push(
@@ -109,7 +109,6 @@ pub fn grammar_search_paths() -> Vec<PathBuf> {
 					.join("grammars"),
 			);
 		}
-	}
 
 	dirs
 }
@@ -127,12 +126,11 @@ pub fn query_search_paths() -> Vec<PathBuf> {
 		dirs.push(config.join("tome").join("queries"));
 	}
 
-	if let Ok(exe) = std::env::current_exe() {
-		if let Some(dir) = exe.parent() {
+	if let Ok(exe) = std::env::current_exe()
+		&& let Some(dir) = exe.parent() {
 			dirs.push(dir.join("queries"));
 			dirs.push(dir.join("..").join("share").join("tome").join("queries"));
 		}
-	}
 
 	dirs
 }
