@@ -1,7 +1,10 @@
 use linkme::distributed_slice;
-use ratatui::style::Color;
+use ratatui::style::{Color, Modifier};
 
-use crate::{NotificationColors, PopupColors, StatusColors, THEMES, Theme, ThemeColors, UiColors};
+use crate::{
+	NotificationColors, PopupColors, StatusColors, SyntaxStyle, SyntaxStyles, THEMES, Theme,
+	ThemeColors, UiColors,
+};
 
 #[distributed_slice(THEMES)]
 pub static ONE_DARK: Theme = Theme {
@@ -44,7 +47,120 @@ pub static ONE_DARK: Theme = Theme {
 			title: Color::Rgb(97, 175, 239), // #61AFEF
 		},
 		notification: NotificationColors::INHERITED,
+		syntax: one_dark_syntax(),
 	},
 	priority: 0,
 	source: tome_manifest::RegistrySource::Builtin,
 };
+
+// One Dark palette
+const RED: Color = Color::Rgb(224, 108, 117); // #E06C75
+const GREEN: Color = Color::Rgb(152, 195, 121); // #98C379
+const YELLOW: Color = Color::Rgb(229, 192, 123); // #E5C07B
+const BLUE: Color = Color::Rgb(97, 175, 239); // #61AFEF
+const PURPLE: Color = Color::Rgb(198, 120, 221); // #C678DD
+const CYAN: Color = Color::Rgb(86, 182, 194); // #56B6C2
+const ORANGE: Color = Color::Rgb(209, 154, 102); // #D19A66
+const GRAY: Color = Color::Rgb(92, 99, 112); // #5C6370
+
+const fn one_dark_syntax() -> SyntaxStyles {
+	let mut s = SyntaxStyles::minimal();
+
+	// Comments - gray italic
+	s.comment = SyntaxStyle::fg_mod(GRAY, Modifier::ITALIC);
+	s.comment_line = s.comment;
+	s.comment_block = s.comment;
+	s.comment_block_documentation = s.comment;
+
+	// Keywords - red/purple
+	s.keyword = SyntaxStyle::fg(RED);
+	s.keyword_control = SyntaxStyle::fg(PURPLE);
+	s.keyword_control_conditional = SyntaxStyle::fg(PURPLE);
+	s.keyword_control_repeat = SyntaxStyle::fg(PURPLE);
+	s.keyword_control_import = SyntaxStyle::fg(RED);
+	s.keyword_control_return = SyntaxStyle::fg(PURPLE);
+	s.keyword_control_exception = SyntaxStyle::fg(PURPLE);
+	s.keyword_operator = SyntaxStyle::fg(PURPLE);
+	s.keyword_directive = SyntaxStyle::fg(PURPLE);
+	s.keyword_function = SyntaxStyle::fg(CYAN);
+	s.keyword_storage = SyntaxStyle::fg(PURPLE);
+	s.keyword_storage_type = SyntaxStyle::fg(PURPLE);
+	s.keyword_storage_modifier = SyntaxStyle::fg(PURPLE);
+
+	// Functions - blue
+	s.function = SyntaxStyle::fg(BLUE);
+	s.function_builtin = SyntaxStyle::fg(BLUE);
+	s.function_method = SyntaxStyle::fg(BLUE);
+	s.function_macro = SyntaxStyle::fg(PURPLE);
+	s.function_special = SyntaxStyle::fg(BLUE);
+
+	// Types - yellow
+	s.r#type = SyntaxStyle::fg(YELLOW);
+	s.type_builtin = SyntaxStyle::fg(YELLOW);
+	s.type_parameter = SyntaxStyle::fg(YELLOW);
+	s.type_enum_variant = SyntaxStyle::fg(CYAN);
+
+	// Strings - green
+	s.string = SyntaxStyle::fg(GREEN);
+	s.string_regexp = SyntaxStyle::fg(GREEN);
+	s.string_special = SyntaxStyle::fg(ORANGE);
+	s.string_special_path = SyntaxStyle::fg(CYAN);
+	s.string_special_url = SyntaxStyle::fg_mod(CYAN, Modifier::UNDERLINED);
+	s.string_special_symbol = SyntaxStyle::fg(PURPLE);
+
+	// Constants - orange/purple
+	s.constant = SyntaxStyle::fg(CYAN);
+	s.constant_builtin = SyntaxStyle::fg(ORANGE);
+	s.constant_builtin_boolean = SyntaxStyle::fg(ORANGE);
+	s.constant_character = SyntaxStyle::fg(ORANGE);
+	s.constant_character_escape = SyntaxStyle::fg(ORANGE);
+	s.constant_numeric = SyntaxStyle::fg(ORANGE);
+	s.constant_numeric_integer = SyntaxStyle::fg(ORANGE);
+	s.constant_numeric_float = SyntaxStyle::fg(ORANGE);
+
+	// Variables
+	s.variable = SyntaxStyle::NONE; // Use default text color
+	s.variable_builtin = SyntaxStyle::fg(BLUE);
+	s.variable_parameter = SyntaxStyle::fg(RED);
+	s.variable_other = SyntaxStyle::NONE;
+	s.variable_other_member = SyntaxStyle::fg(RED);
+
+	// Operators and punctuation
+	s.operator = SyntaxStyle::fg(PURPLE);
+	s.punctuation = SyntaxStyle::NONE;
+	s.punctuation_bracket = SyntaxStyle::NONE;
+	s.punctuation_delimiter = SyntaxStyle::NONE;
+	s.punctuation_special = SyntaxStyle::fg(CYAN);
+
+	// Other
+	s.attribute = SyntaxStyle::fg(YELLOW);
+	s.tag = SyntaxStyle::fg(RED);
+	s.namespace = SyntaxStyle::fg(BLUE);
+	s.constructor = SyntaxStyle::fg(BLUE);
+	s.label = SyntaxStyle::fg(PURPLE);
+	s.special = SyntaxStyle::fg(BLUE);
+
+	// Markup
+	s.markup_heading = SyntaxStyle::fg_mod(RED, Modifier::BOLD);
+	s.markup_heading_1 = SyntaxStyle::fg_mod(RED, Modifier::BOLD);
+	s.markup_heading_2 = SyntaxStyle::fg_mod(ORANGE, Modifier::BOLD);
+	s.markup_heading_3 = SyntaxStyle::fg_mod(YELLOW, Modifier::BOLD);
+	s.markup_bold = SyntaxStyle::fg_mod(ORANGE, Modifier::BOLD);
+	s.markup_italic = SyntaxStyle::fg_mod(PURPLE, Modifier::ITALIC);
+	s.markup_strikethrough = SyntaxStyle::fg_mod(GRAY, Modifier::CROSSED_OUT);
+	s.markup_link = SyntaxStyle::fg(PURPLE);
+	s.markup_link_url = SyntaxStyle::fg_mod(CYAN, Modifier::UNDERLINED);
+	s.markup_link_text = SyntaxStyle::fg(PURPLE);
+	s.markup_quote = SyntaxStyle::fg_mod(YELLOW, Modifier::ITALIC);
+	s.markup_raw = SyntaxStyle::fg(GREEN);
+	s.markup_raw_inline = SyntaxStyle::fg(GREEN);
+	s.markup_raw_block = SyntaxStyle::fg(GREEN);
+	s.markup_list = SyntaxStyle::fg(RED);
+
+	// Diff
+	s.diff_plus = SyntaxStyle::fg(GREEN);
+	s.diff_minus = SyntaxStyle::fg(RED);
+	s.diff_delta = SyntaxStyle::fg(ORANGE);
+
+	s
+}

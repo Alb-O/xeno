@@ -1,0 +1,15 @@
+[package]
+name = "tome-language"
+description = "Language configuration and metadata for Tome editor"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+log.workspace = true
+ratatui.workspace = true
+regex.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true

@@ -3,6 +3,8 @@ use ratatui::style::Color;
 
 pub mod themes;
 
+pub use tome_manifest::syntax::{SyntaxStyle, SyntaxStyles};
+
 #[non_exhaustive]
 #[derive(Clone, Copy, Debug)]
 pub struct UiColors {
@@ -87,6 +89,8 @@ pub struct ThemeColors {
 	pub popup: PopupColors,
 	/// Notification-specific color overrides (optional, inherits from popup/status)
 	pub notification: NotificationColors,
+	/// Syntax highlighting styles for tree-sitter captures
+	pub syntax: SyntaxStyles,
 }
 
 #[non_exhaustive]
@@ -144,6 +148,7 @@ pub static DEFAULT_THEME: Theme = Theme {
 			title: Color::Yellow,
 		},
 		notification: NotificationColors::INHERITED,
+		syntax: SyntaxStyles::minimal(),
 	},
 	priority: 0,
 	source: tome_manifest::RegistrySource::Builtin,

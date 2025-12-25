@@ -1,23 +1,23 @@
-use crate::filetype;
+use tome_manifest::language;
 
-filetype!(json, {
+language!(json, {
 	extensions: &["json", "jsonc"],
 	filenames: &[".prettierrc", ".eslintrc"],
 	description: "JSON file",
 });
 
-filetype!(yaml, {
+language!(yaml, {
 	extensions: &["yaml", "yml"],
 	description: "YAML file",
 });
 
-filetype!(toml, {
+language!(toml, {
 	extensions: &["toml"],
 	filenames: &["Cargo.toml", "Pipfile"],
 	description: "TOML file",
 });
 
-filetype!(xml, {
+language!(xml, {
 	extensions: &["xml", "xsl", "xslt", "svg"],
 	first_line_patterns: &["<?xml"],
 	description: "XML file",

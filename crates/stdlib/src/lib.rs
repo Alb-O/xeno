@@ -34,13 +34,13 @@ pub use tome_manifest::{
 	ACTIONS, ActionArgs, ActionContext, ActionDef, ActionHandler, ActionMode, ActionResult,
 	BindingMode, COMMANDS, Capability, CommandContext, CommandDef, CommandError, CommandOutcome,
 	CommandResult, CompletionContext, CompletionItem, CompletionKind, CompletionSource, EditAction,
-	EditorCapabilities, EditorContext, EditorOps, FILE_TYPES, FileTypeDef, HOOKS, HandleOutcome,
-	HookContext, HookDef, HookEvent, HookResult, KeyBindingDef, MOTIONS, MUTABLE_HOOKS, MotionDef,
-	MutableHookContext, MutableHookDef, OPTIONS, ObjectSelectionKind, OptionDef, OptionScope,
-	OptionType, OptionValue, PendingAction, PendingKind, RegistryMetadata, RegistrySource,
-	RenderedSegment, ResolvedBinding, STATUSLINE_SEGMENTS, ScrollAmount, ScrollDir,
+	EditorCapabilities, EditorContext, EditorOps, HOOKS, HandleOutcome, HookContext, HookDef,
+	HookEvent, HookResult, KeyBindingDef, LANGUAGES, LanguageDef, MOTIONS, MUTABLE_HOOKS,
+	MotionDef, MutableHookContext, MutableHookDef, OPTIONS, ObjectSelectionKind, OptionDef,
+	OptionScope, OptionType, OptionValue, PendingAction, PendingKind, RegistryMetadata,
+	RegistrySource, RenderedSegment, ResolvedBinding, STATUSLINE_SEGMENTS, ScrollAmount, ScrollDir,
 	SegmentPosition, SegmentStyle, StatuslineContext, StatuslineSegmentDef, TEXT_OBJECTS,
 	TextObjectDef, VisualDirection, dispatch_result,
 };
 // Re-export macros from tome-manifest
-pub use tome_manifest::{action, command, filetype, hook, motion, option, text_object};
+pub use tome_manifest::{action, command, hook, language, motion, option, text_object};

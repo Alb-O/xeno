@@ -2401,6 +2401,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "tome-language"
+version = "0.1.0"
+dependencies = [
+ "log",
+ "ratatui 0.30.0-hackable",
+ "regex",
+ "tempfile",
+ "thiserror 2.0.17",
+]
+
+[[package]]
 name = "tome-macro"
 version = "0.1.0"
 dependencies = [
@@ -2418,6 +2429,7 @@ dependencies = [
  "linkme",
  "log",
  "paste",
+ "ratatui 0.30.0-hackable",
  "ropey",
  "serde",
  "strsim",
@@ -2627,7 +2639,7 @@ checksum = "b3644627a5af5fa321c95b9b235a72fd24cd29c648c2c379431e6628655627bf"
 dependencies = [
  "itertools 0.13.0",
  "unicode-segmentation",
- "unicode-width 0.1.14",
+ "unicode-width 0.1.12",
 ]
 
 [[package]]
@@ -2643,9 +2655,9 @@ dependencies = [
 
 [[package]]
 name = "unicode-width"
-version = "0.1.14"
+version = "0.1.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7dd6e30e90baa6f72411720665d41d89b9a3d039dc45b8faea1ddd07f617f6af"
+checksum = "68f5e5f3158ecfd4b8ff6fe086db7c8467a2dfdac97fe420f2b7c4aa97af66d6"
 
 [[package]]
 name = "unicode-width"
@@ -2697,7 +2709,7 @@ checksum = "84cd863bf0db7e392ba3bd04994be3473491b31e66340672af5d11943c6274de"
 dependencies = [
  "itoa",
  "log",
- "unicode-width 0.1.14",
+ "unicode-width 0.1.12",
  "vte",
 ]
 

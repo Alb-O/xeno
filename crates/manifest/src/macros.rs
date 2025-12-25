@@ -1,12 +1,19 @@
 //! Extension definition macros for ergonomic registration.
 
-/// Define a file type and register it in the FILE_TYPES slice.
+/// Define a language and register it in the LANGUAGES slice.
 #[macro_export]
-macro_rules! filetype {
+macro_rules! language {
     ($name:ident, {
-        extensions: $ext:expr,
+        $(grammar: $grammar:expr,)?
+        $(scope: $scope:expr,)?
+        $(extensions: $ext:expr,)?
         $(filenames: $fnames:expr,)?
+        $(globs: $globs:expr,)?
+        $(shebangs: $shebangs:expr,)?
         $(first_line_patterns: $patterns:expr,)?
+        $(injection_regex: $injection:expr,)?
+        $(comment_tokens: $comments:expr,)?
+        $(block_comment: $block:expr,)?
         description: $desc:expr
         $(, priority: $priority:expr)?
         $(, source: $source:expr)?
@@ -14,21 +21,32 @@ macro_rules! filetype {
     }) => {
         paste::paste! {
             #[allow(non_upper_case_globals)]
-            #[linkme::distributed_slice($crate::FILE_TYPES)]
-            static [<FT_ $name>]: $crate::FileTypeDef = $crate::FileTypeDef {
+            #[linkme::distributed_slice($crate::LANGUAGES)]
+            static [<LANG_ $name>]: $crate::LanguageDef = $crate::LanguageDef {
                 id: concat!(env!("CARGO_PKG_NAME"), "::", stringify!($name)),
                 name: stringify!($name),
-                extensions: $ext,
-                filenames: $crate::filetype!(@opt_field $($fnames)?),
-                first_line_patterns: $crate::filetype!(@opt_field $($patterns)?),
+                grammar: $crate::language!(@opt_static $({$grammar})?),
+                scope: $crate::language!(@opt_static $({$scope})?),
+                extensions: $crate::language!(@opt_slice $({$ext})?),
+                filenames: $crate::language!(@opt_slice $({$fnames})?),
+                globs: $crate::language!(@opt_slice $({$globs})?),
+                shebangs: $crate::language!(@opt_slice $({$shebangs})?),
+                first_line_patterns: $crate::language!(@opt_slice $({$patterns})?),
+                injection_regex: $crate::language!(@opt_static $({$injection})?),
+                comment_tokens: $crate::language!(@opt_slice $({$comments})?),
+                block_comment: $crate::language!(@opt_tuple $({$block})?),
                 description: $desc,
-                priority: $crate::filetype!(@opt $({$priority})?, 0),
-                source: $crate::filetype!(@opt $({$source})?, $crate::RegistrySource::Crate(env!("CARGO_PKG_NAME"))),
+                priority: $crate::language!(@opt $({$priority})?, 0),
+                source: $crate::language!(@opt $({$source})?, $crate::RegistrySource::Crate(env!("CARGO_PKG_NAME"))),
             };
         }
     };
-    (@opt_field $val:expr) => { $val };
-    (@opt_field) => { &[] };
+    (@opt_static {$val:expr}) => { Some($val) };
+    (@opt_static) => { None };
+    (@opt_slice {$val:expr}) => { $val };
+    (@opt_slice) => { &[] };
+    (@opt_tuple {$val:expr}) => { Some($val) };
+    (@opt_tuple) => { None };
     (@opt {$val:expr}, $default:expr) => { $val };
     (@opt , $default:expr) => { $default };
 }
@@ -266,4 +284,4 @@ macro_rules! motion {
 	(@opt , $default:expr) => { $default };
 }
 
-pub use crate::{action, command, filetype, hook, motion, option, text_object};
+pub use crate::{action, command, hook, language, motion, option, text_object};

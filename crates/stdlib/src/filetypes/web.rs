@@ -1,22 +1,22 @@
-use crate::filetype;
+use tome_manifest::language;
 
-filetype!(html, {
+language!(html, {
 	extensions: &["html", "htm", "xhtml"],
 	first_line_patterns: &["<!DOCTYPE html", "<!doctype html"],
 	description: "HTML file",
 });
 
-filetype!(css, {
+language!(css, {
 	extensions: &["css"],
 	description: "CSS file",
 });
 
-filetype!(scss, {
+language!(scss, {
 	extensions: &["scss", "sass"],
 	description: "SCSS/Sass file",
 });
 
-filetype!(less, {
+language!(less, {
 	extensions: &["less"],
 	description: "Less file",
 });

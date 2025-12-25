@@ -1,6 +1,6 @@
-use crate::filetype;
+use tome_manifest::language;
 
-filetype!(python, {
+language!(python, {
 	extensions: &["py", "pyw", "pyi"],
 	first_line_patterns: &["python", "python3"],
 	description: "Python source file",

@@ -1,22 +1,22 @@
-use crate::filetype;
+use tome_manifest::language;
 
-filetype!(markdown, {
+language!(markdown, {
 	extensions: &["md", "markdown", "mkd", "mkdn"],
 	filenames: &["README", "CHANGELOG", "CONTRIBUTING", "LICENSE"],
 	description: "Markdown file",
 });
 
-filetype!(rst, {
+language!(rst, {
 	extensions: &["rst", "rest"],
 	description: "reStructuredText file",
 });
 
-filetype!(asciidoc, {
+language!(asciidoc, {
 	extensions: &["adoc", "asciidoc", "asc"],
 	description: "AsciiDoc file",
 });
 
-filetype!(tex, {
+language!(tex, {
 	extensions: &["tex", "sty", "cls"],
 	description: "LaTeX file",
 });

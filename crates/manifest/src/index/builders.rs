@@ -2,14 +2,13 @@
 
 use std::collections::HashMap;
 
-use crate::{
-	ACTIONS, ActionDef, ActionId, COMMANDS, CommandDef, FILE_TYPES, FileTypeDef, MOTIONS,
-	MotionDef, RegistryMetadata, TEXT_OBJECTS, TextObjectDef,
-};
-
 use super::collision::{Collision, CollisionKind};
 use super::diagnostics::diagnostics_internal;
 use super::types::{ActionRegistryIndex, ExtensionRegistry, RegistryIndex};
+use crate::{
+	ACTIONS, ActionDef, ActionId, COMMANDS, CommandDef, LANGUAGES, LanguageDef, MOTIONS, MotionDef,
+	RegistryMetadata, TEXT_OBJECTS, TextObjectDef,
+};
 
 /// Builds the complete extension registry from distributed slices.
 ///
@@ -20,14 +19,14 @@ pub(super) fn build_registry() -> ExtensionRegistry {
 	let actions = build_action_index();
 	let motions = build_motion_index();
 	let text_objects = build_text_object_index();
-	let file_types = build_file_type_index();
+	let languages = build_language_index();
 
 	let registry = ExtensionRegistry {
 		commands,
 		actions,
 		motions,
 		text_objects,
-		file_types,
+		languages,
 	};
 
 	validate_registry(&registry);
@@ -162,40 +161,40 @@ fn build_text_object_index() -> RegistryIndex<TextObjectDef> {
 	index
 }
 
-fn build_file_type_index() -> RegistryIndex<FileTypeDef> {
+fn build_language_index() -> RegistryIndex<LanguageDef> {
 	let mut index = RegistryIndex::new();
-	let mut sorted: Vec<_> = FILE_TYPES.iter().collect();
+	let mut sorted: Vec<_> = LANGUAGES.iter().collect();
 	sorted.sort_by(|a, b| b.priority.cmp(&a.priority).then(a.id.cmp(b.id)));
 
-	for ft in sorted {
-		if let Some(&existing) = index.by_id.get(ft.id) {
+	for lang in sorted {
+		if let Some(&existing) = index.by_id.get(lang.id) {
 			index.collisions.push(Collision {
 				kind: CollisionKind::Id,
-				key: ft.id.to_string(),
+				key: lang.id.to_string(),
 				winner: existing,
-				shadowed: ft,
+				shadowed: lang,
 			});
 		} else {
-			index.by_id.insert(ft.id, ft);
+			index.by_id.insert(lang.id, lang);
 		}
 
-		if let Some(&existing) = index.by_name.get(ft.name) {
+		if let Some(&existing) = index.by_name.get(lang.name) {
 			index.collisions.push(Collision {
 				kind: CollisionKind::Name,
-				key: ft.name.to_string(),
+				key: lang.name.to_string(),
 				winner: existing,
-				shadowed: ft,
+				shadowed: lang,
 			});
 		} else {
-			index.by_name.insert(ft.name, ft);
+			index.by_name.insert(lang.name, lang);
 		}
 
-		for ext in ft.extensions {
-			register_alias(&mut index, ft, ext);
+		for ext in lang.extensions {
+			register_alias(&mut index, lang, ext);
 		}
 
-		for fname in ft.filenames {
-			register_alias(&mut index, ft, fname);
+		for fname in lang.filenames {
+			register_alias(&mut index, lang, fname);
 		}
 	}
 

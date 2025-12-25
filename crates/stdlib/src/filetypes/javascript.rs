@@ -1,12 +1,12 @@
-use crate::filetype;
+use tome_manifest::language;
 
-filetype!(javascript, {
+language!(javascript, {
 	extensions: &["js", "mjs", "cjs"],
 	first_line_patterns: &["node"],
 	description: "JavaScript source file",
 });
 
-filetype!(jsx, {
+language!(jsx, {
 	extensions: &["jsx"],
 	description: "JavaScript JSX file",
 });

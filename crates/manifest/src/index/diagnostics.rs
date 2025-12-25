@@ -41,7 +41,7 @@ pub(crate) fn diagnostics_internal(reg: &ExtensionRegistry) -> DiagnosticReport 
 	collect!(reg.actions.base);
 	collect!(reg.motions);
 	collect!(reg.text_objects);
-	collect!(reg.file_types);
+	collect!(reg.languages);
 
 	DiagnosticReport {
 		collisions: reports,

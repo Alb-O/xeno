@@ -1,6 +1,6 @@
-use crate::filetype;
+use tome_manifest::language;
 
-filetype!(go, {
+language!(go, {
 	extensions: &["go"],
 	description: "Go source file",
 });

@@ -2,9 +2,8 @@
 
 use std::collections::HashMap;
 
-use crate::{ActionDef, ActionId, CommandDef, FileTypeDef, MotionDef, TextObjectDef};
-
 use super::collision::Collision;
+use crate::{ActionDef, ActionId, CommandDef, LanguageDef, MotionDef, TextObjectDef};
 
 /// Generic registry index with collision tracking.
 pub struct RegistryIndex<T: 'static> {
@@ -51,5 +50,5 @@ pub struct ExtensionRegistry {
 	pub actions: ActionRegistryIndex,
 	pub motions: RegistryIndex<MotionDef>,
 	pub text_objects: RegistryIndex<TextObjectDef>,
-	pub file_types: RegistryIndex<FileTypeDef>,
+	pub languages: RegistryIndex<LanguageDef>,
 }

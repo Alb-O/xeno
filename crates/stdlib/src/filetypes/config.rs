@@ -1,40 +1,40 @@
-use crate::filetype;
+use tome_manifest::language;
 
-filetype!(nix, {
+language!(nix, {
 	extensions: &["nix"],
 	description: "Nix expression",
 });
 
-filetype!(makefile, {
+language!(makefile, {
 	extensions: &["mk"],
 	filenames: &["Makefile", "makefile", "GNUmakefile"],
 	description: "Makefile",
 });
 
-filetype!(dockerfile, {
+language!(dockerfile, {
 	extensions: &[],
 	filenames: &["Dockerfile", "Containerfile"],
 	description: "Dockerfile",
 });
 
-filetype!(gitignore, {
+language!(gitignore, {
 	extensions: &["gitignore"],
 	filenames: &[".gitignore", ".gitattributes", ".gitmodules"],
 	description: "Git config file",
 });
 
-filetype!(editorconfig, {
+language!(editorconfig, {
 	extensions: &[],
 	filenames: &[".editorconfig"],
 	description: "EditorConfig file",
 });
 
-filetype!(ini, {
+language!(ini, {
 	extensions: &["ini", "cfg", "conf"],
 	description: "INI config file",
 });
 
-filetype!(env, {
+language!(env, {
 	extensions: &["env"],
 	filenames: &[
 		".env",

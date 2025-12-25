@@ -1,13 +1,13 @@
-use crate::filetype;
+use tome_manifest::language;
 
-filetype!(sh, {
+language!(sh, {
 	extensions: &["sh"],
 	filenames: &[".profile"],
 	first_line_patterns: &["#!/bin/sh"],
 	description: "POSIX shell script",
 });
 
-filetype!(bash, {
+language!(bash, {
 	extensions: &["bash"],
 	filenames: &[".bashrc", ".bash_profile", ".bash_logout"],
 	first_line_patterns: &["#!/bin/bash", "#!/usr/bin/env bash"],
@@ -15,7 +15,7 @@ filetype!(bash, {
 	priority: 10,
 });
 
-filetype!(zsh, {
+language!(zsh, {
 	extensions: &["zsh"],
 	filenames: &[".zshrc", ".zprofile", ".zshenv", ".zlogout"],
 	first_line_patterns: &["#!/bin/zsh", "#!/usr/bin/env zsh"],
@@ -23,14 +23,14 @@ filetype!(zsh, {
 	priority: 10,
 });
 
-filetype!(fish, {
+language!(fish, {
 	extensions: &["fish"],
 	first_line_patterns: &["#!/usr/bin/env fish"],
 	description: "Fish script",
 	priority: 10,
 });
 
-filetype!(nu, {
+language!(nu, {
 	extensions: &["nu"],
 	first_line_patterns: &["#!/usr/bin/env nu"],
 	description: "Nushell script",

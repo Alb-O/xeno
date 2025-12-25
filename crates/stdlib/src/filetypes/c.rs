@@ -1,11 +1,11 @@
-use crate::filetype;
+use tome_manifest::language;
 
-filetype!(c, {
+language!(c, {
 	extensions: &["c", "h"],
 	description: "C source file",
 });
 
-filetype!(cpp, {
+language!(cpp, {
 	extensions: &["cpp", "cc", "cxx", "hpp", "hh", "hxx", "c++", "h++"],
 	description: "C++ source file",
 });

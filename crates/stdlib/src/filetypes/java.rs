@@ -1,6 +1,6 @@
-use crate::filetype;
+use tome_manifest::language;
 
-filetype!(java, {
+language!(java, {
 	extensions: &["java"],
 	description: "Java source file",
 });

@@ -1,6 +1,9 @@
-use crate::filetype;
+use tome_manifest::language;
 
-filetype!(rust, {
+language!(rust, {
+	grammar: "rust",
 	extensions: &["rs"],
+	comment_tokens: &["//"],
+	block_comment: ("/*", "*/"),
 	description: "Rust source file",
 });

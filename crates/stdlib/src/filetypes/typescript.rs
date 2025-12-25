@@ -1,11 +1,11 @@
-use crate::filetype;
+use tome_manifest::language;
 
-filetype!(typescript, {
+language!(typescript, {
 	extensions: &["ts", "mts", "cts"],
 	description: "TypeScript source file",
 });
 
-filetype!(tsx, {
+language!(tsx, {
 	extensions: &["tsx"],
 	description: "TypeScript JSX file",
 });
