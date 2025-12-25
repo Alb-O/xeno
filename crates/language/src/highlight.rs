@@ -14,58 +14,42 @@ pub use tree_house::highlighter::{Highlight, HighlightEvent};
 
 /// Maps highlight captures to styles.
 ///
-/// This is the bridge between tree-sitter capture names (from .scm files)
-/// and Tome's theme system.
+/// Pre-resolved styles indexed by `Highlight`. This is the bridge between
+/// tree-sitter capture names (from .scm files) and Tome's theme system.
+#[derive(Debug, Clone)]
 pub struct HighlightStyles {
-	/// Ordered list of scope names that we recognize.
-	/// The index in this list corresponds to the Highlight index.
-	scopes: Vec<String>,
-
-	/// Resolver function that maps scope name to style.
-	resolver: Box<dyn Fn(&str) -> Style + Send + Sync>,
+	/// Pre-resolved styles indexed by Highlight index.
+	styles: Vec<Style>,
 }
 
 impl HighlightStyles {
-	/// Creates a new highlight styles mapper.
+	/// Creates a new highlight styles mapper by resolving all scopes upfront.
 	///
 	/// # Parameters
 	/// - `scopes`: List of recognized scope names in order
 	/// - `resolver`: Function that resolves a scope name to a style
-	pub fn new<F>(scopes: Vec<String>, resolver: F) -> Self
+	pub fn new<F>(scopes: &[impl AsRef<str>], resolver: F) -> Self
 	where
-		F: Fn(&str) -> Style + Send + Sync + 'static,
+		F: Fn(&str) -> Style,
 	{
-		Self {
-			scopes,
-			resolver: Box::new(resolver),
-		}
+		let styles = scopes.iter().map(|s| resolver(s.as_ref())).collect();
+		Self { styles }
 	}
 
-	/// Returns the list of recognized scopes.
-	pub fn scopes(&self) -> &[String] {
-		&self.scopes
+	/// Returns the number of highlight styles.
+	pub fn len(&self) -> usize {
+		self.styles.len()
+	}
+
+	/// Returns true if there are no highlight styles.
+	pub fn is_empty(&self) -> bool {
+		self.styles.is_empty()
 	}
 
 	/// Resolves a highlight index to a style.
+	#[inline]
 	pub fn style_for_highlight(&self, highlight: Highlight) -> Style {
-		self.scopes
-			.get(highlight.idx())
-			.map(|scope| (self.resolver)(scope))
-			.unwrap_or_default()
-	}
-
-	/// Resolves a scope name to a style.
-	pub fn style_for_scope(&self, scope: &str) -> Style {
-		(self.resolver)(scope)
-	}
-}
-
-impl std::fmt::Debug for HighlightStyles {
-	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-		f.debug_struct("HighlightStyles")
-			.field("scopes", &self.scopes)
-			.field("resolver", &"<fn>")
-			.finish()
+		self.styles.get(highlight.idx()).copied().unwrap_or_default()
 	}
 }
 
@@ -217,15 +201,15 @@ mod tests {
 
 	#[test]
 	fn test_highlight_styles() {
-		let scopes = vec!["keyword".to_string(), "string".to_string()];
+		let scopes = ["keyword", "string"];
 
-		let styles = HighlightStyles::new(scopes, |scope| match scope {
+		let styles = HighlightStyles::new(&scopes, |scope| match scope {
 			"keyword" => Style::default().fg(Color::Red),
 			"string" => Style::default().fg(Color::Green),
 			_ => Style::default(),
 		});
 
-		assert_eq!(styles.scopes().len(), 2);
+		assert_eq!(styles.len(), 2);
 		assert_eq!(
 			styles.style_for_highlight(Highlight::new(0)),
 			Style::default().fg(Color::Red)
