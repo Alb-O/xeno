@@ -13,7 +13,7 @@ use tree_house::{Layer, TreeCursor};
 
 use tree_house::Language;
 
-use crate::config::LanguageLoader;
+use crate::loader::LanguageLoader;
 use crate::highlight::Highlighter;
 
 /// Default parse timeout (500ms).
@@ -152,15 +152,15 @@ fn generate_edits(old_text: RopeSlice, changeset: &tome_base::ChangeSet) -> Vec<
 	let mut edits = Vec::new();
 	let mut old_pos = 0usize;
 
-	if changeset.changes.is_empty() {
+	if changeset.is_empty() {
 		return edits;
 	}
 
-	let mut iter = changeset.changes.iter().peekable();
+	let mut iter = changeset.changes().iter().peekable();
 
 	while let Some(change) = iter.next() {
 		let len = match change {
-			Operation::Delete(i) | Operation::Retain(i) => *i,
+			Operation::Delete(i) | Operation::Retain(i) => *i as usize,
 			Operation::Insert(_) => 0,
 		};
 		let mut old_end = old_pos + len;
@@ -189,19 +189,19 @@ fn generate_edits(old_text: RopeSlice, changeset: &tome_base::ChangeSet) -> Vec<
 					let old_end_byte = old_text.char_to_byte(old_end) as u32;
 					iter.next();
 
-					edits.push(InputEdit {
-						start_byte,
-						old_end_byte,
-						new_end_byte: start_byte + s.len() as u32,
-						start_point: Point::ZERO,
-						old_end_point: Point::ZERO,
-						new_end_point: Point::ZERO,
-					});
-				} else {
-					edits.push(InputEdit {
-						start_byte,
-						old_end_byte: start_byte,
-						new_end_byte: start_byte + s.len() as u32,
+				edits.push(InputEdit {
+					start_byte,
+					old_end_byte,
+					new_end_byte: start_byte + s.text.len() as u32,
+					start_point: Point::ZERO,
+					old_end_point: Point::ZERO,
+					new_end_point: Point::ZERO,
+				});
+			} else {
+				edits.push(InputEdit {
+					start_byte,
+					old_end_byte: start_byte,
+					new_end_byte: start_byte + s.text.len() as u32,
 						start_point: Point::ZERO,
 						old_end_point: Point::ZERO,
 						new_end_point: Point::ZERO,

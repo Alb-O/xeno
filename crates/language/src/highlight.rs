@@ -7,7 +7,7 @@ use std::ops::{Bound, RangeBounds};
 
 use ratatui::style::Style;
 use ropey::RopeSlice;
-use crate::config::LanguageLoader;
+use crate::loader::LanguageLoader;
 
 // Re-export tree-house highlight types for convenience.
 pub use tree_house::highlighter::{Highlight, HighlightEvent};
@@ -69,13 +69,17 @@ impl std::fmt::Debug for HighlightStyles {
 	}
 }
 
-/// Iterator that produces syntax highlighting events.
+/// Iterator that produces syntax highlight spans.
 ///
-/// This wraps tree-house's highlighter to provide an ergonomic API for
-/// iterating over highlight spans in a document.
+/// This wraps tree-house's highlighter to provide an ergonomic `Iterator` API
+/// that yields `HighlightSpan` items directly, avoiding allocation.
 pub struct Highlighter<'a> {
 	inner: tree_house::highlighter::Highlighter<'a, 'a, LanguageLoader>,
 	end_byte: u32,
+	/// Current span start position.
+	current_start: u32,
+	/// The active highlight (innermost scope).
+	current_highlight: Option<Highlight>,
 }
 
 impl<'a> Highlighter<'a> {
@@ -101,8 +105,10 @@ impl<'a> Highlighter<'a> {
 			tree_house::highlighter::Highlighter::new(syntax, source, loader, start..end);
 
 		Self {
+			current_start: inner.next_event_offset(),
 			inner,
 			end_byte: end,
+			current_highlight: None,
 		}
 	}
 
@@ -111,67 +117,67 @@ impl<'a> Highlighter<'a> {
 		self.inner.next_event_offset()
 	}
 
-	/// Advances the highlighter to the next event.
-	///
-	/// Returns the event type and an iterator over the current active highlights.
-	/// The iterator yields highlights from outermost to innermost scope.
-	pub fn advance(&mut self) -> (HighlightEvent, impl Iterator<Item = Highlight> + '_) {
-		self.inner.advance()
-	}
-
 	/// Returns true if there are more events to process.
 	pub fn is_done(&self) -> bool {
 		self.next_event_offset() >= self.end_byte
 	}
 
-	/// Collects all highlight spans in the range.
+	/// Collects all highlight spans into a vector.
 	///
-	/// Returns a vector of (start_byte, end_byte, highlight) tuples.
-	/// This is useful for batch processing or caching.
-	pub fn collect_spans(&mut self) -> Vec<HighlightSpan> {
-		let mut spans = Vec::new();
-		let mut current_start = self.inner.next_event_offset();
-		let mut last_highlight: Option<Highlight> = None;
+	/// This is a convenience method; prefer iterating directly for efficiency.
+	pub fn collect_spans(self) -> Vec<HighlightSpan> {
+		self.collect()
+	}
+}
 
+impl<'a> Iterator for Highlighter<'a> {
+	type Item = HighlightSpan;
+
+	fn next(&mut self) -> Option<Self::Item> {
+		// Keep advancing until we have a span to emit or we're done
 		while self.inner.next_event_offset() < self.end_byte {
 			let (event, highlights) = self.inner.advance();
-			// Consume the iterator to get the innermost highlight before borrowing again
-			let current_highlight = highlights.last();
+			let new_highlight = highlights.last();
 			let offset = self.inner.next_event_offset();
 
-			match event {
-				HighlightEvent::Push => {
-					// A new highlight scope was pushed
-					if let Some(prev) = last_highlight {
-						if current_start < offset {
-							spans.push(HighlightSpan {
-								start: current_start,
+			// Check if we need to emit a span for the previous highlight
+			let span = match event {
+				HighlightEvent::Push | HighlightEvent::Refresh => {
+					let span = self.current_highlight.and_then(|h| {
+						if self.current_start < offset {
+							Some(HighlightSpan {
+								start: self.current_start,
 								end: offset,
-								highlight: prev,
-							});
+								highlight: h,
+							})
+						} else {
+							None
 						}
-					}
-					current_start = offset;
-					last_highlight = current_highlight;
+					});
+					self.current_start = offset;
+					self.current_highlight = new_highlight;
+					span
 				}
-				HighlightEvent::Refresh => {
-					// Highlights changed - emit span for previous state if any
-					if let Some(prev) = last_highlight {
-						if current_start < offset {
-							spans.push(HighlightSpan {
-								start: current_start,
-								end: offset,
-								highlight: prev,
-							});
-						}
-					}
-					current_start = offset;
-					last_highlight = current_highlight;
-				}
+			};
+
+			if span.is_some() {
+				return span;
 			}
 		}
 
-		spans
+		// Emit final span if any
+		if let Some(h) = self.current_highlight.take() {
+			let offset = self.inner.next_event_offset().min(self.end_byte);
+			if self.current_start < offset {
+				return Some(HighlightSpan {
+					start: self.current_start,
+					end: offset,
+					highlight: h,
+				});
+			}
+		}
+
+		None
 	}
 }
 

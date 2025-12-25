@@ -1,11 +1,12 @@
-//! Grammar source configuration.
+//! Grammar loading and search path configuration.
 //!
-//! Grammars are compiled tree-sitter parsers. This module defines where grammars
-//! can be loaded from (shared libraries or compiled-in).
+//! Grammars are compiled tree-sitter parsers loaded from shared libraries.
+//! This module handles locating and loading grammar files.
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use thiserror::Error;
+use tree_house::tree_sitter::Grammar;
 
 /// Errors that can occur when loading a grammar.
 #[derive(Error, Debug)]
@@ -21,6 +22,50 @@ pub enum GrammarError {
 
 	#[error("IO error: {0}")]
 	Io(#[from] std::io::Error),
+}
+
+/// Loads a grammar by name from the search paths.
+///
+/// Searches all configured grammar directories for a matching shared library.
+pub fn load_grammar(name: &str) -> Result<Grammar, GrammarError> {
+	let lib_name = grammar_library_name(name);
+
+	for path in grammar_search_paths() {
+		let lib_path = path.join(&lib_name);
+
+		if lib_path.exists() {
+			return load_grammar_from_path(&lib_path, name);
+		}
+	}
+
+	Err(GrammarError::NotFound(name.to_string()))
+}
+
+/// Loads a grammar from a specific library path.
+fn load_grammar_from_path(path: &Path, name: &str) -> Result<Grammar, GrammarError> {
+	// SAFETY: Loading a tree-sitter grammar from a dynamic library.
+	// The library must contain a valid tree-sitter language function.
+	unsafe {
+		Grammar::new(name, path)
+			.map_err(|e| GrammarError::LoadError(format!("{}: {}", path.display(), e)))
+	}
+}
+
+/// Returns the platform-specific library name for a grammar.
+fn grammar_library_name(name: &str) -> String {
+	let safe_name = name.replace('-', "_");
+	#[cfg(target_os = "macos")]
+	{
+		format!("lib{safe_name}.dylib")
+	}
+	#[cfg(target_os = "windows")]
+	{
+		format!("{safe_name}.dll")
+	}
+	#[cfg(not(any(target_os = "macos", target_os = "windows")))]
+	{
+		format!("lib{safe_name}.so")
+	}
 }
 
 /// Source for loading a grammar.

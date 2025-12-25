@@ -1,166 +1,18 @@
-//! Language configuration for syntax parsing.
+//! Language loader and registry.
 //!
-//! This module defines the configuration structures that connect file types
-//! to their tree-sitter grammars and query files, implementing the
-//! `tree_house::LanguageLoader` trait.
+//! The `LanguageLoader` is the central registry for all language configurations.
+//! It implements `tree_house::LanguageLoader` for injection handling.
 
 use std::borrow::Cow;
 use std::collections::HashMap;
 use std::path::Path;
 
-use once_cell::sync::OnceCell;
-use tree_house::tree_sitter::Grammar;
 use tree_house::{InjectionLanguageMarker, Language, LanguageConfig as TreeHouseConfig};
 
-use crate::grammar::GrammarError;
+use crate::language::LanguageData;
 
 // Re-export tree_house::Language for convenience.
-pub type LanguageId = Language;
-
-/// Language data with lazily-loaded syntax configuration.
-///
-/// Each registered language has its grammar and queries loaded on first use.
-#[derive(Debug)]
-pub struct LanguageData {
-	/// Language name (e.g., "rust", "python").
-	pub name: String,
-	/// Grammar name (may differ from language name).
-	pub grammar_name: String,
-	/// File extensions (without dot).
-	pub extensions: Vec<String>,
-	/// Exact filenames to match.
-	pub filenames: Vec<String>,
-	/// Shebang interpreters.
-	pub shebangs: Vec<String>,
-	/// Comment token(s) for the language.
-	pub comment_tokens: Vec<String>,
-	/// Block comment tokens (start, end).
-	pub block_comment: Option<(String, String)>,
-	/// Injection regex for matching in code blocks.
-	pub injection_regex: Option<regex::Regex>,
-	/// Lazily-loaded syntax configuration.
-	config: OnceCell<Option<TreeHouseConfig>>,
-}
-
-impl LanguageData {
-	/// Creates new language data.
-	pub fn new(
-		name: String,
-		grammar_name: Option<String>,
-		extensions: Vec<String>,
-		filenames: Vec<String>,
-		shebangs: Vec<String>,
-		comment_tokens: Vec<String>,
-		block_comment: Option<(String, String)>,
-		injection_regex: Option<&str>,
-	) -> Self {
-		Self {
-			grammar_name: grammar_name.unwrap_or_else(|| name.clone()),
-			name,
-			extensions,
-			filenames,
-			shebangs,
-			comment_tokens,
-			block_comment,
-			injection_regex: injection_regex.and_then(|r| regex::Regex::new(r).ok()),
-			config: OnceCell::new(),
-		}
-	}
-
-	/// Returns the syntax configuration, loading it if necessary.
-	///
-	/// This loads the grammar and compiles the queries on first access.
-	pub fn syntax_config(&self) -> Option<&TreeHouseConfig> {
-		self.config
-			.get_or_init(|| load_language_config(&self.grammar_name))
-			.as_ref()
-	}
-}
-
-/// Loads the complete language configuration (grammar + queries).
-fn load_language_config(grammar_name: &str) -> Option<TreeHouseConfig> {
-	let grammar = load_grammar(grammar_name)?;
-
-	let highlights = read_query(grammar_name, "highlights.scm");
-	let injections = read_query(grammar_name, "injections.scm");
-	let locals = read_query(grammar_name, "locals.scm");
-
-	match TreeHouseConfig::new(grammar, &highlights, &injections, &locals) {
-		Ok(config) => Some(config),
-		Err(e) => {
-			log::warn!(
-				"Failed to create language config for {}: {}",
-				grammar_name,
-				e
-			);
-			None
-		}
-	}
-}
-
-/// Loads a grammar from the search paths.
-fn load_grammar(name: &str) -> Option<Grammar> {
-	for path in crate::grammar::grammar_search_paths() {
-		let lib_name = grammar_library_name(name);
-		let lib_path = path.join(&lib_name);
-
-		if lib_path.exists() {
-			match unsafe { load_grammar_from_library(&lib_path, name) } {
-				Ok(grammar) => return Some(grammar),
-				Err(e) => {
-					log::warn!("Failed to load grammar {} from {:?}: {}", name, lib_path, e);
-				}
-			}
-		}
-	}
-
-	log::debug!("Grammar not found: {}", name);
-	None
-}
-
-/// Returns the platform-specific library name for a grammar.
-fn grammar_library_name(name: &str) -> String {
-	let safe_name = name.replace('-', "_");
-	#[cfg(target_os = "macos")]
-	{
-		format!("lib{safe_name}.dylib")
-	}
-	#[cfg(target_os = "windows")]
-	{
-		format!("{safe_name}.dll")
-	}
-	#[cfg(not(any(target_os = "macos", target_os = "windows")))]
-	{
-		format!("lib{safe_name}.so")
-	}
-}
-
-/// Loads a grammar from a shared library.
-///
-/// # Safety
-/// This loads and executes code from a dynamic library.
-unsafe fn load_grammar_from_library(path: &Path, name: &str) -> Result<Grammar, GrammarError> {
-	// SAFETY: The caller ensures the library path is valid and contains a tree-sitter grammar
-	unsafe {
-		Grammar::new(name, path).map_err(|e| GrammarError::LoadError(format!("{}: {}", path.display(), e)))
-	}
-}
-
-/// Reads a query file for a language.
-///
-/// This searches the query paths and handles the `; inherits` directive
-/// using tree-house's `read_query` helper.
-pub fn read_query(lang: &str, filename: &str) -> String {
-	tree_house::read_query(lang, |query_lang| {
-		for path in crate::grammar::query_search_paths() {
-			let query_path = path.join(query_lang).join(filename);
-			if let Ok(content) = std::fs::read_to_string(&query_path) {
-				return content;
-			}
-		}
-		String::new()
-	})
-}
+pub use tree_house::Language as LanguageId;
 
 /// The main language loader that implements tree-house's LanguageLoader trait.
 ///
@@ -188,7 +40,7 @@ impl LanguageLoader {
 		Self::default()
 	}
 
-	/// Registers a language.
+	/// Registers a language and returns its ID.
 	pub fn register(&mut self, data: LanguageData) -> Language {
 		let idx = self.languages.len();
 
@@ -210,7 +62,7 @@ impl LanguageLoader {
 		Language::new(idx as u32)
 	}
 
-	/// Gets language data by index.
+	/// Gets language data by ID.
 	pub fn get(&self, lang: Language) -> Option<&LanguageData> {
 		self.languages.get(lang.idx())
 	}
@@ -274,13 +126,6 @@ impl LanguageLoader {
 		None
 	}
 
-	/// Finds a language by injection regex match from a RopeSlice.
-	fn language_for_injection_rope(&self, text: ropey::RopeSlice<'_>) -> Option<Language> {
-		// Convert to Cow<str> for regex matching
-		let cow: std::borrow::Cow<str> = text.into();
-		self.language_for_injection_match(&cow)
-	}
-
 	/// Returns all registered languages.
 	pub fn languages(&self) -> impl Iterator<Item = (Language, &LanguageData)> {
 		self.languages
@@ -304,7 +149,10 @@ impl tree_house::LanguageLoader for LanguageLoader {
 	fn language_for_marker(&self, marker: InjectionLanguageMarker) -> Option<Language> {
 		match marker {
 			InjectionLanguageMarker::Name(name) => self.language_for_name(name),
-			InjectionLanguageMarker::Match(text) => self.language_for_injection_rope(text),
+			InjectionLanguageMarker::Match(text) => {
+				let cow: Cow<str> = text.into();
+				self.language_for_injection_match(&cow)
+			}
 			InjectionLanguageMarker::Filename(text) => {
 				let path: Cow<str> = text.into();
 				self.language_for_path(Path::new(path.as_ref()))
@@ -377,12 +225,5 @@ mod tests {
 			Some(lang)
 		);
 		assert_eq!(loader.language_for_shebang("not a shebang"), None);
-	}
-
-	#[test]
-	fn test_read_query_not_found() {
-		// Should return empty string for non-existent query
-		let query = read_query("nonexistent_language_xyz", "highlights.scm");
-		assert!(query.is_empty());
 	}
 }

@@ -10,6 +10,24 @@ use tree_house::TREE_SITTER_MATCH_LIMIT;
 use tree_house::tree_sitter::query::{InvalidPredicateError, UserPredicate};
 use tree_house::tree_sitter::{Grammar, InactiveQueryCursor, Node, Query, RopeInput};
 
+use crate::grammar::query_search_paths;
+
+/// Reads a query file for a language.
+///
+/// Searches query paths and handles the `; inherits` directive
+/// using tree-house's `read_query` helper.
+pub fn read_query(lang: &str, filename: &str) -> String {
+	tree_house::read_query(lang, |query_lang| {
+		for path in query_search_paths() {
+			let query_path = path.join(query_lang).join(filename);
+			if let Ok(content) = std::fs::read_to_string(&query_path) {
+				return content;
+			}
+		}
+		String::new()
+	})
+}
+
 /// Query for computing indentation.
 #[derive(Debug)]
 pub struct IndentQuery {
@@ -76,7 +94,24 @@ impl TextObjectQuery {
 		node: &Node<'a>,
 		source: RopeSlice<'a>,
 	) -> Option<impl Iterator<Item = CapturedNode<'a>>> {
-		self.capture_nodes_any(&[capture_name], node, source)
+		let capture = self.query.get_capture(capture_name)?;
+
+		let mut cursor = InactiveQueryCursor::new(0..u32::MAX, TREE_SITTER_MATCH_LIMIT)
+			.execute_query(&self.query, node, RopeInput::new(source));
+
+		let capture_node = iter::from_fn(move || {
+			let mat = cursor.next_match()?;
+			Some(mat.nodes_for_capture(capture).cloned().collect())
+		})
+		.filter_map(|nodes: Vec<_>| {
+			if nodes.len() > 1 {
+				Some(CapturedNode::Grouped(nodes))
+			} else {
+				nodes.into_iter().map(CapturedNode::Single).next()
+			}
+		});
+
+		Some(capture_node)
 	}
 
 	/// Captures nodes matching any of the given capture names.
