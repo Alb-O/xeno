@@ -13,7 +13,7 @@ use crate::notifications::types::{
 fn test_default_notification_has_sensible_defaults() {
 	let notification = Notification::default();
 	assert_eq!(notification.anchor, Anchor::BottomRight);
-	assert_eq!(notification.animation, Animation::Slide);
+	assert_eq!(notification.animation, Animation::Fade);
 	assert_eq!(notification.slide_direction, SlideDirection::Default);
 	assert_eq!(
 		notification.auto_dismiss,
