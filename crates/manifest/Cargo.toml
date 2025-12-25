@@ -1,0 +1,18 @@
+[package]
+name = "tome-manifest"
+description = "Extension manifest and registry definitions for Tome editor"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+async-trait.workspace = true
+futures.workspace = true
+linkme.workspace = true
+log.workspace = true
+paste.workspace = true
+ropey.workspace = true
+serde.workspace = true
+strsim.workspace = true
+thiserror.workspace = true
+tome-base.workspace = true

@@ -1,5 +1,5 @@
-use tome_core::registry::CompletionItem;
-use tome_core::{Rope, Selection};
+use tome_base::{Rope, Selection};
+use tome_manifest::CompletionItem;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum MessageKind {

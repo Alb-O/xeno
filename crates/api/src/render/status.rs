@@ -1,9 +1,8 @@
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Paragraph, Widget};
-use tome_core::Mode;
-use tome_core::registry::{
-	RenderedSegment, SegmentPosition, SegmentStyle, StatuslineContext, render_position,
+use tome_manifest::{
+	Mode, RenderedSegment, SegmentPosition, SegmentStyle, StatuslineContext, render_position,
 };
 
 use crate::Editor;

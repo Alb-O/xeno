@@ -5,12 +5,12 @@ use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Clear, Paragraph};
-use tome_core::Mode;
-use tome_core::range::CharIdx;
+use tome_base::range::CharIdx;
+use tome_manifest::Mode;
+use tome_theme::blend_colors;
 
 use super::types::{RenderResult, WrapSegment};
 use crate::Editor;
-use crate::theme::blend_colors;
 
 impl Editor {
 	pub fn render(&mut self, frame: &mut ratatui::Frame) {
@@ -357,7 +357,7 @@ impl Editor {
 					let is_primary_cursor = doc_pos == primary_cursor;
 					let in_selection = ranges
 						.iter()
-						.any(|r: &tome_core::range::Range| doc_pos >= r.min() && doc_pos < r.max());
+						.any(|r: &tome_base::range::Range| doc_pos >= r.min() && doc_pos < r.max());
 
 					let cursor_style = if is_primary_cursor {
 						primary_cursor_style

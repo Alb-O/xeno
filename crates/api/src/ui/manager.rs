@@ -2,12 +2,12 @@ use std::collections::HashMap;
 
 use ratatui::layout::Rect;
 use termina::event::{KeyEvent, MouseEvent};
+use tome_theme::Theme;
 
 use super::dock::{DockLayout, DockManager};
 use super::focus::{FocusManager, FocusTarget};
 use super::keymap::{BindingScope, KeybindingRegistry};
 use super::panel::{Panel, PanelInitContext, UiEvent, UiRequest};
-use crate::theme::Theme;
 
 #[derive(Default)]
 pub struct UiManager {

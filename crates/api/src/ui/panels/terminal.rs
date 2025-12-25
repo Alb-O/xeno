@@ -4,10 +4,10 @@ use ratatui::layout::{Position, Rect};
 use ratatui::style::Style;
 use ratatui::widgets::{Block, Clear};
 use termina::event::{KeyCode as TmKeyCode, KeyEvent, Modifiers as TmModifiers};
+use tome_theme::Theme;
 
 use crate::render::terminal::ThemedVt100Terminal;
 use crate::terminal_panel::{TerminalError, TerminalState};
-use crate::theme::Theme;
 use crate::ui::FocusTarget;
 use crate::ui::dock::DockSlot;
 use crate::ui::keymap::UiKeyChord;
@@ -20,6 +20,12 @@ pub struct TerminalPanel {
 	terminal: Option<TerminalState>,
 	prewarm: Option<Receiver<Result<TerminalState, TerminalError>>>,
 	input_buffer: Vec<u8>,
+}
+
+impl Default for TerminalPanel {
+	fn default() -> Self {
+		Self::new()
+	}
 }
 
 impl TerminalPanel {

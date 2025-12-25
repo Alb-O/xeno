@@ -3,7 +3,7 @@ use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::list::ListItem;
 use ratatui::widgets::{Block, Borders, List, Widget};
-use tome_core::registry::CompletionKind;
+use tome_manifest::CompletionKind;
 
 use crate::Editor;
 

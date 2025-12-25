@@ -96,9 +96,9 @@ pub fn coalesce_resize_events(events: &EventReader, first: WindowSize) -> io::Re
 	Ok(latest)
 }
 
-pub fn cursor_style_for_mode(mode: tome_core::Mode) -> CursorStyle {
+pub fn cursor_style_for_mode(mode: tome_manifest::Mode) -> CursorStyle {
 	match mode {
-		tome_core::Mode::Insert => CursorStyle::BlinkingBar,
+		tome_manifest::Mode::Insert => CursorStyle::BlinkingBar,
 		_ => CursorStyle::SteadyBlock,
 	}
 }

@@ -1,6 +1,7 @@
-use tome_core::range::{Direction as MoveDir, Range};
-use tome_core::registry::{EditAction, ScrollAmount, ScrollDir, VisualDirection};
-use tome_core::{Mode, Selection, Transaction, movement};
+use tome_base::range::{Direction as MoveDir, Range};
+use tome_base::{Selection, Transaction};
+use tome_manifest::{EditAction, Mode, ScrollAmount, ScrollDir, VisualDirection};
+use tome_stdlib::movement;
 
 use super::Editor;
 

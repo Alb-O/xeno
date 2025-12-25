@@ -11,7 +11,7 @@ use std::sync::atomic::AtomicU64;
 
 use parking_lot::Mutex;
 use tokio::sync::oneshot;
-use tome_core::Rope;
+use tome_base::Rope;
 
 /// Chat message role.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

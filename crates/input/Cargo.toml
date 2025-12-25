@@ -1,0 +1,12 @@
+[package]
+name = "tome-input"
+description = "Input handling and state machine for Tome editor"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+log.workspace = true
+serde.workspace = true
+tome-base.workspace = true
+tome-manifest.workspace = true

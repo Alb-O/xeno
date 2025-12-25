@@ -11,16 +11,18 @@ pub mod types;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use async_trait::async_trait;
-use tome_core::range::CharIdx;
-use tome_core::registry::notifications::{Notifications, Overflow};
-use tome_core::registry::{HookContext, emit_hook};
-use tome_core::{InputHandler, Mode, Rope, Selection, Transaction, movement, registry};
+use agentfs_sdk::{FileSystem, HostFS};
+use tome_base::range::CharIdx;
+use tome_base::{Rope, Selection, Transaction};
+use tome_input::InputHandler;
+use tome_manifest::{HookContext, Mode, emit_hook};
+use tome_stdlib::movement;
+use tome_stdlib::notifications::{Notifications, Overflow};
+use tome_theme::Theme;
 pub use types::{HistoryEntry, Message, MessageKind, Registers};
 
 use crate::editor::extensions::{EXTENSIONS, ExtensionMap};
 use crate::editor::types::CompletionState;
-use crate::theme::Theme;
 use crate::ui::UiManager;
 
 pub struct Editor {
@@ -57,70 +59,65 @@ pub struct Editor {
 	pub fs: Arc<dyn FileSystem>,
 }
 
-#[async_trait(?Send)]
-impl tome_core::registry::EditorOps for Editor {
-	fn path(&self) -> Option<&std::path::Path> {
-		self.path.as_deref()
-	}
+// TextAccess is already implemented in capabilities.rs
+// MessageAccess is already implemented in capabilities.rs
 
-	async fn save(&mut self) -> Result<(), tome_core::registry::CommandError> {
-		let path_owned = match &self.path {
-			Some(p) => p.clone(),
-			None => {
-				return Err(tome_core::registry::CommandError::InvalidArgument(
-					"No filename. Use :write <filename>".to_string(),
-				));
-			}
-		};
-
-		emit_hook(&HookContext::BufferWritePre {
-			path: &path_owned,
-			text: self.doc.slice(..),
-		});
-
-		let mut content = Vec::new();
-		for chunk in self.doc.chunks() {
-			content.extend_from_slice(chunk.as_bytes());
-		}
-
-		self.fs
-			.write_file(path_owned.to_str().unwrap_or(""), &content)
-			.await
-			.map_err(|e| tome_core::registry::CommandError::Io(e.to_string()))?;
-
-		self.modified = false;
-		self.show_message(format!("Saved {}", path_owned.display()));
-
-		emit_hook(&HookContext::BufferWrite { path: &path_owned });
-
-		Ok(())
-	}
-
-	async fn save_as(&mut self, path: PathBuf) -> Result<(), tome_core::registry::CommandError> {
-		self.path = Some(path);
-		self.save().await
-	}
-
-	fn insert_text(&mut self, text: &str) {
-		self.insert_text(text);
-	}
-
-	fn delete_selection(&mut self) {
-		self.delete_selection();
-	}
-
-	fn set_modified(&mut self, modified: bool) {
-		self.modified = modified;
-	}
-
+impl tome_manifest::editor_ctx::FileOpsAccess for Editor {
 	fn is_modified(&self) -> bool {
 		self.modified
 	}
 
-	fn set_theme(&mut self, theme_name: &str) -> Result<(), tome_core::registry::CommandError> {
-		self.set_theme(theme_name)
+	fn save(
+		&mut self,
+	) -> std::pin::Pin<
+		Box<dyn std::future::Future<Output = Result<(), tome_manifest::CommandError>> + '_>,
+	> {
+		Box::pin(async move {
+			let path_owned = match &self.path {
+				Some(p) => p.clone(),
+				None => {
+					return Err(tome_manifest::CommandError::InvalidArgument(
+						"No filename. Use :write <filename>".to_string(),
+					));
+				}
+			};
+
+			emit_hook(&HookContext::BufferWritePre {
+				path: &path_owned,
+				text: self.doc.slice(..),
+			});
+
+			let mut content = Vec::new();
+			for chunk in self.doc.chunks() {
+				content.extend_from_slice(chunk.as_bytes());
+			}
+
+			self.fs
+				.write_file(path_owned.to_str().unwrap_or(""), &content)
+				.await
+				.map_err(|e| tome_manifest::CommandError::Io(e.to_string()))?;
+
+			self.modified = false;
+			self.show_message(format!("Saved {}", path_owned.display()));
+
+			emit_hook(&HookContext::BufferWrite { path: &path_owned });
+
+			Ok(())
+		})
+	}
+
+	fn save_as(
+		&mut self,
+		path: PathBuf,
+	) -> std::pin::Pin<
+		Box<dyn std::future::Future<Output = Result<(), tome_manifest::CommandError>> + '_>,
+	> {
+		self.path = Some(path);
+		self.save()
 	}
 }
+
+impl tome_manifest::EditorOps for Editor {}
 
 impl Editor {
 	pub async fn new(path: PathBuf) -> anyhow::Result<Self> {
@@ -144,10 +141,8 @@ impl Editor {
 	}
 
 	pub fn from_content(fs: Arc<dyn FileSystem>, content: String, path: Option<PathBuf>) -> Self {
-		let file_type = path
-			.as_ref()
-			.and_then(|p| registry::detect_file_type(p.to_str().unwrap_or("")))
-			.map(|ft| ft.name);
+		// TODO: Implement detect_file_type in tome_manifest or tome_stdlib
+		let file_type: Option<String> = None;
 
 		let doc = Rope::from(content.as_str());
 
@@ -157,7 +152,7 @@ impl Editor {
 		emit_hook(&HookContext::BufferOpen {
 			path: hook_path,
 			text: doc.slice(..),
-			file_type,
+			file_type: file_type.as_deref(),
 		});
 
 		Self {
@@ -174,8 +169,8 @@ impl Editor {
 			undo_stack: Vec::new(),
 			redo_stack: Vec::new(),
 			text_width: 80,
-			file_type: file_type.map(|s| s.to_string()),
-			theme: &crate::themes::solarized::SOLARIZED_DARK,
+			file_type,
+			theme: &tome_theme::themes::solarized::SOLARIZED_DARK,
 			window_width: None,
 			window_height: None,
 			ui: {
@@ -285,7 +280,7 @@ impl Editor {
 			*r = movement::move_horizontally(
 				slice,
 				*r,
-				tome_core::range::Direction::Forward,
+				tome_base::range::Direction::Forward,
 				1,
 				false,
 			);
@@ -347,16 +342,16 @@ impl Editor {
 		}
 	}
 
-	pub fn set_theme(&mut self, theme_name: &str) -> Result<(), tome_core::registry::CommandError> {
-		if let Some(theme) = crate::theme::get_theme(theme_name) {
+	pub fn set_theme(&mut self, theme_name: &str) -> Result<(), tome_manifest::CommandError> {
+		if let Some(theme) = tome_theme::get_theme(theme_name) {
 			self.theme = theme;
 			Ok(())
 		} else {
 			let mut err = format!("Theme not found: {}", theme_name);
-			if let Some(suggestion) = crate::theme::suggest_theme(theme_name) {
+			if let Some(suggestion) = tome_theme::suggest_theme(theme_name) {
 				err.push_str(&format!(". Did you mean '{}'?", suggestion));
 			}
-			Err(tome_core::registry::CommandError::Failed(err))
+			Err(tome_manifest::CommandError::Failed(err))
 		}
 	}
 

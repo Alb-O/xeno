@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use termina::event::KeyEvent;
-use tome_core::{Key, KeyCode, Modifiers};
+use tome_base::{Key, KeyCode, Modifiers};
 
 use super::UiRequest;
 

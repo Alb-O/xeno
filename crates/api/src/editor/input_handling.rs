@@ -1,4 +1,7 @@
-use tome_core::{Key, KeyCode, KeyResult, Mode, Selection, SpecialKey, movement};
+use tome_base::{Key, KeyCode, Selection, SpecialKey};
+use tome_input::KeyResult;
+use tome_manifest::Mode;
+use tome_stdlib::movement;
 
 use crate::editor::Editor;
 
@@ -26,7 +29,7 @@ impl Editor {
 	}
 
 	pub(crate) async fn handle_key_active(&mut self, key: termina::event::KeyEvent) -> bool {
-		use tome_core::registry::{HookContext, emit_hook, find_action_by_id};
+		use tome_manifest::{HookContext, emit_hook, find_action_by_id};
 
 		self.message = None;
 

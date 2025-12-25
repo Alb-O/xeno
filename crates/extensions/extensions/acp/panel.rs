@@ -3,13 +3,13 @@ use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Paragraph};
 use termina::event::{KeyCode as TmKeyCode, Modifiers as TmModifiers};
-
-use crate::acp::types::{ChatRole, ChatItem};
-use tome_api::theme::Theme;
 use tome_api::ui::FocusTarget;
 use tome_api::ui::dock::DockSlot;
 use tome_api::ui::panel::{CursorRequest, EventResult, Panel, UiEvent, UiRequest};
+use tome_theme::Theme;
+
 use crate::acp::AcpManager;
+use crate::acp::types::{ChatItem, ChatRole};
 
 pub fn chat_panel_ui_id(panel_id: u64) -> String {
 	format!("chat:{}", panel_id)
@@ -74,7 +74,10 @@ impl Panel for AcpChatPanel {
 						.with_request(UiRequest::Focus(FocusTarget::editor()));
 				}
 
-				let acp = editor.extensions.get::<AcpManager>().expect("ACP extension missing");
+				let acp = editor
+					.extensions
+					.get::<AcpManager>()
+					.expect("ACP extension missing");
 				let mut panels = acp.state.panels.lock();
 				let Some(panel) = panels.get_mut(&self.panel_id) else {
 					return EventResult::consumed();
@@ -113,7 +116,10 @@ impl Panel for AcpChatPanel {
 				EventResult::consumed().with_request(UiRequest::Redraw)
 			}
 			UiEvent::Paste(text) if focused => {
-				let acp = editor.extensions.get::<AcpManager>().expect("ACP extension missing");
+				let acp = editor
+					.extensions
+					.get::<AcpManager>()
+					.expect("ACP extension missing");
 				let mut panels = acp.state.panels.lock();
 				let Some(panel) = panels.get_mut(&self.panel_id) else {
 					return EventResult::consumed();
@@ -145,7 +151,10 @@ impl Panel for AcpChatPanel {
 
 		frame.render_widget(Block::default().style(bg), area);
 
-		let acp = editor.extensions.get::<AcpManager>().expect("ACP extension missing");
+		let acp = editor
+			.extensions
+			.get::<AcpManager>()
+			.expect("ACP extension missing");
 		let panels = acp.state.panels.lock();
 		let Some(state) = panels.get(&self.panel_id) else {
 			let w = Paragraph::new("[missing panel state]").style(bg);
@@ -220,7 +229,10 @@ impl Panel for AcpChatPanel {
 }
 
 pub fn submit_acp_panel(editor: &mut tome_api::editor::Editor) {
-	let acp = editor.extensions.get::<AcpManager>().expect("ACP extension missing");
+	let acp = editor
+		.extensions
+		.get::<AcpManager>()
+		.expect("ACP extension missing");
 	let panel_id = match acp.panel_id() {
 		Some(id) => id,
 		None => return,
@@ -260,7 +272,10 @@ fn handle_acp_event(editor: &mut tome_api::editor::Editor, event: crate::acp::Ac
 	use crate::acp::AcpEvent;
 	match event {
 		AcpEvent::PanelAppend { role, text } => {
-			let acp = editor.extensions.get::<AcpManager>().expect("ACP extension missing");
+			let acp = editor
+				.extensions
+				.get::<AcpManager>()
+				.expect("ACP extension missing");
 			let panel_id = match acp.panel_id() {
 				Some(id) => id,
 				None => return,
@@ -279,7 +294,10 @@ fn handle_acp_event(editor: &mut tome_api::editor::Editor, event: crate::acp::Ac
 			// For now, show a message and auto-allow
 			// TODO: implement proper permission UI
 			editor.show_message(format!("ACP permission request: {}", prompt));
-			let acp = editor.extensions.get::<AcpManager>().expect("ACP extension missing");
+			let acp = editor
+				.extensions
+				.get::<AcpManager>()
+				.expect("ACP extension missing");
 			acp.on_permission_decision(id, "allow".to_string());
 		}
 	}

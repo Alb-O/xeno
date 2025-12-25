@@ -1,12 +1,13 @@
 //! Implementation of EditorCapabilities for Editor.
 
-use tome_core::range::CharIdx;
-use tome_core::registry::EditAction;
-use tome_core::registry::editor_ctx::{
+use ropey::RopeSlice;
+use tome_base::Selection;
+use tome_base::range::CharIdx;
+use tome_manifest::editor_ctx::{
 	CursorAccess, EditAccess, EditorCapabilities, MessageAccess, ModeAccess, SearchAccess,
 	SelectionAccess, SelectionOpsAccess, TextAccess, UndoAccess,
 };
-use tome_core::{Mode, RopeSlice, Selection};
+use tome_manifest::{EditAction, Mode};
 
 use crate::editor::Editor;
 

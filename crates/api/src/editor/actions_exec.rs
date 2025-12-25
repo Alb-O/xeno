@@ -1,4 +1,4 @@
-use tome_core::registry::{
+use tome_manifest::{
 	ActionArgs, ActionContext, ActionResult, CommandContext, CommandOutcome, find_action,
 	find_command,
 };
@@ -37,7 +37,7 @@ impl Editor {
 
 		// Check required capabilities before creating ctx
 		{
-			use tome_core::registry::EditorContext;
+			use tome_manifest::EditorContext;
 			let mut e_ctx = EditorContext::new(self);
 			if let Err(e) = e_ctx.check_all_capabilities(cmd.required_caps) {
 				self.show_error(e.to_string());
@@ -85,7 +85,7 @@ impl Editor {
 
 		// Check required capabilities
 		{
-			use tome_core::registry::EditorContext;
+			use tome_manifest::EditorContext;
 			let mut e_ctx = EditorContext::new(self);
 			if let Err(e) = e_ctx.check_all_capabilities(action.required_caps) {
 				self.show_error(e.to_string());
@@ -125,7 +125,7 @@ impl Editor {
 
 		// Check required capabilities
 		{
-			use tome_core::registry::EditorContext;
+			use tome_manifest::EditorContext;
 			let mut e_ctx = EditorContext::new(self);
 			if let Err(e) = e_ctx.check_all_capabilities(action.required_caps) {
 				self.show_error(e.to_string());
@@ -151,7 +151,7 @@ impl Editor {
 	}
 
 	pub(crate) fn apply_action_result(&mut self, result: ActionResult, extend: bool) -> bool {
-		use tome_core::registry::{EditorContext, dispatch_result};
+		use tome_manifest::{EditorContext, dispatch_result};
 		let mut ctx = EditorContext::new(self);
 		dispatch_result(&result, &mut ctx, extend)
 	}

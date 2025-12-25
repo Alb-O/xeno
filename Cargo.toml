@@ -43,8 +43,12 @@ thiserror = "2"
 tokio = { version = "1", features = ["full"] }
 tokio-util = { version = "0.7", features = ["compat"] }
 tome-api = { path = "crates/api" }
-tome-core = { path = "crates/core" }
+tome-base = { path = "crates/base" }
 tome-extensions = { path = "crates/extensions" }
+tome-input = { path = "crates/input" }
+tome-manifest = { path = "crates/manifest" }
+tome-stdlib = { path = "crates/stdlib" }
+tome-theme = { path = "crates/theme" }
 toml = "0.9"
 tui-term = "0.2"
 unicode-segmentation = "1.12"

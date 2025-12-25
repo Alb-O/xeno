@@ -2339,7 +2339,11 @@ dependencies = [
  "thiserror 2.0.17",
  "tokio",
  "tokio-util",
- "tome-core",
+ "tome-base",
+ "tome-input",
+ "tome-manifest",
+ "tome-stdlib",
+ "tome-theme",
  "toml",
  "tui-term",
  "unicode-segmentation",
@@ -2347,18 +2351,14 @@ dependencies = [
 ]
 
 [[package]]
-name = "tome-core"
+name = "tome-base"
 version = "0.1.0"
 dependencies = [
  "crossterm",
  "linkme",
  "log",
- "paste",
- "ratatui 0.30.0-hackable",
- "regex",
  "ropey",
  "serde",
- "serde_json",
  "smallvec",
  "termina",
  "thiserror 2.0.17",
@@ -2384,7 +2384,20 @@ dependencies = [
  "tokio",
  "tokio-util",
  "tome-api",
- "tome-core",
+ "tome-base",
+ "tome-manifest",
+ "tome-stdlib",
+ "tome-theme",
+]
+
+[[package]]
+name = "tome-input"
+version = "0.1.0"
+dependencies = [
+ "log",
+ "serde",
+ "tome-base",
+ "tome-manifest",
 ]
 
 [[package]]
@@ -2394,6 +2407,47 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.111",
+]
+
+[[package]]
+name = "tome-manifest"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "futures",
+ "linkme",
+ "log",
+ "paste",
+ "ropey",
+ "serde",
+ "strsim",
+ "thiserror 2.0.17",
+ "tome-base",
+]
+
+[[package]]
+name = "tome-stdlib"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "crossterm",
+ "futures",
+ "linkme",
+ "log",
+ "paste",
+ "ratatui 0.30.0-hackable",
+ "regex",
+ "ropey",
+ "serde",
+ "serde_json",
+ "smallvec",
+ "termina",
+ "thiserror 2.0.17",
+ "tome-base",
+ "tome-input",
+ "tome-manifest",
+ "unicode-segmentation",
+ "unicode-width 0.2.0",
 ]
 
 [[package]]
@@ -2416,10 +2470,24 @@ dependencies = [
  "tokio",
  "tokio-util",
  "tome-api",
- "tome-core",
  "tome-extensions",
+ "tome-manifest",
+ "tome-stdlib",
  "toml",
  "tui-term",
+]
+
+[[package]]
+name = "tome-theme"
+version = "0.1.0"
+dependencies = [
+ "futures",
+ "linkme",
+ "ratatui 0.30.0-hackable",
+ "serde",
+ "strsim",
+ "tome-base",
+ "tome-manifest",
 ]
 
 [[package]]

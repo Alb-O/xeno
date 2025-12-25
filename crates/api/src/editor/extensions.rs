@@ -58,9 +58,7 @@ impl ExtensionMap {
 	/// Get extension state, initializing it if missing.
 	pub fn get_or_init<T: Any + Send + Sync, F: FnOnce() -> T>(&mut self, f: F) -> &mut T {
 		let type_id = TypeId::of::<T>();
-		if !self.inner.contains_key(&type_id) {
-			self.inner.insert(type_id, Box::new(f()));
-		}
+		self.inner.entry(type_id).or_insert_with(|| Box::new(f()));
 		self.inner
 			.get_mut(&type_id)
 			.unwrap()

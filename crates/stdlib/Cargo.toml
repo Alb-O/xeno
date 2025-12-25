@@ -1,0 +1,43 @@
+[package]
+name = "tome-stdlib"
+description = "Standard library of built-in features for Tome editor"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[features]
+default = ["host"]
+host = [
+    "dep:linkme",
+    "dep:ropey",
+    "dep:regex",
+    "dep:termina",
+    "dep:unicode-segmentation",
+    "dep:unicode-width",
+    "dep:smallvec",
+    "dep:paste",
+    "dep:ratatui",
+    "dep:log",
+    "dep:crossterm",
+]
+
+[dependencies]
+async-trait.workspace = true
+crossterm = { workspace = true, optional = true }
+futures.workspace = true
+linkme = { workspace = true, optional = true }
+log = { workspace = true, optional = true }
+paste = { workspace = true, optional = true }
+ratatui = { workspace = true, optional = true }
+regex = { workspace = true, optional = true }
+ropey = { workspace = true, optional = true }
+serde.workspace = true
+serde_json.workspace = true
+smallvec = { workspace = true, optional = true }
+termina = { workspace = true, optional = true }
+thiserror.workspace = true
+tome-base.workspace = true
+tome-input.workspace = true
+tome-manifest.workspace = true
+unicode-segmentation = { workspace = true, optional = true }
+unicode-width = { workspace = true, optional = true }

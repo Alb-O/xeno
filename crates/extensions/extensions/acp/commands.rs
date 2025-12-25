@@ -10,8 +10,8 @@
 use std::path::PathBuf;
 
 use futures::future::LocalBoxFuture;
-use tome_core::command;
-use tome_core::registry::{CommandContext, CommandError, CommandOutcome};
+use tome_manifest::{CommandContext, CommandError, CommandOutcome};
+use tome_stdlib::command;
 
 use crate::acp::AcpManager;
 use crate::acp::panel::{AcpChatPanel, chat_panel_ui_id};
@@ -29,11 +29,9 @@ fn cmd_acp_start<'a>(
 	ctx: &'a mut CommandContext<'a>,
 ) -> LocalBoxFuture<'a, Result<CommandOutcome, CommandError>> {
 	Box::pin(async move {
-		let cwd = ctx
-			.editor
-			.path()
-			.and_then(|p| p.parent().map(|p| p.to_path_buf()))
-			.or_else(|| std::env::current_dir().ok())
+		// TODO: Get cwd from editor path when path() is added to EditorOps
+		let cwd = std::env::current_dir()
+			.ok()
 			.unwrap_or_else(|| PathBuf::from("."));
 
 		let cwd = cwd.canonicalize().unwrap_or(cwd);
@@ -160,7 +158,7 @@ impl<'a> CommandContextExt for CommandContext<'a> {
 	fn require_editor_mut(&mut self) -> &mut tome_api::editor::Editor {
 		// SAFETY: We know that in tome-term, EditorOps is implemented by Editor
 		unsafe {
-			&mut *(self.editor as *mut dyn tome_core::registry::EditorOps
+			&mut *(self.editor as *mut dyn tome_manifest::EditorOps
 				as *mut tome_api::editor::Editor)
 		}
 	}

@@ -59,7 +59,7 @@ pub async fn run_editor(
 			terminal.backend_mut().terminal_mut().flush()?;
 
 			let mut filter = |e: &Event| !e.is_escape();
-			let timeout = if matches!(editor.mode(), tome_core::Mode::Insert)
+			let timeout = if matches!(editor.mode(), tome_manifest::Mode::Insert)
 				|| editor.any_panel_open()
 				|| editor.needs_redraw
 			{

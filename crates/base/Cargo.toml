@@ -1,0 +1,17 @@
+[package]
+name = "tome-base"
+description = "Basic editing primitives for Tome editor"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+crossterm.workspace = true
+log.workspace = true
+ropey.workspace = true
+serde.workspace = true
+smallvec.workspace = true
+termina.workspace = true
+thiserror.workspace = true
+unicode-segmentation.workspace = true
+unicode-width.workspace = true

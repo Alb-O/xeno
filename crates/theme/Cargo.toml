@@ -1,0 +1,15 @@
+[package]
+name = "tome-theme"
+description = "Theme definitions and color logic for Tome editor"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+futures.workspace = true
+linkme.workspace = true
+ratatui.workspace = true
+serde.workspace = true
+strsim.workspace = true
+tome-base.workspace = true
+tome-manifest.workspace = true
