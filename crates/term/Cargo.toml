@@ -14,21 +14,21 @@ agent-client-protocol.workspace = true
 clap.workspace = true
 home = "0.5"
 linkme.workspace = true
-parking_lot = "0.12"
+parking_lot.workspace = true
 ratatui.workspace = true
 serde.workspace = true
 termina.workspace = true
 thiserror.workspace = true
-tokio.workspace = true 
+tokio.workspace = true
 tokio-util.workspace = true
-tome-api = { path = "../api" }
+tome-api.workspace = true
 tome-core.workspace = true
-tome-extensions = { path = "../extensions" }
+tome-extensions.workspace = true
 toml.workspace = true
-tui-term = "0.2.0"
+tui-term.workspace = true
 
 [dev-dependencies]
 insta.workspace = true
 kitty-test-harness.workspace = true
 serial_test.workspace = true
-termwiz = "0.23"
+termwiz.workspace = true
