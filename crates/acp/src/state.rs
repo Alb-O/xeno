@@ -10,8 +10,8 @@ use tokio::runtime::Runtime;
 use tokio::sync::mpsc::{self, Sender};
 use tokio::task::LocalSet;
 
-use crate::acp::backend::AcpBackend;
-use crate::acp::types::{AcpEvent, AcpState, AgentCommand};
+use crate::backend::AcpBackend;
+use crate::types::{AcpEvent, AcpState, AgentCommand};
 
 /// Manager for the ACP integration.
 ///

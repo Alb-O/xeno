@@ -8,8 +8,8 @@ use tome_api::ui::dock::DockSlot;
 use tome_api::ui::panel::{CursorRequest, EventResult, Panel, UiEvent, UiRequest};
 use tome_theme::Theme;
 
-use crate::acp::AcpManager;
-use crate::acp::types::{ChatItem, ChatRole};
+use crate::AcpManager;
+use crate::types::{ChatItem, ChatRole};
 
 pub fn chat_panel_ui_id(panel_id: u64) -> String {
 	format!("chat:{}", panel_id)
@@ -266,8 +266,8 @@ pub fn poll_acp_events(editor: &mut tome_api::editor::Editor) {
 	}
 }
 
-fn handle_acp_event(editor: &mut tome_api::editor::Editor, event: crate::acp::AcpEvent) {
-	use crate::acp::AcpEvent;
+fn handle_acp_event(editor: &mut tome_api::editor::Editor, event: crate::AcpEvent) {
+	use crate::AcpEvent;
 	match event {
 		AcpEvent::PanelAppend { role, text } => {
 			let Some(acp) = editor.extensions.get::<AcpManager>() else {
