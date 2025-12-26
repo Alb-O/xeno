@@ -241,10 +241,7 @@ impl AcpBackend {
 									);
 								}
 								Err(e) => {
-									enqueue_line(
-										&state,
-										format!("Failed to set model: {:?}", e),
-									);
+									enqueue_line(&state, format!("Failed to set model: {:?}", e));
 								}
 							}
 						});

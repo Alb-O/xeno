@@ -3,7 +3,6 @@ use std::time::{Duration, Instant};
 use ratatui::prelude::*;
 use ratatui::widgets::block::Padding;
 use ratatui::widgets::{Block, BorderType};
-
 use tome_manifest::notifications::{Animation, AnimationPhase, AutoDismiss, Level, Timing};
 use tome_stdlib::notifications::Notification;
 
@@ -33,7 +32,10 @@ impl Default for ManagerDefaults {
 
 #[derive(Debug)]
 pub(crate) struct NotificationState {
-	#[allow(dead_code, reason = "used by StackableNotification trait impl for identification")]
+	#[allow(
+		dead_code,
+		reason = "used by StackableNotification trait impl for identification"
+	)]
 	pub(crate) id: u64,
 	pub(crate) notification: Notification,
 	pub(crate) created_at: Instant,
@@ -296,8 +298,9 @@ impl crate::render::notifications::render::RenderableNotification for Notificati
 
 #[cfg(test)]
 mod tests {
-	use super::*;
 	use tome_manifest::notifications::{AutoDismiss, Timing};
+
+	use super::*;
 
 	fn create_test_notification() -> Notification {
 		Notification {

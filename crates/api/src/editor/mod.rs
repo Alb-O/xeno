@@ -8,7 +8,7 @@ mod navigation;
 mod search;
 pub mod types;
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use agentfs_sdk::{FileSystem, HostFS};
@@ -21,12 +21,11 @@ use tome_manifest::syntax::SyntaxStyles;
 use tome_manifest::{HookContext, Mode, emit_hook};
 use tome_stdlib::movement;
 use tome_theme::Theme;
-
-use crate::render::{Notifications, Overflow};
 pub use types::{HistoryEntry, Message, MessageKind, Registers};
 
 use crate::editor::extensions::{EXTENSIONS, ExtensionMap, StyleOverlays};
 use crate::editor::types::CompletionState;
+use crate::render::{Notifications, Overflow};
 use crate::ui::UiManager;
 
 pub struct Editor {
@@ -156,13 +155,14 @@ impl Editor {
 	}
 
 	/// Computes virtual path for HostFS (static version for use before Editor is constructed).
-	fn compute_virtual_path(path: &PathBuf, cwd: &PathBuf) -> Option<String> {
+	fn compute_virtual_path(path: &Path, cwd: &Path) -> Option<String> {
 		let path_str = path.to_str()?;
 
 		if path.is_absolute()
-			&& let Ok(relative) = path.strip_prefix(cwd) {
-				return relative.to_str().map(String::from);
-			}
+			&& let Ok(relative) = path.strip_prefix(cwd)
+		{
+			return relative.to_str().map(String::from);
+		}
 
 		Some(path_str.to_string())
 	}
@@ -516,8 +516,9 @@ impl Editor {
 		byte_pos: usize,
 		style: Option<ratatui::style::Style>,
 	) -> Option<ratatui::style::Style> {
-		use crate::editor::extensions::StyleMod;
 		use tome_theme::blend_colors;
+
+		use crate::editor::extensions::StyleMod;
 
 		let Some(modification) = self.style_overlays.modification_at(byte_pos) else {
 			return style;
@@ -602,7 +603,7 @@ impl Editor {
 	///   full path as-is (HostFS will strip the leading /)
 	/// - For relative paths: uses them directly
 	/// - Returns None if the path contains non-UTF8 characters
-	fn path_to_virtual(&self, path: &PathBuf) -> Option<String> {
+	fn path_to_virtual(&self, path: &Path) -> Option<String> {
 		let cwd = std::env::current_dir().ok()?;
 		Self::compute_virtual_path(path, &cwd)
 	}

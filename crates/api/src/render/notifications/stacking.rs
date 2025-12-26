@@ -2,9 +2,9 @@ use std::collections::HashMap;
 use std::time::Instant;
 
 use ratatui::prelude::*;
+use tome_manifest::notifications::{Anchor, AnimationPhase};
 
 use crate::render::notifications::layout::{calculate_anchor_position, calculate_rect};
-use tome_manifest::notifications::{Anchor, AnimationPhase};
 
 const STACKING_VERTICAL_SPACING: u16 = 1;
 
@@ -15,7 +15,10 @@ pub struct StackedNotification {
 }
 
 pub trait StackableNotification {
-	#[allow(dead_code, reason = "trait method for future notification identification")]
+	#[allow(
+		dead_code,
+		reason = "trait method for future notification identification"
+	)]
 	fn id(&self) -> u64;
 	fn current_phase(&self) -> AnimationPhase;
 	fn created_at(&self) -> Instant;

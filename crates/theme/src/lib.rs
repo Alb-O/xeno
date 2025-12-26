@@ -322,10 +322,7 @@ impl CompletionSource for ThemeSource {
 		let parts: Vec<&str> = ctx.input.split_whitespace().collect();
 
 		// Only complete if the command is "theme" or "colorscheme" and we have an argument position
-		let is_theme_cmd = match parts.first() {
-			Some(&"theme") | Some(&"colorscheme") => true,
-			_ => false,
-		};
+		let is_theme_cmd = matches!(parts.first(), Some(&"theme") | Some(&"colorscheme"));
 
 		if !is_theme_cmd {
 			return CompletionResult::empty();
@@ -383,7 +380,10 @@ mod tests {
 
 		let result = ThemeSource.complete(&ctx);
 		assert!(!result.is_empty(), "Should have theme completions");
-		assert_eq!(result.start, 6, "Theme completion should start at position 6");
+		assert_eq!(
+			result.start, 6,
+			"Theme completion should start at position 6"
+		);
 
 		for item in &result.items {
 			assert_eq!(item.kind, CompletionKind::Theme);
@@ -417,7 +417,10 @@ mod tests {
 		};
 
 		let result = ThemeSource.complete(&ctx);
-		assert!(!result.is_empty(), "Should have theme completions for colorscheme alias");
+		assert!(
+			!result.is_empty(),
+			"Should have theme completions for colorscheme alias"
+		);
 		assert_eq!(
 			result.start, 12,
 			"Colorscheme completion should start at position 12"
@@ -433,7 +436,10 @@ mod tests {
 		};
 
 		let result = ThemeSource.complete(&ctx);
-		assert!(result.is_empty(), "Should not complete for non-theme commands");
+		assert!(
+			result.is_empty(),
+			"Should not complete for non-theme commands"
+		);
 	}
 
 	#[test]

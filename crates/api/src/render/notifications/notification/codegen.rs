@@ -2,7 +2,10 @@
 //!
 //! Generates Rust code that recreates a notification, useful for debugging.
 
-#![allow(dead_code, reason = "debugging utility for notification system development")]
+#![allow(
+	dead_code,
+	reason = "debugging utility for notification system development"
+)]
 
 use std::time::Duration;
 
@@ -24,9 +27,10 @@ pub fn generate_code(notification: &Notification) -> String {
 	}
 
 	if notification.level != defaults.level
-		&& let Some(level) = notification.level {
-			lines.push(format!("    .level(Level::{:?})", level));
-		}
+		&& let Some(level) = notification.level
+	{
+		lines.push(format!("    .level(Level::{:?})", level));
+	}
 
 	if notification.anchor != defaults.anchor {
 		lines.push(format!("    .anchor(Anchor::{:?})", notification.anchor));
@@ -54,7 +58,10 @@ pub fn generate_code(notification: &Notification) -> String {
 		let slide_in = format_timing(notification.slide_in_timing);
 		let dwell = format_timing(notification.dwell_timing);
 		let slide_out = format_timing(notification.slide_out_timing);
-		lines.push(format!("    .timing({}, {}, {})", slide_in, dwell, slide_out));
+		lines.push(format!(
+			"    .timing({}, {}, {})",
+			slide_in, dwell, slide_out
+		));
 	}
 
 	if notification.auto_dismiss != defaults.auto_dismiss {
@@ -67,14 +74,13 @@ pub fn generate_code(notification: &Notification) -> String {
 	let size_changed = notification.max_width != defaults.max_width
 		|| notification.max_height != defaults.max_height;
 
-	if size_changed
-		&& let (Some(w), Some(h)) = (notification.max_width, notification.max_height) {
-			lines.push(format!(
-				"    .max_size({}, {})",
-				format_size_constraint(w),
-				format_size_constraint(h)
-			));
-		}
+	if size_changed && let (Some(w), Some(h)) = (notification.max_width, notification.max_height) {
+		lines.push(format!(
+			"    .max_size({}, {})",
+			format_size_constraint(w),
+			format_size_constraint(h)
+		));
+	}
 
 	if notification.padding != defaults.padding {
 		lines.push(format!(
@@ -165,7 +171,10 @@ fn format_padding(p: Padding) -> String {
 	if p.top == p.bottom && p.left == p.right && p.top == p.left {
 		format!("Padding::uniform({})", p.top)
 	} else if p.top == p.bottom && p.left == p.right {
-		format!("Padding::new({}, {}, {}, {})", p.top, p.right, p.bottom, p.left)
+		format!(
+			"Padding::new({}, {}, {}, {})",
+			p.top, p.right, p.bottom, p.left
+		)
 	} else if p.top == 0 && p.bottom == 0 {
 		format!("Padding::horizontal({})", p.left)
 	} else if p.left == 0 && p.right == 0 {

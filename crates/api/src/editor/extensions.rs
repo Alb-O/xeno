@@ -30,7 +30,13 @@ impl StyleMod {
 			(StyleMod::Fg(a), StyleMod::Fg(b)) => StyleMod::Fg(lerp_color(a, b, t)),
 			(StyleMod::Bg(a), StyleMod::Bg(b)) => StyleMod::Bg(lerp_color(a, b, t)),
 			// Incompatible types - snap to target
-			_ => if t > 0.5 { target } else { self },
+			_ => {
+				if t > 0.5 {
+					target
+				} else {
+					self
+				}
+			}
 		}
 	}
 }
@@ -45,7 +51,13 @@ fn lerp_color(a: Color, b: Color, t: f32) -> Color {
 			Color::Rgb(r, g, b)
 		}
 		// Non-RGB colors can't be lerped, snap to target
-		_ => if t > 0.5 { b } else { a },
+		_ => {
+			if t > 0.5 {
+				b
+			} else {
+				a
+			}
+		}
 	}
 }
 
@@ -160,7 +172,13 @@ impl StyleOverlays {
 	///
 	/// This is useful for focus/zen modes where you want to dim everything
 	/// except a specific region.
-	pub fn dim_outside(&mut self, focus_range: Range<usize>, dim_factor: f32, source: &'static str, doc_len: usize) {
+	pub fn dim_outside(
+		&mut self,
+		focus_range: Range<usize>,
+		dim_factor: f32,
+		source: &'static str,
+		doc_len: usize,
+	) {
 		// Add overlay for everything before the focus range
 		if focus_range.start > 0 {
 			self.add(StyleOverlay {
@@ -263,7 +281,11 @@ impl StyleOverlays {
 		// Return the highest priority one
 		match (static_mod, animated_mod) {
 			(Some((sp, sm)), Some((ap, am))) => {
-				if ap >= sp { Some(am) } else { Some(sm) }
+				if ap >= sp {
+					Some(am)
+				} else {
+					Some(sm)
+				}
 			}
 			(Some((_, sm)), None) => Some(sm),
 			(None, Some((_, am))) => Some(am),

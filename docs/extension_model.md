@@ -63,13 +63,13 @@ Host extensions define the environment of the editor and are also registered at 
 
 ## 5. Summary Table
 
-| Feature      | Core Builtins                 | Host Extensions                     |
-| ------------ | ----------------------------- | ----------------------------------- |
-| Crate        | tome-stdlib                   | tome-extensions                     |
-| Registry     | tome-manifest                 | tome-api                            |
-| Logic Type   | Functional / pure             | Stateful / side-effectful           |
-| Discovery    | linkme (compile-time)         | linkme (compile-time)               |
-| Examples     | move_line_down, :quit         | LspClient, ChatPanel                |
+| Feature    | Core Builtins         | Host Extensions           |
+| ---------- | --------------------- | ------------------------- |
+| Crate      | tome-stdlib           | tome-extensions           |
+| Registry   | tome-manifest         | tome-api                  |
+| Logic Type | Functional / pure     | Stateful / side-effectful |
+| Discovery  | linkme (compile-time) | linkme (compile-time)     |
+| Examples   | move_line_down, :quit | LspClient, ChatPanel      |
 
 ## 6. Notes on Future Splits
 

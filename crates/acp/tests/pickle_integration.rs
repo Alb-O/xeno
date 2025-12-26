@@ -354,10 +354,7 @@ fn test_acp_multi_turn_conversation() {
 		match result {
 			Ok(Ok((response1, response2))) => {
 				assert!(!response1.is_empty(), "First response should not be empty");
-				assert!(
-					!response2.is_empty(),
-					"Second response should not be empty"
-				);
+				assert!(!response2.is_empty(), "Second response should not be empty");
 
 				// The second response should mention 42, showing context is maintained
 				assert!(

@@ -44,6 +44,7 @@ termwiz = "0.23"
 thiserror = "2"
 tokio = { version = "1", features = ["full"] }
 tokio-util = { version = "0.7", features = ["compat"] }
+tome-acp = { path = "crates/acp" }
 tome-api = { path = "crates/api" }
 tome-base = { path = "crates/base" }
 tome-extensions = { path = "crates/extensions" }
@@ -52,7 +53,6 @@ tome-language = { path = "crates/language" }
 tome-macro = { path = "crates/macro" }
 tome-manifest = { path = "crates/manifest" }
 tome-stdlib = { path = "crates/stdlib" }
-tome-acp = { path = "crates/acp" }
 tome-theme = { path = "crates/theme" }
 toml = "0.9"
 tree-house = "0.3"

@@ -155,9 +155,9 @@ impl Editor {
 					ranges.push(Range::new(range.head - 1, range.head));
 				}
 
-			if ranges.is_empty() {
-				return;
-			}
+				if ranges.is_empty() {
+					return;
+				}
 
 				if matches!(self.mode(), Mode::Insert) {
 					self.save_insert_undo_state();

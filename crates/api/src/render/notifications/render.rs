@@ -5,7 +5,6 @@ use ratatui::prelude::*;
 use ratatui::symbols::border;
 use ratatui::widgets::block::Padding;
 use ratatui::widgets::{Block, BorderType, Borders, Clear};
-
 use tome_manifest::notifications::{Anchor, Animation, AnimationPhase, Level};
 
 use crate::render::notifications::stacking::{StackableNotification, calculate_stacking_positions};

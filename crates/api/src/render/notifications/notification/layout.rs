@@ -6,8 +6,8 @@ use ratatui::buffer::Buffer;
 use ratatui::prelude::*;
 use ratatui::widgets::paragraph::Wrap;
 use ratatui::widgets::{Block, Borders, Paragraph};
-use tome_stdlib::notifications::Notification;
 use tome_manifest::notifications::SizeConstraint;
+use tome_stdlib::notifications::Notification;
 
 use crate::render::notifications::ui::{gutter_layout, padding_with_gutter};
 
@@ -58,10 +58,7 @@ pub fn calculate_size(notification: &Notification, frame_area: Rect) -> (u16, u1
 		.max()
 		.unwrap_or(0) as u16;
 
-	let title_width = notification
-		.title
-		.as_ref()
-		.map_or(0, |t| t.chars().count()) as u16;
+	let title_width = notification.title.as_ref().map_or(0, |t| t.chars().count()) as u16;
 	let title_padding = notification.padding.left + notification.padding.right;
 
 	let width_for_body = (content_max_line_width + border_h_offset + h_padding).max(min_width);

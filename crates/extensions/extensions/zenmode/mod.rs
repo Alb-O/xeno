@@ -23,7 +23,9 @@ use std::ops::Range;
 
 use linkme::distributed_slice;
 use tome_api::editor::Editor;
-use tome_api::editor::extensions::{EXTENSIONS, ExtensionInitDef, ExtensionRenderDef, RENDER_EXTENSIONS};
+use tome_api::editor::extensions::{
+	EXTENSIONS, ExtensionInitDef, ExtensionRenderDef, RENDER_EXTENSIONS,
+};
 
 /// Primary focus node types - these are the main code units we want to focus on.
 ///
@@ -95,6 +97,7 @@ fn is_secondary_focus(kind: &str) -> bool {
 }
 
 use std::time::{Duration, Instant};
+
 use tome_api::editor::extensions::Easing;
 
 /// Default animation duration for focus transitions between nodes.
@@ -190,13 +193,15 @@ impl ZenmodeState {
 		// This prevents flickering when moving within a function to a nested
 		// block that would technically be a "different" focus node.
 		if let (Some(current), Some(new)) = (&self.focus_range, &new_range)
-			&& new.start >= current.start && new.end <= current.end {
-				// New range is inside current - keep current, clear pending
-				self.pending_focus_range = None;
-				self.pending_since = None;
-				self.pending_is_undim_all = false;
-				return;
-			}
+			&& new.start >= current.start
+			&& new.end <= current.end
+		{
+			// New range is inside current - keep current, clear pending
+			self.pending_focus_range = None;
+			self.pending_since = None;
+			self.pending_is_undim_all = false;
+			return;
+		}
 
 		let is_undim_all = new_range.is_none() && self.focus_range.is_some();
 
@@ -314,7 +319,10 @@ impl ZenmodeState {
 ///
 /// This ensures we always find a reasonable container even when the cursor
 /// is inside nested expressions like string literals.
-fn find_focus_range(syntax: &tome_language::syntax::Syntax, cursor_byte: u32) -> Option<Range<usize>> {
+fn find_focus_range(
+	syntax: &tome_language::syntax::Syntax,
+	cursor_byte: u32,
+) -> Option<Range<usize>> {
 	// Find the smallest named node containing the cursor
 	let start_node = syntax.named_descendant_for_byte_range(cursor_byte, cursor_byte)?;
 
@@ -351,7 +359,6 @@ fn find_focus_range(syntax: &tome_language::syntax::Syntax, cursor_byte: u32) ->
 fn update_zenmode(editor: &mut Editor) {
 	// First, read the state to check if enabled and get config
 	let (enabled, dim_factor, animate, current_range) = {
-		
 		match editor.extensions.get::<ZenmodeState>() {
 			Some(s) => (s.enabled, s.dim_factor, s.animate, s.focus_range.clone()),
 			None => return,
@@ -403,7 +410,6 @@ fn update_zenmode(editor: &mut Editor) {
 
 	// Read current state for rendering
 	let (effective_range, is_animating, progress, prev_focus_range, has_pending, is_undim_all) = {
-		
 		match editor.extensions.get::<ZenmodeState>() {
 			Some(s) => (
 				s.effective_range().cloned(),
@@ -432,19 +438,34 @@ fn update_zenmode(editor: &mut Editor) {
 				// Transitioning between two focus ranges
 				// Animate dim factor from full brightness to target
 				let current_dim = 1.0 - (1.0 - dim_factor) * eased_progress;
-				editor.style_overlays.dim_outside(new_range.clone(), current_dim, "zenmode", doc_len);
+				editor.style_overlays.dim_outside(
+					new_range.clone(),
+					current_dim,
+					"zenmode",
+					doc_len,
+				);
 			}
 			(Some(new_range), None) => {
 				// Transitioning from no focus to having a focus range
 				// Fade in the dimming: start at full brightness, end at dim_factor
 				let current_dim = 1.0 - (1.0 - dim_factor) * eased_progress;
-				editor.style_overlays.dim_outside(new_range.clone(), current_dim, "zenmode", doc_len);
+				editor.style_overlays.dim_outside(
+					new_range.clone(),
+					current_dim,
+					"zenmode",
+					doc_len,
+				);
 			}
 			(None, Some(prev_range)) => {
 				// Transitioning from focus to no focus (e.g., blank line)
 				// Fade out the dimming: start at dim_factor, end at full brightness
 				let current_dim = dim_factor + (1.0 - dim_factor) * eased_progress;
-				editor.style_overlays.dim_outside(prev_range.clone(), current_dim, "zenmode", doc_len);
+				editor.style_overlays.dim_outside(
+					prev_range.clone(),
+					current_dim,
+					"zenmode",
+					doc_len,
+				);
 			}
 			(None, None) => {
 				// No focus before or after - nothing to do
@@ -456,7 +477,9 @@ fn update_zenmode(editor: &mut Editor) {
 	} else {
 		// No animation in progress - apply the current effective state
 		if let Some(range) = effective_range {
-			editor.style_overlays.dim_outside(range, dim_factor, "zenmode", doc_len);
+			editor
+				.style_overlays
+				.dim_outside(range, dim_factor, "zenmode", doc_len);
 		}
 	}
 

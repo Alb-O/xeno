@@ -48,9 +48,7 @@ fn test_builder_sets_title_correctly() {
 
 #[test]
 fn test_builder_sets_content_correctly() {
-	let notification = NotificationBuilder::new("Hello World")
-		.build()
-		.unwrap();
+	let notification = NotificationBuilder::new("Hello World").build().unwrap();
 
 	assert_eq!(notification.content, "Hello World");
 }
@@ -173,7 +171,10 @@ fn test_builder_sets_border_kind_correctly() {
 
 #[test]
 fn test_builder_sets_fade_correctly() {
-	let notification = NotificationBuilder::new("content").fade(true).build().unwrap();
+	let notification = NotificationBuilder::new("content")
+		.fade(true)
+		.build()
+		.unwrap();
 
 	assert!(notification.fade_effect);
 }

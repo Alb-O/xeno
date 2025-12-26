@@ -29,9 +29,11 @@ mod defaults;
 mod notification;
 mod types;
 
-pub use notification::{MAX_CONTENT_CHARS, Notification, NotificationBuilder};
 pub use defaults::{
 	NotifyDEBUGExt, NotifyERRORExt, NotifyINFOExt, NotifySUCCESSExt, NotifyWARNExt,
 };
+pub use notification::{MAX_CONTENT_CHARS, Notification, NotificationBuilder};
+pub use tome_manifest::notifications::{
+	NOTIFICATION_TYPES, NotificationTypeDef, find_notification_type,
+};
 pub use types::*;
-pub use tome_manifest::notifications::{NOTIFICATION_TYPES, NotificationTypeDef, find_notification_type};

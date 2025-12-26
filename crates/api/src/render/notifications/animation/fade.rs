@@ -1,6 +1,6 @@
 use ratatui::prelude::*;
-
 use tome_manifest::notifications::AnimationPhase;
+
 use crate::render::notifications::utils::{color_to_rgb, ease_in_quad, ease_out_quad, lerp};
 
 /// Target color when fully faded out (black).

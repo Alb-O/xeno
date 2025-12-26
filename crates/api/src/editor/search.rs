@@ -186,7 +186,10 @@ impl Editor {
 		false
 	}
 
-	#[allow(dead_code, reason = "keep-matching filter will be re-enabled via picker UI")]
+	#[allow(
+		dead_code,
+		reason = "keep-matching filter will be re-enabled via picker UI"
+	)]
 	pub(crate) fn keep_matching(&mut self, pattern: &str, invert: bool) -> bool {
 		let mut kept_ranges: Vec<tome_base::range::Range> = Vec::new();
 		let mut had_error = false;

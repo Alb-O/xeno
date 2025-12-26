@@ -4,7 +4,6 @@ use ratatui::style::{Modifier, Style};
 use ratatui::widgets::Paragraph;
 use ratatui::widgets::block::Padding;
 use ratatui::widgets::paragraph::Wrap;
-
 use tome_manifest::notifications::Level;
 
 const ICON_INFO: &str = "󰋼";

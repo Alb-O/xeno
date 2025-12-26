@@ -1,6 +1,6 @@
 use ratatui::prelude::*;
-
 use tome_manifest::notifications::AnimationPhase;
+
 use crate::render::notifications::utils::lerp;
 
 /// Minimum width for expand/collapse animation to remain visible.
