@@ -4,8 +4,9 @@ use ropey::RopeSlice;
 use tome_base::Selection;
 use tome_base::range::CharIdx;
 use tome_manifest::editor_ctx::{
-	BufferOpsAccess, CursorAccess, EditAccess, EditorCapabilities, MessageAccess, ModeAccess,
-	SearchAccess, SelectionAccess, SelectionOpsAccess, TextAccess, ThemeAccess, UndoAccess,
+	BufferOpsAccess, CursorAccess, EditAccess, EditorCapabilities, FileOpsAccess, MessageAccess,
+	ModeAccess, SearchAccess, SelectionAccess, SelectionOpsAccess, TextAccess, ThemeAccess,
+	UndoAccess,
 };
 use tome_manifest::{EditAction, Mode};
 
@@ -230,6 +231,10 @@ impl EditorCapabilities for Editor {
 	}
 
 	fn buffer_ops(&mut self) -> Option<&mut dyn BufferOpsAccess> {
+		Some(self)
+	}
+
+	fn file_ops(&mut self) -> Option<&mut dyn FileOpsAccess> {
 		Some(self)
 	}
 }

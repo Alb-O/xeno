@@ -53,6 +53,10 @@ impl std::fmt::Display for RegistrySource {
 }
 
 /// Represents an editor capability required by a registry item.
+///
+/// These capabilities are dynamically checked at action/command execution time.
+/// Only add capabilities here when the corresponding trait is implemented
+/// and wired into `EditorCapabilities`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Capability {
 	Text,
@@ -65,9 +69,6 @@ pub enum Capability {
 	Undo,
 	SelectionOps,
 	BufferOps,
-	Jump,
-	Macro,
-	Transform,
 	FileOps,
 }
 
@@ -84,9 +85,6 @@ impl std::fmt::Display for Capability {
 			Capability::Undo => write!(f, "Undo"),
 			Capability::SelectionOps => write!(f, "SelectionOps"),
 			Capability::BufferOps => write!(f, "BufferOps"),
-			Capability::Jump => write!(f, "Jump"),
-			Capability::Macro => write!(f, "Macro"),
-			Capability::Transform => write!(f, "Transform"),
 			Capability::FileOps => write!(f, "FileOps"),
 		}
 	}

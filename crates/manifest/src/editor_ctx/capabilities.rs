@@ -76,6 +76,9 @@ pub trait SelectionOpsAccess {
 }
 
 /// Text transformation operations.
+///
+/// NOTE: Not yet wired into `EditorCapabilities`. Add to `Capability` enum
+/// and implement `transform()` accessor when ready.
 pub trait TransformAccess {
 	fn align(&mut self);
 	fn copy_indent(&mut self);
@@ -85,6 +88,9 @@ pub trait TransformAccess {
 }
 
 /// Jump list operations.
+///
+/// NOTE: Not yet wired into `EditorCapabilities`. Add to `Capability` enum
+/// and implement `jump()` accessor when ready.
 pub trait JumpAccess {
 	fn jump_forward(&mut self) -> bool;
 	fn jump_backward(&mut self) -> bool;
@@ -92,6 +98,9 @@ pub trait JumpAccess {
 }
 
 /// Macro recording/playback.
+///
+/// NOTE: Not yet wired into `EditorCapabilities`. Add to `Capability` enum
+/// and implement `macros()` accessor when ready.
 pub trait MacroAccess {
 	fn record(&mut self);
 	fn stop_recording(&mut self);

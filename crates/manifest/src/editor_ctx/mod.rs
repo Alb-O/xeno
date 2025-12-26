@@ -115,10 +115,7 @@ impl<'a> EditorContext<'a> {
 			Undo => self.inner.undo().is_some(),
 			SelectionOps => self.inner.selection_ops().is_some(),
 			BufferOps => self.inner.buffer_ops().is_some(),
-			Jump => false,      // Not yet implemented in traits
-			Macro => false,     // Not yet implemented in traits
-			Transform => false, // Not yet implemented in traits
-			FileOps => false,   // Not yet implemented in traits
+			FileOps => self.inner.file_ops().is_some(),
 		}
 	}
 
@@ -158,6 +155,11 @@ pub trait EditorCapabilities:
 
 	/// Access to buffer/split management operations (optional).
 	fn buffer_ops(&mut self) -> Option<&mut dyn BufferOpsAccess> {
+		None
+	}
+
+	/// Access to file operations (optional).
+	fn file_ops(&mut self) -> Option<&mut dyn FileOpsAccess> {
 		None
 	}
 }
