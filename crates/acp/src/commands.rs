@@ -150,6 +150,47 @@ fn cmd_acp_cancel<'a>(
 	})
 }
 
+command!(acp_model, {
+	aliases: &["acp.model"],
+	description: "Set the ACP model (e.g., acp.model anthropic/claude-sonnet-4)"
+}, handler: cmd_acp_model);
+
+fn cmd_acp_model<'a>(
+	ctx: &'a mut CommandContext<'a>,
+) -> LocalBoxFuture<'a, Result<CommandOutcome, CommandError>> {
+	Box::pin(async move {
+		let args = ctx.args;
+		let editor = ctx.require_editor_mut();
+		if let Some(acp) = editor.extensions.get_mut::<AcpManager>() {
+			if let Some(model_id) = args.first() {
+				acp.set_model(model_id.to_string());
+				ctx.info(&format!("Setting model to: {}", model_id));
+				Ok(CommandOutcome::Ok)
+			} else {
+				// No argument - show current model and available models
+				let current = acp.current_model();
+				let available = acp.available_models();
+				if available.is_empty() {
+					ctx.info(&format!("Current model: {}", current));
+				} else {
+					let models: Vec<String> = available
+						.iter()
+						.map(|m| format!("  {} ({})", m.model_id, m.name))
+						.collect();
+					ctx.info(&format!(
+						"Current model: {}\nAvailable models:\n{}",
+						current,
+						models.join("\n")
+					));
+				}
+				Ok(CommandOutcome::Ok)
+			}
+		} else {
+			Err(CommandError::Failed("ACP extension not loaded".to_string()))
+		}
+	})
+}
+
 trait CommandContextExt {
 	fn require_editor_mut(&mut self) -> &mut tome_api::editor::Editor;
 }

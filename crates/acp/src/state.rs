@@ -121,6 +121,23 @@ impl AcpManager {
 			let _ = tx.send(option_id);
 		}
 	}
+
+	/// Set the model for the current session.
+	pub fn set_model(&self, model_id: String) {
+		if let Some(tx) = &self.cmd_tx {
+			let _ = tx.try_send(AgentCommand::SetModel { model_id });
+		}
+	}
+
+	/// Get the current model ID.
+	pub fn current_model(&self) -> String {
+		self.state.current_model.lock().clone()
+	}
+
+	/// Get the list of available models.
+	pub fn available_models(&self) -> Vec<crate::types::ModelInfo> {
+		self.state.available_models.lock().clone()
+	}
 }
 
 impl Default for AcpManager {

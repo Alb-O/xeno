@@ -89,7 +89,15 @@ pub enum AgentCommand {
 	Prompt { content: String },
 	/// Cancel the current in-flight request.
 	Cancel,
+	/// Set the model for the current session.
+	SetModel { model_id: String },
 }
+
+/// Re-export ModelInfo from agent-client-protocol.
+pub use agent_client_protocol::ModelInfo;
+
+/// Default model to use if none is configured.
+pub const DEFAULT_MODEL: &str = "opencode/big-pickle";
 
 /// Shared state accessible from multiple threads.
 #[derive(Clone)]
@@ -108,6 +116,10 @@ pub struct AcpState {
 	pub workspace_root: Arc<Mutex<Option<PathBuf>>>,
 	/// Panels managed by ACP.
 	pub panels: Arc<Mutex<HashMap<u64, ChatPanelState>>>,
+	/// Current model ID (e.g., "opencode/big-pickle", "anthropic/claude-sonnet-4").
+	pub current_model: Arc<Mutex<String>>,
+	/// Available models from the agent (populated after session creation).
+	pub available_models: Arc<Mutex<Vec<ModelInfo>>>,
 }
 
 impl AcpState {
@@ -120,6 +132,8 @@ impl AcpState {
 			next_permission_id: Arc::new(AtomicU64::new(1)),
 			workspace_root: Arc::new(Mutex::new(None)),
 			panels: Arc::new(Mutex::new(HashMap::new())),
+			current_model: Arc::new(Mutex::new(DEFAULT_MODEL.to_string())),
+			available_models: Arc::new(Mutex::new(Vec::new())),
 		}
 	}
 

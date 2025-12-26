@@ -21,3 +21,6 @@ tome-base.workspace = true
 tome-manifest.workspace = true
 tome-stdlib.workspace = true
 tome-theme.workspace = true
+
+[dev-dependencies]
+async-trait.workspace = true

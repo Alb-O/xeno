@@ -10,7 +10,7 @@ use std::sync::Arc;
 use agent_client_protocol::{
 	Agent, CancelNotification, ClientCapabilities, ClientSideConnection, ContentBlock,
 	FileSystemCapability, Implementation, InitializeRequest, NewSessionRequest, PromptRequest,
-	ProtocolVersion, TextContent,
+	ProtocolVersion, SetSessionModelRequest, TextContent,
 };
 use parking_lot::Mutex;
 use tokio::io::{AsyncBufReadExt, BufReader};
@@ -165,7 +165,26 @@ impl AcpBackend {
 			}
 		};
 		self.session_id = Some(session_res.session_id.to_string());
-		self.enqueue_message("Session started".to_string());
+
+		// Extract and store model info from session response
+		if let Some(models) = session_res.models {
+			// Store available models
+			{
+				let mut available = self.state.available_models.lock();
+				*available = models.available_models.clone();
+			}
+			// Store current model
+			{
+				let mut current = self.state.current_model.lock();
+				*current = models.current_model_id.0.to_string();
+			}
+			self.enqueue_message(format!(
+				"Session started (model: {})",
+				models.current_model_id
+			));
+		} else {
+			self.enqueue_message("Session started".to_string());
+		}
 
 		while let Some(cmd) = self.cmd_rx.recv().await {
 			match cmd {
@@ -201,6 +220,37 @@ impl AcpBackend {
 						*root = Some(new_cwd);
 					}
 					self.enqueue_message("Agent already started".to_string());
+				}
+				AgentCommand::SetModel { model_id } => {
+					if let Some(session_id) = &self.session_id {
+						let req = SetSessionModelRequest::new(session_id.clone(), model_id.clone());
+						let conn_clone = conn.clone();
+						let state = self.state.clone();
+						let model_id_clone = model_id.clone();
+						tokio::task::spawn_local(async move {
+							match conn_clone.set_session_model(req).await {
+								Ok(_) => {
+									// Update local state with new model
+									{
+										let mut current = state.current_model.lock();
+										*current = model_id_clone.clone();
+									}
+									enqueue_line(
+										&state,
+										format!("Model set to: {}", model_id_clone),
+									);
+								}
+								Err(e) => {
+									enqueue_line(
+										&state,
+										format!("Failed to set model: {:?}", e),
+									);
+								}
+							}
+						});
+					} else {
+						self.enqueue_message("No active session".to_string());
+					}
 				}
 			}
 		}
