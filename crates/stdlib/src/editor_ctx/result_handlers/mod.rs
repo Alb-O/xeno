@@ -2,6 +2,7 @@
 //!
 //! Each file handles one or more related ActionResult variants.
 
+mod buffer;
 mod core;
 mod edit;
 mod mode;

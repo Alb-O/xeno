@@ -369,7 +369,7 @@ fn update_zenmode(editor: &mut Editor) {
 		return;
 	}
 
-	let syntax = match &editor.syntax {
+	let syntax = match &editor.buffer().syntax {
 		Some(s) => s,
 		None => {
 			// Clear focus range when no syntax tree
@@ -382,7 +382,7 @@ fn update_zenmode(editor: &mut Editor) {
 	};
 
 	// Convert cursor position to byte position
-	let cursor_byte = editor.doc.char_to_byte(editor.cursor) as u32;
+	let cursor_byte = editor.buffer().doc.char_to_byte(editor.buffer().cursor) as u32;
 	let cursor_byte_usize = cursor_byte as usize;
 
 	// Stability check: if cursor is still within the current focus range,
@@ -423,7 +423,7 @@ fn update_zenmode(editor: &mut Editor) {
 		}
 	};
 
-	let doc_len = editor.doc.len_bytes();
+	let doc_len = editor.buffer().doc.len_bytes();
 
 	if animate && is_animating {
 		// Use different easing for undim-all (slower, more gradual)

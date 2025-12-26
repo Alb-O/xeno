@@ -86,6 +86,11 @@ impl Editor {
 	/// A [`HashSet`] containing the character index of each cursor head in the
 	/// current selection. Used for efficient lookup during rendering.
 	pub fn collect_cursor_heads(&self) -> HashSet<CharIdx> {
-		self.selection.ranges().iter().map(|r| r.head).collect()
+		self.buffer()
+			.selection
+			.ranges()
+			.iter()
+			.map(|r| r.head)
+			.collect()
 	}
 }

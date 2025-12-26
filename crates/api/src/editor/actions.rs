@@ -12,16 +12,18 @@ impl Editor {
 				if yank {
 					self.yank_selection();
 				}
-				if self.selection.primary().is_empty() {
-					let slice = self.doc.slice(..);
-					self.selection.transform_mut(|r| {
+				if self.buffer().selection.primary().is_empty() {
+					let buffer = self.buffer_mut();
+					let slice = buffer.doc.slice(..);
+					buffer.selection.transform_mut(|r| {
 						*r = movement::move_horizontally(slice, *r, MoveDir::Forward, 1, true);
 					});
 				}
-				if !self.selection.primary().is_empty() {
+				if !self.buffer().selection.primary().is_empty() {
 					self.save_undo_state();
-					let tx = Transaction::delete(self.doc.slice(..), &self.selection);
-					self.selection = tx.map_selection(&self.selection);
+					let tx =
+						Transaction::delete(self.buffer().doc.slice(..), &self.buffer().selection);
+					self.buffer_mut().selection = tx.map_selection(&self.buffer().selection);
 					self.apply_transaction(&tx);
 				}
 			}
@@ -29,13 +31,14 @@ impl Editor {
 				if yank {
 					self.yank_selection();
 				}
-				if !self.selection.primary().is_empty() {
+				if !self.buffer().selection.primary().is_empty() {
 					self.save_undo_state();
-					let tx = Transaction::delete(self.doc.slice(..), &self.selection);
-					self.selection = tx.map_selection(&self.selection);
+					let tx =
+						Transaction::delete(self.buffer().doc.slice(..), &self.buffer().selection);
+					self.buffer_mut().selection = tx.map_selection(&self.buffer().selection);
 					self.apply_transaction(&tx);
 				}
-				self.input.set_mode(Mode::Insert);
+				self.buffer_mut().input.set_mode(Mode::Insert);
 			}
 			EditAction::Yank => {
 				self.yank_selection();
@@ -55,31 +58,42 @@ impl Editor {
 				}
 			}
 			EditAction::ReplaceWithChar { ch } => {
-				let primary = self.selection.primary();
+				let primary = self.buffer().selection.primary();
 				let from = primary.min();
 				let to = primary.max();
 				if from < to {
 					self.save_undo_state();
 					let len = to - from;
 					let replacement = std::iter::repeat_n(ch, len).collect::<String>();
-					let tx = Transaction::delete(self.doc.slice(..), &self.selection);
-					self.selection = tx.map_selection(&self.selection);
+					let tx =
+						Transaction::delete(self.buffer().doc.slice(..), &self.buffer().selection);
+					self.buffer_mut().selection = tx.map_selection(&self.buffer().selection);
 					self.apply_transaction(&tx);
-					let tx = Transaction::insert(self.doc.slice(..), &self.selection, replacement);
+					let tx = Transaction::insert(
+						self.buffer().doc.slice(..),
+						&self.buffer().selection,
+						replacement,
+					);
 					self.apply_transaction(&tx);
-					self.cursor = self.selection.primary().head + len;
-					self.selection = Selection::point(self.cursor);
+					let buffer = self.buffer_mut();
+					buffer.cursor = buffer.selection.primary().head + len;
+					buffer.selection = Selection::point(buffer.cursor);
 				} else {
 					self.save_undo_state();
-					self.selection = Selection::single(from, from + 1);
-					let tx = Transaction::delete(self.doc.slice(..), &self.selection);
-					self.selection = tx.map_selection(&self.selection);
-					self.apply_transaction(&tx);
+					self.buffer_mut().selection = Selection::single(from, from + 1);
 					let tx =
-						Transaction::insert(self.doc.slice(..), &self.selection, ch.to_string());
+						Transaction::delete(self.buffer().doc.slice(..), &self.buffer().selection);
+					self.buffer_mut().selection = tx.map_selection(&self.buffer().selection);
 					self.apply_transaction(&tx);
-					self.cursor = self.selection.primary().head + 1;
-					self.selection = Selection::point(self.cursor);
+					let tx = Transaction::insert(
+						self.buffer().doc.slice(..),
+						&self.buffer().selection,
+						ch.to_string(),
+					);
+					self.apply_transaction(&tx);
+					let buffer = self.buffer_mut();
+					buffer.cursor = buffer.selection.primary().head + 1;
+					buffer.selection = Selection::point(buffer.cursor);
 				}
 			}
 			EditAction::Undo => {
@@ -89,24 +103,29 @@ impl Editor {
 				self.redo();
 			}
 			EditAction::Indent => {
-				let slice = self.doc.slice(..);
-				self.selection.transform_mut(|r| {
-					*r = movement::move_to_line_start(slice, *r, false);
-				});
+				{
+					let buffer = self.buffer_mut();
+					let slice = buffer.doc.slice(..);
+					buffer.selection.transform_mut(|r| {
+						*r = movement::move_to_line_start(slice, *r, false);
+					});
+				}
 				self.insert_text("    ");
 			}
 			EditAction::Deindent => {
-				let line = self.doc.char_to_line(self.cursor);
-				let line_start = self.doc.line_to_char(line);
-				let line_text: String = self.doc.line(line).chars().take(4).collect();
+				let line = self.buffer().doc.char_to_line(self.buffer().cursor);
+				let line_start = self.buffer().doc.line_to_char(line);
+				let line_text: String = self.buffer().doc.line(line).chars().take(4).collect();
 				let spaces = line_text.chars().take_while(|c| *c == ' ').count().min(4);
 				if spaces > 0 {
 					self.save_undo_state();
-					self.selection = Selection::single(line_start, line_start + spaces);
-					let tx = Transaction::delete(self.doc.slice(..), &self.selection);
-					self.selection = tx.map_selection(&self.selection);
+					self.buffer_mut().selection =
+						Selection::single(line_start, line_start + spaces);
+					let tx =
+						Transaction::delete(self.buffer().doc.slice(..), &self.buffer().selection);
+					self.buffer_mut().selection = tx.map_selection(&self.buffer().selection);
 					self.apply_transaction(&tx);
-					self.cursor = self.cursor.saturating_sub(spaces);
+					self.buffer_mut().cursor = self.buffer().cursor.saturating_sub(spaces);
 				}
 			}
 			EditAction::ToLowerCase => {
@@ -125,31 +144,36 @@ impl Editor {
 				});
 			}
 			EditAction::JoinLines => {
-				let primary = self.selection.primary();
-				let line = self.doc.char_to_line(primary.head);
-				if line + 1 < self.doc.len_lines() {
+				let primary = self.buffer().selection.primary();
+				let line = self.buffer().doc.char_to_line(primary.head);
+				if line + 1 < self.buffer().doc.len_lines() {
 					self.save_undo_state();
-					let end_of_line = self.doc.line_to_char(line + 1) - 1;
-					self.selection = Selection::single(end_of_line, end_of_line + 1);
-					let tx = Transaction::delete(self.doc.slice(..), &self.selection);
-					self.selection = tx.map_selection(&self.selection);
-					self.apply_transaction(&tx);
+					let end_of_line = self.buffer().doc.line_to_char(line + 1) - 1;
+					self.buffer_mut().selection = Selection::single(end_of_line, end_of_line + 1);
 					let tx =
-						Transaction::insert(self.doc.slice(..), &self.selection, " ".to_string());
+						Transaction::delete(self.buffer().doc.slice(..), &self.buffer().selection);
+					self.buffer_mut().selection = tx.map_selection(&self.buffer().selection);
 					self.apply_transaction(&tx);
-					self.cursor = self.selection.primary().head + 1;
-					self.selection = Selection::point(self.cursor);
+					let tx = Transaction::insert(
+						self.buffer().doc.slice(..),
+						&self.buffer().selection,
+						" ".to_string(),
+					);
+					self.apply_transaction(&tx);
+					let buffer = self.buffer_mut();
+					buffer.cursor = buffer.selection.primary().head + 1;
+					buffer.selection = Selection::point(buffer.cursor);
 				}
 			}
 			EditAction::DeleteBack => {
 				// Delete backward across all cursors (skip any at buffer start).
 				let mut ranges = Vec::new();
 				let mut primary_index = 0usize;
-				for (idx, range) in self.selection.ranges().iter().enumerate() {
+				for (idx, range) in self.buffer().selection.ranges().iter().enumerate() {
 					if range.head == 0 {
 						continue;
 					}
-					if idx == self.selection.primary_index() {
+					if idx == self.buffer().selection.primary_index() {
 						primary_index = ranges.len();
 					}
 					ranges.push(Range::new(range.head - 1, range.head));
@@ -165,7 +189,7 @@ impl Editor {
 					self.save_undo_state();
 				}
 				let deletion_selection = Selection::from_vec(ranges, primary_index);
-				let tx = Transaction::delete(self.doc.slice(..), &deletion_selection);
+				let tx = Transaction::delete(self.buffer().doc.slice(..), &deletion_selection);
 				let mut new_selection = tx.map_selection(&deletion_selection);
 				new_selection.transform_mut(|r| {
 					let pos = r.min();
@@ -174,33 +198,38 @@ impl Editor {
 				});
 				self.apply_transaction(&tx);
 
-				self.selection = new_selection;
-				self.cursor = self.selection.primary().head;
+				let buffer = self.buffer_mut();
+				buffer.selection = new_selection;
+				buffer.cursor = buffer.selection.primary().head;
 			}
 			EditAction::OpenBelow => {
-				let slice = self.doc.slice(..);
-				self.selection.transform_mut(|r| {
-					*r = movement::move_to_line_end(slice, *r, false);
-				});
+				{
+					let buffer = self.buffer_mut();
+					let slice = buffer.doc.slice(..);
+					buffer.selection.transform_mut(|r| {
+						*r = movement::move_to_line_end(slice, *r, false);
+					});
+				}
 				self.insert_text("\n");
-				self.input.set_mode(Mode::Insert);
+				self.buffer_mut().input.set_mode(Mode::Insert);
 			}
 			EditAction::OpenAbove => {
-				let slice = self.doc.slice(..);
-				self.selection.transform_mut(|r| {
-					*r = movement::move_to_line_start(slice, *r, false);
-				});
+				{
+					let buffer = self.buffer_mut();
+					let slice = buffer.doc.slice(..);
+					buffer.selection.transform_mut(|r| {
+						*r = movement::move_to_line_start(slice, *r, false);
+					});
+				}
 				self.insert_text("\n");
-				self.selection.transform_mut(|r| {
-					*r = movement::move_vertically(
-						self.doc.slice(..),
-						*r,
-						MoveDir::Backward,
-						1,
-						false,
-					);
-				});
-				self.input.set_mode(Mode::Insert);
+				{
+					let buffer = self.buffer_mut();
+					let doc_slice = buffer.doc.slice(..);
+					buffer.selection.transform_mut(|r| {
+						*r = movement::move_vertically(doc_slice, *r, MoveDir::Backward, 1, false);
+					});
+				}
+				self.buffer_mut().input.set_mode(Mode::Insert);
 			}
 			EditAction::MoveVisual {
 				direction,
@@ -230,27 +259,29 @@ impl Editor {
 				self.move_visual_vertical(dir, count, scroll_extend);
 			}
 			EditAction::AddLineBelow => {
-				let current_pos = self.cursor;
+				let current_pos = self.buffer().cursor;
 				// Move cursor to line end, insert newline, then restore cursor
-				let line = self.doc.char_to_line(current_pos);
-				let line_end = if line + 1 < self.doc.len_lines() {
-					self.doc.line_to_char(line + 1).saturating_sub(1)
+				let line = self.buffer().doc.char_to_line(current_pos);
+				let line_end = if line + 1 < self.buffer().doc.len_lines() {
+					self.buffer().doc.line_to_char(line + 1).saturating_sub(1)
 				} else {
-					self.doc.len_chars()
+					self.buffer().doc.len_chars()
 				};
-				self.cursor = line_end;
+				self.buffer_mut().cursor = line_end;
 				self.insert_text("\n");
-				self.cursor = current_pos;
-				self.selection = Selection::point(current_pos);
+				let buffer = self.buffer_mut();
+				buffer.cursor = current_pos;
+				buffer.selection = Selection::point(current_pos);
 			}
 			EditAction::AddLineAbove => {
-				let current_pos = self.cursor;
-				let line = self.doc.char_to_line(current_pos);
-				let line_start = self.doc.line_to_char(line);
-				self.cursor = line_start;
+				let current_pos = self.buffer().cursor;
+				let line = self.buffer().doc.char_to_line(current_pos);
+				let line_start = self.buffer().doc.line_to_char(line);
+				self.buffer_mut().cursor = line_start;
 				self.insert_text("\n");
-				self.cursor = current_pos + 1;
-				self.selection = Selection::point(current_pos + 1);
+				let buffer = self.buffer_mut();
+				buffer.cursor = current_pos + 1;
+				buffer.selection = Selection::point(current_pos + 1);
 			}
 		}
 	}
@@ -259,25 +290,28 @@ impl Editor {
 	where
 		F: Fn(char) -> Box<dyn Iterator<Item = char>>,
 	{
-		let primary = self.selection.primary();
+		let primary = self.buffer().selection.primary();
 		let from = primary.min();
 		let to = primary.max();
 		if from < to {
 			self.save_undo_state();
 			let text: String = self
+				.buffer()
 				.doc
 				.slice(from..to)
 				.chars()
 				.flat_map(char_mapper)
 				.collect();
 			let new_len = text.chars().count();
-			let tx = Transaction::delete(self.doc.slice(..), &self.selection);
-			self.selection = tx.map_selection(&self.selection);
+			let tx = Transaction::delete(self.buffer().doc.slice(..), &self.buffer().selection);
+			self.buffer_mut().selection = tx.map_selection(&self.buffer().selection);
 			self.apply_transaction(&tx);
-			let tx = Transaction::insert(self.doc.slice(..), &self.selection, text);
+			let tx =
+				Transaction::insert(self.buffer().doc.slice(..), &self.buffer().selection, text);
 			self.apply_transaction(&tx);
-			self.cursor = self.selection.primary().head + new_len;
-			self.selection = Selection::point(self.cursor);
+			let buffer = self.buffer_mut();
+			buffer.cursor = buffer.selection.primary().head + new_len;
+			buffer.selection = Selection::point(buffer.cursor);
 		}
 	}
 }

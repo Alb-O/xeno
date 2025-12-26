@@ -6,4 +6,4 @@ pub mod terminal;
 pub mod types;
 
 pub use notifications::{Notifications, Overflow};
-pub use types::WrapSegment;
+pub use types::{WrapSegment, wrap_line};

@@ -29,9 +29,9 @@ impl Editor {
 		}
 
 		let ctx = ActionContext {
-			text: self.doc.slice(..),
-			cursor: self.cursor,
-			selection: &self.selection,
+			text: self.buffer().doc.slice(..),
+			cursor: self.buffer().cursor,
+			selection: &self.buffer().selection,
 			count,
 			extend,
 			register,
@@ -69,9 +69,9 @@ impl Editor {
 		}
 
 		let ctx = ActionContext {
-			text: self.doc.slice(..),
-			cursor: self.cursor,
-			selection: &self.selection,
+			text: self.buffer().doc.slice(..),
+			cursor: self.buffer().cursor,
+			selection: &self.buffer().selection,
 			count,
 			extend,
 			register,

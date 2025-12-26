@@ -47,6 +47,7 @@ impl InputHandler {
 			Mode::Insert => "INSERT",
 			Mode::Goto => "GOTO",
 			Mode::View => "VIEW",
+			Mode::Window => "WINDOW",
 			Mode::PendingAction(kind) => match kind {
 				PendingKind::FindChar { .. } | PendingKind::FindCharReverse { .. } => "FIND",
 				PendingKind::ReplaceChar => "REPLACE",
@@ -97,6 +98,7 @@ impl InputHandler {
 			Mode::Insert => self.handle_insert_key(key),
 			Mode::Goto => self.handle_goto_key(key),
 			Mode::View => self.handle_view_key(key),
+			Mode::Window => self.handle_window_key(key),
 			Mode::PendingAction(kind) => {
 				let kind = *kind;
 				self.handle_pending_action_key(key, kind)
@@ -183,6 +185,40 @@ impl InputHandler {
 
 		// Use typed ActionId dispatch
 		if let Some(resolved) = find_binding_resolved(BindingMode::View, key) {
+			self.mode = Mode::Normal;
+			self.reset_params();
+			return KeyResult::ActionById {
+				id: resolved.action_id,
+				count,
+				extend,
+				register,
+			};
+		}
+
+		self.mode = Mode::Normal;
+		self.reset_params();
+		KeyResult::Unhandled
+	}
+
+	pub(crate) fn handle_window_key(&mut self, key: Key) -> KeyResult {
+		if matches!(key.code, KeyCode::Special(SpecialKey::Escape)) {
+			self.mode = Mode::Normal;
+			self.reset_params();
+			return KeyResult::ModeChange(Mode::Normal);
+		}
+
+		let count = if self.count > 0 {
+			self.count as usize
+		} else {
+			1
+		};
+		let extend = self.extend;
+		let register = self.register;
+
+		let key = key.normalize().drop_shift();
+
+		// Use typed ActionId dispatch
+		if let Some(resolved) = find_binding_resolved(BindingMode::Window, key) {
 			self.mode = Mode::Normal;
 			self.reset_params();
 			return KeyResult::ActionById {

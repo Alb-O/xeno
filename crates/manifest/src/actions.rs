@@ -38,6 +38,17 @@ pub enum ActionResult {
 	TabsToSpaces,
 	SpacesToTabs,
 	TrimSelections,
+	// Buffer/split management
+	SplitHorizontal,
+	SplitVertical,
+	BufferNext,
+	BufferPrev,
+	CloseBuffer,
+	CloseOtherBuffers,
+	FocusLeft,
+	FocusRight,
+	FocusUp,
+	FocusDown,
 }
 
 #[derive(Debug, Clone)]
@@ -108,6 +119,7 @@ pub enum ActionMode {
 	Insert,
 	Goto,
 	View,
+	Window,
 }
 
 #[derive(Debug, Clone)]

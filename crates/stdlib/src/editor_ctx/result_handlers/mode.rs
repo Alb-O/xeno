@@ -15,6 +15,7 @@ result_handler!(
 				ActionMode::Insert => Mode::Insert,
 				ActionMode::Goto => Mode::Goto,
 				ActionMode::View => Mode::View,
+				ActionMode::Window => Mode::Window,
 			};
 			ctx.set_mode(new_mode);
 		}

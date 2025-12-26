@@ -1,3 +1,4 @@
+pub mod buffer;
 pub mod capabilities;
 pub mod editor;
 pub mod ipc;
@@ -8,6 +9,7 @@ pub mod terminal_buffer;
 pub mod terminal_panel;
 pub mod ui;
 
+pub use buffer::{Buffer, BufferId, HistoryResult};
 pub use editor::Editor;
 pub use terminal_buffer::TerminalBuffer;
 pub use tome_theme::{

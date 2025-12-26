@@ -1,67 +1,52 @@
+//! Editor-level undo/redo operations.
+//!
+//! These methods delegate to Buffer and handle user notifications.
+
+use crate::buffer::HistoryResult;
 use crate::editor::Editor;
-use crate::editor::types::HistoryEntry;
 
 impl Editor {
-	pub(crate) fn push_undo_snapshot(&mut self) {
-		self.undo_stack.push(HistoryEntry {
-			doc: self.doc.clone(),
-			selection: self.selection.clone(),
-		});
-		self.redo_stack.clear();
-
-		const MAX_UNDO: usize = 100;
-		if self.undo_stack.len() > MAX_UNDO {
-			self.undo_stack.remove(0);
-		}
-	}
-
+	/// Saves current state to undo history.
+	///
+	/// Delegates to Buffer's save_undo_state.
 	pub fn save_undo_state(&mut self) {
-		// Explicit calls reset any grouped insert session.
-		self.insert_undo_active = false;
-		self.push_undo_snapshot();
+		self.buffer_mut().save_undo_state();
 	}
 
+	/// Saves undo state for insert mode, grouping consecutive inserts.
+	///
+	/// Delegates to Buffer's save_insert_undo_state.
 	pub(crate) fn save_insert_undo_state(&mut self) {
-		if self.insert_undo_active {
-			return;
-		}
-		self.insert_undo_active = true;
-		self.push_undo_snapshot();
+		self.buffer_mut().save_insert_undo_state();
 	}
 
+	/// Undoes the last change and notifies the user.
 	pub fn undo(&mut self) {
-		self.insert_undo_active = false;
-		if let Some(entry) = self.undo_stack.pop() {
-			self.redo_stack.push(HistoryEntry {
-				doc: self.doc.clone(),
-				selection: self.selection.clone(),
-			});
-
-			self.doc = entry.doc;
-			self.selection = entry.selection;
-			// Full reparse after document swap since we don't have incremental edit info
-			self.reparse_syntax();
-			self.notify("info", "Undo");
-		} else {
-			self.notify("warn", "Nothing to undo");
+		// Access buffer directly to avoid borrow conflict with language_loader.
+		let buffer = self
+			.buffers
+			.get_mut(&self.focused_buffer)
+			.expect("focused buffer must exist");
+		let result = buffer.undo(&self.language_loader);
+		match result {
+			HistoryResult::Success => self.notify("info", "Undo"),
+			HistoryResult::NothingToUndo => self.notify("warn", "Nothing to undo"),
+			HistoryResult::NothingToRedo => unreachable!(),
 		}
 	}
 
+	/// Redoes the last undone change and notifies the user.
 	pub fn redo(&mut self) {
-		self.insert_undo_active = false;
-		if let Some(entry) = self.redo_stack.pop() {
-			self.undo_stack.push(HistoryEntry {
-				doc: self.doc.clone(),
-				selection: self.selection.clone(),
-			});
-
-			self.doc = entry.doc;
-			self.selection = entry.selection;
-			// Full reparse after document swap since we don't have incremental edit info
-			self.reparse_syntax();
-			self.notify("info", "Redo");
-		} else {
-			self.notify("warn", "Nothing to redo");
+		// Access buffer directly to avoid borrow conflict with language_loader.
+		let buffer = self
+			.buffers
+			.get_mut(&self.focused_buffer)
+			.expect("focused buffer must exist");
+		let result = buffer.redo(&self.language_loader);
+		match result {
+			HistoryResult::Success => self.notify("info", "Redo"),
+			HistoryResult::NothingToRedo => self.notify("warn", "Nothing to redo"),
+			HistoryResult::NothingToUndo => unreachable!(),
 		}
 	}
 }

@@ -10,6 +10,8 @@ pub enum Mode {
 	Insert,
 	Goto,
 	View,
+	/// Window/split management mode (Ctrl+w prefix).
+	Window,
 	/// Waiting for character input to complete an action.
 	PendingAction(PendingKind),
 }
@@ -22,6 +24,7 @@ impl Mode {
 			Mode::Insert => "insert",
 			Mode::Goto => "goto",
 			Mode::View => "view",
+			Mode::Window => "window",
 			Mode::PendingAction(_) => "pending",
 		}
 	}

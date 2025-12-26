@@ -96,6 +96,16 @@ impl<'a> EditorContext<'a> {
 			.ok_or(CommandError::MissingCapability(Capability::SelectionOps))
 	}
 
+	pub fn buffer_ops(&mut self) -> Option<&mut dyn BufferOpsAccess> {
+		self.inner.buffer_ops()
+	}
+
+	pub fn require_buffer_ops(&mut self) -> Result<&mut dyn BufferOpsAccess, CommandError> {
+		self.inner
+			.buffer_ops()
+			.ok_or(CommandError::MissingCapability(Capability::BufferOps))
+	}
+
 	pub fn check_capability(&mut self, cap: Capability) -> bool {
 		use Capability::*;
 		match cap {
@@ -104,6 +114,7 @@ impl<'a> EditorContext<'a> {
 			Search => self.inner.search().is_some(),
 			Undo => self.inner.undo().is_some(),
 			SelectionOps => self.inner.selection_ops().is_some(),
+			BufferOps => self.inner.buffer_ops().is_some(),
 			Jump => false,      // Not yet implemented in traits
 			Macro => false,     // Not yet implemented in traits
 			Transform => false, // Not yet implemented in traits
@@ -142,6 +153,11 @@ pub trait EditorCapabilities:
 
 	/// Access to selection manipulation operations (optional).
 	fn selection_ops(&mut self) -> Option<&mut dyn SelectionOpsAccess> {
+		None
+	}
+
+	/// Access to buffer/split management operations (optional).
+	fn buffer_ops(&mut self) -> Option<&mut dyn BufferOpsAccess> {
 		None
 	}
 }

@@ -35,7 +35,7 @@ impl Editor {
 		let old_mode = self.mode();
 		let key: Key = key.into();
 
-		let result = self.input.handle_key(key);
+		let result = self.buffer_mut().input.handle_key(key);
 
 		match result {
 			// Typed ActionId dispatch (preferred path)
@@ -93,7 +93,7 @@ impl Editor {
 					self.message = None;
 				}
 				if leaving_insert {
-					self.insert_undo_active = false;
+					self.buffer_mut().insert_undo_active = false;
 				}
 				false
 			}
@@ -150,7 +150,7 @@ impl Editor {
 	}
 
 	pub(crate) async fn handle_mouse_active(&mut self, mouse: termina::event::MouseEvent) -> bool {
-		let result = self.input.handle_mouse(mouse.into());
+		let result = self.buffer_mut().input.handle_mouse(mouse.into());
 		match result {
 			KeyResult::MouseClick { row, col, extend } => {
 				self.handle_mouse_click(row, col, extend);
@@ -169,22 +169,24 @@ impl Editor {
 	}
 
 	pub(crate) fn handle_mouse_click(&mut self, screen_row: u16, screen_col: u16, extend: bool) {
-		if let Some(doc_pos) = self.screen_to_doc_position(screen_row, screen_col) {
+		if let Some(doc_pos) = self.buffer().screen_to_doc_position(screen_row, screen_col) {
+			let buffer = self.buffer_mut();
 			if extend {
-				let anchor = self.selection.primary().anchor;
-				self.selection = Selection::single(anchor, doc_pos);
+				let anchor = buffer.selection.primary().anchor;
+				buffer.selection = Selection::single(anchor, doc_pos);
 			} else {
-				self.selection = Selection::point(doc_pos);
+				buffer.selection = Selection::point(doc_pos);
 			}
-			self.cursor = self.selection.primary().head;
+			buffer.cursor = buffer.selection.primary().head;
 		}
 	}
 
 	pub(crate) fn handle_mouse_drag(&mut self, screen_row: u16, screen_col: u16) {
-		if let Some(doc_pos) = self.screen_to_doc_position(screen_row, screen_col) {
-			let anchor = self.selection.primary().anchor;
-			self.selection = Selection::single(anchor, doc_pos);
-			self.cursor = self.selection.primary().head;
+		if let Some(doc_pos) = self.buffer().screen_to_doc_position(screen_row, screen_col) {
+			let buffer = self.buffer_mut();
+			let anchor = buffer.selection.primary().anchor;
+			buffer.selection = Selection::single(anchor, doc_pos);
+			buffer.cursor = buffer.selection.primary().head;
 		}
 	}
 }

@@ -5,17 +5,21 @@ use super::Editor;
 
 impl Editor {
 	pub(crate) fn do_search_next(&mut self, add_selection: bool, extend: bool) -> bool {
-		if let Some((pattern, _reverse)) = self.input.last_search() {
-			match movement::find_next(self.doc.slice(..), pattern, self.cursor + 1) {
+		if let Some((pattern, _reverse)) = self.buffer().input.last_search() {
+			match movement::find_next(
+				self.buffer().doc.slice(..),
+				pattern,
+				self.buffer().cursor + 1,
+			) {
 				Ok(Some(range)) => {
-					self.cursor = range.head;
+					self.buffer_mut().cursor = range.head;
 					if add_selection {
-						self.selection.push(range);
+						self.buffer_mut().selection.push(range);
 					} else if extend {
-						let anchor = self.selection.primary().anchor;
-						self.selection = Selection::single(anchor, range.max());
+						let anchor = self.buffer().selection.primary().anchor;
+						self.buffer_mut().selection = Selection::single(anchor, range.max());
 					} else {
-						self.selection = Selection::single(range.min(), range.max());
+						self.buffer_mut().selection = Selection::single(range.min(), range.max());
 					}
 				}
 				Ok(None) => {
@@ -32,17 +36,17 @@ impl Editor {
 	}
 
 	pub(crate) fn do_search_prev(&mut self, add_selection: bool, extend: bool) -> bool {
-		if let Some((pattern, _reverse)) = self.input.last_search() {
-			match movement::find_prev(self.doc.slice(..), pattern, self.cursor) {
+		if let Some((pattern, _reverse)) = self.buffer().input.last_search() {
+			match movement::find_prev(self.buffer().doc.slice(..), pattern, self.buffer().cursor) {
 				Ok(Some(range)) => {
-					self.cursor = range.head;
+					self.buffer_mut().cursor = range.head;
 					if add_selection {
-						self.selection.push(range);
+						self.buffer_mut().selection.push(range);
 					} else if extend {
-						let anchor = self.selection.primary().anchor;
-						self.selection = Selection::single(anchor, range.min());
+						let anchor = self.buffer().selection.primary().anchor;
+						self.buffer_mut().selection = Selection::single(anchor, range.min());
 					} else {
-						self.selection = Selection::single(range.min(), range.max());
+						self.buffer_mut().selection = Selection::single(range.min(), range.max());
 					}
 				}
 				Ok(None) => {
@@ -59,17 +63,19 @@ impl Editor {
 	}
 
 	pub(crate) fn do_use_selection_as_search(&mut self) -> bool {
-		let primary = self.selection.primary();
+		let primary = self.buffer().selection.primary();
 		let from = primary.min();
 		let to = primary.max();
 		if from < to {
-			let text: String = self.doc.slice(from..to).chars().collect();
+			let text: String = self.buffer().doc.slice(from..to).chars().collect();
 			let pattern = movement::escape_pattern(&text);
-			self.input.set_last_search(pattern.clone(), false);
+			self.buffer_mut()
+				.input
+				.set_last_search(pattern.clone(), false);
 			self.notify("info", format!("Search: {}", text));
-			match movement::find_next(self.doc.slice(..), &pattern, to) {
+			match movement::find_next(self.buffer().doc.slice(..), &pattern, to) {
 				Ok(Some(range)) => {
-					self.selection = Selection::single(range.min(), range.max());
+					self.buffer_mut().selection = Selection::single(range.min(), range.max());
 				}
 				Ok(None) => {
 					self.notify("warn", "No more matches");
@@ -86,7 +92,7 @@ impl Editor {
 
 	#[allow(dead_code, reason = "regex selection will be re-enabled via picker UI")]
 	pub(crate) fn select_regex(&mut self, pattern: &str) -> bool {
-		let primary = self.selection.primary();
+		let primary = self.buffer().selection.primary();
 		let from = primary.min();
 		let to = primary.max();
 		if from >= to {
@@ -94,14 +100,14 @@ impl Editor {
 			return false;
 		}
 
-		match movement::find_all_matches(self.doc.slice(from..to), pattern) {
+		match movement::find_all_matches(self.buffer().doc.slice(from..to), pattern) {
 			Ok(matches) if !matches.is_empty() => {
 				let new_ranges: Vec<tome_base::range::Range> = matches
 					.into_iter()
 					.map(|r| tome_base::range::Range::new(from + r.min(), from + r.max()))
 					.collect();
-				self.selection = Selection::from_vec(new_ranges, 0);
-				self.notify("info", format!("{} matches", self.selection.len()));
+				self.buffer_mut().selection = Selection::from_vec(new_ranges, 0);
+				self.notify("info", format!("{} matches", self.buffer().selection.len()));
 			}
 			Ok(_) => {
 				self.notify("warn", "No matches found");
@@ -115,7 +121,7 @@ impl Editor {
 
 	#[allow(dead_code, reason = "regex split will be re-enabled via picker UI")]
 	pub(crate) fn split_regex(&mut self, pattern: &str) -> bool {
-		let primary = self.selection.primary();
+		let primary = self.buffer().selection.primary();
 		let from = primary.min();
 		let to = primary.max();
 		if from >= to {
@@ -123,7 +129,7 @@ impl Editor {
 			return false;
 		}
 
-		match movement::find_all_matches(self.doc.slice(from..to), pattern) {
+		match movement::find_all_matches(self.buffer().doc.slice(from..to), pattern) {
 			Ok(matches) if !matches.is_empty() => {
 				let mut new_ranges: Vec<tome_base::range::Range> = Vec::new();
 				let mut last_end = from;
@@ -138,8 +144,8 @@ impl Editor {
 					new_ranges.push(tome_base::range::Range::new(last_end, to));
 				}
 				if !new_ranges.is_empty() {
-					self.selection = Selection::from_vec(new_ranges, 0);
-					self.notify("info", format!("{} splits", self.selection.len()));
+					self.buffer_mut().selection = Selection::from_vec(new_ranges, 0);
+					self.notify("info", format!("{} splits", self.buffer().selection.len()));
 				} else {
 					self.notify("warn", "Split produced no ranges");
 				}
@@ -155,7 +161,7 @@ impl Editor {
 	}
 
 	pub(crate) fn do_split_lines(&mut self) -> bool {
-		let primary = self.selection.primary();
+		let primary = self.buffer().selection.primary();
 		let from = primary.min();
 		let to = primary.max();
 		if from >= to {
@@ -163,16 +169,16 @@ impl Editor {
 			return false;
 		}
 
-		let start_line = self.doc.char_to_line(from);
-		let end_line = self.doc.char_to_line(to.saturating_sub(1));
+		let start_line = self.buffer().doc.char_to_line(from);
+		let end_line = self.buffer().doc.char_to_line(to.saturating_sub(1));
 
 		let mut new_ranges: Vec<tome_base::range::Range> = Vec::new();
 		for line in start_line..=end_line {
-			let line_start = self.doc.line_to_char(line).max(from);
-			let line_end = if line + 1 < self.doc.len_lines() {
-				self.doc.line_to_char(line + 1).min(to)
+			let line_start = self.buffer().doc.line_to_char(line).max(from);
+			let line_end = if line + 1 < self.buffer().doc.len_lines() {
+				self.buffer().doc.line_to_char(line + 1).min(to)
 			} else {
-				self.doc.len_chars().min(to)
+				self.buffer().doc.len_chars().min(to)
 			};
 			if line_start < line_end {
 				new_ranges.push(tome_base::range::Range::new(line_start, line_end));
@@ -180,8 +186,8 @@ impl Editor {
 		}
 
 		if !new_ranges.is_empty() {
-			self.selection = Selection::from_vec(new_ranges, 0);
-			self.notify("info", format!("{} lines", self.selection.len()));
+			self.buffer_mut().selection = Selection::from_vec(new_ranges, 0);
+			self.notify("info", format!("{} lines", self.buffer().selection.len()));
 		}
 		false
 	}
@@ -193,10 +199,10 @@ impl Editor {
 	pub(crate) fn keep_matching(&mut self, pattern: &str, invert: bool) -> bool {
 		let mut kept_ranges: Vec<tome_base::range::Range> = Vec::new();
 		let mut had_error = false;
-		for range in self.selection.ranges() {
+		for range in self.buffer().selection.ranges() {
 			let from = range.min();
 			let to = range.max();
-			let text: String = self.doc.slice(from..to).chars().collect();
+			let text: String = self.buffer().doc.slice(from..to).chars().collect();
 			match movement::matches_pattern(&text, pattern) {
 				Ok(matches) => {
 					if matches != invert {
@@ -219,7 +225,7 @@ impl Editor {
 			self.notify("warn", "No selections remain");
 		} else {
 			let count = kept_ranges.len();
-			self.selection = Selection::from_vec(kept_ranges, 0);
+			self.buffer_mut().selection = Selection::from_vec(kept_ranges, 0);
 			self.notify("info", format!("{} selections kept", count));
 		}
 		false

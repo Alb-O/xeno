@@ -7,6 +7,7 @@ mod goto;
 mod insert;
 mod normal;
 mod view;
+mod window;
 
 use linkme::distributed_slice;
 use tome_base::key::Key;
@@ -82,6 +83,7 @@ impl From<Mode> for BindingMode {
 			Mode::Insert => BindingMode::Insert,
 			Mode::Goto => BindingMode::Goto,
 			Mode::View => BindingMode::View,
+			Mode::Window => BindingMode::Window,
 			Mode::PendingAction(_) => BindingMode::Normal,
 		}
 	}

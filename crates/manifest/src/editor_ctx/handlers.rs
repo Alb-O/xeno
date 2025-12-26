@@ -76,6 +76,17 @@ result_slices!(
 	RESULT_TABS_TO_SPACES_HANDLERS,
 	RESULT_SPACES_TO_TABS_HANDLERS,
 	RESULT_TRIM_SELECTIONS_HANDLERS,
+	// Buffer/split management
+	RESULT_SPLIT_HORIZONTAL_HANDLERS,
+	RESULT_SPLIT_VERTICAL_HANDLERS,
+	RESULT_BUFFER_NEXT_HANDLERS,
+	RESULT_BUFFER_PREV_HANDLERS,
+	RESULT_CLOSE_BUFFER_HANDLERS,
+	RESULT_CLOSE_OTHER_BUFFERS_HANDLERS,
+	RESULT_FOCUS_LEFT_HANDLERS,
+	RESULT_FOCUS_RIGHT_HANDLERS,
+	RESULT_FOCUS_UP_HANDLERS,
+	RESULT_FOCUS_DOWN_HANDLERS,
 );
 
 fn run_handlers(
@@ -184,6 +195,25 @@ pub fn dispatch_result(result: &ActionResult, ctx: &mut EditorContext, extend: b
 		ActionResult::TrimSelections => {
 			run_handlers(&RESULT_TRIM_SELECTIONS_HANDLERS, result, ctx, extend)
 		}
+		// Buffer/split management
+		ActionResult::SplitHorizontal => {
+			run_handlers(&RESULT_SPLIT_HORIZONTAL_HANDLERS, result, ctx, extend)
+		}
+		ActionResult::SplitVertical => {
+			run_handlers(&RESULT_SPLIT_VERTICAL_HANDLERS, result, ctx, extend)
+		}
+		ActionResult::BufferNext => run_handlers(&RESULT_BUFFER_NEXT_HANDLERS, result, ctx, extend),
+		ActionResult::BufferPrev => run_handlers(&RESULT_BUFFER_PREV_HANDLERS, result, ctx, extend),
+		ActionResult::CloseBuffer => {
+			run_handlers(&RESULT_CLOSE_BUFFER_HANDLERS, result, ctx, extend)
+		}
+		ActionResult::CloseOtherBuffers => {
+			run_handlers(&RESULT_CLOSE_OTHER_BUFFERS_HANDLERS, result, ctx, extend)
+		}
+		ActionResult::FocusLeft => run_handlers(&RESULT_FOCUS_LEFT_HANDLERS, result, ctx, extend),
+		ActionResult::FocusRight => run_handlers(&RESULT_FOCUS_RIGHT_HANDLERS, result, ctx, extend),
+		ActionResult::FocusUp => run_handlers(&RESULT_FOCUS_UP_HANDLERS, result, ctx, extend),
+		ActionResult::FocusDown => run_handlers(&RESULT_FOCUS_DOWN_HANDLERS, result, ctx, extend),
 	}
 }
 

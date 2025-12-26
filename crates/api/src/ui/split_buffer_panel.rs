@@ -300,27 +300,25 @@ impl<T: SplitBuffer + 'static> Panel for SplitBufferPanel<T> {
 		frame.render_widget(widget, area);
 		if focused
 			&& let Some(cursor) = self.buffer.cursor()
-				&& !matches!(cursor.style, SplitCursorStyle::Hidden)
-					&& cursor.row < area.height
-					&& cursor.col < area.width
-				{
-					return Some(CursorRequest {
-						pos: Position {
-							x: area.x + cursor.col,
-							y: area.y + cursor.row,
-						},
-						style: Some(match cursor.style {
-							SplitCursorStyle::Hidden | SplitCursorStyle::Default => {
-								termina::style::CursorStyle::Default
-							}
-							SplitCursorStyle::Block => termina::style::CursorStyle::SteadyBlock,
-							SplitCursorStyle::Bar => termina::style::CursorStyle::BlinkingBar,
-							SplitCursorStyle::Underline => {
-								termina::style::CursorStyle::SteadyUnderline
-							}
-						}),
-					});
-				}
+			&& !matches!(cursor.style, SplitCursorStyle::Hidden)
+			&& cursor.row < area.height
+			&& cursor.col < area.width
+		{
+			return Some(CursorRequest {
+				pos: Position {
+					x: area.x + cursor.col,
+					y: area.y + cursor.row,
+				},
+				style: Some(match cursor.style {
+					SplitCursorStyle::Hidden | SplitCursorStyle::Default => {
+						termina::style::CursorStyle::Default
+					}
+					SplitCursorStyle::Block => termina::style::CursorStyle::SteadyBlock,
+					SplitCursorStyle::Bar => termina::style::CursorStyle::BlinkingBar,
+					SplitCursorStyle::Underline => termina::style::CursorStyle::SteadyUnderline,
+				}),
+			});
+		}
 
 		None
 	}

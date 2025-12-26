@@ -163,3 +163,5 @@ bind!(KB_AMP_ALT_COPY_INDENT, Key::alt('&'), "copy_indent");
 bind!(KB_AT_TABS, Key::char('@'), "tabs_to_spaces");
 bind!(KB_AT_ALT_SPACES, Key::alt('@'), "spaces_to_tabs");
 bind!(KB_UNDERSCORE_TRIM, Key::char('_'), "trim_selections");
+
+bind!(KB_CTRL_W, Key::ctrl('w'), "window_mode");

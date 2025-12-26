@@ -40,6 +40,10 @@ pub struct StatuslineContext<'a> {
 	pub total_lines: usize,
 	/// File type name if detected.
 	pub file_type: Option<&'a str>,
+	/// Current buffer index (1-indexed).
+	pub buffer_index: usize,
+	/// Total number of open buffers.
+	pub buffer_count: usize,
 }
 
 /// A rendered segment with styling information.

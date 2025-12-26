@@ -129,6 +129,30 @@ pub trait ThemeAccess {
 	fn set_theme(&mut self, name: &str) -> Result<(), crate::CommandError>;
 }
 
+/// Buffer and split management operations.
+pub trait BufferOpsAccess {
+	/// Split the current view horizontally.
+	fn split_horizontal(&mut self);
+	/// Split the current view vertically.
+	fn split_vertical(&mut self);
+	/// Switch to the next buffer.
+	fn buffer_next(&mut self);
+	/// Switch to the previous buffer.
+	fn buffer_prev(&mut self);
+	/// Close the current buffer.
+	fn close_buffer(&mut self);
+	/// Close all other buffers.
+	fn close_other_buffers(&mut self);
+	/// Focus the split to the left.
+	fn focus_left(&mut self);
+	/// Focus the split to the right.
+	fn focus_right(&mut self);
+	/// Focus the split above.
+	fn focus_up(&mut self);
+	/// Focus the split below.
+	fn focus_down(&mut self);
+}
+
 /// Combined trait for command handlers - provides all common editor operations.
 /// This is a convenience trait that combines the most commonly used capabilities.
 pub trait EditorOps: TextAccess + MessageAccess + FileOpsAccess + ThemeAccess {}

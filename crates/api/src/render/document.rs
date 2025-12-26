@@ -102,13 +102,13 @@ impl Editor {
 	/// # Returns
 	/// A [`RenderResult`] containing the rendered paragraph widget.
 	pub fn render_document_with_cursor(&self, area: Rect, use_block_cursor: bool) -> RenderResult {
-		let total_lines = self.doc.len_lines();
+		let total_lines = self.buffer().doc.len_lines();
 		let gutter_width = self.gutter_width();
 		let text_width = area.width.saturating_sub(gutter_width) as usize;
 		let tab_width = 4usize;
 
-		let cursor = self.cursor;
-		let ranges = self.selection.ranges();
+		let cursor = self.buffer().cursor;
+		let ranges = self.buffer().selection.ranges();
 		let primary_cursor = cursor;
 		let cursor_heads = self.collect_cursor_heads();
 		let blink_on = self.cursor_blink_visible();
@@ -118,19 +118,19 @@ impl Editor {
 		let highlight_spans = self.collect_highlight_spans(area);
 
 		let mut output_lines: Vec<Line> = Vec::new();
-		let mut current_line_idx = self.scroll_line;
-		let mut start_segment = self.scroll_segment;
+		let mut current_line_idx = self.buffer().scroll_line;
+		let mut start_segment = self.buffer().scroll_segment;
 		let viewport_height = area.height as usize;
 
 		while output_lines.len() < viewport_height && current_line_idx < total_lines {
-			let line_start: CharIdx = self.doc.line_to_char(current_line_idx);
+			let line_start: CharIdx = self.buffer().doc.line_to_char(current_line_idx);
 			let line_end: CharIdx = if current_line_idx + 1 < total_lines {
-				self.doc.line_to_char(current_line_idx + 1)
+				self.buffer().doc.line_to_char(current_line_idx + 1)
 			} else {
-				self.doc.len_chars()
+				self.buffer().doc.len_chars()
 			};
 
-			let line_text: String = self.doc.slice(line_start..line_end).into();
+			let line_text: String = self.buffer().doc.slice(line_start..line_end).into();
 			let line_text = line_text.trim_end_matches('\n');
 			let line_content_end: CharIdx = line_start + line_text.chars().count();
 
@@ -185,7 +185,7 @@ impl Editor {
 						styles.secondary
 					};
 					// Convert char position to byte position for highlight lookup
-					let byte_pos = self.doc.char_to_byte(doc_pos);
+					let byte_pos = self.buffer().doc.char_to_byte(doc_pos);
 					let syntax_style = self.style_for_byte_pos(byte_pos, &highlight_spans);
 
 					// Apply style overlays (e.g., zen mode dimming)
