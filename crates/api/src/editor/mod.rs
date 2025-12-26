@@ -223,8 +223,14 @@ impl Editor {
 			window_width: None,
 			window_height: None,
 			ui: {
+				use crate::terminal_buffer::TerminalBuffer;
+				use crate::ui::{SplitBufferPanel, SplitBufferPanelConfig, UiKeyChord};
+
 				let mut ui = UiManager::new();
-				ui.register_panel(Box::new(crate::ui::panels::terminal::TerminalPanel::new()));
+				let terminal_config =
+					SplitBufferPanelConfig::new("terminal").with_toggle(UiKeyChord::ctrl_char('t'));
+				let terminal_panel = SplitBufferPanel::new(terminal_config, TerminalBuffer::new());
+				ui.register_panel(Box::new(terminal_panel));
 				ui
 			},
 			needs_redraw: false,

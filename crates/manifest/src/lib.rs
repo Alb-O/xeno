@@ -170,6 +170,7 @@ pub mod macros;
 pub mod mode;
 pub mod notifications;
 pub mod options;
+pub mod split_buffer;
 pub mod statusline;
 
 #[distributed_slice]
@@ -335,6 +336,11 @@ pub use notifications::{
 };
 pub use options::{
 	OPTIONS, OptionDef, OptionScope, OptionType, OptionValue, all_options, find_option,
+};
+pub use split_buffer::{
+	SplitAttrs, SplitBuffer, SplitCell, SplitColor, SplitCursor, SplitCursorStyle,
+	SplitDockPreference, SplitEventResult, SplitKey, SplitKeyCode, SplitModifiers, SplitMouse,
+	SplitMouseAction, SplitMouseButton, SplitSize,
 };
 pub use statusline::{
 	RenderedSegment, STATUSLINE_SEGMENTS, SegmentPosition, SegmentStyle, StatuslineContext,
