@@ -62,3 +62,15 @@ action!(
 	{ description: "Focus split below" },
 	result: ActionResult::FocusDown
 );
+
+action!(
+	split_terminal_horizontal,
+	{ description: "Open terminal in horizontal split" },
+	result: ActionResult::SplitTerminalHorizontal
+);
+
+action!(
+	split_terminal_vertical,
+	{ description: "Open terminal in vertical split" },
+	result: ActionResult::SplitTerminalVertical
+);

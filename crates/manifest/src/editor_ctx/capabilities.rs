@@ -135,6 +135,10 @@ pub trait BufferOpsAccess {
 	fn split_horizontal(&mut self);
 	/// Split the current view vertically.
 	fn split_vertical(&mut self);
+	/// Open a terminal in a horizontal split.
+	fn split_terminal_horizontal(&mut self);
+	/// Open a terminal in a vertical split.
+	fn split_terminal_vertical(&mut self);
 	/// Switch to the next buffer.
 	fn buffer_next(&mut self);
 	/// Switch to the previous buffer.

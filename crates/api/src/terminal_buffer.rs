@@ -148,17 +148,11 @@ impl TerminalState {
 /// - Handles input/output via a PTY
 /// - Renders terminal cells for the UI layer
 ///
-/// # Example
+/// # Usage
 ///
-/// ```ignore
-/// use tome_api::terminal_buffer::TerminalBuffer;
-/// use tome_api::ui::{SplitBufferPanel, SplitBufferPanelConfig};
-///
-/// let buffer = TerminalBuffer::new();
-/// let config = SplitBufferPanelConfig::new("terminal")
-///     .with_toggle(UiKeyChord::ctrl_char('t'));
-/// let panel = SplitBufferPanel::new(config, buffer);
-/// ```
+/// Terminals are opened via `Editor::split_horizontal_terminal()` or
+/// `Editor::split_vertical_terminal()`, typically triggered by the
+/// `Ctrl+w t` or `Ctrl+w T` keybindings.
 pub struct TerminalBuffer {
 	terminal: Option<TerminalState>,
 	prewarm: Option<Receiver<Result<TerminalState, TerminalError>>>,

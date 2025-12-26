@@ -41,6 +41,8 @@ pub enum ActionResult {
 	// Buffer/split management
 	SplitHorizontal,
 	SplitVertical,
+	SplitTerminalHorizontal,
+	SplitTerminalVertical,
 	BufferNext,
 	BufferPrev,
 	CloseBuffer,

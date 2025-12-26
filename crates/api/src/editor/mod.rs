@@ -20,10 +20,11 @@ use tome_manifest::{HookContext, Mode, emit_hook};
 use tome_theme::Theme;
 pub use types::{HistoryEntry, Message, MessageKind, Registers};
 
-use crate::buffer::{Buffer, BufferId, Layout};
+use crate::buffer::{Buffer, BufferId, BufferView, Layout, TerminalId};
 use crate::editor::extensions::{EXTENSIONS, ExtensionMap, StyleOverlays};
 use crate::editor::types::CompletionState;
 use crate::render::{Notifications, Overflow};
+use crate::terminal_buffer::TerminalBuffer;
 use crate::ui::UiManager;
 
 /// The main editor/workspace structure.
@@ -31,14 +32,20 @@ use crate::ui::UiManager;
 /// Contains one or more buffers and manages the workspace-level state
 /// like theme, UI, notifications, and extensions.
 pub struct Editor {
-	/// All open buffers, keyed by BufferId.
+	/// All open text buffers, keyed by BufferId.
 	buffers: HashMap<BufferId, Buffer>,
+
+	/// All open terminal buffers, keyed by TerminalId.
+	terminals: HashMap<TerminalId, TerminalBuffer>,
 
 	/// Counter for generating unique buffer IDs.
 	next_buffer_id: u64,
 
-	/// The currently focused buffer.
-	focused_buffer: BufferId,
+	/// Counter for generating unique terminal IDs.
+	next_terminal_id: u64,
+
+	/// The currently focused view (text buffer or terminal).
+	focused_view: BufferView,
 
 	/// Layout of buffer views (for splits).
 	pub layout: Layout,
@@ -91,32 +98,66 @@ pub struct Editor {
 	pub style_overlays: StyleOverlays,
 }
 
-// Buffer access - provides convenient access to the focused buffer
+// Buffer and terminal access - provides convenient access to the focused view
 impl Editor {
-	/// Returns a reference to the currently focused buffer.
+	/// Returns a reference to the currently focused text buffer.
+	///
+	/// Panics if the focused view is a terminal.
 	#[inline]
 	pub fn buffer(&self) -> &Buffer {
-		self.buffers
-			.get(&self.focused_buffer)
-			.expect("focused buffer must exist")
+		match self.focused_view {
+			BufferView::Text(id) => self.buffers.get(&id).expect("focused buffer must exist"),
+			BufferView::Terminal(_) => panic!("focused view is a terminal, not a text buffer"),
+		}
 	}
 
-	/// Returns a mutable reference to the currently focused buffer.
+	/// Returns a mutable reference to the currently focused text buffer.
+	///
+	/// Panics if the focused view is a terminal.
 	#[inline]
 	pub fn buffer_mut(&mut self) -> &mut Buffer {
-		self.buffers
-			.get_mut(&self.focused_buffer)
-			.expect("focused buffer must exist")
+		match self.focused_view {
+			BufferView::Text(id) => self
+				.buffers
+				.get_mut(&id)
+				.expect("focused buffer must exist"),
+			BufferView::Terminal(_) => panic!("focused view is a terminal, not a text buffer"),
+		}
 	}
 
-	/// Returns the ID of the focused buffer.
-	pub fn focused_buffer_id(&self) -> BufferId {
-		self.focused_buffer
+	/// Returns the currently focused view.
+	pub fn focused_view(&self) -> BufferView {
+		self.focused_view
 	}
 
-	/// Returns all buffer IDs.
+	/// Returns true if the focused view is a text buffer.
+	pub fn is_text_focused(&self) -> bool {
+		self.focused_view.is_text()
+	}
+
+	/// Returns true if the focused view is a terminal.
+	pub fn is_terminal_focused(&self) -> bool {
+		self.focused_view.is_terminal()
+	}
+
+	/// Returns the ID of the focused text buffer, if one is focused.
+	pub fn focused_buffer_id(&self) -> Option<BufferId> {
+		self.focused_view.as_text()
+	}
+
+	/// Returns the ID of the focused terminal, if one is focused.
+	pub fn focused_terminal_id(&self) -> Option<TerminalId> {
+		self.focused_view.as_terminal()
+	}
+
+	/// Returns all text buffer IDs.
 	pub fn buffer_ids(&self) -> Vec<BufferId> {
 		self.buffers.keys().copied().collect()
+	}
+
+	/// Returns all terminal IDs.
+	pub fn terminal_ids(&self) -> Vec<TerminalId> {
+		self.terminals.keys().copied().collect()
 	}
 
 	/// Returns a reference to a specific buffer by ID.
@@ -129,14 +170,33 @@ impl Editor {
 		self.buffers.get_mut(&id)
 	}
 
-	/// Returns the number of open buffers.
+	/// Returns a reference to a specific terminal by ID.
+	pub fn get_terminal(&self, id: TerminalId) -> Option<&TerminalBuffer> {
+		self.terminals.get(&id)
+	}
+
+	/// Returns a mutable reference to a specific terminal by ID.
+	pub fn get_terminal_mut(&mut self, id: TerminalId) -> Option<&mut TerminalBuffer> {
+		self.terminals.get_mut(&id)
+	}
+
+	/// Returns the number of open text buffers.
 	pub fn buffer_count(&self) -> usize {
 		self.buffers.len()
+	}
+
+	/// Returns the number of open terminals.
+	pub fn terminal_count(&self) -> usize {
+		self.terminals.len()
 	}
 }
 
 impl tome_manifest::editor_ctx::FileOpsAccess for Editor {
 	fn is_modified(&self) -> bool {
+		// Terminals are never considered "modified" for save purposes
+		if self.is_terminal_focused() {
+			return false;
+		}
 		self.buffer().modified
 	}
 
@@ -146,6 +206,13 @@ impl tome_manifest::editor_ctx::FileOpsAccess for Editor {
 		Box<dyn std::future::Future<Output = Result<(), tome_manifest::CommandError>> + '_>,
 	> {
 		Box::pin(async move {
+			// Cannot save a terminal
+			if self.is_terminal_focused() {
+				return Err(tome_manifest::CommandError::InvalidArgument(
+					"Cannot save a terminal".to_string(),
+				));
+			}
+
 			let path_owned = match &self.buffer().path {
 				Some(p) => p.clone(),
 				None => {
@@ -191,6 +258,15 @@ impl tome_manifest::editor_ctx::FileOpsAccess for Editor {
 	) -> std::pin::Pin<
 		Box<dyn std::future::Future<Output = Result<(), tome_manifest::CommandError>> + '_>,
 	> {
+		// Cannot save a terminal
+		if self.is_terminal_focused() {
+			return Box::pin(async {
+				Err(tome_manifest::CommandError::InvalidArgument(
+					"Cannot save a terminal".to_string(),
+				))
+			});
+		}
+
 		self.buffer_mut().path = Some(path);
 		self.save()
 	}
@@ -259,26 +335,18 @@ impl Editor {
 
 		Self {
 			buffers,
+			terminals: HashMap::new(),
 			next_buffer_id: 2, // Next ID will be 2
-			focused_buffer: buffer_id,
-			layout: Layout::single(buffer_id),
+			next_terminal_id: 1,
+			focused_view: BufferView::Text(buffer_id),
+			layout: Layout::text(buffer_id),
 			message: None,
 			registers: Registers::default(),
 			theme: tome_theme::get_theme(tome_theme::DEFAULT_THEME_ID)
 				.unwrap_or(&tome_theme::DEFAULT_THEME),
 			window_width: None,
 			window_height: None,
-			ui: {
-				use crate::terminal_buffer::TerminalBuffer;
-				use crate::ui::{SplitBufferPanel, SplitBufferPanelConfig, UiKeyChord};
-
-				let mut ui = UiManager::new();
-				let terminal_config =
-					SplitBufferPanelConfig::new("terminal").with_toggle(UiKeyChord::ctrl_char('t'));
-				let terminal_panel = SplitBufferPanel::new(terminal_config, TerminalBuffer::new());
-				ui.register_panel(Box::new(terminal_panel));
-				ui
-			},
+			ui: UiManager::new(),
 			needs_redraw: false,
 			notifications: Notifications::new()
 				.max_concurrent(Some(5))
@@ -347,12 +415,16 @@ impl Editor {
 		Ok(self.open_buffer(content, Some(path)))
 	}
 
-	/// Focuses a specific buffer by ID.
+	/// Focuses a specific view.
 	///
-	/// Returns true if the buffer exists and was focused.
-	pub fn focus_buffer(&mut self, id: BufferId) -> bool {
-		if self.buffers.contains_key(&id) {
-			self.focused_buffer = id;
+	/// Returns true if the view exists and was focused.
+	pub fn focus_view(&mut self, view: BufferView) -> bool {
+		let exists = match view {
+			BufferView::Text(id) => self.buffers.contains_key(&id),
+			BufferView::Terminal(id) => self.terminals.contains_key(&id),
+		};
+		if exists {
+			self.focused_view = view;
 			self.needs_redraw = true;
 			true
 		} else {
@@ -360,73 +432,197 @@ impl Editor {
 		}
 	}
 
-	/// Focuses the next buffer in the layout.
-	pub fn focus_next_buffer(&mut self) {
-		let next_id = self.layout.next_buffer(self.focused_buffer);
-		self.focus_buffer(next_id);
-	}
-
-	/// Focuses the previous buffer in the layout.
-	pub fn focus_prev_buffer(&mut self) {
-		let prev_id = self.layout.prev_buffer(self.focused_buffer);
-		self.focus_buffer(prev_id);
-	}
-
-	/// Creates a horizontal split with the current buffer and a new buffer.
-	pub fn split_horizontal(&mut self, new_buffer_id: BufferId) {
-		let current_id = self.focused_buffer;
-		let new_layout = Layout::hsplit(Layout::single(current_id), Layout::single(new_buffer_id));
-		self.layout.replace(current_id, new_layout);
-		self.focus_buffer(new_buffer_id);
-	}
-
-	/// Creates a vertical split with the current buffer and a new buffer.
-	pub fn split_vertical(&mut self, new_buffer_id: BufferId) {
-		let current_id = self.focused_buffer;
-		let new_layout = Layout::vsplit(Layout::single(current_id), Layout::single(new_buffer_id));
-		self.layout.replace(current_id, new_layout);
-		self.focus_buffer(new_buffer_id);
-	}
-
-	/// Closes a buffer.
+	/// Focuses a specific buffer by ID.
 	///
-	/// Returns true if the buffer was closed. Returns false if it's the last buffer
-	/// (we don't allow closing the last buffer).
-	pub fn close_buffer(&mut self, id: BufferId) -> bool {
-		if self.buffers.len() <= 1 {
+	/// Returns true if the buffer exists and was focused.
+	pub fn focus_buffer(&mut self, id: BufferId) -> bool {
+		self.focus_view(BufferView::Text(id))
+	}
+
+	/// Focuses a specific terminal by ID.
+	///
+	/// Returns true if the terminal exists and was focused.
+	pub fn focus_terminal(&mut self, id: TerminalId) -> bool {
+		self.focus_view(BufferView::Terminal(id))
+	}
+
+	/// Focuses the next view in the layout (buffer or terminal).
+	pub fn focus_next_view(&mut self) {
+		let next = self.layout.next_view(self.focused_view);
+		self.focus_view(next);
+	}
+
+	/// Focuses the previous view in the layout.
+	pub fn focus_prev_view(&mut self) {
+		let prev = self.layout.prev_view(self.focused_view);
+		self.focus_view(prev);
+	}
+
+	/// Focuses the next text buffer in the layout.
+	pub fn focus_next_buffer(&mut self) {
+		if let Some(current_id) = self.focused_view.as_text() {
+			let next_id = self.layout.next_buffer(current_id);
+			self.focus_buffer(next_id);
+		}
+	}
+
+	/// Focuses the previous text buffer in the layout.
+	pub fn focus_prev_buffer(&mut self) {
+		if let Some(current_id) = self.focused_view.as_text() {
+			let prev_id = self.layout.prev_buffer(current_id);
+			self.focus_buffer(prev_id);
+		}
+	}
+
+	/// Creates a horizontal split with the current view and a new buffer.
+	pub fn split_horizontal(&mut self, new_buffer_id: BufferId) {
+		let current_view = self.focused_view;
+		let new_layout = Layout::hsplit(Layout::single(current_view), Layout::text(new_buffer_id));
+		self.layout.replace_view(current_view, new_layout);
+		self.focus_buffer(new_buffer_id);
+	}
+
+	/// Creates a vertical split with the current view and a new buffer.
+	pub fn split_vertical(&mut self, new_buffer_id: BufferId) {
+		let current_view = self.focused_view;
+		let new_layout = Layout::vsplit(Layout::single(current_view), Layout::text(new_buffer_id));
+		self.layout.replace_view(current_view, new_layout);
+		self.focus_buffer(new_buffer_id);
+	}
+
+	/// Opens a new terminal in a horizontal split.
+	pub fn split_horizontal_terminal(&mut self) -> TerminalId {
+		use tome_manifest::SplitBuffer;
+
+		let terminal_id = TerminalId(self.next_terminal_id);
+		self.next_terminal_id += 1;
+
+		let mut terminal = TerminalBuffer::new();
+		terminal.on_open(); // Start prewarming the terminal
+		self.terminals.insert(terminal_id, terminal);
+
+		let current_view = self.focused_view;
+		let new_layout =
+			Layout::hsplit(Layout::single(current_view), Layout::terminal(terminal_id));
+		self.layout.replace_view(current_view, new_layout);
+		self.focus_terminal(terminal_id);
+		terminal_id
+	}
+
+	/// Opens a new terminal in a vertical split.
+	pub fn split_vertical_terminal(&mut self) -> TerminalId {
+		use tome_manifest::SplitBuffer;
+
+		let terminal_id = TerminalId(self.next_terminal_id);
+		self.next_terminal_id += 1;
+
+		let mut terminal = TerminalBuffer::new();
+		terminal.on_open(); // Start prewarming the terminal
+		self.terminals.insert(terminal_id, terminal);
+
+		let current_view = self.focused_view;
+		let new_layout =
+			Layout::vsplit(Layout::single(current_view), Layout::terminal(terminal_id));
+		self.layout.replace_view(current_view, new_layout);
+		self.focus_terminal(terminal_id);
+		terminal_id
+	}
+
+	/// Closes a view (buffer or terminal).
+	///
+	/// Returns true if the view was closed.
+	pub fn close_view(&mut self, view: BufferView) -> bool {
+		// Don't close the last view
+		if self.layout.count() <= 1 {
 			return false;
 		}
 
 		// Remove from layout
-		if let Some(new_layout) = self.layout.remove(id) {
+		if let Some(new_layout) = self.layout.remove_view(view) {
 			self.layout = new_layout;
 		}
 
-		// Remove the buffer
-		self.buffers.remove(&id);
+		// Remove the actual buffer/terminal
+		match view {
+			BufferView::Text(id) => {
+				self.buffers.remove(&id);
+			}
+			BufferView::Terminal(id) => {
+				self.terminals.remove(&id);
+			}
+		}
 
-		// If we closed the focused buffer, focus another one
-		if self.focused_buffer == id {
-			self.focused_buffer = self.layout.first_buffer();
+		// If we closed the focused view, focus another one
+		if self.focused_view == view {
+			self.focused_view = self.layout.first_view();
 		}
 
 		self.needs_redraw = true;
 		true
 	}
 
-	/// Closes the current buffer.
+	/// Closes a buffer.
+	///
+	/// Returns true if the buffer was closed.
+	pub fn close_buffer(&mut self, id: BufferId) -> bool {
+		self.close_view(BufferView::Text(id))
+	}
+
+	/// Closes a terminal.
+	///
+	/// Returns true if the terminal was closed.
+	pub fn close_terminal(&mut self, id: TerminalId) -> bool {
+		self.close_view(BufferView::Terminal(id))
+	}
+
+	/// Closes the current view (buffer or terminal).
+	///
+	/// Returns true if the view was closed.
+	pub fn close_current_view(&mut self) -> bool {
+		self.close_view(self.focused_view)
+	}
+
+	/// Closes the current buffer if a text buffer is focused.
 	///
 	/// Returns true if the buffer was closed.
 	pub fn close_current_buffer(&mut self) -> bool {
-		self.close_buffer(self.focused_buffer)
+		match self.focused_view {
+			BufferView::Text(id) => self.close_buffer(id),
+			BufferView::Terminal(_) => false,
+		}
 	}
 
 	pub fn mode(&self) -> Mode {
-		self.buffer().input.mode()
+		if self.is_terminal_focused() {
+			// Check if we're in window mode (using first buffer's input handler)
+			if let Some(first_buffer_id) = self.layout.first_buffer() {
+				if let Some(buffer) = self.buffers.get(&first_buffer_id) {
+					let mode = buffer.input.mode();
+					if matches!(mode, Mode::Window) {
+						return mode;
+					}
+				}
+			}
+			Mode::Insert // Terminal is always in "insert" mode effectively
+		} else {
+			self.buffer().input.mode()
+		}
 	}
 
 	pub fn mode_name(&self) -> &'static str {
-		self.buffer().input.mode_name()
+		if self.is_terminal_focused() {
+			// Check if we're in window mode (using first buffer's input handler)
+			if let Some(first_buffer_id) = self.layout.first_buffer() {
+				if let Some(buffer) = self.buffers.get(&first_buffer_id) {
+					if matches!(buffer.input.mode(), Mode::Window) {
+						return buffer.input.mode_name();
+					}
+				}
+			}
+			"TERMINAL"
+		} else {
+			self.buffer().input.mode_name()
+		}
 	}
 
 	pub fn ui_startup(&mut self) {
@@ -446,7 +642,26 @@ impl Editor {
 	}
 
 	pub fn tick(&mut self) {
+		use std::time::Duration;
+
+		use tome_manifest::SplitBuffer;
+
 		use crate::editor::extensions::TICK_EXTENSIONS;
+
+		// Tick all terminals
+		let terminal_ids: Vec<_> = self.terminals.keys().copied().collect();
+		for id in terminal_ids {
+			if let Some(terminal) = self.terminals.get_mut(&id) {
+				let result = terminal.tick(Duration::from_millis(16));
+				if result.needs_redraw {
+					self.needs_redraw = true;
+				}
+				if result.wants_close {
+					// Terminal exited, close it
+					self.close_terminal(id);
+				}
+			}
+		}
 
 		let mut sorted_ticks: Vec<_> = TICK_EXTENSIONS.iter().collect();
 		sorted_ticks.sort_by_key(|e| e.priority);
@@ -665,19 +880,27 @@ impl Editor {
 	}
 
 	pub fn apply_transaction(&mut self, tx: &Transaction) {
+		let BufferView::Text(buffer_id) = self.focused_view else {
+			return;
+		};
+
 		// Access buffer directly to avoid borrow conflict with language_loader.
 		let buffer = self
 			.buffers
-			.get_mut(&self.focused_buffer)
+			.get_mut(&buffer_id)
 			.expect("focused buffer must exist");
 		buffer.apply_transaction_with_syntax(tx, &self.language_loader);
 	}
 
 	pub fn reparse_syntax(&mut self) {
+		let BufferView::Text(buffer_id) = self.focused_view else {
+			return;
+		};
+
 		// Access buffer directly to avoid borrow conflict with language_loader.
 		let buffer = self
 			.buffers
-			.get_mut(&self.focused_buffer)
+			.get_mut(&buffer_id)
 			.expect("focused buffer must exist");
 		buffer.reparse_syntax(&self.language_loader);
 	}

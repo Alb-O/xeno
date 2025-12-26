@@ -39,6 +39,38 @@ result_handler!(
 );
 
 result_handler!(
+	RESULT_SPLIT_TERMINAL_HORIZONTAL_HANDLERS,
+	HANDLE_SPLIT_TERMINAL_HORIZONTAL,
+	"split_terminal_horizontal",
+	|r, ctx, _| {
+		if matches!(r, ActionResult::SplitTerminalHorizontal) {
+			if let Some(ops) = ctx.buffer_ops() {
+				ops.split_terminal_horizontal();
+			} else {
+				ctx.warn("Buffer operations not available");
+			}
+		}
+		HandleOutcome::Handled
+	}
+);
+
+result_handler!(
+	RESULT_SPLIT_TERMINAL_VERTICAL_HANDLERS,
+	HANDLE_SPLIT_TERMINAL_VERTICAL,
+	"split_terminal_vertical",
+	|r, ctx, _| {
+		if matches!(r, ActionResult::SplitTerminalVertical) {
+			if let Some(ops) = ctx.buffer_ops() {
+				ops.split_terminal_vertical();
+			} else {
+				ctx.warn("Buffer operations not available");
+			}
+		}
+		HandleOutcome::Handled
+	}
+);
+
+result_handler!(
 	RESULT_BUFFER_NEXT_HANDLERS,
 	HANDLE_BUFFER_NEXT,
 	"buffer_next",

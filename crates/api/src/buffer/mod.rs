@@ -17,7 +17,7 @@ mod navigation;
 use std::path::PathBuf;
 
 pub use history::HistoryResult;
-pub use layout::{Layout, SplitDirection};
+pub use layout::{BufferView, Layout, SplitDirection, TerminalId};
 use tome_base::range::CharIdx;
 use tome_base::{Rope, Selection};
 use tome_input::InputHandler;

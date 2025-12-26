@@ -12,23 +12,35 @@ use crate::render::WrapSegment;
 impl Editor {
 	/// Returns the line number containing the cursor.
 	///
-	/// Delegates to Buffer.
+	/// Returns 0 if a terminal is focused.
 	pub fn cursor_line(&self) -> usize {
-		self.buffer().cursor_line()
+		if self.is_terminal_focused() {
+			0
+		} else {
+			self.buffer().cursor_line()
+		}
 	}
 
 	/// Returns the column of the cursor within its line.
 	///
-	/// Delegates to Buffer.
+	/// Returns 0 if a terminal is focused.
 	pub fn cursor_col(&self) -> usize {
-		self.buffer().cursor_col()
+		if self.is_terminal_focused() {
+			0
+		} else {
+			self.buffer().cursor_col()
+		}
 	}
 
 	/// Computes the gutter width based on total line count.
 	///
-	/// Delegates to Buffer.
+	/// Returns 0 if a terminal is focused.
 	pub fn gutter_width(&self) -> u16 {
-		self.buffer().gutter_width()
+		if self.is_terminal_focused() {
+			0
+		} else {
+			self.buffer().gutter_width()
+		}
 	}
 
 	/// Moves cursors vertically, accounting for line wrapping.

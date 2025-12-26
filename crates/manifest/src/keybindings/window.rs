@@ -41,3 +41,7 @@ bind!(KB_C, Key::char('c'), "close_buffer");
 
 // Only keep current split
 bind!(KB_O, Key::char('o'), "close_other_buffers");
+
+// Terminal splits
+bind!(KB_T, Key::char('t'), "split_terminal_horizontal");
+bind!(KB_SHIFT_T, Key::char('T'), "split_terminal_vertical");

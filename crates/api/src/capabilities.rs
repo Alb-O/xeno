@@ -131,6 +131,11 @@ impl ThemeAccess for Editor {
 
 impl BufferOpsAccess for Editor {
 	fn split_horizontal(&mut self) {
+		// Cannot split with buffer content when terminal is focused
+		if self.is_terminal_focused() {
+			return;
+		}
+
 		// Create a new buffer with the same content as current
 		let current = self.buffer();
 		let content: String = current.doc.slice(..).into();
@@ -140,12 +145,25 @@ impl BufferOpsAccess for Editor {
 	}
 
 	fn split_vertical(&mut self) {
+		// Cannot split with buffer content when terminal is focused
+		if self.is_terminal_focused() {
+			return;
+		}
+
 		// Create a new buffer with the same content as current
 		let current = self.buffer();
 		let content: String = current.doc.slice(..).into();
 		let path = current.path.clone();
 		let new_id = self.open_buffer(content, path);
 		Editor::split_vertical(self, new_id);
+	}
+
+	fn split_terminal_horizontal(&mut self) {
+		Editor::split_horizontal_terminal(self);
+	}
+
+	fn split_terminal_vertical(&mut self) {
+		Editor::split_vertical_terminal(self);
 	}
 
 	fn buffer_next(&mut self) {
@@ -162,7 +180,9 @@ impl BufferOpsAccess for Editor {
 
 	fn close_other_buffers(&mut self) {
 		// Close all buffers except the current one
-		let current_id = self.focused_buffer_id();
+		let Some(current_id) = self.focused_buffer_id() else {
+			return;
+		};
 		let ids: Vec<_> = self
 			.buffer_ids()
 			.into_iter()

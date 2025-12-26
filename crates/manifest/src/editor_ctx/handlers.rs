@@ -79,6 +79,8 @@ result_slices!(
 	// Buffer/split management
 	RESULT_SPLIT_HORIZONTAL_HANDLERS,
 	RESULT_SPLIT_VERTICAL_HANDLERS,
+	RESULT_SPLIT_TERMINAL_HORIZONTAL_HANDLERS,
+	RESULT_SPLIT_TERMINAL_VERTICAL_HANDLERS,
 	RESULT_BUFFER_NEXT_HANDLERS,
 	RESULT_BUFFER_PREV_HANDLERS,
 	RESULT_CLOSE_BUFFER_HANDLERS,
@@ -201,6 +203,12 @@ pub fn dispatch_result(result: &ActionResult, ctx: &mut EditorContext, extend: b
 		}
 		ActionResult::SplitVertical => {
 			run_handlers(&RESULT_SPLIT_VERTICAL_HANDLERS, result, ctx, extend)
+		}
+		ActionResult::SplitTerminalHorizontal => {
+			run_handlers(&RESULT_SPLIT_TERMINAL_HORIZONTAL_HANDLERS, result, ctx, extend)
+		}
+		ActionResult::SplitTerminalVertical => {
+			run_handlers(&RESULT_SPLIT_TERMINAL_VERTICAL_HANDLERS, result, ctx, extend)
 		}
 		ActionResult::BufferNext => run_handlers(&RESULT_BUFFER_NEXT_HANDLERS, result, ctx, extend),
 		ActionResult::BufferPrev => run_handlers(&RESULT_BUFFER_PREV_HANDLERS, result, ctx, extend),

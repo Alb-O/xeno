@@ -1,3 +1,5 @@
+use ropey::Rope;
+use tome_base::Selection;
 use tome_manifest::{ActionArgs, ActionContext, ActionResult, find_action};
 
 use crate::editor::Editor;
@@ -28,17 +30,34 @@ impl Editor {
 			}
 		}
 
-		let ctx = ActionContext {
-			text: self.buffer().doc.slice(..),
-			cursor: self.buffer().cursor,
-			selection: &self.buffer().selection,
-			count,
-			extend,
-			register,
-			args: ActionArgs::default(),
+		// When terminal is focused, use a dummy context for workspace-level actions
+		// (window mode actions like split_horizontal, buffer_next, etc. don't use the context)
+		let result = if self.is_terminal_focused() {
+			let dummy_rope = Rope::new();
+			let dummy_selection = Selection::point(0);
+			let ctx = ActionContext {
+				text: dummy_rope.slice(..),
+				cursor: 0,
+				selection: &dummy_selection,
+				count,
+				extend,
+				register,
+				args: ActionArgs::default(),
+			};
+			(action.handler)(&ctx)
+		} else {
+			let ctx = ActionContext {
+				text: self.buffer().doc.slice(..),
+				cursor: self.buffer().cursor,
+				selection: &self.buffer().selection,
+				count,
+				extend,
+				register,
+				args: ActionArgs::default(),
+			};
+			(action.handler)(&ctx)
 		};
 
-		let result = (action.handler)(&ctx);
 		self.apply_action_result(result, extend)
 	}
 
@@ -68,20 +87,39 @@ impl Editor {
 			}
 		}
 
-		let ctx = ActionContext {
-			text: self.buffer().doc.slice(..),
-			cursor: self.buffer().cursor,
-			selection: &self.buffer().selection,
-			count,
-			extend,
-			register,
-			args: ActionArgs {
-				char: Some(char_arg),
-				string: None,
-			},
+		// When terminal is focused, use a dummy context for workspace-level actions
+		let result = if self.is_terminal_focused() {
+			let dummy_rope = Rope::new();
+			let dummy_selection = Selection::point(0);
+			let ctx = ActionContext {
+				text: dummy_rope.slice(..),
+				cursor: 0,
+				selection: &dummy_selection,
+				count,
+				extend,
+				register,
+				args: ActionArgs {
+					char: Some(char_arg),
+					string: None,
+				},
+			};
+			(action.handler)(&ctx)
+		} else {
+			let ctx = ActionContext {
+				text: self.buffer().doc.slice(..),
+				cursor: self.buffer().cursor,
+				selection: &self.buffer().selection,
+				count,
+				extend,
+				register,
+				args: ActionArgs {
+					char: Some(char_arg),
+					string: None,
+				},
+			};
+			(action.handler)(&ctx)
 		};
 
-		let result = (action.handler)(&ctx);
 		self.apply_action_result(result, extend)
 	}
 

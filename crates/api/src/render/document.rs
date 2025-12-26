@@ -3,13 +3,14 @@ mod wrapping;
 use std::time::{Duration, SystemTime};
 
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
-use ratatui::style::Style;
+use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Clear, Paragraph};
+use tome_manifest::{SplitAttrs, SplitBuffer, SplitColor};
 
 use super::buffer_render::{BufferRenderContext, ensure_buffer_cursor_visible};
 use super::types::RenderResult;
-use crate::buffer::SplitDirection;
+use crate::buffer::{BufferView, SplitDirection};
 use crate::Editor;
 
 impl Editor {
@@ -81,38 +82,61 @@ impl Editor {
 		self.notifications.render(frame, notifications_area);
 	}
 
-	/// Renders all buffers in the layout with proper split handling.
+	/// Renders all views in the layout with proper split handling.
+	///
+	/// This handles both text buffers and terminals in the same layout.
 	fn render_split_buffers(
 		&mut self,
 		frame: &mut ratatui::Frame,
 		doc_area: Rect,
 		use_block_cursor: bool,
 	) {
-		let focused_id = self.focused_buffer_id();
+		let focused_view = self.focused_view();
 
-		// Compute areas for all buffers in the layout
-		let buffer_areas = self.layout.compute_areas(doc_area);
+		// Compute areas for all views in the layout
+		let view_areas = self.layout.compute_view_areas(doc_area);
 
-		// Ensure cursor is visible for each buffer in its area
-		for (buffer_id, area) in &buffer_areas {
-			if let Some(buffer) = self.get_buffer_mut(*buffer_id) {
-				ensure_buffer_cursor_visible(buffer, *area);
+		// Ensure cursor is visible for each text buffer and resize terminals
+		for (view, area) in &view_areas {
+			match view {
+				BufferView::Text(buffer_id) => {
+					if let Some(buffer) = self.get_buffer_mut(*buffer_id) {
+						ensure_buffer_cursor_visible(buffer, *area);
+					}
+				}
+				BufferView::Terminal(terminal_id) => {
+					if let Some(terminal) = self.get_terminal_mut(*terminal_id) {
+						let size = tome_manifest::SplitSize::new(area.width, area.height);
+						terminal.resize(size);
+					}
+				}
 			}
 		}
 
-		// Create render context
+		// Create render context for text buffers
 		let ctx = BufferRenderContext {
 			theme: self.theme,
 			language_loader: &self.language_loader,
 			style_overlays: &self.style_overlays,
 		};
 
-		// Render each buffer
-		for (buffer_id, area) in &buffer_areas {
-			if let Some(buffer) = self.get_buffer(*buffer_id) {
-				let is_focused = *buffer_id == focused_id;
-				let result = ctx.render_buffer(buffer, *area, use_block_cursor && is_focused);
-				frame.render_widget(result.widget, *area);
+		// Render each view
+		for (view, area) in &view_areas {
+			let is_focused = *view == focused_view;
+
+			match view {
+				BufferView::Text(buffer_id) => {
+					if let Some(buffer) = self.get_buffer(*buffer_id) {
+						let result =
+							ctx.render_buffer(buffer, *area, use_block_cursor && is_focused);
+						frame.render_widget(result.widget, *area);
+					}
+				}
+				BufferView::Terminal(terminal_id) => {
+					if let Some(terminal) = self.get_terminal(*terminal_id) {
+						self.render_terminal(frame, terminal, *area, is_focused);
+					}
+				}
 			}
 		}
 
@@ -146,6 +170,72 @@ impl Editor {
 		}
 	}
 
+	/// Renders a terminal buffer into the given area.
+	fn render_terminal(
+		&self,
+		frame: &mut ratatui::Frame,
+		terminal: &crate::terminal_buffer::TerminalBuffer,
+		area: Rect,
+		_is_focused: bool,
+	) {
+		let base_style = Style::default()
+			.bg(self.theme.colors.popup.bg.into())
+			.fg(self.theme.colors.popup.fg.into());
+
+		// Fill background
+		frame.render_widget(Block::default().style(base_style), area);
+
+		// Render terminal cells
+		let buf = frame.buffer_mut();
+		terminal.for_each_cell(|row, col, cell| {
+			if row >= area.height || col >= area.width {
+				return;
+			}
+			if cell.wide_continuation {
+				return;
+			}
+
+			let x = area.x + col;
+			let y = area.y + row;
+
+			let mut style = base_style;
+
+			if let Some(fg) = cell.fg {
+				style = style.fg(convert_split_color(fg));
+			}
+			if let Some(bg) = cell.bg {
+				style = style.bg(convert_split_color(bg));
+			}
+
+			let mut mods = Modifier::empty();
+			if cell.attrs.contains(SplitAttrs::BOLD) {
+				mods |= Modifier::BOLD;
+			}
+			if cell.attrs.contains(SplitAttrs::ITALIC) {
+				mods |= Modifier::ITALIC;
+			}
+			if cell.attrs.contains(SplitAttrs::UNDERLINE) {
+				mods |= Modifier::UNDERLINED;
+			}
+			style = style.add_modifier(mods);
+
+			if cell.attrs.contains(SplitAttrs::INVERSE) {
+				let fg = style.fg;
+				let bg = style.bg;
+				style = style.fg(bg.unwrap_or(Color::Reset));
+				style = style.bg(fg.unwrap_or(Color::Reset));
+			}
+
+			let out = &mut buf[(x, y)];
+			out.set_style(style);
+			if cell.symbol.is_empty() {
+				out.set_symbol(" ");
+			} else {
+				out.set_symbol(&cell.symbol);
+			}
+		});
+	}
+
 	/// Renders the document with cursor tracking and visual effects.
 	///
 	/// This function handles the core document rendering logic including:
@@ -173,5 +263,13 @@ impl Editor {
 			style_overlays: &self.style_overlays,
 		};
 		ctx.render_buffer(self.buffer(), area, use_block_cursor)
+	}
+}
+
+/// Converts a SplitColor to a ratatui Color.
+fn convert_split_color(color: SplitColor) -> Color {
+	match color {
+		SplitColor::Indexed(i) => Color::Indexed(i),
+		SplitColor::Rgb(r, g, b) => Color::Rgb(r, g, b),
 	}
 }
