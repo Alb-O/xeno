@@ -13,9 +13,9 @@ use futures::future::LocalBoxFuture;
 use tome_manifest::{CommandContext, CommandError, CommandOutcome};
 use tome_stdlib::{NotifyINFOExt, command};
 
-use crate::acp::AcpManager;
-use crate::acp::panel::{AcpChatPanel, chat_panel_ui_id};
-use crate::acp::types::ChatPanelState;
+use crate::AcpManager;
+use crate::panel::{AcpChatPanel, chat_panel_ui_id};
+use crate::types::ChatPanelState;
 
 /// Panel ID for the ACP chat panel.
 pub const ACP_PANEL_ID: u64 = u64::MAX - 1;

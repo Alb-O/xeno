@@ -11,8 +11,8 @@ use agent_client_protocol::{
 	SelectedPermissionOutcome, SessionUpdate, WriteTextFileResponse,
 };
 
-use crate::acp::backend::enqueue_panel_append;
-use crate::acp::types::{AcpEvent, AcpState, ChatRole, PermissionOption};
+use crate::backend::enqueue_panel_append;
+use crate::types::{AcpEvent, AcpState, ChatRole, PermissionOption};
 
 /// Handler for ACP protocol messages.
 pub struct AcpMessageHandler {

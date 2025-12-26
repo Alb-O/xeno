@@ -9,7 +9,12 @@ use app::run_editor;
 use clap::Parser;
 use cli::{Cli, Command, GrammarAction};
 use tome_api::Editor;
-// Force linking of tome-extensions so distributed_slices are registered
+// Force linking of tome-acp and tome-extensions so distributed_slices are registered
+#[allow(
+	unused_imports,
+	reason = "ensures tome-acp and tome-extensions distributed_slices are linked"
+)]
+use tome_acp as _;
 #[allow(
 	unused_imports,
 	reason = "ensures tome-extensions distributed_slices are linked"

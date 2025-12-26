@@ -21,6 +21,7 @@ termina.workspace = true
 thiserror.workspace = true
 tokio.workspace = true
 tokio-util.workspace = true
+tome-acp.workspace = true
 tome-api.workspace = true
 tome-base.workspace = true
 tome-extensions.workspace = true
