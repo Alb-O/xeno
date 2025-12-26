@@ -81,6 +81,13 @@ impl Editor {
 				Block::default().style(Style::default().bg(self.theme.colors.popup.bg.into()));
 			frame.render_widget(message_bg, chunks[1]);
 			frame.render_widget(self.render_message_line(), chunks[1]);
+
+			// Position cursor at end of command line input
+			if let Some((prompt, input)) = self.input.command_line() {
+				let cursor_x = chunks[1].x + 1 + input.len() as u16;
+				let cursor_y = chunks[1].y;
+				frame.set_cursor_position((cursor_x, cursor_y));
+			}
 		}
 
 		let status_bg =
