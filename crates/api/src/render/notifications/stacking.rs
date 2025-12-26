@@ -15,6 +15,7 @@ pub struct StackedNotification {
 }
 
 pub trait StackableNotification {
+	#[allow(dead_code, reason = "trait method for future notification identification")]
 	fn id(&self) -> u64;
 	fn current_phase(&self) -> AnimationPhase;
 	fn created_at(&self) -> Instant;

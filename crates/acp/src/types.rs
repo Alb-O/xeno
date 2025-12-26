@@ -11,7 +11,6 @@ use std::sync::atomic::AtomicU64;
 
 use parking_lot::Mutex;
 use tokio::sync::oneshot;
-use tome_base::Rope;
 
 /// Chat message role.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -26,36 +25,10 @@ pub enum ChatRole {
 	Thought,
 }
 
-/// A single item in the chat transcript.
-#[derive(Debug, Clone)]
-pub struct ChatItem {
-	pub role: ChatRole,
-	pub text: String,
-}
-
-/// State for a chat panel.
-pub struct ChatPanelState {
-	pub transcript: Vec<ChatItem>,
-	pub input: Rope,
-	pub input_cursor: usize,
-}
-
-impl ChatPanelState {
-	pub fn new(_title: String) -> Self {
-		Self {
-			transcript: Vec::new(),
-			input: Rope::from(""),
-			input_cursor: 0,
-		}
-	}
-}
-
 /// Events produced by the ACP backend for the UI to consume.
 #[derive(Debug)]
 pub enum AcpEvent {
-	/// Append a message to the chat panel.
-	PanelAppend { role: ChatRole, text: String },
-	/// Show a message (when no panel is open).
+	/// Show a message notification.
 	ShowMessage(String),
 	/// Request permission from the user.
 	RequestPermission {
@@ -104,8 +77,6 @@ pub const DEFAULT_MODEL: &str = "opencode/big-pickle";
 pub struct AcpState {
 	/// Event queue for UI consumption.
 	pub events: Arc<Mutex<Vec<AcpEvent>>>,
-	/// Current panel ID (if panel is open).
-	pub panel_id: Arc<Mutex<Option<u64>>>,
 	/// Last assistant response text (for insert_last command).
 	pub last_assistant_text: Arc<Mutex<String>>,
 	/// Pending permission requests waiting for user decision.
@@ -114,8 +85,6 @@ pub struct AcpState {
 	pub next_permission_id: Arc<AtomicU64>,
 	/// Workspace root directory for security checks.
 	pub workspace_root: Arc<Mutex<Option<PathBuf>>>,
-	/// Panels managed by ACP.
-	pub panels: Arc<Mutex<HashMap<u64, ChatPanelState>>>,
 	/// Current model ID (e.g., "opencode/big-pickle", "anthropic/claude-sonnet-4").
 	pub current_model: Arc<Mutex<String>>,
 	/// Available models from the agent (populated after session creation).
@@ -126,12 +95,10 @@ impl AcpState {
 	pub fn new() -> Self {
 		Self {
 			events: Arc::new(Mutex::new(Vec::new())),
-			panel_id: Arc::new(Mutex::new(None)),
 			last_assistant_text: Arc::new(Mutex::new(String::new())),
 			pending_permissions: Arc::new(Mutex::new(HashMap::new())),
 			next_permission_id: Arc::new(AtomicU64::new(1)),
 			workspace_root: Arc::new(Mutex::new(None)),
-			panels: Arc::new(Mutex::new(HashMap::new())),
 			current_model: Arc::new(Mutex::new(DEFAULT_MODEL.to_string())),
 			available_models: Arc::new(Mutex::new(Vec::new())),
 		}

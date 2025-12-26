@@ -2,7 +2,7 @@
 //!
 //! This module provides AI-assisted editing capabilities through the Agent Client Protocol.
 //! It manages communication with an external AI agent (opencode) and provides commands
-//! for starting/stopping the agent, toggling the chat panel, and inserting responses.
+//! for starting/stopping the agent and inserting responses.
 //!
 //! ## Module Structure
 //!
@@ -15,14 +15,11 @@
 mod backend;
 mod commands;
 mod handler;
-pub mod panel;
 mod state;
 pub mod types;
 
 use linkme::distributed_slice;
-use tome_api::editor::extensions::{
-	EXTENSIONS, ExtensionInitDef, ExtensionTickDef, TICK_EXTENSIONS,
-};
+use tome_api::editor::extensions::{EXTENSIONS, ExtensionInitDef};
 
 #[distributed_slice(EXTENSIONS)]
 static ACP_INIT: ExtensionInitDef = ExtensionInitDef {
@@ -33,14 +30,6 @@ static ACP_INIT: ExtensionInitDef = ExtensionInitDef {
 	},
 };
 
-#[distributed_slice(TICK_EXTENSIONS)]
-static ACP_TICK: ExtensionTickDef = ExtensionTickDef {
-	priority: 100,
-	tick: |editor| {
-		panel::poll_acp_events(editor);
-	},
-};
-
 // Re-export the manager and commonly used types at the module root
 pub use state::AcpManager;
-pub use types::{AcpEvent, ChatItem, ChatPanelState, ChatRole};
+pub use types::{AcpEvent, ChatRole};

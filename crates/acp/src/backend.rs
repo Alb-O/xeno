@@ -19,7 +19,7 @@ use tokio::sync::mpsc::Receiver;
 use tokio_util::compat::{TokioAsyncReadCompatExt, TokioAsyncWriteCompatExt};
 
 use crate::handler::AcpMessageHandler;
-use crate::types::{AcpEvent, AcpState, AgentCommand, ChatRole};
+use crate::types::{AcpEvent, AcpState, AgentCommand};
 
 /// Backend for ACP agent communication.
 pub struct AcpBackend {
@@ -263,25 +263,11 @@ impl AcpBackend {
 	}
 }
 
-/// Enqueue a system message line to the event queue.
+/// Enqueue a message to the event queue.
 pub fn enqueue_line(state: &AcpState, msg: String) {
 	let msg = strip_ansi_and_controls(&msg);
-
 	let mut events = state.events.lock();
-	if state.panel_id.lock().is_some() {
-		events.push(AcpEvent::PanelAppend {
-			role: ChatRole::System,
-			text: msg,
-		});
-	} else {
-		events.push(AcpEvent::ShowMessage(msg));
-	}
-}
-
-/// Enqueue a panel append event with a specific role.
-pub fn enqueue_panel_append(state: &AcpState, role: ChatRole, text: String) {
-	let mut events = state.events.lock();
-	events.push(AcpEvent::PanelAppend { role, text });
+	events.push(AcpEvent::ShowMessage(msg));
 }
 
 fn format_stderr_tail(stderr_tail: &Mutex<VecDeque<String>>) -> String {

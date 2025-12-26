@@ -33,6 +33,7 @@ impl Default for ManagerDefaults {
 
 #[derive(Debug)]
 pub(crate) struct NotificationState {
+	#[allow(dead_code, reason = "used by StackableNotification trait impl for identification")]
 	pub(crate) id: u64,
 	pub(crate) notification: Notification,
 	pub(crate) created_at: Instant,

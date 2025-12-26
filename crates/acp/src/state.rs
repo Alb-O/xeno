@@ -99,19 +99,10 @@ impl AcpManager {
 	}
 
 	/// Drain pending events from the queue.
+	#[allow(dead_code, reason = "Kept for future event polling if needed")]
 	pub fn drain_events(&self) -> Vec<AcpEvent> {
 		let mut events = self.state.events.lock();
 		std::mem::take(&mut *events)
-	}
-
-	/// Set the panel ID.
-	pub fn set_panel_id(&self, id: Option<u64>) {
-		*self.state.panel_id.lock() = id;
-	}
-
-	/// Get the current panel ID.
-	pub fn panel_id(&self) -> Option<u64> {
-		*self.state.panel_id.lock()
 	}
 
 	/// Handle a permission decision from the user.

@@ -11,8 +11,8 @@ use agent_client_protocol::{
 	SelectedPermissionOutcome, SessionUpdate, WriteTextFileResponse,
 };
 
-use crate::backend::enqueue_panel_append;
-use crate::types::{AcpEvent, AcpState, ChatRole, PermissionOption};
+use crate::backend::enqueue_line;
+use crate::types::{AcpEvent, AcpState, PermissionOption};
 
 /// Handler for ACP protocol messages.
 pub struct AcpMessageHandler {
@@ -133,10 +133,6 @@ async fn handle_permission_request(
 }
 
 fn handle_session_update(update: SessionUpdate, state: &AcpState) {
-	if state.panel_id.lock().is_none() {
-		return;
-	}
-
 	match update {
 		SessionUpdate::AgentMessageChunk(chunk) => {
 			if let ContentBlock::Text(text) = chunk.content {
@@ -145,12 +141,12 @@ fn handle_session_update(update: SessionUpdate, state: &AcpState) {
 					let mut last = state.last_assistant_text.lock();
 					last.push_str(&text.text);
 				}
-				enqueue_panel_append(state, ChatRole::Assistant, text.text);
+				enqueue_line(state, format!("[Assistant] {}", text.text));
 			}
 		}
 		SessionUpdate::AgentThoughtChunk(chunk) => {
 			if let ContentBlock::Text(text) = chunk.content {
-				enqueue_panel_append(state, ChatRole::Thought, text.text);
+				enqueue_line(state, format!("[Thought] {}", text.text));
 			}
 		}
 		_ => {}

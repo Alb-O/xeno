@@ -3,7 +3,6 @@
 //! These commands provide the user interface for the ACP integration:
 //! - acp_start: Start the agent
 //! - acp_stop: Stop the agent
-//! - acp_toggle: Toggle the chat panel
 //! - acp_insert_last: Insert the last assistant response
 //! - acp_cancel: Cancel the current request
 
@@ -14,11 +13,6 @@ use tome_manifest::{CommandContext, CommandError, CommandOutcome};
 use tome_stdlib::{NotifyINFOExt, command};
 
 use crate::AcpManager;
-use crate::panel::{AcpChatPanel, chat_panel_ui_id};
-use crate::types::ChatPanelState;
-
-/// Panel ID for the ACP chat panel.
-pub const ACP_PANEL_ID: u64 = u64::MAX - 1;
 
 command!(acp_start, {
 	aliases: &["acp.start"],
@@ -64,44 +58,6 @@ fn cmd_acp_stop<'a>(
 		} else {
 			Err(CommandError::Failed("ACP extension not loaded".to_string()))
 		}
-	})
-}
-
-command!(acp_toggle, {
-	aliases: &["acp.toggle", "acp"],
-	description: "Toggle the ACP chat panel"
-}, handler: cmd_acp_toggle);
-
-fn cmd_acp_toggle<'a>(
-	ctx: &'a mut CommandContext<'a>,
-) -> LocalBoxFuture<'a, Result<CommandOutcome, CommandError>> {
-	Box::pin(async move {
-		let editor = ctx.require_editor_mut();
-		let (panel_id, ui_id, has_acp) =
-			if let Some(acp) = editor.extensions.get_mut::<AcpManager>() {
-				let panel_id = acp.panel_id().unwrap_or(ACP_PANEL_ID);
-				let mut panels = acp.state.panels.lock();
-				if let std::collections::hash_map::Entry::Vacant(e) = panels.entry(panel_id) {
-					e.insert(ChatPanelState::new("ACP Agent".to_string()));
-					acp.set_panel_id(Some(panel_id));
-					(panel_id, chat_panel_ui_id(panel_id), true)
-				} else {
-					(panel_id, chat_panel_ui_id(panel_id), false)
-				}
-			} else {
-				return Err(CommandError::Failed("ACP extension not loaded".to_string()));
-			};
-
-		if has_acp {
-			editor.ui.register_panel(Box::new(AcpChatPanel::new(
-				panel_id,
-				"ACP Agent".to_string(),
-			)));
-		}
-
-		editor.ui.toggle_panel(&ui_id);
-		editor.needs_redraw = true;
-		Ok(CommandOutcome::Ok)
 	})
 }
 

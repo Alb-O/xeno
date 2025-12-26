@@ -2,6 +2,8 @@
 //!
 //! Generates Rust code that recreates a notification, useful for debugging.
 
+#![allow(dead_code, reason = "debugging utility for notification system development")]
+
 use std::time::Duration;
 
 use tome_base::Padding;
