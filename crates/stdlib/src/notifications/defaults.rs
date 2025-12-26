@@ -28,7 +28,7 @@ register_notification!(
 	"error",
 	level: Level::Error,
 	semantic: SEMANTIC_ERROR,
-	dismiss: AutoDismiss::Never
+	dismiss: AutoDismiss::After(Duration::from_secs(8))
 );
 
 register_notification!(

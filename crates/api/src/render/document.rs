@@ -97,6 +97,7 @@ impl Editor {
 
 		let mut notifications_area = doc_area;
 		notifications_area.height = notifications_area.height.saturating_sub(1);
+		notifications_area.width = notifications_area.width.saturating_sub(1);
 		self.notifications.render(frame, notifications_area);
 
 		if self.completions.active {
