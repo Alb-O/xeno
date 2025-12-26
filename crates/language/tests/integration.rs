@@ -92,17 +92,16 @@ fn test_syntax_config_loading() {
 
 #[test]
 fn test_highlight_styles_creation() {
+	use tome_base::{Color, Style};
+
 	let scopes = ["keyword", "function", "string", "comment"];
 
-	let styles = HighlightStyles::new(&scopes, |scope| {
-		use ratatui::style::{Color, Style};
-		match scope {
-			"keyword" => Style::default().fg(Color::Red),
-			"function" => Style::default().fg(Color::Blue),
-			"string" => Style::default().fg(Color::Green),
-			"comment" => Style::default().fg(Color::Gray),
-			_ => Style::default(),
-		}
+	let styles = HighlightStyles::new(&scopes, |scope| match scope {
+		"keyword" => Style::new().fg(Color::Red),
+		"function" => Style::new().fg(Color::Blue),
+		"string" => Style::new().fg(Color::Green),
+		"comment" => Style::new().fg(Color::Gray),
+		_ => Style::new(),
 	});
 
 	assert_eq!(styles.len(), 4);
@@ -111,14 +110,14 @@ fn test_highlight_styles_creation() {
 
 #[test]
 fn test_highlight_styles_resolution() {
-	use ratatui::style::{Color, Style};
+	use tome_base::{Color, Style};
 
 	let scopes = ["keyword", "function"];
 
 	let styles = HighlightStyles::new(&scopes, |scope| match scope {
-		"keyword" => Style::default().fg(Color::Red),
-		"function" => Style::default().fg(Color::Blue),
-		_ => Style::default(),
+		"keyword" => Style::new().fg(Color::Red),
+		"function" => Style::new().fg(Color::Blue),
+		_ => Style::new(),
 	});
 
 	let keyword_style = styles.style_for_highlight(Highlight::new(0));
@@ -178,7 +177,7 @@ fn test_grammar_loading_debug() {
 
 #[test]
 fn test_full_highlighting_pipeline() {
-	use ratatui::style::{Color, Style};
+	use tome_base::{Color, Style};
 
 	let mut loader = LanguageLoader::new();
 
@@ -222,14 +221,14 @@ fn test_full_highlighting_pipeline() {
 			"operator",
 		],
 		|scope| match scope {
-			s if s.starts_with("keyword") => Style::default().fg(Color::Red),
-			s if s.starts_with("function") => Style::default().fg(Color::Blue),
-			s if s.starts_with("variable") => Style::default().fg(Color::Yellow),
-			s if s.starts_with("type") => Style::default().fg(Color::Green),
-			s if s.starts_with("string") => Style::default().fg(Color::Magenta),
-			"number" => Style::default().fg(Color::Cyan),
-			"operator" => Style::default().fg(Color::White),
-			_ => Style::default(),
+			s if s.starts_with("keyword") => Style::new().fg(Color::Red),
+			s if s.starts_with("function") => Style::new().fg(Color::Blue),
+			s if s.starts_with("variable") => Style::new().fg(Color::Yellow),
+			s if s.starts_with("type") => Style::new().fg(Color::Green),
+			s if s.starts_with("string") => Style::new().fg(Color::Magenta),
+			"number" => Style::new().fg(Color::Cyan),
+			"operator" => Style::new().fg(Color::White),
+			_ => Style::new(),
 		},
 	);
 

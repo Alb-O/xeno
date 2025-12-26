@@ -407,10 +407,10 @@ impl Editor {
 			self.doc.len_bytes() as u32
 		};
 
-		// Create highlight styles from theme to resolve captures to styles
+		// Create highlight styles from theme to resolve captures to abstract styles
 		let highlight_styles =
 			tome_language::highlight::HighlightStyles::new(SyntaxStyles::scope_names(), |scope| {
-				self.theme.colors.syntax.resolve(scope).into()
+				self.theme.colors.syntax.resolve(scope)
 			});
 
 		// Get highlighter for visible range
@@ -420,11 +420,12 @@ impl Editor {
 			start_byte..end_byte,
 		);
 
-		// Collect spans with resolved styles
+		// Collect spans with resolved styles, converting at UI boundary
 		highlighter
 			.map(|span| {
-				let style = highlight_styles.style_for_highlight(span.highlight);
-				(span, style)
+				let abstract_style = highlight_styles.style_for_highlight(span.highlight);
+				let ratatui_style: ratatui::style::Style = abstract_style.into();
+				(span, ratatui_style)
 			})
 			.collect()
 	}

@@ -2435,7 +2435,6 @@ dependencies = [
  "libloading",
  "log",
  "once_cell",
- "ratatui 0.30.0-hackable",
  "regex",
  "ropey",
  "serde",

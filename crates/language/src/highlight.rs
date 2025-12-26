@@ -5,8 +5,8 @@
 
 use std::ops::{Bound, RangeBounds};
 
-use ratatui::style::Style;
 use ropey::RopeSlice;
+use tome_base::Style;
 // Re-export tree-house highlight types for convenience.
 pub use tree_house::highlighter::{Highlight, HighlightEvent};
 
@@ -203,7 +203,7 @@ impl HighlightSpan {
 
 #[cfg(test)]
 mod tests {
-	use ratatui::style::Color;
+	use tome_base::Color;
 
 	use super::*;
 
@@ -212,19 +212,19 @@ mod tests {
 		let scopes = ["keyword", "string"];
 
 		let styles = HighlightStyles::new(&scopes, |scope| match scope {
-			"keyword" => Style::default().fg(Color::Red),
-			"string" => Style::default().fg(Color::Green),
-			_ => Style::default(),
+			"keyword" => Style::new().fg(Color::Red),
+			"string" => Style::new().fg(Color::Green),
+			_ => Style::new(),
 		});
 
 		assert_eq!(styles.len(), 2);
 		assert_eq!(
 			styles.style_for_highlight(Highlight::new(0)),
-			Style::default().fg(Color::Red)
+			Style::new().fg(Color::Red)
 		);
 		assert_eq!(
 			styles.style_for_highlight(Highlight::new(1)),
-			Style::default().fg(Color::Green)
+			Style::new().fg(Color::Green)
 		);
 	}
 
