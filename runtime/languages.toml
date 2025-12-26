@@ -1594,7 +1594,7 @@ auto-format = true
 
 [[grammar]]
 name = "yaml"
-source = { git = "https://github.com/ikatyang/tree-sitter-yaml", rev = "0e36bed171768908f331ff7dff9d956bae016efb" }
+source = { git = "https://github.com/tree-sitter-grammars/tree-sitter-yaml", rev = "7708026449bed86239b1cd5bce6e3c34dbca6415" }
 
 [[language]]
 name = "nestedtext"
