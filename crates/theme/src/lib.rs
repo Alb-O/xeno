@@ -259,6 +259,7 @@ pub fn suggest_theme(name: &str) -> Option<&'static str> {
 use futures::future::LocalBoxFuture;
 use tome_manifest::completion::{
 	CompletionContext, CompletionItem, CompletionKind, CompletionResult, CompletionSource,
+	PROMPT_COMMAND,
 };
 use tome_manifest::editor_ctx::MessageAccess;
 use tome_manifest::{
@@ -313,7 +314,7 @@ pub struct ThemeSource;
 
 impl CompletionSource for ThemeSource {
 	fn complete(&self, ctx: &CompletionContext) -> CompletionResult {
-		if ctx.prompt != ':' {
+		if ctx.prompt != PROMPT_COMMAND {
 			return CompletionResult::empty();
 		}
 
@@ -377,7 +378,7 @@ mod tests {
 		let ctx = CompletionContext {
 			input: "theme ".to_string(),
 			cursor: 6,
-			prompt: ':',
+			prompt: PROMPT_COMMAND,
 		};
 
 		let result = ThemeSource.complete(&ctx);
@@ -394,7 +395,7 @@ mod tests {
 		let ctx = CompletionContext {
 			input: "theme gr".to_string(),
 			cursor: 8,
-			prompt: ':',
+			prompt: PROMPT_COMMAND,
 		};
 
 		let result = ThemeSource.complete(&ctx);
@@ -412,7 +413,7 @@ mod tests {
 		let ctx = CompletionContext {
 			input: "colorscheme ".to_string(),
 			cursor: 12,
-			prompt: ':',
+			prompt: PROMPT_COMMAND,
 		};
 
 		let result = ThemeSource.complete(&ctx);
@@ -428,7 +429,7 @@ mod tests {
 		let ctx = CompletionContext {
 			input: "write ".to_string(),
 			cursor: 6,
-			prompt: ':',
+			prompt: PROMPT_COMMAND,
 		};
 
 		let result = ThemeSource.complete(&ctx);
@@ -440,7 +441,7 @@ mod tests {
 		let ctx = CompletionContext {
 			input: "them".to_string(),
 			cursor: 4,
-			prompt: ':',
+			prompt: PROMPT_COMMAND,
 		};
 
 		let result = ThemeSource.complete(&ctx);

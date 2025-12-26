@@ -6,6 +6,9 @@
 
 use crate::COMMANDS;
 
+/// Prompt character for ex-style commands (`:write`, `:theme`, etc.).
+pub const PROMPT_COMMAND: char = ':';
+
 /// Type of completion item.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CompletionKind {
@@ -91,7 +94,7 @@ pub struct CommandSource;
 
 impl CompletionSource for CommandSource {
 	fn complete(&self, ctx: &CompletionContext) -> CompletionResult {
-		if ctx.prompt != ':' {
+		if ctx.prompt != PROMPT_COMMAND {
 			return CompletionResult::empty();
 		}
 
