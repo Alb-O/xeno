@@ -12,14 +12,6 @@ pub struct Cli {
 	/// File to edit (opens scratch buffer if omitted)
 	pub file: Option<PathBuf>,
 
-	/// Execute an Ex command at startup (e.g. "acp.start")
-	#[arg(long = "ex", short = 'c')]
-	pub ex: Option<String>,
-
-	/// Exit immediately after running `--ex`
-	#[arg(long, short = 'q')]
-	pub quit_after_ex: bool,
-
 	#[command(subcommand)]
 	pub command: Option<Command>,
 }

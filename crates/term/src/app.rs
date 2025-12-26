@@ -13,11 +13,7 @@ use crate::terminal::{
 	enable_terminal_features, install_panic_hook,
 };
 
-pub async fn run_editor(
-	mut editor: Editor,
-	startup_ex: Option<String>,
-	quit_after_ex: bool,
-) -> io::Result<()> {
+pub async fn run_editor(mut editor: Editor) -> io::Result<()> {
 	let mut terminal = PlatformTerminal::new()?;
 	install_panic_hook(&mut terminal);
 	enable_terminal_features(&mut terminal)?;
@@ -28,15 +24,6 @@ pub async fn run_editor(
 
 	// Start UI panels (includes terminal prewarm).
 	editor.ui_startup();
-
-	if let Some(cmd) = startup_ex.as_deref() {
-		let should_quit = editor.execute_ex_command(cmd).await;
-		if quit_after_ex || should_quit {
-			let terminal_inner = terminal.backend_mut().terminal_mut();
-			let cleanup_result = disable_terminal_features(terminal_inner);
-			return cleanup_result;
-		}
-	}
 
 	let result: io::Result<()> = async {
 		loop {

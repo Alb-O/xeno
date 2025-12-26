@@ -124,7 +124,6 @@ bind!(KB_CTRL_B, Key::ctrl('b'), "scroll_page_up");
 bind!(KB_CTRL_F, Key::ctrl('f'), "scroll_page_down");
 
 bind!(KB_V, Key::char('v'), "view_mode");
-bind!(KB_COLON, Key::char(':'), "command_mode");
 
 bind!(KB_F, Key::char('f'), "find_char");
 bind!(KB_T, Key::char('t'), "find_char_to");
@@ -140,20 +139,6 @@ bind!(KB_BRACKET_CLOSE, Key::char(']'), "select_object_to_end");
 bind!(KB_BRACE_OPEN, Key::char('{'), "select_object_to_start");
 bind!(KB_BRACE_CLOSE, Key::char('}'), "select_object_to_end");
 
-bind!(KB_SLASH, Key::char('/'), "search_forward");
-bind!(KB_QUESTION, Key::char('?'), "search_backward");
-bind!(KB_N, Key::char('n'), "search_next");
-bind!(KB_N_UPPER, Key::char('N'), "search_next_add");
-bind!(KB_N_ALT, Key::alt('n'), "search_prev");
-bind!(KB_N_ALT_UPPER, Key::alt('N'), "search_prev_add");
-bind!(KB_STAR, Key::char('*'), "use_selection_as_search");
-
-bind!(KB_S, Key::char('s'), "select_regex");
-bind!(KB_S_UPPER, Key::char('S'), "split_regex");
-bind!(KB_S_ALT, Key::alt('s'), "split_lines");
-bind!(KB_K_ALT, Key::alt('k'), "keep_matching");
-bind!(KB_K_ALT_UPPER, Key::alt('K'), "keep_not_matching");
-
 bind!(KB_CTRL_I, Key::ctrl('i'), "jump_forward");
 bind!(KB_CTRL_O, Key::ctrl('o'), "jump_backward");
 bind!(KB_CTRL_S, Key::ctrl('s'), "save_jump");
@@ -168,11 +153,6 @@ bind!(KB_CTRL_L, Key::ctrl('l'), "force_redraw");
 
 bind!(KB_DOT, Key::char('.'), "repeat_last_insert");
 bind!(KB_DOT_ALT, Key::alt('.'), "repeat_last_object");
-
-bind!(KB_PIPE, Key::char('|'), "pipe_replace");
-bind!(KB_PIPE_ALT, Key::alt('|'), "pipe_ignore");
-bind!(KB_BANG, Key::char('!'), "insert_output");
-bind!(KB_BANG_ALT, Key::alt('!'), "append_output");
 
 bind!(KB_PLUS_DUP, Key::char('+'), "duplicate_selections_down");
 bind!(KB_C_DUP, Key::char('C'), "duplicate_selections_down");

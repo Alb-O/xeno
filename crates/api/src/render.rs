@@ -1,6 +1,5 @@
 mod completion;
 mod document;
-mod message;
 pub mod notifications;
 mod status;
 pub mod terminal;

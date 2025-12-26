@@ -21,11 +21,10 @@ pub fn generate_code(notification: &Notification) -> String {
 		lines.push(format!("    .title(\"{}\")", title_str));
 	}
 
-	if notification.level != defaults.level {
-		if let Some(level) = notification.level {
+	if notification.level != defaults.level
+		&& let Some(level) = notification.level {
 			lines.push(format!("    .level(Level::{:?})", level));
 		}
-	}
 
 	if notification.anchor != defaults.anchor {
 		lines.push(format!("    .anchor(Anchor::{:?})", notification.anchor));
@@ -66,15 +65,14 @@ pub fn generate_code(notification: &Notification) -> String {
 	let size_changed = notification.max_width != defaults.max_width
 		|| notification.max_height != defaults.max_height;
 
-	if size_changed {
-		if let (Some(w), Some(h)) = (notification.max_width, notification.max_height) {
+	if size_changed
+		&& let (Some(w), Some(h)) = (notification.max_width, notification.max_height) {
 			lines.push(format!(
 				"    .max_size({}, {})",
 				format_size_constraint(w),
 				format_size_constraint(h)
 			));
 		}
-	}
 
 	if notification.padding != defaults.padding {
 		lines.push(format!(
@@ -133,7 +131,7 @@ fn format_timing(timing: Timing) -> String {
 
 fn format_duration_as_timing(d: Duration) -> String {
 	let millis = d.as_millis();
-	if millis % 1000 == 0 {
+	if millis.is_multiple_of(1000) {
 		format!("Timing::Fixed(Duration::from_secs({}))", millis / 1000)
 	} else {
 		format!("Timing::Fixed(Duration::from_millis({}))", millis)

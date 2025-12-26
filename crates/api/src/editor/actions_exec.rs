@@ -1,73 +1,8 @@
-use tome_manifest::{
-	ActionArgs, ActionContext, ActionResult, CommandContext, CommandOutcome, find_action,
-	find_command,
-};
+use tome_manifest::{ActionArgs, ActionContext, ActionResult, find_action};
 
 use crate::editor::Editor;
 
 impl Editor {
-	pub async fn execute_ex_command(&mut self, input: &str) -> bool {
-		let input = input.trim();
-		let input = input.strip_prefix(':').unwrap_or(input);
-		self.execute_command_line(input).await
-	}
-
-	pub(crate) async fn execute_command_line(&mut self, input: &str) -> bool {
-		let trimmed = input.trim();
-		if trimmed.is_empty() {
-			return false;
-		}
-
-		let mut parts = trimmed.split_whitespace();
-		let name = match parts.next() {
-			Some(n) => n,
-			None => return false,
-		};
-
-		let arg_strings: Vec<String> = parts.map(|s| s.to_string()).collect();
-		let args: Vec<&str> = arg_strings.iter().map(|s| s.as_str()).collect();
-
-		let cmd = match find_command(name) {
-			Some(cmd) => cmd,
-			None => {
-				self.notify("error", format!("Unknown command: {}", name));
-				return false;
-			}
-		};
-
-		// Check required capabilities before creating ctx
-		{
-			use tome_manifest::EditorContext;
-			let mut e_ctx = EditorContext::new(self);
-			if let Err(e) = e_ctx.check_all_capabilities(cmd.required_caps) {
-				self.notify("error", e.to_string());
-				return false;
-			}
-		}
-
-		let result = {
-			let mut ctx = CommandContext {
-				editor: self,
-				args: &args,
-				count: 1,
-				register: None,
-				user_data: cmd.user_data,
-			};
-
-			(cmd.handler)(&mut ctx).await
-		};
-
-		match result {
-			Ok(CommandOutcome::Ok) => false,
-			Ok(CommandOutcome::Quit) => true,
-			Ok(CommandOutcome::ForceQuit) => true,
-			Err(e) => {
-				self.notify("error", e.to_string());
-				false
-			}
-		}
-	}
-
 	pub(crate) fn execute_action(
 		&mut self,
 		name: &str,

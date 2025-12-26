@@ -21,9 +21,3 @@ action!(insert_mode, { description: "Enter insert mode" }, handler: action_inser
 fn action_insert_mode(_ctx: &ActionContext) -> ActionResult {
 	ActionResult::ModeChange(ActionMode::Insert)
 }
-
-action!(command_mode, { description: "Open command scratch buffer" }, handler: action_command_mode);
-
-fn action_command_mode(_ctx: &ActionContext) -> ActionResult {
-	ActionResult::ModeChange(ActionMode::Command)
-}

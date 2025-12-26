@@ -189,15 +189,14 @@ impl ZenmodeState {
 		// If new range is contained within current range, ignore it.
 		// This prevents flickering when moving within a function to a nested
 		// block that would technically be a "different" focus node.
-		if let (Some(current), Some(new)) = (&self.focus_range, &new_range) {
-			if new.start >= current.start && new.end <= current.end {
+		if let (Some(current), Some(new)) = (&self.focus_range, &new_range)
+			&& new.start >= current.start && new.end <= current.end {
 				// New range is inside current - keep current, clear pending
 				self.pending_focus_range = None;
 				self.pending_since = None;
 				self.pending_is_undim_all = false;
 				return;
 			}
-		}
 
 		let is_undim_all = new_range.is_none() && self.focus_range.is_some();
 
@@ -352,11 +351,11 @@ fn find_focus_range(syntax: &tome_language::syntax::Syntax, cursor_byte: u32) ->
 fn update_zenmode(editor: &mut Editor) {
 	// First, read the state to check if enabled and get config
 	let (enabled, dim_factor, animate, current_range) = {
-		let state = match editor.extensions.get::<ZenmodeState>() {
+		
+		match editor.extensions.get::<ZenmodeState>() {
 			Some(s) => (s.enabled, s.dim_factor, s.animate, s.focus_range.clone()),
 			None => return,
-		};
-		state
+		}
 	};
 
 	if !enabled {
@@ -404,7 +403,8 @@ fn update_zenmode(editor: &mut Editor) {
 
 	// Read current state for rendering
 	let (effective_range, is_animating, progress, prev_focus_range, has_pending, is_undim_all) = {
-		let state = match editor.extensions.get::<ZenmodeState>() {
+		
+		match editor.extensions.get::<ZenmodeState>() {
 			Some(s) => (
 				s.effective_range().cloned(),
 				s.is_animating(),
@@ -414,8 +414,7 @@ fn update_zenmode(editor: &mut Editor) {
 				s.is_undim_all(),
 			),
 			None => return,
-		};
-		state
+		}
 	};
 
 	let doc_len = editor.doc.len_bytes();

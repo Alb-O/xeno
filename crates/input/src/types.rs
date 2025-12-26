@@ -44,26 +44,6 @@ pub enum KeyResult {
 	Unhandled,
 	/// Insert a character (in insert mode).
 	InsertChar(char),
-	/// Execute a command-line command (from `:` prompt).
-	ExecuteCommand(String),
-	/// Execute a search (from `/` or `?` prompt).
-	ExecuteSearch { pattern: String, reverse: bool },
-	/// Select regex matches within selection (from `s` prompt).
-	SelectRegex { pattern: String },
-	/// Split selection on regex (from `S` prompt).
-	SplitRegex { pattern: String },
-	/// Keep selections matching regex (from `alt-k` prompt).
-	KeepMatching { pattern: String },
-	/// Keep selections not matching regex (from `alt-K` prompt).
-	KeepNotMatching { pattern: String },
-	/// Pipe selection through shell command, replace with output.
-	PipeReplace { command: String },
-	/// Pipe selection through shell command, ignore output.
-	PipeIgnore { command: String },
-	/// Insert shell command output before selection.
-	InsertOutput { command: String },
-	/// Append shell command output after selection.
-	AppendOutput { command: String },
 	/// Request to quit.
 	Quit,
 	/// Mouse click at screen coordinates.

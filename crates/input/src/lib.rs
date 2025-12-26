@@ -1,4 +1,3 @@
-pub mod command;
 pub mod handler;
 pub mod insert;
 pub mod normal;

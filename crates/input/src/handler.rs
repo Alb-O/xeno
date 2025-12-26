@@ -47,14 +47,6 @@ impl InputHandler {
 			Mode::Insert => "INSERT",
 			Mode::Goto => "GOTO",
 			Mode::View => "VIEW",
-			Mode::Command { prompt, .. } => match prompt {
-				':' => "COMMAND",
-				'/' | '?' => "SEARCH",
-				's' | 'S' => "SELECT",
-				'k' | 'K' => "FILTER",
-				'|' | '\\' | '!' | '@' => "SHELL",
-				_ => "PROMPT",
-			},
 			Mode::PendingAction(kind) => match kind {
 				PendingKind::FindChar { .. } | PendingKind::FindCharReverse { .. } => "FIND",
 				PendingKind::ReplaceChar => "REPLACE",
@@ -73,14 +65,6 @@ impl InputHandler {
 
 	pub fn register(&self) -> Option<char> {
 		self.register
-	}
-
-	/// Get command line input if in command mode.
-	pub fn command_line(&self) -> Option<(char, &str)> {
-		match &self.mode {
-			Mode::Command { prompt, input } => Some((*prompt, input.as_str())),
-			_ => None,
-		}
 	}
 
 	pub fn set_mode(&mut self, mode: Mode) {
@@ -113,11 +97,6 @@ impl InputHandler {
 			Mode::Insert => self.handle_insert_key(key),
 			Mode::Goto => self.handle_goto_key(key),
 			Mode::View => self.handle_view_key(key),
-			Mode::Command { prompt, input } => {
-				let prompt = *prompt;
-				let input = input.clone();
-				self.handle_command_key(key, prompt, input)
-			}
 			Mode::PendingAction(kind) => {
 				let kind = *kind;
 				self.handle_pending_action_key(key, kind)

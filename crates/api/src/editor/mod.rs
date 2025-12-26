@@ -159,11 +159,10 @@ impl Editor {
 	fn compute_virtual_path(path: &PathBuf, cwd: &PathBuf) -> Option<String> {
 		let path_str = path.to_str()?;
 
-		if path.is_absolute() {
-			if let Ok(relative) = path.strip_prefix(cwd) {
+		if path.is_absolute()
+			&& let Ok(relative) = path.strip_prefix(cwd) {
 				return relative.to_str().map(String::from);
 			}
-		}
 
 		Some(path_str.to_string())
 	}

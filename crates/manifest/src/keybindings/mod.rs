@@ -82,7 +82,6 @@ impl From<Mode> for BindingMode {
 			Mode::Insert => BindingMode::Insert,
 			Mode::Goto => BindingMode::Goto,
 			Mode::View => BindingMode::View,
-			Mode::Command { .. } => BindingMode::Normal,
 			Mode::PendingAction(_) => BindingMode::Normal,
 		}
 	}

@@ -19,10 +19,7 @@ mod insert;
 mod misc;
 mod modes;
 mod motions;
-mod pipe;
-mod regex_select;
 mod scroll;
-mod search;
 mod selection_ops;
 mod text_objects;
 

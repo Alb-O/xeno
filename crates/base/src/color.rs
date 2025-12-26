@@ -11,9 +11,11 @@ use serde::{Deserialize, Serialize};
 /// This enum mirrors standard ANSI terminal color capabilities.
 /// Colors 0-7 are the regular colors, 8-15 are bright variants.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Default)]
 pub enum Color {
 	/// Resets the terminal color to default.
-	Reset,
+	#[default]
+ Reset,
 	/// ANSI 0: Black
 	Black,
 	/// ANSI 1: Red
@@ -52,11 +54,6 @@ pub enum Color {
 	Indexed(u8),
 }
 
-impl Default for Color {
-	fn default() -> Self {
-		Self::Reset
-	}
-}
 
 /// Text style modifiers (bold, italic, underline, etc.).
 ///

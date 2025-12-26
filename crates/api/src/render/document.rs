@@ -51,16 +51,9 @@ impl Editor {
 		let bg_block = Block::default().style(Style::default().bg(self.theme.colors.ui.bg.into()));
 		frame.render_widget(bg_block, area);
 
-		let has_command_line = self.input.command_line().is_some();
-		let message_height = if has_command_line { 1 } else { 0 };
-
 		let chunks = Layout::default()
 			.direction(Direction::Vertical)
-			.constraints([
-				Constraint::Min(1),
-				Constraint::Length(message_height),
-				Constraint::Length(1),
-			])
+			.constraints([Constraint::Min(1), Constraint::Length(1)])
 			.split(area);
 
 		let mut ui = std::mem::take(&mut self.ui);
@@ -81,53 +74,15 @@ impl Editor {
 		}
 		self.ui = ui;
 
-		if has_command_line {
-			let message_bg =
-				Block::default().style(Style::default().bg(self.theme.colors.popup.bg.into()));
-			frame.render_widget(message_bg, chunks[1]);
-			frame.render_widget(self.render_message_line(), chunks[1]);
-
-			// Position cursor at end of command line input
-			if let Some((prompt, input)) = self.input.command_line() {
-				let cursor_x = chunks[1].x + 1 + input.len() as u16;
-				let cursor_y = chunks[1].y;
-				frame.set_cursor_position((cursor_x, cursor_y));
-			}
-		}
-
 		let status_bg =
 			Block::default().style(Style::default().bg(self.theme.colors.popup.bg.into()));
-		frame.render_widget(status_bg, chunks[2]);
-		frame.render_widget(self.render_status_line(), chunks[2]);
+		frame.render_widget(status_bg, chunks[1]);
+		frame.render_widget(self.render_status_line(), chunks[1]);
 
 		let mut notifications_area = doc_area;
 		notifications_area.height = notifications_area.height.saturating_sub(1);
 		notifications_area.width = notifications_area.width.saturating_sub(1);
 		self.notifications.render(frame, notifications_area);
-
-		if self.completions.active {
-			use crate::editor::types::CompletionState;
-
-			let max_label_len = self
-				.completions
-				.items
-				.iter()
-				.map(|it| it.label.len())
-				.max()
-				.unwrap_or(0);
-			let menu_width = (max_label_len + 10) as u16;
-			let visible_count = self.completions.items.len().min(CompletionState::MAX_VISIBLE);
-			let menu_height = visible_count as u16;
-
-			let menu_area = Rect {
-				x: chunks[1].x,
-				y: chunks[1].y.saturating_sub(menu_height),
-				width: menu_width.min(chunks[1].width),
-				height: menu_height,
-			};
-			frame.render_widget(Clear, menu_area);
-			frame.render_widget(self.render_completion_menu(menu_area), menu_area);
-		}
 	}
 
 	/// Renders the document with cursor tracking and visual effects.

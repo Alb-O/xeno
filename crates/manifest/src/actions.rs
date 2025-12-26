@@ -108,17 +108,6 @@ pub enum ActionMode {
 	Insert,
 	Goto,
 	View,
-	Command,
-	SearchForward,
-	SearchBackward,
-	SelectRegex,
-	SplitRegex,
-	KeepMatching,
-	KeepNotMatching,
-	PipeReplace,
-	PipeIgnore,
-	InsertOutput,
-	AppendOutput,
 }
 
 #[derive(Debug, Clone)]

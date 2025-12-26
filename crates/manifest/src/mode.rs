@@ -10,11 +10,6 @@ pub enum Mode {
 	Insert,
 	Goto,
 	View,
-	/// Command line input mode (for `:`, `/`, `?`, regex, pipe prompts).
-	Command {
-		prompt: char,
-		input: String,
-	},
 	/// Waiting for character input to complete an action.
 	PendingAction(PendingKind),
 }
@@ -27,7 +22,6 @@ impl Mode {
 			Mode::Insert => "insert",
 			Mode::Goto => "goto",
 			Mode::View => "view",
-			Mode::Command { .. } => "command",
 			Mode::PendingAction(_) => "pending",
 		}
 	}

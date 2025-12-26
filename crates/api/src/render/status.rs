@@ -55,9 +55,6 @@ impl Editor {
 					Mode::View => Style::default()
 						.bg(self.theme.colors.status.view_bg.into())
 						.fg(self.theme.colors.status.view_fg.into()),
-					Mode::Command { .. } => Style::default()
-						.bg(self.theme.colors.status.command_bg.into())
-						.fg(self.theme.colors.status.command_fg.into()),
 					Mode::PendingAction(_) => Style::default()
 						.bg(self.theme.colors.status.command_bg.into())
 						.fg(self.theme.colors.status.command_fg.into()),

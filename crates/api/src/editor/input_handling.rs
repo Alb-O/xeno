@@ -1,7 +1,6 @@
-use tome_base::{Key, KeyCode, Selection, SpecialKey};
+use tome_base::{Key, Selection};
 use tome_input::KeyResult;
 use tome_manifest::Mode;
-use tome_stdlib::movement;
 
 use crate::editor::Editor;
 
@@ -36,62 +35,7 @@ impl Editor {
 		let old_mode = self.mode();
 		let key: Key = key.into();
 
-		// Handle completion menu navigation (Tab, Shift+Tab, Up, Down)
-		if let Mode::Command { .. } = self.mode()
-			&& self.completions.active
-		{
-			let is_nav_key = matches!(
-				key.code,
-				KeyCode::Special(SpecialKey::Tab)
-					| KeyCode::Special(SpecialKey::Up)
-					| KeyCode::Special(SpecialKey::Down)
-			);
-
-			if is_nav_key {
-				let len = self.completions.items.len();
-				if len > 0 {
-					let go_up = matches!(key.code, KeyCode::Special(SpecialKey::Up))
-						|| (matches!(key.code, KeyCode::Special(SpecialKey::Tab))
-							&& key.modifiers.shift);
-
-					let new_idx = if go_up {
-						match self.completions.selected_idx {
-							Some(idx) => (idx + len - 1) % len,
-							None => len - 1,
-						}
-					} else {
-						match self.completions.selected_idx {
-							Some(idx) => (idx + 1) % len,
-							None => 0,
-						}
-					};
-					self.completions.selected_idx = Some(new_idx);
-					self.completions.ensure_selected_visible();
-
-					let item = self.completions.items[new_idx].clone();
-					if let Mode::Command { prompt, input } = self.input.mode() {
-						// Replace from stored start position to end of input
-						let start = self.completions.replace_start.min(input.len());
-						let prefix = &input[..start];
-						let new_input = format!("{}{}", prefix, item.insert_text);
-						self.input.set_mode(Mode::Command {
-							prompt,
-							input: new_input,
-						});
-					}
-					return false;
-				}
-			}
-		}
-
 		let result = self.input.handle_key(key);
-
-		if let Mode::Command { .. } = self.mode() {
-			// Update completions for keys other than Tab/BackTab (which return false).
-			self.update_completions();
-		} else {
-			self.completions.active = false;
-		}
 
 		match result {
 			// Typed ActionId dispatch (preferred path)
@@ -157,73 +101,6 @@ impl Editor {
 				self.insert_text(&c.to_string());
 				false
 			}
-			KeyResult::ExecuteCommand(cmd) => self.execute_command_line(&cmd).await,
-			KeyResult::ExecuteSearch { pattern, reverse } => {
-				self.input.set_last_search(pattern.clone(), reverse);
-				let result = if reverse {
-					movement::find_prev(self.doc.slice(..), &pattern, self.cursor)
-				} else {
-					movement::find_next(self.doc.slice(..), &pattern, self.cursor + 1)
-				};
-				match result {
-					Ok(Some(range)) => {
-						self.cursor = range.head;
-						self.selection = Selection::single(range.min(), range.max());
-						self.notify("info", format!("Found: {}", pattern));
-					}
-					Ok(None) => {
-						self.notify("warn", format!("Pattern not found: {}", pattern));
-					}
-					Err(e) => {
-						self.notify("error", format!("Regex error: {}", e));
-					}
-				}
-				false
-			}
-			KeyResult::SelectRegex { pattern } => {
-				self.select_regex(&pattern);
-				false
-			}
-			KeyResult::SplitRegex { pattern } => {
-				self.split_regex(&pattern);
-				false
-			}
-			KeyResult::KeepMatching { pattern } => {
-				self.keep_matching(&pattern, false);
-				false
-			}
-			KeyResult::KeepNotMatching { pattern } => {
-				self.keep_matching(&pattern, true);
-				false
-			}
-			KeyResult::PipeReplace { command } => {
-				self.notify(
-					"error",
-					format!("Pipe (replace) not yet implemented: {}", command),
-				);
-				false
-			}
-			KeyResult::PipeIgnore { command } => {
-				self.notify(
-					"error",
-					format!("Pipe (ignore) not yet implemented: {}", command),
-				);
-				false
-			}
-			KeyResult::InsertOutput { command } => {
-				self.notify(
-					"error",
-					format!("Insert output not yet implemented: {}", command),
-				);
-				false
-			}
-			KeyResult::AppendOutput { command } => {
-				self.notify(
-					"error",
-					format!("Append output not yet implemented: {}", command),
-				);
-				false
-			}
 			KeyResult::Consumed => false,
 			KeyResult::Unhandled => false,
 			KeyResult::Quit => true,
@@ -245,9 +122,8 @@ impl Editor {
 	pub async fn handle_mouse(&mut self, mouse: termina::event::MouseEvent) -> bool {
 		let width = self.window_width.unwrap_or(80);
 		let height = self.window_height.unwrap_or(24);
-		let has_command_line = self.input.command_line().is_some();
-		let message_height = if has_command_line { 1 } else { 0 };
-		let main_height = height.saturating_sub(message_height + 1);
+		// Main area excludes status line (1 row)
+		let main_height = height.saturating_sub(1);
 		let main_area = ratatui::layout::Rect {
 			x: 0,
 			y: 0,
