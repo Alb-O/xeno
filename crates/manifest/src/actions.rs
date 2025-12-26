@@ -4,53 +4,132 @@ use tome_base::range::CharIdx;
 
 use crate::{Capability, RegistrySource};
 
+/// Result of executing an action.
+///
+/// Each variant is marked as either terminal-safe or not. Terminal-safe results
+/// can be applied when a terminal view is focused; others require a text buffer.
 #[derive(Debug, Clone)]
 pub enum ActionResult {
+	// === Terminal-safe: workspace-level operations ===
+	/// No-op success.
 	Ok,
-	ModeChange(ActionMode),
-	CursorMove(CharIdx),
-	Motion(Selection),
-	InsertWithMotion(Selection),
-	Edit(EditAction),
+	/// Quit the editor.
 	Quit,
+	/// Force quit without save prompts.
 	ForceQuit,
+	/// Error message to display.
 	Error(String),
-	Pending(PendingAction),
-	SearchNext { add_selection: bool },
-	SearchPrev { add_selection: bool },
-	UseSelectionAsSearch,
-	SplitLines,
-	JumpForward,
-	JumpBackward,
-	SaveJump,
-	RecordMacro,
-	PlayMacro,
-	SaveSelections,
-	RestoreSelections,
+	/// Force a redraw.
 	ForceRedraw,
-	RepeatLastInsert,
-	RepeatLastObject,
-	DuplicateSelectionsDown,
-	DuplicateSelectionsUp,
-	MergeSelections,
-	Align,
-	CopyIndent,
-	TabsToSpaces,
-	SpacesToTabs,
-	TrimSelections,
-	// Buffer/split management
+	/// Split horizontally with current buffer.
 	SplitHorizontal,
+	/// Split vertically with current buffer.
 	SplitVertical,
+	/// Open terminal in horizontal split.
 	SplitTerminalHorizontal,
+	/// Open terminal in vertical split.
 	SplitTerminalVertical,
+	/// Switch to next buffer.
 	BufferNext,
+	/// Switch to previous buffer.
 	BufferPrev,
+	/// Close current buffer/view.
 	CloseBuffer,
+	/// Close all other buffers.
 	CloseOtherBuffers,
+	/// Focus split to the left.
 	FocusLeft,
+	/// Focus split to the right.
 	FocusRight,
+	/// Focus split above.
 	FocusUp,
+	/// Focus split below.
 	FocusDown,
+
+	// === Text buffer required: cursor/selection/edit operations ===
+	/// Change editor mode.
+	ModeChange(ActionMode),
+	/// Move cursor to position.
+	CursorMove(CharIdx),
+	/// Apply a motion (updates selection).
+	Motion(Selection),
+	/// Enter insert mode with motion.
+	InsertWithMotion(Selection),
+	/// Execute an edit action.
+	Edit(EditAction),
+	/// Enter pending state for multi-key action.
+	Pending(PendingAction),
+	/// Search forward.
+	SearchNext { add_selection: bool },
+	/// Search backward.
+	SearchPrev { add_selection: bool },
+	/// Use current selection as search pattern.
+	UseSelectionAsSearch,
+	/// Split selection into lines.
+	SplitLines,
+	/// Jump forward in jump list.
+	JumpForward,
+	/// Jump backward in jump list.
+	JumpBackward,
+	/// Save current position to jump list.
+	SaveJump,
+	/// Start/stop macro recording.
+	RecordMacro,
+	/// Play recorded macro.
+	PlayMacro,
+	/// Save current selections.
+	SaveSelections,
+	/// Restore saved selections.
+	RestoreSelections,
+	/// Repeat last insert.
+	RepeatLastInsert,
+	/// Repeat last text object.
+	RepeatLastObject,
+	/// Duplicate selections downward.
+	DuplicateSelectionsDown,
+	/// Duplicate selections upward.
+	DuplicateSelectionsUp,
+	/// Merge overlapping selections.
+	MergeSelections,
+	/// Align selections.
+	Align,
+	/// Copy indentation.
+	CopyIndent,
+	/// Convert tabs to spaces.
+	TabsToSpaces,
+	/// Convert spaces to tabs.
+	SpacesToTabs,
+	/// Trim whitespace from selections.
+	TrimSelections,
+}
+
+impl ActionResult {
+	/// Returns true if this result can be applied when a terminal is focused.
+	///
+	/// Terminal-safe results are workspace-level operations that don't require
+	/// text buffer context (cursor, selection, document content).
+	pub fn is_terminal_safe(&self) -> bool {
+		matches!(
+			self,
+			Self::Ok
+				| Self::Quit
+				| Self::ForceQuit
+				| Self::Error(_)
+				| Self::ForceRedraw
+				| Self::SplitHorizontal
+				| Self::SplitVertical
+				| Self::SplitTerminalHorizontal
+				| Self::SplitTerminalVertical
+				| Self::BufferNext
+				| Self::BufferPrev
+				| Self::CloseBuffer
+				| Self::CloseOtherBuffers
+				| Self::FocusLeft
+				| Self::FocusRight
+				| Self::FocusUp
+				| Self::FocusDown
+		)
+	}
 }
 
 #[derive(Debug, Clone)]
