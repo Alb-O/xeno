@@ -2,12 +2,7 @@
 
 ## Current State
 
-The current `Editor` struct conflates two concerns:
-
-1. **Buffer state**: text content, cursor, selection, undo/redo, syntax
-1. **Application state**: theme, UI, notifications, extensions, filesystem
-
-This makes it impossible to have multiple text buffers open simultaneously.
+The Editor (Workspace) now supports multiple buffers with split views.
 
 ## Progress
 
@@ -23,34 +18,39 @@ This makes it impossible to have multiple text buffers open simultaneously.
 - [x] Update Editor methods to delegate to Buffer
 - [x] Update all external call sites
 
-### Current State
+### Phase 2: Multi-Buffer Support ✓ COMPLETE
 
-**Phase 1 is complete.** The Editor struct now contains a `Buffer` field and all
-buffer-specific operations are delegated to it:
+- [x] Editor uses `HashMap<BufferId, Buffer>` for multiple buffers
+- [x] Added `Layout` enum for split view management (`buffer/layout.rs`)
+- [x] Window mode (`Ctrl+w`) with navigation keybindings
+- [x] Buffer commands: `split_horizontal`, `split_vertical`, `buffer_next`, `buffer_prev`, `close_buffer`
+- [x] Status line shows buffer count `[1/2]` when multiple buffers open
 
-- `Editor.buffer: Buffer` - the active buffer
-- Editor's history.rs delegates to Buffer's undo/redo with notification handling
-- Editor's navigation.rs delegates to Buffer's movement methods
-- All rendering and actions access buffer state via `self.buffer.X`
-- Extensions updated to use `editor.buffer.X` pattern
+### Phase 3: Split Rendering ✓ COMPLETE
 
-The architecture is now ready for Phase 2 (multi-buffer support).
+- [x] Created `BufferRenderContext` for buffer-agnostic rendering
+- [x] `render_split_buffers()` iterates layout and renders each buffer
+- [x] `ensure_buffer_cursor_visible()` works per-buffer
+- [x] Separator lines rendered between splits (│ for horizontal, ─ for vertical)
+- [x] Each buffer renders independently with its own cursor and selection
+- [x] Only focused buffer shows active cursor style
 
 ### Cleanup Status
 
 Files refactored to delegate to Buffer:
 
-- [x] `editor/history.rs` - now delegates to `buffer.undo()` / `buffer.redo()` with notification handling
-- [x] `editor/navigation.rs` - now delegates to buffer navigation methods
+- [x] `editor/history.rs` - delegates to `buffer.undo()` / `buffer.redo()` with notification handling
+- [x] `editor/navigation.rs` - delegates to buffer navigation methods
+- [x] `render/buffer_render.rs` - new module with `BufferRenderContext` for split rendering
+- [x] `render/document.rs` - uses `render_split_buffers()` for layout-aware rendering
 - [ ] `editor/actions.rs` - still directly accesses `self.buffer.X`, could move logic to Buffer
 - [ ] `editor/actions_exec.rs` - action execution, stays in Editor for now
 - [ ] `editor/search.rs` - could move to Buffer (returns Result, Editor handles notify)
-- [x] `render/document/wrapping.rs` - Editor impl delegates to `wrap_line()` standalone function
 
 Editor struct is now a thin wrapper around Buffer:
 
 - [x] Buffer-specific fields moved to `Buffer` struct
-- [x] Editor accesses buffer state via `self.buffer.X`
+- [x] Editor accesses buffer state via `self.buffer()` / `self.buffer_mut()`
 - [x] Editor keeps workspace-level state (theme, ui, notifications, extensions, fs)
 
 ### Design Pattern for Buffer Methods
@@ -189,26 +189,43 @@ pub enum Direction {
 }
 ```
 
-## Migration Path
+## Key Keybindings
 
-### Phase 1: Extract Buffer
+Window mode is activated with `Ctrl+w`:
 
-1. Create `Buffer` struct with buffer-specific fields from `Editor`
-1. `Editor` holds a single `Buffer` internally (maintains API compatibility)
-1. Move buffer methods to `Buffer` impl
+- `s` - Split horizontal (side by side)
+- `v` - Split vertical (stacked)
+- `h/j/k/l` - Focus left/down/up/right (future: directional navigation)
+- `n` - Next buffer
+- `p` - Previous buffer
+- `q/c` - Close current buffer
+- `o` - Close other buffers
 
-### Phase 2: Create Workspace
+## Rendering Architecture
 
-1. Rename `Editor` to `Workspace`
-1. Change internal `Buffer` to `HashMap<BufferId, Buffer>`
-1. Add `Layout` for split management
-1. Update all call sites
+The split rendering uses a context-based approach:
 
-### Phase 3: Split Commands
+```rust
+// BufferRenderContext holds shared resources
+pub struct BufferRenderContext<'a> {
+    pub theme: &'static Theme,
+    pub language_loader: &'a LanguageLoader,
+    pub style_overlays: &'a StyleOverlays,
+}
 
-1. Add `:split` / `:vsplit` commands
-1. Add `Ctrl+w` window navigation
-1. Buffer switching (`:buffer`, `:bnext`, etc.)
+// render_buffer can render any buffer given its area
+impl BufferRenderContext<'_> {
+    pub fn render_buffer(&self, buffer: &Buffer, area: Rect, use_block_cursor: bool) -> RenderResult;
+}
+```
+
+The main `render()` method:
+
+1. Computes areas for all buffers via `layout.compute_areas(doc_area)`
+2. Ensures cursor visibility for each buffer in its area
+3. Creates `BufferRenderContext` with shared resources
+4. Renders each buffer independently
+5. Draws separator lines between splits
 
 ## Key Decisions
 
