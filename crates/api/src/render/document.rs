@@ -8,7 +8,7 @@ use tome_tui::style::{Color, Modifier, Style};
 use tome_tui::text::{Line, Span};
 use tome_tui::widgets::{Block, Clear, Paragraph};
 
-use super::buffer_render::{BufferRenderContext, ensure_buffer_cursor_visible};
+use super::buffer::{BufferRenderContext, ensure_buffer_cursor_visible};
 use crate::Editor;
 use crate::buffer::{BufferView, SplitDirection};
 
