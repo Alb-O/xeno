@@ -268,7 +268,7 @@ impl<'a> Block<'a> {
 			titles_position: TitlePosition::Top,
 			borders: Borders::NONE,
 			border_style: Style::new(),
-			border_set: BorderType::Plain.to_border_set(),
+			border_set: BorderType::Padded.to_border_set(),
 			style: Style::new(),
 			padding: Padding::ZERO,
 			merge_borders: MergeStrategy::Replace,
@@ -1330,7 +1330,7 @@ mod tests {
 				titles_position: TitlePosition::Top,
 				borders: Borders::NONE,
 				border_style: Style::new(),
-				border_set: BorderType::Plain.to_border_set(),
+				border_set: BorderType::Padded.to_border_set(),
 				style: Style::new(),
 				padding: Padding::ZERO,
 				merge_borders: MergeStrategy::Replace,
@@ -1413,6 +1413,7 @@ mod tests {
 	fn title_top_bottom() {
 		let mut buffer = Buffer::empty(Rect::new(0, 0, 11, 3));
 		Block::bordered()
+			.border_type(BorderType::Plain)
 			.title_top(Line::raw("A").left_aligned())
 			.title_top(Line::raw("B").centered())
 			.title_top(Line::raw("C").right_aligned())
@@ -1526,6 +1527,7 @@ mod tests {
 	fn title_border_style() {
 		let mut buffer = Buffer::empty(Rect::new(0, 0, 10, 3));
 		Block::bordered()
+			.border_type(BorderType::Plain)
 			.title("test")
 			.border_style(Style::new().yellow())
 			.render(buffer.area, &mut buffer);
@@ -1833,6 +1835,7 @@ mod tests {
 	fn render_partial_borders(#[case] strategy: MergeStrategy) {
 		let mut buffer = Buffer::empty(Rect::new(0, 0, 10, 3));
 		Block::new()
+			.border_type(BorderType::Plain)
 			.borders(Borders::TOP | Borders::LEFT | Borders::RIGHT | Borders::BOTTOM)
 			.merge_borders(strategy)
 			.render(buffer.area, &mut buffer);
@@ -1846,6 +1849,7 @@ mod tests {
 
 		let mut buffer = Buffer::empty(Rect::new(0, 0, 10, 3));
 		Block::new()
+			.border_type(BorderType::Plain)
 			.borders(Borders::TOP | Borders::LEFT)
 			.merge_borders(strategy)
 			.render(buffer.area, &mut buffer);
@@ -1859,6 +1863,7 @@ mod tests {
 
 		let mut buffer = Buffer::empty(Rect::new(0, 0, 10, 3));
 		Block::new()
+			.border_type(BorderType::Plain)
 			.borders(Borders::TOP | Borders::RIGHT)
 			.merge_borders(strategy)
 			.render(buffer.area, &mut buffer);
@@ -1872,6 +1877,7 @@ mod tests {
 
 		let mut buffer = Buffer::empty(Rect::new(0, 0, 10, 3));
 		Block::new()
+			.border_type(BorderType::Plain)
 			.borders(Borders::BOTTOM | Borders::LEFT)
 			.merge_borders(strategy)
 			.render(buffer.area, &mut buffer);
@@ -1885,6 +1891,7 @@ mod tests {
 
 		let mut buffer = Buffer::empty(Rect::new(0, 0, 10, 3));
 		Block::new()
+			.border_type(BorderType::Plain)
 			.borders(Borders::BOTTOM | Borders::RIGHT)
 			.merge_borders(strategy)
 			.render(buffer.area, &mut buffer);
@@ -1898,6 +1905,7 @@ mod tests {
 
 		let mut buffer = Buffer::empty(Rect::new(0, 0, 10, 3));
 		Block::new()
+			.border_type(BorderType::Plain)
 			.borders(Borders::TOP | Borders::BOTTOM)
 			.merge_borders(strategy)
 			.render(buffer.area, &mut buffer);
@@ -1911,6 +1919,7 @@ mod tests {
 
 		let mut buffer = Buffer::empty(Rect::new(0, 0, 10, 3));
 		Block::new()
+			.border_type(BorderType::Plain)
 			.borders(Borders::LEFT | Borders::RIGHT)
 			.merge_borders(strategy)
 			.render(buffer.area, &mut buffer);
@@ -2010,6 +2019,7 @@ mod tests {
 	fn merged_titles_bottom_first(#[case] strategy: MergeStrategy, #[case] expected: Buffer) {
 		let mut buffer = Buffer::empty(Rect::new(0, 0, 13, 5));
 		Block::bordered()
+			.border_type(BorderType::Plain)
 			.title("block btm")
 			.render(Rect::new(0, 2, 13, 3), &mut buffer);
 		Block::bordered()
@@ -2052,6 +2062,7 @@ mod tests {
 			.border_type(BorderType::Thick)
 			.render(Rect::new(0, 0, 13, 3), &mut buffer);
 		Block::bordered()
+			.border_type(BorderType::Plain)
 			.title("block btm")
 			.merge_borders(strategy)
 			.render(Rect::new(0, 2, 13, 3), &mut buffer);
@@ -2153,6 +2164,7 @@ mod tests {
 		let mut buffer = Buffer::empty(Rect::new(0, 0, 1, 1));
 		// This should not panic, even if the buffer is too small to render the block.
 		Block::bordered()
+			.border_type(BorderType::Plain)
 			.title("I'm too big for this buffer")
 			.padding(Padding::uniform(10))
 			.render(buffer.area, &mut buffer);

@@ -266,6 +266,7 @@ mod tests {
 	use crate::style::{Color, Modifier, Style, Stylize};
 	use crate::text::Line;
 	use crate::widgets::block::Block;
+	use crate::widgets::borders::BorderType;
 	use crate::widgets::list::ListItem;
 	use crate::widgets::table::HighlightSpacing;
 	use crate::widgets::{StatefulWidget, Widget};
@@ -359,7 +360,7 @@ mod tests {
 
 		let list = List::new(items)
 			.highlight_symbol(">>")
-			.block(Block::bordered());
+			.block(Block::bordered().border_type(BorderType::Plain));
 		// attempt to render into an area of the buffer with zero height after
 		// setting the block borders
 		Widget::render(list, Rect::new(0, 0, 15, 2), &mut buffer);
@@ -606,7 +607,7 @@ mod tests {
 	#[test]
 	fn empty_strings() {
 		let list = List::new(["Item 0", "", "", "Item 1", "Item 2"])
-			.block(Block::bordered().title("List"));
+			.block(Block::bordered().border_type(BorderType::Plain).title("List"));
 		let buffer = widget(list, 10, 7);
 		let expected = Buffer::with_lines([
 			"┌List────┐",
@@ -622,7 +623,8 @@ mod tests {
 
 	#[test]
 	fn block() {
-		let list = List::new(["Item 0", "Item 1", "Item 2"]).block(Block::bordered().title("List"));
+		let list = List::new(["Item 0", "Item 1", "Item 2"])
+			.block(Block::bordered().border_type(BorderType::Plain).title("List"));
 		let buffer = widget(list, 10, 7);
 		let expected = Buffer::with_lines([
 			"┌List────┐",

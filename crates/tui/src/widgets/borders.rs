@@ -38,8 +38,6 @@ impl Borders {
 pub enum BorderType {
 	/// A plain, simple border.
 	///
-	/// This is the default
-	///
 	/// # Example
 	///
 	/// ```plain
@@ -47,7 +45,6 @@ pub enum BorderType {
 	/// │       │
 	/// └───────┘
 	/// ```
-	#[default]
 	Plain,
 	/// A plain border with rounded corners.
 	///
@@ -153,6 +150,9 @@ pub enum BorderType {
 	/// A border that uses only spaces, effectively creating padding that uses the block's
 	/// background style.
 	///
+	/// This is the default border type, providing a minimal visual separation without
+	/// box-drawing characters.
+	///
 	/// # Example
 	///
 	/// ```plain
@@ -160,6 +160,7 @@ pub enum BorderType {
 	///  x     x
 	///  xxxxxxx
 	/// ```
+	#[default]
 	Padded,
 }
 

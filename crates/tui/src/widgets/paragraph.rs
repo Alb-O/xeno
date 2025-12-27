@@ -499,7 +499,7 @@ mod tests {
 	use crate::text::{Line, Span, Text};
 	use crate::widgets::Widget;
 	use crate::widgets::block::TitlePosition;
-	use crate::widgets::borders::Borders;
+	use crate::widgets::borders::{BorderType, Borders};
 
 	/// Tests the [`Paragraph`] widget against the expected [`Buffer`] by rendering it onto an equal
 	/// area and comparing the rendered and expected content.
@@ -596,7 +596,8 @@ mod tests {
 		// We use the slightly unconventional "worlds" instead of "world" here to make sure when we
 		// can truncate this without triggering the typos linter.
 		let text = "Hello, worlds!";
-		let truncated_paragraph = Paragraph::new(text).block(Block::bordered().title("Title"));
+		let truncated_paragraph = Paragraph::new(text)
+			.block(Block::bordered().border_type(BorderType::Plain).title("Title"));
 		let wrapped_paragraph = truncated_paragraph.clone().wrap(Wrap { trim: false });
 		let trimmed_paragraph = truncated_paragraph.clone().wrap(Wrap { trim: true });
 
@@ -695,6 +696,7 @@ mod tests {
 	#[test]
 	fn test_render_paragraph_with_block_with_bottom_title_and_border() {
 		let block = Block::new()
+			.border_type(BorderType::Plain)
 			.borders(Borders::BOTTOM)
 			.title_position(TitlePosition::Bottom)
 			.title("Title");
@@ -1176,7 +1178,8 @@ mod tests {
 	#[test]
 	fn paragraph_block_text_style() {
 		let text = Text::styled("Styled text", Color::Green);
-		let paragraph = Paragraph::new(text).block(Block::bordered());
+		let paragraph =
+			Paragraph::new(text).block(Block::bordered().border_type(BorderType::Plain));
 
 		let mut buf = Buffer::empty(Rect::new(0, 0, 20, 3));
 		paragraph.render(Rect::new(0, 0, 20, 3), &mut buf);

@@ -12,6 +12,7 @@ use crate::symbols;
 use crate::text::Line;
 use crate::widgets::Widget;
 use crate::widgets::block::{Block, BlockExt};
+use crate::widgets::borders::BorderType;
 use crate::widgets::canvas::{Canvas, Line as CanvasLine, Points};
 
 /// An X or Y axis for the [`Chart`] widget
@@ -1097,7 +1098,9 @@ impl Widget for &Chart<'_> {
 
 		if let Some(legend_area) = layout.legend_area {
 			buf.set_style(legend_area, original_style);
-			Block::bordered().render(legend_area, buf);
+			Block::bordered()
+				.border_type(BorderType::Plain)
+				.render(legend_area, buf);
 
 			for (i, (dataset_name, dataset_style)) in self
 				.datasets
