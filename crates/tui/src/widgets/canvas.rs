@@ -7,7 +7,6 @@
 //!
 //! - [`Circle`]: A basic circle
 //! - [`Line`]: A line between two points
-//! - [`Map`]: A world map
 //! - [`Points`]: A scatter of points
 //! - [`Rectangle`]: A basic rectangle
 //!
@@ -23,7 +22,6 @@ use itertools::Itertools;
 
 pub use self::circle::Circle;
 pub use self::line::Line;
-pub use self::map::{Map, MapResolution};
 pub use self::points::Points;
 pub use self::rectangle::Rectangle;
 use crate::buffer::Buffer;
@@ -40,10 +38,8 @@ use crate::widgets::polyfills::F64Polyfills;
 
 mod circle;
 mod line;
-mod map;
 mod points;
 mod rectangle;
-mod world;
 
 /// Something that can be drawn on a [`Canvas`].
 ///
@@ -687,18 +683,13 @@ impl<'a> Context<'a> {
 /// ```
 /// use crate::style::Color;
 /// use crate::widgets::Block;
-/// use crate::widgets::canvas::{Canvas, Line, Map, MapResolution, Rectangle};
+/// use crate::widgets::canvas::{Canvas, Line, Rectangle};
 ///
 /// Canvas::default()
 ///     .block(Block::bordered().title("Canvas"))
-///     .x_bounds([-180.0, 180.0])
-///     .y_bounds([-90.0, 90.0])
+///     .x_bounds([0.0, 100.0])
+///     .y_bounds([0.0, 100.0])
 ///     .paint(|ctx| {
-///         ctx.draw(&Map {
-///             resolution: MapResolution::High,
-///             color: Color::White,
-///         });
-///         ctx.layer();
 ///         ctx.draw(&Line {
 ///             x1: 0.0,
 ///             y1: 10.0,
@@ -706,6 +697,7 @@ impl<'a> Context<'a> {
 ///             y2: 10.0,
 ///             color: Color::White,
 ///         });
+///         ctx.layer();
 ///         ctx.draw(&Rectangle {
 ///             x: 10.0,
 ///             y: 20.0,
