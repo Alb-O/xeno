@@ -642,8 +642,11 @@ mod tests {
 
 	#[test]
 	fn render_with_block() {
-		let tabs = Tabs::new(vec!["Tab1", "Tab2", "Tab3", "Tab4"])
-			.block(Block::bordered().border_type(BorderType::Plain).title("Tabs"));
+		let tabs = Tabs::new(vec!["Tab1", "Tab2", "Tab3", "Tab4"]).block(
+			Block::bordered()
+				.border_type(BorderType::Plain)
+				.title("Tabs"),
+		);
 		let mut expected = Buffer::with_lines([
 			"┌Tabs────────────────────────┐",
 			"│ Tab1 │ Tab2 │ Tab3 │ Tab4  │",

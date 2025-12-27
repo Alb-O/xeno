@@ -1,8 +1,22 @@
 use tome_manifest::notifications as manifest;
 use tome_stdlib::notifications::find_notification_type;
-use tome_tui::widgets::notifications::{self as notif, Toast};
+use tome_tui::style::Style;
+use tome_tui::widgets::icon::presets as icon_presets;
+use tome_tui::widgets::notifications::{self as notif, Toast, ToastIcon};
 
 use crate::editor::Editor;
+
+/// Returns the appropriate icon glyph for a semantic notification type.
+fn icon_for_semantic(semantic: &str) -> Option<&'static str> {
+	match semantic {
+		tome_manifest::SEMANTIC_INFO => Some(icon_presets::INFO),
+		tome_manifest::SEMANTIC_WARNING => Some(icon_presets::WARNING),
+		tome_manifest::SEMANTIC_ERROR => Some(icon_presets::ERROR),
+		tome_manifest::SEMANTIC_SUCCESS => Some(icon_presets::SUCCESS),
+		tome_manifest::SEMANTIC_DIM => Some(icon_presets::DEBUG),
+		_ => None,
+	}
+}
 
 impl Editor {
 	pub fn notify(&mut self, type_name: &str, text: impl Into<String>) {
@@ -12,9 +26,16 @@ impl Editor {
 		let semantic = type_def
 			.map(|t| t.semantic)
 			.unwrap_or(tome_manifest::SEMANTIC_INFO);
-		let style: tome_tui::style::Style = self.theme.colors.notification_style(semantic).into();
+		let notif_style: Style = self.theme.colors.notification_style(semantic).into();
+		let accent = notif_style.fg.unwrap_or_default();
 
-		let mut toast = Toast::new(text).style(style).border_style(style);
+		let mut toast = Toast::new(text)
+			.style(notif_style)
+			.border_style(Style::default().fg(accent));
+
+		if let Some(glyph) = icon_for_semantic(semantic) {
+			toast = toast.icon(ToastIcon::new(glyph).style(Style::default().fg(accent)));
+		}
 
 		if let Some(def) = type_def {
 			toast = toast

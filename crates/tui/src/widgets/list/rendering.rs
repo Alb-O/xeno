@@ -606,8 +606,11 @@ mod tests {
 
 	#[test]
 	fn empty_strings() {
-		let list = List::new(["Item 0", "", "", "Item 1", "Item 2"])
-			.block(Block::bordered().border_type(BorderType::Plain).title("List"));
+		let list = List::new(["Item 0", "", "", "Item 1", "Item 2"]).block(
+			Block::bordered()
+				.border_type(BorderType::Plain)
+				.title("List"),
+		);
 		let buffer = widget(list, 10, 7);
 		let expected = Buffer::with_lines([
 			"┌List────┐",
@@ -623,8 +626,11 @@ mod tests {
 
 	#[test]
 	fn block() {
-		let list = List::new(["Item 0", "Item 1", "Item 2"])
-			.block(Block::bordered().border_type(BorderType::Plain).title("List"));
+		let list = List::new(["Item 0", "Item 1", "Item 2"]).block(
+			Block::bordered()
+				.border_type(BorderType::Plain)
+				.title("List"),
+		);
 		let buffer = widget(list, 10, 7);
 		let expected = Buffer::with_lines([
 			"┌List────┐",

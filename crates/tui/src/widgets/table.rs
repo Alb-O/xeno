@@ -1338,7 +1338,9 @@ mod tests {
 				Row::new(vec!["Cell1", "Cell2"]),
 				Row::new(vec!["Cell3", "Cell4"]),
 			];
-			let block = Block::bordered().border_type(BorderType::Plain).title("Block");
+			let block = Block::bordered()
+				.border_type(BorderType::Plain)
+				.title("Block");
 			let table = Table::new(rows, vec![Constraint::Length(5); 2]).block(block);
 			Widget::render(table, Rect::new(0, 0, 15, 3), &mut buf);
 			#[rustfmt::skip]

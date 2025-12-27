@@ -596,8 +596,11 @@ mod tests {
 		// We use the slightly unconventional "worlds" instead of "world" here to make sure when we
 		// can truncate this without triggering the typos linter.
 		let text = "Hello, worlds!";
-		let truncated_paragraph = Paragraph::new(text)
-			.block(Block::bordered().border_type(BorderType::Plain).title("Title"));
+		let truncated_paragraph = Paragraph::new(text).block(
+			Block::bordered()
+				.border_type(BorderType::Plain)
+				.title("Title"),
+		);
 		let wrapped_paragraph = truncated_paragraph.clone().wrap(Wrap { trim: false });
 		let trimmed_paragraph = truncated_paragraph.clone().wrap(Wrap { trim: true });
 

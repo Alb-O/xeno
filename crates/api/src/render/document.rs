@@ -85,7 +85,8 @@ impl Editor {
 		let mut notifications_area = doc_area;
 		notifications_area.height = notifications_area.height.saturating_sub(1);
 		notifications_area.width = notifications_area.width.saturating_sub(1);
-		self.notifications.render(notifications_area, frame.buffer_mut());
+		self.notifications
+			.render(notifications_area, frame.buffer_mut());
 	}
 
 	/// Renders all views in the layout with proper split handling.
