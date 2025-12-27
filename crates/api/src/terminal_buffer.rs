@@ -159,21 +159,29 @@ impl TerminalState {
 		loop {
 			match self.receiver.try_recv() {
 				Ok(bytes) => {
-					// Handle DA1 query from shells like fish
-					let da1_query = b"\x1b[c";
-					let da1_query_0 = b"\x1b[0c";
-
-					if bytes.windows(da1_query.len()).any(|w| w == da1_query)
-						|| bytes.windows(da1_query_0.len()).any(|w| w == da1_query_0)
-					{
-						let _ = self.pty_writer.write_all(b"\x1b[?6c");
-					}
-
+					// Handle terminal queries that require responses
+					self.handle_terminal_queries(&bytes);
 					self.parser.process(&bytes);
 				}
 				Err(TryRecvError::Empty) => break,
 				Err(TryRecvError::Disconnected) => break,
 			}
+		}
+	}
+
+	/// Responds to terminal queries (DA1, DSR) that programs send to discover
+	/// terminal capabilities or cursor state.
+	fn handle_terminal_queries(&mut self, bytes: &[u8]) {
+		// DA1 (Primary Device Attributes): ESC[c or ESC[0c → ESC[?6c (VT102)
+		if bytes.windows(3).any(|w| w == b"\x1b[c") || bytes.windows(4).any(|w| w == b"\x1b[0c") {
+			let _ = self.pty_writer.write_all(b"\x1b[?6c");
+		}
+
+		// DSR (Cursor Position Report): ESC[6n → ESC[row;colR (1-indexed)
+		if bytes.windows(4).any(|w| w == b"\x1b[6n") {
+			let (row, col) = self.parser.screen().cursor_position();
+			let response = format!("\x1b[{};{}R", row + 1, col + 1);
+			let _ = self.pty_writer.write_all(response.as_bytes());
 		}
 	}
 

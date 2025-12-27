@@ -259,21 +259,18 @@ fn fish_ipc_write() {
 
 #[serial_test::serial]
 #[test]
-#[ignore = "nushell's line editor (reedline) doesn't work in embedded terminal"]
 fn nushell_has_tome_bin() {
 	test_shell_has_tome_bin(TestShell::Nushell, "nushell");
 }
 
 #[serial_test::serial]
 #[test]
-#[ignore = "nushell's line editor (reedline) doesn't work in embedded terminal"]
 fn nushell_ipc_quit() {
 	test_shell_ipc_quit(TestShell::Nushell, "nushell");
 }
 
 #[serial_test::serial]
 #[test]
-#[ignore = "nushell's line editor (reedline) doesn't work in embedded terminal"]
 fn nushell_ipc_write() {
 	test_shell_ipc_write(TestShell::Nushell, "nushell");
 }
