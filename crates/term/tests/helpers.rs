@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use kitty_test_harness::{KeyPress, KittyHarness, send_keys};
 use termwiz::input::KeyCode;
@@ -9,6 +9,7 @@ pub fn tome_cmd() -> String {
 }
 
 /// Returns a command to launch tome with the given file.
+#[allow(dead_code)]
 pub fn tome_cmd_with_file_named(name: &str) -> String {
 	format!("{} {}", tome_cmd(), name)
 }
@@ -19,6 +20,19 @@ pub fn tome_cmd_with_file_named(name: &str) -> String {
 /// See `tome_theme::themes::debug::colors` for the exact values.
 pub fn tome_cmd_debug_theme(name: &str) -> String {
 	format!("{} --theme debug {}", tome_cmd(), name)
+}
+
+/// Returns a command to launch tome with the debug theme and test logging enabled.
+///
+/// The `log_path` should be a file path where debug logs will be written.
+/// Use `kitty_test_harness::create_test_log()` to create the log file.
+pub fn tome_cmd_debug_with_log(name: &str, log_path: &Path) -> String {
+	format!(
+		"TOME_TEST_LOG={} {} --theme debug {}",
+		log_path.display(),
+		tome_cmd(),
+		name
+	)
 }
 
 /// Returns the workspace directory.

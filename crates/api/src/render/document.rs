@@ -13,6 +13,13 @@ use super::types::RenderResult;
 use crate::Editor;
 use crate::buffer::{BufferView, SplitDirection};
 
+fn color_to_rgb(color: Color) -> Option<(u8, u8, u8)> {
+	match color {
+		Color::Rgb(r, g, b) => Some((r, g, b)),
+		_ => None,
+	}
+}
+
 impl Editor {
 	/// Renders the complete editor frame.
 	///
@@ -215,6 +222,19 @@ impl Editor {
 				use tome_tui::animation::Animatable;
 				let fg = normal_fg.lerp(&hover_fg, anim_intensity);
 				let bg = normal_bg.lerp(&hover_bg, anim_intensity);
+				if let (Some((fr, fg_g, fb)), Some((br, bg_g, bb))) =
+					(color_to_rgb(fg), color_to_rgb(bg))
+				{
+					self.debug_log(&format!(
+						"[SEP_ANIM] intensity={:.3} fg={},{},{} bg={},{},{}",
+						anim_intensity, fr, fg_g, fb, br, bg_g, bb
+					));
+				} else {
+					self.debug_log(&format!(
+						"[SEP_ANIM] intensity={:.3} fg=none bg=none",
+						anim_intensity
+					));
+				}
 				Style::default().fg(fg).bg(bg)
 			} else if is_hovered {
 				// Fully hovered (animation complete or no animation)

@@ -18,8 +18,8 @@
 use linkme::distributed_slice;
 
 use crate::{
-	Color, NotificationColors, PopupColors, StatusColors, SyntaxStyles, THEMES, Theme,
-	ThemeColors, ThemeVariant, UiColors,
+	Color, NotificationColors, PopupColors, StatusColors, SyntaxStyles, THEMES, Theme, ThemeColors,
+	ThemeVariant, UiColors,
 };
 
 /// Pure black background - RGB(0, 0, 0)

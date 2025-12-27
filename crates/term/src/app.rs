@@ -46,11 +46,14 @@ pub async fn run_editor(mut editor: Editor) -> io::Result<()> {
 			terminal.backend_mut().terminal_mut().flush()?;
 
 			let mut filter = |e: &Event| !e.is_escape();
+			// Check needs_redraw before clearing to determine timeout
+			let needs_fast_redraw = editor.needs_redraw;
+			editor.needs_redraw = false;
+
 			let timeout = if matches!(editor.mode(), tome_manifest::Mode::Insert)
 				|| editor.any_panel_open()
-				|| editor.needs_redraw
+				|| needs_fast_redraw
 			{
-				editor.needs_redraw = false;
 				Some(Duration::from_millis(16))
 			} else {
 				Some(Duration::from_millis(50))

@@ -7,10 +7,13 @@ mod helpers;
 
 use std::time::Duration;
 
-use helpers::{insert_text, reset_test_file, tome_cmd_with_file_named, workspace_dir};
+use helpers::{
+	insert_text, reset_test_file, tome_cmd_debug_theme, tome_cmd_debug_with_log, workspace_dir,
+};
 use kitty_test_harness::{
-	AnsiColor, extract_row_colors_parsed, find_separator_rows_at_col, find_vertical_separator_col,
-	kitty_send_keys, pause_briefly, require_kitty, run_with_timeout, send_mouse_move,
+	AnsiColor, cleanup_test_log, create_test_log, extract_row_colors_parsed,
+	find_separator_rows_at_col, find_vertical_separator_col, kitty_send_keys, pause_briefly,
+	read_test_log, require_kitty, run_with_timeout, send_mouse_move, wait_for_log_line,
 	wait_for_screen_text_clean, with_kitty_capture,
 };
 use termwiz::input::{KeyCode, Modifiers};
@@ -39,6 +42,48 @@ fn is_lerped_color(color: (u8, u8, u8), start: (u8, u8, u8), end: (u8, u8, u8)) 
 	let different_from_end = color != end;
 
 	different_from_start && different_from_end && (r_between || g_between || b_between)
+}
+
+fn parse_rgb_triplet(value: &str) -> Option<(u8, u8, u8)> {
+	if value == "none" {
+		return None;
+	}
+	let mut iter = value.split(',');
+	let r = iter.next()?.parse().ok()?;
+	let g = iter.next()?.parse().ok()?;
+	let b = iter.next()?.parse().ok()?;
+	if iter.next().is_some() {
+		return None;
+	}
+	Some((r, g, b))
+}
+
+fn parse_sep_anim_fg(line: &str) -> Option<(u8, u8, u8)> {
+	if !line.starts_with("[SEP_ANIM]") {
+		return None;
+	}
+	let fg = line
+		.split_whitespace()
+		.find(|part| part.starts_with("fg="))?;
+	parse_rgb_triplet(fg.trim_start_matches("fg="))
+}
+
+fn find_log_marker(lines: &[String], markers: &[&str]) -> Option<usize> {
+	lines
+		.iter()
+		.position(|line| markers.iter().any(|marker| line.contains(marker)))
+}
+
+fn find_lerped_color_after(
+	lines: &[String],
+	start: usize,
+	from: (u8, u8, u8),
+	to: (u8, u8, u8),
+) -> Option<(u8, u8, u8)> {
+	lines[start..]
+		.iter()
+		.filter_map(|line| parse_sep_anim_fg(line))
+		.find(|&color| is_lerped_color(color, from, to))
 }
 
 /// Extract the separator's foreground color from a row's colors.
@@ -80,9 +125,12 @@ fn separator_hover_shows_lerped_animation() {
 	}
 
 	let file = "kitty-test-separator-anim.txt";
+	let log_path = create_test_log();
+	let log_path_clone = log_path.clone();
 	reset_test_file(file);
-	run_with_timeout(TEST_TIMEOUT, || {
-		with_kitty_capture(&workspace_dir(), &tome_cmd_with_file_named(file), |kitty| {
+	run_with_timeout(TEST_TIMEOUT, move || {
+		let cmd = tome_cmd_debug_with_log(file, &log_path_clone);
+		with_kitty_capture(&workspace_dir(), &cmd, |kitty| {
 			pause_briefly();
 
 			insert_text(kitty, "LEFT PANE");
@@ -113,28 +161,13 @@ fn separator_hover_shows_lerped_animation() {
 			// Move to separator - animation starts (120ms duration)
 			send_mouse_move(kitty, sep_col, sep_row);
 
-			// Sample during animation to catch lerped color
-			let mut during_color = None;
-			for _ in 0..5 {
-				std::thread::sleep(Duration::from_millis(30));
-				let (raw_sample, _) =
-					wait_for_screen_text_clean(kitty, Duration::from_millis(50), |_, _| true);
-				let colors_sample = extract_row_colors_parsed(&raw_sample, sep_row as usize);
-				let sample_color = find_separator_fg_color(&colors_sample);
-
-				if during_color.is_none() && sample_color.is_some() {
-					during_color = sample_color;
-				}
-				if let (Some(normal), Some(sample)) = (normal_color, sample_color) {
-					if sample != normal {
-						during_color = sample_color;
-						break;
-					}
-				}
-			}
+			wait_for_log_line(&log_path_clone, Duration::from_secs(2), |line| {
+				line.contains("[ANIM] creating fade-in animation")
+			})
+			.expect("Expected fade-in animation to start");
 
 			// Wait for animation to complete
-			std::thread::sleep(Duration::from_millis(100));
+			std::thread::sleep(Duration::from_millis(200));
 
 			let (raw_after, _) =
 				wait_for_screen_text_clean(kitty, Duration::from_millis(100), |_, _| true);
@@ -142,8 +175,13 @@ fn separator_hover_shows_lerped_animation() {
 			let hover_color = find_separator_fg_color(&colors_after);
 
 			let normal_color = normal_color.expect("Should have normal separator color");
-			let during_color = during_color.expect("Should have color during animation");
 			let hover_color = hover_color.expect("Should have final hover color");
+			let log_lines = read_test_log(&log_path_clone);
+			let anim_start = find_log_marker(&log_lines, &["[ANIM] creating fade-in animation"])
+				.expect("Expected fade-in animation marker in log");
+			let during_color =
+				find_lerped_color_after(&log_lines, anim_start, normal_color, hover_color)
+					.expect("Should have lerped separator color in log");
 
 			assert!(
 				is_lerped_color(during_color, normal_color, hover_color),
@@ -170,6 +208,7 @@ fn separator_hover_shows_lerped_animation() {
 			);
 		});
 	});
+	cleanup_test_log(&log_path);
 }
 
 /// Tests that moving mouse away from separator triggers a fade-OUT animation.
@@ -184,9 +223,12 @@ fn separator_fadeout_shows_lerped_animation() {
 	}
 
 	let file = "kitty-test-separator-fadeout.txt";
+	let log_path = create_test_log();
+	let log_path_clone = log_path.clone();
 	reset_test_file(file);
-	run_with_timeout(TEST_TIMEOUT, || {
-		with_kitty_capture(&workspace_dir(), &tome_cmd_with_file_named(file), |kitty| {
+	run_with_timeout(TEST_TIMEOUT, move || {
+		let cmd = tome_cmd_debug_with_log(file, &log_path_clone);
+		with_kitty_capture(&workspace_dir(), &cmd, |kitty| {
 			pause_briefly();
 
 			insert_text(kitty, "LEFT");
@@ -222,31 +264,28 @@ fn separator_fadeout_shows_lerped_animation() {
 			// Move away - fade-out animation starts
 			send_mouse_move(kitty, 10, sep_row);
 
-			// Sample during fade-out to catch lerped color
-			let mut fadeout_color = None;
-			for _ in 0..5 {
-				std::thread::sleep(Duration::from_millis(30));
-				let (raw_sample, _) =
-					wait_for_screen_text_clean(kitty, Duration::from_millis(50), |_, _| true);
-				let colors_sample = extract_row_colors_parsed(&raw_sample, sep_row as usize);
-				let sample_color = find_separator_fg_color(&colors_sample);
+			wait_for_log_line(&log_path_clone, Duration::from_secs(2), |line| {
+				line.contains("[ANIM] toggling existing animation to fade-out")
+					|| line.contains("[ANIM] creating fade-out animation at full intensity")
+			})
+			.expect("Expected fade-out animation to start");
 
-				if fadeout_color.is_none() && sample_color.is_some() {
-					fadeout_color = sample_color;
-				}
-				if let (Some(normal), Some(hover), Some(sample)) =
-					(normal_color, hover_color, sample_color)
-				{
-					if sample != normal && sample != hover {
-						fadeout_color = sample_color;
-						break;
-					}
-				}
-			}
+			std::thread::sleep(Duration::from_millis(200));
 
 			let normal_color = normal_color.expect("Should have normal separator color");
 			let hover_color = hover_color.expect("Should have hovered separator color");
-			let fadeout_color = fadeout_color.expect("Should have color during fadeout");
+			let log_lines = read_test_log(&log_path_clone);
+			let fadeout_start = find_log_marker(
+				&log_lines,
+				&[
+					"[ANIM] toggling existing animation to fade-out",
+					"[ANIM] creating fade-out animation at full intensity",
+				],
+			)
+			.expect("Expected fade-out animation marker in log");
+			let fadeout_color =
+				find_lerped_color_after(&log_lines, fadeout_start, hover_color, normal_color)
+					.expect("Should have lerped separator color during fadeout");
 
 			assert!(
 				is_lerped_color(fadeout_color, hover_color, normal_color),
@@ -258,6 +297,7 @@ fn separator_fadeout_shows_lerped_animation() {
 			);
 		});
 	});
+	cleanup_test_log(&log_path);
 }
 
 /// Tests that fast mouse movement over a separator does NOT trigger hover.
@@ -274,7 +314,7 @@ fn fast_mouse_suppresses_separator_hover() {
 	let file = "kitty-test-separator-fast.txt";
 	reset_test_file(file);
 	run_with_timeout(TEST_TIMEOUT, || {
-		with_kitty_capture(&workspace_dir(), &tome_cmd_with_file_named(file), |kitty| {
+		with_kitty_capture(&workspace_dir(), &tome_cmd_debug_theme(file), |kitty| {
 			pause_briefly();
 
 			insert_text(kitty, "LEFT");

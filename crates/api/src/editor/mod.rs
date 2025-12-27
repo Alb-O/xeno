@@ -478,6 +478,36 @@ impl tome_manifest::editor_ctx::FileOpsAccess for Editor {
 	}
 }
 
+// Debug utilities for testing
+impl Editor {
+	/// Writes a debug message to the test log file if `TOME_TEST_LOG` is set.
+	///
+	/// This is a no-op if the environment variable is not set. Used for
+	/// debugging integration tests where the editor runs inside a kitty
+	/// window and its stderr is not visible to the test runner.
+	///
+	/// # Example
+	///
+	/// ```ignore
+	/// editor.debug_log(&format!("animation intensity: {:.3}", intensity));
+	/// ```
+	pub fn debug_log(&self, msg: &str) {
+		use std::io::Write;
+
+		let Ok(path) = std::env::var("TOME_TEST_LOG") else {
+			return;
+		};
+		let Ok(mut file) = std::fs::OpenOptions::new()
+			.create(true)
+			.append(true)
+			.open(&path)
+		else {
+			return;
+		};
+		let _ = writeln!(file, "{}", msg);
+	}
+}
+
 impl tome_manifest::EditorOps for Editor {}
 
 impl Editor {
@@ -877,6 +907,13 @@ impl Editor {
 		sorted_ticks.sort_by_key(|e| e.priority);
 		for ext in sorted_ticks {
 			(ext.tick)(self);
+		}
+
+		// Check if separator animation needs continuous redraws
+		if let Some(anim) = &self.separator_hover_animation
+			&& anim.needs_redraw()
+		{
+			self.needs_redraw = true;
 		}
 	}
 

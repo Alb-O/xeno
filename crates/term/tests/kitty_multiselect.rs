@@ -2,7 +2,7 @@ mod helpers;
 
 use std::time::Duration;
 
-use helpers::{insert_lines, reset_test_file, tome_cmd_with_file_named, workspace_dir};
+use helpers::{insert_lines, reset_test_file, tome_cmd_debug_theme, workspace_dir};
 use kitty_test_harness::{
 	kitty_send_keys, pause_briefly, require_kitty, run_with_timeout, wait_for_clean_contains,
 	wait_for_screen_text_clean, with_kitty_capture,
@@ -23,7 +23,7 @@ fn insert_mode_types_at_all_cursors() {
 	let file = "kitty-test-insert-multi.txt";
 	reset_test_file(file);
 	run_with_timeout(TEST_TIMEOUT, || {
-		with_kitty_capture(&workspace_dir(), &tome_cmd_with_file_named(file), |kitty| {
+		with_kitty_capture(&workspace_dir(), &tome_cmd_debug_theme(file), |kitty| {
 			pause_briefly();
 			insert_lines(kitty, &["one", "two", "three"]);
 			pause_briefly();
@@ -59,7 +59,7 @@ fn insert_a_appends_after_each_cursor_across_selections() {
 	let file = "kitty-test-insert-after-multi-cursor.txt";
 	reset_test_file(file);
 	run_with_timeout(TEST_TIMEOUT, || {
-		with_kitty_capture(&workspace_dir(), &tome_cmd_with_file_named(file), |kitty| {
+		with_kitty_capture(&workspace_dir(), &tome_cmd_debug_theme(file), |kitty| {
 			pause_briefly();
 			insert_lines(kitty, &["one", "two", "three"]);
 			pause_briefly();

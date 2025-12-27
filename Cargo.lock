@@ -1045,7 +1045,7 @@ dependencies = [
 [[package]]
 name = "kitty-test-harness"
 version = "0.1.0"
-source = "git+https://github.com/Alb-O/kitty-test-harness?branch=main#f7aaa3b19b834cefaffe135f94b4389241e8ce2c"
+source = "git+https://github.com/Alb-O/kitty-test-harness?branch=main#b8007bb2634ef010ff9ef4184315129ffa4b8d0b"
 dependencies = [
  "ansi-escape-sequences",
  "kitty-remote-bindings",

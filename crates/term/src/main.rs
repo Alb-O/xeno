@@ -41,10 +41,10 @@ async fn main() -> anyhow::Result<()> {
 	};
 
 	// Apply theme from CLI if specified
-	if let Some(theme_name) = cli.theme {
-		if let Err(e) = editor.set_theme(&theme_name) {
-			eprintln!("Warning: failed to set theme '{}': {}", theme_name, e);
-		}
+	if let Some(theme_name) = cli.theme
+		&& let Err(e) = editor.set_theme(&theme_name)
+	{
+		eprintln!("Warning: failed to set theme '{}': {}", theme_name, e);
 	}
 
 	run_editor(editor).await?;
