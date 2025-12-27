@@ -33,12 +33,14 @@ pub mod paths;
 pub mod render;
 pub mod styles;
 pub mod terminal_buffer;
+pub mod terminal_ipc;
 pub mod test_events;
 pub mod ui;
 
 pub use buffer::{Buffer, BufferId, HistoryResult};
 pub use editor::Editor;
 pub use terminal_buffer::TerminalBuffer;
+pub use terminal_ipc::{IpcRequest, TerminalIpc, TerminalIpcEnv};
 pub use tome_theme::{
 	PopupColors, StatusColors, THEMES, Theme, ThemeColors, UiColors, blend_colors, get_theme,
 	suggest_theme,

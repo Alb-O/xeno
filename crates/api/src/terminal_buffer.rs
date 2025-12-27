@@ -5,6 +5,7 @@
 
 use std::io::{Read, Write};
 use std::sync::mpsc::{Receiver, TryRecvError, channel};
+use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
 
@@ -14,6 +15,8 @@ use tome_manifest::{
 	SplitDockPreference, SplitEventResult, SplitKey, SplitKeyCode, SplitModifiers, SplitSize,
 };
 use tome_tui::widgets::terminal::vt100::{self, Parser};
+
+use crate::terminal_ipc::TerminalIpcEnv;
 
 /// Error type for terminal operations.
 #[derive(thiserror::Error, Debug)]
@@ -36,7 +39,7 @@ struct TerminalState {
 }
 
 impl TerminalState {
-	fn new(cols: u16, rows: u16) -> Result<Self, TerminalError> {
+	fn new(cols: u16, rows: u16, env_vars: Vec<(String, String)>) -> Result<Self, TerminalError> {
 		let pty_system = NativePtySystem::default();
 		let pair = pty_system
 			.openpty(PtySize {
@@ -48,7 +51,10 @@ impl TerminalState {
 			.map_err(|e| TerminalError::Pty(e.to_string()))?;
 
 		let shell = std::env::var("SHELL").unwrap_or_else(|_| "sh".to_string());
-		let cmd = CommandBuilder::new(shell);
+		let mut cmd = CommandBuilder::new(shell);
+		for (key, value) in env_vars {
+			cmd.env(key, value);
+		}
 
 		let child = pair
 			.slave
@@ -141,23 +147,21 @@ impl TerminalState {
 	}
 }
 
-/// A terminal emulator that implements `SplitBuffer`.
+/// A terminal emulator that implements [`SplitBuffer`].
 ///
-/// This provides an embedded terminal in a split panel. The terminal:
+/// Provides an embedded terminal in a split panel:
 /// - Spawns a shell process (from `$SHELL` or defaults to `sh`)
 /// - Handles input/output via a PTY
 /// - Renders terminal cells for the UI layer
 ///
-/// # Usage
-///
-/// Terminals are opened via `Editor::split_horizontal_terminal()` or
-/// `Editor::split_vertical_terminal()`, typically triggered by the
-/// `Ctrl+w t` or `Ctrl+w T` keybindings.
+/// When created with [`Self::with_ipc`], shell wrappers for editor commands
+/// (e.g., `:write`, `:quit`) are available in `$PATH`.
 pub struct TerminalBuffer {
 	terminal: Option<TerminalState>,
 	prewarm: Option<Receiver<Result<TerminalState, TerminalError>>>,
 	input_buffer: Vec<u8>,
 	current_size: SplitSize,
+	ipc_env: Option<Arc<TerminalIpcEnv>>,
 }
 
 impl Default for TerminalBuffer {
@@ -169,14 +173,25 @@ impl Default for TerminalBuffer {
 impl TerminalBuffer {
 	/// Creates a new terminal buffer.
 	///
-	/// The terminal is not spawned immediately; instead, it begins prewarming
-	/// a shell in the background so that opening is instant.
+	/// The terminal is not spawned immediately; prewarming begins on [`SplitBuffer::on_open`].
 	pub fn new() -> Self {
 		Self {
 			terminal: None,
 			prewarm: None,
 			input_buffer: Vec::new(),
 			current_size: SplitSize::new(80, 24),
+			ipc_env: None,
+		}
+	}
+
+	/// Creates a terminal buffer with IPC integration for editor commands.
+	pub fn with_ipc(ipc_env: Arc<TerminalIpcEnv>) -> Self {
+		Self {
+			terminal: None,
+			prewarm: None,
+			input_buffer: Vec::new(),
+			current_size: SplitSize::new(80, 24),
+			ipc_env: Some(ipc_env),
 		}
 	}
 
@@ -192,10 +207,11 @@ impl TerminalBuffer {
 			return;
 		}
 		let size = self.current_size;
+		let env_vars = self.ipc_env.as_ref().map(|env| env.env_vars()).unwrap_or_default();
 		let (tx, rx) = channel();
 		self.prewarm = Some(rx);
 		thread::spawn(move || {
-			let _ = tx.send(TerminalState::new(size.width, size.height));
+			let _ = tx.send(TerminalState::new(size.width, size.height, env_vars));
 		});
 	}
 
