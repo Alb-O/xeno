@@ -20,7 +20,7 @@ fn insert_mode_types_at_all_cursors() {
 		return;
 	}
 
-	let file = "kitty-test-insert-multi.txt";
+	let file = "tmp/kitty/multiselect-insert.txt";
 	reset_test_file(file);
 	run_with_timeout(TEST_TIMEOUT, || {
 		with_kitty_capture(&workspace_dir(), &tome_cmd_debug_theme(file), |kitty| {
@@ -56,7 +56,7 @@ fn insert_a_appends_after_each_cursor_across_selections() {
 		return;
 	}
 
-	let file = "kitty-test-insert-after-multi-cursor.txt";
+	let file = "tmp/kitty/multiselect-insert-after.txt";
 	reset_test_file(file);
 	run_with_timeout(TEST_TIMEOUT, || {
 		with_kitty_capture(&workspace_dir(), &tome_cmd_debug_theme(file), |kitty| {

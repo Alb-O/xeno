@@ -101,6 +101,9 @@ pub struct Editor {
 	/// Whether a redraw is needed.
 	pub needs_redraw: bool,
 
+	/// Whether a command requested the editor to quit.
+	pending_quit: bool,
+
 	/// Notification system.
 	pub notifications: tome_tui::widgets::notifications::ToastManager,
 
@@ -547,6 +550,7 @@ impl Editor {
 			window_height: None,
 			ui: UiManager::new(),
 			needs_redraw: false,
+			pending_quit: false,
 			notifications: tome_tui::widgets::notifications::ToastManager::new()
 				.max_visible(Some(5))
 				.overflow(tome_tui::widgets::notifications::Overflow::DropOldest),
@@ -725,8 +729,21 @@ impl Editor {
 
 		let ipc_env = self
 			.terminal_ipc
-			.get_or_insert_with(|| TerminalIpc::new().expect("failed to create terminal IPC"))
+			.get_or_insert_with(|| {
+				let ipc = TerminalIpc::new().expect("failed to create terminal IPC");
+				log::info!(
+					"Terminal IPC created: bin_dir={:?}, socket={:?}",
+					ipc.env().bin_dir(),
+					ipc.env().socket_path()
+				);
+				ipc
+			})
 			.env();
+
+		log::info!(
+			"Creating terminal with PATH including {:?}",
+			ipc_env.bin_dir()
+		);
 
 		let mut terminal = TerminalBuffer::with_ipc(ipc_env);
 		terminal.on_open();
@@ -744,7 +761,15 @@ impl Editor {
 
 		for req in requests {
 			log::debug!("terminal IPC: {} {:?}", req.command, req.args);
-			if let Some(cmd) = tome_manifest::find_command(&req.command) {
+			let mut restore_view = None;
+			if self.is_terminal_focused()
+				&& let Some(buffer_id) = self.layout.first_buffer()
+			{
+				restore_view = Some(self.focused_view);
+				self.focused_view = BufferView::Text(buffer_id);
+			}
+
+			let outcome = if let Some(cmd) = tome_manifest::find_command(&req.command) {
 				let args: Vec<&str> = req.args.iter().map(String::as_str).collect();
 				let mut ctx = tome_manifest::CommandContext {
 					editor: self,
@@ -753,8 +778,50 @@ impl Editor {
 					register: None,
 					user_data: cmd.user_data,
 				};
-				futures::executor::block_on((cmd.handler)(&mut ctx)).ok();
+				let result = if let Ok(handle) = tokio::runtime::Handle::try_current() {
+					tokio::task::block_in_place(|| handle.block_on((cmd.handler)(&mut ctx)))
+				} else {
+					futures::executor::block_on((cmd.handler)(&mut ctx))
+				};
+				match result {
+					Ok(outcome) => outcome,
+					Err(err) => {
+						self.notify("error", err.to_string());
+						tome_manifest::CommandOutcome::Ok
+					}
+				}
+			} else {
+				self.notify("error", format!("Unknown command: {}", req.command));
+				tome_manifest::CommandOutcome::Ok
+			};
+
+			if let Some(view) = restore_view {
+				self.focused_view = view;
 			}
+
+			self.handle_command_outcome(outcome);
+		}
+	}
+
+	fn handle_command_outcome(&mut self, outcome: tome_manifest::CommandOutcome) {
+		match outcome {
+			tome_manifest::CommandOutcome::Ok => {}
+			tome_manifest::CommandOutcome::Quit | tome_manifest::CommandOutcome::ForceQuit => {
+				self.request_quit();
+			}
+		}
+	}
+
+	fn request_quit(&mut self) {
+		self.pending_quit = true;
+	}
+
+	pub fn take_quit_request(&mut self) -> bool {
+		if self.pending_quit {
+			self.pending_quit = false;
+			true
+		} else {
+			false
 		}
 	}
 

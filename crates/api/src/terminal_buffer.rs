@@ -4,10 +4,11 @@
 //! emulator and exposes it via the `SplitBuffer` trait for use in split panels.
 
 use std::io::{Read, Write};
+use std::path::Path;
 use std::sync::Arc;
 use std::sync::mpsc::{Receiver, TryRecvError, channel};
 use std::thread;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use portable_pty::{CommandBuilder, MasterPty, NativePtySystem, PtySize, PtySystem};
 use tome_manifest::{
@@ -16,7 +17,7 @@ use tome_manifest::{
 };
 use tome_tui::widgets::terminal::vt100::{self, Parser};
 
-use crate::terminal_ipc::TerminalIpcEnv;
+use crate::terminal_ipc::{TerminalIpcEnv, fish_init_command};
 
 /// Error type for terminal operations.
 #[derive(thiserror::Error, Debug)]
@@ -36,7 +37,19 @@ struct TerminalState {
 	pty_writer: Box<dyn Write + Send>,
 	receiver: Receiver<Vec<u8>>,
 	child: Box<dyn portable_pty::Child + Send>,
+	fish_init: Option<FishInitState>,
 }
+
+struct FishInitState {
+	pid: u32,
+	tome_bin: String,
+	tome_socket: String,
+	last_check: Instant,
+	attempts: u32,
+}
+
+const FISH_INIT_CHECK_INTERVAL: Duration = Duration::from_millis(50);
+const FISH_INIT_MAX_ATTEMPTS: u32 = 100;
 
 impl TerminalState {
 	fn new(cols: u16, rows: u16, env_vars: Vec<(String, String)>) -> Result<Self, TerminalError> {
@@ -50,11 +63,31 @@ impl TerminalState {
 			})
 			.map_err(|e| TerminalError::Pty(e.to_string()))?;
 
+		let tome_bin = env_vars
+			.iter()
+			.find(|(key, _)| key == "TOME_BIN")
+			.map(|(_, value)| value.clone());
+		let tome_socket = env_vars
+			.iter()
+			.find(|(key, _)| key == "TOME_SOCKET")
+			.map(|(_, value)| value.clone());
+
 		let shell = std::env::var("SHELL").unwrap_or_else(|_| "sh".to_string());
-		let mut cmd = CommandBuilder::new(shell);
+		let shell_name = Path::new(&shell)
+			.file_name()
+			.and_then(|name| name.to_str())
+			.unwrap_or(&shell)
+			.to_string();
+		let mut cmd = CommandBuilder::new(&shell);
 		for (key, value) in env_vars {
 			cmd.env(key, value);
 		}
+		apply_shell_path_injection(
+			&mut cmd,
+			&shell,
+			tome_bin.as_deref(),
+			tome_socket.as_deref(),
+		);
 
 		let child = pair
 			.slave
@@ -65,10 +98,30 @@ impl TerminalState {
 			.master
 			.try_clone_reader()
 			.map_err(|e| TerminalError::Pty(e.to_string()))?;
-		let writer = pair
+		let mut writer = pair
 			.master
 			.take_writer()
 			.map_err(|e| TerminalError::Pty(e.to_string()))?;
+
+		let mut fish_init = None;
+		if let (Some(tome_bin), Some(tome_socket)) = (tome_bin.clone(), tome_socket.clone()) {
+			if shell_name == "fish" {
+				inject_shell_init("fish", &mut writer, &tome_bin, &tome_socket);
+			} else if let Some(pid) = child.process_id() {
+				if is_fish_process(pid) {
+					inject_shell_init("fish", &mut writer, &tome_bin, &tome_socket);
+				} else {
+					fish_init = Some(FishInitState {
+						pid,
+						tome_bin,
+						tome_socket,
+						last_check: Instant::now(),
+						attempts: 0,
+					});
+				}
+			}
+		}
+
 		let master = pair.master;
 
 		let (tx, rx) = channel();
@@ -93,6 +146,7 @@ impl TerminalState {
 			pty_writer: writer,
 			receiver: rx,
 			child,
+			fish_init,
 		})
 	}
 
@@ -101,6 +155,7 @@ impl TerminalState {
 	}
 
 	fn update(&mut self) {
+		self.poll_fish_init();
 		loop {
 			match self.receiver.try_recv() {
 				Ok(bytes) => {
@@ -144,6 +199,102 @@ impl TerminalState {
 			Ok(None) => true,
 			Err(_) => false,
 		}
+	}
+
+	fn poll_fish_init(&mut self) {
+		let Some(state) = self.fish_init.as_mut() else {
+			return;
+		};
+
+		if state.last_check.elapsed() < FISH_INIT_CHECK_INTERVAL {
+			return;
+		}
+
+		state.last_check = Instant::now();
+		state.attempts += 1;
+
+		if is_fish_process(state.pid) {
+			inject_shell_init(
+				"fish",
+				&mut self.pty_writer,
+				&state.tome_bin,
+				&state.tome_socket,
+			);
+			self.fish_init = None;
+			return;
+		}
+
+		if state.attempts >= FISH_INIT_MAX_ATTEMPTS {
+			self.fish_init = None;
+		}
+	}
+}
+
+fn apply_shell_path_injection(
+	cmd: &mut CommandBuilder,
+	shell: &str,
+	tome_bin: Option<&str>,
+	tome_socket: Option<&str>,
+) {
+	let Some(tome_bin) = tome_bin else {
+		return;
+	};
+
+	let shell_name = Path::new(shell)
+		.file_name()
+		.and_then(|name| name.to_str())
+		.unwrap_or(shell);
+
+	if shell_name == "fish" {
+		let Some(socket) = tome_socket else {
+			return;
+		};
+		let init = fish_init_command(Path::new(tome_bin), Path::new(socket));
+		cmd.arg("-i");
+		cmd.arg("--init-command");
+		cmd.arg(init);
+	}
+}
+
+fn inject_shell_init(shell_name: &str, writer: &mut dyn Write, tome_bin: &str, tome_socket: &str) {
+	if shell_name != "fish" {
+		return;
+	}
+
+	let init = format!(
+		"set -gx TOME_BIN {tome_bin}; set -gx TOME_SOCKET {tome_socket}; \
+set -gx PATH {tome_bin} $PATH; \
+function fish_command_not_found; set -l cmd $argv[1]; \
+if string match -q ':*' -- $cmd; set -l target \"$TOME_BIN/$cmd\"; \
+if test -x \"$target\"; \"$target\" $argv[2..-1]; return $status; end; end; \
+if functions -q __fish_command_not_found_handler; __fish_command_not_found_handler $argv; end; \
+return 127; end\n",
+	);
+
+	let _ = writer.write_all(init.as_bytes());
+}
+
+#[cfg(target_os = "linux")]
+fn read_proc_comm(pid: u32) -> Option<String> {
+	let contents = std::fs::read_to_string(format!("/proc/{pid}/comm")).ok()?;
+	let trimmed = contents.trim();
+	if trimmed.is_empty() {
+		None
+	} else {
+		Some(trimmed.to_string())
+	}
+}
+
+fn is_fish_process(pid: u32) -> bool {
+	#[cfg(target_os = "linux")]
+	{
+		read_proc_comm(pid).as_deref() == Some("fish")
+	}
+
+	#[cfg(not(target_os = "linux"))]
+	{
+		let _ = pid;
+		false
 	}
 }
 
@@ -212,6 +363,13 @@ impl TerminalBuffer {
 			.as_ref()
 			.map(|env| env.env_vars())
 			.unwrap_or_default();
+
+		log::debug!(
+			"terminal prewarm: ipc_env={}, env_vars_count={}",
+			self.ipc_env.is_some(),
+			env_vars.len()
+		);
+
 		let (tx, rx) = channel();
 		self.prewarm = Some(rx);
 		thread::spawn(move || {

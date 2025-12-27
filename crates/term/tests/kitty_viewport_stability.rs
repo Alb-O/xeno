@@ -83,7 +83,7 @@ fn viewport_stable_during_adjacent_split_resize() {
 		return;
 	}
 
-	let file = "kitty-test-viewport-stability.txt";
+	let file = "tmp/kitty/viewport-stability.txt";
 	reset_test_file(file);
 	let log_path = create_test_log();
 	let log_path_clone = log_path.clone();

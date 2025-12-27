@@ -129,7 +129,7 @@ fn separator_hover_shows_lerped_animation() {
 		return;
 	}
 
-	let file = "kitty-test-separator-anim.txt";
+	let file = "tmp/kitty/separator-anim.txt";
 	let log_path = create_test_log();
 	let log_path_clone = log_path.clone();
 	reset_test_file(file);
@@ -232,7 +232,7 @@ fn separator_fadeout_shows_lerped_animation() {
 		return;
 	}
 
-	let file = "kitty-test-separator-fadeout.txt";
+	let file = "tmp/kitty/separator-fadeout.txt";
 	let log_path = create_test_log();
 	let log_path_clone = log_path.clone();
 	reset_test_file(file);
@@ -325,7 +325,7 @@ fn fast_mouse_suppresses_separator_hover() {
 		return;
 	}
 
-	let file = "kitty-test-separator-fast.txt";
+	let file = "tmp/kitty/separator-fast.txt";
 	reset_test_file(file);
 	run_with_timeout(TEST_TIMEOUT, || {
 		with_kitty_capture(&workspace_dir(), &tome_cmd_debug_theme(file), |kitty| {

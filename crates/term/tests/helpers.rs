@@ -43,6 +43,9 @@ pub fn workspace_dir() -> PathBuf {
 /// Removes the test file if it exists.
 pub fn reset_test_file(name: &str) {
 	let path = workspace_dir().join(name);
+	if let Some(parent) = path.parent() {
+		let _ = std::fs::create_dir_all(parent);
+	}
 	let _ = std::fs::remove_file(&path);
 }
 

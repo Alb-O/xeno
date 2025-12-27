@@ -29,6 +29,9 @@ pub async fn run_editor(mut editor: Editor) -> io::Result<()> {
 		loop {
 			editor.ui_tick();
 			editor.tick();
+			if editor.take_quit_request() {
+				break;
+			}
 
 			terminal.draw(|frame| editor.render(frame))?;
 

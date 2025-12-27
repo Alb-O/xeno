@@ -45,7 +45,7 @@ fn split_resize_outer_preserves_inner_absolute_position() {
 		return;
 	}
 
-	let file = "kitty-test-split-resize-outer.txt";
+	let file = "tmp/kitty/split-resize-outer.txt";
 	reset_test_file(file);
 	run_with_timeout(TEST_TIMEOUT, || {
 		with_kitty_capture(&workspace_dir(), &tome_cmd_debug_theme(file), |kitty| {
