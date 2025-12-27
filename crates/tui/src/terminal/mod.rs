@@ -32,9 +32,10 @@
 //! [`Buffer`]: crate::buffer::Buffer
 
 mod frame;
+mod insert_before;
 mod terminal;
 mod viewport;
 
 pub use frame::{CompletedFrame, Frame};
-pub use terminal::{Options as TerminalOptions, Terminal};
+pub use terminal::{Terminal, TerminalOptions};
 pub use viewport::Viewport;
