@@ -137,13 +137,13 @@ pub struct Editor {
 	///
 	/// Contains the separator's direction and screen rectangle when the mouse
 	/// is hovering over a split boundary. Only set when velocity is low enough.
-	pub hovered_separator: Option<(SplitDirection, ratatui::layout::Rect)>,
+	pub hovered_separator: Option<(SplitDirection, tome_tui::layout::Rect)>,
 
 	/// Separator the mouse is currently over (regardless of velocity).
 	///
 	/// This tracks the physical position even when hover is suppressed due to
 	/// fast mouse movement, allowing us to activate hover when mouse slows down.
-	pub separator_under_mouse: Option<(SplitDirection, ratatui::layout::Rect)>,
+	pub separator_under_mouse: Option<(SplitDirection, tome_tui::layout::Rect)>,
 
 	/// Animation state for separator hover fade effects.
 	///
@@ -245,9 +245,9 @@ impl MouseVelocityTracker {
 #[derive(Debug, Clone)]
 pub struct SeparatorHoverAnimation {
 	/// The separator rectangle being animated.
-	pub rect: ratatui::layout::Rect,
+	pub rect: tome_tui::layout::Rect,
 	/// The hover intensity tween (0.0 = unhovered, 1.0 = fully hovered).
-	tween: ratatui::animation::ToggleTween<f32>,
+	tween: tome_tui::animation::ToggleTween<f32>,
 }
 
 impl SeparatorHoverAnimation {
@@ -255,9 +255,9 @@ impl SeparatorHoverAnimation {
 	const FADE_DURATION: std::time::Duration = std::time::Duration::from_millis(120);
 
 	/// Creates a new hover animation for the given separator.
-	pub fn new(rect: ratatui::layout::Rect, hovering: bool) -> Self {
-		let mut tween = ratatui::animation::ToggleTween::new(0.0f32, 1.0f32, Self::FADE_DURATION)
-			.with_easing(ratatui::animation::Easing::EaseOut);
+	pub fn new(rect: tome_tui::layout::Rect, hovering: bool) -> Self {
+		let mut tween = tome_tui::animation::ToggleTween::new(0.0f32, 1.0f32, Self::FADE_DURATION)
+			.with_easing(tome_tui::animation::Easing::EaseOut);
 		tween.set_active(hovering);
 		Self { rect, tween }
 	}
@@ -976,10 +976,10 @@ impl Editor {
 
 	pub fn collect_highlight_spans(
 		&self,
-		area: ratatui::layout::Rect,
+		area: tome_tui::layout::Rect,
 	) -> Vec<(
 		tome_language::highlight::HighlightSpan,
-		ratatui::style::Style,
+		tome_tui::style::Style,
 	)> {
 		let buffer = self.buffer();
 		let Some(ref syntax) = buffer.syntax else {
@@ -1010,8 +1010,8 @@ impl Editor {
 		highlighter
 			.map(|span| {
 				let abstract_style = highlight_styles.style_for_highlight(span.highlight);
-				let ratatui_style: ratatui::style::Style = abstract_style.into();
-				(span, ratatui_style)
+				let tome_tui_style: tome_tui::style::Style = abstract_style.into();
+				(span, tome_tui_style)
 			})
 			.collect()
 	}
@@ -1021,9 +1021,9 @@ impl Editor {
 		byte_pos: usize,
 		spans: &[(
 			tome_language::highlight::HighlightSpan,
-			ratatui::style::Style,
+			tome_tui::style::Style,
 		)],
-	) -> Option<ratatui::style::Style> {
+	) -> Option<tome_tui::style::Style> {
 		for (span, style) in spans.iter().rev() {
 			if byte_pos >= span.start as usize && byte_pos < span.end as usize {
 				return Some(*style);
@@ -1035,9 +1035,9 @@ impl Editor {
 	pub fn apply_style_overlay(
 		&self,
 		byte_pos: usize,
-		style: Option<ratatui::style::Style>,
-	) -> Option<ratatui::style::Style> {
-		use ratatui::animation::Animatable;
+		style: Option<tome_tui::style::Style>,
+	) -> Option<tome_tui::style::Style> {
+		use tome_tui::animation::Animatable;
 
 		use crate::editor::extensions::StyleMod;
 
@@ -1048,15 +1048,15 @@ impl Editor {
 		let style = style.unwrap_or_default();
 		let modified = match modification {
 			StyleMod::Dim(factor) => {
-				// Convert theme bg color to ratatui color for blending
-				let bg: ratatui::style::Color = self.theme.colors.ui.bg.into();
+				// Convert theme bg color to tome_tui color for blending
+				let bg: tome_tui::style::Color = self.theme.colors.ui.bg.into();
 				if let Some(fg) = style.fg {
 					// Blend fg toward bg using Animatable::lerp
 					// factor=1.0 means no dimming (full fg), factor=0.0 means full bg
 					let dimmed = bg.lerp(&fg, factor);
 					style.fg(dimmed)
 				} else {
-					style.fg(ratatui::style::Color::DarkGray)
+					style.fg(tome_tui::style::Color::DarkGray)
 				}
 			}
 			StyleMod::Fg(color) => style.fg(color),

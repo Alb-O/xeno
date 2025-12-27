@@ -2,12 +2,12 @@
 //!
 //! This module handles the UI rendering of notifications. It converts
 //! abstract `Notification` data from `tome_stdlib` into rendered widgets
-//! using ratatui.
+//! using tome_tui.
 //!
 //! # Architecture
 //!
 //! - **Manager** (`manager.rs`): Manages notification lifecycle and delegates rendering.
-//! - **State** (`state.rs`): Runtime state with ratatui types.
+//! - **State** (`state.rs`): Runtime state with tome_tui types.
 //! - **Render** (`render.rs`): Main rendering logic.
 //! - **Layout** (`layout.rs`): Position calculation.
 //! - **Stacking** (`stacking.rs`): Multiple notification stacking.

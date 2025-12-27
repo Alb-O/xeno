@@ -1,6 +1,6 @@
-use ratatui::style::{Modifier, Style};
-use ratatui::text::{Line, Span};
-use ratatui::widgets::{Paragraph, Widget};
+use tome_tui::style::{Modifier, Style};
+use tome_tui::text::{Line, Span};
+use tome_tui::widgets::{Paragraph, Widget};
 use tome_manifest::{
 	Mode, RenderedSegment, SegmentPosition, SegmentStyle, StatuslineContext, render_position,
 };

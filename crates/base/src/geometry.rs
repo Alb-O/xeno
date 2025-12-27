@@ -1,7 +1,7 @@
 //! Abstract geometry types for layout.
 //!
 //! These types define rectangles, positions, and padding without depending on
-//! any terminal or UI library. Conversion to ratatui types happens at the UI
+//! any terminal or UI library. Conversion to tome_tui types happens at the UI
 //! boundary via `From` trait implementations.
 
 use serde::{Deserialize, Serialize};
@@ -162,52 +162,52 @@ pub enum BorderKind {
 	Padded,
 }
 
-// Conversion to ratatui types
+// Conversion to tome_tui types
 
-#[cfg(feature = "ratatui")]
-impl From<Rect> for ratatui::layout::Rect {
+#[cfg(feature = "tome-tui")]
+impl From<Rect> for tome_tui::layout::Rect {
 	fn from(rect: Rect) -> Self {
 		Self::new(rect.x, rect.y, rect.width, rect.height)
 	}
 }
 
-#[cfg(feature = "ratatui")]
-impl From<ratatui::layout::Rect> for Rect {
-	fn from(rect: ratatui::layout::Rect) -> Self {
+#[cfg(feature = "tome-tui")]
+impl From<tome_tui::layout::Rect> for Rect {
+	fn from(rect: tome_tui::layout::Rect) -> Self {
 		Self::new(rect.x, rect.y, rect.width, rect.height)
 	}
 }
 
-#[cfg(feature = "ratatui")]
-impl From<Position> for ratatui::layout::Position {
+#[cfg(feature = "tome-tui")]
+impl From<Position> for tome_tui::layout::Position {
 	fn from(pos: Position) -> Self {
 		Self::new(pos.x, pos.y)
 	}
 }
 
-#[cfg(feature = "ratatui")]
-impl From<ratatui::layout::Position> for Position {
-	fn from(pos: ratatui::layout::Position) -> Self {
+#[cfg(feature = "tome-tui")]
+impl From<tome_tui::layout::Position> for Position {
+	fn from(pos: tome_tui::layout::Position) -> Self {
 		Self::new(pos.x, pos.y)
 	}
 }
 
-#[cfg(feature = "ratatui")]
-impl From<Padding> for ratatui::widgets::block::Padding {
+#[cfg(feature = "tome-tui")]
+impl From<Padding> for tome_tui::widgets::block::Padding {
 	fn from(padding: Padding) -> Self {
 		Self::new(padding.left, padding.right, padding.top, padding.bottom)
 	}
 }
 
-#[cfg(feature = "ratatui")]
-impl From<ratatui::widgets::block::Padding> for Padding {
-	fn from(padding: ratatui::widgets::block::Padding) -> Self {
+#[cfg(feature = "tome-tui")]
+impl From<tome_tui::widgets::block::Padding> for Padding {
+	fn from(padding: tome_tui::widgets::block::Padding) -> Self {
 		Self::new(padding.top, padding.right, padding.bottom, padding.left)
 	}
 }
 
-#[cfg(feature = "ratatui")]
-impl From<BorderKind> for ratatui::widgets::BorderType {
+#[cfg(feature = "tome-tui")]
+impl From<BorderKind> for tome_tui::widgets::BorderType {
 	fn from(kind: BorderKind) -> Self {
 		match kind {
 			BorderKind::Plain => Self::Plain,
@@ -219,15 +219,15 @@ impl From<BorderKind> for ratatui::widgets::BorderType {
 	}
 }
 
-#[cfg(feature = "ratatui")]
-impl From<ratatui::widgets::BorderType> for BorderKind {
-	fn from(border_type: ratatui::widgets::BorderType) -> Self {
+#[cfg(feature = "tome-tui")]
+impl From<tome_tui::widgets::BorderType> for BorderKind {
+	fn from(border_type: tome_tui::widgets::BorderType) -> Self {
 		match border_type {
-			ratatui::widgets::BorderType::Plain => Self::Plain,
-			ratatui::widgets::BorderType::Rounded => Self::Rounded,
-			ratatui::widgets::BorderType::Double => Self::Double,
-			ratatui::widgets::BorderType::Thick => Self::Thick,
-			ratatui::widgets::BorderType::Padded => Self::Padded,
+			tome_tui::widgets::BorderType::Plain => Self::Plain,
+			tome_tui::widgets::BorderType::Rounded => Self::Rounded,
+			tome_tui::widgets::BorderType::Double => Self::Double,
+			tome_tui::widgets::BorderType::Thick => Self::Thick,
+			tome_tui::widgets::BorderType::Padded => Self::Padded,
 			// QuadrantInside/Outside don't have direct mappings
 			_ => Self::Plain,
 		}
@@ -261,12 +261,12 @@ mod tests {
 		assert_eq!(padding.vertical_total(), 4);
 	}
 
-	#[cfg(feature = "ratatui")]
+	#[cfg(feature = "tome-tui")]
 	#[test]
 	fn test_rect_roundtrip() {
 		let rect = Rect::new(10, 20, 100, 50);
-		let ratatui_rect: ratatui::layout::Rect = rect.into();
-		let back: Rect = ratatui_rect.into();
+		let tome_tui_rect: tome_tui::layout::Rect = rect.into();
+		let back: Rect = tome_tui_rect.into();
 		assert_eq!(rect, back);
 	}
 }

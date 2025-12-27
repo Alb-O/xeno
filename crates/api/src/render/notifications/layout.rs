@@ -1,4 +1,4 @@
-use ratatui::layout::{Position, Rect};
+use tome_tui::layout::{Position, Rect};
 use tome_manifest::notifications::Anchor;
 
 /// Calculate the anchor position within a frame area.

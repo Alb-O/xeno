@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use ratatui::layout::Rect;
+use tome_tui::layout::Rect;
 use termina::event::{KeyEvent, MouseEvent};
 use tome_theme::Theme;
 
@@ -238,11 +238,11 @@ impl UiManager {
 	pub fn render_panels(
 		&mut self,
 		editor: &mut crate::editor::Editor,
-		frame: &mut ratatui::Frame,
+		frame: &mut tome_tui::Frame,
 		layout: &DockLayout,
 		theme: &Theme,
-	) -> Option<ratatui::layout::Position> {
-		let mut cursor: Option<ratatui::layout::Position> = None;
+	) -> Option<tome_tui::layout::Position> {
+		let mut cursor: Option<tome_tui::layout::Position> = None;
 		for (id, area) in &layout.panel_areas {
 			let focused = self.is_panel_focused(id);
 			if let Some(panel) = self.panels.get_mut(id) {

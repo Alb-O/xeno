@@ -6,7 +6,6 @@ note: "Adding a reason helps others understand why a lint is being suppressed, e
 files:
   - "crates/**/*.rs"
 ignores:
-  - "crates/ratatui/**/*.rs"
   - "vendor/**/*.rs"
 rule:
   any:

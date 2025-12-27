@@ -1,8 +1,8 @@
 use std::time::{Duration, Instant};
 
-use ratatui::prelude::*;
-use ratatui::widgets::block::Padding;
-use ratatui::widgets::{Block, BorderType};
+use tome_tui::prelude::*;
+use tome_tui::widgets::block::Padding;
+use tome_tui::widgets::{Block, BorderType};
 use tome_manifest::notifications::{Animation, AnimationPhase, AutoDismiss, Level, Timing};
 use tome_stdlib::notifications::Notification;
 
@@ -246,7 +246,7 @@ impl crate::render::notifications::render::RenderableNotification for Notificati
 		&self,
 		block: Block<'a>,
 		frame_area: Rect,
-		base_set: &ratatui::symbols::border::Set<'a>,
+		base_set: &tome_tui::symbols::border::Set<'a>,
 	) -> Block<'a> {
 		match self.notification.animation {
 			Animation::Slide => slide_apply_border_effect(

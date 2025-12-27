@@ -1,8 +1,8 @@
-use ratatui::layout::Rect;
-use ratatui::style::{Modifier, Style};
-use ratatui::text::{Line, Span};
-use ratatui::widgets::list::ListItem;
-use ratatui::widgets::{Block, Borders, List, Widget};
+use tome_tui::layout::Rect;
+use tome_tui::style::{Modifier, Style};
+use tome_tui::text::{Line, Span};
+use tome_tui::widgets::list::ListItem;
+use tome_tui::widgets::{Block, Borders, List, Widget};
 use tome_manifest::CompletionKind;
 
 use crate::Editor;
@@ -99,11 +99,11 @@ impl Editor {
 			.collect();
 
 		let stripe_style = Style::default().fg(self.theme.colors.status.normal_bg.into());
-		let border_set = ratatui::symbols::border::Set {
+		let border_set = tome_tui::symbols::border::Set {
 			top_left: "▏",
 			vertical_left: "▏",
 			bottom_left: "▏",
-			..ratatui::symbols::border::EMPTY
+			..tome_tui::symbols::border::EMPTY
 		};
 
 		let block = Block::default()

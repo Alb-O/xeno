@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::time::Duration;
 
-use ratatui::prelude::{Frame, Rect};
+use tome_tui::prelude::{Frame, Rect};
 use tome_manifest::notifications::{Anchor, AnimationPhase, NotificationError, Overflow};
 use tome_stdlib::notifications::Notification;
 

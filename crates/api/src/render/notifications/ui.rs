@@ -1,9 +1,9 @@
-use ratatui::layout::{Alignment, Rect};
-use ratatui::prelude::*;
-use ratatui::style::{Modifier, Style};
-use ratatui::widgets::Paragraph;
-use ratatui::widgets::block::Padding;
-use ratatui::widgets::paragraph::Wrap;
+use tome_tui::layout::{Alignment, Rect};
+use tome_tui::prelude::*;
+use tome_tui::style::{Modifier, Style};
+use tome_tui::widgets::Paragraph;
+use tome_tui::widgets::block::Padding;
+use tome_tui::widgets::paragraph::Wrap;
 use tome_manifest::notifications::Level;
 
 const ICON_INFO: &str = "󰋼";

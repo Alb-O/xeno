@@ -219,7 +219,7 @@ impl SplitSize {
 ///
 /// Split buffers don't render directly. Instead, they expose content via
 /// the `cells()` iterator. The UI layer consumes this to render into a
-/// ratatui buffer.
+/// tome_tui buffer.
 pub trait SplitBuffer: Send {
 	/// Unique identifier for this buffer type.
 	fn id(&self) -> &str;

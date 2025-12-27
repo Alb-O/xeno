@@ -16,9 +16,9 @@ pub fn clip_rect_to_frame(
 	current_y: f32,
 	width: u16,
 	height: u16,
-	frame_area: ratatui::prelude::Rect,
-) -> ratatui::prelude::Rect {
-	use ratatui::prelude::Rect;
+	frame_area: tome_tui::prelude::Rect,
+) -> tome_tui::prelude::Rect {
+	use tome_tui::prelude::Rect;
 
 	let anim_x1 = current_x;
 	let anim_y1 = current_y;

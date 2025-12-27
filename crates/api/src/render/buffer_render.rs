@@ -7,10 +7,10 @@
 use std::collections::HashSet;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use ratatui::layout::Rect;
-use ratatui::style::{Modifier, Style};
-use ratatui::text::{Line, Span};
-use ratatui::widgets::Paragraph;
+use tome_tui::layout::Rect;
+use tome_tui::style::{Modifier, Style};
+use tome_tui::text::{Line, Span};
+use tome_tui::widgets::Paragraph;
 use tome_base::range::CharIdx;
 use tome_language::LanguageLoader;
 use tome_language::highlight::{HighlightSpan, HighlightStyles};
@@ -133,8 +133,8 @@ impl<'a> BufferRenderContext<'a> {
 		highlighter
 			.map(|span| {
 				let abstract_style = highlight_styles.style_for_highlight(span.highlight);
-				let ratatui_style: Style = abstract_style.into();
-				(span, ratatui_style)
+				let tome_tui_style: Style = abstract_style.into();
+				(span, tome_tui_style)
 			})
 			.collect()
 	}
@@ -155,7 +155,7 @@ impl<'a> BufferRenderContext<'a> {
 
 	/// Applies style overlay modifications (e.g., zen mode dimming).
 	pub fn apply_style_overlay(&self, byte_pos: usize, style: Option<Style>) -> Option<Style> {
-		use ratatui::animation::Animatable;
+		use tome_tui::animation::Animatable;
 
 		use crate::editor::extensions::StyleMod;
 
@@ -166,15 +166,15 @@ impl<'a> BufferRenderContext<'a> {
 		let style = style.unwrap_or_default();
 		let modified = match modification {
 			StyleMod::Dim(factor) => {
-				// Convert theme bg color to ratatui color for blending
-				let bg: ratatui::style::Color = self.theme.colors.ui.bg.into();
+				// Convert theme bg color to tome_tui color for blending
+				let bg: tome_tui::style::Color = self.theme.colors.ui.bg.into();
 				if let Some(fg) = style.fg {
 					// Blend fg toward bg using Animatable::lerp
 					// factor=1.0 means no dimming (full fg), factor=0.0 means full bg
 					let dimmed = bg.lerp(&fg, factor);
 					style.fg(dimmed)
 				} else {
-					style.fg(ratatui::style::Color::DarkGray)
+					style.fg(tome_tui::style::Color::DarkGray)
 				}
 			}
 			StyleMod::Fg(color) => style.fg(color),

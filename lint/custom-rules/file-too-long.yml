@@ -8,6 +8,4 @@ note: "Large files are harder to navigate and maintain. Extract related function
 files:
   - "crates/**/*.rs"
 ignores:
-  - "crates/ratatui/**"
-  - "crates/**/benches/**"
   - "vendor/**"

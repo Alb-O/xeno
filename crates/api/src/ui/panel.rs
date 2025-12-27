@@ -1,5 +1,5 @@
-use ratatui::Frame;
-use ratatui::layout::{Position, Rect};
+use tome_tui::Frame;
+use tome_tui::layout::{Position, Rect};
 use termina::event::{KeyEvent, MouseEvent};
 use tome_theme::Theme;
 

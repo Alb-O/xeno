@@ -2,10 +2,10 @@
 //!
 //! Calculates the dimensions needed to render a notification.
 
-use ratatui::buffer::Buffer;
-use ratatui::prelude::*;
-use ratatui::widgets::paragraph::Wrap;
-use ratatui::widgets::{Block, Borders, Paragraph};
+use tome_tui::buffer::Buffer;
+use tome_tui::prelude::*;
+use tome_tui::widgets::paragraph::Wrap;
+use tome_tui::widgets::{Block, Borders, Paragraph};
 use tome_manifest::notifications::SizeConstraint;
 use tome_stdlib::notifications::Notification;
 
@@ -13,12 +13,12 @@ use crate::render::notifications::ui::{gutter_layout, padding_with_gutter};
 
 /// Calculates the width and height needed to display a notification.
 pub fn calculate_size(notification: &Notification, frame_area: Rect) -> (u16, u16) {
-	let border_type: ratatui::widgets::BorderType = notification.border_kind.into();
+	let border_type: tome_tui::widgets::BorderType = notification.border_kind.into();
 	let border_v_offset: u16 = 2;
 	let border_h_offset: u16 = 2;
 
 	let gutter = gutter_layout(notification.level);
-	let padding: ratatui::widgets::block::Padding = notification.padding.into();
+	let padding: tome_tui::widgets::block::Padding = notification.padding.into();
 	let effective_padding = padding_with_gutter(padding, gutter);
 
 	let h_padding = effective_padding.left + effective_padding.right;

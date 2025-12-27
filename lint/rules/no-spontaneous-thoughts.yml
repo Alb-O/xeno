@@ -6,7 +6,6 @@ note: "Phrases like 'wait,' or 'hold on,' are noise and should be cleaned up. Be
 files:
   - "crates/**/*.rs"
 ignores:
-  - "crates/ratatui/**/*.rs"
   - "vendor/**/*.rs"
 rule:
   any:

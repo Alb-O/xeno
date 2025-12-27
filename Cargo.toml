@@ -29,7 +29,6 @@ portable-pty = "0.9"
 proc-macro2 = "1.0"
 proptest = "1.6"
 quote = "1.0"
-ratatui = { path = "crates/ratatui" }
 regex = "1"
 ropey = "1.6"
 serde = { version = "1", features = ["derive"] }
@@ -54,11 +53,10 @@ tome-macro = { path = "crates/macro" }
 tome-manifest = { path = "crates/manifest" }
 tome-stdlib = { path = "crates/stdlib" }
 tome-theme = { path = "crates/theme" }
+tome-tui = { path = "crates/tui" }
 toml = "0.9"
 tree-house = "0.3"
-tui-term = "0.2"
 unicode-segmentation = "1.12"
 unicode-width = "0.2"
 
-[patch.crates-io]
-ratatui = { path = "crates/ratatui" }
+

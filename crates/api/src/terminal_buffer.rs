@@ -13,7 +13,7 @@ use tome_manifest::{
 	SplitAttrs, SplitBuffer, SplitCell, SplitColor, SplitCursor, SplitCursorStyle,
 	SplitDockPreference, SplitEventResult, SplitKey, SplitKeyCode, SplitModifiers, SplitSize,
 };
-use tui_term::vt100::{self, Parser};
+use tome_tui::widgets::terminal::vt100::{self, Parser};
 
 /// Error type for terminal operations.
 #[derive(thiserror::Error, Debug)]

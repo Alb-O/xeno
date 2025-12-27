@@ -6,13 +6,13 @@ edition.workspace = true
 license.workspace = true
 
 [features]
-default = ["ratatui"]
-ratatui = ["dep:ratatui"]
+default = ["tome-tui"]
+tome-tui = ["dep:tome-tui"]
 
 [dependencies]
 crossterm.workspace = true
 log.workspace = true
-ratatui = { workspace = true, optional = true }
+tome-tui = { workspace = true, optional = true }
 ropey.workspace = true
 serde.workspace = true
 smallvec.workspace = true

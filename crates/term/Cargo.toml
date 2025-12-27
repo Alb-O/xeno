@@ -15,7 +15,7 @@ clap.workspace = true
 home = "0.5"
 linkme.workspace = true
 parking_lot.workspace = true
-ratatui.workspace = true
+tome-tui.workspace = true
 serde.workspace = true
 termina.workspace = true
 thiserror.workspace = true
@@ -30,7 +30,6 @@ tome-manifest.workspace = true
 tome-stdlib.workspace = true
 tome-theme.workspace = true
 toml.workspace = true
-tui-term.workspace = true
 
 [dev-dependencies]
 insta.workspace = true

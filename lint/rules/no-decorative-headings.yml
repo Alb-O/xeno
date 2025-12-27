@@ -6,7 +6,6 @@ note: "Consider using more comprehensive docstrings (/// or //!) with Markdown h
 files:
   - "crates/**/*.rs"
 ignores:
-  - "crates/ratatui/**/*.rs"
   - "vendor/**/*.rs"
 rule:
   all:

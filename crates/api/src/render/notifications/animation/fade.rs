@@ -1,5 +1,5 @@
-use ratatui::animation::{Animatable, ease_in_quad, ease_out_quad};
-use ratatui::prelude::*;
+use tome_tui::animation::{Animatable, ease_in_quad, ease_out_quad};
+use tome_tui::prelude::*;
 use tome_manifest::notifications::AnimationPhase;
 
 /// Target color when fully faded out (black).

@@ -354,10 +354,10 @@ impl Layout {
 	/// Finds the view at the given screen coordinates.
 	pub fn view_at_position(
 		&self,
-		area: ratatui::layout::Rect,
+		area: tome_tui::layout::Rect,
 		x: u16,
 		y: u16,
-	) -> Option<(BufferView, ratatui::layout::Rect)> {
+	) -> Option<(BufferView, tome_tui::layout::Rect)> {
 		self.compute_view_areas(area).into_iter().find(|(_, rect)| {
 			x >= rect.x && x < rect.x + rect.width && y >= rect.y && y < rect.y + rect.height
 		})
@@ -366,8 +366,8 @@ impl Layout {
 	/// Computes rectangular areas for each view in the layout.
 	pub fn compute_view_areas(
 		&self,
-		area: ratatui::layout::Rect,
-	) -> Vec<(BufferView, ratatui::layout::Rect)> {
+		area: tome_tui::layout::Rect,
+	) -> Vec<(BufferView, tome_tui::layout::Rect)> {
 		match self {
 			Layout::Single(view) => vec![(*view, area)],
 			Layout::Split {
@@ -387,8 +387,8 @@ impl Layout {
 	/// Computes rectangular areas for each buffer in the layout.
 	pub fn compute_areas(
 		&self,
-		area: ratatui::layout::Rect,
-	) -> Vec<(BufferId, ratatui::layout::Rect)> {
+		area: tome_tui::layout::Rect,
+	) -> Vec<(BufferId, tome_tui::layout::Rect)> {
 		self.compute_view_areas(area)
 			.into_iter()
 			.filter_map(|(view, rect)| view.as_text().map(|id| (id, rect)))
@@ -397,10 +397,10 @@ impl Layout {
 
 	/// Helper to split an area according to direction and ratio.
 	fn split_area(
-		area: ratatui::layout::Rect,
+		area: tome_tui::layout::Rect,
 		direction: SplitDirection,
 		ratio: f32,
-	) -> (ratatui::layout::Rect, ratatui::layout::Rect) {
+	) -> (tome_tui::layout::Rect, tome_tui::layout::Rect) {
 		let (first, second, _) = Self::compute_split_areas(area, direction, ratio);
 		(first, second)
 	}
@@ -408,10 +408,10 @@ impl Layout {
 	/// Finds the separator at the given screen coordinates.
 	pub fn separator_at_position(
 		&self,
-		area: ratatui::layout::Rect,
+		area: tome_tui::layout::Rect,
 		x: u16,
 		y: u16,
-	) -> Option<(SplitDirection, ratatui::layout::Rect)> {
+	) -> Option<(SplitDirection, tome_tui::layout::Rect)> {
 		self.separator_positions(area)
 			.into_iter()
 			.find(|(_, _, rect)| {
@@ -423,20 +423,20 @@ impl Layout {
 	/// Finds the separator and its path at the given screen coordinates.
 	pub fn separator_with_path_at_position(
 		&self,
-		area: ratatui::layout::Rect,
+		area: tome_tui::layout::Rect,
 		x: u16,
 		y: u16,
-	) -> Option<(SplitDirection, ratatui::layout::Rect, SplitPath)> {
+	) -> Option<(SplitDirection, tome_tui::layout::Rect, SplitPath)> {
 		self.find_separator_with_path(area, x, y, SplitPath::default())
 	}
 
 	fn find_separator_with_path(
 		&self,
-		area: ratatui::layout::Rect,
+		area: tome_tui::layout::Rect,
 		x: u16,
 		y: u16,
 		current_path: SplitPath,
-	) -> Option<(SplitDirection, ratatui::layout::Rect, SplitPath)> {
+	) -> Option<(SplitDirection, tome_tui::layout::Rect, SplitPath)> {
 		let Layout::Split {
 			direction,
 			ratio,
@@ -476,7 +476,7 @@ impl Layout {
 	/// Child splits have their ratios adjusted to keep separators at same absolute positions.
 	pub fn resize_at_path(
 		&mut self,
-		area: ratatui::layout::Rect,
+		area: tome_tui::layout::Rect,
 		path: &SplitPath,
 		mouse_x: u16,
 		mouse_y: u16,
@@ -486,7 +486,7 @@ impl Layout {
 
 	fn do_resize_at_path(
 		&mut self,
-		area: ratatui::layout::Rect,
+		area: tome_tui::layout::Rect,
 		path: &[bool],
 		mouse_x: u16,
 		mouse_y: u16,
@@ -543,7 +543,7 @@ impl Layout {
 
 	fn collect_separator_positions(
 		&self,
-		area: ratatui::layout::Rect,
+		area: tome_tui::layout::Rect,
 	) -> Vec<(SplitDirection, u16)> {
 		let Layout::Split {
 			direction,
@@ -571,8 +571,8 @@ impl Layout {
 
 	fn adjust_ratios_for_new_area(
 		&mut self,
-		old_area: ratatui::layout::Rect,
-		new_area: ratatui::layout::Rect,
+		old_area: tome_tui::layout::Rect,
+		new_area: tome_tui::layout::Rect,
 		old_positions: &[(SplitDirection, u16)],
 	) {
 		if old_positions.is_empty() {
@@ -632,17 +632,17 @@ impl Layout {
 	/// Gets the separator rect for a split at the given path.
 	pub fn separator_rect_at_path(
 		&self,
-		area: ratatui::layout::Rect,
+		area: tome_tui::layout::Rect,
 		path: &SplitPath,
-	) -> Option<(SplitDirection, ratatui::layout::Rect)> {
+	) -> Option<(SplitDirection, tome_tui::layout::Rect)> {
 		self.do_get_separator_at_path(area, &path.0)
 	}
 
 	fn do_get_separator_at_path(
 		&self,
-		area: ratatui::layout::Rect,
+		area: tome_tui::layout::Rect,
 		path: &[bool],
-	) -> Option<(SplitDirection, ratatui::layout::Rect)> {
+	) -> Option<(SplitDirection, tome_tui::layout::Rect)> {
 		let Layout::Split {
 			direction,
 			ratio,
@@ -668,31 +668,31 @@ impl Layout {
 	}
 
 	fn compute_split_areas(
-		area: ratatui::layout::Rect,
+		area: tome_tui::layout::Rect,
 		direction: SplitDirection,
 		ratio: f32,
 	) -> (
-		ratatui::layout::Rect,
-		ratatui::layout::Rect,
-		ratatui::layout::Rect,
+		tome_tui::layout::Rect,
+		tome_tui::layout::Rect,
+		tome_tui::layout::Rect,
 	) {
 		match direction {
 			SplitDirection::Horizontal => {
 				let first_width = ((area.width as f32) * ratio).round() as u16;
 				(
-					ratatui::layout::Rect {
+					tome_tui::layout::Rect {
 						x: area.x,
 						y: area.y,
 						width: first_width,
 						height: area.height,
 					},
-					ratatui::layout::Rect {
+					tome_tui::layout::Rect {
 						x: area.x + first_width + 1,
 						y: area.y,
 						width: area.width.saturating_sub(first_width).saturating_sub(1),
 						height: area.height,
 					},
-					ratatui::layout::Rect {
+					tome_tui::layout::Rect {
 						x: area.x + first_width,
 						y: area.y,
 						width: 1,
@@ -703,19 +703,19 @@ impl Layout {
 			SplitDirection::Vertical => {
 				let first_height = ((area.height as f32) * ratio).round() as u16;
 				(
-					ratatui::layout::Rect {
+					tome_tui::layout::Rect {
 						x: area.x,
 						y: area.y,
 						width: area.width,
 						height: first_height,
 					},
-					ratatui::layout::Rect {
+					tome_tui::layout::Rect {
 						x: area.x,
 						y: area.y + first_height + 1,
 						width: area.width,
 						height: area.height.saturating_sub(first_height).saturating_sub(1),
 					},
-					ratatui::layout::Rect {
+					tome_tui::layout::Rect {
 						x: area.x,
 						y: area.y + first_height,
 						width: area.width,
@@ -729,8 +729,8 @@ impl Layout {
 	/// Returns separator positions for rendering.
 	pub fn separator_positions(
 		&self,
-		area: ratatui::layout::Rect,
-	) -> Vec<(SplitDirection, u16, ratatui::layout::Rect)> {
+		area: tome_tui::layout::Rect,
+	) -> Vec<(SplitDirection, u16, tome_tui::layout::Rect)> {
 		let Layout::Split {
 			direction,
 			ratio,

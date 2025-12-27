@@ -45,15 +45,15 @@ This graph is already acyclic, but `tome-api` is the integration hub and `tome-e
 
 ## Guardrails
 
-- Core crates must not take direct `ratatui` types. Use `tome-base` color/geometry/style types and convert at the UI boundary.
-- `tome-base` conversions to `ratatui` remain feature-gated; UI crates opt in to keep core builds light.
+- Core crates must not take direct `tome-tui` types. Use `tome-base` color/geometry/style types and convert at the UI boundary.
+- `tome-base` conversions to `tome-tui` remain feature-gated; UI crates opt in to keep core builds light.
 - `tome-term` stays thin: CLI wiring and startup only; no editor logic.
 
 ## Completed cleanup
 
-- `tome-language` now uses `tome_base::Style` for `HighlightStyles` instead of direct `ratatui` dependency.
-- `tome-api` converts from `tome_base::Style` to `ratatui::style::Style` in `collect_highlight_spans()`.
-- `tome-stdlib` no longer depends on ratatui/crossterm (notification rendering moved to `tome-api`).
+- `tome-language` now uses `tome_base::Style` for `HighlightStyles` instead of direct `tome-tui` dependency.
+- `tome-api` converts from `tome_base::Style` to `tome_tui::style::Style` in `collect_highlight_spans()`.
+- `tome-stdlib` no longer depends on tome-tui/crossterm (notification rendering moved to `tome-api`).
 
 ## Preconditions for a future split
 

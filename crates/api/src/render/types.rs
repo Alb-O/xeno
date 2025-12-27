@@ -1,4 +1,4 @@
-use ratatui::widgets::Paragraph;
+use tome_tui::widgets::Paragraph;
 
 /// A segment of a wrapped line.
 pub struct WrapSegment {

@@ -1,10 +1,10 @@
 use std::collections::HashMap;
 
-use ratatui::layout::Alignment;
-use ratatui::prelude::*;
-use ratatui::symbols::border;
-use ratatui::widgets::block::Padding;
-use ratatui::widgets::{Block, BorderType, Borders, Clear};
+use tome_tui::layout::Alignment;
+use tome_tui::prelude::*;
+use tome_tui::symbols::border;
+use tome_tui::widgets::block::Padding;
+use tome_tui::widgets::{Block, BorderType, Borders, Clear};
 use tome_manifest::notifications::{Anchor, Animation, AnimationPhase, Level};
 
 use crate::render::notifications::stacking::{StackableNotification, calculate_stacking_positions};
@@ -101,11 +101,11 @@ pub fn render_notifications<T: RenderableNotification>(
 					.padding(state.padding());
 
 				if state.border_type() == BorderType::Padded {
-					block = block.border_set(ratatui::symbols::border::Set {
+					block = block.border_set(tome_tui::symbols::border::Set {
 						top_left: "▏",
 						vertical_left: "▏",
 						bottom_left: "▏",
-						..ratatui::symbols::border::EMPTY
+						..tome_tui::symbols::border::EMPTY
 					});
 				}
 

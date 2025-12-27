@@ -1,9 +1,9 @@
 //! UI-specific notification types.
 //!
-//! These types use ratatui geometry types and are only used in the
+//! These types use tome_tui geometry types and are only used in the
 //! rendering layer.
 
-use ratatui::layout::Rect;
+use tome_tui::layout::Rect;
 use tome_manifest::notifications::{Anchor, AnimationPhase, SlideDirection};
 
 /// Parameters for sliding animations.

@@ -1,5 +1,5 @@
-use ratatui::animation::Animatable;
-use ratatui::prelude::*;
+use tome_tui::animation::Animatable;
+use tome_tui::prelude::*;
 use tome_manifest::notifications::AnimationPhase;
 
 /// Minimum width for expand/collapse animation to remain visible.

@@ -2,10 +2,10 @@ mod wrapping;
 
 use std::time::{Duration, SystemTime};
 
-use ratatui::layout::{Constraint, Direction, Layout, Rect};
-use ratatui::style::{Color, Modifier, Style};
-use ratatui::text::{Line, Span};
-use ratatui::widgets::{Block, Clear, Paragraph};
+use tome_tui::layout::{Constraint, Direction, Layout, Rect};
+use tome_tui::style::{Color, Modifier, Style};
+use tome_tui::text::{Line, Span};
+use tome_tui::widgets::{Block, Clear, Paragraph};
 use tome_manifest::{SplitAttrs, SplitBuffer, SplitColor};
 
 use super::buffer_render::{BufferRenderContext, ensure_buffer_cursor_visible};
@@ -24,8 +24,8 @@ impl Editor {
 	/// - Notifications
 	///
 	/// # Parameters
-	/// - `frame`: The ratatui frame to render into
-	pub fn render(&mut self, frame: &mut ratatui::Frame) {
+	/// - `frame`: The tome_tui frame to render into
+	pub fn render(&mut self, frame: &mut tome_tui::Frame) {
 		let now = SystemTime::now();
 		let delta = now
 			.duration_since(self.last_tick)
@@ -87,7 +87,7 @@ impl Editor {
 	/// This handles both text buffers and terminals in the same layout.
 	fn render_split_buffers(
 		&mut self,
-		frame: &mut ratatui::Frame,
+		frame: &mut tome_tui::Frame,
 		doc_area: Rect,
 		use_block_cursor: bool,
 	) {
@@ -210,7 +210,7 @@ impl Editor {
 				Style::default().fg(hover_fg).bg(hover_bg)
 			} else if is_animating {
 				// Animating - lerp between states
-				use ratatui::animation::Animatable;
+				use tome_tui::animation::Animatable;
 				let fg = normal_fg.lerp(&hover_fg, anim_intensity);
 				let bg = normal_bg.lerp(&hover_bg, anim_intensity);
 				Style::default().fg(fg).bg(bg)
@@ -243,7 +243,7 @@ impl Editor {
 	/// Renders a terminal buffer into the given area.
 	fn render_terminal(
 		&self,
-		frame: &mut ratatui::Frame,
+		frame: &mut tome_tui::Frame,
 		terminal: &crate::terminal_buffer::TerminalBuffer,
 		area: Rect,
 		_is_focused: bool,
@@ -336,7 +336,7 @@ impl Editor {
 	}
 }
 
-/// Converts a SplitColor to a ratatui Color.
+/// Converts a SplitColor to a tome_tui Color.
 fn convert_split_color(color: SplitColor) -> Color {
 	match color {
 		SplitColor::Indexed(i) => Color::Indexed(i),

@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::time::Instant;
 
-use ratatui::prelude::*;
+use tome_tui::prelude::*;
 use tome_manifest::notifications::{Anchor, AnimationPhase};
 
 use crate::render::notifications::layout::{calculate_anchor_position, calculate_rect};

@@ -6,7 +6,7 @@ Tome uses a compile-time extension model with a suckless-ish philosophy: everyth
 
 - Compile-time extensions only. No ABI, no dynamic loading, no hot reload.
 - Keep core logic free of host or UI dependencies.
-- Push heavy deps (tokio, pty, ratatui) to the integration layer and binaries.
+- Push heavy deps (tokio, pty, tome-tui) to the integration layer and binaries.
 - Accept instability: APIs and crate boundaries may move.
 
 ## 1. Core Builtins (tome-stdlib)
