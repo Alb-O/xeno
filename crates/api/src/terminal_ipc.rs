@@ -321,19 +321,6 @@ pub fn zsh_init_command(bin_dir: &Path, socket_path: &Path) -> String {
 	)
 }
 
-/// Generates nushell initialization commands for Tome IPC integration.
-///
-/// Sets up PATH, TOME_BIN, and TOME_SOCKET environment variables.
-/// Note: nushell doesn't support command_not_found hooks in the same way,
-/// so users must invoke commands via `^$env.TOME_BIN/:write` or similar.
-pub fn nushell_init_command(bin_dir: &Path, socket_path: &Path) -> String {
-	format!(
-		r#"$env.TOME_BIN = "{bin_dir}"; $env.TOME_SOCKET = "{socket}"; $env.PATH = ($env.PATH | prepend "{bin_dir}")"#,
-		bin_dir = bin_dir.display(),
-		socket = socket_path.display(),
-	)
-}
-
 fn fish_command_not_found_script() -> &'static str {
 	"function fish_command_not_found\n    set -l cmd $argv[1]\n    if string match -q ':*' -- $cmd\n        set -l target \"$TOME_BIN/$cmd\"\n        if test -x \"$target\"\n            \"$target\" $argv[2..-1]\n            return $status\n        end\n    end\n    if functions -q __fish_command_not_found_handler\n        __fish_command_not_found_handler $argv\n    end\n    return 127\nend\n"
 }

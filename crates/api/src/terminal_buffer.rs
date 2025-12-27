@@ -261,10 +261,9 @@ fn apply_shell_path_injection(
 		"zsh" => {
 			cmd.arg("-f");
 		}
-		"nu" => {
-			cmd.arg("-n");
-		}
-		"bash" => {}
+		// nushell's line editor (reedline) doesn't work in the embedded terminal,
+		// so we don't add any special handling for it
+		"bash" | "nu" => {}
 		_ => {}
 	}
 }
@@ -296,6 +295,7 @@ if [[ \"$cmd\" == :* ]] && [[ -x \"$TOME_BIN/$cmd\" ]]; then \
 \"$TOME_BIN/$cmd\" \"$@\"; return $?; fi; \
 echo \"zsh: command not found: $cmd\" >&2; return 127; }}\n"
 		),
+		// nushell's line editor (reedline) doesn't work in the embedded terminal
 		_ => return,
 	};
 

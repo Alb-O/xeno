@@ -35,18 +35,14 @@ impl TestShell {
 
 	/// Returns the :write command in this shell's syntax.
 	pub fn write_cmd(&self) -> &'static str {
-		match self {
-			TestShell::Nushell => "^$env.TOME_BIN/:write",
-			_ => ":write",
-		}
+		// All shells now use the same syntax thanks to command_not_found hooks
+		":write"
 	}
 
 	/// Returns the :quit command in this shell's syntax.
 	pub fn quit_cmd(&self) -> &'static str {
-		match self {
-			TestShell::Nushell => "^$env.TOME_BIN/:quit",
-			_ => ":quit",
-		}
+		// All shells now use the same syntax thanks to command_not_found hooks
+		":quit"
 	}
 }
 
