@@ -239,37 +239,65 @@ fn apply_shell_path_injection(
 	let Some(tome_bin) = tome_bin else {
 		return;
 	};
+	let Some(socket) = tome_socket else {
+		return;
+	};
 
 	let shell_name = Path::new(shell)
 		.file_name()
 		.and_then(|name| name.to_str())
 		.unwrap_or(shell);
 
-	if shell_name == "fish" {
-		let Some(socket) = tome_socket else {
-			return;
-		};
-		let init = fish_init_command(Path::new(tome_bin), Path::new(socket));
-		cmd.arg("-i");
-		cmd.arg("--init-command");
-		cmd.arg(init);
+	let bin_path = Path::new(tome_bin);
+	let socket_path = Path::new(socket);
+
+	match shell_name {
+		"fish" => {
+			let init = fish_init_command(bin_path, socket_path);
+			cmd.arg("-i");
+			cmd.arg("--init-command");
+			cmd.arg(init);
+		}
+		"zsh" => {
+			cmd.arg("-f");
+		}
+		"nu" => {
+			cmd.arg("-n");
+		}
+		"bash" => {}
+		_ => {}
 	}
 }
 
 fn inject_shell_init(shell_name: &str, writer: &mut dyn Write, tome_bin: &str, tome_socket: &str) {
-	if shell_name != "fish" {
-		return;
-	}
-
-	let init = format!(
-		"set -gx TOME_BIN {tome_bin}; set -gx TOME_SOCKET {tome_socket}; \
+	let init = match shell_name {
+		"fish" => format!(
+			"set -gx TOME_BIN {tome_bin}; set -gx TOME_SOCKET {tome_socket}; \
 set -gx PATH {tome_bin} $PATH; \
 function fish_command_not_found; set -l cmd $argv[1]; \
 if string match -q ':*' -- $cmd; set -l target \"$TOME_BIN/$cmd\"; \
 if test -x \"$target\"; \"$target\" $argv[2..-1]; return $status; end; end; \
 if functions -q __fish_command_not_found_handler; __fish_command_not_found_handler $argv; end; \
-return 127; end\n",
-	);
+return 127; end\n"
+		),
+		"bash" => format!(
+			"export TOME_BIN=\"{tome_bin}\"; export TOME_SOCKET=\"{tome_socket}\"; \
+export PATH=\"$TOME_BIN:$PATH\"; \
+command_not_found_handle() {{ local cmd=\"$1\"; shift; \
+if [[ \"$cmd\" == :* ]] && [[ -x \"$TOME_BIN/$cmd\" ]]; then \
+\"$TOME_BIN/$cmd\" \"$@\"; return $?; fi; \
+echo \"bash: $cmd: command not found\" >&2; return 127; }}\n"
+		),
+		"zsh" => format!(
+			"export TOME_BIN=\"{tome_bin}\"; export TOME_SOCKET=\"{tome_socket}\"; \
+export PATH=\"$TOME_BIN:$PATH\"; \
+command_not_found_handler() {{ local cmd=\"$1\"; shift; \
+if [[ \"$cmd\" == :* ]] && [[ -x \"$TOME_BIN/$cmd\" ]]; then \
+\"$TOME_BIN/$cmd\" \"$@\"; return $?; fi; \
+echo \"zsh: command not found: $cmd\" >&2; return 127; }}\n"
+		),
+		_ => return,
+	};
 
 	let _ = writer.write_all(init.as_bytes());
 }

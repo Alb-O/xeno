@@ -297,6 +297,43 @@ end; __tome_path_refresh; set -gx TOME_BIN {bin_dir}; set -gx TOME_SOCKET {socke
 	)
 }
 
+/// Generates bash initialization commands for Tome IPC integration.
+///
+/// Sets up PATH, TOME_BIN, and TOME_SOCKET, plus a command_not_found_handle
+/// function to intercept `:command` invocations.
+pub fn bash_init_command(bin_dir: &Path, socket_path: &Path) -> String {
+	format!(
+		r#"export TOME_BIN="{bin_dir}"; export TOME_SOCKET="{socket}"; export PATH="$TOME_BIN:$PATH"; command_not_found_handle() {{ local cmd="$1"; shift; if [[ "$cmd" == :* ]] && [[ -x "$TOME_BIN/$cmd" ]]; then "$TOME_BIN/$cmd" "$@"; return $?; fi; echo "bash: $cmd: command not found" >&2; return 127; }}"#,
+		bin_dir = bin_dir.display(),
+		socket = socket_path.display(),
+	)
+}
+
+/// Generates zsh initialization commands for Tome IPC integration.
+///
+/// Sets up PATH, TOME_BIN, and TOME_SOCKET, plus a command_not_found_handler
+/// function to intercept `:command` invocations.
+pub fn zsh_init_command(bin_dir: &Path, socket_path: &Path) -> String {
+	format!(
+		r#"export TOME_BIN="{bin_dir}"; export TOME_SOCKET="{socket}"; export PATH="$TOME_BIN:$PATH"; command_not_found_handler() {{ local cmd="$1"; shift; if [[ "$cmd" == :* ]] && [[ -x "$TOME_BIN/$cmd" ]]; then "$TOME_BIN/$cmd" "$@"; return $?; fi; echo "zsh: command not found: $cmd" >&2; return 127; }}"#,
+		bin_dir = bin_dir.display(),
+		socket = socket_path.display(),
+	)
+}
+
+/// Generates nushell initialization commands for Tome IPC integration.
+///
+/// Sets up PATH, TOME_BIN, and TOME_SOCKET environment variables.
+/// Note: nushell doesn't support command_not_found hooks in the same way,
+/// so users must invoke commands via `^$env.TOME_BIN/:write` or similar.
+pub fn nushell_init_command(bin_dir: &Path, socket_path: &Path) -> String {
+	format!(
+		r#"$env.TOME_BIN = "{bin_dir}"; $env.TOME_SOCKET = "{socket}"; $env.PATH = ($env.PATH | prepend "{bin_dir}")"#,
+		bin_dir = bin_dir.display(),
+		socket = socket_path.display(),
+	)
+}
+
 fn fish_command_not_found_script() -> &'static str {
 	"function fish_command_not_found\n    set -l cmd $argv[1]\n    if string match -q ':*' -- $cmd\n        set -l target \"$TOME_BIN/$cmd\"\n        if test -x \"$target\"\n            \"$target\" $argv[2..-1]\n            return $status\n        end\n    end\n    if functions -q __fish_command_not_found_handler\n        __fish_command_not_found_handler $argv\n    end\n    return 127\nend\n"
 }
