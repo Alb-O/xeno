@@ -309,7 +309,8 @@ impl Editor {
 				MouseEventKind::Drag(_) => {
 					// Continue resizing - use path to identify the split
 					let path = drag_state.path.clone();
-					self.layout.resize_at_path(doc_area, &path, mouse_x, mouse_y);
+					self.layout
+						.resize_at_path(doc_area, &path, mouse_x, mouse_y);
 					self.needs_redraw = true;
 					return false;
 				}
@@ -325,17 +326,18 @@ impl Editor {
 		}
 
 		// Check if mouse is over a separator
-		let separator_info =
-			self.layout
-				.separator_with_path_at_position(doc_area, mouse_x, mouse_y);
+		let separator_info = self
+			.layout
+			.separator_with_path_at_position(doc_area, mouse_x, mouse_y);
 
 		// Update hover/drag state based on mouse event type
 		match mouse.kind {
 			MouseEventKind::Moved => {
 				// Update hover state
 				let old_hover = self.hovered_separator.take();
-				self.hovered_separator =
-					separator_info.as_ref().map(|(direction, sep_rect, _)| (*direction, *sep_rect));
+				self.hovered_separator = separator_info
+					.as_ref()
+					.map(|(direction, sep_rect, _)| (*direction, *sep_rect));
 
 				// Request redraw if hover state changed
 				if old_hover != self.hovered_separator {
@@ -350,10 +352,7 @@ impl Editor {
 			MouseEventKind::Down(_) => {
 				// Start drag if clicking on a separator
 				if let Some((direction, separator_rect, path)) = separator_info {
-					self.dragging_separator = Some(DragState {
-						direction,
-						path,
-					});
+					self.dragging_separator = Some(DragState { direction, path });
 					self.hovered_separator = Some((direction, separator_rect));
 					self.needs_redraw = true;
 					return false;
@@ -423,7 +422,12 @@ impl Editor {
 	}
 
 	/// Handles a mouse click with view-local coordinates.
-	pub(crate) fn handle_mouse_click_local(&mut self, local_row: u16, local_col: u16, extend: bool) {
+	pub(crate) fn handle_mouse_click_local(
+		&mut self,
+		local_row: u16,
+		local_col: u16,
+		extend: bool,
+	) {
 		if let Some(doc_pos) = self.buffer().screen_to_doc_position(local_row, local_col) {
 			let buffer = self.buffer_mut();
 			if extend {

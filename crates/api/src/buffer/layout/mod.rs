@@ -6,6 +6,9 @@
 //! The layout system is view-agnostic: it can contain text buffers, terminals,
 //! or any other content type via the `BufferView` enum.
 
+#[cfg(test)]
+mod tests;
+
 use super::BufferId;
 
 /// Path to a split in the layout tree.
@@ -179,9 +182,7 @@ impl Layout {
 		}
 	}
 
-	/// Returns the first view in the layout.
-	///
-	/// For splits, this returns the first view found (leftmost/topmost).
+	/// Returns the first view in the layout (leftmost/topmost).
 	pub fn first_view(&self) -> BufferView {
 		match self {
 			Layout::Single(view) => *view,
@@ -190,8 +191,6 @@ impl Layout {
 	}
 
 	/// Returns the first text buffer ID if one exists.
-	///
-	/// For splits, traverses leftmost/topmost first.
 	pub fn first_buffer(&self) -> Option<BufferId> {
 		match self {
 			Layout::Single(BufferView::Text(id)) => Some(*id),
@@ -250,9 +249,7 @@ impl Layout {
 		self.contains_view(BufferView::Terminal(terminal_id))
 	}
 
-	/// Replaces a view with a new layout (for splitting).
-	///
-	/// Returns true if the replacement was made.
+	/// Replaces a view with a new layout (for splitting). Returns true if replaced.
 	pub fn replace_view(&mut self, target: BufferView, new_layout: Layout) -> bool {
 		match self {
 			Layout::Single(view) if *view == target => {
@@ -267,17 +264,13 @@ impl Layout {
 		}
 	}
 
-	/// Replaces a buffer ID with a new layout (for splitting).
-	///
-	/// Returns true if the replacement was made.
+	/// Replaces a buffer ID with a new layout (for splitting). Returns true if replaced.
 	pub fn replace(&mut self, target: BufferId, new_layout: Layout) -> bool {
 		self.replace_view(BufferView::Text(target), new_layout)
 	}
 
 	/// Removes a view from the layout, collapsing splits as needed.
-	///
-	/// Returns the new layout if the view was found and removed,
-	/// or None if removing would leave no views.
+	/// Returns None if removing would leave no views.
 	pub fn remove_view(&self, target: BufferView) -> Option<Layout> {
 		match self {
 			Layout::Single(view) if *view == target => None,
@@ -287,28 +280,20 @@ impl Layout {
 				ratio,
 				first,
 				second,
-			} => {
-				let first_removed = first.remove_view(target);
-				let second_removed = second.remove_view(target);
-
-				match (first_removed, second_removed) {
-					(None, None) => None,
-					(Some(layout), None) | (None, Some(layout)) => Some(layout),
-					(Some(f), Some(s)) => Some(Layout::Split {
-						direction: *direction,
-						ratio: *ratio,
-						first: Box::new(f),
-						second: Box::new(s),
-					}),
-				}
-			}
+			} => match (first.remove_view(target), second.remove_view(target)) {
+				(None, None) => None,
+				(Some(layout), None) | (None, Some(layout)) => Some(layout),
+				(Some(f), Some(s)) => Some(Layout::Split {
+					direction: *direction,
+					ratio: *ratio,
+					first: Box::new(f),
+					second: Box::new(s),
+				}),
+			},
 		}
 	}
 
 	/// Removes a buffer from the layout, collapsing splits as needed.
-	///
-	/// Returns the new layout if the buffer was found and removed,
-	/// or None if removing would leave no buffers.
 	pub fn remove(&self, target: BufferId) -> Option<Layout> {
 		self.remove_view(BufferView::Text(target))
 	}
@@ -326,18 +311,14 @@ impl Layout {
 		}
 	}
 
-	/// Returns the next view in the layout order.
-	///
-	/// Used for `Ctrl+w w` navigation.
+	/// Returns the next view in the layout order (for `Ctrl+w w` navigation).
 	pub fn next_view(&self, current: BufferView) -> BufferView {
 		let views = self.views();
 		if views.is_empty() {
 			return current;
 		}
-
-		let current_idx = views.iter().position(|&v| v == current).unwrap_or(0);
-		let next_idx = (current_idx + 1) % views.len();
-		views[next_idx]
+		let idx = views.iter().position(|&v| v == current).unwrap_or(0);
+		views[(idx + 1) % views.len()]
 	}
 
 	/// Returns the previous view in the layout order.
@@ -346,74 +327,43 @@ impl Layout {
 		if views.is_empty() {
 			return current;
 		}
-
-		let current_idx = views.iter().position(|&v| v == current).unwrap_or(0);
-		let prev_idx = if current_idx == 0 {
-			views.len() - 1
-		} else {
-			current_idx - 1
-		};
-		views[prev_idx]
+		let idx = views.iter().position(|&v| v == current).unwrap_or(0);
+		views[if idx == 0 { views.len() - 1 } else { idx - 1 }]
 	}
 
-	/// Returns the next buffer ID in the layout order (text buffers only).
-	///
-	/// Used for `:bnext` navigation.
+	/// Returns the next buffer ID in layout order (for `:bnext`).
 	pub fn next_buffer(&self, current: BufferId) -> BufferId {
 		let ids = self.buffer_ids();
 		if ids.is_empty() {
 			return current;
 		}
-
-		let current_idx = ids.iter().position(|&id| id == current).unwrap_or(0);
-		let next_idx = (current_idx + 1) % ids.len();
-		ids[next_idx]
+		let idx = ids.iter().position(|&id| id == current).unwrap_or(0);
+		ids[(idx + 1) % ids.len()]
 	}
 
-	/// Returns the previous buffer ID in the layout order (text buffers only).
-	///
-	/// Used for `:bprev` navigation.
+	/// Returns the previous buffer ID in layout order (for `:bprev`).
 	pub fn prev_buffer(&self, current: BufferId) -> BufferId {
 		let ids = self.buffer_ids();
 		if ids.is_empty() {
 			return current;
 		}
-
-		let current_idx = ids.iter().position(|&id| id == current).unwrap_or(0);
-		let prev_idx = if current_idx == 0 {
-			ids.len() - 1
-		} else {
-			current_idx - 1
-		};
-		ids[prev_idx]
+		let idx = ids.iter().position(|&id| id == current).unwrap_or(0);
+		ids[if idx == 0 { ids.len() - 1 } else { idx - 1 }]
 	}
 
 	/// Finds the view at the given screen coordinates.
-	///
-	/// Returns the view and its screen area if the coordinates fall within
-	/// any view's bounds.
 	pub fn view_at_position(
 		&self,
 		area: ratatui::layout::Rect,
 		x: u16,
 		y: u16,
 	) -> Option<(BufferView, ratatui::layout::Rect)> {
-		for (view, rect) in self.compute_view_areas(area) {
-			if x >= rect.x
-				&& x < rect.x + rect.width
-				&& y >= rect.y
-				&& y < rect.y + rect.height
-			{
-				return Some((view, rect));
-			}
-		}
-		None
+		self.compute_view_areas(area).into_iter().find(|(_, rect)| {
+			x >= rect.x && x < rect.x + rect.width && y >= rect.y && y < rect.y + rect.height
+		})
 	}
 
-	/// Computes the rectangular areas for each view in the layout.
-	///
-	/// Returns a vec of (BufferView, Rect) pairs representing the screen area
-	/// assigned to each view.
+	/// Computes rectangular areas for each view in the layout.
 	pub fn compute_view_areas(
 		&self,
 		area: ratatui::layout::Rect,
@@ -434,10 +384,7 @@ impl Layout {
 		}
 	}
 
-	/// Computes the rectangular areas for each buffer in the layout.
-	///
-	/// Returns a vec of (BufferId, Rect) pairs representing the screen area
-	/// assigned to each buffer.
+	/// Computes rectangular areas for each buffer in the layout.
 	pub fn compute_areas(
 		&self,
 		area: ratatui::layout::Rect,
@@ -454,66 +401,26 @@ impl Layout {
 		direction: SplitDirection,
 		ratio: f32,
 	) -> (ratatui::layout::Rect, ratatui::layout::Rect) {
-		match direction {
-			SplitDirection::Horizontal => {
-				let first_width = ((area.width as f32) * ratio).round() as u16;
-				let second_width = area.width.saturating_sub(first_width).saturating_sub(1);
-				let first_rect = ratatui::layout::Rect {
-					x: area.x,
-					y: area.y,
-					width: first_width,
-					height: area.height,
-				};
-				let second_rect = ratatui::layout::Rect {
-					x: area.x + first_width + 1,
-					y: area.y,
-					width: second_width,
-					height: area.height,
-				};
-				(first_rect, second_rect)
-			}
-			SplitDirection::Vertical => {
-				let first_height = ((area.height as f32) * ratio).round() as u16;
-				let second_height = area.height.saturating_sub(first_height).saturating_sub(1);
-				let first_rect = ratatui::layout::Rect {
-					x: area.x,
-					y: area.y,
-					width: area.width,
-					height: first_height,
-				};
-				let second_rect = ratatui::layout::Rect {
-					x: area.x,
-					y: area.y + first_height + 1,
-					width: area.width,
-					height: second_height,
-				};
-				(first_rect, second_rect)
-			}
-		}
+		let (first, second, _) = Self::compute_split_areas(area, direction, ratio);
+		(first, second)
 	}
 
 	/// Finds the separator at the given screen coordinates.
-	///
-	/// Returns the separator's direction and rectangle if the coordinates
-	/// fall within a separator's bounds.
 	pub fn separator_at_position(
 		&self,
 		area: ratatui::layout::Rect,
 		x: u16,
 		y: u16,
 	) -> Option<(SplitDirection, ratatui::layout::Rect)> {
-		for (direction, _pos, rect) in self.separator_positions(area) {
-			if x >= rect.x && x < rect.x + rect.width && y >= rect.y && y < rect.y + rect.height {
-				return Some((direction, rect));
-			}
-		}
-		None
+		self.separator_positions(area)
+			.into_iter()
+			.find(|(_, _, rect)| {
+				x >= rect.x && x < rect.x + rect.width && y >= rect.y && y < rect.y + rect.height
+			})
+			.map(|(dir, _, rect)| (dir, rect))
 	}
 
 	/// Finds the separator and its path at the given screen coordinates.
-	///
-	/// Returns the separator's direction, rectangle, and the path to its split.
-	/// The path is used to identify the split for resize operations.
 	pub fn separator_with_path_at_position(
 		&self,
 		area: ratatui::layout::Rect,
@@ -523,7 +430,6 @@ impl Layout {
 		self.find_separator_with_path(area, x, y, SplitPath::default())
 	}
 
-	/// Recursive helper to find separator with its path.
 	fn find_separator_with_path(
 		&self,
 		area: ratatui::layout::Rect,
@@ -531,47 +437,43 @@ impl Layout {
 		y: u16,
 		current_path: SplitPath,
 	) -> Option<(SplitDirection, ratatui::layout::Rect, SplitPath)> {
-		match self {
-			Layout::Single(_) => None,
-			Layout::Split {
-				direction,
-				ratio,
-				first,
-				second,
-			} => {
-				let (first_area, second_area, sep_rect) =
-					Self::compute_split_areas(area, *direction, *ratio);
+		let Layout::Split {
+			direction,
+			ratio,
+			first,
+			second,
+		} = self
+		else {
+			return None;
+		};
 
-				// Check if point is on this separator
-				if x >= sep_rect.x
-					&& x < sep_rect.x + sep_rect.width
-					&& y >= sep_rect.y
-					&& y < sep_rect.y + sep_rect.height
-				{
-					return Some((*direction, sep_rect, current_path));
-				}
+		let (first_area, second_area, sep_rect) =
+			Self::compute_split_areas(area, *direction, *ratio);
 
-				// Recurse into first child
-				let mut first_path = current_path.clone();
-				first_path.0.push(false);
-				if let Some(result) = first.find_separator_with_path(first_area, x, y, first_path) {
-					return Some(result);
-				}
-
-				// Recurse into second child
-				let mut second_path = current_path;
-				second_path.0.push(true);
-				second.find_separator_with_path(second_area, x, y, second_path)
-			}
+		// Check if point is on this separator
+		if x >= sep_rect.x
+			&& x < sep_rect.x + sep_rect.width
+			&& y >= sep_rect.y
+			&& y < sep_rect.y + sep_rect.height
+		{
+			return Some((*direction, sep_rect, current_path));
 		}
+
+		// Recurse into first child
+		let mut first_path = current_path.clone();
+		first_path.0.push(false);
+		if let Some(result) = first.find_separator_with_path(first_area, x, y, first_path) {
+			return Some(result);
+		}
+
+		// Recurse into second child
+		let mut second_path = current_path;
+		second_path.0.push(true);
+		second.find_separator_with_path(second_area, x, y, second_path)
 	}
 
-	/// Resizes the split at the given path.
-	///
-	/// The new ratio is calculated based on the mouse position relative to
-	/// the split's current area.
-	///
-	/// Returns true if a resize was performed.
+	/// Resizes the split at the given path based on mouse position.
+	/// Child splits have their ratios adjusted to keep separators at same absolute positions.
 	pub fn resize_at_path(
 		&mut self,
 		area: ratatui::layout::Rect,
@@ -582,7 +484,6 @@ impl Layout {
 		self.do_resize_at_path(area, &path.0, mouse_x, mouse_y)
 	}
 
-	/// Recursive helper to find and resize the split by path.
 	fn do_resize_at_path(
 		&mut self,
 		area: ratatui::layout::Rect,
@@ -590,56 +491,145 @@ impl Layout {
 		mouse_x: u16,
 		mouse_y: u16,
 	) -> bool {
+		let Layout::Split {
+			direction,
+			ratio,
+			first,
+			second,
+		} = self
+		else {
+			return false;
+		};
+
+		if path.is_empty() {
+			// This is the target split - calculate new ratio
+			let new_ratio = match direction {
+				SplitDirection::Horizontal => {
+					let relative_x = mouse_x.saturating_sub(area.x);
+					relative_x.clamp(1, area.width.saturating_sub(2)) as f32 / area.width as f32
+				}
+				SplitDirection::Vertical => {
+					let relative_y = mouse_y.saturating_sub(area.y);
+					relative_y.clamp(1, area.height.saturating_sub(2)) as f32 / area.height as f32
+				}
+			}
+			.clamp(0.1, 0.9);
+
+			// Collect child separator positions before resize
+			let (old_first_area, old_second_area, _) =
+				Self::compute_split_areas(area, *direction, *ratio);
+			let first_positions = first.collect_separator_positions(old_first_area);
+			let second_positions = second.collect_separator_positions(old_second_area);
+
+			*ratio = new_ratio;
+
+			// Adjust child ratios to preserve absolute separator positions
+			let (new_first_area, new_second_area, _) =
+				Self::compute_split_areas(area, *direction, new_ratio);
+			first.adjust_ratios_for_new_area(old_first_area, new_first_area, &first_positions);
+			second.adjust_ratios_for_new_area(old_second_area, new_second_area, &second_positions);
+
+			return true;
+		}
+
+		// Follow the path
+		let (first_area, second_area, _) = Self::compute_split_areas(area, *direction, *ratio);
+		if path[0] {
+			second.do_resize_at_path(second_area, &path[1..], mouse_x, mouse_y)
+		} else {
+			first.do_resize_at_path(first_area, &path[1..], mouse_x, mouse_y)
+		}
+	}
+
+	fn collect_separator_positions(
+		&self,
+		area: ratatui::layout::Rect,
+	) -> Vec<(SplitDirection, u16)> {
+		let Layout::Split {
+			direction,
+			ratio,
+			first,
+			second,
+		} = self
+		else {
+			return vec![];
+		};
+
+		let (first_area, second_area, sep_rect) =
+			Self::compute_split_areas(area, *direction, *ratio);
+
+		let sep_pos = match direction {
+			SplitDirection::Horizontal => sep_rect.x,
+			SplitDirection::Vertical => sep_rect.y,
+		};
+
+		let mut positions = vec![(*direction, sep_pos)];
+		positions.extend(first.collect_separator_positions(first_area));
+		positions.extend(second.collect_separator_positions(second_area));
+		positions
+	}
+
+	fn adjust_ratios_for_new_area(
+		&mut self,
+		old_area: ratatui::layout::Rect,
+		new_area: ratatui::layout::Rect,
+		old_positions: &[(SplitDirection, u16)],
+	) {
+		if old_positions.is_empty() {
+			return;
+		}
+
+		let Layout::Split {
+			direction,
+			ratio,
+			first,
+			second,
+		} = self
+		else {
+			return;
+		};
+
+		let Some(&(_, old_pos)) = old_positions.first() else {
+			return;
+		};
+
+		// Calculate new ratio to keep separator at same absolute position
+		let new_ratio = match direction {
+			SplitDirection::Horizontal if new_area.width > 1 => {
+				(old_pos.saturating_sub(new_area.x) as f32 / new_area.width as f32).clamp(0.1, 0.9)
+			}
+			SplitDirection::Vertical if new_area.height > 1 => {
+				(old_pos.saturating_sub(new_area.y) as f32 / new_area.height as f32).clamp(0.1, 0.9)
+			}
+			_ => *ratio,
+		};
+
+		let (old_first_area, old_second_area, _) =
+			Self::compute_split_areas(old_area, *direction, *ratio);
+		*ratio = new_ratio;
+		let (new_first_area, new_second_area, _) =
+			Self::compute_split_areas(new_area, *direction, new_ratio);
+
+		// Recursively adjust children
+		let remaining = &old_positions[1..];
+		let first_count = first.separator_count();
+		let (first_positions, second_positions) =
+			remaining.split_at(first_count.min(remaining.len()));
+
+		first.adjust_ratios_for_new_area(old_first_area, new_first_area, first_positions);
+		second.adjust_ratios_for_new_area(old_second_area, new_second_area, second_positions);
+	}
+
+	fn separator_count(&self) -> usize {
 		match self {
-			Layout::Single(_) => false,
-			Layout::Split {
-				direction,
-				ratio,
-				first,
-				second,
-			} => {
-				// If path is empty, this is the target split
-				if path.is_empty() {
-					// Calculate new ratio based on mouse position
-					let new_ratio = match direction {
-						SplitDirection::Horizontal => {
-							// Mouse x position relative to area start
-							let relative_x = mouse_x.saturating_sub(area.x);
-							// Clamp to valid range (leave room for separator)
-							let clamped = relative_x.clamp(1, area.width.saturating_sub(2));
-							clamped as f32 / area.width as f32
-						}
-						SplitDirection::Vertical => {
-							// Mouse y position relative to area start
-							let relative_y = mouse_y.saturating_sub(area.y);
-							// Clamp to valid range
-							let clamped = relative_y.clamp(1, area.height.saturating_sub(2));
-							clamped as f32 / area.height as f32
-						}
-					};
-
-					// Clamp ratio to reasonable bounds
-					*ratio = new_ratio.clamp(0.1, 0.9);
-					return true;
-				}
-
-				// Follow the path
-				let (first_area, second_area, _) =
-					Self::compute_split_areas(area, *direction, *ratio);
-				let remaining_path = &path[1..];
-
-				if path[0] {
-					second.do_resize_at_path(second_area, remaining_path, mouse_x, mouse_y)
-				} else {
-					first.do_resize_at_path(first_area, remaining_path, mouse_x, mouse_y)
-				}
+			Layout::Single(_) => 0,
+			Layout::Split { first, second, .. } => {
+				1 + first.separator_count() + second.separator_count()
 			}
 		}
 	}
 
-	/// Gets the current separator rect for a split at the given path.
-	///
-	/// Used to determine which separator to highlight during drag.
+	/// Gets the separator rect for a split at the given path.
 	pub fn separator_rect_at_path(
 		&self,
 		area: ratatui::layout::Rect,
@@ -648,40 +638,35 @@ impl Layout {
 		self.do_get_separator_at_path(area, &path.0)
 	}
 
-	/// Recursive helper to get separator rect by path.
 	fn do_get_separator_at_path(
 		&self,
 		area: ratatui::layout::Rect,
 		path: &[bool],
 	) -> Option<(SplitDirection, ratatui::layout::Rect)> {
-		match self {
-			Layout::Single(_) => None,
-			Layout::Split {
-				direction,
-				ratio,
-				first,
-				second,
-			} => {
-				let (first_area, second_area, sep_rect) =
-					Self::compute_split_areas(area, *direction, *ratio);
+		let Layout::Split {
+			direction,
+			ratio,
+			first,
+			second,
+		} = self
+		else {
+			return None;
+		};
 
-				// If path is empty, return this separator
-				if path.is_empty() {
-					return Some((*direction, sep_rect));
-				}
+		let (first_area, second_area, sep_rect) =
+			Self::compute_split_areas(area, *direction, *ratio);
 
-				// Follow the path
-				let remaining_path = &path[1..];
-				if path[0] {
-					second.do_get_separator_at_path(second_area, remaining_path)
-				} else {
-					first.do_get_separator_at_path(first_area, remaining_path)
-				}
-			}
+		if path.is_empty() {
+			return Some((*direction, sep_rect));
+		}
+
+		if path[0] {
+			second.do_get_separator_at_path(second_area, &path[1..])
+		} else {
+			first.do_get_separator_at_path(first_area, &path[1..])
 		}
 	}
 
-	/// Helper to compute split areas (extracted for reuse).
 	fn compute_split_areas(
 		area: ratatui::layout::Rect,
 		direction: SplitDirection,
@@ -694,122 +679,74 @@ impl Layout {
 		match direction {
 			SplitDirection::Horizontal => {
 				let first_width = ((area.width as f32) * ratio).round() as u16;
-				let first_rect = ratatui::layout::Rect {
-					x: area.x,
-					y: area.y,
-					width: first_width,
-					height: area.height,
-				};
-				let second_rect = ratatui::layout::Rect {
-					x: area.x + first_width + 1,
-					y: area.y,
-					width: area.width.saturating_sub(first_width).saturating_sub(1),
-					height: area.height,
-				};
-				let sep = ratatui::layout::Rect {
-					x: area.x + first_width,
-					y: area.y,
-					width: 1,
-					height: area.height,
-				};
-				(first_rect, second_rect, sep)
+				(
+					ratatui::layout::Rect {
+						x: area.x,
+						y: area.y,
+						width: first_width,
+						height: area.height,
+					},
+					ratatui::layout::Rect {
+						x: area.x + first_width + 1,
+						y: area.y,
+						width: area.width.saturating_sub(first_width).saturating_sub(1),
+						height: area.height,
+					},
+					ratatui::layout::Rect {
+						x: area.x + first_width,
+						y: area.y,
+						width: 1,
+						height: area.height,
+					},
+				)
 			}
 			SplitDirection::Vertical => {
 				let first_height = ((area.height as f32) * ratio).round() as u16;
-				let first_rect = ratatui::layout::Rect {
-					x: area.x,
-					y: area.y,
-					width: area.width,
-					height: first_height,
-				};
-				let second_rect = ratatui::layout::Rect {
-					x: area.x,
-					y: area.y + first_height + 1,
-					width: area.width,
-					height: area.height.saturating_sub(first_height).saturating_sub(1),
-				};
-				let sep = ratatui::layout::Rect {
-					x: area.x,
-					y: area.y + first_height,
-					width: area.width,
-					height: 1,
-				};
-				(first_rect, second_rect, sep)
+				(
+					ratatui::layout::Rect {
+						x: area.x,
+						y: area.y,
+						width: area.width,
+						height: first_height,
+					},
+					ratatui::layout::Rect {
+						x: area.x,
+						y: area.y + first_height + 1,
+						width: area.width,
+						height: area.height.saturating_sub(first_height).saturating_sub(1),
+					},
+					ratatui::layout::Rect {
+						x: area.x,
+						y: area.y + first_height,
+						width: area.width,
+						height: 1,
+					},
+				)
 			}
 		}
 	}
 
-	/// Returns the separator positions for rendering.
-	///
-	/// Each separator is represented as (direction, position) where position
-	/// is the x coordinate for horizontal splits or y for vertical splits.
+	/// Returns separator positions for rendering.
 	pub fn separator_positions(
 		&self,
 		area: ratatui::layout::Rect,
 	) -> Vec<(SplitDirection, u16, ratatui::layout::Rect)> {
-		match self {
-			Layout::Single(_) => vec![],
-			Layout::Split {
-				direction,
-				ratio,
-				first,
-				second,
-			} => {
-				let (first_area, second_area, sep_rect) =
-					Self::compute_split_areas(area, *direction, *ratio);
+		let Layout::Split {
+			direction,
+			ratio,
+			first,
+			second,
+		} = self
+		else {
+			return vec![];
+		};
 
-				let mut separators = vec![(*direction, sep_rect.x, sep_rect)];
-				separators.extend(first.separator_positions(first_area));
-				separators.extend(second.separator_positions(second_area));
-				separators
-			}
-		}
-	}
-}
+		let (first_area, second_area, sep_rect) =
+			Self::compute_split_areas(area, *direction, *ratio);
 
-#[cfg(test)]
-mod tests {
-	use super::*;
-
-	#[test]
-	fn test_single_layout() {
-		let layout = Layout::single(BufferId(1));
-		assert_eq!(layout.first_buffer(), Some(BufferId(1)));
-		assert_eq!(layout.buffer_ids(), vec![BufferId(1)]);
-		assert!(layout.contains(BufferId(1)));
-		assert!(!layout.contains(BufferId(2)));
-	}
-
-	#[test]
-	fn test_hsplit() {
-		let layout = Layout::hsplit(Layout::single(BufferId(1)), Layout::single(BufferId(2)));
-
-		assert_eq!(layout.first_buffer(), Some(BufferId(1)));
-		assert_eq!(layout.buffer_ids(), vec![BufferId(1), BufferId(2)]);
-		assert!(layout.contains(BufferId(1)));
-		assert!(layout.contains(BufferId(2)));
-		assert!(!layout.contains(BufferId(3)));
-	}
-
-	#[test]
-	fn test_next_prev_buffer() {
-		let layout = Layout::hsplit(Layout::single(BufferId(1)), Layout::single(BufferId(2)));
-
-		assert_eq!(layout.next_buffer(BufferId(1)), BufferId(2));
-		assert_eq!(layout.next_buffer(BufferId(2)), BufferId(1));
-		assert_eq!(layout.prev_buffer(BufferId(1)), BufferId(2));
-		assert_eq!(layout.prev_buffer(BufferId(2)), BufferId(1));
-	}
-
-	#[test]
-	fn test_remove_buffer() {
-		let layout = Layout::hsplit(Layout::single(BufferId(1)), Layout::single(BufferId(2)));
-
-		let after_remove = layout.remove(BufferId(1)).unwrap();
-		assert_eq!(after_remove.buffer_ids(), vec![BufferId(2)]);
-
-		// Removing the only buffer returns None
-		let single = Layout::single(BufferId(1));
-		assert!(single.remove(BufferId(1)).is_none());
+		let mut separators = vec![(*direction, sep_rect.x, sep_rect)];
+		separators.extend(first.separator_positions(first_area));
+		separators.extend(second.separator_positions(second_area));
+		separators
 	}
 }
