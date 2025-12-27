@@ -24,6 +24,7 @@ use crate::buffer::{Buffer, BufferId, BufferView, Layout, SplitDirection, SplitP
 use crate::editor::extensions::{EXTENSIONS, ExtensionMap, StyleOverlays};
 use crate::editor::types::CompletionState;
 use crate::terminal_buffer::TerminalBuffer;
+use crate::terminal_ipc::TerminalIpc;
 use crate::ui::UiManager;
 
 /// The main editor/workspace structure.
@@ -147,6 +148,11 @@ pub struct Editor {
 	/// its current rectangle, and the parent split's area (needed to calculate
 	/// the new ratio based on mouse position).
 	pub dragging_separator: Option<DragState>,
+
+	/// IPC infrastructure for terminal command integration.
+	///
+	/// Lazily initialized when the first terminal is opened.
+	terminal_ipc: Option<TerminalIpc>,
 }
 
 /// State for an active separator drag operation.
@@ -563,6 +569,7 @@ impl Editor {
 			separator_hover_animation: None,
 			mouse_velocity: MouseVelocityTracker::default(),
 			dragging_separator: None,
+			terminal_ipc: None,
 		}
 	}
 
@@ -689,15 +696,7 @@ impl Editor {
 
 	/// Opens a new terminal in a horizontal split.
 	pub fn split_horizontal_terminal(&mut self) -> TerminalId {
-		use tome_manifest::SplitBuffer;
-
-		let terminal_id = TerminalId(self.next_terminal_id);
-		self.next_terminal_id += 1;
-
-		let mut terminal = TerminalBuffer::new();
-		terminal.on_open(); // Start prewarming the terminal
-		self.terminals.insert(terminal_id, terminal);
-
+		let terminal_id = self.create_terminal();
 		let current_view = self.focused_view;
 		let new_layout =
 			Layout::hsplit(Layout::single(current_view), Layout::terminal(terminal_id));
@@ -708,21 +707,55 @@ impl Editor {
 
 	/// Opens a new terminal in a vertical split.
 	pub fn split_vertical_terminal(&mut self) -> TerminalId {
-		use tome_manifest::SplitBuffer;
-
-		let terminal_id = TerminalId(self.next_terminal_id);
-		self.next_terminal_id += 1;
-
-		let mut terminal = TerminalBuffer::new();
-		terminal.on_open(); // Start prewarming the terminal
-		self.terminals.insert(terminal_id, terminal);
-
+		let terminal_id = self.create_terminal();
 		let current_view = self.focused_view;
 		let new_layout =
 			Layout::vsplit(Layout::single(current_view), Layout::terminal(terminal_id));
 		self.layout.replace_view(current_view, new_layout);
 		self.focus_terminal(terminal_id);
 		terminal_id
+	}
+
+	/// Creates a new terminal with IPC integration.
+	fn create_terminal(&mut self) -> TerminalId {
+		use tome_manifest::SplitBuffer;
+
+		let terminal_id = TerminalId(self.next_terminal_id);
+		self.next_terminal_id += 1;
+
+		let ipc_env = self
+			.terminal_ipc
+			.get_or_insert_with(|| TerminalIpc::new().expect("failed to create terminal IPC"))
+			.env();
+
+		let mut terminal = TerminalBuffer::with_ipc(ipc_env);
+		terminal.on_open();
+		self.terminals.insert(terminal_id, terminal);
+		terminal_id
+	}
+
+	/// Polls for and dispatches IPC requests from embedded terminals.
+	fn poll_terminal_ipc(&mut self) {
+		let requests: Vec<_> = self
+			.terminal_ipc
+			.as_mut()
+			.map(|ipc| std::iter::from_fn(|| ipc.poll()).collect())
+			.unwrap_or_default();
+
+		for req in requests {
+			log::debug!("terminal IPC: {} {:?}", req.command, req.args);
+			if let Some(cmd) = tome_manifest::find_command(&req.command) {
+				let args: Vec<&str> = req.args.iter().map(String::as_str).collect();
+				let mut ctx = tome_manifest::CommandContext {
+					editor: self,
+					args: &args,
+					count: 1,
+					register: None,
+					user_data: cmd.user_data,
+				};
+				futures::executor::block_on((cmd.handler)(&mut ctx)).ok();
+			}
+		}
 	}
 
 	/// Closes a view (buffer or terminal).
@@ -843,6 +876,8 @@ impl Editor {
 		use tome_manifest::SplitBuffer;
 
 		use crate::editor::extensions::TICK_EXTENSIONS;
+
+		self.poll_terminal_ipc();
 
 		// Tick all terminals
 		let terminal_ids: Vec<_> = self.terminals.keys().copied().collect();

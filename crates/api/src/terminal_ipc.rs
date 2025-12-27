@@ -22,9 +22,12 @@ use std::io::{BufRead, BufReader};
 use std::os::unix::fs::PermissionsExt;
 use std::os::unix::net::{UnixListener, UnixStream};
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::mpsc::{Receiver, Sender, TryRecvError, channel};
 use std::sync::Arc;
 use std::thread;
+
+static IPC_COUNTER: AtomicU64 = AtomicU64::new(0);
 
 use tome_manifest::COMMANDS;
 
@@ -86,7 +89,8 @@ impl TerminalIpc {
 	///
 	/// Returns an error if the temp directory or socket cannot be created.
 	pub fn new() -> std::io::Result<Self> {
-		let base_dir = std::env::temp_dir().join(format!("tome-{}", std::process::id()));
+		let id = IPC_COUNTER.fetch_add(1, Ordering::Relaxed);
+		let base_dir = std::env::temp_dir().join(format!("tome-{}-{}", std::process::id(), id));
 		let bin_dir = base_dir.join("bin");
 		let socket_path = base_dir.join("socket");
 
@@ -198,6 +202,8 @@ fn parse_request(stream: UnixStream) -> Option<IpcRequest> {
 
 #[cfg(test)]
 mod tests {
+	use std::io::Write;
+
 	use super::*;
 
 	#[test]
@@ -223,5 +229,59 @@ mod tests {
 	fn env_is_sync_send() {
 		fn assert_sync_send<T: Sync + Send>() {}
 		assert_sync_send::<TerminalIpcEnv>();
+	}
+
+	#[test]
+	fn socket_receives_command_with_arg() {
+		let mut ipc = TerminalIpc::new().unwrap();
+
+		let mut stream = UnixStream::connect(ipc.env.socket_path()).unwrap();
+		writeln!(stream, "write\t/tmp/test.txt").unwrap();
+		drop(stream);
+		thread::sleep(std::time::Duration::from_millis(50));
+
+		let req = ipc.poll().expect("should receive request");
+		assert_eq!(req.command, "write");
+		assert_eq!(req.args, vec!["/tmp/test.txt"]);
+	}
+
+	#[test]
+	fn socket_receives_command_without_args() {
+		let mut ipc = TerminalIpc::new().unwrap();
+
+		let mut stream = UnixStream::connect(ipc.env.socket_path()).unwrap();
+		writeln!(stream, "quit").unwrap();
+		drop(stream);
+		thread::sleep(std::time::Duration::from_millis(50));
+
+		let req = ipc.poll().expect("should receive request");
+		assert_eq!(req.command, "quit");
+		assert!(req.args.is_empty());
+	}
+
+	#[test]
+	fn socket_receives_command_with_multiple_args() {
+		let mut ipc = TerminalIpc::new().unwrap();
+
+		let mut stream = UnixStream::connect(ipc.env.socket_path()).unwrap();
+		writeln!(stream, "edit\tfile1.rs\tfile2.rs\tfile3.rs").unwrap();
+		drop(stream);
+		thread::sleep(std::time::Duration::from_millis(50));
+
+		let req = ipc.poll().expect("should receive request");
+		assert_eq!(req.command, "edit");
+		assert_eq!(req.args, vec!["file1.rs", "file2.rs", "file3.rs"]);
+	}
+
+	#[test]
+	fn command_wrappers_exist_for_registered_commands() {
+		let ipc = TerminalIpc::new().unwrap();
+
+		for name in ["write", "quit", "help"] {
+			if tome_manifest::find_command(name).is_some() {
+				let wrapper = ipc.env.bin_dir().join(format!(":{}", name));
+				assert!(wrapper.exists(), "wrapper for :{} should exist", name);
+			}
+		}
 	}
 }
