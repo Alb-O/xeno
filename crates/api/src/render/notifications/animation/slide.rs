@@ -1,8 +1,8 @@
+use tome_manifest::notifications::{Anchor, AnimationPhase, SlideDirection};
 use tome_tui::animation::Animatable;
 use tome_tui::prelude::*;
 use tome_tui::symbols::border;
 use tome_tui::widgets::Block;
-use tome_manifest::notifications::{Anchor, AnimationPhase, SlideDirection};
 
 use super::border::calculate_triggers;
 use crate::render::notifications::types::SlideParams;

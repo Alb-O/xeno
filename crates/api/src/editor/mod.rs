@@ -220,20 +220,20 @@ impl MouseVelocityTracker {
 	/// Accounts for idle time - if mouse hasn't moved recently, velocity is zero.
 	pub fn is_fast(&self) -> bool {
 		// If mouse has been idle, velocity is effectively zero
-		if let Some(lt) = self.last_time {
-			if lt.elapsed() > Self::IDLE_TIMEOUT {
-				return false;
-			}
+		if let Some(lt) = self.last_time
+			&& lt.elapsed() > Self::IDLE_TIMEOUT
+		{
+			return false;
 		}
 		self.velocity > Self::FAST_THRESHOLD
 	}
 
 	/// Returns the current smoothed velocity, accounting for idle time.
 	pub fn velocity(&self) -> f32 {
-		if let Some(lt) = self.last_time {
-			if lt.elapsed() > Self::IDLE_TIMEOUT {
-				return 0.0;
-			}
+		if let Some(lt) = self.last_time
+			&& lt.elapsed() > Self::IDLE_TIMEOUT
+		{
+			return 0.0;
 		}
 		self.velocity
 	}
@@ -266,11 +266,7 @@ impl SeparatorHoverAnimation {
 	///
 	/// This is useful for creating fade-out animations that should start
 	/// from a fully hovered state (intensity 1.0).
-	pub fn new_at_intensity(
-		rect: tome_tui::layout::Rect,
-		intensity: f32,
-		hovering: bool,
-	) -> Self {
+	pub fn new_at_intensity(rect: tome_tui::layout::Rect, intensity: f32, hovering: bool) -> Self {
 		let tween = tome_tui::animation::ToggleTween::new_at(
 			0.0f32,
 			1.0f32,

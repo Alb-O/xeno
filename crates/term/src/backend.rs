@@ -1,14 +1,14 @@
 use std::io;
 use std::num::NonZeroU16;
 
-use tome_tui::backend::{Backend, WindowSize};
-use tome_tui::buffer::Cell;
-use tome_tui::layout::{Position, Size};
 use termina::Terminal;
 use termina::escape::csi::{
 	Csi, Cursor, Edit, EraseInDisplay, Mode, Sgr, SgrAttributes, SgrModifiers,
 };
 use termina::style::{ColorSpec, RgbaColor};
+use tome_tui::backend::{Backend, WindowSize};
+use tome_tui::buffer::Cell;
+use tome_tui::layout::{Position, Size};
 
 pub struct TerminaBackend<T: Terminal> {
 	terminal: T,
@@ -77,10 +77,16 @@ impl<T: Terminal> Backend for TerminaBackend<T> {
 			if cell.modifier.contains(tome_tui::style::Modifier::ITALIC) {
 				attrs.modifiers |= SgrModifiers::ITALIC;
 			}
-			if cell.modifier.contains(tome_tui::style::Modifier::UNDERLINED) {
+			if cell
+				.modifier
+				.contains(tome_tui::style::Modifier::UNDERLINED)
+			{
 				attrs.modifiers |= SgrModifiers::UNDERLINE_SINGLE;
 			}
-			if cell.modifier.contains(tome_tui::style::Modifier::SLOW_BLINK) {
+			if cell
+				.modifier
+				.contains(tome_tui::style::Modifier::SLOW_BLINK)
+			{
 				attrs.modifiers |= SgrModifiers::BLINK_SLOW;
 			}
 			if cell

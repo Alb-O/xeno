@@ -1,5 +1,5 @@
-use tome_tui::layout::{Position, Rect};
 use tome_manifest::notifications::Anchor;
+use tome_tui::layout::{Position, Rect};
 
 /// Calculate the anchor position within a frame area.
 pub fn calculate_anchor_position(anchor: Anchor, frame_area: Rect) -> Position {

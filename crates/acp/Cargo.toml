@@ -12,7 +12,6 @@ futures.workspace = true
 linkme.workspace = true
 parking_lot.workspace = true
 paste.workspace = true
-tome-tui.workspace = true
 termina.workspace = true
 tokio.workspace = true
 tokio-util.workspace = true
@@ -21,6 +20,7 @@ tome-base.workspace = true
 tome-manifest.workspace = true
 tome-stdlib.workspace = true
 tome-theme.workspace = true
+tome-tui.workspace = true
 
 [dev-dependencies]
 async-trait.workspace = true

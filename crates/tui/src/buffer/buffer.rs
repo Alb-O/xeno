@@ -1319,7 +1319,7 @@ mod tests {
 		assert_eq!(buffer, expected);
 	}
 
-	/// Regression test for 
+	/// Regression test for
 	///
 	/// Previously the `pos_of` function would incorrectly cast the index to a u16 value instead of
 	/// using the index as is. This caused incorrect rendering of any buffer with an length > 65535.

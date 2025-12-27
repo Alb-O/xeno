@@ -1,10 +1,10 @@
 use std::time::{Duration, Instant};
 
+use tome_manifest::notifications::{Animation, AnimationPhase, AutoDismiss, Level, Timing};
+use tome_stdlib::notifications::Notification;
 use tome_tui::prelude::*;
 use tome_tui::widgets::block::Padding;
 use tome_tui::widgets::{Block, BorderType};
-use tome_manifest::notifications::{Animation, AnimationPhase, AutoDismiss, Level, Timing};
-use tome_stdlib::notifications::Notification;
 
 use crate::render::notifications::animation::{
 	FadeHandler, expand_calculate_rect, fade_calculate_rect, slide_apply_border_effect,

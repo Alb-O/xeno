@@ -2,11 +2,11 @@ mod wrapping;
 
 use std::time::{Duration, SystemTime};
 
+use tome_manifest::{SplitAttrs, SplitBuffer, SplitColor};
 use tome_tui::layout::{Constraint, Direction, Layout, Rect};
 use tome_tui::style::{Color, Modifier, Style};
 use tome_tui::text::{Line, Span};
 use tome_tui::widgets::{Block, Clear, Paragraph};
-use tome_manifest::{SplitAttrs, SplitBuffer, SplitColor};
 
 use super::buffer_render::{BufferRenderContext, ensure_buffer_cursor_visible};
 use super::types::RenderResult;
@@ -175,10 +175,10 @@ impl Editor {
 			.unwrap_or((None, 0.0));
 
 		// Request redraw if animation is in progress (including debounce period)
-		if let Some(anim) = &self.separator_hover_animation {
-			if anim.needs_redraw() {
-				self.needs_redraw = true;
-			}
+		if let Some(anim) = &self.separator_hover_animation
+			&& anim.needs_redraw()
+		{
+			self.needs_redraw = true;
 		}
 
 		// Define colors for lerping
@@ -348,5 +348,3 @@ fn convert_split_color(color: SplitColor) -> Color {
 		SplitColor::Rgb(r, g, b) => Color::Rgb(r, g, b),
 	}
 }
-
-

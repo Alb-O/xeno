@@ -341,13 +341,16 @@ impl Color {
 		let t = t.clamp(0.0, 1.0);
 		match (self.to_rgb(), target.to_rgb()) {
 			(Some((r1, g1, b1)), Some((r2, g2, b2))) => {
-				let lerp_u8 = |a: u8, b: u8| -> u8 {
-					(a as f32 + (b as f32 - a as f32) * t).round() as u8
-				};
+				let lerp_u8 =
+					|a: u8, b: u8| -> u8 { (a as f32 + (b as f32 - a as f32) * t).round() as u8 };
 				Color::Rgb(lerp_u8(r1, r2), lerp_u8(g1, g2), lerp_u8(b1, b2))
 			}
 			_ => {
-				if t > 0.5 { target } else { self }
+				if t > 0.5 {
+					target
+				} else {
+					self
+				}
 			}
 		}
 	}

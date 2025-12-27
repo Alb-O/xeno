@@ -1636,7 +1636,7 @@ mod tests {
 
 		/// Note that this includes a regression test for a bug where the table would not render the
 		/// correct rows when there is no selection.
-		/// 
+		///
 		#[rstest]
 		#[case::no_selection(None, 50, ["50", "51", "52", "53", "54"])]
 		#[case::selection_before_offset(20, 20, ["20", "21", "22", "23", "24"])]

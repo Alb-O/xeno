@@ -1,11 +1,11 @@
 use std::collections::HashMap;
 
+use tome_manifest::notifications::{Anchor, Animation, AnimationPhase, Level};
 use tome_tui::layout::Alignment;
 use tome_tui::prelude::*;
 use tome_tui::symbols::border;
 use tome_tui::widgets::block::Padding;
 use tome_tui::widgets::{Block, BorderType, Borders, Clear};
-use tome_manifest::notifications::{Anchor, Animation, AnimationPhase, Level};
 
 use crate::render::notifications::stacking::{StackableNotification, calculate_stacking_positions};
 use crate::render::notifications::ui::{

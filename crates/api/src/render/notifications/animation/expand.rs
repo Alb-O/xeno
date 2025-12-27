@@ -1,6 +1,6 @@
+use tome_manifest::notifications::AnimationPhase;
 use tome_tui::animation::Animatable;
 use tome_tui::prelude::*;
-use tome_manifest::notifications::AnimationPhase;
 
 /// Minimum width for expand/collapse animation to remain visible.
 const MIN_WIDTH: u16 = 3;

@@ -7,16 +7,16 @@
 use std::collections::HashSet;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use tome_tui::layout::Rect;
-use tome_tui::style::{Modifier, Style};
-use tome_tui::text::{Line, Span};
-use tome_tui::widgets::Paragraph;
 use tome_base::range::CharIdx;
 use tome_language::LanguageLoader;
 use tome_language::highlight::{HighlightSpan, HighlightStyles};
 use tome_manifest::Mode;
 use tome_manifest::syntax::SyntaxStyles;
 use tome_theme::{Theme, ThemeVariant};
+use tome_tui::layout::Rect;
+use tome_tui::style::{Modifier, Style};
+use tome_tui::text::{Line, Span};
+use tome_tui::widgets::Paragraph;
 
 use super::types::{RenderResult, WrapSegment, wrap_line};
 use crate::buffer::Buffer;
@@ -57,8 +57,18 @@ impl<'a> BufferRenderContext<'a> {
 			.add_modifier(Modifier::BOLD);
 
 		let secondary_cursor_style = {
-			let bg = self.theme.colors.ui.cursor_bg.blend(self.theme.colors.ui.bg, 0.4);
-			let fg = self.theme.colors.ui.cursor_fg.blend(self.theme.colors.ui.fg, 0.4);
+			let bg = self
+				.theme
+				.colors
+				.ui
+				.cursor_bg
+				.blend(self.theme.colors.ui.bg, 0.4);
+			let fg = self
+				.theme
+				.colors
+				.ui
+				.cursor_fg
+				.blend(self.theme.colors.ui.fg, 0.4);
 			Style::default()
 				.bg(bg.into())
 				.fg(fg.into())
@@ -259,8 +269,12 @@ impl<'a> BufferRenderContext<'a> {
 				let gutter_style = if is_first_segment {
 					Style::default().fg(self.theme.colors.ui.gutter_fg.into())
 				} else {
-					let dim_color =
-						self.theme.colors.ui.gutter_fg.blend(self.theme.colors.ui.bg, 0.5);
+					let dim_color = self
+						.theme
+						.colors
+						.ui
+						.gutter_fg
+						.blend(self.theme.colors.ui.bg, 0.5);
 					Style::default().fg(dim_color.into())
 				};
 
@@ -346,8 +360,12 @@ impl<'a> BufferRenderContext<'a> {
 
 				if !is_last_segment && seg_col < text_width {
 					let fill_count = text_width - seg_col;
-					let dim_color =
-						self.theme.colors.ui.gutter_fg.blend(self.theme.colors.ui.bg, 0.5);
+					let dim_color = self
+						.theme
+						.colors
+						.ui
+						.gutter_fg
+						.blend(self.theme.colors.ui.bg, 0.5);
 					spans.push(Span::styled(
 						" ".repeat(fill_count),
 						Style::default().fg(dim_color.into()),
@@ -431,7 +449,12 @@ impl<'a> BufferRenderContext<'a> {
 
 		while output_lines.len() < viewport_height {
 			let line_num_str = format!("{:>width$} ", "~", width = gutter_width as usize - 1);
-			let dim_color = self.theme.colors.ui.gutter_fg.blend(self.theme.colors.ui.bg, 0.5);
+			let dim_color = self
+				.theme
+				.colors
+				.ui
+				.gutter_fg
+				.blend(self.theme.colors.ui.bg, 0.5);
 			output_lines.push(Line::from(vec![Span::styled(
 				line_num_str,
 				Style::default().fg(dim_color.into()),

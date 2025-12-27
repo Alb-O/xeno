@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 
-use tome_tui::layout::Rect;
 use termina::event::{KeyEvent, MouseEvent};
 use tome_theme::Theme;
+use tome_tui::layout::Rect;
 
 use super::dock::{DockLayout, DockManager};
 use super::focus::{FocusManager, FocusTarget};

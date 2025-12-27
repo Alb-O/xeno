@@ -45,7 +45,6 @@ unstable = ["unstable-rendered-line-info"]
 unstable-rendered-line-info = []
 
 [dependencies]
-vt100 = "0.15"
 anstyle = { version = "1", optional = true }
 bitflags = "2.10"
 cfg-if = "1"
@@ -67,6 +66,7 @@ time = { version = "0.3", optional = true, default-features = false, features = 
 unicode-segmentation = "1"
 unicode-truncate = { version = "2", default-features = false }
 unicode-width = ">=0.2.0, <=0.2.2"
+vt100 = "0.15"
 
 [dev-dependencies]
 color-eyre = "0.6"

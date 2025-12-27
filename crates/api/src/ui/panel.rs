@@ -1,7 +1,7 @@
-use tome_tui::Frame;
-use tome_tui::layout::{Position, Rect};
 use termina::event::{KeyEvent, MouseEvent};
 use tome_theme::Theme;
+use tome_tui::Frame;
+use tome_tui::layout::{Position, Rect};
 
 use super::dock::DockSlot;
 use super::keymap::KeybindingRegistry;

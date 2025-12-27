@@ -4,11 +4,11 @@ mod suite {
 	use std::sync::Arc;
 
 	use insta::assert_snapshot;
-	use tome_tui::Terminal;
-	use tome_tui::backend::TestBackend;
 	use tome_api::Editor;
 	use tome_manifest::{CommandContext, CommandOutcome};
 	use tome_theme::{CMD_THEME, DEFAULT_THEME_ID, THEMES, get_theme};
+	use tome_tui::Terminal;
+	use tome_tui::backend::TestBackend;
 
 	fn test_editor(content: &str) -> Editor {
 		let fs = Arc::new(agentfs_sdk::HostFS::new(std::env::current_dir().unwrap()).unwrap());

@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 use std::time::Instant;
 
-use tome_tui::prelude::*;
 use tome_manifest::notifications::{Anchor, AnimationPhase};
+use tome_tui::prelude::*;
 
 use crate::render::notifications::layout::{calculate_anchor_position, calculate_rect};
 

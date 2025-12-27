@@ -6,7 +6,7 @@
 //! see [Issue #1150]. However, the prelude is still available for backward compatibility and for
 //! those who prefer to use it.
 //!
-//! [Issue #1150]: 
+//! [Issue #1150]:
 //!
 //! # Examples
 //!

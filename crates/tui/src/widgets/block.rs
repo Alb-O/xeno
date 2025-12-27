@@ -897,7 +897,7 @@ impl Block<'_> {
 	/// Currently (due to the way lines are truncated), the right side of the leftmost title will
 	/// be cut off if the block is too small to fit all titles. This is not ideal and should be
 	/// the left side of that leftmost that is cut off. This is due to the line being truncated
-	/// incorrectly. See 
+	/// incorrectly. See
 	#[expect(clippy::similar_names)]
 	fn render_right_titles(&self, position: TitlePosition, area: Rect, buf: &mut Buffer) {
 		let titles = self.filtered_titles(position, Alignment::Right);
@@ -1463,7 +1463,7 @@ mod tests {
 		}
 	}
 
-	/// This is a regression test for bug 
+	/// This is a regression test for bug
 	#[test]
 	fn render_right_aligned_empty_title() {
 		let mut buffer = Buffer::empty(Rect::new(0, 0, 15, 3));

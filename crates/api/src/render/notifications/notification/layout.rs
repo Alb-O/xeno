@@ -2,12 +2,12 @@
 //!
 //! Calculates the dimensions needed to render a notification.
 
+use tome_manifest::notifications::SizeConstraint;
+use tome_stdlib::notifications::Notification;
 use tome_tui::buffer::Buffer;
 use tome_tui::prelude::*;
 use tome_tui::widgets::paragraph::Wrap;
 use tome_tui::widgets::{Block, Borders, Paragraph};
-use tome_manifest::notifications::SizeConstraint;
-use tome_stdlib::notifications::Notification;
 
 use crate::render::notifications::ui::{gutter_layout, padding_with_gutter};
 

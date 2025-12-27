@@ -1,9 +1,9 @@
 use std::collections::HashMap;
 use std::time::Duration;
 
-use tome_tui::prelude::{Frame, Rect};
 use tome_manifest::notifications::{Anchor, AnimationPhase, NotificationError, Overflow};
 use tome_stdlib::notifications::Notification;
+use tome_tui::prelude::{Frame, Rect};
 
 use crate::render::notifications::render::render_notifications;
 use crate::render::notifications::state::{ManagerDefaults, NotificationState};

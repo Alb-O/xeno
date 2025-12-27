@@ -1,11 +1,11 @@
 use std::io::{self, Write};
 use std::time::Duration;
 
-use tome_tui::Terminal;
 use termina::escape::csi::{Csi, Cursor};
 use termina::event::{Event, KeyEventKind};
 use termina::{PlatformTerminal, Terminal as _};
 use tome_api::Editor;
+use tome_tui::Terminal;
 
 use crate::backend::TerminaBackend;
 use crate::terminal::{

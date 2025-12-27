@@ -630,7 +630,7 @@ mod tests {
 		assert_eq!(Span::raw("").width(), 0);
 		assert_eq!(Span::raw("test").width(), 4);
 		assert_eq!(Span::raw("test content").width(), 12);
-		// Needs reconsideration: 
+		// Needs reconsideration:
 		assert_eq!(Span::raw("test\ncontent").width(), 12);
 	}
 

@@ -9,9 +9,9 @@ use std::time::Duration;
 
 use helpers::{insert_text, reset_test_file, tome_cmd_with_file_named, workspace_dir};
 use kitty_test_harness::{
-	extract_row_colors_parsed, find_separator_rows_at_col, find_vertical_separator_col,
+	AnsiColor, extract_row_colors_parsed, find_separator_rows_at_col, find_vertical_separator_col,
 	kitty_send_keys, pause_briefly, require_kitty, run_with_timeout, send_mouse_move,
-	wait_for_screen_text_clean, with_kitty_capture, AnsiColor,
+	wait_for_screen_text_clean, with_kitty_capture,
 };
 use termwiz::input::{KeyCode, Modifiers};
 

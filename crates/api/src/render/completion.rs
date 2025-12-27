@@ -1,9 +1,9 @@
+use tome_manifest::CompletionKind;
 use tome_tui::layout::Rect;
 use tome_tui::style::{Modifier, Style};
 use tome_tui::text::{Line, Span};
 use tome_tui::widgets::list::ListItem;
 use tome_tui::widgets::{Block, Borders, List, Widget};
-use tome_manifest::CompletionKind;
 
 use crate::Editor;
 

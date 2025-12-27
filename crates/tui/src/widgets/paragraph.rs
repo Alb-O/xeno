@@ -324,10 +324,7 @@ impl<'a> Paragraph<'a> {
 	/// assert_eq!(paragraph.line_count(20), 1);
 	/// assert_eq!(paragraph.line_count(10), 2);
 	/// ```
-	#[instability::unstable(
-		feature = "rendered-line-info",
-		issue = ""
-	)]
+	#[instability::unstable(feature = "rendered-line-info", issue = "")]
 	pub fn line_count(&self, width: u16) -> usize {
 		if width < 1 {
 			return 0;
@@ -380,10 +377,7 @@ impl<'a> Paragraph<'a> {
 	/// let paragraph = Paragraph::new("Hello World\nhi\nHello World!!!");
 	/// assert_eq!(paragraph.line_width(), 14);
 	/// ```
-	#[instability::unstable(
-		feature = "rendered-line-info",
-		issue = ""
-	)]
+	#[instability::unstable(feature = "rendered-line-info", issue = "")]
 	pub fn line_width(&self) -> usize {
 		let width = self.text.iter().map(Line::width).max().unwrap_or_default();
 		let (left, right) = self
@@ -1175,7 +1169,7 @@ mod tests {
 		assert_eq!(p.alignment, Alignment::Right);
 	}
 
-	/// Regression test for 
+	/// Regression test for
 	///
 	/// This test ensures that paragraphs with a block and styled text are rendered correctly.
 	/// It has been simplified from the original issue but tests the same functionality.

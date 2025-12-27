@@ -1,10 +1,10 @@
+use tome_manifest::notifications::Level;
 use tome_tui::layout::{Alignment, Rect};
 use tome_tui::prelude::*;
 use tome_tui::style::{Modifier, Style};
 use tome_tui::widgets::Paragraph;
 use tome_tui::widgets::block::Padding;
 use tome_tui::widgets::paragraph::Wrap;
-use tome_manifest::notifications::Level;
 
 const ICON_INFO: &str = "󰋼";
 const ICON_WARN: &str = "󰀪";

@@ -3,8 +3,8 @@
 //! These types use tome_tui geometry types and are only used in the
 //! rendering layer.
 
-use tome_tui::layout::Rect;
 use tome_manifest::notifications::{Anchor, AnimationPhase, SlideDirection};
+use tome_tui::layout::Rect;
 
 /// Parameters for sliding animations.
 ///

@@ -12,11 +12,11 @@ tome-tui = ["dep:tome-tui"]
 [dependencies]
 crossterm.workspace = true
 log.workspace = true
-tome-tui = { workspace = true, optional = true }
 ropey.workspace = true
 serde.workspace = true
 smallvec.workspace = true
 termina.workspace = true
 thiserror.workspace = true
+tome-tui = { workspace = true, optional = true }
 unicode-segmentation.workspace = true
 unicode-width.workspace = true

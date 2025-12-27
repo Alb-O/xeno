@@ -1,6 +1,6 @@
+use tome_manifest::notifications::AnimationPhase;
 use tome_tui::animation::{Animatable, ease_in_quad, ease_out_quad};
 use tome_tui::prelude::*;
-use tome_manifest::notifications::AnimationPhase;
 
 /// Target color when fully faded out (black).
 const FADED_OUT_COLOR: Option<Color> = Some(Color::Black);
@@ -51,7 +51,11 @@ pub fn interpolate_color(
 	match (from, to) {
 		(Some(from_color), Some(to_color)) => Some(from_color.lerp(&to_color, eased_progress)),
 		(Some(_), None) | (None, Some(_)) => {
-			if linear_progress < 0.5 { from } else { to }
+			if linear_progress < 0.5 {
+				from
+			} else {
+				to
+			}
 		}
 		(None, None) => None,
 	}

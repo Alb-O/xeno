@@ -1442,7 +1442,7 @@ mod tests {
 		assert_eq!(updated_chart.data[1].bars, [Bar::with_label("Blue", 3)]);
 	}
 
-	/// Regression test for issue 
+	/// Regression test for issue
 	///
 	/// This test ensures that the `BarChart` doesn't panic when rendering text labels with
 	/// multi-byte characters in the bar labels.

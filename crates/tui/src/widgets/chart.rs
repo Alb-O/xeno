@@ -86,7 +86,7 @@ impl<'a> Axis<'a> {
 	/// more than 3 labels is currently broken and the middle labels won't be in the correct
 	/// position, see [issue 334].
 	///
-	/// [issue 334]: 
+	/// [issue 334]:
 	///
 	/// `labels` is a vector of any type that can be converted into a [`Line`] (e.g. `&str`,
 	/// `String`, `&Line`, `Span`, ...). This allows you to style the labels using the methods
