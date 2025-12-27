@@ -290,21 +290,24 @@
 mod alignment;
 mod constraint;
 mod direction;
+mod engine;
 mod flex;
-mod layout;
 mod margin;
 mod offset;
 mod position;
 mod rect;
 mod size;
+mod solver;
+mod spacing;
 
 pub use alignment::{Alignment, HorizontalAlignment, VerticalAlignment};
 pub use constraint::Constraint;
 pub use direction::Direction;
+pub use engine::Layout;
 pub use flex::Flex;
-pub use layout::{Layout, Spacing};
 pub use margin::Margin;
 pub use offset::Offset;
 pub use position::Position;
 pub use rect::{Columns, Positions, Rect, Rows};
 pub use size::Size;
+pub use spacing::Spacing;
