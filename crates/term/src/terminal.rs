@@ -102,3 +102,16 @@ pub fn cursor_style_for_mode(mode: tome_manifest::Mode) -> CursorStyle {
 		_ => CursorStyle::SteadyBlock,
 	}
 }
+
+pub fn split_cursor_to_termina(style: tome_manifest::SplitCursorStyle) -> CursorStyle {
+	use tome_manifest::SplitCursorStyle;
+	match style {
+		SplitCursorStyle::Hidden | SplitCursorStyle::Block => CursorStyle::SteadyBlock,
+		SplitCursorStyle::Default => CursorStyle::Default,
+		SplitCursorStyle::BlinkingBlock => CursorStyle::BlinkingBlock,
+		SplitCursorStyle::Bar => CursorStyle::SteadyBar,
+		SplitCursorStyle::BlinkingBar => CursorStyle::BlinkingBar,
+		SplitCursorStyle::Underline => CursorStyle::SteadyUnderline,
+		SplitCursorStyle::BlinkingUnderline => CursorStyle::BlinkingUnderline,
+	}
+}

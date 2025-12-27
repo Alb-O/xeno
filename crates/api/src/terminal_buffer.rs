@@ -38,6 +38,8 @@ struct TerminalState {
 	receiver: Receiver<Vec<u8>>,
 	child: Box<dyn portable_pty::Child + Send>,
 	fish_init: Option<FishInitState>,
+	/// Cursor shape set via DECSCUSR (ESC [ Ps SP q)
+	cursor_shape: SplitCursorStyle,
 }
 
 struct FishInitState {
@@ -147,6 +149,7 @@ impl TerminalState {
 			receiver: rx,
 			child,
 			fish_init,
+			cursor_shape: SplitCursorStyle::Default,
 		})
 	}
 
@@ -159,8 +162,8 @@ impl TerminalState {
 		loop {
 			match self.receiver.try_recv() {
 				Ok(bytes) => {
-					// Handle terminal queries that require responses
-					self.handle_terminal_queries(&bytes);
+					// Handle escape sequences that vt100 doesn't process
+					self.handle_escape_sequences(&bytes);
 					self.parser.process(&bytes);
 				}
 				Err(TryRecvError::Empty) => break,
@@ -169,20 +172,20 @@ impl TerminalState {
 		}
 	}
 
-	/// Responds to terminal queries (DA1, DSR) that programs send to discover
-	/// terminal capabilities or cursor state.
-	fn handle_terminal_queries(&mut self, bytes: &[u8]) {
-		// DA1 (Primary Device Attributes): ESC[c or ESC[0c → ESC[?6c (VT102)
+	/// Handles escape sequences that vt100 doesn't process (DA1, DSR, DECSCUSR).
+	fn handle_escape_sequences(&mut self, bytes: &[u8]) {
+		// DA1: ESC[c or ESC[0c → respond with VT102 identifier
 		if bytes.windows(3).any(|w| w == b"\x1b[c") || bytes.windows(4).any(|w| w == b"\x1b[0c") {
 			let _ = self.pty_writer.write_all(b"\x1b[?6c");
 		}
-
-		// DSR (Cursor Position Report): ESC[6n → ESC[row;colR (1-indexed)
+		// DSR: ESC[6n → respond with cursor position
 		if bytes.windows(4).any(|w| w == b"\x1b[6n") {
 			let (row, col) = self.parser.screen().cursor_position();
 			let response = format!("\x1b[{};{}R", row + 1, col + 1);
 			let _ = self.pty_writer.write_all(response.as_bytes());
 		}
+		// DECSCUSR: track cursor shape
+		self.cursor_shape = parse_decscusr(bytes).unwrap_or(self.cursor_shape);
 	}
 
 	fn resize(&mut self, cols: u16, rows: u16) -> Result<(), TerminalError> {
@@ -571,7 +574,8 @@ impl SplitBuffer for TerminalBuffer {
 	}
 
 	fn cursor(&self) -> Option<SplitCursor> {
-		let screen = self.terminal.as_ref()?.screen();
+		let term = self.terminal.as_ref()?;
+		let screen = term.screen();
 		if screen.hide_cursor() {
 			return None;
 		}
@@ -579,7 +583,7 @@ impl SplitBuffer for TerminalBuffer {
 		Some(SplitCursor {
 			row,
 			col,
-			style: SplitCursorStyle::Default,
+			style: term.cursor_shape,
 		})
 	}
 
@@ -650,6 +654,37 @@ fn map_vt_color(color: vt100::Color) -> Option<SplitColor> {
 		vt100::Color::Idx(i) => Some(SplitColor::Indexed(i)),
 		vt100::Color::Rgb(r, g, b) => Some(SplitColor::Rgb(r, g, b)),
 	}
+}
+
+/// Parses DECSCUSR (Set Cursor Style): `ESC [ Ps SP q`
+fn parse_decscusr(bytes: &[u8]) -> Option<SplitCursorStyle> {
+	let mut i = 0;
+	while i + 4 <= bytes.len() {
+		if bytes[i] == 0x1b && bytes[i + 1] == b'[' {
+			let start = i + 2;
+			let mut end = start;
+			while end < bytes.len() && bytes[end].is_ascii_digit() {
+				end += 1;
+			}
+			if end + 2 <= bytes.len() && bytes[end] == b' ' && bytes[end + 1] == b'q' {
+				let ps = std::str::from_utf8(&bytes[start..end])
+					.ok()
+					.and_then(|s| s.parse::<u8>().ok())
+					.unwrap_or(0);
+				return Some(match ps {
+					0 | 1 => SplitCursorStyle::BlinkingBlock,
+					2 => SplitCursorStyle::Block,
+					3 => SplitCursorStyle::BlinkingUnderline,
+					4 => SplitCursorStyle::Underline,
+					5 => SplitCursorStyle::BlinkingBar,
+					6 => SplitCursorStyle::Bar,
+					_ => SplitCursorStyle::Default,
+				});
+			}
+		}
+		i += 1;
+	}
+	None
 }
 
 /// Dock preference for terminal buffer.

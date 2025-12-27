@@ -270,7 +270,7 @@ impl Editor {
 		frame: &mut tome_tui::Frame,
 		terminal: &crate::terminal_buffer::TerminalBuffer,
 		area: Rect,
-		_is_focused: bool,
+		is_focused: bool,
 	) {
 		let base_style = Style::default()
 			.bg(self.theme.colors.popup.bg.into())
@@ -328,6 +328,16 @@ impl Editor {
 				out.set_symbol(&cell.symbol);
 			}
 		});
+
+		if is_focused {
+			if let Some(cursor) = terminal.cursor() {
+				let x = area.x + cursor.col;
+				let y = area.y + cursor.row;
+				if x < area.x + area.width && y < area.y + area.height {
+					frame.set_cursor_position(tome_tui::layout::Position { x, y });
+				}
+			}
+		}
 	}
 }
 

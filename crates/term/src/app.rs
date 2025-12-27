@@ -10,7 +10,7 @@ use tome_tui::Terminal;
 use crate::backend::TerminaBackend;
 use crate::terminal::{
 	coalesce_resize_events, cursor_style_for_mode, disable_terminal_features,
-	enable_terminal_features, install_panic_hook,
+	enable_terminal_features, install_panic_hook, split_cursor_to_termina,
 };
 
 pub async fn run_editor(mut editor: Editor) -> io::Result<()> {
@@ -36,10 +36,15 @@ pub async fn run_editor(mut editor: Editor) -> io::Result<()> {
 			terminal.draw(|frame| editor.render(frame))?;
 
 			// Set terminal cursor style based on mode.
-			// When a focused panel requests a cursor style, prefer it.
+			// Priority: focused panel > focused terminal > editor mode
 			let cursor_style = editor
 				.ui
 				.cursor_style()
+				.or_else(|| {
+					editor
+						.focused_terminal_cursor_style()
+						.map(split_cursor_to_termina)
+				})
 				.unwrap_or_else(|| cursor_style_for_mode(editor.mode()));
 			write!(
 				terminal.backend_mut().terminal_mut(),

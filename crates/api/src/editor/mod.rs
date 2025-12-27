@@ -16,7 +16,7 @@ use agentfs_sdk::{FileSystem, HostFS};
 use tome_base::Transaction;
 use tome_language::LanguageLoader;
 use tome_manifest::syntax::SyntaxStyles;
-use tome_manifest::{HookContext, Mode, emit_hook};
+use tome_manifest::{HookContext, Mode, SplitBuffer, emit_hook};
 use tome_theme::Theme;
 pub use types::{HistoryEntry, Registers};
 
@@ -391,6 +391,13 @@ impl Editor {
 	/// Returns the number of open terminals.
 	pub fn terminal_count(&self) -> usize {
 		self.terminals.len()
+	}
+
+	/// Returns the cursor style for the focused terminal, if any.
+	pub fn focused_terminal_cursor_style(&self) -> Option<tome_manifest::SplitCursorStyle> {
+		let terminal_id = self.focused_terminal_id()?;
+		let terminal = self.get_terminal(terminal_id)?;
+		terminal.cursor().map(|c| c.style)
 	}
 }
 

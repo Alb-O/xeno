@@ -169,8 +169,11 @@ pub enum SplitCursorStyle {
 	Hidden,
 	Default,
 	Block,
+	BlinkingBlock,
 	Bar,
+	BlinkingBar,
 	Underline,
+	BlinkingUnderline,
 }
 
 /// Cursor information returned by split buffers.
