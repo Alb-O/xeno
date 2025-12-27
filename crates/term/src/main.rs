@@ -35,10 +35,17 @@ async fn main() -> anyhow::Result<()> {
 		eprintln!("Warning: failed to seed runtime: {e}");
 	}
 
-	let editor = match cli.file {
+	let mut editor = match cli.file {
 		Some(path) => Editor::new(path).await?,
 		None => Editor::new_scratch(),
 	};
+
+	// Apply theme from CLI if specified
+	if let Some(theme_name) = cli.theme {
+		if let Err(e) = editor.set_theme(&theme_name) {
+			eprintln!("Warning: failed to set theme '{}': {}", theme_name, e);
+		}
+	}
 
 	run_editor(editor).await?;
 	Ok(())

@@ -12,6 +12,10 @@ pub struct Cli {
 	/// File to edit (opens scratch buffer if omitted)
 	pub file: Option<PathBuf>,
 
+	/// Color theme to use (e.g., gruvbox, monokai, debug)
+	#[arg(long, short = 't')]
+	pub theme: Option<String>,
+
 	#[command(subcommand)]
 	pub command: Option<Command>,
 }

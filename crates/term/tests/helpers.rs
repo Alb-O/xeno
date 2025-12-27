@@ -13,6 +13,14 @@ pub fn tome_cmd_with_file_named(name: &str) -> String {
 	format!("{} {}", tome_cmd(), name)
 }
 
+/// Returns a command to launch tome with the debug theme and a given file.
+///
+/// The debug theme uses predictable RGB values that are easy to test against.
+/// See `tome_theme::themes::debug::colors` for the exact values.
+pub fn tome_cmd_debug_theme(name: &str) -> String {
+	format!("{} --theme debug {}", tome_cmd(), name)
+}
+
 /// Returns the workspace directory.
 pub fn workspace_dir() -> PathBuf {
 	PathBuf::from(env!("CARGO_MANIFEST_DIR"))
