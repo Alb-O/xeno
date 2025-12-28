@@ -294,6 +294,9 @@ impl Editor {
 	/// 4. Focuses that view if it's different from the current focus
 	/// 5. Translates screen coordinates to view-local coordinates
 	/// 6. Dispatches the mouse event to the appropriate handler
+	///
+	/// Text selection drags are confined to the view where they started.
+	/// This prevents selection from crossing split boundaries.
 	pub(crate) async fn handle_mouse_in_doc_area(
 		&mut self,
 		mouse: termina::event::MouseEvent,
@@ -304,7 +307,7 @@ impl Editor {
 		let mouse_x = mouse.column;
 		let mouse_y = mouse.row;
 
-		// Handle active drag operation
+		// Handle active separator drag operation
 		if let Some(drag_state) = self.layout.drag_state().cloned() {
 			match mouse.kind {
 				MouseEventKind::Drag(_) => {
@@ -319,6 +322,50 @@ impl Editor {
 					self.layout.end_drag();
 					self.needs_redraw = true;
 					return false;
+				}
+				_ => {}
+			}
+		}
+
+		// Handle active text selection drag - confine to origin view
+		if let Some((origin_view, origin_area)) = self.layout.text_selection_origin {
+			match mouse.kind {
+				MouseEventKind::Drag(_) => {
+					let clamped_x =
+						mouse_x.clamp(origin_area.x, origin_area.right().saturating_sub(1));
+					let clamped_y =
+						mouse_y.clamp(origin_area.y, origin_area.bottom().saturating_sub(1));
+					let local_row = clamped_y.saturating_sub(origin_area.y);
+					let local_col = clamped_x.saturating_sub(origin_area.x);
+
+					if let BufferView::Text(buffer_id) = origin_view
+						&& let Some(buffer) = self.buffers.get_buffer_mut(buffer_id)
+					{
+						let _ = buffer.input.handle_mouse(mouse.into());
+						let doc_pos =
+							buffer
+								.screen_to_doc_position(local_row, local_col)
+								.or_else(|| {
+									let gutter_width = buffer.gutter_width();
+									(local_col < gutter_width)
+										.then(|| {
+											buffer.screen_to_doc_position(local_row, gutter_width)
+										})
+										.flatten()
+								});
+
+						if let Some(doc_pos) = doc_pos {
+							let anchor = buffer.selection.primary().anchor;
+							buffer.selection = Selection::single(anchor, doc_pos);
+							buffer.cursor = buffer.selection.primary().head;
+						}
+					}
+					self.needs_redraw = true;
+					return false;
+				}
+				MouseEventKind::Up(_) => {
+					self.layout.text_selection_origin = None;
+					self.needs_redraw = true;
 				}
 				_ => {}
 			}
@@ -444,7 +491,7 @@ impl Editor {
 		let result = self.buffer_mut().input.handle_mouse(mouse.into());
 		match result {
 			KeyResult::MouseClick { extend, .. } => {
-				// Use local coordinates instead of the ones from KeyResult
+				self.layout.text_selection_origin = Some((target_view, view_area));
 				self.handle_mouse_click_local(local_row, local_col, extend);
 				false
 			}
