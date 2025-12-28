@@ -24,10 +24,12 @@ use thiserror::Error;
 pub enum GrammarBuildError {
 	#[error("git is not available on PATH")]
 	GitNotAvailable,
-	#[error("failed to read languages.toml: {0}")]
+	#[error("failed to read languages.kdl: {0}")]
 	ConfigRead(#[from] std::io::Error),
-	#[error("failed to parse languages.toml: {0}")]
-	ConfigParse(#[from] toml::de::Error),
+	#[error("failed to parse languages.kdl: {0}")]
+	ConfigParseKdl(#[from] kdl::KdlError),
+	#[error("invalid languages.kdl configuration: {0}")]
+	ConfigParse(String),
 	#[error("git command failed: {0}")]
 	GitCommand(String),
 	#[error("compilation failed: {0}")]

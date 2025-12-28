@@ -777,6 +777,7 @@ dependencies = [
  "evildoer-base",
  "evildoer-manifest",
  "include_dir",
+ "kdl",
  "libloading",
  "log",
  "once_cell",
@@ -785,7 +786,6 @@ dependencies = [
  "serde",
  "tempfile",
  "thiserror 2.0.17",
- "toml",
  "tree-house",
 ]
 
