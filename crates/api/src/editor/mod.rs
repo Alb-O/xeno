@@ -18,7 +18,7 @@ use agentfs_sdk::{FileSystem, HostFS};
 use tome_base::Transaction;
 use tome_language::LanguageLoader;
 use tome_manifest::syntax::SyntaxStyles;
-use tome_manifest::{HookContext, Mode, emit_hook};
+use tome_manifest::{HookContext, Mode, emit_hook, emit_hook_sync};
 use tome_theme::Theme;
 pub use types::{HistoryEntry, Registers};
 
@@ -195,7 +195,8 @@ impl tome_manifest::editor_ctx::FileOpsAccess for Editor {
 			emit_hook(&HookContext::BufferWritePre {
 				path: &path_owned,
 				text: self.buffer().doc.slice(..),
-			});
+			})
+			.await;
 
 			let mut content = Vec::new();
 			for chunk in self.buffer().doc.chunks() {
@@ -216,7 +217,7 @@ impl tome_manifest::editor_ctx::FileOpsAccess for Editor {
 			self.buffer_mut().modified = false;
 			self.notify("info", format!("Saved {}", path_owned.display()));
 
-			emit_hook(&HookContext::BufferWrite { path: &path_owned });
+			emit_hook(&HookContext::BufferWrite { path: &path_owned }).await;
 
 			Ok(())
 		})
@@ -294,7 +295,7 @@ impl Editor {
 		let scratch_path = PathBuf::from("[scratch]");
 		let hook_path = path.as_ref().unwrap_or(&scratch_path);
 
-		emit_hook(&HookContext::BufferOpen {
+		emit_hook_sync(&HookContext::BufferOpen {
 			path: hook_path,
 			text: buffer.doc.slice(..),
 			file_type: buffer.file_type.as_deref(),
@@ -362,7 +363,7 @@ impl Editor {
 		let scratch_path = PathBuf::from("[scratch]");
 		let hook_path = path.as_ref().unwrap_or(&scratch_path);
 
-		emit_hook(&HookContext::BufferOpen {
+		emit_hook_sync(&HookContext::BufferOpen {
 			path: hook_path,
 			text: buffer.doc.slice(..),
 			file_type: buffer.file_type.as_deref(),

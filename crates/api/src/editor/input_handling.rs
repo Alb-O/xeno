@@ -81,7 +81,7 @@ impl Editor {
 	}
 
 	pub(crate) async fn handle_key_active(&mut self, key: termina::event::KeyEvent) -> bool {
-		use tome_manifest::{HookContext, emit_hook, find_action_by_id};
+		use tome_manifest::{HookContext, emit_hook_sync, find_action_by_id};
 
 		let old_mode = self.mode();
 		let key: Key = key.into();
@@ -134,7 +134,7 @@ impl Editor {
 			KeyResult::ModeChange(new_mode) => {
 				let leaving_insert = !matches!(new_mode, Mode::Insert);
 				if new_mode != old_mode {
-					emit_hook(&HookContext::ModeChange {
+					emit_hook_sync(&HookContext::ModeChange {
 						old_mode,
 						new_mode: new_mode.clone(),
 					});

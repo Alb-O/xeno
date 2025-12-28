@@ -179,12 +179,51 @@ macro_rules! action {
 }
 
 /// Define a hook and register it in the HOOKS slice.
+///
+/// Hooks can return either:
+/// - `()` or nothing - treated as sync completion with Continue
+/// - `HookAction::Done(result)` - sync completion
+/// - `HookAction::Async(future)` - async work to be awaited
+///
+/// # Examples
+///
+/// ```ignore
+/// // Simple sync hook (returns unit)
+/// hook!(log_open, BufferOpen, 100, "Log buffer opens", |ctx| {
+///     if let HookContext::BufferOpen { path, .. } = ctx {
+///         log::info!("Opened: {}", path.display());
+///     }
+/// });
+///
+/// // Sync hook with explicit action
+/// hook!(validate_save, BufferWritePre, 50, "Validate before save", |ctx| {
+///     if should_cancel() {
+///         HookAction::cancel()
+///     } else {
+///         HookAction::done()
+///     }
+/// });
+///
+/// // Async hook
+/// hook!(lsp_open, BufferOpen, 100, "Notify LSP of buffer open", |ctx| {
+///     let path = match ctx {
+///         HookContext::BufferOpen { path, .. } => path.to_path_buf(),
+///         _ => return HookAction::done(),
+///     };
+///     HookAction::Async(Box::pin(async move {
+///         lsp_manager.on_buffer_open(&path).await;
+///         HookResult::Continue
+///     }))
+/// });
+/// ```
 #[macro_export]
 macro_rules! hook {
 	($name:ident, $event:ident, $priority:expr, $desc:expr, |$ctx:ident| $body:expr) => {
 		paste::paste! {
-			fn [<hook_handler_ $name>]($ctx: &$crate::hooks::HookContext) {
-				$body
+			#[allow(clippy::unused_unit)]
+			fn [<hook_handler_ $name>]($ctx: &$crate::hooks::HookContext) -> $crate::hooks::HookAction {
+				let result = { $body };
+				::core::convert::Into::into(result)
 			}
 
 			#[allow(non_upper_case_globals)]

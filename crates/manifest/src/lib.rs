@@ -317,8 +317,9 @@ pub use editor_ctx::{
 	EditorCapabilities, EditorContext, EditorOps, HandleOutcome, dispatch_result,
 };
 pub use hooks::{
-	HOOKS, HookContext, HookDef, HookEvent, HookResult, MUTABLE_HOOKS, MutableHookContext,
-	MutableHookDef, all_hooks, emit as emit_hook, emit_mutable as emit_mutable_hook, find_hooks,
+	BoxFuture as HookBoxFuture, HOOKS, HookAction, HookContext, HookDef, HookEvent, HookResult,
+	MUTABLE_HOOKS, MutableHookContext, MutableHookDef, all_hooks, emit as emit_hook,
+	emit_mutable as emit_mutable_hook, emit_sync as emit_hook_sync, find_hooks,
 };
 pub use index::{
 	all_actions, all_commands, all_motions, all_text_objects, find_action, find_action_by_id,

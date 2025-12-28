@@ -1,10 +1,34 @@
-//! Hook system type definitions.
+//! Async hook system for editor events.
 //!
 //! Hooks allow extensions to react to editor events like file open, save,
 //! mode change, etc. They are registered at compile-time using `linkme`.
+//!
+//! # Async Support
+//!
+//! Hooks can be either synchronous or asynchronous. The handler function
+//! returns a [`HookAction`] which indicates whether the hook completed
+//! synchronously or needs async work:
+//!
+//! ```ignore
+//! // Sync hook - completes immediately
+//! hook!(my_sync_hook, BufferOpen, 100, "Log buffer opens", |ctx| {
+//!     log::info!("Buffer opened");
+//!     HookAction::Done
+//! });
+//!
+//! // Async hook - returns a future
+//! hook!(my_async_hook, BufferOpen, 100, "Start LSP for buffer", |ctx| {
+//!     HookAction::Async(Box::pin(async move {
+//!         lsp_manager.on_buffer_open(path).await;
+//!         HookResult::Continue
+//!     }))
+//! });
+//! ```
 
 use std::path::Path;
+use std::pin::Pin;
 
+use futures::future::Future;
 use linkme::distributed_slice;
 use ropey::RopeSlice;
 
@@ -65,6 +89,9 @@ impl HookEvent {
 }
 
 /// Context passed to hook handlers.
+///
+/// Contains event-specific data that hooks can read but not modify.
+/// For hooks that need to modify state, use [`MutableHookContext`].
 pub enum HookContext<'a> {
 	/// Editor startup context.
 	EditorStart,
@@ -121,6 +148,54 @@ impl<'a> HookContext<'a> {
 	}
 }
 
+/// Result of a hook execution.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum HookResult {
+	/// Continue with the operation.
+	#[default]
+	Continue,
+	/// Cancel the operation (for pre-hooks like BufferWritePre).
+	Cancel,
+}
+
+/// A boxed future that returns a [`HookResult`].
+pub type BoxFuture = Pin<Box<dyn Future<Output = HookResult> + Send + 'static>>;
+
+/// Action returned by a hook handler.
+///
+/// Hooks return this to indicate whether they completed synchronously
+/// or need async work.
+pub enum HookAction {
+	/// Hook completed synchronously with the given result.
+	Done(HookResult),
+	/// Hook needs async work. The future will be awaited.
+	Async(BoxFuture),
+}
+
+impl HookAction {
+	/// Create a sync action that continues.
+	pub fn done() -> Self {
+		HookAction::Done(HookResult::Continue)
+	}
+
+	/// Create a sync action that cancels.
+	pub fn cancel() -> Self {
+		HookAction::Done(HookResult::Cancel)
+	}
+}
+
+impl From<HookResult> for HookAction {
+	fn from(result: HookResult) -> Self {
+		HookAction::Done(result)
+	}
+}
+
+impl From<()> for HookAction {
+	fn from(_: ()) -> Self {
+		HookAction::Done(HookResult::Continue)
+	}
+}
+
 /// A hook that responds to editor events.
 #[derive(Clone, Copy)]
 pub struct HookDef {
@@ -135,7 +210,10 @@ pub struct HookDef {
 	/// Priority (lower runs first, default 100).
 	pub priority: i32,
 	/// The hook handler function.
-	pub handler: fn(&HookContext),
+	///
+	/// Returns [`HookAction::Done`] for sync completion or [`HookAction::Async`]
+	/// with a future for async work.
+	pub handler: fn(&HookContext) -> HookAction,
 	/// Origin of the hook.
 	pub source: RegistrySource,
 }
@@ -151,15 +229,6 @@ impl std::fmt::Debug for HookDef {
 	}
 }
 
-/// Result of a mutable hook execution.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum HookResult {
-	/// Continue with the operation.
-	Continue,
-	/// Cancel the operation (for pre-hooks).
-	Cancel,
-}
-
 /// A mutable hook that can modify editor state.
 #[derive(Clone, Copy)]
 pub struct MutableHookDef {
@@ -172,7 +241,7 @@ pub struct MutableHookDef {
 	/// Priority (lower runs first, default 100).
 	pub priority: i32,
 	/// The hook handler function.
-	pub handler: fn(&mut MutableHookContext) -> HookResult,
+	pub handler: fn(&mut MutableHookContext) -> HookAction,
 }
 
 impl std::fmt::Debug for MutableHookDef {
@@ -207,22 +276,69 @@ pub static HOOKS: [HookDef];
 pub static MUTABLE_HOOKS: [MutableHookDef];
 
 /// Emit an event to all registered hooks.
-pub fn emit(ctx: &HookContext) {
+///
+/// Hooks are executed in priority order (lower priority runs first).
+/// Sync hooks complete immediately; async hooks are awaited in sequence.
+///
+/// Returns [`HookResult::Cancel`] if any hook cancels, otherwise [`HookResult::Continue`].
+pub async fn emit(ctx: &HookContext<'_>) -> HookResult {
 	let event = ctx.event();
 	let mut matching: Vec<_> = HOOKS.iter().filter(|h| h.event == event).collect();
 	matching.sort_by_key(|h| h.priority);
+
 	for hook in matching {
-		(hook.handler)(ctx);
+		let result = match (hook.handler)(ctx) {
+			HookAction::Done(result) => result,
+			HookAction::Async(fut) => fut.await,
+		};
+		if result == HookResult::Cancel {
+			return HookResult::Cancel;
+		}
 	}
+	HookResult::Continue
+}
+
+/// Emit an event synchronously, ignoring any async hooks.
+///
+/// This is useful in contexts where async is not available. Async hooks
+/// will log a warning and be skipped.
+pub fn emit_sync(ctx: &HookContext<'_>) -> HookResult {
+	let event = ctx.event();
+	let mut matching: Vec<_> = HOOKS.iter().filter(|h| h.event == event).collect();
+	matching.sort_by_key(|h| h.priority);
+
+	for hook in matching {
+		match (hook.handler)(ctx) {
+			HookAction::Done(result) => {
+				if result == HookResult::Cancel {
+					return HookResult::Cancel;
+				}
+			}
+			HookAction::Async(_) => {
+				log::warn!(
+					"Hook '{}' returned async action but emit_sync was called; skipping",
+					hook.name
+				);
+			}
+		}
+	}
+	HookResult::Continue
 }
 
 /// Emit a mutable event to all registered mutable hooks.
-pub fn emit_mutable(ctx: &mut MutableHookContext) -> HookResult {
+///
+/// Returns [`HookResult::Cancel`] if any hook cancels, otherwise [`HookResult::Continue`].
+pub async fn emit_mutable(ctx: &mut MutableHookContext<'_>) -> HookResult {
 	let event = ctx.event;
 	let mut matching: Vec<_> = MUTABLE_HOOKS.iter().filter(|h| h.event == event).collect();
 	matching.sort_by_key(|h| h.priority);
+
 	for hook in matching {
-		if (hook.handler)(ctx) == HookResult::Cancel {
+		let result = match (hook.handler)(ctx) {
+			HookAction::Done(result) => result,
+			HookAction::Async(fut) => fut.await,
+		};
+		if result == HookResult::Cancel {
 			return HookResult::Cancel;
 		}
 	}
