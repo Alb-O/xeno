@@ -25,7 +25,7 @@ use tome_theme::Theme;
 use crate::render::{Notifications, Overflow};
 pub use types::{HistoryEntry, Message, MessageKind, Registers};
 
-use crate::editor::extensions::{EXTENSIONS, ExtensionMap};
+use crate::editor::extensions::{EXTENSIONS, ExtensionMap, StyleOverlays};
 use crate::editor::types::CompletionState;
 use crate::ui::UiManager;
 
@@ -63,6 +63,11 @@ pub struct Editor {
 	pub fs: Arc<dyn FileSystem>,
 	pub language_loader: LanguageLoader,
 	pub syntax: Option<Syntax>,
+	/// Style overlays for rendering modifications.
+	///
+	/// Extensions can add overlays during their tick to modify how text is rendered.
+	/// Overlays are cleared at the start of each tick cycle.
+	pub style_overlays: StyleOverlays,
 }
 
 // TextAccess is already implemented in capabilities.rs
@@ -243,6 +248,7 @@ impl Editor {
 			fs,
 			language_loader,
 			syntax,
+			style_overlays: StyleOverlays::new(),
 		}
 	}
 
@@ -272,10 +278,38 @@ impl Editor {
 
 	pub fn tick(&mut self) {
 		use crate::editor::extensions::TICK_EXTENSIONS;
+
 		let mut sorted_ticks: Vec<_> = TICK_EXTENSIONS.iter().collect();
 		sorted_ticks.sort_by_key(|e| e.priority);
 		for ext in sorted_ticks {
 			(ext.tick)(self);
+		}
+	}
+
+	/// Updates style overlays based on current editor state.
+	///
+	/// This is called at the start of each render to ensure overlays reflect
+	/// the current cursor position, even after mouse clicks or other events
+	/// that modify state after the tick cycle.
+	///
+	/// Extensions that need to provide style overlays should register a
+	/// RENDER_EXTENSIONS callback instead of (or in addition to) TICK_EXTENSIONS.
+	pub fn update_style_overlays(&mut self) {
+		use crate::editor::extensions::RENDER_EXTENSIONS;
+
+		// Clear existing static overlays (keeps incomplete animations)
+		self.style_overlays.clear();
+
+		// Run render extensions to populate overlays
+		let mut sorted: Vec<_> = RENDER_EXTENSIONS.iter().collect();
+		sorted.sort_by_key(|e| e.priority);
+		for ext in sorted {
+			(ext.update)(self);
+		}
+
+		// Request redraw if there are active animations
+		if self.style_overlays.has_animations() {
+			self.needs_redraw = true;
 		}
 	}
 
@@ -471,6 +505,53 @@ impl Editor {
 			}
 		}
 		None
+	}
+
+	/// Applies style overlays to a syntax style at a given byte position.
+	///
+	/// This modifies the style based on any active overlays (e.g., dimming
+	/// from zen mode). Returns the modified style, or the original if no
+	/// overlays apply.
+	pub fn apply_style_overlay(
+		&self,
+		byte_pos: usize,
+		style: Option<ratatui::style::Style>,
+	) -> Option<ratatui::style::Style> {
+		use crate::editor::extensions::StyleMod;
+		use tome_theme::blend_colors;
+
+		let Some(modification) = self.style_overlays.modification_at(byte_pos) else {
+			return style;
+		};
+
+		let style = style.unwrap_or_default();
+		let modified = match modification {
+			StyleMod::Dim(factor) => {
+				// Blend foreground color toward background
+				let bg = self.theme.colors.ui.bg;
+				if let Some(ratatui::style::Color::Rgb(r, g, b)) = style.fg {
+					let fg = tome_base::color::Color::Rgb(r, g, b);
+					let dimmed = blend_colors(fg, bg, factor);
+					let tome_base::color::Color::Rgb(dr, dg, db) = dimmed else {
+						return Some(style);
+					};
+					style.fg(ratatui::style::Color::Rgb(dr, dg, db))
+				} else {
+					// For non-RGB colors, apply a simple dimming by blending with gray
+					style.fg(ratatui::style::Color::DarkGray)
+				}
+			}
+			StyleMod::Fg(color) => {
+				let ratatui_color: ratatui::style::Color = color.into();
+				style.fg(ratatui_color)
+			}
+			StyleMod::Bg(color) => {
+				let ratatui_color: ratatui::style::Color = color.into();
+				style.bg(ratatui_color)
+			}
+		};
+
+		Some(modified)
 	}
 
 	/// Applies a transaction to the document with incremental syntax tree update.

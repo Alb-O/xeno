@@ -12,5 +12,6 @@ futures.workspace = true
 linkme.workspace = true
 paste.workspace = true
 tome-api.workspace = true
+tome-language.workspace = true
 tome-manifest.workspace = true
 tome-stdlib.workspace = true

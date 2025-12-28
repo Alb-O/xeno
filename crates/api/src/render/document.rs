@@ -35,6 +35,11 @@ impl Editor {
 		self.last_tick = now;
 		self.notifications.tick(delta);
 
+		// Update style overlays to reflect current cursor position.
+		// This must happen at render time (not tick time) to handle
+		// mouse clicks and other events that modify cursor after tick.
+		self.update_style_overlays();
+
 		let use_block_cursor = true;
 
 		let area = frame.area();
@@ -227,6 +232,10 @@ impl Editor {
 					// Convert char position to byte position for highlight lookup
 					let byte_pos = self.doc.char_to_byte(doc_pos);
 					let syntax_style = self.style_for_byte_pos(byte_pos, &highlight_spans);
+
+					// Apply style overlays (e.g., zen mode dimming)
+					let syntax_style = self.apply_style_overlay(byte_pos, syntax_style);
+
 					let non_cursor_style = if in_selection {
 						// Invert: syntax fg becomes bg, use contrasting color as fg
 						let base = syntax_style.unwrap_or(styles.base);

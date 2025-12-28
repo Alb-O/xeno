@@ -300,6 +300,7 @@ impl Editor {
 			} else {
 				self.selection = Selection::point(doc_pos);
 			}
+			self.cursor = self.selection.primary().head;
 		}
 	}
 
@@ -307,6 +308,7 @@ impl Editor {
 		if let Some(doc_pos) = self.screen_to_doc_position(screen_row, screen_col) {
 			let anchor = self.selection.primary().anchor;
 			self.selection = Selection::single(anchor, doc_pos);
+			self.cursor = self.selection.primary().head;
 		}
 	}
 }
