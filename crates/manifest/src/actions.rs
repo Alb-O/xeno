@@ -106,6 +106,10 @@ pub enum ActionResult {
 	TrimSelections,
 }
 
+/// Edit operation to apply to buffer content.
+///
+/// These operations modify text and are typically triggered by editing
+/// commands like `d` (delete), `c` (change), `y` (yank), etc.
 #[derive(Debug, Clone)]
 pub enum EditAction {
 	Delete {
@@ -149,18 +153,21 @@ pub enum EditAction {
 	AddLineAbove,
 }
 
+/// Direction for visual line movement operations.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum VisualDirection {
 	Up,
 	Down,
 }
 
+/// Direction for scrolling operations.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ScrollDir {
 	Up,
 	Down,
 }
 
+/// Amount to scroll (lines or page fraction).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ScrollAmount {
 	Line(usize),
@@ -168,6 +175,9 @@ pub enum ScrollAmount {
 	FullPage,
 }
 
+/// Editor mode for mode-change actions.
+///
+/// Subset of modes that can be entered via [`ActionResult::ModeChange`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ActionMode {
 	Normal,
@@ -177,25 +187,41 @@ pub enum ActionMode {
 	Window,
 }
 
+/// State for actions waiting on additional user input.
+///
+/// Created by [`ActionResult::Pending`] to signal that the editor should
+/// capture more input before completing the action (e.g., `f` needs a char).
 #[derive(Debug, Clone)]
 pub struct PendingAction {
+	/// What type of input is expected.
 	pub kind: PendingKind,
+	/// Prompt to display while waiting.
 	pub prompt: String,
 }
 
+/// Type of pending action awaiting input.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PendingKind {
+	/// Find character forward (`f`/`t` commands).
 	FindChar { inclusive: bool },
+	/// Find character backward (`F`/`T` commands).
 	FindCharReverse { inclusive: bool },
+	/// Replace character under cursor (`r` command).
 	ReplaceChar,
+	/// Select text object (`i`/`a` after operator).
 	Object(ObjectSelectionKind),
 }
 
+/// How to select a text object.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ObjectSelectionKind {
+	/// Select inside delimiters (e.g., `iw` for inner word).
 	Inner,
+	/// Select including delimiters (e.g., `aw` for around word).
 	Around,
+	/// Select from cursor to object start.
 	ToStart,
+	/// Select from cursor to object end.
 	ToEnd,
 }
 
@@ -292,8 +318,11 @@ impl crate::RegistryMetadata for ActionDef {
 
 /// Applies a named motion as a cursor movement.
 ///
-/// Moves all cursor positions according to the motion. When not extending,
-/// collapses selections to points at the new head positions.
+/// Looks up `motion_name` in the motion registry and applies it to each
+/// cursor in the selection. When `ctx.extend` is false, collapses selections
+/// to points at the new head positions.
+///
+/// Returns [`ActionResult::Error`] if the motion name is not found.
 pub fn cursor_motion(ctx: &ActionContext, motion_name: &str) -> ActionResult {
 	let Some(motion) = find_motion(motion_name) else {
 		return ActionResult::Error(format!("Unknown motion: {}", motion_name));
@@ -326,8 +355,14 @@ pub fn cursor_motion(ctx: &ActionContext, motion_name: &str) -> ActionResult {
 
 /// Applies a named motion as a selection-creating action.
 ///
-/// Creates or extends selections from current positions to new positions
-/// determined by the motion. Used for word motions and similar commands.
+/// Creates selections spanning from current positions to new positions
+/// determined by the motion. When `ctx.extend` is true, extends all existing
+/// selections; otherwise creates a single selection from the primary cursor.
+///
+/// Used for word motions (`w`, `b`, `e`) where the selection should span
+/// from cursor to the motion target.
+///
+/// Returns [`ActionResult::Error`] if the motion name is not found.
 pub fn selection_motion(ctx: &ActionContext, motion_name: &str) -> ActionResult {
 	let Some(motion) = find_motion(motion_name) else {
 		return ActionResult::Error(format!("Unknown motion: {}", motion_name));

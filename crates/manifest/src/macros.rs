@@ -1,6 +1,28 @@
-//! Extension definition macros for ergonomic registration.
+//! Macros for registering editor primitives at compile time.
+//!
+//! These macros generate static entries in [`linkme`] distributed slices,
+//! enabling zero-cost registration of actions, keybindings, motions, hooks,
+//! and other extensible editor components.
+//!
+//! # Primary Macros
+//!
+//! - [`bound_action!`] - Action with colocated keybindings (preferred)
+//! - [`action!`] - Action without keybindings
+//! - [`bind!`] - Additional keybindings for existing actions
+//! - [`motion!`] - Cursor/selection movement primitives
+//! - [`hook!`] - Event lifecycle observers
+//! - [`command!`] - Ex-mode commands (`:write`, `:quit`)
+//!
+//! # Secondary Macros
+//!
+//! - [`language!`] - Language definitions for syntax highlighting
+//! - [`option!`] - Configuration options
+//! - [`text_object!`] - Text object selection (`iw`, `a"`, etc.)
 
-/// Define a language and register it in the LANGUAGES slice.
+/// Registers a language definition in the [`LANGUAGES`](crate::LANGUAGES) slice.
+///
+/// Supports optional fields for file detection (extensions, globs, shebangs)
+/// and syntax configuration (comment tokens, injection regex).
 #[macro_export]
 macro_rules! language {
     ($name:ident, {
@@ -51,7 +73,9 @@ macro_rules! language {
     (@opt , $default:expr) => { $default };
 }
 
-/// Define an option and register it in the OPTIONS slice.
+/// Registers a configuration option in the [`OPTIONS`](crate::options::OPTIONS) slice.
+///
+/// Options have a type, default value, and scope (global, buffer, or window).
 #[macro_export]
 macro_rules! option {
 	($name:ident, $type:ident, $default:expr, $scope:ident, $desc:expr) => {
@@ -71,7 +95,10 @@ macro_rules! option {
 	};
 }
 
-/// Define a command and register it in the COMMANDS slice.
+/// Registers an ex-mode command in the [`COMMANDS`](crate::COMMANDS) slice.
+///
+/// Commands are invoked via the command line (`:write`, `:quit`, etc.)
+/// and receive a [`CommandContext`](crate::CommandContext) with arguments.
 #[macro_export]
 macro_rules! command {
 	($name:ident, {
@@ -104,7 +131,15 @@ macro_rules! command {
 	(@opt , $default:expr) => { $default };
 }
 
-/// Define an action and register it in the ACTIONS slice.
+/// Registers an action in the [`ACTIONS`](crate::ACTIONS) slice.
+///
+/// Actions are the fundamental unit of editor behavior, invoked by keybindings.
+/// Prefer [`bound_action!`] when the action has associated keybindings.
+///
+/// Supports three handler forms:
+/// - `handler: fn_name` - Named function reference
+/// - `|ctx| expr` - Inline closure
+/// - `result: ActionResult::Variant` - Static result
 #[macro_export]
 macro_rules! action {
 	($name:ident, {
@@ -425,7 +460,10 @@ macro_rules! hook {
 	};
 }
 
-/// Define a text object and register it in the TEXT_OBJECTS slice.
+/// Registers a text object in the [`TEXT_OBJECTS`](crate::TEXT_OBJECTS) slice.
+///
+/// Text objects define selectable regions (words, paragraphs, quoted strings).
+/// Each object has `inner` and `around` handlers for `i`/`a` prefix selection.
 #[macro_export]
 macro_rules! text_object {
 	($name:ident, {
@@ -465,7 +503,11 @@ macro_rules! text_object {
 	(@opt , $default:expr) => { $default };
 }
 
-/// Define a motion and register it in the MOTIONS slice.
+/// Registers a motion primitive in the [`MOTIONS`](crate::MOTIONS) slice.
+///
+/// Motions compute new cursor positions given text, current range, count,
+/// and extend flag. Used by [`cursor_motion`](crate::cursor_motion) and
+/// [`selection_motion`](crate::selection_motion) action helpers.
 #[macro_export]
 macro_rules! motion {
 	($name:ident, {

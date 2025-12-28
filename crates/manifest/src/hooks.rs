@@ -144,7 +144,7 @@ pub enum HookEventData<'a> {
 pub struct HookContext<'a> {
 	/// The event-specific data.
 	pub data: HookEventData<'a>,
-	/// Type-erased access to `ExtensionMap` from `tome-api`.
+	/// Type-erased access to `ExtensionMap` (from `tome-api`).
 	extensions: Option<&'a dyn Any>,
 }
 
@@ -250,7 +250,7 @@ impl<'a> HookContext<'a> {
 
 	/// Attempts to downcast the extensions to a concrete type.
 	///
-	/// Used to access [`ExtensionMap`] from `tome-api` without creating a dependency.
+	/// Used to access `ExtensionMap` from `tome-api` without creating a dependency.
 	pub fn extensions<T: Any>(&self) -> Option<&'a T> {
 		self.extensions?.downcast_ref::<T>()
 	}

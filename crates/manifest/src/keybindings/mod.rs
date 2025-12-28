@@ -42,17 +42,20 @@ keybinding_slices!(
 	KEYBINDINGS_SPACE,
 );
 
-/// A keybinding definition that maps a key to an action in a specific mode.
+/// Keybinding definition mapping a [`Key`] to an action in a [`BindingMode`].
+///
+/// Registered at compile time via [`linkme`] distributed slices, typically
+/// using the `bindings:` syntax in [`bound_action!`](crate::bound_action).
 #[derive(Clone, Copy)]
 pub struct KeyBindingDef {
-	/// The mode this binding is active in.
+	/// Mode this binding is active in.
 	pub mode: BindingMode,
-	/// The key that triggers this binding.
+	/// Key that triggers this binding.
 	pub key: Key,
-	/// The action to execute (by name).
+	/// Action to execute (looked up by name in the action registry).
 	pub action: &'static str,
-	/// Priority for conflict resolution (lower = higher priority).
-	/// Default bindings use 100, user overrides should use lower values.
+	/// Priority for conflict resolution (lower wins).
+	/// Default bindings use 100; user overrides should use lower values.
 	pub priority: i16,
 }
 
@@ -67,7 +70,9 @@ impl std::fmt::Debug for KeyBindingDef {
 	}
 }
 
-/// The mode a keybinding applies to.
+/// Mode in which a keybinding is active.
+///
+/// Each mode has its own distributed slice of [`KeyBindingDef`] entries.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BindingMode {
 	/// Normal mode (default editing mode).
@@ -122,8 +127,10 @@ fn all_slices() -> impl Iterator<Item = &'static KeyBindingDef> {
 		.chain(KEYBINDINGS_SPACE.iter())
 }
 
-/// Look up a keybinding for the given mode and key.
-/// Returns the highest-priority (lowest value) binding if multiple match.
+/// Finds the keybinding for `key` in `mode`.
+///
+/// Returns the highest-priority binding (lowest priority value) if multiple
+/// bindings match.
 pub fn find_binding(mode: BindingMode, key: Key) -> Option<&'static KeyBindingDef> {
 	slice_for_mode(mode)
 		.iter()
@@ -131,32 +138,35 @@ pub fn find_binding(mode: BindingMode, key: Key) -> Option<&'static KeyBindingDe
 		.min_by_key(|kb| kb.priority)
 }
 
-/// Resolved keybinding with typed ActionId.
+/// Keybinding with its action resolved to a typed [`ActionId`].
+///
+/// Returned by [`find_binding_resolved`] for efficient dispatch without
+/// repeated string lookups.
 #[derive(Debug, Clone, Copy)]
 pub struct ResolvedBinding {
-	/// The keybinding definition.
+	/// Original keybinding definition.
 	pub binding: &'static KeyBindingDef,
-	/// The resolved ActionId for efficient dispatch.
+	/// Resolved action ID for type-safe dispatch.
 	pub action_id: ActionId,
 }
 
-/// Look up a keybinding and resolve its action to a typed ActionId.
-/// This is the preferred method for input handling as it enables type-safe dispatch.
+/// Finds and resolves a keybinding to a typed [`ActionId`].
 ///
-/// Returns None if no binding exists for the mode/key, or if the action name
-/// cannot be resolved to an ActionId (which indicates a configuration error).
+/// Preferred method for input handling as it enables type-safe dispatch.
+/// Returns [`None`] if no binding exists or if the action name cannot be
+/// resolved (indicating a configuration error).
 pub fn find_binding_resolved(mode: BindingMode, key: Key) -> Option<ResolvedBinding> {
 	let binding = find_binding(mode, key)?;
 	let action_id = resolve_action_id(binding.action)?;
 	Some(ResolvedBinding { binding, action_id })
 }
 
-/// Get all keybindings for a specific mode.
+/// Returns all keybindings registered for `mode`.
 pub fn bindings_for_mode(mode: BindingMode) -> impl Iterator<Item = &'static KeyBindingDef> {
 	slice_for_mode(mode).iter()
 }
 
-/// Get all keybindings for a specific action.
+/// Returns all keybindings that trigger `action` (across all modes).
 pub fn bindings_for_action(action: &str) -> impl Iterator<Item = &'static KeyBindingDef> {
 	all_slices().filter(move |kb| kb.action == action)
 }
