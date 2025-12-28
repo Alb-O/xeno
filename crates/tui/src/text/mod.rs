@@ -442,5 +442,5 @@ impl Styled for Text<'_> {
 }
 
 #[cfg(test)]
-#[path = "tests.rs"]
+#[path = "tests/mod.rs"]
 mod tests;

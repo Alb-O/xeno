@@ -4,8 +4,7 @@ use rstest::{fixture, rstest};
 use unicode_segmentation::UnicodeSegmentation;
 use unicode_width::UnicodeWidthStr;
 
-use super::small_buf;
-use super::*;
+use super::{small_buf, *};
 use crate::buffer::Cell;
 use crate::style::Stylize;
 
