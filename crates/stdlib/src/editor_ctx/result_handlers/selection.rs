@@ -6,7 +6,6 @@ use tome_manifest::result_handler;
 
 use crate::NotifyWARNExt;
 
-// SplitLines is handled via SelectionOpsAccess
 result_handler!(
 	RESULT_SPLIT_LINES_HANDLERS,
 	HANDLE_SPLIT_LINES,
@@ -21,6 +20,7 @@ result_handler!(
 		}
 	}
 );
+
 result_handler!(
 	RESULT_DUPLICATE_SELECTIONS_DOWN_HANDLERS,
 	HANDLE_DUPLICATE_DOWN,

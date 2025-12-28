@@ -62,3 +62,9 @@ action!(
 	{ description: "Trim whitespace from selections" },
 	result: ActionResult::TrimSelections
 );
+
+action!(
+	use_selection_as_search,
+	{ description: "Use current selection as search pattern" },
+	result: ActionResult::UseSelectionAsSearch
+);

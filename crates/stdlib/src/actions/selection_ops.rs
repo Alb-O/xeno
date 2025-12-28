@@ -125,6 +125,12 @@ action!(
 	}
 );
 
+action!(
+	split_lines,
+	{ description: "Split selection into lines" },
+	result: ActionResult::SplitLines
+);
+
 #[cfg(test)]
 mod tests {
 	use tome_manifest::actions::ActionArgs;

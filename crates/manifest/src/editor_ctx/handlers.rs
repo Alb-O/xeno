@@ -58,19 +58,16 @@ result_slices!(
 	RESULT_SEARCH_PREV_HANDLERS,
 	RESULT_USE_SELECTION_SEARCH_HANDLERS,
 	RESULT_SPLIT_LINES_HANDLERS,
-	RESULT_JUMP_FORWARD_HANDLERS,
-	RESULT_JUMP_BACKWARD_HANDLERS,
-	RESULT_SAVE_JUMP_HANDLERS,
-	RESULT_RECORD_MACRO_HANDLERS,
-	RESULT_PLAY_MACRO_HANDLERS,
-	RESULT_SAVE_SELECTIONS_HANDLERS,
-	RESULT_RESTORE_SELECTIONS_HANDLERS,
 	RESULT_FORCE_REDRAW_HANDLERS,
-	RESULT_REPEAT_LAST_INSERT_HANDLERS,
-	RESULT_REPEAT_LAST_OBJECT_HANDLERS,
 	RESULT_DUPLICATE_SELECTIONS_DOWN_HANDLERS,
 	RESULT_DUPLICATE_SELECTIONS_UP_HANDLERS,
 	RESULT_MERGE_SELECTIONS_HANDLERS,
+	// Unimplemented stubs (have action! but no real handler yet)
+	RESULT_ALIGN_HANDLERS,
+	RESULT_COPY_INDENT_HANDLERS,
+	RESULT_TABS_TO_SPACES_HANDLERS,
+	RESULT_SPACES_TO_TABS_HANDLERS,
+	RESULT_TRIM_SELECTIONS_HANDLERS,
 	// Buffer/split management
 	RESULT_SPLIT_HORIZONTAL_HANDLERS,
 	RESULT_SPLIT_VERTICAL_HANDLERS,
@@ -140,31 +137,8 @@ pub fn dispatch_result(result: &ActionResult, ctx: &mut EditorContext, extend: b
 			run_handlers(&RESULT_USE_SELECTION_SEARCH_HANDLERS, result, ctx, extend)
 		}
 		ActionResult::SplitLines => run_handlers(&RESULT_SPLIT_LINES_HANDLERS, result, ctx, extend),
-		ActionResult::JumpForward => {
-			run_handlers(&RESULT_JUMP_FORWARD_HANDLERS, result, ctx, extend)
-		}
-		ActionResult::JumpBackward => {
-			run_handlers(&RESULT_JUMP_BACKWARD_HANDLERS, result, ctx, extend)
-		}
-		ActionResult::SaveJump => run_handlers(&RESULT_SAVE_JUMP_HANDLERS, result, ctx, extend),
-		ActionResult::RecordMacro => {
-			run_handlers(&RESULT_RECORD_MACRO_HANDLERS, result, ctx, extend)
-		}
-		ActionResult::PlayMacro => run_handlers(&RESULT_PLAY_MACRO_HANDLERS, result, ctx, extend),
-		ActionResult::SaveSelections => {
-			run_handlers(&RESULT_SAVE_SELECTIONS_HANDLERS, result, ctx, extend)
-		}
-		ActionResult::RestoreSelections => {
-			run_handlers(&RESULT_RESTORE_SELECTIONS_HANDLERS, result, ctx, extend)
-		}
 		ActionResult::ForceRedraw => {
 			run_handlers(&RESULT_FORCE_REDRAW_HANDLERS, result, ctx, extend)
-		}
-		ActionResult::RepeatLastInsert => {
-			run_handlers(&RESULT_REPEAT_LAST_INSERT_HANDLERS, result, ctx, extend)
-		}
-		ActionResult::RepeatLastObject => {
-			run_handlers(&RESULT_REPEAT_LAST_OBJECT_HANDLERS, result, ctx, extend)
 		}
 		ActionResult::DuplicateSelectionsDown => run_handlers(
 			&RESULT_DUPLICATE_SELECTIONS_DOWN_HANDLERS,
@@ -181,25 +155,16 @@ pub fn dispatch_result(result: &ActionResult, ctx: &mut EditorContext, extend: b
 		ActionResult::MergeSelections => {
 			run_handlers(&RESULT_MERGE_SELECTIONS_HANDLERS, result, ctx, extend)
 		}
-		ActionResult::Align => {
-			ctx.notify("warn", "Align not yet implemented");
-			false
-		}
-		ActionResult::CopyIndent => {
-			ctx.notify("warn", "Copy indent not yet implemented");
-			false
-		}
+		ActionResult::Align => run_handlers(&RESULT_ALIGN_HANDLERS, result, ctx, extend),
+		ActionResult::CopyIndent => run_handlers(&RESULT_COPY_INDENT_HANDLERS, result, ctx, extend),
 		ActionResult::TabsToSpaces => {
-			ctx.notify("warn", "Tabs to spaces not yet implemented");
-			false
+			run_handlers(&RESULT_TABS_TO_SPACES_HANDLERS, result, ctx, extend)
 		}
 		ActionResult::SpacesToTabs => {
-			ctx.notify("warn", "Spaces to tabs not yet implemented");
-			false
+			run_handlers(&RESULT_SPACES_TO_TABS_HANDLERS, result, ctx, extend)
 		}
 		ActionResult::TrimSelections => {
-			ctx.notify("warn", "Trim selections not yet implemented");
-			false
+			run_handlers(&RESULT_TRIM_SELECTIONS_HANDLERS, result, ctx, extend)
 		}
 		// Buffer/split management
 		ActionResult::SplitHorizontal => {

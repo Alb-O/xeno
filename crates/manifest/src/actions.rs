@@ -22,7 +22,6 @@ use crate::{Capability, RegistrySource};
 /// These require cursor, selection, or document access:
 /// - Mode/cursor: [`ModeChange`], [`CursorMove`], [`Motion`]
 /// - Editing: [`Edit`], [`SearchNext`], [`SplitLines`]
-/// - State: [`JumpForward`], [`RecordMacro`], [`SaveSelections`]
 ///
 /// Use [`is_terminal_safe`] to check at runtime.
 ///
@@ -44,9 +43,6 @@ use crate::{Capability, RegistrySource};
 /// [`Edit`]: Self::Edit
 /// [`SearchNext`]: Self::SearchNext
 /// [`SplitLines`]: Self::SplitLines
-/// [`JumpForward`]: Self::JumpForward
-/// [`RecordMacro`]: Self::RecordMacro
-/// [`SaveSelections`]: Self::SaveSelections
 /// [`is_terminal_safe`]: Self::is_terminal_safe
 #[derive(Debug, Clone)]
 pub enum ActionResult {
@@ -109,24 +105,6 @@ pub enum ActionResult {
 	UseSelectionAsSearch,
 	/// Split selection into lines.
 	SplitLines,
-	/// Jump forward in jump list.
-	JumpForward,
-	/// Jump backward in jump list.
-	JumpBackward,
-	/// Save current position to jump list.
-	SaveJump,
-	/// Start/stop macro recording.
-	RecordMacro,
-	/// Play recorded macro.
-	PlayMacro,
-	/// Save current selections.
-	SaveSelections,
-	/// Restore saved selections.
-	RestoreSelections,
-	/// Repeat last insert.
-	RepeatLastInsert,
-	/// Repeat last text object.
-	RepeatLastObject,
 	/// Duplicate selections downward.
 	DuplicateSelectionsDown,
 	/// Duplicate selections upward.
