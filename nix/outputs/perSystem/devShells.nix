@@ -42,6 +42,8 @@
           pkgs.ast-grep
           pkgs.yq-go
           pkgs.sccache
+          pkgs.mold
+          pkgs.clang
           lint-summary
           self'.formatter
         ];

@@ -64,3 +64,9 @@ toml = "0.9"
 tree-house = "0.3"
 unicode-segmentation = "1.12"
 unicode-width = "0.2"
+
+[profile.dev]
+opt-level = 1
+
+[profile.dev.package."*"]
+opt-level = 3
