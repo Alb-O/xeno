@@ -148,10 +148,10 @@ pub fn grammar_sources_dir() -> PathBuf {
 
 /// Returns the directory where compiled grammars are stored.
 pub fn grammar_lib_dir() -> PathBuf {
-	if let Ok(manifest) = std::env::var("CARGO_MANIFEST_DIR") {
-		if let Some(workspace) = std::path::Path::new(&manifest).ancestors().nth(2) {
-			return workspace.join("target").join("grammars");
-		}
+	if let Ok(manifest) = std::env::var("CARGO_MANIFEST_DIR")
+		&& let Some(workspace) = std::path::Path::new(&manifest).ancestors().nth(2)
+	{
+		return workspace.join("target").join("grammars");
 	}
 
 	cache_dir()

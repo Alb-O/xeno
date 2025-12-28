@@ -95,12 +95,13 @@ impl<'a> BufferRenderContext<'a> {
 	/// Uses the theme's `indent_guide_fg` if set, otherwise derives a subtle
 	/// color by blending `gutter_fg` with the background.
 	pub fn indent_guide_style(&self) -> Style {
-		let fg = self
-			.theme
-			.colors
-			.ui
-			.indent_guide_fg
-			.unwrap_or_else(|| self.theme.colors.ui.gutter_fg.blend(self.theme.colors.ui.bg, 0.6));
+		let fg = self.theme.colors.ui.indent_guide_fg.unwrap_or_else(|| {
+			self.theme
+				.colors
+				.ui
+				.gutter_fg
+				.blend(self.theme.colors.ui.bg, 0.6)
+		});
 		Style::default().fg(fg.into())
 	}
 
@@ -427,7 +428,10 @@ impl<'a> BufferRenderContext<'a> {
 						}
 
 						seg_col += tab_cells;
-					} else if ch == ' ' && in_leading_indent && let Some(guide_style) = indent_guide_style {
+					} else if ch == ' '
+						&& in_leading_indent
+						&& let Some(guide_style) = indent_guide_style
+					{
 						// Render space with dot indicator for leading indentation
 						let guide_style_with_bg = if is_cursor_line && !in_selection {
 							guide_style.bg(cursorline_bg)

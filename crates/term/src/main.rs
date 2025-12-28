@@ -9,7 +9,6 @@ use app::run_editor;
 use clap::Parser;
 use cli::{Cli, Command, GrammarAction};
 use evildoer_api::Editor;
-
 // Force-link crates to ensure their distributed_slice registrations are included.
 #[allow(unused_imports, reason = "linkme distributed_slice registration")]
 use {evildoer_acp as _, evildoer_extensions as _, evildoer_stdlib as _};
@@ -31,7 +30,10 @@ async fn main() -> anyhow::Result<()> {
 	// Load themes from runtime directory
 	let themes_dir = evildoer_language::runtime_dir().join("themes");
 	if let Err(e) = evildoer_config::load_and_register_themes(&themes_dir) {
-		eprintln!("Warning: failed to load themes from {:?}: {}", themes_dir, e);
+		eprintln!(
+			"Warning: failed to load themes from {:?}: {}",
+			themes_dir, e
+		);
 	}
 
 	let mut editor = match cli.file {

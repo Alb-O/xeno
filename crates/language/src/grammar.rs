@@ -169,10 +169,10 @@ pub fn cache_dir() -> Option<PathBuf> {
 pub fn grammar_search_paths() -> Vec<PathBuf> {
 	let mut dirs = Vec::new();
 
-	if let Ok(manifest) = std::env::var("CARGO_MANIFEST_DIR") {
-		if let Some(workspace) = PathBuf::from(manifest).ancestors().nth(2) {
-			dirs.push(workspace.join("target").join("grammars"));
-		}
+	if let Ok(manifest) = std::env::var("CARGO_MANIFEST_DIR")
+		&& let Some(workspace) = PathBuf::from(manifest).ancestors().nth(2)
+	{
+		dirs.push(workspace.join("target").join("grammars"));
 	}
 
 	if let Some(cache) = cache_dir() {
