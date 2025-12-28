@@ -97,8 +97,8 @@ use strum::{Display, EnumString};
 use crate::buffer::Cell;
 use crate::layout::{Position, Size};
 
-mod test;
-pub use self::test::TestBackend;
+mod testing;
+pub use self::testing::TestBackend;
 
 pub mod crossterm;
 pub use self::crossterm::CrosstermBackend;
