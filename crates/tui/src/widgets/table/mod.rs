@@ -34,9 +34,9 @@ mod state;
 /// # Example
 ///
 /// ```rust
-/// use tome_tui::layout::Constraint;
-/// use tome_tui::style::{Style, Stylize};
-/// use tome_tui::widgets::{Block, Row, Table, TableState};
+/// use evildoer_tui::layout::Constraint;
+/// use evildoer_tui::style::{Style, Stylize};
+/// use evildoer_tui::widgets::{Block, Row, Table, TableState};
 ///
 /// let rows = [
 ///     Row::new(vec!["Cell1", "Cell2"]),
@@ -129,8 +129,8 @@ impl<'a> Table<'a> {
 	/// # Examples
 	///
 	/// ```rust
-	/// use tome_tui::layout::Constraint;
-	/// use tome_tui::widgets::{Row, Table};
+	/// use evildoer_tui::layout::Constraint;
+	/// use evildoer_tui::widgets::{Row, Table};
 	///
 	/// let rows = [
 	///     Row::new(vec!["Cell1", "Cell2"]),

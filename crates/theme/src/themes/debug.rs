@@ -113,7 +113,7 @@ pub static DEBUG: Theme = Theme {
 		syntax: SyntaxStyles::minimal(),
 	},
 	priority: -100, // Low priority - not a "real" theme
-	source: tome_manifest::RegistrySource::Builtin,
+	source: evildoer_manifest::RegistrySource::Builtin,
 };
 
 /// Known color values for the debug theme, useful for test assertions.

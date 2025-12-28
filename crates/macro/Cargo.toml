@@ -1,5 +1,5 @@
 [package]
-name = "tome-macro"
+name = "evildoer-macro"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

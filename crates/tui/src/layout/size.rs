@@ -31,7 +31,7 @@ use crate::layout::Rect;
 /// # Examples
 ///
 /// ```rust
-/// use tome_tui::layout::{Rect, Size};
+/// use evildoer_tui::layout::{Rect, Size};
 ///
 /// let size = Size::new(80, 24);
 /// assert_eq!(size.area(), 1920);

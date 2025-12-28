@@ -1,6 +1,6 @@
 use ropey::Rope;
-use tome_base::Selection;
-use tome_manifest::{ActionArgs, ActionContext, ActionResult, find_action};
+use evildoer_base::Selection;
+use evildoer_manifest::{ActionArgs, ActionContext, ActionResult, find_action};
 
 use crate::editor::Editor;
 
@@ -22,7 +22,7 @@ impl Editor {
 
 		// Check required capabilities
 		{
-			use tome_manifest::EditorContext;
+			use evildoer_manifest::EditorContext;
 			let mut e_ctx = EditorContext::new(self);
 			if let Err(e) = e_ctx.check_all_capabilities(action.required_caps) {
 				self.notify("error", e.to_string());
@@ -92,7 +92,7 @@ impl Editor {
 
 		// Check required capabilities
 		{
-			use tome_manifest::EditorContext;
+			use evildoer_manifest::EditorContext;
 			let mut e_ctx = EditorContext::new(self);
 			if let Err(e) = e_ctx.check_all_capabilities(action.required_caps) {
 				self.notify("error", e.to_string());
@@ -150,7 +150,7 @@ impl Editor {
 	}
 
 	pub(crate) fn apply_action_result(&mut self, result: ActionResult, extend: bool) -> bool {
-		use tome_manifest::{EditorContext, dispatch_result};
+		use evildoer_manifest::{EditorContext, dispatch_result};
 		let mut ctx = EditorContext::new(self);
 		dispatch_result(&result, &mut ctx, extend)
 	}

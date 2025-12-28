@@ -19,7 +19,7 @@ use core::fmt;
 /// # Examples
 ///
 /// ```rust
-/// use tome_tui::layout::{Constraint, Layout, Margin, Rect};
+/// use evildoer_tui::layout::{Constraint, Layout, Margin, Rect};
 ///
 /// // Create a margin of 2 cells horizontally and 1 cell vertically
 /// let margin = Margin::new(2, 1);

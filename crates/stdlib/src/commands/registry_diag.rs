@@ -1,6 +1,6 @@
 use futures::future::LocalBoxFuture;
-use tome_manifest::index::diagnostics;
-use tome_manifest::{CommandContext, CommandError, CommandOutcome};
+use evildoer_manifest::index::diagnostics;
+use evildoer_manifest::{CommandContext, CommandError, CommandOutcome};
 
 use crate::{NotifyINFOExt, NotifyWARNExt, command};
 
@@ -16,19 +16,19 @@ fn cmd_registry_diag<'a>(
 		out.push("--- Registry Inventory ---".to_string());
 		out.push(format!(
 			"Commands: {}",
-			tome_manifest::all_commands().count()
+			evildoer_manifest::all_commands().count()
 		));
 		out.push(format!(
 			"Actions:  {}",
-			tome_manifest::all_actions().count()
+			evildoer_manifest::all_actions().count()
 		));
 		out.push(format!(
 			"Motions:  {}",
-			tome_manifest::all_motions().count()
+			evildoer_manifest::all_motions().count()
 		));
 		out.push(format!(
 			"Objects:  {}",
-			tome_manifest::all_text_objects().count()
+			evildoer_manifest::all_text_objects().count()
 		));
 
 		let diag = diagnostics();

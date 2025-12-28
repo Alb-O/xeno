@@ -1,7 +1,7 @@
 //! Runtime initialization and seeding.
 //!
 //! This module handles copying the embedded query files to the user's
-//! runtime directory (`~/.local/share/tome/`) on first use.
+//! runtime directory (`~/.local/share/evildoer/`) on first use.
 
 use std::path::Path;
 use std::{fs, io};
@@ -16,7 +16,7 @@ static QUERIES_DIR: Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/../../runtime/qu
 /// Ensures the runtime directory exists and is populated with query files.
 ///
 /// This should be called once during editor startup. It copies the embedded
-/// query files to `~/.local/share/tome/queries/` if they don't already exist.
+/// query files to `~/.local/share/evildoer/queries/` if they don't already exist.
 pub fn ensure_runtime() -> io::Result<()> {
 	let runtime = runtime_dir();
 	let queries_dir = runtime.join("queries");

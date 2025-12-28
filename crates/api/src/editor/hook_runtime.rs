@@ -6,7 +6,7 @@
 
 use std::collections::VecDeque;
 
-use tome_manifest::{HookBoxFuture, HookScheduler};
+use evildoer_manifest::{HookBoxFuture, HookScheduler};
 
 /// Runtime for managing async hook execution.
 ///
@@ -83,7 +83,7 @@ mod tests {
 		use std::sync::Arc;
 		use std::sync::atomic::{AtomicUsize, Ordering};
 
-		use tome_manifest::HookResult;
+		use evildoer_manifest::HookResult;
 
 		let counter = Arc::new(AtomicUsize::new(0));
 		let mut runtime = HookRuntime::new();

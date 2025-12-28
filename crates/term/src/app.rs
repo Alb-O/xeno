@@ -4,9 +4,9 @@ use std::time::Duration;
 use termina::escape::csi::{Csi, Cursor};
 use termina::event::{Event, KeyEventKind};
 use termina::{PlatformTerminal, Terminal as _};
-use tome_api::Editor;
-use tome_manifest::{HookContext, HookEventData, emit_hook_sync_with};
-use tome_tui::Terminal;
+use evildoer_api::Editor;
+use evildoer_manifest::{HookContext, HookEventData, emit_hook_sync_with};
+use evildoer_tui::Terminal;
 
 use crate::backend::TerminaBackend;
 use crate::terminal::{
@@ -65,7 +65,7 @@ pub async fn run_editor(mut editor: Editor) -> io::Result<()> {
 			let needs_fast_redraw = editor.needs_redraw;
 			editor.needs_redraw = false;
 
-			let timeout = if matches!(editor.mode(), tome_manifest::Mode::Insert)
+			let timeout = if matches!(editor.mode(), evildoer_manifest::Mode::Insert)
 				|| editor.any_panel_open()
 				|| needs_fast_redraw
 			{
@@ -118,7 +118,7 @@ pub async fn run_editor(mut editor: Editor) -> io::Result<()> {
 	}
 	.await;
 
-	tome_manifest::emit_hook(&HookContext::new(
+	evildoer_manifest::emit_hook(&HookContext::new(
 		HookEventData::EditorQuit,
 		Some(&editor.extensions),
 	))

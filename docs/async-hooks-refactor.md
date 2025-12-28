@@ -1,7 +1,7 @@
 # Async Hooks Refactor Plan (Definitive)
 
 This document defines the finalized plan to complete async hook support needed for
-LSP and other async extensions, while preserving Tome's orthogonal registry model.
+LSP and other async extensions, while preserving Evildoer's orthogonal registry model.
 
 ## Implementation Status
 
@@ -45,12 +45,12 @@ LSP and other async extensions, while preserving Tome's orthogonal registry mode
 This design:
 
 - Avoids duplicating `extensions` in every enum variant
-- Allows `tome-manifest` to remain decoupled from `tome-api` (uses `dyn Any`)
+- Allows `evildoer-manifest` to remain decoupled from `evildoer-api` (uses `dyn Any`)
 - Hooks downcast via `ctx.extensions::<ExtensionMap>()`
 
 ### Hook dispatch and scheduling
 
-`tome-manifest` defines the scheduler trait:
+`evildoer-manifest` defines the scheduler trait:
 
 ```rust
 pub trait HookScheduler {
@@ -62,7 +62,7 @@ pub fn emit_sync_with(ctx: &HookContext<'_>, scheduler: &mut impl HookScheduler)
 }
 ```
 
-`tome-api` provides the runtime:
+`evildoer-api` provides the runtime:
 
 ```rust
 pub struct HookRuntime {
@@ -148,5 +148,5 @@ The `lsp` extension (`crates/extensions/extensions/lsp/`) provides:
 - Separate sync/async registries: complicates ordering and does not solve sync
   emission needs.
 - Poll-based hooks: manual state machines and poor Tokio integration.
-- `ExtensionMap` in `tome-manifest`: would break layered architecture (manifest is
+- `ExtensionMap` in `evildoer-manifest`: would break layered architecture (manifest is
   definitions only).

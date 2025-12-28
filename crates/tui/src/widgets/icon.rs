@@ -39,8 +39,8 @@ pub mod presets {
 /// # Example
 ///
 /// ```ignore
-/// use tome_tui::widgets::{Icon, icon::presets};
-/// use tome_tui::style::{Style, Color};
+/// use evildoer_tui::widgets::{Icon, icon::presets};
+/// use evildoer_tui::style::{Style, Color};
 ///
 /// let icon = Icon::new(presets::INFO)
 ///     .style(Style::default().fg(Color::Blue));

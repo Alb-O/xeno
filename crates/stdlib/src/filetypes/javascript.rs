@@ -1,4 +1,4 @@
-use tome_manifest::language;
+use evildoer_manifest::language;
 
 language!(javascript, {
 	extensions: &["js", "mjs", "cjs"],

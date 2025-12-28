@@ -1,4 +1,4 @@
-use tome_manifest::language;
+use evildoer_manifest::language;
 
 language!(java, {
 	extensions: &["java"],

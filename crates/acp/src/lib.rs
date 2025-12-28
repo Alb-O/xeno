@@ -19,7 +19,7 @@ mod state;
 pub mod types;
 
 use linkme::distributed_slice;
-use tome_api::editor::extensions::{EXTENSIONS, ExtensionInitDef};
+use evildoer_api::editor::extensions::{EXTENSIONS, ExtensionInitDef};
 
 #[distributed_slice(EXTENSIONS)]
 static ACP_INIT: ExtensionInitDef = ExtensionInitDef {

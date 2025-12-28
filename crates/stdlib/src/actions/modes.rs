@@ -1,8 +1,8 @@
 //! Mode-changing actions.
 
-use tome_base::key::Key;
-use tome_manifest::actions::{ActionMode, ActionResult};
-use tome_manifest::bound_action;
+use evildoer_base::key::Key;
+use evildoer_manifest::actions::{ActionMode, ActionResult};
+use evildoer_manifest::bound_action;
 
 bound_action!(
 	goto_mode,

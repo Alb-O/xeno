@@ -2,9 +2,9 @@ use linkme::distributed_slice;
 
 pub mod themes;
 
-// Re-export abstract color types from tome-base
-pub use tome_base::color::{Color, Modifier};
-pub use tome_manifest::syntax::{SyntaxStyle, SyntaxStyles};
+// Re-export abstract color types from evildoer-base
+pub use evildoer_base::color::{Color, Modifier};
+pub use evildoer_manifest::syntax::{SyntaxStyle, SyntaxStyles};
 
 /// Whether a theme uses a light or dark background.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
@@ -112,7 +112,7 @@ pub struct Theme {
 	pub variant: ThemeVariant,
 	pub colors: ThemeColors,
 	pub priority: i16,
-	pub source: tome_manifest::RegistrySource,
+	pub source: evildoer_manifest::RegistrySource,
 }
 
 #[distributed_slice]
@@ -164,13 +164,13 @@ pub static DEFAULT_THEME: Theme = Theme {
 		syntax: SyntaxStyles::minimal(),
 	},
 	priority: 0,
-	source: tome_manifest::RegistrySource::Builtin,
+	source: evildoer_manifest::RegistrySource::Builtin,
 };
 
 impl ThemeColors {
 	/// Resolve notification style for a given semantic identifier.
 	/// Uses notification-specific overrides if set, otherwise inherits from popup/status colors.
-	pub fn notification_style(&self, semantic: &str) -> tome_base::Style {
+	pub fn notification_style(&self, semantic: &str) -> evildoer_base::Style {
 		let override_pair = self
 			.notification
 			.overrides
@@ -183,7 +183,7 @@ impl ThemeColors {
 
 		// Resolve foreground: notification override -> semantic fallback from status/popup
 		let fg = override_pair.and_then(|p| p.fg).unwrap_or_else(|| {
-			use tome_manifest::*;
+			use evildoer_manifest::*;
 			match semantic {
 				SEMANTIC_WARNING => self.status.warning_fg,
 				SEMANTIC_ERROR => self.status.error_fg,
@@ -193,7 +193,7 @@ impl ThemeColors {
 			}
 		});
 
-		tome_base::Style::new().bg(bg).fg(fg)
+		evildoer_base::Style::new().bg(bg).fg(fg)
 	}
 
 	/// Resolve notification border color.
@@ -250,12 +250,12 @@ pub fn suggest_theme(name: &str) -> Option<&'static str> {
 }
 
 use futures::future::LocalBoxFuture;
-use tome_manifest::completion::{
+use evildoer_manifest::completion::{
 	CompletionContext, CompletionItem, CompletionKind, CompletionResult, CompletionSource,
 	PROMPT_COMMAND,
 };
-use tome_manifest::editor_ctx::MessageAccess;
-use tome_manifest::{
+use evildoer_manifest::editor_ctx::MessageAccess;
+use evildoer_manifest::{
 	COMMANDS, CommandContext, CommandDef, CommandError, CommandOutcome, OPTIONS, OptionDef,
 	OptionScope, OptionType, OptionValue,
 };
@@ -270,7 +270,7 @@ pub static OPT_THEME: OptionDef = OptionDef {
 	value_type: OptionType::String,
 	default: || OptionValue::String(DEFAULT_THEME_ID.to_string()),
 	scope: OptionScope::Global,
-	source: tome_manifest::RegistrySource::Builtin,
+	source: evildoer_manifest::RegistrySource::Builtin,
 };
 
 fn cmd_theme<'a>(
@@ -296,9 +296,9 @@ pub static CMD_THEME: CommandDef = CommandDef {
 	handler: cmd_theme,
 	user_data: None,
 	priority: 0,
-	source: tome_manifest::RegistrySource::Builtin,
+	source: evildoer_manifest::RegistrySource::Builtin,
 	required_caps: &[],
-	flags: tome_manifest::flags::NONE,
+	flags: evildoer_manifest::flags::NONE,
 };
 
 /// Completion source for theme names.

@@ -1,4 +1,4 @@
-# Tome
+# Evildoer
 
 Kakoune-inspired modal text editor in Rust.
 
@@ -10,7 +10,7 @@ Kakoune-inspired modal text editor in Rust.
 
 ## Registry System
 
-Uses `linkme` for compile-time registration. The registry system is split between **tome-manifest** (definitions and indexing) and **tome-stdlib** (actual implementations).
+Uses `linkme` for compile-time registration. The registry system is split between **evildoer-manifest** (definitions and indexing) and **evildoer-stdlib** (actual implementations).
 
 | Module           | Location                           | Purpose                                              |
 | ---------------- | ---------------------------------- | ---------------------------------------------------- |
@@ -27,9 +27,9 @@ Uses `linkme` for compile-time registration. The registry system is split betwee
 
 ## Extension System (`crates/extensions/`)
 
-Host-side extensions that manage stateful services (like ACP/AI) and UI panels. These are located in `crates/extensions/extensions/` and are automatically discovered at build-time via `build.rs`. They depend on `tome-api`.
+Host-side extensions that manage stateful services (like ACP/AI) and UI panels. These are located in `crates/extensions/extensions/` and are automatically discovered at build-time via `build.rs`. They depend on `evildoer-api`.
 
-Running cargo: `nix develop -c cargo {build/test/etc}`. Kitty GUI tests: `KITTY_TESTS=1 DISPLAY=:0 nix develop -c cargo test -p tome-term --test kitty_multiselect -- --nocapture --test-threads=1`.
+Running cargo: `nix develop -c cargo {build/test/etc}`. Kitty GUI tests: `KITTY_TESTS=1 DISPLAY=:0 nix develop -c cargo test -p evildoer-term --test kitty_multiselect -- --nocapture --test-threads=1`.
 
 ## Integration & GUI-Driven Testing
 

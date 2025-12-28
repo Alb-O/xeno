@@ -21,19 +21,19 @@
     in
     {
       default = rustPlatform.buildRustPackage {
-        pname = "tome";
+        pname = "evil";
         version = "0.1.0";
         src = rootSrc;
         cargoLock.lockFile = rootSrc + "/Cargo.lock";
-        buildAndTestSubdir = "crates/tome-term";
+        buildAndTestSubdir = "crates/term";
       };
 
-      tome-core = rustPlatform.buildRustPackage {
-        pname = "tome-core";
+      evildoer-core = rustPlatform.buildRustPackage {
+        pname = "evildoer-core";
         version = "0.1.0";
         src = rootSrc;
         cargoLock.lockFile = rootSrc + "/Cargo.lock";
-        buildAndTestSubdir = "crates/tome-core";
+        buildAndTestSubdir = "crates/evildoer-core";
       };
     };
 }

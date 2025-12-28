@@ -1,8 +1,8 @@
 //! Core result handlers: Ok, CursorMove, Motion, Edit, Quit, Error.
 
-use tome_manifest::actions::ActionResult;
-use tome_manifest::editor_ctx::HandleOutcome;
-use tome_manifest::{Mode, result_handler};
+use evildoer_manifest::actions::ActionResult;
+use evildoer_manifest::editor_ctx::HandleOutcome;
+use evildoer_manifest::{Mode, result_handler};
 
 use crate::{NotifyERRORExt, NotifyINFOExt};
 

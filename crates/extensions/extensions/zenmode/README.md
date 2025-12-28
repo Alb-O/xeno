@@ -49,7 +49,7 @@ adjusted in the extension state if needed.
 
 ## Architecture
 
-This extension uses the generic **Style Overlay** system in tome-api.
+This extension uses the generic **Style Overlay** system in evildoer-api.
 Extensions can register style modifications (dimming, color overrides) for byte
 ranges, and the renderer applies them during text rendering.
 

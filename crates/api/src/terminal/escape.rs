@@ -1,6 +1,6 @@
 //! Terminal escape sequence parsing.
 
-use tome_manifest::SplitCursorStyle;
+use evildoer_manifest::SplitCursorStyle;
 
 /// Parses DECSCUSR (Set Cursor Style): `ESC [ Ps SP q`
 pub fn parse_decscusr(bytes: &[u8]) -> Option<SplitCursorStyle> {

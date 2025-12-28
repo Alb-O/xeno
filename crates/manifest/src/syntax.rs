@@ -20,9 +20,9 @@
 //! // Returns keyword.control.import style, or falls back to keyword.control, then keyword
 //! ```
 
-// Re-export abstract color types from tome-base
-use tome_base::Style;
-pub use tome_base::color::{Color, Modifier};
+// Re-export abstract color types from evildoer-base
+use evildoer_base::Style;
+pub use evildoer_base::color::{Color, Modifier};
 
 /// A syntax style with optional foreground, background, and modifiers.
 #[derive(Clone, Copy, Debug, Default)]

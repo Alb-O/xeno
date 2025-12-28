@@ -1,7 +1,7 @@
 //! Cursor navigation for buffers.
 
-use tome_base::range::{Direction as MoveDir, Range};
-use tome_base::{ScrollDirection, Selection};
+use evildoer_base::range::{Direction as MoveDir, Range};
+use evildoer_base::{ScrollDirection, Selection};
 
 use super::Buffer;
 use crate::render::WrapSegment;

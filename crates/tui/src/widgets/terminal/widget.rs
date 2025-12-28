@@ -49,11 +49,11 @@ pub trait Cell {
 /// # Example
 ///
 /// ```rust,ignore
-/// use tome_tui::{
+/// use evildoer_tui::{
 ///     style::{Color, Modifier, Style},
 ///     widgets::{Block, Borders},
 /// };
-/// use tome_tui::widgets::terminal::PseudoTerminal;
+/// use evildoer_tui::widgets::terminal::PseudoTerminal;
 /// use vt100::Parser;
 ///
 /// let mut parser = vt100::Parser::new(24, 80, 0);
@@ -93,8 +93,8 @@ impl Cursor {
 	/// # Example
 	///
 	/// ```rust,ignore
-	/// use tome_tui::style::Style;
-	/// use tome_tui::widgets::terminal::Cursor;
+	/// use evildoer_tui::style::Style;
+	/// use evildoer_tui::widgets::terminal::Cursor;
 	///
 	/// let cursor = Cursor::default().symbol("|");
 	/// ```
@@ -114,8 +114,8 @@ impl Cursor {
 	/// # Example
 	///
 	/// ```rust,ignore
-	/// use tome_tui::style::Style;
-	/// use tome_tui::widgets::terminal::Cursor;
+	/// use evildoer_tui::style::Style;
+	/// use evildoer_tui::widgets::terminal::Cursor;
 	///
 	/// let cursor = Cursor::default().style(Style::default());
 	/// ```
@@ -137,8 +137,8 @@ impl Cursor {
 	/// # Example
 	///
 	/// ```rust,ignore
-	/// use tome_tui::style::Style;
-	/// use tome_tui::widgets::terminal::Cursor;
+	/// use evildoer_tui::style::Style;
+	/// use evildoer_tui::widgets::terminal::Cursor;
 	///
 	/// let cursor = Cursor::default().overlay_style(Style::default());
 	/// ```
@@ -192,7 +192,7 @@ impl<'a, S: Screen> PseudoTerminal<'a, S> {
 	/// # Example
 	///
 	/// ```rust,ignore
-	/// use tome_tui::widgets::terminal::PseudoTerminal;
+	/// use evildoer_tui::widgets::terminal::PseudoTerminal;
 	/// use vt100::Parser;
 	///
 	/// let mut parser = vt100::Parser::new(24, 80, 0);
@@ -218,8 +218,8 @@ impl<'a, S: Screen> PseudoTerminal<'a, S> {
 	/// # Example
 	///
 	/// ```rust,ignore
-	/// use tome_tui::widgets::Block;
-	/// use tome_tui::widgets::terminal::PseudoTerminal;
+	/// use evildoer_tui::widgets::Block;
+	/// use evildoer_tui::widgets::terminal::PseudoTerminal;
 	/// use vt100::Parser;
 	///
 	/// let mut parser = vt100::Parser::new(24, 80, 0);
@@ -245,8 +245,8 @@ impl<'a, S: Screen> PseudoTerminal<'a, S> {
 	/// # Example
 	///
 	/// ```rust,ignore
-	/// use tome_tui::style::Style;
-	/// use tome_tui::widgets::terminal::{Cursor, PseudoTerminal};
+	/// use evildoer_tui::style::Style;
+	/// use evildoer_tui::widgets::terminal::{Cursor, PseudoTerminal};
 	///
 	/// let mut parser = vt100::Parser::new(24, 80, 0);
 	/// let cursor = Cursor::default().symbol("|").style(Style::default());
@@ -268,8 +268,8 @@ impl<'a, S: Screen> PseudoTerminal<'a, S> {
 	/// # Example
 	///
 	/// ```rust,ignore
-	/// use tome_tui::style::Style;
-	/// use tome_tui::widgets::terminal::PseudoTerminal;
+	/// use evildoer_tui::style::Style;
+	/// use evildoer_tui::widgets::terminal::PseudoTerminal;
 	///
 	/// let mut parser = vt100::Parser::new(24, 80, 0);
 	/// let style = Style::default();

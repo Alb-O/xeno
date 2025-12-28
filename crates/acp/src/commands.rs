@@ -9,8 +9,8 @@
 use std::path::PathBuf;
 
 use futures::future::LocalBoxFuture;
-use tome_manifest::{CommandContext, CommandError, CommandOutcome};
-use tome_stdlib::{NotifyINFOExt, command};
+use evildoer_manifest::{CommandContext, CommandError, CommandOutcome};
+use evildoer_stdlib::{NotifyINFOExt, command};
 
 use crate::AcpManager;
 
@@ -148,15 +148,15 @@ fn cmd_acp_model<'a>(
 }
 
 trait CommandContextExt {
-	fn require_editor_mut(&mut self) -> &mut tome_api::editor::Editor;
+	fn require_editor_mut(&mut self) -> &mut evildoer_api::editor::Editor;
 }
 
 impl<'a> CommandContextExt for CommandContext<'a> {
-	fn require_editor_mut(&mut self) -> &mut tome_api::editor::Editor {
-		// SAFETY: We know that in tome-term, EditorOps is implemented by Editor
+	fn require_editor_mut(&mut self) -> &mut evildoer_api::editor::Editor {
+		// SAFETY: We know that in evildoer-term, EditorOps is implemented by Editor
 		unsafe {
-			&mut *(self.editor as *mut dyn tome_manifest::EditorOps
-				as *mut tome_api::editor::Editor)
+			&mut *(self.editor as *mut dyn evildoer_manifest::EditorOps
+				as *mut evildoer_api::editor::Editor)
 		}
 	}
 }

@@ -6,16 +6,16 @@
 //!
 //! # Usage
 //!
-//! Set `TOME_TEST_LOG` environment variable to a file path to enable logging:
+//! Set `EVILDOER_TEST_LOG` environment variable to a file path to enable logging:
 //!
 //! ```bash
-//! TOME_TEST_LOG=/tmp/test.jsonl cargo test
+//! EVILDOER_TEST_LOG=/tmp/test.jsonl cargo test
 //! ```
 //!
 //! Then use the logging macros in code:
 //!
 //! ```ignore
-//! use tome_api::test_event;
+//! use evildoer_api::test_event;
 //!
 //! test_event!(
 //!     "separator_animation",
@@ -33,10 +33,10 @@ use std::sync::OnceLock;
 
 use serde::Serialize;
 
-/// Returns the test log file path if `TOME_TEST_LOG` is set.
+/// Returns the test log file path if `EVILDOER_TEST_LOG` is set.
 fn test_log_path() -> Option<&'static str> {
 	static PATH: OnceLock<Option<String>> = OnceLock::new();
-	PATH.get_or_init(|| std::env::var("TOME_TEST_LOG").ok())
+	PATH.get_or_init(|| std::env::var("EVILDOER_TEST_LOG").ok())
 		.as_deref()
 }
 

@@ -5,15 +5,15 @@ use crate::widgets::Widget;
 
 /// A widget to clear/reset a certain area to allow overdrawing (e.g. for popups).
 ///
-/// This widget **cannot be used to clear the terminal on the first render** as `tome_tui` assumes
+/// This widget **cannot be used to clear the terminal on the first render** as `evildoer_tui` assumes
 /// the render area is empty. Use `Terminal::clear` instead.
 ///
 /// # Examples
 ///
 /// ```
-/// use tome_tui::Frame;
-/// use tome_tui::layout::Rect;
-/// use tome_tui::widgets::{Block, Clear};
+/// use evildoer_tui::Frame;
+/// use evildoer_tui::layout::Rect;
+/// use evildoer_tui::widgets::{Block, Clear};
 ///
 /// fn draw_on_clear(f: &mut Frame, area: Rect) {
 ///     let block = Block::bordered().title("Block");

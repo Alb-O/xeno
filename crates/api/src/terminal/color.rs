@@ -1,7 +1,7 @@
 //! Terminal color mapping.
 
-use tome_manifest::SplitColor;
-use tome_tui::widgets::terminal::vt100;
+use evildoer_manifest::SplitColor;
+use evildoer_tui::widgets::terminal::vt100;
 
 /// Maps vt100 colors to SplitColor.
 pub fn map_vt_color(color: vt100::Color) -> Option<SplitColor> {

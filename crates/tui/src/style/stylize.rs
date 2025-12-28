@@ -216,7 +216,7 @@ macro_rules! modifier {
 ///
 /// # Examples
 /// ```ignore
-/// use tome_tui::{
+/// use evildoer_tui::{
 ///     style::{Color, Modifier, Style, Stylize},
 ///     text::Line,
 ///     widgets::{Block, Paragraph},

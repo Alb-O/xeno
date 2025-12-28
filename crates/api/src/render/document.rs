@@ -2,11 +2,11 @@ mod wrapping;
 
 use std::time::{Duration, SystemTime};
 
-use tome_manifest::{SplitAttrs, SplitBuffer, SplitColor};
-use tome_tui::layout::{Constraint, Direction, Layout, Rect};
-use tome_tui::style::{Color, Modifier, Style};
-use tome_tui::text::{Line, Span};
-use tome_tui::widgets::{Block, Clear, Paragraph};
+use evildoer_manifest::{SplitAttrs, SplitBuffer, SplitColor};
+use evildoer_tui::layout::{Constraint, Direction, Layout, Rect};
+use evildoer_tui::style::{Color, Modifier, Style};
+use evildoer_tui::text::{Line, Span};
+use evildoer_tui::widgets::{Block, Clear, Paragraph};
 
 use super::buffer::{BufferRenderContext, ensure_buffer_cursor_visible};
 use crate::Editor;
@@ -30,8 +30,8 @@ impl Editor {
 	/// - Notifications
 	///
 	/// # Parameters
-	/// - `frame`: The tome_tui frame to render into
-	pub fn render(&mut self, frame: &mut tome_tui::Frame) {
+	/// - `frame`: The evildoer_tui frame to render into
+	pub fn render(&mut self, frame: &mut evildoer_tui::Frame) {
 		let now = SystemTime::now();
 		let delta = now
 			.duration_since(self.last_tick)
@@ -94,7 +94,7 @@ impl Editor {
 	/// This handles both text buffers and terminals in the same layout.
 	fn render_split_buffers(
 		&mut self,
-		frame: &mut tome_tui::Frame,
+		frame: &mut evildoer_tui::Frame,
 		doc_area: Rect,
 		use_block_cursor: bool,
 	) {
@@ -113,7 +113,7 @@ impl Editor {
 				}
 				BufferView::Terminal(terminal_id) => {
 					if let Some(terminal) = self.get_terminal_mut(*terminal_id) {
-						let size = tome_manifest::SplitSize::new(area.width, area.height);
+						let size = evildoer_manifest::SplitSize::new(area.width, area.height);
 						terminal.resize(size);
 					}
 				}
@@ -214,7 +214,7 @@ impl Editor {
 			} else if is_animating {
 				// Animating - lerp between normal and hover states
 				// This handles both fade-in (hovering) and fade-out (leaving)
-				use tome_tui::animation::Animatable;
+				use evildoer_tui::animation::Animatable;
 
 				use crate::test_events::SeparatorAnimationEvent;
 
@@ -258,7 +258,7 @@ impl Editor {
 	/// Renders a terminal buffer into the given area.
 	fn render_terminal(
 		&self,
-		frame: &mut tome_tui::Frame,
+		frame: &mut evildoer_tui::Frame,
 		terminal: &crate::terminal::TerminalBuffer,
 		area: Rect,
 		is_focused: bool,
@@ -322,13 +322,13 @@ impl Editor {
 			let x = area.x + cursor.col;
 			let y = area.y + cursor.row;
 			if x < area.x + area.width && y < area.y + area.height {
-				frame.set_cursor_position(tome_tui::layout::Position { x, y });
+				frame.set_cursor_position(evildoer_tui::layout::Position { x, y });
 			}
 		}
 	}
 }
 
-/// Converts a SplitColor to a tome_tui Color.
+/// Converts a SplitColor to a evildoer_tui Color.
 fn convert_split_color(color: SplitColor) -> Color {
 	match color {
 		SplitColor::Indexed(i) => Color::Indexed(i),

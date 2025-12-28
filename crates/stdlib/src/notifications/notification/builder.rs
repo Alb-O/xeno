@@ -1,7 +1,7 @@
 //! Builder pattern for constructing notifications.
 
-use tome_base::{BorderKind, Padding, Position, Style};
-use tome_manifest::notifications::{
+use evildoer_base::{BorderKind, Padding, Position, Style};
+use evildoer_manifest::notifications::{
 	Anchor, Animation, AutoDismiss, Level, NotificationError, SizeConstraint, SlideDirection,
 	Timing, find_notification_type,
 };

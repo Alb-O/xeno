@@ -19,7 +19,7 @@
 //!
 //! [`BufferManager`]: super::BufferManager
 
-use tome_tui::layout::Rect;
+use evildoer_tui::layout::Rect;
 
 use super::separator::{DragState, MouseVelocityTracker, SeparatorHoverAnimation};
 use crate::buffer::{BufferId, BufferView, Layout, SplitDirection, SplitPath, TerminalId};

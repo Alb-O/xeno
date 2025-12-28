@@ -20,9 +20,9 @@ use crate::widgets::Widget;
 /// ```rust
 /// use std::borrow::Cow;
 ///
-/// use tome_tui::style::Stylize;
-/// use tome_tui::text::{Line, Span, Text};
-/// use tome_tui::widgets::Cell;
+/// use evildoer_tui::style::Stylize;
+/// use evildoer_tui::text::{Line, Span, Text};
+/// use evildoer_tui::widgets::Cell;
 ///
 /// Cell::from("simple string");
 /// Cell::from(Span::from("span"));
@@ -38,8 +38,8 @@ use crate::widgets::Widget;
 /// to set the style of the cell concisely.
 ///
 /// ```rust
-/// use tome_tui::style::Stylize;
-/// use tome_tui::widgets::Cell;
+/// use evildoer_tui::style::Stylize;
+/// use evildoer_tui::widgets::Cell;
 ///
 /// Cell::new("Cell 1").red().italic();
 /// ```
@@ -61,9 +61,9 @@ impl<'a> Cell<'a> {
 	/// # Examples
 	///
 	/// ```rust
-	/// use tome_tui::style::Stylize;
-	/// use tome_tui::text::{Line, Span, Text};
-	/// use tome_tui::widgets::Cell;
+	/// use evildoer_tui::style::Stylize;
+	/// use evildoer_tui::text::{Line, Span, Text};
+	/// use evildoer_tui::widgets::Cell;
 	///
 	/// Cell::new("simple string");
 	/// Cell::new(Span::from("span"));
@@ -92,9 +92,9 @@ impl<'a> Cell<'a> {
 	/// # Examples
 	///
 	/// ```rust
-	/// use tome_tui::style::Stylize;
-	/// use tome_tui::text::{Line, Span, Text};
-	/// use tome_tui::widgets::Cell;
+	/// use evildoer_tui::style::Stylize;
+	/// use evildoer_tui::text::{Line, Span, Text};
+	/// use evildoer_tui::widgets::Cell;
 	///
 	/// Cell::default().content("simple string");
 	/// Cell::default().content(Span::from("span"));
@@ -126,8 +126,8 @@ impl<'a> Cell<'a> {
 	/// # Examples
 	///
 	/// ```rust
-	/// use tome_tui::style::{Style, Stylize};
-	/// use tome_tui::widgets::Cell;
+	/// use evildoer_tui::style::{Style, Stylize};
+	/// use evildoer_tui::widgets::Cell;
 	///
 	/// Cell::new("Cell 1").style(Style::new().red().italic());
 	/// ```
@@ -136,8 +136,8 @@ impl<'a> Cell<'a> {
 	/// the [`Stylize`] trait to set the style of the widget more concisely.
 	///
 	/// ```rust
-	/// use tome_tui::style::Stylize;
-	/// use tome_tui::widgets::Cell;
+	/// use evildoer_tui::style::Stylize;
+	/// use evildoer_tui::widgets::Cell;
 	///
 	/// Cell::new("Cell 1").red().italic();
 	/// ```

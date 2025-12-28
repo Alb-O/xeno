@@ -25,11 +25,11 @@ impl TestShell {
 		}
 	}
 
-	/// Returns the command to echo TOME_BIN in this shell's syntax.
-	pub fn echo_tome_bin_cmd(&self) -> &'static str {
+	/// Returns the command to echo EVILDOER_BIN in this shell's syntax.
+	pub fn echo_evildoer_bin_cmd(&self) -> &'static str {
 		match self {
-			TestShell::Bash | TestShell::Zsh | TestShell::Fish => "echo $TOME_BIN",
-			TestShell::Nushell => "echo $env.TOME_BIN",
+			TestShell::Bash | TestShell::Zsh | TestShell::Fish => "echo $EVILDOER_BIN",
+			TestShell::Nushell => "echo $env.EVILDOER_BIN",
 		}
 	}
 
@@ -104,46 +104,46 @@ pub fn require_shell(shell: TestShell) -> bool {
 	resolve_shell(shell).is_some()
 }
 
-/// Returns a tome command with a specific SHELL environment variable set.
+/// Returns a evildoer command with a specific SHELL environment variable set.
 #[allow(dead_code, reason = "test helper used by individual test files")]
-pub fn tome_cmd_with_shell(file: &str, shell: TestShell) -> Option<String> {
+pub fn evildoer_cmd_with_shell(file: &str, shell: TestShell) -> Option<String> {
 	let shell_path = resolve_shell(shell)?;
 	Some(format!(
 		"SHELL={} {} --theme debug {}",
 		shell_path.display(),
-		tome_cmd(),
+		evildoer_cmd(),
 		file
 	))
 }
 
-/// Returns the path to the tome binary.
-pub fn tome_cmd() -> String {
-	env!("CARGO_BIN_EXE_tome").to_string()
+/// Returns the path to the evildoer binary.
+pub fn evildoer_cmd() -> String {
+	env!("CARGO_BIN_EXE_evildoer").to_string()
 }
 
-/// Returns a command to launch tome with the given file.
+/// Returns a command to launch evildoer with the given file.
 #[allow(dead_code, reason = "test helper used by individual test files")]
-pub fn tome_cmd_with_file_named(name: &str) -> String {
-	format!("{} {}", tome_cmd(), name)
+pub fn evildoer_cmd_with_file_named(name: &str) -> String {
+	format!("{} {}", evildoer_cmd(), name)
 }
 
-/// Returns a command to launch tome with the debug theme and a given file.
+/// Returns a command to launch evildoer with the debug theme and a given file.
 ///
 /// The debug theme uses predictable RGB values that are easy to test against.
-/// See `tome_theme::themes::debug::colors` for the exact values.
-pub fn tome_cmd_debug_theme(name: &str) -> String {
-	format!("{} --theme debug {}", tome_cmd(), name)
+/// See `evildoer_theme::themes::debug::colors` for the exact values.
+pub fn evildoer_cmd_debug_theme(name: &str) -> String {
+	format!("{} --theme debug {}", evildoer_cmd(), name)
 }
 
-/// Returns a command to launch tome with the debug theme and test logging enabled.
+/// Returns a command to launch evildoer with the debug theme and test logging enabled.
 ///
 /// The `log_path` should be a file path where debug logs will be written.
 /// Use `kitty_test_harness::create_test_log()` to create the log file.
-pub fn tome_cmd_debug_with_log(name: &str, log_path: &Path) -> String {
+pub fn evildoer_cmd_debug_with_log(name: &str, log_path: &Path) -> String {
 	format!(
-		"TOME_TEST_LOG={} {} --theme debug {}",
+		"EVILDOER_TEST_LOG={} {} --theme debug {}",
 		log_path.display(),
-		tome_cmd(),
+		evildoer_cmd(),
 		name
 	)
 }

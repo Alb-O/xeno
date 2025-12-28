@@ -1,8 +1,8 @@
-//! Motion actions that wrap [`MotionDef`](tome_manifest::MotionDef) primitives.
+//! Motion actions that wrap [`MotionDef`](evildoer_manifest::MotionDef) primitives.
 
-use tome_base::key::{Key, SpecialKey};
-use tome_manifest::actions::{cursor_motion, selection_motion};
-use tome_manifest::bound_action;
+use evildoer_base::key::{Key, SpecialKey};
+use evildoer_manifest::actions::{cursor_motion, selection_motion};
+use evildoer_manifest::bound_action;
 
 use crate::action;
 

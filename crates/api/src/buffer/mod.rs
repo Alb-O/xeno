@@ -18,11 +18,11 @@ use std::sync::{Arc, RwLock};
 pub use document::{Document, DocumentId};
 pub use history::HistoryResult;
 pub use layout::{BufferView, Layout, SplitDirection, SplitPath, TerminalId};
-use tome_base::Selection;
-use tome_base::range::CharIdx;
-use tome_input::InputHandler;
-use tome_language::LanguageLoader;
-use tome_manifest::Mode;
+use evildoer_base::Selection;
+use evildoer_base::range::CharIdx;
+use evildoer_input::InputHandler;
+use evildoer_language::LanguageLoader;
+use evildoer_manifest::Mode;
 
 /// Unique identifier for a buffer.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

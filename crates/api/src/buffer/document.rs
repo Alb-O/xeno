@@ -7,9 +7,9 @@
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
 
-use tome_base::{Rope, Selection};
-use tome_language::LanguageLoader;
-use tome_language::syntax::Syntax;
+use evildoer_base::{Rope, Selection};
+use evildoer_language::LanguageLoader;
+use evildoer_language::syntax::Syntax;
 
 use crate::editor::types::HistoryEntry;
 

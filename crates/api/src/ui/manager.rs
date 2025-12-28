@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 
 use termina::event::{KeyEvent, MouseEvent};
-use tome_theme::Theme;
-use tome_tui::layout::Rect;
+use evildoer_theme::Theme;
+use evildoer_tui::layout::Rect;
 
 use super::dock::{DockLayout, DockManager};
 use super::focus::{FocusManager, FocusTarget};
@@ -238,11 +238,11 @@ impl UiManager {
 	pub fn render_panels(
 		&mut self,
 		editor: &mut crate::editor::Editor,
-		frame: &mut tome_tui::Frame,
+		frame: &mut evildoer_tui::Frame,
 		layout: &DockLayout,
 		theme: &Theme,
-	) -> Option<tome_tui::layout::Position> {
-		let mut cursor: Option<tome_tui::layout::Position> = None;
+	) -> Option<evildoer_tui::layout::Position> {
+		let mut cursor: Option<evildoer_tui::layout::Position> = None;
 		for (id, area) in &layout.panel_areas {
 			let focused = self.is_panel_focused(id);
 			if let Some(panel) = self.panels.get_mut(id) {

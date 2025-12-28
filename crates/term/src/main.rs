@@ -8,18 +8,18 @@ mod tests;
 use app::run_editor;
 use clap::Parser;
 use cli::{Cli, Command, GrammarAction};
-// Force linking of tome-acp and tome-extensions so distributed_slices are registered
+// Force linking of evildoer-acp and evildoer-extensions so distributed_slices are registered
 #[allow(
 	unused_imports,
-	reason = "ensures tome-acp and tome-extensions distributed_slices are linked"
+	reason = "ensures evildoer-acp and evildoer-extensions distributed_slices are linked"
 )]
-use tome_acp as _;
-use tome_api::Editor;
+use evildoer_acp as _;
+use evildoer_api::Editor;
 #[allow(
 	unused_imports,
-	reason = "ensures tome-extensions distributed_slices are linked"
+	reason = "ensures evildoer-extensions distributed_slices are linked"
 )]
-use tome_extensions as _;
+use evildoer_extensions as _;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -31,7 +31,7 @@ async fn main() -> anyhow::Result<()> {
 	}
 
 	// Ensure runtime directory is populated with query files
-	if let Err(e) = tome_language::ensure_runtime() {
+	if let Err(e) = evildoer_language::ensure_runtime() {
 		eprintln!("Warning: failed to seed runtime: {e}");
 	}
 
@@ -52,7 +52,7 @@ async fn main() -> anyhow::Result<()> {
 }
 
 fn handle_grammar_command(action: GrammarAction) -> anyhow::Result<()> {
-	use tome_language::build::{build_all_grammars, fetch_all_grammars, load_grammar_configs};
+	use evildoer_language::build::{build_all_grammars, fetch_all_grammars, load_grammar_configs};
 
 	let configs = load_grammar_configs()?;
 
@@ -107,11 +107,11 @@ fn handle_grammar_command(action: GrammarAction) -> anyhow::Result<()> {
 
 fn report_fetch_results(
 	results: &[(
-		tome_language::build::GrammarConfig,
-		Result<tome_language::build::FetchStatus, tome_language::build::GrammarBuildError>,
+		evildoer_language::build::GrammarConfig,
+		Result<evildoer_language::build::FetchStatus, evildoer_language::build::GrammarBuildError>,
 	)],
 ) {
-	use tome_language::build::FetchStatus;
+	use evildoer_language::build::FetchStatus;
 	let mut success = 0;
 	let mut skipped = 0;
 	let mut failed = 0;
@@ -143,11 +143,11 @@ fn report_fetch_results(
 
 fn report_build_results(
 	results: &[(
-		tome_language::build::GrammarConfig,
-		Result<tome_language::build::BuildStatus, tome_language::build::GrammarBuildError>,
+		evildoer_language::build::GrammarConfig,
+		Result<evildoer_language::build::BuildStatus, evildoer_language::build::GrammarBuildError>,
 	)],
 ) {
-	use tome_language::build::BuildStatus;
+	use evildoer_language::build::BuildStatus;
 	let mut success = 0;
 	let mut skipped = 0;
 	let mut failed = 0;

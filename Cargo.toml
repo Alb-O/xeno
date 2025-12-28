@@ -6,7 +6,7 @@ members = ["crates/*"]
 version = "0.1.0"
 edition = "2024"
 license = "MIT"
-repository = "https://github.com/Alb-O/tome"
+repository = "https://github.com/Alb-O/evildoer"
 
 [workspace.dependencies]
 agent-client-protocol = "0.9.1"
@@ -17,7 +17,7 @@ futures = "0.3"
 globset = "0.4"
 home = "0.5"
 insta = "1.45"
-kitty-test-harness = { git = "https://github.com/Alb-O/kitty-test-harness", branch = "main" }
+kitty-test-harness = "0.1"
 libc = "0.2"
 libloading = "0.8"
 linkme = "0.3"
@@ -43,18 +43,18 @@ termwiz = "0.23"
 thiserror = "2"
 tokio = { version = "1", features = ["full"] }
 tokio-util = { version = "0.7", features = ["compat"] }
-tome-acp = { path = "crates/acp" }
-tome-api = { path = "crates/api" }
-tome-base = { path = "crates/base" }
-tome-extensions = { path = "crates/extensions" }
-tome-input = { path = "crates/input" }
-tome-language = { path = "crates/language" }
-tome-lsp = { path = "crates/lsp" }
-tome-macro = { path = "crates/macro" }
-tome-manifest = { path = "crates/manifest" }
-tome-stdlib = { path = "crates/stdlib" }
-tome-theme = { path = "crates/theme" }
-tome-tui = { path = "crates/tui" }
+evildoer-acp = { path = "crates/acp" }
+evildoer-api = { path = "crates/api" }
+evildoer-base = { path = "crates/base" }
+evildoer-extensions = { path = "crates/extensions" }
+evildoer-input = { path = "crates/input" }
+evildoer-language = { path = "crates/language" }
+evildoer-lsp = { path = "crates/lsp" }
+evildoer-macro = { path = "crates/macro" }
+evildoer-manifest = { path = "crates/manifest" }
+evildoer-stdlib = { path = "crates/stdlib" }
+evildoer-theme = { path = "crates/theme" }
+evildoer-tui = { path = "crates/tui" }
 toml = "0.9"
 tree-house = "0.3"
 unicode-segmentation = "1.12"

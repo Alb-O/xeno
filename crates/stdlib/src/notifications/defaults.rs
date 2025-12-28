@@ -1,7 +1,7 @@
 use std::time::Duration;
 
-use tome_macro::register_notification;
-use tome_manifest::{
+use evildoer_macro::register_notification;
+use evildoer_manifest::{
 	SEMANTIC_DIM, SEMANTIC_ERROR, SEMANTIC_INFO, SEMANTIC_SUCCESS, SEMANTIC_WARNING,
 };
 

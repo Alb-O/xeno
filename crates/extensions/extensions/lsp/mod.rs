@@ -1,4 +1,4 @@
-//! LSP integration extension for Tome.
+//! LSP integration extension for Evildoer.
 //!
 //! Manages language server lifecycle and document synchronization via hooks for
 //! buffer events (open, change, close). [`LspManager`] wraps the LSP [`Registry`]
@@ -10,9 +10,9 @@ use std::path::Path;
 use std::sync::Arc;
 
 use linkme::distributed_slice;
-use tome_api::editor::extensions::{EXTENSIONS, ExtensionInitDef, ExtensionMap};
-use tome_lsp::lsp_types::Url;
-use tome_lsp::{LanguageServerConfig, Registry};
+use evildoer_api::editor::extensions::{EXTENSIONS, ExtensionInitDef, ExtensionMap};
+use evildoer_lsp::lsp_types::Url;
+use evildoer_lsp::{LanguageServerConfig, Registry};
 
 /// Manager for LSP client connections.
 ///

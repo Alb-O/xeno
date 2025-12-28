@@ -8,7 +8,7 @@ mod helpers;
 use std::time::{Duration, Instant};
 
 use helpers::{
-	TestShell, insert_text, require_shell, reset_test_file, tome_cmd_with_shell, workspace_dir,
+	TestShell, insert_text, require_shell, reset_test_file, evildoer_cmd_with_shell, workspace_dir,
 };
 use kitty_test_harness::{
 	KittyHarness, kitty_send_keys, pause_briefly, require_kitty, run_with_timeout,
@@ -50,8 +50,8 @@ fn type_string(kitty: &KittyHarness, s: &str) {
 	}
 }
 
-/// Tests that TOME_BIN is exported in the embedded terminal for a specific shell.
-fn test_shell_has_tome_bin(shell: TestShell, file_suffix: &str) {
+/// Tests that EVILDOER_BIN is exported in the embedded terminal for a specific shell.
+fn test_shell_has_evildoer_bin(shell: TestShell, file_suffix: &str) {
 	if !require_kitty() {
 		return;
 	}
@@ -67,8 +67,8 @@ fn test_shell_has_tome_bin(shell: TestShell, file_suffix: &str) {
 	let file = format!("tmp/kitty/shell-ipc-{}-path.txt", file_suffix);
 	reset_test_file(&file);
 
-	let Some(cmd) = tome_cmd_with_shell(&file, shell) else {
-		eprintln!("Could not build tome command for {:?}", shell);
+	let Some(cmd) = evildoer_cmd_with_shell(&file, shell) else {
+		eprintln!("Could not build evildoer command for {:?}", shell);
 		return;
 	};
 
@@ -78,18 +78,18 @@ fn test_shell_has_tome_bin(shell: TestShell, file_suffix: &str) {
 			open_terminal(kitty);
 			wait_for_prompt(kitty);
 
-			// Echo TOME_BIN to verify IPC is set up
-			type_string(kitty, shell.echo_tome_bin_cmd());
+			// Echo EVILDOER_BIN to verify IPC is set up
+			type_string(kitty, shell.echo_evildoer_bin_cmd());
 			kitty_send_keys!(kitty, KeyCode::Enter);
 
 			let (_, clean) =
 				wait_for_screen_text_clean(kitty, Duration::from_secs(3), |_raw, clean| {
-					clean.contains("tome-")
+					clean.contains("evildoer-")
 				});
 
 			assert!(
-				clean.contains("tome-"),
-				"{:?}: TOME_BIN should contain tome bin dir: {}",
+				clean.contains("evildoer-"),
+				"{:?}: EVILDOER_BIN should contain evildoer bin dir: {}",
 				shell,
 				clean
 			);
@@ -114,8 +114,8 @@ fn test_shell_ipc_quit(shell: TestShell, file_suffix: &str) {
 	let file = format!("tmp/kitty/shell-ipc-{}-quit.txt", file_suffix);
 	reset_test_file(&file);
 
-	let Some(cmd) = tome_cmd_with_shell(&file, shell) else {
-		eprintln!("Could not build tome command for {:?}", shell);
+	let Some(cmd) = evildoer_cmd_with_shell(&file, shell) else {
+		eprintln!("Could not build evildoer command for {:?}", shell);
 		return;
 	};
 
@@ -151,8 +151,8 @@ fn test_shell_ipc_write(shell: TestShell, file_suffix: &str) {
 	reset_test_file(&file);
 	let file_clone = file.clone();
 
-	let Some(cmd) = tome_cmd_with_shell(&file, shell) else {
-		eprintln!("Could not build tome command for {:?}", shell);
+	let Some(cmd) = evildoer_cmd_with_shell(&file, shell) else {
+		eprintln!("Could not build evildoer command for {:?}", shell);
 		return;
 	};
 
@@ -205,8 +205,8 @@ fn test_shell_ipc_write(shell: TestShell, file_suffix: &str) {
 
 #[serial_test::serial]
 #[test]
-fn bash_has_tome_bin() {
-	test_shell_has_tome_bin(TestShell::Bash, "bash");
+fn bash_has_evildoer_bin() {
+	test_shell_has_evildoer_bin(TestShell::Bash, "bash");
 }
 
 #[serial_test::serial]
@@ -223,8 +223,8 @@ fn bash_ipc_write() {
 
 #[serial_test::serial]
 #[test]
-fn zsh_has_tome_bin() {
-	test_shell_has_tome_bin(TestShell::Zsh, "zsh");
+fn zsh_has_evildoer_bin() {
+	test_shell_has_evildoer_bin(TestShell::Zsh, "zsh");
 }
 
 #[serial_test::serial]
@@ -241,8 +241,8 @@ fn zsh_ipc_write() {
 
 #[serial_test::serial]
 #[test]
-fn fish_has_tome_bin() {
-	test_shell_has_tome_bin(TestShell::Fish, "fish");
+fn fish_has_evildoer_bin() {
+	test_shell_has_evildoer_bin(TestShell::Fish, "fish");
 }
 
 #[serial_test::serial]
@@ -259,8 +259,8 @@ fn fish_ipc_write() {
 
 #[serial_test::serial]
 #[test]
-fn nushell_has_tome_bin() {
-	test_shell_has_tome_bin(TestShell::Nushell, "nushell");
+fn nushell_has_evildoer_bin() {
+	test_shell_has_evildoer_bin(TestShell::Nushell, "nushell");
 }
 
 #[serial_test::serial]

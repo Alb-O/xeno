@@ -4,11 +4,11 @@ mod suite {
 	use std::sync::Arc;
 
 	use insta::assert_snapshot;
-	use tome_api::Editor;
-	use tome_manifest::{CommandContext, CommandOutcome};
-	use tome_theme::{CMD_THEME, DEFAULT_THEME_ID, THEMES, get_theme};
-	use tome_tui::Terminal;
-	use tome_tui::backend::TestBackend;
+	use evildoer_api::Editor;
+	use evildoer_manifest::{CommandContext, CommandOutcome};
+	use evildoer_theme::{CMD_THEME, DEFAULT_THEME_ID, THEMES, get_theme};
+	use evildoer_tui::Terminal;
+	use evildoer_tui::backend::TestBackend;
 
 	fn test_editor(content: &str) -> Editor {
 		let fs = Arc::new(agentfs_sdk::HostFS::new(std::env::current_dir().unwrap()).unwrap());
@@ -88,7 +88,7 @@ mod suite {
 
 		let result_unknown = (CMD_THEME.handler)(&mut ctx_unknown).await;
 		assert!(result_unknown.is_err());
-		if let Err(tome_manifest::CommandError::Failed(msg)) = result_unknown {
+		if let Err(evildoer_manifest::CommandError::Failed(msg)) = result_unknown {
 			assert!(msg.contains("Theme not found"));
 		} else {
 			panic!("Expected Failed error");

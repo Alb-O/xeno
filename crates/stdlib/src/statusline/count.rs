@@ -1,6 +1,6 @@
 //! Count prefix segment.
 
-use tome_manifest::statusline::{RenderedSegment, SegmentPosition, SegmentStyle};
+use evildoer_manifest::statusline::{RenderedSegment, SegmentPosition, SegmentStyle};
 
 use crate::statusline_segment;
 

@@ -5,12 +5,12 @@
 //! and preview panes.
 //!
 //! This trait defines the core interface that split buffers must implement,
-//! decoupled from specific UI framework types. The rendering layer (`tome-api`)
+//! decoupled from specific UI framework types. The rendering layer (`evildoer-api`)
 //! wraps these in `Panel` implementations.
 
 use std::time::Duration;
 
-use tome_base::Position;
+use evildoer_base::Position;
 
 /// Keyboard input for split buffers.
 ///
@@ -207,7 +207,7 @@ impl SplitSize {
 /// Trait for content that can be displayed in a split panel.
 ///
 /// Implementors provide their own content management, input handling, and
-/// rendering logic. The UI layer (`tome-api`) wraps these in `Panel`
+/// rendering logic. The UI layer (`evildoer-api`) wraps these in `Panel`
 /// implementations to integrate with the dock system.
 ///
 /// # Lifecycle
@@ -222,7 +222,7 @@ impl SplitSize {
 ///
 /// Split buffers don't render directly. Instead, they expose content via
 /// the `cells()` iterator. The UI layer consumes this to render into a
-/// tome_tui buffer.
+/// evildoer_tui buffer.
 pub trait SplitBuffer: Send {
 	/// Unique identifier for this buffer type.
 	fn id(&self) -> &str;

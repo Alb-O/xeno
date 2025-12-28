@@ -1,6 +1,6 @@
 [package]
-name = "tome-extensions"
-description = "Built-in extensions for Tome"
+name = "evildoer-extensions"
+description = "Built-in extensions for Evildoer"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -12,11 +12,11 @@ futures.workspace = true
 linkme.workspace = true
 log.workspace = true
 paste.workspace = true
-tome-api.workspace = true
-tome-language.workspace = true
-tome-lsp = { workspace = true, features = ["client", "position"] }
-tome-manifest.workspace = true
-tome-stdlib.workspace = true
+evildoer-api.workspace = true
+evildoer-language.workspace = true
+evildoer-lsp = { workspace = true, features = ["client", "position"] }
+evildoer-manifest.workspace = true
+evildoer-stdlib.workspace = true
 
 [dev-dependencies]
 ropey.workspace = true

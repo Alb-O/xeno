@@ -1,6 +1,6 @@
 [package]
-name = "tome-stdlib"
-description = "Standard library of built-in features for Tome editor"
+name = "evildoer-stdlib"
+description = "Standard library of built-in features for Evildoer editor"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -32,9 +32,9 @@ serde_json.workspace = true
 smallvec = { workspace = true, optional = true }
 termina = { workspace = true, optional = true }
 thiserror.workspace = true
-tome-base.workspace = true
-tome-input.workspace = true
-tome-macro.workspace = true
-tome-manifest.workspace = true
+evildoer-base.workspace = true
+evildoer-input.workspace = true
+evildoer-macro.workspace = true
+evildoer-manifest.workspace = true
 unicode-segmentation = { workspace = true, optional = true }
 unicode-width = { workspace = true, optional = true }

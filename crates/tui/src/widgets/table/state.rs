@@ -23,9 +23,9 @@
 /// # Example
 ///
 /// ```rust
-/// use tome_tui::Frame;
-/// use tome_tui::layout::{Constraint, Rect};
-/// use tome_tui::widgets::{Row, Table, TableState};
+/// use evildoer_tui::Frame;
+/// use evildoer_tui::layout::{Constraint, Rect};
+/// use evildoer_tui::widgets::{Row, Table, TableState};
 ///
 /// # fn ui(frame: &mut Frame) {
 /// # let area = Rect::default();
@@ -63,7 +63,7 @@ impl TableState {
 	/// # Examples
 	///
 	/// ```rust
-	/// use tome_tui::widgets::TableState;
+	/// use evildoer_tui::widgets::TableState;
 	///
 	/// let state = TableState::new();
 	/// ```
@@ -82,7 +82,7 @@ impl TableState {
 	/// # Examples
 	///
 	/// ```rust
-	/// use tome_tui::widgets::TableState;
+	/// use evildoer_tui::widgets::TableState;
 	///
 	/// let state = TableState::new().with_offset(1);
 	/// ```
@@ -99,7 +99,7 @@ impl TableState {
 	/// # Examples
 	///
 	/// ```rust
-	/// use tome_tui::widgets::TableState;
+	/// use evildoer_tui::widgets::TableState;
 	///
 	/// let state = TableState::new().with_selected(Some(1));
 	/// ```
@@ -119,7 +119,7 @@ impl TableState {
 	/// # Examples
 	///
 	/// ```rust
-	/// # use tome_tui::widgets::{TableState};
+	/// # use evildoer_tui::widgets::{TableState};
 	/// let state = TableState::new().with_selected_column(Some(1));
 	/// ```
 	#[must_use = "method moves the value of self and returns the modified value"]
@@ -138,7 +138,7 @@ impl TableState {
 	/// # Examples
 	///
 	/// ```rust
-	/// # use tome_tui::widgets::{TableState};
+	/// # use evildoer_tui::widgets::{TableState};
 	/// let state = TableState::new().with_selected_cell(Some((1, 5)));
 	/// ```
 	#[must_use = "method moves the value of self and returns the modified value"]
@@ -162,7 +162,7 @@ impl TableState {
 	/// # Examples
 	///
 	/// ```rust
-	/// use tome_tui::widgets::TableState;
+	/// use evildoer_tui::widgets::TableState;
 	///
 	/// let state = TableState::new();
 	/// assert_eq!(state.offset(), 0);
@@ -176,7 +176,7 @@ impl TableState {
 	/// # Examples
 	///
 	/// ```rust
-	/// use tome_tui::widgets::TableState;
+	/// use evildoer_tui::widgets::TableState;
 	///
 	/// let mut state = TableState::default();
 	/// *state.offset_mut() = 1;
@@ -192,7 +192,7 @@ impl TableState {
 	/// # Examples
 	///
 	/// ```rust
-	/// use tome_tui::widgets::TableState;
+	/// use evildoer_tui::widgets::TableState;
 	///
 	/// let state = TableState::new();
 	/// assert_eq!(state.selected(), None);
@@ -208,7 +208,7 @@ impl TableState {
 	/// # Examples
 	///
 	/// ```rust
-	/// # use tome_tui::widgets::{TableState};
+	/// # use evildoer_tui::widgets::{TableState};
 	/// let state = TableState::new();
 	/// assert_eq!(state.selected_column(), None);
 	/// ```
@@ -223,7 +223,7 @@ impl TableState {
 	/// # Examples
 	///
 	/// ```rust
-	/// # use tome_tui::widgets::{TableState};
+	/// # use evildoer_tui::widgets::{TableState};
 	/// let state = TableState::new();
 	/// assert_eq!(state.selected_cell(), None);
 	/// ```
@@ -241,7 +241,7 @@ impl TableState {
 	/// # Examples
 	///
 	/// ```rust
-	/// use tome_tui::widgets::TableState;
+	/// use evildoer_tui::widgets::TableState;
 	///
 	/// let mut state = TableState::default();
 	/// *state.selected_mut() = Some(1);
@@ -257,7 +257,7 @@ impl TableState {
 	/// # Examples
 	///
 	/// ```rust
-	/// # use tome_tui::widgets::{TableState};
+	/// # use evildoer_tui::widgets::{TableState};
 	/// let mut state = TableState::default();
 	/// *state.selected_column_mut() = Some(1);
 	/// ```
@@ -272,7 +272,7 @@ impl TableState {
 	/// # Examples
 	///
 	/// ```rust
-	/// use tome_tui::widgets::TableState;
+	/// use evildoer_tui::widgets::TableState;
 	///
 	/// let mut state = TableState::default();
 	/// state.select(Some(1));
@@ -289,7 +289,7 @@ impl TableState {
 	/// # Examples
 	///
 	/// ```rust
-	/// # use tome_tui::widgets::{TableState};
+	/// # use evildoer_tui::widgets::{TableState};
 	/// let mut state = TableState::default();
 	/// state.select_column(Some(1));
 	/// ```
@@ -304,7 +304,7 @@ impl TableState {
 	/// # Examples
 	///
 	/// ```rust
-	/// # use tome_tui::widgets::{TableState};
+	/// # use evildoer_tui::widgets::{TableState};
 	/// let mut state = TableState::default();
 	/// state.select_cell(Some((1, 5)));
 	/// ```
@@ -327,7 +327,7 @@ impl TableState {
 	/// # Examples
 	///
 	/// ```rust
-	/// use tome_tui::widgets::TableState;
+	/// use evildoer_tui::widgets::TableState;
 	///
 	/// let mut state = TableState::default();
 	/// state.select_next();
@@ -345,7 +345,7 @@ impl TableState {
 	/// # Examples
 	///
 	/// ```rust
-	/// # use tome_tui::widgets::{TableState};
+	/// # use evildoer_tui::widgets::{TableState};
 	/// let mut state = TableState::default();
 	/// state.select_next_column();
 	/// ```
@@ -362,7 +362,7 @@ impl TableState {
 	/// # Examples
 	///
 	/// ```rust
-	/// use tome_tui::widgets::TableState;
+	/// use evildoer_tui::widgets::TableState;
 	///
 	/// let mut state = TableState::default();
 	/// state.select_previous();
@@ -380,7 +380,7 @@ impl TableState {
 	/// # Examples
 	///
 	/// ```rust
-	/// # use tome_tui::widgets::{TableState};
+	/// # use evildoer_tui::widgets::{TableState};
 	/// let mut state = TableState::default();
 	/// state.select_previous_column();
 	/// ```
@@ -399,7 +399,7 @@ impl TableState {
 	/// # Examples
 	///
 	/// ```rust
-	/// use tome_tui::widgets::TableState;
+	/// use evildoer_tui::widgets::TableState;
 	///
 	/// let mut state = TableState::default();
 	/// state.select_first();
@@ -416,7 +416,7 @@ impl TableState {
 	/// # Examples
 	///
 	/// ```rust
-	/// # use tome_tui::widgets::{TableState};
+	/// # use evildoer_tui::widgets::{TableState};
 	/// let mut state = TableState::default();
 	/// state.select_first_column();
 	/// ```
@@ -432,7 +432,7 @@ impl TableState {
 	/// # Examples
 	///
 	/// ```rust
-	/// use tome_tui::widgets::TableState;
+	/// use evildoer_tui::widgets::TableState;
 	///
 	/// let mut state = TableState::default();
 	/// state.select_last();
@@ -449,7 +449,7 @@ impl TableState {
 	/// # Examples
 	///
 	/// ```rust
-	/// # use tome_tui::widgets::{TableState};
+	/// # use evildoer_tui::widgets::{TableState};
 	/// let mut state = TableState::default();
 	/// state.select_last();
 	/// ```
@@ -466,7 +466,7 @@ impl TableState {
 	/// # Examples
 	///
 	/// ```rust
-	/// use tome_tui::widgets::TableState;
+	/// use evildoer_tui::widgets::TableState;
 	///
 	/// let mut state = TableState::default();
 	/// state.scroll_down_by(4);
@@ -485,7 +485,7 @@ impl TableState {
 	/// # Examples
 	///
 	/// ```rust
-	/// use tome_tui::widgets::TableState;
+	/// use evildoer_tui::widgets::TableState;
 	///
 	/// let mut state = TableState::default();
 	/// state.scroll_up_by(4);
@@ -504,7 +504,7 @@ impl TableState {
 	/// # Examples
 	///
 	/// ```rust
-	/// # use tome_tui::widgets::{TableState};
+	/// # use evildoer_tui::widgets::{TableState};
 	/// let mut state = TableState::default();
 	/// state.scroll_right_by(4);
 	/// ```
@@ -522,7 +522,7 @@ impl TableState {
 	/// # Examples
 	///
 	/// ```rust
-	/// # use tome_tui::widgets::{TableState};
+	/// # use evildoer_tui::widgets::{TableState};
 	/// let mut state = TableState::default();
 	/// state.scroll_left_by(4);
 	/// ```

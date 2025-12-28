@@ -13,8 +13,8 @@
 //! ## Example
 //!
 //! ```
-//! use tome_tui::style::{Color, Modifier, Style};
-//! use tome_tui::text::Span;
+//! use evildoer_tui::style::{Color, Modifier, Style};
+//! use evildoer_tui::text::Span;
 //!
 //! let heading_style = Style::new()
 //!     .fg(Color::Black)
@@ -41,8 +41,8 @@
 //! ## Example
 //!
 //! ```
-//! use tome_tui::style::{Color, Modifier, Style, Stylize};
-//! use tome_tui::text::{Span, Text};
+//! use evildoer_tui::style::{Color, Modifier, Style, Stylize};
+//! use evildoer_tui::text::{Span, Text};
 //!
 //! assert_eq!(
 //!     "hello".red().on_blue().bold(),
@@ -106,7 +106,7 @@ where
 /// Style lets you control the main characteristics of the displayed elements.
 ///
 /// ```rust
-/// use tome_tui::style::{Color, Modifier, Style};
+/// use evildoer_tui::style::{Color, Modifier, Style};
 ///
 /// Style::default()
 ///     .fg(Color::Black)
@@ -117,7 +117,7 @@ where
 /// Styles can also be created with a [shorthand notation](crate::style#using-style-shorthands).
 ///
 /// ```rust
-/// use tome_tui::style::{Style, Stylize};
+/// use evildoer_tui::style::{Style, Stylize};
 ///
 /// Style::new().black().on_green().italic().bold();
 /// ```
@@ -128,8 +128,8 @@ where
 /// anywhere that accepts `Into<Style>`.
 ///
 /// ```rust
-/// use tome_tui::style::{Color, Modifier, Style};
-/// use tome_tui::text::Line;
+/// use evildoer_tui::style::{Color, Modifier, Style};
+/// use evildoer_tui::text::Line;
 ///
 /// Line::styled("hello", Style::new().fg(Color::Red));
 /// // simplifies to
@@ -145,9 +145,9 @@ where
 /// just S3.
 ///
 /// ```rust
-/// use tome_tui::buffer::Buffer;
-/// use tome_tui::layout::Rect;
-/// use tome_tui::style::{Color, Modifier, Style};
+/// use evildoer_tui::buffer::Buffer;
+/// use evildoer_tui::layout::Rect;
+/// use evildoer_tui::style::{Color, Modifier, Style};
 ///
 /// let styles = [
 ///     Style::default()
@@ -183,9 +183,9 @@ where
 /// reset all properties until that point use [`Style::reset`].
 ///
 /// ```
-/// use tome_tui::buffer::Buffer;
-/// use tome_tui::layout::Rect;
-/// use tome_tui::style::{Color, Modifier, Style};
+/// use evildoer_tui::buffer::Buffer;
+/// use evildoer_tui::layout::Rect;
+/// use evildoer_tui::style::{Color, Modifier, Style};
 ///
 /// let styles = [
 ///     Style::default()
@@ -284,7 +284,7 @@ impl Style {
 	/// ## Examples
 	///
 	/// ```rust
-	/// use tome_tui::style::{Color, Style};
+	/// use evildoer_tui::style::{Color, Style};
 	///
 	/// let style = Style::default().fg(Color::Blue);
 	/// let diff = Style::default().fg(Color::Red);
@@ -301,7 +301,7 @@ impl Style {
 	/// ## Examples
 	///
 	/// ```rust
-	/// use tome_tui::style::{Color, Style};
+	/// use evildoer_tui::style::{Color, Style};
 	///
 	/// let style = Style::default().bg(Color::Blue);
 	/// let diff = Style::default().bg(Color::Red);
@@ -326,7 +326,7 @@ impl Style {
 	/// ## Examples
 	///
 	/// ```rust
-	/// use tome_tui::style::{Color, Modifier, Style};
+	/// use evildoer_tui::style::{Color, Modifier, Style};
 	///
 	/// let style = Style::default()
 	///     .underline_color(Color::Blue)
@@ -355,7 +355,7 @@ impl Style {
 	/// ## Examples
 	///
 	/// ```rust
-	/// use tome_tui::style::{Modifier, Style};
+	/// use evildoer_tui::style::{Modifier, Style};
 	///
 	/// let style = Style::default().add_modifier(Modifier::BOLD);
 	/// let diff = Style::default().add_modifier(Modifier::ITALIC);
@@ -377,7 +377,7 @@ impl Style {
 	/// ## Examples
 	///
 	/// ```rust
-	/// use tome_tui::style::{Modifier, Style};
+	/// use evildoer_tui::style::{Modifier, Style};
 	///
 	/// let style = Style::default().add_modifier(Modifier::BOLD | Modifier::ITALIC);
 	/// let diff = Style::default().remove_modifier(Modifier::ITALIC);
@@ -397,7 +397,7 @@ impl Style {
 	/// ## Examples
 	///
 	/// ```rust
-	/// use tome_tui::style::{Modifier, Style};
+	/// use evildoer_tui::style::{Modifier, Style};
 	///
 	/// let style = Style::default().add_modifier(Modifier::BOLD | Modifier::ITALIC);
 	/// assert!(style.has_modifier(Modifier::BOLD));
@@ -416,7 +416,7 @@ impl Style {
 	///
 	/// ## Examples
 	/// ```
-	/// use tome_tui::style::{Color, Modifier, Style};
+	/// use evildoer_tui::style::{Color, Modifier, Style};
 	///
 	/// let style_1 = Style::default().fg(Color::Yellow);
 	/// let style_2 = Style::default().bg(Color::Red);
@@ -529,7 +529,7 @@ impl From<Color> for Style {
 	/// # Example
 	///
 	/// ```rust
-	/// use tome_tui::style::{Color, Style};
+	/// use evildoer_tui::style::{Color, Style};
 	///
 	/// let style = Style::from(Color::Red);
 	/// ```
@@ -544,7 +544,7 @@ impl From<(Color, Color)> for Style {
 	/// # Example
 	///
 	/// ```rust
-	/// use tome_tui::style::{Color, Style};
+	/// use evildoer_tui::style::{Color, Style};
 	///
 	/// // red foreground, blue background
 	/// let style = Style::from((Color::Red, Color::Blue));
@@ -567,7 +567,7 @@ impl From<Modifier> for Style {
 	/// # Example
 	///
 	/// ```rust
-	/// use tome_tui::style::{Style, Modifier};
+	/// use evildoer_tui::style::{Style, Modifier};
 	///
 	/// // add bold and italic
 	/// let style = Style::from(Modifier::BOLD|Modifier::ITALIC);
@@ -582,7 +582,7 @@ impl From<(Modifier, Modifier)> for Style {
 	/// # Example
 	///
 	/// ```rust
-	/// use tome_tui::style::{Modifier, Style};
+	/// use evildoer_tui::style::{Modifier, Style};
 	///
 	/// // add bold and italic, remove dim
 	/// let style = Style::from((Modifier::BOLD | Modifier::ITALIC, Modifier::DIM));
@@ -602,7 +602,7 @@ impl From<(Color, Modifier)> for Style {
 	/// # Example
 	///
 	/// ```rust
-	/// use tome_tui::style::{Color, Modifier, Style};
+	/// use evildoer_tui::style::{Color, Modifier, Style};
 	///
 	/// // red foreground, add bold and italic
 	/// let style = Style::from((Color::Red, Modifier::BOLD | Modifier::ITALIC));
@@ -620,7 +620,7 @@ impl From<(Color, Color, Modifier)> for Style {
 	/// # Example
 	///
 	/// ```rust
-	/// use tome_tui::style::{Color, Modifier, Style};
+	/// use evildoer_tui::style::{Color, Modifier, Style};
 	///
 	/// // red foreground, blue background, add bold and italic
 	/// let style = Style::from((Color::Red, Color::Blue, Modifier::BOLD | Modifier::ITALIC));
@@ -637,7 +637,7 @@ impl From<(Color, Color, Modifier, Modifier)> for Style {
 	/// # Example
 	///
 	/// ```rust
-	/// use tome_tui::style::{Color, Modifier, Style};
+	/// use evildoer_tui::style::{Color, Modifier, Style};
 	///
 	/// // red foreground, blue background, add bold and italic, remove dim
 	/// let style = Style::from((

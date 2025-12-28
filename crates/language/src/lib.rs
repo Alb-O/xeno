@@ -1,4 +1,4 @@
-//! Tree-sitter syntax integration for Tome editor.
+//! Tree-sitter syntax integration for Evildoer editor.
 //!
 //! This crate provides Tree-sitter parsing, syntax highlighting, and structural
 //! queries using the `tree-house` abstraction library.
@@ -11,9 +11,9 @@
 //! - [`query`]: Query types for indentation, text objects, tags
 //! - [`highlight`]: Syntax highlighting via tree-sitter queries
 //!
-//! # Integration with Tome
+//! # Integration with Evildoer
 //!
-//! Languages are registered via the `LANGUAGES` distributed slice in tome-manifest.
+//! Languages are registered via the `LANGUAGES` distributed slice in evildoer-manifest.
 //! Each language definition includes:
 //! - Grammar name (for loading the .so file)
 //! - File type associations

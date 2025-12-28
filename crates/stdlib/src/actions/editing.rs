@@ -1,9 +1,9 @@
 //! Editing actions (delete, yank, paste, undo, redo, etc.).
 
 use linkme::distributed_slice;
-use tome_base::key::Key;
-use tome_manifest::actions::{ActionDef, ActionResult, EditAction, PendingAction, PendingKind};
-use tome_manifest::{ACTIONS, bound_action};
+use evildoer_base::key::Key;
+use evildoer_manifest::actions::{ActionDef, ActionResult, EditAction, PendingAction, PendingKind};
+use evildoer_manifest::{ACTIONS, bound_action};
 
 macro_rules! bound_edit_action {
 	($name:ident, key: $key:expr, description: $desc:expr, edit: $edit:expr) => {
@@ -49,9 +49,9 @@ static ACTION_DELETE_BACK: ActionDef = ActionDef {
 	description: "Delete character before cursor",
 	handler: |_ctx| ActionResult::Edit(EditAction::DeleteBack),
 	priority: 0,
-	source: tome_manifest::RegistrySource::Crate(env!("CARGO_PKG_NAME")),
+	source: evildoer_manifest::RegistrySource::Crate(env!("CARGO_PKG_NAME")),
 	required_caps: &[],
-	flags: tome_manifest::flags::NONE,
+	flags: evildoer_manifest::flags::NONE,
 };
 
 bound_action!(

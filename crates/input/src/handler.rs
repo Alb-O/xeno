@@ -1,5 +1,5 @@
-use tome_base::key::{Key, KeyCode, MouseButton, MouseEvent, SpecialKey};
-use tome_manifest::{BindingMode, find_binding, find_binding_resolved};
+use evildoer_base::key::{Key, KeyCode, MouseButton, MouseEvent, SpecialKey};
+use evildoer_manifest::{BindingMode, find_binding, find_binding_resolved};
 
 use crate::types::{KeyResult, Mode};
 
@@ -41,7 +41,7 @@ impl InputHandler {
 	}
 
 	pub fn mode_name(&self) -> &'static str {
-		use tome_manifest::PendingKind;
+		use evildoer_manifest::PendingKind;
 		match &self.mode {
 			Mode::Normal => "NORMAL",
 			Mode::Insert => "INSERT",

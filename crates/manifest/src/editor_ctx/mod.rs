@@ -28,8 +28,8 @@ mod handlers;
 
 pub use capabilities::*;
 pub use handlers::*;
-use tome_base::range::CharIdx;
-use tome_base::selection::Selection;
+use evildoer_base::range::CharIdx;
+use evildoer_base::selection::Selection;
 
 use crate::{Capability, CommandError, Mode};
 
@@ -58,7 +58,7 @@ use crate::{Capability, CommandError, Mode};
 /// [`ActionResult`]: crate::ActionResult
 /// [`check_capability`]: Self::check_capability
 pub struct EditorContext<'a> {
-	/// The capability provider (typically [`Editor`] from tome-api).
+	/// The capability provider (typically [`Editor`] from evildoer-api).
 	///
 	/// [`Editor`]: crate::Editor
 	inner: &'a mut dyn EditorCapabilities,

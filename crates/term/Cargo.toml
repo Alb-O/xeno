@@ -1,12 +1,12 @@
 [package]
-name = "tome-term"
-description = "Terminal frontend for Tome editor"
+name = "evildoer-term"
+description = "Terminal frontend for Evildoer editor"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 
 [[bin]]
-name = "tome"
+name = "evil"
 path = "src/main.rs"
 
 [dependencies]
@@ -20,15 +20,15 @@ termina.workspace = true
 thiserror.workspace = true
 tokio.workspace = true
 tokio-util.workspace = true
-tome-acp.workspace = true
-tome-api.workspace = true
-tome-base.workspace = true
-tome-extensions.workspace = true
-tome-language.workspace = true
-tome-manifest.workspace = true
-tome-stdlib.workspace = true
-tome-theme.workspace = true
-tome-tui.workspace = true
+evildoer-acp.workspace = true
+evildoer-api.workspace = true
+evildoer-base.workspace = true
+evildoer-extensions.workspace = true
+evildoer-language.workspace = true
+evildoer-manifest.workspace = true
+evildoer-stdlib.workspace = true
+evildoer-theme.workspace = true
+evildoer-tui.workspace = true
 toml.workspace = true
 
 [dev-dependencies]

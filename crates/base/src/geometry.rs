@@ -1,7 +1,7 @@
 //! Abstract geometry types for layout.
 //!
 //! These types define rectangles, positions, and padding without depending on
-//! any terminal or UI library. Conversion to tome_tui types happens at the UI
+//! any terminal or UI library. Conversion to evildoer_tui types happens at the UI
 //! boundary via `From` trait implementations.
 
 use serde::{Deserialize, Serialize};
@@ -162,52 +162,52 @@ pub enum BorderKind {
 	Padded,
 }
 
-// Conversion to tome_tui types
+// Conversion to evildoer_tui types
 
-#[cfg(feature = "tome-tui")]
-impl From<Rect> for tome_tui::layout::Rect {
+#[cfg(feature = "evildoer-tui")]
+impl From<Rect> for evildoer_tui::layout::Rect {
 	fn from(rect: Rect) -> Self {
 		Self::new(rect.x, rect.y, rect.width, rect.height)
 	}
 }
 
-#[cfg(feature = "tome-tui")]
-impl From<tome_tui::layout::Rect> for Rect {
-	fn from(rect: tome_tui::layout::Rect) -> Self {
+#[cfg(feature = "evildoer-tui")]
+impl From<evildoer_tui::layout::Rect> for Rect {
+	fn from(rect: evildoer_tui::layout::Rect) -> Self {
 		Self::new(rect.x, rect.y, rect.width, rect.height)
 	}
 }
 
-#[cfg(feature = "tome-tui")]
-impl From<Position> for tome_tui::layout::Position {
+#[cfg(feature = "evildoer-tui")]
+impl From<Position> for evildoer_tui::layout::Position {
 	fn from(pos: Position) -> Self {
 		Self::new(pos.x, pos.y)
 	}
 }
 
-#[cfg(feature = "tome-tui")]
-impl From<tome_tui::layout::Position> for Position {
-	fn from(pos: tome_tui::layout::Position) -> Self {
+#[cfg(feature = "evildoer-tui")]
+impl From<evildoer_tui::layout::Position> for Position {
+	fn from(pos: evildoer_tui::layout::Position) -> Self {
 		Self::new(pos.x, pos.y)
 	}
 }
 
-#[cfg(feature = "tome-tui")]
-impl From<Padding> for tome_tui::widgets::block::Padding {
+#[cfg(feature = "evildoer-tui")]
+impl From<Padding> for evildoer_tui::widgets::block::Padding {
 	fn from(padding: Padding) -> Self {
 		Self::new(padding.left, padding.right, padding.top, padding.bottom)
 	}
 }
 
-#[cfg(feature = "tome-tui")]
-impl From<tome_tui::widgets::block::Padding> for Padding {
-	fn from(padding: tome_tui::widgets::block::Padding) -> Self {
+#[cfg(feature = "evildoer-tui")]
+impl From<evildoer_tui::widgets::block::Padding> for Padding {
+	fn from(padding: evildoer_tui::widgets::block::Padding) -> Self {
 		Self::new(padding.top, padding.right, padding.bottom, padding.left)
 	}
 }
 
-#[cfg(feature = "tome-tui")]
-impl From<BorderKind> for tome_tui::widgets::BorderType {
+#[cfg(feature = "evildoer-tui")]
+impl From<BorderKind> for evildoer_tui::widgets::BorderType {
 	fn from(kind: BorderKind) -> Self {
 		match kind {
 			BorderKind::Plain => Self::Plain,
@@ -219,15 +219,15 @@ impl From<BorderKind> for tome_tui::widgets::BorderType {
 	}
 }
 
-#[cfg(feature = "tome-tui")]
-impl From<tome_tui::widgets::BorderType> for BorderKind {
-	fn from(border_type: tome_tui::widgets::BorderType) -> Self {
+#[cfg(feature = "evildoer-tui")]
+impl From<evildoer_tui::widgets::BorderType> for BorderKind {
+	fn from(border_type: evildoer_tui::widgets::BorderType) -> Self {
 		match border_type {
-			tome_tui::widgets::BorderType::Plain => Self::Plain,
-			tome_tui::widgets::BorderType::Rounded => Self::Rounded,
-			tome_tui::widgets::BorderType::Double => Self::Double,
-			tome_tui::widgets::BorderType::Thick => Self::Thick,
-			tome_tui::widgets::BorderType::Padded => Self::Padded,
+			evildoer_tui::widgets::BorderType::Plain => Self::Plain,
+			evildoer_tui::widgets::BorderType::Rounded => Self::Rounded,
+			evildoer_tui::widgets::BorderType::Double => Self::Double,
+			evildoer_tui::widgets::BorderType::Thick => Self::Thick,
+			evildoer_tui::widgets::BorderType::Padded => Self::Padded,
 			// QuadrantInside/Outside don't have direct mappings
 			_ => Self::Plain,
 		}
@@ -261,12 +261,12 @@ mod tests {
 		assert_eq!(padding.vertical_total(), 4);
 	}
 
-	#[cfg(feature = "tome-tui")]
+	#[cfg(feature = "evildoer-tui")]
 	#[test]
 	fn test_rect_roundtrip() {
 		let rect = Rect::new(10, 20, 100, 50);
-		let tome_tui_rect: tome_tui::layout::Rect = rect.into();
-		let back: Rect = tome_tui_rect.into();
+		let evildoer_tui_rect: evildoer_tui::layout::Rect = rect.into();
+		let back: Rect = evildoer_tui_rect.into();
 		assert_eq!(rect, back);
 	}
 }

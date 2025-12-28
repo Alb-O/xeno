@@ -84,8 +84,8 @@ impl Cell {
 	/// # Example
 	///
 	/// ```
-	/// # use tome_tui::buffer::Cell;
-	/// use tome_tui::symbols::merge::MergeStrategy;
+	/// # use evildoer_tui::buffer::Cell;
+	/// use evildoer_tui::symbols::merge::MergeStrategy;
 	///
 	/// assert_eq!(
 	///     Cell::new("┘")

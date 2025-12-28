@@ -1,7 +1,7 @@
 use ropey::RopeSlice;
-use tome_base::Selection;
-use tome_base::range::{CharIdx, Range};
-use tome_macro::DispatchResult;
+use evildoer_base::Selection;
+use evildoer_base::range::{CharIdx, Range};
+use evildoer_macro::DispatchResult;
 
 use crate::{Capability, RegistrySource, find_motion};
 
@@ -266,7 +266,7 @@ pub struct ActionArgs {
 ///
 /// # Registration
 ///
-/// Use the `#[action]` proc macro in `tome-stdlib` to register actions:
+/// Use the `#[action]` proc macro in `evildoer-stdlib` to register actions:
 ///
 /// ```ignore
 /// #[action(id = "move_line_down", name = "Move Line Down")]
@@ -275,7 +275,7 @@ pub struct ActionArgs {
 /// }
 /// ```
 pub struct ActionDef {
-	/// Unique identifier (e.g., "tome-stdlib::move_line_down").
+	/// Unique identifier (e.g., "evildoer-stdlib::move_line_down").
 	pub id: &'static str,
 	/// Human-readable name for UI display.
 	pub name: &'static str,

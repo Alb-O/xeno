@@ -8,7 +8,7 @@ mod helpers;
 use std::time::Duration;
 
 use helpers::{
-	insert_text, reset_test_file, tome_cmd_debug_theme, tome_cmd_debug_with_log, workspace_dir,
+	insert_text, reset_test_file, evildoer_cmd_debug_theme, evildoer_cmd_debug_with_log, workspace_dir,
 };
 use kitty_test_harness::{
 	AnsiColor, cleanup_test_log, create_test_log, extract_row_colors_parsed,
@@ -142,7 +142,7 @@ fn separator_hover_shows_lerped_animation() {
 	let log_path_clone = log_path.clone();
 	reset_test_file(file);
 	run_with_timeout(TEST_TIMEOUT, move || {
-		let cmd = tome_cmd_debug_with_log(file, &log_path_clone);
+		let cmd = evildoer_cmd_debug_with_log(file, &log_path_clone);
 		with_kitty_capture(&workspace_dir(), &cmd, |kitty| {
 			pause_briefly();
 
@@ -245,7 +245,7 @@ fn separator_fadeout_shows_lerped_animation() {
 	let log_path_clone = log_path.clone();
 	reset_test_file(file);
 	run_with_timeout(TEST_TIMEOUT, move || {
-		let cmd = tome_cmd_debug_with_log(file, &log_path_clone);
+		let cmd = evildoer_cmd_debug_with_log(file, &log_path_clone);
 		with_kitty_capture(&workspace_dir(), &cmd, |kitty| {
 			pause_briefly();
 
@@ -336,7 +336,7 @@ fn fast_mouse_suppresses_separator_hover() {
 	let file = "tmp/kitty/separator-fast.txt";
 	reset_test_file(file);
 	run_with_timeout(TEST_TIMEOUT, || {
-		with_kitty_capture(&workspace_dir(), &tome_cmd_debug_theme(file), |kitty| {
+		with_kitty_capture(&workspace_dir(), &evildoer_cmd_debug_theme(file), |kitty| {
 			pause_briefly();
 
 			insert_text(kitty, "LEFT");

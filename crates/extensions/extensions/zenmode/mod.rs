@@ -1,4 +1,4 @@
-//! Zen Mode extension for Tome.
+//! Zen Mode extension for Evildoer.
 //!
 //! Provides a focus mode that dims syntax highlighting outside the current
 //! tree-sitter element (function, struct, impl, etc.) containing the cursor.
@@ -22,8 +22,8 @@ mod commands;
 use std::ops::Range;
 
 use linkme::distributed_slice;
-use tome_api::editor::Editor;
-use tome_api::editor::extensions::{
+use evildoer_api::editor::Editor;
+use evildoer_api::editor::extensions::{
 	EXTENSIONS, ExtensionInitDef, ExtensionRenderDef, RENDER_EXTENSIONS,
 };
 
@@ -98,7 +98,7 @@ fn is_secondary_focus(kind: &str) -> bool {
 
 use std::time::{Duration, Instant};
 
-use tome_api::editor::extensions::Easing;
+use evildoer_api::editor::extensions::Easing;
 
 /// Default animation duration for focus transitions between nodes.
 const TRANSITION_DURATION: Duration = Duration::from_millis(150);
@@ -320,7 +320,7 @@ impl ZenmodeState {
 /// This ensures we always find a reasonable container even when the cursor
 /// is inside nested expressions like string literals.
 fn find_focus_range(
-	syntax: &tome_language::syntax::Syntax,
+	syntax: &evildoer_language::syntax::Syntax,
 	cursor_byte: u32,
 ) -> Option<Range<usize>> {
 	// Find the smallest named node containing the cursor

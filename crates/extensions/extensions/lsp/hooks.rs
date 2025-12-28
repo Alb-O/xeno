@@ -5,9 +5,9 @@
 use std::sync::Arc;
 
 use linkme::distributed_slice;
-use tome_api::editor::extensions::ExtensionMap;
-use tome_manifest::RegistrySource;
-use tome_manifest::hooks::{
+use evildoer_api::editor::extensions::ExtensionMap;
+use evildoer_manifest::RegistrySource;
+use evildoer_manifest::hooks::{
 	HOOKS, HookAction, HookContext, HookDef, HookEvent, HookResult, OwnedHookContext,
 };
 
@@ -15,13 +15,13 @@ use super::LspManager;
 
 #[distributed_slice(HOOKS)]
 static LSP_BUFFER_OPEN: HookDef = HookDef {
-	id: "tome-extensions::lsp::buffer_open",
+	id: "evildoer-extensions::lsp::buffer_open",
 	name: "lsp_buffer_open",
 	event: HookEvent::BufferOpen,
 	description: "Notify language servers when a buffer is opened",
 	priority: 50,
 	handler: lsp_buffer_open_handler,
-	source: RegistrySource::Crate("tome-extensions"),
+	source: RegistrySource::Crate("evildoer-extensions"),
 };
 
 fn lsp_buffer_open_handler(ctx: &HookContext) -> HookAction {
@@ -49,13 +49,13 @@ fn lsp_buffer_open_handler(ctx: &HookContext) -> HookAction {
 
 #[distributed_slice(HOOKS)]
 static LSP_BUFFER_CHANGE: HookDef = HookDef {
-	id: "tome-extensions::lsp::buffer_change",
+	id: "evildoer-extensions::lsp::buffer_change",
 	name: "lsp_buffer_change",
 	event: HookEvent::BufferChange,
 	description: "Notify language servers when buffer content changes",
 	priority: 50,
 	handler: lsp_buffer_change_handler,
-	source: RegistrySource::Crate("tome-extensions"),
+	source: RegistrySource::Crate("evildoer-extensions"),
 };
 
 fn lsp_buffer_change_handler(ctx: &HookContext) -> HookAction {
@@ -86,13 +86,13 @@ fn lsp_buffer_change_handler(ctx: &HookContext) -> HookAction {
 
 #[distributed_slice(HOOKS)]
 static LSP_BUFFER_CLOSE: HookDef = HookDef {
-	id: "tome-extensions::lsp::buffer_close",
+	id: "evildoer-extensions::lsp::buffer_close",
 	name: "lsp_buffer_close",
 	event: HookEvent::BufferClose,
 	description: "Notify language servers when a buffer is closed",
 	priority: 50,
 	handler: lsp_buffer_close_handler,
-	source: RegistrySource::Crate("tome-extensions"),
+	source: RegistrySource::Crate("evildoer-extensions"),
 };
 
 fn lsp_buffer_close_handler(ctx: &HookContext) -> HookAction {
@@ -116,13 +116,13 @@ fn lsp_buffer_close_handler(ctx: &HookContext) -> HookAction {
 
 #[distributed_slice(HOOKS)]
 static LSP_EDITOR_QUIT: HookDef = HookDef {
-	id: "tome-extensions::lsp::editor_quit",
+	id: "evildoer-extensions::lsp::editor_quit",
 	name: "lsp_editor_quit",
 	event: HookEvent::EditorQuit,
 	description: "Shutdown language servers when editor quits",
 	priority: 10,
 	handler: lsp_editor_quit_handler,
-	source: RegistrySource::Crate("tome-extensions"),
+	source: RegistrySource::Crate("evildoer-extensions"),
 };
 
 fn lsp_editor_quit_handler(ctx: &HookContext) -> HookAction {
@@ -187,8 +187,8 @@ fn infer_language_from_path(path: &std::path::Path) -> Option<String> {
 mod tests {
 	use std::path::Path;
 
-	use tome_api::editor::extensions::ExtensionMap;
-	use tome_manifest::hooks::{
+	use evildoer_api::editor::extensions::ExtensionMap;
+	use evildoer_manifest::hooks::{
 		HookAction, HookContext, HookEvent, HookEventData, OwnedHookContext,
 	};
 

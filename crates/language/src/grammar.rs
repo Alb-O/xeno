@@ -5,7 +5,7 @@
 //!
 //! # Runtime Directory
 //!
-//! Tome stores all runtime data (grammars, queries) in `~/.local/share/tome/`.
+//! Evildoer stores all runtime data (grammars, queries) in `~/.local/share/evildoer/`.
 //! On first use, query files are seeded from the embedded runtime, and grammars
 //! are built on-demand when a language is first opened.
 //!
@@ -135,29 +135,29 @@ pub enum GrammarSource {
 	Builtin(&'static str),
 }
 
-/// Returns the primary runtime directory for Tome: `~/.local/share/tome/`.
+/// Returns the primary runtime directory for Evildoer: `~/.local/share/evildoer/`.
 pub fn runtime_dir() -> PathBuf {
-	if let Ok(runtime) = std::env::var("TOME_RUNTIME") {
+	if let Ok(runtime) = std::env::var("EVILDOER_RUNTIME") {
 		return PathBuf::from(runtime);
 	}
 
 	data_local_dir()
-		.map(|d| d.join("tome"))
+		.map(|d| d.join("evildoer"))
 		.unwrap_or_else(|| PathBuf::from("."))
 }
 
-/// Returns the cache directory: `~/.cache/tome/`.
+/// Returns the cache directory: `~/.cache/evildoer/`.
 pub fn cache_dir() -> Option<PathBuf> {
 	#[cfg(unix)]
 	{
 		std::env::var_os("XDG_CACHE_HOME")
 			.map(PathBuf::from)
 			.or_else(|| std::env::var_os("HOME").map(|h| PathBuf::from(h).join(".cache")))
-			.map(|p| p.join("tome"))
+			.map(|p| p.join("evildoer"))
 	}
 	#[cfg(windows)]
 	{
-		std::env::var_os("LOCALAPPDATA").map(|p| PathBuf::from(p).join("tome").join("cache"))
+		std::env::var_os("LOCALAPPDATA").map(|p| PathBuf::from(p).join("evildoer").join("cache"))
 	}
 	#[cfg(not(any(unix, windows)))]
 	{
@@ -169,12 +169,12 @@ pub fn cache_dir() -> Option<PathBuf> {
 pub fn grammar_search_paths() -> Vec<PathBuf> {
 	let mut dirs = Vec::new();
 
-	if let Ok(runtime) = std::env::var("TOME_RUNTIME") {
+	if let Ok(runtime) = std::env::var("EVILDOER_RUNTIME") {
 		dirs.push(PathBuf::from(runtime).join("grammars"));
 	}
 
 	if let Some(data) = data_local_dir() {
-		dirs.push(data.join("tome").join("grammars"));
+		dirs.push(data.join("evildoer").join("grammars"));
 	}
 
 	for helix_dir in helix_runtime_dirs() {
@@ -188,12 +188,12 @@ pub fn grammar_search_paths() -> Vec<PathBuf> {
 pub fn query_search_paths() -> Vec<PathBuf> {
 	let mut dirs = Vec::new();
 
-	if let Ok(runtime) = std::env::var("TOME_RUNTIME") {
+	if let Ok(runtime) = std::env::var("EVILDOER_RUNTIME") {
 		dirs.push(PathBuf::from(runtime).join("queries"));
 	}
 
 	if let Some(data) = data_local_dir() {
-		dirs.push(data.join("tome").join("queries"));
+		dirs.push(data.join("evildoer").join("queries"));
 	}
 
 	for helix_dir in helix_runtime_dirs() {

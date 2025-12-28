@@ -14,7 +14,7 @@ use crate::animation::lerp::Animatable;
 ///
 /// ```
 /// use std::time::Duration;
-/// use tome_tui::animation::{Animatable, Easing, Tween};
+/// use evildoer_tui::animation::{Animatable, Easing, Tween};
 ///
 /// // Animate from 0.0 to 100.0 over 500ms with ease-out
 /// let tween = Tween::new(0.0f32, 100.0f32, Duration::from_millis(500))
@@ -160,7 +160,7 @@ impl<T: Animatable> Tween<T> {
 ///
 /// ```
 /// use std::time::Duration;
-/// use tome_tui::animation::{Easing, ToggleTween};
+/// use evildoer_tui::animation::{Easing, ToggleTween};
 ///
 /// let mut toggle = ToggleTween::new(0.0f32, 1.0f32, Duration::from_millis(200))
 ///     .with_easing(Easing::EaseOut);

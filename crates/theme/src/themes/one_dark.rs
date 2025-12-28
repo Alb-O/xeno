@@ -51,7 +51,7 @@ pub static ONE_DARK: Theme = Theme {
 		syntax: one_dark_syntax(),
 	},
 	priority: 0,
-	source: tome_manifest::RegistrySource::Builtin,
+	source: evildoer_manifest::RegistrySource::Builtin,
 };
 
 // One Dark palette

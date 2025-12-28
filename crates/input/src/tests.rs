@@ -4,7 +4,7 @@
 //! the keybinding/action registry. Integration tests that verify
 //! keybinding → action resolution are in tests/keybindings.rs.
 
-use tome_base::key::Key;
+use evildoer_base::key::Key;
 
 use crate::InputHandler;
 

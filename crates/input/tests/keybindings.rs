@@ -3,14 +3,14 @@
 //! These tests require the full registry (keybindings + actions) to be linked,
 //! which happens automatically in integration tests since they link all dependencies.
 
-// Force linkage of tome-stdlib to ensure all actions are registered.
+// Force linkage of evildoer-stdlib to ensure all actions are registered.
 // This is necessary because linkme distributed slices only include statics
 // that are actually linked into the binary.
-extern crate tome_stdlib;
+extern crate evildoer_stdlib;
 
-use tome_base::key::{Key, KeyCode, Modifiers, SpecialKey};
-use tome_input::{InputHandler, KeyResult};
-use tome_manifest::find_action_by_id;
+use evildoer_base::key::{Key, KeyCode, Modifiers, SpecialKey};
+use evildoer_input::{InputHandler, KeyResult};
+use evildoer_manifest::find_action_by_id;
 
 /// Helper to extract action name and extend flag from KeyResult.
 /// Handles both string-based Action and typed ActionById.

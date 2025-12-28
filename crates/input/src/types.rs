@@ -1,7 +1,7 @@
-use tome_base::key::ScrollDirection;
-use tome_manifest::ActionId;
-// Re-export Mode from tome-manifest
-pub use tome_manifest::Mode;
+use evildoer_base::key::ScrollDirection;
+use evildoer_manifest::ActionId;
+// Re-export Mode from evildoer-manifest
+pub use evildoer_manifest::Mode;
 
 /// Result of processing a key.
 #[derive(Debug, Clone)]

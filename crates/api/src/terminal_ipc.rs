@@ -5,7 +5,7 @@
 //!
 //! 1. A temp directory with shell script wrappers (e.g., `:write`, `:quit`) is created
 //! 2. That directory is prepended to `$PATH`
-//! 3. `$TOME_SOCKET` points to our Unix socket
+//! 3. `$EVILDOER_SOCKET` points to our Unix socket
 //!
 //! The wrappers send tab-separated messages over the socket, which the editor
 //! polls and dispatches to command handlers.
@@ -29,7 +29,7 @@ use std::thread;
 
 static IPC_COUNTER: AtomicU64 = AtomicU64::new(0);
 
-use tome_manifest::COMMANDS;
+use evildoer_manifest::COMMANDS;
 
 /// A request received from a shell command wrapper.
 #[derive(Debug, Clone)]
@@ -57,7 +57,7 @@ impl TerminalIpcEnv {
 		&self.bin_dir
 	}
 
-	/// Returns the socket path for `$TOME_SOCKET`.
+	/// Returns the socket path for `$EVILDOER_SOCKET`.
 	pub fn socket_path(&self) -> &Path {
 		&self.socket_path
 	}
@@ -75,11 +75,11 @@ impl TerminalIpcEnv {
 				format!("{}:{}", self.bin_dir.display(), current_path),
 			),
 			(
-				"TOME_SOCKET".to_string(),
+				"EVILDOER_SOCKET".to_string(),
 				self.socket_path.display().to_string(),
 			),
-			// TOME_BIN allows shells that reset PATH (like fish) to add it manually
-			("TOME_BIN".to_string(), self.bin_dir.display().to_string()),
+			// EVILDOER_BIN allows shells that reset PATH (like fish) to add it manually
+			("EVILDOER_BIN".to_string(), self.bin_dir.display().to_string()),
 		];
 		if let Some(fish_dir) = &self.fish_config_dir {
 			vars.push((
@@ -110,7 +110,7 @@ impl TerminalIpc {
 	/// Returns an error if the temp directory or socket cannot be created.
 	pub fn new() -> std::io::Result<Self> {
 		let id = IPC_COUNTER.fetch_add(1, Ordering::Relaxed);
-		let base_dir = std::env::temp_dir().join(format!("tome-{}-{}", std::process::id(), id));
+		let base_dir = std::env::temp_dir().join(format!("evildoer-{}-{}", std::process::id(), id));
 		let bin_dir = base_dir.join("bin");
 		let socket_path = base_dir.join("socket");
 
@@ -180,13 +180,13 @@ fn generate_command_wrappers(bin_dir: &Path) -> std::io::Result<()> {
 fn generate_wrapper_script(cmd_name: &str) -> String {
 	format!(
 		r#"#!/bin/sh
-[ -z "$TOME_SOCKET" ] && echo "Not in Tome editor" >&2 && exit 1
-[ ! -S "$TOME_SOCKET" ] && echo "Socket not found" >&2 && exit 1
+[ -z "$EVILDOER_SOCKET" ] && echo "Not in Evildoer editor" >&2 && exit 1
+[ ! -S "$EVILDOER_SOCKET" ] && echo "Socket not found" >&2 && exit 1
 MSG="{cmd_name}"
 for arg in "$@"; do MSG="$MSG	$arg"; done
-printf '%s\n' "$MSG" | nc -UN "$TOME_SOCKET" 2>/dev/null && exit 0
-printf '%s\n' "$MSG" | nc -U -q0 "$TOME_SOCKET" 2>/dev/null && exit 0
-printf '%s\n' "$MSG" | nc -U -w1 "$TOME_SOCKET" 2>/dev/null && exit 0
+printf '%s\n' "$MSG" | nc -UN "$EVILDOER_SOCKET" 2>/dev/null && exit 0
+printf '%s\n' "$MSG" | nc -U -q0 "$EVILDOER_SOCKET" 2>/dev/null && exit 0
+printf '%s\n' "$MSG" | nc -U -w1 "$EVILDOER_SOCKET" 2>/dev/null && exit 0
 "#
 	)
 }
@@ -208,10 +208,10 @@ fn generate_fish_wrapper_script(fish_bin: &Path, bin_dir: &Path, socket_path: &P
 	let init = escape_single_quotes(&init);
 	format!(
 		r#"#!/bin/sh
-TOME_BIN="{bin_dir}"
-export TOME_BIN
-TOME_SOCKET="{socket}"
-export TOME_SOCKET
+EVILDOER_BIN="{bin_dir}"
+export EVILDOER_BIN
+EVILDOER_SOCKET="{socket}"
+export EVILDOER_SOCKET
 exec "{fish_bin}" -i --init-command '{init}' "$@"
 "#,
 		bin_dir = bin_dir.display(),
@@ -236,16 +236,16 @@ fn generate_fish_config(
 	let mut script = String::new();
 	if let Some(original) = find_original_fish_config() {
 		script.push_str(&format!(
-			"set -l __tome_orig_config \"{}\"\nif test -f \"$__tome_orig_config\"\n    source \"$__tome_orig_config\"\nend\n",
+			"set -l __evildoer_orig_config \"{}\"\nif test -f \"$__evildoer_orig_config\"\n    source \"$__evildoer_orig_config\"\nend\n",
 			original.display()
 		));
 	}
 	script.push_str(&format!(
-		"function __tome_path_refresh --on-event fish_prompt\n    if not contains -- {bin_dir} $PATH\n        set -gx PATH {bin_dir} $PATH\n    end\nend\n__tome_path_refresh\nset -gx TOME_BIN {bin_dir}\nset -gx TOME_SOCKET {socket}\n",
+		"function __evildoer_path_refresh --on-event fish_prompt\n    if not contains -- {bin_dir} $PATH\n        set -gx PATH {bin_dir} $PATH\n    end\nend\n__evildoer_path_refresh\nset -gx EVILDOER_BIN {bin_dir}\nset -gx EVILDOER_SOCKET {socket}\n",
 		bin_dir = bin_dir.display(),
 		socket = socket_path.display(),
 	));
-	script.push_str("set -gx TOME_FISH_CONFIG 1\n");
+	script.push_str("set -gx EVILDOER_FISH_CONFIG 1\n");
 	script.push_str(fish_command_not_found_script());
 	append_fish_command_functions(&mut script);
 
@@ -285,41 +285,41 @@ fn find_in_path(bin: &str, exclude_dir: Option<&Path>) -> Option<PathBuf> {
 pub(crate) fn fish_init_command(bin_dir: &Path, socket_path: &Path) -> String {
 	let handler = fish_command_not_found_inline();
 	format!(
-		"function __tome_path_refresh --on-event fish_prompt; \
+		"function __evildoer_path_refresh --on-event fish_prompt; \
 if not contains -- {bin_dir} $PATH; set -gx PATH {bin_dir} $PATH; end; \
-end; __tome_path_refresh; set -gx TOME_BIN {bin_dir}; set -gx TOME_SOCKET {socket}; set -gx TOME_FISH_CONFIG 1; {handler}",
+end; __evildoer_path_refresh; set -gx EVILDOER_BIN {bin_dir}; set -gx EVILDOER_SOCKET {socket}; set -gx EVILDOER_FISH_CONFIG 1; {handler}",
 		bin_dir = bin_dir.display(),
 		socket = socket_path.display(),
 		handler = handler,
 	)
 }
 
-/// Generates bash initialization commands for Tome IPC integration.
+/// Generates bash initialization commands for Evildoer IPC integration.
 ///
-/// Sets up PATH, TOME_BIN, and TOME_SOCKET, plus a command_not_found_handle
+/// Sets up PATH, EVILDOER_BIN, and EVILDOER_SOCKET, plus a command_not_found_handle
 /// function to intercept `:command` invocations.
 pub fn bash_init_command(bin_dir: &Path, socket_path: &Path) -> String {
 	format!(
-		r#"export TOME_BIN="{bin_dir}"; export TOME_SOCKET="{socket}"; export PATH="$TOME_BIN:$PATH"; command_not_found_handle() {{ local cmd="$1"; shift; if [[ "$cmd" == :* ]] && [[ -x "$TOME_BIN/$cmd" ]]; then "$TOME_BIN/$cmd" "$@"; return $?; fi; echo "bash: $cmd: command not found" >&2; return 127; }}"#,
+		r#"export EVILDOER_BIN="{bin_dir}"; export EVILDOER_SOCKET="{socket}"; export PATH="$EVILDOER_BIN:$PATH"; command_not_found_handle() {{ local cmd="$1"; shift; if [[ "$cmd" == :* ]] && [[ -x "$EVILDOER_BIN/$cmd" ]]; then "$EVILDOER_BIN/$cmd" "$@"; return $?; fi; echo "bash: $cmd: command not found" >&2; return 127; }}"#,
 		bin_dir = bin_dir.display(),
 		socket = socket_path.display(),
 	)
 }
 
-/// Generates zsh initialization commands for Tome IPC integration.
+/// Generates zsh initialization commands for Evildoer IPC integration.
 ///
-/// Sets up PATH, TOME_BIN, and TOME_SOCKET, plus a command_not_found_handler
+/// Sets up PATH, EVILDOER_BIN, and EVILDOER_SOCKET, plus a command_not_found_handler
 /// function to intercept `:command` invocations.
 pub fn zsh_init_command(bin_dir: &Path, socket_path: &Path) -> String {
 	format!(
-		r#"export TOME_BIN="{bin_dir}"; export TOME_SOCKET="{socket}"; export PATH="$TOME_BIN:$PATH"; command_not_found_handler() {{ local cmd="$1"; shift; if [[ "$cmd" == :* ]] && [[ -x "$TOME_BIN/$cmd" ]]; then "$TOME_BIN/$cmd" "$@"; return $?; fi; echo "zsh: command not found: $cmd" >&2; return 127; }}"#,
+		r#"export EVILDOER_BIN="{bin_dir}"; export EVILDOER_SOCKET="{socket}"; export PATH="$EVILDOER_BIN:$PATH"; command_not_found_handler() {{ local cmd="$1"; shift; if [[ "$cmd" == :* ]] && [[ -x "$EVILDOER_BIN/$cmd" ]]; then "$EVILDOER_BIN/$cmd" "$@"; return $?; fi; echo "zsh: command not found: $cmd" >&2; return 127; }}"#,
 		bin_dir = bin_dir.display(),
 		socket = socket_path.display(),
 	)
 }
 
 fn fish_command_not_found_script() -> &'static str {
-	"function fish_command_not_found\n    set -l cmd $argv[1]\n    if string match -q ':*' -- $cmd\n        set -l target \"$TOME_BIN/$cmd\"\n        if test -x \"$target\"\n            \"$target\" $argv[2..-1]\n            return $status\n        end\n    end\n    if functions -q __fish_command_not_found_handler\n        __fish_command_not_found_handler $argv\n    end\n    return 127\nend\n"
+	"function fish_command_not_found\n    set -l cmd $argv[1]\n    if string match -q ':*' -- $cmd\n        set -l target \"$EVILDOER_BIN/$cmd\"\n        if test -x \"$target\"\n            \"$target\" $argv[2..-1]\n            return $status\n        end\n    end\n    if functions -q __fish_command_not_found_handler\n        __fish_command_not_found_handler $argv\n    end\n    return 127\nend\n"
 }
 
 fn fish_command_not_found_inline() -> String {
@@ -340,7 +340,7 @@ fn append_fish_command_functions(script: &mut String) {
 
 fn append_fish_command_function(script: &mut String, name: &str) {
 	script.push_str(&format!(
-		"function :{name}\n    \"$TOME_BIN/:{name}\" $argv\nend\n",
+		"function :{name}\n    \"$EVILDOER_BIN/:{name}\" $argv\nend\n",
 	));
 }
 
@@ -386,7 +386,7 @@ mod tests {
 	fn wrapper_script_has_required_elements() {
 		let script = generate_wrapper_script("write");
 		assert!(script.starts_with("#!/bin/sh"));
-		assert!(script.contains("TOME_SOCKET"));
+		assert!(script.contains("EVILDOER_SOCKET"));
 		assert!(script.contains("write"));
 	}
 
@@ -400,9 +400,9 @@ mod tests {
 		assert!(
 			env_vars
 				.iter()
-				.any(|(k, v)| k == "PATH" && v.contains("tome-"))
+				.any(|(k, v)| k == "PATH" && v.contains("evildoer-"))
 		);
-		assert!(env_vars.iter().any(|(k, _)| k == "TOME_SOCKET"));
+		assert!(env_vars.iter().any(|(k, _)| k == "EVILDOER_SOCKET"));
 	}
 
 	#[test]
@@ -463,7 +463,7 @@ mod tests {
 		eprintln!("bin_dir: {:?}", ipc.env.bin_dir());
 
 		for name in ["write", "quit", "help"] {
-			if tome_manifest::find_command(name).is_some() {
+			if evildoer_manifest::find_command(name).is_some() {
 				let wrapper = ipc.env.bin_dir().join(format!(":{}", name));
 				assert!(wrapper.exists(), "wrapper for :{} should exist", name);
 			}

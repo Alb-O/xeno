@@ -1,9 +1,9 @@
 //! Text editing operations for buffers.
 
-use tome_base::Transaction;
-use tome_language::LanguageLoader;
-use tome_manifest::Mode;
-use tome_stdlib::movement;
+use evildoer_base::Transaction;
+use evildoer_language::LanguageLoader;
+use evildoer_manifest::Mode;
+use evildoer_stdlib::movement;
 
 use super::Buffer;
 
@@ -74,14 +74,14 @@ impl Buffer {
 					movement::move_horizontally(
 						doc.content.slice(..),
 						*r,
-						tome_base::range::Direction::Forward,
+						evildoer_base::range::Direction::Forward,
 						1,
 						false,
 					)
 				})
 				.collect()
 		};
-		self.selection = tome_base::Selection::from_vec(new_ranges, self.selection.primary_index());
+		self.selection = evildoer_base::Selection::from_vec(new_ranges, self.selection.primary_index());
 		self.insert_text(text);
 	}
 

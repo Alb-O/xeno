@@ -1,8 +1,8 @@
 //! Insert mode entry actions.
 
-use tome_base::key::Key;
-use tome_manifest::actions::{ActionMode, ActionResult, insert_with_motion};
-use tome_manifest::bound_action;
+use evildoer_base::key::Key;
+use evildoer_manifest::actions::{ActionMode, ActionResult, insert_with_motion};
+use evildoer_manifest::bound_action;
 
 bound_action!(
 	insert_before,

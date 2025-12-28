@@ -6,9 +6,9 @@ use termina::escape::csi::{
 	Csi, Cursor, Edit, EraseInDisplay, Mode, Sgr, SgrAttributes, SgrModifiers,
 };
 use termina::style::{ColorSpec, RgbaColor};
-use tome_tui::backend::{Backend, WindowSize};
-use tome_tui::buffer::Cell;
-use tome_tui::layout::{Position, Size};
+use evildoer_tui::backend::{Backend, WindowSize};
+use evildoer_tui::buffer::Cell;
+use evildoer_tui::layout::{Position, Size};
 
 pub struct TerminaBackend<T: Terminal> {
 	terminal: T,
@@ -68,42 +68,42 @@ impl<T: Terminal> Backend for TerminaBackend<T> {
 				attrs.background = Some(color);
 			}
 
-			if cell.modifier.contains(tome_tui::style::Modifier::BOLD) {
+			if cell.modifier.contains(evildoer_tui::style::Modifier::BOLD) {
 				attrs.modifiers |= SgrModifiers::INTENSITY_BOLD;
 			}
-			if cell.modifier.contains(tome_tui::style::Modifier::DIM) {
+			if cell.modifier.contains(evildoer_tui::style::Modifier::DIM) {
 				attrs.modifiers |= SgrModifiers::INTENSITY_DIM;
 			}
-			if cell.modifier.contains(tome_tui::style::Modifier::ITALIC) {
+			if cell.modifier.contains(evildoer_tui::style::Modifier::ITALIC) {
 				attrs.modifiers |= SgrModifiers::ITALIC;
 			}
 			if cell
 				.modifier
-				.contains(tome_tui::style::Modifier::UNDERLINED)
+				.contains(evildoer_tui::style::Modifier::UNDERLINED)
 			{
 				attrs.modifiers |= SgrModifiers::UNDERLINE_SINGLE;
 			}
 			if cell
 				.modifier
-				.contains(tome_tui::style::Modifier::SLOW_BLINK)
+				.contains(evildoer_tui::style::Modifier::SLOW_BLINK)
 			{
 				attrs.modifiers |= SgrModifiers::BLINK_SLOW;
 			}
 			if cell
 				.modifier
-				.contains(tome_tui::style::Modifier::RAPID_BLINK)
+				.contains(evildoer_tui::style::Modifier::RAPID_BLINK)
 			{
 				attrs.modifiers |= SgrModifiers::BLINK_RAPID;
 			}
-			if cell.modifier.contains(tome_tui::style::Modifier::REVERSED) {
+			if cell.modifier.contains(evildoer_tui::style::Modifier::REVERSED) {
 				attrs.modifiers |= SgrModifiers::REVERSE;
 			}
-			if cell.modifier.contains(tome_tui::style::Modifier::HIDDEN) {
+			if cell.modifier.contains(evildoer_tui::style::Modifier::HIDDEN) {
 				attrs.modifiers |= SgrModifiers::INVISIBLE;
 			}
 			if cell
 				.modifier
-				.contains(tome_tui::style::Modifier::CROSSED_OUT)
+				.contains(evildoer_tui::style::Modifier::CROSSED_OUT)
 			{
 				attrs.modifiers |= SgrModifiers::STRIKE_THROUGH;
 			}
@@ -169,8 +169,8 @@ impl<T: Terminal> Backend for TerminaBackend<T> {
 		)
 	}
 
-	fn clear_region(&mut self, clear_type: tome_tui::backend::ClearType) -> io::Result<()> {
-		use tome_tui::backend::ClearType;
+	fn clear_region(&mut self, clear_type: evildoer_tui::backend::ClearType) -> io::Result<()> {
+		use evildoer_tui::backend::ClearType;
 		match clear_type {
 			ClearType::All => self.clear(),
 			ClearType::AfterCursor => write!(
@@ -230,8 +230,8 @@ impl<T: Terminal> Backend for TerminaBackend<T> {
 	}
 }
 
-fn map_color(color: tome_tui::style::Color) -> Option<ColorSpec> {
-	use tome_tui::style::Color;
+fn map_color(color: evildoer_tui::style::Color) -> Option<ColorSpec> {
+	use evildoer_tui::style::Color;
 	match color {
 		Color::Reset => Some(ColorSpec::Reset),
 		Color::Black => Some(ColorSpec::BLACK),

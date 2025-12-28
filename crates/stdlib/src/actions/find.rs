@@ -1,8 +1,8 @@
 //! Find character actions (f/t/F/T commands).
 
-use tome_base::key::Key;
-use tome_manifest::actions::{ActionResult, PendingAction, PendingKind};
-use tome_manifest::bound_action;
+use evildoer_base::key::Key;
+use evildoer_manifest::actions::{ActionResult, PendingAction, PendingKind};
+use evildoer_manifest::bound_action;
 
 use crate::movement;
 

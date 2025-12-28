@@ -1,5 +1,5 @@
-use tome_base::Selection;
-use tome_stdlib::movement;
+use evildoer_base::Selection;
+use evildoer_stdlib::movement;
 
 use super::Editor;
 
@@ -135,9 +135,9 @@ impl Editor {
 		};
 		match search_result {
 			Ok(matches) if !matches.is_empty() => {
-				let new_ranges: Vec<tome_base::range::Range> = matches
+				let new_ranges: Vec<evildoer_base::range::Range> = matches
 					.into_iter()
-					.map(|r| tome_base::range::Range::new(from + r.min(), from + r.max()))
+					.map(|r| evildoer_base::range::Range::new(from + r.min(), from + r.max()))
 					.collect();
 				let count = new_ranges.len();
 				self.buffer_mut().selection = Selection::from_vec(new_ranges, 0);
@@ -170,17 +170,17 @@ impl Editor {
 		};
 		match search_result {
 			Ok(matches) if !matches.is_empty() => {
-				let mut new_ranges: Vec<tome_base::range::Range> = Vec::new();
+				let mut new_ranges: Vec<evildoer_base::range::Range> = Vec::new();
 				let mut last_end = from;
 				for m in matches {
 					let match_start = from + m.min();
 					if match_start > last_end {
-						new_ranges.push(tome_base::range::Range::new(last_end, match_start));
+						new_ranges.push(evildoer_base::range::Range::new(last_end, match_start));
 					}
 					last_end = from + m.max();
 				}
 				if last_end < to {
-					new_ranges.push(tome_base::range::Range::new(last_end, to));
+					new_ranges.push(evildoer_base::range::Range::new(last_end, to));
 				}
 				if !new_ranges.is_empty() {
 					let count = new_ranges.len();
@@ -206,7 +206,7 @@ impl Editor {
 	)]
 	pub(crate) fn keep_matching(&mut self, pattern: &str, invert: bool) -> bool {
 		// Collect ranges and text to process
-		let ranges_with_text: Vec<(tome_base::range::Range, String)> = {
+		let ranges_with_text: Vec<(evildoer_base::range::Range, String)> = {
 			let buffer = self.buffer();
 			let doc = buffer.doc();
 			buffer
@@ -222,7 +222,7 @@ impl Editor {
 				.collect()
 		};
 
-		let mut kept_ranges: Vec<tome_base::range::Range> = Vec::new();
+		let mut kept_ranges: Vec<evildoer_base::range::Range> = Vec::new();
 		let mut had_error = false;
 		for (range, text) in ranges_with_text {
 			match movement::matches_pattern(&text, pattern) {

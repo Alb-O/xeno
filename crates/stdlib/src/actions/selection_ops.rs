@@ -1,9 +1,9 @@
 //! Selection manipulation actions (collapse, flip, select all, etc.).
 
-use tome_base::key::{Key, SpecialKey};
-use tome_base::selection::Selection;
-use tome_manifest::actions::{ActionContext, ActionResult};
-use tome_manifest::bound_action;
+use evildoer_base::key::{Key, SpecialKey};
+use evildoer_base::selection::Selection;
+use evildoer_manifest::actions::{ActionContext, ActionResult};
+use evildoer_manifest::bound_action;
 
 use crate::action;
 
@@ -185,7 +185,7 @@ fn split_lines_impl(ctx: &ActionContext) -> ActionResult {
 			};
 
 			if line_start < line_end {
-				new_ranges.push(tome_base::range::Range::new(line_start, line_end));
+				new_ranges.push(evildoer_base::range::Range::new(line_start, line_end));
 			}
 		}
 	}
@@ -224,7 +224,7 @@ fn duplicate_selections_down_impl(ctx: &ActionContext) -> ActionResult {
 
 		let new_anchor = line_col_to_char(text, target_anchor_line, anchor_col);
 		let new_head = line_col_to_char(text, target_head_line, head_col);
-		let new_range = tome_base::range::Range::new(new_anchor, new_head);
+		let new_range = evildoer_base::range::Range::new(new_anchor, new_head);
 
 		if !new_ranges.contains(&new_range) {
 			new_ranges.push(new_range);
@@ -265,7 +265,7 @@ fn duplicate_selections_up_impl(ctx: &ActionContext) -> ActionResult {
 
 		let new_anchor = line_col_to_char(text, target_anchor_line, anchor_col);
 		let new_head = line_col_to_char(text, target_head_line, head_col);
-		let new_range = tome_base::range::Range::new(new_anchor, new_head);
+		let new_range = evildoer_base::range::Range::new(new_anchor, new_head);
 
 		if !new_ranges.contains(&new_range) {
 			new_ranges.push(new_range);
@@ -303,7 +303,7 @@ bound_action!(
 
 #[cfg(test)]
 mod tests {
-	use tome_manifest::actions::ActionArgs;
+	use evildoer_manifest::actions::ActionArgs;
 
 	use super::*;
 	use crate::{Rope, Selection};

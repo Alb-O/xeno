@@ -1,5 +1,5 @@
-use tome_base::{Rope, Selection};
-use tome_manifest::CompletionItem;
+use evildoer_base::{Rope, Selection};
+use evildoer_manifest::CompletionItem;
 
 /// A history entry for undo/redo.
 #[derive(Clone)]

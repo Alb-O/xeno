@@ -3,16 +3,16 @@
 use std::collections::HashSet;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use tome_base::range::CharIdx;
-use tome_language::LanguageLoader;
-use tome_language::highlight::{HighlightSpan, HighlightStyles};
-use tome_manifest::Mode;
-use tome_manifest::syntax::SyntaxStyles;
-use tome_theme::{Theme, ThemeVariant};
-use tome_tui::layout::Rect;
-use tome_tui::style::{Modifier, Style};
-use tome_tui::text::{Line, Span};
-use tome_tui::widgets::Paragraph;
+use evildoer_base::range::CharIdx;
+use evildoer_language::LanguageLoader;
+use evildoer_language::highlight::{HighlightSpan, HighlightStyles};
+use evildoer_manifest::Mode;
+use evildoer_manifest::syntax::SyntaxStyles;
+use evildoer_theme::{Theme, ThemeVariant};
+use evildoer_tui::layout::Rect;
+use evildoer_tui::style::{Modifier, Style};
+use evildoer_tui::text::{Line, Span};
+use evildoer_tui::widgets::Paragraph;
 
 use crate::buffer::Buffer;
 use crate::editor::extensions::StyleOverlays;
@@ -140,8 +140,8 @@ impl<'a> BufferRenderContext<'a> {
 		highlighter
 			.map(|span| {
 				let abstract_style = highlight_styles.style_for_highlight(span.highlight);
-				let tome_tui_style: Style = abstract_style.into();
-				(span, tome_tui_style)
+				let evildoer_tui_style: Style = abstract_style.into();
+				(span, evildoer_tui_style)
 			})
 			.collect()
 	}
@@ -162,7 +162,7 @@ impl<'a> BufferRenderContext<'a> {
 
 	/// Applies style overlay modifications (e.g., zen mode dimming).
 	pub fn apply_style_overlay(&self, byte_pos: usize, style: Option<Style>) -> Option<Style> {
-		use tome_tui::animation::Animatable;
+		use evildoer_tui::animation::Animatable;
 
 		use crate::editor::extensions::StyleMod;
 
@@ -173,15 +173,15 @@ impl<'a> BufferRenderContext<'a> {
 		let style = style.unwrap_or_default();
 		let modified = match modification {
 			StyleMod::Dim(factor) => {
-				// Convert theme bg color to tome_tui color for blending
-				let bg: tome_tui::style::Color = self.theme.colors.ui.bg.into();
+				// Convert theme bg color to evildoer_tui color for blending
+				let bg: evildoer_tui::style::Color = self.theme.colors.ui.bg.into();
 				if let Some(fg) = style.fg {
 					// Blend fg toward bg using Animatable::lerp
 					// factor=1.0 means no dimming (full fg), factor=0.0 means full bg
 					let dimmed = bg.lerp(&fg, factor);
 					style.fg(dimmed)
 				} else {
-					style.fg(tome_tui::style::Color::DarkGray)
+					style.fg(evildoer_tui::style::Color::DarkGray)
 				}
 			}
 			StyleMod::Fg(color) => style.fg(color),
@@ -227,7 +227,7 @@ impl<'a> BufferRenderContext<'a> {
 
 		let highlight_spans = self.collect_highlight_spans(buffer, area);
 		let cursor_line = buffer.cursor_line();
-		let cursorline_bg: tome_tui::style::Color = self.theme.colors.ui.cursorline_bg.into();
+		let cursorline_bg: evildoer_tui::style::Color = self.theme.colors.ui.cursorline_bg.into();
 
 		let mut output_lines: Vec<Line> = Vec::new();
 		let mut current_line_idx = buffer.scroll_line;
@@ -304,7 +304,7 @@ impl<'a> BufferRenderContext<'a> {
 					let is_primary_cursor = doc_pos == primary_cursor;
 					let in_selection = ranges
 						.iter()
-						.any(|r: &tome_base::range::Range| doc_pos >= r.min() && doc_pos < r.max());
+						.any(|r: &evildoer_base::range::Range| doc_pos >= r.min() && doc_pos < r.max());
 
 					let cursor_style = if !is_focused {
 						styles.unfocused

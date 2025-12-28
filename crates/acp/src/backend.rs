@@ -120,7 +120,7 @@ impl AcpBackend {
 								.write_text_file(false))
 							.terminal(false),
 					)
-					.client_info(Implementation::new("Tome", "0.1.0").title("Tome Editor")),
+					.client_info(Implementation::new("Evildoer", "0.1.0").title("Evildoer Editor")),
 			)
 			.await
 		{

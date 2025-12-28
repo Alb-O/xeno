@@ -14,11 +14,11 @@ use std::sync::mpsc::{Receiver, TryRecvError, channel};
 use std::thread;
 use std::time::Duration;
 
-use tome_manifest::{
+use evildoer_manifest::{
 	SplitAttrs, SplitBuffer, SplitCell, SplitCursor, SplitDockPreference, SplitEventResult,
 	SplitKey, SplitKeyCode, SplitMouse, SplitMouseAction, SplitMouseButton, SplitSize,
 };
-use tome_tui::widgets::terminal::vt100;
+use evildoer_tui::widgets::terminal::vt100;
 
 use self::color::map_vt_color;
 use self::key::key_to_bytes;

@@ -1,7 +1,7 @@
 //! Paragraph text object.
 
 use ropey::RopeSlice;
-use tome_base::range::Range;
+use evildoer_base::range::Range;
 
 fn is_blank_line(text: RopeSlice, line_idx: usize) -> bool {
 	let line = text.line(line_idx);

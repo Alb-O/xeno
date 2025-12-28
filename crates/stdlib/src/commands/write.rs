@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
 use futures::future::LocalBoxFuture;
-use tome_manifest::{CommandContext, CommandError, CommandOutcome};
+use evildoer_manifest::{CommandContext, CommandError, CommandOutcome};
 
 use crate::command;
 

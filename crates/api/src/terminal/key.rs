@@ -1,6 +1,6 @@
 //! Terminal key input handling.
 
-use tome_manifest::{SplitKey, SplitKeyCode, SplitModifiers};
+use evildoer_manifest::{SplitKey, SplitKeyCode, SplitModifiers};
 
 /// Converts a SplitKey to terminal escape sequence bytes.
 pub fn key_to_bytes(key: &SplitKey) -> Vec<u8> {

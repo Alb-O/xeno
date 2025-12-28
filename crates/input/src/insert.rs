@@ -1,5 +1,5 @@
-use tome_base::key::{Key, KeyCode, Modifiers, SpecialKey};
-use tome_manifest::{BindingMode, find_binding_resolved, resolve_action_id};
+use evildoer_base::key::{Key, KeyCode, Modifiers, SpecialKey};
+use evildoer_manifest::{BindingMode, find_binding_resolved, resolve_action_id};
 
 use crate::InputHandler;
 use crate::types::{KeyResult, Mode};

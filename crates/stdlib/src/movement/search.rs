@@ -3,7 +3,7 @@
 use regex::Regex;
 pub use regex::escape as escape_pattern;
 use ropey::RopeSlice;
-use tome_base::range::CharIdx;
+use evildoer_base::range::CharIdx;
 
 use crate::Range;
 

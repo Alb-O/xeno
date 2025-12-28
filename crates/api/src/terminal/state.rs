@@ -7,8 +7,8 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 use portable_pty::{CommandBuilder, MasterPty, NativePtySystem, PtySize, PtySystem};
-use tome_manifest::SplitCursorStyle;
-use tome_tui::widgets::terminal::vt100::{self, Parser};
+use evildoer_manifest::SplitCursorStyle;
+use evildoer_tui::widgets::terminal::vt100::{self, Parser};
 
 use super::escape::parse_decscusr;
 use crate::terminal_ipc::fish_init_command;
@@ -38,8 +38,8 @@ pub(super) struct TerminalState {
 
 pub(super) struct FishInitState {
 	pub pid: u32,
-	pub tome_bin: String,
-	pub tome_socket: String,
+	pub evildoer_bin: String,
+	pub evildoer_socket: String,
 	pub last_check: Instant,
 	pub attempts: u32,
 }
@@ -63,13 +63,13 @@ impl TerminalState {
 			})
 			.map_err(|e| TerminalError::Pty(e.to_string()))?;
 
-		let tome_bin = env_vars
+		let evildoer_bin = env_vars
 			.iter()
-			.find(|(key, _)| key == "TOME_BIN")
+			.find(|(key, _)| key == "EVILDOER_BIN")
 			.map(|(_, value)| value.clone());
-		let tome_socket = env_vars
+		let evildoer_socket = env_vars
 			.iter()
-			.find(|(key, _)| key == "TOME_SOCKET")
+			.find(|(key, _)| key == "EVILDOER_SOCKET")
 			.map(|(_, value)| value.clone());
 
 		let shell = std::env::var("SHELL").unwrap_or_else(|_| "sh".to_string());
@@ -85,8 +85,8 @@ impl TerminalState {
 		apply_shell_path_injection(
 			&mut cmd,
 			&shell,
-			tome_bin.as_deref(),
-			tome_socket.as_deref(),
+			evildoer_bin.as_deref(),
+			evildoer_socket.as_deref(),
 		);
 
 		let child = pair
@@ -104,17 +104,17 @@ impl TerminalState {
 			.map_err(|e| TerminalError::Pty(e.to_string()))?;
 
 		let mut fish_init = None;
-		if let (Some(tome_bin), Some(tome_socket)) = (tome_bin.clone(), tome_socket.clone()) {
+		if let (Some(evildoer_bin), Some(evildoer_socket)) = (evildoer_bin.clone(), evildoer_socket.clone()) {
 			if shell_name == "fish" {
-				inject_shell_init("fish", &mut writer, &tome_bin, &tome_socket);
+				inject_shell_init("fish", &mut writer, &evildoer_bin, &evildoer_socket);
 			} else if let Some(pid) = child.process_id() {
 				if is_fish_process(pid) {
-					inject_shell_init("fish", &mut writer, &tome_bin, &tome_socket);
+					inject_shell_init("fish", &mut writer, &evildoer_bin, &evildoer_socket);
 				} else {
 					fish_init = Some(FishInitState {
 						pid,
-						tome_bin,
-						tome_socket,
+						evildoer_bin,
+						evildoer_socket,
 						last_check: Instant::now(),
 						attempts: 0,
 					});
@@ -226,8 +226,8 @@ impl TerminalState {
 			inject_shell_init(
 				"fish",
 				&mut self.pty_writer,
-				&state.tome_bin,
-				&state.tome_socket,
+				&state.evildoer_bin,
+				&state.evildoer_socket,
 			);
 			self.fish_init = None;
 			return;
@@ -242,13 +242,13 @@ impl TerminalState {
 fn apply_shell_path_injection(
 	cmd: &mut CommandBuilder,
 	shell: &str,
-	tome_bin: Option<&str>,
-	tome_socket: Option<&str>,
+	evildoer_bin: Option<&str>,
+	evildoer_socket: Option<&str>,
 ) {
-	let Some(tome_bin) = tome_bin else {
+	let Some(evildoer_bin) = evildoer_bin else {
 		return;
 	};
-	let Some(socket) = tome_socket else {
+	let Some(socket) = evildoer_socket else {
 		return;
 	};
 
@@ -257,7 +257,7 @@ fn apply_shell_path_injection(
 		.and_then(|name| name.to_str())
 		.unwrap_or(shell);
 
-	let bin_path = Path::new(tome_bin);
+	let bin_path = Path::new(evildoer_bin);
 	let socket_path = Path::new(socket);
 
 	match shell_name {
@@ -277,31 +277,31 @@ fn apply_shell_path_injection(
 	}
 }
 
-fn inject_shell_init(shell_name: &str, writer: &mut dyn Write, tome_bin: &str, tome_socket: &str) {
+fn inject_shell_init(shell_name: &str, writer: &mut dyn Write, evildoer_bin: &str, evildoer_socket: &str) {
 	let init = match shell_name {
 		"fish" => format!(
-			"set -gx TOME_BIN {tome_bin}; set -gx TOME_SOCKET {tome_socket}; \
-set -gx PATH {tome_bin} $PATH; \
+			"set -gx EVILDOER_BIN {evildoer_bin}; set -gx EVILDOER_SOCKET {evildoer_socket}; \
+set -gx PATH {evildoer_bin} $PATH; \
 function fish_command_not_found; set -l cmd $argv[1]; \
-if string match -q ':*' -- $cmd; set -l target \"$TOME_BIN/$cmd\"; \
+if string match -q ':*' -- $cmd; set -l target \"$EVILDOER_BIN/$cmd\"; \
 if test -x \"$target\"; \"$target\" $argv[2..-1]; return $status; end; end; \
 if functions -q __fish_command_not_found_handler; __fish_command_not_found_handler $argv; end; \
 return 127; end\n"
 		),
 		"bash" => format!(
-			"export TOME_BIN=\"{tome_bin}\"; export TOME_SOCKET=\"{tome_socket}\"; \
-export PATH=\"$TOME_BIN:$PATH\"; \
+			"export EVILDOER_BIN=\"{evildoer_bin}\"; export EVILDOER_SOCKET=\"{evildoer_socket}\"; \
+export PATH=\"$EVILDOER_BIN:$PATH\"; \
 command_not_found_handle() {{ local cmd=\"$1\"; shift; \
-if [[ \"$cmd\" == :* ]] && [[ -x \"$TOME_BIN/$cmd\" ]]; then \
-\"$TOME_BIN/$cmd\" \"$@\"; return $?; fi; \
+if [[ \"$cmd\" == :* ]] && [[ -x \"$EVILDOER_BIN/$cmd\" ]]; then \
+\"$EVILDOER_BIN/$cmd\" \"$@\"; return $?; fi; \
 echo \"bash: $cmd: command not found\" >&2; return 127; }}\n"
 		),
 		"zsh" => format!(
-			"export TOME_BIN=\"{tome_bin}\"; export TOME_SOCKET=\"{tome_socket}\"; \
-export PATH=\"$TOME_BIN:$PATH\"; \
+			"export EVILDOER_BIN=\"{evildoer_bin}\"; export EVILDOER_SOCKET=\"{evildoer_socket}\"; \
+export PATH=\"$EVILDOER_BIN:$PATH\"; \
 command_not_found_handler() {{ local cmd=\"$1\"; shift; \
-if [[ \"$cmd\" == :* ]] && [[ -x \"$TOME_BIN/$cmd\" ]]; then \
-\"$TOME_BIN/$cmd\" \"$@\"; return $?; fi; \
+if [[ \"$cmd\" == :* ]] && [[ -x \"$EVILDOER_BIN/$cmd\" ]]; then \
+\"$EVILDOER_BIN/$cmd\" \"$@\"; return $?; fi; \
 echo \"zsh: command not found: $cmd\" >&2; return 127; }}\n"
 		),
 		// nushell's line editor (reedline) doesn't work in the embedded terminal

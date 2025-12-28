@@ -1,14 +1,14 @@
 //! Implementation of [`EditorCapabilities`] for [`Editor`].
 //!
-//! [`EditorCapabilities`]: tome_manifest::editor_ctx::EditorCapabilities
+//! [`EditorCapabilities`]: evildoer_manifest::editor_ctx::EditorCapabilities
 
-use tome_base::Selection;
-use tome_base::range::CharIdx;
-use tome_manifest::editor_ctx::{
+use evildoer_base::Selection;
+use evildoer_base::range::CharIdx;
+use evildoer_manifest::editor_ctx::{
 	BufferOpsAccess, CursorAccess, EditAccess, EditorCapabilities, FileOpsAccess, MessageAccess,
 	ModeAccess, SearchAccess, SelectionAccess, ThemeAccess, UndoAccess,
 };
-use tome_manifest::{EditAction, Mode};
+use evildoer_manifest::{EditAction, Mode};
 
 use crate::editor::Editor;
 
@@ -107,7 +107,7 @@ impl EditAccess for Editor {
 }
 
 impl ThemeAccess for Editor {
-	fn set_theme(&mut self, name: &str) -> Result<(), tome_manifest::CommandError> {
+	fn set_theme(&mut self, name: &str) -> Result<(), evildoer_manifest::CommandError> {
 		Editor::set_theme(self, name)
 	}
 }

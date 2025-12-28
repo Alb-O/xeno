@@ -52,7 +52,7 @@ pub static GRUVBOX: Theme = Theme {
 		syntax: gruvbox_syntax(),
 	},
 	priority: 0,
-	source: tome_manifest::RegistrySource::Builtin,
+	source: evildoer_manifest::RegistrySource::Builtin,
 };
 
 // Gruvbox palette

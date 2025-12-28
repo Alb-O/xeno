@@ -7,7 +7,7 @@ use crate::layout::Rect;
 /// For a comprehensive guide to widgets, including trait explanations, implementation patterns,
 /// and available widgets, see the [`widgets`] module documentation.
 ///
-/// [`widgets`]: ../../tome_tui/widgets/index.html
+/// [`widgets`]: ../../evildoer_tui/widgets/index.html
 ///
 /// Most widgets can be drawn directly based on the input parameters. However, some features may
 /// require some kind of associated state to be implemented.
@@ -26,7 +26,7 @@ use crate::layout::Rect;
 /// ```rust,ignore
 /// use std::io;
 ///
-/// use tome_tui::{
+/// use evildoer_tui::{
 ///     backend::TestBackend,
 ///     widgets::{List, ListItem, ListState, StatefulWidget, Widget},
 ///     Terminal,
@@ -104,7 +104,7 @@ use crate::layout::Rect;
 /// loop {
 ///     terminal.draw(|f| {
 ///         // The items managed by the application are transformed to something
-///         // that is understood by tome_tui.
+///         // that is understood by evildoer_tui.
 ///         let items: Vec<ListItem> = events
 ///             .items
 ///             .iter()

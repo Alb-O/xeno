@@ -21,11 +21,11 @@ use agentfs_sdk::{FileSystem, HostFS};
 pub use buffer_manager::BufferManager;
 pub use hook_runtime::HookRuntime;
 pub use layout_manager::LayoutManager;
-use tome_base::Transaction;
-use tome_language::LanguageLoader;
-use tome_manifest::syntax::SyntaxStyles;
-use tome_manifest::{HookContext, HookEventData, Mode, emit_hook, emit_hook_sync_with};
-use tome_theme::Theme;
+use evildoer_base::Transaction;
+use evildoer_language::LanguageLoader;
+use evildoer_manifest::syntax::SyntaxStyles;
+use evildoer_manifest::{HookContext, HookEventData, Mode, emit_hook, emit_hook_sync_with};
+use evildoer_theme::Theme;
 pub use types::{HistoryEntry, Registers};
 
 pub use self::separator::{DragState, MouseVelocityTracker, SeparatorHoverAnimation};
@@ -102,7 +102,7 @@ pub struct Editor {
 	pending_quit: bool,
 
 	/// Notification system.
-	pub notifications: tome_tui::widgets::notifications::ToastManager,
+	pub notifications: evildoer_tui::widgets::notifications::ToastManager,
 
 	/// Last tick timestamp.
 	pub last_tick: std::time::SystemTime,
@@ -134,7 +134,7 @@ pub struct Editor {
 	dirty_buffers: HashSet<BufferId>,
 }
 
-impl tome_manifest::editor_ctx::FileOpsAccess for Editor {
+impl evildoer_manifest::editor_ctx::FileOpsAccess for Editor {
 	fn is_modified(&self) -> bool {
 		// Terminals are never considered "modified" for save purposes
 		if self.is_terminal_focused() {
@@ -146,12 +146,12 @@ impl tome_manifest::editor_ctx::FileOpsAccess for Editor {
 	fn save(
 		&mut self,
 	) -> std::pin::Pin<
-		Box<dyn std::future::Future<Output = Result<(), tome_manifest::CommandError>> + '_>,
+		Box<dyn std::future::Future<Output = Result<(), evildoer_manifest::CommandError>> + '_>,
 	> {
 		Box::pin(async move {
 			// Cannot save a terminal
 			if self.is_terminal_focused() {
-				return Err(tome_manifest::CommandError::InvalidArgument(
+				return Err(evildoer_manifest::CommandError::InvalidArgument(
 					"Cannot save a terminal".to_string(),
 				));
 			}
@@ -159,7 +159,7 @@ impl tome_manifest::editor_ctx::FileOpsAccess for Editor {
 			let path_owned = match &self.buffer().path() {
 				Some(p) => p.clone(),
 				None => {
-					return Err(tome_manifest::CommandError::InvalidArgument(
+					return Err(evildoer_manifest::CommandError::InvalidArgument(
 						"No filename. Use :write <filename>".to_string(),
 					));
 				}
@@ -181,7 +181,7 @@ impl tome_manifest::editor_ctx::FileOpsAccess for Editor {
 			}
 
 			let virtual_path = self.path_to_virtual(&path_owned).ok_or_else(|| {
-				tome_manifest::CommandError::Io(format!(
+				evildoer_manifest::CommandError::Io(format!(
 					"Path contains invalid UTF-8: {}",
 					path_owned.display()
 				))
@@ -189,7 +189,7 @@ impl tome_manifest::editor_ctx::FileOpsAccess for Editor {
 			self.fs
 				.write_file(&virtual_path, &content)
 				.await
-				.map_err(|e| tome_manifest::CommandError::Io(e.to_string()))?;
+				.map_err(|e| evildoer_manifest::CommandError::Io(e.to_string()))?;
 
 			self.buffer_mut().set_modified(false);
 			self.notify("info", format!("Saved {}", path_owned.display()));
@@ -208,12 +208,12 @@ impl tome_manifest::editor_ctx::FileOpsAccess for Editor {
 		&mut self,
 		path: PathBuf,
 	) -> std::pin::Pin<
-		Box<dyn std::future::Future<Output = Result<(), tome_manifest::CommandError>> + '_>,
+		Box<dyn std::future::Future<Output = Result<(), evildoer_manifest::CommandError>> + '_>,
 	> {
 		// Cannot save a terminal
 		if self.is_terminal_focused() {
 			return Box::pin(async {
-				Err(tome_manifest::CommandError::InvalidArgument(
+				Err(evildoer_manifest::CommandError::InvalidArgument(
 					"Cannot save a terminal".to_string(),
 				))
 			});
@@ -224,7 +224,7 @@ impl tome_manifest::editor_ctx::FileOpsAccess for Editor {
 	}
 }
 
-impl tome_manifest::EditorOps for Editor {}
+impl evildoer_manifest::EditorOps for Editor {}
 
 impl Editor {
 	pub async fn new(path: PathBuf) -> anyhow::Result<Self> {
@@ -264,7 +264,7 @@ impl Editor {
 	pub fn from_content(fs: Arc<dyn FileSystem>, content: String, path: Option<PathBuf>) -> Self {
 		// Initialize language loader
 		let mut language_loader = LanguageLoader::new();
-		for lang in tome_manifest::LANGUAGES.iter() {
+		for lang in evildoer_manifest::LANGUAGES.iter() {
 			language_loader.register(lang.into());
 		}
 
@@ -294,16 +294,16 @@ impl Editor {
 			buffers: buffer_manager,
 			layout: LayoutManager::new(buffer_id),
 			registers: Registers::default(),
-			theme: tome_theme::get_theme(tome_theme::DEFAULT_THEME_ID)
-				.unwrap_or(&tome_theme::DEFAULT_THEME),
+			theme: evildoer_theme::get_theme(evildoer_theme::DEFAULT_THEME_ID)
+				.unwrap_or(&evildoer_theme::DEFAULT_THEME),
 			window_width: None,
 			window_height: None,
 			ui: UiManager::new(),
 			needs_redraw: false,
 			pending_quit: false,
-			notifications: tome_tui::widgets::notifications::ToastManager::new()
+			notifications: evildoer_tui::widgets::notifications::ToastManager::new()
 				.max_visible(Some(5))
-				.overflow(tome_tui::widgets::notifications::Overflow::DropOldest),
+				.overflow(evildoer_tui::widgets::notifications::Overflow::DropOldest),
 			last_tick: std::time::SystemTime::now(),
 			completions: CompletionState::default(),
 			extensions: {
@@ -545,9 +545,9 @@ impl Editor {
 				self.buffers.set_focused_view(BufferView::Text(buffer_id));
 			}
 
-			let outcome = if let Some(cmd) = tome_manifest::find_command(&req.command) {
+			let outcome = if let Some(cmd) = evildoer_manifest::find_command(&req.command) {
 				let args: Vec<&str> = req.args.iter().map(String::as_str).collect();
-				let mut ctx = tome_manifest::CommandContext {
+				let mut ctx = evildoer_manifest::CommandContext {
 					editor: self,
 					args: &args,
 					count: 1,
@@ -563,12 +563,12 @@ impl Editor {
 					Ok(outcome) => outcome,
 					Err(err) => {
 						self.notify("error", err.to_string());
-						tome_manifest::CommandOutcome::Ok
+						evildoer_manifest::CommandOutcome::Ok
 					}
 				}
 			} else {
 				self.notify("error", format!("Unknown command: {}", req.command));
-				tome_manifest::CommandOutcome::Ok
+				evildoer_manifest::CommandOutcome::Ok
 			};
 
 			if let Some(view) = restore_view {
@@ -579,10 +579,10 @@ impl Editor {
 		}
 	}
 
-	fn handle_command_outcome(&mut self, outcome: tome_manifest::CommandOutcome) {
+	fn handle_command_outcome(&mut self, outcome: evildoer_manifest::CommandOutcome) {
 		match outcome {
-			tome_manifest::CommandOutcome::Ok => {}
-			tome_manifest::CommandOutcome::Quit | tome_manifest::CommandOutcome::ForceQuit => {
+			evildoer_manifest::CommandOutcome::Ok => {}
+			evildoer_manifest::CommandOutcome::Quit | evildoer_manifest::CommandOutcome::ForceQuit => {
 				self.request_quit();
 			}
 		}
@@ -737,7 +737,7 @@ impl Editor {
 	pub fn tick(&mut self) {
 		use std::time::Duration;
 
-		use tome_manifest::SplitBuffer;
+		use evildoer_manifest::SplitBuffer;
 
 		use crate::editor::extensions::TICK_EXTENSIONS;
 
@@ -918,16 +918,16 @@ impl Editor {
 		}
 	}
 
-	pub fn set_theme(&mut self, theme_name: &str) -> Result<(), tome_manifest::CommandError> {
-		if let Some(theme) = tome_theme::get_theme(theme_name) {
+	pub fn set_theme(&mut self, theme_name: &str) -> Result<(), evildoer_manifest::CommandError> {
+		if let Some(theme) = evildoer_theme::get_theme(theme_name) {
 			self.theme = theme;
 			Ok(())
 		} else {
 			let mut err = format!("Theme not found: {}", theme_name);
-			if let Some(suggestion) = tome_theme::suggest_theme(theme_name) {
+			if let Some(suggestion) = evildoer_theme::suggest_theme(theme_name) {
 				err.push_str(&format!(". Did you mean '{}'?", suggestion));
 			}
-			Err(tome_manifest::CommandError::Failed(err))
+			Err(evildoer_manifest::CommandError::Failed(err))
 		}
 	}
 
@@ -937,10 +937,10 @@ impl Editor {
 
 	pub fn collect_highlight_spans(
 		&self,
-		area: tome_tui::layout::Rect,
+		area: evildoer_tui::layout::Rect,
 	) -> Vec<(
-		tome_language::highlight::HighlightSpan,
-		tome_tui::style::Style,
+		evildoer_language::highlight::HighlightSpan,
+		evildoer_tui::style::Style,
 	)> {
 		let buffer = self.buffer();
 		let doc = buffer.doc();
@@ -960,7 +960,7 @@ impl Editor {
 		};
 
 		let highlight_styles =
-			tome_language::highlight::HighlightStyles::new(SyntaxStyles::scope_names(), |scope| {
+			evildoer_language::highlight::HighlightStyles::new(SyntaxStyles::scope_names(), |scope| {
 				self.theme.colors.syntax.resolve(scope)
 			});
 
@@ -973,8 +973,8 @@ impl Editor {
 		highlighter
 			.map(|span| {
 				let abstract_style = highlight_styles.style_for_highlight(span.highlight);
-				let tome_tui_style: tome_tui::style::Style = abstract_style.into();
-				(span, tome_tui_style)
+				let evildoer_tui_style: evildoer_tui::style::Style = abstract_style.into();
+				(span, evildoer_tui_style)
 			})
 			.collect()
 	}
@@ -983,10 +983,10 @@ impl Editor {
 		&self,
 		byte_pos: usize,
 		spans: &[(
-			tome_language::highlight::HighlightSpan,
-			tome_tui::style::Style,
+			evildoer_language::highlight::HighlightSpan,
+			evildoer_tui::style::Style,
 		)],
-	) -> Option<tome_tui::style::Style> {
+	) -> Option<evildoer_tui::style::Style> {
 		for (span, style) in spans.iter().rev() {
 			if byte_pos >= span.start as usize && byte_pos < span.end as usize {
 				return Some(*style);
@@ -998,9 +998,9 @@ impl Editor {
 	pub fn apply_style_overlay(
 		&self,
 		byte_pos: usize,
-		style: Option<tome_tui::style::Style>,
-	) -> Option<tome_tui::style::Style> {
-		use tome_tui::animation::Animatable;
+		style: Option<evildoer_tui::style::Style>,
+	) -> Option<evildoer_tui::style::Style> {
+		use evildoer_tui::animation::Animatable;
 
 		use crate::editor::extensions::StyleMod;
 
@@ -1011,15 +1011,15 @@ impl Editor {
 		let style = style.unwrap_or_default();
 		let modified = match modification {
 			StyleMod::Dim(factor) => {
-				// Convert theme bg color to tome_tui color for blending
-				let bg: tome_tui::style::Color = self.theme.colors.ui.bg.into();
+				// Convert theme bg color to evildoer_tui color for blending
+				let bg: evildoer_tui::style::Color = self.theme.colors.ui.bg.into();
 				if let Some(fg) = style.fg {
 					// Blend fg toward bg using Animatable::lerp
 					// factor=1.0 means no dimming (full fg), factor=0.0 means full bg
 					let dimmed = bg.lerp(&fg, factor);
 					style.fg(dimmed)
 				} else {
-					style.fg(tome_tui::style::Color::DarkGray)
+					style.fg(evildoer_tui::style::Color::DarkGray)
 				}
 			}
 			StyleMod::Fg(color) => style.fg(color),

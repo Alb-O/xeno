@@ -8,8 +8,8 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use tome_language::LanguageLoader;
-use tome_manifest::SplitBuffer;
+use evildoer_language::LanguageLoader;
+use evildoer_manifest::SplitBuffer;
 
 use crate::buffer::{Buffer, BufferId, BufferView, TerminalId};
 use crate::terminal::TerminalBuffer;

@@ -1,8 +1,8 @@
 //! Abstract color and style types for theming.
 //!
 //! These types define colors and text modifiers without depending on any
-//! terminal or UI library. Conversion to tome_tui/crossterm types happens
-//! at the UI boundary in tome-theme or tome-ui.
+//! terminal or UI library. Conversion to evildoer_tui/crossterm types happens
+//! at the UI boundary in evildoer-theme or evildoer-ui.
 
 use serde::{Deserialize, Serialize};
 
@@ -159,137 +159,137 @@ impl Style {
 	}
 }
 
-// Conversion to tome_tui types - implemented via From traits
-// These allow downstream crates with tome_tui to convert easily
+// Conversion to evildoer_tui types - implemented via From traits
+// These allow downstream crates with evildoer_tui to convert easily
 
-#[cfg(feature = "tome-tui")]
-impl From<Color> for tome_tui::style::Color {
+#[cfg(feature = "evildoer-tui")]
+impl From<Color> for evildoer_tui::style::Color {
 	fn from(color: Color) -> Self {
 		match color {
-			Color::Reset => tome_tui::style::Color::Reset,
-			Color::Black => tome_tui::style::Color::Black,
-			Color::Red => tome_tui::style::Color::Red,
-			Color::Green => tome_tui::style::Color::Green,
-			Color::Yellow => tome_tui::style::Color::Yellow,
-			Color::Blue => tome_tui::style::Color::Blue,
-			Color::Magenta => tome_tui::style::Color::Magenta,
-			Color::Cyan => tome_tui::style::Color::Cyan,
-			Color::Gray => tome_tui::style::Color::Gray,
-			Color::DarkGray => tome_tui::style::Color::DarkGray,
-			Color::LightRed => tome_tui::style::Color::LightRed,
-			Color::LightGreen => tome_tui::style::Color::LightGreen,
-			Color::LightYellow => tome_tui::style::Color::LightYellow,
-			Color::LightBlue => tome_tui::style::Color::LightBlue,
-			Color::LightMagenta => tome_tui::style::Color::LightMagenta,
-			Color::LightCyan => tome_tui::style::Color::LightCyan,
-			Color::White => tome_tui::style::Color::White,
-			Color::Rgb(r, g, b) => tome_tui::style::Color::Rgb(r, g, b),
-			Color::Indexed(i) => tome_tui::style::Color::Indexed(i),
+			Color::Reset => evildoer_tui::style::Color::Reset,
+			Color::Black => evildoer_tui::style::Color::Black,
+			Color::Red => evildoer_tui::style::Color::Red,
+			Color::Green => evildoer_tui::style::Color::Green,
+			Color::Yellow => evildoer_tui::style::Color::Yellow,
+			Color::Blue => evildoer_tui::style::Color::Blue,
+			Color::Magenta => evildoer_tui::style::Color::Magenta,
+			Color::Cyan => evildoer_tui::style::Color::Cyan,
+			Color::Gray => evildoer_tui::style::Color::Gray,
+			Color::DarkGray => evildoer_tui::style::Color::DarkGray,
+			Color::LightRed => evildoer_tui::style::Color::LightRed,
+			Color::LightGreen => evildoer_tui::style::Color::LightGreen,
+			Color::LightYellow => evildoer_tui::style::Color::LightYellow,
+			Color::LightBlue => evildoer_tui::style::Color::LightBlue,
+			Color::LightMagenta => evildoer_tui::style::Color::LightMagenta,
+			Color::LightCyan => evildoer_tui::style::Color::LightCyan,
+			Color::White => evildoer_tui::style::Color::White,
+			Color::Rgb(r, g, b) => evildoer_tui::style::Color::Rgb(r, g, b),
+			Color::Indexed(i) => evildoer_tui::style::Color::Indexed(i),
 		}
 	}
 }
 
-#[cfg(feature = "tome-tui")]
-impl From<tome_tui::style::Color> for Color {
-	fn from(color: tome_tui::style::Color) -> Self {
+#[cfg(feature = "evildoer-tui")]
+impl From<evildoer_tui::style::Color> for Color {
+	fn from(color: evildoer_tui::style::Color) -> Self {
 		match color {
-			tome_tui::style::Color::Reset => Color::Reset,
-			tome_tui::style::Color::Black => Color::Black,
-			tome_tui::style::Color::Red => Color::Red,
-			tome_tui::style::Color::Green => Color::Green,
-			tome_tui::style::Color::Yellow => Color::Yellow,
-			tome_tui::style::Color::Blue => Color::Blue,
-			tome_tui::style::Color::Magenta => Color::Magenta,
-			tome_tui::style::Color::Cyan => Color::Cyan,
-			tome_tui::style::Color::Gray => Color::Gray,
-			tome_tui::style::Color::DarkGray => Color::DarkGray,
-			tome_tui::style::Color::LightRed => Color::LightRed,
-			tome_tui::style::Color::LightGreen => Color::LightGreen,
-			tome_tui::style::Color::LightYellow => Color::LightYellow,
-			tome_tui::style::Color::LightBlue => Color::LightBlue,
-			tome_tui::style::Color::LightMagenta => Color::LightMagenta,
-			tome_tui::style::Color::LightCyan => Color::LightCyan,
-			tome_tui::style::Color::White => Color::White,
-			tome_tui::style::Color::Rgb(r, g, b) => Color::Rgb(r, g, b),
-			tome_tui::style::Color::Indexed(i) => Color::Indexed(i),
+			evildoer_tui::style::Color::Reset => Color::Reset,
+			evildoer_tui::style::Color::Black => Color::Black,
+			evildoer_tui::style::Color::Red => Color::Red,
+			evildoer_tui::style::Color::Green => Color::Green,
+			evildoer_tui::style::Color::Yellow => Color::Yellow,
+			evildoer_tui::style::Color::Blue => Color::Blue,
+			evildoer_tui::style::Color::Magenta => Color::Magenta,
+			evildoer_tui::style::Color::Cyan => Color::Cyan,
+			evildoer_tui::style::Color::Gray => Color::Gray,
+			evildoer_tui::style::Color::DarkGray => Color::DarkGray,
+			evildoer_tui::style::Color::LightRed => Color::LightRed,
+			evildoer_tui::style::Color::LightGreen => Color::LightGreen,
+			evildoer_tui::style::Color::LightYellow => Color::LightYellow,
+			evildoer_tui::style::Color::LightBlue => Color::LightBlue,
+			evildoer_tui::style::Color::LightMagenta => Color::LightMagenta,
+			evildoer_tui::style::Color::LightCyan => Color::LightCyan,
+			evildoer_tui::style::Color::White => Color::White,
+			evildoer_tui::style::Color::Rgb(r, g, b) => Color::Rgb(r, g, b),
+			evildoer_tui::style::Color::Indexed(i) => Color::Indexed(i),
 		}
 	}
 }
 
-#[cfg(feature = "tome-tui")]
-impl From<Modifier> for tome_tui::style::Modifier {
+#[cfg(feature = "evildoer-tui")]
+impl From<Modifier> for evildoer_tui::style::Modifier {
 	fn from(m: Modifier) -> Self {
-		let mut result = tome_tui::style::Modifier::empty();
+		let mut result = evildoer_tui::style::Modifier::empty();
 		if m.contains(Modifier::BOLD) {
-			result |= tome_tui::style::Modifier::BOLD;
+			result |= evildoer_tui::style::Modifier::BOLD;
 		}
 		if m.contains(Modifier::DIM) {
-			result |= tome_tui::style::Modifier::DIM;
+			result |= evildoer_tui::style::Modifier::DIM;
 		}
 		if m.contains(Modifier::ITALIC) {
-			result |= tome_tui::style::Modifier::ITALIC;
+			result |= evildoer_tui::style::Modifier::ITALIC;
 		}
 		if m.contains(Modifier::UNDERLINED) {
-			result |= tome_tui::style::Modifier::UNDERLINED;
+			result |= evildoer_tui::style::Modifier::UNDERLINED;
 		}
 		if m.contains(Modifier::SLOW_BLINK) {
-			result |= tome_tui::style::Modifier::SLOW_BLINK;
+			result |= evildoer_tui::style::Modifier::SLOW_BLINK;
 		}
 		if m.contains(Modifier::RAPID_BLINK) {
-			result |= tome_tui::style::Modifier::RAPID_BLINK;
+			result |= evildoer_tui::style::Modifier::RAPID_BLINK;
 		}
 		if m.contains(Modifier::REVERSED) {
-			result |= tome_tui::style::Modifier::REVERSED;
+			result |= evildoer_tui::style::Modifier::REVERSED;
 		}
 		if m.contains(Modifier::HIDDEN) {
-			result |= tome_tui::style::Modifier::HIDDEN;
+			result |= evildoer_tui::style::Modifier::HIDDEN;
 		}
 		if m.contains(Modifier::CROSSED_OUT) {
-			result |= tome_tui::style::Modifier::CROSSED_OUT;
+			result |= evildoer_tui::style::Modifier::CROSSED_OUT;
 		}
 		result
 	}
 }
 
-#[cfg(feature = "tome-tui")]
-impl From<tome_tui::style::Modifier> for Modifier {
-	fn from(m: tome_tui::style::Modifier) -> Self {
+#[cfg(feature = "evildoer-tui")]
+impl From<evildoer_tui::style::Modifier> for Modifier {
+	fn from(m: evildoer_tui::style::Modifier) -> Self {
 		let mut result = Modifier::NONE;
-		if m.contains(tome_tui::style::Modifier::BOLD) {
+		if m.contains(evildoer_tui::style::Modifier::BOLD) {
 			result |= Modifier::BOLD;
 		}
-		if m.contains(tome_tui::style::Modifier::DIM) {
+		if m.contains(evildoer_tui::style::Modifier::DIM) {
 			result |= Modifier::DIM;
 		}
-		if m.contains(tome_tui::style::Modifier::ITALIC) {
+		if m.contains(evildoer_tui::style::Modifier::ITALIC) {
 			result |= Modifier::ITALIC;
 		}
-		if m.contains(tome_tui::style::Modifier::UNDERLINED) {
+		if m.contains(evildoer_tui::style::Modifier::UNDERLINED) {
 			result |= Modifier::UNDERLINED;
 		}
-		if m.contains(tome_tui::style::Modifier::SLOW_BLINK) {
+		if m.contains(evildoer_tui::style::Modifier::SLOW_BLINK) {
 			result |= Modifier::SLOW_BLINK;
 		}
-		if m.contains(tome_tui::style::Modifier::RAPID_BLINK) {
+		if m.contains(evildoer_tui::style::Modifier::RAPID_BLINK) {
 			result |= Modifier::RAPID_BLINK;
 		}
-		if m.contains(tome_tui::style::Modifier::REVERSED) {
+		if m.contains(evildoer_tui::style::Modifier::REVERSED) {
 			result |= Modifier::REVERSED;
 		}
-		if m.contains(tome_tui::style::Modifier::HIDDEN) {
+		if m.contains(evildoer_tui::style::Modifier::HIDDEN) {
 			result |= Modifier::HIDDEN;
 		}
-		if m.contains(tome_tui::style::Modifier::CROSSED_OUT) {
+		if m.contains(evildoer_tui::style::Modifier::CROSSED_OUT) {
 			result |= Modifier::CROSSED_OUT;
 		}
 		result
 	}
 }
 
-#[cfg(feature = "tome-tui")]
-impl From<Style> for tome_tui::style::Style {
+#[cfg(feature = "evildoer-tui")]
+impl From<Style> for evildoer_tui::style::Style {
 	fn from(style: Style) -> Self {
-		let mut result = tome_tui::style::Style::default();
+		let mut result = evildoer_tui::style::Style::default();
 		if let Some(fg) = style.fg {
 			result = result.fg(fg.into());
 		}
@@ -389,12 +389,12 @@ mod tests {
 		assert!(style.modifiers.contains(Modifier::BOLD));
 	}
 
-	#[cfg(feature = "tome-tui")]
+	#[cfg(feature = "evildoer-tui")]
 	#[test]
 	fn test_color_conversion_roundtrip() {
 		let color = Color::Rgb(128, 64, 255);
-		let tome_tui_color: tome_tui::style::Color = color.into();
-		let back: Color = tome_tui_color.into();
+		let evildoer_tui_color: evildoer_tui::style::Color = color.into();
+		let back: Color = evildoer_tui_color.into();
 		assert_eq!(color, back);
 	}
 

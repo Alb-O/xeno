@@ -1,17 +1,17 @@
-//! Integration tests for tome-language syntax highlighting.
+//! Integration tests for evildoer-language syntax highlighting.
 //!
 //! These tests verify the complete pipeline from language registration
 //! through syntax parsing to highlight span generation.
 //!
 //! NOTE: Full syntax highlighting requires compiled tree-sitter grammars.
 //! Without grammars, tests verify the API works but can't produce highlights.
-//! To get grammars, run: `TOME_RUNTIME=runtime tome grammar fetch && tome grammar build`
+//! To get grammars, run: `EVILDOER_RUNTIME=runtime evildoer grammar fetch && evildoer grammar build`
 
 use ropey::Rope;
-use tome_language::grammar::{grammar_search_paths, load_grammar};
-use tome_language::highlight::{Highlight, HighlightStyles};
-use tome_language::syntax::Syntax;
-use tome_language::{LanguageData, LanguageLoader};
+use evildoer_language::grammar::{grammar_search_paths, load_grammar};
+use evildoer_language::highlight::{Highlight, HighlightStyles};
+use evildoer_language::syntax::Syntax;
+use evildoer_language::{LanguageData, LanguageLoader};
 
 /// Creates a simple test language loader with Rust registered.
 fn create_test_loader() -> LanguageLoader {
@@ -92,7 +92,7 @@ fn test_syntax_config_loading() {
 
 #[test]
 fn test_highlight_styles_creation() {
-	use tome_base::{Color, Style};
+	use evildoer_base::{Color, Style};
 
 	let scopes = ["keyword", "function", "string", "comment"];
 
@@ -110,7 +110,7 @@ fn test_highlight_styles_creation() {
 
 #[test]
 fn test_highlight_styles_resolution() {
-	use tome_base::{Color, Style};
+	use evildoer_base::{Color, Style};
 
 	let scopes = ["keyword", "function"];
 
@@ -177,7 +177,7 @@ fn test_grammar_loading_debug() {
 
 #[test]
 fn test_full_highlighting_pipeline() {
-	use tome_base::{Color, Style};
+	use evildoer_base::{Color, Style};
 
 	let mut loader = LanguageLoader::new();
 
@@ -274,7 +274,7 @@ fn test_language_loader_tree_house_trait() {
 /// a let statement to exercise the ChangeSet-to-InputEdit conversion.
 #[test]
 fn test_incremental_syntax_update() {
-	use tome_base::{Selection, Transaction};
+	use evildoer_base::{Selection, Transaction};
 
 	let mut loader = LanguageLoader::new();
 

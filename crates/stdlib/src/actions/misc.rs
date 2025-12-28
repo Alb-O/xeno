@@ -1,11 +1,11 @@
 //! Miscellaneous actions: add lines, and stub actions for unimplemented features.
 
 use linkme::distributed_slice;
-use tome_base::key::Key;
-use tome_manifest::ACTIONS;
-use tome_manifest::actions::{ActionDef, ActionResult};
-use tome_manifest::editor_ctx::{HandleOutcome, ResultHandler};
-use tome_manifest::keybindings::{BindingMode, KEYBINDINGS_NORMAL, KeyBindingDef};
+use evildoer_base::key::Key;
+use evildoer_manifest::ACTIONS;
+use evildoer_manifest::actions::{ActionDef, ActionResult};
+use evildoer_manifest::editor_ctx::{HandleOutcome, ResultHandler};
+use evildoer_manifest::keybindings::{BindingMode, KEYBINDINGS_NORMAL, KeyBindingDef};
 
 use super::EditAction;
 use crate::{NotifyWARNExt, action};
@@ -37,7 +37,7 @@ macro_rules! stub_action {
 		slice: $slice:ident
 	) => {
 		paste::paste! {
-			fn [<handler_ $name>](_ctx: &tome_manifest::actions::ActionContext) -> ActionResult {
+			fn [<handler_ $name>](_ctx: &evildoer_manifest::actions::ActionContext) -> ActionResult {
 				ActionResult::$result
 			}
 
@@ -49,9 +49,9 @@ macro_rules! stub_action {
 				description: $desc,
 				handler: [<handler_ $name>],
 				priority: 0,
-				source: tome_manifest::RegistrySource::Crate(env!("CARGO_PKG_NAME")),
+				source: evildoer_manifest::RegistrySource::Crate(env!("CARGO_PKG_NAME")),
 				required_caps: &[],
-				flags: tome_manifest::flags::NONE,
+				flags: evildoer_manifest::flags::NONE,
 			};
 
 			#[distributed_slice(KEYBINDINGS_NORMAL)]
@@ -62,7 +62,7 @@ macro_rules! stub_action {
 				priority: 100,
 			};
 
-			#[distributed_slice(tome_manifest::actions::$slice)]
+			#[distributed_slice(evildoer_manifest::actions::$slice)]
 			static [<HANDLE_ $name:upper>]: ResultHandler = ResultHandler {
 				name: stringify!($name),
 				handle: |_, ctx, _| {

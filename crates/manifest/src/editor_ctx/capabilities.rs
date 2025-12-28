@@ -35,8 +35,8 @@
 //! [`EditorCapabilities`]: super::EditorCapabilities
 
 use ropey::RopeSlice;
-use tome_base::range::CharIdx;
-use tome_base::selection::Selection;
+use evildoer_base::range::CharIdx;
+use evildoer_base::selection::Selection;
 
 use crate::Mode;
 use crate::actions::EditAction;
@@ -54,7 +54,7 @@ pub trait CursorAccess {
 
 /// Selection access (required).
 ///
-/// Provides access to the editor's selection state. Tome uses Kakoune-style
+/// Provides access to the editor's selection state. Evildoer uses Kakoune-style
 /// selections where multiple selections are supported and the cursor is
 /// always part of a selection.
 pub trait SelectionAccess {

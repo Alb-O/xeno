@@ -96,15 +96,15 @@ pub fn coalesce_resize_events(events: &EventReader, first: WindowSize) -> io::Re
 	Ok(latest)
 }
 
-pub fn cursor_style_for_mode(mode: tome_manifest::Mode) -> CursorStyle {
+pub fn cursor_style_for_mode(mode: evildoer_manifest::Mode) -> CursorStyle {
 	match mode {
-		tome_manifest::Mode::Insert => CursorStyle::BlinkingBar,
+		evildoer_manifest::Mode::Insert => CursorStyle::BlinkingBar,
 		_ => CursorStyle::SteadyBlock,
 	}
 }
 
-pub fn split_cursor_to_termina(style: tome_manifest::SplitCursorStyle) -> CursorStyle {
-	use tome_manifest::SplitCursorStyle;
+pub fn split_cursor_to_termina(style: evildoer_manifest::SplitCursorStyle) -> CursorStyle {
+	use evildoer_manifest::SplitCursorStyle;
 	match style {
 		SplitCursorStyle::Hidden | SplitCursorStyle::Block => CursorStyle::SteadyBlock,
 		SplitCursorStyle::Default => CursorStyle::Default,

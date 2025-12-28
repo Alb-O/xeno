@@ -1,19 +1,19 @@
 //! Integration tests for the manifest registry system.
 //!
 //! These tests verify that the registry is correctly populated when
-//! tome-stdlib is linked. They test the integration between manifest
+//! evildoer-stdlib is linked. They test the integration between manifest
 //! (which defines slices) and stdlib (which populates them).
 
-// Force linkage of tome-stdlib to ensure all registrations occur.
-extern crate tome_stdlib;
+// Force linkage of evildoer-stdlib to ensure all registrations occur.
+extern crate evildoer_stdlib;
 
-use tome_base::key::Key;
-use tome_manifest::actions::{
+use evildoer_base::key::Key;
+use evildoer_manifest::actions::{
 	RESULT_CURSOR_MOVE_HANDLERS, RESULT_EDIT_HANDLERS, RESULT_ERROR_HANDLERS,
 	RESULT_INSERT_WITH_MOTION_HANDLERS, RESULT_MODE_CHANGE_HANDLERS, RESULT_MOTION_HANDLERS,
 	RESULT_OK_HANDLERS, RESULT_QUIT_HANDLERS,
 };
-use tome_manifest::{
+use evildoer_manifest::{
 	BindingMode, find_action, find_action_by_id, find_binding_resolved, resolve_action_id,
 };
 
@@ -31,7 +31,7 @@ fn test_action_id_resolution() {
 	assert!(action.is_some(), "should find action by ActionId");
 	assert_eq!(action.unwrap().name, "move_left");
 
-	let invalid = find_action_by_id(tome_manifest::ActionId::INVALID);
+	let invalid = find_action_by_id(evildoer_manifest::ActionId::INVALID);
 	assert!(invalid.is_none(), "INVALID ActionId should return None");
 
 	let by_name = find_action("move_left").unwrap();

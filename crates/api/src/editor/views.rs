@@ -3,7 +3,7 @@
 //! Provides convenient methods for accessing the focused view and navigating
 //! between buffers and terminals. These delegate to [`BufferManager`].
 
-use tome_manifest::SplitBuffer;
+use evildoer_manifest::SplitBuffer;
 
 use super::Editor;
 use crate::buffer::{Buffer, BufferId, BufferView, TerminalId};
@@ -92,7 +92,7 @@ impl Editor {
 	}
 
 	/// Returns the cursor style for the focused terminal, if any.
-	pub fn focused_terminal_cursor_style(&self) -> Option<tome_manifest::SplitCursorStyle> {
+	pub fn focused_terminal_cursor_style(&self) -> Option<evildoer_manifest::SplitCursorStyle> {
 		let terminal_id = self.focused_terminal_id()?;
 		let terminal = self.get_terminal(terminal_id)?;
 		terminal.cursor().map(|c| c.style)

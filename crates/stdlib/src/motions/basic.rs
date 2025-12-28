@@ -1,4 +1,4 @@
-use tome_base::range::Direction;
+use evildoer_base::range::Direction;
 
 use crate::motion;
 use crate::movement::move_horizontally;

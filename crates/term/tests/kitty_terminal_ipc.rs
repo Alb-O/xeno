@@ -2,7 +2,7 @@ mod helpers;
 
 use std::time::{Duration, Instant};
 
-use helpers::{insert_text, reset_test_file, tome_cmd_debug_theme, workspace_dir};
+use helpers::{insert_text, reset_test_file, evildoer_cmd_debug_theme, workspace_dir};
 use kitty_test_harness::{
 	KittyHarness, kitty_send_keys, pause_briefly, require_kitty, run_with_timeout,
 	wait_for_screen_text_clean, with_kitty_capture,
@@ -21,10 +21,10 @@ fn wait_for_prompt(kitty: &KittyHarness) {
 	);
 }
 
-/// Tests that embedded terminal has TOME_BIN exported for IPC wrappers.
+/// Tests that embedded terminal has EVILDOER_BIN exported for IPC wrappers.
 #[serial_test::serial]
 #[test]
-fn terminal_has_tome_in_path() {
+fn terminal_has_evildoer_in_path() {
 	if !require_kitty() {
 		return;
 	}
@@ -33,7 +33,7 @@ fn terminal_has_tome_in_path() {
 	reset_test_file(file);
 
 	run_with_timeout(TEST_TIMEOUT, move || {
-		with_kitty_capture(&workspace_dir(), &tome_cmd_debug_theme(file), |kitty| {
+		with_kitty_capture(&workspace_dir(), &evildoer_cmd_debug_theme(file), |kitty| {
 			pause_briefly();
 
 			// Open terminal: Ctrl+w t
@@ -43,21 +43,21 @@ fn terminal_has_tome_in_path() {
 			// Wait for shell prompt
 			wait_for_prompt(kitty);
 
-			// Echo TOME_BIN to ensure IPC wrapper path is exported
-			for c in "echo $TOME_BIN".chars() {
+			// Echo EVILDOER_BIN to ensure IPC wrapper path is exported
+			for c in "echo $EVILDOER_BIN".chars() {
 				kitty_send_keys!(kitty, KeyCode::Char(c));
 			}
 			kitty_send_keys!(kitty, KeyCode::Enter);
 
-			// Wait for output containing "tome"
+			// Wait for output containing "evildoer"
 			let (_, clean) =
 				wait_for_screen_text_clean(kitty, Duration::from_secs(3), |_raw, clean| {
-					clean.contains("tome-")
+					clean.contains("evildoer-")
 				});
 
 			assert!(
-				clean.contains("tome-"),
-				"TOME_BIN should contain tome bin dir: {}",
+				clean.contains("evildoer-"),
+				"EVILDOER_BIN should contain evildoer bin dir: {}",
 				clean
 			);
 		});
@@ -76,7 +76,7 @@ fn terminal_ipc_quit_command() {
 	reset_test_file(file);
 
 	run_with_timeout(TEST_TIMEOUT, || {
-		with_kitty_capture(&workspace_dir(), &tome_cmd_debug_theme(file), |kitty| {
+		with_kitty_capture(&workspace_dir(), &evildoer_cmd_debug_theme(file), |kitty| {
 			pause_briefly();
 
 			// Open terminal: Ctrl+w t
@@ -108,7 +108,7 @@ fn terminal_ipc_write_saves_buffer() {
 	reset_test_file(file);
 
 	run_with_timeout(TEST_TIMEOUT, move || {
-		with_kitty_capture(&workspace_dir(), &tome_cmd_debug_theme(file), |kitty| {
+		with_kitty_capture(&workspace_dir(), &evildoer_cmd_debug_theme(file), |kitty| {
 			pause_briefly();
 			insert_text(kitty, "ipc write workflow");
 			pause_briefly();

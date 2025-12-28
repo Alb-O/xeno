@@ -9,8 +9,8 @@ use termwiz::input::KeyCode;
 
 const TEST_TIMEOUT: Duration = Duration::from_secs(15);
 
-fn tome_cmd() -> String {
-	env!("CARGO_BIN_EXE_tome").to_string()
+fn evildoer_cmd() -> String {
+	env!("CARGO_BIN_EXE_evildoer").to_string()
 }
 
 fn workspace_dir() -> PathBuf {
@@ -25,7 +25,7 @@ fn command_completion_shows_menu() {
 	}
 
 	run_with_timeout(TEST_TIMEOUT, || {
-		with_kitty_capture(&workspace_dir(), &tome_cmd(), |kitty| {
+		with_kitty_capture(&workspace_dir(), &evildoer_cmd(), |kitty| {
 			pause_briefly();
 
 			// Open command palette and type 'wr'
@@ -77,7 +77,7 @@ fn theme_completion_appends_to_command() {
 	}
 
 	run_with_timeout(TEST_TIMEOUT, || {
-		with_kitty_capture(&workspace_dir(), &tome_cmd(), |kitty| {
+		with_kitty_capture(&workspace_dir(), &evildoer_cmd(), |kitty| {
 			pause_briefly();
 
 			// Type ':theme ' (with space) to trigger argument completion

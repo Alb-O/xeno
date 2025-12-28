@@ -3,8 +3,8 @@
 //! Most navigation is delegated to Buffer. This module provides
 //! Editor-specific wrappers where needed.
 
-use tome_base::ScrollDirection;
-use tome_base::range::Direction as MoveDir;
+use evildoer_base::ScrollDirection;
+use evildoer_base::range::Direction as MoveDir;
 
 use super::Editor;
 

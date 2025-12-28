@@ -22,10 +22,10 @@ mod scroll;
 mod selection_ops;
 mod text_objects;
 
-// Re-export all action types from tome_manifest
+// Re-export all action types from evildoer_manifest
 /// Look up an action by name.
-pub use tome_manifest::index::find_action;
-pub use tome_manifest::{
+pub use evildoer_manifest::index::find_action;
+pub use evildoer_manifest::{
 	ACTIONS, ActionArgs, ActionContext, ActionDef, ActionHandler, ActionId, ActionMode,
 	ActionResult, EditAction, ObjectSelectionKind, PendingAction, PendingKind, ScrollAmount,
 	ScrollDir, VisualDirection,

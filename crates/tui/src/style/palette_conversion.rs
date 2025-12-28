@@ -15,7 +15,7 @@ use crate::style::Color;
 /// ```
 /// use palette::Srgb;
 ///
-/// use tome_tui::style::Color;
+/// use evildoer_tui::style::Color;
 ///
 /// let color = Color::from(Srgb::new(1.0f32, 0.0, 0.0));
 /// assert_eq!(color, Color::Rgb(255, 0, 0));
@@ -37,7 +37,7 @@ impl<T: IntoStimulus<u8>> From<Srgb<T>> for Color {
 /// ```
 /// use palette::LinSrgb;
 ///
-/// use tome_tui::style::Color;
+/// use evildoer_tui::style::Color;
 ///
 /// let color = Color::from(LinSrgb::new(1.0f32, 0.0, 0.0));
 /// assert_eq!(color, Color::Rgb(255, 0, 0));

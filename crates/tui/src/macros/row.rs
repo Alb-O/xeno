@@ -7,8 +7,8 @@
 /// * Create a [`Row`] containing a vector of [`Cell`]s:
 ///
 /// ```rust
-/// # use tome_tui::style::Stylize;
-/// use tome_tui::row;
+/// # use evildoer_tui::style::Stylize;
+/// use evildoer_tui::row;
 ///
 /// let row = row!["hello", "world"];
 /// let row = row!["hello".red(), "world".red().bold()];
@@ -17,22 +17,22 @@
 /// * Create an empty [`Row`]:
 ///
 /// ```rust
-/// # use tome_tui::row;
+/// # use evildoer_tui::row;
 /// let empty_row = row![];
 /// ```
 ///
 /// * Create a [`Row`] from a given [`Cell`] repeated some amount of times:
 ///
 /// ```rust
-/// # use tome_tui::row;
+/// # use evildoer_tui::row;
 /// let row = row!["hello"; 2];
 /// ```
 ///
 /// * Use [`text!`], [`line!`] or [`span!`] macro inside [`row!`] macro.
 ///
 /// ```rust
-/// # use tome_tui::style::{Modifier};
-/// use tome_tui::{row, line, text, span};
+/// # use evildoer_tui::style::{Modifier};
+/// use evildoer_tui::{row, line, text, span};
 ///
 /// let row = row![
 ///     line!["hello", "world"], span!(Modifier::BOLD; "goodbye {}", "world"),

@@ -11,21 +11,21 @@
 //! # Examples
 //!
 //! ```rust,no_run
-//! use tome_tui::prelude::*;
+//! use evildoer_tui::prelude::*;
 //! ```
 //!
 //! Aside from the main types that are used in the library, this prelude also re-exports several
 //! modules to make it easy to qualify types that would otherwise collide. E.g.:
 //!
 //! ```rust
-//! use tome_tui::prelude::*;
-//! use tome_tui::widgets::*;
+//! use evildoer_tui::prelude::*;
+//! use evildoer_tui::widgets::*;
 //!
 //! #[derive(Debug, Default, PartialEq, Eq)]
 //! struct Line;
 //!
 //! assert_eq!(Line::default(), Line);
-//! assert_eq!(text::Line::default(), tome_tui::text::Line::from(vec![]));
+//! assert_eq!(text::Line::default(), evildoer_tui::text::Line::from(vec![]));
 //! ```
 
 #[cfg(feature = "crossterm")]

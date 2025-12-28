@@ -1,19 +1,19 @@
-use tome_manifest::notifications as manifest;
-use tome_stdlib::notifications::find_notification_type;
-use tome_tui::style::Style;
-use tome_tui::widgets::icon::presets as icon_presets;
-use tome_tui::widgets::notifications::{self as notif, Toast, ToastIcon};
+use evildoer_manifest::notifications as manifest;
+use evildoer_stdlib::notifications::find_notification_type;
+use evildoer_tui::style::Style;
+use evildoer_tui::widgets::icon::presets as icon_presets;
+use evildoer_tui::widgets::notifications::{self as notif, Toast, ToastIcon};
 
 use crate::editor::Editor;
 
 /// Returns the appropriate icon glyph for a semantic notification type.
 fn icon_for_semantic(semantic: &str) -> Option<&'static str> {
 	match semantic {
-		tome_manifest::SEMANTIC_INFO => Some(icon_presets::INFO),
-		tome_manifest::SEMANTIC_WARNING => Some(icon_presets::WARNING),
-		tome_manifest::SEMANTIC_ERROR => Some(icon_presets::ERROR),
-		tome_manifest::SEMANTIC_SUCCESS => Some(icon_presets::SUCCESS),
-		tome_manifest::SEMANTIC_DIM => Some(icon_presets::DEBUG),
+		evildoer_manifest::SEMANTIC_INFO => Some(icon_presets::INFO),
+		evildoer_manifest::SEMANTIC_WARNING => Some(icon_presets::WARNING),
+		evildoer_manifest::SEMANTIC_ERROR => Some(icon_presets::ERROR),
+		evildoer_manifest::SEMANTIC_SUCCESS => Some(icon_presets::SUCCESS),
+		evildoer_manifest::SEMANTIC_DIM => Some(icon_presets::DEBUG),
 		_ => None,
 	}
 }
@@ -25,7 +25,7 @@ impl Editor {
 
 		let semantic = type_def
 			.map(|t| t.semantic)
-			.unwrap_or(tome_manifest::SEMANTIC_INFO);
+			.unwrap_or(evildoer_manifest::SEMANTIC_INFO);
 		let notif_style: Style = self.theme.colors.notification_style(semantic).into();
 		let accent = notif_style.fg.unwrap_or_default();
 

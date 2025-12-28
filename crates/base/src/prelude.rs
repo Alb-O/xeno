@@ -1,4 +1,4 @@
-//! Prelude for tome-base.
+//! Prelude for evildoer-base.
 //!
 //! Re-exports the most commonly used types.
 

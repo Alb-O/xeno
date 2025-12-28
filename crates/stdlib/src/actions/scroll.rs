@@ -1,8 +1,8 @@
 //! Scroll/view actions.
 
-use tome_base::key::{Key, SpecialKey};
-use tome_manifest::actions::{ActionResult, EditAction, ScrollAmount, ScrollDir, VisualDirection};
-use tome_manifest::{bind, bound_action};
+use evildoer_base::key::{Key, SpecialKey};
+use evildoer_manifest::actions::{ActionResult, EditAction, ScrollAmount, ScrollDir, VisualDirection};
+use evildoer_manifest::{bind, bound_action};
 
 use crate::action;
 

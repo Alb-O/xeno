@@ -30,8 +30,8 @@ mod padding;
 /// # Example
 ///
 /// ```
-/// use tome_tui::text::Line;
-/// use tome_tui::widgets::{Block, Paragraph};
+/// use evildoer_tui::text::Line;
+/// use evildoer_tui::widgets::{Block, Paragraph};
 ///
 /// // Simple bordered block
 /// let block = Block::bordered().title("My Block");

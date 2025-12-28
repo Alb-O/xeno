@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use tome_tui::layout::{Constraint, Direction, Layout, Rect};
+use evildoer_tui::layout::{Constraint, Direction, Layout, Rect};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum DockSlot {

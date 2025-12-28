@@ -1,9 +1,8 @@
 ---
-source: bin/tome-term/src/tests.rs
+source: crates/term/src/tests.rs
 expression: terminal.backend()
 ---
 "  1                                                                             "
-"  2                                                                             "
 "  ~                                                                             "
 "  ~                                                                             "
 "  ~                                                                             "
@@ -11,4 +10,5 @@ expression: terminal.backend()
 "  ~                                                                             "
 "  ~                                                                             "
 "  ~                                                                             "
-" INSERT  test.txt [+]  2:1  Bot                                                 "
+"  ~                                                                             "
+" NORMAL  test.txt  1:1  Top                                                     "

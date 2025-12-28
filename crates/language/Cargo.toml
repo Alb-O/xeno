@@ -1,6 +1,6 @@
 [package]
-name = "tome-language"
-description = "Language configuration and metadata for Tome editor"
+name = "evildoer-language"
+description = "Language configuration and metadata for Evildoer editor"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -15,8 +15,8 @@ regex.workspace = true
 ropey.workspace = true
 serde = { workspace = true, features = ["derive"] }
 thiserror.workspace = true
-tome-base.workspace = true
-tome-manifest.workspace = true
+evildoer-base.workspace = true
+evildoer-manifest.workspace = true
 toml.workspace = true
 tree-house.workspace = true
 

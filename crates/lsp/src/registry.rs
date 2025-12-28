@@ -13,7 +13,7 @@
 //! # Example
 //!
 //! ```ignore
-//! use tome_lsp::registry::{Registry, LanguageServerConfig};
+//! use evildoer_lsp::registry::{Registry, LanguageServerConfig};
 //!
 //! let mut registry = Registry::new();
 //!

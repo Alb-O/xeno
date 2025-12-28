@@ -8,7 +8,7 @@
 /// # Example
 ///
 /// ```
-/// use tome_tui::animation::Animatable;
+/// use evildoer_tui::animation::Animatable;
 ///
 /// let start = 0.0f32;
 /// let end = 100.0f32;

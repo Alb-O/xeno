@@ -1,10 +1,10 @@
 use std::path::PathBuf;
 
 use clap::{Parser, Subcommand};
-use tome_api::styles::cli_styles;
+use evildoer_api::styles::cli_styles;
 
 #[derive(Parser, Debug)]
-#[command(name = "tome")]
+#[command(name = "evildoer")]
 #[command(about = "A modal text editor")]
 #[command(version)]
 #[command(styles = cli_styles())]

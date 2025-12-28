@@ -1,6 +1,6 @@
 //! Undo/redo history for buffers.
 
-use tome_language::LanguageLoader;
+use evildoer_language::LanguageLoader;
 
 use super::Buffer;
 

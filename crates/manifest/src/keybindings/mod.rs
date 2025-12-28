@@ -20,7 +20,7 @@
 //! ```
 
 use linkme::distributed_slice;
-use tome_base::key::Key;
+use evildoer_base::key::Key;
 
 use crate::index::resolve_action_id;
 use crate::{ActionId, Mode};

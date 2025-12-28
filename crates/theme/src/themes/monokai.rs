@@ -51,7 +51,7 @@ pub static MONOKAI: Theme = Theme {
 		syntax: monokai_syntax(),
 	},
 	priority: 0,
-	source: tome_manifest::RegistrySource::Builtin,
+	source: evildoer_manifest::RegistrySource::Builtin,
 };
 
 // Monokai palette

@@ -1,7 +1,7 @@
 //! Core syntax parsing and incremental updates.
 //!
 //! This module wraps tree-house's Syntax type to provide incremental parsing
-//! that integrates with Tome's ChangeSet/Transaction system.
+//! that integrates with Evildoer's ChangeSet/Transaction system.
 
 use std::ops::RangeBounds;
 use std::time::Duration;
@@ -36,7 +36,7 @@ impl From<tree_house::Error> for SyntaxError {
 	}
 }
 
-/// Wrapper around tree-house Syntax for Tome integration.
+/// Wrapper around tree-house Syntax for Evildoer integration.
 #[derive(Debug)]
 pub struct Syntax {
 	inner: tree_house::Syntax,
@@ -69,12 +69,12 @@ impl Syntax {
 		Ok(())
 	}
 
-	/// Updates from a Tome ChangeSet.
+	/// Updates from a Evildoer ChangeSet.
 	pub fn update_from_changeset(
 		&mut self,
 		old_source: RopeSlice,
 		new_source: RopeSlice,
-		changeset: &tome_base::ChangeSet,
+		changeset: &evildoer_base::ChangeSet,
 		loader: &LanguageLoader,
 	) -> Result<(), SyntaxError> {
 		let edits = generate_edits(old_source, changeset);
@@ -142,9 +142,9 @@ impl Syntax {
 	}
 }
 
-/// Generates tree-sitter InputEdits from a Tome ChangeSet.
-fn generate_edits(old_text: RopeSlice, changeset: &tome_base::ChangeSet) -> Vec<InputEdit> {
-	use tome_base::transaction::Operation;
+/// Generates tree-sitter InputEdits from a Evildoer ChangeSet.
+fn generate_edits(old_text: RopeSlice, changeset: &evildoer_base::ChangeSet) -> Vec<InputEdit> {
+	use evildoer_base::transaction::Operation;
 	use tree_house::tree_sitter::Point;
 
 	let mut edits = Vec::new();
@@ -280,13 +280,13 @@ fn pretty_print_tree_impl<W: std::fmt::Write>(
 
 #[cfg(test)]
 mod tests {
-	use tome_base::{Rope, Transaction};
+	use evildoer_base::{Rope, Transaction};
 
 	use super::*;
 
 	#[test]
 	fn test_generate_edits_insert() {
-		use tome_base::transaction::Change;
+		use evildoer_base::transaction::Change;
 		let doc = Rope::from("hello world");
 		let changes = vec![Change {
 			start: 5,
@@ -304,7 +304,7 @@ mod tests {
 
 	#[test]
 	fn test_generate_edits_delete() {
-		use tome_base::transaction::Change;
+		use evildoer_base::transaction::Change;
 		let doc = Rope::from("hello world");
 		let changes = vec![Change {
 			start: 5,
@@ -322,7 +322,7 @@ mod tests {
 
 	#[test]
 	fn test_generate_edits_replace() {
-		use tome_base::transaction::Change;
+		use evildoer_base::transaction::Change;
 		let doc = Rope::from("hello world");
 		let changes = vec![Change {
 			start: 6,

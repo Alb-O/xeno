@@ -4,12 +4,12 @@ use syn::parse::{Parse, ParseStream};
 use syn::{Data, DeriveInput, FnArg, ItemTrait, ReturnType, Token, TraitItem, parse_macro_input};
 
 #[proc_macro_attribute]
-pub fn tome_api(attr: TokenStream, item: TokenStream) -> TokenStream {
+pub fn evildoer_api(attr: TokenStream, item: TokenStream) -> TokenStream {
 	let input = parse_macro_input!(item as ItemTrait);
 	let trait_name = &input.ident;
 	let trait_items = &input.items;
 
-	// Parse context type from attribute (e.g. #[tome_api(ExtensionHostContext)])
+	// Parse context type from attribute (e.g. #[evildoer_api(ExtensionHostContext)])
 	let context_type = if attr.is_empty() {
 		None
 	} else {
@@ -263,16 +263,16 @@ pub fn register_notification(input: TokenStream) -> TokenStream {
 		fields,
 	} = parse_macro_input!(input as NotificationInput);
 
-	let mut level = quote! { tome_manifest::notifications::Level::Info };
-	let mut semantic = quote! { tome_manifest::SEMANTIC_INFO };
-	let mut dismiss = quote! { tome_manifest::notifications::AutoDismiss::default() };
+	let mut level = quote! { evildoer_manifest::notifications::Level::Info };
+	let mut semantic = quote! { evildoer_manifest::SEMANTIC_INFO };
+	let mut dismiss = quote! { evildoer_manifest::notifications::AutoDismiss::default() };
 	let mut icon = quote! { None };
-	let mut animation = quote! { tome_manifest::notifications::Animation::Fade };
+	let mut animation = quote! { evildoer_manifest::notifications::Animation::Fade };
 	let mut timing = quote! {
 		(
-			tome_manifest::notifications::Timing::Fixed(::std::time::Duration::from_millis(200)),
-			tome_manifest::notifications::Timing::Auto,
-			tome_manifest::notifications::Timing::Fixed(::std::time::Duration::from_millis(200)),
+			evildoer_manifest::notifications::Timing::Fixed(::std::time::Duration::from_millis(200)),
+			evildoer_manifest::notifications::Timing::Auto,
+			evildoer_manifest::notifications::Timing::Fixed(::std::time::Duration::from_millis(200)),
 		)
 	};
 
@@ -297,9 +297,9 @@ pub fn register_notification(input: TokenStream) -> TokenStream {
 	let trait_name = format_ident!("Notify{}Ext", static_name);
 
 	let expanded = quote! {
-		#[::linkme::distributed_slice(tome_manifest::notifications::NOTIFICATION_TYPES)]
-		pub static #static_name: tome_manifest::notifications::NotificationTypeDef =
-			tome_manifest::notifications::NotificationTypeDef {
+		#[::linkme::distributed_slice(evildoer_manifest::notifications::NOTIFICATION_TYPES)]
+		pub static #static_name: evildoer_manifest::notifications::NotificationTypeDef =
+			evildoer_manifest::notifications::NotificationTypeDef {
 				id: #id,
 				name: #id,
 				level: #level,
@@ -309,16 +309,16 @@ pub fn register_notification(input: TokenStream) -> TokenStream {
 				animation: #animation,
 				timing: #timing,
 				priority: 0,
-				source: tome_manifest::RegistrySource::Crate(env!("CARGO_PKG_NAME")),
+				source: evildoer_manifest::RegistrySource::Crate(env!("CARGO_PKG_NAME")),
 			};
 
-		pub trait #trait_name: tome_manifest::editor_ctx::MessageAccess {
+		pub trait #trait_name: evildoer_manifest::editor_ctx::MessageAccess {
 			fn #helper_name(&mut self, msg: &str) {
 				self.notify(#id, msg);
 			}
 		}
 
-		impl<T: tome_manifest::editor_ctx::MessageAccess + ?Sized> #trait_name for T {}
+		impl<T: evildoer_manifest::editor_ctx::MessageAccess + ?Sized> #trait_name for T {}
 	};
 
 	expanded.into()

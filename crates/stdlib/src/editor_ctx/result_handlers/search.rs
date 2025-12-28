@@ -1,8 +1,8 @@
 //! Search result handlers.
 
-use tome_manifest::actions::ActionResult;
-use tome_manifest::editor_ctx::HandleOutcome;
-use tome_manifest::result_handler;
+use evildoer_manifest::actions::ActionResult;
+use evildoer_manifest::editor_ctx::HandleOutcome;
+use evildoer_manifest::result_handler;
 
 result_handler!(
 	RESULT_SEARCH_NEXT_HANDLERS,

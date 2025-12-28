@@ -25,7 +25,7 @@ use crate::layout::Constraint;
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum Flex {
 	/// Fills the available space within the container, putting excess space into the last
-	/// constraint of the lowest priority. This matches the default behavior of tome_tui and tui
+	/// constraint of the lowest priority. This matches the default behavior of evildoer_tui and tui
 	/// applications without [`Flex`]
 	///
 	/// The following examples illustrate the allocation of excess in various combinations of

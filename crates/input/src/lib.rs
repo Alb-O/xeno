@@ -7,6 +7,6 @@ mod tests;
 pub mod types;
 
 pub use handler::InputHandler;
-// Re-export Mode from tome-manifest for convenience
-pub use tome_manifest::Mode;
+// Re-export Mode from evildoer-manifest for convenience
+pub use evildoer_manifest::Mode;
 pub use types::KeyResult;

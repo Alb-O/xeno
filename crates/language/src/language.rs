@@ -4,7 +4,7 @@
 //! about a language, including file associations and lazily-loaded syntax config.
 
 use once_cell::sync::OnceCell;
-use tome_manifest::LanguageDef;
+use evildoer_manifest::LanguageDef;
 use tree_house::LanguageConfig as TreeHouseConfig;
 
 use crate::grammar::load_grammar_or_build;

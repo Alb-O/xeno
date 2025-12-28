@@ -1,8 +1,8 @@
 //! Viewport scrolling and cursor visibility logic.
 
 use serde::Serialize;
-use tome_base::range::CharIdx;
-use tome_tui::layout::Rect;
+use evildoer_base::range::CharIdx;
+use evildoer_tui::layout::Rect;
 
 use crate::buffer::Buffer;
 use crate::render::types::{WrapSegment, wrap_line};

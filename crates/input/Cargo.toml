@@ -1,6 +1,6 @@
 [package]
-name = "tome-input"
-description = "Input handling and state machine for Tome editor"
+name = "evildoer-input"
+description = "Input handling and state machine for Evildoer editor"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -8,8 +8,8 @@ license.workspace = true
 [dependencies]
 log.workspace = true
 serde.workspace = true
-tome-base.workspace = true
-tome-manifest.workspace = true
+evildoer-base.workspace = true
+evildoer-manifest.workspace = true
 
 [dev-dependencies]
-tome-stdlib.workspace = true
+evildoer-stdlib.workspace = true

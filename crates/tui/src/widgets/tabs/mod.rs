@@ -29,8 +29,8 @@ const DEFAULT_HIGHLIGHT_STYLE: Style = Style::new().reversed();
 /// # Example
 ///
 /// ```
-/// use tome_tui::style::{Style, Stylize};
-/// use tome_tui::widgets::{Block, Tabs};
+/// use evildoer_tui::style::{Style, Stylize};
+/// use evildoer_tui::widgets::{Block, Tabs};
 ///
 /// Tabs::new(vec!["Tab1", "Tab2", "Tab3", "Tab4"])
 ///     .block(Block::bordered().title("Tabs"))
@@ -45,7 +45,7 @@ const DEFAULT_HIGHLIGHT_STYLE: Style = Style::new().reversed();
 /// into `Tabs`.
 ///
 /// ```
-/// use tome_tui::widgets::Tabs;
+/// use evildoer_tui::widgets::Tabs;
 ///
 /// (0..5).map(|i| format!("Tab{i}")).collect::<Tabs>();
 /// ```
@@ -84,7 +84,7 @@ impl Default for Tabs<'_> {
 	/// # Examples
 	///
 	/// ```
-	/// use tome_tui::widgets::Tabs;
+	/// use evildoer_tui::widgets::Tabs;
 	///
 	/// let tabs = Tabs::default().titles(["Tab 1", "Tab 2"]);
 	/// ```
@@ -115,15 +115,15 @@ impl<'a> Tabs<'a> {
 	///
 	/// Basic titles.
 	/// ```
-	/// use tome_tui::widgets::Tabs;
+	/// use evildoer_tui::widgets::Tabs;
 	///
 	/// let tabs = Tabs::new(vec!["Tab 1", "Tab 2"]);
 	/// ```
 	///
 	/// Styled titles
 	/// ```
-	/// use tome_tui::style::Stylize;
-	/// use tome_tui::widgets::Tabs;
+	/// use evildoer_tui::style::Stylize;
+	/// use evildoer_tui::widgets::Tabs;
 	///
 	/// let tabs = Tabs::new(vec!["Tab 1".red(), "Tab 2".blue()]);
 	/// ```
@@ -160,7 +160,7 @@ impl<'a> Tabs<'a> {
 	/// Basic titles.
 	///
 	/// ```
-	/// use tome_tui::widgets::Tabs;
+	/// use evildoer_tui::widgets::Tabs;
 	///
 	/// let tabs = Tabs::default().titles(vec!["Tab 1", "Tab 2"]);
 	/// ```
@@ -168,8 +168,8 @@ impl<'a> Tabs<'a> {
 	/// Styled titles.
 	///
 	/// ```
-	/// use tome_tui::style::Stylize;
-	/// use tome_tui::widgets::Tabs;
+	/// use evildoer_tui::style::Stylize;
+	/// use evildoer_tui::widgets::Tabs;
 	///
 	/// let tabs = Tabs::default().titles(vec!["Tab 1".red(), "Tab 2".blue()]);
 	/// ```
@@ -208,7 +208,7 @@ impl<'a> Tabs<'a> {
 	/// Select the second tab.
 	///
 	/// ```
-	/// use tome_tui::widgets::Tabs;
+	/// use evildoer_tui::widgets::Tabs;
 	///
 	/// let tabs = Tabs::new(vec!["Tab 1", "Tab 2"]).select(1);
 	/// ```
@@ -216,7 +216,7 @@ impl<'a> Tabs<'a> {
 	/// Deselect the selected tab.
 	///
 	/// ```
-	/// use tome_tui::widgets::Tabs;
+	/// use evildoer_tui::widgets::Tabs;
 	///
 	/// let tabs = Tabs::new(vec!["Tab 1", "Tab 2"]).select(None);
 	/// ```
@@ -264,13 +264,13 @@ impl<'a> Tabs<'a> {
 	///
 	/// Use a dot (`•`) as separator.
 	/// ```
-	/// use tome_tui::widgets::Tabs;
+	/// use evildoer_tui::widgets::Tabs;
 	///
 	/// let tabs = Tabs::new(vec!["Tab 1", "Tab 2"]).divider("•");
 	/// ```
 	/// Use dash (`-`) as separator.
 	/// ```
-	/// use tome_tui::widgets::Tabs;
+	/// use evildoer_tui::widgets::Tabs;
 	///
 	/// let tabs = Tabs::new(vec!["Tab 1", "Tab 2"]).divider("-");
 	/// ```
@@ -291,13 +291,13 @@ impl<'a> Tabs<'a> {
 	///
 	/// A space on either side of the tabs.
 	/// ```
-	/// use tome_tui::widgets::Tabs;
+	/// use evildoer_tui::widgets::Tabs;
 	///
 	/// let tabs = Tabs::new(vec!["Tab 1", "Tab 2"]).padding(" ", " ");
 	/// ```
 	/// Nothing on either side of the tabs.
 	/// ```
-	/// use tome_tui::widgets::Tabs;
+	/// use evildoer_tui::widgets::Tabs;
 	///
 	/// let tabs = Tabs::new(vec!["Tab 1", "Tab 2"]).padding("", "");
 	/// ```
@@ -320,7 +320,7 @@ impl<'a> Tabs<'a> {
 	///
 	/// An arrow on the left of tabs.
 	/// ```
-	/// use tome_tui::widgets::Tabs;
+	/// use evildoer_tui::widgets::Tabs;
 	///
 	/// let tabs = Tabs::new(vec!["Tab 1", "Tab 2"]).padding_left("->");
 	/// ```
@@ -341,7 +341,7 @@ impl<'a> Tabs<'a> {
 	///
 	/// An arrow on the right of tabs.
 	/// ```
-	/// use tome_tui::widgets::Tabs;
+	/// use evildoer_tui::widgets::Tabs;
 	///
 	/// let tabs = Tabs::new(vec!["Tab 1", "Tab 2"]).padding_right("<-");
 	/// ```
@@ -457,7 +457,7 @@ impl UnicodeWidthStr for Tabs<'_> {
 	/// Characters in the Ambiguous category are considered single-width.
 	///
 	/// ```
-	/// use tome_tui::widgets::Tabs;
+	/// use evildoer_tui::widgets::Tabs;
 	/// use unicode_width::UnicodeWidthStr;
 	///
 	/// let tabs = Tabs::new(vec!["Tab1", "Tab2", "Tab3"]);
@@ -485,7 +485,7 @@ impl UnicodeWidthStr for Tabs<'_> {
 	/// Characters in the Ambiguous category are considered double-width.
 	///
 	/// ```
-	/// use tome_tui::widgets::Tabs;
+	/// use evildoer_tui::widgets::Tabs;
 	/// use unicode_width::UnicodeWidthStr;
 	///
 	/// let tabs = Tabs::new(vec!["你", "好", "世界"]);

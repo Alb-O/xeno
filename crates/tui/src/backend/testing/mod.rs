@@ -14,7 +14,7 @@ use crate::layout::{Position, Rect, Size};
 
 /// A [`Backend`] implementation used for integration testing that renders to an memory buffer.
 ///
-/// Note: that although many of the integration and unit tests in tome_tui are written using this
+/// Note: that although many of the integration and unit tests in evildoer_tui are written using this
 /// backend, it is preferable to write unit tests for widgets directly against the buffer rather
 /// than using this backend. This backend is intended for integration tests that test the entire
 /// terminal UI.
@@ -22,7 +22,7 @@ use crate::layout::{Position, Rect, Size};
 /// # Example
 ///
 /// ```rust,ignore
-/// use tome_tui::backend::{Backend, TestBackend};
+/// use evildoer_tui::backend::{Backend, TestBackend};
 ///
 /// let mut backend = TestBackend::new(10, 2);
 /// backend.clear()?;

@@ -78,11 +78,11 @@ impl Frame<'_> {
 	/// # Example
 	///
 	/// ```rust,ignore
-	/// # use tome_tui::{backend::TestBackend, Terminal};
+	/// # use evildoer_tui::{backend::TestBackend, Terminal};
 	/// # let backend = TestBackend::new(5, 5);
 	/// # let mut terminal = Terminal::new(backend).unwrap();
 	/// # let mut frame = terminal.get_frame();
-	/// use tome_tui::{layout::Rect, widgets::Block};
+	/// use evildoer_tui::{layout::Rect, widgets::Block};
 	///
 	/// let block = Block::new();
 	/// let area = Rect::new(0, 0, 5, 5);
@@ -105,11 +105,11 @@ impl Frame<'_> {
 	/// # Example
 	///
 	/// ```rust,ignore
-	/// # use tome_tui::{backend::TestBackend, Terminal};
+	/// # use evildoer_tui::{backend::TestBackend, Terminal};
 	/// # let backend = TestBackend::new(5, 5);
 	/// # let mut terminal = Terminal::new(backend).unwrap();
 	/// # let mut frame = terminal.get_frame();
-	/// use tome_tui::{
+	/// use evildoer_tui::{
 	///     layout::Rect,
 	///     widgets::{List, ListItem, ListState},
 	/// };
@@ -179,7 +179,7 @@ impl Frame<'_> {
 	/// # Examples
 	///
 	/// ```rust,ignore
-	/// # use tome_tui::{backend::TestBackend, Terminal};
+	/// # use evildoer_tui::{backend::TestBackend, Terminal};
 	/// # let backend = TestBackend::new(5, 5);
 	/// # let mut terminal = Terminal::new(backend).unwrap();
 	/// # let mut frame = terminal.get_frame();

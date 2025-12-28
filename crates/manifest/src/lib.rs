@@ -1,8 +1,8 @@
 //! Registry infrastructure using compile-time distributed slices.
 //!
 //! This crate contains type definitions, traits, and distributed slices for the
-//! tome editor's extension system. It does NOT contain implementations - those
-//! live in tome-stdlib.
+//! evildoer editor's extension system. It does NOT contain implementations - those
+//! live in evildoer-stdlib.
 //!
 //! # Core Types
 //!
@@ -29,8 +29,8 @@
 //! - [`LANGUAGES`] - All registered languages (file types + syntax)
 
 use linkme::distributed_slice;
-pub use tome_base::range::CharIdx;
-pub use tome_base::{Range, Selection};
+pub use evildoer_base::range::CharIdx;
+pub use evildoer_base::{Range, Selection};
 
 pub mod syntax;
 
@@ -218,7 +218,7 @@ pub static TEXT_OBJECTS: [TextObjectDef];
 /// Each language can specify how files are detected (extensions, filenames,
 /// shebangs) and how they're parsed/highlighted (grammar, queries).
 pub struct LanguageDef {
-	/// Unique identifier (e.g., "tome-stdlib::rust").
+	/// Unique identifier (e.g., "evildoer-stdlib::rust").
 	pub id: &'static str,
 	/// Language name (e.g., "rust", "python"). Used for grammar lookup.
 	pub name: &'static str,

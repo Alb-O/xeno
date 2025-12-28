@@ -1,5 +1,5 @@
 use futures::future::LocalBoxFuture;
-use tome_manifest::{CommandContext, CommandError, CommandOutcome, find_command};
+use evildoer_manifest::{CommandContext, CommandError, CommandOutcome, find_command};
 
 use crate::{NotifyINFOExt, command};
 
@@ -30,7 +30,7 @@ fn cmd_help<'a>(
 			}
 		}
 
-		let mut sorted_commands: Vec<_> = tome_manifest::all_commands().collect();
+		let mut sorted_commands: Vec<_> = evildoer_manifest::all_commands().collect();
 		sorted_commands.sort_by_key(|c| c.name);
 
 		let help_text: Vec<String> = sorted_commands

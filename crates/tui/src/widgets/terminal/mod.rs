@@ -7,11 +7,11 @@
 //! # Example
 //!
 //! ```rust,ignore
-//! use tome_tui::{
+//! use evildoer_tui::{
 //!     style::{Color, Modifier, Style},
 //!     widgets::{Block, Borders},
 //! };
-//! use tome_tui::widgets::terminal::PseudoTerminal;
+//! use evildoer_tui::widgets::terminal::PseudoTerminal;
 //! use vt100::Parser;
 //!
 //! let mut parser = vt100::Parser::new(24, 80, 0);

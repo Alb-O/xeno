@@ -1,7 +1,7 @@
 //! Separator hover and drag state for split resizing.
 
-use tome_tui::animation::{Easing, ToggleTween};
-use tome_tui::layout::Rect;
+use evildoer_tui::animation::{Easing, ToggleTween};
+use evildoer_tui::layout::Rect;
 
 use crate::buffer::SplitDirection;
 

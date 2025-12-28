@@ -1,10 +1,10 @@
 # Action Architecture
 
-This document describes the action system architecture in Tome, the decisions behind it, and guidelines for implementing new actions.
+This document describes the action system architecture in Evildoer, the decisions behind it, and guidelines for implementing new actions.
 
 ## Overview
 
-Tome uses a two-phase action system:
+Evildoer uses a two-phase action system:
 
 1. **Action Phase**: A pure function computes what should happen based on current state
 2. **Handler Phase**: The result is applied to the editor
@@ -241,7 +241,7 @@ Or use the colocated macro if applicable.
 
 ### `#[derive(DispatchResult)]`
 
-The `ActionResult` enum uses `#[derive(DispatchResult)]` (from `tome-macro`) to auto-generate dispatch infrastructure:
+The `ActionResult` enum uses `#[derive(DispatchResult)]` (from `evildoer-macro`) to auto-generate dispatch infrastructure:
 
 ```rust
 #[derive(Debug, Clone, DispatchResult)]
@@ -298,7 +298,7 @@ result_handler!(RESULT_MOTION_HANDLERS, HANDLE_MOTION, "motion", |result, ctx, e
 });
 ```
 
-Handler slices are in `tome_manifest::actions::*`, not `tome_manifest::editor_ctx::*`.
+Handler slices are in `evildoer_manifest::actions::*`, not `evildoer_manifest::editor_ctx::*`.
 
 ## Historical Decisions
 

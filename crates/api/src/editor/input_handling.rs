@@ -1,7 +1,7 @@
 use termina::event::{KeyCode, Modifiers};
-use tome_base::{Key, Position, Selection};
-use tome_input::KeyResult;
-use tome_manifest::{
+use evildoer_base::{Key, Position, Selection};
+use evildoer_input::KeyResult;
+use evildoer_manifest::{
 	Mode, SplitBuffer, SplitKey, SplitKeyCode, SplitModifiers, SplitMouse, SplitMouseAction,
 	SplitMouseButton,
 };
@@ -81,7 +81,7 @@ impl Editor {
 	}
 
 	pub(crate) async fn handle_key_active(&mut self, key: termina::event::KeyEvent) -> bool {
-		use tome_manifest::{HookContext, HookEventData, emit_hook, find_action_by_id};
+		use evildoer_manifest::{HookContext, HookEventData, emit_hook, find_action_by_id};
 
 		let old_mode = self.mode();
 		let key: Key = key.into();
@@ -186,7 +186,7 @@ impl Editor {
 		key: termina::event::KeyEvent,
 		buffer_id: crate::buffer::BufferId,
 	) -> bool {
-		use tome_manifest::find_action_by_id;
+		use evildoer_manifest::find_action_by_id;
 
 		let key: Key = key.into();
 
@@ -257,7 +257,7 @@ impl Editor {
 		let height = self.window_height.unwrap_or(24);
 		// Main area excludes status line (1 row)
 		let main_height = height.saturating_sub(1);
-		let main_area = tome_tui::layout::Rect {
+		let main_area = evildoer_tui::layout::Rect {
 			x: 0,
 			y: 0,
 			width,
@@ -300,7 +300,7 @@ impl Editor {
 	pub(crate) async fn handle_mouse_in_doc_area(
 		&mut self,
 		mouse: termina::event::MouseEvent,
-		doc_area: tome_tui::layout::Rect,
+		doc_area: evildoer_tui::layout::Rect,
 	) -> bool {
 		use termina::event::MouseEventKind;
 
@@ -540,11 +540,11 @@ impl Editor {
 	///
 	/// This computes the document area (excluding status line and panels)
 	/// and then finds the focused view's rectangle within that area.
-	fn focused_view_area(&self) -> tome_tui::layout::Rect {
+	fn focused_view_area(&self) -> evildoer_tui::layout::Rect {
 		let width = self.window_width.unwrap_or(80);
 		let height = self.window_height.unwrap_or(24);
 		let main_height = height.saturating_sub(1);
-		let main_area = tome_tui::layout::Rect {
+		let main_area = evildoer_tui::layout::Rect {
 			x: 0,
 			y: 0,
 			width,

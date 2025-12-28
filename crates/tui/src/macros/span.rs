@@ -11,8 +11,8 @@
 /// # Examples
 ///
 /// ```rust
-/// # use tome_tui::style::{Color, Modifier, Style, Stylize};
-/// use tome_tui::span;
+/// # use evildoer_tui::style::{Color, Modifier, Style, Stylize};
+/// use evildoer_tui::span;
 ///
 /// let content = "content";
 ///
@@ -60,31 +60,31 @@
 /// For example, the following will fail to compile:
 ///
 /// ```compile_fail
-/// # use tome_tui::prelude::*;
-/// # use tome_tui::span;
+/// # use evildoer_tui::prelude::*;
+/// # use evildoer_tui::span;
 /// let span = span!(Modifier::BOLD, "hello world");
 /// ```
 ///
 /// But this will work:
 ///
 /// ```rust
-/// # use tome_tui::style::{Modifier};
-/// # use tome_tui::span;
+/// # use evildoer_tui::style::{Modifier};
+/// # use evildoer_tui::span;
 /// let span = span!(Modifier::BOLD; "hello world");
 /// ```
 ///
 /// The following will fail to compile:
 ///
 /// ```compile_fail
-/// # use tome_tui::prelude::*;
-/// # use tome_tui::span;
+/// # use evildoer_tui::prelude::*;
+/// # use evildoer_tui::span;
 /// let span = span!("hello", "world");
 /// ```
 ///
 /// But this will work:
 ///
 /// ```rust
-/// # use tome_tui::span;
+/// # use evildoer_tui::span;
 /// let span = span!("hello {}", "world");
 /// ```
 ///

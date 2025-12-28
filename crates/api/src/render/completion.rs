@@ -1,9 +1,9 @@
-use tome_manifest::CompletionKind;
-use tome_tui::layout::Rect;
-use tome_tui::style::{Modifier, Style};
-use tome_tui::text::{Line, Span};
-use tome_tui::widgets::list::ListItem;
-use tome_tui::widgets::{Block, Borders, List, Widget};
+use evildoer_manifest::CompletionKind;
+use evildoer_tui::layout::Rect;
+use evildoer_tui::style::{Modifier, Style};
+use evildoer_tui::text::{Line, Span};
+use evildoer_tui::widgets::list::ListItem;
+use evildoer_tui::widgets::{Block, Borders, List, Widget};
 
 use crate::Editor;
 
@@ -99,11 +99,11 @@ impl Editor {
 			.collect();
 
 		let stripe_style = Style::default().fg(self.theme.colors.status.normal_bg.into());
-		let border_set = tome_tui::symbols::border::Set {
+		let border_set = evildoer_tui::symbols::border::Set {
 			top_left: "▏",
 			vertical_left: "▏",
 			bottom_left: "▏",
-			..tome_tui::symbols::border::EMPTY
+			..evildoer_tui::symbols::border::EMPTY
 		};
 
 		let block = Block::default()

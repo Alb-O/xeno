@@ -1,12 +1,12 @@
 //! Text object selection actions.
 
-use tome_base::key::Key;
-use tome_base::range::Range;
-use tome_manifest::actions::{ActionResult, ObjectSelectionKind, PendingAction, PendingKind};
-use tome_manifest::{TextObjectDef, bound_action, find_text_object_by_trigger};
+use evildoer_base::key::Key;
+use evildoer_base::range::Range;
+use evildoer_manifest::actions::{ActionResult, ObjectSelectionKind, PendingAction, PendingKind};
+use evildoer_manifest::{TextObjectDef, bound_action, find_text_object_by_trigger};
 
 fn select_object_with_trigger(
-	ctx: &tome_manifest::actions::ActionContext,
+	ctx: &evildoer_manifest::actions::ActionContext,
 	selection_kind: ObjectSelectionKind,
 ) -> ActionResult {
 	let Some(trigger) = ctx.args.char else {
@@ -43,7 +43,7 @@ fn select_object_with_trigger(
 }
 
 fn select_to_boundary(
-	ctx: &tome_manifest::actions::ActionContext,
+	ctx: &evildoer_manifest::actions::ActionContext,
 	obj: &TextObjectDef,
 	pos: usize,
 	to_start: bool,

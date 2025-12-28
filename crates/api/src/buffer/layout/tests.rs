@@ -42,8 +42,8 @@ fn remove_buffer() {
 	assert!(single.remove(BufferId(1)).is_none());
 }
 
-fn make_rect(x: u16, y: u16, width: u16, height: u16) -> tome_tui::layout::Rect {
-	tome_tui::layout::Rect {
+fn make_rect(x: u16, y: u16, width: u16, height: u16) -> evildoer_tui::layout::Rect {
+	evildoer_tui::layout::Rect {
 		x,
 		y,
 		width,

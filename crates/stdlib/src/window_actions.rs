@@ -5,16 +5,16 @@
 //! - `split_vertical` (Ctrl+w v): vertical divider → windows side-by-side left/right
 
 use linkme::distributed_slice;
-use tome_base::key::Key;
-use tome_manifest::action;
-use tome_manifest::actions::{
+use evildoer_base::key::Key;
+use evildoer_manifest::action;
+use evildoer_manifest::actions::{
 	ActionResult, RESULT_BUFFER_NEXT_HANDLERS, RESULT_BUFFER_PREV_HANDLERS,
 	RESULT_CLOSE_BUFFER_HANDLERS, RESULT_CLOSE_OTHER_BUFFERS_HANDLERS, RESULT_FOCUS_DOWN_HANDLERS,
 	RESULT_FOCUS_LEFT_HANDLERS, RESULT_FOCUS_RIGHT_HANDLERS, RESULT_FOCUS_UP_HANDLERS,
 	RESULT_SPLIT_HORIZONTAL_HANDLERS, RESULT_SPLIT_TERMINAL_HORIZONTAL_HANDLERS,
 	RESULT_SPLIT_TERMINAL_VERTICAL_HANDLERS, RESULT_SPLIT_VERTICAL_HANDLERS,
 };
-use tome_manifest::keybindings::{BindingMode, KEYBINDINGS_WINDOW, KeyBindingDef};
+use evildoer_manifest::keybindings::{BindingMode, KEYBINDINGS_WINDOW, KeyBindingDef};
 
 use crate::NotifyWARNExt;
 
@@ -40,8 +40,8 @@ macro_rules! window_action {
 			};
 
 			#[distributed_slice($slice)]
-			static [<HANDLE_ $name:upper>]: tome_manifest::editor_ctx::ResultHandler =
-				tome_manifest::editor_ctx::ResultHandler {
+			static [<HANDLE_ $name:upper>]: evildoer_manifest::editor_ctx::ResultHandler =
+				evildoer_manifest::editor_ctx::ResultHandler {
 					name: stringify!($name),
 					handle: |r, ctx, _| {
 						if matches!(r, ActionResult::$result) {
@@ -51,7 +51,7 @@ macro_rules! window_action {
 								ctx.warn("Buffer operations not available");
 							}
 						}
-						tome_manifest::editor_ctx::HandleOutcome::Handled
+						evildoer_manifest::editor_ctx::HandleOutcome::Handled
 					},
 				};
 		}

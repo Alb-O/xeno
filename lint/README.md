@@ -14,9 +14,9 @@ The output consolidates violations by type, showing each occurrence with its act
 ```
 INFO: no-short-comments - Short single-line comments may not be necessary. Code should be self-explanatory.
 NOTE: Consider moving important context to function docstrings with examples, or removing if truly trivial.
-  - crates/tome-core/src/input.rs:631:13 - // Fallback to lowercase
-  - crates/tome-macro/src/lib.rs:29:73 - // skip self
-  - crates/tome-core/src/ext/actions/scroll.rs:91:39 - // TODO: Needs viewport info
+  - crates/evildoer-core/src/input.rs:631:13 - // Fallback to lowercase
+  - crates/evildoer-macro/src/lib.rs:29:73 - // skip self
+  - crates/evildoer-core/src/ext/actions/scroll.rs:91:39 - // TODO: Needs viewport info
 ```
 
 The pre-commit hook runs this same scan and blocks commits when violations exist. Fix them or the commit fails.

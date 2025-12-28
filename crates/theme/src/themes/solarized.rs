@@ -51,7 +51,7 @@ pub static SOLARIZED_DARK: Theme = Theme {
 		syntax: solarized_syntax(),
 	},
 	priority: 0,
-	source: tome_manifest::RegistrySource::Builtin,
+	source: evildoer_manifest::RegistrySource::Builtin,
 };
 
 // Solarized palette

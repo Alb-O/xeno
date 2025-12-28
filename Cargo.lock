@@ -656,6 +656,284 @@ dependencies = [
 ]
 
 [[package]]
+name = "evildoer-acp"
+version = "0.1.0"
+dependencies = [
+ "agent-client-protocol",
+ "anyhow",
+ "async-trait",
+ "evildoer-api",
+ "evildoer-base",
+ "evildoer-manifest",
+ "evildoer-stdlib",
+ "evildoer-theme",
+ "evildoer-tui",
+ "futures",
+ "linkme",
+ "parking_lot",
+ "paste",
+ "termina",
+ "tokio",
+ "tokio-util",
+]
+
+[[package]]
+name = "evildoer-api"
+version = "0.1.0"
+dependencies = [
+ "agentfs-sdk",
+ "anyhow",
+ "async-trait",
+ "clap",
+ "evildoer-base",
+ "evildoer-input",
+ "evildoer-language",
+ "evildoer-lsp",
+ "evildoer-manifest",
+ "evildoer-stdlib",
+ "evildoer-theme",
+ "evildoer-tui",
+ "futures",
+ "home",
+ "insta",
+ "linkme",
+ "log",
+ "parking_lot",
+ "paste",
+ "portable-pty",
+ "regex",
+ "ropey",
+ "serde",
+ "serde_json",
+ "strsim",
+ "termina",
+ "thiserror 2.0.17",
+ "tokio",
+ "tokio-util",
+ "toml",
+ "tree-house",
+ "unicode-segmentation",
+ "unicode-width 0.2.2",
+]
+
+[[package]]
+name = "evildoer-base"
+version = "0.1.0"
+dependencies = [
+ "crossterm",
+ "evildoer-tui",
+ "log",
+ "ropey",
+ "serde",
+ "smallvec",
+ "termina",
+ "thiserror 2.0.17",
+ "unicode-segmentation",
+ "unicode-width 0.2.2",
+]
+
+[[package]]
+name = "evildoer-extensions"
+version = "0.1.0"
+dependencies = [
+ "agentfs-sdk",
+ "anyhow",
+ "evildoer-api",
+ "evildoer-language",
+ "evildoer-lsp",
+ "evildoer-manifest",
+ "evildoer-stdlib",
+ "futures",
+ "linkme",
+ "log",
+ "paste",
+ "ropey",
+]
+
+[[package]]
+name = "evildoer-input"
+version = "0.1.0"
+dependencies = [
+ "evildoer-base",
+ "evildoer-manifest",
+ "evildoer-stdlib",
+ "log",
+ "serde",
+]
+
+[[package]]
+name = "evildoer-language"
+version = "0.1.0"
+dependencies = [
+ "cc",
+ "evildoer-base",
+ "evildoer-manifest",
+ "include_dir",
+ "libloading",
+ "log",
+ "once_cell",
+ "regex",
+ "ropey",
+ "serde",
+ "tempfile",
+ "thiserror 2.0.17",
+ "toml",
+ "tree-house",
+]
+
+[[package]]
+name = "evildoer-lsp"
+version = "0.1.0"
+dependencies = [
+ "futures",
+ "lsp-types",
+ "parking_lot",
+ "pin-project-lite",
+ "ropey",
+ "rustix",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror 2.0.17",
+ "tokio",
+ "tokio-util",
+ "tower",
+ "tower-layer",
+ "tower-service",
+ "tracing",
+ "tracing-subscriber",
+ "waitpid-any",
+]
+
+[[package]]
+name = "evildoer-macro"
+version = "0.1.0"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.111",
+]
+
+[[package]]
+name = "evildoer-manifest"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "evildoer-base",
+ "evildoer-macro",
+ "evildoer-stdlib",
+ "futures",
+ "linkme",
+ "log",
+ "paste",
+ "ropey",
+ "serde",
+ "strsim",
+ "thiserror 2.0.17",
+]
+
+[[package]]
+name = "evildoer-stdlib"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "evildoer-base",
+ "evildoer-input",
+ "evildoer-macro",
+ "evildoer-manifest",
+ "futures",
+ "linkme",
+ "log",
+ "paste",
+ "regex",
+ "ropey",
+ "serde",
+ "serde_json",
+ "smallvec",
+ "termina",
+ "thiserror 2.0.17",
+ "unicode-segmentation",
+ "unicode-width 0.2.2",
+]
+
+[[package]]
+name = "evildoer-term"
+version = "0.1.0"
+dependencies = [
+ "agentfs-sdk",
+ "anyhow",
+ "async-trait",
+ "clap",
+ "evildoer-acp",
+ "evildoer-api",
+ "evildoer-base",
+ "evildoer-extensions",
+ "evildoer-language",
+ "evildoer-manifest",
+ "evildoer-stdlib",
+ "evildoer-theme",
+ "evildoer-tui",
+ "futures",
+ "home",
+ "insta",
+ "kitty-test-harness",
+ "linkme",
+ "parking_lot",
+ "serde",
+ "serde_json",
+ "serial_test",
+ "termina",
+ "termwiz",
+ "thiserror 2.0.17",
+ "tokio",
+ "tokio-util",
+ "toml",
+]
+
+[[package]]
+name = "evildoer-theme"
+version = "0.1.0"
+dependencies = [
+ "evildoer-base",
+ "evildoer-manifest",
+ "futures",
+ "linkme",
+ "serde",
+ "strsim",
+]
+
+[[package]]
+name = "evildoer-tui"
+version = "0.30.0-evildoer"
+dependencies = [
+ "anstyle",
+ "bitflags 2.10.0",
+ "cfg-if",
+ "color-eyre",
+ "compact_str",
+ "crossterm",
+ "document-features",
+ "hashbrown 0.16.1",
+ "indoc",
+ "instability",
+ "itertools 0.14.0",
+ "kasuari",
+ "lru",
+ "palette",
+ "pretty_assertions",
+ "rstest",
+ "serde",
+ "serde_json",
+ "strum 0.27.2",
+ "thiserror 2.0.17",
+ "tokio",
+ "unicode-segmentation",
+ "unicode-truncate",
+ "unicode-width 0.2.2",
+ "vt100",
+]
+
+[[package]]
 name = "eyre"
 version = "0.6.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1036,7 +1314,8 @@ dependencies = [
 [[package]]
 name = "kitty-test-harness"
 version = "0.1.0"
-source = "git+https://github.com/Alb-O/kitty-test-harness?branch=main#b8007bb2634ef010ff9ef4184315129ffa4b8d0b"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "40fcd9b63b80a5f7cb89d0ea891cbaa6edf0495aa2d44bc311ede3b7f373c373"
 dependencies = [
  "ansi-escape-sequences",
  "kitty-remote-bindings",

@@ -1,9 +1,9 @@
 //! Commands for the zen mode extension.
 
 use futures::future::LocalBoxFuture;
-use tome_api::editor::Editor;
-use tome_manifest::{CommandContext, CommandError, CommandOutcome};
-use tome_stdlib::{NotifyINFOExt, command};
+use evildoer_api::editor::Editor;
+use evildoer_manifest::{CommandContext, CommandError, CommandOutcome};
+use evildoer_stdlib::{NotifyINFOExt, command};
 
 use crate::zenmode::ZenmodeState;
 
@@ -36,7 +36,7 @@ trait CommandContextExt {
 
 impl<'a> CommandContextExt for CommandContext<'a> {
 	fn require_editor_mut(&mut self) -> &mut Editor {
-		// SAFETY: We know that in tome-term, EditorOps is implemented by Editor
-		unsafe { &mut *(self.editor as *mut dyn tome_manifest::EditorOps as *mut Editor) }
+		// SAFETY: We know that in evildoer-term, EditorOps is implemented by Editor
+		unsafe { &mut *(self.editor as *mut dyn evildoer_manifest::EditorOps as *mut Editor) }
 	}
 }

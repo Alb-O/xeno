@@ -1,13 +1,13 @@
 [package]
-name = "tome-base"
-description = "Basic editing primitives for Tome editor"
+name = "evildoer-base"
+description = "Basic editing primitives for Evildoer editor"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 
 [features]
-default = ["tome-tui"]
-tome-tui = ["dep:tome-tui"]
+default = ["evildoer-tui"]
+evildoer-tui = ["dep:evildoer-tui"]
 
 [dependencies]
 crossterm.workspace = true
@@ -17,6 +17,6 @@ serde.workspace = true
 smallvec.workspace = true
 termina.workspace = true
 thiserror.workspace = true
-tome-tui = { workspace = true, optional = true }
+evildoer-tui = { workspace = true, optional = true }
 unicode-segmentation.workspace = true
 unicode-width.workspace = true

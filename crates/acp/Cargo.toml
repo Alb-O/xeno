@@ -1,6 +1,6 @@
 [package]
-name = "tome-acp"
-description = "ACP (Agent Client Protocol) integration for Tome"
+name = "evildoer-acp"
+description = "ACP (Agent Client Protocol) integration for Evildoer"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -15,12 +15,12 @@ paste.workspace = true
 termina.workspace = true
 tokio.workspace = true
 tokio-util.workspace = true
-tome-api.workspace = true
-tome-base.workspace = true
-tome-manifest.workspace = true
-tome-stdlib.workspace = true
-tome-theme.workspace = true
-tome-tui.workspace = true
+evildoer-api.workspace = true
+evildoer-base.workspace = true
+evildoer-manifest.workspace = true
+evildoer-stdlib.workspace = true
+evildoer-theme.workspace = true
+evildoer-tui.workspace = true
 
 [dev-dependencies]
 async-trait.workspace = true

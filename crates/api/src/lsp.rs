@@ -1,4 +1,4 @@
-//! LSP integration for the tome editor.
+//! LSP integration for the evildoer editor.
 //!
 //! This module bridges the editor's buffer system with LSP functionality,
 //! providing document synchronization, diagnostics, and language features.
@@ -9,7 +9,7 @@
 //!
 //! ```toml
 //! [dependencies]
-//! tome-api = { version = "0.1", features = ["lsp"] }
+//! evildoer-api = { version = "0.1", features = ["lsp"] }
 //! ```
 //!
 //! # Architecture
@@ -17,13 +17,13 @@
 //! The LSP integration consists of:
 //!
 //! - [`LspManager`] - Central coordinator for LSP functionality
-//! - Document synchronization via [`tome_lsp::DocumentSync`]
-//! - Server registry via [`tome_lsp::Registry`]
+//! - Document synchronization via [`evildoer_lsp::DocumentSync`]
+//! - Server registry via [`evildoer_lsp::Registry`]
 //!
 //! # Usage
 //!
 //! ```ignore
-//! use tome_api::lsp::LspManager;
+//! use evildoer_api::lsp::LspManager;
 //!
 //! let lsp = LspManager::new();
 //!
@@ -44,7 +44,7 @@
 use std::path::Path;
 use std::sync::Arc;
 
-use tome_lsp::{
+use evildoer_lsp::{
 	ClientHandle, DocumentStateManager, DocumentSync, LanguageServerConfig, OffsetEncoding,
 	Registry, Result,
 };
@@ -214,7 +214,7 @@ impl LspManager {
 	}
 
 	/// Get diagnostics for a buffer.
-	pub fn get_diagnostics(&self, buffer: &Buffer) -> Vec<tome_lsp::lsp_types::Diagnostic> {
+	pub fn get_diagnostics(&self, buffer: &Buffer) -> Vec<evildoer_lsp::lsp_types::Diagnostic> {
 		buffer
 			.path()
 			.as_ref()
@@ -258,7 +258,7 @@ impl LspManager {
 	}
 
 	/// Request hover information at the cursor position.
-	pub async fn hover(&self, buffer: &Buffer) -> Result<Option<tome_lsp::lsp_types::Hover>> {
+	pub async fn hover(&self, buffer: &Buffer) -> Result<Option<evildoer_lsp::lsp_types::Hover>> {
 		let client = match self.get_client(buffer) {
 			Some(c) => c,
 			None => return Ok(None),
@@ -266,13 +266,13 @@ impl LspManager {
 
 		let path = buffer.path().unwrap();
 		let language = buffer.file_type().unwrap();
-		let uri = tome_lsp::lsp_types::Url::from_file_path(&path)
-			.map_err(|_| tome_lsp::Error::Protocol("Invalid path".into()))?;
+		let uri = evildoer_lsp::lsp_types::Url::from_file_path(&path)
+			.map_err(|_| evildoer_lsp::Error::Protocol("Invalid path".into()))?;
 
 		let encoding = self.get_encoding_for_path(&path, &language);
 		let position =
-			tome_lsp::char_to_lsp_position(&buffer.doc().content, buffer.cursor, encoding)
-				.ok_or_else(|| tome_lsp::Error::Protocol("Invalid position".into()))?;
+			evildoer_lsp::char_to_lsp_position(&buffer.doc().content, buffer.cursor, encoding)
+				.ok_or_else(|| evildoer_lsp::Error::Protocol("Invalid position".into()))?;
 
 		client.hover(uri, position).await
 	}
@@ -281,7 +281,7 @@ impl LspManager {
 	pub async fn completion(
 		&self,
 		buffer: &Buffer,
-	) -> Result<Option<tome_lsp::lsp_types::CompletionResponse>> {
+	) -> Result<Option<evildoer_lsp::lsp_types::CompletionResponse>> {
 		let client = match self.get_client(buffer) {
 			Some(c) => c,
 			None => return Ok(None),
@@ -289,13 +289,13 @@ impl LspManager {
 
 		let path = buffer.path().unwrap();
 		let language = buffer.file_type().unwrap();
-		let uri = tome_lsp::lsp_types::Url::from_file_path(&path)
-			.map_err(|_| tome_lsp::Error::Protocol("Invalid path".into()))?;
+		let uri = evildoer_lsp::lsp_types::Url::from_file_path(&path)
+			.map_err(|_| evildoer_lsp::Error::Protocol("Invalid path".into()))?;
 
 		let encoding = self.get_encoding_for_path(&path, &language);
 		let position =
-			tome_lsp::char_to_lsp_position(&buffer.doc().content, buffer.cursor, encoding)
-				.ok_or_else(|| tome_lsp::Error::Protocol("Invalid position".into()))?;
+			evildoer_lsp::char_to_lsp_position(&buffer.doc().content, buffer.cursor, encoding)
+				.ok_or_else(|| evildoer_lsp::Error::Protocol("Invalid position".into()))?;
 
 		client.completion(uri, position, None).await
 	}
@@ -304,7 +304,7 @@ impl LspManager {
 	pub async fn goto_definition(
 		&self,
 		buffer: &Buffer,
-	) -> Result<Option<tome_lsp::lsp_types::GotoDefinitionResponse>> {
+	) -> Result<Option<evildoer_lsp::lsp_types::GotoDefinitionResponse>> {
 		let client = match self.get_client(buffer) {
 			Some(c) => c,
 			None => return Ok(None),
@@ -312,13 +312,13 @@ impl LspManager {
 
 		let path = buffer.path().unwrap();
 		let language = buffer.file_type().unwrap();
-		let uri = tome_lsp::lsp_types::Url::from_file_path(&path)
-			.map_err(|_| tome_lsp::Error::Protocol("Invalid path".into()))?;
+		let uri = evildoer_lsp::lsp_types::Url::from_file_path(&path)
+			.map_err(|_| evildoer_lsp::Error::Protocol("Invalid path".into()))?;
 
 		let encoding = self.get_encoding_for_path(&path, &language);
 		let position =
-			tome_lsp::char_to_lsp_position(&buffer.doc().content, buffer.cursor, encoding)
-				.ok_or_else(|| tome_lsp::Error::Protocol("Invalid position".into()))?;
+			evildoer_lsp::char_to_lsp_position(&buffer.doc().content, buffer.cursor, encoding)
+				.ok_or_else(|| evildoer_lsp::Error::Protocol("Invalid position".into()))?;
 
 		client.goto_definition(uri, position).await
 	}
@@ -328,7 +328,7 @@ impl LspManager {
 		&self,
 		buffer: &Buffer,
 		include_declaration: bool,
-	) -> Result<Option<Vec<tome_lsp::lsp_types::Location>>> {
+	) -> Result<Option<Vec<evildoer_lsp::lsp_types::Location>>> {
 		let client = match self.get_client(buffer) {
 			Some(c) => c,
 			None => return Ok(None),
@@ -336,13 +336,13 @@ impl LspManager {
 
 		let path = buffer.path().unwrap();
 		let language = buffer.file_type().unwrap();
-		let uri = tome_lsp::lsp_types::Url::from_file_path(&path)
-			.map_err(|_| tome_lsp::Error::Protocol("Invalid path".into()))?;
+		let uri = evildoer_lsp::lsp_types::Url::from_file_path(&path)
+			.map_err(|_| evildoer_lsp::Error::Protocol("Invalid path".into()))?;
 
 		let encoding = self.get_encoding_for_path(&path, &language);
 		let position =
-			tome_lsp::char_to_lsp_position(&buffer.doc().content, buffer.cursor, encoding)
-				.ok_or_else(|| tome_lsp::Error::Protocol("Invalid position".into()))?;
+			evildoer_lsp::char_to_lsp_position(&buffer.doc().content, buffer.cursor, encoding)
+				.ok_or_else(|| evildoer_lsp::Error::Protocol("Invalid position".into()))?;
 
 		client.references(uri, position, include_declaration).await
 	}
@@ -351,18 +351,18 @@ impl LspManager {
 	pub async fn format(
 		&self,
 		buffer: &Buffer,
-	) -> Result<Option<Vec<tome_lsp::lsp_types::TextEdit>>> {
+	) -> Result<Option<Vec<evildoer_lsp::lsp_types::TextEdit>>> {
 		let client = match self.get_client(buffer) {
 			Some(c) => c,
 			None => return Ok(None),
 		};
 
 		let path = buffer.path().unwrap();
-		let uri = tome_lsp::lsp_types::Url::from_file_path(&path)
-			.map_err(|_| tome_lsp::Error::Protocol("Invalid path".into()))?;
+		let uri = evildoer_lsp::lsp_types::Url::from_file_path(&path)
+			.map_err(|_| evildoer_lsp::Error::Protocol("Invalid path".into()))?;
 
 		// Default formatting options
-		let options = tome_lsp::lsp_types::FormattingOptions {
+		let options = evildoer_lsp::lsp_types::FormattingOptions {
 			tab_size: 4,
 			insert_spaces: false,
 			..Default::default()

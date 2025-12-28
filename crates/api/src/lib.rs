@@ -1,8 +1,8 @@
 //! Editor engine and terminal UI infrastructure.
 //!
 //! This crate provides the core editor implementation, buffer management,
-//! and terminal rendering. It ties together [`tome_manifest`] (registry definitions)
-//! and [`tome_stdlib`] (implementations) into a working editor.
+//! and terminal rendering. It ties together [`evildoer_manifest`] (registry definitions)
+//! and [`evildoer_stdlib`] (implementations) into a working editor.
 //!
 //! # Main Types
 //!
@@ -43,7 +43,7 @@ pub use buffer::{Buffer, BufferId, HistoryResult};
 pub use editor::Editor;
 pub use terminal::TerminalBuffer;
 pub use terminal_ipc::{IpcRequest, TerminalIpc, TerminalIpcEnv};
-pub use tome_theme::{
+pub use evildoer_theme::{
 	PopupColors, StatusColors, THEMES, Theme, ThemeColors, UiColors, blend_colors, get_theme,
 	suggest_theme,
 };
