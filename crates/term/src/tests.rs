@@ -9,7 +9,9 @@ mod suite {
 	use insta::assert_snapshot;
 
 	fn test_editor(content: &str) -> Editor {
-		let fs = Arc::new(agentfs_sdk::HostFS::new(std::env::current_dir().unwrap()).unwrap());
+		let fs = Arc::new(
+			agentfs_sdk::filesystem::hostfs::HostFS::new(std::env::current_dir().unwrap()).unwrap(),
+		);
 		Editor::from_content(fs, content.to_string(), Some(PathBuf::from("test.txt")))
 	}
 

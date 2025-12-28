@@ -17,7 +17,7 @@ use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use agentfs_sdk::{FileSystem, HostFS};
+use agentfs_sdk::filesystem::{FileSystem, hostfs::HostFS};
 pub use buffer_manager::BufferManager;
 use evildoer_base::Transaction;
 use evildoer_language::LanguageLoader;

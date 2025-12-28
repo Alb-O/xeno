@@ -11,6 +11,7 @@ path = "src/main.rs"
 
 [dependencies]
 agent-client-protocol.workspace = true
+agentfs-sdk.workspace = true
 clap.workspace = true
 evildoer-acp.workspace = true
 evildoer-api.workspace = true

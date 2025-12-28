@@ -6,7 +6,6 @@ edition.workspace = true
 license.workspace = true
 
 [dependencies]
-agentfs-sdk.workspace = true
 anyhow.workspace = true
 evildoer-api.workspace = true
 evildoer-language.workspace = true
