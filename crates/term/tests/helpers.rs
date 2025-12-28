@@ -118,7 +118,7 @@ pub fn evildoer_cmd_with_shell(file: &str, shell: TestShell) -> Option<String> {
 
 /// Returns the path to the evildoer binary.
 pub fn evildoer_cmd() -> String {
-	env!("CARGO_BIN_EXE_evildoer").to_string()
+	env!("CARGO_BIN_EXE_evil").to_string()
 }
 
 /// Returns a command to launch evildoer with the given file.

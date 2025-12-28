@@ -10,7 +10,7 @@ use termwiz::input::KeyCode;
 const TEST_TIMEOUT: Duration = Duration::from_secs(15);
 
 fn evildoer_cmd() -> String {
-	env!("CARGO_BIN_EXE_evildoer").to_string()
+	env!("CARGO_BIN_EXE_evil").to_string()
 }
 
 fn workspace_dir() -> PathBuf {
