@@ -47,7 +47,7 @@ use strum::EnumIs;
 /// `Constraint` provides helper methods to create lists of constraints from various input formats.
 ///
 /// ```rust
-/// use crate::layout::Constraint;
+/// use tome_tui::layout::Constraint;
 ///
 /// // Create a layout with specified lengths for each element
 /// let constraints = Constraint::from_lengths([10, 20, 10]);
@@ -249,7 +249,7 @@ impl Constraint {
 	/// # Examples
 	///
 	/// ```rust
-	/// use crate::layout::{Constraint, Layout, Rect};
+	/// use tome_tui::layout::{Constraint, Layout, Rect};
 	///
 	/// # let area = Rect::default();
 	/// let constraints = Constraint::from_lengths([1, 2, 3]);
@@ -267,7 +267,7 @@ impl Constraint {
 	/// # Examples
 	///
 	/// ```rust
-	/// use crate::layout::{Constraint, Layout, Rect};
+	/// use tome_tui::layout::{Constraint, Layout, Rect};
 	///
 	/// # let area = Rect::default();
 	/// let constraints = Constraint::from_ratios([(1, 4), (1, 2), (1, 4)]);
@@ -285,7 +285,7 @@ impl Constraint {
 	/// # Examples
 	///
 	/// ```rust
-	/// use crate::layout::{Constraint, Layout, Rect};
+	/// use tome_tui::layout::{Constraint, Layout, Rect};
 	///
 	/// # let area = Rect::default();
 	/// let constraints = Constraint::from_percentages([25, 50, 25]);
@@ -303,7 +303,7 @@ impl Constraint {
 	/// # Examples
 	///
 	/// ```rust
-	/// use crate::layout::{Constraint, Layout, Rect};
+	/// use tome_tui::layout::{Constraint, Layout, Rect};
 	///
 	/// # let area = Rect::default();
 	/// let constraints = Constraint::from_maxes([1, 2, 3]);
@@ -321,7 +321,7 @@ impl Constraint {
 	/// # Examples
 	///
 	/// ```rust
-	/// use crate::layout::{Constraint, Layout, Rect};
+	/// use tome_tui::layout::{Constraint, Layout, Rect};
 	///
 	/// # let area = Rect::default();
 	/// let constraints = Constraint::from_mins([1, 2, 3]);
@@ -339,7 +339,7 @@ impl Constraint {
 	/// # Examples
 	///
 	/// ```rust
-	/// use crate::layout::{Constraint, Layout, Rect};
+	/// use tome_tui::layout::{Constraint, Layout, Rect};
 	///
 	/// # let area = Rect::default();
 	/// let constraints = Constraint::from_fills([1, 2, 3]);
@@ -362,7 +362,7 @@ impl From<u16> for Constraint {
 	/// # Examples
 	///
 	/// ```rust
-	/// use crate::layout::{Constraint, Direction, Layout, Rect};
+	/// use tome_tui::layout::{Constraint, Direction, Layout, Rect};
 	///
 	/// # let area = Rect::default();
 	/// let layout = Layout::new(Direction::Vertical, [1, 2, 3]).split(area);

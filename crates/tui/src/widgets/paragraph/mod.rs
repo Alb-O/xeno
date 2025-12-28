@@ -51,10 +51,10 @@ use crate::widgets::reflow::{LineComposer, LineTruncator, WordWrapper, WrappedLi
 /// # Example
 ///
 /// ```
-/// use crate::layout::Alignment;
-/// use crate::style::{Style, Stylize};
-/// use crate::text::{Line, Span};
-/// use crate::widgets::{Block, Paragraph, Wrap};
+/// use tome_tui::layout::Alignment;
+/// use tome_tui::style::{Style, Stylize};
+/// use tome_tui::text::{Line, Span};
+/// use tome_tui::widgets::{Block, Paragraph, Wrap};
 ///
 /// let text = vec![
 ///     Line::from(vec![
@@ -94,8 +94,8 @@ pub struct Paragraph<'a> {
 /// ## Examples
 ///
 /// ```
-/// use crate::text::Text;
-/// use crate::widgets::{Paragraph, Wrap};
+/// use tome_tui::text::Text;
+/// use tome_tui::widgets::{Paragraph, Wrap};
 ///
 /// let bullet_points = Text::from(
 ///     r#"Some indented points:
@@ -137,9 +137,9 @@ impl<'a> Paragraph<'a> {
 	/// # Examples
 	///
 	/// ```rust
-	/// use crate::style::{Style, Stylize};
-	/// use crate::text::{Line, Text};
-	/// use crate::widgets::Paragraph;
+	/// use tome_tui::style::{Style, Stylize};
+	/// use tome_tui::text::{Line, Text};
+	/// use tome_tui::widgets::Paragraph;
 	///
 	/// let paragraph = Paragraph::new("Hello, world!");
 	/// let paragraph = Paragraph::new(String::from("Hello, world!"));
@@ -166,7 +166,7 @@ impl<'a> Paragraph<'a> {
 	/// # Example
 	///
 	/// ```rust
-	/// use crate::widgets::{Block, Paragraph};
+	/// use tome_tui::widgets::{Block, Paragraph};
 	///
 	/// let paragraph = Paragraph::new("Hello, world!").block(Block::bordered().title("Paragraph"));
 	/// ```
@@ -187,8 +187,8 @@ impl<'a> Paragraph<'a> {
 	/// # Example
 	///
 	/// ```rust
-	/// use crate::style::{Style, Stylize};
-	/// use crate::widgets::Paragraph;
+	/// use tome_tui::style::{Style, Stylize};
+	/// use tome_tui::widgets::Paragraph;
 	///
 	/// let paragraph = Paragraph::new("Hello, world!").style(Style::new().red().on_white());
 	/// ```
@@ -207,7 +207,7 @@ impl<'a> Paragraph<'a> {
 	/// # Example
 	///
 	/// ```rust
-	/// use crate::widgets::{Paragraph, Wrap};
+	/// use tome_tui::widgets::{Paragraph, Wrap};
 	///
 	/// let paragraph = Paragraph::new("Hello, world!").wrap(Wrap { trim: true });
 	/// ```
@@ -245,8 +245,8 @@ impl<'a> Paragraph<'a> {
 	/// # Example
 	///
 	/// ```rust
-	/// use crate::layout::Alignment;
-	/// use crate::widgets::Paragraph;
+	/// use tome_tui::layout::Alignment;
+	/// use tome_tui::widgets::Paragraph;
 	///
 	/// let paragraph = Paragraph::new("Hello World").alignment(Alignment::Center);
 	/// ```
@@ -263,7 +263,7 @@ impl<'a> Paragraph<'a> {
 	/// # Examples
 	///
 	/// ```rust
-	/// use crate::widgets::Paragraph;
+	/// use tome_tui::widgets::Paragraph;
 	///
 	/// let paragraph = Paragraph::new("Hello World").left_aligned();
 	/// ```
@@ -279,7 +279,7 @@ impl<'a> Paragraph<'a> {
 	/// # Examples
 	///
 	/// ```rust
-	/// use crate::widgets::Paragraph;
+	/// use tome_tui::widgets::Paragraph;
 	///
 	/// let paragraph = Paragraph::new("Hello World").centered();
 	/// ```
@@ -295,7 +295,7 @@ impl<'a> Paragraph<'a> {
 	/// # Examples
 	///
 	/// ```rust
-	/// use crate::widgets::Paragraph;
+	/// use tome_tui::widgets::Paragraph;
 	///
 	/// let paragraph = Paragraph::new("Hello World").right_aligned();
 	/// ```
@@ -317,7 +317,7 @@ impl<'a> Paragraph<'a> {
 	/// # Example
 	///
 	/// ```ignore
-	/// use crate::{widgets::{Paragraph, Wrap}};
+	/// use tome_tui::{widgets::{Paragraph, Wrap}};
 	///
 	/// let paragraph = Paragraph::new("Hello World")
 	///     .wrap(Wrap { trim: false });
@@ -369,7 +369,7 @@ impl<'a> Paragraph<'a> {
 	/// # Example
 	///
 	/// ```ignore
-	/// use crate::{widgets::Paragraph};
+	/// use tome_tui::{widgets::Paragraph};
 	///
 	/// let paragraph = Paragraph::new("Hello World");
 	/// assert_eq!(paragraph.line_width(), 11);

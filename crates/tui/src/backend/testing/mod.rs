@@ -22,7 +22,7 @@ use crate::layout::{Position, Rect, Size};
 /// # Example
 ///
 /// ```rust,ignore
-/// use crate::backend::{Backend, TestBackend};
+/// use tome_tui::backend::{Backend, TestBackend};
 ///
 /// let mut backend = TestBackend::new(10, 2);
 /// backend.clear()?;

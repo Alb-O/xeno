@@ -26,7 +26,7 @@ use crate::layout::Rect;
 /// ```rust,ignore
 /// use std::io;
 ///
-/// use crate::{
+/// use tome_tui::{
 ///     backend::TestBackend,
 ///     widgets::{List, ListItem, ListState, StatefulWidget, Widget},
 ///     Terminal,

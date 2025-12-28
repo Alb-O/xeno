@@ -84,8 +84,8 @@ impl Cell {
 	/// # Example
 	///
 	/// ```
-	/// # use crate::buffer::Cell;
-	/// use crate::symbols::merge::MergeStrategy;
+	/// # use tome_tui::buffer::Cell;
+	/// use tome_tui::symbols::merge::MergeStrategy;
 	///
 	/// assert_eq!(
 	///     Cell::new("┘")

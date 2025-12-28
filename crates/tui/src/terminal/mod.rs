@@ -13,7 +13,7 @@
 //! ```rust,ignore
 //! use std::io::stdout;
 //!
-//! use crate::{backend::CrosstermBackend, widgets::Paragraph, Terminal};
+//! use tome_tui::{backend::CrosstermBackend, widgets::Paragraph, Terminal};
 //!
 //! let backend = CrosstermBackend::new(stdout());
 //! let mut terminal = Terminal::new(backend)?;

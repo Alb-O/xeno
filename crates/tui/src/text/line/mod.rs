@@ -23,8 +23,8 @@ use crate::widgets::Widget;
 /// # Example
 ///
 /// ```rust
-/// use crate::style::Stylize;
-/// use crate::text::{Line, Span};
+/// use tome_tui::style::{Style, Stylize};
+/// use tome_tui::text::{Line, Span};
 ///
 /// let line = Line::from("Hello").yellow().italic();
 /// let line = Line::from(vec![Span::styled("Hello", Style::new().blue()), Span::raw(" world!")]);
@@ -194,7 +194,7 @@ impl<'a> Line<'a> {
 	/// # Examples
 	///
 	/// ```rust
-	/// use crate::text::{Line, Span};
+	/// use tome_tui::text::{Line, Span};
 	///
 	/// let mut line = Line::from("Hello, ");
 	/// line.push_span(Span::raw("world!"));

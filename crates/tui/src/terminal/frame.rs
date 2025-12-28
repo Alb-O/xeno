@@ -78,11 +78,11 @@ impl Frame<'_> {
 	/// # Example
 	///
 	/// ```rust,ignore
-	/// # use crate::{backend::TestBackend, Terminal};
+	/// # use tome_tui::{backend::TestBackend, Terminal};
 	/// # let backend = TestBackend::new(5, 5);
 	/// # let mut terminal = Terminal::new(backend).unwrap();
 	/// # let mut frame = terminal.get_frame();
-	/// use crate::{layout::Rect, widgets::Block};
+	/// use tome_tui::{layout::Rect, widgets::Block};
 	///
 	/// let block = Block::new();
 	/// let area = Rect::new(0, 0, 5, 5);
@@ -105,11 +105,11 @@ impl Frame<'_> {
 	/// # Example
 	///
 	/// ```rust,ignore
-	/// # use crate::{backend::TestBackend, Terminal};
+	/// # use tome_tui::{backend::TestBackend, Terminal};
 	/// # let backend = TestBackend::new(5, 5);
 	/// # let mut terminal = Terminal::new(backend).unwrap();
 	/// # let mut frame = terminal.get_frame();
-	/// use crate::{
+	/// use tome_tui::{
 	///     layout::Rect,
 	///     widgets::{List, ListItem, ListState},
 	/// };
@@ -179,7 +179,7 @@ impl Frame<'_> {
 	/// # Examples
 	///
 	/// ```rust,ignore
-	/// # use crate::{backend::TestBackend, Terminal};
+	/// # use tome_tui::{backend::TestBackend, Terminal};
 	/// # let backend = TestBackend::new(5, 5);
 	/// # let mut terminal = Terminal::new(backend).unwrap();
 	/// # let mut frame = terminal.get_frame();

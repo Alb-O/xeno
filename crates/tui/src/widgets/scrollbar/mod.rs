@@ -44,10 +44,10 @@ use crate::widgets::polyfills::F64Polyfills;
 /// # Examples
 ///
 /// ```rust
-/// use crate::Frame;
-/// use crate::layout::{Margin, Rect};
-/// use crate::text::Line;
-/// use crate::widgets::{
+/// use tome_tui::Frame;
+/// use tome_tui::layout::{Margin, Rect};
+/// use tome_tui::text::Line;
+/// use tome_tui::widgets::{
 ///     Block, Borders, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState, StatefulWidget,
 /// };
 ///

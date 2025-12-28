@@ -51,7 +51,7 @@ std::thread_local! {
 /// # Example
 ///
 /// ```rust
-/// use crate::layout::{Constraint, Layout, Rect};
+/// use tome_tui::layout::{Constraint, Layout, Rect};
 ///
 /// let layout = Layout::vertical([Constraint::Length(5), Constraint::Fill(1)]);
 /// let [top, bottom] = layout.areas(Rect::new(0, 0, 80, 24));

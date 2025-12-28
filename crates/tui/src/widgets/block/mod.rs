@@ -30,8 +30,8 @@ mod padding;
 /// # Example
 ///
 /// ```
-/// use crate::text::Line;
-/// use crate::widgets::{Block, Paragraph};
+/// use tome_tui::text::Line;
+/// use tome_tui::widgets::{Block, Paragraph};
 ///
 /// // Simple bordered block
 /// let block = Block::bordered().title("My Block");

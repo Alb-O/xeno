@@ -25,7 +25,7 @@
 //! ```rust,ignore
 //! use std::io::stdout;
 //!
-//! use crate::{backend::CrosstermBackend, Terminal};
+//! use tome_tui::{backend::CrosstermBackend, Terminal};
 //!
 //! let backend = CrosstermBackend::new(stdout());
 //! let mut terminal = Terminal::new(backend)?;
@@ -165,9 +165,9 @@ pub trait Backend {
 	/// # Example
 	///
 	/// ```rust,ignore
-	/// # use crate::backend::{TestBackend};
+	/// # use tome_tui::backend::{TestBackend};
 	/// # let mut backend = TestBackend::new(80, 25);
-	/// use crate::backend::Backend;
+	/// use tome_tui::backend::Backend;
 	///
 	/// backend.hide_cursor()?;
 	/// // do something with hidden cursor
@@ -202,9 +202,9 @@ pub trait Backend {
 	/// # Example
 	///
 	/// ```rust,ignore
-	/// # use crate::backend::{TestBackend};
+	/// # use tome_tui::backend::{TestBackend};
 	/// # let mut backend = TestBackend::new(80, 25);
-	/// use crate::{backend::Backend, layout::Position};
+	/// use tome_tui::{backend::Backend, layout::Position};
 	///
 	/// backend.set_cursor_position(Position { x: 10, y: 20 })?;
 	/// assert_eq!(backend.get_cursor_position()?, Position { x: 10, y: 20 });
@@ -235,9 +235,9 @@ pub trait Backend {
 	/// # Example
 	///
 	/// ```rust,ignore
-	/// # use crate::backend::{TestBackend};
+	/// # use tome_tui::backend::{TestBackend};
 	/// # let mut backend = TestBackend::new(80, 25);
-	/// use crate::backend::Backend;
+	/// use tome_tui::backend::Backend;
 	///
 	/// backend.clear()?;
 	/// # std::io::Result::Ok(())
@@ -253,9 +253,9 @@ pub trait Backend {
 	/// # Example
 	///
 	/// ```rust,ignore
-	/// # use crate::{backend::{TestBackend}};
+	/// # use tome_tui::{backend::{TestBackend}};
 	/// # let mut backend = TestBackend::new(80, 25);
-	/// use crate::backend::{Backend, ClearType};
+	/// use tome_tui::backend::{Backend, ClearType};
 	///
 	/// backend.clear_region(ClearType::All)?;
 	/// # std::io::Result::Ok(())
@@ -276,9 +276,9 @@ pub trait Backend {
 	/// # Example
 	///
 	/// ```rust,ignore
-	/// # use crate::{backend::{TestBackend}};
+	/// # use tome_tui::{backend::{TestBackend}};
 	/// # let backend = TestBackend::new(80, 25);
-	/// use crate::{backend::Backend, layout::Size};
+	/// use tome_tui::{backend::Backend, layout::Size};
 	///
 	/// assert_eq!(backend.size()?, Size::new(80, 25));
 	/// # Result::Ok(())

@@ -11,15 +11,15 @@
 //! # Examples
 //!
 //! ```rust,no_run
-//! use crate::prelude::*;
+//! use tome_tui::prelude::*;
 //! ```
 //!
 //! Aside from the main types that are used in the library, this prelude also re-exports several
 //! modules to make it easy to qualify types that would otherwise collide. E.g.:
 //!
 //! ```rust
-//! use crate::prelude::*;
-//! use crate::widgets::*;
+//! use tome_tui::prelude::*;
+//! use tome_tui::widgets::*;
 //!
 //! #[derive(Debug, Default, PartialEq, Eq)]
 //! struct Line;

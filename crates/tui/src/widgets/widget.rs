@@ -38,7 +38,7 @@ use crate::style::Style;
 /// # Examples
 ///
 /// ```rust,ignore
-/// use crate::{
+/// use tome_tui::{
 ///     backend::TestBackend,
 ///     widgets::{Clear, Widget},
 ///     Terminal,
@@ -54,10 +54,10 @@ use crate::style::Style;
 /// It's common to render widgets inside other widgets:
 ///
 /// ```rust
-/// use crate::buffer::Buffer;
-/// use crate::layout::Rect;
-/// use crate::text::Line;
-/// use crate::widgets::Widget;
+/// use tome_tui::buffer::Buffer;
+/// use tome_tui::layout::Rect;
+/// use tome_tui::text::Line;
+/// use tome_tui::widgets::Widget;
 ///
 /// struct MyWidget;
 ///

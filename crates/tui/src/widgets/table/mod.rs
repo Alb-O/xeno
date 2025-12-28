@@ -34,9 +34,9 @@ mod state;
 /// # Example
 ///
 /// ```rust
-/// use crate::layout::Constraint;
-/// use crate::style::{Style, Stylize};
-/// use crate::widgets::{Block, Row, Table, TableState};
+/// use tome_tui::layout::Constraint;
+/// use tome_tui::style::{Style, Stylize};
+/// use tome_tui::widgets::{Block, Row, Table, TableState};
 ///
 /// let rows = [
 ///     Row::new(vec!["Cell1", "Cell2"]),
@@ -129,8 +129,8 @@ impl<'a> Table<'a> {
 	/// # Examples
 	///
 	/// ```rust
-	/// use crate::layout::Constraint;
-	/// use crate::widgets::{Row, Table};
+	/// use tome_tui::layout::Constraint;
+	/// use tome_tui::widgets::{Row, Table};
 	///
 	/// let rows = [
 	///     Row::new(vec!["Cell1", "Cell2"]),

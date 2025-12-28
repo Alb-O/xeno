@@ -13,7 +13,7 @@ bitflags! {
 	/// ## Examples
 	///
 	/// ```rust
-	/// use crate::style::Modifier;
+	/// use tome_tui::style::Modifier;
 	///
 	/// let m = Modifier::BOLD | Modifier::ITALIC;
 	/// ```

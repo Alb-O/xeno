@@ -21,7 +21,7 @@
 //! Then, import the macros in your Rust file:
 //!
 //! ```rust
-//! use crate::{constraint, constraints, horizontal, line, row, span, text, vertical};
+//! use tome_tui::{constraint, constraints, horizontal, line, row, span, text, vertical};
 //! ```
 //!
 //! # Text Macros
@@ -29,8 +29,8 @@
 //! The `span!` macro creates raw or styled [`Span`]s.
 //!
 //! ```rust
-//! # use crate::style::{Color, Modifier, Style, Stylize};
-//! # use crate::span;
+//! # use tome_tui::style::{Color, Modifier, Style, Stylize};
+//! # use tome_tui::span;
 //! let name = "world!";
 //! let raw_greeting = span!("hello {name}");
 //! let styled_greeting = span!(Style::new().green(); "hello {name}");
@@ -42,8 +42,8 @@
 //! the `vec!` macro. Each element is converted into a [`Span`] using [`Into::into`].
 //!
 //! ```rust
-//! # use crate::style::{Color, Stylize};
-//! # use crate::{line, span};
+//! # use tome_tui::style::{Color, Stylize};
+//! # use tome_tui::{line, span};
 //! let name = "world!";
 //! let line = line!["hello", format!("{name}")];
 //! let line = line!["hello ", span!(Color::Green; "{name}")];
@@ -55,8 +55,8 @@
 //! the `vec!` macro. Each element is converted to a [`Line`] using [`Into::into`].
 //!
 //! ```rust
-//! # use crate::style::{Modifier, Stylize};
-//! # use crate::{span, line, text};
+//! # use tome_tui::style::{Modifier, Stylize};
+//! # use tome_tui::{span, line, text};
 //! let name = "world!";
 //! let text = text!["hello", format!("{name}")];
 //! let text = text!["bye"; 2];
@@ -72,24 +72,24 @@
 //! The `constraints!` macro defines an array of [`Constraint`]s:
 //!
 //! ```rust
-//! # use crate::layout::Layout;
-//! # use crate::constraints;
+//! # use tome_tui::layout::Layout;
+//! # use tome_tui::constraints;
 //! let layout = Layout::horizontal(constraints![==50, ==30%, >=3, <=1, ==1/2, *=1]);
 //! ```
 //!
 //! The `constraint!` macro defines individual [`Constraint`]s:
 //!
 //! ```rust
-//! # use crate::layout::Layout;
-//! # use crate::constraint;
+//! # use tome_tui::layout::Layout;
+//! # use tome_tui::constraint;
 //! let layout = Layout::horizontal([constraint!(==50)]);
 //! ```
 //!
 //! The `vertical!` and `horizontal!` macros are a shortcut to defining a [`Layout`]:
 //!
 //! ```rust
-//! # use crate::layout::Rect;
-//! # use crate::{vertical, horizontal};
+//! # use tome_tui::layout::Rect;
+//! # use tome_tui::{vertical, horizontal};
 //! # let area = Rect { x: 0, y: 0, width: 10, height: 10 };
 //! let [top, main, bottom] = vertical![==1, *=1, >=3].areas(area);
 //! let [left, main, right] = horizontal![>=20, *=1, >=20].areas(main);
@@ -101,9 +101,9 @@
 //! is similar to the `vec!` macro.
 //!
 //! ```rust
-//! # use crate::style::{Modifier, Stylize};
-//! # use crate::{constraints, line, row, span, text};
-//! # use crate::widgets::table::Table;
+//! # use tome_tui::style::{Modifier, Stylize};
+//! # use tome_tui::{constraints, line, row, span, text};
+//! # use tome_tui::widgets::table::Table;
 //! let rows = [
 //!     row!["hello", "world"],
 //!     row!["goodbye", "world"],
