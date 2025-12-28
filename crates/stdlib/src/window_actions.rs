@@ -7,7 +7,13 @@
 use linkme::distributed_slice;
 use tome_base::key::Key;
 use tome_manifest::action;
-use tome_manifest::actions::ActionResult;
+use tome_manifest::actions::{
+	ActionResult, RESULT_BUFFER_NEXT_HANDLERS, RESULT_BUFFER_PREV_HANDLERS,
+	RESULT_CLOSE_BUFFER_HANDLERS, RESULT_CLOSE_OTHER_BUFFERS_HANDLERS, RESULT_FOCUS_DOWN_HANDLERS,
+	RESULT_FOCUS_LEFT_HANDLERS, RESULT_FOCUS_RIGHT_HANDLERS, RESULT_FOCUS_UP_HANDLERS,
+	RESULT_SPLIT_HORIZONTAL_HANDLERS, RESULT_SPLIT_TERMINAL_HORIZONTAL_HANDLERS,
+	RESULT_SPLIT_TERMINAL_VERTICAL_HANDLERS, RESULT_SPLIT_VERTICAL_HANDLERS,
+};
 use tome_manifest::keybindings::{BindingMode, KEYBINDINGS_WINDOW, KeyBindingDef};
 
 use crate::NotifyWARNExt;
@@ -33,7 +39,7 @@ macro_rules! window_action {
 				priority: DEFAULT_PRIORITY,
 			};
 
-			#[linkme::distributed_slice(tome_manifest::actions::$slice)]
+			#[distributed_slice($slice)]
 			static [<HANDLE_ $name:upper>]: tome_manifest::editor_ctx::ResultHandler =
 				tome_manifest::editor_ctx::ResultHandler {
 					name: stringify!($name),

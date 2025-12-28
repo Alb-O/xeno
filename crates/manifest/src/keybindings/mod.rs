@@ -163,17 +163,17 @@ mod tests {
 
 	#[test]
 	fn test_normal_mode_bindings_registered() {
-		let h = find_binding(BindingMode::Normal, Key::char('h'));
-		assert!(h.is_some());
-		assert_eq!(h.unwrap().action, "move_left");
+		let d = find_binding(BindingMode::Normal, Key::char('d'));
+		assert!(d.is_some());
+		assert_eq!(d.unwrap().action, "delete");
 
-		let l = find_binding(BindingMode::Normal, Key::char('l'));
-		assert!(l.is_some());
-		assert_eq!(l.unwrap().action, "move_right");
+		let y = find_binding(BindingMode::Normal, Key::char('y'));
+		assert!(y.is_some());
+		assert_eq!(y.unwrap().action, "yank");
 
-		let w = find_binding(BindingMode::Normal, Key::char('w'));
-		assert!(w.is_some());
-		assert_eq!(w.unwrap().action, "next_word_start");
+		let i = find_binding(BindingMode::Normal, Key::char('i'));
+		assert!(i.is_some());
+		assert_eq!(i.unwrap().action, "insert_before");
 	}
 
 	#[test]

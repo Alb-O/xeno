@@ -1,9 +1,6 @@
-//! Individual result handlers.
-//!
-//! Each file handles one or more related ActionResult variants.
+//! Result handlers for [`ActionResult`](tome_manifest::ActionResult) variants.
 
 mod core;
 mod edit;
 mod mode;
 mod search;
-mod stubs;

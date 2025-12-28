@@ -1,23 +1,29 @@
 //! Mode-changing actions.
 
-use tome_manifest::actions::{ActionContext, ActionMode, ActionResult};
+use tome_base::key::Key;
+use tome_manifest::actions::{ActionMode, ActionResult};
+use tome_manifest::bound_action;
 
-use crate::action;
+bound_action!(
+	goto_mode,
+	mode: Normal,
+	key: Key::char('g'),
+	description: "Enter goto mode",
+	|_ctx| ActionResult::ModeChange(ActionMode::Goto)
+);
 
-action!(goto_mode, { description: "Enter goto mode" }, handler: action_goto_mode);
+bound_action!(
+	view_mode,
+	mode: Normal,
+	key: Key::char('v'),
+	description: "Enter view mode",
+	|_ctx| ActionResult::ModeChange(ActionMode::View)
+);
 
-fn action_goto_mode(_ctx: &ActionContext) -> ActionResult {
-	ActionResult::ModeChange(ActionMode::Goto)
-}
-
-action!(view_mode, { description: "Enter view mode" }, handler: action_view_mode);
-
-fn action_view_mode(_ctx: &ActionContext) -> ActionResult {
-	ActionResult::ModeChange(ActionMode::View)
-}
-
-action!(window_mode, { description: "Enter window mode" }, handler: action_window_mode);
-
-fn action_window_mode(_ctx: &ActionContext) -> ActionResult {
-	ActionResult::ModeChange(ActionMode::Window)
-}
+bound_action!(
+	window_mode,
+	mode: Normal,
+	key: Key::ctrl('w'),
+	description: "Enter window mode",
+	|_ctx| ActionResult::ModeChange(ActionMode::Window)
+);
