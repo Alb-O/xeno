@@ -391,3 +391,19 @@ pub fn selection_motion(ctx: &ActionContext, motion_name: &str) -> ActionResult 
 		ActionResult::Motion(Selection::single(new_range.anchor, new_range.head))
 	}
 }
+
+/// Applies a named motion to all cursors, then enters insert mode.
+///
+/// Falls back to plain insert mode if the motion is not found.
+pub fn insert_with_motion(ctx: &ActionContext, motion_name: &str) -> ActionResult {
+	let Some(motion) = find_motion(motion_name) else {
+		return ActionResult::ModeChange(ActionMode::Insert);
+	};
+
+	let mut new_selection = ctx.selection.clone();
+	new_selection.transform_mut(|range| {
+		*range = (motion.handler)(ctx.text, *range, 1, false);
+	});
+
+	ActionResult::InsertWithMotion(new_selection)
+}
