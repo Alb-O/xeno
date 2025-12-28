@@ -124,6 +124,38 @@ mod omni_trait;
 #[cfg_attr(docsrs, doc(cfg(feature = "omni-trait")))]
 pub use omni_trait::{LanguageClient, LanguageServer};
 
+#[cfg(feature = "client")]
+#[cfg_attr(docsrs, doc(cfg(feature = "client")))]
+pub mod client;
+#[cfg(feature = "client")]
+pub use client::{ClientHandle, LanguageServerId, OffsetEncoding, ServerConfig, start_server};
+
+#[cfg(feature = "position")]
+#[cfg_attr(docsrs, doc(cfg(feature = "position")))]
+pub mod position;
+#[cfg(feature = "position")]
+pub use position::{
+	char_range_to_lsp_range, char_to_lsp_position, lsp_position_to_char, lsp_range_to_char_range,
+};
+
+#[cfg(feature = "client")]
+#[cfg_attr(docsrs, doc(cfg(feature = "client")))]
+pub mod registry;
+#[cfg(feature = "client")]
+pub use registry::{LanguageServerConfig, Registry};
+
+#[cfg(feature = "client")]
+#[cfg_attr(docsrs, doc(cfg(feature = "client")))]
+pub mod document;
+#[cfg(feature = "client")]
+pub use document::{DocumentState, DocumentStateManager};
+
+#[cfg(feature = "position")]
+#[cfg_attr(docsrs, doc(cfg(feature = "position")))]
+pub mod sync;
+#[cfg(feature = "position")]
+pub use sync::DocumentSync;
+
 /// A convenient type alias for `Result` with `E` = [`enum@crate::Error`].
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 

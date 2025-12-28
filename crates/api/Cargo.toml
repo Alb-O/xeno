@@ -5,6 +5,10 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 
+[features]
+default = []
+lsp = ["dep:tome-lsp"]
+
 [dependencies]
 anyhow = "1.0"
 async-trait = "0.1"
@@ -28,6 +32,7 @@ tokio-util.workspace = true
 tome-base.workspace = true
 tome-input.workspace = true
 tome-language.workspace = true
+tome-lsp = { workspace = true, features = ["position"], optional = true }
 tome-manifest.workspace = true
 tome-stdlib.workspace = true
 tome-theme.workspace = true

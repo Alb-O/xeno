@@ -13,22 +13,37 @@ stdio = ["dep:rustix", "rustix?/fs", "tokio?/net"]
 tracing = ["dep:tracing"]
 forward = []
 tokio = ["dep:tokio"]
+# LSP client support (spawns and manages language server processes)
+client = [
+    "dep:tokio",
+    "tokio?/process",
+    "tokio?/io-util",
+    "tokio?/sync",
+    "dep:parking_lot",
+    "dep:tokio-util",
+]
+# Position conversion utilities (requires ropey)
+position = ["dep:ropey", "client"]
 
 [dependencies]
 futures.workspace = true
 lsp-types = "0.95.0"
+parking_lot = { workspace = true, optional = true }
 pin-project-lite = "0.2.9"
+ropey = { workspace = true, optional = true }
 rustix = { version = "1", optional = true }
 serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
 tokio = { workspace = true, optional = true }
+tokio-util = { workspace = true, optional = true, features = ["compat"] }
 tower-layer = "0.3.2"
 tower-service = "0.3.2"
 tracing = { version = "0.1.37", optional = true }
 waitpid-any = { version = "0.3", optional = true }
 
 [dev-dependencies]
+tempfile = "3"
 tokio = { workspace = true, features = ["io-std", "io-util", "macros", "process", "rt", "time"] }
 tokio-util.workspace = true
 tower = "0.5"

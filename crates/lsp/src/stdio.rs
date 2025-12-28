@@ -40,7 +40,7 @@
 //! let mut stdout = tome_lsp::stdio::PipeStdout::lock_tokio()?;
 //! stdout.write_all(b"never spawns blocking tasks").await?;
 //! ```
-use std::io::{self, Error, ErrorKind, IoSlice, Read, Result, StdinLock, StdoutLock, Write};
+use std::io::{self, Error, IoSlice, Read, Result, StdinLock, StdoutLock, Write};
 use std::os::unix::io::{AsFd, AsRawFd, BorrowedFd, RawFd};
 
 use rustix::fs::{FileType, OFlags, fcntl_getfl, fcntl_setfl, fstat};

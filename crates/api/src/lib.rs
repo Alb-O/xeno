@@ -29,6 +29,8 @@
 pub mod buffer;
 pub mod capabilities;
 pub mod editor;
+#[cfg(feature = "lsp")]
+pub mod lsp;
 pub mod paths;
 pub mod render;
 pub mod styles;
