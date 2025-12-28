@@ -9,7 +9,7 @@
 //! The editor's capabilities are split into fine-grained traits:
 //!
 //! - **Required**: [`CursorAccess`], [`SelectionAccess`], [`TextAccess`], [`ModeAccess`], [`MessageAccess`]
-//! - **Optional**: [`SearchAccess`], [`UndoAccess`], [`EditAccess`], [`SelectionOpsAccess`], etc.
+//! - **Optional**: [`SearchAccess`], [`UndoAccess`], [`EditAccess`], [`BufferOpsAccess`], etc.
 //!
 //! [`EditorCapabilities`] combines the required traits and provides accessors
 //! for optional capabilities. This allows actions to gracefully degrade when
@@ -128,16 +128,6 @@ impl<'a> EditorContext<'a> {
 			.ok_or(CommandError::MissingCapability(Capability::Edit))
 	}
 
-	pub fn selection_ops(&mut self) -> Option<&mut dyn SelectionOpsAccess> {
-		self.inner.selection_ops()
-	}
-
-	pub fn require_selection_ops(&mut self) -> Result<&mut dyn SelectionOpsAccess, CommandError> {
-		self.inner
-			.selection_ops()
-			.ok_or(CommandError::MissingCapability(Capability::SelectionOps))
-	}
-
 	pub fn buffer_ops(&mut self) -> Option<&mut dyn BufferOpsAccess> {
 		self.inner.buffer_ops()
 	}
@@ -155,7 +145,6 @@ impl<'a> EditorContext<'a> {
 			Edit => self.inner.edit().is_some(),
 			Search => self.inner.search().is_some(),
 			Undo => self.inner.undo().is_some(),
-			SelectionOps => self.inner.selection_ops().is_some(),
 			BufferOps => self.inner.buffer_ops().is_some(),
 			FileOps => self.inner.file_ops().is_some(),
 		}
@@ -213,11 +202,6 @@ pub trait EditorCapabilities:
 
 	/// Access to edit operations (optional).
 	fn edit(&mut self) -> Option<&mut dyn EditAccess> {
-		None
-	}
-
-	/// Access to selection manipulation operations (optional).
-	fn selection_ops(&mut self) -> Option<&mut dyn SelectionOpsAccess> {
 		None
 	}
 

@@ -5,8 +5,7 @@ use tome_base::Selection;
 use tome_base::range::CharIdx;
 use tome_manifest::editor_ctx::{
 	BufferOpsAccess, CursorAccess, EditAccess, EditorCapabilities, FileOpsAccess, MessageAccess,
-	ModeAccess, SearchAccess, SelectionAccess, SelectionOpsAccess, TextAccess, ThemeAccess,
-	UndoAccess,
+	ModeAccess, SearchAccess, SelectionAccess, TextAccess, ThemeAccess, UndoAccess,
 };
 use tome_manifest::{EditAction, Mode};
 
@@ -115,16 +114,6 @@ impl EditAccess for Editor {
 	}
 }
 
-impl SelectionOpsAccess for Editor {
-	fn split_lines(&mut self) -> bool {
-		self.do_split_lines()
-	}
-
-	fn merge_selections(&mut self) {
-		self.buffer_mut().selection.merge_overlaps_and_adjacent();
-	}
-}
-
 impl ThemeAccess for Editor {
 	fn set_theme(&mut self, name: &str) -> Result<(), tome_manifest::CommandError> {
 		Editor::set_theme(self, name)
@@ -218,10 +207,6 @@ impl EditorCapabilities for Editor {
 	}
 
 	fn edit(&mut self) -> Option<&mut dyn EditAccess> {
-		Some(self)
-	}
-
-	fn selection_ops(&mut self) -> Option<&mut dyn SelectionOpsAccess> {
 		Some(self)
 	}
 

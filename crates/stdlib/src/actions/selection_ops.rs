@@ -128,8 +128,46 @@ action!(
 action!(
 	split_lines,
 	{ description: "Split selection into lines" },
-	result: ActionResult::SplitLines
+	handler: split_lines
 );
+
+fn split_lines(ctx: &ActionContext) -> ActionResult {
+	let text = &ctx.text;
+	let mut new_ranges = Vec::new();
+
+	for range in ctx.selection.ranges() {
+		let from = range.min();
+		let to = range.max();
+
+		if from >= to {
+			// Keep collapsed selections as-is
+			new_ranges.push(*range);
+			continue;
+		}
+
+		let start_line = text.char_to_line(from);
+		let end_line = text.char_to_line(to.saturating_sub(1));
+
+		for line in start_line..=end_line {
+			let line_start = text.line_to_char(line).max(from);
+			let line_end = if line + 1 < text.len_lines() {
+				text.line_to_char(line + 1).min(to)
+			} else {
+				text.len_chars().min(to)
+			};
+
+			if line_start < line_end {
+				new_ranges.push(tome_base::range::Range::new(line_start, line_end));
+			}
+		}
+	}
+
+	if new_ranges.is_empty() {
+		ActionResult::Ok
+	} else {
+		ActionResult::Motion(Selection::from_vec(new_ranges, 0))
+	}
+}
 
 action!(
 	duplicate_selections_down,

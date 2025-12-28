@@ -21,7 +21,6 @@
 //! - [`EditAccess`] - Text modification (delete, yank, paste)
 //! - [`SearchAccess`] - Pattern search and navigation
 //! - [`UndoAccess`] - Undo/redo history
-//! - [`SelectionOpsAccess`] - Selection manipulation
 //! - [`BufferOpsAccess`] - Buffer/split management
 //! - [`FileOpsAccess`] - Save/load operations
 //!
@@ -133,20 +132,6 @@ pub trait UndoAccess {
 	fn can_undo(&self) -> bool;
 	/// Returns true if redo is available.
 	fn can_redo(&self) -> bool;
-}
-
-/// Selection manipulation operations (optional).
-///
-/// Provides operations that modify how selections are structured rather than
-/// what text they contain. Note that `duplicate_down` and `duplicate_up` are
-/// handled via action result handlers since they operate directly on the selection.
-pub trait SelectionOpsAccess {
-	/// Splits the primary selection into per-line selections.
-	///
-	/// For a selection spanning lines 1-3, creates three separate selections.
-	fn split_lines(&mut self) -> bool;
-	/// Merges overlapping and adjacent selections into single selections.
-	fn merge_selections(&mut self);
 }
 
 /// Text transformation operations (not yet wired).

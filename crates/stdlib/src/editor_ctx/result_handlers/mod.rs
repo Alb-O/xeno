@@ -6,5 +6,4 @@ mod core;
 mod edit;
 mod mode;
 mod search;
-mod selection;
 mod stubs;

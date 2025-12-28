@@ -57,7 +57,6 @@ result_slices!(
 	RESULT_SEARCH_NEXT_HANDLERS,
 	RESULT_SEARCH_PREV_HANDLERS,
 	RESULT_USE_SELECTION_SEARCH_HANDLERS,
-	RESULT_SPLIT_LINES_HANDLERS,
 	RESULT_FORCE_REDRAW_HANDLERS,
 	// Unimplemented stubs (have action! but no real handler yet)
 	RESULT_ALIGN_HANDLERS,
@@ -133,7 +132,6 @@ pub fn dispatch_result(result: &ActionResult, ctx: &mut EditorContext, extend: b
 		ActionResult::UseSelectionAsSearch => {
 			run_handlers(&RESULT_USE_SELECTION_SEARCH_HANDLERS, result, ctx, extend)
 		}
-		ActionResult::SplitLines => run_handlers(&RESULT_SPLIT_LINES_HANDLERS, result, ctx, extend),
 		ActionResult::ForceRedraw => {
 			run_handlers(&RESULT_FORCE_REDRAW_HANDLERS, result, ctx, extend)
 		}

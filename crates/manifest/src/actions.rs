@@ -103,8 +103,6 @@ pub enum ActionResult {
 	SearchPrev { add_selection: bool },
 	/// Use current selection as search pattern.
 	UseSelectionAsSearch,
-	/// Split selection into lines.
-	SplitLines,
 	/// Align selections.
 	Align,
 	/// Copy indentation.

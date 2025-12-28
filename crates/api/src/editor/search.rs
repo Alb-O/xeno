@@ -200,44 +200,6 @@ impl Editor {
 		false
 	}
 
-	pub(crate) fn do_split_lines(&mut self) -> bool {
-		let primary = self.buffer().selection.primary();
-		let from = primary.min();
-		let to = primary.max();
-		if from >= to {
-			self.notify("warn", "No selection to split");
-			return false;
-		}
-
-		let new_ranges: Vec<tome_base::range::Range> = {
-			let buffer = self.buffer();
-			let doc = buffer.doc();
-			let start_line = doc.content.char_to_line(from);
-			let end_line = doc.content.char_to_line(to.saturating_sub(1));
-
-			let mut ranges = Vec::new();
-			for line in start_line..=end_line {
-				let line_start = doc.content.line_to_char(line).max(from);
-				let line_end = if line + 1 < doc.content.len_lines() {
-					doc.content.line_to_char(line + 1).min(to)
-				} else {
-					doc.content.len_chars().min(to)
-				};
-				if line_start < line_end {
-					ranges.push(tome_base::range::Range::new(line_start, line_end));
-				}
-			}
-			ranges
-		};
-
-		if !new_ranges.is_empty() {
-			let count = new_ranges.len();
-			self.buffer_mut().selection = Selection::from_vec(new_ranges, 0);
-			self.notify("info", format!("{} lines", count));
-		}
-		false
-	}
-
 	#[allow(
 		dead_code,
 		reason = "keep-matching filter will be re-enabled via picker UI"
