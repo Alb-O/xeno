@@ -57,6 +57,14 @@ pub struct LayoutManager {
 	/// When dragging a separator, this contains the separator's direction
 	/// and the path to identify which split is being resized.
 	pub dragging_separator: Option<DragState>,
+
+	/// Tracks the view where a text selection drag started.
+	///
+	/// When the user starts a mouse drag for text selection, this records
+	/// which view the drag originated in. Drag events are only processed
+	/// for this view, preventing selection from crossing split boundaries.
+	/// Cleared on mouse up.
+	pub text_selection_origin: Option<(BufferView, Rect)>,
 }
 
 impl LayoutManager {
@@ -69,6 +77,7 @@ impl LayoutManager {
 			separator_hover_animation: None,
 			mouse_velocity: MouseVelocityTracker::default(),
 			dragging_separator: None,
+			text_selection_origin: None,
 		}
 	}
 
