@@ -49,6 +49,7 @@ tome-base = { path = "crates/base" }
 tome-extensions = { path = "crates/extensions" }
 tome-input = { path = "crates/input" }
 tome-language = { path = "crates/language" }
+tome-lsp = { path = "crates/lsp" }
 tome-macro = { path = "crates/macro" }
 tome-manifest = { path = "crates/manifest" }
 tome-stdlib = { path = "crates/stdlib" }
