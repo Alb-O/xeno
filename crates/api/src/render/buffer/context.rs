@@ -7,6 +7,7 @@ use evildoer_base::range::CharIdx;
 use evildoer_language::LanguageLoader;
 use evildoer_language::highlight::{HighlightSpan, HighlightStyles};
 use evildoer_manifest::syntax::SyntaxStyles;
+use evildoer_manifest::theme::IndentGuideChars;
 use evildoer_manifest::{Mode, Theme, ThemeVariant};
 use evildoer_tui::layout::Rect;
 use evildoer_tui::style::{Modifier, Style};
@@ -29,6 +30,8 @@ pub struct BufferRenderContext<'a> {
 	pub language_loader: &'a LanguageLoader,
 	/// Style overlays (e.g., zen mode dimming).
 	pub style_overlays: &'a StyleOverlays,
+	/// Whether to show indent guide characters for leading whitespace.
+	pub show_indent_guides: bool,
 }
 
 /// Cursor styling configuration for rendering.
@@ -85,6 +88,25 @@ impl<'a> BufferRenderContext<'a> {
 			selection: selection_style,
 			unfocused: secondary_cursor_style,
 		}
+	}
+
+	/// Returns the style for indent guide characters.
+	///
+	/// Uses the theme's `indent_guide_fg` if set, otherwise derives a subtle
+	/// color by blending `gutter_fg` with the background.
+	pub fn indent_guide_style(&self) -> Style {
+		let fg = self
+			.theme
+			.colors
+			.ui
+			.indent_guide_fg
+			.unwrap_or_else(|| self.theme.colors.ui.gutter_fg.blend(self.theme.colors.ui.bg, 0.6));
+		Style::default().fg(fg.into())
+	}
+
+	/// Returns the characters used for indent guide rendering.
+	pub fn indent_guide_chars(&self) -> IndentGuideChars {
+		IndentGuideChars::default()
 	}
 
 	/// Checks if the cursor should be visible (blinking state).
@@ -290,6 +312,18 @@ impl<'a> BufferRenderContext<'a> {
 
 				let mut spans = vec![Span::styled(line_num_str, gutter_style)];
 
+				// Track whether we're still in leading indentation for this segment.
+				// Only the first segment of a line can have leading indentation.
+				let mut in_leading_indent = is_first_segment;
+
+				// Prepare indent guide style and characters if enabled
+				let indent_guide_style = if self.show_indent_guides {
+					Some(self.indent_guide_style())
+				} else {
+					None
+				};
+				let indent_chars = self.indent_guide_chars();
+
 				let seg_char_offset = segment.start_offset;
 				let mut seg_col = 0usize;
 				for (i, ch) in segment.text.chars().enumerate() {
@@ -298,6 +332,11 @@ impl<'a> BufferRenderContext<'a> {
 					}
 
 					let doc_pos: CharIdx = line_start + seg_char_offset + i;
+
+					// Check if this character ends leading indentation
+					if in_leading_indent && ch != ' ' && ch != '\t' {
+						in_leading_indent = false;
+					}
 
 					let is_cursor = cursor_heads.contains(&doc_pos);
 					let is_primary_cursor = doc_pos == primary_cursor;
@@ -369,11 +408,37 @@ impl<'a> BufferRenderContext<'a> {
 									non_cursor_style,
 								));
 							}
+						} else if in_leading_indent && let Some(guide_style) = indent_guide_style {
+							// Render tab with chevron indicator at start, spaces for rest
+							let guide_style_with_bg = if is_cursor_line && !in_selection {
+								guide_style.bg(cursorline_bg)
+							} else {
+								guide_style
+							};
+							spans.push(Span::styled(
+								indent_chars.tab.to_string(),
+								guide_style_with_bg,
+							));
+							if tab_cells > 1 {
+								spans.push(Span::styled(" ".repeat(tab_cells - 1), style));
+							}
 						} else {
 							spans.push(Span::styled(" ".repeat(tab_cells), style));
 						}
 
 						seg_col += tab_cells;
+					} else if ch == ' ' && in_leading_indent && let Some(guide_style) = indent_guide_style {
+						// Render space with dot indicator for leading indentation
+						let guide_style_with_bg = if is_cursor_line && !in_selection {
+							guide_style.bg(cursorline_bg)
+						} else {
+							guide_style
+						};
+						spans.push(Span::styled(
+							indent_chars.space.to_string(),
+							guide_style_with_bg,
+						));
+						seg_col += 1;
 					} else {
 						spans.push(Span::styled(ch.to_string(), style));
 						seg_col += 1;

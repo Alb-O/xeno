@@ -41,6 +41,8 @@ pub enum RegistrySource {
 	Builtin,
 	/// Defined in a library crate.
 	Crate(&'static str),
+	/// Loaded at runtime (e.g., from KDL config files).
+	Runtime,
 }
 
 impl std::fmt::Display for RegistrySource {
@@ -48,6 +50,7 @@ impl std::fmt::Display for RegistrySource {
 		match self {
 			Self::Builtin => write!(f, "builtin"),
 			Self::Crate(name) => write!(f, "crate:{}", name),
+			Self::Runtime => write!(f, "runtime"),
 		}
 	}
 }
@@ -347,7 +350,8 @@ pub use statusline::{
 	StatuslineSegmentDef, all_segments, find_segment, render_position, segments_for_position,
 };
 pub use theme::{
-	DEFAULT_THEME, DEFAULT_THEME_ID, NotificationColors, PopupColors, SemanticColorPair,
-	StatusColors, THEMES, Theme, ThemeColors, ThemeSource, ThemeVariant, UiColors, blend_colors,
-	get_theme, suggest_theme,
+	DEFAULT_THEME, DEFAULT_THEME_ID, IndentGuideChars, NotificationColors, OwnedTheme,
+	PopupColors, SemanticColorPair, StatusColors, THEMES, Theme, ThemeColors, ThemeSource,
+	ThemeVariant, UiColors, blend_colors, get_theme, register_runtime_themes, runtime_themes,
+	suggest_theme,
 };

@@ -15,6 +15,7 @@ clap.workspace = true
 evildoer-acp.workspace = true
 evildoer-api.workspace = true
 evildoer-base.workspace = true
+evildoer-config.workspace = true
 evildoer-extensions.workspace = true
 evildoer-language.workspace = true
 evildoer-manifest.workspace = true

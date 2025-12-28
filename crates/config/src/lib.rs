@@ -213,3 +213,12 @@ pub fn load_themes_from_directory(dir: impl AsRef<Path>) -> Result<Vec<ParsedThe
 
 	Ok(themes)
 }
+
+/// Load themes from a directory and register them in the runtime theme registry.
+/// This should be called once at startup.
+pub fn load_and_register_themes(dir: impl AsRef<Path>) -> Result<()> {
+	let themes = load_themes_from_directory(dir)?;
+	let owned: Vec<_> = themes.into_iter().map(|t| t.into_owned_theme()).collect();
+	evildoer_manifest::register_runtime_themes(owned);
+	Ok(())
+}

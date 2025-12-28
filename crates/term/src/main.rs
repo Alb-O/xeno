@@ -8,18 +8,11 @@ mod tests;
 use app::run_editor;
 use clap::Parser;
 use cli::{Cli, Command, GrammarAction};
-// Force linking of evildoer-acp and evildoer-extensions so distributed_slices are registered
-#[allow(
-	unused_imports,
-	reason = "ensures evildoer-acp and evildoer-extensions distributed_slices are linked"
-)]
-use evildoer_acp as _;
 use evildoer_api::Editor;
-#[allow(
-	unused_imports,
-	reason = "ensures evildoer-extensions distributed_slices are linked"
-)]
-use evildoer_extensions as _;
+
+// Force-link crates to ensure their distributed_slice registrations are included.
+#[allow(unused_imports, reason = "linkme distributed_slice registration")]
+use {evildoer_acp as _, evildoer_extensions as _, evildoer_stdlib as _};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -33,6 +26,12 @@ async fn main() -> anyhow::Result<()> {
 	// Ensure runtime directory is populated with query files
 	if let Err(e) = evildoer_language::ensure_runtime() {
 		eprintln!("Warning: failed to seed runtime: {e}");
+	}
+
+	// Load themes from runtime directory
+	let themes_dir = evildoer_language::runtime_dir().join("themes");
+	if let Err(e) = evildoer_config::load_and_register_themes(&themes_dir) {
+		eprintln!("Warning: failed to load themes from {:?}: {}", themes_dir, e);
 	}
 
 	let mut editor = match cli.file {

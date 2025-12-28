@@ -23,6 +23,21 @@ pub struct ParsedTheme {
 	pub source_path: Option<PathBuf>,
 }
 
+impl ParsedTheme {
+	/// Convert to an OwnedTheme for registration in the runtime theme registry.
+	pub fn into_owned_theme(self) -> evildoer_manifest::OwnedTheme {
+		evildoer_manifest::OwnedTheme {
+			id: self.name.clone(),
+			name: self.name,
+			aliases: self.aliases,
+			variant: self.variant,
+			colors: self.colors,
+			priority: 0,
+			source: evildoer_manifest::RegistrySource::Runtime,
+		}
+	}
+}
+
 /// Parse a standalone theme file (top-level structure).
 pub fn parse_standalone_theme(input: &str) -> Result<ParsedTheme> {
 	let doc: KdlDocument = input.parse()?;
@@ -154,7 +169,20 @@ fn parse_ui_colors(node: Option<&KdlNode>, ctx: &ParseContext) -> Result<UiColor
 		selection_fg: get_color_field(children, "selection-fg", ctx)?,
 		message_fg: get_color_field(children, "message-fg", ctx)?,
 		command_input_fg: get_color_field(children, "command-input-fg", ctx)?,
+		indent_guide_fg: get_optional_color_field(children, "indent-guide-fg", ctx)?,
 	})
+}
+
+fn get_optional_color_field(
+	children: &kdl::KdlDocument,
+	name: &str,
+	ctx: &ParseContext,
+) -> Result<Option<evildoer_base::color::Color>> {
+	if children.get(name).is_some() {
+		Ok(Some(get_color_field(children, name, ctx)?))
+	} else {
+		Ok(None)
+	}
 }
 
 fn parse_status_colors(node: Option<&KdlNode>, ctx: &ParseContext) -> Result<StatusColors> {
@@ -351,5 +379,18 @@ mod tests {
 		assert_eq!(theme.name, "gruvbox");
 		assert_eq!(theme.variant, ThemeVariant::Dark);
 		assert_eq!(theme.aliases, vec!["gruvbox_dark", "gruvbox-dark"]);
+
+		// Verify syntax styles are parsed
+		let keyword_style = theme.colors.syntax.resolve("keyword");
+		assert!(
+			keyword_style.fg.is_some(),
+			"keyword style should have fg color"
+		);
+
+		let comment_style = theme.colors.syntax.resolve("comment");
+		assert!(
+			comment_style.fg.is_some(),
+			"comment style should have fg color"
+		);
 	}
 }

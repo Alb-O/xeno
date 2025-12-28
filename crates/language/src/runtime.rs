@@ -1,6 +1,6 @@
 //! Runtime initialization and seeding.
 //!
-//! This module handles copying the embedded query files to the user's
+//! This module handles copying the embedded query files and themes to the user's
 //! runtime directory (`~/.local/share/evildoer/`) on first use.
 
 use std::path::Path;
@@ -13,20 +13,30 @@ use crate::grammar::runtime_dir;
 /// Embedded query files from `runtime/language/queries/`.
 static QUERIES_DIR: Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/../../runtime/language/queries");
 
-/// Ensures the runtime directory exists and is populated with query files.
+/// Embedded theme files from `runtime/themes/`.
+static THEMES_DIR: Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/../../runtime/themes");
+
+/// Ensures the runtime directory exists and is populated with query files and themes.
 ///
 /// This should be called once during editor startup. It copies the embedded
-/// query files to `~/.local/share/evildoer/queries/` if they don't already exist.
+/// query files to `~/.local/share/evildoer/queries/` and themes to
+/// `~/.local/share/evildoer/themes/` if they don't already exist.
 pub fn ensure_runtime() -> io::Result<()> {
 	let runtime = runtime_dir();
-	let queries_dir = runtime.join("queries");
 
-	if queries_dir.exists() {
-		return Ok(());
+	// Seed query files
+	let queries_dir = runtime.join("queries");
+	if !queries_dir.exists() {
+		log::info!("Seeding runtime queries to {}", queries_dir.display());
+		seed_queries(&queries_dir)?;
 	}
 
-	log::info!("Seeding runtime queries to {}", queries_dir.display());
-	seed_queries(&queries_dir)?;
+	// Seed theme files
+	let themes_dir = runtime.join("themes");
+	if !themes_dir.exists() {
+		log::info!("Seeding runtime themes to {}", themes_dir.display());
+		seed_themes(&themes_dir)?;
+	}
 
 	Ok(())
 }
@@ -34,6 +44,11 @@ pub fn ensure_runtime() -> io::Result<()> {
 /// Copies embedded query files to the target directory.
 fn seed_queries(target: &Path) -> io::Result<()> {
 	extract_dir(&QUERIES_DIR, target)
+}
+
+/// Copies embedded theme files to the target directory.
+fn seed_themes(target: &Path) -> io::Result<()> {
+	extract_dir(&THEMES_DIR, target)
 }
 
 fn extract_dir(dir: &Dir<'_>, target: &Path) -> io::Result<()> {
@@ -55,14 +70,22 @@ fn extract_dir(dir: &Dir<'_>, target: &Path) -> io::Result<()> {
 /// Forces re-seeding of runtime files, overwriting existing ones.
 pub fn reseed_runtime() -> io::Result<()> {
 	let runtime = runtime_dir();
-	let queries_dir = runtime.join("queries");
 
+	// Re-seed queries
+	let queries_dir = runtime.join("queries");
 	if queries_dir.exists() {
 		fs::remove_dir_all(&queries_dir)?;
 	}
-
 	log::info!("Re-seeding runtime queries to {}", queries_dir.display());
 	seed_queries(&queries_dir)?;
+
+	// Re-seed themes
+	let themes_dir = runtime.join("themes");
+	if themes_dir.exists() {
+		fs::remove_dir_all(&themes_dir)?;
+	}
+	log::info!("Re-seeding runtime themes to {}", themes_dir.display());
+	seed_themes(&themes_dir)?;
 
 	Ok(())
 }
@@ -87,5 +110,21 @@ mod tests {
 			.iter()
 			.any(|f| f.path().file_name().is_some_and(|n| n == "highlights.scm"));
 		assert!(has_highlights, "Should have highlights.scm");
+	}
+
+	#[test]
+	fn test_themes_embedded() {
+		let files: Vec<_> = THEMES_DIR.files().collect();
+		assert!(!files.is_empty(), "Should have theme files");
+
+		let has_gruvbox = files
+			.iter()
+			.any(|f| f.path().file_name().is_some_and(|n| n == "gruvbox.kdl"));
+		assert!(has_gruvbox, "Should have gruvbox.kdl");
+
+		let has_one_dark = files
+			.iter()
+			.any(|f| f.path().file_name().is_some_and(|n| n == "one_dark.kdl"));
+		assert!(has_one_dark, "Should have one_dark.kdl");
 	}
 }

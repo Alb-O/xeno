@@ -57,6 +57,7 @@ ui {
 	selection-fg $fg1
 	message-fg $yellow
 	command-input-fg $fg1
+	indent-guide-fg $bg4
 }
 // Status bar colors
 status {

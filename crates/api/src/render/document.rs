@@ -125,6 +125,7 @@ impl Editor {
 			theme: self.theme,
 			language_loader: &self.language_loader,
 			style_overlays: &self.style_overlays,
+			show_indent_guides: true,
 		};
 
 		// Render each view

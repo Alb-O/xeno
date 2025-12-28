@@ -40,8 +40,8 @@ pub fn fetch_grammar(grammar: &GrammarConfig) -> Result<FetchStatus> {
 	let grammar_dir = grammar_sources_dir().join(&grammar.grammar_id);
 	fs::create_dir_all(&grammar_dir)?;
 
-	if grammar_dir.join(".git").exists() {
-		// Repository exists, fetch and checkout the revision
+	// Check for .git/HEAD to ensure this is a valid git repo, not a partial clone
+	if grammar_dir.join(".git").join("HEAD").exists() {
 		let fetch_output = Command::new("git")
 			.args(["fetch", "--depth", "1", "origin", revision])
 			.current_dir(&grammar_dir)
@@ -84,6 +84,12 @@ pub fn fetch_grammar(grammar: &GrammarConfig) -> Result<FetchStatus> {
 
 		Ok(FetchStatus::Updated)
 	} else {
+		// Clean up any partial/corrupted clone before trying again
+		if grammar_dir.exists() {
+			fs::remove_dir_all(&grammar_dir)?;
+			fs::create_dir_all(&grammar_dir)?;
+		}
+
 		let clone_output = Command::new("git")
 			.args([
 				"clone",

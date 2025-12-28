@@ -875,6 +875,7 @@ dependencies = [
  "evildoer-acp",
  "evildoer-api",
  "evildoer-base",
+ "evildoer-config",
  "evildoer-extensions",
  "evildoer-language",
  "evildoer-manifest",

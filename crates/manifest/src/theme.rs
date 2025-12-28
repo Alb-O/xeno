@@ -1,13 +1,19 @@
 //! Theme schema types and registry.
 //!
-//! This module defines the type schema for editor themes. Actual theme definitions
-//! should be KDL files in `runtime/themes/` - the hardcoded Rust themes exist only
-//! as fallback defaults.
+//! This module defines the type schema for editor themes. Theme definitions
+//! come from KDL files in `runtime/themes/`. A fallback default theme exists
+//! only for cases where no themes are loaded.
+
+use std::sync::OnceLock;
 
 pub use evildoer_base::color::{Color, Modifier};
 use linkme::distributed_slice;
 
 pub use crate::syntax::{SyntaxStyle, SyntaxStyles};
+
+/// Runtime theme registry for dynamically loaded themes.
+/// Themes are leaked to obtain 'static lifetime for consistency with the rest of the codebase.
+static RUNTIME_THEMES: OnceLock<Vec<&'static Theme>> = OnceLock::new();
 
 /// Whether a theme uses a light or dark background.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
@@ -30,6 +36,29 @@ pub struct UiColors {
 	pub selection_fg: Color,
 	pub message_fg: Color,
 	pub command_input_fg: Color,
+	/// Color for indentation guide overlays (spaces shown as dots, tabs as chevrons).
+	/// If None, inherits from gutter_fg with reduced opacity.
+	pub indent_guide_fg: Option<Color>,
+}
+
+/// Characters used to render indentation guides.
+#[derive(Clone, Copy, Debug)]
+pub struct IndentGuideChars {
+	/// Character for space indentation (default: middle dot '·' U+00B7).
+	pub space: char,
+	/// Character for tab indentation (default: right chevron '›' U+203A).
+	pub tab: char,
+}
+
+impl Default for IndentGuideChars {
+	fn default() -> Self {
+		Self {
+			// Middle dot - subtle, vertically centered
+			space: '\u{00B7}',
+			// Single right-pointing angle quotation mark - clean chevron look
+			tab: '\u{203A}',
+		}
+	}
 }
 
 /// Status line color definitions per mode.
@@ -150,6 +179,57 @@ pub struct Theme {
 	pub source: crate::RegistrySource,
 }
 
+/// Owned theme data for runtime-loaded themes.
+/// This is converted to a leaked `Theme` for 'static lifetime.
+#[derive(Clone, Debug)]
+pub struct OwnedTheme {
+	pub id: String,
+	pub name: String,
+	pub aliases: Vec<String>,
+	pub variant: ThemeVariant,
+	pub colors: ThemeColors,
+	pub priority: i16,
+	pub source: crate::RegistrySource,
+}
+
+impl OwnedTheme {
+	/// Leaks this owned theme to produce a 'static Theme reference.
+	/// The memory is intentionally leaked to provide stable 'static references.
+	pub fn leak(self) -> &'static Theme {
+		let id: &'static str = Box::leak(self.id.into_boxed_str());
+		let name: &'static str = Box::leak(self.name.into_boxed_str());
+		let aliases: &'static [&'static str] = Box::leak(
+			self.aliases
+				.into_iter()
+				.map(|s| -> &'static str { Box::leak(s.into_boxed_str()) })
+				.collect::<Vec<_>>()
+				.into_boxed_slice(),
+		);
+
+		Box::leak(Box::new(Theme {
+			id,
+			name,
+			aliases,
+			variant: self.variant,
+			colors: self.colors,
+			priority: self.priority,
+			source: self.source,
+		}))
+	}
+}
+
+/// Register runtime themes. This should be called once at startup with all
+/// themes loaded from KDL files. Subsequent calls will be ignored.
+pub fn register_runtime_themes(themes: Vec<OwnedTheme>) {
+	let leaked: Vec<&'static Theme> = themes.into_iter().map(OwnedTheme::leak).collect();
+	let _ = RUNTIME_THEMES.set(leaked);
+}
+
+/// Get all registered runtime themes.
+pub fn runtime_themes() -> &'static [&'static Theme] {
+	RUNTIME_THEMES.get().map(|v| v.as_slice()).unwrap_or(&[])
+}
+
 #[distributed_slice]
 pub static THEMES: [Theme] = [..];
 
@@ -171,6 +251,7 @@ pub static DEFAULT_THEME: Theme = Theme {
 			selection_fg: Color::White,
 			message_fg: Color::Yellow,
 			command_input_fg: Color::White,
+			indent_guide_fg: None,
 		},
 		status: StatusColors {
 			normal_bg: Color::Blue,
@@ -212,6 +293,15 @@ pub fn get_theme(name: &str) -> Option<&'static Theme> {
 
 	let search = normalize(name);
 
+	// Check runtime themes first (from KDL files)
+	if let Some(theme) = runtime_themes()
+		.iter()
+		.find(|t| normalize(t.name) == search || t.aliases.iter().any(|a| normalize(a) == search))
+	{
+		return Some(theme);
+	}
+
+	// Fall back to compile-time themes (just the default fallback)
 	THEMES
 		.iter()
 		.find(|t| normalize(t.name) == search || t.aliases.iter().any(|a| normalize(a) == search))
@@ -230,6 +320,24 @@ pub fn suggest_theme(name: &str) -> Option<&'static str> {
 	let mut best_match = None;
 	let mut best_score = 0.0;
 
+	// Check runtime themes first
+	for theme in runtime_themes() {
+		let score = strsim::jaro_winkler(&name, theme.name);
+		if score > best_score {
+			best_score = score;
+			best_match = Some(theme.name);
+		}
+
+		for alias in theme.aliases {
+			let score = strsim::jaro_winkler(&name, alias);
+			if score > best_score {
+				best_score = score;
+				best_match = Some(theme.name);
+			}
+		}
+	}
+
+	// Then check compile-time themes
 	for theme in THEMES {
 		let score = strsim::jaro_winkler(&name, theme.name);
 		if score > best_score {
@@ -282,8 +390,11 @@ impl CompletionSource for ThemeSource {
 		let cmd_name = parts.first().unwrap();
 		let arg_start = cmd_name.len() + 1;
 
-		let items: Vec<_> = THEMES
+		// Collect from both runtime and compile-time themes
+		let mut items: Vec<_> = runtime_themes()
 			.iter()
+			.copied()
+			.chain(THEMES.iter())
 			.filter(|theme| {
 				theme.name.starts_with(prefix)
 					|| theme.aliases.iter().any(|a| a.starts_with(prefix))
@@ -302,6 +413,9 @@ impl CompletionSource for ThemeSource {
 				}
 			})
 			.collect();
+
+		// Deduplicate by label (runtime themes take precedence)
+		items.dedup_by(|a, b| a.label == b.label);
 
 		CompletionResult::new(arg_start, items)
 	}
