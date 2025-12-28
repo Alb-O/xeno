@@ -18,36 +18,7 @@ language name=rust scope=source.rust injection-regex=rs|rust auto-format=#true {
 	indent tab-width=4 unit="    "
 	persistent-diagnostic-sources rustc clippy
 	auto-pairs "("=")" "{"="}" "["="]" "\""="\"" `=`
-	debugger name=lldb-dap transport=stdio command=lldb-dap {
-		templates {
-			- name=binary request=launch {
-				completion {
-					- name=binary completion=filename
-				}
-				args program="{0}"
-			}
-			- name="binary (terminal)" request=launch {
-				completion {
-					- name=binary completion=filename
-				}
-				args program="{0}" runInTerminal=#true
-			}
-			- name=attach request=attach {
-				completion pid
-				args pid="{0}"
-			}
-			- name="gdbserver attach" request=attach {
-				completion {
-					- name="lldb connect url" default="connect://localhost:3333"
-					- name=file completion=filename
-					- pid
-				}
-				args {
-					attachCommands "platform select remote-gdb-server" "platform connect {0}" "file {1}" "attach {2}"
-				}
-			}
-		}
-	}
+	debugger lldb-dap-rust
 }
 language name=sway scope=source.sway injection-regex=sway comment-token="//" {
 	file-types sw
@@ -218,30 +189,7 @@ language name=c scope=source.c injection-regex=c comment-token="//" {
 	block-comment-tokens start="/*" end="*/"
 	language-servers clangd
 	indent tab-width=2 unit="  "
-	debugger name=lldb-dap transport=stdio command=lldb-dap {
-		templates {
-			- name=binary request=launch {
-				completion {
-					- name=binary completion=filename
-				}
-				args console=internalConsole program="{0}"
-			}
-			- name=attach request=attach {
-				completion pid
-				args console=internalConsole pid="{0}"
-			}
-			- name="gdbserver attach" request=attach {
-				completion {
-					- name="lldb connect url" default="connect://localhost:3333"
-					- name=file completion=filename
-					- pid
-				}
-				args console=internalConsole {
-					attachCommands "platform select remote-gdb-server" "platform connect {0}" "file {1}" "attach {2}"
-				}
-			}
-		}
-	}
+	debugger lldb-dap
 }
 language name=cpp scope=source.cpp injection-regex=cpp comment-token="//" {
 	file-types {
@@ -272,30 +220,7 @@ language name=cpp scope=source.cpp injection-regex=cpp comment-token="//" {
 	block-comment-tokens start="/*" end="*/"
 	language-servers clangd
 	indent tab-width=2 unit="  "
-	debugger name=lldb-dap transport=stdio command=lldb-dap {
-		templates {
-			- name=binary request=launch {
-				completion {
-					- name=binary completion=filename
-				}
-				args console=internalConsole program="{0}"
-			}
-			- name=attach request=attach {
-				completion pid
-				args console=internalConsole pid="{0}"
-			}
-			- name="gdbserver attach" request=attach {
-				completion {
-					- name="lldb connect url" default="connect://localhost:3333"
-					- name=file completion=filename
-					- pid
-				}
-				args console=internalConsole {
-					attachCommands "platform select remote-gdb-server" "platform connect {0}" "file {1}" "attach {2}"
-				}
-			}
-		}
-	}
+	debugger lldb-dap
 }
 language name=crystal scope=source.cr comment-token="#" {
 	file-types cr
@@ -311,21 +236,7 @@ language name=c-sharp scope=source.csharp injection-regex=c-?sharp {
 	block-comment-tokens start="/*" end="*/"
 	indent tab-width=4 unit="\t"
 	language-servers omnisharp csharp-ls
-	debugger name=netcoredbg transport=tcp command=netcoredbg port-arg="--server={}" {
-		args "--interpreter=vscode"
-		templates {
-			- name=launch request=launch {
-				completion {
-					- name="path to dll" completion=filename
-				}
-				args type=coreclr console=internalConsole internalConsoleOptions=openOnSessionStart program="{0}"
-			}
-			- name=attach request=attach {
-				completion pid
-				args processId="{0}"
-			}
-		}
-	}
+	debugger netcoredbg
 }
 language name=cel scope=source.cel injection-regex=cel comment-token="//" {
 	file-types cel
@@ -341,40 +252,7 @@ language name=go scope=source.go injection-regex=go auto-format=#true comment-to
 	block-comment-tokens start="/*" end="*/"
 	language-servers gopls golangci-lint-lsp
 	indent tab-width=4 unit="\t"
-	debugger name=go transport=tcp command=dlv port-arg="-l 127.0.0.1:{}" {
-		args dap
-		templates {
-			- name=source request=launch {
-				completion {
-					- name=entrypoint completion=filename default=.
-				}
-				args mode=debug program="{0}"
-			}
-			- name=binary request=launch {
-				completion {
-					- name=binary completion=filename
-				}
-				args mode=exec program="{0}"
-			}
-			- name=test request=launch {
-				completion {
-					- name=tests completion=directory default=.
-				}
-				args mode=test program="{0}"
-			}
-			- name=attach request=attach {
-				completion pid
-				args mode=local processId="{0}"
-			}
-			- name=core request=launch {
-				completion {
-					- name=binary completion=filename
-					- name=core completion=filename
-				}
-				args mode=core program="{0}" coreFilePath="{1}"
-			}
-		}
-	}
+	debugger go
 }
 language name=gomod scope=source.gomod injection-regex=gomod auto-format=#true comment-token="//" {
 	file-types {
@@ -415,19 +293,7 @@ language name=javascript scope=source.js injection-regex="(js|javascript)" langu
 	block-comment-tokens start="/*" end="*/"
 	language-servers typescript-language-server
 	indent tab-width=2 unit="  "
-	debugger name=js-debug-dap transport=tcp port-arg="{} 127.0.0.1" {
-		quirks absolute-paths=#true
-		templates {
-			- name=source request=launch {
-				completion {
-					- name=main completion=filename default=index.js
-				}
-				args program="{0}" {
-					skipFiles "<node_internals>/**"
-				}
-			}
-		}
-	}
+	debugger js-debug-dap
 }
 language name=jsx scope=source.jsx injection-regex=jsx language-id=javascriptreact comment-token="//" grammar=javascript {
 	file-types jsx
@@ -827,30 +693,7 @@ language name=zig scope=source.zig injection-regex=zig auto-format=#true {
 	language-servers zls
 	indent tab-width=4 unit="    "
 	formatter zig
-	debugger name=lldb-dap transport=stdio command=lldb-dap {
-		templates {
-			- name=binary request=launch {
-				completion {
-					- name=binary completion=filename
-				}
-				args console=internalConsole program="{0}"
-			}
-			- name=attach request=attach {
-				completion pid
-				args console=internalConsole pid="{0}"
-			}
-			- name="gdbserver attach" request=attach {
-				completion {
-					- name="lldb connect url" default="connect://localhost:3333"
-					- name=file completion=filename
-					- pid
-				}
-				args console=internalConsole {
-					attachCommands "platform select remote-gdb-server" "platform connect {0}" "file {1}" "attach {2}"
-				}
-			}
-		}
-	}
+	debugger lldb-dap
 }
 language name=prolog scope=source.prolog comment-token=% {
 	file-types pl prolog
@@ -1325,30 +1168,7 @@ language name=odin auto-format=#true scope=source.odin comment-token="//" {
 	block-comment-tokens start="/*" end="*/"
 	indent tab-width=4 unit="\t"
 	formatter odinfmt
-	debugger name=lldb-dap transport=stdio command=lldb-dap {
-		templates {
-			- name=binary request=launch {
-				completion {
-					- name=binary completion=filename
-				}
-				args console=internalConsole program="{0}"
-			}
-			- name=attach request=attach {
-				completion pid
-				args console=internalConsole pid="{0}"
-			}
-			- name="gdbserver attach" request=attach {
-				completion {
-					- name="lldb connect url" default="connect://localhost:3333"
-					- name=file completion=filename
-					- pid
-				}
-				args console=internalConsole {
-					attachCommands "platform select remote-gdb-server" "platform connect {0}" "file {1}" "attach {2}"
-				}
-			}
-		}
-	}
+	debugger lldb-dap
 }
 language name=meson scope=source.meson injection-regex=meson comment-token="#" {
 	file-types {

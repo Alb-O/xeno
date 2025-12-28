@@ -1,0 +1,158 @@
+// Debug Adapter Protocol (DAP) configurations.
+// Each node name is the debugger identifier, referenced in languages.kdl via `debugger`.
+//
+// Format:
+//   debugger-name "command" { ... }   - when command differs from debugger name
+//   debugger-name { ... }             - when command equals debugger name
+//
+// Fields (in order):
+//   transport  - Communication method: "stdio" or "tcp"
+//   port-arg   - Port argument template for tcp transport (e.g. "-l 127.0.0.1:{}")
+//   args       - Command-line arguments
+//   source     - URL to the project repository or homepage
+//   nix        - Nixpkgs attribute path for the package, or #false if not available
+//   quirks     - DAP quirks/workarounds
+//   templates  - Debug launch/attach configurations
+//
+// Template format:
+//   - name=<name> request=<launch|attach> { completion { ... } args { ... } }
+// Go debugger (Delve)
+go dlv {
+	transport tcp
+	port-arg "-l 127.0.0.1:{}"
+	args dap
+	source "https://github.com/go-delve/delve"
+	nix delve
+	templates {
+		- name=source request=launch {
+			completion {
+				- name=entrypoint completion=filename default=.
+			}
+			args mode=debug program="{0}"
+		}
+		- name=binary request=launch {
+			completion {
+				- name=binary completion=filename
+			}
+			args mode=exec program="{0}"
+		}
+		- name=test request=launch {
+			completion {
+				- name=tests completion=directory default=.
+			}
+			args mode=test program="{0}"
+		}
+		- name=attach request=attach {
+			completion pid
+			args mode=local processId="{0}"
+		}
+		- name=core request=launch {
+			completion {
+				- name=binary completion=filename
+				- name=core completion=filename
+			}
+			args mode=core program="{0}" coreFilePath="{1}"
+		}
+	}
+}
+// JavaScript/TypeScript debugger (VS Code js-debug)
+js-debug-dap {
+	transport tcp
+	port-arg "{} 127.0.0.1"
+	source "https://github.com/microsoft/vscode-js-debug"
+	nix #false
+	quirks absolute-paths=#true
+	templates {
+		- name=source request=launch {
+			completion {
+				- name=main completion=filename default=index.js
+			}
+			args program="{0}" {
+				skipFiles "<node_internals>/**"
+			}
+		}
+	}
+}
+// LLDB-based debugger for native languages
+// Variant for Rust with terminal support
+lldb-dap-rust lldb-dap {
+	transport stdio
+	source "https://github.com/llvm/llvm-project"
+	nix lldb
+	templates {
+		- name=binary request=launch {
+			completion {
+				- name=binary completion=filename
+			}
+			args program="{0}"
+		}
+		- name="binary (terminal)" request=launch {
+			completion {
+				- name=binary completion=filename
+			}
+			args program="{0}" runInTerminal=#true
+		}
+		- name=attach request=attach {
+			completion pid
+			args pid="{0}"
+		}
+		- name="gdbserver attach" request=attach {
+			completion {
+				- name="lldb connect url" default="connect://localhost:3333"
+				- name=file completion=filename
+				- pid
+			}
+			args {
+				attachCommands "platform select remote-gdb-server" "platform connect {0}" "file {1}" "attach {2}"
+			}
+		}
+	}
+}
+// Variant for C/C++/Zig/Odin with internalConsole
+lldb-dap lldb-dap {
+	transport stdio
+	source "https://github.com/llvm/llvm-project"
+	nix lldb
+	templates {
+		- name=binary request=launch {
+			completion {
+				- name=binary completion=filename
+			}
+			args console=internalConsole program="{0}"
+		}
+		- name=attach request=attach {
+			completion pid
+			args console=internalConsole pid="{0}"
+		}
+		- name="gdbserver attach" request=attach {
+			completion {
+				- name="lldb connect url" default="connect://localhost:3333"
+				- name=file completion=filename
+				- pid
+			}
+			args console=internalConsole {
+				attachCommands "platform select remote-gdb-server" "platform connect {0}" "file {1}" "attach {2}"
+			}
+		}
+	}
+}
+// .NET Core debugger
+netcoredbg {
+	transport tcp
+	port-arg "--server={}"
+	args "--interpreter=vscode"
+	source "https://github.com/Samsung/netcoredbg"
+	nix netcoredbg
+	templates {
+		- name=launch request=launch {
+			completion {
+				- name="path to dll" completion=filename
+			}
+			args type=coreclr console=internalConsole internalConsoleOptions=openOnSessionStart program="{0}"
+		}
+		- name=attach request=attach {
+			completion pid
+			args processId="{0}"
+		}
+	}
+}
