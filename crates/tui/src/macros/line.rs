@@ -7,8 +7,8 @@
 /// * Create a [`Line`] containing a vector of [`Span`]s:
 ///
 /// ```rust
-/// # use crate::style::Stylize;
-/// use crate::line;
+/// # use tome_tui::style::Stylize;
+/// use tome_tui::line;
 ///
 /// let line = line!["hello", "world"];
 /// let line = line!["hello".red(), "world".red().bold()];
@@ -17,15 +17,15 @@
 /// * Create a [`Line`] from a given [`Span`] repeated some amount of times:
 ///
 /// ```rust
-/// # use crate::line;
+/// # use tome_tui::line;
 /// let line = line!["hello"; 2];
 /// ```
 ///
 /// * Use [`span!`] macro inside [`line!`] macro for formatting.
 ///
 /// ```rust
-/// # use crate::style::Modifier;
-/// use crate::{line, span};
+/// # use tome_tui::style::Modifier;
+/// use tome_tui::{line, span};
 ///
 /// let line = line![span!("hello {}", "world"), span!(Modifier::BOLD; "goodbye {}", "world")];
 /// ```

@@ -7,8 +7,8 @@
 /// * Create a [`Row`] containing a vector of [`Cell`]s:
 ///
 /// ```rust
-/// # use crate::style::Stylize;
-/// use crate::row;
+/// # use tome_tui::style::Stylize;
+/// use tome_tui::row;
 ///
 /// let row = row!["hello", "world"];
 /// let row = row!["hello".red(), "world".red().bold()];
@@ -17,22 +17,22 @@
 /// * Create an empty [`Row`]:
 ///
 /// ```rust
-/// # use crate::row;
+/// # use tome_tui::row;
 /// let empty_row = row![];
 /// ```
 ///
 /// * Create a [`Row`] from a given [`Cell`] repeated some amount of times:
 ///
 /// ```rust
-/// # use crate::row;
+/// # use tome_tui::row;
 /// let row = row!["hello"; 2];
 /// ```
 ///
 /// * Use [`text!`], [`line!`] or [`span!`] macro inside [`row!`] macro.
 ///
 /// ```rust
-/// # use crate::style::{Modifier};
-/// use crate::{row, line, text, span};
+/// # use tome_tui::style::{Modifier};
+/// use tome_tui::{row, line, text, span};
 ///
 /// let row = row![
 ///     line!["hello", "world"], span!(Modifier::BOLD; "goodbye {}", "world"),

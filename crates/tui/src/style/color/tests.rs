@@ -4,9 +4,9 @@ use super::*;
 
 mod conversions;
 mod display;
-mod parsing;
 #[cfg(feature = "palette")]
 mod palette;
+mod parsing;
 #[cfg(feature = "serde")]
 mod serde;
 

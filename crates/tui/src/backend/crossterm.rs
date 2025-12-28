@@ -114,8 +114,8 @@ use crate::style::{Color, Modifier, Style};
 /// use crossterm::terminal::{
 ///     EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode,
 /// };
-/// use crate::Terminal;
-/// use crate::backend::CrosstermBackend;
+/// use tome_tui::Terminal;
+/// use tome_tui::backend::CrosstermBackend;
 ///
 /// let mut backend = CrosstermBackend::new(stdout());
 /// // or
@@ -163,7 +163,7 @@ where
 	/// ```rust,ignore
 	/// use std::io::stdout;
 	///
-	/// use crate::backend::CrosstermBackend;
+	/// use tome_tui::backend::CrosstermBackend;
 	///
 	/// let backend = CrosstermBackend::new(stdout());
 	/// ```

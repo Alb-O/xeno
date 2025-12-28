@@ -85,8 +85,7 @@ fn render_multi_width_symbol_truncates_entire_symbol() {
 	let mut buf = Buffer::empty(Rect::new(0, 0, 6, 1));
 	span.render(buf.area, &mut buf);
 
-	let expected =
-		Buffer::with_lines([Line::from(vec!["test ".green().on_yellow(), " ".into()])]);
+	let expected = Buffer::with_lines([Line::from(vec!["test ".green().on_yellow(), " ".into()])]);
 	assert_eq!(buf, expected);
 }
 

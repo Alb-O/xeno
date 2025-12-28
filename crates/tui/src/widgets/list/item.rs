@@ -20,15 +20,15 @@ use crate::text::Text;
 /// You can create [`ListItem`]s from simple `&str`
 ///
 /// ```rust
-/// use crate::widgets::ListItem;
+/// use tome_tui::widgets::ListItem;
 /// let item = ListItem::new("Item 1");
 /// ```
 ///
 /// Anything that can be converted to [`Text`] can be a [`ListItem`].
 ///
 /// ```rust
-/// use crate::text::Line;
-/// use crate::widgets::ListItem;
+/// use tome_tui::text::Line;
+/// use tome_tui::widgets::ListItem;
 ///
 /// let item1: ListItem = "Item 1".into();
 /// let item2: ListItem = Line::raw("Item 2").into();
@@ -37,8 +37,8 @@ use crate::text::Text;
 /// A [`ListItem`] styled with [`Stylize`]
 ///
 /// ```rust
-/// use crate::style::Stylize;
-/// use crate::widgets::ListItem;
+/// use tome_tui::style::Stylize;
+/// use tome_tui::widgets::ListItem;
 ///
 /// let item = ListItem::new("Item 1").red().on_white();
 /// ```
@@ -47,9 +47,9 @@ use crate::text::Text;
 /// [`Text`]
 ///
 /// ```rust
-/// use crate::style::Stylize;
-/// use crate::text::{Span, Text};
-/// use crate::widgets::ListItem;
+/// use tome_tui::style::Stylize;
+/// use tome_tui::text::{Span, Text};
+/// use tome_tui::widgets::ListItem;
 ///
 /// let mut text = Text::default();
 /// text.extend(["Item".blue(), Span::raw(" "), "1".bold().red()]);
@@ -59,8 +59,8 @@ use crate::text::Text;
 /// A right-aligned `ListItem`
 ///
 /// ```rust
-/// use crate::text::Text;
-/// use crate::widgets::ListItem;
+/// use tome_tui::text::Text;
+/// use tome_tui::widgets::ListItem;
 ///
 /// ListItem::new(Text::from("foo").right_aligned());
 /// ```
@@ -85,7 +85,7 @@ impl<'a> ListItem<'a> {
 	/// You can create [`ListItem`]s from simple `&str`
 	///
 	/// ```rust
-	/// use crate::widgets::ListItem;
+	/// use tome_tui::widgets::ListItem;
 	///
 	/// let item = ListItem::new("Item 1");
 	/// ```
@@ -93,8 +93,8 @@ impl<'a> ListItem<'a> {
 	/// Anything that can be converted to [`Text`] can be a [`ListItem`].
 	///
 	/// ```rust
-	/// use crate::text::Line;
-	/// use crate::widgets::ListItem;
+	/// use tome_tui::text::Line;
+	/// use tome_tui::widgets::ListItem;
 	///
 	/// let item1: ListItem = "Item 1".into();
 	/// let item2: ListItem = Line::raw("Item 2").into();
@@ -103,7 +103,7 @@ impl<'a> ListItem<'a> {
 	/// You can also create multiline items
 	///
 	/// ```rust
-	/// use crate::widgets::ListItem;
+	/// use tome_tui::widgets::ListItem;
 	///
 	/// let item = ListItem::new("Multi-line\nitem");
 	/// ```
@@ -134,8 +134,8 @@ impl<'a> ListItem<'a> {
 	/// # Example
 	///
 	/// ```rust
-	/// use crate::style::{Style, Stylize};
-	/// use crate::widgets::ListItem;
+	/// use tome_tui::style::{Style, Stylize};
+	/// use tome_tui::widgets::ListItem;
 	///
 	/// let item = ListItem::new("Item 1").style(Style::new().red().italic());
 	/// ```
@@ -145,8 +145,8 @@ impl<'a> ListItem<'a> {
 	/// concisely.
 	///
 	/// ```rust
-	/// use crate::style::Stylize;
-	/// use crate::widgets::ListItem;
+	/// use tome_tui::style::Stylize;
+	/// use tome_tui::widgets::ListItem;
 	///
 	/// let item = ListItem::new("Item 1").red().italic();
 	/// ```
@@ -167,7 +167,7 @@ impl<'a> ListItem<'a> {
 	/// One line item
 	///
 	/// ```rust
-	/// use crate::widgets::ListItem;
+	/// use tome_tui::widgets::ListItem;
 	///
 	/// let item = ListItem::new("Item 1");
 	/// assert_eq!(item.height(), 1);
@@ -176,7 +176,7 @@ impl<'a> ListItem<'a> {
 	/// Two lines item (note the `\n`)
 	///
 	/// ```rust
-	/// use crate::widgets::ListItem;
+	/// use tome_tui::widgets::ListItem;
 	///
 	/// let item = ListItem::new("Multi-line\nitem");
 	/// assert_eq!(item.height(), 2);
@@ -190,14 +190,14 @@ impl<'a> ListItem<'a> {
 	/// # Examples
 	///
 	/// ```rust
-	/// use crate::widgets::ListItem;
+	/// use tome_tui::widgets::ListItem;
 	///
 	/// let item = ListItem::new("12345");
 	/// assert_eq!(item.width(), 5);
 	/// ```
 	///
 	/// ```rust
-	/// use crate::widgets::ListItem;
+	/// use tome_tui::widgets::ListItem;
 	///
 	/// let item = ListItem::new("12345\n1234567");
 	/// assert_eq!(item.width(), 7);

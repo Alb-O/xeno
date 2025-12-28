@@ -73,7 +73,7 @@ use super::{Constraint, Flex, Layout};
 /// a `Rect` directly.
 ///
 /// ```rust
-/// use crate::layout::Rect;
+/// use tome_tui::layout::Rect;
 ///
 /// let rect = Rect::new(1, 2, 3, 4);
 /// assert_eq!(
@@ -90,7 +90,7 @@ use super::{Constraint, Flex, Layout};
 /// You can also create a `Rect` from a [`Position`] and a [`Size`].
 ///
 /// ```rust
-/// use crate::layout::{Position, Rect, Size};
+/// use tome_tui::layout::{Position, Rect, Size};
 ///
 /// let position = Position::new(1, 2);
 /// let size = Size::new(3, 4);
@@ -109,7 +109,7 @@ use super::{Constraint, Flex, Layout};
 /// To move a `Rect` without modifying its size, add or subtract an [`Offset`] to it.
 ///
 /// ```rust
-/// use crate::layout::{Offset, Rect};
+/// use tome_tui::layout::{Offset, Rect};
 ///
 /// let rect = Rect::new(1, 2, 3, 4);
 /// let offset = Offset::new(5, 6);
@@ -121,7 +121,7 @@ use super::{Constraint, Flex, Layout};
 /// clamped so that `right()` and `bottom()` do not exceed `u16::MAX`.
 ///
 /// ```rust
-/// use crate::layout::{Rect, Size};
+/// use tome_tui::layout::{Rect, Size};
 ///
 /// let rect = Rect::new(u16::MAX - 1, u16::MAX - 1, 1, 1).resize(Size::new(10, 10));
 /// assert_eq!(rect, Rect::new(u16::MAX - 1, u16::MAX - 1, 1, 1));
@@ -172,7 +172,7 @@ impl Rect {
 	/// # Examples
 	///
 	/// ```
-	/// use crate::layout::Rect;
+	/// use tome_tui::layout::Rect;
 	///
 	/// let rect = Rect::new(1, 2, 3, 4);
 	/// ```
@@ -347,7 +347,7 @@ impl Rect {
 	/// # Examples
 	///
 	/// ```rust
-	/// use crate::layout::{Position, Rect};
+	/// use tome_tui::layout::{Position, Rect};
 	///
 	/// let rect = Rect::new(1, 2, 3, 4);
 	/// assert!(rect.contains(Position { x: 1, y: 2 }));
@@ -377,7 +377,7 @@ impl Rect {
 	/// # Examples
 	///
 	/// ```rust
-	/// use crate::layout::Rect;
+	/// use tome_tui::layout::Rect;
 	///
 	/// let area = Rect::new(0, 0, 100, 100);
 	/// let rect = Rect::new(80, 80, 30, 30).clamp(area);
@@ -400,9 +400,9 @@ impl Rect {
 	/// # Example
 	///
 	/// ```
-	/// use crate::buffer::Buffer;
-	/// use crate::layout::{Constraint, Layout, Rect};
-	/// use crate::widgets::Widget;
+	/// use tome_tui::buffer::Buffer;
+	/// use tome_tui::layout::{Constraint, Layout, Rect};
+	/// use tome_tui::widgets::Widget;
 	///
 	/// fn render_list(area: Rect, buf: &mut Buffer) {
 	///     // Renders "Item 0", "Item 1", etc. in each row
@@ -434,9 +434,9 @@ impl Rect {
 	/// # Example
 	///
 	/// ```
-	/// use crate::buffer::Buffer;
-	/// use crate::layout::Rect;
-	/// use crate::widgets::Widget;
+	/// use tome_tui::buffer::Buffer;
+	/// use tome_tui::layout::Rect;
+	/// use tome_tui::widgets::Widget;
 	///
 	/// fn render_columns(area: Rect, buf: &mut Buffer) {
 	///     // Renders column indices (0-9 repeating) in each column
@@ -457,9 +457,9 @@ impl Rect {
 	/// # Example
 	///
 	/// ```
-	/// use crate::buffer::Buffer;
-	/// use crate::layout::{Position, Rect};
-	/// use crate::widgets::Widget;
+	/// use tome_tui::buffer::Buffer;
+	/// use tome_tui::layout::{Position, Rect};
+	/// use tome_tui::widgets::Widget;
 	///
 	/// fn render_positions(area: Rect, buf: &mut Buffer) {
 	///     // Renders position indices (0-9 repeating) at each cell position
@@ -477,7 +477,7 @@ impl Rect {
 	/// # Examples
 	///
 	/// ```
-	/// use crate::layout::Rect;
+	/// use tome_tui::layout::Rect;
 	///
 	/// let rect = Rect::new(1, 2, 3, 4);
 	/// let position = rect.as_position();
@@ -502,8 +502,8 @@ impl Rect {
 	/// # Examples
 	///
 	/// ```
-	/// use crate::layout::Constraint;
-	/// use crate::terminal::Frame;
+	/// use tome_tui::layout::Constraint;
+	/// use tome_tui::terminal::Frame;
 	///
 	/// fn render(frame: &mut Frame) {
 	///     let area = frame.area().centered_horizontally(Constraint::Ratio(1, 2));
@@ -520,8 +520,8 @@ impl Rect {
 	/// # Examples
 	///
 	/// ```
-	/// use crate::layout::Constraint;
-	/// use crate::terminal::Frame;
+	/// use tome_tui::layout::Constraint;
+	/// use tome_tui::terminal::Frame;
 	///
 	/// fn render(frame: &mut Frame) {
 	///     let area = frame.area().centered_vertically(Constraint::Ratio(1, 2));
@@ -538,8 +538,8 @@ impl Rect {
 	/// # Examples
 	///
 	/// ```
-	/// use crate::layout::Constraint;
-	/// use crate::terminal::Frame;
+	/// use tome_tui::layout::Constraint;
+	/// use tome_tui::terminal::Frame;
 	///
 	/// fn render(frame: &mut Frame) {
 	///     let area = frame
@@ -572,7 +572,7 @@ impl Rect {
 	/// # Examples
 	///
 	/// ```
-	/// use crate::layout::{Constraint, Layout, Rect};
+	/// use tome_tui::layout::{Constraint, Layout, Rect};
 	///
 	/// let area = Rect::new(0, 0, 10, 10);
 	/// let layout = Layout::vertical([Constraint::Length(1), Constraint::Min(0)]);
@@ -603,7 +603,7 @@ impl Rect {
 	/// # Examples
 	///
 	/// ```
-	/// use crate::layout::{Constraint, Layout, Rect};
+	/// use tome_tui::layout::{Constraint, Layout, Rect};
 	///
 	/// let area = Rect::new(0, 0, 10, 10);
 	/// let layout = Layout::vertical([Constraint::Length(1), Constraint::Min(0)]);
@@ -630,7 +630,7 @@ impl Rect {
 	/// # Examples
 	///
 	/// ```
-	/// use crate::layout::{Constraint, Layout, Rect};
+	/// use tome_tui::layout::{Constraint, Layout, Rect};
 	///
 	/// let area = Rect::new(0, 0, 10, 10);
 	/// let layout = Layout::vertical([Constraint::Length(1), Constraint::Min(0)]);

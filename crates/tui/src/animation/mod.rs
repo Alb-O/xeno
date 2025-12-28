@@ -8,7 +8,7 @@
 //!
 //! ```
 //! use std::time::Duration;
-//! use crate::animation::{Animatable, Easing, Tween};
+//! use tome_tui::animation::{Animatable, Easing, Tween};
 //!
 //! // Animate a float from 0.0 to 100.0 over 500ms with ease-out
 //! let tween = Tween::new(0.0f32, 100.0f32, Duration::from_millis(500))

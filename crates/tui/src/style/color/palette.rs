@@ -44,10 +44,7 @@ fn test_hsl_to_rgb(#[case] hsl: palette::Hsl, #[case] expected: Color) {
 #[case::under_lightness_clamps(Hsluv::new(0.0, 50.0, -20.0), Color::Rgb(0, 0, 0))]
 #[case::over_lightness_clamps(Hsluv::new(0.0, 50.0, 150.0), Color::Rgb(255, 255, 255))]
 #[case::under_saturation_lightness_clamps(Hsluv::new(0.0, -50.0, -20.0), Color::Rgb(0, 0, 0))]
-#[case::over_saturation_lightness_clamps(
-	Hsluv::new(0.0, 150.0, 150.0),
-	Color::Rgb(255, 255, 255)
-)]
+#[case::over_saturation_lightness_clamps(Hsluv::new(0.0, 150.0, 150.0), Color::Rgb(255, 255, 255))]
 fn test_hsluv_to_rgb(#[case] hsluv: palette::Hsluv, #[case] expected: Color) {
 	assert_eq!(Color::from_hsluv(hsluv), expected);
 }

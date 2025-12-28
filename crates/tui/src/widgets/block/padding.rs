@@ -10,7 +10,7 @@
 /// # Example
 ///
 /// ```
-/// use crate::widgets::Padding;
+/// use tome_tui::widgets::Padding;
 ///
 /// Padding::uniform(1);
 /// Padding::horizontal(2);

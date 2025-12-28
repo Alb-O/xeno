@@ -81,7 +81,7 @@
 //! or applications that don't want alternate screen buffer):
 //!
 //! ```rust,no_run
-//! use crate::{TerminalOptions, Viewport};
+//! use tome_tui::{TerminalOptions, Viewport};
 //!
 //! let options = TerminalOptions {
 //!     viewport: Viewport::Inline(10),
@@ -372,7 +372,7 @@ pub fn try_init() -> io::Result<DefaultTerminal> {
 /// # Examples
 ///
 /// ```rust,no_run
-/// use crate::{TerminalOptions, Viewport};
+/// use tome_tui::{TerminalOptions, Viewport};
 ///
 /// let options = TerminalOptions {
 ///     viewport: Viewport::Inline(5),
@@ -414,7 +414,7 @@ pub fn init_with_options(options: TerminalOptions) -> DefaultTerminal {
 /// # Examples
 ///
 /// ```no_run
-/// use crate::{TerminalOptions, Viewport};
+/// use tome_tui::{TerminalOptions, Viewport};
 ///
 /// let options = TerminalOptions {
 ///     viewport: Viewport::Inline(5),

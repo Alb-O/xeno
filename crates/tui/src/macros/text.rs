@@ -7,8 +7,8 @@
 /// * Create a [`Text`] containing a vector of [`Line`]s:
 ///
 /// ```rust
-/// # use crate::style::Stylize;
-/// use crate::text;
+/// # use tome_tui::style::Stylize;
+/// use tome_tui::text;
 ///
 /// let text = text!["hello", "world"];
 /// let text = text!["hello".red(), "world".red().bold()];
@@ -17,15 +17,15 @@
 /// * Create a [`text`] from a given [`Line`] repeated some amount of times:
 ///
 /// ```rust
-/// # use crate::text;
+/// # use tome_tui::text;
 /// let text = text!["hello"; 2];
 /// ```
 ///
 /// * Use [`line!`] or [`span!`] macro inside [`text!`] macro.
 ///
 /// ```rust
-/// # use crate::style::{Modifier};
-/// use crate::{line, text, span};
+/// # use tome_tui::style::{Modifier};
+/// use tome_tui::{line, text, span};
 ///
 /// let text = text![line!["hello", "world"], span!(Modifier::BOLD; "goodbye {}", "world")];
 /// ```

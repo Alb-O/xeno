@@ -82,7 +82,7 @@
 //! Here's a simple example of creating a basic layout using the [`Layout`] struct:
 //!
 //! ```rust
-//! use crate::layout::{Constraint, Direction, Layout, Rect};
+//! use tome_tui::layout::{Constraint, Direction, Layout, Rect};
 //!
 //! // Create a terminal area
 //! let area = Rect::new(0, 0, 80, 24);
@@ -98,7 +98,7 @@
 //! assignment with descriptive variable names for better readability:
 //!
 //! ```rust
-//! use crate::layout::{Constraint, Layout, Rect};
+//! use tome_tui::layout::{Constraint, Layout, Rect};
 //!
 //! let area = Rect::new(0, 0, 80, 24);
 //! let [header, content, footer] = Layout::vertical([
@@ -114,7 +114,7 @@
 //! Alternatively, you can create layouts manually using mathematics:
 //!
 //! ```rust
-//! use crate::layout::Rect;
+//! use tome_tui::layout::Rect;
 //!
 //! // Create a terminal area
 //! let area = Rect::new(0, 0, 80, 24);
@@ -134,7 +134,7 @@
 //! ## Basic Vertical Split
 //!
 //! ```rust
-//! use crate::layout::{Constraint, Layout, Rect};
+//! use tome_tui::layout::{Constraint, Layout, Rect};
 //!
 //! let area = Rect::new(0, 0, 80, 24);
 //! let [header, content, footer] = Layout::vertical([
@@ -148,7 +148,7 @@
 //! ## Horizontal Sidebar Layout
 //!
 //! ```rust
-//! use crate::layout::{Constraint, Layout, Rect};
+//! use tome_tui::layout::{Constraint, Layout, Rect};
 //!
 //! let area = Rect::new(0, 0, 80, 24);
 //! let [sidebar, main] = Layout::horizontal([
@@ -161,7 +161,7 @@
 //! ## Complex Nested Layout
 //!
 //! ```rust
-//! use crate::layout::{Constraint, Layout, Rect};
+//! use tome_tui::layout::{Constraint, Layout, Rect};
 //!
 //! fn create_complex_layout(area: Rect) -> [Rect; 4] {
 //!     // First, split vertically
@@ -221,7 +221,7 @@
 //! alignment types for controlling content positioning within areas:
 //!
 //! ```rust
-//! use crate::layout::{Alignment, Position, Rect, Size};
+//! use tome_tui::layout::{Alignment, Position, Rect, Size};
 //!
 //! let pos = Position::new(10, 5);
 //! let size = Size::new(80, 24);
@@ -238,7 +238,7 @@
 //! Add spacing around areas using uniform margins or between layout segments using [`Spacing`]:
 //!
 //! ```rust
-//! use crate::layout::{Constraint, Layout, Margin, Rect, Spacing};
+//! use tome_tui::layout::{Constraint, Layout, Margin, Rect, Spacing};
 //!
 //! let layout = Layout::vertical([Constraint::Fill(1), Constraint::Fill(1)])
 //!     .margin(2) // 2-cell margin on all sides
@@ -256,9 +256,9 @@
 //! returns [`Position`] values representing individual cell coordinates:
 //!
 //! ```rust
-//! use crate::buffer::Buffer;
-//! use crate::layout::{Constraint, Layout, Rect};
-//! use crate::widgets::Widget;
+//! use tome_tui::buffer::Buffer;
+//! use tome_tui::layout::{Constraint, Layout, Rect};
+//! use tome_tui::widgets::Widget;
 //!
 //! let area = Rect::new(0, 0, 20, 10);
 //! let mut buffer = Buffer::empty(area);

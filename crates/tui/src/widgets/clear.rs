@@ -11,9 +11,9 @@ use crate::widgets::Widget;
 /// # Examples
 ///
 /// ```
-/// use crate::Frame;
-/// use crate::layout::Rect;
-/// use crate::widgets::{Block, Clear};
+/// use tome_tui::Frame;
+/// use tome_tui::layout::Rect;
+/// use tome_tui::widgets::{Block, Clear};
 ///
 /// fn draw_on_clear(f: &mut Frame, area: Rect) {
 ///     let block = Block::bordered().title("Block");

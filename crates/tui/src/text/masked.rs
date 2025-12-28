@@ -11,10 +11,10 @@ use crate::text::Text;
 /// # Examples
 ///
 /// ```rust
-/// use crate::buffer::Buffer;
-/// use crate::layout::Rect;
-/// use crate::text::{Masked, Text};
-/// use crate::widgets::Widget;
+/// use tome_tui::buffer::Buffer;
+/// use tome_tui::layout::Rect;
+/// use tome_tui::text::{Masked, Text};
+/// use tome_tui::widgets::Widget;
 ///
 /// let mut buffer = Buffer::empty(Rect::new(0, 0, 5, 1));
 /// let password = Masked::new("12345", 'x');

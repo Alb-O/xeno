@@ -19,7 +19,7 @@
 /// # Example
 ///
 /// ```
-/// use crate::animation::Easing;
+/// use tome_tui::animation::Easing;
 ///
 /// let progress = 0.5;
 /// let eased = Easing::EaseOut.apply(progress);

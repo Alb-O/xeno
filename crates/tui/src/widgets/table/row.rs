@@ -18,7 +18,7 @@ use crate::style::{Style, Styled};
 /// You can create `Row`s from simple strings.
 ///
 /// ```rust
-/// use crate::widgets::Row;
+/// use tome_tui::widgets::Row;
 ///
 /// Row::new(vec!["Cell1", "Cell2", "Cell3"]);
 /// ```
@@ -26,8 +26,8 @@ use crate::style::{Style, Styled};
 /// If you need a bit more control over individual cells, you can explicitly create [`Cell`]s:
 ///
 /// ```rust
-/// use crate::style::Stylize;
-/// use crate::widgets::{Cell, Row};
+/// use tome_tui::style::Stylize;
+/// use tome_tui::widgets::{Cell, Row};
 ///
 /// Row::new(vec![
 ///     Cell::from("Cell1"),
@@ -40,7 +40,7 @@ use crate::style::{Style, Styled};
 /// ```rust
 /// use std::borrow::Cow;
 ///
-/// use crate::widgets::{Cell, Row};
+/// use tome_tui::widgets::{Cell, Row};
 ///
 /// Row::new(vec![
 ///     Cow::Borrowed("hello"),
@@ -51,7 +51,7 @@ use crate::style::{Style, Styled};
 /// An iterator whose item type is convertible into [`Text`] can be collected into a row.
 ///
 /// ```rust
-/// use crate::widgets::Row;
+/// use tome_tui::widgets::Row;
 ///
 /// (0..10).map(|i| format!("{i}")).collect::<Row>();
 /// ```
@@ -60,8 +60,8 @@ use crate::style::{Style, Styled};
 /// to set the style of the row concisely.
 ///
 /// ```rust
-/// use crate::style::Stylize;
-/// use crate::widgets::Row;
+/// use tome_tui::style::Stylize;
+/// use tome_tui::widgets::Row;
 ///
 /// let cells = vec!["Cell1", "Cell2", "Cell3"];
 /// Row::new(cells).red().italic();
@@ -88,7 +88,7 @@ impl<'a> Row<'a> {
 	/// # Examples
 	///
 	/// ```rust
-	/// use crate::widgets::{Cell, Row};
+	/// use tome_tui::widgets::{Cell, Row};
 	///
 	/// let row = Row::new(vec!["Cell 1", "Cell 2", "Cell 3"]);
 	/// let row = Row::new(vec![
@@ -119,7 +119,7 @@ impl<'a> Row<'a> {
 	/// # Examples
 	///
 	/// ```rust
-	/// use crate::widgets::{Cell, Row};
+	/// use tome_tui::widgets::{Cell, Row};
 	///
 	/// let row = Row::default().cells(vec!["Cell 1", "Cell 2", "Cell 3"]);
 	/// let row = Row::default().cells(vec![
@@ -149,7 +149,7 @@ impl<'a> Row<'a> {
 	/// # Examples
 	///
 	/// ```rust
-	/// use crate::widgets::Row;
+	/// use tome_tui::widgets::Row;
 	///
 	/// let cells = vec!["Cell 1\nline 2", "Cell 2", "Cell 3"];
 	/// let row = Row::new(cells).height(2);
@@ -169,7 +169,7 @@ impl<'a> Row<'a> {
 	/// # Examples
 	///
 	/// ```rust
-	/// use crate::widgets::Row;
+	/// use tome_tui::widgets::Row;
 	/// let cells = vec!["Cell 1", "Cell 2", "Cell 3"];
 	///
 	/// let row = Row::default().top_margin(1);
@@ -189,7 +189,7 @@ impl<'a> Row<'a> {
 	/// # Examples
 	///
 	/// ```rust
-	/// use crate::widgets::Row;
+	/// use tome_tui::widgets::Row;
 	///
 	/// let cells = vec!["Cell 1", "Cell 2", "Cell 3"];
 	/// let row = Row::default().bottom_margin(1);
@@ -213,8 +213,8 @@ impl<'a> Row<'a> {
 	/// # Examples
 	///
 	/// ```rust
-	/// use crate::style::{Style, Stylize};
-	/// use crate::widgets::Row;
+	/// use tome_tui::style::{Style, Stylize};
+	/// use tome_tui::widgets::Row;
 	/// let cells = vec!["Cell 1", "Cell 2", "Cell 3"];
 	/// let row = Row::new(cells).style(Style::new().red().italic());
 	/// ```
@@ -223,8 +223,8 @@ impl<'a> Row<'a> {
 	/// the [`Stylize`] trait to set the style of the widget more concisely.
 	///
 	/// ```rust
-	/// use crate::style::Stylize;
-	/// use crate::widgets::Row;
+	/// use tome_tui::style::Stylize;
+	/// use tome_tui::widgets::Row;
 	///
 	/// let cells = vec!["Cell 1", "Cell 2", "Cell 3"];
 	/// let row = Row::new(cells).red().italic();

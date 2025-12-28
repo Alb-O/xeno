@@ -19,7 +19,7 @@
 //! property (which is a [`Line`] under the hood):
 //!
 //! ```rust,ignore
-//! use crate::{
+//! use tome_tui::{
 //!     style::{Color, Style},
 //!     text::{Line, Span},
 //!     widgets::Block,
@@ -83,8 +83,8 @@ pub use span::{Span, ToSpan};
 /// # Example
 ///
 /// ```rust
-/// use crate::style::Stylize;
-/// use crate::text::{Line, Text};
+/// use tome_tui::style::Stylize;
+/// use tome_tui::text::{Line, Text};
 ///
 /// let text = Text::from("Line 1\nLine 2").yellow().italic();
 /// let text = Text::from(vec![Line::from("Line 1"), Line::from("Line 2")]).centered();
