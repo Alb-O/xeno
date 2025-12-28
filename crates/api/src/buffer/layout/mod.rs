@@ -37,7 +37,7 @@ use super::BufferId;
 /// Use the constructor methods rather than building variants directly:
 ///
 /// ```ignore
-/// let layout = Layout::hsplit(
+/// let layout = Layout::side_by_side(
 ///     Layout::text(buffer_id),
 ///     Layout::terminal(terminal_id),
 /// );
@@ -75,8 +75,10 @@ impl Layout {
 		Layout::Single(BufferView::Terminal(terminal_id))
 	}
 
-	/// Creates a horizontal split (side by side).
-	pub fn hsplit(first: Layout, second: Layout) -> Self {
+	/// Creates a side-by-side split (first on left, second on right).
+	///
+	/// This is a "vertical split" in Vim/Helix terminology (vertical divider line).
+	pub fn side_by_side(first: Layout, second: Layout) -> Self {
 		Layout::Split {
 			direction: SplitDirection::Horizontal,
 			ratio: 0.5,
@@ -85,8 +87,10 @@ impl Layout {
 		}
 	}
 
-	/// Creates a vertical split (stacked).
-	pub fn vsplit(first: Layout, second: Layout) -> Self {
+	/// Creates a stacked split (first on top, second on bottom).
+	///
+	/// This is a "horizontal split" in Vim/Helix terminology (horizontal divider line).
+	pub fn stacked(first: Layout, second: Layout) -> Self {
 		Layout::Split {
 			direction: SplitDirection::Vertical,
 			ratio: 0.5,

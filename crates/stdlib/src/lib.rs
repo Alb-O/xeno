@@ -15,6 +15,7 @@ pub mod notifications;
 pub mod objects;
 pub mod options;
 pub mod statusline;
+mod window_actions;
 
 // Re-export types from tome-manifest for convenience
 // Re-export WordType from movement when host feature is enabled

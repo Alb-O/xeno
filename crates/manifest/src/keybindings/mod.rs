@@ -7,7 +7,6 @@ mod goto;
 mod insert;
 mod normal;
 mod view;
-mod window;
 
 use linkme::distributed_slice;
 use tome_base::key::Key;

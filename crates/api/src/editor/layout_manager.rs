@@ -144,7 +144,7 @@ impl LayoutManager {
 	/// The split line is horizontal. Current view stays on top, new buffer below.
 	/// Matches Vim's `:split` and Helix's `hsplit`.
 	pub fn split_horizontal(&mut self, current_view: BufferView, new_buffer_id: BufferId) {
-		let new_layout = Layout::vsplit(Layout::single(current_view), Layout::text(new_buffer_id));
+		let new_layout = Layout::stacked(Layout::single(current_view), Layout::text(new_buffer_id));
 		self.layout.replace_view(current_view, new_layout);
 	}
 
@@ -153,7 +153,8 @@ impl LayoutManager {
 	/// The split line is vertical. Current view stays on left, new buffer on right.
 	/// Matches Vim's `:vsplit` and Helix's `vsplit`.
 	pub fn split_vertical(&mut self, current_view: BufferView, new_buffer_id: BufferId) {
-		let new_layout = Layout::hsplit(Layout::single(current_view), Layout::text(new_buffer_id));
+		let new_layout =
+			Layout::side_by_side(Layout::single(current_view), Layout::text(new_buffer_id));
 		self.layout.replace_view(current_view, new_layout);
 	}
 
@@ -162,7 +163,7 @@ impl LayoutManager {
 	/// The split line is horizontal. Current view stays on top, terminal below.
 	pub fn split_horizontal_terminal(&mut self, current_view: BufferView, terminal_id: TerminalId) {
 		let new_layout =
-			Layout::vsplit(Layout::single(current_view), Layout::terminal(terminal_id));
+			Layout::stacked(Layout::single(current_view), Layout::terminal(terminal_id));
 		self.layout.replace_view(current_view, new_layout);
 	}
 
@@ -171,7 +172,7 @@ impl LayoutManager {
 	/// The split line is vertical. Current view stays on left, terminal on right.
 	pub fn split_vertical_terminal(&mut self, current_view: BufferView, terminal_id: TerminalId) {
 		let new_layout =
-			Layout::hsplit(Layout::single(current_view), Layout::terminal(terminal_id));
+			Layout::side_by_side(Layout::single(current_view), Layout::terminal(terminal_id));
 		self.layout.replace_view(current_view, new_layout);
 	}
 

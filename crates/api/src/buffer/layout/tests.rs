@@ -10,8 +10,8 @@ fn single_layout() {
 }
 
 #[test]
-fn hsplit() {
-	let layout = Layout::hsplit(Layout::single(BufferId(1)), Layout::single(BufferId(2)));
+fn side_by_side_split() {
+	let layout = Layout::side_by_side(Layout::single(BufferId(1)), Layout::single(BufferId(2)));
 
 	assert_eq!(layout.first_buffer(), Some(BufferId(1)));
 	assert_eq!(layout.buffer_ids(), vec![BufferId(1), BufferId(2)]);
@@ -22,7 +22,7 @@ fn hsplit() {
 
 #[test]
 fn next_prev_buffer() {
-	let layout = Layout::hsplit(Layout::single(BufferId(1)), Layout::single(BufferId(2)));
+	let layout = Layout::side_by_side(Layout::single(BufferId(1)), Layout::single(BufferId(2)));
 
 	assert_eq!(layout.next_buffer(BufferId(1)), BufferId(2));
 	assert_eq!(layout.next_buffer(BufferId(2)), BufferId(1));
@@ -32,7 +32,7 @@ fn next_prev_buffer() {
 
 #[test]
 fn remove_buffer() {
-	let layout = Layout::hsplit(Layout::single(BufferId(1)), Layout::single(BufferId(2)));
+	let layout = Layout::side_by_side(Layout::single(BufferId(1)), Layout::single(BufferId(2)));
 
 	let after_remove = layout.remove(BufferId(1)).unwrap();
 	assert_eq!(after_remove.buffer_ids(), vec![BufferId(2)]);
@@ -66,8 +66,8 @@ fn get_inner_ratio(layout: &Layout) -> Option<f32> {
 }
 
 #[test]
-fn resize_simple_vertical_split() {
-	let mut layout = Layout::vsplit(Layout::single(BufferId(1)), Layout::single(BufferId(2)));
+fn resize_simple_stacked_split() {
+	let mut layout = Layout::stacked(Layout::single(BufferId(1)), Layout::single(BufferId(2)));
 	let area = make_rect(0, 0, 80, 30);
 
 	assert_eq!(get_ratio(&layout), Some(0.5));
@@ -91,9 +91,9 @@ fn resize_simple_vertical_split() {
 
 #[test]
 fn resize_nested_splits_only_affects_target() {
-	// Create A | (B | C)
-	let inner = Layout::vsplit(Layout::single(BufferId(2)), Layout::single(BufferId(3)));
-	let mut layout = Layout::vsplit(Layout::single(BufferId(1)), inner);
+	// Create A over (B over C)
+	let inner = Layout::stacked(Layout::single(BufferId(2)), Layout::single(BufferId(3)));
+	let mut layout = Layout::stacked(Layout::single(BufferId(1)), inner);
 	let area = make_rect(0, 0, 80, 30);
 
 	let outer_ratio_before = get_ratio(&layout).unwrap();
@@ -130,9 +130,9 @@ fn resize_nested_splits_only_affects_target() {
 
 #[test]
 fn resize_outer_split_preserves_inner_absolute_position() {
-	// Create A | (B | C)
-	let inner = Layout::vsplit(Layout::single(BufferId(2)), Layout::single(BufferId(3)));
-	let mut layout = Layout::vsplit(Layout::single(BufferId(1)), inner);
+	// Create A over (B over C)
+	let inner = Layout::stacked(Layout::single(BufferId(2)), Layout::single(BufferId(3)));
+	let mut layout = Layout::stacked(Layout::single(BufferId(1)), inner);
 	let area = make_rect(0, 0, 80, 30);
 
 	// Find the OUTER separator
@@ -157,8 +157,8 @@ fn resize_outer_split_preserves_inner_absolute_position() {
 
 #[test]
 fn separator_rect_at_path() {
-	let inner = Layout::vsplit(Layout::single(BufferId(2)), Layout::single(BufferId(3)));
-	let layout = Layout::vsplit(Layout::single(BufferId(1)), inner);
+	let inner = Layout::stacked(Layout::single(BufferId(2)), Layout::single(BufferId(3)));
+	let layout = Layout::stacked(Layout::single(BufferId(1)), inner);
 	let area = make_rect(0, 0, 80, 30);
 
 	// Outer separator (empty path)

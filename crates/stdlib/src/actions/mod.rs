@@ -12,7 +12,6 @@
 //! - The input pipeline emits `ActionId` for fast, type-safe dispatch
 //! - Name-to-ID resolution happens once during registry initialization
 
-mod buffer;
 mod editing;
 mod find;
 mod insert;
