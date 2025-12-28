@@ -1,0 +1,10 @@
+[package]
+name = "evildoer-runtime"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Embedded runtime assets for evildoer"
+
+[dependencies]
+include_dir = "0.7"

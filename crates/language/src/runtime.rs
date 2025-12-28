@@ -6,15 +6,9 @@
 use std::path::Path;
 use std::{fs, io};
 
-use include_dir::{Dir, include_dir};
+use evildoer_runtime::include_dir::Dir;
 
 use crate::grammar::runtime_dir;
-
-/// Embedded query files from `runtime/language/queries/`.
-static QUERIES_DIR: Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/../../runtime/language/queries");
-
-/// Embedded theme files from `runtime/themes/`.
-static THEMES_DIR: Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/../../runtime/themes");
 
 /// Ensures the runtime directory exists and is populated with query files and themes.
 ///
@@ -43,12 +37,12 @@ pub fn ensure_runtime() -> io::Result<()> {
 
 /// Copies embedded query files to the target directory.
 fn seed_queries(target: &Path) -> io::Result<()> {
-	extract_dir(&QUERIES_DIR, target)
+	extract_dir(evildoer_runtime::queries::root(), target)
 }
 
 /// Copies embedded theme files to the target directory.
 fn seed_themes(target: &Path) -> io::Result<()> {
-	extract_dir(&THEMES_DIR, target)
+	extract_dir(evildoer_runtime::themes::root(), target)
 }
 
 fn extract_dir(dir: &Dir<'_>, target: &Path) -> io::Result<()> {
@@ -92,39 +86,21 @@ pub fn reseed_runtime() -> io::Result<()> {
 
 #[cfg(test)]
 mod tests {
-	use super::*;
-
 	#[test]
 	fn test_queries_embedded() {
-		let dirs: Vec<_> = QUERIES_DIR.dirs().collect();
-		assert!(!dirs.is_empty(), "Should have language directories");
+		let languages: Vec<_> = evildoer_runtime::queries::languages().collect();
+		assert!(!languages.is_empty(), "Should have language directories");
+		assert!(languages.contains(&"rust"), "Should have rust queries");
 
-		let rust_dir = QUERIES_DIR.get_dir("rust");
-		assert!(rust_dir.is_some(), "Should have rust queries directory");
-
-		let rust = rust_dir.unwrap();
-		let files: Vec<_> = rust.files().collect();
-		assert!(!files.is_empty(), "Rust should have query files");
-
-		let has_highlights = files
-			.iter()
-			.any(|f| f.path().file_name().is_some_and(|n| n == "highlights.scm"));
-		assert!(has_highlights, "Should have highlights.scm");
+		let highlights = evildoer_runtime::queries::get_str("rust", "highlights");
+		assert!(highlights.is_some(), "Should have rust highlights.scm");
 	}
 
 	#[test]
 	fn test_themes_embedded() {
-		let files: Vec<_> = THEMES_DIR.files().collect();
-		assert!(!files.is_empty(), "Should have theme files");
-
-		let has_gruvbox = files
-			.iter()
-			.any(|f| f.path().file_name().is_some_and(|n| n == "gruvbox.kdl"));
-		assert!(has_gruvbox, "Should have gruvbox.kdl");
-
-		let has_one_dark = files
-			.iter()
-			.any(|f| f.path().file_name().is_some_and(|n| n == "one_dark.kdl"));
-		assert!(has_one_dark, "Should have one_dark.kdl");
+		let themes: Vec<_> = evildoer_runtime::themes::list().collect();
+		assert!(!themes.is_empty(), "Should have theme files");
+		assert!(themes.contains(&"gruvbox.kdl"), "Should have gruvbox.kdl");
+		assert!(themes.contains(&"one_dark.kdl"), "Should have one_dark.kdl");
 	}
 }

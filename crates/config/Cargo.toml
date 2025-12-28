@@ -10,3 +10,6 @@ evildoer-base.workspace = true
 evildoer-manifest.workspace = true
 kdl.workspace = true
 thiserror.workspace = true
+
+[dev-dependencies]
+evildoer-runtime.workspace = true

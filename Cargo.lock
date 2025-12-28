@@ -933,6 +933,7 @@ version = "0.2.0"
 dependencies = [
  "evildoer-base",
  "evildoer-manifest",
+ "evildoer-runtime",
  "kdl",
  "thiserror 2.0.17",
 ]
@@ -972,7 +973,7 @@ dependencies = [
  "cc",
  "evildoer-base",
  "evildoer-manifest",
- "include_dir",
+ "evildoer-runtime",
  "kdl",
  "libloading",
  "log",
@@ -1034,6 +1035,13 @@ dependencies = [
  "serde",
  "strsim",
  "thiserror 2.0.17",
+]
+
+[[package]]
+name = "evildoer-runtime"
+version = "0.2.0"
+dependencies = [
+ "include_dir",
 ]
 
 [[package]]

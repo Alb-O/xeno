@@ -26,6 +26,7 @@ evildoer-language = { path = "crates/language" }
 evildoer-lsp = { path = "crates/lsp" }
 evildoer-macro = { path = "crates/macro" }
 evildoer-manifest = { path = "crates/manifest" }
+evildoer-runtime = { path = "crates/runtime" }
 evildoer-stdlib = { path = "crates/stdlib" }
 evildoer-tui = { path = "crates/tui" }
 futures = "0.3"

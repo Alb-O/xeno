@@ -30,12 +30,9 @@ pub enum GrammarSource {
 	},
 }
 
-/// Embedded grammars.kdl from the runtime directory.
-const GRAMMARS_KDL: &str = include_str!("../../../../runtime/language/grammars.kdl");
-
 /// Loads grammar configurations from the embedded `grammars.kdl`.
 pub fn load_grammar_configs() -> super::Result<Vec<GrammarConfig>> {
-	parse_grammar_configs(GRAMMARS_KDL)
+	parse_grammar_configs(evildoer_runtime::language::grammars_kdl())
 }
 
 /// Parse grammar configurations from a KDL string.
