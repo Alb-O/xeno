@@ -308,7 +308,7 @@ impl RegistryMetadata for LanguageDef {
 pub use actions::{
 	ActionArgs, ActionContext, ActionDef, ActionHandler, ActionMode, ActionResult, EditAction,
 	ObjectSelectionKind, PendingAction, PendingKind, ScrollAmount, ScrollDir, VisualDirection,
-	dispatch_result,
+	cursor_motion, dispatch_result, selection_motion,
 };
 pub use commands::{CommandContext, CommandDef, flags};
 pub use completion::{CompletionContext, CompletionItem, CompletionKind, CompletionSource};

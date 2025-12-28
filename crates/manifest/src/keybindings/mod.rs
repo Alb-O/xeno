@@ -171,5 +171,4 @@ mod tests {
 		assert_eq!(BindingMode::from(Mode::Insert), BindingMode::Insert);
 		assert_eq!(BindingMode::from(Mode::Goto), BindingMode::Goto);
 	}
-
 }

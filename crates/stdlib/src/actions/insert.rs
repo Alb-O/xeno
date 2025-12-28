@@ -2,8 +2,7 @@
 
 use tome_base::key::Key;
 use tome_manifest::actions::{ActionContext, ActionMode, ActionResult};
-use tome_manifest::bound_action;
-use tome_manifest::find_motion;
+use tome_manifest::{bound_action, find_motion};
 
 bound_action!(
 	insert_before,

@@ -2,9 +2,8 @@
 
 use linkme::distributed_slice;
 use tome_base::key::Key;
-use tome_manifest::ACTIONS;
 use tome_manifest::actions::{ActionDef, ActionResult, EditAction, PendingAction, PendingKind};
-use tome_manifest::bound_action;
+use tome_manifest::{ACTIONS, bound_action};
 
 macro_rules! bound_edit_action {
 	($name:ident, key: $key:expr, description: $desc:expr, edit: $edit:expr) => {

@@ -1,9 +1,9 @@
 use ropey::RopeSlice;
 use tome_base::Selection;
-use tome_base::range::CharIdx;
+use tome_base::range::{CharIdx, Range};
 use tome_macro::DispatchResult;
 
-use crate::{Capability, RegistrySource};
+use crate::{Capability, RegistrySource, find_motion};
 
 /// Result of executing an action.
 ///
@@ -287,5 +287,72 @@ impl crate::RegistryMetadata for ActionDef {
 	}
 	fn source(&self) -> RegistrySource {
 		self.source
+	}
+}
+
+/// Applies a named motion as a cursor movement.
+///
+/// Moves all cursor positions according to the motion. When not extending,
+/// collapses selections to points at the new head positions.
+pub fn cursor_motion(ctx: &ActionContext, motion_name: &str) -> ActionResult {
+	let Some(motion) = find_motion(motion_name) else {
+		return ActionResult::Error(format!("Unknown motion: {}", motion_name));
+	};
+
+	let new_ranges: Vec<Range> = ctx
+		.selection
+		.ranges()
+		.iter()
+		.map(|range| {
+			let seed = if ctx.extend {
+				*range
+			} else {
+				Range::point(range.head)
+			};
+			let moved = (motion.handler)(ctx.text, seed, ctx.count, ctx.extend);
+			if ctx.extend {
+				moved
+			} else {
+				Range::point(moved.head)
+			}
+		})
+		.collect();
+
+	ActionResult::Motion(Selection::from_vec(
+		new_ranges,
+		ctx.selection.primary_index(),
+	))
+}
+
+/// Applies a named motion as a selection-creating action.
+///
+/// Creates or extends selections from current positions to new positions
+/// determined by the motion. Used for word motions and similar commands.
+pub fn selection_motion(ctx: &ActionContext, motion_name: &str) -> ActionResult {
+	let Some(motion) = find_motion(motion_name) else {
+		return ActionResult::Error(format!("Unknown motion: {}", motion_name));
+	};
+
+	if ctx.extend {
+		let primary_index = ctx.selection.primary_index();
+		let new_ranges: Vec<Range> = ctx
+			.selection
+			.ranges()
+			.iter()
+			.enumerate()
+			.map(|(i, range)| {
+				let seed = if i == primary_index {
+					Range::new(range.anchor, ctx.cursor)
+				} else {
+					*range
+				};
+				(motion.handler)(ctx.text, seed, ctx.count, true)
+			})
+			.collect();
+		ActionResult::Motion(Selection::from_vec(new_ranges, primary_index))
+	} else {
+		let current_range = Range::point(ctx.cursor);
+		let new_range = (motion.handler)(ctx.text, current_range, ctx.count, false);
+		ActionResult::Motion(Selection::single(new_range.anchor, new_range.head))
 	}
 }
