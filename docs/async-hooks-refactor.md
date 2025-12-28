@@ -3,6 +3,18 @@
 This document defines the finalized plan to complete async hook support needed for
 LSP and other async extensions, while preserving Tome's orthogonal registry model.
 
+## Implementation Status
+
+| Phase | Status | Notes |
+|-------|--------|-------|
+| Phase 1: Hook runtime | ✅ Complete | `HookScheduler`, `emit_sync_with`, `HookRuntime` |
+| Phase 2: Hook emissions | ✅ Complete | All lifecycle hooks except CursorMove/SelectionChange |
+| Phase 3: BufferChange | ✅ Complete | Version tracking, dirty buffer queue |
+| Phase 4: HookContext services | ✅ Complete | Type-erased `extensions` field via `dyn Any` |
+| Phase 5: LSP hooks | ✅ Complete | `LspManager` + hooks for open/change/close/quit |
+| Phase 6: Async trait refactor | ⏸ Deferred | Not needed for v1 |
+| Phase 7: Testing | ⏸ Partial | Unit tests exist, integration tests pending |
+
 ## Decisions (v1)
 
 - Keep sync entry points, but never drop async hooks. Sync emission schedules async
@@ -21,17 +33,22 @@ LSP and other async extensions, while preserving Tome's orthogonal registry mode
 - No global hook cancellation/timeouts in v1; the LSP layer can enforce its own
   request timeouts.
 
-## Current State (Baseline)
+## Architecture
 
-- `HookAction` supports Done/Async and `emit()` is async.
-- `emit_sync()` exists but currently skips async hooks (will change).
-- `open_buffer()` is async and `open_buffer_sync()` exists for sync callers.
+### HookContext Structure
 
-## Design Overview
+`HookContext` is a struct with two fields:
+- `data: HookEventData<'a>` - The event-specific payload (enum)
+- `extensions: Option<&'a dyn Any>` - Type-erased access to `ExtensionMap`
+
+This design:
+- Avoids duplicating `extensions` in every enum variant
+- Allows `tome-manifest` to remain decoupled from `tome-api` (uses `dyn Any`)
+- Hooks downcast via `ctx.extensions::<ExtensionMap>()`
 
 ### Hook dispatch and scheduling
 
-Introduce a scheduling hook runtime without coupling `tome-manifest` to `tome-api`.
+`tome-manifest` defines the scheduler trait:
 
 ```rust
 pub trait HookScheduler {
@@ -43,25 +60,17 @@ pub fn emit_sync_with(ctx: &HookContext<'_>, scheduler: &mut impl HookScheduler)
 }
 ```
 
-`tome-api` provides a runtime that implements `HookScheduler`:
+`tome-api` provides the runtime:
 
 ```rust
 pub struct HookRuntime {
     queue: VecDeque<BoxFuture>,
 }
 
-impl HookScheduler for HookRuntime {
-    fn schedule(&mut self, fut: BoxFuture) {
-        self.queue.push_back(fut);
-    }
-}
+impl HookScheduler for HookRuntime { ... }
 
 impl HookRuntime {
-    pub async fn drain(&mut self) {
-        while let Some(fut) = self.queue.pop_front() {
-            let _ = fut.await;
-        }
-    }
+    pub async fn drain(&mut self) { ... }
 }
 ```
 
@@ -73,138 +82,60 @@ Semantics:
 - `emit_sync()` remains for tests or isolated contexts and explicitly skips async
   hooks.
 
-The main loop drains `HookRuntime` once per tick (or after each event batch) so
-queued async work runs promptly without blocking sync callers.
+The main loop drains `HookRuntime` once per tick so queued async work runs promptly.
 
 ### Hook context ownership and services
 
-Extend `HookContext` variants to carry `extensions: &ExtensionMap`. Async hooks
-extract clonable handles before returning a future:
+Async hooks extract clonable handles before returning a future:
 
 ```rust
-let lsp = ctx.extensions.get::<Arc<LspManager>>().cloned();
-let owned = ctx.to_owned();
-HookAction::Async(Box::pin(async move {
-    if let (Some(lsp), OwnedHookContext::BufferOpen { path, text, file_type, .. }) =
-        (lsp, owned)
-    {
-        let _ = lsp.did_open(&path, &text, file_type.as_deref()).await;
-    }
-    HookResult::Continue
-}))
-```
-
-Add `OwnedHookContext` + `to_owned()` for buffer/file data. It does not carry
-ExtensionMap; async hooks must clone what they need up front.
-
-### BufferChange strategy (v1)
-
-Full-document sync, versioned:
-
-- Add `version: u64` to Buffer and increment on every transaction.
-- Track dirty buffers in `Editor` to avoid scanning all buffers each tick.
-- Emit `BufferChange` with full text + version from tick via `emit_sync_with()`.
-
-Example:
-
-```rust
-self.buffers[id].version += 1;
-self.dirty_buffers.insert(id);
-```
-
-```rust
-for id in self.dirty_buffers.drain() {
-    let buffer = self.buffers.get(id)?;
-    if let Some(path) = &buffer.path {
-        emit_sync_with(
-            &HookContext::BufferChange {
-                path,
-                version: buffer.version,
-                text: buffer.doc.slice(..),
-                extensions: &self.extensions,
-            },
-            &mut self.hook_runtime,
-        );
-    }
+fn my_hook_handler(ctx: &HookContext) -> HookAction {
+    let lsp = ctx.extensions::<ExtensionMap>()
+        .and_then(|ext| ext.get::<Arc<LspManager>>())
+        .cloned();
+    let owned = ctx.to_owned();
+    
+    let Some(lsp) = lsp else { return HookAction::done() };
+    
+    HookAction::Async(Box::pin(async move {
+        if let OwnedHookContext::BufferOpen { path, text, file_type } = owned {
+            lsp.did_open(&path, &text, file_type.as_deref(), 1).await;
+        }
+        HookResult::Continue
+    }))
 }
 ```
 
-Incremental changes and range payloads are deferred.
+### LSP Integration
 
-## Phase 1: Hook runtime + delivery semantics
+The `lsp` extension (`crates/extensions/extensions/lsp/`) provides:
 
-1. Add `HookScheduler` trait + `emit_sync_with` to `tome-manifest`.
-2. Add `HookRuntime` to `tome-api` and store it in `Editor`.
-3. Update sync call sites to use `emit_sync_with`.
-4. Drain `HookRuntime` from the main loop so queued async hooks run.
+- `LspManager`: Wraps `Registry`, stored as `Arc<LspManager>` in `ExtensionMap`
+- Hooks registered for: `BufferOpen`, `BufferChange`, `BufferClose`, `EditorQuit`
+- Default language server configs for: rust, typescript, javascript, python, go
 
-## Phase 2: Missing hook emissions
+## Files Modified
 
-- `EditorStart`/`EditorQuit` emitted via a scope guard in `run_editor` so quit fires
-  on early returns.
-- `EditorTick` uses `emit_sync_with`.
-- `BufferClose` emitted when buffers are removed.
-- `WindowResize`, `FocusGained`, `FocusLost` emit sync.
-- `CursorMove`/`SelectionChange` emit only on change.
-
-## Phase 3: BufferChange (full sync)
-
-- Add `version` to Buffer.
-- Mark dirty buffers at editor edit entry points.
-- Emit `BufferChange` from tick via `emit_sync_with`.
-
-## Phase 4: HookContext ownership + services
-
-- Add `extensions` to HookContext variants.
-- Add `OwnedHookContext` and `to_owned()`.
-- Update hook macro docs/examples to show clone-before-async pattern.
-
-## Phase 5: LSP hooks
-
-- Store `Arc<LspManager>` in ExtensionMap.
-- Hooks: BufferOpen/Change/Write/Close.
-- Use full-document `didChange` with version.
-- Errors logged, never panic.
-
-## Phase 6: Async trait refactor (deferred)
-
-- Revisit async `BufferOpsAccess` only if required after the scheduler is in place.
-- Keep scope tight to avoid widespread async propagation in v1.
-
-## Phase 7: Testing
-
-- Unit tests for `emit_sync_with` scheduling and ordering.
-- Tests for BufferChange full sync and version increments.
-- LSP integration tests (kitty harness): didOpen, didChange, didClose.
-
-## Implementation Order
-
-1. HookScheduler + HookRuntime + emit_sync_with.
-2. EditorStart/Quit + tick + window hooks.
-3. BufferChange full sync + versioning + dirty queue.
-4. HookContext extensions + OwnedHookContext.
-5. LSP hooks.
-6. Cursor/selection hooks if not already done.
-7. Tests.
+| File | Changes |
+|------|---------|
+| `crates/manifest/src/hooks.rs` | `HookContext` struct with `data`+`extensions`, `HookEventData` enum, `HookScheduler` trait, `emit_sync_with` |
+| `crates/manifest/src/lib.rs` | Re-export `HookEventData` |
+| `crates/api/src/editor/mod.rs` | `HookRuntime` field, dirty buffer queue, hook emissions with extensions |
+| `crates/api/src/editor/hook_runtime.rs` | `HookRuntime` implementation |
+| `crates/api/src/editor/input_handling.rs` | Mode change hook emission |
+| `crates/api/src/buffer/editing.rs` | Buffer version increment |
+| `crates/term/src/app.rs` | `EditorStart`/`EditorQuit` hooks |
+| `crates/extensions/extensions/lsp/mod.rs` | `LspManager`, extension init |
+| `crates/extensions/extensions/lsp/hooks.rs` | LSP hooks |
+| `crates/stdlib/src/hooks/*.rs` | Updated to use `ctx.data` pattern |
 
 ## Deferred / v2
 
 - Incremental BufferChange (per-transaction ranges).
+- CursorMove/SelectionChange hooks (need change detection).
 - Hook cancellation/timeouts.
 - Concurrent async hook execution while preserving priority semantics.
 - Async trait refactor if sync APIs become a bottleneck.
-
-## Files to Modify
-
-| File | Changes |
-|------|---------|
-| `crates/manifest/src/hooks.rs` | HookScheduler trait, emit_sync_with, OwnedHookContext, HookContext extensions |
-| `crates/manifest/src/lib.rs` | Re-export new hook API |
-| `crates/api/src/editor/mod.rs` | HookRuntime integration, dirty queue, hook emissions |
-| `crates/api/src/editor/input_handling.rs` | Cursor/selection/mode hook emission |
-| `crates/api/src/buffer/editing.rs` | Buffer version increment |
-| `crates/term/src/app.rs` | EditorStart/Quit with scope guard |
-| `crates/extensions/extensions/lsp/` | LSP hooks using Arc handles |
 
 ## Alternatives (Not Chosen)
 
@@ -214,3 +145,5 @@ Incremental changes and range payloads are deferred.
 - Separate sync/async registries: complicates ordering and does not solve sync
   emission needs.
 - Poll-based hooks: manual state machines and poor Tokio integration.
+- `ExtensionMap` in `tome-manifest`: would break layered architecture (manifest is
+  definitions only).

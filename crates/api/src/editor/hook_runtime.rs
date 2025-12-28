@@ -19,7 +19,7 @@ use tome_manifest::{HookBoxFuture, HookScheduler};
 /// let mut runtime = HookRuntime::new();
 ///
 /// // During sync event handling:
-/// emit_hook_sync_with(&HookContext::EditorTick, &mut runtime);
+/// emit_hook_sync_with(&HookContext::new(HookEventData::EditorTick, None), &mut runtime);
 ///
 /// // Later, drain queued async work:
 /// runtime.drain().await;

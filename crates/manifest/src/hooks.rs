@@ -25,6 +25,7 @@
 //! });
 //! ```
 
+use std::any::Any;
 use std::path::Path;
 use std::pin::Pin;
 
@@ -88,11 +89,10 @@ impl HookEvent {
 	}
 }
 
-/// Context passed to hook handlers.
+/// Event-specific data for hooks.
 ///
-/// Contains event-specific data that hooks can read but not modify.
-/// For hooks that need to modify state, use [`MutableHookContext`].
-pub enum HookContext<'a> {
+/// Contains the payload for each hook event type.
+pub enum HookEventData<'a> {
 	/// Editor startup context.
 	EditorStart,
 	/// Editor quit context.
@@ -132,35 +132,47 @@ pub enum HookContext<'a> {
 	FocusLost,
 }
 
-impl<'a> HookContext<'a> {
+/// Context passed to hook handlers.
+///
+/// Contains event-specific data plus type-erased access to extension services.
+/// For hooks that need to modify state, use [`MutableHookContext`].
+pub struct HookContext<'a> {
+	/// The event-specific data.
+	pub data: HookEventData<'a>,
+	/// Type-erased access to `ExtensionMap` from `tome-api`.
+	extensions: Option<&'a dyn Any>,
+}
+
+impl<'a> HookEventData<'a> {
+	/// Returns the event type for this data.
 	pub fn event(&self) -> HookEvent {
 		match self {
-			HookContext::EditorStart => HookEvent::EditorStart,
-			HookContext::EditorQuit => HookEvent::EditorQuit,
-			HookContext::EditorTick => HookEvent::EditorTick,
-			HookContext::BufferOpen { .. } => HookEvent::BufferOpen,
-			HookContext::BufferWritePre { .. } => HookEvent::BufferWritePre,
-			HookContext::BufferWrite { .. } => HookEvent::BufferWrite,
-			HookContext::BufferClose { .. } => HookEvent::BufferClose,
-			HookContext::BufferChange { .. } => HookEvent::BufferChange,
-			HookContext::ModeChange { .. } => HookEvent::ModeChange,
-			HookContext::CursorMove { .. } => HookEvent::CursorMove,
-			HookContext::SelectionChange { .. } => HookEvent::SelectionChange,
-			HookContext::WindowResize { .. } => HookEvent::WindowResize,
-			HookContext::FocusGained => HookEvent::FocusGained,
-			HookContext::FocusLost => HookEvent::FocusLost,
+			HookEventData::EditorStart => HookEvent::EditorStart,
+			HookEventData::EditorQuit => HookEvent::EditorQuit,
+			HookEventData::EditorTick => HookEvent::EditorTick,
+			HookEventData::BufferOpen { .. } => HookEvent::BufferOpen,
+			HookEventData::BufferWritePre { .. } => HookEvent::BufferWritePre,
+			HookEventData::BufferWrite { .. } => HookEvent::BufferWrite,
+			HookEventData::BufferClose { .. } => HookEvent::BufferClose,
+			HookEventData::BufferChange { .. } => HookEvent::BufferChange,
+			HookEventData::ModeChange { .. } => HookEvent::ModeChange,
+			HookEventData::CursorMove { .. } => HookEvent::CursorMove,
+			HookEventData::SelectionChange { .. } => HookEvent::SelectionChange,
+			HookEventData::WindowResize { .. } => HookEvent::WindowResize,
+			HookEventData::FocusGained => HookEvent::FocusGained,
+			HookEventData::FocusLost => HookEvent::FocusLost,
 		}
 	}
 
-	/// Creates an owned version of this context for use in async hooks.
+	/// Creates an owned version of this event data for use in async hooks.
 	///
-	/// Copies all data from the borrowed context so it can be moved into a future.
+	/// Copies all data so it can be moved into a future.
 	pub fn to_owned(&self) -> OwnedHookContext {
 		match self {
-			HookContext::EditorStart => OwnedHookContext::EditorStart,
-			HookContext::EditorQuit => OwnedHookContext::EditorQuit,
-			HookContext::EditorTick => OwnedHookContext::EditorTick,
-			HookContext::BufferOpen {
+			HookEventData::EditorStart => OwnedHookContext::EditorStart,
+			HookEventData::EditorQuit => OwnedHookContext::EditorQuit,
+			HookEventData::EditorTick => OwnedHookContext::EditorTick,
+			HookEventData::BufferOpen {
 				path,
 				text,
 				file_type,
@@ -169,17 +181,17 @@ impl<'a> HookContext<'a> {
 				text: text.to_string(),
 				file_type: file_type.map(String::from),
 			},
-			HookContext::BufferWritePre { path, text } => OwnedHookContext::BufferWritePre {
+			HookEventData::BufferWritePre { path, text } => OwnedHookContext::BufferWritePre {
 				path: path.to_path_buf(),
 				text: text.to_string(),
 			},
-			HookContext::BufferWrite { path } => OwnedHookContext::BufferWrite {
+			HookEventData::BufferWrite { path } => OwnedHookContext::BufferWrite {
 				path: path.to_path_buf(),
 			},
-			HookContext::BufferClose { path } => OwnedHookContext::BufferClose {
+			HookEventData::BufferClose { path } => OwnedHookContext::BufferClose {
 				path: path.to_path_buf(),
 			},
-			HookContext::BufferChange {
+			HookEventData::BufferChange {
 				path,
 				text,
 				version,
@@ -188,25 +200,51 @@ impl<'a> HookContext<'a> {
 				text: text.to_string(),
 				version: *version,
 			},
-			HookContext::ModeChange { old_mode, new_mode } => OwnedHookContext::ModeChange {
+			HookEventData::ModeChange { old_mode, new_mode } => OwnedHookContext::ModeChange {
 				old_mode: old_mode.clone(),
 				new_mode: new_mode.clone(),
 			},
-			HookContext::CursorMove { line, col } => OwnedHookContext::CursorMove {
+			HookEventData::CursorMove { line, col } => OwnedHookContext::CursorMove {
 				line: *line,
 				col: *col,
 			},
-			HookContext::SelectionChange { anchor, head } => OwnedHookContext::SelectionChange {
+			HookEventData::SelectionChange { anchor, head } => OwnedHookContext::SelectionChange {
 				anchor: *anchor,
 				head: *head,
 			},
-			HookContext::WindowResize { width, height } => OwnedHookContext::WindowResize {
+			HookEventData::WindowResize { width, height } => OwnedHookContext::WindowResize {
 				width: *width,
 				height: *height,
 			},
-			HookContext::FocusGained => OwnedHookContext::FocusGained,
-			HookContext::FocusLost => OwnedHookContext::FocusLost,
+			HookEventData::FocusGained => OwnedHookContext::FocusGained,
+			HookEventData::FocusLost => OwnedHookContext::FocusLost,
 		}
+	}
+}
+
+impl<'a> HookContext<'a> {
+	/// Creates a new hook context with event data and optional extensions.
+	pub fn new(data: HookEventData<'a>, extensions: Option<&'a dyn Any>) -> Self {
+		Self { data, extensions }
+	}
+
+	/// Returns the event type for this context.
+	pub fn event(&self) -> HookEvent {
+		self.data.event()
+	}
+
+	/// Creates an owned version of the event data for use in async hooks.
+	///
+	/// Async hooks must extract extension handles separately before returning a future.
+	pub fn to_owned(&self) -> OwnedHookContext {
+		self.data.to_owned()
+	}
+
+	/// Attempts to downcast the extensions to a concrete type.
+	///
+	/// Used to access [`ExtensionMap`] from `tome-api` without creating a dependency.
+	pub fn extensions<T: Any>(&self) -> Option<&'a T> {
+		self.extensions?.downcast_ref::<T>()
 	}
 }
 

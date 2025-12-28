@@ -2407,9 +2407,11 @@ dependencies = [
  "anyhow",
  "futures",
  "linkme",
+ "log",
  "paste",
  "tome-api",
  "tome-language",
+ "tome-lsp",
  "tome-manifest",
  "tome-stdlib",
 ]

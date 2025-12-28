@@ -10,8 +10,10 @@ agentfs-sdk.workspace = true
 anyhow.workspace = true
 futures.workspace = true
 linkme.workspace = true
+log.workspace = true
 paste.workspace = true
 tome-api.workspace = true
 tome-language.workspace = true
+tome-lsp = { workspace = true, features = ["client", "position"] }
 tome-manifest.workspace = true
 tome-stdlib.workspace = true

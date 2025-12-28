@@ -1,4 +1,4 @@
-use super::HookContext;
+use super::HookEventData;
 use crate::hook;
 
 hook!(
@@ -7,9 +7,9 @@ hook!(
 	1000,
 	"Log when a buffer is opened",
 	|ctx| {
-		if let HookContext::BufferOpen {
+		if let HookEventData::BufferOpen {
 			path, file_type, ..
-		} = ctx
+		} = &ctx.data
 		{
 			let ft = file_type.unwrap_or("unknown");
 			// In a real implementation, this would use a proper logging system

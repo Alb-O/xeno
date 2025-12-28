@@ -20,7 +20,7 @@ pub use hook_runtime::HookRuntime;
 use tome_base::Transaction;
 use tome_language::LanguageLoader;
 use tome_manifest::syntax::SyntaxStyles;
-use tome_manifest::{HookContext, Mode, emit_hook, emit_hook_sync_with};
+use tome_manifest::{HookContext, HookEventData, Mode, emit_hook, emit_hook_sync_with};
 use tome_theme::Theme;
 pub use types::{HistoryEntry, Registers};
 
@@ -200,10 +200,13 @@ impl tome_manifest::editor_ctx::FileOpsAccess for Editor {
 				}
 			};
 
-			emit_hook(&HookContext::BufferWritePre {
-				path: &path_owned,
-				text: self.buffer().doc.slice(..),
-			})
+			emit_hook(&HookContext::new(
+				HookEventData::BufferWritePre {
+					path: &path_owned,
+					text: self.buffer().doc.slice(..),
+				},
+				Some(&self.extensions),
+			))
 			.await;
 
 			let mut content = Vec::new();
@@ -225,7 +228,11 @@ impl tome_manifest::editor_ctx::FileOpsAccess for Editor {
 			self.buffer_mut().modified = false;
 			self.notify("info", format!("Saved {}", path_owned.display()));
 
-			emit_hook(&HookContext::BufferWrite { path: &path_owned }).await;
+			emit_hook(&HookContext::new(
+				HookEventData::BufferWrite { path: &path_owned },
+				Some(&self.extensions),
+			))
+			.await;
 
 			Ok(())
 		})
@@ -306,11 +313,14 @@ impl Editor {
 		let hook_path = path.as_ref().unwrap_or(&scratch_path);
 
 		emit_hook_sync_with(
-			&HookContext::BufferOpen {
-				path: hook_path,
-				text: buffer.doc.slice(..),
-				file_type: buffer.file_type.as_deref(),
-			},
+			&HookContext::new(
+				HookEventData::BufferOpen {
+					path: hook_path,
+					text: buffer.doc.slice(..),
+					file_type: buffer.file_type.as_deref(),
+				},
+				None,
+			),
 			&mut hook_runtime,
 		);
 
@@ -371,11 +381,14 @@ impl Editor {
 		let hook_path = path.as_ref().unwrap_or(&scratch_path);
 		let buffer = self.buffers.get(&buffer_id).unwrap();
 
-		emit_hook(&HookContext::BufferOpen {
-			path: hook_path,
-			text: buffer.doc.slice(..),
-			file_type: buffer.file_type.as_deref(),
-		})
+		emit_hook(&HookContext::new(
+			HookEventData::BufferOpen {
+				path: hook_path,
+				text: buffer.doc.slice(..),
+				file_type: buffer.file_type.as_deref(),
+			},
+			Some(&self.extensions),
+		))
 		.await;
 
 		buffer_id
@@ -393,11 +406,14 @@ impl Editor {
 		let buffer = self.buffers.get(&buffer_id).unwrap();
 
 		emit_hook_sync_with(
-			&HookContext::BufferOpen {
-				path: hook_path,
-				text: buffer.doc.slice(..),
-				file_type: buffer.file_type.as_deref(),
-			},
+			&HookContext::new(
+				HookEventData::BufferOpen {
+					path: hook_path,
+					text: buffer.doc.slice(..),
+					file_type: buffer.file_type.as_deref(),
+				},
+				Some(&self.extensions),
+			),
 			&mut self.hook_runtime,
 		);
 
@@ -654,7 +670,10 @@ impl Editor {
 		{
 			let scratch_path = PathBuf::from("[scratch]");
 			let path = buffer.path.as_ref().unwrap_or(&scratch_path);
-			emit_hook_sync_with(&HookContext::BufferClose { path }, &mut self.hook_runtime);
+			emit_hook_sync_with(
+				&HookContext::new(HookEventData::BufferClose { path }, Some(&self.extensions)),
+				&mut self.hook_runtime,
+			);
 		}
 
 		// Remove from layout
@@ -803,16 +822,22 @@ impl Editor {
 				let scratch_path = PathBuf::from("[scratch]");
 				let path = buffer.path.as_ref().unwrap_or(&scratch_path);
 				emit_hook_sync_with(
-					&HookContext::BufferChange {
-						path,
-						text: buffer.doc.slice(..),
-						version: buffer.version,
-					},
+					&HookContext::new(
+						HookEventData::BufferChange {
+							path,
+							text: buffer.doc.slice(..),
+							version: buffer.version,
+						},
+						Some(&self.extensions),
+					),
 					&mut self.hook_runtime,
 				);
 			}
 		}
-		emit_hook_sync_with(&HookContext::EditorTick, &mut self.hook_runtime);
+		emit_hook_sync_with(
+			&HookContext::new(HookEventData::EditorTick, Some(&self.extensions)),
+			&mut self.hook_runtime,
+		);
 	}
 
 	pub fn update_style_overlays(&mut self) {
@@ -888,19 +913,28 @@ impl Editor {
 		self.ui = ui;
 		self.needs_redraw = true;
 		emit_hook_sync_with(
-			&HookContext::WindowResize { width, height },
+			&HookContext::new(
+				HookEventData::WindowResize { width, height },
+				Some(&self.extensions),
+			),
 			&mut self.hook_runtime,
 		);
 	}
 
 	pub fn handle_focus_in(&mut self) {
 		self.needs_redraw = true;
-		emit_hook_sync_with(&HookContext::FocusGained, &mut self.hook_runtime);
+		emit_hook_sync_with(
+			&HookContext::new(HookEventData::FocusGained, Some(&self.extensions)),
+			&mut self.hook_runtime,
+		);
 	}
 
 	pub fn handle_focus_out(&mut self) {
 		self.needs_redraw = true;
-		emit_hook_sync_with(&HookContext::FocusLost, &mut self.hook_runtime);
+		emit_hook_sync_with(
+			&HookContext::new(HookEventData::FocusLost, Some(&self.extensions)),
+			&mut self.hook_runtime,
+		);
 	}
 
 	pub fn handle_paste(&mut self, content: String) {
