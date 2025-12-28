@@ -3,13 +3,13 @@ resolver = "3"
 members = ["crates/*"]
 
 [workspace.package]
-version = "0.1.0"
+version = "0.2.0"
 edition = "2024"
 license = "MIT"
 repository = "https://github.com/Alb-O/evildoer"
 
 [workspace.dependencies]
-agent-client-protocol = { git = "https://github.com/agentclientprotocol/rust-sdk", features = ["unstable_session_model"] }
+agent-client-protocol = { version = "0.9", features = ["unstable_session_model"] }
 agentfs-sdk = "0.4.0-pre.6"
 anyhow = "1.0"
 async-trait = "0.1"

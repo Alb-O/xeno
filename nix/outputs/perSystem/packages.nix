@@ -13,6 +13,8 @@
       ...
     }:
     let
+      cargoToml = builtins.fromTOML (builtins.readFile (rootSrc + "/Cargo.toml"));
+      version = cargoToml.workspace.package.version;
       rustToolchain = pkgs.rust-bin.fromRustupToolchainFile (rootSrc + "/rust-toolchain.toml");
       rustPlatform = pkgs.makeRustPlatform {
         cargo = rustToolchain;
@@ -22,7 +24,7 @@
     {
       default = rustPlatform.buildRustPackage {
         pname = "evil";
-        version = "0.1.0";
+        inherit version;
         src = rootSrc;
         cargoLock.lockFile = rootSrc + "/Cargo.lock";
         buildAndTestSubdir = "crates/term";
@@ -33,7 +35,7 @@
 
       evildoer-core = rustPlatform.buildRustPackage {
         pname = "evildoer-core";
-        version = "0.1.0";
+        inherit version;
         src = rootSrc;
         cargoLock.lockFile = rootSrc + "/Cargo.lock";
         buildAndTestSubdir = "crates/evildoer-core";
