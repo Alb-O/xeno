@@ -2,7 +2,7 @@ mod helpers;
 
 use std::time::{Duration, Instant};
 
-use helpers::{insert_text, reset_test_file, evildoer_cmd_debug_theme, workspace_dir};
+use helpers::{evildoer_cmd_debug_theme, insert_text, reset_test_file, workspace_dir};
 use kitty_test_harness::{
 	KittyHarness, kitty_send_keys, pause_briefly, require_kitty, run_with_timeout,
 	wait_for_screen_text_clean, with_kitty_capture,

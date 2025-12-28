@@ -19,8 +19,8 @@
 //! );
 //! ```
 
-use linkme::distributed_slice;
 use evildoer_base::key::Key;
+use linkme::distributed_slice;
 
 use crate::index::resolve_action_id;
 use crate::{ActionId, Mode};

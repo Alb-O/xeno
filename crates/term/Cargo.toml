@@ -12,14 +12,6 @@ path = "src/main.rs"
 [dependencies]
 agent-client-protocol.workspace = true
 clap.workspace = true
-home = "0.5"
-linkme.workspace = true
-parking_lot.workspace = true
-serde.workspace = true
-termina.workspace = true
-thiserror.workspace = true
-tokio.workspace = true
-tokio-util.workspace = true
 evildoer-acp.workspace = true
 evildoer-api.workspace = true
 evildoer-base.workspace = true
@@ -28,6 +20,15 @@ evildoer-language.workspace = true
 evildoer-manifest.workspace = true
 evildoer-stdlib.workspace = true
 evildoer-tui.workspace = true
+futures.workspace = true
+home.workspace = true
+linkme.workspace = true
+parking_lot.workspace = true
+serde.workspace = true
+termina.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+tokio-util.workspace = true
 toml.workspace = true
 
 [dev-dependencies]

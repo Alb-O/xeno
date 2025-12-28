@@ -1,7 +1,7 @@
 //! Line text object.
 
-use ropey::RopeSlice;
 use evildoer_base::range::Range;
+use ropey::RopeSlice;
 
 fn line_inner(text: RopeSlice, pos: usize) -> Option<Range> {
 	if text.len_chars() == 0 {

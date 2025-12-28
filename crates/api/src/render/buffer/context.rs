@@ -6,9 +6,8 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use evildoer_base::range::CharIdx;
 use evildoer_language::LanguageLoader;
 use evildoer_language::highlight::{HighlightSpan, HighlightStyles};
-use evildoer_manifest::Mode;
 use evildoer_manifest::syntax::SyntaxStyles;
-use evildoer_manifest::{Theme, ThemeVariant};
+use evildoer_manifest::{Mode, Theme, ThemeVariant};
 use evildoer_tui::layout::Rect;
 use evildoer_tui::style::{Modifier, Style};
 use evildoer_tui::text::{Line, Span};
@@ -302,9 +301,9 @@ impl<'a> BufferRenderContext<'a> {
 
 					let is_cursor = cursor_heads.contains(&doc_pos);
 					let is_primary_cursor = doc_pos == primary_cursor;
-					let in_selection = ranges
-						.iter()
-						.any(|r: &evildoer_base::range::Range| doc_pos >= r.min() && doc_pos < r.max());
+					let in_selection = ranges.iter().any(|r: &evildoer_base::range::Range| {
+						doc_pos >= r.min() && doc_pos < r.max()
+					});
 
 					let cursor_style = if !is_focused {
 						styles.unfocused

@@ -13,6 +13,18 @@ agent-client-protocol = "0.9.1"
 clap = { version = "4", features = ["derive"] }
 criterion = "0.8"
 crossterm = "0.29"
+evildoer-acp = { path = "crates/acp" }
+evildoer-api = { path = "crates/api" }
+evildoer-base = { path = "crates/base" }
+evildoer-config = { path = "crates/config" }
+evildoer-extensions = { path = "crates/extensions" }
+evildoer-input = { path = "crates/input" }
+evildoer-language = { path = "crates/language" }
+evildoer-lsp = { path = "crates/lsp" }
+evildoer-macro = { path = "crates/macro" }
+evildoer-manifest = { path = "crates/manifest" }
+evildoer-stdlib = { path = "crates/stdlib" }
+evildoer-tui = { path = "crates/tui" }
 futures = "0.3"
 globset = "0.4"
 home = "0.5"
@@ -44,18 +56,6 @@ termwiz = "0.23"
 thiserror = "2"
 tokio = { version = "1", features = ["full"] }
 tokio-util = { version = "0.7", features = ["compat"] }
-evildoer-acp = { path = "crates/acp" }
-evildoer-api = { path = "crates/api" }
-evildoer-base = { path = "crates/base" }
-evildoer-config = { path = "crates/config" }
-evildoer-extensions = { path = "crates/extensions" }
-evildoer-input = { path = "crates/input" }
-evildoer-language = { path = "crates/language" }
-evildoer-lsp = { path = "crates/lsp" }
-evildoer-macro = { path = "crates/macro" }
-evildoer-manifest = { path = "crates/manifest" }
-evildoer-stdlib = { path = "crates/stdlib" }
-evildoer-tui = { path = "crates/tui" }
 toml = "0.9"
 tree-house = "0.3"
 unicode-segmentation = "1.12"

@@ -1,6 +1,6 @@
-use ropey::Rope;
 use evildoer_base::Selection;
 use evildoer_manifest::{ActionArgs, ActionContext, ActionResult, find_action};
+use ropey::Rope;
 
 use crate::editor::Editor;
 

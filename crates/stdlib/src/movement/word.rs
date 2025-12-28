@@ -1,7 +1,7 @@
 //! Word movement functions (Kakoune's w, b, e commands).
 
-use ropey::RopeSlice;
 use evildoer_base::range::{CharIdx, Range};
+use ropey::RopeSlice;
 
 use super::{WordType, is_word_char, make_range_select};
 

@@ -5,8 +5,8 @@
 
 use std::ops::{Bound, RangeBounds};
 
-use ropey::RopeSlice;
 use evildoer_base::Style;
+use ropey::RopeSlice;
 // Re-export tree-house highlight types for convenience.
 pub use tree_house::highlighter::{Highlight, HighlightEvent};
 

@@ -4,7 +4,6 @@
 //! - `split_horizontal` (Ctrl+w s): horizontal divider → windows stacked top/bottom
 //! - `split_vertical` (Ctrl+w v): vertical divider → windows side-by-side left/right
 
-use linkme::distributed_slice;
 use evildoer_base::key::Key;
 use evildoer_manifest::action;
 use evildoer_manifest::actions::{
@@ -15,6 +14,7 @@ use evildoer_manifest::actions::{
 	RESULT_SPLIT_TERMINAL_VERTICAL_HANDLERS, RESULT_SPLIT_VERTICAL_HANDLERS,
 };
 use evildoer_manifest::keybindings::{BindingMode, KEYBINDINGS_WINDOW, KeyBindingDef};
+use linkme::distributed_slice;
 
 use crate::NotifyWARNExt;
 

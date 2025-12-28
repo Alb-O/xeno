@@ -1,10 +1,10 @@
 //! Theme command for switching editor color schemes.
 
-use futures::future::LocalBoxFuture;
-use linkme::distributed_slice;
 use evildoer_manifest::{
 	COMMANDS, CommandContext, CommandDef, CommandError, CommandOutcome, RegistrySource, flags,
 };
+use futures::future::LocalBoxFuture;
+use linkme::distributed_slice;
 
 #[allow(non_upper_case_globals)]
 #[distributed_slice(COMMANDS)]
@@ -30,7 +30,8 @@ fn cmd_theme<'a>(
 			.first()
 			.ok_or(CommandError::MissingArgument("theme name"))?;
 		ctx.editor.set_theme(theme_name)?;
-		ctx.editor.notify("info", &format!("Theme set to '{}'", theme_name));
+		ctx.editor
+			.notify("info", &format!("Theme set to '{}'", theme_name));
 		Ok(CommandOutcome::Ok)
 	})
 }

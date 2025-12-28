@@ -1,7 +1,7 @@
-use termina::event::{KeyEvent, MouseEvent};
 use evildoer_manifest::Theme;
 use evildoer_tui::Frame;
 use evildoer_tui::layout::{Position, Rect};
+use termina::event::{KeyEvent, MouseEvent};
 
 use super::dock::DockSlot;
 use super::keymap::KeybindingRegistry;

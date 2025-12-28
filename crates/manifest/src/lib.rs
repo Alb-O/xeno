@@ -28,9 +28,9 @@
 //! - [`TEXT_OBJECTS`] - All registered text objects
 //! - [`LANGUAGES`] - All registered languages (file types + syntax)
 
-use linkme::distributed_slice;
 pub use evildoer_base::range::CharIdx;
 pub use evildoer_base::{Range, Selection};
+use linkme::distributed_slice;
 
 pub mod syntax;
 

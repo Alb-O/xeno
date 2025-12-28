@@ -11,12 +11,12 @@ evildoer-tui = ["dep:evildoer-tui"]
 
 [dependencies]
 crossterm.workspace = true
+evildoer-tui = { workspace = true, optional = true }
 log.workspace = true
 ropey.workspace = true
 serde.workspace = true
 smallvec.workspace = true
 termina.workspace = true
 thiserror.workspace = true
-evildoer-tui = { workspace = true, optional = true }
 unicode-segmentation.workspace = true
 unicode-width.workspace = true

@@ -2,7 +2,7 @@ mod helpers;
 
 use std::time::Duration;
 
-use helpers::{reset_test_file, evildoer_cmd_debug_with_log, type_chars, workspace_dir};
+use helpers::{evildoer_cmd_debug_with_log, reset_test_file, type_chars, workspace_dir};
 use kitty_test_harness::{
 	KeyPress, MouseButton, cleanup_test_log, create_test_log, kitty_send_keys, pause_briefly,
 	read_test_log, require_kitty, run_with_timeout, send_keys, send_mouse_drag_with_steps,

@@ -4,10 +4,10 @@
 //! should be KDL files in `runtime/themes/` - the hardcoded Rust themes exist only
 //! as fallback defaults.
 
+pub use evildoer_base::color::{Color, Modifier};
 use linkme::distributed_slice;
 
 pub use crate::syntax::{SyntaxStyle, SyntaxStyles};
-pub use evildoer_base::color::{Color, Modifier};
 
 /// Whether a theme uses a light or dark background.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]

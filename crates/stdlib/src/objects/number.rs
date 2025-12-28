@@ -1,7 +1,7 @@
 //! Number text object.
 
-use ropey::RopeSlice;
 use evildoer_base::range::Range;
+use ropey::RopeSlice;
 
 fn is_digit_or_separator(ch: char) -> bool {
 	ch.is_ascii_digit() || ch == '_' || ch == '.'

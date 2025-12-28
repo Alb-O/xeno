@@ -1,7 +1,7 @@
 //! Text object selection (words, surrounds, etc).
 
-use ropey::RopeSlice;
 use evildoer_base::range::{CharIdx, Range};
+use ropey::RopeSlice;
 
 use super::{WordType, is_word_char};
 

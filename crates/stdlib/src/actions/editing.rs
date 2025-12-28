@@ -1,9 +1,9 @@
 //! Editing actions (delete, yank, paste, undo, redo, etc.).
 
-use linkme::distributed_slice;
 use evildoer_base::key::Key;
 use evildoer_manifest::actions::{ActionDef, ActionResult, EditAction, PendingAction, PendingKind};
 use evildoer_manifest::{ACTIONS, bound_action};
+use linkme::distributed_slice;
 
 macro_rules! bound_edit_action {
 	($name:ident, key: $key:expr, description: $desc:expr, edit: $edit:expr) => {

@@ -1,7 +1,7 @@
 //! Character find functions (Kakoune's f, t, F, T commands).
 
-use ropey::RopeSlice;
 use evildoer_base::range::Range;
+use ropey::RopeSlice;
 
 use super::make_range_select;
 

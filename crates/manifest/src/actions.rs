@@ -1,7 +1,7 @@
-use ropey::RopeSlice;
 use evildoer_base::Selection;
 use evildoer_base::range::{CharIdx, Range};
 use evildoer_macro::DispatchResult;
+use ropey::RopeSlice;
 
 use crate::{Capability, RegistrySource, find_motion};
 

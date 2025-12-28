@@ -1,6 +1,6 @@
-use futures::future::LocalBoxFuture;
 use evildoer_manifest::index::diagnostics;
 use evildoer_manifest::{CommandContext, CommandError, CommandOutcome};
+use futures::future::LocalBoxFuture;
 
 use crate::{NotifyINFOExt, NotifyWARNExt, command};
 

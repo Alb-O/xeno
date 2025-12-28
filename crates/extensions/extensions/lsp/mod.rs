@@ -9,10 +9,10 @@ mod hooks;
 use std::path::Path;
 use std::sync::Arc;
 
-use linkme::distributed_slice;
 use evildoer_api::editor::extensions::{EXTENSIONS, ExtensionInitDef, ExtensionMap};
 use evildoer_lsp::lsp_types::Url;
 use evildoer_lsp::{LanguageServerConfig, Registry};
+use linkme::distributed_slice;
 
 /// Manager for LSP client connections.
 ///

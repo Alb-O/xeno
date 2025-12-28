@@ -8,9 +8,9 @@
 
 use std::path::PathBuf;
 
-use futures::future::LocalBoxFuture;
 use evildoer_manifest::{CommandContext, CommandError, CommandOutcome};
 use evildoer_stdlib::{NotifyINFOExt, command};
+use futures::future::LocalBoxFuture;
 
 use crate::AcpManager;
 

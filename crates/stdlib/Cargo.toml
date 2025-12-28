@@ -21,6 +21,10 @@ host = [
 
 [dependencies]
 async-trait.workspace = true
+evildoer-base.workspace = true
+evildoer-input.workspace = true
+evildoer-macro.workspace = true
+evildoer-manifest.workspace = true
 futures.workspace = true
 linkme = { workspace = true, optional = true }
 log = { workspace = true, optional = true }
@@ -32,9 +36,5 @@ serde_json.workspace = true
 smallvec = { workspace = true, optional = true }
 termina = { workspace = true, optional = true }
 thiserror.workspace = true
-evildoer-base.workspace = true
-evildoer-input.workspace = true
-evildoer-macro.workspace = true
-evildoer-manifest.workspace = true
 unicode-segmentation = { workspace = true, optional = true }
 unicode-width = { workspace = true, optional = true }

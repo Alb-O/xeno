@@ -8,6 +8,11 @@ license.workspace = true
 [dependencies]
 agent-client-protocol.workspace = true
 anyhow.workspace = true
+evildoer-api.workspace = true
+evildoer-base.workspace = true
+evildoer-manifest.workspace = true
+evildoer-stdlib.workspace = true
+evildoer-tui.workspace = true
 futures.workspace = true
 linkme.workspace = true
 parking_lot.workspace = true
@@ -15,11 +20,6 @@ paste.workspace = true
 termina.workspace = true
 tokio.workspace = true
 tokio-util.workspace = true
-evildoer-api.workspace = true
-evildoer-base.workspace = true
-evildoer-manifest.workspace = true
-evildoer-stdlib.workspace = true
-evildoer-tui.workspace = true
 
 [dev-dependencies]
 async-trait.workspace = true

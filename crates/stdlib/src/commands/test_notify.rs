@@ -1,6 +1,6 @@
+use evildoer_manifest::{CommandContext, CommandError, CommandOutcome};
 #[cfg(feature = "host")]
 use futures::future::LocalBoxFuture;
-use evildoer_manifest::{CommandContext, CommandError, CommandOutcome};
 
 #[cfg(feature = "host")]
 use crate::command;

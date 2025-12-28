@@ -6,7 +6,7 @@ pub mod pending;
 mod tests;
 pub mod types;
 
-pub use handler::InputHandler;
 // Re-export Mode from evildoer-manifest for convenience
 pub use evildoer_manifest::Mode;
+pub use handler::InputHandler;
 pub use types::KeyResult;

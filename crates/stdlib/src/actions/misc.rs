@@ -1,11 +1,11 @@
 //! Miscellaneous actions: add lines, and stub actions for unimplemented features.
 
-use linkme::distributed_slice;
 use evildoer_base::key::Key;
 use evildoer_manifest::ACTIONS;
 use evildoer_manifest::actions::{ActionDef, ActionResult};
 use evildoer_manifest::editor_ctx::{HandleOutcome, ResultHandler};
 use evildoer_manifest::keybindings::{BindingMode, KEYBINDINGS_NORMAL, KeyBindingDef};
+use linkme::distributed_slice;
 
 use super::EditAction;
 use crate::{NotifyWARNExt, action};

@@ -3,10 +3,10 @@ mod suite {
 	use std::path::PathBuf;
 	use std::sync::Arc;
 
-	use insta::assert_snapshot;
 	use evildoer_api::Editor;
 	use evildoer_tui::Terminal;
 	use evildoer_tui::backend::TestBackend;
+	use insta::assert_snapshot;
 
 	fn test_editor(content: &str) -> Editor {
 		let fs = Arc::new(agentfs_sdk::HostFS::new(std::env::current_dir().unwrap()).unwrap());

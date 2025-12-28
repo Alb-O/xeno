@@ -81,7 +81,8 @@ impl Buffer {
 				})
 				.collect()
 		};
-		self.selection = evildoer_base::Selection::from_vec(new_ranges, self.selection.primary_index());
+		self.selection =
+			evildoer_base::Selection::from_vec(new_ranges, self.selection.primary_index());
 		self.insert_text(text);
 	}
 

@@ -7,6 +7,8 @@ license.workspace = true
 
 [dependencies]
 cc = "1.0"
+evildoer-base.workspace = true
+evildoer-manifest.workspace = true
 include_dir = "0.7"
 libloading.workspace = true
 log.workspace = true
@@ -15,8 +17,6 @@ regex.workspace = true
 ropey.workspace = true
 serde = { workspace = true, features = ["derive"] }
 thiserror.workspace = true
-evildoer-base.workspace = true
-evildoer-manifest.workspace = true
 toml.workspace = true
 tree-house.workspace = true
 

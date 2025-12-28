@@ -1,5 +1,5 @@
-use futures::future::LocalBoxFuture;
 use evildoer_manifest::{CommandContext, CommandError, CommandOutcome};
+use futures::future::LocalBoxFuture;
 
 use crate::{NotifyWARNExt, command};
 

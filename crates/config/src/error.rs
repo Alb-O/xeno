@@ -1,6 +1,7 @@
 //! Error types for configuration parsing.
 
 use std::path::PathBuf;
+
 use thiserror::Error;
 
 /// Errors that can occur when parsing configuration.
@@ -10,7 +11,10 @@ pub enum ConfigError {
 	Kdl(#[from] kdl::KdlError),
 
 	#[error("I/O error reading {path}: {error}")]
-	Io { path: PathBuf, error: std::io::Error },
+	Io {
+		path: PathBuf,
+		error: std::io::Error,
+	},
 
 	#[error("missing required field: {0}")]
 	MissingField(String),

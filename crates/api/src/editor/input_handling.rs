@@ -1,10 +1,10 @@
-use termina::event::{KeyCode, Modifiers};
 use evildoer_base::{Key, Position, Selection};
 use evildoer_input::KeyResult;
 use evildoer_manifest::{
 	Mode, SplitBuffer, SplitKey, SplitKeyCode, SplitModifiers, SplitMouse, SplitMouseAction,
 	SplitMouseButton,
 };
+use termina::event::{KeyCode, Modifiers};
 
 use crate::buffer::BufferView;
 use crate::editor::Editor;

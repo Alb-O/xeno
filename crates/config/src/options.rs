@@ -16,15 +16,27 @@ pub enum OptionValue {
 
 impl OptionValue {
 	pub fn as_bool(&self) -> Option<bool> {
-		if let Self::Bool(v) = self { Some(*v) } else { None }
+		if let Self::Bool(v) = self {
+			Some(*v)
+		} else {
+			None
+		}
 	}
 
 	pub fn as_int(&self) -> Option<i64> {
-		if let Self::Int(v) = self { Some(*v) } else { None }
+		if let Self::Int(v) = self {
+			Some(*v)
+		} else {
+			None
+		}
 	}
 
 	pub fn as_str(&self) -> Option<&str> {
-		if let Self::String(v) = self { Some(v) } else { None }
+		if let Self::String(v) = self {
+			Some(v)
+		} else {
+			None
+		}
 	}
 }
 
@@ -99,6 +111,9 @@ options {
 
 		assert_eq!(opts.get("tab-width"), Some(&OptionValue::Int(4)));
 		assert_eq!(opts.get("use-tabs"), Some(&OptionValue::Bool(false)));
-		assert_eq!(opts.get("theme"), Some(&OptionValue::String("gruvbox".to_string())));
+		assert_eq!(
+			opts.get("theme"),
+			Some(&OptionValue::String("gruvbox".to_string()))
+		);
 	}
 }

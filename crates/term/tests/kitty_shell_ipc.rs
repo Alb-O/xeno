@@ -8,7 +8,7 @@ mod helpers;
 use std::time::{Duration, Instant};
 
 use helpers::{
-	TestShell, insert_text, require_shell, reset_test_file, evildoer_cmd_with_shell, workspace_dir,
+	TestShell, evildoer_cmd_with_shell, insert_text, require_shell, reset_test_file, workspace_dir,
 };
 use kitty_test_harness::{
 	KittyHarness, kitty_send_keys, pause_briefly, require_kitty, run_with_timeout,

@@ -4,12 +4,11 @@
 
 use std::path::PathBuf;
 
-use kdl::{KdlDocument, KdlNode};
-
 use evildoer_manifest::syntax::{SyntaxStyle, SyntaxStyles};
 pub use evildoer_manifest::theme::{
 	NotificationColors, PopupColors, StatusColors, ThemeColors, ThemeVariant, UiColors,
 };
+use kdl::{KdlDocument, KdlNode};
 
 use crate::error::{ConfigError, Result};
 use crate::kdl_util::{ParseContext, get_color_field, parse_modifier, parse_palette};
@@ -140,53 +139,59 @@ fn parse_variant(s: &str) -> Result<ThemeVariant> {
 
 fn parse_ui_colors(node: Option<&KdlNode>, ctx: &ParseContext) -> Result<UiColors> {
 	let node = node.ok_or_else(|| ConfigError::MissingField("ui".into()))?;
-	let children = node.children().ok_or_else(|| ConfigError::MissingField("ui".into()))?;
+	let children = node
+		.children()
+		.ok_or_else(|| ConfigError::MissingField("ui".into()))?;
 
 	Ok(UiColors {
-		bg: get_color_field(&children, "bg", ctx)?,
-		fg: get_color_field(&children, "fg", ctx)?,
-		gutter_fg: get_color_field(&children, "gutter-fg", ctx)?,
-		cursor_bg: get_color_field(&children, "cursor-bg", ctx)?,
-		cursor_fg: get_color_field(&children, "cursor-fg", ctx)?,
-		cursorline_bg: get_color_field(&children, "cursorline-bg", ctx)?,
-		selection_bg: get_color_field(&children, "selection-bg", ctx)?,
-		selection_fg: get_color_field(&children, "selection-fg", ctx)?,
-		message_fg: get_color_field(&children, "message-fg", ctx)?,
-		command_input_fg: get_color_field(&children, "command-input-fg", ctx)?,
+		bg: get_color_field(children, "bg", ctx)?,
+		fg: get_color_field(children, "fg", ctx)?,
+		gutter_fg: get_color_field(children, "gutter-fg", ctx)?,
+		cursor_bg: get_color_field(children, "cursor-bg", ctx)?,
+		cursor_fg: get_color_field(children, "cursor-fg", ctx)?,
+		cursorline_bg: get_color_field(children, "cursorline-bg", ctx)?,
+		selection_bg: get_color_field(children, "selection-bg", ctx)?,
+		selection_fg: get_color_field(children, "selection-fg", ctx)?,
+		message_fg: get_color_field(children, "message-fg", ctx)?,
+		command_input_fg: get_color_field(children, "command-input-fg", ctx)?,
 	})
 }
 
 fn parse_status_colors(node: Option<&KdlNode>, ctx: &ParseContext) -> Result<StatusColors> {
 	let node = node.ok_or_else(|| ConfigError::MissingField("status".into()))?;
-	let children = node.children().ok_or_else(|| ConfigError::MissingField("status".into()))?;
+	let children = node
+		.children()
+		.ok_or_else(|| ConfigError::MissingField("status".into()))?;
 
 	Ok(StatusColors {
-		normal_bg: get_color_field(&children, "normal-bg", ctx)?,
-		normal_fg: get_color_field(&children, "normal-fg", ctx)?,
-		insert_bg: get_color_field(&children, "insert-bg", ctx)?,
-		insert_fg: get_color_field(&children, "insert-fg", ctx)?,
-		goto_bg: get_color_field(&children, "goto-bg", ctx)?,
-		goto_fg: get_color_field(&children, "goto-fg", ctx)?,
-		view_bg: get_color_field(&children, "view-bg", ctx)?,
-		view_fg: get_color_field(&children, "view-fg", ctx)?,
-		command_bg: get_color_field(&children, "command-bg", ctx)?,
-		command_fg: get_color_field(&children, "command-fg", ctx)?,
-		dim_fg: get_color_field(&children, "dim-fg", ctx)?,
-		warning_fg: get_color_field(&children, "warning-fg", ctx)?,
-		error_fg: get_color_field(&children, "error-fg", ctx)?,
-		success_fg: get_color_field(&children, "success-fg", ctx)?,
+		normal_bg: get_color_field(children, "normal-bg", ctx)?,
+		normal_fg: get_color_field(children, "normal-fg", ctx)?,
+		insert_bg: get_color_field(children, "insert-bg", ctx)?,
+		insert_fg: get_color_field(children, "insert-fg", ctx)?,
+		goto_bg: get_color_field(children, "goto-bg", ctx)?,
+		goto_fg: get_color_field(children, "goto-fg", ctx)?,
+		view_bg: get_color_field(children, "view-bg", ctx)?,
+		view_fg: get_color_field(children, "view-fg", ctx)?,
+		command_bg: get_color_field(children, "command-bg", ctx)?,
+		command_fg: get_color_field(children, "command-fg", ctx)?,
+		dim_fg: get_color_field(children, "dim-fg", ctx)?,
+		warning_fg: get_color_field(children, "warning-fg", ctx)?,
+		error_fg: get_color_field(children, "error-fg", ctx)?,
+		success_fg: get_color_field(children, "success-fg", ctx)?,
 	})
 }
 
 fn parse_popup_colors(node: Option<&KdlNode>, ctx: &ParseContext) -> Result<PopupColors> {
 	let node = node.ok_or_else(|| ConfigError::MissingField("popup".into()))?;
-	let children = node.children().ok_or_else(|| ConfigError::MissingField("popup".into()))?;
+	let children = node
+		.children()
+		.ok_or_else(|| ConfigError::MissingField("popup".into()))?;
 
 	Ok(PopupColors {
-		bg: get_color_field(&children, "bg", ctx)?,
-		fg: get_color_field(&children, "fg", ctx)?,
-		border: get_color_field(&children, "border", ctx)?,
-		title: get_color_field(&children, "title", ctx)?,
+		bg: get_color_field(children, "bg", ctx)?,
+		fg: get_color_field(children, "fg", ctx)?,
+		border: get_color_field(children, "border", ctx)?,
+		title: get_color_field(children, "title", ctx)?,
 	})
 }
 
@@ -239,7 +244,11 @@ fn parse_style_from_node(node: &KdlNode, ctx: &ParseContext) -> Result<SyntaxSty
 	if let Some(bg) = node.get("bg").and_then(|v| v.as_string()) {
 		style.bg = Some(ctx.resolve_color(bg)?);
 	}
-	if let Some(m) = node.get("mod").or_else(|| node.get("modifiers")).and_then(|v| v.as_string()) {
+	if let Some(m) = node
+		.get("mod")
+		.or_else(|| node.get("modifiers"))
+		.and_then(|v| v.as_string())
+	{
 		style.modifiers = parse_modifier(m)?;
 	}
 

@@ -6,9 +6,9 @@ use std::sync::mpsc::{Receiver, TryRecvError, channel};
 use std::thread;
 use std::time::{Duration, Instant};
 
-use portable_pty::{CommandBuilder, MasterPty, NativePtySystem, PtySize, PtySystem};
 use evildoer_manifest::SplitCursorStyle;
 use evildoer_tui::widgets::terminal::vt100::{self, Parser};
+use portable_pty::{CommandBuilder, MasterPty, NativePtySystem, PtySize, PtySystem};
 
 use super::escape::parse_decscusr;
 use crate::terminal_ipc::fish_init_command;
@@ -104,7 +104,9 @@ impl TerminalState {
 			.map_err(|e| TerminalError::Pty(e.to_string()))?;
 
 		let mut fish_init = None;
-		if let (Some(evildoer_bin), Some(evildoer_socket)) = (evildoer_bin.clone(), evildoer_socket.clone()) {
+		if let (Some(evildoer_bin), Some(evildoer_socket)) =
+			(evildoer_bin.clone(), evildoer_socket.clone())
+		{
 			if shell_name == "fish" {
 				inject_shell_init("fish", &mut writer, &evildoer_bin, &evildoer_socket);
 			} else if let Some(pid) = child.process_id() {
@@ -277,7 +279,12 @@ fn apply_shell_path_injection(
 	}
 }
 
-fn inject_shell_init(shell_name: &str, writer: &mut dyn Write, evildoer_bin: &str, evildoer_socket: &str) {
+fn inject_shell_init(
+	shell_name: &str,
+	writer: &mut dyn Write,
+	evildoer_bin: &str,
+	evildoer_socket: &str,
+) {
 	let init = match shell_name {
 		"fish" => format!(
 			"set -gx EVILDOER_BIN {evildoer_bin}; set -gx EVILDOER_SOCKET {evildoer_socket}; \

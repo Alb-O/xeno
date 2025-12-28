@@ -1,7 +1,7 @@
 //! Argument/parameter text object.
 
-use ropey::RopeSlice;
 use evildoer_base::range::Range;
+use ropey::RopeSlice;
 
 /// Find argument boundaries, handling nested delimiters and whitespace.
 ///

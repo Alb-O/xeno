@@ -7,11 +7,11 @@
 //! Without grammars, tests verify the API works but can't produce highlights.
 //! To get grammars, run: `EVILDOER_RUNTIME=runtime evildoer grammar fetch && evildoer grammar build`
 
-use ropey::Rope;
 use evildoer_language::grammar::{grammar_search_paths, load_grammar};
 use evildoer_language::highlight::{Highlight, HighlightStyles};
 use evildoer_language::syntax::Syntax;
 use evildoer_language::{LanguageData, LanguageLoader};
+use ropey::Rope;
 
 /// Creates a simple test language loader with Rust registered.
 fn create_test_loader() -> LanguageLoader {

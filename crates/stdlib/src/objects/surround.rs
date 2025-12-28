@@ -1,5 +1,5 @@
-use ropey::RopeSlice;
 use evildoer_base::range::Range;
+use ropey::RopeSlice;
 
 use crate::movement::select_surround_object;
 use crate::text_object;

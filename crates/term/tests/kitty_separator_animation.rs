@@ -8,7 +8,8 @@ mod helpers;
 use std::time::Duration;
 
 use helpers::{
-	insert_text, reset_test_file, evildoer_cmd_debug_theme, evildoer_cmd_debug_with_log, workspace_dir,
+	evildoer_cmd_debug_theme, evildoer_cmd_debug_with_log, insert_text, reset_test_file,
+	workspace_dir,
 };
 use kitty_test_harness::{
 	AnsiColor, cleanup_test_log, create_test_log, extract_row_colors_parsed,

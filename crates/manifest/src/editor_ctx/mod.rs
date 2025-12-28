@@ -27,9 +27,9 @@ mod capabilities;
 mod handlers;
 
 pub use capabilities::*;
-pub use handlers::*;
 use evildoer_base::range::CharIdx;
 use evildoer_base::selection::Selection;
+pub use handlers::*;
 
 use crate::{Capability, CommandError, Mode};
 

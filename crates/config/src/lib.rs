@@ -75,17 +75,17 @@
 //! ```
 
 pub mod error;
-pub mod theme;
+pub mod kdl_util;
 pub mod keys;
 pub mod options;
-pub mod kdl_util;
-
-pub use error::{ConfigError, Result};
-pub use theme::ParsedTheme;
-pub use keys::KeysConfig;
-pub use options::OptionsConfig;
+pub mod theme;
 
 use std::path::Path;
+
+pub use error::{ConfigError, Result};
+pub use keys::KeysConfig;
+pub use options::OptionsConfig;
+pub use theme::ParsedTheme;
 
 /// Parsed configuration from a KDL file.
 ///
@@ -133,9 +133,14 @@ impl Config {
 			})
 			.collect();
 
-		Ok(Config { theme, keys, options, languages })
+		Ok(Config {
+			theme,
+			keys,
+			options,
+			languages,
+		})
 	}
-	
+
 	/// Load configuration from a file.
 	pub fn load(path: impl AsRef<Path>) -> Result<Self> {
 		let path = path.as_ref();
@@ -145,9 +150,9 @@ impl Config {
 		})?;
 		Self::parse(&content)
 	}
-	
+
 	/// Merge another config into this one.
-	/// 
+	///
 	/// Values from `other` override values in `self`.
 	pub fn merge(&mut self, other: Config) {
 		if other.theme.is_some() {
@@ -188,12 +193,12 @@ pub fn load_theme_file(path: impl AsRef<Path>) -> Result<ParsedTheme> {
 pub fn load_themes_from_directory(dir: impl AsRef<Path>) -> Result<Vec<ParsedTheme>> {
 	let dir = dir.as_ref();
 	let mut themes = Vec::new();
-	
+
 	let entries = std::fs::read_dir(dir).map_err(|e| ConfigError::Io {
 		path: dir.to_path_buf(),
 		error: e,
 	})?;
-	
+
 	for entry in entries.flatten() {
 		let path = entry.path();
 		if path.extension().is_some_and(|ext| ext == "kdl") {
@@ -205,6 +210,6 @@ pub fn load_themes_from_directory(dir: impl AsRef<Path>) -> Result<Vec<ParsedThe
 			}
 		}
 	}
-	
+
 	Ok(themes)
 }

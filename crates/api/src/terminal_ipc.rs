@@ -79,7 +79,10 @@ impl TerminalIpcEnv {
 				self.socket_path.display().to_string(),
 			),
 			// EVILDOER_BIN allows shells that reset PATH (like fish) to add it manually
-			("EVILDOER_BIN".to_string(), self.bin_dir.display().to_string()),
+			(
+				"EVILDOER_BIN".to_string(),
+				self.bin_dir.display().to_string(),
+			),
 		];
 		if let Some(fish_dir) = &self.fish_config_dir {
 			vars.push((

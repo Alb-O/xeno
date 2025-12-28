@@ -3,9 +3,9 @@ use std::collections::HashMap;
 use std::ops::Range;
 use std::time::Duration;
 
-use linkme::distributed_slice;
 use evildoer_tui::animation::Animatable;
 use evildoer_tui::style::Color;
+use linkme::distributed_slice;
 
 /// Modification to apply to a style.
 #[derive(Clone, Copy, Debug, PartialEq)]

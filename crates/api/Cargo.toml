@@ -13,6 +13,13 @@ lsp = ["dep:evildoer-lsp"]
 anyhow = "1.0"
 async-trait = "0.1"
 clap.workspace = true
+evildoer-base.workspace = true
+evildoer-input.workspace = true
+evildoer-language.workspace = true
+evildoer-lsp = { workspace = true, features = ["position"], optional = true }
+evildoer-manifest.workspace = true
+evildoer-stdlib.workspace = true
+evildoer-tui.workspace = true
 futures.workspace = true
 home.workspace = true
 linkme.workspace = true
@@ -29,13 +36,6 @@ termina.workspace = true
 thiserror.workspace = true
 tokio.workspace = true
 tokio-util.workspace = true
-evildoer-base.workspace = true
-evildoer-input.workspace = true
-evildoer-language.workspace = true
-evildoer-lsp = { workspace = true, features = ["position"], optional = true }
-evildoer-manifest.workspace = true
-evildoer-stdlib.workspace = true
-evildoer-tui.workspace = true
 toml.workspace = true
 tree-house.workspace = true
 unicode-segmentation.workspace = true

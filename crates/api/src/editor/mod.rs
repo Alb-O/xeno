@@ -19,12 +19,12 @@ use std::sync::Arc;
 
 use agentfs_sdk::{FileSystem, HostFS};
 pub use buffer_manager::BufferManager;
-pub use hook_runtime::HookRuntime;
-pub use layout_manager::LayoutManager;
 use evildoer_base::Transaction;
 use evildoer_language::LanguageLoader;
 use evildoer_manifest::syntax::SyntaxStyles;
 use evildoer_manifest::{HookContext, HookEventData, Mode, Theme, emit_hook, emit_hook_sync_with};
+pub use hook_runtime::HookRuntime;
+pub use layout_manager::LayoutManager;
 pub use types::{HistoryEntry, Registers};
 
 pub use self::separator::{DragState, MouseVelocityTracker, SeparatorHoverAnimation};
@@ -581,7 +581,8 @@ impl Editor {
 	fn handle_command_outcome(&mut self, outcome: evildoer_manifest::CommandOutcome) {
 		match outcome {
 			evildoer_manifest::CommandOutcome::Ok => {}
-			evildoer_manifest::CommandOutcome::Quit | evildoer_manifest::CommandOutcome::ForceQuit => {
+			evildoer_manifest::CommandOutcome::Quit
+			| evildoer_manifest::CommandOutcome::ForceQuit => {
 				self.request_quit();
 			}
 		}
@@ -958,10 +959,10 @@ impl Editor {
 			doc.content.len_bytes() as u32
 		};
 
-		let highlight_styles =
-			evildoer_language::highlight::HighlightStyles::new(SyntaxStyles::scope_names(), |scope| {
-				self.theme.colors.syntax.resolve(scope)
-			});
+		let highlight_styles = evildoer_language::highlight::HighlightStyles::new(
+			SyntaxStyles::scope_names(),
+			|scope| self.theme.colors.syntax.resolve(scope),
+		);
 
 		let highlighter = syntax.highlighter(
 			doc.content.slice(..),

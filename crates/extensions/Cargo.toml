@@ -8,15 +8,15 @@ license.workspace = true
 [dependencies]
 agentfs-sdk.workspace = true
 anyhow.workspace = true
-futures.workspace = true
-linkme.workspace = true
-log.workspace = true
-paste.workspace = true
 evildoer-api.workspace = true
 evildoer-language.workspace = true
 evildoer-lsp = { workspace = true, features = ["client", "position"] }
 evildoer-manifest.workspace = true
 evildoer-stdlib.workspace = true
+futures.workspace = true
+linkme.workspace = true
+log.workspace = true
+paste.workspace = true
 
 [dev-dependencies]
 ropey.workspace = true

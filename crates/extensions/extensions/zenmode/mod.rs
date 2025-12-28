@@ -21,11 +21,11 @@ mod commands;
 
 use std::ops::Range;
 
-use linkme::distributed_slice;
 use evildoer_api::editor::Editor;
 use evildoer_api::editor::extensions::{
 	EXTENSIONS, ExtensionInitDef, ExtensionRenderDef, RENDER_EXTENSIONS,
 };
+use linkme::distributed_slice;
 
 /// Primary focus node types - these are the main code units we want to focus on.
 ///

@@ -4,12 +4,12 @@
 
 use std::sync::Arc;
 
-use linkme::distributed_slice;
 use evildoer_api::editor::extensions::ExtensionMap;
 use evildoer_manifest::RegistrySource;
 use evildoer_manifest::hooks::{
 	HOOKS, HookAction, HookContext, HookDef, HookEvent, HookResult, OwnedHookContext,
 };
+use linkme::distributed_slice;
 
 use super::LspManager;
 

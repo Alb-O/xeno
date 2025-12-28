@@ -1,9 +1,9 @@
 //! Regex-based search in document.
 
+use evildoer_base::range::CharIdx;
 use regex::Regex;
 pub use regex::escape as escape_pattern;
 use ropey::RopeSlice;
-use evildoer_base::range::CharIdx;
 
 use crate::Range;
 

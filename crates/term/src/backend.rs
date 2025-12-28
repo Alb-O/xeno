@@ -1,14 +1,14 @@
 use std::io;
 use std::num::NonZeroU16;
 
+use evildoer_tui::backend::{Backend, WindowSize};
+use evildoer_tui::buffer::Cell;
+use evildoer_tui::layout::{Position, Size};
 use termina::Terminal;
 use termina::escape::csi::{
 	Csi, Cursor, Edit, EraseInDisplay, Mode, Sgr, SgrAttributes, SgrModifiers,
 };
 use termina::style::{ColorSpec, RgbaColor};
-use evildoer_tui::backend::{Backend, WindowSize};
-use evildoer_tui::buffer::Cell;
-use evildoer_tui::layout::{Position, Size};
 
 pub struct TerminaBackend<T: Terminal> {
 	terminal: T,
@@ -74,7 +74,10 @@ impl<T: Terminal> Backend for TerminaBackend<T> {
 			if cell.modifier.contains(evildoer_tui::style::Modifier::DIM) {
 				attrs.modifiers |= SgrModifiers::INTENSITY_DIM;
 			}
-			if cell.modifier.contains(evildoer_tui::style::Modifier::ITALIC) {
+			if cell
+				.modifier
+				.contains(evildoer_tui::style::Modifier::ITALIC)
+			{
 				attrs.modifiers |= SgrModifiers::ITALIC;
 			}
 			if cell
@@ -95,10 +98,16 @@ impl<T: Terminal> Backend for TerminaBackend<T> {
 			{
 				attrs.modifiers |= SgrModifiers::BLINK_RAPID;
 			}
-			if cell.modifier.contains(evildoer_tui::style::Modifier::REVERSED) {
+			if cell
+				.modifier
+				.contains(evildoer_tui::style::Modifier::REVERSED)
+			{
 				attrs.modifiers |= SgrModifiers::REVERSE;
 			}
-			if cell.modifier.contains(evildoer_tui::style::Modifier::HIDDEN) {
+			if cell
+				.modifier
+				.contains(evildoer_tui::style::Modifier::HIDDEN)
+			{
 				attrs.modifiers |= SgrModifiers::INVISIBLE;
 			}
 			if cell

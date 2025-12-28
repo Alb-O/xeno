@@ -1,9 +1,9 @@
 //! Commands for the zen mode extension.
 
-use futures::future::LocalBoxFuture;
 use evildoer_api::editor::Editor;
 use evildoer_manifest::{CommandContext, CommandError, CommandOutcome};
 use evildoer_stdlib::{NotifyINFOExt, command};
+use futures::future::LocalBoxFuture;
 
 use crate::zenmode::ZenmodeState;
 

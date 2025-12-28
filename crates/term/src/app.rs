@@ -1,12 +1,12 @@
 use std::io::{self, Write};
 use std::time::Duration;
 
-use termina::escape::csi::{Csi, Cursor};
-use termina::event::{Event, KeyEventKind};
-use termina::{PlatformTerminal, Terminal as _};
 use evildoer_api::Editor;
 use evildoer_manifest::{HookContext, HookEventData, emit_hook_sync_with};
 use evildoer_tui::Terminal;
+use termina::escape::csi::{Csi, Cursor};
+use termina::event::{Event, KeyEventKind};
+use termina::{PlatformTerminal, Terminal as _};
 
 use crate::backend::TerminaBackend;
 use crate::terminal::{

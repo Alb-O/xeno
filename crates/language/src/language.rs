@@ -3,8 +3,8 @@
 //! This module contains the core `LanguageData` type that holds metadata
 //! about a language, including file associations and lazily-loaded syntax config.
 
-use once_cell::sync::OnceCell;
 use evildoer_manifest::LanguageDef;
+use once_cell::sync::OnceCell;
 use tree_house::LanguageConfig as TreeHouseConfig;
 
 use crate::grammar::load_grammar_or_build;
