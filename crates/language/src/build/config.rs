@@ -5,7 +5,7 @@ use std::path::PathBuf;
 use kdl::KdlDocument;
 
 use super::GrammarBuildError;
-use crate::grammar::{cache_dir, grammar_search_paths, runtime_dir};
+use crate::grammar::{cache_dir, runtime_dir};
 
 /// Grammar configuration from grammars.kdl.
 #[derive(Debug, Clone)]
@@ -149,12 +149,16 @@ pub fn grammar_sources_dir() -> PathBuf {
 		.join("sources")
 }
 
-/// Get the directory where compiled grammars are stored.
+/// Returns the directory where compiled grammars are stored.
 pub fn grammar_lib_dir() -> PathBuf {
-	// Use the first grammar search path, or fall back to runtime/grammars
-	grammar_search_paths()
-		.first()
-		.cloned()
+	if let Ok(manifest) = std::env::var("CARGO_MANIFEST_DIR") {
+		if let Some(workspace) = std::path::Path::new(&manifest).ancestors().nth(2) {
+			return workspace.join("target").join("grammars");
+		}
+	}
+
+	cache_dir()
+		.map(|c| c.join("grammars"))
 		.unwrap_or_else(|| runtime_dir().join("grammars"))
 }
 

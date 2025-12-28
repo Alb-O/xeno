@@ -169,8 +169,14 @@ pub fn cache_dir() -> Option<PathBuf> {
 pub fn grammar_search_paths() -> Vec<PathBuf> {
 	let mut dirs = Vec::new();
 
-	if let Ok(runtime) = std::env::var("EVILDOER_RUNTIME") {
-		dirs.push(PathBuf::from(runtime).join("grammars"));
+	if let Ok(manifest) = std::env::var("CARGO_MANIFEST_DIR") {
+		if let Some(workspace) = PathBuf::from(manifest).ancestors().nth(2) {
+			dirs.push(workspace.join("target").join("grammars"));
+		}
+	}
+
+	if let Some(cache) = cache_dir() {
+		dirs.push(cache.join("grammars"));
 	}
 
 	if let Some(data) = data_local_dir() {
@@ -189,7 +195,7 @@ pub fn query_search_paths() -> Vec<PathBuf> {
 	let mut dirs = Vec::new();
 
 	if let Ok(runtime) = std::env::var("EVILDOER_RUNTIME") {
-		dirs.push(PathBuf::from(runtime).join("queries"));
+		dirs.push(PathBuf::from(runtime).join("language").join("queries"));
 	}
 
 	if let Some(data) = data_local_dir() {
