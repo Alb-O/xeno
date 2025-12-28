@@ -641,5 +641,5 @@ impl ScrollbarOrientation {
 }
 
 #[cfg(test)]
-#[path = "tests.rs"]
+#[path = "tests/mod.rs"]
 mod tests;
