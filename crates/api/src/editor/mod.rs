@@ -25,11 +25,11 @@ use evildoer_language::LanguageLoader;
 use evildoer_manifest::syntax::SyntaxStyles;
 use evildoer_manifest::{HookContext, HookEventData, Mode, Theme, emit_hook, emit_hook_sync_with};
 pub use hook_runtime::HookRuntime;
-pub use layout_manager::LayoutManager;
+pub use layout_manager::{LayoutManager, SeparatorHit};
 pub use types::{HistoryEntry, Registers};
 
 pub use self::separator::{DragState, MouseVelocityTracker, SeparatorHoverAnimation};
-use crate::buffer::{BufferId, BufferView, TerminalId};
+use crate::buffer::{BufferId, BufferView, Layout, TerminalId};
 use crate::editor::extensions::{EXTENSIONS, ExtensionMap, StyleOverlays};
 use crate::editor::types::CompletionState;
 use crate::ui::UiManager;
@@ -435,7 +435,7 @@ impl Editor {
 			&& view != old_view
 		{
 			self.sticky_views.remove(&old_view);
-			self.hide_view(old_view);
+			self.layout.set_layer(Self::DOCK_LAYER, None);
 		}
 
 		true
@@ -534,23 +534,26 @@ impl Editor {
 		self.buffers.create_terminal()
 	}
 
+	/// Layer index for the docked terminal.
+	const DOCK_LAYER: usize = 1;
+
 	/// Toggles the docked terminal.
 	///
-	/// If visible, hides it (preserving state). Otherwise shows it at the bottom.
+	/// If visible, hides it (preserving state). Otherwise shows it on layer 1.
 	pub fn toggle_terminal(&mut self) {
-		let terminal_view = self
-			.docked_terminal
-			.map(|id| BufferView::Terminal(id));
+		let terminal_view = self.docked_terminal.map(BufferView::Terminal);
 
 		if let Some(view) = terminal_view
 			&& self.layout.contains_view(view)
 		{
 			self.sticky_views.remove(&view);
-			self.hide_view(view);
+			self.layout.set_layer(Self::DOCK_LAYER, None);
+			let new_focus = self.layout.first_view();
+			self.buffers.set_focused_view(new_focus);
+			self.needs_redraw = true;
 			return;
 		}
 
-		// Reuse existing terminal or create new one
 		let terminal_id = self.docked_terminal.unwrap_or_else(|| {
 			let id = self.create_terminal();
 			self.docked_terminal = Some(id);
@@ -559,27 +562,9 @@ impl Editor {
 
 		let terminal_view = BufferView::Terminal(terminal_id);
 		self.sticky_views.insert(terminal_view);
-		let current_view = self.buffers.focused_view();
 		self.layout
-			.split_horizontal_terminal(current_view, terminal_id);
+			.set_layer(Self::DOCK_LAYER, Some(Layout::terminal(terminal_id)));
 		self.focus_terminal(terminal_id);
-	}
-
-	/// Hides a view from the layout without destroying it.
-	fn hide_view(&mut self, view: BufferView) {
-		if self.layout.count() <= 1 {
-			return;
-		}
-
-		let new_focus = self.layout.remove_view(view);
-
-		if self.buffers.focused_view() == view
-			&& let Some(focus) = new_focus
-		{
-			self.buffers.set_focused_view(focus);
-		}
-
-		self.needs_redraw = true;
 	}
 
 	pub fn request_quit(&mut self) {

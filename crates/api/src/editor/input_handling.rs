@@ -304,21 +304,29 @@ impl Editor {
 	) -> bool {
 		use termina::event::MouseEventKind;
 
+		use crate::buffer::SplitDirection;
+		use crate::editor::separator::DragState;
+		use crate::editor::SeparatorHit;
+
 		let mouse_x = mouse.column;
 		let mouse_y = mouse.row;
 
-		// Handle active separator drag operation
 		if let Some(drag_state) = self.layout.drag_state().cloned() {
 			match mouse.kind {
 				MouseEventKind::Drag(_) => {
-					// Continue resizing - use path to identify the split
-					self.layout
-						.resize_at_path(doc_area, &drag_state.path, mouse_x, mouse_y);
+					match drag_state {
+						DragState::Split { path, layer, .. } => {
+							self.layout
+								.resize_at_path(doc_area, &path, layer, mouse_x, mouse_y);
+						}
+						DragState::LayerBoundary => {
+							self.layout.resize_dock_boundary(doc_area, mouse_y);
+						}
+					}
 					self.needs_redraw = true;
 					return false;
 				}
 				MouseEventKind::Up(_) => {
-					// End drag operation
 					self.layout.end_drag();
 					self.needs_redraw = true;
 					return false;
@@ -371,66 +379,64 @@ impl Editor {
 			}
 		}
 
-		// Check if mouse is over a separator
-		let separator_info = self
+		let separator_hit = self
 			.layout
-			.separator_with_path_at_position(doc_area, mouse_x, mouse_y);
+			.separator_hit_at_position(doc_area, mouse_x, mouse_y);
 
-		// Update mouse velocity tracker
 		self.layout.update_mouse_velocity(mouse_x, mouse_y);
 		let is_fast_mouse = self.layout.is_mouse_fast();
 
-		// Always track which separator the mouse is physically over
-		let current_separator = separator_info
-			.as_ref()
-			.map(|(direction, sep_rect, _)| (*direction, *sep_rect));
+		let current_separator = separator_hit.as_ref().map(|hit| match hit {
+			SeparatorHit::Split { direction, rect, .. } => (*direction, *rect),
+			SeparatorHit::LayerBoundary { rect } => (SplitDirection::Vertical, *rect),
+		});
 		self.layout.separator_under_mouse = current_separator;
 
-		// Update hover/drag state based on mouse event type
 		match mouse.kind {
 			MouseEventKind::Moved => {
 				let old_hover = self.layout.hovered_separator;
 
-				// Determine new hover state:
-				// - If already hovering a separator and mouse is still over it, keep it
-				//   (regardless of velocity - once active, stay active while over it)
-				// - If not hovering, only start hover if velocity is slow
-				// - If mouse left the separator, clear hover
+				// Hover activation: sticky once active, velocity-gated for new hovers
 				self.layout.hovered_separator = match (old_hover, current_separator) {
-					// Already hovering same separator - keep it active
 					(Some(old), Some(new)) if old == new => Some(old),
-					// Mouse moved to different separator - only activate if slow
 					(_, Some(sep)) if !is_fast_mouse => Some(sep),
-					// Mouse over separator but moving fast and wasn't already hovering it
 					(_, Some(_)) => {
-						// Request redraw to check velocity again soon
 						self.needs_redraw = true;
 						None
 					}
-					// Mouse not over any separator
 					(_, None) => None,
 				};
 
-				// Trigger animation if hover state changed
 				if old_hover != self.layout.hovered_separator {
 					self.layout
 						.update_hover_animation(old_hover, self.layout.hovered_separator);
 					self.needs_redraw = true;
 				}
 
-				// Mouse move over separator doesn't need further processing
 				if self.layout.hovered_separator.is_some() {
 					return false;
 				}
 			}
 			MouseEventKind::Down(_) => {
-				// Start drag if clicking on a separator
-				if let Some((direction, separator_rect, path)) = separator_info {
-					self.layout.start_drag(direction, path, separator_rect);
-					self.needs_redraw = true;
-					return false;
+				match &separator_hit {
+					Some(SeparatorHit::Split {
+						direction,
+						rect,
+						path,
+						layer,
+					}) => {
+						self.layout
+							.start_split_drag(*direction, path.clone(), *rect, *layer);
+						self.needs_redraw = true;
+						return false;
+					}
+					Some(SeparatorHit::LayerBoundary { rect }) => {
+						self.layout.start_layer_boundary_drag(*rect);
+						self.needs_redraw = true;
+						return false;
+					}
+					None => {}
 				}
-				// Clear hover when clicking elsewhere
 				if self.layout.hovered_separator.is_some() {
 					let old_hover = self.layout.hovered_separator.take();
 					self.layout.update_hover_animation(old_hover, None);
@@ -438,7 +444,6 @@ impl Editor {
 				}
 			}
 			MouseEventKind::Drag(_) => {
-				// Clear hover when dragging (not on separator)
 				if self.layout.hovered_separator.is_some() {
 					let old_hover = self.layout.hovered_separator.take();
 					self.layout.update_hover_animation(old_hover, None);
@@ -446,8 +451,7 @@ impl Editor {
 				}
 			}
 			_ => {
-				// For other events (scroll, release), clear hover if not on separator
-				if separator_info.is_none() && self.layout.hovered_separator.is_some() {
+				if separator_hit.is_none() && self.layout.hovered_separator.is_some() {
 					let old_hover = self.layout.hovered_separator.take();
 					self.layout.update_hover_animation(old_hover, None);
 					self.needs_redraw = true;
@@ -455,11 +459,9 @@ impl Editor {
 			}
 		}
 
-		// Find which view the mouse is over
 		let Some((target_view, view_area)) =
 			self.layout.view_at_position(doc_area, mouse_x, mouse_y)
 		else {
-			// Mouse is outside all views (e.g., on a separator)
 			return false;
 		};
 

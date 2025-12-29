@@ -89,9 +89,10 @@ impl Editor {
 			.render(notifications_area, frame.buffer_mut());
 	}
 
-	/// Renders all views in the layout with proper split handling.
+	/// Renders all views across all layout layers.
 	///
-	/// This handles both text buffers and terminals in the same layout.
+	/// Layer 0 is rendered first (base), then overlay layers on top.
+	/// Each layer's views and separators are rendered together before moving to the next layer.
 	fn render_split_buffers(
 		&mut self,
 		frame: &mut evildoer_tui::Frame,
@@ -100,58 +101,41 @@ impl Editor {
 	) {
 		let focused_view = self.focused_view();
 
-		// Compute areas for all views in the layout
-		let view_areas = self.layout.compute_view_areas(doc_area);
+		let layer_count = self.layout.layer_count();
+		let mut layer_data: Vec<(
+			usize,
+			Rect,
+			Vec<(BufferView, Rect)>,
+			Vec<(SplitDirection, u16, Rect)>,
+		)> = Vec::new();
 
-		// Ensure cursor is visible for each text buffer and resize terminals
-		for (view, area) in &view_areas {
-			match view {
-				BufferView::Text(buffer_id) => {
-					if let Some(buffer) = self.get_buffer_mut(*buffer_id) {
-						ensure_buffer_cursor_visible(buffer, *area);
+		for layer_idx in 0..layer_count {
+			if self.layout.layer(layer_idx).is_some() {
+				let layer_area = self.layout.layer_area(layer_idx, doc_area);
+				let view_areas = self.layout.compute_view_areas_for_layer(layer_idx, layer_area);
+				let separators = self.layout.separator_positions_for_layer(layer_idx, layer_area);
+				layer_data.push((layer_idx, layer_area, view_areas, separators));
+			}
+		}
+
+		for (_, _, view_areas, _) in &layer_data {
+			for (view, area) in view_areas {
+				match view {
+					BufferView::Text(buffer_id) => {
+						if let Some(buffer) = self.get_buffer_mut(*buffer_id) {
+							ensure_buffer_cursor_visible(buffer, *area);
+						}
 					}
-				}
-				BufferView::Terminal(terminal_id) => {
-					if let Some(terminal) = self.get_terminal_mut(*terminal_id) {
-						let size = evildoer_manifest::SplitSize::new(area.width, area.height);
-						terminal.resize(size);
+					BufferView::Terminal(terminal_id) => {
+						if let Some(terminal) = self.get_terminal_mut(*terminal_id) {
+							let size = evildoer_manifest::SplitSize::new(area.width, area.height);
+							terminal.resize(size);
+						}
 					}
 				}
 			}
 		}
 
-		// Create render context for text buffers
-		let ctx = BufferRenderContext {
-			theme: self.theme,
-			language_loader: &self.language_loader,
-			style_overlays: &self.style_overlays,
-			show_indent_guides: true,
-		};
-
-		// Render each view
-		for (view, area) in &view_areas {
-			let is_focused = *view == focused_view;
-
-			match view {
-				BufferView::Text(buffer_id) => {
-					if let Some(buffer) = self.get_buffer(*buffer_id) {
-						let result = ctx.render_buffer(buffer, *area, use_block_cursor, is_focused);
-						frame.render_widget(result.widget, *area);
-					}
-				}
-				BufferView::Terminal(terminal_id) => {
-					if let Some(terminal) = self.get_terminal(*terminal_id) {
-						self.render_terminal(frame, terminal, *area, is_focused);
-					}
-				}
-			}
-		}
-
-		// Render separators between splits
-		let separators = self.layout.separator_positions(doc_area);
-
-		// Check if mouse has slowed down over a separator that was previously suppressed
-		// This handles the case where mouse was moving fast, then stopped over a separator
 		if self.layout.hovered_separator.is_none()
 			&& self.layout.separator_under_mouse.is_some()
 			&& !self.layout.is_mouse_fast()
@@ -164,95 +148,102 @@ impl Editor {
 				self.needs_redraw = true;
 			}
 		}
-
-		// Check for hovered separator
-		let hovered_rect = self.layout.hovered_separator.map(|(_, rect)| rect);
-
-		// Get the current rect of the separator being dragged (if any)
-		let dragging_rect = self.layout.drag_state().and_then(|drag_state| {
-			self.layout
-				.separator_rect_at_path(doc_area, &drag_state.path)
-				.map(|(_, rect)| rect)
-		});
-
-		// Get animation state for fading
-		let anim_rect = self.layout.animation_rect();
-		let anim_intensity = self.layout.animation_intensity();
-
-		// Request redraw if animation is in progress (including debounce period)
 		if self.layout.animation_needs_redraw() {
 			self.needs_redraw = true;
 		}
 
-		// Define colors for lerping
+		use crate::editor::DragState;
+		use crate::test_events::SeparatorAnimationEvent;
+		use evildoer_tui::animation::Animatable;
+
+		let hovered_rect = self.layout.hovered_separator.map(|(_, rect)| rect);
+		let dragging_rect = self.layout.drag_state().and_then(|drag_state| match drag_state {
+			DragState::Split { path, layer, .. } => self
+				.layout
+				.separator_rect_at_path(doc_area, path, *layer)
+				.map(|(_, rect)| rect),
+			DragState::LayerBoundary => self.layout.layer_boundary_separator(doc_area),
+		});
+		let anim_rect = self.layout.animation_rect();
+		let anim_intensity = self.layout.animation_intensity();
+		let layer_boundary = self.layout.layer_boundary_separator(doc_area);
+
 		let normal_fg: Color = self.theme.colors.ui.gutter_fg.into();
 		let hover_fg: Color = self.theme.colors.ui.cursor_fg.into();
 		let hover_bg: Color = self.theme.colors.ui.selection_bg.into();
 		let normal_bg: Color = self.theme.colors.ui.bg.into();
-		// High contrast colors for active drag - use main text fg/bg for maximum visibility
 		let drag_fg: Color = self.theme.colors.ui.bg.into();
 		let drag_bg: Color = self.theme.colors.ui.fg.into();
 
-		for (direction, _pos, sep_rect) in separators {
-			// Highlight if hovered or being dragged
-			let is_hovered = hovered_rect == Some(sep_rect);
-			let is_dragging = dragging_rect == Some(sep_rect);
-			let is_animating = anim_rect == Some(sep_rect);
+		let separator_style = |rect: Rect| -> Style {
+			let is_hovered = hovered_rect == Some(rect);
+			let is_dragging = dragging_rect == Some(rect);
+			let is_animating = anim_rect == Some(rect);
 
-			let sep_char = match direction {
-				SplitDirection::Horizontal => "\u{2502}", // Vertical line │
-				SplitDirection::Vertical => "\u{2500}",   // Horizontal line ─
-			};
-
-			// Calculate separator style with animation
-			// Priority: dragging > animating > hovered > normal
-			// Note: We check is_animating before is_hovered because we want the
-			// smooth fade-in animation even when hovered (intensity goes 0.0 -> 1.0).
-			// The animation handles both fade-in and fade-out correctly via intensity.
-			let sep_style = if is_dragging {
-				// High contrast when actively dragging
+			if is_dragging {
 				Style::default().fg(drag_fg).bg(drag_bg)
 			} else if is_animating {
-				// Animating - lerp between normal and hover states
-				// This handles both fade-in (hovering) and fade-out (leaving)
-				use evildoer_tui::animation::Animatable;
-
-				use crate::test_events::SeparatorAnimationEvent;
-
 				let fg = normal_fg.lerp(&hover_fg, anim_intensity);
 				let bg = normal_bg.lerp(&hover_bg, anim_intensity);
-
 				if let (Some(fg_rgb), Some(bg_rgb)) = (color_to_rgb(fg), color_to_rgb(bg)) {
 					SeparatorAnimationEvent::frame(anim_intensity, fg_rgb, bg_rgb);
 				}
-
 				Style::default().fg(fg).bg(bg)
 			} else if is_hovered {
-				// Fully hovered (animation complete or no animation)
 				Style::default().fg(hover_fg).bg(hover_bg)
 			} else {
-				// Normal state
 				Style::default().fg(normal_fg)
-			};
+			}
+		};
 
-			// Build separator lines
-			let lines: Vec<Line> = match direction {
-				SplitDirection::Horizontal => {
-					// Vertical separator - one character per row
-					(0..sep_rect.height)
-						.map(|_| Line::from(Span::styled(sep_char, sep_style)))
-						.collect()
+		let ctx = BufferRenderContext {
+			theme: self.theme,
+			language_loader: &self.language_loader,
+			style_overlays: &self.style_overlays,
+			show_indent_guides: true,
+		};
+
+		for (_, _, view_areas, separators) in &layer_data {
+			for (view, area) in view_areas {
+				let is_focused = *view == focused_view;
+				match view {
+					BufferView::Text(buffer_id) => {
+						if let Some(buffer) = self.get_buffer(*buffer_id) {
+							let result =
+								ctx.render_buffer(buffer, *area, use_block_cursor, is_focused);
+							frame.render_widget(result.widget, *area);
+						}
+					}
+					BufferView::Terminal(terminal_id) => {
+						if let Some(terminal) = self.get_terminal(*terminal_id) {
+							self.render_terminal(frame, terminal, *area, is_focused);
+						}
+					}
 				}
-				SplitDirection::Vertical => {
-					// Horizontal separator - fill the width
-					vec![Line::from(Span::styled(
-						sep_char.repeat(sep_rect.width as usize),
+			}
+
+			for (direction, _pos, sep_rect) in separators {
+				let sep_style = separator_style(*sep_rect);
+				let lines: Vec<Line> = match direction {
+					SplitDirection::Horizontal => (0..sep_rect.height)
+						.map(|_| Line::from(Span::styled("\u{2502}", sep_style)))
+						.collect(),
+					SplitDirection::Vertical => vec![Line::from(Span::styled(
+						"\u{2500}".repeat(sep_rect.width as usize),
 						sep_style,
-					))]
-				}
-			};
+					))],
+				};
+				frame.render_widget(Paragraph::new(lines), *sep_rect);
+			}
+		}
 
-			frame.render_widget(Paragraph::new(lines), sep_rect);
+		if let Some(boundary_rect) = layer_boundary {
+			let sep_style = separator_style(boundary_rect);
+			let line = Line::from(Span::styled(
+				"\u{2500}".repeat(boundary_rect.width as usize),
+				sep_style,
+			));
+			frame.render_widget(Paragraph::new(vec![line]), boundary_rect);
 		}
 	}
 

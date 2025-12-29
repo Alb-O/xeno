@@ -7,11 +7,18 @@ use crate::buffer::SplitDirection;
 
 /// State for an active separator drag operation.
 #[derive(Debug, Clone, PartialEq)]
-pub struct DragState {
-	/// Direction of the split being resized.
-	pub direction: SplitDirection,
-	/// Path to the split in the layout tree.
-	pub path: crate::buffer::SplitPath,
+pub enum DragState {
+	/// Dragging a separator within a layer's split tree.
+	Split {
+		/// Direction of the split being resized.
+		direction: SplitDirection,
+		/// Path to the split in the layout tree.
+		path: crate::buffer::SplitPath,
+		/// Layer containing the separator being dragged.
+		layer: super::layout_manager::LayerIndex,
+	},
+	/// Dragging the boundary between layer 0 and layer 1 (dock boundary).
+	LayerBoundary,
 }
 
 /// Tracks mouse velocity to determine if hover effects should be suppressed.
