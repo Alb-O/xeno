@@ -129,7 +129,6 @@ impl TerminalBuffer {
 			}
 		}
 	}
-
 }
 
 impl SplitBuffer for TerminalBuffer {

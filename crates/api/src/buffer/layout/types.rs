@@ -80,6 +80,18 @@ impl BufferView {
 	pub fn is_terminal(&self) -> bool {
 		matches!(self, BufferView::Terminal(_))
 	}
+
+	/// Returns the visual priority of this view type.
+	///
+	/// Higher values indicate lighter backgrounds. Separators use the background
+	/// color of the adjacent view with the highest priority, ensuring borders
+	/// blend with the lighter pane.
+	pub fn visual_priority(&self) -> u8 {
+		match self {
+			BufferView::Text(_) => 0,
+			BufferView::Terminal(_) => 1,
+		}
+	}
 }
 
 impl From<BufferId> for BufferView {

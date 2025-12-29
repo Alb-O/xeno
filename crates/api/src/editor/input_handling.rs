@@ -375,9 +375,7 @@ impl Editor {
 		self.layout.update_mouse_velocity(mouse_x, mouse_y);
 		let is_fast_mouse = self.layout.is_mouse_fast();
 
-		let current_separator = separator_hit
-			.as_ref()
-			.map(|hit| (hit.direction, hit.rect));
+		let current_separator = separator_hit.as_ref().map(|hit| (hit.direction, hit.rect));
 		self.layout.separator_under_mouse = current_separator;
 
 		match mouse.kind {

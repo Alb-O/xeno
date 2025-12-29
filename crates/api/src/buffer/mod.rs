@@ -246,5 +246,3 @@ impl Buffer {
 		self.doc_mut().insert_undo_active = false;
 	}
 }
-
-

@@ -107,6 +107,14 @@ impl Layout {
 		}
 	}
 
+	/// Returns the last view in the layout (rightmost/bottommost).
+	pub fn last_view(&self) -> BufferView {
+		match self {
+			Layout::Single(view) => *view,
+			Layout::Split { second, .. } => second.last_view(),
+		}
+	}
+
 	/// Returns the first text buffer ID if one exists.
 	pub fn first_buffer(&self) -> Option<BufferId> {
 		match self {

@@ -27,8 +27,9 @@ struct SeparatorStyle {
 	dragging_rect: Option<Rect>,
 	anim_rect: Option<Rect>,
 	anim_intensity: f32,
-	normal_fg: Color,
-	normal_bg: Color,
+	/// Base colors per visual priority level (index = priority).
+	base_bg: [Color; 2],
+	base_fg: [Color; 2],
 	hover_fg: Color,
 	hover_bg: Color,
 	drag_fg: Color,
@@ -45,8 +46,14 @@ impl SeparatorStyle {
 				.and_then(|ds| editor.layout.separator_rect(doc_area, &ds.id)),
 			anim_rect: editor.layout.animation_rect(),
 			anim_intensity: editor.layout.animation_intensity(),
-			normal_fg: editor.theme.colors.ui.gutter_fg.into(),
-			normal_bg: editor.theme.colors.ui.bg.into(),
+			base_bg: [
+				editor.theme.colors.ui.bg.into(),
+				editor.theme.colors.popup.bg.into(),
+			],
+			base_fg: [
+				editor.theme.colors.ui.gutter_fg.into(),
+				editor.theme.colors.popup.fg.into(),
+			],
 			hover_fg: editor.theme.colors.ui.cursor_fg.into(),
 			hover_bg: editor.theme.colors.ui.selection_bg.into(),
 			drag_fg: editor.theme.colors.ui.bg.into(),
@@ -54,16 +61,20 @@ impl SeparatorStyle {
 		}
 	}
 
-	fn for_rect(&self, rect: Rect) -> Style {
+	fn for_rect(&self, rect: Rect, priority: u8) -> Style {
 		let is_dragging = self.dragging_rect == Some(rect);
 		let is_animating = self.anim_rect == Some(rect);
 		let is_hovered = self.hovered_rect == Some(rect);
 
+		let idx = (priority as usize).min(self.base_bg.len() - 1);
+		let normal_fg = self.base_fg[idx];
+		let normal_bg = self.base_bg[idx];
+
 		if is_dragging {
 			Style::default().fg(self.drag_fg).bg(self.drag_bg)
 		} else if is_animating {
-			let fg = self.normal_fg.lerp(&self.hover_fg, self.anim_intensity);
-			let bg = self.normal_bg.lerp(&self.hover_bg, self.anim_intensity);
+			let fg = normal_fg.lerp(&self.hover_fg, self.anim_intensity);
+			let bg = normal_bg.lerp(&self.hover_bg, self.anim_intensity);
 			if let (Some(fg_rgb), Some(bg_rgb)) = (color_to_rgb(fg), color_to_rgb(bg)) {
 				SeparatorAnimationEvent::frame(self.anim_intensity, fg_rgb, bg_rgb);
 			}
@@ -71,7 +82,7 @@ impl SeparatorStyle {
 		} else if is_hovered {
 			Style::default().fg(self.hover_fg).bg(self.hover_bg)
 		} else {
-			Style::default().fg(self.normal_fg)
+			Style::default().fg(normal_fg).bg(normal_bg)
 		}
 	}
 }
@@ -163,14 +174,18 @@ impl Editor {
 			usize,
 			Rect,
 			Vec<(BufferView, Rect)>,
-			Vec<(SplitDirection, u16, Rect)>,
+			Vec<(SplitDirection, u8, Rect)>,
 		)> = Vec::new();
 
 		for layer_idx in 0..layer_count {
 			if self.layout.layer(layer_idx).is_some() {
 				let layer_area = self.layout.layer_area(layer_idx, doc_area);
-				let view_areas = self.layout.compute_view_areas_for_layer(layer_idx, layer_area);
-				let separators = self.layout.separator_positions_for_layer(layer_idx, layer_area);
+				let view_areas = self
+					.layout
+					.compute_view_areas_for_layer(layer_idx, layer_area);
+				let separators = self
+					.layout
+					.separator_positions_for_layer(layer_idx, layer_area);
 				layer_data.push((layer_idx, layer_area, view_areas, separators));
 			}
 		}
@@ -238,8 +253,8 @@ impl Editor {
 				}
 			}
 
-			for (direction, _pos, sep_rect) in separators {
-				let style = sep_style.for_rect(*sep_rect);
+			for (direction, priority, sep_rect) in separators {
+				let style = sep_style.for_rect(*sep_rect, *priority);
 				let lines: Vec<Line> = match direction {
 					SplitDirection::Horizontal => (0..sep_rect.height)
 						.map(|_| Line::from(Span::styled("\u{2502}", style)))
@@ -254,7 +269,7 @@ impl Editor {
 		}
 
 		if let Some(boundary_rect) = layer_boundary {
-			let style = sep_style.for_rect(boundary_rect);
+			let style = sep_style.for_rect(boundary_rect, self.layout.layer_boundary_priority());
 			let line = Line::from(Span::styled(
 				"\u{2500}".repeat(boundary_rect.width as usize),
 				style,

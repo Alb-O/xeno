@@ -352,5 +352,3 @@ pub enum SplitDockPreference {
 	Left,
 	Right,
 }
-
-

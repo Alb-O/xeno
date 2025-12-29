@@ -39,10 +39,7 @@ pub type LayerIndex = usize;
 #[derive(Debug, Clone, PartialEq)]
 pub enum SeparatorId {
 	/// A separator within a layer's split tree.
-	Split {
-		path: SplitPath,
-		layer: LayerIndex,
-	},
+	Split { path: SplitPath, layer: LayerIndex },
 	/// The boundary between layer 0 and layer 1 (dock boundary).
 	LayerBoundary,
 }
@@ -172,10 +169,10 @@ impl LayoutManager {
 	/// Returns the first text buffer ID if one exists (searches all layers).
 	pub fn first_buffer(&self) -> Option<BufferId> {
 		for i in (0..self.layers.len()).rev() {
-			if let Some(layout) = &self.layers[i] {
-				if let Some(id) = layout.first_buffer() {
-					return Some(id);
-				}
+			if let Some(layout) = &self.layers[i]
+				&& let Some(id) = layout.first_buffer()
+			{
+				return Some(id);
 			}
 		}
 		None
@@ -236,20 +233,20 @@ impl LayoutManager {
 
 	/// Returns the next view in layout order (searches current layer first).
 	pub fn next_view(&self, current: BufferView) -> BufferView {
-		if let Some(layer_idx) = self.layer_of_view(current) {
-			if let Some(layout) = &self.layers[layer_idx] {
-				return layout.next_view(current);
-			}
+		if let Some(layer_idx) = self.layer_of_view(current)
+			&& let Some(layout) = &self.layers[layer_idx]
+		{
+			return layout.next_view(current);
 		}
 		self.base_layer().next_view(current)
 	}
 
 	/// Returns the previous view in layout order.
 	pub fn prev_view(&self, current: BufferView) -> BufferView {
-		if let Some(layer_idx) = self.layer_of_view(current) {
-			if let Some(layout) = &self.layers[layer_idx] {
-				return layout.prev_view(current);
-			}
+		if let Some(layer_idx) = self.layer_of_view(current)
+			&& let Some(layout) = &self.layers[layer_idx]
+		{
+			return layout.prev_view(current);
 		}
 		self.base_layer().prev_view(current)
 	}
@@ -267,10 +264,10 @@ impl LayoutManager {
 	/// Creates a horizontal split with a new buffer below the current view.
 	pub fn split_horizontal(&mut self, current_view: BufferView, new_buffer_id: BufferId) {
 		let new_layout = Layout::stacked(Layout::single(current_view), Layout::text(new_buffer_id));
-		if let Some(layer_idx) = self.layer_of_view(current_view) {
-			if let Some(layout) = self.layer_mut(layer_idx) {
-				layout.replace_view(current_view, new_layout);
-			}
+		if let Some(layer_idx) = self.layer_of_view(current_view)
+			&& let Some(layout) = self.layer_mut(layer_idx)
+		{
+			layout.replace_view(current_view, new_layout);
 		}
 	}
 
@@ -278,10 +275,10 @@ impl LayoutManager {
 	pub fn split_vertical(&mut self, current_view: BufferView, new_buffer_id: BufferId) {
 		let new_layout =
 			Layout::side_by_side(Layout::single(current_view), Layout::text(new_buffer_id));
-		if let Some(layer_idx) = self.layer_of_view(current_view) {
-			if let Some(layout) = self.layer_mut(layer_idx) {
-				layout.replace_view(current_view, new_layout);
-			}
+		if let Some(layer_idx) = self.layer_of_view(current_view)
+			&& let Some(layout) = self.layer_mut(layer_idx)
+		{
+			layout.replace_view(current_view, new_layout);
 		}
 	}
 
@@ -289,10 +286,10 @@ impl LayoutManager {
 	pub fn split_horizontal_terminal(&mut self, current_view: BufferView, terminal_id: TerminalId) {
 		let new_layout =
 			Layout::stacked(Layout::single(current_view), Layout::terminal(terminal_id));
-		if let Some(layer_idx) = self.layer_of_view(current_view) {
-			if let Some(layout) = self.layer_mut(layer_idx) {
-				layout.replace_view(current_view, new_layout);
-			}
+		if let Some(layer_idx) = self.layer_of_view(current_view)
+			&& let Some(layout) = self.layer_mut(layer_idx)
+		{
+			layout.replace_view(current_view, new_layout);
 		}
 	}
 
@@ -300,10 +297,10 @@ impl LayoutManager {
 	pub fn split_vertical_terminal(&mut self, current_view: BufferView, terminal_id: TerminalId) {
 		let new_layout =
 			Layout::side_by_side(Layout::single(current_view), Layout::terminal(terminal_id));
-		if let Some(layer_idx) = self.layer_of_view(current_view) {
-			if let Some(layout) = self.layer_mut(layer_idx) {
-				layout.replace_view(current_view, new_layout);
-			}
+		if let Some(layer_idx) = self.layer_of_view(current_view)
+			&& let Some(layout) = self.layer_mut(layer_idx)
+		{
+			layout.replace_view(current_view, new_layout);
 		}
 	}
 
@@ -393,9 +390,7 @@ impl LayoutManager {
 	///
 	/// Returns None if layer 1 is not visible.
 	pub fn layer_boundary_separator(&self, doc_area: Rect) -> Option<Rect> {
-		if self.layer(1).is_none() {
-			return None;
-		}
+		self.layer(1)?;
 		let layer0_area = self.layer_area(0, doc_area);
 		Some(Rect {
 			x: doc_area.x,
@@ -413,6 +408,21 @@ impl LayoutManager {
 		self.dock_height = new_height.clamp(Self::MIN_DOCK_HEIGHT, max_dock);
 	}
 
+	/// Returns the visual priority for the layer boundary separator.
+	///
+	/// This is the max priority of the bottom view of layer 0 and top view of layer 1.
+	pub fn layer_boundary_priority(&self) -> u8 {
+		let layer0_priority = self
+			.layer(0)
+			.map(|l| l.last_view().visual_priority())
+			.unwrap_or(0);
+		let layer1_priority = self
+			.layer(1)
+			.map(|l| l.first_view().visual_priority())
+			.unwrap_or(0);
+		layer0_priority.max(layer1_priority)
+	}
+
 	/// Finds the view at the given screen coordinates (searches top-down).
 	pub fn view_at_position(&self, area: Rect, x: u16, y: u16) -> Option<(BufferView, Rect)> {
 		for i in (0..self.layers.len()).rev() {
@@ -427,7 +437,7 @@ impl LayoutManager {
 	}
 
 	/// Returns separator positions for rendering (base layer).
-	pub fn separator_positions(&self, area: Rect) -> Vec<(SplitDirection, u16, Rect)> {
+	pub fn separator_positions(&self, area: Rect) -> Vec<(SplitDirection, u8, Rect)> {
 		self.base_layer().separator_positions(area)
 	}
 
@@ -436,7 +446,7 @@ impl LayoutManager {
 		&self,
 		layer: LayerIndex,
 		area: Rect,
-	) -> Vec<(SplitDirection, u16, Rect)> {
+	) -> Vec<(SplitDirection, u8, Rect)> {
 		self.layer(layer)
 			.map(|l| l.separator_positions(area))
 			.unwrap_or_default()
@@ -464,14 +474,16 @@ impl LayoutManager {
 	///
 	/// Checks layer boundary first, then searches split separators top-down.
 	pub fn separator_hit_at_position(&self, area: Rect, x: u16, y: u16) -> Option<SeparatorHit> {
-		if let Some(rect) = self.layer_boundary_separator(area) {
-			if y == rect.y && x >= rect.x && x < rect.right() {
-				return Some(SeparatorHit {
-					id: SeparatorId::LayerBoundary,
-					direction: SplitDirection::Vertical,
-					rect,
-				});
-			}
+		if let Some(rect) = self.layer_boundary_separator(area)
+			&& y == rect.y
+			&& x >= rect.x
+			&& x < rect.right()
+		{
+			return Some(SeparatorHit {
+				id: SeparatorId::LayerBoundary,
+				direction: SplitDirection::Vertical,
+				rect,
+			});
 		}
 
 		for i in (0..self.layers.len()).rev() {
@@ -505,13 +517,7 @@ impl LayoutManager {
 	}
 
 	/// Resizes the separator identified by the given ID based on mouse position.
-	pub fn resize_separator(
-		&mut self,
-		area: Rect,
-		id: &SeparatorId,
-		mouse_x: u16,
-		mouse_y: u16,
-	) {
+	pub fn resize_separator(&mut self, area: Rect, id: &SeparatorId, mouse_x: u16, mouse_y: u16) {
 		match id {
 			SeparatorId::Split { path, layer } => {
 				let layer_area = self.layer_area(*layer, area);
@@ -662,14 +668,21 @@ mod tests {
 		let layer0 = mgr.layer_area(0, doc);
 		let layer1 = mgr.layer_area(1, doc);
 
-		assert!(layer0.height < doc.height, "base layer shrinks when dock visible");
+		assert!(
+			layer0.height < doc.height,
+			"base layer shrinks when dock visible"
+		);
 		assert!(layer1.height > 0, "dock layer has height");
 		assert_eq!(
 			layer0.height + layer1.height,
 			doc.height,
 			"layers fill doc area"
 		);
-		assert_eq!(layer1.y, layer0.bottom(), "dock starts at base layer bottom");
+		assert_eq!(
+			layer1.y,
+			layer0.bottom(),
+			"dock starts at base layer bottom"
+		);
 	}
 
 	#[test]
@@ -717,12 +730,18 @@ mod tests {
 		// Drag boundary up (increases dock height)
 		mgr.resize_dock_boundary(doc, doc.y + 8);
 		let new_height = mgr.layer_area(1, doc).height;
-		assert!(new_height > initial_height, "dragging up increases dock height");
+		assert!(
+			new_height > initial_height,
+			"dragging up increases dock height"
+		);
 
 		// Drag boundary down (decreases dock height)
 		mgr.resize_dock_boundary(doc, doc.y + 20);
 		let newer_height = mgr.layer_area(1, doc).height;
-		assert!(newer_height < new_height, "dragging down decreases dock height");
+		assert!(
+			newer_height < new_height,
+			"dragging down decreases dock height"
+		);
 	}
 
 	#[test]

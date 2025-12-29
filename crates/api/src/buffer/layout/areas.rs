@@ -355,7 +355,11 @@ impl Layout {
 	}
 
 	/// Returns separator positions for rendering.
-	pub fn separator_positions(&self, area: Rect) -> Vec<(SplitDirection, u16, Rect)> {
+	///
+	/// Each tuple contains: (direction, visual_priority, rect).
+	/// The visual priority is the maximum of the adjacent views' priorities,
+	/// used to determine which background color the separator should use.
+	pub fn separator_positions(&self, area: Rect) -> Vec<(SplitDirection, u8, Rect)> {
 		let Layout::Split {
 			direction,
 			ratio,
@@ -369,7 +373,12 @@ impl Layout {
 		let (first_area, second_area, sep_rect) =
 			Self::compute_split_areas(area, *direction, *ratio);
 
-		let mut separators = vec![(*direction, sep_rect.x, sep_rect)];
+		let priority = first
+			.last_view()
+			.visual_priority()
+			.max(second.first_view().visual_priority());
+
+		let mut separators = vec![(*direction, priority, sep_rect)];
 		separators.extend(first.separator_positions(first_area));
 		separators.extend(second.separator_positions(second_area));
 		separators
