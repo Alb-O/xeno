@@ -14,9 +14,8 @@ use std::thread;
 use std::time::Duration;
 
 use evildoer_manifest::{
-	Dockable, SplitAttrs, SplitBuffer, SplitCell, SplitCursor, SplitDockPreference,
-	SplitEventResult, SplitKey, SplitKeyCode, SplitMouse, SplitMouseAction, SplitMouseButton,
-	SplitSize,
+	SplitAttrs, SplitBuffer, SplitCell, SplitCursor, SplitEventResult, SplitKey, SplitKeyCode,
+	SplitMouse, SplitMouseAction, SplitMouseButton, SplitSize,
 };
 use evildoer_tui::widgets::terminal::vt100;
 
@@ -131,16 +130,6 @@ impl TerminalBuffer {
 		}
 	}
 
-}
-
-impl Dockable for TerminalBuffer {
-	fn dock_id(&self) -> &'static str {
-		"terminal"
-	}
-
-	fn dock_preference(&self) -> SplitDockPreference {
-		SplitDockPreference::Bottom
-	}
 }
 
 impl SplitBuffer for TerminalBuffer {

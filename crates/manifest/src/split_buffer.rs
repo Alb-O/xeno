@@ -353,17 +353,4 @@ pub enum SplitDockPreference {
 	Right,
 }
 
-/// Trait for content types that can be docked as splits.
-///
-/// Implementors can be opened, closed, and toggled in the split layout.
-/// This provides a unified interface for text buffers, terminals, and
-/// other panel types.
-pub trait Dockable {
-	/// Unique identifier for this dockable type.
-	fn dock_id(&self) -> &'static str;
 
-	/// Where this content prefers to be docked when opened.
-	fn dock_preference(&self) -> SplitDockPreference {
-		SplitDockPreference::Bottom
-	}
-}
