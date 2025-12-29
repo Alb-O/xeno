@@ -916,6 +916,7 @@ name = "evildoer-base"
 version = "0.2.0"
 dependencies = [
  "crossterm",
+ "evildoer-keymap-parser",
  "evildoer-tui",
  "log",
  "ropey",
@@ -1049,6 +1050,8 @@ dependencies = [
 name = "evildoer-macro"
 version = "0.2.0"
 dependencies = [
+ "evildoer-keymap-parser",
+ "kdl",
  "proc-macro2",
  "quote",
  "syn 2.0.111",

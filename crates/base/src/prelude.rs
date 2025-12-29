@@ -4,7 +4,7 @@
 
 pub use ropey::{Rope, RopeSlice};
 
-pub use crate::key::{Key, KeyCode, Modifiers, SpecialKey};
+pub use crate::key::{Key, KeyCode, Modifiers};
 pub use crate::range::{CharIdx, Range};
 pub use crate::selection::Selection;
 pub use crate::transaction::{Change, Transaction};

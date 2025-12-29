@@ -48,5 +48,13 @@ fn test_display() {
 	assert_eq!(Key::char('h').to_string(), "h");
 	assert_eq!(Key::ctrl('c').to_string(), "C-c");
 	assert_eq!(Key::alt('w').to_string(), "A-w");
-	assert_eq!(Key::special(SpecialKey::Escape).to_string(), "<Escape>");
+	assert_eq!(Key::new(KeyCode::Esc).to_string(), "esc");
+}
+
+#[test]
+fn test_special_keys() {
+	assert!(Key::new(KeyCode::Esc).is_escape());
+	assert!(Key::new(KeyCode::Backspace).is_backspace());
+	assert!(Key::new(KeyCode::Enter).is_enter());
+	assert!(Key::new(KeyCode::Tab).is_tab());
 }

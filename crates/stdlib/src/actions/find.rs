@@ -1,6 +1,5 @@
 //! Find character actions (f/t/F/T commands).
 
-use evildoer_base::key::Key;
 use evildoer_manifest::actions::{ActionResult, PendingAction, PendingKind};
 use evildoer_manifest::bound_action;
 
@@ -9,7 +8,7 @@ use crate::movement;
 bound_action!(
 	find_char,
 	description: "Select to next occurrence of character (inclusive)",
-	bindings: [Normal => [Key::char('f')]],
+	bindings: r#"normal "f""#,
 	|ctx| match ctx.args.char {
 		Some(ch) => {
 			let mut new_sel = ctx.selection.clone();
@@ -28,7 +27,7 @@ bound_action!(
 bound_action!(
 	find_char_to,
 	description: "Select to next occurrence of character (exclusive)",
-	bindings: [Normal => [Key::char('t')]],
+	bindings: r#"normal "t""#,
 	|ctx| match ctx.args.char {
 		Some(ch) => {
 			let mut new_sel = ctx.selection.clone();
@@ -47,7 +46,7 @@ bound_action!(
 bound_action!(
 	find_char_reverse,
 	description: "Select to previous occurrence of character (inclusive)",
-	bindings: [Normal => [Key::alt('f')]],
+	bindings: r#"normal "alt-f""#,
 	|ctx| match ctx.args.char {
 		Some(ch) => {
 			let mut new_sel = ctx.selection.clone();
@@ -66,7 +65,7 @@ bound_action!(
 bound_action!(
 	find_char_to_reverse,
 	description: "Select to previous occurrence of character (exclusive)",
-	bindings: [Normal => [Key::alt('t')]],
+	bindings: r#"normal "alt-t""#,
 	|ctx| match ctx.args.char {
 		Some(ch) => {
 			let mut new_sel = ctx.selection.clone();

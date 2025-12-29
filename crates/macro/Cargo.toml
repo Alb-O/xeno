@@ -8,6 +8,8 @@ license.workspace = true
 proc-macro = true
 
 [dependencies]
-proc-macro2.workspace = true
-quote.workspace = true
-syn.workspace = true
+evildoer-keymap-parser = { workspace = true }
+kdl = { workspace = true }
+proc-macro2 = { workspace = true }
+quote = { workspace = true }
+syn = { workspace = true }

@@ -7,7 +7,8 @@
 //! - Mouse events (clicks, drags, scrolls)
 
 use std::fmt;
-use std::str::FromStr;
+
+pub use evildoer_keymap_parser::Key as KeyCode;
 
 /// Key modifiers (Ctrl, Alt, Shift).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
@@ -62,38 +63,11 @@ impl Modifiers {
 	}
 }
 
-/// Special (non-character) keys.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum SpecialKey {
-	Escape,
-	Enter,
-	Tab,
-	Backspace,
-	Delete,
-	Insert,
-	Home,
-	End,
-	PageUp,
-	PageDown,
-	Up,
-	Down,
-	Left,
-	Right,
-	F(u8),
-}
-
 /// A key with optional modifiers.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Key {
 	pub code: KeyCode,
 	pub modifiers: Modifiers,
-}
-
-/// The key code itself - either a character or a special key.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum KeyCode {
-	Char(char),
-	Special(SpecialKey),
 }
 
 impl Key {
@@ -105,10 +79,10 @@ impl Key {
 		}
 	}
 
-	/// Create a key from a special key with no modifiers.
-	pub const fn special(key: SpecialKey) -> Self {
+	/// Create a key from a key code with no modifiers.
+	pub const fn new(code: KeyCode) -> Self {
 		Self {
-			code: KeyCode::Special(key),
+			code,
 			modifiers: Modifiers::NONE,
 		}
 	}
@@ -129,14 +103,6 @@ impl Key {
 		}
 	}
 
-	/// Create a key with Shift modifier (for special keys).
-	pub const fn shift(key: SpecialKey) -> Self {
-		Self {
-			code: KeyCode::Special(key),
-			modifiers: Modifiers::SHIFT,
-		}
-	}
-
 	/// Add Ctrl modifier.
 	pub const fn with_ctrl(self) -> Self {
 		Self {
@@ -148,7 +114,7 @@ impl Key {
 		}
 	}
 
-	/// Drop the shift modifier (useful for treating Shift as “extend”), preserving codepoint.
+	/// Drop the shift modifier (useful for treating Shift as "extend"), preserving codepoint.
 	pub const fn drop_shift(self) -> Self {
 		Self {
 			modifiers: Modifiers {
@@ -200,8 +166,29 @@ impl Key {
 	pub fn codepoint(&self) -> Option<char> {
 		match self.code {
 			KeyCode::Char(c) => Some(c),
-			KeyCode::Special(_) => None,
+			KeyCode::Space => Some(' '),
+			_ => None,
 		}
+	}
+
+	/// Check if this key is escape.
+	pub fn is_escape(&self) -> bool {
+		matches!(self.code, KeyCode::Esc) && self.modifiers.is_empty()
+	}
+
+	/// Check if this key is backspace.
+	pub fn is_backspace(&self) -> bool {
+		matches!(self.code, KeyCode::Backspace) && self.modifiers.is_empty()
+	}
+
+	/// Check if this key is enter.
+	pub fn is_enter(&self) -> bool {
+		matches!(self.code, KeyCode::Enter) && self.modifiers.is_empty()
+	}
+
+	/// Check if this key is tab.
+	pub fn is_tab(&self) -> bool {
+		matches!(self.code, KeyCode::Tab) && self.modifiers.is_empty()
 	}
 
 	/// Convert a shifted letter to uppercase for matching.
@@ -219,7 +206,6 @@ impl Key {
 					},
 				};
 			} else if c.is_ascii_uppercase() {
-				// Already uppercase, just drop the shift modifier
 				return Self {
 					code: KeyCode::Char(c),
 					modifiers: Modifiers {
@@ -244,31 +230,32 @@ pub enum MouseButton {
 /// Mouse event types.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MouseEvent {
-	/// Mouse button pressed at position.
 	Press {
 		button: MouseButton,
 		row: u16,
 		col: u16,
 		modifiers: Modifiers,
 	},
-	/// Mouse released at position.
-	Release { row: u16, col: u16 },
-	/// Mouse dragged to position (button held).
+	Release {
+		row: u16,
+		col: u16,
+	},
 	Drag {
 		button: MouseButton,
 		row: u16,
 		col: u16,
 		modifiers: Modifiers,
 	},
-	/// Scroll wheel moved.
 	Scroll {
 		direction: ScrollDirection,
 		row: u16,
 		col: u16,
 		modifiers: Modifiers,
 	},
-	/// Mouse moved (no button pressed).
-	Move { row: u16, col: u16 },
+	Move {
+		row: u16,
+		col: u16,
+	},
 }
 
 /// Scroll direction.
@@ -283,36 +270,34 @@ pub enum ScrollDirection {
 impl MouseEvent {
 	pub fn row(&self) -> u16 {
 		match self {
-			MouseEvent::Press { row, .. } => *row,
-			MouseEvent::Release { row, .. } => *row,
-			MouseEvent::Drag { row, .. } => *row,
-			MouseEvent::Scroll { row, .. } => *row,
-			MouseEvent::Move { row, .. } => *row,
+			MouseEvent::Press { row, .. }
+			| MouseEvent::Release { row, .. }
+			| MouseEvent::Drag { row, .. }
+			| MouseEvent::Scroll { row, .. }
+			| MouseEvent::Move { row, .. } => *row,
 		}
 	}
 
 	pub fn col(&self) -> u16 {
 		match self {
-			MouseEvent::Press { col, .. } => *col,
-			MouseEvent::Release { col, .. } => *col,
-			MouseEvent::Drag { col, .. } => *col,
-			MouseEvent::Scroll { col, .. } => *col,
-			MouseEvent::Move { col, .. } => *col,
+			MouseEvent::Press { col, .. }
+			| MouseEvent::Release { col, .. }
+			| MouseEvent::Drag { col, .. }
+			| MouseEvent::Scroll { col, .. }
+			| MouseEvent::Move { col, .. } => *col,
 		}
 	}
 
 	pub fn modifiers(&self) -> Modifiers {
 		match self {
-			MouseEvent::Press { modifiers, .. } => *modifiers,
-			MouseEvent::Release { .. } => Modifiers::NONE,
-			MouseEvent::Drag { modifiers, .. } => *modifiers,
-			MouseEvent::Scroll { modifiers, .. } => *modifiers,
-			MouseEvent::Move { .. } => Modifiers::NONE,
+			MouseEvent::Press { modifiers, .. }
+			| MouseEvent::Drag { modifiers, .. }
+			| MouseEvent::Scroll { modifiers, .. } => *modifiers,
+			MouseEvent::Release { .. } | MouseEvent::Move { .. } => Modifiers::NONE,
 		}
 	}
 }
 
-/// Conversion from termina's MouseEvent.
 impl From<termina::event::MouseEvent> for MouseEvent {
 	fn from(event: termina::event::MouseEvent) -> Self {
 		use termina::event::{Modifiers as TmModifiers, MouseButton as TmButton, MouseEventKind};
@@ -389,15 +374,10 @@ impl fmt::Display for Key {
 		if self.modifiers.shift {
 			write!(f, "S-")?;
 		}
-
-		match self.code {
-			KeyCode::Char(c) => write!(f, "{}", c),
-			KeyCode::Special(s) => write!(f, "<{:?}>", s),
-		}
+		write!(f, "{}", self.code)
 	}
 }
 
-/// Conversion from termina's KeyEvent.
 impl From<termina::event::KeyEvent> for Key {
 	fn from(event: termina::event::KeyEvent) -> Self {
 		use termina::event::{KeyCode as TmKeyCode, Modifiers as TmModifiers};
@@ -410,21 +390,21 @@ impl From<termina::event::KeyEvent> for Key {
 
 		let code = match event.code {
 			TmKeyCode::Char(c) => KeyCode::Char(c),
-			TmKeyCode::Escape => KeyCode::Special(SpecialKey::Escape),
-			TmKeyCode::Enter => KeyCode::Special(SpecialKey::Enter),
-			TmKeyCode::Tab => KeyCode::Special(SpecialKey::Tab),
-			TmKeyCode::Backspace => KeyCode::Special(SpecialKey::Backspace),
-			TmKeyCode::Delete => KeyCode::Special(SpecialKey::Delete),
-			TmKeyCode::Insert => KeyCode::Special(SpecialKey::Insert),
-			TmKeyCode::Home => KeyCode::Special(SpecialKey::Home),
-			TmKeyCode::End => KeyCode::Special(SpecialKey::End),
-			TmKeyCode::PageUp => KeyCode::Special(SpecialKey::PageUp),
-			TmKeyCode::PageDown => KeyCode::Special(SpecialKey::PageDown),
-			TmKeyCode::Up => KeyCode::Special(SpecialKey::Up),
-			TmKeyCode::Down => KeyCode::Special(SpecialKey::Down),
-			TmKeyCode::Left => KeyCode::Special(SpecialKey::Left),
-			TmKeyCode::Right => KeyCode::Special(SpecialKey::Right),
-			TmKeyCode::Function(n) => KeyCode::Special(SpecialKey::F(n)),
+			TmKeyCode::Escape => KeyCode::Esc,
+			TmKeyCode::Enter => KeyCode::Enter,
+			TmKeyCode::Tab => KeyCode::Tab,
+			TmKeyCode::Backspace => KeyCode::Backspace,
+			TmKeyCode::Delete => KeyCode::Delete,
+			TmKeyCode::Insert => KeyCode::Insert,
+			TmKeyCode::Home => KeyCode::Home,
+			TmKeyCode::End => KeyCode::End,
+			TmKeyCode::PageUp => KeyCode::PageUp,
+			TmKeyCode::PageDown => KeyCode::PageDown,
+			TmKeyCode::Up => KeyCode::Up,
+			TmKeyCode::Down => KeyCode::Down,
+			TmKeyCode::Left => KeyCode::Left,
+			TmKeyCode::Right => KeyCode::Right,
+			TmKeyCode::Function(n) => KeyCode::F(n),
 			_ => KeyCode::Char('\0'),
 		};
 

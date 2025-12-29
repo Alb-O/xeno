@@ -1,4 +1,4 @@
-use evildoer_base::key::{Key, KeyCode, SpecialKey};
+use evildoer_base::key::{Key, KeyCode};
 use evildoer_manifest::{ObjectSelectionKind, PendingKind, resolve_action_id};
 
 use crate::InputHandler;
@@ -6,9 +6,6 @@ use crate::types::{KeyResult, Mode};
 
 impl InputHandler {
 	/// Handles key input for pending actions (character find, text objects, etc.).
-	///
-	/// Uses typed action dispatch via [`resolve_action_id`] when available, falling back
-	/// to name-based dispatch for dynamic resolution.
 	pub(crate) fn handle_pending_action_key(
 		&mut self,
 		key: Key,
@@ -48,7 +45,7 @@ impl InputHandler {
 						}
 					}
 				}
-				KeyCode::Special(SpecialKey::Escape) => {
+				KeyCode::Esc => {
 					self.mode = Mode::Normal;
 					self.reset_params();
 					KeyResult::ModeChange(Mode::Normal)
@@ -80,7 +77,7 @@ impl InputHandler {
 						}
 					}
 				}
-				KeyCode::Special(SpecialKey::Escape) => {
+				KeyCode::Esc => {
 					self.mode = Mode::Normal;
 					self.reset_params();
 					KeyResult::ModeChange(Mode::Normal)
@@ -112,7 +109,7 @@ impl InputHandler {
 						}
 					}
 				}
-				KeyCode::Special(SpecialKey::Escape) => {
+				KeyCode::Esc => {
 					self.mode = Mode::Normal;
 					self.reset_params();
 					KeyResult::ModeChange(Mode::Normal)
@@ -152,7 +149,7 @@ impl InputHandler {
 						}
 					}
 				}
-				KeyCode::Special(SpecialKey::Escape) => {
+				KeyCode::Esc => {
 					self.mode = Mode::Normal;
 					self.reset_params();
 					KeyResult::ModeChange(Mode::Normal)

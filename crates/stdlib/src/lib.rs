@@ -23,7 +23,7 @@ mod window_actions;
 pub use evildoer_base::range::CharIdx;
 pub use evildoer_base::{
 	ChangeSet, Key, KeyCode, Modifiers, MouseButton, MouseEvent, Range, Rope, RopeSlice,
-	ScrollDirection, Selection, SpecialKey, Transaction,
+	ScrollDirection, Selection, Transaction,
 };
 pub use evildoer_manifest::{
 	ACTIONS, ActionArgs, ActionContext, ActionDef, ActionHandler, ActionMode, ActionResult,

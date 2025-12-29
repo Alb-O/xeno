@@ -11,6 +11,7 @@ evildoer-tui = ["dep:evildoer-tui"]
 
 [dependencies]
 crossterm.workspace = true
+evildoer-keymap-parser.workspace = true
 evildoer-tui = { workspace = true, optional = true }
 log.workspace = true
 ropey.workspace = true

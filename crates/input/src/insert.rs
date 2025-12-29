@@ -1,4 +1,4 @@
-use evildoer_base::key::{Key, KeyCode, Modifiers, SpecialKey};
+use evildoer_base::key::{Key, KeyCode, Modifiers};
 use evildoer_manifest::{BindingMode, find_binding_resolved, resolve_action_id};
 
 use crate::InputHandler;
@@ -6,15 +6,13 @@ use crate::types::{KeyResult, Mode};
 
 impl InputHandler {
 	pub(crate) fn handle_insert_key(&mut self, key: Key) -> KeyResult {
-		if matches!(key.code, KeyCode::Special(SpecialKey::Escape)) {
+		if key.is_escape() {
 			self.mode = Mode::Normal;
 			self.reset_params();
 			return KeyResult::ModeChange(Mode::Normal);
 		}
 
-		// Backspace in insert mode deletes backward
-		if matches!(key.code, KeyCode::Special(SpecialKey::Backspace)) {
-			// Use typed dispatch for delete_back
+		if key.is_backspace() {
 			if let Some(id) = resolve_action_id("delete_back") {
 				return KeyResult::ActionById {
 					id,
@@ -23,7 +21,6 @@ impl InputHandler {
 					register: None,
 				};
 			}
-			// Fallback to string-based if not found (shouldn't happen)
 			return KeyResult::Action {
 				name: "delete_back",
 				count: 1,
@@ -33,7 +30,6 @@ impl InputHandler {
 		}
 
 		// Normalize Shift+Letter -> Uppercase Letter (no shift)
-		// This ensures typing Shift+a produces 'A' even if terminal sends 'a'+Shift.
 		let key = if key.modifiers.shift
 			&& let KeyCode::Char(c) = key.code
 			&& c.is_ascii_lowercase()
@@ -43,7 +39,7 @@ impl InputHandler {
 			key
 		};
 
-		// Try insert-mode keybindings first (typed dispatch)
+		// Try insert-mode keybindings first
 		if let Some(resolved) = find_binding_resolved(BindingMode::Insert, key) {
 			let count = if self.count > 0 {
 				self.count as usize
@@ -61,9 +57,9 @@ impl InputHandler {
 			};
 		}
 
-		// Fall back to normal mode bindings only for non-character keys (navigation)
+		// Fall back to normal mode bindings for navigation keys
 		let is_navigation_key =
-			matches!(key.code, KeyCode::Special(_)) || key.modifiers.ctrl || key.modifiers.alt;
+			!matches!(key.code, KeyCode::Char(_)) || key.modifiers.ctrl || key.modifiers.alt;
 
 		if is_navigation_key && let Some(resolved) = find_binding_resolved(BindingMode::Normal, key)
 		{
@@ -88,8 +84,9 @@ impl InputHandler {
 			KeyCode::Char(c) if key.modifiers.is_empty() || key.modifiers == Modifiers::SHIFT => {
 				KeyResult::InsertChar(c)
 			}
-			KeyCode::Special(SpecialKey::Enter) => KeyResult::InsertChar('\n'),
-			KeyCode::Special(SpecialKey::Tab) => KeyResult::InsertChar('\t'),
+			KeyCode::Space => KeyResult::InsertChar(' '),
+			KeyCode::Enter => KeyResult::InsertChar('\n'),
+			KeyCode::Tab => KeyResult::InsertChar('\t'),
 			_ => KeyResult::Consumed,
 		}
 	}

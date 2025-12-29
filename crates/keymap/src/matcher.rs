@@ -141,8 +141,8 @@ fn search<'a, T>(node: &'a Trie<T>, nodes: &[Node], pos: usize) -> Option<&'a T>
 			}
 			_ => None,
 		}) {
-			return Some(result);
-		}
+		return Some(result);
+	}
 
 	// 3. Any-char group match
 	node.groups.iter().find_map(|(n, child)| {

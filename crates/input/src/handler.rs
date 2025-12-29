@@ -1,4 +1,4 @@
-use evildoer_base::key::{Key, KeyCode, MouseButton, MouseEvent, SpecialKey};
+use evildoer_base::key::{Key, KeyCode, MouseButton, MouseEvent};
 use evildoer_manifest::{BindingMode, find_binding, find_binding_resolved};
 
 use crate::types::{KeyResult, Mode};
@@ -133,7 +133,7 @@ impl InputHandler {
 	}
 
 	pub(crate) fn handle_goto_key(&mut self, key: Key) -> KeyResult {
-		if matches!(key.code, KeyCode::Special(SpecialKey::Escape)) {
+		if key.is_escape() {
 			self.mode = Mode::Normal;
 			self.reset_params();
 			return KeyResult::ModeChange(Mode::Normal);
@@ -167,7 +167,7 @@ impl InputHandler {
 	}
 
 	pub(crate) fn handle_view_key(&mut self, key: Key) -> KeyResult {
-		if matches!(key.code, KeyCode::Special(SpecialKey::Escape)) {
+		if key.is_escape() {
 			self.mode = Mode::Normal;
 			self.reset_params();
 			return KeyResult::ModeChange(Mode::Normal);
@@ -201,7 +201,7 @@ impl InputHandler {
 	}
 
 	pub(crate) fn handle_window_key(&mut self, key: Key) -> KeyResult {
-		if matches!(key.code, KeyCode::Special(SpecialKey::Escape)) {
+		if key.is_escape() {
 			self.mode = Mode::Normal;
 			self.reset_params();
 			return KeyResult::ModeChange(Mode::Normal);
@@ -268,20 +268,8 @@ impl InputHandler {
 			return key;
 		}
 
-		match key.code {
-			// Punctuation/Symbols (e.g. ':', '!', '<')
-			// These are produced by Shift, but we treat them as distinct keys without implicit extend.
-			// Just drop the shift modifier so they match the bindings (which are usually Key::char(':')).
-			KeyCode::Char(_) => {
-				// Shift+char should still extend selection even if we drop the modifier for lookup.
-				self.extend = true;
-				key.drop_shift()
-			}
-			// Special keys (Arrows, PageUp, etc) with Shift -> Extend
-			KeyCode::Special(_) => {
-				self.extend = true;
-				key.drop_shift()
-			}
-		}
+		// Both char and special keys with Shift -> extend selection
+		self.extend = true;
+		key.drop_shift()
 	}
 }

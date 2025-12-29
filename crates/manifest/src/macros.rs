@@ -219,17 +219,16 @@ macro_rules! action {
 /// improving code locality and reducing the mental overhead of finding where an action
 /// is bound.
 ///
+/// Bindings use KDL syntax where each line is `mode "key1" "key2" ...`.
+///
 /// # Syntax
 ///
 /// ```ignore
 /// bound_action!(
 ///     action_name,
 ///     description: "What this action does",
-///     bindings: [
-///         Normal => [Key::char('x'), Key::special(SpecialKey::Delete)],
-///         Insert => [Key::special(SpecialKey::Delete)],
-///         Goto => [Key::char('x')],
-///     ],
+///     bindings: r#"normal "x" "delete"
+/// insert "delete""#,
 ///     |ctx| { /* handler body */ }
 /// );
 /// ```
@@ -241,11 +240,9 @@ macro_rules! action {
 /// bound_action!(
 ///     document_start,
 ///     description: "Move to document start",
-///     bindings: [
-///         Normal => [Key::special(SpecialKey::Home).with_ctrl()],
-///         Goto => [Key::char('g'), Key::char('k')],
-///         Insert => [Key::special(SpecialKey::Home).with_ctrl()],
-///     ],
+///     bindings: r#"normal "ctrl-home"
+/// goto "g" "k"
+/// insert "ctrl-home""#,
 ///     |_ctx| ActionResult::Motion(...)
 /// );
 ///
@@ -253,7 +250,7 @@ macro_rules! action {
 /// bound_action!(
 ///     split_lines,
 ///     description: "Split selection into lines",
-///     bindings: [Normal => [Key::char('S')]],
+///     bindings: r#"normal "S""#,
 ///     handler: split_lines_impl
 /// );
 /// ```
@@ -262,7 +259,7 @@ macro_rules! bound_action {
 	// Inline closure variant
 	($name:ident,
 		description: $desc:expr,
-		bindings: [$($mode:ident => [$($key:expr),+ $(,)?]),+ $(,)?]
+		bindings: $kdl:literal
 		$(, priority: $priority:expr)?
 		$(, caps: $caps:expr)?
 		$(, flags: $flags:expr)?
@@ -277,7 +274,7 @@ macro_rules! bound_action {
 
 			$crate::bound_action!($name,
 				description: $desc,
-				bindings: [$($mode => [$($key),+]),+]
+				bindings: $kdl
 				$(, priority: $priority)?
 				$(, caps: $caps)?
 				$(, flags: $flags)?,
@@ -289,7 +286,7 @@ macro_rules! bound_action {
 	// Named handler variant
 	($name:ident,
 		description: $desc:expr,
-		bindings: [$($mode:ident => [$($key:expr),+ $(,)?]),+ $(,)?]
+		bindings: $kdl:literal
 		$(, priority: $priority:expr)?
 		$(, caps: $caps:expr)?
 		$(, flags: $flags:expr)?
@@ -297,7 +294,6 @@ macro_rules! bound_action {
 		handler: $handler:expr
 	) => {
 		paste::paste! {
-			// Register the action
 			#[allow(non_upper_case_globals)]
 			#[linkme::distributed_slice($crate::ACTIONS)]
 			static [<ACTION_ $name>]: $crate::actions::ActionDef = $crate::actions::ActionDef {
@@ -312,35 +308,7 @@ macro_rules! bound_action {
 				flags: $crate::bound_action!(@opt $({$flags})?, $crate::flags::NONE),
 			};
 
-			$($crate::bound_action!(@mode_keys $name, $mode, [] $($key),+);)+
-		}
-	};
-
-	(@mode_keys $name:ident, $mode:ident, [$($done:tt)*] $key:expr $(, $rest:expr)+) => {
-		paste::paste! {
-			#[allow(non_upper_case_globals)]
-			#[linkme::distributed_slice($crate::keybindings::[<KEYBINDINGS_ $mode:upper>])]
-			static [<KB_ $name:upper _ $mode:upper _ $($done)*>]: $crate::keybindings::KeyBindingDef =
-				$crate::keybindings::KeyBindingDef {
-					mode: $crate::keybindings::BindingMode::$mode,
-					key: $key,
-					action: stringify!($name),
-					priority: 100,
-				};
-		}
-		$crate::bound_action!(@mode_keys $name, $mode, [$($done)* _] $($rest),+);
-	};
-	(@mode_keys $name:ident, $mode:ident, [$($done:tt)*] $key:expr) => {
-		paste::paste! {
-			#[allow(non_upper_case_globals)]
-			#[linkme::distributed_slice($crate::keybindings::[<KEYBINDINGS_ $mode:upper>])]
-			static [<KB_ $name:upper _ $mode:upper _ $($done)*>]: $crate::keybindings::KeyBindingDef =
-				$crate::keybindings::KeyBindingDef {
-					mode: $crate::keybindings::BindingMode::$mode,
-					key: $key,
-					action: stringify!($name),
-					priority: 100,
-				};
+			evildoer_macro::parse_keybindings!($name, $kdl);
 		}
 	};
 
@@ -353,47 +321,18 @@ macro_rules! bound_action {
 /// Use this when you need to add bindings to an action defined elsewhere,
 /// or for secondary bindings that don't belong with the action definition.
 ///
+/// Uses KDL syntax where each line is `mode "key1" "key2" ...`.
+///
 /// # Examples
 ///
 /// ```ignore
-/// // Add a binding in a different mode
-/// bind!(scroll_down, View => [Key::char('j')]);
-///
-/// // Add multiple bindings
-/// bind!(move_left, Insert => [Key::special(SpecialKey::Left)]);
+/// bind!(scroll_down, r#"view "j""#);
+/// bind!(document_start, r#"goto "g" "k""#);
 /// ```
 #[macro_export]
 macro_rules! bind {
-	($action:ident, $($mode:ident => [$($key:expr),+ $(,)?]),+ $(,)?) => {
-		$($crate::bind!(@mode_keys $action, $mode, [] $($key),+);)+
-	};
-
-	(@mode_keys $action:ident, $mode:ident, [$($done:tt)*] $key:expr $(, $rest:expr)+) => {
-		paste::paste! {
-			#[allow(non_upper_case_globals)]
-			#[linkme::distributed_slice($crate::keybindings::[<KEYBINDINGS_ $mode:upper>])]
-			static [<KB_ $action:upper _ $mode:upper _EXTRA_ $($done)*>]: $crate::keybindings::KeyBindingDef =
-				$crate::keybindings::KeyBindingDef {
-					mode: $crate::keybindings::BindingMode::$mode,
-					key: $key,
-					action: stringify!($action),
-					priority: 100,
-				};
-		}
-		$crate::bind!(@mode_keys $action, $mode, [$($done)* _] $($rest),+);
-	};
-	(@mode_keys $action:ident, $mode:ident, [$($done:tt)*] $key:expr) => {
-		paste::paste! {
-			#[allow(non_upper_case_globals)]
-			#[linkme::distributed_slice($crate::keybindings::[<KEYBINDINGS_ $mode:upper>])]
-			static [<KB_ $action:upper _ $mode:upper _EXTRA_ $($done)*>]: $crate::keybindings::KeyBindingDef =
-				$crate::keybindings::KeyBindingDef {
-					mode: $crate::keybindings::BindingMode::$mode,
-					key: $key,
-					action: stringify!($action),
-					priority: 100,
-				};
-		}
+	($action:ident, $kdl:literal) => {
+		evildoer_macro::parse_keybindings!($action, $kdl);
 	};
 }
 

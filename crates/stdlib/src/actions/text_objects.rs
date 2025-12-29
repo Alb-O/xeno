@@ -1,6 +1,5 @@
 //! Text object selection actions.
 
-use evildoer_base::key::Key;
 use evildoer_base::range::Range;
 use evildoer_manifest::actions::{ActionResult, ObjectSelectionKind, PendingAction, PendingKind};
 use evildoer_manifest::{TextObjectDef, bound_action, find_text_object_by_trigger};
@@ -56,30 +55,18 @@ fn select_to_boundary(
 	}
 }
 
-bound_action!(
-	select_object_inner,
-	description: "Select inner text object",
-	bindings: [Normal => [Key::alt('i')]],
-	|ctx| select_object_with_trigger(ctx, ObjectSelectionKind::Inner)
-);
+bound_action!(select_object_inner, description: "Select inner text object",
+	bindings: r#"normal "alt-i""#,
+	|ctx| select_object_with_trigger(ctx, ObjectSelectionKind::Inner));
 
-bound_action!(
-	select_object_around,
-	description: "Select around text object",
-	bindings: [Normal => [Key::alt('a')]],
-	|ctx| select_object_with_trigger(ctx, ObjectSelectionKind::Around)
-);
+bound_action!(select_object_around, description: "Select around text object",
+	bindings: r#"normal "alt-a""#,
+	|ctx| select_object_with_trigger(ctx, ObjectSelectionKind::Around));
 
-bound_action!(
-	select_object_to_start,
-	description: "Select to object start",
-	bindings: [Normal => [Key::char('['), Key::char('{')]],
-	|ctx| select_object_with_trigger(ctx, ObjectSelectionKind::ToStart)
-);
+bound_action!(select_object_to_start, description: "Select to object start",
+	bindings: r#"normal "[" "{""#,
+	|ctx| select_object_with_trigger(ctx, ObjectSelectionKind::ToStart));
 
-bound_action!(
-	select_object_to_end,
-	description: "Select to object end",
-	bindings: [Normal => [Key::char(']'), Key::char('}')]],
-	|ctx| select_object_with_trigger(ctx, ObjectSelectionKind::ToEnd)
-);
+bound_action!(select_object_to_end, description: "Select to object end",
+	bindings: r#"normal "]" "}""#,
+	|ctx| select_object_with_trigger(ctx, ObjectSelectionKind::ToEnd));

@@ -103,7 +103,7 @@ pub(crate) const MODIFIERS: [Modifier; 4] = [
 /// Supported keyboard key types for input nodes.
 ///
 /// This enum includes character keys, function keys, and special keys.
-#[derive(Clone, Debug, Display, PartialEq, Eq, Hash, EnumString, AsRefStr)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, EnumString, AsRefStr)]
 #[strum(serialize_all = "lowercase")]
 pub enum Key {
 	/// Shift+Tab / Back tab.
@@ -194,6 +194,17 @@ impl std::fmt::Display for CharGroup {
 	}
 }
 
+impl std::fmt::Display for Key {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		match self {
+			Key::Char(c) => write!(f, "{c}"),
+			Key::F(n) => write!(f, "f{n}"),
+			Key::Group(g) => write!(f, "{g}"),
+			_ => write!(f, "{}", self.as_ref()),
+		}
+	}
+}
+
 /// Custom deserialization for [`Node`] from a string.
 ///
 /// Accepts a string representation (e.g., "Ctrl-Shift-A") and parses it into a `Node`.
@@ -215,12 +226,6 @@ impl Display for Node {
 				write!(f, "{m}{KEY_SEP}").unwrap();
 			}
 		}
-
-		match self.key {
-			Key::Char(char) => write!(f, "{char}"),
-			Key::F(n) => write!(f, "{}{n}", self.key),
-			Key::Group(n) => write!(f, "{n}"),
-			_ => write!(f, "{}", self.key),
-		}
+		write!(f, "{}", self.key)
 	}
 }

@@ -8,7 +8,7 @@
 // that are actually linked into the binary.
 extern crate evildoer_stdlib;
 
-use evildoer_base::key::{Key, KeyCode, Modifiers, SpecialKey};
+use evildoer_base::key::{Key, KeyCode, Modifiers};
 use evildoer_input::{InputHandler, KeyResult};
 use evildoer_manifest::find_action_by_id;
 
@@ -114,7 +114,7 @@ fn test_shift_w_uses_uppercase_w_binding_with_extend() {
 
 #[test]
 fn test_shift_page_down_extends() {
-	let key = Key::special(SpecialKey::PageDown).with_shift();
+	let key = Key::new(KeyCode::PageDown).with_shift();
 	let mut h = InputHandler::new();
 	let res = h.handle_key(key);
 	let (name, extend) = extract_action(res).expect("should return an action for Shift+PageDown");
@@ -124,7 +124,7 @@ fn test_shift_page_down_extends() {
 
 #[test]
 fn test_shift_page_up_extends() {
-	let key = Key::special(SpecialKey::PageUp).with_shift();
+	let key = Key::new(KeyCode::PageUp).with_shift();
 	let mut h = InputHandler::new();
 	let res = h.handle_key(key);
 	let (name, extend) = extract_action(res).expect("should return an action for Shift+PageUp");
@@ -134,7 +134,7 @@ fn test_shift_page_up_extends() {
 
 #[test]
 fn test_shift_home_extends() {
-	let key = Key::special(SpecialKey::Home).with_shift();
+	let key = Key::new(KeyCode::Home).with_shift();
 	let mut h = InputHandler::new();
 	let res = h.handle_key(key);
 	let (name, extend) = extract_action(res).expect("should return an action for Shift+Home");
@@ -144,7 +144,7 @@ fn test_shift_home_extends() {
 
 #[test]
 fn test_shift_end_extends() {
-	let key = Key::special(SpecialKey::End).with_shift();
+	let key = Key::new(KeyCode::End).with_shift();
 	let mut h = InputHandler::new();
 	let res = h.handle_key(key);
 	let (name, extend) = extract_action(res).expect("should return an action for Shift+End");
@@ -154,7 +154,7 @@ fn test_shift_end_extends() {
 
 #[test]
 fn test_page_down_no_shift_no_extend() {
-	let key = Key::special(SpecialKey::PageDown);
+	let key = Key::new(KeyCode::PageDown);
 	let mut h = InputHandler::new();
 	let res = h.handle_key(key);
 	let (name, extend) = extract_action(res).expect("should return an action for PageDown");
@@ -164,7 +164,7 @@ fn test_page_down_no_shift_no_extend() {
 
 #[test]
 fn test_shift_arrow_extends() {
-	let key = Key::special(SpecialKey::Right).with_shift();
+	let key = Key::new(KeyCode::Right).with_shift();
 	let mut h = InputHandler::new();
 	let res = h.handle_key(key);
 	let (name, extend) = extract_action(res).expect("should return an action for Shift+Right");

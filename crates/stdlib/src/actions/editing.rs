@@ -1,45 +1,65 @@
 //! Editing actions (delete, yank, paste, undo, redo, etc.).
 
-use evildoer_base::key::Key;
 use evildoer_manifest::actions::{ActionDef, ActionResult, EditAction, PendingAction, PendingKind};
 use evildoer_manifest::{ACTIONS, bound_action};
 use linkme::distributed_slice;
 
-macro_rules! bound_edit_action {
-	($name:ident, key: $key:expr, description: $desc:expr, edit: $edit:expr) => {
-		bound_action!(
-			$name,
-			description: $desc,
-			bindings: [Normal => [$key]],
-			|_ctx| ActionResult::Edit($edit)
-		);
-	};
-}
+bound_action!(delete, description: "Delete selection", bindings: r#"normal "d""#,
+	|_ctx| ActionResult::Edit(EditAction::Delete { yank: true }));
 
-bound_edit_action!(delete, key: Key::char('d'), description: "Delete selection", edit: EditAction::Delete { yank: true });
-bound_edit_action!(delete_no_yank, key: Key::alt('d'), description: "Delete selection (no yank)", edit: EditAction::Delete { yank: false });
-bound_edit_action!(change, key: Key::char('c'), description: "Change selection", edit: EditAction::Change { yank: true });
-bound_edit_action!(change_no_yank, key: Key::alt('c'), description: "Change selection (no yank)", edit: EditAction::Change { yank: false });
-bound_edit_action!(yank, key: Key::char('y'), description: "Yank selection", edit: EditAction::Yank);
+bound_action!(delete_no_yank, description: "Delete selection (no yank)", bindings: r#"normal "alt-d""#,
+	|_ctx| ActionResult::Edit(EditAction::Delete { yank: false }));
 
-bound_edit_action!(paste_after, key: Key::char('p'), description: "Paste after cursor", edit: EditAction::Paste { before: false });
-bound_edit_action!(paste_before, key: Key::char('P'), description: "Paste before cursor", edit: EditAction::Paste { before: true });
-bound_edit_action!(paste_all_after, key: Key::alt('p'), description: "Paste all after", edit: EditAction::PasteAll { before: false });
-bound_edit_action!(paste_all_before, key: Key::alt('P'), description: "Paste all before", edit: EditAction::PasteAll { before: true });
+bound_action!(change, description: "Change selection", bindings: r#"normal "c""#,
+	|_ctx| ActionResult::Edit(EditAction::Change { yank: true }));
 
-bound_edit_action!(undo, key: Key::char('u'), description: "Undo last change", edit: EditAction::Undo);
-bound_edit_action!(redo, key: Key::char('U'), description: "Redo last change", edit: EditAction::Redo);
+bound_action!(change_no_yank, description: "Change selection (no yank)", bindings: r#"normal "alt-c""#,
+	|_ctx| ActionResult::Edit(EditAction::Change { yank: false }));
 
-bound_edit_action!(indent, key: Key::char('>'), description: "Indent selection", edit: EditAction::Indent);
-bound_edit_action!(deindent, key: Key::char('<'), description: "Deindent selection", edit: EditAction::Deindent);
+bound_action!(yank, description: "Yank selection", bindings: r#"normal "y""#,
+	|_ctx| ActionResult::Edit(EditAction::Yank));
 
-bound_edit_action!(to_lowercase, key: Key::char('`'), description: "Convert to lowercase", edit: EditAction::ToLowerCase);
-bound_edit_action!(to_uppercase, key: Key::char('~'), description: "Convert to uppercase", edit: EditAction::ToUpperCase);
-bound_edit_action!(swap_case, key: Key::alt('`'), description: "Swap case", edit: EditAction::SwapCase);
+bound_action!(paste_after, description: "Paste after cursor", bindings: r#"normal "p""#,
+	|_ctx| ActionResult::Edit(EditAction::Paste { before: false }));
 
-bound_edit_action!(join_lines, key: Key::alt('j'), description: "Join lines", edit: EditAction::JoinLines);
-bound_edit_action!(open_below, key: Key::char('o'), description: "Open line below", edit: EditAction::OpenBelow);
-bound_edit_action!(open_above, key: Key::char('O'), description: "Open line above", edit: EditAction::OpenAbove);
+bound_action!(paste_before, description: "Paste before cursor", bindings: r#"normal "P""#,
+	|_ctx| ActionResult::Edit(EditAction::Paste { before: true }));
+
+bound_action!(paste_all_after, description: "Paste all after", bindings: r#"normal "alt-p""#,
+	|_ctx| ActionResult::Edit(EditAction::PasteAll { before: false }));
+
+bound_action!(paste_all_before, description: "Paste all before", bindings: r#"normal "alt-P""#,
+	|_ctx| ActionResult::Edit(EditAction::PasteAll { before: true }));
+
+bound_action!(undo, description: "Undo last change", bindings: r#"normal "u""#,
+	|_ctx| ActionResult::Edit(EditAction::Undo));
+
+bound_action!(redo, description: "Redo last change", bindings: r#"normal "U""#,
+	|_ctx| ActionResult::Edit(EditAction::Redo));
+
+bound_action!(indent, description: "Indent selection", bindings: r#"normal ">""#,
+	|_ctx| ActionResult::Edit(EditAction::Indent));
+
+bound_action!(deindent, description: "Deindent selection", bindings: r#"normal "<""#,
+	|_ctx| ActionResult::Edit(EditAction::Deindent));
+
+bound_action!(to_lowercase, description: "Convert to lowercase", bindings: r#"normal "`""#,
+	|_ctx| ActionResult::Edit(EditAction::ToLowerCase));
+
+bound_action!(to_uppercase, description: "Convert to uppercase", bindings: r#"normal "~""#,
+	|_ctx| ActionResult::Edit(EditAction::ToUpperCase));
+
+bound_action!(swap_case, description: "Swap case", bindings: r#"normal "alt-`""#,
+	|_ctx| ActionResult::Edit(EditAction::SwapCase));
+
+bound_action!(join_lines, description: "Join lines", bindings: r#"normal "alt-j""#,
+	|_ctx| ActionResult::Edit(EditAction::JoinLines));
+
+bound_action!(open_below, description: "Open line below", bindings: r#"normal "o""#,
+	|_ctx| ActionResult::Edit(EditAction::OpenBelow));
+
+bound_action!(open_above, description: "Open line above", bindings: r#"normal "O""#,
+	|_ctx| ActionResult::Edit(EditAction::OpenAbove));
 
 #[distributed_slice(ACTIONS)]
 static ACTION_DELETE_BACK: ActionDef = ActionDef {
@@ -57,7 +77,7 @@ static ACTION_DELETE_BACK: ActionDef = ActionDef {
 bound_action!(
 	replace_char,
 	description: "Replace selection with character",
-	bindings: [Normal => [Key::char('r')]],
+	bindings: r#"normal "r""#,
 	|ctx| match ctx.args.char {
 		Some(ch) => ActionResult::Edit(EditAction::ReplaceWithChar { ch }),
 		None => ActionResult::Pending(PendingAction {
