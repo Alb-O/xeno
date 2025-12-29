@@ -151,8 +151,8 @@ impl BufferOpsAccess for Editor {
 		self.focus_prev_buffer();
 	}
 
-	fn close_buffer(&mut self) {
-		self.close_current_buffer();
+	fn close_split(&mut self) {
+		self.close_current_view();
 	}
 
 	fn close_other_buffers(&mut self) {

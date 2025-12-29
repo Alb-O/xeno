@@ -270,8 +270,8 @@ pub trait BufferOpsAccess {
 	fn buffer_next(&mut self);
 	/// Switch to the previous buffer.
 	fn buffer_prev(&mut self);
-	/// Close the current buffer.
-	fn close_buffer(&mut self);
+	/// Close the current split.
+	fn close_split(&mut self);
 	/// Close all other buffers.
 	fn close_other_buffers(&mut self);
 	/// Focus the split to the left.

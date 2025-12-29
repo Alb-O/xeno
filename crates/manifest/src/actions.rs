@@ -56,9 +56,9 @@ pub enum ActionResult {
 	/// Switch to previous buffer.
 	#[terminal_safe]
 	BufferPrev,
-	/// Close current buffer/view.
+	/// Close current split.
 	#[terminal_safe]
-	CloseBuffer,
+	CloseSplit,
 	/// Close all other buffers.
 	#[terminal_safe]
 	CloseOtherBuffers,

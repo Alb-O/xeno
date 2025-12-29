@@ -89,13 +89,13 @@ action!(buffer_prev, {
 	handler_slice: RESULT_BUFFER_PREV_HANDLERS,
 }, |ops| ops.buffer_prev());
 
-action!(close_buffer, {
-	description: "Close current buffer",
+action!(close_split, {
+	description: "Close current split",
 	key: Key::char('q'),
 	mode: Window,
-	result: CloseBuffer,
-	handler_slice: RESULT_CLOSE_BUFFER_HANDLERS,
-}, |ops| ops.close_buffer());
+	result: CloseSplit,
+	handler_slice: RESULT_CLOSE_SPLIT_HANDLERS,
+}, |ops| ops.close_split());
 
 action!(close_other_buffers, {
 	description: "Close all other buffers",
@@ -106,9 +106,9 @@ action!(close_other_buffers, {
 }, |ops| ops.close_other_buffers());
 
 #[distributed_slice(KEYBINDINGS_WINDOW)]
-static KB_CLOSE_BUFFER_ALT: KeyBindingDef = KeyBindingDef {
+static KB_CLOSE_SPLIT_ALT: KeyBindingDef = KeyBindingDef {
 	mode: evildoer_manifest::keybindings::BindingMode::Window,
 	key: Key::char('c'),
-	action: "close_buffer",
+	action: "close_split",
 	priority: 100,
 };
