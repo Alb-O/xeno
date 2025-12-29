@@ -854,7 +854,7 @@ dependencies = [
 
 [[package]]
 name = "evildoer-acp"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "agent-client-protocol",
  "anyhow",
@@ -875,7 +875,7 @@ dependencies = [
 
 [[package]]
 name = "evildoer-api"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "agentfs-sdk",
  "anyhow",
@@ -913,7 +913,7 @@ dependencies = [
 
 [[package]]
 name = "evildoer-base"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "crossterm",
  "evildoer-keymap-parser",
@@ -930,7 +930,7 @@ dependencies = [
 
 [[package]]
 name = "evildoer-config"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "evildoer-base",
  "evildoer-manifest",
@@ -941,7 +941,7 @@ dependencies = [
 
 [[package]]
 name = "evildoer-extensions"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "anyhow",
  "evildoer-api",
@@ -958,7 +958,7 @@ dependencies = [
 
 [[package]]
 name = "evildoer-input"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "evildoer-base",
  "evildoer-manifest",
@@ -969,7 +969,7 @@ dependencies = [
 
 [[package]]
 name = "evildoer-keymap"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "evildoer-keymap-derive",
  "evildoer-keymap-parser",
@@ -981,7 +981,7 @@ dependencies = [
 
 [[package]]
 name = "evildoer-keymap-derive"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "evildoer-keymap",
  "evildoer-keymap-parser",
@@ -994,7 +994,7 @@ dependencies = [
 
 [[package]]
 name = "evildoer-keymap-parser"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "serde",
  "strum 0.27.2",
@@ -1004,7 +1004,7 @@ dependencies = [
 
 [[package]]
 name = "evildoer-language"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "cc",
  "evildoer-base",
@@ -1024,7 +1024,7 @@ dependencies = [
 
 [[package]]
 name = "evildoer-lsp"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "futures",
  "lsp-types",
@@ -1048,7 +1048,7 @@ dependencies = [
 
 [[package]]
 name = "evildoer-macro"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "evildoer-keymap-parser",
  "kdl",
@@ -1059,7 +1059,7 @@ dependencies = [
 
 [[package]]
 name = "evildoer-manifest"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "async-trait",
  "evildoer-base",
@@ -1077,14 +1077,14 @@ dependencies = [
 
 [[package]]
 name = "evildoer-runtime"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "include_dir",
 ]
 
 [[package]]
 name = "evildoer-stdlib"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "async-trait",
  "evildoer-base",
@@ -1108,7 +1108,7 @@ dependencies = [
 
 [[package]]
 name = "evildoer-term"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "agent-client-protocol",
  "agentfs-sdk",
