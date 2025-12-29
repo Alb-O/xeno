@@ -1,8 +1,7 @@
 //! Mode indicator segment.
 
 use evildoer_manifest::statusline::{RenderedSegment, SegmentPosition, SegmentStyle};
-
-use crate::statusline_segment;
+use evildoer_manifest::statusline_segment;
 
 statusline_segment!(SEG_MODE, "mode", SegmentPosition::Left, 0, true, |ctx| {
 	Some(RenderedSegment {

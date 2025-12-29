@@ -18,64 +18,87 @@
 //! - [`language!`] - Language definitions for syntax highlighting
 //! - [`option!`] - Configuration options
 //! - [`text_object!`] - Text object selection (`iw`, `a"`, etc.)
+//! - [`statusline_segment!`] - Statusline segment definitions
+//! - [`full_action!`] - Action + keybinding + result handler combined
+//! - [`stub_action!`] - Placeholder for unimplemented features
+
+#[doc(hidden)]
+#[macro_export]
+macro_rules! __opt {
+	({$val:expr}, $default:expr) => { $val };
+	(, $default:expr) => { $default };
+}
+
+#[doc(hidden)]
+#[macro_export]
+macro_rules! __opt_slice {
+	({$val:expr}) => { $val };
+	() => { &[] };
+}
+
+#[doc(hidden)]
+#[macro_export]
+macro_rules! __opt_static {
+	({$val:expr}) => { Some($val) };
+	() => { None };
+}
 
 /// Registers a language definition in the [`LANGUAGES`](crate::LANGUAGES) slice.
 ///
-/// Supports optional fields for file detection (extensions, globs, shebangs)
-/// and syntax configuration (comment tokens, injection regex).
+/// # Example
+///
+/// ```ignore
+/// language!(rust, {
+///     grammar: "rust",
+///     extensions: &["rs"],
+///     comment_tokens: &["//"],
+///     block_comment: ("/*", "*/"),
+///     description: "Rust source file",
+/// });
+/// ```
 #[macro_export]
 macro_rules! language {
-    ($name:ident, {
-        $(grammar: $grammar:expr,)?
-        $(scope: $scope:expr,)?
-        $(extensions: $ext:expr,)?
-        $(filenames: $fnames:expr,)?
-        $(globs: $globs:expr,)?
-        $(shebangs: $shebangs:expr,)?
-        $(first_line_patterns: $patterns:expr,)?
-        $(injection_regex: $injection:expr,)?
-        $(comment_tokens: $comments:expr,)?
-        $(block_comment: $block:expr,)?
-        description: $desc:expr
-        $(, priority: $priority:expr)?
-        $(, source: $source:expr)?
-        $(,)?
-    }) => {
-        paste::paste! {
-            #[allow(non_upper_case_globals)]
-            #[linkme::distributed_slice($crate::LANGUAGES)]
-            static [<LANG_ $name>]: $crate::LanguageDef = $crate::LanguageDef {
-                id: concat!(env!("CARGO_PKG_NAME"), "::", stringify!($name)),
-                name: stringify!($name),
-                grammar: $crate::language!(@opt_static $({$grammar})?),
-                scope: $crate::language!(@opt_static $({$scope})?),
-                extensions: $crate::language!(@opt_slice $({$ext})?),
-                filenames: $crate::language!(@opt_slice $({$fnames})?),
-                globs: $crate::language!(@opt_slice $({$globs})?),
-                shebangs: $crate::language!(@opt_slice $({$shebangs})?),
-                first_line_patterns: $crate::language!(@opt_slice $({$patterns})?),
-                injection_regex: $crate::language!(@opt_static $({$injection})?),
-                comment_tokens: $crate::language!(@opt_slice $({$comments})?),
-                block_comment: $crate::language!(@opt_tuple $({$block})?),
-                description: $desc,
-                priority: $crate::language!(@opt $({$priority})?, 0),
-                source: $crate::language!(@opt $({$source})?, $crate::RegistrySource::Crate(env!("CARGO_PKG_NAME"))),
-            };
-        }
-    };
-    (@opt_static {$val:expr}) => { Some($val) };
-    (@opt_static) => { None };
-    (@opt_slice {$val:expr}) => { $val };
-    (@opt_slice) => { &[] };
-    (@opt_tuple {$val:expr}) => { Some($val) };
-    (@opt_tuple) => { None };
-    (@opt {$val:expr}, $default:expr) => { $val };
-    (@opt , $default:expr) => { $default };
+	($name:ident, {
+		$(grammar: $grammar:expr,)?
+		$(scope: $scope:expr,)?
+		$(extensions: $ext:expr,)?
+		$(filenames: $fnames:expr,)?
+		$(globs: $globs:expr,)?
+		$(shebangs: $shebangs:expr,)?
+		$(first_line_patterns: $patterns:expr,)?
+		$(injection_regex: $injection:expr,)?
+		$(comment_tokens: $comments:expr,)?
+		$(block_comment: $block:expr,)?
+		description: $desc:expr
+		$(, priority: $priority:expr)?
+		$(, source: $source:expr)?
+		$(,)?
+	}) => {
+		paste::paste! {
+			#[allow(non_upper_case_globals)]
+			#[linkme::distributed_slice($crate::LANGUAGES)]
+			static [<LANG_ $name>]: $crate::LanguageDef = $crate::LanguageDef {
+				id: concat!(env!("CARGO_PKG_NAME"), "::", stringify!($name)),
+				name: stringify!($name),
+				grammar: $crate::__opt_static!($({$grammar})?),
+				scope: $crate::__opt_static!($({$scope})?),
+				extensions: $crate::__opt_slice!($({$ext})?),
+				filenames: $crate::__opt_slice!($({$fnames})?),
+				globs: $crate::__opt_slice!($({$globs})?),
+				shebangs: $crate::__opt_slice!($({$shebangs})?),
+				first_line_patterns: $crate::__opt_slice!($({$patterns})?),
+				injection_regex: $crate::__opt_static!($({$injection})?),
+				comment_tokens: $crate::__opt_slice!($({$comments})?),
+				block_comment: $crate::__opt_static!($({$block})?),
+				description: $desc,
+				priority: $crate::__opt!($({$priority})?, 0),
+				source: $crate::__opt!($({$source})?, $crate::RegistrySource::Crate(env!("CARGO_PKG_NAME"))),
+			};
+		}
+	};
 }
 
 /// Registers a configuration option in the [`OPTIONS`](crate::options::OPTIONS) slice.
-///
-/// Options have a type, default value, and scope (global, buffer, or window).
 #[macro_export]
 macro_rules! option {
 	($name:ident, $type:ident, $default:expr, $scope:ident, $desc:expr) => {
@@ -96,9 +119,6 @@ macro_rules! option {
 }
 
 /// Registers an ex-mode command in the [`COMMANDS`](crate::COMMANDS) slice.
-///
-/// Commands are invoked via the command line (`:write`, `:quit`, etc.)
-/// and receive a [`CommandContext`](crate::CommandContext) with arguments.
 #[macro_export]
 macro_rules! command {
 	($name:ident, {
@@ -116,30 +136,30 @@ macro_rules! command {
 			static [<CMD_ $name>]: $crate::CommandDef = $crate::CommandDef {
 				id: concat!(env!("CARGO_PKG_NAME"), "::", stringify!($name)),
 				name: stringify!($name),
-				aliases: $crate::command!(@opt $({$aliases})?, &[]),
+				aliases: $crate::__opt_slice!($({$aliases})?),
 				description: $desc,
 				handler: $handler,
 				user_data: None,
-				priority: $crate::command!(@opt $({$priority})?, 0),
-				source: $crate::command!(@opt $({$source})?, $crate::RegistrySource::Crate(env!("CARGO_PKG_NAME"))),
-				required_caps: $crate::command!(@opt $({$caps})?, &[]),
-				flags: $crate::command!(@opt $({$flags})?, $crate::flags::NONE),
+				priority: $crate::__opt!($({$priority})?, 0),
+				source: $crate::__opt!($({$source})?, $crate::RegistrySource::Crate(env!("CARGO_PKG_NAME"))),
+				required_caps: $crate::__opt_slice!($({$caps})?),
+				flags: $crate::__opt!($({$flags})?, $crate::flags::NONE),
 			};
 		}
 	};
-	(@opt {$val:expr}, $default:expr) => { $val };
-	(@opt , $default:expr) => { $default };
 }
 
 /// Registers an action in the [`ACTIONS`](crate::ACTIONS) slice.
 ///
-/// Actions are the fundamental unit of editor behavior, invoked by keybindings.
 /// Prefer [`bound_action!`] when the action has associated keybindings.
 ///
-/// Supports three handler forms:
-/// - `handler: fn_name` - Named function reference
-/// - `|ctx| expr` - Inline closure
-/// - `result: ActionResult::Variant` - Static result
+/// # Forms
+///
+/// ```ignore
+/// action!(name, { description: "..." }, handler: my_handler);
+/// action!(name, { description: "..." }, |ctx| { ... });
+/// action!(name, { description: "..." }, result: ActionResult::Variant);
+/// ```
 #[macro_export]
 macro_rules! action {
 	($name:ident, {
@@ -157,16 +177,17 @@ macro_rules! action {
 			static [<ACTION_ $name>]: $crate::actions::ActionDef = $crate::actions::ActionDef {
 				id: concat!(env!("CARGO_PKG_NAME"), "::", stringify!($name)),
 				name: stringify!($name),
-				aliases: $crate::action!(@opt $({$aliases})?, &[]),
+				aliases: $crate::__opt_slice!($({$aliases})?),
 				description: $desc,
 				handler: $handler,
-				priority: $crate::action!(@opt $({$priority})?, 0),
-				source: $crate::action!(@opt $({$source})?, $crate::RegistrySource::Crate(env!("CARGO_PKG_NAME"))),
-				required_caps: $crate::action!(@opt $({$caps})?, &[]),
-				flags: $crate::action!(@opt $({$flags})?, $crate::flags::NONE),
+				priority: $crate::__opt!($({$priority})?, 0),
+				source: $crate::__opt!($({$source})?, $crate::RegistrySource::Crate(env!("CARGO_PKG_NAME"))),
+				required_caps: $crate::__opt_slice!($({$caps})?),
+				flags: $crate::__opt!($({$flags})?, $crate::flags::NONE),
 			};
 		}
 	};
+
 	($name:ident, {
 		$(aliases: $aliases:expr,)?
 		description: $desc:expr
@@ -181,16 +202,18 @@ macro_rules! action {
 			fn [<handler_ $name>]($ctx: &$crate::actions::ActionContext) -> $crate::actions::ActionResult {
 				$body
 			}
+
 			$crate::action!($name, {
 				$(aliases: $aliases,)?
-				description: $desc,
-				priority: $crate::action!(@opt $({$priority})?, 0),
-				caps: $crate::action!(@opt $({$caps})?, &[]),
-				flags: $crate::action!(@opt $({$flags})?, $crate::flags::NONE),
-				source: $crate::action!(@opt $({$source})?, $crate::RegistrySource::Crate(env!("CARGO_PKG_NAME"))),
+				description: $desc
+				$(, priority: $priority)?
+				$(, caps: $caps)?
+				$(, flags: $flags)?
+				$(, source: $source)?
 			}, handler: [<handler_ $name>]);
 		}
 	};
+
 	($name:ident, {
 		$(aliases: $aliases:expr,)?
 		description: $desc:expr
@@ -202,61 +225,32 @@ macro_rules! action {
 	}, result: $result:expr) => {
 		$crate::action!($name, {
 			$(aliases: $aliases,)?
-			description: $desc,
-			priority: $crate::action!(@opt $({$priority})?, 0),
-			caps: $crate::action!(@opt $({$caps})?, &[]),
-			flags: $crate::action!(@opt $({$flags})?, $crate::flags::NONE),
-			source: $crate::action!(@opt $({$source})?, $crate::RegistrySource::Crate(env!("CARGO_PKG_NAME"))),
-		}, handler: |_ctx| $result);
+			description: $desc
+			$(, priority: $priority)?
+			$(, caps: $caps)?
+			$(, flags: $flags)?
+			$(, source: $source)?
+		}, |_ctx| $result);
 	};
-	(@opt {$val:expr}, $default:expr) => { $val };
-	(@opt , $default:expr) => { $default };
 }
 
-/// Define an action with colocated keybindings across multiple modes.
-///
-/// This macro combines action registration with keybinding registration in one place,
-/// improving code locality and reducing the mental overhead of finding where an action
-/// is bound.
+/// Define an action with colocated keybindings.
 ///
 /// Bindings use KDL syntax where each line is `mode "key1" "key2" ...`.
 ///
-/// # Syntax
+/// # Example
 ///
 /// ```ignore
-/// bound_action!(
-///     action_name,
-///     description: "What this action does",
-///     bindings: r#"normal "x" "delete"
-/// insert "delete""#,
-///     |ctx| { /* handler body */ }
-/// );
-/// ```
-///
-/// # Examples
-///
-/// ```ignore
-/// // Action bound in multiple modes with different keys
 /// bound_action!(
 ///     document_start,
 ///     description: "Move to document start",
 ///     bindings: r#"normal "ctrl-home"
-/// goto "g" "k"
-/// insert "ctrl-home""#,
+/// goto "g" "k""#,
 ///     |_ctx| ActionResult::Motion(...)
-/// );
-///
-/// // Action with named handler function
-/// bound_action!(
-///     split_lines,
-///     description: "Split selection into lines",
-///     bindings: r#"normal "S""#,
-///     handler: split_lines_impl
 /// );
 /// ```
 #[macro_export]
 macro_rules! bound_action {
-	// Inline closure variant
 	($name:ident,
 		description: $desc:expr,
 		bindings: $kdl:literal
@@ -283,7 +277,6 @@ macro_rules! bound_action {
 		}
 	};
 
-	// Named handler variant
 	($name:ident,
 		description: $desc:expr,
 		bindings: $kdl:literal
@@ -293,41 +286,23 @@ macro_rules! bound_action {
 		$(,)?,
 		handler: $handler:expr
 	) => {
-		paste::paste! {
-			#[allow(non_upper_case_globals)]
-			#[linkme::distributed_slice($crate::ACTIONS)]
-			static [<ACTION_ $name>]: $crate::actions::ActionDef = $crate::actions::ActionDef {
-				id: concat!(env!("CARGO_PKG_NAME"), "::", stringify!($name)),
-				name: stringify!($name),
-				aliases: &[],
-				description: $desc,
-				handler: $handler,
-				priority: $crate::bound_action!(@opt $({$priority})?, 0),
-				source: $crate::RegistrySource::Crate(env!("CARGO_PKG_NAME")),
-				required_caps: $crate::bound_action!(@opt $({$caps})?, &[]),
-				flags: $crate::bound_action!(@opt $({$flags})?, $crate::flags::NONE),
-			};
+		$crate::action!($name, {
+			description: $desc
+			$(, priority: $priority)?
+			$(, caps: $caps)?
+			$(, flags: $flags)?
+		}, handler: $handler);
 
-			evildoer_macro::parse_keybindings!($name, $kdl);
-		}
+		evildoer_macro::parse_keybindings!($name, $kdl);
 	};
-
-	(@opt {$val:expr}, $default:expr) => { $val };
-	(@opt , $default:expr) => { $default };
 }
 
 /// Register additional keybindings for an existing action.
 ///
-/// Use this when you need to add bindings to an action defined elsewhere,
-/// or for secondary bindings that don't belong with the action definition.
-///
-/// Uses KDL syntax where each line is `mode "key1" "key2" ...`.
-///
-/// # Examples
+/// # Example
 ///
 /// ```ignore
 /// bind!(scroll_down, r#"view "j""#);
-/// bind!(document_start, r#"goto "g" "k""#);
 /// ```
 #[macro_export]
 macro_rules! bind {
@@ -336,42 +311,15 @@ macro_rules! bind {
 	};
 }
 
-/// Define a hook and register it in the HOOKS slice.
+/// Define a hook and register it in the [`HOOKS`](crate::hooks::HOOKS) slice.
 ///
-/// Hooks can return either:
-/// - `()` or nothing - treated as sync completion with Continue
-/// - `HookAction::Done(result)` - sync completion
-/// - `HookAction::Async(future)` - async work to be awaited
-///
-/// # Examples
+/// # Example
 ///
 /// ```ignore
-/// // Simple sync hook (returns unit)
 /// hook!(log_open, BufferOpen, 100, "Log buffer opens", |ctx| {
 ///     if let HookContext::BufferOpen { path, .. } = ctx {
 ///         log::info!("Opened: {}", path.display());
 ///     }
-/// });
-///
-/// // Sync hook with explicit action
-/// hook!(validate_save, BufferWritePre, 50, "Validate before save", |ctx| {
-///     if should_cancel() {
-///         HookAction::cancel()
-///     } else {
-///         HookAction::done()
-///     }
-/// });
-///
-/// // Async hook
-/// hook!(lsp_open, BufferOpen, 100, "Notify LSP of buffer open", |ctx| {
-///     let path = match ctx {
-///         HookContext::BufferOpen { path, .. } => path.to_path_buf(),
-///         _ => return HookAction::done(),
-///     };
-///     HookAction::Async(Box::pin(async move {
-///         lsp_manager.on_buffer_open(&path).await;
-///         HookResult::Continue
-///     }))
 /// });
 /// ```
 #[macro_export]
@@ -400,64 +348,55 @@ macro_rules! hook {
 }
 
 /// Registers a text object in the [`TEXT_OBJECTS`](crate::TEXT_OBJECTS) slice.
-///
-/// Text objects define selectable regions (words, paragraphs, quoted strings).
-/// Each object has `inner` and `around` handlers for `i`/`a` prefix selection.
 #[macro_export]
 macro_rules! text_object {
 	($name:ident, {
-        trigger: $trigger:expr,
-        $(alt_triggers: $alt_triggers:expr,)?
-        $(aliases: $aliases:expr,)?
-        description: $desc:expr
-        $(, priority: $priority:expr)?
-        $(, caps: $caps:expr)?
-        $(, flags: $flags:expr)?
-        $(, source: $source:expr)?
-        $(,)?
-    }, {
-        inner: $inner:expr,
-        around: $around:expr $(,)?
-    }) => {
+		trigger: $trigger:expr,
+		$(alt_triggers: $alt_triggers:expr,)?
+		$(aliases: $aliases:expr,)?
+		description: $desc:expr
+		$(, priority: $priority:expr)?
+		$(, caps: $caps:expr)?
+		$(, flags: $flags:expr)?
+		$(, source: $source:expr)?
+		$(,)?
+	}, {
+		inner: $inner:expr,
+		around: $around:expr $(,)?
+	}) => {
 		paste::paste! {
 			#[allow(non_upper_case_globals)]
 			#[linkme::distributed_slice($crate::TEXT_OBJECTS)]
 			static [<OBJ_ $name>]: $crate::TextObjectDef = $crate::TextObjectDef {
 				id: concat!(env!("CARGO_PKG_NAME"), "::", stringify!($name)),
 				name: stringify!($name),
-				aliases: $crate::text_object!(@opt $({$aliases})?, &[]),
+				aliases: $crate::__opt_slice!($({$aliases})?),
 				trigger: $trigger,
-				alt_triggers: $crate::text_object!(@opt $({$alt_triggers})?, &[]),
+				alt_triggers: $crate::__opt_slice!($({$alt_triggers})?),
 				description: $desc,
 				inner: $inner,
 				around: $around,
-				priority: $crate::text_object!(@opt $({$priority})?, 0),
-				source: $crate::text_object!(@opt $({$source})?, $crate::RegistrySource::Crate(env!("CARGO_PKG_NAME"))),
-				required_caps: $crate::text_object!(@opt $({$caps})?, &[]),
-				flags: $crate::text_object!(@opt $({$flags})?, $crate::flags::NONE),
+				priority: $crate::__opt!($({$priority})?, 0),
+				source: $crate::__opt!($({$source})?, $crate::RegistrySource::Crate(env!("CARGO_PKG_NAME"))),
+				required_caps: $crate::__opt_slice!($({$caps})?),
+				flags: $crate::__opt!($({$flags})?, $crate::flags::NONE),
 			};
 		}
 	};
-	(@opt {$val:expr}, $default:expr) => { $val };
-	(@opt , $default:expr) => { $default };
 }
 
 /// Registers a motion primitive in the [`MOTIONS`](crate::MOTIONS) slice.
-///
-/// Motions compute new cursor positions given text, current range, count,
-/// and extend flag. Used by [`cursor_motion`](crate::cursor_motion) and
-/// [`selection_motion`](crate::selection_motion) action helpers.
 #[macro_export]
 macro_rules! motion {
 	($name:ident, {
-        $(aliases: $aliases:expr,)?
-        description: $desc:expr
-        $(, priority: $priority:expr)?
-        $(, caps: $caps:expr)?
-        $(, flags: $flags:expr)?
-        $(, source: $source:expr)?
-        $(,)?
-    }, |$text:ident, $range:ident, $count:ident, $extend:ident| $body:expr) => {
+		$(aliases: $aliases:expr,)?
+		description: $desc:expr
+		$(, priority: $priority:expr)?
+		$(, caps: $caps:expr)?
+		$(, flags: $flags:expr)?
+		$(, source: $source:expr)?
+		$(,)?
+	}, |$text:ident, $range:ident, $count:ident, $extend:ident| $body:expr) => {
 		paste::paste! {
 			#[allow(unused_variables, non_snake_case)]
 			fn [<motion_handler_ $name>](
@@ -474,18 +413,127 @@ macro_rules! motion {
 			static [<MOTION_ $name>]: $crate::MotionDef = $crate::MotionDef {
 				id: concat!(env!("CARGO_PKG_NAME"), "::", stringify!($name)),
 				name: stringify!($name),
-				aliases: $crate::motion!(@opt $({$aliases})?, &[]),
+				aliases: $crate::__opt_slice!($({$aliases})?),
 				description: $desc,
 				handler: [<motion_handler_ $name>],
-				priority: $crate::motion!(@opt $({$priority})?, 0),
-				source: $crate::motion!(@opt $({$source})?, $crate::RegistrySource::Crate(env!("CARGO_PKG_NAME"))),
-				required_caps: $crate::motion!(@opt $({$caps})?, &[]),
-				flags: $crate::motion!(@opt $({$flags})?, $crate::flags::NONE),
+				priority: $crate::__opt!($({$priority})?, 0),
+				source: $crate::__opt!($({$source})?, $crate::RegistrySource::Crate(env!("CARGO_PKG_NAME"))),
+				required_caps: $crate::__opt_slice!($({$caps})?),
+				flags: $crate::__opt!($({$flags})?, $crate::flags::NONE),
 			};
 		}
 	};
-	(@opt {$val:expr}, $default:expr) => { $val };
-	(@opt , $default:expr) => { $default };
 }
 
-pub use crate::{action, bind, bound_action, command, hook, language, motion, option, text_object};
+/// Registers a statusline segment in the [`STATUSLINE_SEGMENTS`](crate::STATUSLINE_SEGMENTS) slice.
+#[macro_export]
+macro_rules! statusline_segment {
+	($static_name:ident, $name:expr, $position:expr, $priority:expr, $enabled:expr, $render:expr) => {
+		#[::linkme::distributed_slice($crate::STATUSLINE_SEGMENTS)]
+		static $static_name: $crate::StatuslineSegmentDef = $crate::StatuslineSegmentDef {
+			id: $name,
+			name: $name,
+			position: $position,
+			priority: $priority,
+			default_enabled: $enabled,
+			render: $render,
+			source: $crate::RegistrySource::Crate(env!("CARGO_PKG_NAME")),
+		};
+	};
+}
+
+/// Registers a handler for an [`ActionResult`](crate::ActionResult) variant.
+#[macro_export]
+macro_rules! result_handler {
+	($slice:ident, $static_name:ident, $name:literal, $body:expr) => {
+		#[::linkme::distributed_slice($crate::actions::$slice)]
+		static $static_name: $crate::editor_ctx::ResultHandler = $crate::editor_ctx::ResultHandler {
+			name: $name,
+			handle: $body,
+		};
+	};
+}
+
+/// Register a complete action with keybinding and result handler.
+///
+/// Combines action definition, keybinding registration, and result handler
+/// in one macro. Used for window/buffer management actions.
+#[macro_export]
+macro_rules! full_action {
+	(
+		$name:ident,
+		description: $desc:expr,
+		key: $key:expr,
+		mode: $mode:ident,
+		result: $result:ident,
+		handler_slice: $slice:ident,
+		|$ops:ident| $body:expr
+	) => {
+		paste::paste! {
+			$crate::action!($name, { description: $desc }, result: $crate::actions::ActionResult::$result);
+
+			#[::linkme::distributed_slice($crate::keybindings::[<KEYBINDINGS_ $mode:upper>])]
+			static [<KB_ $name:upper>]: $crate::keybindings::KeyBindingDef =
+				$crate::keybindings::KeyBindingDef {
+					mode: $crate::keybindings::BindingMode::$mode,
+					key: $key,
+					action: stringify!($name),
+					priority: 100,
+				};
+
+			#[::linkme::distributed_slice($crate::actions::$slice)]
+			static [<HANDLE_ $name:upper>]: $crate::editor_ctx::ResultHandler =
+				$crate::editor_ctx::ResultHandler {
+					name: stringify!($name),
+					handle: |r, ctx, _| {
+						use $crate::editor_ctx::MessageAccess;
+						if matches!(r, $crate::actions::ActionResult::$result) {
+							if let Some($ops) = ctx.buffer_ops() {
+								$body;
+							} else {
+								ctx.notify("warning", "Buffer operations not available");
+							}
+						}
+						$crate::editor_ctx::HandleOutcome::Handled
+					},
+				};
+		}
+	};
+}
+
+/// Register a stub action that shows "not implemented" when invoked.
+#[macro_export]
+macro_rules! stub_action {
+	(
+		$name:ident,
+		description: $desc:expr,
+		bindings: $kdl:literal,
+		result: $result:ident,
+		handler_slice: $slice:ident
+	) => {
+		$crate::bound_action!(
+			$name,
+			description: $desc,
+			bindings: $kdl,
+			|_ctx| $crate::actions::ActionResult::$result
+		);
+
+		paste::paste! {
+			#[::linkme::distributed_slice($crate::actions::$slice)]
+			static [<HANDLE_ $name:upper>]: $crate::editor_ctx::ResultHandler =
+				$crate::editor_ctx::ResultHandler {
+					name: stringify!($name),
+					handle: |_, ctx, _| {
+						use $crate::editor_ctx::MessageAccess;
+						ctx.notify("warning", concat!(stringify!($name), " not yet implemented"));
+						$crate::editor_ctx::HandleOutcome::Handled
+					},
+				};
+		}
+	};
+}
+
+pub use crate::{
+	__opt, __opt_slice, __opt_static, action, bind, bound_action, command, full_action, hook,
+	language, motion, option, result_handler, statusline_segment, stub_action, text_object,
+};

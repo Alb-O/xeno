@@ -1,8 +1,7 @@
 //! Count prefix segment.
 
 use evildoer_manifest::statusline::{RenderedSegment, SegmentPosition, SegmentStyle};
-
-use crate::statusline_segment;
+use evildoer_manifest::statusline_segment;
 
 statusline_segment!(SEG_COUNT, "count", SegmentPosition::Left, 10, true, |ctx| {
 	if ctx.count > 0 {

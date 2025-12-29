@@ -17,9 +17,6 @@ pub mod options;
 pub mod statusline;
 mod window_actions;
 
-// Re-export types from evildoer-manifest for convenience
-// Re-export WordType from movement when host feature is enabled
-// Re-export types from evildoer-base for convenience
 pub use evildoer_base::range::CharIdx;
 pub use evildoer_base::{
 	ChangeSet, Key, KeyCode, Modifiers, MouseButton, MouseEvent, Range, Rope, RopeSlice,
@@ -35,13 +32,11 @@ pub use evildoer_manifest::{
 	OptionScope, OptionType, OptionValue, PendingAction, PendingKind, RegistryMetadata,
 	RegistrySource, RenderedSegment, ResolvedBinding, STATUSLINE_SEGMENTS, ScrollAmount, ScrollDir,
 	SegmentPosition, SegmentStyle, StatuslineContext, StatuslineSegmentDef, TEXT_OBJECTS,
-	TextObjectDef, VisualDirection, dispatch_result,
+	TextObjectDef, VisualDirection, action, command, dispatch_result, full_action, hook, language,
+	motion, option, result_handler, statusline_segment, stub_action, text_object,
 };
-// Re-export macros from evildoer-manifest
-pub use evildoer_manifest::{action, command, hook, language, motion, option, text_object};
 #[cfg(feature = "host")]
 pub use movement::WordType;
-// Re-export notification extension traits for convenient use
 pub use notifications::{
 	NotifyDEBUGExt, NotifyERRORExt, NotifyINFOExt, NotifySUCCESSExt, NotifyWARNExt,
 };

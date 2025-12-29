@@ -1,8 +1,7 @@
 //! File type indicator segment.
 
 use evildoer_manifest::statusline::{RenderedSegment, SegmentPosition, SegmentStyle};
-
-use crate::statusline_segment;
+use evildoer_manifest::statusline_segment;
 
 statusline_segment!(
 	SEG_FILETYPE,
