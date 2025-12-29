@@ -7,6 +7,7 @@
 //! - Mouse events (clicks, drags, scrolls)
 
 use std::fmt;
+use std::str::FromStr;
 
 /// Key modifiers (Ctrl, Alt, Shift).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]

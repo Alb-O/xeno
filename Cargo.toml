@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["crates/*"]
+members = ["crates/*", "crates/keymap/derive", "crates/keymap/parser"]
 
 [workspace.package]
 version = "0.2.0"
@@ -22,6 +22,9 @@ evildoer-base = { path = "crates/base" }
 evildoer-config = { path = "crates/config" }
 evildoer-extensions = { path = "crates/extensions" }
 evildoer-input = { path = "crates/input" }
+evildoer-keymap = { path = "crates/keymap" }
+evildoer-keymap-derive = { path = "crates/keymap/derive" }
+evildoer-keymap-parser = { path = "crates/keymap/parser" }
 evildoer-language = { path = "crates/language" }
 evildoer-lsp = { path = "crates/lsp" }
 evildoer-macro = { path = "crates/macro" }

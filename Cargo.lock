@@ -967,6 +967,40 @@ dependencies = [
 ]
 
 [[package]]
+name = "evildoer-keymap"
+version = "0.2.0"
+dependencies = [
+ "evildoer-keymap-derive",
+ "evildoer-keymap-parser",
+ "serde",
+ "termina",
+ "toml",
+]
+
+[[package]]
+name = "evildoer-keymap-derive"
+version = "0.2.0"
+dependencies = [
+ "evildoer-keymap",
+ "evildoer-keymap-parser",
+ "proc-macro2",
+ "quote",
+ "serde",
+ "syn 2.0.111",
+ "toml",
+]
+
+[[package]]
+name = "evildoer-keymap-parser"
+version = "0.2.0"
+dependencies = [
+ "serde",
+ "strum 0.27.2",
+ "strum_macros 0.27.2",
+ "toml",
+]
+
+[[package]]
 name = "evildoer-language"
 version = "0.2.0"
 dependencies = [

@@ -1,0 +1,24 @@
+[package]
+name = "evildoer-keymap"
+description = "Key mapping library with compile-time validated derive macros and declarative configuration."
+version.workspace = true
+edition.workspace = true
+license-file = "LICENSE"
+repository.workspace = true
+
+[lib]
+doctest = false
+
+[features]
+default = ["derive", "termina"]
+derive = ["dep:evildoer-keymap-derive"]
+termina = ["dep:termina"]
+
+[dependencies]
+evildoer-keymap-derive = { path = "./derive", optional = true }
+evildoer-keymap-parser = { path = "./parser" }
+serde = { workspace = true }
+termina = { workspace = true, optional = true }
+
+[dev-dependencies]
+toml = { workspace = true }

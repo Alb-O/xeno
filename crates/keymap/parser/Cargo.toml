@@ -1,0 +1,15 @@
+[package]
+name = "evildoer-keymap-parser"
+description = "Parser for declarative key mapping configurations with support for sequences and key groups."
+version.workspace = true
+edition.workspace = true
+license-file = "../LICENSE"
+repository.workspace = true
+
+[dependencies]
+serde = { workspace = true }
+strum = "0.27"
+strum_macros = "0.27"
+
+[dev-dependencies]
+toml = { workspace = true }
