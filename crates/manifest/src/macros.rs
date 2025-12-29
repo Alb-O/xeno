@@ -6,8 +6,7 @@
 //!
 //! # Primary Macros
 //!
-//! - [`bound_action!`] - Action with colocated keybindings (preferred)
-//! - [`action!`] - Action without keybindings
+//! - [`action!`] - Register actions with optional keybindings and handlers
 //! - [`bind!`] - Additional keybindings for existing actions
 //! - [`motion!`] - Cursor/selection movement primitives
 //! - [`hook!`] - Event lifecycle observers
@@ -19,8 +18,6 @@
 //! - [`option!`] - Configuration options
 //! - [`text_object!`] - Text object selection (`iw`, `a"`, etc.)
 //! - [`statusline_segment!`] - Statusline segment definitions
-//! - [`full_action!`] - Action + keybinding + result handler combined
-//! - [`stub_action!`] - Placeholder for unimplemented features
 
 #[doc(hidden)]
 #[macro_export]
@@ -151,24 +148,120 @@ macro_rules! command {
 
 /// Registers an action in the [`ACTIONS`](crate::ACTIONS) slice.
 ///
-/// Prefer [`bound_action!`] when the action has associated keybindings.
-///
 /// # Forms
 ///
 /// ```ignore
+/// // Basic action with handler function
 /// action!(name, { description: "..." }, handler: my_handler);
+///
+/// // Action with inline closure
 /// action!(name, { description: "..." }, |ctx| { ... });
-/// action!(name, { description: "..." }, result: ActionResult::Variant);
+///
+/// // Action with KDL keybindings
+/// action!(name, { description: "...", bindings: r#"normal "x""# }, |ctx| { ... });
+///
+/// // Window-style action with key, mode, result, and buffer ops handler
+/// action!(name, {
+///     description: "...",
+///     key: Key::char('s'),
+///     mode: Window,
+///     result: SplitHorizontal,
+///     handler_slice: RESULT_SPLIT_HORIZONTAL_HANDLERS,
+/// }, |ops| ops.split_horizontal());
 /// ```
 #[macro_export]
 macro_rules! action {
+	($name:ident, {
+		description: $desc:expr,
+		key: $key:expr,
+		mode: $mode:ident,
+		result: $result:ident,
+		handler_slice: $slice:ident
+		$(,)?
+	}, |$ops:ident| $body:expr) => {
+		paste::paste! {
+			$crate::action!($name, { description: $desc },
+				|_ctx| $crate::actions::ActionResult::$result);
+
+			#[::linkme::distributed_slice($crate::keybindings::[<KEYBINDINGS_ $mode:upper>])]
+			static [<KB_ $name:upper>]: $crate::keybindings::KeyBindingDef =
+				$crate::keybindings::KeyBindingDef {
+					mode: $crate::keybindings::BindingMode::$mode,
+					key: $key,
+					action: stringify!($name),
+					priority: 100,
+				};
+
+			#[::linkme::distributed_slice($crate::actions::$slice)]
+			static [<HANDLE_ $name:upper>]: $crate::editor_ctx::ResultHandler =
+				$crate::editor_ctx::ResultHandler {
+					name: stringify!($name),
+					handle: |r, ctx, _| {
+						use $crate::editor_ctx::MessageAccess;
+						if matches!(r, $crate::actions::ActionResult::$result) {
+							if let Some($ops) = ctx.buffer_ops() {
+								$body;
+							} else {
+								ctx.notify("warning", "Buffer operations not available");
+							}
+						}
+						$crate::editor_ctx::HandleOutcome::Handled
+					},
+				};
+		}
+	};
+
+	($name:ident, {
+		$(aliases: $aliases:expr,)?
+		description: $desc:expr,
+		bindings: $kdl:literal
+		$(, priority: $priority:expr)?
+		$(, caps: $caps:expr)?
+		$(, flags: $flags:expr)?
+		$(,)?
+	}, |$ctx:ident| $body:expr) => {
+		paste::paste! {
+			#[allow(unused_variables)]
+			fn [<handler_ $name>]($ctx: &$crate::actions::ActionContext) -> $crate::actions::ActionResult {
+				$body
+			}
+
+			$crate::action!($name, {
+				$(aliases: $aliases,)?
+				description: $desc,
+				bindings: $kdl
+				$(, priority: $priority)?
+				$(, caps: $caps)?
+				$(, flags: $flags)?
+			}, handler: [<handler_ $name>]);
+		}
+	};
+
+	($name:ident, {
+		$(aliases: $aliases:expr,)?
+		description: $desc:expr,
+		bindings: $kdl:literal
+		$(, priority: $priority:expr)?
+		$(, caps: $caps:expr)?
+		$(, flags: $flags:expr)?
+		$(,)?
+	}, handler: $handler:expr) => {
+		$crate::action!($name, {
+			$(aliases: $aliases,)?
+			description: $desc
+			$(, priority: $priority)?
+			$(, caps: $caps)?
+			$(, flags: $flags)?
+		}, handler: $handler);
+		evildoer_macro::parse_keybindings!($name, $kdl);
+	};
+
 	($name:ident, {
 		$(aliases: $aliases:expr,)?
 		description: $desc:expr
 		$(, priority: $priority:expr)?
 		$(, caps: $caps:expr)?
 		$(, flags: $flags:expr)?
-		$(, source: $source:expr)?
 		$(,)?
 	}, handler: $handler:expr) => {
 		paste::paste! {
@@ -181,7 +274,7 @@ macro_rules! action {
 				description: $desc,
 				handler: $handler,
 				priority: $crate::__opt!($({$priority})?, 0),
-				source: $crate::__opt!($({$source})?, $crate::RegistrySource::Crate(env!("CARGO_PKG_NAME"))),
+				source: $crate::RegistrySource::Crate(env!("CARGO_PKG_NAME")),
 				required_caps: $crate::__opt_slice!($({$caps})?),
 				flags: $crate::__opt!($({$flags})?, $crate::flags::NONE),
 			};
@@ -194,7 +287,6 @@ macro_rules! action {
 		$(, priority: $priority:expr)?
 		$(, caps: $caps:expr)?
 		$(, flags: $flags:expr)?
-		$(, source: $source:expr)?
 		$(,)?
 	}, |$ctx:ident| $body:expr) => {
 		paste::paste! {
@@ -202,98 +294,14 @@ macro_rules! action {
 			fn [<handler_ $name>]($ctx: &$crate::actions::ActionContext) -> $crate::actions::ActionResult {
 				$body
 			}
-
 			$crate::action!($name, {
 				$(aliases: $aliases,)?
 				description: $desc
 				$(, priority: $priority)?
 				$(, caps: $caps)?
 				$(, flags: $flags)?
-				$(, source: $source)?
 			}, handler: [<handler_ $name>]);
 		}
-	};
-
-	($name:ident, {
-		$(aliases: $aliases:expr,)?
-		description: $desc:expr
-		$(, priority: $priority:expr)?
-		$(, caps: $caps:expr)?
-		$(, flags: $flags:expr)?
-		$(, source: $source:expr)?
-		$(,)?
-	}, result: $result:expr) => {
-		$crate::action!($name, {
-			$(aliases: $aliases,)?
-			description: $desc
-			$(, priority: $priority)?
-			$(, caps: $caps)?
-			$(, flags: $flags)?
-			$(, source: $source)?
-		}, |_ctx| $result);
-	};
-}
-
-/// Define an action with colocated keybindings.
-///
-/// Bindings use KDL syntax where each line is `mode "key1" "key2" ...`.
-///
-/// # Example
-///
-/// ```ignore
-/// bound_action!(
-///     document_start,
-///     description: "Move to document start",
-///     bindings: r#"normal "ctrl-home"
-/// goto "g" "k""#,
-///     |_ctx| ActionResult::Motion(...)
-/// );
-/// ```
-#[macro_export]
-macro_rules! bound_action {
-	($name:ident,
-		description: $desc:expr,
-		bindings: $kdl:literal
-		$(, priority: $priority:expr)?
-		$(, caps: $caps:expr)?
-		$(, flags: $flags:expr)?
-		$(,)?,
-		|$ctx:ident| $body:expr
-	) => {
-		paste::paste! {
-			#[allow(unused_variables)]
-			fn [<handler_ $name>]($ctx: &$crate::actions::ActionContext) -> $crate::actions::ActionResult {
-				$body
-			}
-
-			$crate::bound_action!($name,
-				description: $desc,
-				bindings: $kdl
-				$(, priority: $priority)?
-				$(, caps: $caps)?
-				$(, flags: $flags)?,
-				handler: [<handler_ $name>]
-			);
-		}
-	};
-
-	($name:ident,
-		description: $desc:expr,
-		bindings: $kdl:literal
-		$(, priority: $priority:expr)?
-		$(, caps: $caps:expr)?
-		$(, flags: $flags:expr)?
-		$(,)?,
-		handler: $handler:expr
-	) => {
-		$crate::action!($name, {
-			description: $desc
-			$(, priority: $priority)?
-			$(, caps: $caps)?
-			$(, flags: $flags)?
-		}, handler: $handler);
-
-		evildoer_macro::parse_keybindings!($name, $kdl);
 	};
 }
 
@@ -454,86 +462,7 @@ macro_rules! result_handler {
 	};
 }
 
-/// Register a complete action with keybinding and result handler.
-///
-/// Combines action definition, keybinding registration, and result handler
-/// in one macro. Used for window/buffer management actions.
-#[macro_export]
-macro_rules! full_action {
-	(
-		$name:ident,
-		description: $desc:expr,
-		key: $key:expr,
-		mode: $mode:ident,
-		result: $result:ident,
-		handler_slice: $slice:ident,
-		|$ops:ident| $body:expr
-	) => {
-		paste::paste! {
-			$crate::action!($name, { description: $desc }, result: $crate::actions::ActionResult::$result);
-
-			#[::linkme::distributed_slice($crate::keybindings::[<KEYBINDINGS_ $mode:upper>])]
-			static [<KB_ $name:upper>]: $crate::keybindings::KeyBindingDef =
-				$crate::keybindings::KeyBindingDef {
-					mode: $crate::keybindings::BindingMode::$mode,
-					key: $key,
-					action: stringify!($name),
-					priority: 100,
-				};
-
-			#[::linkme::distributed_slice($crate::actions::$slice)]
-			static [<HANDLE_ $name:upper>]: $crate::editor_ctx::ResultHandler =
-				$crate::editor_ctx::ResultHandler {
-					name: stringify!($name),
-					handle: |r, ctx, _| {
-						use $crate::editor_ctx::MessageAccess;
-						if matches!(r, $crate::actions::ActionResult::$result) {
-							if let Some($ops) = ctx.buffer_ops() {
-								$body;
-							} else {
-								ctx.notify("warning", "Buffer operations not available");
-							}
-						}
-						$crate::editor_ctx::HandleOutcome::Handled
-					},
-				};
-		}
-	};
-}
-
-/// Register a stub action that shows "not implemented" when invoked.
-#[macro_export]
-macro_rules! stub_action {
-	(
-		$name:ident,
-		description: $desc:expr,
-		bindings: $kdl:literal,
-		result: $result:ident,
-		handler_slice: $slice:ident
-	) => {
-		$crate::bound_action!(
-			$name,
-			description: $desc,
-			bindings: $kdl,
-			|_ctx| $crate::actions::ActionResult::$result
-		);
-
-		paste::paste! {
-			#[::linkme::distributed_slice($crate::actions::$slice)]
-			static [<HANDLE_ $name:upper>]: $crate::editor_ctx::ResultHandler =
-				$crate::editor_ctx::ResultHandler {
-					name: stringify!($name),
-					handle: |_, ctx, _| {
-						use $crate::editor_ctx::MessageAccess;
-						ctx.notify("warning", concat!(stringify!($name), " not yet implemented"));
-						$crate::editor_ctx::HandleOutcome::Handled
-					},
-				};
-		}
-	};
-}
-
 pub use crate::{
-	__opt, __opt_slice, __opt_static, action, bind, bound_action, command, full_action, hook,
-	language, motion, option, result_handler, statusline_segment, stub_action, text_object,
+	__opt, __opt_slice, __opt_static, action, bind, command, hook, language, motion, option,
+	result_handler, statusline_segment, text_object,
 };

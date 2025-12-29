@@ -508,16 +508,18 @@ fn to_screaming_snake_case(s: &str) -> String {
 ///
 /// # Usage
 ///
-/// This is called internally by `bound_action!` macro:
+/// This is called internally by `action!` macro:
 ///
 /// ```ignore
-/// bound_action!(
+/// action!(
 ///     move_left,
-///     description: "Move cursor left",
-///     bindings: r#"
-///         normal "h" "left"
-///         insert "left"
-///     "#,
+///     {
+///         description: "Move cursor left",
+///         bindings: r#"
+///             normal "h" "left"
+///             insert "left"
+///         "#
+///     },
 ///     |ctx| { ... }
 /// );
 /// ```

@@ -32,8 +32,8 @@ pub use evildoer_manifest::{
 	OptionScope, OptionType, OptionValue, PendingAction, PendingKind, RegistryMetadata,
 	RegistrySource, RenderedSegment, ResolvedBinding, STATUSLINE_SEGMENTS, ScrollAmount, ScrollDir,
 	SegmentPosition, SegmentStyle, StatuslineContext, StatuslineSegmentDef, TEXT_OBJECTS,
-	TextObjectDef, VisualDirection, action, command, dispatch_result, full_action, hook, language,
-	motion, option, result_handler, statusline_segment, stub_action, text_object,
+	TextObjectDef, VisualDirection, action, command, dispatch_result, hook, language, motion,
+	option, result_handler, statusline_segment, text_object,
 };
 #[cfg(feature = "host")]
 pub use movement::WordType;

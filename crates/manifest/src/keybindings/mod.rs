@@ -4,17 +4,19 @@
 //! the hardcoded keymap arrays with an extensible registry.
 //!
 //! All keybindings are now colocated with their action definitions using
-//! the `bound_action!` macro with `bindings:` syntax. For example:
+//! the `action!` macro with `bindings:` syntax. For example:
 //!
 //! ```ignore
-//! bound_action!(
+//! action!(
 //!     document_start,
-//!     description: "Move to document start",
-//!     bindings: [
-//!         Normal => [Key::special(SpecialKey::Home).with_ctrl()],
-//!         Goto => [Key::char('g'), Key::char('k')],
-//!         Insert => [Key::special(SpecialKey::Home).with_ctrl()],
-//!     ],
+//!     {
+//!         description: "Move to document start",
+//!         bindings: r#"
+//!             normal "C-home"
+//!             goto "g" "k"
+//!             insert "C-home"
+//!         "#
+//!     },
 //!     |_ctx| { ... }
 //! );
 //! ```
@@ -45,7 +47,7 @@ keybinding_slices!(
 /// Keybinding definition mapping a [`Key`] to an action in a [`BindingMode`].
 ///
 /// Registered at compile time via [`linkme`] distributed slices, typically
-/// using the `bindings:` syntax in [`bound_action!`](crate::bound_action).
+/// using the `bindings:` syntax in [`action!`](crate::action).
 #[derive(Clone, Copy)]
 pub struct KeyBindingDef {
 	/// Mode this binding is active in.
