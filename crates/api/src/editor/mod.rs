@@ -32,7 +32,6 @@ pub use self::separator::{DragState, MouseVelocityTracker, SeparatorHoverAnimati
 use crate::buffer::{BufferId, BufferView, TerminalId};
 use crate::editor::extensions::{EXTENSIONS, ExtensionMap, StyleOverlays};
 use crate::editor::types::CompletionState;
-use crate::terminal_ipc::TerminalIpc;
 use crate::ui::UiManager;
 
 /// The main editor/workspace structure.
@@ -121,11 +120,6 @@ pub struct Editor {
 
 	/// Style overlays for rendering modifications.
 	pub style_overlays: StyleOverlays,
-
-	/// IPC infrastructure for terminal command integration.
-	///
-	/// Lazily initialized when the first terminal is opened.
-	terminal_ipc: Option<TerminalIpc>,
 
 	/// Runtime for scheduling async hooks during sync emission.
 	pub hook_runtime: HookRuntime,
@@ -315,7 +309,6 @@ impl Editor {
 			fs,
 			language_loader,
 			style_overlays: StyleOverlays::new(),
-			terminal_ipc: None,
 			hook_runtime,
 			dirty_buffers: HashSet::new(),
 		}
@@ -501,92 +494,12 @@ impl Editor {
 		terminal_id
 	}
 
-	/// Creates a new terminal with IPC integration.
+	/// Creates a new terminal.
 	fn create_terminal(&mut self) -> TerminalId {
-		let ipc_env = self
-			.terminal_ipc
-			.get_or_insert_with(|| {
-				let ipc = TerminalIpc::new().expect("failed to create terminal IPC");
-				log::info!(
-					"Terminal IPC created: bin_dir={:?}, socket={:?}",
-					ipc.env().bin_dir(),
-					ipc.env().socket_path()
-				);
-				ipc
-			})
-			.env();
-
-		log::info!(
-			"Creating terminal with PATH including {:?}",
-			ipc_env.bin_dir()
-		);
-
-		self.buffers.create_terminal(ipc_env)
+		self.buffers.create_terminal()
 	}
 
-	/// Polls for and dispatches IPC requests from embedded terminals.
-	fn poll_terminal_ipc(&mut self) {
-		let requests: Vec<_> = self
-			.terminal_ipc
-			.as_mut()
-			.map(|ipc| std::iter::from_fn(|| ipc.poll()).collect())
-			.unwrap_or_default();
-
-		for req in requests {
-			log::debug!("terminal IPC: {} {:?}", req.command, req.args);
-			let mut restore_view = None;
-			if self.is_terminal_focused()
-				&& let Some(buffer_id) = self.layout.first_buffer()
-			{
-				restore_view = Some(self.buffers.focused_view());
-				self.buffers.set_focused_view(BufferView::Text(buffer_id));
-			}
-
-			let outcome = if let Some(cmd) = evildoer_manifest::find_command(&req.command) {
-				let args: Vec<&str> = req.args.iter().map(String::as_str).collect();
-				let mut ctx = evildoer_manifest::CommandContext {
-					editor: self,
-					args: &args,
-					count: 1,
-					register: None,
-					user_data: cmd.user_data,
-				};
-				let result = if let Ok(handle) = tokio::runtime::Handle::try_current() {
-					tokio::task::block_in_place(|| handle.block_on((cmd.handler)(&mut ctx)))
-				} else {
-					futures::executor::block_on((cmd.handler)(&mut ctx))
-				};
-				match result {
-					Ok(outcome) => outcome,
-					Err(err) => {
-						self.notify("error", err.to_string());
-						evildoer_manifest::CommandOutcome::Ok
-					}
-				}
-			} else {
-				self.notify("error", format!("Unknown command: {}", req.command));
-				evildoer_manifest::CommandOutcome::Ok
-			};
-
-			if let Some(view) = restore_view {
-				self.buffers.set_focused_view(view);
-			}
-
-			self.handle_command_outcome(outcome);
-		}
-	}
-
-	fn handle_command_outcome(&mut self, outcome: evildoer_manifest::CommandOutcome) {
-		match outcome {
-			evildoer_manifest::CommandOutcome::Ok => {}
-			evildoer_manifest::CommandOutcome::Quit
-			| evildoer_manifest::CommandOutcome::ForceQuit => {
-				self.request_quit();
-			}
-		}
-	}
-
-	fn request_quit(&mut self) {
+	pub fn request_quit(&mut self) {
 		self.pending_quit = true;
 	}
 
@@ -738,8 +651,6 @@ impl Editor {
 		use evildoer_manifest::SplitBuffer;
 
 		use crate::editor::extensions::TICK_EXTENSIONS;
-
-		self.poll_terminal_ipc();
 
 		// Tick all terminals
 		let terminal_ids: Vec<_> = self.buffers.terminal_ids().collect();

@@ -9,7 +9,6 @@ mod key;
 mod selection;
 mod state;
 
-use std::sync::Arc;
 use std::sync::mpsc::{Receiver, TryRecvError, channel};
 use std::thread;
 use std::time::Duration;
@@ -25,7 +24,6 @@ use self::key::key_to_bytes;
 use self::selection::TerminalSelection;
 pub use self::state::TerminalError as Error;
 use self::state::{TerminalError, TerminalState};
-use crate::terminal_ipc::TerminalIpcEnv;
 
 /// A terminal emulator that implements [`SplitBuffer`].
 ///
@@ -33,15 +31,11 @@ use crate::terminal_ipc::TerminalIpcEnv;
 /// - Spawns a shell process (from `$SHELL` or defaults to `sh`)
 /// - Handles input/output via a PTY
 /// - Renders terminal cells for the UI layer
-///
-/// When created with [`Self::with_ipc`], shell wrappers for editor commands
-/// (e.g., `:write`, `:quit`) are available in `$PATH`.
 pub struct TerminalBuffer {
 	terminal: Option<TerminalState>,
 	prewarm: Option<Receiver<Result<TerminalState, TerminalError>>>,
 	input_buffer: Vec<u8>,
 	current_size: SplitSize,
-	ipc_env: Option<Arc<TerminalIpcEnv>>,
 	selection: Option<TerminalSelection>,
 }
 
@@ -61,19 +55,6 @@ impl TerminalBuffer {
 			prewarm: None,
 			input_buffer: Vec::new(),
 			current_size: SplitSize::new(80, 24),
-			ipc_env: None,
-			selection: None,
-		}
-	}
-
-	/// Creates a terminal buffer with IPC integration for editor commands.
-	pub fn with_ipc(ipc_env: Arc<TerminalIpcEnv>) -> Self {
-		Self {
-			terminal: None,
-			prewarm: None,
-			input_buffer: Vec::new(),
-			current_size: SplitSize::new(80, 24),
-			ipc_env: Some(ipc_env),
 			selection: None,
 		}
 	}
@@ -115,22 +96,11 @@ impl TerminalBuffer {
 			return;
 		}
 		let size = self.current_size;
-		let env_vars = self
-			.ipc_env
-			.as_ref()
-			.map(|env| env.env_vars())
-			.unwrap_or_default();
-
-		log::debug!(
-			"terminal prewarm: ipc_env={}, env_vars_count={}",
-			self.ipc_env.is_some(),
-			env_vars.len()
-		);
 
 		let (tx, rx) = channel();
 		self.prewarm = Some(rx);
 		thread::spawn(move || {
-			let _ = tx.send(TerminalState::new(size.width, size.height, env_vars));
+			let _ = tx.send(TerminalState::new(size.width, size.height));
 		});
 	}
 

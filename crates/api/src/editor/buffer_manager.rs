@@ -6,14 +6,12 @@
 
 use std::collections::HashMap;
 use std::path::PathBuf;
-use std::sync::Arc;
 
 use evildoer_language::LanguageLoader;
 use evildoer_manifest::SplitBuffer;
 
 use crate::buffer::{Buffer, BufferId, BufferView, TerminalId};
 use crate::terminal::TerminalBuffer;
-use crate::terminal_ipc::TerminalIpcEnv;
 
 /// Owns text buffers and terminals, tracks focus, and generates unique IDs.
 pub struct BufferManager {
@@ -80,12 +78,12 @@ impl BufferManager {
 		buffer_id
 	}
 
-	/// Creates a new terminal with IPC. Does not change focus.
-	pub fn create_terminal(&mut self, ipc_env: Arc<TerminalIpcEnv>) -> TerminalId {
+	/// Creates a new terminal. Does not change focus.
+	pub fn create_terminal(&mut self) -> TerminalId {
 		let terminal_id = TerminalId(self.next_terminal_id);
 		self.next_terminal_id += 1;
 
-		let mut terminal = TerminalBuffer::with_ipc(ipc_env);
+		let mut terminal = TerminalBuffer::new();
 		terminal.on_open();
 		self.terminals.insert(terminal_id, terminal);
 		terminal_id

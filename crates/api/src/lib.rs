@@ -35,7 +35,6 @@ pub mod paths;
 pub mod render;
 pub mod styles;
 pub mod terminal;
-pub mod terminal_ipc;
 pub mod test_events;
 pub mod ui;
 
@@ -46,5 +45,4 @@ pub use evildoer_manifest::{
 	suggest_theme,
 };
 pub use terminal::TerminalBuffer;
-pub use terminal_ipc::{IpcRequest, TerminalIpc, TerminalIpcEnv};
 pub use ui::UiManager;
