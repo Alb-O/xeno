@@ -12,11 +12,8 @@ use evildoer_base::key::{Key, KeyCode, Modifiers};
 use evildoer_input::{InputHandler, KeyResult};
 use evildoer_manifest::find_action_by_id;
 
-/// Helper to extract action name and extend flag from KeyResult.
-/// Handles both string-based Action and typed ActionById.
 fn extract_action(result: KeyResult) -> Option<(String, bool)> {
 	match result {
-		KeyResult::Action { name, extend, .. } => Some((name.to_string(), extend)),
 		KeyResult::ActionById { id, extend, .. } => {
 			find_action_by_id(id).map(|def| (def.name.to_string(), extend))
 		}

@@ -17,16 +17,9 @@ impl InputHandler {
 		}
 
 		if key.is_backspace() {
-			if let Some(id) = resolve_action_id("delete_back") {
-				return KeyResult::ActionById {
-					id,
-					count: 1,
-					extend: false,
-					register: None,
-				};
-			}
-			return KeyResult::Action {
-				name: "delete_back",
+			let id = resolve_action_id("delete_back").expect("delete_back action not registered");
+			return KeyResult::ActionById {
+				id,
 				count: 1,
 				extend: false,
 				register: None,

@@ -53,21 +53,6 @@ impl Editor {
 				};
 				ActionDispatch::Executed(quit)
 			}
-			KeyResult::Action {
-				name,
-				count,
-				extend,
-				register,
-			} => ActionDispatch::Executed(self.execute_action(name, *count, *extend, *register)),
-			KeyResult::ActionWithChar {
-				name,
-				count,
-				extend,
-				register,
-				char_arg,
-			} => ActionDispatch::Executed(
-				self.execute_action_with_char(name, *count, *extend, *register, *char_arg),
-			),
 			_ => ActionDispatch::NotAction,
 		}
 	}

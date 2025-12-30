@@ -106,29 +106,64 @@ macro_rules! command {
 
 /// Registers an action in the [`ACTIONS`](crate::ACTIONS) slice.
 ///
+/// Actions are the primary unit of editor functionality. Each action has a name,
+/// description, and handler that returns an [`ActionResult`]. Actions can optionally
+/// have keybindings (via `bindings:`) and result handlers (via `result:`).
+///
 /// # Forms
 ///
+/// **Basic action** - registers handler only, no keybindings:
 /// ```ignore
-/// // Basic action with handler function
-/// action!(name, { description: "..." }, handler: my_handler);
-///
-/// // Action with inline closure
 /// action!(name, { description: "..." }, |ctx| { ... });
+/// action!(name, { description: "..." }, handler: my_handler_fn);
+/// ```
 ///
-/// // Action with KDL keybindings
-/// action!(name, { description: "...", bindings: r#"normal "x""# }, |ctx| { ... });
-///
-/// // Window-style action with key, mode, result, and buffer ops handler
+/// **Action with keybindings** - parses KDL binding syntax via [`parse_keybindings!`]:
+/// ```ignore
 /// action!(name, {
 ///     description: "...",
-///     key: Key::char('s'),
-///     mode: Window,
+///     bindings: r#"normal "x" "ctrl-x""#,
+/// }, |ctx| { ... });
+/// ```
+///
+/// **Buffer-ops action** - for actions that delegate to [`BufferOps`] trait methods.
+/// Generates the action, keybindings, AND result handler in one declaration:
+/// ```ignore
+/// action!(split_horizontal, {
+///     description: "Split horizontally",
+///     bindings: r#"window "s""#,
 ///     result: SplitHorizontal,
-///     handler_slice: RESULT_SPLIT_HORIZONTAL_HANDLERS,
 /// }, |ops| ops.split_horizontal());
 /// ```
+///
+/// The `result:` form delegates to [`buffer_ops_handler!`] to generate a
+/// [`ResultHandler`] that matches on the specified [`ActionResult`] variant
+/// and calls the body with the [`BufferOps`] context.
+///
+/// [`ActionResult`]: crate::actions::ActionResult
+/// [`BufferOps`]: crate::editor_ctx::BufferOps
+/// [`ResultHandler`]: crate::editor_ctx::ResultHandler
+/// [`parse_keybindings!`]: evildoer_macro::parse_keybindings
+/// [`buffer_ops_handler!`]: evildoer_macro::buffer_ops_handler
 #[macro_export]
 macro_rules! action {
+	// Buffer-ops form: action + keybindings + result handler colocated.
+	// Delegates handler generation to buffer_ops_handler! proc macro for
+	// CamelCase → SCREAMING_SNAKE_CASE slice name derivation.
+	($name:ident, {
+		description: $desc:expr,
+		bindings: $kdl:literal,
+		result: $result:ident
+		$(,)?
+	}, |$ops:ident| $body:expr) => {
+		$crate::action!($name, {
+			description: $desc,
+			bindings: $kdl
+		}, |_ctx| $crate::actions::ActionResult::$result);
+
+		evildoer_macro::buffer_ops_handler!($name, $result, $ops, $body);
+	};
+
 	($name:ident, {
 		$(aliases: $aliases:expr,)?
 		description: $desc:expr,

@@ -21,24 +21,9 @@ pub enum KeyResult {
 		/// Number of keys accumulated so far.
 		keys_so_far: usize,
 	},
-	/// An action with a character argument using typed ActionId (preferred).
+	/// An action with a character argument using typed ActionId.
 	ActionByIdWithChar {
 		id: ActionId,
-		count: usize,
-		extend: bool,
-		register: Option<char>,
-		char_arg: char,
-	},
-	/// An action to execute (string-based system, for backward compatibility).
-	Action {
-		name: &'static str,
-		count: usize,
-		extend: bool,
-		register: Option<char>,
-	},
-	/// An action with a character argument (from pending completion).
-	ActionWithChar {
-		name: &'static str,
 		count: usize,
 		extend: bool,
 		register: Option<char>,
