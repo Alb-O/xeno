@@ -53,7 +53,9 @@ impl PanelRegistry {
 		let id = PanelId::new(kind, *instance);
 		*instance += 1;
 
-		self.instances.insert(id, (factory.factory)());
+		let mut panel = (factory.factory)();
+		panel.on_open();
+		self.instances.insert(id, panel);
 		Some(id)
 	}
 
