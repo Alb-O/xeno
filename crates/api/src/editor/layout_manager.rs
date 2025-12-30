@@ -40,8 +40,10 @@ pub type LayerIndex = usize;
 pub enum SeparatorId {
 	/// A separator within a layer's split tree.
 	Split { path: SplitPath, layer: LayerIndex },
-	/// The boundary between layer 0 and layer 1 (dock boundary).
+	/// The boundary between layer 0 and layer 1 (bottom dock boundary).
 	LayerBoundary,
+	/// The boundary between layer 0 and layer 2 (side dock boundary).
+	SideBoundary,
 }
 
 /// Information about a separator found at a screen position.
@@ -60,8 +62,11 @@ pub struct LayoutManager {
 	/// Layout layers, index 0 is base (bottom), higher indices overlay on top.
 	layers: Vec<Option<Layout>>,
 
-	/// Dock layer height in terminal rows. Persists across window resizes.
+	/// Dock layer height in terminal rows (layer 1, bottom). Persists across window resizes.
 	dock_height: u16,
+
+	/// Side dock width in terminal columns (layer 2, right). Persists across window resizes.
+	side_dock_width: u16,
 
 	/// Currently hovered separator (for visual feedback during resize).
 	pub hovered_separator: Option<(SplitDirection, Rect)>,
@@ -89,11 +94,18 @@ impl LayoutManager {
 	/// Minimum dock height in rows.
 	const MIN_DOCK_HEIGHT: u16 = 3;
 
+	/// Default side dock width in columns.
+	const DEFAULT_SIDE_DOCK_WIDTH: u16 = 60;
+
+	/// Minimum side dock width in columns.
+	const MIN_SIDE_DOCK_WIDTH: u16 = 20;
+
 	/// Creates a new layout manager with a single text buffer on the base layer.
 	pub fn new(buffer_id: BufferId) -> Self {
 		Self {
 			layers: vec![Some(Layout::text(buffer_id))],
 			dock_height: Self::DEFAULT_DOCK_HEIGHT,
+			side_dock_width: Self::DEFAULT_SIDE_DOCK_WIDTH,
 			hovered_separator: None,
 			separator_under_mouse: None,
 			separator_hover_animation: None,
@@ -356,28 +368,40 @@ impl LayoutManager {
 
 	/// Computes the area for a specific layer given the full doc area.
 	///
-	/// Layer 0 gets the full area (or shrunk if dock layer is visible).
-	/// Layer 1 (dock) gets the bottom portion based on `dock_height`.
+	/// Layer 0 gets the full area (shrunk if dock layers are visible).
+	/// Layer 1 (bottom dock) gets the bottom portion based on `dock_height`.
+	/// Layer 2 (side dock) gets the right portion based on `side_dock_width`.
 	pub fn layer_area(&self, layer: LayerIndex, doc_area: Rect) -> Rect {
 		if layer == 0 {
+			let mut area = doc_area;
 			if self.layer(1).is_some() {
 				let dock_height = self.effective_dock_height(doc_area.height);
-				Rect {
-					x: doc_area.x,
-					y: doc_area.y,
-					width: doc_area.width,
-					height: doc_area.height.saturating_sub(dock_height),
-				}
-			} else {
-				doc_area
+				area.height = area.height.saturating_sub(dock_height);
 			}
+			if self.layer(2).is_some() {
+				let dock_width = self.effective_side_dock_width(doc_area.width);
+				area.width = area.width.saturating_sub(dock_width);
+			}
+			area
 		} else if layer == 1 {
 			let dock_height = self.effective_dock_height(doc_area.height);
+			let mut width = doc_area.width;
+			if self.layer(2).is_some() {
+				width = width.saturating_sub(self.effective_side_dock_width(doc_area.width));
+			}
 			Rect {
 				x: doc_area.x,
 				y: doc_area.bottom().saturating_sub(dock_height),
-				width: doc_area.width,
+				width,
 				height: dock_height,
+			}
+		} else if layer == 2 {
+			let dock_width = self.effective_side_dock_width(doc_area.width);
+			Rect {
+				x: doc_area.right().saturating_sub(dock_width),
+				y: doc_area.y,
+				width: dock_width,
+				height: doc_area.height,
 			}
 		} else {
 			doc_area
@@ -390,17 +414,43 @@ impl LayoutManager {
 		self.dock_height.clamp(Self::MIN_DOCK_HEIGHT, max_dock)
 	}
 
-	/// Returns the separator rect between layer 0 and layer 1 (the dock boundary).
+	/// Returns the effective side dock width, clamped to available space.
+	fn effective_side_dock_width(&self, total_width: u16) -> u16 {
+		let max_dock = total_width.saturating_sub(Self::MIN_SIDE_DOCK_WIDTH);
+		self.side_dock_width.clamp(Self::MIN_SIDE_DOCK_WIDTH, max_dock)
+	}
+
+	/// Returns the separator rect between layer 0 and layer 1 (the bottom dock boundary).
 	///
 	/// Returns None if layer 1 is not visible.
 	pub fn layer_boundary_separator(&self, doc_area: Rect) -> Option<Rect> {
 		self.layer(1)?;
 		let layer0_area = self.layer_area(0, doc_area);
+		// Adjust width if side dock is visible
+		let width = if self.layer(2).is_some() {
+			doc_area.width.saturating_sub(self.effective_side_dock_width(doc_area.width))
+		} else {
+			doc_area.width
+		};
 		Some(Rect {
 			x: doc_area.x,
 			y: layer0_area.bottom(),
-			width: doc_area.width,
+			width,
 			height: 1,
+		})
+	}
+
+	/// Returns the separator rect between layer 0/1 and layer 2 (the side dock boundary).
+	///
+	/// Returns None if layer 2 is not visible.
+	pub fn side_boundary_separator(&self, doc_area: Rect) -> Option<Rect> {
+		self.layer(2)?;
+		let layer2_area = self.layer_area(2, doc_area);
+		Some(Rect {
+			x: layer2_area.x.saturating_sub(1),
+			y: doc_area.y,
+			width: 1,
+			height: doc_area.height,
 		})
 	}
 
@@ -410,6 +460,13 @@ impl LayoutManager {
 		let new_height = doc_area.height.saturating_sub(new_dock_top);
 		let max_dock = doc_area.height.saturating_sub(Self::MIN_DOCK_HEIGHT);
 		self.dock_height = new_height.clamp(Self::MIN_DOCK_HEIGHT, max_dock);
+	}
+
+	/// Resizes the side dock layer by moving the boundary to the given x position.
+	pub fn resize_side_boundary(&mut self, doc_area: Rect, mouse_x: u16) {
+		let new_width = doc_area.right().saturating_sub(mouse_x);
+		let max_dock = doc_area.width.saturating_sub(Self::MIN_SIDE_DOCK_WIDTH);
+		self.side_dock_width = new_width.clamp(Self::MIN_SIDE_DOCK_WIDTH, max_dock);
 	}
 
 	/// Returns the visual priority for the layer boundary separator.
@@ -425,6 +482,13 @@ impl LayoutManager {
 			.map(|l| l.first_view().visual_priority())
 			.unwrap_or(0);
 		layer0_priority.max(layer1_priority)
+	}
+
+	/// Returns the visual priority for the side boundary separator.
+	pub fn side_boundary_priority(&self) -> u8 {
+		self.layer(2)
+			.map(|l| l.first_view().visual_priority())
+			.unwrap_or(0)
 	}
 
 	/// Finds the view at the given screen coordinates (searches top-down).
@@ -476,8 +540,22 @@ impl LayoutManager {
 
 	/// Finds the separator at the given screen coordinates.
 	///
-	/// Checks layer boundary first, then searches split separators top-down.
+	/// Checks layer boundaries first, then searches split separators top-down.
 	pub fn separator_hit_at_position(&self, area: Rect, x: u16, y: u16) -> Option<SeparatorHit> {
+		// Check side boundary (layer 2) first - it's a vertical line
+		if let Some(rect) = self.side_boundary_separator(area)
+			&& x == rect.x
+			&& y >= rect.y
+			&& y < rect.bottom()
+		{
+			return Some(SeparatorHit {
+				id: SeparatorId::SideBoundary,
+				direction: SplitDirection::Horizontal,
+				rect,
+			});
+		}
+
+		// Check bottom dock boundary (layer 1) - it's a horizontal line
 		if let Some(rect) = self.layer_boundary_separator(area)
 			&& y == rect.y
 			&& x >= rect.x
@@ -517,6 +595,7 @@ impl LayoutManager {
 					.map(|(_, rect)| rect)
 			}
 			SeparatorId::LayerBoundary => self.layer_boundary_separator(area),
+			SeparatorId::SideBoundary => self.side_boundary_separator(area),
 		}
 	}
 
@@ -531,6 +610,9 @@ impl LayoutManager {
 			}
 			SeparatorId::LayerBoundary => {
 				self.resize_dock_boundary(area, mouse_y);
+			}
+			SeparatorId::SideBoundary => {
+				self.resize_side_boundary(area, mouse_x);
 			}
 		}
 	}

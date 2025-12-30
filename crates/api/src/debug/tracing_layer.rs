@@ -12,6 +12,23 @@ use tracing_subscriber::registry::LookupSpan;
 
 use super::ring_buffer::{ActionSpanContext, LOG_BUFFER, LogEntry, LogLevel};
 
+/// Attempts to parse and pretty-print JSON in a string.
+/// Returns the original string if it's not valid JSON or doesn't look like JSON.
+fn try_pretty_json(s: &str) -> String {
+	let trimmed = s.trim();
+	// Quick check: only try to parse if it looks like JSON
+	if !((trimmed.starts_with('{') && trimmed.ends_with('}'))
+		|| (trimmed.starts_with('[') && trimmed.ends_with(']')))
+	{
+		return s.to_string();
+	}
+
+	match serde_json::from_str::<serde_json::Value>(trimmed) {
+		Ok(value) => serde_json::to_string_pretty(&value).unwrap_or_else(|_| s.to_string()),
+		Err(_) => s.to_string(),
+	}
+}
+
 /// Data stored per-span for action context extraction.
 #[derive(Debug, Default)]
 pub struct ActionSpanData {
@@ -150,6 +167,15 @@ where
 	}
 
 	fn on_event(&self, event: &Event<'_>, ctx: Context<'_, S>) {
+		// Filter out noisy external crate logs
+		let target = event.metadata().target();
+		if !target.starts_with("evildoer") {
+			// Only allow WARN+ from external crates
+			if *event.metadata().level() > Level::WARN {
+				return;
+			}
+		}
+
 		let level = match *event.metadata().level() {
 			Level::ERROR => LogLevel::Error,
 			Level::WARN => LogLevel::Warn,
@@ -167,11 +193,14 @@ where
 			visitor.message
 		};
 
+		// Try to pretty-print JSON in the message
+		message = try_pretty_json(&message);
+
 		if !visitor.fields.is_empty() {
 			let fields_str = visitor
 				.fields
 				.iter()
-				.map(|(k, v)| format!("{}={}", k, v))
+				.map(|(k, v)| format!("{}={}", k, try_pretty_json(v)))
 				.collect::<Vec<_>>()
 				.join(" ");
 			message = if message.is_empty() {

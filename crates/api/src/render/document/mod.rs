@@ -237,6 +237,7 @@ impl Editor {
 		}
 
 		let layer_boundary = self.layout.layer_boundary_separator(doc_area);
+		let side_boundary = self.layout.side_boundary_separator(doc_area);
 		let sep_style = SeparatorStyle::new(self, doc_area);
 
 		let ctx = BufferRenderContext {
@@ -295,6 +296,16 @@ impl Editor {
 				&layer_data,
 				&sep_style,
 			);
+		}
+
+		// Render side boundary separator (vertical line for layer 2)
+		if let Some(boundary_rect) = side_boundary {
+			let boundary_priority = self.layout.side_boundary_priority();
+			let style = sep_style.for_rect(boundary_rect, boundary_priority);
+			let lines: Vec<Line> = (0..boundary_rect.height)
+				.map(|_| Line::from(Span::styled("\u{2502}", style)))
+				.collect();
+			frame.render_widget(Paragraph::new(lines), boundary_rect);
 		}
 	}
 
