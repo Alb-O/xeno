@@ -177,3 +177,104 @@ fn separator_rect_at_path() {
 	assert_eq!(dir, SplitDirection::Vertical);
 	assert_eq!(rect.y, 23);
 }
+
+#[test]
+fn separator_positions_2x2_grid() {
+	// 2x2 grid: (A|B) over (C|D)
+	let top = Layout::side_by_side(Layout::single(BufferId(1)), Layout::single(BufferId(2)));
+	let bottom = Layout::side_by_side(Layout::single(BufferId(3)), Layout::single(BufferId(4)));
+	let layout = Layout::stacked(top, bottom);
+	let area = make_rect(0, 0, 81, 25); // odd width/height for clean splits
+
+	let seps = layout.separator_positions(area);
+
+	assert_eq!(seps.len(), 3, "Expected 3 separators, got {:?}", seps);
+
+	let h_seps: Vec<_> = seps
+		.iter()
+		.filter(|(dir, _, _)| *dir == SplitDirection::Vertical)
+		.collect();
+	assert_eq!(h_seps.len(), 1, "Expected 1 horizontal separator");
+	let (_, _, h_rect) = h_seps[0];
+	assert_eq!(h_rect.height, 1);
+	assert_eq!(h_rect.width, 81);
+	assert_eq!(h_rect.y, 13);
+
+	let v_seps: Vec<_> = seps
+		.iter()
+		.filter(|(dir, _, _)| *dir == SplitDirection::Horizontal)
+		.collect();
+	assert_eq!(v_seps.len(), 2, "Expected 2 vertical separators");
+
+	for (_, _, v_rect) in &v_seps {
+		assert_eq!(v_rect.width, 1);
+		assert_eq!(v_rect.x, 41, "Vertical separator at wrong x: {:?}", v_rect);
+	}
+
+	let top_v = v_seps.iter().find(|(_, _, r)| r.y < 13);
+	let bottom_v = v_seps.iter().find(|(_, _, r)| r.y > 13);
+	assert!(top_v.is_some(), "Expected vertical separator in top half");
+	assert!(
+		bottom_v.is_some(),
+		"Expected vertical separator in bottom half"
+	);
+}
+
+#[test]
+fn separator_junction_detection() {
+	// 2x2 grid: (A|B) over (C|D)
+	// The horizontal line at y=13 should intersect with vertical lines at x=41
+	let top = Layout::side_by_side(Layout::single(BufferId(1)), Layout::single(BufferId(2)));
+	let bottom = Layout::side_by_side(Layout::single(BufferId(3)), Layout::single(BufferId(4)));
+	let layout = Layout::stacked(top, bottom);
+	let area = make_rect(0, 0, 81, 25);
+
+	let seps = layout.separator_positions(area);
+
+	let h_sep = seps
+		.iter()
+		.find(|(dir, _, _)| *dir == SplitDirection::Vertical)
+		.expect("horizontal separator");
+
+	let v_seps: Vec<_> = seps
+		.iter()
+		.filter(|(dir, _, _)| *dir == SplitDirection::Horizontal)
+		.collect();
+	let (_, _, h_rect) = h_sep;
+	assert_eq!(h_rect.y, 13);
+	assert_eq!(h_rect.x, 0);
+	assert_eq!(h_rect.width, 81);
+
+	let top_v = v_seps
+		.iter()
+		.find(|(_, _, r)| r.y == 0)
+		.expect("top vertical");
+	let bottom_v = v_seps
+		.iter()
+		.find(|(_, _, r)| r.y > 13)
+		.expect("bottom vertical");
+
+	let (_, _, top_v_rect) = top_v;
+	let (_, _, bottom_v_rect) = bottom_v;
+
+	assert_eq!(top_v_rect.x, 41);
+	assert_eq!(top_v_rect.y, 0);
+	assert_eq!(top_v_rect.height, 13);
+
+	assert_eq!(bottom_v_rect.x, 41);
+	assert_eq!(bottom_v_rect.y, 14);
+
+	// Verify separators don't overlap the horizontal separator row
+	assert!(
+		top_v_rect.bottom() <= h_rect.y,
+		"Top vertical should end before horizontal: {} <= {}",
+		top_v_rect.bottom(),
+		h_rect.y
+	);
+	assert!(
+		bottom_v_rect.y > h_rect.y,
+		"Bottom vertical should start after horizontal: {} > {}",
+		bottom_v_rect.y,
+		h_rect.y
+	);
+}

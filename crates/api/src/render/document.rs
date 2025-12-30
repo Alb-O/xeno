@@ -87,6 +87,22 @@ impl SeparatorStyle {
 	}
 }
 
+/// Returns the box-drawing junction glyph for the given connectivity.
+///
+/// Connectivity is encoded as a 4-bit mask: up (0x1), down (0x2), left (0x4), right (0x8).
+fn junction_glyph(connectivity: u8) -> char {
+	match connectivity {
+		0b1111 => '┼',
+		0b1011 => '├',
+		0b0111 => '┤',
+		0b1110 => '┬',
+		0b1101 => '┴',
+		0b0011 => '│',
+		0b1100 => '─',
+		_ => '┼',
+	}
+}
+
 impl Editor {
 	/// Renders the complete editor frame.
 	///
@@ -266,15 +282,168 @@ impl Editor {
 				};
 				frame.render_widget(Paragraph::new(lines), *sep_rect);
 			}
+
+			self.render_separator_junctions(frame, separators, &sep_style);
 		}
 
 		if let Some(boundary_rect) = layer_boundary {
-			let style = sep_style.for_rect(boundary_rect, self.layout.layer_boundary_priority());
+			let boundary_priority = self.layout.layer_boundary_priority();
+			let style = sep_style.for_rect(boundary_rect, boundary_priority);
 			let line = Line::from(Span::styled(
 				"\u{2500}".repeat(boundary_rect.width as usize),
 				style,
 			));
 			frame.render_widget(Paragraph::new(vec![line]), boundary_rect);
+
+			self.render_layer_boundary_junctions(
+				frame,
+				boundary_rect,
+				boundary_priority,
+				&layer_data,
+				&sep_style,
+			);
+		}
+	}
+
+	/// Renders junction glyphs where separators intersect within a layer.
+	fn render_separator_junctions(
+		&self,
+		frame: &mut evildoer_tui::Frame,
+		separators: &[(SplitDirection, u8, Rect)],
+		sep_style: &SeparatorStyle,
+	) {
+		use std::collections::HashMap;
+
+		// SplitDirection::Vertical = stacked = horizontal line; Horizontal = side-by-side = vertical line
+		let h_seps: Vec<_> = separators
+			.iter()
+			.filter(|(d, _, _)| *d == SplitDirection::Vertical)
+			.collect();
+		let v_seps: Vec<_> = separators
+			.iter()
+			.filter(|(d, _, _)| *d == SplitDirection::Horizontal)
+			.collect();
+
+		for (_, v_prio, v_rect) in &v_seps {
+			let x = v_rect.x;
+			let mut junctions: HashMap<u16, (bool, bool, bool, bool, u8)> = HashMap::new();
+
+			for (_, h_prio, h_rect) in &h_seps {
+				let y = h_rect.y;
+
+				let at_left_edge = x + 1 == h_rect.x;
+				let at_right_edge = x == h_rect.right();
+				let within = x >= h_rect.x && x < h_rect.right();
+
+				if !at_left_edge && !at_right_edge && !within {
+					continue;
+				}
+
+				let touches_above = y >= v_rect.y && y < v_rect.bottom();
+				let touches_below = y + 1 >= v_rect.y && y + 1 < v_rect.bottom();
+
+				if touches_above || touches_below || within {
+					let entry = junctions
+						.entry(y)
+						.or_insert((false, false, false, false, 0));
+					if within {
+						entry.0 |= y > v_rect.y;
+						entry.1 |= y < v_rect.bottom().saturating_sub(1);
+						entry.2 |= x > h_rect.x;
+						entry.3 |= x < h_rect.right().saturating_sub(1);
+					} else {
+						entry.0 |= touches_above;
+						entry.1 |= touches_below;
+						entry.2 |= at_right_edge;
+						entry.3 |= at_left_edge;
+					}
+					entry.4 = entry.4.max(*h_prio);
+				}
+			}
+
+			let buf = frame.buffer_mut();
+			for (y, (has_up, has_down, has_left, has_right, h_prio)) in junctions {
+				let connectivity = (has_up as u8)
+					| ((has_down as u8) << 1)
+					| ((has_left as u8) << 2)
+					| ((has_right as u8) << 3);
+
+				if connectivity == 0b0011 {
+					continue;
+				}
+
+				let glyph = junction_glyph(connectivity);
+				let priority = (*v_prio).max(h_prio);
+				let style = sep_style.for_rect(*v_rect, priority);
+
+				if let Some(cell) = buf.cell_mut((x, y)) {
+					cell.set_char(glyph);
+					cell.set_style(style);
+				}
+			}
+		}
+	}
+
+	/// Renders junction glyphs where layer boundary meets vertical separators.
+	fn render_layer_boundary_junctions(
+		&self,
+		frame: &mut evildoer_tui::Frame,
+		boundary_rect: Rect,
+		boundary_priority: u8,
+		layer_data: &[(
+			usize,
+			Rect,
+			Vec<(BufferView, Rect)>,
+			Vec<(SplitDirection, u8, Rect)>,
+		)],
+		sep_style: &SeparatorStyle,
+	) {
+		use std::collections::HashMap;
+
+		let buf = frame.buffer_mut();
+		let y = boundary_rect.y;
+
+		let mut junctions: HashMap<u16, (bool, bool, u8)> = HashMap::new();
+
+		for (layer_idx, _, _, separators) in layer_data {
+			for (direction, priority, sep_rect) in separators {
+				if *direction != SplitDirection::Horizontal {
+					continue;
+				}
+
+				let x = sep_rect.x;
+				if x < boundary_rect.x || x >= boundary_rect.right() {
+					continue;
+				}
+
+				let touches_above = *layer_idx == 0 && sep_rect.bottom() == y;
+				let touches_below = *layer_idx == 1 && sep_rect.y == y + 1;
+
+				if touches_above || touches_below {
+					let entry = junctions.entry(x).or_insert((false, false, 0));
+					entry.0 |= touches_above;
+					entry.1 |= touches_below;
+					entry.2 = entry.2.max(*priority);
+				}
+			}
+		}
+
+		for (x, (has_up, has_down, priority)) in junctions {
+			let has_left = x > boundary_rect.x;
+			let has_right = x < boundary_rect.right().saturating_sub(1);
+
+			let connectivity = (has_up as u8)
+				| ((has_down as u8) << 1)
+				| ((has_left as u8) << 2)
+				| ((has_right as u8) << 3);
+
+			let glyph = junction_glyph(connectivity);
+			let style = sep_style.for_rect(boundary_rect, boundary_priority.max(priority));
+
+			if let Some(cell) = buf.cell_mut((x, y)) {
+				cell.set_char(glyph);
+				cell.set_style(style);
+			}
 		}
 	}
 
