@@ -247,7 +247,6 @@ impl Editor {
 			theme: self.theme,
 			language_loader: &self.language_loader,
 			style_overlays: &self.style_overlays,
-			show_indent_guides: true,
 		};
 
 		for (_, _, view_areas, separators) in &layer_data {

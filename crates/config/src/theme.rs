@@ -169,20 +169,7 @@ fn parse_ui_colors(node: Option<&KdlNode>, ctx: &ParseContext) -> Result<UiColor
 		selection_fg: get_color_field(children, "selection-fg", ctx)?,
 		message_fg: get_color_field(children, "message-fg", ctx)?,
 		command_input_fg: get_color_field(children, "command-input-fg", ctx)?,
-		indent_guide_fg: get_optional_color_field(children, "indent-guide-fg", ctx)?,
 	})
-}
-
-fn get_optional_color_field(
-	children: &kdl::KdlDocument,
-	name: &str,
-	ctx: &ParseContext,
-) -> Result<Option<evildoer_base::color::Color>> {
-	if children.get(name).is_some() {
-		Ok(Some(get_color_field(children, name, ctx)?))
-	} else {
-		Ok(None)
-	}
 }
 
 fn parse_status_colors(node: Option<&KdlNode>, ctx: &ParseContext) -> Result<StatusColors> {

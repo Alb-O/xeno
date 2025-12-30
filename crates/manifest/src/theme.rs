@@ -36,29 +36,6 @@ pub struct UiColors {
 	pub selection_fg: Color,
 	pub message_fg: Color,
 	pub command_input_fg: Color,
-	/// Color for indentation guide overlays (spaces shown as dots, tabs as chevrons).
-	/// If None, inherits from gutter_fg with reduced opacity.
-	pub indent_guide_fg: Option<Color>,
-}
-
-/// Characters used to render indentation guides.
-#[derive(Clone, Copy, Debug)]
-pub struct IndentGuideChars {
-	/// Character for space indentation (default: middle dot '·' U+00B7).
-	pub space: char,
-	/// Character for tab indentation (default: right chevron '›' U+203A).
-	pub tab: char,
-}
-
-impl Default for IndentGuideChars {
-	fn default() -> Self {
-		Self {
-			// Middle dot - subtle, vertically centered
-			space: '\u{00B7}',
-			// Single right-pointing angle quotation mark - clean chevron look
-			tab: '\u{203A}',
-		}
-	}
 }
 
 /// Status line color definitions per mode.
@@ -251,7 +228,6 @@ pub static DEFAULT_THEME: Theme = Theme {
 			selection_fg: Color::White,
 			message_fg: Color::Yellow,
 			command_input_fg: Color::White,
-			indent_guide_fg: None,
 		},
 		status: StatusColors {
 			normal_bg: Color::Blue,
