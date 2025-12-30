@@ -488,7 +488,9 @@ impl Editor {
 	/// Matches Vim's `:split` / Helix's `hsplit` (Ctrl+w s).
 	pub fn split_horizontal(&mut self, new_buffer_id: BufferId) {
 		let current_view = self.buffers.focused_view();
-		self.layout.split_horizontal(current_view, new_buffer_id);
+		let doc_area = self.doc_area();
+		self.layout
+			.split_horizontal(current_view, new_buffer_id, doc_area);
 		self.focus_buffer(new_buffer_id);
 	}
 
@@ -497,7 +499,9 @@ impl Editor {
 	/// Matches Vim's `:vsplit` / Helix's `vsplit` (Ctrl+w v).
 	pub fn split_vertical(&mut self, new_buffer_id: BufferId) {
 		let current_view = self.buffers.focused_view();
-		self.layout.split_vertical(current_view, new_buffer_id);
+		let doc_area = self.doc_area();
+		self.layout
+			.split_vertical(current_view, new_buffer_id, doc_area);
 		self.focus_buffer(new_buffer_id);
 	}
 
@@ -513,8 +517,9 @@ impl Editor {
 	pub fn split_horizontal_terminal(&mut self) -> TerminalId {
 		let terminal_id = self.create_terminal();
 		let current_view = self.buffers.focused_view();
+		let doc_area = self.doc_area();
 		self.layout
-			.split_horizontal_terminal(current_view, terminal_id);
+			.split_horizontal_terminal(current_view, terminal_id, doc_area);
 		self.focus_terminal(terminal_id);
 		terminal_id
 	}
@@ -523,8 +528,9 @@ impl Editor {
 	pub fn split_vertical_terminal(&mut self) -> TerminalId {
 		let terminal_id = self.create_terminal();
 		let current_view = self.buffers.focused_view();
+		let doc_area = self.doc_area();
 		self.layout
-			.split_vertical_terminal(current_view, terminal_id);
+			.split_vertical_terminal(current_view, terminal_id, doc_area);
 		self.focus_terminal(terminal_id);
 		terminal_id
 	}

@@ -5,6 +5,10 @@
 //!
 //! The layout system is view-agnostic: it can contain text buffers, terminals,
 //! or any other content type via the `BufferView` enum.
+//!
+//! Split positions are stored as absolute screen coordinates, not ratios.
+//! This ensures splits remain stable when other UI elements (like the dock
+//! terminal) appear or disappear.
 
 mod areas;
 mod navigation;
@@ -13,6 +17,8 @@ mod tests;
 mod types;
 
 pub use types::{BufferView, SplitDirection, SplitPath, TerminalId};
+
+use evildoer_tui::layout::Rect;
 
 use super::BufferId;
 
@@ -34,12 +40,13 @@ use super::BufferId;
 ///
 /// # Creating Layouts
 ///
-/// Use the constructor methods rather than building variants directly:
+/// Splits require the current view area to compute absolute separator positions:
 ///
 /// ```ignore
 /// let layout = Layout::side_by_side(
 ///     Layout::text(buffer_id),
 ///     Layout::terminal(terminal_id),
+///     view_area,
 /// );
 /// ```
 #[derive(Debug, Clone)]
@@ -50,8 +57,8 @@ pub enum Layout {
 	Split {
 		/// Direction of the split (horizontal or vertical).
 		direction: SplitDirection,
-		/// Ratio of space given to first child (0.0 to 1.0).
-		ratio: f32,
+		/// Absolute position of the separator (x for horizontal, y for vertical).
+		position: u16,
 		/// First child (left for horizontal, top for vertical).
 		first: Box<Layout>,
 		/// Second child (right for horizontal, bottom for vertical).
@@ -77,11 +84,12 @@ impl Layout {
 
 	/// Creates a side-by-side split (first on left, second on right).
 	///
+	/// The separator is placed at the horizontal center of the given area.
 	/// This is a "vertical split" in Vim/Helix terminology (vertical divider line).
-	pub fn side_by_side(first: Layout, second: Layout) -> Self {
+	pub fn side_by_side(first: Layout, second: Layout, area: Rect) -> Self {
 		Layout::Split {
 			direction: SplitDirection::Horizontal,
-			ratio: 0.5,
+			position: area.x + area.width / 2,
 			first: Box::new(first),
 			second: Box::new(second),
 		}
@@ -89,11 +97,12 @@ impl Layout {
 
 	/// Creates a stacked split (first on top, second on bottom).
 	///
+	/// The separator is placed at the vertical center of the given area.
 	/// This is a "horizontal split" in Vim/Helix terminology (horizontal divider line).
-	pub fn stacked(first: Layout, second: Layout) -> Self {
+	pub fn stacked(first: Layout, second: Layout, area: Rect) -> Self {
 		Layout::Split {
 			direction: SplitDirection::Vertical,
-			ratio: 0.5,
+			position: area.y + area.height / 2,
 			first: Box::new(first),
 			second: Box::new(second),
 		}
@@ -202,7 +211,7 @@ impl Layout {
 			Layout::Single(_) => Some(self.clone()),
 			Layout::Split {
 				direction,
-				ratio,
+				position,
 				first,
 				second,
 			} => match (first.remove_view(target), second.remove_view(target)) {
@@ -210,7 +219,7 @@ impl Layout {
 				(Some(layout), None) | (None, Some(layout)) => Some(layout),
 				(Some(f), Some(s)) => Some(Layout::Split {
 					direction: *direction,
-					ratio: *ratio,
+					position: *position,
 					first: Box::new(f),
 					second: Box::new(s),
 				}),

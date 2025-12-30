@@ -262,8 +262,17 @@ impl LayoutManager {
 	}
 
 	/// Creates a horizontal split with a new buffer below the current view.
-	pub fn split_horizontal(&mut self, current_view: BufferView, new_buffer_id: BufferId) {
-		let new_layout = Layout::stacked(Layout::single(current_view), Layout::text(new_buffer_id));
+	pub fn split_horizontal(
+		&mut self,
+		current_view: BufferView,
+		new_buffer_id: BufferId,
+		doc_area: Rect,
+	) {
+		let Some(view_area) = self.view_area(current_view, doc_area) else {
+			return;
+		};
+		let new_layout =
+			Layout::stacked(Layout::single(current_view), Layout::text(new_buffer_id), view_area);
 		if let Some(layer_idx) = self.layer_of_view(current_view)
 			&& let Some(layout) = self.layer_mut(layer_idx)
 		{
@@ -272,9 +281,20 @@ impl LayoutManager {
 	}
 
 	/// Creates a vertical split with a new buffer to the right of the current view.
-	pub fn split_vertical(&mut self, current_view: BufferView, new_buffer_id: BufferId) {
-		let new_layout =
-			Layout::side_by_side(Layout::single(current_view), Layout::text(new_buffer_id));
+	pub fn split_vertical(
+		&mut self,
+		current_view: BufferView,
+		new_buffer_id: BufferId,
+		doc_area: Rect,
+	) {
+		let Some(view_area) = self.view_area(current_view, doc_area) else {
+			return;
+		};
+		let new_layout = Layout::side_by_side(
+			Layout::single(current_view),
+			Layout::text(new_buffer_id),
+			view_area,
+		);
 		if let Some(layer_idx) = self.layer_of_view(current_view)
 			&& let Some(layout) = self.layer_mut(layer_idx)
 		{
@@ -283,9 +303,20 @@ impl LayoutManager {
 	}
 
 	/// Creates a horizontal split with a new terminal below the current view.
-	pub fn split_horizontal_terminal(&mut self, current_view: BufferView, terminal_id: TerminalId) {
-		let new_layout =
-			Layout::stacked(Layout::single(current_view), Layout::terminal(terminal_id));
+	pub fn split_horizontal_terminal(
+		&mut self,
+		current_view: BufferView,
+		terminal_id: TerminalId,
+		doc_area: Rect,
+	) {
+		let Some(view_area) = self.view_area(current_view, doc_area) else {
+			return;
+		};
+		let new_layout = Layout::stacked(
+			Layout::single(current_view),
+			Layout::terminal(terminal_id),
+			view_area,
+		);
 		if let Some(layer_idx) = self.layer_of_view(current_view)
 			&& let Some(layout) = self.layer_mut(layer_idx)
 		{
@@ -294,14 +325,37 @@ impl LayoutManager {
 	}
 
 	/// Creates a vertical split with a new terminal to the right of the current view.
-	pub fn split_vertical_terminal(&mut self, current_view: BufferView, terminal_id: TerminalId) {
-		let new_layout =
-			Layout::side_by_side(Layout::single(current_view), Layout::terminal(terminal_id));
+	pub fn split_vertical_terminal(
+		&mut self,
+		current_view: BufferView,
+		terminal_id: TerminalId,
+		doc_area: Rect,
+	) {
+		let Some(view_area) = self.view_area(current_view, doc_area) else {
+			return;
+		};
+		let new_layout = Layout::side_by_side(
+			Layout::single(current_view),
+			Layout::terminal(terminal_id),
+			view_area,
+		);
 		if let Some(layer_idx) = self.layer_of_view(current_view)
 			&& let Some(layout) = self.layer_mut(layer_idx)
 		{
 			layout.replace_view(current_view, new_layout);
 		}
+	}
+
+	/// Gets the area of a specific view.
+	fn view_area(&self, view: BufferView, doc_area: Rect) -> Option<Rect> {
+		let layer_idx = self.layer_of_view(view)?;
+		let layer_area = self.layer_area(layer_idx, doc_area);
+		self.layers[layer_idx]
+			.as_ref()?
+			.compute_view_areas(layer_area)
+			.into_iter()
+			.find(|(v, _)| *v == view)
+			.map(|(_, area)| area)
 	}
 
 	/// Removes a view from its layer, collapsing splits as needed.

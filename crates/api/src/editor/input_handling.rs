@@ -520,6 +520,18 @@ impl Editor {
 	/// This computes the document area (excluding status line and panels)
 	/// and then finds the focused view's rectangle within that area.
 	fn focused_view_area(&self) -> evildoer_tui::layout::Rect {
+		let doc_area = self.doc_area();
+		let focused = self.focused_view();
+		for (view, area) in self.layout.compute_view_areas(doc_area) {
+			if view == focused {
+				return area;
+			}
+		}
+		doc_area
+	}
+
+	/// Computes the document area based on current window dimensions.
+	pub fn doc_area(&self) -> evildoer_tui::layout::Rect {
 		let width = self.window_width.unwrap_or(80);
 		let height = self.window_height.unwrap_or(24);
 		let main_height = height.saturating_sub(1);
@@ -529,21 +541,7 @@ impl Editor {
 			width,
 			height: main_height,
 		};
-
-		// Compute dock layout to get doc_area
-		let dock_layout = self.ui.compute_layout(main_area);
-		let doc_area = dock_layout.doc_area;
-
-		// Find the focused view's area within the layout
-		let focused = self.focused_view();
-		for (view, area) in self.layout.compute_view_areas(doc_area) {
-			if view == focused {
-				return area;
-			}
-		}
-
-		// Fallback to entire doc area if view not found
-		doc_area
+		self.ui.compute_layout(main_area).doc_area
 	}
 }
 
