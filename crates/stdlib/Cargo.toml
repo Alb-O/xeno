@@ -16,7 +16,7 @@ host = [
     "dep:unicode-width",
     "dep:smallvec",
     "dep:paste",
-    "dep:log",
+    "dep:tracing",
 ]
 
 [dependencies]
@@ -27,8 +27,8 @@ evildoer-macro.workspace = true
 evildoer-manifest.workspace = true
 futures.workspace = true
 linkme = { workspace = true, optional = true }
-log = { workspace = true, optional = true }
 paste = { workspace = true, optional = true }
+tracing = { workspace = true, optional = true }
 regex = { workspace = true, optional = true }
 ropey = { workspace = true, optional = true }
 serde.workspace = true

@@ -32,6 +32,7 @@ use std::pin::Pin;
 use futures::future::Future;
 use linkme::distributed_slice;
 use ropey::RopeSlice;
+use tracing::warn;
 
 use crate::{Mode, RegistrySource};
 
@@ -550,9 +551,9 @@ pub fn emit_sync(ctx: &HookContext<'_>) -> HookResult {
 				}
 			}
 			HookAction::Async(_) => {
-				log::warn!(
-					"Hook '{}' returned async action but emit_sync was called; skipping",
-					hook.name
+				warn!(
+					hook = hook.name,
+					"Hook returned async action but emit_sync was called; skipping"
 				);
 			}
 		}

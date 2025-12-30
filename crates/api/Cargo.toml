@@ -23,7 +23,6 @@ evildoer-tui.workspace = true
 futures.workspace = true
 home.workspace = true
 linkme.workspace = true
-log.workspace = true
 parking_lot.workspace = true
 paste.workspace = true
 portable-pty.workspace = true

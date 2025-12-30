@@ -6,6 +6,7 @@
 
 mod hooks;
 
+use tracing::{debug, warn};
 use std::path::Path;
 use std::sync::Arc;
 
@@ -62,7 +63,7 @@ impl LspManager {
 		let client = match self.registry.get_or_start(language, path).await {
 			Ok(client) => client,
 			Err(e) => {
-				log::debug!("LSP: No server for {language}: {e}");
+				debug!(language = language, error = %e, "LSP: No server available");
 				return None;
 			}
 		};
@@ -72,7 +73,7 @@ impl LspManager {
 		if let Err(e) =
 			client.text_document_did_open(uri, language.to_string(), version as i32, text.into())
 		{
-			log::warn!("LSP: didOpen failed: {e}");
+			warn!(error = %e, "LSP: didOpen failed");
 		}
 
 		Some(())
@@ -96,7 +97,7 @@ impl LspManager {
 		}
 
 		if let Err(e) = client.text_document_did_change_full(uri, version as i32, text.into()) {
-			log::warn!("LSP: didChange failed: {e}");
+			warn!(error = %e, "LSP: didChange failed");
 		}
 
 		Some(())
@@ -115,7 +116,7 @@ impl LspManager {
 		}
 
 		if let Err(e) = client.text_document_did_close(uri) {
-			log::warn!("LSP: didClose failed: {e}");
+			warn!(error = %e, "LSP: didClose failed");
 		}
 
 		Some(())

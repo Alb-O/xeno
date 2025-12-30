@@ -14,8 +14,8 @@ evildoer-manifest.workspace = true
 evildoer-stdlib.workspace = true
 futures.workspace = true
 linkme.workspace = true
-log.workspace = true
 paste.workspace = true
+tracing.workspace = true
 
 [dev-dependencies]
 ropey.workspace = true

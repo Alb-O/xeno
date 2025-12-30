@@ -5,6 +5,8 @@ use std::collections::HashMap;
 use super::collision::{Collision, CollisionKind};
 use super::diagnostics::diagnostics_internal;
 use super::types::{ActionRegistryIndex, ExtensionRegistry, RegistryIndex};
+use tracing::{debug, warn};
+
 use crate::{
 	ACTIONS, ActionDef, ActionId, COMMANDS, CommandDef, MOTIONS, MotionDef, RegistryMetadata,
 	TEXT_OBJECTS, TextObjectDef,
@@ -257,18 +259,18 @@ fn validate_registry(reg: &ExtensionRegistry) {
 	if cfg!(debug_assertions) {
 		for c in &diag.collisions {
 			if c.winner_priority != c.shadowed_priority {
-				log::debug!(
-					"Extension shadowing: {} '{}' from {} shadowed by {} due to priority ({} vs {})",
-					c.kind,
-					c.key,
-					c.shadowed_source,
-					c.winner_id,
-					c.winner_priority,
-					c.shadowed_priority
+				debug!(
+					kind = %c.kind,
+					key = c.key,
+					shadowed_source = %c.shadowed_source,
+					winner_id = c.winner_id,
+					winner_priority = c.winner_priority,
+					shadowed_priority = c.shadowed_priority,
+					"Extension shadowing"
 				);
 			}
 		}
 	} else {
-		log::warn!("Extension collisions detected. Use :ext doctor to resolve.");
+		warn!("Extension collisions detected. Use :ext doctor to resolve.");
 	}
 }

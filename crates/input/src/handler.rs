@@ -5,6 +5,7 @@ use evildoer_keymap::ToKeyMap;
 use evildoer_keymap::parser::Node;
 use evildoer_manifest::keymap_registry::{KeymapRegistry, LookupResult};
 use evildoer_manifest::{BindingMode, get_keymap_registry};
+use tracing::debug;
 
 use crate::types::{KeyResult, Mode};
 
@@ -196,10 +197,10 @@ impl InputHandler {
 			}
 			LookupResult::Pending { sticky } => {
 				if let Some(entry) = sticky {
-					log::debug!(
-						"Pending with sticky action '{}' after {} keys",
-						entry.action_name,
-						self.key_sequence.len()
+					debug!(
+						action = entry.action_name,
+						keys = self.key_sequence.len(),
+						"Pending with sticky action"
 					);
 				}
 				KeyResult::Pending {

@@ -13,7 +13,6 @@ evildoer-tui = ["dep:evildoer-tui"]
 crossterm.workspace = true
 evildoer-keymap-parser.workspace = true
 evildoer-tui = { workspace = true, optional = true }
-log.workspace = true
 ropey.workspace = true
 serde.workspace = true
 smallvec.workspace = true

@@ -709,7 +709,6 @@ dependencies = [
  "home",
  "insta",
  "linkme",
- "log",
  "parking_lot",
  "paste",
  "portable-pty",
@@ -737,7 +736,6 @@ dependencies = [
  "crossterm",
  "evildoer-keymap-parser",
  "evildoer-tui",
- "log",
  "ropey",
  "serde",
  "smallvec",
@@ -772,9 +770,9 @@ dependencies = [
  "evildoer-stdlib",
  "futures",
  "linkme",
- "log",
  "paste",
  "ropey",
+ "tracing",
 ]
 
 [[package]]
@@ -785,8 +783,8 @@ dependencies = [
  "evildoer-keymap",
  "evildoer-manifest",
  "evildoer-stdlib",
- "log",
  "serde",
+ "tracing",
 ]
 
 [[package]]
@@ -835,13 +833,13 @@ dependencies = [
  "evildoer-runtime",
  "kdl",
  "libloading",
- "log",
  "once_cell",
  "regex",
  "ropey",
  "serde",
  "tempfile",
  "thiserror 2.0.17",
+ "tracing",
  "tree-house",
 ]
 
@@ -891,12 +889,12 @@ dependencies = [
  "evildoer-stdlib",
  "futures",
  "linkme",
- "log",
  "paste",
  "ropey",
  "serde",
  "strsim",
  "thiserror 2.0.17",
+ "tracing",
 ]
 
 [[package]]
@@ -917,7 +915,6 @@ dependencies = [
  "evildoer-manifest",
  "futures",
  "linkme",
- "log",
  "paste",
  "regex",
  "ropey",
@@ -926,6 +923,7 @@ dependencies = [
  "smallvec",
  "termina",
  "thiserror 2.0.17",
+ "tracing",
  "unicode-segmentation",
  "unicode-width 0.2.2",
 ]

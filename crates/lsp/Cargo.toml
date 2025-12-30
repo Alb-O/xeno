@@ -6,11 +6,10 @@ edition.workspace = true
 license.workspace = true
 
 [features]
-default = ["client-monitor", "omni-trait", "stdio", "tracing"]
+default = ["client-monitor", "omni-trait", "stdio"]
 client-monitor = ["dep:waitpid-any", "dep:rustix"]
 omni-trait = []
 stdio = ["dep:rustix", "rustix?/fs", "tokio?/net"]
-tracing = ["dep:tracing"]
 forward = []
 tokio = ["dep:tokio"]
 # LSP client support (spawns and manages language server processes)
@@ -39,7 +38,7 @@ tokio = { workspace = true, optional = true }
 tokio-util = { workspace = true, optional = true, features = ["compat"] }
 tower-layer = "0.3.2"
 tower-service = "0.3.2"
-tracing = { version = "0.1.37", optional = true }
+tracing.workspace = true
 waitpid-any = { version = "0.3", optional = true }
 
 [dev-dependencies]

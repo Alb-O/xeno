@@ -9,8 +9,8 @@ license.workspace = true
 evildoer-base.workspace = true
 evildoer-keymap.workspace = true
 evildoer-manifest.workspace = true
-log.workspace = true
 serde.workspace = true
+tracing.workspace = true
 
 [dev-dependencies]
 evildoer-stdlib.workspace = true

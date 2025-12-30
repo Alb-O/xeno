@@ -15,6 +15,7 @@
 use std::path::{Path, PathBuf};
 
 use thiserror::Error;
+use tracing::{info, warn};
 use tree_house::tree_sitter::Grammar;
 
 /// Errors that can occur when loading a grammar.
@@ -64,16 +65,13 @@ pub fn load_grammar_or_build(name: &str) -> Result<Grammar, GrammarError> {
 	match load_grammar(name) {
 		Ok(grammar) => return Ok(grammar),
 		Err(GrammarError::NotFound(_)) => {
-			log::info!(
-				"Grammar '{}' not found, attempting to fetch and build...",
-				name
-			);
+			info!(grammar = name, "Grammar not found, attempting to fetch and build");
 		}
 		Err(e) => return Err(e),
 	}
 
 	if let Err(e) = auto_build_grammar(name) {
-		log::warn!("Failed to auto-build grammar '{}': {}", name, e);
+		warn!(grammar = name, error = %e, "Failed to auto-build grammar");
 		return Err(GrammarError::NotFound(name.to_string()));
 	}
 
@@ -92,15 +90,15 @@ fn auto_build_grammar(name: &str) -> Result<(), GrammarError> {
 		.find(|c| c.grammar_id == name)
 		.ok_or_else(|| GrammarError::NotFound(format!("{} (no config in grammars.kdl)", name)))?;
 
-	log::info!("Fetching grammar source for '{}'...", name);
+	info!(grammar = name, "Fetching grammar source");
 	fetch_grammar(&config)
 		.map_err(|e| GrammarError::Io(std::io::Error::other(format!("fetch failed: {}", e))))?;
 
-	log::info!("Building grammar '{}'...", name);
+	info!(grammar = name, "Building grammar");
 	build_grammar(&config)
 		.map_err(|e| GrammarError::Io(std::io::Error::other(format!("build failed: {}", e))))?;
 
-	log::info!("Successfully built grammar '{}'", name);
+	info!(grammar = name, "Successfully built grammar");
 	Ok(())
 }
 

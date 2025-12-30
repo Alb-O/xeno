@@ -25,6 +25,7 @@
 //! let hover = client.hover(uri, position).await?;
 //! ```
 
+use tracing::{debug, error, info, warn};
 use std::collections::HashMap;
 use std::ops::ControlFlow;
 use std::path::{Path, PathBuf};
@@ -601,47 +602,41 @@ pub fn start_server(
 			})
 			.notification::<lsp_types::notification::LogMessage>(|_state, params| {
 				// Log messages from the server
-				#[cfg(feature = "tracing")]
 				match params.typ {
 					lsp_types::MessageType::ERROR => {
-						::tracing::error!(target: "lsp", "{}", params.message)
+						error!(target: "lsp", message = %params.message, "Server log")
 					}
 					lsp_types::MessageType::WARNING => {
-						::tracing::warn!(target: "lsp", "{}", params.message)
+						warn!(target: "lsp", message = %params.message, "Server log")
 					}
 					lsp_types::MessageType::INFO => {
-						::tracing::info!(target: "lsp", "{}", params.message)
+						info!(target: "lsp", message = %params.message, "Server log")
 					}
 					lsp_types::MessageType::LOG => {
-						::tracing::debug!(target: "lsp", "{}", params.message)
+						debug!(target: "lsp", message = %params.message, "Server log")
 					}
 					_ => {}
 				}
-				let _ = params;
 				ControlFlow::Continue(())
 			})
 			.notification::<lsp_types::notification::ShowMessage>(|_state, params| {
 				// Show message notifications
-				#[cfg(feature = "tracing")]
 				match params.typ {
 					lsp_types::MessageType::ERROR => {
-						::tracing::error!(target: "lsp", "Server: {}", params.message)
+						error!(target: "lsp", message = %params.message, "Server message")
 					}
 					lsp_types::MessageType::WARNING => {
-						::tracing::warn!(target: "lsp", "Server: {}", params.message)
+						warn!(target: "lsp", message = %params.message, "Server message")
 					}
 					_ => {
-						::tracing::info!(target: "lsp", "Server: {}", params.message)
+						info!(target: "lsp", message = %params.message, "Server message")
 					}
 				}
-				let _ = params;
 				ControlFlow::Continue(())
 			})
 			// Catch-all for unhandled notifications
 			.unhandled_notification(|_state, notif| {
-				#[cfg(feature = "tracing")]
-				::tracing::debug!(target: "lsp", "Unhandled notification: {}", notif.method);
-				let _ = notif;
+				debug!(target: "lsp", method = %notif.method, "Unhandled notification");
 				ControlFlow::Continue(())
 			});
 		router

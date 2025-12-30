@@ -1,5 +1,6 @@
 //! Viewport scrolling and cursor visibility logic.
 
+use tracing::debug;
 use evildoer_base::range::CharIdx;
 use evildoer_tui::layout::Rect;
 use serde::Serialize;
@@ -84,11 +85,11 @@ pub fn ensure_buffer_cursor_visible(buffer: &mut Buffer, area: Rect) {
 
 	// Debug: log viewport size changes
 	if viewport_height != prev_viewport_height && prev_viewport_height > 0 {
-		log::debug!(
-			"Viewport height changed: {} -> {} (shrinking: {})",
-			prev_viewport_height,
-			viewport_height,
-			viewport_shrinking
+		debug!(
+			prev_height = prev_viewport_height,
+			new_height = viewport_height,
+			shrinking = viewport_shrinking,
+			"Viewport height changed"
 		);
 	}
 
@@ -166,10 +167,10 @@ pub fn ensure_buffer_cursor_visible(buffer: &mut Buffer, area: Rect) {
 	// but will reappear when the user moves it or the viewport expands.
 	if viewport_shrinking {
 		buffer.suppress_scroll_down = true;
-		log::debug!(
-			"Viewport shrinking - NOT scrolling to chase cursor. scroll_line={}, cursor_line={}",
-			buffer.scroll_line,
-			cursor_line
+		debug!(
+			scroll_line = buffer.scroll_line,
+			cursor_line = cursor_line,
+			"Viewport shrinking - NOT scrolling to chase cursor"
 		);
 		ViewportEnsureEvent::log(
 			"suppress_scroll_down",
@@ -222,12 +223,12 @@ pub fn ensure_buffer_cursor_visible(buffer: &mut Buffer, area: Rect) {
 	}
 
 	if buffer.scroll_line != original_scroll {
-		log::debug!(
-			"Scrolled down to chase cursor: {} -> {} (cursor_line={}, viewport_height={})",
-			original_scroll,
-			buffer.scroll_line,
-			cursor_line,
-			viewport_height
+		debug!(
+			from = original_scroll,
+			to = buffer.scroll_line,
+			cursor_line = cursor_line,
+			viewport_height = viewport_height,
+			"Scrolled down to chase cursor"
 		);
 		ViewportEnsureEvent::log(
 			"scroll_down",

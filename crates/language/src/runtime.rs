@@ -7,6 +7,7 @@ use std::path::Path;
 use std::{fs, io};
 
 use evildoer_runtime::include_dir::Dir;
+use tracing::info;
 
 use crate::grammar::runtime_dir;
 
@@ -21,14 +22,14 @@ pub fn ensure_runtime() -> io::Result<()> {
 	// Seed query files
 	let queries_dir = runtime.join("queries");
 	if !queries_dir.exists() {
-		log::info!("Seeding runtime queries to {}", queries_dir.display());
+		info!(path = %queries_dir.display(), "Seeding runtime queries");
 		seed_queries(&queries_dir)?;
 	}
 
 	// Seed theme files
 	let themes_dir = runtime.join("themes");
 	if !themes_dir.exists() {
-		log::info!("Seeding runtime themes to {}", themes_dir.display());
+		info!(path = %themes_dir.display(), "Seeding runtime themes");
 		seed_themes(&themes_dir)?;
 	}
 
@@ -70,7 +71,7 @@ pub fn reseed_runtime() -> io::Result<()> {
 	if queries_dir.exists() {
 		fs::remove_dir_all(&queries_dir)?;
 	}
-	log::info!("Re-seeding runtime queries to {}", queries_dir.display());
+	info!(path = %queries_dir.display(), "Re-seeding runtime queries");
 	seed_queries(&queries_dir)?;
 
 	// Re-seed themes
@@ -78,7 +79,7 @@ pub fn reseed_runtime() -> io::Result<()> {
 	if themes_dir.exists() {
 		fs::remove_dir_all(&themes_dir)?;
 	}
-	log::info!("Re-seeding runtime themes to {}", themes_dir.display());
+	info!(path = %themes_dir.display(), "Re-seeding runtime themes");
 	seed_themes(&themes_dir)?;
 
 	Ok(())

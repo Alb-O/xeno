@@ -23,6 +23,7 @@ use std::task::{Context, Poll};
 use lsp_types::request::{self, Request};
 use tower_layer::Layer;
 use tower_service::Service;
+use tracing::error;
 
 use crate::{AnyEvent, AnyNotification, AnyRequest, ClientSocket, Error, LspService, Result};
 
@@ -66,19 +67,13 @@ impl<S: LspService> Service<AnyRequest> for ClientProcessMonitor<S> {
 									// Ignore channel close.
 									let _: Result<_, _> = client.emit(ClientProcessExited);
 								}
-								#[allow(unused_variables)]
 								Err(err) => {
-									#[cfg(feature = "tracing")]
-									::tracing::error!(
-										"Failed to monitor peer process ({pid}): {err:#}"
-									);
+									error!(pid = pid, error = %err, "Failed to monitor peer process");
 								}
 							}
 						});
-					#[allow(unused_variables)]
 					if let Err(err) = spawn_ret {
-						#[cfg(feature = "tracing")]
-						::tracing::error!("Failed to spawn client process monitor thread: {err:#}");
+						error!(error = %err, "Failed to spawn client process monitor thread");
 					}
 				}
 				// Already exited.
@@ -87,10 +82,8 @@ impl<S: LspService> Service<AnyRequest> for ClientProcessMonitor<S> {
 					// Ignore channel close.
 					let _: Result<_, _> = self.client.emit(ClientProcessExited);
 				}
-				#[allow(unused_variables)]
 				Err(err) => {
-					#[cfg(feature = "tracing")]
-					::tracing::error!("Failed to monitor peer process {pid}: {err:#}");
+					error!(pid = pid, error = %err, "Failed to monitor peer process");
 				}
 			}
 		}

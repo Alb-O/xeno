@@ -4,6 +4,7 @@
 //! about a language, including file associations and lazily-loaded syntax config.
 
 use once_cell::sync::OnceCell;
+use tracing::warn;
 use tree_house::LanguageConfig as TreeHouseConfig;
 
 use crate::grammar::load_grammar_or_build;
@@ -61,7 +62,7 @@ impl LanguageData {
 			block_comment,
 			injection_regex: injection_regex.and_then(|r| {
 				regex::Regex::new(r)
-					.map_err(|e| log::warn!("Invalid injection regex '{}': {}", r, e))
+					.map_err(|e| warn!(regex = r, error = %e, "Invalid injection regex"))
 					.ok()
 			}),
 			config: OnceCell::new(),
@@ -86,7 +87,7 @@ impl LanguageData {
 		let grammar = match load_grammar_or_build(&self.grammar_name) {
 			Ok(g) => g,
 			Err(e) => {
-				log::warn!("Failed to load grammar '{}': {}", self.grammar_name, e);
+				warn!(grammar = self.grammar_name, error = %e, "Failed to load grammar");
 				return None;
 			}
 		};
@@ -108,10 +109,10 @@ impl LanguageData {
 				Some(config)
 			}
 			Err(e) => {
-				log::warn!(
-					"Failed to create language config for '{}': {}",
-					self.grammar_name,
-					e
+				warn!(
+					grammar = self.grammar_name,
+					error = %e,
+					"Failed to create language config"
 				);
 				None
 			}

@@ -36,8 +36,6 @@
 //! - `stdio`: Utilities to deal with pipe-like stdin/stdout communication channel for Language
 //!   Servers.
 //!   *Enabled by default.*
-//! - `tracing`: Integration with crate [`tracing`][::tracing] and the [`tracing`] middleware.
-//!   *Enabled by default.*
 //! - `forward`: Impl [`LspService`] for `{Client,Server}Socket`. This collides some method names
 //!   but allows easy service forwarding.
 //!   *Disabled by default.*
@@ -114,8 +112,6 @@ pub mod client_monitor;
 #[cfg_attr(docsrs, doc(cfg(all(feature = "stdio", unix))))]
 pub mod stdio;
 
-#[cfg(feature = "tracing")]
-#[cfg_attr(docsrs, doc(cfg(feature = "tracing")))]
 pub mod tracing;
 
 #[cfg(feature = "omni-trait")]
@@ -467,7 +463,6 @@ impl Message {
 			content_len.ok_or_else(|| Error::Protocol("Missing content-length".into()))?;
 		let mut buf = vec![0u8; content_len];
 		reader.read_exact(&mut buf).await?;
-		#[cfg(feature = "tracing")]
 		::tracing::trace!(msg = %String::from_utf8_lossy(&buf), "incoming");
 		let msg = serde_json::from_slice::<RawMessage<Self>>(&buf)?;
 		Ok(msg.inner)
@@ -475,7 +470,6 @@ impl Message {
 
 	async fn write(&self, mut writer: impl AsyncWrite + Unpin) -> Result<()> {
 		let buf = serde_json::to_string(&RawMessage::new(self))?;
-		#[cfg(feature = "tracing")]
 		::tracing::trace!(msg = %buf, "outgoing");
 		writer
 			.write_all(format!("{}: {}\r\n\r\n", Self::CONTENT_LENGTH, buf.len()).as_bytes())

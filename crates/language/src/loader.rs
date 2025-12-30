@@ -8,6 +8,7 @@ use std::collections::HashMap;
 use std::path::Path;
 
 pub use tree_house::Language as LanguageId;
+use tracing::error;
 use tree_house::{InjectionLanguageMarker, Language, LanguageConfig as TreeHouseConfig};
 
 use crate::config::load_language_configs;
@@ -95,7 +96,7 @@ impl LanguageLoader {
 					loader.register(lang);
 				}
 			}
-			Err(e) => log::error!("Failed to load language configs: {}", e),
+			Err(e) => error!(error = %e, "Failed to load language configs"),
 		}
 		loader
 	}

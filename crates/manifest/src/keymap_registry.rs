@@ -12,6 +12,7 @@ use std::sync::OnceLock;
 
 use evildoer_keymap::parser::{Node, parse_seq};
 use evildoer_keymap::{MatchResult, Matcher};
+use tracing::warn;
 
 use crate::keybindings::{BindingMode, KEYBINDINGS};
 use crate::{ActionId, Mode};
@@ -89,19 +90,19 @@ impl KeymapRegistry {
 
 		for def in KEYBINDINGS.iter() {
 			let Some(action_id) = resolve_action_id(def.action) else {
-				log::warn!(
-					"Unknown action '{}' in keybinding for mode {:?}",
-					def.action,
-					def.mode
+				warn!(
+					action = def.action,
+					mode = ?def.mode,
+					"Unknown action in keybinding"
 				);
 				continue;
 			};
 
 			let Ok(keys) = parse_seq(def.keys) else {
-				log::warn!(
-					"Failed to parse key sequence '{}' for action '{}'",
-					def.keys,
-					def.action
+				warn!(
+					keys = def.keys,
+					action = def.action,
+					"Failed to parse key sequence"
 				);
 				continue;
 			};

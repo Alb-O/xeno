@@ -268,7 +268,7 @@ macro_rules! bind {
 /// ```ignore
 /// hook!(log_open, BufferOpen, 100, "Log buffer opens", |ctx| {
 ///     if let HookContext::BufferOpen { path, .. } = ctx {
-///         log::info!("Opened: {}", path.display());
+///         tracing::info!(path = %path.display(), "Opened buffer");
 ///     }
 /// });
 /// ```
