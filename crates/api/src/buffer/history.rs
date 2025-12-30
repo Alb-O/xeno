@@ -39,6 +39,7 @@ impl Buffer {
 		if let Some(restored_selection) = restored {
 			self.selection = restored_selection;
 			self.cursor = self.selection.primary().head;
+			self.ensure_valid_selection();
 			HistoryResult::Success
 		} else {
 			HistoryResult::NothingToUndo
@@ -50,11 +51,13 @@ impl Buffer {
 	/// Returns the result of the operation. The caller is responsible for
 	/// displaying any notifications to the user.
 	pub fn redo(&mut self, language_loader: &LanguageLoader) -> HistoryResult {
+		self.ensure_valid_selection();
 		let selection = self.selection.clone();
 		let restored = self.doc_mut().redo(&selection, language_loader);
 		if let Some(restored_selection) = restored {
 			self.selection = restored_selection;
 			self.cursor = self.selection.primary().head;
+			self.ensure_valid_selection();
 			HistoryResult::Success
 		} else {
 			HistoryResult::NothingToRedo

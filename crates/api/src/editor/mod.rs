@@ -756,7 +756,7 @@ impl Editor {
 	}
 
 	pub fn yank_selection(&mut self) {
-		if let Some((text, count)) = self.buffer().yank_selection() {
+		if let Some((text, count)) = self.buffer_mut().yank_selection() {
 			self.registers.yank = text;
 			self.notify("info", format!("Yanked {} chars", count));
 		}

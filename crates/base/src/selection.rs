@@ -244,6 +244,18 @@ impl Selection {
 			self.primary_index = self.primary_index.min(self.ranges.len().saturating_sub(1));
 		}
 	}
+
+	/// Clamps all ranges to valid document bounds.
+	///
+	/// Ensures all anchor/head positions are within `[0, max_char]`.
+	/// This is essential when a selection may have become stale after
+	/// edits in a sibling view sharing the same document.
+	pub fn clamp(&mut self, max_char: CharIdx) {
+		for range in &mut self.ranges {
+			*range = range.clamp(max_char);
+		}
+		self.normalize();
+	}
 }
 
 impl Default for Selection {

@@ -245,4 +245,15 @@ impl Buffer {
 	pub fn clear_insert_undo_active(&self) {
 		self.doc_mut().insert_undo_active = false;
 	}
+
+	/// Clamps selection and cursor to valid document bounds.
+	///
+	/// Call this before any operation that accesses document content via the selection.
+	/// This is necessary when a sibling view may have edited the shared document,
+	/// making this buffer's selection indices stale.
+	pub fn ensure_valid_selection(&mut self) {
+		let max_char = self.doc().content.len_chars();
+		self.selection.clamp(max_char);
+		self.cursor = self.cursor.min(max_char);
+	}
 }

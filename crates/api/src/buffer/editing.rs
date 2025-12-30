@@ -12,6 +12,8 @@ impl Buffer {
 	///
 	/// In insert mode, this groups consecutive inserts into a single undo.
 	pub fn insert_text(&mut self, text: &str) {
+		self.ensure_valid_selection();
+
 		if self.mode() == Mode::Insert {
 			self.save_insert_undo_state();
 		} else {
@@ -44,8 +46,10 @@ impl Buffer {
 
 	/// Yanks (copies) the primary selection to the provided register string.
 	///
-	/// Returns the yanked text and count, or None if selection is empty.
-	pub fn yank_selection(&self) -> Option<(String, usize)> {
+	/// Returns the yanked text and count, or None if selection is empty or invalid.
+	pub fn yank_selection(&mut self) -> Option<(String, usize)> {
+		self.ensure_valid_selection();
+
 		let primary = self.selection.primary();
 		let from = primary.min();
 		let to = primary.max();
@@ -64,6 +68,8 @@ impl Buffer {
 		if text.is_empty() {
 			return;
 		}
+		self.ensure_valid_selection();
+
 		// Compute new ranges by moving each cursor forward by 1
 		let new_ranges: Vec<_> = {
 			let doc = self.doc();
@@ -91,6 +97,7 @@ impl Buffer {
 		if text.is_empty() {
 			return;
 		}
+		self.ensure_valid_selection();
 		self.insert_text(text);
 	}
 
@@ -98,6 +105,8 @@ impl Buffer {
 	///
 	/// Returns true if anything was deleted.
 	pub fn delete_selection(&mut self) -> bool {
+		self.ensure_valid_selection();
+
 		if !self.selection.primary().is_empty() {
 			self.save_undo_state();
 			let tx = {

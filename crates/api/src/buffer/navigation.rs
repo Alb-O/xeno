@@ -9,6 +9,7 @@ use crate::render::WrapSegment;
 impl Buffer {
 	/// Moves cursors vertically, accounting for line wrapping.
 	pub fn move_visual_vertical(&mut self, direction: MoveDir, count: usize, extend: bool) {
+		self.ensure_valid_selection();
 		let ranges = self.selection.ranges().to_vec();
 		let primary_index = self.selection.primary_index();
 		let mut new_ranges = Vec::with_capacity(ranges.len());
@@ -156,6 +157,7 @@ impl Buffer {
 
 	/// Handles mouse scroll events.
 	pub fn handle_mouse_scroll(&mut self, direction: ScrollDirection, count: usize) {
+		self.ensure_valid_selection();
 		match direction {
 			ScrollDirection::Up => {
 				for _ in 0..count {
