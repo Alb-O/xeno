@@ -96,9 +96,9 @@ impl Editor {
 					Mode::Insert => Style::default()
 						.bg(self.theme.colors.status.insert_bg)
 						.fg(self.theme.colors.status.insert_fg),
-					Mode::Window => Style::default()
-						.bg(self.theme.colors.status.goto_bg)
-						.fg(self.theme.colors.status.goto_fg),
+				Mode::Window => Style::default()
+					.bg(self.theme.colors.status.prefix_mode_bg)
+					.fg(self.theme.colors.status.prefix_mode_fg),
 					Mode::PendingAction(_) => Style::default()
 						.bg(self.theme.colors.status.command_bg)
 						.fg(self.theme.colors.status.command_fg),

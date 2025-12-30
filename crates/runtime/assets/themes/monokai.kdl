@@ -41,10 +41,10 @@ status {
 	normal-fg $bg
 	insert-bg $green
 	insert-fg $bg
-	goto-bg $purple
-	goto-fg $fg
-	view-bg $orange
-	view-fg $bg
+	prefix-mode-bg $purple
+	prefix-mode-fg $fg
+	accent-bg $orange
+	accent-fg $bg
 	command-bg $yellow
 	command-fg $bg
 	dim-fg $gray

@@ -202,13 +202,13 @@ mod tests {
 	}
 
 	#[test]
-	fn sticky_mode() {
+	fn sticky_action() {
 		let mut registry = KeymapRegistry::new();
-		// "g" enters goto mode (sticky)
+		// "g" has a sticky action (can execute immediately or wait for more keys)
 		registry.add(
 			BindingMode::Normal,
 			parse_seq("g").unwrap(),
-			test_entry("enter_goto"),
+			test_entry("sticky_prefix"),
 		);
 		// "g g" is also bound
 		registry.add(
@@ -217,11 +217,11 @@ mod tests {
 			test_entry("document_start"),
 		);
 
-		// "g" is pending with sticky action
+		// "g" is pending with sticky action available
 		match registry.lookup(BindingMode::Normal, &parse_seq("g").unwrap()) {
 			LookupResult::Pending {
 				sticky: Some(entry),
-			} => assert_eq!(entry.action_name, "enter_goto"),
+			} => assert_eq!(entry.action_name, "sticky_prefix"),
 			other => panic!("Expected Pending with sticky, got {other:?}"),
 		}
 	}

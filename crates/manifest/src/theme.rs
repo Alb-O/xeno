@@ -45,10 +45,12 @@ pub struct StatusColors {
 	pub normal_fg: Color,
 	pub insert_bg: Color,
 	pub insert_fg: Color,
-	pub goto_bg: Color,
-	pub goto_fg: Color,
-	pub view_bg: Color,
-	pub view_fg: Color,
+	/// Prefix mode colors (Window mode, multi-key sequences).
+	pub prefix_mode_bg: Color,
+	pub prefix_mode_fg: Color,
+	/// Accent colors for UI elements (completion icons, etc.).
+	pub accent_bg: Color,
+	pub accent_fg: Color,
 	pub command_bg: Color,
 	pub command_fg: Color,
 
@@ -234,10 +236,10 @@ pub static DEFAULT_THEME: Theme = Theme {
 			normal_fg: Color::White,
 			insert_bg: Color::Green,
 			insert_fg: Color::Black,
-			goto_bg: Color::Magenta,
-			goto_fg: Color::White,
-			view_bg: Color::Cyan,
-			view_fg: Color::Black,
+			prefix_mode_bg: Color::Magenta,
+			prefix_mode_fg: Color::White,
+			accent_bg: Color::Cyan,
+			accent_fg: Color::Black,
 			command_bg: Color::Yellow,
 			command_fg: Color::Black,
 

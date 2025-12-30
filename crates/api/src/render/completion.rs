@@ -35,13 +35,13 @@ impl Editor {
 					CompletionKind::Theme => "󰏘",
 				};
 
-				let kind_color = match item.kind {
-					CompletionKind::Command => self.theme.colors.status.command_bg,
-					CompletionKind::File => self.theme.colors.status.normal_bg,
-					CompletionKind::Buffer => self.theme.colors.status.view_bg,
-					CompletionKind::Snippet => self.theme.colors.status.goto_bg,
-					CompletionKind::Theme => self.theme.colors.status.view_bg,
-				};
+			let kind_color = match item.kind {
+				CompletionKind::Command => self.theme.colors.status.command_bg,
+				CompletionKind::File => self.theme.colors.status.normal_bg,
+				CompletionKind::Buffer => self.theme.colors.status.accent_bg,
+				CompletionKind::Snippet => self.theme.colors.status.prefix_mode_bg,
+				CompletionKind::Theme => self.theme.colors.status.accent_bg,
+			};
 
 				let base_style = if is_selected {
 					Style::default()
