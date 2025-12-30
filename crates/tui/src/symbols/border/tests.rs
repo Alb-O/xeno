@@ -7,6 +7,7 @@ use indoc::formatdoc;
 
 use super::*;
 
+#[path = "sets.rs"]
 mod sets;
 
 /// A helper function to render a border set to a string.

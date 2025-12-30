@@ -656,5 +656,4 @@ define_symbols!(
 );
 
 #[cfg(test)]
-#[path = "merge/tests.rs"]
 mod tests;

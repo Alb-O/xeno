@@ -421,5 +421,4 @@ pub const STRIPE: Set = Set {
 };
 
 #[cfg(test)]
-#[path = "border/tests.rs"]
 mod tests;
