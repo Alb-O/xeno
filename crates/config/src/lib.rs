@@ -79,6 +79,8 @@ pub mod kdl_util;
 pub mod keys;
 pub mod options;
 pub mod theme;
+#[cfg(feature = "watch")]
+pub mod watch;
 
 use std::path::Path;
 
@@ -86,6 +88,8 @@ pub use error::{ConfigError, Result};
 pub use keys::KeysConfig;
 pub use options::OptionsConfig;
 pub use theme::ParsedTheme;
+#[cfg(feature = "watch")]
+pub use watch::{ConfigChange, ConfigWatcher};
 
 /// Parsed configuration from a KDL file.
 ///

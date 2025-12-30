@@ -41,7 +41,13 @@ impl Editor {
 				char_arg,
 			} => {
 				let quit = if let Some(action) = find_action_by_id(*id) {
-					self.execute_action_with_char(action.name, *count, *extend, *register, *char_arg)
+					self.execute_action_with_char(
+						action.name,
+						*count,
+						*extend,
+						*register,
+						*char_arg,
+					)
 				} else {
 					self.notify("error", format!("Unknown action ID: {}", id));
 					false
@@ -189,7 +195,7 @@ impl Editor {
 				self.handle_mouse_drag_local(local_row, local_col);
 				false
 			}
-		KeyResult::MouseScroll { direction, count } => {
+			KeyResult::MouseScroll { direction, count } => {
 				self.handle_mouse_scroll(direction, count);
 				false
 			}

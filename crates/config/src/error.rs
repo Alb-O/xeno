@@ -30,6 +30,9 @@ pub enum ConfigError {
 
 	#[error("undefined palette color: ${0}")]
 	UndefinedPaletteColor(String),
+
+	#[error("failed to watch config directory: {0}")]
+	Watch(String),
 }
 
 /// Result type for configuration operations.
