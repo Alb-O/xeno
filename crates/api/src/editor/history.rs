@@ -47,7 +47,7 @@ impl Editor {
 			.get_buffer_mut(buffer_id)
 			.expect("focused buffer must exist")
 			.doc_mut()
-			.save_undo_state(selections, buffer_id);
+			.save_undo_state(selections);
 	}
 
 	/// Saves undo state for insert mode, grouping consecutive inserts.
@@ -65,7 +65,7 @@ impl Editor {
 			.get_buffer_mut(buffer_id)
 			.expect("focused buffer must exist")
 			.doc_mut()
-			.save_insert_undo_state(selections, buffer_id);
+			.save_insert_undo_state(selections);
 	}
 
 	/// Undoes the last change, restoring selections for all views of the document.
@@ -86,7 +86,7 @@ impl Editor {
 			.get_buffer_mut(buffer_id)
 			.expect("focused buffer must exist")
 			.doc_mut()
-			.undo(current, buffer_id, &self.language_loader);
+			.undo(current, &self.language_loader);
 
 		let Some(selections) = restored else {
 			self.notify("warn", "Nothing to undo");
@@ -114,7 +114,7 @@ impl Editor {
 			.get_buffer_mut(buffer_id)
 			.expect("focused buffer must exist")
 			.doc_mut()
-			.redo(current, buffer_id, &self.language_loader);
+			.redo(current, &self.language_loader);
 
 		let Some(selections) = restored else {
 			self.notify("warn", "Nothing to redo");

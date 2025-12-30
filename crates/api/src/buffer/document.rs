@@ -121,18 +121,10 @@ impl Document {
 	}
 
 	/// Pushes the current state onto the undo stack.
-	///
-	/// Takes selections from all buffers viewing this document so they can be
-	/// restored on undo. The primary_buffer is the one making the edit.
-	pub(crate) fn push_undo_snapshot(
-		&mut self,
-		selections: HashMap<BufferId, Selection>,
-		primary_buffer: BufferId,
-	) {
+	pub(crate) fn push_undo_snapshot(&mut self, selections: HashMap<BufferId, Selection>) {
 		self.undo_stack.push(HistoryEntry {
 			doc: self.content.clone(),
 			selections,
-			primary_buffer,
 		});
 		self.redo_stack.clear();
 
@@ -142,82 +134,54 @@ impl Document {
 		}
 	}
 
-	/// Saves current state to undo history.
-	///
-	/// Explicit calls reset any grouped insert session.
-	pub fn save_undo_state(
-		&mut self,
-		selections: HashMap<BufferId, Selection>,
-		primary_buffer: BufferId,
-	) {
+	/// Saves current state to undo history. Resets any grouped insert session.
+	pub fn save_undo_state(&mut self, selections: HashMap<BufferId, Selection>) {
 		self.insert_undo_active = false;
-		self.push_undo_snapshot(selections, primary_buffer);
+		self.push_undo_snapshot(selections);
 	}
 
 	/// Saves undo state for insert mode, grouping consecutive inserts.
-	///
 	/// Returns true if a new snapshot was created.
-	pub fn save_insert_undo_state(
-		&mut self,
-		selections: HashMap<BufferId, Selection>,
-		primary_buffer: BufferId,
-	) -> bool {
+	pub fn save_insert_undo_state(&mut self, selections: HashMap<BufferId, Selection>) -> bool {
 		if self.insert_undo_active {
 			return false;
 		}
 		self.insert_undo_active = true;
-		self.push_undo_snapshot(selections, primary_buffer);
+		self.push_undo_snapshot(selections);
 		true
 	}
 
-	/// Undoes the last change.
-	///
-	/// Returns the restored selections for all buffers if successful.
+	/// Undoes the last change. Returns restored selections if successful.
 	pub fn undo(
 		&mut self,
 		current_selections: HashMap<BufferId, Selection>,
-		primary_buffer: BufferId,
 		language_loader: &LanguageLoader,
 	) -> Option<HashMap<BufferId, Selection>> {
 		self.insert_undo_active = false;
-		if let Some(entry) = self.undo_stack.pop() {
-			// Save current state to redo before restoring
-			self.redo_stack.push(HistoryEntry {
-				doc: self.content.clone(),
-				selections: current_selections,
-				primary_buffer,
-			});
-
-			self.content = entry.doc;
-			self.reparse_syntax(language_loader);
-			Some(entry.selections)
-		} else {
-			None
-		}
+		let entry = self.undo_stack.pop()?;
+		self.redo_stack.push(HistoryEntry {
+			doc: self.content.clone(),
+			selections: current_selections,
+		});
+		self.content = entry.doc;
+		self.reparse_syntax(language_loader);
+		Some(entry.selections)
 	}
 
-	/// Redoes the last undone change.
-	///
-	/// Returns the restored selections for all buffers if successful.
+	/// Redoes the last undone change. Returns restored selections if successful.
 	pub fn redo(
 		&mut self,
 		current_selections: HashMap<BufferId, Selection>,
-		primary_buffer: BufferId,
 		language_loader: &LanguageLoader,
 	) -> Option<HashMap<BufferId, Selection>> {
 		self.insert_undo_active = false;
-		if let Some(entry) = self.redo_stack.pop() {
-			self.undo_stack.push(HistoryEntry {
-				doc: self.content.clone(),
-				selections: current_selections,
-				primary_buffer,
-			});
-
-			self.content = entry.doc;
-			self.reparse_syntax(language_loader);
-			Some(entry.selections)
-		} else {
-			None
-		}
+		let entry = self.redo_stack.pop()?;
+		self.undo_stack.push(HistoryEntry {
+			doc: self.content.clone(),
+			selections: current_selections,
+		});
+		self.content = entry.doc;
+		self.reparse_syntax(language_loader);
+		Some(entry.selections)
 	}
 }

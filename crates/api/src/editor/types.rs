@@ -10,7 +10,6 @@ use crate::buffer::BufferId;
 pub struct HistoryEntry {
 	pub doc: Rope,
 	pub selections: HashMap<BufferId, Selection>,
-	pub primary_buffer: BufferId,
 }
 
 #[derive(Default)]
