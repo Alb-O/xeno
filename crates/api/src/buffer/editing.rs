@@ -11,7 +11,8 @@ impl Buffer {
 	/// Inserts text at all cursor positions.
 	///
 	/// In insert mode, this groups consecutive inserts into a single undo.
-	pub fn insert_text(&mut self, text: &str) {
+	/// Returns the transaction that was applied, for sibling buffer synchronization.
+	pub fn insert_text(&mut self, text: &str) -> Transaction {
 		self.ensure_valid_selection();
 
 		if self.mode() == Mode::Insert {
@@ -42,6 +43,7 @@ impl Buffer {
 
 		self.selection = new_selection;
 		self.cursor = self.selection.primary().head;
+		tx
 	}
 
 	/// Yanks (copies) the primary selection to the provided register string.
@@ -64,9 +66,11 @@ impl Buffer {
 	}
 
 	/// Pastes text after the cursor position.
-	pub fn paste_after(&mut self, text: &str) {
+	///
+	/// Returns the transaction that was applied, for sibling buffer synchronization.
+	pub fn paste_after(&mut self, text: &str) -> Option<Transaction> {
 		if text.is_empty() {
-			return;
+			return None;
 		}
 		self.ensure_valid_selection();
 
@@ -89,22 +93,24 @@ impl Buffer {
 		};
 		self.selection =
 			evildoer_base::Selection::from_vec(new_ranges, self.selection.primary_index());
-		self.insert_text(text);
+		Some(self.insert_text(text))
 	}
 
 	/// Pastes text before the cursor position.
-	pub fn paste_before(&mut self, text: &str) {
+	///
+	/// Returns the transaction that was applied, for sibling buffer synchronization.
+	pub fn paste_before(&mut self, text: &str) -> Option<Transaction> {
 		if text.is_empty() {
-			return;
+			return None;
 		}
 		self.ensure_valid_selection();
-		self.insert_text(text);
+		Some(self.insert_text(text))
 	}
 
 	/// Deletes the current selection.
 	///
-	/// Returns true if anything was deleted.
-	pub fn delete_selection(&mut self) -> bool {
+	/// Returns the transaction if anything was deleted, for sibling buffer synchronization.
+	pub fn delete_selection(&mut self) -> Option<Transaction> {
 		self.ensure_valid_selection();
 
 		if !self.selection.primary().is_empty() {
@@ -115,9 +121,9 @@ impl Buffer {
 			};
 			self.selection = tx.map_selection(&self.selection);
 			self.apply_transaction(&tx);
-			true
+			Some(tx)
 		} else {
-			false
+			None
 		}
 	}
 

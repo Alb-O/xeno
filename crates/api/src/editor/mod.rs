@@ -748,8 +748,41 @@ impl Editor {
 		self.ui.any_panel_open()
 	}
 
+	/// Synchronizes sibling buffer selections after a transaction.
+	///
+	/// Maps selections for all buffers sharing the same document as the focused buffer.
+	fn sync_sibling_selections(&mut self, tx: &Transaction) {
+		let BufferView::Text(buffer_id) = self.buffers.focused_view() else {
+			return;
+		};
+
+		let doc_id = self
+			.buffers
+			.get_buffer(buffer_id)
+			.expect("focused buffer must exist")
+			.document_id();
+
+		let sibling_ids: Vec<_> = self
+			.buffers
+			.buffer_ids()
+			.filter(|&id| id != buffer_id)
+			.filter(|&id| {
+				self.buffers
+					.get_buffer(id)
+					.is_some_and(|b| b.document_id() == doc_id)
+			})
+			.collect();
+
+		for sibling_id in sibling_ids {
+			if let Some(sibling) = self.buffers.get_buffer_mut(sibling_id) {
+				sibling.map_selection_through(tx);
+			}
+		}
+	}
+
 	pub fn insert_text(&mut self, text: &str) {
-		self.buffer_mut().insert_text(text);
+		let tx = self.buffer_mut().insert_text(text);
+		self.sync_sibling_selections(&tx);
 		if let BufferView::Text(id) = self.buffers.focused_view() {
 			self.dirty_buffers.insert(id);
 		}
@@ -767,7 +800,9 @@ impl Editor {
 			return;
 		}
 		let yank = self.registers.yank.clone();
-		self.buffer_mut().paste_after(&yank);
+		if let Some(tx) = self.buffer_mut().paste_after(&yank) {
+			self.sync_sibling_selections(&tx);
+		}
 		if let BufferView::Text(id) = self.buffers.focused_view() {
 			self.dirty_buffers.insert(id);
 		}
@@ -778,7 +813,9 @@ impl Editor {
 			return;
 		}
 		let yank = self.registers.yank.clone();
-		self.buffer_mut().paste_before(&yank);
+		if let Some(tx) = self.buffer_mut().paste_before(&yank) {
+			self.sync_sibling_selections(&tx);
+		}
 		if let BufferView::Text(id) = self.buffers.focused_view() {
 			self.dirty_buffers.insert(id);
 		}
@@ -842,10 +879,11 @@ impl Editor {
 	}
 
 	pub fn delete_selection(&mut self) {
-		if self.buffer_mut().delete_selection()
-			&& let BufferView::Text(id) = self.buffers.focused_view()
-		{
-			self.dirty_buffers.insert(id);
+		if let Some(tx) = self.buffer_mut().delete_selection() {
+			self.sync_sibling_selections(&tx);
+			if let BufferView::Text(id) = self.buffers.focused_view() {
+				self.dirty_buffers.insert(id);
+			}
 		}
 	}
 
@@ -961,13 +999,16 @@ impl Editor {
 			return;
 		};
 
-		// Access buffer directly to avoid borrow conflict with language_loader.
+		// Apply the transaction to the focused buffer
 		let buffer = self
 			.buffers
 			.get_buffer_mut(buffer_id)
 			.expect("focused buffer must exist");
 		buffer.apply_transaction_with_syntax(tx, &self.language_loader);
 		self.dirty_buffers.insert(buffer_id);
+
+		// Sync sibling buffer selections
+		self.sync_sibling_selections(tx);
 	}
 
 	pub fn reparse_syntax(&mut self) {
