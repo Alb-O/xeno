@@ -35,7 +35,11 @@ fn single_layout() {
 #[test]
 fn side_by_side_split() {
 	let area = make_rect(0, 0, 80, 30);
-	let layout = Layout::side_by_side(Layout::single(BufferId(1)), Layout::single(BufferId(2)), area);
+	let layout = Layout::side_by_side(
+		Layout::single(BufferId(1)),
+		Layout::single(BufferId(2)),
+		area,
+	);
 
 	assert_eq!(layout.first_buffer(), Some(BufferId(1)));
 	assert_eq!(layout.buffer_ids(), vec![BufferId(1), BufferId(2)]);
@@ -48,7 +52,11 @@ fn side_by_side_split() {
 #[test]
 fn next_prev_buffer() {
 	let area = make_rect(0, 0, 80, 30);
-	let layout = Layout::side_by_side(Layout::single(BufferId(1)), Layout::single(BufferId(2)), area);
+	let layout = Layout::side_by_side(
+		Layout::single(BufferId(1)),
+		Layout::single(BufferId(2)),
+		area,
+	);
 
 	assert_eq!(layout.next_buffer(BufferId(1)), BufferId(2));
 	assert_eq!(layout.next_buffer(BufferId(2)), BufferId(1));
@@ -59,7 +67,11 @@ fn next_prev_buffer() {
 #[test]
 fn remove_buffer() {
 	let area = make_rect(0, 0, 80, 30);
-	let layout = Layout::side_by_side(Layout::single(BufferId(1)), Layout::single(BufferId(2)), area);
+	let layout = Layout::side_by_side(
+		Layout::single(BufferId(1)),
+		Layout::single(BufferId(2)),
+		area,
+	);
 
 	let after_remove = layout.remove(BufferId(1)).unwrap();
 	assert_eq!(after_remove.buffer_ids(), vec![BufferId(2)]);
@@ -71,7 +83,11 @@ fn remove_buffer() {
 #[test]
 fn resize_simple_stacked_split() {
 	let area = make_rect(0, 0, 80, 30);
-	let mut layout = Layout::stacked(Layout::single(BufferId(1)), Layout::single(BufferId(2)), area);
+	let mut layout = Layout::stacked(
+		Layout::single(BufferId(1)),
+		Layout::single(BufferId(2)),
+		area,
+	);
 
 	assert_eq!(get_position(&layout), Some(15));
 
@@ -93,7 +109,11 @@ fn resize_nested_splits_only_affects_target() {
 	// Outer split at y=15, inner split within second half (y=16 to y=29)
 	// Inner area would be y=16, height=14, so inner separator at y=16+7=23
 	let inner_area = make_rect(0, 16, 80, 14);
-	let inner = Layout::stacked(Layout::single(BufferId(2)), Layout::single(BufferId(3)), inner_area);
+	let inner = Layout::stacked(
+		Layout::single(BufferId(2)),
+		Layout::single(BufferId(3)),
+		inner_area,
+	);
 	let mut layout = Layout::stacked(Layout::single(BufferId(1)), inner, area);
 
 	let outer_pos_before = get_position(&layout).unwrap();
@@ -126,7 +146,11 @@ fn separator_rect_at_path() {
 	let area = make_rect(0, 0, 80, 30);
 	// Inner layout uses the area it will occupy (second half: y=16, height=14)
 	let inner_area = make_rect(0, 16, 80, 14);
-	let inner = Layout::stacked(Layout::single(BufferId(2)), Layout::single(BufferId(3)), inner_area);
+	let inner = Layout::stacked(
+		Layout::single(BufferId(2)),
+		Layout::single(BufferId(3)),
+		inner_area,
+	);
 	let layout = Layout::stacked(Layout::single(BufferId(1)), inner, area);
 
 	let outer_sep = layout.separator_rect_at_path(area, &SplitPath(vec![]));
@@ -148,8 +172,16 @@ fn separator_rect_at_path() {
 #[test]
 fn separator_positions_2x2_grid() {
 	let area = make_rect(0, 0, 81, 25);
-	let top = Layout::side_by_side(Layout::single(BufferId(1)), Layout::single(BufferId(2)), area);
-	let bottom = Layout::side_by_side(Layout::single(BufferId(3)), Layout::single(BufferId(4)), area);
+	let top = Layout::side_by_side(
+		Layout::single(BufferId(1)),
+		Layout::single(BufferId(2)),
+		area,
+	);
+	let bottom = Layout::side_by_side(
+		Layout::single(BufferId(3)),
+		Layout::single(BufferId(4)),
+		area,
+	);
 	let layout = Layout::stacked(top, bottom, area);
 
 	let seps = layout.separator_positions(area);
@@ -175,7 +207,11 @@ fn separator_positions_2x2_grid() {
 #[test]
 fn absolute_position_stable_across_area_changes() {
 	let area = make_rect(0, 0, 80, 40);
-	let layout = Layout::side_by_side(Layout::single(BufferId(1)), Layout::single(BufferId(2)), area);
+	let layout = Layout::side_by_side(
+		Layout::single(BufferId(1)),
+		Layout::single(BufferId(2)),
+		area,
+	);
 
 	assert_eq!(get_position(&layout), Some(40));
 
@@ -183,5 +219,230 @@ fn absolute_position_stable_across_area_changes() {
 	let seps = layout.separator_positions(smaller_area);
 	assert_eq!(seps.len(), 1);
 	let (_, _, sep_rect) = &seps[0];
-	assert_eq!(sep_rect.x, 40, "Separator should stay at absolute position 40");
+	assert_eq!(
+		sep_rect.x, 40,
+		"Separator should stay at absolute position 40"
+	);
+}
+
+#[test]
+fn min_width_single() {
+	let layout = Layout::single(BufferId(1));
+	assert_eq!(layout.min_width(), Layout::MIN_WIDTH);
+}
+
+#[test]
+fn min_width_horizontal_split() {
+	let area = make_rect(0, 0, 80, 30);
+	let layout = Layout::side_by_side(
+		Layout::single(BufferId(1)),
+		Layout::single(BufferId(2)),
+		area,
+	);
+
+	// Horizontal split: first_min + 1 (separator) + second_min
+	assert_eq!(layout.min_width(), Layout::MIN_WIDTH * 2 + 1);
+}
+
+#[test]
+fn min_width_vertical_split() {
+	let area = make_rect(0, 0, 80, 30);
+	let layout = Layout::stacked(
+		Layout::single(BufferId(1)),
+		Layout::single(BufferId(2)),
+		area,
+	);
+
+	// Vertical split: max of children (both are MIN_WIDTH)
+	assert_eq!(layout.min_width(), Layout::MIN_WIDTH);
+}
+
+#[test]
+fn min_height_single() {
+	let layout = Layout::single(BufferId(1));
+	assert_eq!(layout.min_height(), Layout::MIN_HEIGHT);
+}
+
+#[test]
+fn min_height_vertical_split() {
+	let area = make_rect(0, 0, 80, 30);
+	let layout = Layout::stacked(
+		Layout::single(BufferId(1)),
+		Layout::single(BufferId(2)),
+		area,
+	);
+
+	// Vertical split: first_min + 1 (separator) + second_min
+	assert_eq!(layout.min_height(), Layout::MIN_HEIGHT * 2 + 1);
+}
+
+#[test]
+fn min_height_horizontal_split() {
+	let area = make_rect(0, 0, 80, 30);
+	let layout = Layout::side_by_side(
+		Layout::single(BufferId(1)),
+		Layout::single(BufferId(2)),
+		area,
+	);
+
+	// Horizontal split: max of children (both are MIN_HEIGHT)
+	assert_eq!(layout.min_height(), Layout::MIN_HEIGHT);
+}
+
+#[test]
+fn min_width_nested_splits() {
+	let area = make_rect(0, 0, 120, 30);
+	// [A | [B | C]] - three columns
+	let inner = Layout::side_by_side(
+		Layout::single(BufferId(2)),
+		Layout::single(BufferId(3)),
+		area,
+	);
+	let layout = Layout::side_by_side(Layout::single(BufferId(1)), inner, area);
+
+	// first (MIN_WIDTH) + 1 + second (MIN_WIDTH + 1 + MIN_WIDTH)
+	assert_eq!(layout.min_width(), Layout::MIN_WIDTH * 3 + 2);
+}
+
+#[test]
+fn resize_respects_minimum_width() {
+	let area = make_rect(0, 0, 80, 30);
+	let mut layout = Layout::side_by_side(
+		Layout::single(BufferId(1)),
+		Layout::single(BufferId(2)),
+		area,
+	);
+
+	// Try to drag separator to far left (would make first too small)
+	layout.resize_at_path(area, &SplitPath(vec![]), 0, 15);
+
+	let pos = get_position(&layout).unwrap();
+	// Position should be clamped to area.x + MIN_WIDTH
+	assert_eq!(pos, Layout::MIN_WIDTH);
+
+	// Verify first area respects minimum
+	let areas = layout.compute_view_areas(area);
+	let first_area = areas
+		.iter()
+		.find(|(v, _)| *v == BufferView::Text(BufferId(1)))
+		.unwrap()
+		.1;
+	assert!(first_area.width >= Layout::MIN_WIDTH);
+}
+
+#[test]
+fn resize_respects_minimum_height() {
+	let area = make_rect(0, 0, 80, 30);
+	let mut layout = Layout::stacked(
+		Layout::single(BufferId(1)),
+		Layout::single(BufferId(2)),
+		area,
+	);
+
+	// Try to drag separator to far top (would make first too small)
+	layout.resize_at_path(area, &SplitPath(vec![]), 40, 0);
+
+	let pos = get_position(&layout).unwrap();
+	// Position should be clamped to area.y + MIN_HEIGHT
+	assert_eq!(pos, Layout::MIN_HEIGHT);
+
+	// Verify first area respects minimum
+	let areas = layout.compute_view_areas(area);
+	let first_area = areas
+		.iter()
+		.find(|(v, _)| *v == BufferView::Text(BufferId(1)))
+		.unwrap()
+		.1;
+	assert!(first_area.height >= Layout::MIN_HEIGHT);
+}
+
+#[test]
+fn resize_respects_sibling_minimum_width() {
+	let area = make_rect(0, 0, 80, 30);
+	let mut layout = Layout::side_by_side(
+		Layout::single(BufferId(1)),
+		Layout::single(BufferId(2)),
+		area,
+	);
+
+	// Try to drag separator to far right (would make second too small)
+	layout.resize_at_path(area, &SplitPath(vec![]), 200, 15);
+
+	let pos = get_position(&layout).unwrap();
+	// Position should be clamped to area.x + area.width - MIN_WIDTH - 1
+	let expected_max = area.x + area.width - Layout::MIN_WIDTH - 1;
+	assert_eq!(pos, expected_max);
+
+	// Verify second area respects minimum
+	let areas = layout.compute_view_areas(area);
+	let second_area = areas
+		.iter()
+		.find(|(v, _)| *v == BufferView::Text(BufferId(2)))
+		.unwrap()
+		.1;
+	assert!(second_area.width >= Layout::MIN_WIDTH);
+}
+
+#[test]
+fn resize_cannot_push_nested_split() {
+	let area = make_rect(0, 0, 80, 30);
+	// Create [A | [B | C]] - nested horizontal splits
+	let inner_area = make_rect(41, 0, 39, 30);
+	let inner = Layout::side_by_side(
+		Layout::single(BufferId(2)),
+		Layout::single(BufferId(3)),
+		inner_area,
+	);
+	let mut layout = Layout::side_by_side(Layout::single(BufferId(1)), inner, area);
+
+	// Inner split needs MIN_WIDTH + 1 + MIN_WIDTH
+	let inner_min = Layout::MIN_WIDTH * 2 + 1;
+
+	// Try to drag outer separator far to the right
+	layout.resize_at_path(area, &SplitPath(vec![]), 200, 15);
+
+	let pos = get_position(&layout).unwrap();
+	// Position should be clamped so second child (inner split) has room for its minimum
+	let expected_max = area.x + area.width - inner_min - 1;
+	assert_eq!(pos, expected_max);
+
+	// Verify all three views still have their minimum widths
+	let areas = layout.compute_view_areas(area);
+	for (view, rect) in &areas {
+		assert!(
+			rect.width >= Layout::MIN_WIDTH,
+			"View {:?} has width {} < MIN_WIDTH {}",
+			view,
+			rect.width,
+			Layout::MIN_WIDTH
+		);
+	}
+}
+
+#[test]
+fn resize_nested_cannot_push_sibling() {
+	let area = make_rect(0, 0, 80, 30);
+	// Create stacked: top is single, bottom is [B | C]
+	// [[A] / [B | C]]
+	let inner_area = make_rect(0, 16, 80, 14);
+	let inner = Layout::side_by_side(
+		Layout::single(BufferId(2)),
+		Layout::single(BufferId(3)),
+		inner_area,
+	);
+	let mut layout = Layout::stacked(Layout::single(BufferId(1)), inner, area);
+
+	// Record outer separator position
+	let outer_pos_before = get_position(&layout).unwrap();
+
+	// Resize the inner split (B|C boundary) - should not affect outer split
+	// Inner split path is [true] (second child of outer)
+	layout.resize_at_path(area, &SplitPath(vec![true]), 20, 20);
+
+	// Outer position should be unchanged
+	let outer_pos_after = get_position(&layout).unwrap();
+	assert_eq!(
+		outer_pos_before, outer_pos_after,
+		"Outer split position should not change"
+	);
 }

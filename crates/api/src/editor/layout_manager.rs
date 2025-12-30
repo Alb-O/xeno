@@ -271,8 +271,11 @@ impl LayoutManager {
 		let Some(view_area) = self.view_area(current_view, doc_area) else {
 			return;
 		};
-		let new_layout =
-			Layout::stacked(Layout::single(current_view), Layout::text(new_buffer_id), view_area);
+		let new_layout = Layout::stacked(
+			Layout::single(current_view),
+			Layout::text(new_buffer_id),
+			view_area,
+		);
 		if let Some(layer_idx) = self.layer_of_view(current_view)
 			&& let Some(layout) = self.layer_mut(layer_idx)
 		{

@@ -105,6 +105,46 @@ impl Layout {
 		second.find_separator_with_path(second_area, x, y, second_path)
 	}
 
+	/// Computes the minimum width this layout requires.
+	///
+	/// For a single view, this is `MIN_WIDTH`.
+	/// For a horizontal split, it's the sum of both children's min widths plus 1 for separator.
+	/// For a vertical split, it's the max of both children's min widths.
+	pub fn min_width(&self) -> u16 {
+		match self {
+			Layout::Single(_) => Self::MIN_WIDTH,
+			Layout::Split {
+				direction,
+				first,
+				second,
+				..
+			} => match direction {
+				SplitDirection::Horizontal => first.min_width() + 1 + second.min_width(),
+				SplitDirection::Vertical => first.min_width().max(second.min_width()),
+			},
+		}
+	}
+
+	/// Computes the minimum height this layout requires.
+	///
+	/// For a single view, this is `MIN_HEIGHT`.
+	/// For a vertical split, it's the sum of both children's min heights plus 1 for separator.
+	/// For a horizontal split, it's the max of both children's min heights.
+	pub fn min_height(&self) -> u16 {
+		match self {
+			Layout::Single(_) => Self::MIN_HEIGHT,
+			Layout::Split {
+				direction,
+				first,
+				second,
+				..
+			} => match direction {
+				SplitDirection::Vertical => first.min_height() + 1 + second.min_height(),
+				SplitDirection::Horizontal => first.min_height().max(second.min_height()),
+			},
+		}
+	}
+
 	/// Resizes the split at the given path based on mouse position.
 	pub fn resize_at_path(
 		&mut self,
@@ -130,10 +170,14 @@ impl Layout {
 		if path.is_empty() {
 			let new_position = match direction {
 				SplitDirection::Horizontal => {
-					mouse_x.clamp(area.x + 1, area.x + area.width.saturating_sub(2))
+					let min_pos = area.x + first.min_width();
+					let max_pos = (area.x + area.width).saturating_sub(second.min_width() + 1);
+					mouse_x.clamp(min_pos.min(max_pos), max_pos)
 				}
 				SplitDirection::Vertical => {
-					mouse_y.clamp(area.y + 1, area.y + area.height.saturating_sub(2))
+					let min_pos = area.y + first.min_height();
+					let max_pos = (area.y + area.height).saturating_sub(second.min_height() + 1);
+					mouse_y.clamp(min_pos.min(max_pos), max_pos)
 				}
 			};
 			*position = new_position;
@@ -189,6 +233,7 @@ impl Layout {
 	/// Computes the areas for a split given absolute separator position.
 	///
 	/// Returns (first_area, second_area, separator_rect).
+	/// The separator position is clamped to ensure both areas meet minimum size requirements.
 	pub(super) fn compute_split_areas(
 		area: Rect,
 		direction: SplitDirection,
@@ -196,7 +241,9 @@ impl Layout {
 	) -> (Rect, Rect, Rect) {
 		match direction {
 			SplitDirection::Horizontal => {
-				let sep_x = position.clamp(area.x, area.x + area.width.saturating_sub(1));
+				let min_pos = area.x + Self::MIN_WIDTH;
+				let max_pos = (area.x + area.width).saturating_sub(Self::MIN_WIDTH + 1);
+				let sep_x = position.clamp(min_pos.min(max_pos), max_pos);
 				let first_width = sep_x.saturating_sub(area.x);
 				(
 					Rect {
@@ -220,7 +267,9 @@ impl Layout {
 				)
 			}
 			SplitDirection::Vertical => {
-				let sep_y = position.clamp(area.y, area.y + area.height.saturating_sub(1));
+				let min_pos = area.y + Self::MIN_HEIGHT;
+				let max_pos = (area.y + area.height).saturating_sub(Self::MIN_HEIGHT + 1);
+				let sep_y = position.clamp(min_pos.min(max_pos), max_pos);
 				let first_height = sep_y.saturating_sub(area.y);
 				(
 					Rect {

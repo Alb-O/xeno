@@ -16,9 +16,8 @@ mod navigation;
 mod tests;
 mod types;
 
-pub use types::{BufferView, SplitDirection, SplitPath, TerminalId};
-
 use evildoer_tui::layout::Rect;
+pub use types::{BufferView, SplitDirection, SplitPath, TerminalId};
 
 use super::BufferId;
 
@@ -67,6 +66,12 @@ pub enum Layout {
 }
 
 impl Layout {
+	/// Minimum width for a split view in columns.
+	pub const MIN_WIDTH: u16 = 10;
+
+	/// Minimum height for a split view in rows.
+	pub const MIN_HEIGHT: u16 = 3;
+
 	/// Creates a new single-view layout from any view type.
 	pub fn single(view: impl Into<BufferView>) -> Self {
 		Layout::Single(view.into())
