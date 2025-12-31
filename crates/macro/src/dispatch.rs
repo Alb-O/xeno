@@ -175,16 +175,38 @@ pub fn derive_dispatch_result(input: TokenStream) -> TokenStream {
 				result: &#enum_name,
 				ctx: &mut crate::editor_ctx::EditorContext,
 				extend: bool,
-			) -> bool {
+			) -> HandleOutcome {
 				let mut handlers = handlers.iter().collect::<Vec<_>>();
 				handlers.sort_by_key(|handler| handler.priority);
 				for handler in handlers {
 					match (handler.handle)(result, ctx, extend) {
-						HandleOutcome::Handled => return false,
-						HandleOutcome::Quit => return true,
+						HandleOutcome::Handled => return HandleOutcome::Handled,
+						HandleOutcome::Quit => return HandleOutcome::Quit,
 						HandleOutcome::NotHandled => continue,
 					}
 				}
+				HandleOutcome::NotHandled
+			}
+
+			let mut handled = false;
+			let outcome = match result {
+				#(#match_arms,)*
+			};
+
+			match outcome {
+				HandleOutcome::Quit => return true,
+				HandleOutcome::Handled => handled = true,
+				HandleOutcome::NotHandled => {}
+			}
+
+			let extension_outcome = run_handlers(&RESULT_EXTENSION_HANDLERS, result, ctx, extend);
+			match extension_outcome {
+				HandleOutcome::Quit => return true,
+				HandleOutcome::Handled => handled = true,
+				HandleOutcome::NotHandled => {}
+			}
+
+			if !handled {
 				ctx.notify(
 					"info",
 					&format!(
@@ -192,12 +214,8 @@ pub fn derive_dispatch_result(input: TokenStream) -> TokenStream {
 						::std::mem::discriminant(result)
 					),
 				);
-				false
 			}
-
-			match result {
-				#(#match_arms,)*
-			}
+			false
 		}
 
 		#coverage_test

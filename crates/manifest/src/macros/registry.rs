@@ -144,3 +144,40 @@ macro_rules! result_handler {
 			};
 	};
 }
+
+/// Registers an extension handler for [`ActionResult`](crate::ActionResult).
+///
+/// Extension handlers run after the core per-variant handlers, in priority order.
+/// They should return [`HandleOutcome::NotHandled`](crate::editor_ctx::HandleOutcome::NotHandled)
+/// when they don't apply.
+#[macro_export]
+macro_rules! result_extension_handler {
+	($static_name:ident, $name:literal, $body:expr) => {
+		$crate::result_extension_handler!(
+			$static_name,
+			{
+				name: $name
+			},
+			$body
+		);
+	};
+	(
+		$static_name:ident,
+		{
+			name: $name:literal
+			$(, priority: $priority:expr)?
+			$(, caps: $caps:expr)?
+			$(,)?
+		},
+		$body:expr
+	) => {
+		#[::linkme::distributed_slice($crate::actions::RESULT_EXTENSION_HANDLERS)]
+		static $static_name: $crate::editor_ctx::ResultHandler =
+			$crate::editor_ctx::ResultHandler {
+				name: $name,
+				priority: $crate::__opt!($({$priority})?, 0),
+				required_caps: $crate::__opt_slice!($({$caps})?),
+				handle: $body,
+			};
+	};
+}
