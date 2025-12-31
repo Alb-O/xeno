@@ -3,7 +3,7 @@
 use evildoer_tui::animation::{Easing, ToggleTween};
 use evildoer_tui::layout::Rect;
 
-use super::layout_manager::SeparatorId;
+use super::layout::SeparatorId;
 
 /// State for an active separator drag operation.
 #[derive(Debug, Clone, PartialEq)]

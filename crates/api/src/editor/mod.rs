@@ -24,7 +24,7 @@ mod focus;
 mod history;
 mod hook_runtime;
 mod input;
-mod layout_manager;
+mod layout;
 mod lifecycle;
 mod messaging;
 mod navigation;
@@ -42,7 +42,7 @@ pub use buffer_manager::BufferManager;
 use evildoer_language::LanguageLoader;
 use evildoer_manifest::{HookContext, HookEventData, Theme, emit_hook_sync_with};
 pub use hook_runtime::HookRuntime;
-pub use layout_manager::{LayoutManager, SeparatorHit, SeparatorId};
+pub use layout::{LayoutManager, SeparatorHit, SeparatorId};
 pub use types::{HistoryEntry, Registers};
 
 pub use self::separator::{DragState, MouseVelocityTracker, SeparatorHoverAnimation};
