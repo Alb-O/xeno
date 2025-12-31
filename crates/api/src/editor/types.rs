@@ -1,7 +1,9 @@
 use std::collections::HashMap;
 
 use evildoer_base::{Rope, Selection};
+use evildoer_base::range::CharIdx;
 use evildoer_manifest::CompletionItem;
+use termina::event::KeyEvent;
 
 use crate::buffer::BufferId;
 
@@ -15,6 +17,140 @@ pub struct HistoryEntry {
 #[derive(Default)]
 pub struct Registers {
 	pub yank: String,
+}
+
+/// A saved position in the jump list.
+///
+/// Jump locations track buffer and cursor position for navigation commands
+/// like `<C-o>` (jump back) and `<C-i>` (jump forward).
+#[derive(Clone, Debug)]
+pub struct JumpLocation {
+	/// The buffer containing this jump.
+	pub buffer_id: BufferId,
+	/// Cursor position at time of jump.
+	pub cursor: CharIdx,
+}
+
+/// Jump list for navigating between locations.
+///
+/// Maintains a history of cursor positions with a current index for
+/// forward/backward navigation. Similar to Vim's jumplist.
+#[derive(Default)]
+pub struct JumpList {
+	/// Stack of jump locations.
+	locations: Vec<JumpLocation>,
+	/// Current position in the jump list (points after the "current" location).
+	index: usize,
+}
+
+impl JumpList {
+	/// Maximum number of jumps to remember.
+	const MAX_JUMPS: usize = 100;
+
+	/// Saves the current position to the jump list.
+	///
+	/// Truncates any forward history and appends the new location.
+	pub fn push(&mut self, location: JumpLocation) {
+		// Truncate forward history when pushing a new jump
+		self.locations.truncate(self.index);
+		self.locations.push(location);
+
+		// Limit size
+		if self.locations.len() > Self::MAX_JUMPS {
+			self.locations.remove(0);
+		} else {
+			self.index = self.locations.len();
+		}
+	}
+
+	/// Jumps backward in history, returning the location to jump to.
+	///
+	/// Returns `None` if at the beginning of the list.
+	pub fn jump_backward(&mut self) -> Option<&JumpLocation> {
+		if self.index > 0 {
+			self.index -= 1;
+			self.locations.get(self.index)
+		} else {
+			None
+		}
+	}
+
+	/// Jumps forward in history, returning the location to jump to.
+	///
+	/// Returns `None` if at the end of the list.
+	pub fn jump_forward(&mut self) -> Option<&JumpLocation> {
+		if self.index < self.locations.len() {
+			let loc = self.locations.get(self.index);
+			self.index += 1;
+			loc
+		} else {
+			None
+		}
+	}
+}
+
+/// State for macro recording and playback.
+#[derive(Default)]
+pub struct MacroState {
+	/// Currently recording macro register (None if not recording).
+	recording_register: Option<char>,
+	/// Keys recorded so far for the current macro.
+	recording_keys: Vec<KeyEvent>,
+	/// Stored macros by register.
+	macros: HashMap<char, Vec<KeyEvent>>,
+	/// Last used macro register for `@@` replay.
+	last_register: Option<char>,
+}
+
+impl MacroState {
+	/// Starts recording a macro into the given register.
+	///
+	/// If already recording, stops the current recording first.
+	pub fn start_recording(&mut self, register: char) {
+		if self.recording_register.is_some() {
+			self.stop_recording();
+		}
+		self.recording_register = Some(register);
+		self.recording_keys.clear();
+	}
+
+	/// Stops recording and saves the macro to its register.
+	pub fn stop_recording(&mut self) {
+		if let Some(register) = self.recording_register.take() {
+			let keys = std::mem::take(&mut self.recording_keys);
+			if !keys.is_empty() {
+				self.macros.insert(register, keys);
+				self.last_register = Some(register);
+			}
+		}
+	}
+
+	/// Records a key event if currently recording.
+	pub fn record_key(&mut self, key: KeyEvent) {
+		if self.recording_register.is_some() {
+			self.recording_keys.push(key);
+		}
+	}
+
+	/// Returns the macro for a register, if any.
+	pub fn get(&self, register: char) -> Option<&[KeyEvent]> {
+		self.macros.get(&register).map(|v| v.as_slice())
+	}
+
+	/// Returns the last used macro register.
+	pub fn last_register(&self) -> Option<char> {
+		self.last_register
+	}
+
+	/// Returns true if currently recording.
+	pub fn is_recording(&self) -> bool {
+		self.recording_register.is_some()
+	}
+
+	/// Returns the register currently being recorded, if any.
+	pub fn recording_register(&self) -> Option<char> {
+		self.recording_register
+	}
 }
 
 #[derive(Clone, Default)]

@@ -43,7 +43,7 @@ use evildoer_language::LanguageLoader;
 use evildoer_manifest::{HookContext, HookEventData, Theme, emit_hook_sync_with};
 pub use hook_runtime::HookRuntime;
 pub use layout::{LayoutManager, SeparatorHit, SeparatorId};
-pub use types::{HistoryEntry, Registers};
+pub use types::{HistoryEntry, JumpList, JumpLocation, MacroState, Registers};
 
 pub use self::separator::{DragState, MouseVelocityTracker, SeparatorHoverAnimation};
 use crate::buffer::{BufferId, BufferView};
@@ -146,6 +146,12 @@ pub struct Editor {
 
 	/// Panel registry for all panel types.
 	pub panels: crate::panels::PanelRegistry,
+
+	/// Jump list for `<C-o>` / `<C-i>` navigation.
+	pub jump_list: JumpList,
+
+	/// Macro recording and playback state.
+	pub macro_state: MacroState,
 }
 
 impl evildoer_manifest::EditorOps for Editor {}
@@ -222,6 +228,8 @@ impl Editor {
 			dirty_buffers: HashSet::new(),
 			sticky_views: HashSet::new(),
 			panels: crate::panels::PanelRegistry::new(),
+			jump_list: JumpList::default(),
+			macro_state: MacroState::default(),
 		}
 	}
 }

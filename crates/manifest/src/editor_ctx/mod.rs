@@ -146,6 +146,13 @@ impl<'a> EditorContext<'a> {
 		self.inner.focus_ops()
 	}
 
+	pub fn jump_ops(&mut self) -> Option<&mut dyn JumpAccess> {
+		self.inner.jump_ops()
+	}
+
+	pub fn macro_ops(&mut self) -> Option<&mut dyn MacroAccess> {
+		self.inner.macro_ops()
+	}
 
 	pub fn check_capability(&mut self, cap: Capability) -> bool {
 		use Capability::*;
@@ -216,6 +223,16 @@ pub trait EditorCapabilities: CursorAccess + SelectionAccess + ModeAccess + Mess
 
 	/// Access to file operations (optional).
 	fn file_ops(&mut self) -> Option<&mut dyn FileOpsAccess> {
+		None
+	}
+
+	/// Access to jump list operations (optional).
+	fn jump_ops(&mut self) -> Option<&mut dyn JumpAccess> {
+		None
+	}
+
+	/// Access to macro recording/playback operations (optional).
+	fn macro_ops(&mut self) -> Option<&mut dyn MacroAccess> {
 		None
 	}
 }

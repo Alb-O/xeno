@@ -25,11 +25,6 @@
 //! - [`PanelOps`] - Panel management
 //! - [`FocusOps`] - Focus and buffer navigation
 //! - [`FileOpsAccess`] - Save/load operations
-//!
-//! # Not Yet Wired
-//!
-//! These traits are defined but not yet connected to [`EditorCapabilities`]:
-//!
 //! - [`JumpAccess`] - Jump list navigation
 //! - [`MacroAccess`] - Macro recording/playback
 //!
@@ -138,13 +133,10 @@ pub trait UndoAccess {
 	fn can_redo(&self) -> bool;
 }
 
-/// Jump list operations (not yet wired).
+/// Jump list operations.
 ///
 /// Provides navigation through the jump history. Jumps are saved automatically
-/// when making large cursor movements. Add to [`Capability`] enum and implement
-/// `jump()` accessor when ready.
-///
-/// [`Capability`]: crate::Capability
+/// when making large cursor movements (e.g., searches, goto line).
 pub trait JumpAccess {
 	/// Jumps forward in the jump list.
 	fn jump_forward(&mut self) -> bool;
@@ -154,12 +146,9 @@ pub trait JumpAccess {
 	fn save_jump(&mut self);
 }
 
-/// Macro recording/playback (not yet wired).
+/// Macro recording/playback.
 ///
-/// Enables recording sequences of actions and replaying them. Add to
-/// [`Capability`] enum and implement `macros()` accessor when ready.
-///
-/// [`Capability`]: crate::Capability
+/// Enables recording sequences of key events and replaying them.
 pub trait MacroAccess {
 	/// Starts recording a macro.
 	fn record(&mut self);

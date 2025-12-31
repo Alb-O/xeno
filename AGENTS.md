@@ -52,14 +52,12 @@ action!(move_left, {
 }, |ctx| cursor_motion(ctx, "char_prev"));
 ```
 
-Handler slices (`RESULT_*_HANDLERS`) are auto-generated. Buffer-ops actions use the `result:` form for colocated handlers:
+Handler slices (`RESULT_*_HANDLERS`) are auto-generated. Extensions can add handlers for existing result types via the `RESULT_EXTENSION_HANDLERS` distributed slice:
 
 ```rust
-action!(split_horizontal, {
-    description: "Split horizontally",
-    bindings: r#"window "s""#,
-    result: SplitHorizontal,
-}, |ops| ops.split_horizontal());
+result_extension_handler!(my_handler, |result, ctx| {
+    // Runs after core handlers for any result type
+});
 ```
 
 ### Event System
@@ -87,6 +85,17 @@ Field type tokens are mapped automatically:
 - `Path` → `&Path` / `PathBuf`
 - `RopeSlice` → `RopeSlice<'a>` / `String`  
 - `OptionStr` → `Option<&str>` / `Option<String>`
+- `ViewId` → `ViewId` (copy type)
+- `Bool` → `bool`
+
+**Focus & Layout Events** (observable via hooks):
+- `ViewFocusChanged` - emitted when focus changes between views
+- `SplitCreated` / `SplitClosed` - emitted on split operations
+- `PanelToggled` - emitted when panels open/close
+
+**Action Lifecycle Events**:
+- `ActionPre` - emitted before action execution
+- `ActionPost` - emitted after result dispatch with result variant name
 
 ## Extension System
 
@@ -132,8 +141,10 @@ Fine-grained traits in `manifest/src/editor_ctx/capabilities.rs`:
 | `PanelOps`        | Optional | Panel management        |
 | `FocusOps`        | Optional | Focus/buffer navigation |
 | `FileOpsAccess`   | Optional | Save/load operations    |
+| `JumpAccess`      | Optional | Jump list navigation    |
+| `MacroAccess`     | Optional | Macro recording/playback|
 
-**Pending traits** (documented as "not yet wired"): `JumpAccess`, `MacroAccess`, `TextAccess`.
+**Pending traits**: `TextAccess` (read-only document access for result handlers).
 
 ## Key Files
 
