@@ -182,7 +182,7 @@ impl Editor {
 			.style(Style::default().fg(self.theme.colors.popup.fg).bg(self.theme.colors.popup.bg))
 			.highlight_style(
 				Style::default()
-					.fg(self.theme.colors.ui.cursor_fg)
+					.fg(self.theme.colors.ui.selection_fg)
 					.bg(self.theme.colors.ui.selection_bg),
 			)
 			.render(menu_area, frame.buffer_mut(), &mut self.menu);
