@@ -14,7 +14,7 @@ The next evolution of agentic text editors & harnesses.
 evildoer-base          Core types: Range, Selection, Transaction, Rope wrappers
 evildoer-manifest      Registry DEFINITIONS (ActionDef, CommandDef, etc.) - no implementations
 evildoer-stdlib        Registry IMPLEMENTATIONS (actions, commands, motions, etc.)
-evildoer-macro         Proc macros (DispatchResult, extension, parse_keybindings, etc.)
+evildoer-macro         Proc macros (DispatchResult, define_events!, parse_keybindings, etc.)
 evildoer-api           Editor engine: Buffer, Editor, rendering, terminals
 evildoer-extensions    Host extensions discovered at build-time (LSP, Zenmode)
 evildoer-acp           AI completion protocol integration (experimental)
@@ -35,6 +35,7 @@ Uses `linkme` distributed slices for compile-time registration. Definitions live
 | Text Objects  | `TEXT_OBJECTS`              | `stdlib/src/objects/` (9 items)        | `text_object!`           |
 | Options       | `OPTIONS`                   | `stdlib/src/options/` (26 items)       | `option!`                |
 | Hooks         | `HOOKS`                     | `stdlib/src/hooks/`                    | `hook!`, `async_hook!`   |
+| Events        | (generated enums)           | `manifest/src/hooks.rs`                | `define_events!`         |
 | Statusline    | `STATUSLINE_SEGMENTS`       | `stdlib/src/statusline/` (6 items)     | `statusline_segment!`    |
 | Notifications | `NOTIFICATION_TYPES`        | `stdlib/src/notifications/` (5 types)  | `register_notification!` |
 | Panels        | `PANELS`, `PANEL_FACTORIES` | `api/src/panels/` (2 items)            | `panel!`                 |
@@ -60,6 +61,32 @@ action!(split_horizontal, {
     result: SplitHorizontal,
 }, |ops| ops.split_horizontal());
 ```
+
+### Event System
+
+Hook events are defined via the `define_events!` proc macro in `manifest/src/hooks.rs`. This is a **single source of truth** that generates:
+
+- `HookEvent` enum for event discrimination
+- `HookEventData<'a>` with borrowed payloads for sync hooks
+- `OwnedHookContext` with owned payloads for async hooks
+- `__hook_extract!` and `__async_hook_extract!` macros for parameter binding
+
+```rust
+// Adding a new event is one line:
+define_events! {
+    BufferOpen => "buffer:open" {
+        path: Path,
+        text: RopeSlice,
+        file_type: OptionStr,
+    },
+    EditorQuit => "editor:quit",  // Unit events have no payload
+}
+```
+
+Field type tokens are mapped automatically:
+- `Path` → `&Path` / `PathBuf`
+- `RopeSlice` → `RopeSlice<'a>` / `String`  
+- `OptionStr` → `Option<&str>` / `Option<String>`
 
 ## Extension System
 
@@ -112,9 +139,14 @@ Fine-grained traits in `manifest/src/editor_ctx/capabilities.rs`:
 | ------------------- | ----------------------------------------------- |
 | Main entry          | `crates/term/src/main.rs`                       |
 | Editor core         | `crates/api/src/editor/mod.rs`                  |
-| Action definitions  | `crates/manifest/src/actions.rs`                |
-| Declarative macros  | `crates/manifest/src/macros.rs`                 |
+| Action definitions  | `crates/manifest/src/actions/`                  |
+| Motion definitions  | `crates/manifest/src/motions.rs`                |
+| Text objects        | `crates/manifest/src/text_objects.rs`           |
+| Hook events         | `crates/manifest/src/hooks.rs`                  |
+| Declarative macros  | `crates/manifest/src/macros/`                   |
 | Proc macros         | `crates/macro/src/lib.rs`                       |
+| Event proc macro    | `crates/macro/src/events.rs`                    |
+| Registry infra      | `crates/manifest/src/registry/`                 |
 | Result handlers     | `crates/stdlib/src/editor_ctx/result_handlers/` |
 | Keymap registry     | `crates/manifest/src/keymap_registry.rs`        |
 | Extension discovery | `crates/extensions/build.rs`                    |
