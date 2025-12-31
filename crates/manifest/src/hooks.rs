@@ -142,6 +142,15 @@ evildoer_macro::define_events! {
 		panel_id: Str,
 		visible: Bool,
 	},
+	/// Action execution starting.
+	ActionPre => "action:pre" {
+		action_id: Str,
+	},
+	/// Action execution finished.
+	ActionPost => "action:post" {
+		action_id: Str,
+		result_variant: Str,
+	},
 }
 
 /// Context passed to hook handlers.

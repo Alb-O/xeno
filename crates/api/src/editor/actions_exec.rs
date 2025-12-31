@@ -1,9 +1,42 @@
 use evildoer_base::Selection;
-use evildoer_manifest::{ActionArgs, ActionContext, ActionResult, find_action};
+use evildoer_manifest::{
+	ActionArgs, ActionContext, ActionResult, HookContext, HookEventData, emit_hook_sync_with,
+	find_action,
+};
 use ropey::Rope;
 use tracing::{debug, info_span};
 
 use crate::editor::Editor;
+
+fn action_result_variant(result: &ActionResult) -> &'static str {
+	match result {
+		ActionResult::Ok => "Ok",
+		ActionResult::Quit => "Quit",
+		ActionResult::ForceQuit => "ForceQuit",
+		ActionResult::Error(_) => "Error",
+		ActionResult::ForceRedraw => "ForceRedraw",
+		ActionResult::SplitHorizontal => "SplitHorizontal",
+		ActionResult::SplitVertical => "SplitVertical",
+		ActionResult::TogglePanel(_) => "TogglePanel",
+		ActionResult::BufferNext => "BufferNext",
+		ActionResult::BufferPrev => "BufferPrev",
+		ActionResult::CloseSplit => "CloseSplit",
+		ActionResult::CloseOtherBuffers => "CloseOtherBuffers",
+		ActionResult::FocusLeft => "FocusLeft",
+		ActionResult::FocusRight => "FocusRight",
+		ActionResult::FocusUp => "FocusUp",
+		ActionResult::FocusDown => "FocusDown",
+		ActionResult::ModeChange(_) => "ModeChange",
+		ActionResult::CursorMove(_) => "CursorMove",
+		ActionResult::Motion(_) => "Motion",
+		ActionResult::InsertWithMotion(_) => "InsertWithMotion",
+		ActionResult::Edit(_) => "Edit",
+		ActionResult::Pending(_) => "Pending",
+		ActionResult::SearchNext { .. } => "SearchNext",
+		ActionResult::SearchPrev { .. } => "SearchPrev",
+		ActionResult::UseSelectionAsSearch => "UseSelectionAsSearch",
+	}
+}
 
 impl Editor {
 	pub(crate) fn execute_action(
@@ -30,6 +63,16 @@ impl Editor {
 				return false;
 			}
 		}
+
+		emit_hook_sync_with(
+			&HookContext::new(
+				HookEventData::ActionPre {
+					action_id: action.id,
+				},
+				Some(&self.extensions),
+			),
+			&mut self.hook_runtime,
+		);
 
 		let span = info_span!(
 			"action",
@@ -82,7 +125,7 @@ impl Editor {
 		};
 
 		debug!(result = ?result, "Action completed");
-		self.apply_action_result(result, extend)
+		self.apply_action_result(action.id, result, extend)
 	}
 
 	pub(crate) fn execute_action_with_char(
@@ -110,6 +153,16 @@ impl Editor {
 				return false;
 			}
 		}
+
+		emit_hook_sync_with(
+			&HookContext::new(
+				HookEventData::ActionPre {
+					action_id: action.id,
+				},
+				Some(&self.extensions),
+			),
+			&mut self.hook_runtime,
+		);
 
 		let span = info_span!(
 			"action",
@@ -168,12 +221,29 @@ impl Editor {
 		};
 
 		debug!(result = ?result, "Action completed");
-		self.apply_action_result(result, extend)
+		self.apply_action_result(action.id, result, extend)
 	}
 
-	pub(crate) fn apply_action_result(&mut self, result: ActionResult, extend: bool) -> bool {
+	pub(crate) fn apply_action_result(
+		&mut self,
+		action_id: &'static str,
+		result: ActionResult,
+		extend: bool,
+	) -> bool {
 		use evildoer_manifest::{EditorContext, dispatch_result};
 		let mut ctx = EditorContext::new(self);
-		dispatch_result(&result, &mut ctx, extend)
+		let result_variant = action_result_variant(&result);
+		let should_quit = dispatch_result(&result, &mut ctx, extend);
+		emit_hook_sync_with(
+			&HookContext::new(
+				HookEventData::ActionPost {
+					action_id,
+					result_variant,
+				},
+				Some(&self.extensions),
+			),
+			&mut self.hook_runtime,
+		);
+		should_quit
 	}
 }
