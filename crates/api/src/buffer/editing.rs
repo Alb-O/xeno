@@ -7,8 +7,10 @@ use evildoer_stdlib::movement;
 use super::Buffer;
 
 impl Buffer {
-	/// Inserts text at all cursor positions, returning the applied [`Transaction`].
-	pub fn insert_text(&mut self, text: &str) -> Transaction {
+	/// Inserts text at all cursor positions, returning the [`Transaction`] without applying it.
+	///
+	/// The caller is responsible for applying the transaction (with or without syntax update).
+	pub fn prepare_insert(&mut self, text: &str) -> (Transaction, evildoer_base::Selection) {
 		self.ensure_valid_selection();
 
 		// Collapse all selections to their insertion points
@@ -29,8 +31,17 @@ impl Buffer {
 			r.anchor = pos;
 			r.head = pos;
 		});
-		self.apply_transaction(&tx);
 
+		(tx, new_selection)
+	}
+
+	/// Inserts text at all cursor positions, returning the applied [`Transaction`].
+	///
+	/// Note: This does NOT update syntax highlighting. For syntax-aware insertion,
+	/// use [`prepare_insert`] and apply with [`apply_transaction_with_syntax`].
+	pub fn insert_text(&mut self, text: &str) -> Transaction {
+		let (tx, new_selection) = self.prepare_insert(text);
+		self.apply_transaction(&tx);
 		self.selection = new_selection;
 		self.cursor = self.selection.primary().head;
 		tx
@@ -55,8 +66,13 @@ impl Buffer {
 		}
 	}
 
-	/// Pastes text after the cursor position, returning the applied [`Transaction`].
-	pub fn paste_after(&mut self, text: &str) -> Option<Transaction> {
+	/// Prepares paste after cursor, returning transaction and new selection without applying.
+	///
+	/// Returns None if text is empty.
+	pub fn prepare_paste_after(
+		&mut self,
+		text: &str,
+	) -> Option<(Transaction, evildoer_base::Selection)> {
 		if text.is_empty() {
 			return None;
 		}
@@ -81,20 +97,51 @@ impl Buffer {
 		};
 		self.selection =
 			evildoer_base::Selection::from_vec(new_ranges, self.selection.primary_index());
-		Some(self.insert_text(text))
+		Some(self.prepare_insert(text))
 	}
 
-	/// Pastes text before the cursor position, returning the applied [`Transaction`].
-	pub fn paste_before(&mut self, text: &str) -> Option<Transaction> {
+	/// Pastes text after the cursor position, returning the applied [`Transaction`].
+	///
+	/// Note: This does NOT update syntax highlighting. For syntax-aware paste,
+	/// use [`prepare_paste_after`] and apply with [`apply_transaction_with_syntax`].
+	pub fn paste_after(&mut self, text: &str) -> Option<Transaction> {
+		let (tx, new_selection) = self.prepare_paste_after(text)?;
+		self.apply_transaction(&tx);
+		self.selection = new_selection;
+		self.cursor = self.selection.primary().head;
+		Some(tx)
+	}
+
+	/// Prepares paste before cursor, returning transaction and new selection without applying.
+	///
+	/// Returns None if text is empty.
+	pub fn prepare_paste_before(
+		&mut self,
+		text: &str,
+	) -> Option<(Transaction, evildoer_base::Selection)> {
 		if text.is_empty() {
 			return None;
 		}
 		self.ensure_valid_selection();
-		Some(self.insert_text(text))
+		Some(self.prepare_insert(text))
 	}
 
-	/// Deletes the current selection, returning the applied [`Transaction`] if non-empty.
-	pub fn delete_selection(&mut self) -> Option<Transaction> {
+	/// Pastes text before the cursor position, returning the applied [`Transaction`].
+	///
+	/// Note: This does NOT update syntax highlighting. For syntax-aware paste,
+	/// use [`prepare_paste_before`] and apply with [`apply_transaction_with_syntax`].
+	pub fn paste_before(&mut self, text: &str) -> Option<Transaction> {
+		let (tx, new_selection) = self.prepare_paste_before(text)?;
+		self.apply_transaction(&tx);
+		self.selection = new_selection;
+		self.cursor = self.selection.primary().head;
+		Some(tx)
+	}
+
+	/// Prepares deletion of selection, returning transaction and new selection without applying.
+	///
+	/// Returns None if selection is empty.
+	pub fn prepare_delete_selection(&mut self) -> Option<(Transaction, evildoer_base::Selection)> {
 		self.ensure_valid_selection();
 
 		if !self.selection.primary().is_empty() {
@@ -102,12 +149,22 @@ impl Buffer {
 				let doc = self.doc();
 				Transaction::delete(doc.content.slice(..), &self.selection)
 			};
-			self.selection = tx.map_selection(&self.selection);
-			self.apply_transaction(&tx);
-			Some(tx)
+			let new_selection = tx.map_selection(&self.selection);
+			Some((tx, new_selection))
 		} else {
 			None
 		}
+	}
+
+	/// Deletes the current selection, returning the applied [`Transaction`] if non-empty.
+	///
+	/// Note: This does NOT update syntax highlighting. For syntax-aware deletion,
+	/// use [`prepare_delete_selection`] and apply with [`apply_transaction_with_syntax`].
+	pub fn delete_selection(&mut self) -> Option<Transaction> {
+		let (tx, new_selection) = self.prepare_delete_selection()?;
+		self.apply_transaction(&tx);
+		self.selection = new_selection;
+		Some(tx)
 	}
 
 	/// Applies a transaction to the document. Increments the version counter.
@@ -143,5 +200,11 @@ impl Buffer {
 
 		doc.modified = true;
 		doc.version = doc.version.wrapping_add(1);
+	}
+
+	/// Finalizes selection/cursor after a transaction is applied.
+	pub fn finalize_selection(&mut self, new_selection: evildoer_base::Selection) {
+		self.selection = new_selection;
+		self.cursor = self.selection.primary().head;
 	}
 }

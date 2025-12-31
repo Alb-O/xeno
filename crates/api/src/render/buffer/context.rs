@@ -326,15 +326,16 @@ impl<'a> BufferRenderContext<'a> {
 							base
 						}
 					};
-					let style = if is_cursor && (use_block_cursor || !is_focused) {
-						if blink_on || !is_focused {
-							cursor_style
-						} else {
-							styles.base
-						}
+				let style = if is_cursor && (use_block_cursor || !is_focused) {
+					if blink_on || !is_focused {
+						cursor_style
 					} else {
+						// Blink off: show syntax-highlighted style instead of plain base
 						non_cursor_style
-					};
+					}
+				} else {
+					non_cursor_style
+				};
 
 					if ch == '\t' {
 						let remaining = text_width.saturating_sub(seg_col);

@@ -9,16 +9,37 @@ use crate::buffer::BufferView;
 
 impl Editor {
 	pub fn insert_text(&mut self, text: &str) {
+		let BufferView::Text(buffer_id) = self.buffers.focused_view() else {
+			return;
+		};
+
 		if self.buffer().mode() == evildoer_manifest::Mode::Insert {
 			self.save_insert_undo_state();
 		} else {
 			self.save_undo_state();
 		}
-		let tx = self.buffer_mut().insert_text(text);
-		self.sync_sibling_selections(&tx);
-		if let BufferView::Text(id) = self.buffers.focused_view() {
-			self.dirty_buffers.insert(id);
+
+		// Prepare the transaction and new selection (without applying)
+		let (tx, new_selection) = {
+			let buffer = self
+				.buffers
+				.get_buffer_mut(buffer_id)
+				.expect("focused buffer must exist");
+			buffer.prepare_insert(text)
+		};
+
+		// Apply with syntax update
+		{
+			let buffer = self
+				.buffers
+				.get_buffer_mut(buffer_id)
+				.expect("focused buffer must exist");
+			buffer.apply_transaction_with_syntax(&tx, &self.language_loader);
+			buffer.finalize_selection(new_selection);
 		}
+
+		self.sync_sibling_selections(&tx);
+		self.dirty_buffers.insert(buffer_id);
 	}
 
 	pub fn yank_selection(&mut self) {
@@ -32,41 +53,110 @@ impl Editor {
 		if self.registers.yank.is_empty() {
 			return;
 		}
+
+		let BufferView::Text(buffer_id) = self.buffers.focused_view() else {
+			return;
+		};
+
 		self.save_undo_state();
 		let yank = self.registers.yank.clone();
-		if let Some(tx) = self.buffer_mut().paste_after(&yank) {
-			self.sync_sibling_selections(&tx);
+
+		// Prepare the transaction and new selection (without applying)
+		let Some((tx, new_selection)) = ({
+			let buffer = self
+				.buffers
+				.get_buffer_mut(buffer_id)
+				.expect("focused buffer must exist");
+			buffer.prepare_paste_after(&yank)
+		}) else {
+			return;
+		};
+
+		// Apply with syntax update
+		{
+			let buffer = self
+				.buffers
+				.get_buffer_mut(buffer_id)
+				.expect("focused buffer must exist");
+			buffer.apply_transaction_with_syntax(&tx, &self.language_loader);
+			buffer.finalize_selection(new_selection);
 		}
-		if let BufferView::Text(id) = self.buffers.focused_view() {
-			self.dirty_buffers.insert(id);
-		}
+
+		self.sync_sibling_selections(&tx);
+		self.dirty_buffers.insert(buffer_id);
 	}
 
 	pub fn paste_before(&mut self) {
 		if self.registers.yank.is_empty() {
 			return;
 		}
+
+		let BufferView::Text(buffer_id) = self.buffers.focused_view() else {
+			return;
+		};
+
 		self.save_undo_state();
 		let yank = self.registers.yank.clone();
-		if let Some(tx) = self.buffer_mut().paste_before(&yank) {
-			self.sync_sibling_selections(&tx);
+
+		// Prepare the transaction and new selection (without applying)
+		let Some((tx, new_selection)) = ({
+			let buffer = self
+				.buffers
+				.get_buffer_mut(buffer_id)
+				.expect("focused buffer must exist");
+			buffer.prepare_paste_before(&yank)
+		}) else {
+			return;
+		};
+
+		// Apply with syntax update
+		{
+			let buffer = self
+				.buffers
+				.get_buffer_mut(buffer_id)
+				.expect("focused buffer must exist");
+			buffer.apply_transaction_with_syntax(&tx, &self.language_loader);
+			buffer.finalize_selection(new_selection);
 		}
-		if let BufferView::Text(id) = self.buffers.focused_view() {
-			self.dirty_buffers.insert(id);
-		}
+
+		self.sync_sibling_selections(&tx);
+		self.dirty_buffers.insert(buffer_id);
 	}
 
 	pub fn delete_selection(&mut self) {
 		if self.buffer().selection.primary().is_empty() {
 			return;
 		}
+
+		let BufferView::Text(buffer_id) = self.buffers.focused_view() else {
+			return;
+		};
+
 		self.save_undo_state();
-		if let Some(tx) = self.buffer_mut().delete_selection() {
-			self.sync_sibling_selections(&tx);
-			if let BufferView::Text(id) = self.buffers.focused_view() {
-				self.dirty_buffers.insert(id);
-			}
+
+		// Prepare the transaction and new selection (without applying)
+		let Some((tx, new_selection)) = ({
+			let buffer = self
+				.buffers
+				.get_buffer_mut(buffer_id)
+				.expect("focused buffer must exist");
+			buffer.prepare_delete_selection()
+		}) else {
+			return;
+		};
+
+		// Apply with syntax update
+		{
+			let buffer = self
+				.buffers
+				.get_buffer_mut(buffer_id)
+				.expect("focused buffer must exist");
+			buffer.apply_transaction_with_syntax(&tx, &self.language_loader);
+			buffer.finalize_selection(new_selection);
 		}
+
+		self.sync_sibling_selections(&tx);
+		self.dirty_buffers.insert(buffer_id);
 	}
 
 	pub fn apply_transaction(&mut self, tx: &Transaction) {
