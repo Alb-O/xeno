@@ -17,6 +17,14 @@ impl CursorAccess for Editor {
 		self.buffer().cursor
 	}
 
+	fn cursor_line_col(&self) -> Option<(usize, usize)> {
+		if !self.is_text_focused() {
+			return None;
+		}
+		let buffer = self.buffer();
+		Some((buffer.cursor_line(), buffer.cursor_col()))
+	}
+
 	fn set_cursor(&mut self, pos: CharIdx) {
 		self.buffer_mut().cursor = pos;
 	}

@@ -83,6 +83,10 @@ impl<'a> EditorContext<'a> {
 		self.inner.cursor()
 	}
 
+	pub fn cursor_line_col(&self) -> Option<(usize, usize)> {
+		self.inner.cursor_line_col()
+	}
+
 	pub fn set_cursor(&mut self, pos: CharIdx) {
 		self.inner.set_cursor(pos);
 	}

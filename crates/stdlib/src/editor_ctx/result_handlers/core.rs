@@ -2,7 +2,7 @@
 
 use evildoer_manifest::actions::ActionResult;
 use evildoer_manifest::editor_ctx::HandleOutcome;
-use evildoer_manifest::{Mode, result_handler};
+use evildoer_manifest::{HookContext, HookEventData, Mode, emit_hook_sync, result_handler};
 
 use crate::{NotifyERRORExt, NotifyINFOExt};
 
@@ -17,6 +17,12 @@ result_handler!(
 	|r, ctx, _| {
 		if let ActionResult::CursorMove(pos) = r {
 			ctx.set_cursor(*pos);
+			if let Some((line, col)) = ctx.cursor_line_col() {
+				emit_hook_sync(&HookContext::new(
+					HookEventData::CursorMove { line, col },
+					None,
+				));
+			}
 		}
 		HandleOutcome::Handled
 	}
@@ -30,6 +36,20 @@ result_handler!(
 		if let ActionResult::Motion(sel) = r {
 			ctx.set_cursor(sel.primary().head);
 			ctx.set_selection(sel.clone());
+			let primary = sel.primary();
+			if let Some((line, col)) = ctx.cursor_line_col() {
+				emit_hook_sync(&HookContext::new(
+					HookEventData::CursorMove { line, col },
+					None,
+				));
+			}
+			emit_hook_sync(&HookContext::new(
+				HookEventData::SelectionChange {
+					anchor: primary.anchor,
+					head: primary.head,
+				},
+				None,
+			));
 		}
 		HandleOutcome::Handled
 	}
@@ -43,6 +63,20 @@ result_handler!(
 		if let ActionResult::InsertWithMotion(sel) = r {
 			ctx.set_cursor(sel.primary().head);
 			ctx.set_selection(sel.clone());
+			let primary = sel.primary();
+			if let Some((line, col)) = ctx.cursor_line_col() {
+				emit_hook_sync(&HookContext::new(
+					HookEventData::CursorMove { line, col },
+					None,
+				));
+			}
+			emit_hook_sync(&HookContext::new(
+				HookEventData::SelectionChange {
+					anchor: primary.anchor,
+					head: primary.head,
+				},
+				None,
+			));
 			ctx.set_mode(Mode::Insert);
 		}
 		HandleOutcome::Handled

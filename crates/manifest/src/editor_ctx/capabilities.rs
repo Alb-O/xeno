@@ -47,6 +47,10 @@ use crate::actions::EditAction;
 pub trait CursorAccess {
 	/// Returns the current cursor position as a character index.
 	fn cursor(&self) -> CharIdx;
+	/// Returns the cursor line and column, if available.
+	fn cursor_line_col(&self) -> Option<(usize, usize)> {
+		None
+	}
 	/// Sets the cursor position.
 	fn set_cursor(&mut self, pos: CharIdx);
 }
