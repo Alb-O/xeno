@@ -54,7 +54,6 @@ impl<T: Clone> MenuState<T> {
 		self.root.highlight()
 	}
 
-	/// Returns the current highlight depth (1 = top bar, 2 = first dropdown, etc.).
 	fn depth(&self) -> usize {
 		let mut depth = 0;
 		let mut current = self.root.highlighted_child();
@@ -65,10 +64,16 @@ impl<T: Clone> MenuState<T> {
 		depth
 	}
 
-	/// Moves highlight up in current dropdown, or closes dropdown if at top.
+	/// Moves highlight up in current dropdown, or collapses if at top.
 	pub fn up(&mut self) {
 		match self.depth() {
-			0 | 1 => {}
+			0 | 1 => {
+				if let Some(item) = self.root.highlighted_child_mut() {
+					if item.is_expanded() {
+						item.collapse();
+					}
+				}
+			}
 			2 => {
 				if self
 					.root
@@ -85,12 +90,16 @@ impl<T: Clone> MenuState<T> {
 		}
 	}
 
-	/// Moves highlight down, or opens dropdown if on top bar.
+	/// Moves highlight down, or enters dropdown if on top bar.
 	pub fn down(&mut self) {
-		if self.depth() == 1 {
-			self.push();
-		} else {
-			self.next();
+		match self.depth() {
+			1 => {
+				if let Some(item) = self.root.highlighted_child_mut() {
+					item.expand();
+					item.highlight_first_child();
+				}
+			}
+			_ => self.next(),
 		}
 	}
 
@@ -107,52 +116,64 @@ impl<T: Clone> MenuState<T> {
 		}
 	}
 
-	/// Moves highlight right (next top-level item, or opens submenu).
+	/// Moves highlight right (next top-level item, or enters submenu).
 	pub fn right(&mut self) {
 		match self.depth() {
 			0 => {}
 			1 => self.next(),
 			2 => {
-				if !self.push() {
-					self.pop();
-					self.next();
+				if let Some(item) = self.root.highlight_mut() {
+					if item.is_group() {
+						item.expand();
+						item.highlight_first_child();
+						return;
+					}
 				}
+				self.pop();
+				self.next();
 			}
 			_ => {
-				self.push();
+				if let Some(item) = self.root.highlight_mut() {
+					if item.is_group() {
+						item.expand();
+						item.highlight_first_child();
+					}
+				}
 			}
 		}
 	}
 
 	/// Selects the currently highlighted item.
 	///
-	/// If the item is a group, opens it. Otherwise, emits a [`MenuEvent::Selected`].
+	/// Groups are expanded with first child highlighted.
+	/// Leaf items emit [`MenuEvent::Selected`].
 	pub fn select(&mut self) {
 		if let Some(item) = self.root.highlight_mut() {
 			if !item.children.is_empty() {
-				self.push();
+				item.expand();
+				item.highlight_first_child();
 			} else if let Some(ref data) = item.data {
 				self.events.push(MenuEvent::Selected(data.clone()));
 			}
 		}
 	}
 
-	/// Opens the submenu of the currently highlighted item.
-	fn push(&mut self) -> bool {
-		self.root
-			.highlight_mut()
-			.map(|item| item.highlight_first_child())
-			.unwrap_or(false)
+	fn expand_current(&mut self) -> bool {
+		if let Some(item) = self.root.highlight_mut() {
+			if item.is_group() {
+				item.expand();
+				return true;
+			}
+		}
+		false
 	}
 
-	/// Closes the current submenu.
 	fn pop(&mut self) {
 		if let Some(item) = self.root.highlight_mut() {
 			item.clear_highlight();
 		}
 	}
 
-	/// Highlights the previous sibling.
 	fn prev(&mut self) {
 		if let Some(parent) = self.root.highlight_parent_mut() {
 			parent.highlight_prev();
@@ -161,7 +182,6 @@ impl<T: Clone> MenuState<T> {
 		}
 	}
 
-	/// Highlights the next sibling.
 	fn next(&mut self) {
 		if let Some(parent) = self.root.highlight_parent_mut() {
 			parent.highlight_next();
@@ -170,12 +190,11 @@ impl<T: Clone> MenuState<T> {
 		}
 	}
 
-	/// Drains pending events. Call this each frame after rendering.
+	/// Drains pending events.
 	pub fn drain_events(&mut self) -> impl Iterator<Item = MenuEvent<T>> + '_ {
 		self.events.drain(..)
 	}
 
-	/// Returns the number of dropdown levels currently visible.
 	pub(crate) fn dropdown_depth(&self) -> u16 {
 		let mut node = &self.root;
 		let mut count = 0;
@@ -188,85 +207,72 @@ impl<T: Clone> MenuState<T> {
 		count
 	}
 
-	fn bar_label_width(name: &str) -> u16 {
-		UnicodeWidthStr::width(name) as u16 + 2
-	}
-
-	/// Handles a mouse click at the given position relative to menu area origin.
-	///
-	/// Returns true if the click was handled (hit a menu item).
-	pub fn handle_click(&mut self, x: u16, y: u16) -> bool {
-		// Check menu bar (y == 0)
-		if y == 0 {
-			let mut current_x = 1u16; // Start after leading space
-			for (idx, item) in self.root.children.iter().enumerate() {
-				let label_width = Self::bar_label_width(item.name()); // " name "
-				if x >= current_x && x < current_x.saturating_add(label_width) {
-					// Clear existing highlights and highlight this item
-					for child in &mut self.root.children {
-						child.clear_highlight();
-					}
-					self.root.children[idx].highlighted = true;
-					// Open dropdown
-					self.push();
-					return true;
-				}
-				current_x = current_x.saturating_add(label_width);
-			}
-			return false;
-		}
-
-		// Check first-level dropdown (y >= 1)
-		let bar_idx = self
-			.root
-			.children
-			.iter()
-			.position(|c| c.highlighted)
-			.unwrap_or(0);
-
-		let items = &self.root.children.get(bar_idx).map(|c| &c.children);
-		let Some(items) = items else {
-			return false;
-		};
-		if items.is_empty() {
-			return false;
-		}
-
-		let mut current_x = 1u16;
-		let mut bar_start_x = current_x;
+	fn bar_item_x(&self, target_idx: usize) -> u16 {
+		let mut x = 1u16;
 		for (idx, item) in self.root.children.iter().enumerate() {
-			let label_width = Self::bar_label_width(item.name());
-			if idx == bar_idx {
-				bar_start_x = current_x;
+			if idx == target_idx {
 				break;
 			}
-			current_x = current_x.saturating_add(label_width);
+			x = x.saturating_add(UnicodeWidthStr::width(item.name()) as u16 + 2);
+		}
+		x
+	}
+
+	fn bar_item_at(&self, x: u16) -> Option<usize> {
+		let mut current_x = 1u16;
+		for (idx, item) in self.root.children.iter().enumerate() {
+			let width = UnicodeWidthStr::width(item.name()) as u16 + 2;
+			if x >= current_x && x < current_x.saturating_add(width) {
+				return Some(idx);
+			}
+			current_x = current_x.saturating_add(width);
+		}
+		None
+	}
+
+	/// Handles a mouse click. Returns true if handled.
+	pub fn handle_click(&mut self, x: u16, y: u16) -> bool {
+		if y == 0 {
+			if let Some(idx) = self.bar_item_at(x) {
+				for child in &mut self.root.children {
+					child.clear_highlight();
+				}
+				self.root.children[idx].highlighted = true;
+				self.expand_current();
+				return true;
+			}
+			return false;
 		}
 
-		let max_name_width = items.iter().map(|i| i.name().len()).max().unwrap_or(0) as u16;
-		let content_width = max_name_width + 4;
+		let Some(bar_idx) = self.root.children.iter().position(|c| c.highlighted) else {
+			return false;
+		};
 
-		// Dropdown items start at y=2 (y=1 is top padding)
+		let children = &self.root.children[bar_idx].children;
+		if children.is_empty() {
+			return false;
+		}
+
+		let bar_x = self.bar_item_x(bar_idx);
+		let max_width = children.iter().map(|i| i.name().len()).max().unwrap_or(0) as u16;
+		let content_width = max_width + 4;
+
 		let item_y_start = 2u16;
-		let item_y_end = item_y_start + items.len() as u16;
-		// Items start 1 cell in from left padding
-		let item_x_start = bar_start_x + 1;
+		let item_x_start = bar_x + 1;
 
 		if y >= item_y_start
-			&& y < item_y_end
+			&& y < item_y_start + children.len() as u16
 			&& x >= item_x_start
 			&& x < item_x_start.saturating_add(content_width)
 		{
 			let item_idx = (y - item_y_start) as usize;
 
-			// Clear highlights and select item
 			let bar_item = &mut self.root.children[bar_idx];
 			for child in &mut bar_item.children {
 				child.clear_highlight();
 			}
 			bar_item.children[item_idx].highlighted = true;
 
-			// If group, open; otherwise emit event
 			if bar_item.children[item_idx].is_group() {
 				bar_item.children[item_idx].highlight_first_child();
 			} else if let Some(ref data) = bar_item.children[item_idx].data {
@@ -278,35 +284,24 @@ impl<T: Clone> MenuState<T> {
 		false
 	}
 
-	/// Handles mouse hover at the given position relative to menu area origin.
-	///
-	/// Updates highlights to follow the mouse. Returns true if hover was over a menu item.
+	/// Handles mouse hover. Returns true if over a menu item.
 	pub fn handle_hover(&mut self, x: u16, y: u16) -> bool {
-		// Check menu bar (y == 0)
 		if y == 0 {
-			let mut current_x = 1u16;
-			for (idx, item) in self.root.children.iter().enumerate() {
-				let label_width = Self::bar_label_width(item.name());
-				if x >= current_x && x < current_x.saturating_add(label_width) {
-					// Only update if hovering a different top-level item
-					if !self.root.children[idx].highlighted {
-						for child in &mut self.root.children {
-							child.clear_highlight();
-						}
-						self.root.children[idx].highlighted = true;
-						self.push();
+			if let Some(idx) = self.bar_item_at(x) {
+				if !self.root.children[idx].highlighted {
+					for child in &mut self.root.children {
+						child.clear_highlight();
 					}
-					return true;
+					self.root.children[idx].highlighted = true;
+					self.expand_current();
 				}
-				current_x = current_x.saturating_add(label_width);
+				return true;
 			}
 			return false;
 		}
 
-		// Check first-level dropdown (y >= 1)
-		let bar_idx = match self.root.children.iter().position(|c| c.highlighted) {
-			Some(idx) => idx,
-			None => return false,
+		let Some(bar_idx) = self.root.children.iter().position(|c| c.highlighted) else {
+			return false;
 		};
 
 		let items_len = self.root.children[bar_idx].children.len();
@@ -314,37 +309,25 @@ impl<T: Clone> MenuState<T> {
 			return false;
 		}
 
-		let mut current_x = 1u16;
-		let mut bar_start_x = current_x;
-		for (idx, item) in self.root.children.iter().enumerate() {
-			let label_width = Self::bar_label_width(item.name());
-			if idx == bar_idx {
-				bar_start_x = current_x;
-				break;
-			}
-			current_x = current_x.saturating_add(label_width);
-		}
-
-		let max_name_width = self.root.children[bar_idx]
+		let bar_x = self.bar_item_x(bar_idx);
+		let max_width = self.root.children[bar_idx]
 			.children
 			.iter()
 			.map(|i| i.name().len())
 			.max()
 			.unwrap_or(0) as u16;
-		let content_width = max_name_width + 4;
+		let content_width = max_width + 4;
 
 		let item_y_start = 2u16;
-		let item_y_end = item_y_start + items_len as u16;
-		let item_x_start = bar_start_x + 1;
+		let item_x_start = bar_x + 1;
 
 		if y >= item_y_start
-			&& y < item_y_end
+			&& y < item_y_start + items_len as u16
 			&& x >= item_x_start
 			&& x < item_x_start.saturating_add(content_width)
 		{
 			let item_idx = (y - item_y_start) as usize;
 
-			// Only update if hovering a different item
 			if !self.root.children[bar_idx].children[item_idx].highlighted {
 				let bar_item = &mut self.root.children[bar_idx];
 				for child in &mut bar_item.children {

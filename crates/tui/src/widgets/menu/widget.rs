@@ -15,8 +15,7 @@ use crate::widgets::{StatefulWidget, Widget};
 
 /// A horizontal menu bar with dropdown submenus.
 ///
-/// The menu renders as a single-line bar at the top of the given area.
-/// When items are highlighted, their dropdowns render below the bar,
+/// Renders as a single-line bar. Highlighted items show their dropdowns below,
 /// overlaying other content.
 pub struct Menu<T> {
 	default_style: Style,
@@ -42,7 +41,7 @@ impl<T> Menu<T> {
 		}
 	}
 
-	/// Sets the default (non-highlighted) item style.
+	/// Sets the default (non-highlighted) style.
 	pub fn style(mut self, style: Style) -> Self {
 		self.default_style = style;
 		self
@@ -74,14 +73,11 @@ impl<T> Menu<T> {
 			.max()
 			.unwrap_or(0) as u16;
 
-		let content_width = max_name_width + 4; // padding + possible '>'
-
-		// Block with padded border adds 1 cell on each side
+		let content_width = max_name_width + 4;
 		let block = Block::bordered().style(self.default_style);
 		let width = content_width + 2;
 		let height = items.len() as u16 + 2;
 
-		// Clamp x to leave room for nested dropdowns
 		let space_needed = remaining_depth * self.dropdown_width;
 		let max_x = buf.area().right().saturating_sub(space_needed);
 		let x = x.min(max_x);
@@ -91,6 +87,7 @@ impl<T> Menu<T> {
 		Clear.render(area, buf);
 		let inner = block.inner(area);
 		block.render(area, buf);
+
 		let mut active_submenu: Option<(u16, u16, &[MenuItem<T>])> = None;
 
 		for (idx, item) in items.iter().enumerate() {
@@ -121,13 +118,7 @@ impl<T> Menu<T> {
 		}
 
 		if let Some((sub_x, sub_y, children)) = active_submenu {
-			self.render_dropdown(
-				sub_x,
-				sub_y,
-				children,
-				buf,
-				remaining_depth.saturating_sub(1),
-			);
+			self.render_dropdown(sub_x, sub_y, children, buf, remaining_depth.saturating_sub(1));
 		}
 	}
 }
@@ -156,7 +147,7 @@ impl<T: Clone> StatefulWidget for Menu<T> {
 			let span = Span::styled(label, style);
 			let span_width = span.width() as u16;
 
-			if item.highlighted && item.is_group() {
+			if item.is_group() && (item.is_expanded() || item.highlighted) {
 				self.render_dropdown(x_pos, area.y + 1, &item.children, buf, dropdown_depth);
 			}
 
