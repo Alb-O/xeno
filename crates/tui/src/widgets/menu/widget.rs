@@ -6,11 +6,10 @@ use core::marker::PhantomData;
 
 use super::{MenuItem, MenuState};
 use crate::buffer::Buffer;
-use crate::layout::{Margin, Rect};
+use crate::layout::Rect;
 use crate::style::{Color, Style};
 use crate::text::{Line, Span};
 use crate::widgets::block::Block;
-use crate::widgets::borders::Borders;
 use crate::widgets::clear::Clear;
 use crate::widgets::{StatefulWidget, Widget};
 
@@ -76,8 +75,11 @@ impl<T> Menu<T> {
 			.unwrap_or(0) as u16;
 
 		let content_width = max_name_width + 4; // padding + possible '>'
-		let width = content_width.max(self.dropdown_width);
-		let height = items.len() as u16 + 2; // borders
+
+		// Block with padded border adds 1 cell on each side
+		let block = Block::bordered().style(self.default_style);
+		let width = content_width + 2;
+		let height = items.len() as u16 + 2;
 
 		// Clamp x to leave room for nested dropdowns
 		let space_needed = remaining_depth * self.dropdown_width;
@@ -87,26 +89,15 @@ impl<T> Menu<T> {
 		let area = Rect::new(x, y, width, height).clamp(*buf.area());
 
 		Clear.render(area, buf);
-		buf.set_style(area, self.default_style);
-
-		Block::default()
-			.borders(Borders::ALL)
-			.style(self.default_style)
-			.render(
-				area.inner(Margin {
-					horizontal: 1,
-					vertical: 0,
-				}),
-				buf,
-			);
-
+		let inner = block.inner(area);
+		block.render(area, buf);
 		let mut active_submenu: Option<(u16, u16, &[MenuItem<T>])> = None;
 
 		for (idx, item) in items.iter().enumerate() {
-			let item_x = x + 2;
-			let item_y = y + 1 + idx as u16;
+			let item_x = inner.x;
+			let item_y = inner.y + idx as u16;
 
-			if item_y >= buf.area().bottom() {
+			if item_y >= inner.bottom() {
 				break;
 			}
 
@@ -125,7 +116,7 @@ impl<T> Menu<T> {
 			buf.set_span(item_x, item_y, &Span::styled(label, style), content_width);
 
 			if item.highlighted && item.is_group() {
-				active_submenu = Some((item_x + content_width - 2, item_y, &item.children));
+				active_submenu = Some((inner.right(), item_y, &item.children));
 			}
 		}
 

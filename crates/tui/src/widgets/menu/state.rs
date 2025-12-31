@@ -246,10 +246,11 @@ impl<T: Clone> MenuState<T> {
 		let max_name_width = items.iter().map(|i| i.name().len()).max().unwrap_or(0) as u16;
 		let content_width = max_name_width + 4;
 
-		// Dropdown items start at y=2 (y=1 is top border)
+		// Dropdown items start at y=2 (y=1 is top padding)
 		let item_y_start = 2u16;
 		let item_y_end = item_y_start + items.len() as u16;
-		let item_x_start = bar_start_x.saturating_add(2);
+		// Items start 1 cell in from left padding
+		let item_x_start = bar_start_x + 1;
 
 		if y >= item_y_start
 			&& y < item_y_end
