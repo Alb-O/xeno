@@ -1,0 +1,109 @@
+//! Action result type and mode changes.
+//!
+//! The [`ActionResult`] enum is the return type for all action handlers,
+//! describing what the editor should do after an action executes.
+
+use evildoer_base::Selection;
+use evildoer_macro::DispatchResult;
+
+use super::{EditAction, PendingAction};
+use crate::CharIdx;
+
+/// Editor mode for mode-change actions.
+///
+/// Subset of modes that can be entered via [`ActionResult::ModeChange`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ActionMode {
+	Normal,
+	Insert,
+	Window,
+}
+
+/// Result of executing an action.
+///
+/// Actions return this enum to indicate what the editor should do next.
+/// Variants marked `#[terminal_safe]` can be applied when a terminal view
+/// is focused (workspace-level operations). Other variants require text
+/// buffer context.
+///
+/// The `#[derive(DispatchResult)]` macro generates:
+/// - Handler slices (`RESULT_*_HANDLERS`) for each variant
+/// - [`dispatch_result`] function for routing results to handlers
+/// - [`is_terminal_safe`] method from `#[terminal_safe]` attributes
+///
+/// [`dispatch_result`]: crate::dispatch_result
+/// [`is_terminal_safe`]: Self::is_terminal_safe
+#[derive(Debug, Clone, DispatchResult)]
+#[handler_coverage = "error"]
+pub enum ActionResult {
+	/// No-op success.
+	#[terminal_safe]
+	Ok,
+	/// Quit the editor.
+	#[terminal_safe]
+	#[handler(Quit)]
+	Quit,
+	/// Force quit without save prompts.
+	#[terminal_safe]
+	#[handler(Quit)]
+	ForceQuit,
+	/// Error message to display.
+	#[terminal_safe]
+	Error(String),
+	/// Force a redraw.
+	#[terminal_safe]
+	ForceRedraw,
+	/// Split horizontally with current buffer.
+	#[terminal_safe]
+	SplitHorizontal,
+	/// Split vertically with current buffer.
+	#[terminal_safe]
+	SplitVertical,
+	/// Toggle a named panel.
+	#[terminal_safe]
+	TogglePanel(&'static str),
+	/// Switch to next buffer.
+	#[terminal_safe]
+	BufferNext,
+	/// Switch to previous buffer.
+	#[terminal_safe]
+	BufferPrev,
+	/// Close current split.
+	#[terminal_safe]
+	CloseSplit,
+	/// Close all other buffers.
+	#[terminal_safe]
+	CloseOtherBuffers,
+	/// Focus split to the left.
+	#[terminal_safe]
+	FocusLeft,
+	/// Focus split to the right.
+	#[terminal_safe]
+	FocusRight,
+	/// Focus split above.
+	#[terminal_safe]
+	FocusUp,
+	/// Focus split below.
+	#[terminal_safe]
+	FocusDown,
+
+	/// Change editor mode.
+	ModeChange(ActionMode),
+	/// Move cursor to position.
+	CursorMove(CharIdx),
+	/// Apply a motion (updates selection).
+	Motion(Selection),
+	/// Enter insert mode with motion.
+	InsertWithMotion(Selection),
+	/// Execute an edit action.
+	Edit(EditAction),
+	/// Enter pending state for multi-key action.
+	Pending(PendingAction),
+	/// Search forward.
+	SearchNext { add_selection: bool },
+	/// Search backward.
+	SearchPrev { add_selection: bool },
+	/// Use current selection as search pattern.
+	#[handler(UseSelectionSearch)]
+	UseSelectionAsSearch,
+}
