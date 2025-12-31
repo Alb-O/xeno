@@ -179,7 +179,11 @@ impl Editor {
 		let menu_bg = Block::default().style(Style::default().bg(self.theme.colors.popup.bg));
 		frame.render_widget(menu_bg, menu_area);
 		Menu::new()
-			.style(Style::default().fg(self.theme.colors.popup.fg).bg(self.theme.colors.popup.bg))
+			.style(
+				Style::default()
+					.fg(self.theme.colors.popup.fg)
+					.bg(self.theme.colors.popup.bg),
+			)
 			.highlight_style(
 				Style::default()
 					.fg(self.theme.colors.ui.selection_fg)

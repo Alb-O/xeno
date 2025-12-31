@@ -5,11 +5,11 @@
 
 use evildoer_base::Selection;
 use evildoer_macro::DispatchResult;
+use linkme::distributed_slice;
 
 use super::{EditAction, PendingAction};
 use crate::CharIdx;
 use crate::editor_ctx::ResultHandler;
-use linkme::distributed_slice;
 
 /// Extension handlers for action results.
 ///

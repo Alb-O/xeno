@@ -174,7 +174,7 @@ impl Editor {
 		let commands: Vec<_> = self.command_queue.drain().collect();
 		for cmd in commands {
 			let Some(command_def) = find_command(cmd.name) else {
-				self.notify("error", &format!("Unknown command: {}", cmd.name));
+				self.notify("error", format!("Unknown command: {}", cmd.name));
 				continue;
 			};
 
@@ -191,7 +191,7 @@ impl Editor {
 				Ok(CommandOutcome::Ok) => {}
 				Ok(CommandOutcome::Quit | CommandOutcome::ForceQuit) => return true,
 				Err(e) => {
-					self.notify("error", &e.to_string());
+					self.notify("error", e.to_string());
 				}
 			}
 		}

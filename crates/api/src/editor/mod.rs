@@ -43,6 +43,7 @@ pub use buffer_manager::BufferManager;
 pub use command_queue::CommandQueue;
 use evildoer_language::LanguageLoader;
 use evildoer_manifest::{HookContext, HookEventData, Theme, emit_hook_sync_with};
+use evildoer_tui::widgets::menu::MenuState;
 pub use hook_runtime::HookRuntime;
 pub use layout::{LayoutManager, SeparatorHit, SeparatorId};
 pub use types::{HistoryEntry, JumpList, JumpLocation, MacroState, Registers};
@@ -53,7 +54,6 @@ use crate::editor::extensions::{EXTENSIONS, ExtensionMap, StyleOverlays};
 use crate::editor::types::CompletionState;
 use crate::menu::{MenuAction, create_menu};
 use crate::ui::UiManager;
-use evildoer_tui::widgets::menu::MenuState;
 
 /// The main editor/workspace structure.
 ///

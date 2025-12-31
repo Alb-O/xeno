@@ -109,4 +109,3 @@ pub fn parse_keybindings(input: TokenStream) -> TokenStream {
 pub fn define_events(input: TokenStream) -> TokenStream {
 	events::define_events(input)
 }
-

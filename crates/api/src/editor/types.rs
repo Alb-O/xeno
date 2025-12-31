@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
-use evildoer_base::{Rope, Selection};
 use evildoer_base::range::CharIdx;
+use evildoer_base::{Rope, Selection};
 use evildoer_manifest::CompletionItem;
 use termina::event::KeyEvent;
 

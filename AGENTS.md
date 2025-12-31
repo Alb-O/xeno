@@ -82,18 +82,21 @@ define_events! {
 ```
 
 Field type tokens are mapped automatically:
+
 - `Path` → `&Path` / `PathBuf`
-- `RopeSlice` → `RopeSlice<'a>` / `String`  
+- `RopeSlice` → `RopeSlice<'a>` / `String`
 - `OptionStr` → `Option<&str>` / `Option<String>`
 - `ViewId` → `ViewId` (copy type)
 - `Bool` → `bool`
 
 **Focus & Layout Events** (observable via hooks):
+
 - `ViewFocusChanged` - emitted when focus changes between views
 - `SplitCreated` / `SplitClosed` - emitted on split operations
 - `PanelToggled` - emitted when panels open/close
 
 **Action Lifecycle Events**:
+
 - `ActionPre` - emitted before action execution
 - `ActionPost` - emitted after result dispatch with result variant name
 
@@ -128,21 +131,21 @@ impl ZenmodeState {
 
 Fine-grained traits in `manifest/src/editor_ctx/capabilities.rs`:
 
-| Trait             | Required | Purpose                 |
-| ----------------- | -------- | ----------------------- |
-| `CursorAccess`    | Yes      | Get/set cursor position |
-| `SelectionAccess` | Yes      | Get/set selections      |
-| `ModeAccess`      | Yes      | Get/set editor mode     |
-| `MessageAccess`   | Yes      | Display notifications   |
-| `EditAccess`      | Optional | Text modifications      |
-| `SearchAccess`    | Optional | Pattern search          |
-| `UndoAccess`      | Optional | Undo/redo history       |
-| `SplitOps`        | Optional | Split management        |
-| `PanelOps`        | Optional | Panel management        |
-| `FocusOps`        | Optional | Focus/buffer navigation |
-| `FileOpsAccess`   | Optional | Save/load operations    |
-| `JumpAccess`      | Optional | Jump list navigation    |
-| `MacroAccess`     | Optional | Macro recording/playback|
+| Trait             | Required | Purpose                  |
+| ----------------- | -------- | ------------------------ |
+| `CursorAccess`    | Yes      | Get/set cursor position  |
+| `SelectionAccess` | Yes      | Get/set selections       |
+| `ModeAccess`      | Yes      | Get/set editor mode      |
+| `MessageAccess`   | Yes      | Display notifications    |
+| `EditAccess`      | Optional | Text modifications       |
+| `SearchAccess`    | Optional | Pattern search           |
+| `UndoAccess`      | Optional | Undo/redo history        |
+| `SplitOps`        | Optional | Split management         |
+| `PanelOps`        | Optional | Panel management         |
+| `FocusOps`        | Optional | Focus/buffer navigation  |
+| `FileOpsAccess`   | Optional | Save/load operations     |
+| `JumpAccess`      | Optional | Jump list navigation     |
+| `MacroAccess`     | Optional | Macro recording/playback |
 
 **Pending traits**: `TextAccess` (read-only document access for result handlers).
 

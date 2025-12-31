@@ -253,7 +253,8 @@ impl JumpAccess for Editor {
 		if let Some(buffer_id) = self.focused_buffer_id() {
 			let cursor = self.buffer().cursor;
 			// Only save if we're at the end of the jump list
-			self.jump_list.push(crate::editor::JumpLocation { buffer_id, cursor });
+			self.jump_list
+				.push(crate::editor::JumpLocation { buffer_id, cursor });
 		}
 
 		if let Some(loc) = self.jump_list.jump_backward() {
@@ -274,7 +275,8 @@ impl JumpAccess for Editor {
 	fn save_jump(&mut self) {
 		if let Some(buffer_id) = self.focused_buffer_id() {
 			let cursor = self.buffer().cursor;
-			self.jump_list.push(crate::editor::JumpLocation { buffer_id, cursor });
+			self.jump_list
+				.push(crate::editor::JumpLocation { buffer_id, cursor });
 		}
 	}
 }

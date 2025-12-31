@@ -68,8 +68,7 @@ impl Editor {
 		}
 
 		// Alt+m activates menu bar
-		if key.code == KeyCode::Char('m')
-			&& key.modifiers.contains(termina::event::Modifiers::ALT)
+		if key.code == KeyCode::Char('m') && key.modifiers.contains(termina::event::Modifiers::ALT)
 		{
 			self.menu.activate();
 			self.needs_redraw = true;
