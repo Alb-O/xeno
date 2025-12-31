@@ -7,6 +7,9 @@
 //! The [`result_handler!`](crate::result_handler) macro is defined in
 //! [`crate::macros`] for consistency with other registration macros.
 //!
+//! Extension handlers should use [`result_extension_handler!`](crate::result_extension_handler)
+//! and are dispatched after the core per-variant handlers.
+//!
 //! [`ActionResult`]: crate::ActionResult
 //! [`dispatch_result`]: crate::dispatch_result
 
