@@ -8,8 +8,7 @@
         "lint/custom-rules"
         "nix/scripts"
         "nix/outputs/perSystem/packages.d/10-lint.nix"
-        "nix/outputs/perSystem/shell-packages.d/10-lintfra.nix"
-        "nix/outputs/perSystem/shellHook.d/10-lintfra.sh"
+        "nix/outputs/perSystem/devShells.d/10-lintfra.nix"
         "sgconfig.yml"
       ];
     }

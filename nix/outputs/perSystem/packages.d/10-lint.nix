@@ -1,5 +1,7 @@
-# Lint package for self'.packages
-# Returns attrset to be merged into packages output
+/**
+  Lint package for self'.packages.
+  Returns attrset to be merged into packages output.
+*/
 { pkgs, ... }:
 {
   lint = pkgs.writeShellScriptBin "lint" ''
