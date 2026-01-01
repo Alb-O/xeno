@@ -17,7 +17,7 @@
     let
       rustToolchain = pkgs.rust-bin.fromRustupToolchainFile (rootSrc + "/rust-toolchain.toml");
 
-      # Collect fragments from .d directories (injected by gitbits)
+      # Collect fragments from .d directories (injected by gits)
       shellHookFragments = imp.fragments ./shellHook.d;
       packageFragments = imp.fragmentsWith { inherit pkgs self'; } ./packages.d;
     in
