@@ -1,3 +1,5 @@
+# Rust packages for evildoer
+# Merged with other packages.d/ fragments (e.g., 10-lint.nix from lintfra)
 {
   __inputs = {
     rust-overlay.url = "github:oxalica/rust-overlay";

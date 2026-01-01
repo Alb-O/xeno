@@ -19,7 +19,8 @@
 
       # Collect fragments from .d directories (injected by gits)
       shellHookFragments = imp.fragments ./shellHook.d;
-      packageFragments = imp.fragmentsWith { inherit pkgs self'; } ./packages.d;
+      # shell-packages.d/ contains list fragments for devshell packages
+      shellPackageFragments = imp.fragmentsWith { inherit pkgs self'; } ./shell-packages.d;
     in
     {
       default = pkgs.mkShell {
@@ -36,7 +37,7 @@
             pkgs.clang
             self'.formatter
           ]
-          ++ packageFragments.asList;
+          ++ shellPackageFragments.asList;
 
         shellHook = ''
           ${shellHookFragments.asString}
