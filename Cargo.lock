@@ -992,6 +992,7 @@ dependencies = [
 name = "evildoer-registry-options"
 version = "0.3.0"
 dependencies = [
+ "evildoer-registry-motions",
  "linkme",
  "paste",
 ]

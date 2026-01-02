@@ -12,26 +12,7 @@ use linkme::distributed_slice;
 mod impls;
 mod macros;
 
-/// Represents where a registry item was defined.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum RegistrySource {
-	/// Built directly into the editor.
-	Builtin,
-	/// Defined in a library crate.
-	Crate(&'static str),
-	/// Loaded at runtime (e.g., from KDL config files).
-	Runtime,
-}
-
-impl core::fmt::Display for RegistrySource {
-	fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-		match self {
-			Self::Builtin => write!(f, "builtin"),
-			Self::Crate(name) => write!(f, "crate:{name}"),
-			Self::Runtime => write!(f, "runtime"),
-		}
-	}
-}
+pub use evildoer_registry_motions::RegistrySource;
 
 /// The value of an option.
 #[derive(Debug, Clone, PartialEq)]
@@ -119,6 +100,8 @@ pub struct OptionDef {
 	pub default: fn() -> OptionValue,
 	/// Scope of the option.
 	pub scope: OptionScope,
+	/// Priority for ordering (lower runs first).
+	pub priority: i16,
 	/// Origin of the option.
 	pub source: RegistrySource,
 }
@@ -129,6 +112,7 @@ impl core::fmt::Debug for OptionDef {
 			.field("name", &self.name)
 			.field("value_type", &self.value_type)
 			.field("scope", &self.scope)
+			.field("priority", &self.priority)
 			.field("description", &self.description)
 			.finish()
 	}

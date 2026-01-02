@@ -1,4 +1,5 @@
+//! Editor context types.
 //!
-//! Editor context types moved to evildoer-registry-actions.
+//! Re-exports from [`evildoer_registry::actions::editor_ctx`].
 
 pub use evildoer_registry::actions::editor_ctx::*;

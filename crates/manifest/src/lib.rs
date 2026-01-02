@@ -1,46 +1,34 @@
 //! Registry infrastructure using compile-time distributed slices.
 //!
-//! This crate contains type definitions, traits, and distributed slices for the
-//! evildoer editor's extension system. It does NOT contain implementations - those
-//! live in evildoer-stdlib.
+//! This crate bridges `evildoer-registry` types to the editor's infrastructure,
+//! providing [`RegistryMetadata`] trait implementations, [`ActionId`] for dispatch,
+//! and [`KeymapRegistry`] for trie-based keybinding lookup.
 //!
-//! # Core Types
-//!
-//! - [`RegistrySource`] - Where a registry item was defined
-//! - [`Capability`] - Editor capabilities required by registry items
-//! - [`ActionId`] - Unique identifier for actions
-//! - [`CommandError`] / [`CommandResult`] - Command execution errors
-//!
-//! # Modules
-//!
-//! - [`actions`] - Action definitions and handlers
-//! - [`commands`] - Ex-mode command definitions
-//! - [`hooks`] - Event lifecycle observers
-//! - [`keybindings`] - Key to action mappings
-//! - [`notifications`] - UI notification system
-//!
-//! # Distributed Slices
-//!
-//! Compile-time registries using [`linkme`]:
-//! - [`ACTIONS`] - All registered actions
-//! - [`COMMANDS`] - All registered commands
-//! - [`MOTIONS`] - All registered motions
-//! - [`TEXT_OBJECTS`] - All registered text objects
-//!
-//! Note: Languages are loaded at runtime from `languages.kdl` via `evildoer-language`.
+//! Registry definitions live in `evildoer-registry`. This crate provides the glue
+//! layer: re-exports for backward compatibility, `RegistryMetadata` impls, and
+//! `ActionId` resolution infrastructure.
 
 pub use evildoer_base::range::CharIdx;
 pub use evildoer_base::{Range, Selection};
 
-pub mod motions;
+mod registry_impls;
 
 pub use evildoer_registry::{
-	bracket_pair_object, motion, option, statusline_segment, symmetric_text_object, text_object,
-	Capability, RegistrySource,
+	Capability, RegistrySource, bracket_pair_object, motion, option, statusline_segment,
+	symmetric_text_object, text_object,
 };
-pub mod registry;
+
+pub mod actions;
+pub mod completion;
+pub mod editor_ctx;
+pub mod index;
+pub mod keymap_registry;
+pub mod macros;
+pub mod mode;
+pub mod split_buffer;
 pub mod syntax;
-pub mod text_objects;
+pub mod terminal_config;
+pub mod theme;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct ActionId(pub u32);
@@ -80,6 +68,7 @@ pub const SEMANTIC_SUCCESS: &str = "success";
 pub const SEMANTIC_DIM: &str = "dim";
 pub const SEMANTIC_NORMAL: &str = "normal";
 
+/// Common metadata for all registry item types.
 pub trait RegistryMetadata {
 	fn id(&self) -> &'static str;
 	fn name(&self) -> &'static str;
@@ -87,70 +76,50 @@ pub trait RegistryMetadata {
 	fn source(&self) -> RegistrySource;
 }
 
-pub use evildoer_registry::commands::{CommandError, CommandOutcome, CommandResult};
-
-pub mod actions;
-pub mod commands;
-pub mod completion;
-pub mod editor_ctx;
-pub mod hooks;
-pub mod index;
-pub mod keymap_registry;
-pub mod macros;
-pub mod mode;
-pub mod notifications;
-pub mod panels;
-pub mod split_buffer;
-pub mod statusline;
-pub mod terminal_config;
-pub mod theme;
-
-pub use evildoer_registry::actions::ACTIONS;
-pub use evildoer_registry::commands::COMMANDS;
-
-// Re-export motion and text object types at crate root for backward compatibility
 pub use actions::{
 	ActionArgs, ActionContext, ActionDef, ActionHandler, ActionMode, ActionResult, EditAction,
 	ObjectSelectionKind, PendingAction, PendingKind, ScrollAmount, ScrollDir, VisualDirection,
 	cursor_motion, dispatch_result, insert_with_motion, selection_motion,
 };
-pub use evildoer_registry::commands::{CommandContext, CommandDef, flags};
 pub use completion::{CompletionContext, CompletionItem, CompletionKind, CompletionSource};
 pub use editor_ctx::{EditorCapabilities, EditorContext, EditorOps, HandleOutcome};
+pub use evildoer_registry::actions::ACTIONS;
+pub use evildoer_registry::commands::{
+	COMMANDS, CommandContext, CommandDef, CommandError, CommandOutcome, CommandResult, flags,
+};
 pub use evildoer_registry::hooks::{
 	BoxFuture as HookBoxFuture, HOOKS, HookAction, HookContext, HookDef, HookEvent, HookEventData,
 	HookHandler, HookMutability, HookResult, HookScheduler, MutableHookContext, OwnedHookContext,
 	all_hooks, emit as emit_hook, emit_mutable as emit_mutable_hook, emit_sync as emit_hook_sync,
 	emit_sync_with as emit_hook_sync_with, find_hooks,
 };
-pub use index::{
-	all_actions, all_commands, all_motions, all_text_objects, find_action, find_action_by_id,
-	find_command, find_motion, find_text_object_by_trigger, resolve_action_id,
-};
-pub use evildoer_registry::{BindingMode, KEYBINDINGS, KeyBindingDef};
-pub use keymap_registry::{BindingEntry, KeymapRegistry, LookupResult, get_keymap_registry};
-pub use mode::Mode;
-pub use evildoer_registry::{MOTIONS, MotionDef};
 pub use evildoer_registry::notifications::{
 	Animation, AutoDismiss, Level, NOTIFICATION_TYPES, NotificationTypeDef, Timing,
 	find_notification_type,
 };
 pub use evildoer_registry::options::{OPTIONS, OptionDef, OptionScope, OptionType, OptionValue};
 pub use evildoer_registry::panels::{
-	all_panels, find_factory, find_panel, find_panel_by_id, panel_kind_index, PanelDef,
-	PanelFactory, PanelFactoryDef, PanelId, PANEL_FACTORIES, PANELS,
-};
-pub use split_buffer::{
-	SplitAttrs, SplitBuffer, SplitCell, SplitColor, SplitCursor, SplitCursorStyle,
-	SplitDockPreference, SplitEventResult, SplitKey, SplitKeyCode, SplitModifiers, SplitMouse,
-	SplitMouseAction, SplitMouseButton, SplitSize,
+	PANEL_FACTORIES, PANELS, PanelDef, PanelFactory, PanelFactoryDef, PanelId, all_panels,
+	find_factory, find_panel, find_panel_by_id, panel_kind_index,
 };
 pub use evildoer_registry::statusline::{
 	RenderedSegment, STATUSLINE_SEGMENTS, SegmentPosition, SegmentStyle, StatuslineContext,
 	StatuslineSegmentDef, all_segments, find_segment, render_position, segments_for_position,
 };
-pub use terminal_config::{TerminalConfig, TerminalSequence};
 pub use evildoer_registry::text_objects::{TEXT_OBJECTS, TextObjectDef, TextObjectHandler};
+pub use evildoer_registry::{BindingMode, KEYBINDINGS, KeyBindingDef, MOTIONS, MotionDef};
+pub use index::{
+	all_actions, all_commands, all_motions, all_text_objects, find_action, find_action_by_id,
+	find_command, find_motion, find_text_object_by_trigger, resolve_action_id,
+};
+pub use keymap_registry::{BindingEntry, KeymapRegistry, LookupResult, get_keymap_registry};
+pub use mode::Mode;
+pub use split_buffer::{
+	SplitAttrs, SplitBuffer, SplitCell, SplitColor, SplitCursor, SplitCursorStyle,
+	SplitDockPreference, SplitEventResult, SplitKey, SplitKeyCode, SplitModifiers, SplitMouse,
+	SplitMouseAction, SplitMouseButton, SplitSize,
+};
+pub use terminal_config::{TerminalConfig, TerminalSequence};
 pub use theme::{
 	DEFAULT_THEME, DEFAULT_THEME_ID, NotificationColors, OwnedTheme, PopupColors,
 	SemanticColorPair, StatusColors, THEMES, Theme, ThemeColors, ThemeSource, ThemeVariant,
