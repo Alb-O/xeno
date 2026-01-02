@@ -1,8 +1,8 @@
 /// Character-level motions (left, right).
-mod basic;
+pub(crate) mod basic;
 /// Document-level motions (start, end).
-mod document;
+pub(crate) mod document;
 /// Line-based motions (up, down, first/last line).
-mod line;
+pub(crate) mod line;
 /// Word-based motions (word, WORD, word-end).
-mod word;
+pub(crate) mod word;

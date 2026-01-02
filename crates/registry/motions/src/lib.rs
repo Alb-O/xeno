@@ -15,10 +15,20 @@ use linkme::distributed_slice;
 use ropey::RopeSlice;
 
 /// Built-in motion implementations (char, word, line, etc.).
-mod impls;
+pub(crate) mod impls;
 /// Macro definitions for motion registration.
 mod macros;
 pub mod movement;
+
+/// Typed handles for built-in motions.
+///
+/// Note: Duplicate motion names across crates will conflict at compile time.
+pub mod keys {
+	pub use crate::impls::basic::*;
+	pub use crate::impls::document::*;
+	pub use crate::impls::line::*;
+	pub use crate::impls::word::*;
+}
 
 /// Represents where a registry item was defined.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -147,6 +157,41 @@ pub struct MotionDef {
 
 impl_registry_metadata!(MotionDef);
 
+pub struct Key<T: 'static>(&'static T);
+
+impl<T: 'static> Copy for Key<T> {}
+
+impl<T: 'static> Clone for Key<T> {
+	fn clone(&self) -> Self {
+		*self
+	}
+}
+
+impl<T> Key<T> {
+	pub const fn new(def: &'static T) -> Self {
+		Self(def)
+	}
+
+	pub const fn def(self) -> &'static T {
+		self.0
+	}
+}
+
+impl<T: RegistryMetadata> Key<T> {
+	pub fn name(self) -> &'static str {
+		self.0.name()
+	}
+}
+
+impl<T: RegistryMetadata> core::fmt::Debug for Key<T> {
+	fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+		f.debug_tuple("Key").field(&self.0.name()).finish()
+	}
+}
+
+/// Typed handle to a motion definition.
+pub type MotionKey = Key<MotionDef>;
+
 impl MotionDef {
 	#[doc(hidden)]
 	#[allow(clippy::too_many_arguments, reason = "macro-generated constructor")]
@@ -180,10 +225,11 @@ impl MotionDef {
 pub static MOTIONS: [MotionDef];
 
 /// Finds a motion by name or alias.
-pub fn find(name: &str) -> Option<&'static MotionDef> {
+pub fn find(name: &str) -> Option<MotionKey> {
 	MOTIONS
 		.iter()
 		.find(|m| m.name == name || m.aliases.contains(&name))
+		.map(MotionKey::new)
 }
 
 /// Returns all registered motions.

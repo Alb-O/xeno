@@ -66,6 +66,10 @@ macro_rules! motion {
 				$crate::__motion_opt!($({$flags})?, $crate::flags::NONE),
 				[<motion_handler_ $name>],
 			);
+
+			#[allow(non_upper_case_globals)]
+			#[allow(dead_code)]
+			pub const $name: $crate::MotionKey = $crate::MotionKey::new(&[<MOTION_ $name>]);
 		}
 	};
 }

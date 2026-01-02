@@ -2,7 +2,7 @@
 
 use evildoer_registry::actions::ActionDef;
 use evildoer_registry::commands::CommandDef;
-use evildoer_registry::motions::MotionDef;
+use evildoer_registry::motions::{MotionDef, MotionKey};
 use evildoer_registry::text_objects::TextObjectDef;
 
 use super::get_registry;
@@ -53,13 +53,14 @@ pub fn resolve_action_id(name: &str) -> Option<ActionId> {
 }
 
 /// Finds a motion definition by name or alias.
-pub fn find_motion(name: &str) -> Option<&'static MotionDef> {
+pub fn find_motion(name: &str) -> Option<MotionKey> {
 	let reg = get_registry();
 	reg.motions
 		.by_name
 		.get(name)
 		.or_else(|| reg.motions.by_alias.get(name))
 		.copied()
+		.map(MotionKey::new)
 }
 
 /// Finds a text object definition by its trigger character.

@@ -4,25 +4,21 @@
 
 use evildoer_base::range::Range;
 use evildoer_base::Selection;
-use evildoer_registry_motions::find as find_motion;
+use evildoer_registry_motions::MotionKey;
 use tracing::debug;
 
-use crate::{ActionContext, ActionMode, ActionResult};
+use crate::{ActionContext, ActionResult};
 
-/// Applies a named motion as a cursor movement.
+/// Applies a typed motion as a cursor movement.
 ///
-/// Looks up `motion_name` in the motion registry and applies it to each
-/// cursor in the selection. When `ctx.extend` is false, collapses selections
-/// to points at the new head positions.
-///
-/// Returns [`ActionResult::Error`] if the motion name is not found.
-pub fn cursor_motion(ctx: &ActionContext, motion_name: &str) -> ActionResult {
-	let Some(motion) = find_motion(motion_name) else {
-		return ActionResult::Error(format!("Unknown motion: {}", motion_name));
-	};
+/// Uses the provided motion definition to move each cursor in the selection.
+/// When `ctx.extend` is false, collapses selections to points at the new head
+/// positions.
+pub fn cursor_motion(ctx: &ActionContext, motion: MotionKey) -> ActionResult {
+	let motion_def = motion.def();
 
 	debug!(
-		motion = motion_name,
+		motion = motion.name(),
 		count = ctx.count,
 		extend = ctx.extend,
 		"Applying cursor motion"
@@ -38,7 +34,7 @@ pub fn cursor_motion(ctx: &ActionContext, motion_name: &str) -> ActionResult {
 			} else {
 				Range::point(range.head)
 			};
-			let moved = (motion.handler)(ctx.text, seed, ctx.count, ctx.extend);
+			let moved = (motion_def.handler)(ctx.text, seed, ctx.count, ctx.extend);
 			if ctx.extend {
 				moved
 			} else {
@@ -53,7 +49,7 @@ pub fn cursor_motion(ctx: &ActionContext, motion_name: &str) -> ActionResult {
 	))
 }
 
-/// Applies a named motion as a selection-creating action.
+/// Applies a typed motion as a selection-creating action.
 ///
 /// Creates selections spanning from current positions to new positions
 /// determined by the motion. When `ctx.extend` is true, extends all existing
@@ -61,15 +57,11 @@ pub fn cursor_motion(ctx: &ActionContext, motion_name: &str) -> ActionResult {
 ///
 /// Used for word motions (`w`, `b`, `e`) where the selection should span
 /// from cursor to the motion target.
-///
-/// Returns [`ActionResult::Error`] if the motion name is not found.
-pub fn selection_motion(ctx: &ActionContext, motion_name: &str) -> ActionResult {
-	let Some(motion) = find_motion(motion_name) else {
-		return ActionResult::Error(format!("Unknown motion: {}", motion_name));
-	};
+pub fn selection_motion(ctx: &ActionContext, motion: MotionKey) -> ActionResult {
+	let motion_def = motion.def();
 
 	debug!(
-		motion = motion_name,
+		motion = motion.name(),
 		count = ctx.count,
 		extend = ctx.extend,
 		"Applying selection motion"
@@ -88,28 +80,23 @@ pub fn selection_motion(ctx: &ActionContext, motion_name: &str) -> ActionResult 
 				} else {
 					*range
 				};
-				(motion.handler)(ctx.text, seed, ctx.count, true)
+				(motion_def.handler)(ctx.text, seed, ctx.count, true)
 			})
 			.collect();
 		ActionResult::Motion(Selection::from_vec(new_ranges, primary_index))
 	} else {
 		let current_range = Range::point(ctx.cursor);
-		let new_range = (motion.handler)(ctx.text, current_range, ctx.count, false);
+		let new_range = (motion_def.handler)(ctx.text, current_range, ctx.count, false);
 		ActionResult::Motion(Selection::single(new_range.anchor, new_range.head))
 	}
 }
 
-/// Applies a named motion to all cursors, then enters insert mode.
-///
-/// Falls back to plain insert mode if the motion is not found.
-pub fn insert_with_motion(ctx: &ActionContext, motion_name: &str) -> ActionResult {
-	let Some(motion) = find_motion(motion_name) else {
-		return ActionResult::ModeChange(ActionMode::Insert);
-	};
-
+/// Applies a typed motion to all cursors before insert actions.
+pub fn insert_with_motion(ctx: &ActionContext, motion: MotionKey) -> ActionResult {
+	let motion_def = motion.def();
 	let mut new_selection = ctx.selection.clone();
 	new_selection.transform_mut(|range| {
-		*range = (motion.handler)(ctx.text, *range, 1, false);
+		*range = (motion_def.handler)(ctx.text, *range, 1, false);
 	});
 
 	ActionResult::InsertWithMotion(new_selection)
