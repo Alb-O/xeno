@@ -28,13 +28,16 @@ enum HitResult {
 ///
 /// Tracks the menu tree structure and current selection path.
 pub struct MenuState<T> {
+	/// Top-level menu items in the menu bar.
 	pub(crate) items: Vec<MenuItem<T>>,
 	/// Index path to currently selected item. Empty = inactive, `[0]` = first bar item.
 	pub(crate) path: Vec<usize>,
 	/// Whether dropdown is visible. Separate from path because a bar item can be
 	/// highlighted without its dropdown open (e.g., after pressing up from dropdown).
 	pub(crate) expanded: bool,
+	/// Queue of events to be processed by the application.
 	events: Vec<MenuEvent<T>>,
+	/// Cached layout information for hit testing.
 	layout: Option<MenuLayout>,
 }
 
@@ -216,6 +219,7 @@ impl<T: Clone> MenuState<T> {
 		depth
 	}
 
+	/// Sets the cached layout for hit testing mouse interactions.
 	pub(crate) fn set_layout(&mut self, layout: MenuLayout) {
 		self.layout = Some(layout);
 	}
@@ -255,6 +259,7 @@ impl<T: Clone> MenuState<T> {
 		}
 	}
 
+	/// Tests if a position hits any menu region.
 	fn hit_test(&self, x: u16, y: u16) -> HitResult {
 		let Some(layout) = &self.layout else {
 			return HitResult::Miss;
@@ -272,6 +277,7 @@ impl<T: Clone> MenuState<T> {
 		HitResult::Miss
 	}
 
+	/// Tests if a position hits any item in a dropdown menu.
 	fn hit_test_dropdown(dropdown: &super::DropdownLayout, pos: Position) -> Option<Vec<usize>> {
 		if let Some(submenu) = &dropdown.submenu {
 			if let Some(mut path) = Self::hit_test_dropdown(submenu, pos) {
@@ -290,6 +296,7 @@ impl<T: Clone> MenuState<T> {
 			.map(|idx| vec![idx])
 	}
 
+	/// Returns the item at the given index path.
 	fn item_at_path(&self, path: &[usize]) -> Option<&MenuItem<T>> {
 		let mut items = self.items.as_slice();
 		let mut current = None;
@@ -301,10 +308,12 @@ impl<T: Clone> MenuState<T> {
 		current
 	}
 
+	/// Returns the currently selected top-level bar item.
 	fn bar_item(&self) -> Option<&MenuItem<T>> {
 		self.path.first().and_then(|&idx| self.items.get(idx))
 	}
 
+	/// Returns the number of siblings at the current path level.
 	fn sibling_len(&self) -> usize {
 		if self.path.len() < 2 {
 			return 0;
@@ -316,17 +325,20 @@ impl<T: Clone> MenuState<T> {
 		parent.children.len()
 	}
 
+	/// Moves selection to the previous bar item.
 	fn move_bar_prev(&mut self) {
 		let idx = self.path.first().copied().unwrap_or(0);
 		self.select_bar_item(idx.saturating_sub(1));
 	}
 
+	/// Moves selection to the next bar item.
 	fn move_bar_next(&mut self) {
 		let idx = self.path.first().copied().unwrap_or(0);
 		let max = self.items.len().saturating_sub(1);
 		self.select_bar_item((idx + 1).min(max));
 	}
 
+	/// Selects a bar item by index.
 	fn select_bar_item(&mut self, idx: usize) {
 		if idx >= self.items.len() {
 			return;
@@ -335,6 +347,7 @@ impl<T: Clone> MenuState<T> {
 		self.path.push(idx);
 	}
 
+	/// Sets the dropdown path while preserving the bar selection.
 	fn set_dropdown_path(&mut self, dropdown_path: Vec<usize>) {
 		let bar_idx = self.path.first().copied().unwrap_or(0);
 		self.path.clear();

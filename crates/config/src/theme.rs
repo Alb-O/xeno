@@ -11,15 +11,20 @@ use evildoer_registry::themes::{SyntaxStyle, SyntaxStyles};
 use kdl::{KdlDocument, KdlNode};
 
 use crate::error::{ConfigError, Result};
-use crate::kdl_util::{ParseContext, get_color_field, parse_modifier, parse_palette};
+use crate::kdl_util::{get_color_field, parse_modifier, parse_palette, ParseContext};
 
 /// A parsed theme with owned data suitable for runtime use.
 #[derive(Debug, Clone)]
 pub struct ParsedTheme {
+	/// Unique name of the theme.
 	pub name: String,
+	/// Whether this is a dark or light theme.
 	pub variant: ThemeVariant,
+	/// Alternative names for the theme.
 	pub aliases: Vec<String>,
+	/// Color definitions for all UI elements.
 	pub colors: ThemeColors,
+	/// Path to the source file, if loaded from disk.
 	pub source_path: Option<PathBuf>,
 }
 
@@ -146,6 +151,7 @@ pub fn parse_theme_node(node: &KdlNode) -> Result<ParsedTheme> {
 	})
 }
 
+/// Parses a theme variant string into a `ThemeVariant`.
 fn parse_variant(s: &str) -> Result<ThemeVariant> {
 	match s.to_lowercase().as_str() {
 		"dark" => Ok(ThemeVariant::Dark),
@@ -154,6 +160,7 @@ fn parse_variant(s: &str) -> Result<ThemeVariant> {
 	}
 }
 
+/// Parses UI colors from a KDL node.
 fn parse_ui_colors(node: Option<&KdlNode>, ctx: &ParseContext) -> Result<UiColors> {
 	let node = node.ok_or_else(|| ConfigError::MissingField("ui".into()))?;
 	let children = node
@@ -174,6 +181,7 @@ fn parse_ui_colors(node: Option<&KdlNode>, ctx: &ParseContext) -> Result<UiColor
 	})
 }
 
+/// Parses status bar colors from a KDL node.
 fn parse_status_colors(node: Option<&KdlNode>, ctx: &ParseContext) -> Result<StatusColors> {
 	let node = node.ok_or_else(|| ConfigError::MissingField("status".into()))?;
 	let children = node
@@ -198,6 +206,7 @@ fn parse_status_colors(node: Option<&KdlNode>, ctx: &ParseContext) -> Result<Sta
 	})
 }
 
+/// Parses popup/menu colors from a KDL node.
 fn parse_popup_colors(node: Option<&KdlNode>, ctx: &ParseContext) -> Result<PopupColors> {
 	let node = node.ok_or_else(|| ConfigError::MissingField("popup".into()))?;
 	let children = node
@@ -212,6 +221,7 @@ fn parse_popup_colors(node: Option<&KdlNode>, ctx: &ParseContext) -> Result<Popu
 	})
 }
 
+/// Parses syntax highlighting styles from a KDL node.
 fn parse_syntax_styles(node: Option<&KdlNode>, ctx: &ParseContext) -> Result<SyntaxStyles> {
 	let Some(node) = node else {
 		return Ok(SyntaxStyles::minimal());
@@ -227,6 +237,7 @@ fn parse_syntax_styles(node: Option<&KdlNode>, ctx: &ParseContext) -> Result<Syn
 	Ok(styles)
 }
 
+/// Parses a syntax node and its children recursively.
 fn parse_syntax_node(
 	node: &KdlNode,
 	prefix: &str,
@@ -252,6 +263,7 @@ fn parse_syntax_node(
 	Ok(())
 }
 
+/// Parses a style definition from a KDL node's attributes.
 fn parse_style_from_node(node: &KdlNode, ctx: &ParseContext) -> Result<SyntaxStyle> {
 	let mut style = SyntaxStyle::NONE;
 
@@ -272,6 +284,7 @@ fn parse_style_from_node(node: &KdlNode, ctx: &ParseContext) -> Result<SyntaxSty
 	Ok(style)
 }
 
+/// Sets a syntax style for the given scope name.
 fn set_syntax_style(styles: &mut SyntaxStyles, scope: &str, style: SyntaxStyle) {
 	if style.fg.is_none() && style.bg.is_none() && style.modifiers.is_empty() {
 		return;

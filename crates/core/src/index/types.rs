@@ -12,10 +12,15 @@ use crate::ActionId;
 
 /// Generic registry index with collision tracking.
 pub struct RegistryIndex<T: 'static> {
+	/// Lookup by unique identifier.
 	pub by_id: HashMap<&'static str, &'static T>,
+	/// Lookup by display name.
 	pub by_name: HashMap<&'static str, &'static T>,
+	/// Lookup by alternative name/alias.
 	pub by_alias: HashMap<&'static str, &'static T>,
+	/// Lookup by trigger character (for motions/text objects).
 	pub by_trigger: HashMap<char, &'static T>,
+	/// Collisions detected during index construction.
 	pub collisions: Vec<Collision<T>>,
 }
 
@@ -38,6 +43,7 @@ impl<T: 'static> Default for RegistryIndex<T> {
 }
 
 impl<T: 'static> RegistryIndex<T> {
+	/// Creates an empty registry index.
 	pub fn new() -> Self {
 		Self {
 			by_id: HashMap::new(),
@@ -51,8 +57,12 @@ impl<T: 'static> RegistryIndex<T> {
 
 /// Central registry for all editor extensions.
 pub struct ExtensionRegistry {
+	/// Index for editor commands.
 	pub commands: RegistryIndex<CommandDef>,
+	/// Index for actions with fast ActionId dispatch.
 	pub actions: ActionRegistryIndex,
+	/// Index for cursor motions.
 	pub motions: RegistryIndex<MotionDef>,
+	/// Index for text objects.
 	pub text_objects: RegistryIndex<TextObjectDef>,
 }

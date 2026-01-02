@@ -12,17 +12,21 @@ use linkme::distributed_slice;
 mod impls;
 mod macros;
 
-pub use evildoer_registry_motions::{RegistryMetadata, RegistrySource, impl_registry_metadata};
+pub use evildoer_registry_motions::{impl_registry_metadata, RegistryMetadata, RegistrySource};
 
 /// The value of an option.
 #[derive(Debug, Clone, PartialEq)]
 pub enum OptionValue {
+	/// Boolean value (true/false).
 	Bool(bool),
+	/// Integer value.
 	Int(i64),
+	/// String value.
 	String(String),
 }
 
 impl OptionValue {
+	/// Returns the boolean value if this is a `Bool` variant.
 	pub fn as_bool(&self) -> Option<bool> {
 		match self {
 			OptionValue::Bool(v) => Some(*v),
@@ -30,6 +34,7 @@ impl OptionValue {
 		}
 	}
 
+	/// Returns the integer value if this is an `Int` variant.
 	pub fn as_int(&self) -> Option<i64> {
 		match self {
 			OptionValue::Int(v) => Some(*v),
@@ -37,6 +42,7 @@ impl OptionValue {
 		}
 	}
 
+	/// Returns the string value if this is a `String` variant.
 	pub fn as_str(&self) -> Option<&str> {
 		match self {
 			OptionValue::String(v) => Some(v),
@@ -72,8 +78,11 @@ impl From<&str> for OptionValue {
 /// The type of an option's value.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum OptionType {
+	/// Boolean type.
 	Bool,
+	/// Integer type.
 	Int,
+	/// String type.
 	String,
 }
 

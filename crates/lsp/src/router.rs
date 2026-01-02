@@ -16,18 +16,29 @@ use crate::{
 
 /// A router dispatching requests and notifications to individual handlers.
 pub struct Router<St, Error = ResponseError> {
+	/// The router's state, passed to all handlers.
 	state: St,
+	/// Handlers for LSP requests, keyed by method name.
 	req_handlers: HashMap<&'static str, BoxReqHandler<St, Error>>,
+	/// Handlers for LSP notifications, keyed by method name.
 	notif_handlers: HashMap<&'static str, BoxNotifHandler<St>>,
+	/// Handlers for internal events, keyed by type ID.
 	event_handlers: HashMap<TypeId, BoxEventHandler<St>>,
+	/// Fallback handler for unhandled requests.
 	unhandled_req: BoxReqHandler<St, Error>,
+	/// Fallback handler for unhandled notifications.
 	unhandled_notif: BoxNotifHandler<St>,
+	/// Fallback handler for unhandled events.
 	unhandled_event: BoxEventHandler<St>,
 }
 
+/// Boxed future for request handlers.
 type BoxReqFuture<Error> = Pin<Box<dyn Future<Output = Result<JsonValue, Error>> + Send>>;
+/// Boxed async request handler function.
 type BoxReqHandler<St, Error> = Box<dyn Fn(&mut St, AnyRequest) -> BoxReqFuture<Error> + Send>;
+/// Boxed sync notification handler function.
 type BoxNotifHandler<St> = Box<dyn Fn(&mut St, AnyNotification) -> ControlFlow<Result<()>> + Send>;
+/// Boxed sync event handler function.
 type BoxEventHandler<St> = Box<dyn Fn(&mut St, AnyEvent) -> ControlFlow<Result<()>> + Send>;
 
 impl<St, Error> Default for Router<St, Error>

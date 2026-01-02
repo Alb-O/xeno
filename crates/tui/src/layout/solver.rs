@@ -127,7 +127,7 @@ pub(super) mod strengths {
 
 use strengths::{
 	FILL_GROW, GROW, LENGTH_SIZE_EQ, MAX_SIZE_EQ, MAX_SIZE_LE, MIN_SIZE_GE, PERCENTAGE_SIZE_EQ,
-	RATIO_SIZE_EQ, SPACE_GROW, SPACER_SIZE_EQ,
+	RATIO_SIZE_EQ, SPACER_SIZE_EQ, SPACE_GROW,
 };
 
 /// A container used by the solver inside split.
@@ -136,7 +136,9 @@ use strengths::{
 /// compute positions.
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
 pub(super) struct Element {
+	/// Start position variable for constraint solving.
 	pub start: Variable,
+	/// End position variable for constraint solving.
 	pub end: Variable,
 }
 
@@ -147,6 +149,7 @@ impl From<(Variable, Variable)> for Element {
 }
 
 impl Element {
+	/// Creates a new element with fresh variables.
 	#[expect(dead_code, reason = "useful for testing and debugging")]
 	pub fn new() -> Self {
 		Self {
@@ -155,22 +158,27 @@ impl Element {
 		}
 	}
 
+	/// Returns an expression for this element's size (end - start).
 	pub fn size(&self) -> Expression {
 		self.end - self.start
 	}
 
+	/// Creates a constraint that the element's size is at most `size`.
 	pub fn has_max_size(&self, size: u16, strength: Strength) -> kasuari::Constraint {
 		self.size() | LE(strength) | (f64::from(size) * FLOAT_PRECISION_MULTIPLIER)
 	}
 
+	/// Creates a constraint that the element's size is at least `size`.
 	pub fn has_min_size(&self, size: i16, strength: Strength) -> kasuari::Constraint {
 		self.size() | GE(strength) | (f64::from(size) * FLOAT_PRECISION_MULTIPLIER)
 	}
 
+	/// Creates a constraint that the element's size equals `size`.
 	pub fn has_int_size(&self, size: u16, strength: Strength) -> kasuari::Constraint {
 		self.size() | EQ(strength) | (f64::from(size) * FLOAT_PRECISION_MULTIPLIER)
 	}
 
+	/// Creates a constraint that the element's size equals an expression.
 	pub fn has_size<E: Into<Expression>>(
 		&self,
 		size: E,
@@ -179,6 +187,7 @@ impl Element {
 		self.size() | EQ(strength) | size.into()
 	}
 
+	/// Creates a constraint that the element's size equals double the expression.
 	pub fn has_double_size<E: Into<Expression>>(
 		&self,
 		size: E,
@@ -187,6 +196,7 @@ impl Element {
 		self.size() | EQ(strength) | (size.into() * 2.0)
 	}
 
+	/// Creates a constraint that the element has zero size.
 	pub fn is_empty(&self) -> kasuari::Constraint {
 		self.size() | EQ(Strength::REQUIRED - Strength::WEAK) | 0.0
 	}

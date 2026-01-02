@@ -37,17 +37,29 @@ pub type TextObjectHandler = fn(RopeSlice, usize) -> Option<Range>;
 /// - `inner`: Selects content inside delimiters (e.g., `iw` for inner word)
 /// - `around`: Selects content including delimiters (e.g., `aw` for around word)
 pub struct TextObjectDef {
+	/// Unique identifier for this text object.
 	pub id: &'static str,
+	/// Display name of the text object.
 	pub name: &'static str,
+	/// Alternative names for lookup.
 	pub aliases: &'static [&'static str],
+	/// Primary trigger character (e.g., 'w' for word).
 	pub trigger: char,
+	/// Alternative trigger characters.
 	pub alt_triggers: &'static [char],
+	/// Human-readable description.
 	pub description: &'static str,
+	/// Handler for inner selection mode.
 	pub inner: TextObjectHandler,
+	/// Handler for around selection mode.
 	pub around: TextObjectHandler,
+	/// Priority for collision resolution.
 	pub priority: i16,
+	/// Source of this registration.
 	pub source: RegistrySource,
+	/// Capabilities required to use this text object.
 	pub required_caps: &'static [Capability],
+	/// Feature flags for this text object.
 	pub flags: u32,
 }
 

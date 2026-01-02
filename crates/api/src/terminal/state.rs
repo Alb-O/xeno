@@ -1,7 +1,7 @@
 //! Terminal PTY state management.
 
 use std::io::{Read, Write};
-use std::sync::mpsc::{Receiver, TryRecvError, channel};
+use std::sync::mpsc::{channel, Receiver, TryRecvError};
 use std::thread;
 
 use evildoer_registry::panels::SplitCursorStyle;
@@ -13,26 +13,37 @@ use super::escape::parse_decscusr;
 /// Error type for terminal operations.
 #[derive(thiserror::Error, Debug)]
 pub enum TerminalError {
+	/// Error from the pseudoterminal subsystem.
 	#[error("PTY error: {0}")]
 	Pty(String),
+	/// Standard I/O error.
 	#[error("I/O error: {0}")]
 	Io(#[from] std::io::Error),
+	/// Error spawning the shell process.
 	#[error("Spawn error: {0}")]
 	Spawn(String),
 }
 
 /// Internal terminal state wrapping a PTY and parser.
 pub(super) struct TerminalState {
+	/// VT100 terminal emulator parser.
 	pub parser: Parser,
+	/// Master end of the pseudoterminal for resize operations.
 	pub pty_master: Box<dyn MasterPty + Send>,
+	/// Writer for sending input to the terminal.
 	pub pty_writer: Box<dyn Write + Send>,
+	/// Receiver for output from the terminal's reader thread.
 	pub receiver: Receiver<Vec<u8>>,
+	/// Handle to the spawned shell process.
 	pub child: Box<dyn portable_pty::Child + Send>,
-	/// Cursor shape set via DECSCUSR (ESC [ Ps SP q)
+	/// Cursor shape set via DECSCUSR (ESC [ Ps SP q).
 	pub cursor_shape: SplitCursorStyle,
 }
 
 impl TerminalState {
+	/// Creates a new terminal state with the given dimensions.
+	///
+	/// Spawns a shell process (from `$SHELL` or `sh`) in a new PTY.
 	pub fn new(cols: u16, rows: u16) -> Result<Self, TerminalError> {
 		let pty_system = NativePtySystem::default();
 		let pair = pty_system
@@ -89,10 +100,12 @@ impl TerminalState {
 		})
 	}
 
+	/// Returns a reference to the terminal screen state.
 	pub fn screen(&self) -> &vt100::Screen {
 		self.parser.screen()
 	}
 
+	/// Processes any pending output from the PTY reader thread.
 	pub fn update(&mut self) {
 		loop {
 			match self.receiver.try_recv() {
@@ -123,6 +136,7 @@ impl TerminalState {
 		self.cursor_shape = parse_decscusr(bytes).unwrap_or(self.cursor_shape);
 	}
 
+	/// Resizes the terminal to the given dimensions.
 	pub fn resize(&mut self, cols: u16, rows: u16) -> Result<(), TerminalError> {
 		self.parser.set_size(rows, cols);
 		self.pty_master
@@ -135,10 +149,12 @@ impl TerminalState {
 			.map_err(|e| TerminalError::Pty(e.to_string()))
 	}
 
+	/// Writes key input bytes to the terminal.
 	pub fn write_key(&mut self, bytes: &[u8]) -> Result<(), TerminalError> {
 		self.pty_writer.write_all(bytes).map_err(TerminalError::Io)
 	}
 
+	/// Returns whether the shell process is still running.
 	pub fn is_alive(&mut self) -> bool {
 		match self.child.try_wait() {
 			Ok(Some(_)) => false,

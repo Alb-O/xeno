@@ -1,3 +1,8 @@
+//! Document rendering logic for the editor.
+//!
+//! This module handles rendering of buffers in split views, including
+//! separator styling, junction glyphs, and panel rendering.
+
 mod wrapping;
 
 use std::time::{Duration, SystemTime};
@@ -23,6 +28,7 @@ type LayerRenderData = (
 	Vec<(SplitDirection, u8, Rect)>,
 );
 
+/// Extracts RGB components from a color, if it's an RGB color.
 fn color_to_rgb(color: Color) -> Option<(u8, u8, u8)> {
 	match color {
 		Color::Rgb(r, g, b) => Some((r, g, b)),
@@ -32,20 +38,30 @@ fn color_to_rgb(color: Color) -> Option<(u8, u8, u8)> {
 
 /// Precomputed separator colors and state for efficient style lookups.
 struct SeparatorStyle {
+	/// Rectangle of the currently hovered separator.
 	hovered_rect: Option<Rect>,
+	/// Rectangle of the separator being dragged.
 	dragging_rect: Option<Rect>,
+	/// Rectangle of the separator being animated.
 	anim_rect: Option<Rect>,
+	/// Animation intensity (0.0 to 1.0) for hover transitions.
 	anim_intensity: f32,
 	/// Base colors per visual priority level (index = priority).
 	base_bg: [Color; 2],
+	/// Foreground colors per visual priority level.
 	base_fg: [Color; 2],
+	/// Foreground color for hovered separators.
 	hover_fg: Color,
+	/// Background color for hovered separators.
 	hover_bg: Color,
+	/// Foreground color for actively dragged separators.
 	drag_fg: Color,
+	/// Background color for actively dragged separators.
 	drag_bg: Color,
 }
 
 impl SeparatorStyle {
+	/// Creates a new separator style from the current editor state.
 	fn new(editor: &Editor, doc_area: Rect) -> Self {
 		Self {
 			hovered_rect: editor.layout.hovered_separator.map(|(_, rect)| rect),
@@ -67,6 +83,7 @@ impl SeparatorStyle {
 		}
 	}
 
+	/// Returns the style for a separator at the given rectangle and priority.
 	fn for_rect(&self, rect: Rect, priority: u8) -> Style {
 		let is_dragging = self.dragging_rect == Some(rect);
 		let is_animating = self.anim_rect == Some(rect);

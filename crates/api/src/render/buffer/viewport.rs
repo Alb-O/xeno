@@ -6,25 +6,38 @@ use serde::Serialize;
 use tracing::debug;
 
 use crate::buffer::Buffer;
-use crate::render::types::{WrapSegment, wrap_line};
+use crate::render::types::{wrap_line, WrapSegment};
 
+/// Test event emitted when viewport scrolling occurs.
 #[derive(Serialize)]
 struct ViewportEnsureEvent {
+	/// Event type identifier.
 	#[serde(rename = "type")]
 	kind: &'static str,
+	/// Action taken (scroll_up, scroll_down, suppress_scroll_down, etc.).
 	action: &'static str,
+	/// ID of the buffer being scrolled.
 	buffer_id: u64,
+	/// Current viewport height in lines.
 	viewport_height: usize,
+	/// Previous viewport height before resize.
 	prev_viewport_height: usize,
+	/// Line number at top of viewport.
 	scroll_line: usize,
+	/// Wrap segment at top of viewport.
 	scroll_segment: usize,
+	/// Line number of the cursor.
 	cursor_line: usize,
+	/// Wrap segment of the cursor.
 	cursor_segment: usize,
+	/// Whether the viewport is shrinking.
 	viewport_shrinking: bool,
+	/// Whether downward scrolling is suppressed.
 	suppress_scroll_down: bool,
 }
 
 impl ViewportEnsureEvent {
+	/// Logs a viewport event for testing purposes.
 	fn log(
 		action: &'static str,
 		buffer: &Buffer,

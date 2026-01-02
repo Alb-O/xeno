@@ -21,15 +21,19 @@ use tree_house::tree_sitter::Grammar;
 /// Errors that can occur when loading a grammar.
 #[derive(Error, Debug)]
 pub enum GrammarError {
+	/// Grammar library not found in any search path.
 	#[error("grammar not found: {0}")]
 	NotFound(String),
 
+	/// Failed to load the dynamic library.
 	#[error("failed to load grammar library: {0}")]
 	LoadError(String),
 
+	/// Grammar library exists but doesn't export the expected symbol.
 	#[error("grammar library missing language function: {0}")]
 	MissingSymbol(String),
 
+	/// Filesystem I/O error.
 	#[error("IO error: {0}")]
 	Io(#[from] std::io::Error),
 }
@@ -105,6 +109,7 @@ fn auto_build_grammar(name: &str) -> Result<(), GrammarError> {
 	Ok(())
 }
 
+/// Loads a grammar from a specific library path.
 fn load_grammar_from_path(path: &Path, name: &str) -> Result<Grammar, GrammarError> {
 	// SAFETY: Loading a tree-sitter grammar from a dynamic library.
 	unsafe {
@@ -113,6 +118,7 @@ fn load_grammar_from_path(path: &Path, name: &str) -> Result<Grammar, GrammarErr
 	}
 }
 
+/// Returns the platform-specific library filename for a grammar.
 fn grammar_library_name(name: &str) -> String {
 	let safe_name = name.replace('-', "_");
 	#[cfg(target_os = "macos")]
@@ -132,7 +138,9 @@ fn grammar_library_name(name: &str) -> String {
 /// Source for loading a grammar.
 #[derive(Debug, Clone)]
 pub enum GrammarSource {
+	/// Grammar loaded from a shared library file.
 	Library(PathBuf),
+	/// Grammar built into the binary.
 	Builtin(&'static str),
 }
 
@@ -210,6 +218,7 @@ pub fn query_search_paths() -> Vec<PathBuf> {
 	dirs
 }
 
+/// Returns the platform-specific local data directory.
 fn data_local_dir() -> Option<PathBuf> {
 	#[cfg(unix)]
 	{
@@ -229,6 +238,7 @@ fn data_local_dir() -> Option<PathBuf> {
 	}
 }
 
+/// Returns Helix runtime directories for fallback grammar/query loading.
 fn helix_runtime_dirs() -> Vec<PathBuf> {
 	let mut dirs = Vec::new();
 

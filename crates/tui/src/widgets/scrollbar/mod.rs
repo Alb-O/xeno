@@ -16,10 +16,10 @@ use unicode_width::UnicodeWidthStr;
 use crate::buffer::Buffer;
 use crate::layout::Rect;
 use crate::style::Style;
-use crate::symbols::scrollbar::{DOUBLE_HORIZONTAL, DOUBLE_VERTICAL, Set};
-use crate::widgets::StatefulWidget;
+use crate::symbols::scrollbar::{Set, DOUBLE_HORIZONTAL, DOUBLE_VERTICAL};
 #[cfg(not(feature = "std"))]
 use crate::widgets::polyfills::F64Polyfills;
+use crate::widgets::StatefulWidget;
 
 /// A widget to display a scrollbar
 ///
@@ -86,14 +86,23 @@ use crate::widgets::polyfills::F64Polyfills;
 /// ```
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub struct Scrollbar<'a> {
+	/// Position of the scrollbar around the content area.
 	orientation: ScrollbarOrientation,
+	/// Style applied to the thumb (handle).
 	thumb_style: Style,
+	/// Symbol used to render the thumb.
 	thumb_symbol: &'a str,
+	/// Style applied to the track.
 	track_style: Style,
+	/// Symbol used to render the track, if any.
 	track_symbol: Option<&'a str>,
+	/// Symbol at the beginning (top/left), if any.
 	begin_symbol: Option<&'a str>,
+	/// Style for the begin symbol.
 	begin_style: Style,
+	/// Symbol at the end (bottom/right), if any.
 	end_symbol: Option<&'a str>,
+	/// Style for the end symbol.
 	end_style: Style,
 }
 
@@ -583,6 +592,7 @@ impl Scrollbar<'_> {
 		(thumb_start, thumb_length, track_end_length)
 	}
 
+	/// Returns the single-cell-wide/tall area where the scrollbar is rendered.
 	fn scrollbar_area(&self, area: Rect) -> Option<Rect> {
 		match self.orientation {
 			ScrollbarOrientation::VerticalLeft => area.columns().next(),
@@ -610,6 +620,7 @@ impl Scrollbar<'_> {
 		}
 	}
 
+	/// Returns the viewport length for proportional thumb sizing.
 	const fn viewport_length(&self, state: &ScrollbarState, area: Rect) -> usize {
 		if state.viewport_content_length != 0 {
 			state.viewport_content_length

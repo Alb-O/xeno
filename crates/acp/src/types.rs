@@ -6,8 +6,8 @@
 
 use std::collections::HashMap;
 use std::path::PathBuf;
-use std::sync::Arc;
 use std::sync::atomic::AtomicU64;
+use std::sync::Arc;
 
 use parking_lot::Mutex;
 use tokio::sync::oneshot;
@@ -15,13 +15,17 @@ use tokio::sync::oneshot;
 /// Chat message role.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ChatRole {
+	/// Message from the user.
 	#[allow(
 		dead_code,
 		reason = "Required for full ACP spec compliance and future UI support"
 	)]
 	User,
+	/// Response from the AI assistant.
 	Assistant,
+	/// System prompt or instructions.
 	System,
+	/// Internal reasoning from the AI (chain of thought).
 	Thought,
 }
 
@@ -32,8 +36,11 @@ pub enum AcpEvent {
 	ShowMessage(String),
 	/// Request permission from the user.
 	RequestPermission {
+		/// Unique ID for this permission request.
 		id: u64,
+		/// Human-readable description of what permission is being requested.
 		prompt: String,
+		/// Available response options for the user.
 		#[allow(
 			dead_code,
 			reason = "UI currently auto-allows; options will be used for interactive dialogs"
@@ -45,8 +52,10 @@ pub enum AcpEvent {
 /// Permission option for user decisions.
 #[derive(Debug, Clone)]
 pub struct PermissionOption {
+	/// Unique identifier for this option.
 	#[allow(dead_code, reason = "Required for interactive permission dialogs")]
 	pub id: String,
+	/// Human-readable label for this option.
 	#[allow(dead_code, reason = "Required for interactive permission dialogs")]
 	pub label: String,
 }
@@ -55,15 +64,24 @@ pub struct PermissionOption {
 #[derive(Debug)]
 pub enum AgentCommand {
 	/// Start the agent in the specified working directory.
-	Start { cwd: PathBuf },
+	Start {
+		/// Working directory for the agent session.
+		cwd: PathBuf,
+	},
 	/// Stop the agent.
 	Stop,
 	/// Send a prompt to the agent.
-	Prompt { content: String },
+	Prompt {
+		/// The prompt text to send to the agent.
+		content: String,
+	},
 	/// Cancel the current in-flight request.
 	Cancel,
 	/// Set the model for the current session.
-	SetModel { model_id: String },
+	SetModel {
+		/// The model identifier to use (e.g., "anthropic/claude-sonnet-4").
+		model_id: String,
+	},
 }
 
 /// Re-export ModelInfo from agent-client-protocol.
@@ -92,6 +110,7 @@ pub struct AcpState {
 }
 
 impl AcpState {
+	/// Creates a new ACP state with default settings.
 	pub fn new() -> Self {
 		Self {
 			events: Arc::new(Mutex::new(Vec::new())),

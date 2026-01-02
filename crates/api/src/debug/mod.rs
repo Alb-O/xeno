@@ -34,6 +34,7 @@ pub use tracing_layer::DebugPanelLayer;
 
 use self::selection::DebugSelection;
 
+/// Counter for generating unique debug panel instance IDs.
 static NEXT_DEBUG_PANEL_ID: AtomicU64 = AtomicU64::new(0);
 
 /// A debug panel that displays tracing logs.
@@ -41,11 +42,17 @@ static NEXT_DEBUG_PANEL_ID: AtomicU64 = AtomicU64::new(0);
 /// Reads from a global log ring buffer populated by a tracing subscriber.
 /// Supports scrolling, filtering by log level, and auto-scroll to follow new logs.
 pub struct DebugPanel {
+	/// Current panel dimensions.
 	size: SplitSize,
+	/// Number of lines scrolled from the bottom (0 = at bottom).
 	scroll_offset: usize,
+	/// Whether to automatically scroll to show new entries.
 	auto_scroll: bool,
+	/// Minimum log level to display.
 	min_level: LogLevel,
+	/// Cached log count for detecting new entries.
 	last_log_count: usize,
+	/// Current text selection, if any.
 	selection: Option<DebugSelection>,
 }
 
@@ -73,6 +80,7 @@ impl DebugPanel {
 		NEXT_DEBUG_PANEL_ID.fetch_add(1, Ordering::Relaxed)
 	}
 
+	/// Returns the log entries currently visible in the viewport.
 	fn visible_entries(&self) -> Vec<LogEntry> {
 		let filtered: Vec<_> = LOG_BUFFER
 			.entries()
@@ -92,6 +100,7 @@ impl DebugPanel {
 		filtered[start..end].to_vec()
 	}
 
+	/// Returns the count of log entries matching the current filter.
 	fn filtered_count(&self) -> usize {
 		LOG_BUFFER
 			.entries()
@@ -100,6 +109,7 @@ impl DebugPanel {
 			.count()
 	}
 
+	/// Scrolls up by the given number of lines.
 	fn scroll_up(&mut self, lines: usize) {
 		let max_offset = self
 			.filtered_count()
@@ -108,6 +118,7 @@ impl DebugPanel {
 		self.auto_scroll = false;
 	}
 
+	/// Scrolls down by the given number of lines.
 	fn scroll_down(&mut self, lines: usize) {
 		if self.scroll_offset <= lines {
 			self.scroll_offset = 0;
@@ -117,6 +128,7 @@ impl DebugPanel {
 		}
 	}
 
+	/// Cycles through log level filters (Trace -> Debug -> Info -> Warn -> Error).
 	fn cycle_level_filter(&mut self) {
 		self.min_level = match self.min_level {
 			LogLevel::Trace => LogLevel::Debug,
