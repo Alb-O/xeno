@@ -9,8 +9,6 @@
 
 use std::time::Duration;
 
-use evildoer_base::Position;
-
 /// Keyboard input for split buffers.
 ///
 /// A simplified key event that split buffers can handle without depending on
@@ -85,11 +83,25 @@ impl SplitModifiers {
 	}
 }
 
+/// Position in terminal cells (x, y coordinate).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+pub struct SplitPosition {
+	pub x: u16,
+	pub y: u16,
+}
+
+impl SplitPosition {
+	/// Creates a new position.
+	pub const fn new(x: u16, y: u16) -> Self {
+		Self { x, y }
+	}
+}
+
 /// Mouse input for split buffers.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SplitMouse {
 	/// Position relative to the buffer's top-left corner.
-	pub position: Position,
+	pub position: SplitPosition,
 	/// The mouse action.
 	pub action: SplitMouseAction,
 }

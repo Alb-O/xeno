@@ -1,41 +1,17 @@
-//! Notification data model and type registration.
+//! Notification extension traits and type re-exports.
 //!
-//! This module provides the abstract `Notification` data model and
-//! convenience traits for creating notifications. The actual rendering
-//! is handled by `evildoer_api`.
+//! This module provides convenience traits for emitting notifications
+//! and re-exports types from `evildoer_registry::notifications`.
 //!
-//! # Architecture
-//!
-//! - **Data model** (`notification/`): Abstract `Notification` struct using
-//!   types from `evildoer_base` and `evildoer_registry`. No UI dependencies.
-//!
-//! - **Type registration** (`evildoer-registry-notifications`): Registers built-in
-//!   notification types (info, warn, error, etc.).
-//!
-//! - **Extensions** (`extensions.rs`): Convenience helper traits for notifications.
-//!
-//! - **Type re-exports** (`types.rs`): Re-exports types from `evildoer_registry`
-//!   for convenience.
-//!
-//! # Usage
-//!
-//! ```ignore
-//! use evildoer_core::notifications::{Notification, NotificationBuilder};
-//!
-//! let notif = NotificationBuilder::from_registry("info", "Hello!")
-//!     .title("Greeting")
-//!     .build()?;
-//! ```
+//! The actual notification rendering uses `evildoer_tui::widgets::notifications::Toast`.
 
 mod extensions;
-mod notification;
 mod types;
 
 pub use evildoer_registry::notifications::{
-	NOTIFICATION_TYPES, NotificationTypeDef, find_notification_type,
+	find_notification_type, NotificationTypeDef, NOTIFICATION_TYPES,
 };
 pub use extensions::{
 	NotifyDEBUGExt, NotifyERRORExt, NotifyINFOExt, NotifySUCCESSExt, NotifyWARNExt,
 };
-pub use notification::{MAX_CONTENT_CHARS, Notification, NotificationBuilder};
 pub use types::*;

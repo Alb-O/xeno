@@ -1004,7 +1004,6 @@ dependencies = [
 name = "evildoer-registry-panels"
 version = "0.3.0"
 dependencies = [
- "evildoer-base",
  "evildoer-registry-motions",
  "linkme",
  "paste",

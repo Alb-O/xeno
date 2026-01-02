@@ -17,7 +17,7 @@ pub use evildoer_registry_motions::RegistrySource;
 pub use split_buffer::{
 	SplitAttrs, SplitBuffer, SplitCell, SplitColor, SplitCursor, SplitCursorStyle,
 	SplitDockPreference, SplitEventResult, SplitKey, SplitKeyCode, SplitModifiers, SplitMouse,
-	SplitMouseAction, SplitMouseButton, SplitSize,
+	SplitMouseAction, SplitMouseButton, SplitPosition, SplitSize,
 };
 
 /// Unique identifier for a panel instance.
