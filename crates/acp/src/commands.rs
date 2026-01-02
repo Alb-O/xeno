@@ -18,6 +18,7 @@ command!(acp_start, {
 	description: "Start the ACP agent"
 }, handler: cmd_acp_start);
 
+/// Handler for the acp_start command.
 fn cmd_acp_start<'a>(
 	ctx: &'a mut CommandContext<'a>,
 ) -> LocalBoxFuture<'a, Result<CommandOutcome, CommandError>> {
@@ -45,6 +46,7 @@ command!(acp_stop, {
 	description: "Stop the ACP agent"
 }, handler: cmd_acp_stop);
 
+/// Handler for the acp_stop command.
 fn cmd_acp_stop<'a>(
 	ctx: &'a mut CommandContext<'a>,
 ) -> LocalBoxFuture<'a, Result<CommandOutcome, CommandError>> {
@@ -65,6 +67,7 @@ command!(acp_insert_last, {
 	description: "Insert the last ACP assistant response"
 }, handler: cmd_acp_insert_last);
 
+/// Handler for the acp_insert_last command.
 fn cmd_acp_insert_last<'a>(
 	ctx: &'a mut CommandContext<'a>,
 ) -> LocalBoxFuture<'a, Result<CommandOutcome, CommandError>> {
@@ -90,6 +93,7 @@ command!(acp_cancel, {
 	description: "Cancel the current ACP request"
 }, handler: cmd_acp_cancel);
 
+/// Handler for the acp_cancel command.
 fn cmd_acp_cancel<'a>(
 	ctx: &'a mut CommandContext<'a>,
 ) -> LocalBoxFuture<'a, Result<CommandOutcome, CommandError>> {
@@ -110,6 +114,7 @@ command!(acp_model, {
 	description: "Set the ACP model (e.g., acp.model anthropic/claude-sonnet-4)"
 }, handler: cmd_acp_model);
 
+/// Handler for the acp_model command.
 fn cmd_acp_model<'a>(
 	ctx: &'a mut CommandContext<'a>,
 ) -> LocalBoxFuture<'a, Result<CommandOutcome, CommandError>> {
@@ -146,7 +151,9 @@ fn cmd_acp_model<'a>(
 	})
 }
 
+/// Extension trait for CommandContext to access the concrete Editor type.
 trait CommandContextExt {
+	/// Returns a mutable reference to the underlying Editor.
 	fn require_editor_mut(&mut self) -> &mut evildoer_api::editor::Editor;
 }
 

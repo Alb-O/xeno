@@ -23,12 +23,16 @@ use crate::types::{AcpEvent, AcpState, AgentCommand};
 
 /// Backend for ACP agent communication.
 pub struct AcpBackend {
+	/// Receiver for commands from the main thread.
 	cmd_rx: Receiver<AgentCommand>,
+	/// Shared state for cross-thread communication.
 	state: AcpState,
+	/// Current session ID, if connected.
 	session_id: Option<String>,
 }
 
 impl AcpBackend {
+	/// Creates a new ACP backend with the given command receiver and state.
 	pub fn new(cmd_rx: Receiver<AgentCommand>, state: AcpState) -> Self {
 		Self {
 			cmd_rx,
@@ -50,6 +54,7 @@ impl AcpBackend {
 		}
 	}
 
+	/// Starts the agent subprocess and establishes the protocol connection.
 	async fn start_agent(&mut self, cwd: PathBuf) -> agent_client_protocol::Result<()> {
 		let mut child = Command::new("opencode")
 			.arg("acp")
@@ -252,6 +257,7 @@ impl AcpBackend {
 		Ok(())
 	}
 
+	/// Adds a message to the event queue for display.
 	fn enqueue_message(&self, msg: String) {
 		enqueue_line(&self.state, msg);
 	}
@@ -264,6 +270,7 @@ pub fn enqueue_line(state: &AcpState, msg: String) {
 	events.push(AcpEvent::ShowMessage(msg));
 }
 
+/// Formats the last few stderr lines for error reporting.
 fn format_stderr_tail(stderr_tail: &Mutex<VecDeque<String>>) -> String {
 	let tail = stderr_tail.lock();
 	if tail.is_empty() {

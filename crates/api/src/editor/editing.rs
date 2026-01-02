@@ -8,6 +8,7 @@ use super::Editor;
 use crate::buffer::BufferView;
 
 impl Editor {
+	/// Inserts text at the current cursor position(s).
 	pub fn insert_text(&mut self, text: &str) {
 		let BufferView::Text(buffer_id) = self.buffers.focused_view() else {
 			return;
@@ -41,6 +42,7 @@ impl Editor {
 		self.dirty_buffers.insert(buffer_id);
 	}
 
+	/// Copies the current selection to the yank register.
 	pub fn yank_selection(&mut self) {
 		if let Some((text, count)) = self.buffer_mut().yank_selection() {
 			self.registers.yank = text;
@@ -48,6 +50,7 @@ impl Editor {
 		}
 	}
 
+	/// Pastes the yank register content after the cursor.
 	pub fn paste_after(&mut self) {
 		if self.registers.yank.is_empty() {
 			return;
@@ -84,6 +87,7 @@ impl Editor {
 		self.dirty_buffers.insert(buffer_id);
 	}
 
+	/// Pastes the yank register content before the cursor.
 	pub fn paste_before(&mut self) {
 		if self.registers.yank.is_empty() {
 			return;
@@ -120,6 +124,7 @@ impl Editor {
 		self.dirty_buffers.insert(buffer_id);
 	}
 
+	/// Deletes the currently selected text.
 	pub fn delete_selection(&mut self) {
 		if self.buffer().selection.primary().is_empty() {
 			return;
@@ -155,6 +160,7 @@ impl Editor {
 		self.dirty_buffers.insert(buffer_id);
 	}
 
+	/// Applies a transaction to the focused buffer.
 	pub fn apply_transaction(&mut self, tx: &Transaction) {
 		let BufferView::Text(buffer_id) = self.buffers.focused_view() else {
 			return;
@@ -167,6 +173,7 @@ impl Editor {
 		self.sync_sibling_selections(tx);
 	}
 
+	/// Triggers a full syntax reparse of the focused buffer.
 	pub fn reparse_syntax(&mut self) {
 		let BufferView::Text(buffer_id) = self.buffers.focused_view() else {
 			return;

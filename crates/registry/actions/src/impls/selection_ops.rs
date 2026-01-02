@@ -1,6 +1,6 @@
 use evildoer_base::selection::Selection;
 
-use crate::{ActionContext, ActionResult, action};
+use crate::{action, ActionContext, ActionResult};
 
 action!(collapse_selection, {
 	description: "Collapse selection to cursor",

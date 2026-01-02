@@ -25,8 +25,11 @@
 //!     );
 //! ```
 
+/// Terminal state management.
 mod state;
+/// vt100 screen conversion.
 mod vt100_impl;
+/// Terminal widget implementation.
 mod widget;
 
 pub use widget::{Cell, Cursor, PseudoTerminal, Screen};

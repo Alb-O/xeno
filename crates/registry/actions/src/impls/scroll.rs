@@ -1,6 +1,6 @@
 //! Scroll/view actions.
 
-use crate::{ActionResult, EditAction, ScrollAmount, ScrollDir, VisualDirection, action};
+use crate::{action, ActionResult, EditAction, ScrollAmount, ScrollDir, VisualDirection};
 
 action!(scroll_up, { description: "Scroll view up", bindings: r#"normal "z k""# }, |ctx| {
 	ActionResult::Edit(EditAction::Scroll {

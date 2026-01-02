@@ -22,18 +22,25 @@ use thiserror::Error;
 /// Errors that can occur during grammar fetching or building.
 #[derive(Debug, Error)]
 pub enum GrammarBuildError {
+	/// Git executable not found in PATH.
 	#[error("git is not available on PATH")]
 	GitNotAvailable,
+	/// Failed to read the languages.kdl configuration file.
 	#[error("failed to read languages.kdl: {0}")]
 	ConfigRead(#[from] std::io::Error),
+	/// KDL parsing error in languages.kdl.
 	#[error("failed to parse languages.kdl: {0}")]
 	ConfigParseKdl(#[from] kdl::KdlError),
+	/// Semantic error in languages.kdl configuration.
 	#[error("invalid languages.kdl configuration: {0}")]
 	ConfigParse(String),
+	/// Git clone, fetch, or checkout failed.
 	#[error("git command failed: {0}")]
 	GitCommand(String),
+	/// C/C++ compilation of the grammar failed.
 	#[error("compilation failed: {0}")]
 	Compilation(String),
+	/// The grammar source directory lacks a parser.c file.
 	#[error("no parser.c found in {0}")]
 	NoParserSource(PathBuf),
 }

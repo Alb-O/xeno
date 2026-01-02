@@ -1,7 +1,7 @@
 use evildoer_base::range::Range;
-use evildoer_registry_text_objects::{TextObjectDef, find_by_trigger};
+use evildoer_registry_text_objects::{find_by_trigger, TextObjectDef};
 
-use crate::{ActionContext, ActionResult, ObjectSelectionKind, PendingAction, PendingKind, action};
+use crate::{action, ActionContext, ActionResult, ObjectSelectionKind, PendingAction, PendingKind};
 
 fn select_object_with_trigger(
 	ctx: &ActionContext,

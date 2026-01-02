@@ -6,9 +6,9 @@ use crate::buffer::Buffer;
 use crate::layout::{HorizontalAlignment, Position, Rect};
 use crate::style::{Style, Styled};
 use crate::text::{Line, StyledGrapheme, Text};
-use crate::widgets::Widget;
 use crate::widgets::block::{Block, BlockExt};
 use crate::widgets::reflow::{LineComposer, LineTruncator, WordWrapper, WrappedLine};
+use crate::widgets::Widget;
 
 /// A widget to display some text.
 ///
@@ -125,7 +125,9 @@ pub struct Wrap {
 	pub trim: bool,
 }
 
+/// Horizontal scroll offset type.
 type Horizontal = u16;
+/// Vertical scroll offset type.
 type Vertical = u16;
 
 impl<'a> Paragraph<'a> {
@@ -409,6 +411,7 @@ impl Widget for &Paragraph<'_> {
 }
 
 impl Paragraph<'_> {
+	/// Renders the paragraph content into the given area.
 	fn render_paragraph(&self, text_area: Rect, buf: &mut Buffer) {
 		if text_area.is_empty() {
 			return;
@@ -440,6 +443,7 @@ impl Paragraph<'_> {
 	}
 }
 
+/// Renders composed lines into the buffer.
 fn render_lines<'a, C: LineComposer<'a>>(mut composer: C, area: Rect, buf: &mut Buffer) {
 	let mut y = 0;
 	while let Some(ref wrapped) = composer.next_line() {
@@ -451,6 +455,7 @@ fn render_lines<'a, C: LineComposer<'a>>(mut composer: C, area: Rect, buf: &mut 
 	}
 }
 
+/// Renders a single wrapped line at the given y-offset.
 fn render_line(wrapped: &WrappedLine<'_, '_>, area: Rect, buf: &mut Buffer, y: u16) {
 	let mut x = get_line_offset(wrapped.width, area.width, wrapped.alignment);
 	for StyledGrapheme { symbol, style } in wrapped.graphemes {
@@ -466,6 +471,7 @@ fn render_line(wrapped: &WrappedLine<'_, '_>, area: Rect, buf: &mut Buffer, y: u
 	}
 }
 
+/// Calculates the horizontal offset for a line based on alignment.
 const fn get_line_offset(
 	line_width: u16,
 	text_area_width: u16,

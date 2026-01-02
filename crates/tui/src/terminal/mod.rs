@@ -31,9 +31,13 @@
 //! [`Backend`]: crate::backend::Backend
 //! [`Buffer`]: crate::buffer::Buffer
 
+/// Frame rendering context.
 mod frame;
+/// Insert-before buffer manipulation.
 mod insert_before;
+/// Main terminal abstraction.
 mod terminal;
+/// Viewport configuration.
 mod viewport;
 
 pub use frame::{CompletedFrame, Frame};

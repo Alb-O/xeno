@@ -1,4 +1,4 @@
-use crate::{ActionResult, EditAction, PendingAction, PendingKind, action};
+use crate::{action, ActionResult, EditAction, PendingAction, PendingKind};
 
 action!(delete, { description: "Delete selection", bindings: r#"normal "d""# },
 	|_ctx| ActionResult::Edit(EditAction::Delete { yank: true }));

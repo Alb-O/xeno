@@ -1,4 +1,4 @@
-use crate::{ActionMode, ActionResult, action, insert_with_motion};
+use crate::{action, insert_with_motion, ActionMode, ActionResult};
 
 action!(insert_mode, { description: "Switch to insert mode", bindings: r#"normal "i""# },
 	|_ctx| ActionResult::ModeChange(ActionMode::Insert));

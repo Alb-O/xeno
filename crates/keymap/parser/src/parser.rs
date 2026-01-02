@@ -21,14 +21,17 @@
 
 use std::str::FromStr;
 
-use crate::node::{CharGroup, KEY_SEP, Key, Modifier, Node};
+use crate::node::{CharGroup, Key, Modifier, Node, KEY_SEP};
 
+/// Function pointer type for parser combinators.
 type ParserFn<T> = fn(&mut Parser) -> Result<Option<T>, ParseError>;
 
 /// Represents an error that occurred during parsing.
 #[derive(Debug, PartialEq, Clone)]
 pub struct ParseError {
+	/// Human-readable description of the parse error.
 	pub message: String,
+	/// Byte offset in the input where the error occurred.
 	pub position: usize,
 }
 
@@ -46,7 +49,9 @@ impl std::error::Error for ParseError {}
 
 /// Maintains the parser's state for recursive descent parsing.
 struct Parser<'a> {
+	/// The input string being parsed.
 	input: &'a str,
+	/// Current byte position in the input.
 	position: usize,
 }
 
@@ -331,7 +336,7 @@ impl FromStr for Node {
 mod tests {
 	use serde::Deserialize;
 
-	use super::{ParseError, parse};
+	use super::{parse, ParseError};
 	use crate::parser::{CharGroup, Key, Modifier, Node};
 
 	#[test]
@@ -416,22 +421,18 @@ mod tests {
 		// Test invalid group names
 		let result = parse("@invalid");
 		assert!(result.is_err());
-		assert!(
-			result
-				.unwrap_err()
-				.message
-				.contains("unknown char group: '@invalid'")
-		);
+		assert!(result
+			.unwrap_err()
+			.message
+			.contains("unknown char group: '@invalid'"));
 
 		// Test incomplete group syntax
 		let result = parse("@x");
 		assert!(result.is_err());
-		assert!(
-			result
-				.unwrap_err()
-				.message
-				.contains("unknown char group: '@x'")
-		);
+		assert!(result
+			.unwrap_err()
+			.message
+			.contains("unknown char group: '@x'"));
 	}
 
 	#[test]

@@ -31,10 +31,15 @@ use self::state::{TerminalError, TerminalState};
 /// - Handles input/output via a PTY
 /// - Renders terminal cells for the UI layer
 pub struct TerminalBuffer {
+	/// Active terminal state, if spawned.
 	terminal: Option<TerminalState>,
+	/// Receiver for prewarm spawn result.
 	prewarm: Option<Receiver<Result<TerminalState, TerminalError>>>,
+	/// Buffered input while terminal is spawning.
 	input_buffer: Vec<u8>,
+	/// Current terminal dimensions.
 	current_size: SplitSize,
+	/// Active text selection, if any.
 	selection: Option<TerminalSelection>,
 }
 
@@ -65,6 +70,7 @@ impl TerminalBuffer {
 		self.terminal.as_ref().map(|t| t.screen())
 	}
 
+	/// Starts prewarming the terminal in a background thread.
 	fn start_prewarm(&mut self) {
 		if self.terminal.is_some() || self.prewarm.is_some() {
 			return;
@@ -78,6 +84,7 @@ impl TerminalBuffer {
 		});
 	}
 
+	/// Polls the prewarm channel for completion, returns true if state changed.
 	fn poll_prewarm(&mut self) -> bool {
 		let Some(rx) = self.prewarm.as_ref() else {
 			return false;

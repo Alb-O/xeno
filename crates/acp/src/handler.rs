@@ -16,6 +16,7 @@ use crate::types::{AcpEvent, AcpState, PermissionOption};
 
 /// Handler for ACP protocol messages.
 pub struct AcpMessageHandler {
+	/// Shared state for cross-thread communication.
 	pub state: AcpState,
 }
 
@@ -56,6 +57,7 @@ impl MessageHandler<ClientSide> for AcpMessageHandler {
 	}
 }
 
+/// Handles a file read request from the agent.
 async fn handle_read_file(
 	req: agent_client_protocol::ReadTextFileRequest,
 	state: &AcpState,
@@ -84,6 +86,7 @@ async fn handle_read_file(
 	))
 }
 
+/// Handles a file write request from the agent.
 async fn handle_write_file(
 	req: agent_client_protocol::WriteTextFileRequest,
 	state: &AcpState,
@@ -112,6 +115,7 @@ async fn handle_write_file(
 	))
 }
 
+/// Handles a permission request from the agent.
 async fn handle_permission_request(
 	req: agent_client_protocol::RequestPermissionRequest,
 	state: &AcpState,
@@ -132,6 +136,7 @@ async fn handle_permission_request(
 	}
 }
 
+/// Processes a session update notification from the agent.
 fn handle_session_update(update: SessionUpdate, state: &AcpState) {
 	match update {
 		SessionUpdate::AgentMessageChunk(chunk) => {
@@ -153,6 +158,7 @@ fn handle_session_update(update: SessionUpdate, state: &AcpState) {
 	}
 }
 
+/// Checks if a path is within the workspace root.
 fn is_path_in_workspace(path: &Path, root: &Option<PathBuf>) -> bool {
 	let root = match root {
 		Some(r) => r,

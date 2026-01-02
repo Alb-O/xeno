@@ -28,6 +28,7 @@ pub struct AcpManager {
 }
 
 impl AcpManager {
+	/// Creates a new ACP manager in the stopped state.
 	pub fn new() -> Self {
 		Self {
 			cmd_tx: None,

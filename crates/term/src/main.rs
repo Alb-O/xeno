@@ -1,5 +1,8 @@
+/// Application lifecycle and event loop.
 mod app;
+/// Terminal backend abstraction.
 mod backend;
+/// Command-line interface definitions.
 mod cli;
 mod terminal;
 #[cfg(test)]
@@ -56,6 +59,7 @@ async fn main() -> anyhow::Result<()> {
 	Ok(())
 }
 
+/// Handles grammar fetch/build/sync subcommands.
 fn handle_grammar_command(action: GrammarAction) -> anyhow::Result<()> {
 	use evildoer_language::build::{build_all_grammars, fetch_all_grammars, load_grammar_configs};
 
@@ -110,6 +114,7 @@ fn handle_grammar_command(action: GrammarAction) -> anyhow::Result<()> {
 	Ok(())
 }
 
+/// Prints a summary of grammar fetch results to stdout.
 fn report_fetch_results(
 	results: &[(
 		evildoer_language::build::GrammarConfig,
@@ -146,6 +151,7 @@ fn report_fetch_results(
 	println!("\nFetch: {success} succeeded, {skipped} skipped, {failed} failed");
 }
 
+/// Prints a summary of grammar build results to stdout.
 fn report_build_results(
 	results: &[(
 		evildoer_language::build::GrammarConfig,
