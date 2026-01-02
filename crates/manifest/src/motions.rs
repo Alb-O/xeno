@@ -1,8 +1,8 @@
 //! Motion primitive definitions.
 //!
-//! Re-exports from [`evildoer_registry_motions`] for backward compatibility.
+//! Re-exports from [`evildoer_registry::motions`] for backward compatibility.
 
-pub use evildoer_registry_motions::{
+pub use evildoer_registry::motions::{
 	all, find, flags, movement, MotionDef, MotionHandler, MOTIONS,
 };
 
@@ -21,11 +21,9 @@ impl crate::RegistryMetadata for MotionDef {
 
 	fn source(&self) -> crate::RegistrySource {
 		match self.source {
-			evildoer_registry_motions::RegistrySource::Builtin => crate::RegistrySource::Builtin,
-			evildoer_registry_motions::RegistrySource::Crate(name) => {
-				crate::RegistrySource::Crate(name)
-			}
-			evildoer_registry_motions::RegistrySource::Runtime => crate::RegistrySource::Runtime,
+			evildoer_registry::RegistrySource::Builtin => crate::RegistrySource::Builtin,
+			evildoer_registry::RegistrySource::Crate(name) => crate::RegistrySource::Crate(name),
+			evildoer_registry::RegistrySource::Runtime => crate::RegistrySource::Runtime,
 		}
 	}
 }

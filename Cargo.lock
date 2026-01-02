@@ -889,7 +889,7 @@ dependencies = [
  "evildoer-base",
  "evildoer-keymap",
  "evildoer-macro",
- "evildoer-registry-motions",
+ "evildoer-registry",
  "evildoer-stdlib",
  "futures",
  "linkme",
@@ -907,6 +907,7 @@ version = "0.3.0"
 dependencies = [
  "evildoer-registry-menus",
  "evildoer-registry-motions",
+ "evildoer-registry-options",
 ]
 
 [[package]]
@@ -930,6 +931,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "evildoer-registry-options"
+version = "0.3.0"
+dependencies = [
+ "linkme",
+ "paste",
+]
+
+[[package]]
 name = "evildoer-runtime"
 version = "0.3.0"
 dependencies = [
@@ -945,7 +954,7 @@ dependencies = [
  "evildoer-input",
  "evildoer-macro",
  "evildoer-manifest",
- "evildoer-registry-motions",
+ "evildoer-registry",
  "futures",
  "linkme",
  "paste",

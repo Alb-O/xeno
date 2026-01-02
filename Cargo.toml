@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["crates/*", "crates/keymap/derive", "crates/keymap/parser", "crates/registry/menus", "crates/registry/motions"]
+members = ["crates/*", "crates/keymap/derive", "crates/keymap/parser", "crates/registry/menus", "crates/registry/motions", "crates/registry/options"]
 
 [workspace.package]
 version = "0.3.0"
@@ -31,6 +31,7 @@ evildoer-manifest = { path = "crates/manifest" }
 evildoer-registry = { path = "crates/registry" }
 evildoer-registry-menus = { path = "crates/registry/menus" }
 evildoer-registry-motions = { path = "crates/registry/motions" }
+evildoer-registry-options = { path = "crates/registry/options" }
 evildoer-runtime = { path = "crates/runtime" }
 evildoer-stdlib = { path = "crates/stdlib" }
 evildoer-tui = { path = "crates/tui" }

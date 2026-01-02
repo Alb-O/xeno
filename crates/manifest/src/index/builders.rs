@@ -2,7 +2,7 @@
 
 use std::collections::HashMap;
 
-use evildoer_registry_motions::{MotionDef, MOTIONS};
+use evildoer_registry::motions::{MotionDef, MOTIONS};
 use tracing::{debug, warn};
 
 use super::collision::{Collision, CollisionKind};

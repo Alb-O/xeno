@@ -1,6 +1,6 @@
 //! Public lookup functions for registry queries.
 
-use evildoer_registry_motions::MotionDef;
+use evildoer_registry::motions::MotionDef;
 
 use super::get_registry;
 use crate::text_objects::TextObjectDef;

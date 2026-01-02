@@ -1,26 +1,9 @@
-//! Registry macros for actions, commands, motions, options.
+//! Registry macros for actions, commands, statusline segments.
 //!
 //! These macros register items in [`linkme`] distributed slices.
-
-/// Registers a configuration option in the [`OPTIONS`](crate::options::OPTIONS) slice.
-#[macro_export]
-macro_rules! option {
-	($name:ident, $type:ident, $default:expr, $scope:ident, $desc:expr) => {
-		paste::paste! {
-			#[allow(non_upper_case_globals)]
-			#[linkme::distributed_slice($crate::options::OPTIONS)]
-			static [<OPT_ $name>]: $crate::options::OptionDef = $crate::options::OptionDef {
-				id: concat!(env!("CARGO_PKG_NAME"), "::", stringify!($name)),
-				name: stringify!($name),
-				description: $desc,
-				value_type: $crate::options::OptionType::$type,
-				default: || $crate::options::OptionValue::$type($default),
-				scope: $crate::options::OptionScope::$scope,
-				source: $crate::RegistrySource::Crate(env!("CARGO_PKG_NAME")),
-			};
-		}
-	};
-}
+//!
+//! Note: `motion!` and `option!` macros have been moved to their respective
+//! registry crates (`evildoer-registry-motions` and `evildoer-registry-options`).
 
 /// Registers an ex-mode command in the [`COMMANDS`](crate::COMMANDS) slice.
 #[macro_export]

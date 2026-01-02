@@ -25,7 +25,7 @@ evildoer-base.workspace = true
 evildoer-input.workspace = true
 evildoer-macro.workspace = true
 evildoer-manifest.workspace = true
-evildoer-registry-motions.workspace = true
+evildoer-registry.workspace = true
 futures.workspace = true
 linkme = { workspace = true, optional = true }
 paste = { workspace = true, optional = true }

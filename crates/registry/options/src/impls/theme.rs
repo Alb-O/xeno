@@ -1,8 +1,9 @@
 //! Theme option.
 
-use evildoer_manifest::theme::DEFAULT_THEME_ID;
-
 use crate::option;
+
+/// Default theme ID (gruvbox).
+pub const DEFAULT_THEME_ID: &str = "gruvbox";
 
 option!(
 	theme,

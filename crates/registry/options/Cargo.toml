@@ -1,0 +1,10 @@
+[package]
+name = "evildoer-registry-options"
+description = "Options registry for Evildoer editor"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+linkme.workspace = true
+paste.workspace = true

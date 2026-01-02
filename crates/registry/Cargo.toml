@@ -8,3 +8,4 @@ license.workspace = true
 [dependencies]
 evildoer-registry-menus.workspace = true
 evildoer-registry-motions.workspace = true
+evildoer-registry-options.workspace = true
