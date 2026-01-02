@@ -1,16 +1,16 @@
 use crate::{action, cursor_motion, selection_motion};
 
-action!(move_left, { description: "Move cursor left", bindings: r#"normal "h" "left""# },
-	|ctx| cursor_motion(ctx, "left"));
+action!(move_left, {
+	description: "Move cursor left",
+	bindings: r#"normal "h" "left"
+insert "left""#,
+}, |ctx| cursor_motion(ctx, "left"));
 
-action!(move_right, { description: "Move cursor right", bindings: r#"normal "l" "right""# },
-	|ctx| cursor_motion(ctx, "right"));
-
-action!(move_up, { description: "Move cursor up", bindings: r#"normal "k""# },
-	|ctx| cursor_motion(ctx, "up"));
-
-action!(move_down, { description: "Move cursor down", bindings: r#"normal "j""# },
-	|ctx| cursor_motion(ctx, "down"));
+action!(move_right, {
+	description: "Move cursor right",
+	bindings: r#"normal "l" "right"
+insert "right""#,
+}, |ctx| cursor_motion(ctx, "right"));
 
 action!(move_line_start, { description: "Move to start of line", bindings: r#"normal "0" "home""# },
 	|ctx| cursor_motion(ctx, "line_start"));
