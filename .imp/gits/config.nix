@@ -1,15 +1,20 @@
 {
   injections = [
     {
-      name = "lintfra";
-      remote = "https://github.com/Alb-O/lintfra.git";
+      name = "imp-lint";
+      remote = "https://github.com/imp-nix/imp.lint.git";
       use = [
-        "lint/ast-rules"
-        "lint/custom-rules"
+        # Lint rules (can customize per-project)
+        "lint/rules"
+        "lint/custom"
+        # Scripts
         "nix/scripts"
+        # Nix lib for rule helpers
+        "nix/lib"
+        # Output fragments
         "nix/outputs/perSystem/packages.d/10-lint.nix"
-        "nix/outputs/perSystem/devShells.d/10-lintfra.nix"
-        "sgconfig.yml"
+        "nix/outputs/perSystem/packages.d/20-lint-rules.nix"
+        "nix/outputs/perSystem/devShells.d/10-imp-lint.nix"
       ];
     }
     {

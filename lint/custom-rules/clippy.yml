@@ -1,5 +1,0 @@
-id: clippy
-type: command
-run: cargo clippy --all-targets --all-features --message-format=json -- -W missing_docs -W clippy::missing_docs_in_private_items
-severity: warning
-message: "Clippy warning"

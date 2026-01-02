@@ -18,8 +18,8 @@
     in
     {
       default = pkgs.mkShell {
-        # Compose with lintfra devshell (injected via devShells.d/)
-        inputsFrom = [ self'.devShells.lintfra ];
+        # Compose with imp-lint devshell
+        inputsFrom = [ self'.devShells.imp-lint ];
 
         packages = [
           rustToolchain
