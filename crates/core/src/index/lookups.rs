@@ -8,6 +8,7 @@ use evildoer_registry::text_objects::TextObjectDef;
 use super::get_registry;
 use crate::ActionId;
 
+/// Finds a command definition by name or alias.
 pub fn find_command(name: &str) -> Option<&'static CommandDef> {
 	let reg = get_registry();
 	reg.commands
@@ -17,6 +18,7 @@ pub fn find_command(name: &str) -> Option<&'static CommandDef> {
 		.copied()
 }
 
+/// Finds an action definition by name or alias.
 pub fn find_action(name: &str) -> Option<&'static ActionDef> {
 	let reg = get_registry();
 	reg.actions
@@ -50,6 +52,7 @@ pub fn resolve_action_id(name: &str) -> Option<ActionId> {
 		.copied()
 }
 
+/// Finds a motion definition by name or alias.
 pub fn find_motion(name: &str) -> Option<&'static MotionDef> {
 	let reg = get_registry();
 	reg.motions
@@ -59,17 +62,20 @@ pub fn find_motion(name: &str) -> Option<&'static MotionDef> {
 		.copied()
 }
 
+/// Finds a text object definition by its trigger character.
 pub fn find_text_object_by_trigger(trigger: char) -> Option<&'static TextObjectDef> {
 	let reg = get_registry();
 	reg.text_objects.by_trigger.get(&trigger).copied()
 }
 
+/// Returns an iterator over all command definitions, sorted by name.
 pub fn all_commands() -> impl Iterator<Item = &'static CommandDef> {
 	let mut v: Vec<_> = get_registry().commands.by_name.values().copied().collect();
 	v.sort_by_key(|c| c.name);
 	v.into_iter()
 }
 
+/// Returns an iterator over all action definitions, sorted by name.
 pub fn all_actions() -> impl Iterator<Item = &'static ActionDef> {
 	let mut v: Vec<_> = get_registry()
 		.actions
@@ -82,12 +88,14 @@ pub fn all_actions() -> impl Iterator<Item = &'static ActionDef> {
 	v.into_iter()
 }
 
+/// Returns an iterator over all motion definitions, sorted by name.
 pub fn all_motions() -> impl Iterator<Item = &'static MotionDef> {
 	let mut v: Vec<_> = get_registry().motions.by_name.values().copied().collect();
 	v.sort_by_key(|m| m.name);
 	v.into_iter()
 }
 
+/// Returns an iterator over all text object definitions, sorted by name.
 pub fn all_text_objects() -> impl Iterator<Item = &'static TextObjectDef> {
 	let mut v: Vec<_> = get_registry()
 		.text_objects

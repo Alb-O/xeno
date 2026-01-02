@@ -24,6 +24,7 @@ fn glob_matches(pattern: &str, path: &str, filename: Option<&str>) -> bool {
 	glob_match_simple(pattern, path)
 }
 
+/// Matches a simple glob pattern against text without path separators.
 fn glob_match_simple(pattern: &str, text: &str) -> bool {
 	let mut p = pattern.chars().peekable();
 	let mut t = text.chars().peekable();
@@ -73,11 +74,17 @@ fn glob_match_simple(pattern: &str, text: &str) -> bool {
 /// grammars and queries, and lookup by filename, extension, shebang, or name.
 #[derive(Debug, Default)]
 pub struct LanguageLoader {
+	/// All registered language configurations.
 	languages: Vec<LanguageData>,
+	/// Maps file extensions to language indices.
 	by_extension: HashMap<String, usize>,
+	/// Maps exact filenames to language indices.
 	by_filename: HashMap<String, usize>,
+	/// Glob patterns paired with their language indices.
 	globs: Vec<(String, usize)>,
+	/// Maps shebang interpreter names to language indices.
 	by_shebang: HashMap<String, usize>,
+	/// Maps language names to their indices.
 	by_name: HashMap<String, usize>,
 }
 
@@ -185,6 +192,7 @@ impl LanguageLoader {
 		})
 	}
 
+	/// Finds a language by matching text against injection regexes.
 	fn language_for_injection_match(&self, text: &str) -> Option<Language> {
 		self.languages.iter().enumerate().find_map(|(idx, lang)| {
 			lang.injection_regex

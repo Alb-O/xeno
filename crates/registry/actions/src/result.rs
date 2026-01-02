@@ -3,8 +3,8 @@
 //! The [`ActionResult`] enum is the return type for all action handlers,
 //! describing what the editor should do after an action executes.
 
-use evildoer_base::Selection;
 use evildoer_base::range::CharIdx;
+use evildoer_base::Selection;
 use evildoer_macro::DispatchResult;
 use linkme::distributed_slice;
 
@@ -25,8 +25,11 @@ pub static RESULT_EXTENSION_HANDLERS: [ResultHandler];
 /// Subset of modes that can be entered via [`ActionResult::ModeChange`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ActionMode {
+	/// Normal/command mode for navigation and editing commands.
 	Normal,
+	/// Insert mode for text input.
 	Insert,
+	/// Window management mode for split operations.
 	Window,
 }
 
@@ -114,9 +117,15 @@ pub enum ActionResult {
 	/// Enter pending state for multi-key action.
 	Pending(PendingAction),
 	/// Search forward.
-	SearchNext { add_selection: bool },
+	SearchNext {
+		/// Whether to add matches to existing selections.
+		add_selection: bool,
+	},
 	/// Search backward.
-	SearchPrev { add_selection: bool },
+	SearchPrev {
+		/// Whether to add matches to existing selections.
+		add_selection: bool,
+	},
 	/// Use current selection as search pattern.
 	#[handler(UseSelectionSearch)]
 	UseSelectionAsSearch,
@@ -128,7 +137,9 @@ pub enum ActionResult {
 	/// requests.
 	#[terminal_safe]
 	Command {
+		/// Name of the command to execute.
 		name: &'static str,
+		/// Arguments to pass to the command.
 		args: Vec<String>,
 	},
 }

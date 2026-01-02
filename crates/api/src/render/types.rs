@@ -2,11 +2,15 @@ use evildoer_tui::widgets::Paragraph;
 
 /// A segment of a wrapped line.
 pub struct WrapSegment {
+	/// The text content of this segment.
 	pub text: String,
+	/// Character offset from the start of the original line.
 	pub start_offset: usize,
 }
 
+/// Result of rendering a buffer's content.
 pub struct RenderResult {
+	/// The rendered paragraph widget ready for display.
 	pub widget: Paragraph<'static>,
 }
 
@@ -65,7 +69,11 @@ pub fn wrap_line(line: &str, max_width: usize) -> Vec<WrapSegment> {
 
 		let break_pos = if end < chars.len() {
 			let candidate = find_wrap_break(&chars, pos, end);
-			if candidate > pos { candidate } else { end }
+			if candidate > pos {
+				candidate
+			} else {
+				end
+			}
 		} else {
 			chars.len()
 		};

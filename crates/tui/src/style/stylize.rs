@@ -26,14 +26,20 @@ pub trait Styled {
 
 /// A helper struct to make it easy to debug using the `Stylize` method names
 pub(crate) struct ColorDebug {
+	/// Which color property this represents.
 	pub kind: ColorDebugKind,
+	/// The actual color value.
 	pub color: Color,
 }
 
+/// Indicates which color property a [`ColorDebug`] represents.
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
 pub(crate) enum ColorDebugKind {
+	/// Text foreground color.
 	Foreground,
+	/// Text background color.
 	Background,
+	/// Underline color (requires `underline-color` feature).
 	#[cfg(feature = "underline-color")]
 	Underline,
 }

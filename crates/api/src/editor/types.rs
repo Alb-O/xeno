@@ -10,12 +10,16 @@ use crate::buffer::BufferId;
 /// Undo/redo history entry storing document state and per-view selections.
 #[derive(Clone)]
 pub struct HistoryEntry {
+	/// Document content at this point in history.
 	pub doc: Rope,
+	/// Per-buffer selections at this point in history.
 	pub selections: HashMap<BufferId, Selection>,
 }
 
+/// Named registers for storing yanked text.
 #[derive(Default)]
 pub struct Registers {
+	/// Default yank register content.
 	pub yank: String,
 }
 
@@ -152,10 +156,14 @@ impl MacroState {
 	}
 }
 
+/// State for managing the completion menu.
 #[derive(Clone, Default)]
 pub struct CompletionState {
+	/// Available completion items.
 	pub items: Vec<CompletionItem>,
+	/// Index of the currently selected item.
 	pub selected_idx: Option<usize>,
+	/// Whether the completion menu is active and visible.
 	pub active: bool,
 	/// Start position in the input where replacement begins.
 	/// When a completion is accepted, text from this position to cursor is replaced.

@@ -10,10 +10,13 @@ use self::sealed::NotifyResult;
 use crate::router::Router;
 use crate::{ClientSocket, ErrorCode, ResponseError, Result, ServerSocket};
 
+/// Sealed trait module for notification result handling.
 mod sealed {
 	use super::*;
 
+	/// Trait for notification result types with fallback behavior.
 	pub trait NotifyResult {
+		/// Returns the fallback result for unhandled notifications.
 		fn fallback<N: Notification>() -> Self;
 	}
 
@@ -40,8 +43,10 @@ mod sealed {
 	}
 }
 
+/// Boxed future type for LSP request responses.
 type ResponseFuture<R, E> = BoxFuture<'static, Result<<R as Request>::Result, E>>;
 
+/// Returns a future that resolves to a method-not-found error.
 fn method_not_found<R, E>() -> ResponseFuture<R, E>
 where
 	R: Request,
@@ -56,6 +61,7 @@ where
 	.into())))
 }
 
+/// Top-level macro that delegates to `define_server!` and `define_client!`.
 macro_rules! define {
     (
         { $($req_server:tt, $req_server_snake:ident;)* }
@@ -74,6 +80,7 @@ macro_rules! define {
     };
 }
 
+/// Generates the `LanguageServer` trait with all standard LSP server methods.
 macro_rules! define_server {
     (
         { $($req_snake:ident, $req:ty;)* }
@@ -230,6 +237,7 @@ macro_rules! define_server {
     };
 }
 
+/// Generates the `LanguageClient` trait with all standard LSP client methods.
 macro_rules! define_client {
     (
         { $($req_snake:ident, $req:ty;)* }

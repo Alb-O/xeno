@@ -8,7 +8,7 @@
 //! - Exit the main loop with `ControlFlow::Break(Ok(()))` on `exit` notification.
 //! - Responds unrelated requests with errors and ignore unrelated notifications during
 //!   initialization and shutting down.
-use std::future::{Future, Ready, ready};
+use std::future::{ready, Future, Ready};
 use std::ops::ControlFlow;
 use std::pin::Pin;
 use std::task::{Context, Poll};
@@ -24,12 +24,17 @@ use crate::{
 	AnyEvent, AnyNotification, AnyRequest, Error, ErrorCode, LspService, ResponseError, Result,
 };
 
+/// Language Server lifecycle state.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 enum State {
+	/// Server has not received the initialize request yet.
 	#[default]
 	Uninitialized,
+	/// Server is processing the initialize request.
 	Initializing,
+	/// Server has received initialized notification and is ready.
 	Ready,
+	/// Server received shutdown request and is preparing to exit.
 	ShuttingDown,
 }
 
@@ -38,7 +43,9 @@ enum State {
 /// See [module level documentations](self) for details.
 #[derive(Debug, Default)]
 pub struct Lifecycle<S> {
+	/// The wrapped LSP service.
 	service: S,
+	/// Current lifecycle state.
 	state: State,
 }
 
@@ -154,6 +161,7 @@ impl<Fut: Future> Future for ResponseFuture<Fut> {
 #[must_use]
 #[derive(Clone, Default)]
 pub struct LifecycleLayer {
+	/// Private field to prevent direct construction.
 	_private: (),
 }
 

@@ -17,16 +17,22 @@ where
 {
 	/// The given, unprocessed lines
 	input_lines: O,
+	/// Maximum width for wrapped lines in cells.
 	max_line_width: u16,
+	/// Queue of wrapped lines ready to be emitted.
 	wrapped_lines: VecDeque<Vec<StyledGrapheme<'a>>>,
+	/// Alignment of the current line being processed.
 	current_alignment: HorizontalAlignment,
+	/// The current line being built for output.
 	current_line: Vec<StyledGrapheme<'a>>,
 	/// Removes the leading whitespace from lines
 	trim: bool,
 
-	// These are cached allocations that hold no state across next_line invocations
+	/// Accumulated non-whitespace graphemes for the current word (cached allocation).
 	pending_word: Vec<StyledGrapheme<'a>>,
+	/// Accumulated whitespace graphemes between words (cached allocation).
 	pending_whitespace: VecDeque<StyledGrapheme<'a>>,
+	/// Pool of reusable line vectors for allocation efficiency.
 	pending_line_pool: Vec<Vec<StyledGrapheme<'a>>>,
 }
 
@@ -171,6 +177,7 @@ where
 		}
 	}
 
+	/// Replaces the current line with a new one, recycling the old line's allocation.
 	fn replace_current_line(&mut self, line: Vec<StyledGrapheme<'a>>) {
 		let cache = mem::replace(&mut self.current_line, line);
 		if cache.capacity() > 0 {

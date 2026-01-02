@@ -13,7 +13,12 @@ pub type LayerIndex = usize;
 #[derive(Debug, Clone, PartialEq)]
 pub enum SeparatorId {
 	/// A separator within a layer's split tree.
-	Split { path: SplitPath, layer: LayerIndex },
+	Split {
+		/// Path identifying the split in the tree.
+		path: SplitPath,
+		/// Index of the layer containing this split.
+		layer: LayerIndex,
+	},
 	/// The boundary between layer 0 and layer 1 (bottom dock boundary).
 	LayerBoundary,
 	/// The boundary between layer 0 and layer 2 (side dock boundary).
@@ -23,7 +28,10 @@ pub enum SeparatorId {
 /// Information about a separator found at a screen position.
 #[derive(Debug, Clone)]
 pub struct SeparatorHit {
+	/// The separator that was hit.
 	pub id: SeparatorId,
+	/// Whether this separator divides horizontally or vertically.
 	pub direction: SplitDirection,
+	/// Screen bounds of the separator.
 	pub rect: Rect,
 }

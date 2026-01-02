@@ -68,18 +68,26 @@ pub trait Cell {
 /// ```
 #[non_exhaustive]
 pub struct PseudoTerminal<'a, S> {
+	/// Reference to the terminal screen backend.
 	screen: &'a S,
+	/// Optional block wrapper for borders and title.
 	pub(crate) block: Option<Block<'a>>,
+	/// Optional base style for the terminal content.
 	style: Option<Style>,
+	/// Cursor configuration and appearance.
 	pub(crate) cursor: Cursor,
 }
 
 /// Configuration for the cursor in a [`PseudoTerminal`].
 #[non_exhaustive]
 pub struct Cursor {
+	/// Whether the cursor is visible.
 	pub(crate) show: bool,
+	/// The character/symbol used to render the cursor.
 	pub(crate) symbol: String,
+	/// Style applied to the cursor when over empty space.
 	pub(crate) style: Style,
+	/// Style applied when the cursor overlaps existing content.
 	pub(crate) overlay_style: Style,
 }
 

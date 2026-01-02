@@ -12,24 +12,31 @@ use proc_macro2::TokenStream as TokenStream2;
 use quote::quote;
 use syn::parse::{Parse, ParseStream};
 use syn::punctuated::Punctuated;
-use syn::{Ident, LitStr, Result, Token, braced};
+use syn::{braced, Ident, LitStr, Result, Token};
 
-/// A single event definition.
+/// A single event definition parsed from the macro input.
 struct EventDef {
+	/// Outer attributes (e.g., doc comments) for the event.
 	attrs: Vec<syn::Attribute>,
+	/// The event variant name (e.g., `BufferOpen`).
 	name: Ident,
+	/// The event string identifier (e.g., `"buffer:open"`).
 	event_str: LitStr,
+	/// Fields in the event payload.
 	fields: Vec<EventField>,
 }
 
 /// A field in an event payload.
 struct EventField {
+	/// Field name (e.g., `path`).
 	name: Ident,
+	/// Type token that maps to borrowed/owned types (e.g., `Path`, `RopeSlice`).
 	ty: Ident,
 }
 
-/// All event definitions.
+/// All event definitions from the macro input.
 struct EventDefs {
+	/// List of parsed event definitions.
 	events: Vec<EventDef>,
 }
 
@@ -111,6 +118,10 @@ fn owned_value(ty: &Ident, field: &Ident) -> TokenStream2 {
 	}
 }
 
+/// Entry point for the `define_events!` proc macro.
+///
+/// Generates `HookEvent`, `HookEventData`, `OwnedHookContext` enums and
+/// extraction macros from event definitions.
 pub fn define_events(input: TokenStream) -> TokenStream {
 	let EventDefs { events } = syn::parse_macro_input!(input as EventDefs);
 
