@@ -1,0 +1,11 @@
+[package]
+name = "evildoer-registry-statusline"
+description = "Statusline segment registry for Evildoer editor"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+evildoer-registry-motions.workspace = true
+linkme.workspace = true
+paste.workspace = true

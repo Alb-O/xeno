@@ -9,4 +9,5 @@ license.workspace = true
 evildoer-registry-menus.workspace = true
 evildoer-registry-motions.workspace = true
 evildoer-registry-options.workspace = true
+evildoer-registry-statusline.workspace = true
 evildoer-registry-text-objects.workspace = true

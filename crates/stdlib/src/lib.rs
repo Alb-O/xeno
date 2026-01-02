@@ -16,7 +16,6 @@ pub mod hooks;
 #[cfg(feature = "host")]
 pub mod movement;
 pub mod notifications;
-pub mod statusline;
 
 pub use evildoer_base::range::CharIdx;
 pub use evildoer_base::{
@@ -34,7 +33,7 @@ pub use evildoer_manifest::{
 	STATUSLINE_SEGMENTS, ScrollAmount, ScrollDir, SegmentPosition, SegmentStyle, StatuslineContext,
 	StatuslineSegmentDef, TEXT_OBJECTS, TextObjectDef, VisualDirection, action, async_hook,
 	bracket_pair_object, command, dispatch_result, hook, motion, option, result_handler,
-	statusline_segment, symmetric_text_object, text_object,
+	symmetric_text_object, text_object,
 };
 #[cfg(feature = "host")]
 pub use movement::WordType;

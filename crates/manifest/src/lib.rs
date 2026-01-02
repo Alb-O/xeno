@@ -36,7 +36,7 @@ use linkme::distributed_slice;
 pub mod motions;
 
 pub use evildoer_registry::{
-	bracket_pair_object, motion, option, symmetric_text_object, text_object,
+	bracket_pair_object, motion, option, statusline_segment, symmetric_text_object, text_object,
 };
 pub mod registry;
 pub mod syntax;
@@ -231,7 +231,7 @@ pub use split_buffer::{
 	SplitDockPreference, SplitEventResult, SplitKey, SplitKeyCode, SplitModifiers, SplitMouse,
 	SplitMouseAction, SplitMouseButton, SplitSize,
 };
-pub use statusline::{
+pub use evildoer_registry::statusline::{
 	RenderedSegment, STATUSLINE_SEGMENTS, SegmentPosition, SegmentStyle, StatuslineContext,
 	StatuslineSegmentDef, all_segments, find_segment, render_position, segments_for_position,
 };

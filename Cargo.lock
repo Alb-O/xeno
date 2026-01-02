@@ -908,6 +908,7 @@ dependencies = [
  "evildoer-registry-menus",
  "evildoer-registry-motions",
  "evildoer-registry-options",
+ "evildoer-registry-statusline",
  "evildoer-registry-text-objects",
 ]
 
@@ -935,6 +936,15 @@ dependencies = [
 name = "evildoer-registry-options"
 version = "0.3.0"
 dependencies = [
+ "linkme",
+ "paste",
+]
+
+[[package]]
+name = "evildoer-registry-statusline"
+version = "0.3.0"
+dependencies = [
+ "evildoer-registry-motions",
  "linkme",
  "paste",
 ]
