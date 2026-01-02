@@ -13,27 +13,49 @@
 //!
 //! [`FileOpsAccess`]: evildoer_core::editor_ctx::FileOpsAccess
 
+/// Action execution result handling.
 mod actions;
+/// Action dispatch and context setup.
 mod actions_exec;
+/// Buffer collection management.
 mod buffer_manager;
+/// Buffer creation operations.
 mod buffer_ops;
+/// Command queue for deferred execution.
 mod command_queue;
+/// Text editing operations.
 mod editing;
+/// Extension container and lifecycle.
 pub mod extensions;
+/// File save and load operations.
 mod file_ops;
+/// View focus management.
 mod focus;
+/// Undo/redo history.
 mod history;
+/// Async hook execution runtime.
 mod hook_runtime;
+/// Input handling.
 mod input;
+/// Split layout management.
 mod layout;
+/// Editor lifecycle (tick, render).
 mod lifecycle;
+/// Message and notification display.
 mod messaging;
+/// Cursor navigation utilities.
 mod navigation;
+/// Search state and operations.
 mod search;
+/// Separator hit detection.
 mod separator;
+/// Split view operations.
 mod splits;
+/// Theme management.
 mod theming;
+/// Shared type definitions.
 pub mod types;
+/// View and viewport management.
 mod views;
 
 use std::collections::HashSet;
@@ -111,6 +133,7 @@ pub struct Editor {
 
 	/// Window dimensions.
 	pub window_width: Option<u16>,
+	/// Window height in rows.
 	pub window_height: Option<u16>,
 
 	/// UI manager (panels, dock, etc.).

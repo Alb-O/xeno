@@ -4,25 +4,30 @@ use std::num::NonZeroU16;
 use evildoer_tui::backend::{Backend, WindowSize};
 use evildoer_tui::buffer::Cell;
 use evildoer_tui::layout::{Position, Size};
-use termina::Terminal;
 use termina::escape::csi::{
 	Csi, Cursor, Edit, EraseInDisplay, Mode, Sgr, SgrAttributes, SgrModifiers,
 };
 use termina::style::{ColorSpec, RgbaColor};
+use termina::Terminal;
 
+/// Backend implementation using the termina crate.
 pub struct TerminaBackend<T: Terminal> {
+	/// The underlying terminal instance.
 	terminal: T,
 }
 
 impl<T: Terminal> TerminaBackend<T> {
+	/// Creates a new backend wrapping the given terminal.
 	pub fn new(terminal: T) -> Self {
 		Self { terminal }
 	}
 
+	/// Returns a reference to the underlying terminal.
 	pub fn _terminal(&self) -> &T {
 		&self.terminal
 	}
 
+	/// Returns a mutable reference to the underlying terminal.
 	pub fn terminal_mut(&mut self) -> &mut T {
 		&mut self.terminal
 	}
@@ -239,6 +244,7 @@ impl<T: Terminal> Backend for TerminaBackend<T> {
 	}
 }
 
+/// Maps a TUI color to a termina color specification.
 fn map_color(color: evildoer_tui::style::Color) -> Option<ColorSpec> {
 	use evildoer_tui::style::Color;
 	match color {

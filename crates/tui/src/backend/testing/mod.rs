@@ -32,9 +32,13 @@ use crate::layout::{Position, Rect, Size};
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct TestBackend {
+	/// Current screen buffer.
 	buffer: Buffer,
+	/// Scrollback history buffer.
 	scrollback: Buffer,
+	/// Whether the cursor is visible.
 	cursor: bool,
+	/// Current cursor position (x, y).
 	pos: (u16, u16),
 }
 

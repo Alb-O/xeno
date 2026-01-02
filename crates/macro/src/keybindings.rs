@@ -6,10 +6,11 @@
 use proc_macro::TokenStream;
 use quote::{format_ident, quote};
 use syn::parse::{Parse, ParseStream};
-use syn::{Token, parse_macro_input};
+use syn::{parse_macro_input, Token};
 
 use crate::dispatch::to_screaming_snake_case;
 
+/// Parses keybinding definitions and generates distributed slice entries.
 pub fn parse_keybindings(input: TokenStream) -> TokenStream {
 	let input = parse_macro_input!(input as ParseKeybindingsInput);
 
@@ -19,9 +20,13 @@ pub fn parse_keybindings(input: TokenStream) -> TokenStream {
 	}
 }
 
+/// Parsed input for the keybindings macro.
 struct ParseKeybindingsInput {
+	/// Name of the action to bind.
 	action_name: String,
+	/// Raw KDL string containing binding definitions.
 	kdl_str: String,
+	/// Span for error reporting.
 	kdl_span: proc_macro2::Span,
 }
 
@@ -39,6 +44,7 @@ impl Parse for ParseKeybindingsInput {
 	}
 }
 
+/// Generates static keybinding entries for the distributed slice.
 fn generate_keybindings(
 	action_name: &str,
 	kdl_str: &str,

@@ -19,10 +19,12 @@ text_object!(
 	}
 );
 
+/// Selects text inside double quotes (excluding the quotes).
 fn double_quotes_inner(text: RopeSlice, pos: usize) -> Option<Range> {
 	select_surround_object(text, Range::point(pos), '"', '"', true)
 }
 
+/// Selects text including the surrounding double quotes.
 fn double_quotes_around(text: RopeSlice, pos: usize) -> Option<Range> {
 	select_surround_object(text, Range::point(pos), '"', '"', false)
 }
@@ -40,10 +42,12 @@ text_object!(
 	}
 );
 
+/// Selects text inside single quotes (excluding the quotes).
 fn single_quotes_inner(text: RopeSlice, pos: usize) -> Option<Range> {
 	select_surround_object(text, Range::point(pos), '\'', '\'', true)
 }
 
+/// Selects text including the surrounding single quotes.
 fn single_quotes_around(text: RopeSlice, pos: usize) -> Option<Range> {
 	select_surround_object(text, Range::point(pos), '\'', '\'', false)
 }
@@ -61,10 +65,12 @@ text_object!(
 	}
 );
 
+/// Selects text inside backticks (excluding the backticks).
 fn backticks_inner(text: RopeSlice, pos: usize) -> Option<Range> {
 	select_surround_object(text, Range::point(pos), '`', '`', true)
 }
 
+/// Selects text including the surrounding backticks.
 fn backticks_around(text: RopeSlice, pos: usize) -> Option<Range> {
 	select_surround_object(text, Range::point(pos), '`', '`', false)
 }

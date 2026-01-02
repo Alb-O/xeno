@@ -38,6 +38,7 @@ action!(select_line, {
 	bindings: r#"normal "x""#,
 }, handler: select_line_impl);
 
+/// Implements line selection with count support.
 fn select_line_impl(ctx: &ActionContext) -> ActionResult {
 	let mut new_sel = ctx.selection.clone();
 	let count = ctx.count.max(1);
@@ -73,6 +74,7 @@ action!(expand_to_line, {
 	bindings: r#"normal "alt-x""#,
 }, handler: expand_to_line_impl);
 
+/// Expands each selection to cover complete lines.
 fn expand_to_line_impl(ctx: &ActionContext) -> ActionResult {
 	let mut new_sel = ctx.selection.clone();
 	new_sel.transform_mut(|r| {
@@ -130,6 +132,7 @@ action!(rotate_selections_backward, {
 
 action!(split_lines, { description: "Split selection into lines" }, |ctx| split_lines_impl(ctx));
 
+/// Splits multi-line selections into one selection per line.
 fn split_lines_impl(ctx: &ActionContext) -> ActionResult {
 	let text = &ctx.text;
 	let mut new_ranges = Vec::new();
@@ -172,6 +175,7 @@ action!(duplicate_selections_down, {
 	bindings: r#"normal "C" "+""#,
 }, handler: duplicate_selections_down_impl);
 
+/// Creates copies of selections on the lines below.
 fn duplicate_selections_down_impl(ctx: &ActionContext) -> ActionResult {
 	let text = &ctx.text;
 	let mut new_ranges = ctx.selection.ranges().to_vec();
@@ -210,6 +214,7 @@ action!(duplicate_selections_up, {
 	bindings: r#"normal "alt-C""#,
 }, handler: duplicate_selections_up_impl);
 
+/// Creates copies of selections on the lines above.
 fn duplicate_selections_up_impl(ctx: &ActionContext) -> ActionResult {
 	let text = &ctx.text;
 	let mut new_ranges = ctx.selection.ranges().to_vec();
@@ -244,6 +249,7 @@ fn duplicate_selections_up_impl(ctx: &ActionContext) -> ActionResult {
 	ActionResult::Motion(Selection::from_vec(new_ranges, primary_index))
 }
 
+/// Converts a line/column position to a character offset.
 fn line_col_to_char(text: &ropey::RopeSlice, line: usize, col: usize) -> usize {
 	let line_start = text.line_to_char(line);
 	let line_end = if line + 1 < text.len_lines() {

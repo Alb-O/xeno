@@ -17,7 +17,7 @@ use std::task::{Context, Poll};
 use pin_project_lite::pin_project;
 use tower_layer::Layer;
 use tower_service::Service;
-use tracing::{Span, info_span};
+use tracing::{info_span, Span};
 
 use crate::{AnyEvent, AnyNotification, AnyRequest, LspService, Result};
 
@@ -26,7 +26,9 @@ use crate::{AnyEvent, AnyNotification, AnyRequest, LspService, Result};
 /// See [module level documentations](self) for details.
 #[derive(Default)]
 pub struct Tracing<S> {
+	/// The wrapped service.
 	service: S,
+	/// Span configuration for different event types.
 	spans: TracingBuilder,
 }
 
@@ -87,9 +89,13 @@ impl<S: LspService> LspService for Tracing<S> {
 #[derive(Clone)]
 #[must_use]
 pub struct TracingBuilder {
+	/// Span factory for poll_ready calls.
 	service_ready: Option<fn() -> Span>,
+	/// Span factory for request handling.
 	request: Option<fn(&AnyRequest) -> Span>,
+	/// Span factory for notification handling.
 	notification: Option<fn(&AnyNotification) -> Span>,
+	/// Span factory for event handling.
 	event: Option<fn(&AnyEvent) -> Span>,
 }
 

@@ -3,8 +3,8 @@ use std::ops::ControlFlow;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 
-use futures::FutureExt;
 use futures::channel::oneshot;
+use futures::FutureExt;
 use tower_service::Service;
 
 use crate::{
@@ -12,7 +12,9 @@ use crate::{
 	MainLoopEvent, Message, PeerSocket, ResponseError, Result, ServerSocket,
 };
 
+/// Future for awaiting a response forwarded through a peer socket.
 pub struct PeerSocketResponseFuture {
+	/// Channel receiver for the response.
 	rx: oneshot::Receiver<AnyResponse>,
 }
 
@@ -35,12 +37,14 @@ impl Future for PeerSocketResponseFuture {
 }
 
 impl PeerSocket {
+	/// Forwards a request and returns a future for the response.
 	fn on_call(&mut self, req: AnyRequest) -> PeerSocketResponseFuture {
 		let (tx, rx) = oneshot::channel();
 		let _: Result<_, _> = self.send(MainLoopEvent::OutgoingRequest(req, tx));
 		PeerSocketResponseFuture { rx }
 	}
 
+	/// Forwards a notification to the peer.
 	fn on_notify(&mut self, notif: AnyNotification) -> ControlFlow<Result<()>> {
 		match self.send(MainLoopEvent::Outgoing(Message::Notification(notif))) {
 			Ok(()) => ControlFlow::Continue(()),
@@ -48,6 +52,7 @@ impl PeerSocket {
 		}
 	}
 
+	/// Forwards a custom event to the peer.
 	fn on_emit(&mut self, event: AnyEvent) -> ControlFlow<Result<()>> {
 		match self.send(MainLoopEvent::Any(event)) {
 			Ok(()) => ControlFlow::Continue(()),
@@ -56,6 +61,7 @@ impl PeerSocket {
 	}
 }
 
+/// Generates Service and LspService implementations for socket types.
 macro_rules! define_socket_wrappers {
     ($($ty:ty),*) => {
         $(
