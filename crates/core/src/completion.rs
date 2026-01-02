@@ -12,10 +12,15 @@ pub const PROMPT_COMMAND: char = ':';
 /// Type of completion item.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CompletionKind {
+	/// Ex command completion.
 	Command,
+	/// File path completion.
 	File,
+	/// Open buffer completion.
 	Buffer,
+	/// Code snippet completion.
 	Snippet,
+	/// Theme name completion.
 	Theme,
 }
 

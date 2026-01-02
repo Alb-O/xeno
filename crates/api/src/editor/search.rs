@@ -4,6 +4,7 @@ use evildoer_core::movement;
 use super::Editor;
 
 impl Editor {
+	/// Searches forward for the current pattern.
 	pub(crate) fn do_search_next(&mut self, add_selection: bool, extend: bool) -> bool {
 		let search_info = self
 			.buffer()
@@ -42,6 +43,7 @@ impl Editor {
 		false
 	}
 
+	/// Searches backward for the current pattern.
 	pub(crate) fn do_search_prev(&mut self, add_selection: bool, extend: bool) -> bool {
 		let search_info = self
 			.buffer()
@@ -80,6 +82,7 @@ impl Editor {
 		false
 	}
 
+	/// Sets the current selection as the search pattern.
 	pub(crate) fn do_use_selection_as_search(&mut self) -> bool {
 		let primary = self.buffer().selection.primary();
 		let from = primary.min();
@@ -118,6 +121,7 @@ impl Editor {
 		false
 	}
 
+	/// Selects all regex matches within the current selection.
 	#[allow(dead_code, reason = "regex selection will be re-enabled via picker UI")]
 	pub(crate) fn select_regex(&mut self, pattern: &str) -> bool {
 		let primary = self.buffer().selection.primary();
@@ -153,6 +157,7 @@ impl Editor {
 		false
 	}
 
+	/// Splits the selection at regex matches, keeping the non-matching parts.
 	#[allow(dead_code, reason = "regex split will be re-enabled via picker UI")]
 	pub(crate) fn split_regex(&mut self, pattern: &str) -> bool {
 		let primary = self.buffer().selection.primary();
@@ -200,6 +205,7 @@ impl Editor {
 		false
 	}
 
+	/// Keeps only selections that match (or don't match) the pattern.
 	#[allow(
 		dead_code,
 		reason = "keep-matching filter will be re-enabled via picker UI"

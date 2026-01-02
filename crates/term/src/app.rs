@@ -12,13 +12,17 @@ use termina::{PlatformTerminal, Terminal as _};
 
 use crate::backend::TerminaBackend;
 
+/// Render timing configuration for frame pacing.
 #[derive(Debug, Clone, Copy)]
 pub struct RenderTiming {
+	/// Fast render interval for responsive updates.
 	pub fast: Duration,
+	/// Slow render interval for background updates.
 	pub slow: Duration,
 }
 
 impl RenderTiming {
+	/// Detects optimal render timing for the current terminal.
 	pub fn detect() -> Self {
 		Self::default()
 	}
@@ -37,6 +41,7 @@ use crate::terminal::{
 	enable_terminal_features, install_panic_hook, split_cursor_to_termina,
 };
 
+/// Runs the editor main loop.
 pub async fn run_editor(mut editor: Editor) -> io::Result<()> {
 	let mut terminal = PlatformTerminal::new()?;
 	install_panic_hook(&mut terminal);

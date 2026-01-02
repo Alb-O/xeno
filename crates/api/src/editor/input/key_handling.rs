@@ -10,12 +10,16 @@ use super::conversions::convert_termina_key;
 use crate::buffer::BufferView;
 use crate::editor::Editor;
 
+/// Result of attempting to dispatch an action from a key result.
 pub(crate) enum ActionDispatch {
+	/// Action was executed; bool indicates quit request.
 	Executed(bool),
+	/// Key result was not an action.
 	NotAction,
 }
 
 impl Editor {
+	/// Dispatches an action based on the key result.
 	pub(crate) fn dispatch_action(&mut self, result: &KeyResult) -> ActionDispatch {
 		use evildoer_core::find_action_by_id;
 
@@ -59,6 +63,7 @@ impl Editor {
 		}
 	}
 
+	/// Processes a key event, routing to menus, UI, or input state machine.
 	pub async fn handle_key(&mut self, key: termina::event::KeyEvent) -> bool {
 		// Handle menu bar when active
 		if self.menu.is_active() {
@@ -159,6 +164,7 @@ impl Editor {
 		self.handle_key_active(key).await
 	}
 
+	/// Handles a key event when in active editing mode.
 	pub(crate) async fn handle_key_active(&mut self, key: termina::event::KeyEvent) -> bool {
 		use evildoer_registry::{HookContext, HookEventData, emit as emit_hook};
 

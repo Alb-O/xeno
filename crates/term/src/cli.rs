@@ -8,6 +8,7 @@ use evildoer_api::styles::cli_styles;
 #[command(about = "A modal text editor")]
 #[command(version)]
 #[command(styles = cli_styles())]
+/// Command-line arguments.
 pub struct Cli {
 	/// File to edit (opens scratch buffer if omitted)
 	pub file: Option<PathBuf>,
@@ -16,19 +17,23 @@ pub struct Cli {
 	#[arg(long, short = 't')]
 	pub theme: Option<String>,
 
+	/// Subcommand to execute.
 	#[command(subcommand)]
 	pub command: Option<Command>,
 }
 
+/// Available subcommands.
 #[derive(Subcommand, Debug)]
 pub enum Command {
 	/// Manage tree-sitter grammars
 	Grammar {
+		/// Grammar subcommand action.
 		#[command(subcommand)]
 		action: GrammarAction,
 	},
 }
 
+/// Grammar management subcommands.
 #[derive(Subcommand, Debug)]
 pub enum GrammarAction {
 	/// Fetch grammar sources from git repositories

@@ -10,7 +10,7 @@
 use std::collections::HashMap;
 use std::sync::OnceLock;
 
-use evildoer_keymap::parser::{Node, parse_seq};
+use evildoer_keymap::parser::{parse_seq, Node};
 use evildoer_keymap::{MatchResult, Matcher};
 use evildoer_registry::actions::{BindingMode, KEYBINDINGS};
 use tracing::warn;
@@ -47,6 +47,7 @@ pub enum LookupResult<'a> {
 /// Each mode has its own [`Matcher`] for efficient trie-based lookup
 /// supporting key sequences and partial matches.
 pub struct KeymapRegistry {
+	/// Per-mode trie matchers for key sequences.
 	matchers: HashMap<BindingMode, Matcher<BindingEntry>>,
 }
 
