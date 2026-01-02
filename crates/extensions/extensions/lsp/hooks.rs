@@ -6,8 +6,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use evildoer_api::editor::extensions::ExtensionMap;
-use evildoer_manifest::async_hook;
-use evildoer_manifest::hooks::{HookAction, HookContext, HookResult};
+use evildoer_registry::{async_hook, HookAction, HookContext, HookResult};
 
 use super::LspManager;
 
@@ -132,9 +131,7 @@ mod tests {
 	use std::path::Path;
 
 	use evildoer_api::editor::extensions::ExtensionMap;
-	use evildoer_manifest::hooks::{
-		HookAction, HookContext, HookEvent, HookEventData, OwnedHookContext,
-	};
+	use evildoer_registry::{HookAction, HookContext, HookEvent, HookEventData, OwnedHookContext};
 
 	use super::*;
 

@@ -1,5 +1,7 @@
-use evildoer_manifest::notifications as manifest;
-use evildoer_stdlib::notifications::find_notification_type;
+use evildoer_manifest::{
+	SEMANTIC_DIM, SEMANTIC_ERROR, SEMANTIC_INFO, SEMANTIC_SUCCESS, SEMANTIC_WARNING,
+};
+use evildoer_registry::notifications::{self as registry, find_notification_type};
 use evildoer_tui::style::Style;
 use evildoer_tui::widgets::icon::presets as icon_presets;
 use evildoer_tui::widgets::notifications::{self as notif, Toast, ToastIcon};
@@ -9,11 +11,11 @@ use crate::editor::Editor;
 /// Returns the appropriate icon glyph for a semantic notification type.
 fn icon_for_semantic(semantic: &str) -> Option<&'static str> {
 	match semantic {
-		evildoer_manifest::SEMANTIC_INFO => Some(icon_presets::INFO),
-		evildoer_manifest::SEMANTIC_WARNING => Some(icon_presets::WARNING),
-		evildoer_manifest::SEMANTIC_ERROR => Some(icon_presets::ERROR),
-		evildoer_manifest::SEMANTIC_SUCCESS => Some(icon_presets::SUCCESS),
-		evildoer_manifest::SEMANTIC_DIM => Some(icon_presets::DEBUG),
+		SEMANTIC_INFO => Some(icon_presets::INFO),
+		SEMANTIC_WARNING => Some(icon_presets::WARNING),
+		SEMANTIC_ERROR => Some(icon_presets::ERROR),
+		SEMANTIC_SUCCESS => Some(icon_presets::SUCCESS),
+		SEMANTIC_DIM => Some(icon_presets::DEBUG),
 		_ => None,
 	}
 }
@@ -23,9 +25,7 @@ impl Editor {
 		let text = text.into();
 		let type_def = find_notification_type(type_name);
 
-		let semantic = type_def
-			.map(|t| t.semantic)
-			.unwrap_or(evildoer_manifest::SEMANTIC_INFO);
+		let semantic = type_def.map(|t| t.semantic).unwrap_or(SEMANTIC_INFO);
 		let notif_style: Style = self.theme.colors.notification_style(semantic);
 		let accent = notif_style.fg.unwrap_or_default();
 
@@ -40,13 +40,13 @@ impl Editor {
 		if let Some(def) = type_def {
 			toast = toast
 				.animation(match def.animation {
-					manifest::Animation::Slide => notif::Animation::Slide,
-					manifest::Animation::ExpandCollapse => notif::Animation::ExpandCollapse,
-					manifest::Animation::Fade => notif::Animation::Fade,
+					registry::Animation::Slide => notif::Animation::Slide,
+					registry::Animation::ExpandCollapse => notif::Animation::ExpandCollapse,
+					registry::Animation::Fade => notif::Animation::Fade,
 				})
 				.auto_dismiss(match def.auto_dismiss {
-					manifest::AutoDismiss::Never => notif::AutoDismiss::Never,
-					manifest::AutoDismiss::After(d) => notif::AutoDismiss::After(d),
+					registry::AutoDismiss::Never => notif::AutoDismiss::Never,
+					registry::AutoDismiss::After(d) => notif::AutoDismiss::After(d),
 				});
 		}
 

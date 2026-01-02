@@ -2,7 +2,9 @@
 
 use std::collections::HashMap;
 
-use evildoer_manifest::{PanelId, SplitBuffer, find_factory, find_panel, panel_kind_index};
+use evildoer_registry::panels::{
+	find_factory, find_panel, panel_kind_index, PanelId, SplitBuffer,
+};
 
 /// Runtime registry for panel instances.
 ///

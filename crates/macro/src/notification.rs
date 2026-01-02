@@ -3,7 +3,7 @@
 use proc_macro::TokenStream;
 use quote::{format_ident, quote};
 use syn::parse::{Parse, ParseStream};
-use syn::{Token, parse_macro_input};
+use syn::{parse_macro_input, Token};
 
 pub(crate) struct NotificationInput {
 	pub static_name: syn::Ident,
@@ -46,16 +46,16 @@ pub fn register_notification(input: TokenStream) -> TokenStream {
 		fields,
 	} = parse_macro_input!(input as NotificationInput);
 
-	let mut level = quote! { evildoer_manifest::notifications::Level::Info };
+	let mut level = quote! { evildoer_registry::notifications::Level::Info };
 	let mut semantic = quote! { evildoer_manifest::SEMANTIC_INFO };
-	let mut dismiss = quote! { evildoer_manifest::notifications::AutoDismiss::default() };
+	let mut dismiss = quote! { evildoer_registry::notifications::AutoDismiss::default() };
 	let mut icon = quote! { None };
-	let mut animation = quote! { evildoer_manifest::notifications::Animation::Fade };
+	let mut animation = quote! { evildoer_registry::notifications::Animation::Fade };
 	let mut timing = quote! {
 		(
-			evildoer_manifest::notifications::Timing::Fixed(::std::time::Duration::from_millis(200)),
-			evildoer_manifest::notifications::Timing::Auto,
-			evildoer_manifest::notifications::Timing::Fixed(::std::time::Duration::from_millis(200)),
+			evildoer_registry::notifications::Timing::Fixed(::std::time::Duration::from_millis(200)),
+			evildoer_registry::notifications::Timing::Auto,
+			evildoer_registry::notifications::Timing::Fixed(::std::time::Duration::from_millis(200)),
 		)
 	};
 
@@ -80,9 +80,9 @@ pub fn register_notification(input: TokenStream) -> TokenStream {
 	let trait_name = format_ident!("Notify{}Ext", static_name);
 
 	let expanded = quote! {
-		#[::linkme::distributed_slice(evildoer_manifest::notifications::NOTIFICATION_TYPES)]
-		pub static #static_name: evildoer_manifest::notifications::NotificationTypeDef =
-			evildoer_manifest::notifications::NotificationTypeDef {
+		#[::linkme::distributed_slice(evildoer_registry::notifications::NOTIFICATION_TYPES)]
+		pub static #static_name: evildoer_registry::notifications::NotificationTypeDef =
+			evildoer_registry::notifications::NotificationTypeDef {
 				id: #id,
 				name: #id,
 				level: #level,
@@ -92,7 +92,7 @@ pub fn register_notification(input: TokenStream) -> TokenStream {
 				animation: #animation,
 				timing: #timing,
 				priority: 0,
-				source: evildoer_manifest::RegistrySource::Crate(env!("CARGO_PKG_NAME")),
+				source: evildoer_registry::RegistrySource::Crate(env!("CARGO_PKG_NAME")),
 			};
 
 		pub trait #trait_name: evildoer_manifest::editor_ctx::MessageAccess {

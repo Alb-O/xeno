@@ -12,7 +12,7 @@ use proc_macro2::TokenStream as TokenStream2;
 use quote::quote;
 use syn::parse::{Parse, ParseStream};
 use syn::punctuated::Punctuated;
-use syn::{Ident, LitStr, Result, Token, braced};
+use syn::{braced, Ident, LitStr, Result, Token};
 
 /// A single event definition.
 struct EventDef {
@@ -83,7 +83,7 @@ fn borrowed_type(ty: &Ident) -> TokenStream2 {
 	let ty_str = ty.to_string();
 	match ty_str.as_str() {
 		"Path" => quote! { &'a ::std::path::Path },
-		"RopeSlice" => quote! { ::ropey::RopeSlice<'a> },
+		"RopeSlice" => quote! { ::evildoer_base::RopeSlice<'a> },
 		"OptionStr" => quote! { ::core::option::Option<&'a str> },
 		_ => quote! { #ty },
 	}
@@ -251,7 +251,7 @@ pub fn define_events(input: TokenStream) -> TokenStream {
 		.collect();
 
 	// Generate __hook_extract! macro arms
-	// Use $crate:: which resolves to evildoer_manifest when the macro is invoked
+	// Use $crate:: which resolves to the invoking crate
 	let hook_extract_arms: Vec<_> = events
 		.iter()
 		.map(|e| {
@@ -259,16 +259,16 @@ pub fn define_events(input: TokenStream) -> TokenStream {
 			if e.fields.is_empty() {
 				quote! {
 					(#name, $ctx:ident $(,)?) => {
-						let $crate::hooks::HookEventData::#name = &$ctx.data else {
-							return $crate::hooks::HookAction::Done($crate::hooks::HookResult::Continue);
+						let $crate::HookEventData::#name = &$ctx.data else {
+							return $crate::HookAction::Done($crate::HookResult::Continue);
 						};
 					};
 				}
 			} else {
 				quote! {
 					(#name, $ctx:ident, $( $param:ident : $ty:ty ),* $(,)?) => {
-						let $crate::hooks::HookEventData::#name { $($param,)* .. } = &$ctx.data else {
-							return $crate::hooks::HookAction::Done($crate::hooks::HookResult::Continue);
+						let $crate::HookEventData::#name { $($param,)* .. } = &$ctx.data else {
+							return $crate::HookAction::Done($crate::HookResult::Continue);
 						};
 						$(let $param: $ty = $param; )*
 					};
@@ -285,16 +285,16 @@ pub fn define_events(input: TokenStream) -> TokenStream {
 			if e.fields.is_empty() {
 				quote! {
 					(#name, $owned:ident $(,)?) => {
-						let $crate::hooks::OwnedHookContext::#name = $owned else {
-							return $crate::hooks::HookResult::Continue;
+						let $crate::OwnedHookContext::#name = $owned else {
+							return $crate::HookResult::Continue;
 						};
 					};
 				}
 			} else {
 				quote! {
 					(#name, $owned:ident, $( $param:ident : $ty:ty ),* $(,)?) => {
-						let $crate::hooks::OwnedHookContext::#name { $($param,)* .. } = $owned else {
-							return $crate::hooks::HookResult::Continue;
+						let $crate::OwnedHookContext::#name { $($param,)* .. } = $owned else {
+							return $crate::HookResult::Continue;
 						};
 						$(let $param: $ty = $crate::__hook_param_expr!($ty, $param); )*
 					};

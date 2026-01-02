@@ -1,7 +1,6 @@
-use evildoer_manifest::{CommandContext, CommandError, CommandOutcome};
 use futures::future::LocalBoxFuture;
 
-use crate::{NotifyERRORExt, command};
+use crate::{command, CommandContext, CommandError, CommandOutcome};
 
 command!(quit, { aliases: &["q"], description: "Quit the editor" }, handler: cmd_quit);
 
@@ -17,7 +16,11 @@ fn cmd_quit<'a>(
 	})
 }
 
-command!(quit_force, { aliases: &["q!"], description: "Quit without saving" }, handler: cmd_quit_force);
+command!(
+	quit_force,
+	{ aliases: &["q!"], description: "Quit without saving" },
+	handler: cmd_quit_force
+);
 
 fn cmd_quit_force<'a>(
 	_ctx: &'a mut CommandContext<'a>,

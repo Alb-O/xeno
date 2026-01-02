@@ -1,10 +1,10 @@
 //! Terminal PTY state management.
 
 use std::io::{Read, Write};
-use std::sync::mpsc::{Receiver, TryRecvError, channel};
+use std::sync::mpsc::{channel, Receiver, TryRecvError};
 use std::thread;
 
-use evildoer_manifest::SplitCursorStyle;
+use evildoer_registry::panels::SplitCursorStyle;
 use portable_pty::{CommandBuilder, MasterPty, NativePtySystem, PtySize, PtySystem};
 use vt100::{self, Parser};
 

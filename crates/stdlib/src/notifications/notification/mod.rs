@@ -2,12 +2,12 @@
 //!
 //! This module defines the abstract `Notification` struct that represents
 //! notification content and configuration. It uses abstract types from
-//! `evildoer_base` and `evildoer_manifest` to avoid UI library dependencies.
+//! `evildoer_base` and `evildoer_registry` to avoid UI library dependencies.
 //!
 //! Actual rendering is handled by `evildoer_api`.
 
 use evildoer_base::{BorderKind, Padding, Position, Style};
-use evildoer_manifest::notifications::{
+use evildoer_registry::notifications::{
 	Anchor, Animation, AutoDismiss, Level, NotificationError, SizeConstraint, SlideDirection,
 	Timing,
 };

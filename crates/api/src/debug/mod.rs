@@ -24,7 +24,7 @@ mod tracing_layer;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 
-use evildoer_manifest::{
+use evildoer_registry::panels::{
 	SplitAttrs, SplitBuffer, SplitCell, SplitColor, SplitCursor, SplitCursorStyle,
 	SplitEventResult, SplitKey, SplitKeyCode, SplitModifiers, SplitMouse, SplitMouseAction,
 	SplitMouseButton, SplitSize,

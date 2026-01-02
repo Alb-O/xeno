@@ -1,9 +1,8 @@
 use std::path::PathBuf;
 
-use evildoer_manifest::{CommandContext, CommandError, CommandOutcome};
 use futures::future::LocalBoxFuture;
 
-use crate::command;
+use crate::{command, CommandContext, CommandError, CommandOutcome};
 
 command!(write, { aliases: &["w"], description: "Write buffer to file" }, handler: cmd_write);
 

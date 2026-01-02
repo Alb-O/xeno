@@ -1,6 +1,6 @@
 //! Layout type definitions.
 
-use evildoer_manifest::PanelId;
+use evildoer_registry::panels::PanelId;
 
 use super::super::BufferId;
 

@@ -2,7 +2,7 @@ mod wrapping;
 
 use std::time::{Duration, SystemTime};
 
-use evildoer_manifest::{SplitAttrs, SplitColor};
+use evildoer_registry::panels::{PanelId, SplitAttrs, SplitBuffer, SplitColor, SplitSize};
 use evildoer_tui::animation::Animatable;
 use evildoer_tui::layout::{Constraint, Direction, Layout, Rect};
 use evildoer_tui::style::{Color, Modifier, Style};
@@ -471,8 +471,8 @@ impl Editor {
 	}
 
 	/// Resizes a panel by ID.
-	fn resize_panel(&mut self, panel_id: evildoer_manifest::PanelId, area: Rect) {
-		let size = evildoer_manifest::SplitSize::new(area.width, area.height);
+	fn resize_panel(&mut self, panel_id: PanelId, area: Rect) {
+		let size = SplitSize::new(area.width, area.height);
 		if let Some(panel) = self.panels.get_mut(panel_id) {
 			panel.resize(size);
 		}
@@ -482,7 +482,7 @@ impl Editor {
 	fn render_panel(
 		&self,
 		frame: &mut evildoer_tui::Frame,
-		panel_id: evildoer_manifest::PanelId,
+		panel_id: PanelId,
 		area: Rect,
 		is_focused: bool,
 	) {
@@ -495,7 +495,7 @@ impl Editor {
 /// Renders any SplitBuffer into the given area.
 fn render_split_buffer(
 	frame: &mut evildoer_tui::Frame,
-	buffer: &dyn evildoer_manifest::SplitBuffer,
+	buffer: &dyn SplitBuffer,
 	area: Rect,
 	is_focused: bool,
 	colors: &evildoer_manifest::PopupColors,

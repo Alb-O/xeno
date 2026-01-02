@@ -1,7 +1,6 @@
-use evildoer_manifest::{CommandContext, CommandError, CommandOutcome, find_command};
 use futures::future::LocalBoxFuture;
 
-use crate::{NotifyINFOExt, command};
+use crate::{all_commands, command, find_command, CommandContext, CommandError, CommandOutcome};
 
 command!(help, { aliases: &["h"], description: "Show help for commands" }, handler: cmd_help);
 
@@ -20,7 +19,11 @@ fn cmd_help<'a>(
 				out.push(format!("Source: {}", cmd.source));
 				out.push(format!("Priority: {}", cmd.priority));
 				if !cmd.required_caps.is_empty() {
-					let caps: Vec<_> = cmd.required_caps.iter().map(|c| c.to_string()).collect();
+					let caps: Vec<String> = cmd
+						.required_caps
+						.iter()
+						.map(|c| format!("{c:?}"))
+						.collect();
 					out.push(format!("Required Capabilities: {}", caps.join(", ")));
 				}
 				ctx.info(&out.join("\n"));
@@ -30,7 +33,7 @@ fn cmd_help<'a>(
 			}
 		}
 
-		let mut sorted_commands: Vec<_> = evildoer_manifest::all_commands().collect();
+		let mut sorted_commands: Vec<_> = all_commands().collect();
 		sorted_commands.sort_by_key(|c| c.name);
 
 		let help_text: Vec<String> = sorted_commands

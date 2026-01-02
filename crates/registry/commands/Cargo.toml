@@ -1,0 +1,14 @@
+[package]
+name = "evildoer-registry-commands"
+description = "Command registry for Evildoer editor"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+evildoer-registry-motions.workspace = true
+evildoer-registry-text-objects.workspace = true
+futures.workspace = true
+linkme.workspace = true
+paste.workspace = true
+thiserror.workspace = true

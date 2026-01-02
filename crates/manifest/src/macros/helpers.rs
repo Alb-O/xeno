@@ -30,27 +30,3 @@ macro_rules! __opt_slice {
 		&[]
 	};
 }
-
-/// Applies type-appropriate conversion for hook parameter extraction.
-///
-/// Used by the generated `__async_hook_extract!` macro to convert owned
-/// values to the appropriate borrowed form for user code.
-#[doc(hidden)]
-#[macro_export]
-macro_rules! __hook_param_expr {
-	(Option<& $inner:ty>, $value:ident) => {
-		$value.as_deref()
-	};
-	(Option < & $inner:ty >, $value:ident) => {
-		$value.as_deref()
-	};
-	(& $inner:ty, $value:ident) => {
-		&$value
-	};
-	(&$inner:ty, $value:ident) => {
-		&$value
-	};
-	($ty:ty, $value:ident) => {
-		$value
-	};
-}

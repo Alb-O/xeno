@@ -34,7 +34,7 @@ pub use types::{SeparatorHit, SeparatorId};
 
 #[cfg(test)]
 mod tests {
-	use evildoer_manifest::PanelId;
+	use evildoer_registry::panels::PanelId;
 	use evildoer_tui::layout::Rect;
 
 	use super::*;

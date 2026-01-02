@@ -2,7 +2,19 @@
 //!
 //! The [`panel!`] macro registers panel types in the distributed slice.
 
-/// Registers a panel type in the [`PANELS`](crate::panels::PANELS) slice.
+/// Selects a provided value or falls back to a default.
+#[doc(hidden)]
+#[macro_export]
+macro_rules! __opt {
+	({$val:expr}, $default:expr) => {
+		$val
+	};
+	(, $default:expr) => {
+		$default
+	};
+}
+
+/// Registers a panel type in the [`PANELS`](crate::PANELS) slice.
 ///
 /// Panels are toggleable split views (terminals, debug logs, file trees, etc.)
 /// that integrate with the editor's layer system.
@@ -37,7 +49,7 @@
 /// - `captures_input` (optional): Panel captures input (default: false)
 /// - `supports_window_mode` (optional): Panel supports window mode routing (default: false)
 /// - `priority` (optional): Priority within layer (default: 0)
-/// - `factory` (optional): Factory function `fn() -> Box<dyn Any + Send>`
+/// - `factory` (optional): Factory function `fn() -> Box<dyn SplitBuffer>`
 #[macro_export]
 macro_rules! panel {
 	($name:ident, {
@@ -54,8 +66,8 @@ macro_rules! panel {
 	}) => {
 		paste::paste! {
 			#[allow(non_upper_case_globals)]
-			#[linkme::distributed_slice($crate::panels::PANELS)]
-			static [<PANEL_ $name:upper>]: $crate::panels::PanelDef = $crate::panels::PanelDef {
+			#[::linkme::distributed_slice($crate::PANELS)]
+			static [<PANEL_ $name:upper>]: $crate::PanelDef = $crate::PanelDef {
 				id: concat!(env!("CARGO_PKG_NAME"), "::", stringify!($name)),
 				name: stringify!($name),
 				description: $desc,
@@ -70,9 +82,9 @@ macro_rules! panel {
 			};
 
 			#[allow(non_upper_case_globals)]
-			#[linkme::distributed_slice($crate::panels::PANEL_FACTORIES)]
-			static [<PANEL_FACTORY_ $name:upper>]: $crate::panels::PanelFactoryDef =
-				$crate::panels::PanelFactoryDef {
+			#[::linkme::distributed_slice($crate::PANEL_FACTORIES)]
+			static [<PANEL_FACTORY_ $name:upper>]: $crate::PanelFactoryDef =
+				$crate::PanelFactoryDef {
 					name: stringify!($name),
 					factory: $factory,
 				};
@@ -92,8 +104,8 @@ macro_rules! panel {
 	}) => {
 		paste::paste! {
 			#[allow(non_upper_case_globals)]
-			#[linkme::distributed_slice($crate::panels::PANELS)]
-			static [<PANEL_ $name:upper>]: $crate::panels::PanelDef = $crate::panels::PanelDef {
+			#[::linkme::distributed_slice($crate::PANELS)]
+			static [<PANEL_ $name:upper>]: $crate::PanelDef = $crate::PanelDef {
 				id: concat!(env!("CARGO_PKG_NAME"), "::", stringify!($name)),
 				name: stringify!($name),
 				description: $desc,

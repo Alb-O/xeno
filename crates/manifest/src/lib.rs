@@ -37,65 +37,11 @@ pub mod motions;
 
 pub use evildoer_registry::{
 	bracket_pair_object, motion, option, statusline_segment, symmetric_text_object, text_object,
+	Capability, RegistrySource,
 };
 pub mod registry;
 pub mod syntax;
 pub mod text_objects;
-
-/// Represents where a registry item was defined.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum RegistrySource {
-	/// Built directly into the editor.
-	Builtin,
-	/// Defined in a library crate.
-	Crate(&'static str),
-	/// Loaded at runtime (e.g., from KDL config files).
-	Runtime,
-}
-
-impl std::fmt::Display for RegistrySource {
-	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-		match self {
-			Self::Builtin => write!(f, "builtin"),
-			Self::Crate(name) => write!(f, "crate:{}", name),
-			Self::Runtime => write!(f, "runtime"),
-		}
-	}
-}
-
-/// Represents an editor capability required by a registry item.
-///
-/// These capabilities are dynamically checked at action/command execution time.
-/// Only add capabilities here when the corresponding trait is implemented
-/// and wired into `EditorCapabilities`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum Capability {
-	Text,
-	Cursor,
-	Selection,
-	Mode,
-	Messaging,
-	Edit,
-	Search,
-	Undo,
-	FileOps,
-}
-
-impl std::fmt::Display for Capability {
-	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-		match self {
-			Capability::Text => write!(f, "Text"),
-			Capability::Cursor => write!(f, "Cursor"),
-			Capability::Selection => write!(f, "Selection"),
-			Capability::Mode => write!(f, "Mode"),
-			Capability::Messaging => write!(f, "Messaging"),
-			Capability::Edit => write!(f, "Edit"),
-			Capability::Search => write!(f, "Search"),
-			Capability::Undo => write!(f, "Undo"),
-			Capability::FileOps => write!(f, "FileOps"),
-		}
-	}
-}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct ActionId(pub u32);
@@ -142,34 +88,7 @@ pub trait RegistryMetadata {
 	fn source(&self) -> RegistrySource;
 }
 
-#[derive(thiserror::Error, Debug, Clone)]
-pub enum CommandError {
-	#[error("{0}")]
-	Failed(String),
-	#[error("missing argument: {0}")]
-	MissingArgument(&'static str),
-	#[error("invalid argument: {0}")]
-	InvalidArgument(String),
-	#[error("I/O error: {0}")]
-	Io(String),
-	#[error("command not found: {0}")]
-	NotFound(String),
-	#[error("missing capability: {0:?}")]
-	MissingCapability(Capability),
-	#[error("unsupported operation: {0}")]
-	Unsupported(&'static str),
-	#[error("{0}")]
-	Other(String),
-}
-
-pub type CommandResult = Result<(), CommandError>;
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum CommandOutcome {
-	Ok,
-	Quit,
-	ForceQuit,
-}
+pub use evildoer_registry::commands::{CommandError, CommandOutcome, CommandResult};
 
 pub mod actions;
 pub mod commands;
@@ -191,8 +110,7 @@ pub mod theme;
 #[distributed_slice]
 pub static ACTIONS: [actions::ActionDef];
 
-#[distributed_slice]
-pub static COMMANDS: [commands::CommandDef];
+pub use evildoer_registry::commands::COMMANDS;
 
 // Re-export motion and text object types at crate root for backward compatibility
 pub use actions::{
@@ -200,10 +118,10 @@ pub use actions::{
 	ObjectSelectionKind, PendingAction, PendingKind, ScrollAmount, ScrollDir, VisualDirection,
 	cursor_motion, dispatch_result, insert_with_motion, selection_motion,
 };
-pub use commands::{CommandContext, CommandDef, flags};
+pub use evildoer_registry::commands::{CommandContext, CommandDef, flags};
 pub use completion::{CompletionContext, CompletionItem, CompletionKind, CompletionSource};
 pub use editor_ctx::{EditorCapabilities, EditorContext, EditorOps, HandleOutcome};
-pub use hooks::{
+pub use evildoer_registry::hooks::{
 	BoxFuture as HookBoxFuture, HOOKS, HookAction, HookContext, HookDef, HookEvent, HookEventData,
 	HookHandler, HookMutability, HookResult, HookScheduler, MutableHookContext, OwnedHookContext,
 	all_hooks, emit as emit_hook, emit_mutable as emit_mutable_hook, emit_sync as emit_hook_sync,
@@ -217,14 +135,14 @@ pub use keybindings::{BindingMode, KEYBINDINGS, KeyBindingDef};
 pub use keymap_registry::{BindingEntry, KeymapRegistry, LookupResult, get_keymap_registry};
 pub use mode::Mode;
 pub use evildoer_registry::{MOTIONS, MotionDef};
-pub use notifications::{
+pub use evildoer_registry::notifications::{
 	Animation, AutoDismiss, Level, NOTIFICATION_TYPES, NotificationTypeDef, Timing,
 	find_notification_type,
 };
 pub use evildoer_registry::options::{OPTIONS, OptionDef, OptionScope, OptionType, OptionValue};
-pub use panels::{
-	PANEL_FACTORIES, PANELS, PanelDef, PanelFactory, PanelFactoryDef, PanelId, all_panels,
-	find_factory, find_panel, find_panel_by_id, panel_kind_index,
+pub use evildoer_registry::panels::{
+	all_panels, find_factory, find_panel, find_panel_by_id, panel_kind_index, PanelDef,
+	PanelFactory, PanelFactoryDef, PanelId, PANEL_FACTORIES, PANELS,
 };
 pub use split_buffer::{
 	SplitAttrs, SplitBuffer, SplitCell, SplitColor, SplitCursor, SplitCursorStyle,

@@ -2,6 +2,7 @@ use std::io::{self, Write};
 use std::time::Duration;
 
 use evildoer_manifest::{TerminalConfig, TerminalSequence};
+use evildoer_registry::panels::SplitCursorStyle;
 use termina::escape::csi::{
 	Csi, Cursor, DecPrivateMode, DecPrivateModeCode, Keyboard, KittyKeyboardFlags, Mode,
 };
@@ -109,8 +110,7 @@ pub fn cursor_style_for_mode(mode: evildoer_manifest::Mode) -> CursorStyle {
 	}
 }
 
-pub fn split_cursor_to_termina(style: evildoer_manifest::SplitCursorStyle) -> CursorStyle {
-	use evildoer_manifest::SplitCursorStyle;
+pub fn split_cursor_to_termina(style: SplitCursorStyle) -> CursorStyle {
 	match style {
 		SplitCursorStyle::Hidden | SplitCursorStyle::Block => CursorStyle::SteadyBlock,
 		SplitCursorStyle::Default => CursorStyle::Default,

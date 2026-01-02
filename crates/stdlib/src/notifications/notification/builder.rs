@@ -1,12 +1,12 @@
 //! Builder pattern for constructing notifications.
 
 use evildoer_base::{BorderKind, Padding, Position, Style};
-use evildoer_manifest::notifications::{
-	Anchor, Animation, AutoDismiss, Level, NotificationError, SizeConstraint, SlideDirection,
-	Timing, find_notification_type,
+use evildoer_registry::notifications::{
+	find_notification_type, Anchor, Animation, AutoDismiss, Level, NotificationError,
+	SizeConstraint, SlideDirection, Timing,
 };
 
-use super::{MAX_CONTENT_CHARS, Notification};
+use super::{Notification, MAX_CONTENT_CHARS};
 
 /// Builder for constructing `Notification` instances.
 #[derive(Debug, Clone)]

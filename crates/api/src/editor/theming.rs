@@ -3,12 +3,13 @@
 //! Theme management and highlight span collection.
 
 use evildoer_manifest::syntax::SyntaxStyles;
+use evildoer_registry::commands::CommandError;
 
-use super::Editor;
 use super::extensions::StyleMod;
+use super::Editor;
 
 impl Editor {
-	pub fn set_theme(&mut self, theme_name: &str) -> Result<(), evildoer_manifest::CommandError> {
+	pub fn set_theme(&mut self, theme_name: &str) -> Result<(), CommandError> {
 		if let Some(theme) = evildoer_manifest::get_theme(theme_name) {
 			self.theme = theme;
 			Ok(())
@@ -17,7 +18,7 @@ impl Editor {
 			if let Some(suggestion) = evildoer_manifest::suggest_theme(theme_name) {
 				err.push_str(&format!(". Did you mean '{}'?", suggestion));
 			}
-			Err(evildoer_manifest::CommandError::Failed(err))
+			Err(CommandError::Failed(err))
 		}
 	}
 

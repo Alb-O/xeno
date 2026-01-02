@@ -1,9 +1,8 @@
 //! Theme command for switching editor color schemes.
 
-use evildoer_manifest::{CommandContext, CommandError, CommandOutcome, RegistrySource};
 use futures::future::LocalBoxFuture;
 
-use crate::command;
+use crate::{command, CommandContext, CommandError, CommandOutcome, RegistrySource};
 
 command!(
 	theme,

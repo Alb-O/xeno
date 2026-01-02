@@ -127,6 +127,6 @@ pub fn find(name: &str) -> Option<&'static MotionDef> {
 }
 
 /// Returns all registered motions.
-pub fn all() -> &'static [MotionDef] {
-	&MOTIONS
+pub fn all() -> impl Iterator<Item = &'static MotionDef> {
+	MOTIONS.iter()
 }

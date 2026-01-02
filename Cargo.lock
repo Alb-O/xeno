@@ -680,6 +680,7 @@ dependencies = [
  "evildoer-api",
  "evildoer-base",
  "evildoer-manifest",
+ "evildoer-registry",
  "evildoer-stdlib",
  "evildoer-tui",
  "futures",
@@ -770,6 +771,7 @@ dependencies = [
  "evildoer-lsp",
  "evildoer-macro",
  "evildoer-manifest",
+ "evildoer-registry",
  "evildoer-stdlib",
  "futures",
  "linkme",
@@ -905,11 +907,40 @@ dependencies = [
 name = "evildoer-registry"
 version = "0.3.0"
 dependencies = [
+ "evildoer-registry-commands",
+ "evildoer-registry-hooks",
  "evildoer-registry-menus",
  "evildoer-registry-motions",
+ "evildoer-registry-notifications",
  "evildoer-registry-options",
+ "evildoer-registry-panels",
  "evildoer-registry-statusline",
  "evildoer-registry-text-objects",
+]
+
+[[package]]
+name = "evildoer-registry-commands"
+version = "0.3.0"
+dependencies = [
+ "evildoer-registry-motions",
+ "evildoer-registry-text-objects",
+ "futures",
+ "linkme",
+ "paste",
+ "thiserror 2.0.17",
+]
+
+[[package]]
+name = "evildoer-registry-hooks"
+version = "0.3.0"
+dependencies = [
+ "evildoer-base",
+ "evildoer-macro",
+ "evildoer-registry-motions",
+ "evildoer-registry-panels",
+ "linkme",
+ "paste",
+ "tracing",
 ]
 
 [[package]]
@@ -933,9 +964,28 @@ dependencies = [
 ]
 
 [[package]]
+name = "evildoer-registry-notifications"
+version = "0.3.0"
+dependencies = [
+ "evildoer-registry-motions",
+ "linkme",
+ "thiserror 2.0.17",
+]
+
+[[package]]
 name = "evildoer-registry-options"
 version = "0.3.0"
 dependencies = [
+ "linkme",
+ "paste",
+]
+
+[[package]]
+name = "evildoer-registry-panels"
+version = "0.3.0"
+dependencies = [
+ "evildoer-base",
+ "evildoer-registry-motions",
  "linkme",
  "paste",
 ]
@@ -1006,6 +1056,7 @@ dependencies = [
  "evildoer-extensions",
  "evildoer-language",
  "evildoer-manifest",
+ "evildoer-registry",
  "evildoer-stdlib",
  "evildoer-tui",
  "futures",

@@ -20,6 +20,7 @@ evildoer-config.workspace = true
 evildoer-extensions.workspace = true
 evildoer-language.workspace = true
 evildoer-manifest.workspace = true
+evildoer-registry.workspace = true
 evildoer-stdlib.workspace = true
 evildoer-tui.workspace = true
 futures.workspace = true

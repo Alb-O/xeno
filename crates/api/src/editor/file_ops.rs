@@ -4,7 +4,8 @@
 
 use std::path::PathBuf;
 
-use evildoer_manifest::{CommandError, HookContext, HookEventData, emit_hook};
+use evildoer_registry::{emit as emit_hook, HookContext, HookEventData};
+use evildoer_registry::commands::CommandError;
 
 use super::Editor;
 

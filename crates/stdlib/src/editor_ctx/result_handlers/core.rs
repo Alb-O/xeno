@@ -2,7 +2,8 @@
 
 use evildoer_manifest::actions::ActionResult;
 use evildoer_manifest::editor_ctx::HandleOutcome;
-use evildoer_manifest::{HookContext, HookEventData, Mode, emit_hook_sync, result_handler};
+use evildoer_manifest::{result_handler, Mode};
+use evildoer_registry::{emit_sync as emit_hook_sync, HookContext, HookEventData};
 
 use crate::{NotifyERRORExt, NotifyINFOExt};
 

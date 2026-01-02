@@ -131,6 +131,6 @@ pub fn find_segment(name: &str) -> Option<&'static StatuslineSegmentDef> {
 }
 
 /// Get all registered segments.
-pub fn all_segments() -> &'static [StatuslineSegmentDef] {
-	&STATUSLINE_SEGMENTS
+pub fn all_segments() -> impl Iterator<Item = &'static StatuslineSegmentDef> {
+	STATUSLINE_SEGMENTS.iter()
 }

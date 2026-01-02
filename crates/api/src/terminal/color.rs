@@ -1,6 +1,6 @@
 //! Terminal color mapping.
 
-use evildoer_manifest::SplitColor;
+use evildoer_registry::panels::SplitColor;
 
 /// Maps vt100 colors to SplitColor.
 pub fn map_vt_color(color: vt100::Color) -> Option<SplitColor> {

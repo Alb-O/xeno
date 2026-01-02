@@ -1,60 +1,27 @@
-use futures::future::LocalBoxFuture;
+//! RegistryMetadata implementation for CommandDef.
+//!
+//! This bridges the registry's CommandDef type to manifest's RegistryMetadata trait.
 
-use crate::{Capability, CommandError, CommandOutcome, EditorOps, RegistrySource};
+use evildoer_registry::commands::CommandDef;
 
-pub struct CommandDef {
-	pub id: &'static str,
-	pub name: &'static str,
-	pub aliases: &'static [&'static str],
-	pub description: &'static str,
-	pub handler: for<'a> fn(
-		_: &'a mut CommandContext<'a>,
-	) -> LocalBoxFuture<'a, Result<CommandOutcome, CommandError>>,
-	pub user_data: Option<&'static (dyn std::any::Any + Sync)>,
-	pub priority: i16,
-	pub source: RegistrySource,
-	pub required_caps: &'static [Capability],
-	pub flags: u32,
-}
-
-pub struct CommandContext<'a> {
-	pub editor: &'a mut dyn EditorOps,
-	pub args: &'a [&'a str],
-	pub count: usize,
-	pub register: Option<char>,
-	pub user_data: Option<&'static (dyn std::any::Any + Sync)>,
-}
-
-impl<'a> crate::editor_ctx::MessageAccess for CommandContext<'a> {
-	fn notify(&mut self, type_id: &str, msg: &str) {
-		self.editor.notify(type_id, msg);
+impl crate::RegistryMetadata for CommandDef {
+	fn id(&self) -> &'static str {
+		self.id
 	}
 
-	fn clear_message(&mut self) {
-		self.editor.clear_message();
+	fn name(&self) -> &'static str {
+		self.name
+	}
+
+	fn priority(&self) -> i16 {
+		self.priority
+	}
+
+	fn source(&self) -> crate::RegistrySource {
+		match self.source {
+			evildoer_registry::RegistrySource::Builtin => crate::RegistrySource::Builtin,
+			evildoer_registry::RegistrySource::Crate(name) => crate::RegistrySource::Crate(name),
+			evildoer_registry::RegistrySource::Runtime => crate::RegistrySource::Runtime,
+		}
 	}
 }
-
-impl<'a> CommandContext<'a> {
-	pub fn require_user_data<T: std::any::Any + Sync>(&self) -> Result<&'static T, CommandError> {
-		self.user_data
-			.and_then(|d| {
-				let any: &dyn std::any::Any = d;
-				any.downcast_ref::<T>()
-			})
-			.ok_or_else(|| {
-				CommandError::Other(format!(
-					"Missing or invalid user data for command (expected {})",
-					std::any::type_name::<T>()
-				))
-			})
-	}
-}
-
-/// Command flags for optional behavior hints.
-pub mod flags {
-	/// No special flags.
-	pub const NONE: u32 = 0;
-}
-
-crate::impl_registry_metadata!(CommandDef);

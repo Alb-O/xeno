@@ -2,7 +2,7 @@ use std::io::{self, Write};
 use std::time::Duration;
 
 use evildoer_api::Editor;
-use evildoer_manifest::{HookContext, HookEventData, emit_hook_sync_with};
+use evildoer_registry::{emit as emit_hook, emit_sync_with as emit_hook_sync_with, HookContext, HookEventData};
 use evildoer_tui::Terminal;
 use termina::escape::csi::{Csi, Cursor};
 use termina::event::{Event, KeyEventKind};
@@ -143,7 +143,7 @@ pub async fn run_editor(mut editor: Editor) -> io::Result<()> {
 	}
 	.await;
 
-	evildoer_manifest::emit_hook(&HookContext::new(
+	emit_hook(&HookContext::new(
 		HookEventData::EditorQuit,
 		Some(&editor.extensions),
 	))

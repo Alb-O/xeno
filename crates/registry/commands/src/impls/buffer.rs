@@ -1,7 +1,6 @@
-use evildoer_manifest::{CommandContext, CommandError, CommandOutcome};
 use futures::future::LocalBoxFuture;
 
-use crate::{NotifyWARNExt, command};
+use crate::{command, CommandContext, CommandError, CommandOutcome};
 
 command!(buffer, { aliases: &["b"], description: "Switch to buffer" }, handler: cmd_buffer);
 
@@ -17,7 +16,11 @@ fn cmd_buffer<'a>(
 	})
 }
 
-command!(buffer_next, { aliases: &["bn"], description: "Go to next buffer" }, handler: cmd_buffer_next);
+command!(
+	buffer_next,
+	{ aliases: &["bn"], description: "Go to next buffer" },
+	handler: cmd_buffer_next
+);
 
 fn cmd_buffer_next<'a>(
 	ctx: &'a mut CommandContext<'a>,
@@ -28,7 +31,11 @@ fn cmd_buffer_next<'a>(
 	})
 }
 
-command!(buffer_prev, { aliases: &["bp"], description: "Go to previous buffer" }, handler: cmd_buffer_prev);
+command!(
+	buffer_prev,
+	{ aliases: &["bp"], description: "Go to previous buffer" },
+	handler: cmd_buffer_prev
+);
 
 fn cmd_buffer_prev<'a>(
 	ctx: &'a mut CommandContext<'a>,
@@ -39,7 +46,11 @@ fn cmd_buffer_prev<'a>(
 	})
 }
 
-command!(delete_buffer, { aliases: &["db"], description: "Delete current buffer" }, handler: cmd_delete_buffer);
+command!(
+	delete_buffer,
+	{ aliases: &["db"], description: "Delete current buffer" },
+	handler: cmd_delete_buffer
+);
 
 fn cmd_delete_buffer<'a>(
 	ctx: &'a mut CommandContext<'a>,

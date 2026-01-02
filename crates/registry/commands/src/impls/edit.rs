@@ -1,7 +1,6 @@
-use evildoer_manifest::{CommandContext, CommandError, CommandOutcome};
 use futures::future::LocalBoxFuture;
 
-use crate::{NotifyWARNExt, command};
+use crate::{command, CommandContext, CommandError, CommandOutcome};
 
 command!(edit, { aliases: &["e"], description: "Edit a file" }, handler: cmd_edit);
 

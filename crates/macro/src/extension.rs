@@ -2,7 +2,7 @@ use proc_macro::TokenStream;
 use quote::{format_ident, quote};
 use syn::parse::{Parse, ParseStream};
 use syn::{
-	Attribute, ImplItem, ImplItemFn, ItemImpl, LitInt, LitStr, Token, Type, parse_macro_input,
+	parse_macro_input, Attribute, ImplItem, ImplItemFn, ItemImpl, LitInt, LitStr, Token, Type,
 };
 
 use crate::dispatch;
@@ -484,7 +484,7 @@ pub fn extension(attr: TokenStream, item: TokenStream) -> TokenStream {
 		};
 		let call = quote! { state.#ident(ctx)#await_call };
 		let result_expr = if returns_command_result {
-			quote! { #call.map(|_| evildoer_manifest::CommandOutcome::Ok) }
+			quote! { #call.map(|_| evildoer_registry::commands::CommandOutcome::Ok) }
 		} else {
 			quote! { #call }
 		};
@@ -500,14 +500,15 @@ pub fn extension(attr: TokenStream, item: TokenStream) -> TokenStream {
 		let id = &extension_args.id;
 		generated.push(quote! {
 			fn #handler_name<'a>(
-				ctx: &'a mut evildoer_manifest::CommandContext<'a>,
-			) -> futures::future::LocalBoxFuture<'a, Result<evildoer_manifest::CommandOutcome, evildoer_manifest::CommandError>> {
+				ctx: &'a mut evildoer_registry::commands::CommandContext<'a>,
+			) -> futures::future::LocalBoxFuture<'a, Result<evildoer_registry::commands::CommandOutcome, evildoer_registry::commands::CommandError>> {
 				Box::pin(async move {
 					let editor = unsafe {
-						&mut *(ctx.editor as *mut dyn evildoer_manifest::EditorOps as *mut evildoer_api::editor::Editor)
+						&mut *(ctx.editor as *mut dyn evildoer_registry::commands::CommandEditorOps
+							as *mut evildoer_api::editor::Editor)
 					};
 					let Some(state) = editor.extensions.get_mut::<#state_ty>() else {
-						return Err(evildoer_manifest::CommandError::Failed(format!(
+						return Err(evildoer_registry::commands::CommandError::Failed(format!(
 							"{} extension not loaded",
 							#id
 						)));
@@ -516,7 +517,7 @@ pub fn extension(attr: TokenStream, item: TokenStream) -> TokenStream {
 				})
 			}
 
-			evildoer_manifest::command!(#command_ident, {
+			evildoer_registry::commands::command!(#command_ident, {
 				#aliases_tokens
 				description: #description
 			}, handler: #handler_name);
@@ -538,12 +539,12 @@ pub fn extension(attr: TokenStream, item: TokenStream) -> TokenStream {
 			.unwrap_or_else(|| LitStr::new(&format!("{} hook", hook_ident), hook_ident.span()));
 
 		generated.push(quote! {
-			evildoer_manifest::hook!(#hook_name, #event, #priority, #description, |ctx| {
+			evildoer_registry::hook!(#hook_name, #event, #priority, #description, |ctx| {
 				let Some(ext_map) = ctx.extensions::<evildoer_api::editor::extensions::ExtensionMap>() else {
-					return evildoer_manifest::hooks::HookAction::done();
+					return evildoer_registry::hooks::HookAction::done();
 				};
 				let Some(state) = ext_map.get::<#state_ty>() else {
-					return evildoer_manifest::hooks::HookAction::done();
+					return evildoer_registry::hooks::HookAction::done();
 				};
 				let result = state.#hook_ident(ctx);
 				::core::convert::Into::into(result)

@@ -2,6 +2,10 @@
 //!
 //! [`EditorCapabilities`]: evildoer_manifest::editor_ctx::EditorCapabilities
 
+use std::future::Future;
+use std::path::PathBuf;
+use std::pin::Pin;
+
 use evildoer_base::range::CharIdx;
 use evildoer_base::Selection;
 use evildoer_manifest::editor_ctx::{
@@ -10,6 +14,7 @@ use evildoer_manifest::editor_ctx::{
 	SplitOps, ThemeAccess, UndoAccess,
 };
 use evildoer_manifest::{panel_kind_index, EditAction, Mode};
+use evildoer_registry::commands::{CommandEditorOps, CommandError};
 
 use crate::buffer::BufferView;
 use crate::editor::Editor;
@@ -127,8 +132,35 @@ impl EditAccess for Editor {
 }
 
 impl ThemeAccess for Editor {
-	fn set_theme(&mut self, name: &str) -> Result<(), evildoer_manifest::CommandError> {
+	fn set_theme(&mut self, name: &str) -> Result<(), CommandError> {
 		Editor::set_theme(self, name)
+	}
+}
+
+impl CommandEditorOps for Editor {
+	fn notify(&mut self, type_id: &str, msg: &str) {
+		self.notify(type_id, msg);
+	}
+
+	fn clear_message(&mut self) {}
+
+	fn is_modified(&self) -> bool {
+		FileOpsAccess::is_modified(self)
+	}
+
+	fn save(&mut self) -> Pin<Box<dyn Future<Output = Result<(), CommandError>> + '_>> {
+		FileOpsAccess::save(self)
+	}
+
+	fn save_as(
+		&mut self,
+		path: PathBuf,
+	) -> Pin<Box<dyn Future<Output = Result<(), CommandError>> + '_>> {
+		FileOpsAccess::save_as(self, path)
+	}
+
+	fn set_theme(&mut self, name: &str) -> Result<(), CommandError> {
+		ThemeAccess::set_theme(self, name)
 	}
 }
 

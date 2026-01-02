@@ -8,8 +8,7 @@
 
 use std::path::PathBuf;
 
-use evildoer_manifest::{CommandContext, CommandError, CommandOutcome};
-use evildoer_stdlib::{NotifyINFOExt, command};
+use evildoer_registry::commands::{command, CommandContext, CommandError, CommandOutcome};
 use futures::future::LocalBoxFuture;
 
 use crate::AcpManager;
@@ -155,7 +154,7 @@ impl<'a> CommandContextExt for CommandContext<'a> {
 	fn require_editor_mut(&mut self) -> &mut evildoer_api::editor::Editor {
 		// SAFETY: We know that in evildoer-term, EditorOps is implemented by Editor
 		unsafe {
-			&mut *(self.editor as *mut dyn evildoer_manifest::EditorOps
+			&mut *(self.editor as *mut dyn evildoer_registry::commands::CommandEditorOps
 				as *mut evildoer_api::editor::Editor)
 		}
 	}

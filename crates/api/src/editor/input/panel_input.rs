@@ -2,7 +2,7 @@
 //!
 //! Routing key and mouse events to focused panels.
 
-use evildoer_manifest::{SplitKey, SplitMouse};
+use evildoer_registry::panels::{PanelId, SplitEventResult, SplitKey, SplitMouse};
 
 use crate::editor::Editor;
 
@@ -10,26 +10,26 @@ impl Editor {
 	/// Handles a key event for a panel.
 	pub(crate) fn handle_panel_key(
 		&mut self,
-		panel_id: evildoer_manifest::PanelId,
+		panel_id: PanelId,
 		key: SplitKey,
-	) -> evildoer_manifest::SplitEventResult {
+	) -> SplitEventResult {
 		if let Some(panel) = self.panels.get_mut(panel_id) {
 			panel.handle_key(key)
 		} else {
-			evildoer_manifest::SplitEventResult::ignored()
+			SplitEventResult::ignored()
 		}
 	}
 
 	/// Handles a mouse event for a panel.
 	pub(crate) fn handle_panel_mouse(
 		&mut self,
-		panel_id: evildoer_manifest::PanelId,
+		panel_id: PanelId,
 		mouse: SplitMouse,
-	) -> evildoer_manifest::SplitEventResult {
+	) -> SplitEventResult {
 		if let Some(panel) = self.panels.get_mut(panel_id) {
 			panel.handle_mouse(mouse)
 		} else {
-			evildoer_manifest::SplitEventResult::ignored()
+			SplitEventResult::ignored()
 		}
 	}
 }

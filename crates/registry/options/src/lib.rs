@@ -144,6 +144,6 @@ pub fn find(name: &str) -> Option<&'static OptionDef> {
 }
 
 /// Returns all registered options.
-pub fn all() -> &'static [OptionDef] {
-	&OPTIONS
+pub fn all() -> impl Iterator<Item = &'static OptionDef> {
+	OPTIONS.iter()
 }

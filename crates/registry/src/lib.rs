@@ -8,6 +8,10 @@
 //! - [`menus`] - Menu bar groups and items
 //! - [`motions`] - Cursor movement primitives
 //! - [`options`] - Configuration options
+//! - [`notifications`] - Notification types
+//! - [`commands`] - Ex-mode command definitions
+//! - [`panels`] - Panel definitions and split buffers
+//! - [`hooks`] - Event lifecycle observers
 //! - [`statusline`] - Statusline segment definitions
 //! - [`text_objects`] - Text object selection (inner/around)
 //!
@@ -18,11 +22,33 @@
 //! 3. Add dependency and re-export here
 
 // Re-export commonly used items at the crate root for convenience
+pub use commands::{
+	all_commands, command, find_command, CommandContext, CommandDef, CommandEditorOps,
+	CommandError, CommandHandler, CommandOutcome, CommandResult, COMMANDS,
+};
+pub use evildoer_registry_options::option;
+pub use hooks::{
+	all_hooks, async_hook, emit, emit_mutable, emit_sync, emit_sync_with, find_hooks, hook, Bool,
+	BoxFuture, HookAction, HookContext, HookDef, HookEvent, HookEventData, HookHandler,
+	HookMutability, HookResult, HookScheduler, MutableHookContext, OptionViewId, OwnedHookContext,
+	SplitDirection, Str, ViewId, HOOKS,
+};
 pub use menus::{menu_group, menu_item, MenuGroupDef, MenuItemDef, MENU_GROUPS, MENU_ITEMS};
 // Re-export shared types (these are duplicated across registries, pick one source)
 pub use motions::{flags, Capability, RegistrySource};
 pub use motions::{motion, movement, MotionDef, MotionHandler, MOTIONS};
-pub use options::{option, OptionDef, OptionScope, OptionType, OptionValue, OPTIONS};
+pub use notifications::{
+	find_notification_type, Anchor, Animation, AnimationPhase, AutoDismiss, Level,
+	NotificationError, NotificationTypeDef, Overflow, SizeConstraint, SlideDirection, Timing,
+	NOTIFICATION_TYPES,
+};
+pub use panels::{
+	all_panels, find_factory, find_panel, find_panel_by_id, panel, panel_kind_index, PanelDef,
+	PanelFactory, PanelFactoryDef, PanelId, SplitAttrs, SplitBuffer, SplitCell, SplitColor,
+	SplitCursor, SplitCursorStyle, SplitDockPreference, SplitEventResult, SplitKey, SplitKeyCode,
+	SplitModifiers, SplitMouse, SplitMouseAction, SplitMouseButton, SplitSize, PANELS,
+	PANEL_FACTORIES,
+};
 pub use statusline::{
 	all_segments, find_segment, render_position, segments_for_position, statusline_segment,
 	RenderedSegment, SegmentPosition, SegmentStyle, StatuslineContext, StatuslineSegmentDef,
@@ -33,7 +59,9 @@ pub use text_objects::{
 	TEXT_OBJECTS,
 };
 pub use {
+	evildoer_registry_commands as commands, evildoer_registry_hooks as hooks,
 	evildoer_registry_menus as menus, evildoer_registry_motions as motions,
-	evildoer_registry_options as options, evildoer_registry_statusline as statusline,
+	evildoer_registry_notifications as notifications, evildoer_registry_options as options,
+	evildoer_registry_panels as panels, evildoer_registry_statusline as statusline,
 	evildoer_registry_text_objects as text_objects,
 };

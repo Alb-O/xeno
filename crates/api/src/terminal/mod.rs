@@ -13,7 +13,7 @@ use std::sync::mpsc::{Receiver, TryRecvError, channel};
 use std::thread;
 use std::time::Duration;
 
-use evildoer_manifest::{
+use evildoer_registry::panels::{
 	SplitAttrs, SplitBuffer, SplitCell, SplitCursor, SplitEventResult, SplitKey, SplitKeyCode,
 	SplitMouse, SplitMouseAction, SplitMouseButton, SplitSize,
 };

@@ -8,8 +8,9 @@
 //!
 //! - [`action!`] - Register actions with optional keybindings and handlers
 //! - [`motion!`] - Cursor/selection movement primitives
-//! - [`hook!`] - Event lifecycle observers
-//! - [`command!`] - Ex-mode commands (`:write`, `:quit`)
+//! - `hook!` has moved to `evildoer-registry-hooks`
+//! - `command!` has moved to `evildoer-registry-commands`
+//! - `panel!` has moved to `evildoer-registry-panels`
 //!
 //! # Secondary Macros
 //!
@@ -27,8 +28,6 @@
 // Internal modules containing macro definitions
 mod actions;
 mod helpers;
-mod hooks;
-mod panels;
 mod registry;
 
 // Re-export all macros at module level
@@ -36,6 +35,6 @@ mod registry;
 // Note: text_object macros (text_object!, symmetric_text_object!, bracket_pair_object!)
 // are now in evildoer-registry and re-exported at crate root
 pub use crate::{
-	__hook_param_expr, __opt, __opt_slice, action, async_hook, bracket_pair_object, command, hook,
-	motion, option, panel, result_handler, statusline_segment, symmetric_text_object, text_object,
+	__opt, __opt_slice, action, bracket_pair_object, motion, option, result_handler,
+	statusline_segment, symmetric_text_object, text_object,
 };

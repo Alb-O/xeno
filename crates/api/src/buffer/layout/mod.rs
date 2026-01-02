@@ -14,7 +14,7 @@ mod navigation;
 mod tests;
 mod types;
 
-use evildoer_manifest::PanelId;
+use evildoer_registry::panels::PanelId;
 use evildoer_tui::layout::Rect;
 pub use types::{BufferView, SplitDirection, SplitPath};
 

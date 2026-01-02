@@ -2,15 +2,17 @@
 //!
 //! Focusing buffers, panels, and navigating between views.
 
-use evildoer_manifest::{HookContext, HookEventData, Mode, emit_hook_sync_with};
+use evildoer_manifest::Mode;
+use evildoer_registry::{emit_sync_with as emit_hook_sync_with, HookContext, HookEventData, ViewId};
+use evildoer_registry::panels::PanelId;
 
 use super::Editor;
 use crate::buffer::{BufferId, BufferView};
 
-fn hook_view_id(view: BufferView) -> evildoer_manifest::hooks::ViewId {
+fn hook_view_id(view: BufferView) -> ViewId {
 	match view {
-		BufferView::Text(id) => evildoer_manifest::hooks::ViewId::Text(id.0),
-		BufferView::Panel(id) => evildoer_manifest::hooks::ViewId::Panel(id),
+		BufferView::Text(id) => ViewId::Text(id.0),
+		BufferView::Panel(id) => ViewId::Panel(id),
 	}
 }
 
@@ -77,7 +79,7 @@ impl Editor {
 	/// Focuses a specific panel by ID.
 	///
 	/// Returns true if the panel exists and was focused.
-	pub fn focus_panel(&mut self, id: evildoer_manifest::PanelId) -> bool {
+	pub fn focus_panel(&mut self, id: PanelId) -> bool {
 		self.focus_view(BufferView::Panel(id))
 	}
 

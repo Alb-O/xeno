@@ -3,7 +3,7 @@
 //! Provides convenient methods for accessing the focused view and navigating
 //! between buffers and panels. These delegate to [`BufferManager`] and [`PanelRegistry`].
 
-use evildoer_manifest::{PANELS, PanelDef, PanelId};
+use evildoer_registry::panels::{PanelDef, PanelId, SplitCursorStyle, PANELS};
 
 use super::Editor;
 use crate::buffer::{Buffer, BufferId, BufferView};
@@ -89,7 +89,7 @@ impl Editor {
 	}
 
 	/// Returns the cursor style for the focused panel, if any.
-	pub fn focused_panel_cursor_style(&self) -> Option<evildoer_manifest::SplitCursorStyle> {
+	pub fn focused_panel_cursor_style(&self) -> Option<SplitCursorStyle> {
 		let panel_id = self.focused_panel_id()?;
 		let panel = self.panels.get(panel_id)?;
 		panel.cursor().map(|c| c.style)

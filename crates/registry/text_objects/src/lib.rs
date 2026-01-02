@@ -102,6 +102,6 @@ pub fn find(name: &str) -> Option<&'static TextObjectDef> {
 }
 
 /// Returns all registered text objects.
-pub fn all() -> &'static [TextObjectDef] {
-	&TEXT_OBJECTS
+pub fn all() -> impl Iterator<Item = &'static TextObjectDef> {
+	TEXT_OBJECTS.iter()
 }

@@ -21,8 +21,7 @@ use std::ops::Range;
 
 use evildoer_api::editor::Editor;
 use evildoer_macro::extension;
-use evildoer_manifest::{CommandContext, CommandError, CommandOutcome};
-use evildoer_stdlib::NotifyINFOExt;
+use evildoer_registry::commands::{CommandContext, CommandError, CommandOutcome};
 
 /// Primary focus node types - these are the main code units we want to focus on.
 ///

@@ -7,12 +7,14 @@
 //! # Architecture
 //!
 //! - **Data model** (`notification/`): Abstract `Notification` struct using
-//!   types from `evildoer_base` and `evildoer_manifest`. No UI dependencies.
+//!   types from `evildoer_base` and `evildoer_registry`. No UI dependencies.
 //!
-//! - **Type registration** (`defaults.rs`): Registers built-in notification
-//!   types (info, warn, error, etc.) and creates convenience extension traits.
+//! - **Type registration** (`evildoer-registry-notifications`): Registers built-in
+//!   notification types (info, warn, error, etc.).
 //!
-//! - **Type re-exports** (`types.rs`): Re-exports types from `evildoer_manifest`
+//! - **Extensions** (`extensions.rs`): Convenience helper traits for notifications.
+//!
+//! - **Type re-exports** (`types.rs`): Re-exports types from `evildoer_registry`
 //!   for convenience.
 //!
 //! # Usage
@@ -25,15 +27,15 @@
 //!     .build()?;
 //! ```
 
-mod defaults;
+mod extensions;
 mod notification;
 mod types;
 
-pub use defaults::{
+pub use evildoer_registry::notifications::{
+	find_notification_type, NotificationTypeDef, NOTIFICATION_TYPES,
+};
+pub use extensions::{
 	NotifyDEBUGExt, NotifyERRORExt, NotifyINFOExt, NotifySUCCESSExt, NotifyWARNExt,
 };
-pub use evildoer_manifest::notifications::{
-	NOTIFICATION_TYPES, NotificationTypeDef, find_notification_type,
-};
-pub use notification::{MAX_CONTENT_CHARS, Notification, NotificationBuilder};
+pub use notification::{Notification, NotificationBuilder, MAX_CONTENT_CHARS};
 pub use types::*;

@@ -5,7 +5,7 @@
 
 mod registry;
 
-use evildoer_manifest::panel;
+use evildoer_registry::panel;
 pub use registry::PanelRegistry;
 
 use crate::debug::DebugPanel;

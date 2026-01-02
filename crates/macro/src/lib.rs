@@ -18,7 +18,7 @@ pub fn extension(attr: TokenStream, item: TokenStream) -> TokenStream {
 ///
 /// ```ignore
 /// register_notification!(INFO_NOTIFICATION, "info",
-///     level: evildoer_manifest::notifications::Level::Info,
+///     level: evildoer_registry::notifications::Level::Info,
 ///     semantic: evildoer_manifest::SEMANTIC_INFO
 /// );
 /// ```

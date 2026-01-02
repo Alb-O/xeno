@@ -1,0 +1,15 @@
+[package]
+name = "evildoer-registry-hooks"
+description = "Hook registry for Evildoer editor"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+evildoer-base.workspace = true
+evildoer-macro.workspace = true
+evildoer-registry-motions.workspace = true
+evildoer-registry-panels.workspace = true
+linkme.workspace = true
+paste.workspace = true
+tracing.workspace = true

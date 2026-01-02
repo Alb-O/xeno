@@ -4,17 +4,16 @@
 
 use std::path::PathBuf;
 
-use evildoer_manifest::{
-	HookContext, HookEventData, emit_hook_sync_with, find_panel, panel_kind_index,
-};
+use evildoer_registry::{emit_sync_with as emit_hook_sync_with, HookContext, HookEventData, SplitDirection, ViewId};
+use evildoer_registry::panels::{find_panel, panel_kind_index, PanelId};
 
 use super::Editor;
 use crate::buffer::{BufferId, BufferView, Layout};
 
-fn hook_view_id(view: BufferView) -> evildoer_manifest::hooks::ViewId {
+fn hook_view_id(view: BufferView) -> ViewId {
 	match view {
-		BufferView::Text(id) => evildoer_manifest::hooks::ViewId::Text(id.0),
-		BufferView::Panel(id) => evildoer_manifest::hooks::ViewId::Panel(id),
+		BufferView::Text(id) => ViewId::Text(id.0),
+		BufferView::Panel(id) => ViewId::Panel(id),
 	}
 }
 
@@ -35,7 +34,7 @@ impl Editor {
 			&HookContext::new(
 				HookEventData::SplitCreated {
 					view_id: hook_view_id(BufferView::Text(new_buffer_id)),
-					direction: evildoer_manifest::hooks::SplitDirection::Horizontal,
+					direction: SplitDirection::Horizontal,
 				},
 				Some(&self.extensions),
 			),
@@ -56,7 +55,7 @@ impl Editor {
 			&HookContext::new(
 				HookEventData::SplitCreated {
 					view_id: hook_view_id(BufferView::Text(new_buffer_id)),
-					direction: evildoer_manifest::hooks::SplitDirection::Vertical,
+					direction: SplitDirection::Vertical,
 				},
 				Some(&self.extensions),
 			),
@@ -208,7 +207,7 @@ impl Editor {
 	/// Closes a panel.
 	///
 	/// Returns true if the panel was closed.
-	pub fn close_panel(&mut self, id: evildoer_manifest::PanelId) -> bool {
+	pub fn close_panel(&mut self, id: PanelId) -> bool {
 		self.close_view(BufferView::Panel(id))
 	}
 
