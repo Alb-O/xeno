@@ -12,7 +12,7 @@ use linkme::distributed_slice;
 mod impls;
 mod macros;
 
-pub use evildoer_registry_motions::RegistrySource;
+pub use evildoer_registry_motions::{RegistryMetadata, RegistrySource, impl_registry_metadata};
 
 /// The value of an option.
 #[derive(Debug, Clone, PartialEq)]
@@ -131,3 +131,5 @@ pub fn find(name: &str) -> Option<&'static OptionDef> {
 pub fn all() -> impl Iterator<Item = &'static OptionDef> {
 	OPTIONS.iter()
 }
+
+impl_registry_metadata!(OptionDef);

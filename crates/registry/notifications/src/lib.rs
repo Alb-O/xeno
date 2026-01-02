@@ -9,7 +9,7 @@ use thiserror::Error;
 
 mod impls;
 
-pub use evildoer_registry_motions::RegistrySource;
+pub use evildoer_registry_motions::{RegistryMetadata, RegistrySource, impl_registry_metadata};
 
 /// Severity level of a notification.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
@@ -180,3 +180,5 @@ pub static NOTIFICATION_TYPES: [NotificationTypeDef];
 pub fn find_notification_type(name: &str) -> Option<&'static NotificationTypeDef> {
 	NOTIFICATION_TYPES.iter().find(|t| t.name == name)
 }
+
+impl_registry_metadata!(NotificationTypeDef);

@@ -9,7 +9,7 @@
 use std::sync::OnceLock;
 
 pub use evildoer_base::{Color, Mode, Modifier, Style};
-use evildoer_registry_motions::RegistrySource;
+use evildoer_registry_motions::{RegistrySource, impl_registry_metadata};
 use linkme::distributed_slice;
 
 mod syntax;
@@ -346,3 +346,5 @@ pub fn suggest_theme(name: &str) -> Option<&'static str> {
 
 	if best_score > 0.8 { best_match } else { None }
 }
+
+impl_registry_metadata!(Theme);

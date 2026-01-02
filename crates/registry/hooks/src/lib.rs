@@ -38,7 +38,7 @@ mod macros;
 
 pub use evildoer_base::Mode;
 use evildoer_base::Rope;
-pub use evildoer_registry_motions::RegistrySource;
+pub use evildoer_registry_motions::{RegistryMetadata, RegistrySource, impl_registry_metadata};
 pub use evildoer_registry_panels::PanelId;
 
 /// Identifier for a focused view in hook payloads.
@@ -454,3 +454,5 @@ pub fn emit_sync_with<S: HookScheduler>(ctx: &HookContext<'_>, scheduler: &mut S
 	}
 	HookResult::Continue
 }
+
+impl_registry_metadata!(HookDef);

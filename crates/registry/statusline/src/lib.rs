@@ -8,7 +8,7 @@ use linkme::distributed_slice;
 mod impls;
 mod macros;
 
-pub use evildoer_registry_motions::RegistrySource;
+pub use evildoer_registry_motions::{RegistryMetadata, RegistrySource, impl_registry_metadata};
 
 /// Position in the statusline.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -134,3 +134,5 @@ pub fn find_segment(name: &str) -> Option<&'static StatuslineSegmentDef> {
 pub fn all_segments() -> impl Iterator<Item = &'static StatuslineSegmentDef> {
 	STATUSLINE_SEGMENTS.iter()
 }
+
+impl_registry_metadata!(StatuslineSegmentDef);

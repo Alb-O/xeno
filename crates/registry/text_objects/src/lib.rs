@@ -17,7 +17,9 @@ mod impls;
 mod macros;
 
 // Re-export shared types from motions registry for consistency
-pub use evildoer_registry_motions::{Capability, RegistrySource, flags, movement};
+pub use evildoer_registry_motions::{
+	Capability, RegistryMetadata, RegistrySource, flags, impl_registry_metadata, movement,
+};
 
 /// Handler signature for text object selection.
 ///
@@ -105,3 +107,5 @@ pub fn find(name: &str) -> Option<&'static TextObjectDef> {
 pub fn all() -> impl Iterator<Item = &'static TextObjectDef> {
 	TEXT_OBJECTS.iter()
 }
+
+impl_registry_metadata!(TextObjectDef);

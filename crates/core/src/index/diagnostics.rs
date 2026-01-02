@@ -1,4 +1,5 @@
-use crate::RegistryMetadata;
+use evildoer_registry::RegistryMetadata;
+
 use crate::index::ExtensionRegistry;
 use crate::index::collision::CollisionKind;
 

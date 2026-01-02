@@ -46,3 +46,5 @@ pub struct ActionDef {
 /// Takes an immutable [`ActionContext`] and returns an [`ActionResult`]
 /// describing what the editor should do.
 pub type ActionHandler = fn(&ActionContext) -> ActionResult;
+
+crate::impl_registry_metadata!(ActionDef);

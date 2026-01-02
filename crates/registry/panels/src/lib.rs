@@ -13,7 +13,7 @@ use linkme::distributed_slice;
 mod macros;
 mod split_buffer;
 
-pub use evildoer_registry_motions::RegistrySource;
+pub use evildoer_registry_motions::{RegistryMetadata, RegistrySource, impl_registry_metadata};
 pub use split_buffer::{
 	SplitAttrs, SplitBuffer, SplitCell, SplitColor, SplitCursor, SplitCursorStyle,
 	SplitDockPreference, SplitEventResult, SplitKey, SplitKeyCode, SplitModifiers, SplitMouse,
@@ -137,3 +137,5 @@ pub fn panel_kind_index(name: &str) -> Option<u16> {
 pub fn all_panels() -> impl Iterator<Item = &'static PanelDef> {
 	PANELS.iter()
 }
+
+impl_registry_metadata!(PanelDef);

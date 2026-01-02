@@ -59,6 +59,40 @@ pub mod flags {
 	pub const NONE: u32 = 0;
 }
 
+/// Common metadata for all registry item types.
+///
+/// Implemented by each registry definition type to enable generic
+/// operations like collision detection and diagnostics.
+///
+/// Use [`impl_registry_metadata!`] to implement this trait.
+pub trait RegistryMetadata {
+	fn id(&self) -> &'static str;
+	fn name(&self) -> &'static str;
+	fn priority(&self) -> i16;
+	fn source(&self) -> RegistrySource;
+}
+
+/// Implements [`RegistryMetadata`] for a type with `id`, `name`, `priority`, and `source` fields.
+#[macro_export]
+macro_rules! impl_registry_metadata {
+	($type:ty) => {
+		impl $crate::RegistryMetadata for $type {
+			fn id(&self) -> &'static str {
+				self.id
+			}
+			fn name(&self) -> &'static str {
+				self.name
+			}
+			fn priority(&self) -> i16 {
+				self.priority
+			}
+			fn source(&self) -> $crate::RegistrySource {
+				self.source
+			}
+		}
+	};
+}
+
 /// Handler signature for motion primitives.
 ///
 /// # Arguments
@@ -86,6 +120,8 @@ pub struct MotionDef {
 	pub required_caps: &'static [Capability],
 	pub flags: u32,
 }
+
+impl_registry_metadata!(MotionDef);
 
 impl MotionDef {
 	#[doc(hidden)]

@@ -5,7 +5,6 @@
 //!
 //! - [`ActionId`] for action dispatch
 //! - [`KeymapRegistry`] for trie-based keybinding lookup
-//! - [`RegistryMetadata`] trait implementations
 //! - Movement functions for cursor/selection manipulation
 //! - Notification system infrastructure
 //! - Result handlers for action dispatch
@@ -15,8 +14,6 @@
 //! - Base types (`Mode`, `Range`, `Selection`, `Key`, etc.): use `evildoer_base`
 //! - Registry types (actions, commands, hooks, panels, etc.): use `evildoer_registry`
 //! - Core types (`ActionId`, keymap, movement, completion): use this crate
-
-mod registry_impls;
 
 pub mod completion;
 pub mod editor_ctx;
@@ -115,14 +112,6 @@ impl std::fmt::Display for ActionId {
 			write!(f, "ActionId({})", self.0)
 		}
 	}
-}
-
-/// Common metadata for all registry item types.
-pub trait RegistryMetadata {
-	fn id(&self) -> &'static str;
-	fn name(&self) -> &'static str;
-	fn priority(&self) -> i16;
-	fn source(&self) -> evildoer_registry::RegistrySource;
 }
 
 // Core's own types

@@ -2,6 +2,7 @@
 
 use std::collections::HashMap;
 
+use evildoer_registry::RegistryMetadata;
 use evildoer_registry::actions::{ACTIONS, ActionDef};
 use evildoer_registry::commands::{COMMANDS, CommandDef};
 use evildoer_registry::motions::{MOTIONS, MotionDef};
@@ -11,7 +12,7 @@ use tracing::{debug, warn};
 use super::collision::{Collision, CollisionKind};
 use super::diagnostics::diagnostics_internal;
 use super::types::{ActionRegistryIndex, ExtensionRegistry, RegistryIndex};
-use crate::{ActionId, RegistryMetadata};
+use crate::ActionId;
 
 /// Builds the complete extension registry from distributed slices.
 ///

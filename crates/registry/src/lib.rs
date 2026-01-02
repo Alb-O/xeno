@@ -54,8 +54,8 @@ pub use hooks::{
 	emit_sync, emit_sync_with, find_hooks, hook,
 };
 pub use menus::{MENU_GROUPS, MENU_ITEMS, MenuGroupDef, MenuItemDef, menu_group, menu_item};
-// Re-export shared types (these are duplicated across registries, pick one source)
-pub use motions::{Capability, RegistrySource, flags};
+// Re-export shared types from motions (canonical source)
+pub use motions::{Capability, RegistryMetadata, RegistrySource, flags, impl_registry_metadata};
 pub use motions::{MOTIONS, MotionDef, MotionHandler, motion, movement};
 pub use notifications::{
 	Anchor, Animation, AnimationPhase, AutoDismiss, Level, NOTIFICATION_TYPES, NotificationError,

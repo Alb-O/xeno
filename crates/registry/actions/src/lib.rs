@@ -22,7 +22,9 @@ pub use definition::{ActionDef, ActionHandler};
 pub use edit::{EditAction, ScrollAmount, ScrollDir, VisualDirection};
 pub use evildoer_base::{Mode, ObjectSelectionKind, PendingKind};
 pub use evildoer_registry_commands::CommandError;
-pub use evildoer_registry_motions::{Capability, RegistrySource, flags};
+pub use evildoer_registry_motions::{
+	Capability, RegistryMetadata, RegistrySource, flags, impl_registry_metadata,
+};
 pub use keybindings::{BindingMode, KEYBINDINGS, KeyBindingDef};
 use linkme::distributed_slice;
 pub use motion_helpers::{cursor_motion, insert_with_motion, selection_motion};

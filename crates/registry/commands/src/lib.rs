@@ -14,7 +14,9 @@ use thiserror::Error;
 mod impls;
 mod macros;
 
-pub use evildoer_registry_motions::{Capability, RegistrySource};
+pub use evildoer_registry_motions::{
+	Capability, RegistryMetadata, RegistrySource, impl_registry_metadata,
+};
 
 pub type CommandHandler = for<'a> fn(
 	&'a mut CommandContext<'a>,
@@ -146,3 +148,5 @@ pub fn all_commands() -> impl Iterator<Item = &'static CommandDef> {
 	commands.sort_by_key(|c| c.name);
 	commands.into_iter()
 }
+
+impl_registry_metadata!(CommandDef);
