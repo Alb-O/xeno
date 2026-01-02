@@ -1,22 +1,36 @@
+//! Dock layout system for managing panel positions around the editor.
+//!
+//! The dock system organizes panels into slots (left, right, top, bottom, overlay)
+//! and computes their layout constraints relative to the main document area.
+
 use std::collections::HashMap;
 
 use evildoer_tui::layout::{Constraint, Direction, Layout, Rect};
 
+/// Position where a panel can be docked in the editor layout.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum DockSlot {
+	/// Left side of the editor, typically for file trees or sidebars.
 	Left,
+	/// Right side of the editor, typically for outlines or auxiliary panels.
 	Right,
+	/// Bottom of the editor, typically for terminals or output panels.
 	Bottom,
+	/// Top of the editor, typically for toolbars or status displays.
 	Top,
+	/// Floating overlay that covers the main content area.
 	Overlay,
 }
 
+/// Specification for the size of a docked panel.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SizeSpec {
+	/// Size as a percentage of the available space (0-100).
 	Percent(u16),
 }
 
 impl SizeSpec {
+	/// Converts this size specification to a layout constraint.
 	fn to_constraint(self) -> Constraint {
 		match self {
 			SizeSpec::Percent(p) => Constraint::Percentage(p),
@@ -24,14 +38,19 @@ impl SizeSpec {
 	}
 }
 
+/// State of a single dock slot, tracking open panels and the active one.
 #[derive(Debug, Clone)]
 pub struct DockSlotState {
+	/// Size specification for this slot when panels are open.
 	pub size: SizeSpec,
+	/// List of panel IDs currently open in this slot.
 	pub open: Vec<String>,
+	/// ID of the currently active (visible) panel in this slot.
 	pub active: Option<String>,
 }
 
 impl DockSlotState {
+	/// Creates a new dock slot state with the given size and no open panels.
 	pub fn new(size: SizeSpec) -> Self {
 		Self {
 			size,
@@ -41,18 +60,24 @@ impl DockSlotState {
 	}
 }
 
+/// Manages the dock layout system, tracking which panels are open in each slot.
 #[derive(Debug, Default)]
 pub struct DockManager {
+	/// Map from dock positions to their current state.
 	pub slots: HashMap<DockSlot, DockSlotState>,
 }
 
+/// Computed layout result from the dock manager.
 #[derive(Debug, Default)]
 pub struct DockLayout {
+	/// The remaining area for the main document after panels are laid out.
 	pub doc_area: Rect,
+	/// Map from panel IDs to their computed screen rectangles.
 	pub panel_areas: HashMap<String, Rect>,
 }
 
 impl DockManager {
+	/// Creates a new dock manager with default slot sizes.
 	pub fn new() -> Self {
 		let mut slots = HashMap::new();
 		slots.insert(DockSlot::Bottom, DockSlotState::new(SizeSpec::Percent(30)));
@@ -66,6 +91,7 @@ impl DockManager {
 		Self { slots }
 	}
 
+	/// Opens a panel in the specified dock slot, making it active.
 	pub fn open_panel(&mut self, slot: DockSlot, id: String) {
 		let state = self
 			.slots
@@ -77,6 +103,7 @@ impl DockManager {
 		state.active = Some(id);
 	}
 
+	/// Closes a panel by ID, removing it from whichever slot contains it.
 	pub fn close_panel(&mut self, id: &str) {
 		for (_slot, state) in self.slots.iter_mut() {
 			if let Some(pos) = state.open.iter().position(|p| p == id) {
@@ -89,18 +116,25 @@ impl DockManager {
 		}
 	}
 
+	/// Returns whether a panel with the given ID is currently open in any slot.
 	pub fn is_open(&self, id: &str) -> bool {
 		self.slots.values().any(|s| s.open.iter().any(|p| p == id))
 	}
 
+	/// Returns whether any panel is currently open in any slot.
 	pub fn any_open(&self) -> bool {
 		self.slots.values().any(|s| !s.open.is_empty())
 	}
 
+	/// Returns the ID of the active panel in the given slot, if any.
 	pub fn active_in_slot(&self, slot: DockSlot) -> Option<&str> {
 		self.slots.get(&slot).and_then(|s| s.active.as_deref())
 	}
 
+	/// Computes the layout for all open panels within the given area.
+	///
+	/// Returns a `DockLayout` containing the remaining document area and
+	/// the computed rectangles for each active panel.
 	pub fn compute_layout(&self, area: Rect) -> DockLayout {
 		let mut layout = DockLayout {
 			doc_area: area,

@@ -34,6 +34,7 @@ impl Cell for vt100::Cell {
 	}
 }
 
+/// Copies cell content and styling from a vt100 screen cell to a buffer cell.
 #[inline]
 fn fill_buf_cell(screen_cell: &vt100::Cell, buf_cell: &mut crate::buffer::Cell) {
 	let fg = screen_cell.fgcolor();
@@ -64,24 +65,43 @@ fn fill_buf_cell(screen_cell: &vt100::Cell, buf_cell: &mut crate::buffer::Cell) 
 /// Intermediate color type for converting between `vt100::Color` and `evildoer_tui::style::Color`.
 #[allow(dead_code, reason = "variants used for color conversion lookup")]
 enum Color {
+	/// Default/reset color.
 	Reset,
+	/// ANSI black (index 0).
 	Black,
+	/// ANSI red (index 1).
 	Red,
+	/// ANSI green (index 2).
 	Green,
+	/// ANSI yellow (index 3).
 	Yellow,
+	/// ANSI blue (index 4).
 	Blue,
+	/// ANSI magenta (index 5).
 	Magenta,
+	/// ANSI cyan (index 6).
 	Cyan,
+	/// ANSI gray/white (index 7).
 	Gray,
+	/// ANSI bright black/dark gray (index 8).
 	DarkGray,
+	/// ANSI bright red (index 9).
 	LightRed,
+	/// ANSI bright green (index 10).
 	LightGreen,
+	/// ANSI bright yellow (index 11).
 	LightYellow,
+	/// ANSI bright blue (index 12).
 	LightBlue,
+	/// ANSI bright magenta (index 13).
 	LightMagenta,
+	/// ANSI bright cyan (index 14).
 	LightCyan,
+	/// ANSI bright white (index 15).
 	White,
+	/// 24-bit true color (red, green, blue).
 	Rgb(u8, u8, u8),
+	/// 256-color palette index.
 	Indexed(u8),
 }
 

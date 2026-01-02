@@ -13,8 +13,11 @@ use crate::types::{KeyResult, Mode};
 /// Manages input state and key processing.
 #[derive(Debug, Clone)]
 pub struct InputHandler {
+	/// Current editor mode (normal, insert, window, pending action).
 	pub(crate) mode: Mode,
+	/// Accumulated count prefix for actions (e.g., `3j` to move down 3 lines).
 	pub(crate) count: u32,
+	/// Selected register for yank/paste operations.
 	pub(crate) register: Option<char>,
 	/// For commands that extend selection.
 	pub(crate) extend: bool,
@@ -31,6 +34,7 @@ impl Default for InputHandler {
 }
 
 impl InputHandler {
+	/// Creates a new input handler in normal mode with default state.
 	pub fn new() -> Self {
 		Self {
 			mode: Mode::Normal,
@@ -42,10 +46,12 @@ impl InputHandler {
 		}
 	}
 
+	/// Returns the current editor mode.
 	pub fn mode(&self) -> Mode {
 		self.mode.clone()
 	}
 
+	/// Returns the display name for the current mode.
 	pub fn mode_name(&self) -> &'static str {
 		use evildoer_base::PendingKind;
 		match &self.mode {
@@ -60,18 +66,22 @@ impl InputHandler {
 		}
 	}
 
+	/// Returns the accumulated count prefix, or 0 if none.
 	pub fn count(&self) -> u32 {
 		self.count
 	}
 
+	/// Returns the count prefix, defaulting to 1 if not specified.
 	pub fn effective_count(&self) -> u32 {
 		if self.count == 0 { 1 } else { self.count }
 	}
 
+	/// Returns the selected register, if any.
 	pub fn register(&self) -> Option<char> {
 		self.register
 	}
 
+	/// Sets the editor mode, resetting parameters when entering normal mode.
 	pub fn set_mode(&mut self, mode: Mode) {
 		self.mode = mode.clone();
 		if matches!(mode, Mode::Normal) {
@@ -79,14 +89,17 @@ impl InputHandler {
 		}
 	}
 
+	/// Stores the last search pattern and direction for repeat commands.
 	pub fn set_last_search(&mut self, pattern: String, reverse: bool) {
 		self.last_search = Some((pattern, reverse));
 	}
 
+	/// Returns the last search pattern and direction, if any.
 	pub fn last_search(&self) -> Option<(&str, bool)> {
 		self.last_search.as_ref().map(|(p, r)| (p.as_str(), *r))
 	}
 
+	/// Resets count, register, extend, and key sequence to defaults.
 	pub(crate) fn reset_params(&mut self) {
 		self.count = 0;
 		self.register = None;
@@ -94,10 +107,12 @@ impl InputHandler {
 		self.key_sequence.clear();
 	}
 
+	/// Returns the number of keys in the pending sequence.
 	pub fn pending_key_count(&self) -> usize {
 		self.key_sequence.len()
 	}
 
+	/// Clears the pending key sequence.
 	pub fn clear_key_sequence(&mut self) {
 		self.key_sequence.clear();
 	}
@@ -117,6 +132,7 @@ impl InputHandler {
 		}
 	}
 
+	/// Handles a key in a specific binding mode (normal, window, etc.).
 	fn handle_mode_key(
 		&mut self,
 		key: Key,
@@ -218,6 +234,7 @@ impl InputHandler {
 		}
 	}
 
+	/// Processes shift modifier to set extend flag and normalize the key.
 	fn process_shift_extend(&mut self, key: Key) -> Key {
 		if let KeyCode::Char(c) = key.code
 			&& c.is_ascii_uppercase()
@@ -236,6 +253,7 @@ impl InputHandler {
 		key
 	}
 
+	/// Processes a mouse event and returns the appropriate result.
 	pub fn handle_mouse(&mut self, event: MouseEvent) -> KeyResult {
 		match event {
 			MouseEvent::Press {

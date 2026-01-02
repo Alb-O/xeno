@@ -1,3 +1,9 @@
+//! Registry diagnostics commands for detecting and reporting collisions.
+//!
+//! These commands help identify when multiple registry items (commands, motions,
+//! text objects) share the same ID, name, alias, or trigger, and report which
+//! item wins based on priority.
+
 use std::collections::HashMap;
 
 use futures::future::LocalBoxFuture;
@@ -19,10 +25,15 @@ command!(
 	handler: cmd_registry_doctor
 );
 
+/// Type of collision detected between registry items.
 enum CollisionKind {
+	/// Multiple items share the same unique identifier.
 	Id,
+	/// Multiple items share the same display name.
 	Name,
+	/// An alias conflicts with another item's name or alias.
 	Alias,
+	/// Multiple text objects share the same trigger character.
 	Trigger,
 }
 
@@ -37,21 +48,33 @@ impl std::fmt::Display for CollisionKind {
 	}
 }
 
+/// Details about a collision between two registry items.
 struct CollisionReport {
+	/// The type of collision (ID, name, alias, or trigger).
 	kind: CollisionKind,
+	/// The conflicting key value (the shared ID, name, alias, or trigger).
 	key: String,
+	/// ID of the item that wins due to higher priority.
 	winner_id: &'static str,
+	/// Source location or extension name of the winner.
 	winner_source: String,
+	/// Priority value of the winning item.
 	winner_priority: i16,
+	/// ID of the item that is shadowed.
 	shadowed_id: &'static str,
+	/// Source location or extension name of the shadowed item.
 	shadowed_source: String,
+	/// Priority value of the shadowed item.
 	shadowed_priority: i16,
 }
 
+/// Aggregated diagnostic report for all registries.
 struct DiagnosticReport {
+	/// All detected collisions across commands, motions, and text objects.
 	collisions: Vec<CollisionReport>,
 }
 
+/// Collects diagnostics from all registries.
 fn diagnostics() -> DiagnosticReport {
 	let mut collisions = Vec::new();
 	collect_command_collisions(&mut collisions);
@@ -60,6 +83,7 @@ fn diagnostics() -> DiagnosticReport {
 	DiagnosticReport { collisions }
 }
 
+/// Checks for a collision when registering a command and records it if found.
 fn register_command_collision(
 	kind: CollisionKind,
 	key: &'static str,
@@ -89,6 +113,7 @@ fn register_command_collision(
 	}
 }
 
+/// Iterates all registered commands and detects ID, name, and alias collisions.
 fn collect_command_collisions(collisions: &mut Vec<CollisionReport>) {
 	let mut by_id = HashMap::new();
 	let mut by_name = HashMap::new();
@@ -103,6 +128,7 @@ fn collect_command_collisions(collisions: &mut Vec<CollisionReport>) {
 	}
 }
 
+/// Checks for a collision when registering a motion and records it if found.
 fn register_motion_collision(
 	kind: CollisionKind,
 	key: &'static str,
@@ -132,6 +158,7 @@ fn register_motion_collision(
 	}
 }
 
+/// Iterates all registered motions and detects ID, name, and alias collisions.
 fn collect_motion_collisions(collisions: &mut Vec<CollisionReport>) {
 	let mut by_id = HashMap::new();
 	let mut by_name = HashMap::new();
@@ -158,6 +185,7 @@ fn collect_motion_collisions(collisions: &mut Vec<CollisionReport>) {
 	}
 }
 
+/// Checks for a collision when registering a text object and records it if found.
 fn register_text_object_collision(
 	kind: CollisionKind,
 	key: String,
@@ -187,6 +215,7 @@ fn register_text_object_collision(
 	}
 }
 
+/// Iterates all text objects and detects ID, name, alias, and trigger collisions.
 fn collect_text_object_collisions(collisions: &mut Vec<CollisionReport>) {
 	let mut by_id = HashMap::new();
 	let mut by_name = HashMap::new();
@@ -236,6 +265,7 @@ fn collect_text_object_collisions(collisions: &mut Vec<CollisionReport>) {
 	}
 }
 
+/// Handler for the `:registry.diag` command showing registry inventory and collisions.
 fn cmd_registry_diag<'a>(
 	ctx: &'a mut CommandContext<'a>,
 ) -> LocalBoxFuture<'a, Result<CommandOutcome, CommandError>> {
@@ -278,6 +308,7 @@ fn cmd_registry_diag<'a>(
 	})
 }
 
+/// Handler for the `:registry.doctor` command with detailed collision analysis and fix suggestions.
 fn cmd_registry_doctor<'a>(
 	ctx: &'a mut CommandContext<'a>,
 ) -> LocalBoxFuture<'a, Result<CommandOutcome, CommandError>> {

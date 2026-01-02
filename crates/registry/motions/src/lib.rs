@@ -14,7 +14,9 @@ use evildoer_base::Range;
 use linkme::distributed_slice;
 use ropey::RopeSlice;
 
+/// Built-in motion implementations (char, word, line, etc.).
 mod impls;
+/// Macro definitions for motion registration.
 mod macros;
 pub mod movement;
 
@@ -42,14 +44,23 @@ impl core::fmt::Display for RegistrySource {
 /// Represents an editor capability required by a registry item.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Capability {
+	/// Read access to document text.
 	Text,
+	/// Access to cursor position.
 	Cursor,
+	/// Access to selection state.
 	Selection,
+	/// Access to editor mode (normal, insert, visual).
 	Mode,
+	/// Ability to display messages and notifications.
 	Messaging,
+	/// Ability to modify document text.
 	Edit,
+	/// Access to search functionality.
 	Search,
+	/// Access to undo/redo history.
 	Undo,
+	/// Access to file system operations.
 	FileOps,
 }
 
@@ -66,9 +77,13 @@ pub mod flags {
 ///
 /// Use [`impl_registry_metadata!`] to implement this trait.
 pub trait RegistryMetadata {
+	/// Returns the unique identifier for this registry item.
 	fn id(&self) -> &'static str;
+	/// Returns the human-readable name for this registry item.
 	fn name(&self) -> &'static str;
+	/// Returns the priority for collision resolution (higher wins).
 	fn priority(&self) -> i16;
+	/// Returns where this registry item was defined.
 	fn source(&self) -> RegistrySource;
 }
 
@@ -110,14 +125,23 @@ pub type MotionHandler = fn(RopeSlice, Range, usize, bool) -> Range;
 /// Motions are registered via the [`motion!`] macro and looked up by name
 /// from action handlers.
 pub struct MotionDef {
+	/// Unique identifier for this motion.
 	pub id: &'static str,
+	/// Human-readable name for lookup and display.
 	pub name: &'static str,
+	/// Alternative names that can be used to invoke this motion.
 	pub aliases: &'static [&'static str],
+	/// Brief description of what this motion does.
 	pub description: &'static str,
+	/// Function that implements the motion logic.
 	pub handler: MotionHandler,
+	/// Priority for collision resolution (higher wins).
 	pub priority: i16,
+	/// Where this motion was defined (builtin, crate, runtime).
 	pub source: RegistrySource,
+	/// Capabilities required to execute this motion.
 	pub required_caps: &'static [Capability],
+	/// Behavioral flags for this motion.
 	pub flags: u32,
 }
 

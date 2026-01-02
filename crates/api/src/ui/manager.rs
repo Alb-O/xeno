@@ -1,3 +1,5 @@
+//! Central manager for the editor UI, coordinating panels, focus, and docking.
+
 use std::collections::HashMap;
 
 use evildoer_registry::themes::Theme;
@@ -9,16 +11,25 @@ use super::focus::{FocusManager, FocusTarget};
 use super::keymap::{BindingScope, KeybindingRegistry};
 use super::panel::{Panel, PanelInitContext, UiEvent, UiRequest};
 
+/// Central coordinator for the editor UI subsystem.
+///
+/// Manages panel registration, dock layout, focus tracking, and event routing.
 #[derive(Default)]
 pub struct UiManager {
+	/// Manages panel positions and layout constraints.
 	pub dock: DockManager,
+	/// Tracks which element (editor or panel) currently has focus.
 	pub focus: FocusManager,
+	/// Registry of keybindings for UI elements.
 	pub keymap: KeybindingRegistry,
+	/// Map of panel IDs to their implementations.
 	panels: HashMap<String, Box<dyn Panel>>,
+	/// Flag indicating the UI needs to be redrawn.
 	wants_redraw: bool,
 }
 
 impl UiManager {
+	/// Creates a new UI manager with default dock configuration.
 	pub fn new() -> Self {
 		Self {
 			dock: DockManager::new(),
@@ -29,6 +40,7 @@ impl UiManager {
 		}
 	}
 
+	/// Registers a panel with the UI manager, calling its `on_register` hook.
 	pub fn register_panel(&mut self, mut panel: Box<dyn Panel>) {
 		let id = panel.id().to_string();
 		panel.on_register(PanelInitContext {
@@ -37,6 +49,7 @@ impl UiManager {
 		self.panels.insert(id, panel);
 	}
 
+	/// Calls `on_startup` for all registered panels.
 	pub fn startup(&mut self) {
 		let ids: Vec<String> = self.panels.keys().cloned().collect();
 		for id in ids {
@@ -46,28 +59,34 @@ impl UiManager {
 		}
 	}
 
+	/// Returns whether any panel is currently open in any dock slot.
 	pub fn any_panel_open(&self) -> bool {
 		self.dock.any_open()
 	}
 
+	/// Returns and clears the redraw flag, indicating if a redraw was requested.
 	pub fn take_wants_redraw(&mut self) -> bool {
 		let v = self.wants_redraw;
 		self.wants_redraw = false;
 		v
 	}
 
+	/// Returns the ID of the currently focused panel, if any.
 	pub fn focused_panel_id(&self) -> Option<&str> {
 		self.focus.focused().panel_id()
 	}
 
+	/// Returns whether the panel with the given ID is currently focused.
 	pub fn is_panel_focused(&self, id: &str) -> bool {
 		self.focused_panel_id() == Some(id)
 	}
 
+	/// Computes the dock layout for the given main area.
 	pub fn compute_layout(&self, main_area: Rect) -> DockLayout {
 		self.dock.compute_layout(main_area)
 	}
 
+	/// Returns the cursor style for the currently focused panel, if any.
 	pub fn cursor_style(&self) -> Option<termina::style::CursorStyle> {
 		let panel_id = self.focused_panel_id()?;
 		self.panels
@@ -75,6 +94,7 @@ impl UiManager {
 			.and_then(|p| p.cursor_style_when_focused())
 	}
 
+	/// Handles a key event at the global scope, returning true if consumed.
 	pub fn handle_global_key(&mut self, key: &KeyEvent) -> bool {
 		let scope = BindingScope::Global;
 		let binding = self.keymap.match_key(&scope, key);
@@ -85,6 +105,7 @@ impl UiManager {
 		false
 	}
 
+	/// Routes a key event to the focused panel, returning true if consumed.
 	pub fn handle_focused_key(
 		&mut self,
 		editor: &mut crate::editor::Editor,
@@ -103,6 +124,7 @@ impl UiManager {
 		res.consumed
 	}
 
+	/// Routes a paste event to the focused panel, returning true if consumed.
 	pub fn handle_paste(&mut self, editor: &mut crate::editor::Editor, content: String) -> bool {
 		let Some(panel_id) = self.focused_panel_id().map(|s| s.to_string()) else {
 			return false;
@@ -115,6 +137,7 @@ impl UiManager {
 		res.consumed
 	}
 
+	/// Routes a mouse event to the appropriate panel based on hit testing.
 	pub fn handle_mouse(
 		&mut self,
 		editor: &mut crate::editor::Editor,
@@ -155,6 +178,7 @@ impl UiManager {
 		false
 	}
 
+	/// Sends a tick event to all panels for periodic updates.
 	pub fn tick(&mut self, editor: &mut crate::editor::Editor) {
 		let ids: Vec<String> = self.panels.keys().cloned().collect();
 		let mut requests = Vec::new();
@@ -168,6 +192,7 @@ impl UiManager {
 		self.apply_requests(requests);
 	}
 
+	/// Notifies all panels of a terminal resize event.
 	pub fn notify_resize(&mut self, editor: &mut crate::editor::Editor, _width: u16, _height: u16) {
 		let ids: Vec<String> = self.panels.keys().cloned().collect();
 		let mut requests = Vec::new();
@@ -181,6 +206,7 @@ impl UiManager {
 		self.apply_requests(requests);
 	}
 
+	/// Sets whether a panel is open, updating dock state and focus as needed.
 	pub fn set_open(&mut self, id: &str, open: bool) {
 		let Some(panel) = self.panels.get_mut(id) else {
 			return;
@@ -198,6 +224,7 @@ impl UiManager {
 		self.wants_redraw = true;
 	}
 
+	/// Toggles a panel's open state, focusing it when opened.
 	pub fn toggle_panel(&mut self, id: &str) {
 		let open = self.dock.is_open(id);
 		self.set_open(id, !open);
@@ -206,6 +233,7 @@ impl UiManager {
 		}
 	}
 
+	/// Processes a batch of UI requests (focus changes, panel toggles, etc.).
 	pub fn apply_requests(&mut self, requests: Vec<UiRequest>) {
 		for req in requests {
 			match req {
@@ -235,6 +263,7 @@ impl UiManager {
 		}
 	}
 
+	/// Renders all open panels and returns the cursor position if any panel requests one.
 	pub fn render_panels(
 		&mut self,
 		editor: &mut crate::editor::Editor,

@@ -1,5 +1,5 @@
-pub use evildoer_base::Mode;
 use evildoer_base::key::ScrollDirection;
+pub use evildoer_base::Mode;
 use evildoer_core::ActionId;
 
 /// Result of processing a key.
@@ -7,9 +7,13 @@ use evildoer_core::ActionId;
 pub enum KeyResult {
 	/// An action to execute using typed ActionId (preferred).
 	ActionById {
+		/// The action identifier to execute.
 		id: ActionId,
+		/// Repeat count for the action.
 		count: usize,
+		/// Whether to extend selection instead of moving cursor.
 		extend: bool,
+		/// Register for yank/paste operations.
 		register: Option<char>,
 	},
 	/// Waiting for more keys to complete a sequence.
@@ -22,10 +26,15 @@ pub enum KeyResult {
 	},
 	/// An action with a character argument using typed ActionId.
 	ActionByIdWithChar {
+		/// The action identifier to execute.
 		id: ActionId,
+		/// Repeat count for the action.
 		count: usize,
+		/// Whether to extend selection instead of moving cursor.
 		extend: bool,
+		/// Register for yank/paste operations.
 		register: Option<char>,
+		/// Character argument for the action (e.g., find char target).
 		char_arg: char,
 	},
 	/// Mode changed (to show in status).
@@ -39,12 +48,26 @@ pub enum KeyResult {
 	/// Request to quit.
 	Quit,
 	/// Mouse click at screen coordinates.
-	MouseClick { row: u16, col: u16, extend: bool },
+	MouseClick {
+		/// Screen row (0-indexed).
+		row: u16,
+		/// Screen column (0-indexed).
+		col: u16,
+		/// Whether to extend selection instead of moving cursor.
+		extend: bool,
+	},
 	/// Mouse drag to screen coordinates (extend selection).
-	MouseDrag { row: u16, col: u16 },
+	MouseDrag {
+		/// Screen row (0-indexed).
+		row: u16,
+		/// Screen column (0-indexed).
+		col: u16,
+	},
 	/// Mouse scroll.
 	MouseScroll {
+		/// Scroll direction (up, down, left, right).
 		direction: ScrollDirection,
+		/// Number of scroll units.
 		count: usize,
 	},
 }
