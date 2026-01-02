@@ -13,8 +13,11 @@ use crate::buffer::{Buffer, BufferId, BufferView};
 
 /// Owns text buffers, tracks focus, and generates unique IDs.
 pub struct BufferManager {
+	/// Map of buffer IDs to their buffer instances.
 	buffers: HashMap<BufferId, Buffer>,
+	/// Counter for generating unique buffer IDs.
 	next_buffer_id: u64,
+	/// Currently focused view (text buffer or panel).
 	focused_view: BufferView,
 }
 

@@ -18,7 +18,9 @@ use crate::{Range, Rope, RopeSlice, Selection};
 /// Transactions can be inverted for undo/redo and composed for efficient batching.
 #[derive(Debug, Clone)]
 pub struct Transaction {
+	/// The underlying set of document changes.
 	changes: ChangeSet,
+	/// Optional selection update to apply after changes.
 	selection: Option<Selection>,
 }
 

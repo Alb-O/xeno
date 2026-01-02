@@ -42,6 +42,7 @@ impl From<tree_house::Error> for SyntaxError {
 /// Wrapper around tree-house Syntax for Evildoer integration.
 #[derive(Debug)]
 pub struct Syntax {
+	/// The underlying tree-house syntax tree.
 	inner: tree_house::Syntax,
 }
 

@@ -437,7 +437,9 @@ impl FromCrossterm<CrosstermColor> for Color {
 /// values. This is useful when updating the terminal display, as it allows for more
 /// efficient updates by only sending the necessary changes.
 struct ModifierDiff {
+	/// The starting modifier state.
 	pub from: Modifier,
+	/// The target modifier state.
 	pub to: Modifier,
 }
 

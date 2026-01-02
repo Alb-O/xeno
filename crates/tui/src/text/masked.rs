@@ -24,7 +24,9 @@ use crate::text::Text;
 /// ```
 #[derive(Default, Clone, Eq, PartialEq, Hash)]
 pub struct Masked<'a> {
+	/// The original string content.
 	inner: Cow<'a, str>,
+	/// Character used to mask each character of the string.
 	mask_char: char,
 }
 

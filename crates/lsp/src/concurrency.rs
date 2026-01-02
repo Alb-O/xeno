@@ -30,10 +30,13 @@ use crate::{
 ///
 /// See [module level documentations](self) for details.
 pub struct Concurrency<S> {
+	/// The wrapped inner service.
 	service: S,
+	/// Maximum number of concurrent requests allowed.
 	max_concurrency: NonZeroUsize,
 	/// A specialized single-acquire-multiple-release semaphore, using `Arc::weak_count` as tokens.
 	semaphore: Arc<AtomicWaker>,
+	/// Map of in-flight request IDs to their abort handles.
 	ongoing: HashMap<RequestId, AbortHandle>,
 }
 
@@ -171,6 +174,7 @@ where
 #[derive(Clone, Debug)]
 #[must_use]
 pub struct ConcurrencyBuilder {
+	/// Maximum number of concurrent requests allowed.
 	max_concurrency: NonZeroUsize,
 }
 

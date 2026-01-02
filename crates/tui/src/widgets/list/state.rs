@@ -42,7 +42,9 @@
 #[derive(Debug, Default, Clone, Copy, Eq, PartialEq, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct ListState {
+	/// Index of the first visible item (scroll offset).
 	pub(crate) offset: usize,
+	/// Index of the currently selected item, if any.
 	pub(crate) selected: Option<usize>,
 }
 

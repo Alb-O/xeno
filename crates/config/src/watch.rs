@@ -53,8 +53,11 @@ impl ConfigChange {
 /// Uses native OS file watching (inotify on Linux, FSEvents on macOS, etc.)
 /// for efficient change detection.
 pub struct ConfigWatcher {
+	/// Path to the watched configuration directory.
 	config_dir: PathBuf,
+	/// Channel receiver for file system events.
 	rx: Receiver<notify::Result<Event>>,
+	/// The underlying file watcher (kept alive for RAII).
 	_watcher: RecommendedWatcher,
 }
 

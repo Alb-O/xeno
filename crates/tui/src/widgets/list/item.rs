@@ -71,7 +71,9 @@ use crate::text::Text;
 /// [`Line::alignment`]: crate::text::Line::alignment
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub struct ListItem<'a> {
+	/// The text content of this list item.
 	pub(crate) content: Text<'a>,
+	/// Style applied to the entire item.
 	pub(crate) style: Style,
 }
 

@@ -9,8 +9,11 @@ use crate::{Rope, RopeSlice};
 /// enables efficient composition, inversion, and position mapping.
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct ChangeSet {
+	/// Sequence of retain/delete/insert operations.
 	pub(super) changes: Vec<Operation>,
+	/// Length of the source document before changes.
 	pub(super) len: usize,
+	/// Length of the document after applying changes.
 	pub(super) len_after: usize,
 }
 

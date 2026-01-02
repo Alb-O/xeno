@@ -7,8 +7,11 @@ use alloc::vec::Vec;
 ///
 /// Items can be leaf nodes (selectable, containing data) or groups (submenu containers).
 pub struct MenuItem<T> {
+	/// Display name for the menu item.
 	pub(crate) name: Cow<'static, str>,
+	/// Associated data for leaf items, None for groups.
 	pub(crate) data: Option<T>,
+	/// Child items for submenu groups.
 	pub(crate) children: Vec<MenuItem<T>>,
 }
 

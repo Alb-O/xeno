@@ -26,6 +26,7 @@ use evildoer_registry::{BoxFuture as HookBoxFuture, HookScheduler};
 /// ```
 #[derive(Default)]
 pub struct HookRuntime {
+	/// FIFO queue of pending async hook futures.
 	queue: VecDeque<HookBoxFuture>,
 }
 

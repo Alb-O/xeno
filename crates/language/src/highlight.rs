@@ -61,7 +61,9 @@ impl HighlightStyles {
 /// This wraps tree-house's highlighter to provide an ergonomic `Iterator` API
 /// that yields `HighlightSpan` items directly, avoiding allocation.
 pub struct Highlighter<'a> {
+	/// The underlying tree-house highlighter.
 	inner: tree_house::highlighter::Highlighter<'a, 'a, LanguageLoader>,
+	/// Byte offset where highlighting should stop.
 	end_byte: u32,
 	/// Current span start position.
 	current_start: u32,

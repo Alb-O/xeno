@@ -7,8 +7,11 @@ use syn::{parse_macro_input, Token};
 
 /// Parsed input for the `register_notification!` macro.
 pub(crate) struct NotificationInput {
+	/// Identifier for the generated static constant.
 	pub static_name: syn::Ident,
+	/// String literal for the notification ID.
 	pub id: syn::LitStr,
+	/// Field name-value pairs for the notification type.
 	pub fields: Vec<(syn::Ident, syn::Expr)>,
 }
 

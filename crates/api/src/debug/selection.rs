@@ -3,9 +3,13 @@
 /// Selection state for debug panel text.
 #[derive(Debug, Clone, Copy)]
 pub struct DebugSelection {
+	/// Row where the selection started.
 	pub anchor_row: u16,
+	/// Column where the selection started.
 	pub anchor_col: u16,
+	/// Current cursor row position.
 	pub cursor_row: u16,
+	/// Current cursor column position.
 	pub cursor_col: u16,
 }
 

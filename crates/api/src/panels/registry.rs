@@ -13,7 +13,9 @@ use evildoer_registry::panels::{PanelId, SplitBuffer, find_factory, find_panel, 
 /// Panels are stored as trait objects (`Box<dyn SplitBuffer>`) providing
 /// uniform access to all panel operations without type dispatch.
 pub struct PanelRegistry {
+	/// Map of panel IDs to their trait object instances.
 	instances: HashMap<PanelId, Box<dyn SplitBuffer>>,
+	/// Tracks the next instance number for each panel kind.
 	next_instance: HashMap<u16, u16>,
 }
 

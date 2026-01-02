@@ -18,7 +18,9 @@ use crate::{AnyEvent, AnyNotification, AnyRequest, ErrorCode, LspService, Respon
 ///
 /// See [module level documentations](self) for details.
 pub struct CatchUnwind<S: LspService> {
+	/// The wrapped inner service.
 	service: S,
+	/// Function to convert panic payloads into error responses.
 	handler: Handler<S::Error>,
 }
 
@@ -137,6 +139,7 @@ impl<S: LspService> LspService for CatchUnwind<S> {
 #[derive(Clone)]
 #[must_use]
 pub struct CatchUnwindBuilder<Error = ResponseError> {
+	/// Function to convert panic payloads into error responses.
 	handler: Handler<Error>,
 }
 

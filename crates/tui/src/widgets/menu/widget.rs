@@ -19,9 +19,13 @@ use crate::widgets::{StatefulWidget, Widget};
 /// Renders as a single-line bar. Highlighted items show their dropdowns below,
 /// overlaying other content.
 pub struct Menu<T> {
+	/// Style for non-highlighted menu items.
 	default_style: Style,
+	/// Style for the currently highlighted item.
 	highlight_style: Style,
+	/// Width of dropdown submenus in characters.
 	dropdown_width: u16,
+	/// Phantom data to hold the generic type.
 	_marker: PhantomData<T>,
 }
 

@@ -34,7 +34,9 @@ struct ClientProcessExited;
 ///
 /// See [module level documentations](self) for details.
 pub struct ClientProcessMonitor<S> {
+	/// The wrapped inner service.
 	service: S,
+	/// Socket for emitting events to the client.
 	client: ClientSocket,
 }
 
@@ -106,6 +108,7 @@ impl<S: LspService> LspService for ClientProcessMonitor<S> {
 /// The builder of [`ClientProcessMonitor`] middleware.
 #[must_use]
 pub struct ClientProcessMonitorBuilder {
+	/// Socket for emitting events to the client.
 	client: ClientSocket,
 }
 
