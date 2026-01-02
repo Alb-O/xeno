@@ -18,6 +18,7 @@ evildoer-input.workspace = true
 evildoer-language.workspace = true
 evildoer-lsp = { workspace = true, features = ["position"], optional = true }
 evildoer-manifest.workspace = true
+evildoer-registry.workspace = true
 evildoer-stdlib.workspace = true
 evildoer-tui.workspace = true
 futures.workspace = true

@@ -1,0 +1,10 @@
+[package]
+name = "evildoer-registry"
+description = "Registry-first organization for Evildoer editor extensions"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+linkme.workspace = true
+paste.workspace = true

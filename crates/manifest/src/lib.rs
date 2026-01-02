@@ -34,7 +34,6 @@ pub use evildoer_base::{Range, Selection};
 use linkme::distributed_slice;
 
 pub mod motions;
-pub mod menu;
 pub mod registry;
 pub mod syntax;
 pub mod text_objects;
@@ -212,7 +211,6 @@ pub use index::{
 	find_command, find_motion, find_text_object_by_trigger, resolve_action_id,
 };
 pub use keybindings::{BindingMode, KEYBINDINGS, KeyBindingDef};
-pub use menu::{MenuGroupDef, MenuItemDef, MENU_GROUPS, MENU_ITEMS};
 pub use keymap_registry::{BindingEntry, KeymapRegistry, LookupResult, get_keymap_registry};
 pub use mode::Mode;
 pub use motions::{MOTIONS, MotionDef};

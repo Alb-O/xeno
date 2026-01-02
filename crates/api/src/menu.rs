@@ -10,7 +10,7 @@ pub enum MenuAction {
 
 /// Creates the default application menu bar.
 pub fn create_menu() -> MenuState<MenuAction> {
-	use evildoer_manifest::menu::{MENU_GROUPS, MENU_ITEMS};
+	use evildoer_registry::menus::{MENU_GROUPS, MENU_ITEMS};
 
 	let mut groups: Vec<_> = MENU_GROUPS.iter().collect();
 	groups.sort_by_key(|group| group.priority);

@@ -703,6 +703,7 @@ dependencies = [
  "evildoer-language",
  "evildoer-lsp",
  "evildoer-manifest",
+ "evildoer-registry",
  "evildoer-stdlib",
  "evildoer-tui",
  "futures",
@@ -897,6 +898,14 @@ dependencies = [
  "strsim",
  "thiserror 2.0.17",
  "tracing",
+]
+
+[[package]]
+name = "evildoer-registry"
+version = "0.3.0"
+dependencies = [
+ "linkme",
+ "paste",
 ]
 
 [[package]]

@@ -1,6 +1,4 @@
-//! Menu registry type definitions.
-//!
-//! Menu groups and items are registered at compile-time using `linkme`.
+//! Menu type definitions and distributed slices.
 
 use linkme::distributed_slice;
 
