@@ -12,5 +12,15 @@
         "sgconfig.yml"
       ];
     }
+    {
+      name = "rust-boilerplate";
+      remote = "https://github.com/Alb-O/rust-boilerplate.git";
+      use = [
+        "rust-toolchain.toml"
+        "rustfmt.toml"
+        "clippy.toml"
+        # formatter.nix kept local - needs kdlfmt
+      ];
+    }
   ];
 }

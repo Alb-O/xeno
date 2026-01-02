@@ -1,4 +1,4 @@
-# Clippy configuration for evildoer workspace
+# Clippy configuration
 # See: https://rust-lang.github.io/rust-clippy/master/index.html
 
 # Complexity thresholds
