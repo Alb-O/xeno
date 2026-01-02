@@ -22,97 +22,141 @@ static RUNTIME_THEMES: OnceLock<Vec<&'static Theme>> = OnceLock::new();
 /// Whether a theme uses a light or dark background.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
 pub enum ThemeVariant {
+	/// Dark theme with light text on dark background.
 	#[default]
 	Dark,
+	/// Light theme with dark text on light background.
 	Light,
 }
 
 /// UI color definitions for the editor chrome.
 #[derive(Clone, Copy, Debug)]
 pub struct UiColors {
+	/// Main editor background color.
 	pub bg: Color,
+	/// Main editor foreground (text) color.
 	pub fg: Color,
+	/// Line number gutter foreground color.
 	pub gutter_fg: Color,
+	/// Cursor background color.
 	pub cursor_bg: Color,
+	/// Cursor foreground (text under cursor) color.
 	pub cursor_fg: Color,
+	/// Current line highlight background.
 	pub cursorline_bg: Color,
+	/// Selection background color.
 	pub selection_bg: Color,
+	/// Selection foreground color.
 	pub selection_fg: Color,
+	/// Status message foreground color.
 	pub message_fg: Color,
+	/// Command input line foreground color.
 	pub command_input_fg: Color,
 }
 
 /// Status line color definitions per mode.
 #[derive(Clone, Copy, Debug)]
 pub struct StatusColors {
+	/// Normal mode background color.
 	pub normal_bg: Color,
+	/// Normal mode foreground color.
 	pub normal_fg: Color,
+	/// Insert mode background color.
 	pub insert_bg: Color,
+	/// Insert mode foreground color.
 	pub insert_fg: Color,
 	/// Prefix mode colors (Window mode, multi-key sequences).
 	pub prefix_mode_bg: Color,
+	/// Prefix mode foreground color.
 	pub prefix_mode_fg: Color,
 	/// Accent colors for UI elements (completion icons, etc.).
 	pub accent_bg: Color,
+	/// Accent foreground color.
 	pub accent_fg: Color,
+	/// Command mode background color.
 	pub command_bg: Color,
+	/// Command mode foreground color.
 	pub command_fg: Color,
 
+	/// Dimmed/muted text color.
 	pub dim_fg: Color,
+	/// Warning message foreground color.
 	pub warning_fg: Color,
+	/// Error message foreground color.
 	pub error_fg: Color,
+	/// Success message foreground color.
 	pub success_fg: Color,
 }
 
 /// Popup/menu color definitions.
 #[derive(Clone, Copy, Debug)]
 pub struct PopupColors {
+	/// Popup background color.
 	pub bg: Color,
+	/// Popup foreground (text) color.
 	pub fg: Color,
+	/// Popup border color.
 	pub border: Color,
+	/// Popup title color.
 	pub title: Color,
 }
 
 /// Per-semantic-style color pair for notifications.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct SemanticColorPair {
+	/// Background color override (None = inherit from popup).
 	pub bg: Option<Color>,
+	/// Foreground color override (None = inherit from semantic default).
 	pub fg: Option<Color>,
 }
 
 impl SemanticColorPair {
+	/// No color overrides (fully inherit).
 	pub const NONE: Self = Self { bg: None, fg: None };
 }
 
 /// Notification-specific color overrides.
 #[derive(Clone, Copy, Debug)]
 pub struct NotificationColors {
+	/// Custom border color (None = use popup border).
 	pub border: Option<Color>,
+	/// Per-semantic color overrides (e.g., "error" -> custom colors).
 	pub overrides: &'static [(&'static str, SemanticColorPair)],
 }
 
 impl NotificationColors {
+	/// No overrides (inherit all colors from popup/semantic defaults).
 	pub const INHERITED: Self = Self {
 		border: None,
 		overrides: &[],
 	};
 }
 
-/// Common semantic color identifiers.
+/// Semantic identifier for informational messages.
 pub const SEMANTIC_INFO: &str = "info";
+/// Semantic identifier for warning messages.
 pub const SEMANTIC_WARNING: &str = "warning";
+/// Semantic identifier for error messages.
 pub const SEMANTIC_ERROR: &str = "error";
+/// Semantic identifier for success messages.
 pub const SEMANTIC_SUCCESS: &str = "success";
+/// Semantic identifier for dimmed/muted content.
 pub const SEMANTIC_DIM: &str = "dim";
+/// Semantic identifier for normal/default content.
 pub const SEMANTIC_NORMAL: &str = "normal";
 
 /// Complete theme color palette.
 #[derive(Clone, Copy, Debug)]
 pub struct ThemeColors {
+	/// Core editor UI colors.
 	pub ui: UiColors,
+	/// Status line colors per mode.
 	pub status: StatusColors,
+	/// Popup/menu colors.
 	pub popup: PopupColors,
+	/// Notification color overrides.
 	pub notification: NotificationColors,
+	/// Syntax highlighting styles.
 	pub syntax: SyntaxStyles,
 }
 
@@ -162,24 +206,38 @@ impl ThemeColors {
 /// A complete theme definition.
 #[derive(Clone, Copy, Debug)]
 pub struct Theme {
+	/// Unique identifier for the theme.
 	pub id: &'static str,
+	/// Human-readable display name.
 	pub name: &'static str,
+	/// Alternative names for theme lookup.
 	pub aliases: &'static [&'static str],
+	/// Whether this is a light or dark theme.
 	pub variant: ThemeVariant,
+	/// Complete color definitions.
 	pub colors: ThemeColors,
+	/// Sort priority (higher = listed first).
 	pub priority: i16,
+	/// Where this theme was registered from.
 	pub source: RegistrySource,
 }
 
 /// Owned theme data for runtime-loaded themes.
 #[derive(Clone, Debug)]
 pub struct OwnedTheme {
+	/// Unique identifier for the theme.
 	pub id: String,
+	/// Human-readable display name.
 	pub name: String,
+	/// Alternative names for theme lookup.
 	pub aliases: Vec<String>,
+	/// Whether this is a light or dark theme.
 	pub variant: ThemeVariant,
+	/// Complete color definitions.
 	pub colors: ThemeColors,
+	/// Sort priority (higher = listed first).
 	pub priority: i16,
+	/// Where this theme was registered from.
 	pub source: RegistrySource,
 }
 

@@ -17,18 +17,23 @@ pub use evildoer_base::{Color, Modifier, Style};
 /// A syntax style with optional foreground, background, and modifiers.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct SyntaxStyle {
+	/// Foreground (text) color.
 	pub fg: Option<Color>,
+	/// Background color.
 	pub bg: Option<Color>,
+	/// Text modifiers (bold, italic, underline, etc.).
 	pub modifiers: Modifier,
 }
 
 impl SyntaxStyle {
+	/// Empty style with no colors or modifiers.
 	pub const NONE: Self = Self {
 		fg: None,
 		bg: None,
 		modifiers: Modifier::empty(),
 	};
 
+	/// Creates a style with only a foreground color.
 	pub const fn fg(color: Color) -> Self {
 		Self {
 			fg: Some(color),
@@ -37,6 +42,7 @@ impl SyntaxStyle {
 		}
 	}
 
+	/// Creates a style with foreground color and modifiers.
 	pub const fn fg_mod(color: Color, modifiers: Modifier) -> Self {
 		Self {
 			fg: Some(color),
@@ -45,6 +51,7 @@ impl SyntaxStyle {
 		}
 	}
 
+	/// Returns a new style with the given background color added.
 	pub const fn with_bg(mut self, color: Color) -> Self {
 		self.bg = Some(color);
 		self
@@ -70,92 +77,166 @@ impl SyntaxStyle {
 /// maps to `@keyword.control` in queries).
 #[derive(Clone, Copy, Debug)]
 pub struct SyntaxStyles {
+	/// Style for attributes (e.g., `#[derive(...)]` in Rust).
 	pub attribute: SyntaxStyle,
+	/// Style for HTML/XML tags.
 	pub tag: SyntaxStyle,
+	/// Style for namespace identifiers.
 	pub namespace: SyntaxStyle,
 
+	/// Base style for all comments.
 	pub comment: SyntaxStyle,
+	/// Style for line comments (`//`).
 	pub comment_line: SyntaxStyle,
+	/// Style for block comments (`/* */`).
 	pub comment_block: SyntaxStyle,
+	/// Style for documentation comments (`///`, `/** */`).
 	pub comment_block_documentation: SyntaxStyle,
 
+	/// Base style for constants.
 	pub constant: SyntaxStyle,
+	/// Style for built-in constants (e.g., `None`, `null`).
 	pub constant_builtin: SyntaxStyle,
+	/// Style for boolean literals (`true`, `false`).
 	pub constant_builtin_boolean: SyntaxStyle,
+	/// Style for character literals.
 	pub constant_character: SyntaxStyle,
+	/// Style for escape sequences in strings/chars.
 	pub constant_character_escape: SyntaxStyle,
+	/// Base style for numeric literals.
 	pub constant_numeric: SyntaxStyle,
+	/// Style for integer literals.
 	pub constant_numeric_integer: SyntaxStyle,
+	/// Style for floating-point literals.
 	pub constant_numeric_float: SyntaxStyle,
 
+	/// Style for constructors (e.g., `Some(...)`, `new`).
 	pub constructor: SyntaxStyle,
 
+	/// Base style for function names.
 	pub function: SyntaxStyle,
+	/// Style for built-in functions.
 	pub function_builtin: SyntaxStyle,
+	/// Style for method calls.
 	pub function_method: SyntaxStyle,
+	/// Style for macro invocations.
 	pub function_macro: SyntaxStyle,
+	/// Style for special functions (e.g., `main`).
 	pub function_special: SyntaxStyle,
 
+	/// Base style for keywords.
 	pub keyword: SyntaxStyle,
+	/// Style for control flow keywords.
 	pub keyword_control: SyntaxStyle,
+	/// Style for conditional keywords (`if`, `else`, `match`).
 	pub keyword_control_conditional: SyntaxStyle,
+	/// Style for loop keywords (`for`, `while`, `loop`).
 	pub keyword_control_repeat: SyntaxStyle,
+	/// Style for import keywords (`use`, `import`, `require`).
 	pub keyword_control_import: SyntaxStyle,
+	/// Style for return keywords (`return`, `yield`).
 	pub keyword_control_return: SyntaxStyle,
+	/// Style for exception keywords (`try`, `catch`, `throw`).
 	pub keyword_control_exception: SyntaxStyle,
+	/// Style for operator keywords (`and`, `or`, `not`).
 	pub keyword_operator: SyntaxStyle,
+	/// Style for preprocessor directives.
 	pub keyword_directive: SyntaxStyle,
+	/// Style for function definition keywords (`fn`, `def`, `func`).
 	pub keyword_function: SyntaxStyle,
+	/// Style for storage keywords.
 	pub keyword_storage: SyntaxStyle,
+	/// Style for type keywords (`struct`, `enum`, `class`).
 	pub keyword_storage_type: SyntaxStyle,
+	/// Style for modifier keywords (`pub`, `mut`, `const`).
 	pub keyword_storage_modifier: SyntaxStyle,
 
+	/// Style for labels (e.g., `'lifetime`, `label:`).
 	pub label: SyntaxStyle,
 
+	/// Style for operators (`+`, `-`, `*`, `/`).
 	pub operator: SyntaxStyle,
+	/// Base style for punctuation.
 	pub punctuation: SyntaxStyle,
+	/// Style for brackets (`()`, `[]`, `{}`).
 	pub punctuation_bracket: SyntaxStyle,
+	/// Style for delimiters (`,`, `;`, `:`).
 	pub punctuation_delimiter: SyntaxStyle,
+	/// Style for special punctuation.
 	pub punctuation_special: SyntaxStyle,
 
+	/// Base style for string literals.
 	pub string: SyntaxStyle,
+	/// Style for regular expressions.
 	pub string_regexp: SyntaxStyle,
+	/// Style for special strings.
 	pub string_special: SyntaxStyle,
+	/// Style for file paths in strings.
 	pub string_special_path: SyntaxStyle,
+	/// Style for URLs in strings.
 	pub string_special_url: SyntaxStyle,
+	/// Style for symbols (e.g., Ruby `:symbol`).
 	pub string_special_symbol: SyntaxStyle,
 
+	/// Base style for type names.
 	pub r#type: SyntaxStyle,
+	/// Style for built-in types (`i32`, `String`, `bool`).
 	pub type_builtin: SyntaxStyle,
+	/// Style for type parameters (generics).
 	pub type_parameter: SyntaxStyle,
+	/// Style for enum variants.
 	pub type_enum_variant: SyntaxStyle,
 
+	/// Base style for variables.
 	pub variable: SyntaxStyle,
+	/// Style for built-in variables (`self`, `this`).
 	pub variable_builtin: SyntaxStyle,
+	/// Style for function parameters.
 	pub variable_parameter: SyntaxStyle,
+	/// Style for other variables.
 	pub variable_other: SyntaxStyle,
+	/// Style for struct/class members.
 	pub variable_other_member: SyntaxStyle,
 
+	/// Base style for markup headings.
 	pub markup_heading: SyntaxStyle,
+	/// Style for level-1 headings (`# H1`).
 	pub markup_heading_1: SyntaxStyle,
+	/// Style for level-2 headings (`## H2`).
 	pub markup_heading_2: SyntaxStyle,
+	/// Style for level-3 headings (`### H3`).
 	pub markup_heading_3: SyntaxStyle,
+	/// Style for bold text (`**bold**`).
 	pub markup_bold: SyntaxStyle,
+	/// Style for italic text (`*italic*`).
 	pub markup_italic: SyntaxStyle,
+	/// Style for strikethrough text (`~~strike~~`).
 	pub markup_strikethrough: SyntaxStyle,
+	/// Base style for links.
 	pub markup_link: SyntaxStyle,
+	/// Style for link URLs.
 	pub markup_link_url: SyntaxStyle,
+	/// Style for link text.
 	pub markup_link_text: SyntaxStyle,
+	/// Style for blockquotes.
 	pub markup_quote: SyntaxStyle,
+	/// Base style for raw/code content.
 	pub markup_raw: SyntaxStyle,
+	/// Style for inline code (`` `code` ``).
 	pub markup_raw_inline: SyntaxStyle,
+	/// Style for code blocks.
 	pub markup_raw_block: SyntaxStyle,
+	/// Style for list markers.
 	pub markup_list: SyntaxStyle,
 
+	/// Style for diff additions (`+`).
 	pub diff_plus: SyntaxStyle,
+	/// Style for diff deletions (`-`).
 	pub diff_minus: SyntaxStyle,
+	/// Style for diff modifications.
 	pub diff_delta: SyntaxStyle,
 
+	/// Style for special/miscellaneous tokens.
 	pub special: SyntaxStyle,
 }
 

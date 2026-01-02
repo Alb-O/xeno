@@ -71,6 +71,7 @@ use serde_json::Value as JsonValue;
 use thiserror::Error;
 use tower_service::Service;
 
+/// Macro to define getter methods for accessing inner service fields.
 macro_rules! define_getters {
     (impl[$($generic:tt)*] $ty:ty, $field:ident : $field_ty:ty) => {
         impl<$($generic)*> $ty {
@@ -100,6 +101,7 @@ pub mod panic;
 pub mod router;
 pub mod server;
 
+/// Service forwarding implementations (requires `forward` feature).
 #[cfg(feature = "forward")]
 #[cfg_attr(docsrs, doc(cfg(feature = "forward")))]
 mod forward;
@@ -114,6 +116,7 @@ pub mod stdio;
 
 pub mod tracing;
 
+/// Mega-traits for Language Server and Client implementations.
 #[cfg(feature = "omni-trait")]
 mod omni_trait;
 #[cfg(feature = "omni-trait")]
@@ -325,14 +328,18 @@ impl ErrorCode {
 /// for valid communication.
 pub type RequestId = NumberOrString;
 
+/// A JSON-RPC message with version header.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 struct RawMessage<T> {
+	/// JSON-RPC version (always "2.0").
 	jsonrpc: RpcVersion,
+	/// The wrapped message content.
 	#[serde(flatten)]
 	inner: T,
 }
 
 impl<T> RawMessage<T> {
+	/// Creates a new message with JSON-RPC 2.0 version.
 	fn new(inner: T) -> Self {
 		Self {
 			jsonrpc: RpcVersion::V2,
@@ -341,17 +348,23 @@ impl<T> RawMessage<T> {
 	}
 }
 
+/// JSON-RPC protocol version.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 enum RpcVersion {
+	/// JSON-RPC version 2.0.
 	#[serde(rename = "2.0")]
 	V2,
 }
 
+/// A JSON-RPC message (request, response, or notification).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 enum Message {
+	/// An incoming or outgoing request.
 	Request(AnyRequest),
+	/// A response to a request.
 	Response(AnyResponse),
+	/// A notification (no response expected).
 	Notification(AnyNotification),
 }
 
@@ -385,9 +398,12 @@ pub struct AnyNotification {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[non_exhaustive]
 struct AnyResponse {
+	/// The request id this response corresponds to.
 	id: RequestId,
+	/// The result value on success (mutually exclusive with `error`).
 	#[serde(skip_serializing_if = "Option::is_none")]
 	result: Option<JsonValue>,
+	/// The error object on failure (mutually exclusive with `result`).
 	#[serde(skip_serializing_if = "Option::is_none")]
 	error: Option<ResponseError>,
 }
@@ -432,8 +448,10 @@ impl ResponseError {
 }
 
 impl Message {
+	/// HTTP header name for content length.
 	const CONTENT_LENGTH: &'static str = "Content-Length";
 
+	/// Reads a complete JSON-RPC message from the input stream.
 	async fn read(mut reader: impl AsyncBufRead + Unpin) -> Result<Self> {
 		let mut line = String::new();
 		let mut content_len = None;
@@ -468,6 +486,7 @@ impl Message {
 		Ok(msg.inner)
 	}
 
+	/// Writes this message to the output stream with HTTP headers.
 	async fn write(&self, mut writer: impl AsyncWrite + Unpin) -> Result<()> {
 		let buf = serde_json::to_string(&RawMessage::new(self))?;
 		::tracing::trace!(msg = %buf, "outgoing");
@@ -482,16 +501,25 @@ impl Message {
 
 /// Service main loop driver for either Language Servers or Language Clients.
 pub struct MainLoop<S: LspService> {
+	/// The wrapped LSP service.
 	service: S,
+	/// Receiver for internal events from sockets.
 	rx: mpsc::UnboundedReceiver<MainLoopEvent>,
+	/// Counter for generating outgoing request IDs.
 	outgoing_id: i32,
+	/// Pending outgoing requests awaiting responses.
 	outgoing: HashMap<RequestId, oneshot::Sender<AnyResponse>>,
+	/// Concurrent request handlers in flight.
 	tasks: FuturesUnordered<RequestFuture<S::Future>>,
 }
 
+/// Internal event types for the main loop.
 enum MainLoopEvent {
+	/// A message to send to the peer.
 	Outgoing(Message),
+	/// An outgoing request with response channel.
 	OutgoingRequest(AnyRequest, oneshot::Sender<AnyResponse>),
+	/// A user-defined loopback event.
 	Any(AnyEvent),
 }
 
@@ -516,6 +544,7 @@ where
 		(this, ServerSocket(socket))
 	}
 
+	/// Internal constructor for creating a main loop with a peer socket.
 	fn new(builder: impl FnOnce(PeerSocket) -> S) -> (Self, PeerSocket) {
 		let (tx, rx) = mpsc::unbounded();
 		let socket = PeerSocket { tx };
@@ -597,6 +626,7 @@ where
 		ret.and(flush_ret)
 	}
 
+	/// Routes an incoming message to the appropriate handler.
 	async fn dispatch_message(&mut self, msg: Message) -> ControlFlow<Result<()>, Option<Message>> {
 		match msg {
 			Message::Request(req) => {
@@ -625,6 +655,7 @@ where
 		ControlFlow::Continue(None)
 	}
 
+	/// Routes an internal event (outgoing message or user event).
 	fn dispatch_event(&mut self, event: MainLoopEvent) -> ControlFlow<Result<()>, Option<Message>> {
 		match event {
 			MainLoopEvent::OutgoingRequest(mut req, resp_tx) => {
@@ -672,6 +703,7 @@ where
 	}
 }
 
+/// Macro to implement common socket wrapper methods for Client/Server sockets.
 macro_rules! impl_socket_wrapper {
 	($name:ident) => {
 		impl $name {
@@ -733,21 +765,26 @@ impl_socket_wrapper!(ClientSocket);
 pub struct ServerSocket(PeerSocket);
 impl_socket_wrapper!(ServerSocket);
 
+/// Internal socket for communicating with the peer.
 #[derive(Debug, Clone)]
 struct PeerSocket {
+	/// Channel sender for outgoing messages.
 	tx: mpsc::UnboundedSender<MainLoopEvent>,
 }
 
 impl PeerSocket {
+	/// Creates a closed socket that always returns errors.
 	fn new_closed() -> Self {
 		let (tx, _rx) = mpsc::unbounded();
 		Self { tx }
 	}
 
+	/// Sends an event to the main loop.
 	fn send(&self, v: MainLoopEvent) -> Result<()> {
 		self.tx.unbounded_send(v).map_err(|_| Error::ServiceStopped)
 	}
 
+	/// Sends a typed request and returns a future for the response.
 	fn request<R: Request>(&self, params: R::Params) -> PeerSocketRequestFuture<R::Result> {
 		let req = AnyRequest {
 			id: RequestId::Number(0),
@@ -764,6 +801,7 @@ impl PeerSocket {
 		}
 	}
 
+	/// Sends a typed notification to the peer.
 	fn notify<N: Notification>(&self, params: N::Params) -> Result<()> {
 		let notif = AnyNotification {
 			method: N::METHOD.into(),
@@ -772,13 +810,17 @@ impl PeerSocket {
 		self.send(MainLoopEvent::Outgoing(Message::Notification(notif)))
 	}
 
+	/// Emits a user-defined event to the service handler.
 	pub fn emit<E: Send + 'static>(&self, event: E) -> Result<()> {
 		self.send(MainLoopEvent::Any(AnyEvent::new(event)))
 	}
 }
 
+/// Future for awaiting a response to a peer request.
 struct PeerSocketRequestFuture<T> {
+	/// Channel receiver for the response.
 	rx: oneshot::Receiver<AnyResponse>,
+	/// Marker for the expected result type.
 	_marker: PhantomData<fn() -> T>,
 }
 
@@ -805,7 +847,9 @@ impl<T: DeserializeOwned> Future for PeerSocketRequestFuture<T> {
 ///
 /// See [`LspService::emit`] for usages of this type.
 pub struct AnyEvent {
+	/// The boxed event value.
 	inner: Box<dyn Any + Send>,
+	/// The original type name for debugging.
 	type_name: &'static str,
 }
 
@@ -818,6 +862,7 @@ impl fmt::Debug for AnyEvent {
 }
 
 impl AnyEvent {
+	/// Creates a new event wrapping the given value.
 	#[must_use]
 	fn new<T: Send + 'static>(v: T) -> Self {
 		AnyEvent {
@@ -826,6 +871,7 @@ impl AnyEvent {
 		}
 	}
 
+	/// Returns the `TypeId` of the inner value.
 	#[must_use]
 	fn inner_type_id(&self) -> TypeId {
 		// Call `type_id` on the inner `dyn Any`, not `Box<_> as Any` or `&Box<_> as Any`.

@@ -46,21 +46,37 @@ impl SplitKey {
 /// Key codes for split buffer input.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SplitKeyCode {
+	/// A character key with its Unicode value.
 	Char(char),
+	/// Enter/Return key.
 	Enter,
+	/// Escape key.
 	Escape,
+	/// Backspace key.
 	Backspace,
+	/// Tab key.
 	Tab,
+	/// Up arrow key.
 	Up,
+	/// Down arrow key.
 	Down,
+	/// Left arrow key.
 	Left,
+	/// Right arrow key.
 	Right,
+	/// Home key.
 	Home,
+	/// End key.
 	End,
+	/// Page Up key.
 	PageUp,
+	/// Page Down key.
 	PageDown,
+	/// Delete key.
 	Delete,
+	/// Insert key.
 	Insert,
+	/// Function key with its number (F1-F12).
 	F(u8),
 }
 
@@ -69,15 +85,21 @@ pub enum SplitKeyCode {
 pub struct SplitModifiers(u8);
 
 impl SplitModifiers {
+	/// No modifier keys held.
 	pub const NONE: Self = Self(0);
+	/// Control key held.
 	pub const CTRL: Self = Self(1);
+	/// Alt/Option key held.
 	pub const ALT: Self = Self(2);
+	/// Shift key held.
 	pub const SHIFT: Self = Self(4);
 
+	/// Returns whether all bits in `other` are set in `self`.
 	pub const fn contains(self, other: Self) -> bool {
 		(self.0 & other.0) == other.0
 	}
 
+	/// Returns the bitwise OR of two modifier sets.
 	pub const fn union(self, other: Self) -> Self {
 		Self(self.0 | other.0)
 	}
@@ -86,7 +108,9 @@ impl SplitModifiers {
 /// Position in terminal cells (x, y coordinate).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub struct SplitPosition {
+	/// Column position (0-indexed).
 	pub x: u16,
+	/// Row position (0-indexed).
 	pub y: u16,
 }
 
@@ -109,18 +133,26 @@ pub struct SplitMouse {
 /// Mouse action types.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SplitMouseAction {
+	/// Mouse button pressed.
 	Press(SplitMouseButton),
+	/// Mouse button released.
 	Release(SplitMouseButton),
+	/// Mouse dragged while button held.
 	Drag(SplitMouseButton),
+	/// Scroll wheel moved up.
 	ScrollUp,
+	/// Scroll wheel moved down.
 	ScrollDown,
 }
 
 /// Mouse buttons.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SplitMouseButton {
+	/// Primary (left) mouse button.
 	Left,
+	/// Secondary (right) mouse button.
 	Right,
+	/// Middle mouse button (scroll wheel click).
 	Middle,
 }
 
@@ -176,14 +208,22 @@ impl SplitEventResult {
 /// Cursor style hint for the hosting UI.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum SplitCursorStyle {
+	/// Cursor is not visible.
 	#[default]
 	Hidden,
+	/// Default terminal cursor style.
 	Default,
+	/// Solid block cursor.
 	Block,
+	/// Blinking block cursor.
 	BlinkingBlock,
+	/// Vertical bar cursor (I-beam).
 	Bar,
+	/// Blinking vertical bar cursor.
 	BlinkingBar,
+	/// Underline cursor.
 	Underline,
+	/// Blinking underline cursor.
 	BlinkingUnderline,
 }
 
@@ -201,15 +241,19 @@ pub struct SplitCursor {
 /// Size in terminal cells.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct SplitSize {
+	/// Width in columns.
 	pub width: u16,
+	/// Height in rows.
 	pub height: u16,
 }
 
 impl SplitSize {
+	/// Creates a new size with the given dimensions.
 	pub const fn new(width: u16, height: u16) -> Self {
 		Self { width, height }
 	}
 
+	/// Returns whether the size has zero area.
 	pub const fn is_empty(&self) -> bool {
 		self.width == 0 || self.height == 0
 	}
@@ -307,6 +351,7 @@ pub struct SplitCell {
 }
 
 impl SplitCell {
+	/// Creates a new cell with the given symbol and default styling.
 	pub fn new(symbol: impl Into<String>) -> Self {
 		Self {
 			symbol: symbol.into(),
@@ -314,16 +359,19 @@ impl SplitCell {
 		}
 	}
 
+	/// Builder: sets the foreground color.
 	pub fn with_fg(mut self, color: SplitColor) -> Self {
 		self.fg = Some(color);
 		self
 	}
 
+	/// Builder: sets the background color.
 	pub fn with_bg(mut self, color: SplitColor) -> Self {
 		self.bg = Some(color);
 		self
 	}
 
+	/// Builder: sets the text attributes.
 	pub fn with_attrs(mut self, attrs: SplitAttrs) -> Self {
 		self.attrs = attrs;
 		self
@@ -344,16 +392,23 @@ pub enum SplitColor {
 pub struct SplitAttrs(u8);
 
 impl SplitAttrs {
+	/// No text attributes.
 	pub const NONE: Self = Self(0);
+	/// Bold text.
 	pub const BOLD: Self = Self(1);
+	/// Italic text.
 	pub const ITALIC: Self = Self(2);
+	/// Underlined text.
 	pub const UNDERLINE: Self = Self(4);
+	/// Inverse/reverse video (swap foreground and background).
 	pub const INVERSE: Self = Self(8);
 
+	/// Returns whether all bits in `other` are set in `self`.
 	pub const fn contains(self, other: Self) -> bool {
 		(self.0 & other.0) == other.0
 	}
 
+	/// Returns the bitwise OR of two attribute sets.
 	pub const fn union(self, other: Self) -> Self {
 		Self(self.0 | other.0)
 	}
@@ -362,9 +417,13 @@ impl SplitAttrs {
 /// Where the split buffer prefers to be docked.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum SplitDockPreference {
+	/// Dock at the bottom of the editor.
 	#[default]
 	Bottom,
+	/// Dock at the top of the editor.
 	Top,
+	/// Dock on the left side of the editor.
 	Left,
+	/// Dock on the right side of the editor.
 	Right,
 }

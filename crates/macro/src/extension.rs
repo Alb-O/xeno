@@ -2,13 +2,16 @@ use proc_macro::TokenStream;
 use quote::{format_ident, quote};
 use syn::parse::{Parse, ParseStream};
 use syn::{
-	Attribute, ImplItem, ImplItemFn, ItemImpl, LitInt, LitStr, Token, Type, parse_macro_input,
+	parse_macro_input, Attribute, ImplItem, ImplItemFn, ItemImpl, LitInt, LitStr, Token, Type,
 };
 
 use crate::dispatch;
 
+/// Parsed arguments from `#[extension(id = "...", priority = N)]`.
 struct ExtensionArgs {
+	/// Unique identifier for the extension.
 	id: LitStr,
+	/// Sort/initialization priority.
 	priority: i16,
 }
 
@@ -50,7 +53,9 @@ impl Parse for ExtensionArgs {
 	}
 }
 
+/// Parsed arguments from `#[render(priority = N)]`.
 struct RenderArgs {
+	/// Render callback priority (higher runs first).
 	priority: i16,
 }
 
@@ -82,9 +87,13 @@ impl Parse for RenderArgs {
 	}
 }
 
+/// Parsed arguments from `#[command("name", aliases = [...], description = "...")]`.
 struct CommandArgs {
+	/// Primary command name.
 	name: LitStr,
+	/// Alternative names for the command.
 	aliases: Vec<LitStr>,
+	/// Human-readable description.
 	description: Option<LitStr>,
 }
 
@@ -144,9 +153,13 @@ impl Parse for CommandArgs {
 	}
 }
 
+/// Parsed arguments from `#[hook(event = EventName, priority = N)]`.
 struct HookArgs {
+	/// The hook event type to subscribe to.
 	event: syn::Ident,
+	/// Handler priority (higher runs first).
 	priority: i16,
+	/// Human-readable description.
 	description: Option<LitStr>,
 }
 
@@ -195,29 +208,45 @@ impl Parse for HookArgs {
 	}
 }
 
+/// Parsed `#[init]` method information.
 struct InitMethod {
+	/// Method name.
 	ident: syn::Ident,
+	/// Whether method takes `&mut ExtensionMap` parameter.
 	takes_map: bool,
+	/// Whether method returns `Self` (to insert into map).
 	returns_state: bool,
 }
 
+/// Parsed `#[render]` method information.
 struct RenderMethod {
+	/// Method name.
 	ident: syn::Ident,
+	/// Render priority.
 	priority: i16,
 }
 
+/// Parsed `#[command]` method information.
 struct CommandMethod {
+	/// Method name.
 	ident: syn::Ident,
+	/// Command configuration.
 	args: CommandArgs,
+	/// Whether the method is async.
 	is_async: bool,
+	/// Whether method returns `CommandResult`.
 	returns_command_result: bool,
 }
 
+/// Parsed `#[hook]` method information.
 struct HookMethod {
+	/// Method name.
 	ident: syn::Ident,
+	/// Hook configuration.
 	args: HookArgs,
 }
 
+/// Extracts and removes an attribute by name from a list.
 fn extract_attr(attrs: &mut Vec<Attribute>, name: &str) -> Option<Attribute> {
 	let mut found = None;
 	attrs.retain(|attr| {
@@ -231,6 +260,7 @@ fn extract_attr(attrs: &mut Vec<Attribute>, name: &str) -> Option<Attribute> {
 	found
 }
 
+/// Checks if a method takes `&mut ExtensionMap` as its only parameter.
 fn takes_extension_map(method: &ImplItemFn) -> syn::Result<bool> {
 	if method.sig.inputs.is_empty() {
 		return Ok(false);
@@ -277,6 +307,7 @@ fn takes_extension_map(method: &ImplItemFn) -> syn::Result<bool> {
 	Ok(true)
 }
 
+/// Checks if a method returns `Self` or the state type.
 fn returns_state(method: &ImplItemFn, state_ident: &syn::Ident) -> bool {
 	let syn::ReturnType::Type(_, ty) = &method.sig.output else {
 		return false;
@@ -290,6 +321,7 @@ fn returns_state(method: &ImplItemFn, state_ident: &syn::Ident) -> bool {
 	last.ident == "Self" || last.ident == *state_ident
 }
 
+/// Checks if a method returns `CommandResult`.
 fn returns_command_result(method: &ImplItemFn) -> bool {
 	let syn::ReturnType::Type(_, ty) = &method.sig.output else {
 		return false;
@@ -303,6 +335,7 @@ fn returns_command_result(method: &ImplItemFn) -> bool {
 	last.ident == "CommandResult"
 }
 
+/// Implements the `#[extension]` proc macro for extension registration.
 pub fn extension(attr: TokenStream, item: TokenStream) -> TokenStream {
 	let extension_args = parse_macro_input!(attr as ExtensionArgs);
 	let mut impl_block = parse_macro_input!(item as ItemImpl);
