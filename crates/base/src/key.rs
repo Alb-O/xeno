@@ -13,44 +13,54 @@ pub use evildoer_keymap_parser::Key as KeyCode;
 /// Key modifiers (Ctrl, Alt, Shift).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub struct Modifiers {
+	/// Whether Ctrl is held.
 	pub ctrl: bool,
+	/// Whether Alt is held.
 	pub alt: bool,
+	/// Whether Shift is held.
 	pub shift: bool,
 }
 
 impl Modifiers {
+	/// No modifiers pressed.
 	pub const NONE: Self = Self {
 		ctrl: false,
 		alt: false,
 		shift: false,
 	};
 
+	/// Only Ctrl pressed.
 	pub const CTRL: Self = Self {
 		ctrl: true,
 		alt: false,
 		shift: false,
 	};
 
+	/// Only Alt pressed.
 	pub const ALT: Self = Self {
 		ctrl: false,
 		alt: true,
 		shift: false,
 	};
 
+	/// Only Shift pressed.
 	pub const SHIFT: Self = Self {
 		ctrl: false,
 		alt: false,
 		shift: true,
 	};
 
+	/// Returns a copy with Ctrl added.
 	pub fn ctrl(self) -> Self {
 		Self { ctrl: true, ..self }
 	}
 
+	/// Returns a copy with Alt added.
 	pub fn alt(self) -> Self {
 		Self { alt: true, ..self }
 	}
 
+	/// Returns a copy with Shift added.
 	pub fn shift(self) -> Self {
 		Self {
 			shift: true,
@@ -58,6 +68,7 @@ impl Modifiers {
 		}
 	}
 
+	/// Returns true if no modifiers are set.
 	pub fn is_empty(self) -> bool {
 		!self.ctrl && !self.alt && !self.shift
 	}
@@ -66,7 +77,9 @@ impl Modifiers {
 /// A key with optional modifiers.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Key {
+	/// The key code (character, special key, or function key).
 	pub code: KeyCode,
+	/// Active modifiers for this key event.
 	pub modifiers: Modifiers,
 }
 
@@ -222,38 +235,62 @@ impl Key {
 /// Mouse button types.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum MouseButton {
+	/// Left mouse button.
 	Left,
+	/// Right mouse button.
 	Right,
+	/// Middle mouse button (scroll wheel click).
 	Middle,
 }
 
 /// Mouse event types.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MouseEvent {
+	/// Mouse button pressed.
 	Press {
+		/// Which button was pressed.
 		button: MouseButton,
+		/// Row position (0-indexed).
 		row: u16,
+		/// Column position (0-indexed).
 		col: u16,
+		/// Active modifiers during press.
 		modifiers: Modifiers,
 	},
+	/// Mouse button released.
 	Release {
+		/// Row position (0-indexed).
 		row: u16,
+		/// Column position (0-indexed).
 		col: u16,
 	},
+	/// Mouse dragged while button held.
 	Drag {
+		/// Which button is held.
 		button: MouseButton,
+		/// Row position (0-indexed).
 		row: u16,
+		/// Column position (0-indexed).
 		col: u16,
+		/// Active modifiers during drag.
 		modifiers: Modifiers,
 	},
+	/// Mouse scroll wheel event.
 	Scroll {
+		/// Scroll direction.
 		direction: ScrollDirection,
+		/// Row position (0-indexed).
 		row: u16,
+		/// Column position (0-indexed).
 		col: u16,
+		/// Active modifiers during scroll.
 		modifiers: Modifiers,
 	},
+	/// Mouse moved (no buttons pressed).
 	Move {
+		/// Row position (0-indexed).
 		row: u16,
+		/// Column position (0-indexed).
 		col: u16,
 	},
 }
@@ -261,13 +298,18 @@ pub enum MouseEvent {
 /// Scroll direction.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ScrollDirection {
+	/// Scroll up (content moves down).
 	Up,
+	/// Scroll down (content moves up).
 	Down,
+	/// Scroll left.
 	Left,
+	/// Scroll right.
 	Right,
 }
 
 impl MouseEvent {
+	/// Returns the row position of this mouse event.
 	pub fn row(&self) -> u16 {
 		match self {
 			MouseEvent::Press { row, .. }
@@ -278,6 +320,7 @@ impl MouseEvent {
 		}
 	}
 
+	/// Returns the column position of this mouse event.
 	pub fn col(&self) -> u16 {
 		match self {
 			MouseEvent::Press { col, .. }
@@ -288,6 +331,7 @@ impl MouseEvent {
 		}
 	}
 
+	/// Returns the modifiers active during this mouse event.
 	pub fn modifiers(&self) -> Modifiers {
 		match self {
 			MouseEvent::Press { modifiers, .. }

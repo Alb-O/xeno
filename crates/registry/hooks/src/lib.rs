@@ -33,6 +33,7 @@ use std::pin::Pin;
 use linkme::distributed_slice;
 use tracing::warn;
 
+/// Hook implementations for core events.
 mod impls;
 mod macros;
 
@@ -247,14 +248,18 @@ impl From<()> for HookAction {
 /// Whether a hook can mutate editor state.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum HookMutability {
+	/// Hook only reads state.
 	Immutable,
+	/// Hook may modify state.
 	Mutable,
 }
 
 /// Handler function for a hook.
 #[derive(Clone, Copy)]
 pub enum HookHandler {
+	/// Handler that receives immutable context.
 	Immutable(fn(&HookContext) -> HookAction),
+	/// Handler that receives mutable context.
 	Mutable(fn(&mut MutableHookContext) -> HookAction),
 }
 

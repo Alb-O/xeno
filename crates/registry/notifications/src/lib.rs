@@ -9,7 +9,7 @@ use thiserror::Error;
 
 mod impls;
 
-pub use evildoer_registry_motions::{RegistryMetadata, RegistrySource, impl_registry_metadata};
+pub use evildoer_registry_motions::{impl_registry_metadata, RegistryMetadata, RegistrySource};
 
 /// Severity level of a notification.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
@@ -30,13 +30,21 @@ pub enum Level {
 /// Screen position from which notifications expand.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub enum Anchor {
+	/// Top-left corner of the screen.
 	TopLeft,
+	/// Top-center of the screen.
 	TopCenter,
+	/// Top-right corner of the screen.
 	TopRight,
+	/// Middle-left edge of the screen.
 	MiddleLeft,
+	/// Center of the screen.
 	MiddleCenter,
+	/// Middle-right edge of the screen.
 	MiddleRight,
+	/// Bottom-left corner of the screen.
 	BottomLeft,
+	/// Bottom-center of the screen.
 	BottomCenter,
 	/// Default anchor position. Notifications expand from bottom-right.
 	#[default]
@@ -160,23 +168,35 @@ pub enum SlideDirection {
 	FromBottomRight,
 }
 
+/// Definition of a notification type with default styling and behavior.
 pub struct NotificationTypeDef {
+	/// Unique identifier.
 	pub id: &'static str,
+	/// Display name.
 	pub name: &'static str,
+	/// Severity level.
 	pub level: Level,
+	/// Optional icon glyph.
 	pub icon: Option<&'static str>,
+	/// Semantic category (e.g., "save", "error", "lsp").
 	pub semantic: &'static str,
+	/// Auto-dismiss behavior.
 	pub auto_dismiss: AutoDismiss,
+	/// Animation style.
 	pub animation: Animation,
 	/// Animation timing phases: (In, Dwell, Out)
 	pub timing: (Timing, Timing, Timing),
+	/// Registration priority (lower = earlier).
 	pub priority: i16,
+	/// Origin of the registration.
 	pub source: RegistrySource,
 }
 
+/// Registry of all notification type definitions.
 #[distributed_slice]
 pub static NOTIFICATION_TYPES: [NotificationTypeDef];
 
+/// Finds a notification type by name.
 pub fn find_notification_type(name: &str) -> Option<&'static NotificationTypeDef> {
 	NOTIFICATION_TYPES.iter().find(|t| t.name == name)
 }

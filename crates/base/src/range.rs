@@ -2,9 +2,12 @@ use ropey::RopeSlice;
 
 use crate::graphemes::{ensure_grapheme_boundary_next, ensure_grapheme_boundary_prev};
 
+/// Selection direction (anchor to head).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Direction {
+	/// Head is after anchor (normal selection).
 	Forward,
+	/// Head is before anchor (reverse selection).
 	Backward,
 }
 
@@ -19,41 +22,54 @@ pub type CharIdx = usize;
 /// where a length is expected or vice versa.
 pub type CharLen = usize;
 
+/// A text range defined by anchor and head positions.
+///
+/// The anchor is the fixed end, and the head moves during selection extension.
+/// For a forward selection, head > anchor. For backward, head < anchor.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Range {
+	/// The fixed end of the range.
 	pub anchor: CharIdx,
+	/// The moving end of the range (cursor position).
 	pub head: CharIdx,
 }
 
 impl Range {
+	/// Creates a new range from anchor to head.
 	pub fn new(anchor: CharIdx, head: CharIdx) -> Self {
 		Self { anchor, head }
 	}
 
+	/// Creates a zero-width range (cursor) at the given position.
 	pub fn point(pos: CharIdx) -> Self {
 		Self::new(pos, pos)
 	}
 
+	/// Returns the smaller of anchor and head.
 	#[inline]
 	pub fn min(&self) -> CharIdx {
 		std::cmp::min(self.anchor, self.head)
 	}
 
+	/// Returns the larger of anchor and head.
 	#[inline]
 	pub fn max(&self) -> CharIdx {
 		std::cmp::max(self.anchor, self.head)
 	}
 
+	/// Returns the length of the range in characters.
 	#[inline]
 	pub fn len(&self) -> CharLen {
 		self.max() - self.min()
 	}
 
+	/// Returns true if anchor equals head (zero-width cursor).
 	#[inline]
 	pub fn is_empty(&self) -> bool {
 		self.anchor == self.head
 	}
 
+	/// Returns the direction of this range.
 	#[inline]
 	pub fn direction(&self) -> Direction {
 		if self.head < self.anchor {
@@ -63,6 +79,7 @@ impl Range {
 		}
 	}
 
+	/// Returns a new range with anchor and head swapped.
 	pub fn flip(&self) -> Self {
 		Self {
 			anchor: self.head,
@@ -70,6 +87,7 @@ impl Range {
 		}
 	}
 
+	/// Returns a range with the specified direction, flipping if needed.
 	pub fn with_direction(self, direction: Direction) -> Self {
 		if self.direction() == direction {
 			self
@@ -78,6 +96,7 @@ impl Range {
 		}
 	}
 
+	/// Applies a function to both anchor and head.
 	pub fn map(self, mut f: impl FnMut(CharIdx) -> CharIdx) -> Self {
 		Self {
 			anchor: f(self.anchor),
@@ -85,6 +104,7 @@ impl Range {
 		}
 	}
 
+	/// Returns a range with positions aligned to grapheme boundaries.
 	pub fn grapheme_aligned(self, text: RopeSlice) -> Self {
 		let anchor = if self.anchor == 0 || self.anchor == text.len_chars() {
 			self.anchor
@@ -105,10 +125,12 @@ impl Range {
 		Self { anchor, head }
 	}
 
+	/// Returns true if the position is within the range (exclusive of max).
 	pub fn contains(&self, pos: CharIdx) -> bool {
 		pos >= self.min() && pos < self.max()
 	}
 
+	/// Returns true if this range overlaps with another.
 	pub fn overlaps(&self, other: &Range) -> bool {
 		if self.min() < other.max() && other.min() < self.max() {
 			return true;
@@ -117,6 +139,7 @@ impl Range {
 		self.is_empty() && other.is_empty() && self.min() == other.min()
 	}
 
+	/// Merges two ranges, preserving direction of self.
 	pub fn merge(&self, other: &Range) -> Self {
 		let from = std::cmp::min(self.min(), other.min());
 		let to = std::cmp::max(self.max(), other.max());
