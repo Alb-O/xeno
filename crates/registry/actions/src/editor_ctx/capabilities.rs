@@ -24,6 +24,7 @@
 //! - [`SplitOps`] - Split management
 //! - [`PanelOps`] - Panel management
 //! - [`FocusOps`] - Focus and buffer navigation
+//! - [`ViewportAccess`] - Viewport position queries
 //! - [`FileOpsAccess`] - Save/load operations
 //! - [`JumpAccess`] - Jump list navigation
 //! - [`MacroAccess`] - Macro recording/playback
@@ -270,6 +271,14 @@ pub trait FocusOps {
 	fn focus_up(&mut self);
 	/// Focus the split below.
 	fn focus_down(&mut self);
+}
+
+/// Viewport query operations (optional).
+pub trait ViewportAccess {
+	/// Returns the last rendered viewport height in rows.
+	fn viewport_height(&self) -> usize;
+	/// Converts a viewport row to a document character position.
+	fn viewport_row_to_doc_position(&self, row: usize) -> Option<CharIdx>;
 }
 
 /// Command queue operations (optional).

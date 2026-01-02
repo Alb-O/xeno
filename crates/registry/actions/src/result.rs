@@ -33,6 +33,17 @@ pub enum ActionMode {
 	Window,
 }
 
+/// Screen-relative cursor position.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ScreenPosition {
+	/// First visible line (vim H).
+	Top,
+	/// Middle visible line (vim M).
+	Middle,
+	/// Last visible line (vim L).
+	Bottom,
+}
+
 /// Result of executing an action.
 ///
 /// Actions return this enum to indicate what the editor should do next.
@@ -108,6 +119,13 @@ pub enum ActionResult {
 	ModeChange(ActionMode),
 	/// Move cursor to position.
 	CursorMove(CharIdx),
+	/// Move cursor to a screen-relative position.
+	ScreenMotion {
+		/// Screen-relative position.
+		position: ScreenPosition,
+		/// 1-based offset from the target edge.
+		count: usize,
+	},
 	/// Apply a motion (updates selection).
 	Motion(Selection),
 	/// Enter insert mode with motion.

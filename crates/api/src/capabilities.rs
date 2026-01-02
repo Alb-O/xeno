@@ -11,7 +11,7 @@ use evildoer_base::{Mode, Selection};
 use evildoer_core::editor_ctx::{
 	CommandQueueAccess, CursorAccess, EditAccess, EditorCapabilities, FileOpsAccess, FocusOps,
 	JumpAccess, MacroAccess, MessageAccess, ModeAccess, PanelOps, SearchAccess, SelectionAccess,
-	SplitOps, ThemeAccess, UndoAccess,
+	SplitOps, ThemeAccess, UndoAccess, ViewportAccess,
 };
 use evildoer_registry::commands::{CommandEditorOps, CommandError};
 use evildoer_registry::{panel_kind_index, EditAction};
@@ -264,6 +264,28 @@ impl FocusOps for Editor {
 	}
 }
 
+impl ViewportAccess for Editor {
+	fn viewport_height(&self) -> usize {
+		if !self.is_text_focused() {
+			return 0;
+		}
+		self.buffer().last_viewport_height
+	}
+
+	fn viewport_row_to_doc_position(&self, row: usize) -> Option<CharIdx> {
+		if !self.is_text_focused() {
+			return None;
+		}
+		let buffer = self.buffer();
+		if buffer.last_viewport_height == 0 {
+			return None;
+		}
+		buffer
+			.screen_to_doc_position(row as u16, buffer.gutter_width())
+			.map(|pos| pos as CharIdx)
+	}
+}
+
 impl JumpAccess for Editor {
 	fn jump_forward(&mut self) -> bool {
 		if let Some(loc) = self.jump_list.jump_forward() {
@@ -357,6 +379,10 @@ impl EditorCapabilities for Editor {
 	}
 
 	fn focus_ops(&mut self) -> Option<&mut dyn FocusOps> {
+		Some(self)
+	}
+
+	fn viewport(&mut self) -> Option<&mut dyn ViewportAccess> {
 		Some(self)
 	}
 

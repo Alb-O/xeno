@@ -1,6 +1,6 @@
 use evildoer_registry_motions::keys as motions;
 
-use crate::{action, cursor_motion, selection_motion, ActionResult};
+use crate::{action, cursor_motion, selection_motion, ActionResult, ScreenPosition};
 
 action!(move_left, {
 	description: "Move cursor left",
@@ -53,15 +53,23 @@ action!(document_start, { description: "Move to document start", bindings: r#"no
 action!(document_end, { description: "Move to document end", bindings: r#"normal "G""# },
 	|ctx| cursor_motion(ctx, motions::document_end));
 
-// TODO: Screen-relative motions need viewport context not available here.
-action!(move_top_screen, { description: "Move to top of screen", bindings: r#"normal "H""# }, |_ctx| {
-	ActionResult::Error("screen_top motion requires viewport context".to_string())
+action!(move_top_screen, { description: "Move to top of screen", bindings: r#"normal "H""# }, |ctx| {
+	ActionResult::ScreenMotion {
+		position: ScreenPosition::Top,
+		count: ctx.count,
+	}
 });
 
-action!(move_middle_screen, { description: "Move to middle of screen", bindings: r#"normal "M""# }, |_ctx| {
-	ActionResult::Error("screen_middle motion requires viewport context".to_string())
+action!(move_middle_screen, { description: "Move to middle of screen", bindings: r#"normal "M""# }, |ctx| {
+	ActionResult::ScreenMotion {
+		position: ScreenPosition::Middle,
+		count: ctx.count,
+	}
 });
 
-action!(move_bottom_screen, { description: "Move to bottom of screen" }, |_ctx| {
-	ActionResult::Error("screen_bottom motion requires viewport context".to_string())
+action!(move_bottom_screen, { description: "Move to bottom of screen" }, |ctx| {
+	ActionResult::ScreenMotion {
+		position: ScreenPosition::Bottom,
+		count: ctx.count,
+	}
 });

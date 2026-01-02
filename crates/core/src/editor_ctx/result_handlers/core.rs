@@ -1,9 +1,12 @@
 //! Core result handlers: Ok, CursorMove, Motion, Edit, Quit, Error.
 
+use evildoer_base::range::Range;
+use evildoer_base::Selection;
 use evildoer_registry::{
 	ActionResult, HandleOutcome, HookContext, HookEventData, Mode, emit_sync as emit_hook_sync,
 	result_handler,
 };
+use evildoer_registry::actions::ScreenPosition;
 
 use crate::{NotifyERRORExt, NotifyINFOExt};
 
@@ -52,6 +55,73 @@ result_handler!(
 				None,
 			));
 		}
+		HandleOutcome::Handled
+	}
+);
+
+result_handler!(
+	RESULT_SCREEN_MOTION_HANDLERS,
+	HANDLE_SCREEN_MOTION,
+	"screen_motion",
+	|r, ctx, extend| {
+		let ActionResult::ScreenMotion { position, count } = r else {
+			return HandleOutcome::NotHandled;
+		};
+		let Some(viewport) = ctx.viewport() else {
+			ctx.error("Viewport info unavailable for screen motion");
+			return HandleOutcome::Handled;
+		};
+		let height = viewport.viewport_height();
+		if height == 0 {
+			ctx.error("Viewport height unavailable for screen motion");
+			return HandleOutcome::Handled;
+		}
+		let count = (*count).max(1);
+		let mut row = match position {
+			ScreenPosition::Top => count.saturating_sub(1),
+			ScreenPosition::Middle => height / 2 + count.saturating_sub(1),
+			ScreenPosition::Bottom => height.saturating_sub(count),
+		};
+		if row >= height {
+			row = height.saturating_sub(1);
+		}
+
+		let Some(target) = viewport.viewport_row_to_doc_position(row) else {
+			ctx.error("Screen motion target is unavailable");
+			return HandleOutcome::Handled;
+		};
+
+		let selection = ctx.selection();
+		let primary_index = selection.primary_index();
+		let new_ranges: Vec<Range> = selection
+			.ranges()
+			.iter()
+			.map(|range| {
+				if extend {
+					Range::new(range.anchor, target)
+				} else {
+					Range::point(target)
+				}
+			})
+			.collect();
+		let new_selection = Selection::from_vec(new_ranges, primary_index);
+		ctx.set_cursor(new_selection.primary().head);
+		ctx.set_selection(new_selection.clone());
+
+		let primary = new_selection.primary();
+		if let Some((line, col)) = ctx.cursor_line_col() {
+			emit_hook_sync(&HookContext::new(
+				HookEventData::CursorMove { line, col },
+				None,
+			));
+		}
+		emit_hook_sync(&HookContext::new(
+			HookEventData::SelectionChange {
+				anchor: primary.anchor,
+				head: primary.head,
+			},
+			None,
+		));
 		HandleOutcome::Handled
 	}
 );

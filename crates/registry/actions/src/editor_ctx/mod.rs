@@ -9,7 +9,7 @@
 //!
 //! - **Required**: [`CursorAccess`], [`SelectionAccess`], [`ModeAccess`], [`MessageAccess`]
 //! - **Optional**: [`SearchAccess`], [`UndoAccess`], [`EditAccess`], [`SplitOps`],
-//!   [`PanelOps`], [`FocusOps`], etc.
+//!   [`PanelOps`], [`FocusOps`], [`ViewportAccess`], etc.
 //!
 //! Note: [`TextAccess`] is intentionally NOT required for result handlers.
 //! Actions receive text through [`ActionContext`] which is built separately
@@ -161,6 +161,11 @@ impl<'a> EditorContext<'a> {
 		self.inner.focus_ops()
 	}
 
+	/// Returns viewport access if the capability is available.
+	pub fn viewport(&mut self) -> Option<&mut dyn ViewportAccess> {
+		self.inner.viewport()
+	}
+
 	/// Returns jump list access if the capability is available.
 	pub fn jump_ops(&mut self) -> Option<&mut dyn JumpAccess> {
 		self.inner.jump_ops()
@@ -242,6 +247,11 @@ pub trait EditorCapabilities: CursorAccess + SelectionAccess + ModeAccess + Mess
 
 	/// Access to focus and buffer navigation operations (optional).
 	fn focus_ops(&mut self) -> Option<&mut dyn FocusOps> {
+		None
+	}
+
+	/// Access to viewport queries (optional).
+	fn viewport(&mut self) -> Option<&mut dyn ViewportAccess> {
 		None
 	}
 

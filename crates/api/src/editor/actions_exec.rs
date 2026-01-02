@@ -30,6 +30,7 @@ fn action_result_variant(result: &ActionResult) -> &'static str {
 		ActionResult::FocusDown => "FocusDown",
 		ActionResult::ModeChange(_) => "ModeChange",
 		ActionResult::CursorMove(_) => "CursorMove",
+		ActionResult::ScreenMotion { .. } => "ScreenMotion",
 		ActionResult::Motion(_) => "Motion",
 		ActionResult::InsertWithMotion(_) => "InsertWithMotion",
 		ActionResult::Edit(_) => "Edit",
