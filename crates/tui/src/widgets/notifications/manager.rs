@@ -14,24 +14,38 @@ use crate::text::Text;
 use crate::widgets::paragraph::Wrap;
 use crate::widgets::{Clear, Paragraph, Widget};
 
+/// Default duration for toast entry animation.
 const DEFAULT_ENTRY_DURATION: Duration = Duration::from_millis(300);
+/// Default duration for toast exit animation.
 const DEFAULT_EXIT_DURATION: Duration = Duration::from_millis(200);
+/// Default dwell time before auto-dismissing a toast.
 const DEFAULT_DWELL_DURATION: Duration = Duration::from_secs(4);
+/// Vertical spacing between stacked toasts.
 const STACK_SPACING: u16 = 1;
 
+/// Internal state for a single toast notification.
 #[derive(Debug)]
 struct ToastState {
+	/// The toast content and configuration.
 	toast: Toast,
+	/// Current animation phase.
 	phase: AnimationPhase,
+	/// Animation progress within current phase (0.0 to 1.0).
 	progress: f32,
+	/// When the toast was created.
 	created_at: Instant,
+	/// Time remaining before auto-dismiss (None = manual dismiss only).
 	remaining_dwell: Option<Duration>,
+	/// Duration of entry animation.
 	entry_duration: Duration,
+	/// Duration of exit animation.
 	exit_duration: Duration,
+	/// Computed rectangle at full visibility.
 	full_rect: Rect,
 }
 
 impl ToastState {
+	/// Creates a new toast state with default timings.
 	fn new(toast: Toast) -> Self {
 		let entry_duration = match toast.entry_timing {
 			Timing::Auto => DEFAULT_ENTRY_DURATION,
@@ -59,6 +73,7 @@ impl ToastState {
 		}
 	}
 
+	/// Advances the toast animation by the given time delta.
 	fn update(&mut self, delta: Duration) {
 		if self.phase == AnimationPhase::Pending {
 			self.phase = AnimationPhase::Entering;
@@ -104,11 +119,13 @@ impl ToastState {
 		}
 	}
 
+	/// Returns true if the toast has completed its exit animation.
 	fn is_finished(&self) -> bool {
 		self.phase == AnimationPhase::Finished
 	}
 }
 
+/// Converts an anchor to its screen position within the given area.
 fn anchor_position(anchor: Anchor, area: Rect) -> Position {
 	match anchor {
 		Anchor::TopLeft => Position::new(area.x, area.y),
@@ -130,6 +147,7 @@ fn anchor_position(anchor: Anchor, area: Rect) -> Position {
 	}
 }
 
+/// Calculates the X position for a toast given anchor and dimensions.
 fn calculate_x(anchor: Anchor, anchor_x: u16, width: u16, margin: u16, area: Rect) -> u16 {
 	let x = match anchor {
 		Anchor::TopCenter | Anchor::MiddleCenter | Anchor::BottomCenter => {
@@ -143,6 +161,7 @@ fn calculate_x(anchor: Anchor, anchor_x: u16, width: u16, margin: u16, area: Rec
 	x.clamp(area.x, area.right().saturating_sub(width))
 }
 
+/// Calculates the Y position for a toast given anchor and dimensions.
 fn calculate_y(anchor: Anchor, anchor_y: u16, height: u16, margin: u16, area: Rect) -> u16 {
 	let y = match anchor {
 		Anchor::MiddleLeft | Anchor::MiddleCenter | Anchor::MiddleRight => {
@@ -156,6 +175,7 @@ fn calculate_y(anchor: Anchor, anchor_y: u16, height: u16, margin: u16, area: Re
 	y.clamp(area.y, area.bottom().saturating_sub(height))
 }
 
+/// Computes the toast dimensions based on content and constraints.
 fn calculate_toast_size(toast: &Toast, area: Rect) -> (u16, u16) {
 	use super::types::SizeConstraint;
 
@@ -199,6 +219,7 @@ fn calculate_toast_size(toast: &Toast, area: Rect) -> (u16, u16) {
 	(width, height)
 }
 
+/// Applies animation transforms to compute the current visible rect.
 fn apply_animation(state: &ToastState, full_rect: Rect, area: Rect) -> Rect {
 	let progress = Easing::EaseOut.apply(state.progress);
 
@@ -231,6 +252,7 @@ fn apply_animation(state: &ToastState, full_rect: Rect, area: Rect) -> Rect {
 	}
 }
 
+/// Calculates the offscreen position for slide animations.
 fn offscreen_rect(state: &ToastState, full_rect: Rect, area: Rect) -> Rect {
 	use super::types::SlideDirection;
 
@@ -262,6 +284,7 @@ fn offscreen_rect(state: &ToastState, full_rect: Rect, area: Rect) -> Rect {
 	)
 }
 
+/// Determines the default slide direction for a given anchor.
 fn default_slide_direction(anchor: Anchor) -> super::types::SlideDirection {
 	use super::types::SlideDirection;
 	match anchor {
@@ -277,6 +300,7 @@ fn default_slide_direction(anchor: Anchor) -> super::types::SlideDirection {
 	}
 }
 
+/// Renders a single toast to the buffer.
 fn render_toast(state: &ToastState, rect: Rect, buf: &mut Buffer) {
 	let opacity = calculate_opacity(state);
 	let bg_colors = if opacity < 1.0 {
@@ -317,6 +341,7 @@ fn render_toast(state: &ToastState, rect: Rect, buf: &mut Buffer) {
 	}
 }
 
+/// Computes the current opacity based on animation phase and progress.
 fn calculate_opacity(state: &ToastState) -> f32 {
 	if !state.toast.fade_effect && !matches!(state.toast.animation, Animation::Fade) {
 		return 1.0;
@@ -330,6 +355,7 @@ fn calculate_opacity(state: &ToastState) -> f32 {
 	}
 }
 
+/// Captures background colors for opacity blending.
 fn sample_background(rect: Rect, buf: &Buffer) -> Vec<Color> {
 	let mut colors = Vec::with_capacity((rect.width as usize) * (rect.height as usize));
 	for y in rect.y..rect.bottom() {
@@ -344,6 +370,7 @@ fn sample_background(rect: Rect, buf: &Buffer) -> Vec<Color> {
 	colors
 }
 
+/// Blends toast colors with background based on opacity.
 fn apply_opacity(rect: Rect, buf: &mut Buffer, opacity: f32, bg_colors: &[Color]) {
 	let width = rect.width as usize;
 	for y in rect.y..rect.bottom() {
@@ -361,9 +388,13 @@ fn apply_opacity(rect: Rect, buf: &mut Buffer, opacity: f32, bg_colors: &[Color]
 /// Manages multiple toast notifications with lifecycle, animations, and stacking.
 #[derive(Debug)]
 pub struct ToastManager {
+	/// Active toast states keyed by ID.
 	states: HashMap<u64, ToastState>,
+	/// Next ID to assign to a new toast.
 	next_id: u64,
+	/// Maximum number of visible toasts per anchor (None = unlimited).
 	max_visible: Option<usize>,
+	/// Behavior when max_visible is exceeded.
 	overflow: Overflow,
 }
 
@@ -465,6 +496,7 @@ impl ToastManager {
 		}
 	}
 
+	/// Renders all toasts for a specific anchor point.
 	fn render_anchor_group(&mut self, anchor: Anchor, ids: &[u64], area: Rect, buf: &mut Buffer) {
 		let mut sorted_ids: Vec<u64> = ids.to_vec();
 		sorted_ids.sort_by_key(|id| {
@@ -525,6 +557,7 @@ impl ToastManager {
 		}
 	}
 
+	/// Returns the ID of the oldest toast.
 	fn oldest_id(&self) -> Option<u64> {
 		self.states
 			.iter()
@@ -532,6 +565,7 @@ impl ToastManager {
 			.map(|(&id, _)| id)
 	}
 
+	/// Returns the ID of the newest toast.
 	fn newest_id(&self) -> Option<u64> {
 		self.states
 			.iter()

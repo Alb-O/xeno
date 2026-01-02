@@ -1,16 +1,27 @@
 /// Terminal escape sequence identifiers for configuration.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum TerminalSequence {
+	/// Switch to alternate screen buffer.
 	EnableAlternateScreen,
+	/// Return to primary screen buffer.
 	DisableAlternateScreen,
+	/// Enable basic mouse event reporting.
 	EnableMouseTracking,
+	/// Disable mouse event reporting.
 	DisableMouseTracking,
+	/// Enable SGR extended mouse reporting format.
 	EnableSgrMouse,
+	/// Disable SGR mouse reporting.
 	DisableSgrMouse,
+	/// Enable reporting of all mouse events including motion.
 	EnableAnyEventMouse,
+	/// Disable any-event mouse reporting.
 	DisableAnyEventMouse,
+	/// Push kitty keyboard protocol with disambiguate mode.
 	PushKittyKeyboardDisambiguate,
+	/// Pop kitty keyboard protocol flags.
 	PopKittyKeyboardFlags,
+	/// Reset cursor to default style.
 	ResetCursorStyle,
 }
 
@@ -25,8 +36,10 @@ pub struct TerminalConfig {
 	pub panic_sequences: &'static [TerminalSequence],
 }
 
+/// Environment variable for overriding terminal configuration.
 const TERMINAL_CONFIG_ENV: &str = "EVILDOER_TERMINAL_CONFIG";
 
+/// Default enter sequences with full kitty keyboard support.
 const DEFAULT_ENTER: &[TerminalSequence] = &[
 	TerminalSequence::EnableAlternateScreen,
 	TerminalSequence::PushKittyKeyboardDisambiguate,
@@ -35,6 +48,7 @@ const DEFAULT_ENTER: &[TerminalSequence] = &[
 	TerminalSequence::EnableAnyEventMouse,
 ];
 
+/// Default exit sequences with full kitty keyboard cleanup.
 const DEFAULT_EXIT: &[TerminalSequence] = &[
 	TerminalSequence::ResetCursorStyle,
 	TerminalSequence::PopKittyKeyboardFlags,
@@ -44,6 +58,7 @@ const DEFAULT_EXIT: &[TerminalSequence] = &[
 	TerminalSequence::DisableAlternateScreen,
 ];
 
+/// Enter sequences for terminals without kitty keyboard support.
 const NO_KITTY_ENTER: &[TerminalSequence] = &[
 	TerminalSequence::EnableAlternateScreen,
 	TerminalSequence::EnableMouseTracking,
@@ -51,6 +66,7 @@ const NO_KITTY_ENTER: &[TerminalSequence] = &[
 	TerminalSequence::EnableAnyEventMouse,
 ];
 
+/// Exit sequences for terminals without kitty keyboard support.
 const NO_KITTY_EXIT: &[TerminalSequence] = &[
 	TerminalSequence::ResetCursorStyle,
 	TerminalSequence::DisableMouseTracking,
@@ -59,6 +75,7 @@ const NO_KITTY_EXIT: &[TerminalSequence] = &[
 	TerminalSequence::DisableAlternateScreen,
 ];
 
+/// Detects kitty terminal via environment variables or TERM.
 fn supports_kitty_keyboard() -> bool {
 	if std::env::var_os("KITTY_WINDOW_ID").is_some()
 		|| std::env::var_os("KITTY_LISTEN_ON").is_some()
@@ -100,6 +117,7 @@ impl TerminalConfig {
 		Self::new(NO_KITTY_ENTER, NO_KITTY_EXIT, NO_KITTY_EXIT)
 	}
 
+	/// Parses configuration from the `EVILDOER_TERMINAL_CONFIG` env var.
 	fn from_env() -> Option<Self> {
 		let value = std::env::var(TERMINAL_CONFIG_ENV).ok()?;
 		let value = value.trim().to_ascii_lowercase();

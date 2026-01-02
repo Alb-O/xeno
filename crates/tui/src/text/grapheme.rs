@@ -1,6 +1,8 @@
 use crate::style::{Style, Styled};
 
+/// Non-breaking space character.
 const NBSP: &str = "\u{00a0}";
+/// Zero-width space character.
 const ZWSP: &str = "\u{200b}";
 
 /// A grapheme associated to a style.

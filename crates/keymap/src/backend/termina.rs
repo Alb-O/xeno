@@ -6,8 +6,8 @@
 use evildoer_keymap_parser::{self as parser, Key, Modifier, Node};
 use termina::event::{KeyCode, KeyEvent, Modifiers as TmModifiers};
 
-use crate::Error;
 use crate::keymap::{FromKeyMap, IntoKeyMap, KeyMap, ToKeyMap};
+use crate::Error;
 
 /// Parses a string keybinding (e.g., `"ctrl-c"`, `"f1"`, `"alt-backspace"`) into a `KeyEvent`.
 pub fn parse(s: &str) -> Result<KeyEvent, Error> {
@@ -89,18 +89,21 @@ impl FromKeyMap for KeyEvent {
 	}
 }
 
+/// Mapping between termina and parser modifier representations.
 const MODIFIERS: [(TmModifiers, parser::Modifier); 3] = [
 	(TmModifiers::ALT, Modifier::Alt),
 	(TmModifiers::CONTROL, Modifier::Ctrl),
 	(TmModifiers::SHIFT, Modifier::Shift),
 ];
 
+/// Converts termina modifiers to parser bitfield.
 fn modifiers_from_backend(value: &TmModifiers) -> parser::Modifiers {
 	MODIFIERS.into_iter().fold(0, |acc, (m1, m2)| {
 		acc | if value.contains(m1) { m2 as u8 } else { 0 }
 	})
 }
 
+/// Converts parser bitfield to termina modifiers.
 fn modifiers_from_node(value: parser::Modifiers) -> TmModifiers {
 	let none = TmModifiers::NONE;
 	MODIFIERS.into_iter().fold(none, |acc, (m1, m2)| {

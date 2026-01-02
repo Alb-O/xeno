@@ -125,7 +125,7 @@ impl_registry_metadata!(MotionDef);
 
 impl MotionDef {
 	#[doc(hidden)]
-	#[allow(clippy::too_many_arguments)]
+	#[allow(clippy::too_many_arguments, reason = "macro-generated constructor")]
 	pub const fn new(
 		id: &'static str,
 		name: &'static str,

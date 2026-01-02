@@ -18,7 +18,7 @@ mod macros;
 
 // Re-export shared types from motions registry for consistency
 pub use evildoer_registry_motions::{
-	Capability, RegistryMetadata, RegistrySource, flags, impl_registry_metadata, movement,
+	flags, impl_registry_metadata, movement, Capability, RegistryMetadata, RegistrySource,
 };
 
 /// Handler signature for text object selection.
@@ -53,7 +53,7 @@ pub struct TextObjectDef {
 
 impl TextObjectDef {
 	#[doc(hidden)]
-	#[allow(clippy::too_many_arguments)]
+	#[allow(clippy::too_many_arguments, reason = "macro-generated constructor")]
 	pub const fn new(
 		id: &'static str,
 		name: &'static str,

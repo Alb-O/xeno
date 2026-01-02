@@ -7,13 +7,13 @@ mod conversions;
 #[path = "display.rs"]
 mod display;
 #[cfg(feature = "palette")]
-#[path = "palette.rs"]
-mod palette;
+#[path = "palette_tests.rs"]
+mod palette_tests;
 #[path = "parsing.rs"]
 mod parsing;
 #[cfg(feature = "serde")]
-#[path = "serde.rs"]
-mod serde;
+#[path = "serde_tests.rs"]
+mod serde_tests;
 
 #[test]
 fn from_u32() {

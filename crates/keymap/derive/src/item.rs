@@ -1,22 +1,30 @@
-use evildoer_keymap_parser::{Node, parse_seq};
+use evildoer_keymap_parser::{parse_seq, Node};
 use syn::punctuated::Punctuated;
 use syn::token::Comma;
 use syn::{Attribute, LitStr, Token, Variant};
 
-/// An attribute path name #[key(...)]
+/// Attribute path name for `#[key(...)]`.
 const KEY_IDENT: &str = "key";
+/// Attribute path name for doc comments.
 const DOC_IDENT: &str = "doc";
 
+/// A parsed enum variant with its key bindings and metadata.
 pub(crate) struct Item<'a> {
+	/// The original syn variant.
 	pub variant: &'a Variant,
+	/// Raw key binding strings from `#[key(...)]` attributes.
 	pub keys: Vec<String>,
+	/// Whether this variant should be ignored in keymap generation.
 	pub ignore: bool,
 
+	/// Parsed key nodes for matching.
 	#[allow(dead_code, reason = "parsed for future use in keymap expansion")]
 	pub nodes: Vec<Vec<Node>>,
+	/// Description extracted from doc comments.
 	pub description: String,
 }
 
+/// Parses all variants into [`Item`]s, extracting key bindings and docs.
 pub(crate) fn parse_items(
 	variants: &Punctuated<Variant, Comma>,
 ) -> Result<Vec<Item<'_>>, syn::Error> {
@@ -38,6 +46,7 @@ pub(crate) fn parse_items(
 		.collect()
 }
 
+/// Checks if a variant has `#[key(ignore)]`.
 fn parse_ignore(variant: &Variant) -> bool {
 	variant.attrs.iter().any(|attr| {
 		let mut ignore = false;
@@ -52,6 +61,7 @@ fn parse_ignore(variant: &Variant) -> bool {
 	})
 }
 
+/// Extracts and concatenates doc comments from a variant.
 fn parse_doc(variant: &Variant) -> String {
 	variant
 		.attrs
@@ -82,6 +92,7 @@ fn parse_args(attr: &Attribute) -> syn::Result<Punctuated<LitStr, Token![,]>> {
 	attr.parse_args_with(Punctuated::<LitStr, Token![,]>::parse_separated_nonempty)
 }
 
+/// Extracts key binding strings from `#[key(...)]` attributes.
 fn parse_keys(variant: &Variant, ignore: bool) -> syn::Result<Vec<String>> {
 	let mut keys = Vec::new();
 
@@ -102,6 +113,7 @@ fn parse_keys(variant: &Variant, ignore: bool) -> syn::Result<Vec<String>> {
 	Ok(keys)
 }
 
+/// Parses key bindings into [`Node`] sequences for matching.
 fn parse_nodes(variant: &Variant, ignore: bool) -> syn::Result<Vec<Vec<Node>>> {
 	let mut nodes = Vec::new();
 

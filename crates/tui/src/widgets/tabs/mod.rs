@@ -9,12 +9,13 @@ use crate::layout::Rect;
 use crate::style::{Style, Styled};
 use crate::symbols;
 use crate::text::{Line, Span};
-use crate::widgets::Widget;
 use crate::widgets::block::{Block, BlockExt};
+use crate::widgets::Widget;
 
 #[cfg(test)]
 mod tests;
 
+/// Default style for the selected tab (reversed colors).
 const DEFAULT_HIGHLIGHT_STYLE: Style = Style::new().reversed();
 
 /// A widget that displays a horizontal set of Tabs with a single tab selected.
@@ -383,6 +384,7 @@ impl Widget for &Tabs<'_> {
 }
 
 impl Tabs<'_> {
+	/// Renders the tab titles and dividers within the given area.
 	fn render_tabs(&self, tabs_area: Rect, buf: &mut Buffer) {
 		if tabs_area.is_empty() {
 			return;

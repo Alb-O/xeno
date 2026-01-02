@@ -3,7 +3,7 @@
 use evildoer_base::Range;
 use ropey::RopeSlice;
 
-use crate::movement::{WordType, select_word_object};
+use crate::movement::{select_word_object, WordType};
 use crate::text_object;
 
 text_object!(
