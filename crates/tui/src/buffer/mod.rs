@@ -13,6 +13,7 @@ use crate::layout::{Position, Rect};
 use crate::style::Style;
 use crate::text::{Line, Span};
 
+/// Single terminal cell (grapheme + style).
 mod cell;
 pub use cell::Cell;
 

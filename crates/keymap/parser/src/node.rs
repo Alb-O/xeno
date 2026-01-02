@@ -6,7 +6,7 @@ use std::fmt::{Display, Formatter};
 use std::hash::Hash;
 use std::ops::BitOr;
 
-use serde::{Deserialize, Deserializer, de};
+use serde::{de, Deserialize, Deserializer};
 use strum_macros::{AsRefStr, Display, EnumString};
 
 use crate::parse;
@@ -24,6 +24,7 @@ pub struct Node {
 	/// The main key (see [`Key`]).
 	pub key: Key,
 
+	/// Optional key state (pressed/released) for advanced bindings.
 	pub state: Option<State>,
 }
 
@@ -49,6 +50,7 @@ impl From<Key> for Node {
 	}
 }
 
+/// Key press state for advanced bindings.
 #[derive(Copy, Clone, Debug, Default, Display, Hash, PartialEq, Eq)]
 pub enum State {
 	/// The key is pressed.
@@ -167,6 +169,7 @@ pub enum CharGroup {
 }
 
 impl CharGroup {
+	/// Returns whether `c` belongs to this character group.
 	#[must_use]
 	pub fn matches(&self, c: char) -> bool {
 		match self {

@@ -127,6 +127,7 @@ impl KeymapRegistry {
 	}
 }
 
+/// Global keymap registry singleton.
 static KEYMAP_REGISTRY: OnceLock<KeymapRegistry> = OnceLock::new();
 
 /// Returns the global keymap registry.

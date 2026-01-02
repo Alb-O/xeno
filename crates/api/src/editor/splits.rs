@@ -124,10 +124,12 @@ impl Editor {
 		true
 	}
 
+	/// Requests the editor to quit after the current event loop iteration.
 	pub fn request_quit(&mut self) {
 		self.pending_quit = true;
 	}
 
+	/// Consumes and returns the pending quit request, if any.
 	pub fn take_quit_request(&mut self) -> bool {
 		if self.pending_quit {
 			self.pending_quit = false;

@@ -1,6 +1,8 @@
+/// Text change set implementation.
 mod changeset;
 #[cfg(test)]
 mod tests;
+/// Transaction primitive types.
 mod types;
 
 pub use changeset::ChangeSet;

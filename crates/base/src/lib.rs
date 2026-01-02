@@ -1,10 +1,20 @@
+//! Core types for text editing: ranges, selections, transactions, and modes.
+
+/// Grapheme cluster boundary detection.
 pub mod graphemes;
+/// Key and mouse event types.
 pub mod key;
+/// Editor mode definitions.
 pub mod mode;
+/// Pending action state types.
 pub mod pending;
+/// Common re-exports for convenience.
 pub mod prelude;
+/// Text range types: byte, char, and line indices.
 pub mod range;
+/// Selection types for single and multi-cursor editing.
 pub mod selection;
+/// Undo/redo transaction primitives.
 pub mod transaction;
 
 // Shared style types are re-exported to avoid duplicating evildoer-tui deps

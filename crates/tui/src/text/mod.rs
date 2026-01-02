@@ -63,15 +63,19 @@ use crate::layout::{HorizontalAlignment, Rect};
 use crate::style::{Style, Styled};
 use crate::widgets::Widget;
 
+/// Styled grapheme for word wrapping.
 mod grapheme;
 pub use grapheme::StyledGrapheme;
 
+/// A single line of styled text.
 mod line;
 pub use line::{Line, ToLine};
 
+/// Masked text for passwords.
 mod masked;
 pub use masked::Masked;
 
+/// A contiguous run of styled text.
 mod span;
 pub use span::{Span, ToSpan};
 

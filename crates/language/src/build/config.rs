@@ -20,10 +20,15 @@ pub struct GrammarConfig {
 #[derive(Debug, Clone)]
 pub enum GrammarSource {
 	/// A local path to the grammar source.
-	Local { path: String },
+	Local {
+		/// Filesystem path to the grammar sources.
+		path: String,
+	},
 	/// A git repository containing the grammar.
 	Git {
+		/// Git remote URL.
 		remote: String,
+		/// Git revision (commit hash, tag, or branch).
 		revision: String,
 		/// Optional subdirectory within the repository.
 		subpath: Option<String>,
@@ -176,11 +181,13 @@ pub fn library_extension() -> &'static str {
 	"dll"
 }
 
+/// Get the library file extension for the current platform.
 #[cfg(target_os = "macos")]
 pub fn library_extension() -> &'static str {
 	"dylib"
 }
 
+/// Get the library file extension for the current platform.
 #[cfg(all(unix, not(target_os = "macos")))]
 pub fn library_extension() -> &'static str {
 	"so"

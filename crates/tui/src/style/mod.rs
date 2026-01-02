@@ -77,11 +77,14 @@ pub use stylize::{Styled, Stylize};
 
 #[cfg(feature = "anstyle")]
 mod anstyle;
+/// Color types and conversions.
 mod color;
+/// Text modifier flags (bold, italic, etc.).
 mod modifier;
 pub mod palette;
 #[cfg(feature = "palette")]
 mod palette_conversion;
+/// Stylize trait and implementations.
 #[macro_use]
 mod stylize;
 #[cfg(test)]

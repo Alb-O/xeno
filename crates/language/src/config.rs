@@ -11,12 +11,15 @@ use crate::language::LanguageData;
 /// Errors from language configuration parsing.
 #[derive(Debug, Error)]
 pub enum LanguageConfigError {
+	/// KDL syntax error.
 	#[error("failed to parse KDL: {0}")]
 	KdlParse(#[from] kdl::KdlError),
+	/// Language node is missing the required `name` property.
 	#[error("language node missing 'name' property")]
 	MissingName,
 }
 
+/// Result type for language configuration operations.
 pub type Result<T> = std::result::Result<T, LanguageConfigError>;
 
 /// Loads language configurations from the embedded `languages.kdl`.

@@ -81,49 +81,69 @@ evildoer_macro::define_events! {
 	EditorTick => "editor:tick",
 	/// A buffer was opened/created.
 	BufferOpen => "buffer:open" {
+		/// Filesystem path of the opened buffer.
 		path: Path,
+		/// Initial text content of the buffer.
 		text: RopeSlice,
+		/// Detected file type (e.g., "rust", "python"), if any.
 		file_type: OptionStr,
 	},
 	/// A buffer is about to be written to disk.
 	BufferWritePre => "buffer:write-pre" {
+		/// Filesystem path where the buffer will be written.
 		path: Path,
+		/// Buffer content about to be saved.
 		text: RopeSlice,
 	},
 	/// A buffer was written to disk.
 	BufferWrite => "buffer:write" {
+		/// Filesystem path where the buffer was saved.
 		path: Path,
 	},
 	/// A buffer was closed.
 	BufferClose => "buffer:close" {
+		/// Filesystem path of the closed buffer.
 		path: Path,
+		/// File type of the closed buffer, if known.
 		file_type: OptionStr,
 	},
 	/// Buffer content changed.
 	BufferChange => "buffer:change" {
+		/// Filesystem path of the modified buffer.
 		path: Path,
+		/// Current text content after the change.
 		text: RopeSlice,
+		/// File type of the buffer, if known.
 		file_type: OptionStr,
+		/// Monotonic version number incremented on each change.
 		version: u64,
 	},
 	/// Mode changed (normal -> insert, etc).
 	ModeChange => "mode:change" {
+		/// Mode before the transition.
 		old_mode: Mode,
+		/// Mode after the transition.
 		new_mode: Mode,
 	},
 	/// Cursor position changed.
 	CursorMove => "cursor:move" {
+		/// Zero-based line number of the cursor.
 		line: usize,
+		/// Zero-based column (grapheme offset) of the cursor.
 		col: usize,
 	},
 	/// Selection changed.
 	SelectionChange => "selection:change" {
+		/// Byte offset of the selection anchor (start).
 		anchor: usize,
+		/// Byte offset of the selection head (cursor end).
 		head: usize,
 	},
 	/// Window was resized.
 	WindowResize => "window:resize" {
+		/// New window width in columns.
 		width: u16,
+		/// New window height in rows.
 		height: u16,
 	},
 	/// Window gained focus.
@@ -132,30 +152,40 @@ evildoer_macro::define_events! {
 	FocusLost => "focus:lost",
 	/// Focused view changed.
 	ViewFocusChanged => "view:focus_changed" {
+		/// Identifier of the newly focused view.
 		view_id: ViewId,
+		/// Identifier of the previously focused view, if any.
 		prev_view_id: OptionViewId,
 	},
 	/// Split view created.
 	SplitCreated => "split:created" {
+		/// Identifier of the newly created split view.
 		view_id: ViewId,
+		/// Direction of the split (horizontal or vertical).
 		direction: SplitDirection,
 	},
 	/// Split view closed.
 	SplitClosed => "split:closed" {
+		/// Identifier of the closed split view.
 		view_id: ViewId,
 	},
 	/// Panel visibility toggled.
 	PanelToggled => "panel:toggled" {
+		/// Identifier of the toggled panel.
 		panel_id: Str,
+		/// Whether the panel is now visible.
 		visible: Bool,
 	},
 	/// Action execution starting.
 	ActionPre => "action:pre" {
+		/// Identifier of the action about to execute.
 		action_id: Str,
 	},
 	/// Action execution finished.
 	ActionPost => "action:post" {
+		/// Identifier of the executed action.
 		action_id: Str,
+		/// Name of the result variant returned by the action.
 		result_variant: Str,
 	},
 }

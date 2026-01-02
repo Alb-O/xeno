@@ -1,3 +1,5 @@
+//! Split junction rendering tests using kitty harness.
+
 mod helpers;
 
 use std::time::Duration;

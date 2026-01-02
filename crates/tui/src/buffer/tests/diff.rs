@@ -128,14 +128,12 @@ fn diff_clears_trailing_cell_for_wide_grapheme() {
 	// terminal behavior, it may or may not be necessary to explicitly clear (1,0).
 	// At minimum, ensure the first cell is updated and nothing incorrect is emitted.
 	let diff = prev.diff(&next);
-	assert!(
-		diff.iter()
-			.any(|(x, y, c)| *x == 0 && *y == 0 && c.symbol() == "⌨️")
-	);
+	assert!(diff
+		.iter()
+		.any(|(x, y, c)| *x == 0 && *y == 0 && c.symbol() == "⌨️"));
 	// And it should explicitly clear the trailing cell (1,0) to avoid leftovers on terminals
 	// that don't automatically clear the following cell for wide characters.
-	assert!(
-		diff.iter()
-			.any(|(x, y, c)| *x == 1 && *y == 0 && c.symbol() == " ")
-	);
+	assert!(diff
+		.iter()
+		.any(|(x, y, c)| *x == 1 && *y == 0 && c.symbol() == " "));
 }

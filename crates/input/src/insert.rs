@@ -10,6 +10,7 @@ use crate::InputHandler;
 use crate::types::{KeyResult, Mode};
 
 impl InputHandler {
+	/// Processes a key press in insert mode.
 	pub(crate) fn handle_insert_key(&mut self, key: Key) -> KeyResult {
 		if key.is_escape() {
 			self.mode = Mode::Normal;

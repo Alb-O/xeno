@@ -85,6 +85,7 @@ where
 	}
 }
 
+/// RAII guard that wakes the semaphore when dropped.
 struct SemaphoreGuard(Weak<AtomicWaker>);
 
 impl Drop for SemaphoreGuard {

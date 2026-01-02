@@ -442,6 +442,7 @@ struct ModifierDiff {
 }
 
 impl ModifierDiff {
+	/// Queues crossterm commands to transition between modifier states.
 	fn queue<W>(self, mut w: W) -> io::Result<()>
 	where
 		W: io::Write,

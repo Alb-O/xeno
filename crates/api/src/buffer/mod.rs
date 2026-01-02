@@ -28,6 +28,7 @@ pub use layout::{BufferView, Layout, SplitDirection, SplitPath};
 pub struct BufferId(pub u64);
 
 impl BufferId {
+	/// Identifier for the default scratch buffer.
 	pub const SCRATCH: BufferId = BufferId(0);
 }
 

@@ -96,6 +96,7 @@ pub use watch::{ConfigChange, ConfigWatcher};
 /// May contain any combination of theme, keys, options, and language settings.
 #[derive(Debug, Clone, Default)]
 pub struct Config {
+	/// Parsed theme definition from the config file.
 	pub theme: Option<ParsedTheme>,
 	/// Keybinding overrides.
 	pub keys: Option<KeysConfig>,

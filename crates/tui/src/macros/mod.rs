@@ -156,12 +156,17 @@
 //! [`Cell`]: crate::widgets::table::Cell
 //! [`Table`]: crate::widgets::table::Table
 
+/// Layout constraint construction macros.
 mod layout;
+/// Line construction macros.
 mod line;
+/// Table row construction macros.
 mod row;
+/// Span construction macros.
 mod span;
 #[cfg(test)]
 mod testing;
+/// Text construction macros.
 mod text;
 
 // Re-export the core crate to use the types in macros

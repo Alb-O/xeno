@@ -1,8 +1,8 @@
 use evildoer_base::Selection;
 use evildoer_registry::actions::find_action;
 use evildoer_registry::{
-	ActionArgs, ActionContext, ActionResult, EditorContext, HookContext, HookEventData,
-	dispatch_result, emit_sync_with as emit_hook_sync_with,
+	dispatch_result, emit_sync_with as emit_hook_sync_with, ActionArgs, ActionContext,
+	ActionResult, EditorContext, HookContext, HookEventData,
 };
 use ropey::Rope;
 use tracing::{debug, info_span};
@@ -41,6 +41,7 @@ fn action_result_variant(result: &ActionResult) -> &'static str {
 }
 
 impl Editor {
+	/// Executes a named action with the given count and options.
 	pub(crate) fn execute_action(
 		&mut self,
 		name: &str,
@@ -132,6 +133,7 @@ impl Editor {
 		self.apply_action_result(action.id, result, extend)
 	}
 
+	/// Executes an action that requires an additional character argument.
 	pub(crate) fn execute_action_with_char(
 		&mut self,
 		name: &str,
@@ -230,6 +232,7 @@ impl Editor {
 		self.apply_action_result(action.id, result, extend)
 	}
 
+	/// Dispatches an action result to handlers and emits post-action hook.
 	pub(crate) fn apply_action_result(
 		&mut self,
 		action_id: &'static str,

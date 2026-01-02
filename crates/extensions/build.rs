@@ -1,3 +1,5 @@
+//! Build script for extension discovery.
+
 use std::path::Path;
 use std::{env, fs};
 

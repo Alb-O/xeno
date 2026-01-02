@@ -1,10 +1,9 @@
 //! Conversions from colors in the `palette` crate to [`Color`].
 
-use ::palette::LinSrgb;
-use ::palette::bool_mask::LazySelect;
-use ::palette::num::{Arithmetics, MulSub, PartialCmp, Powf, Real};
-use palette::Srgb;
+use palette::bool_mask::LazySelect;
+use palette::num::{Arithmetics, MulSub, PartialCmp, Powf, Real};
 use palette::stimulus::IntoStimulus;
+use palette::{LinSrgb, Srgb};
 
 use crate::style::Color;
 

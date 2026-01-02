@@ -238,6 +238,7 @@ impl fmt::Display for TestBackend {
 	}
 }
 
+/// Infallible result type for test backend operations.
 type Result<T, E = core::convert::Infallible> = core::result::Result<T, E>;
 
 impl Backend for TestBackend {

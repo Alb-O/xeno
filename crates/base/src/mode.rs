@@ -6,8 +6,10 @@ use crate::PendingKind;
 /// Editor mode.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub enum Mode {
+	/// Normal mode for navigation and commands.
 	#[default]
 	Normal,
+	/// Insert mode for text input.
 	Insert,
 	/// Window/split management mode (Ctrl+w prefix).
 	Window,

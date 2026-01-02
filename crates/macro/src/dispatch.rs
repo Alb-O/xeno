@@ -138,7 +138,7 @@ pub fn derive_dispatch_result(input: TokenStream) -> TokenStream {
 	};
 
 	let expanded = quote! {
-		#[allow(non_upper_case_globals)]
+		#[allow(non_upper_case_globals, missing_docs)]
 		mod __dispatch_result_slices {
 			use super::*;
 			use ::linkme::distributed_slice;

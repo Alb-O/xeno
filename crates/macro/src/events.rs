@@ -28,6 +28,8 @@ struct EventDef {
 
 /// A field in an event payload.
 struct EventField {
+	/// Outer attributes (e.g., doc comments) for the field.
+	attrs: Vec<syn::Attribute>,
 	/// Field name (e.g., `path`).
 	name: Ident,
 	/// Type token that maps to borrowed/owned types (e.g., `Path`, `RopeSlice`).
@@ -42,10 +44,11 @@ struct EventDefs {
 
 impl Parse for EventField {
 	fn parse(input: ParseStream) -> Result<Self> {
+		let attrs = input.call(syn::Attribute::parse_outer)?;
 		let name: Ident = input.parse()?;
 		input.parse::<Token![:]>()?;
 		let ty: Ident = input.parse()?;
-		Ok(EventField { name, ty })
+		Ok(EventField { attrs, name, ty })
 	}
 }
 
@@ -164,9 +167,10 @@ pub fn define_events(input: TokenStream) -> TokenStream {
 					.fields
 					.iter()
 					.map(|f| {
+						let fattrs = &f.attrs;
 						let fname = &f.name;
 						let fty = borrowed_type(&f.ty);
-						quote! { #fname: #fty }
+						quote! { #(#fattrs)* #fname: #fty }
 					})
 					.collect();
 				quote! {
@@ -235,9 +239,10 @@ pub fn define_events(input: TokenStream) -> TokenStream {
 					.fields
 					.iter()
 					.map(|f| {
+						let fattrs = &f.attrs;
 						let fname = &f.name;
 						let fty = owned_type(&f.ty);
-						quote! { #fname: #fty }
+						quote! { #(#fattrs)* #fname: #fty }
 					})
 					.collect();
 				quote! {
@@ -315,6 +320,7 @@ pub fn define_events(input: TokenStream) -> TokenStream {
 		.collect();
 
 	let output = quote! {
+		/// Discriminant for hook event types.
 		#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 		pub enum HookEvent {
 			#(#event_variants),*

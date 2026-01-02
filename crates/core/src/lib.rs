@@ -22,6 +22,7 @@ pub mod keymap_registry;
 #[cfg(feature = "host")]
 pub mod movement;
 pub mod notifications;
+/// Terminal capability configuration.
 pub mod terminal_config;
 
 /// Theme completion source.
@@ -83,6 +84,7 @@ pub mod theme {
 	}
 }
 
+/// Numeric identifier for an action in the registry.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct ActionId(pub u32);
 

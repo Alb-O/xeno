@@ -2,8 +2,8 @@
 //!
 //! Functions for applying named motions to selections and cursors.
 
-use evildoer_base::Selection;
 use evildoer_base::range::Range;
+use evildoer_base::Selection;
 use evildoer_registry_motions::find as find_motion;
 use tracing::debug;
 

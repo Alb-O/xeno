@@ -2,11 +2,12 @@
 //!
 //! The `KeyMap` derive macro automatically implements the `TryFrom<KeyMap>` trait for enums,
 //! allowing you to easily convert a `KeyMap` to an enum variant based on the specified key bindings.
-use item::{Item, parse_items};
+use item::{parse_items, Item};
 use proc_macro::TokenStream;
 use quote::quote;
 use syn::{DataEnum, DeriveInput, Fields, Ident};
 
+/// Parsed enum variant item for keymap derivation.
 mod item;
 
 /// A derive macro that generates [`TryFrom<KeyMap>`] implementations for enums.

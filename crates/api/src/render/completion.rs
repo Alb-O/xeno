@@ -8,6 +8,7 @@ use evildoer_tui::widgets::{Block, Borders, List, Widget};
 use crate::Editor;
 
 impl Editor {
+	/// Creates a widget for rendering the completion popup menu.
 	pub fn render_completion_menu(&self, _area: Rect) -> impl Widget + '_ {
 		let max_label_len = self
 			.completions

@@ -5,6 +5,7 @@ use evildoer_tui::widgets::menu::{MenuEvent, MenuItem, MenuState};
 /// Action triggered by menu item selection.
 #[derive(Debug, Clone)]
 pub enum MenuAction {
+	/// Execute a command by name.
 	Command(&'static str),
 }
 

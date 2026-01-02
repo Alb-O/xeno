@@ -333,6 +333,7 @@ impl fmt::Display for Color {
 }
 
 impl Color {
+	/// Wraps this color for debug formatting with the given kind.
 	pub(crate) const fn stylize_debug(self, kind: ColorDebugKind) -> ColorDebug {
 		ColorDebug { kind, color: self }
 	}

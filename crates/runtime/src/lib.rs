@@ -5,12 +5,15 @@
 //! - Theme definitions (KDL files)
 //! - Language configuration (grammars.kdl, languages.kdl, etc.)
 
-use include_dir::{Dir, include_dir};
+use include_dir::{include_dir, Dir};
 
 pub extern crate include_dir;
 
+/// Embedded tree-sitter query files.
 static QUERIES_DIR: Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/assets/language/queries");
+/// Embedded theme KDL files.
 static THEMES_DIR: Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/assets/themes");
+/// Embedded language configuration files.
 static LANGUAGE_DIR: Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/assets/language");
 
 /// Tree-sitter query files organized by language.

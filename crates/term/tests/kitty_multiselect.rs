@@ -1,3 +1,5 @@
+//! Multi-cursor selection tests using kitty harness.
+
 mod helpers;
 
 use std::time::Duration;

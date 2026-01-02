@@ -15,7 +15,9 @@ pub use self::table::{Cell, HighlightSpacing, Row, Table, TableState};
 pub use self::tabs::Tabs;
 pub use self::widget::Widget;
 
+/// Stateful widget trait for widgets with state.
 mod stateful_widget;
+/// Base widget trait.
 mod widget;
 
 pub mod block;

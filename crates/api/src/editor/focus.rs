@@ -39,6 +39,7 @@ impl Editor {
 		self.focus_view_inner(view, false)
 	}
 
+	/// Internal focus implementation, handling sticky views and dock layer.
 	fn focus_view_inner(&mut self, view: BufferView, explicit: bool) -> bool {
 		let old_view = self.buffers.focused_view();
 		if !self.buffers.set_focused_view(view) {
@@ -113,6 +114,7 @@ impl Editor {
 		}
 	}
 
+	/// Returns the current editing mode (Normal, Insert, Visual, etc.).
 	pub fn mode(&self) -> Mode {
 		if self.is_panel_focused() {
 			// Check if we're in window mode (using first buffer's input handler)
@@ -130,6 +132,7 @@ impl Editor {
 		}
 	}
 
+	/// Returns the display name for the current mode.
 	pub fn mode_name(&self) -> &'static str {
 		if let Some(panel) = self.focused_panel_def() {
 			if panel.supports_window_mode

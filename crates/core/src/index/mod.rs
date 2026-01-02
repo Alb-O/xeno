@@ -12,13 +12,14 @@ mod types;
 use std::sync::OnceLock;
 
 pub use collision::{Collision, CollisionKind};
-pub use diagnostics::{CollisionReport, DiagnosticReport, diagnostics};
+pub use diagnostics::{diagnostics, CollisionReport, DiagnosticReport};
 pub use lookups::{
 	all_actions, all_commands, all_motions, all_text_objects, find_action, find_action_by_id,
 	find_command, find_motion, find_text_object_by_trigger, resolve_action_id,
 };
 pub use types::{ActionRegistryIndex, ExtensionRegistry, RegistryIndex};
 
+/// Global extension registry singleton.
 static REGISTRY: OnceLock<ExtensionRegistry> = OnceLock::new();
 
 /// Returns the global extension registry, initializing it if necessary.

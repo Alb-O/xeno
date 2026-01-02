@@ -21,6 +21,7 @@ fn icon_for_semantic(semantic: &str) -> Option<&'static str> {
 }
 
 impl Editor {
+	/// Displays a notification toast with the given type and message.
 	pub fn notify(&mut self, type_name: &str, text: impl Into<String>) {
 		let text = text.into();
 		let type_def = find_notification_type(type_name);

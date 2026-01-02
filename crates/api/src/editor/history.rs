@@ -8,6 +8,7 @@ use crate::buffer::{BufferId, BufferView, DocumentId};
 use crate::editor::Editor;
 
 impl Editor {
+	/// Collects selections from all buffers sharing the same document.
 	fn collect_sibling_selections(&self, doc_id: DocumentId) -> HashMap<BufferId, Selection> {
 		self.buffers
 			.buffers()
@@ -16,6 +17,7 @@ impl Editor {
 			.collect()
 	}
 
+	/// Restores saved selections to all buffers sharing the same document.
 	fn restore_sibling_selections(
 		&mut self,
 		doc_id: DocumentId,

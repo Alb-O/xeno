@@ -3,8 +3,9 @@
 use proc_macro::TokenStream;
 use quote::{format_ident, quote};
 use syn::parse::{Parse, ParseStream};
-use syn::{Token, parse_macro_input};
+use syn::{parse_macro_input, Token};
 
+/// Parsed input for the `register_notification!` macro.
 pub(crate) struct NotificationInput {
 	pub static_name: syn::Ident,
 	pub id: syn::LitStr,

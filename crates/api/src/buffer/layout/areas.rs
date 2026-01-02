@@ -2,8 +2,8 @@
 
 use evildoer_tui::layout::Rect;
 
-use super::Layout;
 use super::types::{BufferView, SplitDirection, SplitPath};
+use super::Layout;
 use crate::buffer::BufferId;
 
 impl Layout {
@@ -66,6 +66,7 @@ impl Layout {
 		self.find_separator_with_path(area, x, y, SplitPath::default())
 	}
 
+	/// Recursively searches for a separator at coordinates, building the path.
 	fn find_separator_with_path(
 		&self,
 		area: Rect,
@@ -156,6 +157,7 @@ impl Layout {
 		self.do_resize_at_path(area, &path.0, mouse_x, mouse_y)
 	}
 
+	/// Internal recursive implementation of path-based resize.
 	fn do_resize_at_path(&mut self, area: Rect, path: &[bool], mouse_x: u16, mouse_y: u16) -> bool {
 		let Layout::Split {
 			direction,
@@ -201,6 +203,7 @@ impl Layout {
 		self.do_get_separator_at_path(area, &path.0)
 	}
 
+	/// Internal recursive implementation of path-based separator lookup.
 	fn do_get_separator_at_path(
 		&self,
 		area: Rect,

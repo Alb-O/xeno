@@ -27,6 +27,7 @@ use tracing::error;
 
 use crate::{AnyEvent, AnyNotification, AnyRequest, ClientSocket, Error, LspService, Result};
 
+/// Marker type indicating the client process has exited.
 struct ClientProcessExited;
 
 /// The middleware stopping the main loop when the Language Client process aborted unexpectedly.

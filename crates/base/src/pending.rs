@@ -18,9 +18,15 @@ pub enum ObjectSelectionKind {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PendingKind {
 	/// Find character forward (`f`/`t` commands).
-	FindChar { inclusive: bool },
+	FindChar {
+		/// If true, include the found character in the motion.
+		inclusive: bool,
+	},
 	/// Find character backward (`F`/`T` commands).
-	FindCharReverse { inclusive: bool },
+	FindCharReverse {
+		/// If true, include the found character in the motion.
+		inclusive: bool,
+	},
 	/// Replace character under cursor (`r` command).
 	ReplaceChar,
 	/// Select text object (`i`/`a` after operator).

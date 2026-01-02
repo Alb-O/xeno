@@ -18,6 +18,7 @@ mod tests;
 /// Cannot implement it as Iterator since it yields slices of the internal buffer (need streaming
 /// iterators for that).
 pub trait LineComposer<'a> {
+	/// Returns the next wrapped line, or None if exhausted.
 	fn next_line<'lend>(&'lend mut self) -> Option<WrappedLine<'lend, 'a>>;
 }
 

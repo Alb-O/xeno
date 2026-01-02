@@ -60,6 +60,7 @@ impl<T> Menu<T> {
 		self
 	}
 
+	/// Renders a dropdown menu at the given position.
 	fn render_dropdown(
 		&self,
 		x: u16,

@@ -346,6 +346,7 @@ impl Styled for String {
 	}
 }
 
+/// Implements [`Styled`] for a type by converting it to a `Span`.
 macro_rules! styled {
 	($impl_type:ty) => {
 		impl Styled for $impl_type {

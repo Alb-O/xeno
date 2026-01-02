@@ -1,3 +1,5 @@
+//! Evildoer terminal application entry point.
+
 /// Application lifecycle and event loop.
 mod app;
 /// Terminal backend abstraction.

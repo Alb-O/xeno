@@ -20,12 +20,15 @@ const PARSE_TIMEOUT: Duration = Duration::from_millis(500);
 /// Errors that can occur during syntax operations.
 #[derive(Error, Debug)]
 pub enum SyntaxError {
+	/// Tree-sitter parsing failed.
 	#[error("parse error: {0}")]
 	Parse(String),
 
+	/// Parsing took longer than the configured timeout.
 	#[error("timeout during parsing")]
 	Timeout,
 
+	/// No language configuration found for the file type.
 	#[error("language not configured")]
 	NoLanguage,
 }

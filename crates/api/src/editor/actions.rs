@@ -7,6 +7,7 @@ use tracing::debug;
 use super::Editor;
 
 impl Editor {
+	/// Executes an edit action (delete, change, yank, etc.).
 	pub(crate) fn do_execute_edit_action(&mut self, action: EditAction, _extend: bool) {
 		debug!(edit = ?action, "Executing edit action");
 		match action {
@@ -417,6 +418,7 @@ impl Editor {
 		}
 	}
 
+	/// Applies a character mapping function to the primary selection.
 	pub(crate) fn apply_case_conversion<F>(&mut self, char_mapper: F)
 	where
 		F: Fn(char) -> Box<dyn Iterator<Item = char>>,

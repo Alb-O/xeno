@@ -9,8 +9,10 @@ use proc_macro::TokenStream;
 
 mod dispatch;
 mod events;
+/// Extension attribute macro implementation.
 mod extension;
 mod keybindings;
+/// Notification macro implementation.
 mod notification;
 
 /// Generates extension registrations from an `impl` block.

@@ -1,5 +1,9 @@
 use std::path::PathBuf;
 
+/// Returns the platform-specific configuration directory for evildoer.
+///
+/// On Linux, uses `$XDG_CONFIG_HOME/evildoer` or `~/.config/evildoer`.
+/// On other platforms, uses `~/.evildoer`.
 pub fn get_config_dir() -> Option<PathBuf> {
 	#[cfg(target_os = "linux")]
 	{

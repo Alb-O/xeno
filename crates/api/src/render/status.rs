@@ -1,5 +1,5 @@
 use evildoer_registry::{
-	RenderedSegment, SegmentPosition, SegmentStyle, StatuslineContext, render_position,
+	render_position, RenderedSegment, SegmentPosition, SegmentStyle, StatuslineContext,
 };
 use evildoer_tui::style::{Modifier, Style};
 use evildoer_tui::text::{Line, Span};
@@ -8,6 +8,7 @@ use evildoer_tui::widgets::{Paragraph, Widget};
 use crate::Editor;
 
 impl Editor {
+	/// Creates a widget for rendering the status line.
 	pub fn render_status_line(&self) -> impl Widget + '_ {
 		let buffer_ids = self.buffer_ids();
 		let buffer_index = self
@@ -83,6 +84,7 @@ impl Editor {
 		Paragraph::new(Line::from(spans))
 	}
 
+	/// Converts a statusline segment to a styled span.
 	pub fn segment_to_span(&self, segment: &RenderedSegment) -> Span<'static> {
 		let colors = &self.theme.colors;
 		let style = match segment.style {

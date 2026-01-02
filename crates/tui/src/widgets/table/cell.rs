@@ -153,6 +153,7 @@ impl<'a> Cell<'a> {
 }
 
 impl Cell<'_> {
+	/// Renders the cell content into the given area.
 	pub(crate) fn render(&self, area: Rect, buf: &mut Buffer) {
 		buf.set_style(area, self.style);
 		Widget::render(&self.content, area, buf);

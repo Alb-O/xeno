@@ -28,6 +28,7 @@ impl ConfigChange {
 		}
 	}
 
+	/// Categorizes a file path into a config change type.
 	fn from_path(path: PathBuf, config_dir: &Path) -> Option<Self> {
 		if path.extension()? != "kdl" {
 			return None;

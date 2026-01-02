@@ -35,6 +35,7 @@ impl Buffer {
 		self.cursor = self.selection.primary().head;
 	}
 
+	/// Computes a new cursor position from visual line movement.
 	fn visual_move_from(&self, cursor: usize, direction: MoveDir) -> usize {
 		// Extract all needed data from doc in one block
 		let (_doc_line, line_start, _total_lines, line_text, next_line_data, prev_line_data) = {

@@ -34,11 +34,15 @@ pub mod editor;
 pub mod lsp;
 pub mod menu;
 pub mod panels;
+/// Platform-specific configuration paths.
 pub mod paths;
+/// Rendering utilities for buffers, status line, and completion.
 pub mod render;
+/// Style utilities and conversions.
 pub mod styles;
 pub mod terminal;
 pub mod test_events;
+/// UI management: panels, docks, and focus tracking.
 pub mod ui;
 
 pub use buffer::{Buffer, BufferId, HistoryResult};

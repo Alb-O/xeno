@@ -11,6 +11,7 @@ use crate::buffer::BufferView;
 use crate::editor::Editor;
 
 impl Editor {
+	/// Processes a mouse event, returning true if the event triggered a quit.
 	pub async fn handle_mouse(&mut self, mouse: termina::event::MouseEvent) -> bool {
 		let width = self.window_width.unwrap_or(80);
 		let height = self.window_height.unwrap_or(24);

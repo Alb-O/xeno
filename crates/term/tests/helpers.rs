@@ -1,6 +1,8 @@
+//! Shared test utilities for kitty harness tests.
+
 use std::path::{Path, PathBuf};
 
-use kitty_test_harness::{KeyPress, KittyHarness, send_keys};
+use kitty_test_harness::{send_keys, KeyPress, KittyHarness};
 use termwiz::input::KeyCode;
 
 /// Returns the path to the evildoer binary.

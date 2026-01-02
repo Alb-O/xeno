@@ -8,8 +8,8 @@
 //! The main goal is to decouple application logic from backend-specific input handling, enabling easier
 //! testing, configuration, and cross-platform support.
 
-use evildoer_keymap_parser::Node;
 use evildoer_keymap_parser::parser::ParseError;
+use evildoer_keymap_parser::Node;
 
 /// A type alias for a parsed keymap node tree.
 ///
@@ -28,6 +28,7 @@ pub type KeyMap = Node;
 /// Returns [`Error::Parse`] if the `KeyMap` is invalid, or [`Error::UnsupportedKey`] if it
 /// contains keys or structures not supported by the target backend.
 pub trait FromKeyMap: Sized {
+	/// Converts a [`KeyMap`] into this backend-specific type.
 	fn from_keymap(keymap: KeyMap) -> Result<Self, Error>;
 }
 
@@ -41,6 +42,7 @@ pub trait FromKeyMap: Sized {
 ///
 /// Returns an [`Error`] if the conversion fails due to an unsupported or invalid key.
 pub trait IntoKeyMap {
+	/// Converts this type into a [`KeyMap`].
 	fn into_keymap(self) -> Result<KeyMap, Error>;
 }
 

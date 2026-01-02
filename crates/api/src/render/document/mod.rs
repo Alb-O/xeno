@@ -3,6 +3,7 @@
 //! This module handles rendering of buffers in split views, including
 //! separator styling, junction glyphs, and panel rendering.
 
+/// Line wrapping calculations for soft-wrapped text.
 mod wrapping;
 
 use std::time::{Duration, SystemTime};

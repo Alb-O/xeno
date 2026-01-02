@@ -10,10 +10,12 @@ use crate::error::{ConfigError, Result};
 /// Context for parsing, including palette colors for variable resolution.
 #[derive(Default)]
 pub struct ParseContext {
+	/// Named color definitions for `$variable` expansion.
 	pub palette: HashMap<String, Color>,
 }
 
 impl ParseContext {
+	/// Resolves a color value, expanding `$palette` variables.
 	pub fn resolve_color(&self, value: &str) -> Result<Color> {
 		if let Some(name) = value.strip_prefix('$') {
 			self.palette

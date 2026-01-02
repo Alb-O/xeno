@@ -8,6 +8,7 @@ use super::layout::SeparatorId;
 /// State for an active separator drag operation.
 #[derive(Debug, Clone, PartialEq)]
 pub struct DragState {
+	/// Identifier of the separator being dragged.
 	pub id: SeparatorId,
 }
 

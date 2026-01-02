@@ -3,6 +3,9 @@ use unicode_segmentation::UnicodeSegmentation;
 
 use crate::range::CharIdx;
 
+/// Returns whether `char_idx` is at a grapheme cluster boundary.
+///
+/// Boundaries occur at the start/end of text and between grapheme clusters.
 pub fn is_grapheme_boundary(text: RopeSlice, char_idx: CharIdx) -> bool {
 	if char_idx == 0 || char_idx == text.len_chars() {
 		return true;
@@ -16,6 +19,9 @@ pub fn is_grapheme_boundary(text: RopeSlice, char_idx: CharIdx) -> bool {
 	graphemes.len() > 1
 }
 
+/// Returns the char index of the next grapheme cluster boundary after `char_idx`.
+///
+/// If `char_idx` is at or past the end, returns `text.len_chars()`.
 pub fn next_grapheme_boundary(text: RopeSlice, char_idx: CharIdx) -> CharIdx {
 	let len = text.len_chars();
 	if char_idx >= len {
@@ -29,6 +35,9 @@ pub fn next_grapheme_boundary(text: RopeSlice, char_idx: CharIdx) -> CharIdx {
 	idx
 }
 
+/// Returns the char index of the previous grapheme cluster boundary before `char_idx`.
+///
+/// If `char_idx` is 0, returns 0.
 pub fn prev_grapheme_boundary(text: RopeSlice, char_idx: CharIdx) -> CharIdx {
 	if char_idx == 0 {
 		return 0;
@@ -41,6 +50,7 @@ pub fn prev_grapheme_boundary(text: RopeSlice, char_idx: CharIdx) -> CharIdx {
 	idx
 }
 
+/// Snaps `char_idx` to the next grapheme boundary if not already on one.
 pub fn ensure_grapheme_boundary_next(text: RopeSlice, char_idx: CharIdx) -> CharIdx {
 	if is_grapheme_boundary(text, char_idx) {
 		char_idx
@@ -49,6 +59,7 @@ pub fn ensure_grapheme_boundary_next(text: RopeSlice, char_idx: CharIdx) -> Char
 	}
 }
 
+/// Snaps `char_idx` to the previous grapheme boundary if not already on one.
 pub fn ensure_grapheme_boundary_prev(text: RopeSlice, char_idx: CharIdx) -> CharIdx {
 	if is_grapheme_boundary(text, char_idx) {
 		char_idx

@@ -4,7 +4,7 @@
 use std::any::Any;
 use std::future::Future;
 use std::ops::ControlFlow;
-use std::panic::{AssertUnwindSafe, catch_unwind};
+use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::pin::Pin;
 use std::task::{Context, Poll};
 
@@ -24,6 +24,7 @@ pub struct CatchUnwind<S: LspService> {
 
 define_getters!(impl[S: LspService] CatchUnwind<S>, service: S);
 
+/// Panic handler function signature.
 type Handler<E> = fn(method: &str, payload: Box<dyn Any + Send>) -> E;
 
 fn default_handler(method: &str, payload: Box<dyn Any + Send>) -> ResponseError {

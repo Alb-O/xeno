@@ -10,6 +10,7 @@ use crate::error::Result;
 /// Options configuration mapping option names to values.
 #[derive(Debug, Clone, Default)]
 pub struct OptionsConfig {
+	/// Map of option names to their values.
 	pub values: HashMap<String, OptionValue>,
 }
 
@@ -19,6 +20,7 @@ impl OptionsConfig {
 		self.values.extend(other.values);
 	}
 
+	/// Returns the value for an option by name, if set.
 	pub fn get(&self, name: &str) -> Option<&OptionValue> {
 		self.values.get(name)
 	}

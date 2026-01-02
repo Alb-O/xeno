@@ -6,9 +6,10 @@
 use linkme::distributed_slice;
 
 mod impls;
+/// Statusline segment registration macros.
 mod macros;
 
-pub use evildoer_registry_motions::{RegistryMetadata, RegistrySource, impl_registry_metadata};
+pub use evildoer_registry_motions::{impl_registry_metadata, RegistryMetadata, RegistrySource};
 
 /// Position in the statusline.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

@@ -7,10 +7,13 @@ use super::{Color, Modifier, Style};
 /// Error type for converting between `anstyle` colors and `Color`
 #[derive(Debug, Error, PartialEq, Eq)]
 pub enum TryFromColorError {
+	/// Color cannot be converted to an indexed Ansi256 color.
 	#[error("cannot convert Ratatui Color to an Ansi256Color as it is not an indexed color")]
 	Ansi256,
+	/// Color cannot be converted to a 4-bit ANSI color.
 	#[error("cannot convert Ratatui Color to AnsiColor as it is not a 4-bit color")]
 	Ansi,
+	/// Color cannot be converted to an RGB color.
 	#[error("cannot convert Ratatui Color to RgbColor as it is not an RGB color")]
 	RgbColor,
 }

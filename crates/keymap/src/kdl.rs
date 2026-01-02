@@ -28,8 +28,11 @@ pub enum Error {
 	MissingNode(String),
 	/// Invalid key binding syntax
 	InvalidKey {
+		/// Name of the action the binding was for.
 		action: String,
+		/// The key string that failed to parse.
 		key: String,
+		/// Description of why parsing failed.
 		reason: String,
 	},
 	/// Action variant not recognized

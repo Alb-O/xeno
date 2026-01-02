@@ -542,6 +542,7 @@ struct ClientState {
 }
 
 impl ClientState {
+	/// Creates a new empty client state.
 	fn new() -> Self {
 		Self {
 			diagnostics: Mutex::new(HashMap::new()),

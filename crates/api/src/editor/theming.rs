@@ -5,10 +5,11 @@
 use evildoer_registry::commands::CommandError;
 use evildoer_registry::themes::SyntaxStyles;
 
-use super::Editor;
 use super::extensions::StyleMod;
+use super::Editor;
 
 impl Editor {
+	/// Sets the editor's color theme by name.
 	pub fn set_theme(&mut self, theme_name: &str) -> Result<(), CommandError> {
 		if let Some(theme) = evildoer_registry::themes::get_theme(theme_name) {
 			self.theme = theme;
@@ -22,6 +23,7 @@ impl Editor {
 		}
 	}
 
+	/// Collects syntax highlight spans for the visible area of the buffer.
 	pub fn collect_highlight_spans(
 		&self,
 		area: evildoer_tui::layout::Rect,
@@ -66,6 +68,7 @@ impl Editor {
 			.collect()
 	}
 
+	/// Finds the style for a given byte position from precomputed highlight spans.
 	pub fn style_for_byte_pos(
 		&self,
 		byte_pos: usize,
@@ -82,6 +85,7 @@ impl Editor {
 		None
 	}
 
+	/// Applies any active style overlay (e.g., dimming) at the given byte position.
 	pub fn apply_style_overlay(
 		&self,
 		byte_pos: usize,

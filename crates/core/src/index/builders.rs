@@ -2,11 +2,11 @@
 
 use std::collections::HashMap;
 
+use evildoer_registry::actions::{ActionDef, ACTIONS};
+use evildoer_registry::commands::{CommandDef, COMMANDS};
+use evildoer_registry::motions::{MotionDef, MOTIONS};
+use evildoer_registry::text_objects::{TextObjectDef, TEXT_OBJECTS};
 use evildoer_registry::RegistryMetadata;
-use evildoer_registry::actions::{ACTIONS, ActionDef};
-use evildoer_registry::commands::{COMMANDS, CommandDef};
-use evildoer_registry::motions::{MOTIONS, MotionDef};
-use evildoer_registry::text_objects::{TEXT_OBJECTS, TextObjectDef};
 use tracing::{debug, warn};
 
 use super::collision::{Collision, CollisionKind};

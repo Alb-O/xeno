@@ -1,3 +1,5 @@
+//! Completion system integration tests.
+
 use std::path::PathBuf;
 use std::time::Duration;
 

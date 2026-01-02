@@ -1,6 +1,6 @@
 //! Cursor position segment.
 
-use crate::{RenderedSegment, SegmentPosition, SegmentStyle, statusline_segment};
+use crate::{statusline_segment, RenderedSegment, SegmentPosition, SegmentStyle};
 
 statusline_segment!(
 	SEG_POSITION,

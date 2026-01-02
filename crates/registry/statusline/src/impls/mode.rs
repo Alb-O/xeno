@@ -1,6 +1,6 @@
 //! Mode indicator segment.
 
-use crate::{RenderedSegment, SegmentPosition, SegmentStyle, statusline_segment};
+use crate::{statusline_segment, RenderedSegment, SegmentPosition, SegmentStyle};
 
 statusline_segment!(SEG_MODE, "mode", SegmentPosition::Left, 0, true, |ctx| {
 	Some(RenderedSegment {

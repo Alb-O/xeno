@@ -12,8 +12,11 @@ use crate::text::Line;
 use crate::widgets::block::Block;
 use crate::widgets::table::HighlightSpacing;
 
+/// List item definition.
 mod item;
+/// List rendering implementation.
 mod rendering;
+/// List selection state.
 mod state;
 
 /// A widget to display several items among which one can be selected (optional)

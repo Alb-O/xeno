@@ -6,7 +6,9 @@ use core::fmt;
 pub use self::iter::{Columns, Positions, Rows};
 use crate::layout::{Margin, Offset, Position, Size};
 
+/// Iterators over rect positions, rows, and columns.
 mod iter;
+/// Arithmetic operations on Rect.
 mod ops;
 
 use super::{Constraint, Flex, Layout};
