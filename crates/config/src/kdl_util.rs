@@ -45,6 +45,7 @@ pub fn parse_color(value: &str) -> Result<Color> {
 	parse_named_color(value)
 }
 
+/// Parses a hex color string (`#RGB` or `#RRGGBB`) into a Color.
 fn parse_hex_color(hex: &str) -> Result<Color> {
 	let hex = hex.trim_start_matches('#');
 	let err = || ConfigError::InvalidColor(format!("#{hex}"));
@@ -66,6 +67,7 @@ fn parse_hex_color(hex: &str) -> Result<Color> {
 	}
 }
 
+/// Parses a named color (e.g., "red", "bright-blue") into a Color.
 fn parse_named_color(name: &str) -> Result<Color> {
 	let normalized = name.to_lowercase().replace(['-', '_'], "");
 

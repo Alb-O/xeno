@@ -6,8 +6,8 @@
 use evildoer_base::key::{Key, KeyCode, Modifiers};
 use evildoer_keymap_parser::{self as parser, Key as ParserKey, Modifier, Node};
 
-use crate::Error;
 use crate::keymap::{FromKeyMap, IntoKeyMap, KeyMap, ToKeyMap};
+use crate::Error;
 
 impl IntoKeyMap for Key {
 	fn into_keymap(self) -> Result<KeyMap, Error> {
@@ -79,6 +79,7 @@ impl FromKeyMap for Key {
 	}
 }
 
+/// Converts evildoer Modifiers to parser bitflags.
 fn modifiers_to_parser(mods: &Modifiers) -> parser::Modifiers {
 	let mut result: u8 = 0;
 	if mods.ctrl {
@@ -93,6 +94,7 @@ fn modifiers_to_parser(mods: &Modifiers) -> parser::Modifiers {
 	result
 }
 
+/// Converts parser bitflags to evildoer Modifiers.
 fn modifiers_from_parser(mods: parser::Modifiers) -> Modifiers {
 	Modifiers {
 		ctrl: mods & (Modifier::Ctrl as u8) != 0,

@@ -4,6 +4,7 @@ use crate::{CommandContext, CommandError, CommandOutcome, command};
 
 command!(edit, { aliases: &["e"], description: "Edit a file" }, handler: cmd_edit);
 
+/// Handler for the `:edit` command.
 fn cmd_edit<'a>(
 	ctx: &'a mut CommandContext<'a>,
 ) -> LocalBoxFuture<'a, Result<CommandOutcome, CommandError>> {

@@ -22,6 +22,7 @@ pub enum WordType {
 	WORD,
 }
 
+/// Returns whether a character is a word character (alphanumeric or underscore).
 pub(crate) fn is_word_char(c: char) -> bool {
 	c.is_alphanumeric() || c == '_'
 }

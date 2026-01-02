@@ -6,6 +6,7 @@ use crate::{CommandContext, CommandError, CommandOutcome, command};
 
 command!(write, { aliases: &["w"], description: "Write buffer to file" }, handler: cmd_write);
 
+/// Handler for the `:write` command.
 fn cmd_write<'a>(
 	ctx: &'a mut CommandContext<'a>,
 ) -> LocalBoxFuture<'a, Result<CommandOutcome, CommandError>> {
@@ -21,6 +22,7 @@ fn cmd_write<'a>(
 
 command!(wq, { aliases: &["x"], description: "Write and quit" }, handler: cmd_write_quit);
 
+/// Handler for the `:wq` command.
 fn cmd_write_quit<'a>(
 	ctx: &'a mut CommandContext<'a>,
 ) -> LocalBoxFuture<'a, Result<CommandOutcome, CommandError>> {

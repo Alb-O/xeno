@@ -27,6 +27,7 @@ define_getters!(impl[S: LspService] CatchUnwind<S>, service: S);
 /// Panic handler function signature.
 type Handler<E> = fn(method: &str, payload: Box<dyn Any + Send>) -> E;
 
+/// Default panic handler that converts panics to ResponseError.
 fn default_handler(method: &str, payload: Box<dyn Any + Send>) -> ResponseError {
 	let msg = match payload.downcast::<String>() {
 		Ok(msg) => *msg,

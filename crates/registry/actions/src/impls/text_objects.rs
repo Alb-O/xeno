@@ -3,6 +3,7 @@ use evildoer_registry_text_objects::{find_by_trigger, TextObjectDef};
 
 use crate::{action, ActionContext, ActionResult, ObjectSelectionKind, PendingAction, PendingKind};
 
+/// Selects a text object by its trigger character.
 fn select_object_with_trigger(
 	ctx: &ActionContext,
 	selection_kind: ObjectSelectionKind,
@@ -40,6 +41,7 @@ fn select_object_with_trigger(
 	ActionResult::Motion(new_sel)
 }
 
+/// Selects from cursor to the start or end boundary of a text object.
 fn select_to_boundary(
 	ctx: &ActionContext,
 	obj: &TextObjectDef,

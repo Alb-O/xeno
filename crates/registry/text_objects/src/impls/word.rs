@@ -15,6 +15,7 @@ text_object!(
 	}
 );
 
+/// Selects the inner word (alphanumeric characters only).
 fn word_inner(text: RopeSlice, pos: usize) -> Option<Range> {
 	Some(select_word_object(
 		text,
@@ -24,6 +25,7 @@ fn word_inner(text: RopeSlice, pos: usize) -> Option<Range> {
 	))
 }
 
+/// Selects the word including surrounding whitespace.
 fn word_around(text: RopeSlice, pos: usize) -> Option<Range> {
 	Some(select_word_object(
 		text,
@@ -42,6 +44,7 @@ text_object!(
 	}
 );
 
+/// Selects the inner WORD (any non-whitespace characters).
 fn big_word_inner(text: RopeSlice, pos: usize) -> Option<Range> {
 	Some(select_word_object(
 		text,
@@ -51,6 +54,7 @@ fn big_word_inner(text: RopeSlice, pos: usize) -> Option<Range> {
 	))
 }
 
+/// Selects the WORD including surrounding whitespace.
 fn big_word_around(text: RopeSlice, pos: usize) -> Option<Range> {
 	Some(select_word_object(
 		text,

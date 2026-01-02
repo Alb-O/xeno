@@ -5,6 +5,7 @@ use ropey::RopeSlice;
 
 use crate::text_object;
 
+/// Selects the inner content of a line (excluding trailing newline).
 fn line_inner(text: RopeSlice, pos: usize) -> Option<Range> {
 	if text.len_chars() == 0 {
 		return None;
@@ -28,6 +29,7 @@ fn line_inner(text: RopeSlice, pos: usize) -> Option<Range> {
 	Some(Range::new(start, end))
 }
 
+/// Selects the entire line including trailing newline.
 fn line_around(text: RopeSlice, pos: usize) -> Option<Range> {
 	if text.len_chars() == 0 {
 		return None;

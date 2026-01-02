@@ -233,6 +233,7 @@ pub fn pretty_print_tree<W: std::fmt::Write>(fmt: &mut W, node: Node) -> std::fm
 	}
 }
 
+/// Recursive implementation of tree pretty-printing.
 fn pretty_print_tree_impl<W: std::fmt::Write>(
 	fmt: &mut W,
 	cursor: &mut tree_house::tree_sitter::TreeCursor,

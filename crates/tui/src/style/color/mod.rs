@@ -296,6 +296,7 @@ impl FromStr for Color {
 	}
 }
 
+/// Parses a hex color string (e.g., "#ff0000") into RGB components.
 fn parse_hex_color(input: &str) -> Option<(u8, u8, u8)> {
 	if !input.starts_with('#') || input.len() != 7 {
 		return None;

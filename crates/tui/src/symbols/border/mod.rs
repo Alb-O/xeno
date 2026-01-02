@@ -27,7 +27,7 @@ impl Default for Set<'_> {
 	}
 }
 
-// Helper function to convert a line set to a border set
+/// Converts a line symbol set to a border set by reusing line characters.
 const fn from_line_set(line_set: line::Set<'_>) -> Set<'_> {
 	Set {
 		top_left: line_set.top_left,

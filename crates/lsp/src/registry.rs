@@ -67,6 +67,7 @@ pub struct LanguageServerConfig {
 	pub enable_snippets: bool,
 }
 
+/// Returns the default LSP request timeout in seconds.
 fn default_timeout() -> u64 {
 	30
 }

@@ -14,6 +14,7 @@ command!(
 	handler: cmd_theme
 );
 
+/// Handler for the `:theme` command.
 fn cmd_theme<'a>(
 	ctx: &'a mut CommandContext<'a>,
 ) -> LocalBoxFuture<'a, Result<CommandOutcome, CommandError>> {

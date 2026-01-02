@@ -44,6 +44,7 @@ fn seed_themes(target: &Path) -> io::Result<()> {
 	extract_dir(evildoer_runtime::themes::root(), target)
 }
 
+/// Recursively extracts an embedded directory to the filesystem.
 fn extract_dir(dir: &Dir<'_>, target: &Path) -> io::Result<()> {
 	fs::create_dir_all(target)?;
 

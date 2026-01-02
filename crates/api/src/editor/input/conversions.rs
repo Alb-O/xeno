@@ -43,6 +43,7 @@ pub fn convert_termina_key(key: &termina::event::KeyEvent) -> Option<SplitKey> {
 	Some(SplitKey::new(code, modifiers))
 }
 
+/// Converts a termina mouse event to a panel-compatible mouse event.
 pub fn convert_mouse_event(
 	mouse: &termina::event::MouseEvent,
 	local_x: u16,

@@ -4,6 +4,7 @@ use crate::{CommandContext, CommandError, CommandOutcome, all_commands, command,
 
 command!(help, { aliases: &["h"], description: "Show help for commands" }, handler: cmd_help);
 
+/// Handler for the `:help` command.
 fn cmd_help<'a>(
 	ctx: &'a mut CommandContext<'a>,
 ) -> LocalBoxFuture<'a, Result<CommandOutcome, CommandError>> {

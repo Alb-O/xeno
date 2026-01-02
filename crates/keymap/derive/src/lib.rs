@@ -67,6 +67,7 @@ pub fn keymap(input: TokenStream) -> TokenStream {
 	}
 }
 
+/// Generates the KeyMapConfig trait implementation for an enum.
 fn impl_keymap_config(name: &Ident, items: &Vec<Item>) -> proc_macro2::TokenStream {
 	let mut entries = Vec::new();
 	let mut match_arms = Vec::new();

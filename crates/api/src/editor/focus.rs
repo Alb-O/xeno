@@ -11,6 +11,7 @@ use evildoer_registry::{
 use super::Editor;
 use crate::buffer::{BufferId, BufferView};
 
+/// Converts a buffer view to a hook-compatible view ID.
 fn hook_view_id(view: BufferView) -> ViewId {
 	match view {
 		BufferView::Text(id) => ViewId::Text(id.0),

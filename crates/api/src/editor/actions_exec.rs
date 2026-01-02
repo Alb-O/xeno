@@ -9,6 +9,7 @@ use tracing::{debug, info_span};
 
 use crate::editor::Editor;
 
+/// Returns the variant name of an action result for hook events.
 fn action_result_variant(result: &ActionResult) -> &'static str {
 	match result {
 		ActionResult::Ok => "Ok",

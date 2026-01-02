@@ -4,6 +4,7 @@ use crate::{CommandContext, CommandError, CommandOutcome, command};
 
 command!(buffer, { aliases: &["b"], description: "Switch to buffer" }, handler: cmd_buffer);
 
+/// Handler for the `:buffer` command.
 fn cmd_buffer<'a>(
 	ctx: &'a mut CommandContext<'a>,
 ) -> LocalBoxFuture<'a, Result<CommandOutcome, CommandError>> {
@@ -22,6 +23,7 @@ command!(
 	handler: cmd_buffer_next
 );
 
+/// Handler for the `:buffer-next` command.
 fn cmd_buffer_next<'a>(
 	ctx: &'a mut CommandContext<'a>,
 ) -> LocalBoxFuture<'a, Result<CommandOutcome, CommandError>> {
@@ -37,6 +39,7 @@ command!(
 	handler: cmd_buffer_prev
 );
 
+/// Handler for the `:buffer-prev` command.
 fn cmd_buffer_prev<'a>(
 	ctx: &'a mut CommandContext<'a>,
 ) -> LocalBoxFuture<'a, Result<CommandOutcome, CommandError>> {
@@ -52,6 +55,7 @@ command!(
 	handler: cmd_delete_buffer
 );
 
+/// Handler for the `:delete-buffer` command.
 fn cmd_delete_buffer<'a>(
 	ctx: &'a mut CommandContext<'a>,
 ) -> LocalBoxFuture<'a, Result<CommandOutcome, CommandError>> {

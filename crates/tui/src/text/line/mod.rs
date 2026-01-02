@@ -69,6 +69,7 @@ impl fmt::Debug for Line<'_> {
 	}
 }
 
+/// Converts a cow string into a vector of spans, splitting on newlines.
 fn cow_to_spans<'a>(content: impl Into<Cow<'a, str>>) -> Vec<Span<'a>> {
 	match content.into() {
 		Cow::Borrowed(s) => s.lines().map(Span::raw).collect(),

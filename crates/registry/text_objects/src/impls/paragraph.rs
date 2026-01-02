@@ -5,11 +5,13 @@ use ropey::RopeSlice;
 
 use crate::text_object;
 
+/// Returns whether a line contains only whitespace.
 fn is_blank_line(text: RopeSlice, line_idx: usize) -> bool {
 	let line = text.line(line_idx);
 	line.chars().all(|c| c.is_whitespace())
 }
 
+/// Selects the paragraph content (contiguous non-blank lines).
 fn paragraph_inner(text: RopeSlice, pos: usize) -> Option<Range> {
 	if text.len_chars() == 0 {
 		return None;
@@ -59,6 +61,7 @@ fn paragraph_inner(text: RopeSlice, pos: usize) -> Option<Range> {
 	Some(Range::new(start, end))
 }
 
+/// Selects the paragraph including trailing blank lines.
 fn paragraph_around(text: RopeSlice, pos: usize) -> Option<Range> {
 	let inner = paragraph_inner(text, pos)?;
 	let total_lines = text.len_lines();

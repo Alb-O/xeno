@@ -40,6 +40,7 @@ impl Parse for NotificationInput {
 	}
 }
 
+/// Entry point for the `register_notification!` macro.
 pub fn register_notification(input: TokenStream) -> TokenStream {
 	let NotificationInput {
 		static_name,

@@ -8,6 +8,7 @@ command!(
 	handler: test_notify
 );
 
+/// Handler for the `:test-notify` command.
 pub fn test_notify<'a>(
 	ctx: &'a mut CommandContext<'a>,
 ) -> LocalBoxFuture<'a, Result<CommandOutcome, CommandError>> {

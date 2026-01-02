@@ -36,6 +36,7 @@ pub(super) fn build_registry() -> ExtensionRegistry {
 	registry
 }
 
+/// Builds the command registry index from the COMMANDS distributed slice.
 fn build_command_index() -> RegistryIndex<CommandDef> {
 	let mut index = RegistryIndex::new();
 	let mut sorted: Vec<_> = COMMANDS.iter().collect();
@@ -48,6 +49,7 @@ fn build_command_index() -> RegistryIndex<CommandDef> {
 	index
 }
 
+/// Builds the action registry index with ActionId mappings.
 fn build_action_index() -> ActionRegistryIndex {
 	let mut base = RegistryIndex::new();
 	let mut by_action_id: Vec<&'static ActionDef> = Vec::new();
@@ -115,6 +117,7 @@ fn build_action_index() -> ActionRegistryIndex {
 	}
 }
 
+/// Builds the motion registry index from the MOTIONS distributed slice.
 fn build_motion_index() -> RegistryIndex<MotionDef> {
 	let mut index = RegistryIndex::new();
 	let mut sorted: Vec<_> = MOTIONS.iter().collect();
@@ -127,6 +130,7 @@ fn build_motion_index() -> RegistryIndex<MotionDef> {
 	index
 }
 
+/// Builds the text object registry index from the TEXT_OBJECTS distributed slice.
 fn build_text_object_index() -> RegistryIndex<TextObjectDef> {
 	let mut index = RegistryIndex::new();
 	let mut sorted: Vec<_> = TEXT_OBJECTS.iter().collect();

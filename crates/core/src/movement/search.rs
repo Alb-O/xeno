@@ -93,10 +93,12 @@ pub fn find_prev(
 	Ok(last)
 }
 
+/// Converts a byte offset to a character offset in a string.
 fn byte_to_char_offset(s: &str, byte_offset: usize) -> CharIdx {
 	s[..byte_offset].chars().count()
 }
 
+/// Converts a character offset to a byte offset in a string.
 fn char_to_byte_offset(s: &str, char_offset: CharIdx) -> usize {
 	s.char_indices()
 		.nth(char_offset)

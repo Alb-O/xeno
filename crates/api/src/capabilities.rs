@@ -14,11 +14,12 @@ use evildoer_core::editor_ctx::{
 	SplitOps, ThemeAccess, UndoAccess,
 };
 use evildoer_registry::commands::{CommandEditorOps, CommandError};
-use evildoer_registry::{EditAction, panel_kind_index};
+use evildoer_registry::{panel_kind_index, EditAction};
 
 use crate::buffer::BufferView;
 use crate::editor::Editor;
 
+/// Returns whether a panel with the given name is currently visible.
 fn panel_visible(editor: &Editor, name: &str) -> bool {
 	let Some(kind) = panel_kind_index(name) else {
 		return false;

@@ -43,6 +43,7 @@ pub fn parse_language_configs(input: &str) -> Result<Vec<LanguageData>> {
 	Ok(languages)
 }
 
+/// Parses a single language node into LanguageData.
 fn parse_language_node(node: &KdlNode) -> Result<Option<LanguageData>> {
 	let name = node
 		.get("name")
@@ -125,6 +126,7 @@ fn parse_file_types(
 	(extensions, filenames, globs)
 }
 
+/// Extracts string arguments from a named child node.
 fn parse_string_args(children: Option<&kdl::KdlDocument>, name: &str) -> Vec<String> {
 	children
 		.and_then(|c| c.get(name))

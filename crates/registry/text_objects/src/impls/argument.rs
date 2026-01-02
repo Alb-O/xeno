@@ -5,6 +5,7 @@ use ropey::RopeSlice;
 
 use crate::text_object;
 
+/// Finds the boundaries of a function argument at the given position.
 fn find_arg_boundaries(text: RopeSlice, pos: usize) -> Option<(usize, usize, usize, usize)> {
 	let len = text.len_chars();
 	if len == 0 {
@@ -76,11 +77,13 @@ fn find_arg_boundaries(text: RopeSlice, pos: usize) -> Option<(usize, usize, usi
 	Some((start, content_start, content_end, end))
 }
 
+/// Selects the inner content of an argument (excluding surrounding whitespace/comma).
 fn arg_inner(text: RopeSlice, pos: usize) -> Option<Range> {
 	let (_, content_start, content_end, _) = find_arg_boundaries(text, pos)?;
 	Some(Range::new(content_start, content_end))
 }
 
+/// Selects the argument including surrounding whitespace/comma.
 fn arg_around(text: RopeSlice, pos: usize) -> Option<Range> {
 	let (start, _, _, end) = find_arg_boundaries(text, pos)?;
 	Some(Range::new(start, end))

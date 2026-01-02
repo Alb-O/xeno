@@ -4,6 +4,7 @@ use proc_macro::TokenStream;
 use quote::{format_ident, quote};
 use syn::{Data, DeriveInput, Expr, Lit, Meta, parse_macro_input};
 
+/// Entry point for the `#[derive(DispatchResult)]` macro.
 pub fn derive_dispatch_result(input: TokenStream) -> TokenStream {
 	let input = parse_macro_input!(input as DeriveInput);
 	let enum_name = &input.ident;
@@ -224,6 +225,7 @@ pub fn derive_dispatch_result(input: TokenStream) -> TokenStream {
 	expanded.into()
 }
 
+/// Converts a string from PascalCase to SCREAMING_SNAKE_CASE.
 pub(crate) fn to_screaming_snake_case(s: &str) -> String {
 	let mut result = String::new();
 	for (i, c) in s.chars().enumerate() {

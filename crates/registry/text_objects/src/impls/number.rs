@@ -5,10 +5,12 @@ use ropey::RopeSlice;
 
 use crate::symmetric_text_object;
 
+/// Returns whether a character is a digit or numeric separator.
 fn is_digit_or_separator(ch: char) -> bool {
 	ch.is_ascii_digit() || ch == '_' || ch == '.'
 }
 
+/// Returns whether a character can be part of a number literal.
 fn is_number_char(ch: char, allow_prefix: bool) -> bool {
 	ch.is_ascii_digit()
 		|| ch == '_'
@@ -26,6 +28,7 @@ fn is_number_char(ch: char, allow_prefix: bool) -> bool {
 		|| ch == 'E'
 }
 
+/// Selects the number literal at the cursor position.
 fn number_inner(text: RopeSlice, pos: usize) -> Option<Range> {
 	let len = text.len_chars();
 	if len == 0 {
