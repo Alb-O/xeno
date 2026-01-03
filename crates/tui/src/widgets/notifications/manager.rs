@@ -1,5 +1,6 @@
 //! Toast manager for handling multiple notifications.
 
+use alloc::format;
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
 use std::vec::Vec;
@@ -42,6 +43,10 @@ struct ToastState {
 	exit_duration: Duration,
 	/// Computed rectangle at full visibility.
 	full_rect: Rect,
+	/// Number of stacked duplicate notifications (1 = no duplicates).
+	stack_count: u32,
+	/// Original dwell duration for resetting on stack increment.
+	original_dwell: Option<Duration>,
 }
 
 impl ToastState {
@@ -60,6 +65,7 @@ impl ToastState {
 			AutoDismiss::After(d) if d.is_zero() => Some(DEFAULT_DWELL_DURATION),
 			AutoDismiss::After(d) => Some(d),
 		};
+		let original_dwell = remaining_dwell;
 
 		Self {
 			toast,
@@ -70,6 +76,8 @@ impl ToastState {
 			entry_duration,
 			exit_duration,
 			full_rect: Rect::default(),
+			stack_count: 1,
+			original_dwell,
 		}
 	}
 
@@ -123,6 +131,17 @@ impl ToastState {
 	fn is_finished(&self) -> bool {
 		self.phase == AnimationPhase::Finished
 	}
+
+	/// Increments the stack count and resets the dwell timer.
+	fn increment_stack(&mut self) {
+		self.stack_count = self.stack_count.saturating_add(1);
+		self.remaining_dwell = self.original_dwell;
+	}
+
+	/// Returns true if this toast can be stacked with another having the same content.
+	fn can_stack(&self) -> bool {
+		!matches!(self.phase, AnimationPhase::Exiting | AnimationPhase::Finished)
+	}
 }
 
 /// Converts an anchor to its screen position within the given area.
@@ -175,8 +194,17 @@ fn calculate_y(anchor: Anchor, anchor_y: u16, height: u16, margin: u16, area: Re
 	y.clamp(area.y, area.bottom().saturating_sub(height))
 }
 
+/// Returns the width needed to display the stack counter (e.g., "⨯12").
+fn stack_counter_width(stack_count: u32) -> u16 {
+	if stack_count <= 1 {
+		return 0;
+	}
+	let digits = stack_count.checked_ilog10().unwrap_or(0) + 1;
+	1 + digits as u16
+}
+
 /// Computes the toast dimensions based on content and constraints.
-fn calculate_toast_size(toast: &Toast, area: Rect) -> (u16, u16) {
+fn calculate_toast_size(toast: &Toast, area: Rect, stack_count: u32) -> (u16, u16) {
 	use super::types::SizeConstraint;
 
 	let max_width = toast
@@ -210,11 +238,15 @@ fn calculate_toast_size(toast: &Toast, area: Rect) -> (u16, u16) {
 	let padding_h = toast.padding.left + toast.padding.right;
 	let padding_v = toast.padding.top + toast.padding.bottom;
 	let icon_width = toast.icon_column_width();
+	let counter_width = stack_counter_width(stack_count);
 
-	let width = (content_width + icon_width + 2 + padding_h)
+	let width = (content_width.max(counter_width) + icon_width + 2 + padding_h)
 		.max(3)
 		.min(max_width);
-	let height = (content_lines + 2 + padding_v).max(3).min(max_height);
+	let extra_lines = if stack_count > 1 { 1 } else { 0 };
+	let height = (content_lines + extra_lines + 2 + padding_v)
+		.max(3)
+		.min(max_height);
 
 	(width, height)
 }
@@ -336,6 +368,17 @@ fn render_toast(state: &ToastState, rect: Rect, buf: &mut Buffer) {
 		.wrap(Wrap { trim: true })
 		.render(content_area, buf);
 
+	if state.stack_count > 1 && inner.height > 0 && inner.width > 0 {
+		let count_str = format!("\u{2a2f}{}", state.stack_count);
+		let count_width = count_str.chars().count() as u16;
+		buf.set_string(
+			inner.right().saturating_sub(count_width),
+			inner.bottom().saturating_sub(1),
+			&count_str,
+			state.toast.border_style,
+		);
+	}
+
 	if let Some(bg) = bg_colors {
 		apply_opacity(rect, buf, opacity, &bg);
 	}
@@ -430,7 +473,17 @@ impl ToastManager {
 	}
 
 	/// Adds a toast and returns its ID.
+	///
+	/// If a toast with identical content and anchor already exists (and is not
+	/// exiting), increments its stack count and resets the dismiss timer.
 	pub fn push(&mut self, toast: Toast) -> u64 {
+		if let Some((&id, state)) = self.states.iter_mut().find(|(_, s)| {
+			s.can_stack() && s.toast.anchor == toast.anchor && s.toast.content == toast.content
+		}) {
+			state.increment_stack();
+			return id;
+		}
+
 		let id = self.next_id;
 		self.next_id = self.next_id.wrapping_add(1);
 
@@ -523,7 +576,7 @@ impl ToastManager {
 
 		for &id in &ordered {
 			if let Some(state) = self.states.get(&id) {
-				let (width, height) = calculate_toast_size(&state.toast, area);
+				let (width, height) = calculate_toast_size(&state.toast, area, state.stack_count);
 				if height == 0 {
 					continue;
 				}
