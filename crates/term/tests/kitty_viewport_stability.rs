@@ -14,10 +14,19 @@ use termwiz::input::{KeyCode, Modifiers};
 
 const TEST_TIMEOUT: Duration = Duration::from_secs(30);
 
-/// Creates a vertical split (Ctrl+w v) - left/right panes with vertical separator.
-fn create_vertical_split(kitty: &kitty_test_harness::KittyHarness) {
+/// Creates a horizontal split (Ctrl+w s h) - top/bottom panes with horizontal separator.
+fn create_horizontal_split(kitty: &kitty_test_harness::KittyHarness) {
 	kitty_send_keys!(kitty, (KeyCode::Char('w'), Modifiers::CTRL));
-	kitty_send_keys!(kitty, KeyCode::Char('v'));
+	kitty_send_keys!(kitty, KeyCode::Char('s'));
+	kitty_send_keys!(kitty, KeyCode::Char('h'));
+	pause_briefly();
+}
+
+/// Focus the pane above (Ctrl+w f k).
+fn focus_up(kitty: &kitty_test_harness::KittyHarness) {
+	kitty_send_keys!(kitty, (KeyCode::Char('w'), Modifiers::CTRL));
+	kitty_send_keys!(kitty, KeyCode::Char('f'));
+	kitty_send_keys!(kitty, KeyCode::Char('k'));
 	pause_briefly();
 }
 
@@ -93,14 +102,12 @@ fn viewport_stable_during_adjacent_split_resize() {
 			|kitty| {
 				pause_briefly();
 
-				// Create vertical split (top/bottom stacked)
-				create_vertical_split(kitty);
+				// Create horizontal split (top/bottom stacked)
+				create_horizontal_split(kitty);
 				pause_briefly();
 
-				// Focus the top buffer (Ctrl+w k)
-				kitty_send_keys!(kitty, (KeyCode::Char('w'), Modifiers::CTRL));
-				kitty_send_keys!(kitty, KeyCode::Char('k'));
-				pause_briefly();
+				// Focus the top buffer (Ctrl+w f k)
+				focus_up(kitty);
 
 				// Insert many numbered lines so we can track scroll position.
 				// We need enough lines that the viewport will be scrolled and

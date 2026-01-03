@@ -381,14 +381,14 @@ impl Editor {
 
 				let at_left_edge = x + 1 == h_rect.x;
 				let at_right_edge = x == h_rect.right();
-				let within = x >= h_rect.x && x < h_rect.right();
-
-				if !at_left_edge && !at_right_edge && !within {
-					continue;
-				}
-
+				let x_overlaps = x >= h_rect.x && x < h_rect.right();
 				let touches_above = y >= v_rect.y && y < v_rect.bottom();
 				let touches_below = y + 1 >= v_rect.y && y + 1 < v_rect.bottom();
+				let within = x_overlaps && touches_above;
+
+				if !at_left_edge && !at_right_edge && !within && !(x_overlaps && touches_below) {
+					continue;
+				}
 
 				if touches_above || touches_below || within {
 					let entry = junctions
@@ -397,6 +397,11 @@ impl Editor {
 					if within {
 						entry.0 |= y > v_rect.y;
 						entry.1 |= y < v_rect.bottom().saturating_sub(1);
+						entry.2 |= x > h_rect.x;
+						entry.3 |= x < h_rect.right().saturating_sub(1);
+					} else if x_overlaps {
+						entry.0 |= touches_above;
+						entry.1 |= touches_below;
 						entry.2 |= x > h_rect.x;
 						entry.3 |= x < h_rect.right().saturating_sub(1);
 					} else {
