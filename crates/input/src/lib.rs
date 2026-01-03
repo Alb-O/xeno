@@ -9,6 +9,6 @@ mod tests;
 /// Input result types.
 pub mod types;
 
-pub use evildoer_base::Mode;
 pub use handler::InputHandler;
 pub use types::KeyResult;
+pub use xeno_base::Mode;

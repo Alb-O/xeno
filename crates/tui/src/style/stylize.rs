@@ -222,7 +222,7 @@ macro_rules! modifier {
 ///
 /// # Examples
 /// ```ignore
-/// use evildoer_tui::{
+/// use xeno_tui::{
 ///     style::{Color, Modifier, Style, Stylize},
 ///     text::Line,
 ///     widgets::{Block, Paragraph},

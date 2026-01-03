@@ -13,8 +13,8 @@
 //! ## Example
 //!
 //! ```
-//! use evildoer_tui::style::{Color, Modifier, Style};
-//! use evildoer_tui::text::Span;
+//! use xeno_tui::style::{Color, Modifier, Style};
+//! use xeno_tui::text::Span;
 //!
 //! let heading_style = Style::new()
 //!     .fg(Color::Black)
@@ -41,8 +41,8 @@
 //! ## Example
 //!
 //! ```
-//! use evildoer_tui::style::{Color, Modifier, Style, Stylize};
-//! use evildoer_tui::text::{Span, Text};
+//! use xeno_tui::style::{Color, Modifier, Style, Stylize};
+//! use xeno_tui::text::{Span, Text};
 //!
 //! assert_eq!(
 //!     "hello".red().on_blue().bold(),
@@ -111,7 +111,7 @@ where
 /// Style lets you control the main characteristics of the displayed elements.
 ///
 /// ```rust
-/// use evildoer_tui::style::{Color, Modifier, Style};
+/// use xeno_tui::style::{Color, Modifier, Style};
 ///
 /// Style::default()
 ///     .fg(Color::Black)
@@ -122,7 +122,7 @@ where
 /// Styles can also be created with a [shorthand notation](crate::style#using-style-shorthands).
 ///
 /// ```rust
-/// use evildoer_tui::style::{Style, Stylize};
+/// use xeno_tui::style::{Style, Stylize};
 ///
 /// Style::new().black().on_green().italic().bold();
 /// ```
@@ -133,8 +133,8 @@ where
 /// anywhere that accepts `Into<Style>`.
 ///
 /// ```rust
-/// use evildoer_tui::style::{Color, Modifier, Style};
-/// use evildoer_tui::text::Line;
+/// use xeno_tui::style::{Color, Modifier, Style};
+/// use xeno_tui::text::Line;
 ///
 /// Line::styled("hello", Style::new().fg(Color::Red));
 /// // simplifies to
@@ -150,9 +150,9 @@ where
 /// just S3.
 ///
 /// ```rust
-/// use evildoer_tui::buffer::Buffer;
-/// use evildoer_tui::layout::Rect;
-/// use evildoer_tui::style::{Color, Modifier, Style};
+/// use xeno_tui::buffer::Buffer;
+/// use xeno_tui::layout::Rect;
+/// use xeno_tui::style::{Color, Modifier, Style};
 ///
 /// let styles = [
 ///     Style::default()
@@ -188,9 +188,9 @@ where
 /// reset all properties until that point use [`Style::reset`].
 ///
 /// ```
-/// use evildoer_tui::buffer::Buffer;
-/// use evildoer_tui::layout::Rect;
-/// use evildoer_tui::style::{Color, Modifier, Style};
+/// use xeno_tui::buffer::Buffer;
+/// use xeno_tui::layout::Rect;
+/// use xeno_tui::style::{Color, Modifier, Style};
 ///
 /// let styles = [
 ///     Style::default()
@@ -289,7 +289,7 @@ impl Style {
 	/// ## Examples
 	///
 	/// ```rust
-	/// use evildoer_tui::style::{Color, Style};
+	/// use xeno_tui::style::{Color, Style};
 	///
 	/// let style = Style::default().fg(Color::Blue);
 	/// let diff = Style::default().fg(Color::Red);
@@ -306,7 +306,7 @@ impl Style {
 	/// ## Examples
 	///
 	/// ```rust
-	/// use evildoer_tui::style::{Color, Style};
+	/// use xeno_tui::style::{Color, Style};
 	///
 	/// let style = Style::default().bg(Color::Blue);
 	/// let diff = Style::default().bg(Color::Red);
@@ -331,7 +331,7 @@ impl Style {
 	/// ## Examples
 	///
 	/// ```rust
-	/// use evildoer_tui::style::{Color, Modifier, Style};
+	/// use xeno_tui::style::{Color, Modifier, Style};
 	///
 	/// let style = Style::default()
 	///     .underline_color(Color::Blue)
@@ -360,7 +360,7 @@ impl Style {
 	/// ## Examples
 	///
 	/// ```rust
-	/// use evildoer_tui::style::{Modifier, Style};
+	/// use xeno_tui::style::{Modifier, Style};
 	///
 	/// let style = Style::default().add_modifier(Modifier::BOLD);
 	/// let diff = Style::default().add_modifier(Modifier::ITALIC);
@@ -382,7 +382,7 @@ impl Style {
 	/// ## Examples
 	///
 	/// ```rust
-	/// use evildoer_tui::style::{Modifier, Style};
+	/// use xeno_tui::style::{Modifier, Style};
 	///
 	/// let style = Style::default().add_modifier(Modifier::BOLD | Modifier::ITALIC);
 	/// let diff = Style::default().remove_modifier(Modifier::ITALIC);
@@ -402,7 +402,7 @@ impl Style {
 	/// ## Examples
 	///
 	/// ```rust
-	/// use evildoer_tui::style::{Modifier, Style};
+	/// use xeno_tui::style::{Modifier, Style};
 	///
 	/// let style = Style::default().add_modifier(Modifier::BOLD | Modifier::ITALIC);
 	/// assert!(style.has_modifier(Modifier::BOLD));
@@ -421,7 +421,7 @@ impl Style {
 	///
 	/// ## Examples
 	/// ```
-	/// use evildoer_tui::style::{Color, Modifier, Style};
+	/// use xeno_tui::style::{Color, Modifier, Style};
 	///
 	/// let style_1 = Style::default().fg(Color::Yellow);
 	/// let style_2 = Style::default().bg(Color::Red);

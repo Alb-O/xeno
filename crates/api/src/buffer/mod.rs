@@ -16,12 +16,12 @@ use std::path::PathBuf;
 use std::sync::{Arc, RwLock};
 
 pub use document::{Document, DocumentId};
-use evildoer_base::range::CharIdx;
-use evildoer_base::{Mode, Selection};
-use evildoer_input::InputHandler;
-use evildoer_language::LanguageLoader;
 pub use history::HistoryResult;
 pub use layout::{BufferView, Layout, SplitDirection, SplitPath};
+use xeno_base::range::CharIdx;
+use xeno_base::{Mode, Selection};
+use xeno_input::InputHandler;
+use xeno_language::LanguageLoader;
 
 /// Unique identifier for a buffer.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -263,8 +263,8 @@ impl Buffer {
 		self.cursor = self.cursor.min(max_char);
 	}
 
-	/// Maps selection and cursor through a [`Transaction`](evildoer_base::Transaction).
-	pub fn map_selection_through(&mut self, tx: &evildoer_base::Transaction) {
+	/// Maps selection and cursor through a [`Transaction`](xeno_base::Transaction).
+	pub fn map_selection_through(&mut self, tx: &xeno_base::Transaction) {
 		self.selection = tx.map_selection(&self.selection);
 		self.cursor = self.selection.primary().head;
 	}

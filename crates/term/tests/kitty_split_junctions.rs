@@ -4,7 +4,7 @@ mod helpers;
 
 use std::time::Duration;
 
-use helpers::{evildoer_cmd_debug_theme, insert_text, reset_test_file, workspace_dir};
+use helpers::{insert_text, reset_test_file, workspace_dir, xeno_cmd_debug_theme};
 use kitty_test_harness::{
 	kitty_send_keys, pause_briefly, require_kitty, run_with_timeout, wait_for_screen_text_clean,
 	with_kitty_capture,
@@ -49,7 +49,7 @@ fn split_left_pane_with_right_horizontal() {
 	let file = "tmp/kitty/split-junction-opens-right.txt";
 	reset_test_file(file);
 	run_with_timeout(TEST_TIMEOUT, || {
-		with_kitty_capture(&workspace_dir(), &evildoer_cmd_debug_theme(file), |kitty| {
+		with_kitty_capture(&workspace_dir(), &xeno_cmd_debug_theme(file), |kitty| {
 			pause_briefly();
 
 			// Create A | (B over C)
@@ -107,7 +107,7 @@ fn split_vertical_starts_at_horizontal() {
 	let file = "tmp/kitty/split-junction-v-starts-h.txt";
 	reset_test_file(file);
 	run_with_timeout(TEST_TIMEOUT, || {
-		with_kitty_capture(&workspace_dir(), &evildoer_cmd_debug_theme(file), |kitty| {
+		with_kitty_capture(&workspace_dir(), &xeno_cmd_debug_theme(file), |kitty| {
 			pause_briefly();
 
 			// Create layout: C over (A | B)
@@ -169,7 +169,7 @@ fn split_t_junction_down() {
 	let file = "tmp/kitty/split-junction-t-down.txt";
 	reset_test_file(file);
 	run_with_timeout(TEST_TIMEOUT, || {
-		with_kitty_capture(&workspace_dir(), &evildoer_cmd_debug_theme(file), |kitty| {
+		with_kitty_capture(&workspace_dir(), &xeno_cmd_debug_theme(file), |kitty| {
 			pause_briefly();
 
 			// Create C over (A|B) by:

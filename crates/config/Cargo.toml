@@ -1,5 +1,5 @@
 [package]
-name = "evildoer-config"
+name = "xeno-config"
 description = "Configuration system - KDL parsing, runtime config loading"
 version.workspace = true
 edition.workspace = true
@@ -10,12 +10,12 @@ default = ["watch"]
 watch = ["notify"]
 
 [dependencies]
-evildoer-base.workspace = true
-evildoer-registry.workspace = true
 kdl.workspace = true
 notify = { workspace = true, optional = true }
 thiserror.workspace = true
+xeno-base.workspace = true
+xeno-registry.workspace = true
 
 [dev-dependencies]
-evildoer-runtime.workspace = true
 tempfile.workspace = true
+xeno-runtime.workspace = true

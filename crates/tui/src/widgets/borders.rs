@@ -237,8 +237,8 @@ impl fmt::Debug for Borders {
 /// ## Examples
 ///
 /// ```
-/// use evildoer_tui::border;
-/// use evildoer_tui::widgets::Block;
+/// use xeno_tui::border;
+/// use xeno_tui::widgets::Block;
 ///
 /// Block::new()
 ///     .title("Construct Borders and use them in place")
@@ -248,8 +248,8 @@ impl fmt::Debug for Borders {
 /// `border!` can be called with any number of individual sides:
 ///
 /// ```
-/// use evildoer_tui::border;
-/// use evildoer_tui::widgets::Borders;
+/// use xeno_tui::border;
+/// use xeno_tui::widgets::Borders;
 /// let right_open = border!(TOP, LEFT, BOTTOM);
 /// assert_eq!(right_open, Borders::TOP | Borders::LEFT | Borders::BOTTOM);
 /// ```
@@ -257,8 +257,8 @@ impl fmt::Debug for Borders {
 /// Single borders work but using `Borders::` directly would be simpler.
 ///
 /// ```
-/// use evildoer_tui::border;
-/// use evildoer_tui::widgets::Borders;
+/// use xeno_tui::border;
+/// use xeno_tui::widgets::Borders;
 ///
 /// assert_eq!(border!(TOP), Borders::TOP);
 /// assert_eq!(border!(ALL), Borders::ALL);

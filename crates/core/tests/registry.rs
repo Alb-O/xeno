@@ -3,12 +3,12 @@
 //! These tests verify that the registry infrastructure is correctly wired up,
 //! including action ID resolution, result handlers, and keymap lookups.
 
-use evildoer_core::{
+use xeno_core::{
 	LookupResult, find_action, find_action_by_id, get_keymap_registry, resolve_action_id,
 };
-use evildoer_keymap::parser::parse_seq;
-use evildoer_registry::BindingMode;
-use evildoer_registry::actions::{
+use xeno_keymap::parser::parse_seq;
+use xeno_registry::BindingMode;
+use xeno_registry::actions::{
 	RESULT_CURSOR_MOVE_HANDLERS, RESULT_EDIT_HANDLERS, RESULT_ERROR_HANDLERS,
 	RESULT_INSERT_WITH_MOTION_HANDLERS, RESULT_MODE_CHANGE_HANDLERS, RESULT_MOTION_HANDLERS,
 	RESULT_OK_HANDLERS, RESULT_QUIT_HANDLERS,
@@ -28,7 +28,7 @@ fn test_action_id_resolution() {
 	assert!(action.is_some(), "should find action by ActionId");
 	assert_eq!(action.unwrap().name, "move_left");
 
-	let invalid = find_action_by_id(evildoer_core::ActionId::INVALID);
+	let invalid = find_action_by_id(xeno_core::ActionId::INVALID);
 	assert!(invalid.is_none(), "INVALID ActionId should return None");
 
 	let by_name = find_action("move_left").unwrap();

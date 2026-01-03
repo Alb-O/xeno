@@ -268,8 +268,8 @@
 //! # Example
 //!
 //! ```rust
-//! use evildoer_tui::style::Color;
-//! use evildoer_tui::style::palette::tailwind::{BLUE, RED};
+//! use xeno_tui::style::Color;
+//! use xeno_tui::style::palette::tailwind::{BLUE, RED};
 //!
 //! assert_eq!(RED.c500, Color::Rgb(239, 68, 68));
 //! assert_eq!(BLUE.c500, Color::Rgb(59, 130, 246));

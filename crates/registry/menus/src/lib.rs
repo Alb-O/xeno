@@ -7,4 +7,4 @@ mod impls;
 mod macros;
 
 pub use def::*;
-pub use evildoer_registry_core::{RegistryMetadata, RegistrySource, impl_registry_metadata};
+pub use xeno_registry_core::{RegistryMetadata, RegistrySource, impl_registry_metadata};

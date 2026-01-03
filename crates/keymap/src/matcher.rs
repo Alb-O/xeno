@@ -43,7 +43,7 @@
 //! This allows UIs to show "…" indicators for branches that can be drilled into.
 use std::collections::HashMap;
 
-use evildoer_keymap_parser::node::{CharGroup, Key, Node};
+use xeno_keymap_parser::node::{CharGroup, Key, Node};
 
 /// Result of looking up a key sequence in the matcher.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -358,7 +358,7 @@ fn lookup_with_info<'a, T>(node: &'a Trie<T>, nodes: &[Node], pos: usize) -> Mat
 
 #[cfg(test)]
 mod tests {
-	use evildoer_keymap_parser::parse_seq;
+	use xeno_keymap_parser::parse_seq;
 
 	use super::*;
 

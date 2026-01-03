@@ -1,7 +1,7 @@
 //! Theme command for switching editor color schemes.
 
-use evildoer_registry_notifications::keys;
 use futures::future::LocalBoxFuture;
+use xeno_registry_notifications::keys;
 
 use crate::{CommandContext, CommandError, CommandOutcome, RegistrySource, command};
 

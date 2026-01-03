@@ -1,5 +1,5 @@
 [package]
-name = "evildoer-core"
+name = "xeno-core"
 description = "Core infrastructure"
 version.workspace = true
 edition.workspace = true
@@ -17,10 +17,6 @@ host = [
 
 [dependencies]
 async-trait.workspace = true
-evildoer-base.workspace = true
-evildoer-keymap.workspace = true
-evildoer-macro.workspace = true
-evildoer-registry.workspace = true
 futures.workspace = true
 linkme.workspace = true
 paste.workspace = true
@@ -35,3 +31,7 @@ thiserror.workspace = true
 tracing.workspace = true
 unicode-segmentation = { workspace = true, optional = true }
 unicode-width = { workspace = true, optional = true }
+xeno-base.workspace = true
+xeno-keymap.workspace = true
+xeno-macro.workspace = true
+xeno-registry.workspace = true

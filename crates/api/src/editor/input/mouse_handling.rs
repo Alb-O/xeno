@@ -2,9 +2,9 @@
 //!
 //! Processing mouse input for text selection and separator dragging.
 
-use evildoer_base::Selection;
-use evildoer_input::KeyResult;
 use termina::event::MouseEventKind;
+use xeno_base::Selection;
+use xeno_input::KeyResult;
 
 use crate::editor::Editor;
 
@@ -50,7 +50,7 @@ impl Editor {
 
 		// Main area excludes menu bar (1 row) and status line (1 row)
 		let main_height = height.saturating_sub(2);
-		let main_area = evildoer_tui::layout::Rect {
+		let main_area = xeno_tui::layout::Rect {
 			x: 0,
 			y: 1,
 			width,
@@ -93,7 +93,7 @@ impl Editor {
 	pub(crate) async fn handle_mouse_in_doc_area(
 		&mut self,
 		mouse: termina::event::MouseEvent,
-		doc_area: evildoer_tui::layout::Rect,
+		doc_area: xeno_tui::layout::Rect,
 	) -> bool {
 		let mouse_x = mouse.column;
 		let mouse_y = mouse.row;
@@ -264,7 +264,7 @@ impl Editor {
 	///
 	/// This computes the document area (excluding status line and panels)
 	/// and then finds the focused view's rectangle within that area.
-	pub(crate) fn focused_view_area(&self) -> evildoer_tui::layout::Rect {
+	pub(crate) fn focused_view_area(&self) -> xeno_tui::layout::Rect {
 		let doc_area = self.doc_area();
 		let focused = self.focused_view();
 		for (view, area) in self.layout.compute_view_areas(doc_area) {
@@ -276,12 +276,12 @@ impl Editor {
 	}
 
 	/// Computes the document area based on current window dimensions.
-	pub fn doc_area(&self) -> evildoer_tui::layout::Rect {
+	pub fn doc_area(&self) -> xeno_tui::layout::Rect {
 		let width = self.window_width.unwrap_or(80);
 		let height = self.window_height.unwrap_or(24);
 		// Exclude menu bar (1 row) and status line (1 row)
 		let main_height = height.saturating_sub(2);
-		let main_area = evildoer_tui::layout::Rect {
+		let main_area = xeno_tui::layout::Rect {
 			x: 0,
 			y: 1,
 			width,

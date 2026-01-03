@@ -23,8 +23,8 @@ use crate::widgets::Widget;
 /// # Example
 ///
 /// ```rust
-/// use evildoer_tui::style::{Style, Stylize};
-/// use evildoer_tui::text::{Line, Span};
+/// use xeno_tui::style::{Style, Stylize};
+/// use xeno_tui::text::{Line, Span};
 ///
 /// let line = Line::from("Hello").yellow().italic();
 /// let line = Line::from(vec![Span::styled("Hello", Style::new().blue()), Span::raw(" world!")]);
@@ -195,7 +195,7 @@ impl<'a> Line<'a> {
 	/// # Examples
 	///
 	/// ```rust
-	/// use evildoer_tui::text::{Line, Span};
+	/// use xeno_tui::text::{Line, Span};
 	///
 	/// let mut line = Line::from("Hello, ");
 	/// line.push_span(Span::raw("world!"));

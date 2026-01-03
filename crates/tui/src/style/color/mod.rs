@@ -48,7 +48,7 @@ use crate::style::stylize::{ColorDebug, ColorDebugKind};
 /// ```
 /// use std::str::FromStr;
 ///
-/// use evildoer_tui::style::Color;
+/// use xeno_tui::style::Color;
 ///
 /// assert_eq!(Color::from_str("red"), Ok(Color::Red));
 /// assert_eq!("red".parse(), Ok(Color::Red));
@@ -168,7 +168,7 @@ impl<'de> serde::Deserialize<'de> for Color {
 	/// ```
 	/// use std::str::FromStr;
 	///
-	/// use evildoer_tui::style::Color;
+	/// use xeno_tui::style::Color;
 	///
 	/// #[derive(Debug, serde::Deserialize)]
 	/// struct Theme {
@@ -233,7 +233,7 @@ impl core::error::Error for ParseColorError {}
 /// ```
 /// use std::str::FromStr;
 ///
-/// use evildoer_tui::style::Color;
+/// use xeno_tui::style::Color;
 ///
 /// let color: Color = Color::from_str("blue").unwrap();
 /// assert_eq!(color, Color::Blue);
@@ -357,7 +357,7 @@ impl Color {
 	/// ```
 	/// use palette::Hsl;
 	///
-	/// use evildoer_tui::style::Color;
+	/// use xeno_tui::style::Color;
 	///
 	/// // Minimum Lightness is black
 	/// let color: Color = Color::from_hsl(Hsl::new(0.0, 0.0, 0.0));
@@ -411,7 +411,7 @@ impl Color {
 	/// ```
 	/// use palette::Hsluv;
 	///
-	/// use evildoer_tui::style::Color;
+	/// use xeno_tui::style::Color;
 	///
 	/// // Minimum Lightness is black
 	/// let color: Color = Color::from_hsluv(Hsluv::new(0.0, 100.0, 0.0));
@@ -458,7 +458,7 @@ impl Color {
 	/// # Example
 	///
 	/// ```
-	/// use evildoer_tui::style::Color;
+	/// use xeno_tui::style::Color;
 	///
 	/// assert_eq!(Color::Red.to_rgb(), (128, 0, 0));
 	/// assert_eq!(Color::Rgb(255, 128, 0).to_rgb(), (255, 128, 0));

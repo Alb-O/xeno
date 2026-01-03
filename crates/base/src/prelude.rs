@@ -1,4 +1,4 @@
-//! Prelude for evildoer-base.
+//! Prelude for xeno-base.
 //!
 //! Re-exports the most commonly used types.
 

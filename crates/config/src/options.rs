@@ -2,8 +2,8 @@
 
 use std::collections::HashMap;
 
-use evildoer_registry::options::OptionValue;
 use kdl::KdlNode;
+use xeno_registry::options::OptionValue;
 
 use crate::error::Result;
 

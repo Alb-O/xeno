@@ -6,8 +6,8 @@
 /// # Examples
 ///
 /// ```
-/// # use evildoer_tui::layout::Constraint;
-/// use evildoer_tui::constraint;
+/// # use xeno_tui::layout::Constraint;
+/// use xeno_tui::constraint;
 /// assert_eq!(constraint!(>= 3 + 4), Constraint::Min(7));
 /// assert_eq!(constraint!(<= 3 + 4), Constraint::Max(7));
 /// assert_eq!(constraint!(== 1 / 3), Constraint::Ratio(1, 3));
@@ -49,14 +49,14 @@ macro_rules! constraint {
 /// # Examples
 ///
 /// ```rust
-/// use evildoer_tui::constraints;
+/// use xeno_tui::constraints;
 /// assert_eq!(constraints![==5, ==30%, >=3, <=1, ==1/2].len(), 5);
 /// assert_eq!(constraints![==5; 5].len(), 5);
 /// ```
 ///
 /// ```rust
-/// # use evildoer_tui::layout::Constraint;
-/// # use evildoer_tui::constraints;
+/// # use xeno_tui::layout::Constraint;
+/// # use xeno_tui::constraints;
 /// assert_eq!(
 ///     constraints![==50, ==30%, >=3, <=1, ==1/2, *=1],
 ///     [
@@ -171,7 +171,7 @@ macro_rules! constraints {
 ///
 /// ```
 /// // Vertical layout with a fixed size and a percentage constraint
-/// use evildoer_tui::vertical;
+/// use xeno_tui::vertical;
 /// vertical![== 50, == 30%];
 /// ```
 #[macro_export]
@@ -192,7 +192,7 @@ macro_rules! vertical {
 ///
 /// ```
 /// // Horizontal layout with a ratio constraint and a minimum size constraint
-/// use evildoer_tui::horizontal;
+/// use xeno_tui::horizontal;
 /// horizontal![== 1/3, >= 100];
 /// ```
 #[macro_export]

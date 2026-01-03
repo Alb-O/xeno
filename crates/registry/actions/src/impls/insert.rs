@@ -1,4 +1,4 @@
-use evildoer_registry_motions::keys as motions;
+use xeno_registry_motions::keys as motions;
 
 use crate::{ActionMode, ActionResult, action, insert_with_motion};
 

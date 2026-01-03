@@ -44,10 +44,10 @@ use crate::widgets::polyfills::F64Polyfills;
 /// # Examples
 ///
 /// ```rust
-/// use evildoer_tui::Frame;
-/// use evildoer_tui::layout::{Margin, Rect};
-/// use evildoer_tui::text::Line;
-/// use evildoer_tui::widgets::{
+/// use xeno_tui::Frame;
+/// use xeno_tui::layout::{Margin, Rect};
+/// use xeno_tui::text::Line;
+/// use xeno_tui::widgets::{
 ///     Block, Borders, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState, StatefulWidget,
 /// };
 ///

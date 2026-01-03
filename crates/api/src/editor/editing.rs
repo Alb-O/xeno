@@ -2,8 +2,8 @@
 //!
 //! Insert, delete, yank, paste, and transaction application.
 
-use evildoer_registry_notifications::keys;
-use evildoer_base::Transaction;
+use xeno_base::Transaction;
+use xeno_registry_notifications::keys;
 
 use super::Editor;
 
@@ -24,7 +24,7 @@ impl Editor {
 			return;
 		}
 
-		if self.buffer().mode() == evildoer_base::Mode::Insert {
+		if self.buffer().mode() == xeno_base::Mode::Insert {
 			self.save_insert_undo_state();
 		} else {
 			self.save_undo_state();

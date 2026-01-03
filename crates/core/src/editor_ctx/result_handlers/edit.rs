@@ -1,6 +1,6 @@
 //! Edit action result handler.
 
-use evildoer_registry::{ActionResult, HandleOutcome, result_handler};
+use xeno_registry::{ActionResult, HandleOutcome, result_handler};
 
 result_handler!(
 	RESULT_EDIT_HANDLERS,

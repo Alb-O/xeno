@@ -1,10 +1,10 @@
 use std::path::PathBuf;
 
 use clap::{Parser, Subcommand};
-use evildoer_api::styles::cli_styles;
+use xeno_api::styles::cli_styles;
 
 #[derive(Parser, Debug)]
-#[command(name = "evildoer")]
+#[command(name = "xeno")]
 #[command(about = "A modal text editor")]
 #[command(version)]
 #[command(styles = cli_styles())]

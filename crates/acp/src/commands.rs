@@ -8,8 +8,8 @@
 
 use std::path::PathBuf;
 
-use evildoer_registry::commands::{CommandContext, CommandError, CommandOutcome, command};
 use futures::future::LocalBoxFuture;
+use xeno_registry::commands::{CommandContext, CommandError, CommandOutcome, command};
 
 use crate::AcpManager;
 
@@ -33,7 +33,7 @@ fn cmd_acp_start<'a>(
 		let editor = ctx.require_editor_mut();
 		if let Some(acp) = editor.extensions.get_mut::<AcpManager>() {
 			acp.start(cwd);
-			ctx.emit(evildoer_registry::notification_keys::acp_starting);
+			ctx.emit(xeno_registry::notification_keys::acp_starting);
 			Ok(CommandOutcome::Ok)
 		} else {
 			Err(CommandError::Failed("ACP extension not loaded".to_string()))
@@ -54,7 +54,7 @@ fn cmd_acp_stop<'a>(
 		let editor = ctx.require_editor_mut();
 		if let Some(acp) = editor.extensions.get_mut::<AcpManager>() {
 			acp.stop();
-			ctx.emit(evildoer_registry::notification_keys::acp_stopped);
+			ctx.emit(xeno_registry::notification_keys::acp_stopped);
 			Ok(CommandOutcome::Ok)
 		} else {
 			Err(CommandError::Failed("ACP extension not loaded".to_string()))
@@ -101,7 +101,7 @@ fn cmd_acp_cancel<'a>(
 		let editor = ctx.require_editor_mut();
 		if let Some(acp) = editor.extensions.get_mut::<AcpManager>() {
 			acp.cancel();
-			ctx.emit(evildoer_registry::notification_keys::acp_cancelled);
+			ctx.emit(xeno_registry::notification_keys::acp_cancelled);
 			Ok(CommandOutcome::Ok)
 		} else {
 			Err(CommandError::Failed("ACP extension not loaded".to_string()))
@@ -124,24 +124,30 @@ fn cmd_acp_model<'a>(
 		if let Some(acp) = editor.extensions.get_mut::<AcpManager>() {
 			if let Some(model_id) = args.first() {
 				acp.set_model(model_id.to_string());
-				ctx.emit(evildoer_registry::notification_keys::acp_model_set::call(model_id));
+				ctx.emit(xeno_registry::notification_keys::acp_model_set::call(
+					model_id,
+				));
 				Ok(CommandOutcome::Ok)
 			} else {
 				// No argument - show current model and available models
 				let current = acp.current_model();
 				let available = acp.available_models();
 				if available.is_empty() {
-					ctx.emit(evildoer_registry::notification_keys::acp_model_info::call(format!("Current model: {}", current)));
+					ctx.emit(xeno_registry::notification_keys::acp_model_info::call(
+						format!("Current model: {}", current),
+					));
 				} else {
 					let models: Vec<String> = available
 						.iter()
 						.map(|m| format!("  {} ({})", m.model_id, m.name))
 						.collect();
-					ctx.emit(evildoer_registry::notification_keys::acp_model_info::call(format!(
-						"Current model: {}\nAvailable models:\n{}",
-						current,
-						models.join("\n")
-					)));
+					ctx.emit(xeno_registry::notification_keys::acp_model_info::call(
+						format!(
+							"Current model: {}\nAvailable models:\n{}",
+							current,
+							models.join("\n")
+						),
+					));
 				}
 				Ok(CommandOutcome::Ok)
 			}
@@ -154,15 +160,15 @@ fn cmd_acp_model<'a>(
 /// Extension trait for CommandContext to access the concrete Editor type.
 trait CommandContextExt {
 	/// Returns a mutable reference to the underlying Editor.
-	fn require_editor_mut(&mut self) -> &mut evildoer_api::editor::Editor;
+	fn require_editor_mut(&mut self) -> &mut xeno_api::editor::Editor;
 }
 
 impl<'a> CommandContextExt for CommandContext<'a> {
-	fn require_editor_mut(&mut self) -> &mut evildoer_api::editor::Editor {
-		// SAFETY: We know that in evildoer-term, EditorOps is implemented by Editor
+	fn require_editor_mut(&mut self) -> &mut xeno_api::editor::Editor {
+		// SAFETY: We know that in xeno-term, EditorOps is implemented by Editor
 		unsafe {
-			&mut *(self.editor as *mut dyn evildoer_registry::commands::CommandEditorOps
-				as *mut evildoer_api::editor::Editor)
+			&mut *(self.editor as *mut dyn xeno_registry::commands::CommandEditorOps
+				as *mut xeno_api::editor::Editor)
 		}
 	}
 }

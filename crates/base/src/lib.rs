@@ -17,10 +17,8 @@ pub mod selection;
 /// Undo/redo transaction primitives.
 pub mod transaction;
 
-// Shared style types are re-exported to avoid duplicating evildoer-tui deps
+// Shared style types are re-exported to avoid duplicating xeno-tui deps
 // across multiple crates that parse themes and syntax styles.
-#[cfg(feature = "evildoer-tui")]
-pub use evildoer_tui::style::{Color, Modifier, Style};
 pub use key::{Key, KeyCode, Modifiers, MouseButton, MouseEvent, ScrollDirection};
 pub use mode::Mode;
 pub use pending::{ObjectSelectionKind, PendingKind};
@@ -28,3 +26,5 @@ pub use range::Range;
 pub use ropey::{Rope, RopeSlice};
 pub use selection::Selection;
 pub use transaction::{ChangeSet, Transaction};
+#[cfg(feature = "xeno-tui")]
+pub use xeno_tui::style::{Color, Modifier, Style};

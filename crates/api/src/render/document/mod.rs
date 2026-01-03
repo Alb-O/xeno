@@ -8,14 +8,12 @@ mod wrapping;
 
 use std::time::{Duration, SystemTime};
 
-use evildoer_tui::animation::Animatable;
-use evildoer_tui::layout::{Constraint, Direction, Layout, Rect};
-use evildoer_tui::style::{Color, Modifier, Style};
-use evildoer_tui::text::{Line, Span};
-use evildoer_tui::widgets::menu::Menu;
-use evildoer_tui::widgets::{
-	Block, BorderType, Borders, Clear, Padding, Paragraph, StatefulWidget,
-};
+use xeno_tui::animation::Animatable;
+use xeno_tui::layout::{Constraint, Direction, Layout, Rect};
+use xeno_tui::style::{Color, Modifier, Style};
+use xeno_tui::text::{Line, Span};
+use xeno_tui::widgets::menu::Menu;
+use xeno_tui::widgets::{Block, BorderType, Borders, Clear, Padding, Paragraph, StatefulWidget};
 
 use super::buffer::{BufferRenderContext, ensure_buffer_cursor_visible};
 use crate::Editor;
@@ -165,8 +163,8 @@ impl Editor {
 	/// - Notifications
 	///
 	/// # Parameters
-	/// - `frame`: The evildoer_tui frame to render into
-	pub fn render(&mut self, frame: &mut evildoer_tui::Frame) {
+	/// - `frame`: The xeno_tui frame to render into
+	pub fn render(&mut self, frame: &mut xeno_tui::Frame) {
 		let now = SystemTime::now();
 		let delta = now
 			.duration_since(self.last_tick)
@@ -254,7 +252,7 @@ impl Editor {
 	/// Each layer's views and separators are rendered together before moving to the next layer.
 	fn render_split_buffers(
 		&mut self,
-		frame: &mut evildoer_tui::Frame,
+		frame: &mut xeno_tui::Frame,
 		doc_area: Rect,
 		use_block_cursor: bool,
 	) {
@@ -339,7 +337,7 @@ impl Editor {
 	/// Renders junction glyphs where separators intersect within a layer.
 	fn render_separator_junctions(
 		&self,
-		frame: &mut evildoer_tui::Frame,
+		frame: &mut xeno_tui::Frame,
 		separators: &[(SplitDirection, u8, Rect)],
 		sep_style: &SeparatorStyle,
 	) {
@@ -444,11 +442,11 @@ impl Editor {
 	}
 
 	/// Renders the which-key HUD when there are pending keys.
-	fn render_whichkey_hud(&self, frame: &mut evildoer_tui::Frame, doc_area: Rect) {
-		use evildoer_core::get_keymap_registry;
-		use evildoer_core::keymap_registry::ContinuationKind;
-		use evildoer_registry::{BindingMode, find_prefix};
-		use evildoer_tui::widgets::keytree::{KeyTree, KeyTreeNode};
+	fn render_whichkey_hud(&self, frame: &mut xeno_tui::Frame, doc_area: Rect) {
+		use xeno_core::get_keymap_registry;
+		use xeno_core::keymap_registry::ContinuationKind;
+		use xeno_registry::{BindingMode, find_prefix};
+		use xeno_tui::widgets::keytree::{KeyTree, KeyTreeNode};
 
 		let pending_keys = self.buffer().input.pending_keys();
 		if pending_keys.is_empty() {
@@ -456,7 +454,7 @@ impl Editor {
 		}
 
 		let binding_mode = match self.buffer().input.mode() {
-			evildoer_base::Mode::Normal => BindingMode::Normal,
+			xeno_base::Mode::Normal => BindingMode::Normal,
 			_ => return,
 		};
 

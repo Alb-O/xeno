@@ -85,8 +85,8 @@ impl Buffer {
 	/// # Examples
 	///
 	/// ```rust
-	/// use evildoer_tui::buffer::{Buffer, Cell};
-	/// use evildoer_tui::layout::{Position, Rect};
+	/// use xeno_tui::buffer::{Buffer, Cell};
+	/// use xeno_tui::layout::{Position, Rect};
 	///
 	/// let mut buffer = Buffer::empty(Rect::new(0, 0, 10, 10));
 	///
@@ -114,9 +114,9 @@ impl Buffer {
 	/// # Examples
 	///
 	/// ```rust
-	/// use evildoer_tui::buffer::{Buffer, Cell};
-	/// use evildoer_tui::layout::{Position, Rect};
-	/// use evildoer_tui::style::{Color, Style};
+	/// use xeno_tui::buffer::{Buffer, Cell};
+	/// use xeno_tui::layout::{Position, Rect};
+	/// use xeno_tui::style::{Color, Style};
 	/// let mut buffer = Buffer::empty(Rect::new(0, 0, 10, 10));
 	///
 	/// if let Some(cell) = buffer.cell_mut(Position::new(0, 0)) {
@@ -143,8 +143,8 @@ impl Buffer {
 	/// # Examples
 	///
 	/// ```
-	/// use evildoer_tui::buffer::Buffer;
-	/// use evildoer_tui::layout::Rect;
+	/// use xeno_tui::buffer::Buffer;
+	/// use xeno_tui::layout::Rect;
 	///
 	/// let buffer = Buffer::empty(Rect::new(200, 100, 10, 10));
 	/// // Global coordinates to the top corner of this buffer's area
@@ -156,8 +156,8 @@ impl Buffer {
 	/// Panics when given an coordinate that is outside of this Buffer's area.
 	///
 	/// ```should_panic
-	/// use evildoer_tui::buffer::Buffer;
-	/// use evildoer_tui::layout::Rect;
+	/// use xeno_tui::buffer::Buffer;
+	/// use xeno_tui::layout::Rect;
 	///
 	/// let buffer = Buffer::empty(Rect::new(200, 100, 10, 10));
 	/// // Top coordinate is outside of the buffer in global coordinate space, as the Buffer's area
@@ -202,8 +202,8 @@ impl Buffer {
 	/// # Examples
 	///
 	/// ```
-	/// use evildoer_tui::buffer::Buffer;
-	/// use evildoer_tui::layout::Rect;
+	/// use xeno_tui::buffer::Buffer;
+	/// use xeno_tui::layout::Rect;
 	///
 	/// let rect = Rect::new(200, 100, 10, 10);
 	/// let buffer = Buffer::empty(rect);
@@ -216,8 +216,8 @@ impl Buffer {
 	/// Panics when given an index that is outside the Buffer's content.
 	///
 	/// ```should_panic
-	/// use evildoer_tui::buffer::Buffer;
-	/// use evildoer_tui::layout::Rect;
+	/// use xeno_tui::buffer::Buffer;
+	/// use xeno_tui::layout::Rect;
 	///
 	/// let rect = Rect::new(0, 0, 10, 10); // 100 cells in total
 	/// let buffer = Buffer::empty(rect);
@@ -477,8 +477,8 @@ impl<P: Into<Position>> Index<P> for Buffer {
 	/// # Examples
 	///
 	/// ```
-	/// use evildoer_tui::buffer::{Buffer, Cell};
-	/// use evildoer_tui::layout::{Position, Rect};
+	/// use xeno_tui::buffer::{Buffer, Cell};
+	/// use xeno_tui::layout::{Position, Rect};
 	///
 	/// let buf = Buffer::empty(Rect::new(0, 0, 10, 10));
 	/// let cell = &buf[(0, 0)];
@@ -505,8 +505,8 @@ impl<P: Into<Position>> IndexMut<P> for Buffer {
 	/// # Examples
 	///
 	/// ```
-	/// use evildoer_tui::buffer::{Buffer, Cell};
-	/// use evildoer_tui::layout::{Position, Rect};
+	/// use xeno_tui::buffer::{Buffer, Cell};
+	/// use xeno_tui::layout::{Position, Rect};
 	///
 	/// let mut buf = Buffer::empty(Rect::new(0, 0, 10, 10));
 	/// buf[(0, 0)].set_symbol("A");

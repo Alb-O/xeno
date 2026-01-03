@@ -18,8 +18,8 @@ mod handler;
 mod state;
 pub mod types;
 
-use evildoer_api::editor::extensions::{EXTENSIONS, ExtensionInitDef};
 use linkme::distributed_slice;
+use xeno_api::editor::extensions::{EXTENSIONS, ExtensionInitDef};
 
 #[distributed_slice(EXTENSIONS)]
 static ACP_INIT: ExtensionInitDef = ExtensionInitDef {

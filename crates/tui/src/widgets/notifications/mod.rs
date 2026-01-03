@@ -10,7 +10,7 @@
 //!
 //! ```ignore
 //! use std::time::Duration;
-//! use evildoer_tui::widgets::notifications::{Toast, ToastManager, Anchor, Level};
+//! use xeno_tui::widgets::notifications::{Toast, ToastManager, Anchor, Level};
 //!
 //! let mut manager = ToastManager::new();
 //! manager.push(

@@ -1,4 +1,4 @@
-# Rust packages for evildoer
+# Rust packages for xeno
 # Merged with other packages.d/ fragments (e.g., 10-lint.nix from lintfra)
 {
   __inputs = {
@@ -25,7 +25,7 @@
     in
     {
       default = rustPlatform.buildRustPackage {
-        pname = "evil";
+        pname = "xeno";
         inherit version;
         src = rootSrc;
         cargoLock.lockFile = rootSrc + "/Cargo.lock";
@@ -35,12 +35,12 @@
         doCheck = false;
       };
 
-      evildoer-core = rustPlatform.buildRustPackage {
-        pname = "evildoer-core";
+      xeno-core = rustPlatform.buildRustPackage {
+        pname = "xeno-core";
         inherit version;
         src = rootSrc;
         cargoLock.lockFile = rootSrc + "/Cargo.lock";
-        buildAndTestSubdir = "crates/evildoer-core";
+        buildAndTestSubdir = "crates/xeno-core";
       };
     };
 }

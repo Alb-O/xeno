@@ -1,4 +1,4 @@
-# Evildoer
+# Xeno
 
 The next evolution of agentic text editors & harnesses.
 
@@ -11,15 +11,15 @@ The next evolution of agentic text editors & harnesses.
 ## Crate Architecture
 
 ```
-evildoer-base          Core types: Range, Selection, Transaction, Rope wrappers
-evildoer-registry      Registry definitions organized by type (actions/, commands/, etc.)
-evildoer-registry-core Shared registry primitives (Key, RegistryMetadata)
-evildoer-core          Glue layer: ActionId, KeymapRegistry, movement, notifications
-evildoer-macro         Proc macros (DispatchResult, define_events!, parse_keybindings, etc.)
-evildoer-api           Editor engine: Buffer, Editor, rendering, terminals
-evildoer-extensions    Host extensions discovered at build-time (LSP, Zenmode)
-evildoer-acp           AI completion protocol integration (experimental)
-evildoer-term          Main binary and terminal UI
+xeno-base          Core types: Range, Selection, Transaction, Rope wrappers
+xeno-registry      Registry definitions organized by type (actions/, commands/, etc.)
+xeno-registry-core Shared registry primitives (Key, RegistryMetadata)
+xeno-core          Glue layer: ActionId, KeymapRegistry, movement, notifications
+xeno-macro         Proc macros (DispatchResult, define_events!, parse_keybindings, etc.)
+xeno-api           Editor engine: Buffer, Editor, rendering, terminals
+xeno-extensions    Host extensions discovered at build-time (LSP, Zenmode)
+xeno-acp           AI completion protocol integration (experimental)
+xeno-term          Main binary and terminal UI
 ```
 
 **Supporting crates**: `keymap` (key parsing), `input` (input state machine), `config` (KDL parsing), `language` (tree-sitter), `lsp` (LSP client framework), `tui` (Ratatui fork).
@@ -28,26 +28,26 @@ evildoer-term          Main binary and terminal UI
 
 Uses `linkme` distributed slices for compile-time registration. Each registry is a self-contained crate under `crates/registry/`.
 
-| Registry      | Crate                             | Slice                 | Macro                    |
-| ------------- | --------------------------------- | --------------------- | ------------------------ |
-| Actions       | `evildoer-registry-actions`       | `ACTIONS`             | `action!`                |
-| Commands      | `evildoer-registry-commands`      | `COMMANDS`            | `command!`               |
-| Motions       | `evildoer-registry-motions`       | `MOTIONS`             | `motion!`                |
-| Text Objects  | `evildoer-registry-text-objects`  | `TEXT_OBJECTS`        | `text_object!`           |
-| Options       | `evildoer-registry-options`       | `OPTIONS`             | `option!`                |
-| Hooks         | `evildoer-registry-hooks`         | `HOOKS`               | `hook!`, `async_hook!`   |
-| Statusline    | `evildoer-registry-statusline`    | `STATUSLINE_SEGMENTS` | `statusline_segment!`    |
-| Notifications | `evildoer-registry-notifications` | `NOTIFICATION_TYPES`  | `register_notification!` |
-| Themes        | `evildoer-registry-themes`        | `THEMES`              | -                        |
-| Menus         | `evildoer-registry-menus`         | `MENUS`               | -                        |
-| Keybindings   | (in evildoer-registry)            | `KEYBINDINGS`         | (inline in `action!`)    |
+| Registry      | Crate                         | Slice                 | Macro                    |
+| ------------- | ----------------------------- | --------------------- | ------------------------ |
+| Actions       | `xeno-registry-actions`       | `ACTIONS`             | `action!`                |
+| Commands      | `xeno-registry-commands`      | `COMMANDS`            | `command!`               |
+| Motions       | `xeno-registry-motions`       | `MOTIONS`             | `motion!`                |
+| Text Objects  | `xeno-registry-text-objects`  | `TEXT_OBJECTS`        | `text_object!`           |
+| Options       | `xeno-registry-options`       | `OPTIONS`             | `option!`                |
+| Hooks         | `xeno-registry-hooks`         | `HOOKS`               | `hook!`, `async_hook!`   |
+| Statusline    | `xeno-registry-statusline`    | `STATUSLINE_SEGMENTS` | `statusline_segment!`    |
+| Notifications | `xeno-registry-notifications` | `NOTIFICATION_TYPES`  | `register_notification!` |
+| Themes        | `xeno-registry-themes`        | `THEMES`              | -                        |
+| Menus         | `xeno-registry-menus`         | `MENUS`               | -                        |
+| Keybindings   | (in xeno-registry)            | `KEYBINDINGS`         | (inline in `action!`)    |
 
 ### Typed Handles
 
 Typed handles provide compile-time safety for internal registry references:
 
-- Motions: `evildoer_registry_motions::keys::*` used with `cursor_motion` helpers
-- Actions: `evildoer_registry_actions::keys::*` used for hardcoded action IDs
+- Motions: `xeno_registry_motions::keys::*` used with `cursor_motion` helpers
+- Actions: `xeno_registry_actions::keys::*` used for hardcoded action IDs
 - Strings remain at boundaries (user input, config, runtime lookup)
 
 ### Action Result Dispatch
@@ -55,7 +55,7 @@ Typed handles provide compile-time safety for internal registry references:
 Actions return `ActionResult` variants which are dispatched to handlers via `#[derive(DispatchResult)]`:
 
 ```rust
-use evildoer_registry_motions::keys as motions;
+use xeno_registry_motions::keys as motions;
 
 action!(move_left, {
     description: "Move cursor left",
@@ -135,7 +135,7 @@ impl ZenmodeState {
 }
 ```
 
-**ACP** (`crates/acp/`): Separate crate for AI completion, loaded via `use evildoer_acp as _` in main.
+**ACP** (`crates/acp/`): Separate crate for AI completion, loaded via `use xeno_acp as _` in main.
 
 ## Capability System
 
@@ -186,7 +186,7 @@ nix develop -c cargo build
 nix develop -c cargo test --workspace
 
 # Kitty GUI tests
-KITTY_TESTS=1 DISPLAY=:0 nix develop -c cargo test -p evildoer-term --test kitty_multiselect -- --nocapture --test-threads=1
+KITTY_TESTS=1 DISPLAY=:0 nix develop -c cargo test -p xeno-term --test kitty_multiselect -- --nocapture --test-threads=1
 ```
 
 ### Testing Philosophy

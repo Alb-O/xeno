@@ -8,9 +8,9 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
 
-use evildoer_base::{Rope, Selection};
-use evildoer_language::LanguageLoader;
-use evildoer_language::syntax::Syntax;
+use xeno_base::{Rope, Selection};
+use xeno_language::LanguageLoader;
+use xeno_language::syntax::Syntax;
 
 use crate::buffer::BufferId;
 use crate::editor::types::HistoryEntry;

@@ -1,8 +1,8 @@
-# Evildoer Registry Migration: Complete Registry-First Refactor
+# Xeno Registry Migration: Complete Registry-First Refactor
 
 ## Model Directive
 
-Complete the registry-first architecture migration for Evildoer editor. Move all remaining distributed slice registries from `manifest/` and `stdlib/` to self-contained crates under `crates/registry/`. Each registry crate owns its types, macros, distributed slice, and standard implementations.
+Complete the registry-first architecture migration for Xeno editor. Move all remaining distributed slice registries from `manifest/` and `stdlib/` to self-contained crates under `crates/registry/`. Each registry crate owns its types, macros, distributed slice, and standard implementations.
 
 **Already migrated:**
 
@@ -60,7 +60,7 @@ ______________________________________________________________________
 
 \<design_freedom>
 
-- Proc macros (`register_notification!`, `define_events!`) remain in `evildoer-macro` but update their references to point to new registry crate paths
+- Proc macros (`register_notification!`, `define_events!`) remain in `xeno-macro` but update their references to point to new registry crate paths
 - Runtime constructs (Notification builder, Editor impl) stay in their current locations
 - RegistryMetadata impls remain in manifest (bridge between registry types and manifest trait)
 
@@ -78,7 +78,7 @@ Objective: Migrate notification type definitions and registrations.
 
 Files to create:
 
-- `Cargo.toml` - Dependencies: `evildoer-registry-motions`, `linkme`, `thiserror`
+- `Cargo.toml` - Dependencies: `xeno-registry-motions`, `linkme`, `thiserror`
 - `src/lib.rs` - Types: `Level`, `Anchor`, `Animation`, `AutoDismiss`, `Timing`, `NotificationError`, `AnimationPhase`, `Overflow`, `SizeConstraint`, `SlideDirection`, `NotificationTypeDef`, `NOTIFICATION_TYPES` slice, `find_notification_type()`
 - `src/impls/mod.rs` - Module declarations
 - `src/impls/defaults.rs` - 5 default registrations (INFO, WARN, ERROR, SUCCESS, DEBUG)
@@ -87,12 +87,12 @@ Re-export `RegistrySource` from motions. Do NOT duplicate enum definitions.
 
 **1.2 Update `crates/macro/src/notification.rs`**
 
-Change all `evildoer_manifest::notifications::` paths to `evildoer_registry::notifications::`.
+Change all `xeno_manifest::notifications::` paths to `xeno_registry::notifications::`.
 
 **1.3 Wire up workspace**
 
 - Add `crates/registry/notifications` to root `Cargo.toml` members
-- Add `evildoer-registry-notifications` to workspace.dependencies
+- Add `xeno-registry-notifications` to workspace.dependencies
 - Add dependency to `crates/registry/Cargo.toml`
 - Add re-exports to `crates/registry/src/lib.rs`
 
@@ -119,7 +119,7 @@ Objective: Migrate command definitions and implementations.
 
 Files to create:
 
-- `Cargo.toml` - Dependencies: `evildoer-registry-motions`, `linkme`, `paste`
+- `Cargo.toml` - Dependencies: `xeno-registry-motions`, `linkme`, `paste`
 - `src/lib.rs` - Types: `CommandDef`, `CommandHandler`, `COMMANDS` slice, `flags` module, lookup functions
 - `src/macros.rs` - `command!` macro (move from `manifest/src/macros/registry.rs`)
 - `src/impls/mod.rs` - Module declarations
@@ -180,7 +180,7 @@ Objective: Migrate hook event definitions and registrations. Most complex due to
 
 Files to create:
 
-- `Cargo.toml` - Dependencies: `evildoer-registry-motions`, `linkme`, `paste`, `tracing`
+- `Cargo.toml` - Dependencies: `xeno-registry-motions`, `linkme`, `paste`, `tracing`
 - `src/lib.rs` - Types: `HookDef`, `HookEvent`, `HookEventData`, `OwnedHookContext`, `HookContext`, `MutableHookContext`, `HookHandler`, `HookMutability`, `HookResult`, `HookAction`, `HookScheduler`, `BoxFuture`, `HOOKS` slice, emit functions
 - `src/macros.rs` - `hook!`, `async_hook!` macros (move from `manifest/src/macros/hooks.rs`)
 - `src/impls/mod.rs` - Module declarations
@@ -188,7 +188,7 @@ Files to create:
 
 **4.2 Update `crates/macro/src/events.rs`**
 
-Change `evildoer_manifest::hooks::` paths to `evildoer_registry::hooks::`.
+Change `xeno_manifest::hooks::` paths to `xeno_registry::hooks::`.
 
 The `define_events!` proc macro generates `HookEvent`, `HookEventData`, `OwnedHookContext`, and extractor macros. These generated types must reference the registry crate.
 
@@ -219,7 +219,7 @@ Objective: Migrate action definitions. Most complex - 87 actions with result dis
 
 Files to create:
 
-- `Cargo.toml` - Dependencies: `evildoer-registry-motions`, `evildoer-macro`, `linkme`, `paste`
+- `Cargo.toml` - Dependencies: `xeno-registry-motions`, `xeno-macro`, `linkme`, `paste`
 - `src/lib.rs` - Types: `ActionDef`, `ActionHandler`, `ActionContext`, `ActionArgs`, `ActionMode`, `ActionResult` (with `#[derive(DispatchResult)]`), `PendingAction`, `PendingKind`, `EditAction`, `ObjectSelectionKind`, `ScrollAmount`, `ScrollDir`, `VisualDirection`, `ACTIONS` slice, `KEYBINDINGS` slice, result handler slices, dispatch infrastructure
 - `src/macros.rs` - `action!` macro (move from `manifest/src/macros/actions.rs`)
 - `src/impls/mod.rs` - Module declarations
@@ -291,15 +291,15 @@ crates/registry/{name}/
 ### Dependency Graph
 
 ```
-evildoer-registry-motions  (base: RegistrySource, Capability, flags, movement)
+xeno-registry-motions  (base: RegistrySource, Capability, flags, movement)
     ↑
-evildoer-registry-{menus,options,text_objects,statusline,notifications,commands,panels,hooks,actions}
+xeno-registry-{menus,options,text_objects,statusline,notifications,commands,panels,hooks,actions}
     ↑
-evildoer-registry  (umbrella: re-exports all)
+xeno-registry  (umbrella: re-exports all)
     ↑
-evildoer-manifest  (RegistryMetadata impls, remaining definitions)
+xeno-manifest  (RegistryMetadata impls, remaining definitions)
     ↑
-evildoer-stdlib    (runtime impls: Notification builder, EditorCapabilities)
+xeno-stdlib    (runtime impls: Notification builder, EditorCapabilities)
 ```
 
 ### RegistryMetadata Bridge Pattern
@@ -308,7 +308,7 @@ For each migrated type, manifest contains only:
 
 ```rust
 // crates/manifest/src/{registry_name}.rs
-use evildoer_registry::{registry_name}::TypeDef;
+use xeno_registry::{registry_name}::TypeDef;
 
 impl crate::RegistryMetadata for TypeDef {
     fn id(&self) -> &'static str { self.id }
@@ -316,9 +316,9 @@ impl crate::RegistryMetadata for TypeDef {
     fn priority(&self) -> i16 { self.priority }
     fn source(&self) -> crate::RegistrySource {
         match self.source {
-            evildoer_registry::RegistrySource::Builtin => crate::RegistrySource::Builtin,
-            evildoer_registry::RegistrySource::Crate(name) => crate::RegistrySource::Crate(name),
-            evildoer_registry::RegistrySource::Runtime => crate::RegistrySource::Runtime,
+            xeno_registry::RegistrySource::Builtin => crate::RegistrySource::Builtin,
+            xeno_registry::RegistrySource::Crate(name) => crate::RegistrySource::Crate(name),
+            xeno_registry::RegistrySource::Runtime => crate::RegistrySource::Runtime,
         }
     }
 }
@@ -326,10 +326,10 @@ impl crate::RegistryMetadata for TypeDef {
 
 ### Proc Macro Updates
 
-Proc macros in `evildoer-macro` that generate registry registrations must be updated to reference `evildoer_registry::` paths:
+Proc macros in `xeno-macro` that generate registry registrations must be updated to reference `xeno_registry::` paths:
 
-- `register_notification!` → `evildoer_registry::notifications::`
-- `define_events!` → `evildoer_registry::hooks::`
+- `register_notification!` → `xeno_registry::notifications::`
+- `define_events!` → `xeno_registry::hooks::`
 
 Declarative macros move entirely to their registry crates.
 

@@ -81,8 +81,8 @@ impl From<kdl::KdlError> for Error {
 /// # Example
 ///
 /// ```
-/// use evildoer_keymap::kdl::parse_keybindings;
-/// use evildoer_keymap::Config;
+/// use xeno_keymap::kdl::parse_keybindings;
+/// use xeno_keymap::Config;
 ///
 /// let kdl = r#"
 ///     Quit "q" "esc"
@@ -134,7 +134,7 @@ where
 		if entry.name().is_none()
 			&& let Some(s) = entry.value().as_string()
 		{
-			evildoer_keymap_parser::parse_seq(s).map_err(|e| Error::InvalidKey {
+			xeno_keymap_parser::parse_seq(s).map_err(|e| Error::InvalidKey {
 				action: action_name.to_string(),
 				key: s.to_string(),
 				reason: e.to_string(),

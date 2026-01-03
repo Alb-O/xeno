@@ -4,7 +4,7 @@
 
 use std::path::PathBuf;
 
-use evildoer_registry::{
+use xeno_registry::{
 	HookContext, HookEventData, emit as emit_hook, emit_sync_with as emit_hook_sync_with,
 };
 
@@ -88,9 +88,7 @@ impl Editor {
 		let readonly = path.exists() && !is_writable(&path);
 		let buffer_id = self.open_buffer(content, Some(path)).await;
 
-		if readonly
-			&& let Some(buffer) = self.buffers.get_buffer(buffer_id)
-		{
+		if readonly && let Some(buffer) = self.buffers.get_buffer(buffer_id) {
 			buffer.set_readonly(true);
 		}
 

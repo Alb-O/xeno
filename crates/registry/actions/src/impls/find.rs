@@ -1,4 +1,4 @@
-use evildoer_registry_motions::movement;
+use xeno_registry_motions::movement;
 
 use crate::{ActionResult, PendingAction, PendingKind, action};
 

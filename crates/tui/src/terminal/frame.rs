@@ -66,11 +66,11 @@ impl Frame<'_> {
 	/// # Example
 	///
 	/// ```rust,ignore
-	/// # use evildoer_tui::{backend::TestBackend, Terminal};
+	/// # use xeno_tui::{backend::TestBackend, Terminal};
 	/// # let backend = TestBackend::new(5, 5);
 	/// # let mut terminal = Terminal::new(backend).unwrap();
 	/// # let mut frame = terminal.get_frame();
-	/// use evildoer_tui::{layout::Rect, widgets::Block};
+	/// use xeno_tui::{layout::Rect, widgets::Block};
 	///
 	/// let block = Block::new();
 	/// let area = Rect::new(0, 0, 5, 5);
@@ -93,11 +93,11 @@ impl Frame<'_> {
 	/// # Example
 	///
 	/// ```rust,ignore
-	/// # use evildoer_tui::{backend::TestBackend, Terminal};
+	/// # use xeno_tui::{backend::TestBackend, Terminal};
 	/// # let backend = TestBackend::new(5, 5);
 	/// # let mut terminal = Terminal::new(backend).unwrap();
 	/// # let mut frame = terminal.get_frame();
-	/// use evildoer_tui::{
+	/// use xeno_tui::{
 	///     layout::Rect,
 	///     widgets::{List, ListItem, ListState},
 	/// };
@@ -152,7 +152,7 @@ impl Frame<'_> {
 	/// # Examples
 	///
 	/// ```rust,ignore
-	/// # use evildoer_tui::{backend::TestBackend, Terminal};
+	/// # use xeno_tui::{backend::TestBackend, Terminal};
 	/// # let backend = TestBackend::new(5, 5);
 	/// # let mut terminal = Terminal::new(backend).unwrap();
 	/// # let mut frame = terminal.get_frame();

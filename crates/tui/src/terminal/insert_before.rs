@@ -69,7 +69,7 @@ where
 	/// ## Insert a single line before the current viewport
 	///
 	/// ```rust,ignore
-	/// use evildoer_tui::{
+	/// use xeno_tui::{
 	///     backend::TestBackend,
 	///     style::{Color, Style},
 	///     text::{Line, Span},

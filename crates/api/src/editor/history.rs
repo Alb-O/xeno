@@ -1,9 +1,9 @@
 //! Editor-level undo/redo with multi-view selection sync.
 
-use evildoer_registry_notifications::keys;
 use std::collections::HashMap;
 
-use evildoer_base::Selection;
+use xeno_base::Selection;
+use xeno_registry_notifications::keys;
 
 use crate::buffer::{BufferId, DocumentId};
 use crate::editor::Editor;

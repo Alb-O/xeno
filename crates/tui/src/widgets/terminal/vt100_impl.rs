@@ -62,7 +62,7 @@ fn fill_buf_cell(screen_cell: &vt100::Cell, buf_cell: &mut crate::buffer::Cell) 
 	buf_cell.set_bg(bg.into());
 }
 
-/// Intermediate color type for converting between `vt100::Color` and `evildoer_tui::style::Color`.
+/// Intermediate color type for converting between `vt100::Color` and `xeno_tui::style::Color`.
 #[allow(dead_code, reason = "variants used for color conversion lookup")]
 enum Color {
 	/// Default/reset color.

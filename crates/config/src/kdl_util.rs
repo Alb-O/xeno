@@ -2,8 +2,8 @@
 
 use std::collections::HashMap;
 
-use evildoer_base::{Color, Modifier};
 use kdl::{KdlDocument, KdlNode};
+use xeno_base::{Color, Modifier};
 
 use crate::error::{ConfigError, Result};
 

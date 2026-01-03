@@ -1,17 +1,15 @@
 [package]
-name = "evildoer-base"
+name = "xeno-base"
 description = "Basic editing primitives"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 
 [features]
-default = ["evildoer-tui"]
-evildoer-tui = ["dep:evildoer-tui"]
+default = ["xeno-tui"]
+xeno-tui = ["dep:xeno-tui"]
 
 [dependencies]
-evildoer-keymap-parser.workspace = true
-evildoer-tui = { workspace = true, optional = true }
 ropey.workspace = true
 serde.workspace = true
 smallvec.workspace = true
@@ -19,3 +17,5 @@ termina.workspace = true
 thiserror.workspace = true
 unicode-segmentation.workspace = true
 unicode-width.workspace = true
+xeno-keymap-parser.workspace = true
+xeno-tui = { workspace = true, optional = true }

@@ -1,4 +1,4 @@
-//! Zen Mode extension for Evildoer.
+//! Zen Mode extension for Xeno.
 //!
 //! Provides a focus mode that dims syntax highlighting outside the current
 //! tree-sitter element (function, struct, impl, etc.) containing the cursor.
@@ -19,9 +19,9 @@
 
 use std::ops::Range;
 
-use evildoer_api::editor::Editor;
-use evildoer_macro::extension;
-use evildoer_registry::commands::{CommandContext, CommandError, CommandOutcome};
+use xeno_api::editor::Editor;
+use xeno_macro::extension;
+use xeno_registry::commands::{CommandContext, CommandError, CommandOutcome};
 
 /// Primary focus node types - these are the main code units we want to focus on.
 ///
@@ -91,7 +91,7 @@ fn is_secondary_focus(kind: &str) -> bool {
 
 use std::time::{Duration, Instant};
 
-use evildoer_api::editor::extensions::Easing;
+use xeno_api::editor::extensions::Easing;
 
 /// Default animation duration for focus transitions between nodes.
 const TRANSITION_DURATION: Duration = Duration::from_millis(150);
@@ -335,7 +335,7 @@ impl ZenmodeState {
 /// This ensures we always find a reasonable container even when the cursor
 /// is inside nested expressions like string literals.
 fn find_focus_range(
-	syntax: &evildoer_language::syntax::Syntax,
+	syntax: &xeno_language::syntax::Syntax,
 	cursor_byte: u32,
 ) -> Option<Range<usize>> {
 	// Find the smallest named node containing the cursor

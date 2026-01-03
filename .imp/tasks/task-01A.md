@@ -1,8 +1,8 @@
-# Evildoer Menu Macro System: Agent Specification
+# Xeno Menu Macro System: Agent Specification
 
 ## Model Directive
 
-This document specifies the implementation of a macro-based menu registration system for the Evildoer editor. The goal is to replace the hardcoded `create_menu()` function with distributed `menu_group!` and `menu_item!` macros that follow the established registry patterns used throughout the codebase (`action!`, `command!`, `hook!`, etc.).
+This document specifies the implementation of a macro-based menu registration system for the Xeno editor. The goal is to replace the hardcoded `create_menu()` function with distributed `menu_group!` and `menu_item!` macros that follow the established registry patterns used throughout the codebase (`action!`, `command!`, `hook!`, etc.).
 
 ______________________________________________________________________
 
@@ -271,7 +271,7 @@ paste::paste! {
 // crates/api/src/menu.rs
 
 pub fn create_menu() -> MenuState<MenuAction> {
-    use evildoer_manifest::menu::{MENU_GROUPS, MENU_ITEMS};
+    use xeno_manifest::menu::{MENU_GROUPS, MENU_ITEMS};
 
     // Sort groups by priority
     let mut groups: Vec<_> = MENU_GROUPS.iter().collect();

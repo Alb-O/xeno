@@ -1,4 +1,4 @@
-# Evildoer: Compile-Time Registry Verification - Architecture Review
+# Xeno: Compile-Time Registry Verification - Architecture Review
 
 ## Summary
 

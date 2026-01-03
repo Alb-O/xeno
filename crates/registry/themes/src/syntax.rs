@@ -12,7 +12,7 @@
 //! scope isn't defined, it falls back to its parent (e.g., `keyword.control`
 //! then `keyword`).
 
-pub use evildoer_base::{Color, Modifier, Style};
+pub use xeno_base::{Color, Modifier, Style};
 
 /// A syntax style with optional foreground, background, and modifiers.
 #[derive(Clone, Copy, Debug, Default)]

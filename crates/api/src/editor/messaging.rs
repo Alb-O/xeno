@@ -1,9 +1,9 @@
 //! Notification display for the editor.
 
-use evildoer_registry_notifications::{AutoDismiss, Level, Notification};
-use evildoer_tui::style::Style;
-use evildoer_tui::widgets::icon::presets as icon_presets;
-use evildoer_tui::widgets::notifications::{self as notif, Anchor, Toast, ToastIcon};
+use xeno_registry_notifications::{AutoDismiss, Level, Notification};
+use xeno_tui::style::Style;
+use xeno_tui::widgets::icon::presets as icon_presets;
+use xeno_tui::widgets::notifications::{self as notif, Anchor, Toast, ToastIcon};
 
 use crate::editor::Editor;
 
@@ -17,7 +17,7 @@ impl Editor {
 	/// # Examples
 	///
 	/// ```ignore
-	/// use evildoer_registry_notifications::keys;
+	/// use xeno_registry_notifications::keys;
 	///
 	/// editor.notify(keys::buffer_readonly);
 	/// editor.notify(keys::regex_error::call(&err));

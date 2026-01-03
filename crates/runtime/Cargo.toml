@@ -1,10 +1,10 @@
 [package]
-name = "evildoer-runtime"
+name = "xeno-runtime"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
-description = "Embedded runtime assets for evildoer"
+description = "Embedded runtime assets for xeno"
 
 [dependencies]
 include_dir = "0.7"

@@ -2,7 +2,7 @@
 
 use std::fmt;
 
-pub use evildoer_keymap_parser::Key as KeyCode;
+pub use xeno_keymap_parser::Key as KeyCode;
 
 use super::Modifiers;
 

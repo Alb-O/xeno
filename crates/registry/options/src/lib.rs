@@ -12,7 +12,7 @@ use linkme::distributed_slice;
 mod impls;
 mod macros;
 
-pub use evildoer_registry_core::{RegistryMetadata, RegistrySource, impl_registry_metadata};
+pub use xeno_registry_core::{RegistryMetadata, RegistrySource, impl_registry_metadata};
 
 /// The value of an option.
 #[derive(Debug, Clone, PartialEq)]
@@ -97,7 +97,7 @@ pub enum OptionScope {
 
 /// Definition of a configurable option.
 pub struct OptionDef {
-	/// Unique identifier (e.g., "evildoer_core::tab_width").
+	/// Unique identifier (e.g., "xeno_core::tab_width").
 	pub id: &'static str,
 	/// Option name (e.g., "tab_width").
 	pub name: &'static str,

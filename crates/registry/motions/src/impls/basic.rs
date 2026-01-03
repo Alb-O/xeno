@@ -1,4 +1,4 @@
-use evildoer_base::range::Direction;
+use xeno_base::range::Direction;
 
 use crate::motion;
 use crate::movement::{move_horizontally, move_vertically};

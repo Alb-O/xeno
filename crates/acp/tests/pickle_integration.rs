@@ -3,7 +3,7 @@
 //! These tests require the PICKLE_TESTS=1 environment variable to run.
 //! They make actual calls to the big-pickle AI model via OpenCode's ACP server.
 //!
-//! Run with: PICKLE_TESTS=1 cargo test -p evildoer-acp --test pickle_integration -- --nocapture
+//! Run with: PICKLE_TESTS=1 cargo test -p xeno-acp --test pickle_integration -- --nocapture
 
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -144,7 +144,7 @@ async fn spawn_acp_connection(
 							.write_text_file(false))
 						.terminal(false),
 				)
-				.client_info(Implementation::new("EvildoerTest", "0.1.0").title("Evildoer Test")),
+				.client_info(Implementation::new("XenoTest", "0.1.0").title("Xeno Test")),
 		)
 		.await?;
 

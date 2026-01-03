@@ -62,7 +62,7 @@ macro_rules! __opt_slice {
 ///
 /// [`ActionResult`]: crate::ActionResult
 /// [`ResultHandler`]: crate::editor_ctx::ResultHandler
-/// [`parse_keybindings!`]: evildoer_macro::parse_keybindings
+/// [`parse_keybindings!`]: xeno_macro::parse_keybindings
 /// [`result_handler!`]: crate::result_handler
 /// [`result_extension_handler!`]: crate::result_extension_handler
 #[macro_export]
@@ -92,7 +92,7 @@ macro_rules! action {
 				$(, flags: $flags)?
 			}, handler: [<handler_ $name>]);
 
-			$(evildoer_macro::parse_keybindings!($name, $kdl);)?
+			$(xeno_macro::parse_keybindings!($name, $kdl);)?
 		}
 	};
 
@@ -126,7 +126,7 @@ macro_rules! action {
 			#[allow(non_upper_case_globals)]
 			pub const $name: $crate::ActionKey = $crate::ActionKey::new(&[<ACTION_ $name>]);
 
-			$(evildoer_macro::parse_keybindings!($name, $kdl);)?
+			$(xeno_macro::parse_keybindings!($name, $kdl);)?
 		}
 	};
 }

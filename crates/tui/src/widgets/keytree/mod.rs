@@ -6,7 +6,7 @@
 //! # Example
 //!
 //! ```
-//! use evildoer_tui::widgets::keytree::{KeyTree, KeyTreeNode};
+//! use xeno_tui::widgets::keytree::{KeyTree, KeyTreeNode};
 //!
 //! let children = vec![
 //!     KeyTreeNode::new("g", "document_start"),

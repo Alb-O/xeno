@@ -1,4 +1,4 @@
-//! Procedural macros for Evildoer editor.
+//! Procedural macros for Xeno editor.
 //!
 //! Provides derive macros and attribute macros:
 //! - `#[derive(DispatchResult)]` - generates result handler slices
@@ -27,8 +27,8 @@ pub fn extension(attr: TokenStream, item: TokenStream) -> TokenStream {
 ///
 /// ```ignore
 /// register_notification!(INFO_NOTIFICATION, "info",
-///     level: evildoer_registry::notifications::Level::Info,
-///     semantic: evildoer_registry::themes::SEMANTIC_INFO
+///     level: xeno_registry::notifications::Level::Info,
+///     semantic: xeno_registry::themes::SEMANTIC_INFO
 /// );
 /// ```
 #[proc_macro]

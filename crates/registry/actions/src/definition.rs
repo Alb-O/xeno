@@ -21,7 +21,7 @@ use crate::{ActionContext, ActionResult, Capability, RegistrySource};
 /// }, |ctx| cursor_motion(ctx, "line_down"));
 /// ```
 pub struct ActionDef {
-	/// Unique identifier (e.g., "evildoer-stdlib::move_line_down").
+	/// Unique identifier (e.g., "xeno-stdlib::move_line_down").
 	pub id: &'static str,
 	/// Human-readable name for UI display.
 	pub name: &'static str,

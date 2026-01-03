@@ -10,10 +10,10 @@
 //! - Movement algorithms ([`movement`] module)
 //! - Standard library implementations (basic, word, line, document)
 
-use evildoer_base::Range;
-pub use evildoer_registry_core::{Key, RegistryMetadata, RegistrySource, impl_registry_metadata};
 use linkme::distributed_slice;
 use ropey::RopeSlice;
+use xeno_base::Range;
+pub use xeno_registry_core::{Key, RegistryMetadata, RegistrySource, impl_registry_metadata};
 
 /// Built-in motion implementations (char, word, line, etc.).
 pub(crate) mod impls;

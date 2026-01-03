@@ -1,12 +1,11 @@
 //! Core result handlers: Ok, CursorMove, Motion, Edit, Quit, Error.
 
-use evildoer_base::Selection;
-use evildoer_base::range::Range;
-use evildoer_registry::actions::ScreenPosition;
-use evildoer_registry::notification_keys as keys;
-use evildoer_registry::{
+use xeno_base::Selection;
+use xeno_base::range::Range;
+use xeno_registry::actions::ScreenPosition;
+use xeno_registry::{
 	ActionResult, HandleOutcome, HookContext, HookEventData, Mode, emit_sync as emit_hook_sync,
-	result_handler,
+	notification_keys as keys, result_handler,
 };
 
 result_handler!(RESULT_OK_HANDLERS, HANDLE_OK, "ok", |_, _, _| {

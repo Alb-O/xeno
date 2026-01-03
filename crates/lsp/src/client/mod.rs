@@ -13,7 +13,7 @@
 //! # Example
 //!
 //! ```ignore
-//! use evildoer_lsp::client::{Client, ServerConfig, LanguageServerId};
+//! use xeno_lsp::client::{Client, ServerConfig, LanguageServerId};
 //!
 //! let config = ServerConfig::new("rust-analyzer", "/path/to/project");
 //! let client = Client::start(LanguageServerId(1), "rust-analyzer".into(), config)?;
@@ -170,7 +170,7 @@ impl ClientHandle {
 			capabilities: client_capabilities(enable_snippets),
 			trace: None,
 			client_info: Some(ClientInfo {
-				name: String::from("evildoer"),
+				name: String::from("xeno"),
 				version: Some(String::from(env!("CARGO_PKG_VERSION"))),
 			}),
 			locale: None,

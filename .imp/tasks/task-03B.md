@@ -1,4 +1,4 @@
-# Evildoer: Architectural Consistency Fixes
+# Xeno: Architectural Consistency Fixes
 
 ## Model Directive
 
@@ -28,19 +28,19 @@ ______________________________________________________________________
 
 ## Fixes Required
 
-### Fix 1: evildoer-base dependency boundary
+### Fix 1: xeno-base dependency boundary
 
 **Location**: `crates/base/src/lib.rs:10`, `crates/base/Cargo.toml`
 
-**Issue**: Base crate re-exports `evildoer_tui::style` (Color, Style, Modifier) and has unused `crossterm` dependency. This pollutes the primitive crate with UI concerns.
+**Issue**: Base crate re-exports `xeno_tui::style` (Color, Style, Modifier) and has unused `crossterm` dependency. This pollutes the primitive crate with UI concerns.
 
 **Fix**:
 
 1. Remove `crossterm` dependency from `crates/base/Cargo.toml` if unused
-1. Check who uses `evildoer_base::{Color, Style, Modifier}`:
-   - If only `evildoer-language`, have language import directly from `evildoer_tui`
+1. Check who uses `xeno_base::{Color, Style, Modifier}`:
+   - If only `xeno-language`, have language import directly from `xeno_tui`
    - If multiple crates need it, keep the re-export but document why
-1. Remove the `evildoer-tui` feature/dependency from base if possible
+1. Remove the `xeno-tui` feature/dependency from base if possible
 1. Update any affected imports
 
 **Verify**: `cargo check --workspace`
@@ -51,13 +51,13 @@ ______________________________________________________________________
 
 **Location**: `crates/input/src/handler.rs:6`, `crates/input/src/insert.rs:5`
 
-**Issue**: Input crate uses `evildoer_core::registry::BindingMode` creating unnecessary 3-hop chain.
+**Issue**: Input crate uses `xeno_core::registry::BindingMode` creating unnecessary 3-hop chain.
 
 **Fix**:
 
-1. Add `evildoer-registry` as direct dependency to `crates/input/Cargo.toml`
-1. Change imports from `evildoer_core::registry::BindingMode` to `evildoer_registry::BindingMode`
-1. Remove `pub use evildoer_registry as registry` from `crates/core/src/lib.rs` if no longer needed elsewhere
+1. Add `xeno-registry` as direct dependency to `crates/input/Cargo.toml`
+1. Change imports from `xeno_core::registry::BindingMode` to `xeno_registry::BindingMode`
+1. Remove `pub use xeno_registry as registry` from `crates/core/src/lib.rs` if no longer needed elsewhere
 1. Check other crates for similar patterns and fix
 
 **Verify**: `cargo check --workspace`
@@ -68,15 +68,15 @@ ______________________________________________________________________
 
 **Location**: `crates/config/src/options.rs:9`, `crates/registry/options/src/lib.rs:17`
 
-**Issue**: Duplicate `OptionValue` enum definitions. Config references non-existent `evildoer_core::OptionValue`.
+**Issue**: Duplicate `OptionValue` enum definitions. Config references non-existent `xeno_core::OptionValue`.
 
 **Fix**:
 
 1. Remove duplicate `OptionValue` from `crates/config/src/options.rs`
-1. Import from `evildoer_registry::options::OptionValue` instead
-1. Add `evildoer-registry` dependency to config if not present
+1. Import from `xeno_registry::options::OptionValue` instead
+1. Add `xeno-registry` dependency to config if not present
 1. Update all usages in config crate
-1. Remove broken `evildoer_core::OptionValue` reference
+1. Remove broken `xeno_core::OptionValue` reference
 
 **Verify**: `cargo check --workspace`
 
@@ -90,7 +90,7 @@ ______________________________________________________________________
 
 **Fix**:
 
-1. Add `evildoer-registry-motions` dependency to `crates/registry/menus/Cargo.toml`
+1. Add `xeno-registry-motions` dependency to `crates/registry/menus/Cargo.toml`
 1. Remove local `RegistrySource` definition
 1. Import `RegistrySource`, `RegistryMetadata`, `impl_registry_metadata!` from motions
 1. Implement `RegistryMetadata` for `MenuGroupDef` and `MenuItemDef` using the macro
@@ -121,11 +121,11 @@ ______________________________________________________________________
 
 **Location**: `crates/config/Cargo.toml:12`
 
-**Issue**: `evildoer-core` listed as dependency but not used (only in comment).
+**Issue**: `xeno-core` listed as dependency but not used (only in comment).
 
 **Fix**:
 
-1. Remove `evildoer-core` from `crates/config/Cargo.toml` dependencies
+1. Remove `xeno-core` from `crates/config/Cargo.toml` dependencies
 1. Remove any dead imports or comments referencing it
 1. If actually needed after Fix 3, keep it but ensure it's used
 
@@ -141,10 +141,10 @@ ______________________________________________________________________
 
 **Fix**:
 
-1. Add `description = "Procedural macros for Evildoer editor"` to Cargo.toml
+1. Add `description = "Procedural macros for Xeno editor"` to Cargo.toml
 1. Add crate-level doc comment to lib.rs explaining purpose:
    ```rust
-   //! Procedural macros for Evildoer editor.
+   //! Procedural macros for Xeno editor.
    //!
    //! Provides derive macros and attribute macros:
    //! - `#[derive(DispatchResult)]` - generates result handler slices
@@ -152,7 +152,7 @@ ______________________________________________________________________
    //! - `define_events!` - hook event generation
    ```
 
-**Verify**: `cargo doc -p evildoer-macro --no-deps`
+**Verify**: `cargo doc -p xeno-macro --no-deps`
 
 ______________________________________________________________________
 

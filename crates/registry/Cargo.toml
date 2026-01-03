@@ -1,19 +1,19 @@
 [package]
-name = "evildoer-registry"
+name = "xeno-registry"
 description = "Registry-first organization extensions"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 
 [dependencies]
-evildoer-registry-actions.workspace = true
-evildoer-registry-commands.workspace = true
-evildoer-registry-core.workspace = true
-evildoer-registry-hooks.workspace = true
-evildoer-registry-menus.workspace = true
-evildoer-registry-motions.workspace = true
-evildoer-registry-notifications.workspace = true
-evildoer-registry-options.workspace = true
-evildoer-registry-statusline.workspace = true
-evildoer-registry-text-objects.workspace = true
-evildoer-registry-themes.workspace = true
+xeno-registry-actions.workspace = true
+xeno-registry-commands.workspace = true
+xeno-registry-core.workspace = true
+xeno-registry-hooks.workspace = true
+xeno-registry-menus.workspace = true
+xeno-registry-motions.workspace = true
+xeno-registry-notifications.workspace = true
+xeno-registry-options.workspace = true
+xeno-registry-statusline.workspace = true
+xeno-registry-text-objects.workspace = true
+xeno-registry-themes.workspace = true

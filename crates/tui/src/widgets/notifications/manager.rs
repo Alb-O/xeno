@@ -140,7 +140,10 @@ impl ToastState {
 
 	/// Returns true if this toast can be stacked with another having the same content.
 	fn can_stack(&self) -> bool {
-		!matches!(self.phase, AnimationPhase::Exiting | AnimationPhase::Finished)
+		!matches!(
+			self.phase,
+			AnimationPhase::Exiting | AnimationPhase::Finished
+		)
 	}
 }
 

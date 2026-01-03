@@ -2,51 +2,93 @@
 
 use linkme::distributed_slice;
 
-use crate::{AutoDismiss, Level, Notification, NotificationDef, NotificationKey, NOTIFICATIONS, RegistrySource};
+use crate::{
+	AutoDismiss, Level, NOTIFICATIONS, Notification, NotificationDef, NotificationKey,
+	RegistrySource,
+};
 
 #[distributed_slice(NOTIFICATIONS)]
-static NOTIF_UNKNOWN_COMMAND: NotificationDef =
-	NotificationDef::new("unknown_command", Level::Error, AutoDismiss::DEFAULT, RegistrySource::Builtin);
+static NOTIF_UNKNOWN_COMMAND: NotificationDef = NotificationDef::new(
+	"unknown_command",
+	Level::Error,
+	AutoDismiss::DEFAULT,
+	RegistrySource::Builtin,
+);
 
 #[distributed_slice(NOTIFICATIONS)]
-static NOTIF_COMMAND_ERROR: NotificationDef =
-	NotificationDef::new("command_error", Level::Error, AutoDismiss::DEFAULT, RegistrySource::Builtin);
+static NOTIF_COMMAND_ERROR: NotificationDef = NotificationDef::new(
+	"command_error",
+	Level::Error,
+	AutoDismiss::DEFAULT,
+	RegistrySource::Builtin,
+);
 
 #[distributed_slice(NOTIFICATIONS)]
-static NOTIF_UNSAVED_CHANGES_FORCE_QUIT: NotificationDef =
-	NotificationDef::new("unsaved_changes_force_quit", Level::Error, AutoDismiss::DEFAULT, RegistrySource::Builtin);
+static NOTIF_UNSAVED_CHANGES_FORCE_QUIT: NotificationDef = NotificationDef::new(
+	"unsaved_changes_force_quit",
+	Level::Error,
+	AutoDismiss::DEFAULT,
+	RegistrySource::Builtin,
+);
 
 #[distributed_slice(NOTIFICATIONS)]
-static NOTIF_NOT_IMPLEMENTED: NotificationDef =
-	NotificationDef::new("not_implemented", Level::Warn, AutoDismiss::DEFAULT, RegistrySource::Builtin);
+static NOTIF_NOT_IMPLEMENTED: NotificationDef = NotificationDef::new(
+	"not_implemented",
+	Level::Warn,
+	AutoDismiss::DEFAULT,
+	RegistrySource::Builtin,
+);
 
 #[distributed_slice(NOTIFICATIONS)]
-static NOTIF_HELP_TEXT: NotificationDef =
-	NotificationDef::new("help_text", Level::Info, AutoDismiss::Never, RegistrySource::Builtin);
+static NOTIF_HELP_TEXT: NotificationDef = NotificationDef::new(
+	"help_text",
+	Level::Info,
+	AutoDismiss::Never,
+	RegistrySource::Builtin,
+);
 
 #[distributed_slice(NOTIFICATIONS)]
-static NOTIF_DIAGNOSTIC_OUTPUT: NotificationDef =
-	NotificationDef::new("diagnostic_output", Level::Info, AutoDismiss::Never, RegistrySource::Builtin);
+static NOTIF_DIAGNOSTIC_OUTPUT: NotificationDef = NotificationDef::new(
+	"diagnostic_output",
+	Level::Info,
+	AutoDismiss::Never,
+	RegistrySource::Builtin,
+);
 
 #[distributed_slice(NOTIFICATIONS)]
-static NOTIF_DIAGNOSTIC_WARNING: NotificationDef =
-	NotificationDef::new("diagnostic_warning", Level::Warn, AutoDismiss::Never, RegistrySource::Builtin);
+static NOTIF_DIAGNOSTIC_WARNING: NotificationDef = NotificationDef::new(
+	"diagnostic_warning",
+	Level::Warn,
+	AutoDismiss::Never,
+	RegistrySource::Builtin,
+);
 
 #[distributed_slice(NOTIFICATIONS)]
-static NOTIF_NO_COLLISIONS: NotificationDef =
-	NotificationDef::new("no_collisions", Level::Info, AutoDismiss::DEFAULT, RegistrySource::Builtin);
+static NOTIF_NO_COLLISIONS: NotificationDef = NotificationDef::new(
+	"no_collisions",
+	Level::Info,
+	AutoDismiss::DEFAULT,
+	RegistrySource::Builtin,
+);
 
 #[distributed_slice(NOTIFICATIONS)]
-static NOTIF_THEME_SET: NotificationDef =
-	NotificationDef::new("theme_set", Level::Info, AutoDismiss::DEFAULT, RegistrySource::Builtin);
+static NOTIF_THEME_SET: NotificationDef = NotificationDef::new(
+	"theme_set",
+	Level::Info,
+	AutoDismiss::DEFAULT,
+	RegistrySource::Builtin,
+);
 
 #[allow(non_upper_case_globals, non_camel_case_types)]
 pub mod keys {
 	use super::*;
 
-	pub const unsaved_changes_force_quit: NotificationKey =
-		NotificationKey::new(&NOTIF_UNSAVED_CHANGES_FORCE_QUIT, "Buffer has unsaved changes (use :q! to force quit)");
-	pub const no_collisions: NotificationKey = NotificationKey::new(&NOTIF_NO_COLLISIONS, "All good! No collisions found.");
+	pub const unsaved_changes_force_quit: NotificationKey = NotificationKey::new(
+		&NOTIF_UNSAVED_CHANGES_FORCE_QUIT,
+		"Buffer has unsaved changes (use :q! to force quit)",
+	);
+	pub const no_collisions: NotificationKey =
+		NotificationKey::new(&NOTIF_NO_COLLISIONS, "All good! No collisions found.");
 
 	/// "Unknown command: X".
 	pub struct unknown_command;
@@ -68,7 +110,10 @@ pub mod keys {
 	pub struct not_implemented;
 	impl not_implemented {
 		pub fn call(feature: &str) -> Notification {
-			Notification::new(&NOTIF_NOT_IMPLEMENTED, format!("{} - not yet implemented", feature))
+			Notification::new(
+				&NOTIF_NOT_IMPLEMENTED,
+				format!("{} - not yet implemented", feature),
+			)
 		}
 	}
 

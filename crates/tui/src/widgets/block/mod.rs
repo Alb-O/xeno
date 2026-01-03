@@ -31,8 +31,8 @@ mod padding;
 /// # Example
 ///
 /// ```
-/// use evildoer_tui::text::Line;
-/// use evildoer_tui::widgets::{Block, Paragraph};
+/// use xeno_tui::text::Line;
+/// use xeno_tui::widgets::{Block, Paragraph};
 ///
 /// // Simple bordered block
 /// let block = Block::bordered().title("My Block");

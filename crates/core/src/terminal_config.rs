@@ -37,7 +37,7 @@ pub struct TerminalConfig {
 }
 
 /// Environment variable for overriding terminal configuration.
-const TERMINAL_CONFIG_ENV: &str = "EVILDOER_TERMINAL_CONFIG";
+const TERMINAL_CONFIG_ENV: &str = "XENO_TERMINAL_CONFIG";
 
 /// Default enter sequences with full kitty keyboard support.
 const DEFAULT_ENTER: &[TerminalSequence] = &[
@@ -104,7 +104,7 @@ impl TerminalConfig {
 
 	/// Detects the best terminal configuration for the current environment.
 	///
-	/// Respects `EVILDOER_TERMINAL_CONFIG` overrides ("kitty" or "no-kitty").
+	/// Respects `XENO_TERMINAL_CONFIG` overrides ("kitty" or "no-kitty").
 	pub fn detect() -> Self {
 		if let Some(config) = Self::from_env() {
 			return config;
@@ -117,7 +117,7 @@ impl TerminalConfig {
 		Self::new(NO_KITTY_ENTER, NO_KITTY_EXIT, NO_KITTY_EXIT)
 	}
 
-	/// Parses configuration from the `EVILDOER_TERMINAL_CONFIG` env var.
+	/// Parses configuration from the `XENO_TERMINAL_CONFIG` env var.
 	fn from_env() -> Option<Self> {
 		let value = std::env::var(TERMINAL_CONFIG_ENV).ok()?;
 		let value = value.trim().to_ascii_lowercase();

@@ -1,11 +1,11 @@
 //! Insert mode key handling.
 
-use evildoer_base::key::{Key, KeyCode, Modifiers};
-use evildoer_core::keymap_registry::LookupResult;
-use evildoer_core::{get_keymap_registry, resolve_action_key};
-use evildoer_keymap::ToKeyMap;
-use evildoer_registry::BindingMode;
-use evildoer_registry::actions::keys as actions;
+use xeno_base::key::{Key, KeyCode, Modifiers};
+use xeno_core::keymap_registry::LookupResult;
+use xeno_core::{get_keymap_registry, resolve_action_key};
+use xeno_keymap::ToKeyMap;
+use xeno_registry::BindingMode;
+use xeno_registry::actions::keys as actions;
 
 use crate::InputHandler;
 use crate::types::{KeyResult, Mode};

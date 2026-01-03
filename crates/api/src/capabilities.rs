@@ -1,21 +1,21 @@
 //! Implementation of [`EditorCapabilities`] for [`Editor`].
 //!
-//! [`EditorCapabilities`]: evildoer_core::editor_ctx::EditorCapabilities
+//! [`EditorCapabilities`]: xeno_core::editor_ctx::EditorCapabilities
 
 use std::future::Future;
 use std::path::PathBuf;
 use std::pin::Pin;
 
-use evildoer_base::range::CharIdx;
-use evildoer_base::{Mode, Selection};
-use evildoer_core::editor_ctx::{
+use xeno_base::range::CharIdx;
+use xeno_base::{Mode, Selection};
+use xeno_core::editor_ctx::{
 	CommandQueueAccess, CursorAccess, EditAccess, EditorCapabilities, FileOpsAccess, FocusOps,
 	JumpAccess, MacroAccess, ModeAccess, NotificationAccess, SearchAccess, SelectionAccess,
 	SplitOps, ThemeAccess, UndoAccess, ViewportAccess,
 };
-use evildoer_registry_notifications::{Notification, keys};
-use evildoer_registry::EditAction;
-use evildoer_registry::commands::{CommandEditorOps, CommandError};
+use xeno_registry::EditAction;
+use xeno_registry::commands::{CommandEditorOps, CommandError};
+use xeno_registry_notifications::{Notification, keys};
 
 use crate::editor::Editor;
 

@@ -5,8 +5,8 @@
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use evildoer_api::editor::extensions::ExtensionMap;
-use evildoer_registry::{HookAction, HookContext, HookResult, async_hook};
+use xeno_api::editor::extensions::ExtensionMap;
+use xeno_registry::{HookAction, HookContext, HookResult, async_hook};
 
 use super::LspManager;
 
@@ -130,8 +130,8 @@ fn infer_language_from_path(path: &std::path::Path) -> Option<String> {
 mod tests {
 	use std::path::Path;
 
-	use evildoer_api::editor::extensions::ExtensionMap;
-	use evildoer_registry::{HookAction, HookContext, HookEvent, HookEventData, OwnedHookContext};
+	use xeno_api::editor::extensions::ExtensionMap;
+	use xeno_registry::{HookAction, HookContext, HookEvent, HookEventData, OwnedHookContext};
 
 	use super::*;
 

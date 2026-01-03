@@ -125,7 +125,7 @@ impl AcpBackend {
 								.write_text_file(false))
 							.terminal(false),
 					)
-					.client_info(Implementation::new("Evildoer", "0.1.0").title("Evildoer Editor")),
+					.client_info(Implementation::new("Xeno", "0.1.0").title("Xeno Editor")),
 			)
 			.await
 		{

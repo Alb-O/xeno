@@ -126,20 +126,20 @@ macro_rules! symmetric_text_object {
 macro_rules! bracket_pair_object {
 	($name:ident, $open:expr, $close:expr, $trigger:expr, $alt_triggers:expr) => {
 		paste::paste! {
-			fn [<$name _inner>](text: ropey::RopeSlice, pos: usize) -> Option<evildoer_base::Range> {
+			fn [<$name _inner>](text: ropey::RopeSlice, pos: usize) -> Option<xeno_base::Range> {
 				$crate::movement::select_surround_object(
 					text,
-					evildoer_base::Range::point(pos),
+					xeno_base::Range::point(pos),
 					$open,
 					$close,
 					true,
 				)
 			}
 
-			fn [<$name _around>](text: ropey::RopeSlice, pos: usize) -> Option<evildoer_base::Range> {
+			fn [<$name _around>](text: ropey::RopeSlice, pos: usize) -> Option<xeno_base::Range> {
 				$crate::movement::select_surround_object(
 					text,
-					evildoer_base::Range::point(pos),
+					xeno_base::Range::point(pos),
 					$open,
 					$close,
 					false,

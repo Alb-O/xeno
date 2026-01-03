@@ -1,5 +1,5 @@
 [package]
-name = "evildoer-keymap"
+name = "xeno-keymap"
 description = "Key mapping library with compile-time validated derive macros and declarative configuration."
 version.workspace = true
 edition.workspace = true
@@ -10,19 +10,19 @@ repository.workspace = true
 doctest = false
 
 [features]
-default = ["derive", "termina", "kdl", "evildoer-base"]
-derive = ["dep:evildoer-keymap-derive"]
+default = ["derive", "termina", "kdl", "xeno-base"]
+derive = ["dep:xeno-keymap-derive"]
 termina = ["dep:termina"]
 kdl = ["dep:kdl"]
-evildoer-base = ["dep:evildoer-base"]
+xeno-base = ["dep:xeno-base"]
 
 [dependencies]
-evildoer-base = { workspace = true, optional = true }
-evildoer-keymap-derive = { path = "./derive", optional = true }
-evildoer-keymap-parser = { path = "./parser" }
 kdl = { workspace = true, optional = true }
 serde = { workspace = true }
 termina = { workspace = true, optional = true }
+xeno-base = { workspace = true, optional = true }
+xeno-keymap-derive = { path = "./derive", optional = true }
+xeno-keymap-parser = { path = "./parser" }
 
 [dev-dependencies]
 kdl = { workspace = true }

@@ -1,7 +1,7 @@
 //! Primitives for styled text.
 //!
 //! A terminal UI is at its root a lot of strings. In order to make it accessible and stylish, those
-//! strings may be associated to a set of styles. `evildoer_tui` has three ways to represent them:
+//! strings may be associated to a set of styles. `xeno_tui` has three ways to represent them:
 //! - A single line string where all graphemes have the same style is represented by a [`Span`].
 //! - A single line string where each grapheme may have its own style is represented by [`Line`].
 //! - A multiple line string where each grapheme may have its own style is represented by a
@@ -11,7 +11,7 @@
 //! a [`Line`].
 //!
 //! Keep it mind that a lot of widgets will use those types to advertise what kind of string is
-//! supported for their properties. Moreover, `evildoer_tui` provides convenient `From` implementations
+//! supported for their properties. Moreover, `xeno_tui` provides convenient `From` implementations
 //! so that you can start by using simple `String` or `&str` and then promote them to the previous
 //! primitives when you need additional styling capabilities.
 //!
@@ -19,7 +19,7 @@
 //! property (which is a [`Line`] under the hood):
 //!
 //! ```rust,ignore
-//! use evildoer_tui::{
+//! use xeno_tui::{
 //!     style::{Color, Style},
 //!     text::{Line, Span},
 //!     widgets::Block,
@@ -87,8 +87,8 @@ pub use span::{Span, ToSpan};
 /// # Example
 ///
 /// ```rust
-/// use evildoer_tui::style::Stylize;
-/// use evildoer_tui::text::{Line, Text};
+/// use xeno_tui::style::Stylize;
+/// use xeno_tui::text::{Line, Text};
 ///
 /// let text = Text::from("Line 1\nLine 2").yellow().italic();
 /// let text = Text::from(vec![Line::from("Line 1"), Line::from("Line 2")]).centered();

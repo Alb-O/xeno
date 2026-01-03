@@ -1,9 +1,9 @@
-use evildoer_registry::{
+use xeno_registry::{
 	RenderedSegment, SegmentPosition, SegmentStyle, StatuslineContext, render_position,
 };
-use evildoer_tui::style::{Modifier, Style};
-use evildoer_tui::text::{Line, Span};
-use evildoer_tui::widgets::{Paragraph, Widget};
+use xeno_tui::style::{Modifier, Style};
+use xeno_tui::text::{Line, Span};
+use xeno_tui::widgets::{Paragraph, Widget};
 
 use crate::Editor;
 

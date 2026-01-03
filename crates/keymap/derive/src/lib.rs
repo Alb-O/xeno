@@ -88,7 +88,7 @@ fn impl_keymap_config(name: &Ident, items: &Vec<Item>) -> proc_macro2::TokenStre
 		};
 
 		match_arms.push(quote! {
-			#variant => ::evildoer_keymap::Item::new(
+			#variant => ::xeno_keymap::Item::new(
 				vec![#(#keys),*],
 				#doc.to_string()
 			),
@@ -98,7 +98,7 @@ fn impl_keymap_config(name: &Ident, items: &Vec<Item>) -> proc_macro2::TokenStre
 			entries.push(quote! {
 				(
 					#variant,
-					::evildoer_keymap::Item::new(
+					::xeno_keymap::Item::new(
 						vec![#(#keys),*],
 						#doc.to_string()
 					)
@@ -108,12 +108,12 @@ fn impl_keymap_config(name: &Ident, items: &Vec<Item>) -> proc_macro2::TokenStre
 	}
 
 	quote! {
-		impl ::evildoer_keymap::KeyMapConfig<#name> for #name {
-			fn keymap_config() -> ::evildoer_keymap::Config<#name> {
-				::evildoer_keymap::Config::new(vec![#(#entries)*])
+		impl ::xeno_keymap::KeyMapConfig<#name> for #name {
+			fn keymap_config() -> ::xeno_keymap::Config<#name> {
+				::xeno_keymap::Config::new(vec![#(#entries)*])
 			}
 
-			fn keymap_item(&self) -> ::evildoer_keymap::Item {
+			fn keymap_item(&self) -> ::xeno_keymap::Item {
 				match self {
 					#(#match_arms)*
 				}

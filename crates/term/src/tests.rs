@@ -2,10 +2,10 @@
 mod suite {
 	use std::path::PathBuf;
 
-	use evildoer_api::Editor;
-	use evildoer_tui::Terminal;
-	use evildoer_tui::backend::TestBackend;
 	use insta::assert_snapshot;
+	use xeno_api::Editor;
+	use xeno_tui::Terminal;
+	use xeno_tui::backend::TestBackend;
 
 	fn test_editor(content: &str) -> Editor {
 		Editor::from_content(content.to_string(), Some(PathBuf::from("test.txt")))

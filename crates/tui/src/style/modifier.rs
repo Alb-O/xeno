@@ -13,7 +13,7 @@ bitflags! {
 	/// ## Examples
 	///
 	/// ```rust
-	/// use evildoer_tui::style::Modifier;
+	/// use xeno_tui::style::Modifier;
 	///
 	/// let m = Modifier::BOLD | Modifier::ITALIC;
 	/// ```

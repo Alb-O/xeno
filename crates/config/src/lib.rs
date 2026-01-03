@@ -1,4 +1,4 @@
-//! Configuration system for Evildoer.
+//! Configuration system for Xeno.
 //!
 //! This crate provides unified configuration parsing and loading for the editor.
 //! Configuration is written in KDL (v2) format and supports:
@@ -10,10 +10,10 @@
 //!
 //! # Configuration Files
 //!
-//! Evildoer looks for configuration in these locations (in order):
+//! Xeno looks for configuration in these locations (in order):
 //!
-//! 1. `$XDG_CONFIG_HOME/evildoer/config.kdl` (or `~/.config/evildoer/config.kdl`)
-//! 2. `$XDG_CONFIG_HOME/evildoer/themes/*.kdl` - Additional theme files
+//! 1. `$XDG_CONFIG_HOME/xeno/config.kdl` (or `~/.config/xeno/config.kdl`)
+//! 2. `$XDG_CONFIG_HOME/xeno/themes/*.kdl` - Additional theme files
 //! 3. Runtime defaults bundled with the editor
 //!
 //! # Unified Config Schema
@@ -224,6 +224,6 @@ pub fn load_themes_from_directory(dir: impl AsRef<Path>) -> Result<Vec<ParsedThe
 pub fn load_and_register_themes(dir: impl AsRef<Path>) -> Result<()> {
 	let themes = load_themes_from_directory(dir)?;
 	let owned: Vec<_> = themes.into_iter().map(|t| t.into_owned_theme()).collect();
-	evildoer_registry::themes::register_runtime_themes(owned);
+	xeno_registry::themes::register_runtime_themes(owned);
 	Ok(())
 }

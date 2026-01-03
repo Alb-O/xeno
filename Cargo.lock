@@ -671,449 +671,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "evildoer-acp"
-version = "0.3.0"
-dependencies = [
- "agent-client-protocol",
- "anyhow",
- "async-trait",
- "evildoer-api",
- "evildoer-base",
- "evildoer-core",
- "evildoer-registry",
- "evildoer-tui",
- "futures",
- "linkme",
- "parking_lot",
- "paste",
- "termina",
- "tokio",
- "tokio-util",
-]
-
-[[package]]
-name = "evildoer-api"
-version = "0.3.0"
-dependencies = [
- "anyhow",
- "async-trait",
- "clap",
- "evildoer-base",
- "evildoer-core",
- "evildoer-input",
- "evildoer-language",
- "evildoer-lsp",
- "evildoer-registry",
- "evildoer-registry-notifications",
- "evildoer-tui",
- "futures",
- "home",
- "insta",
- "linkme",
- "parking_lot",
- "paste",
- "portable-pty",
- "regex",
- "ropey",
- "serde",
- "serde_json",
- "strsim",
- "termina",
- "thiserror 2.0.17",
- "tokio",
- "tokio-util",
- "toml",
- "tracing",
- "tracing-subscriber",
- "tree-house",
- "unicode-segmentation",
- "unicode-width 0.2.2",
- "vt100",
-]
-
-[[package]]
-name = "evildoer-base"
-version = "0.3.0"
-dependencies = [
- "evildoer-keymap-parser",
- "evildoer-tui",
- "ropey",
- "serde",
- "smallvec",
- "termina",
- "thiserror 2.0.17",
- "unicode-segmentation",
- "unicode-width 0.2.2",
-]
-
-[[package]]
-name = "evildoer-config"
-version = "0.3.0"
-dependencies = [
- "evildoer-base",
- "evildoer-registry",
- "evildoer-runtime",
- "kdl",
- "notify",
- "tempfile",
- "thiserror 2.0.17",
-]
-
-[[package]]
-name = "evildoer-core"
-version = "0.3.0"
-dependencies = [
- "async-trait",
- "evildoer-base",
- "evildoer-keymap",
- "evildoer-macro",
- "evildoer-registry",
- "futures",
- "linkme",
- "paste",
- "regex",
- "ropey",
- "serde",
- "serde_json",
- "smallvec",
- "strsim",
- "termina",
- "thiserror 2.0.17",
- "tracing",
- "unicode-segmentation",
- "unicode-width 0.2.2",
-]
-
-[[package]]
-name = "evildoer-extensions"
-version = "0.3.0"
-dependencies = [
- "anyhow",
- "evildoer-api",
- "evildoer-core",
- "evildoer-language",
- "evildoer-lsp",
- "evildoer-macro",
- "evildoer-registry",
- "futures",
- "linkme",
- "paste",
- "ropey",
- "tracing",
-]
-
-[[package]]
-name = "evildoer-input"
-version = "0.3.0"
-dependencies = [
- "evildoer-base",
- "evildoer-core",
- "evildoer-keymap",
- "evildoer-registry",
- "serde",
- "tracing",
-]
-
-[[package]]
-name = "evildoer-keymap"
-version = "0.3.0"
-dependencies = [
- "evildoer-base",
- "evildoer-keymap-derive",
- "evildoer-keymap-parser",
- "kdl",
- "serde",
- "termina",
- "toml",
-]
-
-[[package]]
-name = "evildoer-keymap-derive"
-version = "0.3.0"
-dependencies = [
- "evildoer-keymap",
- "evildoer-keymap-parser",
- "proc-macro2",
- "quote",
- "serde",
- "syn 2.0.111",
- "toml",
-]
-
-[[package]]
-name = "evildoer-keymap-parser"
-version = "0.3.0"
-dependencies = [
- "serde",
- "strum",
- "strum_macros",
- "toml",
-]
-
-[[package]]
-name = "evildoer-language"
-version = "0.3.0"
-dependencies = [
- "cc",
- "evildoer-base",
- "evildoer-core",
- "evildoer-runtime",
- "kdl",
- "libloading",
- "once_cell",
- "regex",
- "ropey",
- "serde",
- "tempfile",
- "thiserror 2.0.17",
- "tracing",
- "tree-house",
-]
-
-[[package]]
-name = "evildoer-lsp"
-version = "0.3.0"
-dependencies = [
- "futures",
- "lsp-types",
- "parking_lot",
- "pin-project-lite",
- "ropey",
- "rustix",
- "serde",
- "serde_json",
- "tempfile",
- "thiserror 2.0.17",
- "tokio",
- "tokio-util",
- "tower",
- "tower-layer",
- "tower-service",
- "tracing",
- "tracing-subscriber",
- "waitpid-any",
-]
-
-[[package]]
-name = "evildoer-macro"
-version = "0.3.0"
-dependencies = [
- "evildoer-keymap-parser",
- "kdl",
- "proc-macro2",
- "quote",
- "syn 2.0.111",
-]
-
-[[package]]
-name = "evildoer-registry"
-version = "0.3.0"
-dependencies = [
- "evildoer-registry-actions",
- "evildoer-registry-commands",
- "evildoer-registry-core",
- "evildoer-registry-hooks",
- "evildoer-registry-menus",
- "evildoer-registry-motions",
- "evildoer-registry-notifications",
- "evildoer-registry-options",
- "evildoer-registry-statusline",
- "evildoer-registry-text-objects",
- "evildoer-registry-themes",
-]
-
-[[package]]
-name = "evildoer-registry-actions"
-version = "0.3.0"
-dependencies = [
- "evildoer-base",
- "evildoer-macro",
- "evildoer-registry-commands",
- "evildoer-registry-core",
- "evildoer-registry-motions",
- "evildoer-registry-notifications",
- "evildoer-registry-text-objects",
- "linkme",
- "paste",
- "ropey",
- "tracing",
-]
-
-[[package]]
-name = "evildoer-registry-commands"
-version = "0.3.0"
-dependencies = [
- "evildoer-registry-core",
- "evildoer-registry-motions",
- "evildoer-registry-notifications",
- "evildoer-registry-text-objects",
- "futures",
- "linkme",
- "paste",
- "thiserror 2.0.17",
-]
-
-[[package]]
-name = "evildoer-registry-core"
-version = "0.3.0"
-
-[[package]]
-name = "evildoer-registry-hooks"
-version = "0.3.0"
-dependencies = [
- "evildoer-base",
- "evildoer-macro",
- "evildoer-registry-core",
- "linkme",
- "paste",
- "tracing",
-]
-
-[[package]]
-name = "evildoer-registry-menus"
-version = "0.3.0"
-dependencies = [
- "evildoer-registry-core",
- "linkme",
- "paste",
-]
-
-[[package]]
-name = "evildoer-registry-motions"
-version = "0.3.0"
-dependencies = [
- "evildoer-base",
- "evildoer-registry-core",
- "linkme",
- "paste",
- "regex",
- "ropey",
- "unicode-segmentation",
-]
-
-[[package]]
-name = "evildoer-registry-notifications"
-version = "0.3.0"
-dependencies = [
- "evildoer-registry-core",
- "linkme",
- "paste",
- "thiserror 2.0.17",
-]
-
-[[package]]
-name = "evildoer-registry-options"
-version = "0.3.0"
-dependencies = [
- "evildoer-registry-core",
- "linkme",
- "paste",
-]
-
-[[package]]
-name = "evildoer-registry-statusline"
-version = "0.3.0"
-dependencies = [
- "evildoer-registry-core",
- "linkme",
- "paste",
-]
-
-[[package]]
-name = "evildoer-registry-text-objects"
-version = "0.3.0"
-dependencies = [
- "evildoer-base",
- "evildoer-registry-core",
- "evildoer-registry-motions",
- "linkme",
- "paste",
- "ropey",
-]
-
-[[package]]
-name = "evildoer-registry-themes"
-version = "0.3.0"
-dependencies = [
- "evildoer-base",
- "evildoer-registry-core",
- "linkme",
- "strsim",
-]
-
-[[package]]
-name = "evildoer-runtime"
-version = "0.3.0"
-dependencies = [
- "include_dir",
-]
-
-[[package]]
-name = "evildoer-term"
-version = "0.3.0"
-dependencies = [
- "agent-client-protocol",
- "anyhow",
- "clap",
- "evildoer-acp",
- "evildoer-api",
- "evildoer-base",
- "evildoer-config",
- "evildoer-core",
- "evildoer-extensions",
- "evildoer-language",
- "evildoer-registry",
- "evildoer-tui",
- "futures",
- "home",
- "insta",
- "kitty-test-harness",
- "linkme",
- "parking_lot",
- "serde",
- "serde_json",
- "serial_test",
- "termina",
- "termwiz",
- "thiserror 2.0.17",
- "tokio",
- "tokio-util",
- "toml",
- "tracing-subscriber",
-]
-
-[[package]]
-name = "evildoer-tui"
-version = "0.30.0-evildoer"
-dependencies = [
- "anstyle",
- "bitflags 2.10.0",
- "cfg-if",
- "color-eyre",
- "compact_str",
- "crossterm",
- "document-features",
- "hashbrown 0.16.1",
- "indoc",
- "instability",
- "itertools 0.14.0",
- "kasuari",
- "lru",
- "palette",
- "pretty_assertions",
- "rstest",
- "serde",
- "serde_json",
- "strum",
- "thiserror 2.0.17",
- "tokio",
- "unicode-segmentation",
- "unicode-truncate",
- "unicode-width 0.2.2",
- "vt100",
-]
-
-[[package]]
 name = "eyre"
 version = "0.6.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3747,6 +3304,449 @@ name = "writeable"
 version = "0.6.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9edde0db4769d2dc68579893f2306b26c6ecfbe0ef499b013d731b7b9247e0b9"
+
+[[package]]
+name = "xeno-acp"
+version = "0.3.0"
+dependencies = [
+ "agent-client-protocol",
+ "anyhow",
+ "async-trait",
+ "futures",
+ "linkme",
+ "parking_lot",
+ "paste",
+ "termina",
+ "tokio",
+ "tokio-util",
+ "xeno-api",
+ "xeno-base",
+ "xeno-core",
+ "xeno-registry",
+ "xeno-tui",
+]
+
+[[package]]
+name = "xeno-api"
+version = "0.3.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "clap",
+ "futures",
+ "home",
+ "insta",
+ "linkme",
+ "parking_lot",
+ "paste",
+ "portable-pty",
+ "regex",
+ "ropey",
+ "serde",
+ "serde_json",
+ "strsim",
+ "termina",
+ "thiserror 2.0.17",
+ "tokio",
+ "tokio-util",
+ "toml",
+ "tracing",
+ "tracing-subscriber",
+ "tree-house",
+ "unicode-segmentation",
+ "unicode-width 0.2.2",
+ "vt100",
+ "xeno-base",
+ "xeno-core",
+ "xeno-input",
+ "xeno-language",
+ "xeno-lsp",
+ "xeno-registry",
+ "xeno-registry-notifications",
+ "xeno-tui",
+]
+
+[[package]]
+name = "xeno-base"
+version = "0.3.0"
+dependencies = [
+ "ropey",
+ "serde",
+ "smallvec",
+ "termina",
+ "thiserror 2.0.17",
+ "unicode-segmentation",
+ "unicode-width 0.2.2",
+ "xeno-keymap-parser",
+ "xeno-tui",
+]
+
+[[package]]
+name = "xeno-config"
+version = "0.3.0"
+dependencies = [
+ "kdl",
+ "notify",
+ "tempfile",
+ "thiserror 2.0.17",
+ "xeno-base",
+ "xeno-registry",
+ "xeno-runtime",
+]
+
+[[package]]
+name = "xeno-core"
+version = "0.3.0"
+dependencies = [
+ "async-trait",
+ "futures",
+ "linkme",
+ "paste",
+ "regex",
+ "ropey",
+ "serde",
+ "serde_json",
+ "smallvec",
+ "strsim",
+ "termina",
+ "thiserror 2.0.17",
+ "tracing",
+ "unicode-segmentation",
+ "unicode-width 0.2.2",
+ "xeno-base",
+ "xeno-keymap",
+ "xeno-macro",
+ "xeno-registry",
+]
+
+[[package]]
+name = "xeno-extensions"
+version = "0.3.0"
+dependencies = [
+ "anyhow",
+ "futures",
+ "linkme",
+ "paste",
+ "ropey",
+ "tracing",
+ "xeno-api",
+ "xeno-core",
+ "xeno-language",
+ "xeno-lsp",
+ "xeno-macro",
+ "xeno-registry",
+]
+
+[[package]]
+name = "xeno-input"
+version = "0.3.0"
+dependencies = [
+ "serde",
+ "tracing",
+ "xeno-base",
+ "xeno-core",
+ "xeno-keymap",
+ "xeno-registry",
+]
+
+[[package]]
+name = "xeno-keymap"
+version = "0.3.0"
+dependencies = [
+ "kdl",
+ "serde",
+ "termina",
+ "toml",
+ "xeno-base",
+ "xeno-keymap-derive",
+ "xeno-keymap-parser",
+]
+
+[[package]]
+name = "xeno-keymap-derive"
+version = "0.3.0"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "serde",
+ "syn 2.0.111",
+ "toml",
+ "xeno-keymap",
+ "xeno-keymap-parser",
+]
+
+[[package]]
+name = "xeno-keymap-parser"
+version = "0.3.0"
+dependencies = [
+ "serde",
+ "strum",
+ "strum_macros",
+ "toml",
+]
+
+[[package]]
+name = "xeno-language"
+version = "0.3.0"
+dependencies = [
+ "cc",
+ "kdl",
+ "libloading",
+ "once_cell",
+ "regex",
+ "ropey",
+ "serde",
+ "tempfile",
+ "thiserror 2.0.17",
+ "tracing",
+ "tree-house",
+ "xeno-base",
+ "xeno-core",
+ "xeno-runtime",
+]
+
+[[package]]
+name = "xeno-lsp"
+version = "0.3.0"
+dependencies = [
+ "futures",
+ "lsp-types",
+ "parking_lot",
+ "pin-project-lite",
+ "ropey",
+ "rustix",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror 2.0.17",
+ "tokio",
+ "tokio-util",
+ "tower",
+ "tower-layer",
+ "tower-service",
+ "tracing",
+ "tracing-subscriber",
+ "waitpid-any",
+]
+
+[[package]]
+name = "xeno-macro"
+version = "0.3.0"
+dependencies = [
+ "kdl",
+ "proc-macro2",
+ "quote",
+ "syn 2.0.111",
+ "xeno-keymap-parser",
+]
+
+[[package]]
+name = "xeno-registry"
+version = "0.3.0"
+dependencies = [
+ "xeno-registry-actions",
+ "xeno-registry-commands",
+ "xeno-registry-core",
+ "xeno-registry-hooks",
+ "xeno-registry-menus",
+ "xeno-registry-motions",
+ "xeno-registry-notifications",
+ "xeno-registry-options",
+ "xeno-registry-statusline",
+ "xeno-registry-text-objects",
+ "xeno-registry-themes",
+]
+
+[[package]]
+name = "xeno-registry-actions"
+version = "0.3.0"
+dependencies = [
+ "linkme",
+ "paste",
+ "ropey",
+ "tracing",
+ "xeno-base",
+ "xeno-macro",
+ "xeno-registry-commands",
+ "xeno-registry-core",
+ "xeno-registry-motions",
+ "xeno-registry-notifications",
+ "xeno-registry-text-objects",
+]
+
+[[package]]
+name = "xeno-registry-commands"
+version = "0.3.0"
+dependencies = [
+ "futures",
+ "linkme",
+ "paste",
+ "thiserror 2.0.17",
+ "xeno-registry-core",
+ "xeno-registry-motions",
+ "xeno-registry-notifications",
+ "xeno-registry-text-objects",
+]
+
+[[package]]
+name = "xeno-registry-core"
+version = "0.3.0"
+
+[[package]]
+name = "xeno-registry-hooks"
+version = "0.3.0"
+dependencies = [
+ "linkme",
+ "paste",
+ "tracing",
+ "xeno-base",
+ "xeno-macro",
+ "xeno-registry-core",
+]
+
+[[package]]
+name = "xeno-registry-menus"
+version = "0.3.0"
+dependencies = [
+ "linkme",
+ "paste",
+ "xeno-registry-core",
+]
+
+[[package]]
+name = "xeno-registry-motions"
+version = "0.3.0"
+dependencies = [
+ "linkme",
+ "paste",
+ "regex",
+ "ropey",
+ "unicode-segmentation",
+ "xeno-base",
+ "xeno-registry-core",
+]
+
+[[package]]
+name = "xeno-registry-notifications"
+version = "0.3.0"
+dependencies = [
+ "linkme",
+ "paste",
+ "thiserror 2.0.17",
+ "xeno-registry-core",
+]
+
+[[package]]
+name = "xeno-registry-options"
+version = "0.3.0"
+dependencies = [
+ "linkme",
+ "paste",
+ "xeno-registry-core",
+]
+
+[[package]]
+name = "xeno-registry-statusline"
+version = "0.3.0"
+dependencies = [
+ "linkme",
+ "paste",
+ "xeno-registry-core",
+]
+
+[[package]]
+name = "xeno-registry-text-objects"
+version = "0.3.0"
+dependencies = [
+ "linkme",
+ "paste",
+ "ropey",
+ "xeno-base",
+ "xeno-registry-core",
+ "xeno-registry-motions",
+]
+
+[[package]]
+name = "xeno-registry-themes"
+version = "0.3.0"
+dependencies = [
+ "linkme",
+ "strsim",
+ "xeno-base",
+ "xeno-registry-core",
+]
+
+[[package]]
+name = "xeno-runtime"
+version = "0.3.0"
+dependencies = [
+ "include_dir",
+]
+
+[[package]]
+name = "xeno-term"
+version = "0.3.0"
+dependencies = [
+ "agent-client-protocol",
+ "anyhow",
+ "clap",
+ "futures",
+ "home",
+ "insta",
+ "kitty-test-harness",
+ "linkme",
+ "parking_lot",
+ "serde",
+ "serde_json",
+ "serial_test",
+ "termina",
+ "termwiz",
+ "thiserror 2.0.17",
+ "tokio",
+ "tokio-util",
+ "toml",
+ "tracing-subscriber",
+ "xeno-acp",
+ "xeno-api",
+ "xeno-base",
+ "xeno-config",
+ "xeno-core",
+ "xeno-extensions",
+ "xeno-language",
+ "xeno-registry",
+ "xeno-tui",
+]
+
+[[package]]
+name = "xeno-tui"
+version = "0.30.0-xeno"
+dependencies = [
+ "anstyle",
+ "bitflags 2.10.0",
+ "cfg-if",
+ "color-eyre",
+ "compact_str",
+ "crossterm",
+ "document-features",
+ "hashbrown 0.16.1",
+ "indoc",
+ "instability",
+ "itertools 0.14.0",
+ "kasuari",
+ "lru",
+ "palette",
+ "pretty_assertions",
+ "rstest",
+ "serde",
+ "serde_json",
+ "strum",
+ "thiserror 2.0.17",
+ "tokio",
+ "unicode-segmentation",
+ "unicode-truncate",
+ "unicode-width 0.2.2",
+ "vt100",
+]
 
 [[package]]
 name = "yansi"

@@ -4,7 +4,7 @@
 //! position in the input where replacement begins and the list of candidates.
 //! This cleanly separates "where to replace" from "what to replace with".
 
-use evildoer_registry::commands::COMMANDS;
+use xeno_registry::commands::COMMANDS;
 
 /// Prompt character for ex-style commands (`:write`, `:theme`, etc.).
 pub const PROMPT_COMMAND: char = ':';

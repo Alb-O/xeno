@@ -6,13 +6,13 @@
 use std::io::{self, Write};
 use std::time::Duration;
 
-use evildoer_core::{TerminalConfig, TerminalSequence};
 use termina::escape::csi::{
 	Csi, Cursor, DecPrivateMode, DecPrivateModeCode, Keyboard, KittyKeyboardFlags, Mode,
 };
 use termina::event::Event;
 use termina::style::CursorStyle;
 use termina::{EventReader, PlatformTerminal, Terminal as _, WindowSize};
+use xeno_core::{TerminalConfig, TerminalSequence};
 
 /// Writes terminal escape sequences to a writer.
 fn write_sequences<W: io::Write>(writer: &mut W, sequences: &[TerminalSequence]) -> io::Result<()> {
@@ -117,9 +117,9 @@ pub fn coalesce_resize_events(events: &EventReader, first: WindowSize) -> io::Re
 }
 
 /// Returns the appropriate cursor style for the given editor mode.
-pub fn cursor_style_for_mode(mode: evildoer_base::Mode) -> CursorStyle {
+pub fn cursor_style_for_mode(mode: xeno_base::Mode) -> CursorStyle {
 	match mode {
-		evildoer_base::Mode::Insert => CursorStyle::BlinkingBar,
+		xeno_base::Mode::Insert => CursorStyle::BlinkingBar,
 		_ => CursorStyle::SteadyBlock,
 	}
 }

@@ -3,9 +3,9 @@ use std::collections::HashMap;
 use std::ops::Range;
 use std::time::Duration;
 
-use evildoer_tui::animation::Animatable;
-use evildoer_tui::style::Color;
 use linkme::distributed_slice;
+use xeno_tui::animation::Animatable;
+use xeno_tui::style::Color;
 
 /// Modification to apply to a style.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -51,8 +51,8 @@ pub struct StyleOverlay {
 	pub source: &'static str,
 }
 
-// Re-export Easing from evildoer_tui::animation for convenience
-pub use evildoer_tui::animation::Easing;
+// Re-export Easing from xeno_tui::animation for convenience
+pub use xeno_tui::animation::Easing;
 
 /// An animated style transition for a byte range.
 #[derive(Clone, Debug)]
@@ -60,7 +60,7 @@ pub struct AnimatedOverlay {
 	/// Byte range this overlay applies to.
 	pub range: Range<usize>,
 	/// The underlying tween for the style modification.
-	tween: evildoer_tui::animation::Tween<StyleMod>,
+	tween: xeno_tui::animation::Tween<StyleMod>,
 	/// Priority (higher priority overlays are applied last).
 	pub priority: i16,
 	/// Identifier for the extension that created this overlay.
@@ -80,7 +80,7 @@ impl AnimatedOverlay {
 	) -> Self {
 		Self {
 			range,
-			tween: evildoer_tui::animation::Tween::new(from, to, duration).with_easing(easing),
+			tween: xeno_tui::animation::Tween::new(from, to, duration).with_easing(easing),
 			priority,
 			source,
 		}

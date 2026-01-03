@@ -4,7 +4,7 @@
 //!
 //! ## Crossterm Version and Re-export
 //!
-//! `evildoer-tui` requires you to specify a version of the [Crossterm] library to be used.
+//! `xeno-tui` requires you to specify a version of the [Crossterm] library to be used.
 //! This is managed via feature flags. The highest enabled feature flag of the available
 //! `crossterm_0_xx` features (e.g., `crossterm_0_28`, `crossterm_0_29`) takes precedence. These
 //! features determine which version of Crossterm is compiled and used by the backend. Feature
@@ -13,19 +13,19 @@
 //!
 //! Ratatui will support at least the two most recent versions of Crossterm (though we may increase
 //! this if crossterm release cadence increases). We will remove support for older versions in major
-//! (0.x) releases of `evildoer-tui`, and we may add support for newer versions in minor
+//! (0.x) releases of `xeno-tui`, and we may add support for newer versions in minor
 //! (0.x.y) releases.
 //!
 //! To promote interoperability within the [Ratatui] ecosystem, the selected Crossterm crate is
 //! re-exported as `crate::backend::crossterm::crossterm`. This re-export is essential for authors
 //! of widget libraries or any applications that need to perform direct Crossterm operations while
-//! ensuring compatibility with the version used by `evildoer-tui`. By using
+//! ensuring compatibility with the version used by `xeno-tui`. By using
 //! `crate::backend::crossterm::crossterm` for such operations, developers can avoid version
 //! conflicts and ensure that all parts of their application use a consistent set of Crossterm types
 //! and functions.
 //!
 //! For example, if your application's `Cargo.toml` enables the `crossterm_0_29` feature for
-//! `evildoer-tui`, then any code using `crate::backend::crossterm::crossterm` will refer to
+//! `xeno-tui`, then any code using `crate::backend::crossterm::crossterm` will refer to
 //! the 0.29 version of Crossterm.
 //!
 //! For more information on how to use the backend, see the documentation for the
@@ -36,16 +36,16 @@
 //!
 //! # Crate Organization
 //!
-//! `evildoer-tui` is part of the Ratatui workspace that was modularized in version 0.30.0.
+//! `xeno-tui` is part of the Ratatui workspace that was modularized in version 0.30.0.
 //! This crate provides the [Crossterm] backend implementation for Ratatui.
 //!
-//! **When to use `evildoer-tui`:**
+//! **When to use `xeno-tui`:**
 //!
 //! - You need fine-grained control over dependencies
 //! - Building a widget library that needs backend functionality
 //! - You want to use only the Crossterm backend without other backends
 //!
-//! **When to use the main [`evildoer_tui`] crate:**
+//! **When to use the main [`xeno_tui`] crate:**
 //!
 //! - Building applications (recommended - includes crossterm backend by default)
 //! - You want the convenience of having everything available
@@ -72,7 +72,7 @@ use crossterm::{execute, queue};
 /*
 cfg_if::cfg_if! {
 	// Re-export the selected Crossterm crate making sure to choose the latest version. We do this
-	// to make it possible to easily enable all features when compiling `evildoer-tui`.
+	// to make it possible to easily enable all features when compiling `xeno-tui`.
 	if #[cfg(feature = "crossterm_0_29")] {
 		pub use crossterm_0_29 as crossterm;
 	} else if #[cfg(feature = "crossterm_0_28")] {
@@ -114,8 +114,8 @@ use crate::style::{Color, Modifier, Style};
 /// use crossterm::terminal::{
 ///     EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode,
 /// };
-/// use evildoer_tui::Terminal;
-/// use evildoer_tui::backend::CrosstermBackend;
+/// use xeno_tui::Terminal;
+/// use xeno_tui::backend::CrosstermBackend;
 ///
 /// let mut backend = CrosstermBackend::new(stdout());
 /// // or
@@ -163,7 +163,7 @@ where
 	/// ```rust,ignore
 	/// use std::io::stdout;
 	///
-	/// use evildoer_tui::backend::CrosstermBackend;
+	/// use xeno_tui::backend::CrosstermBackend;
 	///
 	/// let backend = CrosstermBackend::new(stdout());
 	/// ```
@@ -368,7 +368,7 @@ where
 /// This trait is needed for avoiding the orphan rule when implementing `From` for crossterm types
 /// once these are moved to a separate crate.
 pub trait IntoCrossterm<C> {
-	/// Converts the evildoer_tui type to a crossterm type.
+	/// Converts the xeno_tui type to a crossterm type.
 	fn into_crossterm(self) -> C;
 }
 
@@ -377,7 +377,7 @@ pub trait IntoCrossterm<C> {
 /// This trait is needed for avoiding the orphan rule when implementing `From` for crossterm types
 /// once these are moved to a separate crate.
 pub trait FromCrossterm<C> {
-	/// Converts the crossterm type to a evildoer_tui type.
+	/// Converts the crossterm type to a xeno_tui type.
 	fn from_crossterm(value: C) -> Self;
 }
 
@@ -751,11 +751,11 @@ mod tests {
 		#[case(CrosstermAttribute::NoReverse, Modifier::empty())]
 		fn from_crossterm_attribute(
 			#[case] crossterm_attribute: CrosstermAttribute,
-			#[case] evildoer_tui_modifier: Modifier,
+			#[case] xeno_tui_modifier: Modifier,
 		) {
 			assert_eq!(
 				Modifier::from_crossterm(crossterm_attribute),
-				evildoer_tui_modifier
+				xeno_tui_modifier
 			);
 		}
 
@@ -771,11 +771,11 @@ mod tests {
 		#[case(&[CrosstermAttribute::RapidBlink, CrosstermAttribute::CrossedOut], Modifier::RAPID_BLINK | Modifier::CROSSED_OUT)]
 		fn from_crossterm_attributes(
 			#[case] crossterm_attributes: &[CrosstermAttribute],
-			#[case] evildoer_tui_modifier: Modifier,
+			#[case] xeno_tui_modifier: Modifier,
 		) {
 			assert_eq!(
 				Modifier::from_crossterm(CrosstermAttributes::from(crossterm_attributes)),
-				evildoer_tui_modifier
+				xeno_tui_modifier
 			);
 		}
 	}

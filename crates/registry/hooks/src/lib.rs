@@ -38,16 +38,16 @@ pub use context::{
 	Bool, HookContext, MutableHookContext, OptionViewId, SplitDirection, Str, ViewId,
 };
 pub use emit::{HookScheduler, emit, emit_mutable, emit_sync, emit_sync_with};
-pub use evildoer_base::Mode;
 pub use types::{
 	BoxFuture, HookAction, HookDef, HookHandler, HookMutability, HookResult, RegistryMetadata,
 	RegistrySource, impl_registry_metadata,
 };
+pub use xeno_base::Mode;
 
 // Generate HookEvent, HookEventData, OwnedHookContext, and extractor macros
 // from this single source of truth. Adding a new event only requires adding
 // it here - all extraction machinery is auto-generated.
-evildoer_macro::define_events! {
+xeno_macro::define_events! {
 	/// Editor is starting up (before first render).
 	EditorStart => "editor:start",
 	/// Editor is shutting down.

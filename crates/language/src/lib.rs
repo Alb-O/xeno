@@ -12,7 +12,7 @@
 //! - [`highlight`]: Syntax highlighting via tree-sitter queries
 //! - [`config`]: Language configuration parsing from KDL
 //!
-//! # Integration with Evildoer
+//! # Integration with Xeno
 //!
 //! Languages are loaded from `languages.kdl` at runtime via [`config::load_language_configs`].
 //! Each language definition includes:

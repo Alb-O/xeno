@@ -1,5 +1,5 @@
 [package]
-name = "evildoer-registry-actions"
+name = "xeno-registry-actions"
 description = "Actions registry"
 version.workspace = true
 edition.workspace = true
@@ -10,14 +10,14 @@ default = []
 handler-coverage = []
 
 [dependencies]
-evildoer-base.workspace = true
-evildoer-macro.workspace = true
-evildoer-registry-commands.workspace = true
-evildoer-registry-core.workspace = true
-evildoer-registry-motions.workspace = true
-evildoer-registry-notifications.workspace = true
-evildoer-registry-text-objects.workspace = true
 linkme.workspace = true
 paste.workspace = true
 ropey.workspace = true
 tracing.workspace = true
+xeno-base.workspace = true
+xeno-macro.workspace = true
+xeno-registry-commands.workspace = true
+xeno-registry-core.workspace = true
+xeno-registry-motions.workspace = true
+xeno-registry-notifications.workspace = true
+xeno-registry-text-objects.workspace = true

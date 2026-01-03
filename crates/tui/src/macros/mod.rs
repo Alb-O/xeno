@@ -1,4 +1,4 @@
-//! `evildoer-tui` provides easy-to-use macros for simplifying boilerplate
+//! `xeno-tui` provides easy-to-use macros for simplifying boilerplate
 //! associated with creating UI using [Ratatui].
 //!
 //! This is an experimental playground for us to explore macros that would be useful to have in
@@ -12,16 +12,16 @@
 //!
 //! # Getting Started
 //!
-//! Add `evildoer-tui` as a dependency in your `Cargo.toml`:
+//! Add `xeno-tui` as a dependency in your `Cargo.toml`:
 //!
 //! ```shell
-//! cargo add evildoer-tui
+//! cargo add xeno-tui
 //! ```
 //!
 //! Then, import the macros in your Rust file:
 //!
 //! ```rust
-//! use evildoer_tui::{constraint, constraints, horizontal, line, row, span, text, vertical};
+//! use xeno_tui::{constraint, constraints, horizontal, line, row, span, text, vertical};
 //! ```
 //!
 //! # Text Macros
@@ -29,8 +29,8 @@
 //! The `span!` macro creates raw or styled [`Span`]s.
 //!
 //! ```rust
-//! # use evildoer_tui::style::{Color, Modifier, Style, Stylize};
-//! # use evildoer_tui::span;
+//! # use xeno_tui::style::{Color, Modifier, Style, Stylize};
+//! # use xeno_tui::span;
 //! let name = "world!";
 //! let raw_greeting = span!("hello {name}");
 //! let styled_greeting = span!(Style::new().green(); "hello {name}");
@@ -42,8 +42,8 @@
 //! the `vec!` macro. Each element is converted into a [`Span`] using [`Into::into`].
 //!
 //! ```rust
-//! # use evildoer_tui::style::{Color, Stylize};
-//! # use evildoer_tui::{line, span};
+//! # use xeno_tui::style::{Color, Stylize};
+//! # use xeno_tui::{line, span};
 //! let name = "world!";
 //! let line = line!["hello", format!("{name}")];
 //! let line = line!["hello ", span!(Color::Green; "{name}")];
@@ -55,8 +55,8 @@
 //! the `vec!` macro. Each element is converted to a [`Line`] using [`Into::into`].
 //!
 //! ```rust
-//! # use evildoer_tui::style::{Modifier, Stylize};
-//! # use evildoer_tui::{span, line, text};
+//! # use xeno_tui::style::{Modifier, Stylize};
+//! # use xeno_tui::{span, line, text};
 //! let name = "world!";
 //! let text = text!["hello", format!("{name}")];
 //! let text = text!["bye"; 2];
@@ -72,24 +72,24 @@
 //! The `constraints!` macro defines an array of [`Constraint`]s:
 //!
 //! ```rust
-//! # use evildoer_tui::layout::Layout;
-//! # use evildoer_tui::constraints;
+//! # use xeno_tui::layout::Layout;
+//! # use xeno_tui::constraints;
 //! let layout = Layout::horizontal(constraints![==50, ==30%, >=3, <=1, ==1/2, *=1]);
 //! ```
 //!
 //! The `constraint!` macro defines individual [`Constraint`]s:
 //!
 //! ```rust
-//! # use evildoer_tui::layout::Layout;
-//! # use evildoer_tui::constraint;
+//! # use xeno_tui::layout::Layout;
+//! # use xeno_tui::constraint;
 //! let layout = Layout::horizontal([constraint!(==50)]);
 //! ```
 //!
 //! The `vertical!` and `horizontal!` macros are a shortcut to defining a [`Layout`]:
 //!
 //! ```rust
-//! # use evildoer_tui::layout::Rect;
-//! # use evildoer_tui::{vertical, horizontal};
+//! # use xeno_tui::layout::Rect;
+//! # use xeno_tui::{vertical, horizontal};
 //! # let area = Rect { x: 0, y: 0, width: 10, height: 10 };
 //! let [top, main, bottom] = vertical![==1, *=1, >=3].areas(area);
 //! let [left, main, right] = horizontal![>=20, *=1, >=20].areas(main);
@@ -101,9 +101,9 @@
 //! is similar to the `vec!` macro.
 //!
 //! ```rust
-//! # use evildoer_tui::style::{Modifier, Stylize};
-//! # use evildoer_tui::{constraints, line, row, span, text};
-//! # use evildoer_tui::widgets::table::Table;
+//! # use xeno_tui::style::{Modifier, Stylize};
+//! # use xeno_tui::{constraints, line, row, span, text};
+//! # use xeno_tui::widgets::table::Table;
 //! let rows = [
 //!     row!["hello", "world"],
 //!     row!["goodbye", "world"],
@@ -117,22 +117,22 @@
 //!
 //! # Contributing
 //!
-//! Contributions to `evildoer-tui` are welcome! Whether it's submitting a bug report, a feature
+//! Contributions to `xeno-tui` are welcome! Whether it's submitting a bug report, a feature
 //! request, or a pull request, all forms of contributions are valued and appreciated.
 //!
 //! # Crate Organization
 //!
-//! `evildoer-tui` is part of the Ratatui workspace that was modularized in version 0.30.0.
+//! `xeno-tui` is part of the Ratatui workspace that was modularized in version 0.30.0.
 //! This crate provides declarative macros to reduce boilerplate when working with
 //! Ratatui.
 //!
-//! **When to use `evildoer-tui`:**
+//! **When to use `xeno-tui`:**
 //!
 //! - You want to reduce boilerplate when creating styled text, layouts, or tables
 //! - You prefer macro-based syntax for creating UI elements
 //! - You need compile-time generation of repetitive UI code
 //!
-//! **When to use the main [`evildoer_tui`] crate:**
+//! **When to use the main [`xeno_tui`] crate:**
 //!
 //! - Building applications (recommended - includes macros when the `macros` feature is enabled)
 //! - You want the convenience of having everything available
@@ -140,13 +140,13 @@
 //! For detailed information about the workspace organization, see [ARCHITECTURE.md].
 //!
 //!
-//! [Crates.io badge]: https://img.shields.io/crates/v/evildoer-tui?logo=rust&style=flat-square
-//! [License badge]: https://img.shields.io/crates/l/evildoer-tui
+//! [Crates.io badge]: https://img.shields.io/crates/v/xeno-tui?logo=rust&style=flat-square
+//! [License badge]: https://img.shields.io/crates/l/xeno-tui
 //! [CI Badge]:
-//! [Docs.rs badge]: https://img.shields.io/docsrs/evildoer-tui?logo=rust&style=flat-square
+//! [Docs.rs badge]: https://img.shields.io/docsrs/xeno-tui?logo=rust&style=flat-square
 //! [Crate Downloads badge]:
-//!     https://img.shields.io/crates/d/evildoer-tui?logo=rust&style=flat-square
-//! [API Docs]: https://docs.rs/evildoer-tui
+//!     https://img.shields.io/crates/d/xeno-tui?logo=rust&style=flat-square
+//! [API Docs]: https://docs.rs/xeno-tui
 //! [`Constraint`]: crate::layout::Constraint
 //! [`Layout`]: crate::layout::Layout
 //! [`Span`]: crate::text::Span
@@ -171,6 +171,6 @@ mod text;
 
 // Re-export the core crate to use the types in macros
 #[doc(hidden)]
-pub mod evildoer_tui_core {
+pub mod xeno_tui_core {
 	pub use crate::*;
 }

@@ -83,17 +83,17 @@ fn generate_keybindings(
 			};
 
 			// Validate the key sequence at compile time
-			evildoer_keymap_parser::parse_seq(key_str)
+			xeno_keymap_parser::parse_seq(key_str)
 				.map_err(|e| format!("Invalid key sequence \"{key_str}\": {e}"))?;
 
 			let static_ident = format_ident!("KB_{}_{}__{}", action_upper, mode_upper, idx);
 
 			statics.push(quote! {
 				#[allow(non_upper_case_globals)]
-				#[::linkme::distributed_slice(evildoer_registry_actions::keybindings::KEYBINDINGS)]
-				static #static_ident: evildoer_registry_actions::keybindings::KeyBindingDef =
-					evildoer_registry_actions::keybindings::KeyBindingDef {
-						mode: evildoer_registry_actions::keybindings::BindingMode::#mode_variant,
+				#[::linkme::distributed_slice(xeno_registry_actions::keybindings::KEYBINDINGS)]
+				static #static_ident: xeno_registry_actions::keybindings::KeyBindingDef =
+					xeno_registry_actions::keybindings::KeyBindingDef {
+						mode: xeno_registry_actions::keybindings::BindingMode::#mode_variant,
 						keys: #key_str,
 						action: #action_name,
 						priority: 100,

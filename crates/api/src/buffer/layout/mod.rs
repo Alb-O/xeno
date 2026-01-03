@@ -12,8 +12,8 @@ mod navigation;
 mod tests;
 mod types;
 
-use evildoer_tui::layout::Rect;
 pub use types::{BufferView, SplitDirection, SplitPath};
+use xeno_tui::layout::Rect;
 
 use super::BufferId;
 

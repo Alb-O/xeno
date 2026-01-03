@@ -2,10 +2,8 @@
 //!
 //! Focusing buffers and navigating between views.
 
-use evildoer_base::Mode;
-use evildoer_registry::{
-	HookContext, HookEventData, ViewId, emit_sync_with as emit_hook_sync_with,
-};
+use xeno_base::Mode;
+use xeno_registry::{HookContext, HookEventData, ViewId, emit_sync_with as emit_hook_sync_with};
 
 use super::Editor;
 use crate::buffer::{BufferId, BufferView};

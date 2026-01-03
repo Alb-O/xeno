@@ -1,6 +1,6 @@
 //! Unified keymap registry using trie-based matching.
 //!
-//! This module provides [`KeymapRegistry`], which uses the `evildoer-keymap` crate's
+//! This module provides [`KeymapRegistry`], which uses the `xeno-keymap` crate's
 //! trie-based matcher for efficient key sequence lookup supporting:
 //!
 //! - Key sequences (`g g`, `d d`)
@@ -10,11 +10,11 @@
 use std::collections::HashMap;
 use std::sync::OnceLock;
 
-use evildoer_keymap::parser::{Node, parse_seq};
-pub use evildoer_keymap::{ContinuationEntry, ContinuationKind};
-use evildoer_keymap::{MatchResult, Matcher};
-use evildoer_registry::actions::{BindingMode, KEYBINDINGS};
 use tracing::warn;
+use xeno_keymap::parser::{Node, parse_seq};
+pub use xeno_keymap::{ContinuationEntry, ContinuationKind};
+use xeno_keymap::{MatchResult, Matcher};
+use xeno_registry::actions::{BindingMode, KEYBINDINGS};
 
 use crate::ActionId;
 
@@ -182,7 +182,7 @@ pub fn get_keymap_registry() -> &'static KeymapRegistry {
 
 #[cfg(test)]
 mod tests {
-	use evildoer_keymap::parser::parse_seq;
+	use xeno_keymap::parser::parse_seq;
 
 	use super::*;
 

@@ -19,8 +19,8 @@
 //! );
 //! ```
 
-use evildoer_base::Mode;
 use linkme::distributed_slice;
+use xeno_base::Mode;
 
 /// Distributed slice for key sequence bindings.
 ///

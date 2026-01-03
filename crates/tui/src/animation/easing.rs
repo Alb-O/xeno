@@ -19,7 +19,7 @@
 /// # Example
 ///
 /// ```
-/// use evildoer_tui::animation::Easing;
+/// use xeno_tui::animation::Easing;
 ///
 /// let progress = 0.5;
 /// let eased = Easing::EaseOut.apply(progress);

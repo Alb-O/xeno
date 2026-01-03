@@ -1,17 +1,17 @@
-//! Integration tests for evildoer-language syntax highlighting.
+//! Integration tests for xeno-language syntax highlighting.
 //!
 //! These tests verify the complete pipeline from language registration
 //! through syntax parsing to highlight span generation.
 //!
 //! NOTE: Full syntax highlighting requires compiled tree-sitter grammars.
 //! Without grammars, tests verify the API works but can't produce highlights.
-//! To get grammars, run: `EVILDOER_RUNTIME=runtime evildoer grammar fetch && evildoer grammar build`
+//! To get grammars, run: `XENO_RUNTIME=runtime xeno grammar fetch && xeno grammar build`
 
-use evildoer_language::grammar::{grammar_search_paths, load_grammar};
-use evildoer_language::highlight::{Highlight, HighlightStyles};
-use evildoer_language::syntax::Syntax;
-use evildoer_language::{LanguageData, LanguageLoader};
 use ropey::Rope;
+use xeno_language::grammar::{grammar_search_paths, load_grammar};
+use xeno_language::highlight::{Highlight, HighlightStyles};
+use xeno_language::syntax::Syntax;
+use xeno_language::{LanguageData, LanguageLoader};
 
 fn create_test_loader() -> LanguageLoader {
 	let mut loader = LanguageLoader::new();
@@ -90,7 +90,7 @@ fn test_syntax_config_loading() {
 
 #[test]
 fn test_highlight_styles_creation() {
-	use evildoer_base::{Color, Style};
+	use xeno_base::{Color, Style};
 
 	let scopes = ["keyword", "function", "string", "comment"];
 
@@ -108,7 +108,7 @@ fn test_highlight_styles_creation() {
 
 #[test]
 fn test_highlight_styles_resolution() {
-	use evildoer_base::{Color, Style};
+	use xeno_base::{Color, Style};
 
 	let scopes = ["keyword", "function"];
 
@@ -175,7 +175,7 @@ fn test_grammar_loading_debug() {
 
 #[test]
 fn test_full_highlighting_pipeline() {
-	use evildoer_base::{Color, Style};
+	use xeno_base::{Color, Style};
 
 	let mut loader = LanguageLoader::new();
 
@@ -272,7 +272,7 @@ fn test_language_loader_tree_house_trait() {
 /// a let statement to exercise the ChangeSet-to-InputEdit conversion.
 #[test]
 fn test_incremental_syntax_update() {
-	use evildoer_base::{Selection, Transaction};
+	use xeno_base::{Selection, Transaction};
 
 	let mut loader = LanguageLoader::new();
 

@@ -1,7 +1,7 @@
 //! Character find movement functions (`f`, `t`, `F`, `T` commands).
 
-use evildoer_base::range::Range;
 use ropey::RopeSlice;
+use xeno_base::range::Range;
 
 use super::make_range_select;
 

@@ -3,15 +3,15 @@
 use std::collections::HashSet;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use evildoer_base::Mode;
-use evildoer_base::range::CharIdx;
-use evildoer_language::LanguageLoader;
-use evildoer_language::highlight::{HighlightSpan, HighlightStyles};
-use evildoer_registry::themes::{SyntaxStyles, Theme, ThemeVariant};
-use evildoer_tui::layout::Rect;
-use evildoer_tui::style::{Modifier, Style};
-use evildoer_tui::text::{Line, Span};
-use evildoer_tui::widgets::Paragraph;
+use xeno_base::Mode;
+use xeno_base::range::CharIdx;
+use xeno_language::LanguageLoader;
+use xeno_language::highlight::{HighlightSpan, HighlightStyles};
+use xeno_registry::themes::{SyntaxStyles, Theme, ThemeVariant};
+use xeno_tui::layout::Rect;
+use xeno_tui::style::{Modifier, Style};
+use xeno_tui::text::{Line, Span};
+use xeno_tui::widgets::Paragraph;
 
 use crate::buffer::Buffer;
 use crate::editor::extensions::StyleOverlays;
@@ -126,8 +126,8 @@ impl<'a> BufferRenderContext<'a> {
 		highlighter
 			.map(|span| {
 				let abstract_style = highlight_styles.style_for_highlight(span.highlight);
-				let evildoer_tui_style: Style = abstract_style;
-				(span, evildoer_tui_style)
+				let xeno_tui_style: Style = abstract_style;
+				(span, xeno_tui_style)
 			})
 			.collect()
 	}
@@ -148,7 +148,7 @@ impl<'a> BufferRenderContext<'a> {
 
 	/// Applies style overlay modifications (e.g., zen mode dimming).
 	pub fn apply_style_overlay(&self, byte_pos: usize, style: Option<Style>) -> Option<Style> {
-		use evildoer_tui::animation::Animatable;
+		use xeno_tui::animation::Animatable;
 
 		use crate::editor::extensions::StyleMod;
 
@@ -159,15 +159,15 @@ impl<'a> BufferRenderContext<'a> {
 		let style = style.unwrap_or_default();
 		let modified = match modification {
 			StyleMod::Dim(factor) => {
-				// Convert theme bg color to evildoer_tui color for blending
-				let bg: evildoer_tui::style::Color = self.theme.colors.ui.bg;
+				// Convert theme bg color to xeno_tui color for blending
+				let bg: xeno_tui::style::Color = self.theme.colors.ui.bg;
 				if let Some(fg) = style.fg {
 					// Blend fg toward bg using Animatable::lerp
 					// factor=1.0 means no dimming (full fg), factor=0.0 means full bg
 					let dimmed = bg.lerp(&fg, factor);
 					style.fg(dimmed)
 				} else {
-					style.fg(evildoer_tui::style::Color::DarkGray)
+					style.fg(xeno_tui::style::Color::DarkGray)
 				}
 			}
 			StyleMod::Fg(color) => style.fg(color),
@@ -213,7 +213,7 @@ impl<'a> BufferRenderContext<'a> {
 
 		let highlight_spans = self.collect_highlight_spans(buffer, area);
 		let cursor_line = buffer.cursor_line();
-		let cursorline_bg: evildoer_tui::style::Color = self.theme.colors.ui.cursorline_bg;
+		let cursorline_bg: xeno_tui::style::Color = self.theme.colors.ui.cursorline_bg;
 
 		let mut output_lines: Vec<Line> = Vec::new();
 		let mut current_line_idx = buffer.scroll_line;
@@ -287,9 +287,9 @@ impl<'a> BufferRenderContext<'a> {
 					let doc_pos: CharIdx = line_start + seg_char_offset + i;
 					let is_cursor = cursor_heads.contains(&doc_pos);
 					let is_primary_cursor = doc_pos == primary_cursor;
-					let in_selection = ranges.iter().any(|r: &evildoer_base::range::Range| {
-						doc_pos >= r.min() && doc_pos < r.max()
-					});
+					let in_selection = ranges
+						.iter()
+						.any(|r: &xeno_base::range::Range| doc_pos >= r.min() && doc_pos < r.max());
 
 					let cursor_style = if !is_focused {
 						styles.unfocused

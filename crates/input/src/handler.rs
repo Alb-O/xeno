@@ -1,12 +1,12 @@
 //! Input handler managing key processing and mode state.
 
-use evildoer_base::key::{Key, KeyCode, MouseButton, MouseEvent};
-use evildoer_core::get_keymap_registry;
-use evildoer_core::keymap_registry::{KeymapRegistry, LookupResult};
-use evildoer_keymap::ToKeyMap;
-use evildoer_keymap::parser::Node;
-use evildoer_registry::BindingMode;
 use tracing::debug;
+use xeno_base::key::{Key, KeyCode, MouseButton, MouseEvent};
+use xeno_core::get_keymap_registry;
+use xeno_core::keymap_registry::{KeymapRegistry, LookupResult};
+use xeno_keymap::ToKeyMap;
+use xeno_keymap::parser::Node;
+use xeno_registry::BindingMode;
 
 use crate::types::{KeyResult, Mode};
 
@@ -53,7 +53,7 @@ impl InputHandler {
 
 	/// Returns the display name for the current mode.
 	pub fn mode_name(&self) -> &'static str {
-		use evildoer_base::PendingKind;
+		use xeno_base::PendingKind;
 		match &self.mode {
 			Mode::Normal => "NORMAL",
 			Mode::Insert => "INSERT",

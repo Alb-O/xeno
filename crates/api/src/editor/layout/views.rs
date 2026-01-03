@@ -2,7 +2,7 @@
 //!
 //! Finding, counting, and navigating between views in the layout.
 
-use evildoer_tui::layout::Rect;
+use xeno_tui::layout::Rect;
 
 use super::manager::LayoutManager;
 use crate::buffer::{BufferId, BufferView};

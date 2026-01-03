@@ -49,10 +49,10 @@ mod state;
 /// # Examples
 ///
 /// ```
-/// use evildoer_tui::Frame;
-/// use evildoer_tui::layout::Rect;
-/// use evildoer_tui::style::{Style, Stylize};
-/// use evildoer_tui::widgets::{Block, List, ListDirection, ListItem};
+/// use xeno_tui::Frame;
+/// use xeno_tui::layout::Rect;
+/// use xeno_tui::style::{Style, Stylize};
+/// use xeno_tui::widgets::{Block, List, ListDirection, ListItem};
 ///
 /// # fn ui(frame: &mut Frame) {
 /// # let area = Rect::default();
@@ -72,10 +72,10 @@ mod state;
 /// # Stateful example
 ///
 /// ```rust
-/// use evildoer_tui::Frame;
-/// use evildoer_tui::layout::Rect;
-/// use evildoer_tui::style::{Style, Stylize};
-/// use evildoer_tui::widgets::{Block, List, ListState};
+/// use xeno_tui::Frame;
+/// use xeno_tui::layout::Rect;
+/// use xeno_tui::style::{Style, Stylize};
+/// use xeno_tui::widgets::{Block, List, ListState};
 ///
 /// # fn ui(frame: &mut Frame) {
 /// # let area = Rect::default();
@@ -96,7 +96,7 @@ mod state;
 /// collected into `List`.
 ///
 /// ```
-/// use evildoer_tui::widgets::List;
+/// use xeno_tui::widgets::List;
 ///
 /// (0..5).map(|i| format!("Item{i}")).collect::<List>();
 /// ```
@@ -155,7 +155,7 @@ impl<'a> List<'a> {
 	/// From a slice of [`&str`]
 	///
 	/// ```
-	/// use evildoer_tui::widgets::List;
+	/// use xeno_tui::widgets::List;
 	///
 	/// let list = List::new(["Item 1", "Item 2"]);
 	/// ```
@@ -163,9 +163,9 @@ impl<'a> List<'a> {
 	/// From [`Text`]
 	///
 	/// ```
-	/// use evildoer_tui::style::{Style, Stylize};
-	/// use evildoer_tui::text::Text;
-	/// use evildoer_tui::widgets::List;
+	/// use xeno_tui::style::{Style, Stylize};
+	/// use xeno_tui::text::Text;
+	/// use xeno_tui::widgets::List;
 	///
 	/// let list = List::new([
 	///     Text::styled("Item 1", Style::new().red()),
@@ -177,7 +177,7 @@ impl<'a> List<'a> {
 	/// [`List::items`] fluent setter.
 	///
 	/// ```rust
-	/// use evildoer_tui::widgets::List;
+	/// use xeno_tui::widgets::List;
 	///
 	/// let empty_list = List::default();
 	/// let filled_list = empty_list.items(["Item 1"]);
@@ -208,7 +208,7 @@ impl<'a> List<'a> {
 	/// # Example
 	///
 	/// ```rust
-	/// use evildoer_tui::widgets::List;
+	/// use xeno_tui::widgets::List;
 	///
 	/// let list = List::default().items(["Item 1", "Item 2"]);
 	/// ```
@@ -233,7 +233,7 @@ impl<'a> List<'a> {
 	/// # Examples
 	///
 	/// ```rust
-	/// use evildoer_tui::widgets::{Block, List};
+	/// use xeno_tui::widgets::{Block, List};
 	///
 	/// let items = ["Item 1"];
 	/// let block = Block::bordered().title("List");
@@ -258,8 +258,8 @@ impl<'a> List<'a> {
 	/// # Examples
 	///
 	/// ```rust
-	/// use evildoer_tui::style::{Style, Stylize};
-	/// use evildoer_tui::widgets::List;
+	/// use xeno_tui::style::{Style, Stylize};
+	/// use xeno_tui::widgets::List;
 	///
 	/// let items = ["Item 1"];
 	/// let list = List::new(items).style(Style::new().red().italic());
@@ -271,8 +271,8 @@ impl<'a> List<'a> {
 	/// [`Stylize`]: crate::style::Stylize
 	///
 	/// ```rust
-	/// use evildoer_tui::style::Stylize;
-	/// use evildoer_tui::widgets::List;
+	/// use xeno_tui::style::Stylize;
+	/// use xeno_tui::widgets::List;
 	///
 	/// let items = ["Item 1"];
 	/// let list = List::new(items).red().italic();
@@ -294,7 +294,7 @@ impl<'a> List<'a> {
 	/// # Examples
 	///
 	/// ```rust
-	/// use evildoer_tui::widgets::List;
+	/// use xeno_tui::widgets::List;
 	///
 	/// let items = ["Item 1", "Item 2"];
 	/// let list = List::new(items).highlight_symbol(">>");
@@ -319,8 +319,8 @@ impl<'a> List<'a> {
 	/// # Examples
 	///
 	/// ```rust
-	/// use evildoer_tui::style::{Style, Stylize};
-	/// use evildoer_tui::widgets::List;
+	/// use xeno_tui::style::{Style, Stylize};
+	/// use xeno_tui::widgets::List;
 	///
 	/// let items = ["Item 1", "Item 2"];
 	/// let list = List::new(items).highlight_style(Style::new().red().italic());
@@ -365,7 +365,7 @@ impl<'a> List<'a> {
 	/// # Examples
 	///
 	/// ```rust
-	/// use evildoer_tui::widgets::{HighlightSpacing, List};
+	/// use xeno_tui::widgets::{HighlightSpacing, List};
 	///
 	/// let items = ["Item 1"];
 	/// let list = List::new(items).highlight_spacing(HighlightSpacing::Always);
@@ -388,7 +388,7 @@ impl<'a> List<'a> {
 	/// Bottom to top
 	///
 	/// ```rust
-	/// use evildoer_tui::widgets::{List, ListDirection};
+	/// use xeno_tui::widgets::{List, ListDirection};
 	///
 	/// let items = ["Item 1"];
 	/// let list = List::new(items).direction(ListDirection::BottomToTop);
@@ -408,7 +408,7 @@ impl<'a> List<'a> {
 	/// A padding value of 1 will keep 1 item above and 1 item bellow visible if possible
 	///
 	/// ```rust
-	/// use evildoer_tui::widgets::List;
+	/// use xeno_tui::widgets::List;
 	///
 	/// let items = ["Item 1"];
 	/// let list = List::new(items).scroll_padding(1);

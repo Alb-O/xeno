@@ -2,9 +2,9 @@
 //!
 //! Provides read-only access to buffer state needed for computing action results.
 
-use evildoer_base::Selection;
-use evildoer_base::range::CharIdx;
 use ropey::RopeSlice;
+use xeno_base::Selection;
+use xeno_base::range::CharIdx;
 
 /// Context passed to action handlers.
 ///

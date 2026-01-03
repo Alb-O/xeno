@@ -3,7 +3,7 @@
 use std::any::Any;
 use std::path::Path;
 
-use evildoer_base::Rope;
+use xeno_base::Rope;
 
 use super::{HookEvent, HookEventData, OwnedHookContext};
 
@@ -45,7 +45,7 @@ pub enum SplitDirection {
 pub struct HookContext<'a> {
 	/// The event-specific data.
 	pub data: HookEventData<'a>,
-	/// Type-erased access to `ExtensionMap` (from `evildoer-api`).
+	/// Type-erased access to `ExtensionMap` (from `xeno-api`).
 	extensions: Option<&'a dyn Any>,
 }
 
@@ -69,7 +69,7 @@ impl<'a> HookContext<'a> {
 
 	/// Attempts to downcast the extensions to a concrete type.
 	///
-	/// Used to access `ExtensionMap` from `evildoer-api` without creating a dependency.
+	/// Used to access `ExtensionMap` from `xeno-api` without creating a dependency.
 	pub fn extensions<T: Any>(&self) -> Option<&'a T> {
 		self.extensions?.downcast_ref::<T>()
 	}

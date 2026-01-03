@@ -51,10 +51,10 @@ use crate::widgets::reflow::{LineComposer, LineTruncator, WordWrapper, WrappedLi
 /// # Example
 ///
 /// ```
-/// use evildoer_tui::layout::HorizontalAlignment;
-/// use evildoer_tui::style::{Style, Stylize};
-/// use evildoer_tui::text::{Line, Span};
-/// use evildoer_tui::widgets::{Block, Paragraph, Wrap};
+/// use xeno_tui::layout::HorizontalAlignment;
+/// use xeno_tui::style::{Style, Stylize};
+/// use xeno_tui::text::{Line, Span};
+/// use xeno_tui::widgets::{Block, Paragraph, Wrap};
 ///
 /// let text = vec![
 ///     Line::from(vec![
@@ -94,8 +94,8 @@ pub struct Paragraph<'a> {
 /// ## Examples
 ///
 /// ```
-/// use evildoer_tui::text::Text;
-/// use evildoer_tui::widgets::{Paragraph, Wrap};
+/// use xeno_tui::text::Text;
+/// use xeno_tui::widgets::{Paragraph, Wrap};
 ///
 /// let bullet_points = Text::from(
 ///     r#"Some indented points:
@@ -139,9 +139,9 @@ impl<'a> Paragraph<'a> {
 	/// # Examples
 	///
 	/// ```rust
-	/// use evildoer_tui::style::{Style, Stylize};
-	/// use evildoer_tui::text::{Line, Text};
-	/// use evildoer_tui::widgets::Paragraph;
+	/// use xeno_tui::style::{Style, Stylize};
+	/// use xeno_tui::text::{Line, Text};
+	/// use xeno_tui::widgets::Paragraph;
 	///
 	/// let paragraph = Paragraph::new("Hello, world!");
 	/// let paragraph = Paragraph::new(String::from("Hello, world!"));
@@ -168,7 +168,7 @@ impl<'a> Paragraph<'a> {
 	/// # Example
 	///
 	/// ```rust
-	/// use evildoer_tui::widgets::{Block, Paragraph};
+	/// use xeno_tui::widgets::{Block, Paragraph};
 	///
 	/// let paragraph = Paragraph::new("Hello, world!").block(Block::bordered().title("Paragraph"));
 	/// ```
@@ -189,8 +189,8 @@ impl<'a> Paragraph<'a> {
 	/// # Example
 	///
 	/// ```rust
-	/// use evildoer_tui::style::{Style, Stylize};
-	/// use evildoer_tui::widgets::Paragraph;
+	/// use xeno_tui::style::{Style, Stylize};
+	/// use xeno_tui::widgets::Paragraph;
 	///
 	/// let paragraph = Paragraph::new("Hello, world!").style(Style::new().red().on_white());
 	/// ```
@@ -209,7 +209,7 @@ impl<'a> Paragraph<'a> {
 	/// # Example
 	///
 	/// ```rust
-	/// use evildoer_tui::widgets::{Paragraph, Wrap};
+	/// use xeno_tui::widgets::{Paragraph, Wrap};
 	///
 	/// let paragraph = Paragraph::new("Hello, world!").wrap(Wrap { trim: true });
 	/// ```
@@ -247,8 +247,8 @@ impl<'a> Paragraph<'a> {
 	/// # Example
 	///
 	/// ```rust
-	/// use evildoer_tui::layout::HorizontalAlignment;
-	/// use evildoer_tui::widgets::Paragraph;
+	/// use xeno_tui::layout::HorizontalAlignment;
+	/// use xeno_tui::widgets::Paragraph;
 	///
 	/// let paragraph = Paragraph::new("Hello World").alignment(HorizontalAlignment::Center);
 	/// ```
@@ -265,7 +265,7 @@ impl<'a> Paragraph<'a> {
 	/// # Examples
 	///
 	/// ```rust
-	/// use evildoer_tui::widgets::Paragraph;
+	/// use xeno_tui::widgets::Paragraph;
 	///
 	/// let paragraph = Paragraph::new("Hello World").left_aligned();
 	/// ```
@@ -281,7 +281,7 @@ impl<'a> Paragraph<'a> {
 	/// # Examples
 	///
 	/// ```rust
-	/// use evildoer_tui::widgets::Paragraph;
+	/// use xeno_tui::widgets::Paragraph;
 	///
 	/// let paragraph = Paragraph::new("Hello World").centered();
 	/// ```
@@ -297,7 +297,7 @@ impl<'a> Paragraph<'a> {
 	/// # Examples
 	///
 	/// ```rust
-	/// use evildoer_tui::widgets::Paragraph;
+	/// use xeno_tui::widgets::Paragraph;
 	///
 	/// let paragraph = Paragraph::new("Hello World").right_aligned();
 	/// ```
@@ -319,7 +319,7 @@ impl<'a> Paragraph<'a> {
 	/// # Example
 	///
 	/// ```ignore
-	/// use evildoer_tui::{widgets::{Paragraph, Wrap}};
+	/// use xeno_tui::{widgets::{Paragraph, Wrap}};
 	///
 	/// let paragraph = Paragraph::new("Hello World")
 	///     .wrap(Wrap { trim: false });
@@ -371,7 +371,7 @@ impl<'a> Paragraph<'a> {
 	/// # Example
 	///
 	/// ```ignore
-	/// use evildoer_tui::{widgets::Paragraph};
+	/// use xeno_tui::{widgets::Paragraph};
 	///
 	/// let paragraph = Paragraph::new("Hello World");
 	/// assert_eq!(paragraph.line_width(), 11);

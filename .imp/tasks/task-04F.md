@@ -1,4 +1,4 @@
-# Evildoer: Typed Handle Cleanup - Shared Infrastructure & Final Migration
+# Xeno: Typed Handle Cleanup - Shared Infrastructure & Final Migration
 
 ## Model Directive
 
@@ -10,7 +10,7 @@ ______________________________________________________________________
 
 ### Current State
 
-`Key<T>` is defined in `evildoer-registry-motions` and re-exported by `evildoer-registry-panels`:
+`Key<T>` is defined in `xeno-registry-motions` and re-exported by `xeno-registry-panels`:
 
 ```rust
 // crates/registry/motions/src/lib.rs
@@ -18,13 +18,13 @@ pub struct Key<T: 'static>(&'static T);
 pub type MotionKey = Key<MotionDef>;
 
 // crates/registry/panels/src/lib.rs
-pub use evildoer_registry_motions::Key;
+pub use xeno_registry_motions::Key;
 pub type PanelKey = Key<PanelIdDef>;
 ```
 
 This is awkward - panels depends on motions just for the `Key` type.
 
-### Solution: Create `evildoer-registry-core`
+### Solution: Create `xeno-registry-core`
 
 New minimal crate with shared registry infrastructure:
 
@@ -97,9 +97,9 @@ macro_rules! impl_registry_metadata {
 
 1. Create `crates/registry/core/` with `Cargo.toml` and `src/lib.rs`
 1. Move `Key<T>`, `RegistrySource`, `RegistryMetadata`, `impl_registry_metadata!` from motions
-1. Update `evildoer-registry-motions` to depend on and re-export from core
-1. Update `evildoer-registry-panels` to depend on core directly
-1. Update `evildoer-registry-actions` if needed
+1. Update `xeno-registry-motions` to depend on and re-export from core
+1. Update `xeno-registry-panels` to depend on core directly
+1. Update `xeno-registry-actions` if needed
 1. Add to workspace `Cargo.toml`
 
 ______________________________________________________________________
@@ -142,7 +142,7 @@ pub mod keys {
 
 ```rust
 // crates/input/src/insert.rs
-use evildoer_registry_actions::keys as actions;
+use xeno_registry_actions::keys as actions;
 
 if key.is_backspace() {
     return KeyResult::ActionById {
@@ -176,7 +176,7 @@ pub mod keys {
 }
 
 // Usage:
-use evildoer_registry_actions::keys as actions;
+use xeno_registry_actions::keys as actions;
 actions::delete_back()  // returns ActionId
 ```
 
@@ -199,7 +199,7 @@ Should return nothing after migration.
 
 All registry crates should:
 
-1. Depend on `evildoer-registry-core`
+1. Depend on `xeno-registry-core`
 1. Re-export `Key`, `RegistrySource`, `RegistryMetadata` if needed
 1. Have a `keys` module if they have typed handles
 
@@ -231,7 +231,7 @@ ______________________________________________________________________
 
 ## Implementation Order
 
-1. Create `evildoer-registry-core` crate
+1. Create `xeno-registry-core` crate
 1. Move shared types from motions to core
 1. Update motions to depend on and re-export from core
 1. Update panels to depend on core directly
@@ -244,9 +244,9 @@ ______________________________________________________________________
 
 ## Success Criteria
 
-- [ ] `evildoer-registry-core` crate exists with `Key<T>`, `RegistrySource`, `RegistryMetadata`
-- [ ] `evildoer-registry-motions` depends on core, re-exports shared types
-- [ ] `evildoer-registry-panels` depends on core directly (not motions for Key)
+- [ ] `xeno-registry-core` crate exists with `Key<T>`, `RegistrySource`, `RegistryMetadata`
+- [ ] `xeno-registry-motions` depends on core, re-exports shared types
+- [ ] `xeno-registry-panels` depends on core directly (not motions for Key)
 - [ ] `delete_back` in insert.rs uses typed reference
 - [ ] No internal string-based registry lookups remain (outside tests)
 - [ ] `cargo test --workspace` passes

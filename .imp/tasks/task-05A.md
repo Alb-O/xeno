@@ -1,4 +1,4 @@
-# Evildoer: Read-Only Document Flag - End-to-End Implementation
+# Xeno: Read-Only Document Flag - End-to-End Implementation
 
 ## Model Directive
 
@@ -134,7 +134,7 @@ Tasks:
 
 1. Add `pub readonly: bool` field to `Document` struct, initialize to `false` in constructors
 1. Add `is_readonly()` and `set_readonly()` methods to `Buffer`
-1. Verify: `cargo check -p evildoer-api`
+1. Verify: `cargo check -p xeno-api`
 
 ### Phase 2: Enforce at Transaction Level
 
@@ -161,7 +161,7 @@ Tasks:
        return;
    }
    ```
-1. Verify: `cargo check -p evildoer-api`
+1. Verify: `cargo check -p xeno-api`
 
 ### Phase 4: Guard Insert Mode
 
@@ -182,7 +182,7 @@ Tasks:
 
 1. Add `readonly` command using the `command!` macro
 1. Implement toggle logic with notification feedback
-1. Verify: `cargo check -p evildoer-registry-commands`
+1. Verify: `cargo check -p xeno-registry-commands`
 
 ### Phase 6: Add Statusline Indicator (Optional but Recommended)
 
@@ -192,7 +192,7 @@ Tasks:
 
 1. Add statusline segment showing `[RO]` when buffer is readonly
 1. Use existing statusline segment pattern
-1. Verify: `cargo check -p evildoer-registry-statusline`
+1. Verify: `cargo check -p xeno-registry-statusline`
 
 ### Phase 7: Testing
 

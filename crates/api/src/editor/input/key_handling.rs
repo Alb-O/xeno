@@ -2,9 +2,9 @@
 //!
 //! Processing keyboard input and dispatching actions.
 
-use evildoer_base::{Key, Mode, Selection};
-use evildoer_input::KeyResult;
 use termina::event::KeyCode;
+use xeno_base::{Key, Mode, Selection};
+use xeno_input::KeyResult;
 
 use crate::editor::Editor;
 
@@ -19,7 +19,7 @@ pub(crate) enum ActionDispatch {
 impl Editor {
 	/// Dispatches an action based on the key result.
 	pub(crate) fn dispatch_action(&mut self, result: &KeyResult) -> ActionDispatch {
-		use evildoer_core::find_action_by_id;
+		use xeno_core::find_action_by_id;
 
 		match result {
 			KeyResult::ActionById {
@@ -31,7 +31,9 @@ impl Editor {
 				let quit = if let Some(action) = find_action_by_id(*id) {
 					self.execute_action(action.name, *count, *extend, *register)
 				} else {
-					self.show_notification(evildoer_registry_notifications::keys::unknown_action::call(&id.to_string()));
+					self.show_notification(
+						xeno_registry_notifications::keys::unknown_action::call(&id.to_string()),
+					);
 					false
 				};
 				ActionDispatch::Executed(quit)
@@ -52,7 +54,9 @@ impl Editor {
 						*char_arg,
 					)
 				} else {
-					self.show_notification(evildoer_registry_notifications::keys::unknown_action::call(&id.to_string()));
+					self.show_notification(
+						xeno_registry_notifications::keys::unknown_action::call(&id.to_string()),
+					);
 					false
 				};
 				ActionDispatch::Executed(quit)
@@ -99,7 +103,7 @@ impl Editor {
 
 	/// Handles a key event when in active editing mode.
 	pub(crate) async fn handle_key_active(&mut self, key: termina::event::KeyEvent) -> bool {
-		use evildoer_registry::{HookContext, HookEventData, emit as emit_hook};
+		use xeno_registry::{HookContext, HookEventData, emit as emit_hook};
 
 		let old_mode = self.mode();
 		let key: Key = key.into();

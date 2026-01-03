@@ -30,10 +30,10 @@
 //!
 //! [`EditorCapabilities`]: super::EditorCapabilities
 
-use evildoer_base::range::CharIdx;
-use evildoer_base::selection::Selection;
-use evildoer_registry_notifications::Notification;
 use ropey::RopeSlice;
+use xeno_base::range::CharIdx;
+use xeno_base::selection::Selection;
+use xeno_registry_notifications::Notification;
 
 use crate::{EditAction, Mode};
 
@@ -92,7 +92,7 @@ pub trait ModeAccess {
 /// # Example
 ///
 /// ```ignore
-/// use evildoer_registry_notifications::keys;
+/// use xeno_registry_notifications::keys;
 ///
 /// // Static message notification
 /// ctx.emit(keys::buffer_readonly);
@@ -107,8 +107,8 @@ pub trait NotificationAccess {
 	/// - [`NotificationKey`] - static message notifications (via `Into<Notification>`)
 	/// - [`Notification`] - pre-built notifications from parameterized builders
 	///
-	/// [`NotificationKey`]: evildoer_registry_notifications::NotificationKey
-	/// [`Notification`]: evildoer_registry_notifications::Notification
+	/// [`NotificationKey`]: xeno_registry_notifications::NotificationKey
+	/// [`Notification`]: xeno_registry_notifications::Notification
 	fn emit(&mut self, notification: Notification);
 
 	/// Clears all visible notifications.

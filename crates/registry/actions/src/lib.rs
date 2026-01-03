@@ -3,7 +3,7 @@
 //! Actions are registered at compile time via [`linkme`] distributed slices
 //! and executed via keybindings.
 
-extern crate self as evildoer_registry_actions;
+extern crate self as xeno_registry_actions;
 
 mod context;
 mod definition;
@@ -20,15 +20,11 @@ pub mod editor_ctx;
 
 pub use context::{ActionArgs, ActionContext};
 pub use definition::{ActionDef, ActionHandler};
-pub use evildoer_registry_core::Key;
+pub use xeno_registry_core::Key;
 
 /// Typed handle to an action definition.
 pub type ActionKey = Key<ActionDef>;
 pub use edit::{EditAction, ScrollAmount, ScrollDir, VisualDirection};
-pub use evildoer_base::{Mode, ObjectSelectionKind, PendingKind};
-pub use evildoer_registry_commands::CommandError;
-pub use evildoer_registry_core::{RegistryMetadata, RegistrySource, impl_registry_metadata};
-pub use evildoer_registry_motions::{Capability, flags};
 pub use keybindings::{
 	BindingMode, KEY_PREFIXES, KEYBINDINGS, KeyBindingDef, KeyPrefixDef, find_prefix,
 };
@@ -47,6 +43,10 @@ pub use result::{
 	RESULT_SPLIT_HORIZONTAL_HANDLERS, RESULT_SPLIT_VERTICAL_HANDLERS,
 	RESULT_USE_SELECTION_SEARCH_HANDLERS, ScreenPosition, dispatch_result,
 };
+pub use xeno_base::{Mode, ObjectSelectionKind, PendingKind};
+pub use xeno_registry_commands::CommandError;
+pub use xeno_registry_core::{RegistryMetadata, RegistrySource, impl_registry_metadata};
+pub use xeno_registry_motions::{Capability, flags};
 
 /// Typed handles for built-in actions.
 pub mod keys {

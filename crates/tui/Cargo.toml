@@ -1,6 +1,6 @@
 [package]
-name = "evildoer-tui"
-version = "0.30.0-evildoer"
+name = "xeno-tui"
+version = "0.30.0-xeno"
 authors = ["The Ratatui Developers", "Albert O'Shea"]
 edition = "2024"
 rust-version = "1.86.0"

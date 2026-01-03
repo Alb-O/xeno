@@ -1,7 +1,7 @@
 //! Cursor navigation for buffers.
 
-use evildoer_base::range::{Direction as MoveDir, Range};
-use evildoer_base::{ScrollDirection, Selection};
+use xeno_base::range::{Direction as MoveDir, Range};
+use xeno_base::{ScrollDirection, Selection};
 
 use super::Buffer;
 use crate::render::WrapSegment;

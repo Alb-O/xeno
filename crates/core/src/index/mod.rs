@@ -27,4 +27,4 @@ pub fn get_registry() -> &'static ExtensionRegistry {
 	REGISTRY.get_or_init(builders::build_registry)
 }
 
-// Integration tests that require evildoer-stdlib are in tests/registry.rs
+// Integration tests that require xeno-stdlib are in tests/registry.rs

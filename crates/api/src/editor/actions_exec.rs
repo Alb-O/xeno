@@ -1,9 +1,9 @@
-use evildoer_registry::actions::find_action;
-use evildoer_registry::{
+use tracing::{debug, info_span};
+use xeno_registry::actions::find_action;
+use xeno_registry::{
 	ActionArgs, ActionContext, ActionResult, EditorContext, HookContext, HookEventData,
 	dispatch_result, emit_sync_with as emit_hook_sync_with,
 };
-use tracing::{debug, info_span};
 
 use crate::editor::Editor;
 
@@ -51,7 +51,9 @@ impl Editor {
 		let action = match find_action(name) {
 			Some(a) => a,
 			None => {
-				self.show_notification(evildoer_registry_notifications::keys::unknown_action::call(name));
+				self.show_notification(xeno_registry_notifications::keys::unknown_action::call(
+					name,
+				));
 				return false;
 			}
 		};
@@ -60,7 +62,7 @@ impl Editor {
 		{
 			let mut e_ctx = EditorContext::new(self);
 			if let Err(e) = e_ctx.check_all_capabilities(action.required_caps) {
-				self.show_notification(evildoer_registry_notifications::keys::action_error::call(e));
+				self.show_notification(xeno_registry_notifications::keys::action_error::call(e));
 				return false;
 			}
 		}
@@ -117,7 +119,9 @@ impl Editor {
 		let action = match find_action(name) {
 			Some(a) => a,
 			None => {
-				self.show_notification(evildoer_registry_notifications::keys::unknown_action::call(name));
+				self.show_notification(xeno_registry_notifications::keys::unknown_action::call(
+					name,
+				));
 				return false;
 			}
 		};
@@ -126,7 +130,7 @@ impl Editor {
 		{
 			let mut e_ctx = EditorContext::new(self);
 			if let Err(e) = e_ctx.check_all_capabilities(action.required_caps) {
-				self.show_notification(evildoer_registry_notifications::keys::action_error::call(e));
+				self.show_notification(xeno_registry_notifications::keys::action_error::call(e));
 				return false;
 			}
 		}

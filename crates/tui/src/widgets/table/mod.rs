@@ -38,9 +38,9 @@ mod state;
 /// # Example
 ///
 /// ```rust
-/// use evildoer_tui::layout::Constraint;
-/// use evildoer_tui::style::{Style, Stylize};
-/// use evildoer_tui::widgets::{Block, Row, Table, TableState};
+/// use xeno_tui::layout::Constraint;
+/// use xeno_tui::style::{Style, Stylize};
+/// use xeno_tui::widgets::{Block, Row, Table, TableState};
 ///
 /// let rows = [
 ///     Row::new(vec!["Cell1", "Cell2"]),
@@ -133,8 +133,8 @@ impl<'a> Table<'a> {
 	/// # Examples
 	///
 	/// ```rust
-	/// use evildoer_tui::layout::Constraint;
-	/// use evildoer_tui::widgets::{Row, Table};
+	/// use xeno_tui::layout::Constraint;
+	/// use xeno_tui::widgets::{Row, Table};
 	///
 	/// let rows = [
 	///     Row::new(vec!["Cell1", "Cell2"]),

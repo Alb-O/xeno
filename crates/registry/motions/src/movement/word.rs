@@ -1,7 +1,7 @@
 //! Word movement functions (`w`, `b`, `e` commands).
 
-use evildoer_base::range::{CharIdx, Range};
 use ropey::RopeSlice;
+use xeno_base::range::{CharIdx, Range};
 
 use super::{WordType, is_word_char, make_range_select};
 

@@ -3,7 +3,7 @@
 use std::future::Future;
 use std::pin::Pin;
 
-pub use evildoer_registry_core::{RegistryMetadata, RegistrySource, impl_registry_metadata};
+pub use xeno_registry_core::{RegistryMetadata, RegistrySource, impl_registry_metadata};
 
 use super::HookEvent;
 use super::context::{HookContext, MutableHookContext};

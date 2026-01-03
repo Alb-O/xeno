@@ -2,8 +2,8 @@
 
 use std::collections::HashMap;
 
-use evildoer_base::{Key, KeyCode, Modifiers};
 use termina::event::KeyEvent;
+use xeno_base::{Key, KeyCode, Modifiers};
 
 use super::UiRequest;
 

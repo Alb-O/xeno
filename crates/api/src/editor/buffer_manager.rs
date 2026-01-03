@@ -6,7 +6,7 @@
 use std::collections::HashMap;
 use std::path::PathBuf;
 
-use evildoer_language::LanguageLoader;
+use xeno_language::LanguageLoader;
 
 use crate::buffer::{Buffer, BufferId, BufferView};
 

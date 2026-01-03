@@ -1,8 +1,8 @@
-# Evildoer: Architectural Consistency Audit
+# Xeno: Architectural Consistency Audit
 
 ## Model Directive
 
-Perform a comprehensive architectural consistency audit of the Evildoer editor codebase. Identify code smells, redundancies, inconsistent patterns, and structural issues that affect maintainability and clarity.
+Perform a comprehensive architectural consistency audit of the Xeno editor codebase. Identify code smells, redundancies, inconsistent patterns, and structural issues that affect maintainability and clarity.
 
 **Scope clarification**: This task focuses on *architectural shape* - module organization, abstraction boundaries, naming conventions, import patterns, and structural redundancies. This is NOT a security audit, correctness review, or bug hunt. Only flag safety/correctness issues if they are egregiously visible during the audit.
 
@@ -71,10 +71,10 @@ For each crate in `crates/`, verify:
 
 Key crates to examine:
 
-- `evildoer-base` - Should contain only primitive types with minimal dependencies
-- `evildoer-core` - Glue layer; should not duplicate registry functionality
-- `evildoer-registry/*` - Each should be self-contained with clear ownership
-- `evildoer-api` - Editor engine; should not leak implementation details
+- `xeno-base` - Should contain only primitive types with minimal dependencies
+- `xeno-core` - Glue layer; should not duplicate registry functionality
+- `xeno-registry/*` - Each should be self-contained with clear ownership
+- `xeno-api` - Editor engine; should not leak implementation details
 
 **1.2 Check for boundary violations**
 
@@ -267,22 +267,22 @@ ______________________________________________________________________
 ## Reference: Current Architecture
 
 ```
-evildoer-base          Primitives: Range, Selection, Key, Mode, Rope wrappers
-evildoer-registry/     Registry crates (actions, commands, hooks, panels, etc.)
-evildoer-core          Glue: ActionId, KeymapRegistry, movement, completion
-evildoer-api           Editor engine: Buffer, Editor, UI management
-evildoer-input         Input state machine
-evildoer-config        Configuration parsing (KDL)
-evildoer-language      Tree-sitter integration
-evildoer-lsp           LSP client framework
-evildoer-extensions    Host extensions (LSP, Zenmode)
-evildoer-tui           Ratatui fork
-evildoer-term          Main binary
+xeno-base          Primitives: Range, Selection, Key, Mode, Rope wrappers
+xeno-registry/     Registry crates (actions, commands, hooks, panels, etc.)
+xeno-core          Glue: ActionId, KeymapRegistry, movement, completion
+xeno-api           Editor engine: Buffer, Editor, UI management
+xeno-input         Input state machine
+xeno-config        Configuration parsing (KDL)
+xeno-language      Tree-sitter integration
+xeno-lsp           LSP client framework
+xeno-extensions    Host extensions (LSP, Zenmode)
+xeno-tui           Ratatui fork
+xeno-term          Main binary
 ```
 
 Key patterns:
 
 - Registry crates use `linkme` distributed slices
 - `impl_registry_metadata!` macro for trait implementations
-- `RegistrySource` and `Capability` defined in `evildoer-registry-motions`
+- `RegistrySource` and `Capability` defined in `xeno-registry-motions`
 - Extensions discovered at build time via `build.rs`

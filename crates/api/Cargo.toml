@@ -1,25 +1,17 @@
 [package]
-name = "evildoer-api"
-description = "Terminal editor API and core logic for Evildoer"
+name = "xeno-api"
+description = "Terminal editor API and core logic for Xeno"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 
 [features]
 default = []
-lsp = ["dep:evildoer-lsp"]
+lsp = ["dep:xeno-lsp"]
 [dependencies]
 anyhow = "1.0"
 async-trait = "0.1"
 clap.workspace = true
-evildoer-base.workspace = true
-evildoer-core.workspace = true
-evildoer-input.workspace = true
-evildoer-language.workspace = true
-evildoer-lsp = { workspace = true, features = ["position"], optional = true }
-evildoer-registry.workspace = true
-evildoer-registry-notifications.workspace = true
-evildoer-tui.workspace = true
 futures.workspace = true
 home.workspace = true
 linkme.workspace = true
@@ -42,5 +34,13 @@ tree-house.workspace = true
 unicode-segmentation.workspace = true
 unicode-width.workspace = true
 vt100 = "0.15"
+xeno-base.workspace = true
+xeno-core.workspace = true
+xeno-input.workspace = true
+xeno-language.workspace = true
+xeno-lsp = { workspace = true, features = ["position"], optional = true }
+xeno-registry.workspace = true
+xeno-registry-notifications.workspace = true
+xeno-tui.workspace = true
 [dev-dependencies]
 insta.workspace = true

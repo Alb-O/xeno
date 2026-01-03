@@ -1,6 +1,6 @@
-pub use evildoer_base::Mode;
-use evildoer_base::key::ScrollDirection;
-use evildoer_core::ActionId;
+pub use xeno_base::Mode;
+use xeno_base::key::ScrollDirection;
+use xeno_core::ActionId;
 
 /// Result of processing a key.
 #[derive(Debug, Clone)]

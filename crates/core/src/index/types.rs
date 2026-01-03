@@ -2,10 +2,10 @@
 
 use std::collections::HashMap;
 
-use evildoer_registry::actions::ActionDef;
-use evildoer_registry::commands::CommandDef;
-use evildoer_registry::motions::MotionDef;
-use evildoer_registry::text_objects::TextObjectDef;
+use xeno_registry::actions::ActionDef;
+use xeno_registry::commands::CommandDef;
+use xeno_registry::motions::MotionDef;
+use xeno_registry::text_objects::TextObjectDef;
 
 use super::collision::Collision;
 use crate::ActionId;

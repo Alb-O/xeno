@@ -1,7 +1,7 @@
 //! Word text objects.
 
-use evildoer_base::Range;
 use ropey::RopeSlice;
+use xeno_base::Range;
 
 use crate::movement::{WordType, select_word_object};
 use crate::text_object;

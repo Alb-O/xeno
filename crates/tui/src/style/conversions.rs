@@ -10,7 +10,7 @@ impl From<Color> for Style {
 	/// # Example
 	///
 	/// ```rust
-	/// use evildoer_tui::style::{Color, Style};
+	/// use xeno_tui::style::{Color, Style};
 	///
 	/// let style = Style::from(Color::Red);
 	/// ```
@@ -25,7 +25,7 @@ impl From<(Color, Color)> for Style {
 	/// # Example
 	///
 	/// ```rust
-	/// use evildoer_tui::style::{Color, Style};
+	/// use xeno_tui::style::{Color, Style};
 	///
 	/// // red foreground, blue background
 	/// let style = Style::from((Color::Red, Color::Blue));
@@ -48,7 +48,7 @@ impl From<Modifier> for Style {
 	/// # Example
 	///
 	/// ```rust
-	/// use evildoer_tui::style::{Style, Modifier};
+	/// use xeno_tui::style::{Style, Modifier};
 	///
 	/// // add bold and italic
 	/// let style = Style::from(Modifier::BOLD|Modifier::ITALIC);
@@ -63,7 +63,7 @@ impl From<(Modifier, Modifier)> for Style {
 	/// # Example
 	///
 	/// ```rust
-	/// use evildoer_tui::style::{Modifier, Style};
+	/// use xeno_tui::style::{Modifier, Style};
 	///
 	/// // add bold and italic, remove dim
 	/// let style = Style::from((Modifier::BOLD | Modifier::ITALIC, Modifier::DIM));
@@ -83,7 +83,7 @@ impl From<(Color, Modifier)> for Style {
 	/// # Example
 	///
 	/// ```rust
-	/// use evildoer_tui::style::{Color, Modifier, Style};
+	/// use xeno_tui::style::{Color, Modifier, Style};
 	///
 	/// // red foreground, add bold and italic
 	/// let style = Style::from((Color::Red, Modifier::BOLD | Modifier::ITALIC));
@@ -101,7 +101,7 @@ impl From<(Color, Color, Modifier)> for Style {
 	/// # Example
 	///
 	/// ```rust
-	/// use evildoer_tui::style::{Color, Modifier, Style};
+	/// use xeno_tui::style::{Color, Modifier, Style};
 	///
 	/// // red foreground, blue background, add bold and italic
 	/// let style = Style::from((Color::Red, Color::Blue, Modifier::BOLD | Modifier::ITALIC));
@@ -118,7 +118,7 @@ impl From<(Color, Color, Modifier, Modifier)> for Style {
 	/// # Example
 	///
 	/// ```rust
-	/// use evildoer_tui::style::{Color, Modifier, Style};
+	/// use xeno_tui::style::{Color, Modifier, Style};
 	///
 	/// // red foreground, blue background, add bold and italic, remove dim
 	/// let style = Style::from((

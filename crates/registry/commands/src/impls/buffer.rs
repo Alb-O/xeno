@@ -1,5 +1,5 @@
-use evildoer_registry_notifications::keys;
 use futures::future::LocalBoxFuture;
+use xeno_registry_notifications::keys;
 
 use crate::{CommandContext, CommandError, CommandOutcome, command};
 
@@ -13,7 +13,10 @@ fn cmd_buffer<'a>(
 		if ctx.args.is_empty() {
 			return Err(CommandError::MissingArgument("buffer name or number"));
 		}
-		ctx.emit(keys::not_implemented::call(&format!("buffer {}", ctx.args[0])));
+		ctx.emit(keys::not_implemented::call(&format!(
+			"buffer {}",
+			ctx.args[0]
+		)));
 		Ok(CommandOutcome::Ok)
 	})
 }

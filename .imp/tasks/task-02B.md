@@ -1,4 +1,4 @@
-# Evildoer Registry Migration: Actions Registry
+# Xeno Registry Migration: Actions Registry
 
 ## Model Directive
 
@@ -45,8 +45,8 @@ ______________________________________________________________________
 
 \<design_freedom>
 
-- The `DispatchResult` proc macro stays in `evildoer-macro` but references must point to registry
-- `parse_keybindings!` proc macro stays in `evildoer-macro`
+- The `DispatchResult` proc macro stays in `xeno-macro` but references must point to registry
+- `parse_keybindings!` proc macro stays in `xeno-macro`
 - Result handlers can move to the actions registry or stay with `editor_ctx` - use judgment based on dependencies
 - `ActionContext` requires capabilities from `editor_ctx` - may need to stay in manifest or have careful dependency ordering
 
@@ -105,16 +105,16 @@ ______________________________________________________________________
 
 ```toml
 [package]
-name = "evildoer-registry-actions"
-description = "Actions registry for Evildoer editor"
+name = "xeno-registry-actions"
+description = "Actions registry for Xeno editor"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 
 [dependencies]
-evildoer-base.workspace = true
-evildoer-registry-motions.workspace = true
-evildoer-macro.workspace = true
+xeno-base.workspace = true
+xeno-registry-motions.workspace = true
+xeno-macro.workspace = true
 linkme.workspace = true
 paste.workspace = true
 ```
@@ -147,17 +147,17 @@ ______________________________________________________________________
 
 **2.1 Decide on ActionResult location**
 
-`ActionResult` uses `#[derive(DispatchResult)]` which generates handler slices. The proc macro references types via `evildoer_manifest::`.
+`ActionResult` uses `#[derive(DispatchResult)]` which generates handler slices. The proc macro references types via `xeno_manifest::`.
 
 Options:
-a) Move ActionResult to registry, update proc macro to reference `evildoer_registry::actions::`
+a) Move ActionResult to registry, update proc macro to reference `xeno_registry::actions::`
 b) Keep ActionResult in manifest, only move ActionDef and implementations to registry
 
 **Recommended: Option (a)** - Move ActionResult to registry for consistency.
 
 **2.2 Update `crates/macro/src/dispatch.rs`**
 
-Change generated code to reference `evildoer_registry::actions::` instead of `evildoer_manifest::`.
+Change generated code to reference `xeno_registry::actions::` instead of `xeno_manifest::`.
 
 **2.3 Create `crates/registry/actions/src/result.rs`**
 
@@ -187,7 +187,7 @@ This creates a circular dependency if we move it to registry (registry can't dep
 Update `ActionHandler` type alias to reference manifest's `ActionContext`:
 
 ```rust
-pub type ActionHandler = fn(&evildoer_manifest::ActionContext) -> ActionResult;
+pub type ActionHandler = fn(&xeno_manifest::ActionContext) -> ActionResult;
 ```
 
 Or re-export `ActionContext` through the registry for ergonomics.
@@ -237,8 +237,8 @@ These have heavy dependencies on `manifest/src/editor_ctx/`.
 
 Update `stdlib/src/editor_ctx/result_handlers/*.rs` to import:
 
-- `ActionResult` from `evildoer_registry::actions::`
-- Handler slices from `evildoer_registry::actions::`
+- `ActionResult` from `xeno_registry::actions::`
+- Handler slices from `xeno_registry::actions::`
 
 ______________________________________________________________________
 
@@ -255,7 +255,7 @@ Add to members:
 Add to workspace.dependencies:
 
 ```toml
-evildoer-registry-actions = { path = "crates/registry/actions" }
+xeno-registry-actions = { path = "crates/registry/actions" }
 ```
 
 **6.2 Update `crates/registry/Cargo.toml`**
@@ -263,7 +263,7 @@ evildoer-registry-actions = { path = "crates/registry/actions" }
 Add dependency:
 
 ```toml
-evildoer-registry-actions.workspace = true
+xeno-registry-actions.workspace = true
 ```
 
 **6.3 Update `crates/registry/src/lib.rs`**
@@ -277,7 +277,7 @@ pub use actions::{
     ACTIONS, dispatch_result,
     // ... all RESULT_*_HANDLERS slices
 };
-pub use evildoer_registry_actions as actions;
+pub use xeno_registry_actions as actions;
 ```
 
 ______________________________________________________________________
@@ -304,7 +304,7 @@ Remove:
 Change re-exports to use registry:
 
 ```rust
-pub use evildoer_registry::actions::{
+pub use xeno_registry::actions::{
     action, ActionDef, ActionHandler, ActionMode, ActionResult,
     EditAction, ScrollAmount, ScrollDir, VisualDirection,
     ACTIONS, dispatch_result,
@@ -318,7 +318,7 @@ pub use actions::{ActionArgs, ActionContext}; // local types
 Create bridge impl for `ActionDef`:
 
 ```rust
-impl crate::RegistryMetadata for evildoer_registry::actions::ActionDef {
+impl crate::RegistryMetadata for xeno_registry::actions::ActionDef {
     // ... standard impl
 }
 ```
@@ -345,7 +345,7 @@ ______________________________________________________________________
 
 **9.1 Update `crates/macro/src/dispatch.rs`**
 
-Change all `evildoer_manifest::` references to `evildoer_registry::actions::`:
+Change all `xeno_manifest::` references to `xeno_registry::actions::`:
 
 - Handler slice paths
 - Type references (ActionResult, etc.)
@@ -387,17 +387,17 @@ ______________________________________________________________________
 ## Dependency Graph After Migration
 
 ```
-evildoer-base (Mode, PendingAction, Selection, etc.)
+xeno-base (Mode, PendingAction, Selection, etc.)
     ↓
-evildoer-registry-motions (RegistrySource, Capability, movement)
+xeno-registry-motions (RegistrySource, Capability, movement)
     ↓
-evildoer-registry-actions (ActionDef, ActionResult, action!, ACTIONS)
+xeno-registry-actions (ActionDef, ActionResult, action!, ACTIONS)
     ↓
-evildoer-registry (umbrella re-exports)
+xeno-registry (umbrella re-exports)
     ↓
-evildoer-manifest (ActionContext, EditorCapabilities, RegistryMetadata impls)
+xeno-manifest (ActionContext, EditorCapabilities, RegistryMetadata impls)
     ↓
-evildoer-stdlib (result_handlers in editor_ctx)
+xeno-stdlib (result_handlers in editor_ctx)
 ```
 
 ______________________________________________________________________
@@ -422,7 +422,7 @@ The `DispatchResult` derive macro generates:
 1. `dispatch_result()` function
 1. `is_terminal_safe()` method
 
-All generated code references must be updated to `evildoer_registry::actions::`.
+All generated code references must be updated to `xeno_registry::actions::`.
 
 ### Keybindings Integration
 

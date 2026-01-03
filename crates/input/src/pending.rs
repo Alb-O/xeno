@@ -1,6 +1,6 @@
-use evildoer_base::key::{Key, KeyCode};
-use evildoer_base::{ObjectSelectionKind, PendingKind};
-use evildoer_core::resolve_action_id;
+use xeno_base::key::{Key, KeyCode};
+use xeno_base::{ObjectSelectionKind, PendingKind};
+use xeno_core::resolve_action_id;
 
 use crate::InputHandler;
 use crate::types::{KeyResult, Mode};

@@ -1,4 +1,4 @@
-# Evildoer: Complete Typed Handle Migration - Panels, Commands, and Beyond
+# Xeno: Complete Typed Handle Migration - Panels, Commands, and Beyond
 
 ## Model Directive
 
@@ -20,7 +20,7 @@ Remaining work:
 
 1. **Panels** - `ActionResult::TogglePanel("terminal")` uses strings
 1. **Commands** - `ActionResult::Command { name: "...", ... }` uses strings
-1. **Cross-crate architecture** - panels defined in `evildoer-api`, not registry crate
+1. **Cross-crate architecture** - panels defined in `xeno-api`, not registry crate
 
 ______________________________________________________________________
 
@@ -28,27 +28,27 @@ ______________________________________________________________________
 
 ### The Cross-Crate Problem
 
-Panels are defined in `evildoer-api` because they depend on API types:
+Panels are defined in `xeno-api` because they depend on API types:
 
 ```rust
 // crates/api/src/panels/mod.rs
 panel!(terminal, {
-    factory: || Box::new(TerminalBuffer::new()),  // TerminalBuffer is in evildoer-api
+    factory: || Box::new(TerminalBuffer::new()),  // TerminalBuffer is in xeno-api
 });
 ```
 
-But `ActionResult::TogglePanel` is in `evildoer-registry-actions`, which can't depend on `evildoer-api` (would create cycle).
+But `ActionResult::TogglePanel` is in `xeno-registry-actions`, which can't depend on `xeno-api` (would create cycle).
 
 ### Solution Options
 
 **Option A: Split panel identity from implementation**
 
 ```rust
-// In evildoer-registry-panels (low-level)
+// In xeno-registry-panels (low-level)
 panel_id!(terminal, { description: "Terminal emulator" });
 panel_id!(debug, { description: "Debug panel" });
 
-// In evildoer-api (high-level)  
+// In xeno-api (high-level)  
 register_panel_factory!(terminal, || Box::new(TerminalBuffer::new()));
 ```
 
@@ -71,7 +71,7 @@ fn validate_panel_refs() {
 Instead of `ActionResult::TogglePanel(name)`, have dedicated methods:
 
 ```rust
-// In evildoer-api
+// In xeno-api
 impl Editor {
     pub fn toggle_terminal(&mut self) { ... }
     pub fn toggle_debug(&mut self) { ... }
@@ -128,7 +128,7 @@ pub enum ActionResult {
 
 ```rust
 // crates/registry/actions/src/impls/window.rs
-use evildoer_registry_panels::keys as panels;
+use xeno_registry_panels::keys as panels;
 
 action!(toggle_terminal, { ... },
     |_ctx| ActionResult::TogglePanel(panels::terminal));
@@ -138,7 +138,7 @@ action!(toggle_terminal, { ... },
 
 ```rust
 // crates/api/src/panels/mod.rs
-use evildoer_registry::panels::keys as panel_ids;
+use xeno_registry::panels::keys as panel_ids;
 
 register_panel_factory!(panel_ids::terminal, || Box::new(TerminalBuffer::new()));
 register_panel_factory!(panel_ids::debug, || Box::new(DebugPanel::new()));

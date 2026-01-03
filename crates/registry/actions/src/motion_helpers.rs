@@ -2,10 +2,10 @@
 //!
 //! Functions for applying named motions to selections and cursors.
 
-use evildoer_base::Selection;
-use evildoer_base::range::Range;
-use evildoer_registry_motions::MotionKey;
 use tracing::debug;
+use xeno_base::Selection;
+use xeno_base::range::Range;
+use xeno_registry_motions::MotionKey;
 
 use crate::{ActionContext, ActionResult};
 

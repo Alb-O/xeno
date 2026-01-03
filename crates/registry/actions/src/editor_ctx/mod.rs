@@ -27,9 +27,9 @@ mod capabilities;
 mod handlers;
 
 pub use capabilities::*;
-use evildoer_base::range::CharIdx;
-use evildoer_base::selection::Selection;
 pub use handlers::*;
+use xeno_base::range::CharIdx;
+use xeno_base::selection::Selection;
 
 use crate::{Capability, CommandError, Mode};
 
@@ -58,14 +58,14 @@ use crate::{Capability, CommandError, Mode};
 /// [`ActionResult`]: crate::ActionResult
 /// [`check_capability`]: Self::check_capability
 pub struct EditorContext<'a> {
-	/// The capability provider (typically [`Editor`] from evildoer-api).
+	/// The capability provider (typically [`Editor`] from xeno-api).
 	///
 	/// [`Editor`]: crate::Editor
 	inner: &'a mut dyn EditorCapabilities,
 }
 
 impl<'a> NotificationAccess for EditorContext<'a> {
-	fn emit(&mut self, notification: evildoer_registry_notifications::Notification) {
+	fn emit(&mut self, notification: xeno_registry_notifications::Notification) {
 		self.inner.emit(notification);
 	}
 
@@ -186,11 +186,11 @@ impl<'a> EditorContext<'a> {
 	/// # Example
 	///
 	/// ```ignore
-	/// use evildoer_registry_notifications::keys;
+	/// use xeno_registry_notifications::keys;
 	/// ctx.emit(keys::buffer_readonly);
 	/// ctx.emit(keys::yanked_chars::call(42));
 	/// ```
-	pub fn emit(&mut self, notification: impl Into<evildoer_registry_notifications::Notification>) {
+	pub fn emit(&mut self, notification: impl Into<xeno_registry_notifications::Notification>) {
 		self.inner.emit(notification.into());
 	}
 
@@ -232,7 +232,9 @@ impl<'a> EditorContext<'a> {
 ///     }
 /// }
 /// ```
-pub trait EditorCapabilities: CursorAccess + SelectionAccess + ModeAccess + NotificationAccess {
+pub trait EditorCapabilities:
+	CursorAccess + SelectionAccess + ModeAccess + NotificationAccess
+{
 	/// Access to search operations (optional).
 	fn search(&mut self) -> Option<&mut dyn SearchAccess> {
 		None

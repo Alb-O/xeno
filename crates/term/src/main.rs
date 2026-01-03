@@ -1,4 +1,4 @@
-//! Evildoer terminal application entry point.
+//! Xeno terminal application entry point.
 
 /// Application lifecycle and event loop.
 mod app;
@@ -13,10 +13,10 @@ mod tests;
 use app::run_editor;
 use clap::Parser;
 use cli::{Cli, Command, GrammarAction};
-use evildoer_api::Editor;
+use xeno_api::Editor;
 // Force-link crates to ensure their distributed_slice registrations are included.
 #[allow(unused_imports, reason = "linkme distributed_slice registration")]
-use {evildoer_acp as _, evildoer_core as _, evildoer_extensions as _};
+use {xeno_acp as _, xeno_core as _, xeno_extensions as _};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -28,13 +28,13 @@ async fn main() -> anyhow::Result<()> {
 	}
 
 	// Ensure runtime directory is populated with query files
-	if let Err(e) = evildoer_language::ensure_runtime() {
+	if let Err(e) = xeno_language::ensure_runtime() {
 		eprintln!("Warning: failed to seed runtime: {e}");
 	}
 
 	// Load themes from runtime directory
-	let themes_dir = evildoer_language::runtime_dir().join("themes");
-	if let Err(e) = evildoer_config::load_and_register_themes(&themes_dir) {
+	let themes_dir = xeno_language::runtime_dir().join("themes");
+	if let Err(e) = xeno_config::load_and_register_themes(&themes_dir) {
 		eprintln!(
 			"Warning: failed to load themes from {:?}: {}",
 			themes_dir, e
@@ -58,7 +58,7 @@ async fn main() -> anyhow::Result<()> {
 
 /// Handles grammar fetch/build/sync subcommands.
 fn handle_grammar_command(action: GrammarAction) -> anyhow::Result<()> {
-	use evildoer_language::build::{build_all_grammars, fetch_all_grammars, load_grammar_configs};
+	use xeno_language::build::{build_all_grammars, fetch_all_grammars, load_grammar_configs};
 
 	let configs = load_grammar_configs()?;
 
@@ -114,11 +114,11 @@ fn handle_grammar_command(action: GrammarAction) -> anyhow::Result<()> {
 /// Prints a summary of grammar fetch results to stdout.
 fn report_fetch_results(
 	results: &[(
-		evildoer_language::build::GrammarConfig,
-		Result<evildoer_language::build::FetchStatus, evildoer_language::build::GrammarBuildError>,
+		xeno_language::build::GrammarConfig,
+		Result<xeno_language::build::FetchStatus, xeno_language::build::GrammarBuildError>,
 	)],
 ) {
-	use evildoer_language::build::FetchStatus;
+	use xeno_language::build::FetchStatus;
 	let mut success = 0;
 	let mut skipped = 0;
 	let mut failed = 0;
@@ -151,11 +151,11 @@ fn report_fetch_results(
 /// Prints a summary of grammar build results to stdout.
 fn report_build_results(
 	results: &[(
-		evildoer_language::build::GrammarConfig,
-		Result<evildoer_language::build::BuildStatus, evildoer_language::build::GrammarBuildError>,
+		xeno_language::build::GrammarConfig,
+		Result<xeno_language::build::BuildStatus, xeno_language::build::GrammarBuildError>,
 	)],
 ) {
-	use evildoer_language::build::BuildStatus;
+	use xeno_language::build::BuildStatus;
 	let mut success = 0;
 	let mut skipped = 0;
 	let mut failed = 0;

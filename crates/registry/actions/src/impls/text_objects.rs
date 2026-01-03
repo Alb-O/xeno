@@ -1,5 +1,5 @@
-use evildoer_base::range::Range;
-use evildoer_registry_text_objects::{TextObjectDef, find_by_trigger};
+use xeno_base::range::Range;
+use xeno_registry_text_objects::{TextObjectDef, find_by_trigger};
 
 use crate::{ActionContext, ActionResult, ObjectSelectionKind, PendingAction, PendingKind, action};
 

@@ -176,7 +176,7 @@ impl<'a> Parser<'a> {
 /// # Examples
 ///
 /// ```
-/// use evildoer_keymap_parser::{parse, Node, Key, Modifier};
+/// use xeno_keymap_parser::{parse, Node, Key, Modifier};
 ///
 /// let node = parse("ctrl-a").unwrap();
 /// assert_eq!(node, Node::new(Modifier::Ctrl as u8, Key::Char('a')));
@@ -315,7 +315,7 @@ fn try_parse_char(parser: &mut Parser) -> Result<Option<Key>, ParseError> {
 /// # Examples
 ///
 /// ```
-/// use evildoer_keymap_parser::{parse_seq, Key, Node};
+/// use xeno_keymap_parser::{parse_seq, Key, Node};
 ///
 /// let seq = parse_seq("a b").unwrap();
 /// assert_eq!(seq, vec![Node::from(Key::Char('a')), Node::from(Key::Char('b'))]);

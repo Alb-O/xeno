@@ -46,9 +46,6 @@ pub use commands::{
 	COMMANDS, CommandContext, CommandDef, CommandEditorOps, CommandError, CommandHandler,
 	CommandOutcome, CommandResult, all_commands, command, find_command,
 };
-// Re-export shared types from registry core (canonical source)
-pub use evildoer_registry_core::{RegistryMetadata, RegistrySource, impl_registry_metadata};
-pub use evildoer_registry_options::option;
 pub use hooks::{
 	Bool, BoxFuture, HOOKS, HookAction, HookContext, HookDef, HookEvent, HookEventData,
 	HookHandler, HookMutability, HookResult, HookScheduler, MutableHookContext, OptionViewId,
@@ -70,10 +67,13 @@ pub use text_objects::{
 	TEXT_OBJECTS, TextObjectDef, TextObjectHandler, bracket_pair_object, symmetric_text_object,
 	text_object,
 };
+// Re-export shared types from registry core (canonical source)
+pub use xeno_registry_core::{RegistryMetadata, RegistrySource, impl_registry_metadata};
+pub use xeno_registry_options::option;
 pub use {
-	evildoer_registry_actions as actions, evildoer_registry_commands as commands,
-	evildoer_registry_hooks as hooks, evildoer_registry_menus as menus,
-	evildoer_registry_motions as motions, evildoer_registry_notifications as notifications,
-	evildoer_registry_options as options, evildoer_registry_statusline as statusline,
-	evildoer_registry_text_objects as text_objects, evildoer_registry_themes as themes,
+	xeno_registry_actions as actions, xeno_registry_commands as commands,
+	xeno_registry_hooks as hooks, xeno_registry_menus as menus, xeno_registry_motions as motions,
+	xeno_registry_notifications as notifications, xeno_registry_options as options,
+	xeno_registry_statusline as statusline, xeno_registry_text_objects as text_objects,
+	xeno_registry_themes as themes,
 };

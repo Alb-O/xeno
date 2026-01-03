@@ -9,7 +9,7 @@ use crate::style::Style;
 /// For a comprehensive guide to widgets, including trait explanations, implementation patterns,
 /// and available widgets, see the [`widgets`] module documentation.
 ///
-/// [`widgets`]: ../../evildoer_tui/widgets/index.html
+/// [`widgets`]: ../../xeno_tui/widgets/index.html
 ///
 /// Prior to Ratatui 0.26.0, widgets generally were created for each frame as they were consumed
 /// during rendering. This meant that they were not meant to be stored but used as *commands* to
@@ -38,7 +38,7 @@ use crate::style::Style;
 /// # Examples
 ///
 /// ```rust,ignore
-/// use evildoer_tui::{
+/// use xeno_tui::{
 ///     backend::TestBackend,
 ///     widgets::{Clear, Widget},
 ///     Terminal,
@@ -54,10 +54,10 @@ use crate::style::Style;
 /// It's common to render widgets inside other widgets:
 ///
 /// ```rust
-/// use evildoer_tui::buffer::Buffer;
-/// use evildoer_tui::layout::Rect;
-/// use evildoer_tui::text::Line;
-/// use evildoer_tui::widgets::Widget;
+/// use xeno_tui::buffer::Buffer;
+/// use xeno_tui::layout::Rect;
+/// use xeno_tui::text::Line;
+/// use xeno_tui::widgets::Widget;
 ///
 /// struct MyWidget;
 ///

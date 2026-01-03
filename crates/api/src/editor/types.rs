@@ -1,9 +1,9 @@
 use std::collections::HashMap;
 
-use evildoer_base::range::CharIdx;
-use evildoer_base::{Rope, Selection};
-use evildoer_core::CompletionItem;
 use termina::event::KeyEvent;
+use xeno_base::range::CharIdx;
+use xeno_base::{Rope, Selection};
+use xeno_core::CompletionItem;
 
 use crate::buffer::BufferId;
 

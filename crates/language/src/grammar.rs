@@ -5,7 +5,7 @@
 //!
 //! # Runtime Directory
 //!
-//! Evildoer stores all runtime data (grammars, queries) in `~/.local/share/evildoer/`.
+//! Xeno stores all runtime data (grammars, queries) in `~/.local/share/xeno/`.
 //! On first use, query files are seeded from the embedded runtime, and grammars
 //! are built on-demand when a language is first opened.
 //!
@@ -144,29 +144,29 @@ pub enum GrammarSource {
 	Builtin(&'static str),
 }
 
-/// Returns the primary runtime directory for Evildoer: `~/.local/share/evildoer/`.
+/// Returns the primary runtime directory for Xeno: `~/.local/share/xeno/`.
 pub fn runtime_dir() -> PathBuf {
-	if let Ok(runtime) = std::env::var("EVILDOER_RUNTIME") {
+	if let Ok(runtime) = std::env::var("XENO_RUNTIME") {
 		return PathBuf::from(runtime);
 	}
 
 	data_local_dir()
-		.map(|d| d.join("evildoer"))
+		.map(|d| d.join("xeno"))
 		.unwrap_or_else(|| PathBuf::from("."))
 }
 
-/// Returns the cache directory: `~/.cache/evildoer/`.
+/// Returns the cache directory: `~/.cache/xeno/`.
 pub fn cache_dir() -> Option<PathBuf> {
 	#[cfg(unix)]
 	{
 		std::env::var_os("XDG_CACHE_HOME")
 			.map(PathBuf::from)
 			.or_else(|| std::env::var_os("HOME").map(|h| PathBuf::from(h).join(".cache")))
-			.map(|p| p.join("evildoer"))
+			.map(|p| p.join("xeno"))
 	}
 	#[cfg(windows)]
 	{
-		std::env::var_os("LOCALAPPDATA").map(|p| PathBuf::from(p).join("evildoer").join("cache"))
+		std::env::var_os("LOCALAPPDATA").map(|p| PathBuf::from(p).join("xeno").join("cache"))
 	}
 	#[cfg(not(any(unix, windows)))]
 	{
@@ -189,7 +189,7 @@ pub fn grammar_search_paths() -> Vec<PathBuf> {
 	}
 
 	if let Some(data) = data_local_dir() {
-		dirs.push(data.join("evildoer").join("grammars"));
+		dirs.push(data.join("xeno").join("grammars"));
 	}
 
 	for helix_dir in helix_runtime_dirs() {
@@ -203,12 +203,12 @@ pub fn grammar_search_paths() -> Vec<PathBuf> {
 pub fn query_search_paths() -> Vec<PathBuf> {
 	let mut dirs = Vec::new();
 
-	if let Ok(runtime) = std::env::var("EVILDOER_RUNTIME") {
+	if let Ok(runtime) = std::env::var("XENO_RUNTIME") {
 		dirs.push(PathBuf::from(runtime).join("language").join("queries"));
 	}
 
 	if let Some(data) = data_local_dir() {
-		dirs.push(data.join("evildoer").join("queries"));
+		dirs.push(data.join("xeno").join("queries"));
 	}
 
 	for helix_dir in helix_runtime_dirs() {

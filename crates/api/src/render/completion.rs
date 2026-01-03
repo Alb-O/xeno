@@ -1,9 +1,9 @@
-use evildoer_core::CompletionKind;
-use evildoer_tui::layout::Rect;
-use evildoer_tui::style::{Modifier, Style};
-use evildoer_tui::text::{Line, Span};
-use evildoer_tui::widgets::list::ListItem;
-use evildoer_tui::widgets::{Block, Borders, List, Widget};
+use xeno_core::CompletionKind;
+use xeno_tui::layout::Rect;
+use xeno_tui::style::{Modifier, Style};
+use xeno_tui::text::{Line, Span};
+use xeno_tui::widgets::list::ListItem;
+use xeno_tui::widgets::{Block, Borders, List, Widget};
 
 use crate::Editor;
 
@@ -100,11 +100,11 @@ impl Editor {
 			.collect();
 
 		let stripe_style = Style::default().fg(self.theme.colors.status.normal_bg);
-		let border_set = evildoer_tui::symbols::border::Set {
+		let border_set = xeno_tui::symbols::border::Set {
 			top_left: "▏",
 			vertical_left: "▏",
 			bottom_left: "▏",
-			..evildoer_tui::symbols::border::EMPTY
+			..xeno_tui::symbols::border::EMPTY
 		};
 
 		let block = Block::default()

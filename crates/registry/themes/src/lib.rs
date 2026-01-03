@@ -8,9 +8,9 @@
 
 use std::sync::OnceLock;
 
-pub use evildoer_base::{Color, Mode, Modifier, Style};
-use evildoer_registry_core::{RegistrySource, impl_registry_metadata};
 use linkme::distributed_slice;
+pub use xeno_base::{Color, Mode, Modifier, Style};
+use xeno_registry_core::{RegistrySource, impl_registry_metadata};
 
 mod syntax;
 

@@ -1,9 +1,9 @@
-use evildoer_base::range::{Direction as MoveDir, Range};
-use evildoer_base::{Mode, Selection, Transaction};
-use evildoer_core::editor_ctx::ModeAccess;
-use evildoer_core::movement;
-use evildoer_registry::{EditAction, ScrollAmount, ScrollDir, VisualDirection};
 use tracing::debug;
+use xeno_base::range::{Direction as MoveDir, Range};
+use xeno_base::{Mode, Selection, Transaction};
+use xeno_core::editor_ctx::ModeAccess;
+use xeno_core::movement;
+use xeno_registry::{EditAction, ScrollAmount, ScrollDir, VisualDirection};
 
 use super::Editor;
 

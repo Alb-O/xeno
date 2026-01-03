@@ -4,11 +4,11 @@
 
 use std::path::PathBuf;
 
-pub use evildoer_registry::themes::{
+use kdl::{KdlDocument, KdlNode};
+pub use xeno_registry::themes::{
 	NotificationColors, PopupColors, StatusColors, ThemeColors, ThemeVariant, UiColors,
 };
-use evildoer_registry::themes::{SyntaxStyle, SyntaxStyles};
-use kdl::{KdlDocument, KdlNode};
+use xeno_registry::themes::{SyntaxStyle, SyntaxStyles};
 
 use crate::error::{ConfigError, Result};
 use crate::kdl_util::{ParseContext, get_color_field, parse_modifier, parse_palette};
@@ -30,10 +30,10 @@ pub struct ParsedTheme {
 
 impl ParsedTheme {
 	/// Convert to an OwnedTheme for registration in the runtime theme registry.
-	pub fn into_owned_theme(self) -> evildoer_registry::themes::OwnedTheme {
-		use evildoer_registry::motions::RegistrySource;
+	pub fn into_owned_theme(self) -> xeno_registry::themes::OwnedTheme {
+		use xeno_registry::motions::RegistrySource;
 
-		evildoer_registry::themes::OwnedTheme {
+		xeno_registry::themes::OwnedTheme {
 			id: self.name.clone(),
 			name: self.name,
 			aliases: self.aliases,
@@ -375,7 +375,7 @@ mod tests {
 
 	#[test]
 	fn test_parse_standalone_theme() {
-		let kdl = evildoer_runtime::themes::get_str("gruvbox.kdl").unwrap();
+		let kdl = xeno_runtime::themes::get_str("gruvbox.kdl").unwrap();
 		let theme = parse_standalone_theme(kdl).unwrap();
 
 		assert_eq!(theme.name, "gruvbox");

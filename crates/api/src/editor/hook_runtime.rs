@@ -6,7 +6,7 @@
 
 use std::collections::VecDeque;
 
-use evildoer_registry::{BoxFuture as HookBoxFuture, HookScheduler};
+use xeno_registry::{BoxFuture as HookBoxFuture, HookScheduler};
 
 /// Runtime for managing async hook execution.
 ///
@@ -84,7 +84,7 @@ mod tests {
 		use std::sync::Arc;
 		use std::sync::atomic::{AtomicUsize, Ordering};
 
-		use evildoer_registry::HookResult;
+		use xeno_registry::HookResult;
 
 		let counter = Arc::new(AtomicUsize::new(0));
 		let mut runtime = HookRuntime::new();

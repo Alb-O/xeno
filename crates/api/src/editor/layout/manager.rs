@@ -2,7 +2,7 @@
 //!
 //! The [`LayoutManager`] owns stacked layout layers and coordinates all layout operations.
 
-use evildoer_tui::layout::Rect;
+use xeno_tui::layout::Rect;
 
 use crate::buffer::{BufferId, BufferView, Layout, SplitDirection};
 use crate::editor::separator::{DragState, MouseVelocityTracker, SeparatorHoverAnimation};

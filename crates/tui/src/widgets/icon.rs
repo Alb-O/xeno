@@ -39,8 +39,8 @@ pub mod presets {
 /// # Example
 ///
 /// ```ignore
-/// use evildoer_tui::widgets::{Icon, icon::presets};
-/// use evildoer_tui::style::{Style, Color};
+/// use xeno_tui::widgets::{Icon, icon::presets};
+/// use xeno_tui::style::{Style, Color};
 ///
 /// let icon = Icon::new(presets::INFO)
 ///     .style(Style::default().fg(Color::Blue));

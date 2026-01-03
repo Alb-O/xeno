@@ -6,7 +6,7 @@
 //! # Usage
 //!
 //! ```ignore
-//! use evildoer_registry_notifications::keys;
+//! use xeno_registry_notifications::keys;
 //!
 //! // Static message notifications
 //! ctx.emit(keys::buffer_readonly);
@@ -19,8 +19,7 @@
 use std::time::Duration;
 
 use linkme::distributed_slice;
-
-pub use evildoer_registry_core::{Key, RegistryMetadata, RegistrySource, impl_registry_metadata};
+pub use xeno_registry_core::{Key, RegistryMetadata, RegistrySource, impl_registry_metadata};
 
 mod acp;
 mod actions;
@@ -210,5 +209,3 @@ impl From<NotificationKey> for Notification {
 		key.emit()
 	}
 }
-
-

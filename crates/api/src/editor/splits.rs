@@ -4,7 +4,7 @@
 
 use std::path::PathBuf;
 
-use evildoer_registry::{
+use xeno_registry::{
 	HookContext, HookEventData, SplitDirection, ViewId, emit_sync_with as emit_hook_sync_with,
 };
 

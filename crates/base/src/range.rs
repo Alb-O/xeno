@@ -13,7 +13,7 @@ pub enum Direction {
 
 /// A position in the text, measured in characters (not bytes).
 ///
-/// This is the canonical coordinate space for Evildoer.
+/// This is the canonical coordinate space for Xeno.
 pub type CharIdx = usize;
 
 /// A length or count in the text, measured in characters (not bytes).

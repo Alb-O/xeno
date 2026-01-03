@@ -9,7 +9,7 @@ mod impls;
 /// Statusline segment registration macros.
 mod macros;
 
-pub use evildoer_registry_core::{RegistryMetadata, RegistrySource, impl_registry_metadata};
+pub use xeno_registry_core::{RegistryMetadata, RegistrySource, impl_registry_metadata};
 
 /// Position in the statusline.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

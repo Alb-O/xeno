@@ -2,7 +2,7 @@
 //!
 //! Creating horizontal/vertical splits and removing views from the layout.
 
-use evildoer_tui::layout::Rect;
+use xeno_tui::layout::Rect;
 
 use super::manager::LayoutManager;
 use crate::buffer::{BufferId, BufferView, Layout};

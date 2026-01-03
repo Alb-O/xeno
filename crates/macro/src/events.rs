@@ -93,7 +93,7 @@ fn borrowed_type(ty: &Ident) -> TokenStream2 {
 	let ty_str = ty.to_string();
 	match ty_str.as_str() {
 		"Path" => quote! { &'a ::std::path::Path },
-		"RopeSlice" => quote! { ::evildoer_base::RopeSlice<'a> },
+		"RopeSlice" => quote! { ::xeno_base::RopeSlice<'a> },
 		"OptionStr" => quote! { ::core::option::Option<&'a str> },
 		_ => quote! { #ty },
 	}

@@ -24,7 +24,7 @@ pub type Result<T> = std::result::Result<T, LanguageConfigError>;
 
 /// Loads language configurations from the embedded `languages.kdl`.
 pub fn load_language_configs() -> Result<Vec<LanguageData>> {
-	parse_language_configs(evildoer_runtime::language::languages_kdl())
+	parse_language_configs(xeno_runtime::language::languages_kdl())
 }
 
 /// Parses language configurations from a KDL string.

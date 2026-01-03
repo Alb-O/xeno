@@ -1,6 +1,6 @@
 [package]
-name = "evildoer-acp"
-description = "ACP (Agent Client Protocol) integration for Evildoer"
+name = "xeno-acp"
+description = "ACP (Agent Client Protocol) integration for Xeno"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -8,11 +8,6 @@ license.workspace = true
 [dependencies]
 agent-client-protocol.workspace = true
 anyhow.workspace = true
-evildoer-api.workspace = true
-evildoer-base.workspace = true
-evildoer-core.workspace = true
-evildoer-registry.workspace = true
-evildoer-tui.workspace = true
 futures.workspace = true
 linkme.workspace = true
 parking_lot.workspace = true
@@ -20,5 +15,10 @@ paste.workspace = true
 termina.workspace = true
 tokio.workspace = true
 tokio-util.workspace = true
+xeno-api.workspace = true
+xeno-base.workspace = true
+xeno-core.workspace = true
+xeno-registry.workspace = true
+xeno-tui.workspace = true
 [dev-dependencies]
 async-trait.workspace = true

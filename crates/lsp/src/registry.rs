@@ -13,7 +13,7 @@
 //! # Example
 //!
 //! ```ignore
-//! use evildoer_lsp::registry::{Registry, LanguageServerConfig};
+//! use xeno_lsp::registry::{Registry, LanguageServerConfig};
 //!
 //! let mut registry = Registry::new();
 //!

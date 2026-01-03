@@ -34,7 +34,7 @@ pub use types::{SeparatorHit, SeparatorId};
 
 #[cfg(test)]
 mod tests {
-	use evildoer_tui::layout::Rect;
+	use xeno_tui::layout::Rect;
 
 	use super::*;
 	use crate::buffer::BufferId;

@@ -1,5 +1,5 @@
 [package]
-name = "evildoer-lsp"
+name = "xeno-lsp"
 description = "Asynchronous Language Server Protocol (LSP) framework based on tower"
 version.workspace = true
 edition.workspace = true

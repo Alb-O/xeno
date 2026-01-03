@@ -7,17 +7,17 @@ use std::future::Future;
 use std::path::PathBuf;
 use std::pin::Pin;
 
-use evildoer_registry_notifications::Notification;
 use futures::future::LocalBoxFuture;
 use linkme::distributed_slice;
 use thiserror::Error;
+use xeno_registry_notifications::Notification;
 
 mod impls;
 /// Internal macro helpers for command registration.
 mod macros;
 
-pub use evildoer_registry_core::{RegistryMetadata, RegistrySource, impl_registry_metadata};
-pub use evildoer_registry_motions::Capability;
+pub use xeno_registry_core::{RegistryMetadata, RegistrySource, impl_registry_metadata};
+pub use xeno_registry_motions::Capability;
 
 /// Function signature for async command handlers.
 pub type CommandHandler = for<'a> fn(
@@ -110,7 +110,7 @@ impl<'a> CommandContext<'a> {
 	/// # Example
 	///
 	/// ```ignore
-	/// use evildoer_registry_notifications::keys;
+	/// use xeno_registry_notifications::keys;
 	/// ctx.emit(keys::buffer_readonly);
 	/// ctx.emit(keys::file_saved.call(&path));
 	/// ```

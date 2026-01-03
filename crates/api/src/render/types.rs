@@ -1,4 +1,4 @@
-use evildoer_tui::widgets::Paragraph;
+use xeno_tui::widgets::Paragraph;
 
 /// A segment of a wrapped line.
 pub struct WrapSegment {

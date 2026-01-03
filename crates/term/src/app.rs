@@ -1,14 +1,14 @@
 use std::io::{self, Write};
 use std::time::Duration;
 
-use evildoer_api::Editor;
-use evildoer_registry::{
-	HookContext, HookEventData, emit as emit_hook, emit_sync_with as emit_hook_sync_with,
-};
-use evildoer_tui::Terminal;
 use termina::escape::csi::{Csi, Cursor};
 use termina::event::{Event, KeyEventKind};
 use termina::{PlatformTerminal, Terminal as _};
+use xeno_api::Editor;
+use xeno_registry::{
+	HookContext, HookEventData, emit as emit_hook, emit_sync_with as emit_hook_sync_with,
+};
+use xeno_tui::Terminal;
 
 use crate::backend::TerminaBackend;
 
@@ -92,7 +92,7 @@ pub async fn run_editor(mut editor: Editor) -> io::Result<()> {
 			let needs_fast_redraw = editor.needs_redraw;
 			editor.needs_redraw = false;
 
-			let timeout = if matches!(editor.mode(), evildoer_base::Mode::Insert)
+			let timeout = if matches!(editor.mode(), xeno_base::Mode::Insert)
 				|| editor.any_panel_open()
 				|| needs_fast_redraw
 			{

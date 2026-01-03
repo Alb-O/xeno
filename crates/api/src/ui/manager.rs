@@ -2,9 +2,9 @@
 
 use std::collections::HashMap;
 
-use evildoer_registry::themes::Theme;
-use evildoer_tui::layout::Rect;
 use termina::event::{KeyEvent, MouseEvent};
+use xeno_registry::themes::Theme;
+use xeno_tui::layout::Rect;
 
 use super::dock::{DockLayout, DockManager};
 use super::focus::{FocusManager, FocusTarget};
@@ -267,11 +267,11 @@ impl UiManager {
 	pub fn render_panels(
 		&mut self,
 		editor: &mut crate::editor::Editor,
-		frame: &mut evildoer_tui::Frame,
+		frame: &mut xeno_tui::Frame,
 		layout: &DockLayout,
 		theme: &Theme,
-	) -> Option<evildoer_tui::layout::Position> {
-		let mut cursor: Option<evildoer_tui::layout::Position> = None;
+	) -> Option<xeno_tui::layout::Position> {
+		let mut cursor: Option<xeno_tui::layout::Position> = None;
 		for (id, area) in &layout.panel_areas {
 			let focused = self.is_panel_focused(id);
 			if let Some(panel) = self.panels.get_mut(id) {

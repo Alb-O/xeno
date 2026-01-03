@@ -1,21 +1,21 @@
 //! Syntax highlighting types and utilities.
 //!
-//! This module bridges tree-sitter highlighting with Evildoer's theme system,
+//! This module bridges tree-sitter highlighting with Xeno's theme system,
 //! providing the `Highlighter` iterator that produces highlight events.
 
 use std::ops::{Bound, RangeBounds};
 
-use evildoer_base::Style;
 use ropey::RopeSlice;
 // Re-export tree-house highlight types for convenience.
 pub use tree_house::highlighter::{Highlight, HighlightEvent};
+use xeno_base::Style;
 
 use crate::loader::LanguageLoader;
 
 /// Maps highlight captures to styles.
 ///
 /// Pre-resolved styles indexed by `Highlight`. This is the bridge between
-/// tree-sitter capture names (from .scm files) and Evildoer's theme system.
+/// tree-sitter capture names (from .scm files) and Xeno's theme system.
 #[derive(Debug, Clone)]
 pub struct HighlightStyles {
 	/// Pre-resolved styles indexed by Highlight index.
@@ -205,7 +205,7 @@ impl HighlightSpan {
 
 #[cfg(test)]
 mod tests {
-	use evildoer_base::Color;
+	use xeno_base::Color;
 
 	use super::*;
 

@@ -3,7 +3,7 @@
 //! Layers are ordered from bottom (index 0) to top. Layer 0 is the base layer
 //! which always exists. Higher layers overlay on top with transparent backgrounds.
 
-use evildoer_tui::layout::Rect;
+use xeno_tui::layout::Rect;
 
 use super::manager::LayoutManager;
 use super::types::LayerIndex;

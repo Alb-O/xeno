@@ -41,8 +41,8 @@ pub mod ui;
 
 pub use buffer::{Buffer, BufferId, HistoryResult};
 pub use editor::Editor;
-pub use evildoer_registry::themes::{
+pub use ui::UiManager;
+pub use xeno_registry::themes::{
 	PopupColors, StatusColors, THEMES, Theme, ThemeColors, UiColors, blend_colors, get_theme,
 	suggest_theme,
 };
-pub use ui::UiManager;

@@ -1,7 +1,7 @@
 //! Paragraph text object.
 
-use evildoer_base::Range;
 use ropey::RopeSlice;
+use xeno_base::Range;
 
 use crate::text_object;
 

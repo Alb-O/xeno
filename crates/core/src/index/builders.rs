@@ -2,12 +2,12 @@
 
 use std::collections::HashMap;
 
-use evildoer_registry::RegistryMetadata;
-use evildoer_registry::actions::{ACTIONS, ActionDef};
-use evildoer_registry::commands::{COMMANDS, CommandDef};
-use evildoer_registry::motions::{MOTIONS, MotionDef};
-use evildoer_registry::text_objects::{TEXT_OBJECTS, TextObjectDef};
 use tracing::{debug, warn};
+use xeno_registry::RegistryMetadata;
+use xeno_registry::actions::{ACTIONS, ActionDef};
+use xeno_registry::commands::{COMMANDS, CommandDef};
+use xeno_registry::motions::{MOTIONS, MotionDef};
+use xeno_registry::text_objects::{TEXT_OBJECTS, TextObjectDef};
 
 use super::collision::{Collision, CollisionKind};
 use super::diagnostics::diagnostics_internal;

@@ -1,4 +1,4 @@
-use evildoer_registry_motions::keys as motions;
+use xeno_registry_motions::keys as motions;
 
 use crate::{ActionResult, ScreenPosition, action, cursor_motion, selection_motion, word_motion};
 

@@ -2,27 +2,47 @@
 
 use linkme::distributed_slice;
 
-use crate::{AutoDismiss, Level, Notification, NotificationDef, NOTIFICATIONS, RegistrySource};
+use crate::{AutoDismiss, Level, NOTIFICATIONS, Notification, NotificationDef, RegistrySource};
 
 #[distributed_slice(NOTIFICATIONS)]
-static NOTIF_INFO: NotificationDef =
-	NotificationDef::new("info", Level::Info, AutoDismiss::DEFAULT, RegistrySource::Builtin);
+static NOTIF_INFO: NotificationDef = NotificationDef::new(
+	"info",
+	Level::Info,
+	AutoDismiss::DEFAULT,
+	RegistrySource::Builtin,
+);
 
 #[distributed_slice(NOTIFICATIONS)]
-static NOTIF_WARN: NotificationDef =
-	NotificationDef::new("warn", Level::Warn, AutoDismiss::DEFAULT, RegistrySource::Builtin);
+static NOTIF_WARN: NotificationDef = NotificationDef::new(
+	"warn",
+	Level::Warn,
+	AutoDismiss::DEFAULT,
+	RegistrySource::Builtin,
+);
 
 #[distributed_slice(NOTIFICATIONS)]
-static NOTIF_ERROR: NotificationDef =
-	NotificationDef::new("error", Level::Error, AutoDismiss::DEFAULT, RegistrySource::Builtin);
+static NOTIF_ERROR: NotificationDef = NotificationDef::new(
+	"error",
+	Level::Error,
+	AutoDismiss::DEFAULT,
+	RegistrySource::Builtin,
+);
 
 #[distributed_slice(NOTIFICATIONS)]
-static NOTIF_SUCCESS: NotificationDef =
-	NotificationDef::new("success", Level::Success, AutoDismiss::DEFAULT, RegistrySource::Builtin);
+static NOTIF_SUCCESS: NotificationDef = NotificationDef::new(
+	"success",
+	Level::Success,
+	AutoDismiss::DEFAULT,
+	RegistrySource::Builtin,
+);
 
 #[distributed_slice(NOTIFICATIONS)]
-static NOTIF_DEBUG: NotificationDef =
-	NotificationDef::new("debug", Level::Debug, AutoDismiss::DEFAULT, RegistrySource::Builtin);
+static NOTIF_DEBUG: NotificationDef = NotificationDef::new(
+	"debug",
+	Level::Debug,
+	AutoDismiss::DEFAULT,
+	RegistrySource::Builtin,
+);
 
 #[allow(non_upper_case_globals, non_camel_case_types)]
 pub mod keys {

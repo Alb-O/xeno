@@ -1,6 +1,6 @@
 //! Core infrastructure
 //!
-//! This crate provides the glue layer between `evildoer-registry` types and the
+//! This crate provides the glue layer between `xeno-registry` types and the
 //! editor's infrastructure, including:
 //!
 //! - [`ActionId`] for action dispatch
@@ -11,8 +11,8 @@
 //!
 //! # Import Guidelines
 //!
-//! - Base types (`Mode`, `Range`, `Selection`, `Key`, etc.): use `evildoer_base`
-//! - Registry types (actions, commands, hooks, panels, etc.): use `evildoer_registry`
+//! - Base types (`Mode`, `Range`, `Selection`, `Key`, etc.): use `xeno_base`
+//! - Registry types (actions, commands, hooks, panels, etc.): use `xeno_registry`
 //! - Core types (`ActionId`, keymap, movement, completion): use this crate
 
 pub mod completion;
@@ -26,7 +26,7 @@ pub mod terminal_config;
 
 /// Theme completion source.
 pub mod theme {
-	use evildoer_registry::themes::{THEMES, ThemeVariant, runtime_themes};
+	use xeno_registry::themes::{THEMES, ThemeVariant, runtime_themes};
 
 	use super::completion::{
 		CompletionContext, CompletionItem, CompletionKind, CompletionResult, CompletionSource,

@@ -51,16 +51,16 @@ pub fn register_notification(input: TokenStream) -> TokenStream {
 		fields,
 	} = parse_macro_input!(input as NotificationInput);
 
-	let mut level = quote! { evildoer_registry::notifications::Level::Info };
-	let mut semantic = quote! { evildoer_registry::themes::SEMANTIC_INFO };
-	let mut dismiss = quote! { evildoer_registry::notifications::AutoDismiss::default() };
+	let mut level = quote! { xeno_registry::notifications::Level::Info };
+	let mut semantic = quote! { xeno_registry::themes::SEMANTIC_INFO };
+	let mut dismiss = quote! { xeno_registry::notifications::AutoDismiss::default() };
 	let mut icon = quote! { None };
-	let mut animation = quote! { evildoer_registry::notifications::Animation::Fade };
+	let mut animation = quote! { xeno_registry::notifications::Animation::Fade };
 	let mut timing = quote! {
 		(
-			evildoer_registry::notifications::Timing::Fixed(::std::time::Duration::from_millis(200)),
-			evildoer_registry::notifications::Timing::Auto,
-			evildoer_registry::notifications::Timing::Fixed(::std::time::Duration::from_millis(200)),
+			xeno_registry::notifications::Timing::Fixed(::std::time::Duration::from_millis(200)),
+			xeno_registry::notifications::Timing::Auto,
+			xeno_registry::notifications::Timing::Fixed(::std::time::Duration::from_millis(200)),
 		)
 	};
 
@@ -85,9 +85,9 @@ pub fn register_notification(input: TokenStream) -> TokenStream {
 	let trait_name = format_ident!("Notify{}Ext", static_name);
 
 	let expanded = quote! {
-		#[::linkme::distributed_slice(evildoer_registry::notifications::NOTIFICATION_TYPES)]
-		pub static #static_name: evildoer_registry::notifications::NotificationTypeDef =
-			evildoer_registry::notifications::NotificationTypeDef {
+		#[::linkme::distributed_slice(xeno_registry::notifications::NOTIFICATION_TYPES)]
+		pub static #static_name: xeno_registry::notifications::NotificationTypeDef =
+			xeno_registry::notifications::NotificationTypeDef {
 				id: #id,
 				name: #id,
 				level: #level,
@@ -97,16 +97,16 @@ pub fn register_notification(input: TokenStream) -> TokenStream {
 				animation: #animation,
 				timing: #timing,
 				priority: 0,
-				source: evildoer_registry::RegistrySource::Crate(env!("CARGO_PKG_NAME")),
+				source: xeno_registry::RegistrySource::Crate(env!("CARGO_PKG_NAME")),
 			};
 
-		pub trait #trait_name: evildoer_core::editor_ctx::MessageAccess {
+		pub trait #trait_name: xeno_core::editor_ctx::MessageAccess {
 			fn #helper_name(&mut self, msg: &str) {
 				self.notify(#id, msg);
 			}
 		}
 
-		impl<T: evildoer_core::editor_ctx::MessageAccess + ?Sized> #trait_name for T {}
+		impl<T: xeno_core::editor_ctx::MessageAccess + ?Sized> #trait_name for T {}
 	};
 
 	expanded.into()

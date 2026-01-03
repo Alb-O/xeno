@@ -1,14 +1,14 @@
 [package]
-name = "evildoer-registry-hooks"
+name = "xeno-registry-hooks"
 description = "Hook registry"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 
 [dependencies]
-evildoer-base.workspace = true
-evildoer-macro.workspace = true
-evildoer-registry-core.workspace = true
 linkme.workspace = true
 paste.workspace = true
 tracing.workspace = true
+xeno-base.workspace = true
+xeno-macro.workspace = true
+xeno-registry-core.workspace = true

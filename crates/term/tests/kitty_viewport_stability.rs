@@ -4,7 +4,7 @@ mod helpers;
 
 use std::time::Duration;
 
-use helpers::{evildoer_cmd_debug_with_log, reset_test_file, type_chars, workspace_dir};
+use helpers::{reset_test_file, type_chars, workspace_dir, xeno_cmd_debug_with_log};
 use kitty_test_harness::{
 	KeyPress, MouseButton, cleanup_test_log, create_test_log, kitty_send_keys, pause_briefly,
 	read_test_log, require_kitty, run_with_timeout, send_keys, send_mouse_drag_with_steps,
@@ -98,7 +98,7 @@ fn viewport_stable_during_adjacent_split_resize() {
 	run_with_timeout(TEST_TIMEOUT, move || {
 		with_kitty_capture(
 			&workspace_dir(),
-			&evildoer_cmd_debug_with_log(file, &log_path_clone),
+			&xeno_cmd_debug_with_log(file, &log_path_clone),
 			|kitty| {
 				pause_briefly();
 

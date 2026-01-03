@@ -35,7 +35,7 @@ use crate::layout::{Offset, Rect};
 /// # Examples
 ///
 /// ```
-/// use evildoer_tui::layout::{Offset, Position, Rect};
+/// use xeno_tui::layout::{Offset, Position, Rect};
 ///
 /// // the following are all equivalent
 /// let position = Position { x: 1, y: 2 };

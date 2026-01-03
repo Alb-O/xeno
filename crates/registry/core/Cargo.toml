@@ -1,5 +1,5 @@
 [package]
-name = "evildoer-registry-core"
+name = "xeno-registry-core"
 description = "Shared registry infrastructure"
 version.workspace = true
 edition.workspace = true

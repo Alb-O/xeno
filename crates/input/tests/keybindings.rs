@@ -3,14 +3,14 @@
 //! These tests require the full registry (keybindings + actions) to be linked,
 //! which happens automatically in integration tests since they link all dependencies.
 
-// Force linkage of evildoer-stdlib to ensure all actions are registered.
+// Force linkage of xeno-stdlib to ensure all actions are registered.
 // This is necessary because linkme distributed slices only include statics
 // that are actually linked into the binary.
-extern crate evildoer_core;
+extern crate xeno_core;
 
-use evildoer_base::key::{Key, KeyCode, Modifiers};
-use evildoer_core::find_action_by_id;
-use evildoer_input::{InputHandler, KeyResult};
+use xeno_base::key::{Key, KeyCode, Modifiers};
+use xeno_core::find_action_by_id;
+use xeno_input::{InputHandler, KeyResult};
 
 fn extract_action(result: KeyResult) -> Option<(String, bool)> {
 	match result {

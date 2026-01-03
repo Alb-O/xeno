@@ -1,7 +1,7 @@
-use evildoer_keymap_parser::{Node, parse_seq};
 use syn::punctuated::Punctuated;
 use syn::token::Comma;
 use syn::{Attribute, LitStr, Token, Variant};
+use xeno_keymap_parser::{Node, parse_seq};
 
 /// Attribute path name for `#[key(...)]`.
 const KEY_IDENT: &str = "key";

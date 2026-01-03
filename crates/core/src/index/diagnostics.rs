@@ -3,7 +3,7 @@
 //! Provides reports on registry collisions where multiple items share the
 //! same key, allowing users to identify and resolve registration conflicts.
 
-use evildoer_registry::RegistryMetadata;
+use xeno_registry::RegistryMetadata;
 
 use crate::index::ExtensionRegistry;
 use crate::index::collision::CollisionKind;

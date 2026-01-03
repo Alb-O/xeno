@@ -16,8 +16,8 @@
 //! module.
 //!
 //! **Note**: All functions and types in this module are re-exported at the crate root for
-//! convenience, so you can call `evildoer_tui::run()`, `evildoer_tui::init()`, etc. instead of
-//! `evildoer_tui::init::run()`, `evildoer_tui::init::init()`, etc.
+//! convenience, so you can call `xeno_tui::run()`, `xeno_tui::init()`, etc. instead of
+//! `xeno_tui::init::run()`, `xeno_tui::init::init()`, etc.
 //!
 //! # Available Types and Functions
 //!
@@ -51,7 +51,7 @@
 //!
 //! ```rust,no_run
 //! fn main() -> std::io::Result<()> {
-//!     evildoer_tui::run(|terminal| {
+//!     xeno_tui::run(|terminal| {
 //!         loop {
 //!             terminal.draw(|frame| frame.render_widget("Hello, world!", frame.area()))?;
 //!             if crossterm::event::read()?.is_key_press() {
@@ -66,14 +66,14 @@
 //!
 //! ```rust,no_run
 //! // Using init() - panics on failure
-//! let mut terminal = evildoer_tui::init();
+//! let mut terminal = xeno_tui::init();
 //! // ... app logic ...
-//! evildoer_tui::restore();
+//! xeno_tui::restore();
 //!
 //! // Using try_init() - returns Result for custom error handling
-//! let mut terminal = evildoer_tui::try_init()?;
+//! let mut terminal = xeno_tui::try_init()?;
 //! // ... app logic ...
-//! evildoer_tui::try_restore()?;
+//! xeno_tui::try_restore()?;
 //! # Ok::<(), std::io::Error>(())
 //! ```
 //!
@@ -81,24 +81,24 @@
 //! or applications that don't want alternate screen buffer):
 //!
 //! ```rust,no_run
-//! use evildoer_tui::{TerminalOptions, Viewport};
+//! use xeno_tui::{TerminalOptions, Viewport};
 //!
 //! let options = TerminalOptions {
 //!     viewport: Viewport::Inline(10),
 //! };
 //!
 //! // Using init_with_options() - panics on failure
-//! let mut terminal = evildoer_tui::init_with_options(options);
+//! let mut terminal = xeno_tui::init_with_options(options);
 //! // ... app logic ...
-//! evildoer_tui::restore();
+//! xeno_tui::restore();
 //!
 //! // Using try_init_with_options() - returns Result for custom error handling
 //! let options = TerminalOptions {
 //!     viewport: Viewport::Inline(10),
 //! };
-//! let mut terminal = evildoer_tui::try_init_with_options(options)?;
+//! let mut terminal = xeno_tui::try_init_with_options(options)?;
 //! // ... app logic ...
-//! evildoer_tui::try_restore()?;
+//! xeno_tui::try_restore()?;
 //! # Ok::<(), std::io::Error>(())
 //! ```
 //!
@@ -166,7 +166,7 @@ pub type DefaultTerminal = Terminal<CrosstermBackend<Stdout>>;
 /// use crossterm::event;
 ///
 /// fn main() -> Result<(), Box<dyn std::error::Error>> {
-///     evildoer_tui::run(|terminal| {
+///     xeno_tui::run(|terminal| {
 ///         loop {
 ///             terminal.draw(|frame| frame.render_widget("Hello, world!", frame.area()))?;
 ///             if event::read()?.is_key_press() {
@@ -185,10 +185,10 @@ pub type DefaultTerminal = Terminal<CrosstermBackend<Stdout>>;
 /// type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 ///
 /// fn main() -> Result<()> {
-///     evildoer_tui::run(app)
+///     xeno_tui::run(app)
 /// }
 ///
-/// fn app(terminal: &mut evildoer_tui::DefaultTerminal) -> Result<()> {
+/// fn app(terminal: &mut xeno_tui::DefaultTerminal) -> Result<()> {
 ///     const GREETING: &str = "Hello, world!";
 ///     loop {
 ///         terminal.draw(|frame| frame.render_widget(format!("{GREETING}"), frame.area()))?;
@@ -210,7 +210,7 @@ pub type DefaultTerminal = Terminal<CrosstermBackend<Stdout>>;
 ///
 /// fn main() -> Result<()> {
 ///     let mut app = App::new();
-///     evildoer_tui::run(|terminal| app.run(terminal))
+///     xeno_tui::run(|terminal| app.run(terminal))
 /// }
 ///
 /// struct App {
@@ -226,7 +226,7 @@ pub type DefaultTerminal = Terminal<CrosstermBackend<Stdout>>;
 ///         }
 ///     }
 ///
-///     fn run(&mut self, terminal: &mut evildoer_tui::DefaultTerminal) -> Result<()> {
+///     fn run(&mut self, terminal: &mut xeno_tui::DefaultTerminal) -> Result<()> {
 ///         while !self.should_quit {
 ///             terminal.draw(|frame| frame.render_widget("Hello, world!", frame.area()))?;
 ///             self.handle_events()?;
@@ -234,7 +234,7 @@ pub type DefaultTerminal = Terminal<CrosstermBackend<Stdout>>;
 ///         Ok(())
 ///     }
 ///
-///     fn render(&mut self, frame: &mut evildoer_tui::Frame) -> Result<()> {
+///     fn render(&mut self, frame: &mut xeno_tui::Frame) -> Result<()> {
 ///         let greeting = format!("Hello, {}!", self.name);
 ///         frame.render_widget(greeting, frame.area());
 ///         Ok(())
@@ -293,7 +293,7 @@ where
 /// # Examples
 ///
 /// ```rust,no_run
-/// let terminal = evildoer_tui::init();
+/// let terminal = xeno_tui::init();
 /// ```
 pub fn init() -> DefaultTerminal {
 	try_init().expect("failed to initialize terminal")
@@ -324,7 +324,7 @@ pub fn init() -> DefaultTerminal {
 /// # Examples
 ///
 /// ```no_run
-/// let terminal = evildoer_tui::try_init()?;
+/// let terminal = xeno_tui::try_init()?;
 /// # Ok::<(), std::io::Error>(())
 /// ```
 pub fn try_init() -> io::Result<DefaultTerminal> {
@@ -372,12 +372,12 @@ pub fn try_init() -> io::Result<DefaultTerminal> {
 /// # Examples
 ///
 /// ```rust,no_run
-/// use evildoer_tui::{TerminalOptions, Viewport};
+/// use xeno_tui::{TerminalOptions, Viewport};
 ///
 /// let options = TerminalOptions {
 ///     viewport: Viewport::Inline(5),
 /// };
-/// let terminal = evildoer_tui::init_with_options(options);
+/// let terminal = xeno_tui::init_with_options(options);
 /// ```
 pub fn init_with_options(options: TerminalOptions) -> DefaultTerminal {
 	try_init_with_options(options).expect("failed to initialize terminal")
@@ -414,12 +414,12 @@ pub fn init_with_options(options: TerminalOptions) -> DefaultTerminal {
 /// # Examples
 ///
 /// ```no_run
-/// use evildoer_tui::{TerminalOptions, Viewport};
+/// use xeno_tui::{TerminalOptions, Viewport};
 ///
 /// let options = TerminalOptions {
 ///     viewport: Viewport::Inline(5),
 /// };
-/// let terminal = evildoer_tui::try_init_with_options(options)?;
+/// let terminal = xeno_tui::try_init_with_options(options)?;
 /// # Ok::<(), std::io::Error>(())
 /// ```
 pub fn try_init_with_options(options: TerminalOptions) -> io::Result<DefaultTerminal> {
@@ -452,7 +452,7 @@ pub fn try_init_with_options(options: TerminalOptions) -> io::Result<DefaultTerm
 /// # Examples
 ///
 /// ```rust,no_run
-/// evildoer_tui::restore();
+/// xeno_tui::restore();
 /// ```
 pub fn restore() {
 	if let Err(err) = try_restore() {
@@ -481,7 +481,7 @@ pub fn restore() {
 /// # Examples
 ///
 /// ```no_run
-/// evildoer_tui::try_restore()?;
+/// xeno_tui::try_restore()?;
 /// # Ok::<(), std::io::Error>(())
 /// ```
 pub fn try_restore() -> io::Result<()> {

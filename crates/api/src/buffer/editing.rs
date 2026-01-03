@@ -1,8 +1,8 @@
 //! Text editing operations for buffers.
 
-use evildoer_base::Transaction;
-use evildoer_core::movement;
-use evildoer_language::LanguageLoader;
+use xeno_base::Transaction;
+use xeno_core::movement;
+use xeno_language::LanguageLoader;
 
 use super::Buffer;
 
@@ -10,7 +10,7 @@ impl Buffer {
 	/// Inserts text at all cursor positions, returning the [`Transaction`] without applying it.
 	///
 	/// The caller is responsible for applying the transaction (with or without syntax update).
-	pub fn prepare_insert(&mut self, text: &str) -> (Transaction, evildoer_base::Selection) {
+	pub fn prepare_insert(&mut self, text: &str) -> (Transaction, xeno_base::Selection) {
 		self.ensure_valid_selection();
 
 		// Collapse all selections to their insertion points
@@ -74,7 +74,7 @@ impl Buffer {
 	pub fn prepare_paste_after(
 		&mut self,
 		text: &str,
-	) -> Option<(Transaction, evildoer_base::Selection)> {
+	) -> Option<(Transaction, xeno_base::Selection)> {
 		if text.is_empty() {
 			return None;
 		}
@@ -90,15 +90,14 @@ impl Buffer {
 					movement::move_horizontally(
 						doc.content.slice(..),
 						*r,
-						evildoer_base::range::Direction::Forward,
+						xeno_base::range::Direction::Forward,
 						1,
 						false,
 					)
 				})
 				.collect()
 		};
-		self.selection =
-			evildoer_base::Selection::from_vec(new_ranges, self.selection.primary_index());
+		self.selection = xeno_base::Selection::from_vec(new_ranges, self.selection.primary_index());
 		Some(self.prepare_insert(text))
 	}
 
@@ -122,7 +121,7 @@ impl Buffer {
 	pub fn prepare_paste_before(
 		&mut self,
 		text: &str,
-	) -> Option<(Transaction, evildoer_base::Selection)> {
+	) -> Option<(Transaction, xeno_base::Selection)> {
 		if text.is_empty() {
 			return None;
 		}
@@ -147,7 +146,7 @@ impl Buffer {
 	/// Prepares deletion of selection, returning transaction and new selection without applying.
 	///
 	/// Returns None if selection is empty.
-	pub fn prepare_delete_selection(&mut self) -> Option<(Transaction, evildoer_base::Selection)> {
+	pub fn prepare_delete_selection(&mut self) -> Option<(Transaction, xeno_base::Selection)> {
 		self.ensure_valid_selection();
 
 		if !self.selection.primary().is_empty() {
@@ -223,7 +222,7 @@ impl Buffer {
 	}
 
 	/// Finalizes selection/cursor after a transaction is applied.
-	pub fn finalize_selection(&mut self, new_selection: evildoer_base::Selection) {
+	pub fn finalize_selection(&mut self, new_selection: xeno_base::Selection) {
 		self.selection = new_selection;
 		self.cursor = self.selection.primary().head;
 	}

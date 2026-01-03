@@ -1,7 +1,7 @@
-use evildoer_registry::themes::Theme;
-use evildoer_tui::Frame;
-use evildoer_tui::layout::{Position, Rect};
 use termina::event::{KeyEvent, MouseEvent};
+use xeno_registry::themes::Theme;
+use xeno_tui::Frame;
+use xeno_tui::layout::{Position, Rect};
 
 use super::dock::DockSlot;
 use super::keymap::KeybindingRegistry;

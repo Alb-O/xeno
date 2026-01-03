@@ -21,7 +21,7 @@ members = [
 version = "0.3.0"
 edition = "2024"
 license = "MIT"
-repository = "https://github.com/Alb-O/evildoer"
+repository = "https://github.com/Alb-O/xeno"
 
 [workspace.dependencies]
 agent-client-protocol = { version = "0.9", features = ["unstable_session_model"] }
@@ -30,33 +30,6 @@ async-trait = "0.1"
 clap = { version = "4", features = ["derive"] }
 criterion = "0.8"
 crossterm = "0.29"
-evildoer-acp = { path = "crates/acp" }
-evildoer-api = { path = "crates/api" }
-evildoer-base = { path = "crates/base" }
-evildoer-config = { path = "crates/config" }
-evildoer-core = { path = "crates/core" }
-evildoer-extensions = { path = "crates/extensions" }
-evildoer-input = { path = "crates/input" }
-evildoer-keymap = { path = "crates/keymap" }
-evildoer-keymap-derive = { path = "crates/keymap/derive" }
-evildoer-keymap-parser = { path = "crates/keymap/parser" }
-evildoer-language = { path = "crates/language" }
-evildoer-lsp = { path = "crates/lsp" }
-evildoer-macro = { path = "crates/macro" }
-evildoer-registry = { path = "crates/registry" }
-evildoer-registry-actions = { path = "crates/registry/actions" }
-evildoer-registry-commands = { path = "crates/registry/commands" }
-evildoer-registry-core = { path = "crates/registry/core" }
-evildoer-registry-hooks = { path = "crates/registry/hooks" }
-evildoer-registry-menus = { path = "crates/registry/menus" }
-evildoer-registry-motions = { path = "crates/registry/motions" }
-evildoer-registry-notifications = { path = "crates/registry/notifications" }
-evildoer-registry-options = { path = "crates/registry/options" }
-evildoer-registry-statusline = { path = "crates/registry/statusline" }
-evildoer-registry-text-objects = { path = "crates/registry/text_objects" }
-evildoer-registry-themes = { path = "crates/registry/themes" }
-evildoer-runtime = { path = "crates/runtime" }
-evildoer-tui = { path = "crates/tui" }
 futures = "0.3"
 globset = "0.4"
 home = "0.5"
@@ -95,6 +68,33 @@ tracing-subscriber = "0.3"
 tree-house = "0.3"
 unicode-segmentation = "1.12"
 unicode-width = "0.2"
+xeno-acp = { path = "crates/acp" }
+xeno-api = { path = "crates/api" }
+xeno-base = { path = "crates/base" }
+xeno-config = { path = "crates/config" }
+xeno-core = { path = "crates/core" }
+xeno-extensions = { path = "crates/extensions" }
+xeno-input = { path = "crates/input" }
+xeno-keymap = { path = "crates/keymap" }
+xeno-keymap-derive = { path = "crates/keymap/derive" }
+xeno-keymap-parser = { path = "crates/keymap/parser" }
+xeno-language = { path = "crates/language" }
+xeno-lsp = { path = "crates/lsp" }
+xeno-macro = { path = "crates/macro" }
+xeno-registry = { path = "crates/registry" }
+xeno-registry-actions = { path = "crates/registry/actions" }
+xeno-registry-commands = { path = "crates/registry/commands" }
+xeno-registry-core = { path = "crates/registry/core" }
+xeno-registry-hooks = { path = "crates/registry/hooks" }
+xeno-registry-menus = { path = "crates/registry/menus" }
+xeno-registry-motions = { path = "crates/registry/motions" }
+xeno-registry-notifications = { path = "crates/registry/notifications" }
+xeno-registry-options = { path = "crates/registry/options" }
+xeno-registry-statusline = { path = "crates/registry/statusline" }
+xeno-registry-text-objects = { path = "crates/registry/text_objects" }
+xeno-registry-themes = { path = "crates/registry/themes" }
+xeno-runtime = { path = "crates/runtime" }
+xeno-tui = { path = "crates/tui" }
 
 [profile.dev]
 opt-level = 1

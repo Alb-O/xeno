@@ -2,7 +2,7 @@
 //!
 //! Finding separators at screen positions and resizing splits.
 
-use evildoer_tui::layout::Rect;
+use xeno_tui::layout::Rect;
 
 use super::manager::LayoutManager;
 use super::types::{LayerIndex, SeparatorHit, SeparatorId};

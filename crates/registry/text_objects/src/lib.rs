@@ -9,16 +9,16 @@
 //! - Registration macros ([`text_object!`], [`symmetric_text_object!`], [`bracket_pair_object!`])
 //! - Standard library implementations (word, line, paragraph, surround, quotes, etc.)
 
-use evildoer_base::Range;
 use linkme::distributed_slice;
 use ropey::RopeSlice;
+use xeno_base::Range;
 
 mod impls;
 mod macros;
 
 // Re-export shared types from core registry for consistency
-pub use evildoer_registry_core::{RegistryMetadata, RegistrySource, impl_registry_metadata};
-pub use evildoer_registry_motions::{Capability, flags, movement};
+pub use xeno_registry_core::{RegistryMetadata, RegistrySource, impl_registry_metadata};
+pub use xeno_registry_motions::{Capability, flags, movement};
 
 /// Handler signature for text object selection.
 ///

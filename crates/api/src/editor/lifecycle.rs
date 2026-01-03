@@ -4,8 +4,8 @@
 
 use std::path::PathBuf;
 
-use evildoer_registry::commands::{CommandContext, CommandOutcome, find_command};
-use evildoer_registry::{HookContext, HookEventData, emit_sync_with as emit_hook_sync_with};
+use xeno_registry::commands::{CommandContext, CommandOutcome, find_command};
+use xeno_registry::{HookContext, HookEventData, emit_sync_with as emit_hook_sync_with};
 
 use super::Editor;
 use super::extensions::{RENDER_EXTENSIONS, TICK_EXTENSIONS};
@@ -161,7 +161,9 @@ impl Editor {
 		let commands: Vec<_> = self.command_queue.drain().collect();
 		for cmd in commands {
 			let Some(command_def) = find_command(cmd.name) else {
-				self.show_notification(evildoer_registry_notifications::keys::unknown_command::call(cmd.name));
+				self.show_notification(xeno_registry_notifications::keys::unknown_command::call(
+					cmd.name,
+				));
 				continue;
 			};
 
@@ -178,7 +180,9 @@ impl Editor {
 				Ok(CommandOutcome::Ok) => {}
 				Ok(CommandOutcome::Quit | CommandOutcome::ForceQuit) => return true,
 				Err(e) => {
-					self.show_notification(evildoer_registry_notifications::keys::command_error::call(&e.to_string()));
+					self.show_notification(xeno_registry_notifications::keys::command_error::call(
+						&e.to_string(),
+					));
 				}
 			}
 		}
@@ -186,7 +190,7 @@ impl Editor {
 	}
 
 	/// Maps sibling buffer selections through a transaction.
-	pub(super) fn sync_sibling_selections(&mut self, tx: &evildoer_base::Transaction) {
+	pub(super) fn sync_sibling_selections(&mut self, tx: &xeno_base::Transaction) {
 		let buffer_id = self.buffers.focused_view();
 		let doc_id = self
 			.buffers

@@ -1,4 +1,4 @@
-//! LSP integration extension for Evildoer.
+//! LSP integration extension for Xeno.
 //!
 //! Manages language server lifecycle and document synchronization via hooks for
 //! buffer events (open, change, close). [`LspManager`] wraps the LSP [`Registry`]
@@ -9,11 +9,11 @@ mod hooks;
 use std::path::Path;
 use std::sync::Arc;
 
-use evildoer_api::editor::extensions::{EXTENSIONS, ExtensionInitDef, ExtensionMap};
-use evildoer_lsp::lsp_types::Url;
-use evildoer_lsp::{LanguageServerConfig, Registry};
 use linkme::distributed_slice;
 use tracing::{debug, warn};
+use xeno_api::editor::extensions::{EXTENSIONS, ExtensionInitDef, ExtensionMap};
+use xeno_lsp::lsp_types::Url;
+use xeno_lsp::{LanguageServerConfig, Registry};
 
 /// Manager for LSP client connections.
 ///

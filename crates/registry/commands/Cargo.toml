@@ -1,16 +1,16 @@
 [package]
-name = "evildoer-registry-commands"
+name = "xeno-registry-commands"
 description = "Command registry"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 
 [dependencies]
-evildoer-registry-core.workspace = true
-evildoer-registry-motions.workspace = true
-evildoer-registry-notifications.workspace = true
-evildoer-registry-text-objects.workspace = true
 futures.workspace = true
 linkme.workspace = true
 paste.workspace = true
 thiserror.workspace = true
+xeno-registry-core.workspace = true
+xeno-registry-motions.workspace = true
+xeno-registry-notifications.workspace = true
+xeno-registry-text-objects.workspace = true

@@ -1,11 +1,11 @@
 [package]
-name = "evildoer-registry-options"
+name = "xeno-registry-options"
 description = "Options registry"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 
 [dependencies]
-evildoer-registry-core.workspace = true
 linkme.workspace = true
 paste.workspace = true
+xeno-registry-core.workspace = true

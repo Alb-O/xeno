@@ -6,9 +6,9 @@
 
 use std::collections::HashMap;
 
-use evildoer_registry_notifications::keys;
 use futures::future::LocalBoxFuture;
-use {evildoer_registry_motions as motions, evildoer_registry_text_objects as text_objects};
+use xeno_registry_notifications::keys;
+use {xeno_registry_motions as motions, xeno_registry_text_objects as text_objects};
 
 use crate::{COMMANDS, CommandContext, CommandDef, CommandError, CommandOutcome, command};
 

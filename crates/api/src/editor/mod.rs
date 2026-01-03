@@ -11,7 +11,7 @@
 //! - [`splits`] - Split view management
 //! - [`theming`] - Theme and syntax highlighting
 //!
-//! [`FileOpsAccess`]: evildoer_core::editor_ctx::FileOpsAccess
+//! [`FileOpsAccess`]: xeno_core::editor_ctx::FileOpsAccess
 
 /// Action execution result handling.
 mod actions;
@@ -63,13 +63,13 @@ use std::path::PathBuf;
 
 pub use buffer_manager::BufferManager;
 pub use command_queue::CommandQueue;
-use evildoer_language::LanguageLoader;
-use evildoer_registry::themes::Theme;
-use evildoer_registry::{HookContext, HookEventData, emit_sync_with as emit_hook_sync_with};
-use evildoer_tui::widgets::menu::MenuState;
 pub use hook_runtime::HookRuntime;
 pub use layout::{LayoutManager, SeparatorHit, SeparatorId};
 pub use types::{HistoryEntry, JumpList, JumpLocation, MacroState, Registers};
+use xeno_language::LanguageLoader;
+use xeno_registry::themes::Theme;
+use xeno_registry::{HookContext, HookEventData, emit_sync_with as emit_hook_sync_with};
+use xeno_tui::widgets::menu::MenuState;
 
 pub use self::separator::{DragState, MouseVelocityTracker, SeparatorHoverAnimation};
 use crate::buffer::{BufferId, BufferView};
@@ -145,7 +145,7 @@ pub struct Editor {
 	pending_quit: bool,
 
 	/// Notification system.
-	pub notifications: evildoer_tui::widgets::notifications::ToastManager,
+	pub notifications: xeno_tui::widgets::notifications::ToastManager,
 
 	/// Last tick timestamp.
 	pub last_tick: std::time::SystemTime,
@@ -184,7 +184,7 @@ pub struct Editor {
 	pub menu: MenuState<MenuAction>,
 }
 
-impl evildoer_core::EditorOps for Editor {}
+impl xeno_core::EditorOps for Editor {}
 
 impl Editor {
 	/// Creates a new editor by loading content from the given file path.
@@ -242,18 +242,16 @@ impl Editor {
 			buffers: buffer_manager,
 			layout: LayoutManager::new(buffer_id),
 			registers: Registers::default(),
-			theme: evildoer_registry::themes::get_theme(
-				evildoer_registry::themes::DEFAULT_THEME_ID,
-			)
-			.unwrap_or(&evildoer_registry::themes::DEFAULT_THEME),
+			theme: xeno_registry::themes::get_theme(xeno_registry::themes::DEFAULT_THEME_ID)
+				.unwrap_or(&xeno_registry::themes::DEFAULT_THEME),
 			window_width: None,
 			window_height: None,
 			ui: UiManager::new(),
 			needs_redraw: false,
 			pending_quit: false,
-			notifications: evildoer_tui::widgets::notifications::ToastManager::new()
+			notifications: xeno_tui::widgets::notifications::ToastManager::new()
 				.max_visible(Some(5))
-				.overflow(evildoer_tui::widgets::notifications::Overflow::DropOldest),
+				.overflow(xeno_tui::widgets::notifications::Overflow::DropOldest),
 			last_tick: std::time::SystemTime::now(),
 			completions: CompletionState::default(),
 			extensions: {

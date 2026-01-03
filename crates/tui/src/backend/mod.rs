@@ -25,7 +25,7 @@
 //! ```rust,ignore
 //! use std::io::stdout;
 //!
-//! use evildoer_tui::{backend::CrosstermBackend, Terminal};
+//! use xeno_tui::{backend::CrosstermBackend, Terminal};
 //!
 //! let backend = CrosstermBackend::new(stdout());
 //! let mut terminal = Terminal::new(backend)?;
@@ -165,9 +165,9 @@ pub trait Backend {
 	/// # Example
 	///
 	/// ```rust,ignore
-	/// # use evildoer_tui::backend::{TestBackend};
+	/// # use xeno_tui::backend::{TestBackend};
 	/// # let mut backend = TestBackend::new(80, 25);
-	/// use evildoer_tui::backend::Backend;
+	/// use xeno_tui::backend::Backend;
 	///
 	/// backend.hide_cursor()?;
 	/// // do something with hidden cursor
@@ -202,9 +202,9 @@ pub trait Backend {
 	/// # Example
 	///
 	/// ```rust,ignore
-	/// # use evildoer_tui::backend::{TestBackend};
+	/// # use xeno_tui::backend::{TestBackend};
 	/// # let mut backend = TestBackend::new(80, 25);
-	/// use evildoer_tui::{backend::Backend, layout::Position};
+	/// use xeno_tui::{backend::Backend, layout::Position};
 	///
 	/// backend.set_cursor_position(Position { x: 10, y: 20 })?;
 	/// assert_eq!(backend.get_cursor_position()?, Position { x: 10, y: 20 });
@@ -217,9 +217,9 @@ pub trait Backend {
 	/// # Example
 	///
 	/// ```rust,ignore
-	/// # use evildoer_tui::backend::{TestBackend};
+	/// # use xeno_tui::backend::{TestBackend};
 	/// # let mut backend = TestBackend::new(80, 25);
-	/// use evildoer_tui::backend::Backend;
+	/// use xeno_tui::backend::Backend;
 	///
 	/// backend.clear()?;
 	/// # std::io::Result::Ok(())
@@ -235,9 +235,9 @@ pub trait Backend {
 	/// # Example
 	///
 	/// ```rust,ignore
-	/// # use evildoer_tui::{backend::{TestBackend}};
+	/// # use xeno_tui::{backend::{TestBackend}};
 	/// # let mut backend = TestBackend::new(80, 25);
-	/// use evildoer_tui::backend::{Backend, ClearType};
+	/// use xeno_tui::backend::{Backend, ClearType};
 	///
 	/// backend.clear_region(ClearType::All)?;
 	/// # std::io::Result::Ok(())
@@ -258,9 +258,9 @@ pub trait Backend {
 	/// # Example
 	///
 	/// ```rust,ignore
-	/// # use evildoer_tui::{backend::{TestBackend}};
+	/// # use xeno_tui::{backend::{TestBackend}};
 	/// # let backend = TestBackend::new(80, 25);
-	/// use evildoer_tui::{backend::Backend, layout::Size};
+	/// use xeno_tui::{backend::Backend, layout::Size};
 	///
 	/// assert_eq!(backend.size()?, Size::new(80, 25));
 	/// # Result::Ok(())

@@ -1,15 +1,15 @@
 [package]
-name = "evildoer-registry-motions"
+name = "xeno-registry-motions"
 description = "Motion registry"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 
 [dependencies]
-evildoer-base.workspace = true
-evildoer-registry-core.workspace = true
 linkme.workspace = true
 paste.workspace = true
 regex.workspace = true
 ropey.workspace = true
 unicode-segmentation.workspace = true
+xeno-base.workspace = true
+xeno-registry-core.workspace = true

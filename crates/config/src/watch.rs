@@ -132,7 +132,7 @@ mod tests {
 
 	#[test]
 	fn config_change_classification() {
-		let config_dir = PathBuf::from("/home/user/.config/evildoer");
+		let config_dir = PathBuf::from("/home/user/.config/xeno");
 
 		let main = config_dir.join("config.kdl");
 		assert!(matches!(

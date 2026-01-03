@@ -1,4 +1,4 @@
-# Evildoer: Typed Registry Handles - End-to-End Implementation
+# Xeno: Typed Registry Handles - End-to-End Implementation
 
 ## Model Directive
 
@@ -87,7 +87,7 @@ pub fn find_motion(name: &str) -> Option<MotionKey>
 action!(move_left, { ... }, |ctx| cursor_motion(ctx, "left"));
 
 // After
-use evildoer_registry_motions::keys as motions;
+use xeno_registry_motions::keys as motions;
 action!(move_left, { ... }, |ctx| cursor_motion(ctx, motions::left));
 ```
 
@@ -104,7 +104,7 @@ Tasks:
 1. Define `Key<T>` struct with `Copy`, `Clone`, `Debug`
 1. Define `MotionKey` type alias
 1. Implement `Key::new()`, `Key::def()`, `Key::name()` (delegates to def)
-1. Verify: `cargo check -p evildoer-registry-motions`
+1. Verify: `cargo check -p xeno-registry-motions`
 
 ### Phase 2: Update motion! Macro
 
@@ -115,7 +115,7 @@ Tasks:
 1. Modify `motion!` to generate a `keys` submodule with the constant
 1. Handle the static visibility (needs to be accessible for Key::new)
 1. Ensure distributed slice registration still works
-1. Verify: `cargo check -p evildoer-registry-motions`
+1. Verify: `cargo check -p xeno-registry-motions`
 
 ### Phase 3: Export Keys from Motions Crate
 
@@ -125,7 +125,7 @@ Tasks:
 
 1. Re-export the generated `keys` module at crate root
 1. Verify all motion definitions generate their keys
-1. Verify: `cargo check -p evildoer-registry-motions`
+1. Verify: `cargo check -p xeno-registry-motions`
 
 ### Phase 4: Update Motion Helpers
 
@@ -137,7 +137,7 @@ Tasks:
 1. Change `selection_motion` similarly
 1. Change `insert_with_motion` similarly
 1. Update internal lookup logic (now just `motion.def()`)
-1. Verify: `cargo check -p evildoer-registry-actions`
+1. Verify: `cargo check -p xeno-registry-actions`
 
 ### Phase 5: Migrate Action Implementations
 
@@ -149,7 +149,7 @@ Tasks:
 
 Tasks:
 
-1. Add `use evildoer_registry_motions::keys as motions;`
+1. Add `use xeno_registry_motions::keys as motions;`
 1. Replace all `cursor_motion(ctx, "left")` with `cursor_motion(ctx, motions::left)`
 1. Replace all `selection_motion(ctx, "...")` similarly
 1. Replace all `insert_with_motion(ctx, "...")` similarly

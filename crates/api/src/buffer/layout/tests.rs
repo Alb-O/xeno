@@ -1,7 +1,7 @@
 use super::*;
 
-fn make_rect(x: u16, y: u16, width: u16, height: u16) -> evildoer_tui::layout::Rect {
-	evildoer_tui::layout::Rect {
+fn make_rect(x: u16, y: u16, width: u16, height: u16) -> xeno_tui::layout::Rect {
+	xeno_tui::layout::Rect {
 		x,
 		y,
 		width,

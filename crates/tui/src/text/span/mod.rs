@@ -42,7 +42,7 @@ use crate::widgets::Widget;
 /// any type convertible to [`Cow<str>`].
 ///
 /// ```rust
-/// use evildoer_tui::text::Span;
+/// use xeno_tui::text::Span;
 ///
 /// let span = Span::raw("test content");
 /// let span = Span::raw(String::from("test content"));
@@ -56,8 +56,8 @@ use crate::widgets::Widget;
 /// the [`Stylize`] trait.
 ///
 /// ```rust
-/// use evildoer_tui::style::{Style, Stylize};
-/// use evildoer_tui::text::Span;
+/// use xeno_tui::style::{Style, Stylize};
+/// use xeno_tui::text::Span;
 ///
 /// let span = Span::styled("test content", Style::new().green());
 /// let span = Span::styled(String::from("test content"), Style::new().green());
@@ -71,8 +71,8 @@ use crate::widgets::Widget;
 /// defined in the [`Stylize`] trait.
 ///
 /// ```rust
-/// use evildoer_tui::style::Stylize;
-/// use evildoer_tui::text::Span;
+/// use xeno_tui::style::Stylize;
+/// use xeno_tui::text::Span;
 ///
 /// let span = Span::raw("test content").green().on_yellow().italic();
 /// let span = Span::raw(String::from("test content"))
@@ -86,7 +86,7 @@ use crate::widgets::Widget;
 /// wrapping and alignment for you.
 ///
 /// ```rust,ignore
-/// use evildoer_tui::{style::Stylize, Frame};
+/// use xeno_tui::{style::Stylize, Frame};
 ///
 /// # fn render_frame(frame: &mut Frame) {
 /// frame.render_widget("test content".green().on_yellow().italic(), frame.area());
@@ -123,7 +123,7 @@ impl<'a> Span<'a> {
 	/// # Examples
 	///
 	/// ```rust
-	/// use evildoer_tui::text::Span;
+	/// use xeno_tui::text::Span;
 	///
 	/// Span::raw("test content");
 	/// Span::raw(String::from("test content"));
@@ -149,8 +149,8 @@ impl<'a> Span<'a> {
 	/// # Examples
 	///
 	/// ```rust
-	/// use evildoer_tui::style::{Style, Stylize};
-	/// use evildoer_tui::text::Span;
+	/// use xeno_tui::style::{Style, Stylize};
+	/// use xeno_tui::text::Span;
 	///
 	/// let style = Style::new().yellow().on_green().italic();
 	/// Span::styled("test content", style);
@@ -179,7 +179,7 @@ impl<'a> Span<'a> {
 	/// # Examples
 	///
 	/// ```rust
-	/// use evildoer_tui::text::Span;
+	/// use xeno_tui::text::Span;
 	///
 	/// let mut span = Span::default().content("content");
 	/// ```
@@ -205,8 +205,8 @@ impl<'a> Span<'a> {
 	/// # Examples
 	///
 	/// ```rust
-	/// use evildoer_tui::style::{Style, Stylize};
-	/// use evildoer_tui::text::Span;
+	/// use xeno_tui::style::{Style, Stylize};
+	/// use xeno_tui::text::Span;
 	///
 	/// let mut span = Span::default().style(Style::new().green());
 	/// ```
@@ -228,8 +228,8 @@ impl<'a> Span<'a> {
 	/// # Example
 	///
 	/// ```rust
-	/// use evildoer_tui::style::{Style, Stylize};
-	/// use evildoer_tui::text::Span;
+	/// use xeno_tui::style::{Style, Stylize};
+	/// use xeno_tui::text::Span;
 	///
 	/// let span = Span::styled("test content", Style::new().green().italic())
 	///     .patch_style(Style::new().red().on_yellow().bold());
@@ -252,8 +252,8 @@ impl<'a> Span<'a> {
 	/// # Example
 	///
 	/// ```rust
-	/// use evildoer_tui::style::{Style, Stylize};
-	/// use evildoer_tui::text::Span;
+	/// use xeno_tui::style::{Style, Stylize};
+	/// use xeno_tui::text::Span;
 	///
 	/// let span = Span::styled(
 	///     "Test Content",
@@ -285,8 +285,8 @@ impl<'a> Span<'a> {
 	/// ```rust
 	/// use std::iter::Iterator;
 	///
-	/// use evildoer_tui::style::{Style, Stylize};
-	/// use evildoer_tui::text::{Span, StyledGrapheme};
+	/// use xeno_tui::style::{Style, Stylize};
+	/// use xeno_tui::text::{Span, StyledGrapheme};
 	///
 	/// let span = Span::styled("Test", Style::new().green().italic());
 	/// let style = Style::new().red().on_yellow();
@@ -320,7 +320,7 @@ impl<'a> Span<'a> {
 	/// # Example
 	///
 	/// ```rust
-	/// use evildoer_tui::style::Stylize;
+	/// use xeno_tui::style::Stylize;
 	///
 	/// let line = "Test Content".green().italic().into_left_aligned_line();
 	/// ```
@@ -334,7 +334,7 @@ impl<'a> Span<'a> {
 	/// # Example
 	///
 	/// ```rust
-	/// use evildoer_tui::style::Stylize;
+	/// use xeno_tui::style::Stylize;
 	///
 	/// let line = "Test Content".green().italic().into_centered_line();
 	/// ```
@@ -348,7 +348,7 @@ impl<'a> Span<'a> {
 	/// # Example
 	///
 	/// ```rust
-	/// use evildoer_tui::style::Stylize;
+	/// use xeno_tui::style::Stylize;
 	///
 	/// let line = "Test Content".green().italic().into_right_aligned_line();
 	/// ```

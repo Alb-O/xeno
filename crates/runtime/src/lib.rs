@@ -1,4 +1,4 @@
-//! Embedded runtime assets for evildoer.
+//! Embedded runtime assets for xeno.
 //!
 //! Provides compile-time embedded access to:
 //! - Tree-sitter queries (highlights, indents, textobjects, etc.)

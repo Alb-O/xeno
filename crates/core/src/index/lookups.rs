@@ -1,9 +1,9 @@
 //! Public lookup functions for registry queries.
 
-use evildoer_registry::actions::{ActionDef, ActionKey};
-use evildoer_registry::commands::CommandDef;
-use evildoer_registry::motions::{MotionDef, MotionKey};
-use evildoer_registry::text_objects::TextObjectDef;
+use xeno_registry::actions::{ActionDef, ActionKey};
+use xeno_registry::commands::CommandDef;
+use xeno_registry::motions::{MotionDef, MotionKey};
+use xeno_registry::text_objects::TextObjectDef;
 
 use super::get_registry;
 use crate::ActionId;

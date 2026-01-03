@@ -3,8 +3,8 @@
 //! This module bridges `termina::event::KeyEvent` with a backend-agnostic
 //! representation (`KeyMap`) used for keybinding configuration and matching.
 
-use evildoer_keymap_parser::{self as parser, Key, Modifier, Node};
 use termina::event::{KeyCode, KeyEvent, Modifiers as TmModifiers};
+use xeno_keymap_parser::{self as parser, Key, Modifier, Node};
 
 use crate::Error;
 use crate::keymap::{FromKeyMap, IntoKeyMap, KeyMap, ToKeyMap};

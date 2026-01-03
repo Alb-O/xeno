@@ -1,6 +1,6 @@
 //! Area computation and separator handling for layout splits.
 
-use evildoer_tui::layout::Rect;
+use xeno_tui::layout::Rect;
 
 use super::Layout;
 use super::types::{BufferView, SplitDirection, SplitPath};

@@ -1,4 +1,4 @@
-//! Result handlers for [`ActionResult`](evildoer_core::ActionResult) variants.
+//! Result handlers for [`ActionResult`](xeno_core::ActionResult) variants.
 //! Core ActionResult handlers for the editor.
 //!
 //! Extensions should register handlers with `result_extension_handler!`.

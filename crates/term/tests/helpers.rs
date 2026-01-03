@@ -5,36 +5,36 @@ use std::path::{Path, PathBuf};
 use kitty_test_harness::{KeyPress, KittyHarness, send_keys};
 use termwiz::input::KeyCode;
 
-/// Returns the path to the evildoer binary.
-pub fn evildoer_cmd() -> String {
-	env!("CARGO_BIN_EXE_evil").to_string()
+/// Returns the path to the xeno binary.
+pub fn xeno_cmd() -> String {
+	env!("CARGO_BIN_EXE_xeno").to_string()
 }
 
-/// Returns a command to launch evildoer with the given file.
+/// Returns a command to launch xeno with the given file.
 #[allow(dead_code, reason = "test helper used by individual test files")]
-pub fn evildoer_cmd_with_file_named(name: &str) -> String {
-	format!("{} {}", evildoer_cmd(), name)
+pub fn xeno_cmd_with_file_named(name: &str) -> String {
+	format!("{} {}", xeno_cmd(), name)
 }
 
-/// Returns a command to launch evildoer with the debug theme and a given file.
+/// Returns a command to launch xeno with the debug theme and a given file.
 ///
 /// The debug theme uses predictable RGB values that are easy to test against.
-/// See `evildoer_theme::themes::debug::colors` for the exact values.
+/// See `xeno_theme::themes::debug::colors` for the exact values.
 #[allow(dead_code, reason = "test helper used by individual test files")]
-pub fn evildoer_cmd_debug_theme(name: &str) -> String {
-	format!("{} --theme debug {}", evildoer_cmd(), name)
+pub fn xeno_cmd_debug_theme(name: &str) -> String {
+	format!("{} --theme debug {}", xeno_cmd(), name)
 }
 
-/// Returns a command to launch evildoer with the debug theme and test logging enabled.
+/// Returns a command to launch xeno with the debug theme and test logging enabled.
 ///
 /// The `log_path` should be a file path where debug logs will be written.
 /// Use `kitty_test_harness::create_test_log()` to create the log file.
 #[allow(dead_code, reason = "test helper used by individual test files")]
-pub fn evildoer_cmd_debug_with_log(name: &str, log_path: &Path) -> String {
+pub fn xeno_cmd_debug_with_log(name: &str, log_path: &Path) -> String {
 	format!(
-		"EVILDOER_TEST_LOG={} {} --theme debug {}",
+		"XENO_TEST_LOG={} {} --theme debug {}",
 		log_path.display(),
-		evildoer_cmd(),
+		xeno_cmd(),
 		name
 	)
 }

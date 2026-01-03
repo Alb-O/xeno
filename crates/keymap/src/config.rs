@@ -29,9 +29,9 @@ use std::fmt;
 use std::marker::PhantomData;
 use std::ops::Deref;
 
-use evildoer_keymap_parser::parse_seq;
 use serde::de::{MapAccess, Visitor};
 use serde::{Deserialize, Deserializer};
+use xeno_keymap_parser::parse_seq;
 
 use crate::KeyMap;
 use crate::keymap::ToKeyMap;
@@ -239,7 +239,7 @@ impl<T> Deref for DerivedConfig<T> {
 #[derive(Debug, Deserialize, PartialEq)]
 pub struct Item {
 	/// A collection of key expressions. Each expression will be run through
-	/// `evildoer_keymap_parser::parse_seq`, so special notations like `@digit` or
+	/// `xeno_keymap_parser::parse_seq`, so special notations like `@digit` or
 	/// multi-key sequences (e.g., `"d e"`) are supported.
 	pub keys: Vec<String>,
 
@@ -319,7 +319,7 @@ impl<T> Config<T> {
 	///
 	/// ```
 	/// # use keymap::{Config, Item};
-	/// # use evildoer_keymap_parser::parse;
+	/// # use xeno_keymap_parser::parse;
 	/// let config: Config<String> = toml::from_str(r#"
 	///     Create = { keys = ["c"], description = "Create a new item" }
 	/// "#).unwrap();
@@ -346,7 +346,7 @@ impl<T> Config<T> {
 	///
 	/// ```
 	/// # use keymap::{Config, Item};
-	/// # use evildoer_keymap_parser::parse_seq;
+	/// # use xeno_keymap_parser::parse_seq;
 	/// let config: Config<String> = toml::from_str(r#"
 	///     Create = { keys = ["x y"], description = "Create a new item" }
 	/// "#).unwrap();

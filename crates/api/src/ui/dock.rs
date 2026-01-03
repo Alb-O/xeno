@@ -5,7 +5,7 @@
 
 use std::collections::HashMap;
 
-use evildoer_tui::layout::{Constraint, Direction, Layout, Rect};
+use xeno_tui::layout::{Constraint, Direction, Layout, Rect};
 
 /// Position where a panel can be docked in the editor layout.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

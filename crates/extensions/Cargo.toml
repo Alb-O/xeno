@@ -1,21 +1,21 @@
 [package]
-name = "evildoer-extensions"
-description = "Built-in extensions for Evildoer"
+name = "xeno-extensions"
+description = "Built-in extensions for Xeno"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 
 [dependencies]
 anyhow.workspace = true
-evildoer-api.workspace = true
-evildoer-core.workspace = true
-evildoer-language.workspace = true
-evildoer-lsp = { workspace = true, features = ["client", "position"] }
-evildoer-macro.workspace = true
-evildoer-registry.workspace = true
 futures.workspace = true
 linkme.workspace = true
 paste.workspace = true
 tracing.workspace = true
+xeno-api.workspace = true
+xeno-core.workspace = true
+xeno-language.workspace = true
+xeno-lsp = { workspace = true, features = ["client", "position"] }
+xeno-macro.workspace = true
+xeno-registry.workspace = true
 [dev-dependencies]
 ropey.workspace = true

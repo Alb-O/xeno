@@ -10,7 +10,7 @@
 /// # Example
 ///
 /// ```
-/// use evildoer_tui::widgets::Padding;
+/// use xeno_tui::widgets::Padding;
 ///
 /// Padding::uniform(1);
 /// Padding::horizontal(2);

@@ -4,12 +4,12 @@
 
 use std::path::PathBuf;
 
-use evildoer_registry::commands::CommandError;
-use evildoer_registry::{HookContext, HookEventData, emit as emit_hook};
+use xeno_registry::commands::CommandError;
+use xeno_registry::{HookContext, HookEventData, emit as emit_hook};
 
 use super::Editor;
 
-impl evildoer_core::editor_ctx::FileOpsAccess for Editor {
+impl xeno_core::editor_ctx::FileOpsAccess for Editor {
 	fn is_modified(&self) -> bool {
 		self.buffer().modified()
 	}
@@ -47,7 +47,9 @@ impl evildoer_core::editor_ctx::FileOpsAccess for Editor {
 				.map_err(|e| CommandError::Io(e.to_string()))?;
 
 			self.buffer_mut().set_modified(false);
-			self.show_notification(evildoer_registry_notifications::keys::file_saved::call(&path_owned));
+			self.show_notification(xeno_registry_notifications::keys::file_saved::call(
+				&path_owned,
+			));
 
 			emit_hook(&HookContext::new(
 				HookEventData::BufferWrite { path: &path_owned },

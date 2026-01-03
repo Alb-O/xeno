@@ -1,5 +1,5 @@
 [package]
-name = "evildoer-keymap-derive"
+name = "xeno-keymap-derive"
 description = "Derive macro for compile-time validated key mappings."
 version.workspace = true
 edition.workspace = true
@@ -10,12 +10,12 @@ repository.workspace = true
 proc-macro = true
 
 [dependencies]
-evildoer-keymap-parser = { path = "../parser" }
 proc-macro2 = { workspace = true }
 quote = { workspace = true }
 syn = { workspace = true }
+xeno-keymap-parser = { path = "../parser" }
 
 [dev-dependencies]
-evildoer-keymap = { path = "../" }
 serde = { workspace = true }
 toml = { workspace = true }
+xeno-keymap = { path = "../" }

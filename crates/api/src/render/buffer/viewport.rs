@@ -1,9 +1,9 @@
 //! Viewport scrolling and cursor visibility logic.
 
-use evildoer_base::range::CharIdx;
-use evildoer_tui::layout::Rect;
 use serde::Serialize;
 use tracing::debug;
+use xeno_base::range::CharIdx;
+use xeno_tui::layout::Rect;
 
 use crate::buffer::Buffer;
 use crate::render::types::{WrapSegment, wrap_line};

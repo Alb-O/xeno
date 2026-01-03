@@ -7,8 +7,8 @@
 /// * Create a [`Text`] containing a vector of [`Line`]s:
 ///
 /// ```rust
-/// # use evildoer_tui::style::Stylize;
-/// use evildoer_tui::text;
+/// # use xeno_tui::style::Stylize;
+/// use xeno_tui::text;
 ///
 /// let text = text!["hello", "world"];
 /// let text = text!["hello".red(), "world".red().bold()];
@@ -17,15 +17,15 @@
 /// * Create a [`text`] from a given [`Line`] repeated some amount of times:
 ///
 /// ```rust
-/// # use evildoer_tui::text;
+/// # use xeno_tui::text;
 /// let text = text!["hello"; 2];
 /// ```
 ///
 /// * Use [`line!`] or [`span!`] macro inside [`text!`] macro.
 ///
 /// ```rust
-/// # use evildoer_tui::style::{Modifier};
-/// use evildoer_tui::{line, text, span};
+/// # use xeno_tui::style::{Modifier};
+/// use xeno_tui::{line, text, span};
 ///
 /// let text = text![line!["hello", "world"], span!(Modifier::BOLD; "goodbye {}", "world")];
 /// ```
