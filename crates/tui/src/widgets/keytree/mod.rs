@@ -81,17 +81,19 @@ pub const ROUNDED_SYMBOLS: TreeSymbols<'static> = TreeSymbols {
 /// Displays a root key with child continuations as a tree.
 #[derive(Debug, Clone, Default)]
 pub struct KeyTree<'a> {
-	/// The root key label (e.g., the pressed prefix).
+	/// The root key label (e.g., the first key pressed like "ctrl-w").
 	root: Cow<'a, str>,
-	/// Optional description shown after the root key (e.g., "Goto…").
+	/// Optional description for root (e.g., "Window").
 	root_desc: Option<Cow<'a, str>>,
+	/// Ancestor nodes between root and children (intermediate keys in the sequence).
+	ancestors: Vec<KeyTreeNode<'a>>,
 	/// Child nodes representing available continuations.
 	children: Vec<KeyTreeNode<'a>>,
 	/// Symbols used for tree connectors.
 	symbols: TreeSymbols<'a>,
-	/// Style for the root key.
-	root_style: Style,
-	/// Style for child key labels.
+	/// Style for already-pressed keys (root and ancestors).
+	ancestor_style: Style,
+	/// Style for child key labels (available options).
 	key_style: Style,
 	/// Style for descriptions.
 	desc_style: Style,
@@ -107,10 +109,19 @@ impl<'a> KeyTree<'a> {
 		Self { root: root.into(), children, ..Default::default() }
 	}
 
-	/// Sets the description shown after the root key (e.g., "Goto...").
+	/// Sets the description shown after the root key (e.g., "Window").
 	#[must_use]
 	pub fn root_desc(mut self, desc: impl Into<Cow<'a, str>>) -> Self {
 		self.root_desc = Some(desc.into());
+		self
+	}
+
+	/// Sets ancestor nodes between root and children.
+	///
+	/// These are rendered as a path from root to the current prefix level.
+	#[must_use]
+	pub fn ancestors(mut self, ancestors: Vec<KeyTreeNode<'a>>) -> Self {
+		self.ancestors = ancestors;
 		self
 	}
 
@@ -121,14 +132,14 @@ impl<'a> KeyTree<'a> {
 		self
 	}
 
-	/// Sets the style for the root key.
+	/// Sets the style for already-pressed keys (root and ancestors).
 	#[must_use]
-	pub const fn root_style(mut self, style: Style) -> Self {
-		self.root_style = style;
+	pub const fn ancestor_style(mut self, style: Style) -> Self {
+		self.ancestor_style = style;
 		self
 	}
 
-	/// Sets the style for child key labels.
+	/// Sets the style for child key labels (available options).
 	#[must_use]
 	pub const fn key_style(mut self, style: Style) -> Self {
 		self.key_style = style;
@@ -164,19 +175,60 @@ impl Widget for KeyTree<'_> {
 		}
 
 		let mut y = area.y;
+		let ancestor_indent = self.ancestors.len() as u16 * 2;
 
 		let root_width = self.root.len().min(area.width as usize);
-		buf.set_stringn(area.x, y, &self.root, root_width, self.root_style);
+		buf.set_stringn(area.x, y, &self.root, root_width, self.ancestor_style);
+		let mut x = area.x + root_width as u16 + 1;
 		if let Some(ref desc) = self.root_desc {
-			let desc_x = area.x + root_width as u16;
-			if desc_x < area.right() {
-				buf.set_stringn(desc_x, y, desc, (area.right() - desc_x) as usize, self.desc_style);
+			if x < area.right() {
+				let desc_width = desc.len().min((area.right() - x) as usize);
+				buf.set_stringn(x, y, desc, desc_width, self.desc_style);
+				x += desc_width as u16;
 			}
+		}
+		if !self.ancestors.is_empty() && x < area.right() {
+			buf.set_string(x, y, "…", self.suffix_style);
 		}
 		y += 1;
 
+		let ancestor_count = self.ancestors.len();
+		for (i, ancestor) in self.ancestors.iter().enumerate() {
+			if y >= area.bottom() {
+				return;
+			}
+			let has_children_below = i < ancestor_count - 1 || !self.children.is_empty();
+
+			let indent = i as u16 * 2;
+			let x = area.x + indent;
+
+			if x < area.right() {
+				buf.set_string(x, y, self.symbols.corner, self.line_style);
+			}
+			if x + 1 < area.right() {
+				buf.set_string(x + 1, y, self.symbols.horizontal, self.line_style);
+			}
+			if x + 2 < area.right() {
+				let key_width = ancestor.key.len().min((area.right() - x - 2) as usize);
+				buf.set_stringn(x + 2, y, &ancestor.key, key_width, self.ancestor_style);
+				let mut desc_x = x + 2 + key_width as u16 + 1;
+				if desc_x < area.right() && !ancestor.description.is_empty() {
+					let desc_width = ancestor.description.len().min((area.right() - desc_x) as usize);
+					buf.set_stringn(desc_x, y, &ancestor.description, desc_width, self.desc_style);
+					desc_x += desc_width as u16;
+				}
+				if has_children_below && desc_x < area.right() {
+					buf.set_string(desc_x, y, "…", self.suffix_style);
+				}
+			}
+			y += 1;
+		}
+
 		if y < area.bottom() {
-			buf.set_string(area.x, y, self.symbols.vertical, self.line_style);
+			let x = area.x + ancestor_indent;
+			if x < area.right() {
+				buf.set_string(x, y, self.symbols.vertical, self.line_style);
+			}
 			y += 1;
 		}
 
@@ -188,10 +240,12 @@ impl Widget for KeyTree<'_> {
 			let is_last = i == self.children.len() - 1;
 			let connector = if is_last { self.symbols.corner } else { self.symbols.branch };
 
-			let mut x = area.x;
-			buf.set_string(x, y, connector, self.line_style);
-			x += 1;
+			let x = area.x + ancestor_indent;
+			if x < area.right() {
+				buf.set_string(x, y, connector, self.line_style);
+			}
 
+			let mut x = x + 1;
 			if x < area.right() {
 				buf.set_string(x, y, self.symbols.horizontal, self.line_style);
 				x += 1;
@@ -289,5 +343,24 @@ mod tests {
 		let tree = KeyTree::new("g", children);
 		let lines = render_to_lines(tree, 12, 4);
 		assert!(lines[2].width() <= 12);
+	}
+
+	#[test]
+	fn renders_with_ancestors() {
+		let ancestors = vec![KeyTreeNode::new("b", "Buffer")];
+		let children = vec![
+			KeyTreeNode::new("n", "Next"),
+			KeyTreeNode::new("p", "Previous"),
+		];
+		let tree = KeyTree::new("ctrl-w", children)
+			.root_desc("Window")
+			.ancestors(ancestors);
+		let lines = render_to_lines(tree, 25, 7);
+		assert!(lines[0].contains("ctrl-w"));
+		assert!(lines[0].contains("Window"));
+		assert!(lines[1].contains("╰─b Buffer"));
+		assert!(lines[2].contains("│"));
+		assert!(lines[3].contains("├─n Next"));
+		assert!(lines[4].contains("╰─p Previous"));
 	}
 }

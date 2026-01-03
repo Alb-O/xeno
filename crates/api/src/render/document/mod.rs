@@ -538,13 +538,26 @@ impl Editor {
 			return;
 		}
 
-		let root: String = pending_keys.iter().map(|k| format!("{k} ")).collect();
-		let prefix_key: String = pending_keys
-			.iter()
-			.map(|k| format!("{k}"))
-			.collect::<Vec<_>>()
-			.join(" ");
-		let prefix_desc = find_prefix(binding_mode, &prefix_key).map(|p| p.description);
+		let key_strs: Vec<String> = pending_keys.iter().map(|k| format!("{k}")).collect();
+		let (root, ancestors) = if key_strs.len() <= 1 {
+			(key_strs.first().cloned().unwrap_or_default(), vec![])
+		} else {
+			let root = key_strs[0].clone();
+			let mut ancestors = Vec::new();
+			let mut prefix_so_far = root.clone();
+
+			for key in &key_strs[1..] {
+				prefix_so_far = format!("{prefix_so_far} {key}");
+				let desc = find_prefix(binding_mode, &prefix_so_far)
+					.map(|p| p.description)
+					.unwrap_or("");
+				ancestors.push(KeyTreeNode::new(key.clone(), desc));
+			}
+			(root, ancestors)
+		};
+
+		let prefix_key = key_strs.join(" ");
+		let root_desc = find_prefix(binding_mode, &key_strs[0]).map(|p| p.description);
 
 		let children: Vec<KeyTreeNode<'_>> = continuations
 			.iter()
@@ -578,7 +591,8 @@ impl Editor {
 			})
 			.collect();
 
-		let content_height = (children.len() as u16 + 2).clamp(3, 12);
+		let ancestor_lines = ancestors.len() as u16;
+		let content_height = (children.len() as u16 + ancestor_lines + 2).clamp(3, 14);
 		let width = 32u16.min(doc_area.width.saturating_sub(4));
 		let height = content_height + 2;
 		let hud_area = Rect {
@@ -599,13 +613,14 @@ impl Editor {
 		frame.render_widget(block, hud_area);
 
 		let mut tree = KeyTree::new(root, children)
-			.root_style(Style::default().fg(self.theme.colors.popup.fg).add_modifier(Modifier::BOLD))
+			.ancestors(ancestors)
+			.ancestor_style(Style::default().fg(self.theme.colors.ui.gutter_fg))
 			.key_style(Style::default().fg(self.theme.colors.status.warning_fg).add_modifier(Modifier::BOLD))
 			.desc_style(Style::default().fg(self.theme.colors.popup.fg))
 			.suffix_style(Style::default().fg(self.theme.colors.ui.gutter_fg))
 			.line_style(Style::default().fg(self.theme.colors.ui.gutter_fg));
 
-		if let Some(desc) = prefix_desc {
+		if let Some(desc) = root_desc {
 			tree = tree.root_desc(desc);
 		}
 
