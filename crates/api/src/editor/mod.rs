@@ -188,6 +188,8 @@ impl evildoer_core::EditorOps for Editor {}
 
 impl Editor {
 	/// Creates a new editor by loading content from the given file path.
+	///
+	/// If the file exists but is not writable, the buffer is opened in readonly mode.
 	pub async fn new(path: PathBuf) -> anyhow::Result<Self> {
 		let content = match tokio::fs::read_to_string(&path).await {
 			Ok(s) => s,
@@ -195,7 +197,13 @@ impl Editor {
 			Err(e) => return Err(e.into()),
 		};
 
-		Ok(Self::from_content(content, Some(path)))
+		let editor = Self::from_content(content, Some(path.clone()));
+
+		if path.exists() && !is_writable(&path) {
+			editor.buffer().set_readonly(true);
+		}
+
+		Ok(editor)
 	}
 
 	/// Creates a new scratch editor with no file association.
@@ -268,4 +276,9 @@ impl Editor {
 			menu: create_menu(),
 		}
 	}
+}
+
+/// Checks if a file is writable by attempting to open it for writing.
+fn is_writable(path: &std::path::Path) -> bool {
+	std::fs::OpenOptions::new().write(true).open(path).is_ok()
 }

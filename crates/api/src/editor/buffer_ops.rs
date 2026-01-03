@@ -8,7 +8,7 @@ use evildoer_registry::{
 	HookContext, HookEventData, emit as emit_hook, emit_sync_with as emit_hook_sync_with,
 };
 
-use super::Editor;
+use super::{Editor, is_writable};
 use crate::buffer::BufferId;
 
 impl Editor {
@@ -77,6 +77,7 @@ impl Editor {
 	/// Opens a file as a new buffer.
 	///
 	/// Returns the new buffer's ID, or an error if the file couldn't be read.
+	/// If the file exists but is not writable, the buffer is opened in readonly mode.
 	pub async fn open_file(&mut self, path: PathBuf) -> anyhow::Result<BufferId> {
 		let content = match tokio::fs::read_to_string(&path).await {
 			Ok(s) => s,
@@ -84,7 +85,16 @@ impl Editor {
 			Err(e) => return Err(e.into()),
 		};
 
-		Ok(self.open_buffer(content, Some(path)).await)
+		let readonly = path.exists() && !is_writable(&path);
+		let buffer_id = self.open_buffer(content, Some(path)).await;
+
+		if readonly
+			&& let Some(buffer) = self.buffers.get_buffer(buffer_id)
+		{
+			buffer.set_readonly(true);
+		}
+
+		Ok(buffer_id)
 	}
 
 	/// Creates a new buffer that shares the same document as the current buffer.
