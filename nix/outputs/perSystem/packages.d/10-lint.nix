@@ -34,20 +34,20 @@ let
   customRules = map (f: import (customRulesDir + "/${f}") customRule) customRuleFiles;
   customRulesJson = builtins.toJSON customRules;
 
-  # The lint runner script
-  lintRunner = "${self}/nix/scripts/lint-runner.nu";
+  # The module script
+  moduleScript = "${self}/nix/scripts/imp-lint.nu";
+
+  # Nushell module package (installed to $out/lib/imp-lint)
+  impLintModule = pkgs.runCommand "imp-lint" { } ''
+    mkdir -p $out/lib
+    substitute ${moduleScript} $out/lib/imp-lint \
+      --replace-warn '@impLintRules@' '${generatedRules}' \
+      --replace-warn '@impLintRulesInjected@' 'true' \
+      --replace-warn "@impLintCustomRules@" '${customRulesJson}' \
+      --replace-warn '@impLintCustomRulesInjected@' 'true'
+  '';
 in
 {
-  # Standalone installable imp-lint package
-  imp-lint = pkgs.writeShellScriptBin "imp-lint" ''
-    export LINTFRA_RULES="${generatedRules}"
-    export LINTFRA_CUSTOM_RULES='${customRulesJson}'
-    exec ${pkgs.nushell}/bin/nu ${lintRunner} "$@"
-  '';
-
-  default = pkgs.writeShellScriptBin "imp-lint" ''
-    export LINTFRA_RULES="${generatedRules}"
-    export LINTFRA_CUSTOM_RULES='${customRulesJson}'
-    exec ${pkgs.nushell}/bin/nu ${lintRunner} "$@"
-  '';
+  imp-lint = impLintModule;
+  default = impLintModule;
 }
