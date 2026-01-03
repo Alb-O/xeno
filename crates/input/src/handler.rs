@@ -112,6 +112,11 @@ impl InputHandler {
 		self.key_sequence.len()
 	}
 
+	/// Returns the pending key sequence for display (e.g., which-key HUD).
+	pub fn pending_keys(&self) -> &[Node] {
+		&self.key_sequence
+	}
+
 	/// Clears the pending key sequence.
 	pub fn clear_key_sequence(&mut self) {
 		self.key_sequence.clear();

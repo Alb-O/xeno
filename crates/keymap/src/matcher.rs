@@ -144,6 +144,50 @@ impl<T> Matcher<T> {
 	pub fn has_prefix(&self, nodes: &[Node]) -> bool {
 		!matches!(self.lookup(nodes), MatchResult::None)
 	}
+
+	/// Returns all direct children (continuations) at a given prefix.
+	///
+	/// Used for which-key style displays showing available next keys.
+	pub fn continuations_at(&self, prefix: &[Node]) -> Vec<(&Node, Option<&T>)> {
+		let Some(trie) = navigate_to(&self.root, prefix, 0) else {
+			return Vec::new();
+		};
+		let exact = trie.exact.iter().map(|(k, v)| (k, v.value.as_ref()));
+		let groups = trie.groups.iter().map(|(k, v)| (k, v.value.as_ref()));
+		exact.chain(groups).collect()
+	}
+}
+
+/// Navigates to the trie node at the given prefix, or None if prefix doesn't exist.
+fn navigate_to<'a, T>(node: &'a Trie<T>, nodes: &[Node], pos: usize) -> Option<&'a Trie<T>> {
+	if pos == nodes.len() {
+		return Some(node);
+	}
+
+	let input_node = &nodes[pos];
+
+	if let Some(child) = node.exact.get(input_node) {
+		return navigate_to(child, nodes, pos + 1);
+	}
+
+	if let Key::Char(ch) = input_node.key {
+		for (n, child) in &node.groups {
+			if let Key::Group(group) = n.key
+				&& n.modifiers == input_node.modifiers
+				&& group.matches(ch)
+			{
+				return navigate_to(child, nodes, pos + 1);
+			}
+		}
+	}
+
+	for (n, child) in &node.groups {
+		if matches!(n.key, Key::Group(CharGroup::Any)) {
+			return navigate_to(child, nodes, pos + 1);
+		}
+	}
+
+	None
 }
 
 /// Recursively searches the Trie for a matching value.

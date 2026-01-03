@@ -217,6 +217,8 @@ impl Editor {
 		notifications_area.width = notifications_area.width.saturating_sub(1);
 		self.notifications
 			.render(notifications_area, frame.buffer_mut());
+
+		self.render_whichkey_hud(frame, doc_area);
 	}
 
 	/// Renders all views across all layout layers.
@@ -507,6 +509,70 @@ impl Editor {
 		if let Some(panel) = self.panels.get(panel_id) {
 			render_split_buffer(frame, panel, area, is_focused, &self.theme.colors.popup);
 		}
+	}
+
+	/// Renders the which-key HUD when there are pending keys.
+	fn render_whichkey_hud(&self, frame: &mut evildoer_tui::Frame, doc_area: Rect) {
+		use evildoer_core::get_keymap_registry;
+		use evildoer_registry::BindingMode;
+		use evildoer_tui::widgets::keytree::{KeyTree, KeyTreeNode};
+
+		let pending_keys = self.buffer().input.pending_keys();
+		if pending_keys.is_empty() {
+			return;
+		}
+
+		let binding_mode = match self.buffer().input.mode() {
+			evildoer_base::Mode::Normal => BindingMode::Normal,
+			evildoer_base::Mode::Window => BindingMode::Window,
+			_ => return,
+		};
+
+		let continuations = get_keymap_registry().continuations_at(binding_mode, pending_keys);
+		if continuations.is_empty() {
+			return;
+		}
+
+		let nodes: Vec<KeyTreeNode<'_>> = continuations
+			.iter()
+			.map(|(node, entry)| {
+				let key = format!("{node}");
+				let desc = entry.map_or("...", |e| e.action_name);
+				KeyTreeNode::new(key, desc)
+			})
+			.collect();
+
+		let height = (nodes.len() as u16).clamp(1, 10);
+		let width = 30u16.min(doc_area.width.saturating_sub(4));
+		let hud_area = Rect {
+			x: doc_area.x + doc_area.width.saturating_sub(width + 2),
+			y: doc_area.y + doc_area.height.saturating_sub(height + 2),
+			width,
+			height,
+		};
+
+		let bg = Block::default().style(
+			Style::default()
+				.bg(self.theme.colors.popup.bg)
+				.fg(self.theme.colors.popup.fg),
+		);
+		frame.render_widget(bg, hud_area);
+
+		let key_style = self
+			.theme
+			.colors
+			.syntax
+			.keyword
+			.fg
+			.map_or_else(Style::default, |c| Style::default().fg(c))
+			.add_modifier(Modifier::BOLD);
+
+		let tree = KeyTree::new(nodes)
+			.key_style(key_style)
+			.desc_style(Style::default().fg(self.theme.colors.popup.fg))
+			.line_style(Style::default().fg(self.theme.colors.ui.gutter_fg));
+
+		frame.render_widget(tree, hud_area);
 	}
 }
 

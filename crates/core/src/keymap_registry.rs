@@ -125,6 +125,20 @@ impl KeymapRegistry {
 		// TODO: Implement iteration over matcher entries
 		Vec::new()
 	}
+
+	/// Returns available continuations at a given key prefix.
+	///
+	/// Used for which-key style HUD showing next available keys.
+	pub fn continuations_at(
+		&self,
+		mode: BindingMode,
+		prefix: &[Node],
+	) -> Vec<(&Node, Option<&BindingEntry>)> {
+		let Some(matcher) = self.matchers.get(&mode) else {
+			return Vec::new();
+		};
+		matcher.continuations_at(prefix)
+	}
 }
 
 /// Global keymap registry singleton.
