@@ -11,7 +11,7 @@ statusline_segment!(
 	|ctx| {
 		if ctx.readonly {
 			Some(RenderedSegment {
-				text: " [RO] ".to_string(),
+				text: " READ-ONLY ".to_string(),
 				style: SegmentStyle::Warning,
 			})
 		} else {
