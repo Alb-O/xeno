@@ -1,4 +1,4 @@
-use crate::{hook, HookEventData};
+use crate::{HookEventData, hook};
 
 hook!(
 	log_buffer_open,

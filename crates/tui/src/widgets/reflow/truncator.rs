@@ -4,7 +4,7 @@ use alloc::vec::Vec;
 
 use unicode_width::UnicodeWidthStr;
 
-use super::{trim_offset, LineComposer, WrappedLine};
+use super::{LineComposer, WrappedLine, trim_offset};
 use crate::layout::HorizontalAlignment;
 use crate::text::StyledGrapheme;
 

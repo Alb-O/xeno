@@ -6,8 +6,8 @@
 use evildoer_keymap_parser::{self as parser, Key, Modifier, Node};
 use termina::event::{KeyCode, KeyEvent, Modifiers as TmModifiers};
 
-use crate::keymap::{FromKeyMap, IntoKeyMap, KeyMap, ToKeyMap};
 use crate::Error;
+use crate::keymap::{FromKeyMap, IntoKeyMap, KeyMap, ToKeyMap};
 
 /// Parses a string keybinding (e.g., `"ctrl-c"`, `"f1"`, `"alt-backspace"`) into a `KeyEvent`.
 pub fn parse(s: &str) -> Result<KeyEvent, Error> {

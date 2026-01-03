@@ -1,6 +1,6 @@
 use evildoer_registry_motions::keys as motions;
 
-use crate::{action, cursor_motion, selection_motion, word_motion, ActionResult, ScreenPosition};
+use crate::{ActionResult, ScreenPosition, action, cursor_motion, selection_motion, word_motion};
 
 action!(move_left, {
 	description: "Move cursor left",

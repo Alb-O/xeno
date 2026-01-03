@@ -1,5 +1,5 @@
 use evildoer_registry::{
-	render_position, RenderedSegment, SegmentPosition, SegmentStyle, StatuslineContext,
+	RenderedSegment, SegmentPosition, SegmentStyle, StatuslineContext, render_position,
 };
 use evildoer_tui::style::{Modifier, Style};
 use evildoer_tui::text::{Line, Span};

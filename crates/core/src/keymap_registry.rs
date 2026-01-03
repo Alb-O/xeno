@@ -10,12 +10,11 @@
 use std::collections::HashMap;
 use std::sync::OnceLock;
 
-use evildoer_keymap::parser::{parse_seq, Node};
+use evildoer_keymap::parser::{Node, parse_seq};
+pub use evildoer_keymap::{ContinuationEntry, ContinuationKind};
 use evildoer_keymap::{MatchResult, Matcher};
 use evildoer_registry::actions::{BindingMode, KEYBINDINGS};
 use tracing::warn;
-
-pub use evildoer_keymap::{ContinuationEntry, ContinuationKind};
 
 use crate::ActionId;
 

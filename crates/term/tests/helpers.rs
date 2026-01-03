@@ -2,7 +2,7 @@
 
 use std::path::{Path, PathBuf};
 
-use kitty_test_harness::{send_keys, KeyPress, KittyHarness};
+use kitty_test_harness::{KeyPress, KittyHarness, send_keys};
 use termwiz::input::KeyCode;
 
 /// Returns the path to the evildoer binary.

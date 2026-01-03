@@ -7,6 +7,7 @@ Analysis task that reviewed a build-script-based verification system and recomme
 ## What Was Attempted
 
 A compile-time verification system using:
+
 - Build.rs scanning source files for macro invocations
 - Generated `__motion_exists_*` constants
 - `motion_ref!` macro that checked constants exist
@@ -14,9 +15,9 @@ A compile-time verification system using:
 ## Problems Identified
 
 1. **Scanner not robust** - fooled by doc comments, strings, edge cases
-2. **Cross-crate limitation** - only verified items in same crate as constants
-3. **Treats symptom not cause** - real problem is stringly-typed internal coupling
-4. **Nightly dependency** - required `#![feature(macro_metavar_expr)]`
+1. **Cross-crate limitation** - only verified items in same crate as constants
+1. **Treats symptom not cause** - real problem is stringly-typed internal coupling
+1. **Nightly dependency** - required `#![feature(macro_metavar_expr)]`
 
 ## Recommendation
 
@@ -31,6 +32,7 @@ cursor_motion(ctx, motions::keys::left)
 ```
 
 Key insights:
+
 - Strings are fine at boundaries (user input, config)
 - Internal code should use typed handles (`MotionKey`, `PanelKey`)
 - Registration macros should generate both slice entries AND key constants

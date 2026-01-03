@@ -175,12 +175,14 @@ fn render_with_tall_row() {
 fn render_with_alignment() {
 	let mut buf = Buffer::empty(Rect::new(0, 0, 10, 3));
 	let rows = vec![
-		Row::new(vec![Line::from("Left").alignment(HorizontalAlignment::Left)]),
 		Row::new(vec![
-			Line::from("Center").alignment(HorizontalAlignment::Center)
+			Line::from("Left").alignment(HorizontalAlignment::Left),
 		]),
 		Row::new(vec![
-			Line::from("Right").alignment(HorizontalAlignment::Right)
+			Line::from("Center").alignment(HorizontalAlignment::Center),
+		]),
+		Row::new(vec![
+			Line::from("Right").alignment(HorizontalAlignment::Right),
 		]),
 	];
 	let table = Table::new(rows, [Percentage(100)]);

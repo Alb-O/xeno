@@ -6,9 +6,9 @@
 use std::iter;
 
 use ropey::RopeSlice;
+use tree_house::TREE_SITTER_MATCH_LIMIT;
 use tree_house::tree_sitter::query::{InvalidPredicateError, UserPredicate};
 use tree_house::tree_sitter::{Grammar, InactiveQueryCursor, Node, Query, RopeInput};
-use tree_house::TREE_SITTER_MATCH_LIMIT;
 
 use crate::grammar::query_search_paths;
 

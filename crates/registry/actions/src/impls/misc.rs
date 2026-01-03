@@ -1,6 +1,6 @@
 //! Miscellaneous actions.
 
-use crate::{action, ActionResult, EditAction};
+use crate::{ActionResult, EditAction, action};
 
 action!(add_line_below, { description: "Add empty line below cursor" },
 	|_ctx| ActionResult::Edit(EditAction::AddLineBelow));

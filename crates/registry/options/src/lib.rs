@@ -12,7 +12,7 @@ use linkme::distributed_slice;
 mod impls;
 mod macros;
 
-pub use evildoer_registry_core::{impl_registry_metadata, RegistryMetadata, RegistrySource};
+pub use evildoer_registry_core::{RegistryMetadata, RegistrySource, impl_registry_metadata};
 
 /// The value of an option.
 #[derive(Debug, Clone, PartialEq)]

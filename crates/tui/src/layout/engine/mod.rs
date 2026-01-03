@@ -12,9 +12,9 @@ use lru::LruCache;
 
 use super::solver::strengths::ALL_SEGMENT_GROW;
 use super::solver::{
-	changes_to_rects, configure_area, configure_constraints, configure_fill_constraints,
-	configure_flex_constraints, configure_variable_constraints,
-	configure_variable_in_area_constraints, Element, Rects, FLOAT_PRECISION_MULTIPLIER,
+	Element, FLOAT_PRECISION_MULTIPLIER, Rects, changes_to_rects, configure_area,
+	configure_constraints, configure_fill_constraints, configure_flex_constraints,
+	configure_variable_constraints, configure_variable_in_area_constraints,
 };
 pub use super::spacing::Spacing;
 use crate::layout::{Constraint, Direction, Flex, Margin, Rect};

@@ -6,8 +6,8 @@ use std::time::Duration;
 
 use helpers::{evildoer_cmd_debug_theme, insert_text, reset_test_file, workspace_dir};
 use kitty_test_harness::{
-	kitty_send_keys, pause_briefly, require_kitty, run_with_timeout, send_mouse_drag_with_steps,
-	wait_for_screen_text_clean, with_kitty_capture, MouseButton,
+	MouseButton, kitty_send_keys, pause_briefly, require_kitty, run_with_timeout,
+	send_mouse_drag_with_steps, wait_for_screen_text_clean, with_kitty_capture,
 };
 use termwiz::input::{KeyCode, Modifiers};
 

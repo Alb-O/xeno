@@ -17,8 +17,8 @@ use crate::style::{Style, Styled};
 use crate::symbols::border;
 use crate::symbols::merge::MergeStrategy;
 use crate::text::Line;
-use crate::widgets::borders::{BorderType, Borders};
 use crate::widgets::Widget;
+use crate::widgets::borders::{BorderType, Borders};
 
 /// Padding configuration for block content inset.
 mod padding;

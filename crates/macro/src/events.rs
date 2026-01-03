@@ -12,7 +12,7 @@ use proc_macro2::TokenStream as TokenStream2;
 use quote::quote;
 use syn::parse::{Parse, ParseStream};
 use syn::punctuated::Punctuated;
-use syn::{braced, Ident, LitStr, Result, Token};
+use syn::{Ident, LitStr, Result, Token, braced};
 
 /// A single event definition parsed from the macro input.
 struct EventDef {

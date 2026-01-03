@@ -127,7 +127,7 @@ pub(super) mod strengths {
 
 use strengths::{
 	FILL_GROW, GROW, LENGTH_SIZE_EQ, MAX_SIZE_EQ, MAX_SIZE_LE, MIN_SIZE_GE, PERCENTAGE_SIZE_EQ,
-	RATIO_SIZE_EQ, SPACER_SIZE_EQ, SPACE_GROW,
+	RATIO_SIZE_EQ, SPACE_GROW, SPACER_SIZE_EQ,
 };
 
 /// A container used by the solver inside split.

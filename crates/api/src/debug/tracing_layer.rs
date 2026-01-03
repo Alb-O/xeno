@@ -10,7 +10,7 @@ use tracing::{Event, Level, Subscriber};
 use tracing_subscriber::layer::Context;
 use tracing_subscriber::registry::LookupSpan;
 
-use super::ring_buffer::{ActionSpanContext, LogEntry, LogLevel, LOG_BUFFER};
+use super::ring_buffer::{ActionSpanContext, LOG_BUFFER, LogEntry, LogLevel};
 
 /// Data stored per-span for action context extraction.
 #[derive(Debug, Default)]

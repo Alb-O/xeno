@@ -11,7 +11,7 @@ use evildoer_registry::themes::{SyntaxStyle, SyntaxStyles};
 use kdl::{KdlDocument, KdlNode};
 
 use crate::error::{ConfigError, Result};
-use crate::kdl_util::{get_color_field, parse_modifier, parse_palette, ParseContext};
+use crate::kdl_util::{ParseContext, get_color_field, parse_modifier, parse_palette};
 
 /// A parsed theme with owned data suitable for runtime use.
 #[derive(Debug, Clone)]

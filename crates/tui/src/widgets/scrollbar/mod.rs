@@ -16,10 +16,10 @@ use unicode_width::UnicodeWidthStr;
 use crate::buffer::Buffer;
 use crate::layout::Rect;
 use crate::style::Style;
-use crate::symbols::scrollbar::{Set, DOUBLE_HORIZONTAL, DOUBLE_VERTICAL};
+use crate::symbols::scrollbar::{DOUBLE_HORIZONTAL, DOUBLE_VERTICAL, Set};
+use crate::widgets::StatefulWidget;
 #[cfg(not(feature = "std"))]
 use crate::widgets::polyfills::F64Polyfills;
-use crate::widgets::StatefulWidget;
 
 /// A widget to display a scrollbar
 ///

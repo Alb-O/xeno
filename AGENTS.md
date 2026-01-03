@@ -28,20 +28,20 @@ evildoer-term          Main binary and terminal UI
 
 Uses `linkme` distributed slices for compile-time registration. Each registry is a self-contained crate under `crates/registry/`.
 
-| Registry      | Crate                             | Slice                       | Macro                    |
-| ------------- | --------------------------------- | --------------------------- | ------------------------ |
-| Actions       | `evildoer-registry-actions`       | `ACTIONS`                   | `action!`                |
-| Commands      | `evildoer-registry-commands`      | `COMMANDS`                  | `command!`               |
-| Motions       | `evildoer-registry-motions`       | `MOTIONS`                   | `motion!`                |
-| Text Objects  | `evildoer-registry-text-objects`  | `TEXT_OBJECTS`              | `text_object!`           |
-| Options       | `evildoer-registry-options`       | `OPTIONS`                   | `option!`                |
-| Hooks         | `evildoer-registry-hooks`         | `HOOKS`                     | `hook!`, `async_hook!`   |
-| Statusline    | `evildoer-registry-statusline`    | `STATUSLINE_SEGMENTS`       | `statusline_segment!`    |
-| Notifications | `evildoer-registry-notifications` | `NOTIFICATION_TYPES`        | `register_notification!` |
-| Themes        | `evildoer-registry-themes`        | `THEMES`                    | -                        |
+| Registry      | Crate                             | Slice                                    | Macro                                            |
+| ------------- | --------------------------------- | ---------------------------------------- | ------------------------------------------------ |
+| Actions       | `evildoer-registry-actions`       | `ACTIONS`                                | `action!`                                        |
+| Commands      | `evildoer-registry-commands`      | `COMMANDS`                               | `command!`                                       |
+| Motions       | `evildoer-registry-motions`       | `MOTIONS`                                | `motion!`                                        |
+| Text Objects  | `evildoer-registry-text-objects`  | `TEXT_OBJECTS`                           | `text_object!`                                   |
+| Options       | `evildoer-registry-options`       | `OPTIONS`                                | `option!`                                        |
+| Hooks         | `evildoer-registry-hooks`         | `HOOKS`                                  | `hook!`, `async_hook!`                           |
+| Statusline    | `evildoer-registry-statusline`    | `STATUSLINE_SEGMENTS`                    | `statusline_segment!`                            |
+| Notifications | `evildoer-registry-notifications` | `NOTIFICATION_TYPES`                     | `register_notification!`                         |
+| Themes        | `evildoer-registry-themes`        | `THEMES`                                 | -                                                |
 | Panels        | `evildoer-registry-panels`        | `PANELS`, `PANEL_IDS`, `PANEL_FACTORIES` | `panel!`, `panel_id!`, `register_panel_factory!` |
-| Menus         | `evildoer-registry-menus`         | `MENUS`                     | -                        |
-| Keybindings   | (in evildoer-registry)            | `KEYBINDINGS`               | (inline in `action!`)    |
+| Menus         | `evildoer-registry-menus`         | `MENUS`                                  | -                                                |
+| Keybindings   | (in evildoer-registry)            | `KEYBINDINGS`                            | (inline in `action!`)                            |
 
 ### Typed Handles
 

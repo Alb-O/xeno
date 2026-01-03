@@ -1,8 +1,8 @@
 use evildoer_base::Selection;
 use evildoer_registry::actions::find_action;
 use evildoer_registry::{
-	dispatch_result, emit_sync_with as emit_hook_sync_with, ActionArgs, ActionContext,
-	ActionResult, EditorContext, HookContext, HookEventData,
+	ActionArgs, ActionContext, ActionResult, EditorContext, HookContext, HookEventData,
+	dispatch_result, emit_sync_with as emit_hook_sync_with,
 };
 use ropey::Rope;
 use tracing::{debug, info_span};

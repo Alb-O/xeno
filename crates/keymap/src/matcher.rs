@@ -484,7 +484,11 @@ mod tests {
 		assert_eq!(conts.len(), 2);
 
 		for cont in &conts {
-			assert_eq!(cont.kind, ContinuationKind::Leaf, "Expected leaf for terminal binding");
+			assert_eq!(
+				cont.kind,
+				ContinuationKind::Leaf,
+				"Expected leaf for terminal binding"
+			);
 			assert!(cont.value.is_some(), "Leaf should have a value");
 		}
 	}
@@ -502,10 +506,18 @@ mod tests {
 		let f_cont = conts.iter().find(|c| format!("{}", c.key) == "f").unwrap();
 		let s_cont = conts.iter().find(|c| format!("{}", c.key) == "s").unwrap();
 
-		assert_eq!(f_cont.kind, ContinuationKind::Branch, "'f' should be a branch (has children)");
+		assert_eq!(
+			f_cont.kind,
+			ContinuationKind::Branch,
+			"'f' should be a branch (has children)"
+		);
 		assert!(f_cont.value.is_none(), "Branch without sticky action");
 
-		assert_eq!(s_cont.kind, ContinuationKind::Leaf, "'s' should be a leaf (no children)");
+		assert_eq!(
+			s_cont.kind,
+			ContinuationKind::Leaf,
+			"'s' should be a leaf (no children)"
+		);
 		assert!(s_cont.value.is_some(), "Leaf should have a value");
 	}
 
@@ -518,7 +530,11 @@ mod tests {
 		let conts = matcher.continuations_with_kind(&[]);
 		let g_cont = conts.iter().find(|c| format!("{}", c.key) == "g").unwrap();
 
-		assert_eq!(g_cont.kind, ContinuationKind::Branch, "'g' is a branch (has 'g g' child)");
+		assert_eq!(
+			g_cont.kind,
+			ContinuationKind::Branch,
+			"'g' is a branch (has 'g g' child)"
+		);
 		assert_eq!(g_cont.value, Some(&1), "'g' has sticky value");
 	}
 }

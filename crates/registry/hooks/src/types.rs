@@ -3,10 +3,10 @@
 use std::future::Future;
 use std::pin::Pin;
 
-pub use evildoer_registry_core::{impl_registry_metadata, RegistryMetadata, RegistrySource};
+pub use evildoer_registry_core::{RegistryMetadata, RegistrySource, impl_registry_metadata};
 
-use super::context::{HookContext, MutableHookContext};
 use super::HookEvent;
+use super::context::{HookContext, MutableHookContext};
 
 /// Result of a hook execution.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]

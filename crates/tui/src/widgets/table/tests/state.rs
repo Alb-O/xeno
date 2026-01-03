@@ -1,8 +1,8 @@
 use super::*;
 use crate::buffer::Buffer;
 use crate::layout::{Constraint, Rect};
-use crate::widgets::table::{Row, Table, TableState};
 use crate::widgets::StatefulWidget;
+use crate::widgets::table::{Row, Table, TableState};
 
 #[fixture]
 fn table_buf() -> Buffer {

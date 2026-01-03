@@ -5,7 +5,7 @@
 
 use linkme::distributed_slice;
 
-use crate::{impl_registry_metadata, RegistrySource};
+use crate::{RegistrySource, impl_registry_metadata};
 
 /// A top-level menu group (e.g., "File", "Edit").
 pub struct MenuGroupDef {

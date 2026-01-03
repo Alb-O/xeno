@@ -5,8 +5,8 @@
 use evildoer_registry::commands::CommandError;
 use evildoer_registry::themes::SyntaxStyles;
 
-use super::extensions::StyleMod;
 use super::Editor;
+use super::extensions::StyleMod;
 
 impl Editor {
 	/// Sets the editor's color theme by name.

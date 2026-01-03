@@ -2,8 +2,8 @@
 //!
 //! Functions for applying named motions to selections and cursors.
 
-use evildoer_base::range::Range;
 use evildoer_base::Selection;
+use evildoer_base::range::Range;
 use evildoer_registry_motions::MotionKey;
 use tracing::debug;
 
@@ -112,7 +112,10 @@ pub fn word_motion(ctx: &ActionContext, motion: MotionKey) -> ActionResult {
 			.iter()
 			.map(|range| (motion_def.handler)(ctx.text, *range, ctx.count, true))
 			.collect();
-		ActionResult::Motion(Selection::from_vec(new_ranges, ctx.selection.primary_index()))
+		ActionResult::Motion(Selection::from_vec(
+			new_ranges,
+			ctx.selection.primary_index(),
+		))
 	} else {
 		let current_range = Range::point(ctx.cursor);
 		let new_range = (motion_def.handler)(ctx.text, current_range, ctx.count, false);

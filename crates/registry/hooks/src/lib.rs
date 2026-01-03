@@ -37,14 +37,12 @@ mod types;
 pub use context::{
 	Bool, HookContext, MutableHookContext, OptionViewId, PanelId, SplitDirection, Str, ViewId,
 };
-pub use emit::{emit, emit_mutable, emit_sync, emit_sync_with, HookScheduler};
+pub use emit::{HookScheduler, emit, emit_mutable, emit_sync, emit_sync_with};
 pub use evildoer_base::Mode;
 pub use types::{
-	impl_registry_metadata, BoxFuture, HookAction, HookDef, HookHandler, HookMutability,
-	HookResult, RegistryMetadata, RegistrySource,
+	BoxFuture, HookAction, HookDef, HookHandler, HookMutability, HookResult, RegistryMetadata,
+	RegistrySource, impl_registry_metadata,
 };
-
-
 
 // Generate HookEvent, HookEventData, OwnedHookContext, and extractor macros
 // from this single source of truth. Adding a new event only requires adding

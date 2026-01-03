@@ -4,11 +4,11 @@ use std::num::NonZeroU16;
 use evildoer_tui::backend::{Backend, WindowSize};
 use evildoer_tui::buffer::Cell;
 use evildoer_tui::layout::{Position, Size};
+use termina::Terminal;
 use termina::escape::csi::{
 	Csi, Cursor, Edit, EraseInDisplay, Mode, Sgr, SgrAttributes, SgrModifiers,
 };
 use termina::style::{ColorSpec, RgbaColor};
-use termina::Terminal;
 
 /// Backend implementation using the termina crate.
 pub struct TerminaBackend<T: Terminal> {

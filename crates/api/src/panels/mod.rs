@@ -5,8 +5,8 @@
 
 mod registry;
 
-use evildoer_registry::{panel, register_panel_factory};
 use evildoer_registry::panels::keys as panel_ids;
+use evildoer_registry::{panel, register_panel_factory};
 pub use registry::PanelRegistry;
 
 use crate::debug::DebugPanel;
@@ -28,5 +28,7 @@ panel!(debug, {
 	sticky: true,
 });
 
-register_panel_factory!(terminal, panel_ids::terminal, || Box::new(TerminalBuffer::new()));
+register_panel_factory!(terminal, panel_ids::terminal, || Box::new(
+	TerminalBuffer::new()
+));
 register_panel_factory!(debug, panel_ids::debug, || Box::new(DebugPanel::new()));

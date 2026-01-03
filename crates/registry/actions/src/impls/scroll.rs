@@ -1,6 +1,6 @@
 //! Scroll/view actions.
 
-use crate::{action, ActionResult, EditAction, ScrollAmount, ScrollDir, VisualDirection};
+use crate::{ActionResult, EditAction, ScrollAmount, ScrollDir, VisualDirection, action};
 
 action!(scroll_up, {
 	description: "View scroll up",

@@ -1,6 +1,6 @@
 use crate::motion;
 use crate::movement::{
-	move_to_next_word_end, move_to_next_word_start, move_to_prev_word_start, WordType,
+	WordType, move_to_next_word_end, move_to_next_word_start, move_to_prev_word_start,
 };
 
 motion!(

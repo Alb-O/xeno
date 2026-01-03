@@ -17,7 +17,7 @@ use std::task::{Context, Poll};
 use pin_project_lite::pin_project;
 use tower_layer::Layer;
 use tower_service::Service;
-use tracing::{info_span, Span};
+use tracing::{Span, info_span};
 
 use crate::{AnyEvent, AnyNotification, AnyRequest, LspService, Result};
 

@@ -4,8 +4,8 @@ use evildoer_base::key::{Key, KeyCode, Modifiers};
 use evildoer_core::keymap_registry::LookupResult;
 use evildoer_core::{get_keymap_registry, resolve_action_key};
 use evildoer_keymap::ToKeyMap;
-use evildoer_registry::actions::keys as actions;
 use evildoer_registry::BindingMode;
+use evildoer_registry::actions::keys as actions;
 
 use crate::InputHandler;
 use crate::types::{KeyResult, Mode};

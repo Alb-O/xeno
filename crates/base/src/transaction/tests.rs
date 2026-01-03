@@ -1,6 +1,6 @@
+use super::Transaction;
 use super::changeset::ChangeSet;
 use super::types::Change;
-use super::Transaction;
 use crate::{Rope, Selection};
 
 #[test]

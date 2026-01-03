@@ -1,5 +1,5 @@
-use evildoer_base::key::ScrollDirection;
 pub use evildoer_base::Mode;
+use evildoer_base::key::ScrollDirection;
 use evildoer_core::ActionId;
 
 /// Result of processing a key.

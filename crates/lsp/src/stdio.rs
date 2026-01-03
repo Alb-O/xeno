@@ -43,7 +43,7 @@
 use std::io::{self, Error, IoSlice, Read, Result, StdinLock, StdoutLock, Write};
 use std::os::unix::io::{AsFd, AsRawFd, BorrowedFd, RawFd};
 
-use rustix::fs::{fcntl_getfl, fcntl_setfl, fstat, FileType, OFlags};
+use rustix::fs::{FileType, OFlags, fcntl_getfl, fcntl_setfl, fstat};
 
 /// Wrapper that sets a file descriptor to non-blocking mode and restores it on drop.
 #[derive(Debug)]
@@ -195,7 +195,7 @@ impl Write for PipeStdout {
 /// Tokio async I/O implementations for pipe stdin/stdout.
 mod tokio_impl {
 	use std::pin::Pin;
-	use std::task::{ready, Context, Poll};
+	use std::task::{Context, Poll, ready};
 
 	use tokio::io::unix::AsyncFd;
 	use tokio::io::{Interest, ReadBuf};

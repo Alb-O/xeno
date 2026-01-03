@@ -5,8 +5,8 @@
 
 use evildoer_registry::RegistryMetadata;
 
-use crate::index::collision::CollisionKind;
 use crate::index::ExtensionRegistry;
+use crate::index::collision::CollisionKind;
 
 /// Report containing all detected registry collisions.
 pub struct DiagnosticReport {

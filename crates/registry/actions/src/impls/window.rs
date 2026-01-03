@@ -13,7 +13,7 @@
 use evildoer_registry_panels::keys as panels;
 
 use crate::editor_ctx::HandleOutcome;
-use crate::{action, result_handler, ActionResult};
+use crate::{ActionResult, action, result_handler};
 
 action!(split_horizontal, {
 	description: "Split horizontal",

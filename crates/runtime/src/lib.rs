@@ -5,7 +5,7 @@
 //! - Theme definitions (KDL files)
 //! - Language configuration (grammars.kdl, languages.kdl, etc.)
 
-use include_dir::{include_dir, Dir};
+use include_dir::{Dir, include_dir};
 
 pub extern crate include_dir;
 

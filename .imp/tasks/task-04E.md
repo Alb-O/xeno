@@ -11,14 +11,16 @@ ______________________________________________________________________
 ## Context
 
 Task-04B/C/D implemented typed handles for motions (`MotionKey`). The pattern works well:
+
 - `motion!` macro generates both slice entry and `pub const` key
 - `cursor_motion(ctx, motions::left)` instead of `cursor_motion(ctx, "left")`
 - Compile-time safety via Rust name resolution
 
 Remaining work:
+
 1. **Panels** - `ActionResult::TogglePanel("terminal")` uses strings
-2. **Commands** - `ActionResult::Command { name: "...", ... }` uses strings
-3. **Cross-crate architecture** - panels defined in `evildoer-api`, not registry crate
+1. **Commands** - `ActionResult::Command { name: "...", ... }` uses strings
+1. **Cross-crate architecture** - panels defined in `evildoer-api`, not registry crate
 
 ______________________________________________________________________
 
@@ -27,6 +29,7 @@ ______________________________________________________________________
 ### The Cross-Crate Problem
 
 Panels are defined in `evildoer-api` because they depend on API types:
+
 ```rust
 // crates/api/src/panels/mod.rs
 panel!(terminal, {
@@ -39,6 +42,7 @@ But `ActionResult::TogglePanel` is in `evildoer-registry-actions`, which can't d
 ### Solution Options
 
 **Option A: Split panel identity from implementation**
+
 ```rust
 // In evildoer-registry-panels (low-level)
 panel_id!(terminal, { description: "Terminal emulator" });
@@ -53,6 +57,7 @@ Actions reference `PanelKey` from registry crate, factories registered separatel
 **Option B: Accept string boundary for panels**
 
 Panels are few and rarely change. Keep strings but add runtime validation:
+
 ```rust
 // Validate at startup that all referenced panels exist
 fn validate_panel_refs() {
@@ -64,6 +69,7 @@ fn validate_panel_refs() {
 **Option C: Move panel toggle logic to API layer**
 
 Instead of `ActionResult::TogglePanel(name)`, have dedicated methods:
+
 ```rust
 // In evildoer-api
 impl Editor {
@@ -145,24 +151,28 @@ ______________________________________________________________________
 ### Current State
 
 Commands are looked up by string at runtime:
+
 - User types `:help` → parse → `find_command("help")` → execute
 - `ActionResult::Command { name: "help", args }` queues for execution
 
 ### Analysis
 
 Commands are **boundary-driven** - user input determines which command runs. Unlike motions (where actions hardcode motion names), command references are typically:
+
 1. User CLI input (`:write`, `:quit`)
-2. Config keybindings
-3. Programmatic triggers (rare)
+1. Config keybindings
+1. Programmatic triggers (rare)
 
 ### Recommendation: Defer CommandKey
 
 CommandKey provides little value because:
+
 - Command names come from user input (can't be compile-time checked)
 - Few if any internal hardcoded command references
 - Runtime lookup is appropriate for boundary data
 
 **If internal command refs exist**, consider:
+
 ```rust
 // Only if we find ActionResult::Command { name: "hardcoded", ... }
 pub type CommandKey = Key<CommandDef>;
@@ -177,12 +187,14 @@ ______________________________________________________________________
 ### Current State
 
 Actions are already mostly typed via `ActionId`:
+
 ```rust
 // crates/core/src/lib.rs
 pub struct ActionId(u16);  // Index into ACTIONS slice
 ```
 
 Keybindings resolve to `ActionId`, not strings. The `find_action("name")` is mainly for:
+
 - Config parsing
 - Debug/introspection
 - Tests
@@ -196,27 +208,33 @@ ______________________________________________________________________
 ## Part 4: Other Registries
 
 ### Text Objects
+
 - Looked up by trigger char (`'w'` for word), not name
 - No internal string refs
 - **Skip**
 
-### Hooks  
+### Hooks
+
 - Event-based dispatch, not name lookup
 - **Skip**
 
 ### Statusline Segments
+
 - Config-driven, boundary data
 - **Skip**
 
 ### Menus
+
 - UI-driven, boundary data
 - **Skip**
 
 ### Themes
+
 - Config-driven
 - **Skip**
 
 ### Options
+
 - Config-driven
 - **Skip**
 
@@ -243,6 +261,7 @@ pub mod keys {
 ### Documentation
 
 Update AGENTS.md with:
+
 - Typed handle pattern explanation
 - When to use `*Key` vs strings
 - How to add new registry items
@@ -252,13 +271,13 @@ ______________________________________________________________________
 ## Implementation Order
 
 1. **PanelKey infrastructure** - Add `Key<T>` to panels crate, `panel_id!` macro
-2. **Built-in panel IDs** - Define terminal/debug in registry crate
-3. **Update ActionResult::TogglePanel** - Change to `PanelKey`
-4. **Update window.rs actions** - Use `panels::terminal` etc.
-5. **Split panel! macro** - Separate ID registration from factory
-6. **Update API panel definitions** - Use `register_panel_factory!`
-7. **Audit and cleanup** - Find any remaining string refs
-8. **Documentation** - Update AGENTS.md
+1. **Built-in panel IDs** - Define terminal/debug in registry crate
+1. **Update ActionResult::TogglePanel** - Change to `PanelKey`
+1. **Update window.rs actions** - Use `panels::terminal` etc.
+1. **Split panel! macro** - Separate ID registration from factory
+1. **Update API panel definitions** - Use `register_panel_factory!`
+1. **Audit and cleanup** - Find any remaining string refs
+1. **Documentation** - Update AGENTS.md
 
 ______________________________________________________________________
 
@@ -300,14 +319,14 @@ ______________________________________________________________________
 ## Edge Cases
 
 1. **Dynamic panels** - If plugins can define panels at runtime, need string fallback
-2. **Config references** - User config still uses strings, resolved at load time
-3. **Serialization** - If ActionResult is serialized, PanelKey needs `name()` method
+1. **Config references** - User config still uses strings, resolved at load time
+1. **Serialization** - If ActionResult is serialized, PanelKey needs `name()` method
 
 ______________________________________________________________________
 
 ## Anti-Patterns to Avoid
 
 1. **Don't over-engineer** - Only add typed handles where internal refs exist
-2. **Don't break boundaries** - User input always uses strings, that's fine
-3. **Don't create cycles** - Keep registry crates low-level
-4. **Don't duplicate** - One source of truth for panel identity
+1. **Don't break boundaries** - User input always uses strings, that's fine
+1. **Don't create cycles** - Keep registry crates low-level
+1. **Don't duplicate** - One source of truth for panel identity

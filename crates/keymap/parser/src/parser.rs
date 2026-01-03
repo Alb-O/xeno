@@ -21,7 +21,7 @@
 
 use std::str::FromStr;
 
-use crate::node::{CharGroup, Key, Modifier, Node, KEY_SEP};
+use crate::node::{CharGroup, KEY_SEP, Key, Modifier, Node};
 
 /// Function pointer type for parser combinators.
 type ParserFn<T> = fn(&mut Parser) -> Result<Option<T>, ParseError>;
@@ -336,7 +336,7 @@ impl FromStr for Node {
 mod tests {
 	use serde::Deserialize;
 
-	use super::{parse, ParseError};
+	use super::{ParseError, parse};
 	use crate::parser::{CharGroup, Key, Modifier, Node};
 
 	#[test]
@@ -421,18 +421,22 @@ mod tests {
 		// Test invalid group names
 		let result = parse("@invalid");
 		assert!(result.is_err());
-		assert!(result
-			.unwrap_err()
-			.message
-			.contains("unknown char group: '@invalid'"));
+		assert!(
+			result
+				.unwrap_err()
+				.message
+				.contains("unknown char group: '@invalid'")
+		);
 
 		// Test incomplete group syntax
 		let result = parse("@x");
 		assert!(result.is_err());
-		assert!(result
-			.unwrap_err()
-			.message
-			.contains("unknown char group: '@x'"));
+		assert!(
+			result
+				.unwrap_err()
+				.message
+				.contains("unknown char group: '@x'")
+		);
 	}
 
 	#[test]

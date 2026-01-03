@@ -30,7 +30,7 @@ pub use actions::editor_ctx::{
 };
 pub use actions::{
 	ACTIONS, ActionArgs, ActionContext, ActionDef, ActionHandler, ActionMode, ActionResult,
-	BindingMode, EditAction, KEYBINDINGS, KEY_PREFIXES, KeyBindingDef, KeyPrefixDef, Mode,
+	BindingMode, EditAction, KEY_PREFIXES, KEYBINDINGS, KeyBindingDef, KeyPrefixDef, Mode,
 	ObjectSelectionKind, PendingAction, PendingKind, RESULT_BUFFER_NEXT_HANDLERS,
 	RESULT_BUFFER_PREV_HANDLERS, RESULT_CLOSE_OTHER_BUFFERS_HANDLERS, RESULT_CLOSE_SPLIT_HANDLERS,
 	RESULT_COMMAND_HANDLERS, RESULT_CURSOR_MOVE_HANDLERS, RESULT_EDIT_HANDLERS,
@@ -47,6 +47,8 @@ pub use commands::{
 	COMMANDS, CommandContext, CommandDef, CommandEditorOps, CommandError, CommandHandler,
 	CommandOutcome, CommandResult, all_commands, command, find_command,
 };
+// Re-export shared types from registry core (canonical source)
+pub use evildoer_registry_core::{RegistryMetadata, RegistrySource, impl_registry_metadata};
 pub use evildoer_registry_options::option;
 pub use hooks::{
 	Bool, BoxFuture, HOOKS, HookAction, HookContext, HookDef, HookEvent, HookEventData,
@@ -55,10 +57,7 @@ pub use hooks::{
 	emit_sync, emit_sync_with, find_hooks, hook,
 };
 pub use menus::{MENU_GROUPS, MENU_ITEMS, MenuGroupDef, MenuItemDef, menu_group, menu_item};
-// Re-export shared types from registry core (canonical source)
-pub use evildoer_registry_core::{impl_registry_metadata, RegistryMetadata, RegistrySource};
-pub use motions::{flags, Capability};
-pub use motions::{MOTIONS, MotionDef, MotionHandler, motion, movement};
+pub use motions::{Capability, MOTIONS, MotionDef, MotionHandler, flags, motion, movement};
 pub use notifications::{
 	Anchor, Animation, AnimationPhase, AutoDismiss, Level, NOTIFICATION_TYPES, NotificationError,
 	NotificationTypeDef, Overflow, SizeConstraint, SlideDirection, Timing, find_notification_type,
@@ -66,10 +65,10 @@ pub use notifications::{
 pub use panels::{
 	PANEL_FACTORIES, PANEL_IDS, PANELS, PanelDef, PanelFactory, PanelFactoryDef, PanelId,
 	PanelIdDef, PanelKey, SplitAttrs, SplitBuffer, SplitCell, SplitColor, SplitCursor,
-	SplitCursorStyle, SplitDockPreference, SplitEventResult, SplitKey, SplitKeyCode, SplitModifiers,
-	SplitMouse, SplitMouseAction, SplitMouseButton, SplitPosition, SplitSize, all_panels,
-	find_factory, find_panel, find_panel_by_id, find_panel_id, panel, panel_id, panel_kind_index,
-	register_panel_factory,
+	SplitCursorStyle, SplitDockPreference, SplitEventResult, SplitKey, SplitKeyCode,
+	SplitModifiers, SplitMouse, SplitMouseAction, SplitMouseButton, SplitPosition, SplitSize,
+	all_panels, find_factory, find_panel, find_panel_by_id, find_panel_id, panel, panel_id,
+	panel_kind_index, register_panel_factory,
 };
 pub use statusline::{
 	RenderedSegment, STATUSLINE_SEGMENTS, SegmentPosition, SegmentStyle, StatuslineContext,

@@ -499,11 +499,7 @@ impl LineStyle {
 	/// Merges line styles.
 	#[must_use]
 	pub fn merge(self, other: Self) -> Self {
-		if other == Self::Nothing {
-			self
-		} else {
-			other
-		}
+		if other == Self::Nothing { self } else { other }
 	}
 }
 

@@ -69,11 +69,7 @@ pub fn wrap_line(line: &str, max_width: usize) -> Vec<WrapSegment> {
 
 		let break_pos = if end < chars.len() {
 			let candidate = find_wrap_break(&chars, pos, end);
-			if candidate > pos {
-				candidate
-			} else {
-				end
-			}
+			if candidate > pos { candidate } else { end }
 		} else {
 			chars.len()
 		};

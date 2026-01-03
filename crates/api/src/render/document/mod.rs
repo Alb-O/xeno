@@ -14,7 +14,9 @@ use evildoer_tui::layout::{Constraint, Direction, Layout, Rect};
 use evildoer_tui::style::{Color, Modifier, Style};
 use evildoer_tui::text::{Line, Span};
 use evildoer_tui::widgets::menu::Menu;
-use evildoer_tui::widgets::{Block, BorderType, Borders, Clear, Padding, Paragraph, StatefulWidget};
+use evildoer_tui::widgets::{
+	Block, BorderType, Borders, Clear, Padding, Paragraph, StatefulWidget,
+};
 
 use super::buffer::{BufferRenderContext, ensure_buffer_cursor_visible};
 use crate::Editor;
@@ -518,11 +520,12 @@ impl Editor {
 
 	/// Renders the which-key HUD when there are pending keys.
 	fn render_whichkey_hud(&self, frame: &mut evildoer_tui::Frame, doc_area: Rect) {
-		use crate::buffer::BufferView;
-		use evildoer_core::keymap_registry::ContinuationKind;
 		use evildoer_core::get_keymap_registry;
+		use evildoer_core::keymap_registry::ContinuationKind;
 		use evildoer_registry::{BindingMode, find_prefix};
 		use evildoer_tui::widgets::keytree::{KeyTree, KeyTreeNode};
+
+		use crate::buffer::BufferView;
 
 		let BufferView::Text(_) = self.focused_view() else {
 			return;
@@ -538,7 +541,8 @@ impl Editor {
 			_ => return,
 		};
 
-		let continuations = get_keymap_registry().continuations_with_kind(binding_mode, pending_keys);
+		let continuations =
+			get_keymap_registry().continuations_with_kind(binding_mode, pending_keys);
 		if continuations.is_empty() {
 			return;
 		}
@@ -608,7 +612,11 @@ impl Editor {
 		};
 
 		let block = Block::default()
-			.style(Style::default().bg(self.theme.colors.popup.bg).fg(self.theme.colors.popup.fg))
+			.style(
+				Style::default()
+					.bg(self.theme.colors.popup.bg)
+					.fg(self.theme.colors.popup.fg),
+			)
 			.borders(Borders::ALL)
 			.border_type(BorderType::Stripe)
 			.border_style(Style::default().fg(self.theme.colors.status.warning_fg))
@@ -620,7 +628,11 @@ impl Editor {
 		let mut tree = KeyTree::new(root, children)
 			.ancestors(ancestors)
 			.ancestor_style(Style::default().fg(self.theme.colors.ui.gutter_fg))
-			.key_style(Style::default().fg(self.theme.colors.status.warning_fg).add_modifier(Modifier::BOLD))
+			.key_style(
+				Style::default()
+					.fg(self.theme.colors.status.warning_fg)
+					.add_modifier(Modifier::BOLD),
+			)
 			.desc_style(Style::default().fg(self.theme.colors.popup.fg))
 			.suffix_style(Style::default().fg(self.theme.colors.ui.gutter_fg))
 			.line_style(Style::default().fg(self.theme.colors.ui.gutter_fg));

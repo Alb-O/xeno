@@ -15,7 +15,7 @@ mod impls;
 /// Internal macro helpers for command registration.
 mod macros;
 
-pub use evildoer_registry_core::{impl_registry_metadata, RegistryMetadata, RegistrySource};
+pub use evildoer_registry_core::{RegistryMetadata, RegistrySource, impl_registry_metadata};
 pub use evildoer_registry_motions::Capability;
 
 /// Function signature for async command handlers.

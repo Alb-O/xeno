@@ -14,7 +14,7 @@ use evildoer_core::editor_ctx::{
 	SplitOps, ThemeAccess, UndoAccess, ViewportAccess,
 };
 use evildoer_registry::commands::{CommandEditorOps, CommandError};
-use evildoer_registry::{panel_kind_index, EditAction};
+use evildoer_registry::{EditAction, panel_kind_index};
 
 use crate::buffer::BufferView;
 use crate::editor::Editor;

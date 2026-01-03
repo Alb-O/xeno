@@ -11,17 +11,20 @@ ______________________________________________________________________
 ## Context
 
 The current motion handler signature is:
+
 ```rust
 pub type MotionHandler = fn(RopeSlice, Range, usize, bool) -> Range;
 //                          text      range  count extend
 ```
 
 This only has access to document text, not viewport state. Screen-relative motions (H/M/L in vim) need to know:
+
 - First visible line
-- Last visible line  
+- Last visible line
 - Viewport height
 
 Currently these actions return errors:
+
 ```rust
 // crates/registry/actions/src/impls/motions.rs
 action!(move_top_screen, { ... }, |_ctx| {
@@ -36,6 +39,7 @@ ______________________________________________________________________
 ### Option A: Extend MotionHandler Signature
 
 Add viewport info to all motion handlers:
+
 ```rust
 pub struct MotionContext<'a> {
     pub text: RopeSlice<'a>,
@@ -57,6 +61,7 @@ pub type MotionHandler = fn(MotionContext, Range, usize, bool) -> Range;
 ### Option B: Separate Viewport Motion Type
 
 Create a distinct motion type for viewport-aware motions:
+
 ```rust
 pub type ViewportMotionHandler = fn(RopeSlice, Range, ViewportInfo, usize, bool) -> Range;
 
@@ -72,6 +77,7 @@ pub enum MotionKind {
 ### Option C: ActionContext Extension
 
 Screen motions aren't really "motions" in the document sense - they're actions that need editor state. Handle them as special ActionResult variants:
+
 ```rust
 pub enum ActionResult {
     // ... existing variants
@@ -93,6 +99,7 @@ The result handler has access to Editor and can compute the actual position.
 ### Option D: Capability-Based Motion Context
 
 Extend ActionContext with optional viewport access:
+
 ```rust
 impl ActionContext {
     pub fn viewport(&self) -> Option<&ViewportInfo> { ... }
@@ -109,10 +116,11 @@ ______________________________________________________________________
 ## Recommended Approach
 
 **Option C (ActionResult::ScreenMotion)** is cleanest because:
+
 1. Screen motions fundamentally need editor state, not just document text
-2. They're not composable with text motions anyway (you don't "screen_top then word")
-3. Result handlers already have Editor access
-4. No changes to motion registry infrastructure
+1. They're not composable with text motions anyway (you don't "screen_top then word")
+1. Result handlers already have Editor access
+1. No changes to motion registry infrastructure
 
 ______________________________________________________________________
 
@@ -182,25 +190,29 @@ result_handler!(
 ### Phase 4: Implement Viewport Logic
 
 The result handler needs to:
+
 1. Get current viewport bounds (first/last visible line)
-2. Compute target line based on ScreenPosition
-3. Move cursor to start of that line
-4. Handle extend mode (create selection from current to target)
+1. Compute target line based on ScreenPosition
+1. Move cursor to start of that line
+1. Handle extend mode (create selection from current to target)
 
 ______________________________________________________________________
 
 ## Key Questions to Resolve
 
 1. **Where does viewport info come from?**
+
    - Is it in EditorContext capabilities?
    - Does Buffer track viewport?
    - Need to trace through rendering code
 
-2. **How does extend mode work for screen motions?**
+1. **How does extend mode work for screen motions?**
+
    - vim: `vH` selects from cursor to top of screen
    - Need to preserve anchor, move head
 
-3. **What about count?**
+1. **What about count?**
+
    - vim: `3H` = 3rd line from top
    - Should ScreenPosition include offset?
 

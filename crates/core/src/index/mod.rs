@@ -12,7 +12,7 @@ mod types;
 use std::sync::OnceLock;
 
 pub use collision::{Collision, CollisionKind};
-pub use diagnostics::{diagnostics, CollisionReport, DiagnosticReport};
+pub use diagnostics::{CollisionReport, DiagnosticReport, diagnostics};
 pub use lookups::{
 	all_actions, all_commands, all_motions, all_text_objects, find_action, find_action_by_id,
 	find_command, find_motion, find_text_object_by_trigger, resolve_action_id, resolve_action_key,

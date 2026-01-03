@@ -17,8 +17,8 @@ mod impls;
 mod macros;
 
 // Re-export shared types from core registry for consistency
-pub use evildoer_registry_core::{impl_registry_metadata, RegistryMetadata, RegistrySource};
-pub use evildoer_registry_motions::{flags, movement, Capability};
+pub use evildoer_registry_core::{RegistryMetadata, RegistrySource, impl_registry_metadata};
+pub use evildoer_registry_motions::{Capability, flags, movement};
 
 /// Handler signature for text object selection.
 ///

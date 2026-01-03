@@ -7,8 +7,8 @@ license.workspace = true
 
 [dependencies]
 evildoer-registry-actions.workspace = true
-evildoer-registry-core.workspace = true
 evildoer-registry-commands.workspace = true
+evildoer-registry-core.workspace = true
 evildoer-registry-hooks.workspace = true
 evildoer-registry-menus.workspace = true
 evildoer-registry-motions.workspace = true

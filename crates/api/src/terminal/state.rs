@@ -1,7 +1,7 @@
 //! Terminal PTY state management.
 
 use std::io::{Read, Write};
-use std::sync::mpsc::{channel, Receiver, TryRecvError};
+use std::sync::mpsc::{Receiver, TryRecvError, channel};
 use std::thread;
 
 use evildoer_registry::panels::SplitCursorStyle;

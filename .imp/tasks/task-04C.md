@@ -9,6 +9,7 @@ ______________________________________________________________________
 ## Context
 
 Task-04B implemented the core typed handle system for motions:
+
 - `Key<T>` / `MotionKey` infrastructure
 - `motion!` macro generates `pub const` keys
 - `cursor_motion()` etc. accept `MotionKey`
@@ -23,6 +24,7 @@ Task-04B implemented the core typed handle system for motions:
 `move_top_screen`, `move_middle_screen`, `move_bottom_screen` use runtime lookup because the underlying motions (`screen_top`, `screen_middle`, `screen_bottom`) don't exist.
 
 **Options:**
+
 - A) Add viewport-aware motion definitions (requires access to viewport state)
 - B) Remove these actions until viewport motions are implemented
 - C) Keep runtime lookup as-is (current state)
@@ -36,6 +38,7 @@ Task-04B implemented the core typed handle system for motions:
 `move_up` and `move_down` were added to satisfy registry tests but have no keybindings.
 
 **Tasks:**
+
 - Add bindings: `normal "j"` for down, `normal "k"` for up
 - Or determine if `move_up_visual`/`move_down_visual` in scroll.rs are the intended actions for j/k
 
@@ -48,6 +51,7 @@ Check if scroll actions use string-based motion lookups that should be migrated.
 ### 4. Other String-Based Lookups
 
 Audit for remaining string-based registry lookups in internal code:
+
 - `ActionResult::TogglePanel("terminal")` / `"debug"` in window.rs
 - `ActionResult::Command { name: "...", ... }` anywhere
 - Any other `find_*("string")` calls in non-boundary code
@@ -59,39 +63,44 @@ ______________________________________________________________________
 ### Phase 1: Audit & Decide on Screen Motions
 
 Tasks:
+
 1. Check if viewport-aware motions are feasible with current architecture
-2. Decide: implement, defer, or remove screen motion actions
-3. If deferring, add TODO comments explaining the limitation
+1. Decide: implement, defer, or remove screen motion actions
+1. If deferring, add TODO comments explaining the limitation
 
 ### Phase 2: Fix move_up/move_down Bindings
 
 **Files:** `crates/registry/actions/src/impls/motions.rs`, `crates/registry/actions/src/impls/scroll.rs`
 
 Tasks:
+
 1. Determine relationship between `move_up`/`move_down` and `move_up_visual`/`move_down_visual`
-2. Add appropriate bindings or consolidate duplicate actions
-3. Verify j/k work correctly after changes
+1. Add appropriate bindings or consolidate duplicate actions
+1. Verify j/k work correctly after changes
 
 ### Phase 3: Audit Scroll Actions
 
 **Files:** `crates/registry/actions/src/impls/scroll.rs`
 
 Tasks:
+
 1. Check for string-based motion lookups
-2. Migrate to typed keys if applicable
+1. Migrate to typed keys if applicable
 
 ### Phase 4: Consider PanelKey / CommandKey
 
-**Files:** 
+**Files:**
+
 - `crates/registry/panels/src/lib.rs`
 - `crates/registry/commands/src/lib.rs`
 - `crates/registry/actions/src/impls/window.rs`
 
 Tasks:
+
 1. Assess value of typed handles for panels (cross-crate issue from task-04A)
-2. Assess value of typed handles for commands
-3. If worthwhile, implement following same pattern as MotionKey
-4. If not worthwhile, document why and leave as-is
+1. Assess value of typed handles for commands
+1. If worthwhile, implement following same pattern as MotionKey
+1. If not worthwhile, document why and leave as-is
 
 ______________________________________________________________________
 

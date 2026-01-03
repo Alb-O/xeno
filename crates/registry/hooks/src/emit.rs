@@ -2,9 +2,9 @@
 
 use tracing::warn;
 
+use super::HOOKS;
 use super::context::{HookContext, MutableHookContext};
 use super::types::{BoxFuture, HookAction, HookHandler, HookMutability, HookResult};
-use super::HOOKS;
 
 /// Emit an event to all registered hooks.
 ///

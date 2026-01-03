@@ -6,8 +6,8 @@
 use evildoer_base::key::{Key, KeyCode, Modifiers};
 use evildoer_keymap_parser::{self as parser, Key as ParserKey, Modifier, Node};
 
-use crate::keymap::{FromKeyMap, IntoKeyMap, KeyMap, ToKeyMap};
 use crate::Error;
+use crate::keymap::{FromKeyMap, IntoKeyMap, KeyMap, ToKeyMap};
 
 impl IntoKeyMap for Key {
 	fn into_keymap(self) -> Result<KeyMap, Error> {

@@ -120,8 +120,7 @@ pub use completion::{CompletionContext, CompletionItem, CompletionKind, Completi
 pub use editor_ctx::{EditorCapabilities, EditorContext, EditorOps, HandleOutcome};
 pub use index::{
 	all_actions, all_commands, all_motions, all_text_objects, find_action, find_action_by_id,
-	find_command, find_motion, find_text_object_by_trigger, resolve_action_id,
-	resolve_action_key,
+	find_command, find_motion, find_text_object_by_trigger, resolve_action_id, resolve_action_key,
 };
 pub use keymap_registry::{BindingEntry, KeymapRegistry, LookupResult, get_keymap_registry};
 #[cfg(feature = "host")]

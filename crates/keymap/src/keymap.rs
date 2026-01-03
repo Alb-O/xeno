@@ -8,8 +8,8 @@
 //! The main goal is to decouple application logic from backend-specific input handling, enabling easier
 //! testing, configuration, and cross-platform support.
 
-use evildoer_keymap_parser::parser::ParseError;
 use evildoer_keymap_parser::Node;
+use evildoer_keymap_parser::parser::ParseError;
 
 /// A type alias for a parsed keymap node tree.
 ///

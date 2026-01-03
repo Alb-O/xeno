@@ -4,7 +4,7 @@
 use std::any::Any;
 use std::future::Future;
 use std::ops::ControlFlow;
-use std::panic::{catch_unwind, AssertUnwindSafe};
+use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::pin::Pin;
 use std::task::{Context, Poll};
 

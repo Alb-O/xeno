@@ -1,6 +1,6 @@
 use evildoer_registry_motions::keys as motions;
 
-use crate::{action, insert_with_motion, ActionMode, ActionResult};
+use crate::{ActionMode, ActionResult, action, insert_with_motion};
 
 action!(insert_mode, { description: "Switch to insert mode", bindings: r#"normal "i""# },
 	|_ctx| ActionResult::ModeChange(ActionMode::Insert));

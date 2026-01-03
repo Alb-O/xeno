@@ -2,8 +2,8 @@
 
 use evildoer_tui::layout::Rect;
 
-use super::types::{BufferView, SplitDirection, SplitPath};
 use super::Layout;
+use super::types::{BufferView, SplitDirection, SplitPath};
 use crate::buffer::BufferId;
 
 impl Layout {

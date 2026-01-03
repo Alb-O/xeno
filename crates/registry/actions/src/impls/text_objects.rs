@@ -1,7 +1,7 @@
 use evildoer_base::range::Range;
-use evildoer_registry_text_objects::{find_by_trigger, TextObjectDef};
+use evildoer_registry_text_objects::{TextObjectDef, find_by_trigger};
 
-use crate::{action, ActionContext, ActionResult, ObjectSelectionKind, PendingAction, PendingKind};
+use crate::{ActionContext, ActionResult, ObjectSelectionKind, PendingAction, PendingKind, action};
 
 /// Selects a text object by its trigger character.
 fn select_object_with_trigger(

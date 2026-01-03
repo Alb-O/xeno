@@ -3,12 +3,11 @@
 //! The [`ActionResult`] enum is the return type for all action handlers,
 //! describing what the editor should do after an action executes.
 
-use evildoer_base::range::CharIdx;
 use evildoer_base::Selection;
+use evildoer_base::range::CharIdx;
 use evildoer_macro::DispatchResult;
-use linkme::distributed_slice;
-
 use evildoer_registry_panels::PanelKey;
+use linkme::distributed_slice;
 
 use crate::editor_ctx::ResultHandler;
 use crate::{EditAction, PendingAction};

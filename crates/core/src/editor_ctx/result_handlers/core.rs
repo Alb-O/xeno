@@ -1,12 +1,12 @@
 //! Core result handlers: Ok, CursorMove, Motion, Edit, Quit, Error.
 
-use evildoer_base::range::Range;
 use evildoer_base::Selection;
+use evildoer_base::range::Range;
+use evildoer_registry::actions::ScreenPosition;
 use evildoer_registry::{
 	ActionResult, HandleOutcome, HookContext, HookEventData, Mode, emit_sync as emit_hook_sync,
 	result_handler,
 };
-use evildoer_registry::actions::ScreenPosition;
 
 use crate::{NotifyERRORExt, NotifyINFOExt};
 

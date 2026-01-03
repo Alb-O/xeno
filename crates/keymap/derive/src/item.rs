@@ -1,4 +1,4 @@
-use evildoer_keymap_parser::{parse_seq, Node};
+use evildoer_keymap_parser::{Node, parse_seq};
 use syn::punctuated::Punctuated;
 use syn::token::Comma;
 use syn::{Attribute, LitStr, Token, Variant};

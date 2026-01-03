@@ -29,7 +29,7 @@ mod toast;
 mod types;
 
 pub use manager::ToastManager;
-pub use toast::{Toast, ToastIcon, ICON_COLUMN_WIDTH};
+pub use toast::{ICON_COLUMN_WIDTH, Toast, ToastIcon};
 pub use types::{
 	Anchor, Animation, AnimationPhase, AutoDismiss, Level, Overflow, SizeConstraint,
 	SlideDirection, Timing,

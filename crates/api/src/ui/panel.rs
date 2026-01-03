@@ -1,6 +1,6 @@
 use evildoer_registry::themes::Theme;
-use evildoer_tui::layout::{Position, Rect};
 use evildoer_tui::Frame;
+use evildoer_tui::layout::{Position, Rect};
 use termina::event::{KeyEvent, MouseEvent};
 
 use super::dock::DockSlot;

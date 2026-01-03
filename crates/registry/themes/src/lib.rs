@@ -9,7 +9,7 @@
 use std::sync::OnceLock;
 
 pub use evildoer_base::{Color, Mode, Modifier, Style};
-use evildoer_registry_core::{impl_registry_metadata, RegistrySource};
+use evildoer_registry_core::{RegistrySource, impl_registry_metadata};
 use linkme::distributed_slice;
 
 mod syntax;

@@ -3,8 +3,8 @@ use std::ops::ControlFlow;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 
-use futures::channel::oneshot;
 use futures::FutureExt;
+use futures::channel::oneshot;
 use tower_service::Service;
 
 use crate::{

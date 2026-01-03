@@ -9,8 +9,8 @@ use crate::layout::Rect;
 use crate::style::{Style, Styled};
 use crate::symbols;
 use crate::text::{Line, Span};
-use crate::widgets::block::{Block, BlockExt};
 use crate::widgets::Widget;
+use crate::widgets::block::{Block, BlockExt};
 
 #[cfg(test)]
 mod tests;

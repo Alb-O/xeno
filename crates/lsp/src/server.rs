@@ -8,7 +8,7 @@
 //! - Exit the main loop with `ControlFlow::Break(Ok(()))` on `exit` notification.
 //! - Responds unrelated requests with errors and ignore unrelated notifications during
 //!   initialization and shutting down.
-use std::future::{ready, Future, Ready};
+use std::future::{Future, Ready, ready};
 use std::ops::ControlFlow;
 use std::pin::Pin;
 use std::task::{Context, Poll};

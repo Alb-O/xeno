@@ -1,6 +1,6 @@
 use evildoer_registry_motions::movement;
 
-use crate::{action, ActionResult, PendingAction, PendingKind};
+use crate::{ActionResult, PendingAction, PendingKind, action};
 
 action!(find_char, {
 	description: "Select to next occurrence of character (inclusive)",

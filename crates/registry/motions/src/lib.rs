@@ -11,10 +11,9 @@
 //! - Standard library implementations (basic, word, line, document)
 
 use evildoer_base::Range;
+pub use evildoer_registry_core::{Key, RegistryMetadata, RegistrySource, impl_registry_metadata};
 use linkme::distributed_slice;
 use ropey::RopeSlice;
-
-pub use evildoer_registry_core::{impl_registry_metadata, Key, RegistryMetadata, RegistrySource};
 
 /// Built-in motion implementations (char, word, line, etc.).
 pub(crate) mod impls;

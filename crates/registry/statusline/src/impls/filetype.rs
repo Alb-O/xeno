@@ -1,6 +1,6 @@
 //! File type indicator segment.
 
-use crate::{statusline_segment, RenderedSegment, SegmentPosition, SegmentStyle};
+use crate::{RenderedSegment, SegmentPosition, SegmentStyle, statusline_segment};
 
 statusline_segment!(
 	SEG_FILETYPE,

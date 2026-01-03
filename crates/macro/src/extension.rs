@@ -2,7 +2,7 @@ use proc_macro::TokenStream;
 use quote::{format_ident, quote};
 use syn::parse::{Parse, ParseStream};
 use syn::{
-	parse_macro_input, Attribute, ImplItem, ImplItemFn, ItemImpl, LitInt, LitStr, Token, Type,
+	Attribute, ImplItem, ImplItemFn, ItemImpl, LitInt, LitStr, Token, Type, parse_macro_input,
 };
 
 use crate::dispatch;

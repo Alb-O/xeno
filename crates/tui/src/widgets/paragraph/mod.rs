@@ -6,9 +6,9 @@ use crate::buffer::Buffer;
 use crate::layout::{HorizontalAlignment, Position, Rect};
 use crate::style::{Style, Styled};
 use crate::text::{Line, StyledGrapheme, Text};
+use crate::widgets::Widget;
 use crate::widgets::block::{Block, BlockExt};
 use crate::widgets::reflow::{LineComposer, LineTruncator, WordWrapper, WrappedLine};
-use crate::widgets::Widget;
 
 /// A widget to display some text.
 ///

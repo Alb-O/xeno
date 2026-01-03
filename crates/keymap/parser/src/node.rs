@@ -6,7 +6,7 @@ use std::fmt::{Display, Formatter};
 use std::hash::Hash;
 use std::ops::BitOr;
 
-use serde::{de, Deserialize, Deserializer};
+use serde::{Deserialize, Deserializer, de};
 use strum_macros::{AsRefStr, Display, EnumString};
 
 use crate::parse;

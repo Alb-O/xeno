@@ -9,7 +9,7 @@ use thiserror::Error;
 
 mod impls;
 
-pub use evildoer_registry_core::{impl_registry_metadata, RegistryMetadata, RegistrySource};
+pub use evildoer_registry_core::{RegistryMetadata, RegistrySource, impl_registry_metadata};
 
 /// Severity level of a notification.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]

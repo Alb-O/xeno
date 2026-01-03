@@ -7,9 +7,9 @@ use crate::buffer::Buffer;
 use crate::layout::{HorizontalAlignment, Rect};
 use crate::style::{Color, Modifier, Style, Stylize};
 use crate::text::{Line, Span, Text};
+use crate::widgets::Widget;
 use crate::widgets::block::TitlePosition;
 use crate::widgets::borders::{BorderType, Borders};
-use crate::widgets::Widget;
 
 mod alignment;
 mod edge_cases;

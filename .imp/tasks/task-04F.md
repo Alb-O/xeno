@@ -36,6 +36,7 @@ crates/registry/core/
 ```
 
 **Contents:**
+
 ```rust
 // crates/registry/core/src/lib.rs
 
@@ -95,11 +96,11 @@ macro_rules! impl_registry_metadata {
 ### Migration Steps
 
 1. Create `crates/registry/core/` with `Cargo.toml` and `src/lib.rs`
-2. Move `Key<T>`, `RegistrySource`, `RegistryMetadata`, `impl_registry_metadata!` from motions
-3. Update `evildoer-registry-motions` to depend on and re-export from core
-4. Update `evildoer-registry-panels` to depend on core directly
-5. Update `evildoer-registry-actions` if needed
-6. Add to workspace `Cargo.toml`
+1. Move `Key<T>`, `RegistrySource`, `RegistryMetadata`, `impl_registry_metadata!` from motions
+1. Update `evildoer-registry-motions` to depend on and re-export from core
+1. Update `evildoer-registry-panels` to depend on core directly
+1. Update `evildoer-registry-actions` if needed
+1. Add to workspace `Cargo.toml`
 
 ______________________________________________________________________
 
@@ -197,9 +198,10 @@ Should return nothing after migration.
 ### Ensure consistent re-exports
 
 All registry crates should:
+
 1. Depend on `evildoer-registry-core`
-2. Re-export `Key`, `RegistrySource`, `RegistryMetadata` if needed
-3. Have a `keys` module if they have typed handles
+1. Re-export `Key`, `RegistrySource`, `RegistryMetadata` if needed
+1. Have a `keys` module if they have typed handles
 
 ### Documentation
 
@@ -230,13 +232,13 @@ ______________________________________________________________________
 ## Implementation Order
 
 1. Create `evildoer-registry-core` crate
-2. Move shared types from motions to core
-3. Update motions to depend on and re-export from core
-4. Update panels to depend on core directly
-5. Add ActionKey or cached lookup for `delete_back`
-6. Update `insert.rs` to use typed reference
-7. Audit for any remaining string lookups
-8. Final test pass
+1. Move shared types from motions to core
+1. Update motions to depend on and re-export from core
+1. Update panels to depend on core directly
+1. Add ActionKey or cached lookup for `delete_back`
+1. Update `insert.rs` to use typed reference
+1. Audit for any remaining string lookups
+1. Final test pass
 
 ______________________________________________________________________
 

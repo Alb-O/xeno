@@ -10,9 +10,9 @@
 
 use linkme::distributed_slice;
 
+mod builtins;
 mod macros;
 mod split_buffer;
-mod builtins;
 
 pub use evildoer_registry_core::{Key, RegistryMetadata, RegistrySource, impl_registry_metadata};
 pub use split_buffer::{

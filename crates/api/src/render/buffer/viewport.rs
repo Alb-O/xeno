@@ -6,7 +6,7 @@ use serde::Serialize;
 use tracing::debug;
 
 use crate::buffer::Buffer;
-use crate::render::types::{wrap_line, WrapSegment};
+use crate::render::types::{WrapSegment, wrap_line};
 
 /// Test event emitted when viewport scrolling occurs.
 #[derive(Serialize)]
