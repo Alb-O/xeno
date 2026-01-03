@@ -13,8 +13,8 @@ use evildoer_core::editor_ctx::{
 	JumpAccess, MacroAccess, MessageAccess, ModeAccess, SearchAccess, SelectionAccess, SplitOps,
 	ThemeAccess, UndoAccess, ViewportAccess,
 };
-use evildoer_registry::commands::{CommandEditorOps, CommandError};
 use evildoer_registry::EditAction;
+use evildoer_registry::commands::{CommandEditorOps, CommandError};
 
 use crate::editor::Editor;
 
@@ -132,6 +132,14 @@ impl CommandEditorOps for Editor {
 
 	fn is_modified(&self) -> bool {
 		FileOpsAccess::is_modified(self)
+	}
+
+	fn is_readonly(&self) -> bool {
+		self.buffer().is_readonly()
+	}
+
+	fn set_readonly(&mut self, readonly: bool) {
+		self.buffer().set_readonly(readonly);
 	}
 
 	fn save(&mut self) -> Pin<Box<dyn Future<Output = Result<(), CommandError>> + '_>> {

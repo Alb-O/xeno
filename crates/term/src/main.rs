@@ -20,7 +20,6 @@ use {evildoer_acp as _, evildoer_core as _, evildoer_extensions as _};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-
 	let cli = Cli::parse();
 
 	// Handle grammar subcommands before starting the editor

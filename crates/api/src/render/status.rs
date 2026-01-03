@@ -26,6 +26,7 @@ impl Editor {
 			.and_then(|p| p.to_str().map(|s| s.to_string()));
 		let file_type_str: Option<String> = buffer.file_type();
 		let modified = buffer.modified();
+		let readonly = buffer.is_readonly();
 		let count = buffer.input.count();
 		let total_lines = buffer.doc().content.len_lines();
 		let mode_name = self.mode_name();
@@ -36,6 +37,7 @@ impl Editor {
 			mode_name,
 			path: path_str.as_deref(),
 			modified,
+			readonly,
 			line,
 			col,
 			count,

@@ -68,6 +68,9 @@ impl Editor {
 
 	/// Undoes the last change, restoring selections for all views of the document.
 	pub fn undo(&mut self) {
+		if !self.guard_readonly() {
+			return;
+		}
 		let buffer_id = self.buffers.focused_view();
 		let doc_id = self
 			.buffers
@@ -93,6 +96,9 @@ impl Editor {
 
 	/// Redoes the last undone change, restoring selections for all views of the document.
 	pub fn redo(&mut self) {
+		if !self.guard_readonly() {
+			return;
+		}
 		let buffer_id = self.buffers.focused_view();
 		let doc_id = self
 			.buffers

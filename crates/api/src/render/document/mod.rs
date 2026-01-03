@@ -345,6 +345,9 @@ impl Editor {
 	) {
 		use std::collections::HashMap;
 
+		type JunctionState = (bool, bool, bool, bool, u8);
+		type JunctionMap = HashMap<(u16, u16), JunctionState>;
+
 		// SplitDirection::Vertical = stacked = horizontal line; Horizontal = side-by-side = vertical line
 		let h_seps: Vec<_> = separators
 			.iter()
@@ -356,7 +359,7 @@ impl Editor {
 			.collect();
 
 		// (x, y) -> (has_up, has_down, has_left, has_right, priority)
-		let mut all_junctions: HashMap<(u16, u16), (bool, bool, bool, bool, u8)> = HashMap::new();
+		let mut all_junctions: JunctionMap = HashMap::new();
 
 		for (_, v_prio, v_rect) in &v_seps {
 			let x = v_rect.x;
@@ -377,12 +380,11 @@ impl Editor {
 				let dominated_above = x_overlaps && adjacent_above;
 				let dominated_below = x_overlaps && adjacent_below;
 
-				if !at_left_edge
-					&& !at_right_edge
-					&& !within
-					&& !(x_overlaps && touches_below)
-					&& !dominated_above
-					&& !dominated_below
+				if !(at_left_edge
+					|| at_right_edge
+					|| within || dominated_above
+					|| dominated_below
+					|| (x_overlaps && touches_below))
 				{
 					continue;
 				}

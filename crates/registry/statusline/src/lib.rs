@@ -30,6 +30,8 @@ pub struct StatuslineContext<'a> {
 	pub path: Option<&'a str>,
 	/// Whether the buffer is modified.
 	pub modified: bool,
+	/// Whether the buffer is read-only.
+	pub readonly: bool,
 	/// Current line number (1-indexed).
 	pub line: usize,
 	/// Current column number (1-indexed).

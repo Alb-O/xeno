@@ -39,6 +39,24 @@ pub static WARN: NotificationTypeDef = NotificationTypeDef {
 };
 
 #[::linkme::distributed_slice(crate::NOTIFICATION_TYPES)]
+pub static WARNING: NotificationTypeDef = NotificationTypeDef {
+	id: "warning",
+	name: "warning",
+	level: Level::Warn,
+	icon: None,
+	semantic: "warning",
+	auto_dismiss: AutoDismiss::After(Duration::from_secs(6)),
+	animation: Animation::Fade,
+	timing: (
+		Timing::Fixed(Duration::from_millis(200)),
+		Timing::Auto,
+		Timing::Fixed(Duration::from_millis(200)),
+	),
+	priority: 0,
+	source: RegistrySource::Crate(env!("CARGO_PKG_NAME")),
+};
+
+#[::linkme::distributed_slice(crate::NOTIFICATION_TYPES)]
 pub static ERROR: NotificationTypeDef = NotificationTypeDef {
 	id: "error",
 	name: "error",

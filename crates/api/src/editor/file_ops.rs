@@ -18,7 +18,6 @@ impl evildoer_core::editor_ctx::FileOpsAccess for Editor {
 		&mut self,
 	) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), CommandError>> + '_>> {
 		Box::pin(async move {
-
 			let path_owned = match &self.buffer().path() {
 				Some(p) => p.clone(),
 				None => {

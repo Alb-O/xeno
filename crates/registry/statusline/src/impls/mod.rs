@@ -6,3 +6,4 @@ mod filetype;
 mod mode;
 mod position;
 mod progress;
+mod readonly;

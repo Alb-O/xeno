@@ -10,6 +10,9 @@ impl Editor {
 	/// Executes an edit action (delete, change, yank, etc.).
 	pub(crate) fn do_execute_edit_action(&mut self, action: EditAction, _extend: bool) {
 		debug!(edit = ?action, "Executing edit action");
+		if !self.guard_readonly() {
+			return;
+		}
 		match action {
 			EditAction::Delete { yank } => {
 				if yank {

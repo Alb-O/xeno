@@ -133,6 +133,9 @@ impl Editor {
 				false
 			}
 			KeyResult::InsertChar(c) => {
+				if !self.guard_readonly() {
+					return false;
+				}
 				self.insert_text(&c.to_string());
 				false
 			}

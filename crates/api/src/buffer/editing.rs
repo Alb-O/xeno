@@ -41,7 +41,9 @@ impl Buffer {
 	/// use [`prepare_insert`] and apply with [`apply_transaction_with_syntax`].
 	pub fn insert_text(&mut self, text: &str) -> Transaction {
 		let (tx, new_selection) = self.prepare_insert(text);
-		self.apply_transaction(&tx);
+		if !self.apply_transaction(&tx) {
+			return tx;
+		}
 		self.selection = new_selection;
 		self.cursor = self.selection.primary().head;
 		tx
@@ -106,7 +108,9 @@ impl Buffer {
 	/// use [`prepare_paste_after`] and apply with [`apply_transaction_with_syntax`].
 	pub fn paste_after(&mut self, text: &str) -> Option<Transaction> {
 		let (tx, new_selection) = self.prepare_paste_after(text)?;
-		self.apply_transaction(&tx);
+		if !self.apply_transaction(&tx) {
+			return None;
+		}
 		self.selection = new_selection;
 		self.cursor = self.selection.primary().head;
 		Some(tx)
@@ -132,7 +136,9 @@ impl Buffer {
 	/// use [`prepare_paste_before`] and apply with [`apply_transaction_with_syntax`].
 	pub fn paste_before(&mut self, text: &str) -> Option<Transaction> {
 		let (tx, new_selection) = self.prepare_paste_before(text)?;
-		self.apply_transaction(&tx);
+		if !self.apply_transaction(&tx) {
+			return None;
+		}
 		self.selection = new_selection;
 		self.cursor = self.selection.primary().head;
 		Some(tx)
@@ -162,26 +168,39 @@ impl Buffer {
 	/// use [`prepare_delete_selection`] and apply with [`apply_transaction_with_syntax`].
 	pub fn delete_selection(&mut self) -> Option<Transaction> {
 		let (tx, new_selection) = self.prepare_delete_selection()?;
-		self.apply_transaction(&tx);
+		if !self.apply_transaction(&tx) {
+			return None;
+		}
 		self.selection = new_selection;
 		Some(tx)
 	}
 
 	/// Applies a transaction to the document. Increments the version counter.
-	pub fn apply_transaction(&self, tx: &Transaction) {
+	///
+	/// Returns true if the transaction was applied.
+	pub fn apply_transaction(&self, tx: &Transaction) -> bool {
 		let mut doc = self.doc_mut();
+		if doc.readonly {
+			return false;
+		}
 		tx.apply(&mut doc.content);
 		doc.modified = true;
 		doc.version = doc.version.wrapping_add(1);
+		true
 	}
 
 	/// Applies a transaction and updates syntax tree incrementally.
+	///
+	/// Returns true if the transaction was applied.
 	pub fn apply_transaction_with_syntax(
 		&self,
 		tx: &Transaction,
 		language_loader: &LanguageLoader,
-	) {
+	) -> bool {
 		let mut doc = self.doc_mut();
+		if doc.readonly {
+			return false;
+		}
 		let old_doc = doc.content.clone();
 		tx.apply(&mut doc.content);
 
@@ -200,11 +219,35 @@ impl Buffer {
 
 		doc.modified = true;
 		doc.version = doc.version.wrapping_add(1);
+		true
 	}
 
 	/// Finalizes selection/cursor after a transaction is applied.
 	pub fn finalize_selection(&mut self, new_selection: evildoer_base::Selection) {
 		self.selection = new_selection;
 		self.cursor = self.selection.primary().head;
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use crate::buffer::{Buffer, BufferId};
+
+	#[test]
+	fn readonly_flag_roundtrip() {
+		let buffer = Buffer::scratch(BufferId::SCRATCH);
+		assert!(!buffer.is_readonly());
+		buffer.set_readonly(true);
+		assert!(buffer.is_readonly());
+	}
+
+	#[test]
+	fn readonly_blocks_apply_transaction() {
+		let mut buffer = Buffer::scratch(BufferId::SCRATCH);
+		let (tx, _selection) = buffer.prepare_insert("hi");
+		buffer.set_readonly(true);
+		let applied = buffer.apply_transaction(&tx);
+		assert!(!applied);
+		assert_eq!(buffer.doc().content.slice(..).to_string(), "");
 	}
 }

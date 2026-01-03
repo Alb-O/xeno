@@ -64,3 +64,26 @@ fn cmd_delete_buffer<'a>(
 		Ok(CommandOutcome::Ok)
 	})
 }
+
+command!(
+	readonly,
+	{ aliases: &["ro"], description: "Toggle read-only mode for current buffer" },
+	handler: cmd_readonly
+);
+
+/// Handler for the `:readonly` command.
+fn cmd_readonly<'a>(
+	ctx: &'a mut CommandContext<'a>,
+) -> LocalBoxFuture<'a, Result<CommandOutcome, CommandError>> {
+	Box::pin(async move {
+		let current = ctx.is_readonly();
+		ctx.set_readonly(!current);
+		let msg = if !current {
+			"Read-only enabled"
+		} else {
+			"Read-only disabled"
+		};
+		ctx.notify("info", msg);
+		Ok(CommandOutcome::Ok)
+	})
+}

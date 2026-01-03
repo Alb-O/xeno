@@ -341,11 +341,7 @@ fn resize_respects_minimum_width() {
 
 	// Verify first area respects minimum
 	let areas = layout.compute_view_areas(area);
-	let first_area = areas
-		.iter()
-		.find(|(v, _)| *v == BufferId(1))
-		.unwrap()
-		.1;
+	let first_area = areas.iter().find(|(v, _)| *v == BufferId(1)).unwrap().1;
 	assert!(first_area.width >= Layout::MIN_WIDTH);
 }
 
@@ -367,11 +363,7 @@ fn resize_respects_minimum_height() {
 
 	// Verify first area respects minimum
 	let areas = layout.compute_view_areas(area);
-	let first_area = areas
-		.iter()
-		.find(|(v, _)| *v == BufferId(1))
-		.unwrap()
-		.1;
+	let first_area = areas.iter().find(|(v, _)| *v == BufferId(1)).unwrap().1;
 	assert!(first_area.height >= Layout::MIN_HEIGHT);
 }
 
@@ -394,11 +386,7 @@ fn resize_respects_sibling_minimum_width() {
 
 	// Verify second area respects minimum
 	let areas = layout.compute_view_areas(area);
-	let second_area = areas
-		.iter()
-		.find(|(v, _)| *v == BufferId(2))
-		.unwrap()
-		.1;
+	let second_area = areas.iter().find(|(v, _)| *v == BufferId(2)).unwrap().1;
 	assert!(second_area.width >= Layout::MIN_WIDTH);
 }
 

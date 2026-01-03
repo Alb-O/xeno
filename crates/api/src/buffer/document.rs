@@ -56,6 +56,9 @@ pub struct Document {
 	/// Whether the document has unsaved changes.
 	pub modified: bool,
 
+	/// Whether the document is read-only (prevents all text modifications).
+	pub readonly: bool,
+
 	/// Undo history stack.
 	pub undo_stack: Vec<HistoryEntry>,
 
@@ -85,6 +88,7 @@ impl Document {
 			content: Rope::from(content.as_str()),
 			path,
 			modified: false,
+			readonly: false,
 			undo_stack: Vec::new(),
 			redo_stack: Vec::new(),
 			file_type: None,

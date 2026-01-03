@@ -166,6 +166,16 @@ impl Buffer {
 		self.document.write().unwrap().modified = modified;
 	}
 
+	/// Returns whether the underlying document is read-only.
+	pub fn is_readonly(&self) -> bool {
+		self.document.read().unwrap().readonly
+	}
+
+	/// Sets the read-only flag on the underlying document.
+	pub fn set_readonly(&self, readonly: bool) {
+		self.document.write().unwrap().readonly = readonly;
+	}
+
 	/// Returns the document version.
 	pub fn version(&self) -> u64 {
 		self.document.read().unwrap().version

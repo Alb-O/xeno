@@ -7,9 +7,21 @@ use evildoer_base::Transaction;
 use super::Editor;
 
 impl Editor {
+	pub(crate) fn guard_readonly(&mut self) -> bool {
+		if self.buffer().is_readonly() {
+			self.notify("warning", "Buffer is read-only");
+			return false;
+		}
+		true
+	}
+
 	/// Inserts text at the current cursor position(s).
 	pub fn insert_text(&mut self, text: &str) {
 		let buffer_id = self.buffers.focused_view();
+
+		if !self.guard_readonly() {
+			return;
+		}
 
 		if self.buffer().mode() == evildoer_base::Mode::Insert {
 			self.save_insert_undo_state();
@@ -26,13 +38,21 @@ impl Editor {
 			buffer.prepare_insert(text)
 		};
 
-		{
+		let applied = {
 			let buffer = self
 				.buffers
 				.get_buffer_mut(buffer_id)
 				.expect("focused buffer must exist");
-			buffer.apply_transaction_with_syntax(&tx, &self.language_loader);
-			buffer.finalize_selection(new_selection);
+			let applied = buffer.apply_transaction_with_syntax(&tx, &self.language_loader);
+			if applied {
+				buffer.finalize_selection(new_selection);
+			}
+			applied
+		};
+
+		if !applied {
+			self.notify("warning", "Buffer is read-only");
+			return;
 		}
 
 		self.sync_sibling_selections(&tx);
@@ -53,6 +73,10 @@ impl Editor {
 			return;
 		}
 
+		if !self.guard_readonly() {
+			return;
+		}
+
 		let buffer_id = self.buffers.focused_view();
 
 		self.save_undo_state();
@@ -69,13 +93,21 @@ impl Editor {
 			return;
 		};
 
-		{
+		let applied = {
 			let buffer = self
 				.buffers
 				.get_buffer_mut(buffer_id)
 				.expect("focused buffer must exist");
-			buffer.apply_transaction_with_syntax(&tx, &self.language_loader);
-			buffer.finalize_selection(new_selection);
+			let applied = buffer.apply_transaction_with_syntax(&tx, &self.language_loader);
+			if applied {
+				buffer.finalize_selection(new_selection);
+			}
+			applied
+		};
+
+		if !applied {
+			self.notify("warning", "Buffer is read-only");
+			return;
 		}
 
 		self.sync_sibling_selections(&tx);
@@ -85,6 +117,10 @@ impl Editor {
 	/// Pastes the yank register content before the cursor.
 	pub fn paste_before(&mut self) {
 		if self.registers.yank.is_empty() {
+			return;
+		}
+
+		if !self.guard_readonly() {
 			return;
 		}
 
@@ -104,13 +140,21 @@ impl Editor {
 			return;
 		};
 
-		{
+		let applied = {
 			let buffer = self
 				.buffers
 				.get_buffer_mut(buffer_id)
 				.expect("focused buffer must exist");
-			buffer.apply_transaction_with_syntax(&tx, &self.language_loader);
-			buffer.finalize_selection(new_selection);
+			let applied = buffer.apply_transaction_with_syntax(&tx, &self.language_loader);
+			if applied {
+				buffer.finalize_selection(new_selection);
+			}
+			applied
+		};
+
+		if !applied {
+			self.notify("warning", "Buffer is read-only");
+			return;
 		}
 
 		self.sync_sibling_selections(&tx);
@@ -120,6 +164,10 @@ impl Editor {
 	/// Deletes the currently selected text.
 	pub fn delete_selection(&mut self) {
 		if self.buffer().selection.primary().is_empty() {
+			return;
+		}
+
+		if !self.guard_readonly() {
 			return;
 		}
 
@@ -138,13 +186,21 @@ impl Editor {
 			return;
 		};
 
-		{
+		let applied = {
 			let buffer = self
 				.buffers
 				.get_buffer_mut(buffer_id)
 				.expect("focused buffer must exist");
-			buffer.apply_transaction_with_syntax(&tx, &self.language_loader);
-			buffer.finalize_selection(new_selection);
+			let applied = buffer.apply_transaction_with_syntax(&tx, &self.language_loader);
+			if applied {
+				buffer.finalize_selection(new_selection);
+			}
+			applied
+		};
+
+		if !applied {
+			self.notify("warning", "Buffer is read-only");
+			return;
 		}
 
 		self.sync_sibling_selections(&tx);
@@ -154,10 +210,15 @@ impl Editor {
 	/// Applies a transaction to the focused buffer.
 	pub fn apply_transaction(&mut self, tx: &Transaction) {
 		let buffer_id = self.buffers.focused_view();
-		self.buffers
+		let applied = self
+			.buffers
 			.get_buffer_mut(buffer_id)
 			.expect("focused buffer must exist")
 			.apply_transaction_with_syntax(tx, &self.language_loader);
+		if !applied {
+			self.notify("warning", "Buffer is read-only");
+			return;
+		}
 		self.dirty_buffers.insert(buffer_id);
 		self.sync_sibling_selections(tx);
 	}

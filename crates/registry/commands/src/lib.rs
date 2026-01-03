@@ -74,6 +74,10 @@ pub trait CommandEditorOps {
 	fn clear_message(&mut self);
 	/// Returns whether the current buffer has unsaved changes.
 	fn is_modified(&self) -> bool;
+	/// Returns whether the current buffer is read-only.
+	fn is_readonly(&self) -> bool;
+	/// Sets the read-only flag for the current buffer.
+	fn set_readonly(&mut self, readonly: bool);
 	/// Saves the current buffer to its file path.
 	fn save(&mut self) -> Pin<Box<dyn Future<Output = Result<(), CommandError>> + '_>>;
 	/// Saves the current buffer to a new file path.
@@ -133,6 +137,16 @@ impl<'a> CommandContext<'a> {
 	/// Displays a debug notification.
 	pub fn debug(&mut self, msg: &str) {
 		self.notify("debug", msg);
+	}
+
+	/// Returns whether the current buffer is read-only.
+	pub fn is_readonly(&self) -> bool {
+		self.editor.is_readonly()
+	}
+
+	/// Sets the read-only flag for the current buffer.
+	pub fn set_readonly(&mut self, readonly: bool) {
+		self.editor.set_readonly(readonly);
 	}
 
 	/// Extracts and downcasts user data to the expected type.
