@@ -202,6 +202,25 @@ fn separator_positions_2x2_grid() {
 		.filter(|(dir, _, _)| *dir == SplitDirection::Horizontal)
 		.collect();
 	assert_eq!(v_seps.len(), 2, "Expected 2 vertical separators");
+
+	// Check vertical separator positions for junction rendering
+	// Both vertical separators should be at x=40, but at different y ranges
+	// For a 4-way junction at (40, 12), we need:
+	// - V-sep 1 (y=0..12) ends at y=12 → adjacent_above
+	// - V-sep 2 (y=13..25) starts at y=13 → adjacent_below for y=12
+	// - Horizontal (x=0..81) passes through x=40
+	let h_rect = h_seps[0].2;
+	let junction_y = h_rect.y; // y=12
+
+	// Check V-sep 1 (above)
+	let v1 = v_seps[0].2;
+	let adjacent_above = junction_y == v1.y + v1.height;
+	assert!(adjacent_above, "V-sep 1 should end at junction y");
+
+	// Check V-sep 2 (below)
+	let v2 = v_seps[1].2;
+	let adjacent_below = junction_y + 1 == v2.y;
+	assert!(adjacent_below, "V-sep 2 should start below junction y");
 }
 
 #[test]

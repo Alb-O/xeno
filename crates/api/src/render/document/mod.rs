@@ -110,6 +110,12 @@ impl SeparatorStyle {
 			Style::default().fg(normal_fg).bg(normal_bg)
 		}
 	}
+
+	/// Returns the base style for a given priority (used for junction glyphs).
+	fn for_priority(&self, priority: u8) -> Style {
+		let idx = (priority as usize).min(self.base_bg.len() - 1);
+		Style::default().fg(self.base_fg[idx]).bg(self.base_bg[idx])
+	}
 }
 
 /// Returns the box-drawing junction glyph for the given connectivity.
@@ -329,9 +335,11 @@ impl Editor {
 			.filter(|(d, _, _)| *d == SplitDirection::Horizontal)
 			.collect();
 
+		// (x, y) -> (has_up, has_down, has_left, has_right, priority)
+		let mut all_junctions: HashMap<(u16, u16), (bool, bool, bool, bool, u8)> = HashMap::new();
+
 		for (_, v_prio, v_rect) in &v_seps {
 			let x = v_rect.x;
-			let mut junctions: HashMap<u16, (bool, bool, bool, bool, u8)> = HashMap::new();
 
 			for (_, h_prio, h_rect) in &h_seps {
 				let y = h_rect.y;
@@ -339,21 +347,41 @@ impl Editor {
 				let at_left_edge = x + 1 == h_rect.x;
 				let at_right_edge = x == h_rect.right();
 				let x_overlaps = x >= h_rect.x && x < h_rect.right();
+
 				let touches_above = y >= v_rect.y && y < v_rect.bottom();
+				let adjacent_above = y == v_rect.bottom();
+				let adjacent_below = y + 1 == v_rect.y;
 				let touches_below = y + 1 >= v_rect.y && y + 1 < v_rect.bottom();
 				let within = x_overlaps && touches_above;
 
-				if !at_left_edge && !at_right_edge && !within && !(x_overlaps && touches_below) {
+				let dominated_above = x_overlaps && adjacent_above;
+				let dominated_below = x_overlaps && adjacent_below;
+
+				if !at_left_edge
+					&& !at_right_edge
+					&& !within
+					&& !(x_overlaps && touches_below)
+					&& !dominated_above
+					&& !dominated_below
+				{
 					continue;
 				}
 
-				if touches_above || touches_below || within {
-					let entry = junctions
-						.entry(y)
+				if touches_above || touches_below || within || dominated_above || dominated_below {
+					let entry = all_junctions
+						.entry((x, y))
 						.or_insert((false, false, false, false, 0));
 					if within {
 						entry.0 |= y > v_rect.y;
 						entry.1 |= y < v_rect.bottom().saturating_sub(1);
+						entry.2 |= x > h_rect.x;
+						entry.3 |= x < h_rect.right().saturating_sub(1);
+					} else if dominated_above {
+						entry.0 = true;
+						entry.2 |= x > h_rect.x;
+						entry.3 |= x < h_rect.right().saturating_sub(1);
+					} else if dominated_below {
+						entry.1 = true;
 						entry.2 |= x > h_rect.x;
 						entry.3 |= x < h_rect.right().saturating_sub(1);
 					} else if x_overlaps {
@@ -367,29 +395,28 @@ impl Editor {
 						entry.2 |= at_right_edge;
 						entry.3 |= at_left_edge;
 					}
-					entry.4 = entry.4.max(*h_prio);
+					entry.4 = entry.4.max(*v_prio).max(*h_prio);
 				}
 			}
+		}
 
-			let buf = frame.buffer_mut();
-			for (y, (has_up, has_down, has_left, has_right, h_prio)) in junctions {
-				let connectivity = (has_up as u8)
-					| ((has_down as u8) << 1)
-					| ((has_left as u8) << 2)
-					| ((has_right as u8) << 3);
+		let buf = frame.buffer_mut();
+		for ((x, y), (has_up, has_down, has_left, has_right, priority)) in all_junctions {
+			let connectivity = (has_up as u8)
+				| ((has_down as u8) << 1)
+				| ((has_left as u8) << 2)
+				| ((has_right as u8) << 3);
 
-				if connectivity == 0b0011 {
-					continue;
-				}
+			if connectivity == 0b0011 {
+				continue;
+			}
 
-				let glyph = junction_glyph(connectivity);
-				let priority = (*v_prio).max(h_prio);
-				let style = sep_style.for_rect(*v_rect, priority);
+			let glyph = junction_glyph(connectivity);
+			let style = sep_style.for_priority(priority);
 
-				if let Some(cell) = buf.cell_mut((x, y)) {
-					cell.set_char(glyph);
-					cell.set_style(style);
-				}
+			if let Some(cell) = buf.cell_mut((x, y)) {
+				cell.set_char(glyph);
+				cell.set_style(style);
 			}
 		}
 	}
