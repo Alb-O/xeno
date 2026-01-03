@@ -513,9 +513,14 @@ impl Editor {
 
 	/// Renders the which-key HUD when there are pending keys.
 	fn render_whichkey_hud(&self, frame: &mut evildoer_tui::Frame, doc_area: Rect) {
+		use crate::buffer::BufferView;
 		use evildoer_core::get_keymap_registry;
 		use evildoer_registry::BindingMode;
 		use evildoer_tui::widgets::keytree::{KeyTree, KeyTreeNode};
+
+		let BufferView::Text(_) = self.focused_view() else {
+			return;
+		};
 
 		let pending_keys = self.buffer().input.pending_keys();
 		if pending_keys.is_empty() {
