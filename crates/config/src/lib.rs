@@ -86,8 +86,8 @@ use std::path::Path;
 
 pub use error::{ConfigError, Result};
 pub use keys::KeysConfig;
-pub use options::OptionsConfig;
 pub use theme::ParsedTheme;
+pub use xeno_registry::options::OptionStore;
 #[cfg(feature = "watch")]
 pub use watch::{ConfigChange, ConfigWatcher};
 
@@ -100,8 +100,8 @@ pub struct Config {
 	pub theme: Option<ParsedTheme>,
 	/// Keybinding overrides.
 	pub keys: Option<KeysConfig>,
-	/// Option overrides.
-	pub options: Option<OptionsConfig>,
+	/// Global option overrides.
+	pub options: OptionStore,
 	/// Per-language option overrides.
 	pub languages: Vec<LanguageConfig>,
 }
@@ -112,7 +112,7 @@ pub struct LanguageConfig {
 	/// Language name (e.g., "rust", "python").
 	pub name: String,
 	/// Option overrides for this language.
-	pub options: OptionsConfig,
+	pub options: OptionStore,
 }
 
 impl Config {
@@ -125,7 +125,8 @@ impl Config {
 		let options = doc
 			.get("options")
 			.map(options::parse_options_node)
-			.transpose()?;
+			.transpose()?
+			.unwrap_or_default();
 
 		let languages = doc
 			.nodes()
@@ -169,12 +170,7 @@ impl Config {
 				None => self.keys = Some(other_keys),
 			}
 		}
-		if let Some(other_opts) = other.options {
-			match &mut self.options {
-				Some(opts) => opts.merge(other_opts),
-				None => self.options = Some(other_opts),
-			}
-		}
+		self.options.merge(&other.options);
 		self.languages.extend(other.languages);
 	}
 }

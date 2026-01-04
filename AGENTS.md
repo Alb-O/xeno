@@ -50,6 +50,39 @@ action!(move_left, {
 
 Handler slices (`RESULT_*_HANDLERS`) auto-generated via `#[derive(DispatchResult)]`.
 
+### Options System
+
+Configurable options are defined via the `option!` macro with explicit KDL keys:
+
+```rust
+option!(tab_width, {
+    kdl: "tab-width",        // Explicit KDL key (no auto-conversion)
+    type: Int,               // Int | Bool | String
+    default: 4,
+    scope: Buffer,           // Global | Buffer
+    description: "Spaces per tab character",
+});
+```
+
+**Access patterns** use typed keys for compile-time safety:
+
+```rust
+use xeno_registry::options::keys;
+
+// Global option (ignores buffer overrides)
+let theme = options::global(keys::theme);
+
+// Context-aware resolution (buffer -> language -> global -> default)
+let width = ctx.option_int(keys::tab_width);
+```
+
+**Resolution order**: Buffer-local → Language config → Global config → Compile-time default
+
+**Runtime storage**:
+- `OptionStore`: Holds option values, keyed by KDL key
+- `OptionResolver`: Chains stores for layered resolution
+- Editor stores: `global_options`, `language_options` (per-language), `Buffer::local_options`
+
 ### Event System
 
 Hook events are defined via the `define_events!` proc macro in `registry/hooks/src/events.rs`. This is a **single source of truth** that generates:

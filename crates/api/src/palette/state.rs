@@ -64,7 +64,7 @@ pub fn palette_style() -> FloatingStyle {
 
 /// Computes the palette rectangle centered horizontally near the top.
 pub fn palette_rect(screen_width: u16, screen_height: u16) -> Rect {
-	let width = screen_width.saturating_sub(20).min(80).max(40);
+	let width = screen_width.saturating_sub(20).clamp(40, 80);
 	let height = 3; // Border top + content + border bottom (padding is internal)
 	let x = (screen_width.saturating_sub(width)) / 2;
 	let y = screen_height / 5;

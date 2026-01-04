@@ -10,6 +10,8 @@ mod help;
 mod quit;
 /// Registry diagnostic commands.
 mod registry_diag;
+/// Option setting commands.
+mod set;
 /// Test notification commands.
 mod test_notify;
 /// Theme switching commands.

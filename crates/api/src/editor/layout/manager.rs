@@ -34,9 +34,8 @@ pub struct LayoutManager {
 	pub text_selection_origin: Option<(BufferView, Rect)>,
 }
 
-impl LayoutManager {
-	/// Creates a new layout manager without owning the base layout.
-	pub fn new() -> Self {
+impl Default for LayoutManager {
+	fn default() -> Self {
 		Self {
 			layers: vec![None],
 			hovered_separator: None,
@@ -46,5 +45,12 @@ impl LayoutManager {
 			dragging_separator: None,
 			text_selection_origin: None,
 		}
+	}
+}
+
+impl LayoutManager {
+	/// Creates a new layout manager without owning the base layout.
+	pub fn new() -> Self {
+		Self::default()
 	}
 }

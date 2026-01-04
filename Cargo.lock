@@ -4346,6 +4346,7 @@ version = "0.3.0"
 dependencies = [
  "kdl",
  "notify",
+ "strsim",
  "tempfile",
  "thiserror 2.0.17",
  "xeno-base",
@@ -4531,6 +4532,7 @@ dependencies = [
  "xeno-registry-core",
  "xeno-registry-motions",
  "xeno-registry-notifications",
+ "xeno-registry-options",
  "xeno-registry-text-objects",
 ]
 

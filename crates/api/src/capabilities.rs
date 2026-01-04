@@ -10,14 +10,51 @@ use xeno_base::range::CharIdx;
 use xeno_base::{Mode, Selection};
 use xeno_core::editor_ctx::{
 	CommandQueueAccess, CursorAccess, EditAccess, EditorCapabilities, FileOpsAccess, FocusOps,
-	JumpAccess, MacroAccess, ModeAccess, NotificationAccess, PaletteAccess, SearchAccess,
-	SelectionAccess, SplitOps, ThemeAccess, UndoAccess, ViewportAccess,
+	JumpAccess, MacroAccess, ModeAccess, NotificationAccess, OptionAccess, PaletteAccess,
+	SearchAccess, SelectionAccess, SplitOps, ThemeAccess, UndoAccess, ViewportAccess,
 };
+use xeno_registry::options::{OptionKey, OptionResolver, OptionValue};
 use xeno_registry::EditAction;
 use xeno_registry::commands::{CommandEditorOps, CommandError};
 use xeno_registry_notifications::{Notification, keys};
 
 use crate::editor::Editor;
+
+/// Parses a string value into an [`OptionValue`] based on the option's declared type.
+fn parse_option_value(
+	kdl_key: &str,
+	value: &str,
+) -> Result<OptionValue, CommandError> {
+	use xeno_registry::options::{self, OptionType};
+
+	let def = options::find_by_kdl(kdl_key).ok_or_else(|| {
+		let suggestion = options::all_sorted()
+			.map(|o| o.kdl_key)
+			.min_by_key(|k| strsim::levenshtein(kdl_key, k))
+			.filter(|k| strsim::levenshtein(kdl_key, k) <= 3);
+		match suggestion {
+			Some(s) => {
+				CommandError::InvalidArgument(format!("unknown option: {kdl_key} (did you mean '{s}'?)"))
+			}
+			None => CommandError::InvalidArgument(format!("unknown option: {kdl_key}")),
+		}
+	})?;
+
+	match def.value_type {
+		OptionType::Bool => match value.to_lowercase().as_str() {
+			"true" | "1" | "yes" | "on" => Ok(OptionValue::Bool(true)),
+			"false" | "0" | "no" | "off" => Ok(OptionValue::Bool(false)),
+			_ => Err(CommandError::InvalidArgument(format!(
+				"invalid boolean value for {kdl_key}: {value}"
+			))),
+		},
+		OptionType::Int => value
+			.parse::<i64>()
+			.map(OptionValue::Int)
+			.map_err(|_| CommandError::InvalidArgument(format!("invalid integer for {kdl_key}: {value}"))),
+		OptionType::String => Ok(OptionValue::String(value.to_string())),
+	}
+}
 
 impl CursorAccess for Editor {
 	fn cursor(&self) -> CharIdx {
@@ -164,6 +201,18 @@ impl CommandEditorOps for Editor {
 
 	fn set_theme(&mut self, name: &str) -> Result<(), CommandError> {
 		ThemeAccess::set_theme(self, name)
+	}
+
+	fn set_option(&mut self, kdl_key: &str, value: &str) -> Result<(), CommandError> {
+		let opt_value = parse_option_value(kdl_key, value)?;
+		let _ = self.global_options.set_by_kdl(kdl_key, opt_value);
+		Ok(())
+	}
+
+	fn set_local_option(&mut self, kdl_key: &str, value: &str) -> Result<(), CommandError> {
+		let opt_value = parse_option_value(kdl_key, value)?;
+		let _ = self.buffer_mut().local_options.set_by_kdl(kdl_key, opt_value);
+		Ok(())
 	}
 }
 
@@ -327,6 +376,28 @@ impl PaletteAccess for Editor {
 	}
 }
 
+impl OptionAccess for Editor {
+	fn option(&self, key: OptionKey) -> OptionValue {
+		let buffer = self.buffer();
+		let language_store = buffer
+			.file_type()
+			.and_then(|ft| self.language_options.get(&ft));
+
+		let resolver = if let Some(lang_store) = language_store {
+			OptionResolver::new()
+				.with_buffer(&buffer.local_options)
+				.with_language(lang_store)
+				.with_global(&self.global_options)
+		} else {
+			OptionResolver::new()
+				.with_buffer(&buffer.local_options)
+				.with_global(&self.global_options)
+		};
+
+		resolver.resolve(key)
+	}
+}
+
 impl EditorCapabilities for Editor {
 	fn search(&mut self) -> Option<&mut dyn SearchAccess> {
 		Some(self)
@@ -369,6 +440,10 @@ impl EditorCapabilities for Editor {
 	}
 
 	fn palette(&mut self) -> Option<&mut dyn PaletteAccess> {
+		Some(self)
+	}
+
+	fn option_ops(&self) -> Option<&dyn OptionAccess> {
 		Some(self)
 	}
 

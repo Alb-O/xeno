@@ -789,64 +789,64 @@ Test full flow: KDL config -> parse -> store -> resolve with buffer context.
 ## Task Checklist
 
 ### Phase 1: Redesign Option Registry
-- [ ] Update `OptionDef` with `kdl_key` field
-- [ ] Update `option!` macro with `kdl:` parameter
-- [ ] Add `find_by_kdl()`, `find_by_name()`, `validate()` functions
-- [ ] Add `keys` module exporting typed handles
-- [ ] Add `OptionKey` type alias
+- [x] Update `OptionDef` with `kdl_key` field
+- [x] Update `option!` macro with `kdl:` parameter
+- [x] Add `find_by_kdl()`, `find_by_name()`, `validate()` functions
+- [x] Add `keys` module exporting typed handles
+- [x] Add `OptionKey` type alias
 
 ### Phase 2: Migrate Existing Options
-- [ ] Update `impls/indent.rs` (tab_width, indent_width, use_tabs)
-- [ ] Update `impls/display.rs` (line_numbers, cursorline, wrap)
-- [ ] Update `impls/scroll.rs` (scrolloff, sidescrolloff)
-- [ ] Update `impls/theme.rs` (theme)
-- [ ] Update `impls/behavior.rs`
-- [ ] Update `impls/file.rs`
-- [ ] Update `impls/search.rs`
+- [x] Update `impls/indent.rs` (tab_width, indent_width, use_tabs)
+- [x] Update `impls/display.rs` (line_numbers, cursorline, wrap)
+- [x] Update `impls/scroll.rs` (scrolloff, sidescrolloff)
+- [x] Update `impls/theme.rs` (theme)
+- [x] Update `impls/behavior.rs`
+- [x] Update `impls/file.rs`
+- [x] Update `impls/search.rs`
 
 ### Phase 3: Create Option Store
-- [ ] Create `crates/registry/options/src/store.rs`
-- [ ] Implement `OptionStore` with typed accessors
-- [ ] Create `crates/registry/options/src/error.rs`
-- [ ] Add error types (`UnknownOption`, `TypeMismatch`, `InvalidValue`)
+- [x] Create `crates/registry/options/src/store.rs`
+- [x] Implement `OptionStore` with typed accessors
+- [x] ~~Create `crates/registry/options/src/error.rs`~~ (error types defined inline in lib.rs)
+- [x] Add error types (`UnknownOption`, `TypeMismatch`, `InvalidValue`)
 
 ### Phase 4: Layered Resolution
-- [ ] Create `crates/registry/options/src/resolver.rs`
-- [ ] Implement `OptionResolver` with layer chain
-- [ ] Add typed resolution helpers
+- [x] Create `crates/registry/options/src/resolver.rs`
+- [x] Implement `OptionResolver` with layer chain
+- [x] Add typed resolution helpers
 
 ### Phase 5: Update Config Parsing
-- [ ] Update `crates/config/src/options.rs` to validate against registry
-- [ ] Add `suggest_option()` fuzzy matching
-- [ ] Update `Config` struct to use `OptionStore`
-- [ ] Update `LanguageConfig` to use `OptionStore`
+- [x] Update `crates/config/src/options.rs` to validate against registry
+- [x] Add `suggest_option()` fuzzy matching
+- [x] Update `Config` struct to use `OptionStore`
+- [x] Update `LanguageConfig` to use `OptionStore`
 
 ### Phase 6: Editor Integration
-- [ ] Add `global_options: OptionStore` to `Editor`
-- [ ] Add `language_options: HashMap<String, OptionStore>` to `Editor`
-- [ ] Add `local_options: OptionStore` to `Buffer`
-- [ ] Implement `Buffer::option()` method
-- [ ] Add global `init_global()` and `global()` functions
+- [x] Add `global_options: OptionStore` to `Editor`
+- [x] Add `language_options: HashMap<String, OptionStore>` to `Editor`
+- [x] Add `local_options: OptionStore` to `Buffer`
+- [x] Implement `Buffer::option()` method
+- [x] Add global `init_global()` and `global()` functions
 
 ### Phase 7: Capability Integration
-- [ ] Add `OptionAccess` trait to capabilities
-- [ ] Implement for `EditorContext`
+- [x] Add `OptionAccess` trait to capabilities
+- [x] Implement for `EditorContext`
 
 ### Phase 8: Commands
-- [ ] Implement `:set` command
-- [ ] Implement `:setlocal` command
+- [x] Implement `:set` command
+- [x] Implement `:setlocal` command
 
 ### Phase 9: Remove Old Code
-- [ ] Remove old `OptionsConfig` type
-- [ ] Remove old config parsing code
-- [ ] Update all option access sites to use typed keys
+- [x] Remove old `OptionsConfig` type
+- [x] Remove old config parsing code
+- [x] Update all option access sites to use typed keys
 
 ### Phase 10: Documentation & Testing
-- [ ] Update AGENTS.md with options documentation
-- [ ] Add unit tests for `OptionStore`
-- [ ] Add unit tests for `OptionResolver`
-- [ ] Add integration test for full config flow
-- [ ] Verify hot reload architecture is compatible (no impl yet)
+- [x] Update AGENTS.md with options documentation
+- [x] Add unit tests for `OptionStore`
+- [x] Add unit tests for `OptionResolver`
+- [x] Add integration test for full config flow
+- [x] Verify hot reload architecture is compatible (no impl yet)
 
 ---
 

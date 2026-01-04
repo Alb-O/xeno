@@ -2,18 +2,26 @@
 
 use crate::option;
 
-option!(mouse, Bool, true, Global, "Enable mouse support");
-option!(
-	line_ending,
-	String,
-	"lf".to_string(),
-	Buffer,
-	"Default line ending (lf, crlf, cr)"
-);
-option!(
-	idle_timeout,
-	Int,
-	250,
-	Global,
-	"Milliseconds before triggering idle hooks"
-);
+option!(mouse, {
+	kdl: "mouse",
+	type: Bool,
+	default: true,
+	scope: Global,
+	description: "Enable mouse support",
+});
+
+option!(line_ending, {
+	kdl: "line-ending",
+	type: String,
+	default: "lf".to_string(),
+	scope: Buffer,
+	description: "Default line ending (lf, crlf, cr)",
+});
+
+option!(idle_timeout, {
+	kdl: "idle-timeout",
+	type: Int,
+	default: 250,
+	scope: Global,
+	description: "Milliseconds before triggering idle hooks",
+});

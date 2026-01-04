@@ -70,6 +70,7 @@ pub use hook_runtime::HookRuntime;
 pub use layout::{LayoutManager, SeparatorHit, SeparatorId};
 pub use types::{HistoryEntry, JumpList, JumpLocation, MacroState, Registers};
 use xeno_language::LanguageLoader;
+use xeno_registry::options::OptionStore;
 use xeno_registry::themes::Theme;
 use xeno_registry::{
 	HookContext, HookEventData, WindowKind, emit_sync_with as emit_hook_sync_with,
@@ -198,6 +199,12 @@ pub struct Editor {
 
 	/// Command palette state.
 	pub palette: crate::palette::PaletteState,
+
+	/// Global user configuration options.
+	pub global_options: OptionStore,
+
+	/// Per-language option overrides.
+	pub language_options: std::collections::HashMap<String, OptionStore>,
 }
 
 impl xeno_core::EditorOps for Editor {}
@@ -307,6 +314,8 @@ impl Editor {
 			command_queue: CommandQueue::new(),
 			menu: create_menu(),
 			palette: crate::palette::PaletteState::default(),
+			global_options: OptionStore::new(),
+			language_options: std::collections::HashMap::new(),
 		}
 	}
 

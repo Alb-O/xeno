@@ -43,6 +43,26 @@ pub enum ConfigError {
 	/// Failed to set up file watching.
 	#[error("failed to watch config directory: {0}")]
 	Watch(String),
+
+	/// An unknown option was specified in config.
+	#[error("unknown option: {key}{}", suggestion.as_ref().map(|s| format!(" (did you mean '{s}'?)")).unwrap_or_default())]
+	UnknownOption {
+		/// The unrecognized option key.
+		key: String,
+		/// A suggested alternative, if one is close enough.
+		suggestion: Option<String>,
+	},
+
+	/// An option value has the wrong type.
+	#[error("type mismatch for option '{option}': expected {expected}, got {got}")]
+	OptionTypeMismatch {
+		/// The option's KDL key.
+		option: String,
+		/// The expected type name.
+		expected: &'static str,
+		/// The actual type name.
+		got: &'static str,
+	},
 }
 
 /// Result type for configuration operations.

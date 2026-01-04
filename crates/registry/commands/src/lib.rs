@@ -88,6 +88,10 @@ pub trait CommandEditorOps {
 	) -> Pin<Box<dyn Future<Output = Result<(), CommandError>> + '_>>;
 	/// Changes the active color theme.
 	fn set_theme(&mut self, name: &str) -> Result<(), CommandError>;
+	/// Sets a global option value by KDL key.
+	fn set_option(&mut self, kdl_key: &str, value: &str) -> Result<(), CommandError>;
+	/// Sets a buffer-local option value by KDL key.
+	fn set_local_option(&mut self, kdl_key: &str, value: &str) -> Result<(), CommandError>;
 }
 
 /// Context provided to command handlers.

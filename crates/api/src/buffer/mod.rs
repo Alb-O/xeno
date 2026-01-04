@@ -22,6 +22,7 @@ use xeno_base::range::CharIdx;
 use xeno_base::{Mode, Selection};
 use xeno_input::InputHandler;
 use xeno_language::LanguageLoader;
+use xeno_registry::options::{OptionKey, OptionResolver, OptionStore, OptionValue};
 
 /// Unique identifier for a buffer.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -71,6 +72,12 @@ pub struct Buffer {
 
 	/// Whether to suppress auto-scroll down to keep the cursor visible.
 	pub suppress_scroll_down: bool,
+
+	/// Buffer-local option overrides (set via `:setlocal`).
+	///
+	/// These take precedence over language-specific and global options when
+	/// resolving option values for this buffer.
+	pub local_options: OptionStore,
 }
 
 impl Buffer {
@@ -89,6 +96,7 @@ impl Buffer {
 			last_viewport_height: 0,
 			last_rendered_cursor: 0,
 			suppress_scroll_down: false,
+			local_options: OptionStore::new(),
 		}
 	}
 
@@ -100,7 +108,8 @@ impl Buffer {
 	/// Creates a new buffer that shares the same document (for split views).
 	///
 	/// The new buffer has independent cursor/selection/scroll state but
-	/// edits in either buffer affect both.
+	/// edits in either buffer affect both. Local options are cloned so each
+	/// split can have independent option overrides.
 	pub fn clone_for_split(&self, new_id: BufferId) -> Self {
 		Self {
 			id: new_id,
@@ -114,6 +123,7 @@ impl Buffer {
 			last_viewport_height: 0,
 			last_rendered_cursor: self.cursor,
 			suppress_scroll_down: false,
+			local_options: self.local_options.clone(),
 		}
 	}
 
@@ -272,5 +282,62 @@ impl Buffer {
 	pub fn map_selection_through(&mut self, tx: &xeno_base::Transaction) {
 		self.selection = tx.map_selection(&self.selection);
 		self.cursor = self.selection.primary().head;
+	}
+
+	/// Resolves an option for this buffer using the layered configuration system.
+	///
+	/// Resolution order (highest priority first):
+	/// 1. Buffer-local override (set via `:setlocal`)
+	/// 2. Language-specific config (from `language "rust" { }` block)
+	/// 3. Global config (from `options { }` block)
+	/// 4. Compile-time default (from `option!` macro)
+	///
+	/// # Example
+	///
+	/// ```ignore
+	/// use xeno_registry::options::keys;
+	///
+	/// let width = buffer.option(keys::tab_width, editor);
+	/// let tab_width = width.as_int().unwrap_or(4);
+	/// ```
+	pub fn option(&self, key: OptionKey, editor: &crate::editor::Editor) -> OptionValue {
+		let mut resolver = OptionResolver::new()
+			.with_buffer(&self.local_options)
+			.with_global(&editor.global_options);
+
+		if let Some(lang_store) = self.file_type().and_then(|ft| editor.language_options.get(&ft))
+		{
+			resolver = resolver.with_language(lang_store);
+		}
+
+		resolver.resolve(key)
+	}
+
+	/// Resolves an integer option for this buffer.
+	///
+	/// Falls back to the option's default value if the resolved value is not an integer.
+	pub fn option_int(&self, key: OptionKey, editor: &crate::editor::Editor) -> i64 {
+		self.option(key, editor)
+			.as_int()
+			.unwrap_or_else(|| (key.def().default)().as_int().unwrap())
+	}
+
+	/// Resolves a boolean option for this buffer.
+	///
+	/// Falls back to the option's default value if the resolved value is not a boolean.
+	pub fn option_bool(&self, key: OptionKey, editor: &crate::editor::Editor) -> bool {
+		self.option(key, editor)
+			.as_bool()
+			.unwrap_or_else(|| (key.def().default)().as_bool().unwrap())
+	}
+
+	/// Resolves a string option for this buffer.
+	///
+	/// Falls back to the option's default value if the resolved value is not a string.
+	pub fn option_string(&self, key: OptionKey, editor: &crate::editor::Editor) -> String {
+		self.option(key, editor)
+			.as_str()
+			.map(|s| s.to_string())
+			.unwrap_or_else(|| (key.def().default)().as_str().unwrap().to_string())
 	}
 }

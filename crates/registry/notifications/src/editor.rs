@@ -266,6 +266,14 @@ static NOTIF_READONLY_DISABLED: NotificationDef = NotificationDef::new(
 	RegistrySource::Builtin,
 );
 
+#[distributed_slice(NOTIFICATIONS)]
+static NOTIF_OPTION_SET: NotificationDef = NotificationDef::new(
+	"option_set",
+	Level::Info,
+	AutoDismiss::DEFAULT,
+	RegistrySource::Builtin,
+);
+
 #[allow(non_upper_case_globals, non_camel_case_types)]
 pub mod keys {
 	use super::*;
@@ -435,6 +443,14 @@ pub mod keys {
 	impl buffer_closed {
 		pub fn call(name: &str) -> Notification {
 			Notification::new(&NOTIF_BUFFER_CLOSED, format!("Closed {}", name))
+		}
+	}
+
+	/// "Set option = value".
+	pub struct option_set;
+	impl option_set {
+		pub fn call(key: &str, value: &str) -> Notification {
+			Notification::new(&NOTIF_OPTION_SET, format!("{}={}", key, value))
 		}
 	}
 }

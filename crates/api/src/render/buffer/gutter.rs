@@ -129,6 +129,7 @@ impl GutterLayout {
 	}
 
 	/// Renders gutter spans for a single line.
+	#[allow(clippy::too_many_arguments)]
 	pub fn render_line(
 		&self,
 		line_idx: usize,
@@ -157,10 +158,10 @@ impl GutterLayout {
 						style: GutterStyle::Normal,
 					})
 				};
-				let mut spans = Vec::with_capacity(2);
-				spans.push(self.format_cell(cell, 1, is_cursor_line, theme, cursorline_bg));
-				spans.push(self.separator_span(is_cursor_line, cursorline_bg));
-				spans
+				vec![
+					self.format_cell(cell, 1, is_cursor_line, theme, cursorline_bg),
+					self.separator_span(is_cursor_line, cursorline_bg),
+				]
 			}
 			GutterLayoutKind::Custom { width, render } => {
 				if *width == 0 {
@@ -177,10 +178,10 @@ impl GutterLayout {
 					annotations,
 				};
 				let cell = render(&ctx);
-				let mut spans = Vec::with_capacity(2);
-				spans.push(self.format_cell(cell, *width, is_cursor_line, theme, cursorline_bg));
-				spans.push(self.separator_span(is_cursor_line, cursorline_bg));
-				spans
+				vec![
+					self.format_cell(cell, *width, is_cursor_line, theme, cursorline_bg),
+					self.separator_span(is_cursor_line, cursorline_bg),
+				]
 			}
 			GutterLayoutKind::Columns(columns) => {
 				if columns.is_empty() {

@@ -236,6 +236,11 @@ impl<'a> EditorContext<'a> {
 		}
 		Ok(())
 	}
+
+	/// Returns option access if the capability is available.
+	pub fn option_ops(&self) -> Option<&dyn OptionAccess> {
+		self.inner.option_ops()
+	}
 }
 
 /// Core capabilities that all editors must provide for result handling.
@@ -308,6 +313,11 @@ pub trait EditorCapabilities:
 
 	/// Access to command palette operations (optional).
 	fn palette(&mut self) -> Option<&mut dyn PaletteAccess> {
+		None
+	}
+
+	/// Access to configuration option resolution (optional).
+	fn option_ops(&self) -> Option<&dyn OptionAccess> {
 		None
 	}
 

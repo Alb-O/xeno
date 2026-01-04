@@ -11,9 +11,10 @@ use crate::buffer::{BufferId, Layout};
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct WindowId(pub(crate) u64);
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Default)]
 pub enum GutterSelector {
 	/// Use enabled gutters from registry (default behavior).
+	#[default]
 	Registry,
 	/// Use specific gutters by name.
 	Named(&'static [&'static str]),
@@ -28,11 +29,7 @@ pub enum GutterSelector {
 	},
 }
 
-impl Default for GutterSelector {
-	fn default() -> Self {
-		Self::Registry
-	}
-}
+
 
 /// Window kinds.
 pub enum Window {

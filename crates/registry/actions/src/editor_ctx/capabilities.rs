@@ -27,6 +27,7 @@
 //! - [`FileOpsAccess`] - Save/load operations
 //! - [`JumpAccess`] - Jump list navigation
 //! - [`MacroAccess`] - Macro recording/playback
+//! - [`OptionAccess`] - Configuration option resolution
 //!
 //! [`EditorCapabilities`]: super::EditorCapabilities
 
@@ -34,6 +35,7 @@ use ropey::RopeSlice;
 use xeno_base::range::CharIdx;
 use xeno_base::selection::Selection;
 use xeno_registry_notifications::Notification;
+use xeno_registry_options::{OptionKey, OptionValue};
 
 use crate::{EditAction, Mode};
 
@@ -310,6 +312,60 @@ pub trait PaletteAccess {
 	fn execute_palette(&mut self);
 	/// Returns true if the palette is currently open.
 	fn palette_is_open(&self) -> bool;
+}
+
+/// Access to configuration options (optional).
+///
+/// Provides context-aware resolution of configuration options through the
+/// layered hierarchy: buffer-local -> language -> global -> default.
+///
+/// # Example
+///
+/// ```ignore
+/// use xeno_registry_options::keys;
+///
+/// // Get tab width for current buffer context
+/// let width = ctx.option_int(keys::tab_width);
+///
+/// // Get theme (global option)
+/// let theme = ctx.option_string(keys::theme);
+/// ```
+pub trait OptionAccess {
+	/// Resolves an option for the current context (buffer-aware).
+	///
+	/// Resolution order:
+	/// 1. Buffer-local override (from `:setlocal`)
+	/// 2. Language-specific config (from `language "rust" { }` block)
+	/// 3. Global config (from `options { }` block)
+	/// 4. Compile-time default (from `option!` macro)
+	fn option(&self, key: OptionKey) -> OptionValue;
+
+	/// Resolves an integer option, falling back to default on type mismatch.
+	fn option_int(&self, key: OptionKey) -> i64 {
+		self.option(key)
+			.as_int()
+			.unwrap_or_else(|| (key.def().default)().as_int().unwrap_or(0))
+	}
+
+	/// Resolves a boolean option, falling back to default on type mismatch.
+	fn option_bool(&self, key: OptionKey) -> bool {
+		self.option(key)
+			.as_bool()
+			.unwrap_or_else(|| (key.def().default)().as_bool().unwrap_or(false))
+	}
+
+	/// Resolves a string option, falling back to default on type mismatch.
+	fn option_string(&self, key: OptionKey) -> String {
+		self.option(key)
+			.as_str()
+			.map(|s| s.to_string())
+			.unwrap_or_else(|| {
+				(key.def().default)()
+					.as_str()
+					.unwrap_or("")
+					.to_string()
+			})
+	}
 }
 
 /// Convenience trait combining common capabilities for command handlers.
