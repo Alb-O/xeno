@@ -1,59 +1,43 @@
 # Xeno
 
-The next evolution of agentic text editors & harnesses.
+Modal text editor with compile-time registry system.
 
-## Design Goals
-
-- **Orthogonal**: No tight coupling between modules. Event emitter/receiver pattern via `linkme` distributed slices for compile-time registration.
-- **Suckless extension system**: Extensions written in Rust. Two-tier system: Core Builtins + Host Extensions (extensions/).
-- **Data-driven macros**: Declarative and proc macros keep registration patterns lean and composable.
-
-## Crate Architecture
+## Crates
 
 ```
-xeno-base          Core types: Range, Selection, Transaction, Rope wrappers
-xeno-registry      Registry definitions organized by type (actions/, commands/, etc.)
-xeno-registry-core Shared registry primitives (Key, RegistryMetadata)
-xeno-core          Glue layer: ActionId, KeymapRegistry, movement, notifications
-xeno-macro         Proc macros (DispatchResult, define_events!, parse_keybindings, etc.)
-xeno-api           Editor engine: Buffer, Editor, rendering, terminals
-xeno-extensions    Host extensions discovered at build-time (LSP, Zenmode)
-xeno-acp           AI completion protocol integration (experimental)
-xeno-term          Main binary and terminal UI
+xeno-base          Core types: Range, Selection, Rope wrappers
+xeno-registry      Registry definitions (actions/, commands/, motions/, etc.)
+xeno-registry-core Shared primitives (Key, RegistryMetadata)
+xeno-core          Glue: ActionId, KeymapRegistry, movement
+xeno-macro         Proc macros (DispatchResult, define_events!, parse_keybindings)
+xeno-api           Editor engine: Buffer, Editor, rendering
+xeno-extensions    Host extensions (LSP, Zenmode)
+xeno-term          Main binary
 ```
 
-**Supporting crates**: `keymap` (key parsing), `input` (input state machine), `config` (KDL parsing), `language` (tree-sitter), `lsp` (LSP client framework), `tui` (Ratatui fork).
+**Supporting**: `keymap`, `input`, `config`, `language`, `lsp`, `tui`.
 
 ## Registry System
 
-Uses `linkme` distributed slices for compile-time registration. Each registry is a self-contained crate under `crates/registry/`.
+Uses `linkme` distributed slices for compile-time registration. Each registry under `crates/registry/`.
 
-| Registry      | Crate                         | Slice                 | Macro                    |
-| ------------- | ----------------------------- | --------------------- | ------------------------ |
-| Actions       | `xeno-registry-actions`       | `ACTIONS`             | `action!`                |
-| Commands      | `xeno-registry-commands`      | `COMMANDS`            | `command!`               |
-| Motions       | `xeno-registry-motions`       | `MOTIONS`             | `motion!`                |
-| Text Objects  | `xeno-registry-text-objects`  | `TEXT_OBJECTS`        | `text_object!`           |
-| Options       | `xeno-registry-options`       | `OPTIONS`             | `option!`                |
-| Hooks         | `xeno-registry-hooks`         | `HOOKS`               | `hook!`, `async_hook!`   |
-| Statusline    | `xeno-registry-statusline`    | `STATUSLINE_SEGMENTS` | `statusline_segment!`    |
-| Gutter        | `xeno-registry-gutter`        | `GUTTERS`             | `gutter!`                |
-| Notifications | `xeno-registry-notifications` | `NOTIFICATION_TYPES`  | `register_notification!` |
-| Themes        | `xeno-registry-themes`        | `THEMES`              | -                        |
-| Menus         | `xeno-registry-menus`         | `MENUS`               | -                        |
-| Keybindings   | (in xeno-registry)            | `KEYBINDINGS`         | (inline in `action!`)    |
+| Registry      | Slice                 | Macro                  |
+| ------------- | --------------------- | ---------------------- |
+| Actions       | `ACTIONS`             | `action!`              |
+| Commands      | `COMMANDS`            | `command!`             |
+| Motions       | `MOTIONS`             | `motion!`              |
+| Text Objects  | `TEXT_OBJECTS`        | `text_object!`         |
+| Options       | `OPTIONS`             | `option!`              |
+| Hooks         | `HOOKS`               | `hook!`, `async_hook!` |
+| Statusline    | `STATUSLINE_SEGMENTS` | `statusline_segment!`  |
+| Gutter        | `GUTTERS`             | `gutter!`              |
+| Notifications | `NOTIFICATION_TYPES`  | -                      |
+| Themes        | `THEMES`              | -                      |
+| Keybindings   | `KEYBINDINGS`         | (inline in `action!`)  |
 
 ### Typed Handles
 
-Typed handles provide compile-time safety for internal registry references:
-
-- Motions: `xeno_registry_motions::keys::*` used with `cursor_motion` helpers
-- Actions: `xeno_registry_actions::keys::*` used for hardcoded action IDs
-- Strings remain at boundaries (user input, config, runtime lookup)
-
-### Action Result Dispatch
-
-Actions return `ActionResult` variants which are dispatched to handlers via `#[derive(DispatchResult)]`:
+Typed keys (`*::keys::*`) for compile-time safety. Strings only at boundaries (user input, config).
 
 ```rust
 use xeno_registry_motions::keys as motions;
@@ -64,13 +48,7 @@ action!(move_left, {
 }, |ctx| cursor_motion(ctx, motions::left));
 ```
 
-Handler slices (`RESULT_*_HANDLERS`) are auto-generated. Extensions can add handlers for existing result types via the `RESULT_EXTENSION_HANDLERS` distributed slice:
-
-```rust
-result_extension_handler!(my_handler, |result, ctx| {
-    // Runs after core handlers for any result type
-});
-```
+Handler slices (`RESULT_*_HANDLERS`) auto-generated via `#[derive(DispatchResult)]`.
 
 ### Event System
 
@@ -82,7 +60,6 @@ Hook events are defined via the `define_events!` proc macro in `registry/hooks/s
 - `__hook_extract!` and `__async_hook_extract!` macros for parameter binding
 
 ```rust
-// Adding a new event is one line:
 define_events! {
     BufferOpen => "buffer:open" {
         path: Path,
@@ -93,32 +70,15 @@ define_events! {
 }
 ```
 
-Field type tokens are mapped automatically:
+Field type tokens: `Path` → `&Path`/`PathBuf`, `RopeSlice` → `RopeSlice<'a>`/`String`, `OptionStr` → `Option<&str>`/`Option<String>`, `ViewId`/`Bool` → copy types.
 
-- `Path` → `&Path` / `PathBuf`
-- `RopeSlice` → `RopeSlice<'a>` / `String`
-- `OptionStr` → `Option<&str>` / `Option<String>`
-- `ViewId` → `ViewId` (copy type)
-- `Bool` → `bool`
-
-**Focus & Layout Events** (observable via hooks):
-
-- `ViewFocusChanged` - emitted when focus changes between views
-- `SplitCreated` / `SplitClosed` - emitted on split operations
-
-**Action Lifecycle Events**:
-
-- `ActionPre` - emitted before action execution
-- `ActionPost` - emitted after result dispatch with result variant name
+**Action Lifecycle Events**: `ActionPre` (before execution), `ActionPost` (after result dispatch).
 
 ## Extension System
 
 Extensions in `crates/extensions/extensions/` are discovered at build-time via `build.rs`.
 
-**Current extensions**:
-
-- **LSP** (`extensions/lsp/`): Language server integration via `async_hook!` macros
-- **Zenmode** (`extensions/zenmode/`): Focus mode with style overlays, uses `#[extension]` macro
+**Current extensions**: LSP (`extensions/lsp/`), Zenmode (`extensions/zenmode/`)
 
 **Extension macro** supports `#[init]`, `#[render]`, `#[command]` attributes:
 
@@ -158,8 +118,6 @@ Fine-grained traits in `registry/actions/src/editor_ctx/capabilities.rs`:
 | `JumpAccess`      | Optional | Jump list navigation     |
 | `MacroAccess`     | Optional | Macro recording/playback |
 
-**Pending traits**: `TextAccess` (read-only document access for result handlers).
-
 ## Key Files
 
 | Purpose             | Location                                      |
@@ -196,3 +154,8 @@ KITTY_TESTS=1 DISPLAY=:0 nix develop -c cargo test -p xeno-term --test kitty_mul
 - Integration tests via `kitty-test-harness` for GUI behavior
 - Write failing assertions first, iterate until green
 - GUI harness catches cursor/selection drift that unit tests miss
+
+# DEV NOTES
+
+<!-- Below this line, agents to add important operational details or unintuative notes that new developers should know. -->
+
