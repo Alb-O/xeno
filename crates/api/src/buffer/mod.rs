@@ -223,14 +223,19 @@ impl Buffer {
 		self.cursor.saturating_sub(line_start)
 	}
 
-	/// Minimum gutter width padding.
-	const GUTTER_MIN_WIDTH: u16 = 4;
-
-	/// Computes the gutter width based on total line count.
+	/// Computes the gutter width using the registry system.
+	///
+	/// This delegates to [`xeno_registry::gutter::total_width`] which computes
+	/// the combined width of all enabled gutter columns.
 	pub fn gutter_width(&self) -> u16 {
+		use xeno_registry::gutter::{GutterWidthContext, total_width};
+
 		let doc = self.document.read().unwrap();
-		let total_lines = doc.content.len_lines();
-		(total_lines.max(1).ilog10() as u16 + 2).max(Self::GUTTER_MIN_WIDTH)
+		let ctx = GutterWidthContext {
+			total_lines: doc.content.len_lines(),
+			viewport_width: self.text_width as u16 + 100, // approximate
+		};
+		total_width(&ctx)
 	}
 
 	/// Reparses the entire syntax tree from scratch.

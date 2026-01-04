@@ -1,0 +1,13 @@
+[package]
+name = "xeno-registry-gutter"
+description = "Gutter column registry for line numbers, signs, and annotations"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+linkme.workspace = true
+paste.workspace = true
+ropey.workspace = true
+xeno-registry-core.workspace = true
+xeno-tui.workspace = true

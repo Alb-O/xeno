@@ -37,6 +37,7 @@ Uses `linkme` distributed slices for compile-time registration. Each registry is
 | Options       | `xeno-registry-options`       | `OPTIONS`             | `option!`                |
 | Hooks         | `xeno-registry-hooks`         | `HOOKS`               | `hook!`, `async_hook!`   |
 | Statusline    | `xeno-registry-statusline`    | `STATUSLINE_SEGMENTS` | `statusline_segment!`    |
+| Gutter        | `xeno-registry-gutter`        | `GUTTERS`             | `gutter!`                |
 | Notifications | `xeno-registry-notifications` | `NOTIFICATION_TYPES`  | `register_notification!` |
 | Themes        | `xeno-registry-themes`        | `THEMES`              | -                        |
 | Menus         | `xeno-registry-menus`         | `MENUS`               | -                        |

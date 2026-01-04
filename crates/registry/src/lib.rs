@@ -5,6 +5,7 @@
 //!
 //! # Sub-crates
 //!
+//! - [`gutter`] - Gutter columns (line numbers, signs, diagnostics)
 //! - [`menus`] - Menu bar groups and items
 //! - [`motions`] - Cursor movement primitives
 //! - [`options`] - Configuration options
@@ -71,11 +72,16 @@ pub use text_objects::{
 };
 // Re-export shared types from registry core (canonical source)
 pub use xeno_registry_core::{RegistryMetadata, RegistrySource, impl_registry_metadata};
+pub use gutter::{
+	GUTTERS, GutterAnnotations, GutterCell, GutterDef, GutterLineContext, GutterStyle,
+	GutterWidth, GutterWidthContext, GitHunkStatus, all as all_gutters, column_width,
+	column_widths, enabled_gutters, find as find_gutter, gutter, total_width as gutter_total_width,
+};
 pub use xeno_registry_options::option;
 pub use {
 	xeno_registry_actions as actions, xeno_registry_commands as commands,
-	xeno_registry_hooks as hooks, xeno_registry_menus as menus, xeno_registry_motions as motions,
-	xeno_registry_notifications as notifications, xeno_registry_options as options,
-	xeno_registry_statusline as statusline, xeno_registry_text_objects as text_objects,
-	xeno_registry_themes as themes,
+	xeno_registry_gutter as gutter, xeno_registry_hooks as hooks, xeno_registry_menus as menus,
+	xeno_registry_motions as motions, xeno_registry_notifications as notifications,
+	xeno_registry_options as options, xeno_registry_statusline as statusline,
+	xeno_registry_text_objects as text_objects, xeno_registry_themes as themes,
 };

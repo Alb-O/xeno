@@ -4506,6 +4506,7 @@ dependencies = [
  "xeno-registry-actions",
  "xeno-registry-commands",
  "xeno-registry-core",
+ "xeno-registry-gutter",
  "xeno-registry-hooks",
  "xeno-registry-menus",
  "xeno-registry-motions",
@@ -4550,6 +4551,17 @@ dependencies = [
 [[package]]
 name = "xeno-registry-core"
 version = "0.3.0"
+
+[[package]]
+name = "xeno-registry-gutter"
+version = "0.3.0"
+dependencies = [
+ "linkme",
+ "paste",
+ "ropey",
+ "xeno-registry-core",
+ "xeno-tui",
+]
 
 [[package]]
 name = "xeno-registry-hooks"

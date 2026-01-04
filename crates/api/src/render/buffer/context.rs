@@ -7,12 +7,14 @@ use xeno_base::Mode;
 use xeno_base::range::CharIdx;
 use xeno_language::LanguageLoader;
 use xeno_language::highlight::{HighlightSpan, HighlightStyles};
+use xeno_registry::gutter::GutterAnnotations;
 use xeno_registry::themes::{SyntaxStyles, Theme, ThemeVariant};
 use xeno_tui::layout::Rect;
 use xeno_tui::style::{Modifier, Style};
 use xeno_tui::text::{Line, Span};
 use xeno_tui::widgets::Paragraph;
 
+use super::gutter::GutterLayout;
 use crate::buffer::Buffer;
 use crate::editor::extensions::StyleOverlays;
 use crate::render::types::{RenderResult, wrap_line};
@@ -199,7 +201,8 @@ impl<'a> BufferRenderContext<'a> {
 		is_focused: bool,
 	) -> RenderResult {
 		let total_lines = buffer.doc().content.len_lines();
-		let gutter_width = buffer.gutter_width();
+		let gutter_layout = GutterLayout::new(total_lines, area.width);
+		let gutter_width = gutter_layout.total_width;
 		let text_width = area.width.saturating_sub(gutter_width) as usize;
 		let tab_width = 4usize;
 
@@ -214,6 +217,11 @@ impl<'a> BufferRenderContext<'a> {
 		let highlight_spans = self.collect_highlight_spans(buffer, area);
 		let cursor_line = buffer.cursor_line();
 		let cursorline_bg: xeno_tui::style::Color = self.theme.colors.ui.cursorline_bg;
+
+		// Shared empty annotations for lines without diagnostic/git data
+		let empty_annotations = GutterAnnotations::default();
+		let buffer_path_owned = buffer.path();
+		let buffer_path = buffer_path_owned.as_deref();
 
 		let mut output_lines: Vec<Line> = Vec::new();
 		let mut current_line_idx = buffer.scroll_line;
@@ -243,39 +251,19 @@ impl<'a> BufferRenderContext<'a> {
 
 				let is_first_segment = seg_idx == 0;
 				let is_last_segment = seg_idx == num_segments - 1;
+				let is_continuation = !is_first_segment;
 
-				let line_num_str = if is_first_segment {
-					format!(
-						"{:>width$} ",
-						current_line_idx + 1,
-						width = gutter_width as usize - 1
-					)
-				} else {
-					format!("{:>width$} ", "\u{2506}", width = gutter_width as usize - 1)
-				};
-				let gutter_style = if is_first_segment {
-					let style = Style::default().fg(self.theme.colors.ui.gutter_fg);
-					if is_cursor_line {
-						style.bg(cursorline_bg)
-					} else {
-						style
-					}
-				} else {
-					let dim_color = self
-						.theme
-						.colors
-						.ui
-						.gutter_fg
-						.blend(self.theme.colors.ui.bg, 0.5);
-					let style = Style::default().fg(dim_color);
-					if is_cursor_line {
-						style.bg(cursorline_bg)
-					} else {
-						style
-					}
-				};
-
-				let mut spans = vec![Span::styled(line_num_str, gutter_style)];
+				let mut spans = gutter_layout.render_line(
+					current_line_idx,
+					total_lines,
+					cursor_line,
+					is_continuation,
+					buffer.doc().content.line(current_line_idx),
+					buffer_path,
+					&empty_annotations,
+					self.theme,
+					cursorline_bg,
+				);
 
 				let seg_char_offset = segment.start_offset;
 				let mut seg_col = 0usize;
@@ -424,16 +412,17 @@ impl<'a> BufferRenderContext<'a> {
 				&& start_segment == 0
 				&& output_lines.len() < viewport_height
 			{
-				let line_num_str = format!(
-					"{:>width$} ",
-					current_line_idx + 1,
-					width = gutter_width as usize - 1
+				let mut spans = gutter_layout.render_line(
+					current_line_idx,
+					total_lines,
+					cursor_line,
+					false, // not a continuation
+					buffer.doc().content.line(current_line_idx),
+					buffer_path,
+					&empty_annotations,
+					self.theme,
+					cursorline_bg,
 				);
-				let mut gutter_style = Style::default().fg(self.theme.colors.ui.gutter_fg);
-				if is_cursor_line {
-					gutter_style = gutter_style.bg(cursorline_bg);
-				}
-				let mut spans = vec![Span::styled(line_num_str, gutter_style)];
 
 				let is_last_doc_line = current_line_idx + 1 >= total_lines;
 				let cursor_at_eol = cursor_heads.iter().any(|pos: &CharIdx| {
@@ -476,17 +465,8 @@ impl<'a> BufferRenderContext<'a> {
 		}
 
 		while output_lines.len() < viewport_height {
-			let line_num_str = format!("{:>width$} ", "~", width = gutter_width as usize - 1);
-			let dim_color = self
-				.theme
-				.colors
-				.ui
-				.gutter_fg
-				.blend(self.theme.colors.ui.bg, 0.5);
-			output_lines.push(Line::from(vec![Span::styled(
-				line_num_str,
-				Style::default().fg(dim_color),
-			)]));
+			let spans = gutter_layout.render_empty_line(self.theme);
+			output_lines.push(Line::from(spans));
 		}
 
 		RenderResult {

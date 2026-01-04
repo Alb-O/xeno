@@ -5,6 +5,7 @@
 //! where multiple buffers are rendered simultaneously.
 
 mod context;
+mod gutter;
 mod viewport;
 
 pub use context::BufferRenderContext;

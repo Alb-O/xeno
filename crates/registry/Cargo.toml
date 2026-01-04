@@ -9,6 +9,7 @@ license.workspace = true
 xeno-registry-actions.workspace = true
 xeno-registry-commands.workspace = true
 xeno-registry-core.workspace = true
+xeno-registry-gutter.workspace = true
 xeno-registry-hooks.workspace = true
 xeno-registry-menus.workspace = true
 xeno-registry-motions.workspace = true
