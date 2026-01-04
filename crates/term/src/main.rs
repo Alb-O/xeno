@@ -12,7 +12,7 @@ mod tests;
 
 use app::run_editor;
 use clap::Parser;
-use cli::{Cli, Command, GrammarAction};
+use cli::{AuthAction, Cli, Command, GrammarAction, LoginProvider, LogoutProvider};
 use xeno_api::Editor;
 // Force-link crates to ensure their distributed_slice registrations are included.
 #[allow(unused_imports, reason = "linkme distributed_slice registration")]
@@ -22,9 +22,11 @@ use {xeno_acp as _, xeno_core as _, xeno_extensions as _};
 async fn main() -> anyhow::Result<()> {
 	let cli = Cli::parse();
 
-	// Handle grammar subcommands before starting the editor
-	if let Some(Command::Grammar { action }) = cli.command {
-		return handle_grammar_command(action);
+	// Handle subcommands before starting the editor
+	match cli.command {
+		Some(Command::Grammar { action }) => return handle_grammar_command(action),
+		Some(Command::Auth { action }) => return handle_auth_command(action).await,
+		None => {}
 	}
 
 	// Ensure runtime directory is populated with query files
@@ -53,6 +55,53 @@ async fn main() -> anyhow::Result<()> {
 	}
 
 	run_editor(editor).await?;
+	Ok(())
+}
+
+/// Handles auth login/logout/status subcommands.
+async fn handle_auth_command(action: AuthAction) -> anyhow::Result<()> {
+	use xeno_auth_codex::{default_data_dir, load_auth, logout, start_login, LoginConfig};
+
+	let data_dir = default_data_dir()?;
+
+	match action {
+		AuthAction::Login { provider } => match provider {
+			LoginProvider::Codex => {
+				let config = LoginConfig::new(data_dir);
+				let server = start_login(config)?;
+				println!("Opening browser for authentication...");
+				println!("If browser doesn't open, visit: {}", server.auth_url);
+				server.wait().await?;
+				println!("Login successful!");
+			}
+		},
+		AuthAction::Logout { provider } => match provider {
+			LogoutProvider::Codex => {
+				if logout(&data_dir)? {
+					println!("Logged out from Codex.");
+				} else {
+					println!("Not logged in to Codex.");
+				}
+			}
+		},
+		AuthAction::Status => match load_auth(&data_dir)? {
+			Some(auth) if auth.api_key.is_some() => {
+				println!("Codex: authenticated (API key)");
+			}
+			Some(auth) if auth.tokens.is_some() => {
+				let email = auth
+					.tokens
+					.as_ref()
+					.and_then(|t| t.id_token.email.as_deref())
+					.unwrap_or("<unknown>");
+				println!("Codex: authenticated as {email}");
+			}
+			_ => {
+				println!("Codex: not authenticated");
+			}
+		},
+	}
+
 	Ok(())
 }
 

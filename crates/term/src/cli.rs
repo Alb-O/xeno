@@ -31,6 +31,45 @@ pub enum Command {
 		#[command(subcommand)]
 		action: GrammarAction,
 	},
+	/// Authentication management
+	Auth {
+		/// Auth subcommand action.
+		#[command(subcommand)]
+		action: AuthAction,
+	},
+}
+
+/// Authentication subcommands.
+#[derive(Subcommand, Debug)]
+pub enum AuthAction {
+	/// Log in to a service
+	Login {
+		/// Login provider.
+		#[command(subcommand)]
+		provider: LoginProvider,
+	},
+	/// Log out from a service
+	Logout {
+		/// Logout provider.
+		#[command(subcommand)]
+		provider: LogoutProvider,
+	},
+	/// Show authentication status
+	Status,
+}
+
+/// Login providers.
+#[derive(Subcommand, Debug)]
+pub enum LoginProvider {
+	/// Log in to OpenAI Codex via OAuth
+	Codex,
+}
+
+/// Logout providers.
+#[derive(Subcommand, Debug)]
+pub enum LogoutProvider {
+	/// Log out from OpenAI Codex
+	Codex,
 }
 
 /// Grammar management subcommands.
