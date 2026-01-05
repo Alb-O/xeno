@@ -1,6 +1,6 @@
 //! Option derive macro implementation.
 //!
-//! Provides `#[derive(Option)]` for registering configuration options.
+//! Provides `#[derive_option]` for registering configuration options.
 
 use proc_macro::TokenStream;
 use quote::{format_ident, quote};
@@ -11,12 +11,12 @@ fn to_snake_case(s: &str) -> String {
 	s.to_lowercase()
 }
 
-/// Entry point for the `#[derive(Option)]` macro.
+/// Entry point for the `#[derive_option]` macro.
 ///
 /// Transforms a static definition into an option registration:
 ///
 /// ```ignore
-/// #[derive(Option)]
+/// #[derive_option]
 /// #[option(kdl = "tab-width", scope = buffer)]
 /// /// Number of spaces a tab character occupies.
 /// pub static TAB_WIDTH: i64 = 4;
