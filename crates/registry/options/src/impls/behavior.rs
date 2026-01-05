@@ -1,27 +1,18 @@
 //! Editor behavior options.
 
-use crate::option;
+use xeno_macro::derive_option;
 
-option!(mouse, {
-	kdl: "mouse",
-	type: Bool,
-	default: true,
-	scope: Global,
-	description: "Enable mouse support",
-});
+#[derive_option]
+#[option(kdl = "mouse", scope = global)]
+/// Enable mouse support.
+pub static MOUSE: bool = true;
 
-option!(line_ending, {
-	kdl: "line-ending",
-	type: String,
-	default: "lf".to_string(),
-	scope: Buffer,
-	description: "Default line ending (lf, crlf, cr)",
-});
+#[derive_option]
+#[option(kdl = "line-ending", scope = buffer)]
+/// Default line ending (lf, crlf, cr).
+pub static LINE_ENDING: &'static str = "lf";
 
-option!(idle_timeout, {
-	kdl: "idle-timeout",
-	type: Int,
-	default: 250,
-	scope: Global,
-	description: "Milliseconds before triggering idle hooks",
-});
+#[derive_option]
+#[option(kdl = "idle-timeout", scope = global)]
+/// Milliseconds before triggering idle hooks.
+pub static IDLE_TIMEOUT: i64 = 250;

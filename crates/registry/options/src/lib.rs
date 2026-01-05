@@ -4,15 +4,44 @@
 //! This crate provides:
 //! - Type definitions ([`OptionDef`], [`OptionValue`], [`OptionType`], [`OptionScope`])
 //! - Distributed slice ([`OPTIONS`])
-//! - Registration macro ([`option!`])
+//! - Registration via `#[derive_option]` proc macro
+//! - Typed keys ([`TypedOptionKey<T>`]) for compile-time type safety
 //! - Standard library implementations (indent, display, behavior, etc.)
+//!
+//! # Defining Options
+//!
+//! ```ignore
+//! use xeno_macro::derive_option;
+//!
+//! #[derive_option]
+//! #[option(kdl = "tab-width", scope = buffer)]
+//! /// Number of spaces a tab character occupies for display.
+//! pub static TAB_WIDTH: i64 = 4;
+//! ```
+//!
+//! # Accessing Options
+//!
+//! ```ignore
+//! use xeno_registry_options::keys;
+//!
+//! // Type-safe access via TypedOptionKey
+//! let width: i64 = ctx.option(keys::TAB_WIDTH);
+//!
+//! // Global access (ignores buffer overrides)
+//! let theme = xeno_registry_options::global(keys::THEME.untyped());
+//! ```
 
+use std::marker::PhantomData;
 use std::sync::OnceLock;
 
 use linkme::distributed_slice;
 
+// Re-export self for proc macro absolute path resolution
+#[doc(hidden)]
+pub extern crate self as xeno_registry_options;
+
 mod impls;
-mod macros;
+pub mod parse;
 mod resolver;
 mod store;
 
@@ -29,7 +58,8 @@ pub use store::OptionStore;
 /// ```ignore
 /// use xeno_registry_options::keys;
 ///
-/// let def = keys::tab_width.def();
+/// // TypedOptionKey<i64> provides compile-time type safety
+/// let def = keys::TAB_WIDTH.def();
 /// println!("Default tab width: {:?}", (def.default)());
 /// ```
 pub mod keys {
@@ -124,6 +154,58 @@ impl From<&str> for OptionValue {
 	}
 }
 
+// Seal the FromOptionValue trait to prevent external implementations.
+mod sealed {
+	pub trait Sealed {}
+	impl Sealed for i64 {}
+	impl Sealed for bool {}
+	impl Sealed for String {}
+}
+
+/// Trait for types that can be extracted from an [`OptionValue`].
+///
+/// This trait is sealed and only implemented for:
+/// - `i64` (from `OptionValue::Int`)
+/// - `bool` (from `OptionValue::Bool`)
+/// - `String` (from `OptionValue::String`)
+pub trait FromOptionValue: sealed::Sealed + Sized {
+	/// Extracts the value from an `OptionValue`, returning `None` if the type doesn't match.
+	fn from_option(value: &OptionValue) -> Option<Self>;
+
+	/// Returns the `OptionType` corresponding to this Rust type.
+	fn option_type() -> OptionType;
+}
+
+impl FromOptionValue for i64 {
+	fn from_option(value: &OptionValue) -> Option<Self> {
+		value.as_int()
+	}
+
+	fn option_type() -> OptionType {
+		OptionType::Int
+	}
+}
+
+impl FromOptionValue for bool {
+	fn from_option(value: &OptionValue) -> Option<Self> {
+		value.as_bool()
+	}
+
+	fn option_type() -> OptionType {
+		OptionType::Bool
+	}
+}
+
+impl FromOptionValue for String {
+	fn from_option(value: &OptionValue) -> Option<Self> {
+		value.as_str().map(|s| s.to_string())
+	}
+
+	fn option_type() -> OptionType {
+		OptionType::String
+	}
+}
+
 /// The type of an option's value.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum OptionType {
@@ -196,6 +278,60 @@ impl core::fmt::Debug for OptionDef {
 /// let value = get_default(keys::tab_width);
 /// ```
 pub type OptionKey = Key<OptionDef>;
+
+/// Typed handle to an option definition with compile-time type information.
+///
+/// Unlike [`OptionKey`], this wrapper carries the Rust type `T` at compile time,
+/// enabling type-safe option access without runtime type checking.
+///
+/// # Example
+///
+/// ```ignore
+/// use xeno_registry_options::{keys, TypedOptionKey};
+///
+/// // keys::TAB_WIDTH is TypedOptionKey<i64>
+/// let width: i64 = ctx.option(keys::TAB_WIDTH);
+/// ```
+pub struct TypedOptionKey<T: FromOptionValue> {
+	inner: OptionKey,
+	_marker: PhantomData<T>,
+}
+
+impl<T: FromOptionValue> Copy for TypedOptionKey<T> {}
+
+impl<T: FromOptionValue> Clone for TypedOptionKey<T> {
+	fn clone(&self) -> Self {
+		*self
+	}
+}
+
+impl<T: FromOptionValue> TypedOptionKey<T> {
+	/// Creates a new typed option key from a static option definition.
+	pub const fn new(def: &'static OptionDef) -> Self {
+		Self {
+			inner: OptionKey::new(def),
+			_marker: PhantomData,
+		}
+	}
+
+	/// Returns the underlying option definition.
+	pub const fn def(self) -> &'static OptionDef {
+		self.inner.def()
+	}
+
+	/// Returns the untyped option key.
+	pub const fn untyped(self) -> OptionKey {
+		self.inner
+	}
+}
+
+impl<T: FromOptionValue> core::fmt::Debug for TypedOptionKey<T> {
+	fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+		f.debug_tuple("TypedOptionKey")
+			.field(&self.inner.def().name)
+			.finish()
+	}
+}
 
 /// Registry of all option definitions.
 #[distributed_slice]

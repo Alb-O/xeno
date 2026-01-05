@@ -1,7 +1,7 @@
 //! Options configuration parsing.
 
 use kdl::KdlNode;
-use xeno_registry::options::{self, OptionStore, OptionType, OptionValue};
+use xeno_registry::options::{self, OptionStore, OptionType, OptionValue, parse};
 
 use crate::error::{ConfigError, Result};
 
@@ -23,7 +23,7 @@ pub fn parse_options_from_children(node: &KdlNode) -> Result<OptionStore> {
 
 		let def = options::find_by_kdl(kdl_key).ok_or_else(|| ConfigError::UnknownOption {
 			key: kdl_key.to_string(),
-			suggestion: suggest_option(kdl_key),
+			suggestion: parse::suggest_option(kdl_key),
 		})?;
 
 		if let Some(entry) = opt_node.entries().first() {
@@ -54,17 +54,6 @@ pub fn parse_options_from_children(node: &KdlNode) -> Result<OptionStore> {
 	Ok(store)
 }
 
-/// Suggests a similar option KDL key using fuzzy matching.
-///
-/// Returns `None` if no option is close enough (edit distance > 3).
-fn suggest_option(key: &str) -> Option<String> {
-	options::all_sorted()
-		.map(|o| o.kdl_key)
-		.min_by_key(|k| strsim::levenshtein(key, k))
-		.filter(|k| strsim::levenshtein(key, k) <= 3)
-		.map(|s| s.to_string())
-}
-
 /// Returns a human-readable name for an option type.
 fn option_type_name(ty: OptionType) -> &'static str {
 	match ty {
@@ -91,10 +80,10 @@ options {
 		let doc: kdl::KdlDocument = kdl.parse().unwrap();
 		let opts = parse_options_node(doc.get("options").unwrap()).unwrap();
 
-		assert_eq!(opts.get(keys::tab_width), Some(&OptionValue::Int(4)));
-		assert_eq!(opts.get(keys::use_tabs), Some(&OptionValue::Bool(false)));
+		assert_eq!(opts.get(keys::TAB_WIDTH.untyped()), Some(&OptionValue::Int(4)));
+		assert_eq!(opts.get(keys::USE_TABS.untyped()), Some(&OptionValue::Bool(false)));
 		assert_eq!(
-			opts.get(keys::theme),
+			opts.get(keys::THEME.untyped()),
 			Some(&OptionValue::String("gruvbox".to_string()))
 		);
 	}

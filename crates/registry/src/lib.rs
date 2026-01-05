@@ -77,7 +77,6 @@ pub use gutter::{
 	GutterWidth, GutterWidthContext, GitHunkStatus, all as all_gutters, column_width,
 	column_widths, enabled_gutters, find as find_gutter, gutter, total_width as gutter_total_width,
 };
-pub use xeno_registry_options::option;
 pub use {
 	xeno_registry_actions as actions, xeno_registry_commands as commands,
 	xeno_registry_gutter as gutter, xeno_registry_hooks as hooks, xeno_registry_menus as menus,

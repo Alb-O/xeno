@@ -1,35 +1,23 @@
 //! Search-related options.
 
-use crate::option;
+use xeno_macro::derive_option;
 
-option!(search_case_sensitive, {
-	kdl: "search-case-sensitive",
-	type: Bool,
-	default: false,
-	scope: Global,
-	description: "Case-sensitive search by default",
-});
+#[derive_option]
+#[option(kdl = "search-case-sensitive", scope = global)]
+/// Case-sensitive search by default.
+pub static SEARCH_CASE_SENSITIVE: bool = false;
 
-option!(search_smart_case, {
-	kdl: "search-smart-case",
-	type: Bool,
-	default: true,
-	scope: Global,
-	description: "Smart case: case-sensitive if pattern has uppercase",
-});
+#[derive_option]
+#[option(kdl = "search-smart-case", scope = global)]
+/// Smart case: case-sensitive if pattern has uppercase.
+pub static SEARCH_SMART_CASE: bool = true;
 
-option!(search_wrap, {
-	kdl: "search-wrap",
-	type: Bool,
-	default: true,
-	scope: Global,
-	description: "Wrap search around document boundaries",
-});
+#[derive_option]
+#[option(kdl = "search-wrap", scope = global)]
+/// Wrap search around document boundaries.
+pub static SEARCH_WRAP: bool = true;
 
-option!(incremental_search, {
-	kdl: "incremental-search",
-	type: Bool,
-	default: true,
-	scope: Global,
-	description: "Show matches while typing search pattern",
-});
+#[derive_option]
+#[option(kdl = "incremental-search", scope = global)]
+/// Show matches while typing search pattern.
+pub static INCREMENTAL_SEARCH: bool = true;

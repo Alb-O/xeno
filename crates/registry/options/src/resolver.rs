@@ -9,7 +9,7 @@
 //! 1. Buffer-local override (set via `:setlocal`)
 //! 2. Language-specific config (from `language "rust" { }` block)
 //! 3. Global config (from `options { }` block)
-//! 4. Compile-time default (from `option!` macro)
+//! 4. Compile-time default (from `#[derive_option]` macro)
 
 use crate::{OptionKey, OptionStore, OptionValue};
 
@@ -25,17 +25,17 @@ use crate::{OptionKey, OptionStore, OptionValue};
 /// use xeno_registry_options::{keys, OptionResolver, OptionStore, OptionValue};
 ///
 /// let mut global = OptionStore::new();
-/// global.set(keys::tab_width, OptionValue::Int(4));
+/// global.set(keys::TAB_WIDTH.untyped(), OptionValue::Int(4));
 ///
 /// let mut buffer = OptionStore::new();
-/// buffer.set(keys::tab_width, OptionValue::Int(2));
+/// buffer.set(keys::TAB_WIDTH.untyped(), OptionValue::Int(2));
 ///
 /// let resolver = OptionResolver::new()
 ///     .with_global(&global)
 ///     .with_buffer(&buffer);
 ///
 /// // Buffer-local wins
-/// assert_eq!(resolver.resolve_int(keys::tab_width), 2);
+/// assert_eq!(resolver.resolve(keys::TAB_WIDTH.untyped()).as_int(), Some(2));
 /// ```
 #[derive(Default)]
 pub struct OptionResolver<'a> {

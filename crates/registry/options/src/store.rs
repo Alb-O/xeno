@@ -21,9 +21,9 @@ use crate::{find_by_kdl, OptionError, OptionKey, OptionValue};
 /// use xeno_registry_options::{keys, OptionStore, OptionValue};
 ///
 /// let mut store = OptionStore::new();
-/// store.set(keys::tab_width, OptionValue::Int(2));
+/// store.set(keys::TAB_WIDTH.untyped(), OptionValue::Int(2));
 ///
-/// assert_eq!(store.get_int(keys::tab_width), Some(2));
+/// assert_eq!(store.get_int(keys::TAB_WIDTH.untyped()), Some(2));
 /// ```
 #[derive(Debug, Clone, Default)]
 pub struct OptionStore {
@@ -114,17 +114,17 @@ mod tests {
 	#[test]
 	fn test_set_and_get() {
 		let mut store = OptionStore::new();
-		store.set(keys::tab_width, OptionValue::Int(8));
+		store.set(keys::TAB_WIDTH.untyped(), OptionValue::Int(8));
 
-		assert_eq!(store.get(keys::tab_width), Some(&OptionValue::Int(8)));
-		assert_eq!(store.get_int(keys::tab_width), Some(8));
+		assert_eq!(store.get(keys::TAB_WIDTH.untyped()), Some(&OptionValue::Int(8)));
+		assert_eq!(store.get_int(keys::TAB_WIDTH.untyped()), Some(8));
 	}
 
 	#[test]
 	fn test_get_missing() {
 		let store = OptionStore::new();
-		assert_eq!(store.get(keys::tab_width), None);
-		assert_eq!(store.get_int(keys::tab_width), None);
+		assert_eq!(store.get(keys::TAB_WIDTH.untyped()), None);
+		assert_eq!(store.get_int(keys::TAB_WIDTH.untyped()), None);
 	}
 
 	#[test]
@@ -132,7 +132,7 @@ mod tests {
 		let mut store = OptionStore::new();
 		store.set_by_kdl("tab-width", OptionValue::Int(2)).unwrap();
 
-		assert_eq!(store.get_int(keys::tab_width), Some(2));
+		assert_eq!(store.get_int(keys::TAB_WIDTH.untyped()), Some(2));
 	}
 
 	#[test]
@@ -146,28 +146,28 @@ mod tests {
 	#[test]
 	fn test_merge() {
 		let mut store1 = OptionStore::new();
-		store1.set(keys::tab_width, OptionValue::Int(4));
-		store1.set(keys::scroll_margin, OptionValue::Int(5));
+		store1.set(keys::TAB_WIDTH.untyped(), OptionValue::Int(4));
+		store1.set(keys::SCROLL_MARGIN.untyped(), OptionValue::Int(5));
 
 		let mut store2 = OptionStore::new();
-		store2.set(keys::tab_width, OptionValue::Int(2));
+		store2.set(keys::TAB_WIDTH.untyped(), OptionValue::Int(2));
 
 		store1.merge(&store2);
 
 		// store2's value wins
-		assert_eq!(store1.get_int(keys::tab_width), Some(2));
+		assert_eq!(store1.get_int(keys::TAB_WIDTH.untyped()), Some(2));
 		// store1's value preserved
-		assert_eq!(store1.get_int(keys::scroll_margin), Some(5));
+		assert_eq!(store1.get_int(keys::SCROLL_MARGIN.untyped()), Some(5));
 	}
 
 	#[test]
 	fn test_remove() {
 		let mut store = OptionStore::new();
-		store.set(keys::tab_width, OptionValue::Int(4));
+		store.set(keys::TAB_WIDTH.untyped(), OptionValue::Int(4));
 
-		let removed = store.remove(keys::tab_width);
+		let removed = store.remove(keys::TAB_WIDTH.untyped());
 		assert_eq!(removed, Some(OptionValue::Int(4)));
-		assert_eq!(store.get(keys::tab_width), None);
+		assert_eq!(store.get(keys::TAB_WIDTH.untyped()), None);
 	}
 
 	#[test]
@@ -176,7 +176,7 @@ mod tests {
 		assert!(store.is_empty());
 		assert_eq!(store.len(), 0);
 
-		store.set(keys::tab_width, OptionValue::Int(4));
+		store.set(keys::TAB_WIDTH.untyped(), OptionValue::Int(4));
 		assert!(!store.is_empty());
 		assert_eq!(store.len(), 1);
 	}
@@ -184,18 +184,18 @@ mod tests {
 	#[test]
 	fn test_bool_option() {
 		let mut store = OptionStore::new();
-		store.set(keys::cursorline, OptionValue::Bool(false));
+		store.set(keys::CURSORLINE.untyped(), OptionValue::Bool(false));
 
-		assert_eq!(store.get_bool(keys::cursorline), Some(false));
+		assert_eq!(store.get_bool(keys::CURSORLINE.untyped()), Some(false));
 		// Wrong type accessor returns None
-		assert_eq!(store.get_int(keys::cursorline), None);
+		assert_eq!(store.get_int(keys::CURSORLINE.untyped()), None);
 	}
 
 	#[test]
 	fn test_string_option() {
 		let mut store = OptionStore::new();
-		store.set(keys::theme, OptionValue::String("monokai".to_string()));
+		store.set(keys::THEME.untyped(), OptionValue::String("monokai".to_string()));
 
-		assert_eq!(store.get_string(keys::theme), Some("monokai"));
+		assert_eq!(store.get_string(keys::THEME.untyped()), Some("monokai"));
 	}
 }

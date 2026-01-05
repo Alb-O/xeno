@@ -52,17 +52,22 @@ Handler slices (`RESULT_*_HANDLERS`) auto-generated via `#[derive(DispatchResult
 
 ### Options System
 
-Configurable options are defined via the `option!` macro with explicit KDL keys:
+Configurable options are defined via `#[derive_option]` attribute macro:
 
 ```rust
-option!(tab_width, {
-    kdl: "tab-width",        // Explicit KDL key (no auto-conversion)
-    type: Int,               // Int | Bool | String
-    default: 4,
-    scope: Buffer,           // Global | Buffer
-    description: "Spaces per tab character",
-});
+use xeno_macro::derive_option;
+
+#[derive_option]
+#[option(kdl = "tab-width", scope = buffer)]
+/// Number of spaces a tab character occupies for display.
+pub static TAB_WIDTH: i64 = 4;
 ```
+
+This generates:
+- `OptionDef` registration in the `OPTIONS` slice
+- `TypedOptionKey<i64>` constant for compile-time type safety
+
+**Supported types**: `i64` (Int), `bool` (Bool), `String` (String), `&'static str` (String)
 
 **Access patterns** use typed keys for compile-time safety:
 
@@ -70,18 +75,20 @@ option!(tab_width, {
 use xeno_registry::options::keys;
 
 // Global option (ignores buffer overrides)
-let theme = options::global(keys::theme);
+let theme = options::global(keys::THEME.untyped());
 
 // Context-aware resolution (buffer -> language -> global -> default)
-let width = ctx.option_int(keys::tab_width);
+let width: i64 = ctx.option(keys::TAB_WIDTH);  // TypedOptionKey<i64>
 ```
 
 **Resolution order**: Buffer-local → Language config → Global config → Compile-time default
 
 **Runtime storage**:
-- `OptionStore`: Holds option values, keyed by KDL key
+- `OptionStore`: Holds option values, keyed by typed key
 - `OptionResolver`: Chains stores for layered resolution
 - Editor stores: `global_options`, `language_options` (per-language), `Buffer::local_options`
+
+**Hook integration**: `OptionChanged` event emitted on `:set` and `:setlocal` commands for reactive extensions.
 
 ### Event System
 

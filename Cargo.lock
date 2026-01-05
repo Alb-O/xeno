@@ -4615,6 +4615,8 @@ version = "0.3.0"
 dependencies = [
  "linkme",
  "paste",
+ "strsim",
+ "xeno-macro",
  "xeno-registry-core",
 ]
 

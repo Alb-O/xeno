@@ -22,7 +22,9 @@ use xeno_base::range::CharIdx;
 use xeno_base::{Mode, Selection};
 use xeno_input::InputHandler;
 use xeno_language::LanguageLoader;
-use xeno_registry::options::{OptionKey, OptionResolver, OptionStore, OptionValue};
+use xeno_registry::options::{
+	FromOptionValue, OptionKey, OptionResolver, OptionStore, OptionValue, TypedOptionKey,
+};
 
 /// Unique identifier for a buffer.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -290,17 +292,17 @@ impl Buffer {
 	/// 1. Buffer-local override (set via `:setlocal`)
 	/// 2. Language-specific config (from `language "rust" { }` block)
 	/// 3. Global config (from `options { }` block)
-	/// 4. Compile-time default (from `option!` macro)
+	/// 4. Compile-time default (from `#[derive_option]` macro)
 	///
 	/// # Example
 	///
 	/// ```ignore
-	/// use xeno_registry::options::keys;
+	/// use xeno_registry::options::{keys, FromOptionValue};
 	///
-	/// let width = buffer.option(keys::tab_width, editor);
-	/// let tab_width = width.as_int().unwrap_or(4);
+	/// let width = buffer.option_raw(keys::TAB_WIDTH.untyped(), editor);
+	/// let tab_width = i64::from_option(&width).unwrap_or(4);
 	/// ```
-	pub fn option(&self, key: OptionKey, editor: &crate::editor::Editor) -> OptionValue {
+	pub fn option_raw(&self, key: OptionKey, editor: &crate::editor::Editor) -> OptionValue {
 		let mut resolver = OptionResolver::new()
 			.with_buffer(&self.local_options)
 			.with_global(&editor.global_options);
@@ -313,31 +315,26 @@ impl Buffer {
 		resolver.resolve(key)
 	}
 
-	/// Resolves an integer option for this buffer.
+	/// Resolves a typed option for this buffer.
 	///
-	/// Falls back to the option's default value if the resolved value is not an integer.
-	pub fn option_int(&self, key: OptionKey, editor: &crate::editor::Editor) -> i64 {
-		self.option(key, editor)
-			.as_int()
-			.unwrap_or_else(|| (key.def().default)().as_int().unwrap())
-	}
-
-	/// Resolves a boolean option for this buffer.
+	/// This is the preferred method for option access, providing compile-time
+	/// type safety through [`TypedOptionKey<T>`].
 	///
-	/// Falls back to the option's default value if the resolved value is not a boolean.
-	pub fn option_bool(&self, key: OptionKey, editor: &crate::editor::Editor) -> bool {
-		self.option(key, editor)
-			.as_bool()
-			.unwrap_or_else(|| (key.def().default)().as_bool().unwrap())
-	}
-
-	/// Resolves a string option for this buffer.
+	/// # Example
 	///
-	/// Falls back to the option's default value if the resolved value is not a string.
-	pub fn option_string(&self, key: OptionKey, editor: &crate::editor::Editor) -> String {
-		self.option(key, editor)
-			.as_str()
-			.map(|s| s.to_string())
-			.unwrap_or_else(|| (key.def().default)().as_str().unwrap().to_string())
+	/// ```ignore
+	/// use xeno_registry::options::keys;
+	///
+	/// let width: i64 = buffer.option(keys::TAB_WIDTH, editor);
+	/// let wrap: bool = buffer.option(keys::WRAP_LINES, editor);
+	/// ```
+	pub fn option<T: FromOptionValue>(
+		&self,
+		key: TypedOptionKey<T>,
+		editor: &crate::editor::Editor,
+	) -> T {
+		T::from_option(&self.option_raw(key.untyped(), editor))
+			.or_else(|| T::from_option(&(key.def().default)()))
+			.expect("option type mismatch with registered default")
 	}
 }

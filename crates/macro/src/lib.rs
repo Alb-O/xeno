@@ -2,6 +2,7 @@
 //!
 //! Provides derive macros and attribute macros:
 //! - `#[derive(DispatchResult)]` - generates result handler slices
+//! - `#[derive(Option)]` - option registration from static definitions
 //! - `#[extension]` - extension registration
 //! - `define_events!` - hook event generation
 
@@ -14,6 +15,8 @@ mod extension;
 mod keybindings;
 /// Notification macro implementation.
 mod notification;
+/// Option derive macro implementation.
+mod option;
 
 /// Generates extension registrations from an `impl` block.
 ///
@@ -117,4 +120,36 @@ pub fn parse_keybindings(input: TokenStream) -> TokenStream {
 #[proc_macro]
 pub fn define_events(input: TokenStream) -> TokenStream {
 	events::define_events(input)
+}
+
+/// Registers a configuration option from a static definition.
+///
+/// Transforms a static item into an option registration:
+///
+/// ```ignore
+/// #[derive(Option)]
+/// #[option(kdl = "tab-width", scope = buffer)]
+/// /// Number of spaces a tab character occupies.
+/// pub static TAB_WIDTH: i64 = 4;
+/// ```
+///
+/// Generates:
+/// - Static `OptionDef` registered in the `OPTIONS` slice
+/// - Typed `TypedOptionKey<T>` constant for compile-time type safety
+///
+/// # Attributes
+///
+/// - `kdl = "key"` - Required: KDL configuration key
+/// - `scope = global | buffer` - Required: Option scope
+/// - `priority = N` - Optional: Sort priority (default 0)
+///
+/// # Supported Types
+///
+/// - `i64` → `OptionType::Int`
+/// - `bool` → `OptionType::Bool`
+/// - `String` → `OptionType::String`
+/// - `&'static str` → `OptionType::String` (converted to owned)
+#[proc_macro_attribute]
+pub fn derive_option(_attr: TokenStream, item: TokenStream) -> TokenStream {
+	option::derive_option(item)
 }

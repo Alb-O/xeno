@@ -176,6 +176,13 @@ xeno_macro::define_events! {
 		/// Name of the result variant returned by the action.
 		result_variant: Str,
 	},
+	/// An option value was changed via :set or :setlocal.
+	OptionChanged => "option:changed" {
+		/// The KDL key of the changed option (e.g., "tab-width").
+		key: Str,
+		/// The scope of the change: "global" or "buffer".
+		scope: Str,
+	},
 }
 
 /// Registry of all hook definitions.

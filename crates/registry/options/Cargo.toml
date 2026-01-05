@@ -8,4 +8,6 @@ license.workspace = true
 [dependencies]
 linkme.workspace = true
 paste.workspace = true
+strsim.workspace = true
+xeno-macro.workspace = true
 xeno-registry-core.workspace = true

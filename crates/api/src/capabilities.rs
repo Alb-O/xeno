@@ -13,47 +13,39 @@ use xeno_core::editor_ctx::{
 	JumpAccess, MacroAccess, ModeAccess, NotificationAccess, OptionAccess, PaletteAccess,
 	SearchAccess, SelectionAccess, SplitOps, ThemeAccess, UndoAccess, ViewportAccess,
 };
-use xeno_registry::options::{OptionKey, OptionResolver, OptionValue};
+use xeno_registry::options::{OptionKey, OptionResolver, OptionValue, find_by_kdl, parse};
 use xeno_registry::EditAction;
 use xeno_registry::commands::{CommandEditorOps, CommandError};
+use xeno_registry::{HookContext, HookEventData, emit_sync_with as emit_hook_sync_with};
 use xeno_registry_notifications::{Notification, keys};
 
 use crate::editor::Editor;
 
 /// Parses a string value into an [`OptionValue`] based on the option's declared type.
-fn parse_option_value(
-	kdl_key: &str,
-	value: &str,
-) -> Result<OptionValue, CommandError> {
-	use xeno_registry::options::{self, OptionType};
+fn parse_option_value(kdl_key: &str, value: &str) -> Result<OptionValue, CommandError> {
+	use xeno_registry::options::OptionError;
 
-	let def = options::find_by_kdl(kdl_key).ok_or_else(|| {
-		let suggestion = options::all_sorted()
-			.map(|o| o.kdl_key)
-			.min_by_key(|k| strsim::levenshtein(kdl_key, k))
-			.filter(|k| strsim::levenshtein(kdl_key, k) <= 3);
-		match suggestion {
-			Some(s) => {
-				CommandError::InvalidArgument(format!("unknown option: {kdl_key} (did you mean '{s}'?)"))
+	parse::parse_value(kdl_key, value).map_err(|e| match e {
+		OptionError::UnknownOption(key) => {
+			let suggestion = parse::suggest_option(&key);
+			match suggestion {
+				Some(s) => CommandError::InvalidArgument(format!(
+					"unknown option: {key} (did you mean '{s}'?)"
+				)),
+				None => CommandError::InvalidArgument(format!("unknown option: {key}")),
 			}
-			None => CommandError::InvalidArgument(format!("unknown option: {kdl_key}")),
 		}
-	})?;
-
-	match def.value_type {
-		OptionType::Bool => match value.to_lowercase().as_str() {
-			"true" | "1" | "yes" | "on" => Ok(OptionValue::Bool(true)),
-			"false" | "0" | "no" | "off" => Ok(OptionValue::Bool(false)),
-			_ => Err(CommandError::InvalidArgument(format!(
-				"invalid boolean value for {kdl_key}: {value}"
-			))),
-		},
-		OptionType::Int => value
-			.parse::<i64>()
-			.map(OptionValue::Int)
-			.map_err(|_| CommandError::InvalidArgument(format!("invalid integer for {kdl_key}: {value}"))),
-		OptionType::String => Ok(OptionValue::String(value.to_string())),
-	}
+		OptionError::InvalidValue { option, reason } => {
+			CommandError::InvalidArgument(format!("invalid value for {option}: {reason}"))
+		}
+		OptionError::TypeMismatch {
+			option,
+			expected,
+			got,
+		} => CommandError::InvalidArgument(format!(
+			"type mismatch for {option}: expected {expected:?}, got {got}"
+		)),
+	})
 }
 
 impl CursorAccess for Editor {
@@ -206,12 +198,40 @@ impl CommandEditorOps for Editor {
 	fn set_option(&mut self, kdl_key: &str, value: &str) -> Result<(), CommandError> {
 		let opt_value = parse_option_value(kdl_key, value)?;
 		let _ = self.global_options.set_by_kdl(kdl_key, opt_value);
+
+		// Emit OptionChanged hook with static kdl_key from definition
+		if let Some(def) = find_by_kdl(kdl_key) {
+			emit_hook_sync_with(
+				&HookContext::new(
+					HookEventData::OptionChanged {
+						key: def.kdl_key,
+						scope: "global",
+					},
+					Some(&self.extensions),
+				),
+				&mut self.hook_runtime,
+			);
+		}
 		Ok(())
 	}
 
 	fn set_local_option(&mut self, kdl_key: &str, value: &str) -> Result<(), CommandError> {
 		let opt_value = parse_option_value(kdl_key, value)?;
 		let _ = self.buffer_mut().local_options.set_by_kdl(kdl_key, opt_value);
+
+		// Emit OptionChanged hook with static kdl_key from definition
+		if let Some(def) = find_by_kdl(kdl_key) {
+			emit_hook_sync_with(
+				&HookContext::new(
+					HookEventData::OptionChanged {
+						key: def.kdl_key,
+						scope: "buffer",
+					},
+					Some(&self.extensions),
+				),
+				&mut self.hook_runtime,
+			);
+		}
 		Ok(())
 	}
 }
@@ -377,7 +397,7 @@ impl PaletteAccess for Editor {
 }
 
 impl OptionAccess for Editor {
-	fn option(&self, key: OptionKey) -> OptionValue {
+	fn option_raw(&self, key: OptionKey) -> OptionValue {
 		let buffer = self.buffer();
 		let language_store = buffer
 			.file_type()

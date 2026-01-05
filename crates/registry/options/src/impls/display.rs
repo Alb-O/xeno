@@ -1,51 +1,33 @@
 //! Display-related options.
 
-use crate::option;
+use xeno_macro::derive_option;
 
-option!(line_numbers, {
-	kdl: "line-numbers",
-	type: Bool,
-	default: true,
-	scope: Global,
-	description: "Show line numbers in the gutter",
-});
+#[derive_option]
+#[option(kdl = "line-numbers", scope = global)]
+/// Show line numbers in the gutter.
+pub static LINE_NUMBERS: bool = true;
 
-option!(wrap_lines, {
-	kdl: "wrap-lines",
-	type: Bool,
-	default: true,
-	scope: Buffer,
-	description: "Wrap long lines at window edge",
-});
+#[derive_option]
+#[option(kdl = "wrap-lines", scope = buffer)]
+/// Wrap long lines at window edge.
+pub static WRAP_LINES: bool = true;
 
-option!(cursorline, {
-	kdl: "cursorline",
-	type: Bool,
-	default: true,
-	scope: Global,
-	description: "Highlight the current line",
-});
+#[derive_option]
+#[option(kdl = "cursorline", scope = global)]
+/// Highlight the current line.
+pub static CURSORLINE: bool = true;
 
-option!(cursorcolumn, {
-	kdl: "cursorcolumn",
-	type: Bool,
-	default: false,
-	scope: Global,
-	description: "Highlight the current column",
-});
+#[derive_option]
+#[option(kdl = "cursorcolumn", scope = global)]
+/// Highlight the current column.
+pub static CURSORCOLUMN: bool = false;
 
-option!(colorcolumn, {
-	kdl: "colorcolumn",
-	type: Int,
-	default: 0,
-	scope: Buffer,
-	description: "Column to highlight as margin guide",
-});
+#[derive_option]
+#[option(kdl = "colorcolumn", scope = buffer)]
+/// Column to highlight as margin guide.
+pub static COLORCOLUMN: i64 = 0;
 
-option!(whitespace_visible, {
-	kdl: "whitespace-visible",
-	type: Bool,
-	default: false,
-	scope: Global,
-	description: "Show whitespace characters",
-});
+#[derive_option]
+#[option(kdl = "whitespace-visible", scope = global)]
+/// Show whitespace characters.
+pub static WHITESPACE_VISIBLE: bool = false;

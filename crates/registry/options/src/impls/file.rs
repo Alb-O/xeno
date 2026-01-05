@@ -1,43 +1,28 @@
 //! File handling options.
 
-use crate::option;
+use xeno_macro::derive_option;
 
-option!(backup, {
-	kdl: "backup",
-	type: Bool,
-	default: false,
-	scope: Global,
-	description: "Create backup files before saving",
-});
+#[derive_option]
+#[option(kdl = "backup", scope = global)]
+/// Create backup files before saving.
+pub static BACKUP: bool = false;
 
-option!(undo_file, {
-	kdl: "undo-file",
-	type: Bool,
-	default: false,
-	scope: Global,
-	description: "Persist undo history to disk",
-});
+#[derive_option]
+#[option(kdl = "undo-file", scope = global)]
+/// Persist undo history to disk.
+pub static UNDO_FILE: bool = false;
 
-option!(auto_save, {
-	kdl: "auto-save",
-	type: Bool,
-	default: false,
-	scope: Global,
-	description: "Automatically save files on focus loss",
-});
+#[derive_option]
+#[option(kdl = "auto-save", scope = global)]
+/// Automatically save files on focus loss.
+pub static AUTO_SAVE: bool = false;
 
-option!(final_newline, {
-	kdl: "final-newline",
-	type: Bool,
-	default: true,
-	scope: Buffer,
-	description: "Ensure files end with a newline when saving",
-});
+#[derive_option]
+#[option(kdl = "final-newline", scope = buffer)]
+/// Ensure files end with a newline when saving.
+pub static FINAL_NEWLINE: bool = true;
 
-option!(trim_trailing_whitespace, {
-	kdl: "trim-trailing-whitespace",
-	type: Bool,
-	default: false,
-	scope: Buffer,
-	description: "Remove trailing whitespace when saving",
-});
+#[derive_option]
+#[option(kdl = "trim-trailing-whitespace", scope = buffer)]
+/// Remove trailing whitespace when saving.
+pub static TRIM_TRAILING_WHITESPACE: bool = false;

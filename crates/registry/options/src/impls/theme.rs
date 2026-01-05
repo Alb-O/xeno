@@ -1,14 +1,11 @@
 //! Theme option.
 
-use crate::option;
+use xeno_macro::derive_option;
 
 /// Default theme ID (gruvbox).
 pub const DEFAULT_THEME_ID: &str = "gruvbox";
 
-option!(theme, {
-	kdl: "theme",
-	type: String,
-	default: DEFAULT_THEME_ID.to_string(),
-	scope: Global,
-	description: "Editor color theme",
-});
+#[derive_option]
+#[option(kdl = "theme", scope = global)]
+/// Editor color theme.
+pub static THEME: &'static str = DEFAULT_THEME_ID;

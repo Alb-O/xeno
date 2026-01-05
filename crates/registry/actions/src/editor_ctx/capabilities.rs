@@ -35,7 +35,7 @@ use ropey::RopeSlice;
 use xeno_base::range::CharIdx;
 use xeno_base::selection::Selection;
 use xeno_registry_notifications::Notification;
-use xeno_registry_options::{OptionKey, OptionValue};
+use xeno_registry_options::{FromOptionValue, OptionKey, OptionValue, TypedOptionKey};
 
 use crate::{EditAction, Mode};
 
@@ -324,11 +324,11 @@ pub trait PaletteAccess {
 /// ```ignore
 /// use xeno_registry_options::keys;
 ///
-/// // Get tab width for current buffer context
-/// let width = ctx.option_int(keys::tab_width);
+/// // Get tab width for current buffer context (typed)
+/// let width: i64 = ctx.option(keys::TAB_WIDTH);
 ///
 /// // Get theme (global option)
-/// let theme = ctx.option_string(keys::theme);
+/// let theme: String = ctx.option(keys::THEME);
 /// ```
 pub trait OptionAccess {
 	/// Resolves an option for the current context (buffer-aware).
@@ -337,34 +337,32 @@ pub trait OptionAccess {
 	/// 1. Buffer-local override (from `:setlocal`)
 	/// 2. Language-specific config (from `language "rust" { }` block)
 	/// 3. Global config (from `options { }` block)
-	/// 4. Compile-time default (from `option!` macro)
-	fn option(&self, key: OptionKey) -> OptionValue;
+	/// 4. Compile-time default (from `#[derive_option]` macro)
+	fn option_raw(&self, key: OptionKey) -> OptionValue;
 
-	/// Resolves an integer option, falling back to default on type mismatch.
-	fn option_int(&self, key: OptionKey) -> i64 {
-		self.option(key)
-			.as_int()
-			.unwrap_or_else(|| (key.def().default)().as_int().unwrap_or(0))
-	}
-
-	/// Resolves a boolean option, falling back to default on type mismatch.
-	fn option_bool(&self, key: OptionKey) -> bool {
-		self.option(key)
-			.as_bool()
-			.unwrap_or_else(|| (key.def().default)().as_bool().unwrap_or(false))
-	}
-
-	/// Resolves a string option, falling back to default on type mismatch.
-	fn option_string(&self, key: OptionKey) -> String {
-		self.option(key)
-			.as_str()
-			.map(|s| s.to_string())
-			.unwrap_or_else(|| {
-				(key.def().default)()
-					.as_str()
-					.unwrap_or("")
-					.to_string()
-			})
+	/// Resolves a typed option for the current context.
+	///
+	/// This is the preferred method for option access, providing compile-time
+	/// type safety through [`TypedOptionKey<T>`].
+	///
+	/// Note: This method requires `Self: Sized` for dyn-compatibility. When
+	/// using `&dyn OptionAccess`, use [`option_raw()`] instead.
+	///
+	/// # Example
+	///
+	/// ```ignore
+	/// use xeno_registry_options::keys;
+	///
+	/// let width: i64 = ctx.option(keys::TAB_WIDTH);
+	/// let wrap: bool = ctx.option(keys::WRAP_LINES);
+	/// ```
+	fn option<T: FromOptionValue>(&self, key: TypedOptionKey<T>) -> T
+	where
+		Self: Sized,
+	{
+		T::from_option(&self.option_raw(key.untyped()))
+			.or_else(|| T::from_option(&(key.def().default)()))
+			.expect("option type mismatch with registered default")
 	}
 }
 
