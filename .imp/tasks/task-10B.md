@@ -645,7 +645,38 @@ All LSP integration tests go in `crates/term/tests/`:
   - Already enabled: `xeno-api = { workspace = true, features = ["lsp"] }`
   - Build succeeds with clippy --workspace
   
-- [ ] 5.7 Verify: `LSP_TESTS=1 KITTY_TESTS=1 cargo test -p xeno-term --test lsp_navigation`
+- [ ] 5.7 Debug runtime LSP issue - "No definition found" despite feature enabled
+  
+  **Current state**: LSP feature compiles, `gd` keybinding works, but LSP returns nothing.
+  
+  **Architecture review**:
+  - `init_lsp()` registers rust-analyzer with `Cargo.toml` root marker
+  - `BufferOpen` hook calls `lsp.did_open()` → `registry.get_or_start()` → starts server
+  - `goto_definition()` calls `get_lsp_registry()` → `get_client_for_buffer()` → `client.goto_definition()`
+  
+  **Possible failure points**:
+  - [ ] 5.7.1 Is `init_lsp()` being called? (extension might not be loaded in tests)
+  - [ ] 5.7.2 Is `BufferOpen` hook firing? (server needs didOpen to know about the file)
+  - [ ] 5.7.3 Is rust-analyzer in PATH during tests?
+  - [ ] 5.7.4 Is `get_lsp_registry()` returning the registry? (type mismatch?)
+  - [ ] 5.7.5 Is `get_client_for_buffer()` returning a client?
+  - [ ] 5.7.6 Is `client.is_initialized()` returning true?
+  - [ ] 5.7.7 What does `client.goto_definition()` actually return?
+  
+  **Debug approach**: Add `eprintln!` debug logging at each step in `goto_definition()`:
+  ```rust
+  pub async fn goto_definition(editor: &mut Editor) -> bool {
+      eprintln!("DEBUG: goto_definition called");
+      let Some(registry) = get_lsp_registry(&editor.extensions) else {
+          eprintln!("DEBUG: no registry found");
+          return false;
+      };
+      eprintln!("DEBUG: got registry");
+      // ... etc
+  }
+  ```
+  
+- [ ] 5.8 Verify: `LSP_TESTS=1 KITTY_TESTS=1 cargo test -p xeno-term --test lsp_navigation`
 
 **CHECKPOINT 5**: Navigation features work with real LSP
 
