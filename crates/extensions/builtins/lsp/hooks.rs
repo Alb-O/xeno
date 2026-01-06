@@ -22,12 +22,17 @@ async_hook!(
 	50,
 	"Notify language servers when a buffer is opened",
 	setup |ctx| {
+		eprintln!("DEBUG lsp_buffer_open: setup called");
 		let Some(lsp) = lsp_from_ctx(ctx) else {
+			eprintln!("DEBUG lsp_buffer_open: no LSP manager found");
 			return HookAction::done();
 		};
+		eprintln!("DEBUG lsp_buffer_open: got LSP manager");
 	}
 	async |path: PathBuf, text: String, file_type: Option<String>| {
+		eprintln!("DEBUG lsp_buffer_open: async handler called for {:?} file_type={:?}", path, file_type);
 		lsp.did_open(&path, &text, file_type.as_deref(), 1).await;
+		eprintln!("DEBUG lsp_buffer_open: did_open completed");
 		HookResult::Continue
 	}
 );

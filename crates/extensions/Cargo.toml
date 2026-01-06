@@ -17,5 +17,6 @@ xeno-language.workspace = true
 xeno-lsp = { workspace = true, features = ["client", "position"] }
 xeno-macro.workspace = true
 xeno-registry.workspace = true
+xeno-registry-notifications.workspace = true
 [dev-dependencies]
 ropey.workspace = true

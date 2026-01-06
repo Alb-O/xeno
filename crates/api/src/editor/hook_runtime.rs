@@ -48,8 +48,14 @@ impl HookRuntime {
 
 	/// Drains and awaits all queued async hooks in FIFO order.
 	pub async fn drain(&mut self) {
+		let count = self.queue.len();
+		if count > 0 {
+			eprintln!("DEBUG HookRuntime::drain: draining {} futures", count);
+		}
 		while let Some(fut) = self.queue.pop_front() {
+			eprintln!("DEBUG HookRuntime::drain: awaiting future...");
 			let _ = fut.await;
+			eprintln!("DEBUG HookRuntime::drain: future completed");
 		}
 	}
 
@@ -63,6 +69,11 @@ impl HookRuntime {
 
 impl HookScheduler for HookRuntime {
 	fn schedule(&mut self, fut: HookBoxFuture) {
+		eprintln!(
+			"DEBUG HookRuntime::schedule: scheduling future, queue_len before={}, after={}",
+			self.queue.len(),
+			self.queue.len() + 1
+		);
 		self.queue.push_back(fut);
 	}
 }

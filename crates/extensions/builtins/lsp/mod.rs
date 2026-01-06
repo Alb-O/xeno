@@ -68,24 +68,34 @@ impl LspManager {
 		language: Option<&str>,
 		version: u64,
 	) -> Option<()> {
+		eprintln!("DEBUG LspManager::did_open: path={:?}, language={:?}", path, language);
 		let language = language?;
 		let uri = Url::from_file_path(path).ok()?;
 
+		eprintln!("DEBUG LspManager::did_open: calling get_or_start for language={}", language);
 		let client = match self.registry.get_or_start(language, path).await {
-			Ok(client) => client,
+			Ok(client) => {
+				eprintln!("DEBUG LspManager::did_open: got client");
+				client
+			}
 			Err(e) => {
+				eprintln!("DEBUG LspManager::did_open: get_or_start error: {}", e);
 				debug!(language = language, error = %e, "LSP: No server available");
 				return None;
 			}
 		};
 
+		eprintln!("DEBUG LspManager::did_open: waiting for client initialization");
 		client.wait_initialized().await;
+		eprintln!("DEBUG LspManager::did_open: client initialized");
 
 		if let Err(e) =
 			client.text_document_did_open(uri, language.to_string(), version as i32, text.into())
 		{
+			eprintln!("DEBUG LspManager::did_open: didOpen failed: {}", e);
 			warn!(error = %e, "LSP: didOpen failed");
 		}
+		eprintln!("DEBUG LspManager::did_open: success");
 
 		Some(())
 	}

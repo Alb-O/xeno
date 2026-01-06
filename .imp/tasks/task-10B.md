@@ -586,97 +586,57 @@ All LSP integration tests go in `crates/term/tests/`:
   /// Enter on reference in panel jumps to that location.
   ```
 
-- [x] 5.5 **GAP CHECK**: If navigation doesn't work:
-  - Is `goto_definition()` opening the target file?
-  - Is `find_references()` populating the panel?
-  - Is the references panel wired to the dock system?
-  - **BUG 1 FIXED**: Keybinding syntax was wrong!
-    - Was: `bindings: r#"normal "g" "d""#` (parsed as TWO separate bindings)
-    - Fixed: `bindings: r#"normal "g d""#` (parsed as ONE sequence)
-  - **BUG 2 FIXED**: Fixture projects missing `[workspace]` 
-    - rust-analyzer failed because fixtures were seen as workspace members
-    - Added `[workspace]` to all fixture Cargo.toml files
-  - **BUG 3 FIXED**: Test used `/search` which had timing issues
-    - Changed to use `:17` line navigation instead
-  - **REMAINING**: LSP returns "No definition found"
-    - `gd` keybinding now works (command executes)
-    - But rust-analyzer not returning definition results
-    - May need longer LSP init time or additional debugging
+- [x] 5.5 **GAP CHECK**: Multiple bugs found and fixed:
+   - **BUG 1**: Keybinding syntax `"g" "d"` parsed as two bindings → Fixed to `"g d"`
+   - **BUG 2**: Fixtures missing `[workspace]` → Added to all Cargo.toml
+   - **BUG 3**: LSP feature not enabled on xeno-api → Enabled + fixed 36 compile errors
+   - **BUG 4**: BufferOpen hook emitted with `None` extensions → Fixed init order
 
-- [x] 5.6 Debug why `gd` returns "No definition found":
-  
-  **ROOT CAUSE IDENTIFIED**: The `lsp` feature is NOT enabled on `xeno-api`!
-  
-  In `crates/api/src/capabilities.rs`:
-  ```rust
-  #[cfg(feature = "lsp")]
-  fn goto_definition(&mut self) -> ... {
-      crate::lsp_ui::goto_definition(self).await  // Real implementation
-  }
-  
-  #[cfg(not(feature = "lsp"))]
-  fn goto_definition(&mut self) -> ... {
-      Box::pin(async { false })  // Just returns false!
-  }
-  ```
-  
-  Since `xeno-term` depends on `xeno-api` WITHOUT the `lsp` feature, all LSP
-  functions (`goto_definition`, `find_references`, `show_hover`, etc.) just
-  return `false` immediately.
-  
-  **The fix requires**:
-  1. Enable `lsp` feature: `xeno-api = { workspace = true, features = ["lsp"] }`
-  2. BUT this causes 36+ compilation errors - the LSP code is out of sync
-     with the rest of the codebase (API changes not propagated)
-  
-  **Errors include**:
-  - `cannot find struct Change in xeno_base`
-  - `module buffer is private`
-  - `no field text on type UiColors`
-  - `no method get_popup on UiManager`
-  
-- [x] 5.6.1 Fix xeno-api LSP feature compilation errors
-  - Fixed `lsp_ui.rs` - added `extract_text_edit` helper for `OneOf<TextEdit, AnnotatedTextEdit>` conversion
-  - Fixed `UiManager::get_popup` -> `ui.popups.get_popup`
-  - Fixed use of moved value in `goto_definition` by early-returning when popup is shown
-  - Fixed borrow checker errors in `diagnostics.rs` and `references.rs` by separating char_idx computation scope
-  
-- [x] 5.6.2 Enable LSP feature in xeno-term
-  - Already enabled: `xeno-api = { workspace = true, features = ["lsp"] }`
-  - Build succeeds with clippy --workspace
-  
-- [ ] 5.7 Debug runtime LSP issue - "No definition found" despite feature enabled
-  
-  **Current state**: LSP feature compiles, `gd` keybinding works, but LSP returns nothing.
-  
-  **Architecture review**:
-  - `init_lsp()` registers rust-analyzer with `Cargo.toml` root marker
-  - `BufferOpen` hook calls `lsp.did_open()` → `registry.get_or_start()` → starts server
-  - `goto_definition()` calls `get_lsp_registry()` → `get_client_for_buffer()` → `client.goto_definition()`
-  
-  **Possible failure points**:
-  - [ ] 5.7.1 Is `init_lsp()` being called? (extension might not be loaded in tests)
-  - [ ] 5.7.2 Is `BufferOpen` hook firing? (server needs didOpen to know about the file)
-  - [ ] 5.7.3 Is rust-analyzer in PATH during tests?
-  - [ ] 5.7.4 Is `get_lsp_registry()` returning the registry? (type mismatch?)
-  - [ ] 5.7.5 Is `get_client_for_buffer()` returning a client?
-  - [ ] 5.7.6 Is `client.is_initialized()` returning true?
-  - [ ] 5.7.7 What does `client.goto_definition()` actually return?
-  
-  **Debug approach**: Add `eprintln!` debug logging at each step in `goto_definition()`:
-  ```rust
-  pub async fn goto_definition(editor: &mut Editor) -> bool {
-      eprintln!("DEBUG: goto_definition called");
-      let Some(registry) = get_lsp_registry(&editor.extensions) else {
-          eprintln!("DEBUG: no registry found");
-          return false;
-      };
-      eprintln!("DEBUG: got registry");
-      // ... etc
-  }
-  ```
-  
-- [ ] 5.8 Verify: `LSP_TESTS=1 KITTY_TESTS=1 cargo test -p xeno-term --test lsp_navigation`
+- [x] 5.6 Enable and fix LSP feature compilation (36 errors fixed)
+   - `lsp_ui.rs`: Added `extract_text_edit` helper, fixed moved value issues
+   - `diagnostics.rs`, `references.rs`: Fixed borrow checker errors
+   - `xeno-term/Cargo.toml`: `xeno-api = { workspace = true, features = ["lsp"] }`
+
+- [x] 5.7 Fix BufferOpen hook not receiving extensions
+   - **Root cause**: `from_content()` emitted hooks before initializing extensions
+   - **Fix**: Moved extension init before hook emission, pass `Some(&extensions)`
+   - **Result**: Client now found, but server returns `ServiceStopped`
+   
+- [ ] 5.8 Fix "ServiceStopped" error - async hooks not being drained before LSP use
+   
+   **Investigation completed** - async hooks ARE scheduled correctly:
+   ```
+   DEBUG emit_sync_with: event=BufferOpen, total_hooks=7, matching=2
+   DEBUG emit_sync_with: calling hook 'lsp_buffer_open'
+   DEBUG lsp_buffer_open: setup called
+   DEBUG lsp_buffer_open: got LSP manager
+   DEBUG emit_sync_with: hook 'lsp_buffer_open' returned Async, scheduling
+   DEBUG HookRuntime::schedule: scheduling future, queue_len before=0, after=1
+   DEBUG from_content: after BufferOpen hook, pending_count=1
+   DEBUG run_editor: ENTRY, hook_runtime.pending_count=1
+   ```
+   
+   **Architecture confirmed**:
+   - `emit_hook_sync_with()` correctly schedules async hook futures
+   - `HookRuntime::schedule()` adds them to the queue
+   - `app.rs` main loop calls `editor.hook_runtime.drain().await` each tick
+   
+   **Current hypothesis**: The LSP async hook (which calls `did_open()`) runs
+   during drain, but by the time user presses `gd`:
+   1. Either rust-analyzer hasn't finished initializing yet, OR
+   2. The server stopped due to some error during startup
+   
+   **Next debugging steps**:
+   - [ ] 5.8.1 Add debug output inside the async hook body (after `did_open()`)
+   - [ ] 5.8.2 Check if `get_or_start()` is actually starting rust-analyzer
+   - [ ] 5.8.3 Check rust-analyzer stderr for startup errors
+   - [ ] 5.8.4 Verify the `Cargo.toml` root marker is being found correctly
+   - [ ] 5.8.5 Try increasing wait time after file open before pressing `gd`
+   
+   **Key insight**: `ServiceStopped` means the LSP client HAD a connection but
+   it was closed. This suggests the server started but then terminated.
+   
+- [ ] 5.9 Verify: `LSP_TESTS=1 KITTY_TESTS=1 cargo test -p xeno-term --test lsp_navigation`
 
 **CHECKPOINT 5**: Navigation features work with real LSP
 

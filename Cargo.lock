@@ -4395,6 +4395,7 @@ dependencies = [
  "xeno-lsp",
  "xeno-macro",
  "xeno-registry",
+ "xeno-registry-notifications",
 ]
 
 [[package]]

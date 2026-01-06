@@ -118,6 +118,12 @@ pub fn emit_sync_with<S: HookScheduler>(ctx: &HookContext<'_>, scheduler: &mut S
 	let event = ctx.event();
 	let mut matching: Vec<_> = HOOKS.iter().filter(|h| h.event == event).collect();
 	matching.sort_by_key(|h| h.priority);
+	eprintln!(
+		"DEBUG emit_sync_with: event={:?}, total_hooks={}, matching={}",
+		event,
+		HOOKS.len(),
+		matching.len()
+	);
 
 	for hook in matching {
 		if hook.mutability != HookMutability::Immutable {
@@ -127,13 +133,16 @@ pub fn emit_sync_with<S: HookScheduler>(ctx: &HookContext<'_>, scheduler: &mut S
 			HookHandler::Immutable(handler) => handler,
 			HookHandler::Mutable(_) => continue,
 		};
+		eprintln!("DEBUG emit_sync_with: calling hook '{}'", hook.name);
 		match handler(ctx) {
 			HookAction::Done(result) => {
+				eprintln!("DEBUG emit_sync_with: hook '{}' returned Done", hook.name);
 				if result == HookResult::Cancel {
 					return HookResult::Cancel;
 				}
 			}
 			HookAction::Async(fut) => {
+				eprintln!("DEBUG emit_sync_with: hook '{}' returned Async, scheduling", hook.name);
 				scheduler.schedule(fut);
 			}
 		}

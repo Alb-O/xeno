@@ -249,6 +249,10 @@ impl Editor {
 			editor.buffer().set_readonly(true);
 		}
 
+		eprintln!(
+			"DEBUG Editor::new: returning editor, hook_runtime.pending_count={}",
+			editor.hook_runtime.pending_count()
+		);
 		Ok(editor)
 	}
 
@@ -273,13 +277,24 @@ impl Editor {
 
 		let mut hook_runtime = HookRuntime::new();
 
+		// Initialize extensions BEFORE emitting hooks so LSP hooks can access the registry
+		let extensions = {
+			let mut map = ExtensionMap::new();
+			let mut sorted_exts: Vec<_> = EXTENSIONS.iter().collect();
+			sorted_exts.sort_by_key(|e| e.priority);
+			for ext in sorted_exts {
+				(ext.init)(&mut map);
+			}
+			map
+		};
+
 		emit_hook_sync_with(
 			&HookContext::new(
 				HookEventData::WindowCreated {
 					window_id: xeno_registry::WindowId(window_manager.base_id().0),
 					kind: WindowKind::Base,
 				},
-				None,
+				Some(&extensions),
 			),
 			&mut hook_runtime,
 		);
@@ -295,9 +310,14 @@ impl Editor {
 					text: buffer.doc().content.slice(..),
 					file_type: buffer.file_type().as_deref(),
 				},
-				None,
+				Some(&extensions),
 			),
 			&mut hook_runtime,
+		);
+
+		eprintln!(
+			"DEBUG from_content: after BufferOpen hook, pending_count={}",
+			hook_runtime.pending_count()
 		);
 
 		Self {
@@ -318,15 +338,7 @@ impl Editor {
 				.overflow(xeno_tui::widgets::notifications::Overflow::DropOldest),
 			last_tick: std::time::SystemTime::now(),
 			completions: CompletionState::default(),
-			extensions: {
-				let mut map = ExtensionMap::new();
-				let mut sorted_exts: Vec<_> = EXTENSIONS.iter().collect();
-				sorted_exts.sort_by_key(|e| e.priority);
-				for ext in sorted_exts {
-					(ext.init)(&mut map);
-				}
-				map
-			},
+			extensions,
 			language_loader,
 			style_overlays: StyleOverlays::new(),
 			hook_runtime,

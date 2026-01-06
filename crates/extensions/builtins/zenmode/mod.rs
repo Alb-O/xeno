@@ -22,6 +22,7 @@ use std::ops::Range;
 use xeno_api::editor::Editor;
 use xeno_macro::extension;
 use xeno_registry::commands::{CommandContext, CommandError, CommandOutcome};
+use xeno_registry_notifications::keys;
 
 /// Primary focus node types - these are the main code units we want to focus on.
 ///
@@ -316,7 +317,7 @@ impl ZenmodeState {
 	) -> Result<CommandOutcome, CommandError> {
 		self.toggle();
 		let status = if self.enabled { "enabled" } else { "disabled" };
-		ctx.info(&format!("Zen mode {}", status));
+		ctx.emit(keys::info::call(format!("Zen mode {}", status)));
 		Ok(CommandOutcome::Ok)
 	}
 

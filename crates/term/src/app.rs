@@ -43,6 +43,10 @@ use crate::terminal::{
 
 /// Runs the editor main loop.
 pub async fn run_editor(mut editor: Editor) -> io::Result<()> {
+	eprintln!(
+		"DEBUG run_editor: ENTRY, hook_runtime.pending_count={}",
+		editor.hook_runtime.pending_count()
+	);
 	let mut terminal = PlatformTerminal::new()?;
 	install_panic_hook(&mut terminal);
 	enable_terminal_features(&mut terminal)?;
@@ -60,10 +64,14 @@ pub async fn run_editor(mut editor: Editor) -> io::Result<()> {
 	);
 
 	let result: io::Result<()> = async {
+		eprintln!("DEBUG app.rs: entering main loop, initial pending={}", editor.hook_runtime.pending_count());
 		loop {
 			editor.ui_tick();
 			editor.tick();
+			let pending = editor.hook_runtime.pending_count();
+			eprintln!("DEBUG app.rs: before drain, pending={}", pending);
 			editor.hook_runtime.drain().await;
+			eprintln!("DEBUG app.rs: after drain, pending={}", editor.hook_runtime.pending_count());
 
 			if editor.drain_command_queue().await {
 				break;

@@ -3,10 +3,10 @@
 use std::path::Path;
 use std::{env, fs};
 
-/// Discovers and generates module declarations for all extensions in `extensions/`.
+/// Discovers and generates module declarations for all extensions in `builtins/`.
 ///
 /// This build script:
-/// 1. Scans the `extensions/` directory for Rust modules and files
+/// 1. Scans the `builtins/` directory for Rust modules and files
 /// 2. Sanitizes extension names to valid Rust identifiers
 /// 3. Validates module names and paths for portability
 /// 4. Generates `extensions.rs` with sorted module declarations
@@ -14,9 +14,9 @@ fn main() {
 	let out_dir = env::var("OUT_DIR").unwrap();
 	let dest_path = Path::new(&out_dir).join("extensions.rs");
 
-	// Extensions are located in extensions/ (sibling to src/)
+	// Extensions are located in builtins/ (sibling to src/)
 	let manifest_dir = env::var("CARGO_MANIFEST_DIR").unwrap();
-	let extension_dir = Path::new(&manifest_dir).join("extensions");
+	let extension_dir = Path::new(&manifest_dir).join("builtins");
 
 	let mut extensions = Vec::new();
 
@@ -100,5 +100,5 @@ fn main() {
 	));
 
 	fs::write(&dest_path, content).unwrap();
-	println!("cargo:rerun-if-changed=extensions");
+	println!("cargo:rerun-if-changed=builtins");
 }

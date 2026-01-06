@@ -680,33 +680,63 @@ pub async fn goto_definition(editor: &mut crate::editor::Editor) -> bool {
     use crate::ui::popup::LocationPickerPopup;
     use xeno_lsp::lsp_types::GotoDefinitionResponse;
     
+    eprintln!("DEBUG goto_definition: called");
+    
     let Some(registry) = get_lsp_registry(&editor.extensions) else {
+        eprintln!("DEBUG goto_definition: no registry found in extensions");
         return false;
     };
+    eprintln!("DEBUG goto_definition: got registry");
     
     let buffer = editor.buffer();
     let client = match get_client_for_buffer(&registry, buffer) {
         Some(c) => c,
-        None => return false,
+        None => {
+            eprintln!("DEBUG goto_definition: no client for buffer (path={:?}, file_type={:?})", 
+                buffer.path(), buffer.file_type());
+            return false;
+        }
     };
+    eprintln!("DEBUG goto_definition: got client");
     
     if !client.is_initialized() {
+        eprintln!("DEBUG goto_definition: client not initialized");
         return false;
     }
+    eprintln!("DEBUG goto_definition: client is initialized");
     
     let uri = match buffer_to_uri(buffer) {
         Some(u) => u,
-        None => return false,
+        None => {
+            eprintln!("DEBUG goto_definition: failed to get URI for buffer");
+            return false;
+        }
     };
+    eprintln!("DEBUG goto_definition: uri={}", uri);
     let encoding = client.offset_encoding();
     let position = match buffer_cursor_to_lsp_position(buffer, encoding) {
         Some(p) => p,
-        None => return false,
+        None => {
+            eprintln!("DEBUG goto_definition: failed to convert cursor to LSP position");
+            return false;
+        }
     };
+    eprintln!("DEBUG goto_definition: position=line:{} char:{}", position.line, position.character);
     
-    let response = match client.goto_definition(uri, position).await {
-        Ok(Some(r)) => r,
-        _ => return false,
+    eprintln!("DEBUG goto_definition: sending request to server...");
+    let response = match client.goto_definition(uri.clone(), position).await {
+        Ok(Some(r)) => {
+            eprintln!("DEBUG goto_definition: got response: {:?}", r);
+            r
+        }
+        Ok(None) => {
+            eprintln!("DEBUG goto_definition: server returned None (no definition found)");
+            return false;
+        }
+        Err(e) => {
+            eprintln!("DEBUG goto_definition: request error: {:?}", e);
+            return false;
+        }
     };
 
     // Count locations to determine if we need a picker
