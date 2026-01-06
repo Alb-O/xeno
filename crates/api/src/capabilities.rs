@@ -25,7 +25,7 @@ use crate::editor::Editor;
 fn parse_option_value(kdl_key: &str, value: &str) -> Result<OptionValue, CommandError> {
 	use xeno_registry::options::OptionError;
 
-	parse::parse_value(kdl_key, value).map_err(|e| match e {
+	let opt_value = parse::parse_value(kdl_key, value).map_err(|e| match e {
 		OptionError::UnknownOption(key) => {
 			let suggestion = parse::suggest_option(&key);
 			match suggestion {
@@ -45,7 +45,18 @@ fn parse_option_value(kdl_key: &str, value: &str) -> Result<OptionValue, Command
 		} => CommandError::InvalidArgument(format!(
 			"type mismatch for {option}: expected {expected:?}, got {got}"
 		)),
-	})
+	})?;
+
+	// Validate positive integer options
+	if matches!(kdl_key, "tab-width" | "indent-width")
+		&& matches!(&opt_value, OptionValue::Int(n) if *n < 1)
+	{
+		return Err(CommandError::InvalidArgument(format!(
+			"{kdl_key} must be at least 1"
+		)));
+	}
+
+	Ok(opt_value)
 }
 
 impl CursorAccess for Editor {

@@ -98,12 +98,12 @@ impl Editor {
 	pub fn tab_width_for(&self, buffer_id: BufferId) -> usize {
 		self.buffers
 			.get_buffer(buffer_id)
-			.map(|b| b.option(keys::TAB_WIDTH, self) as usize)
+			.map(|b| (b.option(keys::TAB_WIDTH, self) as usize).max(1))
 			.unwrap_or(4)
 	}
 
 	/// Returns the tab width for the currently focused buffer.
 	pub fn tab_width(&self) -> usize {
-		self.buffer().option(keys::TAB_WIDTH, self) as usize
+		(self.buffer().option(keys::TAB_WIDTH, self) as usize).max(1)
 	}
 }
