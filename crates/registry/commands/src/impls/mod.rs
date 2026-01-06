@@ -14,6 +14,8 @@ mod registry_diag;
 mod set;
 /// Test notification commands.
 mod test_notify;
+/// Test info popup commands.
+mod test_popup;
 /// Theme switching commands.
 mod theme;
 /// Write and save commands.

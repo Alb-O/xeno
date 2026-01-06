@@ -218,7 +218,6 @@ impl CommandEditorOps for Editor {
 	}
 
 	fn set_local_option(&mut self, kdl_key: &str, value: &str) -> Result<(), CommandError> {
-		// Validate that the option exists and is buffer-scoped
 		let def = find_by_kdl(kdl_key)
 			.ok_or_else(|| {
 				let suggestion = parse::suggest_option(kdl_key);
@@ -248,6 +247,15 @@ impl CommandEditorOps for Editor {
 			&mut self.hook_runtime,
 		);
 		Ok(())
+	}
+
+	fn open_info_popup(&mut self, content: &str, file_type: Option<&str>) {
+		use crate::info_popup::PopupAnchor;
+		Editor::open_info_popup(self, content.to_string(), file_type, PopupAnchor::Cursor);
+	}
+
+	fn close_all_info_popups(&mut self) {
+		Editor::close_all_info_popups(self);
 	}
 }
 

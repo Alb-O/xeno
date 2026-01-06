@@ -92,6 +92,10 @@ pub trait CommandEditorOps {
 	fn set_option(&mut self, kdl_key: &str, value: &str) -> Result<(), CommandError>;
 	/// Sets a buffer-local option value by KDL key.
 	fn set_local_option(&mut self, kdl_key: &str, value: &str) -> Result<(), CommandError>;
+	/// Opens an info popup with the given content and optional file type for syntax highlighting.
+	fn open_info_popup(&mut self, content: &str, file_type: Option<&str>);
+	/// Closes all open info popups.
+	fn close_all_info_popups(&mut self);
 }
 
 /// Context provided to command handlers.
