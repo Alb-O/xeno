@@ -135,26 +135,27 @@ impl Editor {
 					let local_row = clamped_y.saturating_sub(origin_area.y);
 					let local_col = clamped_x.saturating_sub(origin_area.x);
 
-					if let Some(buffer) = self.buffers.get_buffer_mut(origin_view) {
-						let _ = buffer.input.handle_mouse(mouse.into());
-						let doc_pos =
-							buffer
-								.screen_to_doc_position(local_row, local_col)
-								.or_else(|| {
-									let gutter_width = buffer.gutter_width();
-									(local_col < gutter_width)
-										.then(|| {
-											buffer.screen_to_doc_position(local_row, gutter_width)
-										})
-										.flatten()
-								});
+				let tab_width = self.tab_width_for(origin_view);
+				if let Some(buffer) = self.buffers.get_buffer_mut(origin_view) {
+					let _ = buffer.input.handle_mouse(mouse.into());
+					let doc_pos =
+						buffer
+							.screen_to_doc_position(local_row, local_col, tab_width)
+							.or_else(|| {
+								let gutter_width = buffer.gutter_width();
+								(local_col < gutter_width)
+									.then(|| {
+										buffer.screen_to_doc_position(local_row, gutter_width, tab_width)
+									})
+									.flatten()
+							});
 
-						if let Some(doc_pos) = doc_pos {
-							let anchor = buffer.selection.primary().anchor;
-							buffer.selection = Selection::single(anchor, doc_pos);
-							buffer.cursor = buffer.selection.primary().head;
-						}
+					if let Some(doc_pos) = doc_pos {
+						let anchor = buffer.selection.primary().anchor;
+						buffer.selection = Selection::single(anchor, doc_pos);
+						buffer.cursor = buffer.selection.primary().head;
 					}
+				}
 					self.needs_redraw = true;
 					return false;
 				}

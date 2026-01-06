@@ -187,6 +187,7 @@ impl<'a> BufferRenderContext<'a> {
 		area: Rect,
 		use_block_cursor: bool,
 		is_focused: bool,
+		tab_width: usize,
 	) -> RenderResult {
 		self.render_buffer_with_gutter(
 			buffer,
@@ -194,6 +195,7 @@ impl<'a> BufferRenderContext<'a> {
 			use_block_cursor,
 			is_focused,
 			GutterSelector::Registry,
+			tab_width,
 		)
 	}
 
@@ -212,6 +214,7 @@ impl<'a> BufferRenderContext<'a> {
 	/// - `use_block_cursor`: Whether to render block-style cursors
 	/// - `is_focused`: Whether this buffer is the focused/active buffer
 	/// - `gutter`: Gutter selection for this render pass
+	/// - `tab_width`: Number of spaces a tab character occupies (from options)
 	pub fn render_buffer_with_gutter(
 		&self,
 		buffer: &Buffer,
@@ -219,12 +222,12 @@ impl<'a> BufferRenderContext<'a> {
 		use_block_cursor: bool,
 		is_focused: bool,
 		gutter: GutterSelector,
+		tab_width: usize,
 	) -> RenderResult {
 		let total_lines = buffer.doc().content.len_lines();
 		let gutter_layout = GutterLayout::from_selector(gutter, total_lines, area.width);
 		let gutter_width = gutter_layout.total_width;
 		let text_width = area.width.saturating_sub(gutter_width) as usize;
-		let tab_width = 4usize;
 
 		let cursor = buffer.cursor;
 		let ranges = buffer.selection.ranges();
@@ -261,7 +264,7 @@ impl<'a> BufferRenderContext<'a> {
 			let line_text = line_text.trim_end_matches('\n');
 			let line_content_end: CharIdx = line_start + line_text.chars().count();
 
-			let wrapped_segments = wrap_line(line_text, text_width);
+			let wrapped_segments = wrap_line(line_text, text_width, tab_width);
 			let num_segments = wrapped_segments.len().max(1);
 
 			for (seg_idx, segment) in wrapped_segments.iter().enumerate().skip(start_segment) {

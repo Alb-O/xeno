@@ -8,7 +8,19 @@ use crate::render::WrapSegment;
 
 impl Buffer {
 	/// Moves cursors vertically, accounting for line wrapping.
-	pub fn move_visual_vertical(&mut self, direction: MoveDir, count: usize, extend: bool) {
+	///
+	/// # Parameters
+	/// - `direction`: Forward (down) or Backward (up)
+	/// - `count`: Number of visual lines to move
+	/// - `extend`: Whether to extend selection
+	/// - `tab_width`: Number of spaces a tab character occupies (from options)
+	pub fn move_visual_vertical(
+		&mut self,
+		direction: MoveDir,
+		count: usize,
+		extend: bool,
+		tab_width: usize,
+	) {
 		self.ensure_valid_selection();
 		let ranges = self.selection.ranges().to_vec();
 		let primary_index = self.selection.primary_index();
@@ -17,7 +29,7 @@ impl Buffer {
 		for range in ranges.iter() {
 			let mut pos = range.head;
 			for _ in 0..count {
-				pos = self.visual_move_from(pos, direction);
+				pos = self.visual_move_from(pos, direction, tab_width);
 			}
 
 			let new_range = if extend {
@@ -36,7 +48,7 @@ impl Buffer {
 	}
 
 	/// Computes a new cursor position from visual line movement.
-	fn visual_move_from(&self, cursor: usize, direction: MoveDir) -> usize {
+	fn visual_move_from(&self, cursor: usize, direction: MoveDir, tab_width: usize) -> usize {
 		// Extract all needed data from doc in one block
 		let (_doc_line, line_start, _total_lines, line_text, next_line_data, prev_line_data) = {
 			let doc = self.doc();
@@ -88,7 +100,7 @@ impl Buffer {
 		let line_text = line_text.trim_end_matches('\n');
 		let col_in_line = cursor.saturating_sub(line_start);
 
-		let segments = self.wrap_line(line_text, self.text_width);
+		let segments = self.wrap_line(line_text, self.text_width, tab_width);
 		let current_seg_idx = self.find_segment_for_col(&segments, col_in_line);
 		let col_in_seg = if current_seg_idx < segments.len() {
 			col_in_line.saturating_sub(segments[current_seg_idx].start_offset)
@@ -105,7 +117,7 @@ impl Buffer {
 					line_start + new_col
 				} else if let Some((next_line_start, next_line_text)) = next_line_data {
 					let next_line_text = next_line_text.trim_end_matches('\n');
-					let next_segments = self.wrap_line(next_line_text, self.text_width);
+					let next_segments = self.wrap_line(next_line_text, self.text_width, tab_width);
 
 					if next_segments.is_empty() {
 						next_line_start
@@ -127,7 +139,7 @@ impl Buffer {
 					line_start + new_col
 				} else if let Some((prev_line_start, prev_line_text)) = prev_line_data {
 					let prev_line_text = prev_line_text.trim_end_matches('\n');
-					let prev_segments = self.wrap_line(prev_line_text, self.text_width);
+					let prev_segments = self.wrap_line(prev_line_text, self.text_width, tab_width);
 
 					if prev_segments.is_empty() {
 						prev_line_start
@@ -157,20 +169,30 @@ impl Buffer {
 	}
 
 	/// Handles mouse scroll events.
-	pub fn handle_mouse_scroll(&mut self, direction: ScrollDirection, count: usize) {
+	///
+	/// # Parameters
+	/// - `direction`: Scroll direction
+	/// - `count`: Number of lines to scroll
+	/// - `tab_width`: Number of spaces a tab character occupies (from options)
+	pub fn handle_mouse_scroll(
+		&mut self,
+		direction: ScrollDirection,
+		count: usize,
+		tab_width: usize,
+	) {
 		self.ensure_valid_selection();
 		match direction {
 			ScrollDirection::Up => {
 				for _ in 0..count {
-					self.scroll_viewport_up();
+					self.scroll_viewport_up(tab_width);
 				}
-				self.move_visual_vertical(MoveDir::Backward, count, false);
+				self.move_visual_vertical(MoveDir::Backward, count, false, tab_width);
 			}
 			ScrollDirection::Down => {
 				for _ in 0..count {
-					self.scroll_viewport_down();
+					self.scroll_viewport_down(tab_width);
 				}
-				self.move_visual_vertical(MoveDir::Forward, count, false);
+				self.move_visual_vertical(MoveDir::Forward, count, false, tab_width);
 			}
 			ScrollDirection::Left | ScrollDirection::Right => {
 				// Horizontal scroll not implemented yet
@@ -179,7 +201,10 @@ impl Buffer {
 	}
 
 	/// Scrolls viewport up by one visual line.
-	pub fn scroll_viewport_up(&mut self) {
+	///
+	/// # Parameters
+	/// - `tab_width`: Number of spaces a tab character occupies (from options)
+	pub fn scroll_viewport_up(&mut self, tab_width: usize) {
 		if self.scroll_segment > 0 {
 			self.scroll_segment -= 1;
 		} else if self.scroll_line > 0 {
@@ -193,7 +218,8 @@ impl Buffer {
 					doc.content.len_chars()
 				};
 				let text: String = doc.content.slice(line_start..line_end).into();
-				let segments = self.wrap_line(text.trim_end_matches('\n'), self.text_width);
+				let segments =
+					self.wrap_line(text.trim_end_matches('\n'), self.text_width, tab_width);
 				(text, segments.len())
 			};
 			let _ = line_text;
@@ -202,7 +228,10 @@ impl Buffer {
 	}
 
 	/// Scrolls viewport down by one visual line.
-	pub fn scroll_viewport_down(&mut self) {
+	///
+	/// # Parameters
+	/// - `tab_width`: Number of spaces a tab character occupies (from options)
+	pub fn scroll_viewport_down(&mut self, tab_width: usize) {
 		let (total_lines, num_segments) = {
 			let doc = self.doc();
 			let total_lines = doc.content.len_lines();
@@ -214,7 +243,8 @@ impl Buffer {
 					doc.content.len_chars()
 				};
 				let line_text: String = doc.content.slice(line_start..line_end).into();
-				let segments = self.wrap_line(line_text.trim_end_matches('\n'), self.text_width);
+				let segments = self
+					.wrap_line(line_text.trim_end_matches('\n'), self.text_width, tab_width);
 				(total_lines, segments.len().max(1))
 			} else {
 				(total_lines, 1)
@@ -232,7 +262,17 @@ impl Buffer {
 	}
 
 	/// Converts screen coordinates to document position.
-	pub fn screen_to_doc_position(&self, screen_row: u16, screen_col: u16) -> Option<usize> {
+	///
+	/// # Parameters
+	/// - `screen_row`: Row on screen
+	/// - `screen_col`: Column on screen
+	/// - `tab_width`: Tab width for column calculation (from options)
+	pub fn screen_to_doc_position(
+		&self,
+		screen_row: u16,
+		screen_col: u16,
+		tab_width: usize,
+	) -> Option<usize> {
 		let gutter_width = self.gutter_width();
 
 		if screen_col < gutter_width {
@@ -257,7 +297,7 @@ impl Buffer {
 
 			let line_text: String = doc.content.slice(line_start..line_end).into();
 			let line_text = line_text.trim_end_matches('\n');
-			let segments = self.wrap_line(line_text, self.text_width);
+			let segments = self.wrap_line(line_text, self.text_width, tab_width);
 
 			if segments.is_empty() {
 				if visual_row == screen_row as usize {
@@ -265,7 +305,6 @@ impl Buffer {
 				}
 				visual_row += 1;
 			} else {
-				let tab_width = 4usize;
 				for segment in segments.iter().skip(start_segment) {
 					if visual_row == screen_row as usize {
 						if segment.text.is_empty() {
@@ -312,7 +351,13 @@ impl Buffer {
 	}
 
 	/// Wraps a line of text into segments.
-	pub fn wrap_line(&self, text: &str, width: usize) -> Vec<WrapSegment> {
-		crate::render::wrap_line(text, width)
+	///
+	/// # Parameters
+	/// - `text`: The text to wrap
+	/// - `width`: Maximum width in characters for each segment
+	/// - `tab_width`: Number of spaces a tab character occupies
+	pub fn wrap_line(&self, text: &str, width: usize, tab_width: usize) -> Vec<WrapSegment> {
+		crate::render::wrap_line(text, width, tab_width)
 	}
+
 }

@@ -18,7 +18,12 @@ pub struct RenderResult {
 ///
 /// This is a standalone version of the wrapping logic that can be used
 /// by both `Buffer` and `Editor`.
-pub fn wrap_line(line: &str, max_width: usize) -> Vec<WrapSegment> {
+///
+/// # Parameters
+/// - `line`: The text to wrap
+/// - `max_width`: Maximum width in characters for each segment
+/// - `tab_width`: Number of spaces a tab character occupies
+pub fn wrap_line(line: &str, max_width: usize, tab_width: usize) -> Vec<WrapSegment> {
 	if max_width == 0 {
 		return vec![];
 	}
@@ -27,8 +32,6 @@ pub fn wrap_line(line: &str, max_width: usize) -> Vec<WrapSegment> {
 	if chars.is_empty() {
 		return vec![];
 	}
-
-	let tab_width = 4usize;
 
 	let mut segments = Vec::new();
 	let mut pos = 0;

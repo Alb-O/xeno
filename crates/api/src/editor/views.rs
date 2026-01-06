@@ -5,6 +5,7 @@
 use super::{Editor, FocusTarget};
 use crate::buffer::{Buffer, BufferId, BufferView};
 use crate::window::Window;
+use xeno_registry::options::keys;
 
 impl Editor {
 	/// Returns a reference to the currently focused text buffer.
@@ -87,5 +88,22 @@ impl Editor {
 	/// Returns the number of open text buffers.
 	pub fn buffer_count(&self) -> usize {
 		self.buffers.buffer_count()
+	}
+
+	/// Returns the tab width for a specific buffer.
+	///
+	/// Resolves through the option layers: buffer-local → language → global → default.
+	/// This helper is useful when you need to pre-resolve the option before borrowing
+	/// the buffer mutably.
+	pub fn tab_width_for(&self, buffer_id: BufferId) -> usize {
+		self.buffers
+			.get_buffer(buffer_id)
+			.map(|b| b.option(keys::TAB_WIDTH, self) as usize)
+			.unwrap_or(4)
+	}
+
+	/// Returns the tab width for the currently focused buffer.
+	pub fn tab_width(&self) -> usize {
+		self.buffer().option(keys::TAB_WIDTH, self) as usize
 	}
 }

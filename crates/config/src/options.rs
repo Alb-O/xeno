@@ -146,4 +146,38 @@ options {
 			panic!("expected OptionTypeMismatch error");
 		}
 	}
+
+	#[test]
+	fn test_language_specific_options() {
+		use crate::Config;
+
+		let kdl = r##"
+options {
+    tab-width 4
+}
+
+language "rust" {
+    tab-width 2
+}
+
+language "python" {
+    tab-width 8
+    use-tabs #true
+}
+"##;
+		let config = Config::parse(kdl).unwrap();
+
+		// Global options
+		assert_eq!(config.options.get(keys::TAB_WIDTH.untyped()), Some(&OptionValue::Int(4)));
+
+		// Language-specific options
+		assert_eq!(config.languages.len(), 2);
+
+		let rust = config.languages.iter().find(|l| l.name == "rust").unwrap();
+		assert_eq!(rust.options.get(keys::TAB_WIDTH.untyped()), Some(&OptionValue::Int(2)));
+
+		let python = config.languages.iter().find(|l| l.name == "python").unwrap();
+		assert_eq!(python.options.get(keys::TAB_WIDTH.untyped()), Some(&OptionValue::Int(8)));
+		assert_eq!(python.options.get(keys::USE_TABS.untyped()), Some(&OptionValue::Bool(true)));
+	}
 }

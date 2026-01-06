@@ -80,7 +80,12 @@ impl ViewportEnsureEvent {
 ///
 /// Scrolling UP to bring an off-screen cursor into view from above is always
 /// performed, as this is typically intentional (cursor moved up, not resize).
-pub fn ensure_buffer_cursor_visible(buffer: &mut Buffer, area: Rect) {
+///
+/// # Parameters
+/// - `buffer`: The buffer to ensure cursor visibility for
+/// - `area`: The rectangular area the buffer is rendered into
+/// - `tab_width`: Number of spaces a tab character occupies (from options)
+pub fn ensure_buffer_cursor_visible(buffer: &mut Buffer, area: Rect, tab_width: usize) {
 	let total_lines = buffer.doc().content.len_lines();
 	let gutter_width = buffer.gutter_width();
 	let text_width = area.width.saturating_sub(gutter_width) as usize;
@@ -118,6 +123,7 @@ pub fn ensure_buffer_cursor_visible(buffer: &mut Buffer, area: Rect) {
 		buffer.scroll_line,
 		buffer.scroll_segment,
 		text_width,
+		tab_width,
 	);
 
 	let cursor_line = buffer.cursor_line();
@@ -135,7 +141,7 @@ pub fn ensure_buffer_cursor_visible(buffer: &mut Buffer, area: Rect) {
 		.slice(cursor_line_start..cursor_line_end)
 		.into();
 	let cursor_line_text = cursor_line_text.trim_end_matches('\n');
-	let cursor_segments = wrap_line(cursor_line_text, text_width);
+	let cursor_segments = wrap_line(cursor_line_text, text_width, tab_width);
 	let cursor_segment = find_segment_for_col(&cursor_segments, cursor_col);
 
 	// Cursor is above viewport - always scroll up to show it
@@ -166,6 +172,7 @@ pub fn ensure_buffer_cursor_visible(buffer: &mut Buffer, area: Rect) {
 		cursor_segment,
 		viewport_height,
 		text_width,
+		tab_width,
 	);
 
 	if cursor_visible {
@@ -216,7 +223,7 @@ pub fn ensure_buffer_cursor_visible(buffer: &mut Buffer, area: Rect) {
 	let original_scroll = buffer.scroll_line;
 	let mut prev_scroll = (buffer.scroll_line, buffer.scroll_segment);
 	while !cursor_visible {
-		scroll_viewport_down(buffer, text_width);
+		scroll_viewport_down(buffer, text_width, tab_width);
 
 		let new_scroll = (buffer.scroll_line, buffer.scroll_segment);
 		if new_scroll == prev_scroll {
@@ -232,6 +239,7 @@ pub fn ensure_buffer_cursor_visible(buffer: &mut Buffer, area: Rect) {
 			cursor_segment,
 			viewport_height,
 			text_width,
+			tab_width,
 		);
 	}
 
@@ -262,6 +270,7 @@ fn clamp_segment_for_line(
 	line: usize,
 	segment: usize,
 	text_width: usize,
+	tab_width: usize,
 ) -> usize {
 	let total_lines = buffer.doc().content.len_lines();
 	if line >= total_lines {
@@ -277,7 +286,7 @@ fn clamp_segment_for_line(
 
 	let line_text: String = buffer.doc().content.slice(line_start..line_end).into();
 	let line_text = line_text.trim_end_matches('\n');
-	let segments = wrap_line(line_text, text_width);
+	let segments = wrap_line(line_text, text_width, tab_width);
 	let num_segments = segments.len().max(1);
 
 	segment.min(num_segments.saturating_sub(1))
@@ -303,6 +312,7 @@ fn cursor_visible_from(
 	cursor_segment: usize,
 	viewport_height: usize,
 	text_width: usize,
+	tab_width: usize,
 ) -> bool {
 	if viewport_height == 0 {
 		return false;
@@ -314,14 +324,14 @@ fn cursor_visible_from(
 	}
 
 	let mut line = start_line;
-	let mut segment = clamp_segment_for_line(buffer, line, start_segment, text_width);
+	let mut segment = clamp_segment_for_line(buffer, line, start_segment, text_width, tab_width);
 
 	for _ in 0..viewport_height {
 		if line == cursor_line && segment == cursor_segment {
 			return true;
 		}
 
-		if !advance_one_visual_row(buffer, &mut line, &mut segment, text_width) {
+		if !advance_one_visual_row(buffer, &mut line, &mut segment, text_width, tab_width) {
 			break;
 		}
 	}
@@ -335,6 +345,7 @@ fn advance_one_visual_row(
 	line: &mut usize,
 	segment: &mut usize,
 	text_width: usize,
+	tab_width: usize,
 ) -> bool {
 	let total_lines = buffer.doc().content.len_lines();
 	if *line >= total_lines {
@@ -350,7 +361,7 @@ fn advance_one_visual_row(
 
 	let line_text: String = buffer.doc().content.slice(line_start..line_end).into();
 	let line_text = line_text.trim_end_matches('\n');
-	let segments = wrap_line(line_text, text_width);
+	let segments = wrap_line(line_text, text_width, tab_width);
 	let num_segments = segments.len().max(1);
 
 	if *segment + 1 < num_segments {
@@ -368,7 +379,7 @@ fn advance_one_visual_row(
 }
 
 /// Scrolls viewport down by one visual line.
-fn scroll_viewport_down(buffer: &mut Buffer, text_width: usize) {
+fn scroll_viewport_down(buffer: &mut Buffer, text_width: usize, tab_width: usize) {
 	let total_lines = buffer.doc().content.len_lines();
 	if buffer.scroll_line >= total_lines {
 		return;
@@ -383,7 +394,7 @@ fn scroll_viewport_down(buffer: &mut Buffer, text_width: usize) {
 
 	let line_text: String = buffer.doc().content.slice(line_start..line_end).into();
 	let line_text = line_text.trim_end_matches('\n');
-	let segments = wrap_line(line_text, text_width);
+	let segments = wrap_line(line_text, text_width, tab_width);
 	let num_segments = segments.len().max(1);
 
 	if buffer.scroll_segment + 1 < num_segments {

@@ -26,16 +26,18 @@ impl Editor {
 
 	/// Moves cursors vertically, accounting for line wrapping.
 	///
-	/// Delegates to Buffer.
+	/// Resolves the `tab-width` option and delegates to Buffer.
 	pub fn move_visual_vertical(&mut self, direction: MoveDir, count: usize, extend: bool) {
+		let tab_width = self.tab_width();
 		self.buffer_mut()
-			.move_visual_vertical(direction, count, extend);
+			.move_visual_vertical(direction, count, extend, tab_width);
 	}
 
 	/// Handles mouse scroll events.
 	///
-	/// Delegates to Buffer.
+	/// Resolves the `tab-width` option and delegates to Buffer.
 	pub(crate) fn handle_mouse_scroll(&mut self, direction: ScrollDirection, count: usize) {
-		self.buffer_mut().handle_mouse_scroll(direction, count);
+		let tab_width = self.tab_width();
+		self.buffer_mut().handle_mouse_scroll(direction, count, tab_width);
 	}
 }

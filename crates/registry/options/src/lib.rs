@@ -21,18 +21,31 @@
 //!
 //! # Accessing Options
 //!
+//! Options are accessed via typed keys for compile-time safety:
+//!
 //! ```ignore
 //! use xeno_registry_options::keys;
 //!
-//! // Type-safe access via TypedOptionKey
+//! // Type-safe access via TypedOptionKey (resolves buffer -> language -> global -> default)
 //! let width: i64 = ctx.option(keys::TAB_WIDTH);
 //!
-//! // Global access (ignores buffer overrides)
-//! let theme = xeno_registry_options::global(keys::THEME.untyped());
+//! // Buffer-level access with resolution chain
+//! let tab_width: i64 = buffer.option(keys::TAB_WIDTH, &editor);
 //! ```
+//!
+//! # Config Loading
+//!
+//! Options are loaded from `~/.config/xeno/config.kdl` at startup:
+//!
+//! ```ignore
+//! // In main.rs, after Config::load()
+//! editor.global_options = config.options;
+//! editor.language_options = config.languages;
+//! ```
+//!
+//! Resolution order: Buffer-local → Language config → Global config → Compile-time default
 
 use std::marker::PhantomData;
-use std::sync::OnceLock;
 
 use linkme::distributed_slice;
 
@@ -44,9 +57,6 @@ mod impls;
 pub mod parse;
 mod resolver;
 mod store;
-
-/// Global options storage, initialized from user config at startup.
-static GLOBAL_OPTIONS: OnceLock<OptionStore> = OnceLock::new();
 
 pub use resolver::OptionResolver;
 pub use store::OptionStore;
@@ -414,46 +424,6 @@ impl core::fmt::Display for OptionError {
 }
 
 impl std::error::Error for OptionError {}
-
-/// Initialize the global options store from user configuration.
-///
-/// This should be called once at startup after parsing the config file.
-/// Subsequent calls are no-ops (the first store wins).
-///
-/// # Example
-///
-/// ```ignore
-/// use xeno_registry_options::{init_global, OptionStore};
-///
-/// let store = parse_config_options(config)?;
-/// init_global(store);
-/// ```
-pub fn init_global(store: OptionStore) {
-	let _ = GLOBAL_OPTIONS.set(store);
-}
-
-/// Get a global option value, ignoring buffer-local overrides.
-///
-/// This resolves directly against the global store (or returns the
-/// compile-time default if not set). Use this for options that are
-/// inherently global, like `theme`.
-///
-/// For context-aware resolution that respects buffer-local overrides,
-/// use [`Buffer::option()`] or [`OptionResolver`] instead.
-///
-/// # Example
-///
-/// ```ignore
-/// use xeno_registry_options::{global, keys};
-///
-/// let theme = global(keys::THEME.untyped());
-/// ```
-pub fn global(key: OptionKey) -> OptionValue {
-	GLOBAL_OPTIONS
-		.get()
-		.and_then(|s| s.get(key).cloned())
-		.unwrap_or_else(|| (key.def().default)())
-}
 
 /// Validates that a KDL key exists and the value matches the expected type.
 ///

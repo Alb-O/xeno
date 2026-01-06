@@ -57,7 +57,7 @@
 //!     tab-width 4
 //!     indent-width 4
 //!     use-tabs #false
-//!     scrolloff 5
+//!     scroll-margin 5
 //!     theme "gruvbox"
 //! }
 //!

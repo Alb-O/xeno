@@ -126,28 +126,28 @@ Unacceptable:
 - `crates/api/src/render/types.rs:31` - `let tab_width = 4usize;`
 - `crates/api/src/render/document/wrapping.rs:29` - `let tab_width = 4usize;`
 
-- [ ] 2.1 Update `navigation.rs` to use option
+- [x] 2.1 Update `navigation.rs` to use option
   - Function `screen_to_doc_position` needs `&Editor` or option value passed in
   - Pattern: Add parameter or access via existing editor reference
   - Replace: `let tab_width = buffer.option(keys::TAB_WIDTH, editor) as usize;`
 
-- [ ] 2.2 Update `render/buffer/context.rs` to use option
+- [x] 2.2 Update `render/buffer/context.rs` to use option
   - `BufferRenderContext` likely has editor access
   - Replace hardcoded value with option lookup
 
-- [ ] 2.3 Update `render/types.rs` to use option
+- [x] 2.3 Update `render/types.rs` to use option
   - May need to thread option value through or add editor reference
 
-- [ ] 2.4 Update `render/document/wrapping.rs` to use option
+- [x] 2.4 Update `render/document/wrapping.rs` to use option
   - Wrapping calculations need tab width from options
 
-- [ ] 2.5 Search for any remaining hardcoded option values
+- [x] 2.5 Search for any remaining hardcoded option values
   ```bash
   rg 'let tab_width = \d|let indent_width = \d|let scroll_margin = \d' crates/
   ```
   - Fix any additional occurrences found
 
-- [ ] 2.6 Verify: `cargo build --workspace` passes
+- [x] 2.6 Verify: `cargo build --workspace` passes
 
 **Threading Strategy**: If a function lacks editor access:
 1. First choice: Add `&Editor` parameter if caller has it
@@ -163,21 +163,21 @@ Unacceptable:
 **Files**:
 - `crates/registry/options/src/lib.rs`
 
-- [ ] 3.1 Remove `GLOBAL_OPTIONS` static
+- [x] 3.1 Remove `GLOBAL_OPTIONS` static
   - Delete line 49: `static GLOBAL_OPTIONS: OnceLock<OptionStore> = OnceLock::new();`
   - Delete `init_global()` function (lines 431-433)
   - Delete `global()` function (lines 451-456)
   - Remove `OnceLock` import if unused
 
-- [ ] 3.2 Update any references to removed functions
+- [x] 3.2 Update any references to removed functions
   - Search: `rg 'init_global|GLOBAL_OPTIONS|options::global\(' crates/`
   - Should find only doc comments; update or remove them
 
-- [ ] 3.3 Clean up doc examples that reference removed code
+- [x] 3.3 Clean up doc examples that reference removed code
   - Lines 31, 447-449 reference `global()` function
   - Update to show `Editor::global_options` pattern instead
 
-- [ ] 3.4 Verify: `cargo build --workspace` passes with no dead code warnings
+- [x] 3.4 Verify: `cargo build --workspace` passes with no dead code warnings
 
 **CLEANUP CHECKPOINT 1**: All dead option infrastructure removed
 
@@ -192,20 +192,20 @@ Unacceptable:
 - `crates/registry/options/src/lib.rs` - module docs
 - Option definition files in `impls/`
 
-- [ ] 4.1 Fix `config/src/lib.rs` doc example
+- [x] 4.1 Fix `config/src/lib.rs` doc example
   - Line 60: `scrolloff 5` should be `scroll-margin 5`
   - Verify all option names in examples are valid KDL keys
 
-- [ ] 4.2 Update `options/src/lib.rs` module docs
+- [x] 4.2 Update `options/src/lib.rs` module docs
   - Remove references to `global()` function
   - Add example showing config loading pattern
   - Add example showing `buffer.option(key, editor)` usage
 
-- [ ] 4.3 Verify option KDL keys match documentation
+- [x] 4.3 Verify option KDL keys match documentation
   - Cross-reference `impls/*.rs` option definitions with doc examples
   - Ensure all documented options actually exist
 
-- [ ] 4.4 Run doc tests
+- [x] 4.4 Run doc tests
   - `cargo test --doc -p xeno-registry-options`
   - `cargo test --doc -p xeno-config`
 
@@ -219,7 +219,7 @@ Unacceptable:
 - `crates/api/src/capabilities.rs`
 - `crates/registry/options/src/lib.rs`
 
-- [ ] 5.1 Add scope check to `set_local_option`
+- [x] 5.1 Add scope check to `set_local_option`
   ```rust
   fn set_local_option(&mut self, kdl_key: &str, value: &str) -> Result<(), CommandError> {
       let def = find_by_kdl(kdl_key)
@@ -234,11 +234,11 @@ Unacceptable:
   }
   ```
 
-- [ ] 5.2 Add test for scope validation
+- [x] 5.2 Add test for scope validation
   - Test that `:setlocal theme gruvbox` returns error
   - Test that `:setlocal tab-width 2` succeeds
 
-- [ ] 5.3 Verify: `cargo test -p xeno-api`
+- [x] 5.3 Verify: `cargo test -p xeno-api`
 
 ---
 
@@ -246,21 +246,21 @@ Unacceptable:
 
 **Objective**: Verify the complete options flow works end-to-end.
 
-- [ ] 6.1 Create integration test for config loading
+- [x] 6.1 Create integration test for config loading
   - Create temp config file with options
   - Load config, verify options in store
   - Test language-specific overrides
 
-- [ ] 6.2 Test option resolution hierarchy
+- [x] 6.2 Test option resolution hierarchy
   - Set global option via config
   - Override with `:setlocal`
   - Verify buffer-local wins
 
-- [ ] 6.3 Test hook emission
+- [x] 6.3 Test hook emission
   - Set option via `:set`
   - Verify `OptionChanged` hook fires
 
-- [ ] 6.4 Final verification
+- [x] 6.4 Final verification
   - `cargo build --workspace`
   - `cargo test --workspace`
   - `cargo clippy --workspace`
@@ -322,13 +322,13 @@ $XDG_CONFIG_HOME/xeno/config.kdl
 
 ## Success Criteria
 
-- [ ] Config file loaded at startup (when present)
-- [ ] All hardcoded option values replaced with lookups
-- [ ] `GLOBAL_OPTIONS` static and related functions removed
-- [ ] Documentation matches implementation
-- [ ] Scope validation prevents invalid `:setlocal` usage
-- [ ] All tests passing
-- [ ] No clippy warnings
+- [x] Config file loaded at startup (when present)
+- [x] All hardcoded option values replaced with lookups
+- [x] `GLOBAL_OPTIONS` static and related functions removed
+- [x] Documentation matches implementation
+- [x] Scope validation prevents invalid `:setlocal` usage
+- [x] All tests passing
+- [x] No clippy warnings
 
 ---
 

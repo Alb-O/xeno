@@ -300,8 +300,9 @@ impl Editor {
 		// Ensure cursor is visible for all buffers
 		for (_, _, view_areas, _) in &layer_data {
 			for (buffer_id, area) in view_areas {
+				let tab_width = self.tab_width_for(*buffer_id);
 				if let Some(buffer) = self.get_buffer_mut(*buffer_id) {
-					ensure_buffer_cursor_visible(buffer, *area);
+					ensure_buffer_cursor_visible(buffer, *area, tab_width);
 				}
 			}
 		}
@@ -333,8 +334,10 @@ impl Editor {
 		for (_, _, view_areas, separators) in &layer_data {
 			for (buffer_id, area) in view_areas {
 				let is_focused = *buffer_id == focused_view;
+				let tab_width = self.tab_width_for(*buffer_id);
 				if let Some(buffer) = self.get_buffer(*buffer_id) {
-					let result = ctx.render_buffer(buffer, *area, use_block_cursor, is_focused);
+					let result =
+						ctx.render_buffer(buffer, *area, use_block_cursor, is_focused, tab_width);
 					frame.render_widget(result.widget, *area);
 				}
 			}
@@ -389,8 +392,9 @@ impl Editor {
 				continue;
 			}
 
+			let tab_width = self.tab_width_for(window.buffer);
 			if let Some(buffer) = self.get_buffer_mut(window.buffer) {
-				ensure_buffer_cursor_visible(buffer, content_area);
+				ensure_buffer_cursor_visible(buffer, content_area, tab_width);
 			}
 		}
 
@@ -446,12 +450,14 @@ impl Editor {
 				let is_focused = focused
 					.map(|(win, buf)| win == window_id && buf == window.buffer)
 					.unwrap_or(false);
+				let tab_width = self.tab_width_for(window.buffer);
 				let result = ctx.render_buffer_with_gutter(
 					buffer,
 					content_area,
 					use_block_cursor,
 					is_focused,
 					window.gutter,
+					tab_width,
 				);
 				frame.render_widget(result.widget, content_area);
 			}

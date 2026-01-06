@@ -10,12 +10,13 @@ impl Editor {
 	/// # Parameters
 	/// - `line`: The text to wrap
 	/// - `max_width`: Maximum width in characters for each segment
+	/// - `tab_width`: Number of spaces a tab character occupies
 	///
 	/// # Returns
 	/// A vector of [`WrapSegment`]s, each containing a portion of the line and its
 	/// character offset from the start of the line. Returns an empty vector if
 	/// `max_width` is 0 or the line is empty.
-	pub fn wrap_line(&self, line: &str, max_width: usize) -> Vec<WrapSegment> {
+	pub fn wrap_line(&self, line: &str, max_width: usize, tab_width: usize) -> Vec<WrapSegment> {
 		if max_width == 0 {
 			return vec![];
 		}
@@ -24,9 +25,6 @@ impl Editor {
 		if chars.is_empty() {
 			return vec![];
 		}
-
-		// Note: this currently uses the default `tab_width` option value.
-		let tab_width = 4usize;
 
 		let mut segments = Vec::new();
 		let mut pos = 0;

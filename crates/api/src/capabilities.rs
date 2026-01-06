@@ -13,7 +13,7 @@ use xeno_core::editor_ctx::{
 	JumpAccess, MacroAccess, ModeAccess, NotificationAccess, OptionAccess, PaletteAccess,
 	SearchAccess, SelectionAccess, SplitOps, ThemeAccess, UndoAccess, ViewportAccess,
 };
-use xeno_registry::options::{OptionKey, OptionResolver, OptionValue, find_by_kdl, parse};
+use xeno_registry::options::{OptionKey, OptionResolver, OptionScope, OptionValue, find_by_kdl, parse};
 use xeno_registry::EditAction;
 use xeno_registry::commands::{CommandEditorOps, CommandError};
 use xeno_registry::{HookContext, HookEventData, emit_sync_with as emit_hook_sync_with};
@@ -215,21 +215,35 @@ impl CommandEditorOps for Editor {
 	}
 
 	fn set_local_option(&mut self, kdl_key: &str, value: &str) -> Result<(), CommandError> {
+		// Validate that the option exists and is buffer-scoped
+		let def = find_by_kdl(kdl_key)
+			.ok_or_else(|| {
+				let suggestion = parse::suggest_option(kdl_key);
+				CommandError::InvalidArgument(match suggestion {
+					Some(s) => format!("unknown option '{kdl_key}'. Did you mean '{s}'?"),
+					None => format!("unknown option '{kdl_key}'"),
+				})
+			})?;
+
+		if def.scope == OptionScope::Global {
+			return Err(CommandError::InvalidArgument(format!(
+				"'{kdl_key}' is a global option, use :set instead of :setlocal"
+			)));
+		}
+
 		let opt_value = parse_option_value(kdl_key, value)?;
 		let _ = self.buffer_mut().local_options.set_by_kdl(kdl_key, opt_value);
 
-		if let Some(def) = find_by_kdl(kdl_key) {
-			emit_hook_sync_with(
-				&HookContext::new(
-					HookEventData::OptionChanged {
-						key: def.kdl_key,
-						scope: "buffer",
-					},
-					Some(&self.extensions),
-				),
-				&mut self.hook_runtime,
-			);
-		}
+		emit_hook_sync_with(
+			&HookContext::new(
+				HookEventData::OptionChanged {
+					key: def.kdl_key,
+					scope: "buffer",
+				},
+				Some(&self.extensions),
+			),
+			&mut self.hook_runtime,
+		);
 		Ok(())
 	}
 }
@@ -301,8 +315,9 @@ impl ViewportAccess for Editor {
 		if buffer.last_viewport_height == 0 {
 			return None;
 		}
+		let tab_width = self.tab_width();
 		buffer
-			.screen_to_doc_position(row as u16, buffer.gutter_width())
+			.screen_to_doc_position(row as u16, buffer.gutter_width(), tab_width)
 			.map(|pos| pos as CharIdx)
 	}
 }
@@ -467,5 +482,44 @@ impl EditorCapabilities for Editor {
 
 	fn is_readonly(&self) -> bool {
 		self.buffer().is_readonly()
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+	use xeno_registry::commands::CommandEditorOps;
+
+	#[test]
+	fn test_setlocal_rejects_global_scoped_option() {
+		let mut editor = Editor::new_scratch();
+		let result = editor.set_local_option("theme", "gruvbox");
+		assert!(result.is_err());
+		let err = result.unwrap_err();
+		assert!(
+			err.to_string().contains("global option"),
+			"Expected error about global option, got: {}",
+			err
+		);
+	}
+
+	#[test]
+	fn test_setlocal_accepts_buffer_scoped_option() {
+		let mut editor = Editor::new_scratch();
+		let result = editor.set_local_option("tab-width", "2");
+		assert!(result.is_ok(), "Expected success, got: {:?}", result);
+	}
+
+	#[test]
+	fn test_setlocal_rejects_unknown_option() {
+		let mut editor = Editor::new_scratch();
+		let result = editor.set_local_option("nonexistent-option", "value");
+		assert!(result.is_err());
+		let err = result.unwrap_err();
+		assert!(
+			err.to_string().contains("unknown option"),
+			"Expected error about unknown option, got: {}",
+			err
+		);
 	}
 }
