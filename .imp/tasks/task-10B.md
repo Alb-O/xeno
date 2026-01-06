@@ -393,7 +393,7 @@ All LSP integration tests go in `crates/term/tests/`:
 - `crates/term/tests/lsp_completion.rs` (new)
 - `crates/term/tests/fixtures/lsp/rust-completion/` (new)
 
-- [ ] 4.1 Create `rust-completion` fixture
+- [x] 4.1 Create `rust-completion` fixture
   ```rust
   // fixtures/lsp/rust-completion/src/lib.rs
 
@@ -424,7 +424,7 @@ All LSP integration tests go in `crates/term/tests/`:
   }
   ```
 
-- [ ] 4.2 Test: `completion_manual_trigger`
+- [x] 4.2 Test: `completion_manual_trigger`
   ```rust
   /// Ctrl+Space triggers completion menu.
   #[serial_test::serial]
@@ -461,7 +461,7 @@ All LSP integration tests go in `crates/term/tests/`:
   }
   ```
 
-- [ ] 4.3 Test: `completion_filtering`
+- [x] 4.3 Test: `completion_filtering`
   ```rust
   /// Typing filters the completion list.
   #[serial_test::serial]
@@ -471,7 +471,7 @@ All LSP integration tests go in `crates/term/tests/`:
   }
   ```
 
-- [ ] 4.4 Test: `completion_acceptance`
+- [x] 4.4 Test: `completion_acceptance`
   ```rust
   /// Tab accepts the selected completion.
   #[serial_test::serial]
@@ -481,7 +481,7 @@ All LSP integration tests go in `crates/term/tests/`:
   }
   ```
 
-- [ ] 4.5 Test: `completion_auto_trigger_dot`
+- [x] 4.5 Test: `completion_auto_trigger_dot`
   ```rust
   /// Completion appears automatically after typing '.'.
   #[serial_test::serial]
