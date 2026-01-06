@@ -590,8 +590,11 @@ All LSP integration tests go in `crates/term/tests/`:
   - Is `goto_definition()` opening the target file?
   - Is `find_references()` populating the panel?
   - Is the references panel wired to the dock system?
+  - **GAP FOUND**: `gd` (goto_definition_jumps, goto_definition_from_import) tests timeout
+  - Tests `find_references_shows_list` and `references_panel_navigation` pass
 
 - [ ] 5.6 Verify: `LSP_TESTS=1 KITTY_TESTS=1 cargo test -p xeno-term --test lsp_navigation`
+  - PARTIAL: 2/4 tests pass (references work, goto_definition times out)
 
 **CHECKPOINT 5**: Navigation features work with real LSP
 
