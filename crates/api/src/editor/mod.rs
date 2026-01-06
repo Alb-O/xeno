@@ -45,6 +45,8 @@ mod lifecycle;
 mod messaging;
 /// Cursor navigation utilities.
 mod navigation;
+/// Info popup operations.
+mod info_popup;
 /// Command palette operations.
 mod palette;
 /// Search state and operations.
@@ -202,6 +204,12 @@ pub struct Editor {
 	/// Command palette state.
 	pub palette: crate::palette::PaletteState,
 
+	/// Active info popups (keyed by popup ID).
+	pub info_popups: std::collections::HashMap<crate::info_popup::InfoPopupId, crate::info_popup::InfoPopup>,
+
+	/// Counter for generating unique info popup IDs.
+	next_info_popup_id: u64,
+
 	/// Global user configuration options.
 	pub global_options: OptionStore,
 
@@ -316,6 +324,8 @@ impl Editor {
 			command_queue: CommandQueue::new(),
 			menu: create_menu(),
 			palette: crate::palette::PaletteState::default(),
+			info_popups: std::collections::HashMap::new(),
+			next_info_popup_id: 0,
 			global_options: OptionStore::new(),
 			language_options: std::collections::HashMap::new(),
 		}
