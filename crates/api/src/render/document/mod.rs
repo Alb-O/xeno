@@ -225,6 +225,7 @@ impl Editor {
 		let mut ui = std::mem::take(&mut self.ui);
 		let dock_layout = ui.compute_layout(main_area);
 		let doc_area = dock_layout.doc_area;
+		self.doc_area = Some(doc_area);
 
 		let doc_focused = ui.focus.focused().is_editor();
 

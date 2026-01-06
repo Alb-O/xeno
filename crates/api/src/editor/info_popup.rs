@@ -15,10 +15,7 @@ impl Editor {
 		file_type: Option<&str>,
 		anchor: PopupAnchor,
 	) -> Option<InfoPopupId> {
-		let (screen_width, screen_height) = match (self.window_width, self.window_height) {
-			(Some(w), Some(h)) => (w, h),
-			_ => return None,
-		};
+		let bounds = self.doc_area?;
 
 		let lines: Vec<&str> = content.lines().collect();
 		let content_height = lines.len().min(20) as u16;
@@ -29,22 +26,14 @@ impl Editor {
 			.unwrap_or(20)
 			.min(60) as u16;
 
-		let rect = compute_popup_rect(
-			anchor,
-			content_width,
-			content_height,
-			screen_width,
-			screen_height,
-			self.cursor_screen_position(),
-		);
+		let rect = compute_popup_rect(anchor, content_width, content_height, bounds);
 
 		let buffer_id = self.buffers.create_scratch();
 		{
 			let buffer = self.buffers.get_buffer_mut(buffer_id).expect("just created");
 			buffer.doc_mut().content = ropey::Rope::from_str(&content);
 			if let Some(ft) = file_type {
-				buffer.doc_mut().file_type = Some(ft.to_string());
-				buffer.init_syntax(&self.language_loader);
+				buffer.doc_mut().init_syntax_for_language(ft, &self.language_loader);
 			}
 			buffer.set_readonly_override(Some(true));
 		}
@@ -115,8 +104,7 @@ impl Editor {
 		if let Some(ft) = file_type {
 			let current_ft = buffer.doc().file_type.clone();
 			if current_ft.as_deref() != Some(ft) {
-				buffer.doc_mut().file_type = Some(ft.to_string());
-				buffer.init_syntax(&self.language_loader);
+				buffer.doc_mut().init_syntax_for_language(ft, &self.language_loader);
 			}
 		}
 
@@ -128,11 +116,5 @@ impl Editor {
 	/// Returns the number of open info popups.
 	pub fn info_popup_count(&self) -> usize {
 		self.info_popups.len()
-	}
-
-	/// Returns cursor screen position for popup anchoring.
-	fn cursor_screen_position(&self) -> Option<(u16, u16)> {
-		// TODO: Implement proper cursor-to-screen coordinate mapping
-		None
 	}
 }

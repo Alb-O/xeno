@@ -152,6 +152,8 @@ pub struct Editor {
 	pub window_width: Option<u16>,
 	/// Window height in rows.
 	pub window_height: Option<u16>,
+	/// Last computed document area (excludes chrome like menu/status bars).
+	pub doc_area: Option<xeno_tui::layout::Rect>,
 
 	/// UI manager (panels, dock, etc.).
 	pub ui: UiManager,
@@ -297,6 +299,7 @@ impl Editor {
 				.unwrap_or(&xeno_registry::themes::DEFAULT_THEME),
 			window_width: None,
 			window_height: None,
+			doc_area: None,
 			ui: UiManager::new(),
 			needs_redraw: false,
 			pending_quit: false,

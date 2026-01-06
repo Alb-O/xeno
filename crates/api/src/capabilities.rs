@@ -251,7 +251,7 @@ impl CommandEditorOps for Editor {
 
 	fn open_info_popup(&mut self, content: &str, file_type: Option<&str>) {
 		use crate::info_popup::PopupAnchor;
-		Editor::open_info_popup(self, content.to_string(), file_type, PopupAnchor::Cursor);
+		Editor::open_info_popup(self, content.to_string(), file_type, PopupAnchor::Center);
 	}
 
 	fn close_all_info_popups(&mut self) {

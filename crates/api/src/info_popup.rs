@@ -34,12 +34,12 @@ pub struct InfoPopup {
 /// Anchor point for positioning info popups.
 #[derive(Debug, Clone, Copy, Default)]
 pub enum PopupAnchor {
-	/// Position relative to cursor in the active buffer.
+	/// Centered in the document area.
 	#[default]
-	Cursor,
-	/// Position relative to a specific screen coordinate.
+	Center,
+	/// Position relative to a specific screen coordinate (top-left of popup).
 	Point { x: u16, y: u16 },
-	/// Position relative to another window (e.g., completion menu).
+	/// Position adjacent to another window (e.g., next to completion menu).
 	Window(WindowId),
 }
 
@@ -59,36 +59,30 @@ pub fn info_popup_style() -> FloatingStyle {
 
 /// Computes the popup rectangle based on anchor and content size.
 ///
-/// Positions below/right of anchor, flipping if insufficient space.
+/// Clamps to stay within bounds.
 pub fn compute_popup_rect(
 	anchor: PopupAnchor,
 	content_width: u16,
 	content_height: u16,
-	screen_width: u16,
-	screen_height: u16,
-	cursor_screen_pos: Option<(u16, u16)>,
+	bounds: Rect,
 ) -> Rect {
-	let width = content_width.saturating_add(2).min(screen_width.saturating_sub(4));
-	let height = content_height.saturating_add(2).min(screen_height.saturating_sub(2));
+	let width = content_width.saturating_add(2).min(bounds.width.saturating_sub(4));
+	let height = content_height.saturating_add(2).min(bounds.height.saturating_sub(2));
 
-	let (anchor_x, anchor_y) = match anchor {
-		PopupAnchor::Cursor => cursor_screen_pos.unwrap_or((screen_width / 2, screen_height / 2)),
-		PopupAnchor::Point { x, y } => (x, y),
-		PopupAnchor::Window(_) => (screen_width / 2, screen_height / 2), // TODO: look up window position
+	let (x, y) = match anchor {
+		PopupAnchor::Center => (
+			bounds.x + bounds.width.saturating_sub(width) / 2,
+			bounds.y + bounds.height.saturating_sub(height) / 2,
+		),
+		PopupAnchor::Point { x, y } => (
+			x.max(bounds.x).min(bounds.x + bounds.width.saturating_sub(width)),
+			y.max(bounds.y).min(bounds.y + bounds.height.saturating_sub(height)),
+		),
+		PopupAnchor::Window(_) => (
+			bounds.x + bounds.width.saturating_sub(width) / 2,
+			bounds.y + bounds.height.saturating_sub(height) / 2,
+		), // TODO: position adjacent to window
 	};
-
-	let mut x = anchor_x.saturating_add(1);
-	let mut y = anchor_y.saturating_add(1);
-
-	if x.saturating_add(width) > screen_width {
-		x = anchor_x.saturating_sub(width).saturating_sub(1);
-	}
-	if y.saturating_add(height) > screen_height {
-		y = anchor_y.saturating_sub(height);
-	}
-
-	x = x.min(screen_width.saturating_sub(width));
-	y = y.min(screen_height.saturating_sub(height));
 
 	Rect::new(x, y, width, height)
 }
@@ -98,23 +92,28 @@ mod tests {
 	use super::*;
 
 	#[test]
-	fn popup_rect_positions_below_cursor() {
-		let rect = compute_popup_rect(PopupAnchor::Cursor, 20, 5, 80, 24, Some((10, 5)));
-		assert!(rect.x > 10);
-		assert!(rect.y > 5);
+	fn popup_rect_centers_in_bounds() {
+		let bounds = Rect::new(0, 1, 80, 22);
+		let rect = compute_popup_rect(PopupAnchor::Center, 20, 5, bounds);
+		assert!(rect.x > bounds.x);
+		assert!(rect.y > bounds.y);
+		assert!(rect.x + rect.width < bounds.x + bounds.width);
+		assert!(rect.y + rect.height < bounds.y + bounds.height);
 	}
 
 	#[test]
-	fn popup_rect_flips_when_near_edge() {
-		let rect = compute_popup_rect(PopupAnchor::Cursor, 20, 5, 80, 24, Some((75, 20)));
-		assert!(rect.x < 75);
-		assert!(rect.y < 20);
+	fn popup_rect_clamps_point_to_bounds() {
+		let bounds = Rect::new(0, 1, 80, 22);
+		let rect = compute_popup_rect(PopupAnchor::Point { x: 100, y: 100 }, 20, 5, bounds);
+		assert!(rect.x + rect.width <= bounds.x + bounds.width);
+		assert!(rect.y + rect.height <= bounds.y + bounds.height);
 	}
 
 	#[test]
-	fn popup_rect_clamps_to_screen() {
-		let rect = compute_popup_rect(PopupAnchor::Point { x: 0, y: 0 }, 100, 30, 80, 24, None);
-		assert!(rect.x + rect.width <= 80);
-		assert!(rect.y + rect.height <= 24);
+	fn popup_rect_respects_point_position() {
+		let bounds = Rect::new(0, 1, 80, 22);
+		let rect = compute_popup_rect(PopupAnchor::Point { x: 10, y: 5 }, 20, 5, bounds);
+		assert_eq!(rect.x, 10);
+		assert_eq!(rect.y, 5);
 	}
 }
