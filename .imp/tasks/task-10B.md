@@ -220,7 +220,7 @@ All LSP integration tests go in `crates/term/tests/`:
 **Files**:
 - `crates/term/tests/lsp_diagnostics.rs` (new)
 
-- [ ] 2.1 Test: `diagnostics_show_gutter_signs`
+- [x] 2.1 Test: `diagnostics_show_gutter_signs`
   ```rust
   /// Opening a file with errors shows diagnostic signs in gutter.
   #[serial_test::serial]
@@ -250,7 +250,7 @@ All LSP integration tests go in `crates/term/tests/`:
   }
   ```
 
-- [ ] 2.2 Test: `diagnostics_navigation_next_prev`
+- [x] 2.2 Test: `diagnostics_navigation_next_prev`
   ```rust
   /// Pressing ]d jumps to next diagnostic, [d to previous.
   #[serial_test::serial]
@@ -286,7 +286,7 @@ All LSP integration tests go in `crates/term/tests/`:
   }
   ```
 
-- [ ] 2.3 Test: `diagnostics_underline_rendering`
+- [x] 2.3 Test: `diagnostics_underline_rendering`
   - Verify underline styles appear under error spans
   - May need to extract color/style info from raw terminal output
 
@@ -721,6 +721,23 @@ LSP_TESTS=1 KITTY_TESTS=1 DISPLAY=:0 nix develop -c cargo test -p xeno-term --te
 1. Print `clean` output in assertions for debugging
 2. Use `extract_row_colors_parsed()` for style verification
 3. Check terminal size assumptions
+
+### Unix Socket Path Too Long
+
+If you see "Errors parsing configuration" with "Invalid listen_on=unix:/.../kitty-test-*.sock", the socket path exceeds the ~108 character limit on Linux.
+
+**Workaround**: Don't run xeno from the fixture directory. Instead:
+- Run `with_kitty_capture()` from `workspace_dir()` (the crate root)
+- Pass the full absolute path to the fixture file
+
+```rust
+// WRONG - socket path will be too long
+with_kitty_capture(&fixtures_dir().join("rust-basic"), &xeno_cmd_with_file("src/main.rs"), |kitty| { ... });
+
+// CORRECT - run from crate root, use absolute file path
+let fixture_file = fixtures_dir().join("rust-basic/src/main.rs");
+with_kitty_capture(&workspace_dir(), &xeno_cmd_with_file(&fixture_file.display().to_string()), |kitty| { ... });
+```
 
 ### Fixture Changes Not Reflected
 
