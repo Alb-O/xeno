@@ -603,8 +603,27 @@ All LSP integration tests go in `crates/term/tests/`:
     - But rust-analyzer not returning definition results
     - May need longer LSP init time or additional debugging
 
-- [ ] 5.6 Verify: `LSP_TESTS=1 KITTY_TESTS=1 cargo test -p xeno-term --test lsp_navigation`
-  - gd executes but returns no definition (needs LSP debugging)
+- [ ] 5.6 Debug why `gd` returns "No definition found":
+  - [ ] 5.6.1 Check if LSP client exists for the buffer
+    - Add debug logging to `get_client_for_buffer()` in `lsp_ui.rs`
+    - Verify `registry.get_for_file()` returns a client
+  - [ ] 5.6.2 Check if rust-analyzer is actually running
+    - Add `ps aux | grep rust-analyzer` check in test
+    - Or add logging when LSP client is spawned
+  - [ ] 5.6.3 Check the LSP request being sent
+    - Log the URI and position in `goto_definition()` 
+    - Verify position is correct (line 17, column 5 should be on `helper_function`)
+  - [ ] 5.6.4 Check the LSP response
+    - Log what rust-analyzer returns (empty array? error? null?)
+    - The `client.definition()` call - what does it return?
+  - [ ] 5.6.5 Verify fixture is valid for rust-analyzer
+    - Run `rust-analyzer analysis-stats` on fixture directory
+    - Check if `helper_function` is recognized as a symbol
+  - [ ] 5.6.6 Test hover on same position
+    - If hover works but gd doesn't, the issue is in definition handling
+    - If hover also fails, the issue is client/position lookup
+  
+- [ ] 5.7 Verify: `LSP_TESTS=1 KITTY_TESTS=1 cargo test -p xeno-term --test lsp_navigation`
 
 **CHECKPOINT 5**: Navigation features work with real LSP
 
