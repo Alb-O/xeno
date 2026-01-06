@@ -78,6 +78,17 @@ pub struct Buffer {
 	/// These take precedence over language-specific and global options when
 	/// resolving option values for this buffer.
 	pub local_options: OptionStore,
+
+	/// Buffer-level readonly override.
+	///
+	/// When `Some(true)`, this buffer is read-only regardless of the underlying
+	/// document's readonly state. When `Some(false)`, this buffer is writable
+	/// even if the document is marked readonly. When `None`, defers to the
+	/// document's readonly flag.
+	///
+	/// This enables read-only views (e.g., info popups, documentation panels)
+	/// without affecting other buffers sharing the same document.
+	readonly_override: Option<bool>,
 }
 
 impl Buffer {
@@ -97,6 +108,7 @@ impl Buffer {
 			last_rendered_cursor: 0,
 			suppress_scroll_down: false,
 			local_options: OptionStore::new(),
+			readonly_override: None,
 		}
 	}
 
@@ -109,7 +121,9 @@ impl Buffer {
 	///
 	/// The new buffer has independent cursor/selection/scroll state but
 	/// edits in either buffer affect both. Local options are cloned so each
-	/// split can have independent option overrides.
+	/// split can have independent option overrides. The readonly override is
+	/// intentionally NOT cloned - splits start with no override (deferring to
+	/// the document's readonly state).
 	pub fn clone_for_split(&self, new_id: BufferId) -> Self {
 		Self {
 			id: new_id,
@@ -124,6 +138,7 @@ impl Buffer {
 			last_rendered_cursor: self.cursor,
 			suppress_scroll_down: false,
 			local_options: self.local_options.clone(),
+			readonly_override: None,
 		}
 	}
 
@@ -176,14 +191,33 @@ impl Buffer {
 		self.document.write().unwrap().modified = modified;
 	}
 
-	/// Returns whether the underlying document is read-only.
+	/// Returns whether this buffer is read-only.
+	///
+	/// Checks the buffer-level override first, then falls back to the
+	/// document's readonly flag.
 	pub fn is_readonly(&self) -> bool {
-		self.document.read().unwrap().readonly
+		self.readonly_override
+			.unwrap_or_else(|| self.document.read().unwrap().readonly)
 	}
 
 	/// Sets the read-only flag on the underlying document.
+	///
+	/// This affects all buffers sharing this document. For buffer-specific
+	/// readonly behavior, use [`set_readonly_override`](Self::set_readonly_override).
 	pub fn set_readonly(&self, readonly: bool) {
 		self.document.write().unwrap().readonly = readonly;
+	}
+
+	/// Sets a buffer-level readonly override.
+	///
+	/// - `Some(true)`: This buffer is read-only regardless of document state
+	/// - `Some(false)`: This buffer is writable regardless of document state
+	/// - `None`: Defer to the document's readonly flag (default)
+	///
+	/// This is useful for creating read-only views (info popups, documentation
+	/// panels) without affecting other buffers sharing the same document.
+	pub fn set_readonly_override(&mut self, readonly: Option<bool>) {
+		self.readonly_override = readonly;
 	}
 
 	/// Returns the document version.

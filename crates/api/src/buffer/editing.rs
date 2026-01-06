@@ -13,7 +13,6 @@ impl Buffer {
 	pub fn prepare_insert(&mut self, text: &str) -> (Transaction, xeno_base::Selection) {
 		self.ensure_valid_selection();
 
-		// Collapse all selections to their insertion points
 		let mut insertion_points = self.selection.clone();
 		insertion_points.transform_mut(|r| {
 			let pos = r.min();
@@ -176,10 +175,14 @@ impl Buffer {
 
 	/// Applies a transaction to the document. Increments the version counter.
 	///
-	/// Returns true if the transaction was applied.
+	/// Returns true if the transaction was applied. Returns false if the buffer
+	/// is read-only (either via buffer override or document flag).
 	pub fn apply_transaction(&self, tx: &Transaction) -> bool {
+		if self.readonly_override == Some(true) {
+			return false;
+		}
 		let mut doc = self.doc_mut();
-		if doc.readonly {
+		if self.readonly_override.is_none() && doc.readonly {
 			return false;
 		}
 		tx.apply(&mut doc.content);
@@ -190,21 +193,24 @@ impl Buffer {
 
 	/// Applies a transaction and updates syntax tree incrementally.
 	///
-	/// Returns true if the transaction was applied.
+	/// Returns true if the transaction was applied. Returns false if the buffer
+	/// is read-only (either via buffer override or document flag).
 	pub fn apply_transaction_with_syntax(
 		&self,
 		tx: &Transaction,
 		language_loader: &LanguageLoader,
 	) -> bool {
+		if self.readonly_override == Some(true) {
+			return false;
+		}
 		let mut doc = self.doc_mut();
-		if doc.readonly {
+		if self.readonly_override.is_none() && doc.readonly {
 			return false;
 		}
 		let old_doc = doc.content.clone();
 		tx.apply(&mut doc.content);
 
 		if doc.syntax.is_some() {
-			// Clone the new content to avoid borrow conflict with syntax
 			let new_doc = doc.content.clone();
 			if let Some(ref mut syntax) = doc.syntax {
 				let _ = syntax.update_from_changeset(
@@ -248,5 +254,56 @@ mod tests {
 		let applied = buffer.apply_transaction(&tx);
 		assert!(!applied);
 		assert_eq!(buffer.doc().content.slice(..).to_string(), "");
+	}
+
+	#[test]
+	fn readonly_override_blocks_transaction() {
+		let mut buffer = Buffer::scratch(BufferId::SCRATCH);
+		// Document is writable, but buffer override makes it readonly
+		assert!(!buffer.doc().readonly);
+		buffer.set_readonly_override(Some(true));
+		assert!(buffer.is_readonly());
+
+		let (tx, _selection) = buffer.prepare_insert("hi");
+		let applied = buffer.apply_transaction(&tx);
+		assert!(!applied);
+		assert_eq!(buffer.doc().content.slice(..).to_string(), "");
+	}
+
+	#[test]
+	fn readonly_override_allows_write_on_readonly_doc() {
+		let mut buffer = Buffer::scratch(BufferId::SCRATCH);
+		// Document is readonly, but buffer override makes it writable
+		buffer.set_readonly(true);
+		assert!(buffer.is_readonly());
+
+		buffer.set_readonly_override(Some(false));
+		assert!(!buffer.is_readonly());
+
+		let (tx, _selection) = buffer.prepare_insert("hi");
+		let applied = buffer.apply_transaction(&tx);
+		assert!(applied);
+		assert_eq!(buffer.doc().content.slice(..).to_string(), "hi");
+	}
+
+	#[test]
+	fn readonly_override_none_defers_to_document() {
+		let mut buffer = Buffer::scratch(BufferId::SCRATCH);
+		buffer.set_readonly_override(None);
+		assert!(!buffer.is_readonly()); // Document is writable
+
+		buffer.set_readonly(true);
+		assert!(buffer.is_readonly()); // Now document is readonly, override defers
+	}
+
+	#[test]
+	fn split_does_not_inherit_readonly_override() {
+		let mut buffer = Buffer::scratch(BufferId::SCRATCH);
+		buffer.set_readonly_override(Some(true));
+		assert!(buffer.is_readonly());
+
+		let split = buffer.clone_for_split(BufferId(1));
+		// Split should defer to document (writable), not inherit override
+		assert!(!split.is_readonly());
 	}
 }
