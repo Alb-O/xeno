@@ -497,7 +497,7 @@ All LSP integration tests go in `crates/term/tests/`:
   - Is `CompletionPopup` being shown?
   - Is Tab handler calling `try_accept_completion()`?
 
-- [ ] 4.7 Verify: `LSP_TESTS=1 KITTY_TESTS=1 cargo test -p xeno-term --test lsp_completion`
+- [x] 4.7 Verify: `LSP_TESTS=1 KITTY_TESTS=1 cargo test -p xeno-term --test lsp_completion`
 
 **CHECKPOINT 4**: Completion menu works end-to-end with rust-analyzer
 
