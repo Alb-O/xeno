@@ -6,10 +6,10 @@
 use std::sync::Arc;
 
 use xeno_lsp::lsp_types::{
-    CodeActionOrCommand, CodeActionResponse, CompletionResponse, Hover, Position, SignatureHelp,
-    TextEdit, Url, WorkspaceEdit,
+    AnnotatedTextEdit, CodeActionOrCommand, CodeActionResponse, CompletionResponse, Hover, OneOf,
+    Position, SignatureHelp, TextEdit, Url, WorkspaceEdit,
 };
-use xeno_lsp::{ClientHandle, OffsetEncoding};
+use xeno_lsp::{ClientHandle, OffsetEncoding, Registry};
 
 use crate::buffer::Buffer;
 use crate::editor::extensions::ExtensionMap;
@@ -18,22 +18,27 @@ use crate::ui::popup::{
 };
 use crate::ui::UiManager;
 
-/// Helper type alias for the LSP manager stored in extensions.
-pub type LspManager = crate::lsp::LspManager;
+/// Gets the LSP registry from the extension map.
+///
+/// The LSP extension stores `Arc<Registry>` directly in the extension map for access
+/// by rendering code and LSP UI operations.
+pub fn get_lsp_registry(extensions: &ExtensionMap) -> Option<Arc<Registry>> {
+    extensions.get::<Arc<Registry>>().cloned()
+}
 
-/// Gets the LSP manager from the extension map.
-pub fn get_lsp_manager(extensions: &ExtensionMap) -> Option<Arc<LspManager>> {
-    extensions.get::<Arc<LspManager>>().cloned()
+/// Alias for `get_lsp_registry` for backwards compatibility.
+pub fn get_lsp_manager(extensions: &ExtensionMap) -> Option<Arc<Registry>> {
+    get_lsp_registry(extensions)
 }
 
 /// Gets an LSP client for the given buffer.
 pub fn get_client_for_buffer(
-    lsp: &LspManager,
+    registry: &Registry,
     buffer: &Buffer,
 ) -> Option<ClientHandle> {
     let path = buffer.path()?;
     let language = buffer.file_type()?;
-    lsp.registry().get_for_file(&language, &path)
+    registry.get_for_file(&language, &path)
 }
 
 /// Converts a buffer cursor position to an LSP position.
@@ -56,10 +61,10 @@ pub fn buffer_to_uri(buffer: &Buffer) -> Option<Url> {
 ///
 /// Returns the hover response if available.
 pub async fn request_hover(
-    lsp: &LspManager,
+    registry: &Registry,
     buffer: &Buffer,
 ) -> Option<Hover> {
-    let client = get_client_for_buffer(lsp, buffer)?;
+    let client = get_client_for_buffer(registry, buffer)?;
     
     if !client.is_initialized() {
         return None;
@@ -95,11 +100,11 @@ pub async fn show_hover(
     buffer: &Buffer,
     cursor_screen_pos: Option<(u16, u16)>,
 ) -> bool {
-    let Some(lsp) = get_lsp_manager(extensions) else {
+    let Some(registry) = get_lsp_registry(extensions) else {
         return false;
     };
     
-    let Some(hover) = request_hover(&lsp, buffer).await else {
+    let Some(hover) = request_hover(&registry, buffer).await else {
         return false;
     };
     
@@ -138,10 +143,10 @@ pub fn has_hover(ui: &UiManager) -> bool {
 ///
 /// Returns the completion response if available.
 pub async fn request_completion(
-    lsp: &LspManager,
+    registry: &Registry,
     buffer: &Buffer,
 ) -> Option<CompletionResponse> {
-    let client = get_client_for_buffer(lsp, buffer)?;
+    let client = get_client_for_buffer(registry, buffer)?;
     
     if !client.is_initialized() {
         return None;
@@ -181,11 +186,11 @@ pub async fn show_completion(
     trigger_column: usize,
     cursor_screen_pos: Option<(u16, u16)>,
 ) -> bool {
-    let Some(lsp) = get_lsp_manager(extensions) else {
+    let Some(registry) = get_lsp_registry(extensions) else {
         return false;
     };
     
-    let Some(response) = request_completion(&lsp, buffer).await else {
+    let Some(response) = request_completion(&registry, buffer).await else {
         return false;
     };
     
@@ -229,10 +234,10 @@ pub fn has_completion(ui: &UiManager) -> bool {
 ///
 /// Returns the signature help response if available.
 pub async fn request_signature_help(
-    lsp: &LspManager,
+    registry: &Registry,
     buffer: &Buffer,
 ) -> Option<SignatureHelp> {
-    let client = get_client_for_buffer(lsp, buffer)?;
+    let client = get_client_for_buffer(registry, buffer)?;
     
     if !client.is_initialized() {
         return None;
@@ -270,11 +275,11 @@ pub async fn show_signature_help(
     active_parameter: Option<usize>,
     cursor_screen_pos: Option<(u16, u16)>,
 ) -> bool {
-    let Some(lsp) = get_lsp_manager(extensions) else {
+    let Some(registry) = get_lsp_registry(extensions) else {
         return false;
     };
     
-    let Some(help) = request_signature_help(&lsp, buffer).await else {
+    let Some(help) = request_signature_help(&registry, buffer).await else {
         return false;
     };
     
@@ -321,17 +326,65 @@ pub fn has_signature_help(ui: &UiManager) -> bool {
 ///
 /// Returns the code action response if available.
 pub async fn request_code_actions(
-    lsp: &LspManager,
+    registry: &Registry,
     buffer: &Buffer,
     range: Option<xeno_base::range::Range>,
 ) -> Option<CodeActionResponse> {
-    let client = get_client_for_buffer(lsp, buffer)?;
+    use xeno_lsp::lsp_types::{CodeActionContext, CodeActionTriggerKind, Range as LspRange};
+
+    let client = get_client_for_buffer(registry, buffer)?;
 
     if !client.is_initialized() {
         return None;
     }
 
-    lsp.code_actions(buffer, range).await.ok().flatten()
+    let path = buffer.path()?;
+    let uri = Url::from_file_path(&path).ok()?;
+    let encoding = client.offset_encoding();
+
+    // Convert range to LSP range
+    let lsp_range = if let Some(r) = range {
+        let start = xeno_lsp::char_to_lsp_position(&buffer.doc().content, r.from(), encoding)?;
+        let end = xeno_lsp::char_to_lsp_position(&buffer.doc().content, r.to(), encoding)?;
+        LspRange { start, end }
+    } else {
+        // Use current line range
+        let line = buffer.cursor_line();
+        let line_start = buffer.doc().content.line_to_char(line);
+        let line_end = if line + 1 < buffer.doc().content.len_lines() {
+            buffer.doc().content.line_to_char(line + 1)
+        } else {
+            buffer.doc().content.len_chars()
+        };
+
+        let start = xeno_lsp::char_to_lsp_position(&buffer.doc().content, line_start, encoding)?;
+        let end = xeno_lsp::char_to_lsp_position(&buffer.doc().content, line_end, encoding)?;
+        LspRange { start, end }
+    };
+
+    // Get diagnostics from client state
+    let diagnostics: Vec<_> = client
+        .diagnostics(&uri)
+        .into_iter()
+        .filter(|d| ranges_overlap(&d.range, &lsp_range))
+        .collect();
+
+    let context = CodeActionContext {
+        diagnostics,
+        only: None,
+        trigger_kind: Some(CodeActionTriggerKind::INVOKED),
+    };
+
+    client.code_action(uri, lsp_range, context).await.ok().flatten()
+}
+
+/// Checks if two LSP ranges overlap.
+fn ranges_overlap(a: &xeno_lsp::lsp_types::Range, b: &xeno_lsp::lsp_types::Range) -> bool {
+    // Two ranges overlap if neither is entirely before or after the other
+    !(a.end.line < b.start.line
+        || (a.end.line == b.start.line && a.end.character < b.start.character)
+        || b.end.line < a.start.line
+        || (b.end.line == a.start.line && b.end.character < a.start.character))
 }
 
 /// Shows a code actions popup for the current buffer cursor position.
@@ -357,11 +410,11 @@ pub async fn show_code_actions(
     buffer: &Buffer,
     cursor_screen_pos: Option<(u16, u16)>,
 ) -> bool {
-    let Some(lsp) = get_lsp_manager(extensions) else {
+    let Some(registry) = get_lsp_registry(extensions) else {
         return false;
     };
 
-    let Some(actions) = request_code_actions(&lsp, buffer, None).await else {
+    let Some(actions) = request_code_actions(&registry, buffer, None).await else {
         return false;
     };
 
@@ -392,7 +445,7 @@ pub fn has_code_actions(ui: &UiManager) -> bool {
 ///
 /// This is used when the user accepts the popup to get the action to apply.
 pub fn get_selected_code_action(ui: &UiManager) -> Option<CodeActionResult> {
-    let popup = ui.get_popup::<CodeActionsPopup>("lsp-code-actions")?;
+    let popup = ui.popups.get_popup::<CodeActionsPopup>("lsp-code-actions")?;
     popup.accept_selected()
 }
 
@@ -443,7 +496,9 @@ pub async fn apply_workspace_edit(
         match doc_changes {
             DocumentChanges::Edits(edits) => {
                 for edit in edits {
-                    if !apply_text_edits_to_uri(editor, &edit.text_document.uri, &edit.edits).await
+                    let text_edits: Vec<TextEdit> =
+                        edit.edits.iter().map(extract_text_edit).collect();
+                    if !apply_text_edits_to_uri(editor, &edit.text_document.uri, &text_edits).await
                     {
                         return false;
                     }
@@ -455,10 +510,12 @@ pub async fn apply_workspace_edit(
                 for op in ops {
                     match op {
                         DocumentChangeOperation::Edit(edit) => {
+                            let text_edits: Vec<TextEdit> =
+                                edit.edits.iter().map(extract_text_edit).collect();
                             if !apply_text_edits_to_uri(
                                 editor,
                                 &edit.text_document.uri,
-                                &edit.edits,
+                                &text_edits,
                             )
                             .await
                             {
@@ -478,6 +535,14 @@ pub async fn apply_workspace_edit(
 
     // No changes to apply
     true
+}
+
+/// Extracts a `TextEdit` from a `OneOf<TextEdit, AnnotatedTextEdit>`.
+fn extract_text_edit(edit: &OneOf<TextEdit, AnnotatedTextEdit>) -> TextEdit {
+    match edit {
+        OneOf::Left(text_edit) => text_edit.clone(),
+        OneOf::Right(annotated) => annotated.text_edit.clone(),
+    }
 }
 
 /// Applies text edits to a document identified by URI.
@@ -506,11 +571,12 @@ async fn apply_text_edits_to_uri(
 
     // Get encoding for position conversion
     let encoding = {
-        let lsp = get_lsp_manager(&editor.extensions);
-        lsp.as_ref()
-            .and_then(|l| {
+        let registry = get_lsp_registry(&editor.extensions);
+        registry
+            .as_ref()
+            .and_then(|r| {
                 let buffer = editor.get_buffer(buffer_id)?;
-                get_client_for_buffer(l, buffer)
+                get_client_for_buffer(r, buffer)
             })
             .map(|c| c.offset_encoding())
             .unwrap_or_default()
@@ -566,12 +632,12 @@ async fn execute_command(
     editor: &mut crate::editor::Editor,
     command: &xeno_lsp::lsp_types::Command,
 ) -> bool {
-    let Some(lsp) = get_lsp_manager(&editor.extensions) else {
+    let Some(registry) = get_lsp_registry(&editor.extensions) else {
         return false;
     };
 
     let buffer = editor.buffer();
-    let Some(client) = get_client_for_buffer(&lsp, buffer) else {
+    let Some(client) = get_client_for_buffer(&registry, buffer) else {
         return false;
     };
 
@@ -614,12 +680,12 @@ pub async fn goto_definition(editor: &mut crate::editor::Editor) -> bool {
     use crate::ui::popup::LocationPickerPopup;
     use xeno_lsp::lsp_types::GotoDefinitionResponse;
     
-    let Some(lsp) = get_lsp_manager(&editor.extensions) else {
+    let Some(registry) = get_lsp_registry(&editor.extensions) else {
         return false;
     };
     
     let buffer = editor.buffer();
-    let client = match get_client_for_buffer(&lsp, buffer) {
+    let client = match get_client_for_buffer(&registry, buffer) {
         Some(c) => c,
         None => return false,
     };
@@ -642,22 +708,25 @@ pub async fn goto_definition(editor: &mut crate::editor::Editor) -> bool {
         Ok(Some(r)) => r,
         _ => return false,
     };
-    
+
     // Count locations to determine if we need a picker
     let location_count = match &response {
         GotoDefinitionResponse::Scalar(_) => 1,
         GotoDefinitionResponse::Array(locs) => locs.len(),
         GotoDefinitionResponse::Link(links) => links.len(),
     };
-    
+
     // If multiple definitions, show picker popup
     if location_count > 1 {
         if let Some(popup) = LocationPickerPopup::from_definition_response(response) {
             editor.ui.show_popup(Box::new(popup));
             return true;
         }
+        // If popup creation failed, fall through to try navigating to first location
+        // But response was consumed, so we can't continue - return false
+        return false;
     }
-    
+
     // Single definition - navigate directly
     let location = match response {
         GotoDefinitionResponse::Scalar(loc) => Some(loc),
@@ -669,11 +738,11 @@ pub async fn goto_definition(editor: &mut crate::editor::Editor) -> bool {
             }
         }),
     };
-    
+
     let Some(loc) = location else {
         return false;
     };
-    
+
     // Navigate to the location
     navigate_to_location(editor, &loc).await
 }
@@ -688,12 +757,12 @@ pub async fn goto_definition(editor: &mut crate::editor::Editor) -> bool {
 pub async fn find_references(editor: &mut crate::editor::Editor) -> bool {
     use crate::ui::panels::ReferencesPanel;
 
-    let Some(lsp) = get_lsp_manager(&editor.extensions) else {
+    let Some(registry) = get_lsp_registry(&editor.extensions) else {
         return false;
     };
     
     let buffer = editor.buffer();
-    let client = match get_client_for_buffer(&lsp, buffer) {
+    let client = match get_client_for_buffer(&registry, buffer) {
         Some(c) => c,
         None => return false,
     };

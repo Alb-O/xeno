@@ -635,16 +635,15 @@ All LSP integration tests go in `crates/term/tests/`:
   - `no field text on type UiColors`
   - `no method get_popup on UiManager`
   
-- [ ] 5.6.1 Fix xeno-api LSP feature compilation errors
-  - Update `lsp.rs` and `lsp_ui.rs` to use current APIs
-  - Fix `xeno_base::Change` references
-  - Fix `UiColors` field accesses
-  - Fix `UiManager::get_popup` calls
-  - Fix buffer/focus module visibility issues
+- [x] 5.6.1 Fix xeno-api LSP feature compilation errors
+  - Fixed `lsp_ui.rs` - added `extract_text_edit` helper for `OneOf<TextEdit, AnnotatedTextEdit>` conversion
+  - Fixed `UiManager::get_popup` -> `ui.popups.get_popup`
+  - Fixed use of moved value in `goto_definition` by early-returning when popup is shown
+  - Fixed borrow checker errors in `diagnostics.rs` and `references.rs` by separating char_idx computation scope
   
-- [ ] 5.6.2 Enable LSP feature in xeno-term
-  - Change: `xeno-api = { workspace = true, features = ["lsp"] }`
-  - Verify build succeeds
+- [x] 5.6.2 Enable LSP feature in xeno-term
+  - Already enabled: `xeno-api = { workspace = true, features = ["lsp"] }`
+  - Build succeeds with clippy --workspace
   
 - [ ] 5.7 Verify: `LSP_TESTS=1 KITTY_TESTS=1 cargo test -p xeno-term --test lsp_navigation`
 

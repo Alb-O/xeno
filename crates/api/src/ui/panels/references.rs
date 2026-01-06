@@ -276,13 +276,21 @@ impl ReferencesPanel {
         // Focus the buffer
         editor.focus_buffer(buffer_id);
 
-        // Navigate to position
-        let buffer = editor.buffer_mut();
-        let rope = &buffer.doc().content;
-        if entry.line < rope.len_lines() {
-            let line_start = rope.line_to_char(entry.line);
-            let line_len = rope.line(entry.line).len_chars();
-            let char_idx = line_start + entry.col.min(line_len.saturating_sub(1));
+        // Navigate to position - compute char_idx in separate scope to avoid borrow conflicts
+        let char_idx = {
+            let buffer = editor.buffer();
+            let rope = &buffer.doc().content;
+            if entry.line < rope.len_lines() {
+                let line_start = rope.line_to_char(entry.line);
+                let line_len = rope.line(entry.line).len_chars();
+                Some(line_start + entry.col.min(line_len.saturating_sub(1)))
+            } else {
+                None
+            }
+        };
+
+        if let Some(char_idx) = char_idx {
+            let buffer = editor.buffer_mut();
             buffer.cursor = char_idx;
             buffer.selection = xeno_base::Selection::point(char_idx);
         }
