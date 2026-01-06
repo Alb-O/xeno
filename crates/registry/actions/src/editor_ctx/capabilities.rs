@@ -354,7 +354,7 @@ pub trait OptionAccess {
 	/// use xeno_registry_options::keys;
 	///
 	/// let width: i64 = ctx.option(keys::TAB_WIDTH);
-	/// let wrap: bool = ctx.option(keys::WRAP_LINES);
+	/// let theme: String = ctx.option(keys::THEME);
 	/// ```
 	fn option<T: FromOptionValue>(&self, key: TypedOptionKey<T>) -> T
 	where

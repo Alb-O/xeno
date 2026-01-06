@@ -1,21 +1,39 @@
 //! Options configuration parsing.
 
 use kdl::KdlNode;
-use xeno_registry::options::{self, OptionStore, OptionType, OptionValue, parse};
+use xeno_registry::options::{self, OptionScope, OptionStore, OptionType, OptionValue, parse};
 
-use crate::error::{ConfigError, Result};
+use crate::error::{ConfigError, ConfigWarning, Result};
 
-/// Parse an `options { }` node into an [`OptionStore`].
-pub fn parse_options_node(node: &KdlNode) -> Result<OptionStore> {
-	parse_options_from_children(node)
+/// Context for option parsing - indicates where options are being parsed from.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum ParseContext {
+	/// Inside a global `options { }` block.
+	Global,
+	/// Inside a `language "foo" { }` block.
+	Language,
 }
 
-/// Parse options from a node's children (shared by top-level and per-language).
-pub fn parse_options_from_children(node: &KdlNode) -> Result<OptionStore> {
+/// Result of parsing options, including any non-fatal warnings.
+#[derive(Debug)]
+pub struct ParsedOptions {
+	/// The parsed option store.
+	pub store: OptionStore,
+	/// Non-fatal warnings encountered during parsing.
+	pub warnings: Vec<ConfigWarning>,
+}
+
+
+
+/// Parse options from a node with scope context validation.
+///
+/// Returns both the parsed options and any warnings about scope mismatches.
+pub fn parse_options_with_context(node: &KdlNode, context: ParseContext) -> Result<ParsedOptions> {
 	let mut store = OptionStore::new();
+	let mut warnings = Vec::new();
 
 	let Some(children) = node.children() else {
-		return Ok(store);
+		return Ok(ParsedOptions { store, warnings });
 	};
 
 	for opt_node in children.nodes() {
@@ -25,6 +43,16 @@ pub fn parse_options_from_children(node: &KdlNode) -> Result<OptionStore> {
 			key: kdl_key.to_string(),
 			suggestion: parse::suggest_option(kdl_key),
 		})?;
+
+		// Check for scope mismatches
+		if context == ParseContext::Language && def.scope == OptionScope::Global {
+			warnings.push(ConfigWarning::ScopeMismatch {
+				option: kdl_key.to_string(),
+				found_in: "language block",
+				expected: "global options block",
+			});
+			continue; // Skip this option, it won't work in language scope
+		}
 
 		if let Some(entry) = opt_node.entries().first() {
 			let value = entry.value();
@@ -47,11 +75,17 @@ pub fn parse_options_from_children(node: &KdlNode) -> Result<OptionStore> {
 				});
 			}
 
+			// Run custom validator if defined (emit warning on failure, don't fail)
+			if let Err(e) = options::validate(kdl_key, &opt_value) {
+				eprintln!("Warning: {e}");
+				continue; // Skip setting this option
+			}
+
 			let _ = store.set_by_kdl(kdl_key, opt_value);
 		}
 	}
 
-	Ok(store)
+	Ok(ParsedOptions { store, warnings })
 }
 
 /// Returns a human-readable name for an option type.
@@ -68,20 +102,22 @@ mod tests {
 	use super::*;
 	use xeno_registry::options::keys;
 
+	fn parse_global(node: &KdlNode) -> Result<ParsedOptions> {
+		parse_options_with_context(node, ParseContext::Global)
+	}
+
 	#[test]
 	fn test_parse_options() {
 		let kdl = r##"
 options {
     tab-width 4
-    use-tabs #false
     theme "gruvbox"
 }
 "##;
 		let doc: kdl::KdlDocument = kdl.parse().unwrap();
-		let opts = parse_options_node(doc.get("options").unwrap()).unwrap();
+		let opts = parse_global(doc.get("options").unwrap()).unwrap().store;
 
 		assert_eq!(opts.get(keys::TAB_WIDTH.untyped()), Some(&OptionValue::Int(4)));
-		assert_eq!(opts.get(keys::USE_TABS.untyped()), Some(&OptionValue::Bool(false)));
 		assert_eq!(
 			opts.get(keys::THEME.untyped()),
 			Some(&OptionValue::String("gruvbox".to_string()))
@@ -96,7 +132,7 @@ options {
 }
 "##;
 		let doc: kdl::KdlDocument = kdl.parse().unwrap();
-		let result = parse_options_node(doc.get("options").unwrap());
+		let result = parse_global(doc.get("options").unwrap());
 
 		assert!(result.is_err());
 		let err = result.unwrap_err();
@@ -111,7 +147,7 @@ options {
 }
 "##;
 		let doc: kdl::KdlDocument = kdl.parse().unwrap();
-		let result = parse_options_node(doc.get("options").unwrap());
+		let result = parse_global(doc.get("options").unwrap());
 
 		assert!(result.is_err());
 		if let Err(ConfigError::UnknownOption { key, suggestion }) = result {
@@ -130,7 +166,7 @@ options {
 }
 "##;
 		let doc: kdl::KdlDocument = kdl.parse().unwrap();
-		let result = parse_options_node(doc.get("options").unwrap());
+		let result = parse_global(doc.get("options").unwrap());
 
 		assert!(result.is_err());
 		if let Err(ConfigError::OptionTypeMismatch {
@@ -162,7 +198,6 @@ language "rust" {
 
 language "python" {
     tab-width 8
-    use-tabs #true
 }
 "##;
 		let config = Config::parse(kdl).unwrap();
@@ -178,6 +213,60 @@ language "python" {
 
 		let python = config.languages.iter().find(|l| l.name == "python").unwrap();
 		assert_eq!(python.options.get(keys::TAB_WIDTH.untyped()), Some(&OptionValue::Int(8)));
-		assert_eq!(python.options.get(keys::USE_TABS.untyped()), Some(&OptionValue::Bool(true)));
+	}
+
+	#[test]
+	fn test_global_option_in_language_block_warns() {
+		use crate::error::ConfigWarning;
+		use crate::Config;
+
+		let kdl = r##"
+language "rust" {
+    theme "gruvbox"
+}
+"##;
+		let config = Config::parse(kdl).unwrap();
+
+		// Should have a warning about theme in language block
+		assert!(!config.warnings.is_empty(), "expected warnings, got none");
+		assert!(
+			matches!(
+				&config.warnings[0],
+				ConfigWarning::ScopeMismatch { option, .. } if option == "theme"
+			),
+			"expected ScopeMismatch warning for 'theme', got: {:?}",
+			config.warnings
+		);
+
+		// The option should NOT be set in the language store
+		let rust = config.languages.iter().find(|l| l.name == "rust").unwrap();
+		assert_eq!(
+			rust.options.get(keys::THEME.untyped()),
+			None,
+			"global option should not be stored in language scope"
+		);
+	}
+
+	#[test]
+	fn test_buffer_scoped_option_in_language_block_ok() {
+		use crate::Config;
+
+		let kdl = r##"
+language "rust" {
+    tab-width 2
+}
+"##;
+		let config = Config::parse(kdl).unwrap();
+
+		// Should have no warnings - tab-width is buffer-scoped
+		assert!(
+			config.warnings.is_empty(),
+			"unexpected warnings: {:?}",
+			config.warnings
+		);
+
+		// The option should be set
+		let rust = config.languages.iter().find(|l| l.name == "rust").unwrap();
+		assert_eq!(rust.options.get(keys::TAB_WIDTH.untyped()), Some(&OptionValue::Int(2)));
 	}
 }

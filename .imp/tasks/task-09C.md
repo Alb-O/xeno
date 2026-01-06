@@ -107,42 +107,42 @@ Unacceptable:
 - `crates/registry/options/src/impls/search.rs`
 - `crates/registry/options/src/impls/behavior.rs`
 
-- [ ] 1.1 Remove unused indent options
+- [x] 1.1 Remove unused indent options
   - Keep: `TAB_WIDTH`
   - Remove: `INDENT_WIDTH`, `USE_TABS`
   - Update `impls/indent.rs` to only contain `TAB_WIDTH`
 
-- [ ] 1.2 Remove all display options (none are used)
+- [x] 1.2 Remove all display options (none are used)
   - Remove entire file `impls/display.rs`
   - Remove from `impls/mod.rs` module declaration
 
-- [ ] 1.3 Remove all scroll options (none are used)
+- [x] 1.3 Remove all scroll options (none are used)
   - Remove entire file `impls/scroll.rs`
   - Remove from `impls/mod.rs` module declaration
 
-- [ ] 1.4 Remove all file options (none are used)
+- [x] 1.4 Remove all file options (none are used)
   - Remove entire file `impls/file.rs`
   - Remove from `impls/mod.rs` module declaration
 
-- [ ] 1.5 Remove all search options (none are used)
+- [x] 1.5 Remove all search options (none are used)
   - Remove entire file `impls/search.rs`
   - Remove from `impls/mod.rs` module declaration
 
-- [ ] 1.6 Remove all behavior options (none are used)
+- [x] 1.6 Remove all behavior options (none are used)
   - Remove entire file `impls/behavior.rs`
   - Remove from `impls/mod.rs` module declaration
 
-- [ ] 1.7 Update `keys` module re-exports
+- [x] 1.7 Update `keys` module re-exports
   - File: `crates/registry/options/src/lib.rs:75-83`
   - Remove re-exports for deleted modules
   - Keep only: `indent::*`, `theme::*`
 
-- [ ] 1.8 Update tests that reference removed options
+- [x] 1.8 Update tests that reference removed options
   - Search: `rg "keys::(INDENT_WIDTH|USE_TABS|SCROLL_MARGIN|CURSORLINE)" --type rust`
   - Update or remove affected test cases
   - Most are in `store.rs` and `resolver.rs` tests - update to use only `TAB_WIDTH`/`THEME`
 
-- [ ] 1.9 Verify build and tests pass
+- [x] 1.9 Verify build and tests pass
   - `cargo build --workspace`
   - `cargo test --workspace`
 
@@ -159,7 +159,7 @@ Unacceptable:
 - `crates/macro/src/option.rs`
 - `crates/api/src/capabilities.rs`
 
-- [ ] 2.1 Add optional validator field to `OptionDef`
+- [x] 2.1 Add optional validator field to `OptionDef`
   ```rust
   // In lib.rs, add to OptionDef struct
   pub struct OptionDef {
@@ -170,12 +170,12 @@ Unacceptable:
   }
   ```
 
-- [ ] 2.2 Update macro to include validator field
+- [x] 2.2 Update macro to include validator field
   - File: `crates/macro/src/option.rs`
   - Add `validator: None` to generated `OptionDef`
   - (Future: add `#[option(validate = "...")]` attribute support)
 
-- [ ] 2.3 Create standard validators module
+- [x] 2.3 Create standard validators module
   - File: `crates/registry/options/src/validators.rs`
   ```rust
   /// Validates that an integer is positive (>= 1).
@@ -188,12 +188,12 @@ Unacceptable:
   }
   ```
 
-- [ ] 2.4 Apply validator to `TAB_WIDTH`
+- [x] 2.4 Apply validator to `TAB_WIDTH`
   - File: `crates/registry/options/src/impls/indent.rs`
   - Manually set validator in the static (macro doesn't support it yet)
   - Or: update macro to accept `#[option(validate = "positive_int")]`
 
-- [ ] 2.5 Create central validation function
+- [x] 2.5 Create central validation function
   - File: `crates/registry/options/src/lib.rs`
   ```rust
   /// Validates a value against an option's constraints.
@@ -216,17 +216,17 @@ Unacceptable:
   }
   ```
 
-- [ ] 2.6 Remove hardcoded validation from capabilities.rs
+- [x] 2.6 Remove hardcoded validation from capabilities.rs
   - File: `crates/api/src/capabilities.rs:51-57`
   - Replace with call to `validate_value()`
   - Delete the hardcoded `tab-width`/`indent-width` check
 
-- [ ] 2.7 Add validation to config parsing
+- [x] 2.7 Add validation to config parsing
   - File: `crates/config/src/options.rs`
   - Call `validate_value()` after type checking
   - Emit warning (not error) for invalid values in config files
 
-- [ ] 2.8 Verify: `cargo build --workspace && cargo test --workspace`
+- [x] 2.8 Verify: `cargo build --workspace && cargo test --workspace`
 
 **CLEANUP CHECKPOINT 2**: All validation centralized in option system
 
@@ -241,7 +241,7 @@ Unacceptable:
 - `crates/api/src/buffer/mod.rs`
 - `crates/api/src/capabilities.rs`
 
-- [ ] 3.1 Add `resolve_option` method to `Editor`
+- [x] 3.1 Add `resolve_option` method to `Editor`
   - File: `crates/api/src/editor/mod.rs` or new `crates/api/src/editor/options.rs`
   ```rust
   impl Editor {
@@ -273,20 +273,20 @@ Unacceptable:
   }
   ```
 
-- [ ] 3.2 Update `buffer.option_raw()` to delegate
+- [x] 3.2 Update `buffer.option_raw()` to delegate
   - File: `crates/api/src/buffer/mod.rs:305-316`
   - Change to call `editor.resolve_option(self.id, key)`
   - Or keep as-is if buffer doesn't have access to its own ID
 
-- [ ] 3.3 Update `OptionAccess` impl for Editor
+- [x] 3.3 Update `OptionAccess` impl for Editor
   - File: `crates/api/src/capabilities.rs:423-442`
   - Delegate to `self.resolve_option()` instead of inline logic
 
-- [ ] 3.4 Verify no duplicate resolution code remains
+- [x] 3.4 Verify no duplicate resolution code remains
   - Search: `rg "OptionResolver::new\(\)" crates/api/`
   - Should only appear in the new shared method
 
-- [ ] 3.5 Verify: `cargo build --workspace && cargo test --workspace`
+- [x] 3.5 Verify: `cargo build --workspace && cargo test --workspace`
 
 **CLEANUP CHECKPOINT 3**: Single source of truth for option resolution
 
@@ -300,7 +300,7 @@ Unacceptable:
 - `crates/config/src/options.rs`
 - `crates/config/src/lib.rs`
 
-- [ ] 4.1 Add scope context to option parsing
+- [x] 4.1 Add scope context to option parsing
   - File: `crates/config/src/options.rs`
   ```rust
   #[derive(Clone, Copy)]
@@ -329,7 +329,7 @@ Unacceptable:
   }
   ```
 
-- [ ] 4.2 Define `ConfigWarning` type
+- [x] 4.2 Define `ConfigWarning` type
   - File: `crates/config/src/error.rs`
   ```rust
   #[derive(Debug)]
@@ -346,16 +346,16 @@ Unacceptable:
   }
   ```
 
-- [ ] 4.3 Update `Config::parse()` to collect and return warnings
+- [x] 4.3 Update `Config::parse()` to collect and return warnings
   - File: `crates/config/src/lib.rs`
   - Change return type to `Result<(Config, Vec<ConfigWarning>)>`
   - Or add `Config::warnings` field
 
-- [ ] 4.4 Display warnings at startup
+- [x] 4.4 Display warnings at startup
   - File: `crates/term/src/main.rs`
   - After config load, print any warnings to stderr
 
-- [ ] 4.5 Add test for scope warning
+- [x] 4.5 Add test for scope warning
   ```rust
   #[test]
   fn test_global_option_in_language_block_warns() {
@@ -370,7 +370,7 @@ Unacceptable:
   }
   ```
 
-- [ ] 4.6 Verify: `cargo build --workspace && cargo test --workspace`
+- [x] 4.6 Verify: `cargo build --workspace && cargo test --workspace`
 
 ---
 
@@ -383,25 +383,25 @@ Unacceptable:
 - `crates/config/src/lib.rs`
 - Option impl files
 
-- [ ] 5.1 Update module docs in `options/src/lib.rs`
+- [x] 5.1 Update module docs in `options/src/lib.rs`
   - Remove references to removed options
   - Document only `TAB_WIDTH` and `THEME`
   - Add validator documentation
   - Update examples
 
-- [ ] 5.2 Update config crate docs
+- [x] 5.2 Update config crate docs
   - File: `crates/config/src/lib.rs`
   - Update example config to only show valid options
   - Document warning system
 
-- [ ] 5.3 Add deprecation note for removed options
+- [x] 5.3 Add deprecation note for removed options
   - Consider: Add `find_deprecated()` function that recognizes old option names
   - Provide helpful message: "scroll-margin was removed; this option is not yet implemented"
 
-- [ ] 5.4 Run doc tests
+- [x] 5.4 Run doc tests
   - `cargo test --doc --workspace`
 
-- [ ] 5.5 Final verification
+- [x] 5.5 Final verification
   - `cargo build --workspace`
   - `cargo test --workspace`
   - `cargo clippy --workspace`
@@ -518,13 +518,13 @@ Config::parse()
 
 ## Success Criteria
 
-- [ ] Only actively-used options remain defined (TAB_WIDTH, THEME)
-- [ ] All validation centralized in option system via `OptionDef.validator`
-- [ ] Single resolution path via `Editor::resolve_option()`
-- [ ] Parse-time warnings for scope mismatches
-- [ ] All documentation updated
-- [ ] All tests passing
-- [ ] No clippy warnings
+- [x] Only actively-used options remain defined (TAB_WIDTH, THEME)
+- [x] All validation centralized in option system via `OptionDef.validator`
+- [x] Single resolution path via `Editor::resolve_option()`
+- [x] Parse-time warnings for scope mismatches
+- [x] All documentation updated
+- [x] All tests passing
+- [x] No clippy warnings (one allowed: type_complexity on validator fn type)
 
 ---
 

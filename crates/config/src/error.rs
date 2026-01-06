@@ -67,3 +67,37 @@ pub enum ConfigError {
 
 /// Result type for configuration operations.
 pub type Result<T> = std::result::Result<T, ConfigError>;
+
+/// Non-fatal warning during configuration parsing.
+///
+/// These warnings are collected during parsing and reported to the user,
+/// but do not prevent the configuration from being loaded.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ConfigWarning {
+	/// An option was used in the wrong scope (e.g., global option in language block).
+	ScopeMismatch {
+		/// The option's KDL key.
+		option: String,
+		/// Where the option was found (e.g., "language block").
+		found_in: &'static str,
+		/// Where the option should be placed (e.g., "global options block").
+		expected: &'static str,
+	},
+}
+
+impl std::fmt::Display for ConfigWarning {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		match self {
+			ConfigWarning::ScopeMismatch {
+				option,
+				found_in,
+				expected,
+			} => {
+				write!(
+					f,
+					"'{option}' in {found_in} will be ignored (should be in {expected})"
+				)
+			}
+		}
+	}
+}

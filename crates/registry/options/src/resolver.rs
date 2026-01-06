@@ -209,18 +209,6 @@ mod tests {
 		assert_eq!(resolver.resolve_int(keys::TAB_WIDTH.untyped()), 4);
 		// theme from buffer
 		assert_eq!(resolver.resolve_string(keys::THEME.untyped()), "monokai");
-		// scroll_margin from default (nobody has it)
-		assert_eq!(resolver.resolve_int(keys::SCROLL_MARGIN.untyped()), 3); // Default is 3
-	}
-
-	#[test]
-	fn test_resolve_bool() {
-		let mut global = OptionStore::new();
-		global.set(keys::CURSORLINE.untyped(), OptionValue::Bool(false));
-
-		let resolver = OptionResolver::new().with_global(&global);
-
-		assert!(!resolver.resolve_bool(keys::CURSORLINE.untyped()));
 	}
 
 	#[test]

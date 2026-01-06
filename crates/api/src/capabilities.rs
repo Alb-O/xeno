@@ -13,7 +13,7 @@ use xeno_core::editor_ctx::{
 	JumpAccess, MacroAccess, ModeAccess, NotificationAccess, OptionAccess, PaletteAccess,
 	SearchAccess, SelectionAccess, SplitOps, ThemeAccess, UndoAccess, ViewportAccess,
 };
-use xeno_registry::options::{OptionKey, OptionResolver, OptionScope, OptionValue, find_by_kdl, parse};
+use xeno_registry::options::{OptionKey, OptionScope, OptionValue, find_by_kdl, parse};
 use xeno_registry::EditAction;
 use xeno_registry::commands::{CommandEditorOps, CommandError};
 use xeno_registry::{HookContext, HookEventData, emit_sync_with as emit_hook_sync_with};
@@ -22,10 +22,13 @@ use xeno_registry_notifications::{Notification, keys};
 use crate::editor::Editor;
 
 /// Parses a string value into an [`OptionValue`] based on the option's declared type.
+///
+/// Uses centralized validation from the options registry, including type checking
+/// and any custom validators defined on the option.
 fn parse_option_value(kdl_key: &str, value: &str) -> Result<OptionValue, CommandError> {
 	use xeno_registry::options::OptionError;
 
-	let opt_value = parse::parse_value(kdl_key, value).map_err(|e| match e {
+	parse::parse_value(kdl_key, value).map_err(|e| match e {
 		OptionError::UnknownOption(key) => {
 			let suggestion = parse::suggest_option(&key);
 			match suggestion {
@@ -45,18 +48,7 @@ fn parse_option_value(kdl_key: &str, value: &str) -> Result<OptionValue, Command
 		} => CommandError::InvalidArgument(format!(
 			"type mismatch for {option}: expected {expected:?}, got {got}"
 		)),
-	})?;
-
-	// Validate positive integer options
-	if matches!(kdl_key, "tab-width" | "indent-width")
-		&& matches!(&opt_value, OptionValue::Int(n) if *n < 1)
-	{
-		return Err(CommandError::InvalidArgument(format!(
-			"{kdl_key} must be at least 1"
-		)));
-	}
-
-	Ok(opt_value)
+	})
 }
 
 impl CursorAccess for Editor {
@@ -422,23 +414,7 @@ impl PaletteAccess for Editor {
 
 impl OptionAccess for Editor {
 	fn option_raw(&self, key: OptionKey) -> OptionValue {
-		let buffer = self.buffer();
-		let language_store = buffer
-			.file_type()
-			.and_then(|ft| self.language_options.get(&ft));
-
-		let resolver = if let Some(lang_store) = language_store {
-			OptionResolver::new()
-				.with_buffer(&buffer.local_options)
-				.with_language(lang_store)
-				.with_global(&self.global_options)
-		} else {
-			OptionResolver::new()
-				.with_buffer(&buffer.local_options)
-				.with_global(&self.global_options)
-		};
-
-		resolver.resolve(key)
+		self.resolve_option(self.focused_view(), key)
 	}
 }
 

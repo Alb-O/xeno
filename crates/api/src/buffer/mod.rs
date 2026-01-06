@@ -22,9 +22,7 @@ use xeno_base::range::CharIdx;
 use xeno_base::{Mode, Selection};
 use xeno_input::InputHandler;
 use xeno_language::LanguageLoader;
-use xeno_registry::options::{
-	FromOptionValue, OptionKey, OptionResolver, OptionStore, OptionValue, TypedOptionKey,
-};
+use xeno_registry::options::{FromOptionValue, OptionKey, OptionStore, OptionValue, TypedOptionKey};
 
 /// Unique identifier for a buffer.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -303,16 +301,7 @@ impl Buffer {
 	/// let tab_width = i64::from_option(&width).unwrap_or(4);
 	/// ```
 	pub fn option_raw(&self, key: OptionKey, editor: &crate::editor::Editor) -> OptionValue {
-		let mut resolver = OptionResolver::new()
-			.with_buffer(&self.local_options)
-			.with_global(&editor.global_options);
-
-		if let Some(lang_store) = self.file_type().and_then(|ft| editor.language_options.get(&ft))
-		{
-			resolver = resolver.with_language(lang_store);
-		}
-
-		resolver.resolve(key)
+		editor.resolve_option(self.id, key)
 	}
 
 	/// Resolves a typed option for this buffer.
@@ -326,7 +315,7 @@ impl Buffer {
 	/// use xeno_registry::options::keys;
 	///
 	/// let width: i64 = buffer.option(keys::TAB_WIDTH, editor);
-	/// let wrap: bool = buffer.option(keys::WRAP_LINES, editor);
+	/// let theme: String = buffer.option(keys::THEME, editor);
 	/// ```
 	pub fn option<T: FromOptionValue>(
 		&self,

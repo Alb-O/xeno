@@ -5,8 +5,8 @@
 //!
 //! - **Themes**: Color schemes for UI and syntax highlighting
 //! - **Keybindings**: Key-to-action mappings per mode
-//! - **Options**: Editor settings (indent, scrolloff, etc.)
-//! - **Languages**: File type detection and syntax configuration
+//! - **Options**: Editor settings (tab width, theme)
+//! - **Languages**: Per-language option overrides
 //!
 //! # Configuration Files
 //!
@@ -52,27 +52,32 @@
 //!     }
 //! }
 //!
-//! // Option overrides
+//! // Option overrides (global scope)
 //! options {
 //!     tab-width 4
-//!     indent-width 4
-//!     use-tabs #false
-//!     scroll-margin 5
 //!     theme "gruvbox"
 //! }
 //!
-//! // Language-specific settings
+//! // Language-specific settings (buffer-scoped options only)
 //! language "rust" {
-//!     tab-width 4
-//!     indent-width 4
+//!     tab-width 2
 //! }
 //!
 //! language "python" {
 //!     tab-width 4
-//!     indent-width 4
-//!     use-tabs #false
 //! }
 //! ```
+//!
+//! # Scope Validation
+//!
+//! Options have scopes: `global` (editor-wide) or `buffer` (per-buffer).
+//! Global options like `theme` in language blocks generate warnings:
+//!
+//! ```text
+//! Warning: 'theme' in language block will be ignored (should be in global options block)
+//! ```
+//!
+//! Warnings are collected in [`Config::warnings`] and displayed at startup.
 
 pub mod error;
 pub mod kdl_util;
@@ -84,8 +89,9 @@ pub mod watch;
 
 use std::path::Path;
 
-pub use error::{ConfigError, Result};
+pub use error::{ConfigError, ConfigWarning, Result};
 pub use keys::KeysConfig;
+pub use options::ParseContext;
 pub use theme::ParsedTheme;
 pub use xeno_registry::options::OptionStore;
 #[cfg(feature = "watch")]
@@ -104,6 +110,8 @@ pub struct Config {
 	pub options: OptionStore,
 	/// Per-language option overrides.
 	pub languages: Vec<LanguageConfig>,
+	/// Non-fatal warnings encountered during parsing.
+	pub warnings: Vec<ConfigWarning>,
 }
 
 /// Per-language configuration overrides.
@@ -117,33 +125,42 @@ pub struct LanguageConfig {
 
 impl Config {
 	/// Parse a KDL string into a [`Config`].
+	///
+	/// Non-fatal warnings (e.g., scope mismatches) are collected in `Config::warnings`
+	/// rather than causing parse failure. Callers should check and display these.
 	pub fn parse(input: &str) -> Result<Self> {
 		let doc: kdl::KdlDocument = input.parse()?;
+		let mut warnings = Vec::new();
 
 		let theme = doc.get("theme").map(theme::parse_theme_node).transpose()?;
 		let keys = doc.get("keys").map(keys::parse_keys_node).transpose()?;
-		let options = doc
-			.get("options")
-			.map(options::parse_options_node)
-			.transpose()?
-			.unwrap_or_default();
 
-		let languages = doc
-			.nodes()
-			.iter()
-			.filter(|n| n.name().value() == "language")
-			.filter_map(|node| {
-				let name = node.get(0).and_then(|v| v.as_string())?.to_string();
-				let options = options::parse_options_from_children(node).ok()?;
-				Some(LanguageConfig { name, options })
-			})
-			.collect();
+		let options = if let Some(opts_node) = doc.get("options") {
+			let parsed = options::parse_options_with_context(opts_node, ParseContext::Global)?;
+			warnings.extend(parsed.warnings);
+			parsed.store
+		} else {
+			OptionStore::default()
+		};
+
+		let mut languages = Vec::new();
+		for node in doc.nodes().iter().filter(|n| n.name().value() == "language") {
+			if let Some(name) = node.get(0).and_then(|v| v.as_string()) {
+				let parsed = options::parse_options_with_context(node, ParseContext::Language)?;
+				warnings.extend(parsed.warnings);
+				languages.push(LanguageConfig {
+					name: name.to_string(),
+					options: parsed.store,
+				});
+			}
+		}
 
 		Ok(Config {
 			theme,
 			keys,
 			options,
 			languages,
+			warnings,
 		})
 	}
 

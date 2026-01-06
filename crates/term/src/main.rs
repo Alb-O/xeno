@@ -49,7 +49,13 @@ async fn main() -> anyhow::Result<()> {
 		let config_path = config_dir.join("config.kdl");
 		if config_path.exists() {
 			match xeno_config::Config::load(&config_path) {
-				Ok(config) => Some(config),
+				Ok(config) => {
+					// Display any config warnings
+					for warning in &config.warnings {
+						eprintln!("Warning: {warning}");
+					}
+					Some(config)
+				}
 				Err(e) => {
 					eprintln!("Warning: failed to load config: {}", e);
 					None

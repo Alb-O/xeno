@@ -161,6 +161,7 @@ pub fn derive_option(input: TokenStream) -> TokenStream {
 			scope: ::xeno_registry_options::OptionScope::#scope_variant,
 			priority: #priority,
 			source: ::xeno_registry_options::RegistrySource::Crate(::core::env!("CARGO_PKG_NAME")),
+			validator: None,
 		};
 
 		#(#other_attrs)*

@@ -3,24 +3,32 @@
 //! This module consolidates all option value parsing logic, used by both
 //! config file loading and runtime `:set` commands.
 
-use crate::{OptionError, OptionType, OptionValue, find_by_kdl, all_sorted};
+use crate::{OptionError, OptionType, OptionValue, find_by_kdl, all_sorted, validate};
 
 /// Parse a string value into an [`OptionValue`] based on the option's declared type.
 ///
 /// This is the primary entry point for parsing user-provided string values
-/// (e.g., from `:set tab-width 4`).
+/// (e.g., from `:set tab-width 4`). It performs both type parsing and custom
+/// validation via the option's validator (if defined).
 ///
 /// # Errors
 ///
 /// Returns [`OptionError::UnknownOption`] if the KDL key is not recognized.
-/// Returns [`OptionError::InvalidValue`] if the value cannot be parsed as the expected type.
+/// Returns [`OptionError::InvalidValue`] if the value cannot be parsed as the expected type
+/// or fails custom validation.
 pub fn parse_value(kdl_key: &str, value: &str) -> Result<OptionValue, OptionError> {
 	let def =
 		find_by_kdl(kdl_key).ok_or_else(|| OptionError::UnknownOption(kdl_key.to_string()))?;
-	parse_value_for_type(value, def.value_type).map_err(|reason| OptionError::InvalidValue {
-		option: kdl_key.to_string(),
-		reason,
-	})
+	let opt_value =
+		parse_value_for_type(value, def.value_type).map_err(|reason| OptionError::InvalidValue {
+			option: kdl_key.to_string(),
+			reason,
+		})?;
+
+	// Run type checking and custom validator
+	validate(kdl_key, &opt_value)?;
+
+	Ok(opt_value)
 }
 
 /// Parse a string value into an [`OptionValue`] for a known type.
@@ -68,11 +76,32 @@ pub fn parse_int(value: &str) -> Result<i64, String> {
 /// let suggestion = suggest_option("xyzabc");    // None
 /// ```
 pub fn suggest_option(key: &str) -> Option<String> {
+	// First check if this is a deprecated option
+	if let Some(msg) = deprecated_option_message(key) {
+		return Some(msg);
+	}
+
 	all_sorted()
 		.map(|o| o.kdl_key)
 		.min_by_key(|k| strsim::levenshtein(key, k))
 		.filter(|k| strsim::levenshtein(key, k) <= 3)
 		.map(|s| s.to_string())
+}
+
+/// Options that were removed (had no implementation).
+const REMOVED_OPTIONS: &[&str] = &[
+	"indent-width", "use-tabs", "line-numbers", "wrap-lines", "cursorline",
+	"cursorcolumn", "colorcolumn", "whitespace-visible", "scroll-margin",
+	"scroll-smooth", "backup", "undo-file", "auto-save", "final-newline",
+	"trim-trailing-whitespace", "search-case-sensitive", "search-smart-case",
+	"search-wrap", "incremental-search", "mouse", "line-ending", "idle-timeout",
+];
+
+/// Returns a deprecation message for removed options.
+pub fn deprecated_option_message(key: &str) -> Option<String> {
+	REMOVED_OPTIONS
+		.contains(&key)
+		.then(|| format!("'{key}' was removed (not yet implemented)"))
 }
 
 #[cfg(test)]

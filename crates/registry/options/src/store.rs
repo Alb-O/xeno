@@ -147,7 +147,7 @@ mod tests {
 	fn test_merge() {
 		let mut store1 = OptionStore::new();
 		store1.set(keys::TAB_WIDTH.untyped(), OptionValue::Int(4));
-		store1.set(keys::SCROLL_MARGIN.untyped(), OptionValue::Int(5));
+		store1.set(keys::THEME.untyped(), OptionValue::String("gruvbox".to_string()));
 
 		let mut store2 = OptionStore::new();
 		store2.set(keys::TAB_WIDTH.untyped(), OptionValue::Int(2));
@@ -157,7 +157,7 @@ mod tests {
 		// store2's value wins
 		assert_eq!(store1.get_int(keys::TAB_WIDTH.untyped()), Some(2));
 		// store1's value preserved
-		assert_eq!(store1.get_int(keys::SCROLL_MARGIN.untyped()), Some(5));
+		assert_eq!(store1.get_string(keys::THEME.untyped()), Some("gruvbox"));
 	}
 
 	#[test]
@@ -179,16 +179,6 @@ mod tests {
 		store.set(keys::TAB_WIDTH.untyped(), OptionValue::Int(4));
 		assert!(!store.is_empty());
 		assert_eq!(store.len(), 1);
-	}
-
-	#[test]
-	fn test_bool_option() {
-		let mut store = OptionStore::new();
-		store.set(keys::CURSORLINE.untyped(), OptionValue::Bool(false));
-
-		assert_eq!(store.get_bool(keys::CURSORLINE.untyped()), Some(false));
-		// Wrong type accessor returns None
-		assert_eq!(store.get_int(keys::CURSORLINE.untyped()), None);
 	}
 
 	#[test]

@@ -6,7 +6,14 @@
 //! - Distributed slice ([`OPTIONS`])
 //! - Registration via `#[derive_option]` proc macro
 //! - Typed keys ([`TypedOptionKey<T>`]) for compile-time type safety
-//! - Standard library implementations (indent, display, behavior, etc.)
+//! - Validation via [`OptionDef::validator`] and [`validators`] module
+//!
+//! # Available Options
+//!
+//! | Option | Type | Scope | Default | Description |
+//! |--------|------|-------|---------|-------------|
+//! | `tab-width` | int | buffer | 4 | Spaces per tab character |
+//! | `theme` | string | global | "gruvbox" | Color theme name |
 //!
 //! # Defining Options
 //!
@@ -31,19 +38,45 @@
 //!
 //! // Buffer-level access with resolution chain
 //! let tab_width: i64 = buffer.option(keys::TAB_WIDTH, &editor);
+//!
+//! // Editor-level access for focused buffer
+//! let theme: String = editor.option(keys::THEME);
+//! ```
+//!
+//! # Validation
+//!
+//! Options can define custom validators via the [`OptionDef::validator`] field.
+//! The [`validators`] module provides common validators:
+//!
+//! ```ignore
+//! use xeno_registry_options::validators;
+//!
+//! // Validates that TAB_WIDTH is >= 1
+//! validators::positive_int(&OptionValue::Int(4)); // Ok(())
+//! validators::positive_int(&OptionValue::Int(0)); // Err("must be at least 1")
 //! ```
 //!
 //! # Config Loading
 //!
 //! Options are loaded from `~/.config/xeno/config.kdl` at startup:
 //!
-//! ```ignore
-//! // In main.rs, after Config::load()
-//! editor.global_options = config.options;
-//! editor.language_options = config.languages;
+//! ```kdl
+//! options {
+//!     tab-width 4
+//!     theme "gruvbox"
+//! }
+//!
+//! language "rust" {
+//!     tab-width 2  // Buffer-scoped options can be per-language
+//! }
 //! ```
 //!
 //! Resolution order: Buffer-local → Language config → Global config → Compile-time default
+//!
+//! # Scope Validation
+//!
+//! Options have a scope (global or buffer). Global options (like `theme`) in
+//! language blocks will generate warnings at parse time and be ignored.
 
 use std::marker::PhantomData;
 
@@ -57,6 +90,7 @@ mod impls;
 pub mod parse;
 mod resolver;
 mod store;
+pub mod validators;
 
 pub use resolver::OptionResolver;
 pub use store::OptionStore;
@@ -73,12 +107,7 @@ pub use store::OptionStore;
 /// println!("Default tab width: {:?}", (def.default)());
 /// ```
 pub mod keys {
-	pub use crate::impls::behavior::*;
-	pub use crate::impls::display::*;
-	pub use crate::impls::file::*;
 	pub use crate::impls::indent::*;
-	pub use crate::impls::scroll::*;
-	pub use crate::impls::search::*;
 	pub use crate::impls::theme::*;
 }
 
@@ -259,6 +288,10 @@ pub struct OptionDef {
 	pub priority: i16,
 	/// Origin of definition.
 	pub source: RegistrySource,
+	/// Optional validator for value constraints.
+	///
+	/// Returns `Ok(())` if valid, `Err(reason)` if invalid.
+	pub validator: Option<fn(&OptionValue) -> Result<(), String>>,
 }
 
 impl core::fmt::Debug for OptionDef {
@@ -425,7 +458,8 @@ impl core::fmt::Display for OptionError {
 
 impl std::error::Error for OptionError {}
 
-/// Validates that a KDL key exists and the value matches the expected type.
+/// Validates that a KDL key exists, the value matches the expected type,
+/// and passes any custom validator defined for the option.
 ///
 /// Returns `Ok(())` if valid, or an appropriate [`OptionError`] if not.
 pub fn validate(kdl_key: &str, value: &OptionValue) -> Result<(), OptionError> {
@@ -436,6 +470,12 @@ pub fn validate(kdl_key: &str, value: &OptionValue) -> Result<(), OptionError> {
 			expected: def.value_type,
 			got: value.type_name(),
 		});
+	}
+	if let Some(validator) = def.validator {
+		validator(value).map_err(|reason| OptionError::InvalidValue {
+			option: kdl_key.to_string(),
+			reason,
+		})?;
 	}
 	Ok(())
 }

@@ -51,6 +51,8 @@ mod palette;
 mod search;
 /// Separator hit detection.
 mod separator;
+/// Option resolution.
+mod options;
 /// Split view operations.
 mod splits;
 /// Theme management.
