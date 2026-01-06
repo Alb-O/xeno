@@ -317,7 +317,7 @@ All LSP integration tests go in `crates/term/tests/`:
 **Files**:
 - `crates/term/tests/lsp_hover.rs` (new)
 
-- [ ] 3.1 Test: `hover_shows_documentation`
+- [x] 3.1 Test: `hover_shows_documentation`
   ```rust
   /// Pressing K on a documented function shows hover popup with docs.
   #[serial_test::serial]
@@ -355,7 +355,7 @@ All LSP integration tests go in `crates/term/tests/`:
   }
   ```
 
-- [ ] 3.2 Test: `hover_dismisses_on_keypress`
+- [x] 3.2 Test: `hover_dismisses_on_keypress`
   ```rust
   /// Hover popup dismisses when any key is pressed.
   #[serial_test::serial]
@@ -365,16 +365,17 @@ All LSP integration tests go in `crates/term/tests/`:
   }
   ```
 
-- [ ] 3.3 Test: `hover_shows_type_info`
+- [x] 3.3 Test: `hover_shows_type_info`
   - Hover on variable shows its type
 
-- [ ] 3.4 **GAP CHECK**: If hover doesn't work:
+- [x] 3.4 **GAP CHECK**: If hover doesn't work:
   - Is `Editor::show_hover()` being called?
   - Is `LspManager::hover()` returning data?
   - Is `HoverPopup` rendering correctly?
   - Is cursor screen position calculated correctly?
+  - **RESULT**: All tests pass - hover functionality works correctly with rust-analyzer.
 
-- [ ] 3.5 Verify: `LSP_TESTS=1 KITTY_TESTS=1 cargo test -p xeno-term --test lsp_hover`
+- [x] 3.5 Verify: `LSP_TESTS=1 KITTY_TESTS=1 cargo test -p xeno-term --test lsp_hover`
 
 **CHECKPOINT 3**: Hover popup shows documentation from rust-analyzer
 
