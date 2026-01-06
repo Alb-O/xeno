@@ -122,7 +122,7 @@ All LSP integration tests go in `crates/term/tests/`:
 - `crates/term/tests/lsp_helpers.rs` (new)
 - `crates/term/tests/fixtures/lsp/rust-basic/` (new)
 
-- [ ] 1.1 Create `lsp-deps.nix` with rust-analyzer
+- [x] 1.1 Create `lsp-deps.nix` with rust-analyzer
   ```nix
   { pkgs ? import <nixpkgs> { } }:
   pkgs.mkShell {
@@ -134,7 +134,7 @@ All LSP integration tests go in `crates/term/tests/`:
   }
   ```
 
-- [ ] 1.2 Create `lsp_helpers.rs` with shared utilities
+- [x] 1.2 Create `lsp_helpers.rs` with shared utilities
   ```rust
   //! Shared utilities for LSP integration tests.
 
@@ -168,7 +168,7 @@ All LSP integration tests go in `crates/term/tests/`:
   pub fn type_and_escape(kitty: &KittyHarness, text: &str) { ... }
   ```
 
-- [ ] 1.3 Create `rust-basic` fixture project
+- [x] 1.3 Create `rust-basic` fixture project
   ```rust
   // fixtures/lsp/rust-basic/src/main.rs
 
@@ -196,7 +196,7 @@ All LSP integration tests go in `crates/term/tests/`:
   }
   ```
 
-- [ ] 1.4 Create `Cargo.toml` for fixture
+- [x] 1.4 Create `Cargo.toml` for fixture
   ```toml
   [package]
   name = "rust-basic"
@@ -204,7 +204,7 @@ All LSP integration tests go in `crates/term/tests/`:
   edition = "2021"
   ```
 
-- [ ] 1.5 Verify: `cargo build --workspace`
+- [x] 1.5 Verify: `cargo build --workspace`
 
 **CHECKPOINT 1**: Test infrastructure exists, fixtures created
 
