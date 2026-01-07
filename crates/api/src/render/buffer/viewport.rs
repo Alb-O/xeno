@@ -157,29 +157,13 @@ pub fn ensure_buffer_cursor_visible(
 	let cursor_segment = find_segment_for_col(&cursor_segments, cursor_col);
 
 	let effective_margin = scroll_margin.min(viewport_height.saturating_sub(1) / 2);
-	let ideal_scroll_for_top_margin = cursor_line.saturating_sub(effective_margin);
+	let min_row = effective_margin; // cursor should be at least this far from top
+	let max_row = viewport_height
+		.saturating_sub(1)
+		.saturating_sub(effective_margin);
 
-	// Cursor above viewport - scroll up with margin
-	if cursor_line < buffer.scroll_line
-		|| (cursor_line == buffer.scroll_line && cursor_segment < buffer.scroll_segment)
-	{
-		buffer.scroll_line = ideal_scroll_for_top_margin;
-		buffer.scroll_segment = 0;
-		buffer.suppress_scroll_down = false;
-		ViewportEnsureEvent::log(
-			"scroll_up",
-			buffer,
-			viewport_height,
-			prev_viewport_height,
-			cursor_line,
-			cursor_segment,
-			viewport_shrinking,
-		);
-		buffer.last_rendered_cursor = cursor_pos;
-		return;
-	}
-
-	let cursor_visible = cursor_visible_from(
+	// Find cursor's current visual row in viewport (None if not visible)
+	let cursor_row = cursor_row_in_viewport(
 		buffer,
 		buffer.scroll_line,
 		buffer.scroll_segment,
@@ -190,82 +174,89 @@ pub fn ensure_buffer_cursor_visible(
 		tab_width,
 	);
 
-	if cursor_visible {
-		// Adjust scroll to maintain margins when cursor is visible but in margin zone
-		if buffer.scroll_line > ideal_scroll_for_top_margin {
-			buffer.scroll_line = ideal_scroll_for_top_margin;
-			buffer.scroll_segment = 0;
+	// Determine if scroll adjustment is needed
+	let needs_scroll_up = match cursor_row {
+		None => {
+			cursor_line < buffer.scroll_line
+				|| (cursor_line == buffer.scroll_line && cursor_segment < buffer.scroll_segment)
 		}
+		Some(row) => row < min_row && buffer.scroll_line > 0,
+	};
 
-		let viewport_bottom_line = buffer.scroll_line + viewport_height.saturating_sub(1);
-		let distance_from_bottom = viewport_bottom_line.saturating_sub(cursor_line);
-		if distance_from_bottom < effective_margin && cursor_line + 1 < total_lines {
-			let ideal_scroll = (cursor_line + 1 + effective_margin).saturating_sub(viewport_height);
-			buffer.scroll_line = ideal_scroll.min(total_lines.saturating_sub(viewport_height));
-			buffer.scroll_segment = 0;
+	let needs_scroll_down = match cursor_row {
+		None => !needs_scroll_up, // cursor below viewport
+		Some(row) => row > max_row && cursor_line + 1 < total_lines,
+	};
+
+	// Handle viewport shrinking - don't chase cursor downward
+	if needs_scroll_down && (viewport_shrinking || buffer.suppress_scroll_down) {
+		if viewport_shrinking {
+			buffer.suppress_scroll_down = true;
 		}
+		ViewportEnsureEvent::log(
+			if viewport_shrinking {
+				"suppress_scroll_down"
+			} else {
+				"skip_scroll_down"
+			},
+			buffer,
+			viewport_height,
+			prev_viewport_height,
+			cursor_line,
+			cursor_segment,
+			viewport_shrinking,
+		);
+		buffer.last_rendered_cursor = cursor_pos;
+		return;
+	}
 
+	let original_scroll = (buffer.scroll_line, buffer.scroll_segment);
+
+	if needs_scroll_up {
+		// Scroll up: put cursor at min_row
+		let (new_line, new_seg) = scroll_position_for_cursor_at_row(
+			buffer,
+			cursor_line,
+			cursor_segment,
+			min_row,
+			text_width,
+			tab_width,
+		);
+		buffer.scroll_line = new_line;
+		buffer.scroll_segment = new_seg;
 		buffer.suppress_scroll_down = false;
-		buffer.last_rendered_cursor = cursor_pos;
-		return;
-	}
-
-	// If viewport is shrinking, don't chase cursor downward.
-	// This preserves the visual position of the viewport's top edge during
-	// resize operations. The cursor may temporarily go off-screen below,
-	// but will reappear when the user moves it or the viewport expands.
-	if viewport_shrinking {
-		buffer.suppress_scroll_down = true;
-		debug!(
-			scroll_line = buffer.scroll_line,
-			cursor_line = cursor_line,
-			"Viewport shrinking - NOT scrolling to chase cursor"
-		);
-		ViewportEnsureEvent::log(
-			"suppress_scroll_down",
+	} else if needs_scroll_down {
+		// Scroll down: put cursor at max_row
+		let (new_line, new_seg) = scroll_position_for_cursor_at_row(
 			buffer,
-			viewport_height,
-			prev_viewport_height,
 			cursor_line,
 			cursor_segment,
-			viewport_shrinking,
+			max_row,
+			text_width,
+			tab_width,
 		);
-		buffer.last_rendered_cursor = cursor_pos;
-		return;
+		buffer.scroll_line = new_line;
+		buffer.scroll_segment = new_seg;
+		buffer.suppress_scroll_down = false;
 	}
 
-	if buffer.suppress_scroll_down {
-		ViewportEnsureEvent::log(
-			"skip_scroll_down",
-			buffer,
-			viewport_height,
-			prev_viewport_height,
-			cursor_line,
-			cursor_segment,
-			viewport_shrinking,
-		);
-		buffer.last_rendered_cursor = cursor_pos;
-		return;
-	}
-
-	// Scroll down to show cursor with margin
-	let original_scroll = buffer.scroll_line;
-	let ideal_scroll_for_bottom_margin =
-		(cursor_line + 1 + effective_margin).saturating_sub(viewport_height);
-	let max_scroll = total_lines.saturating_sub(viewport_height);
-	buffer.scroll_line = ideal_scroll_for_bottom_margin.min(max_scroll);
-	buffer.scroll_segment = 0;
-
-	if buffer.scroll_line != original_scroll {
+	let new_scroll = (buffer.scroll_line, buffer.scroll_segment);
+	if new_scroll != original_scroll {
+		let action = if needs_scroll_up {
+			"scroll_up"
+		} else {
+			"scroll_down"
+		};
 		debug!(
-			from = original_scroll,
+			from = original_scroll.0,
 			to = buffer.scroll_line,
 			cursor_line = cursor_line,
 			viewport_height = viewport_height,
-			"Scrolled down to chase cursor"
+			action,
+			"Scrolled to maintain margin"
 		);
 		ViewportEnsureEvent::log(
-			"scroll_down",
+			action,
 			buffer,
 			viewport_height,
 			prev_viewport_height,
@@ -274,7 +265,53 @@ pub fn ensure_buffer_cursor_visible(
 			viewport_shrinking,
 		);
 	}
+
 	buffer.last_rendered_cursor = cursor_pos;
+}
+
+/// Computes scroll position to place cursor at a specific visual row.
+fn scroll_position_for_cursor_at_row(
+	buffer: &Buffer,
+	cursor_line: usize,
+	cursor_segment: usize,
+	target_row: usize,
+	text_width: usize,
+	tab_width: usize,
+) -> (usize, usize) {
+	let mut line = cursor_line;
+	let mut segment = cursor_segment;
+	let mut rows_above = 0;
+
+	while rows_above < target_row && (line > 0 || segment > 0) {
+		if segment > 0 {
+			segment -= 1;
+		} else {
+			line -= 1;
+			segment = line_segment_count(buffer, line, text_width, tab_width).saturating_sub(1);
+		}
+		rows_above += 1;
+	}
+
+	(line, segment)
+}
+
+/// Returns the number of wrap segments for a line.
+fn line_segment_count(buffer: &Buffer, line: usize, text_width: usize, tab_width: usize) -> usize {
+	let total_lines = buffer.doc().content.len_lines();
+	if line >= total_lines {
+		return 1;
+	}
+
+	let line_start: CharIdx = buffer.doc().content.line_to_char(line);
+	let line_end: CharIdx = if line + 1 < total_lines {
+		buffer.doc().content.line_to_char(line + 1)
+	} else {
+		buffer.doc().content.len_chars()
+	};
+
+	let line_text: String = buffer.doc().content.slice(line_start..line_end).into();
+	let line_text = line_text.trim_end_matches('\n');
+	wrap_line(line_text, text_width, tab_width).len().max(1)
 }
 
 /// Clamps a segment index to valid range for a given line.
@@ -316,8 +353,8 @@ fn find_segment_for_col(segments: &[WrapSegment], col: usize) -> usize {
 	segments.len().saturating_sub(1)
 }
 
-/// Checks if the cursor is visible from a given viewport start position.
-fn cursor_visible_from(
+/// Returns the cursor's visual row within the viewport (0-indexed), or None if not visible.
+fn cursor_row_in_viewport(
 	buffer: &Buffer,
 	start_line: usize,
 	start_segment: usize,
@@ -326,22 +363,22 @@ fn cursor_visible_from(
 	viewport_height: usize,
 	text_width: usize,
 	tab_width: usize,
-) -> bool {
+) -> Option<usize> {
 	if viewport_height == 0 {
-		return false;
+		return None;
 	}
 
 	let total_lines = buffer.doc().content.len_lines();
 	if start_line >= total_lines {
-		return false;
+		return None;
 	}
 
 	let mut line = start_line;
 	let mut segment = clamp_segment_for_line(buffer, line, start_segment, text_width, tab_width);
 
-	for _ in 0..viewport_height {
+	for row in 0..viewport_height {
 		if line == cursor_line && segment == cursor_segment {
-			return true;
+			return Some(row);
 		}
 
 		if !advance_one_visual_row(buffer, &mut line, &mut segment, text_width, tab_width) {
@@ -349,7 +386,7 @@ fn cursor_visible_from(
 		}
 	}
 
-	false
+	None
 }
 
 /// Advances the viewport position by one visual row.
