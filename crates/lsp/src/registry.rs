@@ -93,10 +93,16 @@ struct ServerInstance {
 	/// Handle for communicating with the server.
 	handle: ClientHandle,
 	/// Task running the main loop.
-	_task: JoinHandle<Result<()>>,
+	task: JoinHandle<Result<()>>,
 	/// Root path this server was started with.
-	#[allow(dead_code, reason = "retained for future use in server restart logic")]
 	root_path: PathBuf,
+}
+
+impl ServerInstance {
+	/// Check if the server task is still running.
+	fn is_alive(&self) -> bool {
+		!self.task.is_finished()
+	}
 }
 
 /// Registry for managing language servers.
@@ -175,6 +181,7 @@ impl Registry {
 	///
 	/// This finds the project root based on the configured root markers,
 	/// then returns an existing server for that root or starts a new one.
+	/// If an existing server has crashed, it will be cleaned up and restarted.
 	pub async fn get_or_start(&self, language: &str, file_path: &Path) -> Result<ClientHandle> {
 		let config = self.get_config(language).ok_or_else(|| {
 			crate::Error::Protocol(format!("No server configured for {language}"))
@@ -183,13 +190,24 @@ impl Registry {
 		let root_path = find_root_path(file_path, &config.root_markers);
 		let key = (language.to_string(), root_path.clone());
 
-		// Check for existing server
+		// Check for existing server, clean up if dead
 		{
 			let servers = self.servers.read();
 			if let Some(instance) = servers.get(&key) {
-				return Ok(instance.handle.clone());
+				if instance.is_alive() {
+					return Ok(instance.handle.clone());
+				}
+				// Server is dead, will be cleaned up below
+				tracing::warn!(
+					language = language,
+					root = ?root_path,
+					"Language server crashed, restarting"
+				);
 			}
 		}
+
+		// Remove dead server if present
+		self.servers.write().remove(&key);
 
 		let id = LanguageServerId(self.next_id.fetch_add(1, Ordering::Relaxed));
 		let server_config = ServerConfig::new(&config.command, &root_path)
@@ -210,7 +228,7 @@ impl Registry {
 
 		let instance = ServerInstance {
 			handle: handle.clone(),
-			_task: task,
+			task,
 			root_path: root_path.clone(),
 		};
 
@@ -219,10 +237,42 @@ impl Registry {
 		Ok(handle)
 	}
 
-	/// Get an active client for a language and root path, if one exists.
+	/// Get an active client for a language and root path, if one exists and is alive.
+	///
+	/// Returns `None` if no server exists or if the server has crashed.
+	/// Dead servers are cleaned up lazily on next `get_or_start` call.
 	pub fn get(&self, language: &str, root_path: &Path) -> Option<ClientHandle> {
 		let key = (language.to_string(), root_path.to_path_buf());
-		self.servers.read().get(&key).map(|s| s.handle.clone())
+		self.servers
+			.read()
+			.get(&key)
+			.filter(|s| s.is_alive())
+			.map(|s| s.handle.clone())
+	}
+
+	/// Clean up all dead servers and return the number of servers removed.
+	pub fn cleanup_dead_servers(&self) -> usize {
+		let dead_keys: Vec<_> = self
+			.servers
+			.read()
+			.iter()
+			.filter(|(_, instance)| !instance.is_alive())
+			.map(|(key, _)| key.clone())
+			.collect();
+
+		let count = dead_keys.len();
+		if count > 0 {
+			let mut servers = self.servers.write();
+			for key in dead_keys {
+				tracing::info!(
+					language = %key.0,
+					root = ?key.1,
+					"Cleaning up dead language server"
+				);
+				servers.remove(&key);
+			}
+		}
+		count
 	}
 
 	/// Get all active clients for a language.

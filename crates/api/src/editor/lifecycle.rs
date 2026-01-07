@@ -74,6 +74,30 @@ impl Editor {
 		);
 	}
 
+	/// Marks a buffer dirty for LSP full sync (clears incremental changes, bumps version).
+	///
+	/// Use this after operations that replace the entire document content (e.g., undo/redo)
+	/// where incremental sync is not possible.
+	pub(crate) fn mark_buffer_dirty_for_full_sync(&mut self, buffer_id: crate::buffer::BufferId) {
+		if let Some(buffer) = self.buffers.get_buffer_mut(buffer_id) {
+			let mut doc = buffer.doc_mut();
+			doc.version = doc.version.wrapping_add(1);
+			#[cfg(feature = "lsp")]
+			{
+				doc.pending_lsp_changes.clear();
+			}
+		}
+		self.frame.dirty_buffers.insert(buffer_id);
+	}
+
+	/// Maximum number of incremental changes before falling back to full sync.
+	#[cfg(feature = "lsp")]
+	const LSP_MAX_INCREMENTAL_CHANGES: usize = 100;
+
+	/// Maximum total bytes of inserted text before falling back to full sync.
+	#[cfg(feature = "lsp")]
+	const LSP_MAX_INCREMENTAL_BYTES: usize = 100 * 1024; // 100 KB
+
 	/// Queues an LSP buffer change notification to be processed asynchronously.
 	#[cfg(feature = "lsp")]
 	fn queue_lsp_change(&mut self, buffer_id: crate::buffer::BufferId) {
@@ -86,11 +110,28 @@ impl Editor {
 		let content = buffer.doc().content.clone();
 		let changes = buffer.drain_lsp_changes();
 		let supports_incremental = self.lsp.incremental_encoding_for_buffer(buffer).is_some();
+
+		// Safety fallback: skip incremental if too many changes or too much data
+		let change_count = changes.len();
+		let total_bytes: usize = changes.iter().map(|c| c.new_text.len()).sum();
+		let use_incremental = supports_incremental
+			&& !changes.is_empty()
+			&& change_count <= Self::LSP_MAX_INCREMENTAL_CHANGES
+			&& total_bytes <= Self::LSP_MAX_INCREMENTAL_BYTES;
+
+		tracing::debug!(
+			path = ?path,
+			mode = if use_incremental { "incremental" } else { "full" },
+			change_count,
+			total_bytes,
+			supports_incremental,
+			"LSP sync mode selected"
+		);
+
 		let sync = self.lsp.sync().clone();
 		tokio::spawn(async move {
-			let result = if supports_incremental && !changes.is_empty() {
-				sync
-					.notify_change_incremental_v2(&path, &language, &content, changes)
+			let result = if use_incremental {
+				sync.notify_change_incremental_v2(&path, &language, &content, changes)
 					.await
 			} else {
 				sync.notify_change_full(&path, &language, &content).await

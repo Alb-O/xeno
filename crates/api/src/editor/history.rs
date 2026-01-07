@@ -91,6 +91,10 @@ impl Editor {
 			self.notify(keys::nothing_to_undo);
 			return;
 		};
+
+		// Mark buffer dirty for LSP sync (full sync, not incremental)
+		self.mark_buffer_dirty_for_full_sync(buffer_id);
+
 		self.restore_sibling_selections(doc_id, &selections);
 		self.notify(keys::undo);
 	}
@@ -119,6 +123,10 @@ impl Editor {
 			self.notify(keys::nothing_to_redo);
 			return;
 		};
+
+		// Mark buffer dirty for LSP sync (full sync, not incremental)
+		self.mark_buffer_dirty_for_full_sync(buffer_id);
+
 		self.restore_sibling_selections(doc_id, &selections);
 		self.notify(keys::redo);
 	}

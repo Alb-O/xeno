@@ -49,11 +49,11 @@ use xeno_base::LspDocumentChange;
 pub use xeno_lsp::DiagnosticsEvent as LspDiagnosticsEvent;
 // Re-export types needed by consumers
 pub use xeno_lsp::LanguageServerConfig;
+use xeno_lsp::lsp_types::{TextDocumentSyncCapability, TextDocumentSyncKind};
 use xeno_lsp::{
 	ClientHandle, DiagnosticsEvent, DiagnosticsEventReceiver, DocumentStateManager, DocumentSync,
 	OffsetEncoding, Registry, Result,
 };
-use xeno_lsp::lsp_types::{TextDocumentSyncCapability, TextDocumentSyncKind};
 
 use crate::buffer::Buffer;
 

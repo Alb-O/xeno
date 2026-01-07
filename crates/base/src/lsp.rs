@@ -33,7 +33,10 @@ impl LspRange {
 
 	/// Creates a zero-length range at a position.
 	pub const fn point(pos: LspPosition) -> Self {
-		Self { start: pos, end: pos }
+		Self {
+			start: pos,
+			end: pos,
+		}
 	}
 }
 

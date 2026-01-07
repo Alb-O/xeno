@@ -6,10 +6,13 @@
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicI32, AtomicU64, Ordering};
+use std::time::Instant;
 
-use lsp_types::{Diagnostic, DiagnosticSeverity, Url};
+use lsp_types::{Diagnostic, DiagnosticSeverity, NumberOrString, ProgressParams, Url};
 use parking_lot::RwLock;
 use tokio::sync::mpsc;
+
+use crate::client::LanguageServerId;
 
 /// Event emitted when diagnostics are updated for a document.
 #[derive(Debug, Clone)]
@@ -27,6 +30,23 @@ pub type DiagnosticsEventSender = mpsc::UnboundedSender<DiagnosticsEvent>;
 
 /// Receiver for diagnostic events.
 pub type DiagnosticsEventReceiver = mpsc::UnboundedReceiver<DiagnosticsEvent>;
+
+/// An active progress operation from a language server.
+#[derive(Debug, Clone)]
+pub struct ProgressItem {
+	/// Server that reported this progress.
+	pub server_id: LanguageServerId,
+	/// Progress token for tracking.
+	pub token: NumberOrString,
+	/// Title of the operation (e.g., "Indexing").
+	pub title: String,
+	/// Optional message with more details.
+	pub message: Option<String>,
+	/// Optional percentage (0-100).
+	pub percentage: Option<u32>,
+	/// When this progress started.
+	pub started_at: Instant,
+}
 
 /// LSP state for a single document.
 ///
@@ -173,6 +193,8 @@ pub struct DocumentStateManager {
 	event_sender: Option<DiagnosticsEventSender>,
 	/// Global version counter for tracking any diagnostic change.
 	diagnostics_version: AtomicU64,
+	/// Active progress operations keyed by (server_id, token).
+	progress: RwLock<HashMap<(u64, String), ProgressItem>>,
 }
 
 impl std::fmt::Debug for DocumentStateManager {
@@ -181,6 +203,7 @@ impl std::fmt::Debug for DocumentStateManager {
 			.field("documents", &self.documents)
 			.field("has_event_sender", &self.event_sender.is_some())
 			.field("diagnostics_version", &self.diagnostics_version)
+			.field("progress_count", &self.progress.read().len())
 			.finish()
 	}
 }
@@ -198,6 +221,7 @@ impl DocumentStateManager {
 			documents: RwLock::new(HashMap::new()),
 			event_sender: None,
 			diagnostics_version: AtomicU64::new(0),
+			progress: RwLock::new(HashMap::new()),
 		}
 	}
 
@@ -210,6 +234,7 @@ impl DocumentStateManager {
 			documents: RwLock::new(HashMap::new()),
 			event_sender: Some(sender),
 			diagnostics_version: AtomicU64::new(0),
+			progress: RwLock::new(HashMap::new()),
 		};
 		(manager, receiver)
 	}
@@ -356,6 +381,95 @@ impl DocumentStateManager {
 			.values()
 			.map(|s| s.warning_count())
 			.sum()
+	}
+
+	/// Handle a progress notification from a language server.
+	pub fn update_progress(&self, server_id: LanguageServerId, params: ProgressParams) {
+		use lsp_types::WorkDoneProgress;
+
+		let token_key = match &params.token {
+			NumberOrString::Number(n) => n.to_string(),
+			NumberOrString::String(s) => s.clone(),
+		};
+		let key = (server_id.0, token_key);
+
+		match params.value {
+			lsp_types::ProgressParamsValue::WorkDone(WorkDoneProgress::Begin(begin)) => {
+				let item = ProgressItem {
+					server_id,
+					token: params.token,
+					title: begin.title,
+					message: begin.message,
+					percentage: begin.percentage,
+					started_at: Instant::now(),
+				};
+				tracing::debug!(
+					server_id = server_id.0,
+					title = %item.title,
+					"Progress started"
+				);
+				self.progress.write().insert(key, item);
+			}
+			lsp_types::ProgressParamsValue::WorkDone(WorkDoneProgress::Report(report)) => {
+				if let Some(item) = self.progress.write().get_mut(&key) {
+					if report.message.is_some() {
+						item.message = report.message;
+					}
+					if report.percentage.is_some() {
+						item.percentage = report.percentage;
+					}
+				}
+			}
+			lsp_types::ProgressParamsValue::WorkDone(WorkDoneProgress::End(end)) => {
+				if let Some(item) = self.progress.write().remove(&key) {
+					tracing::debug!(
+						server_id = server_id.0,
+						title = %item.title,
+						message = ?end.message,
+						elapsed_ms = item.started_at.elapsed().as_millis(),
+						"Progress ended"
+					);
+				}
+			}
+		}
+	}
+
+	/// Get all active progress items.
+	pub fn active_progress(&self) -> Vec<ProgressItem> {
+		self.progress.read().values().cloned().collect()
+	}
+
+	/// Get the current progress status message, if any.
+	///
+	/// Returns the most recently started progress item's title and message.
+	pub fn progress_status(&self) -> Option<String> {
+		let progress = self.progress.read();
+		if progress.is_empty() {
+			return None;
+		}
+
+		// Find the most recently started item
+		progress.values().max_by_key(|p| p.started_at).map(|item| {
+			if let Some(ref msg) = item.message {
+				format!("{}: {}", item.title, msg)
+			} else if let Some(pct) = item.percentage {
+				format!("{} ({}%)", item.title, pct)
+			} else {
+				item.title.clone()
+			}
+		})
+	}
+
+	/// Check if there are any active progress operations.
+	pub fn has_progress(&self) -> bool {
+		!self.progress.read().is_empty()
+	}
+
+	/// Clear all progress for a specific server (e.g., when server crashes).
+	pub fn clear_server_progress(&self, server_id: LanguageServerId) {
+		self.progress
+			.write()
+			.retain(|(sid, _), _| *sid != server_id.0);
 	}
 }
 

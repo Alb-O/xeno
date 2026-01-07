@@ -42,9 +42,7 @@ impl Editor {
 			} else {
 				buffer.apply_transaction_with_syntax(tx, &self.config.language_loader)
 			};
-			if applied
-				&& let Some(selection) = new_selection
-			{
+			if applied && let Some(selection) = new_selection {
 				buffer.finalize_selection(selection);
 			}
 			applied
@@ -57,9 +55,7 @@ impl Editor {
 				.get_buffer_mut(buffer_id)
 				.expect("focused buffer must exist");
 			let applied = buffer.apply_transaction_with_syntax(tx, &self.config.language_loader);
-			if applied
-				&& let Some(selection) = new_selection
-			{
+			if applied && let Some(selection) = new_selection {
 				buffer.finalize_selection(selection);
 			}
 			applied
@@ -102,7 +98,6 @@ impl Editor {
 			self.notify(keys::buffer_readonly);
 			return;
 		}
-
 	}
 
 	/// Copies the current selection to the yank register.
@@ -145,7 +140,6 @@ impl Editor {
 			self.notify(keys::buffer_readonly);
 			return;
 		}
-
 	}
 
 	/// Pastes the yank register content before the cursor.
@@ -180,7 +174,6 @@ impl Editor {
 			self.notify(keys::buffer_readonly);
 			return;
 		}
-
 	}
 
 	/// Deletes the currently selected text.
@@ -214,7 +207,6 @@ impl Editor {
 			self.notify(keys::buffer_readonly);
 			return;
 		}
-
 	}
 
 	/// Applies a transaction to the focused buffer.

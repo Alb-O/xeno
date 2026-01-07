@@ -32,13 +32,13 @@ use std::sync::Arc;
 
 use lsp_types::{Diagnostic, TextDocumentContentChangeEvent, TextDocumentSaveReason, Url};
 use ropey::Rope;
+use xeno_base::lsp::LspDocumentChange;
 
 use crate::Result;
 use crate::client::{ClientHandle, LanguageServerId, LspEventHandler, OffsetEncoding};
 use crate::document::{DiagnosticsEventReceiver, DocumentStateManager};
 use crate::position::char_range_to_lsp_range;
 use crate::registry::Registry;
-use xeno_base::lsp::LspDocumentChange;
 
 /// Event handler that updates [`DocumentStateManager`] with LSP events.
 ///
@@ -73,8 +73,9 @@ impl LspEventHandler for DocumentSyncEventHandler {
 		self.documents.update_diagnostics(&uri, diagnostics);
 	}
 
-	// Other trait methods (on_progress, on_log_message, on_show_message) use default no-op impls.
-	// Logging is handled by tracing in the client router.
+	fn on_progress(&self, server_id: LanguageServerId, params: lsp_types::ProgressParams) {
+		self.documents.update_progress(server_id, params);
+	}
 }
 
 /// Document synchronization coordinator.

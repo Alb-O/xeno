@@ -1,10 +1,10 @@
 use ropey::Rope;
+use xeno_base::Transaction;
+use xeno_base::lsp::{LspDocumentChange, LspPosition, LspRange};
+use xeno_base::transaction::Operation;
 
 use crate::client::OffsetEncoding;
 use crate::position::{char_range_to_lsp_range, char_to_lsp_position};
-use xeno_base::lsp::{LspDocumentChange, LspPosition, LspRange};
-use xeno_base::transaction::Operation;
-use xeno_base::Transaction;
 
 /// Computes LSP change events from a transaction against pre-change text.
 pub fn compute_lsp_changes(
@@ -27,9 +27,7 @@ pub fn compute_lsp_changes(
 			}
 			Operation::Delete(n) => {
 				let end = (pos + n).min(scratch.len_chars());
-				let Some(range) =
-					char_range_to_lsp_range(&scratch, pos, end, encoding)
-				else {
+				let Some(range) = char_range_to_lsp_range(&scratch, pos, end, encoding) else {
 					return Vec::new();
 				};
 				changes.push(LspDocumentChange {
@@ -60,9 +58,10 @@ pub fn compute_lsp_changes(
 
 #[cfg(test)]
 mod tests {
-	use super::*;
 	use xeno_base::Selection;
 	use xeno_base::transaction::Change;
+
+	use super::*;
 
 	#[test]
 	fn test_insert_computes_correct_range() {
@@ -73,10 +72,7 @@ mod tests {
 		let changes = compute_lsp_changes(&rope, &tx, OffsetEncoding::Utf16);
 
 		assert_eq!(changes.len(), 1);
-		assert_eq!(
-			changes[0].range,
-			LspRange::point(LspPosition::new(1, 0))
-		);
+		assert_eq!(changes[0].range, LspRange::point(LspPosition::new(1, 0)));
 		assert_eq!(changes[0].new_text, "beautiful ");
 	}
 
@@ -116,15 +112,9 @@ mod tests {
 		let changes = compute_lsp_changes(&rope, &tx, OffsetEncoding::Utf16);
 
 		assert_eq!(changes.len(), 2);
-		assert_eq!(
-			changes[0].range,
-			LspRange::point(LspPosition::new(0, 0))
-		);
+		assert_eq!(changes[0].range, LspRange::point(LspPosition::new(0, 0)));
 		assert_eq!(changes[0].new_text, "\n");
-		assert_eq!(
-			changes[1].range,
-			LspRange::point(LspPosition::new(2, 0))
-		);
+		assert_eq!(changes[1].range, LspRange::point(LspPosition::new(2, 0)));
 		assert_eq!(changes[1].new_text, "X");
 	}
 }

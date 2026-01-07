@@ -1,15 +1,14 @@
 //! Text editing operations for buffers.
 
+#[cfg(feature = "lsp")]
+use xeno_base::LspDocumentChange;
 use xeno_base::{Range, Transaction};
 use xeno_core::movement;
 use xeno_language::LanguageLoader;
-
-use super::Buffer;
-
-#[cfg(feature = "lsp")]
-use xeno_base::LspDocumentChange;
 #[cfg(feature = "lsp")]
 use xeno_lsp::{OffsetEncoding, compute_lsp_changes};
+
+use super::Buffer;
 
 impl Buffer {
 	/// Inserts text at all cursor positions, returning the [`Transaction`] without applying it.
@@ -282,6 +281,123 @@ impl Buffer {
 #[cfg(test)]
 mod tests {
 	use crate::buffer::{Buffer, BufferId};
+
+	#[cfg(feature = "lsp")]
+	mod lsp_batching {
+		use xeno_base::Selection;
+		use xeno_base::lsp::{LspPosition, LspRange};
+		use xeno_lsp::OffsetEncoding;
+
+		use crate::buffer::{Buffer, BufferId};
+
+		fn make_buffer(content: &str) -> Buffer {
+			let buffer = Buffer::scratch(BufferId::SCRATCH);
+			if !content.is_empty() {
+				// Set initial content by replacing the empty document
+				let rope = ropey::Rope::from(content);
+				buffer.doc_mut().content = rope;
+			}
+			buffer
+		}
+
+		#[test]
+		fn single_insert_queues_one_change() {
+			let mut buffer = make_buffer("hello");
+			buffer.set_selection(Selection::single(5, 5)); // cursor at end
+
+			let (tx, _sel) = buffer.prepare_insert(" world");
+			let loader = xeno_language::LanguageLoader::new();
+			buffer.apply_edit_with_lsp(&tx, &loader, OffsetEncoding::Utf16);
+
+			let changes = buffer.drain_lsp_changes();
+			assert_eq!(changes.len(), 1);
+			assert_eq!(changes[0].range, LspRange::point(LspPosition::new(0, 5)));
+			assert_eq!(changes[0].new_text, " world");
+		}
+
+		#[test]
+		fn multiple_transactions_accumulate_changes() {
+			let mut buffer = make_buffer("line1\nline2\n");
+			let loader = xeno_language::LanguageLoader::new();
+
+			// First transaction: insert at start of line 1
+			buffer.set_selection(Selection::single(0, 0));
+			let (tx1, sel1) = buffer.prepare_insert("A");
+			buffer.apply_edit_with_lsp(&tx1, &loader, OffsetEncoding::Utf16);
+			buffer.finalize_selection(sel1);
+
+			// Second transaction: insert at start of line 2
+			// After first insert, "Aline1\nline2\n", line 2 starts at char 7
+			buffer.set_selection(Selection::single(7, 7));
+			let (tx2, sel2) = buffer.prepare_insert("B");
+			buffer.apply_edit_with_lsp(&tx2, &loader, OffsetEncoding::Utf16);
+			buffer.finalize_selection(sel2);
+
+			let changes = buffer.drain_lsp_changes();
+			assert_eq!(changes.len(), 2);
+
+			// First change: insert "A" at (0, 0) in original doc
+			assert_eq!(changes[0].range, LspRange::point(LspPosition::new(0, 0)));
+			assert_eq!(changes[0].new_text, "A");
+
+			// Second change: insert "B" at (1, 0) in doc after first change
+			// The position is computed against the state AFTER first transaction
+			assert_eq!(changes[1].range, LspRange::point(LspPosition::new(1, 0)));
+			assert_eq!(changes[1].new_text, "B");
+		}
+
+		#[test]
+		fn multi_cursor_single_transaction_queues_ordered_changes() {
+			let mut buffer = make_buffer("aaa\nbbb\nccc\n");
+			let loader = xeno_language::LanguageLoader::new();
+
+			// Multi-cursor: start of each line
+			buffer.set_selection(Selection::from_vec(
+				vec![
+					xeno_base::Range::point(0),
+					xeno_base::Range::point(4),
+					xeno_base::Range::point(8),
+				],
+				0,
+			));
+
+			let (tx, _sel) = buffer.prepare_insert("X");
+			buffer.apply_edit_with_lsp(&tx, &loader, OffsetEncoding::Utf16);
+
+			let changes = buffer.drain_lsp_changes();
+			assert_eq!(changes.len(), 3);
+
+			// Changes are ordered by position in pre-change document,
+			// but positions are computed as transaction is applied
+			assert_eq!(changes[0].range, LspRange::point(LspPosition::new(0, 0)));
+			assert_eq!(changes[0].new_text, "X");
+
+			// After first insert: "Xaaa\n..." - second cursor was at char 4,
+			// but in scratch rope it's at original position since we track shifts
+			assert_eq!(changes[1].range, LspRange::point(LspPosition::new(1, 0)));
+			assert_eq!(changes[1].new_text, "X");
+
+			assert_eq!(changes[2].range, LspRange::point(LspPosition::new(2, 0)));
+			assert_eq!(changes[2].new_text, "X");
+		}
+
+		#[test]
+		fn drain_clears_pending_changes() {
+			let mut buffer = make_buffer("test");
+			let loader = xeno_language::LanguageLoader::new();
+
+			buffer.set_selection(Selection::single(4, 4));
+			let (tx, _sel) = buffer.prepare_insert("!");
+			buffer.apply_edit_with_lsp(&tx, &loader, OffsetEncoding::Utf16);
+
+			let changes = buffer.drain_lsp_changes();
+			assert_eq!(changes.len(), 1);
+
+			// Second drain should be empty
+			let changes2 = buffer.drain_lsp_changes();
+			assert!(changes2.is_empty());
+		}
+	}
 
 	#[test]
 	fn readonly_flag_roundtrip() {

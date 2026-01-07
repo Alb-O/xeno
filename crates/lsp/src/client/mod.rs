@@ -193,6 +193,48 @@ impl ClientHandle {
 		self.capabilities.get()
 	}
 
+	/// Check if the server supports hover.
+	pub fn supports_hover(&self) -> bool {
+		self.try_capabilities()
+			.is_some_and(|c| c.hover_provider.is_some())
+	}
+
+	/// Check if the server supports completion.
+	pub fn supports_completion(&self) -> bool {
+		self.try_capabilities()
+			.is_some_and(|c| c.completion_provider.is_some())
+	}
+
+	/// Check if the server supports formatting.
+	pub fn supports_formatting(&self) -> bool {
+		self.try_capabilities()
+			.is_some_and(|c| c.document_formatting_provider.is_some())
+	}
+
+	/// Check if the server supports go to definition.
+	pub fn supports_definition(&self) -> bool {
+		self.try_capabilities()
+			.is_some_and(|c| c.definition_provider.is_some())
+	}
+
+	/// Check if the server supports find references.
+	pub fn supports_references(&self) -> bool {
+		self.try_capabilities()
+			.is_some_and(|c| c.references_provider.is_some())
+	}
+
+	/// Check if the server supports document symbols.
+	pub fn supports_document_symbol(&self) -> bool {
+		self.try_capabilities()
+			.is_some_and(|c| c.document_symbol_provider.is_some())
+	}
+
+	/// Check if the server supports code actions.
+	pub fn supports_code_action(&self) -> bool {
+		self.try_capabilities()
+			.is_some_and(|c| c.code_action_provider.is_some())
+	}
+
 	/// Get the offset encoding negotiated with the server.
 	pub fn offset_encoding(&self) -> OffsetEncoding {
 		self.capabilities()
@@ -370,11 +412,16 @@ impl ClientHandle {
 	}
 
 	/// Request hover information.
+	///
+	/// Returns `Ok(None)` if the server doesn't support hover.
 	pub async fn hover(
 		&self,
 		uri: Url,
 		position: lsp_types::Position,
 	) -> Result<Option<lsp_types::Hover>> {
+		if !self.supports_hover() {
+			return Ok(None);
+		}
 		self.request::<lsp_types::request::HoverRequest>(lsp_types::HoverParams {
 			text_document_position_params: lsp_types::TextDocumentPositionParams {
 				text_document: lsp_types::TextDocumentIdentifier { uri },
@@ -386,12 +433,17 @@ impl ClientHandle {
 	}
 
 	/// Request completions.
+	///
+	/// Returns `Ok(None)` if the server doesn't support completion.
 	pub async fn completion(
 		&self,
 		uri: Url,
 		position: lsp_types::Position,
 		context: Option<lsp_types::CompletionContext>,
 	) -> Result<Option<lsp_types::CompletionResponse>> {
+		if !self.supports_completion() {
+			return Ok(None);
+		}
 		self.request::<lsp_types::request::Completion>(lsp_types::CompletionParams {
 			text_document_position: lsp_types::TextDocumentPositionParams {
 				text_document: lsp_types::TextDocumentIdentifier { uri },
@@ -405,11 +457,16 @@ impl ClientHandle {
 	}
 
 	/// Request go to definition.
+	///
+	/// Returns `Ok(None)` if the server doesn't support definition.
 	pub async fn goto_definition(
 		&self,
 		uri: Url,
 		position: lsp_types::Position,
 	) -> Result<Option<lsp_types::GotoDefinitionResponse>> {
+		if !self.supports_definition() {
+			return Ok(None);
+		}
 		self.request::<lsp_types::request::GotoDefinition>(lsp_types::GotoDefinitionParams {
 			text_document_position_params: lsp_types::TextDocumentPositionParams {
 				text_document: lsp_types::TextDocumentIdentifier { uri },
@@ -422,12 +479,17 @@ impl ClientHandle {
 	}
 
 	/// Request references.
+	///
+	/// Returns `Ok(None)` if the server doesn't support references.
 	pub async fn references(
 		&self,
 		uri: Url,
 		position: lsp_types::Position,
 		include_declaration: bool,
 	) -> Result<Option<Vec<lsp_types::Location>>> {
+		if !self.supports_references() {
+			return Ok(None);
+		}
 		self.request::<lsp_types::request::References>(lsp_types::ReferenceParams {
 			text_document_position: lsp_types::TextDocumentPositionParams {
 				text_document: lsp_types::TextDocumentIdentifier { uri },
@@ -443,10 +505,15 @@ impl ClientHandle {
 	}
 
 	/// Request document symbols.
+	///
+	/// Returns `Ok(None)` if the server doesn't support document symbols.
 	pub async fn document_symbol(
 		&self,
 		uri: Url,
 	) -> Result<Option<lsp_types::DocumentSymbolResponse>> {
+		if !self.supports_document_symbol() {
+			return Ok(None);
+		}
 		self.request::<lsp_types::request::DocumentSymbolRequest>(lsp_types::DocumentSymbolParams {
 			text_document: lsp_types::TextDocumentIdentifier { uri },
 			work_done_progress_params: Default::default(),
@@ -456,11 +523,16 @@ impl ClientHandle {
 	}
 
 	/// Request formatting.
+	///
+	/// Returns `Ok(None)` if the server doesn't support formatting.
 	pub async fn formatting(
 		&self,
 		uri: Url,
 		options: lsp_types::FormattingOptions,
 	) -> Result<Option<Vec<lsp_types::TextEdit>>> {
+		if !self.supports_formatting() {
+			return Ok(None);
+		}
 		self.request::<lsp_types::request::Formatting>(lsp_types::DocumentFormattingParams {
 			text_document: lsp_types::TextDocumentIdentifier { uri },
 			options,
@@ -470,12 +542,17 @@ impl ClientHandle {
 	}
 
 	/// Request code actions.
+	///
+	/// Returns `Ok(None)` if the server doesn't support code actions.
 	pub async fn code_action(
 		&self,
 		uri: Url,
 		range: lsp_types::Range,
 		context: lsp_types::CodeActionContext,
 	) -> Result<Option<lsp_types::CodeActionResponse>> {
+		if !self.supports_code_action() {
+			return Ok(None);
+		}
 		self.request::<lsp_types::request::CodeActionRequest>(lsp_types::CodeActionParams {
 			text_document: lsp_types::TextDocumentIdentifier { uri },
 			range,
