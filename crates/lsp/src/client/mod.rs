@@ -10,6 +10,23 @@
 //! background task. The client provides a [`ServerSocket`] for sending requests
 //! and notifications.
 //!
+//! # Event Handling
+//!
+//! Server-to-client notifications (diagnostics, progress, etc.) are delivered via
+//! the [`LspEventHandler`] trait. Implement this trait to receive LSP events:
+//!
+//! ```ignore
+//! use xeno_lsp::client::{LspEventHandler, LanguageServerId};
+//!
+//! struct MyHandler;
+//!
+//! impl LspEventHandler for MyHandler {
+//!     fn on_diagnostics(&self, uri: Url, diagnostics: Vec<Diagnostic>) {
+//!         // Update UI with new diagnostics
+//!     }
+//! }
+//! ```
+//!
 //! # Example
 //!
 //! ```ignore
@@ -25,7 +42,6 @@
 //! let hover = client.hover(uri, position).await?;
 //! ```
 
-use std::collections::HashMap;
 use std::ops::ControlFlow;
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
@@ -34,9 +50,9 @@ use std::sync::Arc;
 use lsp_types::notification::Notification;
 use lsp_types::request::Request;
 use lsp_types::{
-	ClientInfo, InitializeParams, InitializeResult, ServerCapabilities, Url, WorkspaceFolder,
+	ClientInfo, Diagnostic, InitializeParams, InitializeResult, ProgressParams, ServerCapabilities,
+	Url, WorkspaceFolder,
 };
-use parking_lot::Mutex;
 use serde_json::Value;
 use tokio::process::Command;
 use tokio::sync::{Notify, OnceCell};
@@ -48,8 +64,68 @@ mod config;
 pub use capabilities::client_capabilities;
 pub use config::{LanguageServerId, OffsetEncoding, ServerConfig};
 
+/// Handler for LSP server-to-client events.
+///
+/// Implement this trait to receive notifications from language servers.
+/// All methods have default no-op implementations, so you only need to
+/// implement the events you care about.
+pub trait LspEventHandler: Send + Sync {
+	/// Called when the server publishes diagnostics for a document.
+	fn on_diagnostics(
+		&self,
+		_server_id: LanguageServerId,
+		_uri: Url,
+		_diagnostics: Vec<Diagnostic>,
+	) {
+	}
+
+	/// Called when the server reports progress (e.g., "Indexing...").
+	fn on_progress(&self, _server_id: LanguageServerId, _params: ProgressParams) {}
+
+	/// Called when the server sends a log message.
+	fn on_log_message(&self, _server_id: LanguageServerId, _level: LogLevel, _message: &str) {}
+
+	/// Called when the server wants to show a message to the user.
+	fn on_show_message(&self, _server_id: LanguageServerId, _level: LogLevel, _message: &str) {}
+}
+
+/// Log level for server messages.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LogLevel {
+	/// Error message.
+	Error,
+	/// Warning message.
+	Warning,
+	/// Informational message.
+	Info,
+	/// Debug/log message.
+	Debug,
+}
+
+impl From<lsp_types::MessageType> for LogLevel {
+	fn from(typ: lsp_types::MessageType) -> Self {
+		match typ {
+			lsp_types::MessageType::ERROR => LogLevel::Error,
+			lsp_types::MessageType::WARNING => LogLevel::Warning,
+			lsp_types::MessageType::INFO => LogLevel::Info,
+			_ => LogLevel::Debug,
+		}
+	}
+}
+
+/// A no-op event handler that ignores all events.
+///
+/// Use this when you don't need to handle server events.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct NoOpEventHandler;
+
+impl LspEventHandler for NoOpEventHandler {}
+
 use crate::router::Router;
 use crate::{MainLoop, Result, ServerSocket};
+
+/// Type alias for a shared event handler.
+pub type SharedEventHandler = Arc<dyn LspEventHandler>;
 
 /// Handle to an LSP language server.
 ///
@@ -443,15 +519,18 @@ impl ClientHandle {
 ///
 /// This handles incoming server->client notifications and requests.
 struct ClientState {
-	/// Diagnostics received from the server, keyed by document URI.
-	diagnostics: Mutex<HashMap<Url, Vec<lsp_types::Diagnostic>>>,
+	/// Server ID for this client.
+	server_id: LanguageServerId,
+	/// Event handler for LSP events.
+	event_handler: SharedEventHandler,
 }
 
 impl ClientState {
-	/// Creates a new empty client state.
-	fn new() -> Self {
+	/// Creates a new client state with the given event handler.
+	fn new(server_id: LanguageServerId, event_handler: SharedEventHandler) -> Self {
 		Self {
-			diagnostics: Mutex::new(HashMap::new()),
+			server_id,
+			event_handler,
 		}
 	}
 }
@@ -466,6 +545,7 @@ impl ClientState {
 /// * `id` - Unique identifier for this server instance
 /// * `name` - Human-readable name for the server
 /// * `config` - Server configuration (command, args, root path, etc.)
+/// * `event_handler` - Optional handler for server-to-client events (diagnostics, etc.)
 ///
 /// # Returns
 ///
@@ -476,6 +556,7 @@ pub fn start_server(
 	id: LanguageServerId,
 	name: String,
 	config: ServerConfig,
+	event_handler: Option<SharedEventHandler>,
 ) -> Result<(ClientHandle, tokio::task::JoinHandle<Result<()>>)> {
 	let root_uri = Url::from_file_path(&config.root_path).ok();
 
@@ -497,19 +578,30 @@ pub fn start_server(
 	let capabilities = Arc::new(OnceCell::new());
 	let initialize_notify = Arc::new(Notify::new());
 
-	let state = Arc::new(ClientState::new());
+	// Use provided event handler or a no-op default
+	let handler: SharedEventHandler = event_handler.unwrap_or_else(|| Arc::new(NoOpEventHandler));
+	let state = Arc::new(ClientState::new(id, handler));
 
 	// Build the router for handling server->client messages
 	let (main_loop, socket) = MainLoop::new_client(|_socket| {
 		let mut router = Router::new(state.clone());
 		router
 			.notification::<lsp_types::notification::PublishDiagnostics>(|state, params| {
-				let mut diagnostics = state.diagnostics.lock();
-				diagnostics.insert(params.uri, params.diagnostics);
+				state
+					.event_handler
+					.on_diagnostics(state.server_id, params.uri, params.diagnostics);
 				ControlFlow::Continue(())
 			})
-			.notification::<lsp_types::notification::LogMessage>(|_state, params| {
-				// Log messages from the server
+			.notification::<lsp_types::notification::Progress>(|state, params| {
+				state.event_handler.on_progress(state.server_id, params);
+				ControlFlow::Continue(())
+			})
+			.notification::<lsp_types::notification::LogMessage>(|state, params| {
+				let level = LogLevel::from(params.typ);
+				state
+					.event_handler
+					.on_log_message(state.server_id, level, &params.message);
+				// Also log to tracing for debugging
 				match params.typ {
 					lsp_types::MessageType::ERROR => {
 						error!(target: "lsp", message = %params.message, "Server log")
@@ -527,8 +619,12 @@ pub fn start_server(
 				}
 				ControlFlow::Continue(())
 			})
-			.notification::<lsp_types::notification::ShowMessage>(|_state, params| {
-				// Show message notifications
+			.notification::<lsp_types::notification::ShowMessage>(|state, params| {
+				let level = LogLevel::from(params.typ);
+				state
+					.event_handler
+					.on_show_message(state.server_id, level, &params.message);
+				// Also log to tracing
 				match params.typ {
 					lsp_types::MessageType::ERROR => {
 						error!(target: "lsp", message = %params.message, "Server message")

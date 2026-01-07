@@ -183,6 +183,15 @@ xeno_macro::define_events! {
 		/// The scope of the change: "global" or "buffer".
 		scope: Str,
 	},
+	/// LSP diagnostics were updated for a document.
+	DiagnosticsUpdated => "lsp:diagnostics" {
+		/// Filesystem path of the document with updated diagnostics.
+		path: Path,
+		/// Number of error diagnostics.
+		error_count: usize,
+		/// Number of warning diagnostics.
+		warning_count: usize,
+	},
 }
 
 /// Registry of all hook definitions.

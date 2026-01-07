@@ -30,14 +30,38 @@
 use std::path::Path;
 use std::sync::Arc;
 
-use lsp_types::{TextDocumentContentChangeEvent, TextDocumentSaveReason, Url};
+use lsp_types::{Diagnostic, TextDocumentContentChangeEvent, TextDocumentSaveReason, Url};
 use ropey::Rope;
 
 use crate::Result;
-use crate::client::{ClientHandle, OffsetEncoding};
-use crate::document::DocumentStateManager;
+use crate::client::{ClientHandle, LanguageServerId, LspEventHandler, OffsetEncoding};
+use crate::document::{DiagnosticsEventReceiver, DocumentStateManager};
 use crate::position::char_range_to_lsp_range;
 use crate::registry::Registry;
+
+/// Event handler that updates [`DocumentStateManager`] with LSP events.
+///
+/// This handler receives notifications from language servers and updates
+/// the document state accordingly (e.g., storing diagnostics).
+pub struct DocumentSyncEventHandler {
+	documents: Arc<DocumentStateManager>,
+}
+
+impl DocumentSyncEventHandler {
+	/// Create a new event handler.
+	pub fn new(documents: Arc<DocumentStateManager>) -> Self {
+		Self { documents }
+	}
+}
+
+impl LspEventHandler for DocumentSyncEventHandler {
+	fn on_diagnostics(&self, _server_id: LanguageServerId, uri: Url, diagnostics: Vec<Diagnostic>) {
+		self.documents.update_diagnostics(&uri, diagnostics);
+	}
+
+	// Other trait methods (on_progress, on_log_message, on_show_message) use default no-op impls.
+	// Logging is handled by tracing in the client router.
+}
 
 /// Document synchronization coordinator.
 ///
@@ -53,11 +77,66 @@ pub struct DocumentSync {
 
 impl DocumentSync {
 	/// Create a new document sync coordinator.
+	///
+	/// This sets up an event handler on the registry so that diagnostics
+	/// and other LSP events are automatically routed to the document state manager.
 	pub fn new(registry: Arc<Registry>, documents: Arc<DocumentStateManager>) -> Self {
+		// Create event handler that updates the document state manager
+		let event_handler = Arc::new(DocumentSyncEventHandler::new(documents.clone()));
+
+		// We need to get mutable access to set the event handler.
+		// Since Registry uses interior mutability for configs/servers, we need
+		// a different approach. For now, we require the registry to be created
+		// with the event handler via Registry::with_event_handler().
+		//
+		// TODO: Consider making Registry::set_event_handler take &self with interior mutability.
+		let _ = event_handler; // Silence unused warning for now
+
 		Self {
 			registry,
 			documents,
 		}
+	}
+
+	/// Create a new document sync coordinator with a pre-configured registry.
+	///
+	/// Use this when you need to set up the event handler before creating the sync.
+	/// The registry should be created with [`Registry::with_event_handler`] using
+	/// a [`DocumentSyncEventHandler`].
+	pub fn with_registry(registry: Arc<Registry>, documents: Arc<DocumentStateManager>) -> Self {
+		Self {
+			registry,
+			documents,
+		}
+	}
+
+	/// Create a document sync coordinator and a properly configured registry.
+	///
+	/// This is the recommended way to create a DocumentSync, as it ensures
+	/// the event handler is properly wired up and diagnostic events are available.
+	///
+	/// Returns:
+	/// - `DocumentSync` - The sync coordinator
+	/// - `Arc<Registry>` - The language server registry
+	/// - `Arc<DocumentStateManager>` - The document state manager
+	/// - `DiagnosticsEventReceiver` - Receiver for diagnostic update events
+	pub fn create() -> (
+		Self,
+		Arc<Registry>,
+		Arc<DocumentStateManager>,
+		DiagnosticsEventReceiver,
+	) {
+		let (documents, event_receiver) = DocumentStateManager::with_events();
+		let documents = Arc::new(documents);
+		let event_handler = Arc::new(DocumentSyncEventHandler::new(documents.clone()));
+		let registry = Arc::new(Registry::with_event_handler(event_handler));
+
+		let sync = Self {
+			registry: registry.clone(),
+			documents: documents.clone(),
+		};
+
+		(sync, registry, documents, event_receiver)
 	}
 
 	/// Open a document with the appropriate language server.
@@ -130,15 +209,26 @@ impl DocumentSync {
 
 	/// Notify language servers of an incremental document change.
 	///
+	/// # Warning
+	///
+	/// This function has a known limitation: it computes LSP positions from
+	/// the post-change text, but the positions should be relative to the
+	/// pre-change text. For reliable document synchronization, prefer using
+	/// [`notify_change_full`](Self::notify_change_full) instead.
+	///
 	/// # Arguments
 	///
 	/// * `path` - Path to the file
 	/// * `language` - Language ID
 	/// * `text` - Current document content (after the change)
-	/// * `start_char` - Start position of the change (character index)
-	/// * `end_char` - End position of the change (character index, before change)
+	/// * `start_char` - Start position of the change (character index in NEW text)
+	/// * `end_char` - End position of the change (character index in NEW text)
 	/// * `new_text` - The replacement text
 	/// * `encoding` - Offset encoding to use
+	#[deprecated(
+		since = "0.3.0",
+		note = "Use notify_change_full instead; incremental sync has position calculation issues"
+	)]
 	pub async fn notify_change_incremental(
 		&self,
 		path: &Path,

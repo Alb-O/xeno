@@ -44,10 +44,13 @@
 use std::path::Path;
 use std::sync::Arc;
 
+// Re-export for consumers
+pub use xeno_lsp::DiagnosticsEvent as LspDiagnosticsEvent;
 // Re-export types needed by consumers
 pub use xeno_lsp::LanguageServerConfig;
 use xeno_lsp::{
-	ClientHandle, DocumentStateManager, DocumentSync, OffsetEncoding, Registry, Result,
+	ClientHandle, DiagnosticsEvent, DiagnosticsEventReceiver, DocumentStateManager, DocumentSync,
+	OffsetEncoding, Registry, Result,
 };
 
 use crate::buffer::Buffer;
@@ -59,21 +62,58 @@ use crate::buffer::Buffer;
 pub struct LspManager {
 	/// Document synchronization coordinator.
 	sync: DocumentSync,
+	/// Receiver for diagnostic update events.
+	diagnostics_receiver: Option<DiagnosticsEventReceiver>,
 }
 
 impl LspManager {
 	/// Create a new LSP manager.
+	///
+	/// This sets up the event handler so diagnostics and other LSP events
+	/// are properly routed to the document state manager.
 	pub fn new() -> Self {
-		let registry = Arc::new(Registry::new());
-		let documents = Arc::new(DocumentStateManager::new());
-		let sync = DocumentSync::new(registry, documents);
-		Self { sync }
+		let (sync, _registry, _documents, diagnostics_receiver) = DocumentSync::create();
+		Self {
+			sync,
+			diagnostics_receiver: Some(diagnostics_receiver),
+		}
 	}
 
 	/// Create an LSP manager with existing registry and document state.
+	///
+	/// Note: The registry should be created with [`Registry::with_event_handler`]
+	/// using a [`DocumentSyncEventHandler`] to ensure diagnostics are properly routed.
+	/// This constructor does not provide diagnostic events.
 	pub fn with_state(registry: Arc<Registry>, documents: Arc<DocumentStateManager>) -> Self {
-		let sync = DocumentSync::new(registry, documents);
-		Self { sync }
+		let sync = DocumentSync::with_registry(registry, documents);
+		Self {
+			sync,
+			diagnostics_receiver: None,
+		}
+	}
+
+	/// Poll for pending diagnostic events.
+	///
+	/// Returns any diagnostic update events that have occurred since the last poll.
+	/// This should be called during the editor's main loop to process LSP events.
+	pub fn poll_diagnostics(&mut self) -> Vec<DiagnosticsEvent> {
+		let Some(ref mut receiver) = self.diagnostics_receiver else {
+			return Vec::new();
+		};
+
+		let mut events = Vec::new();
+		while let Ok(event) = receiver.try_recv() {
+			events.push(event);
+		}
+		events
+	}
+
+	/// Get the diagnostics version counter.
+	///
+	/// This counter increments every time any document's diagnostics change.
+	/// Useful for detecting if a re-render is needed without polling events.
+	pub fn diagnostics_version(&self) -> u64 {
+		self.sync.documents().diagnostics_version()
 	}
 
 	/// Configure a language server.
@@ -142,6 +182,17 @@ impl LspManager {
 	/// Called when a buffer's content changes with specific range info.
 	///
 	/// Sends an incremental document sync to the language server.
+	///
+	/// # Warning
+	///
+	/// This function has known issues with position calculation. Prefer
+	/// using [`on_buffer_change`](Self::on_buffer_change) for reliable
+	/// document synchronization.
+	#[deprecated(
+		since = "0.3.0",
+		note = "Use on_buffer_change instead; incremental sync has position calculation issues"
+	)]
+	#[allow(deprecated)]
 	pub async fn on_buffer_change_incremental(
 		&self,
 		buffer: &Buffer,

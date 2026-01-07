@@ -5,10 +5,28 @@
 
 use std::collections::HashMap;
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicI32, Ordering};
+use std::sync::atomic::{AtomicI32, AtomicU64, Ordering};
 
 use lsp_types::{Diagnostic, DiagnosticSeverity, Url};
 use parking_lot::RwLock;
+use tokio::sync::mpsc;
+
+/// Event emitted when diagnostics are updated for a document.
+#[derive(Debug, Clone)]
+pub struct DiagnosticsEvent {
+	/// Path to the document (derived from URI).
+	pub path: PathBuf,
+	/// Number of error diagnostics.
+	pub error_count: usize,
+	/// Number of warning diagnostics.
+	pub warning_count: usize,
+}
+
+/// Sender for diagnostic events.
+pub type DiagnosticsEventSender = mpsc::UnboundedSender<DiagnosticsEvent>;
+
+/// Receiver for diagnostic events.
+pub type DiagnosticsEventReceiver = mpsc::UnboundedReceiver<DiagnosticsEvent>;
 
 /// LSP state for a single document.
 ///
@@ -148,16 +166,60 @@ impl DocumentState {
 /// Manager for document LSP state across all open documents.
 ///
 /// This can be shared across the editor to track LSP state for all buffers.
-#[derive(Debug, Default)]
 pub struct DocumentStateManager {
 	/// Document states keyed by URI string.
 	documents: RwLock<HashMap<String, DocumentState>>,
+	/// Optional sender for diagnostic events.
+	event_sender: Option<DiagnosticsEventSender>,
+	/// Global version counter for tracking any diagnostic change.
+	diagnostics_version: AtomicU64,
+}
+
+impl std::fmt::Debug for DocumentStateManager {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		f.debug_struct("DocumentStateManager")
+			.field("documents", &self.documents)
+			.field("has_event_sender", &self.event_sender.is_some())
+			.field("diagnostics_version", &self.diagnostics_version)
+			.finish()
+	}
+}
+
+impl Default for DocumentStateManager {
+	fn default() -> Self {
+		Self::new()
+	}
 }
 
 impl DocumentStateManager {
 	/// Create a new empty manager.
 	pub fn new() -> Self {
-		Self::default()
+		Self {
+			documents: RwLock::new(HashMap::new()),
+			event_sender: None,
+			diagnostics_version: AtomicU64::new(0),
+		}
+	}
+
+	/// Create a new manager with an event channel.
+	///
+	/// Returns the manager and a receiver for diagnostic events.
+	pub fn with_events() -> (Self, DiagnosticsEventReceiver) {
+		let (sender, receiver) = mpsc::unbounded_channel();
+		let manager = Self {
+			documents: RwLock::new(HashMap::new()),
+			event_sender: Some(sender),
+			diagnostics_version: AtomicU64::new(0),
+		};
+		(manager, receiver)
+	}
+
+	/// Get the current diagnostics version.
+	///
+	/// This counter increments every time any document's diagnostics change.
+	/// Useful for detecting if a re-render is needed.
+	pub fn diagnostics_version(&self) -> u64 {
+		self.diagnostics_version.load(Ordering::Relaxed)
 	}
 
 	/// Get document state by file path.
@@ -201,9 +263,34 @@ impl DocumentStateManager {
 
 	/// Update diagnostics for a document.
 	pub fn update_diagnostics(&self, uri: &Url, diagnostics: Vec<Diagnostic>) {
+		// Count errors and warnings
+		let error_count = diagnostics
+			.iter()
+			.filter(|d| d.severity == Some(DiagnosticSeverity::ERROR))
+			.count();
+		let warning_count = diagnostics
+			.iter()
+			.filter(|d| d.severity == Some(DiagnosticSeverity::WARNING))
+			.count();
+
+		// Update the document state
 		let docs = self.documents.read();
 		if let Some(state) = docs.get(&uri.to_string()) {
 			state.set_diagnostics(diagnostics);
+		}
+
+		// Increment version counter
+		self.diagnostics_version.fetch_add(1, Ordering::Relaxed);
+
+		// Send event if we have a sender
+		if let Some(ref sender) = self.event_sender {
+			if let Some(path) = uri.to_file_path().ok() {
+				let _ = sender.send(DiagnosticsEvent {
+					path,
+					error_count,
+					warning_count,
+				});
+			}
 		}
 	}
 

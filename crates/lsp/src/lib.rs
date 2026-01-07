@@ -94,7 +94,10 @@ pub use omni_trait::{LanguageClient, LanguageServer};
 #[cfg_attr(docsrs, doc(cfg(feature = "client")))]
 pub mod client;
 #[cfg(feature = "client")]
-pub use client::{ClientHandle, LanguageServerId, OffsetEncoding, ServerConfig, start_server};
+pub use client::{
+	ClientHandle, LanguageServerId, LogLevel, LspEventHandler, NoOpEventHandler, OffsetEncoding,
+	ServerConfig, SharedEventHandler, start_server,
+};
 
 #[cfg(feature = "position")]
 #[cfg_attr(docsrs, doc(cfg(feature = "position")))]
@@ -114,13 +117,16 @@ pub use registry::{LanguageServerConfig, Registry};
 #[cfg_attr(docsrs, doc(cfg(feature = "client")))]
 pub mod document;
 #[cfg(feature = "client")]
-pub use document::{DocumentState, DocumentStateManager};
+pub use document::{
+	DiagnosticsEvent, DiagnosticsEventReceiver, DiagnosticsEventSender, DocumentState,
+	DocumentStateManager,
+};
 
 #[cfg(feature = "position")]
 #[cfg_attr(docsrs, doc(cfg(feature = "position")))]
 pub mod sync;
 #[cfg(feature = "position")]
-pub use sync::DocumentSync;
+pub use sync::{DocumentSync, DocumentSyncEventHandler};
 
 /// A convenient type alias for `Result` with `E` = [`enum@crate::Error`].
 pub type Result<T, E = Error> = std::result::Result<T, E>;

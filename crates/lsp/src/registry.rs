@@ -39,7 +39,9 @@ use serde_json::Value;
 use tokio::task::JoinHandle;
 
 use crate::Result;
-use crate::client::{ClientHandle, LanguageServerId, ServerConfig, start_server};
+use crate::client::{
+	ClientHandle, LanguageServerId, ServerConfig, SharedEventHandler, start_server,
+};
 
 /// Configuration for a language server.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -107,6 +109,8 @@ pub struct Registry {
 	servers: RwLock<HashMap<(String, PathBuf), ServerInstance>>,
 	/// Counter for generating unique server IDs.
 	next_id: AtomicU64,
+	/// Event handler for LSP events (diagnostics, progress, etc.).
+	event_handler: Option<SharedEventHandler>,
 }
 
 impl Default for Registry {
@@ -122,7 +126,28 @@ impl Registry {
 			configs: RwLock::new(HashMap::new()),
 			servers: RwLock::new(HashMap::new()),
 			next_id: AtomicU64::new(1),
+			event_handler: None,
 		}
+	}
+
+	/// Create a new registry with an event handler for LSP events.
+	///
+	/// The event handler receives notifications from all language servers
+	/// managed by this registry (diagnostics, progress, messages, etc.).
+	pub fn with_event_handler(event_handler: SharedEventHandler) -> Self {
+		Self {
+			configs: RwLock::new(HashMap::new()),
+			servers: RwLock::new(HashMap::new()),
+			next_id: AtomicU64::new(1),
+			event_handler: Some(event_handler),
+		}
+	}
+
+	/// Set the event handler for LSP events.
+	///
+	/// This only affects servers started after this call.
+	pub fn set_event_handler(&mut self, handler: SharedEventHandler) {
+		self.event_handler = Some(handler);
 	}
 
 	/// Register a language server configuration for a language.
@@ -172,7 +197,12 @@ impl Registry {
 			.env(config.env.iter().map(|(k, v)| (k.clone(), v.clone())))
 			.timeout(config.timeout_secs);
 
-		let (handle, task) = start_server(id, config.command.clone(), server_config)?;
+		let (handle, task) = start_server(
+			id,
+			config.command.clone(),
+			server_config,
+			self.event_handler.clone(),
+		)?;
 
 		handle
 			.initialize(config.enable_snippets, config.config.clone())
