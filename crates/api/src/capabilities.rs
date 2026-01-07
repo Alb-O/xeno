@@ -6,6 +6,7 @@ use std::future::Future;
 use std::path::PathBuf;
 use std::pin::Pin;
 
+use xeno_base::direction::{Axis, SeqDirection, SpatialDirection};
 use xeno_base::range::CharIdx;
 use xeno_base::{Mode, Selection};
 use xeno_core::editor_ctx::{
@@ -106,12 +107,11 @@ impl NotificationAccess for Editor {
 }
 
 impl SearchAccess for Editor {
-	fn search_next(&mut self, add_selection: bool, extend: bool) -> bool {
-		self.do_search_next(add_selection, extend)
-	}
-
-	fn search_prev(&mut self, add_selection: bool, extend: bool) -> bool {
-		self.do_search_prev(add_selection, extend)
+	fn search(&mut self, direction: SeqDirection, add_selection: bool, extend: bool) -> bool {
+		match direction {
+			SeqDirection::Next => self.do_search_next(add_selection, extend),
+			SeqDirection::Prev => self.do_search_prev(add_selection, extend),
+		}
 	}
 
 	fn use_selection_as_pattern(&mut self) -> bool {
@@ -263,16 +263,13 @@ impl CommandEditorOps for Editor {
 }
 
 impl SplitOps for Editor {
-	fn split_horizontal(&mut self) {
+	fn split(&mut self, axis: Axis) {
 		// Create a new buffer that shares the same document
 		let new_id = self.clone_buffer_for_split();
-		Editor::split_horizontal(self, new_id);
-	}
-
-	fn split_vertical(&mut self) {
-		// Create a new buffer that shares the same document
-		let new_id = self.clone_buffer_for_split();
-		Editor::split_vertical(self, new_id);
+		match axis {
+			Axis::Horizontal => Editor::split_horizontal(self, new_id),
+			Axis::Vertical => Editor::split_vertical(self, new_id),
+		}
 	}
 
 	fn close_split(&mut self) {
@@ -294,28 +291,21 @@ impl SplitOps for Editor {
 }
 
 impl FocusOps for Editor {
-	fn buffer_next(&mut self) {
-		self.focus_next_buffer();
+	fn buffer_switch(&mut self, direction: SeqDirection) {
+		match direction {
+			SeqDirection::Next => self.focus_next_buffer(),
+			SeqDirection::Prev => self.focus_prev_buffer(),
+		}
 	}
 
-	fn buffer_prev(&mut self) {
-		self.focus_prev_buffer();
-	}
-
-	fn focus_left(&mut self) {
-		self.focus_direction(crate::buffer::Direction::Left);
-	}
-
-	fn focus_right(&mut self) {
-		self.focus_direction(crate::buffer::Direction::Right);
-	}
-
-	fn focus_up(&mut self) {
-		self.focus_direction(crate::buffer::Direction::Up);
-	}
-
-	fn focus_down(&mut self) {
-		self.focus_direction(crate::buffer::Direction::Down);
+	fn focus(&mut self, direction: SpatialDirection) {
+		let dir = match direction {
+			SpatialDirection::Left => crate::buffer::Direction::Left,
+			SpatialDirection::Right => crate::buffer::Direction::Right,
+			SpatialDirection::Up => crate::buffer::Direction::Up,
+			SpatialDirection::Down => crate::buffer::Direction::Down,
+		};
+		self.focus_direction(dir);
 	}
 }
 

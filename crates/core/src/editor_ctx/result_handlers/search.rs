@@ -3,28 +3,20 @@
 use xeno_registry::{ActionResult, HandleOutcome, result_handler};
 
 result_handler!(
-	RESULT_SEARCH_NEXT_HANDLERS,
-	HANDLE_SEARCH_NEXT,
-	"search_next",
+	RESULT_SEARCH_HANDLERS,
+	HANDLE_SEARCH,
+	"search",
 	|r, ctx, extend| {
-		if let ActionResult::SearchNext { add_selection } = r
-			&& let Some(search) = ctx.search()
-		{
-			search.search_next(*add_selection, extend);
-		}
-		HandleOutcome::Handled
-	}
-);
+		let ActionResult::Search {
+			direction,
+			add_selection,
+		} = r
+		else {
+			return HandleOutcome::NotHandled;
+		};
 
-result_handler!(
-	RESULT_SEARCH_PREV_HANDLERS,
-	HANDLE_SEARCH_PREV,
-	"search_prev",
-	|r, ctx, extend| {
-		if let ActionResult::SearchPrev { add_selection } = r
-			&& let Some(search) = ctx.search()
-		{
-			search.search_prev(*add_selection, extend);
+		if let Some(search) = ctx.search() {
+			search.search(*direction, *add_selection, extend);
 		}
 		HandleOutcome::Handled
 	}

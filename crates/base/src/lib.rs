@@ -1,5 +1,7 @@
 //! Core types for text editing: ranges, selections, transactions, and modes.
 
+/// Directional types for navigation and layout operations.
+pub mod direction;
 /// Grapheme cluster boundary detection.
 pub mod graphemes;
 /// Key and mouse event types.
@@ -19,6 +21,7 @@ pub mod transaction;
 
 // Shared style types are re-exported to avoid duplicating xeno-tui deps
 // across multiple crates that parse themes and syntax styles.
+pub use direction::{Axis, SeqDirection, SpatialDirection};
 pub use key::{Key, KeyCode, Modifiers, MouseButton, MouseEvent, ScrollDirection};
 pub use mode::Mode;
 pub use pending::{ObjectSelectionKind, PendingKind};

@@ -32,6 +32,7 @@
 //! [`EditorCapabilities`]: super::EditorCapabilities
 
 use ropey::RopeSlice;
+use xeno_base::direction::{Axis, SeqDirection, SpatialDirection};
 use xeno_base::range::CharIdx;
 use xeno_base::selection::Selection;
 use xeno_registry_notifications::Notification;
@@ -122,11 +123,12 @@ pub trait NotificationAccess {
 /// Enables pattern-based search and navigation. Supports multi-selection
 /// search where each match can be added to the selection.
 pub trait SearchAccess {
-	/// Finds the next match. If `add_selection` is true, adds to selections.
-	/// If `extend` is true, extends the current selection to include the match.
-	fn search_next(&mut self, add_selection: bool, extend: bool) -> bool;
-	/// Finds the previous match.
-	fn search_prev(&mut self, add_selection: bool, extend: bool) -> bool;
+	/// Searches in the given direction.
+	///
+	/// - `direction`: `Next` for forward, `Prev` for backward
+	/// - `add_selection`: if true, adds match to selections instead of replacing
+	/// - `extend`: if true, extends the current selection to include the match
+	fn search(&mut self, direction: SeqDirection, add_selection: bool, extend: bool) -> bool;
 	/// Uses the current selection text as the search pattern.
 	fn use_selection_as_pattern(&mut self) -> bool;
 	/// Returns the current search pattern, if any.
@@ -238,8 +240,8 @@ pub trait ThemeAccess {
 /// # Split Naming Convention
 ///
 /// Split names refer to the orientation of the **split line**, matching Vim/Helix:
-/// - `split_horizontal` = horizontal divider line → windows stacked top/bottom
-/// - `split_vertical` = vertical divider line → windows side-by-side left/right
+/// - `Axis::Horizontal` = horizontal divider line → windows stacked top/bottom
+/// - `Axis::Vertical` = vertical divider line → windows side-by-side left/right
 ///
 /// # Split Semantics
 ///
@@ -248,11 +250,8 @@ pub trait ThemeAccess {
 /// - Undo history is shared
 /// - Each view has independent cursor, selection, and scroll position
 pub trait SplitOps {
-	/// Split horizontally (new buffer below). Matches Vim `:split` / Helix `hsplit`.
-	fn split_horizontal(&mut self);
-
-	/// Split vertically (new buffer to right). Matches Vim `:vsplit` / Helix `vsplit`.
-	fn split_vertical(&mut self);
+	/// Split along the given axis. See trait docs for axis semantics.
+	fn split(&mut self, axis: Axis);
 
 	/// Close the current split.
 	fn close_split(&mut self);
@@ -263,18 +262,11 @@ pub trait SplitOps {
 
 /// Focus and buffer navigation operations.
 pub trait FocusOps {
-	/// Switch to the next buffer.
-	fn buffer_next(&mut self);
-	/// Switch to the previous buffer.
-	fn buffer_prev(&mut self);
-	/// Focus the split to the left.
-	fn focus_left(&mut self);
-	/// Focus the split to the right.
-	fn focus_right(&mut self);
-	/// Focus the split above.
-	fn focus_up(&mut self);
-	/// Focus the split below.
-	fn focus_down(&mut self);
+	/// Switch buffer in the given direction (next/previous).
+	fn buffer_switch(&mut self, direction: SeqDirection);
+
+	/// Focus the split in the given spatial direction.
+	fn focus(&mut self, direction: SpatialDirection);
 }
 
 /// Viewport query operations (optional).

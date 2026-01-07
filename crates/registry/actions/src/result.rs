@@ -5,6 +5,7 @@
 
 use linkme::distributed_slice;
 use xeno_base::Selection;
+use xeno_base::direction::{Axis, SeqDirection, SpatialDirection};
 use xeno_base::range::CharIdx;
 use xeno_macro::DispatchResult;
 
@@ -69,26 +70,17 @@ pub enum ActionResult {
 	Error(String),
 	/// Force a redraw.
 	ForceRedraw,
-	/// Split horizontally with current buffer.
-	SplitHorizontal,
-	/// Split vertically with current buffer.
-	SplitVertical,
-	/// Switch to next buffer.
-	BufferNext,
-	/// Switch to previous buffer.
-	BufferPrev,
+
+	/// Split the current view along an axis.
+	Split(Axis),
+	/// Switch buffer in the given direction (next/previous).
+	BufferSwitch(SeqDirection),
 	/// Close current split.
 	CloseSplit,
 	/// Close all other buffers.
 	CloseOtherBuffers,
-	/// Focus split to the left.
-	FocusLeft,
-	/// Focus split to the right.
-	FocusRight,
-	/// Focus split above.
-	FocusUp,
-	/// Focus split below.
-	FocusDown,
+	/// Focus a split in the given spatial direction.
+	Focus(SpatialDirection),
 
 	/// Change editor mode.
 	ModeChange(ActionMode),
@@ -109,13 +101,11 @@ pub enum ActionResult {
 	Edit(EditAction),
 	/// Enter pending state for multi-key action.
 	Pending(PendingAction),
-	/// Search forward.
-	SearchNext {
-		/// Whether to add matches to existing selections.
-		add_selection: bool,
-	},
-	/// Search backward.
-	SearchPrev {
+
+	/// Search in the given direction.
+	Search {
+		/// Direction to search (Next = forward, Prev = backward).
+		direction: SeqDirection,
 		/// Whether to add matches to existing selections.
 		add_selection: bool,
 	},
