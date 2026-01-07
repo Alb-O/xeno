@@ -1,13 +1,18 @@
 //! Motion application helpers.
 //!
 //! Functions for applying named motions to selections and cursors.
+//!
+//! # Effect-Based Variants
+//!
+//! The `effects_*` functions return [`ActionEffects`] instead of [`ActionResult`],
+//! demonstrating the data-oriented composition pattern.
 
 use tracing::debug;
-use xeno_base::Selection;
 use xeno_base::range::Range;
+use xeno_base::{Mode, Selection};
 use xeno_registry_motions::MotionKey;
 
-use crate::{ActionContext, ActionResult};
+use crate::{ActionContext, ActionEffects, ActionResult, Effect};
 
 /// Applies a typed motion as a cursor movement.
 ///
@@ -43,10 +48,8 @@ pub fn cursor_motion(ctx: &ActionContext, motion: MotionKey) -> ActionResult {
 		})
 		.collect();
 
-	ActionResult::Motion(Selection::from_vec(
-		new_ranges,
-		ctx.selection.primary_index(),
-	))
+	let sel = Selection::from_vec(new_ranges, ctx.selection.primary_index());
+	ActionResult::Effects(ActionEffects::motion(sel))
 }
 
 /// Applies a typed motion as a selection-creating action.
@@ -67,7 +70,7 @@ pub fn selection_motion(ctx: &ActionContext, motion: MotionKey) -> ActionResult 
 		"Applying selection motion"
 	);
 
-	if ctx.extend {
+	let sel = if ctx.extend {
 		let primary_index = ctx.selection.primary_index();
 		let new_ranges: Vec<Range> = ctx
 			.selection
@@ -83,12 +86,14 @@ pub fn selection_motion(ctx: &ActionContext, motion: MotionKey) -> ActionResult 
 				(motion_def.handler)(ctx.text, seed, ctx.count, true)
 			})
 			.collect();
-		ActionResult::Motion(Selection::from_vec(new_ranges, primary_index))
+		Selection::from_vec(new_ranges, primary_index)
 	} else {
 		let current_range = Range::point(ctx.cursor);
 		let new_range = (motion_def.handler)(ctx.text, current_range, ctx.count, false);
-		ActionResult::Motion(Selection::single(new_range.anchor, new_range.head))
-	}
+		Selection::single(new_range.anchor, new_range.head)
+	};
+
+	ActionResult::Effects(ActionEffects::motion(sel))
 }
 
 /// Applies a typed motion as a word-selecting action (Kakoune/Helix style).
@@ -105,22 +110,21 @@ pub fn word_motion(ctx: &ActionContext, motion: MotionKey) -> ActionResult {
 		"Applying word motion"
 	);
 
-	if ctx.extend {
+	let sel = if ctx.extend {
 		let new_ranges: Vec<Range> = ctx
 			.selection
 			.ranges()
 			.iter()
 			.map(|range| (motion_def.handler)(ctx.text, *range, ctx.count, true))
 			.collect();
-		ActionResult::Motion(Selection::from_vec(
-			new_ranges,
-			ctx.selection.primary_index(),
-		))
+		Selection::from_vec(new_ranges, ctx.selection.primary_index())
 	} else {
 		let current_range = Range::point(ctx.cursor);
 		let new_range = (motion_def.handler)(ctx.text, current_range, ctx.count, false);
-		ActionResult::Motion(Selection::single(new_range.anchor, new_range.head))
-	}
+		Selection::single(new_range.anchor, new_range.head)
+	};
+
+	ActionResult::Effects(ActionEffects::motion(sel))
 }
 
 /// Applies a typed motion to all cursors before insert actions.
@@ -131,5 +135,6 @@ pub fn insert_with_motion(ctx: &ActionContext, motion: MotionKey) -> ActionResul
 		*range = (motion_def.handler)(ctx.text, *range, 1, false);
 	});
 
-	ActionResult::InsertWithMotion(new_selection)
+	// Compose: SetSelection + SetMode instead of fused InsertWithMotion
+	ActionResult::Effects(ActionEffects::motion(new_selection).with(Effect::SetMode(Mode::Insert)))
 }

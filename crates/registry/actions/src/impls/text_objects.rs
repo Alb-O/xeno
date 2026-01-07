@@ -1,7 +1,10 @@
 use xeno_base::range::Range;
 use xeno_registry_text_objects::{TextObjectDef, find_by_trigger};
 
-use crate::{ActionContext, ActionResult, ObjectSelectionKind, PendingAction, PendingKind, action};
+use crate::{
+	ActionContext, ActionEffects, ActionResult, ObjectSelectionKind, PendingAction, PendingKind,
+	action,
+};
 
 /// Selects a text object by its trigger character.
 fn select_object_with_trigger(
@@ -9,7 +12,7 @@ fn select_object_with_trigger(
 	selection_kind: ObjectSelectionKind,
 ) -> ActionResult {
 	let Some(trigger) = ctx.args.char else {
-		return ActionResult::Pending(PendingAction {
+		return ActionResult::Effects(ActionEffects::pending(PendingAction {
 			kind: PendingKind::Object(selection_kind),
 			prompt: match selection_kind {
 				ObjectSelectionKind::Inner => "inner".into(),
@@ -17,11 +20,14 @@ fn select_object_with_trigger(
 				ObjectSelectionKind::ToStart => "[obj".into(),
 				ObjectSelectionKind::ToEnd => "]obj".into(),
 			},
-		});
+		}));
 	};
 
 	let Some(obj) = find_by_trigger(trigger) else {
-		return ActionResult::Error(format!("Unknown text object: {}", trigger));
+		return ActionResult::Effects(ActionEffects::error(format!(
+			"Unknown text object: {}",
+			trigger
+		)));
 	};
 
 	let mut new_sel = ctx.selection.clone();
@@ -38,7 +44,7 @@ fn select_object_with_trigger(
 		}
 	});
 
-	ActionResult::Motion(new_sel)
+	ActionResult::Effects(ActionEffects::motion(new_sel))
 }
 
 /// Selects from cursor to the start or end boundary of a text object.

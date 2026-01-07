@@ -8,6 +8,7 @@ extern crate self as xeno_registry_actions;
 mod context;
 mod definition;
 mod edit;
+mod effects;
 /// Built-in action implementations.
 pub(crate) mod impls;
 mod keybindings;
@@ -25,6 +26,7 @@ pub use xeno_registry_core::Key;
 /// Typed handle to an action definition.
 pub type ActionKey = Key<ActionDef>;
 pub use edit::{EditAction, ScrollAmount, ScrollDir, VisualDirection};
+pub use effects::{ActionEffects, Effect};
 pub use keybindings::{
 	BindingMode, KEY_PREFIXES, KEYBINDINGS, KeyBindingDef, KeyPrefixDef, find_prefix,
 };
@@ -32,15 +34,8 @@ use linkme::distributed_slice;
 pub use motion_helpers::{cursor_motion, insert_with_motion, selection_motion, word_motion};
 pub use pending::PendingAction;
 pub use result::{
-	ActionMode, ActionResult, RESULT_BUFFER_SWITCH_HANDLERS, RESULT_CLOSE_OTHER_BUFFERS_HANDLERS,
-	RESULT_CLOSE_PALETTE_HANDLERS, RESULT_CLOSE_SPLIT_HANDLERS, RESULT_COMMAND_HANDLERS,
-	RESULT_CURSOR_MOVE_HANDLERS, RESULT_EDIT_HANDLERS, RESULT_ERROR_HANDLERS,
-	RESULT_EXECUTE_PALETTE_HANDLERS, RESULT_EXTENSION_HANDLERS, RESULT_FOCUS_HANDLERS,
-	RESULT_FORCE_REDRAW_HANDLERS, RESULT_INSERT_WITH_MOTION_HANDLERS, RESULT_MODE_CHANGE_HANDLERS,
-	RESULT_MOTION_HANDLERS, RESULT_OK_HANDLERS, RESULT_OPEN_PALETTE_HANDLERS,
-	RESULT_PENDING_HANDLERS, RESULT_QUIT_HANDLERS, RESULT_SCREEN_MOTION_HANDLERS,
-	RESULT_SEARCH_HANDLERS, RESULT_SPLIT_HANDLERS, RESULT_USE_SELECTION_SEARCH_HANDLERS,
-	ScreenPosition, dispatch_result,
+	ActionResult, RESULT_EFFECTS_HANDLERS, RESULT_EXTENSION_HANDLERS, ScreenPosition,
+	dispatch_result,
 };
 pub use xeno_base::direction::{Axis, SeqDirection, SpatialDirection};
 pub use xeno_base::{Mode, ObjectSelectionKind, PendingKind};

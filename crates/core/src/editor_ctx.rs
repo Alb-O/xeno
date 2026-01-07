@@ -1,0 +1,226 @@
+//! Editor context and effect handling.
+
+use xeno_base::range::Range;
+use xeno_base::{Mode, Selection};
+pub use xeno_registry::actions::editor_ctx::*;
+use xeno_registry::{
+	ActionEffects, ActionResult, Effect, HookContext, HookEventData, ScreenPosition,
+	emit_sync as emit_hook_sync, notification_keys as keys, result_handler,
+};
+
+/// Applies a set of effects to the editor context.
+///
+/// Effects are applied in order. Hook emissions are centralized here,
+/// avoiding the duplication present in individual result handlers.
+///
+/// Returns `true` if the editor should quit.
+pub fn apply_effects(
+	effects: &ActionEffects,
+	ctx: &mut xeno_registry::actions::editor_ctx::EditorContext,
+	extend: bool,
+) -> HandleOutcome {
+	let mut outcome = HandleOutcome::Handled;
+
+	for effect in effects {
+		match effect {
+			Effect::SetCursor(pos) => {
+				ctx.set_cursor(*pos);
+				emit_cursor_hook(ctx);
+			}
+
+			Effect::SetSelection(sel) => {
+				ctx.set_cursor(sel.primary().head);
+				ctx.set_selection(sel.clone());
+				emit_cursor_hook(ctx);
+				emit_selection_hook(ctx, sel);
+			}
+
+			Effect::ScreenMotion { position, count } => {
+				apply_screen_motion(ctx, *position, *count, extend);
+			}
+
+			Effect::SetMode(mode) => {
+				ctx.set_mode(mode.clone());
+			}
+
+			Effect::Pending(pending) => {
+				ctx.emit(keys::pending_prompt::call(&pending.prompt));
+				ctx.set_mode(Mode::PendingAction(pending.kind));
+			}
+
+			Effect::Edit(action) => {
+				if let Some(edit) = ctx.edit() {
+					edit.execute_edit(action, extend);
+				}
+			}
+
+			Effect::FocusBuffer(direction) => {
+				if let Some(ops) = ctx.focus_ops() {
+					ops.buffer_switch(*direction);
+				}
+			}
+
+			Effect::FocusSplit(direction) => {
+				if let Some(ops) = ctx.focus_ops() {
+					ops.focus(*direction);
+				}
+			}
+
+			Effect::Split(axis) => {
+				if let Some(ops) = ctx.split_ops() {
+					ops.split(*axis);
+				}
+			}
+
+			Effect::CloseSplit => {
+				if let Some(ops) = ctx.split_ops() {
+					ops.close_split();
+				}
+			}
+
+			Effect::CloseOtherBuffers => {
+				if let Some(ops) = ctx.split_ops() {
+					ops.close_other_buffers();
+				}
+			}
+
+			Effect::Notify(notification) => {
+				ctx.emit(notification.clone());
+			}
+
+			Effect::Error(msg) => {
+				ctx.emit(keys::action_error::call(msg));
+			}
+
+			Effect::OpenPalette => {
+				ctx.open_palette();
+			}
+
+			Effect::ClosePalette => {
+				ctx.close_palette();
+			}
+
+			Effect::ExecutePalette => {
+				ctx.execute_palette();
+			}
+
+			Effect::ForceRedraw => {
+				// Force redraw is handled at a higher level
+			}
+
+			Effect::Search {
+				direction,
+				add_selection,
+			} => {
+				if let Some(search) = ctx.search() {
+					search.search(*direction, *add_selection, extend);
+				}
+			}
+
+			Effect::UseSelectionAsSearch => {
+				if let Some(search) = ctx.search() {
+					search.use_selection_as_pattern();
+				}
+			}
+
+			Effect::Quit { force: _ } => {
+				outcome = HandleOutcome::Quit;
+			}
+
+			Effect::QueueCommand { name, args } => {
+				if let Some(queue) = ctx.command_queue() {
+					queue.queue_command(name, args.clone());
+				}
+			}
+		}
+	}
+
+	outcome
+}
+
+/// Emits cursor move hook if position is available.
+fn emit_cursor_hook(ctx: &xeno_registry::actions::editor_ctx::EditorContext) {
+	if let Some((line, col)) = ctx.cursor_line_col() {
+		emit_hook_sync(&HookContext::new(
+			HookEventData::CursorMove { line, col },
+			None,
+		));
+	}
+}
+
+/// Emits selection change hook.
+fn emit_selection_hook(_ctx: &xeno_registry::actions::editor_ctx::EditorContext, sel: &Selection) {
+	let primary = sel.primary();
+	emit_hook_sync(&HookContext::new(
+		HookEventData::SelectionChange {
+			anchor: primary.anchor,
+			head: primary.head,
+		},
+		None,
+	));
+}
+
+/// Applies a screen-relative motion (H/M/L).
+fn apply_screen_motion(
+	ctx: &mut xeno_registry::actions::editor_ctx::EditorContext,
+	position: ScreenPosition,
+	count: usize,
+	extend: bool,
+) {
+	let Some(viewport) = ctx.viewport() else {
+		ctx.emit(keys::viewport_unavailable);
+		return;
+	};
+
+	let height = viewport.viewport_height();
+	if height == 0 {
+		ctx.emit(keys::viewport_height_unavailable);
+		return;
+	}
+
+	let count = count.max(1);
+	let mut row = match position {
+		ScreenPosition::Top => count.saturating_sub(1),
+		ScreenPosition::Middle => height / 2 + count.saturating_sub(1),
+		ScreenPosition::Bottom => height.saturating_sub(count),
+	};
+	if row >= height {
+		row = height.saturating_sub(1);
+	}
+
+	let Some(target) = viewport.viewport_row_to_doc_position(row) else {
+		ctx.emit(keys::screen_motion_unavailable);
+		return;
+	};
+
+	let selection = ctx.selection();
+	let primary_index = selection.primary_index();
+	let new_ranges: Vec<Range> = selection
+		.ranges()
+		.iter()
+		.map(|range| {
+			if extend {
+				Range::new(range.anchor, target)
+			} else {
+				Range::point(target)
+			}
+		})
+		.collect();
+	let new_selection = Selection::from_vec(new_ranges, primary_index);
+
+	ctx.set_cursor(new_selection.primary().head);
+	ctx.set_selection(new_selection.clone());
+	emit_cursor_hook(ctx);
+	emit_selection_hook(ctx, &new_selection);
+}
+
+// Register the handler for ActionResult::Effects
+result_handler!(
+	RESULT_EFFECTS_HANDLERS,
+	HANDLE_EFFECTS,
+	"effects",
+	|r, ctx, extend| {
+		let ActionResult::Effects(effects) = r;
+		apply_effects(effects, ctx, extend)
+	}
+);

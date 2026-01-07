@@ -1,12 +1,12 @@
 //! Miscellaneous actions.
 
-use crate::{ActionResult, EditAction, action};
+use crate::{ActionEffects, ActionResult, EditAction, Effect, action};
 
 action!(add_line_below, { description: "Add empty line below cursor" },
-	|_ctx| ActionResult::Edit(EditAction::AddLineBelow));
+	|_ctx| ActionResult::Effects(ActionEffects::edit(EditAction::AddLineBelow)));
 
 action!(add_line_above, { description: "Add empty line above cursor" },
-	|_ctx| ActionResult::Edit(EditAction::AddLineAbove));
+	|_ctx| ActionResult::Effects(ActionEffects::edit(EditAction::AddLineAbove)));
 
 action!(use_selection_as_search, { description: "Use current selection as search pattern" },
-	|_ctx| ActionResult::UseSelectionAsSearch);
+	|_ctx| ActionResult::Effects(Effect::UseSelectionAsSearch.into()));

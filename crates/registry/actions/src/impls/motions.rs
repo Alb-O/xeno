@@ -1,6 +1,9 @@
 use xeno_registry_motions::keys as motions;
 
-use crate::{ActionResult, ScreenPosition, action, cursor_motion, selection_motion, word_motion};
+use crate::{
+	ActionEffects, ActionResult, ScreenPosition, action, cursor_motion, selection_motion,
+	word_motion,
+};
 
 action!(move_left, {
 	description: "Move cursor left",
@@ -78,22 +81,13 @@ action!(goto_first_nonwhitespace, {
 }, |ctx| cursor_motion(ctx, motions::first_nonwhitespace));
 
 action!(move_top_screen, { description: "Move to top of screen", bindings: r#"normal "H""# }, |ctx| {
-	ActionResult::ScreenMotion {
-		position: ScreenPosition::Top,
-		count: ctx.count,
-	}
+	ActionResult::Effects(ActionEffects::screen_motion(ScreenPosition::Top, ctx.count))
 });
 
 action!(move_middle_screen, { description: "Move to middle of screen", bindings: r#"normal "M""# }, |ctx| {
-	ActionResult::ScreenMotion {
-		position: ScreenPosition::Middle,
-		count: ctx.count,
-	}
+	ActionResult::Effects(ActionEffects::screen_motion(ScreenPosition::Middle, ctx.count))
 });
 
 action!(move_bottom_screen, { description: "Move to bottom of screen" }, |ctx| {
-	ActionResult::ScreenMotion {
-		position: ScreenPosition::Bottom,
-		count: ctx.count,
-	}
+	ActionResult::Effects(ActionEffects::screen_motion(ScreenPosition::Bottom, ctx.count))
 });

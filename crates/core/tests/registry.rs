@@ -8,11 +8,7 @@ use xeno_core::{
 };
 use xeno_keymap::parser::parse_seq;
 use xeno_registry::BindingMode;
-use xeno_registry::actions::{
-	RESULT_CURSOR_MOVE_HANDLERS, RESULT_EDIT_HANDLERS, RESULT_ERROR_HANDLERS,
-	RESULT_INSERT_WITH_MOTION_HANDLERS, RESULT_MODE_CHANGE_HANDLERS, RESULT_MOTION_HANDLERS,
-	RESULT_OK_HANDLERS, RESULT_QUIT_HANDLERS,
-};
+use xeno_registry::actions::RESULT_EFFECTS_HANDLERS;
 
 #[test]
 fn test_action_id_resolution() {
@@ -40,27 +36,8 @@ fn test_action_id_resolution() {
 }
 
 #[test]
-fn test_handlers_registered() {
-	// Ensure common variants have at least one handler registered.
-	assert!(!RESULT_OK_HANDLERS.is_empty());
-	assert!(!RESULT_QUIT_HANDLERS.is_empty());
-	assert!(!RESULT_ERROR_HANDLERS.is_empty());
-}
-
-#[test]
-fn test_handler_coverage_counts() {
-	let total = RESULT_OK_HANDLERS.len()
-		+ RESULT_MODE_CHANGE_HANDLERS.len()
-		+ RESULT_CURSOR_MOVE_HANDLERS.len()
-		+ RESULT_MOTION_HANDLERS.len()
-		+ RESULT_INSERT_WITH_MOTION_HANDLERS.len()
-		+ RESULT_EDIT_HANDLERS.len()
-		+ RESULT_QUIT_HANDLERS.len()
-		+ RESULT_ERROR_HANDLERS.len();
-	assert!(
-		total >= 8,
-		"expected handlers registered for major variants"
-	);
+fn test_effects_handler_registered() {
+	assert!(!RESULT_EFFECTS_HANDLERS.is_empty());
 }
 
 #[test]

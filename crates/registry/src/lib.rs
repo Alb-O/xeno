@@ -29,19 +29,11 @@ pub use actions::editor_ctx::{
 	ResultHandler, SearchAccess, SelectionAccess, SplitOps, TextAccess, ThemeAccess, UndoAccess,
 };
 pub use actions::{
-	ACTIONS, ActionArgs, ActionContext, ActionDef, ActionHandler, ActionMode, ActionResult,
-	BindingMode, EditAction, KEY_PREFIXES, KEYBINDINGS, KeyBindingDef, KeyPrefixDef, Mode,
-	ObjectSelectionKind, PendingAction, PendingKind, RESULT_BUFFER_SWITCH_HANDLERS,
-	RESULT_CLOSE_OTHER_BUFFERS_HANDLERS, RESULT_CLOSE_PALETTE_HANDLERS,
-	RESULT_CLOSE_SPLIT_HANDLERS, RESULT_COMMAND_HANDLERS, RESULT_CURSOR_MOVE_HANDLERS,
-	RESULT_EDIT_HANDLERS, RESULT_ERROR_HANDLERS, RESULT_EXECUTE_PALETTE_HANDLERS,
-	RESULT_EXTENSION_HANDLERS, RESULT_FOCUS_HANDLERS, RESULT_FORCE_REDRAW_HANDLERS,
-	RESULT_INSERT_WITH_MOTION_HANDLERS, RESULT_MODE_CHANGE_HANDLERS, RESULT_MOTION_HANDLERS,
-	RESULT_OK_HANDLERS, RESULT_OPEN_PALETTE_HANDLERS, RESULT_PENDING_HANDLERS,
-	RESULT_QUIT_HANDLERS, RESULT_SCREEN_MOTION_HANDLERS, RESULT_SEARCH_HANDLERS,
-	RESULT_SPLIT_HANDLERS, RESULT_USE_SELECTION_SEARCH_HANDLERS, ScrollAmount, ScrollDir,
-	VisualDirection, action, dispatch_result, find_prefix, key_prefix, result_extension_handler,
-	result_handler,
+	ACTIONS, ActionArgs, ActionContext, ActionDef, ActionEffects, ActionHandler, ActionResult,
+	BindingMode, EditAction, Effect, KEY_PREFIXES, KEYBINDINGS, KeyBindingDef, KeyPrefixDef, Mode,
+	ObjectSelectionKind, PendingAction, PendingKind, RESULT_EFFECTS_HANDLERS,
+	RESULT_EXTENSION_HANDLERS, ScreenPosition, ScrollAmount, ScrollDir, VisualDirection, action,
+	dispatch_result, find_prefix, key_prefix, result_extension_handler, result_handler,
 };
 // Re-export direction types (via actions which re-exports from xeno-base)
 pub use actions::{Axis, SeqDirection, SpatialDirection};

@@ -1,6 +1,6 @@
 use xeno_base::selection::Selection;
 
-use crate::{ActionContext, ActionResult, action};
+use crate::{ActionContext, ActionEffects, ActionResult, action};
 
 action!(collapse_selection, {
 	description: "Collapse selection to cursor",
@@ -8,7 +8,7 @@ action!(collapse_selection, {
 }, |ctx| {
 	let mut new_sel = ctx.selection.clone();
 	new_sel.transform_mut(|r| r.anchor = r.head);
-	ActionResult::Motion(new_sel)
+	ActionResult::Effects(ActionEffects::motion(new_sel))
 });
 
 action!(flip_selection, {
@@ -17,7 +17,7 @@ action!(flip_selection, {
 }, |ctx| {
 	let mut new_sel = ctx.selection.clone();
 	new_sel.transform_mut(|r| std::mem::swap(&mut r.anchor, &mut r.head));
-	ActionResult::Motion(new_sel)
+	ActionResult::Effects(ActionEffects::motion(new_sel))
 });
 
 action!(ensure_forward, {
@@ -30,7 +30,7 @@ action!(ensure_forward, {
 			std::mem::swap(&mut r.anchor, &mut r.head);
 		}
 	});
-	ActionResult::Motion(new_sel)
+	ActionResult::Effects(ActionEffects::motion(new_sel))
 });
 
 action!(select_line, {
@@ -58,7 +58,7 @@ fn select_line_impl(ctx: &ActionContext) -> ActionResult {
 			r.head = end;
 		}
 	});
-	ActionResult::Motion(new_sel)
+	ActionResult::Effects(ActionEffects::motion(new_sel))
 }
 
 action!(select_all, {
@@ -66,7 +66,7 @@ action!(select_all, {
 	bindings: r#"normal "%""#,
 }, |ctx| {
 	let end = ctx.text.len_chars();
-	ActionResult::Motion(Selection::single(0, end))
+	ActionResult::Effects(ActionEffects::motion(Selection::single(0, end)))
 });
 
 action!(expand_to_line, {
@@ -87,7 +87,7 @@ fn expand_to_line_impl(ctx: &ActionContext) -> ActionResult {
 			ctx.text.len_chars()
 		};
 	});
-	ActionResult::Motion(new_sel)
+	ActionResult::Effects(ActionEffects::motion(new_sel))
 }
 
 action!(remove_primary_selection, {
@@ -95,21 +95,21 @@ action!(remove_primary_selection, {
 	bindings: r#"normal "alt-,""#,
 }, |ctx| {
 	if ctx.selection.len() <= 1 {
-		return ActionResult::Ok;
+		return ActionResult::Effects(ActionEffects::ok());
 	}
 	let mut new_sel = ctx.selection.clone();
 	new_sel.remove_primary();
-	ActionResult::Motion(new_sel)
+	ActionResult::Effects(ActionEffects::motion(new_sel))
 });
 
 action!(remove_selections_except_primary, {
 	description: "Remove all selections except the primary one",
 	bindings: r#"normal ",""#,
 }, |ctx| {
-	ActionResult::Motion(Selection::single(
+	ActionResult::Effects(ActionEffects::motion(Selection::single(
 		ctx.selection.primary().anchor,
 		ctx.selection.primary().head,
-	))
+	)))
 });
 
 action!(rotate_selections_forward, {
@@ -118,7 +118,7 @@ action!(rotate_selections_forward, {
 }, |ctx| {
 	let mut new_sel = ctx.selection.clone();
 	new_sel.rotate_forward();
-	ActionResult::Motion(new_sel)
+	ActionResult::Effects(ActionEffects::motion(new_sel))
 });
 
 action!(rotate_selections_backward, {
@@ -127,7 +127,7 @@ action!(rotate_selections_backward, {
 }, |ctx| {
 	let mut new_sel = ctx.selection.clone();
 	new_sel.rotate_backward();
-	ActionResult::Motion(new_sel)
+	ActionResult::Effects(ActionEffects::motion(new_sel))
 });
 
 action!(split_lines, {
@@ -167,9 +167,9 @@ fn split_lines_impl(ctx: &ActionContext) -> ActionResult {
 	}
 
 	if new_ranges.is_empty() {
-		ActionResult::Ok
+		ActionResult::Effects(ActionEffects::ok())
 	} else {
-		ActionResult::Motion(Selection::from_vec(new_ranges, 0))
+		ActionResult::Effects(ActionEffects::motion(Selection::from_vec(new_ranges, 0)))
 	}
 }
 
@@ -209,7 +209,10 @@ fn duplicate_selections_down_impl(ctx: &ActionContext) -> ActionResult {
 		}
 	}
 
-	ActionResult::Motion(Selection::from_vec(new_ranges, primary_index))
+	ActionResult::Effects(ActionEffects::motion(Selection::from_vec(
+		new_ranges,
+		primary_index,
+	)))
 }
 
 action!(duplicate_selections_up, {
@@ -249,7 +252,10 @@ fn duplicate_selections_up_impl(ctx: &ActionContext) -> ActionResult {
 		}
 	}
 
-	ActionResult::Motion(Selection::from_vec(new_ranges, primary_index))
+	ActionResult::Effects(ActionEffects::motion(Selection::from_vec(
+		new_ranges,
+		primary_index,
+	)))
 }
 
 /// Converts a line/column position to a character offset.
@@ -270,7 +276,7 @@ action!(merge_selections, {
 }, |ctx| {
 	let mut new_sel = ctx.selection.clone();
 	new_sel.merge_overlaps_and_adjacent();
-	ActionResult::Motion(new_sel)
+	ActionResult::Effects(ActionEffects::motion(new_sel))
 });
 
 #[cfg(test)]
@@ -296,15 +302,20 @@ mod tests {
 		};
 
 		let result = select_line_impl(&ctx);
-		if let ActionResult::Motion(new_sel) = result {
-			let primary = new_sel.primary();
-			assert_eq!(
-				primary.anchor, 1,
-				"Anchor should be preserved when extending"
-			);
-			assert_eq!(primary.head, 7, "Head should be at end of line");
+		if let ActionResult::Effects(effects) = result {
+			// Extract selection from effects
+			if let Some(crate::Effect::SetSelection(new_sel)) = effects.as_slice().first() {
+				let primary = new_sel.primary();
+				assert_eq!(
+					primary.anchor, 1,
+					"Anchor should be preserved when extending"
+				);
+				assert_eq!(primary.head, 7, "Head should be at end of line");
+			} else {
+				panic!("Expected SetSelection effect");
+			}
 		} else {
-			panic!("Expected Motion result");
+			panic!("Expected Effects result");
 		}
 	}
 
@@ -324,15 +335,19 @@ mod tests {
 		};
 
 		let result = select_line_impl(&ctx);
-		if let ActionResult::Motion(new_sel) = result {
-			let primary = new_sel.primary();
-			assert_eq!(
-				primary.anchor, 7,
-				"Anchor should move to start of next line"
-			);
-			assert_eq!(primary.head, 14, "Head should move to end of next line");
+		if let ActionResult::Effects(effects) = result {
+			if let Some(crate::Effect::SetSelection(new_sel)) = effects.as_slice().first() {
+				let primary = new_sel.primary();
+				assert_eq!(
+					primary.anchor, 7,
+					"Anchor should move to start of next line"
+				);
+				assert_eq!(primary.head, 14, "Head should move to end of next line");
+			} else {
+				panic!("Expected SetSelection effect");
+			}
 		} else {
-			panic!("Expected Motion result");
+			panic!("Expected Effects result");
 		}
 	}
 
@@ -352,12 +367,16 @@ mod tests {
 		};
 
 		let result = select_line_impl(&ctx);
-		if let ActionResult::Motion(new_sel) = result {
-			let primary = new_sel.primary();
-			assert_eq!(primary.anchor, 0);
-			assert_eq!(primary.head, 14, "should select 2 complete lines");
+		if let ActionResult::Effects(effects) = result {
+			if let Some(crate::Effect::SetSelection(new_sel)) = effects.as_slice().first() {
+				let primary = new_sel.primary();
+				assert_eq!(primary.anchor, 0);
+				assert_eq!(primary.head, 14, "should select 2 complete lines");
+			} else {
+				panic!("Expected SetSelection effect");
+			}
 		} else {
-			panic!("Expected Motion result");
+			panic!("Expected Effects result");
 		}
 	}
 }

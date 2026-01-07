@@ -1,16 +1,13 @@
-//! Action result type and mode changes.
+//! Action result type.
 //!
 //! The [`ActionResult`] enum is the return type for all action handlers,
 //! describing what the editor should do after an action executes.
 
 use linkme::distributed_slice;
-use xeno_base::Selection;
-use xeno_base::direction::{Axis, SeqDirection, SpatialDirection};
-use xeno_base::range::CharIdx;
 use xeno_macro::DispatchResult;
 
 use crate::editor_ctx::ResultHandler;
-use crate::{EditAction, PendingAction};
+use crate::effects::ActionEffects;
 
 /// Extension handlers for action results.
 ///
@@ -20,17 +17,6 @@ use crate::{EditAction, PendingAction};
 /// when they don't apply.
 #[distributed_slice]
 pub static RESULT_EXTENSION_HANDLERS: [ResultHandler];
-
-/// Editor mode for mode-change actions.
-///
-/// Subset of modes that can be entered via [`ActionResult::ModeChange`].
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ActionMode {
-	/// Normal/command mode for navigation and editing commands.
-	Normal,
-	/// Insert mode for text input.
-	Insert,
-}
 
 /// Screen-relative cursor position.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -45,90 +31,31 @@ pub enum ScreenPosition {
 
 /// Result of executing an action.
 ///
-/// Actions return this enum to indicate what the editor should do next.
+/// All actions return `ActionResult::Effects(...)` containing composable
+/// primitive effects. The `apply_effects` function processes these effects
+/// to mutate editor state.
 ///
-/// The `#[derive(DispatchResult)]` macro generates:
-/// - Handler slices (`RESULT_*_HANDLERS`) for each variant
-/// - [`dispatch_result`] function for routing results to handlers
+/// # Example
 ///
-/// Extension handlers registered in [`RESULT_EXTENSION_HANDLERS`] run after the
-/// per-variant handlers.
+/// ```ignore
+/// use xeno_registry::{ActionEffects, ActionResult, Effect, Mode};
 ///
-/// [`dispatch_result`]: crate::dispatch_result
+/// // Motion action
+/// ActionResult::Effects(ActionEffects::motion(selection))
+///
+/// // Composed action: motion + mode change
+/// ActionResult::Effects(
+///     ActionEffects::motion(sel).with(Effect::SetMode(Mode::Insert))
+/// )
+///
+/// // No-op
+/// ActionResult::Effects(ActionEffects::ok())
+/// ```
 #[derive(Debug, Clone, DispatchResult)]
-#[cfg_attr(feature = "handler-coverage", handler_coverage = "error")]
 pub enum ActionResult {
-	/// No-op success.
-	Ok,
-	/// Quit the editor.
-	#[handler(Quit)]
-	Quit,
-	/// Force quit without save prompts.
-	#[handler(Quit)]
-	ForceQuit,
-	/// Error message to display.
-	Error(String),
-	/// Force a redraw.
-	ForceRedraw,
-
-	/// Split the current view along an axis.
-	Split(Axis),
-	/// Switch buffer in the given direction (next/previous).
-	BufferSwitch(SeqDirection),
-	/// Close current split.
-	CloseSplit,
-	/// Close all other buffers.
-	CloseOtherBuffers,
-	/// Focus a split in the given spatial direction.
-	Focus(SpatialDirection),
-
-	/// Change editor mode.
-	ModeChange(ActionMode),
-	/// Move cursor to position.
-	CursorMove(CharIdx),
-	/// Move cursor to a screen-relative position.
-	ScreenMotion {
-		/// Screen-relative position.
-		position: ScreenPosition,
-		/// 1-based offset from the target edge.
-		count: usize,
-	},
-	/// Apply a motion (updates selection).
-	Motion(Selection),
-	/// Enter insert mode with motion.
-	InsertWithMotion(Selection),
-	/// Execute an edit action.
-	Edit(EditAction),
-	/// Enter pending state for multi-key action.
-	Pending(PendingAction),
-
-	/// Search in the given direction.
-	Search {
-		/// Direction to search (Next = forward, Prev = backward).
-		direction: SeqDirection,
-		/// Whether to add matches to existing selections.
-		add_selection: bool,
-	},
-	/// Use current selection as search pattern.
-	#[handler(UseSelectionSearch)]
-	UseSelectionAsSearch,
-
-	/// Execute a command asynchronously.
+	/// Apply a set of composable effects.
 	///
-	/// The command will be queued and executed on the next tick. This allows
-	/// actions (which are synchronous) to trigger async operations like LSP
-	/// requests.
-	Command {
-		/// Name of the command to execute.
-		name: &'static str,
-		/// Arguments to pass to the command.
-		args: Vec<String>,
-	},
-
-	/// Open the command palette.
-	OpenPalette,
-	/// Close the command palette without executing.
-	ClosePalette,
-	/// Execute the command in the palette and close it.
-	ExecutePalette,
+	/// This is the sole variant - all editor state changes are expressed
+	/// as compositions of primitive [`Effect`](crate::Effect) values.
+	Effects(ActionEffects),
 }

@@ -1,6 +1,6 @@
 use xeno_registry_motions::movement;
 
-use crate::{ActionResult, PendingAction, PendingKind, action};
+use crate::{ActionEffects, ActionResult, PendingAction, PendingKind, action};
 
 action!(find_char, {
 	description: "Select to next occurrence of character (inclusive)",
@@ -11,12 +11,12 @@ action!(find_char, {
 		new_sel.transform_mut(|r| {
 			*r = movement::find_char_forward(ctx.text, *r, ch, ctx.count, true, ctx.extend);
 		});
-		ActionResult::Motion(new_sel)
+		ActionResult::Effects(ActionEffects::motion(new_sel))
 	}
-	None => ActionResult::Pending(PendingAction {
+	None => ActionResult::Effects(ActionEffects::pending(PendingAction {
 		kind: PendingKind::FindChar { inclusive: true },
 		prompt: "find->".into(),
-	}),
+	})),
 });
 
 action!(find_char_to, {
@@ -28,12 +28,12 @@ action!(find_char_to, {
 		new_sel.transform_mut(|r| {
 			*r = movement::find_char_forward(ctx.text, *r, ch, ctx.count, false, ctx.extend);
 		});
-		ActionResult::Motion(new_sel)
+		ActionResult::Effects(ActionEffects::motion(new_sel))
 	}
-	None => ActionResult::Pending(PendingAction {
+	None => ActionResult::Effects(ActionEffects::pending(PendingAction {
 		kind: PendingKind::FindChar { inclusive: false },
 		prompt: "to->".into(),
-	}),
+	})),
 });
 
 action!(find_char_reverse, {
@@ -45,12 +45,12 @@ action!(find_char_reverse, {
 		new_sel.transform_mut(|r| {
 			*r = movement::find_char_backward(ctx.text, *r, ch, ctx.count, true, ctx.extend);
 		});
-		ActionResult::Motion(new_sel)
+		ActionResult::Effects(ActionEffects::motion(new_sel))
 	}
-	None => ActionResult::Pending(PendingAction {
+	None => ActionResult::Effects(ActionEffects::pending(PendingAction {
 		kind: PendingKind::FindCharReverse { inclusive: true },
 		prompt: "find<-".into(),
-	}),
+	})),
 });
 
 action!(find_char_to_reverse, {
@@ -62,10 +62,10 @@ action!(find_char_to_reverse, {
 		new_sel.transform_mut(|r| {
 			*r = movement::find_char_backward(ctx.text, *r, ch, ctx.count, false, ctx.extend);
 		});
-		ActionResult::Motion(new_sel)
+		ActionResult::Effects(ActionEffects::motion(new_sel))
 	}
-	None => ActionResult::Pending(PendingAction {
+	None => ActionResult::Effects(ActionEffects::pending(PendingAction {
 		kind: PendingKind::FindCharReverse { inclusive: false },
 		prompt: "to<-".into(),
-	}),
+	})),
 });
