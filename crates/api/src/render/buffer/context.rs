@@ -8,7 +8,7 @@ use xeno_base::range::CharIdx;
 use xeno_language::LanguageLoader;
 use xeno_language::highlight::{HighlightSpan, HighlightStyles};
 use xeno_registry::gutter::GutterAnnotations;
-use xeno_registry::themes::{SyntaxStyles, Theme, ThemeVariant};
+use xeno_registry::themes::{SyntaxStyles, Theme};
 use xeno_tui::layout::Rect;
 use xeno_tui::style::{Modifier, Style};
 use xeno_tui::text::{Line, Span};
@@ -122,21 +122,14 @@ impl<'a> BufferRenderContext<'a> {
 		(now_ms / 200).is_multiple_of(2)
 	}
 
-	/// Computes cursorline background color based on current mode.
-	///
-	/// Blends the mode's accent color with the editor background for a subtle
-	/// highlight that indicates the current mode.
-	fn cursorline_color_for_mode(&self, mode: Mode) -> xeno_tui::style::Color {
+	/// Returns the accent color for the current mode.
+	fn mode_color(&self, mode: Mode) -> xeno_tui::style::Color {
 		let status = &self.theme.colors.status;
-		let bg = self.theme.colors.ui.bg;
-
-		let mode_color = match mode {
+		match mode {
 			Mode::Normal => status.normal_bg,
 			Mode::Insert => status.insert_bg,
 			Mode::PendingAction(_) => status.prefix_mode_bg,
-		};
-
-		mode_color.blend(bg, 0.15)
+		}
 	}
 
 	/// Collects syntax highlight spans for a buffer's visible viewport.
@@ -286,9 +279,10 @@ impl<'a> BufferRenderContext<'a> {
 		let styles = self.make_cursor_styles();
 
 		let highlight_spans = self.collect_highlight_spans(buffer, area);
+		let mode_color = self.mode_color(buffer.mode());
 		let cursorline_config = CursorlineConfig {
 			enabled: cursorline,
-			bg: self.cursorline_color_for_mode(buffer.mode()),
+			bg: self.theme.colors.ui.bg.blend(mode_color, 0.92), // 92% bg, 8% mode
 			line: buffer.cursor_line(),
 		};
 
@@ -368,16 +362,17 @@ impl<'a> BufferRenderContext<'a> {
 					let syntax_style = self.apply_style_overlay(byte_pos, syntax_style);
 
 					let non_cursor_style = if in_selection {
-						// Invert: syntax fg becomes bg, use contrasting color as fg
+						// Blend bg + mode color + syntax fg for selection highlight
 						let base = syntax_style.unwrap_or(styles.base);
 						let syntax_fg = base.fg.unwrap_or(self.theme.colors.ui.fg);
-						let text_fg = match self.theme.variant {
-							ThemeVariant::Dark => self.theme.colors.ui.bg,
-							ThemeVariant::Light => self.theme.colors.ui.fg,
-						};
+						let bg = self.theme.colors.ui.bg;
+						// blend(other, alpha): alpha=1 → self, alpha=0 → other
+						let selection_bg = bg
+							.blend(mode_color, 0.78) // 78% bg, 22% mode
+							.blend(syntax_fg, 0.88); // 88% prev, 12% syntax tint
 						Style::default()
-							.bg(syntax_fg)
-							.fg(text_fg)
+							.bg(selection_bg)
+							.fg(syntax_fg)
 							.add_modifier(base.add_modifier)
 					} else {
 						let base = syntax_style.unwrap_or(styles.base);
