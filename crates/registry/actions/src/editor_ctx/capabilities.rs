@@ -33,12 +33,12 @@
 
 use ropey::RopeSlice;
 use xeno_base::direction::{Axis, SeqDirection, SpatialDirection};
-use xeno_base::range::CharIdx;
+use xeno_base::range::{CharIdx, Direction};
 use xeno_base::selection::Selection;
 use xeno_registry_notifications::Notification;
 use xeno_registry_options::{FromOptionValue, OptionKey, OptionValue, TypedOptionKey};
 
-use crate::{EditAction, Mode};
+use crate::Mode;
 
 /// Cursor position access (required).
 ///
@@ -188,11 +188,23 @@ pub trait MacroAccess {
 ///
 /// [`ActionResult::Quit`]: crate::ActionResult::Quit
 pub trait EditAccess {
-	/// Executes an edit action on the current selection.
+	/// Executes a data-oriented edit operation.
 	///
-	/// If `extend` is true, the selection is extended rather than replaced
-	/// during the operation.
-	fn execute_edit(&mut self, action: &EditAction, extend: bool);
+	/// This is the preferred method for text edits. EditOp records are
+	/// composable and processed by a single executor function.
+	fn execute_edit_op(&mut self, op: &crate::edit_op::EditOp);
+
+	/// Moves the cursor visually (wrapped lines).
+	///
+	/// - `direction`: Forward for down, Backward for up
+	/// - `count`: Number of visual lines to move
+	/// - `extend`: If true, extends selection rather than moving
+	fn move_visual_vertical(&mut self, direction: Direction, count: usize, extend: bool);
+
+	/// Pastes from the yank register.
+	///
+	/// - `before`: If true, pastes before cursor; otherwise after
+	fn paste(&mut self, before: bool);
 }
 
 /// File operations (optional).

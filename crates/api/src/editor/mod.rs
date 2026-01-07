@@ -13,8 +13,6 @@
 //!
 //! [`FileOpsAccess`]: xeno_core::editor_ctx::FileOpsAccess
 
-/// Action execution result handling.
-mod actions;
 /// Action dispatch and context setup.
 mod actions_exec;
 /// Buffer collection management.
@@ -23,6 +21,8 @@ mod buffer_manager;
 mod buffer_ops;
 /// Command queue for deferred execution.
 mod command_queue;
+/// Data-oriented edit operation executor.
+mod edit_op_executor;
 /// Text editing operations.
 mod editing;
 /// Extension container and lifecycle.

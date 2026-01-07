@@ -4,7 +4,7 @@ use xeno_base::range::Range;
 use xeno_base::{Mode, Selection};
 pub use xeno_registry::actions::editor_ctx::*;
 use xeno_registry::{
-	ActionEffects, ActionResult, Effect, HookContext, HookEventData, ScreenPosition,
+	ActionEffects, ActionResult, Effect, HookContext, HookEventData, ScreenPosition, ScrollAmount,
 	emit_sync as emit_hook_sync, notification_keys as keys, result_handler,
 };
 
@@ -48,9 +48,40 @@ pub fn apply_effects(
 				ctx.set_mode(Mode::PendingAction(pending.kind));
 			}
 
-			Effect::Edit(action) => {
+			Effect::EditOp(op) => {
 				if let Some(edit) = ctx.edit() {
-					edit.execute_edit(action, extend);
+					edit.execute_edit_op(op);
+				}
+			}
+
+			Effect::Scroll {
+				direction,
+				amount,
+				extend: scroll_extend,
+			} => {
+				let count = match amount {
+					ScrollAmount::Line(n) => *n,
+					ScrollAmount::HalfPage => 10,
+					ScrollAmount::FullPage => 20,
+				};
+				if let Some(edit) = ctx.edit() {
+					edit.move_visual_vertical(*direction, count, *scroll_extend);
+				}
+			}
+
+			Effect::VisualMove {
+				direction,
+				count,
+				extend: move_extend,
+			} => {
+				if let Some(edit) = ctx.edit() {
+					edit.move_visual_vertical(*direction, *count, *move_extend);
+				}
+			}
+
+			Effect::Paste { before } => {
+				if let Some(edit) = ctx.edit() {
+					edit.paste(*before);
 				}
 			}
 

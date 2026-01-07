@@ -7,7 +7,7 @@ extern crate self as xeno_registry_actions;
 
 mod context;
 mod definition;
-mod edit;
+pub mod edit_op;
 mod effects;
 /// Built-in action implementations.
 pub(crate) mod impls;
@@ -25,8 +25,10 @@ pub use xeno_registry_core::Key;
 
 /// Typed handle to an action definition.
 pub type ActionKey = Key<ActionDef>;
-pub use edit::{EditAction, ScrollAmount, ScrollDir, VisualDirection};
-pub use effects::{ActionEffects, Effect};
+pub use edit_op::{
+	CharMapKind, CursorAdjust, EditOp, PostEffect, PreEffect, SelectionOp, TextTransform,
+};
+pub use effects::{ActionEffects, Effect, ScrollAmount};
 pub use keybindings::{
 	BindingMode, KEY_PREFIXES, KEYBINDINGS, KeyBindingDef, KeyPrefixDef, find_prefix,
 };

@@ -23,6 +23,7 @@
 //! 3. Add dependency and re-export here
 
 // Re-export commonly used items at the crate root for convenience
+// Data-oriented edit operations
 pub use actions::editor_ctx::{
 	CommandQueueAccess, CursorAccess, EditAccess, EditorCapabilities, EditorContext, EditorOps,
 	FileOpsAccess, FocusOps, HandleOutcome, JumpAccess, MacroAccess, NotificationAccess,
@@ -30,10 +31,10 @@ pub use actions::editor_ctx::{
 };
 pub use actions::{
 	ACTIONS, ActionArgs, ActionContext, ActionDef, ActionEffects, ActionHandler, ActionResult,
-	BindingMode, EditAction, Effect, KEY_PREFIXES, KEYBINDINGS, KeyBindingDef, KeyPrefixDef, Mode,
+	BindingMode, Effect, KEY_PREFIXES, KEYBINDINGS, KeyBindingDef, KeyPrefixDef, Mode,
 	ObjectSelectionKind, PendingAction, PendingKind, RESULT_EFFECTS_HANDLERS,
-	RESULT_EXTENSION_HANDLERS, ScreenPosition, ScrollAmount, ScrollDir, VisualDirection, action,
-	dispatch_result, find_prefix, key_prefix, result_extension_handler, result_handler,
+	RESULT_EXTENSION_HANDLERS, ScreenPosition, ScrollAmount, action, dispatch_result, edit_op,
+	find_prefix, key_prefix, result_extension_handler, result_handler,
 };
 // Re-export direction types (via actions which re-exports from xeno-base)
 pub use actions::{Axis, SeqDirection, SpatialDirection};

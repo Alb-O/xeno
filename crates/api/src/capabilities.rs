@@ -7,7 +7,7 @@ use std::path::PathBuf;
 use std::pin::Pin;
 
 use xeno_base::direction::{Axis, SeqDirection, SpatialDirection};
-use xeno_base::range::CharIdx;
+use xeno_base::range::{CharIdx, Direction as MoveDir};
 use xeno_base::{Mode, Selection};
 use xeno_core::editor_ctx::{
 	CommandQueueAccess, CursorAccess, EditAccess, EditorCapabilities, FileOpsAccess, FocusOps,
@@ -16,9 +16,7 @@ use xeno_core::editor_ctx::{
 };
 use xeno_registry::commands::{CommandEditorOps, CommandError};
 use xeno_registry::options::{OptionKey, OptionScope, OptionValue, find_by_kdl, parse};
-use xeno_registry::{
-	EditAction, HookContext, HookEventData, emit_sync_with as emit_hook_sync_with,
-};
+use xeno_registry::{HookContext, HookEventData, emit_sync_with as emit_hook_sync_with};
 use xeno_registry_notifications::{Notification, keys};
 
 use crate::editor::Editor;
@@ -152,8 +150,20 @@ impl UndoAccess for Editor {
 }
 
 impl EditAccess for Editor {
-	fn execute_edit(&mut self, action: &EditAction, extend: bool) {
-		self.do_execute_edit_action(action.clone(), extend);
+	fn execute_edit_op(&mut self, op: &xeno_registry::edit_op::EditOp) {
+		self.execute_edit_op(op.clone());
+	}
+
+	fn move_visual_vertical(&mut self, direction: MoveDir, count: usize, extend: bool) {
+		self.move_visual_vertical(direction, count, extend);
+	}
+
+	fn paste(&mut self, before: bool) {
+		if before {
+			self.paste_before();
+		} else {
+			self.paste_after();
+		}
 	}
 }
 

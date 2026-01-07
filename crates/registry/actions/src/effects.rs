@@ -21,11 +21,11 @@
 //! [`ActionResult`]: crate::ActionResult
 
 use xeno_base::direction::{Axis, SeqDirection, SpatialDirection};
-use xeno_base::range::CharIdx;
+use xeno_base::range::{CharIdx, Direction};
 use xeno_base::{Mode, Selection};
 use xeno_registry_notifications::Notification;
 
-use crate::{EditAction, PendingAction, ScreenPosition};
+use crate::{PendingAction, ScreenPosition};
 
 /// A collection of effects to apply atomically.
 ///
@@ -136,10 +136,36 @@ impl ActionEffects {
 		Self::from_effect(Effect::ScreenMotion { position, count })
 	}
 
-	/// Executes an edit action.
+	/// Executes a data-oriented edit operation.
 	#[inline]
-	pub fn edit(action: EditAction) -> Self {
-		Self::from_effect(Effect::Edit(action))
+	pub fn edit_op(op: crate::edit_op::EditOp) -> Self {
+		Self::from_effect(Effect::EditOp(op))
+	}
+
+	/// Scrolls the viewport.
+	#[inline]
+	pub fn scroll(direction: Direction, amount: ScrollAmount, extend: bool) -> Self {
+		Self::from_effect(Effect::Scroll {
+			direction,
+			amount,
+			extend,
+		})
+	}
+
+	/// Moves cursor visually (wrapped lines).
+	#[inline]
+	pub fn visual_move(direction: Direction, count: usize, extend: bool) -> Self {
+		Self::from_effect(Effect::VisualMove {
+			direction,
+			count,
+			extend,
+		})
+	}
+
+	/// Pastes from yank register.
+	#[inline]
+	pub fn paste(before: bool) -> Self {
+		Self::from_effect(Effect::Paste { before })
 	}
 
 	/// Enters pending state for multi-key action.
@@ -153,6 +179,17 @@ impl<E: Into<Effect>> From<E> for ActionEffects {
 	fn from(effect: E) -> Self {
 		Self::from_effect(effect.into())
 	}
+}
+
+/// Amount to scroll (lines or page fraction).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ScrollAmount {
+	/// Scroll by a specific number of lines.
+	Line(usize),
+	/// Scroll by half a page.
+	HalfPage,
+	/// Scroll by a full page.
+	FullPage,
 }
 
 impl IntoIterator for ActionEffects {
@@ -183,7 +220,8 @@ impl<'a> IntoIterator for &'a ActionEffects {
 ///
 /// - **Cursor/Selection**: `SetCursor`, `SetSelection`, `ScreenMotion`
 /// - **Mode**: `SetMode`, `Pending`
-/// - **Text**: `Edit` (wraps `EditAction`)
+/// - **Text**: `EditOp`, `Paste`
+/// - **Viewport**: `Scroll`, `VisualMove`
 /// - **Navigation**: `FocusBuffer`, `FocusSplit`, `Split`, `CloseSplit`
 /// - **UI**: `Notify`, `OpenPalette`, `ClosePalette`, `ExecutePalette`
 /// - **Lifecycle**: `Quit`, `ForceRedraw`
@@ -211,8 +249,37 @@ pub enum Effect {
 	/// Enter pending state for multi-key action.
 	Pending(PendingAction),
 
-	/// Execute an edit action (delete, change, yank, etc.).
-	Edit(EditAction),
+	/// Execute a data-oriented edit operation.
+	///
+	/// This is the preferred way to express text edits. EditOp records
+	/// are composable and processed by a single executor function.
+	EditOp(crate::edit_op::EditOp),
+
+	/// Scroll the viewport.
+	Scroll {
+		/// Direction to scroll (Forward = down, Backward = up).
+		direction: Direction,
+		/// How much to scroll.
+		amount: ScrollAmount,
+		/// Whether to extend selection while scrolling.
+		extend: bool,
+	},
+
+	/// Move cursor visually (wrapped lines).
+	VisualMove {
+		/// Direction to move (Forward = down, Backward = up).
+		direction: Direction,
+		/// Number of visual lines to move.
+		count: usize,
+		/// Whether to extend selection rather than move.
+		extend: bool,
+	},
+
+	/// Paste from yank register.
+	Paste {
+		/// Whether to paste before cursor (vs after).
+		before: bool,
+	},
 
 	/// Switch buffer in sequential direction.
 	FocusBuffer(SeqDirection),
@@ -285,9 +352,9 @@ impl From<Mode> for Effect {
 	}
 }
 
-impl From<EditAction> for Effect {
-	fn from(action: EditAction) -> Self {
-		Effect::Edit(action)
+impl From<crate::edit_op::EditOp> for Effect {
+	fn from(op: crate::edit_op::EditOp) -> Self {
+		Effect::EditOp(op)
 	}
 }
 
