@@ -2,6 +2,8 @@
 //!
 //! Tick, startup, and render update methods.
 
+#[cfg(feature = "lsp")]
+use std::collections::HashSet;
 use std::path::PathBuf;
 
 use xeno_registry::commands::{CommandContext, CommandOutcome, find_command};
@@ -36,6 +38,9 @@ impl Editor {
 			self.frame.needs_redraw = true;
 		}
 
+		#[cfg(feature = "lsp")]
+		let mut lsp_docs: HashSet<crate::buffer::DocumentId> = HashSet::new();
+
 		let dirty_ids: Vec<_> = self.frame.dirty_buffers.drain().collect();
 		for buffer_id in dirty_ids {
 			if let Some(buffer) = self.buffers.get_buffer(buffer_id) {
@@ -58,7 +63,9 @@ impl Editor {
 				);
 
 				#[cfg(feature = "lsp")]
-				self.queue_lsp_change(buffer_id);
+				if lsp_docs.insert(buffer.document_id()) {
+					self.queue_lsp_change(buffer_id);
+				}
 			}
 		}
 		emit_hook_sync_with(
@@ -77,9 +84,18 @@ impl Editor {
 			return;
 		};
 		let content = buffer.doc().content.clone();
+		let changes = buffer.drain_lsp_changes();
+		let supports_incremental = self.lsp.incremental_encoding_for_buffer(buffer).is_some();
 		let sync = self.lsp.sync().clone();
 		tokio::spawn(async move {
-			if let Err(e) = sync.notify_change_full(&path, &language, &content).await {
+			let result = if supports_incremental && !changes.is_empty() {
+				sync
+					.notify_change_incremental_v2(&path, &language, &content, changes)
+					.await
+			} else {
+				sync.notify_change_full(&path, &language, &content).await
+			};
+			if let Err(e) = result {
 				tracing::warn!(error = %e, path = ?path, "LSP change notification failed");
 			}
 		});

@@ -2,7 +2,7 @@
 //!
 //! Insert, delete, yank, paste, and transaction application.
 
-use xeno_base::Transaction;
+use xeno_base::{Selection, Transaction};
 use xeno_registry_notifications::keys;
 
 use super::Editor;
@@ -14,6 +14,63 @@ impl Editor {
 			return false;
 		}
 		true
+	}
+
+	fn apply_transaction_with_selection(
+		&mut self,
+		buffer_id: crate::buffer::BufferId,
+		tx: &Transaction,
+		new_selection: Option<Selection>,
+	) -> bool {
+		#[cfg(feature = "lsp")]
+		let encoding = {
+			let buffer = self
+				.buffers
+				.get_buffer(buffer_id)
+				.expect("focused buffer must exist");
+			self.lsp.incremental_encoding_for_buffer(buffer)
+		};
+
+		#[cfg(feature = "lsp")]
+		let applied = {
+			let buffer = self
+				.buffers
+				.get_buffer_mut(buffer_id)
+				.expect("focused buffer must exist");
+			let applied = if let Some(encoding) = encoding {
+				buffer.apply_edit_with_lsp(tx, &self.config.language_loader, encoding)
+			} else {
+				buffer.apply_transaction_with_syntax(tx, &self.config.language_loader)
+			};
+			if applied
+				&& let Some(selection) = new_selection
+			{
+				buffer.finalize_selection(selection);
+			}
+			applied
+		};
+
+		#[cfg(not(feature = "lsp"))]
+		let applied = {
+			let buffer = self
+				.buffers
+				.get_buffer_mut(buffer_id)
+				.expect("focused buffer must exist");
+			let applied = buffer.apply_transaction_with_syntax(tx, &self.config.language_loader);
+			if applied
+				&& let Some(selection) = new_selection
+			{
+				buffer.finalize_selection(selection);
+			}
+			applied
+		};
+
+		if applied {
+			self.sync_sibling_selections(tx);
+			self.frame.dirty_buffers.insert(buffer_id);
+		}
+
+		applied
 	}
 
 	/// Inserts text at the current cursor position(s).
@@ -39,25 +96,13 @@ impl Editor {
 			buffer.prepare_insert(text)
 		};
 
-		let applied = {
-			let buffer = self
-				.buffers
-				.get_buffer_mut(buffer_id)
-				.expect("focused buffer must exist");
-			let applied = buffer.apply_transaction_with_syntax(&tx, &self.config.language_loader);
-			if applied {
-				buffer.finalize_selection(new_selection);
-			}
-			applied
-		};
+		let applied = self.apply_transaction_with_selection(buffer_id, &tx, Some(new_selection));
 
 		if !applied {
 			self.notify(keys::buffer_readonly);
 			return;
 		}
 
-		self.sync_sibling_selections(&tx);
-		self.frame.dirty_buffers.insert(buffer_id);
 	}
 
 	/// Copies the current selection to the yank register.
@@ -94,25 +139,13 @@ impl Editor {
 			return;
 		};
 
-		let applied = {
-			let buffer = self
-				.buffers
-				.get_buffer_mut(buffer_id)
-				.expect("focused buffer must exist");
-			let applied = buffer.apply_transaction_with_syntax(&tx, &self.config.language_loader);
-			if applied {
-				buffer.finalize_selection(new_selection);
-			}
-			applied
-		};
+		let applied = self.apply_transaction_with_selection(buffer_id, &tx, Some(new_selection));
 
 		if !applied {
 			self.notify(keys::buffer_readonly);
 			return;
 		}
 
-		self.sync_sibling_selections(&tx);
-		self.frame.dirty_buffers.insert(buffer_id);
 	}
 
 	/// Pastes the yank register content before the cursor.
@@ -141,25 +174,13 @@ impl Editor {
 			return;
 		};
 
-		let applied = {
-			let buffer = self
-				.buffers
-				.get_buffer_mut(buffer_id)
-				.expect("focused buffer must exist");
-			let applied = buffer.apply_transaction_with_syntax(&tx, &self.config.language_loader);
-			if applied {
-				buffer.finalize_selection(new_selection);
-			}
-			applied
-		};
+		let applied = self.apply_transaction_with_selection(buffer_id, &tx, Some(new_selection));
 
 		if !applied {
 			self.notify(keys::buffer_readonly);
 			return;
 		}
 
-		self.sync_sibling_selections(&tx);
-		self.frame.dirty_buffers.insert(buffer_id);
 	}
 
 	/// Deletes the currently selected text.
@@ -187,41 +208,23 @@ impl Editor {
 			return;
 		};
 
-		let applied = {
-			let buffer = self
-				.buffers
-				.get_buffer_mut(buffer_id)
-				.expect("focused buffer must exist");
-			let applied = buffer.apply_transaction_with_syntax(&tx, &self.config.language_loader);
-			if applied {
-				buffer.finalize_selection(new_selection);
-			}
-			applied
-		};
+		let applied = self.apply_transaction_with_selection(buffer_id, &tx, Some(new_selection));
 
 		if !applied {
 			self.notify(keys::buffer_readonly);
 			return;
 		}
 
-		self.sync_sibling_selections(&tx);
-		self.frame.dirty_buffers.insert(buffer_id);
 	}
 
 	/// Applies a transaction to the focused buffer.
 	pub fn apply_transaction(&mut self, tx: &Transaction) {
 		let buffer_id = self.focused_view();
-		let applied = self
-			.buffers
-			.get_buffer_mut(buffer_id)
-			.expect("focused buffer must exist")
-			.apply_transaction_with_syntax(tx, &self.config.language_loader);
+		let applied = self.apply_transaction_with_selection(buffer_id, tx, None);
 		if !applied {
 			self.notify(keys::buffer_readonly);
 			return;
 		}
-		self.frame.dirty_buffers.insert(buffer_id);
-		self.sync_sibling_selections(tx);
 	}
 
 	/// Triggers a full syntax reparse of the focused buffer.

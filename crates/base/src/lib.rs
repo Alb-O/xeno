@@ -6,6 +6,8 @@ pub mod direction;
 pub mod graphemes;
 /// Key and mouse event types.
 pub mod key;
+/// LSP sync primitives (position/range/change).
+pub mod lsp;
 /// Editor mode definitions.
 pub mod mode;
 /// Pending action state types.
@@ -23,6 +25,7 @@ pub mod transaction;
 // across multiple crates that parse themes and syntax styles.
 pub use direction::{Axis, SeqDirection, SpatialDirection};
 pub use key::{Key, KeyCode, Modifiers, MouseButton, MouseEvent, ScrollDirection};
+pub use lsp::{LspChangeSet, LspDocumentChange, LspPosition, LspRange};
 pub use mode::Mode;
 pub use pending::{ObjectSelectionKind, PendingKind};
 pub use range::Range;

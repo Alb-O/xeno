@@ -78,6 +78,10 @@ pub struct Document {
 	///
 	/// Used for LSP synchronization and cache invalidation.
 	pub version: u64,
+
+	/// Pending LSP changes queued for sync.
+	#[cfg(feature = "lsp")]
+	pub pending_lsp_changes: Vec<xeno_base::LspDocumentChange>,
 }
 
 impl Document {
@@ -95,6 +99,8 @@ impl Document {
 			syntax: None,
 			insert_undo_active: false,
 			version: 0,
+			#[cfg(feature = "lsp")]
+			pending_lsp_changes: Vec::new(),
 		}
 	}
 

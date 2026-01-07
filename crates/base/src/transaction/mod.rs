@@ -154,6 +154,11 @@ impl Transaction {
 		&self.changes
 	}
 
+	/// Returns the underlying operation list for this transaction.
+	pub fn operations(&self) -> &[Operation] {
+		self.changes.changes()
+	}
+
 	/// Returns a reference to this transaction's selection, if any.
 	pub fn selection(&self) -> Option<&Selection> {
 		self.selection.as_ref()

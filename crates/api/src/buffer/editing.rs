@@ -6,6 +6,11 @@ use xeno_language::LanguageLoader;
 
 use super::Buffer;
 
+#[cfg(feature = "lsp")]
+use xeno_base::LspDocumentChange;
+#[cfg(feature = "lsp")]
+use xeno_lsp::{OffsetEncoding, compute_lsp_changes};
+
 impl Buffer {
 	/// Inserts text at all cursor positions, returning the [`Transaction`] without applying it.
 	///
@@ -219,6 +224,52 @@ impl Buffer {
 		doc.modified = true;
 		doc.version = doc.version.wrapping_add(1);
 		true
+	}
+
+	/// Applies a transaction, updates syntax, and queues LSP changes.
+	#[cfg(feature = "lsp")]
+	pub fn apply_edit_with_lsp(
+		&self,
+		tx: &Transaction,
+		language_loader: &LanguageLoader,
+		encoding: OffsetEncoding,
+	) -> bool {
+		if self.readonly_override == Some(true) {
+			return false;
+		}
+		let mut doc = self.doc_mut();
+		if self.readonly_override.is_none() && doc.readonly {
+			return false;
+		}
+
+		let old_doc = doc.content.clone();
+		let lsp_changes = compute_lsp_changes(&old_doc, tx, encoding);
+		tx.apply(&mut doc.content);
+
+		if doc.syntax.is_some() {
+			let new_doc = doc.content.clone();
+			if let Some(ref mut syntax) = doc.syntax {
+				let _ = syntax.update_from_changeset(
+					old_doc.slice(..),
+					new_doc.slice(..),
+					tx.changes(),
+					language_loader,
+				);
+			}
+		}
+
+		doc.modified = true;
+		doc.version = doc.version.wrapping_add(1);
+		if !lsp_changes.is_empty() {
+			doc.pending_lsp_changes.extend(lsp_changes);
+		}
+		true
+	}
+
+	/// Drains pending LSP changes for this document.
+	#[cfg(feature = "lsp")]
+	pub fn drain_lsp_changes(&self) -> Vec<LspDocumentChange> {
+		std::mem::take(&mut self.doc_mut().pending_lsp_changes)
 	}
 
 	/// Finalizes selection/cursor after a transaction is applied.

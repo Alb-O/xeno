@@ -107,6 +107,13 @@ pub use position::{
 	char_range_to_lsp_range, char_to_lsp_position, lsp_position_to_char, lsp_range_to_char_range,
 };
 
+#[cfg(feature = "position")]
+#[cfg_attr(docsrs, doc(cfg(feature = "position")))]
+/// LSP change computation helpers.
+pub mod changes;
+#[cfg(feature = "position")]
+pub use changes::compute_lsp_changes;
+
 #[cfg(feature = "client")]
 #[cfg_attr(docsrs, doc(cfg(feature = "client")))]
 pub mod registry;

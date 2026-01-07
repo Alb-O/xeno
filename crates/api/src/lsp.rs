@@ -44,6 +44,7 @@
 use std::path::Path;
 use std::sync::Arc;
 
+use xeno_base::LspDocumentChange;
 // Re-export for consumers
 pub use xeno_lsp::DiagnosticsEvent as LspDiagnosticsEvent;
 // Re-export types needed by consumers
@@ -52,6 +53,7 @@ use xeno_lsp::{
 	ClientHandle, DiagnosticsEvent, DiagnosticsEventReceiver, DocumentStateManager, DocumentSync,
 	OffsetEncoding, Registry, Result,
 };
+use xeno_lsp::lsp_types::{TextDocumentSyncCapability, TextDocumentSyncKind};
 
 use crate::buffer::Buffer;
 
@@ -177,6 +179,26 @@ impl LspManager {
 
 		let content = buffer.doc().content.clone();
 		self.sync.notify_change_full(path, language, &content).await
+	}
+
+	/// Called when a buffer's content changes with pre-computed LSP ranges.
+	pub async fn on_buffer_change_incremental_v2(
+		&self,
+		buffer: &Buffer,
+		changes: Vec<LspDocumentChange>,
+	) -> Result<()> {
+		let Some(path) = &buffer.path() else {
+			return Ok(());
+		};
+
+		let Some(language) = &buffer.file_type() else {
+			return Ok(());
+		};
+
+		let content = buffer.doc().content.clone();
+		self.sync
+			.notify_change_incremental_v2(path, language, &content, changes)
+			.await
 	}
 
 	/// Called when a buffer's content changes with specific range info.
@@ -435,6 +457,33 @@ impl LspManager {
 			.get(language, path)
 			.map(|c| c.offset_encoding())
 			.unwrap_or_default()
+	}
+
+	/// Returns the server encoding if incremental sync is supported.
+	pub fn incremental_encoding_for_buffer(&self, buffer: &Buffer) -> Option<OffsetEncoding> {
+		let path = buffer.path()?;
+		let language = buffer.file_type()?;
+		self.incremental_encoding(&path, &language)
+	}
+
+	fn incremental_encoding(&self, path: &Path, language: &str) -> Option<OffsetEncoding> {
+		let client = self.sync.registry().get(language, path)?;
+		let caps = client.try_capabilities()?;
+		let supports_incremental = match &caps.text_document_sync {
+			Some(TextDocumentSyncCapability::Kind(kind)) => {
+				*kind == TextDocumentSyncKind::INCREMENTAL
+			}
+			Some(TextDocumentSyncCapability::Options(options)) => {
+				matches!(options.change, Some(TextDocumentSyncKind::INCREMENTAL))
+			}
+			None => false,
+		};
+
+		if supports_incremental {
+			Some(client.offset_encoding())
+		} else {
+			None
+		}
 	}
 }
 

@@ -38,6 +38,7 @@ use crate::client::{ClientHandle, LanguageServerId, LspEventHandler, OffsetEncod
 use crate::document::{DiagnosticsEventReceiver, DocumentStateManager};
 use crate::position::char_range_to_lsp_range;
 use crate::registry::Registry;
+use xeno_base::lsp::LspDocumentChange;
 
 /// Event handler that updates [`DocumentStateManager`] with LSP events.
 ///
@@ -45,6 +46,19 @@ use crate::registry::Registry;
 /// the document state accordingly (e.g., storing diagnostics).
 pub struct DocumentSyncEventHandler {
 	documents: Arc<DocumentStateManager>,
+}
+
+fn base_range_to_lsp(range: xeno_base::lsp::LspRange) -> lsp_types::Range {
+	lsp_types::Range {
+		start: lsp_types::Position {
+			line: range.start.line,
+			character: range.start.character,
+		},
+		end: lsp_types::Position {
+			line: range.end.line,
+			character: range.end.character,
+		},
+	}
 }
 
 impl DocumentSyncEventHandler {
@@ -266,6 +280,47 @@ impl DocumentSync {
 
 		if let Some(client) = self.registry.get(language, path) {
 			client.text_document_did_change(uri, version, vec![change])?;
+		}
+
+		Ok(())
+	}
+
+	/// Notify language servers of an incremental document change using pre-computed ranges.
+	pub async fn notify_change_incremental_v2(
+		&self,
+		path: &Path,
+		language: &str,
+		text: &Rope,
+		changes: Vec<LspDocumentChange>,
+	) -> Result<()> {
+		if changes.is_empty() {
+			return Ok(());
+		}
+
+		let uri =
+			Url::from_file_path(path).map_err(|_| crate::Error::Protocol("Invalid path".into()))?;
+
+		if !self.documents.is_opened(&uri) {
+			self.open_document(path, language, text).await?;
+			return Ok(());
+		}
+
+		let version = self
+			.documents
+			.increment_version(&uri)
+			.ok_or_else(|| crate::Error::Protocol("Document not registered".into()))?;
+
+		let content_changes: Vec<TextDocumentContentChangeEvent> = changes
+			.into_iter()
+			.map(|change| TextDocumentContentChangeEvent {
+				range: Some(base_range_to_lsp(change.range)),
+				range_length: None,
+				text: change.new_text,
+			})
+			.collect();
+
+		if let Some(client) = self.registry.get(language, path) {
+			client.text_document_did_change(uri, version, content_changes)?;
 		}
 
 		Ok(())
