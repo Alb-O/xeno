@@ -3,28 +3,17 @@
 //! Provides derive macros and attribute macros:
 //! - `#[derive(DispatchResult)]` - generates result handler slices
 //! - `#[derive(Option)]` - option registration from static definitions
-//! - `#[extension]` - extension registration
 //! - `define_events!` - hook event generation
 
 use proc_macro::TokenStream;
 
 mod dispatch;
 mod events;
-/// Extension attribute macro implementation.
-mod extension;
 mod keybindings;
 /// Notification macro implementation.
 mod notification;
 /// Option derive macro implementation.
 mod option;
-
-/// Generates extension registrations from an `impl` block.
-///
-/// Supports `#[init]`, `#[render]`, `#[command]`, and `#[hook]` method attributes.
-#[proc_macro_attribute]
-pub fn extension(attr: TokenStream, item: TokenStream) -> TokenStream {
-	extension::extension(attr, item)
-}
 
 /// Registers a notification type with the notification system.
 ///

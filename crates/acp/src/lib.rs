@@ -11,24 +11,21 @@
 //! - `backend`: Async communication with the ACP agent
 //! - `handler`: Protocol message handling
 //! - `commands`: Ex-mode commands (registered via distributed_slice)
+//!
+//! ## Initialization
+//!
+//! ACP should be initialized in the main binary by inserting `AcpManager` into the
+//! editor's `ExtensionMap`:
+//!
+//! ```ignore
+//! editor.extensions.insert(AcpManager::new());
+//! ```
 
 mod backend;
 mod commands;
 mod handler;
 mod state;
 pub mod types;
-
-use linkme::distributed_slice;
-use xeno_api::editor::extensions::{EXTENSIONS, ExtensionInitDef};
-
-#[distributed_slice(EXTENSIONS)]
-static ACP_INIT: ExtensionInitDef = ExtensionInitDef {
-	id: "acp",
-	priority: 100,
-	init: |map| {
-		map.insert(AcpManager::new());
-	},
-};
 
 // Re-export the manager and commonly used types at the module root
 pub use state::AcpManager;

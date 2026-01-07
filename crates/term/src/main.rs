@@ -13,11 +13,12 @@ mod tests;
 use app::run_editor;
 use clap::Parser;
 use cli::{AuthAction, Cli, Command, GrammarAction, LoginProvider, LogoutProvider};
+use xeno_acp::AcpManager;
 use xeno_api::Editor;
-use xeno_registry::options::keys;
 // Force-link crates to ensure their distributed_slice registrations are included.
 #[allow(unused_imports, reason = "linkme distributed_slice registration")]
-use {xeno_acp as _, xeno_core as _, xeno_extensions as _};
+use xeno_core as _;
+use xeno_registry::options::keys;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -72,6 +73,9 @@ async fn main() -> anyhow::Result<()> {
 		Some(path) => Editor::new(path).await?,
 		None => Editor::new_scratch(),
 	};
+
+	editor.extensions.insert(AcpManager::new());
+	configure_lsp_servers(&mut editor);
 
 	// Apply user config to editor
 	if let Some(config) = user_config {
@@ -327,4 +331,37 @@ fn report_build_results(
 	}
 
 	println!("\nBuild: {success} succeeded, {skipped} skipped, {failed} failed");
+}
+
+/// Configures language servers from embedded `lsp.kdl` and `languages.kdl`.
+fn configure_lsp_servers(editor: &mut Editor) {
+	let Ok(server_defs) = xeno_language::load_lsp_configs() else {
+		return;
+	};
+	let Ok(lang_mapping) = xeno_language::load_language_lsp_mapping() else {
+		return;
+	};
+
+	let server_map: std::collections::HashMap<_, _> =
+		server_defs.iter().map(|s| (s.name.as_str(), s)).collect();
+
+	for (language, info) in &lang_mapping {
+		let Some(server_name) = info.servers.first() else {
+			continue;
+		};
+		let Some(server_def) = server_map.get(server_name.as_str()) else {
+			continue;
+		};
+		editor.lsp.configure_server(
+			language.clone(),
+			xeno_api::lsp::LanguageServerConfig {
+				command: server_def.command.clone(),
+				args: server_def.args.clone(),
+				env: server_def.environment.clone(),
+				root_markers: info.roots.clone(),
+				config: server_def.config.clone(),
+				..Default::default()
+			},
+		);
+	}
 }

@@ -71,6 +71,7 @@ pub use command_queue::CommandQueue;
 pub use focus::{FocusReason, FocusTarget, PanelId};
 pub use hook_runtime::HookRuntime;
 pub use layout::{LayoutManager, SeparatorHit, SeparatorId};
+pub use navigation::Location;
 pub use types::{
 	Config, FrameState, HistoryEntry, JumpList, JumpLocation, MacroState, Registers, Viewport,
 	Workspace,
@@ -84,7 +85,7 @@ use xeno_tui::widgets::menu::MenuState;
 
 pub use self::separator::{DragState, MouseVelocityTracker, SeparatorHoverAnimation};
 use crate::buffer::{BufferId, Layout};
-use crate::editor::extensions::{EXTENSIONS, ExtensionMap, StyleOverlays};
+use crate::editor::extensions::{ExtensionMap, StyleOverlays};
 use crate::menu::{MenuAction, create_menu};
 use crate::overlay::OverlayManager;
 use crate::ui::UiManager;
@@ -160,8 +161,13 @@ pub struct Editor {
 	/// Notification system.
 	pub notifications: xeno_tui::widgets::notifications::ToastManager,
 
-	/// Extension map (typemap for extension state).
+	/// Extension map (typemap for extension state like ACP).
+	/// Used for loosely-coupled features that can't be direct dependencies.
 	pub extensions: ExtensionMap,
+
+	/// LSP manager for language server integration.
+	#[cfg(feature = "lsp")]
+	pub lsp: crate::lsp::LspManager,
 
 	/// Style overlays for rendering modifications.
 	pub style_overlays: StyleOverlays,
@@ -259,15 +265,9 @@ impl Editor {
 			notifications: xeno_tui::widgets::notifications::ToastManager::new()
 				.max_visible(Some(5))
 				.overflow(xeno_tui::widgets::notifications::Overflow::DropOldest),
-			extensions: {
-				let mut map = ExtensionMap::new();
-				let mut sorted_exts: Vec<_> = EXTENSIONS.iter().collect();
-				sorted_exts.sort_by_key(|e| e.priority);
-				for ext in sorted_exts {
-					(ext.init)(&mut map);
-				}
-				map
-			},
+			extensions: ExtensionMap::new(),
+			#[cfg(feature = "lsp")]
+			lsp: crate::lsp::LspManager::new(),
 			style_overlays: StyleOverlays::new(),
 			hook_runtime,
 			menu: create_menu(),

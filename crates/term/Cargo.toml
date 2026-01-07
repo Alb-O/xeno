@@ -23,12 +23,11 @@ tokio-util.workspace = true
 toml.workspace = true
 tracing-subscriber.workspace = true
 xeno-acp.workspace = true
-xeno-api.workspace = true
+xeno-api = { workspace = true, features = ["lsp"] }
 xeno-auth.workspace = true
 xeno-base.workspace = true
 xeno-config.workspace = true
 xeno-core.workspace = true
-xeno-extensions.workspace = true
 xeno-language.workspace = true
 xeno-registry.workspace = true
 xeno-tui.workspace = true

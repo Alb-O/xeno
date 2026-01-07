@@ -26,6 +26,7 @@ pub mod grammar;
 pub mod highlight;
 pub mod language;
 pub mod loader;
+pub mod lsp_config;
 pub mod query;
 pub mod runtime;
 pub mod syntax;
@@ -38,5 +39,9 @@ pub use grammar::{
 pub use highlight::{Highlight, HighlightEvent, HighlightSpan, HighlightStyles, Highlighter};
 pub use language::LanguageData;
 pub use loader::{LanguageId, LanguageLoader};
+pub use lsp_config::{
+	LanguageLspInfo, LanguageLspMapping, LspConfigError, LspServerDef, load_language_lsp_mapping,
+	load_lsp_configs,
+};
 pub use query::{CapturedNode, IndentQuery, RainbowQuery, TagQuery, TextObjectQuery, read_query};
 pub use runtime::{ensure_runtime, reseed_runtime};

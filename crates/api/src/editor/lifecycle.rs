@@ -8,7 +8,6 @@ use xeno_registry::commands::{CommandContext, CommandOutcome, find_command};
 use xeno_registry::{HookContext, HookEventData, emit_sync_with as emit_hook_sync_with};
 
 use super::Editor;
-use super::extensions::{RENDER_EXTENSIONS, TICK_EXTENSIONS};
 
 impl Editor {
 	/// Initializes the UI layer at editor startup.
@@ -29,14 +28,8 @@ impl Editor {
 		self.ui = ui;
 	}
 
-	/// Runs the main editor tick: extensions, dirty buffer hooks, and animations.
+	/// Runs the main editor tick: dirty buffer hooks, LSP sync, and animations.
 	pub fn tick(&mut self) {
-		let mut sorted_ticks: Vec<_> = TICK_EXTENSIONS.iter().collect();
-		sorted_ticks.sort_by_key(|e| e.priority);
-		for ext in sorted_ticks {
-			(ext.tick)(self);
-		}
-
 		// Check if separator animation needs continuous redraws
 		if self.layout.animation_needs_redraw() {
 			self.frame.needs_redraw = true;
@@ -62,6 +55,9 @@ impl Editor {
 					),
 					&mut self.hook_runtime,
 				);
+
+				#[cfg(feature = "lsp")]
+				self.queue_lsp_change(buffer_id);
 			}
 		}
 		emit_hook_sync_with(
@@ -70,16 +66,27 @@ impl Editor {
 		);
 	}
 
-	/// Updates style overlays from render extensions (called before each render frame).
+	/// Queues an LSP buffer change notification to be processed asynchronously.
+	#[cfg(feature = "lsp")]
+	fn queue_lsp_change(&mut self, buffer_id: crate::buffer::BufferId) {
+		let Some(buffer) = self.buffers.get_buffer(buffer_id) else {
+			return;
+		};
+		let (Some(path), Some(language)) = (buffer.path(), buffer.file_type()) else {
+			return;
+		};
+		let content = buffer.doc().content.clone();
+		let sync = self.lsp.sync().clone();
+		tokio::spawn(async move {
+			if let Err(e) = sync.notify_change_full(&path, &language, &content).await {
+				tracing::warn!(error = %e, path = ?path, "LSP change notification failed");
+			}
+		});
+	}
+
+	/// Clears and updates style overlays (called before each render frame).
 	pub fn update_style_overlays(&mut self) {
 		self.style_overlays.clear();
-
-		let mut sorted: Vec<_> = RENDER_EXTENSIONS.iter().collect();
-		sorted.sort_by_key(|e| e.priority);
-		for ext in sorted {
-			(ext.update)(self);
-		}
-
 		if self.style_overlays.has_animations() {
 			self.frame.needs_redraw = true;
 		}

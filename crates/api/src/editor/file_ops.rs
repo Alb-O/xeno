@@ -37,6 +37,11 @@ impl xeno_core::editor_ctx::FileOpsAccess for Editor {
 			))
 			.await;
 
+			#[cfg(feature = "lsp")]
+			if let Err(e) = self.lsp.on_buffer_will_save(self.buffer()) {
+				tracing::warn!(error = %e, "LSP will_save notification failed");
+			}
+
 			let mut content = Vec::new();
 			for chunk in self.buffer().doc().content.chunks() {
 				content.extend_from_slice(chunk.as_bytes());
@@ -50,6 +55,11 @@ impl xeno_core::editor_ctx::FileOpsAccess for Editor {
 			self.show_notification(xeno_registry_notifications::keys::file_saved::call(
 				&path_owned,
 			));
+
+			#[cfg(feature = "lsp")]
+			if let Err(e) = self.lsp.on_buffer_did_save(self.buffer(), true) {
+				tracing::warn!(error = %e, "LSP did_save notification failed");
+			}
 
 			emit_hook(&HookContext::new(
 				HookEventData::BufferWrite { path: &path_owned },

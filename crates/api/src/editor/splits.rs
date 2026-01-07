@@ -98,6 +98,11 @@ impl Editor {
 				),
 				&mut self.hook_runtime,
 			);
+
+			#[cfg(feature = "lsp")]
+			if let Err(e) = self.lsp.on_buffer_close(buffer) {
+				tracing::warn!(error = %e, "LSP buffer close failed");
+			}
 		}
 
 		emit_hook_sync_with(

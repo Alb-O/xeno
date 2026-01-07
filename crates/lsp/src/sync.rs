@@ -43,6 +43,7 @@ use crate::registry::Registry;
 ///
 /// Manages the lifecycle of documents with language servers, tracking
 /// versions and coordinating notifications.
+#[derive(Clone)]
 pub struct DocumentSync {
 	/// Language server registry.
 	registry: Arc<Registry>,

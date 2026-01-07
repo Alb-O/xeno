@@ -40,6 +40,13 @@ impl Editor {
 		))
 		.await;
 
+		#[cfg(feature = "lsp")]
+		if let Some(buffer) = self.buffers.get_buffer(buffer_id) {
+			if let Err(e) = self.lsp.on_buffer_open(buffer).await {
+				tracing::warn!(error = %e, "LSP buffer open failed");
+			}
+		}
+
 		buffer_id
 	}
 

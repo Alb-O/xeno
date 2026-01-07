@@ -4380,24 +4380,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "xeno-extensions"
-version = "0.3.0"
-dependencies = [
- "anyhow",
- "futures",
- "linkme",
- "paste",
- "ropey",
- "tracing",
- "xeno-api",
- "xeno-core",
- "xeno-language",
- "xeno-lsp",
- "xeno-macro",
- "xeno-registry",
-]
-
-[[package]]
 name = "xeno-input"
 version = "0.3.0"
 dependencies = [
@@ -4456,6 +4438,7 @@ dependencies = [
  "regex",
  "ropey",
  "serde",
+ "serde_json",
  "tempfile",
  "thiserror 2.0.17",
  "tracing",
@@ -4687,7 +4670,6 @@ dependencies = [
  "xeno-base",
  "xeno-config",
  "xeno-core",
- "xeno-extensions",
  "xeno-language",
  "xeno-registry",
  "xeno-tui",

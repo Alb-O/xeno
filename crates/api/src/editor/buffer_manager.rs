@@ -184,4 +184,16 @@ impl BufferManager {
 	pub fn buffers_mut(&mut self) -> impl Iterator<Item = &mut Buffer> {
 		self.buffers.values_mut()
 	}
+
+	/// Finds a buffer by its file path.
+	///
+	/// Returns the first buffer that has a matching path. Note that multiple
+	/// buffers may share the same document (via splits), so this returns
+	/// just one of them.
+	pub fn find_by_path(&self, path: &std::path::Path) -> Option<BufferId> {
+		self.buffers
+			.values()
+			.find(|b| b.path().as_deref() == Some(path))
+			.map(|b| b.id)
+	}
 }

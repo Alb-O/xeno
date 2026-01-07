@@ -3,7 +3,6 @@ use std::collections::HashMap;
 use std::ops::Range;
 use std::time::Duration;
 
-use linkme::distributed_slice;
 use xeno_tui::animation::Animatable;
 use xeno_tui::style::Color;
 
@@ -119,8 +118,8 @@ impl AnimatedOverlay {
 
 /// Collection of style overlays for rendering.
 ///
-/// Extensions can add overlays during their tick to modify how text is rendered.
-/// Overlays are cleared each frame and must be re-added if they should persist.
+/// Overlays can be added during rendering to modify how text is displayed.
+/// Static overlays are cleared each frame; animated overlays persist until complete.
 #[derive(Default)]
 pub struct StyleOverlays {
 	/// Static overlays that apply for a single frame.
@@ -344,49 +343,3 @@ impl ExtensionMap {
 			.unwrap()
 	}
 }
-
-/// Definition for extension initialization.
-pub struct ExtensionInitDef {
-	/// Extension identifier (for debugging).
-	pub id: &'static str,
-	/// Priority (lower runs first).
-	pub priority: i16,
-	/// Initialization function.
-	pub init: fn(&mut ExtensionMap),
-}
-
-/// Registry of all terminal-side extensions.
-#[distributed_slice]
-pub static EXTENSIONS: [ExtensionInitDef];
-
-/// Definition for an extension that runs on every editor tick.
-pub struct ExtensionTickDef {
-	/// Priority (lower runs first).
-	pub priority: i16,
-	/// Tick function called each frame.
-	pub tick: fn(&mut crate::editor::Editor),
-}
-
-/// Extensions that need to run on every editor tick.
-#[distributed_slice]
-pub static TICK_EXTENSIONS: [ExtensionTickDef];
-
-/// Definition for render-time extension updates.
-///
-/// These run at the start of each render frame, after events have been
-/// processed. Use this for style overlays and other render-time state
-/// that needs to reflect the current cursor position.
-pub struct ExtensionRenderDef {
-	/// Priority (lower runs first).
-	pub priority: i16,
-	/// Update function called before each render.
-	pub update: fn(&mut crate::editor::Editor),
-}
-
-/// Extensions that need to update state before each render.
-///
-/// Unlike TICK_EXTENSIONS (which run at the start of the event loop),
-/// these run right before rendering, ensuring they see the latest
-/// cursor position after mouse clicks and other events.
-#[distributed_slice]
-pub static RENDER_EXTENSIONS: [ExtensionRenderDef];

@@ -44,9 +44,10 @@
 use std::path::Path;
 use std::sync::Arc;
 
+// Re-export types needed by consumers
+pub use xeno_lsp::LanguageServerConfig;
 use xeno_lsp::{
-	ClientHandle, DocumentStateManager, DocumentSync, LanguageServerConfig, OffsetEncoding,
-	Registry, Result,
+	ClientHandle, DocumentStateManager, DocumentSync, OffsetEncoding, Registry, Result,
 };
 
 use crate::buffer::Buffer;
