@@ -58,7 +58,7 @@ Configurable options are defined via `#[derive_option]` attribute macro:
 use xeno_macro::derive_option;
 
 #[derive_option]
-#[option(kdl = "tab-width", scope = buffer)]
+#[option(kdl = "tab-width", scope = buffer, validate = positive_int)]
 /// Number of spaces a tab character occupies for display.
 pub static TAB_WIDTH: i64 = 4;
 ```
@@ -68,7 +68,11 @@ This generates:
 - `OptionDef` registration in the `OPTIONS` slice
 - `TypedOptionKey<i64>` constant for compile-time type safety
 
+**Attributes**: `kdl` (required), `scope` (required: `global`|`buffer`), `validate` (optional), `priority` (optional)
+
 **Supported types**: `i64` (Int), `bool` (Bool), `String` (String), `&'static str` (String)
+
+**Validators** (in `xeno_registry_options::validators`): `positive_int`
 
 **Access patterns** use typed keys for compile-time safety:
 

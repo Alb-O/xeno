@@ -12,7 +12,7 @@ use syn::{Expr, Item, Lit, Meta, parse_macro_input};
 ///
 /// ```ignore
 /// #[derive_option]
-/// #[option(kdl = "tab-width", scope = buffer)]
+/// #[option(kdl = "tab-width", scope = buffer, validate = positive_int)]
 /// /// Number of spaces a tab character occupies.
 /// pub static TAB_WIDTH: i64 = 4;
 /// ```
@@ -20,6 +20,9 @@ use syn::{Expr, Item, Lit, Meta, parse_macro_input};
 /// Generates:
 /// - `__OPT_TAB_WIDTH` static registered in `OPTIONS` slice
 /// - `TAB_WIDTH` constant as `TypedOptionKey<i64>`
+///
+/// The `validate` attribute is optional and references a validator function
+/// from `xeno_registry_options::validators`.
 pub fn derive_option(input: TokenStream) -> TokenStream {
 	let input = parse_macro_input!(input as Item);
 
@@ -38,6 +41,7 @@ pub fn derive_option(input: TokenStream) -> TokenStream {
 	let mut kdl_key: Option<String> = None;
 	let mut scope: Option<syn::Ident> = None;
 	let mut priority: Option<i16> = None;
+	let mut validator: Option<syn::Ident> = None;
 
 	if let Err(e) = option_attr.parse_nested_meta(|meta| {
 		if meta.path.is_ident("kdl") {
@@ -55,6 +59,10 @@ pub fn derive_option(input: TokenStream) -> TokenStream {
 		} else if meta.path.is_ident("priority") {
 			let lit: syn::LitInt = meta.value()?.parse()?;
 			priority = Some(lit.base10_parse()?);
+			Ok(())
+		} else if meta.path.is_ident("validate") {
+			let ident: syn::Ident = meta.value()?.parse()?;
+			validator = Some(ident);
 			Ok(())
 		} else {
 			Err(meta.error("unknown option attribute"))
@@ -164,6 +172,11 @@ pub fn derive_option(input: TokenStream) -> TokenStream {
 		.filter(|a| !a.path().is_ident("option"))
 		.collect();
 
+	let validator_expr = match validator {
+		Some(v) => quote! { Some(::xeno_registry_options::validators::#v) },
+		None => quote! { None },
+	};
+
 	let expanded = quote! {
 		#[allow(non_upper_case_globals)]
 		#[::linkme::distributed_slice(::xeno_registry_options::OPTIONS)]
@@ -177,7 +190,7 @@ pub fn derive_option(input: TokenStream) -> TokenStream {
 			scope: ::xeno_registry_options::OptionScope::#scope_variant,
 			priority: #priority,
 			source: ::xeno_registry_options::RegistrySource::Crate(::core::env!("CARGO_PKG_NAME")),
-			validator: None,
+			validator: #validator_expr,
 		};
 
 		#(#other_attrs)*
