@@ -270,6 +270,112 @@ impl CommandEditorOps for Editor {
 	fn close_all_info_popups(&mut self) {
 		Editor::close_all_info_popups(self);
 	}
+
+	fn goto_file(
+		&mut self,
+		path: PathBuf,
+		line: usize,
+		column: usize,
+	) -> Pin<Box<dyn Future<Output = Result<(), CommandError>> + '_>> {
+		Box::pin(async move {
+			use crate::editor::Location;
+			self.goto_location(&Location::new(path, line, column))
+				.await
+				.map_err(|e| CommandError::Io(e.to_string()))?;
+			Ok(())
+		})
+	}
+
+	#[cfg(feature = "lsp")]
+	fn lsp_hover(&mut self) -> Pin<Box<dyn Future<Output = Option<String>> + '_>> {
+		Box::pin(async move {
+			let hover = self.lsp.hover(self.buffer()).await.ok()??;
+			Some(format_hover_contents(&hover.contents))
+		})
+	}
+
+	#[cfg(not(feature = "lsp"))]
+	fn lsp_hover(&mut self) -> Pin<Box<dyn Future<Output = Option<String>> + '_>> {
+		Box::pin(async move { None })
+	}
+
+	#[cfg(feature = "lsp")]
+	fn lsp_goto_definition(
+		&mut self,
+	) -> Pin<Box<dyn Future<Output = Result<(), CommandError>> + '_>> {
+		Box::pin(async move {
+			use xeno_lsp::lsp_types::GotoDefinitionResponse;
+
+			use crate::editor::Location;
+
+			let response = self
+				.lsp
+				.goto_definition(self.buffer())
+				.await
+				.map_err(|e| CommandError::Failed(e.to_string()))?
+				.ok_or_else(|| CommandError::Failed("No definition found".into()))?;
+
+			let location = match response {
+				GotoDefinitionResponse::Scalar(loc) => loc,
+				GotoDefinitionResponse::Array(locs) => locs
+					.into_iter()
+					.next()
+					.ok_or_else(|| CommandError::Failed("No definition found".into()))?,
+				GotoDefinitionResponse::Link(links) => {
+					let link = links
+						.into_iter()
+						.next()
+						.ok_or_else(|| CommandError::Failed("No definition found".into()))?;
+					xeno_lsp::lsp_types::Location {
+						uri: link.target_uri,
+						range: link.target_selection_range,
+					}
+				}
+			};
+
+			let path = location
+				.uri
+				.to_file_path()
+				.map_err(|_| CommandError::Failed("Invalid file path in definition".into()))?;
+
+			self.goto_location(&Location::from_lsp(path, &location.range.start))
+				.await
+				.map_err(|e| CommandError::Io(e.to_string()))?;
+
+			Ok(())
+		})
+	}
+
+	#[cfg(not(feature = "lsp"))]
+	fn lsp_goto_definition(
+		&mut self,
+	) -> Pin<Box<dyn Future<Output = Result<(), CommandError>> + '_>> {
+		Box::pin(async move { Err(CommandError::Unsupported("LSP not enabled")) })
+	}
+}
+
+/// Formats LSP hover contents to markdown.
+#[cfg(feature = "lsp")]
+fn format_hover_contents(contents: &xeno_lsp::lsp_types::HoverContents) -> String {
+	use xeno_lsp::lsp_types::{HoverContents, MarkedString, MarkupContent};
+
+	match contents {
+		HoverContents::Scalar(MarkedString::String(s)) => s.clone(),
+		HoverContents::Scalar(MarkedString::LanguageString(ls)) => {
+			format!("```{}\n{}\n```", ls.language, ls.value)
+		}
+		HoverContents::Array(parts) => parts
+			.iter()
+			.map(|p| match p {
+				MarkedString::String(s) => s.clone(),
+				MarkedString::LanguageString(ls) => {
+					format!("```{}\n{}\n```", ls.language, ls.value)
+				}
+			})
+			.collect::<Vec<_>>()
+			.join("\n\n"),
+		HoverContents::Markup(MarkupContent { value, .. }) => value.clone(),
+	}
 }
 
 impl SplitOps for Editor {

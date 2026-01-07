@@ -6,6 +6,8 @@ mod buffer;
 mod edit;
 /// Help and documentation commands.
 mod help;
+/// LSP commands (hover, goto-definition).
+mod lsp;
 /// Quit and exit commands.
 mod quit;
 /// Registry diagnostic commands.

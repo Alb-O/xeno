@@ -96,6 +96,28 @@ pub trait CommandEditorOps {
 	fn open_info_popup(&mut self, content: &str, file_type: Option<&str>);
 	/// Closes all open info popups.
 	fn close_all_info_popups(&mut self);
+
+	/// Opens a file and navigates to a specific line and column.
+	///
+	/// If the file is already open, switches to it. Line and column are 0-indexed.
+	fn goto_file(
+		&mut self,
+		path: PathBuf,
+		line: usize,
+		column: usize,
+	) -> Pin<Box<dyn Future<Output = Result<(), CommandError>> + '_>>;
+
+	/// Requests hover information from the language server at the cursor position.
+	///
+	/// Returns markdown-formatted hover content, or `None` if unavailable.
+	fn lsp_hover(&mut self) -> Pin<Box<dyn Future<Output = Option<String>> + '_>>;
+
+	/// Navigates to the definition of the symbol under the cursor.
+	///
+	/// Returns an error if no definition is found or LSP is unavailable.
+	fn lsp_goto_definition(
+		&mut self,
+	) -> Pin<Box<dyn Future<Output = Result<(), CommandError>> + '_>>;
 }
 
 /// Context provided to command handlers.
