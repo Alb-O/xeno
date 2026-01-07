@@ -7,41 +7,6 @@ use xeno_registry::{
 
 use crate::editor::Editor;
 
-/// Returns the variant name of an action result for hook events.
-fn action_result_variant(result: &ActionResult) -> &'static str {
-	match result {
-		ActionResult::Ok => "Ok",
-		ActionResult::Quit => "Quit",
-		ActionResult::ForceQuit => "ForceQuit",
-		ActionResult::Error(_) => "Error",
-		ActionResult::ForceRedraw => "ForceRedraw",
-		ActionResult::SplitHorizontal => "SplitHorizontal",
-		ActionResult::SplitVertical => "SplitVertical",
-		ActionResult::BufferNext => "BufferNext",
-		ActionResult::BufferPrev => "BufferPrev",
-		ActionResult::CloseSplit => "CloseSplit",
-		ActionResult::CloseOtherBuffers => "CloseOtherBuffers",
-		ActionResult::FocusLeft => "FocusLeft",
-		ActionResult::FocusRight => "FocusRight",
-		ActionResult::FocusUp => "FocusUp",
-		ActionResult::FocusDown => "FocusDown",
-		ActionResult::ModeChange(_) => "ModeChange",
-		ActionResult::CursorMove(_) => "CursorMove",
-		ActionResult::ScreenMotion { .. } => "ScreenMotion",
-		ActionResult::Motion(_) => "Motion",
-		ActionResult::InsertWithMotion(_) => "InsertWithMotion",
-		ActionResult::Edit(_) => "Edit",
-		ActionResult::Pending(_) => "Pending",
-		ActionResult::SearchNext { .. } => "SearchNext",
-		ActionResult::SearchPrev { .. } => "SearchPrev",
-		ActionResult::UseSelectionAsSearch => "UseSelectionAsSearch",
-		ActionResult::Command { .. } => "Command",
-		ActionResult::OpenPalette => "OpenPalette",
-		ActionResult::ClosePalette => "ClosePalette",
-		ActionResult::ExecutePalette => "ExecutePalette",
-	}
-}
-
 impl Editor {
 	/// Executes a named action with the given count and options.
 	pub(crate) fn execute_action(
@@ -190,7 +155,7 @@ impl Editor {
 		extend: bool,
 	) -> bool {
 		let mut ctx = EditorContext::new(self);
-		let result_variant = action_result_variant(&result);
+		let result_variant = result.variant_name();
 		let should_quit = dispatch_result(&result, &mut ctx, extend);
 		emit_hook_sync_with(
 			&HookContext::new(
