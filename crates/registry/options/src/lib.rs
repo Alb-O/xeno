@@ -108,6 +108,7 @@ pub use store::OptionStore;
 /// ```
 pub mod keys {
 	pub use crate::impls::indent::*;
+	pub use crate::impls::scroll::*;
 	pub use crate::impls::theme::*;
 }
 

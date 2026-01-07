@@ -5,6 +5,7 @@
 
 use xeno_base::ScrollDirection;
 use xeno_base::range::Direction as MoveDir;
+use xeno_registry::options::keys;
 
 use super::Editor;
 
@@ -35,10 +36,11 @@ impl Editor {
 
 	/// Handles mouse scroll events.
 	///
-	/// Resolves the `tab-width` option and delegates to Buffer.
+	/// Resolves `scroll-lines` and `tab-width` options and delegates to Buffer.
 	pub(crate) fn handle_mouse_scroll(&mut self, direction: ScrollDirection, count: usize) {
+		let scroll_lines = (self.option(keys::SCROLL_LINES) as usize).max(1);
 		let tab_width = self.tab_width();
 		self.buffer_mut()
-			.handle_mouse_scroll(direction, count, tab_width);
+			.handle_mouse_scroll(direction, count * scroll_lines, tab_width);
 	}
 }
