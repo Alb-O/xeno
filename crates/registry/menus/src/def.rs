@@ -15,6 +15,8 @@ pub struct MenuGroupDef {
 	pub name: &'static str,
 	/// Label shown in the menu bar (may include accelerator key).
 	pub label: &'static str,
+	/// Optional nerd font icon codepoint (e.g., 0xF07B for folder icon).
+	pub icon: Option<u32>,
 	/// Sort priority for ordering groups in the menu bar.
 	pub priority: i16,
 	/// Registry source indicating where this group was registered.
@@ -33,6 +35,8 @@ pub struct MenuItemDef {
 	pub label: &'static str,
 	/// Command to execute when the item is selected.
 	pub command: &'static str,
+	/// Optional nerd font icon codepoint (e.g., 0xF0C7 for save icon).
+	pub icon: Option<u32>,
 	/// Optional keyboard shortcut displayed next to the label.
 	pub shortcut: Option<&'static str>,
 	/// Sort priority for ordering items within the group.

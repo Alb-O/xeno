@@ -4,6 +4,7 @@
 //! (typically nerd font glyphs) with styling support.
 
 use alloc::borrow::Cow;
+use alloc::string::ToString;
 
 use unicode_width::UnicodeWidthStr;
 
@@ -62,6 +63,31 @@ impl<'a> Icon<'a> {
 			glyph: glyph.into(),
 			style: Style::default(),
 		}
+	}
+
+	/// Creates an icon from a Unicode code point (hex value).
+	///
+	/// This is useful for specifying nerd font icons by their hex code
+	/// without needing to copy-paste the actual glyph character.
+	///
+	/// # Example
+	///
+	/// ```ignore
+	/// use xeno_tui::widgets::Icon;
+	///
+	/// // Create info icon (nf-fa-info_circle, U+F05A)
+	/// let icon = Icon::from_codepoint(0xF05A);
+	///
+	/// // Create folder icon (nf-fa-folder, U+F07B)
+	/// let icon = Icon::from_codepoint(0xF07B);
+	/// ```
+	///
+	/// Returns `None` if the code point is not a valid Unicode scalar value.
+	pub fn from_codepoint(codepoint: u32) -> Option<Self> {
+		char::from_u32(codepoint).map(|c| Self {
+			glyph: Cow::Owned(c.to_string()),
+			style: Style::default(),
+		})
 	}
 
 	/// Sets the style of the icon.

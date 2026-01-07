@@ -27,7 +27,13 @@ pub fn create_menu() -> MenuState<MenuAction> {
 
 			let children = items
 				.into_iter()
-				.map(|item| MenuItem::item(item.label, MenuAction::Command(item.command)))
+				.map(|item| {
+					let menu_item = MenuItem::item(item.label, MenuAction::Command(item.command));
+					match item.icon {
+						Some(codepoint) => menu_item.icon_codepoint(codepoint),
+						None => menu_item,
+					}
+				})
 				.collect();
 
 			MenuItem::group(group.label, children)

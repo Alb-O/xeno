@@ -5,6 +5,7 @@ use alloc::format;
 use alloc::vec::Vec;
 use core::marker::PhantomData;
 
+use super::item::ICON_TOTAL_WIDTH;
 use super::{DropdownLayout, MenuItem, MenuLayout, MenuState};
 use crate::buffer::Buffer;
 use crate::layout::Rect;
@@ -80,7 +81,9 @@ impl<T> Menu<T> {
 			.max()
 			.unwrap_or(0) as u16;
 
-		let content_width = max_name_width + 4;
+		let has_icons = items.iter().any(|item| item.get_icon().is_some());
+		let icon_column_width = if has_icons { ICON_TOTAL_WIDTH } else { 0 };
+		let content_width = 1 + icon_column_width + max_name_width;
 		let block = Block::bordered().style(self.default_style);
 		let width = content_width + 2;
 		let height = items.len() as u16 + 2;
@@ -107,7 +110,26 @@ impl<T> Menu<T> {
 				break;
 			}
 
-			let mut label = format!(" {:<width$} ", item.name(), width = max_name_width as usize);
+			let mut label = if has_icons {
+				let icon_pad = " ".repeat(super::item::ICON_PADDING as usize);
+				match item.get_icon() {
+					Some(icon) => format!(
+						" {}{}{:<width$} ",
+						icon,
+						icon_pad,
+						item.name(),
+						width = max_name_width as usize
+					),
+					None => format!(
+						" {}{:<width$} ",
+						" ".repeat(ICON_TOTAL_WIDTH as usize),
+						item.name(),
+						width = max_name_width as usize
+					),
+				}
+			} else {
+				format!(" {:<width$} ", item.name(), width = max_name_width as usize)
+			};
 			if item.is_group() {
 				label.pop();
 				label.push('>');
@@ -171,7 +193,13 @@ impl<T: Clone> StatefulWidget for Menu<T> {
 				self.default_style
 			};
 
-			let label = format!(" {} ", item.name());
+			let label = match item.get_icon() {
+				Some(icon) => {
+					let icon_pad = " ".repeat(super::item::ICON_PADDING as usize);
+					format!(" {}{}{} ", icon, icon_pad, item.name())
+				}
+				None => format!(" {} ", item.name()),
+			};
 			let span = Span::styled(label, style);
 			let span_width = span.width() as u16;
 			layout
