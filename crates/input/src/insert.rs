@@ -30,12 +30,21 @@ impl InputHandler {
 			};
 		}
 
-		// Normalize Shift+Letter -> Uppercase Letter (no shift)
-		let key = if key.modifiers.shift
-			&& let KeyCode::Char(c) = key.code
-			&& c.is_ascii_lowercase()
-		{
-			key.normalize()
+		// Char keys: normalize shift to uppercase for typing
+		// Navigation keys: shift means extend selection
+		let key = if let KeyCode::Char(c) = key.code {
+			if key.modifiers.shift {
+				if c.is_ascii_lowercase() {
+					key.normalize()
+				} else {
+					key.drop_shift()
+				}
+			} else {
+				key
+			}
+		} else if key.modifiers.shift {
+			self.extend = true;
+			key.drop_shift()
 		} else {
 			key
 		};

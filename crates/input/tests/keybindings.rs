@@ -10,7 +10,7 @@ extern crate xeno_core;
 
 use xeno_base::key::{Key, KeyCode, Modifiers};
 use xeno_core::find_action_by_id;
-use xeno_input::{InputHandler, KeyResult};
+use xeno_input::{InputHandler, KeyResult, Mode};
 
 fn extract_action(result: KeyResult) -> Option<(String, bool)> {
 	match result {
@@ -167,4 +167,58 @@ fn test_shift_arrow_extends() {
 	let (name, extend) = extract_action(res).expect("should return an action for Shift+Right");
 	assert_eq!(name, "move_right");
 	assert!(extend, "shift+right should extend");
+}
+
+// Insert mode shift+selection tests
+
+#[test]
+fn test_insert_mode_shift_arrow_extends() {
+	let mut h = InputHandler::new();
+	h.set_mode(Mode::Insert);
+	let key = Key::new(KeyCode::Right).with_shift();
+	let res = h.handle_key(key);
+	let (name, extend) =
+		extract_action(res).expect("should return an action for Shift+Right in insert mode");
+	assert_eq!(name, "move_right");
+	assert!(extend, "shift+right in insert mode should extend");
+}
+
+#[test]
+fn test_insert_mode_shift_page_down_extends() {
+	let mut h = InputHandler::new();
+	h.set_mode(Mode::Insert);
+	let key = Key::new(KeyCode::PageDown).with_shift();
+	let res = h.handle_key(key);
+	let (name, extend) =
+		extract_action(res).expect("should return an action for Shift+PageDown in insert mode");
+	assert_eq!(name, "scroll_page_down");
+	assert!(extend, "shift+pagedown in insert mode should extend");
+}
+
+#[test]
+fn test_insert_mode_arrow_no_shift_no_extend() {
+	let mut h = InputHandler::new();
+	h.set_mode(Mode::Insert);
+	let key = Key::new(KeyCode::Right);
+	let res = h.handle_key(key);
+	let (name, extend) =
+		extract_action(res).expect("should return an action for Right in insert mode");
+	assert_eq!(name, "move_right");
+	assert!(
+		!extend,
+		"right without shift in insert mode should not extend"
+	);
+}
+
+#[test]
+fn test_insert_mode_shift_preserves_uppercase_typing() {
+	let mut h = InputHandler::new();
+	h.set_mode(Mode::Insert);
+	// Shift+A should type uppercase 'A', not trigger selection extend
+	let key = key_shifted_uppercase('a');
+	let res = h.handle_key(key);
+	match res {
+		KeyResult::InsertChar(c) => assert_eq!(c, 'A', "Shift+A should insert uppercase A"),
+		other => panic!("expected InsertChar('A'), got {:?}", other),
+	}
 }
