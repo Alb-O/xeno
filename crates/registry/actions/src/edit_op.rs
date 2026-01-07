@@ -213,22 +213,17 @@ pub enum PostEffect {
 }
 
 /// Cursor adjustment after edit.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum CursorAdjust {
 	/// Move cursor up by count lines.
 	Up(usize),
 	/// Keep cursor at current position (default).
+	#[default]
 	Stay,
 	/// Move to start of inserted/modified text.
 	ToStart,
 	/// Move to end of inserted/modified text.
 	ToEnd,
-}
-
-impl Default for CursorAdjust {
-	fn default() -> Self {
-		Self::Stay
-	}
 }
 
 /// Creates a delete operation.

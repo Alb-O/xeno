@@ -99,9 +99,7 @@ fn parse_server_node(node: &KdlNode) -> LspServerDef {
 	let children = node.children();
 	let args = parse_string_args(children, "args");
 	let environment = parse_environment(children);
-	let config = children
-		.and_then(|c| c.get("config"))
-		.map(|n| kdl_node_to_json(n));
+	let config = children.and_then(|c| c.get("config")).map(kdl_node_to_json);
 	let source = children
 		.and_then(|c| c.get("source"))
 		.and_then(|n| n.entry(0))
@@ -152,10 +150,10 @@ fn parse_environment(children: Option<&KdlDocument>) -> HashMap<String, String> 
 
 	// Environment can be key=value entries on the node itself
 	for entry in env_node.entries() {
-		if let Some(name) = entry.name() {
-			if let Some(value) = entry.value().as_string() {
-				env.insert(name.value().to_string(), value.to_string());
-			}
+		if let Some(name) = entry.name()
+			&& let Some(value) = entry.value().as_string()
+		{
+			env.insert(name.value().to_string(), value.to_string());
 		}
 	}
 

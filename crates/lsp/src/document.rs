@@ -308,14 +308,14 @@ impl DocumentStateManager {
 		self.diagnostics_version.fetch_add(1, Ordering::Relaxed);
 
 		// Send event if we have a sender
-		if let Some(ref sender) = self.event_sender {
-			if let Some(path) = uri.to_file_path().ok() {
-				let _ = sender.send(DiagnosticsEvent {
-					path,
-					error_count,
-					warning_count,
-				});
-			}
+		if let Some(ref sender) = self.event_sender
+			&& let Ok(path) = uri.to_file_path()
+		{
+			let _ = sender.send(DiagnosticsEvent {
+				path,
+				error_count,
+				warning_count,
+			});
 		}
 	}
 

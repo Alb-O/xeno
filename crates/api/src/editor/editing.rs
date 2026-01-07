@@ -96,7 +96,6 @@ impl Editor {
 
 		if !applied {
 			self.notify(keys::buffer_readonly);
-			return;
 		}
 	}
 
@@ -138,7 +137,6 @@ impl Editor {
 
 		if !applied {
 			self.notify(keys::buffer_readonly);
-			return;
 		}
 	}
 
@@ -172,7 +170,6 @@ impl Editor {
 
 		if !applied {
 			self.notify(keys::buffer_readonly);
-			return;
 		}
 	}
 
@@ -205,7 +202,6 @@ impl Editor {
 
 		if !applied {
 			self.notify(keys::buffer_readonly);
-			return;
 		}
 	}
 
@@ -215,7 +211,6 @@ impl Editor {
 		let applied = self.apply_transaction_with_selection(buffer_id, tx, None);
 		if !applied {
 			self.notify(keys::buffer_readonly);
-			return;
 		}
 	}
 
