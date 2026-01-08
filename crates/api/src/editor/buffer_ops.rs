@@ -116,32 +116,12 @@ impl Editor {
 	/// that were opened before the servers were registered.
 	#[cfg(feature = "lsp")]
 	pub async fn init_lsp_for_open_buffers(&mut self) -> anyhow::Result<()> {
-		let buffer_ids: Vec<_> = self.buffers.buffer_ids().collect();
-		tracing::debug!(
-			count = buffer_ids.len(),
-			"init_lsp_for_open_buffers: processing buffers"
-		);
-		for buffer_id in buffer_ids {
-			if let Some(buffer) = self.buffers.get_buffer(buffer_id) {
-				let path = buffer.path();
-				tracing::debug!(
-					buffer_id = ?buffer_id,
-					path = ?path,
-					file_type = ?buffer.file_type(),
-					"init_lsp_for_open_buffers: checking buffer"
-				);
-				// Skip buffers without a real file path
-				if path.is_none() {
-					continue;
-				}
-				if let Err(e) = self.lsp.on_buffer_open(buffer).await {
-					tracing::warn!(
-						buffer_id = ?buffer_id,
-						path = ?path,
-						error = %e,
-						"Failed to initialize LSP for buffer"
-					);
-				}
+		for buffer_id in self.buffers.buffer_ids().collect::<Vec<_>>() {
+			if let Some(buffer) = self.buffers.get_buffer(buffer_id)
+				&& buffer.path().is_some()
+				&& let Err(e) = self.lsp.on_buffer_open(buffer).await
+			{
+				tracing::warn!(error = %e, "Failed to initialize LSP for buffer");
 			}
 		}
 		Ok(())
