@@ -49,8 +49,8 @@ impl Level {
 		match self {
 			Level::Trace => "\x1b[35mTRACE\x1b[0m",
 			Level::Debug => "\x1b[34mDEBUG\x1b[0m",
-			Level::Info => "\x1b[32mINFO\x1b[0m",
-			Level::Warn => "\x1b[33mWARN\x1b[0m",
+			Level::Info => "\x1b[32mINFO \x1b[0m",
+			Level::Warn => "\x1b[33mWARN \x1b[0m",
 			Level::Error => "\x1b[31mERROR\x1b[0m",
 		}
 	}

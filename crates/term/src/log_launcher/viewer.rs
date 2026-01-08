@@ -1,6 +1,9 @@
 //! Interactive TUI log viewer with tracing-tree style output.
 
 use std::collections::{HashMap, VecDeque};
+
+const FIELD_INDENT: &str = "    ";
+const PIPE_PREFIX: &str = "\x1b[90m│\x1b[0m ";
 use std::io::{self, Read, Write};
 use std::os::unix::net::UnixListener;
 use std::path::Path;
@@ -164,7 +167,7 @@ impl LogViewer {
 		for (key, value) in &event.fields {
 			lines.push(FormattedLine {
 				indent,
-				content: format!("      {} = {}", dim(key), value),
+				content: format!("{}{} = {}", FIELD_INDENT, dim(key), value),
 				continuation: true,
 			});
 		}
@@ -187,20 +190,14 @@ impl LogViewer {
 
 		lines.push(FormattedLine {
 			indent: depth,
-			content: format!(
-				"{} {} {} {}",
-				level.colored(),
-				dim(target),
-				cyan(name),
-				dim("{")
-			),
+			content: format!("{} {} {}", level.colored(), dim(target), cyan(name)),
 			continuation: false,
 		});
 
 		for (key, value) in fields {
 			lines.push(FormattedLine {
 				indent: depth,
-				content: format!("      {} = {}", dim(key), value),
+				content: format!("{}{} = {}", FIELD_INDENT, dim(key), value),
 				continuation: true,
 			});
 		}
@@ -224,7 +221,7 @@ impl LogViewer {
 			timestamp: SystemTime::now(),
 			lines: vec![FormattedLine {
 				indent: depth,
-				content: format!("{} {} {}", dim("}"), cyan(name), dim(&duration)),
+				content: format!("{} {}", cyan(name), dim(&duration)),
 				continuation: false,
 			}],
 		}
@@ -304,16 +301,15 @@ impl LogViewer {
 	}
 
 	fn line_prefix(&self, indent: usize, continuation: bool) -> String {
-		const PIPE: &str = "\x1b[90m│\x1b[0m ";
 		if indent == 0 && !continuation {
 			return String::new();
 		}
 		let mut prefix = String::new();
 		for _ in 0..indent {
-			prefix.push_str(PIPE);
+			prefix.push_str(PIPE_PREFIX);
 		}
 		if continuation {
-			prefix.push_str(PIPE);
+			prefix.push_str(PIPE_PREFIX);
 		}
 		prefix
 	}
