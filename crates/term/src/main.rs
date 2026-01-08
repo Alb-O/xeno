@@ -22,6 +22,9 @@ use xeno_registry::options::keys;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+	// Set up tracing to file (doesn't interfere with TUI)
+	setup_tracing();
+
 	let cli = Cli::parse();
 
 	// Handle subcommands before starting the editor
@@ -331,6 +334,51 @@ fn report_build_results(
 	}
 
 	println!("\nBuild: {success} succeeded, {skipped} skipped, {failed} failed");
+}
+
+/// Sets up tracing to log to a file in the data directory.
+///
+/// Logs go to `~/.local/share/xeno/xeno.log` (or platform equivalent).
+/// Set `XENO_LOG` env var to control level (e.g., `XENO_LOG=debug`).
+fn setup_tracing() {
+	use std::fs::OpenOptions;
+
+	use tracing_subscriber::EnvFilter;
+	use tracing_subscriber::fmt::format::FmtSpan;
+	use tracing_subscriber::prelude::*;
+
+	let Some(data_dir) = xeno_api::paths::get_data_dir() else {
+		return;
+	};
+
+	if std::fs::create_dir_all(&data_dir).is_err() {
+		return;
+	}
+
+	let log_path = data_dir.join("xeno.log");
+	let Ok(file) = OpenOptions::new().create(true).append(true).open(&log_path) else {
+		return;
+	};
+
+	// Use XENO_LOG env var, defaulting to "warn" for most crates but "debug" for xeno
+	let filter = EnvFilter::try_from_env("XENO_LOG").unwrap_or_else(|_| {
+		EnvFilter::new("warn")
+			.add_directive("xeno_lsp=debug".parse().unwrap())
+			.add_directive("xeno_api=debug".parse().unwrap())
+	});
+
+	let file_layer = tracing_subscriber::fmt::layer()
+		.with_writer(file)
+		.with_ansi(false)
+		.with_span_events(FmtSpan::CLOSE)
+		.with_target(true);
+
+	tracing_subscriber::registry()
+		.with(filter)
+		.with(file_layer)
+		.init();
+
+	tracing::info!(path = ?log_path, "Tracing initialized");
 }
 
 /// Configures language servers from embedded `lsp.kdl` and `languages.kdl`.

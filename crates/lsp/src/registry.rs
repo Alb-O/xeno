@@ -159,6 +159,12 @@ impl Registry {
 	/// Register a language server configuration for a language.
 	pub fn register(&self, language: impl Into<String>, config: LanguageServerConfig) {
 		let language = language.into();
+		tracing::info!(
+			language = %language,
+			command = %config.command,
+			root_markers = ?config.root_markers,
+			"Registry::register: configured language server"
+		);
 		self.configs.write().insert(language, config);
 	}
 
@@ -183,18 +189,31 @@ impl Registry {
 	/// then returns an existing server for that root or starts a new one.
 	/// If an existing server has crashed, it will be cleaned up and restarted.
 	pub async fn get_or_start(&self, language: &str, file_path: &Path) -> Result<ClientHandle> {
+		tracing::debug!(
+			language = %language,
+			file_path = ?file_path,
+			"Registry::get_or_start called"
+		);
+
 		let config = self.get_config(language).ok_or_else(|| {
+			tracing::error!(language = %language, "No server configured");
 			crate::Error::Protocol(format!("No server configured for {language}"))
 		})?;
 
 		let root_path = find_root_path(file_path, &config.root_markers);
 		let key = (language.to_string(), root_path.clone());
+		tracing::debug!(
+			root_path = ?root_path,
+			root_markers = ?config.root_markers,
+			"Registry::get_or_start: found project root"
+		);
 
 		// Check for existing server, clean up if dead
 		{
 			let servers = self.servers.read();
 			if let Some(instance) = servers.get(&key) {
 				if instance.is_alive() {
+					tracing::debug!(language = %language, root = ?root_path, "Reusing existing server");
 					return Ok(instance.handle.clone());
 				}
 				// Server is dead, will be cleaned up below
@@ -210,6 +229,15 @@ impl Registry {
 		self.servers.write().remove(&key);
 
 		let id = LanguageServerId(self.next_id.fetch_add(1, Ordering::Relaxed));
+		tracing::info!(
+			language = %language,
+			command = %config.command,
+			args = ?config.args,
+			root = ?root_path,
+			server_id = id.0,
+			"Starting new language server"
+		);
+
 		let server_config = ServerConfig::new(&config.command, &root_path)
 			.args(config.args.iter().cloned())
 			.env(config.env.iter().map(|(k, v)| (k.clone(), v.clone())))
@@ -222,9 +250,11 @@ impl Registry {
 			self.event_handler.clone(),
 		)?;
 
+		tracing::debug!(server_id = id.0, "Server process started, initializing...");
 		handle
 			.initialize(config.enable_snippets, config.config.clone())
 			.await?;
+		tracing::info!(server_id = id.0, "Server initialized successfully");
 
 		let instance = ServerInstance {
 			handle: handle.clone(),
@@ -247,12 +277,26 @@ impl Registry {
 	pub fn get(&self, language: &str, file_path: &Path) -> Option<ClientHandle> {
 		let config = self.get_config(language)?;
 		let root_path = find_root_path(file_path, &config.root_markers);
-		let key = (language.to_string(), root_path);
-		self.servers
-			.read()
+		let key = (language.to_string(), root_path.clone());
+		tracing::debug!(
+			language = %language,
+			file_path = ?file_path,
+			root_path = ?root_path,
+			"Registry::get looking up server"
+		);
+		let servers = self.servers.read();
+		let result = servers
 			.get(&key)
 			.filter(|s| s.is_alive())
-			.map(|s| s.handle.clone())
+			.map(|s| s.handle.clone());
+		if result.is_none() {
+			let active_keys: Vec<_> = servers.keys().collect();
+			tracing::debug!(
+				active_servers = ?active_keys,
+				"Registry::get: server not found, active servers listed"
+			);
+		}
+		result
 	}
 
 	/// Clean up all dead servers and return the number of servers removed.

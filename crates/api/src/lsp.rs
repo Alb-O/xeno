@@ -148,20 +148,25 @@ impl LspManager {
 	/// Starts the appropriate language server and opens the document.
 	pub async fn on_buffer_open(&self, buffer: &Buffer) -> Result<Option<ClientHandle>> {
 		let Some(path) = &buffer.path() else {
+			tracing::debug!("on_buffer_open: no path, skipping LSP");
 			return Ok(None);
 		};
 
 		let Some(language) = &buffer.file_type() else {
+			tracing::debug!(path = ?path, "on_buffer_open: no file_type, skipping LSP");
 			return Ok(None);
 		};
 
 		// Check if we have a server configured for this language
 		if self.sync.registry().get_config(language).is_none() {
+			tracing::debug!(path = ?path, language = %language, "on_buffer_open: no server configured");
 			return Ok(None);
 		}
 
+		tracing::info!(path = ?path, language = %language, "on_buffer_open: starting LSP server");
 		let content = buffer.doc().content.clone();
 		let client = self.sync.open_document(path, language, &content).await?;
+		tracing::info!(path = ?path, "on_buffer_open: LSP server started successfully");
 		Ok(Some(client))
 	}
 
@@ -328,14 +333,25 @@ impl LspManager {
 	pub fn get_client(&self, buffer: &Buffer) -> Option<ClientHandle> {
 		let path = buffer.path()?;
 		let language = buffer.file_type()?;
-		self.sync.registry().get(&language, &path)
+		tracing::debug!(path = ?path, language = %language, "get_client: looking up server");
+		let client = self.sync.registry().get(&language, &path);
+		if client.is_some() {
+			tracing::debug!(path = ?path, "get_client: found active server");
+		} else {
+			tracing::warn!(path = ?path, language = %language, "get_client: no active server found");
+		}
+		client
 	}
 
 	/// Request hover information at the cursor position.
 	pub async fn hover(&self, buffer: &Buffer) -> Result<Option<xeno_lsp::lsp_types::Hover>> {
+		tracing::debug!("hover: starting request");
 		let client = match self.get_client(buffer) {
 			Some(c) => c,
-			None => return Ok(None),
+			None => {
+				tracing::warn!("hover: no client available");
+				return Ok(None);
+			}
 		};
 
 		let path = buffer.path().unwrap();
@@ -348,7 +364,13 @@ impl LspManager {
 			xeno_lsp::char_to_lsp_position(&buffer.doc().content, buffer.cursor, encoding)
 				.ok_or_else(|| xeno_lsp::Error::Protocol("Invalid position".into()))?;
 
-		client.hover(uri, position).await
+		tracing::debug!(uri = %uri, line = position.line, char = position.character, "hover: sending request");
+		let result = client.hover(uri, position).await;
+		tracing::debug!(
+			has_result = result.as_ref().map(|r| r.is_some()).unwrap_or(false),
+			"hover: got response"
+		);
+		result
 	}
 
 	/// Request completions at the cursor position.
@@ -379,9 +401,13 @@ impl LspManager {
 		&self,
 		buffer: &Buffer,
 	) -> Result<Option<xeno_lsp::lsp_types::GotoDefinitionResponse>> {
+		tracing::debug!("goto_definition: starting request");
 		let client = match self.get_client(buffer) {
 			Some(c) => c,
-			None => return Ok(None),
+			None => {
+				tracing::warn!("goto_definition: no client available");
+				return Ok(None);
+			}
 		};
 
 		let path = buffer.path().unwrap();
@@ -390,6 +416,7 @@ impl LspManager {
 			.map_err(|_| xeno_lsp::Error::Protocol("Invalid path".into()))?;
 
 		let encoding = self.get_encoding_for_path(&path, &language);
+		tracing::debug!(uri = %uri, cursor = buffer.cursor, "goto_definition: computing position");
 		let position =
 			xeno_lsp::char_to_lsp_position(&buffer.doc().content, buffer.cursor, encoding)
 				.ok_or_else(|| xeno_lsp::Error::Protocol("Invalid position".into()))?;
