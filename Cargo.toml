@@ -76,8 +76,10 @@ tree-house = "0.3"
 unicode-segmentation = "1"
 unicode-width = "0.2"
 url = "2"
+uuid = { version = "1", features = ["v4"] }
 urlencoding = "2"
 webbrowser = "1"
+which = "7"
 xeno-acp = { path = "crates/acp" }
 xeno-api = { path = "crates/api" }
 xeno-auth = { path = "crates/auth" }

@@ -17,6 +17,10 @@ pub struct Cli {
 	#[arg(long, short = 't')]
 	pub theme: Option<String>,
 
+	/// Launch xeno in a new terminal and show logs in this terminal
+	#[arg(long)]
+	pub log_launch: bool,
+
 	/// Subcommand to execute.
 	#[command(subcommand)]
 	pub command: Option<Command>,

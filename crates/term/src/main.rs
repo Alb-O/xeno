@@ -6,9 +6,14 @@ mod app;
 mod backend;
 /// Command-line interface definitions.
 mod cli;
+/// Log launcher mode - spawn xeno in new terminal with log viewer.
+mod log_launcher;
 mod terminal;
 #[cfg(test)]
 mod tests;
+
+use std::ffi::OsStr;
+use std::path::PathBuf;
 
 use app::run_editor;
 use clap::Parser;
@@ -23,12 +28,18 @@ use xeno_registry::options::keys;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-	// Set up tracing to file (doesn't interfere with TUI)
-	setup_tracing();
+	if let Ok(socket_path) = std::env::var(log_launcher::LOG_SINK_ENV) {
+		return run_with_socket_logging(&socket_path).await;
+	}
 
 	let cli = Cli::parse();
 
-	// Handle subcommands before starting the editor
+	if cli.log_launch {
+		return run_log_launcher_mode(&cli);
+	}
+
+	setup_tracing();
+
 	match cli.command {
 		Some(Command::Grammar { action }) => return handle_grammar_command(action),
 		Some(Command::Auth { action }) => return handle_auth_command(action).await,
@@ -340,6 +351,131 @@ fn report_build_results(
 	}
 
 	println!("\nBuild: {success} succeeded, {skipped} skipped, {failed} failed");
+}
+
+/// Spawns xeno in a new terminal window and runs the log viewer in this terminal.
+fn run_log_launcher_mode(cli: &Cli) -> anyhow::Result<()> {
+	let socket_path = std::env::temp_dir().join(format!("xeno-log-{}.sock", uuid::Uuid::new_v4()));
+	let xeno_path = std::env::current_exe()?;
+
+	let mut args: Vec<&OsStr> = Vec::new();
+	if let Some(ref file) = cli.file {
+		args.push(file.as_os_str());
+	}
+	if let Some(ref theme) = cli.theme {
+		args.push(OsStr::new("--theme"));
+		args.push(OsStr::new(theme));
+	}
+
+	let _child = log_launcher::spawn_in_terminal(
+		&xeno_path.to_string_lossy(),
+		&args,
+		&socket_path.to_string_lossy(),
+	)?;
+
+	log_launcher::run_log_viewer(&socket_path)?;
+	Ok(())
+}
+
+/// Runs xeno with socket-based logging (child process spawned by `--log-launch`).
+async fn run_with_socket_logging(socket_path: &str) -> anyhow::Result<()> {
+	setup_socket_tracing(socket_path);
+	run_editor_normal().await
+}
+
+/// Configures tracing to send events over a Unix socket to the log viewer.
+fn setup_socket_tracing(socket_path: &str) {
+	use tracing_subscriber::EnvFilter;
+	use tracing_subscriber::prelude::*;
+
+	let Ok(layer) = log_launcher::SocketLayer::new(socket_path) else {
+		setup_tracing();
+		return;
+	};
+
+	let filter = EnvFilter::try_from_env("XENO_LOG").unwrap_or_else(|_| {
+		EnvFilter::new("debug")
+			.add_directive("xeno_lsp=debug".parse().unwrap())
+			.add_directive("xeno_api=debug".parse().unwrap())
+	});
+
+	tracing_subscriber::registry()
+		.with(filter)
+		.with(layer)
+		.init();
+
+	info!("Socket tracing initialized");
+}
+
+/// Runs the editor with standard initialization (used by socket logging mode).
+async fn run_editor_normal() -> anyhow::Result<()> {
+	if let Err(e) = xeno_language::ensure_runtime() {
+		eprintln!("Warning: failed to seed runtime: {e}");
+	}
+
+	let themes_dir = xeno_language::runtime_dir().join("themes");
+	if let Err(e) = xeno_config::load_and_register_themes(&themes_dir) {
+		eprintln!(
+			"Warning: failed to load themes from {:?}: {}",
+			themes_dir, e
+		);
+	}
+
+	let user_config = xeno_api::paths::get_config_dir()
+		.map(|d| d.join("config.kdl"))
+		.filter(|p| p.exists())
+		.and_then(
+			|config_path| match xeno_config::Config::load(&config_path) {
+				Ok(config) => {
+					for warning in &config.warnings {
+						eprintln!("Warning: {warning}");
+					}
+					Some(config)
+				}
+				Err(e) => {
+					eprintln!("Warning: failed to load config: {}", e);
+					None
+				}
+			},
+		);
+
+	let file: Option<PathBuf> = std::env::args().nth(1).map(PathBuf::from);
+	let mut editor = match file {
+		Some(path) if path.exists() || !path.to_string_lossy().starts_with('-') => {
+			Editor::new(path).await?
+		}
+		_ => Editor::new_scratch(),
+	};
+
+	editor.extensions.insert(AcpManager::new());
+	configure_lsp_servers(&mut editor);
+
+	if let Err(e) = editor.init_lsp_for_open_buffers().await {
+		warn!(error = %e, "Failed to initialize LSP for initial buffer");
+	}
+
+	if let Some(config) = user_config {
+		editor.config.global_options.merge(&config.options);
+		for lang_config in config.languages {
+			editor
+				.config
+				.language_options
+				.entry(lang_config.name)
+				.or_default()
+				.merge(&lang_config.options);
+		}
+		if let Some(theme_name) = config.options.get_string(keys::THEME.untyped())
+			&& let Err(e) = editor.set_theme(theme_name)
+		{
+			eprintln!(
+				"Warning: failed to set config theme '{}': {}",
+				theme_name, e
+			);
+		}
+	}
+
+	run_editor(editor).await?;
+	Ok(())
 }
 
 /// Sets up tracing to log to a file in the data directory.
