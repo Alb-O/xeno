@@ -646,6 +646,10 @@ pub fn start_server(
 		.current_dir(&config.root_path)
 		.kill_on_drop(true);
 
+	// Detach from controlling TTY to prevent LSP from writing directly to terminal
+	#[cfg(unix)]
+	cmd.process_group(0);
+
 	let mut process = cmd.spawn().map_err(crate::Error::Io)?;
 
 	let stdin = process.stdin.take().expect("Failed to open stdin");

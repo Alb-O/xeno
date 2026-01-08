@@ -1,7 +1,7 @@
 //! Viewport scrolling and cursor visibility logic.
 
 use serde::Serialize;
-use tracing::debug;
+use tracing::{debug, trace};
 use xeno_base::range::CharIdx;
 use xeno_tui::layout::Rect;
 
@@ -247,7 +247,7 @@ pub fn ensure_buffer_cursor_visible(
 		} else {
 			"scroll_down"
 		};
-		debug!(
+		trace!(
 			from = original_scroll.0,
 			to = buffer.scroll_line,
 			cursor_line = cursor_line,

@@ -224,16 +224,21 @@ impl LogViewer {
 				let cont = self.line_prefix(event.spans.len(), true);
 				let ts = format_relative_time(*relative_ms);
 				let target = truncate_target(&event.target);
-				let mut lines = vec![
-					format!(
-						"{}{} {} {}",
-						indent,
-						dim(&ts),
-						event.level.colored(),
-						event.layer.colored()
-					),
-					format!("{}{} > {}", cont, dim(&target), &event.message),
-				];
+				let mut lines = vec![format!(
+					"{}{} {} {}",
+					indent,
+					dim(&ts),
+					event.level.colored(),
+					event.layer.colored()
+				)];
+				// Split message on newlines to handle multi-line log messages
+				for (i, msg_line) in event.message.lines().enumerate() {
+					if i == 0 {
+						lines.push(format!("{}{} > {}", cont, dim(&target), msg_line));
+					} else {
+						lines.push(format!("{}  {}", cont, msg_line));
+					}
+				}
 				// Filter out log.* meta-fields and compute max key width
 				let fields: Vec<_> = event
 					.fields
@@ -242,6 +247,7 @@ impl LogViewer {
 					.collect();
 				let max_key = fields.iter().map(|(k, _)| k.len()).max().unwrap_or(0);
 				for (key, value) in fields {
+					let value = value.replace('\n', " ");
 					lines.push(format!(
 						"{}    {} = {}",
 						cont,
@@ -281,6 +287,7 @@ impl LogViewer {
 					.collect();
 				let max_key = fields.iter().map(|(k, _)| k.len()).max().unwrap_or(0);
 				for (key, value) in fields {
+					let value = value.replace('\n', " ");
 					lines.push(format!(
 						"{}    {} = {}",
 						cont,
@@ -297,8 +304,8 @@ impl LogViewer {
 				..
 			} => {
 				let duration = format_duration(*duration_us);
-				let indent = self.line_prefix(*depth, false);
-				vec![format!("{}← {} {}", indent, cyan(name), dim(&duration))]
+				let prefix = self.line_prefix(*depth, true);
+				vec![format!("{}← {} {}", prefix, cyan(name), dim(&duration))]
 			}
 		}
 	}
