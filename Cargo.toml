@@ -53,7 +53,7 @@ proptest = "1"
 quote = "1"
 rand = "0.9"
 regex = "1"
-reqwest = { version = "0.12", features = ["json"] }
+reqwest = { version = "0.13", features = ["json"] }
 ropey = "1"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
@@ -79,7 +79,7 @@ url = "2"
 urlencoding = "2"
 uuid = { version = "1", features = ["v4"] }
 webbrowser = "1"
-which = "7"
+which = "8"
 xeno-acp = { path = "crates/acp" }
 xeno-api = { path = "crates/api" }
 xeno-auth = { path = "crates/auth" }

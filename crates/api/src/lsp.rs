@@ -355,8 +355,8 @@ impl LspManager {
 
 		let path = Self::abs_path(buffer).unwrap();
 		let language = buffer.file_type().unwrap();
-		let uri = xeno_lsp::lsp_types::Url::from_file_path(&path)
-			.map_err(|_| xeno_lsp::Error::Protocol("Invalid path".into()))?;
+		let uri = xeno_lsp::uri_from_path(&path)
+			.ok_or_else(|| xeno_lsp::Error::Protocol("Invalid path".into()))?;
 
 		let encoding = self.get_encoding_for_path(&path, &language);
 		let position =
@@ -378,8 +378,8 @@ impl LspManager {
 
 		let path = Self::abs_path(buffer).unwrap();
 		let language = buffer.file_type().unwrap();
-		let uri = xeno_lsp::lsp_types::Url::from_file_path(&path)
-			.map_err(|_| xeno_lsp::Error::Protocol("Invalid path".into()))?;
+		let uri = xeno_lsp::uri_from_path(&path)
+			.ok_or_else(|| xeno_lsp::Error::Protocol("Invalid path".into()))?;
 
 		let encoding = self.get_encoding_for_path(&path, &language);
 		let position =
@@ -400,8 +400,8 @@ impl LspManager {
 
 		let path = Self::abs_path(buffer).unwrap();
 		let language = buffer.file_type().unwrap();
-		let uri = xeno_lsp::lsp_types::Url::from_file_path(&path)
-			.map_err(|_| xeno_lsp::Error::Protocol("Invalid path".into()))?;
+		let uri = xeno_lsp::uri_from_path(&path)
+			.ok_or_else(|| xeno_lsp::Error::Protocol("Invalid path".into()))?;
 
 		let encoding = self.get_encoding_for_path(&path, &language);
 		let position =
@@ -424,8 +424,8 @@ impl LspManager {
 
 		let path = Self::abs_path(buffer).unwrap();
 		let language = buffer.file_type().unwrap();
-		let uri = xeno_lsp::lsp_types::Url::from_file_path(&path)
-			.map_err(|_| xeno_lsp::Error::Protocol("Invalid path".into()))?;
+		let uri = xeno_lsp::uri_from_path(&path)
+			.ok_or_else(|| xeno_lsp::Error::Protocol("Invalid path".into()))?;
 
 		let encoding = self.get_encoding_for_path(&path, &language);
 		let position =
@@ -446,8 +446,8 @@ impl LspManager {
 		};
 
 		let path = Self::abs_path(buffer).unwrap();
-		let uri = xeno_lsp::lsp_types::Url::from_file_path(&path)
-			.map_err(|_| xeno_lsp::Error::Protocol("Invalid path".into()))?;
+		let uri = xeno_lsp::uri_from_path(&path)
+			.ok_or_else(|| xeno_lsp::Error::Protocol("Invalid path".into()))?;
 
 		// Default formatting options
 		let options = xeno_lsp::lsp_types::FormattingOptions {

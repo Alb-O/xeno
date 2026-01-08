@@ -168,6 +168,35 @@ pub enum Error {
 	Routing(String),
 }
 
+/// Converts a filesystem path to an LSP URI.
+///
+/// Returns `None` if the path cannot be converted (e.g., non-absolute paths on some platforms).
+pub fn uri_from_path(path: &std::path::Path) -> Option<lsp_types::Uri> {
+	use std::str::FromStr;
+	let uri_string = if cfg!(windows) {
+		format!("file:///{}", path.display().to_string().replace('\\', "/"))
+	} else {
+		format!("file://{}", path.display())
+	};
+	lsp_types::Uri::from_str(&uri_string).ok()
+}
+
+/// Converts an LSP URI to a filesystem path.
+///
+/// Returns `None` if the URI is not a `file://` scheme or cannot be parsed.
+pub fn path_from_uri(uri: &lsp_types::Uri) -> Option<std::path::PathBuf> {
+	let s = uri.as_str();
+	if !s.starts_with("file://") {
+		return None;
+	}
+	let path_str = &s[7..]; // strip "file://"
+	if cfg!(windows) && path_str.starts_with('/') {
+		Some(std::path::PathBuf::from(&path_str[1..].replace('/', "\\")))
+	} else {
+		Some(std::path::PathBuf::from(path_str))
+	}
+}
+
 /// The core service abstraction, representing either a Language Server or Language Client.
 pub trait LspService: Service<AnyRequest> {
 	/// The handler of [LSP notifications](https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#notificationMessage).

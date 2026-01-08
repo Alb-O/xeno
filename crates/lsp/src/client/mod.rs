@@ -21,7 +21,7 @@
 //! struct MyHandler;
 //!
 //! impl LspEventHandler for MyHandler {
-//!     fn on_diagnostics(&self, uri: Url, diagnostics: Vec<Diagnostic>) {
+//!     fn on_diagnostics(&self, uri: Uri, diagnostics: Vec<Diagnostic>) {
 //!         // Update UI with new diagnostics
 //!     }
 //! }
@@ -51,7 +51,7 @@ use lsp_types::notification::Notification;
 use lsp_types::request::Request;
 use lsp_types::{
 	ClientInfo, Diagnostic, InitializeParams, InitializeResult, ProgressParams, ServerCapabilities,
-	Url, WorkspaceFolder,
+	Uri, WorkspaceFolder,
 };
 use serde_json::Value;
 use tokio::process::Command;
@@ -74,7 +74,7 @@ pub trait LspEventHandler: Send + Sync {
 	fn on_diagnostics(
 		&self,
 		_server_id: LanguageServerId,
-		_uri: Url,
+		_uri: Uri,
 		_diagnostics: Vec<Diagnostic>,
 	) {
 	}
@@ -145,7 +145,7 @@ pub struct ClientHandle {
 	/// Root path for the workspace.
 	root_path: PathBuf,
 	/// Root URI for the workspace.
-	root_uri: Option<Url>,
+	root_uri: Option<Uri>,
 	/// Notification channel for initialization completion.
 	initialize_notify: Arc<Notify>,
 }
@@ -250,7 +250,7 @@ impl ClientHandle {
 	}
 
 	/// Get the root URI.
-	pub fn root_uri(&self) -> Option<&Url> {
+	pub fn root_uri(&self) -> Option<&Uri> {
 		self.root_uri.as_ref()
 	}
 
@@ -280,7 +280,7 @@ impl ClientHandle {
 			workspace_folders: Some(vec![workspace_folder_from_uri(
 				self.root_uri
 					.clone()
-					.unwrap_or_else(|| Url::from_file_path(&self.root_path).expect("valid path")),
+					.unwrap_or_else(|| crate::uri_from_path(&self.root_path).expect("valid path")),
 			)]),
 			root_path: self.root_path.to_str().map(String::from),
 			root_uri: self.root_uri.clone(),
@@ -327,7 +327,7 @@ impl ClientHandle {
 	/// Notify the server that a document was opened.
 	pub fn text_document_did_open(
 		&self,
-		uri: Url,
+		uri: Uri,
 		language_id: String,
 		version: i32,
 		text: String,
@@ -347,7 +347,7 @@ impl ClientHandle {
 	/// Notify the server that a document was changed (full sync).
 	pub fn text_document_did_change_full(
 		&self,
-		uri: Url,
+		uri: Uri,
 		version: i32,
 		text: String,
 	) -> Result<()> {
@@ -366,7 +366,7 @@ impl ClientHandle {
 	/// Notify the server that a document was changed (incremental sync).
 	pub fn text_document_did_change(
 		&self,
-		uri: Url,
+		uri: Uri,
 		version: i32,
 		changes: Vec<lsp_types::TextDocumentContentChangeEvent>,
 	) -> Result<()> {
@@ -381,7 +381,7 @@ impl ClientHandle {
 	/// Notify the server that a document will be saved.
 	pub fn text_document_will_save(
 		&self,
-		uri: Url,
+		uri: Uri,
 		reason: lsp_types::TextDocumentSaveReason,
 	) -> Result<()> {
 		self.notify::<lsp_types::notification::WillSaveTextDocument>(
@@ -393,7 +393,7 @@ impl ClientHandle {
 	}
 
 	/// Notify the server that a document was saved.
-	pub fn text_document_did_save(&self, uri: Url, text: Option<String>) -> Result<()> {
+	pub fn text_document_did_save(&self, uri: Uri, text: Option<String>) -> Result<()> {
 		self.notify::<lsp_types::notification::DidSaveTextDocument>(
 			lsp_types::DidSaveTextDocumentParams {
 				text_document: lsp_types::TextDocumentIdentifier { uri },
@@ -403,7 +403,7 @@ impl ClientHandle {
 	}
 
 	/// Notify the server that a document was closed.
-	pub fn text_document_did_close(&self, uri: Url) -> Result<()> {
+	pub fn text_document_did_close(&self, uri: Uri) -> Result<()> {
 		self.notify::<lsp_types::notification::DidCloseTextDocument>(
 			lsp_types::DidCloseTextDocumentParams {
 				text_document: lsp_types::TextDocumentIdentifier { uri },
@@ -416,7 +416,7 @@ impl ClientHandle {
 	/// Returns `Ok(None)` if the server doesn't support hover.
 	pub async fn hover(
 		&self,
-		uri: Url,
+		uri: Uri,
 		position: lsp_types::Position,
 	) -> Result<Option<lsp_types::Hover>> {
 		if !self.supports_hover() {
@@ -437,7 +437,7 @@ impl ClientHandle {
 	/// Returns `Ok(None)` if the server doesn't support completion.
 	pub async fn completion(
 		&self,
-		uri: Url,
+		uri: Uri,
 		position: lsp_types::Position,
 		context: Option<lsp_types::CompletionContext>,
 	) -> Result<Option<lsp_types::CompletionResponse>> {
@@ -461,7 +461,7 @@ impl ClientHandle {
 	/// Returns `Ok(None)` if the server doesn't support definition.
 	pub async fn goto_definition(
 		&self,
-		uri: Url,
+		uri: Uri,
 		position: lsp_types::Position,
 	) -> Result<Option<lsp_types::GotoDefinitionResponse>> {
 		if !self.supports_definition() {
@@ -483,7 +483,7 @@ impl ClientHandle {
 	/// Returns `Ok(None)` if the server doesn't support references.
 	pub async fn references(
 		&self,
-		uri: Url,
+		uri: Uri,
 		position: lsp_types::Position,
 		include_declaration: bool,
 	) -> Result<Option<Vec<lsp_types::Location>>> {
@@ -509,7 +509,7 @@ impl ClientHandle {
 	/// Returns `Ok(None)` if the server doesn't support document symbols.
 	pub async fn document_symbol(
 		&self,
-		uri: Url,
+		uri: Uri,
 	) -> Result<Option<lsp_types::DocumentSymbolResponse>> {
 		if !self.supports_document_symbol() {
 			return Ok(None);
@@ -527,7 +527,7 @@ impl ClientHandle {
 	/// Returns `Ok(None)` if the server doesn't support formatting.
 	pub async fn formatting(
 		&self,
-		uri: Url,
+		uri: Uri,
 		options: lsp_types::FormattingOptions,
 	) -> Result<Option<Vec<lsp_types::TextEdit>>> {
 		if !self.supports_formatting() {
@@ -546,7 +546,7 @@ impl ClientHandle {
 	/// Returns `Ok(None)` if the server doesn't support code actions.
 	pub async fn code_action(
 		&self,
-		uri: Url,
+		uri: Uri,
 		range: lsp_types::Range,
 		context: lsp_types::CodeActionContext,
 	) -> Result<Option<lsp_types::CodeActionResponse>> {
@@ -566,7 +566,7 @@ impl ClientHandle {
 	/// Request rename.
 	pub async fn rename(
 		&self,
-		uri: Url,
+		uri: Uri,
 		position: lsp_types::Position,
 		new_name: String,
 	) -> Result<Option<lsp_types::WorkspaceEdit>> {
@@ -635,7 +635,7 @@ pub fn start_server(
 	config: ServerConfig,
 	event_handler: Option<SharedEventHandler>,
 ) -> Result<(ClientHandle, tokio::task::JoinHandle<Result<()>>)> {
-	let root_uri = Url::from_file_path(&config.root_path).ok();
+	let root_uri = crate::uri_from_path(&config.root_path);
 
 	let mut cmd = Command::new(&config.command);
 	cmd.args(&config.args)
@@ -765,13 +765,13 @@ pub fn start_server(
 }
 
 /// Create a workspace folder from a URI.
-fn workspace_folder_from_uri(uri: Url) -> WorkspaceFolder {
-	WorkspaceFolder {
-		name: uri
-			.path_segments()
-			.and_then(|mut segments| segments.next_back())
-			.map(String::from)
-			.unwrap_or_default(),
-		uri,
-	}
+fn workspace_folder_from_uri(uri: Uri) -> WorkspaceFolder {
+	let name = uri
+		.as_str()
+		.rsplit('/')
+		.next()
+		.filter(|s| !s.is_empty())
+		.unwrap_or_default()
+		.to_string();
+	WorkspaceFolder { name, uri }
 }

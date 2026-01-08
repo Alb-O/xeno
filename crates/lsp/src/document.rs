@@ -8,7 +8,7 @@ use std::path::PathBuf;
 use std::sync::atomic::{AtomicI32, AtomicU64, Ordering};
 use std::time::Instant;
 
-use lsp_types::{Diagnostic, DiagnosticSeverity, NumberOrString, ProgressParams, Url};
+use lsp_types::{Diagnostic, DiagnosticSeverity, NumberOrString, ProgressParams, Uri};
 use parking_lot::RwLock;
 use tokio::sync::mpsc;
 use tracing::debug;
@@ -56,7 +56,7 @@ pub struct ProgressItem {
 #[derive(Debug)]
 pub struct DocumentState {
 	/// Document URI (derived from file path).
-	uri: Url,
+	uri: Uri,
 	/// Document version for LSP sync. Incremented on each change.
 	version: AtomicI32,
 	/// Whether the document has been opened with the language server.
@@ -72,7 +72,7 @@ impl DocumentState {
 	///
 	/// Returns `None` if the path cannot be converted to a URL.
 	pub fn new(path: &PathBuf) -> Option<Self> {
-		let uri = Url::from_file_path(path).ok()?;
+		let uri = crate::uri_from_path(path)?;
 		Some(Self {
 			uri,
 			version: AtomicI32::new(0),
@@ -83,7 +83,7 @@ impl DocumentState {
 	}
 
 	/// Create a document state from a URI directly.
-	pub fn from_uri(uri: Url) -> Self {
+	pub fn from_uri(uri: Uri) -> Self {
 		Self {
 			uri,
 			version: AtomicI32::new(0),
@@ -94,7 +94,7 @@ impl DocumentState {
 	}
 
 	/// Get the document URI.
-	pub fn uri(&self) -> &Url {
+	pub fn uri(&self) -> &Uri {
 		&self.uri
 	}
 
@@ -249,8 +249,8 @@ impl DocumentStateManager {
 	}
 
 	/// Get document state by file path.
-	pub fn get_by_path(&self, path: &PathBuf) -> Option<Url> {
-		let uri = Url::from_file_path(path).ok()?;
+	pub fn get_by_path(&self, path: &PathBuf) -> Option<Uri> {
+		let uri = crate::uri_from_path(path)?;
 		let key = uri.to_string();
 		let docs = self.documents.read();
 		if docs.contains_key(&key) {
@@ -261,13 +261,13 @@ impl DocumentStateManager {
 	}
 
 	/// Get document state by URI.
-	pub fn contains(&self, uri: &Url) -> bool {
+	pub fn contains(&self, uri: &Uri) -> bool {
 		self.documents.read().contains_key(&uri.to_string())
 	}
 
 	/// Register a document.
-	pub fn register(&self, path: &PathBuf, language_id: Option<&str>) -> Option<Url> {
-		let uri = Url::from_file_path(path).ok()?;
+	pub fn register(&self, path: &PathBuf, language_id: Option<&str>) -> Option<Uri> {
+		let uri = crate::uri_from_path(path)?;
 		let key = uri.to_string();
 
 		let mut docs = self.documents.write();
@@ -283,12 +283,12 @@ impl DocumentStateManager {
 	}
 
 	/// Unregister a document.
-	pub fn unregister(&self, uri: &Url) {
+	pub fn unregister(&self, uri: &Uri) {
 		self.documents.write().remove(&uri.to_string());
 	}
 
 	/// Update diagnostics for a document.
-	pub fn update_diagnostics(&self, uri: &Url, diagnostics: Vec<Diagnostic>) {
+	pub fn update_diagnostics(&self, uri: &Uri, diagnostics: Vec<Diagnostic>) {
 		// Count errors and warnings
 		let error_count = diagnostics
 			.iter()
@@ -310,7 +310,7 @@ impl DocumentStateManager {
 
 		// Send event if we have a sender
 		if let Some(ref sender) = self.event_sender
-			&& let Ok(path) = uri.to_file_path()
+			&& let Some(path) = crate::path_from_uri(uri)
 		{
 			let _ = sender.send(DiagnosticsEvent {
 				path,
@@ -321,7 +321,7 @@ impl DocumentStateManager {
 	}
 
 	/// Get diagnostics for a document.
-	pub fn get_diagnostics(&self, uri: &Url) -> Vec<Diagnostic> {
+	pub fn get_diagnostics(&self, uri: &Uri) -> Vec<Diagnostic> {
 		let docs = self.documents.read();
 		docs.get(&uri.to_string())
 			.map(|s| s.diagnostics())
@@ -329,19 +329,19 @@ impl DocumentStateManager {
 	}
 
 	/// Increment version for a document and return the new version.
-	pub fn increment_version(&self, uri: &Url) -> Option<i32> {
+	pub fn increment_version(&self, uri: &Uri) -> Option<i32> {
 		let docs = self.documents.read();
 		docs.get(&uri.to_string()).map(|s| s.increment_version())
 	}
 
 	/// Get version for a document.
-	pub fn get_version(&self, uri: &Url) -> Option<i32> {
+	pub fn get_version(&self, uri: &Uri) -> Option<i32> {
 		let docs = self.documents.read();
 		docs.get(&uri.to_string()).map(|s| s.version())
 	}
 
 	/// Mark a document as opened with a language server.
-	pub fn set_opened(&self, uri: &Url, opened: bool) {
+	pub fn set_opened(&self, uri: &Uri, opened: bool) {
 		let docs = self.documents.read();
 		if let Some(state) = docs.get(&uri.to_string()) {
 			state.set_opened(opened);
@@ -349,7 +349,7 @@ impl DocumentStateManager {
 	}
 
 	/// Check if a document is opened with a language server.
-	pub fn is_opened(&self, uri: &Url) -> bool {
+	pub fn is_opened(&self, uri: &Uri) -> bool {
 		let docs = self.documents.read();
 		docs.get(&uri.to_string())
 			.map(|s| s.is_opened())
@@ -357,7 +357,7 @@ impl DocumentStateManager {
 	}
 
 	/// Get all documents with errors.
-	pub fn documents_with_errors(&self) -> Vec<Url> {
+	pub fn documents_with_errors(&self) -> Vec<Uri> {
 		self.documents
 			.read()
 			.iter()
@@ -496,7 +496,7 @@ mod tests {
 
 	#[test]
 	fn test_document_state_version() {
-		let uri = Url::parse("file:///test.rs").unwrap();
+		let uri = "file:///test.rs".parse().unwrap();
 		let state = DocumentState::from_uri(uri);
 
 		assert_eq!(state.version(), 0);
@@ -507,7 +507,7 @@ mod tests {
 
 	#[test]
 	fn test_document_state_diagnostics() {
-		let uri = Url::parse("file:///test.rs").unwrap();
+		let uri = "file:///test.rs".parse().unwrap();
 		let state = DocumentState::from_uri(uri);
 
 		assert!(!state.has_errors());
@@ -529,7 +529,7 @@ mod tests {
 	#[test]
 	fn test_document_state_manager() {
 		let manager = DocumentStateManager::new();
-		let uri = Url::parse("file:///test.rs").unwrap();
+		let uri = "file:///test.rs".parse().unwrap();
 
 		let path = PathBuf::from("/test.rs");
 		manager.register(&path, Some("rust"));

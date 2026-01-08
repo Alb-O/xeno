@@ -63,7 +63,7 @@ thiserror = { version = "2", default-features = false }
 unicode-segmentation = "1"
 unicode-truncate = { version = "2", default-features = false }
 unicode-width = ">=0.2.0, <=0.2.2"
-vt100 = "0.15"
+vt100 = "0.16"
 
 [dev-dependencies]
 color-eyre = "0.6"

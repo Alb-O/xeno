@@ -30,7 +30,7 @@
 use std::path::Path;
 use std::sync::Arc;
 
-use lsp_types::{Diagnostic, TextDocumentContentChangeEvent, TextDocumentSaveReason, Url};
+use lsp_types::{Diagnostic, TextDocumentContentChangeEvent, TextDocumentSaveReason, Uri};
 use ropey::Rope;
 use xeno_base::lsp::LspDocumentChange;
 
@@ -69,7 +69,7 @@ impl DocumentSyncEventHandler {
 }
 
 impl LspEventHandler for DocumentSyncEventHandler {
-	fn on_diagnostics(&self, _server_id: LanguageServerId, uri: Url, diagnostics: Vec<Diagnostic>) {
+	fn on_diagnostics(&self, _server_id: LanguageServerId, uri: Uri, diagnostics: Vec<Diagnostic>) {
 		self.documents.update_diagnostics(&uri, diagnostics);
 	}
 
@@ -202,8 +202,8 @@ impl DocumentSync {
 	/// * `language` - Language ID
 	/// * `text` - New document content
 	pub async fn notify_change_full(&self, path: &Path, language: &str, text: &Rope) -> Result<()> {
-		let uri =
-			Url::from_file_path(path).map_err(|_| crate::Error::Protocol("Invalid path".into()))?;
+		let uri = crate::uri_from_path(path)
+			.ok_or_else(|| crate::Error::Protocol("Invalid path".into()))?;
 
 		if !self.documents.is_opened(&uri) {
 			self.open_document(path, language, text).await?;
@@ -254,8 +254,8 @@ impl DocumentSync {
 		new_text: &str,
 		encoding: OffsetEncoding,
 	) -> Result<()> {
-		let uri =
-			Url::from_file_path(path).map_err(|_| crate::Error::Protocol("Invalid path".into()))?;
+		let uri = crate::uri_from_path(path)
+			.ok_or_else(|| crate::Error::Protocol("Invalid path".into()))?;
 
 		if !self.documents.is_opened(&uri) {
 			self.open_document(path, language, text).await?;
@@ -298,8 +298,8 @@ impl DocumentSync {
 			return Ok(());
 		}
 
-		let uri =
-			Url::from_file_path(path).map_err(|_| crate::Error::Protocol("Invalid path".into()))?;
+		let uri = crate::uri_from_path(path)
+			.ok_or_else(|| crate::Error::Protocol("Invalid path".into()))?;
 
 		if !self.documents.is_opened(&uri) {
 			self.open_document(path, language, text).await?;
@@ -329,8 +329,8 @@ impl DocumentSync {
 
 	/// Notify language servers that a document will be saved.
 	pub fn notify_will_save(&self, path: &Path, language: &str) -> Result<()> {
-		let uri =
-			Url::from_file_path(path).map_err(|_| crate::Error::Protocol("Invalid path".into()))?;
+		let uri = crate::uri_from_path(path)
+			.ok_or_else(|| crate::Error::Protocol("Invalid path".into()))?;
 
 		if let Some(client) = self.registry.get(language, path) {
 			client.text_document_will_save(uri, TextDocumentSaveReason::MANUAL)?;
@@ -354,8 +354,8 @@ impl DocumentSync {
 		include_text: bool,
 		text: Option<&Rope>,
 	) -> Result<()> {
-		let uri =
-			Url::from_file_path(path).map_err(|_| crate::Error::Protocol("Invalid path".into()))?;
+		let uri = crate::uri_from_path(path)
+			.ok_or_else(|| crate::Error::Protocol("Invalid path".into()))?;
 
 		let text_content = if include_text {
 			text.map(|t| t.to_string())
@@ -374,8 +374,8 @@ impl DocumentSync {
 	///
 	/// This sends `textDocument/didClose` and removes the document from tracking.
 	pub fn close_document(&self, path: &Path, language: &str) -> Result<()> {
-		let uri =
-			Url::from_file_path(path).map_err(|_| crate::Error::Protocol("Invalid path".into()))?;
+		let uri = crate::uri_from_path(path)
+			.ok_or_else(|| crate::Error::Protocol("Invalid path".into()))?;
 
 		if self.documents.is_opened(&uri)
 			&& let Some(client) = self.registry.get(language, path)
@@ -390,7 +390,7 @@ impl DocumentSync {
 
 	/// Get diagnostics for a document.
 	pub fn get_diagnostics(&self, path: &Path) -> Vec<lsp_types::Diagnostic> {
-		if let Ok(uri) = Url::from_file_path(path) {
+		if let Some(uri) = crate::uri_from_path(path) {
 			self.documents.get_diagnostics(&uri)
 		} else {
 			Vec::new()
@@ -399,7 +399,7 @@ impl DocumentSync {
 
 	/// Get error count for a document.
 	pub fn error_count(&self, path: &Path) -> usize {
-		if let Ok(uri) = Url::from_file_path(path) {
+		if let Some(uri) = crate::uri_from_path(path) {
 			let diags = self.documents.get_diagnostics(&uri);
 			diags
 				.iter()
@@ -412,7 +412,7 @@ impl DocumentSync {
 
 	/// Get warning count for a document.
 	pub fn warning_count(&self, path: &Path) -> usize {
-		if let Ok(uri) = Url::from_file_path(path) {
+		if let Some(uri) = crate::uri_from_path(path) {
 			let diags = self.documents.get_diagnostics(&uri);
 			diags
 				.iter()

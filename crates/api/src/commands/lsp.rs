@@ -70,10 +70,8 @@ fn cmd_goto_definition<'a>(
 			}
 		};
 
-		let path = location
-			.uri
-			.to_file_path()
-			.map_err(|_| CommandError::Failed("Invalid file path in definition".into()))?;
+		let path = xeno_lsp::path_from_uri(&location.uri)
+			.ok_or_else(|| CommandError::Failed("Invalid file path in definition".into()))?;
 
 		ctx.editor
 			.goto_location(&Location::from_lsp(path, &location.range.start))
