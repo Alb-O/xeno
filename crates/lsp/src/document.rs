@@ -11,6 +11,7 @@ use std::time::Instant;
 use lsp_types::{Diagnostic, DiagnosticSeverity, NumberOrString, ProgressParams, Url};
 use parking_lot::RwLock;
 use tokio::sync::mpsc;
+use tracing::debug;
 
 use crate::client::LanguageServerId;
 
@@ -403,7 +404,7 @@ impl DocumentStateManager {
 					percentage: begin.percentage,
 					started_at: Instant::now(),
 				};
-				tracing::debug!(
+				debug!(
 					server_id = server_id.0,
 					title = %item.title,
 					"Progress started"
@@ -422,7 +423,7 @@ impl DocumentStateManager {
 			}
 			lsp_types::ProgressParamsValue::WorkDone(WorkDoneProgress::End(end)) => {
 				if let Some(item) = self.progress.write().remove(&key) {
-					tracing::debug!(
+					debug!(
 						server_id = server_id.0,
 						title = %item.title,
 						message = ?end.message,

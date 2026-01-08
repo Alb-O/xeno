@@ -37,6 +37,7 @@ use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use tokio::task::JoinHandle;
+use tracing::{info, warn};
 
 use crate::Result;
 use crate::client::{
@@ -157,7 +158,7 @@ impl Registry {
 	/// Register a language server configuration for a language.
 	pub fn register(&self, language: impl Into<String>, config: LanguageServerConfig) {
 		let language = language.into();
-		tracing::info!(
+		info!(
 			language = %language,
 			command = %config.command,
 			root_markers = ?config.root_markers,
@@ -201,7 +202,7 @@ impl Registry {
 				if instance.is_alive() {
 					return Ok(instance.handle.clone());
 				}
-				tracing::warn!(language = %language, root = ?root_path, "Language server crashed, restarting");
+				warn!(language = %language, root = ?root_path, "Language server crashed, restarting");
 			}
 		}
 
@@ -209,7 +210,7 @@ impl Registry {
 		self.servers.write().remove(&key);
 
 		let id = LanguageServerId(self.next_id.fetch_add(1, Ordering::Relaxed));
-		tracing::info!(
+		info!(
 			language = %language,
 			command = %config.command,
 			root = ?root_path,
@@ -274,7 +275,7 @@ impl Registry {
 		if count > 0 {
 			let mut servers = self.servers.write();
 			for key in dead_keys {
-				tracing::info!(
+				info!(
 					language = %key.0,
 					root = ?key.1,
 					"Cleaning up dead language server"

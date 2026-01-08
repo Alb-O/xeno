@@ -4,6 +4,7 @@
 
 use std::path::PathBuf;
 
+use tracing::warn;
 use xeno_registry::{
 	HookContext, HookEventData, SplitDirection, ViewId, emit_sync_with as emit_hook_sync_with,
 };
@@ -101,7 +102,7 @@ impl Editor {
 
 			#[cfg(feature = "lsp")]
 			if let Err(e) = self.lsp.on_buffer_close(buffer) {
-				tracing::warn!(error = %e, "LSP buffer close failed");
+				warn!(error = %e, "LSP buffer close failed");
 			}
 		}
 

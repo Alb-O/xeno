@@ -1,5 +1,7 @@
 //! Example hook demonstrating OptionChanged event handling.
 
+use tracing::debug;
+
 use crate::{HookEventData, hook};
 
 hook!(
@@ -9,7 +11,7 @@ hook!(
 	"Log option changes for debugging",
 	|ctx| {
 		if let HookEventData::OptionChanged { key, scope } = &ctx.data {
-			tracing::debug!(option = *key, scope = *scope, "option changed");
+			debug!(option = *key, scope = *scope, "option changed");
 		}
 	}
 );

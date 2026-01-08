@@ -659,7 +659,7 @@ pub fn start_server(
 		let reader = tokio::io::BufReader::new(stderr);
 		let mut lines = reader.lines();
 		while let Ok(Some(line)) = lines.next_line().await {
-			tracing::warn!(server_id = stderr_id.0, stderr = %line, "LSP server stderr");
+			warn!(server_id = stderr_id.0, stderr = %line, "LSP server stderr");
 		}
 	});
 
@@ -752,9 +752,9 @@ pub fn start_server(
 
 		let result = main_loop.run_buffered(stdout, stdin).await;
 		if let Err(ref e) = result {
-			tracing::error!(server_id = server_id.0, error = %e, "LSP main loop error");
+			error!(server_id = server_id.0, error = %e, "LSP main loop error");
 		} else {
-			tracing::info!(server_id = server_id.0, "LSP main loop exited normally");
+			info!(server_id = server_id.0, "LSP main loop exited normally");
 		}
 
 		drop(process);

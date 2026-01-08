@@ -4,6 +4,7 @@
 
 use std::path::PathBuf;
 
+use tracing::warn;
 use xeno_registry::{
 	HookContext, HookEventData, emit as emit_hook, emit_sync_with as emit_hook_sync_with,
 };
@@ -44,7 +45,7 @@ impl Editor {
 		if let Some(buffer) = self.buffers.get_buffer(buffer_id)
 			&& let Err(e) = self.lsp.on_buffer_open(buffer).await
 		{
-			tracing::warn!(error = %e, "LSP buffer open failed");
+			warn!(error = %e, "LSP buffer open failed");
 		}
 
 		buffer_id
@@ -121,7 +122,7 @@ impl Editor {
 				&& buffer.path().is_some()
 				&& let Err(e) = self.lsp.on_buffer_open(buffer).await
 			{
-				tracing::warn!(error = %e, "Failed to initialize LSP for buffer");
+				warn!(error = %e, "Failed to initialize LSP for buffer");
 			}
 		}
 		Ok(())

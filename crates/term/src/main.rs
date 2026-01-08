@@ -13,6 +13,7 @@ mod tests;
 use app::run_editor;
 use clap::Parser;
 use cli::{AuthAction, Cli, Command, GrammarAction, LoginProvider, LogoutProvider};
+use tracing::{info, warn};
 use xeno_acp::AcpManager;
 use xeno_api::Editor;
 // Force-link crates to ensure their distributed_slice registrations are included.
@@ -82,7 +83,7 @@ async fn main() -> anyhow::Result<()> {
 
 	// Initialize LSP for the initial buffer (opened before servers were configured)
 	if let Err(e) = editor.init_lsp_for_open_buffers().await {
-		tracing::warn!(error = %e, "Failed to initialize LSP for initial buffer");
+		warn!(error = %e, "Failed to initialize LSP for initial buffer");
 	}
 
 	// Apply user config to editor
@@ -383,7 +384,7 @@ fn setup_tracing() {
 		.with(file_layer)
 		.init();
 
-	tracing::info!(path = ?log_path, "Tracing initialized");
+	info!(path = ?log_path, "Tracing initialized");
 }
 
 /// Configures language servers from embedded `lsp.kdl` and `languages.kdl`.

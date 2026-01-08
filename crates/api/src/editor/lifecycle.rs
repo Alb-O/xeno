@@ -6,6 +6,7 @@
 use std::collections::HashSet;
 use std::path::PathBuf;
 
+use tracing::{debug, warn};
 use xeno_registry::commands::{CommandContext, CommandOutcome, find_command};
 use xeno_registry::{HookContext, HookEventData, emit_sync_with as emit_hook_sync_with};
 
@@ -119,7 +120,7 @@ impl Editor {
 			&& change_count <= Self::LSP_MAX_INCREMENTAL_CHANGES
 			&& total_bytes <= Self::LSP_MAX_INCREMENTAL_BYTES;
 
-		tracing::debug!(
+		debug!(
 			path = ?path,
 			mode = if use_incremental { "incremental" } else { "full" },
 			change_count,
@@ -137,7 +138,7 @@ impl Editor {
 				sync.notify_change_full(&path, &language, &content).await
 			};
 			if let Err(e) = result {
-				tracing::warn!(error = %e, path = ?path, "LSP change notification failed");
+				warn!(error = %e, path = ?path, "LSP change notification failed");
 			}
 		});
 	}

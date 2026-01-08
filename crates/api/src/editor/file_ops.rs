@@ -4,6 +4,7 @@
 
 use std::path::PathBuf;
 
+use tracing::warn;
 use xeno_registry::commands::CommandError;
 use xeno_registry::{HookContext, HookEventData, emit as emit_hook};
 
@@ -39,7 +40,7 @@ impl xeno_core::editor_ctx::FileOpsAccess for Editor {
 
 			#[cfg(feature = "lsp")]
 			if let Err(e) = self.lsp.on_buffer_will_save(self.buffer()) {
-				tracing::warn!(error = %e, "LSP will_save notification failed");
+				warn!(error = %e, "LSP will_save notification failed");
 			}
 
 			let mut content = Vec::new();
@@ -58,7 +59,7 @@ impl xeno_core::editor_ctx::FileOpsAccess for Editor {
 
 			#[cfg(feature = "lsp")]
 			if let Err(e) = self.lsp.on_buffer_did_save(self.buffer(), true) {
-				tracing::warn!(error = %e, "LSP did_save notification failed");
+				warn!(error = %e, "LSP did_save notification failed");
 			}
 
 			emit_hook(&HookContext::new(
