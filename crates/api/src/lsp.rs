@@ -147,7 +147,7 @@ impl LspManager {
 	///
 	/// Starts the appropriate language server and opens the document.
 	pub async fn on_buffer_open(&self, buffer: &Buffer) -> Result<Option<ClientHandle>> {
-		let Some(path) = &buffer.path() else {
+		let Some(path) = buffer.path() else {
 			tracing::debug!("on_buffer_open: no path, skipping LSP");
 			return Ok(None);
 		};
@@ -163,10 +163,18 @@ impl LspManager {
 			return Ok(None);
 		}
 
-		tracing::info!(path = ?path, language = %language, "on_buffer_open: starting LSP server");
+		// Canonicalize path to absolute (required for LSP URIs)
+		let abs_path = path
+			.canonicalize()
+			.unwrap_or_else(|_| std::env::current_dir().unwrap_or_default().join(&path));
+
+		tracing::info!(path = ?abs_path, language = %language, "on_buffer_open: starting LSP server");
 		let content = buffer.doc().content.clone();
-		let client = self.sync.open_document(path, language, &content).await?;
-		tracing::info!(path = ?path, "on_buffer_open: LSP server started successfully");
+		let client = self
+			.sync
+			.open_document(&abs_path, language, &content)
+			.await?;
+		tracing::info!(path = ?abs_path, "on_buffer_open: LSP server started successfully");
 		Ok(Some(client))
 	}
 
@@ -331,7 +339,7 @@ impl LspManager {
 
 	/// Get a language server client for a buffer.
 	pub fn get_client(&self, buffer: &Buffer) -> Option<ClientHandle> {
-		let path = buffer.path()?;
+		let path = Self::abs_path(buffer)?;
 		let language = buffer.file_type()?;
 		tracing::debug!(path = ?path, language = %language, "get_client: looking up server");
 		let client = self.sync.registry().get(&language, &path);
@@ -341,6 +349,15 @@ impl LspManager {
 			tracing::warn!(path = ?path, language = %language, "get_client: no active server found");
 		}
 		client
+	}
+
+	/// Get the absolute path for a buffer, or None if no path.
+	fn abs_path(buffer: &Buffer) -> Option<std::path::PathBuf> {
+		let path = buffer.path()?;
+		Some(
+			path.canonicalize()
+				.unwrap_or_else(|_| std::env::current_dir().unwrap_or_default().join(&path)),
+		)
 	}
 
 	/// Request hover information at the cursor position.
@@ -354,7 +371,7 @@ impl LspManager {
 			}
 		};
 
-		let path = buffer.path().unwrap();
+		let path = Self::abs_path(buffer).unwrap();
 		let language = buffer.file_type().unwrap();
 		let uri = xeno_lsp::lsp_types::Url::from_file_path(&path)
 			.map_err(|_| xeno_lsp::Error::Protocol("Invalid path".into()))?;
@@ -383,7 +400,7 @@ impl LspManager {
 			None => return Ok(None),
 		};
 
-		let path = buffer.path().unwrap();
+		let path = Self::abs_path(buffer).unwrap();
 		let language = buffer.file_type().unwrap();
 		let uri = xeno_lsp::lsp_types::Url::from_file_path(&path)
 			.map_err(|_| xeno_lsp::Error::Protocol("Invalid path".into()))?;
@@ -410,7 +427,7 @@ impl LspManager {
 			}
 		};
 
-		let path = buffer.path().unwrap();
+		let path = Self::abs_path(buffer).unwrap();
 		let language = buffer.file_type().unwrap();
 		let uri = xeno_lsp::lsp_types::Url::from_file_path(&path)
 			.map_err(|_| xeno_lsp::Error::Protocol("Invalid path".into()))?;
@@ -435,7 +452,7 @@ impl LspManager {
 			None => return Ok(None),
 		};
 
-		let path = buffer.path().unwrap();
+		let path = Self::abs_path(buffer).unwrap();
 		let language = buffer.file_type().unwrap();
 		let uri = xeno_lsp::lsp_types::Url::from_file_path(&path)
 			.map_err(|_| xeno_lsp::Error::Protocol("Invalid path".into()))?;
@@ -458,7 +475,7 @@ impl LspManager {
 			None => return Ok(None),
 		};
 
-		let path = buffer.path().unwrap();
+		let path = Self::abs_path(buffer).unwrap();
 		let uri = xeno_lsp::lsp_types::Url::from_file_path(&path)
 			.map_err(|_| xeno_lsp::Error::Protocol("Invalid path".into()))?;
 

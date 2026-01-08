@@ -80,6 +80,11 @@ async fn main() -> anyhow::Result<()> {
 	editor.extensions.insert(AcpManager::new());
 	configure_lsp_servers(&mut editor);
 
+	// Initialize LSP for the initial buffer (opened before servers were configured)
+	if let Err(e) = editor.init_lsp_for_open_buffers().await {
+		tracing::warn!(error = %e, "Failed to initialize LSP for initial buffer");
+	}
+
 	// Apply user config to editor
 	if let Some(config) = user_config {
 		// Apply global options

@@ -650,7 +650,18 @@ pub fn start_server(
 
 	let stdin = process.stdin.take().expect("Failed to open stdin");
 	let stdout = process.stdout.take().expect("Failed to open stdout");
-	let _stderr = process.stderr.take().expect("Failed to open stderr");
+	let stderr = process.stderr.take().expect("Failed to open stderr");
+
+	// Log stderr from the LSP server
+	let stderr_id = id;
+	tokio::spawn(async move {
+		use tokio::io::AsyncBufReadExt;
+		let reader = tokio::io::BufReader::new(stderr);
+		let mut lines = reader.lines();
+		while let Ok(Some(line)) = lines.next_line().await {
+			tracing::warn!(server_id = stderr_id.0, stderr = %line, "LSP server stderr");
+		}
+	});
 
 	let capabilities = Arc::new(OnceCell::new());
 	let initialize_notify = Arc::new(Notify::new());
@@ -733,15 +744,21 @@ pub fn start_server(
 		initialize_notify,
 	};
 
+	let server_id = id;
 	let join_handle = tokio::spawn(async move {
 		// Convert tokio I/O to futures I/O
 		let stdin = tokio_util::compat::TokioAsyncWriteCompatExt::compat_write(stdin);
 		let stdout = tokio_util::compat::TokioAsyncReadCompatExt::compat(stdout);
 
-		main_loop.run_buffered(stdout, stdin).await?;
+		let result = main_loop.run_buffered(stdout, stdin).await;
+		if let Err(ref e) = result {
+			tracing::error!(server_id = server_id.0, error = %e, "LSP main loop error");
+		} else {
+			tracing::info!(server_id = server_id.0, "LSP main loop exited normally");
+		}
 
 		drop(process);
-		Ok(())
+		result
 	});
 
 	Ok((handle, join_handle))

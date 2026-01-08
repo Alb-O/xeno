@@ -285,18 +285,26 @@ impl Registry {
 			"Registry::get looking up server"
 		);
 		let servers = self.servers.read();
-		let result = servers
-			.get(&key)
-			.filter(|s| s.is_alive())
-			.map(|s| s.handle.clone());
-		if result.is_none() {
-			let active_keys: Vec<_> = servers.keys().collect();
-			tracing::debug!(
-				active_servers = ?active_keys,
-				"Registry::get: server not found, active servers listed"
-			);
+		if let Some(instance) = servers.get(&key) {
+			if instance.is_alive() {
+				tracing::debug!("Registry::get: found alive server");
+				return Some(instance.handle.clone());
+			} else {
+				tracing::warn!(
+					language = %language,
+					root = ?root_path,
+					task_finished = instance.task.is_finished(),
+					"Registry::get: server exists but is dead"
+				);
+				return None;
+			}
 		}
-		result
+		let active_keys: Vec<_> = servers.keys().collect();
+		tracing::debug!(
+			active_servers = ?active_keys,
+			"Registry::get: no server found for key"
+		);
+		None
 	}
 
 	/// Clean up all dead servers and return the number of servers removed.
@@ -361,14 +369,20 @@ impl Registry {
 /// Find the project root by walking up from the file path.
 ///
 /// Looks for any of the root markers. If none found, returns the file's directory.
+/// Always returns an absolute path (required for LSP URIs).
 fn find_root_path(file_path: &Path, root_markers: &[String]) -> PathBuf {
-	let start_dir = if file_path.is_file() {
-		file_path.parent().unwrap_or(file_path)
+	// Canonicalize to get absolute path, fall back to current dir + path if that fails
+	let abs_path = file_path
+		.canonicalize()
+		.unwrap_or_else(|_| std::env::current_dir().unwrap_or_default().join(file_path));
+
+	let start_dir = if abs_path.is_file() {
+		abs_path.parent().unwrap_or(&abs_path).to_path_buf()
 	} else {
-		file_path
+		abs_path.clone()
 	};
 
-	let mut current = start_dir;
+	let mut current = start_dir.as_path();
 	loop {
 		for marker in root_markers {
 			if current.join(marker).exists() {
@@ -383,7 +397,7 @@ fn find_root_path(file_path: &Path, root_markers: &[String]) -> PathBuf {
 	}
 
 	// No marker found, use the file's directory
-	start_dir.to_path_buf()
+	start_dir
 }
 
 #[cfg(test)]
