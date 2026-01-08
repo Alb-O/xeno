@@ -1,29 +1,76 @@
 //! Interactive TUI log viewer with tracing-tree style output.
 
-use std::collections::{HashMap, VecDeque};
-
-const FIELD_INDENT: &str = "    ";
-const PIPE_PREFIX: &str = "\x1b[90m│\x1b[0m ";
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::io::{self, Read, Write};
 use std::os::unix::net::UnixListener;
 use std::path::Path;
 use std::sync::mpsc::{self, Receiver};
 use std::thread;
-use std::time::{Duration, SystemTime};
+use std::time::{Duration, Instant};
 
 use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyModifiers};
 use crossterm::terminal::{self, ClearType};
 use crossterm::{cursor, execute, queue};
 
-use super::protocol::{Level, LogEvent, LogMessage, SpanEvent, SpanInfo};
+use super::protocol::{Level, LogEvent, LogMessage, SpanEvent, XenoLayer};
 
 const MAX_LOG_ENTRIES: usize = 10000;
 
-/// Log viewer state.
+/// A stored log entry (event or span lifecycle).
+#[derive(Clone)]
+enum StoredEntry {
+	Event {
+		event: LogEvent,
+		relative_ms: u64,
+	},
+	SpanEnter {
+		name: String,
+		target: String,
+		level: Level,
+		layer: XenoLayer,
+		fields: Vec<(String, String)>,
+		depth: usize,
+		relative_ms: u64,
+	},
+	SpanClose {
+		name: String,
+		level: Level,
+		layer: XenoLayer,
+		duration_us: u64,
+		depth: usize,
+	},
+}
+
+impl StoredEntry {
+	fn level(&self) -> Level {
+		match self {
+			StoredEntry::Event { event, .. } => event.level,
+			StoredEntry::SpanEnter { level, .. } | StoredEntry::SpanClose { level, .. } => *level,
+		}
+	}
+
+	fn layer(&self) -> XenoLayer {
+		match self {
+			StoredEntry::Event { event, .. } => event.layer,
+			StoredEntry::SpanEnter { layer, .. } | StoredEntry::SpanClose { layer, .. } => *layer,
+		}
+	}
+
+	fn target(&self) -> &str {
+		match self {
+			StoredEntry::Event { event, .. } => &event.target,
+			StoredEntry::SpanEnter { target, .. } => target,
+			StoredEntry::SpanClose { .. } => "",
+		}
+	}
+}
+
 pub struct LogViewer {
-	events: VecDeque<DisplayEntry>,
+	entries: VecDeque<StoredEntry>,
 	active_spans: HashMap<u64, ActiveSpan>,
+	start_time: Instant,
 	min_level: Level,
+	layer_filter: HashSet<XenoLayer>,
 	target_filter: String,
 	paused: bool,
 	scroll_offset: usize,
@@ -40,30 +87,22 @@ struct ActiveSpan {
 	#[allow(dead_code)]
 	target: String,
 	level: Level,
+	layer: XenoLayer,
 	depth: usize,
 }
 
-#[derive(Clone)]
-struct DisplayEntry {
-	#[allow(dead_code)]
-	timestamp: SystemTime,
-	lines: Vec<FormattedLine>,
-}
-
-#[derive(Clone)]
-struct FormattedLine {
-	indent: usize,
-	content: String,
-	continuation: bool,
-}
+const HEADER_WIDTH: &str = "       ";
+const PIPE: &str = "\x1b[90m│\x1b[0m ";
 
 impl LogViewer {
 	pub fn new() -> Self {
 		let (width, height) = terminal::size().unwrap_or((80, 24));
 		Self {
-			events: VecDeque::with_capacity(MAX_LOG_ENTRIES),
+			entries: VecDeque::with_capacity(MAX_LOG_ENTRIES),
 			active_spans: HashMap::new(),
+			start_time: Instant::now(),
 			min_level: Level::Trace,
+			layer_filter: HashSet::new(),
 			target_filter: String::new(),
 			paused: false,
 			scroll_offset: 0,
@@ -76,41 +115,65 @@ impl LogViewer {
 		}
 	}
 
-	fn handle_message(&mut self, msg: LogMessage) {
-		match msg {
-			LogMessage::Event(event) => self.handle_event(event),
-			LogMessage::Span(span_event) => self.handle_span(span_event),
-			LogMessage::Disconnected => self.disconnected = true,
+	fn matches_filter(&self, entry: &StoredEntry) -> bool {
+		// Filter out log crate facade noise (target is literally "log")
+		if entry.target() == "log" {
+			return false;
 		}
-		self.dirty = true;
+		if entry.level() < self.min_level {
+			return false;
+		}
+		if !self.layer_filter.is_empty() && !self.layer_filter.contains(&entry.layer()) {
+			return false;
+		}
+		if !self.target_filter.is_empty() && !entry.target().contains(&self.target_filter) {
+			return false;
+		}
+		true
 	}
 
-	fn handle_event(&mut self, event: LogEvent) {
-		if event.level < self.min_level {
-			return;
+	fn toggle_layer(&mut self, layer: XenoLayer) {
+		if self.layer_filter.contains(&layer) {
+			self.layer_filter.remove(&layer);
+		} else {
+			self.layer_filter.insert(layer);
 		}
-		if !self.target_filter.is_empty() && !event.target.contains(&self.target_filter) {
-			return;
-		}
+	}
 
-		let entry = self.format_event(&event);
-		if self.events.len() >= MAX_LOG_ENTRIES {
-			self.events.pop_front();
-		}
-		self.events.push_back(entry);
+	fn clear_layer_filter(&mut self) {
+		self.layer_filter.clear();
+	}
 
+	fn push_entry(&mut self, entry: StoredEntry) {
+		if self.entries.len() >= MAX_LOG_ENTRIES {
+			self.entries.pop_front();
+		}
+		self.entries.push_back(entry);
 		if self.auto_scroll {
 			self.scroll_offset = 0;
 		}
 	}
 
-	fn handle_span(&mut self, span_event: SpanEvent) {
+	fn handle_message(&mut self, msg: LogMessage) {
+		let relative_ms = self.start_time.elapsed().as_millis() as u64;
+		match msg {
+			LogMessage::Event(event) => {
+				self.push_entry(StoredEntry::Event { event, relative_ms });
+			}
+			LogMessage::Span(span_event) => self.handle_span(span_event, relative_ms),
+			LogMessage::Disconnected => self.disconnected = true,
+		}
+		self.dirty = true;
+	}
+
+	fn handle_span(&mut self, span_event: SpanEvent, relative_ms: u64) {
 		match span_event {
 			SpanEvent::Enter {
 				id,
 				name,
 				target,
 				level,
+				layer,
 				fields,
 				parent_id,
 			} => {
@@ -118,13 +181,15 @@ impl LogViewer {
 					.and_then(|pid| self.active_spans.get(&pid).map(|s| s.depth + 1))
 					.unwrap_or(0);
 
-				let entry = self.format_span_enter(&name, &target, level, &fields, depth);
-				if level >= self.min_level {
-					if self.events.len() >= MAX_LOG_ENTRIES {
-						self.events.pop_front();
-					}
-					self.events.push_back(entry);
-				}
+				self.push_entry(StoredEntry::SpanEnter {
+					name: name.clone(),
+					target: target.clone(),
+					level,
+					layer,
+					fields,
+					depth,
+					relative_ms,
+				});
 
 				self.active_spans.insert(
 					id,
@@ -132,6 +197,7 @@ impl LogViewer {
 						name,
 						target,
 						level,
+						layer,
 						depth,
 					},
 				);
@@ -139,140 +205,133 @@ impl LogViewer {
 			SpanEvent::Exit { .. } => {}
 			SpanEvent::Close { id, duration_us } => {
 				if let Some(span) = self.active_spans.remove(&id) {
-					let entry = self.format_span_close(&span.name, duration_us, span.depth);
-					if span.level >= self.min_level {
-						if self.events.len() >= MAX_LOG_ENTRIES {
-							self.events.pop_front();
-						}
-						self.events.push_back(entry);
-					}
+					self.push_entry(StoredEntry::SpanClose {
+						name: span.name,
+						level: span.level,
+						layer: span.layer,
+						duration_us,
+						depth: span.depth,
+					});
 				}
 			}
 		}
 	}
 
-	fn format_event(&self, event: &LogEvent) -> DisplayEntry {
-		let mut lines = Vec::new();
-		let indent = self.calculate_indent(&event.spans);
-
-		let content = format!(
-			"{} {} > {}",
-			event.level.colored(),
-			dim(&event.target),
-			&event.message
-		);
-		lines.push(FormattedLine {
-			indent,
-			content,
-			continuation: false,
-		});
-
-		for (key, value) in &event.fields {
-			lines.push(FormattedLine {
-				indent,
-				content: format!("{}{} = {}", FIELD_INDENT, dim(key), value),
-				continuation: true,
-			});
-		}
-
-		DisplayEntry {
-			timestamp: event.timestamp,
-			lines,
-		}
-	}
-
-	fn format_span_enter(
-		&self,
-		name: &str,
-		target: &str,
-		level: Level,
-		fields: &[(String, String)],
-		depth: usize,
-	) -> DisplayEntry {
-		let mut lines = Vec::new();
-
-		lines.push(FormattedLine {
-			indent: depth,
-			content: format!("{} {} {}", level.colored(), dim(target), cyan(name)),
-			continuation: false,
-		});
-
-		for (key, value) in fields {
-			lines.push(FormattedLine {
-				indent: depth,
-				content: format!("{}{} = {}", FIELD_INDENT, dim(key), value),
-				continuation: true,
-			});
-		}
-
-		DisplayEntry {
-			timestamp: SystemTime::now(),
-			lines,
-		}
-	}
-
-	fn format_span_close(&self, name: &str, duration_us: u64, depth: usize) -> DisplayEntry {
-		let duration = if duration_us > 1_000_000 {
-			format!("{:.2}s", duration_us as f64 / 1_000_000.0)
-		} else if duration_us > 1_000 {
-			format!("{:.2}ms", duration_us as f64 / 1_000.0)
-		} else {
-			format!("{}us", duration_us)
-		};
-
-		DisplayEntry {
-			timestamp: SystemTime::now(),
-			lines: vec![FormattedLine {
-				indent: depth,
-				content: format!("{} {}", cyan(name), dim(&duration)),
-				continuation: false,
-			}],
-		}
-	}
-
-	fn calculate_indent(&self, spans: &[SpanInfo]) -> usize {
-		spans.len()
-	}
-
-	fn current_top_entry(&self) -> Option<usize> {
-		if self.events.is_empty() {
-			return None;
-		}
-		let total_lines: usize = self.events.iter().map(|e| e.lines.len()).sum();
-		let content_height = self.term_height.saturating_sub(1) as usize;
-		let max_offset = total_lines.saturating_sub(content_height);
-		let scroll_offset = self.scroll_offset.min(max_offset);
-		let start_line = max_offset.saturating_sub(scroll_offset);
-
-		let mut line_count = 0;
-		for (i, entry) in self.events.iter().enumerate() {
-			if line_count + entry.lines.len() > start_line {
-				return Some(i);
+	fn format_entry(&self, entry: &StoredEntry) -> Vec<String> {
+		match entry {
+			StoredEntry::Event { event, relative_ms } => {
+				let indent = self.line_prefix(event.spans.len(), false);
+				let cont = self.line_prefix(event.spans.len(), true);
+				let ts = format_relative_time(*relative_ms);
+				let target = truncate_target(&event.target);
+				let mut lines = vec![
+					format!(
+						"{}{} {} {}",
+						indent,
+						dim(&ts),
+						event.level.colored(),
+						event.layer.colored()
+					),
+					format!("{}{} > {}", cont, dim(&target), &event.message),
+				];
+				// Filter out log.* meta-fields and compute max key width
+				let fields: Vec<_> = event
+					.fields
+					.iter()
+					.filter(|(k, _)| !k.starts_with("log."))
+					.collect();
+				let max_key = fields.iter().map(|(k, _)| k.len()).max().unwrap_or(0);
+				for (key, value) in fields {
+					lines.push(format!(
+						"{}    {} = {}",
+						cont,
+						dim(&format!("{:>width$}", key, width = max_key)),
+						value
+					));
+				}
+				lines
 			}
-			line_count += entry.lines.len();
+			StoredEntry::SpanEnter {
+				name,
+				target,
+				level,
+				layer,
+				fields,
+				depth,
+				relative_ms,
+			} => {
+				let indent = self.line_prefix(*depth, false);
+				let cont = self.line_prefix(*depth, true);
+				let ts = format_relative_time(*relative_ms);
+				let target = truncate_target(target);
+				let mut lines = vec![
+					format!(
+						"{}{} {} {}",
+						indent,
+						dim(&ts),
+						level.colored(),
+						layer.colored()
+					),
+					format!("{}{} {}", cont, dim(&target), cyan(name)),
+				];
+				// Filter out log.* meta-fields
+				let fields: Vec<_> = fields
+					.iter()
+					.filter(|(k, _)| !k.starts_with("log."))
+					.collect();
+				let max_key = fields.iter().map(|(k, _)| k.len()).max().unwrap_or(0);
+				for (key, value) in fields {
+					lines.push(format!(
+						"{}    {} = {}",
+						cont,
+						dim(&format!("{:>width$}", key, width = max_key)),
+						value
+					));
+				}
+				lines
+			}
+			StoredEntry::SpanClose {
+				name,
+				duration_us,
+				depth,
+				..
+			} => {
+				let duration = format_duration(*duration_us);
+				let indent = self.line_prefix(*depth, false);
+				vec![format!("{}← {} {}", indent, cyan(name), dim(&duration))]
+			}
 		}
-		Some(self.events.len() - 1)
 	}
 
 	fn render(&mut self, stdout: &mut io::Stdout) -> io::Result<()> {
 		queue!(stdout, cursor::MoveTo(0, 0))?;
 
 		let content_height = self.term_height.saturating_sub(1) as usize;
-		let num_entries = self.events.len();
 
-		if num_entries == 0 {
+		// Collect all visible lines (filtered)
+		let all_lines: Vec<String> = self
+			.entries
+			.iter()
+			.filter(|e| self.matches_filter(e))
+			.flat_map(|e| self.format_entry(e))
+			.collect();
+
+		let total_lines = all_lines.len();
+		let visible_entries = self
+			.entries
+			.iter()
+			.filter(|e| self.matches_filter(e))
+			.count();
+
+		if total_lines == 0 {
 			for row in 0..content_height {
 				queue!(stdout, cursor::MoveTo(0, row as u16))?;
 				queue!(stdout, terminal::Clear(ClearType::CurrentLine))?;
 			}
-			self.render_status_bar(stdout, 0)?;
+			self.render_status_bar(stdout, visible_entries)?;
 			return stdout.flush();
 		}
 
-		let all_lines: Vec<&FormattedLine> = self.events.iter().flat_map(|e| &e.lines).collect();
-		let total_lines = all_lines.len();
-
-		// scroll_offset tracks lines scrolled up from bottom; 0 = showing newest
 		let max_offset = total_lines.saturating_sub(content_height);
 		self.scroll_offset = self.scroll_offset.min(max_offset);
 
@@ -282,12 +341,7 @@ impl LogViewer {
 		for (row, line) in all_lines[start..end].iter().enumerate() {
 			queue!(stdout, cursor::MoveTo(0, row as u16))?;
 			queue!(stdout, terminal::Clear(ClearType::CurrentLine))?;
-			write!(
-				stdout,
-				"{}{}",
-				self.line_prefix(line.indent, line.continuation),
-				line.content
-			)?;
+			write!(stdout, "{}", line)?;
 		}
 
 		for row in (end - start)..content_height {
@@ -295,7 +349,7 @@ impl LogViewer {
 			queue!(stdout, terminal::Clear(ClearType::CurrentLine))?;
 		}
 
-		self.render_status_bar(stdout, num_entries)?;
+		self.render_status_bar(stdout, visible_entries)?;
 		if self.show_help {
 			self.render_help(stdout)?;
 		}
@@ -303,16 +357,19 @@ impl LogViewer {
 		stdout.flush()
 	}
 
-	fn line_prefix(&self, indent: usize, continuation: bool) -> String {
-		if indent == 0 && !continuation {
+	fn line_prefix(&self, depth: usize, continuation: bool) -> String {
+		if depth == 0 && !continuation {
 			return String::new();
 		}
-		let mut prefix = String::new();
-		for _ in 0..indent {
-			prefix.push_str(PIPE_PREFIX);
+		let mut prefix = String::from(HEADER_WIDTH);
+		for i in 0..depth {
+			prefix.push_str(PIPE);
+			if i < depth - 1 || continuation {
+				prefix.push_str(HEADER_WIDTH);
+			}
 		}
 		if continuation {
-			prefix.push_str(PIPE_PREFIX);
+			prefix.push_str(PIPE);
 		}
 		prefix
 	}
@@ -340,6 +397,12 @@ impl LogViewer {
 		} else {
 			String::new()
 		};
+		let layer_str = if self.layer_filter.is_empty() {
+			String::new()
+		} else {
+			let layers: Vec<_> = self.layer_filter.iter().map(|l| l.short_name()).collect();
+			format!(" [{}]", layers.join(","))
+		};
 		let filter = if self.target_filter.is_empty() {
 			String::new()
 		} else {
@@ -348,8 +411,8 @@ impl LogViewer {
 
 		write!(
 			stdout,
-			"\x1b[7m {}{} {} lines{}{} | ? help | q quit \x1b[0m",
-			status, level, total_lines, scroll, filter
+			"\x1b[7m {}{} {} lines{}{}{} | ? help | q quit \x1b[0m",
+			status, level, total_lines, layer_str, scroll, filter
 		)
 	}
 
@@ -366,6 +429,11 @@ impl LogViewer {
 			"    w  Show WARN and above",
 			"    e  Show ERROR only",
 			"",
+			"  Layer Filters (toggle):",
+			"    1 CORE  2 API   3 LSP   4 LANG  5 CFG",
+			"    6 UI    7 ACP   8 AUTH  9 REG   0 EXT",
+			"    L       Clear layer filter (show all)",
+			"",
 			"  Navigation:",
 			"    j/Down    Scroll down",
 			"    k/Up      Scroll up",
@@ -381,7 +449,7 @@ impl LogViewer {
 			"",
 		];
 
-		let box_width = 40usize;
+		let box_width = 45usize;
 		let start_col = (self.term_width / 2).saturating_sub(box_width as u16 / 2);
 		let start_row = (self.term_height / 2).saturating_sub(HELP.len() as u16 / 2);
 
@@ -418,27 +486,26 @@ impl LogViewer {
 			KeyCode::Char('i') => self.min_level = Level::Info,
 			KeyCode::Char('w') => self.min_level = Level::Warn,
 			KeyCode::Char('e') => self.min_level = Level::Error,
+			KeyCode::Char('1') => self.toggle_layer(XenoLayer::Core),
+			KeyCode::Char('2') => self.toggle_layer(XenoLayer::Api),
+			KeyCode::Char('3') => self.toggle_layer(XenoLayer::Lsp),
+			KeyCode::Char('4') => self.toggle_layer(XenoLayer::Lang),
+			KeyCode::Char('5') => self.toggle_layer(XenoLayer::Config),
+			KeyCode::Char('6') => self.toggle_layer(XenoLayer::Ui),
+			KeyCode::Char('7') => self.toggle_layer(XenoLayer::Acp),
+			KeyCode::Char('8') => self.toggle_layer(XenoLayer::Auth),
+			KeyCode::Char('9') => self.toggle_layer(XenoLayer::Registry),
+			KeyCode::Char('0') => self.toggle_layer(XenoLayer::External),
+			KeyCode::Char('L') => self.clear_layer_filter(),
 			KeyCode::Char('j') | KeyCode::Down => {
-				if let Some(entry) = self.current_top_entry()
-					&& entry < self.events.len() - 1
-				{
-					self.scroll_offset = self
-						.scroll_offset
-						.saturating_sub(self.events[entry].lines.len());
-				}
+				self.scroll_offset = self.scroll_offset.saturating_sub(1);
 			}
 			KeyCode::Char('k') | KeyCode::Up => {
-				if let Some(entry) = self.current_top_entry()
-					&& entry > 0
-				{
-					self.scroll_offset += self.events[entry - 1].lines.len();
-				}
+				self.scroll_offset += 1;
 				self.auto_scroll = false;
 			}
 			KeyCode::Char('g') | KeyCode::Home => {
-				let total_lines: usize = self.events.iter().map(|e| e.lines.len()).sum();
-				self.scroll_offset =
-					total_lines.saturating_sub(self.term_height.saturating_sub(1) as usize);
+				self.scroll_offset = usize::MAX;
 				self.auto_scroll = false;
 			}
 			KeyCode::Char('G') | KeyCode::End => {
@@ -447,11 +514,14 @@ impl LogViewer {
 			}
 			KeyCode::Char(' ') => self.paused = !self.paused,
 			KeyCode::Char('c') => {
-				self.events.clear();
+				self.entries.clear();
 				self.active_spans.clear();
 				self.scroll_offset = 0;
 			}
-			KeyCode::Esc => self.target_filter.clear(),
+			KeyCode::Esc => {
+				self.target_filter.clear();
+				self.clear_layer_filter();
+			}
 			_ => return false,
 		}
 		self.dirty = true;
@@ -566,4 +636,34 @@ fn dim(s: &str) -> String {
 
 fn cyan(s: &str) -> String {
 	format!("\x1b[36m{}\x1b[0m", s)
+}
+
+fn format_duration(us: u64) -> String {
+	if us > 1_000_000 {
+		format!("{:.2}s", us as f64 / 1_000_000.0)
+	} else if us > 1_000 {
+		format!("{:.2}ms", us as f64 / 1_000.0)
+	} else {
+		format!("{}us", us)
+	}
+}
+
+fn format_relative_time(ms: u64) -> String {
+	if ms >= 60_000 {
+		format!("{:>2}:{:02}", ms / 60_000, (ms % 60_000) / 1000)
+	} else {
+		format!("{:>5.1}s", ms as f64 / 1000.0)
+	}
+}
+
+/// Strips `xeno_*` crate prefix from target paths.
+///
+/// Examples: `xeno_lsp::registry` → `registry`, `xeno_api::editor::ops` → `editor::ops`
+fn truncate_target(target: &str) -> String {
+	if let Some(rest) = target.strip_prefix("xeno_")
+		&& let Some(pos) = rest.find("::")
+	{
+		return rest[pos + 2..].to_string();
+	}
+	target.to_string()
 }

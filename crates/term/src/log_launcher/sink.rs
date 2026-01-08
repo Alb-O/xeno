@@ -11,7 +11,7 @@ use tracing_subscriber::Layer;
 use tracing_subscriber::layer::Context;
 use tracing_subscriber::registry::LookupSpan;
 
-use super::protocol::{Level, LogEvent, LogMessage, SpanEvent, SpanInfo};
+use super::protocol::{Level, LogEvent, LogMessage, SpanEvent, SpanInfo, XenoLayer};
 
 /// A tracing layer that sends log events over a Unix socket.
 pub struct SocketLayer {
@@ -47,6 +47,7 @@ struct SpanData {
 	name: String,
 	target: String,
 	level: Level,
+	layer: XenoLayer,
 	fields: Vec<(String, String)>,
 	entered_at: Option<Instant>,
 }
@@ -61,10 +62,12 @@ where
 		let mut visitor = FieldVisitor(&mut fields);
 		attrs.record(&mut visitor);
 
+		let target = attrs.metadata().target();
 		let data = SpanData {
 			name: attrs.metadata().name().to_string(),
-			target: attrs.metadata().target().to_string(),
+			target: target.to_string(),
 			level: attrs.metadata().level().into(),
+			layer: XenoLayer::from_target(target),
 			fields,
 			entered_at: None,
 		};
@@ -94,6 +97,7 @@ where
 					name: data.name.clone(),
 					target: data.target.clone(),
 					level: data.level,
+					layer: data.layer,
 					fields: data.fields.clone(),
 					parent_id,
 				}));
@@ -123,6 +127,7 @@ where
 
 	fn on_event(&self, event: &Event<'_>, ctx: Context<'_, S>) {
 		let metadata = event.metadata();
+		let target = metadata.target();
 
 		// Collect fields
 		let mut fields = Vec::new();
@@ -157,7 +162,8 @@ where
 		let log_event = LogEvent {
 			timestamp: SystemTime::now(),
 			level: metadata.level().into(),
-			target: metadata.target().to_string(),
+			layer: XenoLayer::from_target(target),
+			target: target.to_string(),
 			message,
 			spans,
 			fields,

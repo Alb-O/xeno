@@ -1,12 +1,8 @@
 //! Xeno terminal application entry point.
 
-/// Application lifecycle and event loop.
 mod app;
-/// Terminal backend abstraction.
 mod backend;
-/// Command-line interface definitions.
 mod cli;
-/// Log launcher mode - spawn xeno in new terminal with log viewer.
 mod log_launcher;
 mod terminal;
 #[cfg(test)]
@@ -393,11 +389,8 @@ fn setup_socket_tracing(socket_path: &str) {
 		return;
 	};
 
-	let filter = EnvFilter::try_from_env("XENO_LOG").unwrap_or_else(|_| {
-		EnvFilter::new("debug")
-			.add_directive("xeno_lsp=debug".parse().unwrap())
-			.add_directive("xeno_api=debug".parse().unwrap())
-	});
+	let filter = EnvFilter::try_from_env("XENO_LOG")
+		.unwrap_or_else(|_| EnvFilter::new("debug,hyper=info,tower=info"));
 
 	tracing_subscriber::registry()
 		.with(filter)
@@ -481,7 +474,7 @@ async fn run_editor_normal() -> anyhow::Result<()> {
 /// Sets up tracing to log to a file in the data directory.
 ///
 /// Logs go to `~/.local/share/xeno/xeno.log` (or platform equivalent).
-/// Set `XENO_LOG` env var to control level (e.g., `XENO_LOG=debug`).
+/// Set `XENO_LOG` env var to control filtering (e.g., `XENO_LOG=debug` or `XENO_LOG=xeno_lsp=trace`).
 fn setup_tracing() {
 	use std::fs::OpenOptions;
 
@@ -502,12 +495,8 @@ fn setup_tracing() {
 		return;
 	};
 
-	// Use XENO_LOG env var, defaulting to "warn" for most crates but "debug" for xeno
-	let filter = EnvFilter::try_from_env("XENO_LOG").unwrap_or_else(|_| {
-		EnvFilter::new("warn")
-			.add_directive("xeno_lsp=debug".parse().unwrap())
-			.add_directive("xeno_api=debug".parse().unwrap())
-	});
+	let filter = EnvFilter::try_from_env("XENO_LOG")
+		.unwrap_or_else(|_| EnvFilter::new("xeno_api=debug,xeno_lsp=debug,warn"));
 
 	let file_layer = tracing_subscriber::fmt::layer()
 		.with_writer(file)

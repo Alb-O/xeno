@@ -4,6 +4,95 @@ use std::time::SystemTime;
 
 use serde::{Deserialize, Serialize};
 
+/// Xeno layer categories for log viewer filtering.
+///
+/// Maps tracing targets to logical subsystems for interactive filtering.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum XenoLayer {
+	Core,
+	Api,
+	Lsp,
+	Lang,
+	Config,
+	Ui,
+	Acp,
+	Auth,
+	Registry,
+	#[default]
+	External,
+}
+
+const LAYER_INFO: &[(XenoLayer, &str, &str, &[&str])] = &[
+	(
+		XenoLayer::Core,
+		"CORE",
+		"\x1b[95mCORE\x1b[0m",
+		&["xeno_core", "xeno_base"],
+	),
+	(XenoLayer::Api, "API", "\x1b[96mAPI \x1b[0m", &["xeno_api"]),
+	(XenoLayer::Lsp, "LSP", "\x1b[93mLSP \x1b[0m", &["xeno_lsp"]),
+	(
+		XenoLayer::Lang,
+		"LANG",
+		"\x1b[94mLANG\x1b[0m",
+		&["xeno_language"],
+	),
+	(
+		XenoLayer::Config,
+		"CFG",
+		"\x1b[90mCFG \x1b[0m",
+		&["xeno_config"],
+	),
+	(
+		XenoLayer::Ui,
+		"UI",
+		"\x1b[92mUI  \x1b[0m",
+		&["xeno_term", "xeno_tui"],
+	),
+	(XenoLayer::Acp, "ACP", "\x1b[91mACP \x1b[0m", &["xeno_acp"]),
+	(
+		XenoLayer::Auth,
+		"AUTH",
+		"\x1b[90mAUTH\x1b[0m",
+		&["xeno_auth"],
+	),
+	(
+		XenoLayer::Registry,
+		"REG",
+		"\x1b[90mREG \x1b[0m",
+		&["xeno_registry"],
+	),
+	(XenoLayer::External, "EXT", "\x1b[90mEXT \x1b[0m", &[]),
+];
+
+impl XenoLayer {
+	pub fn short_name(&self) -> &'static str {
+		LAYER_INFO
+			.iter()
+			.find(|(l, ..)| l == self)
+			.map(|(_, n, ..)| *n)
+			.unwrap_or("EXT")
+	}
+
+	pub fn colored(&self) -> &'static str {
+		LAYER_INFO
+			.iter()
+			.find(|(l, ..)| l == self)
+			.map(|(_, _, c, _)| *c)
+			.unwrap_or("\x1b[90mEXT \x1b[0m")
+	}
+
+	pub fn from_target(target: &str) -> XenoLayer {
+		for (layer, _, _, prefixes) in LAYER_INFO {
+			if prefixes.iter().any(|p| target.starts_with(p)) {
+				return *layer;
+			}
+		}
+		XenoLayer::External
+	}
+}
+
 /// A log event sent from xeno to the log viewer.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LogEvent {
@@ -11,6 +100,8 @@ pub struct LogEvent {
 	pub timestamp: SystemTime,
 	/// Log level.
 	pub level: Level,
+	/// Xeno layer category (derived from target).
+	pub layer: XenoLayer,
 	/// Target module path.
 	pub target: String,
 	/// The log message.
@@ -44,14 +135,14 @@ pub enum Level {
 }
 
 impl Level {
-	/// Returns a colored display string for the level.
+	/// Returns a block-style (background colored) display string.
 	pub fn colored(&self) -> &'static str {
 		match self {
-			Level::Trace => "\x1b[35mTRACE\x1b[0m",
-			Level::Debug => "\x1b[34mDEBUG\x1b[0m",
-			Level::Info => "\x1b[32mINFO \x1b[0m",
-			Level::Warn => "\x1b[33mWARN \x1b[0m",
-			Level::Error => "\x1b[31mERROR\x1b[0m",
+			Level::Trace => "\x1b[100;97m TRACE \x1b[0m",
+			Level::Debug => "\x1b[44;1;97m DEBUG \x1b[0m",
+			Level::Info => "\x1b[102;30m INFO \x1b[0m",
+			Level::Warn => "\x1b[103;30m WARN \x1b[0m",
+			Level::Error => "\x1b[41;1;97m ERROR \x1b[0m",
 		}
 	}
 }
@@ -83,6 +174,7 @@ pub enum SpanEvent {
 		name: String,
 		target: String,
 		level: Level,
+		layer: XenoLayer,
 		fields: Vec<(String, String)>,
 		parent_id: Option<u64>,
 	},
