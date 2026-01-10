@@ -137,7 +137,7 @@ impl Editor {
 		let sync = self.lsp.sync().clone();
 		tokio::spawn(async move {
 			let result = if use_incremental {
-				sync.notify_change_incremental_v2(&path, &language, &content, changes)
+				sync.notify_change_incremental(&path, &language, &content, changes)
 					.await
 			} else {
 				sync.notify_change_full(&path, &language, &content).await

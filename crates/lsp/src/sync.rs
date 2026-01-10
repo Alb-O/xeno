@@ -35,9 +35,8 @@ use ropey::Rope;
 use xeno_base::lsp::LspDocumentChange;
 
 use crate::Result;
-use crate::client::{ClientHandle, LanguageServerId, LspEventHandler, OffsetEncoding};
+use crate::client::{ClientHandle, LanguageServerId, LspEventHandler};
 use crate::document::{DiagnosticsEventReceiver, DocumentStateManager};
-use crate::position::char_range_to_lsp_range;
 use crate::registry::Registry;
 
 /// Event handler that updates [`DocumentStateManager`] with LSP events.
@@ -91,33 +90,13 @@ pub struct DocumentSync {
 }
 
 impl DocumentSync {
-	/// Create a new document sync coordinator.
-	///
-	/// This sets up an event handler on the registry so that diagnostics
-	/// and other LSP events are automatically routed to the document state manager.
-	pub fn new(registry: Arc<Registry>, documents: Arc<DocumentStateManager>) -> Self {
-		// Create event handler that updates the document state manager
-		let event_handler = Arc::new(DocumentSyncEventHandler::new(documents.clone()));
-
-		// We need to get mutable access to set the event handler.
-		// Since Registry uses interior mutability for configs/servers, we need
-		// a different approach. For now, we require the registry to be created
-		// with the event handler via Registry::with_event_handler().
-		//
-		// TODO: Consider making Registry::set_event_handler take &self with interior mutability.
-		let _ = event_handler; // Silence unused warning for now
-
-		Self {
-			registry,
-			documents,
-		}
-	}
-
 	/// Create a new document sync coordinator with a pre-configured registry.
 	///
 	/// Use this when you need to set up the event handler before creating the sync.
 	/// The registry should be created with [`Registry::with_event_handler`] using
 	/// a [`DocumentSyncEventHandler`].
+	///
+	/// For a simpler setup that wires everything together, use [`create`](Self::create).
 	pub fn with_registry(registry: Arc<Registry>, documents: Arc<DocumentStateManager>) -> Self {
 		Self {
 			registry,
@@ -224,70 +203,8 @@ impl DocumentSync {
 
 	/// Notify language servers of an incremental document change.
 	///
-	/// # Warning
-	///
-	/// This function has a known limitation: it computes LSP positions from
-	/// the post-change text, but the positions should be relative to the
-	/// pre-change text. For reliable document synchronization, prefer using
-	/// [`notify_change_full`](Self::notify_change_full) instead.
-	///
-	/// # Arguments
-	///
-	/// * `path` - Path to the file
-	/// * `language` - Language ID
-	/// * `text` - Current document content (after the change)
-	/// * `start_char` - Start position of the change (character index in NEW text)
-	/// * `end_char` - End position of the change (character index in NEW text)
-	/// * `new_text` - The replacement text
-	/// * `encoding` - Offset encoding to use
-	#[deprecated(
-		since = "0.3.0",
-		note = "Use notify_change_full instead; incremental sync has position calculation issues"
-	)]
+	/// Uses pre-computed LSP ranges for accurate position tracking.
 	pub async fn notify_change_incremental(
-		&self,
-		path: &Path,
-		language: &str,
-		text: &Rope,
-		start_char: usize,
-		end_char: usize,
-		new_text: &str,
-		encoding: OffsetEncoding,
-	) -> Result<()> {
-		let uri = crate::uri_from_path(path)
-			.ok_or_else(|| crate::Error::Protocol("Invalid path".into()))?;
-
-		if !self.documents.is_opened(&uri) {
-			self.open_document(path, language, text).await?;
-			return Ok(());
-		}
-
-		let version = self
-			.documents
-			.increment_version(&uri)
-			.ok_or_else(|| crate::Error::Protocol("Document not registered".into()))?;
-
-		// Incremental sync requires the old text to compute the range properly;
-		// the caller must provide correct positions relative to pre-change state.
-		let range =
-			char_range_to_lsp_range(text, start_char, end_char.min(text.len_chars()), encoding)
-				.ok_or_else(|| crate::Error::Protocol("Invalid range".into()))?;
-
-		let change = TextDocumentContentChangeEvent {
-			range: Some(range),
-			range_length: None,
-			text: new_text.to_string(),
-		};
-
-		if let Some(client) = self.registry.get(language, path) {
-			client.text_document_did_change(uri, version, vec![change])?;
-		}
-
-		Ok(())
-	}
-
-	/// Notify language servers of an incremental document change using pre-computed ranges.
-	pub async fn notify_change_incremental_v2(
 		&self,
 		path: &Path,
 		language: &str,
@@ -449,10 +366,18 @@ mod tests {
 	use super::*;
 
 	#[test]
-	fn test_document_sync_new() {
+	fn test_document_sync_with_registry() {
 		let registry = Arc::new(Registry::new());
 		let documents = Arc::new(DocumentStateManager::new());
-		let sync = DocumentSync::new(registry, documents);
+		let sync = DocumentSync::with_registry(registry, documents);
+
+		assert_eq!(sync.total_error_count(), 0);
+		assert_eq!(sync.total_warning_count(), 0);
+	}
+
+	#[test]
+	fn test_document_sync_create() {
+		let (sync, _registry, _documents, _receiver) = DocumentSync::create();
 
 		assert_eq!(sync.total_error_count(), 0);
 		assert_eq!(sync.total_warning_count(), 0);

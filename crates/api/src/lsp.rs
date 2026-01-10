@@ -188,8 +188,10 @@ impl LspManager {
 		self.sync.notify_change_full(path, language, &content).await
 	}
 
-	/// Called when a buffer's content changes with pre-computed LSP ranges.
-	pub async fn on_buffer_change_incremental_v2(
+	/// Called when a buffer's content changes incrementally.
+	///
+	/// Sends incremental document sync to the language server using pre-computed ranges.
+	pub async fn on_buffer_change_incremental(
 		&self,
 		buffer: &Buffer,
 		changes: Vec<LspDocumentChange>,
@@ -204,47 +206,7 @@ impl LspManager {
 
 		let content = buffer.doc().content.clone();
 		self.sync
-			.notify_change_incremental_v2(path, language, &content, changes)
-			.await
-	}
-
-	/// Called when a buffer's content changes with specific range info.
-	///
-	/// Sends an incremental document sync to the language server.
-	///
-	/// # Warning
-	///
-	/// This function has known issues with position calculation. Prefer
-	/// using [`on_buffer_change`](Self::on_buffer_change) for reliable
-	/// document synchronization.
-	#[deprecated(
-		since = "0.3.0",
-		note = "Use on_buffer_change instead; incremental sync has position calculation issues"
-	)]
-	#[allow(deprecated)]
-	pub async fn on_buffer_change_incremental(
-		&self,
-		buffer: &Buffer,
-		start_char: usize,
-		end_char: usize,
-		new_text: &str,
-	) -> Result<()> {
-		let Some(path) = &buffer.path() else {
-			return Ok(());
-		};
-
-		let Some(language) = &buffer.file_type() else {
-			return Ok(());
-		};
-
-		// Get encoding from the client, default to UTF-16
-		let encoding = self.get_encoding_for_path(path, language);
-
-		let content = buffer.doc().content.clone();
-		self.sync
-			.notify_change_incremental(
-				path, language, &content, start_char, end_char, new_text, encoding,
-			)
+			.notify_change_incremental(path, language, &content, changes)
 			.await
 	}
 
@@ -331,38 +293,48 @@ impl LspManager {
 		self.sync.total_warning_count()
 	}
 
-	/// Get a language server client for a buffer.
-	pub fn get_client(&self, buffer: &Buffer) -> Option<ClientHandle> {
-		let path = Self::abs_path(buffer)?;
-		let language = buffer.file_type()?;
-		self.sync.registry().get(&language, &path)
-	}
-
-	/// Get the absolute path for a buffer, or None if no path.
-	fn abs_path(buffer: &Buffer) -> Option<std::path::PathBuf> {
-		let path = buffer.path()?;
-		Some(
-			path.canonicalize()
-				.unwrap_or_else(|_| std::env::current_dir().unwrap_or_default().join(&path)),
-		)
-	}
-
-	/// Request hover information at the cursor position.
-	pub async fn hover(&self, buffer: &Buffer) -> Result<Option<xeno_lsp::lsp_types::Hover>> {
-		let Some(client) = self.get_client(buffer) else {
+	/// Prepare a position-based LSP request. Returns None if no client available.
+	fn prepare_position_request(
+		&self,
+		buffer: &Buffer,
+	) -> Result<
+		Option<(
+			ClientHandle,
+			xeno_lsp::lsp_types::Uri,
+			xeno_lsp::lsp_types::Position,
+		)>,
+	> {
+		let Some(path) = buffer.path() else {
+			return Ok(None);
+		};
+		let Some(language) = buffer.file_type() else {
 			return Ok(None);
 		};
 
-		let path = Self::abs_path(buffer).unwrap();
-		let language = buffer.file_type().unwrap();
-		let uri = xeno_lsp::uri_from_path(&path)
+		let abs_path = path
+			.canonicalize()
+			.unwrap_or_else(|_| std::env::current_dir().unwrap_or_default().join(&path));
+
+		let Some(client) = self.sync.registry().get(&language, &abs_path) else {
+			return Ok(None);
+		};
+
+		let uri = xeno_lsp::uri_from_path(&abs_path)
 			.ok_or_else(|| xeno_lsp::Error::Protocol("Invalid path".into()))?;
 
-		let encoding = self.get_encoding_for_path(&path, &language);
+		let encoding = client.offset_encoding();
 		let position =
 			xeno_lsp::char_to_lsp_position(&buffer.doc().content, buffer.cursor, encoding)
 				.ok_or_else(|| xeno_lsp::Error::Protocol("Invalid position".into()))?;
 
+		Ok(Some((client, uri, position)))
+	}
+
+	/// Request hover information at the cursor position.
+	pub async fn hover(&self, buffer: &Buffer) -> Result<Option<xeno_lsp::lsp_types::Hover>> {
+		let Some((client, uri, position)) = self.prepare_position_request(buffer)? else {
+			return Ok(None);
+		};
 		client.hover(uri, position).await
 	}
 
@@ -371,21 +343,9 @@ impl LspManager {
 		&self,
 		buffer: &Buffer,
 	) -> Result<Option<xeno_lsp::lsp_types::CompletionResponse>> {
-		let client = match self.get_client(buffer) {
-			Some(c) => c,
-			None => return Ok(None),
+		let Some((client, uri, position)) = self.prepare_position_request(buffer)? else {
+			return Ok(None);
 		};
-
-		let path = Self::abs_path(buffer).unwrap();
-		let language = buffer.file_type().unwrap();
-		let uri = xeno_lsp::uri_from_path(&path)
-			.ok_or_else(|| xeno_lsp::Error::Protocol("Invalid path".into()))?;
-
-		let encoding = self.get_encoding_for_path(&path, &language);
-		let position =
-			xeno_lsp::char_to_lsp_position(&buffer.doc().content, buffer.cursor, encoding)
-				.ok_or_else(|| xeno_lsp::Error::Protocol("Invalid position".into()))?;
-
 		client.completion(uri, position, None).await
 	}
 
@@ -394,20 +354,9 @@ impl LspManager {
 		&self,
 		buffer: &Buffer,
 	) -> Result<Option<xeno_lsp::lsp_types::GotoDefinitionResponse>> {
-		let Some(client) = self.get_client(buffer) else {
+		let Some((client, uri, position)) = self.prepare_position_request(buffer)? else {
 			return Ok(None);
 		};
-
-		let path = Self::abs_path(buffer).unwrap();
-		let language = buffer.file_type().unwrap();
-		let uri = xeno_lsp::uri_from_path(&path)
-			.ok_or_else(|| xeno_lsp::Error::Protocol("Invalid path".into()))?;
-
-		let encoding = self.get_encoding_for_path(&path, &language);
-		let position =
-			xeno_lsp::char_to_lsp_position(&buffer.doc().content, buffer.cursor, encoding)
-				.ok_or_else(|| xeno_lsp::Error::Protocol("Invalid position".into()))?;
-
 		client.goto_definition(uri, position).await
 	}
 
@@ -417,21 +366,9 @@ impl LspManager {
 		buffer: &Buffer,
 		include_declaration: bool,
 	) -> Result<Option<Vec<xeno_lsp::lsp_types::Location>>> {
-		let client = match self.get_client(buffer) {
-			Some(c) => c,
-			None => return Ok(None),
+		let Some((client, uri, position)) = self.prepare_position_request(buffer)? else {
+			return Ok(None);
 		};
-
-		let path = Self::abs_path(buffer).unwrap();
-		let language = buffer.file_type().unwrap();
-		let uri = xeno_lsp::uri_from_path(&path)
-			.ok_or_else(|| xeno_lsp::Error::Protocol("Invalid path".into()))?;
-
-		let encoding = self.get_encoding_for_path(&path, &language);
-		let position =
-			xeno_lsp::char_to_lsp_position(&buffer.doc().content, buffer.cursor, encoding)
-				.ok_or_else(|| xeno_lsp::Error::Protocol("Invalid position".into()))?;
-
 		client.references(uri, position, include_declaration).await
 	}
 
@@ -440,37 +377,20 @@ impl LspManager {
 		&self,
 		buffer: &Buffer,
 	) -> Result<Option<Vec<xeno_lsp::lsp_types::TextEdit>>> {
-		let client = match self.get_client(buffer) {
-			Some(c) => c,
-			None => return Ok(None),
+		let Some((client, uri, _)) = self.prepare_position_request(buffer)? else {
+			return Ok(None);
 		};
-
-		let path = Self::abs_path(buffer).unwrap();
-		let uri = xeno_lsp::uri_from_path(&path)
-			.ok_or_else(|| xeno_lsp::Error::Protocol("Invalid path".into()))?;
-
-		// Default formatting options
 		let options = xeno_lsp::lsp_types::FormattingOptions {
 			tab_size: 4,
 			insert_spaces: false,
 			..Default::default()
 		};
-
 		client.formatting(uri, options).await
 	}
 
 	/// Shutdown all language servers.
 	pub async fn shutdown_all(&self) {
 		self.sync.registry().shutdown_all().await;
-	}
-
-	/// Get the offset encoding for a language server.
-	fn get_encoding_for_path(&self, path: &Path, language: &str) -> OffsetEncoding {
-		self.sync
-			.registry()
-			.get(language, path)
-			.map(|c| c.offset_encoding())
-			.unwrap_or_default()
 	}
 
 	/// Returns the server encoding if incremental sync is supported.
