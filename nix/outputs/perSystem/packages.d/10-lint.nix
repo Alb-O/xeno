@@ -49,5 +49,4 @@ let
 in
 {
   imp-lint = impLintModule;
-  default = impLintModule;
 }

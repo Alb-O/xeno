@@ -218,17 +218,16 @@ export def "imp lint" [
     } else {
         let error_count = ($all_findings | where severity == "error" | length)
         let warn_count = ($all_findings | where severity == "warning" | length)
+        let summary_suffix = if $error_count > 0 {
+            $"(ansi red_bold)($error_count) error\(s\)(ansi reset), ($warn_count) warning\(s\)"
+        } else {
+            $"(ansi yellow_bold)($warn_count) warning\(s\)(ansi reset)"
+        }
 
         print $"(ansi green)Findings(ansi reset)(ansi white):(ansi reset)"
         $all_findings | format-findings-table | print
-        print $"\n(ansi green)Summary(ansi reset)(ansi white):(ansi reset)"
+        print $"\n(ansi green)Summary(ansi reset)(ansi white):(ansi reset) ($summary_suffix)"
         $all_findings | format-summary-table | print
-
-        if $error_count > 0 {
-            print $"\n(ansi red_bold)($error_count) error\(s\)(ansi reset), ($warn_count) warning\(s\)"
-        } else {
-            print $"\n(ansi yellow_bold)($warn_count) warning\(s\)(ansi reset)"
-        }
     }
 }
 
