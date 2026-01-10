@@ -1,206 +1,106 @@
-# Xeno
+# XENO
 
-Modal text editor with compile-time registry system.
+## Project Overview
 
-## Crates
+Xeno is a modal text editor written in Rust, targeting terminals. It integrates Tree-sitter for syntax analysis, LSP IDE features. The architecture uses a distributed slice registry pattern via the `linkme` crate, allowing components (actions, commands, motions, text objects) to register themselves at compile time without centralized wiring.
 
-```
-xeno-base          Core types: Range, Selection, Rope wrappers
-xeno-registry      Registry definitions (actions/, commands/, motions/, etc.)
-xeno-registry-core Shared primitives (Key, RegistryMetadata)
-xeno-core          Glue: ActionId, KeymapRegistry, movement
-xeno-macro         Proc macros (DispatchResult, define_events!, parse_keybindings)
-xeno-api           Editor engine: Buffer, Editor, rendering
-xeno-extensions    Host extensions (LSP, Zenmode)
-xeno-term          Main binary
-```
+## Build and Test
 
-**Supporting**: `keymap`, `input`, `config`, `language`, `lsp`, `tui`.
-
-## Registry System
-
-Uses `linkme` distributed slices for compile-time registration. Each registry under `crates/registry/`.
-
-| Registry      | Slice                 | Macro                  |
-| ------------- | --------------------- | ---------------------- |
-| Actions       | `ACTIONS`             | `action!`              |
-| Commands      | `COMMANDS`            | `command!`             |
-| Motions       | `MOTIONS`             | `motion!`              |
-| Text Objects  | `TEXT_OBJECTS`        | `text_object!`         |
-| Options       | `OPTIONS`             | `option!`              |
-| Hooks         | `HOOKS`               | `hook!`, `async_hook!` |
-| Statusline    | `STATUSLINE_SEGMENTS` | `statusline_segment!`  |
-| Gutter        | `GUTTERS`             | `gutter!`              |
-| Notifications | `NOTIFICATION_TYPES`  | -                      |
-| Themes        | `THEMES`              | -                      |
-| Keybindings   | `KEYBINDINGS`         | (inline in `action!`)  |
-
-### Typed Handles
-
-Typed keys (`*::keys::*`) for compile-time safety. Strings only at boundaries (user input, config).
-
-```rust
-use xeno_registry_motions::keys as motions;
-
-action!(move_left, {
-    description: "Move cursor left",
-    bindings: r#"normal "h" "left""#,
-}, |ctx| cursor_motion(ctx, motions::left));
-```
-
-Handler slices (`RESULT_*_HANDLERS`) auto-generated via `#[derive(DispatchResult)]`.
-
-### Options System
-
-Configurable options are defined via `#[derive_option]` attribute macro:
-
-```rust
-use xeno_macro::derive_option;
-
-#[derive_option]
-#[option(kdl = "tab-width", scope = buffer, validate = positive_int)]
-/// Number of spaces a tab character occupies for display.
-pub static TAB_WIDTH: i64 = 4;
-```
-
-This generates:
-
-- `OptionDef` registration in the `OPTIONS` slice
-- `TypedOptionKey<i64>` constant for compile-time type safety
-
-**Attributes**: `kdl` (required), `scope` (required: `global`|`buffer`), `validate` (optional), `priority` (optional)
-
-**Supported types**: `i64` (Int), `bool` (Bool), `String` (String), `&'static str` (String)
-
-**Validators** (in `xeno_registry_options::validators`): `positive_int`
-
-**Access patterns** use typed keys for compile-time safety:
-
-```rust
-use xeno_registry::options::keys;
-
-// Global option (ignores buffer overrides)
-let theme = options::global(keys::THEME.untyped());
-
-// Context-aware resolution (buffer -> language -> global -> default)
-let width: i64 = ctx.option(keys::TAB_WIDTH);  // TypedOptionKey<i64>
-```
-
-**Resolution order**: Buffer-local → Language config → Global config → Compile-time default
-
-**Runtime storage**:
-
-- `OptionStore`: Holds option values, keyed by typed key
-- `OptionResolver`: Chains stores for layered resolution
-- Editor stores: `global_options`, `language_options` (per-language), `Buffer::local_options`
-
-**Hook integration**: `OptionChanged` event emitted on `:set` and `:setlocal` commands for reactive extensions.
-
-### Event System
-
-Hook events are defined via the `define_events!` proc macro in `registry/hooks/src/events.rs`. This is a **single source of truth** that generates:
-
-- `HookEvent` enum for event discrimination
-- `HookEventData<'a>` with borrowed payloads for sync hooks
-- `OwnedHookContext` with owned payloads for async hooks
-- `__hook_extract!` and `__async_hook_extract!` macros for parameter binding
-
-```rust
-define_events! {
-    BufferOpen => "buffer:open" {
-        path: Path,
-        text: RopeSlice,
-        file_type: OptionStr,
-    },
-    EditorQuit => "editor:quit",  // Unit events have no payload
-}
-```
-
-Field type tokens: `Path` → `&Path`/`PathBuf`, `RopeSlice` → `RopeSlice<'a>`/`String`, `OptionStr` → `Option<&str>`/`Option<String>`, `ViewId`/`Bool` → copy types.
-
-**Action Lifecycle Events**: `ActionPre` (before execution), `ActionPost` (after result dispatch).
-
-## Extension System
-
-Extensions in `crates/extensions/extensions/` are discovered at build-time via `build.rs`.
-
-**Current extensions**: LSP (`extensions/lsp/`), Zenmode (`extensions/zenmode/`)
-
-**Extension macro** supports `#[init]`, `#[render]`, `#[command]` attributes:
-
-```rust
-#[extension(id = "zenmode", priority = 100)]
-impl ZenmodeState {
-    #[init]
-    pub fn new() -> Self { ... }
-
-    #[render(priority = 100)]
-    fn update(&mut self, editor: &mut Editor) { ... }
-
-    #[command("zenmode", aliases = ["zen", "focus"])]
-    fn toggle(&mut self, ctx: &mut CommandContext) -> CommandResult { ... }
-}
-```
-
-**ACP** (`crates/acp/`): Separate crate for AI completion, loaded via `use xeno_acp as _` in main.
-
-## Capability System
-
-Fine-grained traits in `registry/actions/src/editor_ctx/capabilities.rs`:
-
-| Trait             | Required | Purpose                  |
-| ----------------- | -------- | ------------------------ |
-| `CursorAccess`    | Yes      | Get/set cursor position  |
-| `SelectionAccess` | Yes      | Get/set selections       |
-| `ModeAccess`      | Yes      | Get/set editor mode      |
-| `MessageAccess`   | Yes      | Display notifications    |
-| `EditAccess`      | Optional | Text modifications       |
-| `SearchAccess`    | Optional | Pattern search           |
-| `UndoAccess`      | Optional | Undo/redo history        |
-| `SplitOps`        | Optional | Split management         |
-| `FocusOps`        | Optional | Focus/buffer navigation  |
-| `ViewportAccess`  | Optional | Viewport queries         |
-| `FileOpsAccess`   | Optional | Save/load operations     |
-| `JumpAccess`      | Optional | Jump list navigation     |
-| `MacroAccess`     | Optional | Macro recording/playback |
-
-## Key Files
-
-| Purpose             | Location                                      |
-| ------------------- | --------------------------------------------- |
-| Main entry          | `crates/term/src/main.rs`                     |
-| Editor core         | `crates/api/src/editor/mod.rs`                |
-| Action definitions  | `crates/registry/actions/src/`                |
-| Motion definitions  | `crates/registry/motions/src/`                |
-| Text objects        | `crates/registry/text_objects/src/`           |
-| Hook events         | `crates/registry/hooks/src/events.rs`         |
-| Proc macros         | `crates/macro/src/lib.rs`                     |
-| Event proc macro    | `crates/macro/src/events.rs`                  |
-| Result handlers     | `crates/core/src/editor_ctx/result_handlers/` |
-| Keymap registry     | `crates/core/src/keymap_registry.rs`          |
-| Movement functions  | `crates/core/src/movement/`                   |
-| Extension discovery | `crates/extensions/build.rs`                  |
-
-## Development
+The project uses Nix flakes with `direnv`, though Agents should use `nix develop -c` directly. The Rust toolchain is pinned to `nightly-2026-01-01`.
 
 ```bash
-# Build
-nix develop -c cargo build
-
-# Test
-nix develop -c cargo test --workspace
-
-# Kitty GUI tests
-KITTY_TESTS=1 DISPLAY=:0 nix develop -c cargo test -p xeno-term --test kitty_multiselect -- --nocapture --test-threads=1
+cargo build                     # debug build
+cargo build --release           # optimized build
+cargo test                      # all tests
+cargo test -p xeno-api          # single crate
+cargo test buffer::tests        # specific test module
+cargo insta review              # review snapshot test changes
+nix flake check                 # format check, ast-grep lint, build
 ```
 
-### Testing Philosophy
+Integration tests using `kitty-test-harness` require a running Kitty terminal and won't execute in sandboxed builds.
 
-- Unit tests for core logic (selections, motions, text objects)
-- Integration tests via `kitty-test-harness` for GUI behavior
-- Write failing assertions first, iterate until green
-- GUI harness catches cursor/selection drift that unit tests miss
+## Code Style
 
-# DEV NOTES
+The formatter enforces hard tabs, 100-character width, and module-level import granularity (`rustfmt.toml`). Three ast-grep rules in `lint/rules/` catch:
+- Decorative comment banners (`// ====`, `// ----`): convert to `///` docstrings with `#` headers
+- `#[allow(...)]` without `reason = "..."` justification
+- Short inline comments under 25 chars: prefer self-documenting code or proper docstrings
 
-<!-- Below this line, agents to add important operational details or unintuative notes that new developers should know. -->
+Clippy allows `dbg!`, `print!`, `expect`, and `unwrap` in test code. Complexity thresholds: cognitive 25, args 8, type 250.
+
+## Architecture
+
+The workspace contains 25+ crates under `crates/`. The main binary lives in `crates/term` and produces the `xeno` executable.
+
+**Core layers:** `xeno-base` defines fundamental types (Range, Selection, Key, Mode). `xeno-core` builds on these with ActionId, keymap resolution, and movement primitives. `xeno-api` exposes the Editor workspace, Buffer management, and UI state.
+
+**Text representation:** Buffers use `ropey` for O(log n) text operations. Syntax highlighting flows from Tree-sitter via the `tree-house` abstraction, which loads grammar shared libraries at runtime from paths configured in KDL.
+
+**Registry system:** The `crates/registry/` subtree contains 12 crates for extensible components. Each uses `#[distributed_slice]` to collect registrations: actions for keybindings, commands for `:` ex-mode, motions for cursor movement, text_objects for selection expansion, gutter for line decorations, statusline for status segments, hooks for lifecycle events. Adding a new action means annotating a function and it appears in the registry without touching dispatch code.
+
+**LSP framework:** `xeno-lsp` implements a Tower-based async client that spawns language server processes, converts positions between byte/char/line representations, and routes diagnostics to the gutter and inline decorations.
+
+**TUI:** `xeno-tui` is a modified Ratatui vendor. It renders to crossterm.
+
+**Configuration:** KDL files parsed by `xeno-config`. Runtime assets (queries, themes, language configs) inside `crates/runtime/assets` embed via `xeno-runtime`.
+
+## Implementation Patterns
+
+### Registering Actions
+
+Actions use the `action!` macro in `crates/registry/actions/src/macros.rs`. The macro accepts inline keybindings in KDL syntax and registers via `#[distributed_slice]`:
+
+```rust
+action!(move_left, {
+    description: "Move cursor left",
+    bindings: r#"normal "h" "left"
+insert "left""#,
+}, |ctx| cursor_motion(ctx, motions::left));
+
+action!(document_end, {
+    description: "Goto file end",
+    bindings: r#"normal "g e" "G""#,
+}, |ctx| cursor_motion(ctx, motions::document_end));
+```
+
+Actions receive an immutable `ActionContext` containing `text: RopeSlice`, `cursor: CharIdx`, `selection: &Selection`, `count: usize`, and `args: ActionArgs`. They return `ActionResult::Effects(ActionEffects)` rather than mutating state directly. Effects compose via builder methods: `ActionEffects::motion(sel).with(Effect::SetMode(Mode::Insert))`.
+
+### Edit Operations
+
+Text mutations use the `EditOp` struct, a data-oriented description of pre-effects (yank, save undo), selection expansion, text transform, and post-effects (mode change). The `change` action returns `ActionEffects::edit_op(edit_op::change(true))` where `true` indicates "extend selection first if empty."
+
+### Transaction Model
+
+`Transaction` wraps a `ChangeSet` of retain/delete/insert operations with optional selection updates. The `ChangeSet::compose` method merges sequential edits, `invert` creates undo by swapping deletes with the original text, and `map_pos` transforms positions through changes with left/right bias. Undo snapshots clone the `Rope` into `Document.undo_stack`.
+
+### Multi-Cursor Selection
+
+`Selection` in `crates/base/src/selection.rs` holds a `SmallVec<[Range; 1]>` with a `primary_index`. The `transform` method applies a closure to all ranges, and `normalize` merges overlapping ranges. Adjacent ranges remain separate unless `merge_overlaps_and_adjacent` is called explicitly.
+
+### Keymap Resolution
+
+The keymap trie in `crates/keymap/src/matcher.rs` stores bindings in a hierarchical structure. Lookup returns `MatchResult::Complete`, `Partial { has_value }`, or `None`. Exact keys take precedence over character groups (`@digit`, `@upper`), which take precedence over wildcards (`@any`). The `continuations_with_kind` method powers which-key style UI by listing valid next keys at a prefix.
+
+### Gutter Columns
+
+Gutter columns register with the `gutter!` macro. Each defines a priority (lower = further left), width (fixed or dynamic via closure), and a render function receiving `GutterLineContext`:
+
+```rust
+gutter!(line_numbers, {
+    description: "Absolute line numbers",
+    priority: 0,
+    width: Dynamic(|ctx| (ctx.total_lines.ilog10() as u16 + 1).max(3))
+}, |ctx| {
+    Some(GutterCell {
+        text: format!("{}", ctx.line_idx + 1),
+        style: if ctx.is_cursor_line { GutterStyle::Cursor } else { GutterStyle::Normal },
+    })
+});
+```
+
+Diagnostics flow from LSP through `GutterAnnotations` which carries `diagnostic_severity: u8` (0=none, 1=hint, 2=info, 3=warn, 4=error) and optional sign characters.
+
+### Registry Collision Detection
+
+All registries implement `RegistryMetadata` (id, name, priority, source). When multiple items share a name or keybinding, the one with higher priority wins. `crates/core/src/index/diagnostics.rs` collects collision reports for debugging.
