@@ -247,7 +247,7 @@ impl Editor {
 					let new_sel = tx.map_selection(&buffer.selection);
 					(tx, new_sel)
 				};
-				self.buffer_mut().set_selection(new_sel);
+				self.buffer_mut().finalize_selection(new_sel);
 				self.apply_transaction(&tx);
 			}
 
@@ -263,7 +263,7 @@ impl Editor {
 					let new_sel = tx.map_selection(&buffer.selection);
 					(tx, new_sel)
 				};
-				self.buffer_mut().set_selection(new_sel);
+				self.buffer_mut().finalize_selection(new_sel);
 				self.apply_transaction(&tx);
 				self.insert_text(text);
 			}
@@ -326,7 +326,7 @@ impl Editor {
 			let new_sel = tx.map_selection(&buffer.selection);
 			(tx, new_sel)
 		};
-		self.buffer_mut().set_selection(new_sel);
+		self.buffer_mut().finalize_selection(new_sel);
 		self.apply_transaction(&tx);
 
 		let tx = {
@@ -434,7 +434,7 @@ impl Editor {
 				let new_sel = tx.map_selection(&buffer.selection);
 				(tx, new_sel)
 			};
-			self.buffer_mut().set_selection(new_sel);
+			self.buffer_mut().finalize_selection(new_sel);
 			self.apply_transaction(&tx);
 
 			let tx = {
@@ -463,7 +463,7 @@ impl Editor {
 				let new_sel = tx.map_selection(&buffer.selection);
 				(tx, new_sel)
 			};
-			self.buffer_mut().set_selection(new_sel);
+			self.buffer_mut().finalize_selection(new_sel);
 			self.apply_transaction(&tx);
 
 			let tx = {
@@ -480,8 +480,13 @@ impl Editor {
 	}
 
 	/// Removes up to `max_spaces` leading spaces from the current line.
+	///
+	/// Counts consecutive spaces at line start (up to `max_spaces`) and deletes them.
+	/// The cursor is repositioned based on its original location relative to the
+	/// deleted range: cursors after the range shift left, cursors within the range
+	/// move to line start, and cursors before the range are unchanged.
 	fn apply_deindent(&mut self, max_spaces: usize) {
-		let (line_start, spaces) = {
+		let (line_start, spaces, old_cursor) = {
 			let buffer = self.buffer();
 			let doc = buffer.doc();
 			let line = doc.content.char_to_line(buffer.cursor);
@@ -492,7 +497,7 @@ impl Editor {
 				.take_while(|c| *c == ' ')
 				.count()
 				.min(max_spaces);
-			(line_start, spaces)
+			(line_start, spaces, buffer.cursor)
 		};
 
 		if spaces == 0 {
@@ -514,10 +519,17 @@ impl Editor {
 			let new_sel = tx.map_selection(&buffer.selection);
 			(tx, new_sel)
 		};
-		self.buffer_mut().set_selection(new_sel);
+		self.buffer_mut().finalize_selection(new_sel);
 		self.apply_transaction(&tx);
 
-		let new_cursor = self.buffer().cursor.saturating_sub(spaces);
+		let delete_end = line_start + spaces;
+		let new_cursor = if old_cursor > delete_end {
+			old_cursor.saturating_sub(spaces)
+		} else if old_cursor > line_start {
+			line_start
+		} else {
+			old_cursor
+		};
 		self.buffer_mut().set_cursor(new_cursor);
 	}
 }

@@ -37,13 +37,19 @@ impl Editor {
 		}
 	}
 
+	/// Processes an LSP UI event (completion results, signature help).
+	///
+	/// For completion results, validates the response against the current editor state:
+	/// the generation must match the active request, and the cursor must still be at or
+	/// after `replace_start` (allowing continued typing without dismissing the menu).
+	/// Stale results from cancelled requests are silently discarded.
 	fn handle_lsp_ui_event(&mut self, event: LspUiEvent) {
 		match event {
 			LspUiEvent::CompletionResult {
 				generation,
 				buffer_id,
-				cursor,
-				doc_version,
+				cursor: _,
+				doc_version: _,
 				replace_start,
 				response,
 			} => {
@@ -53,7 +59,8 @@ impl Editor {
 				let Some(buffer) = self.buffers.get_buffer(buffer_id) else {
 					return;
 				};
-				if buffer.version() != doc_version || buffer.cursor != cursor {
+				if buffer.cursor < replace_start {
+					self.clear_lsp_menu();
 					return;
 				}
 

@@ -110,8 +110,12 @@ impl Editor {
 		use xeno_registry::{HookContext, HookEventData, emit as emit_hook};
 
 		let old_mode = self.mode();
+		#[cfg(feature = "lsp")]
 		let old_buffer_id = self.focused_view();
+		#[cfg(feature = "lsp")]
 		let old_cursor = self.buffer().cursor;
+		#[cfg(feature = "lsp")]
+		let old_version = self.buffer().version();
 
 		if self.palette_is_open() && key.code == KeyCode::Enter {
 			self.execute_palette();
@@ -209,44 +213,89 @@ impl Editor {
 		}
 
 		#[cfg(feature = "lsp")]
-		{
-			if let Some(new_mode) = mode_change.as_ref()
-				&& !matches!(new_mode, Mode::Insert)
-			{
-				self.completion_controller.cancel();
-				self.cancel_signature_help();
-				self.clear_lsp_menu();
-			}
+		self.update_lsp_completion_state(
+			mode_change.as_ref(),
+			old_buffer_id,
+			old_cursor,
+			old_version,
+			inserted_char,
+		);
 
-			if let Some(c) = inserted_char
-				&& self.buffer().mode() == Mode::Insert
-				&& !self.buffer().is_readonly()
-			{
-				self.trigger_lsp_completion(
-					crate::editor::completion_controller::CompletionTrigger::Typing,
-					Some(c),
-				);
-				if c == '(' {
+		quit
+	}
+
+	/// Updates LSP completion and signature help state after a key event.
+	///
+	/// Manages the completion menu lifecycle based on mode changes, focus changes,
+	/// content modifications, and cursor movement:
+	///
+	/// - **Mode change away from insert**: Cancels all LSP features and closes menus.
+	/// - **Cursor before completion start**: Closes the menu (user backspaced past word).
+	/// - **Focus change**: Clears all LSP state for the old buffer.
+	/// - **Content change**: Triggers fast completion (`Typing`, 80ms debounce) for both
+	///   insertions and deletions, keeping the menu open during typing.
+	/// - **Cursor-only change**: Triggers slow completion (`CursorMove`, 120ms debounce)
+	///   for navigation without edits (arrow keys, etc.).
+	#[cfg(feature = "lsp")]
+	fn update_lsp_completion_state(
+		&mut self,
+		mode_change: Option<&xeno_base::Mode>,
+		old_buffer_id: crate::buffer::BufferId,
+		old_cursor: usize,
+		old_version: u64,
+		inserted_char: Option<char>,
+	) {
+		use crate::editor::completion_controller::CompletionTrigger;
+		use crate::editor::types::CompletionState;
+
+		if let Some(new_mode) = mode_change
+			&& !matches!(new_mode, xeno_base::Mode::Insert)
+		{
+			self.completion_controller.cancel();
+			self.cancel_signature_help();
+			self.clear_lsp_menu();
+		}
+
+		let focus_changed = old_buffer_id != self.focused_view();
+		let cursor_changed = old_cursor != self.buffer().cursor;
+		let content_changed = old_version != self.buffer().version();
+
+		let cursor = self.buffer().cursor;
+		let menu_active = self
+			.overlays
+			.get::<CompletionState>()
+			.is_some_and(|s| s.active);
+		let replace_start = self
+			.overlays
+			.get::<CompletionState>()
+			.map(|s| s.replace_start)
+			.unwrap_or(0);
+
+		if cursor < replace_start {
+			self.completion_controller.cancel();
+			self.clear_lsp_menu();
+		} else if menu_active && cursor_changed {
+			self.frame.needs_redraw = true;
+		}
+
+		if focus_changed {
+			self.completion_controller.cancel();
+			self.cancel_signature_help();
+			self.clear_lsp_menu();
+		} else if content_changed {
+			self.cancel_signature_help();
+			if self.buffer().mode() == xeno_base::Mode::Insert && !self.buffer().is_readonly() {
+				self.trigger_lsp_completion(CompletionTrigger::Typing, inserted_char);
+				if inserted_char == Some('(') {
 					self.trigger_signature_help();
 				}
 			}
-
-			let focus_changed = old_buffer_id != self.focused_view();
-			let cursor_changed = old_cursor != self.buffer().cursor;
-			if focus_changed || cursor_changed {
-				self.completion_controller.cancel();
-				self.cancel_signature_help();
-				self.clear_lsp_menu();
-				if self.buffer().mode() == Mode::Insert && !self.buffer().is_readonly() {
-					self.trigger_lsp_completion(
-						crate::editor::completion_controller::CompletionTrigger::CursorMove,
-						None,
-					);
-				}
+		} else if cursor_changed {
+			self.cancel_signature_help();
+			if self.buffer().mode() == xeno_base::Mode::Insert && !self.buffer().is_readonly() {
+				self.trigger_lsp_completion(CompletionTrigger::CursorMove, None);
 			}
 		}
-
-		quit
 	}
 
 	/// Handles a mouse click with view-local coordinates.
