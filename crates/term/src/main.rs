@@ -44,7 +44,7 @@ async fn main() -> anyhow::Result<()> {
 
 	// Ensure runtime directory is populated with query files
 	if let Err(e) = xeno_language::ensure_runtime() {
-		eprintln!("Warning: failed to seed runtime: {e}");
+		warn!(error = %e, "failed to seed runtime");
 	}
 
 	// Load themes from runtime directory
@@ -52,7 +52,7 @@ async fn main() -> anyhow::Result<()> {
 	let mut theme_errors = Vec::new();
 	match xeno_config::load_and_register_themes(&themes_dir) {
 		Ok(errors) => theme_errors.extend(errors),
-		Err(e) => eprintln!("warning: failed to read themes directory: {e}"),
+		Err(e) => warn!(error = %e, "failed to read themes directory"),
 	}
 
 	// Load user config if present
@@ -61,14 +61,13 @@ async fn main() -> anyhow::Result<()> {
 		if config_path.exists() {
 			match xeno_config::Config::load(&config_path) {
 				Ok(config) => {
-					// Display any config warnings
 					for warning in &config.warnings {
-						eprintln!("Warning: {warning}");
+						warn!("{warning}");
 					}
 					Some(config)
 				}
 				Err(e) => {
-					eprintln!("Warning: failed to load config: {}", e);
+					warn!(error = %e, "failed to load config");
 					None
 				}
 			}
@@ -111,10 +110,7 @@ async fn main() -> anyhow::Result<()> {
 		if let Some(theme_name) = config.options.get_string(keys::THEME.untyped())
 			&& let Err(e) = editor.set_theme(theme_name)
 		{
-			eprintln!(
-				"Warning: failed to set config theme '{}': {}",
-				theme_name, e
-			);
+			warn!(theme = theme_name, error = %e, "failed to set config theme");
 		}
 	}
 
@@ -122,7 +118,7 @@ async fn main() -> anyhow::Result<()> {
 	if let Some(theme_name) = cli.theme
 		&& let Err(e) = editor.set_theme(&theme_name)
 	{
-		eprintln!("Warning: failed to set theme '{}': {}", theme_name, e);
+		warn!(theme = %theme_name, error = %e, "failed to set theme");
 	}
 
 	for (filename, error) in theme_errors {
@@ -312,7 +308,7 @@ fn report_fetch_results(
 				skipped += 1;
 			}
 			Err(e) => {
-				eprintln!("  ✗ {name}: {e}");
+				println!("  ✗ {name}: {e}");
 				failed += 1;
 			}
 		}
@@ -345,7 +341,7 @@ fn report_build_results(
 				skipped += 1;
 			}
 			Err(e) => {
-				eprintln!("  ✗ {name}: {e}");
+				println!("  ✗ {name}: {e}");
 				failed += 1;
 			}
 		}
@@ -408,14 +404,14 @@ fn setup_socket_tracing(socket_path: &str) {
 /// Runs the editor with standard initialization (used by socket logging mode).
 async fn run_editor_normal() -> anyhow::Result<()> {
 	if let Err(e) = xeno_language::ensure_runtime() {
-		eprintln!("Warning: failed to seed runtime: {e}");
+		warn!(error = %e, "failed to seed runtime");
 	}
 
 	let themes_dir = xeno_language::runtime_dir().join("themes");
 	let theme_errors = match xeno_config::load_and_register_themes(&themes_dir) {
 		Ok(errors) => errors,
 		Err(e) => {
-			eprintln!("warning: failed to read themes directory: {e}");
+			warn!(error = %e, "failed to read themes directory");
 			Vec::new()
 		}
 	};
@@ -427,12 +423,12 @@ async fn run_editor_normal() -> anyhow::Result<()> {
 			|config_path| match xeno_config::Config::load(&config_path) {
 				Ok(config) => {
 					for warning in &config.warnings {
-						eprintln!("Warning: {warning}");
+						warn!("{warning}");
 					}
 					Some(config)
 				}
 				Err(e) => {
-					eprintln!("Warning: failed to load config: {}", e);
+					warn!(error = %e, "failed to load config");
 					None
 				}
 			},
@@ -466,10 +462,7 @@ async fn run_editor_normal() -> anyhow::Result<()> {
 		if let Some(theme_name) = config.options.get_string(keys::THEME.untyped())
 			&& let Err(e) = editor.set_theme(theme_name)
 		{
-			eprintln!(
-				"Warning: failed to set config theme '{}': {}",
-				theme_name, e
-			);
+			warn!(theme = theme_name, error = %e, "failed to set config theme");
 		}
 	}
 
