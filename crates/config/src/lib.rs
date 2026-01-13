@@ -227,7 +227,8 @@ pub fn load_themes_from_directory(dir: impl AsRef<Path>) -> Result<Vec<ParsedThe
 			match load_theme_file(&path) {
 				Ok(theme) => themes.push(theme),
 				Err(e) => {
-					eprintln!("Warning: failed to load theme {:?}: {}", path, e);
+					let filename = path.file_name().unwrap_or_default().to_string_lossy();
+					eprintln!("warning: {filename}: {e}");
 				}
 			}
 		}
