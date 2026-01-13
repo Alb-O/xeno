@@ -211,10 +211,21 @@ pub fn load_theme_file(path: impl AsRef<Path>) -> Result<ParsedTheme> {
 	Ok(theme)
 }
 
+/// Result of loading themes from a directory.
+pub struct ThemeLoadResult {
+	/// Successfully loaded themes.
+	pub themes: Vec<ParsedTheme>,
+	/// Errors from themes that failed to load (filename, error message).
+	pub errors: Vec<(String, String)>,
+}
+
 /// Load all theme files from a directory.
-pub fn load_themes_from_directory(dir: impl AsRef<Path>) -> Result<Vec<ParsedTheme>> {
+///
+/// Returns both successfully loaded themes and errors for failed ones.
+pub fn load_themes_from_directory(dir: impl AsRef<Path>) -> Result<ThemeLoadResult> {
 	let dir = dir.as_ref();
 	let mut themes = Vec::new();
+	let mut errors = Vec::new();
 
 	let entries = std::fs::read_dir(dir).map_err(|e| ConfigError::Io {
 		path: dir.to_path_buf(),
@@ -227,21 +238,30 @@ pub fn load_themes_from_directory(dir: impl AsRef<Path>) -> Result<Vec<ParsedThe
 			match load_theme_file(&path) {
 				Ok(theme) => themes.push(theme),
 				Err(e) => {
-					let filename = path.file_name().unwrap_or_default().to_string_lossy();
-					eprintln!("warning: {filename}: {e}");
+					let filename = path
+						.file_name()
+						.unwrap_or_default()
+						.to_string_lossy()
+						.into_owned();
+					errors.push((filename, e.to_string()));
 				}
 			}
 		}
 	}
 
-	Ok(themes)
+	Ok(ThemeLoadResult { themes, errors })
 }
 
 /// Load themes from a directory and register them in the runtime theme registry.
-/// This should be called once at startup.
-pub fn load_and_register_themes(dir: impl AsRef<Path>) -> Result<()> {
-	let themes = load_themes_from_directory(dir)?;
-	let owned: Vec<_> = themes.into_iter().map(|t| t.into_owned_theme()).collect();
+///
+/// Returns errors for any themes that failed to load (to be shown as notifications).
+pub fn load_and_register_themes(dir: impl AsRef<Path>) -> Result<Vec<(String, String)>> {
+	let result = load_themes_from_directory(dir)?;
+	let owned: Vec<_> = result
+		.themes
+		.into_iter()
+		.map(|t| t.into_owned_theme())
+		.collect();
 	xeno_registry::themes::register_runtime_themes(owned);
-	Ok(())
+	Ok(result.errors)
 }

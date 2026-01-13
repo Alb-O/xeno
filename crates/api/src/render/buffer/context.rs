@@ -127,7 +127,7 @@ impl<'a> BufferRenderContext<'a> {
 		(now_ms / 200).is_multiple_of(2)
 	}
 
-	/// Returns the accent color for the current mode.
+	/// Returns the background color for the given mode's status badge.
 	fn mode_color(&self, mode: Mode) -> xeno_tui::style::Color {
 		self.theme.colors.mode.for_mode(&mode).bg
 	}

@@ -49,11 +49,10 @@ async fn main() -> anyhow::Result<()> {
 
 	// Load themes from runtime directory
 	let themes_dir = xeno_language::runtime_dir().join("themes");
-	if let Err(e) = xeno_config::load_and_register_themes(&themes_dir) {
-		eprintln!(
-			"Warning: failed to load themes from {:?}: {}",
-			themes_dir, e
-		);
+	let mut theme_errors = Vec::new();
+	match xeno_config::load_and_register_themes(&themes_dir) {
+		Ok(errors) => theme_errors.extend(errors),
+		Err(e) => eprintln!("warning: failed to read themes directory: {e}"),
 	}
 
 	// Load user config if present
@@ -124,6 +123,12 @@ async fn main() -> anyhow::Result<()> {
 		&& let Err(e) = editor.set_theme(&theme_name)
 	{
 		eprintln!("Warning: failed to set theme '{}': {}", theme_name, e);
+	}
+
+	for (filename, error) in theme_errors {
+		editor.notify(xeno_registry::notification_keys::error::call(format!(
+			"{filename}: {error}"
+		)));
 	}
 
 	run_editor(editor).await?;
@@ -407,12 +412,13 @@ async fn run_editor_normal() -> anyhow::Result<()> {
 	}
 
 	let themes_dir = xeno_language::runtime_dir().join("themes");
-	if let Err(e) = xeno_config::load_and_register_themes(&themes_dir) {
-		eprintln!(
-			"Warning: failed to load themes from {:?}: {}",
-			themes_dir, e
-		);
-	}
+	let theme_errors = match xeno_config::load_and_register_themes(&themes_dir) {
+		Ok(errors) => errors,
+		Err(e) => {
+			eprintln!("warning: failed to read themes directory: {e}");
+			Vec::new()
+		}
+	};
 
 	let user_config = xeno_api::paths::get_config_dir()
 		.map(|d| d.join("config.kdl"))
@@ -465,6 +471,12 @@ async fn run_editor_normal() -> anyhow::Result<()> {
 				theme_name, e
 			);
 		}
+	}
+
+	for (filename, error) in theme_errors {
+		editor.notify(xeno_registry::notification_keys::error::call(format!(
+			"{filename}: {error}"
+		)));
 	}
 
 	run_editor(editor).await?;
