@@ -11,8 +11,7 @@ use std::time::{Duration, SystemTime};
 use xeno_tui::layout::{Constraint, Direction, Layout, Rect};
 use xeno_tui::style::Style;
 use xeno_tui::text::{Line, Span};
-use xeno_tui::widgets::menu::Menu;
-use xeno_tui::widgets::{Block, Borders, Clear, Paragraph, StatefulWidget};
+use xeno_tui::widgets::{Block, Borders, Clear, Paragraph};
 
 use self::separator::{SeparatorStyle, junction_glyph};
 use super::buffer::{BufferRenderContext, ensure_buffer_cursor_visible};
@@ -85,16 +84,11 @@ impl Editor {
 
 		let chunks = Layout::default()
 			.direction(Direction::Vertical)
-			.constraints([
-				Constraint::Length(1),
-				Constraint::Min(1),
-				Constraint::Length(1),
-			])
+			.constraints([Constraint::Min(1), Constraint::Length(1)])
 			.split(area);
 
-		let menu_area = chunks[0];
-		let main_area = chunks[1];
-		let status_area = chunks[2];
+		let main_area = chunks[0];
+		let status_area = chunks[1];
 
 		let mut ui = std::mem::take(&mut self.ui);
 		let dock_layout = ui.compute_layout(main_area);
@@ -117,22 +111,6 @@ impl Editor {
 
 		#[cfg(feature = "lsp")]
 		self.render_completion_popup(frame);
-
-		let menu_bg =
-			Block::default().style(Style::default().bg(self.config.theme.colors.popup.bg));
-		frame.render_widget(menu_bg, menu_area);
-		Menu::new()
-			.style(
-				Style::default()
-					.fg(self.config.theme.colors.popup.fg)
-					.bg(self.config.theme.colors.popup.bg),
-			)
-			.highlight_style(
-				Style::default()
-					.fg(self.config.theme.colors.ui.selection_fg)
-					.bg(self.config.theme.colors.ui.selection_bg),
-			)
-			.render(menu_area, frame.buffer_mut(), &mut self.menu);
 
 		let status_bg =
 			Block::default().style(Style::default().bg(self.config.theme.colors.popup.bg));

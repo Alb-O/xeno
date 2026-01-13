@@ -6,7 +6,6 @@
 //! # Sub-crates
 //!
 //! - [`gutter`] - Gutter columns (line numbers, signs, diagnostics)
-//! - [`menus`] - Menu bar groups and items
 //! - [`motions`] - Cursor movement primitives
 //! - [`options`] - Configuration options
 //! - [`notifications`] - Notification types
@@ -53,7 +52,6 @@ pub use hooks::{
 	OwnedHookContext, SplitDirection, Str, ViewId, WindowId, WindowKind, all_hooks, async_hook,
 	emit, emit_mutable, emit_sync, emit_sync_with, find_hooks, hook,
 };
-pub use menus::{MENU_GROUPS, MENU_ITEMS, MenuGroupDef, MenuItemDef, menu_group, menu_item};
 pub use motions::{Capability, MOTIONS, MotionDef, MotionHandler, flags, motion, movement};
 pub use notifications::{
 	AutoDismiss, IntoNotification, Level, NOTIFICATIONS, Notification, NotificationDef,
@@ -72,8 +70,8 @@ pub use text_objects::{
 pub use xeno_registry_core::{RegistryMetadata, RegistrySource, impl_registry_metadata};
 pub use {
 	xeno_registry_actions as actions, xeno_registry_commands as commands,
-	xeno_registry_gutter as gutter, xeno_registry_hooks as hooks, xeno_registry_menus as menus,
-	xeno_registry_motions as motions, xeno_registry_notifications as notifications,
-	xeno_registry_options as options, xeno_registry_statusline as statusline,
-	xeno_registry_text_objects as text_objects, xeno_registry_themes as themes,
+	xeno_registry_gutter as gutter, xeno_registry_hooks as hooks, xeno_registry_motions as motions,
+	xeno_registry_notifications as notifications, xeno_registry_options as options,
+	xeno_registry_statusline as statusline, xeno_registry_text_objects as text_objects,
+	xeno_registry_themes as themes,
 };

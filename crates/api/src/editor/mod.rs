@@ -102,7 +102,6 @@ use xeno_registry::{
 	HookContext, HookEventData, WindowKind, emit_sync_with as emit_hook_sync_with,
 };
 use xeno_tui::layout::Rect;
-use xeno_tui::widgets::menu::MenuState;
 
 #[cfg(feature = "lsp")]
 use self::completion_controller::CompletionController;
@@ -111,7 +110,6 @@ use self::lsp_events::LspUiEvent;
 pub use self::separator::{DragState, MouseVelocityTracker, SeparatorHoverAnimation};
 use crate::buffer::{BufferId, Layout};
 use crate::editor::extensions::{ExtensionMap, StyleOverlays};
-use crate::menu::{MenuAction, create_menu};
 use crate::overlay::OverlayManager;
 use crate::ui::UiManager;
 use crate::window::{BaseWindow, FloatingStyle, WindowId, WindowManager};
@@ -220,9 +218,6 @@ pub struct Editor {
 	/// Runtime for scheduling async hooks during sync emission.
 	pub hook_runtime: HookRuntime,
 
-	/// Application menu bar state.
-	pub menu: MenuState<MenuAction>,
-
 	/// Type-erased storage for UI overlays (popups, palette, completions).
 	pub overlays: OverlayManager,
 }
@@ -330,7 +325,6 @@ impl Editor {
 			lsp_ui_rx,
 			style_overlays: StyleOverlays::new(),
 			hook_runtime,
-			menu: create_menu(),
 			overlays: OverlayManager::new(),
 		}
 	}

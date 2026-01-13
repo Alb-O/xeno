@@ -9,7 +9,6 @@ members = [
     "crates/registry/core",
     "crates/registry/gutter",
     "crates/registry/hooks",
-    "crates/registry/menus",
     "crates/registry/motions",
     "crates/registry/notifications",
     "crates/registry/options",
@@ -100,7 +99,6 @@ xeno-registry-commands = { path = "crates/registry/commands" }
 xeno-registry-core = { path = "crates/registry/core" }
 xeno-registry-gutter = { path = "crates/registry/gutter" }
 xeno-registry-hooks = { path = "crates/registry/hooks" }
-xeno-registry-menus = { path = "crates/registry/menus" }
 xeno-registry-motions = { path = "crates/registry/motions" }
 xeno-registry-notifications = { path = "crates/registry/notifications" }
 xeno-registry-options = { path = "crates/registry/options" }

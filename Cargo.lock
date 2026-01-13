@@ -4624,7 +4624,6 @@ dependencies = [
  "xeno-registry-core",
  "xeno-registry-gutter",
  "xeno-registry-hooks",
- "xeno-registry-menus",
  "xeno-registry-motions",
  "xeno-registry-notifications",
  "xeno-registry-options",
@@ -4689,15 +4688,6 @@ dependencies = [
  "tracing",
  "xeno-base",
  "xeno-macro",
- "xeno-registry-core",
-]
-
-[[package]]
-name = "xeno-registry-menus"
-version = "0.3.0"
-dependencies = [
- "linkme",
- "paste",
  "xeno-registry-core",
 ]
 

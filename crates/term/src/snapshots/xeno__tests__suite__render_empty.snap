@@ -2,8 +2,8 @@
 source: crates/term/src/tests.rs
 expression: terminal.backend()
 ---
-"  File  Edit  View  Help                                                        "
 "    1                                                                           "
+"    ~                                                                           "
 "    ~                                                                           "
 "    ~                                                                           "
 "    ~                                                                           "

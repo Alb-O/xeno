@@ -16,6 +16,7 @@ use crate::types::{AnyNotification, AnyRequest, AnyResponse, RequestId};
 use crate::{Error, Result};
 
 /// Internal event types for the main loop.
+#[derive(Debug)]
 pub(crate) enum MainLoopEvent {
 	/// A message to send to the peer.
 	Outgoing(Message),
