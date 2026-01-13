@@ -122,13 +122,14 @@ where
 		let incoming = futures::stream::unfold(input, |mut input| async move {
 			Some((Message::read(&mut input).await, input))
 		});
-		let outgoing = futures::sink::unfold(output, |mut output, outgoing: OutgoingMessage| async move {
-			Message::write(&outgoing.message, &mut output).await?;
-			if let Some(ack) = outgoing.ack {
-				let _ = ack.send(());
-			}
-			Ok(output)
-		});
+		let outgoing =
+			futures::sink::unfold(output, |mut output, outgoing: OutgoingMessage| async move {
+				Message::write(&outgoing.message, &mut output).await?;
+				if let Some(ack) = outgoing.ack {
+					let _ = ack.send(());
+				}
+				Ok(output)
+			});
 		pin_mut!(incoming, outgoing);
 
 		let mut flush_fut = futures::future::Fuse::terminated();
@@ -229,10 +230,12 @@ where
 				message: msg,
 				ack: None,
 			})),
-			MainLoopEvent::OutgoingWithAck(msg, ack) => ControlFlow::Continue(Some(OutgoingMessage {
-				message: msg,
-				ack: Some(ack),
-			})),
+			MainLoopEvent::OutgoingWithAck(msg, ack) => {
+				ControlFlow::Continue(Some(OutgoingMessage {
+					message: msg,
+					ack: Some(ack),
+				}))
+			}
 			MainLoopEvent::Any(event) => {
 				self.service.emit(event)?;
 				ControlFlow::Continue(None)

@@ -2,25 +2,26 @@ use std::collections::BTreeMap;
 use std::ops::Range as StdRange;
 
 use termina::event::{KeyCode, KeyEvent, Modifiers};
-use xeno_base::{Range, Selection};
+use tokio_util::sync::CancellationToken;
 use xeno_base::range::CharIdx;
 use xeno_base::transaction::Bias;
+use xeno_base::{Range, Selection};
+use xeno_core::{CompletionItem as UiCompletionItem, CompletionKind};
 use xeno_lsp::lsp_types::{
 	CodeActionOrCommand, Command, CompletionItem, CompletionTextEdit, CompletionTriggerKind,
 	Diagnostic, Documentation, InsertTextFormat, MarkupContent, SignatureHelp, TextEdit,
 };
-use xeno_lsp::{char_range_to_lsp_range, lsp_range_to_char_range};
-use xeno_lsp::OffsetEncoding;
+use xeno_lsp::{OffsetEncoding, char_range_to_lsp_range, lsp_range_to_char_range};
 use xeno_registry_notifications::keys;
-use tokio_util::sync::CancellationToken;
-use xeno_core::{CompletionItem as UiCompletionItem, CompletionKind};
 
 use crate::buffer::BufferId;
+use crate::editor::Editor;
 use crate::editor::completion_controller::{CompletionRequest, CompletionTrigger};
 use crate::editor::snippet::{Snippet, SnippetPlaceholder, parse_snippet};
 use crate::editor::types::{CompletionState, LspMenuKind, LspMenuState};
-use crate::editor::workspace_edit::{ApplyError, BufferEditPlan, PlannedTextEdit, convert_text_edit};
-use crate::editor::Editor;
+use crate::editor::workspace_edit::{
+	ApplyError, BufferEditPlan, PlannedTextEdit, convert_text_edit,
+};
 use crate::info_popup::PopupAnchor;
 
 impl Editor {
@@ -113,11 +114,8 @@ impl Editor {
 		if buffer.path().is_none() || buffer.file_type().is_none() {
 			return;
 		}
-		let Some((client, uri, position)) = self
-			.lsp
-			.prepare_position_request(buffer)
-			.ok()
-			.flatten()
+		let Some((client, uri, position)) =
+			self.lsp.prepare_position_request(buffer).ok().flatten()
 		else {
 			return;
 		};
@@ -153,16 +151,14 @@ impl Editor {
 		let Some(buffer) = self.buffers.get_buffer(buffer_id) else {
 			return false;
 		};
-		let Some((client, uri, _)) = self
-			.lsp
-			.prepare_position_request(buffer)
-			.ok()
-			.flatten()
+		let Some((client, uri, _)) = self.lsp.prepare_position_request(buffer).ok().flatten()
 		else {
 			return false;
 		};
 		if !client.supports_code_action() {
-			self.notify(keys::warn::call("Code actions not supported for this buffer"));
+			self.notify(keys::warn::call(
+				"Code actions not supported for this buffer",
+			));
 			return false;
 		}
 
@@ -216,10 +212,8 @@ impl Editor {
 			return false;
 		}
 
-		let display_items: Vec<UiCompletionItem> = actions
-			.iter()
-			.map(map_code_action_item)
-			.collect();
+		let display_items: Vec<UiCompletionItem> =
+			actions.iter().map(map_code_action_item).collect();
 
 		let completions = self.overlays.get_or_default::<CompletionState>();
 		completions.items = display_items;
@@ -242,11 +236,8 @@ impl Editor {
 			if buffer.mode() != xeno_base::Mode::Insert {
 				return;
 			}
-			let Some((client, uri, position)) = self
-				.lsp
-				.prepare_position_request(buffer)
-				.ok()
-				.flatten()
+			let Some((client, uri, position)) =
+				self.lsp.prepare_position_request(buffer).ok().flatten()
 			else {
 				return;
 			};
@@ -469,11 +460,11 @@ impl Editor {
 					self.notify(keys::warn::call(disabled.reason));
 					return;
 				}
-				if let Some(edit) = action.edit {
-					if let Err(err) = self.apply_workspace_edit(edit).await {
-						self.notify(keys::error::call(err.to_string()));
-						return;
-					}
+				if let Some(edit) = action.edit
+					&& let Err(err) = self.apply_workspace_edit(edit).await
+				{
+					self.notify(keys::error::call(err.to_string()));
+					return;
 				}
 				if let Some(command) = action.command {
 					self.execute_lsp_command(buffer_id, command).await;
@@ -486,12 +477,7 @@ impl Editor {
 		let Some(buffer) = self.buffers.get_buffer(buffer_id) else {
 			return;
 		};
-		let Some((client, _, _)) = self
-			.lsp
-			.prepare_position_request(buffer)
-			.ok()
-			.flatten()
-		else {
+		let Some((client, _, _)) = self.lsp.prepare_position_request(buffer).ok().flatten() else {
 			self.notify(keys::error::call("LSP client unavailable for command"));
 			return;
 		};
@@ -513,7 +499,9 @@ fn completion_trigger_kind(
 	trigger_char: Option<char>,
 ) -> CompletionTriggerKind {
 	match trigger {
-		CompletionTrigger::Typing if trigger_char.is_some() => CompletionTriggerKind::TRIGGER_CHARACTER,
+		CompletionTrigger::Typing if trigger_char.is_some() => {
+			CompletionTriggerKind::TRIGGER_CHARACTER
+		}
 		CompletionTrigger::Manual => CompletionTriggerKind::INVOKED,
 		CompletionTrigger::CursorMove => CompletionTriggerKind::INVOKED,
 		CompletionTrigger::Typing => CompletionTriggerKind::INVOKED,

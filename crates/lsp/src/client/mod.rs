@@ -604,16 +604,14 @@ impl ClientHandle {
 		if !self.supports_signature_help() {
 			return Ok(None);
 		}
-		self.request::<lsp_types::request::SignatureHelpRequest>(
-			lsp_types::SignatureHelpParams {
-				text_document_position_params: lsp_types::TextDocumentPositionParams {
-					text_document: lsp_types::TextDocumentIdentifier { uri },
-					position,
-				},
-				work_done_progress_params: Default::default(),
-				context: None,
+		self.request::<lsp_types::request::SignatureHelpRequest>(lsp_types::SignatureHelpParams {
+			text_document_position_params: lsp_types::TextDocumentPositionParams {
+				text_document: lsp_types::TextDocumentIdentifier { uri },
+				position,
 			},
-		)
+			work_done_progress_params: Default::default(),
+			context: None,
+		})
 		.await
 	}
 
@@ -650,13 +648,11 @@ impl ClientHandle {
 			return Ok(None);
 		}
 		let arguments = arguments.unwrap_or_default();
-		self.request::<lsp_types::request::ExecuteCommand>(
-			lsp_types::ExecuteCommandParams {
-				command,
-				arguments,
-				work_done_progress_params: Default::default(),
-			},
-		)
+		self.request::<lsp_types::request::ExecuteCommand>(lsp_types::ExecuteCommandParams {
+			command,
+			arguments,
+			work_done_progress_params: Default::default(),
+		})
 		.await
 	}
 
@@ -695,7 +691,9 @@ impl ClientHandle {
 			method: N::METHOD.into(),
 			params: serde_json::to_value(params).expect("Failed to serialize"),
 		};
-		self.send_outbound(OutboundMsg::Notification { notification: notif })
+		self.send_outbound(OutboundMsg::Notification {
+			notification: notif,
+		})
 	}
 
 	fn send_outbound(&self, msg: OutboundMsg) -> Result<()> {
@@ -711,7 +709,9 @@ impl ClientHandle {
 const OUTBOUND_QUEUE_LEN: usize = 256;
 
 enum OutboundMsg {
-	Notification { notification: AnyNotification },
+	Notification {
+		notification: AnyNotification,
+	},
 	Request {
 		request: AnyRequest,
 		response_tx: oneshot::Sender<AnyResponse>,
@@ -722,10 +722,7 @@ enum OutboundMsg {
 	},
 }
 
-async fn outbound_dispatcher(
-	mut rx: mpsc::Receiver<OutboundMsg>,
-	socket: ServerSocket,
-) {
+async fn outbound_dispatcher(mut rx: mpsc::Receiver<OutboundMsg>, socket: ServerSocket) {
 	while let Some(msg) = rx.recv().await {
 		let result = match msg {
 			OutboundMsg::Notification { notification } => socket

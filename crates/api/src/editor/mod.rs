@@ -21,6 +21,9 @@ mod buffer_manager;
 mod buffer_ops;
 /// Command queue for deferred execution.
 mod command_queue;
+/// LSP completion controller.
+#[cfg(feature = "lsp")]
+mod completion_controller;
 /// Data-oriented edit operation executor.
 mod edit_op_executor;
 /// Text editing operations.
@@ -39,25 +42,19 @@ mod hook_runtime;
 mod info_popup;
 /// Input handling.
 mod input;
-/// LSP completion controller.
-#[cfg(feature = "lsp")]
-mod completion_controller;
-/// LSP diagnostic navigation helpers.
-#[cfg(feature = "lsp")]
-mod lsp_diagnostics;
-/// LSP completion and menu handling.
-#[cfg(feature = "lsp")]
-mod lsp_menu;
-/// LSP UI event handling.
-#[cfg(feature = "lsp")]
-mod lsp_events;
-/// Snippet parsing for LSP completions.
-#[cfg(feature = "lsp")]
-mod snippet;
 /// Split layout management.
 mod layout;
 /// Editor lifecycle (tick, render).
 mod lifecycle;
+/// LSP diagnostic navigation helpers.
+#[cfg(feature = "lsp")]
+mod lsp_diagnostics;
+/// LSP UI event handling.
+#[cfg(feature = "lsp")]
+mod lsp_events;
+/// LSP completion and menu handling.
+#[cfg(feature = "lsp")]
+mod lsp_menu;
 /// Message and notification display.
 mod messaging;
 /// Cursor navigation utilities.
@@ -73,17 +70,20 @@ mod prompt;
 mod search;
 /// Separator hit detection.
 mod separator;
+/// Snippet parsing for LSP completions.
+#[cfg(feature = "lsp")]
+mod snippet;
 /// Split view operations.
 mod splits;
 /// Theme management.
 mod theming;
 /// Shared type definitions.
 pub mod types;
+/// Buffer access and viewport management.
+mod views;
 /// LSP workspace edit planning and apply.
 #[cfg(feature = "lsp")]
 mod workspace_edit;
-/// Buffer access and viewport management.
-mod views;
 
 use std::path::PathBuf;
 
@@ -104,6 +104,10 @@ use xeno_registry::{
 use xeno_tui::layout::Rect;
 use xeno_tui::widgets::menu::MenuState;
 
+#[cfg(feature = "lsp")]
+use self::completion_controller::CompletionController;
+#[cfg(feature = "lsp")]
+use self::lsp_events::LspUiEvent;
 pub use self::separator::{DragState, MouseVelocityTracker, SeparatorHoverAnimation};
 use crate::buffer::{BufferId, Layout};
 use crate::editor::extensions::{ExtensionMap, StyleOverlays};
@@ -111,10 +115,6 @@ use crate::menu::{MenuAction, create_menu};
 use crate::overlay::OverlayManager;
 use crate::ui::UiManager;
 use crate::window::{BaseWindow, FloatingStyle, WindowId, WindowManager};
-#[cfg(feature = "lsp")]
-use self::completion_controller::CompletionController;
-#[cfg(feature = "lsp")]
-use self::lsp_events::LspUiEvent;
 
 /// The main editor/workspace structure.
 ///

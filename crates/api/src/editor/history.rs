@@ -2,9 +2,9 @@
 
 use std::collections::{HashMap, HashSet};
 
+use tracing::warn;
 use xeno_base::Selection;
 use xeno_registry_notifications::keys;
-use tracing::warn;
 
 use crate::buffer::{BufferId, DocumentId};
 use crate::editor::{Editor, EditorUndoEntry};
@@ -67,7 +67,8 @@ impl Editor {
 			.expect("focused buffer must exist")
 			.document_id();
 		let selections = self.collect_sibling_selections(doc_id);
-		let created = self.buffers
+		let created = self
+			.buffers
 			.get_buffer_mut(buffer_id)
 			.expect("focused buffer must exist")
 			.doc_mut()

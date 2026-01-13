@@ -111,11 +111,7 @@ fn parse_default_text(chars: &mut std::iter::Peekable<std::str::Chars<'_>>) -> O
 			_ => text.push(ch),
 		}
 	}
-	if closed {
-		Some(text)
-	} else {
-		None
-	}
+	if closed { Some(text) } else { None }
 }
 
 #[cfg(test)]

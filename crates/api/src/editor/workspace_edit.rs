@@ -2,17 +2,17 @@
 
 use std::collections::{HashMap, HashSet};
 use std::ops::Range;
+
 use thiserror::Error;
 use tracing::warn;
+use xeno_base::Transaction;
 use xeno_base::range::CharIdx;
 use xeno_base::transaction::{Change, Tendril};
-use xeno_base::Transaction;
-use xeno_lsp::lsp_range_to_char_range;
 use xeno_lsp::lsp_types::{
-	AnnotatedTextEdit, DocumentChangeOperation, DocumentChanges, OneOf, TextDocumentEdit,
-	TextEdit, Uri, WorkspaceEdit,
+	AnnotatedTextEdit, DocumentChangeOperation, DocumentChanges, OneOf, TextDocumentEdit, TextEdit,
+	Uri, WorkspaceEdit,
 };
-use xeno_lsp::OffsetEncoding;
+use xeno_lsp::{OffsetEncoding, lsp_range_to_char_range};
 
 use crate::buffer::BufferId;
 use crate::editor::{Editor, EditorUndoEntry};
@@ -73,7 +73,10 @@ impl Editor {
 		Ok(())
 	}
 
-	async fn plan_workspace_edit(&mut self, edit: WorkspaceEdit) -> Result<WorkspaceEditPlan, ApplyError> {
+	async fn plan_workspace_edit(
+		&mut self,
+		edit: WorkspaceEdit,
+	) -> Result<WorkspaceEditPlan, ApplyError> {
 		let mut per_uri: HashMap<Uri, Vec<TextEdit>> = HashMap::new();
 		if let Some(changes) = edit.changes {
 			for (uri, edits) in changes {
@@ -94,7 +97,9 @@ impl Editor {
 							DocumentChangeOperation::Edit(edit) => {
 								self.collect_text_document_edit(edit, &mut per_uri)?;
 							}
-							DocumentChangeOperation::Op(_) => return Err(ApplyError::UnsupportedOperation),
+							DocumentChangeOperation::Op(_) => {
+								return Err(ApplyError::UnsupportedOperation);
+							}
 						}
 					}
 				}
@@ -138,8 +143,8 @@ impl Editor {
 	}
 
 	async fn resolve_uri_to_buffer(&mut self, uri: &Uri) -> Result<(BufferId, bool), ApplyError> {
-		let path = xeno_lsp::path_from_uri(uri)
-			.ok_or_else(|| ApplyError::InvalidUri(uri.to_string()))?;
+		let path =
+			xeno_lsp::path_from_uri(uri).ok_or_else(|| ApplyError::InvalidUri(uri.to_string()))?;
 		if let Some(buffer_id) = self.buffers.find_by_path(&path) {
 			return Ok((buffer_id, false));
 		}
@@ -256,10 +261,11 @@ impl Editor {
 		let Some(buffer) = self.buffers.get_buffer(buffer_id) else {
 			return;
 		};
-		if buffer.path().is_some() && buffer.file_type().is_some() {
-			if let Err(e) = self.lsp.on_buffer_close(buffer) {
-				warn!(error = %e, "LSP buffer close failed");
-			}
+		if buffer.path().is_some()
+			&& buffer.file_type().is_some()
+			&& let Err(e) = self.lsp.on_buffer_close(buffer)
+		{
+			warn!(error = %e, "LSP buffer close failed");
 		}
 
 		self.buffers.remove_buffer(buffer_id);
@@ -301,9 +307,7 @@ pub(crate) fn coalesce_and_validate(
 	Ok(())
 }
 
-fn normalize_text_document_edits(
-	edits: Vec<OneOf<TextEdit, AnnotatedTextEdit>>,
-) -> Vec<TextEdit> {
+fn normalize_text_document_edits(edits: Vec<OneOf<TextEdit, AnnotatedTextEdit>>) -> Vec<TextEdit> {
 	edits
 		.into_iter()
 		.map(|edit| match edit {
@@ -315,12 +319,15 @@ fn normalize_text_document_edits(
 
 #[cfg(test)]
 mod tests {
-	use super::*;
 	use xeno_lsp::lsp_types;
+
+	use super::*;
 
 	#[test]
 	fn workspace_edit_plan_manual_construct() {
-		let plan = WorkspaceEditPlan { per_buffer: Vec::new() };
+		let plan = WorkspaceEditPlan {
+			per_buffer: Vec::new(),
+		};
 		assert!(plan.affected_buffer_ids().is_empty());
 	}
 
@@ -346,8 +353,14 @@ mod tests {
 		let rope = xeno_base::Rope::from("a😀b\n");
 		let edit = TextEdit {
 			range: lsp_types::Range {
-				start: lsp_types::Position { line: 0, character: 1 },
-				end: lsp_types::Position { line: 0, character: 3 },
+				start: lsp_types::Position {
+					line: 0,
+					character: 1,
+				},
+				end: lsp_types::Position {
+					line: 0,
+					character: 3,
+				},
 			},
 			new_text: "X".into(),
 		};

@@ -4,10 +4,10 @@
 
 #[cfg(feature = "lsp")]
 use std::collections::HashSet;
-#[cfg(feature = "lsp")]
-use futures::channel::oneshot;
 use std::path::PathBuf;
 
+#[cfg(feature = "lsp")]
+use futures::channel::oneshot;
 use tracing::{debug, warn};
 use xeno_registry::commands::{CommandContext, CommandOutcome, find_command};
 use xeno_registry::{HookContext, HookEventData, emit_sync_with as emit_hook_sync_with};
@@ -120,7 +120,10 @@ impl Editor {
 		};
 		let (force_full_sync, has_pending) = {
 			let doc = buffer.doc();
-			(doc.force_full_sync, doc.force_full_sync || !doc.pending_lsp_changes.is_empty())
+			(
+				doc.force_full_sync,
+				doc.force_full_sync || !doc.pending_lsp_changes.is_empty(),
+			)
 		};
 		if !has_pending {
 			return;
@@ -179,7 +182,10 @@ impl Editor {
 		};
 		let (force_full_sync, has_pending) = {
 			let doc = buffer.doc();
-			(doc.force_full_sync, doc.force_full_sync || !doc.pending_lsp_changes.is_empty())
+			(
+				doc.force_full_sync,
+				doc.force_full_sync || !doc.pending_lsp_changes.is_empty(),
+			)
 		};
 		if !has_pending {
 			return None;
@@ -205,7 +211,8 @@ impl Editor {
 				sync.notify_change_incremental_with_ack(&path, &language, &content, changes)
 					.await
 			} else {
-				sync.notify_change_full_with_ack(&path, &language, &content).await
+				sync.notify_change_full_with_ack(&path, &language, &content)
+					.await
 			};
 			match result {
 				Ok(Some(ack)) => {

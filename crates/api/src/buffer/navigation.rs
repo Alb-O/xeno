@@ -375,14 +375,12 @@ impl Buffer {
 	/// Converts a document position to screen coordinates within the buffer view.
 	///
 	/// Returns None if the position is above the current scroll window.
-	pub fn doc_to_screen_position(
-		&self,
-		doc_pos: usize,
-		tab_width: usize,
-	) -> Option<(u16, u16)> {
+	pub fn doc_to_screen_position(&self, doc_pos: usize, tab_width: usize) -> Option<(u16, u16)> {
 		let doc = self.doc();
 		let total_lines = doc.content.len_lines();
-		let line_idx = doc.content.char_to_line(doc_pos.min(doc.content.len_chars()));
+		let line_idx = doc
+			.content
+			.char_to_line(doc_pos.min(doc.content.len_chars()));
 		if line_idx < self.scroll_line || self.scroll_line >= total_lines {
 			return None;
 		}
@@ -451,9 +449,12 @@ impl Buffer {
 					seg_row += 1;
 				}
 
-				let row = visual_row
-					.saturating_add(segments.len().saturating_sub(start_segment).saturating_sub(1))
-					as u16;
+				let row = visual_row.saturating_add(
+					segments
+						.len()
+						.saturating_sub(start_segment)
+						.saturating_sub(1),
+				) as u16;
 				let col = gutter_width as u16;
 				return Some((row, col));
 			}

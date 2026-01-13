@@ -2,11 +2,13 @@
 
 use xeno_base::range::CharIdx;
 use xeno_core::{CompletionItem, CompletionKind};
-use xeno_lsp::lsp_types::{CompletionItem as LspCompletionItem, CompletionList, CompletionResponse};
+use xeno_lsp::lsp_types::{
+	CompletionItem as LspCompletionItem, CompletionList, CompletionResponse,
+};
 
 use crate::buffer::BufferId;
-use crate::editor::types::{CompletionState, LspMenuKind, LspMenuState};
 use crate::editor::Editor;
+use crate::editor::types::{CompletionState, LspMenuKind, LspMenuState};
 use crate::info_popup::PopupAnchor;
 
 pub enum LspUiEvent {
@@ -104,22 +106,22 @@ impl Editor {
 	}
 
 	pub(crate) fn clear_lsp_menu(&mut self) {
-		if let Some(completions) = self.overlays.get::<CompletionState>() {
-			if completions.active {
-				let completions = self.overlays.get_or_default::<CompletionState>();
-				completions.items.clear();
-				completions.selected_idx = None;
-				completions.active = false;
-				completions.scroll_offset = 0;
-				completions.replace_start = 0;
-			}
+		if let Some(completions) = self.overlays.get::<CompletionState>()
+			&& completions.active
+		{
+			let completions = self.overlays.get_or_default::<CompletionState>();
+			completions.items.clear();
+			completions.selected_idx = None;
+			completions.active = false;
+			completions.scroll_offset = 0;
+			completions.replace_start = 0;
 		}
 
-		if let Some(menu_state) = self.overlays.get::<LspMenuState>() {
-			if menu_state.is_active() {
-				let menu_state = self.overlays.get_or_default::<LspMenuState>();
-				menu_state.clear();
-			}
+		if let Some(menu_state) = self.overlays.get::<LspMenuState>()
+			&& menu_state.is_active()
+		{
+			let menu_state = self.overlays.get_or_default::<LspMenuState>();
+			menu_state.clear();
 		}
 
 		self.frame.needs_redraw = true;

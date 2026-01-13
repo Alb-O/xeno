@@ -23,6 +23,7 @@ Integration tests using `kitty-test-harness` require a running Kitty terminal an
 ## Code Style
 
 The formatter enforces hard tabs, 100-character width, and module-level import granularity (`rustfmt.toml`). Three ast-grep rules in `lint/rules/` catch:
+
 - Decorative comment banners (`// ====`, `// ----`): convert to `///` docstrings with `#` headers
 - `#[allow(...)]` without `reason = "..."` justification
 - Short inline comments under 25 chars: prefer self-documenting code or proper docstrings

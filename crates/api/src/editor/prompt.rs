@@ -42,14 +42,9 @@ impl Editor {
 
 		let rect = prompt_rect(width, height);
 		let prompt_buffer_id = self.buffers.create_scratch();
-		let window_id = self.create_floating_window(
-			prompt_buffer_id,
-			rect,
-			prompt_style("Rename"),
-		);
+		let window_id = self.create_floating_window(prompt_buffer_id, rect, prompt_style("Rename"));
 
-		let Window::Floating(float) = self.windows.get_mut(window_id).expect("just created")
-		else {
+		let Window::Floating(float) = self.windows.get_mut(window_id).expect("just created") else {
 			unreachable!()
 		};
 		float.sticky = true;
@@ -90,7 +85,10 @@ impl Editor {
 	}
 
 	pub fn close_prompt(&mut self) {
-		let Some(prompt) = self.overlays.get::<PromptState>().and_then(|state| state.active())
+		let Some(prompt) = self
+			.overlays
+			.get::<PromptState>()
+			.and_then(|state| state.active())
 		else {
 			return;
 		};
@@ -154,7 +152,12 @@ impl Editor {
 		self.frame.needs_redraw = true;
 	}
 
-	async fn apply_rename(&mut self, buffer_id: crate::buffer::BufferId, position: usize, new_name: String) {
+	async fn apply_rename(
+		&mut self,
+		buffer_id: crate::buffer::BufferId,
+		position: usize,
+		new_name: String,
+	) {
 		let Some(buffer) = self.buffers.get_buffer(buffer_id) else {
 			return;
 		};
@@ -162,11 +165,7 @@ impl Editor {
 			self.notify(keys::buffer_readonly);
 			return;
 		}
-		let Some((client, uri, _)) = self
-			.lsp
-			.prepare_position_request(buffer)
-			.ok()
-			.flatten()
+		let Some((client, uri, _)) = self.lsp.prepare_position_request(buffer).ok().flatten()
 		else {
 			self.notify(keys::warn::call("Rename not supported for this buffer"));
 			return;

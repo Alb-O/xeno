@@ -30,7 +30,10 @@
         src = rootSrc;
         cargoLock.lockFile = rootSrc + "/Cargo.lock";
         buildAndTestSubdir = "crates/term";
-        nativeBuildInputs = [ pkgs.clang pkgs.mold ];
+        nativeBuildInputs = [
+          pkgs.clang
+          pkgs.mold
+        ];
         # Integration tests require kitty terminal and CARGO_BIN_EXE_* env vars
         # that aren't available in Nix sandbox builds
         doCheck = false;
