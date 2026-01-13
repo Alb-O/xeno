@@ -98,7 +98,7 @@ impl Editor {
 						format!("{:<width$}", item.label, width = max_label_len),
 						label_style,
 					),
-					Span::styled(format!(" {:>4} ", kind_name), dim_style),
+					Span::styled(format!(" {:>4}  ", kind_name), dim_style),
 				]);
 
 				ListItem::new(line).style(base_style)
@@ -161,7 +161,7 @@ impl Editor {
 			.map(|it| it.label.len())
 			.max()
 			.unwrap_or(0);
-		let width = (max_label_len + 9).max(12);
+		let width = (max_label_len + 10).max(12);
 		let height = completions
 			.items
 			.len()
