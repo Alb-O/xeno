@@ -581,31 +581,31 @@ impl Editor {
 
 #### Tasks
 
-- [ ] **P1-T1: Add `Document.force_full_sync` field**
+- [x] **P1-T1: Add `Document.force_full_sync` field**
   - Add `force_full_sync: bool` to Document struct
   - Set by undo/redo path and WorkspaceEdit path
   - Clear `pending_lsp_changes` when set
   - **Acceptance:** Undo/redo sets flag and clears incremental changes
 
-- [ ] **P1-T2: Early-return in `queue_lsp_change`**
+- [x] **P1-T2: Early-return in `queue_lsp_change`**
   - Return without spawning if `pending_lsp_changes.is_empty() && !force_full_sync`
   - **Acceptance:** Tick does not trigger full-sync when changes already flushed
 
-- [ ] **P1-T3: Define `OutboundMsg` enum + channel on `ClientHandle`**
+- [x] **P1-T3: Define `OutboundMsg` enum + channel on `ClientHandle`**
   - Add `outbound_tx: mpsc::Sender<OutboundMsg>` to `ClientHandle`
   - Define `OutboundMsg::{Notification, Request, DidChange{ack}}`
   - **Acceptance:** Unit test enqueues two messages, observes FIFO order
 
-- [ ] **P1-T4: Implement per-client outbound dispatcher task**
+- [x] **P1-T4: Implement per-client outbound dispatcher task**
   - One async task per client reads channel, writes sequentially
   - Optional ack fired after write completes
   - **Acceptance:** Concurrent callers cannot interleave writes
 
-- [ ] **P1-T5: Route all send APIs through outbound channel**
+- [x] **P1-T5: Route all send APIs through outbound channel**
   - Migrate existing `notify_*` / request methods
   - **Acceptance:** Hover/goto-definition still works; no direct-write paths remain
 
-- [ ] **P1-T6: Implement `flush_lsp_sync_now(buffer_ids) -> FlushHandle`**
+- [x] **P1-T6: Implement `flush_lsp_sync_now(buffer_ids) -> FlushHandle`**
   - Triggers sync immediately without waiting for tick
   - Returns optional receivers for "written" barrier
   - **Acceptance:** Can flush and optionally await for ordering-sensitive flows
@@ -613,9 +613,9 @@ impl Editor {
 #### Phase 1 Gate
 
 **Must be true before proceeding:**
-- [ ] All outbound LSP messages serialized per client (no concurrent writes)
-- [ ] `queue_lsp_change` does not full-sync when nothing pending unless forced
-- [ ] `flush_lsp_sync_now` works without causing extra sync on next tick
+- [x] All outbound LSP messages serialized per client (no concurrent writes)
+- [x] `queue_lsp_change` does not full-sync when nothing pending unless forced
+- [x] `flush_lsp_sync_now` works without causing extra sync on next tick
 
 **Verification:**
 - Integration test with fake JSON-RPC server asserting message order
@@ -629,42 +629,42 @@ impl Editor {
 
 #### Tasks
 
-- [ ] **P2-T1: Add `EditorUndoEntry::Group` + wiring**
+- [x] **P2-T1: Add `EditorUndoEntry::Group` + wiring**
   - Editor-level stack entry grouping buffer IDs
   - `undo()` applies grouped doc undos in reverse
   - **Acceptance:** Grouped undo restores all affected buffers in one action
 
-- [ ] **P2-T2: Create `WorkspaceEditPlan` structs**
+- [x] **P2-T2: Create `WorkspaceEditPlan` structs**
   - Define `WorkspaceEditPlan`, `BufferEditPlan`, `PlannedTextEdit`
   - **Acceptance:** Can construct plan by hand in unit test
 
-- [ ] **P2-T3: Implement URI→buffer resolution**
+- [x] **P2-T3: Implement URI→buffer resolution**
   - Helper: `resolve_uri_to_buffer(uri) -> (buffer_id, opened_temporarily)`
   - Open headless buffers for unopened files
   - **Acceptance:** Can plan edits for files not currently open
 
-- [ ] **P2-T4: Implement range conversion (LSP → CharIdx)**
+- [x] **P2-T4: Implement range conversion (LSP → CharIdx)**
   - `convert_text_edit(rope, encoding, lsp_edit) -> PlannedTextEdit`
   - **Acceptance:** Unit tests pass for UTF-8/16/32 encodings
 
-- [ ] **P2-T5: Sort/validate/coalesce edits**
+- [x] **P2-T5: Sort/validate/coalesce edits**
   - Stable sort by position; detect overlaps; coalesce adjacent
   - **Acceptance:** Overlaps produce clear `ApplyError`
 
-- [ ] **P2-T6: Build Transaction + apply to Rope**
+- [x] **P2-T6: Build Transaction + apply to Rope**
   - `apply_buffer_edit_plan(buffer_id, edits)` → transaction, syntax update, version bump
   - **Acceptance:** Multi-edit yields correct text; `doc.version` increments once
 
-- [ ] **P2-T7: Implement `apply_workspace_edit` end-to-end**
+- [x] **P2-T7: Implement `apply_workspace_edit` end-to-end**
   - Full flow: plan → begin group → apply all → set `force_full_sync` → flush
   - **Acceptance:** Multi-file edit atomic; one undo reverts all; server receives didChange
 
 #### Phase 2 Gate
 
 **Must be true before proceeding:**
-- [ ] Can apply multi-file WorkspaceEdit atomically
-- [ ] Single undo reverts all touched buffers
-- [ ] Flush-now sends didChange immediately for touched docs
+- [x] Can apply multi-file WorkspaceEdit atomically
+- [x] Single undo reverts all touched buffers
+- [x] Flush-now sends didChange immediately for touched docs
 
 **Verification:**
 - Integration: fake server sends WorkspaceEdit across 2-3 files
@@ -676,13 +676,13 @@ impl Editor {
 
 After Phase 2, these features can ship:
 
-- [ ] **P5-T2: Code Actions UI MVP**
+- [x] **P5-T2: Code Actions UI MVP**
   - Request actions at cursor/range via LSP
   - Show picker/menu for selection
   - Apply via WorkspaceEdit engine
   - **Acceptance:** Quick-fix applies and is undoable atomically
 
-- [ ] **P5-T3: Rename MVP**
+- [x] **P5-T3: Rename MVP**
   - Prompt UI for new name
   - Request rename via LSP
   - Apply via WorkspaceEdit engine
@@ -696,31 +696,31 @@ After Phase 2, these features can ship:
 
 #### Tasks
 
-- [ ] **P3-T1: Implement `CompletionController` + generation tracking**
+- [x] **P3-T1: Implement `CompletionController` + generation tracking**
   - Controller struct with `generation: u64`, `in_flight: Option<InFlight>`
   - **Acceptance:** Trigger twice → generation increments, prior marked stale
 
-- [ ] **P3-T2: Add cancellation + debounce flow**
+- [x] **P3-T2: Add cancellation + debounce flow**
   - Debounce timer; cancellation token; optional `$/cancelRequest`
   - **Acceptance:** Integration test: only latest results render; late responses ignored
 
-- [ ] **P3-T3: Completion menu UI**
+- [x] **P3-T3: Completion menu UI**
   - Anchor at cursor; show/hide; selection movement; accept/cancel
   - **Acceptance:** Ctrl-Space opens; typing updates; escape closes
 
-- [ ] **P3-T4: Apply completion via WorkspaceEdit engine**
+- [x] **P3-T4: Apply completion via WorkspaceEdit engine**
   - Convert `textEdit` + `additionalTextEdits` to plan
   - **Acceptance:** Completion with additional edits is atomic + undoable
 
-- [ ] **P3-T5: Snippet insertion MVP**
+- [x] **P3-T5: Snippet insertion MVP**
   - Handle `$0`, `$1..$n` placeholders (basic)
   - **Acceptance:** Common rust-analyzer snippets work; unsupported falls back to plain text
 
 #### Phase 3 Gate
 
 **Must be true before proceeding:**
-- [ ] Debounce/cancel works; stale results never render
-- [ ] Applying completion with additional edits is atomic + undoable
+- [x] Debounce/cancel works; stale results never render
+- [x] Applying completion with additional edits is atomic + undoable
 
 **Verification:**
 - Integration: delayed server responses; only latest generation renders
@@ -734,17 +734,17 @@ After Phase 2, these features can ship:
 
 #### Tasks
 
-- [ ] **P4-T1: Crash recovery auto-reopen**
+- [x] **P4-T1: Crash recovery auto-reopen**
   - Detect missing client in `notify_change_*`
   - Call `get_or_start()` + resend `didOpen` with current text/version
   - **Acceptance:** Kill server mid-edit → auto-reopen, syncing continues
 
-- [ ] **P4-T2: Incremental failure → fallback-to-full**
+- [x] **P4-T2: Incremental failure → fallback-to-full**
   - Return `Result` or enum from `compute_lsp_changes`
   - Callers send full sync on failure
   - **Acceptance:** Conversion failure never results in "no didChange sent"
 
-- [ ] **P4-T3: Request timeouts + cancellation**
+- [x] **P4-T3: Request timeouts + cancellation**
   - Timeout wrapper for hover/completion/signatureHelp
   - Cancel inflight on cursor move
   - **Acceptance:** Stalled server doesn't hang UI; clean timeout error
@@ -752,9 +752,9 @@ After Phase 2, these features can ship:
 #### Phase 4 Gate
 
 **Must be true before proceeding:**
-- [ ] Server crash triggers auto-reopen and syncing continues
-- [ ] Incremental conversion failure always falls back to full
-- [ ] Requests time out; cancels don't leak tasks
+- [x] Server crash triggers auto-reopen and syncing continues
+- [x] Incremental conversion failure always falls back to full
+- [x] Requests time out; cancels don't leak tasks
 
 **Verification:**
 - Integration: kill fake server mid-session; confirm reopen
@@ -764,13 +764,13 @@ After Phase 2, these features can ship:
 
 ### Phase 5: Polish + Additional Features
 
-- [ ] **P5-T1: Diagnostics UX MVP**
+- [x] **P5-T1: Diagnostics UX MVP**
   - Gutter signs for diagnostic severity
   - Underline ranges in buffer
   - Jump next/prev diagnostic commands
   - **Acceptance:** Diagnostics visible; navigation works
 
-- [ ] **P5-T4: Signature Help**
+- [x] **P5-T4: Signature Help**
   - Trigger on `(` character
   - Display parameter info popup
   - **Acceptance:** Shows signature on function call

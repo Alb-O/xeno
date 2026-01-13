@@ -6,7 +6,7 @@ use xeno_base::{Range, Transaction};
 use xeno_core::movement;
 use xeno_language::LanguageLoader;
 #[cfg(feature = "lsp")]
-use xeno_lsp::{OffsetEncoding, compute_lsp_changes};
+use xeno_lsp::{IncrementalResult, OffsetEncoding, compute_lsp_changes};
 
 use super::Buffer;
 
@@ -259,8 +259,16 @@ impl Buffer {
 
 		doc.modified = true;
 		doc.version = doc.version.wrapping_add(1);
-		if !lsp_changes.is_empty() {
-			doc.pending_lsp_changes.extend(lsp_changes);
+		match lsp_changes {
+			IncrementalResult::Incremental(changes) => {
+				if !changes.is_empty() {
+					doc.pending_lsp_changes.extend(changes);
+				}
+			}
+			IncrementalResult::FallbackToFull => {
+				doc.pending_lsp_changes.clear();
+				doc.force_full_sync = true;
+			}
 		}
 		true
 	}

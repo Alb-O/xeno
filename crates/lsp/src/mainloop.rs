@@ -60,6 +60,11 @@ pub struct MainLoop<S: LspService> {
 	tasks: FuturesUnordered<RequestFuture<S::Future>>,
 }
 
+struct OutgoingMessage {
+	message: Message,
+	ack: Option<oneshot::Sender<()>>,
+}
+
 define_getters!(impl[S: LspService] MainLoop<S>, service: S);
 
 impl<S> MainLoop<S>
@@ -117,8 +122,12 @@ where
 		let incoming = futures::stream::unfold(input, |mut input| async move {
 			Some((Message::read(&mut input).await, input))
 		});
-		let outgoing = futures::sink::unfold(output, |mut output, msg| async move {
-			Message::write(&msg, &mut output).await.map(|()| output)
+		let outgoing = futures::sink::unfold(output, |mut output, outgoing: OutgoingMessage| async move {
+			Message::write(&outgoing.message, &mut output).await?;
+			if let Some(ack) = outgoing.ack {
+				let _ = ack.send(());
+			}
+			Ok(output)
 		});
 		pin_mut!(incoming, outgoing);
 
@@ -131,7 +140,10 @@ where
 				// Concurrently flush out the previous message.
 				ret = flush_fut => { ret?; continue; }
 
-				resp = self.tasks.select_next_some() => ControlFlow::Continue(Some(Message::Response(resp))),
+				resp = self.tasks.select_next_some() => ControlFlow::Continue(Some(OutgoingMessage {
+					message: Message::Response(resp),
+					ack: None,
+				})),
 				event = self.rx.next() => self.dispatch_event(event.expect("Sender is alive")),
 				msg = incoming.next() => {
 					let dispatch_fut = self.dispatch_message(msg.expect("Never ends")?).fuse();
@@ -164,7 +176,10 @@ where
 	}
 
 	/// Routes an incoming message to the appropriate handler.
-	async fn dispatch_message(&mut self, msg: Message) -> ControlFlow<Result<()>, Option<Message>> {
+	async fn dispatch_message(
+		&mut self,
+		msg: Message,
+	) -> ControlFlow<Result<()>, Option<OutgoingMessage>> {
 		match msg {
 			Message::Request(req) => {
 				if let Err(err) = poll_fn(|cx| self.service.poll_ready(cx)).await {
@@ -173,7 +188,10 @@ where
 						result: None,
 						error: Some(err.into()),
 					};
-					return ControlFlow::Continue(Some(Message::Response(resp)));
+					return ControlFlow::Continue(Some(OutgoingMessage {
+						message: Message::Response(resp),
+						ack: None,
+					}));
 				}
 				let id = req.id.clone();
 				let fut = self.service.call(req);
@@ -193,15 +211,28 @@ where
 	}
 
 	/// Routes an internal event (outgoing message or user event).
-	fn dispatch_event(&mut self, event: MainLoopEvent) -> ControlFlow<Result<()>, Option<Message>> {
+	fn dispatch_event(
+		&mut self,
+		event: MainLoopEvent,
+	) -> ControlFlow<Result<()>, Option<OutgoingMessage>> {
 		match event {
 			MainLoopEvent::OutgoingRequest(mut req, resp_tx) => {
 				req.id = RequestId::Number(self.outgoing_id);
 				assert!(self.outgoing.insert(req.id.clone(), resp_tx).is_none());
 				self.outgoing_id += 1;
-				ControlFlow::Continue(Some(Message::Request(req)))
+				ControlFlow::Continue(Some(OutgoingMessage {
+					message: Message::Request(req),
+					ack: None,
+				}))
 			}
-			MainLoopEvent::Outgoing(msg) => ControlFlow::Continue(Some(msg)),
+			MainLoopEvent::Outgoing(msg) => ControlFlow::Continue(Some(OutgoingMessage {
+				message: msg,
+				ack: None,
+			})),
+			MainLoopEvent::OutgoingWithAck(msg, ack) => ControlFlow::Continue(Some(OutgoingMessage {
+				message: msg,
+				ack: Some(ack),
+			})),
 			MainLoopEvent::Any(event) => {
 				self.service.emit(event)?;
 				ControlFlow::Continue(None)

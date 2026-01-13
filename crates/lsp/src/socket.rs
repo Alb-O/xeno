@@ -19,6 +19,8 @@ use crate::{Error, Result};
 pub(crate) enum MainLoopEvent {
 	/// A message to send to the peer.
 	Outgoing(Message),
+	/// A message to send to the peer with an acknowledgement.
+	OutgoingWithAck(Message, oneshot::Sender<()>),
 	/// An outgoing request with response channel.
 	OutgoingRequest(AnyRequest, oneshot::Sender<AnyResponse>),
 	/// A user-defined loopback event.

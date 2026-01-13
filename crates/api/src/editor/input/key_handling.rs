@@ -110,77 +110,143 @@ impl Editor {
 		use xeno_registry::{HookContext, HookEventData, emit as emit_hook};
 
 		let old_mode = self.mode();
+		let old_buffer_id = self.focused_view();
+		let old_cursor = self.buffer().cursor;
 
 		if self.palette_is_open() && key.code == KeyCode::Enter {
 			self.execute_palette();
 			self.frame.needs_redraw = true;
 			return false;
 		}
+		#[cfg(feature = "lsp")]
+		if self.prompt_is_open() && key.code == KeyCode::Enter {
+			self.execute_prompt().await;
+			self.frame.needs_redraw = true;
+			return false;
+		}
+
+		#[cfg(feature = "lsp")]
+		if self.handle_lsp_menu_key(&key).await {
+			return false;
+		}
 
 		if self.handle_floating_escape(&key) {
+			return false;
+		}
+
+		#[cfg(feature = "lsp")]
+		if self.is_completion_trigger_key(&key) {
+			self.trigger_lsp_completion(
+				crate::editor::completion_controller::CompletionTrigger::Manual,
+				None,
+			);
 			return false;
 		}
 		let key: Key = key.into();
 
 		let result = self.buffer_mut().input.handle_key(key);
 
-		if let ActionDispatch::Executed(quit) = self.dispatch_action(&result) {
-			return quit;
+		let mut quit = false;
+		let mut handled = false;
+		let mut inserted_char = None;
+		let mut mode_change = None;
+
+		if let ActionDispatch::Executed(action_quit) = self.dispatch_action(&result) {
+			quit = action_quit;
+			handled = true;
 		}
 
-		match result {
-			KeyResult::Pending { .. } => {
-				self.frame.needs_redraw = true;
-				false
-			}
-			KeyResult::ModeChange(new_mode) => {
-				let leaving_insert = !matches!(new_mode, Mode::Insert);
-				if new_mode != old_mode {
-					emit_hook(&HookContext::new(
-						HookEventData::ModeChange {
-							old_mode,
-							new_mode: new_mode.clone(),
-						},
-						Some(&self.extensions),
-					))
-					.await;
+		if !handled {
+			match result {
+				KeyResult::Pending { .. } => {
+					self.frame.needs_redraw = true;
 				}
-				if leaving_insert {
-					self.buffer_mut().clear_insert_undo_active();
+				KeyResult::ModeChange(new_mode) => {
+					let leaving_insert = !matches!(new_mode, Mode::Insert);
+					if new_mode != old_mode {
+						emit_hook(&HookContext::new(
+							HookEventData::ModeChange {
+								old_mode,
+								new_mode: new_mode.clone(),
+							},
+							Some(&self.extensions),
+						))
+						.await;
+					}
+					if leaving_insert {
+						self.buffer_mut().clear_insert_undo_active();
+					}
+					mode_change = Some(new_mode);
 				}
-				false
-			}
-			KeyResult::InsertChar(c) => {
-				if !self.guard_readonly() {
-					return false;
+				KeyResult::InsertChar(c) => {
+					if !self.guard_readonly() {
+						return false;
+					}
+					self.insert_text(&c.to_string());
+					inserted_char = Some(c);
 				}
-				self.insert_text(&c.to_string());
-				false
+				KeyResult::Consumed | KeyResult::Unhandled => {}
+				KeyResult::Quit => {
+					quit = true;
+				}
+				KeyResult::MouseClick { row, col, extend } => {
+					let view_area = self.focused_view_area();
+					let local_row = row.saturating_sub(view_area.y);
+					let local_col = col.saturating_sub(view_area.x);
+					self.handle_mouse_click_local(local_row, local_col, extend);
+				}
+				KeyResult::MouseDrag { row, col } => {
+					let view_area = self.focused_view_area();
+					let local_row = row.saturating_sub(view_area.y);
+					let local_col = col.saturating_sub(view_area.x);
+					self.handle_mouse_drag_local(local_row, local_col);
+				}
+				KeyResult::MouseScroll { direction, count } => {
+					self.handle_mouse_scroll(direction, count);
+				}
+				_ => unreachable!(),
 			}
-			KeyResult::Consumed | KeyResult::Unhandled => false,
-			KeyResult::Quit => true,
-			KeyResult::MouseClick { row, col, extend } => {
-				// Keyboard-triggered mouse events use screen coordinates relative to
-				// the focused buffer's area. Translate them to view-local coordinates.
-				let view_area = self.focused_view_area();
-				let local_row = row.saturating_sub(view_area.y);
-				let local_col = col.saturating_sub(view_area.x);
-				self.handle_mouse_click_local(local_row, local_col, extend);
-				false
-			}
-			KeyResult::MouseDrag { row, col } => {
-				let view_area = self.focused_view_area();
-				let local_row = row.saturating_sub(view_area.y);
-				let local_col = col.saturating_sub(view_area.x);
-				self.handle_mouse_drag_local(local_row, local_col);
-				false
-			}
-			KeyResult::MouseScroll { direction, count } => {
-				self.handle_mouse_scroll(direction, count);
-				false
-			}
-			_ => unreachable!(),
 		}
+
+		#[cfg(feature = "lsp")]
+		{
+			if let Some(new_mode) = mode_change.as_ref()
+				&& !matches!(new_mode, Mode::Insert)
+			{
+				self.completion_controller.cancel();
+				self.cancel_signature_help();
+				self.clear_lsp_menu();
+			}
+
+			if let Some(c) = inserted_char
+				&& self.buffer().mode() == Mode::Insert
+				&& !self.buffer().is_readonly()
+			{
+				self.trigger_lsp_completion(
+					crate::editor::completion_controller::CompletionTrigger::Typing,
+					Some(c),
+				);
+				if c == '(' {
+					self.trigger_signature_help();
+				}
+			}
+
+			let focus_changed = old_buffer_id != self.focused_view();
+			let cursor_changed = old_cursor != self.buffer().cursor;
+			if focus_changed || cursor_changed {
+				self.completion_controller.cancel();
+				self.cancel_signature_help();
+				self.clear_lsp_menu();
+				if self.buffer().mode() == Mode::Insert && !self.buffer().is_readonly() {
+					self.trigger_lsp_completion(
+						crate::editor::completion_controller::CompletionTrigger::CursorMove,
+						None,
+					);
+				}
+			}
+		}
+
+		quit
 	}
 
 	/// Handles a mouse click with view-local coordinates.
@@ -263,6 +329,19 @@ impl Editor {
 			self.close_palette();
 			self.frame.needs_redraw = true;
 			return true;
+		}
+
+		#[cfg(feature = "lsp")]
+		{
+			let prompt_window = self
+				.overlays
+				.get::<crate::prompt::PromptState>()
+				.and_then(|state| state.window_id());
+			if Some(window) == prompt_window {
+				self.close_prompt();
+				self.frame.needs_redraw = true;
+				return true;
+			}
 		}
 
 		if floating.dismiss_on_blur {

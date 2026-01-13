@@ -294,7 +294,7 @@ impl LspManager {
 	}
 
 	/// Prepare a position-based LSP request. Returns None if no client available.
-	fn prepare_position_request(
+	pub(crate) fn prepare_position_request(
 		&self,
 		buffer: &Buffer,
 	) -> Result<
@@ -398,6 +398,22 @@ impl LspManager {
 		let path = buffer.path()?;
 		let language = buffer.file_type()?;
 		self.incremental_encoding(&path, &language)
+	}
+
+	/// Returns the server encoding for a buffer, defaulting to UTF-16.
+	pub fn offset_encoding_for_buffer(&self, buffer: &Buffer) -> OffsetEncoding {
+		let Some(path) = buffer.path() else {
+			return OffsetEncoding::Utf16;
+		};
+		let Some(language) = buffer.file_type() else {
+			return OffsetEncoding::Utf16;
+		};
+
+		self.sync
+			.registry()
+			.get(&language, &path)
+			.map(|client| client.offset_encoding())
+			.unwrap_or(OffsetEncoding::Utf16)
 	}
 
 	fn incremental_encoding(&self, path: &Path, language: &str) -> Option<OffsetEncoding> {

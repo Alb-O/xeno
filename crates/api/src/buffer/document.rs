@@ -82,6 +82,9 @@ pub struct Document {
 	/// Pending LSP changes queued for sync.
 	#[cfg(feature = "lsp")]
 	pub pending_lsp_changes: Vec<xeno_base::LspDocumentChange>,
+	/// Force a full LSP sync on the next flush.
+	#[cfg(feature = "lsp")]
+	pub force_full_sync: bool,
 }
 
 impl Document {
@@ -101,6 +104,8 @@ impl Document {
 			version: 0,
 			#[cfg(feature = "lsp")]
 			pending_lsp_changes: Vec::new(),
+			#[cfg(feature = "lsp")]
+			force_full_sync: false,
 		}
 	}
 

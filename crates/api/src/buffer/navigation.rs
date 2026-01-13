@@ -372,6 +372,105 @@ impl Buffer {
 		Some(doc.content.len_chars().saturating_sub(1).max(0))
 	}
 
+	/// Converts a document position to screen coordinates within the buffer view.
+	///
+	/// Returns None if the position is above the current scroll window.
+	pub fn doc_to_screen_position(
+		&self,
+		doc_pos: usize,
+		tab_width: usize,
+	) -> Option<(u16, u16)> {
+		let doc = self.doc();
+		let total_lines = doc.content.len_lines();
+		let line_idx = doc.content.char_to_line(doc_pos.min(doc.content.len_chars()));
+		if line_idx < self.scroll_line || self.scroll_line >= total_lines {
+			return None;
+		}
+
+		let line_start = doc.content.line_to_char(line_idx);
+		let col_in_line = doc_pos.saturating_sub(line_start);
+		let gutter_width = self.gutter_width() as usize;
+
+		let mut visual_row = 0usize;
+		let mut current_line = self.scroll_line;
+		let mut start_segment = self.scroll_segment;
+
+		while current_line <= line_idx {
+			let line_start = doc.content.line_to_char(current_line);
+			let line_end = if current_line + 1 < total_lines {
+				doc.content.line_to_char(current_line + 1)
+			} else {
+				doc.content.len_chars()
+			};
+
+			let line_text: String = doc.content.slice(line_start..line_end).into();
+			let line_text = line_text.trim_end_matches('\n');
+			let segments = self.wrap_line(line_text, self.text_width, tab_width);
+
+			if current_line == line_idx {
+				if segments.is_empty() {
+					let row = visual_row as u16;
+					let col = gutter_width as u16;
+					return Some((row, col));
+				}
+
+				let mut seg_row = visual_row;
+				for segment in segments.iter().skip(start_segment) {
+					let seg_start = segment.start_offset;
+					let seg_len = segment.text.chars().count();
+					let seg_end = seg_start + seg_len;
+					if col_in_line <= seg_end {
+						let offset = col_in_line.saturating_sub(seg_start);
+						let mut col = 0usize;
+						for (idx, ch) in segment.text.chars().enumerate() {
+							if idx >= offset {
+								break;
+							}
+							let mut w = if ch == '\t' {
+								tab_width.saturating_sub(col % tab_width)
+							} else {
+								1
+							};
+							if w == 0 {
+								w = 1;
+							}
+							let remaining = self.text_width.saturating_sub(col);
+							if remaining == 0 {
+								break;
+							}
+							if w > remaining {
+								w = remaining;
+							}
+							col += w;
+						}
+
+						let row = seg_row as u16;
+						let col = gutter_width.saturating_add(col) as u16;
+						return Some((row, col));
+					}
+					seg_row += 1;
+				}
+
+				let row = visual_row
+					.saturating_add(segments.len().saturating_sub(start_segment).saturating_sub(1))
+					as u16;
+				let col = gutter_width as u16;
+				return Some((row, col));
+			}
+
+			let visible_segments = if segments.is_empty() {
+				1
+			} else {
+				segments.len().saturating_sub(start_segment)
+			};
+			visual_row = visual_row.saturating_add(visible_segments);
+			start_segment = 0;
+			current_line += 1;
+		}
+
+		None
+	}
+
 	/// Wraps a line of text into segments.
 	///
 	/// # Parameters

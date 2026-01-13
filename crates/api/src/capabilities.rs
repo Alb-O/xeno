@@ -141,11 +141,11 @@ impl UndoAccess for Editor {
 	}
 
 	fn can_undo(&self) -> bool {
-		self.buffer().undo_stack_len() > 0
+		!self.undo_group_stack.is_empty()
 	}
 
 	fn can_redo(&self) -> bool {
-		self.buffer().redo_stack_len() > 0
+		!self.redo_group_stack.is_empty()
 	}
 }
 

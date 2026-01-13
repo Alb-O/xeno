@@ -39,6 +39,21 @@ mod hook_runtime;
 mod info_popup;
 /// Input handling.
 mod input;
+/// LSP completion controller.
+#[cfg(feature = "lsp")]
+mod completion_controller;
+/// LSP diagnostic navigation helpers.
+#[cfg(feature = "lsp")]
+mod lsp_diagnostics;
+/// LSP completion and menu handling.
+#[cfg(feature = "lsp")]
+mod lsp_menu;
+/// LSP UI event handling.
+#[cfg(feature = "lsp")]
+mod lsp_events;
+/// Snippet parsing for LSP completions.
+#[cfg(feature = "lsp")]
+mod snippet;
 /// Split layout management.
 mod layout;
 /// Editor lifecycle (tick, render).
@@ -51,6 +66,9 @@ mod navigation;
 mod options;
 /// Command palette operations.
 mod palette;
+/// Prompt overlay operations.
+#[cfg(feature = "lsp")]
+mod prompt;
 /// Search state and operations.
 mod search;
 /// Separator hit detection.
@@ -61,6 +79,9 @@ mod splits;
 mod theming;
 /// Shared type definitions.
 pub mod types;
+/// LSP workspace edit planning and apply.
+#[cfg(feature = "lsp")]
+mod workspace_edit;
 /// Buffer access and viewport management.
 mod views;
 
@@ -73,8 +94,8 @@ pub use hook_runtime::HookRuntime;
 pub use layout::{LayoutManager, SeparatorHit, SeparatorId};
 pub use navigation::Location;
 pub use types::{
-	Config, FrameState, HistoryEntry, JumpList, JumpLocation, MacroState, Registers, Viewport,
-	Workspace,
+	Config, EditorUndoEntry, FrameState, HistoryEntry, JumpList, JumpLocation, MacroState,
+	Registers, Viewport, Workspace,
 };
 use xeno_language::LanguageLoader;
 use xeno_registry::{
@@ -90,6 +111,10 @@ use crate::menu::{MenuAction, create_menu};
 use crate::overlay::OverlayManager;
 use crate::ui::UiManager;
 use crate::window::{BaseWindow, FloatingStyle, WindowId, WindowManager};
+#[cfg(feature = "lsp")]
+use self::completion_controller::CompletionController;
+#[cfg(feature = "lsp")]
+use self::lsp_events::LspUiEvent;
 
 /// The main editor/workspace structure.
 ///
@@ -155,6 +180,11 @@ pub struct Editor {
 	/// Workspace session state (registers, jumps, macros, command queue).
 	pub workspace: Workspace,
 
+	/// Editor-level undo grouping stack.
+	pub undo_group_stack: Vec<EditorUndoEntry>,
+	/// Editor-level redo grouping stack.
+	pub redo_group_stack: Vec<EditorUndoEntry>,
+
 	/// Editor configuration (theme, languages, options).
 	pub config: Config,
 
@@ -168,6 +198,21 @@ pub struct Editor {
 	/// LSP manager for language server integration.
 	#[cfg(feature = "lsp")]
 	pub lsp: crate::lsp::LspManager,
+	/// Completion controller (debounce/cancel/state).
+	#[cfg(feature = "lsp")]
+	pub completion_controller: CompletionController,
+	/// Signature help request generation.
+	#[cfg(feature = "lsp")]
+	pub signature_help_generation: u64,
+	/// Signature help cancellation token.
+	#[cfg(feature = "lsp")]
+	pub signature_help_cancel: Option<tokio_util::sync::CancellationToken>,
+	/// LSP UI event sender.
+	#[cfg(feature = "lsp")]
+	pub lsp_ui_tx: tokio::sync::mpsc::UnboundedSender<LspUiEvent>,
+	/// LSP UI event receiver.
+	#[cfg(feature = "lsp")]
+	pub lsp_ui_rx: tokio::sync::mpsc::UnboundedReceiver<LspUiEvent>,
 
 	/// Style overlays for rendering modifications.
 	pub style_overlays: StyleOverlays,
@@ -225,6 +270,9 @@ impl Editor {
 
 		let mut hook_runtime = HookRuntime::new();
 
+		#[cfg(feature = "lsp")]
+		let (lsp_ui_tx, lsp_ui_rx) = tokio::sync::mpsc::unbounded_channel();
+
 		emit_hook_sync_with(
 			&HookContext::new(
 				HookEventData::WindowCreated {
@@ -261,6 +309,8 @@ impl Editor {
 			ui: UiManager::new(),
 			frame: FrameState::default(),
 			workspace: Workspace::default(),
+			undo_group_stack: Vec::new(),
+			redo_group_stack: Vec::new(),
 			config: Config::new(language_loader),
 			notifications: xeno_tui::widgets::notifications::ToastManager::new()
 				.max_visible(Some(5))
@@ -268,6 +318,16 @@ impl Editor {
 			extensions: ExtensionMap::new(),
 			#[cfg(feature = "lsp")]
 			lsp: crate::lsp::LspManager::new(),
+			#[cfg(feature = "lsp")]
+			completion_controller: CompletionController::new(),
+			#[cfg(feature = "lsp")]
+			signature_help_generation: 0,
+			#[cfg(feature = "lsp")]
+			signature_help_cancel: None,
+			#[cfg(feature = "lsp")]
+			lsp_ui_tx,
+			#[cfg(feature = "lsp")]
+			lsp_ui_rx,
 			style_overlays: StyleOverlays::new(),
 			hook_runtime,
 			menu: create_menu(),

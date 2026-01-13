@@ -4,6 +4,8 @@
 
 #[cfg(feature = "lsp")]
 use std::collections::HashSet;
+#[cfg(feature = "lsp")]
+use futures::channel::oneshot;
 use std::path::PathBuf;
 
 use tracing::{debug, warn};
@@ -43,6 +45,8 @@ impl Editor {
 		if !self.lsp.poll_diagnostics().is_empty() {
 			self.frame.needs_redraw = true;
 		}
+		#[cfg(feature = "lsp")]
+		self.drain_lsp_ui_events();
 
 		#[cfg(feature = "lsp")]
 		let mut lsp_docs: HashSet<crate::buffer::DocumentId> = HashSet::new();
@@ -91,6 +95,7 @@ impl Editor {
 			#[cfg(feature = "lsp")]
 			{
 				doc.pending_lsp_changes.clear();
+				doc.force_full_sync = true;
 			}
 		}
 		self.frame.dirty_buffers.insert(buffer_id);
@@ -113,14 +118,25 @@ impl Editor {
 		let (Some(path), Some(language)) = (buffer.path(), buffer.file_type()) else {
 			return;
 		};
+		let (force_full_sync, has_pending) = {
+			let doc = buffer.doc();
+			(doc.force_full_sync, doc.force_full_sync || !doc.pending_lsp_changes.is_empty())
+		};
+		if !has_pending {
+			return;
+		}
 		let content = buffer.doc().content.clone();
 		let changes = buffer.drain_lsp_changes();
+		if force_full_sync {
+			buffer.doc_mut().force_full_sync = false;
+		}
 		let supports_incremental = self.lsp.incremental_encoding_for_buffer(buffer).is_some();
 
 		// Safety fallback: skip incremental if too many changes or too much data
 		let change_count = changes.len();
 		let total_bytes: usize = changes.iter().map(|c| c.new_text.len()).sum();
-		let use_incremental = supports_incremental
+		let use_incremental = !force_full_sync
+			&& supports_incremental
 			&& !changes.is_empty()
 			&& change_count <= Self::LSP_MAX_INCREMENTAL_CHANGES
 			&& total_bytes <= Self::LSP_MAX_INCREMENTAL_BYTES;
@@ -131,6 +147,7 @@ impl Editor {
 			change_count,
 			total_bytes,
 			supports_incremental,
+			force_full_sync,
 			"LSP sync mode selected"
 		);
 
@@ -146,6 +163,75 @@ impl Editor {
 				warn!(error = %e, path = ?path, "LSP change notification failed");
 			}
 		});
+	}
+
+	/// Queues an immediate LSP change and returns an ack receiver when written.
+	#[cfg(feature = "lsp")]
+	fn queue_lsp_change_immediate(
+		&mut self,
+		buffer_id: crate::buffer::BufferId,
+	) -> Option<oneshot::Receiver<()>> {
+		let Some(buffer) = self.buffers.get_buffer(buffer_id) else {
+			return None;
+		};
+		let (Some(path), Some(language)) = (buffer.path(), buffer.file_type()) else {
+			return None;
+		};
+		let (force_full_sync, has_pending) = {
+			let doc = buffer.doc();
+			(doc.force_full_sync, doc.force_full_sync || !doc.pending_lsp_changes.is_empty())
+		};
+		if !has_pending {
+			return None;
+		}
+		let content = buffer.doc().content.clone();
+		let changes = buffer.drain_lsp_changes();
+		if force_full_sync {
+			buffer.doc_mut().force_full_sync = false;
+		}
+		let supports_incremental = self.lsp.incremental_encoding_for_buffer(buffer).is_some();
+		let change_count = changes.len();
+		let total_bytes: usize = changes.iter().map(|c| c.new_text.len()).sum();
+		let use_incremental = !force_full_sync
+			&& supports_incremental
+			&& !changes.is_empty()
+			&& change_count <= Self::LSP_MAX_INCREMENTAL_CHANGES
+			&& total_bytes <= Self::LSP_MAX_INCREMENTAL_BYTES;
+
+		let sync = self.lsp.sync().clone();
+		let (tx, rx) = oneshot::channel();
+		tokio::spawn(async move {
+			let result = if use_incremental {
+				sync.notify_change_incremental_with_ack(&path, &language, &content, changes)
+					.await
+			} else {
+				sync.notify_change_full_with_ack(&path, &language, &content).await
+			};
+			match result {
+				Ok(Some(ack)) => {
+					let _ = ack.await;
+				}
+				Ok(None) => {}
+				Err(e) => {
+					warn!(error = %e, path = ?path, "LSP immediate change failed");
+				}
+			}
+			let _ = tx.send(());
+		});
+
+		Some(rx)
+	}
+
+	/// Immediately flush LSP changes for specified buffers.
+	#[cfg(feature = "lsp")]
+	pub fn flush_lsp_sync_now(&mut self, buffer_ids: &[crate::buffer::BufferId]) -> FlushHandle {
+		let mut handles = Vec::new();
+		for &buffer_id in buffer_ids {
+			if let Some(handle) = self.queue_lsp_change_immediate(buffer_id) {
+				handles.push(handle);
+			}
+		}
+		FlushHandle { handles }
 	}
 
 	/// Clears and updates style overlays (called before each render frame).
@@ -302,6 +388,21 @@ impl Editor {
 			if let Some(sibling) = self.buffers.get_buffer_mut(sibling_id) {
 				sibling.map_selection_through(tx);
 			}
+		}
+	}
+}
+
+#[cfg(feature = "lsp")]
+pub struct FlushHandle {
+	handles: Vec<oneshot::Receiver<()>>,
+}
+
+#[cfg(feature = "lsp")]
+impl FlushHandle {
+	/// Wait until all didChange messages have been written.
+	pub async fn await_synced(self) {
+		for handle in self.handles {
+			let _ = handle.await;
 		}
 	}
 }

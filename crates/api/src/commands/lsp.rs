@@ -102,3 +102,72 @@ fn format_hover_contents(contents: &HoverContents) -> String {
 		HoverContents::Markup(MarkupContent { value, .. }) => value.clone(),
 	}
 }
+
+editor_command!(
+	code_action,
+	{
+		aliases: &["code-action", "code-actions", "lsp-code-action", "lsp-code-actions"],
+		description: "Show code actions at cursor"
+	},
+	handler: cmd_code_action
+);
+
+fn cmd_code_action<'a>(
+	ctx: &'a mut EditorCommandContext<'a>,
+) -> LocalBoxFuture<'a, Result<CommandOutcome, CommandError>> {
+	Box::pin(async move {
+		ctx.editor.open_code_action_menu().await;
+		Ok(CommandOutcome::Ok)
+	})
+}
+
+editor_command!(
+	rename,
+	{ aliases: &["lsp-rename"], description: "Rename symbol at cursor" },
+	handler: cmd_rename
+);
+
+fn cmd_rename<'a>(
+	ctx: &'a mut EditorCommandContext<'a>,
+) -> LocalBoxFuture<'a, Result<CommandOutcome, CommandError>> {
+	Box::pin(async move {
+		ctx.editor.open_rename_prompt();
+		Ok(CommandOutcome::Ok)
+	})
+}
+
+editor_command!(
+	diagnostic_next,
+	{
+		aliases: &["diagnostic-next", "diag-next", "lsp-diagnostic-next"],
+		description: "Jump to next diagnostic"
+	},
+	handler: cmd_diagnostic_next
+);
+
+fn cmd_diagnostic_next<'a>(
+	ctx: &'a mut EditorCommandContext<'a>,
+) -> LocalBoxFuture<'a, Result<CommandOutcome, CommandError>> {
+	Box::pin(async move {
+		ctx.editor.goto_next_diagnostic();
+		Ok(CommandOutcome::Ok)
+	})
+}
+
+editor_command!(
+	diagnostic_prev,
+	{
+		aliases: &["diagnostic-prev", "diag-prev", "lsp-diagnostic-prev"],
+		description: "Jump to previous diagnostic"
+	},
+	handler: cmd_diagnostic_prev
+);
+
+fn cmd_diagnostic_prev<'a>(
+	ctx: &'a mut EditorCommandContext<'a>,
+) -> LocalBoxFuture<'a, Result<CommandOutcome, CommandError>> {
+	Box::pin(async move {
+		ctx.editor.goto_prev_diagnostic();
+		Ok(CommandOutcome::Ok)
+	})
+}

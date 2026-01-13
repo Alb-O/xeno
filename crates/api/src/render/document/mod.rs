@@ -115,6 +115,9 @@ impl Editor {
 		}
 		self.ui = ui;
 
+		#[cfg(feature = "lsp")]
+		self.render_completion_popup(frame);
+
 		let menu_bg =
 			Block::default().style(Style::default().bg(self.config.theme.colors.popup.bg));
 		frame.render_widget(menu_bg, menu_area);

@@ -112,7 +112,7 @@ pub use position::{
 /// LSP change computation helpers.
 pub mod changes;
 #[cfg(feature = "position")]
-pub use changes::compute_lsp_changes;
+pub use changes::{IncrementalResult, compute_lsp_changes};
 
 #[cfg(feature = "client")]
 #[cfg_attr(docsrs, doc(cfg(feature = "client")))]
@@ -151,6 +151,9 @@ pub enum Error {
 	/// The peer replies an error.
 	#[error("{0}")]
 	Response(#[from] ResponseError),
+	/// The request timed out.
+	#[error("request timed out: {0}")]
+	RequestTimeout(String),
 	/// The peer violates the Language Server Protocol.
 	#[error("protocol error: {0}")]
 	Protocol(String),

@@ -30,6 +30,7 @@
 use std::path::Path;
 use std::sync::Arc;
 
+use futures::channel::oneshot;
 use lsp_types::{Diagnostic, TextDocumentContentChangeEvent, TextDocumentSaveReason, Uri};
 use ropey::Rope;
 use xeno_base::lsp::LspDocumentChange;
@@ -194,11 +195,43 @@ impl DocumentSync {
 			.increment_version(&uri)
 			.ok_or_else(|| crate::Error::Protocol("Document not registered".into()))?;
 
-		if let Some(client) = self.registry.get(language, path) {
-			client.text_document_did_change_full(uri, version, text.to_string())?;
-		}
+		let Some(client) = self.registry.get(language, path) else {
+			self.open_document(path, language, text).await?;
+			return Ok(());
+		};
+
+		client.text_document_did_change_full(uri, version, text.to_string())?;
 
 		Ok(())
+	}
+
+	/// Notify language servers of a document change with an ack after write.
+	pub async fn notify_change_full_with_ack(
+		&self,
+		path: &Path,
+		language: &str,
+		text: &Rope,
+	) -> Result<Option<oneshot::Receiver<()>>> {
+		let uri = crate::uri_from_path(path)
+			.ok_or_else(|| crate::Error::Protocol("Invalid path".into()))?;
+
+		if !self.documents.is_opened(&uri) {
+			self.open_document(path, language, text).await?;
+			return Ok(None);
+		}
+
+		let version = self
+			.documents
+			.increment_version(&uri)
+			.ok_or_else(|| crate::Error::Protocol("Document not registered".into()))?;
+
+		let Some(client) = self.registry.get(language, path) else {
+			self.open_document(path, language, text).await?;
+			return Ok(None);
+		};
+
+		let ack = client.text_document_did_change_full_with_ack(uri, version, text.to_string())?;
+		Ok(Some(ack))
 	}
 
 	/// Notify language servers of an incremental document change.
@@ -237,11 +270,57 @@ impl DocumentSync {
 			})
 			.collect();
 
-		if let Some(client) = self.registry.get(language, path) {
-			client.text_document_did_change(uri, version, content_changes)?;
-		}
+		let Some(client) = self.registry.get(language, path) else {
+			self.open_document(path, language, text).await?;
+			return Ok(());
+		};
+
+		client.text_document_did_change(uri, version, content_changes)?;
 
 		Ok(())
+	}
+
+	/// Notify language servers of an incremental change with an ack after write.
+	pub async fn notify_change_incremental_with_ack(
+		&self,
+		path: &Path,
+		language: &str,
+		text: &Rope,
+		changes: Vec<LspDocumentChange>,
+	) -> Result<Option<oneshot::Receiver<()>>> {
+		if changes.is_empty() {
+			return Ok(None);
+		}
+
+		let uri = crate::uri_from_path(path)
+			.ok_or_else(|| crate::Error::Protocol("Invalid path".into()))?;
+
+		if !self.documents.is_opened(&uri) {
+			self.open_document(path, language, text).await?;
+			return Ok(None);
+		}
+
+		let version = self
+			.documents
+			.increment_version(&uri)
+			.ok_or_else(|| crate::Error::Protocol("Document not registered".into()))?;
+
+		let content_changes: Vec<TextDocumentContentChangeEvent> = changes
+			.into_iter()
+			.map(|change| TextDocumentContentChangeEvent {
+				range: Some(base_range_to_lsp(change.range)),
+				range_length: None,
+				text: change.new_text,
+			})
+			.collect();
+
+		let Some(client) = self.registry.get(language, path) else {
+			self.open_document(path, language, text).await?;
+			return Ok(None);
+		};
+
+		let ack = client.text_document_did_change_with_ack(uri, version, content_changes)?;
+		Ok(Some(ack))
 	}
 
 	/// Notify language servers that a document will be saved.

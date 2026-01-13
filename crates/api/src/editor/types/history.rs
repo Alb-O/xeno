@@ -14,3 +14,12 @@ pub struct HistoryEntry {
 	/// Per-buffer selections at this point in history.
 	pub selections: HashMap<BufferId, Selection>,
 }
+
+/// Editor-level undo entry grouping buffer edits.
+#[derive(Clone, Debug)]
+pub enum EditorUndoEntry {
+	/// Single-buffer edit (delegates to document undo).
+	Single { buffer_id: BufferId },
+	/// Grouped edit across multiple buffers.
+	Group { buffers: Vec<BufferId> },
+}

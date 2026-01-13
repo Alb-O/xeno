@@ -37,6 +37,8 @@ pub mod menu;
 pub mod overlay;
 /// Command palette for executing commands.
 pub mod palette;
+/// Prompt overlay for one-line inputs (rename, etc).
+pub mod prompt;
 /// Platform-specific configuration paths.
 pub mod paths;
 /// Rendering utilities for buffers, status line, and completion.

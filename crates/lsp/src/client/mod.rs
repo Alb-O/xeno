@@ -46,7 +46,9 @@ use std::ops::ControlFlow;
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use std::sync::Arc;
+use std::time::Duration;
 
+use futures::channel::oneshot;
 use lsp_types::notification::Notification;
 use lsp_types::request::Request;
 use lsp_types::{
@@ -54,7 +56,7 @@ use lsp_types::{
 };
 use serde_json::Value;
 use tokio::process::Command;
-use tokio::sync::{Notify, OnceCell};
+use tokio::sync::{Notify, OnceCell, mpsc};
 use tracing::{debug, error, info, warn};
 
 mod capabilities;
@@ -65,8 +67,11 @@ pub use capabilities::client_capabilities;
 pub use config::{LanguageServerId, OffsetEncoding, ServerConfig};
 pub use event_handler::{LogLevel, LspEventHandler, NoOpEventHandler, SharedEventHandler};
 
+use crate::message::Message;
 use crate::router::Router;
-use crate::{MainLoop, Result, ServerSocket};
+use crate::socket::MainLoopEvent;
+use crate::types::{AnyNotification, AnyRequest, AnyResponse, RequestId};
+use crate::{Error, MainLoop, Result, ServerSocket};
 
 /// Handle to an LSP language server.
 ///
@@ -89,6 +94,10 @@ pub struct ClientHandle {
 	root_uri: Option<Uri>,
 	/// Notification channel for initialization completion.
 	initialize_notify: Arc<Notify>,
+	/// Outbound message queue for serialized writes.
+	outbound_tx: mpsc::Sender<OutboundMsg>,
+	/// Per-request timeout.
+	timeout: Duration,
 }
 
 impl std::fmt::Debug for ClientHandle {
@@ -174,6 +183,24 @@ impl ClientHandle {
 	pub fn supports_code_action(&self) -> bool {
 		self.try_capabilities()
 			.is_some_and(|c| c.code_action_provider.is_some())
+	}
+
+	/// Check if the server supports signature help.
+	pub fn supports_signature_help(&self) -> bool {
+		self.try_capabilities()
+			.is_some_and(|c| c.signature_help_provider.is_some())
+	}
+
+	/// Check if the server supports rename.
+	pub fn supports_rename(&self) -> bool {
+		self.try_capabilities()
+			.is_some_and(|c| c.rename_provider.is_some())
+	}
+
+	/// Check if the server supports execute command.
+	pub fn supports_execute_command(&self) -> bool {
+		self.try_capabilities()
+			.is_some_and(|c| c.execute_command_provider.is_some())
 	}
 
 	/// Get the offset encoding negotiated with the server.
@@ -292,16 +319,49 @@ impl ClientHandle {
 		version: i32,
 		text: String,
 	) -> Result<()> {
-		self.notify::<lsp_types::notification::DidChangeTextDocument>(
-			lsp_types::DidChangeTextDocumentParams {
+		let notification = AnyNotification {
+			method: lsp_types::notification::DidChangeTextDocument::METHOD.into(),
+			params: serde_json::to_value(lsp_types::DidChangeTextDocumentParams {
 				text_document: lsp_types::VersionedTextDocumentIdentifier { uri, version },
 				content_changes: vec![lsp_types::TextDocumentContentChangeEvent {
 					range: None,
 					range_length: None,
 					text,
 				}],
-			},
-		)
+			})
+			.expect("Failed to serialize"),
+		};
+		self.send_outbound(OutboundMsg::DidChange {
+			notification,
+			ack: None,
+		})
+	}
+
+	/// Notify the server that a document was changed (full sync) with an ack.
+	pub fn text_document_did_change_full_with_ack(
+		&self,
+		uri: Uri,
+		version: i32,
+		text: String,
+	) -> Result<oneshot::Receiver<()>> {
+		let notification = AnyNotification {
+			method: lsp_types::notification::DidChangeTextDocument::METHOD.into(),
+			params: serde_json::to_value(lsp_types::DidChangeTextDocumentParams {
+				text_document: lsp_types::VersionedTextDocumentIdentifier { uri, version },
+				content_changes: vec![lsp_types::TextDocumentContentChangeEvent {
+					range: None,
+					range_length: None,
+					text,
+				}],
+			})
+			.expect("Failed to serialize"),
+		};
+		let (tx, rx) = oneshot::channel();
+		self.send_outbound(OutboundMsg::DidChange {
+			notification,
+			ack: Some(tx),
+		})?;
+		Ok(rx)
 	}
 
 	/// Notify the server that a document was changed (incremental sync).
@@ -311,12 +371,41 @@ impl ClientHandle {
 		version: i32,
 		changes: Vec<lsp_types::TextDocumentContentChangeEvent>,
 	) -> Result<()> {
-		self.notify::<lsp_types::notification::DidChangeTextDocument>(
-			lsp_types::DidChangeTextDocumentParams {
+		let notification = AnyNotification {
+			method: lsp_types::notification::DidChangeTextDocument::METHOD.into(),
+			params: serde_json::to_value(lsp_types::DidChangeTextDocumentParams {
 				text_document: lsp_types::VersionedTextDocumentIdentifier { uri, version },
 				content_changes: changes,
-			},
-		)
+			})
+			.expect("Failed to serialize"),
+		};
+		self.send_outbound(OutboundMsg::DidChange {
+			notification,
+			ack: None,
+		})
+	}
+
+	/// Notify the server that a document was changed (incremental sync) with an ack.
+	pub fn text_document_did_change_with_ack(
+		&self,
+		uri: Uri,
+		version: i32,
+		changes: Vec<lsp_types::TextDocumentContentChangeEvent>,
+	) -> Result<oneshot::Receiver<()>> {
+		let notification = AnyNotification {
+			method: lsp_types::notification::DidChangeTextDocument::METHOD.into(),
+			params: serde_json::to_value(lsp_types::DidChangeTextDocumentParams {
+				text_document: lsp_types::VersionedTextDocumentIdentifier { uri, version },
+				content_changes: changes,
+			})
+			.expect("Failed to serialize"),
+		};
+		let (tx, rx) = oneshot::channel();
+		self.send_outbound(OutboundMsg::DidChange {
+			notification,
+			ack: Some(tx),
+		})?;
+		Ok(rx)
 	}
 
 	/// Notify the server that a document will be saved.
@@ -504,6 +593,30 @@ impl ClientHandle {
 		.await
 	}
 
+	/// Request signature help.
+	///
+	/// Returns `Ok(None)` if the server doesn't support signature help.
+	pub async fn signature_help(
+		&self,
+		uri: Uri,
+		position: lsp_types::Position,
+	) -> Result<Option<lsp_types::SignatureHelp>> {
+		if !self.supports_signature_help() {
+			return Ok(None);
+		}
+		self.request::<lsp_types::request::SignatureHelpRequest>(
+			lsp_types::SignatureHelpParams {
+				text_document_position_params: lsp_types::TextDocumentPositionParams {
+					text_document: lsp_types::TextDocumentIdentifier { uri },
+					position,
+				},
+				work_done_progress_params: Default::default(),
+				context: None,
+			},
+		)
+		.await
+	}
+
 	/// Request rename.
 	pub async fn rename(
 		&self,
@@ -511,6 +624,9 @@ impl ClientHandle {
 		position: lsp_types::Position,
 		new_name: String,
 	) -> Result<Option<lsp_types::WorkspaceEdit>> {
+		if !self.supports_rename() {
+			return Ok(None);
+		}
 		self.request::<lsp_types::request::Rename>(lsp_types::RenameParams {
 			text_document_position: lsp_types::TextDocumentPositionParams {
 				text_document: lsp_types::TextDocumentIdentifier { uri },
@@ -522,14 +638,119 @@ impl ClientHandle {
 		.await
 	}
 
+	/// Execute a command on the server.
+	///
+	/// Returns `Ok(None)` if the server doesn't support execute command.
+	pub async fn execute_command(
+		&self,
+		command: String,
+		arguments: Option<Vec<Value>>,
+	) -> Result<Option<Value>> {
+		if !self.supports_execute_command() {
+			return Ok(None);
+		}
+		let arguments = arguments.unwrap_or_default();
+		self.request::<lsp_types::request::ExecuteCommand>(
+			lsp_types::ExecuteCommandParams {
+				command,
+				arguments,
+				work_done_progress_params: Default::default(),
+			},
+		)
+		.await
+	}
+
 	/// Send a request to the language server.
 	pub async fn request<R: Request>(&self, params: R::Params) -> Result<R::Result> {
-		self.socket.request::<R>(params).await
+		let req = AnyRequest {
+			id: RequestId::Number(0),
+			method: R::METHOD.into(),
+			params: serde_json::to_value(params).expect("Failed to serialize"),
+		};
+		let (tx, rx) = oneshot::channel();
+		self.outbound_tx
+			.send(OutboundMsg::Request {
+				request: req,
+				response_tx: tx,
+			})
+			.await
+			.map_err(|_| Error::ServiceStopped)?;
+		let resp = if self.timeout == Duration::ZERO {
+			rx.await.map_err(|_| Error::ServiceStopped)?
+		} else {
+			match tokio::time::timeout(self.timeout, rx).await {
+				Ok(resp) => resp.map_err(|_| Error::ServiceStopped)?,
+				Err(_) => return Err(Error::RequestTimeout(R::METHOD.into())),
+			}
+		};
+		match resp.error {
+			None => Ok(serde_json::from_value(resp.result.unwrap_or_default())?),
+			Some(err) => Err(Error::Response(err)),
+		}
 	}
 
 	/// Send a notification to the language server.
 	pub fn notify<N: Notification>(&self, params: N::Params) -> Result<()> {
-		self.socket.notify::<N>(params)
+		let notif = AnyNotification {
+			method: N::METHOD.into(),
+			params: serde_json::to_value(params).expect("Failed to serialize"),
+		};
+		self.send_outbound(OutboundMsg::Notification { notification: notif })
+	}
+
+	fn send_outbound(&self, msg: OutboundMsg) -> Result<()> {
+		self.outbound_tx.try_send(msg).map_err(|err| match err {
+			tokio::sync::mpsc::error::TrySendError::Closed(_) => Error::ServiceStopped,
+			tokio::sync::mpsc::error::TrySendError::Full(_) => {
+				Error::Protocol("Outbound LSP queue is full".into())
+			}
+		})
+	}
+}
+
+const OUTBOUND_QUEUE_LEN: usize = 256;
+
+enum OutboundMsg {
+	Notification { notification: AnyNotification },
+	Request {
+		request: AnyRequest,
+		response_tx: oneshot::Sender<AnyResponse>,
+	},
+	DidChange {
+		notification: AnyNotification,
+		ack: Option<oneshot::Sender<()>>,
+	},
+}
+
+async fn outbound_dispatcher(
+	mut rx: mpsc::Receiver<OutboundMsg>,
+	socket: ServerSocket,
+) {
+	while let Some(msg) = rx.recv().await {
+		let result = match msg {
+			OutboundMsg::Notification { notification } => socket
+				.0
+				.send(MainLoopEvent::Outgoing(Message::Notification(notification))),
+			OutboundMsg::Request {
+				request,
+				response_tx,
+			} => socket
+				.0
+				.send(MainLoopEvent::OutgoingRequest(request, response_tx)),
+			OutboundMsg::DidChange { notification, ack } => match ack {
+				Some(ack) => socket.0.send(MainLoopEvent::OutgoingWithAck(
+					Message::Notification(notification),
+					ack,
+				)),
+				None => socket
+					.0
+					.send(MainLoopEvent::Outgoing(Message::Notification(notification))),
+			},
+		};
+
+		if let Err(err) = result {
+			warn!(error = %err, "Failed to queue LSP outbound message");
+		}
 	}
 }
 
@@ -697,6 +918,10 @@ pub fn start_server(
 		router
 	});
 
+	let (outbound_tx, outbound_rx) = mpsc::channel(OUTBOUND_QUEUE_LEN);
+	let outbound_socket = socket.clone();
+	tokio::spawn(outbound_dispatcher(outbound_rx, outbound_socket));
+
 	let handle = ClientHandle {
 		id,
 		name,
@@ -705,6 +930,8 @@ pub fn start_server(
 		root_path: config.root_path,
 		root_uri,
 		initialize_notify,
+		outbound_tx,
+		timeout: Duration::from_secs(config.timeout_secs),
 	};
 
 	let server_id = id;
@@ -737,4 +964,57 @@ fn workspace_folder_from_uri(uri: Uri) -> WorkspaceFolder {
 		.unwrap_or_default()
 		.to_string();
 	WorkspaceFolder { name, uri }
+}
+
+#[cfg(test)]
+mod tests {
+	use futures::StreamExt;
+
+	use super::*;
+	use crate::socket::PeerSocket;
+
+	#[tokio::test]
+	async fn outbound_dispatcher_preserves_fifo_order() {
+		let (peer_tx, mut peer_rx) = futures::channel::mpsc::unbounded();
+		let socket = ServerSocket(PeerSocket { tx: peer_tx });
+
+		let (outbound_tx, outbound_rx) = mpsc::channel(4);
+		tokio::spawn(outbound_dispatcher(outbound_rx, socket));
+
+		outbound_tx
+			.send(OutboundMsg::Notification {
+				notification: AnyNotification {
+					method: "first".into(),
+					params: serde_json::Value::Null,
+				},
+			})
+			.await
+			.unwrap();
+		outbound_tx
+			.send(OutboundMsg::Notification {
+				notification: AnyNotification {
+					method: "second".into(),
+					params: serde_json::Value::Null,
+				},
+			})
+			.await
+			.unwrap();
+
+		let first = peer_rx.next().await.expect("first event");
+		let second = peer_rx.next().await.expect("second event");
+
+		match first {
+			MainLoopEvent::Outgoing(Message::Notification(notif)) => {
+				assert_eq!(notif.method, "first");
+			}
+			other => panic!("unexpected first event: {:?}", other),
+		}
+
+		match second {
+			MainLoopEvent::Outgoing(Message::Notification(notif)) => {
+				assert_eq!(notif.method, "second");
+			}
+			other => panic!("unexpected second event: {:?}", other),
+		}
+	}
 }
