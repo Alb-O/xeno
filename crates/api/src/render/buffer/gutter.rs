@@ -268,9 +268,9 @@ impl GutterLayout {
 					GutterStyle::Dim | GutterStyle::Hint => {
 						theme.colors.ui.gutter_fg.blend(theme.colors.ui.bg, 0.5)
 					}
-					GutterStyle::Error => theme.colors.status.error_fg,
-					GutterStyle::Warning => theme.colors.status.warning_fg,
-					GutterStyle::Info => Color::Blue,
+					GutterStyle::Error => theme.colors.semantic.error,
+					GutterStyle::Warning => theme.colors.semantic.warning,
+					GutterStyle::Info => theme.colors.semantic.info,
 				};
 
 				let mut style = Style::default().fg(fg);

@@ -6,7 +6,8 @@ use std::path::PathBuf;
 
 use kdl::{KdlDocument, KdlNode};
 pub use xeno_registry::themes::{
-	NotificationColors, PopupColors, StatusColors, ThemeColors, ThemeVariant, UiColors,
+	ColorPair, ModeColors, NotificationColors, PopupColors, SemanticColors, ThemeColors,
+	ThemeVariant, UiColors,
 };
 use xeno_registry::themes::{SyntaxStyle, SyntaxStyles};
 
@@ -77,7 +78,8 @@ pub fn parse_standalone_theme(input: &str) -> Result<ParsedTheme> {
 		.unwrap_or_default();
 
 	let ui = parse_ui_colors(doc.get("ui"), &ctx)?;
-	let status = parse_status_colors(doc.get("status"), &ctx)?;
+	let mode = parse_mode_colors(doc.get("mode"), &ctx)?;
+	let semantic = parse_semantic_colors(doc.get("semantic"), &ctx)?;
 	let popup = parse_popup_colors(doc.get("popup"), &ctx)?;
 	let syntax = parse_syntax_styles(doc.get("syntax"), &ctx)?;
 
@@ -87,7 +89,8 @@ pub fn parse_standalone_theme(input: &str) -> Result<ParsedTheme> {
 		aliases,
 		colors: ThemeColors {
 			ui,
-			status,
+			mode,
+			semantic,
 			popup,
 			notification: NotificationColors::INHERITED,
 			syntax,
@@ -132,7 +135,8 @@ pub fn parse_theme_node(node: &KdlNode) -> Result<ParsedTheme> {
 		.unwrap_or_default();
 
 	let ui = parse_ui_colors(children.get("ui"), &ctx)?;
-	let status = parse_status_colors(children.get("status"), &ctx)?;
+	let mode = parse_mode_colors(children.get("mode"), &ctx)?;
+	let semantic = parse_semantic_colors(children.get("semantic"), &ctx)?;
 	let popup = parse_popup_colors(children.get("popup"), &ctx)?;
 	let syntax = parse_syntax_styles(children.get("syntax"), &ctx)?;
 
@@ -142,7 +146,8 @@ pub fn parse_theme_node(node: &KdlNode) -> Result<ParsedTheme> {
 		aliases,
 		colors: ThemeColors {
 			ui,
-			status,
+			mode,
+			semantic,
 			popup,
 			notification: NotificationColors::INHERITED,
 			syntax,
@@ -181,28 +186,50 @@ fn parse_ui_colors(node: Option<&KdlNode>, ctx: &ParseContext) -> Result<UiColor
 	})
 }
 
-/// Parses status bar colors from a KDL node.
-fn parse_status_colors(node: Option<&KdlNode>, ctx: &ParseContext) -> Result<StatusColors> {
-	let node = node.ok_or_else(|| ConfigError::MissingField("status".into()))?;
+/// Parses a color pair (bg + fg) from a KDL node.
+fn parse_color_pair(
+	children: &kdl::KdlDocument,
+	prefix: &str,
+	ctx: &ParseContext,
+) -> Result<ColorPair> {
+	Ok(ColorPair {
+		bg: get_color_field(children, &format!("{prefix}-bg"), ctx)?,
+		fg: get_color_field(children, &format!("{prefix}-fg"), ctx)?,
+	})
+}
+
+/// Parses mode indicator colors from a KDL node.
+fn parse_mode_colors(node: Option<&KdlNode>, ctx: &ParseContext) -> Result<ModeColors> {
+	let node = node.ok_or_else(|| ConfigError::MissingField("mode".into()))?;
 	let children = node
 		.children()
-		.ok_or_else(|| ConfigError::MissingField("status".into()))?;
+		.ok_or_else(|| ConfigError::MissingField("mode".into()))?;
 
-	Ok(StatusColors {
-		normal_bg: get_color_field(children, "normal-bg", ctx)?,
-		normal_fg: get_color_field(children, "normal-fg", ctx)?,
-		insert_bg: get_color_field(children, "insert-bg", ctx)?,
-		insert_fg: get_color_field(children, "insert-fg", ctx)?,
-		prefix_mode_bg: get_color_field(children, "prefix-mode-bg", ctx)?,
-		prefix_mode_fg: get_color_field(children, "prefix-mode-fg", ctx)?,
-		accent_bg: get_color_field(children, "accent-bg", ctx)?,
-		accent_fg: get_color_field(children, "accent-fg", ctx)?,
-		command_bg: get_color_field(children, "command-bg", ctx)?,
-		command_fg: get_color_field(children, "command-fg", ctx)?,
-		dim_fg: get_color_field(children, "dim-fg", ctx)?,
-		warning_fg: get_color_field(children, "warning-fg", ctx)?,
-		error_fg: get_color_field(children, "error-fg", ctx)?,
-		success_fg: get_color_field(children, "success-fg", ctx)?,
+	Ok(ModeColors {
+		normal: parse_color_pair(children, "normal", ctx)?,
+		insert: parse_color_pair(children, "insert", ctx)?,
+		prefix: parse_color_pair(children, "prefix", ctx)?,
+		command: parse_color_pair(children, "command", ctx)?,
+	})
+}
+
+/// Parses semantic colors from a KDL node.
+fn parse_semantic_colors(node: Option<&KdlNode>, ctx: &ParseContext) -> Result<SemanticColors> {
+	let node = node.ok_or_else(|| ConfigError::MissingField("semantic".into()))?;
+	let children = node
+		.children()
+		.ok_or_else(|| ConfigError::MissingField("semantic".into()))?;
+
+	Ok(SemanticColors {
+		error: get_color_field(children, "error", ctx)?,
+		warning: get_color_field(children, "warning", ctx)?,
+		success: get_color_field(children, "success", ctx)?,
+		info: get_color_field(children, "info", ctx)?,
+		hint: get_color_field(children, "hint", ctx)?,
+		dim: get_color_field(children, "dim", ctx)?,
+		link: get_color_field(children, "link", ctx)?,
+		match_hl: get_color_field(children, "match", ctx)?,
+		accent: get_color_field(children, "accent", ctx)?,
 	})
 }
 

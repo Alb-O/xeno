@@ -38,22 +38,28 @@ ui {
 	message-fg $yellow
 	command-input-fg $base0
 }
-// Status bar colors
-status {
+// Mode indicator colors (status bar badges)
+mode {
 	normal-bg $blue
 	normal-fg $base03
 	insert-bg $green
 	insert-fg $base03
-	prefix-mode-bg $magenta
-	prefix-mode-fg $base3
-	accent-bg $cyan
-	accent-fg $base03
+	prefix-bg $magenta
+	prefix-fg $base3
 	command-bg $yellow
 	command-fg $base03
-	dim-fg $base01
-	warning-fg $orange
-	error-fg $red
-	success-fg $green
+}
+// Semantic colors
+semantic {
+	error $red
+	warning $orange
+	success $green
+	info $blue
+	hint $base01
+	dim $base01
+	link $cyan
+	match $green
+	accent $cyan
 }
 // Popup and menu colors
 popup {

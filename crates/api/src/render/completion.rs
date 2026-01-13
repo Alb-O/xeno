@@ -100,11 +100,11 @@ impl Editor {
 				};
 
 				let kind_color = match item.kind {
-					CompletionKind::Command => self.config.theme.colors.status.command_bg,
-					CompletionKind::File => self.config.theme.colors.status.normal_bg,
-					CompletionKind::Buffer => self.config.theme.colors.status.accent_bg,
-					CompletionKind::Snippet => self.config.theme.colors.status.prefix_mode_bg,
-					CompletionKind::Theme => self.config.theme.colors.status.accent_bg,
+					CompletionKind::Command => self.config.theme.colors.mode.command.bg,
+					CompletionKind::File => self.config.theme.colors.mode.normal.bg,
+					CompletionKind::Buffer => self.config.theme.colors.semantic.accent,
+					CompletionKind::Snippet => self.config.theme.colors.mode.prefix.bg,
+					CompletionKind::Theme => self.config.theme.colors.semantic.accent,
 				};
 
 				let base_style = if is_selected {
@@ -143,11 +143,11 @@ impl Editor {
 					base_style
 				} else {
 					Style::default()
-						.fg(self.config.theme.colors.status.dim_fg)
+						.fg(self.config.theme.colors.semantic.dim)
 						.bg(self.config.theme.colors.popup.bg)
 				};
 
-				let match_style = label_style.fg(self.config.theme.colors.status.insert_bg);
+				let match_style = label_style.fg(self.config.theme.colors.semantic.match_hl);
 				let label_spans = build_highlighted_label(
 					&item.label,
 					item.match_indices.as_deref(),
@@ -166,7 +166,7 @@ impl Editor {
 			})
 			.collect();
 
-		let stripe_style = Style::default().fg(self.config.theme.colors.status.normal_bg);
+		let stripe_style = Style::default().fg(self.config.theme.colors.mode.normal.bg);
 		let border_set = xeno_tui::symbols::border::Set {
 			top_left: "▏",
 			vertical_left: "▏",

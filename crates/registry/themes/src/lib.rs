@@ -54,38 +54,75 @@ pub struct UiColors {
 	pub command_input_fg: Color,
 }
 
-/// Status line color definitions per mode.
+/// A background/foreground color pair for UI elements like mode badges.
 #[derive(Clone, Copy, Debug)]
-pub struct StatusColors {
-	/// Normal mode background color.
-	pub normal_bg: Color,
-	/// Normal mode foreground color.
-	pub normal_fg: Color,
-	/// Insert mode background color.
-	pub insert_bg: Color,
-	/// Insert mode foreground color.
-	pub insert_fg: Color,
-	/// Prefix mode colors (Window mode, multi-key sequences).
-	pub prefix_mode_bg: Color,
-	/// Prefix mode foreground color.
-	pub prefix_mode_fg: Color,
-	/// Accent colors for UI elements (completion icons, etc.).
-	pub accent_bg: Color,
-	/// Accent foreground color.
-	pub accent_fg: Color,
-	/// Command mode background color.
-	pub command_bg: Color,
-	/// Command mode foreground color.
-	pub command_fg: Color,
+pub struct ColorPair {
+	/// Background color.
+	pub bg: Color,
+	/// Foreground (text) color.
+	pub fg: Color,
+}
 
-	/// Dimmed/muted text color.
-	pub dim_fg: Color,
-	/// Warning message foreground color.
-	pub warning_fg: Color,
-	/// Error message foreground color.
-	pub error_fg: Color,
-	/// Success message foreground color.
-	pub success_fg: Color,
+impl ColorPair {
+	/// Creates a new color pair.
+	pub const fn new(bg: Color, fg: Color) -> Self {
+		Self { bg, fg }
+	}
+
+	/// Converts to a [`Style`] with both bg and fg set.
+	pub fn to_style(self) -> Style {
+		Style::new().bg(self.bg).fg(self.fg)
+	}
+}
+
+/// Mode indicator colors for status bar badges.
+#[derive(Clone, Copy, Debug)]
+pub struct ModeColors {
+	/// Normal mode colors.
+	pub normal: ColorPair,
+	/// Insert mode colors.
+	pub insert: ColorPair,
+	/// Prefix/pending mode colors (window mode, multi-key sequences).
+	pub prefix: ColorPair,
+	/// Command mode colors.
+	pub command: ColorPair,
+}
+
+impl ModeColors {
+	/// Returns the color pair for a given editor mode.
+	pub fn for_mode(&self, mode: &Mode) -> ColorPair {
+		match mode {
+			Mode::Normal => self.normal,
+			Mode::Insert => self.insert,
+			Mode::PendingAction(_) => self.command,
+		}
+	}
+}
+
+/// Semantic colors used throughout the UI.
+///
+/// These are single colors (not pairs) intended for use as foreground colors
+/// to convey meaning: errors, warnings, matches, links, etc.
+#[derive(Clone, Copy, Debug)]
+pub struct SemanticColors {
+	/// Error messages and indicators.
+	pub error: Color,
+	/// Warning messages and indicators.
+	pub warning: Color,
+	/// Success messages and indicators.
+	pub success: Color,
+	/// Informational messages.
+	pub info: Color,
+	/// Hints and subtle information.
+	pub hint: Color,
+	/// Dimmed/muted text.
+	pub dim: Color,
+	/// Links and interactive elements.
+	pub link: Color,
+	/// Search/filter match highlighting.
+	pub match_hl: Color,
+	/// General accent color for emphasis.
+	pub accent: Color,
 }
 
 /// Popup/menu color definitions.
@@ -150,8 +187,10 @@ pub const SEMANTIC_NORMAL: &str = "normal";
 pub struct ThemeColors {
 	/// Core editor UI colors.
 	pub ui: UiColors,
-	/// Status line colors per mode.
-	pub status: StatusColors,
+	/// Mode indicator colors for status bar.
+	pub mode: ModeColors,
+	/// Semantic colors for messages, highlights, etc.
+	pub semantic: SemanticColors,
 	/// Popup/menu colors.
 	pub popup: PopupColors,
 	/// Notification color overrides.
@@ -164,12 +203,7 @@ impl ThemeColors {
 	/// Get the style for a given editor mode (for status line mode indicator).
 	#[inline]
 	pub fn mode_style(&self, mode: &Mode) -> Style {
-		let s = &self.status;
-		match mode {
-			Mode::Normal => Style::new().bg(s.normal_bg).fg(s.normal_fg),
-			Mode::Insert => Style::new().bg(s.insert_bg).fg(s.insert_fg),
-			Mode::PendingAction(_) => Style::new().bg(s.command_bg).fg(s.command_fg),
-		}
+		self.mode.for_mode(mode).to_style()
 	}
 
 	/// Resolve notification style for a given semantic identifier.
@@ -185,10 +219,11 @@ impl ThemeColors {
 
 		let fg = override_pair.and_then(|p| p.fg).unwrap_or({
 			match semantic {
-				SEMANTIC_WARNING => self.status.warning_fg,
-				SEMANTIC_ERROR => self.status.error_fg,
-				SEMANTIC_SUCCESS => self.status.success_fg,
-				SEMANTIC_DIM => self.status.dim_fg,
+				SEMANTIC_WARNING => self.semantic.warning,
+				SEMANTIC_ERROR => self.semantic.error,
+				SEMANTIC_SUCCESS => self.semantic.success,
+				SEMANTIC_DIM => self.semantic.dim,
+				SEMANTIC_INFO => self.semantic.info,
 				_ => self.popup.fg,
 			}
 		});
@@ -300,21 +335,22 @@ pub static DEFAULT_THEME: Theme = Theme {
 			message_fg: Color::Yellow,
 			command_input_fg: Color::White,
 		},
-		status: StatusColors {
-			normal_bg: Color::Blue,
-			normal_fg: Color::White,
-			insert_bg: Color::Green,
-			insert_fg: Color::Black,
-			prefix_mode_bg: Color::Magenta,
-			prefix_mode_fg: Color::White,
-			accent_bg: Color::Cyan,
-			accent_fg: Color::Black,
-			command_bg: Color::Yellow,
-			command_fg: Color::Black,
-			dim_fg: Color::DarkGray,
-			warning_fg: Color::Yellow,
-			error_fg: Color::Red,
-			success_fg: Color::Green,
+		mode: ModeColors {
+			normal: ColorPair::new(Color::Blue, Color::White),
+			insert: ColorPair::new(Color::Green, Color::Black),
+			prefix: ColorPair::new(Color::Magenta, Color::White),
+			command: ColorPair::new(Color::Yellow, Color::Black),
+		},
+		semantic: SemanticColors {
+			error: Color::Red,
+			warning: Color::Yellow,
+			success: Color::Green,
+			info: Color::Cyan,
+			hint: Color::DarkGray,
+			dim: Color::DarkGray,
+			link: Color::Cyan,
+			match_hl: Color::Green,
+			accent: Color::Cyan,
 		},
 		popup: PopupColors {
 			bg: Color::Rgb(10, 10, 10),

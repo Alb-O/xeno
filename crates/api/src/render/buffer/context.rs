@@ -129,12 +129,7 @@ impl<'a> BufferRenderContext<'a> {
 
 	/// Returns the accent color for the current mode.
 	fn mode_color(&self, mode: Mode) -> xeno_tui::style::Color {
-		let status = &self.theme.colors.status;
-		match mode {
-			Mode::Normal => status.normal_bg,
-			Mode::Insert => status.insert_bg,
-			Mode::PendingAction(_) => status.prefix_mode_bg,
-		}
+		self.theme.colors.mode.for_mode(&mode).bg
 	}
 
 	/// Collects syntax highlight spans for a buffer's visible viewport.
@@ -257,13 +252,13 @@ impl<'a> BufferRenderContext<'a> {
 			return style;
 		};
 
-		use xeno_tui::style::{Color, UnderlineStyle};
+		use xeno_tui::style::UnderlineStyle;
 
 		let underline_color = match severity {
-			4 => self.theme.colors.status.error_fg,
-			3 => self.theme.colors.status.warning_fg,
-			2 => Color::Blue,
-			1 => Color::Cyan,
+			4 => self.theme.colors.semantic.error,
+			3 => self.theme.colors.semantic.warning,
+			2 => self.theme.colors.semantic.info,
+			1 => self.theme.colors.semantic.hint,
 			_ => return style,
 		};
 

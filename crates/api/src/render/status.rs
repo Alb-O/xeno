@@ -69,10 +69,10 @@ impl Editor {
 			SegmentStyle::Normal => Style::default().fg(colors.ui.fg),
 			SegmentStyle::Mode => colors.mode_style(&self.mode()).add_modifier(Modifier::BOLD),
 			SegmentStyle::Inverted => Style::default().add_modifier(Modifier::REVERSED),
-			SegmentStyle::Dim => Style::default().fg(colors.status.dim_fg),
-			SegmentStyle::Warning => Style::default().fg(colors.status.warning_fg),
-			SegmentStyle::Error => Style::default().fg(colors.status.error_fg),
-			SegmentStyle::Success => Style::default().fg(colors.status.success_fg),
+			SegmentStyle::Dim => Style::default().fg(colors.semantic.dim),
+			SegmentStyle::Warning => Style::default().fg(colors.semantic.warning),
+			SegmentStyle::Error => Style::default().fg(colors.semantic.error),
+			SegmentStyle::Success => Style::default().fg(colors.semantic.success),
 		};
 		Span::styled(segment.text.clone(), style)
 	}

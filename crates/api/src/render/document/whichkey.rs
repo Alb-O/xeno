@@ -104,7 +104,7 @@ impl Editor {
 			)
 			.borders(Borders::ALL)
 			.border_type(BorderType::Stripe)
-			.border_style(Style::default().fg(self.config.theme.colors.status.warning_fg))
+			.border_style(Style::default().fg(self.config.theme.colors.semantic.accent))
 			.padding(Padding::horizontal(1));
 
 		let inner = block.inner(hud_area);
@@ -116,7 +116,7 @@ impl Editor {
 			.ancestor_style(Style::default().fg(self.config.theme.colors.ui.gutter_fg))
 			.key_style(
 				Style::default()
-					.fg(self.config.theme.colors.status.warning_fg)
+					.fg(self.config.theme.colors.semantic.accent)
 					.add_modifier(Modifier::BOLD),
 			)
 			.desc_style(Style::default().fg(self.config.theme.colors.popup.fg))
