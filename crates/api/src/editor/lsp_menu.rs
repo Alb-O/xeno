@@ -17,6 +17,8 @@ use xeno_registry_notifications::keys;
 use crate::buffer::BufferId;
 use crate::editor::Editor;
 use crate::editor::completion_controller::{CompletionRequest, CompletionTrigger};
+use crate::editor::completion_filter::{extract_query, filter_items};
+use crate::editor::lsp_events::map_completion_item_with_indices;
 use crate::editor::snippet::{Snippet, SnippetPlaceholder, parse_snippet};
 use crate::editor::types::{CompletionState, LspMenuKind, LspMenuState, SelectionIntent};
 use crate::editor::workspace_edit::{
@@ -197,6 +199,56 @@ impl Editor {
 		};
 
 		self.completion_controller.trigger(request);
+	}
+
+	/// Refilters the active completion menu with the current query.
+	///
+	/// Called when the user types or deletes while a completion menu is visible,
+	/// to update filtering without waiting for a new LSP response.
+	pub(crate) fn refilter_completion(&mut self) {
+		let menu_kind = self.overlays.get::<LspMenuState>().and_then(|s| s.active());
+		let Some(LspMenuKind::Completion { buffer_id, items }) = menu_kind else {
+			return;
+		};
+		let buffer_id = *buffer_id;
+		let items = items.clone();
+
+		let Some(buffer) = self.buffers.get_buffer(buffer_id) else {
+			return;
+		};
+
+		let replace_start = self
+			.overlays
+			.get::<CompletionState>()
+			.map(|s| s.replace_start)
+			.unwrap_or(0);
+
+		if buffer.cursor < replace_start {
+			self.clear_lsp_menu();
+			return;
+		}
+
+		let query = extract_query(&buffer.doc().content, replace_start, buffer.cursor);
+		let filtered = filter_items(&items, &query);
+
+		if filtered.is_empty() {
+			self.clear_lsp_menu();
+			return;
+		}
+
+		let display_items: Vec<UiCompletionItem> = filtered
+			.iter()
+			.map(|f| map_completion_item_with_indices(&items[f.index], f.match_indices.clone()))
+			.collect();
+
+		let completions = self.overlays.get_or_default::<CompletionState>();
+		completions.items = display_items;
+		completions.selected_idx = None;
+		completions.selection_intent = SelectionIntent::Auto;
+		completions.scroll_offset = 0;
+		completions.query = query;
+
+		self.frame.needs_redraw = true;
 	}
 
 	pub(crate) async fn open_code_action_menu(&mut self) -> bool {
@@ -576,6 +628,7 @@ fn map_code_action_item(action: &CodeActionOrCommand) -> UiCompletionItem {
 		detail,
 		filter_text: None,
 		kind: CompletionKind::Command,
+		match_indices: None,
 	}
 }
 

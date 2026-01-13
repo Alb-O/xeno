@@ -8,6 +8,7 @@ use xeno_lsp::lsp_types::{
 
 use crate::buffer::BufferId;
 use crate::editor::Editor;
+use crate::editor::completion_filter::{extract_query, filter_items};
 use crate::editor::types::{CompletionState, LspMenuKind, LspMenuState, SelectionIntent};
 use crate::info_popup::PopupAnchor;
 
@@ -72,8 +73,20 @@ impl Editor {
 					return;
 				}
 
-				let display_items: Vec<CompletionItem> =
-					items.iter().map(map_completion_item).collect();
+				let query = extract_query(&buffer.doc().content, replace_start, buffer.cursor);
+				let filtered = filter_items(&items, &query);
+
+				if filtered.is_empty() {
+					self.clear_lsp_menu();
+					return;
+				}
+
+				let display_items: Vec<CompletionItem> = filtered
+					.iter()
+					.map(|f| {
+						map_completion_item_with_indices(&items[f.index], f.match_indices.clone())
+					})
+					.collect();
 
 				let completions = self.overlays.get_or_default::<CompletionState>();
 				completions.items = display_items;
@@ -82,6 +95,7 @@ impl Editor {
 				completions.active = true;
 				completions.replace_start = replace_start;
 				completions.scroll_offset = 0;
+				completions.query = query;
 
 				let menu_state = self.overlays.get_or_default::<LspMenuState>();
 				menu_state.set(LspMenuKind::Completion { buffer_id, items });
@@ -123,6 +137,7 @@ impl Editor {
 			completions.active = false;
 			completions.scroll_offset = 0;
 			completions.replace_start = 0;
+			completions.query.clear();
 		}
 
 		if let Some(menu_state) = self.overlays.get::<LspMenuState>()
@@ -143,7 +158,14 @@ fn completion_items_from_response(response: CompletionResponse) -> Vec<LspComple
 	}
 }
 
-fn map_completion_item(item: &LspCompletionItem) -> CompletionItem {
+/// Converts an LSP [`CompletionItem`](LspCompletionItem) to the UI [`CompletionItem`] type.
+///
+/// Extracts label, insert text, detail, and kind from the LSP item. The `match_indices`
+/// are passed through for highlight rendering in the completion menu.
+pub(crate) fn map_completion_item_with_indices(
+	item: &LspCompletionItem,
+	match_indices: Option<Vec<usize>>,
+) -> CompletionItem {
 	let insert_text = item
 		.insert_text
 		.clone()
@@ -159,5 +181,6 @@ fn map_completion_item(item: &LspCompletionItem) -> CompletionItem {
 		detail: item.detail.clone(),
 		filter_text: item.filter_text.clone(),
 		kind,
+		match_indices,
 	}
 }

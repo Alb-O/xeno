@@ -29,6 +29,8 @@ pub struct CompletionState {
 	pub selection_intent: SelectionIntent,
 	/// Suppresses auto-popup until trigger char or manual invoke.
 	pub suppressed: bool,
+	/// Current filter query (text from replace_start to cursor).
+	pub query: String,
 }
 
 impl CompletionState {

@@ -74,6 +74,7 @@ pub mod theme {
 					)),
 					filter_text: None,
 					kind: CompletionKind::Theme,
+					match_indices: None,
 				})
 				.collect();
 

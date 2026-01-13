@@ -10,6 +10,61 @@ use crate::editor::types::CompletionState;
 #[cfg(feature = "lsp")]
 use crate::editor::types::LspMenuState;
 
+/// Builds styled [`Span`]s for a completion label with matched characters highlighted.
+///
+/// Splits the `label` into segments, applying `highlight_style` to characters at
+/// `match_indices` and `normal_style` elsewhere. Pads to `min_width` for alignment.
+/// Returns a single padded span if no match indices are provided.
+fn build_highlighted_label(
+	label: &str,
+	match_indices: Option<&[usize]>,
+	min_width: usize,
+	normal_style: Style,
+	highlight_style: Style,
+) -> Vec<Span<'static>> {
+	let Some(indices) = match_indices else {
+		return vec![Span::styled(
+			format!("{:<width$}", label, width = min_width),
+			normal_style,
+		)];
+	};
+
+	let mut spans = Vec::new();
+	let mut last_end = 0;
+	let chars: Vec<char> = label.chars().collect();
+
+	let mut sorted_indices: Vec<usize> = indices.to_vec();
+	sorted_indices.sort_unstable();
+	sorted_indices.dedup();
+
+	for &idx in &sorted_indices {
+		if idx >= chars.len() {
+			continue;
+		}
+		if idx > last_end {
+			let segment: String = chars[last_end..idx].iter().collect();
+			spans.push(Span::styled(segment, normal_style));
+		}
+		spans.push(Span::styled(chars[idx].to_string(), highlight_style));
+		last_end = idx + 1;
+	}
+
+	if last_end < chars.len() {
+		let segment: String = chars[last_end..].iter().collect();
+		spans.push(Span::styled(segment, normal_style));
+	}
+
+	let current_len: usize = chars.len();
+	if current_len < min_width {
+		spans.push(Span::styled(
+			" ".repeat(min_width - current_len),
+			normal_style,
+		));
+	}
+
+	spans
+}
+
 impl Editor {
 	/// Creates a widget for rendering the completion popup menu.
 	pub fn render_completion_menu(&self, _area: Rect) -> impl Widget + '_ {
@@ -92,14 +147,20 @@ impl Editor {
 						.bg(self.config.theme.colors.popup.bg)
 				};
 
-				let line = Line::from(vec![
-					Span::styled(format!(" {} ", kind_icon), icon_style),
-					Span::styled(
-						format!("{:<width$}", item.label, width = max_label_len),
-						label_style,
-					),
-					Span::styled(format!(" {:>4}  ", kind_name), dim_style),
-				]);
+				let match_style = label_style.fg(self.config.theme.colors.status.insert_bg);
+				let label_spans = build_highlighted_label(
+					&item.label,
+					item.match_indices.as_deref(),
+					max_label_len,
+					label_style,
+					match_style,
+				);
+
+				let mut spans = vec![Span::styled(format!(" {} ", kind_icon), icon_style)];
+				spans.extend(label_spans);
+				spans.push(Span::styled(format!(" {:>4}  ", kind_name), dim_style));
+
+				let line = Line::from(spans);
 
 				ListItem::new(line).style(base_style)
 			})

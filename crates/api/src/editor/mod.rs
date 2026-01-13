@@ -24,6 +24,9 @@ mod command_queue;
 /// LSP completion controller.
 #[cfg(feature = "lsp")]
 mod completion_controller;
+/// Fuzzy filtering for LSP completions.
+#[cfg(feature = "lsp")]
+mod completion_filter;
 /// Data-oriented edit operation executor.
 mod edit_op_executor;
 /// Text editing operations.

@@ -270,6 +270,11 @@ impl Editor {
 		} else if content_changed {
 			self.cancel_signature_help();
 			if self.buffer().mode() == xeno_base::Mode::Insert && !self.buffer().is_readonly() {
+				// Refilter existing menu immediately (no LSP round-trip)
+				if menu_active {
+					self.refilter_completion();
+				}
+				// Also trigger LSP request for fresh results (debounced)
 				self.trigger_lsp_completion(CompletionTrigger::Typing, inserted_char);
 				if inserted_char == Some('(') {
 					self.trigger_signature_help();

@@ -37,6 +37,8 @@ pub struct CompletionItem {
 	pub filter_text: Option<String>,
 	/// Kind of item.
 	pub kind: CompletionKind,
+	/// Indices of matched characters in the label for highlighting.
+	pub match_indices: Option<Vec<usize>>,
 }
 
 /// Result of a completion query.
@@ -122,6 +124,7 @@ impl CompletionSource for CommandSource {
 				detail: Some(cmd.description.to_string()),
 				filter_text: None,
 				kind: CompletionKind::Command,
+				match_indices: None,
 			})
 			.collect();
 

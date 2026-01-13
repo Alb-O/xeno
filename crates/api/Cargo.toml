@@ -7,12 +7,13 @@ license.workspace = true
 
 [features]
 default = []
-lsp = ["dep:xeno-lsp"]
+lsp = ["dep:xeno-lsp", "dep:frizbee"]
 [dependencies]
 anyhow = "1.0"
 async-trait = "0.1"
 clap.workspace = true
 dirs.workspace = true
+frizbee = { version = "0.6", optional = true }
 futures.workspace = true
 linkme.workspace = true
 parking_lot.workspace = true
