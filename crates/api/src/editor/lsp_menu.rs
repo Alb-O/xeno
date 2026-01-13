@@ -18,7 +18,7 @@ use crate::buffer::BufferId;
 use crate::editor::Editor;
 use crate::editor::completion_controller::{CompletionRequest, CompletionTrigger};
 use crate::editor::snippet::{Snippet, SnippetPlaceholder, parse_snippet};
-use crate::editor::types::{CompletionState, LspMenuKind, LspMenuState};
+use crate::editor::types::{CompletionState, LspMenuKind, LspMenuState, SelectionIntent};
 use crate::editor::workspace_edit::{
 	ApplyError, BufferEditPlan, PlannedTextEdit, convert_text_edit,
 };
@@ -47,6 +47,13 @@ impl Editor {
 		match key.code {
 			KeyCode::Escape => {
 				self.completion_controller.cancel();
+				if self
+					.overlays
+					.get::<CompletionState>()
+					.map_or(false, |s| s.active)
+				{
+					self.overlays.get_or_default::<CompletionState>().suppressed = true;
+				}
 				self.clear_lsp_menu();
 				return true;
 			}
@@ -66,14 +73,45 @@ impl Editor {
 				self.page_lsp_menu_selection(1);
 				return true;
 			}
-			KeyCode::Enter | KeyCode::Tab => {
+			KeyCode::Tab => {
 				let selected_idx = self
 					.overlays
 					.get::<CompletionState>()
 					.and_then(|state| state.selected_idx);
+				if let Some(idx) = selected_idx {
+					self.completion_controller.cancel();
+					self.clear_lsp_menu();
+					match menu_kind {
+						LspMenuKind::Completion { buffer_id, items } => {
+							if let Some(item) = items.get(idx).cloned() {
+								self.apply_completion_item(buffer_id, item).await;
+							}
+						}
+						LspMenuKind::CodeAction { buffer_id, actions } => {
+							if let Some(action) = actions.get(idx).cloned() {
+								self.apply_code_action_or_command(buffer_id, action).await;
+							}
+						}
+					}
+				} else {
+					let state = self.overlays.get_or_default::<CompletionState>();
+					if !state.items.is_empty() {
+						state.selected_idx = Some(0);
+						state.selection_intent = SelectionIntent::Manual;
+						state.ensure_selected_visible();
+						self.frame.needs_redraw = true;
+					}
+				}
+				return true;
+			}
+			KeyCode::Char('y') if key.modifiers.contains(Modifiers::CONTROL) => {
+				let state = self.overlays.get::<CompletionState>();
+				let idx = state
+					.and_then(|s| s.selected_idx)
+					.or_else(|| state.filter(|s| !s.items.is_empty()).map(|_| 0));
 				self.completion_controller.cancel();
 				self.clear_lsp_menu();
-				if let Some(idx) = selected_idx {
+				if let Some(idx) = idx {
 					match menu_kind {
 						LspMenuKind::Completion { buffer_id, items } => {
 							if let Some(item) = items.get(idx).cloned() {
@@ -89,6 +127,7 @@ impl Editor {
 				}
 				return true;
 			}
+			KeyCode::Enter => return false,
 			_ => {}
 		}
 
@@ -107,6 +146,19 @@ impl Editor {
 		trigger: CompletionTrigger,
 		trigger_char: Option<char>,
 	) {
+		let is_trigger_char = trigger_char.map_or(false, is_completion_trigger_char);
+		let is_manual = matches!(trigger, CompletionTrigger::Manual);
+
+		if is_trigger_char || is_manual {
+			self.overlays.get_or_default::<CompletionState>().suppressed = false;
+		} else if self
+			.overlays
+			.get::<CompletionState>()
+			.map_or(false, |s| s.suppressed)
+		{
+			return;
+		}
+
 		let buffer = self.buffer();
 		if buffer.mode() != xeno_base::Mode::Insert {
 			return;
@@ -114,6 +166,7 @@ impl Editor {
 		if buffer.path().is_none() || buffer.file_type().is_none() {
 			return;
 		}
+
 		let Some((client, uri, position)) =
 			self.lsp.prepare_position_request(buffer).ok().flatten()
 		else {
@@ -308,6 +361,7 @@ impl Editor {
 			next = 0;
 		}
 		state.selected_idx = Some(next as usize);
+		state.selection_intent = SelectionIntent::Manual;
 		state.ensure_selected_visible();
 		self.frame.needs_redraw = true;
 	}
@@ -328,6 +382,7 @@ impl Editor {
 			next = total.saturating_sub(1) as isize;
 		}
 		state.selected_idx = Some(next as usize);
+		state.selection_intent = SelectionIntent::Manual;
 		state.ensure_selected_visible();
 		self.frame.needs_redraw = true;
 	}
@@ -502,9 +557,7 @@ fn completion_trigger_kind(
 		CompletionTrigger::Typing if trigger_char.is_some() => {
 			CompletionTriggerKind::TRIGGER_CHARACTER
 		}
-		CompletionTrigger::Manual => CompletionTriggerKind::INVOKED,
-		CompletionTrigger::CursorMove => CompletionTriggerKind::INVOKED,
-		CompletionTrigger::Typing => CompletionTriggerKind::INVOKED,
+		CompletionTrigger::Manual | CompletionTrigger::Typing => CompletionTriggerKind::INVOKED,
 	}
 }
 
@@ -615,6 +668,11 @@ fn completion_replace_start_at(rope: &xeno_base::Rope, cursor: CharIdx) -> usize
 
 fn is_completion_word_char(ch: char) -> bool {
 	ch.is_alphanumeric() || ch == '_'
+}
+
+/// Common LSP trigger characters that cause immediate popup and clear suppression.
+fn is_completion_trigger_char(ch: char) -> bool {
+	matches!(ch, '.' | ':' | '>' | '/' | '@' | '<')
 }
 
 fn normalize_completion_edit(item: &CompletionItem) -> (Option<TextEdit>, String) {

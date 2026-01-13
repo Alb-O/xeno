@@ -2,12 +2,22 @@
 
 use xeno_core::CompletionItem;
 
+/// Tracks how the current completion selection was made.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum SelectionIntent {
+	/// Selection set automatically.
+	#[default]
+	Auto,
+	/// User explicitly navigated to this item.
+	Manual,
+}
+
 /// State for managing the completion menu.
 #[derive(Clone, Default)]
 pub struct CompletionState {
 	/// Available completion items.
 	pub items: Vec<CompletionItem>,
-	/// Index of the currently selected item.
+	/// Index of the currently selected item, if any.
 	pub selected_idx: Option<usize>,
 	/// Whether the completion menu is active and visible.
 	pub active: bool,
@@ -15,6 +25,10 @@ pub struct CompletionState {
 	pub replace_start: usize,
 	/// Scroll offset for the completion menu viewport.
 	pub scroll_offset: usize,
+	/// How the current selection was made.
+	pub selection_intent: SelectionIntent,
+	/// Suppresses auto-popup until trigger char or manual invoke.
+	pub suppressed: bool,
 }
 
 impl CompletionState {

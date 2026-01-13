@@ -90,6 +90,12 @@ impl ModeAccess for Editor {
 			NotificationAccess::emit(self, keys::buffer_readonly.into());
 			return;
 		}
+		#[cfg(feature = "lsp")]
+		if matches!(mode, Mode::Insert) {
+			self.overlays
+				.get_or_default::<crate::editor::types::CompletionState>()
+				.suppressed = false;
+		}
 		self.buffer_mut().input.set_mode(mode);
 	}
 }

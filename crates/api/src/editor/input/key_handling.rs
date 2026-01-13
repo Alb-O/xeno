@@ -214,15 +214,13 @@ impl Editor {
 	/// Updates LSP completion and signature help state after a key event.
 	///
 	/// Manages the completion menu lifecycle based on mode changes, focus changes,
-	/// content modifications, and cursor movement:
+	/// content modifications, and cursor movement.
 	///
 	/// - **Mode change away from insert**: Cancels all LSP features and closes menus.
 	/// - **Cursor before completion start**: Closes the menu (user backspaced past word).
 	/// - **Focus change**: Clears all LSP state for the old buffer.
-	/// - **Content change**: Triggers fast completion (`Typing`, 80ms debounce) for both
-	///   insertions and deletions, keeping the menu open during typing.
-	/// - **Cursor-only change**: Triggers slow completion (`CursorMove`, 120ms debounce)
-	///   for navigation without edits (arrow keys, etc.).
+	/// - **Content change**: Triggers completion (`Typing`, 80ms debounce).
+	/// - **Cursor-only change**: Does not trigger completion requests.
 	#[cfg(feature = "lsp")]
 	fn update_lsp_completion_state(
 		&mut self,
@@ -279,9 +277,6 @@ impl Editor {
 			}
 		} else if cursor_changed {
 			self.cancel_signature_help();
-			if self.buffer().mode() == xeno_base::Mode::Insert && !self.buffer().is_readonly() {
-				self.trigger_lsp_completion(CompletionTrigger::CursorMove, None);
-			}
 		}
 	}
 

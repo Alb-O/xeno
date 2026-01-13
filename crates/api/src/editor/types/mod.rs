@@ -15,7 +15,7 @@ mod lsp_menu;
 mod viewport;
 mod workspace;
 
-pub use completion::CompletionState;
+pub use completion::{CompletionState, SelectionIntent};
 pub use config::Config;
 pub use frame::FrameState;
 pub use history::{EditorUndoEntry, HistoryEntry};

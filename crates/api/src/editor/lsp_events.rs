@@ -8,7 +8,7 @@ use xeno_lsp::lsp_types::{
 
 use crate::buffer::BufferId;
 use crate::editor::Editor;
-use crate::editor::types::{CompletionState, LspMenuKind, LspMenuState};
+use crate::editor::types::{CompletionState, LspMenuKind, LspMenuState, SelectionIntent};
 use crate::info_popup::PopupAnchor;
 
 pub enum LspUiEvent {
@@ -77,7 +77,8 @@ impl Editor {
 
 				let completions = self.overlays.get_or_default::<CompletionState>();
 				completions.items = display_items;
-				completions.selected_idx = Some(0);
+				completions.selected_idx = None;
+				completions.selection_intent = SelectionIntent::Auto;
 				completions.active = true;
 				completions.replace_start = replace_start;
 				completions.scroll_offset = 0;

@@ -14,7 +14,6 @@ use crate::editor::lsp_events::LspUiEvent;
 pub enum CompletionTrigger {
 	Typing,
 	Manual,
-	CursorMove,
 }
 
 pub struct CompletionController {
@@ -114,8 +113,7 @@ impl CompletionTrigger {
 	pub fn debounce(&self) -> Duration {
 		match self {
 			CompletionTrigger::Typing => Duration::from_millis(80),
-			CompletionTrigger::Manual => Duration::from_millis(0),
-			CompletionTrigger::CursorMove => Duration::from_millis(120),
+			CompletionTrigger::Manual => Duration::ZERO,
 		}
 	}
 }
