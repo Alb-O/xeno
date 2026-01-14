@@ -19,8 +19,8 @@ focus on the code you're actively editing.
 On each render frame, the extension:
 
 1. Finds the tree-sitter node at the cursor position
-1. Walks up the syntax tree to find the best container node
-1. Registers a style overlay that dims everything outside that container
+2. Walks up the syntax tree to find the best container node
+3. Registers a style overlay that dims everything outside that container
 
 ### Focus Node Selection
 
