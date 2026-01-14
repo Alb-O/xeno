@@ -93,7 +93,7 @@ pub enum PreEffect {
 	Yank,
 	/// Save undo state (usually automatic, but can be explicit).
 	SaveUndo,
-	/// Extend selection forward by one character (for delete on empty selection).
+	/// Extend selection forward by one character if selection is empty.
 	ExtendForwardIfEmpty,
 }
 
@@ -119,13 +119,13 @@ pub enum SelectionOp {
 	ToLineEnd,
 	/// Expand selection to include full lines.
 	ExpandToFullLines,
-	/// Select the character before cursor (for backspace).
+	/// Select the character before cursor.
 	SelectCharBefore,
-	/// Select from cursor back to previous word start (for ctrl+backspace).
+	/// Select from cursor back to previous word start.
 	SelectWordBefore,
-	/// Select from current position to next line start (for join lines).
+	/// Select from current position to next line start.
 	SelectToNextLineStart,
-	/// Position cursor after current position (for paste after).
+	/// Position cursor after current position.
 	PositionAfterCursor,
 }
 
@@ -135,7 +135,7 @@ pub enum SelectionOp {
 /// by combining transformations with pre/post effects.
 #[derive(Debug, Clone, Default)]
 pub enum TextTransform {
-	/// No text change (for yank-only or cursor movement).
+	/// No text change.
 	#[default]
 	None,
 	/// Delete selected text.
