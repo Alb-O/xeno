@@ -410,7 +410,8 @@ impl<'a> BufferRenderContext<'a> {
 						// blend(other, alpha): alpha=1 → self, alpha=0 → other
 						let selection_bg = bg
 							.blend(mode_color, 0.78) // 78% bg, 22% mode
-							.blend(syntax_fg, 0.88); // 88% prev, 12% syntax tint
+							.blend(syntax_fg, 0.88) // 88% prev, 12% syntax tint
+							.ensure_min_contrast(bg, 1.5);
 						Style::default()
 							.bg(selection_bg)
 							.fg(syntax_fg)

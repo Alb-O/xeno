@@ -498,6 +498,104 @@ impl Color {
 		let blend = |a: u8, b: u8| (a as f32 * alpha + b as f32 * (1.0 - alpha)).round() as u8;
 		Self::Rgb(blend(r1, r2), blend(g1, g2), blend(b1, b2))
 	}
+
+	/// Computes relative luminance per WCAG 2.1 specification.
+	///
+	/// Returns a value in the range `0.0` (black) to `1.0` (white).
+	/// Converts sRGB to linear RGB before applying the standard luminance
+	/// coefficients (0.2126 R + 0.7152 G + 0.0722 B).
+	///
+	/// See: <https://www.w3.org/TR/WCAG21/#dfn-relative-luminance>
+	///
+	/// # Examples
+	///
+	/// ```
+	/// use xeno_tui::style::Color;
+	///
+	/// assert!((Color::Black.luminance() - 0.0).abs() < 0.001);
+	/// assert!((Color::White.luminance() - 1.0).abs() < 0.001);
+	/// ```
+	pub fn luminance(self) -> f32 {
+		let (r, g, b) = self.to_rgb();
+		let to_linear = |c: u8| {
+			let c = c as f32 / 255.0;
+			if c <= 0.04045 {
+				c / 12.92
+			} else {
+				((c + 0.055) / 1.055).powf(2.4)
+			}
+		};
+		0.2126 * to_linear(r) + 0.7152 * to_linear(g) + 0.0722 * to_linear(b)
+	}
+
+	/// Computes WCAG contrast ratio against `other`.
+	///
+	/// Returns a value in the range `1.0` (identical) to `21.0` (black vs white).
+	/// WCAG recommends minimum 3:1 for large UI elements, 4.5:1 for normal text.
+	///
+	/// See: <https://www.w3.org/TR/WCAG21/#dfn-contrast-ratio>
+	///
+	/// # Examples
+	///
+	/// ```
+	/// use xeno_tui::style::Color;
+	///
+	/// let ratio = Color::Black.contrast_ratio(Color::White);
+	/// assert!((ratio - 21.0).abs() < 0.1);
+	///
+	/// let ratio = Color::Blue.contrast_ratio(Color::Blue);
+	/// assert!((ratio - 1.0).abs() < 0.001);
+	/// ```
+	pub fn contrast_ratio(self, other: Self) -> f32 {
+		let l1 = self.luminance();
+		let l2 = other.luminance();
+		let (lighter, darker) = if l1 > l2 { (l1, l2) } else { (l2, l1) };
+		(lighter + 0.05) / (darker + 0.05)
+	}
+
+	/// Ensures minimum contrast against a `background` color.
+	///
+	/// Returns `self` unchanged if contrast already meets `min_ratio`.
+	/// Otherwise, blends toward white (for dark backgrounds) or black
+	/// (for light backgrounds) using binary search to find the minimal
+	/// adjustment that achieves the target contrast ratio.
+	///
+	/// # Examples
+	///
+	/// ```
+	/// use xeno_tui::style::Color;
+	///
+	/// let dark_bg = Color::Rgb(30, 30, 30);
+	/// let too_similar = Color::Rgb(40, 40, 40);
+	///
+	/// let boosted = too_similar.ensure_min_contrast(dark_bg, 1.5);
+	/// assert!(boosted.contrast_ratio(dark_bg) >= 1.5);
+	/// ```
+	pub fn ensure_min_contrast(self, background: Self, min_ratio: f32) -> Self {
+		if self.contrast_ratio(background) >= min_ratio {
+			return self;
+		}
+
+		let bg_lum = background.luminance();
+		let target = if bg_lum > 0.5 {
+			Self::Black
+		} else {
+			Self::White
+		};
+
+		let mut low = 0.0_f32;
+		let mut high = 1.0_f32;
+		for _ in 0..8 {
+			let mid = (low + high) / 2.0;
+			let candidate = self.blend(target, 1.0 - mid);
+			if candidate.contrast_ratio(background) >= min_ratio {
+				high = mid;
+			} else {
+				low = mid;
+			}
+		}
+		self.blend(target, 1.0 - high)
+	}
 }
 
 /// Converts an indexed color (0-255) to RGB.
