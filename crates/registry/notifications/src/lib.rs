@@ -1,7 +1,7 @@
 //! Notification registry.
 //!
 //! Type-safe notification system with compile-time checked notification keys.
-//! Keys are organized by domain (editor, commands, actions, core, acp).
+//! Keys are organized by domain (editor, commands, actions, core).
 //!
 //! # Usage
 //!
@@ -21,7 +21,6 @@ use std::time::Duration;
 use linkme::distributed_slice;
 pub use xeno_registry_core::{Key, RegistryMetadata, RegistrySource, impl_registry_metadata};
 
-mod acp;
 mod actions;
 mod builtins;
 mod commands;
@@ -30,7 +29,6 @@ mod runtime;
 
 /// All notification keys, organized by domain.
 pub mod keys {
-	pub use crate::acp::keys::*;
 	pub use crate::actions::keys::*;
 	pub use crate::builtins::keys::*;
 	pub use crate::commands::keys::*;

@@ -15,7 +15,6 @@ use app::run_editor;
 use clap::Parser;
 use cli::{AuthAction, Cli, Command, GrammarAction, LoginProvider, LogoutProvider};
 use tracing::{info, warn};
-use xeno_acp::AcpManager;
 use xeno_api::Editor;
 // Force-link crates to ensure their distributed_slice registrations are included.
 #[allow(unused_imports, reason = "linkme distributed_slice registration")]
@@ -83,7 +82,6 @@ async fn main() -> anyhow::Result<()> {
 		None => Editor::new_scratch(),
 	};
 
-	editor.extensions.insert(AcpManager::new());
 	configure_lsp_servers(&mut editor);
 
 	// Initialize LSP for the initial buffer (opened before servers were configured)
@@ -442,7 +440,6 @@ async fn run_editor_normal() -> anyhow::Result<()> {
 		_ => Editor::new_scratch(),
 	};
 
-	editor.extensions.insert(AcpManager::new());
 	configure_lsp_servers(&mut editor);
 
 	if let Err(e) = editor.init_lsp_for_open_buffers().await {

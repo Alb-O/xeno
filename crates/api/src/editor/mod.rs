@@ -192,7 +192,7 @@ pub struct Editor {
 	/// Notification system.
 	pub notifications: xeno_tui::widgets::notifications::ToastManager,
 
-	/// Extension map (typemap for extension state like ACP).
+	/// Extension map (typemap for extension state).
 	/// Used for loosely-coupled features that can't be direct dependencies.
 	pub extensions: ExtensionMap,
 

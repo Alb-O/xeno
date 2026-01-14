@@ -24,7 +24,6 @@ license = "MIT"
 repository = "https://github.com/Alb-O/xeno"
 
 [workspace.dependencies]
-agent-client-protocol = { version = "0.9", features = ["unstable_session_model"] }
 anyhow = "1"
 async-trait = "0.1"
 base64 = "0.22"
@@ -79,7 +78,6 @@ urlencoding = "2"
 uuid = { version = "1", features = ["v4"] }
 webbrowser = "1"
 which = "8"
-xeno-acp = { path = "crates/acp" }
 xeno-api = { path = "crates/api" }
 xeno-auth = { path = "crates/auth" }
 xeno-base = { path = "crates/base" }

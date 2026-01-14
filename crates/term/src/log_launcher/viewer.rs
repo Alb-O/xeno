@@ -438,7 +438,7 @@ impl LogViewer {
 			"",
 			"  Layer Filters (toggle):",
 			"    1 CORE  2 API   3 LSP   4 LANG  5 CFG",
-			"    6 UI    7 ACP   8 AUTH  9 REG   0 EXT",
+			"    6 UI    7 AUTH  8 REG   9 EXT",
 			"    L       Clear layer filter (show all)",
 			"",
 			"  Navigation:",
@@ -499,10 +499,9 @@ impl LogViewer {
 			KeyCode::Char('4') => self.toggle_layer(XenoLayer::Lang),
 			KeyCode::Char('5') => self.toggle_layer(XenoLayer::Config),
 			KeyCode::Char('6') => self.toggle_layer(XenoLayer::Ui),
-			KeyCode::Char('7') => self.toggle_layer(XenoLayer::Acp),
-			KeyCode::Char('8') => self.toggle_layer(XenoLayer::Auth),
-			KeyCode::Char('9') => self.toggle_layer(XenoLayer::Registry),
-			KeyCode::Char('0') => self.toggle_layer(XenoLayer::External),
+			KeyCode::Char('7') => self.toggle_layer(XenoLayer::Auth),
+			KeyCode::Char('8') => self.toggle_layer(XenoLayer::Registry),
+			KeyCode::Char('9') => self.toggle_layer(XenoLayer::External),
 			KeyCode::Char('L') => self.clear_layer_filter(),
 			KeyCode::Char('j') | KeyCode::Down => {
 				self.scroll_offset = self.scroll_offset.saturating_sub(1);
