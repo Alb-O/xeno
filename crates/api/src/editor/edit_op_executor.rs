@@ -218,6 +218,39 @@ impl Editor {
 				}
 			}
 
+			SelectionOp::SelectWordAfter => {
+				let (ranges, primary_index) = {
+					let buffer = self.buffer();
+					let doc = buffer.doc();
+					let text = doc.content.slice(..);
+					let len = text.len_chars();
+					let mut ranges = Vec::new();
+					let mut primary_index = 0usize;
+					for (idx, range) in buffer.selection.ranges().iter().enumerate() {
+						if range.head >= len {
+							continue;
+						}
+						if idx == buffer.selection.primary_index() {
+							primary_index = ranges.len();
+						}
+						let word_end = movement::move_to_next_word_start(
+							text,
+							*range,
+							1,
+							WordType::Word,
+							false,
+						);
+						ranges.push(Range::new(range.head, word_end.head));
+					}
+					(ranges, primary_index)
+				};
+
+				if !ranges.is_empty() {
+					self.buffer_mut()
+						.set_selection(Selection::from_vec(ranges, primary_index));
+				}
+			}
+
 			SelectionOp::SelectToNextLineStart => {
 				let (selection, valid) = {
 					let buffer = self.buffer();

@@ -123,6 +123,8 @@ pub enum SelectionOp {
 	SelectCharBefore,
 	/// Select from cursor back to previous word start.
 	SelectWordBefore,
+	/// Select from cursor forward to next word end.
+	SelectWordAfter,
 	/// Select from current position to next line start.
 	SelectToNextLineStart,
 	/// Position cursor after current position.
@@ -313,10 +315,17 @@ pub fn delete_back() -> EditOp {
 		.with_transform(TextTransform::Delete)
 }
 
-/// Creates a delete-word-back (ctrl+backspace) operation.
+/// Creates a delete-word-back operation.
 pub fn delete_word_back() -> EditOp {
 	EditOp::new()
 		.with_selection(SelectionOp::SelectWordBefore)
+		.with_transform(TextTransform::Delete)
+}
+
+/// Creates a delete-word-forward operation.
+pub fn delete_word_forward() -> EditOp {
+	EditOp::new()
+		.with_selection(SelectionOp::SelectWordAfter)
 		.with_transform(TextTransform::Delete)
 }
 

@@ -4,7 +4,7 @@ use crate::{ActionEffects, ActionResult, PendingAction, PendingKind, action};
 action!(delete, { description: "Delete selection", bindings: r#"normal "d""# },
 	|_ctx| ActionResult::Effects(ActionEffects::edit_op(edit_op::delete(true))));
 
-action!(delete_no_yank, { description: "Delete selection (no yank)", bindings: r#"normal "alt-d""# },
+action!(delete_no_yank, { description: "Delete selection (no yank)", bindings: r#"normal "alt-d" "delete""# },
 	|_ctx| ActionResult::Effects(ActionEffects::edit_op(edit_op::delete(false))));
 
 action!(change, { description: "Change selection", bindings: r#"normal "c""# },
@@ -58,13 +58,20 @@ action!(open_below, { description: "Open line below", bindings: r#"normal "o""# 
 action!(open_above, { description: "Open line above", bindings: r#"normal "O""# },
 	|_ctx| ActionResult::Effects(ActionEffects::edit_op(edit_op::open_above())));
 
-action!(delete_back, { description: "Delete character before cursor" },
+action!(delete_back, { description: "Delete character before cursor", bindings: r#"normal "backspace""# },
 	|_ctx| ActionResult::Effects(ActionEffects::edit_op(edit_op::delete_back())));
 
 action!(delete_word_back, {
 	description: "Delete word before cursor",
-	bindings: r#"insert "ctrl-backspace""#,
+	bindings: r#"normal "ctrl-backspace"
+insert "ctrl-backspace""#,
 }, |_ctx| ActionResult::Effects(ActionEffects::edit_op(edit_op::delete_word_back())));
+
+action!(delete_word_forward, {
+	description: "Delete word after cursor",
+	bindings: r#"normal "ctrl-delete"
+insert "ctrl-delete""#,
+}, |_ctx| ActionResult::Effects(ActionEffects::edit_op(edit_op::delete_word_forward())));
 
 action!(replace_char, {
 	description: "Replace selection with character",
