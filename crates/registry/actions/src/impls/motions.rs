@@ -23,11 +23,17 @@ action!(move_line_start, { description: "Move to start of line", bindings: r#"no
 action!(move_line_end, { description: "Move to end of line", bindings: r#"normal "$" "end""# },
 	|ctx| cursor_motion(ctx, motions::line_end));
 
-action!(next_word_start, { description: "Move to next word start", bindings: r#"normal "w""# },
-	|ctx| word_motion(ctx, motions::next_word_start));
+action!(next_word_start, {
+	description: "Move to next word start",
+	bindings: r#"normal "w" "ctrl-right"
+insert "ctrl-right""#,
+}, |ctx| word_motion(ctx, motions::next_word_start));
 
-action!(prev_word_start, { description: "Move to previous word start", bindings: r#"normal "b""# },
-	|ctx| word_motion(ctx, motions::prev_word_start));
+action!(prev_word_start, {
+	description: "Move to previous word start",
+	bindings: r#"normal "b" "ctrl-left"
+insert "ctrl-left""#,
+}, |ctx| word_motion(ctx, motions::prev_word_start));
 
 action!(next_word_end, { description: "Move to next word end", bindings: r#"normal "e""# },
 	|ctx| word_motion(ctx, motions::next_word_end));
