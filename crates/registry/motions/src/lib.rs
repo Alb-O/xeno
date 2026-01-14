@@ -28,6 +28,7 @@ pub mod keys {
 	pub use crate::impls::basic::*;
 	pub use crate::impls::document::*;
 	pub use crate::impls::line::*;
+	pub use crate::impls::paragraph::*;
 	pub use crate::impls::word::*;
 }
 

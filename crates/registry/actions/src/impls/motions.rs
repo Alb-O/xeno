@@ -56,6 +56,18 @@ action!(select_word_backward, { description: "Select to previous word start", bi
 action!(select_word_end, { description: "Select to next word end", bindings: r#"normal "alt-e""# },
 	|ctx| selection_motion(ctx, motions::next_word_end));
 
+action!(next_paragraph, {
+	description: "Move to next paragraph",
+	bindings: r#"normal "}" "ctrl-down"
+insert "ctrl-down""#,
+}, |ctx| cursor_motion(ctx, motions::next_paragraph));
+
+action!(prev_paragraph, {
+	description: "Move to previous paragraph",
+	bindings: r#"normal "{" "ctrl-up"
+insert "ctrl-up""#,
+}, |ctx| cursor_motion(ctx, motions::prev_paragraph));
+
 action!(document_start, {
 	description: "Goto file start",
 	short_desc: "File start",
