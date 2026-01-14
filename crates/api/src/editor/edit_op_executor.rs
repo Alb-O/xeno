@@ -13,7 +13,7 @@
 use xeno_base::range::{Direction as MoveDir, Range};
 use xeno_base::{Selection, Transaction};
 use xeno_core::editor_ctx::ModeAccess;
-use xeno_core::movement;
+use xeno_core::movement::{self, WordType};
 use xeno_registry::edit_op::{
 	CharMapKind, CursorAdjust, EditOp, PostEffect, PreEffect, SelectionOp, TextTransform,
 };
@@ -176,6 +176,38 @@ impl Editor {
 							primary_index = ranges.len();
 						}
 						ranges.push(Range::new(range.head - 1, range.head));
+					}
+					(ranges, primary_index)
+				};
+
+				if !ranges.is_empty() {
+					self.buffer_mut()
+						.set_selection(Selection::from_vec(ranges, primary_index));
+				}
+			}
+
+			SelectionOp::SelectWordBefore => {
+				let (ranges, primary_index) = {
+					let buffer = self.buffer();
+					let doc = buffer.doc();
+					let text = doc.content.slice(..);
+					let mut ranges = Vec::new();
+					let mut primary_index = 0usize;
+					for (idx, range) in buffer.selection.ranges().iter().enumerate() {
+						if range.head == 0 {
+							continue;
+						}
+						if idx == buffer.selection.primary_index() {
+							primary_index = ranges.len();
+						}
+						let word_start = movement::move_to_prev_word_start(
+							text,
+							*range,
+							1,
+							WordType::Word,
+							false,
+						);
+						ranges.push(Range::new(word_start.head, range.head));
 					}
 					(ranges, primary_index)
 				};

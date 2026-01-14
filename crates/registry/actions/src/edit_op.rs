@@ -121,6 +121,8 @@ pub enum SelectionOp {
 	ExpandToFullLines,
 	/// Select the character before cursor (for backspace).
 	SelectCharBefore,
+	/// Select from cursor back to previous word start (for ctrl+backspace).
+	SelectWordBefore,
 	/// Select from current position to next line start (for join lines).
 	SelectToNextLineStart,
 	/// Position cursor after current position (for paste after).
@@ -306,6 +308,13 @@ pub fn join_lines() -> EditOp {
 pub fn delete_back() -> EditOp {
 	EditOp::new()
 		.with_selection(SelectionOp::SelectCharBefore)
+		.with_transform(TextTransform::Delete)
+}
+
+/// Creates a delete-word-back (ctrl+backspace) operation.
+pub fn delete_word_back() -> EditOp {
+	EditOp::new()
+		.with_selection(SelectionOp::SelectWordBefore)
 		.with_transform(TextTransform::Delete)
 }
 
