@@ -499,6 +499,7 @@ impl LogViewer {
 			KeyCode::Char('4') => self.toggle_layer(XenoLayer::Lang),
 			KeyCode::Char('5') => self.toggle_layer(XenoLayer::Config),
 			KeyCode::Char('6') => self.toggle_layer(XenoLayer::Ui),
+			#[cfg(feature = "auth")]
 			KeyCode::Char('7') => self.toggle_layer(XenoLayer::Auth),
 			KeyCode::Char('8') => self.toggle_layer(XenoLayer::Registry),
 			KeyCode::Char('9') => self.toggle_layer(XenoLayer::External),

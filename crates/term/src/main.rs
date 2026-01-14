@@ -13,7 +13,9 @@ use std::path::PathBuf;
 
 use app::run_editor;
 use clap::Parser;
-use cli::{AuthAction, Cli, Command, GrammarAction, LoginProvider, LogoutProvider};
+#[cfg(feature = "auth")]
+use cli::{AuthAction, LoginProvider, LogoutProvider};
+use cli::{Cli, Command, GrammarAction};
 use tracing::{info, warn};
 use xeno_api::Editor;
 // Force-link crates to ensure their distributed_slice registrations are included.
@@ -37,6 +39,7 @@ async fn main() -> anyhow::Result<()> {
 
 	match cli.command {
 		Some(Command::Grammar { action }) => return handle_grammar_command(action),
+		#[cfg(feature = "auth")]
 		Some(Command::Auth { action }) => return handle_auth_command(action).await,
 		None => {}
 	}
@@ -130,6 +133,7 @@ async fn main() -> anyhow::Result<()> {
 }
 
 /// Handles auth login/logout/status subcommands.
+#[cfg(feature = "auth")]
 async fn handle_auth_command(action: AuthAction) -> anyhow::Result<()> {
 	use xeno_auth::default_data_dir;
 

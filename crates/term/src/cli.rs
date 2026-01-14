@@ -36,6 +36,7 @@ pub enum Command {
 		action: GrammarAction,
 	},
 	/// Authentication management
+	#[cfg(feature = "auth")]
 	Auth {
 		/// Auth subcommand action.
 		#[command(subcommand)]
@@ -44,6 +45,7 @@ pub enum Command {
 }
 
 /// Authentication subcommands.
+#[cfg(feature = "auth")]
 #[derive(Subcommand, Debug)]
 pub enum AuthAction {
 	/// Log in to a service
@@ -63,6 +65,7 @@ pub enum AuthAction {
 }
 
 /// Login providers.
+#[cfg(feature = "auth")]
 #[derive(Subcommand, Debug)]
 pub enum LoginProvider {
 	/// Log in to OpenAI Codex via OAuth
@@ -76,6 +79,7 @@ pub enum LoginProvider {
 }
 
 /// Logout providers.
+#[cfg(feature = "auth")]
 #[derive(Subcommand, Debug)]
 pub enum LogoutProvider {
 	/// Log out from OpenAI Codex

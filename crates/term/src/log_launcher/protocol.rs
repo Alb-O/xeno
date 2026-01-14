@@ -16,6 +16,7 @@ pub enum XenoLayer {
 	Lang,
 	Config,
 	Ui,
+	#[cfg(feature = "auth")]
 	Auth,
 	Registry,
 	#[default]
@@ -49,6 +50,7 @@ const LAYER_INFO: &[(XenoLayer, &str, &str, &[&str])] = &[
 		"\x1b[92mUI  \x1b[0m",
 		&["xeno_term", "xeno_tui"],
 	),
+	#[cfg(feature = "auth")]
 	(
 		XenoLayer::Auth,
 		"AUTH",
