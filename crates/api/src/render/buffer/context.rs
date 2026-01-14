@@ -82,16 +82,17 @@ impl CursorlineConfig {
 
 impl<'a> BufferRenderContext<'a> {
 	/// Creates cursor styling configuration based on theme and mode.
-	pub fn make_cursor_styles(&self) -> CursorStyles {
+	pub fn make_cursor_styles(&self, mode: Mode) -> CursorStyles {
 		let ui = &self.theme.colors.ui;
+		let mode_color = self.mode_color(mode);
 
 		let primary_cursor_style = Style::default()
-			.bg(ui.cursor_bg)
+			.bg(mode_color)
 			.fg(ui.cursor_fg)
 			.add_modifier(Modifier::BOLD);
 
 		let secondary_cursor_style = {
-			let bg = ui.cursor_bg.blend(ui.bg, 0.4);
+			let bg = mode_color.blend(ui.bg, 0.4);
 			let fg = ui.cursor_fg.blend(ui.fg, 0.4);
 			Style::default().bg(bg).fg(fg).add_modifier(Modifier::BOLD)
 		};
@@ -107,24 +108,6 @@ impl<'a> BufferRenderContext<'a> {
 			selection: selection_style,
 			unfocused: secondary_cursor_style,
 		}
-	}
-
-	/// Checks if the cursor should be visible (blinking state).
-	///
-	/// In insert mode, cursors blink on a 200ms cycle. In other modes, cursors
-	/// are always visible.
-	pub fn cursor_blink_visible(&self, mode: Mode) -> bool {
-		let insert_mode = matches!(mode, Mode::Insert);
-		if !insert_mode {
-			return true;
-		}
-
-		let now_ms = SystemTime::now()
-			.duration_since(UNIX_EPOCH)
-			.unwrap_or_default()
-			.as_millis();
-
-		(now_ms / 200).is_multiple_of(2)
 	}
 
 	/// Returns the background color for the given mode's status badge.
@@ -325,8 +308,7 @@ impl<'a> BufferRenderContext<'a> {
 		let primary_cursor = cursor;
 		let cursor_heads: HashSet<CharIdx> =
 			buffer.selection.ranges().iter().map(|r| r.head).collect();
-		let blink_on = self.cursor_blink_visible(buffer.mode());
-		let styles = self.make_cursor_styles();
+		let styles = self.make_cursor_styles(buffer.mode());
 
 		let highlight_spans = self.collect_highlight_spans(buffer, area);
 		let mode_color = self.mode_color(buffer.mode());
@@ -451,12 +433,7 @@ impl<'a> BufferRenderContext<'a> {
 					);
 
 					let style = if is_cursor && (use_block_cursor || !is_focused) {
-						if blink_on || !is_focused {
-							cursor_style
-						} else {
-							// Blink off: show syntax-highlighted style instead of plain base
-							non_cursor_style
-						}
+						cursor_style
 					} else {
 						non_cursor_style
 					};
@@ -472,7 +449,7 @@ impl<'a> BufferRenderContext<'a> {
 						}
 						tab_cells = tab_cells.min(remaining);
 
-						if is_cursor && use_block_cursor && blink_on {
+						if is_cursor && use_block_cursor {
 							spans.push(Span::styled(" ", cursor_style));
 							if tab_cells > 1 {
 								spans.push(Span::styled(
@@ -516,7 +493,7 @@ impl<'a> BufferRenderContext<'a> {
 						}
 					});
 
-					if cursor_at_eol && ((use_block_cursor && blink_on) || !is_focused) {
+					if cursor_at_eol && (use_block_cursor || !is_focused) {
 						let primary_here = if is_last_doc_line {
 							primary_cursor >= line_content_end && primary_cursor <= line_end
 						} else {
@@ -568,7 +545,7 @@ impl<'a> BufferRenderContext<'a> {
 					}
 				});
 				let mut cols_used = 0;
-				if cursor_at_eol && ((use_block_cursor && blink_on) || !is_focused) {
+				if cursor_at_eol && (use_block_cursor || !is_focused) {
 					let primary_here = if is_last_doc_line {
 						primary_cursor >= line_start && primary_cursor <= line_end
 					} else {

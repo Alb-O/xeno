@@ -119,7 +119,7 @@ pub fn coalesce_resize_events(events: &EventReader, first: WindowSize) -> io::Re
 /// Returns the appropriate cursor style for the given editor mode.
 pub fn cursor_style_for_mode(mode: xeno_base::Mode) -> CursorStyle {
 	match mode {
-		xeno_base::Mode::Insert => CursorStyle::BlinkingBar,
+		xeno_base::Mode::Insert => CursorStyle::SteadyBar,
 		_ => CursorStyle::SteadyBlock,
 	}
 }
