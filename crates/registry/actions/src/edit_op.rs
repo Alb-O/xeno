@@ -144,6 +144,8 @@ pub enum TextTransform {
 	Replace(String),
 	/// Insert text at cursor (selection becomes empty, text inserted).
 	Insert(String),
+	/// Insert newline with indentation copied from current line.
+	InsertNewlineWithIndent,
 	/// Apply character mapping (case conversion).
 	MapChars(CharMapKind),
 	/// Replace each character in selection with the given char (vim's r).
@@ -318,11 +320,16 @@ pub fn delete_word_back() -> EditOp {
 		.with_transform(TextTransform::Delete)
 }
 
+/// Creates a newline insertion with smart indentation.
+pub fn insert_newline() -> EditOp {
+	EditOp::new().with_transform(TextTransform::InsertNewlineWithIndent)
+}
+
 /// Creates an open-below operation (new line below, enter insert).
 pub fn open_below() -> EditOp {
 	EditOp::new()
 		.with_selection(SelectionOp::ToLineEnd)
-		.with_transform(TextTransform::Insert("\n".to_string()))
+		.with_transform(TextTransform::InsertNewlineWithIndent)
 		.with_post(PostEffect::SetMode(Mode::Insert))
 }
 
@@ -330,7 +337,7 @@ pub fn open_below() -> EditOp {
 pub fn open_above() -> EditOp {
 	EditOp::new()
 		.with_selection(SelectionOp::ToLineStart)
-		.with_transform(TextTransform::Insert("\n".to_string()))
+		.with_transform(TextTransform::InsertNewlineWithIndent)
 		.with_post(PostEffect::MoveCursor(CursorAdjust::Up(1)))
 		.with_post(PostEffect::SetMode(Mode::Insert))
 }
@@ -379,7 +386,10 @@ mod tests {
 	fn test_open_below_composition() {
 		let op = open_below();
 		assert!(matches!(op.selection, SelectionOp::ToLineEnd));
-		assert!(matches!(op.transform, TextTransform::Insert(_)));
+		assert!(matches!(
+			op.transform,
+			TextTransform::InsertNewlineWithIndent
+		));
 		assert!(op.post.contains(&PostEffect::SetMode(Mode::Insert)));
 	}
 

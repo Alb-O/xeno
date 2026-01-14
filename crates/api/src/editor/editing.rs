@@ -69,6 +69,26 @@ impl Editor {
 		applied
 	}
 
+	/// Inserts a newline with smart indentation.
+	///
+	/// Copies the leading whitespace from the current line to the new line.
+	pub fn insert_newline_with_indent(&mut self) {
+		let indent = {
+			let buffer = self.buffer();
+			let doc = buffer.doc();
+			let cursor = buffer.cursor;
+			let line_idx = doc.content.char_to_line(cursor);
+			let line = doc.content.line(line_idx);
+
+			line.chars()
+				.take_while(|c| *c == ' ' || *c == '\t')
+				.collect::<String>()
+		};
+
+		let text = format!("\n{}", indent);
+		self.insert_text(&text);
+	}
+
 	/// Inserts text at the current cursor position(s).
 	pub fn insert_text(&mut self, text: &str) {
 		let buffer_id = self.focused_view();

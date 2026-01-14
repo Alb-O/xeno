@@ -304,6 +304,10 @@ impl Editor {
 				self.insert_text(text);
 			}
 
+			TextTransform::InsertNewlineWithIndent => {
+				self.insert_newline_with_indent();
+			}
+
 			TextTransform::MapChars(kind) => {
 				self.apply_char_mapping(*kind);
 			}
