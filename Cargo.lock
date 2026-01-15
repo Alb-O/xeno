@@ -3677,7 +3677,7 @@ dependencies = [
 
 [[package]]
 name = "xeno-tui"
-version = "0.30.0-xeno"
+version = "0.3.0"
 dependencies = [
  "anstyle",
  "bitflags 2.10.0",

@@ -9,11 +9,11 @@ license.workspace = true
 default = []
 lsp = ["dep:xeno-lsp", "dep:frizbee"]
 [dependencies]
-anyhow = "1.0"
-async-trait = "0.1"
+anyhow.workspace = true
+async-trait.workspace = true
 clap.workspace = true
 dirs.workspace = true
-frizbee = { version = "0.6", optional = true }
+frizbee = { workspace = true, optional = true }
 futures.workspace = true
 linkme.workspace = true
 parking_lot.workspace = true
@@ -34,7 +34,7 @@ tracing-subscriber.workspace = true
 tree-house.workspace = true
 unicode-segmentation.workspace = true
 unicode-width.workspace = true
-vt100 = "0.16"
+vt100.workspace = true
 xeno-keymap-core.workspace = true
 xeno-lsp = { workspace = true, features = ["position"], optional = true }
 xeno-primitives.workspace = true

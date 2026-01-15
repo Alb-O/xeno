@@ -26,26 +26,26 @@ position = ["dep:ropey", "client", "dep:xeno-primitives"]
 
 [dependencies]
 futures.workspace = true
-lsp-types = "0.97"
+lsp-types.workspace = true
 parking_lot = { workspace = true, optional = true }
-pin-project-lite = "0.2"
+pin-project-lite.workspace = true
 ropey = { workspace = true, optional = true }
-rustix = { version = "1", optional = true }
+rustix = { workspace = true, optional = true }
 serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
 tokio = { workspace = true, optional = true }
 tokio-util = { workspace = true, optional = true, features = ["compat"] }
-tower-layer = "0.3"
-tower-service = "0.3"
+tower-layer.workspace = true
+tower-service.workspace = true
 tracing.workspace = true
-url = { workspace = true }
-waitpid-any = { version = "0.3", optional = true }
+url.workspace = true
+waitpid-any = { workspace = true, optional = true }
 xeno-primitives = { workspace = true, optional = true }
 
 [dev-dependencies]
-tempfile = "3"
+tempfile.workspace = true
 tokio = { workspace = true, features = ["io-std", "io-util", "macros", "process", "rt", "time"] }
 tokio-util.workspace = true
-tower = "0.5"
-tracing-subscriber = "0.3"
+tower.workspace = true
+tracing-subscriber.workspace = true

@@ -26,7 +26,7 @@ toml.workspace = true
 tracing.workspace = true
 tracing-subscriber = { workspace = true, features = ["env-filter", "json"] }
 uuid.workspace = true
-which = "8"
+which.workspace = true
 xeno-editor = { workspace = true, features = ["lsp"] }
 xeno-primitives.workspace = true
 xeno-registry.workspace = true

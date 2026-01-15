@@ -6,7 +6,7 @@ edition.workspace = true
 license.workspace = true
 
 [dependencies]
-cc = "1.2"
+cc.workspace = true
 kdl.workspace = true
 libloading.workspace = true
 once_cell.workspace = true
