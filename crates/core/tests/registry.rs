@@ -6,7 +6,7 @@
 use xeno_core::{
 	LookupResult, find_action, find_action_by_id, get_keymap_registry, resolve_action_id,
 };
-use xeno_keymap::parser::parse_seq;
+use xeno_keymap_core::parser::parse_seq;
 use xeno_registry::BindingMode;
 use xeno_registry::actions::RESULT_EFFECTS_HANDLERS;
 

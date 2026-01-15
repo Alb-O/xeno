@@ -18,4 +18,4 @@ xeno-keymap-parser = { path = "../parser" }
 [dev-dependencies]
 serde = { workspace = true }
 toml = { workspace = true }
-xeno-keymap = { path = "../" }
+xeno-keymap-core = { path = "../core" }

@@ -1,17 +1,16 @@
 [package]
-name = "xeno-keymap"
-description = "Key mapping library with compile-time validated derive macros and declarative configuration."
+name = "xeno-keymap-core"
+description = "Core key mapping types and pattern matching."
 version.workspace = true
 edition.workspace = true
-license-file = "LICENSE"
+license-file = "../LICENSE"
 repository.workspace = true
 
 [lib]
 doctest = false
 
 [features]
-default = ["derive", "termina", "kdl", "xeno-base"]
-derive = ["dep:xeno-keymap-derive"]
+default = ["termina", "kdl", "xeno-base"]
 termina = ["dep:termina"]
 kdl = ["dep:kdl"]
 xeno-base = ["dep:xeno-base"]
@@ -21,9 +20,7 @@ kdl = { workspace = true, optional = true }
 serde = { workspace = true }
 termina = { workspace = true, optional = true }
 xeno-base = { workspace = true, optional = true }
-xeno-keymap-derive = { path = "./derive", optional = true }
-xeno-keymap-parser = { path = "./parser" }
+xeno-keymap-parser = { path = "../parser" }
 
 [dev-dependencies]
-kdl = { workspace = true }
 toml = { workspace = true }

@@ -1,20 +1,20 @@
 [workspace]
 resolver = "3"
 members = [
-    "crates/*",
-    "crates/keymap/derive",
-    "crates/keymap/parser",
-    "crates/registry/actions",
-    "crates/registry/commands",
-    "crates/registry/core",
-    "crates/registry/gutter",
-    "crates/registry/hooks",
-    "crates/registry/motions",
-    "crates/registry/notifications",
-    "crates/registry/options",
-    "crates/registry/statusline",
-    "crates/registry/text_objects",
-    "crates/registry/themes",
+    "crates/api",
+    "crates/auth",
+    "crates/base",
+    "crates/config",
+    "crates/core",
+    "crates/input",
+    "crates/keymap/*",
+    "crates/language",
+    "crates/lsp",
+    "crates/macro",
+    "crates/registry/*",
+    "crates/runtime",
+    "crates/term",
+    "crates/tui",
 ]
 
 [workspace.package]
@@ -83,15 +83,14 @@ xeno-auth = { path = "crates/auth" }
 xeno-base = { path = "crates/base" }
 xeno-config = { path = "crates/config" }
 xeno-core = { path = "crates/core" }
-xeno-extensions = { path = "crates/extensions" }
 xeno-input = { path = "crates/input" }
-xeno-keymap = { path = "crates/keymap" }
+xeno-keymap-core = { path = "crates/keymap/core" }
 xeno-keymap-derive = { path = "crates/keymap/derive" }
 xeno-keymap-parser = { path = "crates/keymap/parser" }
 xeno-language = { path = "crates/language" }
 xeno-lsp = { path = "crates/lsp" }
 xeno-macro = { path = "crates/macro" }
-xeno-registry = { path = "crates/registry" }
+xeno-registry = { path = "crates/registry/lib" }
 xeno-registry-actions = { path = "crates/registry/actions" }
 xeno-registry-commands = { path = "crates/registry/commands" }
 xeno-registry-core = { path = "crates/registry/core" }

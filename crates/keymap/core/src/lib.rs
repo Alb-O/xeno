@@ -1,17 +1,13 @@
-//! Key mapping library for xeno.
+//! Core key mapping types and pattern matching.
 //!
-//! Provides compile-time validated key mappings with support for:
+//! Provides the foundational types for key mapping:
 //! - Key patterns: single keys (`a`), combinations (`ctrl-b`), sequences (`g g`)
 //! - Key groups: `@upper`, `@lower`, `@alpha`, `@alnum`, `@digit`, `@any`
-//! - Derive macro for enum-based action definitions
 //! - Configuration file support (TOML, KDL)
 
 pub use config::{Config, DerivedConfig, Item, KeyMapConfig};
 pub use keymap::{Error, FromKeyMap, IntoKeyMap, KeyMap, ToKeyMap};
 pub use matcher::{ContinuationEntry, ContinuationKind, MatchResult, Matcher};
-#[cfg(feature = "derive")]
-#[doc(hidden)]
-pub use xeno_keymap_derive::KeyMap;
 pub use xeno_keymap_parser as parser;
 
 pub mod backend;

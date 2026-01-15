@@ -11,9 +11,9 @@ use std::collections::HashMap;
 use std::sync::OnceLock;
 
 use tracing::warn;
-use xeno_keymap::parser::{Node, parse_seq};
-pub use xeno_keymap::{ContinuationEntry, ContinuationKind};
-use xeno_keymap::{MatchResult, Matcher};
+use xeno_keymap_core::parser::{Node, parse_seq};
+pub use xeno_keymap_core::{ContinuationEntry, ContinuationKind};
+use xeno_keymap_core::{MatchResult, Matcher};
 use xeno_registry::actions::{BindingMode, KEYBINDINGS};
 
 use crate::ActionId;
@@ -182,7 +182,7 @@ pub fn get_keymap_registry() -> &'static KeymapRegistry {
 
 #[cfg(test)]
 mod tests {
-	use xeno_keymap::parser::parse_seq;
+	use xeno_keymap_core::parser::parse_seq;
 
 	use super::*;
 

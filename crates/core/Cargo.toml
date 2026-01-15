@@ -32,6 +32,6 @@ tracing.workspace = true
 unicode-segmentation = { workspace = true, optional = true }
 unicode-width = { workspace = true, optional = true }
 xeno-base.workspace = true
-xeno-keymap.workspace = true
+xeno-keymap-core.workspace = true
 xeno-macro.workspace = true
 xeno-registry.workspace = true

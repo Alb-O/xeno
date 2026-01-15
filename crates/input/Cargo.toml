@@ -10,6 +10,6 @@ serde.workspace = true
 tracing.workspace = true
 xeno-base.workspace = true
 xeno-core.workspace = true
-xeno-keymap.workspace = true
+xeno-keymap-core.workspace = true
 xeno-registry.workspace = true
 [dev-dependencies]

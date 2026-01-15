@@ -81,8 +81,8 @@ impl From<kdl::KdlError> for Error {
 /// # Example
 ///
 /// ```
-/// use xeno_keymap::kdl::parse_keybindings;
-/// use xeno_keymap::Config;
+/// use xeno_keymap_core::kdl::parse_keybindings;
+/// use xeno_keymap_core::Config;
 ///
 /// let kdl = r#"
 ///     Quit "q" "esc"

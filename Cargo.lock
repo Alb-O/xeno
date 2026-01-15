@@ -4412,7 +4412,7 @@ dependencies = [
  "unicode-segmentation",
  "unicode-width 0.2.2",
  "xeno-base",
- "xeno-keymap",
+ "xeno-keymap-core",
  "xeno-macro",
  "xeno-registry",
 ]
@@ -4425,12 +4425,12 @@ dependencies = [
  "tracing",
  "xeno-base",
  "xeno-core",
- "xeno-keymap",
+ "xeno-keymap-core",
  "xeno-registry",
 ]
 
 [[package]]
-name = "xeno-keymap"
+name = "xeno-keymap-core"
 version = "0.3.0"
 dependencies = [
  "kdl",
@@ -4438,7 +4438,6 @@ dependencies = [
  "termina",
  "toml",
  "xeno-base",
- "xeno-keymap-derive",
  "xeno-keymap-parser",
 ]
 
@@ -4451,7 +4450,7 @@ dependencies = [
  "serde",
  "syn 2.0.113",
  "toml",
- "xeno-keymap",
+ "xeno-keymap-core",
  "xeno-keymap-parser",
 ]
 
