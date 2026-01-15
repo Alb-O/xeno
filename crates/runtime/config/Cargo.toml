@@ -12,7 +12,6 @@ watch = ["notify"]
 [dependencies]
 kdl.workspace = true
 notify = { workspace = true, optional = true }
-strsim.workspace = true
 thiserror.workspace = true
 xeno-primitives.workspace = true
 xeno-registry.workspace = true

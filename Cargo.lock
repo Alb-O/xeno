@@ -122,17 +122,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7c02d123df017efcdfbd739ef81735b36c5ba83ec3c59c80a9d7ecc718f92e50"
 
 [[package]]
-name = "async-trait"
-version = "0.1.89"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9035ad2d096bed7955a320ee7e2230574d28fd3c3a0f186cbea1ff3c7eed5dbb"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn 2.0.113",
-]
-
-[[package]]
 name = "atomic"
 version = "0.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -255,12 +244,6 @@ name = "cfg-if"
 version = "1.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9330f8b2ff13f34540b44e946ef35111825727b38d33286ef986142615121801"
-
-[[package]]
-name = "cfg_aliases"
-version = "0.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fd16c4719339c4530435d38e511904438d07cce7950afa3718a84ac36c10e89e"
 
 [[package]]
 name = "cfg_aliases"
@@ -586,12 +569,6 @@ checksum = "d4b8a88685455ed29a21542a33abd9cb6510b6b129abadabdcef0f4c55bc8f61"
 dependencies = [
  "litrs",
 ]
-
-[[package]]
-name = "downcast-rs"
-version = "1.2.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "75b325c5dbd37f80359721ad39aca5a29fb04c89279657cffdda8736d0c0b9d2"
 
 [[package]]
 name = "either"
@@ -1286,16 +1263,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "libloading"
-version = "0.9.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "754ca22de805bb5744484a5b151a9e1a8e837d5dc232c2d7d8c2e3492edc8b60"
-dependencies = [
- "cfg-if",
- "windows-link",
-]
-
-[[package]]
 name = "libredox"
 version = "0.1.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1386,7 +1353,7 @@ version = "1.1.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c0aeb26bf5e836cc1c341c8106051b573f1766dfa05aa87f0b98be5e51b02303"
 dependencies = [
- "nix 0.29.0",
+ "nix",
  "winapi",
 ]
 
@@ -1481,25 +1448,13 @@ dependencies = [
 
 [[package]]
 name = "nix"
-version = "0.28.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ab2156c4fce2f8df6c499cc1c763e4394b7482525bf2a9701c9d79d215f519e4"
-dependencies = [
- "bitflags 2.10.0",
- "cfg-if",
- "cfg_aliases 0.1.1",
- "libc",
-]
-
-[[package]]
-name = "nix"
 version = "0.29.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "71e2746dc3a24dd78b3cfcb7be93368c6de9963d30f43a6a73998a9cf4b17b46"
 dependencies = [
  "bitflags 2.10.0",
  "cfg-if",
- "cfg_aliases 0.2.1",
+ "cfg_aliases",
  "libc",
  "memoffset",
 ]
@@ -1855,27 +1810,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "portable-pty"
-version = "0.9.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b4a596a2b3d2752d94f51fac2d4a96737b8705dddd311a32b9af47211f08671e"
-dependencies = [
- "anyhow",
- "bitflags 1.3.2",
- "downcast-rs",
- "filedescriptor",
- "lazy_static",
- "libc",
- "log",
- "nix 0.28.0",
- "serial2",
- "shared_library",
- "shell-words",
- "winapi",
- "winreg",
-]
-
-[[package]]
 name = "potential_utf"
 version = "0.1.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2209,17 +2143,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "serial2"
-version = "0.2.33"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8cc76fa68e25e771492ca1e3c53d447ef0be3093e05cd3b47f4b712ba10c6f3c"
-dependencies = [
- "cfg-if",
- "libc",
- "winapi",
-]
-
-[[package]]
 name = "serial_test"
 version = "3.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2264,22 +2187,6 @@ checksum = "f40ca3c46823713e0d4209592e8d6e826aa57e928f09752619fc696c499637f6"
 dependencies = [
  "lazy_static",
 ]
-
-[[package]]
-name = "shared_library"
-version = "0.1.9"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5a9e7e0f2bfae24d8a5b5a66c5b257a83c7412304311512a0c054cd5e619da11"
-dependencies = [
- "lazy_static",
- "libc",
-]
-
-[[package]]
-name = "shell-words"
-version = "1.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dc6fe69c597f9c37bfeeeeeb33da3530379845f10be461a66d16d03eca2ded77"
 
 [[package]]
 name = "shlex"
@@ -2501,7 +2408,7 @@ dependencies = [
  "libc",
  "log",
  "memmem",
- "nix 0.29.0",
+ "nix",
  "num-derive",
  "num-traits",
  "ordered-float",
@@ -2809,7 +2716,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f24f037be888a6ea5521046288c126aa700ade79e9fe7c74cdef79207281c20b"
 dependencies = [
  "cc",
- "libloading 0.8.9",
+ "libloading",
  "regex-cursor",
  "ropey",
  "thiserror 2.0.17",
@@ -3315,15 +3222,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "winreg"
-version = "0.10.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "80d0f4e272c85def139476380b12f9ac60926689dd2e01d4923222f40580869d"
-dependencies = [
- "winapi",
-]
-
-[[package]]
 name = "winsafe"
 version = "0.0.19"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3346,32 +3244,22 @@ name = "xeno-editor"
 version = "0.3.0"
 dependencies = [
  "anyhow",
- "async-trait",
  "clap",
  "dirs",
  "frizbee",
  "futures",
  "insta",
  "linkme",
- "parking_lot",
  "paste",
- "portable-pty",
  "regex",
  "ropey",
  "serde",
  "serde_json",
- "strsim",
  "termina",
  "thiserror 2.0.17",
  "tokio",
  "tokio-util",
- "toml",
  "tracing",
- "tracing-subscriber",
- "tree-house",
- "unicode-segmentation",
- "unicode-width 0.2.2",
- "vt100",
  "xeno-keymap-core",
  "xeno-lsp",
  "xeno-primitives",
@@ -3458,12 +3346,9 @@ name = "xeno-primitives"
 version = "0.3.0"
 dependencies = [
  "ropey",
- "serde",
  "smallvec",
  "termina",
- "thiserror 2.0.17",
  "unicode-segmentation",
- "unicode-width 0.2.2",
  "xeno-keymap-parser",
  "xeno-tui",
 ]
@@ -3531,7 +3416,6 @@ dependencies = [
  "paste",
  "ropey",
  "xeno-registry-core",
- "xeno-tui",
 ]
 
 [[package]]
@@ -3554,7 +3438,6 @@ dependencies = [
  "paste",
  "regex",
  "ropey",
- "unicode-segmentation",
  "xeno-primitives",
  "xeno-registry-core",
 ]
@@ -3564,8 +3447,6 @@ name = "xeno-registry-notifications"
 version = "0.3.0"
 dependencies = [
  "linkme",
- "paste",
- "thiserror 2.0.17",
  "xeno-registry-core",
 ]
 
@@ -3574,7 +3455,6 @@ name = "xeno-registry-options"
 version = "0.3.0"
 dependencies = [
  "linkme",
- "paste",
  "strsim",
  "xeno-macro",
  "xeno-registry-core",
@@ -3585,7 +3465,6 @@ name = "xeno-registry-statusline"
 version = "0.3.0"
 dependencies = [
  "linkme",
- "paste",
  "xeno-registry-core",
 ]
 
@@ -3617,7 +3496,6 @@ version = "0.3.0"
 dependencies = [
  "kdl",
  "notify",
- "strsim",
  "tempfile",
  "thiserror 2.0.17",
  "xeno-primitives",
@@ -3638,11 +3516,9 @@ version = "0.3.0"
 dependencies = [
  "cc",
  "kdl",
- "libloading 0.9.0",
  "once_cell",
  "regex",
  "ropey",
- "serde",
  "serde_json",
  "tempfile",
  "thiserror 2.0.17",
@@ -3660,20 +3536,14 @@ dependencies = [
  "anyhow",
  "clap",
  "crossterm",
- "futures",
  "insta",
  "kitty-test-harness",
- "linkme",
- "parking_lot",
  "serde",
  "serde_json",
  "serial_test",
  "termina",
  "termwiz",
- "thiserror 2.0.17",
  "tokio",
- "tokio-util",
- "toml",
  "tracing",
  "tracing-subscriber",
  "uuid",
@@ -3692,13 +3562,10 @@ version = "0.3.0"
 dependencies = [
  "anstyle",
  "bitflags 2.10.0",
- "cfg-if",
  "color-eyre",
  "compact_str",
  "crossterm",
- "document-features",
  "hashbrown 0.16.1",
- "indoc",
  "instability",
  "itertools 0.14.0",
  "kasuari",

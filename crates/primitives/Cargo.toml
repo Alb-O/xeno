@@ -11,12 +11,9 @@ xeno-tui = ["dep:xeno-tui"]
 
 [dependencies]
 ropey.workspace = true
-serde.workspace = true
 smallvec.workspace = true
 termina.workspace = true
-thiserror.workspace = true
 unicode-segmentation.workspace = true
-unicode-width.workspace = true
 xeno-keymap-parser.workspace = true
 xeno-tui = { workspace = true, optional = true }
 
