@@ -1,4 +1,4 @@
-//! Embedded runtime assets for xeno.
+//! Embedded runtime data and assets.
 //!
 //! Provides compile-time embedded access to:
 //! - Tree-sitter queries (highlights, indents, textobjects, etc.)

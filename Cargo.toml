@@ -2,7 +2,6 @@
 resolver = "3"
 members = [
     "crates/editor",
-    "crates/input",
     "crates/keymap/*",
     "crates/lsp",
     "crates/macro",
@@ -75,7 +74,6 @@ uuid = { version = "1", features = ["v4"] }
 webbrowser = "1"
 which = "8"
 xeno-editor = { path = "crates/editor" }
-xeno-input = { path = "crates/input" }
 xeno-keymap-core = { path = "crates/keymap/core" }
 xeno-keymap-derive = { path = "crates/keymap/derive" }
 xeno-keymap-parser = { path = "crates/keymap/parser" }

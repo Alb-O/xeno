@@ -3,7 +3,7 @@
 //! Processing keyboard input and dispatching actions.
 
 use termina::event::KeyCode;
-use xeno_input::KeyResult;
+use crate::input::KeyResult;
 use xeno_primitives::{Key, Mode, Selection};
 
 use crate::editor::{Editor, FocusTarget};

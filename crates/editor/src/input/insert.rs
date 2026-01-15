@@ -6,8 +6,8 @@ use xeno_registry::actions::keys as actions;
 use xeno_registry::keymap_registry::LookupResult;
 use xeno_registry::{BindingMode, get_keymap_registry, resolve_action_key};
 
-use crate::InputHandler;
-use crate::types::{KeyResult, Mode};
+use super::InputHandler;
+use super::types::{KeyResult, Mode};
 
 impl InputHandler {
 	/// Processes a key press in insert mode.

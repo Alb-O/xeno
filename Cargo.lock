@@ -3361,24 +3361,13 @@ dependencies = [
  "unicode-segmentation",
  "unicode-width 0.2.2",
  "vt100",
- "xeno-input",
+ "xeno-keymap-core",
  "xeno-lsp",
  "xeno-primitives",
  "xeno-registry",
  "xeno-registry-notifications",
  "xeno-runtime-language",
  "xeno-tui",
-]
-
-[[package]]
-name = "xeno-input"
-version = "0.3.0"
-dependencies = [
- "serde",
- "tracing",
- "xeno-keymap-core",
- "xeno-primitives",
- "xeno-registry",
 ]
 
 [[package]]

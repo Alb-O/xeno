@@ -7,7 +7,7 @@ use xeno_primitives::key::{Key, KeyCode, MouseButton, MouseEvent};
 use xeno_registry::keymap_registry::{KeymapRegistry, LookupResult};
 use xeno_registry::{BindingMode, get_keymap_registry};
 
-use crate::types::{KeyResult, Mode};
+use super::types::{KeyResult, Mode};
 
 /// Manages input state and key processing.
 #[derive(Debug, Clone)]

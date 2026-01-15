@@ -6,7 +6,7 @@
 
 use xeno_primitives::key::Key;
 
-use crate::InputHandler;
+use super::InputHandler;
 
 #[test]
 fn test_digit_count_accumulates() {
@@ -29,14 +29,14 @@ fn test_count_resets_on_mode_change() {
 	assert_eq!(h.count(), 5);
 
 	// Reset via set_mode to Normal
-	h.set_mode(crate::types::Mode::Normal);
+	h.set_mode(super::types::Mode::Normal);
 	assert_eq!(h.count(), 0);
 }
 
 #[test]
 fn test_initial_mode_is_normal() {
 	let h = InputHandler::new();
-	assert!(matches!(h.mode(), crate::types::Mode::Normal));
+	assert!(matches!(h.mode(), super::types::Mode::Normal));
 }
 
 #[test]

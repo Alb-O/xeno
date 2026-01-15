@@ -2,8 +2,8 @@ use xeno_primitives::key::{Key, KeyCode};
 use xeno_primitives::{ObjectSelectionKind, PendingKind};
 use xeno_registry::resolve_action_id;
 
-use crate::InputHandler;
-use crate::types::{KeyResult, Mode};
+use super::InputHandler;
+use super::types::{KeyResult, Mode};
 
 impl InputHandler {
 	/// Handles key input for pending actions (character find, text objects, etc.).
