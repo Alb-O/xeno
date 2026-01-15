@@ -48,10 +48,10 @@ impl Editor {
 			doc.content.len_bytes() as u32
 		};
 
-		let highlight_styles =
-			xeno_runtime_language::highlight::HighlightStyles::new(SyntaxStyles::scope_names(), |scope| {
-				self.config.theme.colors.syntax.resolve(scope)
-			});
+		let highlight_styles = xeno_runtime_language::highlight::HighlightStyles::new(
+			SyntaxStyles::scope_names(),
+			|scope| self.config.theme.colors.syntax.resolve(scope),
+		);
 
 		let highlighter = syntax.highlighter(
 			doc.content.slice(..),

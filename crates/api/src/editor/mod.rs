@@ -100,10 +100,10 @@ pub use types::{
 	Config, EditorUndoEntry, FrameState, HistoryEntry, JumpList, JumpLocation, MacroState,
 	Registers, Viewport, Workspace,
 };
-use xeno_runtime_language::LanguageLoader;
 use xeno_registry::{
 	HookContext, HookEventData, WindowKind, emit_sync_with as emit_hook_sync_with,
 };
+use xeno_runtime_language::LanguageLoader;
 use xeno_tui::layout::Rect;
 
 #[cfg(feature = "lsp")]

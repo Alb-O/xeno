@@ -35,13 +35,13 @@ tree-house.workspace = true
 unicode-segmentation.workspace = true
 unicode-width.workspace = true
 vt100 = "0.16"
-xeno-primitives.workspace = true
 xeno-core.workspace = true
 xeno-input.workspace = true
-xeno-runtime-language.workspace = true
 xeno-lsp = { workspace = true, features = ["position"], optional = true }
+xeno-primitives.workspace = true
 xeno-registry.workspace = true
 xeno-registry-notifications.workspace = true
+xeno-runtime-language.workspace = true
 xeno-tui.workspace = true
 [dev-dependencies]
 insta.workspace = true

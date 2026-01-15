@@ -5,14 +5,14 @@ use std::ops::Range;
 
 use thiserror::Error;
 use tracing::warn;
-use xeno_primitives::Transaction;
-use xeno_primitives::range::CharIdx;
-use xeno_primitives::transaction::{Change, Tendril};
 use xeno_lsp::lsp_types::{
 	AnnotatedTextEdit, DocumentChangeOperation, DocumentChanges, OneOf, TextDocumentEdit, TextEdit,
 	Uri, WorkspaceEdit,
 };
 use xeno_lsp::{OffsetEncoding, lsp_range_to_char_range};
+use xeno_primitives::Transaction;
+use xeno_primitives::range::CharIdx;
+use xeno_primitives::transaction::{Change, Tendril};
 
 use crate::buffer::BufferId;
 use crate::editor::{Editor, EditorUndoEntry};

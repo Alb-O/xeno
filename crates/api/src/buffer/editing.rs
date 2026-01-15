@@ -1,12 +1,12 @@
 //! Text editing operations for buffers.
 
+use xeno_core::movement;
+#[cfg(feature = "lsp")]
+use xeno_lsp::{IncrementalResult, OffsetEncoding, compute_lsp_changes};
 #[cfg(feature = "lsp")]
 use xeno_primitives::LspDocumentChange;
 use xeno_primitives::{Range, Transaction};
-use xeno_core::movement;
 use xeno_runtime_language::LanguageLoader;
-#[cfg(feature = "lsp")]
-use xeno_lsp::{IncrementalResult, OffsetEncoding, compute_lsp_changes};
 
 use super::Buffer;
 
@@ -143,7 +143,9 @@ impl Buffer {
 	/// Prepares deletion of selection, returning transaction and new selection without applying.
 	///
 	/// Returns None if selection is empty.
-	pub fn prepare_delete_selection(&mut self) -> Option<(Transaction, xeno_primitives::Selection)> {
+	pub fn prepare_delete_selection(
+		&mut self,
+	) -> Option<(Transaction, xeno_primitives::Selection)> {
 		self.ensure_valid_selection();
 
 		if !self.selection.primary().is_empty() {
@@ -292,9 +294,9 @@ mod tests {
 
 	#[cfg(feature = "lsp")]
 	mod lsp_batching {
+		use xeno_lsp::OffsetEncoding;
 		use xeno_primitives::Selection;
 		use xeno_primitives::lsp::{LspPosition, LspRange};
-		use xeno_lsp::OffsetEncoding;
 
 		use crate::buffer::{Buffer, BufferId};
 

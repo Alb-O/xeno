@@ -19,8 +19,8 @@ xeno-primitives = ["dep:xeno-primitives"]
 kdl = { workspace = true, optional = true }
 serde = { workspace = true }
 termina = { workspace = true, optional = true }
-xeno-primitives = { workspace = true, optional = true }
 xeno-keymap-parser = { path = "../parser" }
+xeno-primitives = { workspace = true, optional = true }
 
 [dev-dependencies]
 toml = { workspace = true }

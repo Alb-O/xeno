@@ -229,7 +229,9 @@ async fn handle_auth_command(action: AuthAction) -> anyhow::Result<()> {
 
 /// Handles grammar fetch/build/sync subcommands.
 fn handle_grammar_command(action: GrammarAction) -> anyhow::Result<()> {
-	use xeno_runtime_language::build::{build_all_grammars, fetch_all_grammars, load_grammar_configs};
+	use xeno_runtime_language::build::{
+		build_all_grammars, fetch_all_grammars, load_grammar_configs,
+	};
 
 	let configs = load_grammar_configs()?;
 
@@ -286,7 +288,10 @@ fn handle_grammar_command(action: GrammarAction) -> anyhow::Result<()> {
 fn report_fetch_results(
 	results: &[(
 		xeno_runtime_language::build::GrammarConfig,
-		Result<xeno_runtime_language::build::FetchStatus, xeno_runtime_language::build::GrammarBuildError>,
+		Result<
+			xeno_runtime_language::build::FetchStatus,
+			xeno_runtime_language::build::GrammarBuildError,
+		>,
 	)],
 ) {
 	use xeno_runtime_language::build::FetchStatus;
@@ -323,7 +328,10 @@ fn report_fetch_results(
 fn report_build_results(
 	results: &[(
 		xeno_runtime_language::build::GrammarConfig,
-		Result<xeno_runtime_language::build::BuildStatus, xeno_runtime_language::build::GrammarBuildError>,
+		Result<
+			xeno_runtime_language::build::BuildStatus,
+			xeno_runtime_language::build::GrammarBuildError,
+		>,
 	)],
 ) {
 	use xeno_runtime_language::build::BuildStatus;

@@ -5,10 +5,10 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use xeno_primitives::Mode;
 use xeno_primitives::range::CharIdx;
-use xeno_runtime_language::LanguageLoader;
-use xeno_runtime_language::highlight::{HighlightSpan, HighlightStyles};
 use xeno_registry::gutter::GutterAnnotations;
 use xeno_registry::themes::{SyntaxStyles, Theme};
+use xeno_runtime_language::LanguageLoader;
+use xeno_runtime_language::highlight::{HighlightSpan, HighlightStyles};
 use xeno_tui::layout::Rect;
 use xeno_tui::style::{Modifier, Style};
 use xeno_tui::text::{Line, Span};
@@ -383,9 +383,9 @@ impl<'a> BufferRenderContext<'a> {
 					let doc_pos: CharIdx = line_start + seg_char_offset + i;
 					let is_cursor = cursor_heads.contains(&doc_pos);
 					let is_primary_cursor = doc_pos == primary_cursor;
-					let in_selection = ranges
-						.iter()
-						.any(|r: &xeno_primitives::range::Range| doc_pos >= r.from() && doc_pos < r.to());
+					let in_selection = ranges.iter().any(|r: &xeno_primitives::range::Range| {
+						doc_pos >= r.from() && doc_pos < r.to()
+					});
 
 					let cursor_style = if !is_focused {
 						styles.unfocused

@@ -1,5 +1,5 @@
-use xeno_primitives::Selection;
 use xeno_core::movement;
+use xeno_primitives::Selection;
 use xeno_registry_notifications::keys;
 
 use super::Editor;

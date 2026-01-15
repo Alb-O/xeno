@@ -127,7 +127,6 @@ fn parse_server_node(node: &KdlNode) -> LspServerDef {
 	}
 }
 
-
 /// Parses environment variables from the environment block.
 fn parse_environment(children: Option<&KdlDocument>) -> HashMap<String, String> {
 	let mut env = HashMap::new();

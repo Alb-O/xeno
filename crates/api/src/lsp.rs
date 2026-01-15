@@ -44,7 +44,6 @@
 use std::path::Path;
 use std::sync::Arc;
 
-use xeno_primitives::LspDocumentChange;
 // Re-export for consumers
 pub use xeno_lsp::DiagnosticsEvent as LspDiagnosticsEvent;
 // Re-export types needed by consumers
@@ -54,6 +53,7 @@ use xeno_lsp::{
 	ClientHandle, DiagnosticsEvent, DiagnosticsEventReceiver, DocumentStateManager, DocumentSync,
 	OffsetEncoding, Registry, Result,
 };
+use xeno_primitives::LspDocumentChange;
 
 use crate::buffer::Buffer;
 

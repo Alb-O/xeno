@@ -3,12 +3,12 @@ resolver = "3"
 members = [
     "crates/api",
     "crates/auth",
-    "crates/primitives",
     "crates/core",
     "crates/input",
     "crates/keymap/*",
     "crates/lsp",
     "crates/macro",
+    "crates/primitives",
     "crates/registry/*",
     "crates/runtime/*",
     "crates/term",
@@ -78,16 +78,14 @@ webbrowser = "1"
 which = "8"
 xeno-api = { path = "crates/api" }
 xeno-auth = { path = "crates/auth" }
-xeno-primitives = { path = "crates/primitives" }
-xeno-runtime-config = { path = "crates/runtime/config" }
 xeno-core = { path = "crates/core" }
 xeno-input = { path = "crates/input" }
 xeno-keymap-core = { path = "crates/keymap/core" }
 xeno-keymap-derive = { path = "crates/keymap/derive" }
 xeno-keymap-parser = { path = "crates/keymap/parser" }
-xeno-runtime-language = { path = "crates/runtime/language" }
 xeno-lsp = { path = "crates/lsp" }
 xeno-macro = { path = "crates/macro" }
+xeno-primitives = { path = "crates/primitives" }
 xeno-registry = { path = "crates/registry/lib" }
 xeno-registry-actions = { path = "crates/registry/actions" }
 xeno-registry-commands = { path = "crates/registry/commands" }
@@ -100,7 +98,9 @@ xeno-registry-options = { path = "crates/registry/options" }
 xeno-registry-statusline = { path = "crates/registry/statusline" }
 xeno-registry-text-objects = { path = "crates/registry/text_objects" }
 xeno-registry-themes = { path = "crates/registry/themes" }
+xeno-runtime-config = { path = "crates/runtime/config" }
 xeno-runtime-data = { path = "crates/runtime/data" }
+xeno-runtime-language = { path = "crates/runtime/language" }
 xeno-tui = { path = "crates/tui" }
 
 [profile.dev]

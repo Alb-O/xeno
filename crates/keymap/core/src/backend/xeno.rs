@@ -3,8 +3,8 @@
 //! Bridges `xeno_primitives::key::Key` with the `KeyMap` (`Node`) representation
 //! used for keybinding configuration and matching.
 
-use xeno_primitives::key::{Key, KeyCode, Modifiers};
 use xeno_keymap_parser::{self as parser, Key as ParserKey, Modifier, Node};
+use xeno_primitives::key::{Key, KeyCode, Modifiers};
 
 use crate::Error;
 use crate::keymap::{FromKeyMap, IntoKeyMap, KeyMap, ToKeyMap};

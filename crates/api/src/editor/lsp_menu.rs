@@ -3,15 +3,15 @@ use std::ops::Range as StdRange;
 
 use termina::event::{KeyCode, KeyEvent, Modifiers};
 use tokio_util::sync::CancellationToken;
-use xeno_primitives::range::CharIdx;
-use xeno_primitives::transaction::Bias;
-use xeno_primitives::{Range, Selection};
 use xeno_core::{CompletionItem as UiCompletionItem, CompletionKind};
 use xeno_lsp::lsp_types::{
 	CodeActionOrCommand, Command, CompletionItem, CompletionTextEdit, CompletionTriggerKind,
 	Diagnostic, Documentation, InsertTextFormat, MarkupContent, SignatureHelp, TextEdit,
 };
 use xeno_lsp::{OffsetEncoding, char_range_to_lsp_range, lsp_range_to_char_range};
+use xeno_primitives::range::CharIdx;
+use xeno_primitives::transaction::Bias;
+use xeno_primitives::{Range, Selection};
 use xeno_registry_notifications::keys;
 
 use crate::buffer::BufferId;

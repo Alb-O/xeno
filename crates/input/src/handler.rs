@@ -1,11 +1,11 @@
 //! Input handler managing key processing and mode state.
 
 use tracing::debug;
-use xeno_primitives::key::{Key, KeyCode, MouseButton, MouseEvent};
 use xeno_core::get_keymap_registry;
 use xeno_core::keymap_registry::{KeymapRegistry, LookupResult};
 use xeno_keymap_core::ToKeyMap;
 use xeno_keymap_core::parser::Node;
+use xeno_primitives::key::{Key, KeyCode, MouseButton, MouseEvent};
 use xeno_registry::BindingMode;
 
 use crate::types::{KeyResult, Mode};

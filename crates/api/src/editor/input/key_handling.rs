@@ -3,8 +3,8 @@
 //! Processing keyboard input and dispatching actions.
 
 use termina::event::KeyCode;
-use xeno_primitives::{Key, Mode, Selection};
 use xeno_input::KeyResult;
+use xeno_primitives::{Key, Mode, Selection};
 
 use crate::editor::{Editor, FocusTarget};
 use crate::palette::PaletteState;
@@ -269,7 +269,8 @@ impl Editor {
 			self.clear_lsp_menu();
 		} else if content_changed {
 			self.cancel_signature_help();
-			if self.buffer().mode() == xeno_primitives::Mode::Insert && !self.buffer().is_readonly() {
+			if self.buffer().mode() == xeno_primitives::Mode::Insert && !self.buffer().is_readonly()
+			{
 				// Refilter existing menu immediately (no LSP round-trip)
 				if menu_active {
 					self.refilter_completion();

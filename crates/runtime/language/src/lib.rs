@@ -24,13 +24,13 @@ pub mod build;
 pub mod config;
 pub mod grammar;
 pub mod highlight;
-mod utils;
 pub mod language;
 pub mod loader;
 pub mod lsp_config;
 pub mod query;
 pub mod runtime;
 pub mod syntax;
+mod utils;
 
 pub use config::{LanguageConfigError, load_language_configs};
 pub use grammar::{

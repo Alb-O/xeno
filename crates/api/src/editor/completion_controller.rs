@@ -4,9 +4,9 @@ use std::time::Duration;
 
 use tokio::time::sleep;
 use tokio_util::sync::CancellationToken;
-use xeno_primitives::range::CharIdx;
 use xeno_lsp::ClientHandle;
 use xeno_lsp::lsp_types::{CompletionContext, CompletionTriggerKind, Position, Uri};
+use xeno_primitives::range::CharIdx;
 
 use crate::buffer::BufferId;
 use crate::editor::lsp_events::LspUiEvent;

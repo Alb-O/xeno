@@ -1,10 +1,10 @@
 //! LSP UI event handling (completions, signature help).
 
-use xeno_primitives::range::CharIdx;
 use xeno_core::{CompletionItem, CompletionKind};
 use xeno_lsp::lsp_types::{
 	CompletionItem as LspCompletionItem, CompletionList, CompletionResponse,
 };
+use xeno_primitives::range::CharIdx;
 
 use crate::buffer::BufferId;
 use crate::editor::Editor;
