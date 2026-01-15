@@ -1,8 +1,8 @@
 //! Text editing operations for buffers.
 
 #[cfg(feature = "lsp")]
-use xeno_base::LspDocumentChange;
-use xeno_base::{Range, Transaction};
+use xeno_primitives::LspDocumentChange;
+use xeno_primitives::{Range, Transaction};
 use xeno_core::movement;
 use xeno_runtime_language::LanguageLoader;
 #[cfg(feature = "lsp")]
@@ -14,7 +14,7 @@ impl Buffer {
 	/// Inserts text at all cursor positions, returning the [`Transaction`] without applying it.
 	///
 	/// The caller is responsible for applying the transaction (with or without syntax update).
-	pub fn prepare_insert(&mut self, text: &str) -> (Transaction, xeno_base::Selection) {
+	pub fn prepare_insert(&mut self, text: &str) -> (Transaction, xeno_primitives::Selection) {
 		self.ensure_valid_selection();
 
 		let mut insertion_points = self.selection.clone();
@@ -68,7 +68,7 @@ impl Buffer {
 	pub fn prepare_paste_after(
 		&mut self,
 		text: &str,
-	) -> Option<(Transaction, xeno_base::Selection)> {
+	) -> Option<(Transaction, xeno_primitives::Selection)> {
 		if text.is_empty() {
 			return None;
 		}
@@ -84,14 +84,14 @@ impl Buffer {
 					movement::move_horizontally(
 						doc.content.slice(..),
 						*r,
-						xeno_base::range::Direction::Forward,
+						xeno_primitives::range::Direction::Forward,
 						1,
 						false,
 					)
 				})
 				.collect()
 		};
-		self.set_selection(xeno_base::Selection::from_vec(
+		self.set_selection(xeno_primitives::Selection::from_vec(
 			new_ranges,
 			self.selection.primary_index(),
 		));
@@ -118,7 +118,7 @@ impl Buffer {
 	pub fn prepare_paste_before(
 		&mut self,
 		text: &str,
-	) -> Option<(Transaction, xeno_base::Selection)> {
+	) -> Option<(Transaction, xeno_primitives::Selection)> {
 		if text.is_empty() {
 			return None;
 		}
@@ -143,7 +143,7 @@ impl Buffer {
 	/// Prepares deletion of selection, returning transaction and new selection without applying.
 	///
 	/// Returns None if selection is empty.
-	pub fn prepare_delete_selection(&mut self) -> Option<(Transaction, xeno_base::Selection)> {
+	pub fn prepare_delete_selection(&mut self) -> Option<(Transaction, xeno_primitives::Selection)> {
 		self.ensure_valid_selection();
 
 		if !self.selection.primary().is_empty() {
@@ -280,7 +280,7 @@ impl Buffer {
 	}
 
 	/// Finalizes selection/cursor after a transaction is applied.
-	pub fn finalize_selection(&mut self, new_selection: xeno_base::Selection) {
+	pub fn finalize_selection(&mut self, new_selection: xeno_primitives::Selection) {
 		self.set_selection(new_selection);
 		self.sync_cursor_to_selection();
 	}
@@ -292,8 +292,8 @@ mod tests {
 
 	#[cfg(feature = "lsp")]
 	mod lsp_batching {
-		use xeno_base::Selection;
-		use xeno_base::lsp::{LspPosition, LspRange};
+		use xeno_primitives::Selection;
+		use xeno_primitives::lsp::{LspPosition, LspRange};
 		use xeno_lsp::OffsetEncoding;
 
 		use crate::buffer::{Buffer, BufferId};
@@ -362,9 +362,9 @@ mod tests {
 			// Multi-cursor: start of each line
 			buffer.set_selection(Selection::from_vec(
 				vec![
-					xeno_base::Range::point(0),
-					xeno_base::Range::point(4),
-					xeno_base::Range::point(8),
+					xeno_primitives::Range::point(0),
+					xeno_primitives::Range::point(4),
+					xeno_primitives::Range::point(8),
 				],
 				0,
 			));

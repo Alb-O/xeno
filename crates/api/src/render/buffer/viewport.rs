@@ -2,7 +2,7 @@
 
 use serde::Serialize;
 use tracing::{debug, trace};
-use xeno_base::range::CharIdx;
+use xeno_primitives::range::CharIdx;
 use xeno_tui::layout::Rect;
 
 use crate::buffer::Buffer;

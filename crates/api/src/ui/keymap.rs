@@ -3,7 +3,7 @@
 use std::collections::HashMap;
 
 use termina::event::KeyEvent;
-use xeno_base::{Key, KeyCode, Modifiers};
+use xeno_primitives::{Key, KeyCode, Modifiers};
 
 use super::UiRequest;
 

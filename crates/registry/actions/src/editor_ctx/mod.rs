@@ -28,8 +28,8 @@ mod handlers;
 
 pub use capabilities::*;
 pub use handlers::*;
-use xeno_base::range::CharIdx;
-use xeno_base::selection::Selection;
+use xeno_primitives::range::CharIdx;
+use xeno_primitives::selection::Selection;
 
 use crate::{Capability, CommandError, Mode};
 

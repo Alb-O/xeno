@@ -3,7 +3,7 @@
 use std::collections::{HashMap, HashSet};
 
 use tracing::warn;
-use xeno_base::Selection;
+use xeno_primitives::Selection;
 use xeno_registry_notifications::keys;
 
 use crate::buffer::{BufferId, DocumentId};

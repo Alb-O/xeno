@@ -4332,10 +4332,10 @@ dependencies = [
  "unicode-segmentation",
  "unicode-width 0.2.2",
  "vt100",
- "xeno-base",
  "xeno-core",
  "xeno-input",
  "xeno-lsp",
+ "xeno-primitives",
  "xeno-registry",
  "xeno-registry-notifications",
  "xeno-runtime-language",
@@ -4364,21 +4364,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "xeno-base"
-version = "0.3.0"
-dependencies = [
- "ropey",
- "serde",
- "smallvec",
- "termina",
- "thiserror 2.0.17",
- "unicode-segmentation",
- "unicode-width 0.2.2",
- "xeno-keymap-parser",
- "xeno-tui",
-]
-
-[[package]]
 name = "xeno-core"
 version = "0.3.0"
 dependencies = [
@@ -4397,9 +4382,9 @@ dependencies = [
  "tracing",
  "unicode-segmentation",
  "unicode-width 0.2.2",
- "xeno-base",
  "xeno-keymap-core",
  "xeno-macro",
+ "xeno-primitives",
  "xeno-registry",
 ]
 
@@ -4409,9 +4394,9 @@ version = "0.3.0"
 dependencies = [
  "serde",
  "tracing",
- "xeno-base",
  "xeno-core",
  "xeno-keymap-core",
+ "xeno-primitives",
  "xeno-registry",
 ]
 
@@ -4423,8 +4408,8 @@ dependencies = [
  "serde",
  "termina",
  "toml",
- "xeno-base",
  "xeno-keymap-parser",
+ "xeno-primitives",
 ]
 
 [[package]]
@@ -4473,7 +4458,7 @@ dependencies = [
  "tracing-subscriber",
  "url",
  "waitpid-any",
- "xeno-base",
+ "xeno-primitives",
 ]
 
 [[package]]
@@ -4485,6 +4470,21 @@ dependencies = [
  "quote",
  "syn 2.0.113",
  "xeno-keymap-parser",
+]
+
+[[package]]
+name = "xeno-primitives"
+version = "0.3.0"
+dependencies = [
+ "ropey",
+ "serde",
+ "smallvec",
+ "termina",
+ "thiserror 2.0.17",
+ "unicode-segmentation",
+ "unicode-width 0.2.2",
+ "xeno-keymap-parser",
+ "xeno-tui",
 ]
 
 [[package]]
@@ -4512,8 +4512,8 @@ dependencies = [
  "paste",
  "ropey",
  "tracing",
- "xeno-base",
  "xeno-macro",
+ "xeno-primitives",
  "xeno-registry-commands",
  "xeno-registry-core",
  "xeno-registry-motions",
@@ -4558,8 +4558,8 @@ dependencies = [
  "linkme",
  "paste",
  "tracing",
- "xeno-base",
  "xeno-macro",
+ "xeno-primitives",
  "xeno-registry-core",
 ]
 
@@ -4572,7 +4572,7 @@ dependencies = [
  "regex",
  "ropey",
  "unicode-segmentation",
- "xeno-base",
+ "xeno-primitives",
  "xeno-registry-core",
 ]
 
@@ -4613,7 +4613,7 @@ dependencies = [
  "linkme",
  "paste",
  "ropey",
- "xeno-base",
+ "xeno-primitives",
  "xeno-registry-core",
  "xeno-registry-motions",
 ]
@@ -4624,7 +4624,7 @@ version = "0.3.0"
 dependencies = [
  "linkme",
  "strsim",
- "xeno-base",
+ "xeno-primitives",
  "xeno-registry-core",
 ]
 
@@ -4637,7 +4637,7 @@ dependencies = [
  "strsim",
  "tempfile",
  "thiserror 2.0.17",
- "xeno-base",
+ "xeno-primitives",
  "xeno-registry",
  "xeno-runtime-data",
 ]
@@ -4665,8 +4665,8 @@ dependencies = [
  "thiserror 2.0.17",
  "tracing",
  "tree-house",
- "xeno-base",
  "xeno-core",
+ "xeno-primitives",
  "xeno-registry-themes",
  "xeno-runtime-data",
 ]
@@ -4698,8 +4698,8 @@ dependencies = [
  "which",
  "xeno-api",
  "xeno-auth",
- "xeno-base",
  "xeno-core",
+ "xeno-primitives",
  "xeno-registry",
  "xeno-runtime-config",
  "xeno-runtime-language",

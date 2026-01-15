@@ -1,4 +1,4 @@
-use xeno_base::range::CharIdx;
+use xeno_primitives::range::CharIdx;
 use xeno_tui::layout::Rect;
 use xeno_tui::widgets::BorderType;
 use xeno_tui::widgets::block::Padding;

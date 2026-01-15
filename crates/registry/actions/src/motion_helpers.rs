@@ -8,8 +8,8 @@
 //! demonstrating the data-oriented composition pattern.
 
 use tracing::trace;
-use xeno_base::range::Range;
-use xeno_base::{Mode, Selection};
+use xeno_primitives::range::Range;
+use xeno_primitives::{Mode, Selection};
 use xeno_registry_motions::MotionKey;
 
 use crate::{ActionContext, ActionEffects, ActionResult, Effect};

@@ -9,7 +9,7 @@
 use std::sync::OnceLock;
 
 use linkme::distributed_slice;
-pub use xeno_base::{Color, Mode, Modifier, Style};
+pub use xeno_primitives::{Color, Mode, Modifier, Style};
 use xeno_registry_core::{RegistrySource, impl_registry_metadata};
 
 mod syntax;

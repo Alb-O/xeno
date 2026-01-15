@@ -8,5 +8,5 @@ license.workspace = true
 [dependencies]
 linkme.workspace = true
 strsim.workspace = true
-xeno-base.workspace = true
+xeno-primitives.workspace = true
 xeno-registry-core.workspace = true

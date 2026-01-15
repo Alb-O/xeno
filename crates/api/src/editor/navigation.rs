@@ -5,9 +5,9 @@
 
 use std::path::PathBuf;
 
-use xeno_base::ScrollDirection;
-use xeno_base::range::Direction as MoveDir;
-use xeno_base::selection::Selection;
+use xeno_primitives::ScrollDirection;
+use xeno_primitives::range::Direction as MoveDir;
+use xeno_primitives::selection::Selection;
 use xeno_registry::options::keys;
 
 use super::Editor;

@@ -1,6 +1,6 @@
 //! Prompt overlay helpers.
 
-use xeno_base::{Mode, Rope, Selection};
+use xeno_primitives::{Mode, Rope, Selection};
 use xeno_registry_notifications::keys;
 
 use crate::editor::Editor;

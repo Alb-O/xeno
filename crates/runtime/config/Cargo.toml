@@ -14,7 +14,7 @@ kdl.workspace = true
 notify = { workspace = true, optional = true }
 strsim.workspace = true
 thiserror.workspace = true
-xeno-base.workspace = true
+xeno-primitives.workspace = true
 xeno-registry.workspace = true
 
 [dev-dependencies]

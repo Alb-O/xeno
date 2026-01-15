@@ -92,7 +92,7 @@ pub async fn run_editor(mut editor: Editor) -> io::Result<()> {
 			let needs_fast_redraw = editor.frame.needs_redraw;
 			editor.frame.needs_redraw = false;
 
-			let timeout = if matches!(editor.mode(), xeno_base::Mode::Insert)
+			let timeout = if matches!(editor.mode(), xeno_primitives::Mode::Insert)
 				|| editor.any_panel_open()
 				|| needs_fast_redraw
 			{

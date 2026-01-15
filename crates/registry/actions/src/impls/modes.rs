@@ -1,4 +1,4 @@
-use xeno_base::Mode;
+use xeno_primitives::Mode;
 
 use crate::{ActionEffects, ActionResult, action};
 

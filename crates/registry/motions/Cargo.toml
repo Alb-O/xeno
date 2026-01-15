@@ -11,5 +11,5 @@ paste.workspace = true
 regex.workspace = true
 ropey.workspace = true
 unicode-segmentation.workspace = true
-xeno-base.workspace = true
+xeno-primitives.workspace = true
 xeno-registry-core.workspace = true

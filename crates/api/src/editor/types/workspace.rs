@@ -3,7 +3,7 @@
 use std::collections::HashMap;
 
 use termina::event::KeyEvent;
-use xeno_base::range::CharIdx;
+use xeno_primitives::range::CharIdx;
 
 use crate::buffer::BufferId;
 use crate::editor::CommandQueue;

@@ -8,7 +8,7 @@ use std::ops::{Bound, RangeBounds};
 use ropey::RopeSlice;
 // Re-export tree-house highlight types for convenience.
 pub use tree_house::highlighter::{Highlight, HighlightEvent};
-use xeno_base::Style;
+use xeno_primitives::Style;
 
 use crate::loader::LanguageLoader;
 
@@ -224,7 +224,7 @@ impl HighlightSpan {
 
 #[cfg(test)]
 mod tests {
-	use xeno_base::Color;
+	use xeno_primitives::Color;
 
 	use super::*;
 

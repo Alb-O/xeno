@@ -1,7 +1,7 @@
 //! Editor context and effect handling.
 
-use xeno_base::range::Range;
-use xeno_base::{Mode, Selection};
+use xeno_primitives::range::Range;
+use xeno_primitives::{Mode, Selection};
 pub use xeno_registry::actions::editor_ctx::*;
 use xeno_registry::{
 	ActionEffects, ActionResult, Effect, HookContext, HookEventData, ScreenPosition, ScrollAmount,

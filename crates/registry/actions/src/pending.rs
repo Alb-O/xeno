@@ -3,7 +3,7 @@
 //! When an action requires additional user input (e.g., `f` needs a character
 //! to find), it returns [`ActionResult::Pending`] with a [`PendingAction`].
 
-pub use xeno_base::PendingKind;
+pub use xeno_primitives::PendingKind;
 
 /// State for actions waiting on additional user input.
 ///

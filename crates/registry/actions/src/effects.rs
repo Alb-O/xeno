@@ -20,9 +20,9 @@
 //!
 //! [`ActionResult`]: crate::ActionResult
 
-use xeno_base::direction::{Axis, SeqDirection, SpatialDirection};
-use xeno_base::range::{CharIdx, Direction};
-use xeno_base::{Mode, Selection};
+use xeno_primitives::direction::{Axis, SeqDirection, SpatialDirection};
+use xeno_primitives::range::{CharIdx, Direction};
+use xeno_primitives::{Mode, Selection};
 use xeno_registry_notifications::Notification;
 
 use crate::{PendingAction, ScreenPosition};

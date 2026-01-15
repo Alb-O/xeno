@@ -1,7 +1,7 @@
 //! Character find movement functions (`f`, `t`, `F`, `T` commands).
 
 use ropey::RopeSlice;
-use xeno_base::range::Range;
+use xeno_primitives::range::Range;
 
 use super::make_range_select;
 

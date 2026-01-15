@@ -2,7 +2,7 @@
 
 use std::collections::HashMap;
 
-use xeno_base::{Rope, Selection};
+use xeno_primitives::{Rope, Selection};
 
 use crate::buffer::BufferId;
 

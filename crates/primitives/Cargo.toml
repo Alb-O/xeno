@@ -1,5 +1,5 @@
 [package]
-name = "xeno-base"
+name = "xeno-primitives"
 description = "Basic editing primitives"
 version.workspace = true
 edition.workspace = true

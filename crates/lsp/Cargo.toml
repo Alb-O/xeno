@@ -22,7 +22,7 @@ client = [
     "dep:tokio-util",
 ]
 # Position conversion utilities (requires ropey)
-position = ["dep:ropey", "client", "dep:xeno-base"]
+position = ["dep:ropey", "client", "dep:xeno-primitives"]
 
 [dependencies]
 futures.workspace = true
@@ -41,7 +41,7 @@ tower-service = "0.3"
 tracing.workspace = true
 url = { workspace = true }
 waitpid-any = { version = "0.3", optional = true }
-xeno-base = { workspace = true, optional = true }
+xeno-primitives = { workspace = true, optional = true }
 
 [dev-dependencies]
 tempfile = "3"

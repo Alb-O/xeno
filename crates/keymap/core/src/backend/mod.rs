@@ -2,5 +2,5 @@
 
 #[cfg(feature = "termina")]
 pub mod termina;
-#[cfg(feature = "xeno-base")]
+#[cfg(feature = "xeno-primitives")]
 pub mod xeno;

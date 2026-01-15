@@ -18,8 +18,8 @@ use std::sync::{Arc, RwLock};
 pub use document::{Document, DocumentId};
 pub use history::HistoryResult;
 pub use layout::{BufferView, Layout, SpatialDirection, SplitDirection, SplitPath};
-use xeno_base::range::CharIdx;
-use xeno_base::{Mode, Selection};
+use xeno_primitives::range::CharIdx;
+use xeno_primitives::{Mode, Selection};
 use xeno_input::InputHandler;
 use xeno_runtime_language::LanguageLoader;
 use xeno_registry::options::{
@@ -328,7 +328,7 @@ impl Buffer {
 	}
 
 	/// Maps selection and cursor through a [`Transaction`](xeno_base::Transaction).
-	pub fn map_selection_through(&mut self, tx: &xeno_base::Transaction) {
+	pub fn map_selection_through(&mut self, tx: &xeno_primitives::Transaction) {
 		self.set_selection(tx.map_selection(&self.selection));
 		self.sync_cursor_to_selection();
 	}

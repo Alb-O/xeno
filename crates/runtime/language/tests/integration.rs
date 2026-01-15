@@ -90,7 +90,7 @@ fn test_syntax_config_loading() {
 
 #[test]
 fn test_highlight_styles_creation() {
-	use xeno_base::{Color, Style};
+	use xeno_primitives::{Color, Style};
 
 	let scopes = ["keyword", "function", "string", "comment"];
 
@@ -108,7 +108,7 @@ fn test_highlight_styles_creation() {
 
 #[test]
 fn test_highlight_styles_resolution() {
-	use xeno_base::{Color, Style};
+	use xeno_primitives::{Color, Style};
 
 	let scopes = ["keyword", "function"];
 
@@ -175,7 +175,7 @@ fn test_grammar_loading_debug() {
 
 #[test]
 fn test_full_highlighting_pipeline() {
-	use xeno_base::{Color, Style};
+	use xeno_primitives::{Color, Style};
 
 	let mut loader = LanguageLoader::new();
 
@@ -272,7 +272,7 @@ fn test_language_loader_tree_house_trait() {
 /// a let statement to exercise the ChangeSet-to-InputEdit conversion.
 #[test]
 fn test_incremental_syntax_update() {
-	use xeno_base::{Selection, Transaction};
+	use xeno_primitives::{Selection, Transaction};
 
 	let mut loader = LanguageLoader::new();
 

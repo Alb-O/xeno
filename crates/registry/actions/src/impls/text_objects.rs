@@ -1,4 +1,4 @@
-use xeno_base::range::Range;
+use xeno_primitives::range::Range;
 use xeno_registry_text_objects::{TextObjectDef, find_by_trigger};
 
 use crate::{

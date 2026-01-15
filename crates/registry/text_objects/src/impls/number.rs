@@ -1,7 +1,7 @@
 //! Number text object.
 
 use ropey::RopeSlice;
-use xeno_base::Range;
+use xeno_primitives::Range;
 
 use crate::symmetric_text_object;
 

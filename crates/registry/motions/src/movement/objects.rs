@@ -1,7 +1,7 @@
 //! Text object selection (words, surrounds, etc).
 
 use ropey::RopeSlice;
-use xeno_base::range::{CharIdx, Range};
+use xeno_primitives::range::{CharIdx, Range};
 
 use super::{WordType, is_word_char};
 

@@ -13,7 +13,7 @@ mod tests;
 mod types;
 
 pub use types::{BufferView, SplitDirection, SplitPath};
-pub use xeno_base::SpatialDirection;
+pub use xeno_primitives::SpatialDirection;
 use xeno_tui::layout::Rect;
 
 use super::BufferId;

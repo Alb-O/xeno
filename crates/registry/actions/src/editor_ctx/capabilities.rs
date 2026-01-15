@@ -32,9 +32,9 @@
 //! [`EditorCapabilities`]: super::EditorCapabilities
 
 use ropey::RopeSlice;
-use xeno_base::direction::{Axis, SeqDirection, SpatialDirection};
-use xeno_base::range::{CharIdx, Direction};
-use xeno_base::selection::Selection;
+use xeno_primitives::direction::{Axis, SeqDirection, SpatialDirection};
+use xeno_primitives::range::{CharIdx, Direction};
+use xeno_primitives::selection::Selection;
 use xeno_registry_notifications::Notification;
 use xeno_registry_options::{FromOptionValue, OptionKey, OptionValue, TypedOptionKey};
 

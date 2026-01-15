@@ -43,7 +43,7 @@ pub use types::{
 	BoxFuture, HookAction, HookDef, HookHandler, HookMutability, HookResult, RegistryMetadata,
 	RegistrySource, impl_registry_metadata,
 };
-pub use xeno_base::Mode;
+pub use xeno_primitives::Mode;
 
 // Generate HookEvent, HookEventData, OwnedHookContext, and extractor macros
 // from this single source of truth. Adding a new event only requires adding

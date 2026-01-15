@@ -1,7 +1,7 @@
 use ropey::Rope;
-use xeno_base::Transaction;
-use xeno_base::lsp::{LspDocumentChange, LspPosition, LspRange};
-use xeno_base::transaction::Operation;
+use xeno_primitives::Transaction;
+use xeno_primitives::lsp::{LspDocumentChange, LspPosition, LspRange};
+use xeno_primitives::transaction::Operation;
 
 use crate::client::OffsetEncoding;
 use crate::position::{char_range_to_lsp_range, char_to_lsp_position};
@@ -67,8 +67,8 @@ pub fn compute_lsp_changes(
 
 #[cfg(test)]
 mod tests {
-	use xeno_base::Selection;
-	use xeno_base::transaction::Change;
+	use xeno_primitives::Selection;
+	use xeno_primitives::transaction::Change;
 
 	use super::*;
 

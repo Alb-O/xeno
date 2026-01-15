@@ -20,7 +20,7 @@
 //! ```
 
 use linkme::distributed_slice;
-use xeno_base::Mode;
+use xeno_primitives::Mode;
 
 /// Distributed slice for key sequence bindings.
 ///

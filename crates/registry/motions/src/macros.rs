@@ -46,10 +46,10 @@ macro_rules! motion {
 			#[allow(unused_variables, non_snake_case)]
 			fn [<motion_handler_ $name>](
 				$text: ropey::RopeSlice,
-				$range: xeno_base::Range,
+				$range: xeno_primitives::Range,
 				$count: usize,
 				$extend: bool,
-			) -> xeno_base::Range {
+			) -> xeno_primitives::Range {
 				$body
 			}
 

@@ -8,7 +8,7 @@ license.workspace = true
 [dependencies]
 serde.workspace = true
 tracing.workspace = true
-xeno-base.workspace = true
+xeno-primitives.workspace = true
 xeno-core.workspace = true
 xeno-keymap-core.workspace = true
 xeno-registry.workspace = true

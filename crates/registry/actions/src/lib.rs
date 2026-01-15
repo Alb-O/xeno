@@ -39,8 +39,8 @@ pub use result::{
 	ActionResult, RESULT_EFFECTS_HANDLERS, RESULT_EXTENSION_HANDLERS, ScreenPosition,
 	dispatch_result,
 };
-pub use xeno_base::direction::{Axis, SeqDirection, SpatialDirection};
-pub use xeno_base::{Mode, ObjectSelectionKind, PendingKind};
+pub use xeno_primitives::direction::{Axis, SeqDirection, SpatialDirection};
+pub use xeno_primitives::{Mode, ObjectSelectionKind, PendingKind};
 pub use xeno_registry_commands::CommandError;
 pub use xeno_registry_core::{RegistryMetadata, RegistrySource, impl_registry_metadata};
 pub use xeno_registry_motions::{Capability, flags};

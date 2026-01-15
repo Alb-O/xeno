@@ -22,7 +22,7 @@ impl Editor {
 		}
 
 		let binding_mode = match self.buffer().input.mode() {
-			xeno_base::Mode::Normal => BindingMode::Normal,
+			xeno_primitives::Mode::Normal => BindingMode::Normal,
 			_ => return,
 		};
 

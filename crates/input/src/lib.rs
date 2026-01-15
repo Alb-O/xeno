@@ -11,4 +11,4 @@ pub mod types;
 
 pub use handler::InputHandler;
 pub use types::KeyResult;
-pub use xeno_base::Mode;
+pub use xeno_primitives::Mode;

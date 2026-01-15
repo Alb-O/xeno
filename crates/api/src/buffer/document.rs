@@ -8,7 +8,7 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
 
-use xeno_base::{Rope, Selection};
+use xeno_primitives::{Rope, Selection};
 use xeno_runtime_language::LanguageLoader;
 use xeno_runtime_language::syntax::Syntax;
 
@@ -81,7 +81,7 @@ pub struct Document {
 
 	/// Pending LSP changes queued for sync.
 	#[cfg(feature = "lsp")]
-	pub pending_lsp_changes: Vec<xeno_base::LspDocumentChange>,
+	pub pending_lsp_changes: Vec<xeno_primitives::LspDocumentChange>,
 	/// Force a full LSP sync on the next flush.
 	#[cfg(feature = "lsp")]
 	pub force_full_sync: bool,

@@ -10,8 +10,8 @@
 //! 3. Text transformation
 //! 4. Post-effects (mode change, cursor adjustment)
 
-use xeno_base::range::{Direction as MoveDir, Range};
-use xeno_base::{Selection, Transaction};
+use xeno_primitives::range::{Direction as MoveDir, Range};
+use xeno_primitives::{Selection, Transaction};
 use xeno_core::editor_ctx::ModeAccess;
 use xeno_core::movement::{self, WordType};
 use xeno_registry::edit_op::{

@@ -1,4 +1,4 @@
-use xeno_base::selection::Selection;
+use xeno_primitives::selection::Selection;
 
 use crate::{ActionContext, ActionEffects, ActionResult, action};
 
@@ -161,7 +161,7 @@ fn split_lines_impl(ctx: &ActionContext) -> ActionResult {
 			};
 
 			if line_start < line_end {
-				new_ranges.push(xeno_base::range::Range::new(line_start, line_end));
+				new_ranges.push(xeno_primitives::range::Range::new(line_start, line_end));
 			}
 		}
 	}
@@ -199,7 +199,7 @@ fn duplicate_selections_down_impl(ctx: &ActionContext) -> ActionResult {
 
 		let new_anchor = line_col_to_char(text, target_anchor_line, anchor_col);
 		let new_head = line_col_to_char(text, target_head_line, head_col);
-		let new_range = xeno_base::range::Range::new(new_anchor, new_head);
+		let new_range = xeno_primitives::range::Range::new(new_anchor, new_head);
 
 		if !new_ranges.contains(&new_range) {
 			new_ranges.push(new_range);
@@ -242,7 +242,7 @@ fn duplicate_selections_up_impl(ctx: &ActionContext) -> ActionResult {
 
 		let new_anchor = line_col_to_char(text, target_anchor_line, anchor_col);
 		let new_head = line_col_to_char(text, target_head_line, head_col);
-		let new_range = xeno_base::range::Range::new(new_anchor, new_head);
+		let new_range = xeno_primitives::range::Range::new(new_anchor, new_head);
 
 		if !new_ranges.contains(&new_range) {
 			new_ranges.push(new_range);
@@ -281,7 +281,7 @@ action!(merge_selections, {
 
 #[cfg(test)]
 mod tests {
-	use xeno_base::{Rope, Selection};
+	use xeno_primitives::{Rope, Selection};
 
 	use super::*;
 	use crate::ActionArgs;

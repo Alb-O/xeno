@@ -3,7 +3,7 @@
 //! Processing keyboard input and dispatching actions.
 
 use termina::event::KeyCode;
-use xeno_base::{Key, Mode, Selection};
+use xeno_primitives::{Key, Mode, Selection};
 use xeno_input::KeyResult;
 
 use crate::editor::{Editor, FocusTarget};
@@ -224,7 +224,7 @@ impl Editor {
 	#[cfg(feature = "lsp")]
 	fn update_lsp_completion_state(
 		&mut self,
-		mode_change: Option<&xeno_base::Mode>,
+		mode_change: Option<&xeno_primitives::Mode>,
 		old_buffer_id: crate::buffer::BufferId,
 		old_cursor: usize,
 		old_version: u64,
@@ -234,7 +234,7 @@ impl Editor {
 		use crate::editor::types::CompletionState;
 
 		if let Some(new_mode) = mode_change
-			&& !matches!(new_mode, xeno_base::Mode::Insert)
+			&& !matches!(new_mode, xeno_primitives::Mode::Insert)
 		{
 			self.completion_controller.cancel();
 			self.cancel_signature_help();
@@ -269,7 +269,7 @@ impl Editor {
 			self.clear_lsp_menu();
 		} else if content_changed {
 			self.cancel_signature_help();
-			if self.buffer().mode() == xeno_base::Mode::Insert && !self.buffer().is_readonly() {
+			if self.buffer().mode() == xeno_primitives::Mode::Insert && !self.buffer().is_readonly() {
 				// Refilter existing menu immediately (no LSP round-trip)
 				if menu_active {
 					self.refilter_completion();

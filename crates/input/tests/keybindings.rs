@@ -8,7 +8,7 @@
 // that are actually linked into the binary.
 extern crate xeno_core;
 
-use xeno_base::key::{Key, KeyCode, Modifiers};
+use xeno_primitives::key::{Key, KeyCode, Modifiers};
 use xeno_core::find_action_by_id;
 use xeno_input::{InputHandler, KeyResult, Mode};
 

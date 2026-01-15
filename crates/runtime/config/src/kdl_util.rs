@@ -3,7 +3,7 @@
 use std::collections::HashMap;
 
 use kdl::{KdlDocument, KdlNode};
-use xeno_base::{Color, Modifier};
+use xeno_primitives::{Color, Modifier};
 
 use crate::error::{ConfigError, Result};
 

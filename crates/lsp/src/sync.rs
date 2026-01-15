@@ -33,7 +33,7 @@ use std::sync::Arc;
 use futures::channel::oneshot;
 use lsp_types::{Diagnostic, TextDocumentContentChangeEvent, TextDocumentSaveReason, Uri};
 use ropey::Rope;
-use xeno_base::lsp::LspDocumentChange;
+use xeno_primitives::lsp::LspDocumentChange;
 
 use crate::Result;
 use crate::client::{ClientHandle, LanguageServerId, LspEventHandler};
@@ -48,7 +48,7 @@ pub struct DocumentSyncEventHandler {
 	documents: Arc<DocumentStateManager>,
 }
 
-fn base_range_to_lsp(range: xeno_base::lsp::LspRange) -> lsp_types::Range {
+fn base_range_to_lsp(range: xeno_primitives::lsp::LspRange) -> lsp_types::Range {
 	lsp_types::Range {
 		start: lsp_types::Position {
 			line: range.start.line,

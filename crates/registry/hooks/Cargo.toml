@@ -9,6 +9,6 @@ license.workspace = true
 linkme.workspace = true
 paste.workspace = true
 tracing.workspace = true
-xeno-base.workspace = true
+xeno-primitives.workspace = true
 xeno-macro.workspace = true
 xeno-registry-core.workspace = true

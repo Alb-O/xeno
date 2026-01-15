@@ -12,7 +12,7 @@
 
 use linkme::distributed_slice;
 use ropey::RopeSlice;
-use xeno_base::Range;
+use xeno_primitives::Range;
 pub use xeno_registry_core::{Key, RegistryMetadata, RegistrySource, impl_registry_metadata};
 
 /// Built-in motion implementations (char, word, line, etc.).

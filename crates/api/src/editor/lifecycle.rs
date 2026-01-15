@@ -372,7 +372,7 @@ impl Editor {
 	}
 
 	/// Maps sibling buffer selections through a transaction.
-	pub(super) fn sync_sibling_selections(&mut self, tx: &xeno_base::Transaction) {
+	pub(super) fn sync_sibling_selections(&mut self, tx: &xeno_primitives::Transaction) {
 		let buffer_id = self.focused_view();
 		let doc_id = self
 			.buffers

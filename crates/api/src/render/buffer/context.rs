@@ -3,8 +3,8 @@
 use std::collections::HashSet;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use xeno_base::Mode;
-use xeno_base::range::CharIdx;
+use xeno_primitives::Mode;
+use xeno_primitives::range::CharIdx;
 use xeno_runtime_language::LanguageLoader;
 use xeno_runtime_language::highlight::{HighlightSpan, HighlightStyles};
 use xeno_registry::gutter::GutterAnnotations;
@@ -385,7 +385,7 @@ impl<'a> BufferRenderContext<'a> {
 					let is_primary_cursor = doc_pos == primary_cursor;
 					let in_selection = ranges
 						.iter()
-						.any(|r: &xeno_base::range::Range| doc_pos >= r.from() && doc_pos < r.to());
+						.any(|r: &xeno_primitives::range::Range| doc_pos >= r.from() && doc_pos < r.to());
 
 					let cursor_style = if !is_focused {
 						styles.unfocused

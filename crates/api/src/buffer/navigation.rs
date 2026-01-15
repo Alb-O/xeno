@@ -1,7 +1,7 @@
 //! Cursor navigation for buffers.
 
-use xeno_base::range::{Direction as MoveDir, Range};
-use xeno_base::{ScrollDirection, Selection};
+use xeno_primitives::range::{Direction as MoveDir, Range};
+use xeno_primitives::{ScrollDirection, Selection};
 
 use super::Buffer;
 use crate::render::wrap::WrapSegment;
@@ -498,7 +498,7 @@ mod tests {
 		let mut buffer = make_buffer("long line with text\n\nshort\nanother long line here");
 		buffer.text_width = 80;
 		buffer.cursor = 10;
-		buffer.selection = xeno_base::Selection::point(10);
+		buffer.selection = xeno_primitives::Selection::point(10);
 
 		// Move through empty line - snaps to col 0 but goal preserved
 		buffer.move_visual_vertical(MoveDir::Forward, 1, false, 4);
@@ -521,7 +521,7 @@ mod tests {
 		let mut buffer = make_buffer("long line\nshort\nanother long line");
 		buffer.text_width = 80;
 		buffer.cursor = 5;
-		buffer.selection = xeno_base::Selection::point(5);
+		buffer.selection = xeno_primitives::Selection::point(5);
 
 		buffer.move_visual_vertical(MoveDir::Forward, 1, false, 4);
 		assert_eq!(buffer.goal_column, Some(5));
@@ -536,7 +536,7 @@ mod tests {
 		let mut buffer = make_buffer("hello world\nhi\nlonger line here");
 		buffer.text_width = 80;
 		buffer.cursor = 8;
-		buffer.selection = xeno_base::Selection::point(8);
+		buffer.selection = xeno_primitives::Selection::point(8);
 		assert_eq!(buffer.goal_column, None);
 
 		// First vertical move sets goal from current col
@@ -555,7 +555,7 @@ mod tests {
 		let mut buffer = make_buffer("another long line here\nshort\n\nlong line with text");
 		buffer.text_width = 80;
 		buffer.cursor = 45; // col 15 on last line
-		buffer.selection = xeno_base::Selection::point(45);
+		buffer.selection = xeno_primitives::Selection::point(45);
 
 		buffer.move_visual_vertical(MoveDir::Backward, 1, false, 4);
 		assert_eq!(buffer.cursor, 29); // empty line

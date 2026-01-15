@@ -3,9 +3,9 @@ use std::ops::Range as StdRange;
 
 use termina::event::{KeyCode, KeyEvent, Modifiers};
 use tokio_util::sync::CancellationToken;
-use xeno_base::range::CharIdx;
-use xeno_base::transaction::Bias;
-use xeno_base::{Range, Selection};
+use xeno_primitives::range::CharIdx;
+use xeno_primitives::transaction::Bias;
+use xeno_primitives::{Range, Selection};
 use xeno_core::{CompletionItem as UiCompletionItem, CompletionKind};
 use xeno_lsp::lsp_types::{
 	CodeActionOrCommand, Command, CompletionItem, CompletionTextEdit, CompletionTriggerKind,
@@ -162,7 +162,7 @@ impl Editor {
 		}
 
 		let buffer = self.buffer();
-		if buffer.mode() != xeno_base::Mode::Insert {
+		if buffer.mode() != xeno_primitives::Mode::Insert {
 			return;
 		}
 		if buffer.path().is_none() || buffer.file_type().is_none() {
@@ -338,7 +338,7 @@ impl Editor {
 		let buffer_id = self.focused_view();
 		let (client, uri, position, cursor, doc_version) = {
 			let buffer = self.buffer();
-			if buffer.mode() != xeno_base::Mode::Insert {
+			if buffer.mode() != xeno_primitives::Mode::Insert {
 				return;
 			}
 			let Some((client, uri, position)) =
@@ -634,7 +634,7 @@ fn map_code_action_item(action: &CodeActionOrCommand) -> UiCompletionItem {
 
 fn diagnostics_for_range(
 	diagnostics: &[Diagnostic],
-	rope: &xeno_base::Rope,
+	rope: &xeno_primitives::Rope,
 	encoding: OffsetEncoding,
 	selection: StdRange<CharIdx>,
 ) -> Vec<Diagnostic> {
@@ -706,7 +706,7 @@ fn completion_replace_start(buffer: &crate::buffer::Buffer) -> usize {
 	completion_replace_start_at(&buffer.doc().content, buffer.cursor)
 }
 
-fn completion_replace_start_at(rope: &xeno_base::Rope, cursor: CharIdx) -> usize {
+fn completion_replace_start_at(rope: &xeno_primitives::Rope, cursor: CharIdx) -> usize {
 	let mut pos = cursor.min(rope.len_chars());
 	while pos > 0 {
 		let ch = rope.char(pos - 1);
@@ -748,7 +748,7 @@ fn normalize_completion_edit(item: &CompletionItem) -> (Option<TextEdit>, String
 }
 
 fn completion_text_edit(
-	rope: &xeno_base::Rope,
+	rope: &xeno_primitives::Rope,
 	encoding: OffsetEncoding,
 	text_edit: Option<TextEdit>,
 	replace_start: usize,
@@ -792,7 +792,7 @@ fn validate_non_overlapping(
 }
 
 fn completion_snippet_selection(
-	tx: &xeno_base::Transaction,
+	tx: &xeno_primitives::Transaction,
 	base_start: CharIdx,
 	snippet: Option<Snippet>,
 ) -> Option<Selection> {

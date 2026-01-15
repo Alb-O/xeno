@@ -1,7 +1,7 @@
 //! Word text objects.
 
 use ropey::RopeSlice;
-use xeno_base::Range;
+use xeno_primitives::Range;
 
 use crate::movement::{WordType, select_word_object};
 use crate::text_object;

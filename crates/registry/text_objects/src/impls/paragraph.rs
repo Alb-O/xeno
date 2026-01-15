@@ -1,7 +1,7 @@
 //! Paragraph text object.
 
 use ropey::RopeSlice;
-use xeno_base::Range;
+use xeno_primitives::Range;
 
 use crate::text_object;
 

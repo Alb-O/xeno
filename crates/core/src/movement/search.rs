@@ -3,8 +3,8 @@
 use regex::Regex;
 pub use regex::escape as escape_pattern;
 use ropey::RopeSlice;
-use xeno_base::Range;
-use xeno_base::range::CharIdx;
+use xeno_primitives::Range;
+use xeno_primitives::range::CharIdx;
 
 /// Check if text matches a regex pattern.
 pub fn matches_pattern(text: &str, pattern: &str) -> Result<bool, regex::Error> {

@@ -1,6 +1,6 @@
 //! Command palette integration with editor.
 
-use xeno_base::Mode;
+use xeno_primitives::Mode;
 use xeno_registry::options::{OptionValue, keys};
 
 use super::Editor;

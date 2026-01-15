@@ -11,7 +11,7 @@
 
 use linkme::distributed_slice;
 use ropey::RopeSlice;
-use xeno_base::Range;
+use xeno_primitives::Range;
 
 mod impls;
 mod macros;

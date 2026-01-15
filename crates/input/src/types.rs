@@ -1,5 +1,5 @@
-pub use xeno_base::Mode;
-use xeno_base::key::ScrollDirection;
+pub use xeno_primitives::Mode;
+use xeno_primitives::key::ScrollDirection;
 use xeno_core::ActionId;
 
 /// Result of processing a key.

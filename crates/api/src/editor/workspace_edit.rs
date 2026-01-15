@@ -5,9 +5,9 @@ use std::ops::Range;
 
 use thiserror::Error;
 use tracing::warn;
-use xeno_base::Transaction;
-use xeno_base::range::CharIdx;
-use xeno_base::transaction::{Change, Tendril};
+use xeno_primitives::Transaction;
+use xeno_primitives::range::CharIdx;
+use xeno_primitives::transaction::{Change, Tendril};
 use xeno_lsp::lsp_types::{
 	AnnotatedTextEdit, DocumentChangeOperation, DocumentChanges, OneOf, TextDocumentEdit, TextEdit,
 	Uri, WorkspaceEdit,
@@ -273,7 +273,7 @@ impl Editor {
 }
 
 pub(crate) fn convert_text_edit(
-	rope: &xeno_base::Rope,
+	rope: &xeno_primitives::Rope,
 	encoding: OffsetEncoding,
 	edit: &TextEdit,
 ) -> Option<PlannedTextEdit> {
@@ -350,7 +350,7 @@ mod tests {
 
 	#[test]
 	fn convert_text_edit_utf16() {
-		let rope = xeno_base::Rope::from("a😀b\n");
+		let rope = xeno_primitives::Rope::from("a😀b\n");
 		let edit = TextEdit {
 			range: lsp_types::Range {
 				start: lsp_types::Position {

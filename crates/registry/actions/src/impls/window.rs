@@ -10,7 +10,7 @@
 //! - `f n/p` - Buffer next/previous
 //! - `c c/o` - Close current/others
 
-use xeno_base::direction::{Axis, SeqDirection, SpatialDirection};
+use xeno_primitives::direction::{Axis, SeqDirection, SpatialDirection};
 
 use crate::{ActionResult, Effect, action};
 

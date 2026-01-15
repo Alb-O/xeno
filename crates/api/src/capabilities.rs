@@ -6,9 +6,9 @@ use std::future::Future;
 use std::path::PathBuf;
 use std::pin::Pin;
 
-use xeno_base::direction::{Axis, SeqDirection, SpatialDirection};
-use xeno_base::range::{CharIdx, Direction as MoveDir};
-use xeno_base::{Mode, Selection};
+use xeno_primitives::direction::{Axis, SeqDirection, SpatialDirection};
+use xeno_primitives::range::{CharIdx, Direction as MoveDir};
+use xeno_primitives::{Mode, Selection};
 use xeno_core::editor_ctx::{
 	CommandQueueAccess, CursorAccess, EditAccess, EditorCapabilities, FileOpsAccess, FocusOps,
 	JumpAccess, MacroAccess, ModeAccess, NotificationAccess, OptionAccess, PaletteAccess,

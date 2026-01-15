@@ -24,8 +24,8 @@
 //!     .with_post(PostEffect::SetMode(Mode::Insert));
 //! ```
 
-use xeno_base::Mode;
-use xeno_base::range::Direction;
+use xeno_primitives::Mode;
+use xeno_primitives::range::Direction;
 
 /// A data description of a text edit operation.
 ///

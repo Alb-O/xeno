@@ -78,7 +78,7 @@ impl Syntax {
 		&mut self,
 		old_source: RopeSlice,
 		new_source: RopeSlice,
-		changeset: &xeno_base::ChangeSet,
+		changeset: &xeno_primitives::ChangeSet,
 		loader: &LanguageLoader,
 	) -> Result<(), SyntaxError> {
 		let edits = generate_edits(old_source, changeset);
@@ -147,9 +147,9 @@ impl Syntax {
 }
 
 /// Generates tree-sitter InputEdits from a Xeno ChangeSet.
-fn generate_edits(old_text: RopeSlice, changeset: &xeno_base::ChangeSet) -> Vec<InputEdit> {
+fn generate_edits(old_text: RopeSlice, changeset: &xeno_primitives::ChangeSet) -> Vec<InputEdit> {
 	use tree_house::tree_sitter::Point;
-	use xeno_base::transaction::Operation;
+	use xeno_primitives::transaction::Operation;
 
 	let mut edits = Vec::new();
 	let mut old_pos = 0usize;
@@ -285,13 +285,13 @@ fn pretty_print_tree_impl<W: std::fmt::Write>(
 
 #[cfg(test)]
 mod tests {
-	use xeno_base::{Rope, Transaction};
+	use xeno_primitives::{Rope, Transaction};
 
 	use super::*;
 
 	#[test]
 	fn test_generate_edits_insert() {
-		use xeno_base::transaction::Change;
+		use xeno_primitives::transaction::Change;
 		let doc = Rope::from("hello world");
 		let changes = vec![Change {
 			start: 5,
@@ -309,7 +309,7 @@ mod tests {
 
 	#[test]
 	fn test_generate_edits_delete() {
-		use xeno_base::transaction::Change;
+		use xeno_primitives::transaction::Change;
 		let doc = Rope::from("hello world");
 		let changes = vec![Change {
 			start: 5,
@@ -327,7 +327,7 @@ mod tests {
 
 	#[test]
 	fn test_generate_edits_replace() {
-		use xeno_base::transaction::Change;
+		use xeno_primitives::transaction::Change;
 		let doc = Rope::from("hello world");
 		let changes = vec![Change {
 			start: 6,

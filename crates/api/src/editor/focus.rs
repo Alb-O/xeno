@@ -2,7 +2,7 @@
 //!
 //! Focusing buffers and navigating between views.
 
-use xeno_base::Mode;
+use xeno_primitives::Mode;
 use xeno_registry::{HookContext, HookEventData, ViewId, emit_sync_with as emit_hook_sync_with};
 
 use super::Editor;

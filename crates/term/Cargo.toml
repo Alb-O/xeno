@@ -28,7 +28,7 @@ uuid.workspace = true
 which = "8"
 xeno-api = { workspace = true, features = ["lsp"] }
 xeno-auth = { workspace = true, optional = true }
-xeno-base.workspace = true
+xeno-primitives.workspace = true
 xeno-runtime-config.workspace = true
 xeno-core.workspace = true
 xeno-runtime-language.workspace = true

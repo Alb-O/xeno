@@ -1,4 +1,4 @@
-use xeno_base::Selection;
+use xeno_primitives::Selection;
 use xeno_lsp::lsp_position_to_char;
 use xeno_registry_notifications::keys;
 

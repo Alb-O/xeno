@@ -1,6 +1,6 @@
 //! Scroll/view actions.
 
-use xeno_base::range::Direction;
+use xeno_primitives::range::Direction;
 
 use crate::{ActionEffects, ActionResult, ScrollAmount, action};
 
