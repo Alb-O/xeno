@@ -1,5 +1,5 @@
 [package]
-name = "xeno-runtime"
+name = "xeno-runtime-data"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

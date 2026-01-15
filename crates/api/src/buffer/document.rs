@@ -9,8 +9,8 @@ use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use xeno_base::{Rope, Selection};
-use xeno_language::LanguageLoader;
-use xeno_language::syntax::Syntax;
+use xeno_runtime_language::LanguageLoader;
+use xeno_runtime_language::syntax::Syntax;
 
 use crate::buffer::BufferId;
 use crate::editor::types::HistoryEntry;

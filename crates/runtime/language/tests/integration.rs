@@ -8,10 +8,10 @@
 //! To get grammars, run: `XENO_RUNTIME=runtime xeno grammar fetch && xeno grammar build`
 
 use ropey::Rope;
-use xeno_language::grammar::{grammar_search_paths, load_grammar};
-use xeno_language::highlight::{Highlight, HighlightStyles};
-use xeno_language::syntax::Syntax;
-use xeno_language::{LanguageData, LanguageLoader};
+use xeno_runtime_language::grammar::{grammar_search_paths, load_grammar};
+use xeno_runtime_language::highlight::{Highlight, HighlightStyles};
+use xeno_runtime_language::syntax::Syntax;
+use xeno_runtime_language::{LanguageData, LanguageLoader};
 
 fn create_test_loader() -> LanguageLoader {
 	let mut loader = LanguageLoader::new();

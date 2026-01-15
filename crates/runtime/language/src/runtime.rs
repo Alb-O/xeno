@@ -7,7 +7,7 @@ use std::path::Path;
 use std::{fs, io};
 
 use tracing::info;
-use xeno_runtime::include_dir::Dir;
+use xeno_runtime_data::include_dir::Dir;
 
 use crate::grammar::runtime_dir;
 
@@ -36,12 +36,12 @@ pub fn ensure_runtime() -> io::Result<()> {
 
 /// Copies embedded query files to the target directory.
 fn seed_queries(target: &Path) -> io::Result<()> {
-	extract_dir(xeno_runtime::queries::root(), target)
+	extract_dir(xeno_runtime_data::queries::root(), target)
 }
 
 /// Copies embedded theme files to the target directory.
 fn seed_themes(target: &Path) -> io::Result<()> {
-	extract_dir(xeno_runtime::themes::root(), target)
+	extract_dir(xeno_runtime_data::themes::root(), target)
 }
 
 /// Recursively extracts an embedded directory to the filesystem.
@@ -86,17 +86,17 @@ pub fn reseed_runtime() -> io::Result<()> {
 mod tests {
 	#[test]
 	fn test_queries_embedded() {
-		let languages: Vec<_> = xeno_runtime::queries::languages().collect();
+		let languages: Vec<_> = xeno_runtime_data::queries::languages().collect();
 		assert!(!languages.is_empty(), "Should have language directories");
 		assert!(languages.contains(&"rust"), "Should have rust queries");
 
-		let highlights = xeno_runtime::queries::get_str("rust", "highlights");
+		let highlights = xeno_runtime_data::queries::get_str("rust", "highlights");
 		assert!(highlights.is_some(), "Should have rust highlights.scm");
 	}
 
 	#[test]
 	fn test_themes_embedded() {
-		let themes: Vec<_> = xeno_runtime::themes::list().collect();
+		let themes: Vec<_> = xeno_runtime_data::themes::list().collect();
 		assert!(!themes.is_empty(), "Should have theme files");
 		assert!(themes.contains(&"gruvbox.kdl"), "Should have gruvbox.kdl");
 		assert!(themes.contains(&"one_dark.kdl"), "Should have one_dark.kdl");

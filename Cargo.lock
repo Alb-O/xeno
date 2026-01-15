@@ -4335,10 +4335,10 @@ dependencies = [
  "xeno-base",
  "xeno-core",
  "xeno-input",
- "xeno-language",
  "xeno-lsp",
  "xeno-registry",
  "xeno-registry-notifications",
+ "xeno-runtime-language",
  "xeno-tui",
 ]
 
@@ -4389,7 +4389,7 @@ dependencies = [
  "thiserror 2.0.17",
  "xeno-base",
  "xeno-registry",
- "xeno-runtime",
+ "xeno-runtime-data",
 ]
 
 [[package]]
@@ -4462,28 +4462,6 @@ dependencies = [
  "strum",
  "strum_macros",
  "toml",
-]
-
-[[package]]
-name = "xeno-language"
-version = "0.3.0"
-dependencies = [
- "cc",
- "kdl",
- "libloading",
- "once_cell",
- "regex",
- "ropey",
- "serde",
- "serde_json",
- "tempfile",
- "thiserror 2.0.17",
- "tracing",
- "tree-house",
- "xeno-base",
- "xeno-core",
- "xeno-registry-themes",
- "xeno-runtime",
 ]
 
 [[package]]
@@ -4665,10 +4643,32 @@ dependencies = [
 ]
 
 [[package]]
-name = "xeno-runtime"
+name = "xeno-runtime-data"
 version = "0.3.0"
 dependencies = [
  "include_dir",
+]
+
+[[package]]
+name = "xeno-runtime-language"
+version = "0.3.0"
+dependencies = [
+ "cc",
+ "kdl",
+ "libloading",
+ "once_cell",
+ "regex",
+ "ropey",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror 2.0.17",
+ "tracing",
+ "tree-house",
+ "xeno-base",
+ "xeno-core",
+ "xeno-registry-themes",
+ "xeno-runtime-data",
 ]
 
 [[package]]
@@ -4701,8 +4701,8 @@ dependencies = [
  "xeno-base",
  "xeno-config",
  "xeno-core",
- "xeno-language",
  "xeno-registry",
+ "xeno-runtime-language",
  "xeno-tui",
 ]
 

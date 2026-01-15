@@ -2,7 +2,7 @@
 
 use std::collections::HashMap;
 
-use xeno_language::LanguageLoader;
+use xeno_runtime_language::LanguageLoader;
 use xeno_registry::options::OptionStore;
 use xeno_registry::themes::Theme;
 

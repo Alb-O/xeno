@@ -402,7 +402,7 @@ mod tests {
 
 	#[test]
 	fn test_parse_standalone_theme() {
-		let kdl = xeno_runtime::themes::get_str("gruvbox.kdl").unwrap();
+		let kdl = xeno_runtime_data::themes::get_str("gruvbox.kdl").unwrap();
 		let theme = parse_standalone_theme(kdl).unwrap();
 
 		assert_eq!(theme.name, "gruvbox");

@@ -37,7 +37,7 @@ pub enum GrammarSource {
 
 /// Loads grammar configurations from the embedded `grammars.kdl`.
 pub fn load_grammar_configs() -> super::Result<Vec<GrammarConfig>> {
-	parse_grammar_configs(xeno_runtime::language::grammars_kdl())
+	parse_grammar_configs(xeno_runtime_data::language::grammars_kdl())
 }
 
 /// Parse grammar configurations from a KDL string.

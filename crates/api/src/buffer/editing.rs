@@ -4,7 +4,7 @@
 use xeno_base::LspDocumentChange;
 use xeno_base::{Range, Transaction};
 use xeno_core::movement;
-use xeno_language::LanguageLoader;
+use xeno_runtime_language::LanguageLoader;
 #[cfg(feature = "lsp")]
 use xeno_lsp::{IncrementalResult, OffsetEncoding, compute_lsp_changes};
 
@@ -314,7 +314,7 @@ mod tests {
 			buffer.set_selection(Selection::single(5, 5)); // cursor at end
 
 			let (tx, _sel) = buffer.prepare_insert(" world");
-			let loader = xeno_language::LanguageLoader::new();
+			let loader = xeno_runtime_language::LanguageLoader::new();
 			buffer.apply_edit_with_lsp(&tx, &loader, OffsetEncoding::Utf16);
 
 			let changes = buffer.drain_lsp_changes();
@@ -326,7 +326,7 @@ mod tests {
 		#[test]
 		fn multiple_transactions_accumulate_changes() {
 			let mut buffer = make_buffer("line1\nline2\n");
-			let loader = xeno_language::LanguageLoader::new();
+			let loader = xeno_runtime_language::LanguageLoader::new();
 
 			// First transaction: insert at start of line 1
 			buffer.set_selection(Selection::single(0, 0));
@@ -357,7 +357,7 @@ mod tests {
 		#[test]
 		fn multi_cursor_single_transaction_queues_ordered_changes() {
 			let mut buffer = make_buffer("aaa\nbbb\nccc\n");
-			let loader = xeno_language::LanguageLoader::new();
+			let loader = xeno_runtime_language::LanguageLoader::new();
 
 			// Multi-cursor: start of each line
 			buffer.set_selection(Selection::from_vec(
@@ -392,7 +392,7 @@ mod tests {
 		#[test]
 		fn drain_clears_pending_changes() {
 			let mut buffer = make_buffer("test");
-			let loader = xeno_language::LanguageLoader::new();
+			let loader = xeno_runtime_language::LanguageLoader::new();
 
 			buffer.set_selection(Selection::single(4, 4));
 			let (tx, _sel) = buffer.prepare_insert("!");

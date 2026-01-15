@@ -8,11 +8,10 @@ members = [
     "crates/core",
     "crates/input",
     "crates/keymap/*",
-    "crates/language",
     "crates/lsp",
     "crates/macro",
     "crates/registry/*",
-    "crates/runtime",
+    "crates/runtime/*",
     "crates/term",
     "crates/tui",
 ]
@@ -87,7 +86,7 @@ xeno-input = { path = "crates/input" }
 xeno-keymap-core = { path = "crates/keymap/core" }
 xeno-keymap-derive = { path = "crates/keymap/derive" }
 xeno-keymap-parser = { path = "crates/keymap/parser" }
-xeno-language = { path = "crates/language" }
+xeno-runtime-language = { path = "crates/runtime/language" }
 xeno-lsp = { path = "crates/lsp" }
 xeno-macro = { path = "crates/macro" }
 xeno-registry = { path = "crates/registry/lib" }
@@ -102,7 +101,7 @@ xeno-registry-options = { path = "crates/registry/options" }
 xeno-registry-statusline = { path = "crates/registry/statusline" }
 xeno-registry-text-objects = { path = "crates/registry/text_objects" }
 xeno-registry-themes = { path = "crates/registry/themes" }
-xeno-runtime = { path = "crates/runtime" }
+xeno-runtime-data = { path = "crates/runtime/data" }
 xeno-tui = { path = "crates/tui" }
 
 [profile.dev]

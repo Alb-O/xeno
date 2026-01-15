@@ -5,8 +5,8 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use xeno_base::Mode;
 use xeno_base::range::CharIdx;
-use xeno_language::LanguageLoader;
-use xeno_language::highlight::{HighlightSpan, HighlightStyles};
+use xeno_runtime_language::LanguageLoader;
+use xeno_runtime_language::highlight::{HighlightSpan, HighlightStyles};
 use xeno_registry::gutter::GutterAnnotations;
 use xeno_registry::themes::{SyntaxStyles, Theme};
 use xeno_tui::layout::Rect;

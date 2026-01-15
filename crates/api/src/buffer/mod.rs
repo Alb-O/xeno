@@ -21,7 +21,7 @@ pub use layout::{BufferView, Layout, SpatialDirection, SplitDirection, SplitPath
 use xeno_base::range::CharIdx;
 use xeno_base::{Mode, Selection};
 use xeno_input::InputHandler;
-use xeno_language::LanguageLoader;
+use xeno_runtime_language::LanguageLoader;
 use xeno_registry::options::{
 	FromOptionValue, OptionKey, OptionStore, OptionValue, TypedOptionKey,
 };

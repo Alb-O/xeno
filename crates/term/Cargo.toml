@@ -31,7 +31,7 @@ xeno-auth = { workspace = true, optional = true }
 xeno-base.workspace = true
 xeno-config.workspace = true
 xeno-core.workspace = true
-xeno-language.workspace = true
+xeno-runtime-language.workspace = true
 xeno-registry.workspace = true
 xeno-tui.workspace = true
 [features]

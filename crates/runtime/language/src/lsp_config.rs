@@ -65,7 +65,7 @@ pub struct LspServerDef {
 
 /// Loads LSP server configurations from the embedded `lsp.kdl`.
 pub fn load_lsp_configs() -> Result<Vec<LspServerDef>> {
-	parse_lsp_configs(xeno_runtime::language::lsp_kdl())
+	parse_lsp_configs(xeno_runtime_data::language::lsp_kdl())
 }
 
 /// Parses LSP server configurations from a KDL string.
@@ -231,7 +231,7 @@ pub type LanguageLspMapping = HashMap<String, LanguageLspInfo>;
 
 /// Loads language-to-LSP server mappings from the embedded `languages.kdl`.
 pub fn load_language_lsp_mapping() -> Result<LanguageLspMapping> {
-	parse_language_lsp_mapping(xeno_runtime::language::languages_kdl())
+	parse_language_lsp_mapping(xeno_runtime_data::language::languages_kdl())
 }
 
 /// Parses language-to-LSP server mappings from a KDL string.

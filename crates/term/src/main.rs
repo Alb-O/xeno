@@ -45,12 +45,12 @@ async fn main() -> anyhow::Result<()> {
 	}
 
 	// Ensure runtime directory is populated with query files
-	if let Err(e) = xeno_language::ensure_runtime() {
+	if let Err(e) = xeno_runtime_language::ensure_runtime() {
 		warn!(error = %e, "failed to seed runtime");
 	}
 
 	// Load themes from runtime directory
-	let themes_dir = xeno_language::runtime_dir().join("themes");
+	let themes_dir = xeno_runtime_language::runtime_dir().join("themes");
 	let mut theme_errors = Vec::new();
 	match xeno_config::load_and_register_themes(&themes_dir) {
 		Ok(errors) => theme_errors.extend(errors),
@@ -229,7 +229,7 @@ async fn handle_auth_command(action: AuthAction) -> anyhow::Result<()> {
 
 /// Handles grammar fetch/build/sync subcommands.
 fn handle_grammar_command(action: GrammarAction) -> anyhow::Result<()> {
-	use xeno_language::build::{build_all_grammars, fetch_all_grammars, load_grammar_configs};
+	use xeno_runtime_language::build::{build_all_grammars, fetch_all_grammars, load_grammar_configs};
 
 	let configs = load_grammar_configs()?;
 
@@ -285,11 +285,11 @@ fn handle_grammar_command(action: GrammarAction) -> anyhow::Result<()> {
 /// Prints a summary of grammar fetch results to stdout.
 fn report_fetch_results(
 	results: &[(
-		xeno_language::build::GrammarConfig,
-		Result<xeno_language::build::FetchStatus, xeno_language::build::GrammarBuildError>,
+		xeno_runtime_language::build::GrammarConfig,
+		Result<xeno_runtime_language::build::FetchStatus, xeno_runtime_language::build::GrammarBuildError>,
 	)],
 ) {
-	use xeno_language::build::FetchStatus;
+	use xeno_runtime_language::build::FetchStatus;
 	let mut success = 0;
 	let mut skipped = 0;
 	let mut failed = 0;
@@ -322,11 +322,11 @@ fn report_fetch_results(
 /// Prints a summary of grammar build results to stdout.
 fn report_build_results(
 	results: &[(
-		xeno_language::build::GrammarConfig,
-		Result<xeno_language::build::BuildStatus, xeno_language::build::GrammarBuildError>,
+		xeno_runtime_language::build::GrammarConfig,
+		Result<xeno_runtime_language::build::BuildStatus, xeno_runtime_language::build::GrammarBuildError>,
 	)],
 ) {
-	use xeno_language::build::BuildStatus;
+	use xeno_runtime_language::build::BuildStatus;
 	let mut success = 0;
 	let mut skipped = 0;
 	let mut failed = 0;
@@ -405,11 +405,11 @@ fn setup_socket_tracing(socket_path: &str) {
 
 /// Runs the editor with standard initialization (used by socket logging mode).
 async fn run_editor_normal() -> anyhow::Result<()> {
-	if let Err(e) = xeno_language::ensure_runtime() {
+	if let Err(e) = xeno_runtime_language::ensure_runtime() {
 		warn!(error = %e, "failed to seed runtime");
 	}
 
-	let themes_dir = xeno_language::runtime_dir().join("themes");
+	let themes_dir = xeno_runtime_language::runtime_dir().join("themes");
 	let theme_errors = match xeno_config::load_and_register_themes(&themes_dir) {
 		Ok(errors) => errors,
 		Err(e) => {
@@ -520,10 +520,10 @@ fn setup_tracing() {
 
 /// Configures language servers from embedded `lsp.kdl` and `languages.kdl`.
 fn configure_lsp_servers(editor: &mut Editor) {
-	let Ok(server_defs) = xeno_language::load_lsp_configs() else {
+	let Ok(server_defs) = xeno_runtime_language::load_lsp_configs() else {
 		return;
 	};
-	let Ok(lang_mapping) = xeno_language::load_language_lsp_mapping() else {
+	let Ok(lang_mapping) = xeno_runtime_language::load_language_lsp_mapping() else {
 		return;
 	};
 

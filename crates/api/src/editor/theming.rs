@@ -28,7 +28,7 @@ impl Editor {
 		&self,
 		area: xeno_tui::layout::Rect,
 	) -> Vec<(
-		xeno_language::highlight::HighlightSpan,
+		xeno_runtime_language::highlight::HighlightSpan,
 		xeno_tui::style::Style,
 	)> {
 		let buffer = self.buffer();
@@ -49,7 +49,7 @@ impl Editor {
 		};
 
 		let highlight_styles =
-			xeno_language::highlight::HighlightStyles::new(SyntaxStyles::scope_names(), |scope| {
+			xeno_runtime_language::highlight::HighlightStyles::new(SyntaxStyles::scope_names(), |scope| {
 				self.config.theme.colors.syntax.resolve(scope)
 			});
 
@@ -73,7 +73,7 @@ impl Editor {
 		&self,
 		byte_pos: usize,
 		spans: &[(
-			xeno_language::highlight::HighlightSpan,
+			xeno_runtime_language::highlight::HighlightSpan,
 			xeno_tui::style::Style,
 		)],
 	) -> Option<xeno_tui::style::Style> {
