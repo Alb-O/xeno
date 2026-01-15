@@ -1,6 +1,6 @@
-use xeno_registry::ActionId;
 pub use xeno_primitives::Mode;
 use xeno_primitives::key::ScrollDirection;
+use xeno_registry::ActionId;
 
 /// Result of processing a key.
 #[derive(Debug, Clone)]

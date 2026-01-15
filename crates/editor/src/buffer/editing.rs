@@ -1,6 +1,5 @@
 //! Text editing operations for buffers.
 
-use crate::movement;
 #[cfg(feature = "lsp")]
 use xeno_lsp::{IncrementalResult, OffsetEncoding, compute_lsp_changes};
 #[cfg(feature = "lsp")]
@@ -9,6 +8,7 @@ use xeno_primitives::{Range, Transaction};
 use xeno_runtime_language::LanguageLoader;
 
 use super::Buffer;
+use crate::movement;
 
 impl Buffer {
 	/// Inserts text at all cursor positions, returning the [`Transaction`] without applying it.

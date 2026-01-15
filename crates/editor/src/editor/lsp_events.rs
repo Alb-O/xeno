@@ -1,6 +1,5 @@
 //! LSP UI event handling (completions, signature help).
 
-use crate::{CompletionItem, CompletionKind};
 use xeno_lsp::lsp_types::{
 	CompletionItem as LspCompletionItem, CompletionList, CompletionResponse,
 };
@@ -11,6 +10,7 @@ use crate::editor::Editor;
 use crate::editor::completion_filter::{extract_query, filter_items};
 use crate::editor::types::{CompletionState, LspMenuKind, LspMenuState, SelectionIntent};
 use crate::info_popup::PopupAnchor;
+use crate::{CompletionItem, CompletionKind};
 
 pub enum LspUiEvent {
 	CompletionResult {

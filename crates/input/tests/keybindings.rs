@@ -8,9 +8,9 @@
 // that are actually linked into the binary.
 extern crate xeno_registry;
 
-use xeno_registry::find_action_by_id;
 use xeno_input::{InputHandler, KeyResult, Mode};
 use xeno_primitives::key::{Key, KeyCode, Modifiers};
+use xeno_registry::find_action_by_id;
 
 fn extract_action(result: KeyResult) -> Option<(String, bool)> {
 	match result {

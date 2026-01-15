@@ -1,12 +1,12 @@
 //! Public lookup functions for registry queries.
 
+use xeno_registry_core::ActionId;
+
+use super::get_registry;
 use crate::actions::{ActionDef, ActionKey};
 use crate::commands::CommandDef;
 use crate::motions::{MotionDef, MotionKey};
 use crate::text_objects::TextObjectDef;
-use xeno_registry_core::ActionId;
-
-use super::get_registry;
 
 /// Finds a command definition by name or alias.
 pub fn find_command(name: &str) -> Option<&'static CommandDef> {

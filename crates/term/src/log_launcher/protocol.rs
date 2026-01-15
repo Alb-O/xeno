@@ -16,8 +16,6 @@ pub enum XenoLayer {
 	Lang,
 	Config,
 	Ui,
-	#[cfg(feature = "auth")]
-	Auth,
 	Registry,
 	#[default]
 	External,
@@ -30,7 +28,12 @@ const LAYER_INFO: &[(XenoLayer, &str, &str, &[&str])] = &[
 		"\x1b[95mCORE\x1b[0m",
 		&["xeno_primitives", "xeno_registry"],
 	),
-	(XenoLayer::Api, "API", "\x1b[96mAPI \x1b[0m", &["xeno_editor"]),
+	(
+		XenoLayer::Api,
+		"API",
+		"\x1b[96mAPI \x1b[0m",
+		&["xeno_editor"],
+	),
 	(XenoLayer::Lsp, "LSP", "\x1b[93mLSP \x1b[0m", &["xeno_lsp"]),
 	(
 		XenoLayer::Lang,
@@ -49,13 +52,6 @@ const LAYER_INFO: &[(XenoLayer, &str, &str, &[&str])] = &[
 		"UI",
 		"\x1b[92mUI  \x1b[0m",
 		&["xeno_term", "xeno_tui"],
-	),
-	#[cfg(feature = "auth")]
-	(
-		XenoLayer::Auth,
-		"AUTH",
-		"\x1b[90mAUTH\x1b[0m",
-		&["xeno_auth"],
 	),
 	(
 		XenoLayer::Registry,

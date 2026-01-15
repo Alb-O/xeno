@@ -8,8 +8,7 @@ license.workspace = true
 [[bin]]
 name = "xeno"
 path = "src/main.rs"
-[features]
-auth = ["dep:xeno-auth"]
+
 [dependencies]
 anyhow.workspace = true
 clap.workspace = true
@@ -29,7 +28,6 @@ tracing-subscriber = { workspace = true, features = ["env-filter", "json"] }
 uuid.workspace = true
 which = "8"
 xeno-editor = { workspace = true, features = ["lsp"] }
-xeno-auth = { workspace = true, optional = true }
 xeno-primitives.workspace = true
 xeno-registry.workspace = true
 xeno-runtime-config.workspace = true

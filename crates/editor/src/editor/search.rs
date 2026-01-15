@@ -1,8 +1,8 @@
-use crate::movement;
 use xeno_primitives::Selection;
 use xeno_registry_notifications::keys;
 
 use super::Editor;
+use crate::movement;
 
 impl Editor {
 	/// Searches forward for the current pattern.

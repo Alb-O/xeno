@@ -39,11 +39,7 @@ pub fn filter_items(raw_items: &[LspCompletionItem], query: &str) -> Vec<Filtere
 
 	let filter_texts: Vec<&str> = raw_items
 		.iter()
-		.map(|item| {
-			item.filter_text
-				.as_deref()
-				.unwrap_or_else(|| item.label.as_str())
-		})
+		.map(|item| item.filter_text.as_deref().unwrap_or(item.label.as_str()))
 		.collect();
 
 	let config = filter_config();

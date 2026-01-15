@@ -1,7 +1,6 @@
 //! Buffer rendering context and cursor styling.
 
 use std::collections::HashSet;
-use std::time::{SystemTime, UNIX_EPOCH};
 
 use xeno_primitives::Mode;
 use xeno_primitives::range::CharIdx;

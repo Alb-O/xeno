@@ -1,14 +1,13 @@
-use crate::CompletionKind;
 use xeno_tui::layout::Rect;
 use xeno_tui::style::{Modifier, Style};
 use xeno_tui::text::{Line, Span};
 use xeno_tui::widgets::list::ListItem;
 use xeno_tui::widgets::{Block, Borders, List, Widget};
 
-use crate::Editor;
 use crate::editor::types::CompletionState;
 #[cfg(feature = "lsp")]
 use crate::editor::types::LspMenuState;
+use crate::{CompletionKind, Editor};
 
 /// Builds styled [`Span`]s for a completion label with matched characters highlighted.
 ///

@@ -35,57 +35,6 @@ pub enum Command {
 		#[command(subcommand)]
 		action: GrammarAction,
 	},
-	/// Authentication management
-	#[cfg(feature = "auth")]
-	Auth {
-		/// Auth subcommand action.
-		#[command(subcommand)]
-		action: AuthAction,
-	},
-}
-
-/// Authentication subcommands.
-#[cfg(feature = "auth")]
-#[derive(Subcommand, Debug)]
-pub enum AuthAction {
-	/// Log in to a service
-	Login {
-		/// Login provider.
-		#[command(subcommand)]
-		provider: LoginProvider,
-	},
-	/// Log out from a service
-	Logout {
-		/// Logout provider.
-		#[command(subcommand)]
-		provider: LogoutProvider,
-	},
-	/// Show authentication status
-	Status,
-}
-
-/// Login providers.
-#[cfg(feature = "auth")]
-#[derive(Subcommand, Debug)]
-pub enum LoginProvider {
-	/// Log in to OpenAI Codex via OAuth
-	Codex,
-	/// Log in to Anthropic Claude via OAuth
-	Claude {
-		/// Create API key instead of using OAuth tokens
-		#[arg(long)]
-		api_key: bool,
-	},
-}
-
-/// Logout providers.
-#[cfg(feature = "auth")]
-#[derive(Subcommand, Debug)]
-pub enum LogoutProvider {
-	/// Log out from OpenAI Codex
-	Codex,
-	/// Log out from Anthropic Claude
-	Claude,
 }
 
 /// Grammar management subcommands.

@@ -63,6 +63,13 @@ pub use hooks::{
 	OwnedHookContext, SplitDirection, Str, ViewId, WindowId, WindowKind, all_hooks, async_hook,
 	emit, emit_mutable, emit_sync, emit_sync_with, find_hooks, hook,
 };
+// Re-export index lookup functions (excluding duplicates from commands)
+pub use index::{
+	all_actions, all_motions, all_text_objects, find_action, find_action_by_id, find_motion,
+	find_text_object_by_trigger, resolve_action_id, resolve_action_key,
+};
+// Re-export keymap registry
+pub use keymap_registry::{BindingEntry, KeymapRegistry, LookupResult, get_keymap_registry};
 pub use motions::{Capability, MOTIONS, MotionDef, MotionHandler, flags, motion, movement};
 pub use notifications::{
 	AutoDismiss, IntoNotification, Level, NOTIFICATIONS, Notification, NotificationDef,
@@ -77,13 +84,6 @@ pub use text_objects::{
 	TEXT_OBJECTS, TextObjectDef, TextObjectHandler, bracket_pair_object, symmetric_text_object,
 	text_object,
 };
-// Re-export index lookup functions (excluding duplicates from commands)
-pub use index::{
-	all_actions, all_motions, all_text_objects, find_action, find_action_by_id, find_motion,
-	find_text_object_by_trigger, resolve_action_id, resolve_action_key,
-};
-// Re-export keymap registry
-pub use keymap_registry::{BindingEntry, KeymapRegistry, LookupResult, get_keymap_registry};
 // Re-export shared types from registry core (canonical source)
 pub use xeno_registry_core::{ActionId, RegistryMetadata, RegistrySource, impl_registry_metadata};
 pub use {

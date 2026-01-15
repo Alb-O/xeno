@@ -6,17 +6,17 @@ use std::future::Future;
 use std::path::PathBuf;
 use std::pin::Pin;
 
-use xeno_registry::{
-	CommandQueueAccess, CursorAccess, EditAccess, EditorCapabilities, FileOpsAccess, FocusOps,
-	JumpAccess, MacroAccess, ModeAccess, NotificationAccess, OptionAccess, PaletteAccess,
-	SearchAccess, SelectionAccess, SplitOps, ThemeAccess, UndoAccess, ViewportAccess,
-};
 use xeno_primitives::direction::{Axis, SeqDirection, SpatialDirection};
 use xeno_primitives::range::{CharIdx, Direction as MoveDir};
 use xeno_primitives::{Mode, Selection};
 use xeno_registry::commands::{CommandEditorOps, CommandError};
 use xeno_registry::options::{OptionKey, OptionScope, OptionValue, find_by_kdl, parse};
-use xeno_registry::{HookContext, HookEventData, emit_sync_with as emit_hook_sync_with};
+use xeno_registry::{
+	CommandQueueAccess, CursorAccess, EditAccess, EditorCapabilities, FileOpsAccess, FocusOps,
+	HookContext, HookEventData, JumpAccess, MacroAccess, ModeAccess, NotificationAccess,
+	OptionAccess, PaletteAccess, SearchAccess, SelectionAccess, SplitOps, ThemeAccess, UndoAccess,
+	ViewportAccess, emit_sync_with as emit_hook_sync_with,
+};
 use xeno_registry_notifications::{Notification, keys};
 
 use crate::editor::Editor;

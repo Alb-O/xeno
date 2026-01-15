@@ -2,13 +2,13 @@
 
 use std::collections::HashMap;
 
+use xeno_registry_core::ActionId;
+
+use super::collision::Collision;
 use crate::actions::ActionDef;
 use crate::commands::CommandDef;
 use crate::motions::MotionDef;
 use crate::text_objects::TextObjectDef;
-use xeno_registry_core::ActionId;
-
-use super::collision::Collision;
 
 /// Generic registry index with collision tracking.
 pub struct RegistryIndex<T: 'static> {

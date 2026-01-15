@@ -3,7 +3,6 @@ use std::ops::Range as StdRange;
 
 use termina::event::{KeyCode, KeyEvent, Modifiers};
 use tokio_util::sync::CancellationToken;
-use crate::{CompletionItem as UiCompletionItem, CompletionKind};
 use xeno_lsp::lsp_types::{
 	CodeActionOrCommand, Command, CompletionItem, CompletionTextEdit, CompletionTriggerKind,
 	Diagnostic, Documentation, InsertTextFormat, MarkupContent, SignatureHelp, TextEdit,
@@ -25,6 +24,7 @@ use crate::editor::workspace_edit::{
 	ApplyError, BufferEditPlan, PlannedTextEdit, convert_text_edit,
 };
 use crate::info_popup::PopupAnchor;
+use crate::{CompletionItem as UiCompletionItem, CompletionKind};
 
 impl Editor {
 	pub(crate) async fn handle_lsp_menu_key(&mut self, key: &KeyEvent) -> bool {
@@ -52,7 +52,7 @@ impl Editor {
 				if self
 					.overlays
 					.get::<CompletionState>()
-					.map_or(false, |s| s.active)
+					.is_some_and(|s| s.active)
 				{
 					self.overlays.get_or_default::<CompletionState>().suppressed = true;
 				}
@@ -148,7 +148,7 @@ impl Editor {
 		trigger: CompletionTrigger,
 		trigger_char: Option<char>,
 	) {
-		let is_trigger_char = trigger_char.map_or(false, is_completion_trigger_char);
+		let is_trigger_char = trigger_char.is_some_and(is_completion_trigger_char);
 		let is_manual = matches!(trigger, CompletionTrigger::Manual);
 
 		if is_trigger_char || is_manual {
@@ -156,7 +156,7 @@ impl Editor {
 		} else if self
 			.overlays
 			.get::<CompletionState>()
-			.map_or(false, |s| s.suppressed)
+			.is_some_and(|s| s.suppressed)
 		{
 			return;
 		}
