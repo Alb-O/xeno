@@ -1,5 +1,5 @@
 [package]
-name = "xeno-config"
+name = "xeno-runtime-config"
 description = "Configuration system - KDL parsing, runtime config loading"
 version.workspace = true
 edition.workspace = true

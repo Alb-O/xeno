@@ -52,7 +52,7 @@ async fn main() -> anyhow::Result<()> {
 	// Load themes from runtime directory
 	let themes_dir = xeno_runtime_language::runtime_dir().join("themes");
 	let mut theme_errors = Vec::new();
-	match xeno_config::load_and_register_themes(&themes_dir) {
+	match xeno_runtime_config::load_and_register_themes(&themes_dir) {
 		Ok(errors) => theme_errors.extend(errors),
 		Err(e) => warn!(error = %e, "failed to read themes directory"),
 	}
@@ -61,7 +61,7 @@ async fn main() -> anyhow::Result<()> {
 	let user_config = if let Some(config_dir) = xeno_api::paths::get_config_dir() {
 		let config_path = config_dir.join("config.kdl");
 		if config_path.exists() {
-			match xeno_config::Config::load(&config_path) {
+			match xeno_runtime_config::Config::load(&config_path) {
 				Ok(config) => {
 					for warning in &config.warnings {
 						warn!("{warning}");
@@ -410,7 +410,7 @@ async fn run_editor_normal() -> anyhow::Result<()> {
 	}
 
 	let themes_dir = xeno_runtime_language::runtime_dir().join("themes");
-	let theme_errors = match xeno_config::load_and_register_themes(&themes_dir) {
+	let theme_errors = match xeno_runtime_config::load_and_register_themes(&themes_dir) {
 		Ok(errors) => errors,
 		Err(e) => {
 			warn!(error = %e, "failed to read themes directory");
@@ -422,7 +422,7 @@ async fn run_editor_normal() -> anyhow::Result<()> {
 		.map(|d| d.join("config.kdl"))
 		.filter(|p| p.exists())
 		.and_then(
-			|config_path| match xeno_config::Config::load(&config_path) {
+			|config_path| match xeno_runtime_config::Config::load(&config_path) {
 				Ok(config) => {
 					for warning in &config.warnings {
 						warn!("{warning}");

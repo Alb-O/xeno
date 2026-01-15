@@ -4379,20 +4379,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "xeno-config"
-version = "0.3.0"
-dependencies = [
- "kdl",
- "notify",
- "strsim",
- "tempfile",
- "thiserror 2.0.17",
- "xeno-base",
- "xeno-registry",
- "xeno-runtime-data",
-]
-
-[[package]]
 name = "xeno-core"
 version = "0.3.0"
 dependencies = [
@@ -4643,6 +4629,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "xeno-runtime-config"
+version = "0.3.0"
+dependencies = [
+ "kdl",
+ "notify",
+ "strsim",
+ "tempfile",
+ "thiserror 2.0.17",
+ "xeno-base",
+ "xeno-registry",
+ "xeno-runtime-data",
+]
+
+[[package]]
 name = "xeno-runtime-data"
 version = "0.3.0"
 dependencies = [
@@ -4699,9 +4699,9 @@ dependencies = [
  "xeno-api",
  "xeno-auth",
  "xeno-base",
- "xeno-config",
  "xeno-core",
  "xeno-registry",
+ "xeno-runtime-config",
  "xeno-runtime-language",
  "xeno-tui",
 ]
