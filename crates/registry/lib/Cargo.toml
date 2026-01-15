@@ -6,6 +6,8 @@ edition.workspace = true
 license.workspace = true
 
 [dependencies]
+tracing.workspace = true
+xeno-keymap-core.workspace = true
 xeno-registry-actions.workspace = true
 xeno-registry-commands.workspace = true
 xeno-registry-core.workspace = true

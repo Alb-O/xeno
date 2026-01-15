@@ -6,9 +6,9 @@
 // Force linkage of xeno-stdlib to ensure all actions are registered.
 // This is necessary because linkme distributed slices only include statics
 // that are actually linked into the binary.
-extern crate xeno_core;
+extern crate xeno_registry;
 
-use xeno_core::find_action_by_id;
+use xeno_registry::find_action_by_id;
 use xeno_input::{InputHandler, KeyResult, Mode};
 use xeno_primitives::key::{Key, KeyCode, Modifiers};
 

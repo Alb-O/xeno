@@ -11,7 +11,7 @@
 //! - [`splits`] - Split view management
 //! - [`theming`] - Theme and syntax highlighting
 //!
-//! [`FileOpsAccess`]: xeno_core::editor_ctx::FileOpsAccess
+//! [`FileOpsAccess`]: xeno_registry::FileOpsAccess
 
 /// Action dispatch and context setup.
 mod actions_exec;
@@ -225,7 +225,7 @@ pub struct Editor {
 	pub overlays: OverlayManager,
 }
 
-impl xeno_core::EditorOps for Editor {}
+impl xeno_registry::EditorOps for Editor {}
 
 impl Editor {
 	/// Creates a new editor by loading content from the given file path.

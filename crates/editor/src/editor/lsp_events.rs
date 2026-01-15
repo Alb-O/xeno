@@ -1,6 +1,6 @@
 //! LSP UI event handling (completions, signature help).
 
-use xeno_core::{CompletionItem, CompletionKind};
+use crate::{CompletionItem, CompletionKind};
 use xeno_lsp::lsp_types::{
 	CompletionItem as LspCompletionItem, CompletionList, CompletionResponse,
 };

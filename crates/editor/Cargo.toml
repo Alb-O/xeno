@@ -35,7 +35,6 @@ tree-house.workspace = true
 unicode-segmentation.workspace = true
 unicode-width.workspace = true
 vt100 = "0.16"
-xeno-core.workspace = true
 xeno-input.workspace = true
 xeno-lsp = { workspace = true, features = ["position"], optional = true }
 xeno-primitives.workspace = true

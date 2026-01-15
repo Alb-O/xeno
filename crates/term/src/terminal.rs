@@ -12,7 +12,7 @@ use termina::escape::csi::{
 use termina::event::Event;
 use termina::style::CursorStyle;
 use termina::{EventReader, PlatformTerminal, Terminal as _, WindowSize};
-use xeno_core::{TerminalConfig, TerminalSequence};
+use xeno_editor::{TerminalConfig, TerminalSequence};
 
 /// Writes terminal escape sequences to a writer.
 fn write_sequences<W: io::Write>(writer: &mut W, sequences: &[TerminalSequence]) -> io::Result<()> {

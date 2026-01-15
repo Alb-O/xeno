@@ -3,8 +3,8 @@
 //! Displays a popup showing available key continuations when
 //! there are pending keys in the input buffer.
 
-use xeno_core::get_keymap_registry;
-use xeno_core::keymap_registry::ContinuationKind;
+use xeno_registry::get_keymap_registry;
+use xeno_registry::keymap_registry::ContinuationKind;
 use xeno_registry::{BindingMode, find_prefix};
 use xeno_tui::layout::Rect;
 use xeno_tui::style::{Modifier, Style};

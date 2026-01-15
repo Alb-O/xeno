@@ -1,6 +1,6 @@
 //! Text editing operations for buffers.
 
-use xeno_core::movement;
+use crate::movement;
 #[cfg(feature = "lsp")]
 use xeno_lsp::{IncrementalResult, OffsetEncoding, compute_lsp_changes};
 #[cfg(feature = "lsp")]

@@ -17,7 +17,6 @@ serde_json.workspace = true
 thiserror.workspace = true
 tracing.workspace = true
 tree-house.workspace = true
-xeno-core.workspace = true
 xeno-primitives.workspace = true
 xeno-registry-themes.workspace = true
 xeno-runtime-data.workspace = true

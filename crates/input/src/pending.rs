@@ -1,4 +1,4 @@
-use xeno_core::resolve_action_id;
+use xeno_registry::resolve_action_id;
 use xeno_primitives::key::{Key, KeyCode};
 use xeno_primitives::{ObjectSelectionKind, PendingKind};
 

@@ -18,9 +18,6 @@ use cli::{AuthAction, LoginProvider, LogoutProvider};
 use cli::{Cli, Command, GrammarAction};
 use tracing::{info, warn};
 use xeno_editor::Editor;
-// Force-link crates to ensure their distributed_slice registrations are included.
-#[allow(unused_imports, reason = "linkme distributed_slice registration")]
-use xeno_core as _;
 use xeno_registry::options::keys;
 
 #[tokio::main]

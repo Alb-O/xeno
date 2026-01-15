@@ -15,18 +15,29 @@
 //! - [`statusline`] - Statusline segment definitions
 //! - [`text_objects`] - Text object selection (inner/around)
 //!
+//! # Infrastructure
+//!
+//! - [`index`] - Registry indexing and lookup
+//! - [`keymap_registry`] - Keybinding resolution
+//!
 //! # Adding a New Registry
 //!
 //! 1. Create `crates/registry/{name}/` with Cargo.toml and src/
 //! 2. Add to root `Cargo.toml` members and workspace.dependencies
 //! 3. Add dependency and re-export here
 
+/// Registry indexing and lookup for editor extensions.
+pub mod index;
+/// Unified keymap registry using trie-based matching.
+pub mod keymap_registry;
+
 // Re-export commonly used items at the crate root for convenience
 // Data-oriented edit operations
 pub use actions::editor_ctx::{
 	CommandQueueAccess, CursorAccess, EditAccess, EditorCapabilities, EditorContext, EditorOps,
-	FileOpsAccess, FocusOps, HandleOutcome, JumpAccess, MacroAccess, NotificationAccess,
-	ResultHandler, SearchAccess, SelectionAccess, SplitOps, TextAccess, ThemeAccess, UndoAccess,
+	FileOpsAccess, FocusOps, HandleOutcome, JumpAccess, MacroAccess, ModeAccess,
+	NotificationAccess, OptionAccess, PaletteAccess, ResultHandler, SearchAccess, SelectionAccess,
+	SplitOps, TextAccess, ThemeAccess, UndoAccess, ViewportAccess,
 };
 pub use actions::{
 	ACTIONS, ActionArgs, ActionContext, ActionDef, ActionEffects, ActionHandler, ActionResult,
@@ -66,8 +77,15 @@ pub use text_objects::{
 	TEXT_OBJECTS, TextObjectDef, TextObjectHandler, bracket_pair_object, symmetric_text_object,
 	text_object,
 };
+// Re-export index lookup functions (excluding duplicates from commands)
+pub use index::{
+	all_actions, all_motions, all_text_objects, find_action, find_action_by_id, find_motion,
+	find_text_object_by_trigger, resolve_action_id, resolve_action_key,
+};
+// Re-export keymap registry
+pub use keymap_registry::{BindingEntry, KeymapRegistry, LookupResult, get_keymap_registry};
 // Re-export shared types from registry core (canonical source)
-pub use xeno_registry_core::{RegistryMetadata, RegistrySource, impl_registry_metadata};
+pub use xeno_registry_core::{ActionId, RegistryMetadata, RegistrySource, impl_registry_metadata};
 pub use {
 	xeno_registry_actions as actions, xeno_registry_commands as commands,
 	xeno_registry_gutter as gutter, xeno_registry_hooks as hooks, xeno_registry_motions as motions,

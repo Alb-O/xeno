@@ -1,12 +1,12 @@
 //! Implementation of [`EditorCapabilities`] for [`Editor`].
 //!
-//! [`EditorCapabilities`]: xeno_core::editor_ctx::EditorCapabilities
+//! [`EditorCapabilities`]: xeno_registry::EditorCapabilities
 
 use std::future::Future;
 use std::path::PathBuf;
 use std::pin::Pin;
 
-use xeno_core::editor_ctx::{
+use xeno_registry::{
 	CommandQueueAccess, CursorAccess, EditAccess, EditorCapabilities, FileOpsAccess, FocusOps,
 	JumpAccess, MacroAccess, ModeAccess, NotificationAccess, OptionAccess, PaletteAccess,
 	SearchAccess, SelectionAccess, SplitOps, ThemeAccess, UndoAccess, ViewportAccess,

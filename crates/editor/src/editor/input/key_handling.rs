@@ -21,7 +21,7 @@ pub(crate) enum ActionDispatch {
 impl Editor {
 	/// Dispatches an action based on the key result.
 	pub(crate) fn dispatch_action(&mut self, result: &KeyResult) -> ActionDispatch {
-		use xeno_core::find_action_by_id;
+		use xeno_registry::find_action_by_id;
 
 		match result {
 			KeyResult::ActionById {

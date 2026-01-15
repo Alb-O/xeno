@@ -1,4 +1,4 @@
-use xeno_core::ActionId;
+use xeno_registry::ActionId;
 pub use xeno_primitives::Mode;
 use xeno_primitives::key::ScrollDirection;
 

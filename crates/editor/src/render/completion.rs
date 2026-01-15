@@ -1,4 +1,4 @@
-use xeno_core::CompletionKind;
+use crate::CompletionKind;
 use xeno_tui::layout::Rect;
 use xeno_tui::style::{Modifier, Style};
 use xeno_tui::text::{Line, Span};

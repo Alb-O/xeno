@@ -3,7 +3,7 @@ use std::ops::Range as StdRange;
 
 use termina::event::{KeyCode, KeyEvent, Modifiers};
 use tokio_util::sync::CancellationToken;
-use xeno_core::{CompletionItem as UiCompletionItem, CompletionKind};
+use crate::{CompletionItem as UiCompletionItem, CompletionKind};
 use xeno_lsp::lsp_types::{
 	CodeActionOrCommand, Command, CompletionItem, CompletionTextEdit, CompletionTriggerKind,
 	Diagnostic, Documentation, InsertTextFormat, MarkupContent, SignatureHelp, TextEdit,

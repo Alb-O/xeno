@@ -4323,32 +4323,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "xeno-core"
-version = "0.3.0"
-dependencies = [
- "async-trait",
- "futures",
- "linkme",
- "paste",
- "regex",
- "ropey",
- "serde",
- "serde_json",
- "smallvec",
- "strsim",
- "termina",
- "thiserror 2.0.17",
- "tracing",
- "unicode-segmentation",
- "unicode-width 0.2.2",
- "xeno-keymap-core",
- "xeno-macro",
- "xeno-primitives",
- "xeno-registry",
- "xeno-registry-core",
-]
-
-[[package]]
 name = "xeno-editor"
 version = "0.3.0"
 dependencies = [
@@ -4379,7 +4353,6 @@ dependencies = [
  "unicode-segmentation",
  "unicode-width 0.2.2",
  "vt100",
- "xeno-core",
  "xeno-input",
  "xeno-lsp",
  "xeno-primitives",
@@ -4395,7 +4368,6 @@ version = "0.3.0"
 dependencies = [
  "serde",
  "tracing",
- "xeno-core",
  "xeno-keymap-core",
  "xeno-primitives",
  "xeno-registry",
@@ -4492,6 +4464,8 @@ dependencies = [
 name = "xeno-registry"
 version = "0.3.0"
 dependencies = [
+ "tracing",
+ "xeno-keymap-core",
  "xeno-registry-actions",
  "xeno-registry-commands",
  "xeno-registry-core",
@@ -4666,7 +4640,6 @@ dependencies = [
  "thiserror 2.0.17",
  "tracing",
  "tree-house",
- "xeno-core",
  "xeno-primitives",
  "xeno-registry-themes",
  "xeno-runtime-data",
@@ -4698,7 +4671,6 @@ dependencies = [
  "uuid",
  "which",
  "xeno-auth",
- "xeno-core",
  "xeno-editor",
  "xeno-primitives",
  "xeno-registry",

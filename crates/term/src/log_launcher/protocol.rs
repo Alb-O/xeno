@@ -28,9 +28,9 @@ const LAYER_INFO: &[(XenoLayer, &str, &str, &[&str])] = &[
 		XenoLayer::Core,
 		"CORE",
 		"\x1b[95mCORE\x1b[0m",
-		&["xeno_core", "xeno_base"],
+		&["xeno_primitives", "xeno_registry"],
 	),
-	(XenoLayer::Api, "API", "\x1b[96mAPI \x1b[0m", &["xeno_api"]),
+	(XenoLayer::Api, "API", "\x1b[96mAPI \x1b[0m", &["xeno_editor"]),
 	(XenoLayer::Lsp, "LSP", "\x1b[93mLSP \x1b[0m", &["xeno_lsp"]),
 	(
 		XenoLayer::Lang,

@@ -10,7 +10,7 @@ use xeno_registry::{HookContext, HookEventData, emit as emit_hook};
 
 use super::Editor;
 
-impl xeno_core::editor_ctx::FileOpsAccess for Editor {
+impl xeno_registry::FileOpsAccess for Editor {
 	fn is_modified(&self) -> bool {
 		self.buffer().modified()
 	}

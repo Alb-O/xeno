@@ -1,6 +1,6 @@
 //! Completion menu state.
 
-use xeno_core::CompletionItem;
+use crate::CompletionItem;
 
 /// Tracks how the current completion selection was made.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
