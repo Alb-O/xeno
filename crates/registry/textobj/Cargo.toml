@@ -1,5 +1,5 @@
 [package]
-name = "xeno-registry-text-objects"
+name = "xeno-registry-textobj"
 description = "Text objects registry"
 version.workspace = true
 edition.workspace = true

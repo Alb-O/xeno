@@ -6,7 +6,7 @@ use super::get_registry;
 use crate::actions::{ActionDef, ActionKey};
 use crate::commands::CommandDef;
 use crate::motions::{MotionDef, MotionKey};
-use crate::text_objects::TextObjectDef;
+use crate::textobj::TextObjectDef;
 
 /// Finds a command definition by name or alias.
 pub fn find_command(name: &str) -> Option<&'static CommandDef> {

@@ -103,7 +103,7 @@ xeno-registry-motions = { path = "crates/registry/motions" }
 xeno-registry-notifications = { path = "crates/registry/notifications" }
 xeno-registry-options = { path = "crates/registry/options" }
 xeno-registry-statusline = { path = "crates/registry/statusline" }
-xeno-registry-text-objects = { path = "crates/registry/text_objects" }
+xeno-registry-textobj = { path = "crates/registry/textobj" }
 xeno-registry-themes = { path = "crates/registry/themes" }
 xeno-runtime-config = { path = "crates/runtime/config" }
 xeno-runtime-data = { path = "crates/runtime/data" }

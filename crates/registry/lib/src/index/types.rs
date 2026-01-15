@@ -8,7 +8,7 @@ use super::collision::Collision;
 use crate::actions::ActionDef;
 use crate::commands::CommandDef;
 use crate::motions::MotionDef;
-use crate::text_objects::TextObjectDef;
+use crate::textobj::TextObjectDef;
 
 /// Generic registry index with collision tracking.
 pub struct RegistryIndex<T: 'static> {

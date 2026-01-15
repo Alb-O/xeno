@@ -8,7 +8,7 @@
 //! - Distributed slice ([`MOTIONS`])
 //! - Registration macro ([`motion!`])
 //! - Movement algorithms ([`movement`] module)
-//! - Standard library implementations (basic, word, line, document)
+//! - Built-in implementations (basic, word, line, document)
 
 use linkme::distributed_slice;
 use ropey::RopeSlice;

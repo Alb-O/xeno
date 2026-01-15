@@ -13,7 +13,7 @@
 //! - [`actions`] - Action definitions and handlers
 //! - [`hooks`] - Event lifecycle observers
 //! - [`statusline`] - Statusline segment definitions
-//! - [`text_objects`] - Text object selection (inner/around)
+//! - [`textobj`] - Text object selection (inner/around)
 //!
 //! # Infrastructure
 //!
@@ -80,7 +80,7 @@ pub use statusline::{
 	StatuslineSegmentDef, all_segments, find_segment, render_position, segments_for_position,
 	statusline_segment,
 };
-pub use text_objects::{
+pub use textobj::{
 	TEXT_OBJECTS, TextObjectDef, TextObjectHandler, bracket_pair_object, symmetric_text_object,
 	text_object,
 };
@@ -90,6 +90,6 @@ pub use {
 	xeno_registry_actions as actions, xeno_registry_commands as commands,
 	xeno_registry_gutter as gutter, xeno_registry_hooks as hooks, xeno_registry_motions as motions,
 	xeno_registry_notifications as notifications, xeno_registry_options as options,
-	xeno_registry_statusline as statusline, xeno_registry_text_objects as text_objects,
+	xeno_registry_statusline as statusline, xeno_registry_textobj as textobj,
 	xeno_registry_themes as themes,
 };

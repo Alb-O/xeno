@@ -1,4 +1,4 @@
-//! Standard library option implementations.
+//! Built-in option implementations.
 
 pub(crate) mod cursorline;
 pub(crate) mod indent;

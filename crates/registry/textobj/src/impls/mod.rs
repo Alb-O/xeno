@@ -1,4 +1,4 @@
-//! Standard library text object implementations.
+//! Built-in text object implementations.
 
 mod argument;
 mod line;

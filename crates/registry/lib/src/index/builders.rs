@@ -12,7 +12,7 @@ use crate::RegistryMetadata;
 use crate::actions::{ACTIONS, ActionDef};
 use crate::commands::{COMMANDS, CommandDef};
 use crate::motions::{MOTIONS, MotionDef};
-use crate::text_objects::{TEXT_OBJECTS, TextObjectDef};
+use crate::textobj::{TEXT_OBJECTS, TextObjectDef};
 
 /// Builds the complete extension registry from distributed slices.
 ///

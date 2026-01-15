@@ -3368,7 +3368,7 @@ dependencies = [
  "xeno-registry-notifications",
  "xeno-registry-options",
  "xeno-registry-statusline",
- "xeno-registry-text-objects",
+ "xeno-registry-textobj",
  "xeno-registry-themes",
 ]
 
@@ -3387,7 +3387,7 @@ dependencies = [
  "xeno-registry-motions",
  "xeno-registry-notifications",
  "xeno-registry-options",
- "xeno-registry-text-objects",
+ "xeno-registry-textobj",
 ]
 
 [[package]]
@@ -3401,7 +3401,7 @@ dependencies = [
  "xeno-registry-core",
  "xeno-registry-motions",
  "xeno-registry-notifications",
- "xeno-registry-text-objects",
+ "xeno-registry-textobj",
 ]
 
 [[package]]
@@ -3469,7 +3469,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "xeno-registry-text-objects"
+name = "xeno-registry-textobj"
 version = "0.3.0"
 dependencies = [
  "linkme",

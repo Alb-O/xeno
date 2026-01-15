@@ -8,7 +8,7 @@ use std::collections::HashMap;
 
 use futures::future::LocalBoxFuture;
 use xeno_registry_notifications::keys;
-use {xeno_registry_motions as motions, xeno_registry_text_objects as text_objects};
+use {xeno_registry_motions as motions, xeno_registry_textobj as textobj};
 
 use crate::{COMMANDS, CommandContext, CommandDef, CommandError, CommandOutcome, command};
 
@@ -190,8 +190,8 @@ fn collect_motion_collisions(collisions: &mut Vec<CollisionReport>) {
 fn register_text_object_collision(
 	kind: CollisionKind,
 	key: String,
-	current: &'static text_objects::TextObjectDef,
-	map: &mut HashMap<String, &'static text_objects::TextObjectDef>,
+	current: &'static textobj::TextObjectDef,
+	map: &mut HashMap<String, &'static textobj::TextObjectDef>,
 	collisions: &mut Vec<CollisionReport>,
 ) {
 	if let Some(existing) = map.get(&key).copied() {
@@ -223,7 +223,7 @@ fn collect_text_object_collisions(collisions: &mut Vec<CollisionReport>) {
 	let mut by_alias = HashMap::new();
 	let mut by_trigger = HashMap::new();
 
-	for obj in text_objects::all() {
+	for obj in textobj::all() {
 		register_text_object_collision(
 			CollisionKind::Id,
 			obj.id.to_string(),
@@ -277,7 +277,7 @@ fn cmd_registry_diag<'a>(
 		out.push(format!("Commands: {}", COMMANDS.iter().count()));
 		out.push("Actions:  0".to_string());
 		out.push(format!("Motions:  {}", motions::all().count()));
-		out.push(format!("Objects:  {}", text_objects::all().count()));
+		out.push(format!("Objects:  {}", textobj::all().count()));
 
 		let diag = diagnostics();
 		let has_collisions = !diag.collisions.is_empty();

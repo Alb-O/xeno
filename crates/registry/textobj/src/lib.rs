@@ -7,7 +7,7 @@
 //! - Type definitions ([`TextObjectDef`], [`TextObjectHandler`])
 //! - Distributed slice ([`TEXT_OBJECTS`])
 //! - Registration macros ([`text_object!`], [`symmetric_text_object!`], [`bracket_pair_object!`])
-//! - Standard library implementations (word, line, paragraph, surround, quotes, etc.)
+//! - Built-in implementations (word, line, paragraph, surround, quotes, etc.)
 
 use linkme::distributed_slice;
 use ropey::RopeSlice;

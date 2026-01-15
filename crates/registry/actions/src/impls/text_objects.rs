@@ -1,5 +1,5 @@
 use xeno_primitives::range::Range;
-use xeno_registry_text_objects::{TextObjectDef, find_by_trigger};
+use xeno_registry_textobj::{TextObjectDef, find_by_trigger};
 
 use crate::{
 	ActionContext, ActionEffects, ActionResult, ObjectSelectionKind, PendingAction, PendingKind,
