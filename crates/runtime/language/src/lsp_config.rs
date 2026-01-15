@@ -33,6 +33,8 @@ use kdl::{KdlDocument, KdlNode};
 use serde_json::Value as JsonValue;
 use thiserror::Error;
 
+use crate::utils::parse_string_args;
+
 /// Errors from LSP configuration parsing.
 #[derive(Debug, Error)]
 pub enum LspConfigError {
@@ -125,20 +127,6 @@ fn parse_server_node(node: &KdlNode) -> LspServerDef {
 	}
 }
 
-/// Extracts string arguments from a named child node.
-fn parse_string_args(children: Option<&KdlDocument>, name: &str) -> Vec<String> {
-	children
-		.and_then(|c| c.get(name))
-		.map(|node| {
-			node.entries()
-				.iter()
-				.filter(|e| e.name().is_none())
-				.filter_map(|e| e.value().as_string())
-				.map(String::from)
-				.collect()
-		})
-		.unwrap_or_default()
-}
 
 /// Parses environment variables from the environment block.
 fn parse_environment(children: Option<&KdlDocument>) -> HashMap<String, String> {

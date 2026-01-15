@@ -24,6 +24,7 @@ pub mod build;
 pub mod config;
 pub mod grammar;
 pub mod highlight;
+mod utils;
 pub mod language;
 pub mod loader;
 pub mod lsp_config;

@@ -6,6 +6,7 @@
 use kdl::{KdlDocument, KdlNode};
 use thiserror::Error;
 
+use crate::utils::parse_string_args;
 use crate::language::LanguageData;
 
 /// Errors from language configuration parsing.
@@ -126,20 +127,6 @@ fn parse_file_types(
 	(extensions, filenames, globs)
 }
 
-/// Extracts string arguments from a named child node.
-fn parse_string_args(children: Option<&kdl::KdlDocument>, name: &str) -> Vec<String> {
-	children
-		.and_then(|c| c.get(name))
-		.map(|node| {
-			node.entries()
-				.iter()
-				.filter(|e| e.name().is_none())
-				.filter_map(|e| e.value().as_string())
-				.map(String::from)
-				.collect()
-		})
-		.unwrap_or_default()
-}
 
 /// Parses block comment tokens from node properties or children.
 fn parse_block_comment(
