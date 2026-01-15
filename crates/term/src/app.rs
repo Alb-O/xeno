@@ -4,7 +4,7 @@ use std::time::Duration;
 use termina::escape::csi::{Csi, Cursor};
 use termina::event::{Event, KeyEventKind};
 use termina::{PlatformTerminal, Terminal as _};
-use xeno_api::Editor;
+use xeno_editor::Editor;
 use xeno_registry::{
 	HookContext, HookEventData, emit as emit_hook, emit_sync_with as emit_hook_sync_with,
 };

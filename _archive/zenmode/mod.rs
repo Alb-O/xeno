@@ -19,7 +19,7 @@
 
 use std::ops::Range;
 
-use xeno_api::editor::Editor;
+use xeno_editor::editor::Editor;
 use xeno_macro::extension;
 use xeno_registry::commands::{CommandContext, CommandError, CommandOutcome};
 
@@ -91,7 +91,7 @@ fn is_secondary_focus(kind: &str) -> bool {
 
 use std::time::{Duration, Instant};
 
-use xeno_api::editor::extensions::Easing;
+use xeno_editor::editor::extensions::Easing;
 
 /// Default animation duration for focus transitions between nodes.
 const TRANSITION_DURATION: Duration = Duration::from_millis(150);

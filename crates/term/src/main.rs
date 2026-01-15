@@ -17,7 +17,7 @@ use clap::Parser;
 use cli::{AuthAction, LoginProvider, LogoutProvider};
 use cli::{Cli, Command, GrammarAction};
 use tracing::{info, warn};
-use xeno_api::Editor;
+use xeno_editor::Editor;
 // Force-link crates to ensure their distributed_slice registrations are included.
 #[allow(unused_imports, reason = "linkme distributed_slice registration")]
 use xeno_core as _;
@@ -58,7 +58,7 @@ async fn main() -> anyhow::Result<()> {
 	}
 
 	// Load user config if present
-	let user_config = if let Some(config_dir) = xeno_api::paths::get_config_dir() {
+	let user_config = if let Some(config_dir) = xeno_editor::paths::get_config_dir() {
 		let config_path = config_dir.join("config.kdl");
 		if config_path.exists() {
 			match xeno_runtime_config::Config::load(&config_path) {
@@ -426,7 +426,7 @@ async fn run_editor_normal() -> anyhow::Result<()> {
 		}
 	};
 
-	let user_config = xeno_api::paths::get_config_dir()
+	let user_config = xeno_editor::paths::get_config_dir()
 		.map(|d| d.join("config.kdl"))
 		.filter(|p| p.exists())
 		.and_then(
@@ -496,7 +496,7 @@ fn setup_tracing() {
 	use tracing_subscriber::fmt::format::FmtSpan;
 	use tracing_subscriber::prelude::*;
 
-	let Some(data_dir) = xeno_api::paths::get_data_dir() else {
+	let Some(data_dir) = xeno_editor::paths::get_data_dir() else {
 		return;
 	};
 
@@ -548,7 +548,7 @@ fn configure_lsp_servers(editor: &mut Editor) {
 		};
 		editor.lsp.configure_server(
 			language.clone(),
-			xeno_api::lsp::LanguageServerConfig {
+			xeno_editor::lsp::LanguageServerConfig {
 				command: server_def.command.clone(),
 				args: server_def.args.clone(),
 				env: server_def.environment.clone(),

@@ -1,7 +1,7 @@
 [workspace]
 resolver = "3"
 members = [
-    "crates/api",
+    "crates/editor",
     "crates/auth",
     "crates/core",
     "crates/input",
@@ -76,7 +76,7 @@ urlencoding = "2"
 uuid = { version = "1", features = ["v4"] }
 webbrowser = "1"
 which = "8"
-xeno-api = { path = "crates/api" }
+xeno-editor = { path = "crates/editor" }
 xeno-auth = { path = "crates/auth" }
 xeno-core = { path = "crates/core" }
 xeno-input = { path = "crates/input" }

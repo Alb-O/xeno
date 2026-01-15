@@ -35,3 +35,4 @@ xeno-keymap-core.workspace = true
 xeno-macro.workspace = true
 xeno-primitives.workspace = true
 xeno-registry.workspace = true
+xeno-registry-core.workspace = true

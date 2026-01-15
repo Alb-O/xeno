@@ -84,36 +84,8 @@ pub mod theme {
 	}
 }
 
-/// Numeric identifier for an action in the registry.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct ActionId(pub u32);
-
-impl ActionId {
-	/// Represents an invalid action ID.
-	pub const INVALID: ActionId = ActionId(u32::MAX);
-
-	/// Returns true if this action ID is valid.
-	#[inline]
-	pub fn is_valid(self) -> bool {
-		self != Self::INVALID
-	}
-
-	/// Returns the underlying u32 value.
-	#[inline]
-	pub fn as_u32(self) -> u32 {
-		self.0
-	}
-}
-
-impl std::fmt::Display for ActionId {
-	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-		if *self == Self::INVALID {
-			write!(f, "ActionId(INVALID)")
-		} else {
-			write!(f, "ActionId({})", self.0)
-		}
-	}
-}
+// Re-export ActionId from registry-core
+pub use xeno_registry_core::ActionId;
 
 // Core's own types
 pub use completion::{CompletionContext, CompletionItem, CompletionKind, CompletionSource};

@@ -4302,47 +4302,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9edde0db4769d2dc68579893f2306b26c6ecfbe0ef499b013d731b7b9247e0b9"
 
 [[package]]
-name = "xeno-api"
-version = "0.3.0"
-dependencies = [
- "anyhow",
- "async-trait",
- "clap",
- "dirs",
- "frizbee",
- "futures",
- "insta",
- "linkme",
- "parking_lot",
- "paste",
- "portable-pty",
- "regex",
- "ropey",
- "serde",
- "serde_json",
- "strsim",
- "termina",
- "thiserror 2.0.17",
- "tokio",
- "tokio-util",
- "toml",
- "tracing",
- "tracing-subscriber",
- "tree-house",
- "unicode-segmentation",
- "unicode-width 0.2.2",
- "vt100",
- "xeno-core",
- "xeno-input",
- "xeno-lsp",
- "xeno-primitives",
- "xeno-registry",
- "xeno-registry-notifications",
- "xeno-runtime-language",
- "xeno-tui",
-]
-
-[[package]]
 name = "xeno-auth"
 version = "0.3.0"
 dependencies = [
@@ -4386,6 +4345,48 @@ dependencies = [
  "xeno-macro",
  "xeno-primitives",
  "xeno-registry",
+ "xeno-registry-core",
+]
+
+[[package]]
+name = "xeno-editor"
+version = "0.3.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "clap",
+ "dirs",
+ "frizbee",
+ "futures",
+ "insta",
+ "linkme",
+ "parking_lot",
+ "paste",
+ "portable-pty",
+ "regex",
+ "ropey",
+ "serde",
+ "serde_json",
+ "strsim",
+ "termina",
+ "thiserror 2.0.17",
+ "tokio",
+ "tokio-util",
+ "toml",
+ "tracing",
+ "tracing-subscriber",
+ "tree-house",
+ "unicode-segmentation",
+ "unicode-width 0.2.2",
+ "vt100",
+ "xeno-core",
+ "xeno-input",
+ "xeno-lsp",
+ "xeno-primitives",
+ "xeno-registry",
+ "xeno-registry-notifications",
+ "xeno-runtime-language",
+ "xeno-tui",
 ]
 
 [[package]]
@@ -4696,9 +4697,9 @@ dependencies = [
  "tracing-subscriber",
  "uuid",
  "which",
- "xeno-api",
  "xeno-auth",
  "xeno-core",
+ "xeno-editor",
  "xeno-primitives",
  "xeno-registry",
  "xeno-runtime-config",

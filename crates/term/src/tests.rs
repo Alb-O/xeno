@@ -3,7 +3,7 @@ mod suite {
 	use std::path::PathBuf;
 
 	use insta::assert_snapshot;
-	use xeno_api::Editor;
+	use xeno_editor::Editor;
 	use xeno_tui::Terminal;
 	use xeno_tui::backend::TestBackend;
 

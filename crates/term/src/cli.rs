@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
 use clap::{Parser, Subcommand};
-use xeno_api::styles::cli_styles;
+use xeno_editor::styles::cli_styles;
 
 #[derive(Parser, Debug)]
 #[command(name = "xeno")]

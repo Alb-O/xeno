@@ -1,4 +1,41 @@
 //! Shared registry infrastructure.
+//!
+//! This crate provides foundational types for the registry system:
+//! - [`ActionId`]: Numeric identifier for actions
+//! - [`RegistrySource`]: Where a registry item was defined
+//! - [`RegistryMetadata`]: Common metadata trait for registry items
+//! - [`Key`]: Typed handle to a registry definition
+
+/// Numeric identifier for an action in the registry.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct ActionId(pub u32);
+
+impl ActionId {
+	/// Represents an invalid action ID.
+	pub const INVALID: ActionId = ActionId(u32::MAX);
+
+	/// Returns true if this action ID is valid.
+	#[inline]
+	pub fn is_valid(self) -> bool {
+		self != Self::INVALID
+	}
+
+	/// Returns the underlying u32 value.
+	#[inline]
+	pub fn as_u32(self) -> u32 {
+		self.0
+	}
+}
+
+impl std::fmt::Display for ActionId {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		if *self == Self::INVALID {
+			write!(f, "ActionId(INVALID)")
+		} else {
+			write!(f, "ActionId({})", self.0)
+		}
+	}
+}
 
 /// Represents where a registry item was defined.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
