@@ -25,8 +25,6 @@
 
 pub mod buffer;
 pub mod capabilities;
-/// Input handling: key events, modes, and pending actions.
-pub mod input;
 /// Editor-direct commands that need full [`Editor`] access.
 pub mod commands;
 /// Completion types and sources for command palette.
@@ -36,6 +34,8 @@ pub mod editor;
 pub mod editor_ctx;
 /// Info popups for documentation and contextual help.
 pub mod info_popup;
+/// Input handling: key events, modes, and pending actions.
+pub mod input;
 #[cfg(feature = "lsp")]
 pub mod lsp;
 /// Cursor movement functions.

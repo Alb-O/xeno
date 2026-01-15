@@ -3,10 +3,10 @@
 //! Processing keyboard input and dispatching actions.
 
 use termina::event::KeyCode;
-use crate::input::KeyResult;
 use xeno_primitives::{Key, Mode, Selection};
 
 use crate::editor::{Editor, FocusTarget};
+use crate::input::KeyResult;
 use crate::palette::PaletteState;
 use crate::window::Window;
 

@@ -80,10 +80,10 @@
 //! Warnings are collected in [`Config::warnings`] and displayed at startup.
 
 pub mod error;
-pub mod utils;
 pub mod keys;
 pub mod options;
 pub mod theme;
+pub mod utils;
 #[cfg(feature = "watch")]
 pub mod watch;
 
