@@ -40,3 +40,6 @@ kitty-test-harness.workspace = true
 serde_json.workspace = true
 serial_test.workspace = true
 termwiz.workspace = true
+
+[lints]
+workspace = true

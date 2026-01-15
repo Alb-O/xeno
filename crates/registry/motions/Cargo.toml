@@ -13,3 +13,6 @@ ropey.workspace = true
 unicode-segmentation.workspace = true
 xeno-primitives.workspace = true
 xeno-registry-core.workspace = true
+
+[lints]
+workspace = true

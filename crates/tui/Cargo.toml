@@ -70,3 +70,6 @@ pretty_assertions = "1"
 rstest = "0.26"
 serde_json = "1"
 tokio = { version = "1", features = ["rt", "macros", "time", "rt-multi-thread"] }
+
+[lints]
+workspace = true

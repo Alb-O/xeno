@@ -110,6 +110,9 @@ xeno-runtime-data = { path = "crates/runtime/data" }
 xeno-runtime-language = { path = "crates/runtime/language" }
 xeno-tui = { path = "crates/tui" }
 
+[workspace.lints.rust]
+unused_crate_dependencies = "warn"
+
 [profile.dev]
 opt-level = 1
 

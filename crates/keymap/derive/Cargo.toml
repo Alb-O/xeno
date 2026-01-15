@@ -16,6 +16,9 @@ syn = { workspace = true }
 xeno-keymap-parser = { path = "../parser" }
 
 [dev-dependencies]
-serde = { workspace = true }
-toml = { workspace = true }
+serde.workspace = true
+toml.workspace = true
 xeno-keymap-core = { path = "../core" }
+
+[lints]
+workspace = true

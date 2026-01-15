@@ -10,3 +10,6 @@ linkme.workspace = true
 paste.workspace = true
 thiserror.workspace = true
 xeno-registry-core.workspace = true
+
+[lints]
+workspace = true

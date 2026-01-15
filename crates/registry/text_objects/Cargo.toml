@@ -12,3 +12,6 @@ ropey.workspace = true
 xeno-primitives.workspace = true
 xeno-registry-core.workspace = true
 xeno-registry-motions.workspace = true
+
+[lints]
+workspace = true

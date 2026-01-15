@@ -12,3 +12,6 @@ tracing.workspace = true
 xeno-macro.workspace = true
 xeno-primitives.workspace = true
 xeno-registry-core.workspace = true
+
+[lints]
+workspace = true

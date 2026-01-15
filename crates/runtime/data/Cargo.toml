@@ -8,3 +8,6 @@ description = "Embedded runtime data and assets"
 
 [dependencies]
 include_dir.workspace = true
+
+[lints]
+workspace = true

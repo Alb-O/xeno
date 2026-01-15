@@ -19,3 +19,6 @@ unicode-segmentation.workspace = true
 unicode-width.workspace = true
 xeno-keymap-parser.workspace = true
 xeno-tui = { workspace = true, optional = true }
+
+[lints]
+workspace = true

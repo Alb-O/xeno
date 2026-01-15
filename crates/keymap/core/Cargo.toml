@@ -23,4 +23,7 @@ xeno-keymap-parser = { path = "../parser" }
 xeno-primitives = { workspace = true, optional = true }
 
 [dev-dependencies]
-toml = { workspace = true }
+toml.workspace = true
+
+[lints]
+workspace = true

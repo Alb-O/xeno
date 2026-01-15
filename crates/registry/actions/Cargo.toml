@@ -22,3 +22,6 @@ xeno-registry-motions.workspace = true
 xeno-registry-notifications.workspace = true
 xeno-registry-options.workspace = true
 xeno-registry-text-objects.workspace = true
+
+[lints]
+workspace = true

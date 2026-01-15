@@ -19,3 +19,6 @@ xeno-registry-options.workspace = true
 xeno-registry-statusline.workspace = true
 xeno-registry-text-objects.workspace = true
 xeno-registry-themes.workspace = true
+
+[lints]
+workspace = true

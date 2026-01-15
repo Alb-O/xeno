@@ -11,3 +11,6 @@ paste.workspace = true
 ropey.workspace = true
 xeno-registry-core.workspace = true
 xeno-tui.workspace = true
+
+[lints]
+workspace = true

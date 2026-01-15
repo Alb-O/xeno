@@ -49,3 +49,6 @@ tokio = { workspace = true, features = ["io-std", "io-util", "macros", "process"
 tokio-util.workspace = true
 tower.workspace = true
 tracing-subscriber.workspace = true
+
+[lints]
+workspace = true

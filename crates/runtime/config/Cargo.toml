@@ -20,3 +20,6 @@ xeno-registry.workspace = true
 [dev-dependencies]
 tempfile.workspace = true
 xeno-runtime-data.workspace = true
+
+[lints]
+workspace = true
