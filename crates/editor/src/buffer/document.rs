@@ -23,7 +23,7 @@ use xeno_primitives::{
 use xeno_runtime_language::LanguageLoader;
 use xeno_runtime_language::syntax::Syntax;
 
-use crate::editor::types::DocumentHistoryEntry;
+use super::undo_store::{DocumentSnapshot, UndoBackend};
 
 /// Counter for generating unique document IDs.
 static NEXT_DOCUMENT_ID: AtomicU64 = AtomicU64::new(1);
@@ -81,11 +81,13 @@ pub struct Document {
 	/// Whether the document is read-only (prevents all text modifications).
 	readonly: bool,
 
-	/// Undo history stack (document state only, no view state).
-	undo_stack: Vec<DocumentHistoryEntry>,
-
-	/// Redo history stack (document state only, no view state).
-	redo_stack: Vec<DocumentHistoryEntry>,
+	/// Undo backend (snapshot or transaction-based).
+	///
+	/// Manages document-level undo history. View state (cursor, selection,
+	/// scroll) is handled separately at the editor level via [`EditorUndoGroup`].
+	///
+	/// [`EditorUndoGroup`]: crate::editor::types::EditorUndoGroup
+	undo_backend: UndoBackend,
 
 	/// Detected file type (e.g., "rust", "python").
 	pub file_type: Option<String>,
@@ -118,8 +120,7 @@ impl Document {
 			path,
 			modified: false,
 			readonly: false,
-			undo_stack: Vec::new(),
-			redo_stack: Vec::new(),
+			undo_backend: UndoBackend::default(),
 			file_type: None,
 			syntax: None,
 			insert_undo_active: false,
@@ -134,6 +135,30 @@ impl Document {
 	/// Creates a new scratch document (no file path).
 	pub fn scratch() -> Self {
 		Self::new(String::new(), None)
+	}
+
+	/// Creates a new document with transaction-based undo.
+	///
+	/// Transaction-based undo stores edit deltas instead of full rope snapshots,
+	/// which can be more efficient for large documents with small edits.
+	pub fn with_transaction_undo(content: String, path: Option<PathBuf>) -> Self {
+		let mut doc = Self::new(content, path);
+		doc.undo_backend = UndoBackend::transaction();
+		doc
+	}
+
+	/// Switches to transaction-based undo backend.
+	///
+	/// Note: This clears any existing undo history.
+	pub fn use_transaction_undo(&mut self) {
+		self.undo_backend = UndoBackend::transaction();
+	}
+
+	/// Switches to snapshot-based undo backend.
+	///
+	/// Note: This clears any existing undo history.
+	pub fn use_snapshot_undo(&mut self) {
+		self.undo_backend = UndoBackend::snapshot();
 	}
 
 	/// Initializes syntax highlighting for this document based on file path.
@@ -168,19 +193,19 @@ impl Document {
 
 	/// Pushes the current document state onto the undo stack.
 	///
-	/// This is a document-only snapshot. View state (cursor, selection, scroll)
+	/// Records a document-only snapshot. View state (cursor, selection, scroll)
 	/// is captured separately at the editor level.
+	///
+	/// For backward compatibility with code that doesn't use `commit()`.
+	/// New code should prefer `commit()` which handles undo recording automatically.
 	pub(crate) fn push_undo_snapshot(&mut self) {
-		self.undo_stack.push(DocumentHistoryEntry {
+		let before = DocumentSnapshot {
 			rope: self.content.clone(),
 			version: self.version,
-		});
-		self.redo_stack.clear();
-
-		const MAX_UNDO: usize = 100;
-		if self.undo_stack.len() > MAX_UNDO {
-			self.undo_stack.remove(0);
-		}
+		};
+		let empty_tx = xeno_primitives::Transaction::new(self.content.slice(..));
+		self.undo_backend
+			.record_commit(&empty_tx, &before, self.version);
 	}
 
 	/// Saves current document state to undo history. Resets any grouped insert session.
@@ -206,40 +231,58 @@ impl Document {
 
 	/// Undoes the last document change.
 	///
+	/// Restores document content from the undo stack and reparses syntax.
+	/// View state restoration is handled at the editor level via [`EditorUndoGroup`].
+	///
 	/// Returns `true` if undo was successful, `false` if nothing to undo.
-	/// View state restoration is handled at the editor level.
+	///
+	/// [`EditorUndoGroup`]: crate::editor::types::EditorUndoGroup
 	pub fn undo(&mut self, language_loader: &LanguageLoader) -> bool {
 		self.insert_undo_active = false;
-		let Some(entry) = self.undo_stack.pop() else {
+
+		if !self.undo_backend.can_undo() {
 			return false;
-		};
-		self.redo_stack.push(DocumentHistoryEntry {
-			rope: self.content.clone(),
-			version: self.version,
-		});
-		self.content = entry.rope;
-		self.version = self.version.wrapping_add(1);
-		self.reparse_syntax(language_loader);
-		true
+		}
+
+		let ok = self.undo_backend.undo(
+			&mut self.content,
+			&mut self.version,
+			language_loader,
+			|_, _| {},
+		);
+
+		if ok {
+			self.reparse_syntax(language_loader);
+		}
+		ok
 	}
 
 	/// Redoes the last undone document change.
 	///
+	/// Restores document content from the redo stack and reparses syntax.
+	/// View state restoration is handled at the editor level via [`EditorUndoGroup`].
+	///
 	/// Returns `true` if redo was successful, `false` if nothing to redo.
-	/// View state restoration is handled at the editor level.
+	///
+	/// [`EditorUndoGroup`]: crate::editor::types::EditorUndoGroup
 	pub fn redo(&mut self, language_loader: &LanguageLoader) -> bool {
 		self.insert_undo_active = false;
-		let Some(entry) = self.redo_stack.pop() else {
+
+		if !self.undo_backend.can_redo() {
 			return false;
-		};
-		self.undo_stack.push(DocumentHistoryEntry {
-			rope: self.content.clone(),
-			version: self.version,
-		});
-		self.content = entry.rope;
-		self.version = self.version.wrapping_add(1);
-		self.reparse_syntax(language_loader);
-		true
+		}
+
+		let ok = self.undo_backend.redo(
+			&mut self.content,
+			&mut self.version,
+			language_loader,
+			|_, _| {},
+		);
+
+		if ok {
+			self.reparse_syntax(language_loader);
+		}
+		ok
 	}
 
 	/// Applies an edit through the authoritative edit gate.
@@ -288,17 +331,15 @@ impl Document {
 	) -> CommitResult {
 		let version_before = self.version;
 
-		let undo_recorded = match commit.undo {
+		let should_record = match commit.undo {
 			UndoPolicy::NoUndo => false,
 			UndoPolicy::Record | UndoPolicy::Boundary => {
 				self.insert_undo_active = false;
-				self.push_undo_snapshot();
 				true
 			}
 			UndoPolicy::MergeWithCurrentGroup => {
 				if !self.insert_undo_active {
 					self.insert_undo_active = true;
-					self.push_undo_snapshot();
 					true
 				} else {
 					false
@@ -306,9 +347,26 @@ impl Document {
 			}
 		};
 
+		let before = if should_record {
+			Some(DocumentSnapshot {
+				rope: self.content.clone(),
+				version: self.version,
+			})
+		} else {
+			None
+		};
+
 		commit.tx.apply(&mut self.content);
 		self.modified = true;
 		self.version = self.version.wrapping_add(1);
+
+		let undo_recorded = if let Some(before) = before {
+			self.undo_backend
+				.record_commit(&commit.tx, &before, self.version);
+			true
+		} else {
+			false
+		};
 
 		let syntax_changed = match commit.syntax {
 			SyntaxPolicy::None => false,
@@ -388,22 +446,22 @@ impl Document {
 
 	/// Returns the number of items in the undo stack.
 	pub fn undo_len(&self) -> usize {
-		self.undo_stack.len()
+		self.undo_backend.undo_len()
 	}
 
 	/// Returns the number of items in the redo stack.
 	pub fn redo_len(&self) -> usize {
-		self.redo_stack.len()
+		self.undo_backend.redo_len()
 	}
 
 	/// Returns whether undo is available.
 	pub fn can_undo(&self) -> bool {
-		!self.undo_stack.is_empty()
+		self.undo_backend.can_undo()
 	}
 
 	/// Returns whether redo is available.
 	pub fn can_redo(&self) -> bool {
-		!self.redo_stack.is_empty()
+		self.undo_backend.can_redo()
 	}
 
 	/// Returns whether the document has syntax highlighting enabled.

@@ -299,13 +299,13 @@ pub struct ViewSnapshot {
 
 ### Action Items
 
-- [ ] Introduce `UndoStore` trait (document-owned)
-- [ ] Implement `SnapshotUndoStore` using current snapshot behavior
-- [ ] Implement `TxnUndoStore` using `Transaction + invert()`:
-  - [ ] store `(undo_tx, redo_tx)` per step
-  - [ ] apply on undo/redo via `Document::commit` with `UndoPolicy::NoUndo` to avoid recursion
-- [ ] Move `MAX_UNDO` enforcement into the undo store
-- [ ] Replace document's `undo_stack: Vec<HistoryEntry>` with `undo: Box<dyn UndoStore>` (or enum if you want no vtables)
+- [x] Introduce `UndoStore` trait (document-owned)
+- [x] Implement `SnapshotUndoStore` using current snapshot behavior
+- [x] Implement `TxnUndoStore` using `Transaction + invert()`:
+  - [x] store `(undo_tx, redo_tx)` per step
+  - [x] apply on undo/redo via `Document::commit` with `UndoPolicy::NoUndo` to avoid recursion
+- [x] Move `MAX_UNDO` enforcement into the undo store
+- [x] Replace document's `undo_stack: Vec<HistoryEntry>` with `undo: Box<dyn UndoStore>` (or enum if you want no vtables)
 
 ### UndoStore Trait
 

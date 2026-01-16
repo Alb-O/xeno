@@ -11,6 +11,9 @@ mod editing;
 mod history;
 mod layout;
 mod navigation;
+mod undo_store;
+
+pub use undo_store::{DocumentSnapshot, SnapshotUndoStore, TxnUndoStore, UndoBackend};
 
 use std::path::PathBuf;
 use std::sync::{Arc, RwLock};
