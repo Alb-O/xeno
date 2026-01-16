@@ -104,7 +104,7 @@ pub struct GutterAnnotations {
 
 /// Definition of a gutter column.
 pub struct GutterDef {
-	/// Common registry metadata (id, name, aliases, description, priority, source, caps, flags).
+	/// Common registry metadata.
 	pub meta: RegistryMeta,
 	/// Whether enabled by default.
 	pub default_enabled: bool,

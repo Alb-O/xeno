@@ -58,7 +58,7 @@ pub type MotionHandler = fn(RopeSlice, Range, usize, bool) -> Range;
 /// Motions are registered via the [`motion!`] macro and looked up by name
 /// from action handlers.
 pub struct MotionDef {
-	/// Common registry metadata (id, name, aliases, description, priority, source, caps, flags).
+	/// Common registry metadata.
 	pub meta: RegistryMeta,
 	/// Function that implements the motion logic.
 	pub handler: MotionHandler,

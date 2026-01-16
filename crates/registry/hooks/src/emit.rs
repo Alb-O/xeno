@@ -15,7 +15,7 @@ use super::types::{BoxFuture, HookAction, HookHandler, HookMutability, HookResul
 pub async fn emit(ctx: &HookContext<'_>) -> HookResult {
 	let event = ctx.event();
 	let mut matching: Vec<_> = HOOKS.iter().filter(|h| h.event == event).collect();
-	matching.sort_by_key(|h| h.priority);
+	matching.sort_by_key(|h| h.meta.priority);
 
 	for hook in matching {
 		if hook.mutability != HookMutability::Immutable {
@@ -43,7 +43,7 @@ pub async fn emit(ctx: &HookContext<'_>) -> HookResult {
 pub fn emit_sync(ctx: &HookContext<'_>) -> HookResult {
 	let event = ctx.event();
 	let mut matching: Vec<_> = HOOKS.iter().filter(|h| h.event == event).collect();
-	matching.sort_by_key(|h| h.priority);
+	matching.sort_by_key(|h| h.meta.priority);
 
 	for hook in matching {
 		if hook.mutability != HookMutability::Immutable {
@@ -61,7 +61,7 @@ pub fn emit_sync(ctx: &HookContext<'_>) -> HookResult {
 			}
 			HookAction::Async(_) => {
 				warn!(
-					hook = hook.name,
+					hook = hook.meta.name,
 					"Hook returned async action but emit_sync was called; skipping"
 				);
 			}
@@ -76,7 +76,7 @@ pub fn emit_sync(ctx: &HookContext<'_>) -> HookResult {
 pub async fn emit_mutable(ctx: &mut MutableHookContext<'_>) -> HookResult {
 	let event = ctx.event;
 	let mut matching: Vec<_> = HOOKS.iter().filter(|h| h.event == event).collect();
-	matching.sort_by_key(|h| h.priority);
+	matching.sort_by_key(|h| h.meta.priority);
 
 	for hook in matching {
 		if hook.mutability != HookMutability::Mutable {
@@ -117,7 +117,7 @@ pub trait HookScheduler {
 pub fn emit_sync_with<S: HookScheduler>(ctx: &HookContext<'_>, scheduler: &mut S) -> HookResult {
 	let event = ctx.event();
 	let mut matching: Vec<_> = HOOKS.iter().filter(|h| h.event == event).collect();
-	matching.sort_by_key(|h| h.priority);
+	matching.sort_by_key(|h| h.meta.priority);
 
 	for hook in matching {
 		if hook.mutability != HookMutability::Immutable {

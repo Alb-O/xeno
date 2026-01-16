@@ -10,7 +10,7 @@ use std::sync::OnceLock;
 
 use linkme::distributed_slice;
 pub use xeno_primitives::{Color, Mode, Modifier, Style};
-use xeno_registry_core::{RegistrySource, impl_registry_metadata};
+use xeno_registry_core::{RegistryMeta, RegistrySource, impl_registry_entry};
 
 mod syntax;
 
@@ -240,20 +240,12 @@ impl ThemeColors {
 /// A complete theme definition.
 #[derive(Clone, Copy, Debug)]
 pub struct Theme {
-	/// Unique identifier for the theme.
-	pub id: &'static str,
-	/// Human-readable display name.
-	pub name: &'static str,
-	/// Alternative names for theme lookup.
-	pub aliases: &'static [&'static str],
+	/// Common registry metadata.
+	pub meta: RegistryMeta,
 	/// Whether this is a light or dark theme.
 	pub variant: ThemeVariant,
 	/// Complete color definitions.
 	pub colors: ThemeColors,
-	/// Sort priority (higher = listed first).
-	pub priority: i16,
-	/// Where this theme was registered from.
-	pub source: RegistrySource,
 }
 
 /// Owned theme data for runtime-loaded themes.
@@ -289,13 +281,18 @@ impl OwnedTheme {
 		);
 
 		Box::leak(Box::new(Theme {
-			id,
-			name,
-			aliases,
+			meta: RegistryMeta {
+				id,
+				name,
+				aliases,
+				description: "",
+				priority: self.priority,
+				source: self.source,
+				required_caps: &[],
+				flags: 0,
+			},
 			variant: self.variant,
 			colors: self.colors,
-			priority: self.priority,
-			source: self.source,
 		}))
 	}
 }
@@ -318,9 +315,16 @@ pub static THEMES: [Theme] = [..];
 /// Default fallback theme (minimal terminal colors).
 #[distributed_slice(THEMES)]
 pub static DEFAULT_THEME: Theme = Theme {
-	id: "default",
-	name: "default",
-	aliases: &[],
+	meta: RegistryMeta {
+		id: "default",
+		name: "default",
+		aliases: &[],
+		description: "",
+		priority: 0,
+		source: RegistrySource::Builtin,
+		required_caps: &[],
+		flags: 0,
+	},
 	variant: ThemeVariant::Dark,
 	colors: ThemeColors {
 		ui: UiColors {
@@ -361,8 +365,6 @@ pub static DEFAULT_THEME: Theme = Theme {
 		notification: NotificationColors::INHERITED,
 		syntax: SyntaxStyles::minimal(),
 	},
-	priority: 0,
-	source: RegistrySource::Builtin,
 };
 
 /// Default theme ID to use when no theme is specified.
@@ -380,17 +382,16 @@ pub fn get_theme(name: &str) -> Option<&'static Theme> {
 	let search = normalize(name);
 
 	// Check runtime themes first (from KDL files)
-	if let Some(theme) = runtime_themes()
-		.iter()
-		.find(|t| normalize(t.name) == search || t.aliases.iter().any(|a| normalize(a) == search))
-	{
+	if let Some(theme) = runtime_themes().iter().find(|t| {
+		normalize(t.meta.name) == search || t.meta.aliases.iter().any(|a| normalize(a) == search)
+	}) {
 		return Some(theme);
 	}
 
 	// Fall back to compile-time themes
-	THEMES
-		.iter()
-		.find(|t| normalize(t.name) == search || t.aliases.iter().any(|a| normalize(a) == search))
+	THEMES.iter().find(|t| {
+		normalize(t.meta.name) == search || t.meta.aliases.iter().any(|a| normalize(a) == search)
+	})
 }
 
 /// Blend two colors with the given alpha (0.0 = bg, 1.0 = fg).
@@ -406,33 +407,33 @@ pub fn suggest_theme(name: &str) -> Option<&'static str> {
 	let mut best_score = 0.0;
 
 	for theme in runtime_themes() {
-		let score = strsim::jaro_winkler(&name, theme.name);
+		let score = strsim::jaro_winkler(&name, theme.meta.name);
 		if score > best_score {
 			best_score = score;
-			best_match = Some(theme.name);
+			best_match = Some(theme.meta.name);
 		}
 
-		for alias in theme.aliases {
+		for alias in theme.meta.aliases {
 			let score = strsim::jaro_winkler(&name, alias);
 			if score > best_score {
 				best_score = score;
-				best_match = Some(theme.name);
+				best_match = Some(theme.meta.name);
 			}
 		}
 	}
 
 	for theme in THEMES {
-		let score = strsim::jaro_winkler(&name, theme.name);
+		let score = strsim::jaro_winkler(&name, theme.meta.name);
 		if score > best_score {
 			best_score = score;
-			best_match = Some(theme.name);
+			best_match = Some(theme.meta.name);
 		}
 
-		for alias in theme.aliases {
+		for alias in theme.meta.aliases {
 			let score = strsim::jaro_winkler(&name, alias);
 			if score > best_score {
 				best_score = score;
-				best_match = Some(theme.name);
+				best_match = Some(theme.meta.name);
 			}
 		}
 	}
@@ -440,4 +441,4 @@ pub fn suggest_theme(name: &str) -> Option<&'static str> {
 	if best_score > 0.8 { best_match } else { None }
 }
 
-impl_registry_metadata!(Theme);
+impl_registry_entry!(Theme);

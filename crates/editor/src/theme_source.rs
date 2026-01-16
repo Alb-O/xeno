@@ -34,11 +34,12 @@ impl CompletionSource for ThemeSource {
 			.copied()
 			.chain(THEMES.iter())
 			.filter(|t| {
-				t.name.starts_with(prefix) || t.aliases.iter().any(|a| a.starts_with(prefix))
+				t.meta.name.starts_with(prefix)
+					|| t.meta.aliases.iter().any(|a| a.starts_with(prefix))
 			})
 			.map(|t| CompletionItem {
-				label: t.name.to_string(),
-				insert_text: t.name.to_string(),
+				label: t.meta.name.to_string(),
+				insert_text: t.meta.name.to_string(),
 				detail: Some(format!(
 					"{} theme",
 					match t.variant {

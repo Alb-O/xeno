@@ -81,7 +81,7 @@ pub enum SegmentStyle {
 
 /// Definition of a statusline segment.
 pub struct StatuslineSegmentDef {
-	/// Common registry metadata (id, name, aliases, description, priority, source, caps, flags).
+	/// Common registry metadata.
 	pub meta: RegistryMeta,
 	/// Position in the statusline.
 	pub position: SegmentPosition,

@@ -113,7 +113,9 @@ pub mod keys {
 	pub use crate::impls::theme::*;
 }
 
-pub use xeno_registry_core::{Key, RegistryMetadata, RegistrySource, impl_registry_metadata};
+pub use xeno_registry_core::{
+	Key, RegistryEntry, RegistryMeta, RegistryMetadata, RegistrySource, impl_registry_entry,
+};
 
 /// Validator function signature for option constraints.
 pub type OptionValidator = fn(&OptionValue) -> Result<(), String>;
@@ -272,27 +274,19 @@ pub enum OptionScope {
 
 /// Definition of a configurable option.
 pub struct OptionDef {
-	/// Unique identifier (e.g., "xeno_registry_options::tab_width").
-	pub id: &'static str,
-	/// Internal name for typed key references (e.g., "tab_width").
-	pub name: &'static str,
+	/// Common registry metadata.
+	pub meta: RegistryMeta,
 	/// KDL configuration key (e.g., "tab-width").
 	///
 	/// This is the exact string that appears in config files - no automatic
 	/// transformation between snake_case and kebab-case.
 	pub kdl_key: &'static str,
-	/// Human-readable description.
-	pub description: &'static str,
 	/// Value type constraint.
 	pub value_type: OptionType,
 	/// Default value factory.
 	pub default: fn() -> OptionValue,
 	/// Application scope.
 	pub scope: OptionScope,
-	/// Priority for ordering (documentation, completion).
-	pub priority: i16,
-	/// Origin of definition.
-	pub source: RegistrySource,
 	/// Optional validator for value constraints.
 	///
 	/// Returns `Ok(())` if valid, `Err(reason)` if invalid.
@@ -302,12 +296,12 @@ pub struct OptionDef {
 impl core::fmt::Debug for OptionDef {
 	fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
 		f.debug_struct("OptionDef")
-			.field("name", &self.name)
+			.field("name", &self.meta.name)
 			.field("kdl_key", &self.kdl_key)
 			.field("value_type", &self.value_type)
 			.field("scope", &self.scope)
-			.field("priority", &self.priority)
-			.field("description", &self.description)
+			.field("priority", &self.meta.priority)
+			.field("description", &self.meta.description)
 			.finish()
 	}
 }
@@ -376,7 +370,7 @@ impl<T: FromOptionValue> TypedOptionKey<T> {
 impl<T: FromOptionValue> core::fmt::Debug for TypedOptionKey<T> {
 	fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
 		f.debug_tuple("TypedOptionKey")
-			.field(&self.inner.def().name)
+			.field(&self.inner.def().meta.name)
 			.finish()
 	}
 }
@@ -387,7 +381,7 @@ pub static OPTIONS: [OptionDef];
 
 /// Finds an option definition by name.
 pub fn find(name: &str) -> Option<&'static OptionDef> {
-	OPTIONS.iter().find(|o| o.name == name)
+	OPTIONS.iter().find(|o| o.meta.name == name)
 }
 
 /// Finds an option definition by its internal name.
@@ -395,7 +389,7 @@ pub fn find(name: &str) -> Option<&'static OptionDef> {
 /// This is equivalent to [`find`] and is provided for clarity when
 /// distinguishing between name-based and KDL key-based lookups.
 pub fn find_by_name(name: &str) -> Option<&'static OptionDef> {
-	OPTIONS.iter().find(|o| o.name == name)
+	OPTIONS.iter().find(|o| o.meta.name == name)
 }
 
 /// Finds an option definition by its KDL configuration key.
@@ -489,4 +483,4 @@ pub fn validate(kdl_key: &str, value: &OptionValue) -> Result<(), OptionError> {
 	Ok(())
 }
 
-impl_registry_metadata!(OptionDef);
+impl_registry_entry!(OptionDef);

@@ -39,7 +39,7 @@ pub type TextObjectHandler = fn(RopeSlice, usize) -> Option<Range>;
 /// - `inner`: Selects content inside delimiters (e.g., `iw` for inner word)
 /// - `around`: Selects content including delimiters (e.g., `aw` for around word)
 pub struct TextObjectDef {
-	/// Common registry metadata (id, name, aliases, description, priority, source, caps, flags).
+	/// Common registry metadata.
 	pub meta: RegistryMeta,
 	/// Primary trigger character (e.g., 'w' for word).
 	pub trigger: char,

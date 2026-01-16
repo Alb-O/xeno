@@ -21,7 +21,7 @@ use crate::{ActionContext, ActionResult, RegistryMeta};
 /// }, |ctx| cursor_motion(ctx, "line_down"));
 /// ```
 pub struct ActionDef {
-	/// Common registry metadata (id, name, aliases, description, priority, source, caps, flags).
+	/// Common registry metadata.
 	pub meta: RegistryMeta,
 	/// Short description without key-sequence prefix (for which-key HUD).
 	///

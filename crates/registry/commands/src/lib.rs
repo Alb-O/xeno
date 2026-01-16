@@ -171,7 +171,7 @@ impl<'a> CommandContext<'a> {
 
 /// A registered command definition.
 pub struct CommandDef {
-	/// Common registry metadata (id, name, aliases, description, priority, source, caps, flags).
+	/// Common registry metadata.
 	pub meta: RegistryMeta,
 	/// Async function that executes the command.
 	pub handler: CommandHandler,

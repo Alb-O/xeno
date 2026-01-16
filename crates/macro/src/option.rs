@@ -181,15 +181,20 @@ pub fn derive_option(input: TokenStream) -> TokenStream {
 		#[allow(non_upper_case_globals)]
 		#[::linkme::distributed_slice(::xeno_registry_options::OPTIONS)]
 		static #internal_static: ::xeno_registry_options::OptionDef = ::xeno_registry_options::OptionDef {
-			id: ::core::concat!(::core::env!("CARGO_PKG_NAME"), "::", ::core::stringify!(#name)),
-			name: ::core::stringify!(#name),
+			meta: ::xeno_registry_options::RegistryMeta {
+				id: ::core::concat!(::core::env!("CARGO_PKG_NAME"), "::", ::core::stringify!(#name)),
+				name: ::core::stringify!(#name),
+				aliases: &[],
+				description: #description,
+				priority: #priority,
+				source: ::xeno_registry_options::RegistrySource::Crate(::core::env!("CARGO_PKG_NAME")),
+				required_caps: &[],
+				flags: 0,
+			},
 			kdl_key: #kdl_key,
-			description: #description,
 			value_type: ::xeno_registry_options::OptionType::#option_type,
 			default: || ::xeno_registry_options::OptionValue::#value_wrapper(#default_value),
 			scope: ::xeno_registry_options::OptionScope::#scope_variant,
-			priority: #priority,
-			source: ::xeno_registry_options::RegistrySource::Crate(::core::env!("CARGO_PKG_NAME")),
 			validator: #validator_expr,
 		};
 

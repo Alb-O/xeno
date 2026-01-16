@@ -52,14 +52,19 @@ macro_rules! hook {
 			#[allow(non_upper_case_globals)]
 			#[linkme::distributed_slice($crate::HOOKS)]
 			static [<HOOK_ $name>]: $crate::HookDef = $crate::HookDef {
-				id: concat!(env!("CARGO_PKG_NAME"), "::", stringify!($name)),
-				name: stringify!($name),
+				meta: $crate::RegistryMeta {
+					id: concat!(env!("CARGO_PKG_NAME"), "::", stringify!($name)),
+					name: stringify!($name),
+					aliases: &[],
+					description: $desc,
+					priority: $priority,
+					source: $crate::RegistrySource::Crate(env!("CARGO_PKG_NAME")),
+					required_caps: &[],
+					flags: 0,
+				},
 				event: $crate::HookEvent::$event,
-				description: $desc,
-				priority: $priority,
 				mutability: $crate::HookMutability::Mutable,
 				handler: $crate::HookHandler::Mutable([<hook_handler_ $name>]),
-				source: $crate::RegistrySource::Crate(env!("CARGO_PKG_NAME")),
 			};
 		}
 	};
@@ -80,14 +85,19 @@ macro_rules! hook {
 			#[allow(non_upper_case_globals)]
 			#[linkme::distributed_slice($crate::HOOKS)]
 			static [<HOOK_ $name>]: $crate::HookDef = $crate::HookDef {
-				id: concat!(env!("CARGO_PKG_NAME"), "::", stringify!($name)),
-				name: stringify!($name),
+				meta: $crate::RegistryMeta {
+					id: concat!(env!("CARGO_PKG_NAME"), "::", stringify!($name)),
+					name: stringify!($name),
+					aliases: &[],
+					description: $desc,
+					priority: $priority,
+					source: $crate::RegistrySource::Crate(env!("CARGO_PKG_NAME")),
+					required_caps: &[],
+					flags: 0,
+				},
 				event: $crate::HookEvent::$event,
-				description: $desc,
-				priority: $priority,
 				mutability: $crate::HookMutability::Immutable,
 				handler: $crate::HookHandler::Immutable([<hook_handler_ $name>]),
-				source: $crate::RegistrySource::Crate(env!("CARGO_PKG_NAME")),
 			};
 		}
 	};

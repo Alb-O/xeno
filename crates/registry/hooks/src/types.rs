@@ -3,7 +3,9 @@
 use std::future::Future;
 use std::pin::Pin;
 
-pub use xeno_registry_core::{RegistryMetadata, RegistrySource, impl_registry_metadata};
+pub use xeno_registry_core::{
+	RegistryEntry, RegistryMeta, RegistryMetadata, RegistrySource, impl_registry_entry,
+};
 
 use super::HookEvent;
 use super::context::{HookContext, MutableHookContext};
@@ -77,16 +79,10 @@ pub enum HookHandler {
 /// A hook that responds to editor events.
 #[derive(Clone, Copy)]
 pub struct HookDef {
-	/// Unique identifier.
-	pub id: &'static str,
-	/// Hook name for debugging/logging.
-	pub name: &'static str,
+	/// Common registry metadata.
+	pub meta: RegistryMeta,
 	/// The event this hook responds to.
 	pub event: HookEvent,
-	/// Short description.
-	pub description: &'static str,
-	/// Priority (lower runs first, default 100).
-	pub priority: i16,
 	/// Whether this hook can mutate editor state.
 	pub mutability: HookMutability,
 	/// The hook handler function.
@@ -94,20 +90,18 @@ pub struct HookDef {
 	/// Returns [`HookAction::Done`] for sync completion or [`HookAction::Async`]
 	/// with a future for async work.
 	pub handler: HookHandler,
-	/// Origin of the hook.
-	pub source: RegistrySource,
 }
 
 impl std::fmt::Debug for HookDef {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
 		f.debug_struct("HookDef")
-			.field("name", &self.name)
+			.field("name", &self.meta.name)
 			.field("event", &self.event)
 			.field("mutability", &self.mutability)
-			.field("priority", &self.priority)
-			.field("description", &self.description)
+			.field("priority", &self.meta.priority)
+			.field("description", &self.meta.description)
 			.finish()
 	}
 }
 
-impl_registry_metadata!(HookDef);
+impl_registry_entry!(HookDef);
