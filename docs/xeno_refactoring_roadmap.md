@@ -74,21 +74,21 @@ Then `Editor::apply_edit/undo/redo` can be written without `mem::take`.
 ## Phase 1 — Invocation becomes the only entrypoint
 **Goal:** one capability gate, one hook emission pipeline, one readonly gate, one place to interpret policy.
 
-- [ ] **Inventory** all call sites that execute actions/commands outside `invocation.rs` (e.g. legacy `actions_exec.rs`, tests, macro replay, LSP-triggered edits).
-- [ ] Create a small public API surface on `Editor`:
-  - [ ] `invoke_action(...) -> InvocationResult`
-  - [ ] `invoke_command(...) -> InvocationResult`
-- [ ] Refactor legacy `execute_action` to delegate to invocation:
-  - [ ] Replace duplicated capability check + hook emission with a call into invocation.
-  - [ ] Mark legacy function `#[deprecated]`.
-  - [ ] Delete duplicated check blocks once call sites are migrated.
-- [ ] Bring `run_editor_command_invocation` into parity:
-  - [ ] Ensure it returns the same `InvocationResult` variants.
-  - [ ] Ensure readonly enforcement is consistent.
-- [ ] Tests:
-  - [ ] Action with required caps is blocked when `enforce_caps=true`.
-  - [ ] Same action logs a warning but runs when `enforce_caps=false`.
-  - [ ] Pre/post hooks fire exactly once per invocation.
+- [x] **Inventory** all call sites that execute actions/commands outside `invocation.rs` (e.g. legacy `actions_exec.rs`, tests, macro replay, LSP-triggered edits).
+- [x] Create a small public API surface on `Editor`:
+  - [x] `invoke_action(...) -> InvocationResult`
+  - [x] `invoke_command(...) -> InvocationResult`
+- [x] Refactor legacy `execute_action` to delegate to invocation:
+  - [x] Replace duplicated capability check + hook emission with a call into invocation.
+  - [x] Mark legacy function `#[deprecated]`.
+  - [x] Delete duplicated check blocks once call sites are migrated.
+- [x] Bring `run_editor_command_invocation` into parity:
+  - [x] Ensure it returns the same `InvocationResult` variants.
+  - [x] Ensure readonly enforcement is consistent.
+- [x] Tests:
+  - [x] Action with required caps is blocked when `enforce_caps=true`.
+  - [x] Same action logs a warning but runs when `enforce_caps=false`.
+  - [x] Pre/post hooks fire exactly once per invocation.
 
 ### Code sketch: unify legacy + new invocation paths
 ```rust

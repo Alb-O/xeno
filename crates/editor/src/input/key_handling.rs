@@ -31,7 +31,8 @@ impl Editor {
 				register,
 			} => {
 				let quit = if let Some(action) = find_action_by_id(*id) {
-					self.execute_action(action.name(), *count, *extend, *register)
+					self.invoke_action(action.name(), *count, *extend, *register, None)
+						.is_quit()
 				} else {
 					self.show_notification(
 						xeno_registry_notifications::keys::unknown_action::call(&id.to_string()),
@@ -48,13 +49,14 @@ impl Editor {
 				char_arg,
 			} => {
 				let quit = if let Some(action) = find_action_by_id(*id) {
-					self.execute_action_with_char(
+					self.invoke_action(
 						action.name(),
 						*count,
 						*extend,
 						*register,
-						*char_arg,
+						Some(*char_arg),
 					)
+					.is_quit()
 				} else {
 					self.show_notification(
 						xeno_registry_notifications::keys::unknown_action::call(&id.to_string()),
