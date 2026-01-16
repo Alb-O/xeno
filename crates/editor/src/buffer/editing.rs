@@ -7,6 +7,50 @@ use xeno_primitives::LspDocumentChange;
 use xeno_primitives::{EditCommit, Range, SyntaxPolicy, Transaction, UndoPolicy};
 use xeno_runtime_language::LanguageLoader;
 
+/// Policy for applying a transaction to a buffer.
+///
+/// Combines undo and syntax policies. Use builder methods to configure,
+/// or the predefined constants for common cases.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct ApplyPolicy {
+	/// How to handle undo recording.
+	pub undo: UndoPolicy,
+	/// How to handle syntax tree updates.
+	pub syntax: SyntaxPolicy,
+}
+
+impl ApplyPolicy {
+	/// No undo recording, no syntax update. For internal operations.
+	pub const BARE: Self = Self {
+		undo: UndoPolicy::NoUndo,
+		syntax: SyntaxPolicy::None,
+	};
+
+	/// Record undo, incremental syntax update. Standard edit policy.
+	pub const EDIT: Self = Self {
+		undo: UndoPolicy::Record,
+		syntax: SyntaxPolicy::IncrementalOrDirty,
+	};
+
+	/// Merge with current undo group, incremental syntax. For insert-mode.
+	pub const INSERT: Self = Self {
+		undo: UndoPolicy::MergeWithCurrentGroup,
+		syntax: SyntaxPolicy::IncrementalOrDirty,
+	};
+
+	/// Sets the undo policy.
+	pub const fn with_undo(mut self, undo: UndoPolicy) -> Self {
+		self.undo = undo;
+		self
+	}
+
+	/// Sets the syntax policy.
+	pub const fn with_syntax(mut self, syntax: SyntaxPolicy) -> Self {
+		self.syntax = syntax;
+		self
+	}
+}
+
 use super::Buffer;
 use crate::movement;
 
@@ -168,30 +212,26 @@ impl Buffer {
 		Some(tx)
 	}
 
-	/// Applies a transaction to the document, incrementing the version counter.
+	/// Applies a transaction with the specified policy.
 	///
-	/// Routes through [`Document::commit_unchecked`] with [`SyntaxPolicy::None`].
-	/// Syntax updates are managed at the Editor level.
+	/// This is the unified entry point for applying transactions. Use [`ApplyPolicy`]
+	/// constants or builder methods to configure undo and syntax behavior.
 	///
-	/// Returns `false` if the buffer is read-only (either via buffer-level
-	/// override or document flag), `true` otherwise.
+	/// Returns `false` if the buffer is read-only, `true` otherwise.
 	///
-	/// [`Document::commit_unchecked`]: super::Document::commit_unchecked
-	pub fn apply_transaction(&self, tx: &Transaction) -> bool {
-		self.apply_transaction_with_undo(tx, UndoPolicy::NoUndo)
-	}
-
-	/// Applies a transaction with the specified undo policy.
+	/// # Examples
 	///
-	/// Routes through [`Document::commit_unchecked`] with [`SyntaxPolicy::None`].
-	/// Syntax updates are managed at the Editor level.
+	/// ```ignore
+	/// // Standard edit with undo recording
+	/// buffer.apply(&tx, ApplyPolicy::EDIT, &loader);
 	///
-	/// Returns `false` if the buffer is read-only (either via buffer-level
-	/// override or document flag), `true` otherwise. Returns `true` and records
-	/// undo based on the policy when successful.
+	/// // Insert-mode edit (merges with current undo group)
+	/// buffer.apply(&tx, ApplyPolicy::INSERT, &loader);
 	///
-	/// [`Document::commit_unchecked`]: super::Document::commit_unchecked
-	pub fn apply_transaction_with_undo(&self, tx: &Transaction, undo: UndoPolicy) -> bool {
+	/// // Custom policy
+	/// buffer.apply(&tx, ApplyPolicy::BARE.with_undo(UndoPolicy::Record), &loader);
+	/// ```
+	pub fn apply(&self, tx: &Transaction, policy: ApplyPolicy, loader: &LanguageLoader) -> bool {
 		if self.readonly_override == Some(true) {
 			return false;
 		}
@@ -200,104 +240,29 @@ impl Buffer {
 		}
 
 		let commit = EditCommit::new(tx.clone())
-			.with_undo(undo)
-			.with_syntax(SyntaxPolicy::None);
+			.with_undo(policy.undo)
+			.with_syntax(policy.syntax);
 
 		self.with_doc_mut(|doc| {
-			doc.commit_unchecked(commit, &LanguageLoader::new());
+			doc.commit_unchecked(commit, loader);
 		});
 
 		true
 	}
 
-	/// Applies a transaction and updates the syntax tree incrementally.
+	/// Applies a transaction with LSP change tracking.
 	///
-	/// Routes through [`Document::commit_unchecked`] with [`SyntaxPolicy::IncrementalOrDirty`],
-	/// which handles incremental syntax updates automatically.
+	/// Like [`apply`], but also computes and queues LSP document changes for
+	/// incremental sync. The encoding specifies how to compute LSP positions.
 	///
-	/// Returns `false` if the buffer is read-only (either via buffer-level
-	/// override or document flag), `true` otherwise.
-	///
-	/// [`Document::commit_unchecked`]: super::Document::commit_unchecked
-	pub fn apply_transaction_with_syntax(
-		&self,
-		tx: &Transaction,
-		language_loader: &LanguageLoader,
-	) -> bool {
-		self.apply_transaction_with_syntax_and_undo(tx, language_loader, UndoPolicy::NoUndo)
-	}
-
-	/// Applies a transaction with syntax update and the specified undo policy.
-	///
-	/// Routes through [`Document::commit_unchecked`] with [`SyntaxPolicy::IncrementalOrDirty`],
-	/// which handles incremental syntax updates automatically.
-	///
-	/// Returns `false` if the buffer is read-only (either via buffer-level
-	/// override or document flag), `true` otherwise. Records undo based on
-	/// the policy when successful.
-	///
-	/// [`Document::commit_unchecked`]: super::Document::commit_unchecked
-	pub fn apply_transaction_with_syntax_and_undo(
-		&self,
-		tx: &Transaction,
-		language_loader: &LanguageLoader,
-		undo: UndoPolicy,
-	) -> bool {
-		if self.readonly_override == Some(true) {
-			return false;
-		}
-		if self.readonly_override.is_none() && self.with_doc(|doc| doc.is_readonly()) {
-			return false;
-		}
-
-		let commit = EditCommit::new(tx.clone())
-			.with_undo(undo)
-			.with_syntax(SyntaxPolicy::IncrementalOrDirty);
-
-		self.with_doc_mut(|doc| {
-			doc.commit_unchecked(commit, language_loader);
-		});
-
-		true
-	}
-
-	/// Applies a transaction, updates syntax incrementally, and queues LSP changes.
-	///
-	/// Routes through [`Document::commit_unchecked`] with [`SyntaxPolicy::IncrementalOrDirty`],
-	/// which handles incremental syntax updates automatically.
-	///
-	/// Returns `false` if the buffer is read-only (either via buffer-level
-	/// override or document flag), `true` otherwise.
-	///
-	/// [`Document::commit_unchecked`]: super::Document::commit_unchecked
+	/// Returns `false` if the buffer is read-only, `true` otherwise.
 	#[cfg(feature = "lsp")]
-	pub fn apply_edit_with_lsp(
+	pub fn apply_with_lsp(
 		&self,
 		tx: &Transaction,
-		language_loader: &LanguageLoader,
+		policy: ApplyPolicy,
+		loader: &LanguageLoader,
 		encoding: OffsetEncoding,
-	) -> bool {
-		self.apply_edit_with_lsp_and_undo(tx, language_loader, encoding, UndoPolicy::NoUndo)
-	}
-
-	/// Applies a transaction with LSP sync and the specified undo policy.
-	///
-	/// Routes through [`Document::commit_unchecked`] with [`SyntaxPolicy::IncrementalOrDirty`],
-	/// which handles incremental syntax updates automatically. LSP document changes
-	/// are computed before the transaction is applied and queued for synchronization.
-	///
-	/// Returns `false` if the buffer is read-only (either via buffer-level
-	/// override or document flag), `true` otherwise. Records undo based on
-	/// the policy when successful.
-	///
-	/// [`Document::commit_unchecked`]: super::Document::commit_unchecked
-	#[cfg(feature = "lsp")]
-	pub fn apply_edit_with_lsp_and_undo(
-		&self,
-		tx: &Transaction,
-		language_loader: &LanguageLoader,
-		encoding: OffsetEncoding,
-		undo: UndoPolicy,
 	) -> bool {
 		if self.readonly_override == Some(true) {
 			return false;
@@ -310,11 +275,11 @@ impl Buffer {
 		let lsp_changes = self.with_doc(|doc| compute_lsp_changes(doc.content(), tx, encoding));
 
 		let commit = EditCommit::new(tx.clone())
-			.with_undo(undo)
-			.with_syntax(SyntaxPolicy::IncrementalOrDirty);
+			.with_undo(policy.undo)
+			.with_syntax(policy.syntax);
 
 		self.with_doc_mut(|doc| {
-			doc.commit_unchecked(commit, language_loader);
+			doc.commit_unchecked(commit, loader);
 
 			match lsp_changes {
 				IncrementalResult::Incremental(changes) => {
@@ -329,6 +294,101 @@ impl Buffer {
 		});
 
 		true
+	}
+
+	/// Applies a transaction without undo or syntax updates.
+	///
+	/// Shorthand for `apply(tx, ApplyPolicy::BARE, &LanguageLoader::new())`.
+	/// Use this for internal operations that don't need undo tracking.
+	pub fn apply_transaction(&self, tx: &Transaction) -> bool {
+		self.apply(tx, ApplyPolicy::BARE, &LanguageLoader::new())
+	}
+
+	/// Applies a transaction with the specified undo policy (no syntax update).
+	#[deprecated(
+		since = "0.4.0",
+		note = "Use `apply()` with `ApplyPolicy::BARE.with_undo(policy)` instead"
+	)]
+	pub fn apply_transaction_with_undo(&self, tx: &Transaction, undo: UndoPolicy) -> bool {
+		self.apply(
+			tx,
+			ApplyPolicy::BARE.with_undo(undo),
+			&LanguageLoader::new(),
+		)
+	}
+
+	/// Applies a transaction with syntax update (no undo).
+	#[deprecated(
+		since = "0.4.0",
+		note = "Use `apply()` with `ApplyPolicy::BARE.with_syntax(IncrementalOrDirty)` instead"
+	)]
+	pub fn apply_transaction_with_syntax(
+		&self,
+		tx: &Transaction,
+		language_loader: &LanguageLoader,
+	) -> bool {
+		self.apply(
+			tx,
+			ApplyPolicy::BARE.with_syntax(SyntaxPolicy::IncrementalOrDirty),
+			language_loader,
+		)
+	}
+
+	/// Applies a transaction with syntax update and undo policy.
+	#[deprecated(since = "0.4.0", note = "Use `apply()` with `ApplyPolicy::EDIT` instead")]
+	pub fn apply_transaction_with_syntax_and_undo(
+		&self,
+		tx: &Transaction,
+		language_loader: &LanguageLoader,
+		undo: UndoPolicy,
+	) -> bool {
+		self.apply(
+			tx,
+			ApplyPolicy::BARE
+				.with_undo(undo)
+				.with_syntax(SyntaxPolicy::IncrementalOrDirty),
+			language_loader,
+		)
+	}
+
+	/// Applies a transaction with LSP sync (no undo).
+	#[cfg(feature = "lsp")]
+	#[deprecated(
+		since = "0.4.0",
+		note = "Use `apply_with_lsp()` with `ApplyPolicy::BARE.with_syntax(IncrementalOrDirty)` instead"
+	)]
+	pub fn apply_edit_with_lsp(
+		&self,
+		tx: &Transaction,
+		language_loader: &LanguageLoader,
+		encoding: OffsetEncoding,
+	) -> bool {
+		self.apply_with_lsp(
+			tx,
+			ApplyPolicy::BARE.with_syntax(SyntaxPolicy::IncrementalOrDirty),
+			language_loader,
+			encoding,
+		)
+	}
+
+	/// Applies a transaction with LSP sync and undo policy.
+	#[cfg(feature = "lsp")]
+	#[deprecated(since = "0.4.0", note = "Use `apply_with_lsp()` with `ApplyPolicy` instead")]
+	pub fn apply_edit_with_lsp_and_undo(
+		&self,
+		tx: &Transaction,
+		language_loader: &LanguageLoader,
+		encoding: OffsetEncoding,
+		undo: UndoPolicy,
+	) -> bool {
+		self.apply_with_lsp(
+			tx,
+			ApplyPolicy::BARE
+				.with_undo(undo)
+				.with_syntax(SyntaxPolicy::IncrementalOrDirty),
+			language_loader,
+			encoding,
+		)
 	}
 
 	/// Drains pending LSP changes for this document.

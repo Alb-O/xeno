@@ -12,7 +12,9 @@ use xeno_lsp::lsp_types::{
 use xeno_lsp::{OffsetEncoding, lsp_range_to_char_range};
 use xeno_primitives::range::CharIdx;
 use xeno_primitives::transaction::{Change, Tendril};
-use xeno_primitives::{EditOrigin, Transaction};
+use xeno_primitives::{EditOrigin, SyntaxPolicy, Transaction, UndoPolicy};
+
+use crate::buffer::ApplyPolicy;
 
 use crate::buffer::BufferId;
 use crate::editor::{Editor, EditorUndoGroup};
@@ -168,6 +170,11 @@ impl Editor {
 		Ok((buffer_id, true))
 	}
 
+	/// Prepares undo grouping for a workspace edit affecting multiple buffers.
+	///
+	/// Collects view snapshots and creates a single [`EditorUndoGroup`] for all
+	/// affected documents. Document-level undo is recorded by each buffer's
+	/// `apply_transaction_with_syntax_and_undo()` call in [`apply_buffer_edit_plan`].
 	fn begin_workspace_edit_group(&mut self, plan: &WorkspaceEditPlan) {
 		let mut seen_docs = HashSet::new();
 		let mut affected_docs = Vec::new();
@@ -186,10 +193,6 @@ impl Editor {
 
 			let snapshots = self.collect_view_snapshots(doc_id);
 			all_view_snapshots.extend(snapshots);
-
-			if let Some(buffer) = self.buffers.get_buffer_mut(buffer_plan.buffer_id) {
-				buffer.with_doc_mut(|doc| doc.record_undo_boundary());
-			}
 		}
 
 		self.undo_group_stack.push(EditorUndoGroup {
@@ -240,7 +243,11 @@ impl Editor {
 				.buffers
 				.get_buffer_mut(buffer_id)
 				.ok_or_else(|| ApplyError::BufferNotFound(buffer_id.0.to_string()))?;
-			let applied = buffer.apply_transaction_with_syntax(&tx, &self.config.language_loader);
+			let policy = ApplyPolicy {
+				undo: UndoPolicy::Record,
+				syntax: SyntaxPolicy::IncrementalOrDirty,
+			};
+			let applied = buffer.apply(&tx, policy, &self.config.language_loader);
 			if applied {
 				buffer.with_doc_mut(|doc| doc.mark_for_full_lsp_sync());
 			}

@@ -1,6 +1,6 @@
 //! Prompt overlay helpers.
 
-use xeno_primitives::{Mode, Rope, Selection};
+use xeno_primitives::{Mode, Selection};
 use xeno_registry_notifications::keys;
 
 use crate::editor::Editor;
@@ -58,7 +58,7 @@ impl Editor {
 				.buffers
 				.get_buffer_mut(prompt_buffer_id)
 				.expect("prompt buffer exists");
-			buffer.with_doc_mut(|doc| *doc.content_mut() = Rope::from(word.as_str()));
+			buffer.reset_content(word.as_str());
 			buffer.set_cursor_and_selection(end, Selection::single(0, end));
 		}
 		self.buffers

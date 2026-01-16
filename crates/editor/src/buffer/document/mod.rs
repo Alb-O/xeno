@@ -440,10 +440,37 @@ impl Document {
 
 	/// Returns a mutable reference to the document's text content.
 	///
-	/// This is a low-level accessor. Prefer using `commit()` (when available)
-	/// or transaction-based methods that properly handle undo/syntax updates.
+	/// **Warning:** This is a low-level escape hatch that bypasses undo recording
+	/// and syntax updates. Prefer using `commit()` for normal edits, or
+	/// `reset_content()` for wholesale content replacement in ephemeral buffers.
 	pub fn content_mut(&mut self) -> &mut Rope {
 		&mut self.content
+	}
+
+	/// Replaces the document content wholesale, clearing undo history.
+	///
+	/// This is intended for ephemeral buffers (info popups, prompts) where:
+	/// - The entire content is replaced, not edited incrementally
+	/// - Undo history doesn't make sense for the use case
+	/// - The buffer will typically be set to readonly afterwards
+	///
+	/// For normal editing operations, use `commit()` instead.
+	///
+	/// Note: Syntax highlighting is cleared and must be re-initialized
+	/// if needed via `init_syntax_for_language()`.
+	pub fn reset_content(&mut self, content: impl Into<Rope>) {
+		self.content = content.into();
+		self.syntax = None;
+		self.syntax_dirty = false;
+		self.insert_undo_active = false;
+		self.undo_backend = UndoBackend::default();
+		self.modified = false;
+		self.version = 0;
+		#[cfg(feature = "lsp")]
+		{
+			self.pending_lsp_changes.clear();
+			self.force_full_sync = false;
+		}
 	}
 
 	/// Returns whether the document has unsaved changes.

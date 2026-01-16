@@ -2,11 +2,11 @@
 //!
 //! Insert, delete, yank, paste, and transaction application.
 
-use xeno_primitives::{EditOrigin, Selection, Transaction, UndoPolicy};
+use xeno_primitives::{EditOrigin, Selection, SyntaxPolicy, Transaction, UndoPolicy};
 use xeno_registry_notifications::keys;
 
 use super::{Editor, EditorUndoGroup};
-use crate::buffer::BufferId;
+use crate::buffer::{ApplyPolicy, BufferId};
 
 impl Editor {
 	pub(crate) fn guard_readonly(&mut self) -> bool {
@@ -76,6 +76,11 @@ impl Editor {
 		new_selection: Option<Selection>,
 		undo: UndoPolicy,
 	) -> bool {
+		let policy = ApplyPolicy {
+			undo,
+			syntax: SyntaxPolicy::IncrementalOrDirty,
+		};
+
 		#[cfg(feature = "lsp")]
 		let encoding = {
 			let buffer = self
@@ -92,18 +97,9 @@ impl Editor {
 				.get_buffer_mut(buffer_id)
 				.expect("focused buffer must exist");
 			let applied = if let Some(encoding) = encoding {
-				buffer.apply_edit_with_lsp_and_undo(
-					tx,
-					&self.config.language_loader,
-					encoding,
-					undo,
-				)
+				buffer.apply_with_lsp(tx, policy, &self.config.language_loader, encoding)
 			} else {
-				buffer.apply_transaction_with_syntax_and_undo(
-					tx,
-					&self.config.language_loader,
-					undo,
-				)
+				buffer.apply(tx, policy, &self.config.language_loader)
 			};
 			if applied && let Some(selection) = new_selection {
 				buffer.finalize_selection(selection);
@@ -117,11 +113,7 @@ impl Editor {
 				.buffers
 				.get_buffer_mut(buffer_id)
 				.expect("focused buffer must exist");
-			let applied = buffer.apply_transaction_with_syntax_and_undo(
-				tx,
-				&self.config.language_loader,
-				undo,
-			);
+			let applied = buffer.apply(tx, policy, &self.config.language_loader);
 			if applied && let Some(selection) = new_selection {
 				buffer.finalize_selection(selection);
 			}

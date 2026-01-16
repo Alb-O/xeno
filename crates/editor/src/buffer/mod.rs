@@ -17,6 +17,7 @@ use std::path::PathBuf;
 use std::sync::{Arc, RwLock};
 
 pub use document::{Document, DocumentId};
+pub use editing::ApplyPolicy;
 pub use history::HistoryResult;
 pub use layout::{BufferView, Layout, SpatialDirection, SplitDirection, SplitPath};
 pub use undo_store::{DocumentSnapshot, SnapshotUndoStore, TxnUndoStore, UndoBackend};
@@ -258,6 +259,17 @@ impl Buffer {
 	/// panels) without affecting other buffers sharing the same document.
 	pub fn set_readonly_override(&mut self, readonly: Option<bool>) {
 		self.readonly_override = readonly;
+	}
+
+	/// Replaces the document content wholesale, clearing undo history.
+	///
+	/// This is intended for ephemeral buffers (info popups, prompts) where the
+	/// entire content is replaced rather than edited incrementally. Undo history
+	/// is cleared since it doesn't make sense for these use cases.
+	///
+	/// For normal editing operations, use the transaction-based methods instead.
+	pub fn reset_content(&self, content: impl Into<xeno_primitives::Rope>) {
+		self.with_doc_mut(|doc| doc.reset_content(content));
 	}
 
 	/// Returns the document version.
