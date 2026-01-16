@@ -443,7 +443,8 @@ impl Document {
 	/// **Warning:** This is a low-level escape hatch that bypasses undo recording
 	/// and syntax updates. Prefer using `commit()` for normal edits, or
 	/// `reset_content()` for wholesale content replacement in ephemeral buffers.
-	pub fn content_mut(&mut self) -> &mut Rope {
+	#[allow(dead_code, reason = "escape hatch retained for internal migration")]
+	pub(crate) fn content_mut(&mut self) -> &mut Rope {
 		&mut self.content
 	}
 
@@ -456,12 +457,12 @@ impl Document {
 	///
 	/// For normal editing operations, use `commit()` instead.
 	///
-	/// Note: Syntax highlighting is cleared and must be re-initialized
-	/// if needed via `init_syntax_for_language()`.
+	/// Note: Existing syntax state is preserved but marked dirty, forcing a
+	/// full reparse the next time syntax is accessed.
 	pub fn reset_content(&mut self, content: impl Into<Rope>) {
+		let had_syntax = self.syntax.is_some();
 		self.content = content.into();
-		self.syntax = None;
-		self.syntax_dirty = false;
+		self.syntax_dirty = had_syntax;
 		self.insert_undo_active = false;
 		self.undo_backend = UndoBackend::default();
 		self.modified = false;

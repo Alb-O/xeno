@@ -428,7 +428,7 @@ mod tests {
 			let buffer = Buffer::scratch(BufferId::SCRATCH);
 			if !content.is_empty() {
 				let rope = ropey::Rope::from(content);
-				buffer.with_doc_mut(|doc| *doc.content_mut() = rope);
+				buffer.with_doc_mut(|doc| doc.reset_content(rope));
 			}
 			buffer
 		}

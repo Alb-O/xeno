@@ -334,3 +334,44 @@ fn commit_incremental_or_dirty_without_syntax_marks_dirty() {
 	assert!(doc.is_syntax_dirty());
 	assert!(!result.syntax_changed);
 }
+
+#[test]
+fn reset_content_marks_syntax_dirty_and_reparses() {
+	let mut doc = Document::new("fn main() {}".into(), None);
+	let loader = language_loader();
+
+	doc.init_syntax_for_language("rust", &loader);
+	assert!(doc.has_syntax());
+	assert!(!doc.is_syntax_dirty());
+
+	doc.reset_content("let x = 1;");
+	assert!(doc.is_syntax_dirty());
+
+	doc.ensure_syntax_clean(&loader);
+	assert!(!doc.is_syntax_dirty());
+	assert!(doc.has_syntax());
+}
+
+#[test]
+fn reset_content_clears_undo_history() {
+	let mut doc = Document::new("hello".into(), None);
+	let loader = language_loader();
+
+	let tx = Transaction::change(
+		doc.content().slice(..),
+		[Change {
+			start: 0,
+			end: 0,
+			replacement: Some("X".into()),
+		}],
+	);
+	doc.commit(make_commit(tx), &loader).unwrap();
+	assert!(doc.can_undo());
+	assert_eq!(doc.undo_len(), 1);
+
+	doc.reset_content("reset");
+	assert!(!doc.can_undo());
+	assert!(!doc.can_redo());
+	assert_eq!(doc.undo_len(), 0);
+	assert_eq!(doc.redo_len(), 0);
+}

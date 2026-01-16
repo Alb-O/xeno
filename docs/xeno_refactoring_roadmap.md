@@ -176,13 +176,13 @@ impl DocumentHandle {
 ## Phase 5 — Remove high-risk mutation footguns
 **Goal:** eliminate APIs that silently bypass undo/syntax/version invariants.
 
-- [ ] Restrict `Document::content_mut()` visibility (`pub(crate)` or `#[cfg(test)]`).
-- [ ] Migrate call sites to one of:
-  - [ ] `Document::commit(EditCommit { ... })` (preferred)
-  - [ ] `Document::reset_content(...)` (for bulk replaces)
-- [ ] Add tests:
-  - [ ] “bulk replace” invalidates incremental syntax and triggers full reparse.
-  - [ ] undo history behavior is explicit (either cleared or recorded as a reset step).
+- [x] Restrict `Document::content_mut()` visibility (`pub(crate)` or `#[cfg(test)]`).
+- [x] Migrate call sites to one of:
+  - [x] `Document::commit(EditCommit { ... })` (preferred)
+  - [x] `Document::reset_content(...)` (for bulk replaces)
+- [x] Add tests:
+  - [x] “bulk replace” invalidates incremental syntax and triggers full reparse.
+  - [x] undo history behavior is explicit (either cleared or recorded as a reset step).
 
 ---
 
