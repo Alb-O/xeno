@@ -3,7 +3,7 @@
 //! Actions are registered at compile time via [`linkme`] distributed slices
 //! and looked up by keybindings.
 
-use crate::{ActionContext, ActionResult, Capability, RegistrySource};
+use crate::{ActionContext, ActionResult, RegistryMeta};
 
 /// Definition of a registered action.
 ///
@@ -21,14 +21,8 @@ use crate::{ActionContext, ActionResult, Capability, RegistrySource};
 /// }, |ctx| cursor_motion(ctx, "line_down"));
 /// ```
 pub struct ActionDef {
-	/// Unique identifier (e.g., "xeno-stdlib::move_line_down").
-	pub id: &'static str,
-	/// Human-readable name for UI display.
-	pub name: &'static str,
-	/// Alternative names for command lookup.
-	pub aliases: &'static [&'static str],
-	/// Description for help text.
-	pub description: &'static str,
+	/// Common registry metadata (id, name, aliases, description, priority, source, caps, flags).
+	pub meta: RegistryMeta,
 	/// Short description without key-sequence prefix (for which-key HUD).
 	///
 	/// When actions share a common prefix (e.g., `g` for "Goto"), this field
@@ -38,14 +32,48 @@ pub struct ActionDef {
 	pub short_desc: &'static str,
 	/// The function that executes this action.
 	pub handler: ActionHandler,
-	/// Priority for conflict resolution (higher wins).
-	pub priority: i16,
-	/// Where this action was defined.
-	pub source: RegistrySource,
-	/// Capabilities required to execute this action.
-	pub required_caps: &'static [Capability],
-	/// Bitflags for additional behavior hints.
-	pub flags: u32,
+}
+
+impl ActionDef {
+	/// Returns the unique identifier.
+	pub fn id(&self) -> &'static str {
+		self.meta.id
+	}
+
+	/// Returns the human-readable name.
+	pub fn name(&self) -> &'static str {
+		self.meta.name
+	}
+
+	/// Returns alternative names for lookup.
+	pub fn aliases(&self) -> &'static [&'static str] {
+		self.meta.aliases
+	}
+
+	/// Returns the description.
+	pub fn description(&self) -> &'static str {
+		self.meta.description
+	}
+
+	/// Returns the priority.
+	pub fn priority(&self) -> i16 {
+		self.meta.priority
+	}
+
+	/// Returns the source.
+	pub fn source(&self) -> crate::RegistrySource {
+		self.meta.source
+	}
+
+	/// Returns required capabilities.
+	pub fn required_caps(&self) -> &'static [crate::Capability] {
+		self.meta.required_caps
+	}
+
+	/// Returns behavior flags.
+	pub fn flags(&self) -> u32 {
+		self.meta.flags
+	}
 }
 
 /// Function signature for action handlers.
@@ -54,4 +82,4 @@ pub struct ActionDef {
 /// describing what the editor should do.
 pub type ActionHandler = fn(&ActionContext) -> ActionResult;
 
-crate::impl_registry_metadata!(ActionDef);
+crate::impl_registry_entry!(ActionDef);

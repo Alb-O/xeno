@@ -58,14 +58,16 @@ macro_rules! text_object {
 			#[allow(non_upper_case_globals)]
 			#[linkme::distributed_slice($crate::TEXT_OBJECTS)]
 			static [<OBJ_ $name>]: $crate::TextObjectDef = $crate::TextObjectDef::new(
-				concat!(env!("CARGO_PKG_NAME"), "::", stringify!($name)),
-				stringify!($name),
-				$crate::__text_obj_opt_slice!($({$aliases})?),
-				$desc,
-				$crate::__text_obj_opt!($({$priority})?, 0),
-				$crate::__text_obj_opt!($({$source})?, $crate::RegistrySource::Crate(env!("CARGO_PKG_NAME"))),
-				$crate::__text_obj_opt_slice!($({$caps})?),
-				$crate::__text_obj_opt!($({$flags})?, $crate::flags::NONE),
+				$crate::RegistryMeta {
+					id: concat!(env!("CARGO_PKG_NAME"), "::", stringify!($name)),
+					name: stringify!($name),
+					aliases: $crate::__text_obj_opt_slice!($({$aliases})?),
+					description: $desc,
+					priority: $crate::__text_obj_opt!($({$priority})?, 0),
+					source: $crate::__text_obj_opt!($({$source})?, $crate::RegistrySource::Crate(env!("CARGO_PKG_NAME"))),
+					required_caps: $crate::__text_obj_opt_slice!($({$caps})?),
+					flags: $crate::__text_obj_opt!($({$flags})?, $crate::flags::NONE),
+				},
 				$trigger,
 				$crate::__text_obj_opt_slice!($({$alt_triggers})?),
 				$inner,

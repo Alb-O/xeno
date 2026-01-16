@@ -440,18 +440,24 @@ This keeps breakage local and matches the phase discipline.
 
 ### Tasks
 
-- [ ] Introduce `RegistryMeta` in registry core crate
-- [ ] For each `*Def`: add `meta: RegistryMeta` field
-- [ ] Update macros to build `RegistryMeta`:
-  - [ ] `action!` produces `ActionDef { meta, short_desc, handler }`
-  - [ ] `motion!` produces `MotionDef { meta, handler }`
-  - [ ] `gutter!` produces `GutterDef { meta, default_enabled, width, render }`
-  - [ ] (continue for other registries)
-- [ ] Add `RegistryEntry` trait for introspection
-- [ ] Add introspection helpers:
-  - [ ] `list_actions()` sorted by priority/name
-  - [ ] Collision reporting for duplicate ids/aliases
-  - [ ] Generic help renderers
+- [x] Introduce `RegistryMeta` in registry core crate
+- [x] For each main extensible `*Def`: add `meta: RegistryMeta` field
+  - [x] `ActionDef` uses `meta: RegistryMeta`
+  - [x] `MotionDef` uses `meta: RegistryMeta`
+  - [x] `CommandDef` uses `meta: RegistryMeta`
+  - [x] `TextObjectDef` uses `meta: RegistryMeta`
+  - Note: Specialized types (GutterDef, HookDef, etc.) don't have all RegistryMeta
+    fields and continue using impl_registry_metadata!
+- [x] Update macros to build `RegistryMeta`:
+  - [x] `action!` produces `ActionDef { meta, short_desc, handler }`
+  - [x] `motion!` produces `MotionDef { meta, handler }`
+  - [x] `command!` produces `CommandDef { meta, handler, user_data }`
+  - [x] `text_object!` produces `TextObjectDef { meta, trigger, alt_triggers, inner, around }`
+- [x] Add `RegistryEntry` trait for introspection
+- [x] Add introspection helpers:
+  - [x] `list_actions()` sorted by priority/name (via all_actions())
+  - [x] Collision reporting for duplicate ids/aliases (via registry_diag commands)
+  - [x] Generic help renderers (via :help command)
 
 ### Code Sketch: RegistryMeta
 
@@ -719,11 +725,15 @@ fn registry_sanity_check() {
 - [x] Registry sanity test (action count >= N)
 
 ### Phase 5: RegistryMeta
-- [ ] RegistryMeta struct
-- [ ] RegistryEntry trait
-- [ ] Update all *Def structs
-- [ ] Update all macros
-- [ ] Introspection helpers
+- [x] RegistryMeta struct
+- [x] RegistryEntry trait
+- [x] Update *Def structs (ActionDef, MotionDef, CommandDef, TextObjectDef)
+- [x] Update macros (action!, motion!, command!, text_object!)
+- [x] Introspection helpers (collision detection via registry_diag)
+
+Note: Specialized types (GutterDef, HookDef, StatuslineSegmentDef, etc.) were reviewed and
+kept using impl_registry_metadata! since they don't have all RegistryMeta fields (no aliases,
+required_caps, flags). The main extensible registry types have been migrated.
 
 ### Phase 6: Capability Gating
 - [ ] Unified entry point (`Editor::run_invocation`)

@@ -3,7 +3,6 @@
 //! Provides reports on registry collisions where multiple items share the
 //! same key, allowing users to identify and resolve registration conflicts.
 
-use crate::RegistryMetadata;
 use crate::index::ExtensionRegistry;
 use crate::index::collision::CollisionKind;
 

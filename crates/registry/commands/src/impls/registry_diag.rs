@@ -93,7 +93,7 @@ fn register_command_collision(
 	collisions: &mut Vec<CollisionReport>,
 ) {
 	if let Some(existing) = map.get(key).copied() {
-		let (winner, shadowed) = if current.priority > existing.priority {
+		let (winner, shadowed) = if current.priority() > existing.priority() {
 			map.insert(key, current);
 			(current, existing)
 		} else {
@@ -102,12 +102,12 @@ fn register_command_collision(
 		collisions.push(CollisionReport {
 			kind,
 			key: key.to_string(),
-			winner_id: winner.id,
-			winner_source: winner.source.to_string(),
-			winner_priority: winner.priority,
-			shadowed_id: shadowed.id,
-			shadowed_source: shadowed.source.to_string(),
-			shadowed_priority: shadowed.priority,
+			winner_id: winner.id(),
+			winner_source: winner.source().to_string(),
+			winner_priority: winner.priority(),
+			shadowed_id: shadowed.id(),
+			shadowed_source: shadowed.source().to_string(),
+			shadowed_priority: shadowed.priority(),
 		});
 	} else {
 		map.insert(key, current);
@@ -121,9 +121,9 @@ fn collect_command_collisions(collisions: &mut Vec<CollisionReport>) {
 	let mut by_alias = HashMap::new();
 
 	for cmd in COMMANDS.iter() {
-		register_command_collision(CollisionKind::Id, cmd.id, cmd, &mut by_id, collisions);
-		register_command_collision(CollisionKind::Name, cmd.name, cmd, &mut by_name, collisions);
-		for &alias in cmd.aliases {
+		register_command_collision(CollisionKind::Id, cmd.id(), cmd, &mut by_id, collisions);
+		register_command_collision(CollisionKind::Name, cmd.name(), cmd, &mut by_name, collisions);
+		for &alias in cmd.aliases() {
 			register_command_collision(CollisionKind::Alias, alias, cmd, &mut by_alias, collisions);
 		}
 	}
@@ -138,7 +138,7 @@ fn register_motion_collision(
 	collisions: &mut Vec<CollisionReport>,
 ) {
 	if let Some(existing) = map.get(key).copied() {
-		let (winner, shadowed) = if current.priority > existing.priority {
+		let (winner, shadowed) = if current.priority() > existing.priority() {
 			map.insert(key, current);
 			(current, existing)
 		} else {
@@ -147,12 +147,12 @@ fn register_motion_collision(
 		collisions.push(CollisionReport {
 			kind,
 			key: key.to_string(),
-			winner_id: winner.id,
-			winner_source: winner.source.to_string(),
-			winner_priority: winner.priority,
-			shadowed_id: shadowed.id,
-			shadowed_source: shadowed.source.to_string(),
-			shadowed_priority: shadowed.priority,
+			winner_id: winner.id(),
+			winner_source: winner.source().to_string(),
+			winner_priority: winner.priority(),
+			shadowed_id: shadowed.id(),
+			shadowed_source: shadowed.source().to_string(),
+			shadowed_priority: shadowed.priority(),
 		});
 	} else {
 		map.insert(key, current);
@@ -166,15 +166,15 @@ fn collect_motion_collisions(collisions: &mut Vec<CollisionReport>) {
 	let mut by_alias = HashMap::new();
 
 	for motion in motions::all() {
-		register_motion_collision(CollisionKind::Id, motion.id, motion, &mut by_id, collisions);
+		register_motion_collision(CollisionKind::Id, motion.id(), motion, &mut by_id, collisions);
 		register_motion_collision(
 			CollisionKind::Name,
-			motion.name,
+			motion.name(),
 			motion,
 			&mut by_name,
 			collisions,
 		);
-		for &alias in motion.aliases {
+		for &alias in motion.aliases() {
 			register_motion_collision(
 				CollisionKind::Alias,
 				alias,
@@ -195,7 +195,7 @@ fn register_text_object_collision(
 	collisions: &mut Vec<CollisionReport>,
 ) {
 	if let Some(existing) = map.get(&key).copied() {
-		let (winner, shadowed) = if current.priority > existing.priority {
+		let (winner, shadowed) = if current.priority() > existing.priority() {
 			map.insert(key.clone(), current);
 			(current, existing)
 		} else {
@@ -204,12 +204,12 @@ fn register_text_object_collision(
 		collisions.push(CollisionReport {
 			kind,
 			key,
-			winner_id: winner.id,
-			winner_source: winner.source.to_string(),
-			winner_priority: winner.priority,
-			shadowed_id: shadowed.id,
-			shadowed_source: shadowed.source.to_string(),
-			shadowed_priority: shadowed.priority,
+			winner_id: winner.id(),
+			winner_source: winner.source().to_string(),
+			winner_priority: winner.priority(),
+			shadowed_id: shadowed.id(),
+			shadowed_source: shadowed.source().to_string(),
+			shadowed_priority: shadowed.priority(),
 		});
 	} else {
 		map.insert(key, current);
@@ -226,19 +226,19 @@ fn collect_text_object_collisions(collisions: &mut Vec<CollisionReport>) {
 	for obj in textobj::all() {
 		register_text_object_collision(
 			CollisionKind::Id,
-			obj.id.to_string(),
+			obj.id().to_string(),
 			obj,
 			&mut by_id,
 			collisions,
 		);
 		register_text_object_collision(
 			CollisionKind::Name,
-			obj.name.to_string(),
+			obj.name().to_string(),
 			obj,
 			&mut by_name,
 			collisions,
 		);
-		for &alias in obj.aliases {
+		for &alias in obj.aliases() {
 			register_text_object_collision(
 				CollisionKind::Alias,
 				alias.to_string(),

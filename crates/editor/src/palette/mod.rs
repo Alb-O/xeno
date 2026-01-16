@@ -174,7 +174,7 @@ impl Editor {
 			self.workspace.command_queue.push(cmd.name, args);
 			Some(input)
 		} else if let Some(cmd) = xeno_registry::commands::find_command(name) {
-			self.workspace.command_queue.push(cmd.name, args);
+			self.workspace.command_queue.push(cmd.name(), args);
 			Some(input)
 		} else {
 			self.notify(xeno_registry::notifications::keys::unknown_command::call(

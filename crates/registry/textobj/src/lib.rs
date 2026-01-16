@@ -17,8 +17,11 @@ mod impls;
 mod macros;
 
 // Re-export shared types from core registry for consistency
-pub use xeno_registry_core::{RegistryMetadata, RegistrySource, impl_registry_metadata};
-pub use xeno_registry_motions::{Capability, flags, movement};
+pub use xeno_registry_core::{
+	Capability, RegistryEntry, RegistryMeta, RegistryMetadata, RegistrySource, impl_registry_entry,
+	impl_registry_metadata,
+};
+pub use xeno_registry_motions::{flags, movement};
 
 /// Handler signature for text object selection.
 ///
@@ -36,65 +39,79 @@ pub type TextObjectHandler = fn(RopeSlice, usize) -> Option<Range>;
 /// - `inner`: Selects content inside delimiters (e.g., `iw` for inner word)
 /// - `around`: Selects content including delimiters (e.g., `aw` for around word)
 pub struct TextObjectDef {
-	/// Unique identifier for this text object.
-	pub id: &'static str,
-	/// Display name of the text object.
-	pub name: &'static str,
-	/// Alternative names for lookup.
-	pub aliases: &'static [&'static str],
+	/// Common registry metadata (id, name, aliases, description, priority, source, caps, flags).
+	pub meta: RegistryMeta,
 	/// Primary trigger character (e.g., 'w' for word).
 	pub trigger: char,
 	/// Alternative trigger characters.
 	pub alt_triggers: &'static [char],
-	/// Human-readable description.
-	pub description: &'static str,
 	/// Handler for inner selection mode.
 	pub inner: TextObjectHandler,
 	/// Handler for around selection mode.
 	pub around: TextObjectHandler,
-	/// Priority for collision resolution.
-	pub priority: i16,
-	/// Source of this registration.
-	pub source: RegistrySource,
-	/// Capabilities required to use this text object.
-	pub required_caps: &'static [Capability],
-	/// Feature flags for this text object.
-	pub flags: u32,
 }
 
 impl TextObjectDef {
+	/// Returns the unique identifier.
+	pub fn id(&self) -> &'static str {
+		self.meta.id
+	}
+
+	/// Returns the human-readable name.
+	pub fn name(&self) -> &'static str {
+		self.meta.name
+	}
+
+	/// Returns alternative names for lookup.
+	pub fn aliases(&self) -> &'static [&'static str] {
+		self.meta.aliases
+	}
+
+	/// Returns the description.
+	pub fn description(&self) -> &'static str {
+		self.meta.description
+	}
+
+	/// Returns the priority.
+	pub fn priority(&self) -> i16 {
+		self.meta.priority
+	}
+
+	/// Returns the source.
+	pub fn source(&self) -> RegistrySource {
+		self.meta.source
+	}
+
+	/// Returns required capabilities.
+	pub fn required_caps(&self) -> &'static [Capability] {
+		self.meta.required_caps
+	}
+
+	/// Returns behavior flags.
+	pub fn flags(&self) -> u32 {
+		self.meta.flags
+	}
+
 	#[doc(hidden)]
 	#[allow(clippy::too_many_arguments, reason = "macro-generated constructor")]
 	pub const fn new(
-		id: &'static str,
-		name: &'static str,
-		aliases: &'static [&'static str],
-		description: &'static str,
-		priority: i16,
-		source: RegistrySource,
-		required_caps: &'static [Capability],
-		flags: u32,
+		meta: RegistryMeta,
 		trigger: char,
 		alt_triggers: &'static [char],
 		inner: TextObjectHandler,
 		around: TextObjectHandler,
 	) -> Self {
 		Self {
-			id,
-			name,
-			aliases,
+			meta,
 			trigger,
 			alt_triggers,
-			description,
 			inner,
 			around,
-			priority,
-			source,
-			required_caps,
-			flags,
 		}
 	}
 }
+
+impl_registry_entry!(TextObjectDef);
 
 /// Registry of all text object definitions.
 #[distributed_slice]
@@ -111,12 +128,10 @@ pub fn find_by_trigger(trigger: char) -> Option<&'static TextObjectDef> {
 pub fn find(name: &str) -> Option<&'static TextObjectDef> {
 	TEXT_OBJECTS
 		.iter()
-		.find(|o| o.name == name || o.aliases.contains(&name))
+		.find(|o| o.name() == name || o.aliases().contains(&name))
 }
 
 /// Returns all registered text objects.
 pub fn all() -> impl Iterator<Item = &'static TextObjectDef> {
 	TEXT_OBJECTS.iter()
 }
-
-impl_registry_metadata!(TextObjectDef);

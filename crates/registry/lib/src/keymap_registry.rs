@@ -114,7 +114,7 @@ impl KeymapRegistry {
 			};
 
 			let (description, short_desc) = find_action(def.action)
-				.map(|a| (a.description, a.short_desc))
+				.map(|a| (a.description(), a.short_desc))
 				.unwrap_or(("", ""));
 
 			let entry = BindingEntry {

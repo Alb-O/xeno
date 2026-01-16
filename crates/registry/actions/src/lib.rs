@@ -42,8 +42,11 @@ pub use result::{
 pub use xeno_primitives::direction::{Axis, SeqDirection, SpatialDirection};
 pub use xeno_primitives::{Mode, ObjectSelectionKind, PendingKind};
 pub use xeno_registry_commands::CommandError;
-pub use xeno_registry_core::{RegistryMetadata, RegistrySource, impl_registry_metadata};
-pub use xeno_registry_motions::{Capability, flags};
+pub use xeno_registry_core::{
+	Capability, RegistryEntry, RegistryMeta, RegistryMetadata, RegistrySource, impl_registry_entry,
+	impl_registry_metadata,
+};
+pub use xeno_registry_motions::flags;
 
 /// Typed handles for built-in actions.
 pub mod keys {
@@ -68,13 +71,13 @@ pub static ACTIONS: [ActionDef];
 pub fn find_action(name: &str) -> Option<&'static ActionDef> {
 	ACTIONS
 		.iter()
-		.find(|action| action.name == name || action.aliases.contains(&name))
+		.find(|action| action.name() == name || action.aliases().contains(&name))
 }
 
 /// Returns all registered actions, sorted by name.
 pub fn all_actions() -> impl Iterator<Item = &'static ActionDef> {
 	let mut actions: Vec<_> = ACTIONS.iter().collect();
-	actions.sort_by_key(|action| action.name);
+	actions.sort_by_key(|action| action.name());
 	actions.into_iter()
 }
 

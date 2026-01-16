@@ -55,17 +55,19 @@ macro_rules! motion {
 
 			#[allow(non_upper_case_globals)]
 			#[linkme::distributed_slice($crate::MOTIONS)]
-			static [<MOTION_ $name>]: $crate::MotionDef = $crate::MotionDef::new(
-				concat!(env!("CARGO_PKG_NAME"), "::", stringify!($name)),
-				stringify!($name),
-				$crate::__motion_opt_slice!($({$aliases})?),
-				$desc,
-				$crate::__motion_opt!($({$priority})?, 0),
-				$crate::__motion_opt!($({$source})?, $crate::RegistrySource::Crate(env!("CARGO_PKG_NAME"))),
-				$crate::__motion_opt_slice!($({$caps})?),
-				$crate::__motion_opt!($({$flags})?, $crate::flags::NONE),
-				[<motion_handler_ $name>],
-			);
+			static [<MOTION_ $name>]: $crate::MotionDef = $crate::MotionDef {
+				meta: $crate::RegistryMeta {
+					id: concat!(env!("CARGO_PKG_NAME"), "::", stringify!($name)),
+					name: stringify!($name),
+					aliases: $crate::__motion_opt_slice!($({$aliases})?),
+					description: $desc,
+					priority: $crate::__motion_opt!($({$priority})?, 0),
+					source: $crate::__motion_opt!($({$source})?, $crate::RegistrySource::Crate(env!("CARGO_PKG_NAME"))),
+					required_caps: $crate::__motion_opt_slice!($({$caps})?),
+					flags: $crate::__motion_opt!($({$flags})?, $crate::flags::NONE),
+				},
+				handler: [<motion_handler_ $name>],
+			};
 
 			#[doc = concat!("Typed handle for the `", stringify!($name), "` motion.")]
 			#[allow(non_upper_case_globals)]

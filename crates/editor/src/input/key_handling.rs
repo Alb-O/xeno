@@ -31,7 +31,7 @@ impl Editor {
 				register,
 			} => {
 				let quit = if let Some(action) = find_action_by_id(*id) {
-					self.execute_action(action.name, *count, *extend, *register)
+					self.execute_action(action.name(), *count, *extend, *register)
 				} else {
 					self.show_notification(
 						xeno_registry_notifications::keys::unknown_action::call(&id.to_string()),
@@ -49,7 +49,7 @@ impl Editor {
 			} => {
 				let quit = if let Some(action) = find_action_by_id(*id) {
 					self.execute_action_with_char(
-						action.name,
+						action.name(),
 						*count,
 						*extend,
 						*register,

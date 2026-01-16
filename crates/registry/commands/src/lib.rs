@@ -16,8 +16,10 @@ mod impls;
 /// Internal macro helpers for command registration.
 mod macros;
 
-pub use xeno_registry_core::{RegistryMetadata, RegistrySource, impl_registry_metadata};
-pub use xeno_registry_motions::Capability;
+pub use xeno_registry_core::{
+	Capability, RegistryEntry, RegistryMeta, RegistryMetadata, RegistrySource, impl_registry_entry,
+	impl_registry_metadata,
+};
 
 /// Function signature for async command handlers.
 pub type CommandHandler = for<'a> fn(
@@ -169,27 +171,57 @@ impl<'a> CommandContext<'a> {
 
 /// A registered command definition.
 pub struct CommandDef {
-	/// Unique identifier for the command.
-	pub id: &'static str,
-	/// Primary command name (used in command line).
-	pub name: &'static str,
-	/// Alternative names for the command.
-	pub aliases: &'static [&'static str],
-	/// Human-readable description for help text.
-	pub description: &'static str,
+	/// Common registry metadata (id, name, aliases, description, priority, source, caps, flags).
+	pub meta: RegistryMeta,
 	/// Async function that executes the command.
 	pub handler: CommandHandler,
 	/// Extension-specific data passed to handler.
 	pub user_data: Option<&'static (dyn Any + Sync)>,
-	/// Sort priority (higher = listed first).
-	pub priority: i16,
-	/// Where this command was registered from.
-	pub source: RegistrySource,
-	/// Capabilities required to run this command.
-	pub required_caps: &'static [Capability],
-	/// Optional behavior flags.
-	pub flags: u32,
 }
+
+impl CommandDef {
+	/// Returns the unique identifier.
+	pub fn id(&self) -> &'static str {
+		self.meta.id
+	}
+
+	/// Returns the human-readable name.
+	pub fn name(&self) -> &'static str {
+		self.meta.name
+	}
+
+	/// Returns alternative names for lookup.
+	pub fn aliases(&self) -> &'static [&'static str] {
+		self.meta.aliases
+	}
+
+	/// Returns the description.
+	pub fn description(&self) -> &'static str {
+		self.meta.description
+	}
+
+	/// Returns the priority.
+	pub fn priority(&self) -> i16 {
+		self.meta.priority
+	}
+
+	/// Returns the source.
+	pub fn source(&self) -> RegistrySource {
+		self.meta.source
+	}
+
+	/// Returns required capabilities.
+	pub fn required_caps(&self) -> &'static [Capability] {
+		self.meta.required_caps
+	}
+
+	/// Returns behavior flags.
+	pub fn flags(&self) -> u32 {
+		self.meta.flags
+	}
+}
+
+impl_registry_entry!(CommandDef);
 
 /// Command flags for optional behavior hints.
 pub mod flags {
@@ -205,14 +237,12 @@ pub static COMMANDS: [CommandDef];
 pub fn find_command(name: &str) -> Option<&'static CommandDef> {
 	COMMANDS
 		.iter()
-		.find(|c| c.name == name || c.aliases.contains(&name))
+		.find(|c| c.name() == name || c.aliases().contains(&name))
 }
 
 /// Returns an iterator over all registered commands, sorted by name.
 pub fn all_commands() -> impl Iterator<Item = &'static CommandDef> {
 	let mut commands: Vec<_> = COMMANDS.iter().collect();
-	commands.sort_by_key(|c| c.name);
+	commands.sort_by_key(|c| c.name());
 	commands.into_iter()
 }
-
-impl_registry_metadata!(CommandDef);

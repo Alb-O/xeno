@@ -77,7 +77,7 @@ pub fn find_text_object_by_trigger(trigger: char) -> Option<&'static TextObjectD
 /// Returns an iterator over all command definitions, sorted by name.
 pub fn all_commands() -> impl Iterator<Item = &'static CommandDef> {
 	let mut v: Vec<_> = get_registry().commands.by_name.values().copied().collect();
-	v.sort_by_key(|c| c.name);
+	v.sort_by_key(|c| c.name());
 	v.into_iter()
 }
 
@@ -90,14 +90,14 @@ pub fn all_actions() -> impl Iterator<Item = &'static ActionDef> {
 		.values()
 		.copied()
 		.collect();
-	v.sort_by_key(|a| a.name);
+	v.sort_by_key(|a| a.name());
 	v.into_iter()
 }
 
 /// Returns an iterator over all motion definitions, sorted by name.
 pub fn all_motions() -> impl Iterator<Item = &'static MotionDef> {
 	let mut v: Vec<_> = get_registry().motions.by_name.values().copied().collect();
-	v.sort_by_key(|m| m.name);
+	v.sort_by_key(|m| m.name());
 	v.into_iter()
 }
 
@@ -109,6 +109,6 @@ pub fn all_text_objects() -> impl Iterator<Item = &'static TextObjectDef> {
 		.values()
 		.copied()
 		.collect();
-	v.sort_by_key(|o| o.name);
+	v.sort_by_key(|o| o.name());
 	v.into_iter()
 }

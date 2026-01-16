@@ -110,16 +110,18 @@ macro_rules! action {
 			#[allow(non_upper_case_globals)]
 			#[linkme::distributed_slice($crate::ACTIONS)]
 			static [<ACTION_ $name>]: $crate::ActionDef = $crate::ActionDef {
-				id: concat!(env!("CARGO_PKG_NAME"), "::", stringify!($name)),
-				name: stringify!($name),
-				aliases: $crate::__opt_slice!($({$aliases})?),
-				description: $desc,
+				meta: $crate::RegistryMeta {
+					id: concat!(env!("CARGO_PKG_NAME"), "::", stringify!($name)),
+					name: stringify!($name),
+					aliases: $crate::__opt_slice!($({$aliases})?),
+					description: $desc,
+					priority: $crate::__opt!($({$priority})?, 0),
+					source: $crate::RegistrySource::Crate(env!("CARGO_PKG_NAME")),
+					required_caps: $crate::__opt_slice!($({$caps})?),
+					flags: $crate::__opt!($({$flags})?, $crate::flags::NONE),
+				},
 				short_desc: $crate::__opt!($({$short})?, ""),
 				handler: $handler,
-				priority: $crate::__opt!($({$priority})?, 0),
-				source: $crate::RegistrySource::Crate(env!("CARGO_PKG_NAME")),
-				required_caps: $crate::__opt_slice!($({$caps})?),
-				flags: $crate::__opt!($({$flags})?, $crate::flags::NONE),
 			};
 
 			#[doc = concat!("Typed handle for the `", stringify!($name), "` action.")]

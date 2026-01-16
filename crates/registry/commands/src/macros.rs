@@ -38,19 +38,21 @@ macro_rules! command {
 			#[allow(non_upper_case_globals)]
 			#[::linkme::distributed_slice($crate::COMMANDS)]
 			static [<CMD_ $name>]: $crate::CommandDef = $crate::CommandDef {
-				id: concat!(env!("CARGO_PKG_NAME"), "::", stringify!($name)),
-				name: stringify!($name),
-				aliases: $crate::__opt_slice!($({$aliases})?),
-				description: $desc,
+				meta: $crate::RegistryMeta {
+					id: concat!(env!("CARGO_PKG_NAME"), "::", stringify!($name)),
+					name: stringify!($name),
+					aliases: $crate::__opt_slice!($({$aliases})?),
+					description: $desc,
+					priority: $crate::__opt!($({$priority})?, 0),
+					source: $crate::__opt!(
+						$({$source})?,
+						$crate::RegistrySource::Crate(env!("CARGO_PKG_NAME"))
+					),
+					required_caps: $crate::__opt_slice!($({$caps})?),
+					flags: $crate::__opt!($({$flags})?, $crate::flags::NONE),
+				},
 				handler: $handler,
 				user_data: None,
-				priority: $crate::__opt!($({$priority})?, 0),
-				source: $crate::__opt!(
-					$({$source})?,
-					$crate::RegistrySource::Crate(env!("CARGO_PKG_NAME"))
-				),
-				required_caps: $crate::__opt_slice!($({$caps})?),
-				flags: $crate::__opt!($({$flags})?, $crate::flags::NONE),
 			};
 		}
 	};

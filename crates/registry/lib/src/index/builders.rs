@@ -40,10 +40,10 @@ pub(super) fn build_registry() -> ExtensionRegistry {
 fn build_command_index() -> RegistryIndex<CommandDef> {
 	let mut index = RegistryIndex::new();
 	let mut sorted: Vec<_> = COMMANDS.iter().collect();
-	sorted.sort_by(|a, b| b.priority.cmp(&a.priority).then(a.id.cmp(b.id)));
+	sorted.sort_by(|a, b| b.meta.priority.cmp(&a.meta.priority).then(a.meta.id.cmp(b.meta.id)));
 
 	for cmd in sorted {
-		register_with_id_name_aliases(&mut index, cmd, cmd.id, cmd.name, cmd.aliases);
+		register_with_id_name_aliases(&mut index, cmd, cmd.meta.id, cmd.meta.name, cmd.meta.aliases);
 	}
 
 	index
@@ -57,35 +57,35 @@ fn build_action_index() -> ActionRegistryIndex {
 	let mut alias_to_id: HashMap<&'static str, ActionId> = HashMap::new();
 
 	let mut sorted: Vec<_> = ACTIONS.iter().collect();
-	sorted.sort_by(|a, b| b.priority.cmp(&a.priority).then(a.id.cmp(b.id)));
+	sorted.sort_by(|a, b| b.priority().cmp(&a.priority()).then(a.id().cmp(b.id())));
 
 	for action in sorted {
-		if let Some(&existing) = base.by_id.get(action.id) {
+		if let Some(&existing) = base.by_id.get(action.id()) {
 			base.collisions.push(Collision {
 				kind: CollisionKind::Id,
-				key: action.id.to_string(),
+				key: action.id().to_string(),
 				winner: existing,
 				shadowed: action,
 			});
 		} else {
-			base.by_id.insert(action.id, action);
+			base.by_id.insert(action.id(), action);
 		}
 
-		if let Some(&existing) = base.by_name.get(action.name) {
+		if let Some(&existing) = base.by_name.get(action.name()) {
 			base.collisions.push(Collision {
 				kind: CollisionKind::Name,
-				key: action.name.to_string(),
+				key: action.name().to_string(),
 				winner: existing,
 				shadowed: action,
 			});
 		} else {
 			let action_id = ActionId(by_action_id.len() as u32);
 			by_action_id.push(action);
-			name_to_id.insert(action.name, action_id);
-			base.by_name.insert(action.name, action);
+			name_to_id.insert(action.name(), action_id);
+			base.by_name.insert(action.name(), action);
 		}
 
-		for alias in action.aliases {
+		for alias in action.aliases() {
 			if let Some(&existing) = base.by_name.get(alias) {
 				base.collisions.push(Collision {
 					kind: CollisionKind::Alias,
@@ -102,7 +102,7 @@ fn build_action_index() -> ActionRegistryIndex {
 				});
 			} else {
 				base.by_alias.insert(alias, action);
-				if let Some(&id) = name_to_id.get(action.name) {
+				if let Some(&id) = name_to_id.get(action.name()) {
 					alias_to_id.insert(alias, id);
 				}
 			}
@@ -121,10 +121,10 @@ fn build_action_index() -> ActionRegistryIndex {
 fn build_motion_index() -> RegistryIndex<MotionDef> {
 	let mut index = RegistryIndex::new();
 	let mut sorted: Vec<_> = MOTIONS.iter().collect();
-	sorted.sort_by(|a, b| b.priority.cmp(&a.priority).then(a.id.cmp(b.id)));
+	sorted.sort_by(|a, b| b.priority().cmp(&a.priority()).then(a.id().cmp(b.id())));
 
 	for motion in sorted {
-		register_with_id_name_aliases(&mut index, motion, motion.id, motion.name, motion.aliases);
+		register_with_id_name_aliases(&mut index, motion, motion.id(), motion.name(), motion.aliases());
 	}
 
 	index
@@ -134,10 +134,10 @@ fn build_motion_index() -> RegistryIndex<MotionDef> {
 fn build_text_object_index() -> RegistryIndex<TextObjectDef> {
 	let mut index = RegistryIndex::new();
 	let mut sorted: Vec<_> = TEXT_OBJECTS.iter().collect();
-	sorted.sort_by(|a, b| b.priority.cmp(&a.priority).then(a.id.cmp(b.id)));
+	sorted.sort_by(|a, b| b.priority().cmp(&a.priority()).then(a.id().cmp(b.id())));
 
 	for obj in sorted {
-		register_with_id_name_aliases(&mut index, obj, obj.id, obj.name, obj.aliases);
+		register_with_id_name_aliases(&mut index, obj, obj.id(), obj.name(), obj.aliases());
 
 		if let Some(&existing) = index.by_trigger.get(&obj.trigger) {
 			index.collisions.push(Collision {

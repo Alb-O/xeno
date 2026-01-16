@@ -18,6 +18,7 @@ use crate::buffer::ApplyPolicy;
 
 use crate::buffer::BufferId;
 use crate::impls::{Editor, EditorUndoGroup};
+use crate::types::UndoHost;
 
 /// A validated, ready-to-apply workspace edit plan.
 pub struct WorkspaceEditPlan {

@@ -29,7 +29,7 @@ impl Editor {
 		// Check required capabilities
 		{
 			let mut e_ctx = EditorContext::new(self);
-			if let Err(e) = e_ctx.check_all_capabilities(action.required_caps) {
+			if let Err(e) = e_ctx.check_all_capabilities(action.required_caps()) {
 				self.show_notification(xeno_registry_notifications::keys::action_error::call(e));
 				return false;
 			}
@@ -38,7 +38,7 @@ impl Editor {
 		emit_hook_sync_with(
 			&HookContext::new(
 				HookEventData::ActionPre {
-					action_id: action.id,
+					action_id: action.id(),
 				},
 				Some(&self.extensions),
 			),
@@ -47,8 +47,8 @@ impl Editor {
 
 		let span = trace_span!(
 			"action",
-			name = action.name,
-			id = action.id,
+			name = action.name(),
+			id = action.id(),
 			count = count,
 			extend = extend,
 		);
@@ -72,7 +72,7 @@ impl Editor {
 		let result = (action.handler)(&ctx);
 
 		trace!(result = ?result, "Action completed");
-		self.apply_action_result(action.id, result, extend)
+		self.apply_action_result(action.id(), result, extend)
 	}
 
 	/// Executes an action that requires an additional character argument.
@@ -97,7 +97,7 @@ impl Editor {
 		// Check required capabilities
 		{
 			let mut e_ctx = EditorContext::new(self);
-			if let Err(e) = e_ctx.check_all_capabilities(action.required_caps) {
+			if let Err(e) = e_ctx.check_all_capabilities(action.required_caps()) {
 				self.show_notification(xeno_registry_notifications::keys::action_error::call(e));
 				return false;
 			}
@@ -106,7 +106,7 @@ impl Editor {
 		emit_hook_sync_with(
 			&HookContext::new(
 				HookEventData::ActionPre {
-					action_id: action.id,
+					action_id: action.id(),
 				},
 				Some(&self.extensions),
 			),
@@ -115,8 +115,8 @@ impl Editor {
 
 		let span = trace_span!(
 			"action",
-			name = action.name,
-			id = action.id,
+			name = action.name(),
+			id = action.id(),
 			count = count,
 			extend = extend,
 			char_arg = %char_arg,
@@ -144,7 +144,7 @@ impl Editor {
 		let result = (action.handler)(&ctx);
 
 		trace!(result = ?result, "Action completed");
-		self.apply_action_result(action.id, result, extend)
+		self.apply_action_result(action.id(), result, extend)
 	}
 
 	/// Dispatches an action result to handlers and emits post-action hook.
