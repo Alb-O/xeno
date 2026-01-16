@@ -75,16 +75,44 @@ def parse-clippy-output []: string -> list {
     | flatten
 }
 
-def run-command-rule [rule: record, project_root: string]: nothing -> list {
-    if $rule.id != "clippy" { return [] }
-    if (which cargo | is-empty) { return [] }
+def parse-vimgrep-output [
+    rule_id: string
+    severity: string
+    message: string
+]: string -> list {
+    $in
+    | lines
+    | where { $in | str trim | is-not-empty }
+    | each {|line|
+        let parts = ($line | split row ":")
+        if ($parts | length) < 4 {
+            null
+        } else {
+            let file = ($parts | get 0)
+            let line_no = (($parts | get 1 | into int) - 1)
+            let col_no = (($parts | get 2 | into int) - 1)
+            let text = ($parts | skip 3 | str join ":")
+            make-finding $rule_id $severity $message $file $line_no $col_no $line_no $col_no $text
+        }
+    }
+    | compact
+}
 
+def run-command-rule [rule: record, project_root: string]: nothing -> list {
     let run_cmd = ($rule.run? | default "")
     if ($run_cmd | is-empty) { return [] }
 
     cd $project_root
     let result = (bash -c $run_cmd | complete)
-    $result.stdout | parse-clippy-output
+    if $rule.id == "clippy" {
+        if (which cargo | is-empty) { return [] }
+        $result.stdout | parse-clippy-output
+    } else {
+        if $result.exit_code != 0 { return [] }
+        let severity = ($rule.severity? | default "warning")
+        let message = ($rule.message? | default "")
+        $result.stdout | parse-vimgrep-output $rule.id $severity $message
+    }
 }
 
 # Check if path matches glob pattern like **/target/** by testing if path contains the literal parts

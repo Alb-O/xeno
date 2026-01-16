@@ -39,6 +39,29 @@ impl BufferId {
 	pub const SCRATCH: BufferId = BufferId(0);
 }
 
+#[derive(Clone)]
+pub(crate) struct DocumentHandle(Arc<RwLock<Document>>);
+
+impl DocumentHandle {
+	fn new(document: Document) -> Self {
+		Self(Arc::new(RwLock::new(document)))
+	}
+
+	fn with<R>(&self, f: impl FnOnce(&Document) -> R) -> R {
+		let guard = self.0.read().expect("doc lock poisoned");
+		f(&guard)
+	}
+
+	fn with_mut<R>(&self, f: impl FnOnce(&mut Document) -> R) -> R {
+		let mut guard = self.0.write().expect("doc lock poisoned");
+		f(&mut guard)
+	}
+
+	fn ptr_eq(&self, other: &Self) -> bool {
+		Arc::ptr_eq(&self.0, &other.0)
+	}
+}
+
 /// A text buffer - combines a view with its document.
 ///
 /// Buffer is now a wrapper that provides convenient access to both view state
@@ -50,7 +73,7 @@ pub struct Buffer {
 	pub id: BufferId,
 
 	/// The underlying document (shared across split views).
-	document: Arc<RwLock<Document>>,
+	document: DocumentHandle,
 
 	/// Primary cursor position (char index).
 	pub cursor: CharIdx,
@@ -111,7 +134,7 @@ pub struct Buffer {
 impl Buffer {
 	/// Creates a new buffer with the given ID and content.
 	pub fn new(id: BufferId, content: String, path: Option<PathBuf>) -> Self {
-		let document = Arc::new(RwLock::new(Document::new(content, path)));
+		let document = DocumentHandle::new(Document::new(content, path));
 		Self {
 			id,
 			document,
@@ -145,7 +168,7 @@ impl Buffer {
 	pub fn clone_for_split(&self, new_id: BufferId) -> Self {
 		Self {
 			id: new_id,
-			document: Arc::clone(&self.document),
+			document: self.document.clone(),
 			cursor: self.cursor,
 			selection: self.selection.clone(),
 			input: InputHandler::new(),
@@ -163,17 +186,12 @@ impl Buffer {
 
 	/// Returns the document ID.
 	pub fn document_id(&self) -> DocumentId {
-		self.document.read().unwrap().id
-	}
-
-	/// Returns a clone of the document Arc (for creating split views).
-	pub fn document_arc(&self) -> Arc<RwLock<Document>> {
-		Arc::clone(&self.document)
+		self.with_doc(|doc| doc.id)
 	}
 
 	/// Checks if this buffer shares a document with another buffer.
 	pub fn shares_document_with(&self, other: &Buffer) -> bool {
-		Arc::ptr_eq(&self.document, &other.document)
+		self.document.ptr_eq(&other.document)
 	}
 
 	/// Executes a closure with read access to the document.
@@ -189,8 +207,7 @@ impl Buffer {
 	/// ```
 	#[inline]
 	pub fn with_doc<R>(&self, f: impl FnOnce(&Document) -> R) -> R {
-		let guard = self.document.read().expect("doc lock poisoned");
-		f(&guard)
+		self.document.with(f)
 	}
 
 	/// Executes a closure with write access to the document.
@@ -208,28 +225,27 @@ impl Buffer {
 	/// ```
 	#[inline]
 	pub fn with_doc_mut<R>(&self, f: impl FnOnce(&mut Document) -> R) -> R {
-		let mut guard = self.document.write().expect("doc lock poisoned");
-		f(&mut guard)
+		self.document.with_mut(f)
 	}
 
 	/// Returns the associated file path.
 	pub fn path(&self) -> Option<PathBuf> {
-		self.document.read().unwrap().path.clone()
+		self.with_doc(|doc| doc.path.clone())
 	}
 
 	/// Sets the file path.
 	pub fn set_path(&self, path: Option<PathBuf>) {
-		self.document.write().unwrap().path = path;
+		self.with_doc_mut(|doc| doc.path = path);
 	}
 
 	/// Returns whether the buffer has unsaved changes.
 	pub fn modified(&self) -> bool {
-		self.document.read().unwrap().is_modified()
+		self.with_doc(|doc| doc.is_modified())
 	}
 
 	/// Sets the modified flag.
 	pub fn set_modified(&self, modified: bool) {
-		self.document.write().unwrap().set_modified(modified);
+		self.with_doc_mut(|doc| doc.set_modified(modified));
 	}
 
 	/// Returns whether this buffer is read-only.
@@ -238,7 +254,7 @@ impl Buffer {
 	/// document's readonly flag.
 	pub fn is_readonly(&self) -> bool {
 		self.readonly_override
-			.unwrap_or_else(|| self.document.read().unwrap().is_readonly())
+			.unwrap_or_else(|| self.with_doc(|doc| doc.is_readonly()))
 	}
 
 	/// Sets the read-only flag on the underlying document.
@@ -246,7 +262,7 @@ impl Buffer {
 	/// This affects all buffers sharing this document. For buffer-specific
 	/// readonly behavior, use [`set_readonly_override`](Self::set_readonly_override).
 	pub fn set_readonly(&self, readonly: bool) {
-		self.document.write().unwrap().set_readonly(readonly);
+		self.with_doc_mut(|doc| doc.set_readonly(readonly));
 	}
 
 	/// Sets a buffer-level readonly override.
@@ -274,22 +290,22 @@ impl Buffer {
 
 	/// Returns the document version.
 	pub fn version(&self) -> u64 {
-		self.document.read().unwrap().version()
+		self.with_doc(|doc| doc.version())
 	}
 
 	/// Returns the file type.
 	pub fn file_type(&self) -> Option<String> {
-		self.document.read().unwrap().file_type.clone()
+		self.with_doc(|doc| doc.file_type.clone())
 	}
 
 	/// Returns whether syntax highlighting is available.
 	pub fn has_syntax(&self) -> bool {
-		self.document.read().unwrap().has_syntax()
+		self.with_doc(|doc| doc.has_syntax())
 	}
 
 	/// Initializes syntax highlighting for this buffer.
 	pub fn init_syntax(&self, language_loader: &LanguageLoader) {
-		self.document.write().unwrap().init_syntax(language_loader);
+		self.with_doc_mut(|doc| doc.init_syntax(language_loader));
 	}
 
 	/// Returns the current editing mode.
@@ -304,19 +320,21 @@ impl Buffer {
 
 	/// Returns the line number containing the cursor.
 	pub fn cursor_line(&self) -> usize {
-		let doc = self.document.read().unwrap();
-		let max_pos = doc.content().len_chars();
-		doc.content().char_to_line(self.cursor.min(max_pos))
+		self.with_doc(|doc| {
+			let max_pos = doc.content().len_chars();
+			doc.content().char_to_line(self.cursor.min(max_pos))
+		})
 	}
 
 	/// Returns the column of the cursor within its line.
 	pub fn cursor_col(&self) -> usize {
-		let doc = self.document.read().unwrap();
-		let line = doc
-			.content()
-			.char_to_line(self.cursor.min(doc.content().len_chars()));
-		let line_start = doc.content().line_to_char(line);
-		self.cursor.saturating_sub(line_start)
+		self.with_doc(|doc| {
+			let line = doc
+				.content()
+				.char_to_line(self.cursor.min(doc.content().len_chars()));
+			let line_start = doc.content().line_to_char(line);
+			self.cursor.saturating_sub(line_start)
+		})
 	}
 
 	/// Computes the gutter width using the registry system.
@@ -326,30 +344,28 @@ impl Buffer {
 	pub fn gutter_width(&self) -> u16 {
 		use xeno_registry::gutter::{GutterWidthContext, total_width};
 
-		let doc = self.document.read().unwrap();
-		let ctx = GutterWidthContext {
-			total_lines: doc.content().len_lines(),
-			viewport_width: self.text_width as u16 + 100, // approximate
-		};
-		total_width(&ctx)
+		self.with_doc(|doc| {
+			let ctx = GutterWidthContext {
+				total_lines: doc.content().len_lines(),
+				viewport_width: self.text_width as u16 + 100, // approximate
+			};
+			total_width(&ctx)
+		})
 	}
 
 	/// Reparses the entire syntax tree from scratch.
 	pub fn reparse_syntax(&self, language_loader: &LanguageLoader) {
-		self.document
-			.write()
-			.unwrap()
-			.reparse_syntax(language_loader);
+		self.with_doc_mut(|doc| doc.reparse_syntax(language_loader));
 	}
 
 	/// Returns the undo stack length.
 	pub fn undo_stack_len(&self) -> usize {
-		self.document.read().unwrap().undo_len()
+		self.with_doc(|doc| doc.undo_len())
 	}
 
 	/// Returns the redo stack length.
 	pub fn redo_stack_len(&self) -> usize {
-		self.document.read().unwrap().redo_len()
+		self.with_doc(|doc| doc.redo_len())
 	}
 
 	/// Clears the insert undo grouping flag.

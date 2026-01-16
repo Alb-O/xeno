@@ -145,13 +145,13 @@ pub struct EditorCommandDef {
 ## Phase 4 — Enforce document lock hygiene
 **Goal:** make “closure-scoped lock access” the *default and enforced* pattern.
 
-- [ ] Mechanical refactor: convert Buffer methods that use `.read()/.write()` to `with_doc/with_doc_mut`.
-- [ ] Reduce escape hatches:
-  - [ ] Make `Buffer::document_arc()` `pub(crate)` or remove it from the public API.
-  - [ ] Restrict any remaining raw lock access to a tiny internal module.
-- [ ] Optional but powerful: introduce a `DocumentHandle` newtype that hides the lock.
-- [ ] Guardrail in CI:
-  - [ ] Add a simple `rg "\.read\(\)|\.write\(\)" crates/editor/src | ...` check that fails unless the file path is allowlisted.
+- [x] Mechanical refactor: convert Buffer methods that use `.read()/.write()` to `with_doc/with_doc_mut`.
+- [x] Reduce escape hatches:
+  - [x] Make `Buffer::document_arc()` `pub(crate)` or remove it from the public API.
+  - [x] Restrict any remaining raw lock access to a tiny internal module.
+- [x] Optional but powerful: introduce a `DocumentHandle` newtype that hides the lock.
+- [x] Guardrail in CI:
+  - [x] Add a simple `rg "\.read\(\)|\.write\(\)" crates/editor/src | ...` check that fails unless the file path is allowlisted.
 
 ### Code sketch: `DocumentHandle` wrapper
 ```rust
