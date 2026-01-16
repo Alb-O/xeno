@@ -12,7 +12,7 @@ The project uses Nix flakes with `direnv`, though Agents should use `nix develop
 cargo build                     # debug build
 cargo build --release           # optimized build
 cargo test                      # all tests
-cargo test -p xeno-api          # single crate
+cargo test -p xeno-editor       # single crate
 cargo test buffer::tests        # specific test module
 cargo insta review              # review snapshot test changes
 nix flake check                 # format check, ast-grep lint, build
@@ -34,7 +34,7 @@ Clippy allows `dbg!`, `print!`, `expect`, and `unwrap` in test code. Complexity 
 
 The workspace contains 25+ crates under `crates/`. The main binary lives in `crates/term` and produces the `xeno` executable.
 
-**Core layers:** `xeno-base` defines fundamental types (Range, Selection, Key, Mode). `xeno-core` builds on these with ActionId, keymap resolution, and movement primitives. `xeno-api` exposes the Editor workspace, Buffer management, and UI state.
+**Core layers:** `xeno-primitives` defines fundamental types (Range, Selection, Key, Mode). `xeno-editor` builds on these with Editor workspace, Buffer management, Document state, and UI coordination. `xeno-keymap-core` handles keymap resolution and input matching.
 
 **Text representation:** Buffers use `ropey` for O(log n) text operations. Syntax highlighting flows from Tree-sitter via the `tree-house` abstraction, which loads grammar shared libraries at runtime from paths configured in KDL.
 
@@ -44,7 +44,7 @@ The workspace contains 25+ crates under `crates/`. The main binary lives in `cra
 
 **TUI:** `xeno-tui` is a modified Ratatui vendor. It renders to crossterm.
 
-**Configuration:** KDL files parsed by `xeno-config`. Runtime assets (queries, themes, language configs) inside `crates/runtime/assets` embed via `xeno-runtime`.
+**Configuration:** KDL files parsed by `xeno-runtime-config`. Runtime assets (queries, themes, language configs) inside `crates/runtime/data/assets` embed via `xeno-runtime-data`.
 
 ## Implementation Patterns
 
@@ -77,11 +77,11 @@ Text mutations use the `EditOp` struct, a data-oriented description of pre-effec
 
 ### Multi-Cursor Selection
 
-`Selection` in `crates/base/src/selection.rs` holds a `SmallVec<[Range; 1]>` with a `primary_index`. The `transform` method applies a closure to all ranges, and `normalize` merges overlapping ranges. Adjacent ranges remain separate unless `merge_overlaps_and_adjacent` is called explicitly.
+`Selection` in `crates/primitives/src/selection.rs` holds a `SmallVec<[Range; 1]>` with a `primary_index`. The `transform` method applies a closure to all ranges, and `normalize` merges overlapping ranges. Adjacent ranges remain separate unless `merge_overlaps_and_adjacent` is called explicitly.
 
 ### Keymap Resolution
 
-The keymap trie in `crates/keymap/src/matcher.rs` stores bindings in a hierarchical structure. Lookup returns `MatchResult::Complete`, `Partial { has_value }`, or `None`. Exact keys take precedence over character groups (`@digit`, `@upper`), which take precedence over wildcards (`@any`). The `continuations_with_kind` method powers which-key style UI by listing valid next keys at a prefix.
+The keymap trie in `crates/keymap/core/src/matcher.rs` stores bindings in a hierarchical structure. Lookup returns `MatchResult::Complete`, `Partial { has_value }`, or `None`. Exact keys take precedence over character groups (`@digit`, `@upper`), which take precedence over wildcards (`@any`). The `continuations_with_kind` method powers which-key style UI by listing valid next keys at a prefix.
 
 ### Gutter Columns
 
@@ -104,4 +104,4 @@ Diagnostics flow from LSP through `GutterAnnotations` which carries `diagnostic_
 
 ### Registry Collision Detection
 
-All registries implement `RegistryMetadata` (id, name, priority, source). When multiple items share a name or keybinding, the one with higher priority wins. `crates/core/src/index/diagnostics.rs` collects collision reports for debugging.
+All registries implement `RegistryMeta` (id, name, priority, source). When multiple items share a name or keybinding, the one with higher priority wins. `crates/registry/lib/src/index/diagnostics.rs` collects collision reports for debugging.
