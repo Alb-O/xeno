@@ -9,11 +9,10 @@ use std::path::PathBuf;
 #[cfg(feature = "lsp")]
 use futures::channel::oneshot;
 use tracing::{debug, warn};
-use xeno_registry::commands::{CommandContext, CommandOutcome, find_command};
 use xeno_registry::{HookContext, HookEventData, emit_sync_with as emit_hook_sync_with};
 
 use super::Editor;
-use crate::commands::{EditorCommandContext, find_editor_command};
+use crate::types::{Invocation, InvocationPolicy, InvocationResult};
 
 impl Editor {
 	/// Initializes the UI layer at editor startup.
@@ -304,54 +303,50 @@ impl Editor {
 
 	/// Drains and executes all queued commands.
 	///
-	/// Checks [`EDITOR_COMMANDS`] first, then [`COMMANDS`].
+	/// Routes commands through [`run_invocation`] for consistent capability
+	/// checking and hook emission. Tries editor-direct commands first, then
+	/// falls back to registry commands.
+	///
 	/// Returns `true` if any command requested quit.
 	pub async fn drain_command_queue(&mut self) -> bool {
 		let commands: Vec<_> = self.workspace.command_queue.drain().collect();
-		for cmd in commands {
-			let args: Vec<&str> = cmd.args.iter().map(|s| s.as_str()).collect();
 
-			if let Some(editor_cmd) = find_editor_command(cmd.name) {
-				let mut ctx = EditorCommandContext {
-					editor: self,
-					args: &args,
-					count: 1,
-					register: None,
-					user_data: editor_cmd.user_data,
-				};
-				match (editor_cmd.handler)(&mut ctx).await {
-					Ok(CommandOutcome::Ok) => {}
-					Ok(CommandOutcome::Quit | CommandOutcome::ForceQuit) => return true,
-					Err(e) => {
-						self.show_notification(
-							xeno_registry_notifications::keys::command_error::call(&e.to_string()),
-						);
+		// Use log-only mode for now (Phase 6 migration)
+		let policy = InvocationPolicy::log_only();
+
+		for cmd in commands {
+			let args: Vec<String> = cmd.args.iter().map(|s| s.to_string()).collect();
+
+			// Try editor command first
+			let invocation = Invocation::EditorCommand {
+				name: cmd.name.to_string(),
+				args: args.clone(),
+			};
+
+			let result = self.run_invocation(invocation, policy).await;
+
+			match result {
+				InvocationResult::NotFound(_) => {
+					// Not an editor command, try registry command
+					let invocation = Invocation::Command {
+						name: cmd.name.to_string(),
+						args,
+					};
+
+					let result = self.run_invocation(invocation, policy).await;
+
+					match result {
+						InvocationResult::NotFound(_) => {
+							self.show_notification(
+								xeno_registry_notifications::keys::unknown_command::call(cmd.name),
+							);
+						}
+						InvocationResult::Quit | InvocationResult::ForceQuit => return true,
+						_ => {}
 					}
 				}
-				continue;
-			}
-
-			let Some(command_def) = find_command(cmd.name) else {
-				self.show_notification(xeno_registry_notifications::keys::unknown_command::call(
-					cmd.name,
-				));
-				continue;
-			};
-			let mut ctx = CommandContext {
-				editor: self,
-				args: &args,
-				count: 1,
-				register: None,
-				user_data: command_def.user_data,
-			};
-			match (command_def.handler)(&mut ctx).await {
-				Ok(CommandOutcome::Ok) => {}
-				Ok(CommandOutcome::Quit | CommandOutcome::ForceQuit) => return true,
-				Err(e) => {
-					self.show_notification(xeno_registry_notifications::keys::command_error::call(
-						&e.to_string(),
-					));
-				}
+				InvocationResult::Quit | InvocationResult::ForceQuit => return true,
+				_ => {}
 			}
 		}
 		false

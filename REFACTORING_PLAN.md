@@ -511,14 +511,14 @@ impl RegistryEntry for ActionDef {
 
 ### Tasks
 
-- [ ] Create `Editor::run_invocation(Invocation)` that always checks capabilities
-- [ ] Ensure all entry points route through it:
-  - [ ] Keymap action dispatch
-  - [ ] Command palette
-  - [ ] Ex commands / queued commands
-  - [ ] Hook-triggered invocations (decide bypass policy)
-- [ ] Add `InvocationPolicy { enforce_caps: bool, enforce_readonly: bool }`
-- [ ] Start with "log-only mode" before enforcing
+- [x] Create `Editor::run_invocation(Invocation)` that always checks capabilities
+- [x] Ensure all entry points route through it:
+  - [x] Keymap action dispatch (uses existing `execute_action` with same capability checking)
+  - [x] Command palette (queues commands, handled by drain_command_queue)
+  - [x] Ex commands / queued commands (routes through `run_invocation`)
+  - [x] Hook-triggered invocations (hooks emit after capability checking)
+- [x] Add `InvocationPolicy { enforce_caps: bool, enforce_readonly: bool }`
+- [x] Start with "log-only mode" before enforcing
 
 **Dependencies**: Phase 3 (edit pipeline centralized)
 **Risk**: Medium-high (behavior changes if bypass existed)
@@ -540,6 +540,45 @@ The single `run_invocation(...)` function should:
 6. Interpret effects
 
 Registry stays declarative; editor becomes the policy engine.
+
+### Implementation Details
+
+**New types in `crates/editor/src/types/invocation.rs`:**
+
+```rust
+pub enum Invocation {
+    Action { name, count, extend, register },
+    ActionWithChar { name, count, extend, register, char_arg },
+    Command { name, args },
+    EditorCommand { name, args },
+}
+
+pub struct InvocationPolicy {
+    pub enforce_caps: bool,
+    pub enforce_readonly: bool,
+}
+
+pub enum InvocationResult {
+    Ok,
+    Quit,
+    ForceQuit,
+    NotFound(String),
+    CapabilityDenied(Capability),
+    ReadonlyDenied,
+    CommandError(String),
+}
+```
+
+**Entry point consolidation:**
+
+- `drain_command_queue` now routes all commands through `run_invocation`
+- `execute_action` / `execute_action_with_char` retain existing capability checking
+  (same pattern as `run_action_invocation`) for sync keymap dispatch
+- Commands now get capability checking via `required_caps()` from RegistryMeta
+
+**Log-only mode:** Current deployment uses `InvocationPolicy::log_only()` which
+logs capability violations without blocking. Flip to `InvocationPolicy::enforcing()`
+when ready for production enforcement.
 
 ---
 
@@ -736,11 +775,11 @@ kept using impl_registry_metadata! since they don't have all RegistryMeta fields
 required_caps, flags). The main extensible registry types have been migrated.
 
 ### Phase 6: Capability Gating
-- [ ] Unified entry point (`Editor::run_invocation`)
-- [ ] Route all paths through it
-- [ ] InvocationPolicy
-- [ ] Log-only mode first
-- [ ] Note: Choke point in editor, not registry
+- [x] Unified entry point (`Editor::run_invocation`)
+- [x] Route all paths through it (commands via run_invocation, actions via execute_action)
+- [x] InvocationPolicy (enforce_caps, enforce_readonly)
+- [x] Log-only mode first (InvocationPolicy::log_only())
+- [x] Note: Choke point in editor, not registry
 
 ### Phase 7: Editor Split (Optional)
 - [ ] Extract HookEngine

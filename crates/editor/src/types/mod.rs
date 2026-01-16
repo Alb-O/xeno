@@ -7,11 +7,14 @@
 //! - [`Config`] - Editor configuration (theme, languages, options)
 //! - [`UndoManager`] - Editor-level undo/redo management
 //! - [`ApplyEditPolicy`] - Policy for edit transaction behavior
+//! - [`Invocation`] - Unified action/command dispatch
+//! - [`InvocationPolicy`] - Capability enforcement policy
 
 mod config;
 mod edit_policy;
 mod frame;
 mod history;
+mod invocation;
 mod undo_manager;
 mod viewport;
 mod workspace;
@@ -20,6 +23,7 @@ pub use config::Config;
 pub use edit_policy::ApplyEditPolicy;
 pub use frame::FrameState;
 pub use history::{DocumentHistoryEntry, EditorUndoGroup, ViewSnapshot};
+pub use invocation::{Invocation, InvocationPolicy, InvocationResult};
 pub use undo_manager::{PreparedEdit, UndoHost, UndoManager};
 pub use viewport::Viewport;
 pub use workspace::{JumpList, JumpLocation, MacroState, Registers, Workspace};

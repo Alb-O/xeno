@@ -29,6 +29,8 @@ mod file_ops;
 mod focus;
 /// Undo/redo history.
 mod history;
+/// Unified invocation dispatch.
+mod invocation;
 /// Editor lifecycle (tick, render).
 mod lifecycle;
 /// Message and notification display.
@@ -55,8 +57,9 @@ pub use crate::hook_runtime::HookRuntime;
 pub use crate::layout::{LayoutManager, SeparatorHit, SeparatorId};
 pub use navigation::Location;
 pub use crate::types::{
-	ApplyEditPolicy, Config, EditorUndoGroup, FrameState, JumpList, JumpLocation, MacroState,
-	PreparedEdit, Registers, UndoHost, UndoManager, ViewSnapshot, Viewport, Workspace,
+	ApplyEditPolicy, Config, EditorUndoGroup, FrameState, Invocation, InvocationPolicy,
+	InvocationResult, JumpList, JumpLocation, MacroState, PreparedEdit, Registers, UndoHost,
+	UndoManager, ViewSnapshot, Viewport, Workspace,
 };
 pub use edit_executor::EditExecutor;
 use xeno_registry::{
