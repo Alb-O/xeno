@@ -358,9 +358,9 @@ pub struct TxnUndoStep {
 
 - [x] Change default commit syntax policy from `FullReparseNow` -> `MarkDirty`
 - [x] Ensure render path or a background job triggers reparse when dirty
-- [ ] Add incremental updates (optional / later):
-  - [ ] use `ChangeSet` ranges to feed incremental parser
-  - [ ] fall back to full reparse if incremental fails
+- [x] Add incremental updates (optional / later):
+  - [x] use `ChangeSet` ranges to feed incremental parser
+  - [x] fall back to full reparse if incremental fails
 
 ### Migration Notes
 
@@ -419,7 +419,7 @@ Use `proptest` (or `quickcheck`) on Transaction/undo invariants:
 - [x] **Selection mapping sanity** (if using mapped selections):
   - selection stays within bounds after apply/invert
   - mapping is stable across repeated operations
-- [ ] **Commit gate invariants**:
+- [x] **Commit gate invariants**:
   - if readonly, commit returns `EditError::ReadOnly` and content unchanged
   - commit increments version exactly once per applied edit
   - redo stack clears on commit (when undo recorded)
@@ -428,8 +428,8 @@ If you keep snapshots temporarily, still property-test that undo/redo restores e
 
 ### 2) Unit Tests for New Abstractions
 
-- [ ] `Document::commit`: sets modified, increments version, clears redo, records undo based on policy
-- [ ] `UndoStore` implementations:
+- [x] `Document::commit`: sets modified, increments version, clears redo, records undo based on policy
+- [x] `UndoStore` implementations:
   - snapshot store respects `MAX_UNDO`
   - txn store correctly records `(undo, redo)` pairs and replays them
 - [ ] `EditorUndoGroup`: multi-buffer selection restoration works even if buffers are destroyed/created (ensure robust handling)

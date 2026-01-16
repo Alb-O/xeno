@@ -13,6 +13,9 @@
 //! [`EditorUndoGroup`]: crate::editor::types::EditorUndoGroup
 //! [`ViewSnapshot`]: crate::editor::types::ViewSnapshot
 
+#[cfg(test)]
+mod tests;
+
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
 
@@ -331,7 +334,8 @@ impl Document {
 	/// Syntax updates are policy-driven:
 	/// - [`SyntaxPolicy::None`]: no syntax action
 	/// - [`SyntaxPolicy::MarkDirty`]: sets `syntax_dirty` flag for lazy reparse
-	/// - [`SyntaxPolicy::IncrementalOrDirty`]: same as `MarkDirty` (incremental TBD)
+	/// - [`SyntaxPolicy::IncrementalOrDirty`]: attempts incremental tree-sitter
+	///   update using the changeset; falls back to marking dirty on failure
 	/// - [`SyntaxPolicy::FullReparseNow`]: immediate full reparse
 	///
 	/// [`Buffer`]: super::Buffer
@@ -368,6 +372,14 @@ impl Document {
 			None
 		};
 
+		// Capture old source for incremental syntax if needed
+		let old_source_for_syntax =
+			if matches!(commit.syntax, SyntaxPolicy::IncrementalOrDirty) && self.syntax.is_some() {
+				Some(self.content.clone())
+			} else {
+				None
+			};
+
 		commit.tx.apply(&mut self.content);
 		self.modified = true;
 		self.version = self.version.wrapping_add(1);
@@ -381,9 +393,36 @@ impl Document {
 
 		let syntax_changed = match commit.syntax {
 			SyntaxPolicy::None => false,
-			SyntaxPolicy::MarkDirty | SyntaxPolicy::IncrementalOrDirty => {
+			SyntaxPolicy::MarkDirty => {
 				self.syntax_dirty = true;
 				false
+			}
+			SyntaxPolicy::IncrementalOrDirty => {
+				if let Some(old_source) = old_source_for_syntax {
+					// Try incremental update, fall back to marking dirty on failure
+					if let Some(ref mut syntax) = self.syntax {
+						match syntax.update_from_changeset(
+							old_source.slice(..),
+							self.content.slice(..),
+							commit.tx.changes(),
+							language_loader,
+						) {
+							Ok(()) => {
+								self.syntax_dirty = false;
+								true
+							}
+							Err(_) => {
+								self.syntax_dirty = true;
+								false
+							}
+						}
+					} else {
+						false
+					}
+				} else {
+					self.syntax_dirty = true;
+					false
+				}
 			}
 			SyntaxPolicy::FullReparseNow => {
 				self.reparse_syntax(language_loader);
