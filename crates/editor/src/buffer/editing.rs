@@ -170,15 +170,28 @@ impl Buffer {
 
 	/// Applies a transaction to the document, incrementing the version counter.
 	///
-	/// Routes through [`Document::commit_unchecked`] with [`UndoPolicy::NoUndo`]
-	/// and [`SyntaxPolicy::None`]. Undo recording and syntax updates are managed
-	/// at the Editor level, not here.
+	/// Routes through [`Document::commit_unchecked`] with [`SyntaxPolicy::None`].
+	/// Syntax updates are managed at the Editor level.
 	///
 	/// Returns `false` if the buffer is read-only (either via buffer-level
 	/// override or document flag), `true` otherwise.
 	///
 	/// [`Document::commit_unchecked`]: super::Document::commit_unchecked
 	pub fn apply_transaction(&self, tx: &Transaction) -> bool {
+		self.apply_transaction_with_undo(tx, UndoPolicy::NoUndo)
+	}
+
+	/// Applies a transaction with the specified undo policy.
+	///
+	/// Routes through [`Document::commit_unchecked`] with [`SyntaxPolicy::None`].
+	/// Syntax updates are managed at the Editor level.
+	///
+	/// Returns `false` if the buffer is read-only (either via buffer-level
+	/// override or document flag), `true` otherwise. Returns `true` and records
+	/// undo based on the policy when successful.
+	///
+	/// [`Document::commit_unchecked`]: super::Document::commit_unchecked
+	pub fn apply_transaction_with_undo(&self, tx: &Transaction, undo: UndoPolicy) -> bool {
 		if self.readonly_override == Some(true) {
 			return false;
 		}
@@ -187,7 +200,7 @@ impl Buffer {
 		}
 
 		let commit = EditCommit::new(tx.clone())
-			.with_undo(UndoPolicy::NoUndo)
+			.with_undo(undo)
 			.with_syntax(SyntaxPolicy::None);
 
 		self.with_doc_mut(|doc| {
@@ -199,9 +212,8 @@ impl Buffer {
 
 	/// Applies a transaction and updates the syntax tree incrementally.
 	///
-	/// Routes through [`Document::commit_unchecked`] with [`UndoPolicy::NoUndo`]
-	/// and [`SyntaxPolicy::None`], then performs an incremental syntax update
-	/// using the changeset. Undo recording is managed at the Editor level.
+	/// Routes through [`Document::commit_unchecked`] with [`SyntaxPolicy::None`],
+	/// then performs an incremental syntax update using the changeset.
 	///
 	/// Returns `false` if the buffer is read-only (either via buffer-level
 	/// override or document flag), `true` otherwise.
@@ -211,6 +223,25 @@ impl Buffer {
 		&self,
 		tx: &Transaction,
 		language_loader: &LanguageLoader,
+	) -> bool {
+		self.apply_transaction_with_syntax_and_undo(tx, language_loader, UndoPolicy::NoUndo)
+	}
+
+	/// Applies a transaction with syntax update and the specified undo policy.
+	///
+	/// Routes through [`Document::commit_unchecked`] with [`SyntaxPolicy::None`],
+	/// then performs an incremental syntax update using the changeset.
+	///
+	/// Returns `false` if the buffer is read-only (either via buffer-level
+	/// override or document flag), `true` otherwise. Returns `true` and records
+	/// undo based on the policy when successful.
+	///
+	/// [`Document::commit_unchecked`]: super::Document::commit_unchecked
+	pub fn apply_transaction_with_syntax_and_undo(
+		&self,
+		tx: &Transaction,
+		language_loader: &LanguageLoader,
+		undo: UndoPolicy,
 	) -> bool {
 		if self.readonly_override == Some(true) {
 			return false;
@@ -222,7 +253,7 @@ impl Buffer {
 		let old_doc = self.with_doc(|doc| doc.content().clone());
 
 		let commit = EditCommit::new(tx.clone())
-			.with_undo(UndoPolicy::NoUndo)
+			.with_undo(undo)
 			.with_syntax(SyntaxPolicy::None);
 
 		self.with_doc_mut(|doc| {
@@ -246,10 +277,9 @@ impl Buffer {
 
 	/// Applies a transaction, updates syntax incrementally, and queues LSP changes.
 	///
-	/// Routes through [`Document::commit_unchecked`] with [`UndoPolicy::NoUndo`]
-	/// and [`SyntaxPolicy::None`], then performs an incremental syntax update
-	/// and queues LSP document changes for synchronization. Undo recording is
-	/// managed at the Editor level.
+	/// Routes through [`Document::commit_unchecked`] with [`SyntaxPolicy::None`],
+	/// then performs an incremental syntax update and queues LSP document changes
+	/// for synchronization.
 	///
 	/// Returns `false` if the buffer is read-only (either via buffer-level
 	/// override or document flag), `true` otherwise.
@@ -262,6 +292,28 @@ impl Buffer {
 		language_loader: &LanguageLoader,
 		encoding: OffsetEncoding,
 	) -> bool {
+		self.apply_edit_with_lsp_and_undo(tx, language_loader, encoding, UndoPolicy::NoUndo)
+	}
+
+	/// Applies a transaction with LSP sync and the specified undo policy.
+	///
+	/// Routes through [`Document::commit_unchecked`] with [`SyntaxPolicy::None`],
+	/// then performs an incremental syntax update and queues LSP document changes
+	/// for synchronization.
+	///
+	/// Returns `false` if the buffer is read-only (either via buffer-level
+	/// override or document flag), `true` otherwise. Returns `true` and records
+	/// undo based on the policy when successful.
+	///
+	/// [`Document::commit_unchecked`]: super::Document::commit_unchecked
+	#[cfg(feature = "lsp")]
+	pub fn apply_edit_with_lsp_and_undo(
+		&self,
+		tx: &Transaction,
+		language_loader: &LanguageLoader,
+		encoding: OffsetEncoding,
+		undo: UndoPolicy,
+	) -> bool {
 		if self.readonly_override == Some(true) {
 			return false;
 		}
@@ -273,7 +325,7 @@ impl Buffer {
 		let lsp_changes = compute_lsp_changes(&old_doc, tx, encoding);
 
 		let commit = EditCommit::new(tx.clone())
-			.with_undo(UndoPolicy::NoUndo)
+			.with_undo(undo)
 			.with_syntax(SyntaxPolicy::None);
 
 		self.with_doc_mut(|doc| {
@@ -336,9 +388,8 @@ mod tests {
 		fn make_buffer(content: &str) -> Buffer {
 			let buffer = Buffer::scratch(BufferId::SCRATCH);
 			if !content.is_empty() {
-				// Set initial content by replacing the empty document
 				let rope = ropey::Rope::from(content);
-				*buffer.doc_mut().content_mut() = rope;
+				buffer.with_doc_mut(|doc| *doc.content_mut() = rope);
 			}
 			buffer
 		}
@@ -457,21 +508,20 @@ mod tests {
 		buffer.set_readonly(true);
 		let applied = buffer.apply_transaction(&tx);
 		assert!(!applied);
-		assert_eq!(buffer.doc().content().slice(..).to_string(), "");
+		assert_eq!(buffer.with_doc(|doc| doc.content().to_string()), "");
 	}
 
 	#[test]
 	fn readonly_override_blocks_transaction() {
 		let mut buffer = Buffer::scratch(BufferId::SCRATCH);
-		// Document is writable, but buffer override makes it readonly
-		assert!(!buffer.doc().is_readonly());
+		assert!(!buffer.with_doc(|doc| doc.is_readonly()));
 		buffer.set_readonly_override(Some(true));
 		assert!(buffer.is_readonly());
 
 		let (tx, _selection) = buffer.prepare_insert("hi");
 		let applied = buffer.apply_transaction(&tx);
 		assert!(!applied);
-		assert_eq!(buffer.doc().content().slice(..).to_string(), "");
+		assert_eq!(buffer.with_doc(|doc| doc.content().to_string()), "");
 	}
 
 	#[test]
@@ -487,7 +537,7 @@ mod tests {
 		let (tx, _selection) = buffer.prepare_insert("hi");
 		let applied = buffer.apply_transaction(&tx);
 		assert!(applied);
-		assert_eq!(buffer.doc().content().slice(..).to_string(), "hi");
+		assert_eq!(buffer.with_doc(|doc| doc.content().to_string()), "hi");
 	}
 
 	#[test]

@@ -179,7 +179,7 @@ impl Editor {
 			all_view_snapshots.extend(snapshots);
 
 			if let Some(buffer) = self.buffers.get_buffer_mut(buffer_plan.buffer_id) {
-				buffer.with_doc_mut(|doc| doc.save_undo_state());
+				buffer.with_doc_mut(|doc| doc.record_undo_boundary());
 			}
 		}
 

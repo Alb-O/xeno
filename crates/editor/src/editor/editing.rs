@@ -2,10 +2,11 @@
 //!
 //! Insert, delete, yank, paste, and transaction application.
 
-use xeno_primitives::{Selection, Transaction};
+use xeno_primitives::{EditOrigin, Selection, Transaction, UndoPolicy};
 use xeno_registry_notifications::keys;
 
-use super::Editor;
+use super::{Editor, EditorUndoGroup};
+use crate::buffer::BufferId;
 
 impl Editor {
 	pub(crate) fn guard_readonly(&mut self) -> bool {
@@ -16,11 +17,64 @@ impl Editor {
 		true
 	}
 
-	fn apply_transaction_with_selection(
+	/// Applies a transaction with full undo support.
+	///
+	/// This is the primary edit method that:
+	/// 1. Captures view snapshots before the edit
+	/// 2. Applies the transaction with the specified undo policy
+	/// 3. Pushes an EditorUndoGroup if undo was recorded
+	///
+	/// Returns `true` if the transaction was applied successfully.
+	fn apply_edit(
 		&mut self,
-		buffer_id: crate::buffer::BufferId,
+		buffer_id: BufferId,
 		tx: &Transaction,
 		new_selection: Option<Selection>,
+		undo: UndoPolicy,
+		origin: EditOrigin,
+	) -> bool {
+		// Capture view snapshots BEFORE the edit for undo restoration
+		let doc_id = self
+			.buffers
+			.get_buffer(buffer_id)
+			.expect("buffer must exist")
+			.document_id();
+		let view_snapshots = self.collect_view_snapshots(doc_id);
+
+		// For MergeWithCurrentGroup, check BEFORE the edit if this will start a new group
+		let will_start_new_group = match undo {
+			UndoPolicy::MergeWithCurrentGroup => self
+				.buffers
+				.get_buffer(buffer_id)
+				.map(|b| b.with_doc(|doc| !doc.insert_undo_active()))
+				.unwrap_or(true),
+			UndoPolicy::NoUndo => false,
+			_ => true,
+		};
+
+		// Apply the transaction with undo policy
+		let applied = self.apply_transaction_inner(buffer_id, tx, new_selection, undo);
+
+		// Push EditorUndoGroup if undo was recorded
+		if applied && will_start_new_group {
+			self.undo_group_stack.push(EditorUndoGroup {
+				affected_docs: vec![doc_id],
+				view_snapshots,
+				origin,
+			});
+			self.redo_group_stack.clear();
+		}
+
+		applied
+	}
+
+	/// Applies a transaction without managing [`EditorUndoGroup`].
+	fn apply_transaction_inner(
+		&mut self,
+		buffer_id: BufferId,
+		tx: &Transaction,
+		new_selection: Option<Selection>,
+		undo: UndoPolicy,
 	) -> bool {
 		#[cfg(feature = "lsp")]
 		let encoding = {
@@ -38,9 +92,9 @@ impl Editor {
 				.get_buffer_mut(buffer_id)
 				.expect("focused buffer must exist");
 			let applied = if let Some(encoding) = encoding {
-				buffer.apply_edit_with_lsp(tx, &self.config.language_loader, encoding)
+				buffer.apply_edit_with_lsp_and_undo(tx, &self.config.language_loader, encoding, undo)
 			} else {
-				buffer.apply_transaction_with_syntax(tx, &self.config.language_loader)
+				buffer.apply_transaction_with_syntax_and_undo(tx, &self.config.language_loader, undo)
 			};
 			if applied && let Some(selection) = new_selection {
 				buffer.finalize_selection(selection);
@@ -54,7 +108,8 @@ impl Editor {
 				.buffers
 				.get_buffer_mut(buffer_id)
 				.expect("focused buffer must exist");
-			let applied = buffer.apply_transaction_with_syntax(tx, &self.config.language_loader);
+			let applied =
+				buffer.apply_transaction_with_syntax_and_undo(tx, &self.config.language_loader, undo);
 			if applied && let Some(selection) = new_selection {
 				buffer.finalize_selection(selection);
 			}
@@ -67,6 +122,16 @@ impl Editor {
 		}
 
 		applied
+	}
+
+	/// Applies a transaction without undo recording (legacy compatibility).
+	fn apply_transaction_with_selection(
+		&mut self,
+		buffer_id: BufferId,
+		tx: &Transaction,
+		new_selection: Option<Selection>,
+	) -> bool {
+		self.apply_transaction_inner(buffer_id, tx, new_selection, UndoPolicy::NoUndo)
 	}
 
 	/// Inserts a newline with smart indentation.
@@ -98,13 +163,12 @@ impl Editor {
 			return;
 		}
 
-		if self.buffer().mode() == xeno_primitives::Mode::Insert {
-			self.save_insert_undo_state();
+		let undo = if self.buffer().mode() == xeno_primitives::Mode::Insert {
+			UndoPolicy::MergeWithCurrentGroup
 		} else {
-			self.save_undo_state();
-		}
+			UndoPolicy::Record
+		};
 
-		// Prepare the transaction and new selection (without applying)
 		let (tx, new_selection) = {
 			let buffer = self
 				.buffers
@@ -113,7 +177,8 @@ impl Editor {
 			buffer.prepare_insert(text)
 		};
 
-		let applied = self.apply_transaction_with_selection(buffer_id, &tx, Some(new_selection));
+		let applied =
+			self.apply_edit(buffer_id, &tx, Some(new_selection), undo, EditOrigin::Internal("insert"));
 
 		if !applied {
 			self.notify(keys::buffer_readonly);
@@ -139,11 +204,8 @@ impl Editor {
 		}
 
 		let buffer_id = self.focused_view();
-
-		self.save_undo_state();
 		let yank = self.workspace.registers.yank.clone();
 
-		// Prepare the transaction and new selection (without applying)
 		let Some((tx, new_selection)) = ({
 			let buffer = self
 				.buffers
@@ -154,7 +216,13 @@ impl Editor {
 			return;
 		};
 
-		let applied = self.apply_transaction_with_selection(buffer_id, &tx, Some(new_selection));
+		let applied = self.apply_edit(
+			buffer_id,
+			&tx,
+			Some(new_selection),
+			UndoPolicy::Record,
+			EditOrigin::Internal("paste"),
+		);
 
 		if !applied {
 			self.notify(keys::buffer_readonly);
@@ -172,11 +240,8 @@ impl Editor {
 		}
 
 		let buffer_id = self.focused_view();
-
-		self.save_undo_state();
 		let yank = self.workspace.registers.yank.clone();
 
-		// Prepare the transaction and new selection (without applying)
 		let Some((tx, new_selection)) = ({
 			let buffer = self
 				.buffers
@@ -187,7 +252,13 @@ impl Editor {
 			return;
 		};
 
-		let applied = self.apply_transaction_with_selection(buffer_id, &tx, Some(new_selection));
+		let applied = self.apply_edit(
+			buffer_id,
+			&tx,
+			Some(new_selection),
+			UndoPolicy::Record,
+			EditOrigin::Internal("paste"),
+		);
 
 		if !applied {
 			self.notify(keys::buffer_readonly);
@@ -206,9 +277,6 @@ impl Editor {
 
 		let buffer_id = self.focused_view();
 
-		self.save_undo_state();
-
-		// Prepare the transaction and new selection (without applying)
 		let Some((tx, new_selection)) = ({
 			let buffer = self
 				.buffers
@@ -219,7 +287,13 @@ impl Editor {
 			return;
 		};
 
-		let applied = self.apply_transaction_with_selection(buffer_id, &tx, Some(new_selection));
+		let applied = self.apply_edit(
+			buffer_id,
+			&tx,
+			Some(new_selection),
+			UndoPolicy::Record,
+			EditOrigin::Internal("delete"),
+		);
 
 		if !applied {
 			self.notify(keys::buffer_readonly);

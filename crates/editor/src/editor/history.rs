@@ -83,7 +83,7 @@ impl Editor {
 		self.buffers
 			.get_buffer_mut(buffer_id)
 			.expect("focused buffer must exist")
-			.with_doc_mut(|doc| doc.save_undo_state());
+			.with_doc_mut(|doc| doc.record_undo_boundary());
 
 		self.undo_group_stack.push(EditorUndoGroup {
 			affected_docs: vec![doc_id],
@@ -91,35 +91,6 @@ impl Editor {
 			origin: EditOrigin::Internal("manual"),
 		});
 		self.redo_group_stack.clear();
-	}
-
-	/// Saves undo state for insert mode, grouping consecutive inserts.
-	///
-	/// Only creates a new undo group if this is the first insert in a sequence.
-	pub(crate) fn save_insert_undo_state(&mut self) {
-		let buffer_id = self.focused_view();
-		let doc_id = self
-			.buffers
-			.get_buffer(buffer_id)
-			.expect("focused buffer must exist")
-			.document_id();
-
-		let view_snapshots = self.collect_view_snapshots(doc_id);
-
-		let created = self
-			.buffers
-			.get_buffer_mut(buffer_id)
-			.expect("focused buffer must exist")
-			.with_doc_mut(|doc| doc.save_insert_undo_state());
-
-		if created {
-			self.undo_group_stack.push(EditorUndoGroup {
-				affected_docs: vec![doc_id],
-				view_snapshots,
-				origin: EditOrigin::Internal("insert"),
-			});
-			self.redo_group_stack.clear();
-		}
 	}
 
 	/// Undoes the last change, restoring view state for all affected buffers.

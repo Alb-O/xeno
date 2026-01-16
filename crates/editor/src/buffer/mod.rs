@@ -176,28 +176,6 @@ impl Buffer {
 		Arc::ptr_eq(&self.document, &other.document)
 	}
 
-	/// Returns the document content (read-only borrow of the Rope).
-	///
-	/// For mutation, use the editing methods which handle locking properly.
-	#[inline]
-	#[deprecated(
-		since = "0.1.0",
-		note = "use with_doc() closure API to prevent lock guard escape"
-	)]
-	pub fn doc(&self) -> std::sync::RwLockReadGuard<'_, Document> {
-		self.document.read().unwrap()
-	}
-
-	/// Returns mutable access to the document.
-	#[inline]
-	#[deprecated(
-		since = "0.1.0",
-		note = "use with_doc_mut() closure API to prevent lock guard escape"
-	)]
-	pub fn doc_mut(&self) -> std::sync::RwLockWriteGuard<'_, Document> {
-		self.document.write().unwrap()
-	}
-
 	/// Executes a closure with read access to the document.
 	///
 	/// This is the preferred API for document access as it ensures the lock

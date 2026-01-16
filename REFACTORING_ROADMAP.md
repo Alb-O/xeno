@@ -388,6 +388,49 @@ pub struct TxnUndoStep {
 - You can keep current phased executor but route actual edits through commit
 - Once stable, make compile stage pure for easy testing
 
+### Remaining Work: edit_op_executor Full Migration
+
+The `edit_op_executor.rs` currently uses the legacy pattern:
+
+1. `save_undo_state()` at the start (records doc undo + pushes EditorUndoGroup)
+2. `apply_transaction()` with `NoUndo` for actual edits
+
+This should be migrated to use `apply_edit()` which handles undo recording inside `commit()`:
+
+**Current flow:**
+```rust
+// execute_edit_plan()
+if needs_undo && plan.op.modifies_text() {
+    self.save_undo_state();  // records undo BEFORE knowing the transaction
+}
+// ... later ...
+self.apply_transaction(&tx);  // NoUndo
+```
+
+**Target flow:**
+```rust
+// execute_edit_plan()
+// Capture view snapshots at start (for EditorUndoGroup)
+let view_snapshots = self.collect_view_snapshots(doc_id);
+
+// ... build transaction ...
+
+// Apply with proper UndoPolicy - undo recorded inside commit()
+self.apply_edit(buffer_id, &tx, new_selection, plan.undo_policy, origin);
+```
+
+**Challenges:**
+- EditOp has multiple phases (pre-effects, selection, transform, post-effects)
+- Some pre-effects modify state before the main transform
+- Undo should capture state before ALL phases, not just the transaction
+
+**Approach:**
+1. Separate view snapshot capture from document undo recording
+2. Have `apply_edit()` only push EditorUndoGroup, let `commit()` handle doc undo
+3. For multi-phase ops, may need to batch into a single transaction or accept per-phase undo
+
+**Also remaining:** `capabilities.rs:138` uses `save_undo_state()` directly.
+
 ---
 
 ## Incremental Adoption Map

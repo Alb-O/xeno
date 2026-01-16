@@ -204,41 +204,23 @@ impl Document {
 		}
 	}
 
-	/// Pushes the current document state onto the undo stack.
+	/// Records the current document state as an undo boundary.
 	///
-	/// Records a document-only snapshot. View state (cursor, selection, scroll)
-	/// is captured separately at the editor level.
+	/// Creates a new undo step and ends any active insert grouping session.
+	/// Call this before discrete edit operations (delete, change, paste, etc.).
 	///
-	/// For backward compatibility with code that doesn't use `commit()`.
-	/// New code should prefer `commit()` which handles undo recording automatically.
-	pub(crate) fn push_undo_snapshot(&mut self) {
+	/// View state (cursor, selection, scroll) is captured separately at the
+	/// editor level via [`EditorUndoGroup`].
+	///
+	/// [`EditorUndoGroup`]: crate::editor::types::EditorUndoGroup
+	pub fn record_undo_boundary(&mut self) {
+		self.insert_undo_active = false;
 		let before = DocumentSnapshot {
 			rope: self.content.clone(),
 			version: self.version,
 		};
 		let empty_tx = xeno_primitives::Transaction::new(self.content.slice(..));
 		self.undo_backend.record_commit(&empty_tx, &before);
-	}
-
-	/// Saves current document state to undo history. Resets any grouped insert session.
-	///
-	/// View state capture happens at the editor level before calling this method.
-	pub fn save_undo_state(&mut self) {
-		self.insert_undo_active = false;
-		self.push_undo_snapshot();
-	}
-
-	/// Saves undo state for insert mode, grouping consecutive inserts.
-	///
-	/// Returns true if a new snapshot was created. View state capture happens
-	/// at the editor level before calling this method.
-	pub fn save_insert_undo_state(&mut self) -> bool {
-		if self.insert_undo_active {
-			return false;
-		}
-		self.insert_undo_active = true;
-		self.push_undo_snapshot();
-		true
 	}
 
 	/// Undoes the last document change.
@@ -489,6 +471,17 @@ impl Document {
 	/// Incremented on every transaction. Used for LSP sync and cache invalidation.
 	pub fn version(&self) -> u64 {
 		self.version
+	}
+
+	/// Returns whether an insert undo group is currently active.
+	///
+	/// When `true`, subsequent edits with [`UndoPolicy::MergeWithCurrentGroup`]
+	/// will be grouped with the current undo step. Used by the Editor layer
+	/// to determine whether to push a new [`EditorUndoGroup`].
+	///
+	/// [`EditorUndoGroup`]: crate::editor::types::EditorUndoGroup
+	pub fn insert_undo_active(&self) -> bool {
+		self.insert_undo_active
 	}
 
 	/// Increments the document version. Called internally during transaction application.
