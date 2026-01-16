@@ -2,6 +2,7 @@
 
 use futures::future::LocalBoxFuture;
 use xeno_lsp::lsp_types::{GotoDefinitionResponse, HoverContents, MarkedString, MarkupContent};
+use xeno_registry::Capability;
 
 use super::{CommandError, CommandOutcome, EditorCommandContext};
 use crate::editor_command;
@@ -34,7 +35,11 @@ fn cmd_hover<'a>(
 
 editor_command!(
 	gd,
-	{ aliases: &["goto-definition", "lsp-definition"], description: "Go to definition" },
+	{
+		aliases: &["goto-definition", "lsp-definition"],
+		description: "Go to definition",
+		caps: &[Capability::FileOps]
+	},
 	handler: cmd_goto_definition
 );
 
@@ -107,7 +112,8 @@ editor_command!(
 	code_action,
 	{
 		aliases: &["code-action", "code-actions", "lsp-code-action", "lsp-code-actions"],
-		description: "Show code actions at cursor"
+		description: "Show code actions at cursor",
+		caps: &[Capability::Edit]
 	},
 	handler: cmd_code_action
 );
@@ -123,7 +129,11 @@ fn cmd_code_action<'a>(
 
 editor_command!(
 	rename,
-	{ aliases: &["lsp-rename"], description: "Rename symbol at cursor" },
+	{
+		aliases: &["lsp-rename"],
+		description: "Rename symbol at cursor",
+		caps: &[Capability::Edit]
+	},
 	handler: cmd_rename
 );
 

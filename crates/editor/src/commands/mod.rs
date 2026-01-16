@@ -14,6 +14,7 @@ use std::any::Any;
 use futures::future::LocalBoxFuture;
 use linkme::distributed_slice;
 pub use xeno_registry::RegistrySource;
+use xeno_registry::Capability;
 pub use xeno_registry::commands::{CommandError, CommandOutcome, CommandResult};
 
 use crate::impls::Editor;
@@ -48,6 +49,8 @@ pub struct EditorCommandDef {
 	pub aliases: &'static [&'static str],
 	/// Human-readable description for help text.
 	pub description: &'static str,
+	/// Capabilities required to execute this command.
+	pub required_caps: &'static [Capability],
 	/// Async function that executes the command.
 	pub handler: EditorCommandHandler,
 	/// Extension-specific data passed to handler.
@@ -82,6 +85,7 @@ macro_rules! editor_command {
 	($name:ident, {
 		$(aliases: $aliases:expr,)?
 		description: $desc:expr
+		$(, caps: $caps:expr)?
 		$(, priority: $priority:expr)?
 		$(,)?
 	}, handler: $handler:expr) => {
@@ -94,6 +98,7 @@ macro_rules! editor_command {
 					name: stringify!($name),
 					aliases: $crate::__editor_cmd_opt_slice!($({$aliases})?),
 					description: $desc,
+					required_caps: $crate::__editor_cmd_opt_slice!($({$caps})?),
 					handler: $handler,
 					user_data: None,
 					priority: $crate::__editor_cmd_opt!($({$priority})?, 0),

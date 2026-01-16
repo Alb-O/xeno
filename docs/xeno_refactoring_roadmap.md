@@ -107,15 +107,15 @@ pub fn execute_action_legacy(&mut self, name: &str) -> bool {
 ## Phase 2 — Capability metadata for EditorCommands
 **Goal:** remove the “third” capability world.
 
-- [ ] **Pick staging strategy**:
-  - [ ] **A:** migrate EditorCommands into the registry `CommandDef` model.
-  - [ ] **B:** add `required_caps` to EditorCommand and enforce it in invocation immediately.
-- [ ] Implement enforcement for EditorCommands:
-  - [ ] Add `required_caps` field and plumb it to `run_editor_command_invocation`.
-  - [ ] Use the exact same `check_all_capabilities(...)` logic and policy interpretation.
-- [ ] Optional (recommended): unify display/diagnostics:
-  - [ ] A single “capability denied” notification path.
-  - [ ] A single place to render “why unavailable” (caps vs readonly).
+- [x] **Pick staging strategy**:
+  - [x] **A:** migrate EditorCommands into the registry `CommandDef` model (not chosen).
+  - [x] **B:** add `required_caps` to EditorCommand and enforce it in invocation immediately.
+- [x] Implement enforcement for EditorCommands:
+  - [x] Add `required_caps` field and plumb it to `run_editor_command_invocation`.
+  - [x] Use the exact same `check_all_capabilities(...)` logic and policy interpretation.
+- [x] Optional (recommended): unify display/diagnostics:
+  - [x] A single “capability denied” notification path.
+  - [x] A single place to render “why unavailable” (caps vs readonly).
 
 ### Code sketch: staged EditorCommand metadata
 ```rust

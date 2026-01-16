@@ -122,11 +122,7 @@ impl Editor {
 			if let Some(result) = handle_capability_violation(
 				policy,
 				e,
-				|err| {
-					self.show_notification(
-						xeno_registry_notifications::keys::action_error::call(err),
-					);
-				},
+				|err| notify_capability_denied(self, InvocationKind::Action, err),
 				|err| warn!(action = name, error = %err, "Capability check failed (log-only mode)"),
 			) {
 				return result;
@@ -137,8 +133,7 @@ impl Editor {
 			&& requires_edit_capability(required_caps)
 			&& self.buffer().is_readonly()
 		{
-			self.show_notification(xeno_registry_notifications::keys::buffer_readonly.into());
-			return InvocationResult::ReadonlyDenied;
+			return notify_readonly_denied(self);
 		}
 
 		emit_hook_sync_with(
@@ -215,12 +210,7 @@ impl Editor {
 			if let Some(result) = handle_capability_violation(
 				policy,
 				e,
-				|err| {
-					let error = err.to_string();
-					self.show_notification(
-						xeno_registry_notifications::keys::command_error::call(&error),
-					);
-				},
+				|err| notify_capability_denied(self, InvocationKind::Command, err),
 				|err| {
 					warn!(
 						command = name,
@@ -237,8 +227,7 @@ impl Editor {
 			&& requires_edit_capability(required_caps)
 			&& self.buffer().is_readonly()
 		{
-			self.show_notification(xeno_registry_notifications::keys::buffer_readonly.into());
-			return InvocationResult::ReadonlyDenied;
+			return notify_readonly_denied(self);
 		}
 
 		let args_refs: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
@@ -263,7 +252,7 @@ impl Editor {
 		}
 	}
 
-	/// Editor commands lack capability metadata; capability gating not yet supported.
+	/// Executes editor-direct commands with capability gating and policy checks.
 	async fn run_editor_command_invocation(
 		&mut self,
 		name: &str,
@@ -276,7 +265,7 @@ impl Editor {
 
 		debug!(command = name, "Executing editor command");
 
-		let required_caps: &[xeno_registry::Capability] = &[];
+		let required_caps = editor_cmd.required_caps;
 		let caps_error = if required_caps.is_empty() {
 			None
 		} else {
@@ -287,12 +276,7 @@ impl Editor {
 			if let Some(result) = handle_capability_violation(
 				policy,
 				e,
-				|err| {
-					let error = err.to_string();
-					self.show_notification(
-						xeno_registry_notifications::keys::command_error::call(&error),
-					);
-				},
+				|err| notify_capability_denied(self, InvocationKind::EditorCommand, err),
 				|err| {
 					warn!(
 						command = name,
@@ -309,8 +293,7 @@ impl Editor {
 			&& requires_edit_capability(required_caps)
 			&& self.buffer().is_readonly()
 		{
-			self.show_notification(xeno_registry_notifications::keys::buffer_readonly.into());
-			return InvocationResult::ReadonlyDenied;
+			return notify_readonly_denied(self);
 		}
 
 		let args_refs: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
@@ -334,6 +317,29 @@ impl Editor {
 			}
 		}
 	}
+}
+
+enum InvocationKind {
+	Action,
+	Command,
+	EditorCommand,
+}
+
+fn notify_capability_denied(editor: &mut Editor, kind: InvocationKind, error: &CommandError) {
+	match kind {
+		InvocationKind::Action => editor.show_notification(
+			xeno_registry_notifications::keys::action_error::call(error),
+		),
+		InvocationKind::Command | InvocationKind::EditorCommand => {
+			let error = error.to_string();
+			editor.show_notification(xeno_registry_notifications::keys::command_error::call(&error));
+		}
+	}
+}
+
+fn notify_readonly_denied(editor: &mut Editor) -> InvocationResult {
+	editor.show_notification(xeno_registry_notifications::keys::buffer_readonly.into());
+	InvocationResult::ReadonlyDenied
 }
 
 fn requires_edit_capability(caps: &[xeno_registry::Capability]) -> bool {
