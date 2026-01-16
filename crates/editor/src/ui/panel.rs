@@ -5,7 +5,7 @@ use xeno_tui::layout::{Position, Rect};
 
 use super::dock::DockSlot;
 use super::keymap::KeybindingRegistry;
-use crate::editor::Editor;
+use crate::impls::Editor;
 
 /// Events that can be delivered to panels.
 #[derive(Debug, Clone)]

@@ -4,7 +4,7 @@ use futures::future::LocalBoxFuture;
 use xeno_lsp::lsp_types::{GotoDefinitionResponse, HoverContents, MarkedString, MarkupContent};
 
 use super::{CommandError, CommandOutcome, EditorCommandContext};
-use crate::editor::Editor;
+use crate::impls::Editor;
 use crate::editor_command;
 use crate::info_popup::PopupAnchor;
 
@@ -42,7 +42,7 @@ fn cmd_goto_definition<'a>(
 	ctx: &'a mut EditorCommandContext<'a>,
 ) -> LocalBoxFuture<'a, Result<CommandOutcome, CommandError>> {
 	Box::pin(async move {
-		use crate::editor::Location;
+		use crate::impls::Location;
 
 		let response = ctx
 			.editor

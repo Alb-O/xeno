@@ -17,7 +17,7 @@ use tracing::warn;
 use xeno_registry_notifications::keys;
 
 use crate::buffer::{Buffer, BufferId, DocumentId};
-use crate::editor::{Editor, EditorUndoGroup, ViewSnapshot};
+use crate::impls::{Editor, EditorUndoGroup, ViewSnapshot};
 
 impl Buffer {
 	/// Creates a snapshot of this buffer's view state.

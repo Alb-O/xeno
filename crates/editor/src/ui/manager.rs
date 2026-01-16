@@ -108,7 +108,7 @@ impl UiManager {
 	/// Routes a key event to the focused panel, returning true if consumed.
 	pub fn handle_focused_key(
 		&mut self,
-		editor: &mut crate::editor::Editor,
+		editor: &mut crate::impls::Editor,
 		key: KeyEvent,
 	) -> bool {
 		let Some(panel_id) = self.focused_panel_id().map(|s| s.to_string()) else {
@@ -125,7 +125,7 @@ impl UiManager {
 	}
 
 	/// Routes a paste event to the focused panel, returning true if consumed.
-	pub fn handle_paste(&mut self, editor: &mut crate::editor::Editor, content: String) -> bool {
+	pub fn handle_paste(&mut self, editor: &mut crate::impls::Editor, content: String) -> bool {
 		let Some(panel_id) = self.focused_panel_id().map(|s| s.to_string()) else {
 			return false;
 		};
@@ -140,7 +140,7 @@ impl UiManager {
 	/// Routes a mouse event to the appropriate panel based on hit testing.
 	pub fn handle_mouse(
 		&mut self,
-		editor: &mut crate::editor::Editor,
+		editor: &mut crate::impls::Editor,
 		mouse: MouseEvent,
 		layout: &DockLayout,
 	) -> bool {
@@ -179,7 +179,7 @@ impl UiManager {
 	}
 
 	/// Sends a tick event to all panels for periodic updates.
-	pub fn tick(&mut self, editor: &mut crate::editor::Editor) {
+	pub fn tick(&mut self, editor: &mut crate::impls::Editor) {
 		let ids: Vec<String> = self.panels.keys().cloned().collect();
 		let mut requests = Vec::new();
 		for id in ids {
@@ -193,7 +193,7 @@ impl UiManager {
 	}
 
 	/// Notifies all panels of a terminal resize event.
-	pub fn notify_resize(&mut self, editor: &mut crate::editor::Editor, _width: u16, _height: u16) {
+	pub fn notify_resize(&mut self, editor: &mut crate::impls::Editor, _width: u16, _height: u16) {
 		let ids: Vec<String> = self.panels.keys().cloned().collect();
 		let mut requests = Vec::new();
 		for id in ids {
@@ -266,7 +266,7 @@ impl UiManager {
 	/// Renders all open panels and returns the cursor position if any panel requests one.
 	pub fn render_panels(
 		&mut self,
-		editor: &mut crate::editor::Editor,
+		editor: &mut crate::impls::Editor,
 		frame: &mut xeno_tui::Frame,
 		layout: &DockLayout,
 		theme: &Theme,

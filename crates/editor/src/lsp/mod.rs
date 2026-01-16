@@ -64,7 +64,7 @@ pub(crate) mod workspace_edit;
 
 pub(crate) use completion_controller::CompletionController;
 pub(crate) use events::LspUiEvent;
-pub(crate) use types::{CompletionState, LspMenuKind, LspMenuState};
+pub(crate) use types::{LspMenuKind, LspMenuState};
 
 use std::path::Path;
 use std::sync::Arc;

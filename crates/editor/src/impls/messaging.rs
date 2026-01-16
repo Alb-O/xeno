@@ -5,7 +5,7 @@ use xeno_tui::style::Style;
 use xeno_tui::widgets::icon::presets as icon_presets;
 use xeno_tui::widgets::notifications::{self as notif, Anchor, Toast, ToastIcon};
 
-use crate::editor::Editor;
+use crate::impls::Editor;
 
 impl Editor {
 	/// Emits a typed notification.

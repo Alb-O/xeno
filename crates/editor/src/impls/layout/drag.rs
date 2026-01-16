@@ -7,7 +7,7 @@ use xeno_tui::layout::Rect;
 use super::manager::LayoutManager;
 use super::types::SeparatorHit;
 use crate::buffer::SplitDirection;
-use crate::editor::separator::{DragState, SeparatorHoverAnimation};
+use crate::impls::separator::{DragState, SeparatorHoverAnimation};
 use crate::test_events::{AnimationDirection, SeparatorAnimationEvent};
 
 impl LayoutManager {

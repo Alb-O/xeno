@@ -5,7 +5,7 @@
 use termina::event::KeyCode;
 use xeno_primitives::{Key, Mode, Selection};
 
-use crate::editor::{Editor, FocusTarget};
+use crate::impls::{Editor, FocusTarget};
 use crate::input::KeyResult;
 use crate::palette::PaletteState;
 use crate::window::Window;
@@ -231,7 +231,7 @@ impl Editor {
 		inserted_char: Option<char>,
 	) {
 		use crate::lsp::completion_controller::CompletionTrigger;
-		use crate::lsp::CompletionState;
+		use crate::CompletionState;
 
 		if let Some(new_mode) = mode_change
 			&& !matches!(new_mode, xeno_primitives::Mode::Insert)

@@ -11,7 +11,7 @@
 //! manages document content - cursor, selection, and scroll restoration happens
 //! at the editor level via [`EditorUndoGroup`].
 //!
-//! [`EditorUndoGroup`]: crate::editor::types::EditorUndoGroup
+//! [`EditorUndoGroup`]: crate::impls::types::EditorUndoGroup
 
 #[cfg(test)]
 mod tests;

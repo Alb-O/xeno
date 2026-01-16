@@ -5,7 +5,7 @@
 use termina::event::MouseEventKind;
 use xeno_primitives::Selection;
 
-use crate::editor::{Editor, FocusTarget};
+use crate::impls::{Editor, FocusTarget};
 use crate::input::KeyResult;
 use crate::window::Window;
 

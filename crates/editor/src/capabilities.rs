@@ -19,7 +19,7 @@ use xeno_registry::{
 };
 use xeno_registry_notifications::{Notification, keys};
 
-use crate::editor::Editor;
+use crate::impls::Editor;
 
 /// Parses a string value into an [`OptionValue`] based on the option's declared type.
 ///
@@ -93,7 +93,7 @@ impl ModeAccess for Editor {
 		#[cfg(feature = "lsp")]
 		if matches!(mode, Mode::Insert) {
 			self.overlays
-				.get_or_default::<crate::lsp::CompletionState>()
+				.get_or_default::<crate::CompletionState>()
 				.suppressed = false;
 		}
 		self.buffer_mut().input.set_mode(mode);
@@ -280,7 +280,7 @@ impl CommandEditorOps for Editor {
 		column: usize,
 	) -> Pin<Box<dyn Future<Output = Result<(), CommandError>> + '_>> {
 		Box::pin(async move {
-			use crate::editor::Location;
+			use crate::impls::Location;
 			self.goto_location(&Location::new(path, line, column))
 				.await
 				.map_err(|e| CommandError::Io(e.to_string()))?;
@@ -367,7 +367,7 @@ impl JumpAccess for Editor {
 		let cursor = self.buffer().cursor;
 		self.workspace
 			.jump_list
-			.push(crate::editor::JumpLocation { buffer_id, cursor });
+			.push(crate::impls::JumpLocation { buffer_id, cursor });
 
 		if let Some(loc) = self.workspace.jump_list.jump_backward() {
 			let buffer_id = loc.buffer_id;
@@ -387,7 +387,7 @@ impl JumpAccess for Editor {
 		let cursor = self.buffer().cursor;
 		self.workspace
 			.jump_list
-			.push(crate::editor::JumpLocation { buffer_id, cursor });
+			.push(crate::impls::JumpLocation { buffer_id, cursor });
 	}
 }
 

@@ -6,7 +6,7 @@ use termina::event::KeyEvent;
 use xeno_primitives::range::CharIdx;
 
 use crate::buffer::BufferId;
-use crate::editor::CommandQueue;
+use crate::impls::CommandQueue;
 
 /// Named registers for storing yanked text.
 #[derive(Default)]

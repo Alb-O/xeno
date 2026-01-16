@@ -16,7 +16,7 @@ use linkme::distributed_slice;
 pub use xeno_registry::RegistrySource;
 pub use xeno_registry::commands::{CommandError, CommandOutcome, CommandResult};
 
-use crate::editor::Editor;
+use crate::impls::Editor;
 
 /// Context provided to editor-direct command handlers.
 pub struct EditorCommandContext<'a> {

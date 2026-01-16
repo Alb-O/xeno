@@ -386,7 +386,7 @@ impl Buffer {
 	/// let width = buffer.option_raw(keys::TAB_WIDTH.untyped(), editor);
 	/// let tab_width = i64::from_option(&width).unwrap_or(4);
 	/// ```
-	pub fn option_raw(&self, key: OptionKey, editor: &crate::editor::Editor) -> OptionValue {
+	pub fn option_raw(&self, key: OptionKey, editor: &crate::impls::Editor) -> OptionValue {
 		editor.resolve_option(self.id, key)
 	}
 
@@ -406,7 +406,7 @@ impl Buffer {
 	pub fn option<T: FromOptionValue>(
 		&self,
 		key: TypedOptionKey<T>,
-		editor: &crate::editor::Editor,
+		editor: &crate::impls::Editor,
 	) -> T {
 		T::from_option(&self.option_raw(key.untyped(), editor))
 			.or_else(|| T::from_option(&(key.def().default)()))

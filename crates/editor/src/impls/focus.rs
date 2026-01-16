@@ -62,7 +62,7 @@ impl Editor {
 	}
 
 	/// Internal focus implementation, handling sticky views.
-	pub(super) fn focus_buffer_in_window(
+	pub(crate) fn focus_buffer_in_window(
 		&mut self,
 		window_id: WindowId,
 		view: BufferView,
@@ -167,7 +167,7 @@ impl Editor {
 		}
 	}
 
-	pub(super) fn sync_focus_from_ui(&mut self) {
+	pub(crate) fn sync_focus_from_ui(&mut self) {
 		let old_focus = self.focus.clone();
 		if let Some(panel_id) = self.ui.focused_panel_id() {
 			self.focus = FocusTarget::Panel(panel_id.to_string());

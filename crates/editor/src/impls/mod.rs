@@ -35,10 +35,6 @@ mod focus;
 mod history;
 /// Async hook execution runtime.
 mod hook_runtime;
-/// Info popup operations.
-mod info_popup;
-/// Input handling.
-mod input;
 /// Split layout management.
 mod layout;
 /// Editor lifecycle (tick, render).
@@ -49,8 +45,6 @@ mod messaging;
 mod navigation;
 /// Option resolution.
 mod options;
-/// Command palette operations.
-mod palette;
 /// Search state and operations.
 mod search;
 /// Separator hit detection.
@@ -88,7 +82,7 @@ use crate::lsp::CompletionController;
 use crate::lsp::LspUiEvent;
 pub use self::separator::{DragState, MouseVelocityTracker, SeparatorHoverAnimation};
 use crate::buffer::{BufferId, Layout};
-use crate::editor::extensions::{ExtensionMap, StyleOverlays};
+use crate::impls::extensions::{ExtensionMap, StyleOverlays};
 use crate::overlay::OverlayManager;
 use crate::ui::UiManager;
 use crate::window::{BaseWindow, FloatingStyle, WindowId, WindowManager};

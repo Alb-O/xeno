@@ -29,7 +29,7 @@ pub mod capabilities;
 pub mod commands;
 /// Completion types and sources for command palette.
 pub mod completion;
-pub mod editor;
+pub mod impls;
 /// Editor context and effect handling.
 pub mod editor_ctx;
 /// Info popups for documentation and contextual help.
@@ -63,8 +63,10 @@ pub mod ui;
 pub mod window;
 
 pub use buffer::{Buffer, BufferId, HistoryResult};
-pub use completion::{CompletionContext, CompletionItem, CompletionKind, CompletionSource};
-pub use editor::Editor;
+pub use completion::{
+	CompletionContext, CompletionItem, CompletionKind, CompletionSource, CompletionState,
+};
+pub use impls::Editor;
 pub use editor_ctx::{EditorCapabilities, EditorContext, EditorOps, HandleOutcome, apply_effects};
 pub use movement::WordType;
 pub use terminal_config::{TerminalConfig, TerminalSequence};

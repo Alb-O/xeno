@@ -4,7 +4,7 @@
 //! fields on [`Editor`]. New overlay types can be added without modifying
 //! the Editor definition.
 //!
-//! [`Editor`]: crate::editor::Editor
+//! [`Editor`]: crate::impls::Editor
 
 use std::any::{Any, TypeId};
 use std::collections::HashMap;
@@ -14,7 +14,7 @@ use std::collections::HashMap;
 /// Similar to [`ExtensionMap`] but for transient UI overlays like popups,
 /// palettes, and completion menus.
 ///
-/// [`ExtensionMap`]: crate::editor::extensions::ExtensionMap
+/// [`ExtensionMap`]: crate::impls::extensions::ExtensionMap
 #[derive(Default)]
 pub struct OverlayManager {
 	inner: HashMap<TypeId, Box<dyn Any + Send + Sync>>,

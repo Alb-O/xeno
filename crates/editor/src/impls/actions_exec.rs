@@ -5,7 +5,7 @@ use xeno_registry::{
 	dispatch_result, emit_sync_with as emit_hook_sync_with,
 };
 
-use crate::editor::Editor;
+use crate::impls::Editor;
 
 impl Editor {
 	/// Executes a named action with the given count and options.

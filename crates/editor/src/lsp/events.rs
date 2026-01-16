@@ -6,9 +6,10 @@ use xeno_lsp::lsp_types::{
 use xeno_primitives::range::CharIdx;
 
 use crate::buffer::BufferId;
-use crate::editor::Editor;
+use crate::impls::Editor;
 use super::completion_filter::{extract_query, filter_items};
-use super::types::{CompletionState, LspMenuKind, LspMenuState, SelectionIntent};
+use super::types::{LspMenuKind, LspMenuState};
+use crate::completion::{CompletionState, SelectionIntent};
 use crate::info_popup::PopupAnchor;
 use crate::{CompletionItem, CompletionKind};
 

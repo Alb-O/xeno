@@ -3,7 +3,7 @@
 use xeno_primitives::{Mode, Selection};
 use xeno_registry_notifications::keys;
 
-use crate::editor::Editor;
+use crate::impls::Editor;
 use crate::prompt::{Prompt, PromptKind, PromptState, prompt_rect, prompt_style};
 use crate::window::{GutterSelector, Window};
 
@@ -145,7 +145,7 @@ impl Editor {
 		let Window::Floating(float) = self.windows.get(window_id).expect("window exists") else {
 			return;
 		};
-		self.focus = crate::editor::FocusTarget::Buffer {
+		self.focus = crate::impls::FocusTarget::Buffer {
 			window: window_id,
 			buffer: float.buffer,
 		};

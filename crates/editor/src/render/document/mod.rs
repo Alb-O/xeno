@@ -17,7 +17,7 @@ use self::separator::{SeparatorStyle, junction_glyph};
 use super::buffer::{BufferRenderContext, ensure_buffer_cursor_visible};
 use crate::Editor;
 use crate::buffer::{BufferView, SplitDirection};
-use crate::editor::FocusTarget;
+use crate::impls::FocusTarget;
 
 /// Per-layer rendering data: (layer_index, layer_area, view_areas, separators).
 type LayerRenderData = (
