@@ -304,6 +304,8 @@ fn serialize_then_deserialize() {
 		bg: Some(Color::White),
 		#[cfg(feature = "underline-color")]
 		underline_color: Some(Color::Indexed(3)),
+		#[cfg(feature = "underline-color")]
+		underline_style: None,
 		add_modifier: Modifier::UNDERLINED,
 		sub_modifier: Modifier::CROSSED_OUT,
 	};
@@ -340,6 +342,8 @@ fn deserialize_defaults() {
 		bg: None,
 		#[cfg(feature = "underline-color")]
 		underline_color: None,
+		#[cfg(feature = "underline-color")]
+		underline_style: None,
 		add_modifier: Modifier::empty(),
 		sub_modifier: Modifier::empty(),
 	};

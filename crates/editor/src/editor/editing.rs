@@ -128,16 +128,6 @@ impl Editor {
 		applied
 	}
 
-	/// Applies a transaction without undo recording (legacy compatibility).
-	fn apply_transaction_with_selection(
-		&mut self,
-		buffer_id: BufferId,
-		tx: &Transaction,
-		new_selection: Option<Selection>,
-	) -> bool {
-		self.apply_transaction_inner(buffer_id, tx, new_selection, UndoPolicy::NoUndo)
-	}
-
 	/// Inserts a newline with smart indentation.
 	///
 	/// Copies the leading whitespace from the current line to the new line.
@@ -304,15 +294,6 @@ impl Editor {
 			EditOrigin::Internal("delete"),
 		);
 
-		if !applied {
-			self.notify(keys::buffer_readonly);
-		}
-	}
-
-	/// Applies a transaction to the focused buffer.
-	pub fn apply_transaction(&mut self, tx: &Transaction) {
-		let buffer_id = self.focused_view();
-		let applied = self.apply_transaction_with_selection(buffer_id, tx, None);
 		if !applied {
 			self.notify(keys::buffer_readonly);
 		}

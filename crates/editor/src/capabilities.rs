@@ -134,10 +134,6 @@ impl SearchAccess for Editor {
 }
 
 impl UndoAccess for Editor {
-	fn save_state(&mut self) {
-		self.save_undo_state();
-	}
-
 	fn undo(&mut self) {
 		self.undo();
 	}

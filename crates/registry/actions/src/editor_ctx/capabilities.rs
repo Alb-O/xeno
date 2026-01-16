@@ -141,8 +141,6 @@ pub trait SearchAccess {
 ///
 /// Provides access to the buffer's history stack for undoing and redoing changes.
 pub trait UndoAccess {
-	/// Saves the current state to the undo stack.
-	fn save_state(&mut self);
 	/// Undoes the last change.
 	fn undo(&mut self);
 	/// Redoes the last undone change.

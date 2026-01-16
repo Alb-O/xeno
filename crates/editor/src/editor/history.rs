@@ -14,7 +14,6 @@
 use std::collections::{HashMap, HashSet};
 
 use tracing::warn;
-use xeno_primitives::EditOrigin;
 use xeno_registry_notifications::keys;
 
 use crate::buffer::{Buffer, BufferId, DocumentId};
@@ -67,33 +66,6 @@ impl Editor {
 				buffer.ensure_valid_selection();
 			}
 		}
-	}
-
-	/// Saves current state to undo history for all views of the focused document.
-	///
-	/// Captures view snapshots at the editor level and saves document state
-	/// at the document level.
-	pub fn save_undo_state(&mut self) {
-		let buffer_id = self.focused_view();
-		let doc_id = self
-			.buffers
-			.get_buffer(buffer_id)
-			.expect("focused buffer must exist")
-			.document_id();
-
-		let view_snapshots = self.collect_view_snapshots(doc_id);
-
-		self.buffers
-			.get_buffer_mut(buffer_id)
-			.expect("focused buffer must exist")
-			.with_doc_mut(|doc| doc.record_undo_boundary());
-
-		self.undo_group_stack.push(EditorUndoGroup {
-			affected_docs: vec![doc_id],
-			view_snapshots,
-			origin: EditOrigin::Internal("manual"),
-		});
-		self.redo_group_stack.clear();
 	}
 
 	/// Undoes the last change, restoring view state for all affected buffers.
