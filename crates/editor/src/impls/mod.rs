@@ -50,35 +50,35 @@ mod theming;
 /// Buffer access and viewport management.
 mod views;
 
+pub use core::EditorCore;
 use std::path::PathBuf;
 
-pub use crate::buffer_manager::BufferManager;
-pub use crate::command_queue::CommandQueue;
-pub use core::EditorCore;
-pub use focus::{FocusReason, FocusTarget, PanelId};
-pub use crate::hook_runtime::HookRuntime;
-pub use crate::layout::{LayoutManager, SeparatorHit, SeparatorId};
-pub use navigation::Location;
-pub use crate::types::{
-	ApplyEditPolicy, Config, EditorUndoGroup, FrameState, Invocation, InvocationPolicy,
-	InvocationResult, JumpList, JumpLocation, MacroState, PreparedEdit, Registers, UndoHost,
-	UndoManager, ViewSnapshot, Viewport, Workspace,
-};
 pub use edit_executor::EditExecutor;
+pub use focus::{FocusReason, FocusTarget, PanelId};
+pub use navigation::Location;
 use xeno_registry::{
 	HookContext, HookEventData, WindowKind, emit_sync_with as emit_hook_sync_with,
 };
 use xeno_runtime_language::LanguageLoader;
 use xeno_tui::layout::Rect;
 
+use crate::buffer::{BufferId, Layout};
+pub use crate::buffer_manager::BufferManager;
+pub use crate::command_queue::CommandQueue;
+use crate::extensions::{ExtensionMap, StyleOverlays};
+pub use crate::hook_runtime::HookRuntime;
+pub use crate::layout::{LayoutManager, SeparatorHit, SeparatorId};
 #[cfg(feature = "lsp")]
 use crate::lsp::CompletionController;
 #[cfg(feature = "lsp")]
 use crate::lsp::LspUiEvent;
-pub use crate::separator::{DragState, MouseVelocityTracker, SeparatorHoverAnimation};
-use crate::buffer::{BufferId, Layout};
-use crate::extensions::{ExtensionMap, StyleOverlays};
 use crate::overlay::OverlayManager;
+pub use crate::separator::{DragState, MouseVelocityTracker, SeparatorHoverAnimation};
+pub use crate::types::{
+	ApplyEditPolicy, Config, EditorUndoGroup, FrameState, Invocation, InvocationPolicy,
+	InvocationResult, JumpList, JumpLocation, MacroState, PreparedEdit, Registers, UndoHost,
+	UndoManager, ViewSnapshot, Viewport, Workspace,
+};
 use crate::ui::UiManager;
 use crate::window::{BaseWindow, FloatingStyle, WindowId, WindowManager};
 
@@ -260,11 +260,7 @@ impl Editor {
 		);
 
 		// Create EditorCore with buffers, workspace, and undo manager
-		let core = EditorCore::new(
-			buffer_manager,
-			Workspace::default(),
-			UndoManager::new(),
-		);
+		let core = EditorCore::new(buffer_manager, Workspace::default(), UndoManager::new());
 
 		Self {
 			core,

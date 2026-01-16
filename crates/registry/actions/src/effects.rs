@@ -411,7 +411,6 @@ pub enum Effect {
 
 	// Legacy flat variants for backward compatibility.
 	// These will be deprecated in a future version.
-
 	/// Set cursor to absolute position.
 	#[doc(hidden)]
 	SetCursor(CharIdx),
@@ -598,7 +597,10 @@ mod tests {
 			effects.as_slice()[0],
 			Effect::View(ViewEffect::SetSelection(_))
 		));
-		assert!(matches!(effects.as_slice()[1], Effect::SetMode(Mode::Insert)));
+		assert!(matches!(
+			effects.as_slice()[1],
+			Effect::SetMode(Mode::Insert)
+		));
 	}
 
 	#[test]
@@ -637,7 +639,10 @@ mod tests {
 	#[test]
 	fn test_nested_app_effect() {
 		let effect: Effect = AppEffect::Quit { force: true }.into();
-		assert!(matches!(effect, Effect::App(AppEffect::Quit { force: true })));
+		assert!(matches!(
+			effect,
+			Effect::App(AppEffect::Quit { force: true })
+		));
 	}
 
 	#[test]

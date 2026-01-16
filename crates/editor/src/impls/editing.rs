@@ -58,7 +58,8 @@ impl Editor {
 		#[cfg(feature = "lsp")]
 		let encoding = {
 			let buffer = self
-				.core.buffers
+				.core
+				.buffers
 				.get_buffer(buffer_id)
 				.expect("focused buffer must exist");
 			self.lsp.incremental_encoding_for_buffer(buffer)
@@ -67,7 +68,8 @@ impl Editor {
 		#[cfg(feature = "lsp")]
 		let applied = {
 			let buffer = self
-				.core.buffers
+				.core
+				.buffers
 				.get_buffer_mut(buffer_id)
 				.expect("focused buffer must exist");
 			let applied = if let Some(encoding) = encoding {
@@ -84,7 +86,8 @@ impl Editor {
 		#[cfg(not(feature = "lsp"))]
 		let applied = {
 			let buffer = self
-				.core.buffers
+				.core
+				.buffers
 				.get_buffer_mut(buffer_id)
 				.expect("focused buffer must exist");
 			let applied = buffer.apply(tx, policy, &self.config.language_loader);
@@ -139,7 +142,8 @@ impl Editor {
 
 		let (tx, new_selection) = {
 			let buffer = self
-				.core.buffers
+				.core
+				.buffers
 				.get_buffer_mut(buffer_id)
 				.expect("focused buffer must exist");
 			buffer.prepare_insert(text)
@@ -181,7 +185,8 @@ impl Editor {
 
 		let Some((tx, new_selection)) = ({
 			let buffer = self
-				.core.buffers
+				.core
+				.buffers
 				.get_buffer_mut(buffer_id)
 				.expect("focused buffer must exist");
 			buffer.prepare_paste_after(&yank)
@@ -217,7 +222,8 @@ impl Editor {
 
 		let Some((tx, new_selection)) = ({
 			let buffer = self
-				.core.buffers
+				.core
+				.buffers
 				.get_buffer_mut(buffer_id)
 				.expect("focused buffer must exist");
 			buffer.prepare_paste_before(&yank)
@@ -252,7 +258,8 @@ impl Editor {
 
 		let Some((tx, new_selection)) = ({
 			let buffer = self
-				.core.buffers
+				.core
+				.buffers
 				.get_buffer_mut(buffer_id)
 				.expect("focused buffer must exist");
 			buffer.prepare_delete_selection()
@@ -280,7 +287,8 @@ impl Editor {
 	pub fn reparse_syntax(&mut self) {
 		let buffer_id = self.focused_view();
 		let buffer = self
-				.core.buffers
+			.core
+			.buffers
 			.get_buffer_mut(buffer_id)
 			.expect("focused buffer must exist");
 		buffer.reparse_syntax(&self.config.language_loader);

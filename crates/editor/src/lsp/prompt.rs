@@ -55,13 +55,15 @@ impl Editor {
 		if !word.is_empty() {
 			let end = word.chars().count();
 			let buffer = self
-				.core.buffers
+				.core
+				.buffers
 				.get_buffer_mut(prompt_buffer_id)
 				.expect("prompt buffer exists");
 			buffer.reset_content(word.as_str());
 			buffer.set_cursor_and_selection(end, Selection::single(0, end));
 		}
-		self.core.buffers
+		self.core
+			.buffers
 			.get_buffer_mut(prompt_buffer_id)
 			.expect("prompt buffer exists")
 			.input
@@ -119,7 +121,8 @@ impl Editor {
 		};
 
 		let input = self
-				.core.buffers
+			.core
+			.buffers
 			.get_buffer(prompt.buffer_id)
 			.map(|buffer| buffer.with_doc(|doc| doc.content().to_string()))
 			.unwrap_or_default();

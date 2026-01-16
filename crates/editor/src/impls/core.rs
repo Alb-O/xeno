@@ -11,8 +11,8 @@
 //!
 //! [`Editor`]: super::Editor
 
-use xeno_primitives::range::CharIdx;
 use xeno_primitives::Selection;
+use xeno_primitives::range::CharIdx;
 use xeno_registry::{CommandQueueAccess, CursorAccess, MacroAccess, SelectionAccess};
 
 use crate::buffer::{Buffer, BufferId, BufferView};

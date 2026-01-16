@@ -2,14 +2,14 @@ use xeno_primitives::range::Range;
 use xeno_primitives::{Mode, Selection};
 use xeno_registry_motions::keys as motions;
 
-use crate::{ActionEffects, ActionResult, Effect, action, edit_op, insert_with_motion};
+use crate::{ActionEffects, ActionResult, AppEffect, Effect, action, edit_op, insert_with_motion};
 
 action!(insert_mode, { description: "Switch to insert mode", bindings: r#"normal "i""# }, |ctx| {
 	let ranges: Vec<_> = ctx.selection.ranges().iter()
 		.map(|r| Range::new(r.max(), r.min()))
 		.collect();
 	let sel = Selection::from_vec(ranges, ctx.selection.primary_index());
-	ActionResult::Effects(ActionEffects::motion(sel).with(Effect::SetMode(Mode::Insert)))
+	ActionResult::Effects(ActionEffects::motion(sel).with(Effect::App(AppEffect::SetMode(Mode::Insert))))
 });
 
 action!(insert_line_start, { description: "Insert at start of line", bindings: r#"normal "I""# },
@@ -24,7 +24,7 @@ action!(insert_after, { description: "Insert after cursor", bindings: r#"normal 
 		.map(|r| Range::new(r.min(), (r.max() + 1).min(max_pos)))
 		.collect();
 	let sel = Selection::from_vec(ranges, ctx.selection.primary_index());
-	ActionResult::Effects(ActionEffects::motion(sel).with(Effect::SetMode(Mode::Insert)))
+	ActionResult::Effects(ActionEffects::motion(sel).with(Effect::App(AppEffect::SetMode(Mode::Insert))))
 });
 
 action!(insert_newline, {

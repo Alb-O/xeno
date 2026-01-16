@@ -60,7 +60,8 @@ impl Editor {
 			}
 
 			Invocation::EditorCommand { name, args } => {
-				self.run_editor_command_invocation(&name, args, policy).await
+				self.run_editor_command_invocation(&name, args, policy)
+					.await
 			}
 		}
 	}
@@ -75,7 +76,9 @@ impl Editor {
 		policy: InvocationPolicy,
 	) -> InvocationResult {
 		let Some(action) = find_action(name) else {
-			self.show_notification(xeno_registry_notifications::keys::unknown_action::call(name));
+			self.show_notification(xeno_registry_notifications::keys::unknown_action::call(
+				name,
+			));
 			return InvocationResult::NotFound(format!("action:{name}"));
 		};
 
@@ -279,7 +282,10 @@ mod tests {
 
 	#[test]
 	fn invocation_describe() {
-		assert_eq!(Invocation::action("move_left").describe(), "action:move_left");
+		assert_eq!(
+			Invocation::action("move_left").describe(),
+			"action:move_left"
+		);
 		assert_eq!(
 			Invocation::action_with_count("move_down", 5).describe(),
 			"action:move_downx5"

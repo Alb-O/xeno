@@ -21,8 +21,11 @@ fn cmd_help<'a>(
 				out.push(format!("Source: {}", cmd.source()));
 				out.push(format!("Priority: {}", cmd.priority()));
 				if !cmd.required_caps().is_empty() {
-					let caps: Vec<String> =
-						cmd.required_caps().iter().map(|c| format!("{c:?}")).collect();
+					let caps: Vec<String> = cmd
+						.required_caps()
+						.iter()
+						.map(|c| format!("{c:?}"))
+						.collect();
 					out.push(format!("Required Capabilities: {}", caps.join(", ")));
 				}
 				ctx.emit(keys::help_text::call(out.join("\n")));

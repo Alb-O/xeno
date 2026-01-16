@@ -106,11 +106,7 @@ impl UiManager {
 	}
 
 	/// Routes a key event to the focused panel, returning true if consumed.
-	pub fn handle_focused_key(
-		&mut self,
-		editor: &mut crate::impls::Editor,
-		key: KeyEvent,
-	) -> bool {
+	pub fn handle_focused_key(&mut self, editor: &mut crate::impls::Editor, key: KeyEvent) -> bool {
 		let Some(panel_id) = self.focused_panel_id().map(|s| s.to_string()) else {
 			return false;
 		};

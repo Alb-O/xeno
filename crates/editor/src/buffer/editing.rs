@@ -335,7 +335,10 @@ impl Buffer {
 	}
 
 	/// Applies a transaction with syntax update and undo policy.
-	#[deprecated(since = "0.4.0", note = "Use `apply()` with `ApplyPolicy::EDIT` instead")]
+	#[deprecated(
+		since = "0.4.0",
+		note = "Use `apply()` with `ApplyPolicy::EDIT` instead"
+	)]
 	pub fn apply_transaction_with_syntax_and_undo(
 		&self,
 		tx: &Transaction,
@@ -373,7 +376,10 @@ impl Buffer {
 
 	/// Applies a transaction with LSP sync and undo policy.
 	#[cfg(feature = "lsp")]
-	#[deprecated(since = "0.4.0", note = "Use `apply_with_lsp()` with `ApplyPolicy` instead")]
+	#[deprecated(
+		since = "0.4.0",
+		note = "Use `apply_with_lsp()` with `ApplyPolicy` instead"
+	)]
 	pub fn apply_edit_with_lsp_and_undo(
 		&self,
 		tx: &Transaction,

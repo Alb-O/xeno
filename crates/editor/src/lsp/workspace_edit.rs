@@ -14,9 +14,7 @@ use xeno_primitives::range::CharIdx;
 use xeno_primitives::transaction::{Change, Tendril};
 use xeno_primitives::{EditOrigin, SyntaxPolicy, Transaction, UndoPolicy};
 
-use crate::buffer::ApplyPolicy;
-
-use crate::buffer::BufferId;
+use crate::buffer::{ApplyPolicy, BufferId};
 use crate::impls::{Editor, EditorUndoGroup};
 use crate::types::UndoHost;
 
@@ -119,7 +117,8 @@ impl Editor {
 		for (_uri_string, (uri, edits)) in per_uri {
 			let (buffer_id, opened_temporarily) = self.resolve_uri_to_buffer(&uri).await?;
 			let buffer = self
-				.core.buffers
+				.core
+				.buffers
 				.get_buffer(buffer_id)
 				.ok_or_else(|| ApplyError::BufferNotFound(uri.to_string()))?;
 			let encoding = self.lsp.offset_encoding_for_buffer(buffer);
@@ -210,7 +209,8 @@ impl Editor {
 		let buffer_id = plan.buffer_id;
 		let doc_id = {
 			let buffer = self
-				.core.buffers
+				.core
+				.buffers
 				.get_buffer(buffer_id)
 				.ok_or_else(|| ApplyError::BufferNotFound(buffer_id.0.to_string()))?;
 			buffer.document_id()
@@ -232,7 +232,8 @@ impl Editor {
 
 		let tx = {
 			let buffer = self
-				.core.buffers
+				.core
+				.buffers
 				.get_buffer(buffer_id)
 				.ok_or_else(|| ApplyError::BufferNotFound(buffer_id.0.to_string()))?;
 			buffer.with_doc(|doc| Transaction::change(doc.content().slice(..), changes))
@@ -240,7 +241,8 @@ impl Editor {
 
 		let applied = {
 			let buffer = self
-				.core.buffers
+				.core
+				.buffers
 				.get_buffer_mut(buffer_id)
 				.ok_or_else(|| ApplyError::BufferNotFound(buffer_id.0.to_string()))?;
 			let policy = ApplyPolicy {

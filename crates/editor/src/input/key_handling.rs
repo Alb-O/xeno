@@ -230,8 +230,8 @@ impl Editor {
 		old_version: u64,
 		inserted_char: Option<char>,
 	) {
-		use crate::lsp::completion_controller::CompletionTrigger;
 		use crate::CompletionState;
+		use crate::lsp::completion_controller::CompletionTrigger;
 
 		if let Some(new_mode) = mode_change
 			&& !matches!(new_mode, xeno_primitives::Mode::Insert)

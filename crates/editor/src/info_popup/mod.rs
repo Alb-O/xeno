@@ -173,7 +173,8 @@ impl Editor {
 		let buffer_id = self.core.buffers.create_scratch();
 		{
 			let buffer = self
-				.core.buffers
+				.core
+				.buffers
 				.get_buffer_mut(buffer_id)
 				.expect("just created");
 			buffer.reset_content(content.as_str());

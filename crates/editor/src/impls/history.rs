@@ -53,14 +53,16 @@ impl UndoHost for Editor {
 	}
 
 	fn doc_id_for_buffer(&self, buffer_id: BufferId) -> DocumentId {
-		self.core.buffers
+		self.core
+			.buffers
 			.get_buffer(buffer_id)
 			.expect("buffer must exist")
 			.document_id()
 	}
 
 	fn collect_view_snapshots(&self, doc_id: DocumentId) -> HashMap<BufferId, ViewSnapshot> {
-		self.core.buffers
+		self.core
+			.buffers
 			.buffers()
 			.filter(|b| b.document_id() == doc_id)
 			.map(|b| (b.id, b.snapshot_view()))
@@ -72,7 +74,8 @@ impl UndoHost for Editor {
 		doc_ids: &[DocumentId],
 	) -> HashMap<BufferId, ViewSnapshot> {
 		let doc_set: HashSet<_> = doc_ids.iter().copied().collect();
-		self.core.buffers
+		self.core
+			.buffers
 			.buffers()
 			.filter(|b| doc_set.contains(&b.document_id()))
 			.map(|b| (b.id, b.snapshot_view()))
@@ -106,7 +109,8 @@ impl UndoHost for Editor {
 	}
 
 	fn doc_insert_undo_active(&self, buffer_id: BufferId) -> bool {
-		self.core.buffers
+		self.core
+			.buffers
 			.get_buffer(buffer_id)
 			.map(|b| b.with_doc(|doc| doc.insert_undo_active()))
 			.unwrap_or(false)
@@ -153,7 +157,8 @@ impl Editor {
 	/// Undoes a single document's last change.
 	fn undo_document(&mut self, doc_id: DocumentId) -> bool {
 		let buffer_id = self
-				.core.buffers
+			.core
+			.buffers
 			.buffers()
 			.find(|b| b.document_id() == doc_id)
 			.map(|b| b.id);
@@ -164,7 +169,8 @@ impl Editor {
 		};
 
 		let ok = self
-				.core.buffers
+			.core
+			.buffers
 			.get_buffer_mut(buffer_id)
 			.expect("buffer exists")
 			.with_doc_mut(|doc| doc.undo(&self.config.language_loader));
@@ -178,7 +184,8 @@ impl Editor {
 	/// Redoes a single document's last undone change.
 	fn redo_document(&mut self, doc_id: DocumentId) -> bool {
 		let buffer_id = self
-				.core.buffers
+			.core
+			.buffers
 			.buffers()
 			.find(|b| b.document_id() == doc_id)
 			.map(|b| b.id);
@@ -189,7 +196,8 @@ impl Editor {
 		};
 
 		let ok = self
-				.core.buffers
+			.core
+			.buffers
 			.get_buffer_mut(buffer_id)
 			.expect("buffer exists")
 			.with_doc_mut(|doc| doc.redo(&self.config.language_loader));

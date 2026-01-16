@@ -122,7 +122,13 @@ fn collect_command_collisions(collisions: &mut Vec<CollisionReport>) {
 
 	for cmd in COMMANDS.iter() {
 		register_command_collision(CollisionKind::Id, cmd.id(), cmd, &mut by_id, collisions);
-		register_command_collision(CollisionKind::Name, cmd.name(), cmd, &mut by_name, collisions);
+		register_command_collision(
+			CollisionKind::Name,
+			cmd.name(),
+			cmd,
+			&mut by_name,
+			collisions,
+		);
 		for &alias in cmd.aliases() {
 			register_command_collision(CollisionKind::Alias, alias, cmd, &mut by_alias, collisions);
 		}
@@ -166,7 +172,13 @@ fn collect_motion_collisions(collisions: &mut Vec<CollisionReport>) {
 	let mut by_alias = HashMap::new();
 
 	for motion in motions::all() {
-		register_motion_collision(CollisionKind::Id, motion.id(), motion, &mut by_id, collisions);
+		register_motion_collision(
+			CollisionKind::Id,
+			motion.id(),
+			motion,
+			&mut by_id,
+			collisions,
+		);
 		register_motion_collision(
 			CollisionKind::Name,
 			motion.name(),

@@ -62,13 +62,12 @@ pub(crate) mod snippet;
 pub(crate) mod types;
 pub(crate) mod workspace_edit;
 
-pub(crate) use completion_controller::CompletionController;
-pub(crate) use events::LspUiEvent;
-pub(crate) use types::{LspMenuKind, LspMenuState};
-
 use std::path::Path;
 use std::sync::Arc;
 
+pub(crate) use completion_controller::CompletionController;
+pub(crate) use events::LspUiEvent;
+pub(crate) use types::{LspMenuKind, LspMenuState};
 // Re-export for consumers
 pub use xeno_lsp::DiagnosticsEvent as LspDiagnosticsEvent;
 // Re-export types needed by consumers

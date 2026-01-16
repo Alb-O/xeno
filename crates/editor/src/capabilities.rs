@@ -361,7 +361,8 @@ impl JumpAccess for Editor {
 	fn jump_backward(&mut self) -> bool {
 		let buffer_id = self.focused_view();
 		let cursor = self.buffer().cursor;
-		self.core.workspace
+		self.core
+			.workspace
 			.jump_list
 			.push(crate::impls::JumpLocation { buffer_id, cursor });
 
@@ -381,7 +382,8 @@ impl JumpAccess for Editor {
 	fn save_jump(&mut self) {
 		let buffer_id = self.focused_view();
 		let cursor = self.buffer().cursor;
-		self.core.workspace
+		self.core
+			.workspace
 			.jump_list
 			.push(crate::impls::JumpLocation { buffer_id, cursor });
 	}

@@ -99,7 +99,8 @@ impl Editor {
 
 		let rect = palette_rect(width, height);
 		let buffer_id = self.core.buffers.create_scratch();
-		self.core.buffers
+		self.core
+			.buffers
 			.get_buffer_mut(buffer_id)
 			.expect("just created")
 			.local_options
@@ -114,7 +115,8 @@ impl Editor {
 		float.gutter = GutterSelector::Prompt('>');
 
 		self.focus_floating_window(window_id);
-		self.core.buffers
+		self.core
+			.buffers
 			.get_buffer_mut(buffer_id)
 			.expect("just created")
 			.input
@@ -154,7 +156,8 @@ impl Editor {
 			.get::<PaletteState>()
 			.and_then(|p| p.buffer_id())?;
 		let input = self
-				.core.buffers
+			.core
+			.buffers
 			.get_buffer(buffer_id)?
 			.with_doc(|doc| doc.content().to_string());
 		let input = input.trim().to_string();

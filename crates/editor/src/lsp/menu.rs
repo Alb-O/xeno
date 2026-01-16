@@ -13,15 +13,15 @@ use xeno_primitives::transaction::Bias;
 use xeno_primitives::{Range, Selection};
 use xeno_registry_notifications::keys;
 
-use crate::buffer::BufferId;
-use crate::impls::Editor;
 use super::completion_controller::{CompletionRequest, CompletionTrigger};
 use super::completion_filter::{extract_query, filter_items};
 use super::events::map_completion_item_with_indices;
 use super::snippet::{Snippet, SnippetPlaceholder, parse_snippet};
-use super::workspace_edit::{ApplyError, BufferEditPlan, PlannedTextEdit, convert_text_edit};
 use super::types::{LspMenuKind, LspMenuState};
+use super::workspace_edit::{ApplyError, BufferEditPlan, PlannedTextEdit, convert_text_edit};
+use crate::buffer::BufferId;
 use crate::completion::{CompletionState, SelectionIntent};
+use crate::impls::Editor;
 use crate::info_popup::PopupAnchor;
 use crate::{CompletionItem as UiCompletionItem, CompletionKind};
 

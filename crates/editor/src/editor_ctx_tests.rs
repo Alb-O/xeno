@@ -40,7 +40,8 @@ impl CursorAccess for MockEditor {
 	}
 
 	fn set_cursor(&mut self, pos: CharIdx) {
-		self.effect_log.push(format!("set_cursor:{}", usize::from(pos)));
+		self.effect_log
+			.push(format!("set_cursor:{}", usize::from(pos)));
 		self.cursor = pos;
 	}
 }
@@ -74,7 +75,8 @@ impl ModeAccess for MockEditor {
 
 impl NotificationAccess for MockEditor {
 	fn emit(&mut self, notification: Notification) {
-		self.effect_log.push(format!("notify:{}", notification.def.id));
+		self.effect_log
+			.push(format!("notify:{}", notification.def.id));
 		self.notifications.push(notification);
 	}
 
@@ -92,7 +94,9 @@ fn effects_apply_in_order() {
 
 	let effects = ActionEffects::new()
 		.with(Effect::SetCursor(CharIdx::from(10usize)))
-		.with(Effect::SetSelection(Selection::point(CharIdx::from(20usize))))
+		.with(Effect::SetSelection(Selection::point(CharIdx::from(
+			20usize,
+		))))
 		.with(Effect::SetMode(Mode::Insert));
 
 	apply_effects(&effects, &mut ctx, false);
@@ -170,8 +174,9 @@ fn notify_effect_emits_notification() {
 	let mut editor = MockEditor::new();
 	let mut ctx = xeno_registry::actions::editor_ctx::EditorContext::new(&mut editor);
 
-	let effects =
-		ActionEffects::from_effect(Effect::Notify(xeno_registry_notifications::keys::undo.into()));
+	let effects = ActionEffects::from_effect(Effect::Notify(
+		xeno_registry_notifications::keys::undo.into(),
+	));
 	apply_effects(&effects, &mut ctx, false);
 
 	assert_eq!(editor.notifications.len(), 1);
@@ -290,7 +295,9 @@ fn notifications_are_side_effects() {
 
 	let effects = ActionEffects::new()
 		.with(Effect::SetCursor(CharIdx::from(10usize)))
-		.with(Effect::Notify(xeno_registry_notifications::keys::undo.into()))
+		.with(Effect::Notify(
+			xeno_registry_notifications::keys::undo.into(),
+		))
 		.with(Effect::SetCursor(CharIdx::from(20usize)));
 
 	apply_effects(&effects, &mut ctx, false);

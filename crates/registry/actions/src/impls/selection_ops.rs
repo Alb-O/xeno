@@ -284,7 +284,7 @@ mod tests {
 	use xeno_primitives::{Rope, Selection};
 
 	use super::*;
-	use crate::ActionArgs;
+	use crate::{ActionArgs, Effect, ViewEffect};
 
 	#[test]
 	fn test_select_line_extend() {
@@ -301,22 +301,17 @@ mod tests {
 			args: ActionArgs::default(),
 		};
 
-		let result = select_line_impl(&ctx);
-		if let ActionResult::Effects(effects) = result {
-			// Extract selection from effects
-			if let Some(crate::Effect::SetSelection(new_sel)) = effects.as_slice().first() {
-				let primary = new_sel.primary();
-				assert_eq!(
-					primary.anchor, 1,
-					"Anchor should be preserved when extending"
-				);
-				assert_eq!(primary.head, 7, "Head should be at end of line");
-			} else {
-				panic!("Expected SetSelection effect");
-			}
-		} else {
-			panic!("Expected Effects result");
-		}
+		let ActionResult::Effects(effects) = select_line_impl(&ctx);
+		let Some(Effect::View(ViewEffect::SetSelection(new_sel))) = effects.as_slice().first()
+		else {
+			panic!("Expected SetSelection effect");
+		};
+		let primary = new_sel.primary();
+		assert_eq!(
+			primary.anchor, 1,
+			"Anchor should be preserved when extending"
+		);
+		assert_eq!(primary.head, 7, "Head should be at end of line");
 	}
 
 	#[test]
@@ -334,21 +329,17 @@ mod tests {
 			args: ActionArgs::default(),
 		};
 
-		let result = select_line_impl(&ctx);
-		if let ActionResult::Effects(effects) = result {
-			if let Some(crate::Effect::SetSelection(new_sel)) = effects.as_slice().first() {
-				let primary = new_sel.primary();
-				assert_eq!(
-					primary.anchor, 7,
-					"Anchor should move to start of next line"
-				);
-				assert_eq!(primary.head, 14, "Head should move to end of next line");
-			} else {
-				panic!("Expected SetSelection effect");
-			}
-		} else {
-			panic!("Expected Effects result");
-		}
+		let ActionResult::Effects(effects) = select_line_impl(&ctx);
+		let Some(Effect::View(ViewEffect::SetSelection(new_sel))) = effects.as_slice().first()
+		else {
+			panic!("Expected SetSelection effect");
+		};
+		let primary = new_sel.primary();
+		assert_eq!(
+			primary.anchor, 7,
+			"Anchor should move to start of next line"
+		);
+		assert_eq!(primary.head, 14, "Head should move to end of next line");
 	}
 
 	#[test]
@@ -366,17 +357,13 @@ mod tests {
 			args: ActionArgs::default(),
 		};
 
-		let result = select_line_impl(&ctx);
-		if let ActionResult::Effects(effects) = result {
-			if let Some(crate::Effect::SetSelection(new_sel)) = effects.as_slice().first() {
-				let primary = new_sel.primary();
-				assert_eq!(primary.anchor, 0);
-				assert_eq!(primary.head, 14, "should select 2 complete lines");
-			} else {
-				panic!("Expected SetSelection effect");
-			}
-		} else {
-			panic!("Expected Effects result");
-		}
+		let ActionResult::Effects(effects) = select_line_impl(&ctx);
+		let Some(Effect::View(ViewEffect::SetSelection(new_sel))) = effects.as_slice().first()
+		else {
+			panic!("Expected SetSelection effect");
+		};
+		let primary = new_sel.primary();
+		assert_eq!(primary.anchor, 0);
+		assert_eq!(primary.head, 14, "should select 2 complete lines");
 	}
 }

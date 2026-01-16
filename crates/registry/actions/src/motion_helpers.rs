@@ -12,7 +12,7 @@ use xeno_primitives::range::Range;
 use xeno_primitives::{Mode, Selection};
 use xeno_registry_motions::MotionKey;
 
-use crate::{ActionContext, ActionEffects, ActionResult, Effect};
+use crate::{ActionContext, ActionEffects, ActionResult, AppEffect, Effect};
 
 /// Applies a typed motion as a cursor movement.
 ///
@@ -136,5 +136,7 @@ pub fn insert_with_motion(ctx: &ActionContext, motion: MotionKey) -> ActionResul
 	});
 
 	// Compose: SetSelection + SetMode instead of fused InsertWithMotion
-	ActionResult::Effects(ActionEffects::motion(new_selection).with(Effect::SetMode(Mode::Insert)))
+	ActionResult::Effects(
+		ActionEffects::motion(new_selection).with(Effect::App(AppEffect::SetMode(Mode::Insert))),
+	)
 }

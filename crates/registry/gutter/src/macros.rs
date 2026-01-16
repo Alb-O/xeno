@@ -68,14 +68,19 @@ macro_rules! gutter {
 			#[allow(non_upper_case_globals)]
 			#[linkme::distributed_slice($crate::GUTTERS)]
 			static [<GUTTER_ $name:upper>]: $crate::GutterDef = $crate::GutterDef {
-				id: concat!(env!("CARGO_PKG_NAME"), "::", stringify!($name)),
-				name: stringify!($name),
-				description: $desc,
-				priority: $priority,
+				meta: $crate::RegistryMeta {
+					id: concat!(env!("CARGO_PKG_NAME"), "::", stringify!($name)),
+					name: stringify!($name),
+					aliases: &[],
+					description: $desc,
+					priority: $priority,
+					source: $crate::RegistrySource::Crate(env!("CARGO_PKG_NAME")),
+					required_caps: &[],
+					flags: 0,
+				},
 				default_enabled: $crate::__gutter_enabled!($($enabled)?),
 				width: $crate::GutterWidth::$width_kind($width_val),
 				render: $render,
-				source: $crate::RegistrySource::Crate(env!("CARGO_PKG_NAME")),
 			};
 		}
 	};

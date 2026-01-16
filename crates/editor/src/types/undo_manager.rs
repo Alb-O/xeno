@@ -259,7 +259,10 @@ impl UndoManager {
 				view_snapshots: current_snapshots,
 				origin: group.origin,
 			});
-			trace!(redo_stack = self.redo_stack.len(), "undo: pushed to redo stack");
+			trace!(
+				redo_stack = self.redo_stack.len(),
+				"undo: pushed to redo stack"
+			);
 			host.notify_undo();
 			true
 		} else {
@@ -302,7 +305,10 @@ impl UndoManager {
 				view_snapshots: current_snapshots,
 				origin: group.origin,
 			});
-			trace!(undo_stack = self.undo_stack.len(), "redo: pushed to undo stack");
+			trace!(
+				undo_stack = self.undo_stack.len(),
+				"redo: pushed to undo stack"
+			);
 			host.notify_redo();
 			true
 		} else {

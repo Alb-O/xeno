@@ -40,10 +40,21 @@ pub(super) fn build_registry() -> ExtensionRegistry {
 fn build_command_index() -> RegistryIndex<CommandDef> {
 	let mut index = RegistryIndex::new();
 	let mut sorted: Vec<_> = COMMANDS.iter().collect();
-	sorted.sort_by(|a, b| b.meta.priority.cmp(&a.meta.priority).then(a.meta.id.cmp(b.meta.id)));
+	sorted.sort_by(|a, b| {
+		b.meta
+			.priority
+			.cmp(&a.meta.priority)
+			.then(a.meta.id.cmp(b.meta.id))
+	});
 
 	for cmd in sorted {
-		register_with_id_name_aliases(&mut index, cmd, cmd.meta.id, cmd.meta.name, cmd.meta.aliases);
+		register_with_id_name_aliases(
+			&mut index,
+			cmd,
+			cmd.meta.id,
+			cmd.meta.name,
+			cmd.meta.aliases,
+		);
 	}
 
 	index
@@ -124,7 +135,13 @@ fn build_motion_index() -> RegistryIndex<MotionDef> {
 	sorted.sort_by(|a, b| b.priority().cmp(&a.priority()).then(a.id().cmp(b.id())));
 
 	for motion in sorted {
-		register_with_id_name_aliases(&mut index, motion, motion.id(), motion.name(), motion.aliases());
+		register_with_id_name_aliases(
+			&mut index,
+			motion,
+			motion.id(),
+			motion.name(),
+			motion.aliases(),
+		);
 	}
 
 	index

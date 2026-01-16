@@ -4,10 +4,9 @@ use xeno_tui::text::{Line, Span};
 use xeno_tui::widgets::list::ListItem;
 use xeno_tui::widgets::{Block, Borders, List, Widget};
 
-use crate::CompletionState;
 #[cfg(feature = "lsp")]
 use crate::lsp::LspMenuState;
-use crate::{CompletionKind, Editor};
+use crate::{CompletionKind, CompletionState, Editor};
 
 /// Builds styled [`Span`]s for a completion label with matched characters highlighted.
 ///
@@ -222,7 +221,10 @@ impl Editor {
 			.max()
 			.unwrap_or(0);
 		let width = (max_label_len + 10).max(12);
-		let height = completions.items.len().clamp(1, CompletionState::MAX_VISIBLE);
+		let height = completions
+			.items
+			.len()
+			.clamp(1, CompletionState::MAX_VISIBLE);
 
 		let view_area = self.focused_view_area();
 		let mut x = view_area.x.saturating_add(cursor_col);

@@ -28,7 +28,9 @@ pub type ActionKey = Key<ActionDef>;
 pub use edit_op::{
 	CharMapKind, CursorAdjust, EditOp, EditPlan, PostEffect, PreEffect, SelectionOp, TextTransform,
 };
-pub use effects::{ActionEffects, AppEffect, EditEffect, Effect, ScrollAmount, UiEffect, ViewEffect};
+pub use effects::{
+	ActionEffects, AppEffect, EditEffect, Effect, ScrollAmount, UiEffect, ViewEffect,
+};
 pub use keybindings::{
 	BindingMode, KEY_PREFIXES, KEYBINDINGS, KeyBindingDef, KeyPrefixDef, find_prefix,
 };

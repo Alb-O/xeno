@@ -4,8 +4,8 @@ use futures::future::LocalBoxFuture;
 use xeno_lsp::lsp_types::{GotoDefinitionResponse, HoverContents, MarkedString, MarkupContent};
 
 use super::{CommandError, CommandOutcome, EditorCommandContext};
-use crate::impls::Editor;
 use crate::editor_command;
+use crate::impls::Editor;
 use crate::info_popup::PopupAnchor;
 
 editor_command!(

@@ -246,7 +246,10 @@ fn apply_view_effect(
 }
 
 /// Applies a text editing effect.
-fn apply_edit_effect(effect: &EditEffect, ctx: &mut xeno_registry::actions::editor_ctx::EditorContext) {
+fn apply_edit_effect(
+	effect: &EditEffect,
+	ctx: &mut xeno_registry::actions::editor_ctx::EditorContext,
+) {
 	match effect {
 		EditEffect::EditOp(op) => {
 			if let Some(edit) = ctx.edit() {

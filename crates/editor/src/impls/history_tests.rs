@@ -25,7 +25,13 @@ fn apply_test_edit(editor: &mut Editor, text: &str, at: usize) -> bool {
 			}],
 		)
 	};
-	editor.apply_edit(buffer_id, &tx, None, UndoPolicy::Record, EditOrigin::Internal("test"))
+	editor.apply_edit(
+		buffer_id,
+		&tx,
+		None,
+		UndoPolicy::Record,
+		EditOrigin::Internal("test"),
+	)
 }
 
 fn set_cursor(editor: &mut Editor, pos: usize) {
@@ -41,7 +47,13 @@ fn set_scroll(editor: &mut Editor, line: usize, segment: usize) {
 }
 
 fn get_cursor(editor: &Editor, buffer_id: BufferId) -> usize {
-	editor.core.buffers.get_buffer(buffer_id).unwrap().cursor.into()
+	editor
+		.core
+		.buffers
+		.get_buffer(buffer_id)
+		.unwrap()
+		.cursor
+		.into()
 }
 
 fn get_scroll(editor: &Editor, buffer_id: BufferId) -> (usize, usize) {
@@ -94,17 +106,41 @@ fn undo_restores_view_state_for_multiple_buffers_same_document() {
 	apply_test_edit(&mut editor, "X", 0);
 
 	assert_eq!(editor.core.undo_manager.undo_len(), 1);
-	let group = editor.core.undo_manager.last_undo_group().expect("should have undo group");
-	assert_eq!(group.view_snapshots.len(), 2, "undo group should have snapshots for both buffers");
+	let group = editor
+		.core
+		.undo_manager
+		.last_undo_group()
+		.expect("should have undo group");
+	assert_eq!(
+		group.view_snapshots.len(),
+		2,
+		"undo group should have snapshots for both buffers"
+	);
 	assert!(group.view_snapshots.contains_key(&buffer1_id));
 	assert!(group.view_snapshots.contains_key(&buffer2_id));
 
 	editor.undo();
 
-	assert_eq!(get_cursor(&editor, buffer1_id), 7, "buffer1 cursor should be restored");
-	assert_eq!(get_cursor(&editor, buffer2_id), 15, "buffer2 cursor should be restored");
-	assert_eq!(get_scroll(&editor, buffer1_id), (0, 0), "buffer1 scroll should be restored");
-	assert_eq!(get_scroll(&editor, buffer2_id), (1, 0), "buffer2 scroll should be restored");
+	assert_eq!(
+		get_cursor(&editor, buffer1_id),
+		7,
+		"buffer1 cursor should be restored"
+	);
+	assert_eq!(
+		get_cursor(&editor, buffer2_id),
+		15,
+		"buffer2 cursor should be restored"
+	);
+	assert_eq!(
+		get_scroll(&editor, buffer1_id),
+		(0, 0),
+		"buffer1 scroll should be restored"
+	);
+	assert_eq!(
+		get_scroll(&editor, buffer2_id),
+		(1, 0),
+		"buffer2 scroll should be restored"
+	);
 }
 
 #[test]
@@ -124,8 +160,16 @@ fn redo_restores_view_state() {
 
 	editor.redo();
 
-	assert_eq!(get_cursor(&editor, editor.focused_view()), 10, "redo should restore cursor from before undo");
-	assert_eq!(get_scroll(&editor, editor.focused_view()), (1, 0), "redo should restore scroll from before undo");
+	assert_eq!(
+		get_cursor(&editor, editor.focused_view()),
+		10,
+		"redo should restore cursor from before undo"
+	);
+	assert_eq!(
+		get_scroll(&editor, editor.focused_view()),
+		(1, 0),
+		"redo should restore scroll from before undo"
+	);
 }
 
 #[test]
@@ -136,10 +180,17 @@ fn redo_stack_clears_on_new_edit() {
 	assert_eq!(editor.core.undo_manager.undo_len(), 1);
 
 	editor.undo();
-	assert_eq!(editor.core.undo_manager.redo_len(), 1, "redo stack should have one entry after undo");
+	assert_eq!(
+		editor.core.undo_manager.redo_len(),
+		1,
+		"redo stack should have one entry after undo"
+	);
 
 	apply_test_edit(&mut editor, "!", 5);
-	assert!(!editor.core.undo_manager.can_redo(), "new edit should clear redo stack");
+	assert!(
+		!editor.core.undo_manager.can_redo(),
+		"new edit should clear redo stack"
+	);
 }
 
 #[test]
@@ -163,9 +214,19 @@ fn redo_stack_clears_only_when_group_pushed() {
 			}],
 		)
 	};
-	editor.apply_edit(buffer_id, &tx, None, UndoPolicy::NoUndo, EditOrigin::Internal("test"));
+	editor.apply_edit(
+		buffer_id,
+		&tx,
+		None,
+		UndoPolicy::NoUndo,
+		EditOrigin::Internal("test"),
+	);
 
-	assert_eq!(editor.core.undo_manager.redo_len(), 1, "NoUndo edit should not clear redo stack");
+	assert_eq!(
+		editor.core.undo_manager.redo_len(),
+		1,
+		"NoUndo edit should not clear redo stack"
+	);
 }
 
 #[test]
@@ -193,7 +254,11 @@ fn merge_with_current_group_creates_single_undo_group_for_consecutive_inserts() 
 		EditOrigin::Internal("insert"),
 	);
 
-	assert_eq!(editor.core.undo_manager.undo_len(), 1, "first MergeWithCurrentGroup should create group");
+	assert_eq!(
+		editor.core.undo_manager.undo_len(),
+		1,
+		"first MergeWithCurrentGroup should create group"
+	);
 
 	let tx2 = {
 		let buffer = editor.core.buffers.focused_buffer();
@@ -215,11 +280,22 @@ fn merge_with_current_group_creates_single_undo_group_for_consecutive_inserts() 
 		EditOrigin::Internal("insert"),
 	);
 
-	assert_eq!(editor.core.undo_manager.undo_len(), 1, "consecutive MergeWithCurrentGroup should NOT create new group");
+	assert_eq!(
+		editor.core.undo_manager.undo_len(),
+		1,
+		"consecutive MergeWithCurrentGroup should NOT create new group"
+	);
 
 	editor.undo();
-	let content = editor.core.buffers.focused_buffer().with_doc(|doc| doc.content().to_string());
-	assert_eq!(content, "hello", "single undo should revert both merged edits");
+	let content = editor
+		.core
+		.buffers
+		.focused_buffer()
+		.with_doc(|doc| doc.content().to_string());
+	assert_eq!(
+		content, "hello",
+		"single undo should revert both merged edits"
+	);
 }
 
 #[test]
@@ -259,7 +335,17 @@ fn record_policy_breaks_merge_group() {
 			}],
 		)
 	};
-	editor.apply_edit(buffer_id, &tx2, None, UndoPolicy::Record, EditOrigin::Internal("edit"));
+	editor.apply_edit(
+		buffer_id,
+		&tx2,
+		None,
+		UndoPolicy::Record,
+		EditOrigin::Internal("edit"),
+	);
 
-	assert_eq!(editor.core.undo_manager.undo_len(), 2, "Record policy should create new group");
+	assert_eq!(
+		editor.core.undo_manager.undo_len(),
+		2,
+		"Record policy should create new group"
+	);
 }

@@ -8,8 +8,8 @@ use xeno_lsp::ClientHandle;
 use xeno_lsp::lsp_types::{CompletionContext, CompletionTriggerKind, Position, Uri};
 use xeno_primitives::range::CharIdx;
 
-use crate::buffer::BufferId;
 use super::events::LspUiEvent;
+use crate::buffer::BufferId;
 
 pub enum CompletionTrigger {
 	Typing,

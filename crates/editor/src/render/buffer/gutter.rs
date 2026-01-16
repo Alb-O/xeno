@@ -65,7 +65,7 @@ impl GutterLayout {
 			.filter_map(|name| find_gutter(name))
 			.map(|def| (column_width(def, &ctx), def))
 			.collect();
-		columns.sort_by_key(|(_, def)| def.priority);
+		columns.sort_by_key(|(_, def)| def.meta.priority);
 		let total_width = Self::columns_total_width(&columns);
 		Self {
 			total_width,

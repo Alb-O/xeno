@@ -9,7 +9,9 @@ mod impls;
 /// Statusline segment registration macros.
 mod macros;
 
-pub use xeno_registry_core::{RegistryMetadata, RegistrySource, impl_registry_metadata};
+pub use xeno_registry_core::{
+	RegistryEntry, RegistryMeta, RegistryMetadata, RegistrySource, impl_registry_entry,
+};
 
 /// Position in the statusline.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -79,28 +81,22 @@ pub enum SegmentStyle {
 
 /// Definition of a statusline segment.
 pub struct StatuslineSegmentDef {
-	/// Unique identifier.
-	pub id: &'static str,
-	/// Unique name for the segment.
-	pub name: &'static str,
+	/// Common registry metadata (id, name, aliases, description, priority, source, caps, flags).
+	pub meta: RegistryMeta,
 	/// Position in the statusline.
 	pub position: SegmentPosition,
-	/// Priority within position (lower = renders first).
-	pub priority: i16,
 	/// Whether this segment is enabled by default.
 	pub default_enabled: bool,
 	/// Render function.
 	pub render: fn(&StatuslineContext) -> Option<RenderedSegment>,
-	/// Origin of the segment.
-	pub source: RegistrySource,
 }
 
 impl core::fmt::Debug for StatuslineSegmentDef {
 	fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
 		f.debug_struct("StatuslineSegmentDef")
-			.field("name", &self.name)
+			.field("name", &self.meta.name)
 			.field("position", &self.position)
-			.field("priority", &self.priority)
+			.field("priority", &self.meta.priority)
 			.finish()
 	}
 }
@@ -117,7 +113,7 @@ pub fn segments_for_position(
 		.iter()
 		.filter(move |s| s.position == position && s.default_enabled)
 		.collect();
-	segments.sort_by_key(|s| s.priority);
+	segments.sort_by_key(|s| s.meta.priority);
 	segments.into_iter()
 }
 
@@ -130,7 +126,7 @@ pub fn render_position(position: SegmentPosition, ctx: &StatuslineContext) -> Ve
 
 /// Find a segment by name.
 pub fn find_segment(name: &str) -> Option<&'static StatuslineSegmentDef> {
-	STATUSLINE_SEGMENTS.iter().find(|s| s.name == name)
+	STATUSLINE_SEGMENTS.iter().find(|s| s.meta.name == name)
 }
 
 /// Get all registered segments.
@@ -138,4 +134,4 @@ pub fn all_segments() -> impl Iterator<Item = &'static StatuslineSegmentDef> {
 	STATUSLINE_SEGMENTS.iter()
 }
 
-impl_registry_metadata!(StatuslineSegmentDef);
+impl_registry_entry!(StatuslineSegmentDef);

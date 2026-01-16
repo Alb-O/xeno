@@ -20,7 +20,9 @@ use ropey::RopeSlice;
 mod impls;
 mod macros;
 
-pub use xeno_registry_core::{RegistryMetadata, RegistrySource, impl_registry_metadata};
+pub use xeno_registry_core::{
+	RegistryEntry, RegistryMeta, RegistryMetadata, RegistrySource, impl_registry_entry,
+};
 
 /// Context passed to each gutter render closure (per-line).
 pub struct GutterLineContext<'a> {
@@ -102,29 +104,21 @@ pub struct GutterAnnotations {
 
 /// Definition of a gutter column.
 pub struct GutterDef {
-	/// Unique identifier (e.g., "xeno_registry_gutter::line_numbers").
-	pub id: &'static str,
-	/// Column name (e.g., "line_numbers").
-	pub name: &'static str,
-	/// Short description.
-	pub description: &'static str,
-	/// Priority: lower = renders further left.
-	pub priority: i16,
+	/// Common registry metadata (id, name, aliases, description, priority, source, caps, flags).
+	pub meta: RegistryMeta,
 	/// Whether enabled by default.
 	pub default_enabled: bool,
 	/// Width strategy.
 	pub width: GutterWidth,
 	/// Render function - called per visible line.
 	pub render: fn(&GutterLineContext) -> Option<GutterCell>,
-	/// Origin of the column.
-	pub source: RegistrySource,
 }
 
 impl core::fmt::Debug for GutterDef {
 	fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
 		f.debug_struct("GutterDef")
-			.field("name", &self.name)
-			.field("priority", &self.priority)
+			.field("name", &self.meta.name)
+			.field("priority", &self.meta.priority)
 			.field("default_enabled", &self.default_enabled)
 			.finish()
 	}
@@ -137,13 +131,13 @@ pub static GUTTERS: [GutterDef];
 /// Returns enabled gutters sorted by priority (left to right).
 pub fn enabled_gutters() -> impl Iterator<Item = &'static GutterDef> {
 	let mut gutters: Vec<_> = GUTTERS.iter().filter(|g| g.default_enabled).collect();
-	gutters.sort_by_key(|g| g.priority);
+	gutters.sort_by_key(|g| g.meta.priority);
 	gutters.into_iter()
 }
 
 /// Finds a gutter column by name.
 pub fn find(name: &str) -> Option<&'static GutterDef> {
-	GUTTERS.iter().find(|g| g.name == name)
+	GUTTERS.iter().find(|g| g.meta.name == name)
 }
 
 /// Returns all registered gutter columns.
@@ -176,4 +170,4 @@ pub fn column_widths(ctx: &GutterWidthContext) -> Vec<(u16, &'static GutterDef)>
 		.collect()
 }
 
-impl_registry_metadata!(GutterDef);
+impl_registry_entry!(GutterDef);

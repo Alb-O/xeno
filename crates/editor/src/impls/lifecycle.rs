@@ -356,17 +356,20 @@ impl Editor {
 	pub(super) fn sync_sibling_selections(&mut self, tx: &xeno_primitives::Transaction) {
 		let buffer_id = self.focused_view();
 		let doc_id = self
-				.core.buffers
+			.core
+			.buffers
 			.get_buffer(buffer_id)
 			.expect("focused buffer must exist")
 			.document_id();
 
 		let sibling_ids: Vec<_> = self
-			.core.buffers
+			.core
+			.buffers
 			.buffer_ids()
 			.filter(|&id| id != buffer_id)
 			.filter(|&id| {
-				self.core.buffers
+				self.core
+					.buffers
 					.get_buffer(id)
 					.is_some_and(|b| b.document_id() == doc_id)
 			})
