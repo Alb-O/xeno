@@ -11,6 +11,10 @@
 //!
 //! [`Editor`]: super::Editor
 
+use xeno_primitives::range::CharIdx;
+use xeno_primitives::Selection;
+use xeno_registry::{CommandQueueAccess, CursorAccess, MacroAccess, SelectionAccess};
+
 use crate::buffer::{Buffer, BufferId, BufferView};
 use crate::buffer_manager::BufferManager;
 use crate::types::{UndoManager, Workspace};
@@ -92,5 +96,58 @@ impl EditorCore {
 	/// Returns a buffer mutably by ID.
 	pub fn get_buffer_mut(&mut self, id: BufferId) -> Option<&mut Buffer> {
 		self.buffers.get_buffer_mut(id)
+	}
+}
+
+impl CursorAccess for EditorCore {
+	fn cursor(&self) -> CharIdx {
+		self.buffer().cursor
+	}
+
+	fn cursor_line_col(&self) -> Option<(usize, usize)> {
+		let buffer = self.buffer();
+		Some((buffer.cursor_line(), buffer.cursor_col()))
+	}
+
+	fn set_cursor(&mut self, pos: CharIdx) {
+		self.buffer_mut().set_cursor(pos);
+	}
+}
+
+impl SelectionAccess for EditorCore {
+	fn selection(&self) -> &Selection {
+		&self.buffer().selection
+	}
+
+	fn selection_mut(&mut self) -> &mut Selection {
+		&mut self.buffer_mut().selection
+	}
+
+	fn set_selection(&mut self, sel: Selection) {
+		self.buffer_mut().set_selection(sel);
+	}
+}
+
+impl MacroAccess for EditorCore {
+	fn record(&mut self) {
+		self.workspace.macro_state.start_recording('q');
+	}
+
+	fn stop_recording(&mut self) {
+		self.workspace.macro_state.stop_recording();
+	}
+
+	fn play(&mut self) {
+		// TODO: Requires event loop integration
+	}
+
+	fn is_recording(&self) -> bool {
+		self.workspace.macro_state.is_recording()
+	}
+}
+
+impl CommandQueueAccess for EditorCore {
+	fn queue_command(&mut self, name: &'static str, args: Vec<String>) {
+		self.workspace.command_queue.push(name, args);
 	}
 }

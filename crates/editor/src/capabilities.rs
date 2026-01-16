@@ -53,30 +53,29 @@ fn parse_option_value(kdl_key: &str, value: &str) -> Result<OptionValue, Command
 
 impl CursorAccess for Editor {
 	fn cursor(&self) -> CharIdx {
-		self.buffer().cursor
+		self.core.cursor()
 	}
 
 	fn cursor_line_col(&self) -> Option<(usize, usize)> {
-		let buffer = self.buffer();
-		Some((buffer.cursor_line(), buffer.cursor_col()))
+		self.core.cursor_line_col()
 	}
 
 	fn set_cursor(&mut self, pos: CharIdx) {
-		self.buffer_mut().set_cursor(pos);
+		self.core.set_cursor(pos);
 	}
 }
 
 impl SelectionAccess for Editor {
 	fn selection(&self) -> &Selection {
-		&self.buffer().selection
+		self.core.selection()
 	}
 
 	fn selection_mut(&mut self) -> &mut Selection {
-		&mut self.buffer_mut().selection
+		self.core.selection_mut()
 	}
 
 	fn set_selection(&mut self, sel: Selection) {
-		self.buffer_mut().set_selection(sel);
+		self.core.set_selection(sel);
 	}
 }
 
@@ -291,7 +290,6 @@ impl CommandEditorOps for Editor {
 
 impl SplitOps for Editor {
 	fn split(&mut self, axis: Axis) {
-		// Create a new buffer that shares the same document
 		let new_id = self.clone_buffer_for_split();
 		match axis {
 			Axis::Horizontal => Editor::split_horizontal(self, new_id),
@@ -304,15 +302,11 @@ impl SplitOps for Editor {
 	}
 
 	fn close_other_buffers(&mut self) {
-		// Close all buffers except the current one
 		let current_id = self.focused_view();
-		let ids: Vec<_> = self
-			.buffer_ids()
-			.into_iter()
-			.filter(|&id| id != current_id)
-			.collect();
-		for id in ids {
-			Editor::close_buffer(self, id);
+		for id in self.buffer_ids() {
+			if id != current_id {
+				Editor::close_buffer(self, id);
+			}
 		}
 	}
 }
@@ -393,26 +387,25 @@ impl JumpAccess for Editor {
 
 impl MacroAccess for Editor {
 	fn record(&mut self) {
-		// Default to register 'q' if no register specified
-		self.core.workspace.macro_state.start_recording('q');
+		self.core.record();
 	}
 
 	fn stop_recording(&mut self) {
-		self.core.workspace.macro_state.stop_recording();
+		self.core.stop_recording();
 	}
 
 	fn play(&mut self) {
-		// Actual playback requires event loop integration (placeholder).
+		self.core.play();
 	}
 
 	fn is_recording(&self) -> bool {
-		self.core.workspace.macro_state.is_recording()
+		self.core.is_recording()
 	}
 }
 
 impl CommandQueueAccess for Editor {
 	fn queue_command(&mut self, name: &'static str, args: Vec<String>) {
-		self.core.workspace.command_queue.push(name, args);
+		self.core.queue_command(name, args);
 	}
 }
 
