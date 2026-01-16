@@ -128,7 +128,7 @@ impl Editor {
 		#[cfg(feature = "lsp")]
 		if self.is_completion_trigger_key(&key) {
 			self.trigger_lsp_completion(
-				crate::editor::completion_controller::CompletionTrigger::Manual,
+				crate::lsp::completion_controller::CompletionTrigger::Manual,
 				None,
 			);
 			return false;
@@ -230,8 +230,8 @@ impl Editor {
 		old_version: u64,
 		inserted_char: Option<char>,
 	) {
-		use crate::editor::completion_controller::CompletionTrigger;
-		use crate::editor::types::CompletionState;
+		use crate::lsp::completion_controller::CompletionTrigger;
+		use crate::lsp::CompletionState;
 
 		if let Some(new_mode) = mode_change
 			&& !matches!(new_mode, xeno_primitives::Mode::Insert)

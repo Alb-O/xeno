@@ -9,7 +9,7 @@ use xeno_lsp::lsp_types::{CompletionContext, CompletionTriggerKind, Position, Ur
 use xeno_primitives::range::CharIdx;
 
 use crate::buffer::BufferId;
-use crate::editor::lsp_events::LspUiEvent;
+use super::events::LspUiEvent;
 
 pub enum CompletionTrigger {
 	Typing,

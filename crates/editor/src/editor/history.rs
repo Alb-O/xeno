@@ -42,7 +42,7 @@ impl Buffer {
 
 impl Editor {
 	/// Collects view snapshots from all buffers sharing the same document.
-	pub(super) fn collect_view_snapshots(
+	pub(crate) fn collect_view_snapshots(
 		&self,
 		doc_id: DocumentId,
 	) -> HashMap<BufferId, ViewSnapshot> {

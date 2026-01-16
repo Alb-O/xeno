@@ -1,5 +1,11 @@
-//! Completion menu state.
+//! LSP-related type definitions.
+//!
+//! - [`CompletionState`] - Completion menu state and viewport
+//! - [`LspMenuState`] - Active LSP menu (completions or code actions)
 
+use xeno_lsp::lsp_types::{CodeActionOrCommand, CompletionItem as LspCompletionItem};
+
+use crate::buffer::BufferId;
 use crate::CompletionItem;
 
 /// Tracks how the current completion selection was made.
@@ -55,5 +61,42 @@ impl CompletionState {
 	pub fn visible_range(&self) -> std::ops::Range<usize> {
 		let end = (self.scroll_offset + Self::MAX_VISIBLE).min(self.items.len());
 		self.scroll_offset..end
+	}
+}
+
+/// The kind of LSP-driven menu currently active.
+#[derive(Clone)]
+pub enum LspMenuKind {
+	Completion {
+		buffer_id: BufferId,
+		items: Vec<LspCompletionItem>,
+	},
+	CodeAction {
+		buffer_id: BufferId,
+		actions: Vec<CodeActionOrCommand>,
+	},
+}
+
+/// State for tracking the active LSP menu.
+#[derive(Clone, Default)]
+pub struct LspMenuState {
+	kind: Option<LspMenuKind>,
+}
+
+impl LspMenuState {
+	pub fn set(&mut self, kind: LspMenuKind) {
+		self.kind = Some(kind);
+	}
+
+	pub fn clear(&mut self) {
+		self.kind = None;
+	}
+
+	pub fn active(&self) -> Option<&LspMenuKind> {
+		self.kind.as_ref()
+	}
+
+	pub fn is_active(&self) -> bool {
+		self.kind.is_some()
 	}
 }

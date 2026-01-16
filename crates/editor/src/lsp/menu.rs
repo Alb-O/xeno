@@ -15,14 +15,12 @@ use xeno_registry_notifications::keys;
 
 use crate::buffer::BufferId;
 use crate::editor::Editor;
-use crate::editor::completion_controller::{CompletionRequest, CompletionTrigger};
-use crate::editor::completion_filter::{extract_query, filter_items};
-use crate::editor::lsp_events::map_completion_item_with_indices;
-use crate::editor::snippet::{Snippet, SnippetPlaceholder, parse_snippet};
-use crate::editor::types::{CompletionState, LspMenuKind, LspMenuState, SelectionIntent};
-use crate::editor::workspace_edit::{
-	ApplyError, BufferEditPlan, PlannedTextEdit, convert_text_edit,
-};
+use super::completion_controller::{CompletionRequest, CompletionTrigger};
+use super::completion_filter::{extract_query, filter_items};
+use super::events::map_completion_item_with_indices;
+use super::snippet::{Snippet, SnippetPlaceholder, parse_snippet};
+use super::workspace_edit::{ApplyError, BufferEditPlan, PlannedTextEdit, convert_text_edit};
+use super::types::{CompletionState, LspMenuKind, LspMenuState, SelectionIntent};
 use crate::info_popup::PopupAnchor;
 use crate::{CompletionItem as UiCompletionItem, CompletionKind};
 
@@ -386,7 +384,7 @@ impl Editor {
 				return;
 			}
 
-			let _ = ui_tx.send(crate::editor::lsp_events::LspUiEvent::SignatureHelp {
+			let _ = ui_tx.send(super::events::LspUiEvent::SignatureHelp {
 				generation,
 				buffer_id,
 				cursor,

@@ -4,9 +4,8 @@ use xeno_tui::text::{Line, Span};
 use xeno_tui::widgets::list::ListItem;
 use xeno_tui::widgets::{Block, Borders, List, Widget};
 
-use crate::editor::types::CompletionState;
 #[cfg(feature = "lsp")]
-use crate::editor::types::LspMenuState;
+use crate::lsp::{CompletionState, LspMenuState};
 use crate::{CompletionKind, Editor};
 
 /// Builds styled [`Span`]s for a completion label with matched characters highlighted.
@@ -198,8 +197,8 @@ impl Editor {
 			return;
 		};
 		let buffer_id = match menu_state {
-			crate::editor::types::LspMenuKind::Completion { buffer_id, .. } => *buffer_id,
-			crate::editor::types::LspMenuKind::CodeAction { buffer_id, .. } => *buffer_id,
+			crate::lsp::LspMenuKind::Completion { buffer_id, .. } => *buffer_id,
+			crate::lsp::LspMenuKind::CodeAction { buffer_id, .. } => *buffer_id,
 		};
 		if buffer_id != self.focused_view() {
 			return;

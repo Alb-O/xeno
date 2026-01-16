@@ -7,8 +7,8 @@ use xeno_primitives::range::CharIdx;
 
 use crate::buffer::BufferId;
 use crate::editor::Editor;
-use crate::editor::completion_filter::{extract_query, filter_items};
-use crate::editor::types::{CompletionState, LspMenuKind, LspMenuState, SelectionIntent};
+use super::completion_filter::{extract_query, filter_items};
+use super::types::{CompletionState, LspMenuKind, LspMenuState, SelectionIntent};
 use crate::info_popup::PopupAnchor;
 use crate::{CompletionItem, CompletionKind};
 

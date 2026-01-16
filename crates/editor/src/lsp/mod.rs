@@ -20,6 +20,17 @@
 //! - Document synchronization via [`xeno_lsp::DocumentSync`]
 //! - Server registry via [`xeno_lsp::Registry`]
 //!
+//! # Submodules
+//!
+//! - [`completion_controller`] - Completion request debouncing and cancellation
+//! - [`completion_filter`] - Fuzzy filtering for completion items
+//! - [`diagnostics`] - Diagnostic navigation helpers
+//! - [`events`] - LSP UI event handling
+//! - [`menu`] - Completion menu rendering and interaction
+//! - [`prompt`] - LSP rename prompt handling
+//! - [`snippet`] - Snippet parsing for completions
+//! - [`workspace_edit`] - Workspace edit planning and application
+//!
 //! # Usage
 //!
 //! ```ignore
@@ -40,6 +51,20 @@
 //! // Notify of changes
 //! lsp.on_buffer_change(&buffer).await?;
 //! ```
+
+pub(crate) mod completion_controller;
+pub(crate) mod completion_filter;
+pub(crate) mod diagnostics;
+pub(crate) mod events;
+pub(crate) mod menu;
+pub(crate) mod prompt;
+pub(crate) mod snippet;
+pub(crate) mod types;
+pub(crate) mod workspace_edit;
+
+pub(crate) use completion_controller::CompletionController;
+pub(crate) use events::LspUiEvent;
+pub(crate) use types::{CompletionState, LspMenuKind, LspMenuState};
 
 use std::path::Path;
 use std::sync::Arc;

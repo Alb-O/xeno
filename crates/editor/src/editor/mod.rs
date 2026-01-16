@@ -21,12 +21,6 @@ mod buffer_manager;
 mod buffer_ops;
 /// Command queue for deferred execution.
 mod command_queue;
-/// LSP completion controller.
-#[cfg(feature = "lsp")]
-mod completion_controller;
-/// Fuzzy filtering for LSP completions.
-#[cfg(feature = "lsp")]
-mod completion_filter;
 /// Data-oriented edit operation executor.
 mod edit_op_executor;
 /// Text editing operations.
@@ -49,15 +43,6 @@ mod input;
 mod layout;
 /// Editor lifecycle (tick, render).
 mod lifecycle;
-/// LSP diagnostic navigation helpers.
-#[cfg(feature = "lsp")]
-mod lsp_diagnostics;
-/// LSP UI event handling.
-#[cfg(feature = "lsp")]
-mod lsp_events;
-/// LSP completion and menu handling.
-#[cfg(feature = "lsp")]
-mod lsp_menu;
 /// Message and notification display.
 mod messaging;
 /// Cursor navigation utilities.
@@ -66,16 +51,10 @@ mod navigation;
 mod options;
 /// Command palette operations.
 mod palette;
-/// Prompt overlay operations.
-#[cfg(feature = "lsp")]
-mod prompt;
 /// Search state and operations.
 mod search;
 /// Separator hit detection.
 mod separator;
-/// Snippet parsing for LSP completions.
-#[cfg(feature = "lsp")]
-mod snippet;
 /// Split view operations.
 mod splits;
 /// Theme management.
@@ -84,9 +63,6 @@ mod theming;
 pub mod types;
 /// Buffer access and viewport management.
 mod views;
-/// LSP workspace edit planning and apply.
-#[cfg(feature = "lsp")]
-mod workspace_edit;
 
 use std::path::PathBuf;
 
@@ -107,9 +83,9 @@ use xeno_runtime_language::LanguageLoader;
 use xeno_tui::layout::Rect;
 
 #[cfg(feature = "lsp")]
-use self::completion_controller::CompletionController;
+use crate::lsp::CompletionController;
 #[cfg(feature = "lsp")]
-use self::lsp_events::LspUiEvent;
+use crate::lsp::LspUiEvent;
 pub use self::separator::{DragState, MouseVelocityTracker, SeparatorHoverAnimation};
 use crate::buffer::{BufferId, Layout};
 use crate::editor::extensions::{ExtensionMap, StyleOverlays};
