@@ -5,8 +5,9 @@ use xeno_primitives::range::Range;
 use xeno_primitives::{Mode, Selection};
 pub use xeno_registry::actions::editor_ctx::*;
 use xeno_registry::{
-	ActionEffects, ActionResult, Effect, HookContext, HookEventData, ScreenPosition, ScrollAmount,
-	emit_sync as emit_hook_sync, notification_keys as keys, result_handler,
+	ActionEffects, ActionResult, AppEffect, EditEffect, Effect, HookContext, HookEventData,
+	ScreenPosition, ScrollAmount, UiEffect, ViewEffect, emit_sync as emit_hook_sync,
+	notification_keys as keys, result_handler,
 };
 
 /// Applies a set of effects to the editor context.
@@ -28,6 +29,17 @@ pub fn apply_effects(
 
 	for effect in effects {
 		match effect {
+			// Nested variants (preferred)
+			Effect::View(view) => apply_view_effect(view, ctx, extend),
+			Effect::Edit(edit) => apply_edit_effect(edit, ctx),
+			Effect::Ui(ui) => apply_ui_effect(ui, ctx),
+			Effect::App(app) => {
+				if let Some(quit) = apply_app_effect(app, ctx) {
+					outcome = quit;
+				}
+			}
+
+			// Legacy flat variants (backward compatibility)
 			Effect::SetCursor(pos) => {
 				ctx.set_cursor(*pos);
 				emit_cursor_hook(ctx);
@@ -64,11 +76,7 @@ pub fn apply_effects(
 				amount,
 				extend: scroll_extend,
 			} => {
-				let count = match amount {
-					ScrollAmount::Line(n) => *n,
-					ScrollAmount::HalfPage => 10,
-					ScrollAmount::FullPage => 20,
-				};
+				let count = scroll_amount_to_lines(amount);
 				if let Some(edit) = ctx.edit() {
 					edit.move_visual_vertical(*direction, count, *scroll_extend);
 				}
@@ -140,9 +148,7 @@ pub fn apply_effects(
 				ctx.execute_palette();
 			}
 
-			Effect::ForceRedraw => {
-				// Force redraw is handled at a higher level
-			}
+			Effect::ForceRedraw => {}
 
 			Effect::Search {
 				direction,
@@ -168,10 +174,195 @@ pub fn apply_effects(
 					queue.queue_command(name, args.clone());
 				}
 			}
+
+			_ => trace!(?effect, "unhandled effect variant"),
 		}
 	}
 
 	outcome
+}
+
+/// Applies a view-related effect.
+fn apply_view_effect(
+	effect: &ViewEffect,
+	ctx: &mut xeno_registry::actions::editor_ctx::EditorContext,
+	extend: bool,
+) {
+	match effect {
+		ViewEffect::SetCursor(pos) => {
+			ctx.set_cursor(*pos);
+			emit_cursor_hook(ctx);
+		}
+
+		ViewEffect::SetSelection(sel) => {
+			ctx.set_cursor(sel.primary().head);
+			ctx.set_selection(sel.clone());
+			emit_cursor_hook(ctx);
+			emit_selection_hook(ctx, sel);
+		}
+
+		ViewEffect::ScreenMotion { position, count } => {
+			apply_screen_motion(ctx, *position, *count, extend);
+		}
+
+		ViewEffect::Scroll {
+			direction,
+			amount,
+			extend: scroll_extend,
+		} => {
+			let count = scroll_amount_to_lines(amount);
+			if let Some(edit) = ctx.edit() {
+				edit.move_visual_vertical(*direction, count, *scroll_extend);
+			}
+		}
+
+		ViewEffect::VisualMove {
+			direction,
+			count,
+			extend: move_extend,
+		} => {
+			if let Some(edit) = ctx.edit() {
+				edit.move_visual_vertical(*direction, *count, *move_extend);
+			}
+		}
+
+		ViewEffect::Search {
+			direction,
+			add_selection,
+		} => {
+			if let Some(search) = ctx.search() {
+				search.search(*direction, *add_selection, extend);
+			}
+		}
+
+		ViewEffect::UseSelectionAsSearch => {
+			if let Some(search) = ctx.search() {
+				search.use_selection_as_pattern();
+			}
+		}
+
+		_ => trace!(?effect, "unhandled view effect variant"),
+	}
+}
+
+/// Applies a text editing effect.
+fn apply_edit_effect(effect: &EditEffect, ctx: &mut xeno_registry::actions::editor_ctx::EditorContext) {
+	match effect {
+		EditEffect::EditOp(op) => {
+			if let Some(edit) = ctx.edit() {
+				edit.execute_edit_op(op);
+			}
+		}
+
+		EditEffect::Paste { before } => {
+			if let Some(edit) = ctx.edit() {
+				edit.paste(*before);
+			}
+		}
+
+		_ => trace!(?effect, "unhandled edit effect variant"),
+	}
+}
+
+/// Applies a UI-related effect.
+fn apply_ui_effect(effect: &UiEffect, ctx: &mut xeno_registry::actions::editor_ctx::EditorContext) {
+	match effect {
+		UiEffect::Notify(notification) => {
+			ctx.emit(notification.clone());
+		}
+
+		UiEffect::Error(msg) => {
+			ctx.emit(keys::action_error::call(msg));
+		}
+
+		UiEffect::OpenPalette => {
+			ctx.open_palette();
+		}
+
+		UiEffect::ClosePalette => {
+			ctx.close_palette();
+		}
+
+		UiEffect::ExecutePalette => {
+			ctx.execute_palette();
+		}
+
+		UiEffect::ForceRedraw => {}
+
+		_ => trace!(?effect, "unhandled ui effect variant"),
+	}
+}
+
+/// Applies an application-level effect.
+///
+/// Returns `Some(HandleOutcome::Quit)` if this is a quit effect.
+fn apply_app_effect(
+	effect: &AppEffect,
+	ctx: &mut xeno_registry::actions::editor_ctx::EditorContext,
+) -> Option<HandleOutcome> {
+	match effect {
+		AppEffect::SetMode(mode) => {
+			ctx.set_mode(mode.clone());
+		}
+
+		AppEffect::Pending(pending) => {
+			ctx.emit(keys::pending_prompt::call(&pending.prompt));
+			ctx.set_mode(Mode::PendingAction(pending.kind));
+		}
+
+		AppEffect::FocusBuffer(direction) => {
+			if let Some(ops) = ctx.focus_ops() {
+				ops.buffer_switch(*direction);
+			}
+		}
+
+		AppEffect::FocusSplit(direction) => {
+			if let Some(ops) = ctx.focus_ops() {
+				ops.focus(*direction);
+			}
+		}
+
+		AppEffect::Split(axis) => {
+			if let Some(ops) = ctx.split_ops() {
+				ops.split(*axis);
+			}
+		}
+
+		AppEffect::CloseSplit => {
+			if let Some(ops) = ctx.split_ops() {
+				ops.close_split();
+			}
+		}
+
+		AppEffect::CloseOtherBuffers => {
+			if let Some(ops) = ctx.split_ops() {
+				ops.close_other_buffers();
+			}
+		}
+
+		AppEffect::Quit { force: _ } => {
+			return Some(HandleOutcome::Quit);
+		}
+
+		AppEffect::QueueCommand { name, args } => {
+			if let Some(queue) = ctx.command_queue() {
+				queue.queue_command(name, args.clone());
+			}
+		}
+
+		_ => trace!(?effect, "unhandled app effect variant"),
+	}
+
+	None
+}
+
+/// Converts scroll amount to line count.
+fn scroll_amount_to_lines(amount: &ScrollAmount) -> usize {
+	match amount {
+		ScrollAmount::Line(n) => *n,
+		ScrollAmount::HalfPage => 10,
+		ScrollAmount::FullPage => 20,
+	}
 }
 
 /// Emits cursor move hook if position is available.

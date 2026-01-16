@@ -41,10 +41,10 @@ pub use actions::editor_ctx::{
 };
 pub use actions::{
 	ACTIONS, ActionArgs, ActionContext, ActionDef, ActionEffects, ActionHandler, ActionResult,
-	BindingMode, Effect, KEY_PREFIXES, KEYBINDINGS, KeyBindingDef, KeyPrefixDef, Mode,
-	ObjectSelectionKind, PendingAction, PendingKind, RESULT_EFFECTS_HANDLERS,
-	RESULT_EXTENSION_HANDLERS, ScreenPosition, ScrollAmount, action, dispatch_result, edit_op,
-	find_prefix, key_prefix, result_extension_handler, result_handler,
+	AppEffect, BindingMode, EditEffect, Effect, KEY_PREFIXES, KEYBINDINGS, KeyBindingDef,
+	KeyPrefixDef, Mode, ObjectSelectionKind, PendingAction, PendingKind, RESULT_EFFECTS_HANDLERS,
+	RESULT_EXTENSION_HANDLERS, ScreenPosition, ScrollAmount, UiEffect, ViewEffect, action,
+	dispatch_result, edit_op, find_prefix, key_prefix, result_extension_handler, result_handler,
 };
 // Re-export direction types (via actions which re-exports from xeno-base)
 pub use actions::{Axis, SeqDirection, SpatialDirection};
@@ -93,3 +93,41 @@ pub use {
 	xeno_registry_statusline as statusline, xeno_registry_textobj as textobj,
 	xeno_registry_themes as themes,
 };
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+
+	/// Sanity check to catch linkme registration failures.
+	///
+	/// If distributed slice registration breaks (e.g., due to linker issues
+	/// or missing feature flags), these counts will drop to zero.
+	#[test]
+	fn registry_sanity_check() {
+		assert!(
+			ACTIONS.len() >= 50,
+			"Expected at least 50 actions registered, got {}",
+			ACTIONS.len()
+		);
+		assert!(
+			MOTIONS.len() >= 20,
+			"Expected at least 20 motions registered, got {}",
+			MOTIONS.len()
+		);
+		assert!(
+			COMMANDS.len() >= 10,
+			"Expected at least 10 commands registered, got {}",
+			COMMANDS.len()
+		);
+		assert!(
+			GUTTERS.len() >= 2,
+			"Expected at least 2 gutters registered, got {}",
+			GUTTERS.len()
+		);
+		assert!(
+			TEXT_OBJECTS.len() >= 10,
+			"Expected at least 10 text objects registered, got {}",
+			TEXT_OBJECTS.len()
+		);
+	}
+}

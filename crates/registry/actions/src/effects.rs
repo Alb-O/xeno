@@ -97,81 +97,87 @@ impl ActionEffects {
 	/// Sets the cursor position.
 	#[inline]
 	pub fn cursor(pos: CharIdx) -> Self {
-		Self::from_effect(Effect::SetCursor(pos))
+		Self::from_effect(ViewEffect::SetCursor(pos).into())
 	}
 
 	/// Sets the selection (motion result).
 	#[inline]
 	pub fn motion(sel: Selection) -> Self {
-		Self::from_effect(Effect::SetSelection(sel))
+		Self::from_effect(ViewEffect::SetSelection(sel).into())
 	}
 
 	/// Changes the editor mode.
 	#[inline]
 	pub fn mode(mode: Mode) -> Self {
-		Self::from_effect(Effect::SetMode(mode))
+		Self::from_effect(AppEffect::SetMode(mode).into())
 	}
 
 	/// Quits the editor.
 	#[inline]
 	pub fn quit() -> Self {
-		Self::from_effect(Effect::Quit { force: false })
+		Self::from_effect(AppEffect::Quit { force: false }.into())
 	}
 
 	/// Force quits the editor.
 	#[inline]
 	pub fn force_quit() -> Self {
-		Self::from_effect(Effect::Quit { force: true })
+		Self::from_effect(AppEffect::Quit { force: true }.into())
 	}
 
 	/// Shows an error message.
 	#[inline]
 	pub fn error(msg: impl Into<String>) -> Self {
-		Self::from_effect(Effect::Error(msg.into()))
+		Self::from_effect(UiEffect::Error(msg.into()).into())
 	}
 
 	/// Triggers a screen-relative motion.
 	#[inline]
 	pub fn screen_motion(position: ScreenPosition, count: usize) -> Self {
-		Self::from_effect(Effect::ScreenMotion { position, count })
+		Self::from_effect(ViewEffect::ScreenMotion { position, count }.into())
 	}
 
 	/// Executes a data-oriented edit operation.
 	#[inline]
 	pub fn edit_op(op: crate::edit_op::EditOp) -> Self {
-		Self::from_effect(Effect::EditOp(op))
+		Self::from_effect(EditEffect::EditOp(op).into())
 	}
 
 	/// Scrolls the viewport.
 	#[inline]
 	pub fn scroll(direction: Direction, amount: ScrollAmount, extend: bool) -> Self {
-		Self::from_effect(Effect::Scroll {
-			direction,
-			amount,
-			extend,
-		})
+		Self::from_effect(
+			ViewEffect::Scroll {
+				direction,
+				amount,
+				extend,
+			}
+			.into(),
+		)
 	}
 
 	/// Moves cursor visually (wrapped lines).
 	#[inline]
 	pub fn visual_move(direction: Direction, count: usize, extend: bool) -> Self {
-		Self::from_effect(Effect::VisualMove {
-			direction,
-			count,
-			extend,
-		})
+		Self::from_effect(
+			ViewEffect::VisualMove {
+				direction,
+				count,
+				extend,
+			}
+			.into(),
+		)
 	}
 
 	/// Pastes from yank register.
 	#[inline]
 	pub fn paste(before: bool) -> Self {
-		Self::from_effect(Effect::Paste { before })
+		Self::from_effect(EditEffect::Paste { before }.into())
 	}
 
 	/// Enters pending state for multi-key action.
 	#[inline]
 	pub fn pending(action: PendingAction) -> Self {
-		Self::from_effect(Effect::Pending(action))
+		Self::from_effect(AppEffect::Pending(action).into())
 	}
 }
 
@@ -210,25 +216,10 @@ impl<'a> IntoIterator for &'a ActionEffects {
 	}
 }
 
-/// Primitive state mutation.
-///
-/// Effects are the atomic units of editor state change. Unlike `ActionResult`
-/// variants which represent compound behaviors, effects represent single
-/// state mutations that can be composed.
-///
-/// # Categories
-///
-/// - **Cursor/Selection**: `SetCursor`, `SetSelection`, `ScreenMotion`
-/// - **Mode**: `SetMode`, `Pending`
-/// - **Text**: `EditOp`, `Paste`
-/// - **Viewport**: `Scroll`, `VisualMove`
-/// - **Navigation**: `FocusBuffer`, `FocusSplit`, `Split`, `CloseSplit`
-/// - **UI**: `Notify`, `OpenPalette`, `ClosePalette`, `ExecutePalette`
-/// - **Lifecycle**: `Quit`, `ForceRedraw`
-/// - **Search**: `Search`, `UseSelectionAsSearch`
-/// - **Deferred**: `QueueCommand`
+/// View-related effects (cursor, selection, viewport).
 #[derive(Debug, Clone)]
-pub enum Effect {
+#[non_exhaustive]
+pub enum ViewEffect {
 	/// Set cursor to absolute position.
 	SetCursor(CharIdx),
 
@@ -242,18 +233,6 @@ pub enum Effect {
 		/// 1-based offset from the target edge.
 		count: usize,
 	},
-
-	/// Change editor mode.
-	SetMode(Mode),
-
-	/// Enter pending state for multi-key action.
-	Pending(PendingAction),
-
-	/// Execute a data-oriented edit operation.
-	///
-	/// This is the preferred way to express text edits. EditOp records
-	/// are composable and processed by a single executor function.
-	EditOp(crate::edit_op::EditOp),
 
 	/// Scroll the viewport.
 	Scroll {
@@ -275,27 +254,39 @@ pub enum Effect {
 		extend: bool,
 	},
 
+	/// Search in direction.
+	Search {
+		/// Direction to search.
+		direction: SeqDirection,
+		/// Whether to add matches to existing selections.
+		add_selection: bool,
+	},
+
+	/// Use current selection as search pattern.
+	UseSelectionAsSearch,
+}
+
+/// Text editing effects.
+#[derive(Debug, Clone)]
+#[non_exhaustive]
+pub enum EditEffect {
+	/// Execute a data-oriented edit operation.
+	///
+	/// This is the preferred way to express text edits. EditOp records
+	/// are composable and processed by a single executor function.
+	EditOp(crate::edit_op::EditOp),
+
 	/// Paste from yank register.
 	Paste {
 		/// Whether to paste before cursor (vs after).
 		before: bool,
 	},
+}
 
-	/// Switch buffer in sequential direction.
-	FocusBuffer(SeqDirection),
-
-	/// Focus split in spatial direction.
-	FocusSplit(SpatialDirection),
-
-	/// Create a new split.
-	Split(Axis),
-
-	/// Close current split.
-	CloseSplit,
-
-	/// Close all other buffers.
-	CloseOtherBuffers,
-
+/// UI-related effects (notifications, palette, redraw).
+#[derive(Debug, Clone)]
+#[non_exhaustive]
+pub enum UiEffect {
 	/// Show a notification.
 	Notify(Notification),
 
@@ -313,17 +304,32 @@ pub enum Effect {
 
 	/// Force a redraw.
 	ForceRedraw,
+}
 
-	/// Search in direction.
-	Search {
-		/// Direction to search.
-		direction: SeqDirection,
-		/// Whether to add matches to existing selections.
-		add_selection: bool,
-	},
+/// Application-level effects (mode, focus, lifecycle).
+#[derive(Debug, Clone)]
+#[non_exhaustive]
+pub enum AppEffect {
+	/// Change editor mode.
+	SetMode(Mode),
 
-	/// Use current selection as search pattern.
-	UseSelectionAsSearch,
+	/// Enter pending state for multi-key action.
+	Pending(PendingAction),
+
+	/// Switch buffer in sequential direction.
+	FocusBuffer(SeqDirection),
+
+	/// Focus split in spatial direction.
+	FocusSplit(SpatialDirection),
+
+	/// Create a new split.
+	Split(Axis),
+
+	/// Close current split.
+	CloseSplit,
+
+	/// Close all other buffers.
+	CloseOtherBuffers,
 
 	/// Quit the editor.
 	Quit {
@@ -339,6 +345,214 @@ pub enum Effect {
 		args: Vec<String>,
 	},
 }
+
+/// Primitive state mutation.
+///
+/// Effects are the atomic units of editor state change. Unlike `ActionResult`
+/// variants which represent compound behaviors, effects represent single
+/// state mutations that can be composed.
+///
+/// # Categories
+///
+/// Effects are organized into domain-specific nested enums:
+///
+/// - [`ViewEffect`]: Cursor, selection, viewport, search
+/// - [`EditEffect`]: Text modifications (EditOp, Paste)
+/// - [`UiEffect`]: Notifications, palette, redraw
+/// - [`AppEffect`]: Mode, focus, splits, lifecycle
+///
+/// # Ordering Invariants
+///
+/// Effects are applied **sequentially in the order they appear** in the
+/// `ActionEffects` collection. The interpreter does not reorder effects.
+///
+/// ## Semantic ordering expectations
+///
+/// When composing effects, follow these conventions:
+///
+/// 1. **Cursor/Selection before Mode** - Set cursor/selection before changing
+///    mode, so mode-entry logic sees the correct position.
+///    ```ignore
+///    ActionEffects::motion(sel).with(Effect::App(AppEffect::SetMode(Mode::Insert)))
+///    ```
+///
+/// 2. **EditOp is self-contained** - `EditOp` effects handle their own cursor
+///    updates internally. Don't combine `SetCursor` with `EditOp` for the same
+///    logical edit.
+///
+/// 3. **Notifications are side effects** - Place `Notify` effects at the end
+///    since they don't affect subsequent effects.
+///
+/// 4. **Quit short-circuits outcome** - Once `Quit` is processed, the return
+///    outcome becomes `HandleOutcome::Quit`. Subsequent effects still execute
+///    but the final outcome is quit.
+///
+/// ## Hook emissions
+///
+/// - `SetCursor` emits `CursorMove` hook
+/// - `SetSelection` emits both `CursorMove` and `SelectionChange` hooks
+/// - `ScreenMotion` emits both hooks after computing the target position
+///
+/// These hooks fire immediately after each effect, not batched at the end.
+#[derive(Debug, Clone)]
+#[non_exhaustive]
+pub enum Effect {
+	/// View-related effect (cursor, selection, viewport, search).
+	View(ViewEffect),
+
+	/// Text editing effect.
+	Edit(EditEffect),
+
+	/// UI-related effect (notifications, palette).
+	Ui(UiEffect),
+
+	/// Application-level effect (mode, focus, lifecycle).
+	App(AppEffect),
+
+	// Legacy flat variants for backward compatibility.
+	// These will be deprecated in a future version.
+
+	/// Set cursor to absolute position.
+	#[doc(hidden)]
+	SetCursor(CharIdx),
+
+	/// Set selection (includes cursor at primary head).
+	#[doc(hidden)]
+	SetSelection(Selection),
+
+	/// Move cursor to screen-relative position (H/M/L).
+	#[doc(hidden)]
+	ScreenMotion {
+		position: ScreenPosition,
+		count: usize,
+	},
+
+	/// Change editor mode.
+	#[doc(hidden)]
+	SetMode(Mode),
+
+	/// Enter pending state for multi-key action.
+	#[doc(hidden)]
+	Pending(PendingAction),
+
+	/// Execute a data-oriented edit operation.
+	#[doc(hidden)]
+	EditOp(crate::edit_op::EditOp),
+
+	/// Scroll the viewport.
+	#[doc(hidden)]
+	Scroll {
+		direction: Direction,
+		amount: ScrollAmount,
+		extend: bool,
+	},
+
+	/// Move cursor visually (wrapped lines).
+	#[doc(hidden)]
+	VisualMove {
+		direction: Direction,
+		count: usize,
+		extend: bool,
+	},
+
+	/// Paste from yank register.
+	#[doc(hidden)]
+	Paste { before: bool },
+
+	/// Switch buffer in sequential direction.
+	#[doc(hidden)]
+	FocusBuffer(SeqDirection),
+
+	/// Focus split in spatial direction.
+	#[doc(hidden)]
+	FocusSplit(SpatialDirection),
+
+	/// Create a new split.
+	#[doc(hidden)]
+	Split(Axis),
+
+	/// Close current split.
+	#[doc(hidden)]
+	CloseSplit,
+
+	/// Close all other buffers.
+	#[doc(hidden)]
+	CloseOtherBuffers,
+
+	/// Show a notification.
+	#[doc(hidden)]
+	Notify(Notification),
+
+	/// Display an error message.
+	#[doc(hidden)]
+	Error(String),
+
+	/// Open command palette.
+	#[doc(hidden)]
+	OpenPalette,
+
+	/// Close command palette.
+	#[doc(hidden)]
+	ClosePalette,
+
+	/// Execute command in palette.
+	#[doc(hidden)]
+	ExecutePalette,
+
+	/// Force a redraw.
+	#[doc(hidden)]
+	ForceRedraw,
+
+	/// Search in direction.
+	#[doc(hidden)]
+	Search {
+		direction: SeqDirection,
+		add_selection: bool,
+	},
+
+	/// Use current selection as search pattern.
+	#[doc(hidden)]
+	UseSelectionAsSearch,
+
+	/// Quit the editor.
+	#[doc(hidden)]
+	Quit { force: bool },
+
+	/// Queue a command for async execution.
+	#[doc(hidden)]
+	QueueCommand {
+		name: &'static str,
+		args: Vec<String>,
+	},
+}
+
+// From implementations for nested enums -> Effect
+
+impl From<ViewEffect> for Effect {
+	fn from(effect: ViewEffect) -> Self {
+		Effect::View(effect)
+	}
+}
+
+impl From<EditEffect> for Effect {
+	fn from(effect: EditEffect) -> Self {
+		Effect::Edit(effect)
+	}
+}
+
+impl From<UiEffect> for Effect {
+	fn from(effect: UiEffect) -> Self {
+		Effect::Ui(effect)
+	}
+}
+
+impl From<AppEffect> for Effect {
+	fn from(effect: AppEffect) -> Self {
+		Effect::App(effect)
+	}
+}
+
+// From implementations for common types -> Effect (backward compatibility)
 
 impl From<Selection> for Effect {
 	fn from(sel: Selection) -> Self {
@@ -380,11 +594,11 @@ mod tests {
 		let effects = ActionEffects::motion(sel.clone()).with(Effect::SetMode(Mode::Insert));
 
 		assert_eq!(effects.len(), 2);
-		assert!(matches!(effects.as_slice()[0], Effect::SetSelection(_)));
 		assert!(matches!(
-			effects.as_slice()[1],
-			Effect::SetMode(Mode::Insert)
+			effects.as_slice()[0],
+			Effect::View(ViewEffect::SetSelection(_))
 		));
+		assert!(matches!(effects.as_slice()[1], Effect::SetMode(Mode::Insert)));
 	}
 
 	#[test]
@@ -397,5 +611,44 @@ mod tests {
 	fn test_from_effect() {
 		let effects: ActionEffects = Effect::SetMode(Mode::Normal).into();
 		assert_eq!(effects.len(), 1);
+	}
+
+	#[test]
+	fn test_nested_view_effect() {
+		let effect: Effect = ViewEffect::SetCursor(CharIdx::from(42usize)).into();
+		assert!(matches!(effect, Effect::View(ViewEffect::SetCursor(_))));
+	}
+
+	#[test]
+	fn test_nested_edit_effect() {
+		let effect: Effect = EditEffect::Paste { before: true }.into();
+		assert!(matches!(
+			effect,
+			Effect::Edit(EditEffect::Paste { before: true })
+		));
+	}
+
+	#[test]
+	fn test_nested_ui_effect() {
+		let effect: Effect = UiEffect::OpenPalette.into();
+		assert!(matches!(effect, Effect::Ui(UiEffect::OpenPalette)));
+	}
+
+	#[test]
+	fn test_nested_app_effect() {
+		let effect: Effect = AppEffect::Quit { force: true }.into();
+		assert!(matches!(effect, Effect::App(AppEffect::Quit { force: true })));
+	}
+
+	#[test]
+	fn test_legacy_flat_variants_still_work() {
+		let effects = ActionEffects::new()
+			.with(Effect::SetCursor(CharIdx::from(10usize)))
+			.with(Effect::SetMode(Mode::Insert))
+			.with(Effect::Notify(
+				xeno_registry_notifications::keys::undo.into(),
+			));
+
+		assert_eq!(effects.len(), 3);
 	}
 }

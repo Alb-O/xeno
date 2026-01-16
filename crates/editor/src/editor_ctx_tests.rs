@@ -229,3 +229,95 @@ fn non_quit_effects_return_handled_outcome() {
 		xeno_registry::actions::editor_ctx::HandleOutcome::Handled
 	));
 }
+
+/// Selection must be applied before mode change so mode-entry logic sees
+/// the updated cursor position.
+#[test]
+fn selection_applied_before_mode_change() {
+	let mut editor = MockEditor::new();
+	let mut ctx = xeno_registry::actions::editor_ctx::EditorContext::new(&mut editor);
+
+	let sel = Selection::point(CharIdx::from(42usize));
+	let effects = ActionEffects::motion(sel).with(Effect::SetMode(Mode::Insert));
+
+	apply_effects(&effects, &mut ctx, false);
+
+	let sel_idx = editor
+		.effect_log
+		.iter()
+		.position(|s| s.starts_with("set_selection:"))
+		.unwrap();
+	let mode_idx = editor
+		.effect_log
+		.iter()
+		.position(|s| s.starts_with("set_mode:"))
+		.unwrap();
+
+	assert!(
+		sel_idx < mode_idx,
+		"Selection must be applied before mode change"
+	);
+	assert_eq!(editor.mode, Mode::Insert);
+	assert_eq!(usize::from(editor.cursor), 42);
+}
+
+/// Quit short-circuits the return outcome but subsequent effects still execute.
+#[test]
+fn effects_after_quit_still_execute() {
+	let mut editor = MockEditor::new();
+	let mut ctx = xeno_registry::actions::editor_ctx::EditorContext::new(&mut editor);
+
+	let effects = ActionEffects::new()
+		.with(Effect::Quit { force: false })
+		.with(Effect::SetCursor(CharIdx::from(99usize)))
+		.with(Effect::SetMode(Mode::Insert));
+
+	let outcome = apply_effects(&effects, &mut ctx, false);
+
+	assert!(matches!(
+		outcome,
+		xeno_registry::actions::editor_ctx::HandleOutcome::Quit
+	));
+	assert_eq!(usize::from(editor.cursor), 99);
+	assert_eq!(editor.mode, Mode::Insert);
+}
+
+/// Notifications are side effects that don't affect subsequent effect processing.
+#[test]
+fn notifications_are_side_effects() {
+	let mut editor = MockEditor::new();
+	let mut ctx = xeno_registry::actions::editor_ctx::EditorContext::new(&mut editor);
+
+	let effects = ActionEffects::new()
+		.with(Effect::SetCursor(CharIdx::from(10usize)))
+		.with(Effect::Notify(xeno_registry_notifications::keys::undo.into()))
+		.with(Effect::SetCursor(CharIdx::from(20usize)));
+
+	apply_effects(&effects, &mut ctx, false);
+
+	assert_eq!(usize::from(editor.cursor), 20);
+	assert_eq!(editor.notifications.len(), 1);
+
+	let cursor_positions: Vec<_> = editor
+		.effect_log
+		.iter()
+		.filter_map(|s| s.strip_prefix("set_cursor:").map(str::to_string))
+		.collect();
+	assert_eq!(cursor_positions, vec!["10", "20"]);
+}
+
+/// SetSelection emits cursor update followed by selection update.
+#[test]
+fn set_selection_emits_cursor_then_selection() {
+	let mut editor = MockEditor::new();
+	let mut ctx = xeno_registry::actions::editor_ctx::EditorContext::new(&mut editor);
+
+	let sel = Selection::single(5, 15);
+	let effects = ActionEffects::motion(sel);
+
+	apply_effects(&effects, &mut ctx, false);
+
+	assert_eq!(editor.effect_log.len(), 2);
+	assert_eq!(editor.effect_log[0], "set_cursor:15");
+	assert_eq!(editor.effect_log[1], "set_selection:15");
+}

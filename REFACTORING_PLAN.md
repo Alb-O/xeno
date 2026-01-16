@@ -347,18 +347,18 @@ edit executor.
 
 Before starting, lock down effect ordering semantics:
 
-- [ ] Document invariants (e.g., SetSelection implies cursor hooks, EditOp runs after
+- [x] Document invariants (e.g., SetSelection implies cursor hooks, EditOp runs after
       cursor/selection changes, Quit short-circuits or just sets outcome)
-- [ ] Add small tests that lock down ordering expectations
-- [ ] Consider adding `#[non_exhaustive]` to Effect enum if external crates match on it
+- [x] Add small tests that lock down ordering expectations
+- [x] Consider adding `#[non_exhaustive]` to Effect enum if external crates match on it
 
 ### Tasks
 
-- [ ] Introduce nested enums: `ViewEffect`, `EditEffect`, `UiEffect`, `AppEffect`
-- [ ] Provide `From` conversions for backward compatibility
-- [ ] Update `ActionEffects` builder API to remain stable (this is the primary public surface)
-- [ ] Update `apply_effects` match to use nested structure
-- [ ] Add registry sanity test: `assert!(ACTIONS.len() >= N)` to catch linkme breakage
+- [x] Introduce nested enums: `ViewEffect`, `EditEffect`, `UiEffect`, `AppEffect`
+- [x] Provide `From` conversions for backward compatibility
+- [x] Update `ActionEffects` builder API to remain stable (this is the primary public surface)
+- [x] Update `apply_effects` match to use nested structure
+- [x] Add registry sanity test: `assert!(ACTIONS.len() >= N)` to catch linkme breakage
 
 ### Code Sketch: Nested Effects
 
@@ -709,14 +709,14 @@ fn registry_sanity_check() {
 - [x] apply_effects uses trait-based access
 
 ### Phase 4: Effect Nesting
-- [ ] Pre-phase: Document effect ordering invariants
-- [ ] Pre-phase: Add ordering lock-down tests
-- [ ] Pre-phase: Consider `#[non_exhaustive]` on Effect
-- [ ] Nested enum structure
-- [ ] From conversions
-- [ ] Builder API preservation
-- [ ] Interpreter update
-- [ ] Registry sanity test (action count >= N)
+- [x] Pre-phase: Document effect ordering invariants
+- [x] Pre-phase: Add ordering lock-down tests
+- [x] Pre-phase: Consider `#[non_exhaustive]` on Effect
+- [x] Nested enum structure
+- [x] From conversions
+- [x] Builder API preservation
+- [x] Interpreter update
+- [x] Registry sanity test (action count >= N)
 
 ### Phase 5: RegistryMeta
 - [ ] RegistryMeta struct
