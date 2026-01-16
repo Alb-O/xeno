@@ -167,9 +167,7 @@ impl Editor {
 		&mut self,
 		buffer_id: crate::buffer::BufferId,
 	) -> Option<oneshot::Receiver<()>> {
-		let Some(buffer) = self.buffers.get_buffer(buffer_id) else {
-			return None;
-		};
+		let buffer = self.buffers.get_buffer(buffer_id)?;
 		let (Some(path), Some(language)) = (buffer.path(), buffer.file_type()) else {
 			return None;
 		};

@@ -781,7 +781,7 @@ fn completion_text_edit(
 }
 
 fn validate_non_overlapping(
-	edits: &mut Vec<PlannedTextEdit>,
+	edits: &mut [PlannedTextEdit],
 	buffer_id: BufferId,
 ) -> Result<(), ApplyError> {
 	edits.sort_by_key(|edit| (edit.range.start, edit.range.end));

@@ -77,10 +77,16 @@ impl Editor {
 		&mut self,
 		edit: WorkspaceEdit,
 	) -> Result<WorkspaceEditPlan, ApplyError> {
-		let mut per_uri: HashMap<Uri, Vec<TextEdit>> = HashMap::new();
+		// Use String keys to avoid clippy::mutable_key_type warning for Uri
+		let mut per_uri: HashMap<String, (Uri, Vec<TextEdit>)> = HashMap::new();
 		if let Some(changes) = edit.changes {
 			for (uri, edits) in changes {
-				per_uri.entry(uri).or_default().extend(edits);
+				let key = uri.to_string();
+				per_uri
+					.entry(key)
+					.or_insert_with(|| (uri, Vec::new()))
+					.1
+					.extend(edits);
 			}
 		}
 
@@ -107,7 +113,7 @@ impl Editor {
 		}
 
 		let mut per_buffer = Vec::new();
-		for (uri, edits) in per_uri {
+		for (_uri_string, (uri, edits)) in per_uri {
 			let (buffer_id, opened_temporarily) = self.resolve_uri_to_buffer(&uri).await?;
 			let buffer = self
 				.buffers
@@ -135,11 +141,16 @@ impl Editor {
 	fn collect_text_document_edit(
 		&self,
 		edit: TextDocumentEdit,
-		per_uri: &mut HashMap<Uri, Vec<TextEdit>>,
+		per_uri: &mut HashMap<String, (Uri, Vec<TextEdit>)>,
 	) -> Result<(), ApplyError> {
 		let uri = edit.text_document.uri;
+		let key = uri.to_string();
 		let edits = normalize_text_document_edits(edit.edits);
-		per_uri.entry(uri).or_default().extend(edits);
+		per_uri
+			.entry(key)
+			.or_insert_with(|| (uri, Vec::new()))
+			.1
+			.extend(edits);
 		Ok(())
 	}
 

@@ -222,11 +222,7 @@ impl Editor {
 			.max()
 			.unwrap_or(0);
 		let width = (max_label_len + 10).max(12);
-		let height = completions
-			.items
-			.len()
-			.min(CompletionState::MAX_VISIBLE)
-			.max(1);
+		let height = completions.items.len().clamp(1, CompletionState::MAX_VISIBLE);
 
 		let view_area = self.focused_view_area();
 		let mut x = view_area.x.saturating_add(cursor_col);

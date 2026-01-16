@@ -103,9 +103,7 @@ fn parse_default_text(chars: &mut std::iter::Peekable<std::str::Chars<'_>>) -> O
 				break;
 			}
 			'\\' => {
-				let Some(escaped) = chars.next() else {
-					return None;
-				};
+				let escaped = chars.next()?;
 				text.push(escaped);
 			}
 			_ => text.push(ch),

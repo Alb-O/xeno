@@ -76,16 +76,14 @@ use crate::{Error, MainLoop, Result, ServerSocket};
 /// Handle to an LSP language server.
 ///
 /// This provides a high-level API for communicating with a language server.
-/// The actual I/O and main loop run in a separate task - this handle just
-/// holds the socket for sending messages.
+/// The actual I/O and main loop run in a separate task - this handle uses
+/// a message queue for outbound communication.
 #[derive(Clone)]
 pub struct ClientHandle {
 	/// Unique identifier for this client.
 	id: LanguageServerId,
 	/// Human-readable name (usually the command name).
 	name: String,
-	/// Socket for communicating with the server.
-	socket: ServerSocket,
 	/// Server capabilities (set after initialization).
 	capabilities: Arc<OnceCell<ServerCapabilities>>,
 	/// Root path for the workspace.
@@ -916,13 +914,11 @@ pub fn start_server(
 	});
 
 	let (outbound_tx, outbound_rx) = mpsc::channel(OUTBOUND_QUEUE_LEN);
-	let outbound_socket = socket.clone();
-	tokio::spawn(outbound_dispatcher(outbound_rx, outbound_socket));
+	tokio::spawn(outbound_dispatcher(outbound_rx, socket));
 
 	let handle = ClientHandle {
 		id,
 		name,
-		socket,
 		capabilities,
 		root_path: config.root_path,
 		root_uri,
