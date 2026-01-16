@@ -249,13 +249,13 @@ impl Document {
 
 ### Action Items
 
-- [ ] Redefine document history entries to be document-only (no `BufferId`)
-- [ ] Move selection/cursor restoration into editor-level undo groups
-- [ ] Create a `ViewSnapshot` (selection/cursor + other view state you care about)
-- [ ] Update editor undo/redo to:
-  - [ ] capture view snapshots at group boundaries
-  - [ ] call `doc.undo()`/`doc.redo()` once per affected document
-  - [ ] restore view snapshots for affected buffers
+- [x] Redefine document history entries to be document-only (no `BufferId`)
+- [x] Move selection/cursor restoration into editor-level undo groups
+- [x] Create a `ViewSnapshot` (selection/cursor + other view state you care about)
+- [x] Update editor undo/redo to:
+  - [x] capture view snapshots at group boundaries
+  - [x] call `doc.undo()`/`doc.redo()` once per affected document
+  - [x] restore view snapshots for affected buffers
 
 ### Key Separation Types
 

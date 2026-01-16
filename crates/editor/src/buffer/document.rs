@@ -3,20 +3,27 @@
 //! A [`Document`] represents the actual file content, separate from any view state.
 //! Multiple buffers can reference the same document, enabling split views of
 //! the same file with shared undo history.
+//!
+//! # History Separation
+//!
+//! Document history is purely about document state (text content). View state
+//! (cursor, selection, scroll position) is managed at the editor level via
+//! [`EditorUndoGroup`] and [`ViewSnapshot`].
+//!
+//! [`EditorUndoGroup`]: crate::editor::types::EditorUndoGroup
+//! [`ViewSnapshot`]: crate::editor::types::ViewSnapshot
 
-use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use xeno_primitives::{
-	CommitResult, EditCommit, EditError, ReadOnlyReason, ReadOnlyScope, Rope, Selection,
-	SyntaxPolicy, UndoPolicy,
+	CommitResult, EditCommit, EditError, ReadOnlyReason, ReadOnlyScope, Rope, SyntaxPolicy,
+	UndoPolicy,
 };
 use xeno_runtime_language::LanguageLoader;
 use xeno_runtime_language::syntax::Syntax;
 
-use crate::buffer::BufferId;
-use crate::editor::types::HistoryEntry;
+use crate::editor::types::DocumentHistoryEntry;
 
 /// Counter for generating unique document IDs.
 static NEXT_DOCUMENT_ID: AtomicU64 = AtomicU64::new(1);
@@ -43,9 +50,15 @@ impl DocumentId {
 ///
 /// # Undo/Redo
 ///
-/// Undo history is per-document, not per-view. This means undoing in one view
-/// affects all views of the same document. The selection state stored in
-/// history entries is from the view that made the edit.
+/// Document-level undo history stores only document state (text content and
+/// version). View state (cursor, selection, scroll) is managed separately at
+/// the editor level via [`EditorUndoGroup`]. This clean separation means:
+///
+/// - Document undo affects all views of the same document
+/// - Each view's cursor/selection is restored from the editor-level snapshot
+/// - Buffers can be created/destroyed without corrupting undo history
+///
+/// [`EditorUndoGroup`]: crate::editor::types::EditorUndoGroup
 ///
 /// # Field Access
 ///
@@ -68,11 +81,11 @@ pub struct Document {
 	/// Whether the document is read-only (prevents all text modifications).
 	readonly: bool,
 
-	/// Undo history stack.
-	undo_stack: Vec<HistoryEntry>,
+	/// Undo history stack (document state only, no view state).
+	undo_stack: Vec<DocumentHistoryEntry>,
 
-	/// Redo history stack.
-	redo_stack: Vec<HistoryEntry>,
+	/// Redo history stack (document state only, no view state).
+	redo_stack: Vec<DocumentHistoryEntry>,
 
 	/// Detected file type (e.g., "rust", "python").
 	pub file_type: Option<String>,
@@ -153,11 +166,14 @@ impl Document {
 		}
 	}
 
-	/// Pushes the current state onto the undo stack.
-	pub(crate) fn push_undo_snapshot(&mut self, selections: HashMap<BufferId, Selection>) {
-		self.undo_stack.push(HistoryEntry {
-			doc: self.content.clone(),
-			selections,
+	/// Pushes the current document state onto the undo stack.
+	///
+	/// This is a document-only snapshot. View state (cursor, selection, scroll)
+	/// is captured separately at the editor level.
+	pub(crate) fn push_undo_snapshot(&mut self) {
+		self.undo_stack.push(DocumentHistoryEntry {
+			rope: self.content.clone(),
+			version: self.version,
 		});
 		self.redo_stack.clear();
 
@@ -167,55 +183,63 @@ impl Document {
 		}
 	}
 
-	/// Saves current state to undo history. Resets any grouped insert session.
-	pub fn save_undo_state(&mut self, selections: HashMap<BufferId, Selection>) {
+	/// Saves current document state to undo history. Resets any grouped insert session.
+	///
+	/// View state capture happens at the editor level before calling this method.
+	pub fn save_undo_state(&mut self) {
 		self.insert_undo_active = false;
-		self.push_undo_snapshot(selections);
+		self.push_undo_snapshot();
 	}
 
 	/// Saves undo state for insert mode, grouping consecutive inserts.
-	/// Returns true if a new snapshot was created.
-	pub fn save_insert_undo_state(&mut self, selections: HashMap<BufferId, Selection>) -> bool {
+	///
+	/// Returns true if a new snapshot was created. View state capture happens
+	/// at the editor level before calling this method.
+	pub fn save_insert_undo_state(&mut self) -> bool {
 		if self.insert_undo_active {
 			return false;
 		}
 		self.insert_undo_active = true;
-		self.push_undo_snapshot(selections);
+		self.push_undo_snapshot();
 		true
 	}
 
-	/// Undoes the last change. Returns restored selections if successful.
-	pub fn undo(
-		&mut self,
-		current_selections: HashMap<BufferId, Selection>,
-		language_loader: &LanguageLoader,
-	) -> Option<HashMap<BufferId, Selection>> {
+	/// Undoes the last document change.
+	///
+	/// Returns `true` if undo was successful, `false` if nothing to undo.
+	/// View state restoration is handled at the editor level.
+	pub fn undo(&mut self, language_loader: &LanguageLoader) -> bool {
 		self.insert_undo_active = false;
-		let entry = self.undo_stack.pop()?;
-		self.redo_stack.push(HistoryEntry {
-			doc: self.content.clone(),
-			selections: current_selections,
+		let Some(entry) = self.undo_stack.pop() else {
+			return false;
+		};
+		self.redo_stack.push(DocumentHistoryEntry {
+			rope: self.content.clone(),
+			version: self.version,
 		});
-		self.content = entry.doc;
+		self.content = entry.rope;
+		self.version = self.version.wrapping_add(1);
 		self.reparse_syntax(language_loader);
-		Some(entry.selections)
+		true
 	}
 
-	/// Redoes the last undone change. Returns restored selections if successful.
-	pub fn redo(
-		&mut self,
-		current_selections: HashMap<BufferId, Selection>,
-		language_loader: &LanguageLoader,
-	) -> Option<HashMap<BufferId, Selection>> {
+	/// Redoes the last undone document change.
+	///
+	/// Returns `true` if redo was successful, `false` if nothing to redo.
+	/// View state restoration is handled at the editor level.
+	pub fn redo(&mut self, language_loader: &LanguageLoader) -> bool {
 		self.insert_undo_active = false;
-		let entry = self.redo_stack.pop()?;
-		self.undo_stack.push(HistoryEntry {
-			doc: self.content.clone(),
-			selections: current_selections,
+		let Some(entry) = self.redo_stack.pop() else {
+			return false;
+		};
+		self.undo_stack.push(DocumentHistoryEntry {
+			rope: self.content.clone(),
+			version: self.version,
 		});
-		self.content = entry.doc;
+		self.content = entry.rope;
+		self.version = self.version.wrapping_add(1);
 		self.reparse_syntax(language_loader);
-		Some(entry.selections)
+		true
 	}
 
 	/// Applies an edit through the authoritative edit gate.
@@ -228,12 +252,8 @@ impl Document {
 	/// - Redo stack clearing
 	/// - Syntax policy handling
 	///
-	/// # Arguments
-	///
-	/// * `commit` - The edit commit containing transaction and policies
-	/// * `selections` - Current selections for undo snapshot (temporary for Phase 3;
-	///   will be removed when document/view history is separated in Phase 4)
-	/// * `language_loader` - For syntax reparsing if needed
+	/// View state (cursor, selection, scroll) capture happens at the editor level
+	/// before calling this method. Document history is purely about document state.
 	///
 	/// # Errors
 	///
@@ -241,11 +261,10 @@ impl Document {
 	pub fn commit(
 		&mut self,
 		commit: EditCommit,
-		selections: HashMap<BufferId, Selection>,
 		language_loader: &LanguageLoader,
 	) -> Result<CommitResult, EditError> {
 		self.ensure_writable()?;
-		Ok(self.commit_unchecked(commit, selections, language_loader))
+		Ok(self.commit_unchecked(commit, language_loader))
 	}
 
 	/// Applies an edit bypassing the readonly check.
@@ -265,7 +284,6 @@ impl Document {
 	pub(crate) fn commit_unchecked(
 		&mut self,
 		commit: EditCommit,
-		selections: HashMap<BufferId, Selection>,
 		language_loader: &LanguageLoader,
 	) -> CommitResult {
 		let version_before = self.version;
@@ -274,13 +292,13 @@ impl Document {
 			UndoPolicy::NoUndo => false,
 			UndoPolicy::Record | UndoPolicy::Boundary => {
 				self.insert_undo_active = false;
-				self.push_undo_snapshot(selections);
+				self.push_undo_snapshot();
 				true
 			}
 			UndoPolicy::MergeWithCurrentGroup => {
 				if !self.insert_undo_active {
 					self.insert_undo_active = true;
-					self.push_undo_snapshot(selections);
+					self.push_undo_snapshot();
 					true
 				} else {
 					false

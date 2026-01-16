@@ -1,7 +1,5 @@
 //! Text editing operations for buffers.
 
-use std::collections::HashMap;
-
 #[cfg(feature = "lsp")]
 use xeno_lsp::{IncrementalResult, OffsetEncoding, compute_lsp_changes};
 #[cfg(feature = "lsp")]
@@ -193,7 +191,7 @@ impl Buffer {
 			.with_syntax(SyntaxPolicy::None);
 
 		self.with_doc_mut(|doc| {
-			doc.commit_unchecked(commit, HashMap::new(), &LanguageLoader::new());
+			doc.commit_unchecked(commit, &LanguageLoader::new());
 		});
 
 		true
@@ -228,7 +226,7 @@ impl Buffer {
 			.with_syntax(SyntaxPolicy::None);
 
 		self.with_doc_mut(|doc| {
-			doc.commit_unchecked(commit, HashMap::new(), &LanguageLoader::new());
+			doc.commit_unchecked(commit, &LanguageLoader::new());
 
 			if doc.has_syntax() {
 				let new_doc = doc.content().clone();
@@ -279,7 +277,7 @@ impl Buffer {
 			.with_syntax(SyntaxPolicy::None);
 
 		self.with_doc_mut(|doc| {
-			doc.commit_unchecked(commit, HashMap::new(), &LanguageLoader::new());
+			doc.commit_unchecked(commit, &LanguageLoader::new());
 
 			if doc.has_syntax() {
 				let new_doc = doc.content().clone();

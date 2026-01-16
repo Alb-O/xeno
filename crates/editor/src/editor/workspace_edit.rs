@@ -14,8 +14,10 @@ use xeno_primitives::Transaction;
 use xeno_primitives::range::CharIdx;
 use xeno_primitives::transaction::{Change, Tendril};
 
+use xeno_primitives::EditOrigin;
+
 use crate::buffer::BufferId;
-use crate::editor::{Editor, EditorUndoEntry};
+use crate::editor::{Editor, EditorUndoGroup};
 
 /// A validated, ready-to-apply workspace edit plan.
 pub struct WorkspaceEditPlan {
@@ -159,27 +161,33 @@ impl Editor {
 
 	fn begin_workspace_edit_group(&mut self, plan: &WorkspaceEditPlan) {
 		let mut seen_docs = HashSet::new();
-		let mut buffers = Vec::new();
+		let mut affected_docs = Vec::new();
+		let mut all_view_snapshots = std::collections::HashMap::new();
 
 		for buffer_plan in &plan.per_buffer {
 			let Some(buffer) = self.buffers.get_buffer(buffer_plan.buffer_id) else {
 				continue;
 			};
 			let doc_id = buffer.document_id();
-			buffers.push(buffer_plan.buffer_id);
 
 			if !seen_docs.insert(doc_id) {
 				continue;
 			}
+			affected_docs.push(doc_id);
 
-			let selections = self.collect_sibling_selections(doc_id);
+			let snapshots = self.collect_view_snapshots(doc_id);
+			all_view_snapshots.extend(snapshots);
+
 			if let Some(buffer) = self.buffers.get_buffer_mut(buffer_plan.buffer_id) {
-				buffer.with_doc_mut(|doc| doc.save_undo_state(selections));
+				buffer.with_doc_mut(|doc| doc.save_undo_state());
 			}
 		}
 
-		self.undo_group_stack
-			.push(EditorUndoEntry::Group { buffers });
+		self.undo_group_stack.push(EditorUndoGroup {
+			affected_docs,
+			view_snapshots: all_view_snapshots,
+			origin: EditOrigin::Lsp,
+		});
 		self.redo_group_stack.clear();
 	}
 

@@ -1,45 +1,75 @@
-//! Editor-level undo/redo with multi-view selection sync.
+//! Editor-level undo/redo with view state restoration.
+//!
+//! Document history is managed at the document level (text content only).
+//! Editor-level history captures view state (cursor, selection, scroll)
+//! so that undo/redo restores the exact editing context.
+//!
+//! # Architecture
+//!
+//! - [`ViewSnapshot`]: Captures a single buffer's view state
+//! - [`EditorUndoGroup`]: Groups affected documents with their view snapshots
+//! - Document undo/redo: Restores text content
+//! - Editor undo/redo: Calls document undo/redo then restores view snapshots
 
 use std::collections::{HashMap, HashSet};
 
 use tracing::warn;
-use xeno_primitives::Selection;
+use xeno_primitives::EditOrigin;
 use xeno_registry_notifications::keys;
 
-use crate::buffer::{BufferId, DocumentId};
-use crate::editor::{Editor, EditorUndoEntry};
+use crate::buffer::{Buffer, BufferId, DocumentId};
+use crate::editor::{Editor, EditorUndoGroup, ViewSnapshot};
+
+impl Buffer {
+	/// Creates a snapshot of this buffer's view state.
+	pub fn snapshot_view(&self) -> ViewSnapshot {
+		ViewSnapshot {
+			cursor: self.cursor,
+			selection: self.selection.clone(),
+			scroll_line: self.scroll_line,
+			scroll_segment: self.scroll_segment,
+		}
+	}
+
+	/// Restores view state from a snapshot.
+	pub fn restore_view(&mut self, snapshot: &ViewSnapshot) {
+		self.cursor = snapshot.cursor;
+		self.selection = snapshot.selection.clone();
+		self.scroll_line = snapshot.scroll_line;
+		self.scroll_segment = snapshot.scroll_segment;
+		self.ensure_valid_selection();
+	}
+}
 
 impl Editor {
-	/// Collects selections from all buffers sharing the same document.
-	pub(super) fn collect_sibling_selections(
-		&self,
-		doc_id: DocumentId,
-	) -> HashMap<BufferId, Selection> {
+	/// Collects view snapshots from all buffers sharing the same document.
+	pub(super) fn collect_view_snapshots(&self, doc_id: DocumentId) -> HashMap<BufferId, ViewSnapshot> {
 		self.buffers
 			.buffers()
 			.filter(|b| b.document_id() == doc_id)
-			.map(|b| (b.id, b.selection.clone()))
+			.map(|b| (b.id, b.snapshot_view()))
 			.collect()
 	}
 
-	/// Restores saved selections to all buffers sharing the same document.
-	fn restore_sibling_selections(
-		&mut self,
-		doc_id: DocumentId,
-		selections: &HashMap<BufferId, Selection>,
-	) {
+	/// Restores view snapshots to buffers.
+	///
+	/// For buffers that have a snapshot, restores the exact view state.
+	/// For buffers without a snapshot (e.g., created after the edit),
+	/// just ensures the selection is valid.
+	fn restore_view_snapshots(&mut self, snapshots: &HashMap<BufferId, ViewSnapshot>) {
 		for buffer in self.buffers.buffers_mut() {
-			if buffer.document_id() == doc_id {
-				if let Some(selection) = selections.get(&buffer.id) {
-					buffer.set_selection(selection.clone());
-					buffer.sync_cursor_to_selection();
-				}
+			if let Some(snapshot) = snapshots.get(&buffer.id) {
+				buffer.restore_view(snapshot);
+			} else {
 				buffer.ensure_valid_selection();
 			}
 		}
 	}
 
 	/// Saves current state to undo history for all views of the focused document.
+	///
+	/// Captures view snapshots at the editor level and saves document state
+	/// at the document level.
 	pub fn save_undo_state(&mut self) {
 		let buffer_id = self.focused_view();
 		let doc_id = self
@@ -47,17 +77,25 @@ impl Editor {
 			.get_buffer(buffer_id)
 			.expect("focused buffer must exist")
 			.document_id();
-		let selections = self.collect_sibling_selections(doc_id);
+
+		let view_snapshots = self.collect_view_snapshots(doc_id);
+
 		self.buffers
 			.get_buffer_mut(buffer_id)
 			.expect("focused buffer must exist")
-			.with_doc_mut(|doc| doc.save_undo_state(selections));
-		self.undo_group_stack
-			.push(EditorUndoEntry::Single { buffer_id });
+			.with_doc_mut(|doc| doc.save_undo_state());
+
+		self.undo_group_stack.push(EditorUndoGroup {
+			affected_docs: vec![doc_id],
+			view_snapshots,
+			origin: EditOrigin::Internal("manual"),
+		});
 		self.redo_group_stack.clear();
 	}
 
 	/// Saves undo state for insert mode, grouping consecutive inserts.
+	///
+	/// Only creates a new undo group if this is the first insert in a sequence.
 	pub(crate) fn save_insert_undo_state(&mut self) {
 		let buffer_id = self.focused_view();
 		let doc_id = self
@@ -65,171 +103,160 @@ impl Editor {
 			.get_buffer(buffer_id)
 			.expect("focused buffer must exist")
 			.document_id();
-		let selections = self.collect_sibling_selections(doc_id);
+
+		let view_snapshots = self.collect_view_snapshots(doc_id);
+
 		let created = self
 			.buffers
 			.get_buffer_mut(buffer_id)
 			.expect("focused buffer must exist")
-			.with_doc_mut(|doc| doc.save_insert_undo_state(selections));
+			.with_doc_mut(|doc| doc.save_insert_undo_state());
+
 		if created {
-			self.undo_group_stack
-				.push(EditorUndoEntry::Single { buffer_id });
+			self.undo_group_stack.push(EditorUndoGroup {
+				affected_docs: vec![doc_id],
+				view_snapshots,
+				origin: EditOrigin::Internal("insert"),
+			});
 			self.redo_group_stack.clear();
 		}
 	}
 
-	/// Undoes the last change, restoring selections for all views of the document.
+	/// Undoes the last change, restoring view state for all affected buffers.
 	pub fn undo(&mut self) {
 		if !self.guard_readonly() {
 			return;
 		}
-		let Some(entry) = self.undo_group_stack.pop() else {
+		let Some(group) = self.undo_group_stack.pop() else {
 			self.notify(keys::nothing_to_undo);
 			return;
 		};
 
-		let ok = match &entry {
-			EditorUndoEntry::Single { buffer_id } => self.undo_buffer(*buffer_id),
-			EditorUndoEntry::Group { buffers } => self.undo_group(buffers),
-		};
+		let current_snapshots = self.capture_current_view_snapshots(&group.affected_docs);
+
+		let ok = self.undo_documents(&group.affected_docs);
 
 		if ok {
-			self.redo_group_stack.push(entry);
+			self.restore_view_snapshots(&group.view_snapshots);
+
+			self.redo_group_stack.push(EditorUndoGroup {
+				affected_docs: group.affected_docs,
+				view_snapshots: current_snapshots,
+				origin: group.origin,
+			});
 			self.notify(keys::undo);
 		} else {
-			self.undo_group_stack.push(entry);
+			self.undo_group_stack.push(group);
 			self.notify(keys::nothing_to_undo);
 		}
 	}
 
-	/// Redoes the last undone change, restoring selections for all views of the document.
+	/// Redoes the last undone change, restoring view state for all affected buffers.
 	pub fn redo(&mut self) {
 		if !self.guard_readonly() {
 			return;
 		}
-		let Some(entry) = self.redo_group_stack.pop() else {
+		let Some(group) = self.redo_group_stack.pop() else {
 			self.notify(keys::nothing_to_redo);
 			return;
 		};
 
-		let ok = match &entry {
-			EditorUndoEntry::Single { buffer_id } => self.redo_buffer(*buffer_id),
-			EditorUndoEntry::Group { buffers } => self.redo_group(buffers),
-		};
+		let current_snapshots = self.capture_current_view_snapshots(&group.affected_docs);
+
+		let ok = self.redo_documents(&group.affected_docs);
 
 		if ok {
-			self.undo_group_stack.push(entry);
+			self.restore_view_snapshots(&group.view_snapshots);
+
+			self.undo_group_stack.push(EditorUndoGroup {
+				affected_docs: group.affected_docs,
+				view_snapshots: current_snapshots,
+				origin: group.origin,
+			});
 			self.notify(keys::redo);
 		} else {
-			self.redo_group_stack.push(entry);
+			self.redo_group_stack.push(group);
 			self.notify(keys::nothing_to_redo);
 		}
 	}
 
-	fn undo_buffer(&mut self, buffer_id: BufferId) -> bool {
-		let Some(buffer) = self.buffers.get_buffer(buffer_id) else {
-			warn!(buffer_id = ?buffer_id, "Undo buffer missing");
+	/// Captures current view snapshots for all buffers viewing the given documents.
+	fn capture_current_view_snapshots(
+		&self,
+		doc_ids: &[DocumentId],
+	) -> HashMap<BufferId, ViewSnapshot> {
+		let doc_set: HashSet<_> = doc_ids.iter().copied().collect();
+		self.buffers
+			.buffers()
+			.filter(|b| doc_set.contains(&b.document_id()))
+			.map(|b| (b.id, b.snapshot_view()))
+			.collect()
+	}
+
+	/// Undoes a single document's last change.
+	fn undo_document(&mut self, doc_id: DocumentId) -> bool {
+		let buffer_id = self
+			.buffers
+			.buffers()
+			.find(|b| b.document_id() == doc_id)
+			.map(|b| b.id);
+
+		let Some(buffer_id) = buffer_id else {
+			warn!(doc_id = ?doc_id, "Undo: no buffer for document");
 			return false;
 		};
-		let doc_id = buffer.document_id();
-		let current = self.collect_sibling_selections(doc_id);
 
-		let restored = self
+		let ok = self
 			.buffers
 			.get_buffer_mut(buffer_id)
 			.expect("buffer exists")
-			.with_doc_mut(|doc| doc.undo(current, &self.config.language_loader));
+			.with_doc_mut(|doc| doc.undo(&self.config.language_loader));
 
-		let Some(selections) = restored else {
-			return false;
-		};
-
-		self.mark_buffer_dirty_for_full_sync(buffer_id);
-		self.restore_sibling_selections(doc_id, &selections);
-		true
-	}
-
-	fn redo_buffer(&mut self, buffer_id: BufferId) -> bool {
-		let Some(buffer) = self.buffers.get_buffer(buffer_id) else {
-			warn!(buffer_id = ?buffer_id, "Redo buffer missing");
-			return false;
-		};
-		let doc_id = buffer.document_id();
-		let current = self.collect_sibling_selections(doc_id);
-
-		let restored = self
-			.buffers
-			.get_buffer_mut(buffer_id)
-			.expect("buffer exists")
-			.with_doc_mut(|doc| doc.redo(current, &self.config.language_loader));
-
-		let Some(selections) = restored else {
-			return false;
-		};
-
-		self.mark_buffer_dirty_for_full_sync(buffer_id);
-		self.restore_sibling_selections(doc_id, &selections);
-		true
-	}
-
-	fn undo_group(&mut self, buffers: &[BufferId]) -> bool {
-		let mut seen = HashSet::new();
-		let mut doc_ids = Vec::new();
-		for &buffer_id in buffers.iter().rev() {
-			let Some(buffer) = self.buffers.get_buffer(buffer_id) else {
-				warn!(buffer_id = ?buffer_id, "Undo group buffer missing");
-				continue;
-			};
-			let doc_id = buffer.document_id();
-			if seen.insert(doc_id) {
-				doc_ids.push(doc_id);
-			}
-		}
-
-		let mut ok = true;
-		for doc_id in doc_ids {
-			let buffer_id = self
-				.buffers
-				.buffers()
-				.find(|b| b.document_id() == doc_id)
-				.map(|b| b.id);
-			let Some(buffer_id) = buffer_id else {
-				warn!(doc_id = ?doc_id, "Undo group missing document buffer");
-				ok = false;
-				continue;
-			};
-			ok &= self.undo_buffer(buffer_id);
+		if ok {
+			self.mark_buffer_dirty_for_full_sync(buffer_id);
 		}
 		ok
 	}
 
-	fn redo_group(&mut self, buffers: &[BufferId]) -> bool {
-		let mut seen = HashSet::new();
-		let mut doc_ids = Vec::new();
-		for &buffer_id in buffers.iter().rev() {
-			let Some(buffer) = self.buffers.get_buffer(buffer_id) else {
-				warn!(buffer_id = ?buffer_id, "Redo group buffer missing");
-				continue;
-			};
-			let doc_id = buffer.document_id();
-			if seen.insert(doc_id) {
-				doc_ids.push(doc_id);
-			}
-		}
+	/// Redoes a single document's last undone change.
+	fn redo_document(&mut self, doc_id: DocumentId) -> bool {
+		let buffer_id = self
+			.buffers
+			.buffers()
+			.find(|b| b.document_id() == doc_id)
+			.map(|b| b.id);
 
+		let Some(buffer_id) = buffer_id else {
+			warn!(doc_id = ?doc_id, "Redo: no buffer for document");
+			return false;
+		};
+
+		let ok = self
+			.buffers
+			.get_buffer_mut(buffer_id)
+			.expect("buffer exists")
+			.with_doc_mut(|doc| doc.redo(&self.config.language_loader));
+
+		if ok {
+			self.mark_buffer_dirty_for_full_sync(buffer_id);
+		}
+		ok
+	}
+
+	/// Undoes all documents in the given list.
+	fn undo_documents(&mut self, doc_ids: &[DocumentId]) -> bool {
 		let mut ok = true;
-		for doc_id in doc_ids {
-			let buffer_id = self
-				.buffers
-				.buffers()
-				.find(|b| b.document_id() == doc_id)
-				.map(|b| b.id);
-			let Some(buffer_id) = buffer_id else {
-				warn!(doc_id = ?doc_id, "Redo group missing document buffer");
-				ok = false;
-				continue;
-			};
-			ok &= self.redo_buffer(buffer_id);
+		for &doc_id in doc_ids {
+			ok &= self.undo_document(doc_id);
+		}
+		ok
+	}
+
+	/// Redoes all documents in the given list.
+	fn redo_documents(&mut self, doc_ids: &[DocumentId]) -> bool {
+		let mut ok = true;
+		for &doc_id in doc_ids {
+			ok &= self.redo_document(doc_id);
 		}
 		ok
 	}

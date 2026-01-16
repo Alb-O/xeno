@@ -97,8 +97,8 @@ pub use hook_runtime::HookRuntime;
 pub use layout::{LayoutManager, SeparatorHit, SeparatorId};
 pub use navigation::Location;
 pub use types::{
-	Config, EditorUndoEntry, FrameState, HistoryEntry, JumpList, JumpLocation, MacroState,
-	Registers, Viewport, Workspace,
+	Config, EditorUndoGroup, FrameState, HistoryEntry, JumpList, JumpLocation, MacroState,
+	Registers, ViewSnapshot, Viewport, Workspace,
 };
 use xeno_registry::{
 	HookContext, HookEventData, WindowKind, emit_sync_with as emit_hook_sync_with,
@@ -182,9 +182,15 @@ pub struct Editor {
 	pub workspace: Workspace,
 
 	/// Editor-level undo grouping stack.
-	pub undo_group_stack: Vec<EditorUndoEntry>,
+	///
+	/// Each entry captures view state (cursor, selection, scroll) for all
+	/// affected buffers at the time of the edit. Document state is stored
+	/// separately in each document's history.
+	pub undo_group_stack: Vec<EditorUndoGroup>,
 	/// Editor-level redo grouping stack.
-	pub redo_group_stack: Vec<EditorUndoEntry>,
+	///
+	/// Populated when undoing; cleared when a new edit occurs.
+	pub redo_group_stack: Vec<EditorUndoGroup>,
 
 	/// Editor configuration (theme, languages, options).
 	pub config: Config,
