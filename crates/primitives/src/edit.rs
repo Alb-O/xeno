@@ -69,11 +69,11 @@ pub enum SyntaxPolicy {
 	/// Do not touch syntax (rare; internal ops).
 	None,
 	/// Mark dirty; do work lazily (e.g., next render).
+	#[default]
 	MarkDirty,
 	/// Apply incremental update if available; else mark dirty.
 	IncrementalOrDirty,
-	/// Force immediate full reparse (temporary compatibility mode).
-	#[default]
+	/// Force immediate full reparse (used for undo/redo, explicit operations).
 	FullReparseNow,
 }
 

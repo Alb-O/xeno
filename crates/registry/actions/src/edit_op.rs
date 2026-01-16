@@ -7,6 +7,13 @@
 //! 2. What text transformation to apply
 //! 3. What effects to apply after the edit
 //!
+//! # Compilation
+//!
+//! Edit operations can be compiled into an [`EditPlan`] which resolves policies
+//! and validates the operation before execution. This enables the executor to
+//! use `Document::commit()` with proper undo/syntax policies instead of having
+//! sprinkled `save_undo_state()` calls in each transform.
+//!
 //! # Example
 //!
 //! ```ignore
@@ -22,9 +29,12 @@
 //!     .with_pre(PreEffect::Yank)
 //!     .with_transform(TextTransform::Delete)
 //!     .with_post(PostEffect::SetMode(Mode::Insert));
+//!
+//! // Compile for execution with resolved policies
+//! let plan = change.compile();
 //! ```
 
-use xeno_primitives::Mode;
+use xeno_primitives::{EditOrigin, Mode, SyntaxPolicy, UndoPolicy};
 use xeno_primitives::range::Direction;
 
 /// A data description of a text edit operation.
@@ -84,6 +94,75 @@ impl EditOp {
 	pub fn modifies_text(&self) -> bool {
 		!matches!(self.transform, TextTransform::None)
 	}
+
+	/// Compiles this edit operation into an execution plan.
+	///
+	/// The plan resolves undo and syntax policies based on the transform type,
+	/// enabling the executor to use `Document::commit()` with proper policies.
+	///
+	/// # Policy Resolution
+	///
+	/// - Text-modifying transforms (`Delete`, `Replace`, `Insert`, etc.): `UndoPolicy::Record`
+	/// - `Undo`/`Redo` transforms: `UndoPolicy::NoUndo` (undo system handles this)
+	/// - Non-modifying transforms (`None`): `UndoPolicy::NoUndo`
+	/// - All text-modifying transforms use `SyntaxPolicy::MarkDirty` (lazy reparse)
+	pub fn compile(&self) -> EditPlan {
+		let (undo_policy, syntax_policy) = match &self.transform {
+			TextTransform::None => (UndoPolicy::NoUndo, SyntaxPolicy::None),
+			TextTransform::Undo | TextTransform::Redo => {
+				(UndoPolicy::NoUndo, SyntaxPolicy::FullReparseNow)
+			}
+			TextTransform::Delete
+			| TextTransform::Replace(_)
+			| TextTransform::Insert(_)
+			| TextTransform::InsertNewlineWithIndent
+			| TextTransform::MapChars(_)
+			| TextTransform::ReplaceEachChar(_)
+			| TextTransform::Deindent { .. } => (UndoPolicy::Record, SyntaxPolicy::MarkDirty),
+		};
+
+		let origin = self.derive_origin();
+
+		EditPlan {
+			op: self.clone(),
+			undo_policy,
+			syntax_policy,
+			origin,
+		}
+	}
+
+	/// Derives an edit origin from the operation for grouping/telemetry.
+	fn derive_origin(&self) -> EditOrigin {
+		let id = match &self.transform {
+			TextTransform::None => "none",
+			TextTransform::Delete => "delete",
+			TextTransform::Replace(_) => "replace",
+			TextTransform::Insert(_) => "insert",
+			TextTransform::InsertNewlineWithIndent => "newline",
+			TextTransform::MapChars(_) => "case",
+			TextTransform::ReplaceEachChar(_) => "replace_char",
+			TextTransform::Undo => "undo",
+			TextTransform::Redo => "redo",
+			TextTransform::Deindent { .. } => "deindent",
+		};
+		EditOrigin::EditOp { id }
+	}
+}
+
+/// A compiled edit plan ready for execution.
+///
+/// Created by [`EditOp::compile()`], this contains the original operation
+/// plus resolved policies for undo recording and syntax updates.
+#[derive(Debug, Clone)]
+pub struct EditPlan {
+	/// The original edit operation.
+	pub op: EditOp,
+	/// Resolved undo recording policy.
+	pub undo_policy: UndoPolicy,
+	/// Resolved syntax update policy.
+	pub syntax_policy: SyntaxPolicy,
+	/// Origin for grouping and telemetry.
+	pub origin: EditOrigin,
 }
 
 /// Effects to apply before the main edit transformation.

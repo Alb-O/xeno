@@ -115,11 +115,17 @@ impl<'a> BufferRenderContext<'a> {
 	}
 
 	/// Collects syntax highlight spans for a buffer's visible viewport.
+	///
+	/// Performs lazy syntax reparsing if the document's syntax tree is marked dirty.
+	/// This is the hook point where `SyntaxPolicy::MarkDirty` edits get their
+	/// syntax trees updated.
 	pub fn collect_highlight_spans(
 		&self,
 		buffer: &Buffer,
 		area: Rect,
 	) -> Vec<(HighlightSpan, Style)> {
+		buffer.with_doc_mut(|doc| doc.ensure_syntax_clean(self.language_loader));
+
 		buffer.with_doc(|doc| {
 			let Some(syntax) = doc.syntax() else {
 				return Vec::new();

@@ -356,8 +356,8 @@ pub struct TxnUndoStep {
 
 ### Action Items
 
-- [ ] Change default commit syntax policy from `FullReparseNow` -> `MarkDirty`
-- [ ] Ensure render path or a background job triggers reparse when dirty
+- [x] Change default commit syntax policy from `FullReparseNow` -> `MarkDirty`
+- [x] Ensure render path or a background job triggers reparse when dirty
 - [ ] Add incremental updates (optional / later):
   - [ ] use `ChangeSet` ranges to feed incremental parser
   - [ ] fall back to full reparse if incremental fails
@@ -373,15 +373,15 @@ pub struct TxnUndoStep {
 
 ### Action Items
 
-- [ ] Add `EditOp::compile(&Context) -> Result<EditPlan, EditError>`:
-  - [ ] validate conflicts (multiple boundaries, contradictory cursor moves)
-  - [ ] normalize order (pre -> selection -> transform -> post)
-  - [ ] resolve policies (`UndoPolicy`/`SyntaxPolicy`) in one place
-- [ ] Make executor:
-  - [ ] compute plan (no mutation)
-  - [ ] call `doc.commit(commit)` once
-  - [ ] apply view changes based on `CommitResult` + post-effects
-- [ ] Delete "sprinkled save_undo_state calls" in transforms entirely
+- [x] Add `EditOp::compile(&Context) -> Result<EditPlan, EditError>`:
+  - [x] validate conflicts (multiple boundaries, contradictory cursor moves)
+  - [x] normalize order (pre -> selection -> transform -> post)
+  - [x] resolve policies (`UndoPolicy`/`SyntaxPolicy`) in one place
+- [x] Make executor:
+  - [x] compute plan (no mutation)
+  - [x] call `doc.commit(commit)` once
+  - [x] apply view changes based on `CommitResult` + post-effects
+- [x] Delete "sprinkled save_undo_state calls" in transforms entirely
 
 ### Migration Notes
 

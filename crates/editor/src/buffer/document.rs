@@ -95,6 +95,13 @@ pub struct Document {
 	/// Syntax highlighting state.
 	syntax: Option<Syntax>,
 
+	/// Whether the syntax tree needs reparsing.
+	///
+	/// Set to `true` by commits with `SyntaxPolicy::MarkDirty` or
+	/// `SyntaxPolicy::IncrementalOrDirty`. Cleared by `reparse_syntax` or
+	/// `ensure_syntax_clean`.
+	syntax_dirty: bool,
+
 	/// Flag for grouping insert-mode edits into a single undo.
 	insert_undo_active: bool,
 
@@ -123,6 +130,7 @@ impl Document {
 			undo_backend: UndoBackend::default(),
 			file_type: None,
 			syntax: None,
+			syntax_dirty: false,
 			insert_undo_active: false,
 			version: 0,
 			#[cfg(feature = "lsp")]
@@ -184,7 +192,9 @@ impl Document {
 	/// Reparses the entire syntax tree from scratch.
 	///
 	/// Used after operations that replace the entire document (undo/redo).
+	/// Clears the `syntax_dirty` flag.
 	pub fn reparse_syntax(&mut self, language_loader: &LanguageLoader) {
+		self.syntax_dirty = false;
 		if self.syntax.is_some() {
 			let lang_id = self.syntax.as_ref().unwrap().root_language();
 			self.syntax = Syntax::new(self.content.slice(..), lang_id, language_loader).ok();
@@ -319,8 +329,11 @@ impl Document {
 	/// `Record`/`Boundary` creates a new snapshot, and `MergeWithCurrentGroup`
 	/// only creates a snapshot if not already in an insert grouping session.
 	///
-	/// Syntax updates use full reparse for all non-`None` policies (incremental
-	/// updates will be added in Phase 6).
+	/// Syntax updates are policy-driven:
+	/// - [`SyntaxPolicy::None`]: no syntax action
+	/// - [`SyntaxPolicy::MarkDirty`]: sets `syntax_dirty` flag for lazy reparse
+	/// - [`SyntaxPolicy::IncrementalOrDirty`]: same as `MarkDirty` (incremental TBD)
+	/// - [`SyntaxPolicy::FullReparseNow`]: immediate full reparse
 	///
 	/// [`Buffer`]: super::Buffer
 	/// [`commit`]: Self::commit
@@ -370,9 +383,11 @@ impl Document {
 
 		let syntax_changed = match commit.syntax {
 			SyntaxPolicy::None => false,
-			SyntaxPolicy::FullReparseNow
-			| SyntaxPolicy::MarkDirty
-			| SyntaxPolicy::IncrementalOrDirty => {
+			SyntaxPolicy::MarkDirty | SyntaxPolicy::IncrementalOrDirty => {
+				self.syntax_dirty = true;
+				false
+			}
+			SyntaxPolicy::FullReparseNow => {
 				self.reparse_syntax(language_loader);
 				true
 			}
@@ -467,6 +482,24 @@ impl Document {
 	/// Returns whether the document has syntax highlighting enabled.
 	pub fn has_syntax(&self) -> bool {
 		self.syntax.is_some()
+	}
+
+	/// Returns whether the syntax tree needs reparsing.
+	///
+	/// Set by commits with `SyntaxPolicy::MarkDirty` or `IncrementalOrDirty`.
+	pub fn is_syntax_dirty(&self) -> bool {
+		self.syntax_dirty
+	}
+
+	/// Ensures the syntax tree is up-to-date, reparsing if marked dirty.
+	///
+	/// Call this before accessing syntax highlights to ensure consistency.
+	/// This is the lazy reparse hook - edits mark syntax as dirty, and this
+	/// method performs the actual reparse when highlights are needed.
+	pub fn ensure_syntax_clean(&mut self, language_loader: &LanguageLoader) {
+		if self.syntax_dirty {
+			self.reparse_syntax(language_loader);
+		}
 	}
 
 	/// Returns a reference to the syntax highlighting state.

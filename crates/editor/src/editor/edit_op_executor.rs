@@ -4,17 +4,30 @@
 //! records. All text editing operations are expressed as data and processed
 //! uniformly by this executor.
 //!
-//! The executor handles operations in phases:
-//! 1. Pre-effects (yank, save undo state)
-//! 2. Selection modification
-//! 3. Text transformation
-//! 4. Post-effects (mode change, cursor adjustment)
+//! # Compile -> Commit Pattern
+//!
+//! The executor compiles EditOp into an EditPlan with resolved policies, then
+//! executes it with proper undo recording at the start (not sprinkled in each
+//! transform). This ensures:
+//!
+//! - Undo recording happens once per operation (not per transform step)
+//! - View snapshots are captured before any changes
+//! - Syntax updates use the lazy `MarkDirty` policy by default
+//!
+//! # Execution Phases
+//!
+//! 1. Compile: Resolve undo/syntax policies based on transform type
+//! 2. Undo setup: Save view snapshots and document undo state if needed
+//! 3. Pre-effects: Execute yank, extend selection, etc. (NOT SaveUndo - handled above)
+//! 4. Selection modification: Adjust selection before transform
+//! 5. Text transformation: Apply the actual edit
+//! 6. Post-effects: Mode change, cursor adjustment
 
 use xeno_primitives::range::{Direction as MoveDir, Range};
-use xeno_primitives::{Selection, Transaction};
+use xeno_primitives::{Selection, Transaction, UndoPolicy};
 use xeno_registry::ModeAccess;
 use xeno_registry::edit_op::{
-	CharMapKind, CursorAdjust, EditOp, PostEffect, PreEffect, SelectionOp, TextTransform,
+	CharMapKind, CursorAdjust, EditOp, EditPlan, PostEffect, PreEffect, SelectionOp, TextTransform,
 };
 
 use super::Editor;
@@ -23,18 +36,44 @@ use crate::movement::{self, WordType};
 impl Editor {
 	/// Executes a data-oriented edit operation.
 	///
-	/// This is the single executor for all text editing operations.
+	/// Compiles the operation into an [`EditPlan`] with resolved policies,
+	/// then executes it using the compile -> commit pattern.
 	pub fn execute_edit_op(&mut self, op: EditOp) {
-		for pre in &op.pre {
+		let plan = op.compile();
+		self.execute_edit_plan(plan);
+	}
+
+	/// Executes a compiled edit plan.
+	///
+	/// This is the core executor that handles undo recording at the start
+	/// (based on the plan's policy) rather than sprinkling it in each transform.
+	pub fn execute_edit_plan(&mut self, plan: EditPlan) {
+		// Save undo state at the start if needed (not inside each transform)
+		let needs_undo = matches!(
+			plan.undo_policy,
+			UndoPolicy::Record | UndoPolicy::Boundary | UndoPolicy::MergeWithCurrentGroup
+		);
+
+		// Check readonly before any mutation
+		if plan.op.modifies_text() && !self.guard_readonly() {
+			return;
+		}
+
+		// Save undo state once at the start (captures view snapshots + doc state)
+		if needs_undo && plan.op.modifies_text() {
+			self.save_undo_state();
+		}
+
+		for pre in &plan.op.pre {
 			self.apply_pre_effect(pre);
 		}
 
-		self.apply_selection_op(&op.selection);
+		self.apply_selection_op(&plan.op.selection);
 
 		let original_cursor = self.buffer().cursor;
-		self.apply_text_transform(&op.transform);
+		self.apply_text_transform_with_plan(&plan);
 
-		for post in &op.post {
+		for post in &plan.op.post {
 			self.apply_post_effect(post, original_cursor);
 		}
 	}
@@ -301,19 +340,19 @@ impl Editor {
 		}
 	}
 
-	/// Applies a text transformation to the current selection.
-	fn apply_text_transform(&mut self, transform: &TextTransform) {
-		match transform {
+	/// Applies a text transformation using the compiled plan.
+	///
+	/// Unlike `apply_text_transform`, this version does not call `save_undo_state()`
+	/// or `guard_readonly()` for each transform - those are handled once at the
+	/// start of `execute_edit_plan`.
+	fn apply_text_transform_with_plan(&mut self, plan: &EditPlan) {
+		match &plan.op.transform {
 			TextTransform::None => {}
 
 			TextTransform::Delete => {
 				if self.buffer().selection.primary().is_empty() {
 					return;
 				}
-				if !self.guard_readonly() {
-					return;
-				}
-				self.save_undo_state();
 				let (tx, new_sel) = {
 					let buffer = self.buffer();
 					buffer.with_doc(|doc| {
@@ -327,10 +366,6 @@ impl Editor {
 			}
 
 			TextTransform::Replace(text) => {
-				if !self.guard_readonly() {
-					return;
-				}
-				self.save_undo_state();
 				let (tx, new_sel) = {
 					let buffer = self.buffer();
 					buffer.with_doc(|doc| {
@@ -341,23 +376,23 @@ impl Editor {
 				};
 				self.buffer_mut().finalize_selection(new_sel);
 				self.apply_transaction(&tx);
-				self.insert_text(text);
+				self.insert_text_no_undo(text);
 			}
 
 			TextTransform::Insert(text) => {
-				self.insert_text(text);
+				self.insert_text_no_undo(text);
 			}
 
 			TextTransform::InsertNewlineWithIndent => {
-				self.insert_newline_with_indent();
+				self.insert_newline_with_indent_no_undo();
 			}
 
 			TextTransform::MapChars(kind) => {
-				self.apply_char_mapping(*kind);
+				self.apply_char_mapping_no_undo(*kind);
 			}
 
 			TextTransform::ReplaceEachChar(ch) => {
-				self.apply_replace_each_char(*ch);
+				self.apply_replace_each_char_no_undo(*ch);
 			}
 
 			TextTransform::Undo => {
@@ -369,59 +404,9 @@ impl Editor {
 			}
 
 			TextTransform::Deindent { max_spaces } => {
-				self.apply_deindent(*max_spaces);
+				self.apply_deindent_no_undo(*max_spaces);
 			}
 		}
-	}
-
-	/// Applies a character mapping transformation (case conversion).
-	fn apply_char_mapping(&mut self, kind: CharMapKind) {
-		let primary = self.buffer().selection.primary();
-		let from = primary.from();
-		let to = primary.to();
-		if from >= to {
-			return;
-		}
-
-		if !self.guard_readonly() {
-			return;
-		}
-
-		self.save_undo_state();
-		let text: String = {
-			let buffer = self.buffer();
-			buffer.with_doc(|doc| {
-				doc.content()
-					.slice(from..to)
-					.chars()
-					.flat_map(|c| kind.apply(c))
-					.collect()
-			})
-		};
-		let new_len = text.chars().count();
-
-		let (tx, new_sel) = {
-			let buffer = self.buffer();
-			buffer.with_doc(|doc| {
-				let tx = Transaction::delete(doc.content().slice(..), &buffer.selection);
-				let new_sel = tx.map_selection(&buffer.selection);
-				(tx, new_sel)
-			})
-		};
-		self.buffer_mut().finalize_selection(new_sel);
-		self.apply_transaction(&tx);
-
-		let tx = {
-			let buffer = self.buffer();
-			buffer.with_doc(|doc| {
-				Transaction::insert(doc.content().slice(..), &buffer.selection, text)
-			})
-		};
-		self.apply_transaction(&tx);
-
-		let new_cursor = self.buffer().selection.primary().head + new_len;
-		self.buffer_mut()
-			.set_cursor_and_selection(new_cursor, Selection::point(new_cursor));
 	}
 
 	/// Applies a post-effect after the main transformation.
@@ -496,19 +481,58 @@ impl Editor {
 		self.insert_text(text);
 	}
 
-	/// Replaces each character in the selection with the given character.
-	///
-	/// If selection is empty, replaces the character under cursor.
-	fn apply_replace_each_char(&mut self, ch: char) {
+	/// Character mapping without undo recording (called from execute_edit_plan).
+	fn apply_char_mapping_no_undo(&mut self, kind: CharMapKind) {
+		let primary = self.buffer().selection.primary();
+		let from = primary.from();
+		let to = primary.to();
+		if from >= to {
+			return;
+		}
+
+		let text: String = {
+			let buffer = self.buffer();
+			buffer.with_doc(|doc| {
+				doc.content()
+					.slice(from..to)
+					.chars()
+					.flat_map(|c| kind.apply(c))
+					.collect()
+			})
+		};
+		let new_len = text.chars().count();
+
+		let (tx, new_sel) = {
+			let buffer = self.buffer();
+			buffer.with_doc(|doc| {
+				let tx = Transaction::delete(doc.content().slice(..), &buffer.selection);
+				let new_sel = tx.map_selection(&buffer.selection);
+				(tx, new_sel)
+			})
+		};
+		self.buffer_mut().finalize_selection(new_sel);
+		self.apply_transaction(&tx);
+
+		let tx = {
+			let buffer = self.buffer();
+			buffer.with_doc(|doc| {
+				Transaction::insert(doc.content().slice(..), &buffer.selection, text)
+			})
+		};
+		self.apply_transaction(&tx);
+
+		let new_cursor = self.buffer().selection.primary().head + new_len;
+		self.buffer_mut()
+			.set_cursor_and_selection(new_cursor, Selection::point(new_cursor));
+	}
+
+	/// Replace each char without undo recording (called from execute_edit_plan).
+	fn apply_replace_each_char_no_undo(&mut self, ch: char) {
 		let primary = self.buffer().selection.primary();
 		let from = primary.from();
 		let to = primary.to();
 
 		if from < to {
-			if !self.guard_readonly() {
-				return;
-			}
-			self.save_undo_state();
 			let len = to - from;
 			let replacement: String = std::iter::repeat_n(ch, len).collect();
 
@@ -535,11 +559,6 @@ impl Editor {
 			self.buffer_mut()
 				.set_cursor_and_selection(new_cursor, Selection::point(new_cursor));
 		} else {
-			// Empty selection - replace single character under cursor
-			if !self.guard_readonly() {
-				return;
-			}
-			self.save_undo_state();
 			self.buffer_mut()
 				.set_selection(Selection::single(from, from + 1));
 
@@ -568,13 +587,8 @@ impl Editor {
 		}
 	}
 
-	/// Removes up to `max_spaces` leading spaces from the current line.
-	///
-	/// Counts consecutive spaces at line start (up to `max_spaces`) and deletes them.
-	/// The cursor is repositioned based on its original location relative to the
-	/// deleted range: cursors after the range shift left, cursors within the range
-	/// move to line start, and cursors before the range are unchanged.
-	fn apply_deindent(&mut self, max_spaces: usize) {
+	/// Deindent without undo recording (called from execute_edit_plan).
+	fn apply_deindent_no_undo(&mut self, max_spaces: usize) {
 		let (line_start, spaces, old_cursor) = {
 			let buffer = self.buffer();
 			buffer.with_doc(|doc| {
@@ -595,11 +609,6 @@ impl Editor {
 			return;
 		}
 
-		if !self.guard_readonly() {
-			return;
-		}
-
-		self.save_undo_state();
 		self.buffer_mut()
 			.set_selection(Selection::single(line_start, line_start + spaces));
 
@@ -623,5 +632,93 @@ impl Editor {
 			old_cursor
 		};
 		self.buffer_mut().set_cursor(new_cursor);
+	}
+
+	/// Inserts text without undo recording (called from execute_edit_plan).
+	fn insert_text_no_undo(&mut self, text: &str) {
+		let buffer_id = self.focused_view();
+
+		let (tx, new_selection) = {
+			let buffer = self
+				.buffers
+				.get_buffer_mut(buffer_id)
+				.expect("focused buffer must exist");
+			buffer.prepare_insert(text)
+		};
+
+		self.apply_transaction_with_selection_inner(buffer_id, &tx, Some(new_selection));
+	}
+
+	/// Inserts newline with indent without undo recording (called from execute_edit_plan).
+	fn insert_newline_with_indent_no_undo(&mut self) {
+		let indent = {
+			let buffer = self.buffer();
+			let cursor = buffer.cursor;
+			buffer.with_doc(|doc| {
+				let line_idx = doc.content().char_to_line(cursor);
+				let line = doc.content().line(line_idx);
+
+				line.chars()
+					.take_while(|c| *c == ' ' || *c == '\t')
+					.collect::<String>()
+			})
+		};
+
+		let text = format!("\n{}", indent);
+		self.insert_text_no_undo(&text);
+	}
+
+	/// Internal transaction application helper that doesn't do readonly checks.
+	fn apply_transaction_with_selection_inner(
+		&mut self,
+		buffer_id: crate::buffer::BufferId,
+		tx: &Transaction,
+		new_selection: Option<Selection>,
+	) -> bool {
+		#[cfg(feature = "lsp")]
+		let encoding = {
+			let buffer = self
+				.buffers
+				.get_buffer(buffer_id)
+				.expect("focused buffer must exist");
+			self.lsp.incremental_encoding_for_buffer(buffer)
+		};
+
+		#[cfg(feature = "lsp")]
+		let applied = {
+			let buffer = self
+				.buffers
+				.get_buffer_mut(buffer_id)
+				.expect("focused buffer must exist");
+			let applied = if let Some(encoding) = encoding {
+				buffer.apply_edit_with_lsp(tx, &self.config.language_loader, encoding)
+			} else {
+				buffer.apply_transaction_with_syntax(tx, &self.config.language_loader)
+			};
+			if applied && let Some(selection) = new_selection {
+				buffer.finalize_selection(selection);
+			}
+			applied
+		};
+
+		#[cfg(not(feature = "lsp"))]
+		let applied = {
+			let buffer = self
+				.buffers
+				.get_buffer_mut(buffer_id)
+				.expect("focused buffer must exist");
+			let applied = buffer.apply_transaction_with_syntax(tx, &self.config.language_loader);
+			if applied && let Some(selection) = new_selection {
+				buffer.finalize_selection(selection);
+			}
+			applied
+		};
+
+		if applied {
+			self.sync_sibling_selections(tx);
+			self.frame.dirty_buffers.insert(buffer_id);
+		}
+
+		applied
 	}
 }
