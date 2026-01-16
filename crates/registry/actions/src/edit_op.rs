@@ -170,8 +170,6 @@ pub struct EditPlan {
 pub enum PreEffect {
 	/// Yank the current selection before modifying.
 	Yank,
-	/// Save undo state (usually automatic, but can be explicit).
-	SaveUndo,
 	/// Extend selection forward by one character if selection is empty.
 	ExtendForwardIfEmpty,
 }

@@ -388,14 +388,15 @@ pub struct TxnUndoStep {
 - You can keep current phased executor but route actual edits through commit
 - Once stable, make compile stage pure for easy testing
 
-### Remaining Work: edit_op_executor Full Migration
+### Remaining Work: edit_op_executor Full Migration ✅ COMPLETED
 
-The `edit_op_executor.rs` currently uses the legacy pattern:
+The `edit_op_executor.rs` migration has been completed. It now uses the compile->commit pattern
+where transactions are built first and then applied via `apply_edit()` which handles undo
+recording inside `commit()`.
 
-1. `save_undo_state()` at the start (records doc undo + pushes EditorUndoGroup)
-2. `apply_transaction()` with `NoUndo` for actual edits
+**Previous state** (before migration):
 
-This should be migrated to use `apply_edit()` which handles undo recording inside `commit()`:
+#### Current State Analysis
 
 **Current flow:**
 ```rust
@@ -403,33 +404,175 @@ This should be migrated to use `apply_edit()` which handles undo recording insid
 if needs_undo && plan.op.modifies_text() {
     self.save_undo_state();  // records undo BEFORE knowing the transaction
 }
-// ... later ...
-self.apply_transaction(&tx);  // NoUndo
+// pre-effects, selection ops...
+self.apply_text_transform_with_plan(&plan);  // calls *_no_undo methods
+// post-effects...
 ```
 
-**Target flow:**
+**Problems with current approach:**
+1. Undo snapshot taken before transaction is known
+2. Multiple `*_no_undo` helper methods duplicate the undo-recording versions
+3. `apply_transaction_with_selection_inner()` duplicates `apply_transaction_inner()` from editing.rs
+4. `PreEffect::SaveUndo` variant exists but shouldn't - undo is handled at plan level
+
+#### Transform Categories
+
+**Simple transforms** (single transaction):
+- `TextTransform::Delete` - builds delete tx
+- `TextTransform::Insert(text)` - builds insert tx
+- `TextTransform::InsertNewlineWithIndent` - builds insert tx with computed indent
+- `TextTransform::Deindent { max_spaces }` - builds delete tx
+
+**Compound transforms** (multiple transactions composed):
+- `TextTransform::Replace(text)` - delete tx + insert tx
+- `TextTransform::MapChars(kind)` - delete tx + insert tx
+- `TextTransform::ReplaceEachChar(ch)` - delete tx + insert tx
+
+**Meta transforms** (no document undo needed):
+- `TextTransform::Undo` - calls `self.undo()`
+- `TextTransform::Redo` - calls `self.redo()`
+- `TextTransform::None` - no-op
+
+#### Migration Phases
+
+**Phase 1: Refactor transforms to return transactions (not apply)**
+
+Change `*_no_undo` methods to build and return transactions without applying:
+
 ```rust
-// execute_edit_plan()
-// Capture view snapshots at start (for EditorUndoGroup)
-let view_snapshots = self.collect_view_snapshots(doc_id);
+// Before:
+fn insert_text_no_undo(&mut self, text: &str) {
+    let (tx, new_selection) = { ... };
+    self.apply_transaction_with_selection_inner(buffer_id, &tx, Some(new_selection));
+}
 
-// ... build transaction ...
-
-// Apply with proper UndoPolicy - undo recorded inside commit()
-self.apply_edit(buffer_id, &tx, new_selection, plan.undo_policy, origin);
+// After:
+fn build_insert_transaction(&self, text: &str) -> Option<(Transaction, Selection)> {
+    let buffer = self.buffer();
+    Some(buffer.prepare_insert(text))
+}
 ```
 
-**Challenges:**
-- EditOp has multiple phases (pre-effects, selection, transform, post-effects)
-- Some pre-effects modify state before the main transform
-- Undo should capture state before ALL phases, not just the transaction
+Methods refactored:
+- [x] `insert_text_no_undo` → `build_insert_transaction`
+- [x] `insert_newline_with_indent_no_undo` → `build_newline_with_indent_transaction`
+- [x] `apply_char_mapping_no_undo` → `build_char_mapping_transaction`
+- [x] `apply_replace_each_char_no_undo` → `build_replace_each_char_transaction`
+- [x] `apply_deindent_no_undo` → `build_deindent_transaction`
 
-**Approach:**
-1. Separate view snapshot capture from document undo recording
-2. Have `apply_edit()` only push EditorUndoGroup, let `commit()` handle doc undo
-3. For multi-phase ops, may need to batch into a single transaction or accept per-phase undo
+**Phase 2: Add transaction composition for compound transforms**
 
-**Also remaining:** `capabilities.rs:138` uses `save_undo_state()` directly.
+For transforms that produce multiple transactions (delete + insert), compose them:
+
+```rust
+fn compose_transactions(txs: &[Transaction], text: RopeSlice) -> Transaction {
+    txs.iter().fold(
+        Transaction::new(text),
+        |acc, tx| acc.compose(tx.clone()).expect("compose succeeds")
+    )
+}
+```
+
+Or alternatively, build a single transaction that does delete+insert in one pass:
+
+```rust
+// For Replace: build a single transaction that replaces each selection range
+fn build_replace_transaction(&self, replacement: &str) -> Option<(Transaction, Selection)> {
+    let buffer = self.buffer();
+    buffer.with_doc(|doc| {
+        let tx = Transaction::change_by_selection(
+            doc.content().slice(..),
+            &buffer.selection,
+            |range| (range.from(), range.to(), Some(replacement.into()))
+        );
+        let new_sel = tx.map_selection(&buffer.selection);
+        Some((tx, new_sel))
+    })
+}
+```
+
+**Phase 3: Update `apply_text_transform_with_plan` to collect transactions**
+
+```rust
+fn apply_text_transform_with_plan(&mut self, plan: &EditPlan) -> Option<(Transaction, Selection)> {
+    match &plan.op.transform {
+        TextTransform::None => None,
+        TextTransform::Delete => self.build_delete_transaction(),
+        TextTransform::Replace(text) => self.build_replace_transaction(text),
+        TextTransform::Insert(text) => self.build_insert_transaction(text),
+        TextTransform::InsertNewlineWithIndent => self.build_newline_with_indent_transaction(),
+        TextTransform::MapChars(kind) => self.build_char_mapping_transaction(*kind),
+        TextTransform::ReplaceEachChar(ch) => self.build_replace_each_char_transaction(*ch),
+        TextTransform::Deindent { max_spaces } => self.build_deindent_transaction(*max_spaces),
+        TextTransform::Undo => { self.undo(); None }
+        TextTransform::Redo => { self.redo(); None }
+    }
+}
+```
+
+**Phase 4: Rewrite `execute_edit_plan` to use `apply_edit`**
+
+```rust
+pub fn execute_edit_plan(&mut self, plan: EditPlan) {
+    // Check readonly before any mutation
+    if plan.op.modifies_text() && !self.guard_readonly() {
+        return;
+    }
+
+    // Pre-effects (yank, extend selection) - no undo recording here
+    for pre in &plan.op.pre {
+        self.apply_pre_effect(pre);
+    }
+
+    // Selection modification
+    self.apply_selection_op(&plan.op.selection);
+
+    let original_cursor = self.buffer().cursor;
+
+    // Build and apply the transaction via apply_edit()
+    if let Some((tx, new_selection)) = self.apply_text_transform_with_plan(&plan) {
+        let buffer_id = self.focused_view();
+        let origin = EditOrigin::EditOp { id: plan.op.id };
+        self.apply_edit(buffer_id, &tx, Some(new_selection), plan.undo_policy, origin);
+    }
+
+    // Post-effects (mode change, cursor adjustment)
+    for post in &plan.op.post {
+        self.apply_post_effect(post, original_cursor);
+    }
+}
+```
+
+**Phase 5: Cleanup**
+
+- [x] Remove `PreEffect::SaveUndo` variant (undo handled at plan level)
+- [x] Delete `*_no_undo` methods
+- [x] Delete `apply_transaction_with_selection_inner` (use `apply_transaction_inner`)
+- [x] Update `replace_selection` to use the new pattern
+- [ ] Remove `apply_transaction` public method if no longer needed (kept for external callers)
+
+#### Note on Pre-Effects and Selection Ops
+
+Pre-effects like `ExtendForwardIfEmpty` and selection ops modify the selection BEFORE the
+transaction is built. This is correct - the transaction should use the modified selection.
+The view snapshot for undo should capture the state BEFORE pre-effects too, which `apply_edit`
+handles by capturing snapshots at the start.
+
+#### capabilities.rs:138 (UndoAccess trait)
+
+The `UndoAccess::save_state()` method is a public API for external callers (registry commands)
+to manually record an undo boundary. This is a valid use case and should remain:
+
+```rust
+impl UndoAccess for Editor {
+    fn save_state(&mut self) {
+        self.save_undo_state();  // Keep this - external API
+    }
+}
+```
+
+However, `save_undo_state()` should be updated to only push `EditorUndoGroup` with view
+snapshots and call `doc.record_undo_boundary()`. This is already done.
 
 ---
 

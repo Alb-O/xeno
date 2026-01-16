@@ -25,7 +25,7 @@ impl Editor {
 	/// 3. Pushes an EditorUndoGroup if undo was recorded
 	///
 	/// Returns `true` if the transaction was applied successfully.
-	fn apply_edit(
+	pub(crate) fn apply_edit(
 		&mut self,
 		buffer_id: BufferId,
 		tx: &Transaction,
