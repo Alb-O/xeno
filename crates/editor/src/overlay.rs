@@ -14,7 +14,7 @@ use std::collections::HashMap;
 /// Similar to [`ExtensionMap`] but for transient UI overlays like popups,
 /// palettes, and completion menus.
 ///
-/// [`ExtensionMap`]: crate::impls::extensions::ExtensionMap
+/// [`ExtensionMap`]: crate::extensions::ExtensionMap
 #[derive(Default)]
 pub struct OverlayManager {
 	inner: HashMap<TypeId, Box<dyn Any + Send + Sync>>,

@@ -5,7 +5,7 @@
 use xeno_tui::layout::Rect;
 
 use crate::buffer::{BufferView, Layout, SplitDirection};
-use crate::impls::separator::{DragState, MouseVelocityTracker, SeparatorHoverAnimation};
+use crate::separator::{DragState, MouseVelocityTracker, SeparatorHoverAnimation};
 
 /// Manages stacked layout layers and separator interactions.
 ///

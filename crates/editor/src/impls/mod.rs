@@ -15,28 +15,18 @@
 
 /// Action dispatch and context setup.
 mod actions_exec;
-/// Buffer collection management.
-mod buffer_manager;
 /// Buffer creation operations.
 mod buffer_ops;
-/// Command queue for deferred execution.
-mod command_queue;
 /// Data-oriented edit operation executor.
 mod edit_op_executor;
 /// Text editing operations.
 mod editing;
-/// Extension container and lifecycle.
-pub mod extensions;
 /// File save and load operations.
 mod file_ops;
 /// View focus management.
 mod focus;
 /// Undo/redo history.
 mod history;
-/// Async hook execution runtime.
-mod hook_runtime;
-/// Split layout management.
-mod layout;
 /// Editor lifecycle (tick, render).
 mod lifecycle;
 /// Message and notification display.
@@ -47,26 +37,22 @@ mod navigation;
 mod options;
 /// Search state and operations.
 mod search;
-/// Separator hit detection.
-mod separator;
 /// Split view operations.
 mod splits;
 /// Theme management.
 mod theming;
-/// Shared type definitions.
-pub mod types;
 /// Buffer access and viewport management.
 mod views;
 
 use std::path::PathBuf;
 
-pub use buffer_manager::BufferManager;
-pub use command_queue::CommandQueue;
+pub use crate::buffer_manager::BufferManager;
+pub use crate::command_queue::CommandQueue;
 pub use focus::{FocusReason, FocusTarget, PanelId};
-pub use hook_runtime::HookRuntime;
-pub use layout::{LayoutManager, SeparatorHit, SeparatorId};
+pub use crate::hook_runtime::HookRuntime;
+pub use crate::layout::{LayoutManager, SeparatorHit, SeparatorId};
 pub use navigation::Location;
-pub use types::{
+pub use crate::types::{
 	Config, EditorUndoGroup, FrameState, JumpList, JumpLocation, MacroState, Registers,
 	ViewSnapshot, Viewport, Workspace,
 };
@@ -80,9 +66,9 @@ use xeno_tui::layout::Rect;
 use crate::lsp::CompletionController;
 #[cfg(feature = "lsp")]
 use crate::lsp::LspUiEvent;
-pub use self::separator::{DragState, MouseVelocityTracker, SeparatorHoverAnimation};
+pub use crate::separator::{DragState, MouseVelocityTracker, SeparatorHoverAnimation};
 use crate::buffer::{BufferId, Layout};
-use crate::impls::extensions::{ExtensionMap, StyleOverlays};
+use crate::extensions::{ExtensionMap, StyleOverlays};
 use crate::overlay::OverlayManager;
 use crate::ui::UiManager;
 use crate::window::{BaseWindow, FloatingStyle, WindowId, WindowManager};

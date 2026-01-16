@@ -24,18 +24,28 @@
 //! a text buffer.
 
 pub mod buffer;
+/// Buffer storage and management.
+pub mod buffer_manager;
 pub mod capabilities;
+/// Command queue for deferred execution.
+pub mod command_queue;
 /// Editor-direct commands that need full [`Editor`] access.
 pub mod commands;
 /// Completion types and sources for command palette.
 pub mod completion;
-pub mod impls;
 /// Editor context and effect handling.
 pub mod editor_ctx;
+/// Extension container and style overlays.
+pub mod extensions;
+/// Async hook execution runtime.
+pub mod hook_runtime;
+pub mod impls;
 /// Info popups for documentation and contextual help.
 pub mod info_popup;
 /// Input handling: key events, modes, and pending actions.
 pub mod input;
+/// Split layout management.
+pub mod layout;
 #[cfg(feature = "lsp")]
 pub mod lsp;
 /// Cursor movement functions.
@@ -46,10 +56,12 @@ pub mod overlay;
 pub mod palette;
 /// Platform-specific configuration paths.
 pub mod paths;
-/// Prompt overlay for one-line inputs (rename, etc).
+/// Prompt overlay for one-line inputs.
 pub mod prompt;
 /// Rendering utilities for buffers, status line, and completion.
 pub mod render;
+/// Separator drag and hover state.
+pub mod separator;
 /// Style utilities and conversions.
 pub mod styles;
 /// Terminal capability configuration.
@@ -57,6 +69,8 @@ pub mod terminal_config;
 pub mod test_events;
 /// Theme completion source.
 pub mod theme_source;
+/// Editor type definitions.
+pub mod types;
 /// UI management: focus tracking.
 pub mod ui;
 /// Window management and floating UI.
@@ -66,8 +80,8 @@ pub use buffer::{Buffer, BufferId, HistoryResult};
 pub use completion::{
 	CompletionContext, CompletionItem, CompletionKind, CompletionSource, CompletionState,
 };
-pub use impls::Editor;
 pub use editor_ctx::{EditorCapabilities, EditorContext, EditorOps, HandleOutcome, apply_effects};
+pub use impls::Editor;
 pub use movement::WordType;
 pub use terminal_config::{TerminalConfig, TerminalSequence};
 pub use theme_source::ThemeSource;

@@ -3,7 +3,7 @@
 use xeno_tui::animation::{Easing, ToggleTween};
 use xeno_tui::layout::Rect;
 
-use super::layout::SeparatorId;
+use crate::layout::SeparatorId;
 
 /// State for an active separator drag operation.
 #[derive(Debug, Clone, PartialEq)]

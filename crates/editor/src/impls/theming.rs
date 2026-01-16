@@ -6,7 +6,7 @@ use xeno_registry::commands::CommandError;
 use xeno_registry::themes::SyntaxStyles;
 
 use super::Editor;
-use super::extensions::StyleMod;
+use crate::extensions::StyleMod;
 
 impl Editor {
 	/// Sets the editor's color theme by name.

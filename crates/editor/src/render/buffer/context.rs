@@ -16,7 +16,7 @@ use xeno_tui::widgets::Paragraph;
 use super::diagnostics::{DiagnosticLineMap, DiagnosticRangeMap};
 use super::gutter::GutterLayout;
 use crate::buffer::Buffer;
-use crate::impls::extensions::StyleOverlays;
+use crate::extensions::StyleOverlays;
 use crate::render::wrap::wrap_line;
 use crate::window::GutterSelector;
 
@@ -179,7 +179,7 @@ impl<'a> BufferRenderContext<'a> {
 	pub fn apply_style_overlay(&self, byte_pos: usize, style: Option<Style>) -> Option<Style> {
 		use xeno_tui::animation::Animatable;
 
-		use crate::impls::extensions::StyleMod;
+		use crate::extensions::StyleMod;
 
 		let Some(modification) = self.style_overlays.modification_at(byte_pos) else {
 			return style;

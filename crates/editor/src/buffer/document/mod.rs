@@ -10,8 +10,8 @@
 //! (cursor, selection, scroll position) is managed at the editor level via
 //! [`EditorUndoGroup`] and [`ViewSnapshot`].
 //!
-//! [`EditorUndoGroup`]: crate::impls::types::EditorUndoGroup
-//! [`ViewSnapshot`]: crate::impls::types::ViewSnapshot
+//! [`EditorUndoGroup`]: crate::types::EditorUndoGroup
+//! [`ViewSnapshot`]: crate::types::ViewSnapshot
 
 #[cfg(test)]
 mod tests;
@@ -61,7 +61,7 @@ impl DocumentId {
 /// - Each view's cursor/selection is restored from the editor-level snapshot
 /// - Buffers can be created/destroyed without corrupting undo history
 ///
-/// [`EditorUndoGroup`]: crate::impls::types::EditorUndoGroup
+/// [`EditorUndoGroup`]: crate::types::EditorUndoGroup
 ///
 /// # Field Access
 ///
@@ -89,7 +89,7 @@ pub struct Document {
 	/// Manages document-level undo history. View state (cursor, selection,
 	/// scroll) is handled separately at the editor level via [`EditorUndoGroup`].
 	///
-	/// [`EditorUndoGroup`]: crate::impls::types::EditorUndoGroup
+	/// [`EditorUndoGroup`]: crate::types::EditorUndoGroup
 	undo_backend: UndoBackend,
 
 	/// Detected file type (e.g., "rust", "python").
@@ -212,7 +212,7 @@ impl Document {
 	/// View state (cursor, selection, scroll) is captured separately at the
 	/// editor level via [`EditorUndoGroup`].
 	///
-	/// [`EditorUndoGroup`]: crate::impls::types::EditorUndoGroup
+	/// [`EditorUndoGroup`]: crate::types::EditorUndoGroup
 	pub fn record_undo_boundary(&mut self) {
 		self.insert_undo_active = false;
 		let before = DocumentSnapshot {
@@ -230,7 +230,7 @@ impl Document {
 	///
 	/// Returns `true` if undo was successful, `false` if nothing to undo.
 	///
-	/// [`EditorUndoGroup`]: crate::impls::types::EditorUndoGroup
+	/// [`EditorUndoGroup`]: crate::types::EditorUndoGroup
 	pub fn undo(&mut self, language_loader: &LanguageLoader) -> bool {
 		self.insert_undo_active = false;
 
@@ -258,7 +258,7 @@ impl Document {
 	///
 	/// Returns `true` if redo was successful, `false` if nothing to redo.
 	///
-	/// [`EditorUndoGroup`]: crate::impls::types::EditorUndoGroup
+	/// [`EditorUndoGroup`]: crate::types::EditorUndoGroup
 	pub fn redo(&mut self, language_loader: &LanguageLoader) -> bool {
 		self.insert_undo_active = false;
 
@@ -506,7 +506,7 @@ impl Document {
 	/// will be grouped with the current undo step. Used by the Editor layer
 	/// to determine whether to push a new [`EditorUndoGroup`].
 	///
-	/// [`EditorUndoGroup`]: crate::impls::types::EditorUndoGroup
+	/// [`EditorUndoGroup`]: crate::types::EditorUndoGroup
 	pub fn insert_undo_active(&self) -> bool {
 		self.insert_undo_active
 	}
