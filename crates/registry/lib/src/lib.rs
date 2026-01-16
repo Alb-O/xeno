@@ -35,7 +35,7 @@ pub mod keymap_registry;
 // Data-oriented edit operations
 pub use actions::editor_ctx::{
 	CommandQueueAccess, CursorAccess, EditAccess, EditorCapabilities, EditorContext, EditorOps,
-	FileOpsAccess, FocusOps, HandleOutcome, JumpAccess, MacroAccess, ModeAccess,
+	FileOpsAccess, FocusOps, HandleOutcome, JumpAccess, MacroAccess, ModeAccess, MotionAccess,
 	NotificationAccess, OptionAccess, PaletteAccess, ResultHandler, SearchAccess, SelectionAccess,
 	SplitOps, TextAccess, ThemeAccess, UndoAccess, ViewportAccess,
 };

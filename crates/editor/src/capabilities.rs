@@ -13,9 +13,9 @@ use xeno_registry::commands::{CommandEditorOps, CommandError};
 use xeno_registry::options::{OptionKey, OptionScope, OptionValue, find_by_kdl, parse};
 use xeno_registry::{
 	CommandQueueAccess, CursorAccess, EditAccess, EditorCapabilities, FileOpsAccess, FocusOps,
-	HookContext, HookEventData, JumpAccess, MacroAccess, ModeAccess, NotificationAccess,
-	OptionAccess, PaletteAccess, SearchAccess, SelectionAccess, SplitOps, ThemeAccess, UndoAccess,
-	ViewportAccess, emit_sync_with as emit_hook_sync_with,
+	HookContext, HookEventData, JumpAccess, MacroAccess, ModeAccess, MotionAccess,
+	NotificationAccess, OptionAccess, PaletteAccess, SearchAccess, SelectionAccess, SplitOps,
+	ThemeAccess, UndoAccess, ViewportAccess, emit_sync_with as emit_hook_sync_with,
 };
 use xeno_registry_notifications::{Notification, keys};
 
@@ -155,16 +155,18 @@ impl EditAccess for Editor {
 		self.execute_edit_op(op.clone());
 	}
 
-	fn move_visual_vertical(&mut self, direction: MoveDir, count: usize, extend: bool) {
-		self.move_visual_vertical(direction, count, extend);
-	}
-
 	fn paste(&mut self, before: bool) {
 		if before {
 			self.paste_before();
 		} else {
 			self.paste_after();
 		}
+	}
+}
+
+impl MotionAccess for Editor {
+	fn move_visual_vertical(&mut self, direction: MoveDir, count: usize, extend: bool) {
+		self.move_visual_vertical(direction, count, extend);
 	}
 }
 
@@ -443,6 +445,10 @@ impl EditorCapabilities for Editor {
 	}
 
 	fn edit(&mut self) -> Option<&mut dyn EditAccess> {
+		Some(self)
+	}
+
+	fn motion(&mut self) -> Option<&mut dyn MotionAccess> {
 		Some(self)
 	}
 

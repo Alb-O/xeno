@@ -146,6 +146,11 @@ impl<'a> EditorContext<'a> {
 			.ok_or(CommandError::MissingCapability(Capability::Edit))
 	}
 
+	/// Returns motion access if the capability is available.
+	pub fn motion(&mut self) -> Option<&mut dyn MotionAccess> {
+		self.inner.motion()
+	}
+
 	/// Returns split operations if the capability is available.
 	pub fn split_ops(&mut self) -> Option<&mut dyn SplitOps> {
 		self.inner.split_ops()
@@ -273,6 +278,11 @@ pub trait EditorCapabilities:
 
 	/// Access to edit operations (optional).
 	fn edit(&mut self) -> Option<&mut dyn EditAccess> {
+		None
+	}
+
+	/// Access to visual cursor motion (optional).
+	fn motion(&mut self) -> Option<&mut dyn MotionAccess> {
 		None
 	}
 

@@ -77,8 +77,8 @@ pub fn apply_effects(
 				extend: scroll_extend,
 			} => {
 				let count = scroll_amount_to_lines(amount);
-				if let Some(edit) = ctx.edit() {
-					edit.move_visual_vertical(*direction, count, *scroll_extend);
+				if let Some(motion) = ctx.motion() {
+					motion.move_visual_vertical(*direction, count, *scroll_extend);
 				}
 			}
 
@@ -87,8 +87,8 @@ pub fn apply_effects(
 				count,
 				extend: move_extend,
 			} => {
-				if let Some(edit) = ctx.edit() {
-					edit.move_visual_vertical(*direction, *count, *move_extend);
+				if let Some(motion) = ctx.motion() {
+					motion.move_visual_vertical(*direction, *count, *move_extend);
 				}
 			}
 
@@ -211,8 +211,8 @@ fn apply_view_effect(
 			extend: scroll_extend,
 		} => {
 			let count = scroll_amount_to_lines(amount);
-			if let Some(edit) = ctx.edit() {
-				edit.move_visual_vertical(*direction, count, *scroll_extend);
+			if let Some(motion) = ctx.motion() {
+				motion.move_visual_vertical(*direction, count, *scroll_extend);
 			}
 		}
 
@@ -221,8 +221,8 @@ fn apply_view_effect(
 			count,
 			extend: move_extend,
 		} => {
-			if let Some(edit) = ctx.edit() {
-				edit.move_visual_vertical(*direction, *count, *move_extend);
+			if let Some(motion) = ctx.motion() {
+				motion.move_visual_vertical(*direction, *count, *move_extend);
 			}
 		}
 

@@ -19,6 +19,7 @@
 //! These extend functionality when implemented:
 //!
 //! - [`EditAccess`] - Text modification (delete, yank, paste)
+//! - [`MotionAccess`] - Visual/wrapped-line cursor movement
 //! - [`SearchAccess`] - Pattern search and navigation
 //! - [`UndoAccess`] - Undo/redo history
 //! - [`SplitOps`] - Split management
@@ -192,17 +193,24 @@ pub trait EditAccess {
 	/// composable and processed by a single executor function.
 	fn execute_edit_op(&mut self, op: &crate::edit_op::EditOp);
 
+	/// Pastes from the yank register.
+	///
+	/// - `before`: If true, pastes before cursor; otherwise after
+	fn paste(&mut self, before: bool);
+}
+
+/// Visual cursor motion (optional).
+///
+/// Handles cursor movement that accounts for visual line wrapping.
+/// Unlike logical line movement, visual motion follows what the user
+/// sees on screen when lines are wrapped.
+pub trait MotionAccess {
 	/// Moves the cursor visually (wrapped lines).
 	///
 	/// - `direction`: Forward for down, Backward for up
 	/// - `count`: Number of visual lines to move
 	/// - `extend`: If true, extends selection rather than moving
 	fn move_visual_vertical(&mut self, direction: Direction, count: usize, extend: bool);
-
-	/// Pastes from the yank register.
-	///
-	/// - `before`: If true, pastes before cursor; otherwise after
-	fn paste(&mut self, before: bool);
 }
 
 /// File operations (optional).

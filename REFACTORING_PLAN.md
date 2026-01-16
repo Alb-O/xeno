@@ -2,26 +2,27 @@
 
 Comprehensive multi-phased plan for managing code scale and improving maintainability.
 
----
+______________________________________________________________________
 
 ## Status Summary
 
-| Phase | Description | Status |
-|-------|-------------|--------|
-| 0 | Guardrails and Observability | ✅ Complete |
-| 1 | Extract UndoManager with Host Trait | ✅ Complete |
-| 2 | Route Edit Push-Site Through UndoManager | ✅ Complete |
-| 3 | Introduce EditExecutor | ✅ Complete |
-| 4 | Effect Nesting Refactor | ✅ Complete |
-| 5 | RegistryMeta Normalization | ✅ Complete |
-| 6 | Capability Gating Consolidation | ✅ Complete |
-| 7 | Editor Split (EditorCore extraction) | ✅ Complete |
-| 7b | Move Capability Traits to EditorCore | ✅ Category A done |
+| Phase | Description                              | Status             |
+| ----- | ---------------------------------------- | ------------------ |
+| 0     | Guardrails and Observability             | ✅ Complete        |
+| 1     | Extract UndoManager with Host Trait      | ✅ Complete        |
+| 2     | Route Edit Push-Site Through UndoManager | ✅ Complete        |
+| 3     | Introduce EditExecutor                   | ✅ Complete        |
+| 4     | Effect Nesting Refactor                  | ✅ Complete        |
+| 5     | RegistryMeta Normalization               | ✅ Complete        |
+| 6     | Capability Gating Consolidation          | ✅ Complete        |
+| 7     | Editor Split (EditorCore extraction)     | ✅ Complete        |
+| 7b    | Move Capability Traits to EditorCore     | ✅ Category A done |
+| 8     | Split MotionAccess from EditAccess       | ✅ Complete        |
 
 **Current architecture is sound.** EditorCore extraction is paying off, crate boundaries
 are respected, and the refactoring has not over-engineered the codebase.
 
----
+______________________________________________________________________
 
 ## Architectural Constraints
 
@@ -34,26 +35,21 @@ abstraction traits and cannot depend on the editor crate (`xeno-editor`).
 If you see `EditorCore::apply_effect(...)`, that's a code smell. Editor remains
 the orchestration + policy layer.
 
----
+______________________________________________________________________
 
 ## Recommended Next Steps
 
-Based on analysis after completing Phases 0-7b:
-
-### High Priority
-
-1. **Split `move_visual_vertical` out of `EditAccess`**
-   - Create `ViewAccess` or `MotionAccess` trait
-   - Leave deprecated forwarding impl temporarily
-   - Aligns trait semantics (it's a view operation, not an edit)
+Based on analysis after completing Phases 0-8:
 
 ### Medium Priority
 
-2. **Registry diagnostics hardening**
+1. **Registry diagnostics hardening**
+
    - Add `--dump-registry` debug output behind a feature flag
    - Useful at 30+ crates for debugging weird dispatch
 
-3. **ActionContext clone pressure**
+2. **ActionContext clone pressure**
+
    - The Rope clone in `execute_action` noted earlier
    - Consider lazy slicing or moving snapshot creation into executor layer
 
@@ -63,13 +59,14 @@ Based on analysis after completing Phases 0-7b:
 - Splitting UndoHost further (Category B traits)
 - Category C traits (fundamentally need Editor state)
 
----
+______________________________________________________________________
 
 ## Completed Phases
 
 ### Phase 0: Guardrails and Observability
 
 Established behavior locks before structural changes:
+
 - Behavior-lock tests for undo/redo (cursor/selection/scroll restoration)
 - Behavior-lock tests for effect ordering
 - Debug logging for undo groups and effect dispatch
@@ -77,6 +74,7 @@ Established behavior locks before structural changes:
 ### Phase 1: Extract UndoManager with Host Trait
 
 Isolated undo/redo logic into `UndoManager` with `UndoHost` trait:
+
 - `UndoManager` owns undo/redo stacks
 - `PreparedEdit` captures pre-edit state
 - `UndoHost` trait for editor callbacks (notifications, document access)
@@ -85,12 +83,14 @@ Isolated undo/redo logic into `UndoManager` with `UndoHost` trait:
 ### Phase 2: Route Edit Push-Site Through UndoManager
 
 Centralized undo group creation:
+
 - `apply_edit()` uses `prepare_edit()` / `finalize_edit()` pattern
 - Redo stack only clears when group is actually pushed
 
 ### Phase 3: Introduce EditExecutor
 
 Single entry point for edit operations:
+
 - `EditExecutor<'a>` wraps `&'a mut Editor`
 - `ApplyEditPolicy { undo, origin }` for policy control
 - `apply_effects` uses `EditAccess` trait (correct cross-crate abstraction)
@@ -98,6 +98,7 @@ Single entry point for edit operations:
 ### Phase 4: Effect Nesting Refactor
 
 Organized Effect variants by domain:
+
 - Nested enums: `ViewEffect`, `EditEffect`, `UiEffect`, `AppEffect`
 - `From` conversions for backward compatibility
 - Builder API (`ActionEffects::*`) remains the stable public surface
@@ -106,6 +107,7 @@ Organized Effect variants by domain:
 ### Phase 5: RegistryMeta Normalization
 
 Reduced boilerplate across registry types:
+
 - `RegistryMeta` struct with common fields (id, name, aliases, description, priority, etc.)
 - `RegistryEntry` trait for introspection
 - Updated `ActionDef`, `MotionDef`, `CommandDef`, `TextObjectDef`
@@ -114,6 +116,7 @@ Reduced boilerplate across registry types:
 ### Phase 6: Capability Gating Consolidation
 
 Single gate for all user-invoked operations:
+
 - `Editor::run_invocation(Invocation)` checks capabilities
 - `InvocationPolicy { enforce_caps, enforce_readonly }`
 - Currently in log-only mode; flip to enforcing when ready
@@ -124,6 +127,7 @@ Single gate for all user-invoked operations:
 Reduced Editor god-object pressure:
 
 **EditorCore structure** (`crates/editor/src/impls/core.rs`):
+
 ```rust
 pub struct EditorCore {
     pub buffers: BufferManager,
@@ -133,6 +137,7 @@ pub struct EditorCore {
 ```
 
 **Editor** now contains:
+
 - `core: EditorCore` - Core editing state
 - UI: `ui`, `notifications`, `overlays`
 - Layout: `layout`, `viewport`, `windows`, `focus`
@@ -144,6 +149,7 @@ Compatibility accessors (`buffers()`, `workspace()`, `undo_manager()`) forward t
 ### Phase 7b: Capability Traits on EditorCore
 
 Moved Category A (pure core) traits to EditorCore:
+
 - `CursorAccess` - cursor(), cursor_line_col(), set_cursor()
 - `SelectionAccess` - selection(), selection_mut(), set_selection()
 - `MacroAccess` - record(), stop_recording(), play(), is_recording()
@@ -154,16 +160,27 @@ Editor forwards to EditorCore for these traits.
 **Category B** (needs focus): UndoAccess, JumpAccess, EditAccess - deferred
 **Category C** (UI-coupled): ModeAccess, NotificationAccess, PaletteAccess, etc. - must stay on Editor
 
----
+### Phase 8: Split MotionAccess from EditAccess
+
+Separated visual cursor motion from text editing:
+
+- Created `MotionAccess` trait for `move_visual_vertical()`
+- `EditAccess` now only contains `execute_edit_op()` and `paste()`
+- Effect handlers for `Scroll` and `VisualMove` use `ctx.motion()` instead of `ctx.edit()`
+- Aligns trait semantics: motion ≠ edit
+
+______________________________________________________________________
 
 ## Registry Safety
 
 Watch for these issues:
+
 1. **Duplicate IDs/aliases** - Collision detection via registry_diag commands
 2. **Feature flags silently remove registrations** - CI feature-matrix builds essential
 3. **Tests are separate binaries** - Registry contents can differ
 
 Sanity test pattern:
+
 ```rust
 #[test]
 fn registry_sanity_check() {
@@ -172,11 +189,12 @@ fn registry_sanity_check() {
 }
 ```
 
----
+______________________________________________________________________
 
 ## Summary Checklist
 
 ### Completed
+
 - [x] Phase 0: Behavior-lock tests, debug logging
 - [x] Phase 1: UndoManager, UndoHost trait, PreparedEdit
 - [x] Phase 2: prepare/finalize pattern in apply_edit
@@ -186,14 +204,15 @@ fn registry_sanity_check() {
 - [x] Phase 6: run_invocation, InvocationPolicy, log-only mode
 - [x] Phase 7: EditorCore extraction, facade pattern
 - [x] Phase 7b Category A: CursorAccess, SelectionAccess, MacroAccess, CommandQueueAccess on EditorCore
+- [x] Phase 8: MotionAccess split from EditAccess
 
 ### Optional/Deferred
-- [ ] Split `move_visual_vertical` into ViewAccess trait
+
 - [ ] Registry diagnostics hardening (--dump-registry)
 - [ ] ActionContext clone pressure optimization
 - [ ] Phase 7b Category B: Move focus state to EditorCore
 - [ ] Phase 7b Category B: Split UndoHost for EditorCore UndoAccess
 
----
+______________________________________________________________________
 
 *Generated from collaborative analysis with Claude and ChatGPT.*
