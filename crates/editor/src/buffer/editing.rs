@@ -212,8 +212,8 @@ impl Buffer {
 
 	/// Applies a transaction and updates the syntax tree incrementally.
 	///
-	/// Routes through [`Document::commit_unchecked`] with [`SyntaxPolicy::None`],
-	/// then performs an incremental syntax update using the changeset.
+	/// Routes through [`Document::commit_unchecked`] with [`SyntaxPolicy::IncrementalOrDirty`],
+	/// which handles incremental syntax updates automatically.
 	///
 	/// Returns `false` if the buffer is read-only (either via buffer-level
 	/// override or document flag), `true` otherwise.
@@ -229,12 +229,12 @@ impl Buffer {
 
 	/// Applies a transaction with syntax update and the specified undo policy.
 	///
-	/// Routes through [`Document::commit_unchecked`] with [`SyntaxPolicy::None`],
-	/// then performs an incremental syntax update using the changeset.
+	/// Routes through [`Document::commit_unchecked`] with [`SyntaxPolicy::IncrementalOrDirty`],
+	/// which handles incremental syntax updates automatically.
 	///
 	/// Returns `false` if the buffer is read-only (either via buffer-level
-	/// override or document flag), `true` otherwise. Returns `true` and records
-	/// undo based on the policy when successful.
+	/// override or document flag), `true` otherwise. Records undo based on
+	/// the policy when successful.
 	///
 	/// [`Document::commit_unchecked`]: super::Document::commit_unchecked
 	pub fn apply_transaction_with_syntax_and_undo(
@@ -250,26 +250,12 @@ impl Buffer {
 			return false;
 		}
 
-		let old_doc = self.with_doc(|doc| doc.content().clone());
-
 		let commit = EditCommit::new(tx.clone())
 			.with_undo(undo)
-			.with_syntax(SyntaxPolicy::None);
+			.with_syntax(SyntaxPolicy::IncrementalOrDirty);
 
 		self.with_doc_mut(|doc| {
-			doc.commit_unchecked(commit, &LanguageLoader::new());
-
-			if doc.has_syntax() {
-				let new_doc = doc.content().clone();
-				if let Some(syntax) = doc.syntax_mut() {
-					let _ = syntax.update_from_changeset(
-						old_doc.slice(..),
-						new_doc.slice(..),
-						tx.changes(),
-						language_loader,
-					);
-				}
-			}
+			doc.commit_unchecked(commit, language_loader);
 		});
 
 		true
@@ -277,9 +263,8 @@ impl Buffer {
 
 	/// Applies a transaction, updates syntax incrementally, and queues LSP changes.
 	///
-	/// Routes through [`Document::commit_unchecked`] with [`SyntaxPolicy::None`],
-	/// then performs an incremental syntax update and queues LSP document changes
-	/// for synchronization.
+	/// Routes through [`Document::commit_unchecked`] with [`SyntaxPolicy::IncrementalOrDirty`],
+	/// which handles incremental syntax updates automatically.
 	///
 	/// Returns `false` if the buffer is read-only (either via buffer-level
 	/// override or document flag), `true` otherwise.
@@ -297,13 +282,13 @@ impl Buffer {
 
 	/// Applies a transaction with LSP sync and the specified undo policy.
 	///
-	/// Routes through [`Document::commit_unchecked`] with [`SyntaxPolicy::None`],
-	/// then performs an incremental syntax update and queues LSP document changes
-	/// for synchronization.
+	/// Routes through [`Document::commit_unchecked`] with [`SyntaxPolicy::IncrementalOrDirty`],
+	/// which handles incremental syntax updates automatically. LSP document changes
+	/// are computed before the transaction is applied and queued for synchronization.
 	///
 	/// Returns `false` if the buffer is read-only (either via buffer-level
-	/// override or document flag), `true` otherwise. Returns `true` and records
-	/// undo based on the policy when successful.
+	/// override or document flag), `true` otherwise. Records undo based on
+	/// the policy when successful.
 	///
 	/// [`Document::commit_unchecked`]: super::Document::commit_unchecked
 	#[cfg(feature = "lsp")]
@@ -321,27 +306,15 @@ impl Buffer {
 			return false;
 		}
 
-		let old_doc = self.with_doc(|doc| doc.content().clone());
-		let lsp_changes = compute_lsp_changes(&old_doc, tx, encoding);
+		// Compute LSP changes before applying the transaction (needs pre-edit state)
+		let lsp_changes = self.with_doc(|doc| compute_lsp_changes(doc.content(), tx, encoding));
 
 		let commit = EditCommit::new(tx.clone())
 			.with_undo(undo)
-			.with_syntax(SyntaxPolicy::None);
+			.with_syntax(SyntaxPolicy::IncrementalOrDirty);
 
 		self.with_doc_mut(|doc| {
-			doc.commit_unchecked(commit, &LanguageLoader::new());
-
-			if doc.has_syntax() {
-				let new_doc = doc.content().clone();
-				if let Some(syntax) = doc.syntax_mut() {
-					let _ = syntax.update_from_changeset(
-						old_doc.slice(..),
-						new_doc.slice(..),
-						tx.changes(),
-						language_loader,
-					);
-				}
-			}
+			doc.commit_unchecked(commit, language_loader);
 
 			match lsp_changes {
 				IncrementalResult::Incremental(changes) => {
