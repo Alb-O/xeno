@@ -6,8 +6,10 @@
 //! - [`Workspace`] - Session state (registers, jumps, macros)
 //! - [`Config`] - Editor configuration (theme, languages, options)
 //! - [`UndoManager`] - Editor-level undo/redo management
+//! - [`ApplyEditPolicy`] - Policy for edit transaction behavior
 
 mod config;
+mod edit_policy;
 mod frame;
 mod history;
 mod undo_manager;
@@ -15,6 +17,7 @@ mod viewport;
 mod workspace;
 
 pub use config::Config;
+pub use edit_policy::ApplyEditPolicy;
 pub use frame::FrameState;
 pub use history::{DocumentHistoryEntry, EditorUndoGroup, ViewSnapshot};
 pub use undo_manager::{PreparedEdit, UndoHost, UndoManager};

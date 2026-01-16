@@ -17,6 +17,8 @@
 mod actions_exec;
 /// Buffer creation operations.
 mod buffer_ops;
+/// Centralized edit executor.
+mod edit_executor;
 /// Data-oriented edit operation executor.
 mod edit_op_executor;
 /// Text editing operations.
@@ -53,9 +55,10 @@ pub use crate::hook_runtime::HookRuntime;
 pub use crate::layout::{LayoutManager, SeparatorHit, SeparatorId};
 pub use navigation::Location;
 pub use crate::types::{
-	Config, EditorUndoGroup, FrameState, JumpList, JumpLocation, MacroState, PreparedEdit,
-	Registers, UndoHost, UndoManager, ViewSnapshot, Viewport, Workspace,
+	ApplyEditPolicy, Config, EditorUndoGroup, FrameState, JumpList, JumpLocation, MacroState,
+	PreparedEdit, Registers, UndoHost, UndoManager, ViewSnapshot, Viewport, Workspace,
 };
+pub use edit_executor::EditExecutor;
 use xeno_registry::{
 	HookContext, HookEventData, WindowKind, emit_sync_with as emit_hook_sync_with,
 };

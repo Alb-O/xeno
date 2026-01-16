@@ -213,13 +213,13 @@ pub(crate) fn apply_edit(
 
 ### Tasks
 
-- [ ] Add `ApplyEditPolicy { undo, origin }` struct
-- [ ] Implement `EditExecutor<'a> { editor: &'a mut Editor }`
-- [ ] Add `apply_transaction()` wrapping UndoManager + inner apply
-- [ ] Add `execute_edit_op()` for EditOp handling
-- [ ] Add `paste()` for paste operations
-- [ ] Update `EditorContext::edit_executor()` to return by value
-- [ ] Update `apply_effects` to use `edit_executor()`
+- [x] Add `ApplyEditPolicy { undo, origin }` struct
+- [x] Implement `EditExecutor<'a> { editor: &'a mut Editor }`
+- [x] Add `apply_transaction()` wrapping UndoManager + inner apply
+- [x] Add `execute_edit_op()` for EditOp handling
+- [x] Add `paste()` for paste operations
+- [x] Add `Editor::edit_executor()` method (EditorContext uses trait-based access)
+- [x] Existing `apply_effects` uses `EditAccess` trait (correct abstraction for registry layer)
 
 ### Code Sketch: EditExecutor
 
@@ -269,6 +269,21 @@ pub struct ApplyEditPolicy {
 **Dependencies**: Phase 2
 **Risk**: Medium (borrow/lifetime issues, but mechanical)
 **Rollback**: Keep old `ctx.edit()` path behind feature flag
+
+### Implementation Notes
+
+The original plan called for `EditorContext::edit_executor()` to return an `EditExecutor`.
+This isn't possible due to crate dependencies:
+
+- `EditorContext` lives in `xeno-registry` (the abstraction layer)
+- `EditExecutor` lives in `xeno-editor` (the implementation)
+- `xeno-registry` cannot depend on `xeno-editor` (would create circular dependency)
+
+**Resolution**: The trait-based `EditAccess` interface remains the correct abstraction for
+the registry layer. `EditExecutor` provides a convenient internal API within the editor
+crate via `Editor::edit_executor()`. The `apply_effects` function continues to use
+`ctx.edit()` which returns `Option<&mut dyn EditAccess>` - this is the right design
+for cross-crate capability access.
 
 ---
 
@@ -556,10 +571,10 @@ fn registry_sanity_check() {
 - [x] Verify behavior preservation
 
 ### Phase 3: EditExecutor
-- [ ] ApplyEditPolicy struct
-- [ ] EditExecutor struct
-- [ ] Update EditorContext
-- [ ] Update apply_effects
+- [x] ApplyEditPolicy struct
+- [x] EditExecutor struct
+- [x] Editor::edit_executor() method
+- [x] apply_effects uses trait-based access
 
 ### Phase 4: Effect Nesting
 - [ ] Nested enum structure
