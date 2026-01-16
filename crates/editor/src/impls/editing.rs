@@ -2,6 +2,7 @@
 //!
 //! Insert, delete, yank, paste, and transaction application.
 
+use tracing::trace;
 use xeno_primitives::{EditOrigin, Selection, SyntaxPolicy, Transaction, UndoPolicy};
 use xeno_registry_notifications::keys;
 
@@ -57,11 +58,21 @@ impl Editor {
 
 		// Push EditorUndoGroup if undo was recorded
 		if applied && will_start_new_group {
+			trace!(
+				doc = ?doc_id,
+				origin = ?origin,
+				snapshots = view_snapshots.len(),
+				undo_stack = self.undo_group_stack.len() + 1,
+				"undo group pushed"
+			);
 			self.undo_group_stack.push(EditorUndoGroup {
 				affected_docs: vec![doc_id],
 				view_snapshots,
 				origin,
 			});
+			if !self.redo_group_stack.is_empty() {
+				trace!(cleared = self.redo_group_stack.len(), "redo stack cleared");
+			}
 			self.redo_group_stack.clear();
 		}
 

@@ -1,5 +1,6 @@
 //! Editor context and effect handling.
 
+use tracing::trace;
 use xeno_primitives::range::Range;
 use xeno_primitives::{Mode, Selection};
 pub use xeno_registry::actions::editor_ctx::*;
@@ -19,6 +20,10 @@ pub fn apply_effects(
 	ctx: &mut xeno_registry::actions::editor_ctx::EditorContext,
 	extend: bool,
 ) -> HandleOutcome {
+	if !effects.is_empty() {
+		trace!(count = effects.len(), "applying effects");
+	}
+
 	let mut outcome = HandleOutcome::Handled;
 
 	for effect in effects {
@@ -255,3 +260,7 @@ result_handler!(
 		apply_effects(effects, ctx, extend)
 	}
 );
+
+#[cfg(test)]
+#[path = "editor_ctx_tests.rs"]
+mod editor_ctx_tests;

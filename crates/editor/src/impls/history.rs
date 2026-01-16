@@ -13,7 +13,7 @@
 
 use std::collections::{HashMap, HashSet};
 
-use tracing::warn;
+use tracing::{trace, warn};
 use xeno_registry_notifications::keys;
 
 use crate::buffer::{Buffer, BufferId, DocumentId};
@@ -74,9 +74,19 @@ impl Editor {
 			return;
 		}
 		let Some(group) = self.undo_group_stack.pop() else {
+			trace!("undo: nothing to undo");
 			self.notify(keys::nothing_to_undo);
 			return;
 		};
+
+		trace!(
+			docs = ?group.affected_docs,
+			snapshots = group.view_snapshots.len(),
+			origin = ?group.origin,
+			undo_stack = self.undo_group_stack.len(),
+			redo_stack = self.redo_group_stack.len(),
+			"undo: popped group"
+		);
 
 		let current_snapshots = self.capture_current_view_snapshots(&group.affected_docs);
 
@@ -90,6 +100,7 @@ impl Editor {
 				view_snapshots: current_snapshots,
 				origin: group.origin,
 			});
+			trace!(redo_stack = self.redo_group_stack.len(), "undo: pushed to redo stack");
 			self.notify(keys::undo);
 		} else {
 			self.undo_group_stack.push(group);
@@ -103,9 +114,19 @@ impl Editor {
 			return;
 		}
 		let Some(group) = self.redo_group_stack.pop() else {
+			trace!("redo: nothing to redo");
 			self.notify(keys::nothing_to_redo);
 			return;
 		};
+
+		trace!(
+			docs = ?group.affected_docs,
+			snapshots = group.view_snapshots.len(),
+			origin = ?group.origin,
+			undo_stack = self.undo_group_stack.len(),
+			redo_stack = self.redo_group_stack.len(),
+			"redo: popped group"
+		);
 
 		let current_snapshots = self.capture_current_view_snapshots(&group.affected_docs);
 
@@ -119,6 +140,7 @@ impl Editor {
 				view_snapshots: current_snapshots,
 				origin: group.origin,
 			});
+			trace!(undo_stack = self.undo_group_stack.len(), "redo: pushed to undo stack");
 			self.notify(keys::redo);
 		} else {
 			self.redo_group_stack.push(group);
@@ -207,3 +229,7 @@ impl Editor {
 		ok
 	}
 }
+
+#[cfg(test)]
+#[path = "history_tests.rs"]
+mod history_tests;

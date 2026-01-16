@@ -1,0 +1,231 @@
+//! Behavior-lock tests for the effect interpreter.
+
+use xeno_primitives::range::CharIdx;
+use xeno_primitives::{Mode, Selection};
+use xeno_registry::actions::editor_ctx::{
+	CursorAccess, EditorCapabilities, ModeAccess, NotificationAccess, SelectionAccess,
+};
+use xeno_registry::{ActionEffects, Effect};
+use xeno_registry_notifications::Notification;
+
+use crate::editor_ctx::apply_effects;
+
+struct MockEditor {
+	cursor: CharIdx,
+	selection: Selection,
+	mode: Mode,
+	notifications: Vec<Notification>,
+	effect_log: Vec<String>,
+}
+
+impl MockEditor {
+	fn new() -> Self {
+		Self {
+			cursor: CharIdx::from(0usize),
+			selection: Selection::point(CharIdx::from(0usize)),
+			mode: Mode::Normal,
+			notifications: Vec::new(),
+			effect_log: Vec::new(),
+		}
+	}
+}
+
+impl CursorAccess for MockEditor {
+	fn cursor(&self) -> CharIdx {
+		self.cursor
+	}
+
+	fn cursor_line_col(&self) -> Option<(usize, usize)> {
+		Some((0, self.cursor.into()))
+	}
+
+	fn set_cursor(&mut self, pos: CharIdx) {
+		self.effect_log.push(format!("set_cursor:{}", usize::from(pos)));
+		self.cursor = pos;
+	}
+}
+
+impl SelectionAccess for MockEditor {
+	fn selection(&self) -> &Selection {
+		&self.selection
+	}
+
+	fn selection_mut(&mut self) -> &mut Selection {
+		&mut self.selection
+	}
+
+	fn set_selection(&mut self, sel: Selection) {
+		self.effect_log
+			.push(format!("set_selection:{}", usize::from(sel.primary().head)));
+		self.selection = sel;
+	}
+}
+
+impl ModeAccess for MockEditor {
+	fn mode(&self) -> Mode {
+		self.mode.clone()
+	}
+
+	fn set_mode(&mut self, mode: Mode) {
+		self.effect_log.push(format!("set_mode:{:?}", mode));
+		self.mode = mode;
+	}
+}
+
+impl NotificationAccess for MockEditor {
+	fn emit(&mut self, notification: Notification) {
+		self.effect_log.push(format!("notify:{}", notification.def.id));
+		self.notifications.push(notification);
+	}
+
+	fn clear_notifications(&mut self) {
+		self.notifications.clear();
+	}
+}
+
+impl EditorCapabilities for MockEditor {}
+
+#[test]
+fn effects_apply_in_order() {
+	let mut editor = MockEditor::new();
+	let mut ctx = xeno_registry::actions::editor_ctx::EditorContext::new(&mut editor);
+
+	let effects = ActionEffects::new()
+		.with(Effect::SetCursor(CharIdx::from(10usize)))
+		.with(Effect::SetSelection(Selection::point(CharIdx::from(20usize))))
+		.with(Effect::SetMode(Mode::Insert));
+
+	apply_effects(&effects, &mut ctx, false);
+
+	assert_eq!(editor.effect_log.len(), 4);
+	assert_eq!(editor.effect_log[0], "set_cursor:10");
+	assert_eq!(editor.effect_log[1], "set_cursor:20");
+	assert_eq!(editor.effect_log[2], "set_selection:20");
+	assert!(editor.effect_log[3].starts_with("set_mode:"));
+}
+
+#[test]
+fn set_cursor_updates_state() {
+	let mut editor = MockEditor::new();
+	let mut ctx = xeno_registry::actions::editor_ctx::EditorContext::new(&mut editor);
+
+	let effects = ActionEffects::cursor(CharIdx::from(42usize));
+	apply_effects(&effects, &mut ctx, false);
+
+	assert_eq!(usize::from(editor.cursor), 42);
+}
+
+#[test]
+fn set_selection_updates_cursor_and_selection() {
+	let mut editor = MockEditor::new();
+	let mut ctx = xeno_registry::actions::editor_ctx::EditorContext::new(&mut editor);
+
+	let sel = Selection::single(5, 15);
+	let effects = ActionEffects::motion(sel.clone());
+	apply_effects(&effects, &mut ctx, false);
+
+	assert_eq!(usize::from(editor.cursor), 15);
+	assert_eq!(usize::from(editor.selection.primary().anchor), 5);
+	assert_eq!(usize::from(editor.selection.primary().head), 15);
+}
+
+#[test]
+fn set_mode_changes_mode() {
+	let mut editor = MockEditor::new();
+	let mut ctx = xeno_registry::actions::editor_ctx::EditorContext::new(&mut editor);
+
+	let effects = ActionEffects::mode(Mode::Insert);
+	apply_effects(&effects, &mut ctx, false);
+
+	assert_eq!(editor.mode, Mode::Insert);
+}
+
+#[test]
+fn multiple_cursor_updates_apply_sequentially() {
+	let mut editor = MockEditor::new();
+	let mut ctx = xeno_registry::actions::editor_ctx::EditorContext::new(&mut editor);
+
+	let effects = ActionEffects::new()
+		.with(Effect::SetCursor(CharIdx::from(5usize)))
+		.with(Effect::SetCursor(CharIdx::from(10usize)))
+		.with(Effect::SetCursor(CharIdx::from(15usize)));
+
+	apply_effects(&effects, &mut ctx, false);
+
+	assert_eq!(usize::from(editor.cursor), 15);
+
+	let cursor_calls: Vec<_> = editor
+		.effect_log
+		.iter()
+		.filter(|s| s.starts_with("set_cursor:"))
+		.collect();
+	assert_eq!(cursor_calls.len(), 3);
+	assert_eq!(cursor_calls[0], "set_cursor:5");
+	assert_eq!(cursor_calls[1], "set_cursor:10");
+	assert_eq!(cursor_calls[2], "set_cursor:15");
+}
+
+#[test]
+fn notify_effect_emits_notification() {
+	let mut editor = MockEditor::new();
+	let mut ctx = xeno_registry::actions::editor_ctx::EditorContext::new(&mut editor);
+
+	let effects =
+		ActionEffects::from_effect(Effect::Notify(xeno_registry_notifications::keys::undo.into()));
+	apply_effects(&effects, &mut ctx, false);
+
+	assert_eq!(editor.notifications.len(), 1);
+	assert_eq!(editor.notifications[0].def.id, "undo");
+}
+
+#[test]
+fn error_effect_emits_error_notification() {
+	let mut editor = MockEditor::new();
+	let mut ctx = xeno_registry::actions::editor_ctx::EditorContext::new(&mut editor);
+
+	let effects = ActionEffects::error("test error");
+	apply_effects(&effects, &mut ctx, false);
+
+	assert_eq!(editor.notifications.len(), 1);
+	assert_eq!(editor.notifications[0].def.id, "action_error");
+}
+
+#[test]
+fn empty_effects_is_noop() {
+	let mut editor = MockEditor::new();
+	let mut ctx = xeno_registry::actions::editor_ctx::EditorContext::new(&mut editor);
+
+	let effects = ActionEffects::ok();
+	apply_effects(&effects, &mut ctx, false);
+
+	assert!(editor.effect_log.is_empty());
+	assert!(editor.notifications.is_empty());
+}
+
+#[test]
+fn quit_effect_returns_quit_outcome() {
+	let mut editor = MockEditor::new();
+	let mut ctx = xeno_registry::actions::editor_ctx::EditorContext::new(&mut editor);
+
+	let effects = ActionEffects::quit();
+	let outcome = apply_effects(&effects, &mut ctx, false);
+
+	assert!(matches!(
+		outcome,
+		xeno_registry::actions::editor_ctx::HandleOutcome::Quit
+	));
+}
+
+#[test]
+fn non_quit_effects_return_handled_outcome() {
+	let mut editor = MockEditor::new();
+	let mut ctx = xeno_registry::actions::editor_ctx::EditorContext::new(&mut editor);
+
+	let effects = ActionEffects::cursor(CharIdx::from(10usize));
+	let outcome = apply_effects(&effects, &mut ctx, false);
+
+	assert!(matches!(
+		outcome,
+		xeno_registry::actions::editor_ctx::HandleOutcome::Handled
+	));
+}
