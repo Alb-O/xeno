@@ -75,14 +75,15 @@ impl Editor {
 	pub fn insert_newline_with_indent(&mut self) {
 		let indent = {
 			let buffer = self.buffer();
-			let doc = buffer.doc();
 			let cursor = buffer.cursor;
-			let line_idx = doc.content().char_to_line(cursor);
-			let line = doc.content().line(line_idx);
+			buffer.with_doc(|doc| {
+				let line_idx = doc.content().char_to_line(cursor);
+				let line = doc.content().line(line_idx);
 
-			line.chars()
-				.take_while(|c| *c == ' ' || *c == '\t')
-				.collect::<String>()
+				line.chars()
+					.take_while(|c| *c == ' ' || *c == '\t')
+					.collect::<String>()
+			})
 		};
 
 		let text = format!("\n{}", indent);

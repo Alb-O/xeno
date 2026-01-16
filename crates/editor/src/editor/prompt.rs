@@ -58,7 +58,7 @@ impl Editor {
 				.buffers
 				.get_buffer_mut(prompt_buffer_id)
 				.expect("prompt buffer exists");
-			*buffer.doc_mut().content_mut() = Rope::from(word.as_str());
+			buffer.with_doc_mut(|doc| *doc.content_mut() = Rope::from(word.as_str()));
 			buffer.set_cursor_and_selection(end, Selection::single(0, end));
 		}
 		self.buffers
@@ -121,7 +121,7 @@ impl Editor {
 		let input = self
 			.buffers
 			.get_buffer(prompt.buffer_id)
-			.map(|buffer| buffer.doc().content().to_string())
+			.map(|buffer| buffer.with_doc(|doc| doc.content().to_string()))
 			.unwrap_or_default();
 		let input = input.trim().to_string();
 
@@ -171,7 +171,8 @@ impl Editor {
 			return;
 		};
 		let encoding = client.offset_encoding();
-		let Some(pos) = xeno_lsp::char_to_lsp_position(buffer.doc().content(), position, encoding)
+		let Some(pos) =
+			buffer.with_doc(|doc| xeno_lsp::char_to_lsp_position(doc.content(), position, encoding))
 		else {
 			self.notify(keys::error::call("Invalid rename position"));
 			return;
@@ -194,30 +195,31 @@ impl Editor {
 }
 
 fn word_at_cursor(buffer: &crate::buffer::Buffer) -> String {
-	let doc = buffer.doc();
-	let content = doc.content();
-	let mut start = buffer.cursor.min(content.len_chars());
-	let mut end = start;
-	while start > 0 {
-		let ch = content.char(start - 1);
-		if is_word_char(ch) {
-			start = start.saturating_sub(1);
-		} else {
-			break;
+	buffer.with_doc(|doc| {
+		let content = doc.content();
+		let mut start = buffer.cursor.min(content.len_chars());
+		let mut end = start;
+		while start > 0 {
+			let ch = content.char(start - 1);
+			if is_word_char(ch) {
+				start = start.saturating_sub(1);
+			} else {
+				break;
+			}
 		}
-	}
-	while end < content.len_chars() {
-		let ch = content.char(end);
-		if is_word_char(ch) {
-			end = end.saturating_add(1);
-		} else {
-			break;
+		while end < content.len_chars() {
+			let ch = content.char(end);
+			if is_word_char(ch) {
+				end = end.saturating_add(1);
+			} else {
+				break;
+			}
 		}
-	}
-	if start >= end {
-		return String::new();
-	}
-	content.slice(start..end).to_string()
+		if start >= end {
+			return String::new();
+		}
+		content.slice(start..end).to_string()
+	})
 }
 
 fn is_word_char(ch: char) -> bool {

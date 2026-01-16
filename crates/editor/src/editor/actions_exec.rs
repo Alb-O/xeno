@@ -57,8 +57,8 @@ impl Editor {
 		self.buffer_mut().ensure_valid_selection();
 		let (content, cursor, selection) = {
 			let buffer = self.buffer();
-			let doc = buffer.doc();
-			(doc.content().clone(), buffer.cursor, buffer.selection.clone())
+			let content = buffer.with_doc(|doc| doc.content().clone());
+			(content, buffer.cursor, buffer.selection.clone())
 		};
 		let ctx = ActionContext {
 			text: content.slice(..),
@@ -126,8 +126,8 @@ impl Editor {
 		self.buffer_mut().ensure_valid_selection();
 		let (content, cursor, selection) = {
 			let buffer = self.buffer();
-			let doc = buffer.doc();
-			(doc.content().clone(), buffer.cursor, buffer.selection.clone())
+			let content = buffer.with_doc(|doc| doc.content().clone());
+			(content, buffer.cursor, buffer.selection.clone())
 		};
 		let ctx = ActionContext {
 			text: content.slice(..),

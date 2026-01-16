@@ -14,11 +14,9 @@ impl Editor {
 			.map(|(p, r)| (p.to_string(), r));
 		if let Some((pattern, _reverse)) = search_info {
 			let cursor_pos = self.buffer().cursor;
-			let search_result = {
-				let buffer = self.buffer();
-				let doc = buffer.doc();
-				movement::find_next(doc.content().slice(..), &pattern, cursor_pos + 1)
-			};
+			let search_result = self
+				.buffer()
+				.with_doc(|doc| movement::find_next(doc.content().slice(..), &pattern, cursor_pos + 1));
 			match search_result {
 				Ok(Some(range)) => {
 					self.buffer_mut().set_cursor(range.head);
@@ -55,11 +53,9 @@ impl Editor {
 			.map(|(p, r)| (p.to_string(), r));
 		if let Some((pattern, _reverse)) = search_info {
 			let cursor_pos = self.buffer().cursor;
-			let search_result = {
-				let buffer = self.buffer();
-				let doc = buffer.doc();
-				movement::find_prev(doc.content().slice(..), &pattern, cursor_pos)
-			};
+			let search_result = self
+				.buffer()
+				.with_doc(|doc| movement::find_prev(doc.content().slice(..), &pattern, cursor_pos));
 			match search_result {
 				Ok(Some(range)) => {
 					self.buffer_mut().set_cursor(range.head);
@@ -93,22 +89,18 @@ impl Editor {
 		let from = primary.from();
 		let to = primary.to();
 		if from < to {
-			let (text, pattern) = {
-				let buffer = self.buffer();
-				let doc = buffer.doc();
+			let (text, pattern) = self.buffer().with_doc(|doc| {
 				let text: String = doc.content().slice(from..to).chars().collect();
 				let pattern = movement::escape_pattern(&text);
 				(text, pattern)
-			};
+			});
 			self.buffer_mut()
 				.input
 				.set_last_search(pattern.clone(), false);
 			self.notify(keys::search_info::call(&text));
-			let search_result = {
-				let buffer = self.buffer();
-				let doc = buffer.doc();
-				movement::find_next(doc.content().slice(..), &pattern, to)
-			};
+			let search_result = self
+				.buffer()
+				.with_doc(|doc| movement::find_next(doc.content().slice(..), &pattern, to));
 			match search_result {
 				Ok(Some(range)) => {
 					self.buffer_mut()
@@ -138,11 +130,9 @@ impl Editor {
 			return false;
 		}
 
-		let search_result = {
-			let buffer = self.buffer();
-			let doc = buffer.doc();
-			movement::find_all_matches(doc.content().slice(from..to), pattern)
-		};
+		let search_result = self
+			.buffer()
+			.with_doc(|doc| movement::find_all_matches(doc.content().slice(from..to), pattern));
 		match search_result {
 			Ok(matches) if !matches.is_empty() => {
 				let new_ranges: Vec<xeno_primitives::range::Range> = matches
@@ -175,11 +165,9 @@ impl Editor {
 			return false;
 		}
 
-		let search_result = {
-			let buffer = self.buffer();
-			let doc = buffer.doc();
-			movement::find_all_matches(doc.content().slice(from..to), pattern)
-		};
+		let search_result = self
+			.buffer()
+			.with_doc(|doc| movement::find_all_matches(doc.content().slice(from..to), pattern));
 		match search_result {
 			Ok(matches) if !matches.is_empty() => {
 				let mut new_ranges: Vec<xeno_primitives::range::Range> = Vec::new();
@@ -221,18 +209,19 @@ impl Editor {
 	pub(crate) fn keep_matching(&mut self, pattern: &str, invert: bool) -> bool {
 		let ranges_with_text: Vec<(xeno_primitives::range::Range, String)> = {
 			let buffer = self.buffer();
-			let doc = buffer.doc();
-			buffer
-				.selection
-				.ranges()
-				.iter()
-				.map(|range| {
-					let from = range.from();
-					let to = range.to();
-					let text: String = doc.content().slice(from..to).chars().collect();
-					(*range, text)
-				})
-				.collect()
+			buffer.with_doc(|doc| {
+				buffer
+					.selection
+					.ranges()
+					.iter()
+					.map(|range| {
+						let from = range.from();
+						let to = range.to();
+						let text: String = doc.content().slice(from..to).chars().collect();
+						(*range, text)
+					})
+					.collect()
+			})
 		};
 
 		let mut kept_ranges: Vec<xeno_primitives::range::Range> = Vec::new();

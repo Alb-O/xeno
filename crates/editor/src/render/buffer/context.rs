@@ -120,38 +120,39 @@ impl<'a> BufferRenderContext<'a> {
 		buffer: &Buffer,
 		area: Rect,
 	) -> Vec<(HighlightSpan, Style)> {
-		let doc = buffer.doc();
-		let Some(syntax) = doc.syntax() else {
-			return Vec::new();
-		};
+		buffer.with_doc(|doc| {
+			let Some(syntax) = doc.syntax() else {
+				return Vec::new();
+			};
 
-		let start_line = buffer.scroll_line;
-		let end_line = (start_line + area.height as usize).min(doc.content().len_lines());
+			let start_line = buffer.scroll_line;
+			let end_line = (start_line + area.height as usize).min(doc.content().len_lines());
 
-		let start_byte = doc.content().line_to_byte(start_line) as u32;
-		let end_byte = if end_line < doc.content().len_lines() {
-			doc.content().line_to_byte(end_line) as u32
-		} else {
-			doc.content().len_bytes() as u32
-		};
+			let start_byte = doc.content().line_to_byte(start_line) as u32;
+			let end_byte = if end_line < doc.content().len_lines() {
+				doc.content().line_to_byte(end_line) as u32
+			} else {
+				doc.content().len_bytes() as u32
+			};
 
-		let highlight_styles = HighlightStyles::new(SyntaxStyles::scope_names(), |scope| {
-			self.theme.colors.syntax.resolve(scope)
-		});
+			let highlight_styles = HighlightStyles::new(SyntaxStyles::scope_names(), |scope| {
+				self.theme.colors.syntax.resolve(scope)
+			});
 
-		let highlighter = syntax.highlighter(
-			doc.content().slice(..),
-			self.language_loader,
-			start_byte..end_byte,
-		);
+			let highlighter = syntax.highlighter(
+				doc.content().slice(..),
+				self.language_loader,
+				start_byte..end_byte,
+			);
 
-		highlighter
-			.map(|span| {
-				let abstract_style = highlight_styles.style_for_highlight(span.highlight);
-				let xeno_tui_style: Style = abstract_style;
-				(span, xeno_tui_style)
-			})
-			.collect()
+			highlighter
+				.map(|span| {
+					let abstract_style = highlight_styles.style_for_highlight(span.highlight);
+					let xeno_tui_style: Style = abstract_style;
+					(span, xeno_tui_style)
+				})
+				.collect()
+		})
 	}
 
 	/// Looks up the style for a byte position from pre-computed highlight spans.
@@ -297,7 +298,7 @@ impl<'a> BufferRenderContext<'a> {
 		tab_width: usize,
 		cursorline: bool,
 	) -> RenderResult {
-		let total_lines = buffer.doc().content().len_lines();
+		let total_lines = buffer.with_doc(|doc| doc.content().len_lines());
 		let gutter_layout = GutterLayout::from_selector(gutter, total_lines, area.width);
 		let gutter_width = gutter_layout.total_width;
 		let text_width = area.width.saturating_sub(gutter_width) as usize;
@@ -338,14 +339,17 @@ impl<'a> BufferRenderContext<'a> {
 			} else {
 				GutterAnnotations::default()
 			};
-			let line_start: CharIdx = buffer.doc().content().line_to_char(current_line_idx);
-			let line_end: CharIdx = if current_line_idx + 1 < total_lines {
-				buffer.doc().content().line_to_char(current_line_idx + 1)
-			} else {
-				buffer.doc().content().len_chars()
-			};
-
-			let line_text: String = buffer.doc().content().slice(line_start..line_end).into();
+			let (line_start, line_end, line_text): (CharIdx, CharIdx, String) =
+				buffer.with_doc(|doc| {
+					let start = doc.content().line_to_char(current_line_idx);
+					let end = if current_line_idx + 1 < total_lines {
+						doc.content().line_to_char(current_line_idx + 1)
+					} else {
+						doc.content().len_chars()
+					};
+					let text: String = doc.content().slice(start..end).into();
+					(start, end, text)
+				});
 			let line_text = line_text.trim_end_matches('\n');
 			let line_content_end: CharIdx = line_start + line_text.chars().count();
 
@@ -361,16 +365,18 @@ impl<'a> BufferRenderContext<'a> {
 				let is_last_segment = seg_idx == num_segments - 1;
 				let is_continuation = !is_first_segment;
 
-				let mut spans = gutter_layout.render_line(
-					current_line_idx,
-					total_lines,
-					&cursorline_config,
-					is_continuation,
-					buffer.doc().content().line(current_line_idx),
-					buffer_path,
-					&line_annotations,
-					self.theme,
-				);
+				let mut spans = buffer.with_doc(|doc| {
+					gutter_layout.render_line(
+						current_line_idx,
+						total_lines,
+						&cursorline_config,
+						is_continuation,
+						doc.content().line(current_line_idx),
+						buffer_path,
+						&line_annotations,
+						self.theme,
+					)
+				});
 
 				let seg_char_offset = segment.start_offset;
 				let mut seg_col = 0usize;
@@ -395,7 +401,7 @@ impl<'a> BufferRenderContext<'a> {
 					};
 
 					// Convert char position to byte position for highlight lookup
-					let byte_pos = buffer.doc().content().char_to_byte(doc_pos);
+					let byte_pos = buffer.with_doc(|doc| doc.content().char_to_byte(doc_pos));
 					let syntax_style = self.style_for_byte_pos(byte_pos, &highlight_spans);
 
 					// Apply style overlays (e.g., zen mode dimming)
@@ -525,16 +531,18 @@ impl<'a> BufferRenderContext<'a> {
 				&& start_segment == 0
 				&& output_lines.len() < viewport_height
 			{
-				let mut spans = gutter_layout.render_line(
-					current_line_idx,
-					total_lines,
-					&cursorline_config,
-					false, // not a continuation
-					buffer.doc().content().line(current_line_idx),
-					buffer_path,
-					&line_annotations,
-					self.theme,
-				);
+				let mut spans = buffer.with_doc(|doc| {
+					gutter_layout.render_line(
+						current_line_idx,
+						total_lines,
+						&cursorline_config,
+						false, // not a continuation
+						doc.content().line(current_line_idx),
+						buffer_path,
+						&line_annotations,
+						self.theme,
+					)
+				});
 
 				let is_last_doc_line = current_line_idx + 1 >= total_lines;
 				let cursor_at_eol = cursor_heads.iter().any(|pos: &CharIdx| {

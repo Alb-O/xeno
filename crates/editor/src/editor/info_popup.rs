@@ -36,11 +36,10 @@ impl Editor {
 				.buffers
 				.get_buffer_mut(buffer_id)
 				.expect("just created");
-			*buffer.doc_mut().content_mut() = ropey::Rope::from_str(&content);
+			buffer.with_doc_mut(|doc| *doc.content_mut() = ropey::Rope::from_str(&content));
 			if let Some(ft) = file_type {
 				buffer
-					.doc_mut()
-					.init_syntax_for_language(ft, &self.config.language_loader);
+					.with_doc_mut(|doc| doc.init_syntax_for_language(ft, &self.config.language_loader));
 			}
 			buffer.set_readonly_override(Some(true));
 		}
@@ -114,14 +113,13 @@ impl Editor {
 		};
 
 		buffer.set_readonly_override(Some(false));
-		*buffer.doc_mut().content_mut() = ropey::Rope::from_str(&content);
+		buffer.with_doc_mut(|doc| *doc.content_mut() = ropey::Rope::from_str(&content));
 
 		if let Some(ft) = file_type {
 			let current_ft = buffer.file_type();
 			if current_ft.as_deref() != Some(ft) {
 				buffer
-					.doc_mut()
-					.init_syntax_for_language(ft, &self.config.language_loader);
+					.with_doc_mut(|doc| doc.init_syntax_for_language(ft, &self.config.language_loader));
 			}
 		}
 

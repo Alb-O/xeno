@@ -30,12 +30,12 @@ impl Editor {
 		}
 
 		let encoding = self.lsp.offset_encoding_for_buffer(buffer);
-		let mut positions: Vec<_> = diagnostics
-			.iter()
-			.filter_map(|diag| {
-				lsp_position_to_char(buffer.doc().content(), diag.range.start, encoding)
-			})
-			.collect();
+		let mut positions: Vec<_> = buffer.with_doc(|doc| {
+			diagnostics
+				.iter()
+				.filter_map(|diag| lsp_position_to_char(doc.content(), diag.range.start, encoding))
+				.collect()
+		});
 		positions.sort_unstable();
 		positions.dedup();
 

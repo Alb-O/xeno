@@ -28,7 +28,7 @@ impl xeno_registry::FileOpsAccess for Editor {
 				}
 			};
 
-			let text_slice = self.buffer().doc().content().clone();
+			let text_slice = self.buffer().with_doc(|doc| doc.content().clone());
 			emit_hook(&HookContext::new(
 				HookEventData::BufferWritePre {
 					path: &path_owned,
@@ -43,10 +43,13 @@ impl xeno_registry::FileOpsAccess for Editor {
 				warn!(error = %e, "LSP will_save notification failed");
 			}
 
-			let mut content = Vec::new();
-			for chunk in self.buffer().doc().content().chunks() {
-				content.extend_from_slice(chunk.as_bytes());
-			}
+			let content = self.buffer().with_doc(|doc| {
+				let mut content = Vec::new();
+				for chunk in doc.content().chunks() {
+					content.extend_from_slice(chunk.as_bytes());
+				}
+				content
+			});
 
 			tokio::fs::write(&path_owned, &content)
 				.await

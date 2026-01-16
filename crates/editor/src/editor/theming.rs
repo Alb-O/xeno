@@ -32,40 +32,42 @@ impl Editor {
 		xeno_tui::style::Style,
 	)> {
 		let buffer = self.buffer();
-		let doc = buffer.doc();
+		let scroll_line = buffer.scroll_line;
 
-		let Some(ref syntax) = doc.syntax() else {
-			return Vec::new();
-		};
+		buffer.with_doc(|doc| {
+			let Some(ref syntax) = doc.syntax() else {
+				return Vec::new();
+			};
 
-		let start_line = buffer.scroll_line;
-		let end_line = (start_line + area.height as usize).min(doc.content().len_lines());
+			let start_line = scroll_line;
+			let end_line = (start_line + area.height as usize).min(doc.content().len_lines());
 
-		let start_byte = doc.content().line_to_byte(start_line) as u32;
-		let end_byte = if end_line < doc.content().len_lines() {
-			doc.content().line_to_byte(end_line) as u32
-		} else {
-			doc.content().len_bytes() as u32
-		};
+			let start_byte = doc.content().line_to_byte(start_line) as u32;
+			let end_byte = if end_line < doc.content().len_lines() {
+				doc.content().line_to_byte(end_line) as u32
+			} else {
+				doc.content().len_bytes() as u32
+			};
 
-		let highlight_styles = xeno_runtime_language::highlight::HighlightStyles::new(
-			SyntaxStyles::scope_names(),
-			|scope| self.config.theme.colors.syntax.resolve(scope),
-		);
+			let highlight_styles = xeno_runtime_language::highlight::HighlightStyles::new(
+				SyntaxStyles::scope_names(),
+				|scope| self.config.theme.colors.syntax.resolve(scope),
+			);
 
-		let highlighter = syntax.highlighter(
-			doc.content().slice(..),
-			&self.config.language_loader,
-			start_byte..end_byte,
-		);
+			let highlighter = syntax.highlighter(
+				doc.content().slice(..),
+				&self.config.language_loader,
+				start_byte..end_byte,
+			);
 
-		highlighter
-			.map(|span| {
-				let abstract_style = highlight_styles.style_for_highlight(span.highlight);
-				let xeno_tui_style: xeno_tui::style::Style = abstract_style;
-				(span, xeno_tui_style)
-			})
-			.collect()
+			highlighter
+				.map(|span| {
+					let abstract_style = highlight_styles.style_for_highlight(span.highlight);
+					let xeno_tui_style: xeno_tui::style::Style = abstract_style;
+					(span, xeno_tui_style)
+				})
+				.collect()
+		})
 	}
 
 	/// Finds the style for a given byte position from precomputed highlight spans.

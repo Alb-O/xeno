@@ -103,9 +103,9 @@ pub struct CommitResult {
 
 ### Action Items
 
-- [ ] Deprecate public `doc()` / `doc_mut()` returning guards
-- [ ] Add `Buffer::with_doc` / `Buffer::with_doc_mut` closure APIs
-- [ ] Update all call sites to use closure APIs (mechanical refactor)
+- [x] Deprecate public `doc()` / `doc_mut()` returning guards
+- [x] Add `Buffer::with_doc` / `Buffer::with_doc_mut` closure APIs
+- [x] Update all call sites to use closure APIs (mechanical refactor)
 - [ ] Add a lint-like rule in review: no lock guards escape the module
 
 ### Closure-Based Lock Pattern

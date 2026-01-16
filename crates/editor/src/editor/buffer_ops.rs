@@ -29,7 +29,7 @@ impl Editor {
 		let hook_path = path.as_ref().unwrap_or(&scratch_path);
 		let buffer = self.buffers.get_buffer(buffer_id).unwrap();
 
-		let text_slice = buffer.doc().content().clone();
+		let text_slice = buffer.with_doc(|doc| doc.content().clone());
 		let file_type = buffer.file_type();
 		emit_hook(&HookContext::new(
 			HookEventData::BufferOpen {
@@ -67,11 +67,12 @@ impl Editor {
 		let hook_path = path.as_ref().unwrap_or(&scratch_path);
 		let buffer = self.buffers.get_buffer(buffer_id).unwrap();
 
+		let text = buffer.with_doc(|doc| doc.content().clone());
 		emit_hook_sync_with(
 			&HookContext::new(
 				HookEventData::BufferOpen {
 					path: hook_path,
-					text: buffer.doc().content().slice(..),
+					text: text.slice(..),
 					file_type: buffer.file_type().as_deref(),
 				},
 				Some(&self.extensions),

@@ -58,7 +58,7 @@ impl Editor {
 				let path = buffer.path().unwrap_or_else(|| scratch_path.clone());
 				let file_type = buffer.file_type();
 				let version = buffer.version();
-				let content = buffer.doc().content().clone();
+				let content = buffer.with_doc(|doc| doc.content().clone());
 				emit_hook_sync_with(
 					&HookContext::new(
 						HookEventData::BufferChange {
@@ -90,11 +90,11 @@ impl Editor {
 	/// where incremental sync is not possible.
 	pub(crate) fn mark_buffer_dirty_for_full_sync(&mut self, buffer_id: crate::buffer::BufferId) {
 		if let Some(buffer) = self.buffers.get_buffer_mut(buffer_id) {
-			buffer.doc_mut().increment_version();
-			#[cfg(feature = "lsp")]
-			{
-				buffer.doc_mut().mark_for_full_lsp_sync();
-			}
+			buffer.with_doc_mut(|doc| {
+				doc.increment_version();
+				#[cfg(feature = "lsp")]
+				doc.mark_for_full_lsp_sync();
+			});
 		}
 		self.frame.dirty_buffers.insert(buffer_id);
 	}
@@ -116,17 +116,15 @@ impl Editor {
 		let (Some(path), Some(language)) = (buffer.path(), buffer.file_type()) else {
 			return;
 		};
-		let (force_full_sync, has_pending) = {
-			let doc = buffer.doc();
-			(doc.needs_full_lsp_sync(), doc.has_pending_lsp_sync())
-		};
+		let (force_full_sync, has_pending) =
+			buffer.with_doc(|doc| (doc.needs_full_lsp_sync(), doc.has_pending_lsp_sync()));
 		if !has_pending {
 			return;
 		}
-		let content = buffer.doc().content().clone();
+		let content = buffer.with_doc(|doc| doc.content().clone());
 		let changes = buffer.drain_lsp_changes();
 		if force_full_sync {
-			buffer.doc_mut().clear_full_lsp_sync();
+			buffer.with_doc_mut(|doc| doc.clear_full_lsp_sync());
 		}
 		let supports_incremental = self.lsp.incremental_encoding_for_buffer(buffer).is_some();
 
@@ -175,17 +173,15 @@ impl Editor {
 		let (Some(path), Some(language)) = (buffer.path(), buffer.file_type()) else {
 			return None;
 		};
-		let (force_full_sync, has_pending) = {
-			let doc = buffer.doc();
-			(doc.needs_full_lsp_sync(), doc.has_pending_lsp_sync())
-		};
+		let (force_full_sync, has_pending) =
+			buffer.with_doc(|doc| (doc.needs_full_lsp_sync(), doc.has_pending_lsp_sync()));
 		if !has_pending {
 			return None;
 		}
-		let content = buffer.doc().content().clone();
+		let content = buffer.with_doc(|doc| doc.content().clone());
 		let changes = buffer.drain_lsp_changes();
 		if force_full_sync {
-			buffer.doc_mut().clear_full_lsp_sync();
+			buffer.with_doc_mut(|doc| doc.clear_full_lsp_sync());
 		}
 		let supports_incremental = self.lsp.incremental_encoding_for_buffer(buffer).is_some();
 		let change_count = changes.len();

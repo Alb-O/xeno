@@ -285,12 +285,13 @@ impl Editor {
 		let scratch_path = PathBuf::from("[scratch]");
 		let hook_path = path.as_ref().unwrap_or(&scratch_path);
 		let buffer = buffer_manager.focused_buffer();
+		let content = buffer.with_doc(|doc| doc.content().clone());
 
 		emit_hook_sync_with(
 			&HookContext::new(
 				HookEventData::BufferOpen {
 					path: hook_path,
-					text: buffer.doc().content().slice(..),
+					text: content.slice(..),
 					file_type: buffer.file_type().as_deref(),
 				},
 				None,

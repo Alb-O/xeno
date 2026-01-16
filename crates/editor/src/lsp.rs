@@ -164,7 +164,7 @@ impl LspManager {
 			.canonicalize()
 			.unwrap_or_else(|_| std::env::current_dir().unwrap_or_default().join(&path));
 
-		let content = buffer.doc().content().clone();
+		let content = buffer.with_doc(|doc| doc.content().clone());
 		let client = self
 			.sync
 			.open_document(&abs_path, language, &content)
@@ -184,7 +184,7 @@ impl LspManager {
 			return Ok(());
 		};
 
-		let content = buffer.doc().content().clone();
+		let content = buffer.with_doc(|doc| doc.content().clone());
 		self.sync.notify_change_full(path, language, &content).await
 	}
 
@@ -204,7 +204,7 @@ impl LspManager {
 			return Ok(());
 		};
 
-		let content = buffer.doc().content().clone();
+		let content = buffer.with_doc(|doc| doc.content().clone());
 		self.sync
 			.notify_change_incremental(path, language, &content, changes)
 			.await
@@ -233,14 +233,15 @@ impl LspManager {
 			return Ok(());
 		};
 
-		let doc = buffer.doc();
-		let text = if include_text {
-			Some(doc.content())
-		} else {
-			None
-		};
+		let text = buffer.with_doc(|doc| {
+			if include_text {
+				Some(doc.content().clone())
+			} else {
+				None
+			}
+		});
 		self.sync
-			.notify_did_save(path, language, include_text, text)
+			.notify_did_save(path, language, include_text, text.as_ref())
 	}
 
 	/// Called when a buffer is closed.
@@ -323,9 +324,9 @@ impl LspManager {
 			.ok_or_else(|| xeno_lsp::Error::Protocol("Invalid path".into()))?;
 
 		let encoding = client.offset_encoding();
-		let position =
-			xeno_lsp::char_to_lsp_position(buffer.doc().content(), buffer.cursor, encoding)
-				.ok_or_else(|| xeno_lsp::Error::Protocol("Invalid position".into()))?;
+		let position = buffer
+			.with_doc(|doc| xeno_lsp::char_to_lsp_position(doc.content(), buffer.cursor, encoding))
+			.ok_or_else(|| xeno_lsp::Error::Protocol("Invalid position".into()))?;
 
 		Ok(Some((client, uri, position)))
 	}

@@ -61,10 +61,11 @@ impl Buffer {
 
 	/// Computes the column position of a cursor within its line.
 	fn compute_column_in_line(&self, cursor: usize) -> usize {
-		let doc = self.doc();
-		let line = doc.content().char_to_line(cursor);
-		let line_start = doc.content().line_to_char(line);
-		cursor.saturating_sub(line_start)
+		self.with_doc(|doc| {
+			let line = doc.content().char_to_line(cursor);
+			let line_start = doc.content().line_to_char(line);
+			cursor.saturating_sub(line_start)
+		})
 	}
 
 	/// Computes a new cursor position from visual line movement.
@@ -78,50 +79,50 @@ impl Buffer {
 		tab_width: usize,
 		goal_col: usize,
 	) -> usize {
-		let (_doc_line, line_start, _total_lines, line_text, next_line_data, prev_line_data) = {
-			let doc = self.doc();
-			let doc_line = doc.content().char_to_line(cursor);
-			let line_start = doc.content().line_to_char(doc_line);
-			let total_lines = doc.content().len_lines();
+		let (_doc_line, line_start, _total_lines, line_text, next_line_data, prev_line_data) =
+			self.with_doc(|doc| {
+				let doc_line = doc.content().char_to_line(cursor);
+				let line_start = doc.content().line_to_char(doc_line);
+				let total_lines = doc.content().len_lines();
 
-			let line_end = if doc_line + 1 < total_lines {
-				doc.content().line_to_char(doc_line + 1)
-			} else {
-				doc.content().len_chars()
-			};
-			let line_text: String = doc.content().slice(line_start..line_end).into();
-
-			let next_line_data = if doc_line + 1 < total_lines {
-				let next_line_start = doc.content().line_to_char(doc_line + 1);
-				let next_line_end = if doc_line + 2 < total_lines {
-					doc.content().line_to_char(doc_line + 2)
+				let line_end = if doc_line + 1 < total_lines {
+					doc.content().line_to_char(doc_line + 1)
 				} else {
 					doc.content().len_chars()
 				};
-				let text: String = doc.content().slice(next_line_start..next_line_end).into();
-				Some((next_line_start, text))
-			} else {
-				None
-			};
+				let line_text: String = doc.content().slice(line_start..line_end).into();
 
-			let prev_line_data = if doc_line > 0 {
-				let prev_line = doc_line - 1;
-				let prev_line_start = doc.content().line_to_char(prev_line);
-				let text: String = doc.content().slice(prev_line_start..line_start).into();
-				Some((prev_line_start, text))
-			} else {
-				None
-			};
+				let next_line_data = if doc_line + 1 < total_lines {
+					let next_line_start = doc.content().line_to_char(doc_line + 1);
+					let next_line_end = if doc_line + 2 < total_lines {
+						doc.content().line_to_char(doc_line + 2)
+					} else {
+						doc.content().len_chars()
+					};
+					let text: String = doc.content().slice(next_line_start..next_line_end).into();
+					Some((next_line_start, text))
+				} else {
+					None
+				};
 
-			(
-				doc_line,
-				line_start,
-				total_lines,
-				line_text,
-				next_line_data,
-				prev_line_data,
-			)
-		};
+				let prev_line_data = if doc_line > 0 {
+					let prev_line = doc_line - 1;
+					let prev_line_start = doc.content().line_to_char(prev_line);
+					let text: String = doc.content().slice(prev_line_start..line_start).into();
+					Some((prev_line_start, text))
+				} else {
+					None
+				};
+
+				(
+					doc_line,
+					line_start,
+					total_lines,
+					line_text,
+					next_line_data,
+					prev_line_data,
+				)
+			});
 
 		let line_text = line_text.trim_end_matches('\n');
 		let col_in_line = cursor.saturating_sub(line_start);
@@ -231,8 +232,7 @@ impl Buffer {
 			self.scroll_segment -= 1;
 		} else if self.scroll_line > 0 {
 			self.scroll_line -= 1;
-			let (line_text, num_segments) = {
-				let doc = self.doc();
+			let (line_text, num_segments) = self.with_doc(|doc| {
 				let line_start = doc.content().line_to_char(self.scroll_line);
 				let line_end = if self.scroll_line + 1 < doc.content().len_lines() {
 					doc.content().line_to_char(self.scroll_line + 1)
@@ -243,7 +243,7 @@ impl Buffer {
 				let segments =
 					self.wrap_line(text.trim_end_matches('\n'), self.text_width, tab_width);
 				(text, segments.len())
-			};
+			});
 			let _ = line_text;
 			self.scroll_segment = num_segments.saturating_sub(1);
 		}
@@ -254,8 +254,7 @@ impl Buffer {
 	/// # Parameters
 	/// - `tab_width`: Number of spaces a tab character occupies (from options)
 	pub fn scroll_viewport_down(&mut self, tab_width: usize) {
-		let (total_lines, num_segments) = {
-			let doc = self.doc();
+		let (total_lines, num_segments) = self.with_doc(|doc| {
 			let total_lines = doc.content().len_lines();
 			if self.scroll_line < total_lines {
 				let line_start = doc.content().line_to_char(self.scroll_line);
@@ -271,7 +270,7 @@ impl Buffer {
 			} else {
 				(total_lines, 1)
 			}
-		};
+		});
 
 		if self.scroll_line < total_lines {
 			if self.scroll_segment + 1 < num_segments {
@@ -306,170 +305,172 @@ impl Buffer {
 		let mut line_idx = self.scroll_line;
 		let mut start_segment = self.scroll_segment;
 
-		let doc = self.doc();
-		let total_lines = doc.content().len_lines();
+		self.with_doc(|doc| {
+			let total_lines = doc.content().len_lines();
 
-		while line_idx < total_lines {
-			let line_start = doc.content().line_to_char(line_idx);
-			let line_end = if line_idx + 1 < total_lines {
-				doc.content().line_to_char(line_idx + 1)
-			} else {
-				doc.content().len_chars()
-			};
+			while line_idx < total_lines {
+				let line_start = doc.content().line_to_char(line_idx);
+				let line_end = if line_idx + 1 < total_lines {
+					doc.content().line_to_char(line_idx + 1)
+				} else {
+					doc.content().len_chars()
+				};
 
-			let line_text: String = doc.content().slice(line_start..line_end).into();
-			let line_text = line_text.trim_end_matches('\n');
-			let segments = self.wrap_line(line_text, self.text_width, tab_width);
+				let line_text: String = doc.content().slice(line_start..line_end).into();
+				let line_text = line_text.trim_end_matches('\n');
+				let segments = self.wrap_line(line_text, self.text_width, tab_width);
 
-			if segments.is_empty() {
-				if visual_row == screen_row as usize {
-					return Some(line_start);
-				}
-				visual_row += 1;
-			} else {
-				for segment in segments.iter().skip(start_segment) {
+				if segments.is_empty() {
 					if visual_row == screen_row as usize {
-						if segment.text.is_empty() {
-							return Some(line_start + segment.start_offset);
-						}
-
-						let mut col = 0usize;
-						let mut last_char_offset = 0usize;
-						for (i, ch) in segment.text.chars().enumerate() {
-							last_char_offset = i;
-							let mut w = if ch == '\t' {
-								tab_width.saturating_sub(col % tab_width)
-							} else {
-								1
-							};
-							if w == 0 {
-								w = 1;
-							}
-
-							let remaining = self.text_width.saturating_sub(col);
-							if remaining == 0 {
-								break;
-							}
-							if w > remaining {
-								w = remaining;
-							}
-
-							if text_col < col + w {
-								return Some(line_start + segment.start_offset + i);
-							}
-							col += w;
-						}
-						return Some(line_start + segment.start_offset + last_char_offset);
+						return Some(line_start);
 					}
 					visual_row += 1;
+				} else {
+					for segment in segments.iter().skip(start_segment) {
+						if visual_row == screen_row as usize {
+							if segment.text.is_empty() {
+								return Some(line_start + segment.start_offset);
+							}
+
+							let mut col = 0usize;
+							let mut last_char_offset = 0usize;
+							for (i, ch) in segment.text.chars().enumerate() {
+								last_char_offset = i;
+								let mut w = if ch == '\t' {
+									tab_width.saturating_sub(col % tab_width)
+								} else {
+									1
+								};
+								if w == 0 {
+									w = 1;
+								}
+
+								let remaining = self.text_width.saturating_sub(col);
+								if remaining == 0 {
+									break;
+								}
+								if w > remaining {
+									w = remaining;
+								}
+
+								if text_col < col + w {
+									return Some(line_start + segment.start_offset + i);
+								}
+								col += w;
+							}
+							return Some(line_start + segment.start_offset + last_char_offset);
+						}
+						visual_row += 1;
+					}
 				}
+
+				start_segment = 0;
+				line_idx += 1;
 			}
 
-			start_segment = 0;
-			line_idx += 1;
-		}
-
-		Some(doc.content().len_chars().saturating_sub(1).max(0))
+			Some(doc.content().len_chars().saturating_sub(1).max(0))
+		})
 	}
 
 	/// Converts a document position to screen coordinates within the buffer view.
 	///
 	/// Returns None if the position is above the current scroll window.
 	pub fn doc_to_screen_position(&self, doc_pos: usize, tab_width: usize) -> Option<(u16, u16)> {
-		let doc = self.doc();
-		let total_lines = doc.content().len_lines();
-		let line_idx = doc
-			.content()
-			.char_to_line(doc_pos.min(doc.content().len_chars()));
-		if line_idx < self.scroll_line || self.scroll_line >= total_lines {
-			return None;
-		}
+		self.with_doc(|doc| {
+			let total_lines = doc.content().len_lines();
+			let line_idx = doc
+				.content()
+				.char_to_line(doc_pos.min(doc.content().len_chars()));
+			if line_idx < self.scroll_line || self.scroll_line >= total_lines {
+				return None;
+			}
 
-		let line_start = doc.content().line_to_char(line_idx);
-		let col_in_line = doc_pos.saturating_sub(line_start);
-		let gutter_width = self.gutter_width() as usize;
+			let line_start = doc.content().line_to_char(line_idx);
+			let col_in_line = doc_pos.saturating_sub(line_start);
+			let gutter_width = self.gutter_width() as usize;
 
-		let mut visual_row = 0usize;
-		let mut current_line = self.scroll_line;
-		let mut start_segment = self.scroll_segment;
+			let mut visual_row = 0usize;
+			let mut current_line = self.scroll_line;
+			let mut start_segment = self.scroll_segment;
 
-		while current_line <= line_idx {
-			let line_start = doc.content().line_to_char(current_line);
-			let line_end = if current_line + 1 < total_lines {
-				doc.content().line_to_char(current_line + 1)
-			} else {
-				doc.content().len_chars()
-			};
+			while current_line <= line_idx {
+				let line_start = doc.content().line_to_char(current_line);
+				let line_end = if current_line + 1 < total_lines {
+					doc.content().line_to_char(current_line + 1)
+				} else {
+					doc.content().len_chars()
+				};
 
-			let line_text: String = doc.content().slice(line_start..line_end).into();
-			let line_text = line_text.trim_end_matches('\n');
-			let segments = self.wrap_line(line_text, self.text_width, tab_width);
+				let line_text: String = doc.content().slice(line_start..line_end).into();
+				let line_text = line_text.trim_end_matches('\n');
+				let segments = self.wrap_line(line_text, self.text_width, tab_width);
 
-			if current_line == line_idx {
-				if segments.is_empty() {
-					let row = visual_row as u16;
+				if current_line == line_idx {
+					if segments.is_empty() {
+						let row = visual_row as u16;
+						let col = gutter_width as u16;
+						return Some((row, col));
+					}
+
+					let mut seg_row = visual_row;
+					for segment in segments.iter().skip(start_segment) {
+						let seg_start = segment.start_offset;
+						let seg_len = segment.text.chars().count();
+						let seg_end = seg_start + seg_len;
+						if col_in_line <= seg_end {
+							let offset = col_in_line.saturating_sub(seg_start);
+							let mut col = 0usize;
+							for (idx, ch) in segment.text.chars().enumerate() {
+								if idx >= offset {
+									break;
+								}
+								let mut w = if ch == '\t' {
+									tab_width.saturating_sub(col % tab_width)
+								} else {
+									1
+								};
+								if w == 0 {
+									w = 1;
+								}
+								let remaining = self.text_width.saturating_sub(col);
+								if remaining == 0 {
+									break;
+								}
+								if w > remaining {
+									w = remaining;
+								}
+								col += w;
+							}
+
+							let row = seg_row as u16;
+							let col = gutter_width.saturating_add(col) as u16;
+							return Some((row, col));
+						}
+						seg_row += 1;
+					}
+
+					let row = visual_row.saturating_add(
+						segments
+							.len()
+							.saturating_sub(start_segment)
+							.saturating_sub(1),
+					) as u16;
 					let col = gutter_width as u16;
 					return Some((row, col));
 				}
 
-				let mut seg_row = visual_row;
-				for segment in segments.iter().skip(start_segment) {
-					let seg_start = segment.start_offset;
-					let seg_len = segment.text.chars().count();
-					let seg_end = seg_start + seg_len;
-					if col_in_line <= seg_end {
-						let offset = col_in_line.saturating_sub(seg_start);
-						let mut col = 0usize;
-						for (idx, ch) in segment.text.chars().enumerate() {
-							if idx >= offset {
-								break;
-							}
-							let mut w = if ch == '\t' {
-								tab_width.saturating_sub(col % tab_width)
-							} else {
-								1
-							};
-							if w == 0 {
-								w = 1;
-							}
-							let remaining = self.text_width.saturating_sub(col);
-							if remaining == 0 {
-								break;
-							}
-							if w > remaining {
-								w = remaining;
-							}
-							col += w;
-						}
-
-						let row = seg_row as u16;
-						let col = gutter_width.saturating_add(col) as u16;
-						return Some((row, col));
-					}
-					seg_row += 1;
-				}
-
-				let row = visual_row.saturating_add(
-					segments
-						.len()
-						.saturating_sub(start_segment)
-						.saturating_sub(1),
-				) as u16;
-				let col = gutter_width as u16;
-				return Some((row, col));
+				let visible_segments = if segments.is_empty() {
+					1
+				} else {
+					segments.len().saturating_sub(start_segment)
+				};
+				visual_row = visual_row.saturating_add(visible_segments);
+				start_segment = 0;
+				current_line += 1;
 			}
 
-			let visible_segments = if segments.is_empty() {
-				1
-			} else {
-				segments.len().saturating_sub(start_segment)
-			};
-			visual_row = visual_row.saturating_add(visible_segments);
-			start_segment = 0;
-			current_line += 1;
-		}
-
-		None
+			None
+		})
 	}
 
 	/// Wraps a line of text into segments.

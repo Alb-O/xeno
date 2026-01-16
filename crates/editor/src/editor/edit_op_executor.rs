@@ -52,21 +52,22 @@ impl Editor {
 				if self.buffer().selection.primary().is_empty() {
 					let new_ranges: Vec<_> = {
 						let buffer = self.buffer();
-						let doc = buffer.doc();
-						buffer
-							.selection
-							.ranges()
-							.iter()
-							.map(|r| {
-								movement::move_horizontally(
-									doc.content().slice(..),
-									*r,
-									MoveDir::Forward,
-									1,
-									true,
-								)
-							})
-							.collect()
+						buffer.with_doc(|doc| {
+							buffer
+								.selection
+								.ranges()
+								.iter()
+								.map(|r| {
+									movement::move_horizontally(
+										doc.content().slice(..),
+										*r,
+										MoveDir::Forward,
+										1,
+										true,
+									)
+								})
+								.collect()
+						})
 					};
 					let primary_index = self.buffer().selection.primary_index();
 					self.buffer_mut()
@@ -84,21 +85,22 @@ impl Editor {
 			SelectionOp::Extend { direction, count } => {
 				let new_ranges: Vec<_> = {
 					let buffer = self.buffer();
-					let doc = buffer.doc();
-					buffer
-						.selection
-						.ranges()
-						.iter()
-						.map(|r| {
-							movement::move_horizontally(
-								doc.content().slice(..),
-								*r,
-								*direction,
-								*count,
-								true,
-							)
-						})
-						.collect()
+					buffer.with_doc(|doc| {
+						buffer
+							.selection
+							.ranges()
+							.iter()
+							.map(|r| {
+								movement::move_horizontally(
+									doc.content().slice(..),
+									*r,
+									*direction,
+									*count,
+									true,
+								)
+							})
+							.collect()
+					})
 				};
 				let primary_index = self.buffer().selection.primary_index();
 				self.buffer_mut()
@@ -108,14 +110,15 @@ impl Editor {
 			SelectionOp::ToLineStart => {
 				let (new_ranges, primary_index) = {
 					let buffer = self.buffer();
-					let doc = buffer.doc();
-					let ranges: Vec<_> = buffer
-						.selection
-						.ranges()
-						.iter()
-						.map(|r| movement::move_to_line_start(doc.content().slice(..), *r, false))
-						.collect();
-					(ranges, buffer.selection.primary_index())
+					buffer.with_doc(|doc| {
+						let ranges: Vec<_> = buffer
+							.selection
+							.ranges()
+							.iter()
+							.map(|r| movement::move_to_line_start(doc.content().slice(..), *r, false))
+							.collect();
+						(ranges, buffer.selection.primary_index())
+					})
 				};
 				self.buffer_mut()
 					.set_selection(Selection::from_vec(new_ranges, primary_index));
@@ -124,14 +127,15 @@ impl Editor {
 			SelectionOp::ToLineEnd => {
 				let (new_ranges, primary_index) = {
 					let buffer = self.buffer();
-					let doc = buffer.doc();
-					let ranges: Vec<_> = buffer
-						.selection
-						.ranges()
-						.iter()
-						.map(|r| movement::move_to_line_end(doc.content().slice(..), *r, false))
-						.collect();
-					(ranges, buffer.selection.primary_index())
+					buffer.with_doc(|doc| {
+						let ranges: Vec<_> = buffer
+							.selection
+							.ranges()
+							.iter()
+							.map(|r| movement::move_to_line_end(doc.content().slice(..), *r, false))
+							.collect();
+						(ranges, buffer.selection.primary_index())
+					})
 				};
 				self.buffer_mut()
 					.set_selection(Selection::from_vec(new_ranges, primary_index));
@@ -140,24 +144,25 @@ impl Editor {
 			SelectionOp::ExpandToFullLines => {
 				let (new_ranges, primary_index) = {
 					let buffer = self.buffer();
-					let doc = buffer.doc();
-					let ranges: Vec<_> = buffer
-						.selection
-						.ranges()
-						.iter()
-						.map(|r| {
-							let start_line = doc.content().char_to_line(r.from());
-							let end_line = doc.content().char_to_line(r.to());
-							let start = doc.content().line_to_char(start_line);
-							let end = if end_line + 1 < doc.content().len_lines() {
-								doc.content().line_to_char(end_line + 1)
-							} else {
-								doc.content().len_chars()
-							};
-							Range::new(start, end)
-						})
-						.collect();
-					(ranges, buffer.selection.primary_index())
+					buffer.with_doc(|doc| {
+						let ranges: Vec<_> = buffer
+							.selection
+							.ranges()
+							.iter()
+							.map(|r| {
+								let start_line = doc.content().char_to_line(r.from());
+								let end_line = doc.content().char_to_line(r.to());
+								let start = doc.content().line_to_char(start_line);
+								let end = if end_line + 1 < doc.content().len_lines() {
+									doc.content().line_to_char(end_line + 1)
+								} else {
+									doc.content().len_chars()
+								};
+								Range::new(start, end)
+							})
+							.collect();
+						(ranges, buffer.selection.primary_index())
+					})
 				};
 				self.buffer_mut()
 					.set_selection(Selection::from_vec(new_ranges, primary_index));
@@ -189,27 +194,28 @@ impl Editor {
 			SelectionOp::SelectWordBefore => {
 				let (ranges, primary_index) = {
 					let buffer = self.buffer();
-					let doc = buffer.doc();
-					let text = doc.content().slice(..);
-					let mut ranges = Vec::new();
-					let mut primary_index = 0usize;
-					for (idx, range) in buffer.selection.ranges().iter().enumerate() {
-						if range.head == 0 {
-							continue;
+					buffer.with_doc(|doc| {
+						let text = doc.content().slice(..);
+						let mut ranges = Vec::new();
+						let mut primary_index = 0usize;
+						for (idx, range) in buffer.selection.ranges().iter().enumerate() {
+							if range.head == 0 {
+								continue;
+							}
+							if idx == buffer.selection.primary_index() {
+								primary_index = ranges.len();
+							}
+							let word_start = movement::move_to_prev_word_start(
+								text,
+								*range,
+								1,
+								WordType::Word,
+								false,
+							);
+							ranges.push(Range::new(word_start.head, range.head));
 						}
-						if idx == buffer.selection.primary_index() {
-							primary_index = ranges.len();
-						}
-						let word_start = movement::move_to_prev_word_start(
-							text,
-							*range,
-							1,
-							WordType::Word,
-							false,
-						);
-						ranges.push(Range::new(word_start.head, range.head));
-					}
-					(ranges, primary_index)
+						(ranges, primary_index)
+					})
 				};
 
 				if !ranges.is_empty() {
@@ -221,28 +227,29 @@ impl Editor {
 			SelectionOp::SelectWordAfter => {
 				let (ranges, primary_index) = {
 					let buffer = self.buffer();
-					let doc = buffer.doc();
-					let text = doc.content().slice(..);
-					let len = text.len_chars();
-					let mut ranges = Vec::new();
-					let mut primary_index = 0usize;
-					for (idx, range) in buffer.selection.ranges().iter().enumerate() {
-						if range.head >= len {
-							continue;
+					buffer.with_doc(|doc| {
+						let text = doc.content().slice(..);
+						let len = text.len_chars();
+						let mut ranges = Vec::new();
+						let mut primary_index = 0usize;
+						for (idx, range) in buffer.selection.ranges().iter().enumerate() {
+							if range.head >= len {
+								continue;
+							}
+							if idx == buffer.selection.primary_index() {
+								primary_index = ranges.len();
+							}
+							let word_end = movement::move_to_next_word_start(
+								text,
+								*range,
+								1,
+								WordType::Word,
+								false,
+							);
+							ranges.push(Range::new(range.head, word_end.head));
 						}
-						if idx == buffer.selection.primary_index() {
-							primary_index = ranges.len();
-						}
-						let word_end = movement::move_to_next_word_start(
-							text,
-							*range,
-							1,
-							WordType::Word,
-							false,
-						);
-						ranges.push(Range::new(range.head, word_end.head));
-					}
-					(ranges, primary_index)
+						(ranges, primary_index)
+					})
 				};
 
 				if !ranges.is_empty() {
@@ -254,16 +261,17 @@ impl Editor {
 			SelectionOp::SelectToNextLineStart => {
 				let (selection, valid) = {
 					let buffer = self.buffer();
-					let doc = buffer.doc();
-					let primary = buffer.selection.primary();
-					let line = doc.content().char_to_line(primary.head);
-					let total_lines = doc.content().len_lines();
-					if line + 1 < total_lines {
-						let end_of_line = doc.content().line_to_char(line + 1) - 1;
-						(Selection::single(end_of_line, end_of_line + 1), true)
-					} else {
-						(buffer.selection.clone(), false)
-					}
+					buffer.with_doc(|doc| {
+						let primary = buffer.selection.primary();
+						let line = doc.content().char_to_line(primary.head);
+						let total_lines = doc.content().len_lines();
+						if line + 1 < total_lines {
+							let end_of_line = doc.content().line_to_char(line + 1) - 1;
+							(Selection::single(end_of_line, end_of_line + 1), true)
+						} else {
+							(buffer.selection.clone(), false)
+						}
+					})
 				};
 				if valid {
 					self.buffer_mut().set_selection(selection);
@@ -273,17 +281,18 @@ impl Editor {
 			SelectionOp::PositionAfterCursor => {
 				let new_ranges: Vec<_> = {
 					let buffer = self.buffer();
-					let doc = buffer.doc();
-					let len = doc.content().len_chars();
-					buffer
-						.selection
-						.ranges()
-						.iter()
-						.map(|r| {
-							let new_pos = (r.head + 1).min(len);
-							Range::point(new_pos)
-						})
-						.collect()
+					buffer.with_doc(|doc| {
+						let len = doc.content().len_chars();
+						buffer
+							.selection
+							.ranges()
+							.iter()
+							.map(|r| {
+								let new_pos = (r.head + 1).min(len);
+								Range::point(new_pos)
+							})
+							.collect()
+					})
 				};
 				let primary_index = self.buffer().selection.primary_index();
 				self.buffer_mut()
@@ -307,10 +316,11 @@ impl Editor {
 				self.save_undo_state();
 				let (tx, new_sel) = {
 					let buffer = self.buffer();
-					let doc = buffer.doc();
-					let tx = Transaction::delete(doc.content().slice(..), &buffer.selection);
-					let new_sel = tx.map_selection(&buffer.selection);
-					(tx, new_sel)
+					buffer.with_doc(|doc| {
+						let tx = Transaction::delete(doc.content().slice(..), &buffer.selection);
+						let new_sel = tx.map_selection(&buffer.selection);
+						(tx, new_sel)
+					})
 				};
 				self.buffer_mut().finalize_selection(new_sel);
 				self.apply_transaction(&tx);
@@ -323,10 +333,11 @@ impl Editor {
 				self.save_undo_state();
 				let (tx, new_sel) = {
 					let buffer = self.buffer();
-					let doc = buffer.doc();
-					let tx = Transaction::delete(doc.content().slice(..), &buffer.selection);
-					let new_sel = tx.map_selection(&buffer.selection);
-					(tx, new_sel)
+					buffer.with_doc(|doc| {
+						let tx = Transaction::delete(doc.content().slice(..), &buffer.selection);
+						let new_sel = tx.map_selection(&buffer.selection);
+						(tx, new_sel)
+					})
 				};
 				self.buffer_mut().finalize_selection(new_sel);
 				self.apply_transaction(&tx);
@@ -379,29 +390,32 @@ impl Editor {
 		self.save_undo_state();
 		let text: String = {
 			let buffer = self.buffer();
-			let doc = buffer.doc();
-			doc.content()
-				.slice(from..to)
-				.chars()
-				.flat_map(|c| kind.apply(c))
-				.collect()
+			buffer.with_doc(|doc| {
+				doc.content()
+					.slice(from..to)
+					.chars()
+					.flat_map(|c| kind.apply(c))
+					.collect()
+			})
 		};
 		let new_len = text.chars().count();
 
 		let (tx, new_sel) = {
 			let buffer = self.buffer();
-			let doc = buffer.doc();
-			let tx = Transaction::delete(doc.content().slice(..), &buffer.selection);
-			let new_sel = tx.map_selection(&buffer.selection);
-			(tx, new_sel)
+			buffer.with_doc(|doc| {
+				let tx = Transaction::delete(doc.content().slice(..), &buffer.selection);
+				let new_sel = tx.map_selection(&buffer.selection);
+				(tx, new_sel)
+			})
 		};
 		self.buffer_mut().finalize_selection(new_sel);
 		self.apply_transaction(&tx);
 
 		let tx = {
 			let buffer = self.buffer();
-			let doc = buffer.doc();
-			Transaction::insert(doc.content().slice(..), &buffer.selection, text)
+			buffer.with_doc(|doc| {
+				Transaction::insert(doc.content().slice(..), &buffer.selection, text)
+			})
 		};
 		self.apply_transaction(&tx);
 
@@ -420,7 +434,7 @@ impl Editor {
 			PostEffect::MoveCursor(adjust) => {
 				match adjust {
 					CursorAdjust::Stay => {
-						let len = self.buffer().doc().content().len_chars();
+						let len = self.buffer().with_doc(|doc| doc.content().len_chars());
 						let pos = original_cursor.min(len.saturating_sub(1));
 						self.buffer_mut()
 							.set_cursor_and_selection(pos, Selection::point(pos));
@@ -428,22 +442,23 @@ impl Editor {
 					CursorAdjust::Up(count) => {
 						let (new_ranges, primary_index) = {
 							let buffer = self.buffer();
-							let doc = buffer.doc();
-							let ranges: Vec<_> = buffer
-								.selection
-								.ranges()
-								.iter()
-								.map(|r| {
-									movement::move_vertically(
-										doc.content().slice(..),
-										*r,
-										MoveDir::Backward,
-										*count,
-										false,
-									)
-								})
-								.collect();
-							(ranges, buffer.selection.primary_index())
+							buffer.with_doc(|doc| {
+								let ranges: Vec<_> = buffer
+									.selection
+									.ranges()
+									.iter()
+									.map(|r| {
+										movement::move_vertically(
+											doc.content().slice(..),
+											*r,
+											MoveDir::Backward,
+											*count,
+											false,
+										)
+									})
+									.collect();
+								(ranges, buffer.selection.primary_index())
+							})
 						};
 						self.buffer_mut()
 							.set_selection(Selection::from_vec(new_ranges, primary_index));
@@ -468,10 +483,11 @@ impl Editor {
 		if !self.buffer().selection.primary().is_empty() {
 			let (tx, new_sel) = {
 				let buffer = self.buffer();
-				let doc = buffer.doc();
-				let tx = Transaction::delete(doc.content().slice(..), &buffer.selection);
-				let new_sel = tx.map_selection(&buffer.selection);
-				(tx, new_sel)
+				buffer.with_doc(|doc| {
+					let tx = Transaction::delete(doc.content().slice(..), &buffer.selection);
+					let new_sel = tx.map_selection(&buffer.selection);
+					(tx, new_sel)
+				})
 			};
 			self.buffer_mut().set_selection(new_sel);
 			self.apply_transaction(&tx);
@@ -498,18 +514,20 @@ impl Editor {
 
 			let (tx, new_sel) = {
 				let buffer = self.buffer();
-				let doc = buffer.doc();
-				let tx = Transaction::delete(doc.content().slice(..), &buffer.selection);
-				let new_sel = tx.map_selection(&buffer.selection);
-				(tx, new_sel)
+				buffer.with_doc(|doc| {
+					let tx = Transaction::delete(doc.content().slice(..), &buffer.selection);
+					let new_sel = tx.map_selection(&buffer.selection);
+					(tx, new_sel)
+				})
 			};
 			self.buffer_mut().finalize_selection(new_sel);
 			self.apply_transaction(&tx);
 
 			let tx = {
 				let buffer = self.buffer();
-				let doc = buffer.doc();
-				Transaction::insert(doc.content().slice(..), &buffer.selection, replacement)
+				buffer.with_doc(|doc| {
+					Transaction::insert(doc.content().slice(..), &buffer.selection, replacement)
+				})
 			};
 			self.apply_transaction(&tx);
 
@@ -527,18 +545,20 @@ impl Editor {
 
 			let (tx, new_sel) = {
 				let buffer = self.buffer();
-				let doc = buffer.doc();
-				let tx = Transaction::delete(doc.content().slice(..), &buffer.selection);
-				let new_sel = tx.map_selection(&buffer.selection);
-				(tx, new_sel)
+				buffer.with_doc(|doc| {
+					let tx = Transaction::delete(doc.content().slice(..), &buffer.selection);
+					let new_sel = tx.map_selection(&buffer.selection);
+					(tx, new_sel)
+				})
 			};
 			self.buffer_mut().finalize_selection(new_sel);
 			self.apply_transaction(&tx);
 
 			let tx = {
 				let buffer = self.buffer();
-				let doc = buffer.doc();
-				Transaction::insert(doc.content().slice(..), &buffer.selection, ch.to_string())
+				buffer.with_doc(|doc| {
+					Transaction::insert(doc.content().slice(..), &buffer.selection, ch.to_string())
+				})
 			};
 			self.apply_transaction(&tx);
 
@@ -557,16 +577,18 @@ impl Editor {
 	fn apply_deindent(&mut self, max_spaces: usize) {
 		let (line_start, spaces, old_cursor) = {
 			let buffer = self.buffer();
-			let doc = buffer.doc();
-			let line = doc.content().char_to_line(buffer.cursor);
-			let line_start = doc.content().line_to_char(line);
-			let line_text: String = doc.content().line(line).chars().take(max_spaces).collect();
-			let spaces = line_text
-				.chars()
-				.take_while(|c| *c == ' ')
-				.count()
-				.min(max_spaces);
-			(line_start, spaces, buffer.cursor)
+			buffer.with_doc(|doc| {
+				let line = doc.content().char_to_line(buffer.cursor);
+				let line_start = doc.content().line_to_char(line);
+				let line_text: String =
+					doc.content().line(line).chars().take(max_spaces).collect();
+				let spaces = line_text
+					.chars()
+					.take_while(|c| *c == ' ')
+					.count()
+					.min(max_spaces);
+				(line_start, spaces, buffer.cursor)
+			})
 		};
 
 		if spaces == 0 {
@@ -583,10 +605,11 @@ impl Editor {
 
 		let (tx, new_sel) = {
 			let buffer = self.buffer();
-			let doc = buffer.doc();
-			let tx = Transaction::delete(doc.content().slice(..), &buffer.selection);
-			let new_sel = tx.map_selection(&buffer.selection);
-			(tx, new_sel)
+			buffer.with_doc(|doc| {
+				let tx = Transaction::delete(doc.content().slice(..), &buffer.selection);
+				let new_sel = tx.map_selection(&buffer.selection);
+				(tx, new_sel)
+			})
 		};
 		self.buffer_mut().finalize_selection(new_sel);
 		self.apply_transaction(&tx);

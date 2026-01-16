@@ -85,9 +85,7 @@ impl Editor {
 		let input = self
 			.buffers
 			.get_buffer(buffer_id)?
-			.doc()
-			.content()
-			.to_string();
+			.with_doc(|doc| doc.content().to_string());
 		let input = input.trim().to_string();
 
 		self.close_palette();

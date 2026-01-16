@@ -177,14 +177,58 @@ impl Buffer {
 	///
 	/// For mutation, use the editing methods which handle locking properly.
 	#[inline]
+	#[deprecated(
+		since = "0.1.0",
+		note = "use with_doc() closure API to prevent lock guard escape"
+	)]
 	pub fn doc(&self) -> std::sync::RwLockReadGuard<'_, Document> {
 		self.document.read().unwrap()
 	}
 
 	/// Returns mutable access to the document.
 	#[inline]
+	#[deprecated(
+		since = "0.1.0",
+		note = "use with_doc_mut() closure API to prevent lock guard escape"
+	)]
 	pub fn doc_mut(&self) -> std::sync::RwLockWriteGuard<'_, Document> {
 		self.document.write().unwrap()
+	}
+
+	/// Executes a closure with read access to the document.
+	///
+	/// This is the preferred API for document access as it ensures the lock
+	/// guard cannot escape the scope, preventing potential deadlocks and
+	/// making the locking protocol explicit.
+	///
+	/// # Example
+	///
+	/// ```ignore
+	/// let line_count = buffer.with_doc(|doc| doc.content().len_lines());
+	/// ```
+	#[inline]
+	pub fn with_doc<R>(&self, f: impl FnOnce(&Document) -> R) -> R {
+		let guard = self.document.read().expect("doc lock poisoned");
+		f(&*guard)
+	}
+
+	/// Executes a closure with write access to the document.
+	///
+	/// This is the preferred API for document mutation as it ensures the lock
+	/// guard cannot escape the scope, preventing potential deadlocks and
+	/// making the locking protocol explicit.
+	///
+	/// # Example
+	///
+	/// ```ignore
+	/// buffer.with_doc_mut(|doc| {
+	///     doc.set_modified(true);
+	/// });
+	/// ```
+	#[inline]
+	pub fn with_doc_mut<R>(&self, f: impl FnOnce(&mut Document) -> R) -> R {
+		let mut guard = self.document.write().expect("doc lock poisoned");
+		f(&mut *guard)
 	}
 
 	/// Returns the associated file path.
@@ -318,12 +362,12 @@ impl Buffer {
 
 	/// Clears the insert undo grouping flag.
 	pub fn clear_insert_undo_active(&self) {
-		self.doc_mut().reset_insert_undo();
+		self.with_doc_mut(|doc| doc.reset_insert_undo());
 	}
 
 	/// Clamps selection and cursor to valid document bounds.
 	pub fn ensure_valid_selection(&mut self) {
-		let max_char = self.doc().content().len_chars();
+		let max_char = self.with_doc(|doc| doc.content().len_chars());
 		self.selection.clamp(max_char);
 		self.cursor = self.cursor.min(max_char);
 	}
@@ -423,14 +467,14 @@ impl Buffer {
 	/// goal column for subsequent vertical navigation.
 	#[inline]
 	pub fn establish_goal_column(&mut self) {
-		let col = {
-			let doc = self.doc();
+		let cursor = self.cursor;
+		let col = self.with_doc(|doc| {
 			let line = doc
 				.content()
-				.char_to_line(self.cursor.min(doc.content().len_chars()));
+				.char_to_line(cursor.min(doc.content().len_chars()));
 			let line_start = doc.content().line_to_char(line);
-			self.cursor.saturating_sub(line_start)
-		};
+			cursor.saturating_sub(line_start)
+		});
 		self.goal_column = Some(col);
 	}
 }

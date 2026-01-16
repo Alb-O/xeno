@@ -51,8 +51,7 @@ impl Editor {
 		self.buffers
 			.get_buffer_mut(buffer_id)
 			.expect("focused buffer must exist")
-			.doc_mut()
-			.save_undo_state(selections);
+			.with_doc_mut(|doc| doc.save_undo_state(selections));
 		self.undo_group_stack
 			.push(EditorUndoEntry::Single { buffer_id });
 		self.redo_group_stack.clear();
@@ -71,8 +70,7 @@ impl Editor {
 			.buffers
 			.get_buffer_mut(buffer_id)
 			.expect("focused buffer must exist")
-			.doc_mut()
-			.save_insert_undo_state(selections);
+			.with_doc_mut(|doc| doc.save_insert_undo_state(selections));
 		if created {
 			self.undo_group_stack
 				.push(EditorUndoEntry::Single { buffer_id });
@@ -140,8 +138,7 @@ impl Editor {
 			.buffers
 			.get_buffer_mut(buffer_id)
 			.expect("buffer exists")
-			.doc_mut()
-			.undo(current, &self.config.language_loader);
+			.with_doc_mut(|doc| doc.undo(current, &self.config.language_loader));
 
 		let Some(selections) = restored else {
 			return false;
@@ -164,8 +161,7 @@ impl Editor {
 			.buffers
 			.get_buffer_mut(buffer_id)
 			.expect("buffer exists")
-			.doc_mut()
-			.redo(current, &self.config.language_loader);
+			.with_doc_mut(|doc| doc.redo(current, &self.config.language_loader));
 
 		let Some(selections) = restored else {
 			return false;

@@ -20,10 +20,9 @@ impl Buffer {
 		let mut insertion_points = self.selection.clone();
 		insertion_points.transform_mut(|r| *r = Range::point(r.head));
 
-		let tx = {
-			let doc = self.doc();
+		let tx = self.with_doc(|doc| {
 			Transaction::insert(doc.content().slice(..), &insertion_points, text.to_string())
-		};
+		});
 		let new_selection = tx.map_selection(&self.selection);
 
 		(tx, new_selection)
@@ -53,8 +52,7 @@ impl Buffer {
 		let from = primary.min();
 		let to = primary.max();
 		if from < to {
-			let doc = self.doc();
-			let text = doc.content().slice(from..to).to_string();
+			let text = self.with_doc(|doc| doc.content().slice(from..to).to_string());
 			let count = to - from;
 			Some((text, count))
 		} else {
@@ -75,8 +73,7 @@ impl Buffer {
 		self.ensure_valid_selection();
 
 		// Compute new ranges by moving each cursor forward by 1
-		let new_ranges: Vec<_> = {
-			let doc = self.doc();
+		let new_ranges: Vec<_> = self.with_doc(|doc| {
 			self.selection
 				.ranges()
 				.iter()
@@ -90,7 +87,7 @@ impl Buffer {
 					)
 				})
 				.collect()
-		};
+		});
 		self.set_selection(xeno_primitives::Selection::from_vec(
 			new_ranges,
 			self.selection.primary_index(),
@@ -149,10 +146,8 @@ impl Buffer {
 		self.ensure_valid_selection();
 
 		if !self.selection.primary().is_empty() {
-			let tx = {
-				let doc = self.doc();
-				Transaction::delete(doc.content().slice(..), &self.selection)
-			};
+			let tx =
+				self.with_doc(|doc| Transaction::delete(doc.content().slice(..), &self.selection));
 			let new_selection = tx.map_selection(&self.selection);
 			Some((tx, new_selection))
 		} else {
@@ -181,14 +176,15 @@ impl Buffer {
 		if self.readonly_override == Some(true) {
 			return false;
 		}
-		let mut doc = self.doc_mut();
-		if self.readonly_override.is_none() && doc.is_readonly() {
-			return false;
-		}
-		tx.apply(doc.content_mut());
-		doc.set_modified(true);
-		doc.increment_version();
-		true
+		self.with_doc_mut(|doc| {
+			if self.readonly_override.is_none() && doc.is_readonly() {
+				return false;
+			}
+			tx.apply(doc.content_mut());
+			doc.set_modified(true);
+			doc.increment_version();
+			true
+		})
 	}
 
 	/// Applies a transaction and updates syntax tree incrementally.
@@ -203,28 +199,29 @@ impl Buffer {
 		if self.readonly_override == Some(true) {
 			return false;
 		}
-		let mut doc = self.doc_mut();
-		if self.readonly_override.is_none() && doc.is_readonly() {
-			return false;
-		}
-		let old_doc = doc.content().clone();
-		tx.apply(doc.content_mut());
-
-		if doc.has_syntax() {
-			let new_doc = doc.content().clone();
-			if let Some(syntax) = doc.syntax_mut() {
-				let _ = syntax.update_from_changeset(
-					old_doc.slice(..),
-					new_doc.slice(..),
-					tx.changes(),
-					language_loader,
-				);
+		self.with_doc_mut(|doc| {
+			if self.readonly_override.is_none() && doc.is_readonly() {
+				return false;
 			}
-		}
+			let old_doc = doc.content().clone();
+			tx.apply(doc.content_mut());
 
-		doc.set_modified(true);
-		doc.increment_version();
-		true
+			if doc.has_syntax() {
+				let new_doc = doc.content().clone();
+				if let Some(syntax) = doc.syntax_mut() {
+					let _ = syntax.update_from_changeset(
+						old_doc.slice(..),
+						new_doc.slice(..),
+						tx.changes(),
+						language_loader,
+					);
+				}
+			}
+
+			doc.set_modified(true);
+			doc.increment_version();
+			true
+		})
 	}
 
 	/// Applies a transaction, updates syntax, and queues LSP changes.
@@ -238,46 +235,47 @@ impl Buffer {
 		if self.readonly_override == Some(true) {
 			return false;
 		}
-		let mut doc = self.doc_mut();
-		if self.readonly_override.is_none() && doc.is_readonly() {
-			return false;
-		}
-
-		let old_doc = doc.content().clone();
-		let lsp_changes = compute_lsp_changes(&old_doc, tx, encoding);
-		tx.apply(doc.content_mut());
-
-		if doc.has_syntax() {
-			let new_doc = doc.content().clone();
-			if let Some(syntax) = doc.syntax_mut() {
-				let _ = syntax.update_from_changeset(
-					old_doc.slice(..),
-					new_doc.slice(..),
-					tx.changes(),
-					language_loader,
-				);
+		self.with_doc_mut(|doc| {
+			if self.readonly_override.is_none() && doc.is_readonly() {
+				return false;
 			}
-		}
 
-		doc.set_modified(true);
-		doc.increment_version();
-		match lsp_changes {
-			IncrementalResult::Incremental(changes) => {
-				if !changes.is_empty() {
-					doc.extend_lsp_changes(changes);
+			let old_doc = doc.content().clone();
+			let lsp_changes = compute_lsp_changes(&old_doc, tx, encoding);
+			tx.apply(doc.content_mut());
+
+			if doc.has_syntax() {
+				let new_doc = doc.content().clone();
+				if let Some(syntax) = doc.syntax_mut() {
+					let _ = syntax.update_from_changeset(
+						old_doc.slice(..),
+						new_doc.slice(..),
+						tx.changes(),
+						language_loader,
+					);
 				}
 			}
-			IncrementalResult::FallbackToFull => {
-				doc.mark_for_full_lsp_sync();
+
+			doc.set_modified(true);
+			doc.increment_version();
+			match lsp_changes {
+				IncrementalResult::Incremental(changes) => {
+					if !changes.is_empty() {
+						doc.extend_lsp_changes(changes);
+					}
+				}
+				IncrementalResult::FallbackToFull => {
+					doc.mark_for_full_lsp_sync();
+				}
 			}
-		}
-		true
+			true
+		})
 	}
 
 	/// Drains pending LSP changes for this document.
 	#[cfg(feature = "lsp")]
 	pub fn drain_lsp_changes(&self) -> Vec<LspDocumentChange> {
-		self.doc_mut().drain_lsp_changes()
+		self.with_doc_mut(|doc| doc.drain_lsp_changes())
 	}
 
 	/// Finalizes selection/cursor after a transaction is applied.
@@ -288,10 +286,12 @@ impl Buffer {
 }
 
 #[cfg(test)]
+#[allow(deprecated)]
 mod tests {
 	use crate::buffer::{Buffer, BufferId};
 
 	#[cfg(feature = "lsp")]
+	#[allow(deprecated)]
 	mod lsp_batching {
 		use xeno_lsp::OffsetEncoding;
 		use xeno_primitives::Selection;

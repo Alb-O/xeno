@@ -120,31 +120,29 @@ impl Editor {
 	/// of the line.
 	pub fn goto_line_col(&mut self, line: usize, column: usize) {
 		let buffer = self.buffer_mut();
-		let doc = buffer.doc();
-		let content = doc.content();
+		let target_pos = buffer.with_doc(|doc| {
+			let content = doc.content();
 
-		// Clamp line to valid range
-		let total_lines = content.len_lines();
-		let target_line = line.min(total_lines.saturating_sub(1));
+			// Clamp line to valid range
+			let total_lines = content.len_lines();
+			let target_line = line.min(total_lines.saturating_sub(1));
 
-		// Get line start position
-		let line_start = content.line_to_char(target_line);
+			// Get line start position
+			let line_start = content.line_to_char(target_line);
 
-		// Get line length (excluding newline)
-		let line_slice = content.line(target_line);
-		let line_len = line_slice.len_chars();
-		let line_content_len = if line_len > 0 && line_slice.char(line_len - 1) == '\n' {
-			line_len - 1
-		} else {
-			line_len
-		};
+			// Get line length (excluding newline)
+			let line_slice = content.line(target_line);
+			let line_len = line_slice.len_chars();
+			let line_content_len = if line_len > 0 && line_slice.char(line_len - 1) == '\n' {
+				line_len - 1
+			} else {
+				line_len
+			};
 
-		// Clamp column to line length
-		let target_col = column.min(line_content_len);
-		let target_pos = line_start + target_col;
-
-		// Drop doc borrow before mutating
-		drop(doc);
+			// Clamp column to line length
+			let target_col = column.min(line_content_len);
+			line_start + target_col
+		});
 
 		// Set cursor and selection
 		buffer.set_cursor(target_pos);
