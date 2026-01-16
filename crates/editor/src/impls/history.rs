@@ -25,6 +25,7 @@ use xeno_registry_notifications::keys;
 
 use crate::buffer::{Buffer, BufferId, DocumentId};
 use crate::impls::{Editor, UndoHost, ViewSnapshot};
+use super::undo_host::EditorUndoHost;
 
 impl Buffer {
 	/// Creates a snapshot of this buffer's view state.
@@ -135,23 +136,31 @@ impl UndoHost for Editor {
 
 impl Editor {
 	/// Undoes the last change, restoring view state for all affected buffers.
-	///
-	/// Uses `mem::take` to split the borrow between `undo_manager` and `self`,
-	/// since `UndoHost` methods require `&mut self`.
 	pub fn undo(&mut self) {
-		let mut undo_manager = std::mem::take(&mut self.core.undo_manager);
-		undo_manager.undo(self);
-		self.core.undo_manager = undo_manager;
+		let core = &mut self.core;
+		let mut host = EditorUndoHost {
+			buffers: &mut core.buffers,
+			config: &self.config,
+			frame: &mut self.frame,
+			notifications: &mut self.notifications,
+			#[cfg(feature = "lsp")]
+			lsp: &mut self.lsp,
+		};
+		core.undo_manager.undo(&mut host);
 	}
 
 	/// Redoes the last undone change, restoring view state for all affected buffers.
-	///
-	/// Uses `mem::take` to split the borrow between `undo_manager` and `self`,
-	/// since `UndoHost` methods require `&mut self`.
 	pub fn redo(&mut self) {
-		let mut undo_manager = std::mem::take(&mut self.core.undo_manager);
-		undo_manager.redo(self);
-		self.core.undo_manager = undo_manager;
+		let core = &mut self.core;
+		let mut host = EditorUndoHost {
+			buffers: &mut core.buffers,
+			config: &self.config,
+			frame: &mut self.frame,
+			notifications: &mut self.notifications,
+			#[cfg(feature = "lsp")]
+			lsp: &mut self.lsp,
+		};
+		core.undo_manager.redo(&mut host);
 	}
 
 	/// Undoes a single document's last change.

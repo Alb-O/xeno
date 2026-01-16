@@ -2,11 +2,12 @@
 //!
 //! Insert, delete, yank, paste, and transaction application.
 
-use xeno_primitives::{EditOrigin, Selection, SyntaxPolicy, Transaction, UndoPolicy};
+use xeno_primitives::{EditOrigin, Selection, Transaction, UndoPolicy};
 use xeno_registry_notifications::keys;
 
+use super::undo_host::EditorUndoHost;
 use super::Editor;
-use crate::buffer::{ApplyPolicy, BufferId};
+use crate::buffer::BufferId;
 
 impl Editor {
 	pub(crate) fn guard_readonly(&mut self) -> bool {
@@ -23,9 +24,6 @@ impl Editor {
 	/// 1. Prepares the edit via `UndoManager` (captures view snapshots)
 	/// 2. Applies the transaction with the specified undo policy
 	/// 3. Finalizes via `UndoManager` (pushes `EditorUndoGroup` if needed)
-	///
-	/// Uses `mem::take` to split the borrow between `undo_manager` and `self`,
-	/// since `UndoHost` methods require `&mut self`.
 	pub(crate) fn apply_edit(
 		&mut self,
 		buffer_id: BufferId,
@@ -34,75 +32,20 @@ impl Editor {
 		undo: UndoPolicy,
 		origin: EditOrigin,
 	) -> bool {
-		let mut undo_manager = std::mem::take(&mut self.core.undo_manager);
-		let prep = undo_manager.prepare_edit(self, buffer_id, undo, origin);
-		let applied = self.apply_transaction_inner(buffer_id, tx, new_selection, undo);
-		undo_manager.finalize_edit(applied, prep);
-		self.core.undo_manager = undo_manager;
-		applied
-	}
-
-	/// Applies a transaction without managing [`EditorUndoGroup`].
-	fn apply_transaction_inner(
-		&mut self,
-		buffer_id: BufferId,
-		tx: &Transaction,
-		new_selection: Option<Selection>,
-		undo: UndoPolicy,
-	) -> bool {
-		let policy = ApplyPolicy {
-			undo,
-			syntax: SyntaxPolicy::IncrementalOrDirty,
+		let core = &mut self.core;
+		let undo_manager = &mut core.undo_manager;
+		let mut host = EditorUndoHost {
+			buffers: &mut core.buffers,
+			config: &self.config,
+			frame: &mut self.frame,
+			notifications: &mut self.notifications,
+			#[cfg(feature = "lsp")]
+			lsp: &mut self.lsp,
 		};
 
-		#[cfg(feature = "lsp")]
-		let encoding = {
-			let buffer = self
-				.core
-				.buffers
-				.get_buffer(buffer_id)
-				.expect("focused buffer must exist");
-			self.lsp.incremental_encoding_for_buffer(buffer)
-		};
-
-		#[cfg(feature = "lsp")]
-		let applied = {
-			let buffer = self
-				.core
-				.buffers
-				.get_buffer_mut(buffer_id)
-				.expect("focused buffer must exist");
-			let applied = if let Some(encoding) = encoding {
-				buffer.apply_with_lsp(tx, policy, &self.config.language_loader, encoding)
-			} else {
-				buffer.apply(tx, policy, &self.config.language_loader)
-			};
-			if applied && let Some(selection) = new_selection {
-				buffer.finalize_selection(selection);
-			}
-			applied
-		};
-
-		#[cfg(not(feature = "lsp"))]
-		let applied = {
-			let buffer = self
-				.core
-				.buffers
-				.get_buffer_mut(buffer_id)
-				.expect("focused buffer must exist");
-			let applied = buffer.apply(tx, policy, &self.config.language_loader);
-			if applied && let Some(selection) = new_selection {
-				buffer.finalize_selection(selection);
-			}
-			applied
-		};
-
-		if applied {
-			self.sync_sibling_selections(tx);
-			self.frame.dirty_buffers.insert(buffer_id);
-		}
-
-		applied
+		undo_manager.with_edit(&mut host, buffer_id, undo, origin, |host| {
+			host.apply_transaction_inner(buffer_id, tx, new_selection, undo)
+		})
 	}
 
 	/// Inserts a newline with smart indentation.

@@ -131,14 +131,14 @@ pub struct EditorCommandDef {
 ## Phase 3 — Remove `mem::take` by giving `UndoManager` a closure helper
 **Goal:** keep the prepare/finalize discipline, stop scattering ownership hacks.
 
-- [ ] Add `UndoManager::with_edit(...)` as shown above.
-- [ ] Rewrite `Editor::apply_edit` to:
-  - [ ] Call `self.core.undo_manager.with_edit(self, ...)`.
-  - [ ] Move `apply_transaction_inner` call into the closure.
-- [ ] Rewrite `Editor::undo/redo` similarly (either with `with_undo_redo` or direct calls if borrow checker permits).
-- [ ] Tests:
-  - [ ] No behavior change (golden tests / snapshot tests for undo grouping).
-  - [ ] Ensure `finalize_edit` runs even when apply fails.
+- [x] Add `UndoManager::with_edit(...)` as shown above.
+- [x] Rewrite `Editor::apply_edit` to:
+  - [x] Call `self.core.undo_manager.with_edit(self, ...)`.
+  - [x] Move `apply_transaction_inner` call into the closure.
+- [x] Rewrite `Editor::undo/redo` similarly (either with `with_undo_redo` or direct calls if borrow checker permits).
+- [x] Tests:
+  - [x] No behavior change (golden tests / snapshot tests for undo grouping).
+  - [x] Ensure `finalize_edit` runs even when apply fails.
 
 ---
 

@@ -31,6 +31,8 @@ mod file_ops;
 mod focus;
 /// Undo/redo history.
 mod history;
+/// Undo host adapter.
+mod undo_host;
 /// Unified invocation dispatch.
 mod invocation;
 /// Editor lifecycle (tick, render).

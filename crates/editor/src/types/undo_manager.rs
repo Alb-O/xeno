@@ -22,11 +22,17 @@
 
 use std::collections::HashMap;
 
+#[cfg(test)]
+use std::sync::atomic::{AtomicUsize, Ordering};
+
 use tracing::trace;
 use xeno_primitives::{EditOrigin, UndoPolicy};
 
 use super::{EditorUndoGroup, ViewSnapshot};
 use crate::buffer::{BufferId, DocumentId};
+
+#[cfg(test)]
+static FINALIZE_CALLS: AtomicUsize = AtomicUsize::new(0);
 
 /// Manages editor-level undo/redo stacks.
 ///
@@ -206,6 +212,9 @@ impl UndoManager {
 	/// successfully and should start a new undo group, this pushes the group
 	/// and clears the redo stack.
 	pub fn finalize_edit(&mut self, applied: bool, prep: PreparedEdit) {
+		#[cfg(test)]
+		FINALIZE_CALLS.fetch_add(1, Ordering::SeqCst);
+
 		if applied && prep.start_new_group {
 			trace!(
 				docs = ?prep.affected_docs,
@@ -224,6 +233,32 @@ impl UndoManager {
 			}
 			self.redo_stack.clear();
 		}
+	}
+
+	pub fn with_edit<H, F>(
+		&mut self,
+		host: &mut H,
+		buffer_id: BufferId,
+		undo: UndoPolicy,
+		origin: EditOrigin,
+		apply: F,
+	) -> bool
+	where
+		H: UndoHost,
+		F: FnOnce(&mut H) -> bool,
+	{
+		let prep = self.prepare_edit(host, buffer_id, undo, origin);
+		let applied = apply(host);
+		self.finalize_edit(applied, prep);
+		applied
+	}
+
+	pub fn with_undo_redo<H, F>(&mut self, host: &mut H, f: F)
+	where
+		H: UndoHost,
+		F: FnOnce(&mut UndoManager, &mut H),
+	{
+		f(self, host);
 	}
 
 	/// Undoes the last change, restoring view state for all affected buffers.
@@ -316,5 +351,141 @@ impl UndoManager {
 			host.notify_nothing_to_redo();
 			false
 		}
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use std::collections::HashMap;
+
+	use xeno_primitives::range::CharIdx;
+	use xeno_primitives::{EditOrigin, Selection, UndoPolicy};
+
+	use super::*;
+
+	struct TestHost {
+		buffer_id: BufferId,
+		doc_id: DocumentId,
+		insert_active: bool,
+	}
+
+	impl TestHost {
+		fn new() -> Self {
+			Self {
+				buffer_id: BufferId(1),
+				doc_id: DocumentId(1),
+				insert_active: false,
+			}
+		}
+
+		fn snapshot(&self) -> ViewSnapshot {
+			ViewSnapshot {
+				cursor: CharIdx::from(0usize),
+				selection: Selection::point(CharIdx::from(0usize)),
+				scroll_line: 0,
+				scroll_segment: 0,
+			}
+		}
+	}
+
+	impl UndoHost for TestHost {
+		fn guard_readonly(&mut self) -> bool {
+			true
+		}
+
+		fn doc_id_for_buffer(&self, _buffer_id: BufferId) -> DocumentId {
+			self.doc_id
+		}
+
+		fn collect_view_snapshots(&self, doc_id: DocumentId) -> HashMap<BufferId, ViewSnapshot> {
+			if doc_id == self.doc_id {
+				HashMap::from([(self.buffer_id, self.snapshot())])
+			} else {
+				HashMap::new()
+			}
+		}
+
+		fn capture_current_view_snapshots(
+			&self,
+			doc_ids: &[DocumentId],
+		) -> HashMap<BufferId, ViewSnapshot> {
+			if doc_ids.contains(&self.doc_id) {
+				HashMap::from([(self.buffer_id, self.snapshot())])
+			} else {
+				HashMap::new()
+			}
+		}
+
+		fn restore_view_snapshots(&mut self, _snapshots: &HashMap<BufferId, ViewSnapshot>) {}
+
+		fn undo_documents(&mut self, _doc_ids: &[DocumentId]) -> bool {
+			true
+		}
+
+		fn redo_documents(&mut self, _doc_ids: &[DocumentId]) -> bool {
+			true
+		}
+
+		fn doc_insert_undo_active(&self, _buffer_id: BufferId) -> bool {
+			self.insert_active
+		}
+
+		fn notify_undo(&mut self) {}
+
+		fn notify_redo(&mut self) {}
+
+		fn notify_nothing_to_undo(&mut self) {}
+
+		fn notify_nothing_to_redo(&mut self) {}
+	}
+
+	fn reset_finalize_calls() {
+		FINALIZE_CALLS.store(0, Ordering::SeqCst);
+	}
+
+	fn finalize_calls() -> usize {
+		FINALIZE_CALLS.load(Ordering::SeqCst)
+	}
+
+	#[test]
+	fn with_edit_pushes_group_on_apply() {
+		reset_finalize_calls();
+		let mut manager = UndoManager::new();
+		let mut host = TestHost::new();
+		let buffer_id = host.buffer_id;
+
+		let applied = manager.with_edit(
+			&mut host,
+			buffer_id,
+			UndoPolicy::Record,
+			EditOrigin::Internal("test"),
+			|_host| true,
+		);
+
+		assert!(applied);
+		assert_eq!(manager.undo_len(), 1);
+		assert_eq!(manager.redo_len(), 0);
+		assert_eq!(finalize_calls(), 1);
+	}
+
+	#[test]
+	fn with_edit_calls_finalize_on_failure() {
+		reset_finalize_calls();
+		let mut manager = UndoManager::new();
+		let mut host = TestHost::new();
+		let buffer_id = host.buffer_id;
+
+		let applied = manager.with_edit(
+			&mut host,
+			buffer_id,
+			UndoPolicy::Record,
+			EditOrigin::Internal("test"),
+			|_host| false,
+		);
+
+		assert!(!applied);
+		assert_eq!(manager.undo_len(), 0);
+		assert_eq!(manager.redo_len(), 0);
+		assert_eq!(finalize_calls(), 1);
 	}
 }

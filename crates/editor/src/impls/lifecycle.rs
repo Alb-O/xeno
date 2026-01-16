@@ -352,35 +352,6 @@ impl Editor {
 		false
 	}
 
-	/// Maps sibling buffer selections through a transaction.
-	pub(super) fn sync_sibling_selections(&mut self, tx: &xeno_primitives::Transaction) {
-		let buffer_id = self.focused_view();
-		let doc_id = self
-			.core
-			.buffers
-			.get_buffer(buffer_id)
-			.expect("focused buffer must exist")
-			.document_id();
-
-		let sibling_ids: Vec<_> = self
-			.core
-			.buffers
-			.buffer_ids()
-			.filter(|&id| id != buffer_id)
-			.filter(|&id| {
-				self.core
-					.buffers
-					.get_buffer(id)
-					.is_some_and(|b| b.document_id() == doc_id)
-			})
-			.collect();
-
-		for sibling_id in sibling_ids {
-			if let Some(sibling) = self.core.buffers.get_buffer_mut(sibling_id) {
-				sibling.map_selection_through(tx);
-			}
-		}
-	}
 }
 
 #[cfg(feature = "lsp")]
