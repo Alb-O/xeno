@@ -8,7 +8,10 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
 
-use xeno_primitives::{Rope, Selection};
+use xeno_primitives::{
+	CommitResult, EditCommit, EditError, ReadOnlyReason, ReadOnlyScope, Rope, Selection,
+	SyntaxPolicy, UndoPolicy,
+};
 use xeno_runtime_language::LanguageLoader;
 use xeno_runtime_language::syntax::Syntax;
 
@@ -213,6 +216,111 @@ impl Document {
 		self.content = entry.doc;
 		self.reparse_syntax(language_loader);
 		Some(entry.selections)
+	}
+
+	/// Applies an edit through the authoritative edit gate.
+	///
+	/// This is the single entry point for document modifications, ensuring:
+	/// - Readonly checks
+	/// - Undo recording (based on policy)
+	/// - Transaction application
+	/// - Version/modified flag updates
+	/// - Redo stack clearing
+	/// - Syntax policy handling
+	///
+	/// # Arguments
+	///
+	/// * `commit` - The edit commit containing transaction and policies
+	/// * `selections` - Current selections for undo snapshot (temporary for Phase 3;
+	///   will be removed when document/view history is separated in Phase 4)
+	/// * `language_loader` - For syntax reparsing if needed
+	///
+	/// # Errors
+	///
+	/// Returns `EditError::ReadOnly` if the document is readonly.
+	pub fn commit(
+		&mut self,
+		commit: EditCommit,
+		selections: HashMap<BufferId, Selection>,
+		language_loader: &LanguageLoader,
+	) -> Result<CommitResult, EditError> {
+		self.ensure_writable()?;
+		Ok(self.commit_unchecked(commit, selections, language_loader))
+	}
+
+	/// Applies an edit bypassing the readonly check.
+	///
+	/// For internal use by [`Buffer`] when the readonly override has already
+	/// been validated at the buffer level. External code should use [`commit`].
+	///
+	/// Handles undo recording based on [`UndoPolicy`]: `NoUndo` skips recording,
+	/// `Record`/`Boundary` creates a new snapshot, and `MergeWithCurrentGroup`
+	/// only creates a snapshot if not already in an insert grouping session.
+	///
+	/// Syntax updates use full reparse for all non-`None` policies (incremental
+	/// updates will be added in Phase 6).
+	///
+	/// [`Buffer`]: super::Buffer
+	/// [`commit`]: Self::commit
+	pub(crate) fn commit_unchecked(
+		&mut self,
+		commit: EditCommit,
+		selections: HashMap<BufferId, Selection>,
+		language_loader: &LanguageLoader,
+	) -> CommitResult {
+		let version_before = self.version;
+
+		let undo_recorded = match commit.undo {
+			UndoPolicy::NoUndo => false,
+			UndoPolicy::Record | UndoPolicy::Boundary => {
+				self.insert_undo_active = false;
+				self.push_undo_snapshot(selections);
+				true
+			}
+			UndoPolicy::MergeWithCurrentGroup => {
+				if !self.insert_undo_active {
+					self.insert_undo_active = true;
+					self.push_undo_snapshot(selections);
+					true
+				} else {
+					false
+				}
+			}
+		};
+
+		commit.tx.apply(&mut self.content);
+		self.modified = true;
+		self.version = self.version.wrapping_add(1);
+
+		let syntax_changed = match commit.syntax {
+			SyntaxPolicy::None => false,
+			SyntaxPolicy::FullReparseNow
+			| SyntaxPolicy::MarkDirty
+			| SyntaxPolicy::IncrementalOrDirty => {
+				self.reparse_syntax(language_loader);
+				true
+			}
+		};
+
+		CommitResult {
+			applied: true,
+			version_before,
+			version_after: self.version,
+			selection_after: commit.selection_after,
+			syntax_changed,
+			undo_recorded,
+		}
+	}
+
+	/// Checks if the document is writable, returning an error if readonly.
+	fn ensure_writable(&self) -> Result<(), EditError> {
+		if self.readonly {
+			return Err(EditError::ReadOnly {
+				scope: ReadOnlyScope::Document,
+				reason: ReadOnlyReason::FlaggedReadOnly,
+			});
+		}
+		Ok(())
 	}
 
 	/// Returns a reference to the document's text content.

@@ -136,16 +136,16 @@ impl Buffer {
 
 ### Action Items
 
-- [ ] Add `EditCommit` type
-- [ ] Implement `Document::commit(EditCommit) -> Result<CommitResult, EditError>`:
-  - [ ] readonly check
-  - [ ] undo recording (still snapshot-based initially)
-  - [ ] apply transaction to content
-  - [ ] bump version / mark modified
-  - [ ] clear redo
-  - [ ] syntax policy handling (initially `FullReparseNow` to match existing behavior)
-- [ ] Replace all direct `Transaction.apply(doc.content)` and "caller saves undo" flows with `doc.commit(...)`
-- [ ] Remove or hide old `apply_transaction*` APIs (or make them delegate to commit)
+- [x] Add `EditCommit` type
+- [x] Implement `Document::commit(EditCommit) -> Result<CommitResult, EditError>`:
+  - [x] readonly check
+  - [x] undo recording (still snapshot-based initially)
+  - [x] apply transaction to content
+  - [x] bump version / mark modified
+  - [x] clear redo
+  - [x] syntax policy handling (initially `FullReparseNow` to match existing behavior)
+- [x] Replace all direct `Transaction.apply(doc.content)` and "caller saves undo" flows with `doc.commit(...)`
+- [x] Remove or hide old `apply_transaction*` APIs (or make them delegate to commit)
 
 ### Key New Abstractions
 

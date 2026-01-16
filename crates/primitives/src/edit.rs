@@ -3,7 +3,7 @@
 //! These types form the foundation for a single, authoritative edit gate
 //! that handles undo/redo, readonly checks, and syntax scheduling.
 
-use crate::Selection;
+use crate::{Selection, Transaction};
 
 /// Error type for edit operations.
 #[derive(Debug, Clone, thiserror::Error)]
@@ -110,4 +110,77 @@ impl CommitResult {
 			undo_recorded: true,
 		}
 	}
+}
+
+/// A complete edit commit request.
+///
+/// This bundles a transaction with policies for undo recording, syntax updates,
+/// and metadata about the edit's origin. The `Document::commit()` method consumes
+/// this to apply the edit through a single authoritative gate.
+#[derive(Debug, Clone)]
+pub struct EditCommit {
+	/// The transaction containing the actual text changes.
+	pub tx: Transaction,
+	/// Policy for recording undo history.
+	pub undo: UndoPolicy,
+	/// Policy for updating syntax highlighting.
+	pub syntax: SyntaxPolicy,
+	/// Origin of this edit (for grouping, telemetry, debugging).
+	pub origin: EditOrigin,
+	/// Optional selection override produced by the edit planner.
+	pub selection_after: Option<Selection>,
+}
+
+impl EditCommit {
+	/// Creates a new edit commit with default policies.
+	pub fn new(tx: Transaction) -> Self {
+		Self {
+			tx,
+			undo: UndoPolicy::default(),
+			syntax: SyntaxPolicy::default(),
+			origin: EditOrigin::Internal("unspecified"),
+			selection_after: None,
+		}
+	}
+
+	/// Sets the undo policy.
+	pub fn with_undo(mut self, policy: UndoPolicy) -> Self {
+		self.undo = policy;
+		self
+	}
+
+	/// Sets the syntax policy.
+	pub fn with_syntax(mut self, policy: SyntaxPolicy) -> Self {
+		self.syntax = policy;
+		self
+	}
+
+	/// Sets the edit origin.
+	pub fn with_origin(mut self, origin: EditOrigin) -> Self {
+		self.origin = origin;
+		self
+	}
+
+	/// Sets the selection after the edit.
+	pub fn with_selection(mut self, selection: Selection) -> Self {
+		self.selection_after = Some(selection);
+		self
+	}
+}
+
+/// Origin of an edit operation.
+///
+/// Useful for grouping related edits, telemetry, and debugging.
+#[derive(Debug, Clone)]
+pub enum EditOrigin {
+	/// Edit from an EditOp (data-oriented edit operation).
+	EditOp { id: &'static str },
+	/// Edit from an ex-mode command.
+	Command { name: String },
+	/// Edit from macro replay.
+	MacroReplay,
+	/// Edit from LSP (code action, rename, format, etc.).
+	Lsp,
+	/// Internal edit (undo/redo replay, etc.).
+	Internal(&'static str),
 }

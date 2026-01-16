@@ -1,10 +1,12 @@
 //! Text editing operations for buffers.
 
+use std::collections::HashMap;
+
 #[cfg(feature = "lsp")]
 use xeno_lsp::{IncrementalResult, OffsetEncoding, compute_lsp_changes};
 #[cfg(feature = "lsp")]
 use xeno_primitives::LspDocumentChange;
-use xeno_primitives::{Range, Transaction};
+use xeno_primitives::{EditCommit, Range, SyntaxPolicy, Transaction, UndoPolicy};
 use xeno_runtime_language::LanguageLoader;
 
 use super::Buffer;
@@ -168,29 +170,45 @@ impl Buffer {
 		Some(tx)
 	}
 
-	/// Applies a transaction to the document. Increments the version counter.
+	/// Applies a transaction to the document, incrementing the version counter.
 	///
-	/// Returns true if the transaction was applied. Returns false if the buffer
-	/// is read-only (either via buffer override or document flag).
+	/// Routes through [`Document::commit_unchecked`] with [`UndoPolicy::NoUndo`]
+	/// and [`SyntaxPolicy::None`]. Undo recording and syntax updates are managed
+	/// at the Editor level, not here.
+	///
+	/// Returns `false` if the buffer is read-only (either via buffer-level
+	/// override or document flag), `true` otherwise.
+	///
+	/// [`Document::commit_unchecked`]: super::Document::commit_unchecked
 	pub fn apply_transaction(&self, tx: &Transaction) -> bool {
 		if self.readonly_override == Some(true) {
 			return false;
 		}
+		if self.readonly_override.is_none() && self.with_doc(|doc| doc.is_readonly()) {
+			return false;
+		}
+
+		let commit = EditCommit::new(tx.clone())
+			.with_undo(UndoPolicy::NoUndo)
+			.with_syntax(SyntaxPolicy::None);
+
 		self.with_doc_mut(|doc| {
-			if self.readonly_override.is_none() && doc.is_readonly() {
-				return false;
-			}
-			tx.apply(doc.content_mut());
-			doc.set_modified(true);
-			doc.increment_version();
-			true
-		})
+			doc.commit_unchecked(commit, HashMap::new(), &LanguageLoader::new());
+		});
+
+		true
 	}
 
-	/// Applies a transaction and updates syntax tree incrementally.
+	/// Applies a transaction and updates the syntax tree incrementally.
 	///
-	/// Returns true if the transaction was applied. Returns false if the buffer
-	/// is read-only (either via buffer override or document flag).
+	/// Routes through [`Document::commit_unchecked`] with [`UndoPolicy::NoUndo`]
+	/// and [`SyntaxPolicy::None`], then performs an incremental syntax update
+	/// using the changeset. Undo recording is managed at the Editor level.
+	///
+	/// Returns `false` if the buffer is read-only (either via buffer-level
+	/// override or document flag), `true` otherwise.
+	///
+	/// [`Document::commit_unchecked`]: super::Document::commit_unchecked
 	pub fn apply_transaction_with_syntax(
 		&self,
 		tx: &Transaction,
@@ -199,12 +217,18 @@ impl Buffer {
 		if self.readonly_override == Some(true) {
 			return false;
 		}
+		if self.readonly_override.is_none() && self.with_doc(|doc| doc.is_readonly()) {
+			return false;
+		}
+
+		let old_doc = self.with_doc(|doc| doc.content().clone());
+
+		let commit = EditCommit::new(tx.clone())
+			.with_undo(UndoPolicy::NoUndo)
+			.with_syntax(SyntaxPolicy::None);
+
 		self.with_doc_mut(|doc| {
-			if self.readonly_override.is_none() && doc.is_readonly() {
-				return false;
-			}
-			let old_doc = doc.content().clone();
-			tx.apply(doc.content_mut());
+			doc.commit_unchecked(commit, HashMap::new(), &LanguageLoader::new());
 
 			if doc.has_syntax() {
 				let new_doc = doc.content().clone();
@@ -217,14 +241,22 @@ impl Buffer {
 					);
 				}
 			}
+		});
 
-			doc.set_modified(true);
-			doc.increment_version();
-			true
-		})
+		true
 	}
 
-	/// Applies a transaction, updates syntax, and queues LSP changes.
+	/// Applies a transaction, updates syntax incrementally, and queues LSP changes.
+	///
+	/// Routes through [`Document::commit_unchecked`] with [`UndoPolicy::NoUndo`]
+	/// and [`SyntaxPolicy::None`], then performs an incremental syntax update
+	/// and queues LSP document changes for synchronization. Undo recording is
+	/// managed at the Editor level.
+	///
+	/// Returns `false` if the buffer is read-only (either via buffer-level
+	/// override or document flag), `true` otherwise.
+	///
+	/// [`Document::commit_unchecked`]: super::Document::commit_unchecked
 	#[cfg(feature = "lsp")]
 	pub fn apply_edit_with_lsp(
 		&self,
@@ -235,14 +267,19 @@ impl Buffer {
 		if self.readonly_override == Some(true) {
 			return false;
 		}
-		self.with_doc_mut(|doc| {
-			if self.readonly_override.is_none() && doc.is_readonly() {
-				return false;
-			}
+		if self.readonly_override.is_none() && self.with_doc(|doc| doc.is_readonly()) {
+			return false;
+		}
 
-			let old_doc = doc.content().clone();
-			let lsp_changes = compute_lsp_changes(&old_doc, tx, encoding);
-			tx.apply(doc.content_mut());
+		let old_doc = self.with_doc(|doc| doc.content().clone());
+		let lsp_changes = compute_lsp_changes(&old_doc, tx, encoding);
+
+		let commit = EditCommit::new(tx.clone())
+			.with_undo(UndoPolicy::NoUndo)
+			.with_syntax(SyntaxPolicy::None);
+
+		self.with_doc_mut(|doc| {
+			doc.commit_unchecked(commit, HashMap::new(), &LanguageLoader::new());
 
 			if doc.has_syntax() {
 				let new_doc = doc.content().clone();
@@ -256,8 +293,6 @@ impl Buffer {
 				}
 			}
 
-			doc.set_modified(true);
-			doc.increment_version();
 			match lsp_changes {
 				IncrementalResult::Incremental(changes) => {
 					if !changes.is_empty() {
@@ -268,8 +303,9 @@ impl Buffer {
 					doc.mark_for_full_lsp_sync();
 				}
 			}
-			true
-		})
+		});
+
+		true
 	}
 
 	/// Drains pending LSP changes for this document.
