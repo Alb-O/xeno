@@ -20,7 +20,7 @@ impl Editor {
 
 	fn goto_diagnostic(&mut self, direction: NavDirection) {
 		let buffer_id = self.focused_view();
-		let Some(buffer) = self.buffers.get_buffer(buffer_id) else {
+		let Some(buffer) = self.core.buffers.get_buffer(buffer_id) else {
 			return;
 		};
 		let diagnostics = self.lsp.get_diagnostics(buffer);
@@ -59,7 +59,7 @@ impl Editor {
 				.unwrap_or_else(|| *positions.last().unwrap()),
 		};
 
-		let Some(buffer) = self.buffers.get_buffer_mut(buffer_id) else {
+		let Some(buffer) = self.core.buffers.get_buffer_mut(buffer_id) else {
 			return;
 		};
 		buffer.set_cursor_and_selection(next_pos, Selection::point(next_pos));

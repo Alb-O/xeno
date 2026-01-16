@@ -18,7 +18,7 @@ impl Editor {
 	/// This async version awaits all hooks including async ones (e.g., LSP).
 	/// For sync contexts like split operations, use [`open_buffer_sync`](Self::open_buffer_sync).
 	pub async fn open_buffer(&mut self, content: String, path: Option<PathBuf>) -> BufferId {
-		let buffer_id = self.buffers.create_buffer(
+		let buffer_id = self.core.buffers.create_buffer(
 			content,
 			path.clone(),
 			&self.config.language_loader,
@@ -27,7 +27,7 @@ impl Editor {
 
 		let scratch_path = PathBuf::from("[scratch]");
 		let hook_path = path.as_ref().unwrap_or(&scratch_path);
-		let buffer = self.buffers.get_buffer(buffer_id).unwrap();
+		let buffer = self.core.buffers.get_buffer(buffer_id).unwrap();
 
 		let text_slice = buffer.with_doc(|doc| doc.content().clone());
 		let file_type = buffer.file_type();
@@ -42,7 +42,7 @@ impl Editor {
 		.await;
 
 		#[cfg(feature = "lsp")]
-		if let Some(buffer) = self.buffers.get_buffer(buffer_id)
+		if let Some(buffer) = self.core.buffers.get_buffer(buffer_id)
 			&& let Err(e) = self.lsp.on_buffer_open(buffer).await
 		{
 			warn!(error = %e, "LSP buffer open failed");
@@ -56,7 +56,7 @@ impl Editor {
 	/// Use this in sync contexts like split operations. Async hooks are queued
 	/// in the hook runtime and will execute when the main loop drains them.
 	pub fn open_buffer_sync(&mut self, content: String, path: Option<PathBuf>) -> BufferId {
-		let buffer_id = self.buffers.create_buffer(
+		let buffer_id = self.core.buffers.create_buffer(
 			content,
 			path.clone(),
 			&self.config.language_loader,
@@ -65,7 +65,7 @@ impl Editor {
 
 		let scratch_path = PathBuf::from("[scratch]");
 		let hook_path = path.as_ref().unwrap_or(&scratch_path);
-		let buffer = self.buffers.get_buffer(buffer_id).unwrap();
+		let buffer = self.core.buffers.get_buffer(buffer_id).unwrap();
 
 		let text = buffer.with_doc(|doc| doc.content().clone());
 		emit_hook_sync_with(
@@ -97,7 +97,7 @@ impl Editor {
 		let readonly = path.exists() && !is_writable(&path);
 		let buffer_id = self.open_buffer(content, Some(path)).await;
 
-		if readonly && let Some(buffer) = self.buffers.get_buffer(buffer_id) {
+		if readonly && let Some(buffer) = self.core.buffers.get_buffer(buffer_id) {
 			buffer.set_readonly(true);
 		}
 
@@ -109,7 +109,7 @@ impl Editor {
 	/// This is used for split operations - both buffers see the same content
 	/// but have independent cursor/selection/scroll state.
 	pub fn clone_buffer_for_split(&mut self) -> BufferId {
-		self.buffers.clone_focused_buffer_for_split()
+		self.core.buffers.clone_focused_buffer_for_split()
 	}
 
 	/// Initializes LSP for all currently open buffers.
@@ -118,8 +118,8 @@ impl Editor {
 	/// that were opened before the servers were registered.
 	#[cfg(feature = "lsp")]
 	pub async fn init_lsp_for_open_buffers(&mut self) -> anyhow::Result<()> {
-		for buffer_id in self.buffers.buffer_ids().collect::<Vec<_>>() {
-			if let Some(buffer) = self.buffers.get_buffer(buffer_id)
+		for buffer_id in self.core.buffers.buffer_ids().collect::<Vec<_>>() {
+			if let Some(buffer) = self.core.buffers.get_buffer(buffer_id)
 				&& buffer.path().is_some()
 				&& let Err(e) = self.lsp.on_buffer_open(buffer).await
 			{

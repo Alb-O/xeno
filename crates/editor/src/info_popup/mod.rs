@@ -170,10 +170,10 @@ impl Editor {
 
 		let rect = compute_popup_rect(anchor, content_width, content_height, bounds);
 
-		let buffer_id = self.buffers.create_scratch();
+		let buffer_id = self.core.buffers.create_scratch();
 		{
 			let buffer = self
-				.buffers
+				.core.buffers
 				.get_buffer_mut(buffer_id)
 				.expect("just created");
 			buffer.reset_content(content.as_str());
@@ -217,7 +217,7 @@ impl Editor {
 			return;
 		};
 		self.close_floating_window(popup.window_id);
-		self.buffers.remove_buffer(popup.buffer_id);
+		self.core.buffers.remove_buffer(popup.buffer_id);
 		self.frame.needs_redraw = true;
 	}
 
@@ -249,7 +249,7 @@ impl Editor {
 			return false;
 		};
 
-		let Some(buffer) = self.buffers.get_buffer_mut(buffer_id) else {
+		let Some(buffer) = self.core.buffers.get_buffer_mut(buffer_id) else {
 			return false;
 		};
 

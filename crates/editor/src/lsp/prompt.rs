@@ -24,7 +24,7 @@ impl Editor {
 
 		let buffer_id = self.focused_view();
 		let (cursor, word, rename_supported) = {
-			let Some(buffer) = self.buffers.get_buffer(buffer_id) else {
+			let Some(buffer) = self.core.buffers.get_buffer(buffer_id) else {
 				return false;
 			};
 			let rename_supported = self
@@ -41,7 +41,7 @@ impl Editor {
 		}
 
 		let rect = prompt_rect(width, height);
-		let prompt_buffer_id = self.buffers.create_scratch();
+		let prompt_buffer_id = self.core.buffers.create_scratch();
 		let window_id = self.create_floating_window(prompt_buffer_id, rect, prompt_style("Rename"));
 
 		let Window::Floating(float) = self.windows.get_mut(window_id).expect("just created") else {
@@ -55,13 +55,13 @@ impl Editor {
 		if !word.is_empty() {
 			let end = word.chars().count();
 			let buffer = self
-				.buffers
+				.core.buffers
 				.get_buffer_mut(prompt_buffer_id)
 				.expect("prompt buffer exists");
 			buffer.reset_content(word.as_str());
 			buffer.set_cursor_and_selection(end, Selection::single(0, end));
 		}
-		self.buffers
+		self.core.buffers
 			.get_buffer_mut(prompt_buffer_id)
 			.expect("prompt buffer exists")
 			.input
@@ -99,11 +99,11 @@ impl Editor {
 		};
 
 		self.close_floating_window(window_id);
-		self.buffers.remove_buffer(buffer_id);
+		self.core.buffers.remove_buffer(buffer_id);
 		self.overlays.insert(PromptState::Closed);
 
 		self.focus_view(target_buffer);
-		if let Some(buffer) = self.buffers.get_buffer_mut(target_buffer) {
+		if let Some(buffer) = self.core.buffers.get_buffer_mut(target_buffer) {
 			buffer.input.set_mode(Mode::Normal);
 		}
 	}
@@ -119,7 +119,7 @@ impl Editor {
 		};
 
 		let input = self
-			.buffers
+				.core.buffers
 			.get_buffer(prompt.buffer_id)
 			.map(|buffer| buffer.with_doc(|doc| doc.content().to_string()))
 			.unwrap_or_default();
@@ -158,7 +158,7 @@ impl Editor {
 		position: usize,
 		new_name: String,
 	) {
-		let Some(buffer) = self.buffers.get_buffer(buffer_id) else {
+		let Some(buffer) = self.core.buffers.get_buffer(buffer_id) else {
 			return;
 		};
 		if buffer.is_readonly() {

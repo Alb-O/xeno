@@ -102,7 +102,7 @@ impl Editor {
 					let local_col = clamped_x.saturating_sub(origin_area.x);
 
 					let tab_width = self.tab_width_for(origin_view);
-					if let Some(buffer) = self.buffers.get_buffer_mut(origin_view) {
+					if let Some(buffer) = self.core.buffers.get_buffer_mut(origin_view) {
 						let _ = buffer.input.handle_mouse(mouse.into());
 						let doc_pos = buffer
 							.screen_to_doc_position(local_row, local_col, tab_width)

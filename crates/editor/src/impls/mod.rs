@@ -17,6 +17,8 @@
 mod actions_exec;
 /// Buffer creation operations.
 mod buffer_ops;
+/// Core editing state.
+mod core;
 /// Centralized edit executor.
 mod edit_executor;
 /// Data-oriented edit operation executor.
@@ -52,6 +54,7 @@ use std::path::PathBuf;
 
 pub use crate::buffer_manager::BufferManager;
 pub use crate::command_queue::CommandQueue;
+pub use core::EditorCore;
 pub use focus::{FocusReason, FocusTarget, PanelId};
 pub use crate::hook_runtime::HookRuntime;
 pub use crate::layout::{LayoutManager, SeparatorHit, SeparatorId};
@@ -119,8 +122,11 @@ use crate::window::{BaseWindow, FloatingStyle, WindowId, WindowManager};
 /// [`focus_next_view`]: Self::focus_next_view
 /// [`focus_prev_view`]: Self::focus_prev_view
 pub struct Editor {
-	/// Buffer and terminal management.
-	pub buffers: BufferManager,
+	/// Core editing state: buffers, workspace, undo history.
+	///
+	/// Contains essential state for text editing operations. UI, layout,
+	/// and presentation concerns are kept separate in other Editor fields.
+	pub core: EditorCore,
 
 	/// Window management (base + floating).
 	pub windows: WindowManager,
@@ -139,16 +145,6 @@ pub struct Editor {
 
 	/// Per-frame runtime state (redraw flags, dirty buffers, etc.).
 	pub frame: FrameState,
-
-	/// Workspace session state (registers, jumps, macros, command queue).
-	pub workspace: Workspace,
-
-	/// Editor-level undo manager.
-	///
-	/// Manages undo/redo grouping stacks. Each entry captures view state
-	/// (cursor, selection, scroll) for all affected buffers at the time of
-	/// the edit. Document state is stored separately in each document's history.
-	pub undo_manager: UndoManager,
 
 	/// Editor configuration (theme, languages, options).
 	pub config: Config,
@@ -263,16 +259,21 @@ impl Editor {
 			&mut hook_runtime,
 		);
 
+		// Create EditorCore with buffers, workspace, and undo manager
+		let core = EditorCore::new(
+			buffer_manager,
+			Workspace::default(),
+			UndoManager::new(),
+		);
+
 		Self {
-			buffers: buffer_manager,
+			core,
 			windows: window_manager,
 			focus,
 			layout: LayoutManager::new(),
 			viewport: Viewport::default(),
 			ui: UiManager::new(),
 			frame: FrameState::default(),
-			workspace: Workspace::default(),
-			undo_manager: UndoManager::new(),
 			config: Config::new(language_loader),
 			notifications: xeno_tui::widgets::notifications::ToastManager::new()
 				.max_visible(Some(5))
@@ -346,6 +347,60 @@ impl Editor {
 			),
 			&mut self.hook_runtime,
 		);
+	}
+
+	/// Returns a reference to the buffer manager.
+	///
+	/// This is a compatibility accessor for code that previously accessed
+	/// `editor.buffers` directly. New code should use `editor.core.buffers`.
+	#[inline]
+	pub fn buffers(&self) -> &BufferManager {
+		&self.core.buffers
+	}
+
+	/// Returns a mutable reference to the buffer manager.
+	///
+	/// This is a compatibility accessor for code that previously accessed
+	/// `editor.buffers` directly. New code should use `editor.core.buffers`.
+	#[inline]
+	pub fn buffers_mut(&mut self) -> &mut BufferManager {
+		&mut self.core.buffers
+	}
+
+	/// Returns a reference to the workspace session state.
+	///
+	/// This is a compatibility accessor for code that previously accessed
+	/// `editor.workspace` directly. New code should use `editor.core.workspace`.
+	#[inline]
+	pub fn workspace(&self) -> &Workspace {
+		&self.core.workspace
+	}
+
+	/// Returns a mutable reference to the workspace session state.
+	///
+	/// This is a compatibility accessor for code that previously accessed
+	/// `editor.workspace` directly. New code should use `editor.core.workspace`.
+	#[inline]
+	pub fn workspace_mut(&mut self) -> &mut Workspace {
+		&mut self.core.workspace
+	}
+
+	/// Returns a reference to the undo manager.
+	///
+	/// This is a compatibility accessor for code that previously accessed
+	/// `editor.undo_manager` directly. New code should use `editor.core.undo_manager`.
+	#[inline]
+	pub fn undo_manager(&self) -> &UndoManager {
+		&self.core.undo_manager
+	}
+
+	/// Returns a mutable reference to the undo manager.
+	///
+	/// This is a compatibility accessor for code that previously accessed
+	/// `editor.undo_manager` directly. New code should use `editor.core.undo_manager`.
+	#[inline]
+	pub fn undo_manager_mut(&mut self) -> &mut UndoManager {
+		&mut self.core.undo_manager
 	}
 }
 

@@ -85,7 +85,7 @@ impl Editor {
 			return false;
 		}
 
-		if let Some(buffer) = self.buffers.get_buffer(view) {
+		if let Some(buffer) = self.core.buffers.get_buffer(view) {
 			let scratch_path = PathBuf::from("[scratch]");
 			let path = buffer.path().unwrap_or_else(|| scratch_path.clone());
 			let file_type = buffer.file_type();
@@ -124,7 +124,7 @@ impl Editor {
 			return false;
 		}
 
-		self.buffers.remove_buffer(view);
+		self.core.buffers.remove_buffer(view);
 
 		// If we closed the focused view, focus another one
 		if self.focused_view() == view

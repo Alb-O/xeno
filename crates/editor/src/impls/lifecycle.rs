@@ -52,7 +52,7 @@ impl Editor {
 
 		let dirty_ids: Vec<_> = self.frame.dirty_buffers.drain().collect();
 		for buffer_id in dirty_ids {
-			if let Some(buffer) = self.buffers.get_buffer(buffer_id) {
+			if let Some(buffer) = self.core.buffers.get_buffer(buffer_id) {
 				let scratch_path = PathBuf::from("[scratch]");
 				let path = buffer.path().unwrap_or_else(|| scratch_path.clone());
 				let file_type = buffer.file_type();
@@ -88,7 +88,7 @@ impl Editor {
 	/// Use this after operations that replace the entire document content (e.g., undo/redo)
 	/// where incremental sync is not possible.
 	pub(crate) fn mark_buffer_dirty_for_full_sync(&mut self, buffer_id: crate::buffer::BufferId) {
-		if let Some(buffer) = self.buffers.get_buffer_mut(buffer_id) {
+		if let Some(buffer) = self.core.buffers.get_buffer_mut(buffer_id) {
 			buffer.with_doc_mut(|doc| {
 				doc.increment_version();
 				#[cfg(feature = "lsp")]
@@ -109,7 +109,7 @@ impl Editor {
 	/// Queues an LSP buffer change notification to be processed asynchronously.
 	#[cfg(feature = "lsp")]
 	fn queue_lsp_change(&mut self, buffer_id: crate::buffer::BufferId) {
-		let Some(buffer) = self.buffers.get_buffer(buffer_id) else {
+		let Some(buffer) = self.core.buffers.get_buffer(buffer_id) else {
 			return;
 		};
 		let (Some(path), Some(language)) = (buffer.path(), buffer.file_type()) else {
@@ -166,7 +166,7 @@ impl Editor {
 		&mut self,
 		buffer_id: crate::buffer::BufferId,
 	) -> Option<oneshot::Receiver<()>> {
-		let buffer = self.buffers.get_buffer(buffer_id)?;
+		let buffer = self.core.buffers.get_buffer(buffer_id)?;
 		let (Some(path), Some(language)) = (buffer.path(), buffer.file_type()) else {
 			return None;
 		};
@@ -245,7 +245,7 @@ impl Editor {
 		self.viewport.height = Some(height);
 
 		// Update text width for all buffers
-		for buffer in self.buffers.buffers_mut() {
+		for buffer in self.core.buffers.buffers_mut() {
 			buffer.text_width = width.saturating_sub(buffer.gutter_width()) as usize;
 		}
 
@@ -309,7 +309,7 @@ impl Editor {
 	///
 	/// Returns `true` if any command requested quit.
 	pub async fn drain_command_queue(&mut self) -> bool {
-		let commands: Vec<_> = self.workspace.command_queue.drain().collect();
+		let commands: Vec<_> = self.core.workspace.command_queue.drain().collect();
 
 		// Use log-only mode for now (Phase 6 migration)
 		let policy = InvocationPolicy::log_only();
@@ -356,24 +356,24 @@ impl Editor {
 	pub(super) fn sync_sibling_selections(&mut self, tx: &xeno_primitives::Transaction) {
 		let buffer_id = self.focused_view();
 		let doc_id = self
-			.buffers
+				.core.buffers
 			.get_buffer(buffer_id)
 			.expect("focused buffer must exist")
 			.document_id();
 
 		let sibling_ids: Vec<_> = self
-			.buffers
+			.core.buffers
 			.buffer_ids()
 			.filter(|&id| id != buffer_id)
 			.filter(|&id| {
-				self.buffers
+				self.core.buffers
 					.get_buffer(id)
 					.is_some_and(|b| b.document_id() == doc_id)
 			})
 			.collect();
 
 		for sibling_id in sibling_ids {
-			if let Some(sibling) = self.buffers.get_buffer_mut(sibling_id) {
+			if let Some(sibling) = self.core.buffers.get_buffer_mut(sibling_id) {
 				sibling.map_selection_through(tx);
 			}
 		}

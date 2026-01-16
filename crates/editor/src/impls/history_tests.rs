@@ -14,7 +14,7 @@ fn test_editor(content: &str) -> Editor {
 fn apply_test_edit(editor: &mut Editor, text: &str, at: usize) -> bool {
 	let buffer_id = editor.focused_view();
 	let tx = {
-		let buffer = editor.buffers.focused_buffer();
+		let buffer = editor.core.buffers.focused_buffer();
 		let rope = buffer.with_doc(|doc| doc.content().clone());
 		Transaction::change(
 			rope.slice(..),
@@ -29,23 +29,23 @@ fn apply_test_edit(editor: &mut Editor, text: &str, at: usize) -> bool {
 }
 
 fn set_cursor(editor: &mut Editor, pos: usize) {
-	let buffer = editor.buffers.focused_buffer_mut();
+	let buffer = editor.core.buffers.focused_buffer_mut();
 	buffer.cursor = CharIdx::from(pos);
 	buffer.selection = Selection::point(CharIdx::from(pos));
 }
 
 fn set_scroll(editor: &mut Editor, line: usize, segment: usize) {
-	let buffer = editor.buffers.focused_buffer_mut();
+	let buffer = editor.core.buffers.focused_buffer_mut();
 	buffer.scroll_line = line;
 	buffer.scroll_segment = segment;
 }
 
 fn get_cursor(editor: &Editor, buffer_id: BufferId) -> usize {
-	editor.buffers.get_buffer(buffer_id).unwrap().cursor.into()
+	editor.core.buffers.get_buffer(buffer_id).unwrap().cursor.into()
 }
 
 fn get_scroll(editor: &Editor, buffer_id: BufferId) -> (usize, usize) {
-	let buffer = editor.buffers.get_buffer(buffer_id).unwrap();
+	let buffer = editor.core.buffers.get_buffer(buffer_id).unwrap();
 	(buffer.scroll_line, buffer.scroll_segment)
 }
 
@@ -56,7 +56,7 @@ fn undo_restores_cursor_position() {
 
 	apply_test_edit(&mut editor, " there", 5);
 
-	assert_eq!(editor.undo_manager.undo_len(), 1);
+	assert_eq!(editor.core.undo_manager.undo_len(), 1);
 
 	editor.undo();
 
@@ -86,15 +86,15 @@ fn undo_restores_view_state_for_multiple_buffers_same_document() {
 	set_cursor(&mut editor, 7);
 	set_scroll(&mut editor, 0, 0);
 
-	let buffer2_id = editor.buffers.clone_focused_buffer_for_split();
-	editor.buffers.set_focused_view(buffer2_id);
+	let buffer2_id = editor.core.buffers.clone_focused_buffer_for_split();
+	editor.core.buffers.set_focused_view(buffer2_id);
 	set_cursor(&mut editor, 15);
 	set_scroll(&mut editor, 1, 0);
 
 	apply_test_edit(&mut editor, "X", 0);
 
-	assert_eq!(editor.undo_manager.undo_len(), 1);
-	let group = editor.undo_manager.last_undo_group().expect("should have undo group");
+	assert_eq!(editor.core.undo_manager.undo_len(), 1);
+	let group = editor.core.undo_manager.last_undo_group().expect("should have undo group");
 	assert_eq!(group.view_snapshots.len(), 2, "undo group should have snapshots for both buffers");
 	assert!(group.view_snapshots.contains_key(&buffer1_id));
 	assert!(group.view_snapshots.contains_key(&buffer2_id));
@@ -133,13 +133,13 @@ fn redo_stack_clears_on_new_edit() {
 	let mut editor = test_editor("hello");
 
 	apply_test_edit(&mut editor, " world", 5);
-	assert_eq!(editor.undo_manager.undo_len(), 1);
+	assert_eq!(editor.core.undo_manager.undo_len(), 1);
 
 	editor.undo();
-	assert_eq!(editor.undo_manager.redo_len(), 1, "redo stack should have one entry after undo");
+	assert_eq!(editor.core.undo_manager.redo_len(), 1, "redo stack should have one entry after undo");
 
 	apply_test_edit(&mut editor, "!", 5);
-	assert!(!editor.undo_manager.can_redo(), "new edit should clear redo stack");
+	assert!(!editor.core.undo_manager.can_redo(), "new edit should clear redo stack");
 }
 
 #[test]
@@ -148,11 +148,11 @@ fn redo_stack_clears_only_when_group_pushed() {
 
 	apply_test_edit(&mut editor, " world", 5);
 	editor.undo();
-	assert_eq!(editor.undo_manager.redo_len(), 1);
+	assert_eq!(editor.core.undo_manager.redo_len(), 1);
 
 	let buffer_id = editor.focused_view();
 	let tx = {
-		let buffer = editor.buffers.focused_buffer();
+		let buffer = editor.core.buffers.focused_buffer();
 		let rope = buffer.with_doc(|doc| doc.content().clone());
 		Transaction::change(
 			rope.slice(..),
@@ -165,7 +165,7 @@ fn redo_stack_clears_only_when_group_pushed() {
 	};
 	editor.apply_edit(buffer_id, &tx, None, UndoPolicy::NoUndo, EditOrigin::Internal("test"));
 
-	assert_eq!(editor.undo_manager.redo_len(), 1, "NoUndo edit should not clear redo stack");
+	assert_eq!(editor.core.undo_manager.redo_len(), 1, "NoUndo edit should not clear redo stack");
 }
 
 #[test]
@@ -174,7 +174,7 @@ fn merge_with_current_group_creates_single_undo_group_for_consecutive_inserts() 
 
 	let buffer_id = editor.focused_view();
 	let tx1 = {
-		let buffer = editor.buffers.focused_buffer();
+		let buffer = editor.core.buffers.focused_buffer();
 		let rope = buffer.with_doc(|doc| doc.content().clone());
 		Transaction::change(
 			rope.slice(..),
@@ -193,10 +193,10 @@ fn merge_with_current_group_creates_single_undo_group_for_consecutive_inserts() 
 		EditOrigin::Internal("insert"),
 	);
 
-	assert_eq!(editor.undo_manager.undo_len(), 1, "first MergeWithCurrentGroup should create group");
+	assert_eq!(editor.core.undo_manager.undo_len(), 1, "first MergeWithCurrentGroup should create group");
 
 	let tx2 = {
-		let buffer = editor.buffers.focused_buffer();
+		let buffer = editor.core.buffers.focused_buffer();
 		let rope = buffer.with_doc(|doc| doc.content().clone());
 		Transaction::change(
 			rope.slice(..),
@@ -215,10 +215,10 @@ fn merge_with_current_group_creates_single_undo_group_for_consecutive_inserts() 
 		EditOrigin::Internal("insert"),
 	);
 
-	assert_eq!(editor.undo_manager.undo_len(), 1, "consecutive MergeWithCurrentGroup should NOT create new group");
+	assert_eq!(editor.core.undo_manager.undo_len(), 1, "consecutive MergeWithCurrentGroup should NOT create new group");
 
 	editor.undo();
-	let content = editor.buffers.focused_buffer().with_doc(|doc| doc.content().to_string());
+	let content = editor.core.buffers.focused_buffer().with_doc(|doc| doc.content().to_string());
 	assert_eq!(content, "hello", "single undo should revert both merged edits");
 }
 
@@ -228,7 +228,7 @@ fn record_policy_breaks_merge_group() {
 	let buffer_id = editor.focused_view();
 
 	let tx1 = {
-		let buffer = editor.buffers.focused_buffer();
+		let buffer = editor.core.buffers.focused_buffer();
 		let rope = buffer.with_doc(|doc| doc.content().clone());
 		Transaction::change(
 			rope.slice(..),
@@ -248,7 +248,7 @@ fn record_policy_breaks_merge_group() {
 	);
 
 	let tx2 = {
-		let buffer = editor.buffers.focused_buffer();
+		let buffer = editor.core.buffers.focused_buffer();
 		let rope = buffer.with_doc(|doc| doc.content().clone());
 		Transaction::change(
 			rope.slice(..),
@@ -261,5 +261,5 @@ fn record_policy_breaks_merge_group() {
 	};
 	editor.apply_edit(buffer_id, &tx2, None, UndoPolicy::Record, EditOrigin::Internal("edit"));
 
-	assert_eq!(editor.undo_manager.undo_len(), 2, "Record policy should create new group");
+	assert_eq!(editor.core.undo_manager.undo_len(), 2, "Record policy should create new group");
 }

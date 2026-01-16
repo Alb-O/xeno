@@ -588,13 +588,13 @@ when ready for production enforcement.
 
 ### Tasks
 
-- [ ] Split `Editor` into `EditorCore` + components:
-  - [ ] `UndoManager` (already done in Phase 1)
-  - [ ] `HookEngine`
-  - [ ] `Workspace` / `WindowManager`
-  - [ ] `OverlayManager`
-- [ ] `Editor` becomes a thin facade delegating to components
-- [ ] Move capability trait impls (`EditAccess`, etc.) to `EditorCore`
+- [x] Split `Editor` into `EditorCore` + components:
+  - [x] `UndoManager` (already done in Phase 1)
+  - [x] `HookRuntime` (already a separate struct)
+  - [x] `Workspace` (moved into EditorCore)
+  - [x] `OverlayManager` (already a separate struct)
+- [x] `Editor` becomes a thin facade delegating to components
+- [ ] Move capability trait impls (`EditAccess`, etc.) to `EditorCore` (deferred - see notes)
 
 **Dependencies**: Phases 1-3 strongly recommended
 **Risk**: High (structural churn)
@@ -630,6 +630,36 @@ component extraction can introduce borrow conflicts. Fix by making Editor own a 
 struct and have capability adapters borrow only the minimal parts they need
 (e.g., `&mut EditorCore + &mut UndoManager`), or use "facade methods"
 (`Editor::apply_edit(...)`) that encapsulate borrowing.
+
+### Implementation Details
+
+**EditorCore structure** (`crates/editor/src/impls/core.rs`):
+
+```rust
+pub struct EditorCore {
+    pub buffers: BufferManager,   // Text buffer storage and focus tracking
+    pub workspace: Workspace,     // Session state (registers, jumps, macros)
+    pub undo_manager: UndoManager, // Undo/redo grouping stacks
+}
+```
+
+**Editor structure** now contains:
+- `core: EditorCore` - Core editing state
+- UI components: `ui`, `notifications`, `overlays`
+- Layout: `layout`, `viewport`, `windows`, `focus`
+- Config: `config`, `extensions`, `style_overlays`
+- Integration: `hook_runtime`, `frame`, LSP fields
+
+**Compatibility accessors**: Editor provides `buffers()`, `workspace()`, `undo_manager()`
+methods that forward to `self.core.*` for backward compatibility during migration.
+
+**Deferred: Moving capability traits to EditorCore**: This was deferred because:
+1. Many traits need UI state (e.g., `ModeAccess` needs `overlays` for completion suppression)
+2. `EditAccess` needs access to `focus` state which remains on Editor
+3. Moving traits requires more significant architectural changes (e.g., moving focus to EditorCore)
+
+The current separation already provides the primary benefit: core editing state can be
+borrowed separately from UI components, improving borrow checker relationships.
 
 ---
 
@@ -782,11 +812,15 @@ required_caps, flags). The main extensible registry types have been migrated.
 - [x] Note: Choke point in editor, not registry
 
 ### Phase 7: Editor Split (Optional)
-- [ ] Extract HookEngine
-- [ ] Extract Workspace
-- [ ] Extract OverlayManager
-- [ ] Facade pattern (Editor delegates to EditorCore)
-- [ ] Move capability trait impls to EditorCore
+- [x] Create EditorCore struct (`crates/editor/src/impls/core.rs`)
+- [x] Move buffers, workspace, undo_manager into EditorCore
+- [x] Facade pattern (Editor delegates to EditorCore via `core` field)
+- [x] Compatibility accessors (`buffers()`, `workspace()`, `undo_manager()`)
+- [ ] Move capability trait impls to EditorCore (deferred - requires architectural changes)
+
+Note: HookRuntime, Workspace, and OverlayManager were already separate structs. The key
+change was creating EditorCore to group buffers/workspace/undo_manager together, enabling
+separate borrowing of core editing state from UI components.
 
 ---
 

@@ -119,7 +119,7 @@ impl Editor {
 		for (_uri_string, (uri, edits)) in per_uri {
 			let (buffer_id, opened_temporarily) = self.resolve_uri_to_buffer(&uri).await?;
 			let buffer = self
-				.buffers
+				.core.buffers
 				.get_buffer(buffer_id)
 				.ok_or_else(|| ApplyError::BufferNotFound(uri.to_string()))?;
 			let encoding = self.lsp.offset_encoding_for_buffer(buffer);
@@ -160,7 +160,7 @@ impl Editor {
 	async fn resolve_uri_to_buffer(&mut self, uri: &Uri) -> Result<(BufferId, bool), ApplyError> {
 		let path =
 			xeno_lsp::path_from_uri(uri).ok_or_else(|| ApplyError::InvalidUri(uri.to_string()))?;
-		if let Some(buffer_id) = self.buffers.find_by_path(&path) {
+		if let Some(buffer_id) = self.core.buffers.find_by_path(&path) {
 			return Ok((buffer_id, false));
 		}
 
@@ -182,7 +182,7 @@ impl Editor {
 		let mut all_view_snapshots = std::collections::HashMap::new();
 
 		for buffer_plan in &plan.per_buffer {
-			let Some(buffer) = self.buffers.get_buffer(buffer_plan.buffer_id) else {
+			let Some(buffer) = self.core.buffers.get_buffer(buffer_plan.buffer_id) else {
 				continue;
 			};
 			let doc_id = buffer.document_id();
@@ -196,7 +196,7 @@ impl Editor {
 			all_view_snapshots.extend(snapshots);
 		}
 
-		self.undo_manager.push_group(EditorUndoGroup {
+		self.core.undo_manager.push_group(EditorUndoGroup {
 			affected_docs,
 			view_snapshots: all_view_snapshots,
 			origin: EditOrigin::Lsp,
@@ -210,7 +210,7 @@ impl Editor {
 		let buffer_id = plan.buffer_id;
 		let doc_id = {
 			let buffer = self
-				.buffers
+				.core.buffers
 				.get_buffer(buffer_id)
 				.ok_or_else(|| ApplyError::BufferNotFound(buffer_id.0.to_string()))?;
 			buffer.document_id()
@@ -232,7 +232,7 @@ impl Editor {
 
 		let tx = {
 			let buffer = self
-				.buffers
+				.core.buffers
 				.get_buffer(buffer_id)
 				.ok_or_else(|| ApplyError::BufferNotFound(buffer_id.0.to_string()))?;
 			buffer.with_doc(|doc| Transaction::change(doc.content().slice(..), changes))
@@ -240,7 +240,7 @@ impl Editor {
 
 		let applied = {
 			let buffer = self
-				.buffers
+				.core.buffers
 				.get_buffer_mut(buffer_id)
 				.ok_or_else(|| ApplyError::BufferNotFound(buffer_id.0.to_string()))?;
 			let policy = ApplyPolicy {
@@ -258,7 +258,7 @@ impl Editor {
 			return Err(ApplyError::ReadOnly(buffer_id.0.to_string()));
 		}
 
-		for buffer in self.buffers.buffers_mut() {
+		for buffer in self.core.buffers.buffers_mut() {
 			if buffer.document_id() == doc_id {
 				buffer.map_selection_through(&tx);
 			}
@@ -281,7 +281,7 @@ impl Editor {
 	}
 
 	fn close_headless_buffer(&mut self, buffer_id: BufferId) {
-		let Some(buffer) = self.buffers.get_buffer(buffer_id) else {
+		let Some(buffer) = self.core.buffers.get_buffer(buffer_id) else {
 			return;
 		};
 		if buffer.path().is_some()
@@ -291,7 +291,7 @@ impl Editor {
 			warn!(error = %e, "LSP buffer close failed");
 		}
 
-		self.buffers.remove_buffer(buffer_id);
+		self.core.buffers.remove_buffer(buffer_id);
 	}
 }
 

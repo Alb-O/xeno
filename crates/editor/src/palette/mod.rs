@@ -98,8 +98,8 @@ impl Editor {
 		};
 
 		let rect = palette_rect(width, height);
-		let buffer_id = self.buffers.create_scratch();
-		self.buffers
+		let buffer_id = self.core.buffers.create_scratch();
+		self.core.buffers
 			.get_buffer_mut(buffer_id)
 			.expect("just created")
 			.local_options
@@ -114,7 +114,7 @@ impl Editor {
 		float.gutter = GutterSelector::Prompt('>');
 
 		self.focus_floating_window(window_id);
-		self.buffers
+		self.core.buffers
 			.get_buffer_mut(buffer_id)
 			.expect("just created")
 			.input
@@ -136,7 +136,7 @@ impl Editor {
 		let buffer_id = palette.buffer_id;
 
 		self.close_floating_window(window_id);
-		self.buffers.remove_buffer(buffer_id);
+		self.core.buffers.remove_buffer(buffer_id);
 		self.overlays.insert(PaletteState::Closed);
 
 		self.focus_base_window();
@@ -154,7 +154,7 @@ impl Editor {
 			.get::<PaletteState>()
 			.and_then(|p| p.buffer_id())?;
 		let input = self
-			.buffers
+				.core.buffers
 			.get_buffer(buffer_id)?
 			.with_doc(|doc| doc.content().to_string());
 		let input = input.trim().to_string();
@@ -171,10 +171,10 @@ impl Editor {
 
 		// Check editor-direct commands first (e.g., LSP commands), then registry commands
 		if let Some(cmd) = crate::commands::find_editor_command(name) {
-			self.workspace.command_queue.push(cmd.name, args);
+			self.core.workspace.command_queue.push(cmd.name, args);
 			Some(input)
 		} else if let Some(cmd) = xeno_registry::commands::find_command(name) {
-			self.workspace.command_queue.push(cmd.name(), args);
+			self.core.workspace.command_queue.push(cmd.name(), args);
 			Some(input)
 		} else {
 			self.notify(xeno_registry::notifications::keys::unknown_command::call(

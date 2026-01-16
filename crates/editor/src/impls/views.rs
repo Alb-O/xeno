@@ -39,7 +39,7 @@ impl Editor {
 	#[inline]
 	pub fn focused_buffer(&self) -> &Buffer {
 		let buffer_id = self.focused_view();
-		self.buffers
+		self.core.buffers
 			.get_buffer(buffer_id)
 			.expect("focused buffer must exist")
 	}
@@ -48,7 +48,7 @@ impl Editor {
 	#[inline]
 	pub fn focused_buffer_mut(&mut self) -> &mut Buffer {
 		let buffer_id = self.focused_view();
-		self.buffers
+		self.core.buffers
 			.get_buffer_mut(buffer_id)
 			.expect("focused buffer must exist")
 	}
@@ -73,22 +73,22 @@ impl Editor {
 
 	/// Returns all text buffer IDs.
 	pub fn buffer_ids(&self) -> Vec<BufferId> {
-		self.buffers.buffer_ids().collect()
+		self.core.buffers.buffer_ids().collect()
 	}
 
 	/// Returns a reference to a specific buffer by ID.
 	pub fn get_buffer(&self, id: BufferId) -> Option<&Buffer> {
-		self.buffers.get_buffer(id)
+		self.core.buffers.get_buffer(id)
 	}
 
 	/// Returns a mutable reference to a specific buffer by ID.
 	pub fn get_buffer_mut(&mut self, id: BufferId) -> Option<&mut Buffer> {
-		self.buffers.get_buffer_mut(id)
+		self.core.buffers.get_buffer_mut(id)
 	}
 
 	/// Returns the number of open text buffers.
 	pub fn buffer_count(&self) -> usize {
-		self.buffers.buffer_count()
+		self.core.buffers.buffer_count()
 	}
 
 	/// Returns the tab width for a specific buffer.
@@ -97,7 +97,7 @@ impl Editor {
 	/// This helper is useful when you need to pre-resolve the option before borrowing
 	/// the buffer mutably.
 	pub fn tab_width_for(&self, buffer_id: BufferId) -> usize {
-		self.buffers
+		self.core.buffers
 			.get_buffer(buffer_id)
 			.map(|b| (b.option(keys::TAB_WIDTH, self) as usize).max(1))
 			.unwrap_or(4)
@@ -110,7 +110,7 @@ impl Editor {
 
 	/// Returns whether cursorline is enabled for a specific buffer.
 	pub fn cursorline_for(&self, buffer_id: BufferId) -> bool {
-		self.buffers
+		self.core.buffers
 			.get_buffer(buffer_id)
 			.map(|b| b.option(keys::CURSORLINE, self))
 			.unwrap_or(true)
@@ -118,7 +118,7 @@ impl Editor {
 
 	/// Returns the scroll margin for a specific buffer.
 	pub fn scroll_margin_for(&self, buffer_id: BufferId) -> usize {
-		self.buffers
+		self.core.buffers
 			.get_buffer(buffer_id)
 			.map(|b| b.option(keys::SCROLL_MARGIN, self) as usize)
 			.unwrap_or(5)

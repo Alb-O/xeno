@@ -34,11 +34,11 @@ impl Editor {
 		undo: UndoPolicy,
 		origin: EditOrigin,
 	) -> bool {
-		let mut undo_manager = std::mem::take(&mut self.undo_manager);
+		let mut undo_manager = std::mem::take(&mut self.core.undo_manager);
 		let prep = undo_manager.prepare_edit(self, buffer_id, undo, origin);
 		let applied = self.apply_transaction_inner(buffer_id, tx, new_selection, undo);
 		undo_manager.finalize_edit(applied, prep);
-		self.undo_manager = undo_manager;
+		self.core.undo_manager = undo_manager;
 		applied
 	}
 
@@ -58,7 +58,7 @@ impl Editor {
 		#[cfg(feature = "lsp")]
 		let encoding = {
 			let buffer = self
-				.buffers
+				.core.buffers
 				.get_buffer(buffer_id)
 				.expect("focused buffer must exist");
 			self.lsp.incremental_encoding_for_buffer(buffer)
@@ -67,7 +67,7 @@ impl Editor {
 		#[cfg(feature = "lsp")]
 		let applied = {
 			let buffer = self
-				.buffers
+				.core.buffers
 				.get_buffer_mut(buffer_id)
 				.expect("focused buffer must exist");
 			let applied = if let Some(encoding) = encoding {
@@ -84,7 +84,7 @@ impl Editor {
 		#[cfg(not(feature = "lsp"))]
 		let applied = {
 			let buffer = self
-				.buffers
+				.core.buffers
 				.get_buffer_mut(buffer_id)
 				.expect("focused buffer must exist");
 			let applied = buffer.apply(tx, policy, &self.config.language_loader);
@@ -139,7 +139,7 @@ impl Editor {
 
 		let (tx, new_selection) = {
 			let buffer = self
-				.buffers
+				.core.buffers
 				.get_buffer_mut(buffer_id)
 				.expect("focused buffer must exist");
 			buffer.prepare_insert(text)
@@ -161,14 +161,14 @@ impl Editor {
 	/// Copies the current selection to the yank register.
 	pub fn yank_selection(&mut self) {
 		if let Some((text, count)) = self.buffer_mut().yank_selection() {
-			self.workspace.registers.yank = text;
+			self.core.workspace.registers.yank = text;
 			self.notify(keys::yanked_chars::call(count));
 		}
 	}
 
 	/// Pastes the yank register content after the cursor.
 	pub fn paste_after(&mut self) {
-		if self.workspace.registers.yank.is_empty() {
+		if self.core.workspace.registers.yank.is_empty() {
 			return;
 		}
 
@@ -177,11 +177,11 @@ impl Editor {
 		}
 
 		let buffer_id = self.focused_view();
-		let yank = self.workspace.registers.yank.clone();
+		let yank = self.core.workspace.registers.yank.clone();
 
 		let Some((tx, new_selection)) = ({
 			let buffer = self
-				.buffers
+				.core.buffers
 				.get_buffer_mut(buffer_id)
 				.expect("focused buffer must exist");
 			buffer.prepare_paste_after(&yank)
@@ -204,7 +204,7 @@ impl Editor {
 
 	/// Pastes the yank register content before the cursor.
 	pub fn paste_before(&mut self) {
-		if self.workspace.registers.yank.is_empty() {
+		if self.core.workspace.registers.yank.is_empty() {
 			return;
 		}
 
@@ -213,11 +213,11 @@ impl Editor {
 		}
 
 		let buffer_id = self.focused_view();
-		let yank = self.workspace.registers.yank.clone();
+		let yank = self.core.workspace.registers.yank.clone();
 
 		let Some((tx, new_selection)) = ({
 			let buffer = self
-				.buffers
+				.core.buffers
 				.get_buffer_mut(buffer_id)
 				.expect("focused buffer must exist");
 			buffer.prepare_paste_before(&yank)
@@ -252,7 +252,7 @@ impl Editor {
 
 		let Some((tx, new_selection)) = ({
 			let buffer = self
-				.buffers
+				.core.buffers
 				.get_buffer_mut(buffer_id)
 				.expect("focused buffer must exist");
 			buffer.prepare_delete_selection()
@@ -280,7 +280,7 @@ impl Editor {
 	pub fn reparse_syntax(&mut self) {
 		let buffer_id = self.focused_view();
 		let buffer = self
-			.buffers
+				.core.buffers
 			.get_buffer_mut(buffer_id)
 			.expect("focused buffer must exist");
 		buffer.reparse_syntax(&self.config.language_loader);

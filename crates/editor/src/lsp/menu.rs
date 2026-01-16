@@ -212,7 +212,7 @@ impl Editor {
 		let buffer_id = *buffer_id;
 		let items = items.clone();
 
-		let Some(buffer) = self.buffers.get_buffer(buffer_id) else {
+		let Some(buffer) = self.core.buffers.get_buffer(buffer_id) else {
 			return;
 		};
 
@@ -253,7 +253,7 @@ impl Editor {
 
 	pub(crate) async fn open_code_action_menu(&mut self) -> bool {
 		let buffer_id = self.focused_view();
-		let Some(buffer) = self.buffers.get_buffer(buffer_id) else {
+		let Some(buffer) = self.core.buffers.get_buffer(buffer_id) else {
 			return false;
 		};
 		let Some((client, uri, _)) = self.lsp.prepare_position_request(buffer).ok().flatten()
@@ -444,7 +444,7 @@ impl Editor {
 
 	async fn apply_completion_item(&mut self, buffer_id: BufferId, item: CompletionItem) {
 		let (encoding, selection, cursor, rope, readonly) = {
-			let Some(buffer) = self.buffers.get_buffer(buffer_id) else {
+			let Some(buffer) = self.core.buffers.get_buffer(buffer_id) else {
 				return;
 			};
 			(
@@ -534,7 +534,7 @@ impl Editor {
 		self.flush_lsp_sync_now(&[buffer_id]);
 
 		if let Some(selection) = completion_snippet_selection(&tx, base_start, snippet) {
-			if let Some(buffer) = self.buffers.get_buffer_mut(buffer_id) {
+			if let Some(buffer) = self.core.buffers.get_buffer_mut(buffer_id) {
 				let cursor = selection.primary().head;
 				buffer.set_cursor_and_selection(cursor, selection);
 			}
@@ -548,7 +548,7 @@ impl Editor {
 			.changes()
 			.map_pos(base_start, Bias::Left)
 			.saturating_add(insert_text.chars().count());
-		if let Some(buffer) = self.buffers.get_buffer_mut(buffer_id) {
+		if let Some(buffer) = self.core.buffers.get_buffer_mut(buffer_id) {
 			buffer.set_cursor_and_selection(new_cursor, Selection::point(new_cursor));
 		}
 		if let Some(command) = command {
@@ -584,7 +584,7 @@ impl Editor {
 	}
 
 	async fn execute_lsp_command(&mut self, buffer_id: BufferId, command: Command) {
-		let Some(buffer) = self.buffers.get_buffer(buffer_id) else {
+		let Some(buffer) = self.core.buffers.get_buffer(buffer_id) else {
 			return;
 		};
 		let Some((client, _, _)) = self.lsp.prepare_position_request(buffer).ok().flatten() else {

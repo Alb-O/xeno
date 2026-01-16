@@ -68,7 +68,7 @@ impl Editor {
 		view: BufferView,
 		explicit: bool,
 	) -> bool {
-		if self.buffers.get_buffer(view).is_none() {
+		if self.core.buffers.get_buffer(view).is_none() {
 			return false;
 		}
 
@@ -83,7 +83,7 @@ impl Editor {
 		if window_id == base_window_id {
 			self.base_window_mut().focused_buffer = view;
 		}
-		let _ = self.buffers.set_focused_view(view);
+		let _ = self.core.buffers.set_focused_view(view);
 		self.frame.needs_redraw = true;
 
 		if explicit && view != old_view {

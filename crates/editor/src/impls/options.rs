@@ -32,7 +32,7 @@ impl Editor {
 	/// ```
 	pub fn resolve_option(&self, buffer_id: BufferId, key: OptionKey) -> OptionValue {
 		let buffer = self
-			.buffers
+				.core.buffers
 			.get_buffer(buffer_id)
 			.expect("buffer must exist");
 

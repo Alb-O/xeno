@@ -58,7 +58,7 @@ impl Editor {
 				if generation != self.completion_controller.generation() {
 					return;
 				}
-				let Some(buffer) = self.buffers.get_buffer(buffer_id) else {
+				let Some(buffer) = self.core.buffers.get_buffer(buffer_id) else {
 					return;
 				};
 				if buffer.cursor < replace_start {
@@ -115,7 +115,7 @@ impl Editor {
 				if generation != self.signature_help_generation {
 					return;
 				}
-				let Some(buffer) = self.buffers.get_buffer(buffer_id) else {
+				let Some(buffer) = self.core.buffers.get_buffer(buffer_id) else {
 					return;
 				};
 				if buffer.version() != doc_version || buffer.cursor != cursor {

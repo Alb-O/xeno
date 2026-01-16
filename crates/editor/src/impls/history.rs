@@ -53,14 +53,14 @@ impl UndoHost for Editor {
 	}
 
 	fn doc_id_for_buffer(&self, buffer_id: BufferId) -> DocumentId {
-		self.buffers
+		self.core.buffers
 			.get_buffer(buffer_id)
 			.expect("buffer must exist")
 			.document_id()
 	}
 
 	fn collect_view_snapshots(&self, doc_id: DocumentId) -> HashMap<BufferId, ViewSnapshot> {
-		self.buffers
+		self.core.buffers
 			.buffers()
 			.filter(|b| b.document_id() == doc_id)
 			.map(|b| (b.id, b.snapshot_view()))
@@ -72,7 +72,7 @@ impl UndoHost for Editor {
 		doc_ids: &[DocumentId],
 	) -> HashMap<BufferId, ViewSnapshot> {
 		let doc_set: HashSet<_> = doc_ids.iter().copied().collect();
-		self.buffers
+		self.core.buffers
 			.buffers()
 			.filter(|b| doc_set.contains(&b.document_id()))
 			.map(|b| (b.id, b.snapshot_view()))
@@ -80,7 +80,7 @@ impl UndoHost for Editor {
 	}
 
 	fn restore_view_snapshots(&mut self, snapshots: &HashMap<BufferId, ViewSnapshot>) {
-		for buffer in self.buffers.buffers_mut() {
+		for buffer in self.core.buffers.buffers_mut() {
 			if let Some(snapshot) = snapshots.get(&buffer.id) {
 				buffer.restore_view(snapshot);
 			} else {
@@ -106,7 +106,7 @@ impl UndoHost for Editor {
 	}
 
 	fn doc_insert_undo_active(&self, buffer_id: BufferId) -> bool {
-		self.buffers
+		self.core.buffers
 			.get_buffer(buffer_id)
 			.map(|b| b.with_doc(|doc| doc.insert_undo_active()))
 			.unwrap_or(false)
@@ -135,9 +135,9 @@ impl Editor {
 	/// Uses `mem::take` to split the borrow between `undo_manager` and `self`,
 	/// since `UndoHost` methods require `&mut self`.
 	pub fn undo(&mut self) {
-		let mut undo_manager = std::mem::take(&mut self.undo_manager);
+		let mut undo_manager = std::mem::take(&mut self.core.undo_manager);
 		undo_manager.undo(self);
-		self.undo_manager = undo_manager;
+		self.core.undo_manager = undo_manager;
 	}
 
 	/// Redoes the last undone change, restoring view state for all affected buffers.
@@ -145,15 +145,15 @@ impl Editor {
 	/// Uses `mem::take` to split the borrow between `undo_manager` and `self`,
 	/// since `UndoHost` methods require `&mut self`.
 	pub fn redo(&mut self) {
-		let mut undo_manager = std::mem::take(&mut self.undo_manager);
+		let mut undo_manager = std::mem::take(&mut self.core.undo_manager);
 		undo_manager.redo(self);
-		self.undo_manager = undo_manager;
+		self.core.undo_manager = undo_manager;
 	}
 
 	/// Undoes a single document's last change.
 	fn undo_document(&mut self, doc_id: DocumentId) -> bool {
 		let buffer_id = self
-			.buffers
+				.core.buffers
 			.buffers()
 			.find(|b| b.document_id() == doc_id)
 			.map(|b| b.id);
@@ -164,7 +164,7 @@ impl Editor {
 		};
 
 		let ok = self
-			.buffers
+				.core.buffers
 			.get_buffer_mut(buffer_id)
 			.expect("buffer exists")
 			.with_doc_mut(|doc| doc.undo(&self.config.language_loader));
@@ -178,7 +178,7 @@ impl Editor {
 	/// Redoes a single document's last undone change.
 	fn redo_document(&mut self, doc_id: DocumentId) -> bool {
 		let buffer_id = self
-			.buffers
+				.core.buffers
 			.buffers()
 			.find(|b| b.document_id() == doc_id)
 			.map(|b| b.id);
@@ -189,7 +189,7 @@ impl Editor {
 		};
 
 		let ok = self
-			.buffers
+				.core.buffers
 			.get_buffer_mut(buffer_id)
 			.expect("buffer exists")
 			.with_doc_mut(|doc| doc.redo(&self.config.language_loader));
