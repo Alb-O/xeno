@@ -18,6 +18,26 @@ for extensibility. This plan addresses:
 
 ---
 
+## Architectural Constraints
+
+**Registry/Editor crate boundary**: The registry crate (`xeno-registry`) defines
+abstraction traits and cannot depend on the editor crate (`xeno-editor`). This
+prevents circular dependencies but means:
+
+- Effects and capability traits must not mention editor-specific types
+- They can freely use primitives types (`EditOp`, `Selection`, `Range`, `Mode`)
+- New types crossing action/effect/capability boundaries must live in primitives or registry
+
+**Rule**: Effects and capability traits → primitives types only, never editor types.
+
+**Implications for each phase**:
+- Phase 4: Keep effects high-level (EditOp, Paste), not low-level (Transaction, EditPlan)
+- Phase 5: RegistryMeta lives in registry; editor never needs to know about it
+- Phase 6: Choke point lives in editor, not registry (registry stays declarative)
+- Phase 7: Trait impls move to EditorCore, but trait definitions stay in registry
+
+---
+
 ## Phase 0: Guardrails and Observability (Pre-refactor Safety)
 
 **Purpose**: Establish behavior locks before making structural changes.
@@ -285,18 +305,60 @@ crate via `Editor::edit_executor()`. The `apply_effects` function continues to u
 `ctx.edit()` which returns `Option<&mut dyn EditAccess>` - this is the right design
 for cross-crate capability access.
 
+### Adapter Pattern for Capability Traits
+
+The current implementation uses "Option C": Editor implements EditAccess directly and
+delegates to internal methods. This is a valid stepping stone toward Phase 7.
+
+For Phase 7, the recommended pattern is "Option B" (EditorCore):
+
+```rust
+pub struct EditorCore {
+    // buffers, documents, undo_manager, etc.
+}
+
+impl EditorCore {
+    fn edit_executor(&mut self) -> EditExecutor<'_> { EditExecutor::new(self) }
+}
+
+impl EditAccess for EditorCore {
+    fn execute_edit_op(&mut self, op: &EditOp) {
+        self.edit_executor().execute_edit_op(op);
+    }
+    // ...
+}
+```
+
+Then Editor becomes a façade holding `core` plus UI/layout/etc., and
+`EditorContext::edit()` returns `Some(&mut self.core as &mut dyn EditAccess)`.
+
+**Note**: `move_visual_vertical` is currently in `EditAccess` but is really a view/motion
+operation, not an edit. Long-term, consider moving it to a separate `ViewAccess` or
+`MotionAccess` trait. For now, keep it forwarding to a view subsystem rather than the
+edit executor.
+
 ---
 
 ## Phase 4: Effect Nesting Refactor
 
 **Purpose**: Organize Effect variants by domain for maintainability.
 
+### Pre-Phase Checklist
+
+Before starting, lock down effect ordering semantics:
+
+- [ ] Document invariants (e.g., SetSelection implies cursor hooks, EditOp runs after
+      cursor/selection changes, Quit short-circuits or just sets outcome)
+- [ ] Add small tests that lock down ordering expectations
+- [ ] Consider adding `#[non_exhaustive]` to Effect enum if external crates match on it
+
 ### Tasks
 
 - [ ] Introduce nested enums: `ViewEffect`, `EditEffect`, `UiEffect`, `AppEffect`
 - [ ] Provide `From` conversions for backward compatibility
-- [ ] Update `ActionEffects` builder API to remain stable
+- [ ] Update `ActionEffects` builder API to remain stable (this is the primary public surface)
 - [ ] Update `apply_effects` match to use nested structure
+- [ ] Add registry sanity test: `assert!(ACTIONS.len() >= N)` to catch linkme breakage
 
 ### Code Sketch: Nested Effects
 
@@ -348,6 +410,27 @@ pub enum AppEffect {
 **Dependencies**: Phase 3
 **Risk**: Low-medium (widespread but mechanical edits)
 **Rollback**: Keep flat enum behind `#[cfg(feature="flat_effects")]`
+
+### Implementation Notes
+
+**Keep builders as the stable API**: The `ActionEffects::{set_cursor, set_selection,
+edit_op, notify, ...}` builder methods should remain the primary public surface.
+Treat the enum layout as an internal implementation detail. This makes Phase 4
+mostly "update interpreter + update internal enum shape" rather than "update 50
+call sites."
+
+**Avoid "editor-y" effects**: Keep effects high-level (EditOp, Paste, QueueCommand)
+rather than low-level ("apply this Transaction" or "run this EditPlan"). Low-level
+effects would force editor types into the registry crate, recreating the circular
+dependency problem from Phase 3.
+
+**Registry churn prevention**: When changing Effect or related types, follow this order:
+1. Add new fields/types
+2. Wire builders/adapters
+3. Migrate call sites
+4. Remove legacy fields
+
+This keeps breakage local and matches the phase discipline.
 
 ---
 
@@ -422,7 +505,7 @@ impl RegistryEntry for ActionDef {
 
 ### Tasks
 
-- [ ] Create `Editor::run_entrypoint(Invocation)` that always checks capabilities
+- [ ] Create `Editor::run_invocation(Invocation)` that always checks capabilities
 - [ ] Ensure all entry points route through it:
   - [ ] Keymap action dispatch
   - [ ] Command palette
@@ -434,6 +517,23 @@ impl RegistryEntry for ActionDef {
 **Dependencies**: Phase 3 (edit pipeline centralized)
 **Risk**: Medium-high (behavior changes if bypass existed)
 **Rollback**: Log-only mode first, then flip to enforcing
+
+### Implementation Notes
+
+**Choke point must live in the editor crate, not registry**: Because the registry
+layer only declares capabilities (via traits like `EditorCapabilities`), the actual
+enforcement must happen in editor entrypoints. Don't try to centralize gating inside
+registry types or EditorContext.
+
+The single `run_invocation(...)` function should:
+1. Resolve the def (action/command)
+2. Check caps using `EditorContext::check_all_capabilities`
+3. Enforce readonly / policy
+4. Emit hooks
+5. Execute handler
+6. Interpret effects
+
+Registry stays declarative; editor becomes the policy engine.
 
 ---
 
@@ -449,10 +549,42 @@ impl RegistryEntry for ActionDef {
   - [ ] `Workspace` / `WindowManager`
   - [ ] `OverlayManager`
 - [ ] `Editor` becomes a thin facade delegating to components
+- [ ] Move capability trait impls (`EditAccess`, etc.) to `EditorCore`
 
 **Dependencies**: Phases 1-3 strongly recommended
 **Risk**: High (structural churn)
 **Rollback**: Series of "extract struct" commits, revert most recent if broken
+
+### Implementation Notes
+
+**The constraint from Phase 3 helps here**: Traits remain stable while implementation
+evolves. When you split Editor into components, you keep implementing the same registry
+traits (`EditorCapabilities`, `EditAccess`, `UndoAccess`, etc.) on a façade struct.
+Internally, those methods delegate to `UndoManager`, `EditExecutor`, etc.
+
+**Recommended structure**:
+
+```rust
+pub struct Editor {
+    core: EditorCore,  // buffers, documents, undo_manager
+    ui: UiManager,
+    layout: LayoutManager,
+    // ...
+}
+
+impl EditAccess for EditorCore {
+    fn execute_edit_op(&mut self, op: &EditOp) {
+        self.edit_executor().execute_edit_op(op);
+    }
+    // ...
+}
+```
+
+**Borrow conflict prevention**: If your EditAccess implementation borrows `&mut Editor`,
+component extraction can introduce borrow conflicts. Fix by making Editor own a core
+struct and have capability adapters borrow only the minimal parts they need
+(e.g., `&mut EditorCore + &mut UndoManager`), or use "facade methods"
+(`Editor::apply_edit(...)`) that encapsulate borrowing.
 
 ---
 
@@ -577,10 +709,14 @@ fn registry_sanity_check() {
 - [x] apply_effects uses trait-based access
 
 ### Phase 4: Effect Nesting
+- [ ] Pre-phase: Document effect ordering invariants
+- [ ] Pre-phase: Add ordering lock-down tests
+- [ ] Pre-phase: Consider `#[non_exhaustive]` on Effect
 - [ ] Nested enum structure
 - [ ] From conversions
 - [ ] Builder API preservation
 - [ ] Interpreter update
+- [ ] Registry sanity test (action count >= N)
 
 ### Phase 5: RegistryMeta
 - [ ] RegistryMeta struct
@@ -590,16 +726,18 @@ fn registry_sanity_check() {
 - [ ] Introspection helpers
 
 ### Phase 6: Capability Gating
-- [ ] Unified entry point
+- [ ] Unified entry point (`Editor::run_invocation`)
 - [ ] Route all paths through it
 - [ ] InvocationPolicy
 - [ ] Log-only mode first
+- [ ] Note: Choke point in editor, not registry
 
 ### Phase 7: Editor Split (Optional)
 - [ ] Extract HookEngine
 - [ ] Extract Workspace
 - [ ] Extract OverlayManager
-- [ ] Facade pattern
+- [ ] Facade pattern (Editor delegates to EditorCore)
+- [ ] Move capability trait impls to EditorCore
 
 ---
 
