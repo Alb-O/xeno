@@ -228,7 +228,7 @@ impl Editor {
 			return;
 		}
 
-		let query = extract_query(&buffer.doc().content, replace_start, buffer.cursor);
+		let query = extract_query(buffer.doc().content(), replace_start, buffer.cursor);
 		let filtered = filter_items(&items, &query);
 
 		if filtered.is_empty() {
@@ -279,14 +279,14 @@ impl Editor {
 			selection.to()
 		};
 		let encoding = client.offset_encoding();
-		let Some(range) = char_range_to_lsp_range(&buffer.doc().content, start, end, encoding)
+		let Some(range) = char_range_to_lsp_range(buffer.doc().content(), start, end, encoding)
 		else {
 			self.notify(keys::error::call("Invalid range for code actions"));
 			return false;
 		};
 		let diagnostics = diagnostics_for_range(
 			&self.lsp.get_diagnostics(buffer),
-			&buffer.doc().content,
+			buffer.doc().content(),
 			encoding,
 			start..end,
 		);
@@ -448,7 +448,7 @@ impl Editor {
 				self.lsp.offset_encoding_for_buffer(buffer),
 				buffer.selection.primary(),
 				buffer.cursor,
-				buffer.doc().content.clone(),
+				buffer.doc().content().clone(),
 				buffer.is_readonly(),
 			)
 		};
@@ -703,7 +703,7 @@ fn format_documentation(doc: &Documentation) -> String {
 }
 
 fn completion_replace_start(buffer: &crate::buffer::Buffer) -> usize {
-	completion_replace_start_at(&buffer.doc().content, buffer.cursor)
+	completion_replace_start_at(buffer.doc().content(), buffer.cursor)
 }
 
 fn completion_replace_start_at(rope: &xeno_primitives::Rope, cursor: CharIdx) -> usize {

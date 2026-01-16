@@ -98,7 +98,7 @@ pub fn ensure_buffer_cursor_visible(
 	tab_width: usize,
 	scroll_margin: usize,
 ) {
-	let total_lines = buffer.doc().content.len_lines();
+	let total_lines = buffer.doc().content().len_lines();
 	let gutter_width = buffer.gutter_width();
 	let text_width = area.width.saturating_sub(gutter_width) as usize;
 	let viewport_height = area.height as usize;
@@ -139,17 +139,17 @@ pub fn ensure_buffer_cursor_visible(
 	);
 
 	let cursor_line = buffer.cursor_line();
-	let cursor_line_start: CharIdx = buffer.doc().content.line_to_char(cursor_line);
+	let cursor_line_start: CharIdx = buffer.doc().content().line_to_char(cursor_line);
 	let cursor_col = cursor_pos.saturating_sub(cursor_line_start);
 
 	let cursor_line_end: CharIdx = if cursor_line + 1 < total_lines {
-		buffer.doc().content.line_to_char(cursor_line + 1)
+		buffer.doc().content().line_to_char(cursor_line + 1)
 	} else {
-		buffer.doc().content.len_chars()
+		buffer.doc().content().len_chars()
 	};
 	let cursor_line_text: String = buffer
 		.doc()
-		.content
+		.content()
 		.slice(cursor_line_start..cursor_line_end)
 		.into();
 	let cursor_line_text = cursor_line_text.trim_end_matches('\n');
@@ -297,19 +297,19 @@ fn scroll_position_for_cursor_at_row(
 
 /// Returns the number of wrap segments for a line.
 fn line_segment_count(buffer: &Buffer, line: usize, text_width: usize, tab_width: usize) -> usize {
-	let total_lines = buffer.doc().content.len_lines();
+	let total_lines = buffer.doc().content().len_lines();
 	if line >= total_lines {
 		return 1;
 	}
 
-	let line_start: CharIdx = buffer.doc().content.line_to_char(line);
+	let line_start: CharIdx = buffer.doc().content().line_to_char(line);
 	let line_end: CharIdx = if line + 1 < total_lines {
-		buffer.doc().content.line_to_char(line + 1)
+		buffer.doc().content().line_to_char(line + 1)
 	} else {
-		buffer.doc().content.len_chars()
+		buffer.doc().content().len_chars()
 	};
 
-	let line_text: String = buffer.doc().content.slice(line_start..line_end).into();
+	let line_text: String = buffer.doc().content().slice(line_start..line_end).into();
 	let line_text = line_text.trim_end_matches('\n');
 	wrap_line(line_text, text_width, tab_width).len().max(1)
 }
@@ -322,19 +322,19 @@ fn clamp_segment_for_line(
 	text_width: usize,
 	tab_width: usize,
 ) -> usize {
-	let total_lines = buffer.doc().content.len_lines();
+	let total_lines = buffer.doc().content().len_lines();
 	if line >= total_lines {
 		return 0;
 	}
 
-	let line_start: CharIdx = buffer.doc().content.line_to_char(line);
+	let line_start: CharIdx = buffer.doc().content().line_to_char(line);
 	let line_end: CharIdx = if line + 1 < total_lines {
-		buffer.doc().content.line_to_char(line + 1)
+		buffer.doc().content().line_to_char(line + 1)
 	} else {
-		buffer.doc().content.len_chars()
+		buffer.doc().content().len_chars()
 	};
 
-	let line_text: String = buffer.doc().content.slice(line_start..line_end).into();
+	let line_text: String = buffer.doc().content().slice(line_start..line_end).into();
 	let line_text = line_text.trim_end_matches('\n');
 	let segments = wrap_line(line_text, text_width, tab_width);
 	let num_segments = segments.len().max(1);
@@ -368,7 +368,7 @@ fn cursor_row_in_viewport(
 		return None;
 	}
 
-	let total_lines = buffer.doc().content.len_lines();
+	let total_lines = buffer.doc().content().len_lines();
 	if start_line >= total_lines {
 		return None;
 	}
@@ -397,19 +397,19 @@ fn advance_one_visual_row(
 	text_width: usize,
 	tab_width: usize,
 ) -> bool {
-	let total_lines = buffer.doc().content.len_lines();
+	let total_lines = buffer.doc().content().len_lines();
 	if *line >= total_lines {
 		return false;
 	}
 
-	let line_start: CharIdx = buffer.doc().content.line_to_char(*line);
+	let line_start: CharIdx = buffer.doc().content().line_to_char(*line);
 	let line_end: CharIdx = if *line + 1 < total_lines {
-		buffer.doc().content.line_to_char(*line + 1)
+		buffer.doc().content().line_to_char(*line + 1)
 	} else {
-		buffer.doc().content.len_chars()
+		buffer.doc().content().len_chars()
 	};
 
-	let line_text: String = buffer.doc().content.slice(line_start..line_end).into();
+	let line_text: String = buffer.doc().content().slice(line_start..line_end).into();
 	let line_text = line_text.trim_end_matches('\n');
 	let segments = wrap_line(line_text, text_width, tab_width);
 	let num_segments = segments.len().max(1);

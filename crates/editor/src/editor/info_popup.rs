@@ -36,7 +36,7 @@ impl Editor {
 				.buffers
 				.get_buffer_mut(buffer_id)
 				.expect("just created");
-			buffer.doc_mut().content = ropey::Rope::from_str(&content);
+			*buffer.doc_mut().content_mut() = ropey::Rope::from_str(&content);
 			if let Some(ft) = file_type {
 				buffer
 					.doc_mut()
@@ -114,10 +114,10 @@ impl Editor {
 		};
 
 		buffer.set_readonly_override(Some(false));
-		buffer.doc_mut().content = ropey::Rope::from_str(&content);
+		*buffer.doc_mut().content_mut() = ropey::Rope::from_str(&content);
 
 		if let Some(ft) = file_type {
-			let current_ft = buffer.doc().file_type.clone();
+			let current_ft = buffer.file_type();
 			if current_ft.as_deref() != Some(ft) {
 				buffer
 					.doc_mut()

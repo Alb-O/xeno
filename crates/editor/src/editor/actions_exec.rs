@@ -58,7 +58,7 @@ impl Editor {
 		let (content, cursor, selection) = {
 			let buffer = self.buffer();
 			let doc = buffer.doc();
-			(doc.content.clone(), buffer.cursor, buffer.selection.clone())
+			(doc.content().clone(), buffer.cursor, buffer.selection.clone())
 		};
 		let ctx = ActionContext {
 			text: content.slice(..),
@@ -127,7 +127,7 @@ impl Editor {
 		let (content, cursor, selection) = {
 			let buffer = self.buffer();
 			let doc = buffer.doc();
-			(doc.content.clone(), buffer.cursor, buffer.selection.clone())
+			(doc.content().clone(), buffer.cursor, buffer.selection.clone())
 		};
 		let ctx = ActionContext {
 			text: content.slice(..),

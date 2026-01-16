@@ -58,7 +58,7 @@ impl Editor {
 				let path = buffer.path().unwrap_or_else(|| scratch_path.clone());
 				let file_type = buffer.file_type();
 				let version = buffer.version();
-				let content = buffer.doc().content.clone();
+				let content = buffer.doc().content().clone();
 				emit_hook_sync_with(
 					&HookContext::new(
 						HookEventData::BufferChange {
@@ -90,12 +90,10 @@ impl Editor {
 	/// where incremental sync is not possible.
 	pub(crate) fn mark_buffer_dirty_for_full_sync(&mut self, buffer_id: crate::buffer::BufferId) {
 		if let Some(buffer) = self.buffers.get_buffer_mut(buffer_id) {
-			let mut doc = buffer.doc_mut();
-			doc.version = doc.version.wrapping_add(1);
+			buffer.doc_mut().increment_version();
 			#[cfg(feature = "lsp")]
 			{
-				doc.pending_lsp_changes.clear();
-				doc.force_full_sync = true;
+				buffer.doc_mut().mark_for_full_lsp_sync();
 			}
 		}
 		self.frame.dirty_buffers.insert(buffer_id);
@@ -120,18 +118,15 @@ impl Editor {
 		};
 		let (force_full_sync, has_pending) = {
 			let doc = buffer.doc();
-			(
-				doc.force_full_sync,
-				doc.force_full_sync || !doc.pending_lsp_changes.is_empty(),
-			)
+			(doc.needs_full_lsp_sync(), doc.has_pending_lsp_sync())
 		};
 		if !has_pending {
 			return;
 		}
-		let content = buffer.doc().content.clone();
+		let content = buffer.doc().content().clone();
 		let changes = buffer.drain_lsp_changes();
 		if force_full_sync {
-			buffer.doc_mut().force_full_sync = false;
+			buffer.doc_mut().clear_full_lsp_sync();
 		}
 		let supports_incremental = self.lsp.incremental_encoding_for_buffer(buffer).is_some();
 
@@ -182,18 +177,15 @@ impl Editor {
 		};
 		let (force_full_sync, has_pending) = {
 			let doc = buffer.doc();
-			(
-				doc.force_full_sync,
-				doc.force_full_sync || !doc.pending_lsp_changes.is_empty(),
-			)
+			(doc.needs_full_lsp_sync(), doc.has_pending_lsp_sync())
 		};
 		if !has_pending {
 			return None;
 		}
-		let content = buffer.doc().content.clone();
+		let content = buffer.doc().content().clone();
 		let changes = buffer.drain_lsp_changes();
 		if force_full_sync {
-			buffer.doc_mut().force_full_sync = false;
+			buffer.doc_mut().clear_full_lsp_sync();
 		}
 		let supports_incremental = self.lsp.incremental_encoding_for_buffer(buffer).is_some();
 		let change_count = changes.len();

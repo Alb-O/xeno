@@ -199,12 +199,12 @@ impl Buffer {
 
 	/// Returns whether the buffer has unsaved changes.
 	pub fn modified(&self) -> bool {
-		self.document.read().unwrap().modified
+		self.document.read().unwrap().is_modified()
 	}
 
 	/// Sets the modified flag.
 	pub fn set_modified(&self, modified: bool) {
-		self.document.write().unwrap().modified = modified;
+		self.document.write().unwrap().set_modified(modified);
 	}
 
 	/// Returns whether this buffer is read-only.
@@ -213,7 +213,7 @@ impl Buffer {
 	/// document's readonly flag.
 	pub fn is_readonly(&self) -> bool {
 		self.readonly_override
-			.unwrap_or_else(|| self.document.read().unwrap().readonly)
+			.unwrap_or_else(|| self.document.read().unwrap().is_readonly())
 	}
 
 	/// Sets the read-only flag on the underlying document.
@@ -221,7 +221,7 @@ impl Buffer {
 	/// This affects all buffers sharing this document. For buffer-specific
 	/// readonly behavior, use [`set_readonly_override`](Self::set_readonly_override).
 	pub fn set_readonly(&self, readonly: bool) {
-		self.document.write().unwrap().readonly = readonly;
+		self.document.write().unwrap().set_readonly(readonly);
 	}
 
 	/// Sets a buffer-level readonly override.
@@ -238,7 +238,7 @@ impl Buffer {
 
 	/// Returns the document version.
 	pub fn version(&self) -> u64 {
-		self.document.read().unwrap().version
+		self.document.read().unwrap().version()
 	}
 
 	/// Returns the file type.
@@ -248,7 +248,7 @@ impl Buffer {
 
 	/// Returns whether syntax highlighting is available.
 	pub fn has_syntax(&self) -> bool {
-		self.document.read().unwrap().syntax.is_some()
+		self.document.read().unwrap().has_syntax()
 	}
 
 	/// Initializes syntax highlighting for this buffer.
@@ -269,17 +269,17 @@ impl Buffer {
 	/// Returns the line number containing the cursor.
 	pub fn cursor_line(&self) -> usize {
 		let doc = self.document.read().unwrap();
-		let max_pos = doc.content.len_chars();
-		doc.content.char_to_line(self.cursor.min(max_pos))
+		let max_pos = doc.content().len_chars();
+		doc.content().char_to_line(self.cursor.min(max_pos))
 	}
 
 	/// Returns the column of the cursor within its line.
 	pub fn cursor_col(&self) -> usize {
 		let doc = self.document.read().unwrap();
 		let line = doc
-			.content
-			.char_to_line(self.cursor.min(doc.content.len_chars()));
-		let line_start = doc.content.line_to_char(line);
+			.content()
+			.char_to_line(self.cursor.min(doc.content().len_chars()));
+		let line_start = doc.content().line_to_char(line);
 		self.cursor.saturating_sub(line_start)
 	}
 
@@ -292,7 +292,7 @@ impl Buffer {
 
 		let doc = self.document.read().unwrap();
 		let ctx = GutterWidthContext {
-			total_lines: doc.content.len_lines(),
+			total_lines: doc.content().len_lines(),
 			viewport_width: self.text_width as u16 + 100, // approximate
 		};
 		total_width(&ctx)
@@ -308,22 +308,22 @@ impl Buffer {
 
 	/// Returns the undo stack length.
 	pub fn undo_stack_len(&self) -> usize {
-		self.document.read().unwrap().undo_stack.len()
+		self.document.read().unwrap().undo_len()
 	}
 
 	/// Returns the redo stack length.
 	pub fn redo_stack_len(&self) -> usize {
-		self.document.read().unwrap().redo_stack.len()
+		self.document.read().unwrap().redo_len()
 	}
 
 	/// Clears the insert undo grouping flag.
 	pub fn clear_insert_undo_active(&self) {
-		self.doc_mut().insert_undo_active = false;
+		self.doc_mut().reset_insert_undo();
 	}
 
 	/// Clamps selection and cursor to valid document bounds.
 	pub fn ensure_valid_selection(&mut self) {
-		let max_char = self.doc().content.len_chars();
+		let max_char = self.doc().content().len_chars();
 		self.selection.clamp(max_char);
 		self.cursor = self.cursor.min(max_char);
 	}
@@ -426,9 +426,9 @@ impl Buffer {
 		let col = {
 			let doc = self.doc();
 			let line = doc
-				.content
-				.char_to_line(self.cursor.min(doc.content.len_chars()));
-			let line_start = doc.content.line_to_char(line);
+				.content()
+				.char_to_line(self.cursor.min(doc.content().len_chars()));
+			let line_start = doc.content().line_to_char(line);
 			self.cursor.saturating_sub(line_start)
 		};
 		self.goal_column = Some(col);

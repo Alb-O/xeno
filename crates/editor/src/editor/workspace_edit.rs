@@ -116,7 +116,7 @@ impl Editor {
 			let encoding = self.lsp.offset_encoding_for_buffer(buffer);
 			let mut planned_edits = Vec::new();
 			for edit in edits {
-				let planned = convert_text_edit(&buffer.doc().content, encoding, &edit)
+				let planned = convert_text_edit(buffer.doc().content(), encoding, &edit)
 					.ok_or_else(|| ApplyError::RangeConversionFailed(uri.to_string()))?;
 				planned_edits.push(planned);
 			}
@@ -214,7 +214,7 @@ impl Editor {
 				.buffers
 				.get_buffer(buffer_id)
 				.ok_or_else(|| ApplyError::BufferNotFound(buffer_id.0.to_string()))?;
-			Transaction::change(buffer.doc().content.slice(..), changes)
+			Transaction::change(buffer.doc().content().slice(..), changes)
 		};
 
 		let applied = {
@@ -224,9 +224,7 @@ impl Editor {
 				.ok_or_else(|| ApplyError::BufferNotFound(buffer_id.0.to_string()))?;
 			let applied = buffer.apply_transaction_with_syntax(&tx, &self.config.language_loader);
 			if applied {
-				let mut doc = buffer.doc_mut();
-				doc.force_full_sync = true;
-				doc.pending_lsp_changes.clear();
+				buffer.doc_mut().mark_for_full_lsp_sync();
 			}
 			applied
 		};

@@ -33,7 +33,7 @@ impl Editor {
 		let mut positions: Vec<_> = diagnostics
 			.iter()
 			.filter_map(|diag| {
-				lsp_position_to_char(&buffer.doc().content, diag.range.start, encoding)
+				lsp_position_to_char(buffer.doc().content(), diag.range.start, encoding)
 			})
 			.collect();
 		positions.sort_unstable();

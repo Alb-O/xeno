@@ -86,7 +86,7 @@ impl Editor {
 			.buffers
 			.get_buffer(buffer_id)?
 			.doc()
-			.content
+			.content()
 			.to_string();
 		let input = input.trim().to_string();
 

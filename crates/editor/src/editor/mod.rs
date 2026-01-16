@@ -290,7 +290,7 @@ impl Editor {
 			&HookContext::new(
 				HookEventData::BufferOpen {
 					path: hook_path,
-					text: buffer.doc().content.slice(..),
+					text: buffer.doc().content().slice(..),
 					file_type: buffer.file_type().as_deref(),
 				},
 				None,

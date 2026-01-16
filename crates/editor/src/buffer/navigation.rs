@@ -62,8 +62,8 @@ impl Buffer {
 	/// Computes the column position of a cursor within its line.
 	fn compute_column_in_line(&self, cursor: usize) -> usize {
 		let doc = self.doc();
-		let line = doc.content.char_to_line(cursor);
-		let line_start = doc.content.line_to_char(line);
+		let line = doc.content().char_to_line(cursor);
+		let line_start = doc.content().line_to_char(line);
 		cursor.saturating_sub(line_start)
 	}
 
@@ -80,25 +80,25 @@ impl Buffer {
 	) -> usize {
 		let (_doc_line, line_start, _total_lines, line_text, next_line_data, prev_line_data) = {
 			let doc = self.doc();
-			let doc_line = doc.content.char_to_line(cursor);
-			let line_start = doc.content.line_to_char(doc_line);
-			let total_lines = doc.content.len_lines();
+			let doc_line = doc.content().char_to_line(cursor);
+			let line_start = doc.content().line_to_char(doc_line);
+			let total_lines = doc.content().len_lines();
 
 			let line_end = if doc_line + 1 < total_lines {
-				doc.content.line_to_char(doc_line + 1)
+				doc.content().line_to_char(doc_line + 1)
 			} else {
-				doc.content.len_chars()
+				doc.content().len_chars()
 			};
-			let line_text: String = doc.content.slice(line_start..line_end).into();
+			let line_text: String = doc.content().slice(line_start..line_end).into();
 
 			let next_line_data = if doc_line + 1 < total_lines {
-				let next_line_start = doc.content.line_to_char(doc_line + 1);
+				let next_line_start = doc.content().line_to_char(doc_line + 1);
 				let next_line_end = if doc_line + 2 < total_lines {
-					doc.content.line_to_char(doc_line + 2)
+					doc.content().line_to_char(doc_line + 2)
 				} else {
-					doc.content.len_chars()
+					doc.content().len_chars()
 				};
-				let text: String = doc.content.slice(next_line_start..next_line_end).into();
+				let text: String = doc.content().slice(next_line_start..next_line_end).into();
 				Some((next_line_start, text))
 			} else {
 				None
@@ -106,8 +106,8 @@ impl Buffer {
 
 			let prev_line_data = if doc_line > 0 {
 				let prev_line = doc_line - 1;
-				let prev_line_start = doc.content.line_to_char(prev_line);
-				let text: String = doc.content.slice(prev_line_start..line_start).into();
+				let prev_line_start = doc.content().line_to_char(prev_line);
+				let text: String = doc.content().slice(prev_line_start..line_start).into();
 				Some((prev_line_start, text))
 			} else {
 				None
@@ -233,13 +233,13 @@ impl Buffer {
 			self.scroll_line -= 1;
 			let (line_text, num_segments) = {
 				let doc = self.doc();
-				let line_start = doc.content.line_to_char(self.scroll_line);
-				let line_end = if self.scroll_line + 1 < doc.content.len_lines() {
-					doc.content.line_to_char(self.scroll_line + 1)
+				let line_start = doc.content().line_to_char(self.scroll_line);
+				let line_end = if self.scroll_line + 1 < doc.content().len_lines() {
+					doc.content().line_to_char(self.scroll_line + 1)
 				} else {
-					doc.content.len_chars()
+					doc.content().len_chars()
 				};
-				let text: String = doc.content.slice(line_start..line_end).into();
+				let text: String = doc.content().slice(line_start..line_end).into();
 				let segments =
 					self.wrap_line(text.trim_end_matches('\n'), self.text_width, tab_width);
 				(text, segments.len())
@@ -256,15 +256,15 @@ impl Buffer {
 	pub fn scroll_viewport_down(&mut self, tab_width: usize) {
 		let (total_lines, num_segments) = {
 			let doc = self.doc();
-			let total_lines = doc.content.len_lines();
+			let total_lines = doc.content().len_lines();
 			if self.scroll_line < total_lines {
-				let line_start = doc.content.line_to_char(self.scroll_line);
+				let line_start = doc.content().line_to_char(self.scroll_line);
 				let line_end = if self.scroll_line + 1 < total_lines {
-					doc.content.line_to_char(self.scroll_line + 1)
+					doc.content().line_to_char(self.scroll_line + 1)
 				} else {
-					doc.content.len_chars()
+					doc.content().len_chars()
 				};
-				let line_text: String = doc.content.slice(line_start..line_end).into();
+				let line_text: String = doc.content().slice(line_start..line_end).into();
 				let segments =
 					self.wrap_line(line_text.trim_end_matches('\n'), self.text_width, tab_width);
 				(total_lines, segments.len().max(1))
@@ -307,17 +307,17 @@ impl Buffer {
 		let mut start_segment = self.scroll_segment;
 
 		let doc = self.doc();
-		let total_lines = doc.content.len_lines();
+		let total_lines = doc.content().len_lines();
 
 		while line_idx < total_lines {
-			let line_start = doc.content.line_to_char(line_idx);
+			let line_start = doc.content().line_to_char(line_idx);
 			let line_end = if line_idx + 1 < total_lines {
-				doc.content.line_to_char(line_idx + 1)
+				doc.content().line_to_char(line_idx + 1)
 			} else {
-				doc.content.len_chars()
+				doc.content().len_chars()
 			};
 
-			let line_text: String = doc.content.slice(line_start..line_end).into();
+			let line_text: String = doc.content().slice(line_start..line_end).into();
 			let line_text = line_text.trim_end_matches('\n');
 			let segments = self.wrap_line(line_text, self.text_width, tab_width);
 
@@ -369,7 +369,7 @@ impl Buffer {
 			line_idx += 1;
 		}
 
-		Some(doc.content.len_chars().saturating_sub(1).max(0))
+		Some(doc.content().len_chars().saturating_sub(1).max(0))
 	}
 
 	/// Converts a document position to screen coordinates within the buffer view.
@@ -377,15 +377,15 @@ impl Buffer {
 	/// Returns None if the position is above the current scroll window.
 	pub fn doc_to_screen_position(&self, doc_pos: usize, tab_width: usize) -> Option<(u16, u16)> {
 		let doc = self.doc();
-		let total_lines = doc.content.len_lines();
+		let total_lines = doc.content().len_lines();
 		let line_idx = doc
-			.content
-			.char_to_line(doc_pos.min(doc.content.len_chars()));
+			.content()
+			.char_to_line(doc_pos.min(doc.content().len_chars()));
 		if line_idx < self.scroll_line || self.scroll_line >= total_lines {
 			return None;
 		}
 
-		let line_start = doc.content.line_to_char(line_idx);
+		let line_start = doc.content().line_to_char(line_idx);
 		let col_in_line = doc_pos.saturating_sub(line_start);
 		let gutter_width = self.gutter_width() as usize;
 
@@ -394,14 +394,14 @@ impl Buffer {
 		let mut start_segment = self.scroll_segment;
 
 		while current_line <= line_idx {
-			let line_start = doc.content.line_to_char(current_line);
+			let line_start = doc.content().line_to_char(current_line);
 			let line_end = if current_line + 1 < total_lines {
-				doc.content.line_to_char(current_line + 1)
+				doc.content().line_to_char(current_line + 1)
 			} else {
-				doc.content.len_chars()
+				doc.content().len_chars()
 			};
 
-			let line_text: String = doc.content.slice(line_start..line_end).into();
+			let line_text: String = doc.content().slice(line_start..line_end).into();
 			let line_text = line_text.trim_end_matches('\n');
 			let segments = self.wrap_line(line_text, self.text_width, tab_width);
 

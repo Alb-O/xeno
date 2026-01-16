@@ -59,7 +59,7 @@ impl Editor {
 							.iter()
 							.map(|r| {
 								movement::move_horizontally(
-									doc.content.slice(..),
+									doc.content().slice(..),
 									*r,
 									MoveDir::Forward,
 									1,
@@ -91,7 +91,7 @@ impl Editor {
 						.iter()
 						.map(|r| {
 							movement::move_horizontally(
-								doc.content.slice(..),
+								doc.content().slice(..),
 								*r,
 								*direction,
 								*count,
@@ -113,7 +113,7 @@ impl Editor {
 						.selection
 						.ranges()
 						.iter()
-						.map(|r| movement::move_to_line_start(doc.content.slice(..), *r, false))
+						.map(|r| movement::move_to_line_start(doc.content().slice(..), *r, false))
 						.collect();
 					(ranges, buffer.selection.primary_index())
 				};
@@ -129,7 +129,7 @@ impl Editor {
 						.selection
 						.ranges()
 						.iter()
-						.map(|r| movement::move_to_line_end(doc.content.slice(..), *r, false))
+						.map(|r| movement::move_to_line_end(doc.content().slice(..), *r, false))
 						.collect();
 					(ranges, buffer.selection.primary_index())
 				};
@@ -146,13 +146,13 @@ impl Editor {
 						.ranges()
 						.iter()
 						.map(|r| {
-							let start_line = doc.content.char_to_line(r.from());
-							let end_line = doc.content.char_to_line(r.to());
-							let start = doc.content.line_to_char(start_line);
-							let end = if end_line + 1 < doc.content.len_lines() {
-								doc.content.line_to_char(end_line + 1)
+							let start_line = doc.content().char_to_line(r.from());
+							let end_line = doc.content().char_to_line(r.to());
+							let start = doc.content().line_to_char(start_line);
+							let end = if end_line + 1 < doc.content().len_lines() {
+								doc.content().line_to_char(end_line + 1)
 							} else {
-								doc.content.len_chars()
+								doc.content().len_chars()
 							};
 							Range::new(start, end)
 						})
@@ -190,7 +190,7 @@ impl Editor {
 				let (ranges, primary_index) = {
 					let buffer = self.buffer();
 					let doc = buffer.doc();
-					let text = doc.content.slice(..);
+					let text = doc.content().slice(..);
 					let mut ranges = Vec::new();
 					let mut primary_index = 0usize;
 					for (idx, range) in buffer.selection.ranges().iter().enumerate() {
@@ -222,7 +222,7 @@ impl Editor {
 				let (ranges, primary_index) = {
 					let buffer = self.buffer();
 					let doc = buffer.doc();
-					let text = doc.content.slice(..);
+					let text = doc.content().slice(..);
 					let len = text.len_chars();
 					let mut ranges = Vec::new();
 					let mut primary_index = 0usize;
@@ -256,10 +256,10 @@ impl Editor {
 					let buffer = self.buffer();
 					let doc = buffer.doc();
 					let primary = buffer.selection.primary();
-					let line = doc.content.char_to_line(primary.head);
-					let total_lines = doc.content.len_lines();
+					let line = doc.content().char_to_line(primary.head);
+					let total_lines = doc.content().len_lines();
 					if line + 1 < total_lines {
-						let end_of_line = doc.content.line_to_char(line + 1) - 1;
+						let end_of_line = doc.content().line_to_char(line + 1) - 1;
 						(Selection::single(end_of_line, end_of_line + 1), true)
 					} else {
 						(buffer.selection.clone(), false)
@@ -274,7 +274,7 @@ impl Editor {
 				let new_ranges: Vec<_> = {
 					let buffer = self.buffer();
 					let doc = buffer.doc();
-					let len = doc.content.len_chars();
+					let len = doc.content().len_chars();
 					buffer
 						.selection
 						.ranges()
@@ -308,7 +308,7 @@ impl Editor {
 				let (tx, new_sel) = {
 					let buffer = self.buffer();
 					let doc = buffer.doc();
-					let tx = Transaction::delete(doc.content.slice(..), &buffer.selection);
+					let tx = Transaction::delete(doc.content().slice(..), &buffer.selection);
 					let new_sel = tx.map_selection(&buffer.selection);
 					(tx, new_sel)
 				};
@@ -324,7 +324,7 @@ impl Editor {
 				let (tx, new_sel) = {
 					let buffer = self.buffer();
 					let doc = buffer.doc();
-					let tx = Transaction::delete(doc.content.slice(..), &buffer.selection);
+					let tx = Transaction::delete(doc.content().slice(..), &buffer.selection);
 					let new_sel = tx.map_selection(&buffer.selection);
 					(tx, new_sel)
 				};
@@ -380,7 +380,7 @@ impl Editor {
 		let text: String = {
 			let buffer = self.buffer();
 			let doc = buffer.doc();
-			doc.content
+			doc.content()
 				.slice(from..to)
 				.chars()
 				.flat_map(|c| kind.apply(c))
@@ -391,7 +391,7 @@ impl Editor {
 		let (tx, new_sel) = {
 			let buffer = self.buffer();
 			let doc = buffer.doc();
-			let tx = Transaction::delete(doc.content.slice(..), &buffer.selection);
+			let tx = Transaction::delete(doc.content().slice(..), &buffer.selection);
 			let new_sel = tx.map_selection(&buffer.selection);
 			(tx, new_sel)
 		};
@@ -401,7 +401,7 @@ impl Editor {
 		let tx = {
 			let buffer = self.buffer();
 			let doc = buffer.doc();
-			Transaction::insert(doc.content.slice(..), &buffer.selection, text)
+			Transaction::insert(doc.content().slice(..), &buffer.selection, text)
 		};
 		self.apply_transaction(&tx);
 
@@ -420,7 +420,7 @@ impl Editor {
 			PostEffect::MoveCursor(adjust) => {
 				match adjust {
 					CursorAdjust::Stay => {
-						let len = self.buffer().doc().content.len_chars();
+						let len = self.buffer().doc().content().len_chars();
 						let pos = original_cursor.min(len.saturating_sub(1));
 						self.buffer_mut()
 							.set_cursor_and_selection(pos, Selection::point(pos));
@@ -435,7 +435,7 @@ impl Editor {
 								.iter()
 								.map(|r| {
 									movement::move_vertically(
-										doc.content.slice(..),
+										doc.content().slice(..),
 										*r,
 										MoveDir::Backward,
 										*count,
@@ -469,7 +469,7 @@ impl Editor {
 			let (tx, new_sel) = {
 				let buffer = self.buffer();
 				let doc = buffer.doc();
-				let tx = Transaction::delete(doc.content.slice(..), &buffer.selection);
+				let tx = Transaction::delete(doc.content().slice(..), &buffer.selection);
 				let new_sel = tx.map_selection(&buffer.selection);
 				(tx, new_sel)
 			};
@@ -499,7 +499,7 @@ impl Editor {
 			let (tx, new_sel) = {
 				let buffer = self.buffer();
 				let doc = buffer.doc();
-				let tx = Transaction::delete(doc.content.slice(..), &buffer.selection);
+				let tx = Transaction::delete(doc.content().slice(..), &buffer.selection);
 				let new_sel = tx.map_selection(&buffer.selection);
 				(tx, new_sel)
 			};
@@ -509,7 +509,7 @@ impl Editor {
 			let tx = {
 				let buffer = self.buffer();
 				let doc = buffer.doc();
-				Transaction::insert(doc.content.slice(..), &buffer.selection, replacement)
+				Transaction::insert(doc.content().slice(..), &buffer.selection, replacement)
 			};
 			self.apply_transaction(&tx);
 
@@ -528,7 +528,7 @@ impl Editor {
 			let (tx, new_sel) = {
 				let buffer = self.buffer();
 				let doc = buffer.doc();
-				let tx = Transaction::delete(doc.content.slice(..), &buffer.selection);
+				let tx = Transaction::delete(doc.content().slice(..), &buffer.selection);
 				let new_sel = tx.map_selection(&buffer.selection);
 				(tx, new_sel)
 			};
@@ -538,7 +538,7 @@ impl Editor {
 			let tx = {
 				let buffer = self.buffer();
 				let doc = buffer.doc();
-				Transaction::insert(doc.content.slice(..), &buffer.selection, ch.to_string())
+				Transaction::insert(doc.content().slice(..), &buffer.selection, ch.to_string())
 			};
 			self.apply_transaction(&tx);
 
@@ -558,9 +558,9 @@ impl Editor {
 		let (line_start, spaces, old_cursor) = {
 			let buffer = self.buffer();
 			let doc = buffer.doc();
-			let line = doc.content.char_to_line(buffer.cursor);
-			let line_start = doc.content.line_to_char(line);
-			let line_text: String = doc.content.line(line).chars().take(max_spaces).collect();
+			let line = doc.content().char_to_line(buffer.cursor);
+			let line_start = doc.content().line_to_char(line);
+			let line_text: String = doc.content().line(line).chars().take(max_spaces).collect();
 			let spaces = line_text
 				.chars()
 				.take_while(|c| *c == ' ')
@@ -584,7 +584,7 @@ impl Editor {
 		let (tx, new_sel) = {
 			let buffer = self.buffer();
 			let doc = buffer.doc();
-			let tx = Transaction::delete(doc.content.slice(..), &buffer.selection);
+			let tx = Transaction::delete(doc.content().slice(..), &buffer.selection);
 			let new_sel = tx.map_selection(&buffer.selection);
 			(tx, new_sel)
 		};

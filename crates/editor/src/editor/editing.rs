@@ -77,8 +77,8 @@ impl Editor {
 			let buffer = self.buffer();
 			let doc = buffer.doc();
 			let cursor = buffer.cursor;
-			let line_idx = doc.content.char_to_line(cursor);
-			let line = doc.content.line(line_idx);
+			let line_idx = doc.content().char_to_line(cursor);
+			let line = doc.content().line(line_idx);
 
 			line.chars()
 				.take_while(|c| *c == ' ' || *c == '\t')

@@ -43,48 +43,54 @@ impl DocumentId {
 /// Undo history is per-document, not per-view. This means undoing in one view
 /// affects all views of the same document. The selection state stored in
 /// history entries is from the view that made the edit.
+///
+/// # Field Access
+///
+/// Core fields are private to enforce invariants. Use the provided getter methods
+/// for read access, and the controlled mutation methods (like `commit()` when
+/// available) for modifications.
 pub struct Document {
 	/// Unique identifier for this document.
 	pub id: DocumentId,
 
 	/// The text content.
-	pub content: Rope,
+	content: Rope,
 
 	/// Associated file path (None for scratch documents).
 	pub path: Option<PathBuf>,
 
 	/// Whether the document has unsaved changes.
-	pub modified: bool,
+	modified: bool,
 
 	/// Whether the document is read-only (prevents all text modifications).
-	pub readonly: bool,
+	readonly: bool,
 
 	/// Undo history stack.
-	pub undo_stack: Vec<HistoryEntry>,
+	undo_stack: Vec<HistoryEntry>,
 
 	/// Redo history stack.
-	pub redo_stack: Vec<HistoryEntry>,
+	redo_stack: Vec<HistoryEntry>,
 
 	/// Detected file type (e.g., "rust", "python").
 	pub file_type: Option<String>,
 
 	/// Syntax highlighting state.
-	pub syntax: Option<Syntax>,
+	syntax: Option<Syntax>,
 
 	/// Flag for grouping insert-mode edits into a single undo.
-	pub(crate) insert_undo_active: bool,
+	insert_undo_active: bool,
 
 	/// Document version, incremented on every transaction.
 	///
 	/// Used for LSP synchronization and cache invalidation.
-	pub version: u64,
+	version: u64,
 
 	/// Pending LSP changes queued for sync.
 	#[cfg(feature = "lsp")]
-	pub pending_lsp_changes: Vec<xeno_primitives::LspDocumentChange>,
+	pending_lsp_changes: Vec<xeno_primitives::LspDocumentChange>,
 	/// Force a full LSP sync on the next flush.
 	#[cfg(feature = "lsp")]
-	pub force_full_sync: bool,
+	force_full_sync: bool,
 }
 
 impl Document {
@@ -207,5 +213,127 @@ impl Document {
 		self.content = entry.doc;
 		self.reparse_syntax(language_loader);
 		Some(entry.selections)
+	}
+
+	/// Returns a reference to the document's text content.
+	pub fn content(&self) -> &Rope {
+		&self.content
+	}
+
+	/// Returns a mutable reference to the document's text content.
+	///
+	/// This is a low-level accessor. Prefer using `commit()` (when available)
+	/// or transaction-based methods that properly handle undo/syntax updates.
+	pub fn content_mut(&mut self) -> &mut Rope {
+		&mut self.content
+	}
+
+	/// Returns whether the document has unsaved changes.
+	pub fn is_modified(&self) -> bool {
+		self.modified
+	}
+
+	/// Sets the modified flag.
+	pub fn set_modified(&mut self, modified: bool) {
+		self.modified = modified;
+	}
+
+	/// Returns whether the document is read-only.
+	pub fn is_readonly(&self) -> bool {
+		self.readonly
+	}
+
+	/// Sets the read-only flag.
+	pub fn set_readonly(&mut self, readonly: bool) {
+		self.readonly = readonly;
+	}
+
+	/// Returns the document version.
+	///
+	/// Incremented on every transaction. Used for LSP sync and cache invalidation.
+	pub fn version(&self) -> u64 {
+		self.version
+	}
+
+	/// Increments the document version. Called internally during transaction application.
+	pub(crate) fn increment_version(&mut self) {
+		self.version = self.version.wrapping_add(1);
+	}
+
+	/// Returns the number of items in the undo stack.
+	pub fn undo_len(&self) -> usize {
+		self.undo_stack.len()
+	}
+
+	/// Returns the number of items in the redo stack.
+	pub fn redo_len(&self) -> usize {
+		self.redo_stack.len()
+	}
+
+	/// Returns whether undo is available.
+	pub fn can_undo(&self) -> bool {
+		!self.undo_stack.is_empty()
+	}
+
+	/// Returns whether redo is available.
+	pub fn can_redo(&self) -> bool {
+		!self.redo_stack.is_empty()
+	}
+
+	/// Returns whether the document has syntax highlighting enabled.
+	pub fn has_syntax(&self) -> bool {
+		self.syntax.is_some()
+	}
+
+	/// Returns a reference to the syntax highlighting state.
+	pub fn syntax(&self) -> Option<&Syntax> {
+		self.syntax.as_ref()
+	}
+
+	/// Returns a mutable reference to the syntax highlighting state.
+	pub fn syntax_mut(&mut self) -> Option<&mut Syntax> {
+		self.syntax.as_mut()
+	}
+
+	/// Resets the insert undo grouping flag.
+	pub(crate) fn reset_insert_undo(&mut self) {
+		self.insert_undo_active = false;
+	}
+
+	/// Returns whether there are pending LSP changes or a full sync is required.
+	#[cfg(feature = "lsp")]
+	pub fn has_pending_lsp_sync(&self) -> bool {
+		self.force_full_sync || !self.pending_lsp_changes.is_empty()
+	}
+
+	/// Returns whether a full LSP sync is required.
+	#[cfg(feature = "lsp")]
+	pub fn needs_full_lsp_sync(&self) -> bool {
+		self.force_full_sync
+	}
+
+	/// Marks that a full LSP sync is required.
+	#[cfg(feature = "lsp")]
+	pub fn mark_for_full_lsp_sync(&mut self) {
+		self.force_full_sync = true;
+		self.pending_lsp_changes.clear();
+	}
+
+	/// Clears the full sync flag (called after performing full sync).
+	#[cfg(feature = "lsp")]
+	pub fn clear_full_lsp_sync(&mut self) {
+		self.force_full_sync = false;
+	}
+
+	/// Appends LSP changes to the pending queue.
+	#[cfg(feature = "lsp")]
+	pub fn extend_lsp_changes(&mut self, changes: Vec<xeno_primitives::LspDocumentChange>) {
+		self.pending_lsp_changes.extend(changes);
+	}
+
+	/// Drains and returns all pending LSP changes.
+	#[cfg(feature = "lsp")]
+	pub fn drain_lsp_changes(&mut self) -> Vec<xeno_primitives::LspDocumentChange> {
+		std::mem::take(&mut self.pending_lsp_changes)
 	}
 }

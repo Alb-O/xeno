@@ -3348,6 +3348,7 @@ dependencies = [
  "ropey",
  "smallvec",
  "termina",
+ "thiserror 2.0.17",
  "unicode-segmentation",
  "xeno-keymap-parser",
  "xeno-tui",

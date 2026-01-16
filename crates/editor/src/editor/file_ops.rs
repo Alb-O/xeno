@@ -28,7 +28,7 @@ impl xeno_registry::FileOpsAccess for Editor {
 				}
 			};
 
-			let text_slice = self.buffer().doc().content.clone();
+			let text_slice = self.buffer().doc().content().clone();
 			emit_hook(&HookContext::new(
 				HookEventData::BufferWritePre {
 					path: &path_owned,
@@ -44,7 +44,7 @@ impl xeno_registry::FileOpsAccess for Editor {
 			}
 
 			let mut content = Vec::new();
-			for chunk in self.buffer().doc().content.chunks() {
+			for chunk in self.buffer().doc().content().chunks() {
 				content.extend_from_slice(chunk.as_bytes());
 			}
 

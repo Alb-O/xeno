@@ -34,18 +34,18 @@ impl Editor {
 		let buffer = self.buffer();
 		let doc = buffer.doc();
 
-		let Some(ref syntax) = doc.syntax else {
+		let Some(ref syntax) = doc.syntax() else {
 			return Vec::new();
 		};
 
 		let start_line = buffer.scroll_line;
-		let end_line = (start_line + area.height as usize).min(doc.content.len_lines());
+		let end_line = (start_line + area.height as usize).min(doc.content().len_lines());
 
-		let start_byte = doc.content.line_to_byte(start_line) as u32;
-		let end_byte = if end_line < doc.content.len_lines() {
-			doc.content.line_to_byte(end_line) as u32
+		let start_byte = doc.content().line_to_byte(start_line) as u32;
+		let end_byte = if end_line < doc.content().len_lines() {
+			doc.content().line_to_byte(end_line) as u32
 		} else {
-			doc.content.len_bytes() as u32
+			doc.content().len_bytes() as u32
 		};
 
 		let highlight_styles = xeno_runtime_language::highlight::HighlightStyles::new(
@@ -54,7 +54,7 @@ impl Editor {
 		);
 
 		let highlighter = syntax.highlighter(
-			doc.content.slice(..),
+			doc.content().slice(..),
 			&self.config.language_loader,
 			start_byte..end_byte,
 		);

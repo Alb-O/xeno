@@ -17,7 +17,7 @@ impl Editor {
 			let search_result = {
 				let buffer = self.buffer();
 				let doc = buffer.doc();
-				movement::find_next(doc.content.slice(..), &pattern, cursor_pos + 1)
+				movement::find_next(doc.content().slice(..), &pattern, cursor_pos + 1)
 			};
 			match search_result {
 				Ok(Some(range)) => {
@@ -58,7 +58,7 @@ impl Editor {
 			let search_result = {
 				let buffer = self.buffer();
 				let doc = buffer.doc();
-				movement::find_prev(doc.content.slice(..), &pattern, cursor_pos)
+				movement::find_prev(doc.content().slice(..), &pattern, cursor_pos)
 			};
 			match search_result {
 				Ok(Some(range)) => {
@@ -96,7 +96,7 @@ impl Editor {
 			let (text, pattern) = {
 				let buffer = self.buffer();
 				let doc = buffer.doc();
-				let text: String = doc.content.slice(from..to).chars().collect();
+				let text: String = doc.content().slice(from..to).chars().collect();
 				let pattern = movement::escape_pattern(&text);
 				(text, pattern)
 			};
@@ -107,7 +107,7 @@ impl Editor {
 			let search_result = {
 				let buffer = self.buffer();
 				let doc = buffer.doc();
-				movement::find_next(doc.content.slice(..), &pattern, to)
+				movement::find_next(doc.content().slice(..), &pattern, to)
 			};
 			match search_result {
 				Ok(Some(range)) => {
@@ -141,7 +141,7 @@ impl Editor {
 		let search_result = {
 			let buffer = self.buffer();
 			let doc = buffer.doc();
-			movement::find_all_matches(doc.content.slice(from..to), pattern)
+			movement::find_all_matches(doc.content().slice(from..to), pattern)
 		};
 		match search_result {
 			Ok(matches) if !matches.is_empty() => {
@@ -178,7 +178,7 @@ impl Editor {
 		let search_result = {
 			let buffer = self.buffer();
 			let doc = buffer.doc();
-			movement::find_all_matches(doc.content.slice(from..to), pattern)
+			movement::find_all_matches(doc.content().slice(from..to), pattern)
 		};
 		match search_result {
 			Ok(matches) if !matches.is_empty() => {
@@ -229,7 +229,7 @@ impl Editor {
 				.map(|range| {
 					let from = range.from();
 					let to = range.to();
-					let text: String = doc.content.slice(from..to).chars().collect();
+					let text: String = doc.content().slice(from..to).chars().collect();
 					(*range, text)
 				})
 				.collect()

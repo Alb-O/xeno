@@ -2,6 +2,8 @@
 
 /// Directional types for navigation and layout operations.
 pub mod direction;
+/// Edit operation types: errors, policies, and results.
+pub mod edit;
 /// Grapheme cluster boundary detection.
 pub mod graphemes;
 /// Key and mouse event types.
@@ -24,6 +26,7 @@ pub mod transaction;
 // Shared style types are re-exported to avoid duplicating xeno-tui deps
 // across multiple crates that parse themes and syntax styles.
 pub use direction::{Axis, SeqDirection, SpatialDirection};
+pub use edit::{CommitResult, EditError, ReadOnlyReason, ReadOnlyScope, SyntaxPolicy, UndoPolicy};
 pub use key::{Key, KeyCode, Modifiers, MouseButton, MouseEvent, ScrollDirection};
 pub use lsp::{LspChangeSet, LspDocumentChange, LspPosition, LspRange};
 pub use mode::Mode;

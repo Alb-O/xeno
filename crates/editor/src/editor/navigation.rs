@@ -121,7 +121,7 @@ impl Editor {
 	pub fn goto_line_col(&mut self, line: usize, column: usize) {
 		let buffer = self.buffer_mut();
 		let doc = buffer.doc();
-		let content = &doc.content;
+		let content = doc.content();
 
 		// Clamp line to valid range
 		let total_lines = content.len_lines();

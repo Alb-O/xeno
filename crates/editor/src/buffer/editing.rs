@@ -22,7 +22,7 @@ impl Buffer {
 
 		let tx = {
 			let doc = self.doc();
-			Transaction::insert(doc.content.slice(..), &insertion_points, text.to_string())
+			Transaction::insert(doc.content().slice(..), &insertion_points, text.to_string())
 		};
 		let new_selection = tx.map_selection(&self.selection);
 
@@ -54,7 +54,7 @@ impl Buffer {
 		let to = primary.max();
 		if from < to {
 			let doc = self.doc();
-			let text = doc.content.slice(from..to).to_string();
+			let text = doc.content().slice(from..to).to_string();
 			let count = to - from;
 			Some((text, count))
 		} else {
@@ -82,7 +82,7 @@ impl Buffer {
 				.iter()
 				.map(|r| {
 					movement::move_horizontally(
-						doc.content.slice(..),
+						doc.content().slice(..),
 						*r,
 						xeno_primitives::range::Direction::Forward,
 						1,
@@ -151,7 +151,7 @@ impl Buffer {
 		if !self.selection.primary().is_empty() {
 			let tx = {
 				let doc = self.doc();
-				Transaction::delete(doc.content.slice(..), &self.selection)
+				Transaction::delete(doc.content().slice(..), &self.selection)
 			};
 			let new_selection = tx.map_selection(&self.selection);
 			Some((tx, new_selection))
@@ -182,12 +182,12 @@ impl Buffer {
 			return false;
 		}
 		let mut doc = self.doc_mut();
-		if self.readonly_override.is_none() && doc.readonly {
+		if self.readonly_override.is_none() && doc.is_readonly() {
 			return false;
 		}
-		tx.apply(&mut doc.content);
-		doc.modified = true;
-		doc.version = doc.version.wrapping_add(1);
+		tx.apply(doc.content_mut());
+		doc.set_modified(true);
+		doc.increment_version();
 		true
 	}
 
@@ -204,15 +204,15 @@ impl Buffer {
 			return false;
 		}
 		let mut doc = self.doc_mut();
-		if self.readonly_override.is_none() && doc.readonly {
+		if self.readonly_override.is_none() && doc.is_readonly() {
 			return false;
 		}
-		let old_doc = doc.content.clone();
-		tx.apply(&mut doc.content);
+		let old_doc = doc.content().clone();
+		tx.apply(doc.content_mut());
 
-		if doc.syntax.is_some() {
-			let new_doc = doc.content.clone();
-			if let Some(ref mut syntax) = doc.syntax {
+		if doc.has_syntax() {
+			let new_doc = doc.content().clone();
+			if let Some(syntax) = doc.syntax_mut() {
 				let _ = syntax.update_from_changeset(
 					old_doc.slice(..),
 					new_doc.slice(..),
@@ -222,8 +222,8 @@ impl Buffer {
 			}
 		}
 
-		doc.modified = true;
-		doc.version = doc.version.wrapping_add(1);
+		doc.set_modified(true);
+		doc.increment_version();
 		true
 	}
 
@@ -239,17 +239,17 @@ impl Buffer {
 			return false;
 		}
 		let mut doc = self.doc_mut();
-		if self.readonly_override.is_none() && doc.readonly {
+		if self.readonly_override.is_none() && doc.is_readonly() {
 			return false;
 		}
 
-		let old_doc = doc.content.clone();
+		let old_doc = doc.content().clone();
 		let lsp_changes = compute_lsp_changes(&old_doc, tx, encoding);
-		tx.apply(&mut doc.content);
+		tx.apply(doc.content_mut());
 
-		if doc.syntax.is_some() {
-			let new_doc = doc.content.clone();
-			if let Some(ref mut syntax) = doc.syntax {
+		if doc.has_syntax() {
+			let new_doc = doc.content().clone();
+			if let Some(syntax) = doc.syntax_mut() {
 				let _ = syntax.update_from_changeset(
 					old_doc.slice(..),
 					new_doc.slice(..),
@@ -259,17 +259,16 @@ impl Buffer {
 			}
 		}
 
-		doc.modified = true;
-		doc.version = doc.version.wrapping_add(1);
+		doc.set_modified(true);
+		doc.increment_version();
 		match lsp_changes {
 			IncrementalResult::Incremental(changes) => {
 				if !changes.is_empty() {
-					doc.pending_lsp_changes.extend(changes);
+					doc.extend_lsp_changes(changes);
 				}
 			}
 			IncrementalResult::FallbackToFull => {
-				doc.pending_lsp_changes.clear();
-				doc.force_full_sync = true;
+				doc.mark_for_full_lsp_sync();
 			}
 		}
 		true
@@ -278,7 +277,7 @@ impl Buffer {
 	/// Drains pending LSP changes for this document.
 	#[cfg(feature = "lsp")]
 	pub fn drain_lsp_changes(&self) -> Vec<LspDocumentChange> {
-		std::mem::take(&mut self.doc_mut().pending_lsp_changes)
+		self.doc_mut().drain_lsp_changes()
 	}
 
 	/// Finalizes selection/cursor after a transaction is applied.
@@ -305,7 +304,7 @@ mod tests {
 			if !content.is_empty() {
 				// Set initial content by replacing the empty document
 				let rope = ropey::Rope::from(content);
-				buffer.doc_mut().content = rope;
+				*buffer.doc_mut().content_mut() = rope;
 			}
 			buffer
 		}
@@ -424,21 +423,21 @@ mod tests {
 		buffer.set_readonly(true);
 		let applied = buffer.apply_transaction(&tx);
 		assert!(!applied);
-		assert_eq!(buffer.doc().content.slice(..).to_string(), "");
+		assert_eq!(buffer.doc().content().slice(..).to_string(), "");
 	}
 
 	#[test]
 	fn readonly_override_blocks_transaction() {
 		let mut buffer = Buffer::scratch(BufferId::SCRATCH);
 		// Document is writable, but buffer override makes it readonly
-		assert!(!buffer.doc().readonly);
+		assert!(!buffer.doc().is_readonly());
 		buffer.set_readonly_override(Some(true));
 		assert!(buffer.is_readonly());
 
 		let (tx, _selection) = buffer.prepare_insert("hi");
 		let applied = buffer.apply_transaction(&tx);
 		assert!(!applied);
-		assert_eq!(buffer.doc().content.slice(..).to_string(), "");
+		assert_eq!(buffer.doc().content().slice(..).to_string(), "");
 	}
 
 	#[test]
@@ -454,7 +453,7 @@ mod tests {
 		let (tx, _selection) = buffer.prepare_insert("hi");
 		let applied = buffer.apply_transaction(&tx);
 		assert!(applied);
-		assert_eq!(buffer.doc().content.slice(..).to_string(), "hi");
+		assert_eq!(buffer.doc().content().slice(..).to_string(), "hi");
 	}
 
 	#[test]
