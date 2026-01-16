@@ -6,18 +6,25 @@
 //!
 //! # Architecture
 //!
-//! - [`ViewSnapshot`]: Captures a single buffer's view state
-//! - [`EditorUndoGroup`]: Groups affected documents with their view snapshots
-//! - Document undo/redo: Restores text content
-//! - Editor undo/redo: Calls document undo/redo then restores view snapshots
+//! The undo system has two layers:
+//!
+//! - **Document layer**: Each document has its own undo stack storing text content.
+//! - **Editor layer**: The [`UndoManager`] stores view state (cursor, selection, scroll)
+//!   for all buffers affected by an edit.
+//!
+//! The [`UndoHost`] trait abstracts the Editor operations needed by UndoManager,
+//! enabling cleaner separation of concerns.
+//!
+//! [`UndoManager`]: crate::types::UndoManager
+//! [`UndoHost`]: crate::types::UndoHost
 
 use std::collections::{HashMap, HashSet};
 
-use tracing::{trace, warn};
+use tracing::warn;
 use xeno_registry_notifications::keys;
 
 use crate::buffer::{Buffer, BufferId, DocumentId};
-use crate::impls::{Editor, EditorUndoGroup, ViewSnapshot};
+use crate::impls::{Editor, UndoHost, ViewSnapshot};
 
 impl Buffer {
 	/// Creates a snapshot of this buffer's view state.
@@ -40,12 +47,19 @@ impl Buffer {
 	}
 }
 
-impl Editor {
-	/// Collects view snapshots from all buffers sharing the same document.
-	pub(crate) fn collect_view_snapshots(
-		&self,
-		doc_id: DocumentId,
-	) -> HashMap<BufferId, ViewSnapshot> {
+impl UndoHost for Editor {
+	fn guard_readonly(&mut self) -> bool {
+		self.guard_readonly()
+	}
+
+	fn doc_id_for_buffer(&self, buffer_id: BufferId) -> DocumentId {
+		self.buffers
+			.get_buffer(buffer_id)
+			.expect("buffer must exist")
+			.document_id()
+	}
+
+	fn collect_view_snapshots(&self, doc_id: DocumentId) -> HashMap<BufferId, ViewSnapshot> {
 		self.buffers
 			.buffers()
 			.filter(|b| b.document_id() == doc_id)
@@ -53,102 +67,6 @@ impl Editor {
 			.collect()
 	}
 
-	/// Restores view snapshots to buffers.
-	///
-	/// For buffers that have a snapshot, restores the exact view state.
-	/// For buffers without a snapshot (e.g., created after the edit),
-	/// just ensures the selection is valid.
-	fn restore_view_snapshots(&mut self, snapshots: &HashMap<BufferId, ViewSnapshot>) {
-		for buffer in self.buffers.buffers_mut() {
-			if let Some(snapshot) = snapshots.get(&buffer.id) {
-				buffer.restore_view(snapshot);
-			} else {
-				buffer.ensure_valid_selection();
-			}
-		}
-	}
-
-	/// Undoes the last change, restoring view state for all affected buffers.
-	pub fn undo(&mut self) {
-		if !self.guard_readonly() {
-			return;
-		}
-		let Some(group) = self.undo_group_stack.pop() else {
-			trace!("undo: nothing to undo");
-			self.notify(keys::nothing_to_undo);
-			return;
-		};
-
-		trace!(
-			docs = ?group.affected_docs,
-			snapshots = group.view_snapshots.len(),
-			origin = ?group.origin,
-			undo_stack = self.undo_group_stack.len(),
-			redo_stack = self.redo_group_stack.len(),
-			"undo: popped group"
-		);
-
-		let current_snapshots = self.capture_current_view_snapshots(&group.affected_docs);
-
-		let ok = self.undo_documents(&group.affected_docs);
-
-		if ok {
-			self.restore_view_snapshots(&group.view_snapshots);
-
-			self.redo_group_stack.push(EditorUndoGroup {
-				affected_docs: group.affected_docs,
-				view_snapshots: current_snapshots,
-				origin: group.origin,
-			});
-			trace!(redo_stack = self.redo_group_stack.len(), "undo: pushed to redo stack");
-			self.notify(keys::undo);
-		} else {
-			self.undo_group_stack.push(group);
-			self.notify(keys::nothing_to_undo);
-		}
-	}
-
-	/// Redoes the last undone change, restoring view state for all affected buffers.
-	pub fn redo(&mut self) {
-		if !self.guard_readonly() {
-			return;
-		}
-		let Some(group) = self.redo_group_stack.pop() else {
-			trace!("redo: nothing to redo");
-			self.notify(keys::nothing_to_redo);
-			return;
-		};
-
-		trace!(
-			docs = ?group.affected_docs,
-			snapshots = group.view_snapshots.len(),
-			origin = ?group.origin,
-			undo_stack = self.undo_group_stack.len(),
-			redo_stack = self.redo_group_stack.len(),
-			"redo: popped group"
-		);
-
-		let current_snapshots = self.capture_current_view_snapshots(&group.affected_docs);
-
-		let ok = self.redo_documents(&group.affected_docs);
-
-		if ok {
-			self.restore_view_snapshots(&group.view_snapshots);
-
-			self.undo_group_stack.push(EditorUndoGroup {
-				affected_docs: group.affected_docs,
-				view_snapshots: current_snapshots,
-				origin: group.origin,
-			});
-			trace!(undo_stack = self.undo_group_stack.len(), "redo: pushed to undo stack");
-			self.notify(keys::redo);
-		} else {
-			self.redo_group_stack.push(group);
-			self.notify(keys::nothing_to_redo);
-		}
-	}
-
-	/// Captures current view snapshots for all buffers viewing the given documents.
 	fn capture_current_view_snapshots(
 		&self,
 		doc_ids: &[DocumentId],
@@ -159,6 +77,77 @@ impl Editor {
 			.filter(|b| doc_set.contains(&b.document_id()))
 			.map(|b| (b.id, b.snapshot_view()))
 			.collect()
+	}
+
+	fn restore_view_snapshots(&mut self, snapshots: &HashMap<BufferId, ViewSnapshot>) {
+		for buffer in self.buffers.buffers_mut() {
+			if let Some(snapshot) = snapshots.get(&buffer.id) {
+				buffer.restore_view(snapshot);
+			} else {
+				buffer.ensure_valid_selection();
+			}
+		}
+	}
+
+	fn undo_documents(&mut self, doc_ids: &[DocumentId]) -> bool {
+		let mut ok = true;
+		for &doc_id in doc_ids {
+			ok &= self.undo_document(doc_id);
+		}
+		ok
+	}
+
+	fn redo_documents(&mut self, doc_ids: &[DocumentId]) -> bool {
+		let mut ok = true;
+		for &doc_id in doc_ids {
+			ok &= self.redo_document(doc_id);
+		}
+		ok
+	}
+
+	fn doc_insert_undo_active(&self, buffer_id: BufferId) -> bool {
+		self.buffers
+			.get_buffer(buffer_id)
+			.map(|b| b.with_doc(|doc| doc.insert_undo_active()))
+			.unwrap_or(false)
+	}
+
+	fn notify_undo(&mut self) {
+		self.notify(keys::undo);
+	}
+
+	fn notify_redo(&mut self) {
+		self.notify(keys::redo);
+	}
+
+	fn notify_nothing_to_undo(&mut self) {
+		self.notify(keys::nothing_to_undo);
+	}
+
+	fn notify_nothing_to_redo(&mut self) {
+		self.notify(keys::nothing_to_redo);
+	}
+}
+
+impl Editor {
+	/// Undoes the last change, restoring view state for all affected buffers.
+	///
+	/// Uses `mem::take` to split the borrow between `undo_manager` and `self`,
+	/// since `UndoHost` methods require `&mut self`.
+	pub fn undo(&mut self) {
+		let mut undo_manager = std::mem::take(&mut self.undo_manager);
+		undo_manager.undo(self);
+		self.undo_manager = undo_manager;
+	}
+
+	/// Redoes the last undone change, restoring view state for all affected buffers.
+	///
+	/// Uses `mem::take` to split the borrow between `undo_manager` and `self`,
+	/// since `UndoHost` methods require `&mut self`.
+	pub fn redo(&mut self) {
+		let mut undo_manager = std::mem::take(&mut self.undo_manager);
+		undo_manager.redo(self);
+		self.undo_manager = undo_manager;
 	}
 
 	/// Undoes a single document's last change.
@@ -207,24 +196,6 @@ impl Editor {
 
 		if ok {
 			self.mark_buffer_dirty_for_full_sync(buffer_id);
-		}
-		ok
-	}
-
-	/// Undoes all documents in the given list.
-	fn undo_documents(&mut self, doc_ids: &[DocumentId]) -> bool {
-		let mut ok = true;
-		for &doc_id in doc_ids {
-			ok &= self.undo_document(doc_id);
-		}
-		ok
-	}
-
-	/// Redoes all documents in the given list.
-	fn redo_documents(&mut self, doc_ids: &[DocumentId]) -> bool {
-		let mut ok = true;
-		for &doc_id in doc_ids {
-			ok &= self.redo_document(doc_id);
 		}
 		ok
 	}

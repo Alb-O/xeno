@@ -53,8 +53,8 @@ pub use crate::hook_runtime::HookRuntime;
 pub use crate::layout::{LayoutManager, SeparatorHit, SeparatorId};
 pub use navigation::Location;
 pub use crate::types::{
-	Config, EditorUndoGroup, FrameState, JumpList, JumpLocation, MacroState, Registers,
-	ViewSnapshot, Viewport, Workspace,
+	Config, EditorUndoGroup, FrameState, JumpList, JumpLocation, MacroState, PreparedEdit,
+	Registers, UndoHost, UndoManager, ViewSnapshot, Viewport, Workspace,
 };
 use xeno_registry::{
 	HookContext, HookEventData, WindowKind, emit_sync_with as emit_hook_sync_with,
@@ -137,16 +137,12 @@ pub struct Editor {
 	/// Workspace session state (registers, jumps, macros, command queue).
 	pub workspace: Workspace,
 
-	/// Editor-level undo grouping stack.
+	/// Editor-level undo manager.
 	///
-	/// Each entry captures view state (cursor, selection, scroll) for all
-	/// affected buffers at the time of the edit. Document state is stored
-	/// separately in each document's history.
-	pub undo_group_stack: Vec<EditorUndoGroup>,
-	/// Editor-level redo grouping stack.
-	///
-	/// Populated when undoing; cleared when a new edit occurs.
-	pub redo_group_stack: Vec<EditorUndoGroup>,
+	/// Manages undo/redo grouping stacks. Each entry captures view state
+	/// (cursor, selection, scroll) for all affected buffers at the time of
+	/// the edit. Document state is stored separately in each document's history.
+	pub undo_manager: UndoManager,
 
 	/// Editor configuration (theme, languages, options).
 	pub config: Config,
@@ -270,8 +266,7 @@ impl Editor {
 			ui: UiManager::new(),
 			frame: FrameState::default(),
 			workspace: Workspace::default(),
-			undo_group_stack: Vec::new(),
-			redo_group_stack: Vec::new(),
+			undo_manager: UndoManager::new(),
 			config: Config::new(language_loader),
 			notifications: xeno_tui::widgets::notifications::ToastManager::new()
 				.max_visible(Some(5))

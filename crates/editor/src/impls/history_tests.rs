@@ -56,7 +56,7 @@ fn undo_restores_cursor_position() {
 
 	apply_test_edit(&mut editor, " there", 5);
 
-	assert_eq!(editor.undo_group_stack.len(), 1);
+	assert_eq!(editor.undo_manager.undo_len(), 1);
 
 	editor.undo();
 
@@ -93,8 +93,8 @@ fn undo_restores_view_state_for_multiple_buffers_same_document() {
 
 	apply_test_edit(&mut editor, "X", 0);
 
-	assert_eq!(editor.undo_group_stack.len(), 1);
-	let group = &editor.undo_group_stack[0];
+	assert_eq!(editor.undo_manager.undo_len(), 1);
+	let group = editor.undo_manager.last_undo_group().expect("should have undo group");
 	assert_eq!(group.view_snapshots.len(), 2, "undo group should have snapshots for both buffers");
 	assert!(group.view_snapshots.contains_key(&buffer1_id));
 	assert!(group.view_snapshots.contains_key(&buffer2_id));
@@ -133,13 +133,13 @@ fn redo_stack_clears_on_new_edit() {
 	let mut editor = test_editor("hello");
 
 	apply_test_edit(&mut editor, " world", 5);
-	assert_eq!(editor.undo_group_stack.len(), 1);
+	assert_eq!(editor.undo_manager.undo_len(), 1);
 
 	editor.undo();
-	assert_eq!(editor.redo_group_stack.len(), 1, "redo stack should have one entry after undo");
+	assert_eq!(editor.undo_manager.redo_len(), 1, "redo stack should have one entry after undo");
 
 	apply_test_edit(&mut editor, "!", 5);
-	assert!(editor.redo_group_stack.is_empty(), "new edit should clear redo stack");
+	assert!(!editor.undo_manager.can_redo(), "new edit should clear redo stack");
 }
 
 #[test]
@@ -148,7 +148,7 @@ fn redo_stack_clears_only_when_group_pushed() {
 
 	apply_test_edit(&mut editor, " world", 5);
 	editor.undo();
-	assert_eq!(editor.redo_group_stack.len(), 1);
+	assert_eq!(editor.undo_manager.redo_len(), 1);
 
 	let buffer_id = editor.focused_view();
 	let tx = {
@@ -165,7 +165,7 @@ fn redo_stack_clears_only_when_group_pushed() {
 	};
 	editor.apply_edit(buffer_id, &tx, None, UndoPolicy::NoUndo, EditOrigin::Internal("test"));
 
-	assert_eq!(editor.redo_group_stack.len(), 1, "NoUndo edit should not clear redo stack");
+	assert_eq!(editor.undo_manager.redo_len(), 1, "NoUndo edit should not clear redo stack");
 }
 
 #[test]
@@ -193,7 +193,7 @@ fn merge_with_current_group_creates_single_undo_group_for_consecutive_inserts() 
 		EditOrigin::Internal("insert"),
 	);
 
-	assert_eq!(editor.undo_group_stack.len(), 1, "first MergeWithCurrentGroup should create group");
+	assert_eq!(editor.undo_manager.undo_len(), 1, "first MergeWithCurrentGroup should create group");
 
 	let tx2 = {
 		let buffer = editor.buffers.focused_buffer();
@@ -215,7 +215,7 @@ fn merge_with_current_group_creates_single_undo_group_for_consecutive_inserts() 
 		EditOrigin::Internal("insert"),
 	);
 
-	assert_eq!(editor.undo_group_stack.len(), 1, "consecutive MergeWithCurrentGroup should NOT create new group");
+	assert_eq!(editor.undo_manager.undo_len(), 1, "consecutive MergeWithCurrentGroup should NOT create new group");
 
 	editor.undo();
 	let content = editor.buffers.focused_buffer().with_doc(|doc| doc.content().to_string());
@@ -261,5 +261,5 @@ fn record_policy_breaks_merge_group() {
 	};
 	editor.apply_edit(buffer_id, &tx2, None, UndoPolicy::Record, EditOrigin::Internal("edit"));
 
-	assert_eq!(editor.undo_group_stack.len(), 2, "Record policy should create new group");
+	assert_eq!(editor.undo_manager.undo_len(), 2, "Record policy should create new group");
 }

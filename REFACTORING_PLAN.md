@@ -47,13 +47,13 @@ for extensibility. This plan addresses:
 
 ### Tasks
 
-- [ ] Create `UndoManager` struct containing undo + redo stacks
-- [ ] Create `PreparedEdit` struct for pre-edit state
-- [ ] Implement `prepare_edit()` and `finalize_edit()` methods
-- [ ] Create `UndoHost` trait
-- [ ] Implement `UndoHost` for `Editor` by forwarding
-- [ ] Move `Editor::undo()` and `Editor::redo()` logic into `UndoManager`
-- [ ] Replace `Editor::undo()` body with delegation
+- [x] Create `UndoManager` struct containing undo + redo stacks
+- [x] Create `PreparedEdit` struct for pre-edit state
+- [x] Implement `prepare_edit()` and `finalize_edit()` methods
+- [x] Create `UndoHost` trait
+- [x] Implement `UndoHost` for `Editor` by forwarding
+- [x] Move `Editor::undo()` and `Editor::redo()` logic into `UndoManager`
+- [x] Replace `Editor::undo()` body with delegation
 
 ### Code Sketch: UndoHost Trait
 
@@ -173,9 +173,9 @@ impl UndoManager {
 
 ### Tasks
 
-- [ ] Rewrite `apply_edit()` to use `prepare_edit()` / `finalize_edit()`
-- [ ] Verify redo stack clearing only occurs when group is pushed
-- [ ] Run behavior-lock tests from Phase 0
+- [x] Rewrite `apply_edit()` to use `prepare_edit()` / `finalize_edit()`
+- [x] Verify redo stack clearing only occurs when group is pushed
+- [x] Run behavior-lock tests from Phase 0
 
 ### Code Sketch: Converted apply_edit
 
@@ -545,15 +545,15 @@ fn registry_sanity_check() {
 - [x] Debug logging infrastructure
 
 ### Phase 1: UndoManager
-- [ ] UndoManager struct
-- [ ] PreparedEdit struct
-- [ ] UndoHost trait
-- [ ] Editor impl for UndoHost
-- [ ] Delegation from Editor
+- [x] UndoManager struct
+- [x] PreparedEdit struct
+- [x] UndoHost trait
+- [x] Editor impl for UndoHost
+- [x] Delegation from Editor
 
 ### Phase 2: apply_edit
-- [ ] Convert to prepare/finalize pattern
-- [ ] Verify behavior preservation
+- [x] Convert to prepare/finalize pattern
+- [x] Verify behavior preservation
 
 ### Phase 3: EditExecutor
 - [ ] ApplyEditPolicy struct

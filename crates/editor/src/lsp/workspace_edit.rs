@@ -195,12 +195,11 @@ impl Editor {
 			all_view_snapshots.extend(snapshots);
 		}
 
-		self.undo_group_stack.push(EditorUndoGroup {
+		self.undo_manager.push_group(EditorUndoGroup {
 			affected_docs,
 			view_snapshots: all_view_snapshots,
 			origin: EditOrigin::Lsp,
 		});
-		self.redo_group_stack.clear();
 	}
 
 	pub(crate) fn apply_buffer_edit_plan(

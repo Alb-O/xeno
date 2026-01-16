@@ -2,11 +2,10 @@
 //!
 //! Insert, delete, yank, paste, and transaction application.
 
-use tracing::trace;
 use xeno_primitives::{EditOrigin, Selection, SyntaxPolicy, Transaction, UndoPolicy};
 use xeno_registry_notifications::keys;
 
-use super::{Editor, EditorUndoGroup};
+use super::Editor;
 use crate::buffer::{ApplyPolicy, BufferId};
 
 impl Editor {
@@ -21,11 +20,12 @@ impl Editor {
 	/// Applies a transaction with full undo support.
 	///
 	/// This is the primary edit method that:
-	/// 1. Captures view snapshots before the edit
+	/// 1. Prepares the edit via `UndoManager` (captures view snapshots)
 	/// 2. Applies the transaction with the specified undo policy
-	/// 3. Pushes an EditorUndoGroup if undo was recorded
+	/// 3. Finalizes via `UndoManager` (pushes `EditorUndoGroup` if needed)
 	///
-	/// Returns `true` if the transaction was applied successfully.
+	/// Uses `mem::take` to split the borrow between `undo_manager` and `self`,
+	/// since `UndoHost` methods require `&mut self`.
 	pub(crate) fn apply_edit(
 		&mut self,
 		buffer_id: BufferId,
@@ -34,48 +34,11 @@ impl Editor {
 		undo: UndoPolicy,
 		origin: EditOrigin,
 	) -> bool {
-		// Capture view snapshots BEFORE the edit for undo restoration
-		let doc_id = self
-			.buffers
-			.get_buffer(buffer_id)
-			.expect("buffer must exist")
-			.document_id();
-		let view_snapshots = self.collect_view_snapshots(doc_id);
-
-		// For MergeWithCurrentGroup, check BEFORE the edit if this will start a new group
-		let will_start_new_group = match undo {
-			UndoPolicy::MergeWithCurrentGroup => self
-				.buffers
-				.get_buffer(buffer_id)
-				.map(|b| b.with_doc(|doc| !doc.insert_undo_active()))
-				.unwrap_or(true),
-			UndoPolicy::NoUndo => false,
-			_ => true,
-		};
-
-		// Apply the transaction with undo policy
+		let mut undo_manager = std::mem::take(&mut self.undo_manager);
+		let prep = undo_manager.prepare_edit(self, buffer_id, undo, origin);
 		let applied = self.apply_transaction_inner(buffer_id, tx, new_selection, undo);
-
-		// Push EditorUndoGroup if undo was recorded
-		if applied && will_start_new_group {
-			trace!(
-				doc = ?doc_id,
-				origin = ?origin,
-				snapshots = view_snapshots.len(),
-				undo_stack = self.undo_group_stack.len() + 1,
-				"undo group pushed"
-			);
-			self.undo_group_stack.push(EditorUndoGroup {
-				affected_docs: vec![doc_id],
-				view_snapshots,
-				origin,
-			});
-			if !self.redo_group_stack.is_empty() {
-				trace!(cleared = self.redo_group_stack.len(), "redo stack cleared");
-			}
-			self.redo_group_stack.clear();
-		}
-
+		undo_manager.finalize_edit(applied, prep);
+		self.undo_manager = undo_manager;
 		applied
 	}
 
@@ -311,10 +274,11 @@ impl Editor {
 	}
 
 	/// Triggers a full syntax reparse of the focused buffer.
+	///
+	/// Accesses the buffer directly rather than through `self.buffer_mut()` to
+	/// avoid a borrow conflict with `self.config.language_loader`.
 	pub fn reparse_syntax(&mut self) {
 		let buffer_id = self.focused_view();
-
-		// Access buffer directly to avoid borrow conflict with language_loader.
 		let buffer = self
 			.buffers
 			.get_buffer_mut(buffer_id)
