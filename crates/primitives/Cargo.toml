@@ -18,5 +18,8 @@ unicode-segmentation.workspace = true
 xeno-keymap-parser.workspace = true
 xeno-tui = { workspace = true, optional = true }
 
+[dev-dependencies]
+proptest.workspace = true
+
 [lints]
 workspace = true

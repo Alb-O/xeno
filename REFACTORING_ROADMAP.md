@@ -414,9 +414,9 @@ At each step, the editor should still build and function with minimal behavioral
 
 Use `proptest` (or `quickcheck`) on Transaction/undo invariants:
 
-- [ ] **Undo round-trip**: for random documents and random transactions, `apply tx`, then `apply tx.invert()` => document content returns to original
-- [ ] **Redo round-trip**: `apply tx`, undo, redo => content equals post-apply
-- [ ] **Selection mapping sanity** (if using mapped selections):
+- [x] **Undo round-trip**: for random documents and random transactions, `apply tx`, then `apply tx.invert()` => document content returns to original
+- [x] **Redo round-trip**: `apply tx`, undo, redo => content equals post-apply
+- [x] **Selection mapping sanity** (if using mapped selections):
   - selection stays within bounds after apply/invert
   - mapping is stable across repeated operations
 - [ ] **Commit gate invariants**:

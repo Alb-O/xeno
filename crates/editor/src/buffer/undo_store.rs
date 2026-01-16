@@ -50,10 +50,6 @@ pub struct TxnUndoStep {
 	pub undo_tx: Transaction,
 	/// Transaction to apply for redo (re-applies the original edit).
 	pub redo_tx: Transaction,
-	/// Document version before the original edit.
-	pub version_before: u64,
-	/// Document version after the original edit.
-	pub version_after: u64,
 }
 
 /// Snapshot-based undo store.
@@ -207,20 +203,10 @@ impl TxnUndoStore {
 	/// stored so undo applies the inverse and redo re-applies the original.
 	///
 	/// Automatically enforces [`MAX_UNDO`] limit by removing the oldest entry.
-	pub fn record_transaction(
-		&mut self,
-		redo_tx: Transaction,
-		before: &DocumentSnapshot,
-		version_after: u64,
-	) {
+	pub fn record_transaction(&mut self, redo_tx: Transaction, before: &DocumentSnapshot) {
 		let undo_tx = redo_tx.invert(&before.rope);
 
-		self.undo_stack.push(TxnUndoStep {
-			undo_tx,
-			redo_tx,
-			version_before: before.version,
-			version_after,
-		});
+		self.undo_stack.push(TxnUndoStep { undo_tx, redo_tx });
 		self.redo_stack.clear();
 
 		if self.undo_stack.len() > MAX_UNDO {
@@ -343,13 +329,13 @@ impl UndoBackend {
 	///
 	/// For snapshot backend: records a snapshot of the pre-edit state.
 	/// For transaction backend: records the transaction with its inverse.
-	pub fn record_commit(&mut self, tx: &Transaction, before: &DocumentSnapshot, version_after: u64) {
+	pub fn record_commit(&mut self, tx: &Transaction, before: &DocumentSnapshot) {
 		match self {
 			Self::Snapshot(s) => {
 				s.record_snapshot(before.clone());
 			}
 			Self::Transaction(t) => {
-				t.record_transaction(tx.clone(), before, version_after);
+				t.record_transaction(tx.clone(), before);
 			}
 		}
 	}
@@ -541,7 +527,6 @@ mod tests {
 				rope: original,
 				version: 0,
 			},
-			1,
 		);
 
 		// Apply the transaction
@@ -578,7 +563,6 @@ mod tests {
 				rope: original,
 				version: 0,
 			},
-			1,
 		);
 		tx.apply(&mut content);
 

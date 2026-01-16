@@ -214,8 +214,7 @@ impl Document {
 			version: self.version,
 		};
 		let empty_tx = xeno_primitives::Transaction::new(self.content.slice(..));
-		self.undo_backend
-			.record_commit(&empty_tx, &before, self.version);
+		self.undo_backend.record_commit(&empty_tx, &before);
 	}
 
 	/// Saves current document state to undo history. Resets any grouped insert session.
@@ -374,8 +373,7 @@ impl Document {
 		self.version = self.version.wrapping_add(1);
 
 		let undo_recorded = if let Some(before) = before {
-			self.undo_backend
-				.record_commit(&commit.tx, &before, self.version);
+			self.undo_backend.record_commit(&commit.tx, &before);
 			true
 		} else {
 			false

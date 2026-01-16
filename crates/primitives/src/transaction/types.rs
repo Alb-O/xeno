@@ -10,6 +10,7 @@ pub type Tendril = String;
 ///
 /// A change describes replacing the text range `[start, end)` with the optional
 /// `replacement` text. If `replacement` is [`None`], this represents a deletion.
+#[derive(Debug, Clone)]
 pub struct Change {
 	/// The starting character index of the change.
 	pub start: CharIdx,

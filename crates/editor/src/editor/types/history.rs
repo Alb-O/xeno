@@ -67,26 +67,3 @@ pub struct EditorUndoGroup {
 	/// Origin of this edit group.
 	pub origin: EditOrigin,
 }
-
-/// Legacy undo/redo history entry storing document state and per-view selections.
-///
-/// # Deprecation
-///
-/// This type is deprecated and will be removed in a future release. Use
-/// [`DocumentHistoryEntry`] for document-level undo and [`EditorUndoGroup`]
-/// with [`ViewSnapshot`] for editor-level undo that needs view state.
-///
-/// The problem with this design is that document history shouldn't store
-/// buffer-specific state. When buffers are created/destroyed, the selection
-/// map becomes stale. View state belongs at the editor level.
-#[deprecated(
-	since = "0.1.0",
-	note = "Use DocumentHistoryEntry + EditorUndoGroup instead"
-)]
-#[derive(Clone)]
-pub struct HistoryEntry {
-	/// Document content at this point in history.
-	pub doc: Rope,
-	/// Per-buffer selections at this point in history.
-	pub selections: HashMap<BufferId, Selection>,
-}

@@ -18,8 +18,6 @@ mod workspace;
 pub use completion::{CompletionState, SelectionIntent};
 pub use config::Config;
 pub use frame::FrameState;
-#[allow(deprecated, reason = "re-exporting for backward compatibility during migration")]
-pub use history::HistoryEntry;
 pub use history::{DocumentHistoryEntry, EditorUndoGroup, ViewSnapshot};
 pub use xeno_primitives::range::CharIdx;
 #[cfg(feature = "lsp")]

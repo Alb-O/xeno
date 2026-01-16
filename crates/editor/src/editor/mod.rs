@@ -97,8 +97,8 @@ pub use hook_runtime::HookRuntime;
 pub use layout::{LayoutManager, SeparatorHit, SeparatorId};
 pub use navigation::Location;
 pub use types::{
-	Config, EditorUndoGroup, FrameState, HistoryEntry, JumpList, JumpLocation, MacroState,
-	Registers, ViewSnapshot, Viewport, Workspace,
+	Config, EditorUndoGroup, FrameState, JumpList, JumpLocation, MacroState, Registers,
+	ViewSnapshot, Viewport, Workspace,
 };
 use xeno_registry::{
 	HookContext, HookEventData, WindowKind, emit_sync_with as emit_hook_sync_with,
