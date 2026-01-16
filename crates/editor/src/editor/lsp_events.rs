@@ -73,8 +73,8 @@ impl Editor {
 					return;
 				}
 
-				let query =
-					buffer.with_doc(|doc| extract_query(doc.content(), replace_start, buffer.cursor));
+				let query = buffer
+					.with_doc(|doc| extract_query(doc.content(), replace_start, buffer.cursor));
 				let filtered = filter_items(&items, &query);
 
 				if filtered.is_empty() {

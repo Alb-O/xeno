@@ -92,9 +92,18 @@ impl Editor {
 				.get_buffer_mut(buffer_id)
 				.expect("focused buffer must exist");
 			let applied = if let Some(encoding) = encoding {
-				buffer.apply_edit_with_lsp_and_undo(tx, &self.config.language_loader, encoding, undo)
+				buffer.apply_edit_with_lsp_and_undo(
+					tx,
+					&self.config.language_loader,
+					encoding,
+					undo,
+				)
 			} else {
-				buffer.apply_transaction_with_syntax_and_undo(tx, &self.config.language_loader, undo)
+				buffer.apply_transaction_with_syntax_and_undo(
+					tx,
+					&self.config.language_loader,
+					undo,
+				)
 			};
 			if applied && let Some(selection) = new_selection {
 				buffer.finalize_selection(selection);
@@ -108,8 +117,11 @@ impl Editor {
 				.buffers
 				.get_buffer_mut(buffer_id)
 				.expect("focused buffer must exist");
-			let applied =
-				buffer.apply_transaction_with_syntax_and_undo(tx, &self.config.language_loader, undo);
+			let applied = buffer.apply_transaction_with_syntax_and_undo(
+				tx,
+				&self.config.language_loader,
+				undo,
+			);
 			if applied && let Some(selection) = new_selection {
 				buffer.finalize_selection(selection);
 			}
@@ -177,8 +189,13 @@ impl Editor {
 			buffer.prepare_insert(text)
 		};
 
-		let applied =
-			self.apply_edit(buffer_id, &tx, Some(new_selection), undo, EditOrigin::Internal("insert"));
+		let applied = self.apply_edit(
+			buffer_id,
+			&tx,
+			Some(new_selection),
+			undo,
+			EditOrigin::Internal("insert"),
+		);
 
 		if !applied {
 			self.notify(keys::buffer_readonly);

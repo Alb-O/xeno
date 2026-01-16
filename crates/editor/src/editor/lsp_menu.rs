@@ -228,7 +228,8 @@ impl Editor {
 			return;
 		}
 
-		let query = buffer.with_doc(|doc| extract_query(doc.content(), replace_start, buffer.cursor));
+		let query =
+			buffer.with_doc(|doc| extract_query(doc.content(), replace_start, buffer.cursor));
 		let filtered = filter_items(&items, &query);
 
 		if filtered.is_empty() {
@@ -279,7 +280,8 @@ impl Editor {
 			selection.to()
 		};
 		let encoding = client.offset_encoding();
-		let Some(range) = buffer.with_doc(|doc| char_range_to_lsp_range(doc.content(), start, end, encoding))
+		let Some(range) =
+			buffer.with_doc(|doc| char_range_to_lsp_range(doc.content(), start, end, encoding))
 		else {
 			self.notify(keys::error::call("Invalid range for code actions"));
 			return false;

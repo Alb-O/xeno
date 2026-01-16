@@ -456,7 +456,7 @@ pub(super) fn configure_fill_constraints(
 /// Used instead of `f64::round` directly, to provide fallback for `no_std`.
 #[cfg(feature = "std")]
 #[inline]
-pub(super) fn round(value: f64) -> f64 {
+pub(super) const fn round(value: f64) -> f64 {
 	value.round()
 }
 

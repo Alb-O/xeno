@@ -19,8 +19,8 @@ pub use completion::{CompletionState, SelectionIntent};
 pub use config::Config;
 pub use frame::FrameState;
 pub use history::{DocumentHistoryEntry, EditorUndoGroup, ViewSnapshot};
-pub use xeno_primitives::range::CharIdx;
 #[cfg(feature = "lsp")]
 pub use lsp_menu::{LspMenuKind, LspMenuState};
 pub use viewport::Viewport;
 pub use workspace::{JumpList, JumpLocation, MacroState, Registers, Workspace};
+pub use xeno_primitives::range::CharIdx;

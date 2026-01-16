@@ -79,8 +79,8 @@ impl Buffer {
 		tab_width: usize,
 		goal_col: usize,
 	) -> usize {
-		let (_doc_line, line_start, _total_lines, line_text, next_line_data, prev_line_data) =
-			self.with_doc(|doc| {
+		let (_doc_line, line_start, _total_lines, line_text, next_line_data, prev_line_data) = self
+			.with_doc(|doc| {
 				let doc_line = doc.content().char_to_line(cursor);
 				let line_start = doc.content().line_to_char(doc_line);
 				let total_lines = doc.content().len_lines();

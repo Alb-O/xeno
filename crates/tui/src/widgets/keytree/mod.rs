@@ -192,12 +192,12 @@ impl Widget for KeyTree<'_> {
 		let root_width = self.root.len().min(area.width as usize);
 		buf.set_stringn(area.x, y, &self.root, root_width, self.ancestor_style);
 		let mut x = area.x + root_width as u16 + 1;
-		if let Some(ref desc) = self.root_desc {
-			if x < area.right() {
-				let desc_width = desc.len().min((area.right() - x) as usize);
-				buf.set_stringn(x, y, desc, desc_width, self.desc_style);
-				x += desc_width as u16;
-			}
+		if let Some(ref desc) = self.root_desc
+			&& x < area.right()
+		{
+			let desc_width = desc.len().min((area.right() - x) as usize);
+			buf.set_stringn(x, y, desc, desc_width, self.desc_style);
+			x += desc_width as u16;
 		}
 		if !self.ancestors.is_empty() && x < area.right() {
 			buf.set_string(x, y, "…", self.suffix_style);
@@ -293,11 +293,11 @@ impl Widget for KeyTree<'_> {
 				x += desc_width as u16;
 			}
 
-			if let Some(ref suffix) = node.suffix {
-				if x < area.right() {
-					let suffix_width = suffix.len().min((area.right() - x) as usize);
-					buf.set_stringn(x, y, suffix, suffix_width, self.suffix_style);
-				}
+			if let Some(ref suffix) = node.suffix
+				&& x < area.right()
+			{
+				let suffix_width = suffix.len().min((area.right() - x) as usize);
+				buf.set_stringn(x, y, suffix, suffix_width, self.suffix_style);
 			}
 
 			y += 1;

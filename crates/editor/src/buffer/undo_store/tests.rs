@@ -2,7 +2,7 @@ use xeno_primitives::transaction::Change;
 use xeno_primitives::{Rope, Transaction};
 use xeno_runtime_language::LanguageLoader;
 
-use super::{DocumentSnapshot, SnapshotUndoStore, TxnUndoStore, UndoBackend, MAX_UNDO};
+use super::{DocumentSnapshot, MAX_UNDO, SnapshotUndoStore, TxnUndoStore, UndoBackend};
 
 fn test_rope() -> Rope {
 	Rope::from("hello world")

@@ -34,8 +34,8 @@
 //! let plan = change.compile();
 //! ```
 
-use xeno_primitives::{EditOrigin, Mode, SyntaxPolicy, UndoPolicy};
 use xeno_primitives::range::Direction;
+use xeno_primitives::{EditOrigin, Mode, SyntaxPolicy, UndoPolicy};
 
 /// A data description of a text edit operation.
 ///

@@ -8,7 +8,7 @@
 4. **Typed errors and policies** - `Result<_, EditError>`, `UndoPolicy`, `SyntaxPolicy`
 5. **Migration without a flag day**
 
----
+______________________________________________________________________
 
 ## Phase 1: Stabilize Invariants and Introduce Typed Policies
 
@@ -97,7 +97,7 @@ pub struct CommitResult {
 - Introduce these types without changing behavior yet: wrap old boolean guards and return stub `CommitResult`
 - Keep existing snapshot undo intact for now
 
----
+______________________________________________________________________
 
 ## Phase 2: Stop Leaking RwLock Guards (Closure-Based Lock Pattern)
 
@@ -130,7 +130,7 @@ impl Buffer {
 - This is the highest ROI "safety upgrade" with minimal design risk
 - After this, you can enforce that edits and syntax/undo operations occur under deliberate lock scope
 
----
+______________________________________________________________________
 
 ## Phase 3: Introduce the Document Edit Gate (`Document::commit`)
 
@@ -243,7 +243,7 @@ impl Document {
 - Keep `reparse_syntax` behavior as-is first (`FullReparseNow`), then improve later
 - This phase kills the "caller responsible for save_undo_state + syntax update" problem immediately
 
----
+______________________________________________________________________
 
 ## Phase 4: Split Document History vs Editor/View History
 
@@ -293,7 +293,7 @@ pub struct ViewSnapshot {
 - Editor already groups buffers; adapt it to store `ViewSnapshot` and restore it
 - Do not attempt selection mapping through changesets yet; restore exact view snapshots
 
----
+______________________________________________________________________
 
 ## Phase 5: Introduce UndoStore Backend and Switch to Transaction-Based Undo
 
@@ -350,7 +350,7 @@ pub struct TxnUndoStep {
 - Then implement `TxnUndoStore` and add a feature flag or config switch to opt-in
 - Only after transaction undo is stable should you delete snapshot code
 
----
+______________________________________________________________________
 
 ## Phase 6: Make Syntax Updates Policy-Driven and Cheaper
 
@@ -367,7 +367,7 @@ pub struct TxnUndoStep {
 - Do `MarkDirty` + lazy reparse first; it preserves correctness with big perf wins
 - Incremental parsing is optional and can be tackled after undo refactor is complete
 
----
+______________________________________________________________________
 
 ## Phase 7: Tighten EditOp Execution - Compile -> Commit
 
@@ -399,6 +399,7 @@ recording inside `commit()`.
 #### Current State Analysis
 
 **Current flow:**
+
 ```rust
 // execute_edit_plan()
 if needs_undo && plan.op.modifies_text() {
@@ -410,6 +411,7 @@ self.apply_text_transform_with_plan(&plan);  // calls *_no_undo methods
 ```
 
 **Problems with current approach:**
+
 1. Undo snapshot taken before transaction is known
 2. Multiple `*_no_undo` helper methods duplicate the undo-recording versions
 3. `apply_transaction_with_selection_inner()` duplicates `apply_transaction_inner()` from editing.rs
@@ -418,17 +420,20 @@ self.apply_text_transform_with_plan(&plan);  // calls *_no_undo methods
 #### Transform Categories
 
 **Simple transforms** (single transaction):
+
 - `TextTransform::Delete` - builds delete tx
 - `TextTransform::Insert(text)` - builds insert tx
 - `TextTransform::InsertNewlineWithIndent` - builds insert tx with computed indent
 - `TextTransform::Deindent { max_spaces }` - builds delete tx
 
 **Compound transforms** (multiple transactions composed):
+
 - `TextTransform::Replace(text)` - delete tx + insert tx
 - `TextTransform::MapChars(kind)` - delete tx + insert tx
 - `TextTransform::ReplaceEachChar(ch)` - delete tx + insert tx
 
 **Meta transforms** (no document undo needed):
+
 - `TextTransform::Undo` - calls `self.undo()`
 - `TextTransform::Redo` - calls `self.redo()`
 - `TextTransform::None` - no-op
@@ -454,6 +459,7 @@ fn build_insert_transaction(&self, text: &str) -> Option<(Transaction, Selection
 ```
 
 Methods refactored:
+
 - [x] `insert_text_no_undo` → `build_insert_transaction`
 - [x] `insert_newline_with_indent_no_undo` → `build_newline_with_indent_transaction`
 - [x] `apply_char_mapping_no_undo` → `build_char_mapping_transaction`
@@ -574,7 +580,7 @@ impl UndoAccess for Editor {
 However, `save_undo_state()` should be updated to only push `EditorUndoGroup` with view
 snapshots and call `doc.record_undo_boundary()`. This is already done.
 
----
+______________________________________________________________________
 
 ## Incremental Adoption Map
 
@@ -592,7 +598,7 @@ This is the recommended step-by-step order that maintains a running editor:
 
 At each step, the editor should still build and function with minimal behavioral drift.
 
----
+______________________________________________________________________
 
 ## Testing Strategy
 
@@ -635,7 +641,7 @@ If you keep snapshots temporarily, still property-test that undo/redo restores e
 - [ ] Add a "replay log" format (optional): record a sequence of EditOps/commands and assert final buffer content + cursor/selection
 - [ ] Use it to lock in behavior during refactors
 
----
+______________________________________________________________________
 
 ## Appendix: Summary of Key Types
 
@@ -694,13 +700,14 @@ impl Buffer {
 }
 ```
 
----
+______________________________________________________________________
 
 ## Key Findings That Drove This Roadmap
 
 ### A) Document history storing per-buffer selections is the wrong layer
 
 `HistoryEntry { doc: Rope, selections: HashMap<BufferId, Selection> }` makes the document responsible for view state. This becomes brittle when:
+
 - buffers are created/destroyed (history retains dead BufferIds)
 - multiple buffers share one doc but diverge in selection/cursor semantics
 - future features add per-view state beyond selection (scroll, wrap, mode-local state)
@@ -716,6 +723,7 @@ You already have `Transaction + ChangeSet + invert() + selection mapping` primit
 ### C) Locking protocol is "whoever grabs the guard wins"
 
 `Arc<RwLock<Document>>` + public `doc_mut()` returning a WriteGuard with no protocol means:
+
 - edits can happen while someone else expects stability
 - syntax updates might run under a write lock accidentally (long lock hold)
 - multi-document operations can deadlock if two locks are taken in different orders

@@ -13,14 +13,13 @@ mod layout;
 mod navigation;
 mod undo_store;
 
-pub use undo_store::{DocumentSnapshot, SnapshotUndoStore, TxnUndoStore, UndoBackend};
-
 use std::path::PathBuf;
 use std::sync::{Arc, RwLock};
 
 pub use document::{Document, DocumentId};
 pub use history::HistoryResult;
 pub use layout::{BufferView, Layout, SpatialDirection, SplitDirection, SplitPath};
+pub use undo_store::{DocumentSnapshot, SnapshotUndoStore, TxnUndoStore, UndoBackend};
 use xeno_primitives::range::CharIdx;
 use xeno_primitives::{Mode, Selection};
 use xeno_registry::options::{
@@ -190,7 +189,7 @@ impl Buffer {
 	#[inline]
 	pub fn with_doc<R>(&self, f: impl FnOnce(&Document) -> R) -> R {
 		let guard = self.document.read().expect("doc lock poisoned");
-		f(&*guard)
+		f(&guard)
 	}
 
 	/// Executes a closure with write access to the document.
@@ -209,7 +208,7 @@ impl Buffer {
 	#[inline]
 	pub fn with_doc_mut<R>(&self, f: impl FnOnce(&mut Document) -> R) -> R {
 		let mut guard = self.document.write().expect("doc lock poisoned");
-		f(&mut *guard)
+		f(&mut guard)
 	}
 
 	/// Returns the associated file path.

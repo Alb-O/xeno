@@ -14,9 +14,9 @@ impl Editor {
 			.map(|(p, r)| (p.to_string(), r));
 		if let Some((pattern, _reverse)) = search_info {
 			let cursor_pos = self.buffer().cursor;
-			let search_result = self
-				.buffer()
-				.with_doc(|doc| movement::find_next(doc.content().slice(..), &pattern, cursor_pos + 1));
+			let search_result = self.buffer().with_doc(|doc| {
+				movement::find_next(doc.content().slice(..), &pattern, cursor_pos + 1)
+			});
 			match search_result {
 				Ok(Some(range)) => {
 					self.buffer_mut().set_cursor(range.head);

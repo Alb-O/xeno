@@ -171,8 +171,8 @@ impl Editor {
 			return;
 		};
 		let encoding = client.offset_encoding();
-		let Some(pos) =
-			buffer.with_doc(|doc| xeno_lsp::char_to_lsp_position(doc.content(), position, encoding))
+		let Some(pos) = buffer
+			.with_doc(|doc| xeno_lsp::char_to_lsp_position(doc.content(), position, encoding))
 		else {
 			self.notify(keys::error::call("Invalid rename position"));
 			return;

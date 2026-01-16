@@ -116,13 +116,13 @@ impl ToastState {
 			}
 		}
 
-		if self.phase == AnimationPhase::Dwelling {
-			if let Some(remaining) = self.remaining_dwell.as_mut() {
-				*remaining = remaining.saturating_sub(delta);
-				if remaining.is_zero() {
-					self.phase = AnimationPhase::Exiting;
-					self.progress = 0.0;
-				}
+		if self.phase == AnimationPhase::Dwelling
+			&& let Some(remaining) = self.remaining_dwell.as_mut()
+		{
+			*remaining = remaining.saturating_sub(delta);
+			if remaining.is_zero() {
+				self.phase = AnimationPhase::Exiting;
+				self.progress = 0.0;
 			}
 		}
 	}

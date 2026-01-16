@@ -152,7 +152,9 @@ impl Editor {
 							.selection
 							.ranges()
 							.iter()
-							.map(|r| movement::move_to_line_start(doc.content().slice(..), *r, false))
+							.map(|r| {
+								movement::move_to_line_start(doc.content().slice(..), *r, false)
+							})
 							.collect();
 						(ranges, buffer.selection.primary_index())
 					})
@@ -376,41 +378,39 @@ impl Editor {
 				self.set_mode(mode.clone());
 			}
 
-			PostEffect::MoveCursor(adjust) => {
-				match adjust {
-					CursorAdjust::Stay => {
-						let len = self.buffer().with_doc(|doc| doc.content().len_chars());
-						let pos = original_cursor.min(len.saturating_sub(1));
-						self.buffer_mut()
-							.set_cursor_and_selection(pos, Selection::point(pos));
-					}
-					CursorAdjust::Up(count) => {
-						let (new_ranges, primary_index) = {
-							let buffer = self.buffer();
-							buffer.with_doc(|doc| {
-								let ranges: Vec<_> = buffer
-									.selection
-									.ranges()
-									.iter()
-									.map(|r| {
-										movement::move_vertically(
-											doc.content().slice(..),
-											*r,
-											MoveDir::Backward,
-											*count,
-											false,
-										)
-									})
-									.collect();
-								(ranges, buffer.selection.primary_index())
-							})
-						};
-						self.buffer_mut()
-							.set_selection(Selection::from_vec(new_ranges, primary_index));
-					}
-					CursorAdjust::ToStart | CursorAdjust::ToEnd => {}
+			PostEffect::MoveCursor(adjust) => match adjust {
+				CursorAdjust::Stay => {
+					let len = self.buffer().with_doc(|doc| doc.content().len_chars());
+					let pos = original_cursor.min(len.saturating_sub(1));
+					self.buffer_mut()
+						.set_cursor_and_selection(pos, Selection::point(pos));
 				}
-			}
+				CursorAdjust::Up(count) => {
+					let (new_ranges, primary_index) = {
+						let buffer = self.buffer();
+						buffer.with_doc(|doc| {
+							let ranges: Vec<_> = buffer
+								.selection
+								.ranges()
+								.iter()
+								.map(|r| {
+									movement::move_vertically(
+										doc.content().slice(..),
+										*r,
+										MoveDir::Backward,
+										*count,
+										false,
+									)
+								})
+								.collect();
+							(ranges, buffer.selection.primary_index())
+						})
+					};
+					self.buffer_mut()
+						.set_selection(Selection::from_vec(new_ranges, primary_index));
+				}
+				CursorAdjust::ToStart | CursorAdjust::ToEnd => {}
+			},
 		}
 	}
 
@@ -476,7 +476,10 @@ impl Editor {
 	}
 
 	/// Builds a character mapping transaction (e.g., uppercase, lowercase, swap case).
-	fn build_char_mapping_transaction(&self, kind: CharMapKind) -> Option<(Transaction, Selection)> {
+	fn build_char_mapping_transaction(
+		&self,
+		kind: CharMapKind,
+	) -> Option<(Transaction, Selection)> {
 		let buffer = self.buffer();
 		let primary = buffer.selection.primary();
 		let from = primary.from();
@@ -591,5 +594,4 @@ impl Editor {
 			);
 		}
 	}
-
 }

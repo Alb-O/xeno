@@ -10,11 +10,9 @@ use xeno_lsp::lsp_types::{
 	Uri, WorkspaceEdit,
 };
 use xeno_lsp::{OffsetEncoding, lsp_range_to_char_range};
-use xeno_primitives::Transaction;
 use xeno_primitives::range::CharIdx;
 use xeno_primitives::transaction::{Change, Tendril};
-
-use xeno_primitives::EditOrigin;
+use xeno_primitives::{EditOrigin, Transaction};
 
 use crate::buffer::BufferId;
 use crate::editor::{Editor, EditorUndoGroup};

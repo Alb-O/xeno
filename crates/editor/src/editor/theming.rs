@@ -35,7 +35,7 @@ impl Editor {
 		let scroll_line = buffer.scroll_line;
 
 		buffer.with_doc(|doc| {
-			let Some(ref syntax) = doc.syntax() else {
+			let Some(syntax) = doc.syntax() else {
 				return Vec::new();
 			};
 

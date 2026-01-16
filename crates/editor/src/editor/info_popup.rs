@@ -38,8 +38,9 @@ impl Editor {
 				.expect("just created");
 			buffer.with_doc_mut(|doc| *doc.content_mut() = ropey::Rope::from_str(&content));
 			if let Some(ft) = file_type {
-				buffer
-					.with_doc_mut(|doc| doc.init_syntax_for_language(ft, &self.config.language_loader));
+				buffer.with_doc_mut(|doc| {
+					doc.init_syntax_for_language(ft, &self.config.language_loader)
+				});
 			}
 			buffer.set_readonly_override(Some(true));
 		}
@@ -118,8 +119,9 @@ impl Editor {
 		if let Some(ft) = file_type {
 			let current_ft = buffer.file_type();
 			if current_ft.as_deref() != Some(ft) {
-				buffer
-					.with_doc_mut(|doc| doc.init_syntax_for_language(ft, &self.config.language_loader));
+				buffer.with_doc_mut(|doc| {
+					doc.init_syntax_for_language(ft, &self.config.language_loader)
+				});
 			}
 		}
 

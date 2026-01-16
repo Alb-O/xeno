@@ -26,8 +26,7 @@ pub use xeno_registry_core::Key;
 /// Typed handle to an action definition.
 pub type ActionKey = Key<ActionDef>;
 pub use edit_op::{
-	CharMapKind, CursorAdjust, EditOp, EditPlan, PostEffect, PreEffect, SelectionOp,
-	TextTransform,
+	CharMapKind, CursorAdjust, EditOp, EditPlan, PostEffect, PreEffect, SelectionOp, TextTransform,
 };
 pub use effects::{ActionEffects, Effect, ScrollAmount};
 pub use keybindings::{
