@@ -33,6 +33,7 @@ xeno-runtime-language.workspace = true
 xeno-tui.workspace = true
 [dev-dependencies]
 insta.workspace = true
+inventory.workspace = true
 proptest.workspace = true
 
 [lints]

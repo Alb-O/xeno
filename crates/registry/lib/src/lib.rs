@@ -46,9 +46,9 @@ pub use actions::editor_ctx::{
 	SplitOps, TextAccess, ThemeAccess, UndoAccess, ViewportAccess,
 };
 pub use actions::{
-	ACTIONS, ActionArgs, ActionContext, ActionDef, ActionEffects, ActionHandler, ActionResult,
-	AppEffect, BindingMode, EditEffect, Effect, KEY_PREFIXES, KEYBINDINGS, KeyBindingDef,
-	KeyPrefixDef, Mode, ObjectSelectionKind, PendingAction, PendingKind, RESULT_EFFECTS_HANDLERS,
+	ActionArgs, ActionContext, ActionDef, ActionEffects, ActionHandler, ActionResult, AppEffect,
+	BindingMode, EditEffect, Effect, KEY_PREFIXES, KEYBINDINGS, KeyBindingDef, KeyPrefixDef, Mode,
+	ObjectSelectionKind, PendingAction, PendingKind, RESULT_EFFECTS_HANDLERS,
 	RESULT_EXTENSION_HANDLERS, ScreenPosition, ScrollAmount, UiEffect, ViewEffect, action,
 	dispatch_result, edit_op, find_prefix, key_prefix, result_extension_handler, result_handler,
 };
@@ -194,10 +194,11 @@ mod tests {
 	/// Sanity check to catch registry list regressions.
 	#[test]
 	fn registry_sanity_check() {
+		let action_count = all_actions().count();
 		assert!(
-			ACTIONS.len() >= 50,
+			action_count >= 50,
 			"Expected at least 50 actions registered, got {}",
-			ACTIONS.len()
+			action_count
 		);
 		assert!(
 			MOTIONS.len() >= 20,
@@ -223,7 +224,7 @@ mod tests {
 
 	#[test]
 	fn registry_id_uniqueness_by_kind() {
-		assert_unique_ids("actions", ACTIONS.iter().copied());
+		assert_unique_ids("actions", all_actions());
 		assert_unique_ids("commands", COMMANDS.iter().copied());
 		assert_unique_ids("motions", MOTIONS.iter().copied());
 		assert_unique_ids("gutters", GUTTERS.iter().copied());
@@ -236,7 +237,7 @@ mod tests {
 
 	#[test]
 	fn registry_id_namespacing() {
-		assert_namespaced_ids("actions", ACTIONS.iter().copied());
+		assert_namespaced_ids("actions", all_actions());
 		assert_namespaced_ids("commands", COMMANDS.iter().copied());
 		assert_namespaced_ids("motions", MOTIONS.iter().copied());
 		assert_namespaced_ids("gutters", GUTTERS.iter().copied());
@@ -246,7 +247,7 @@ mod tests {
 
 	#[test]
 	fn action_ids_resolve() {
-		for &action in ACTIONS.iter() {
+		for action in all_actions() {
 			let action_id = resolve_action_id(action.name()).unwrap_or_else(|| {
 				panic!("action name missing from index: {}", action.name());
 			});

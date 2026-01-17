@@ -141,6 +141,8 @@ macro_rules! action {
 			#[allow(non_upper_case_globals)]
 			pub const $name: $crate::ActionKey = $crate::ActionKey::new(&[<ACTION_ $name>]);
 
+			inventory::submit! { $crate::ActionReg(&[<ACTION_ $name>]) }
+
 			$crate::__action_keybindings!($name $(, $kdl)?);
 		}
 	};

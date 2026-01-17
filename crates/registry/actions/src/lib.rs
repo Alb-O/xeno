@@ -1,16 +1,21 @@
 //! Action registry definitions and handlers.
 //!
-//! Actions are defined in static lists and executed via keybindings.
+//! Actions are the primary unit of editor functionality, executed via keybindings.
+//! This module provides auto-registration via the [`action!`] macro and O(1) lookup.
 
-use std::sync::{Mutex, OnceLock};
+use std::collections::HashMap;
+use std::sync::{LazyLock, Mutex, OnceLock};
 
 extern crate self as xeno_registry_actions;
+
+/// Wrapper for [`inventory`] collection of action definitions.
+pub struct ActionReg(pub &'static ActionDef);
+inventory::collect!(ActionReg);
 
 mod context;
 mod definition;
 pub mod edit_op;
 mod effects;
-/// Built-in action implementations.
 pub(crate) mod impls;
 mod keybindings;
 mod macros;
@@ -64,157 +69,62 @@ pub mod keys {
 	pub use crate::impls::window::*;
 }
 
-/// Registry of all action definitions.
-pub static ACTIONS: &[&ActionDef] = &[
-	&impls::editing::ACTION_delete,
-	&impls::editing::ACTION_delete_no_yank,
-	&impls::editing::ACTION_change,
-	&impls::editing::ACTION_change_no_yank,
-	&impls::editing::ACTION_yank,
-	&impls::editing::ACTION_paste_after,
-	&impls::editing::ACTION_paste_before,
-	&impls::editing::ACTION_paste_all_after,
-	&impls::editing::ACTION_paste_all_before,
-	&impls::editing::ACTION_undo,
-	&impls::editing::ACTION_redo,
-	&impls::editing::ACTION_indent,
-	&impls::editing::ACTION_deindent,
-	&impls::editing::ACTION_to_lowercase,
-	&impls::editing::ACTION_to_uppercase,
-	&impls::editing::ACTION_swap_case,
-	&impls::editing::ACTION_join_lines,
-	&impls::editing::ACTION_open_below,
-	&impls::editing::ACTION_open_above,
-	&impls::editing::ACTION_delete_back,
-	&impls::editing::ACTION_delete_word_back,
-	&impls::editing::ACTION_delete_word_forward,
-	&impls::editing::ACTION_replace_char,
-	&impls::find::ACTION_find_char,
-	&impls::find::ACTION_find_char_to,
-	&impls::find::ACTION_find_char_reverse,
-	&impls::find::ACTION_find_char_to_reverse,
-	&impls::insert::ACTION_insert_mode,
-	&impls::insert::ACTION_insert_line_start,
-	&impls::insert::ACTION_insert_line_end,
-	&impls::insert::ACTION_insert_after,
-	&impls::insert::ACTION_insert_newline,
-	&impls::misc::ACTION_add_line_below,
-	&impls::misc::ACTION_add_line_above,
-	&impls::misc::ACTION_use_selection_as_search,
-	&impls::modes::ACTION_normal_mode,
-	&impls::motions::ACTION_move_left,
-	&impls::motions::ACTION_move_right,
-	&impls::motions::ACTION_move_line_start,
-	&impls::motions::ACTION_move_line_end,
-	&impls::motions::ACTION_next_word_start,
-	&impls::motions::ACTION_prev_word_start,
-	&impls::motions::ACTION_next_word_end,
-	&impls::motions::ACTION_next_long_word_start,
-	&impls::motions::ACTION_prev_long_word_start,
-	&impls::motions::ACTION_next_long_word_end,
-	&impls::motions::ACTION_select_word_forward,
-	&impls::motions::ACTION_select_word_backward,
-	&impls::motions::ACTION_select_word_end,
-	&impls::motions::ACTION_next_paragraph,
-	&impls::motions::ACTION_prev_paragraph,
-	&impls::motions::ACTION_document_start,
-	&impls::motions::ACTION_document_end,
-	&impls::motions::ACTION_goto_line_start,
-	&impls::motions::ACTION_goto_line_end,
-	&impls::motions::ACTION_goto_first_nonwhitespace,
-	&impls::motions::ACTION_move_top_screen,
-	&impls::motions::ACTION_move_middle_screen,
-	&impls::motions::ACTION_move_bottom_screen,
-	&impls::palette::ACTION_open_palette,
-	&impls::scroll::ACTION_scroll_up,
-	&impls::scroll::ACTION_scroll_down,
-	&impls::scroll::ACTION_scroll_half_page_up,
-	&impls::scroll::ACTION_scroll_half_page_down,
-	&impls::scroll::ACTION_scroll_page_up,
-	&impls::scroll::ACTION_scroll_page_down,
-	&impls::scroll::ACTION_move_up_visual,
-	&impls::scroll::ACTION_move_down_visual,
-	&impls::selection_ops::ACTION_collapse_selection,
-	&impls::selection_ops::ACTION_flip_selection,
-	&impls::selection_ops::ACTION_ensure_forward,
-	&impls::selection_ops::ACTION_select_line,
-	&impls::selection_ops::ACTION_select_all,
-	&impls::selection_ops::ACTION_expand_to_line,
-	&impls::selection_ops::ACTION_remove_primary_selection,
-	&impls::selection_ops::ACTION_remove_selections_except_primary,
-	&impls::selection_ops::ACTION_rotate_selections_forward,
-	&impls::selection_ops::ACTION_rotate_selections_backward,
-	&impls::selection_ops::ACTION_split_lines,
-	&impls::selection_ops::ACTION_duplicate_selections_down,
-	&impls::selection_ops::ACTION_duplicate_selections_up,
-	&impls::selection_ops::ACTION_merge_selections,
-	&impls::text_objects::ACTION_select_object_inner,
-	&impls::text_objects::ACTION_select_object_around,
-	&impls::text_objects::ACTION_select_object_to_start,
-	&impls::text_objects::ACTION_select_object_to_end,
-	&impls::window::ACTION_split_horizontal,
-	&impls::window::ACTION_split_vertical,
-	&impls::window::ACTION_focus_left,
-	&impls::window::ACTION_focus_down,
-	&impls::window::ACTION_focus_up,
-	&impls::window::ACTION_focus_right,
-	&impls::window::ACTION_buffer_next,
-	&impls::window::ACTION_buffer_prev,
-	&impls::window::ACTION_close_split,
-	&impls::window::ACTION_close_other_buffers,
-];
-
+/// Runtime-registered actions (plugins, user extensions).
 static EXTRA_ACTIONS: OnceLock<Mutex<Vec<&'static ActionDef>>> = OnceLock::new();
 
-/// Registers an extra action definition at runtime.
+/// O(1) action lookup index, keyed by id, name, and aliases.
+static ACTION_INDEX: LazyLock<Mutex<HashMap<&'static str, &'static ActionDef>>> =
+	LazyLock::new(|| {
+		let mut map = HashMap::new();
+		for reg in inventory::iter::<ActionReg> {
+			insert_action_into_index(&mut map, reg.0);
+		}
+		Mutex::new(map)
+	});
+
+fn insert_action_into_index(
+	map: &mut HashMap<&'static str, &'static ActionDef>,
+	def: &'static ActionDef,
+) {
+	map.insert(def.id(), def);
+	map.insert(def.name(), def);
+	for &alias in def.aliases() {
+		map.insert(alias, def);
+	}
+}
+
+/// Registers an action definition at runtime.
+///
+/// Duplicate registrations (by pointer equality) are ignored.
 pub fn register_action(def: &'static ActionDef) {
 	let mut extras = EXTRA_ACTIONS
 		.get_or_init(|| Mutex::new(Vec::new()))
 		.lock()
 		.expect("extra action lock poisoned");
 
-	if ACTIONS.iter().any(|&existing| std::ptr::eq(existing, def)) {
-		return;
-	}
-
 	if extras.iter().any(|&existing| std::ptr::eq(existing, def)) {
 		return;
 	}
-
 	extras.push(def);
+	drop(extras);
+
+	let mut index = ACTION_INDEX.lock().expect("action index lock poisoned");
+	insert_action_into_index(&mut index, def);
 }
 
-/// Find an action by name or alias.
+/// Finds an action by name, alias, or id.
 pub fn find_action(name: &str) -> Option<&'static ActionDef> {
-	if let Some(action) = ACTIONS
-		.iter()
-		.copied()
-		.find(|action| action.name() == name || action.aliases().contains(&name))
-	{
-		return Some(action);
-	}
-
-	let extras = EXTRA_ACTIONS.get()?;
-	extras
-		.lock()
-		.expect("extra action lock poisoned")
-		.iter()
-		.copied()
-		.find(|action| action.name() == name || action.aliases().contains(&name))
+	ACTION_INDEX.lock().expect("poisoned").get(name).copied()
 }
 
 /// Returns all registered actions, sorted by name.
 pub fn all_actions() -> impl Iterator<Item = &'static ActionDef> {
-	let mut actions: Vec<_> = ACTIONS.to_vec();
+	let mut actions: Vec<_> = inventory::iter::<ActionReg>().map(|r| r.0).collect();
+
 	if let Some(extras) = EXTRA_ACTIONS.get() {
-		actions.extend(
-			extras
-				.lock()
-				.expect("extra action lock poisoned")
-				.iter()
-				.copied(),
-		);
+		actions.extend(extras.lock().expect("poisoned").iter().copied());
 	}
+
 	actions.sort_by_key(|action| action.name());
 	actions.into_iter()
 }
