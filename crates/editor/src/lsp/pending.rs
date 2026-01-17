@@ -54,6 +54,9 @@ pub const LSP_MAX_INCREMENTAL_BYTES: usize = 100 * 1024;
 /// Retry delay after LSP send failure before attempting full sync.
 pub const LSP_ERROR_RETRY_DELAY: Duration = Duration::from_millis(250);
 
+/// Maximum number of documents flushed per tick.
+pub const LSP_MAX_DOCS_PER_TICK: usize = 8;
+
 /// Pending LSP changes for a single document.
 #[derive(Debug)]
 pub struct PendingLsp {
@@ -167,6 +170,14 @@ pub struct FlushComplete {
 	pub doc_id: DocumentId,
 	/// Whether the send succeeded.
 	pub success: bool,
+}
+
+#[derive(Debug, Default, Clone, Copy)]
+pub struct FlushStats {
+	pub flushed_docs: usize,
+	pub full_syncs: u64,
+	pub incremental_syncs: u64,
+	pub snapshot_bytes: u64,
 }
 
 /// Accumulated pending LSP state across all documents.
@@ -286,16 +297,25 @@ impl PendingLspState {
 		&mut self,
 		now: Instant,
 		debounce: Duration,
+		max_docs: usize,
 		sync: &DocumentSync,
 		metrics: &Arc<EditorMetrics>,
 		content_provider: impl Fn(DocumentId) -> Option<Rope>,
-	) -> usize {
+	) -> FlushStats {
 		self.poll_completions();
 
-		let mut flushed = 0;
+		let mut stats = FlushStats::default();
 		let mut to_remove = Vec::new();
 
+		if max_docs == 0 {
+			return stats;
+		}
+
 		for (&doc_id, pending) in &mut self.pending {
+			if stats.flushed_docs >= max_docs {
+				break;
+			}
+
 			if self.in_flight.contains(&doc_id) || !pending.is_due(now, debounce) {
 				continue;
 			}
@@ -338,10 +358,11 @@ impl PendingLspState {
 			self.in_flight.insert(doc_id);
 
 			if use_incremental {
+				stats.incremental_syncs += 1;
 				tokio::spawn(async move {
 					let start = Instant::now();
 					let result = sync
-						.notify_change_incremental_no_content(&path, &language, changes)
+						.notify_change_incremental_no_content_with_ack(&path, &language, changes)
 						.await;
 					let success = result.is_ok();
 					let latency_ms = start.elapsed().as_millis() as u64;
@@ -374,10 +395,16 @@ impl PendingLspState {
 					self.in_flight.remove(&doc_id);
 					continue;
 				};
-				metrics.add_snapshot_bytes(content.len_bytes() as u64);
+				let snapshot_bytes = content.len_bytes() as u64;
+				stats.full_syncs += 1;
+				stats.snapshot_bytes += snapshot_bytes;
 				tokio::spawn(async move {
 					let start = Instant::now();
-					let result = sync.notify_change_full(&path, &language, &content).await;
+					let snapshot = content.to_string();
+					metrics.add_snapshot_bytes(snapshot_bytes);
+					let result = sync
+						.notify_change_full_with_ack_text(&path, &language, snapshot)
+						.await;
 					let success = result.is_ok();
 					let latency_ms = start.elapsed().as_millis() as u64;
 
@@ -410,14 +437,14 @@ impl PendingLspState {
 			pending.force_full = false;
 			pending.retry_after = None;
 			to_remove.push(doc_id);
-			flushed += 1;
+			stats.flushed_docs += 1;
 		}
 
 		for doc_id in to_remove {
 			self.pending.remove(&doc_id);
 		}
 
-		flushed
+		stats
 	}
 
 	/// Returns the number of documents with pending changes.
@@ -439,6 +466,7 @@ impl PendingLspState {
 #[cfg(test)]
 mod tests {
 	use super::*;
+	use std::sync::atomic::{AtomicUsize, Ordering};
 
 	#[test]
 	fn test_pending_lsp_append_respects_thresholds() {
@@ -628,5 +656,50 @@ mod tests {
 
 		assert!(pending.force_full);
 		assert!(pending.changes.is_empty());
+	}
+
+	#[tokio::test]
+	async fn test_incremental_flush_skips_snapshot() {
+		let (sync, _registry, _documents, _receiver) = DocumentSync::create();
+		let metrics = Arc::new(EditorMetrics::new());
+		let mut state = PendingLspState::new();
+
+		state.accumulate(
+			DocumentId(1),
+			PathBuf::from("test.rs"),
+			"rust".to_string(),
+			vec![LspDocumentChange {
+				range: xeno_primitives::lsp::LspRange::point(
+					xeno_primitives::lsp::LspPosition::new(0, 0),
+				),
+				new_text: "x".to_string(),
+			}],
+			false,
+			true,
+			OffsetEncoding::Utf16,
+			1,
+		);
+
+		if let Some(pending) = state.pending.get_mut(&DocumentId(1)) {
+			pending.last_edit_at = Instant::now() - LSP_DEBOUNCE;
+		}
+
+		let snapshot_calls = Arc::new(AtomicUsize::new(0));
+		let snapshot_calls_clone = snapshot_calls.clone();
+
+		let stats = state.flush_due(
+			Instant::now(),
+			LSP_DEBOUNCE,
+			LSP_MAX_DOCS_PER_TICK,
+			&sync,
+			&metrics,
+			|_| {
+				snapshot_calls_clone.fetch_add(1, Ordering::Relaxed);
+				Some(Rope::from_str(""))
+			},
+		);
+
+		assert_eq!(stats.full_syncs, 0);
+		assert_eq!(snapshot_calls.load(Ordering::Relaxed), 0);
 	}
 }

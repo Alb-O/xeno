@@ -35,19 +35,24 @@ fn cmd_stats<'a>(
 ## LSP Sync
 - Pending docs: {}
 - In-flight: {}
-- Full syncs: {}
-- Incremental syncs: {}
+- Full syncs (total/tick): {} / {}
+- Incremental syncs (total/tick): {} / {}
 - Send errors: {}
-- Coalesced: {}",
+- Coalesced: {}
+- Snapshot bytes (total/tick): {} / {}",
 			stats.hooks_pending,
 			stats.hooks_scheduled,
 			stats.hooks_completed,
 			stats.lsp_pending_docs,
 			stats.lsp_in_flight,
 			stats.lsp_full_sync,
+			stats.lsp_full_sync_tick,
 			stats.lsp_incremental_sync,
+			stats.lsp_incremental_sync_tick,
 			stats.lsp_send_errors,
 			stats.lsp_coalesced,
+			stats.lsp_snapshot_bytes,
+			stats.lsp_snapshot_bytes_tick,
 		);
 
 		crate::impls::Editor::open_info_popup(

@@ -69,8 +69,15 @@ impl DocumentSyncEventHandler {
 }
 
 impl LspEventHandler for DocumentSyncEventHandler {
-	fn on_diagnostics(&self, _server_id: LanguageServerId, uri: Uri, diagnostics: Vec<Diagnostic>) {
-		self.documents.update_diagnostics(&uri, diagnostics);
+	fn on_diagnostics(
+		&self,
+		_server_id: LanguageServerId,
+		uri: Uri,
+		diagnostics: Vec<Diagnostic>,
+		version: Option<i32>,
+	) {
+		self.documents
+			.update_diagnostics(&uri, diagnostics, version);
 	}
 
 	fn on_progress(&self, server_id: LanguageServerId, params: lsp_types::ProgressParams) {
@@ -150,6 +157,16 @@ impl DocumentSync {
 		language: &str,
 		text: &Rope,
 	) -> Result<ClientHandle> {
+		self.open_document_text(path, language, text.to_string()).await
+	}
+
+	/// Open a document using an owned snapshot.
+	pub async fn open_document_text(
+		&self,
+		path: &Path,
+		language: &str,
+		text: String,
+	) -> Result<ClientHandle> {
 		let client = self.registry.get_or_start(language, path).await?;
 
 		let uri = self
@@ -159,14 +176,9 @@ impl DocumentSync {
 
 		let version = self.documents.get_version(&uri).unwrap_or(0);
 
-		client.text_document_did_open(
-			uri.clone(),
-			language.to_string(),
-			version,
-			text.to_string(),
-		)?;
+		client.text_document_did_open(uri.clone(), language.to_string(), version, text)?;
 
-		self.documents.set_opened(&uri, true);
+		self.documents.mark_opened(&uri, version);
 
 		Ok(client)
 	}
@@ -182,25 +194,40 @@ impl DocumentSync {
 	/// * `language` - Language ID
 	/// * `text` - New document content
 	pub async fn notify_change_full(&self, path: &Path, language: &str, text: &Rope) -> Result<()> {
+		self.notify_change_full_text(path, language, text.to_string())
+			.await
+	}
+
+	/// Notify language servers of a full document change using an owned snapshot.
+	pub async fn notify_change_full_text(
+		&self,
+		path: &Path,
+		language: &str,
+		text: String,
+	) -> Result<()> {
 		let uri = crate::uri_from_path(path)
 			.ok_or_else(|| crate::Error::Protocol("Invalid path".into()))?;
 
 		if !self.documents.is_opened(&uri) {
-			self.open_document(path, language, text).await?;
+			self.open_document_text(path, language, text).await?;
 			return Ok(());
 		}
 
-		let version = self
-			.documents
-			.increment_version(&uri)
-			.ok_or_else(|| crate::Error::Protocol("Document not registered".into()))?;
-
 		let Some(client) = self.registry.get(language, path) else {
-			self.open_document(path, language, text).await?;
+			self.open_document_text(path, language, text).await?;
 			return Ok(());
 		};
 
-		client.text_document_did_change_full(uri, version, text.to_string())?;
+		let version = self
+			.documents
+			.queue_change(&uri)
+			.ok_or_else(|| crate::Error::Protocol("Document not registered".into()))?;
+
+		if let Err(err) = client.text_document_did_change_full(uri.clone(), version, text) {
+			self.documents.mark_force_full_sync(&uri);
+			return Err(err);
+		}
+		self.documents.ack_change(&uri, version);
 
 		Ok(())
 	}
@@ -212,26 +239,43 @@ impl DocumentSync {
 		language: &str,
 		text: &Rope,
 	) -> Result<Option<oneshot::Receiver<()>>> {
+		self.notify_change_full_with_ack_text(path, language, text.to_string())
+			.await
+	}
+
+	/// Notify language servers of a full document change with an ack and owned snapshot.
+	pub async fn notify_change_full_with_ack_text(
+		&self,
+		path: &Path,
+		language: &str,
+		text: String,
+	) -> Result<Option<oneshot::Receiver<()>>> {
 		let uri = crate::uri_from_path(path)
 			.ok_or_else(|| crate::Error::Protocol("Invalid path".into()))?;
 
 		if !self.documents.is_opened(&uri) {
-			self.open_document(path, language, text).await?;
+			self.open_document_text(path, language, text).await?;
 			return Ok(None);
 		}
 
-		let version = self
-			.documents
-			.increment_version(&uri)
-			.ok_or_else(|| crate::Error::Protocol("Document not registered".into()))?;
-
 		let Some(client) = self.registry.get(language, path) else {
-			self.open_document(path, language, text).await?;
+			self.open_document_text(path, language, text).await?;
 			return Ok(None);
 		};
 
-		let ack = client.text_document_did_change_full_with_ack(uri, version, text.to_string())?;
-		Ok(Some(ack))
+		let version = self
+			.documents
+			.queue_change(&uri)
+			.ok_or_else(|| crate::Error::Protocol("Document not registered".into()))?;
+
+		let ack = match client.text_document_did_change_full_with_ack(uri.clone(), version, text) {
+			Ok(ack) => ack,
+			Err(err) => {
+				self.documents.mark_force_full_sync(&uri);
+				return Err(err);
+			}
+		};
+		Ok(Some(self.wrap_ack(uri, version, ack)))
 	}
 
 	/// Notify language servers of an incremental document change without content.
@@ -259,11 +303,6 @@ impl DocumentSync {
 			));
 		}
 
-		let version = self
-			.documents
-			.increment_version(&uri)
-			.ok_or_else(|| crate::Error::Protocol("Document not registered".into()))?;
-
 		let content_changes: Vec<TextDocumentContentChangeEvent> = changes
 			.into_iter()
 			.map(|change| TextDocumentContentChangeEvent {
@@ -277,7 +316,16 @@ impl DocumentSync {
 			return Err(crate::Error::Protocol("No client for language".into()));
 		};
 
-		client.text_document_did_change(uri, version, content_changes)?;
+		let version = self
+			.documents
+			.queue_change(&uri)
+			.ok_or_else(|| crate::Error::Protocol("Document not registered".into()))?;
+
+		if let Err(err) = client.text_document_did_change(uri, version, content_changes) {
+			self.documents.mark_force_full_sync(&uri);
+			return Err(err);
+		}
+		self.documents.ack_change(&uri, version);
 
 		Ok(())
 	}
@@ -307,11 +355,6 @@ impl DocumentSync {
 			));
 		}
 
-		let version = self
-			.documents
-			.increment_version(&uri)
-			.ok_or_else(|| crate::Error::Protocol("Document not registered".into()))?;
-
 		let content_changes: Vec<TextDocumentContentChangeEvent> = changes
 			.into_iter()
 			.map(|change| TextDocumentContentChangeEvent {
@@ -325,8 +368,36 @@ impl DocumentSync {
 			return Err(crate::Error::Protocol("No client for language".into()));
 		};
 
-		let ack = client.text_document_did_change_with_ack(uri, version, content_changes)?;
-		Ok(Some(ack))
+		let version = self
+			.documents
+			.queue_change(&uri)
+			.ok_or_else(|| crate::Error::Protocol("Document not registered".into()))?;
+
+		let ack = match client.text_document_did_change_with_ack(uri.clone(), version, content_changes)
+		{
+			Ok(ack) => ack,
+			Err(err) => {
+				self.documents.mark_force_full_sync(&uri);
+				return Err(err);
+			}
+		};
+		Ok(Some(self.wrap_ack(uri, version, ack)))
+	}
+
+	fn wrap_ack(
+		&self,
+		uri: Uri,
+		version: i32,
+		ack: oneshot::Receiver<()>,
+	) -> oneshot::Receiver<()> {
+		let (tx, rx) = oneshot::channel();
+		let documents = self.documents.clone();
+		tokio::spawn(async move {
+			let _ = ack.await;
+			documents.ack_change(&uri, version);
+			let _ = tx.send(());
+		});
+		rx
 	}
 
 	/// Notify language servers that a document will be saved.
@@ -485,6 +556,7 @@ mod tests {
 				message: "test error".to_string(),
 				..Diagnostic::default()
 			}],
+			None,
 		);
 
 		let diagnostics = documents.get_diagnostics(&uri);

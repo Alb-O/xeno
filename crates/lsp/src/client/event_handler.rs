@@ -21,6 +21,7 @@ pub trait LspEventHandler: Send + Sync {
 		_server_id: LanguageServerId,
 		_uri: Uri,
 		_diagnostics: Vec<Diagnostic>,
+		_version: Option<i32>,
 	) {
 	}
 

@@ -457,14 +457,14 @@ match try_incremental(...) {
 
 ### Tasks
 
-- [ ] Refactor immediate flush path to delay `to_string()`
-- [ ] Refactor debounced flush path to delay `to_string()`
-- [ ] Add counters:
-  - [ ] #full_sync
-  - [ ] #incremental
-  - [ ] bytes snapshotted per second/tick
-- [ ] Add perf regression test (basic):
-  - [ ] editing small ranges does not snapshot full doc repeatedly
+- [x] Refactor immediate flush path to delay `to_string()`
+- [x] Refactor debounced flush path to delay `to_string()`
+- [x] Add counters:
+  - [x] #full_sync
+  - [x] #incremental
+  - [x] bytes snapshotted per second/tick
+- [x] Add perf regression test (basic):
+  - [x] editing small ranges does not snapshot full doc repeatedly
 
 ### Risks
 
@@ -481,16 +481,16 @@ ______________________________________________________________________
 
 ### Tasks
 
-- [ ] Ensure `PendingLspState` is per-document with:
-  - [ ] pending incremental changes queue (or coalesced)
-  - [ ] last_change_time
-  - [ ] editor_version at last change
-  - [ ] force_full_sync flag
-- [ ] When changes arrive:
-  - [ ] update state, do **not** send immediately unless policy says so
-- [ ] On tick:
-  - [ ] flush only docs whose quiet period has elapsed
-  - [ ] flush at most N docs per tick (budget)
+- [x] Ensure `PendingLspState` is per-document with:
+  - [x] pending incremental changes queue (or coalesced)
+  - [x] last_change_time
+  - [x] editor_version at last change
+  - [x] force_full_sync flag
+- [x] When changes arrive:
+  - [x] update state, do **not** send immediately unless policy says so
+- [x] On tick:
+  - [x] flush only docs whose quiet period has elapsed
+  - [x] flush at most N docs per tick (budget)
 
 ### Risks
 
@@ -507,18 +507,18 @@ ______________________________________________________________________
 
 ### Tasks
 
-- [ ] Make `DocumentStateManager` the authority for:
-  - [ ] current server version per doc
-  - [ ] pending requests (didOpen/didChange) and expected acks
-- [ ] On mismatch (server says old version, or rejects change):
-  - [ ] set `force_full_sync`
-  - [ ] clear incremental queue
-  - [ ] send full snapshot with new version
-- [ ] On large edit (undo/redo or bulk):
-  - [ ] explicitly call `force_full_sync()` and bump version
-- [ ] Add tests:
-  - [ ] incremental sequence produces monotonic versions
-  - [ ] simulated mismatch triggers full sync and resets state
+- [x] Make `DocumentStateManager` the authority for:
+  - [x] current server version per doc
+  - [x] pending requests (didOpen/didChange) and expected acks
+- [x] On mismatch (server says old version, or rejects change):
+  - [x] set `force_full_sync`
+  - [x] clear incremental queue
+  - [x] send full snapshot with new version
+- [x] On large edit (undo/redo or bulk):
+  - [x] explicitly call `force_full_sync()` and bump version
+- [x] Add tests:
+  - [x] incremental sequence produces monotonic versions
+  - [x] simulated mismatch triggers full sync and resets state
 
 ### Risks
 
@@ -648,10 +648,10 @@ ______________________________________________________________________
 
 ## Phase 5
 
-- [ ] Lazy snapshot provider everywhere
-- [ ] Debounce discipline
-- [ ] Version reconciliation + recovery
-- [ ] Tests for version/mismatch recovery
+- [x] Lazy snapshot provider everywhere
+- [x] Debounce discipline
+- [x] Version reconciliation + recovery
+- [x] Tests for version/mismatch recovery
 
 ## Phase 6
 

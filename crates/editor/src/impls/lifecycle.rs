@@ -16,7 +16,9 @@ use xeno_registry::{HookContext, HookEventData, emit_sync_with as emit_hook_sync
 
 use super::Editor;
 #[cfg(feature = "lsp")]
-use crate::lsp::pending::{LSP_DEBOUNCE, LSP_MAX_INCREMENTAL_BYTES, LSP_MAX_INCREMENTAL_CHANGES};
+use crate::lsp::pending::{
+	LSP_DEBOUNCE, LSP_MAX_DOCS_PER_TICK, LSP_MAX_INCREMENTAL_BYTES, LSP_MAX_INCREMENTAL_CHANGES,
+};
 use crate::metrics::StatsSnapshot;
 use crate::types::{Invocation, InvocationPolicy, InvocationResult};
 
@@ -51,6 +53,9 @@ impl Editor {
 		}
 		#[cfg(feature = "lsp")]
 		self.drain_lsp_ui_events();
+
+		#[cfg(feature = "lsp")]
+		self.queue_lsp_resyncs_from_documents();
 
 		#[cfg(feature = "lsp")]
 		let mut lsp_docs: HashSet<crate::buffer::DocumentId> = HashSet::new();
@@ -107,6 +112,31 @@ impl Editor {
 		self.frame.dirty_buffers.insert(buffer_id);
 	}
 
+	/// Queues full LSP syncs for documents flagged by the LSP state manager.
+	#[cfg(feature = "lsp")]
+	fn queue_lsp_resyncs_from_documents(&mut self) {
+		let uris = self.lsp.documents().take_force_full_sync_uris();
+		if uris.is_empty() {
+			return;
+		}
+
+		let uri_set: HashSet<_> = uris.into_iter().collect();
+		for buffer in self.core.buffers.buffers_mut() {
+			let Some(path) = buffer.path() else {
+				continue;
+			};
+			let Some(uri) = xeno_lsp::uri_from_path(&path) else {
+				continue;
+			};
+			if !uri_set.contains(&uri) {
+				continue;
+			}
+
+			buffer.with_doc_mut(|doc| doc.mark_for_full_lsp_sync());
+			self.frame.dirty_buffers.insert(buffer.id);
+		}
+	}
+
 	/// Accumulates LSP buffer changes for debounced sync.
 	///
 	/// Instead of immediately sending notifications, changes are accumulated
@@ -158,13 +188,24 @@ impl Editor {
 		let buffers = &self.core.buffers;
 		let metrics = &self.metrics;
 
-		self.pending_lsp
-			.flush_due(now, LSP_DEBOUNCE, &sync, metrics, |doc_id| {
+		let stats = self.pending_lsp.flush_due(
+			now,
+			LSP_DEBOUNCE,
+			LSP_MAX_DOCS_PER_TICK,
+			&sync,
+			metrics,
+			|doc_id| {
 				buffers
 					.buffers()
 					.find(|b| b.document_id() == doc_id)
 					.map(|b| b.with_doc(|doc| doc.content().clone()))
-			});
+			},
+		);
+		self.metrics.record_lsp_tick(
+			stats.full_syncs,
+			stats.incremental_syncs,
+			stats.snapshot_bytes,
+		);
 	}
 
 	/// Queues an immediate LSP change and returns an ack receiver when written.
@@ -196,12 +237,21 @@ impl Editor {
 			&& total_bytes <= LSP_MAX_INCREMENTAL_BYTES;
 
 		let content = buffer.with_doc(|doc| doc.content().clone());
-		let snapshot_bytes = content.len_bytes() as u64;
 		let sync = self.lsp.sync().clone();
 		let metrics = self.metrics.clone();
 		let (tx, rx) = oneshot::channel();
 
 		tokio::spawn(async move {
+			let mut snapshot: Option<String> = None;
+			let mut snapshot_bytes: Option<u64> = None;
+			let mut take_snapshot = || {
+				if snapshot.is_none() {
+					snapshot_bytes = Some(content.len_bytes() as u64);
+					snapshot = Some(content.to_string());
+				}
+				(snapshot.take().unwrap(), snapshot_bytes.unwrap())
+			};
+
 			let result = if use_incremental {
 				match sync
 					.notify_change_incremental_no_content_with_ack(&path, &language, changes)
@@ -213,16 +263,18 @@ impl Editor {
 					}
 					Err(_) => {
 						metrics.inc_send_error();
-						metrics.add_snapshot_bytes(snapshot_bytes);
-						sync.notify_change_full_with_ack(&path, &language, &content)
+						let (snapshot, bytes) = take_snapshot();
+						metrics.add_snapshot_bytes(bytes);
+						sync.notify_change_full_with_ack_text(&path, &language, snapshot)
 							.await
 							.inspect(|_| metrics.inc_full_sync())
 							.inspect_err(|_| metrics.inc_send_error())
 					}
 				}
 			} else {
-				metrics.add_snapshot_bytes(snapshot_bytes);
-				sync.notify_change_full_with_ack(&path, &language, &content)
+				let (snapshot, bytes) = take_snapshot();
+				metrics.add_snapshot_bytes(bytes);
+				sync.notify_change_full_with_ack_text(&path, &language, snapshot)
 					.await
 					.inspect(|_| metrics.inc_full_sync())
 					.inspect_err(|_| metrics.inc_send_error())
@@ -391,6 +443,9 @@ impl Editor {
 			lsp_send_errors: self.metrics.send_error_count(),
 			lsp_coalesced: self.metrics.coalesced_count(),
 			lsp_snapshot_bytes: self.metrics.snapshot_bytes_count(),
+			lsp_full_sync_tick: self.metrics.full_sync_tick_count(),
+			lsp_incremental_sync_tick: self.metrics.incremental_sync_tick_count(),
+			lsp_snapshot_bytes_tick: self.metrics.snapshot_bytes_tick_count(),
 		}
 	}
 

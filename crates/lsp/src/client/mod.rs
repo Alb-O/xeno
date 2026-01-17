@@ -21,7 +21,13 @@
 //! struct MyHandler;
 //!
 //! impl LspEventHandler for MyHandler {
-//!     fn on_diagnostics(&self, uri: Uri, diagnostics: Vec<Diagnostic>) {
+//!     fn on_diagnostics(
+//!         &self,
+//!         _server_id: LanguageServerId,
+//!         uri: Uri,
+//!         diagnostics: Vec<Diagnostic>,
+//!         _version: Option<i32>,
+//!     ) {
 //!         // Update UI with new diagnostics
 //!     }
 //! }
@@ -845,7 +851,7 @@ pub fn start_server(
 				);
 				state
 					.event_handler
-					.on_diagnostics(state.server_id, params.uri, params.diagnostics);
+					.on_diagnostics(state.server_id, params.uri, params.diagnostics, params.version);
 				ControlFlow::Continue(())
 			})
 			.notification::<lsp_types::notification::Progress>(|state, params| {

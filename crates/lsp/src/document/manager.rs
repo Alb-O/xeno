@@ -8,7 +8,7 @@ use std::path::Path;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Instant;
 
-use lsp_types::{Diagnostic, DiagnosticSeverity, ProgressParams, Uri};
+	use lsp_types::{Diagnostic, DiagnosticSeverity, ProgressParams, Uri};
 use parking_lot::RwLock;
 use tokio::sync::mpsc;
 use tracing::debug;
@@ -140,7 +140,7 @@ impl DocumentStateManager {
 	///
 	/// Creates document state on-demand if the document isn't registered,
 	/// enabling project-wide diagnostics from LSP servers.
-	pub fn update_diagnostics(&self, uri: &Uri, diagnostics: Vec<Diagnostic>) {
+	pub fn update_diagnostics(&self, uri: &Uri, diagnostics: Vec<Diagnostic>, version: Option<i32>) {
 		let error_count = diagnostics
 			.iter()
 			.filter(|d| d.severity == Some(DiagnosticSeverity::ERROR))
@@ -157,6 +157,9 @@ impl DocumentStateManager {
 			let docs = self.documents.read();
 			if let Some(state) = docs.get(&uri_key) {
 				state.set_diagnostics(diagnostics);
+				if let Some(version) = version {
+					state.record_diagnostics_version(version);
+				}
 				self.diagnostics_version.fetch_add(1, Ordering::Relaxed);
 				self.send_diagnostics_event(uri, error_count, warning_count);
 				return;
@@ -166,12 +169,17 @@ impl DocumentStateManager {
 		// Document not registered - create on demand
 		{
 			let mut docs = self.documents.write();
-			if let Some(state) = docs.get(&uri_key) {
-				state.set_diagnostics(diagnostics);
+			let state = if let Some(state) = docs.get(&uri_key) {
+				state
 			} else {
 				let state = DocumentState::from_uri(self.normalize_uri(uri));
-				state.set_diagnostics(diagnostics);
 				docs.insert(uri_key, state);
+				docs.get(&uri_key).expect("state just inserted")
+			};
+
+			state.set_diagnostics(diagnostics);
+			if let Some(version) = version {
+				state.record_diagnostics_version(version);
 			}
 		}
 
@@ -205,11 +213,32 @@ impl DocumentStateManager {
 		docs.get(&key).map(|s| s.increment_version())
 	}
 
+	/// Reserve the next sync version and mark it pending.
+	pub fn queue_change(&self, uri: &Uri) -> Option<i32> {
+		let key = self.uri_key(uri);
+		let docs = self.documents.read();
+		docs.get(&key).map(|s| s.next_version())
+	}
+
+	/// Acknowledge a pending version; returns false on mismatch.
+	pub fn ack_change(&self, uri: &Uri, version: i32) -> bool {
+		let key = self.uri_key(uri);
+		let docs = self.documents.read();
+		docs.get(&key).is_some_and(|s| s.ack_version(version))
+	}
+
 	/// Get version for a document.
 	pub fn get_version(&self, uri: &Uri) -> Option<i32> {
 		let key = self.uri_key(uri);
 		let docs = self.documents.read();
 		docs.get(&key).map(|s| s.version())
+	}
+
+	/// Get the last acked version for a document.
+	pub fn acked_version(&self, uri: &Uri) -> Option<i32> {
+		let key = self.uri_key(uri);
+		let docs = self.documents.read();
+		docs.get(&key).map(|s| s.acked_version())
 	}
 
 	/// Mark a document as opened with a language server.
@@ -219,6 +248,43 @@ impl DocumentStateManager {
 		if let Some(state) = docs.get(&key) {
 			state.set_opened(opened);
 		}
+	}
+
+	/// Mark a document as opened and reset sync state.
+	pub fn mark_opened(&self, uri: &Uri, version: i32) {
+		let key = self.uri_key(uri);
+		let docs = self.documents.read();
+		if let Some(state) = docs.get(&key) {
+			state.mark_opened(version);
+		}
+	}
+
+	/// Mark a document as requiring a full sync.
+	pub fn mark_force_full_sync(&self, uri: &Uri) {
+		let key = self.uri_key(uri);
+		let docs = self.documents.read();
+		if let Some(state) = docs.get(&key) {
+			state.mark_force_full_sync();
+		}
+	}
+
+	/// Returns true if a document requires a full sync and clears the flag.
+	pub fn take_force_full_sync_by_uri(&self, uri: &Uri) -> bool {
+		let key = self.uri_key(uri);
+		let docs = self.documents.read();
+		docs.get(&key).is_some_and(|s| s.take_force_full_sync())
+	}
+
+	/// Returns and clears all documents marked for full sync.
+	pub fn take_force_full_sync_uris(&self) -> Vec<Uri> {
+		let docs = self.documents.read();
+		let mut uris = Vec::new();
+		for state in docs.values() {
+			if state.take_force_full_sync() {
+				uris.push(state.uri().clone());
+			}
+		}
+		uris
 	}
 
 	/// Check if a document is opened with a language server.
@@ -343,5 +409,12 @@ impl DocumentStateManager {
 		self.progress
 			.write()
 			.retain(|(sid, _), _| *sid != server_id.0);
+	}
+
+	#[cfg(test)]
+	pub fn pending_change_count(&self, uri: &Uri) -> usize {
+		let key = self.uri_key(uri);
+		let docs = self.documents.read();
+		docs.get(&key).map(|s| s.pending_versions_len()).unwrap_or(0)
 	}
 }

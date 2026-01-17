@@ -21,6 +21,12 @@ pub struct EditorMetrics {
 	pub lsp_coalesced: AtomicU64,
 	/// Total bytes snapshotted for full document syncs.
 	pub lsp_snapshot_bytes: AtomicU64,
+	/// Full syncs scheduled in the last tick.
+	pub lsp_full_sync_tick: AtomicU64,
+	/// Incremental syncs scheduled in the last tick.
+	pub lsp_incremental_sync_tick: AtomicU64,
+	/// Snapshot bytes scheduled in the last tick.
+	pub lsp_snapshot_bytes_tick: AtomicU64,
 }
 
 impl EditorMetrics {
@@ -54,6 +60,15 @@ impl EditorMetrics {
 		self.lsp_snapshot_bytes.fetch_add(bytes, Ordering::Relaxed);
 	}
 
+	/// Records per-tick LSP sync counts.
+	pub fn record_lsp_tick(&self, full_syncs: u64, incremental_syncs: u64, snapshot_bytes: u64) {
+		self.lsp_full_sync_tick.store(full_syncs, Ordering::Relaxed);
+		self.lsp_incremental_sync_tick
+			.store(incremental_syncs, Ordering::Relaxed);
+		self.lsp_snapshot_bytes_tick
+			.store(snapshot_bytes, Ordering::Relaxed);
+	}
+
 	/// Returns the current full sync count.
 	pub fn full_sync_count(&self) -> u64 {
 		self.lsp_full_sync.load(Ordering::Relaxed)
@@ -77,6 +92,21 @@ impl EditorMetrics {
 	/// Returns the current snapshot byte count.
 	pub fn snapshot_bytes_count(&self) -> u64 {
 		self.lsp_snapshot_bytes.load(Ordering::Relaxed)
+	}
+
+	/// Returns the last tick full sync count.
+	pub fn full_sync_tick_count(&self) -> u64 {
+		self.lsp_full_sync_tick.load(Ordering::Relaxed)
+	}
+
+	/// Returns the last tick incremental sync count.
+	pub fn incremental_sync_tick_count(&self) -> u64 {
+		self.lsp_incremental_sync_tick.load(Ordering::Relaxed)
+	}
+
+	/// Returns the last tick snapshot byte count.
+	pub fn snapshot_bytes_tick_count(&self) -> u64 {
+		self.lsp_snapshot_bytes_tick.load(Ordering::Relaxed)
 	}
 }
 
@@ -103,6 +133,12 @@ pub struct StatsSnapshot {
 	pub lsp_coalesced: u64,
 	/// Total bytes snapshotted for full syncs.
 	pub lsp_snapshot_bytes: u64,
+	/// Full syncs scheduled in the last tick.
+	pub lsp_full_sync_tick: u64,
+	/// Incremental syncs scheduled in the last tick.
+	pub lsp_incremental_sync_tick: u64,
+	/// Snapshot bytes scheduled in the last tick.
+	pub lsp_snapshot_bytes_tick: u64,
 }
 
 impl StatsSnapshot {
@@ -119,6 +155,9 @@ impl StatsSnapshot {
 			lsp_send_errors = self.lsp_send_errors,
 			lsp_coalesced = self.lsp_coalesced,
 			lsp_snapshot_bytes = self.lsp_snapshot_bytes,
+			lsp_full_sync_tick = self.lsp_full_sync_tick,
+			lsp_incremental_sync_tick = self.lsp_incremental_sync_tick,
+			lsp_snapshot_bytes_tick = self.lsp_snapshot_bytes_tick,
 			"editor.stats"
 		);
 	}

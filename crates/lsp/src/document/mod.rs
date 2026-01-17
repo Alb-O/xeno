@@ -93,11 +93,38 @@ mod tests {
 		assert!(manager.contains(&uri));
 
 		let diagnostics = vec![make_diagnostic(DiagnosticSeverity::ERROR, "test error")];
-		manager.update_diagnostics(&uri, diagnostics);
+		manager.update_diagnostics(&uri, diagnostics, None);
 		assert_eq!(manager.get_diagnostics(&uri).len(), 1);
 		assert_eq!(manager.total_error_count(), 1);
 
 		manager.unregister(&uri);
 		assert!(!manager.contains(&uri));
+	}
+
+	#[test]
+	fn test_document_state_manager_versions_monotonic() {
+		let manager = DocumentStateManager::new();
+		let path = PathBuf::from("/test.rs");
+		let uri = manager.register(&path, Some("rust")).unwrap();
+
+		let v1 = manager.queue_change(&uri).unwrap();
+		let v2 = manager.queue_change(&uri).unwrap();
+
+		assert!(v2 > v1);
+	}
+
+	#[test]
+	fn test_document_state_manager_mismatch_forces_full_sync() {
+		let manager = DocumentStateManager::new();
+		let path = PathBuf::from("/test.rs");
+		let uri = manager.register(&path, Some("rust")).unwrap();
+
+		let version = manager.queue_change(&uri).unwrap();
+		assert!(manager.ack_change(&uri, version));
+
+		manager.update_diagnostics(&uri, Vec::new(), Some(version.saturating_sub(1)));
+
+		assert!(manager.take_force_full_sync_by_uri(&uri));
+		assert_eq!(manager.pending_change_count(&uri), 0);
 	}
 }
