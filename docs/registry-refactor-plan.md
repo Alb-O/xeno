@@ -72,96 +72,46 @@ The codebase recently removed `linkme` (distributed slices) and now uses **manua
 
 ## Implementation Tasks
 
-### Phase 1: Actions Registry Migration (Proof of Concept)
+### Phase 1: Actions Registry Migration (Proof of Concept) ✅
 
-- [ ] **1.1** Add `inventory = "0.3"` to `crates/registry/actions/Cargo.toml`
+- [x] **1.1** Add `inventory = "0.3"` to workspace and `crates/registry/actions/Cargo.toml`
 
-- [ ] **1.2** Add wrapper type and collect in `lib.rs`:
+- [x] **1.2** Add wrapper type and collect in `lib.rs`:
   ```rust
   pub struct ActionReg(pub &'static ActionDef);
-  inventory::collect!(ActionReg);  // must be at module scope
+  inventory::collect!(ActionReg);
   ```
 
-- [ ] **1.3** Patch `action!` macro in `macros.rs` to emit `submit!`:
+- [x] **1.3** Patch `action!` macro in `macros.rs` to emit `submit!`:
   ```rust
-  // Add after ACTION_<name> definition, before closing paste!
-  inventory::submit! {
-      $crate::ActionReg(&[<ACTION_ $name>])
-  }
+  inventory::submit! { $crate::ActionReg(&[<ACTION_ $name>]) }
   ```
 
-- [ ] **1.4** Implement `LazyLock<Mutex<HashMap>>` index in `lib.rs`:
-  ```rust
-  static ACTION_INDEX: LazyLock<Mutex<HashMap<&'static str, &'static ActionDef>>> =
-      LazyLock::new(|| {
-          let mut map = HashMap::new();
-          for reg in inventory::iter::<ActionReg> {
-              let def = reg.0;
-              insert_action(&mut map, def);
-          }
-          Mutex::new(map)
-      });
+- [x] **1.4** Implement `ACTION_INDEX: LazyLock<Mutex<HashMap>>` for O(1) lookup by name, alias, or id
 
-  fn insert_action(map: &mut HashMap<&'static str, &'static ActionDef>, def: &'static ActionDef) {
-      map.insert(def.name(), def);
-      for &alias in def.aliases() {
-          map.insert(alias, def);
-      }
-      map.insert(def.id(), def);
-  }
-  ```
+- [x] **1.5** Replace `find_action` with O(1) lookup
 
-- [ ] **1.5** Replace `find_action` with O(1) lookup:
-  ```rust
-  pub fn find_action(name: &str) -> Option<&'static ActionDef> {
-      ACTION_INDEX.lock().expect("action index lock poisoned").get(name).copied()
-  }
-  ```
+- [x] **1.6** Update `register_action` to use same index
 
-- [ ] **1.6** Update `register_action` to use same index:
-  ```rust
-  pub fn register_action(def: &'static ActionDef) {
-      let mut map = ACTION_INDEX.lock().expect("action index lock poisoned");
-      if let Some(existing) = map.get(def.name()) {
-          if !std::ptr::eq(*existing, def) {
-              eprintln!("warn: action name collision: {}", def.name());
-              // last-write-wins for now
-          }
-      }
-      insert_action(&mut map, def);
-  }
-  ```
+- [x] **1.7** Implement sorted `all_actions()` iterator using inventory iteration
 
-- [ ] **1.7** Implement sorted `all_actions()` iterator:
-  ```rust
-  static ALL_ACTIONS: LazyLock<Vec<&'static ActionDef>> = LazyLock::new(|| {
-      let mut actions: Vec<_> = inventory::iter::<ActionReg>().map(|r| r.0).collect();
-      // Include runtime extras if any
-      if let Some(extras) = EXTRA_ACTIONS.get() {
-          actions.extend(extras.lock().unwrap().iter().copied());
-      }
-      actions.sort_by_key(|a| a.name());
-      actions
-  });
+- [x] **1.8** Delete the manual `ACTIONS: &[&ActionDef] = &[...]` array (97 lines)
 
-  pub fn all_actions() -> impl Iterator<Item = &'static ActionDef> {
-      ALL_ACTIONS.iter().copied()
-  }
-  ```
+- [x] **1.9** Verify keybindings collection still works
 
-- [ ] **1.8** Delete the manual `ACTIONS: &[&ActionDef] = &[...]` array (97 lines)
+- [x] **1.10** Run tests: `cargo test -p xeno-registry-actions`
 
-- [ ] **1.9** Verify keybindings collection still works (derives from same macro)
+### Phase 2: Keybindings Index ✅
 
-- [ ] **1.10** Run tests: `cargo test -p xeno-registry-actions`
+- [x] **2.1** Add `KeyBindingSetReg` and `KeyPrefixReg` wrapper types with `inventory::collect!`
 
-### Phase 2: Keybindings Index
+- [x] **2.2** Remove manual `KEYBINDING_SETS` array (97 lines deleted)
 
-- [ ] **2.1** Implement `KEYBINDING_INDEX: LazyLock<HashMap>` for fast key lookup
+- [x] **2.3** Update `KEYBINDINGS` and `KEY_PREFIXES` to use inventory iteration
 
-- [ ] **2.2** Remove manual `KEYBINDING_SETS` array
+- [x] **2.4** Patch `__action_keybindings!` macro to emit `inventory::submit!`
 
-- [ ] **2.3** Update `KEYBINDINGS: LazyLock<Vec<KeyBindingDef>>` to use inventory iteration
+- [x] **2.5** Patch `key_prefix!` macro to emit `inventory::submit!`
 
 ### Phase 3: Generic Registry Infrastructure
 

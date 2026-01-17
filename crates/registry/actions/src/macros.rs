@@ -24,12 +24,15 @@ macro_rules! __opt_slice {
 	};
 }
 
-/// Defines keybinding lists for an action.
+/// Defines keybinding lists for an action and registers them with inventory.
 #[doc(hidden)]
 #[macro_export]
 macro_rules! __action_keybindings {
 	($name:ident, $kdl:literal) => {
 		xeno_macro::parse_keybindings!($name, $kdl);
+		paste::paste! {
+			inventory::submit! { $crate::KeyBindingSetReg([<KEYBINDINGS_ $name>]) }
+		}
 	};
 	($name:ident) => {
 		paste::paste! {
@@ -205,6 +208,7 @@ macro_rules! key_prefix {
 				keys: $keys,
 				description: $desc,
 			};
+			inventory::submit! { $crate::KeyPrefixReg(&[<KEY_PREFIX_ $mode:upper _ $keys>]) }
 		}
 	};
 	($mode:ident $keys:literal as $id:ident => $desc:literal) => {
@@ -215,6 +219,7 @@ macro_rules! key_prefix {
 				keys: $keys,
 				description: $desc,
 			};
+			inventory::submit! { $crate::KeyPrefixReg(&[<KEY_PREFIX_ $mode:upper _ $id:upper>]) }
 		}
 	};
 }

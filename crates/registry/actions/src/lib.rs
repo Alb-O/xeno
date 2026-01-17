@@ -38,7 +38,8 @@ pub use effects::{
 	ActionEffects, AppEffect, EditEffect, Effect, ScrollAmount, UiEffect, ViewEffect,
 };
 pub use keybindings::{
-	BindingMode, KEY_PREFIXES, KEYBINDINGS, KeyBindingDef, KeyPrefixDef, find_prefix,
+	BindingMode, KEY_PREFIXES, KEYBINDINGS, KeyBindingDef, KeyBindingSetReg, KeyPrefixDef,
+	KeyPrefixReg, find_prefix,
 };
 pub use motion_helpers::{cursor_motion, insert_with_motion, selection_motion, word_motion};
 pub use pending::PendingAction;
