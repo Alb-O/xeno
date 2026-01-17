@@ -5,12 +5,18 @@ use termina::escape::csi::{Csi, Cursor};
 use termina::event::{Event, KeyEventKind};
 use termina::{PlatformTerminal, Terminal as _};
 use xeno_editor::Editor;
+use xeno_primitives::Mode;
 use xeno_registry::{
 	HookContext, HookEventData, emit as emit_hook, emit_sync_with as emit_hook_sync_with,
 };
 use xeno_tui::Terminal;
 
 use crate::backend::TerminaBackend;
+
+/// Hook drain budget for fast redraw (Insert mode, panels open).
+const HOOK_BUDGET_FAST: Duration = Duration::from_millis(1);
+/// Hook drain budget for slow redraw (Normal mode, idle).
+const HOOK_BUDGET_SLOW: Duration = Duration::from_millis(3);
 
 /// Render timing configuration for frame pacing.
 #[derive(Debug, Clone, Copy)]
@@ -52,7 +58,6 @@ pub async fn run_editor(mut editor: Editor) -> io::Result<()> {
 	let backend = TerminaBackend::new(terminal);
 	let mut terminal = Terminal::new(backend)?;
 
-	// Start UI panels (includes terminal prewarm).
 	editor.ui_startup();
 	emit_hook_sync_with(
 		&HookContext::new(HookEventData::EditorStart, Some(&editor.extensions)),
@@ -63,7 +68,13 @@ pub async fn run_editor(mut editor: Editor) -> io::Result<()> {
 		loop {
 			editor.ui_tick();
 			editor.tick();
-			editor.hook_runtime.drain().await;
+
+			let hook_budget = if matches!(editor.mode(), Mode::Insert) {
+				HOOK_BUDGET_FAST
+			} else {
+				HOOK_BUDGET_SLOW
+			};
+			editor.hook_runtime.drain_budget(hook_budget).await;
 
 			if editor.drain_command_queue().await {
 				break;
@@ -75,7 +86,6 @@ pub async fn run_editor(mut editor: Editor) -> io::Result<()> {
 
 			terminal.draw(|frame| editor.render(frame))?;
 
-			// Priority: UI panel > editor mode
 			let cursor_style = editor
 				.ui
 				.cursor_style()
@@ -88,11 +98,10 @@ pub async fn run_editor(mut editor: Editor) -> io::Result<()> {
 			terminal.backend_mut().terminal_mut().flush()?;
 
 			let mut filter = |e: &Event| !e.is_escape();
-			// Check needs_redraw before clearing to determine timeout
 			let needs_fast_redraw = editor.frame.needs_redraw;
 			editor.frame.needs_redraw = false;
 
-			let timeout = if matches!(editor.mode(), xeno_primitives::Mode::Insert)
+			let timeout = if matches!(editor.mode(), Mode::Insert)
 				|| editor.any_panel_open()
 				|| needs_fast_redraw
 			{
