@@ -6,68 +6,68 @@ This document is a multi-phase, checkbox-driven plan to:
 2. Fix high-impact LSP sync issues (content cloning, version discipline)
 3. Add a few scale-oriented architectural improvements (budgets, observability, determinism)
 
----
+______________________________________________________________________
 
 ## Guiding Principles
 
-* **Definitions stay static and ergonomic.** Macros like `action!`, `command!`, `gutter!` keep doing (1) define `*_Def` values.
-* **Registration becomes explicit.** A small set of plugin registration functions wires builtins together in one navigable place.
-* **Behavior is unchanged until explicitly migrated.** Use an adapter phase so you can migrate one registry type at a time.
-* **Scale is protected by guardrails.** Collision checks, diagnostics, and perf counters become non-optional.
+- **Definitions stay static and ergonomic.** Macros like `action!`, `command!`, `gutter!` keep doing (1) define `*_Def` values.
+- **Registration becomes explicit.** A small set of plugin registration functions wires builtins together in one navigable place.
+- **Behavior is unchanged until explicitly migrated.** Use an adapter phase so you can migrate one registry type at a time.
+- **Scale is protected by guardrails.** Collision checks, diagnostics, and perf counters become non-optional.
 
----
+______________________________________________________________________
 
 ## Phase Overview and Dependencies
 
-* **Phase 0 — Baseline & Guardrails**: inventory, tests, CI checks (no behavior changes)
-* **Phase 1 — New Explicit Registration Infrastructure (Parallel)**: `RegistryBuilder`, `XenoPlugin`, adapters that ingest distributed slices
-* **Phase 2 — Macro Split (Define-only macros)**: macros stop calling `linkme`, only define statics
-* **Phase 3 — Registry Migration (One registry at a time)**: actions → commands → motions → gutters → handlers → keymaps
-* **Phase 4 — Remove linkme**: delete distributed slices + macros + dependency, enforce "no linkme"
-* **Phase 5 — Scale Improvements**: LSP clone removal, debounce discipline, version reconciliation, budgets + observability
+- **Phase 0 — Baseline & Guardrails**: inventory, tests, CI checks (no behavior changes)
+- **Phase 1 — New Explicit Registration Infrastructure (Parallel)**: `RegistryBuilder`, `XenoPlugin`, adapters that ingest distributed slices
+- **Phase 2 — Macro Split (Define-only macros)**: macros stop calling `linkme`, only define statics
+- **Phase 3 — Registry Migration (One registry at a time)**: actions → commands → motions → gutters → handlers → keymaps
+- **Phase 4 — Remove linkme**: delete distributed slices + macros + dependency, enforce "no linkme"
+- **Phase 5 — Scale Improvements**: LSP clone removal, debounce discipline, version reconciliation, budgets + observability
 
 **Critical path:** Phase 1 → Phase 2 → Phase 3 → Phase 4
 **Parallelizable:** LSP improvements (Phase 5) can run in parallel with registry migration after Phase 0.
 
----
+______________________________________________________________________
 
 # Phase 0 — Baseline & Guardrails
 
 ### Goals
 
-* Establish "known good" behavior and metrics before structural changes.
+- Establish "known good" behavior and metrics before structural changes.
 
 ### Tasks
 
-* [x] **Registry inventory script / report**: list counts and IDs per registry type (actions/commands/motions/gutters/etc.)
-* [x] **Collision audit**: verify unique `RegistryMeta.id` across each registry type (even before migration)
-* [x] **Smoke tests** (manual checklist):
-  * [x] Can start editor
-  * [x] Commands resolve by `name` and `aliases`
-  * [x] Keybindings work
-  * [x] LSP connects and produces diagnostics
-* [x] **Add CI lint** to prevent new registries from silently proliferating:
-  * [x] enforce naming pattern for `meta.id` (e.g. `core.save`, `lsp.hover`)
-  * [ ] enforce max alias count or format (optional)
-* [x] **Add perf counters** (even temporary):
-  * [x] LSP flush: count full-sync vs incremental
-  * [x] LSP: bytes of document text cloned per tick
+- [x] **Registry inventory script / report**: list counts and IDs per registry type (actions/commands/motions/gutters/etc.)
+- [x] **Collision audit**: verify unique `RegistryMeta.id` across each registry type (even before migration)
+- [x] **Smoke tests** (manual checklist):
+  - [x] Can start editor
+  - [x] Commands resolve by `name` and `aliases`
+  - [x] Keybindings work
+  - [x] LSP connects and produces diagnostics
+- [x] **Add CI lint** to prevent new registries from silently proliferating:
+  - [x] enforce naming pattern for `meta.id` (e.g. `core.save`, `lsp.hover`)
+  - [ ] enforce max alias count or format (optional)
+- [x] **Add perf counters** (even temporary):
+  - [x] LSP flush: count full-sync vs incremental
+  - [x] LSP: bytes of document text cloned per tick
 
 ### Risks
 
-* *Risk:* Inventory tooling takes time.
+- *Risk:* Inventory tooling takes time.
   *Mitigation:* Start with runtime logging (counts + first 10 IDs) if needed.
 
----
+______________________________________________________________________
 
 # Phase 1 — Explicit Registration Infrastructure (Parallel, No Behavior Change)
 
 ### Goals
 
-* Introduce explicit registration without deleting `distributed_slice` yet.
-* Build a `RegistryBuilder` that can ingest either:
-  * explicit registrations, or
-  * legacy distributed slices (adapter)
+- Introduce explicit registration without deleting `distributed_slice` yet.
+- Build a `RegistryBuilder` that can ingest either:
+  - explicit registrations, or
+  - legacy distributed slices (adapter)
 
 ### New Core Types (fits your `RegistryMeta` + `RegistrySource`)
 
@@ -173,34 +173,34 @@ pub fn ingest_legacy(builder: &mut RegistryBuilder) -> Result<(), RegistryError>
 
 ### Tasks
 
-* [x] Add `XenoPlugin` trait
-* [x] Add `RegistryBuilder` + `RegistryError`
-* [x] Add builder collision checks:
-  * [x] duplicate `meta.id`
-  * [x] duplicate `meta.name` within same kind (optional but recommended)
-  * [x] duplicate aliases within same kind
-* [x] Add adapter modules to ingest legacy distributed slices per registry kind
-* [x] Update app startup to use `RegistryBuilder` + legacy ingestion:
-  * [x] `RegistryBuilder::new()`
-  * [x] call `legacy_ingest_all(&mut builder)`
-  * [x] `registry = builder.build()?`
+- [x] Add `XenoPlugin` trait
+- [x] Add `RegistryBuilder` + `RegistryError`
+- [x] Add builder collision checks:
+  - [x] duplicate `meta.id`
+  - [x] duplicate `meta.name` within same kind (optional but recommended)
+  - [x] duplicate aliases within same kind
+- [x] Add adapter modules to ingest legacy distributed slices per registry kind
+- [x] Update app startup to use `RegistryBuilder` + legacy ingestion:
+  - [x] `RegistryBuilder::new()`
+  - [x] call `legacy_ingest_all(&mut builder)`
+  - [x] `registry = builder.build()?`
 
 ### Dependencies
 
-* none (but easiest after Phase 0 inventory)
+- none (but easiest after Phase 0 inventory)
 
 ### Risks
 
-* *Risk:* Some registries may depend on cross-registry initialization order.
+- *Risk:* Some registries may depend on cross-registry initialization order.
   *Mitigation:* Builder only stores defs; `build()` constructs final indices in a deterministic order.
 
----
+______________________________________________________________________
 
 # Phase 2 — Split Macros: Define-only (No Registration)
 
 ### Goals
 
-* Keep the ergonomic macro syntax, but remove `linkme` usage from macros.
+- Keep the ergonomic macro syntax, but remove `linkme` usage from macros.
 
 ### Before → After (Action)
 
@@ -289,30 +289,30 @@ macro_rules! action {
 
 ### Tasks
 
-* [x] Update `action!` macro to define-only (remove linkme)
-* [x] Update `command!`, `motion!`, `gutter!`, etc. similarly
-* [x] Add a small `source:` convention:
-  * [x] Builtins should use `RegistrySource::Builtin`
-  * [x] Crate-provided builtins can use `RegistrySource::Crate(env!("CARGO_PKG_NAME"))` via helper macro if desired
-* [x] Ensure all defs remain `pub static` so references remain `'static`
+- [x] Update `action!` macro to define-only (remove linkme)
+- [x] Update `command!`, `motion!`, `gutter!`, etc. similarly
+- [x] Add a small `source:` convention:
+  - [x] Builtins should use `RegistrySource::Builtin`
+  - [x] Crate-provided builtins can use `RegistrySource::Crate(env!("CARGO_PKG_NAME"))` via helper macro if desired
+- [x] Ensure all defs remain `pub static` so references remain `'static`
 
 ### Dependencies
 
-* Phase 1 builder exists (so you can register the new statics)
+- Phase 1 builder exists (so you can register the new statics)
 
 ### Risks
 
-* *Risk:* Macro churn touches many files.
+- *Risk:* Macro churn touches many files.
   *Mitigation:* keep field names identical; do not change semantics; migrate one macro kind at a time.
 
----
+______________________________________________________________________
 
 # Phase 3 — Registry Migration (Explicit Registration per Crate)
 
 ### Goals
 
-* Replace "linked crates register themselves" with a single explicit wiring graph:
-  * `builtins::register_all(&mut RegistryBuilder)`
+- Replace "linked crates register themselves" with a single explicit wiring graph:
+  - `builtins::register_all(&mut RegistryBuilder)`
 
 ### Minimal per-crate plugin pattern
 
@@ -350,79 +350,76 @@ pub fn register_all(reg: &mut RegistryBuilder) -> Result<(), RegistryError> {
 
 #### 3.1 Actions
 
-* [x] Create `*_plugin.rs` per contributing crate (or per domain module)
-* [x] Add explicit `register()` calls listing action statics
-* [x] Switch app startup from legacy ingestion → `builtins::register_all`
-* [x] Keep legacy ingestion only for other registry kinds still on slices
+- [x] Create `*_plugin.rs` per contributing crate (or per domain module)
+- [x] Add explicit `register()` calls listing action statics
+- [x] Switch app startup from legacy ingestion → `builtins::register_all`
+- [x] Keep legacy ingestion only for other registry kinds still on slices
 
 #### 3.2 Commands
 
-* [x] Convert `command!` to define-only (if not already)
-* [x] Create command registration lists per plugin
-* [x] Add command collision checks for `name` and `aliases`
+- [x] Convert `command!` to define-only (if not already)
+- [x] Create command registration lists per plugin
+- [x] Add command collision checks for `name` and `aliases`
 
 #### 3.3 Motions / Gutters / Handlers
 
-* [x] Repeat conversion for each registry kind
-* [x] Add any missing indices you currently computed by iterating slices
+- [x] Repeat conversion for each registry kind
+- [x] Add any missing indices you currently computed by iterating slices
 
 #### 3.4 Keymaps / Prefixes
 
-* [x] If keymaps are built from distributed slices today, change to explicit registration
-* [ ] Consider splitting:
-  * *definitions* (available bindings)
-  * *configuration* (enabled bindings per mode/profile)
+- [x] If keymaps are built from distributed slices today, change to explicit registration
+- [ ] Consider splitting:
+  - *definitions* (available bindings)
+  - *configuration* (enabled bindings per mode/profile)
 
 ### Tasks (core)
 
-* [x] Implement `builtins::register_all()`
-* [x] For each crate that currently contributes to registries:
-  * [x] Add `Plugin` type implementing `XenoPlugin`
-  * [x] Register all statics explicitly
-* [x] Remove legacy ingestion for a registry kind once fully migrated
-* [x] Add tests:
-  * [x] all actions can be resolved by id
-  * [x] all commands resolve by name/alias
-  * [x] no duplicate aliases
+- [x] Implement `builtins::register_all()`
+- [x] For each crate that currently contributes to registries:
+  - [x] Add `Plugin` type implementing `XenoPlugin`
+  - [x] Register all statics explicitly
+- [x] Remove legacy ingestion for a registry kind once fully migrated
+- [x] Add tests:
+  - [x] all actions can be resolved by id
+  - [x] all commands resolve by name/alias
+  - [x] no duplicate aliases
 
 ### Dependencies
 
-* Phase 2 macros (define-only)
-* Phase 1 builder + adapters (to keep partial migration working)
+- Phase 2 macros (define-only)
+- Phase 1 builder + adapters (to keep partial migration working)
 
 ### Risks
 
-* *Risk:* Missed registration leads to "feature disappeared."
+- *Risk:* Missed registration leads to "feature disappeared."
   *Mitigation:* temporary parity test: compare counts/IDs between legacy slice ingestion and explicit registration for the same kind until complete.
 
----
+______________________________________________________________________
 
 # Phase 4 — Remove `linkme` and Distributed Slices
 
 ### Goals
 
-* Delete the pattern entirely once explicit registration has parity.
+- Delete the pattern entirely once explicit registration has parity.
 
 ### Tasks
 
-* [x] Remove all `#[distributed_slice]` declarations and slice globals
-* [x] Delete legacy adapter ingestion modules
-* [x] Remove `linkme` dependency from all crates
-* [x] Simplify macros: eliminate linkme-related helpers
-* [ ] Add CI check (not required for this change):
-  * [ ] forbid `linkme` dependency in workspace
-  * [ ] forbid `distributed_slice` attribute usage
+- [x] Remove all `#[distributed_slice]` declarations and slice globals
+- [x] Delete legacy adapter ingestion modules
+- [x] Remove `linkme` dependency from all crates
+- [x] Simplify macros: eliminate linkme-related helpers
 
 ### Dependencies
 
-* Phase 3 complete for all registry kinds
+- Phase 3 complete for all registry kinds
 
 ### Risks
 
-* *Risk:* Hidden "side registry" exists (not in plan) still using slices.
+- *Risk:* Hidden "side registry" exists (not in plan) still using slices.
   *Mitigation:* repo-wide search gate (`distributed_slice`, `linkme::`).
 
----
+______________________________________________________________________
 
 # Phase 5 — High-Priority LSP Refactors (Performance + Correctness)
 
@@ -432,7 +429,7 @@ This phase is independent and can run in parallel after Phase 0.
 
 ### Goal
 
-* Avoid cloning full document text unless a full sync is required.
+- Avoid cloning full document text unless a full sync is required.
 
 ### Before (pattern: always clone)
 
@@ -460,75 +457,75 @@ match try_incremental(...) {
 
 ### Tasks
 
-* [ ] Refactor immediate flush path to delay `to_string()`
-* [ ] Refactor debounced flush path to delay `to_string()`
-* [ ] Add counters:
-  * [ ] #full_sync
-  * [ ] #incremental
-  * [ ] bytes snapshotted per second/tick
-* [ ] Add perf regression test (basic):
-  * [ ] editing small ranges does not snapshot full doc repeatedly
+- [ ] Refactor immediate flush path to delay `to_string()`
+- [ ] Refactor debounced flush path to delay `to_string()`
+- [ ] Add counters:
+  - [ ] #full_sync
+  - [ ] #incremental
+  - [ ] bytes snapshotted per second/tick
+- [ ] Add perf regression test (basic):
+  - [ ] editing small ranges does not snapshot full doc repeatedly
 
 ### Risks
 
-* *Risk:* Borrowing/lifetimes get tricky if snapshot must outlive closure.
+- *Risk:* Borrowing/lifetimes get tricky if snapshot must outlive closure.
   *Mitigation:* snapshot stored in local `Option<String>` owned by the flush function.
 
----
+______________________________________________________________________
 
 ## 5B — Debounce Discipline (Send Once After Quiet Period)
 
 ### Goal
 
-* Accumulate changes per doc, flush a single notification after quiet period.
+- Accumulate changes per doc, flush a single notification after quiet period.
 
 ### Tasks
 
-* [ ] Ensure `PendingLspState` is per-document with:
-  * [ ] pending incremental changes queue (or coalesced)
-  * [ ] last_change_time
-  * [ ] editor_version at last change
-  * [ ] force_full_sync flag
-* [ ] When changes arrive:
-  * [ ] update state, do **not** send immediately unless policy says so
-* [ ] On tick:
-  * [ ] flush only docs whose quiet period has elapsed
-  * [ ] flush at most N docs per tick (budget)
+- [ ] Ensure `PendingLspState` is per-document with:
+  - [ ] pending incremental changes queue (or coalesced)
+  - [ ] last_change_time
+  - [ ] editor_version at last change
+  - [ ] force_full_sync flag
+- [ ] When changes arrive:
+  - [ ] update state, do **not** send immediately unless policy says so
+- [ ] On tick:
+  - [ ] flush only docs whose quiet period has elapsed
+  - [ ] flush at most N docs per tick (budget)
 
 ### Risks
 
-* *Risk:* "Never flush" bug if timers are wrong.
+- *Risk:* "Never flush" bug if timers are wrong.
   *Mitigation:* add debug log when state exceeds max age without flush; add unit test with fake clock.
 
----
+______________________________________________________________________
 
 ## 5C — Version Discipline + Recovery
 
 ### Goal
 
-* Treat version mismatch as first-class; recover by forced full sync.
+- Treat version mismatch as first-class; recover by forced full sync.
 
 ### Tasks
 
-* [ ] Make `DocumentStateManager` the authority for:
-  * [ ] current server version per doc
-  * [ ] pending requests (didOpen/didChange) and expected acks
-* [ ] On mismatch (server says old version, or rejects change):
-  * [ ] set `force_full_sync`
-  * [ ] clear incremental queue
-  * [ ] send full snapshot with new version
-* [ ] On large edit (undo/redo or bulk):
-  * [ ] explicitly call `force_full_sync()` and bump version
-* [ ] Add tests:
-  * [ ] incremental sequence produces monotonic versions
-  * [ ] simulated mismatch triggers full sync and resets state
+- [ ] Make `DocumentStateManager` the authority for:
+  - [ ] current server version per doc
+  - [ ] pending requests (didOpen/didChange) and expected acks
+- [ ] On mismatch (server says old version, or rejects change):
+  - [ ] set `force_full_sync`
+  - [ ] clear incremental queue
+  - [ ] send full snapshot with new version
+- [ ] On large edit (undo/redo or bulk):
+  - [ ] explicitly call `force_full_sync()` and bump version
+- [ ] Add tests:
+  - [ ] incremental sequence produces monotonic versions
+  - [ ] simulated mismatch triggers full sync and resets state
 
 ### Risks
 
-* *Risk:* Over-eager full sync harms perf.
+- *Risk:* Over-eager full sync harms perf.
   *Mitigation:* count and log reasons for full sync; tune thresholds.
 
----
+______________________________________________________________________
 
 # Phase 6 — Architectural Improvements for Scale (Budgets + Observability + Determinism)
 
@@ -536,24 +533,24 @@ match try_incremental(...) {
 
 ### Goals
 
-* Prevent a single tick from being dominated by hook or async drains.
+- Prevent a single tick from being dominated by hook or async drains.
 
 ### Tasks
 
-* [ ] Introduce `drain_budget()` pattern:
-  * [ ] process at most N completions per tick
-  * [ ] time-budget option (e.g. 1–2 ms)
-* [ ] Apply budget to:
-  * [ ] hook runtime futures (if any)
-  * [ ] LSP main loop `FuturesUnordered` drain
-* [ ] Add debug counters: completions processed per tick, backlog size
+- [ ] Introduce `drain_budget()` pattern:
+  - [ ] process at most N completions per tick
+  - [ ] time-budget option (e.g. 1–2 ms)
+- [ ] Apply budget to:
+  - [ ] hook runtime futures (if any)
+  - [ ] LSP main loop `FuturesUnordered` drain
+- [ ] Add debug counters: completions processed per tick, backlog size
 
 ### Risks
 
-* *Risk:* Starvation if budget too low.
+- *Risk:* Starvation if budget too low.
   *Mitigation:* dynamic budget when backlog is large; ensure some minimum forward progress.
 
----
+______________________________________________________________________
 
 ## 6B — Registry Diagnostics and Developer UX
 
@@ -561,37 +558,37 @@ Even after migrating away from distributed slices, registry scale can still bite
 
 ### Tasks
 
-* [ ] Add `:registry` command:
-  * [ ] list items by kind, sorted by priority
-  * [ ] filter by prefix (`core.*`, `lsp.*`)
-  * [ ] show `meta.source`, required caps, flags, description
-* [ ] Print startup summary:
-  * [ ] counts per kind
-  * [ ] collisions as hard errors (not warnings)
+- [ ] Add `:registry` command:
+  - [ ] list items by kind, sorted by priority
+  - [ ] filter by prefix (`core.*`, `lsp.*`)
+  - [ ] show `meta.source`, required caps, flags, description
+- [ ] Print startup summary:
+  - [ ] counts per kind
+  - [ ] collisions as hard errors (not warnings)
 
 ### Risks
 
-* *Risk:* Spending time on tooling instead of product.
+- *Risk:* Spending time on tooling instead of product.
   *Mitigation:* keep it minimal; prioritize collision error messages first.
 
----
+______________________________________________________________________
 
 ## 6C — Effect System Guardrails (Optional but valuable)
 
 ### Tasks
 
-* [ ] Add dev-mode assertion: "unhandled effect variants" should not silently log
-* [ ] Add tracing spans around effect application:
-  * [ ] effect kind
-  * [ ] duration
-  * [ ] whether it triggered LSP sync
+- [ ] Add dev-mode assertion: "unhandled effect variants" should not silently log
+- [ ] Add tracing spans around effect application:
+  - [ ] effect kind
+  - [ ] duration
+  - [ ] whether it triggered LSP sync
 
 ### Risks
 
-* *Risk:* Too noisy tracing.
+- *Risk:* Too noisy tracing.
   *Mitigation:* sample or gate behind `debug_assertions` / feature flag.
 
----
+______________________________________________________________________
 
 # Suggested Execution Order (Practical)
 
@@ -600,69 +597,68 @@ Even after migrating away from distributed slices, registry scale can still bite
 3. **Phase 1** (builder + adapters)
 4. **Phase 2** (define-only macros)
 5. **Phase 3** migrate registries incrementally:
-   * actions → commands → motions → gutters → handlers → keymaps
+   - actions → commands → motions → gutters → handlers → keymaps
 6. **Phase 4** remove linkme
 7. **Phase 5B/5C** (debounce + version discipline)
 8. **Phase 6** budgets + observability
 
----
+______________________________________________________________________
 
 # Progress Tracker (Copy/Paste)
 
 ## Phase 0
 
-* [x] Inventory report
-* [x] Collision audit
-* [x] Smoke test checklist
-* [x] CI lint checks
-* [x] LSP clone counters
+- [x] Inventory report
+- [x] Collision audit
+- [x] Smoke test checklist
+- [x] CI lint checks
+- [x] LSP clone counters
 
 ## Phase 1
 
-* [x] `XenoPlugin` trait
-* [x] `RegistryBuilder` + errors
-* [x] Collision validation (id/name/alias)
-* [x] Legacy ingestion adapters
-* [x] App startup builds registry from builder
+- [x] `XenoPlugin` trait
+- [x] `RegistryBuilder` + errors
+- [x] Collision validation (id/name/alias)
+- [x] Legacy ingestion adapters
+- [x] App startup builds registry from builder
 
 ## Phase 2
 
-* [x] `action!` define-only
-* [x] `command!` define-only
-* [x] `motion!` define-only
-* [x] `gutter!` define-only
-* [x] All registry macros compile without `linkme`
+- [x] `action!` define-only
+- [x] `command!` define-only
+- [x] `motion!` define-only
+- [x] `gutter!` define-only
+- [x] All registry macros compile without `linkme`
 
 ## Phase 3
 
-* [x] `builtins::register_all()`
-* [x] Actions migrated
-* [x] Commands migrated
-* [x] Motions migrated
-* [x] Gutters migrated
-* [x] Handlers migrated
-* [x] Keymaps migrated
-* [x] Parity tests (legacy vs explicit) removed after migration
+- [x] `builtins::register_all()`
+- [x] Actions migrated
+- [x] Commands migrated
+- [x] Motions migrated
+- [x] Gutters migrated
+- [x] Handlers migrated
+- [x] Keymaps migrated
+- [x] Parity tests (legacy vs explicit) removed after migration
 
 ## Phase 4
 
-* [x] Delete distributed slices
-* [x] Remove `linkme` deps
-* [ ] CI forbids linkme usage (not required for this change)
+- [x] Delete distributed slices
+- [x] Remove `linkme` deps
 
 ## Phase 5
 
-* [ ] Lazy snapshot provider everywhere
-* [ ] Debounce discipline
-* [ ] Version reconciliation + recovery
-* [ ] Tests for version/mismatch recovery
+- [ ] Lazy snapshot provider everywhere
+- [ ] Debounce discipline
+- [ ] Version reconciliation + recovery
+- [ ] Tests for version/mismatch recovery
 
 ## Phase 6
 
-* [ ] Budgeted drain patterns
-* [ ] `:registry` command
-* [ ] Tracing spans and counters
+- [ ] Budgeted drain patterns
+- [ ] `:registry` command
+- [ ] Tracing spans and counters
 
----
+______________________________________________________________________
 
 *Plan generated with assistance from ChatGPT based on xeno codemap analysis.*

@@ -171,7 +171,10 @@ impl RegistryBuilder {
 		self.motions.register("motion", def)
 	}
 
-	pub fn register_text_object(&mut self, def: &'static TextObjectDef) -> Result<(), RegistryError> {
+	pub fn register_text_object(
+		&mut self,
+		def: &'static TextObjectDef,
+	) -> Result<(), RegistryError> {
 		self.text_objects.register("text_object", def)
 	}
 

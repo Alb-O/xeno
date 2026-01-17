@@ -11,6 +11,7 @@ mod types;
 
 use std::sync::OnceLock;
 
+pub(crate) use builders::build_registry_from_defs;
 pub use collision::{Collision, CollisionKind};
 pub use diagnostics::{CollisionReport, DiagnosticReport, diagnostics};
 pub use lookups::{
@@ -18,7 +19,6 @@ pub use lookups::{
 	find_command, find_motion, find_text_object_by_trigger, resolve_action_id, resolve_action_key,
 };
 pub use types::{ActionRegistryIndex, ExtensionRegistry, RegistryIndex};
-pub(crate) use builders::build_registry_from_defs;
 
 /// Global extension registry singleton.
 static REGISTRY: OnceLock<ExtensionRegistry> = OnceLock::new();

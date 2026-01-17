@@ -26,14 +26,14 @@
 //! 2. Add to root `Cargo.toml` members and workspace.dependencies
 //! 3. Add dependency and re-export here
 
-/// Registry indexing and lookup for editor extensions.
-pub mod index;
-/// Unified keymap registry using trie-based matching.
-pub mod keymap_registry;
 /// Explicit registry builder for plugin-style registration.
 pub mod builder;
 /// Built-in registry registrations.
 pub mod builtins;
+/// Registry indexing and lookup for editor extensions.
+pub mod index;
+/// Unified keymap registry using trie-based matching.
+pub mod keymap_registry;
 /// Plugin registration trait for explicit wiring.
 pub mod plugin;
 
@@ -54,6 +54,7 @@ pub use actions::{
 };
 // Re-export direction types (via actions which re-exports from xeno-base)
 pub use actions::{Axis, SeqDirection, SpatialDirection};
+pub use builder::{RegistryBuilder, RegistryError};
 pub use commands::{
 	COMMANDS, CommandContext, CommandDef, CommandEditorOps, CommandError, CommandHandler,
 	CommandOutcome, CommandResult, all_commands, command, find_command,
@@ -81,6 +82,7 @@ pub use notifications::{
 	AutoDismiss, IntoNotification, Level, NOTIFICATIONS, Notification, NotificationDef,
 	NotificationKey, keys as notification_keys,
 };
+pub use plugin::XenoPlugin;
 pub use statusline::{
 	RenderedSegment, STATUSLINE_SEGMENTS, SegmentPosition, SegmentStyle, StatuslineContext,
 	StatuslineSegmentDef, all_segments, find_segment, render_position, segments_for_position,
@@ -92,8 +94,6 @@ pub use textobj::{
 };
 // Re-export shared types from registry core (canonical source)
 pub use xeno_registry_core::{ActionId, RegistryMetadata, RegistrySource};
-pub use builder::{RegistryBuilder, RegistryError};
-pub use plugin::XenoPlugin;
 pub use {
 	xeno_registry_actions as actions, xeno_registry_commands as commands,
 	xeno_registry_gutter as gutter, xeno_registry_hooks as hooks, xeno_registry_motions as motions,
@@ -104,8 +104,9 @@ pub use {
 
 #[cfg(test)]
 mod tests {
-	use super::*;
 	use std::collections::{HashMap, HashSet};
+
+	use super::*;
 
 	fn assert_unique_ids<T: RegistryMetadata + 'static>(
 		label: &str,

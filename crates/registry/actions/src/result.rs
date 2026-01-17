@@ -4,6 +4,7 @@
 //! describing what the editor should do after an action executes.
 
 use std::sync::{Mutex, OnceLock};
+
 use xeno_macro::DispatchResult;
 
 use crate::editor_ctx::ResultHandler;

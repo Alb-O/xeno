@@ -205,7 +205,7 @@ pub fn find_action(name: &str) -> Option<&'static ActionDef> {
 
 /// Returns all registered actions, sorted by name.
 pub fn all_actions() -> impl Iterator<Item = &'static ActionDef> {
-	let mut actions: Vec<_> = ACTIONS.iter().copied().collect();
+	let mut actions: Vec<_> = ACTIONS.to_vec();
 	if let Some(extras) = EXTRA_ACTIONS.get() {
 		actions.extend(
 			extras

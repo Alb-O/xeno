@@ -37,7 +37,5 @@ pub mod keys {
 	}
 }
 
-pub(crate) static NOTIFICATIONS: &[&NotificationDef] = &[
-	&NOTIF_UNKNOWN_ACTION,
-	&NOTIF_ACTION_ERROR,
-];
+pub(crate) static NOTIFICATIONS: &[&NotificationDef] =
+	&[&NOTIF_UNKNOWN_ACTION, &NOTIF_ACTION_ERROR];

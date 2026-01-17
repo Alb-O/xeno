@@ -287,7 +287,7 @@ pub fn find_command(name: &str) -> Option<&'static CommandDef> {
 
 /// Returns an iterator over all registered commands, sorted by name.
 pub fn all_commands() -> impl Iterator<Item = &'static CommandDef> {
-	let mut commands: Vec<_> = COMMANDS.iter().copied().collect();
+	let mut commands: Vec<_> = COMMANDS.to_vec();
 	if let Some(extras) = EXTRA_COMMANDS.get() {
 		commands.extend(
 			extras

@@ -286,7 +286,7 @@ fn cmd_registry_diag<'a>(
 		let mut out = Vec::new();
 
 		out.push("--- Registry Inventory ---".to_string());
-		out.push(format!("Commands: {}", COMMANDS.iter().count()));
+		out.push(format!("Commands: {}", COMMANDS.len()));
 		out.push("Actions:  0".to_string());
 		out.push(format!("Motions:  {}", motions::all().count()));
 		out.push(format!("Objects:  {}", textobj::all().count()));

@@ -8,13 +8,12 @@ use xeno_registry_core::ActionId;
 use super::collision::{Collision, CollisionKind};
 use super::diagnostics::diagnostics_internal;
 use super::types::{ActionRegistryIndex, ExtensionRegistry, RegistryIndex};
-use crate::RegistryMetadata;
 use crate::actions::ActionDef;
 use crate::builder::RegistryBuilder;
 use crate::commands::CommandDef;
-use crate::builtins;
 use crate::motions::MotionDef;
 use crate::textobj::TextObjectDef;
+use crate::{RegistryMetadata, builtins};
 
 /// Builds the complete extension registry from registered definitions.
 ///

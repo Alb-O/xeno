@@ -383,10 +383,7 @@ pub static OPTIONS: &[&OptionDef] = &[
 
 /// Finds an option definition by name.
 pub fn find(name: &str) -> Option<&'static OptionDef> {
-	OPTIONS
-		.iter()
-		.copied()
-		.find(|o| o.meta.name == name)
+	OPTIONS.iter().copied().find(|o| o.meta.name == name)
 }
 
 /// Finds an option definition by its internal name.
@@ -394,10 +391,7 @@ pub fn find(name: &str) -> Option<&'static OptionDef> {
 /// This is equivalent to [`find`] and is provided for clarity when
 /// distinguishing between name-based and KDL key-based lookups.
 pub fn find_by_name(name: &str) -> Option<&'static OptionDef> {
-	OPTIONS
-		.iter()
-		.copied()
-		.find(|o| o.meta.name == name)
+	OPTIONS.iter().copied().find(|o| o.meta.name == name)
 }
 
 /// Finds an option definition by its KDL configuration key.
@@ -405,10 +399,7 @@ pub fn find_by_name(name: &str) -> Option<&'static OptionDef> {
 /// Use this when parsing config files where options are identified
 /// by their KDL key (e.g., "tab-width" instead of "tab_width").
 pub fn find_by_kdl(kdl_key: &str) -> Option<&'static OptionDef> {
-	OPTIONS
-		.iter()
-		.copied()
-		.find(|o| o.kdl_key == kdl_key)
+	OPTIONS.iter().copied().find(|o| o.kdl_key == kdl_key)
 }
 
 /// Returns all registered options.
@@ -420,7 +411,7 @@ pub fn all() -> impl Iterator<Item = &'static OptionDef> {
 ///
 /// Useful for documentation, completion, and consistent ordering.
 pub fn all_sorted() -> impl Iterator<Item = &'static OptionDef> {
-	let mut opts: Vec<_> = OPTIONS.iter().copied().collect();
+	let mut opts: Vec<_> = OPTIONS.to_vec();
 	opts.sort_by_key(|o| o.kdl_key);
 	opts.into_iter()
 }

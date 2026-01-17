@@ -448,8 +448,9 @@ impl DocumentSync {
 
 #[cfg(test)]
 mod tests {
-	use super::*;
 	use lsp_types::{Diagnostic, DiagnosticSeverity, Range};
+
+	use super::*;
 
 	#[test]
 	fn test_document_sync_with_registry() {

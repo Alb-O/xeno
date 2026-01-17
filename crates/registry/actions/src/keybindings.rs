@@ -21,8 +21,9 @@
 
 use std::sync::LazyLock;
 
-use crate::impls;
 use xeno_primitives::Mode;
+
+use crate::impls;
 
 static KEYBINDING_SETS: &[&[KeyBindingDef]] = &[
 	impls::editing::KEYBINDINGS_delete,

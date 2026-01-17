@@ -88,7 +88,7 @@ pub fn find_editor_command(name: &str) -> Option<&'static EditorCommandDef> {
 
 /// Returns an iterator over all registered editor commands, sorted by name.
 pub fn all_editor_commands() -> impl Iterator<Item = &'static EditorCommandDef> {
-	let mut commands: Vec<_> = EDITOR_COMMANDS.iter().copied().collect();
+	let mut commands: Vec<_> = EDITOR_COMMANDS.to_vec();
 	commands.sort_by_key(|c| c.name);
 	commands.into_iter()
 }

@@ -3,7 +3,6 @@
 //! Segments are defined in static lists and rendered
 //! in order based on their position and priority.
 
-
 mod impls;
 /// Statusline segment registration macros.
 mod macros;

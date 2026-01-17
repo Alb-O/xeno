@@ -27,7 +27,6 @@
 
 use std::sync::{Mutex, OnceLock};
 
-
 mod context;
 mod emit;
 /// Hook implementations for core events.
@@ -224,11 +223,7 @@ pub fn register_hook(def: &'static HookDef) {
 
 /// Returns hooks matching the given event, including extra registrations.
 pub fn hooks_for_event(event: HookEvent) -> Vec<&'static HookDef> {
-	let mut hooks: Vec<_> = HOOKS
-		.iter()
-		.copied()
-		.filter(|h| h.event == event)
-		.collect();
+	let mut hooks: Vec<_> = HOOKS.iter().copied().filter(|h| h.event == event).collect();
 
 	if let Some(extras) = EXTRA_HOOKS.get() {
 		hooks.extend(
@@ -251,7 +246,7 @@ pub fn find_hooks(event: HookEvent) -> impl Iterator<Item = &'static HookDef> {
 
 /// List all registered hooks.
 pub fn all_hooks() -> impl Iterator<Item = &'static HookDef> {
-	let mut hooks: Vec<_> = HOOKS.iter().copied().collect();
+	let mut hooks: Vec<_> = HOOKS.to_vec();
 	if let Some(extras) = EXTRA_HOOKS.get() {
 		hooks.extend(
 			extras

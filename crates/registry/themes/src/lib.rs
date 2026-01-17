@@ -386,13 +386,9 @@ pub fn get_theme(name: &str) -> Option<&'static Theme> {
 	}
 
 	// Fall back to compile-time themes
-	THEMES
-		.iter()
-		.copied()
-		.find(|t| {
-			normalize(t.meta.name) == search
-				|| t.meta.aliases.iter().any(|a| normalize(a) == search)
-		})
+	THEMES.iter().copied().find(|t| {
+		normalize(t.meta.name) == search || t.meta.aliases.iter().any(|a| normalize(a) == search)
+	})
 }
 
 /// Blend two colors with the given alpha (0.0 = bg, 1.0 = fg).

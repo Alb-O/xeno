@@ -4,8 +4,8 @@
 )]
 
 use xeno_registry::{
-	ACTIONS, COMMANDS, GUTTERS, HOOKS, MOTIONS, NOTIFICATIONS, STATUSLINE_SEGMENTS, TEXT_OBJECTS,
-	RegistryMetadata,
+	ACTIONS, COMMANDS, GUTTERS, HOOKS, MOTIONS, NOTIFICATIONS, RegistryMetadata,
+	STATUSLINE_SEGMENTS, TEXT_OBJECTS,
 };
 
 fn print_registry<T: RegistryMetadata + 'static>(
