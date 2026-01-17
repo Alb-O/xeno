@@ -207,6 +207,66 @@ xeno_macro::define_events! {
 }
 
 /// Indexed collection of all builtin hooks.
+///
+/// # Event-Indexed Pattern
+///
+/// Unlike actions/commands which use [`RuntimeRegistry`] for name-based lookup,
+/// hooks use a different pattern because dispatch is by [`HookEvent`] enum, not
+/// by string name. The registry is split into three components:
+///
+/// | Component | Type | Purpose |
+/// |-----------|------|---------|
+/// | [`HOOKS`] | [`RegistryIndex`] | Name/ID lookup, iteration, introspection |
+/// | `BUILTIN_BY_EVENT` | `HashMap` | Compile-time hook dispatch by event |
+/// | `EXTRA_BY_EVENT` | `RwLock<HashMap>` | Runtime hook dispatch by event |
+///
+/// This separation is intentional: [`RegistryIndex`] handles identity and
+/// introspection, while the event maps handle efficient dispatch.
+///
+/// # Ordering Guarantees
+///
+/// Hooks within each event are sorted by `(priority asc, name asc)`:
+/// - Lower priority numbers run first
+/// - Name provides stable tie-breaking
+///
+/// This matches the emit behavior in [`emit`](crate::emit).
+///
+/// # Future Considerations
+///
+/// ## Index-Based References
+///
+/// Current implementation stores `Vec<&'static HookDef>` in event maps.
+/// An alternative is storing indices into [`HOOKS`]:
+///
+/// ```ignore
+/// pub struct HookIndex {
+///     pub hooks: RegistryIndex<HookDef>,
+///     pub by_event: HashMap<HookEvent, Vec<usize>>,
+/// }
+/// ```
+///
+/// Benefits: smaller memory footprint, no lifetime gymnastics, single source of truth.
+/// Tradeoffs: indirect lookup, more complex runtime registration.
+///
+/// Current approach is fine given hook count (~10 total). Reconsider if:
+/// - Hook count grows significantly (100+)
+/// - Memory pressure becomes a concern
+/// - Need to support hook removal
+///
+/// ## Array-Based Event Index
+///
+/// If [`HookEvent`] remains a small enum (~20 variants), consider:
+///
+/// ```ignore
+/// struct EventIndex {
+///     // Direct indexing, no hash lookup
+///     by_event: [Vec<&'static HookDef>; HookEvent::COUNT],
+/// }
+/// ```
+///
+/// Requires [`HookEvent`] to implement `as_usize()` and `COUNT`.
+///
+/// [`RuntimeRegistry`]: xeno_registry_core::RuntimeRegistry
 pub static HOOKS: LazyLock<RegistryIndex<HookDef>> = LazyLock::new(|| {
 	RegistryBuilder::new("hooks")
 		.extend_inventory::<HookReg>()
@@ -214,7 +274,10 @@ pub static HOOKS: LazyLock<RegistryIndex<HookDef>> = LazyLock::new(|| {
 		.build()
 });
 
-/// Builtin hooks grouped by event type, sorted by priority then name.
+/// Builtin hooks grouped by event type for efficient dispatch.
+///
+/// Hooks are sorted by `(priority asc, name asc)` within each event.
+/// See [`HOOKS`] for architectural rationale.
 static BUILTIN_BY_EVENT: LazyLock<HashMap<HookEvent, Vec<&'static HookDef>>> =
 	LazyLock::new(|| {
 		let mut map: HashMap<HookEvent, Vec<&'static HookDef>> = HashMap::new();
@@ -233,14 +296,29 @@ static BUILTIN_BY_EVENT: LazyLock<HashMap<HookEvent, Vec<&'static HookDef>>> =
 		map
 	});
 
-/// Runtime hooks grouped by event type.
+/// Runtime-registered hooks grouped by event type.
+///
+/// Separated from [`BUILTIN_BY_EVENT`] to allow runtime registration without
+/// rebuilding the entire index. See [`HOOKS`] for architectural rationale.
 static EXTRA_BY_EVENT: LazyLock<std::sync::RwLock<HashMap<HookEvent, Vec<&'static HookDef>>>> =
 	LazyLock::new(|| std::sync::RwLock::new(HashMap::new()));
 
 /// Registers an extra hook definition at runtime.
 ///
 /// Returns `true` if the hook was added, `false` if already registered.
-/// Maintains sorted order (priority asc, name asc) within each event.
+/// Maintains sorted order `(priority asc, name asc)` within each event
+/// via `binary_search_by()` + `insert()`.
+///
+/// # Future: Batch Registration
+///
+/// If plugin registration becomes batch-oriented, consider:
+///
+/// ```ignore
+/// pub fn register_hooks_batch(defs: &[&'static HookDef]) {
+///     // Add all to extras, rebuild by_event from scratch
+///     // More efficient than N sorted inserts
+/// }
+/// ```
 pub fn register_hook(def: &'static HookDef) -> bool {
 	if HOOKS.items().iter().any(|&h| std::ptr::eq(h, def)) {
 		return false;
