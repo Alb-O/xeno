@@ -118,9 +118,10 @@ impl Editor {
 		);
 
 		// Remove from layout - returns the new focus target if successful
+		let doc_area = self.doc_area();
 		let base_layout = &mut self.windows.base_window_mut().layout;
 		let layout = &mut self.layout;
-		let new_focus = layout.remove_view(base_layout, view);
+		let new_focus = layout.remove_view(base_layout, view, doc_area);
 		if new_focus.is_none() {
 			return false;
 		}

@@ -15,6 +15,12 @@ pub struct LayoutManager {
 	/// Layout layers above the base layout (index 0 reserved for base).
 	pub(super) layers: Vec<Option<Layout>>,
 
+	/// Revision counter incremented on structural layout changes.
+	///
+	/// Used to detect stale drag state when the layout changes mid-drag
+	/// (e.g., a view is closed while dragging a separator).
+	layout_revision: u64,
+
 	/// Currently hovered separator (for visual feedback during resize).
 	pub hovered_separator: Option<(SplitDirection, Rect)>,
 
@@ -38,6 +44,7 @@ impl Default for LayoutManager {
 	fn default() -> Self {
 		Self {
 			layers: vec![None],
+			layout_revision: 0,
 			hovered_separator: None,
 			separator_under_mouse: None,
 			separator_hover_animation: None,
@@ -52,5 +59,19 @@ impl LayoutManager {
 	/// Creates a new layout manager without owning the base layout.
 	pub fn new() -> Self {
 		Self::default()
+	}
+
+	/// Returns the current layout revision.
+	///
+	/// This value is incremented on structural changes (splits, removals).
+	pub fn layout_revision(&self) -> u64 {
+		self.layout_revision
+	}
+
+	/// Increments the layout revision counter.
+	///
+	/// Call this after any structural layout change (split creation, view removal).
+	pub(super) fn increment_revision(&mut self) {
+		self.layout_revision = self.layout_revision.wrapping_add(1);
 	}
 }

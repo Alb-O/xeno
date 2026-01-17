@@ -30,6 +30,7 @@ impl LayoutManager {
 			} else if let Some(layout) = self.layer_mut(base_layout, layer_idx) {
 				layout.replace_view(current_view, new_layout);
 			}
+			self.increment_revision();
 		}
 	}
 
@@ -55,6 +56,7 @@ impl LayoutManager {
 			} else if let Some(layout) = self.layer_mut(base_layout, layer_idx) {
 				layout.replace_view(current_view, new_layout);
 			}
+			self.increment_revision();
 		}
 	}
 
@@ -76,35 +78,93 @@ impl LayoutManager {
 
 	/// Removes a view from its layer, collapsing splits as needed.
 	///
-	/// Returns the new focused view if the layout was modified.
+	/// Returns the suggested view to focus after removal. Uses spatial overlap
+	/// scoring to find the view that expanded into the closed view's space,
+	/// providing a more intuitive focus transition than always picking the first view.
 	pub fn remove_view(
 		&mut self,
 		base_layout: &mut Layout,
 		view: BufferView,
+		doc_area: Rect,
 	) -> Option<BufferView> {
 		let layer_idx = self.layer_of_view(base_layout, view)?;
 
-		// Don't remove the last view from base layer
 		if layer_idx == 0 && base_layout.count() <= 1 {
 			return None;
 		}
 
+		let layer_area = self.layer_area(layer_idx, doc_area);
+		let before = if layer_idx == 0 {
+			base_layout.compute_view_areas(layer_area)
+		} else {
+			self.layers[layer_idx]
+				.as_ref()?
+				.compute_view_areas(layer_area)
+		};
+
 		if layer_idx == 0 {
-			let new_layout = base_layout.remove_view(view)?;
-			*base_layout = new_layout;
-			return Some(base_layout.first_view());
+			*base_layout = base_layout.remove_view(view)?;
+			self.increment_revision();
+			let after = base_layout.compute_view_areas(layer_area);
+			return suggested_focus_after_close(&before, &after, view)
+				.or_else(|| Some(base_layout.first_view()));
 		}
 
-		let layout = self.layers[layer_idx].as_ref()?;
-		let new_layout = layout.remove_view(view);
+		let new_layout = self.layers[layer_idx].as_ref()?.remove_view(view);
 
 		if let Some(new_layout) = new_layout {
 			self.layers[layer_idx] = Some(new_layout);
-			Some(self.layers[layer_idx].as_ref().unwrap().first_view())
+			self.increment_revision();
+			let after = self.layers[layer_idx]
+				.as_ref()
+				.unwrap()
+				.compute_view_areas(layer_area);
+			suggested_focus_after_close(&before, &after, view)
+				.or_else(|| Some(self.layers[layer_idx].as_ref().unwrap().first_view()))
 		} else {
 			self.layers[layer_idx] = None;
-			// Return first view from next non-empty layer
+			self.increment_revision();
 			Some(self.first_view(base_layout))
 		}
 	}
+}
+
+/// Finds the best view to focus after closing a view using spatial overlap.
+///
+/// Prefers the view with the most overlap with the closed view's area (i.e., the
+/// view that expanded to fill the hole). On ties, prefers views closer to the
+/// closed view's center.
+fn suggested_focus_after_close(
+	before: &[(BufferView, Rect)],
+	after: &[(BufferView, Rect)],
+	closed: BufferView,
+) -> Option<BufferView> {
+	let closed_rect = before.iter().find(|(v, _)| *v == closed)?.1;
+	after
+		.iter()
+		.map(|(v, r)| (*v, overlap_area(closed_rect, *r), center_dist_sq(closed_rect, *r)))
+		.max_by(|a, b| a.1.cmp(&b.1).then_with(|| b.2.cmp(&a.2)))
+		.map(|(v, _, _)| v)
+}
+
+/// Computes the area of overlap between two rectangles.
+fn overlap_area(a: Rect, b: Rect) -> u32 {
+	let x0 = a.x.max(b.x);
+	let y0 = a.y.max(b.y);
+	let x1 = (a.x + a.width).min(b.x + b.width);
+	let y1 = (a.y + a.height).min(b.y + b.height);
+	let w = x1.saturating_sub(x0) as u32;
+	let h = y1.saturating_sub(y0) as u32;
+	w * h
+}
+
+/// Computes the squared distance between the centers of two rectangles.
+fn center_dist_sq(a: Rect, b: Rect) -> u32 {
+	let ax = a.x as i32 + a.width as i32 / 2;
+	let ay = a.y as i32 + a.height as i32 / 2;
+	let bx = b.x as i32 + b.width as i32 / 2;
+	let by = b.y as i32 + b.height as i32 / 2;
+	let dx = ax - bx;
+	let dy = ay - by;
+	(dx * dx + dy * dy) as u32
 }

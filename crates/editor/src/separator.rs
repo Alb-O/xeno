@@ -10,6 +10,12 @@ use crate::layout::SeparatorId;
 pub struct DragState {
 	/// Identifier of the separator being dragged.
 	pub id: SeparatorId,
+	/// Layout revision when the drag started.
+	///
+	/// If the layout changes during a drag (e.g., view closed via keybinding),
+	/// the stored path may become invalid. Comparing this against the current
+	/// revision allows detecting and canceling stale drags.
+	pub revision: u64,
 }
 
 /// Tracks mouse velocity to determine if hover effects should be suppressed.
@@ -35,6 +41,9 @@ impl MouseVelocityTracker {
 	const IDLE_TIMEOUT: std::time::Duration = std::time::Duration::from_millis(100);
 
 	/// Updates the tracker with a new mouse position and returns current velocity.
+	///
+	/// Uses exponential moving average for smoothing. Readings with gaps over 500ms
+	/// are ignored to avoid velocity spikes from stale data.
 	pub fn update(&mut self, x: u16, y: u16) -> f32 {
 		let now = std::time::Instant::now();
 
@@ -45,9 +54,7 @@ impl MouseVelocityTracker {
 			let dt = now.duration_since(lt).as_secs_f32();
 
 			if dt > 0.0 && dt < 0.5 {
-				// Ignore stale readings (> 500ms gap)
 				let instant_velocity = distance / dt;
-				// Exponential moving average for smoothing
 				self.velocity = self.velocity * 0.6 + instant_velocity * 0.4;
 			}
 		}
@@ -61,23 +68,21 @@ impl MouseVelocityTracker {
 	///
 	/// Accounts for idle time - if mouse hasn't moved recently, velocity is zero.
 	pub fn is_fast(&self) -> bool {
-		// If mouse has been idle, velocity is effectively zero
-		if let Some(lt) = self.last_time
-			&& lt.elapsed() > Self::IDLE_TIMEOUT
-		{
-			return false;
-		}
-		self.velocity > Self::FAST_THRESHOLD
+		self.last_time
+			.is_some_and(|lt| lt.elapsed() <= Self::IDLE_TIMEOUT)
+			&& self.velocity > Self::FAST_THRESHOLD
 	}
 
 	/// Returns the current smoothed velocity, accounting for idle time.
 	pub fn velocity(&self) -> f32 {
-		if let Some(lt) = self.last_time
-			&& lt.elapsed() > Self::IDLE_TIMEOUT
+		if self
+			.last_time
+			.is_some_and(|lt| lt.elapsed() > Self::IDLE_TIMEOUT)
 		{
-			return 0.0;
+			0.0
+		} else {
+			self.velocity
 		}
-		self.velocity
 	}
 }
 

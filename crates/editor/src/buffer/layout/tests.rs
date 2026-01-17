@@ -106,8 +106,8 @@ fn resize_simple_stacked_split() {
 #[test]
 fn resize_nested_splits_only_affects_target() {
 	let area = make_rect(0, 0, 80, 30);
-	// Outer split at y=15, inner split within second half (y=16 to y=29)
-	// Inner area would be y=16, height=14, so inner separator at y=16+7=23
+	// Outer split at position 15 (local), inner split within second half (y=16 to y=29)
+	// Inner area would be y=16, height=14, so inner separator at y=16+7=23 (rendered)
 	let inner_area = make_rect(0, 16, 80, 14);
 	let inner = Layout::stacked(
 		Layout::single(BufferId(2)),
@@ -119,7 +119,7 @@ fn resize_nested_splits_only_affects_target() {
 	let outer_pos_before = get_position(&layout).unwrap();
 	assert_eq!(outer_pos_before, 15);
 
-	// Inner separator is at y=23 (16 + 7)
+	// Inner separator is rendered at y=23 (16 + 7)
 	let inner_sep_info = layout.separator_with_path_at_position(area, 40, 23);
 	assert!(
 		inner_sep_info.is_some(),
@@ -137,14 +137,16 @@ fn resize_nested_splits_only_affects_target() {
 		"Outer position should not change"
 	);
 
+	// Inner position is now local: mouse_y (26) - inner_area.y (16) = 10
 	let inner_pos_after = get_inner_position(&layout).unwrap();
-	assert_eq!(inner_pos_after, 26, "Inner position should be at mouse y");
+	assert_eq!(inner_pos_after, 10, "Inner position should be local offset");
 }
 
 #[test]
 fn separator_rect_at_path() {
 	let area = make_rect(0, 0, 80, 30);
 	// Inner layout uses the area it will occupy (second half: y=16, height=14)
+	// Inner position = 14/2 = 7 (local offset within inner area)
 	let inner_area = make_rect(0, 16, 80, 14);
 	let inner = Layout::stacked(
 		Layout::single(BufferId(2)),
@@ -161,7 +163,7 @@ fn separator_rect_at_path() {
 	assert_eq!(rect.height, 1);
 	assert_eq!(rect.width, 80);
 
-	// Inner separator at y=23 (16 + 7)
+	// Inner separator rendered at y=23 (inner_area.y=16 + local_position=7)
 	let inner_sep = layout.separator_rect_at_path(area, &SplitPath(vec![true]));
 	assert!(inner_sep.is_some());
 	let (dir, rect) = inner_sep.unwrap();
@@ -336,7 +338,7 @@ fn resize_respects_minimum_width() {
 	layout.resize_at_path(area, &SplitPath(vec![]), 0, 15);
 
 	let pos = get_position(&layout).unwrap();
-	// Position should be clamped to area.x + MIN_WIDTH
+	// Position should be clamped to MIN_WIDTH (local offset)
 	assert_eq!(pos, Layout::MIN_WIDTH);
 
 	// Verify first area respects minimum
@@ -358,7 +360,7 @@ fn resize_respects_minimum_height() {
 	layout.resize_at_path(area, &SplitPath(vec![]), 40, 0);
 
 	let pos = get_position(&layout).unwrap();
-	// Position should be clamped to area.y + MIN_HEIGHT
+	// Position should be clamped to MIN_HEIGHT (local offset)
 	assert_eq!(pos, Layout::MIN_HEIGHT);
 
 	// Verify first area respects minimum
@@ -380,8 +382,8 @@ fn resize_respects_sibling_minimum_width() {
 	layout.resize_at_path(area, &SplitPath(vec![]), 200, 15);
 
 	let pos = get_position(&layout).unwrap();
-	// Position should be clamped to area.x + area.width - MIN_WIDTH - 1
-	let expected_max = area.x + area.width - Layout::MIN_WIDTH - 1;
+	// Position should be clamped to area.width - MIN_WIDTH - 1 (local offset)
+	let expected_max = area.width - Layout::MIN_WIDTH - 1;
 	assert_eq!(pos, expected_max);
 
 	// Verify second area respects minimum
@@ -410,7 +412,7 @@ fn resize_cannot_push_nested_split() {
 
 	let pos = get_position(&layout).unwrap();
 	// Position should be clamped so second child (inner split) has room for its minimum
-	let expected_max = area.x + area.width - inner_min - 1;
+	let expected_max = area.width - inner_min - 1;
 	assert_eq!(pos, expected_max);
 
 	// Verify all three views still have their minimum widths

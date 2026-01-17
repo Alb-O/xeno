@@ -23,11 +23,37 @@ impl LayoutManager {
 
 	/// Starts a separator drag operation.
 	pub fn start_drag(&mut self, hit: &SeparatorHit) {
-		self.dragging_separator = Some(DragState { id: hit.id.clone() });
+		self.dragging_separator = Some(DragState {
+			id: hit.id.clone(),
+			revision: self.layout_revision(),
+		});
 		let old_hover = self.hovered_separator.take();
 		self.hovered_separator = Some((hit.direction, hit.rect));
 		if old_hover != self.hovered_separator {
 			self.update_hover_animation(old_hover, self.hovered_separator);
+		}
+	}
+
+	/// Checks if the current drag state is stale (layout changed since drag started).
+	///
+	/// Returns true if there is an active drag and the layout revision has changed
+	/// since the drag started, meaning the stored separator path may be invalid.
+	pub fn is_drag_stale(&self) -> bool {
+		self.dragging_separator
+			.as_ref()
+			.map(|drag| drag.revision != self.layout_revision())
+			.unwrap_or(false)
+	}
+
+	/// Cancels the drag if the layout has changed since it started.
+	///
+	/// Returns true if the drag was canceled due to staleness.
+	pub fn cancel_if_stale(&mut self) -> bool {
+		if self.is_drag_stale() {
+			self.end_drag();
+			true
+		} else {
+			false
 		}
 	}
 
@@ -55,40 +81,30 @@ impl LayoutManager {
 	) {
 		match (old, new) {
 			(None, Some((_, rect))) => {
-				// Started hovering - animate in
 				SeparatorAnimationEvent::start(AnimationDirection::FadeIn);
 				self.separator_hover_animation = Some(SeparatorHoverAnimation::new(rect, true));
 			}
 			(Some((_, old_rect)), None) => {
-				// Stopped hovering - animate out from current position
-				let can_toggle = self
+				SeparatorAnimationEvent::start(AnimationDirection::FadeOut);
+				if self
 					.separator_hover_animation
 					.as_ref()
-					.map(|a| a.rect == old_rect)
-					.unwrap_or(false);
-				if can_toggle {
-					// Same separator - just toggle the existing animation
-					SeparatorAnimationEvent::start(AnimationDirection::FadeOut);
+					.is_some_and(|a| a.rect == old_rect)
+				{
 					self.separator_hover_animation
 						.as_mut()
 						.unwrap()
 						.set_hovering(false);
-					return;
+				} else {
+					self.separator_hover_animation =
+						Some(SeparatorHoverAnimation::new_at_intensity(old_rect, 1.0, false));
 				}
-				// Different separator or no existing animation - create new one at full intensity
-				SeparatorAnimationEvent::start(AnimationDirection::FadeOut);
-				self.separator_hover_animation = Some(SeparatorHoverAnimation::new_at_intensity(
-					old_rect, 1.0, false,
-				));
 			}
 			(Some((_, old_rect)), Some((_, new_rect))) if old_rect != new_rect => {
-				// Moved to a different separator - start fresh animation
 				SeparatorAnimationEvent::start(AnimationDirection::FadeIn);
 				self.separator_hover_animation = Some(SeparatorHoverAnimation::new(new_rect, true));
 			}
-			_ => {
-				// Same separator or both None - no change needed
-			}
+			_ => {}
 		}
 	}
 
@@ -96,16 +112,14 @@ impl LayoutManager {
 	pub fn animation_needs_redraw(&self) -> bool {
 		self.separator_hover_animation
 			.as_ref()
-			.map(|a| a.needs_redraw())
-			.unwrap_or(false)
+			.is_some_and(|a| a.needs_redraw())
 	}
 
 	/// Returns the animation intensity for the given separator rect.
 	pub fn animation_intensity(&self) -> f32 {
 		self.separator_hover_animation
 			.as_ref()
-			.map(|a| a.intensity())
-			.unwrap_or(0.0)
+			.map_or(0.0, |a| a.intensity())
 	}
 
 	/// Returns the rect being animated, if any.

@@ -154,7 +154,7 @@ impl Layout {
 		self.do_resize_at_path(area, &path.0, mouse_x, mouse_y)
 	}
 
-	/// Internal recursive implementation of path-based resize.
+	/// Converts global mouse coordinates to parent-local position and updates the split.
 	fn do_resize_at_path(&mut self, area: Rect, path: &[bool], mouse_x: u16, mouse_y: u16) -> bool {
 		let Layout::Split {
 			direction,
@@ -167,19 +167,20 @@ impl Layout {
 		};
 
 		if path.is_empty() {
-			let new_position = match direction {
+			*position = match direction {
 				SplitDirection::Horizontal => {
-					let min_pos = area.x + first.min_width();
-					let max_pos = (area.x + area.width).saturating_sub(second.min_width() + 1);
-					mouse_x.clamp(min_pos.min(max_pos), max_pos)
+					let mouse_local = mouse_x.saturating_sub(area.x);
+					let min_pos = first.min_width();
+					let max_pos = area.width.saturating_sub(second.min_width() + 1);
+					mouse_local.clamp(min_pos.min(max_pos), max_pos)
 				}
 				SplitDirection::Vertical => {
-					let min_pos = area.y + first.min_height();
-					let max_pos = (area.y + area.height).saturating_sub(second.min_height() + 1);
-					mouse_y.clamp(min_pos.min(max_pos), max_pos)
+					let mouse_local = mouse_y.saturating_sub(area.y);
+					let min_pos = first.min_height();
+					let max_pos = area.height.saturating_sub(second.min_height() + 1);
+					mouse_local.clamp(min_pos.min(max_pos), max_pos)
 				}
 			};
-			*position = new_position;
 			return true;
 		}
 
@@ -230,21 +231,23 @@ impl Layout {
 		}
 	}
 
-	/// Computes the areas for a split given absolute separator position.
+	/// Computes the areas for a split given parent-local separator position.
 	///
 	/// Returns (first_area, second_area, separator_rect).
 	/// The separator position is clamped to ensure both areas meet minimum size requirements.
+	/// The `position` parameter is an offset from the parent origin (0..width-1 or 0..height-1).
 	pub(super) fn compute_split_areas(
 		area: Rect,
 		direction: SplitDirection,
-		position: u16,
+		position_local: u16,
 	) -> (Rect, Rect, Rect) {
 		match direction {
 			SplitDirection::Horizontal => {
-				let min_pos = area.x + Self::MIN_WIDTH;
-				let max_pos = (area.x + area.width).saturating_sub(Self::MIN_WIDTH + 1);
-				let sep_x = position.clamp(min_pos.min(max_pos), max_pos);
-				let first_width = sep_x.saturating_sub(area.x);
+				let min_pos = Self::MIN_WIDTH;
+				let max_pos = area.width.saturating_sub(Self::MIN_WIDTH + 1);
+				let pos = position_local.clamp(min_pos.min(max_pos), max_pos);
+				let sep_x = area.x + pos;
+				let first_width = pos;
 				(
 					Rect {
 						x: area.x,
@@ -267,10 +270,11 @@ impl Layout {
 				)
 			}
 			SplitDirection::Vertical => {
-				let min_pos = area.y + Self::MIN_HEIGHT;
-				let max_pos = (area.y + area.height).saturating_sub(Self::MIN_HEIGHT + 1);
-				let sep_y = position.clamp(min_pos.min(max_pos), max_pos);
-				let first_height = sep_y.saturating_sub(area.y);
+				let min_pos = Self::MIN_HEIGHT;
+				let max_pos = area.height.saturating_sub(Self::MIN_HEIGHT + 1);
+				let pos = position_local.clamp(min_pos.min(max_pos), max_pos);
+				let sep_y = area.y + pos;
+				let first_height = pos;
 				(
 					Rect {
 						x: area.x,
@@ -298,6 +302,7 @@ impl Layout {
 	/// Returns separator positions for rendering.
 	///
 	/// Each tuple contains: (direction, visual_priority, rect).
+	/// Visual priority is always 0 for text-only layouts (no overlay panels).
 	pub fn separator_positions(&self, area: Rect) -> Vec<(SplitDirection, u8, Rect)> {
 		let Layout::Split {
 			direction,
@@ -312,10 +317,7 @@ impl Layout {
 		let (first_area, second_area, sep_rect) =
 			Self::compute_split_areas(area, *direction, *position);
 
-		// Visual priority is always 0 for text buffers (no panels)
-		let priority = 0;
-
-		let mut separators = vec![(*direction, priority, sep_rect)];
+		let mut separators = vec![(*direction, 0, sep_rect)];
 		separators.extend(first.separator_positions(first_area));
 		separators.extend(second.separator_positions(second_area));
 		separators

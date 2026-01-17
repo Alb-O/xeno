@@ -3,8 +3,9 @@
 //! The `Layout` enum represents how buffers are arranged in the editor window.
 //! It supports recursive splitting for complex layouts.
 //!
-//! Split positions are stored as absolute screen coordinates, not ratios.
-//! This ensures splits remain stable when other UI elements appear or disappear.
+//! Split positions are stored as parent-local offsets (0..width-1 or 0..height-1),
+//! not absolute screen coordinates. This ensures splits remain stable when the
+//! parent area moves (e.g., sidebar opens) and proportions are preserved.
 
 mod areas;
 mod navigation;
@@ -41,7 +42,9 @@ pub enum Layout {
 	Split {
 		/// Direction of the split (horizontal or vertical).
 		direction: SplitDirection,
-		/// Absolute position of the separator (x for horizontal, y for vertical).
+		/// Position of separator as offset from parent origin.
+		/// For Horizontal: 0..parent_width-1 (columns from left edge)
+		/// For Vertical: 0..parent_height-1 (rows from top edge)
 		position: u16,
 		/// First child (left for horizontal, top for vertical).
 		first: Box<Layout>,
@@ -74,7 +77,7 @@ impl Layout {
 	pub fn side_by_side(first: Layout, second: Layout, area: Rect) -> Self {
 		Layout::Split {
 			direction: SplitDirection::Horizontal,
-			position: area.x + area.width / 2,
+			position: area.width / 2,
 			first: Box::new(first),
 			second: Box::new(second),
 		}
@@ -87,7 +90,7 @@ impl Layout {
 	pub fn stacked(first: Layout, second: Layout, area: Rect) -> Self {
 		Layout::Split {
 			direction: SplitDirection::Vertical,
-			position: area.y + area.height / 2,
+			position: area.height / 2,
 			first: Box::new(first),
 			second: Box::new(second),
 		}
