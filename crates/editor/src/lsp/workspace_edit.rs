@@ -239,7 +239,7 @@ impl Editor {
 			buffer.with_doc(|doc| Transaction::change(doc.content().slice(..), changes))
 		};
 
-		let applied = {
+		let result = {
 			let buffer = self
 				.core
 				.buffers
@@ -249,14 +249,14 @@ impl Editor {
 				undo: UndoPolicy::Record,
 				syntax: SyntaxPolicy::IncrementalOrDirty,
 			};
-			let applied = buffer.apply(&tx, policy, &self.config.language_loader);
-			if applied {
+			let result = buffer.apply(&tx, policy, &self.config.language_loader);
+			if result.applied {
 				buffer.with_doc_mut(|doc| doc.mark_for_full_lsp_sync());
 			}
-			applied
+			result
 		};
 
-		if !applied {
+		if !result.applied {
 			return Err(ApplyError::ReadOnly(buffer_id.0.to_string()));
 		}
 

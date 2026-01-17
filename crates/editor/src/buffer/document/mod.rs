@@ -20,9 +20,10 @@ use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use xeno_primitives::{
-	CommitResult, EditCommit, EditError, ReadOnlyReason, ReadOnlyScope, Rope, SyntaxPolicy,
-	UndoPolicy,
+	CommitResult, EditCommit, EditError, Range, ReadOnlyReason, ReadOnlyScope, Rope,
+	SyntaxOutcome, SyntaxPolicy, UndoPolicy,
 };
+use xeno_primitives::transaction::Operation;
 use xeno_runtime_language::LanguageLoader;
 use xeno_runtime_language::syntax::Syntax;
 
@@ -328,6 +329,7 @@ impl Document {
 		language_loader: &LanguageLoader,
 	) -> CommitResult {
 		let version_before = self.version;
+		let changed_ranges = collect_changed_ranges(&commit.tx);
 
 		let should_record = match commit.undo {
 			UndoPolicy::NoUndo => false,
@@ -373,11 +375,11 @@ impl Document {
 			false
 		};
 
-		let syntax_changed = match commit.syntax {
-			SyntaxPolicy::None => false,
+		let syntax_outcome = match commit.syntax {
+			SyntaxPolicy::None => SyntaxOutcome::Unchanged,
 			SyntaxPolicy::MarkDirty => {
 				self.syntax_dirty = true;
-				false
+				SyntaxOutcome::MarkedDirty
 			}
 			SyntaxPolicy::IncrementalOrDirty => {
 				if let Some(old_source) = old_source_for_syntax {
@@ -391,24 +393,25 @@ impl Document {
 						) {
 							Ok(()) => {
 								self.syntax_dirty = false;
-								true
+								SyntaxOutcome::IncrementalApplied
 							}
 							Err(_) => {
 								self.syntax_dirty = true;
-								false
+								SyntaxOutcome::MarkedDirty
 							}
 						}
 					} else {
-						false
+						self.syntax_dirty = true;
+						SyntaxOutcome::MarkedDirty
 					}
 				} else {
 					self.syntax_dirty = true;
-					false
+					SyntaxOutcome::MarkedDirty
 				}
 			}
 			SyntaxPolicy::FullReparseNow => {
 				self.reparse_syntax(language_loader);
-				true
+				SyntaxOutcome::Reparsed
 			}
 		};
 
@@ -417,8 +420,10 @@ impl Document {
 			version_before,
 			version_after: self.version,
 			selection_after: commit.selection_after,
-			syntax_changed,
 			undo_recorded,
+			insert_group_active_after: self.insert_undo_active,
+			changed_ranges: changed_ranges.into(),
+			syntax_outcome,
 		}
 	}
 
@@ -611,4 +616,44 @@ impl Document {
 	pub fn drain_lsp_changes(&mut self) -> Vec<xeno_primitives::LspDocumentChange> {
 		std::mem::take(&mut self.pending_lsp_changes)
 	}
+}
+
+fn collect_changed_ranges(tx: &xeno_primitives::Transaction) -> Vec<Range> {
+	let mut ranges = Vec::new();
+	let mut pos = 0;
+
+	for op in tx.operations() {
+		match op {
+			Operation::Retain(n) => {
+				pos += n;
+			}
+			Operation::Delete(n) => {
+				push_range(&mut ranges, pos, pos + n);
+				pos += n;
+			}
+			Operation::Insert(_) => {
+				push_range(&mut ranges, pos, pos);
+			}
+		}
+	}
+
+	ranges
+}
+
+fn push_range(ranges: &mut Vec<Range>, start: usize, end: usize) {
+	let start = start.min(end);
+	let end = start.max(end);
+
+	if let Some(last) = ranges.last_mut() {
+		let last_start = last.from();
+		let last_end = last.to();
+		if start <= last_end {
+			let merged_start = last_start.min(start);
+			let merged_end = last_end.max(end);
+			*last = Range::new(merged_start, merged_end);
+			return;
+		}
+	}
+
+	ranges.push(Range::new(start, end));
 }

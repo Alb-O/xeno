@@ -26,7 +26,7 @@ use std::collections::HashMap;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 use tracing::trace;
-use xeno_primitives::{EditOrigin, UndoPolicy};
+use xeno_primitives::{CommitResult, EditOrigin, UndoPolicy};
 
 use super::{EditorUndoGroup, ViewSnapshot};
 use crate::buffer::{BufferId, DocumentId};
@@ -107,9 +107,6 @@ pub trait UndoHost {
 	/// Redoes all documents in the given list.
 	/// Returns `true` if all redos succeeded.
 	fn redo_documents(&mut self, doc_ids: &[DocumentId]) -> bool;
-
-	/// Checks if the document's insert undo mode is active for merge decisions.
-	fn doc_insert_undo_active(&self, buffer_id: BufferId) -> bool;
 
 	/// Notifies that undo was performed.
 	fn notify_undo(&mut self);
@@ -192,11 +189,7 @@ impl UndoManager {
 		let doc_id = host.doc_id_for_buffer(buffer_id);
 		let pre_views = host.collect_view_snapshots(doc_id);
 
-		let start_new_group = match undo {
-			UndoPolicy::MergeWithCurrentGroup => !host.doc_insert_undo_active(buffer_id),
-			UndoPolicy::NoUndo => false,
-			_ => true,
-		};
+		let start_new_group = !matches!(undo, UndoPolicy::NoUndo);
 
 		PreparedEdit {
 			affected_docs: vec![doc_id],
@@ -211,11 +204,11 @@ impl UndoManager {
 	/// Call this after applying a transaction. If the transaction was applied
 	/// successfully and should start a new undo group, this pushes the group
 	/// and clears the redo stack.
-	pub fn finalize_edit(&mut self, applied: bool, prep: PreparedEdit) {
+	pub fn finalize_edit(&mut self, result: &CommitResult, prep: PreparedEdit) {
 		#[cfg(test)]
 		FINALIZE_CALLS.fetch_add(1, Ordering::SeqCst);
 
-		if applied && prep.start_new_group {
+		if result.applied && prep.start_new_group && result.undo_recorded {
 			trace!(
 				docs = ?prep.affected_docs,
 				origin = ?prep.origin,
@@ -245,11 +238,12 @@ impl UndoManager {
 	) -> bool
 	where
 		H: UndoHost,
-		F: FnOnce(&mut H) -> bool,
+		F: FnOnce(&mut H) -> CommitResult,
 	{
 		let prep = self.prepare_edit(host, buffer_id, undo, origin);
-		let applied = apply(host);
-		self.finalize_edit(applied, prep);
+		let result = apply(host);
+		let applied = result.applied;
+		self.finalize_edit(&result, prep);
 		applied
 	}
 
@@ -366,7 +360,6 @@ mod tests {
 	struct TestHost {
 		buffer_id: BufferId,
 		doc_id: DocumentId,
-		insert_active: bool,
 	}
 
 	impl TestHost {
@@ -374,7 +367,6 @@ mod tests {
 			Self {
 				buffer_id: BufferId(1),
 				doc_id: DocumentId(1),
-				insert_active: false,
 			}
 		}
 
@@ -426,10 +418,6 @@ mod tests {
 			true
 		}
 
-		fn doc_insert_undo_active(&self, _buffer_id: BufferId) -> bool {
-			self.insert_active
-		}
-
 		fn notify_undo(&mut self) {}
 
 		fn notify_redo(&mut self) {}
@@ -459,7 +447,7 @@ mod tests {
 			buffer_id,
 			UndoPolicy::Record,
 			EditOrigin::Internal("test"),
-			|_host| true,
+			|_host| CommitResult::stub(0),
 		);
 
 		assert!(applied);
@@ -480,7 +468,7 @@ mod tests {
 			buffer_id,
 			UndoPolicy::Record,
 			EditOrigin::Internal("test"),
-			|_host| false,
+			|_host| CommitResult::blocked(0, false),
 		);
 
 		assert!(!applied);

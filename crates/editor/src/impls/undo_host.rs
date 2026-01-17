@@ -26,7 +26,7 @@ impl EditorUndoHost<'_> {
 		tx: &Transaction,
 		new_selection: Option<Selection>,
 		undo: UndoPolicy,
-	) -> bool {
+	) -> xeno_primitives::CommitResult {
 		let policy = ApplyPolicy {
 			undo,
 			syntax: SyntaxPolicy::IncrementalOrDirty,
@@ -42,41 +42,41 @@ impl EditorUndoHost<'_> {
 		};
 
 		#[cfg(feature = "lsp")]
-		let applied = {
+		let result = {
 			let buffer = self
 				.buffers
 				.get_buffer_mut(buffer_id)
 				.expect("focused buffer must exist");
-			let applied = if let Some(encoding) = encoding {
+			let result = if let Some(encoding) = encoding {
 				buffer.apply_with_lsp(tx, policy, &self.config.language_loader, encoding)
 			} else {
 				buffer.apply(tx, policy, &self.config.language_loader)
 			};
-			if applied && let Some(selection) = new_selection {
+			if result.applied && let Some(selection) = new_selection {
 				buffer.finalize_selection(selection);
 			}
-			applied
+			result
 		};
 
 		#[cfg(not(feature = "lsp"))]
-		let applied = {
+		let result = {
 			let buffer = self
 				.buffers
 				.get_buffer_mut(buffer_id)
 				.expect("focused buffer must exist");
-			let applied = buffer.apply(tx, policy, &self.config.language_loader);
-			if applied && let Some(selection) = new_selection {
+			let result = buffer.apply(tx, policy, &self.config.language_loader);
+			if result.applied && let Some(selection) = new_selection {
 				buffer.finalize_selection(selection);
 			}
-			applied
+			result
 		};
 
-		if applied {
+		if result.applied {
 			self.sync_sibling_selections(buffer_id, tx);
 			self.frame.dirty_buffers.insert(buffer_id);
 		}
 
-		applied
+		result
 	}
 
 	fn notify(&mut self, notification: impl Into<Notification>) {
@@ -227,13 +227,6 @@ impl UndoHost for EditorUndoHost<'_> {
 			ok &= self.redo_document(doc_id);
 		}
 		ok
-	}
-
-	fn doc_insert_undo_active(&self, buffer_id: BufferId) -> bool {
-		self.buffers
-			.get_buffer(buffer_id)
-			.map(|b| b.with_doc(|doc| doc.insert_undo_active()))
-			.unwrap_or(false)
 	}
 
 	fn notify_undo(&mut self) {

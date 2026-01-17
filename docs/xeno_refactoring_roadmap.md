@@ -190,9 +190,9 @@ impl DocumentHandle {
 **Goal:** stop re-deriving “what happened” after commit (undo grouping, syntax dirtiness, LSP sync).  
 Even if commit is already the gate, enriching/using `CommitResult` will remove duplicated logic.
 
-- [ ] Expand `CommitResult` to include all downstream-relevant signals.
-- [ ] Update `Buffer::apply*` to consume `CommitResult` instead of probing document state again.
-- [ ] Update UndoManager/editor grouping decisions to be driven from `CommitResult` (when possible).
+- [x] Expand `CommitResult` to include all downstream-relevant signals.
+- [x] Update `Buffer::apply*` to consume `CommitResult` instead of probing document state again.
+- [x] Update UndoManager/editor grouping decisions to be driven from `CommitResult` (when possible).
 
 ### Code sketch: recommended `EditCommit / CommitResult / EditError` shape
 ```rust

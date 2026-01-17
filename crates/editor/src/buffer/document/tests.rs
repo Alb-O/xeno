@@ -1,5 +1,7 @@
 use xeno_primitives::transaction::Change;
-use xeno_primitives::{EditCommit, EditError, EditOrigin, SyntaxPolicy, Transaction, UndoPolicy};
+use xeno_primitives::{
+	EditCommit, EditError, EditOrigin, SyntaxOutcome, SyntaxPolicy, Transaction, UndoPolicy,
+};
 use xeno_runtime_language::LanguageLoader;
 
 use super::Document;
@@ -299,7 +301,7 @@ fn commit_syntax_mark_dirty() {
 		.unwrap();
 
 	assert!(doc.is_syntax_dirty());
-	assert!(!result.syntax_changed);
+	assert_eq!(result.syntax_outcome, SyntaxOutcome::MarkedDirty);
 }
 
 #[test]
@@ -332,7 +334,7 @@ fn commit_incremental_or_dirty_without_syntax_marks_dirty() {
 		.unwrap();
 
 	assert!(doc.is_syntax_dirty());
-	assert!(!result.syntax_changed);
+	assert_eq!(result.syntax_outcome, SyntaxOutcome::MarkedDirty);
 }
 
 #[test]

@@ -27,8 +27,8 @@ pub mod transaction;
 // across multiple crates that parse themes and syntax styles.
 pub use direction::{Axis, SeqDirection, SpatialDirection};
 pub use edit::{
-	CommitResult, EditCommit, EditError, EditOrigin, ReadOnlyReason, ReadOnlyScope, SyntaxPolicy,
-	UndoPolicy,
+	CommitResult, EditCommit, EditError, EditOrigin, ReadOnlyReason, ReadOnlyScope, SyntaxOutcome,
+	SyntaxPolicy, UndoPolicy,
 };
 pub use key::{Key, KeyCode, Modifiers, MouseButton, MouseEvent, ScrollDirection};
 pub use lsp::{LspChangeSet, LspDocumentChange, LspPosition, LspRange};

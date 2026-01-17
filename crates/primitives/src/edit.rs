@@ -3,7 +3,8 @@
 //! These types form the foundation for a single, authoritative edit gate
 //! that handles undo/redo, readonly checks, and syntax scheduling.
 
-use crate::{Selection, Transaction};
+use crate::{Range, Selection, Transaction};
+use smallvec::SmallVec;
 
 /// Error type for edit operations.
 #[derive(Debug, Clone, thiserror::Error)]
@@ -77,6 +78,19 @@ pub enum SyntaxPolicy {
 	FullReparseNow,
 }
 
+/// Result of a syntax update during commit.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SyntaxOutcome {
+	/// No syntax update was performed.
+	Unchanged,
+	/// Syntax was marked dirty for a full reparse later.
+	MarkedDirty,
+	/// Incremental syntax update succeeded.
+	IncrementalApplied,
+	/// A full reparse completed immediately.
+	Reparsed,
+}
+
 /// Result returned from a successful commit operation.
 ///
 /// Currently a stub that will be filled in as the edit gate is implemented.
@@ -90,10 +104,14 @@ pub struct CommitResult {
 	pub version_after: u64,
 	/// Selection state after the edit (if changed).
 	pub selection_after: Option<Selection>,
-	/// Whether syntax highlighting was updated.
-	pub syntax_changed: bool,
 	/// Whether an undo step was recorded.
 	pub undo_recorded: bool,
+	/// Whether insert undo grouping remains active after this edit.
+	pub insert_group_active_after: bool,
+	/// Ranges affected by this edit (pre-edit coordinates; inserts are zero-width).
+	pub changed_ranges: SmallVec<[Range; 2]>,
+	/// Outcome of syntax handling for this commit.
+	pub syntax_outcome: SyntaxOutcome,
 }
 
 impl CommitResult {
@@ -106,8 +124,24 @@ impl CommitResult {
 			version_before: version,
 			version_after: version.wrapping_add(1),
 			selection_after: None,
-			syntax_changed: true,
 			undo_recorded: true,
+			insert_group_active_after: false,
+			changed_ranges: SmallVec::new(),
+			syntax_outcome: SyntaxOutcome::IncrementalApplied,
+		}
+	}
+
+	/// Creates a result for a blocked edit (e.g., readonly).
+	pub fn blocked(version: u64, insert_group_active_after: bool) -> Self {
+		Self {
+			applied: false,
+			version_before: version,
+			version_after: version,
+			selection_after: None,
+			undo_recorded: false,
+			insert_group_active_after,
+			changed_ranges: SmallVec::new(),
+			syntax_outcome: SyntaxOutcome::Unchanged,
 		}
 	}
 }

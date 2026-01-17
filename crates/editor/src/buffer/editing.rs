@@ -4,7 +4,7 @@
 use xeno_lsp::{IncrementalResult, OffsetEncoding, compute_lsp_changes};
 #[cfg(feature = "lsp")]
 use xeno_primitives::LspDocumentChange;
-use xeno_primitives::{EditCommit, Range, SyntaxPolicy, Transaction, UndoPolicy};
+use xeno_primitives::{CommitResult, EditCommit, Range, SyntaxPolicy, Transaction, UndoPolicy};
 use xeno_runtime_language::LanguageLoader;
 
 /// Policy for applying a transaction to a buffer.
@@ -78,7 +78,8 @@ impl Buffer {
 	/// use [`prepare_insert`] and apply with [`apply_transaction_with_syntax`].
 	pub fn insert_text(&mut self, text: &str) -> Transaction {
 		let (tx, new_selection) = self.prepare_insert(text);
-		if !self.apply_transaction(&tx) {
+		let result = self.apply_transaction(&tx);
+		if !result.applied {
 			return tx;
 		}
 		self.set_selection(new_selection);
@@ -145,7 +146,8 @@ impl Buffer {
 	/// use [`prepare_paste_after`] and apply with [`apply_transaction_with_syntax`].
 	pub fn paste_after(&mut self, text: &str) -> Option<Transaction> {
 		let (tx, new_selection) = self.prepare_paste_after(text)?;
-		if !self.apply_transaction(&tx) {
+		let result = self.apply_transaction(&tx);
+		if !result.applied {
 			return None;
 		}
 		self.set_selection(new_selection);
@@ -173,7 +175,8 @@ impl Buffer {
 	/// use [`prepare_paste_before`] and apply with [`apply_transaction_with_syntax`].
 	pub fn paste_before(&mut self, text: &str) -> Option<Transaction> {
 		let (tx, new_selection) = self.prepare_paste_before(text)?;
-		if !self.apply_transaction(&tx) {
+		let result = self.apply_transaction(&tx);
+		if !result.applied {
 			return None;
 		}
 		self.set_selection(new_selection);
@@ -205,7 +208,8 @@ impl Buffer {
 	/// use [`prepare_delete_selection`] and apply with [`apply_transaction_with_syntax`].
 	pub fn delete_selection(&mut self) -> Option<Transaction> {
 		let (tx, new_selection) = self.prepare_delete_selection()?;
-		if !self.apply_transaction(&tx) {
+		let result = self.apply_transaction(&tx);
+		if !result.applied {
 			return None;
 		}
 		self.set_selection(new_selection);
@@ -217,7 +221,7 @@ impl Buffer {
 	/// This is the unified entry point for applying transactions. Use [`ApplyPolicy`]
 	/// constants or builder methods to configure undo and syntax behavior.
 	///
-	/// Returns `false` if the buffer is read-only, `true` otherwise.
+	/// Returns a [`CommitResult`] with `applied=false` if the buffer is read-only.
 	///
 	/// # Examples
 	///
@@ -231,23 +235,30 @@ impl Buffer {
 	/// // Custom policy
 	/// buffer.apply(&tx, ApplyPolicy::BARE.with_undo(UndoPolicy::Record), &loader);
 	/// ```
-	pub fn apply(&self, tx: &Transaction, policy: ApplyPolicy, loader: &LanguageLoader) -> bool {
+	pub fn apply(
+		&self,
+		tx: &Transaction,
+		policy: ApplyPolicy,
+		loader: &LanguageLoader,
+	) -> CommitResult {
 		if self.readonly_override == Some(true) {
-			return false;
+			return self
+				.with_doc(|doc| CommitResult::blocked(doc.version(), doc.insert_undo_active()));
 		}
-		if self.readonly_override.is_none() && self.with_doc(|doc| doc.is_readonly()) {
-			return false;
+		if self.readonly_override.is_none() {
+			let (readonly, version, insert_active) = self.with_doc(|doc| {
+				(doc.is_readonly(), doc.version(), doc.insert_undo_active())
+			});
+			if readonly {
+				return CommitResult::blocked(version, insert_active);
+			}
 		}
 
 		let commit = EditCommit::new(tx.clone())
 			.with_undo(policy.undo)
 			.with_syntax(policy.syntax);
 
-		self.with_doc_mut(|doc| {
-			doc.commit_unchecked(commit, loader);
-		});
-
-		true
+		self.with_doc_mut(|doc| doc.commit_unchecked(commit, loader))
 	}
 
 	/// Applies a transaction with LSP change tracking.
@@ -255,7 +266,7 @@ impl Buffer {
 	/// Like [`apply`], but also computes and queues LSP document changes for
 	/// incremental sync. The encoding specifies how to compute LSP positions.
 	///
-	/// Returns `false` if the buffer is read-only, `true` otherwise.
+	/// Returns a [`CommitResult`] with `applied=false` if the buffer is read-only.
 	#[cfg(feature = "lsp")]
 	pub fn apply_with_lsp(
 		&self,
@@ -263,12 +274,18 @@ impl Buffer {
 		policy: ApplyPolicy,
 		loader: &LanguageLoader,
 		encoding: OffsetEncoding,
-	) -> bool {
+	) -> CommitResult {
 		if self.readonly_override == Some(true) {
-			return false;
+			return self
+				.with_doc(|doc| CommitResult::blocked(doc.version(), doc.insert_undo_active()));
 		}
-		if self.readonly_override.is_none() && self.with_doc(|doc| doc.is_readonly()) {
-			return false;
+		if self.readonly_override.is_none() {
+			let (readonly, version, insert_active) = self.with_doc(|doc| {
+				(doc.is_readonly(), doc.version(), doc.insert_undo_active())
+			});
+			if readonly {
+				return CommitResult::blocked(version, insert_active);
+			}
 		}
 
 		// Compute LSP changes before applying the transaction (needs pre-edit state)
@@ -279,7 +296,7 @@ impl Buffer {
 			.with_syntax(policy.syntax);
 
 		self.with_doc_mut(|doc| {
-			doc.commit_unchecked(commit, loader);
+			let result = doc.commit_unchecked(commit, loader);
 
 			match lsp_changes {
 				IncrementalResult::Incremental(changes) => {
@@ -291,16 +308,15 @@ impl Buffer {
 					doc.mark_for_full_lsp_sync();
 				}
 			}
-		});
-
-		true
+			result
+		})
 	}
 
 	/// Applies a transaction without undo or syntax updates.
 	///
 	/// Shorthand for `apply(tx, ApplyPolicy::BARE, &LanguageLoader::new())`.
 	/// Use this for internal operations that don't need undo tracking.
-	pub fn apply_transaction(&self, tx: &Transaction) -> bool {
+	pub fn apply_transaction(&self, tx: &Transaction) -> CommitResult {
 		self.apply(tx, ApplyPolicy::BARE, &LanguageLoader::new())
 	}
 
@@ -309,7 +325,7 @@ impl Buffer {
 		since = "0.4.0",
 		note = "Use `apply()` with `ApplyPolicy::BARE.with_undo(policy)` instead"
 	)]
-	pub fn apply_transaction_with_undo(&self, tx: &Transaction, undo: UndoPolicy) -> bool {
+	pub fn apply_transaction_with_undo(&self, tx: &Transaction, undo: UndoPolicy) -> CommitResult {
 		self.apply(
 			tx,
 			ApplyPolicy::BARE.with_undo(undo),
@@ -326,7 +342,7 @@ impl Buffer {
 		&self,
 		tx: &Transaction,
 		language_loader: &LanguageLoader,
-	) -> bool {
+	) -> CommitResult {
 		self.apply(
 			tx,
 			ApplyPolicy::BARE.with_syntax(SyntaxPolicy::IncrementalOrDirty),
@@ -344,7 +360,7 @@ impl Buffer {
 		tx: &Transaction,
 		language_loader: &LanguageLoader,
 		undo: UndoPolicy,
-	) -> bool {
+	) -> CommitResult {
 		self.apply(
 			tx,
 			ApplyPolicy::BARE
@@ -365,7 +381,7 @@ impl Buffer {
 		tx: &Transaction,
 		language_loader: &LanguageLoader,
 		encoding: OffsetEncoding,
-	) -> bool {
+	) -> CommitResult {
 		self.apply_with_lsp(
 			tx,
 			ApplyPolicy::BARE.with_syntax(SyntaxPolicy::IncrementalOrDirty),
@@ -386,7 +402,7 @@ impl Buffer {
 		language_loader: &LanguageLoader,
 		encoding: OffsetEncoding,
 		undo: UndoPolicy,
-	) -> bool {
+	) -> CommitResult {
 		self.apply_with_lsp(
 			tx,
 			ApplyPolicy::BARE
@@ -545,8 +561,8 @@ mod tests {
 		let mut buffer = Buffer::scratch(BufferId::SCRATCH);
 		let (tx, _selection) = buffer.prepare_insert("hi");
 		buffer.set_readonly(true);
-		let applied = buffer.apply_transaction(&tx);
-		assert!(!applied);
+		let result = buffer.apply_transaction(&tx);
+		assert!(!result.applied);
 		assert_eq!(buffer.with_doc(|doc| doc.content().to_string()), "");
 	}
 
@@ -558,8 +574,8 @@ mod tests {
 		assert!(buffer.is_readonly());
 
 		let (tx, _selection) = buffer.prepare_insert("hi");
-		let applied = buffer.apply_transaction(&tx);
-		assert!(!applied);
+		let result = buffer.apply_transaction(&tx);
+		assert!(!result.applied);
 		assert_eq!(buffer.with_doc(|doc| doc.content().to_string()), "");
 	}
 
@@ -574,8 +590,8 @@ mod tests {
 		assert!(!buffer.is_readonly());
 
 		let (tx, _selection) = buffer.prepare_insert("hi");
-		let applied = buffer.apply_transaction(&tx);
-		assert!(applied);
+		let result = buffer.apply_transaction(&tx);
+		assert!(result.applied);
 		assert_eq!(buffer.with_doc(|doc| doc.content().to_string()), "hi");
 	}
 

@@ -109,14 +109,6 @@ impl UndoHost for Editor {
 		ok
 	}
 
-	fn doc_insert_undo_active(&self, buffer_id: BufferId) -> bool {
-		self.core
-			.buffers
-			.get_buffer(buffer_id)
-			.map(|b| b.with_doc(|doc| doc.insert_undo_active()))
-			.unwrap_or(false)
-	}
-
 	fn notify_undo(&mut self) {
 		self.notify(keys::undo);
 	}
