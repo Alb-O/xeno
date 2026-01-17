@@ -11,6 +11,8 @@ mod debug;
 mod lsp;
 
 use std::any::Any;
+use std::collections::HashMap;
+use std::sync::LazyLock;
 
 use futures::future::LocalBoxFuture;
 use xeno_registry::Capability;
@@ -18,6 +20,10 @@ pub use xeno_registry::RegistrySource;
 pub use xeno_registry::commands::{CommandError, CommandOutcome, CommandResult};
 
 use crate::impls::Editor;
+
+/// Wrapper for [`inventory`] collection of editor command definitions.
+pub struct EditorCommandReg(pub &'static EditorCommandDef);
+inventory::collect!(EditorCommandReg);
 
 /// Context provided to editor-direct command handlers.
 pub struct EditorCommandContext<'a> {
@@ -61,40 +67,37 @@ pub struct EditorCommandDef {
 	pub source: RegistrySource,
 }
 
-/// Registry of editor-direct commands.
-pub static EDITOR_COMMANDS: &[&EditorCommandDef] = &[
-	&debug::EDITOR_CMD_stats,
-	&debug::EDITOR_CMD_registry,
-	#[cfg(feature = "lsp")]
-	&lsp::EDITOR_CMD_hover,
-	#[cfg(feature = "lsp")]
-	&lsp::EDITOR_CMD_gd,
-	#[cfg(feature = "lsp")]
-	&lsp::EDITOR_CMD_code_action,
-	#[cfg(feature = "lsp")]
-	&lsp::EDITOR_CMD_rename,
-	#[cfg(feature = "lsp")]
-	&lsp::EDITOR_CMD_diagnostic_next,
-	#[cfg(feature = "lsp")]
-	&lsp::EDITOR_CMD_diagnostic_prev,
-];
+/// O(1) editor command lookup index by name and aliases.
+static EDITOR_CMD_INDEX: LazyLock<HashMap<&'static str, &'static EditorCommandDef>> =
+	LazyLock::new(|| {
+		let mut map = HashMap::new();
+		for reg in inventory::iter::<EditorCommandReg> {
+			map.insert(reg.0.name, reg.0);
+			for &alias in reg.0.aliases {
+				map.insert(alias, reg.0);
+			}
+		}
+		map
+	});
+
+/// Lazy reference to all editor commands for iteration.
+pub static EDITOR_COMMANDS: LazyLock<Vec<&'static EditorCommandDef>> = LazyLock::new(|| {
+	let mut commands: Vec<_> = inventory::iter::<EditorCommandReg>().map(|r| r.0).collect();
+	commands.sort_by_key(|c| c.name);
+	commands
+});
 
 /// Finds an editor command by name or alias.
 pub fn find_editor_command(name: &str) -> Option<&'static EditorCommandDef> {
-	EDITOR_COMMANDS
-		.iter()
-		.copied()
-		.find(|c| c.name == name || c.aliases.contains(&name))
+	EDITOR_CMD_INDEX.get(name).copied()
 }
 
 /// Returns an iterator over all registered editor commands, sorted by name.
 pub fn all_editor_commands() -> impl Iterator<Item = &'static EditorCommandDef> {
-	let mut commands: Vec<_> = EDITOR_COMMANDS.to_vec();
-	commands.sort_by_key(|c| c.name);
-	commands.into_iter()
+	EDITOR_COMMANDS.iter().copied()
 }
 
-/// Registers an editor-direct command in [`EDITOR_COMMANDS`].
+/// Registers an editor-direct command via inventory.
 #[macro_export]
 macro_rules! editor_command {
 	($name:ident, {
@@ -118,6 +121,8 @@ macro_rules! editor_command {
 					priority: $crate::__editor_cmd_opt!($({$priority})?, 0),
 					source: $crate::commands::RegistrySource::Crate(env!("CARGO_PKG_NAME")),
 				};
+
+			inventory::submit! { $crate::commands::EditorCommandReg(&[<EDITOR_CMD_ $name>]) }
 		}
 	};
 }

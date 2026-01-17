@@ -1,6 +1,9 @@
 //! Runtime notification keys (result handlers, input state).
 
-use crate::{AutoDismiss, Level, Notification, NotificationDef, NotificationKey, RegistrySource};
+use crate::{
+	AutoDismiss, Level, Notification, NotificationDef, NotificationKey, NotificationReg,
+	RegistrySource,
+};
 
 static NOTIF_VIEWPORT_UNAVAILABLE: NotificationDef = NotificationDef::new(
 	"viewport_unavailable",
@@ -8,6 +11,7 @@ static NOTIF_VIEWPORT_UNAVAILABLE: NotificationDef = NotificationDef::new(
 	AutoDismiss::DEFAULT,
 	RegistrySource::Builtin,
 );
+inventory::submit! { NotificationReg(&NOTIF_VIEWPORT_UNAVAILABLE) }
 
 static NOTIF_SCREEN_MOTION_UNAVAILABLE: NotificationDef = NotificationDef::new(
 	"screen_motion_unavailable",
@@ -15,6 +19,7 @@ static NOTIF_SCREEN_MOTION_UNAVAILABLE: NotificationDef = NotificationDef::new(
 	AutoDismiss::DEFAULT,
 	RegistrySource::Builtin,
 );
+inventory::submit! { NotificationReg(&NOTIF_SCREEN_MOTION_UNAVAILABLE) }
 
 static NOTIF_PENDING_PROMPT: NotificationDef = NotificationDef::new(
 	"pending_prompt",
@@ -22,6 +27,7 @@ static NOTIF_PENDING_PROMPT: NotificationDef = NotificationDef::new(
 	AutoDismiss::DEFAULT,
 	RegistrySource::Builtin,
 );
+inventory::submit! { NotificationReg(&NOTIF_PENDING_PROMPT) }
 
 static NOTIF_COUNT_DISPLAY: NotificationDef = NotificationDef::new(
 	"count_display",
@@ -29,6 +35,7 @@ static NOTIF_COUNT_DISPLAY: NotificationDef = NotificationDef::new(
 	AutoDismiss::DEFAULT,
 	RegistrySource::Builtin,
 );
+inventory::submit! { NotificationReg(&NOTIF_COUNT_DISPLAY) }
 
 static NOTIF_UNHANDLED_RESULT: NotificationDef = NotificationDef::new(
 	"unhandled_result",
@@ -36,6 +43,7 @@ static NOTIF_UNHANDLED_RESULT: NotificationDef = NotificationDef::new(
 	AutoDismiss::DEFAULT,
 	RegistrySource::Builtin,
 );
+inventory::submit! { NotificationReg(&NOTIF_UNHANDLED_RESULT) }
 
 #[allow(non_upper_case_globals, non_camel_case_types)]
 pub mod keys {
@@ -82,10 +90,3 @@ pub mod keys {
 	}
 }
 
-pub(crate) static NOTIFICATIONS: &[&NotificationDef] = &[
-	&NOTIF_VIEWPORT_UNAVAILABLE,
-	&NOTIF_SCREEN_MOTION_UNAVAILABLE,
-	&NOTIF_PENDING_PROMPT,
-	&NOTIF_COUNT_DISPLAY,
-	&NOTIF_UNHANDLED_RESULT,
-];

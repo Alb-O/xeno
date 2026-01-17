@@ -1,6 +1,6 @@
 //! Generic fallback notifications. Prefer domain-specific keys when available.
 
-use crate::{AutoDismiss, Level, Notification, NotificationDef, RegistrySource};
+use crate::{AutoDismiss, Level, Notification, NotificationDef, NotificationReg, RegistrySource};
 
 static NOTIF_INFO: NotificationDef = NotificationDef::new(
 	"info",
@@ -8,6 +8,7 @@ static NOTIF_INFO: NotificationDef = NotificationDef::new(
 	AutoDismiss::DEFAULT,
 	RegistrySource::Builtin,
 );
+inventory::submit! { NotificationReg(&NOTIF_INFO) }
 
 static NOTIF_WARN: NotificationDef = NotificationDef::new(
 	"warn",
@@ -15,6 +16,7 @@ static NOTIF_WARN: NotificationDef = NotificationDef::new(
 	AutoDismiss::DEFAULT,
 	RegistrySource::Builtin,
 );
+inventory::submit! { NotificationReg(&NOTIF_WARN) }
 
 static NOTIF_ERROR: NotificationDef = NotificationDef::new(
 	"error",
@@ -22,6 +24,7 @@ static NOTIF_ERROR: NotificationDef = NotificationDef::new(
 	AutoDismiss::DEFAULT,
 	RegistrySource::Builtin,
 );
+inventory::submit! { NotificationReg(&NOTIF_ERROR) }
 
 static NOTIF_SUCCESS: NotificationDef = NotificationDef::new(
 	"success",
@@ -29,6 +32,7 @@ static NOTIF_SUCCESS: NotificationDef = NotificationDef::new(
 	AutoDismiss::DEFAULT,
 	RegistrySource::Builtin,
 );
+inventory::submit! { NotificationReg(&NOTIF_SUCCESS) }
 
 static NOTIF_DEBUG: NotificationDef = NotificationDef::new(
 	"debug",
@@ -36,6 +40,7 @@ static NOTIF_DEBUG: NotificationDef = NotificationDef::new(
 	AutoDismiss::DEFAULT,
 	RegistrySource::Builtin,
 );
+inventory::submit! { NotificationReg(&NOTIF_DEBUG) }
 
 #[allow(non_upper_case_globals, non_camel_case_types)]
 pub mod keys {
@@ -82,10 +87,3 @@ pub mod keys {
 	}
 }
 
-pub(crate) static NOTIFICATIONS: &[&NotificationDef] = &[
-	&NOTIF_INFO,
-	&NOTIF_WARN,
-	&NOTIF_ERROR,
-	&NOTIF_SUCCESS,
-	&NOTIF_DEBUG,
-];

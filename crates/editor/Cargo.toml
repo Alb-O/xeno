@@ -13,6 +13,7 @@ anyhow.workspace = true
 clap.workspace = true
 dirs.workspace = true
 frizbee = { workspace = true, optional = true }
+inventory.workspace = true
 futures.workspace = true
 paste.workspace = true
 regex.workspace = true
@@ -33,7 +34,6 @@ xeno-runtime-language.workspace = true
 xeno-tui.workspace = true
 [dev-dependencies]
 insta.workspace = true
-inventory.workspace = true
 proptest.workspace = true
 
 [lints]

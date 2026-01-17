@@ -3,7 +3,10 @@
 use std::path::Path;
 use std::time::Duration;
 
-use crate::{AutoDismiss, Level, Notification, NotificationDef, NotificationKey, RegistrySource};
+use crate::{
+	AutoDismiss, Level, Notification, NotificationDef, NotificationKey, NotificationReg,
+	RegistrySource,
+};
 
 static NOTIF_BUFFER_READONLY: NotificationDef = NotificationDef::new(
 	"buffer_readonly",
@@ -11,6 +14,7 @@ static NOTIF_BUFFER_READONLY: NotificationDef = NotificationDef::new(
 	AutoDismiss::DEFAULT,
 	RegistrySource::Builtin,
 );
+inventory::submit! { NotificationReg(&NOTIF_BUFFER_READONLY) }
 
 static NOTIF_NOTHING_TO_UNDO: NotificationDef = NotificationDef::new(
 	"nothing_to_undo",
@@ -18,6 +22,7 @@ static NOTIF_NOTHING_TO_UNDO: NotificationDef = NotificationDef::new(
 	AutoDismiss::DEFAULT,
 	RegistrySource::Builtin,
 );
+inventory::submit! { NotificationReg(&NOTIF_NOTHING_TO_UNDO) }
 
 static NOTIF_NOTHING_TO_REDO: NotificationDef = NotificationDef::new(
 	"nothing_to_redo",
@@ -25,6 +30,7 @@ static NOTIF_NOTHING_TO_REDO: NotificationDef = NotificationDef::new(
 	AutoDismiss::DEFAULT,
 	RegistrySource::Builtin,
 );
+inventory::submit! { NotificationReg(&NOTIF_NOTHING_TO_REDO) }
 
 static NOTIF_UNDO: NotificationDef = NotificationDef::new(
 	"undo",
@@ -32,6 +38,7 @@ static NOTIF_UNDO: NotificationDef = NotificationDef::new(
 	AutoDismiss::DEFAULT,
 	RegistrySource::Builtin,
 );
+inventory::submit! { NotificationReg(&NOTIF_UNDO) }
 
 static NOTIF_REDO: NotificationDef = NotificationDef::new(
 	"redo",
@@ -39,6 +46,7 @@ static NOTIF_REDO: NotificationDef = NotificationDef::new(
 	AutoDismiss::DEFAULT,
 	RegistrySource::Builtin,
 );
+inventory::submit! { NotificationReg(&NOTIF_REDO) }
 
 static NOTIF_SEARCH_WRAPPED: NotificationDef = NotificationDef::new(
 	"search_wrapped",
@@ -46,6 +54,7 @@ static NOTIF_SEARCH_WRAPPED: NotificationDef = NotificationDef::new(
 	AutoDismiss::DEFAULT,
 	RegistrySource::Builtin,
 );
+inventory::submit! { NotificationReg(&NOTIF_SEARCH_WRAPPED) }
 
 static NOTIF_NO_SEARCH_PATTERN: NotificationDef = NotificationDef::new(
 	"no_search_pattern",
@@ -53,6 +62,7 @@ static NOTIF_NO_SEARCH_PATTERN: NotificationDef = NotificationDef::new(
 	AutoDismiss::DEFAULT,
 	RegistrySource::Builtin,
 );
+inventory::submit! { NotificationReg(&NOTIF_NO_SEARCH_PATTERN) }
 
 static NOTIF_NO_SELECTION: NotificationDef = NotificationDef::new(
 	"no_selection",
@@ -60,6 +70,7 @@ static NOTIF_NO_SELECTION: NotificationDef = NotificationDef::new(
 	AutoDismiss::DEFAULT,
 	RegistrySource::Builtin,
 );
+inventory::submit! { NotificationReg(&NOTIF_NO_SELECTION) }
 
 static NOTIF_NO_MORE_MATCHES: NotificationDef = NotificationDef::new(
 	"no_more_matches",
@@ -67,6 +78,7 @@ static NOTIF_NO_MORE_MATCHES: NotificationDef = NotificationDef::new(
 	AutoDismiss::DEFAULT,
 	RegistrySource::Builtin,
 );
+inventory::submit! { NotificationReg(&NOTIF_NO_MORE_MATCHES) }
 
 static NOTIF_NO_MATCHES_FOUND: NotificationDef = NotificationDef::new(
 	"no_matches_found",
@@ -74,6 +86,7 @@ static NOTIF_NO_MATCHES_FOUND: NotificationDef = NotificationDef::new(
 	AutoDismiss::DEFAULT,
 	RegistrySource::Builtin,
 );
+inventory::submit! { NotificationReg(&NOTIF_NO_MATCHES_FOUND) }
 
 static NOTIF_NO_BUFFERS: NotificationDef = NotificationDef::new(
 	"no_buffers",
@@ -81,6 +94,7 @@ static NOTIF_NO_BUFFERS: NotificationDef = NotificationDef::new(
 	AutoDismiss::DEFAULT,
 	RegistrySource::Builtin,
 );
+inventory::submit! { NotificationReg(&NOTIF_NO_BUFFERS) }
 
 static NOTIF_BUFFER_MODIFIED: NotificationDef = NotificationDef::new(
 	"buffer_modified",
@@ -88,6 +102,7 @@ static NOTIF_BUFFER_MODIFIED: NotificationDef = NotificationDef::new(
 	AutoDismiss::DEFAULT,
 	RegistrySource::Builtin,
 );
+inventory::submit! { NotificationReg(&NOTIF_BUFFER_MODIFIED) }
 
 static NOTIF_NO_SELECTIONS_REMAIN: NotificationDef = NotificationDef::new(
 	"no_selections_remain",
@@ -95,6 +110,7 @@ static NOTIF_NO_SELECTIONS_REMAIN: NotificationDef = NotificationDef::new(
 	AutoDismiss::DEFAULT,
 	RegistrySource::Builtin,
 );
+inventory::submit! { NotificationReg(&NOTIF_NO_SELECTIONS_REMAIN) }
 
 static NOTIF_YANKED_CHARS: NotificationDef = NotificationDef::new(
 	"yanked_chars",
@@ -102,6 +118,7 @@ static NOTIF_YANKED_CHARS: NotificationDef = NotificationDef::new(
 	AutoDismiss::DEFAULT,
 	RegistrySource::Builtin,
 );
+inventory::submit! { NotificationReg(&NOTIF_YANKED_CHARS) }
 
 static NOTIF_YANKED_LINES: NotificationDef = NotificationDef::new(
 	"yanked_lines",
@@ -109,6 +126,7 @@ static NOTIF_YANKED_LINES: NotificationDef = NotificationDef::new(
 	AutoDismiss::DEFAULT,
 	RegistrySource::Builtin,
 );
+inventory::submit! { NotificationReg(&NOTIF_YANKED_LINES) }
 
 static NOTIF_DELETED_CHARS: NotificationDef = NotificationDef::new(
 	"deleted_chars",
@@ -116,6 +134,7 @@ static NOTIF_DELETED_CHARS: NotificationDef = NotificationDef::new(
 	AutoDismiss::DEFAULT,
 	RegistrySource::Builtin,
 );
+inventory::submit! { NotificationReg(&NOTIF_DELETED_CHARS) }
 
 static NOTIF_PATTERN_NOT_FOUND: NotificationDef = NotificationDef::new(
 	"pattern_not_found",
@@ -123,6 +142,7 @@ static NOTIF_PATTERN_NOT_FOUND: NotificationDef = NotificationDef::new(
 	AutoDismiss::DEFAULT,
 	RegistrySource::Builtin,
 );
+inventory::submit! { NotificationReg(&NOTIF_PATTERN_NOT_FOUND) }
 
 static NOTIF_REGEX_ERROR: NotificationDef = NotificationDef::new(
 	"regex_error",
@@ -130,6 +150,7 @@ static NOTIF_REGEX_ERROR: NotificationDef = NotificationDef::new(
 	AutoDismiss::After(Duration::from_secs(8)),
 	RegistrySource::Builtin,
 );
+inventory::submit! { NotificationReg(&NOTIF_REGEX_ERROR) }
 
 static NOTIF_SEARCH_INFO: NotificationDef = NotificationDef::new(
 	"search_info",
@@ -137,6 +158,7 @@ static NOTIF_SEARCH_INFO: NotificationDef = NotificationDef::new(
 	AutoDismiss::DEFAULT,
 	RegistrySource::Builtin,
 );
+inventory::submit! { NotificationReg(&NOTIF_SEARCH_INFO) }
 
 static NOTIF_REPLACED: NotificationDef = NotificationDef::new(
 	"replaced",
@@ -144,6 +166,7 @@ static NOTIF_REPLACED: NotificationDef = NotificationDef::new(
 	AutoDismiss::DEFAULT,
 	RegistrySource::Builtin,
 );
+inventory::submit! { NotificationReg(&NOTIF_REPLACED) }
 
 static NOTIF_MATCHES_COUNT: NotificationDef = NotificationDef::new(
 	"matches_count",
@@ -151,6 +174,7 @@ static NOTIF_MATCHES_COUNT: NotificationDef = NotificationDef::new(
 	AutoDismiss::DEFAULT,
 	RegistrySource::Builtin,
 );
+inventory::submit! { NotificationReg(&NOTIF_MATCHES_COUNT) }
 
 static NOTIF_SPLITS_COUNT: NotificationDef = NotificationDef::new(
 	"splits_count",
@@ -158,6 +182,7 @@ static NOTIF_SPLITS_COUNT: NotificationDef = NotificationDef::new(
 	AutoDismiss::DEFAULT,
 	RegistrySource::Builtin,
 );
+inventory::submit! { NotificationReg(&NOTIF_SPLITS_COUNT) }
 
 static NOTIF_SELECTIONS_KEPT: NotificationDef = NotificationDef::new(
 	"selections_kept",
@@ -165,6 +190,7 @@ static NOTIF_SELECTIONS_KEPT: NotificationDef = NotificationDef::new(
 	AutoDismiss::DEFAULT,
 	RegistrySource::Builtin,
 );
+inventory::submit! { NotificationReg(&NOTIF_SELECTIONS_KEPT) }
 
 static NOTIF_FILE_SAVED: NotificationDef = NotificationDef::new(
 	"file_saved",
@@ -172,6 +198,7 @@ static NOTIF_FILE_SAVED: NotificationDef = NotificationDef::new(
 	AutoDismiss::DEFAULT,
 	RegistrySource::Builtin,
 );
+inventory::submit! { NotificationReg(&NOTIF_FILE_SAVED) }
 
 static NOTIF_FILE_NOT_FOUND: NotificationDef = NotificationDef::new(
 	"file_not_found",
@@ -179,6 +206,7 @@ static NOTIF_FILE_NOT_FOUND: NotificationDef = NotificationDef::new(
 	AutoDismiss::DEFAULT,
 	RegistrySource::Builtin,
 );
+inventory::submit! { NotificationReg(&NOTIF_FILE_NOT_FOUND) }
 
 static NOTIF_FILE_LOAD_ERROR: NotificationDef = NotificationDef::new(
 	"file_load_error",
@@ -186,6 +214,7 @@ static NOTIF_FILE_LOAD_ERROR: NotificationDef = NotificationDef::new(
 	AutoDismiss::DEFAULT,
 	RegistrySource::Builtin,
 );
+inventory::submit! { NotificationReg(&NOTIF_FILE_LOAD_ERROR) }
 
 static NOTIF_FILE_SAVE_ERROR: NotificationDef = NotificationDef::new(
 	"file_save_error",
@@ -193,6 +222,7 @@ static NOTIF_FILE_SAVE_ERROR: NotificationDef = NotificationDef::new(
 	AutoDismiss::DEFAULT,
 	RegistrySource::Builtin,
 );
+inventory::submit! { NotificationReg(&NOTIF_FILE_SAVE_ERROR) }
 
 static NOTIF_BUFFER_CLOSED: NotificationDef = NotificationDef::new(
 	"buffer_closed",
@@ -200,6 +230,7 @@ static NOTIF_BUFFER_CLOSED: NotificationDef = NotificationDef::new(
 	AutoDismiss::DEFAULT,
 	RegistrySource::Builtin,
 );
+inventory::submit! { NotificationReg(&NOTIF_BUFFER_CLOSED) }
 
 static NOTIF_SPLIT_NO_RANGES: NotificationDef = NotificationDef::new(
 	"split_no_ranges",
@@ -207,6 +238,7 @@ static NOTIF_SPLIT_NO_RANGES: NotificationDef = NotificationDef::new(
 	AutoDismiss::DEFAULT,
 	RegistrySource::Builtin,
 );
+inventory::submit! { NotificationReg(&NOTIF_SPLIT_NO_RANGES) }
 
 static NOTIF_NO_MATCHES_TO_SPLIT: NotificationDef = NotificationDef::new(
 	"no_matches_to_split",
@@ -214,6 +246,7 @@ static NOTIF_NO_MATCHES_TO_SPLIT: NotificationDef = NotificationDef::new(
 	AutoDismiss::DEFAULT,
 	RegistrySource::Builtin,
 );
+inventory::submit! { NotificationReg(&NOTIF_NO_MATCHES_TO_SPLIT) }
 
 static NOTIF_READONLY_ENABLED: NotificationDef = NotificationDef::new(
 	"readonly_enabled",
@@ -221,6 +254,7 @@ static NOTIF_READONLY_ENABLED: NotificationDef = NotificationDef::new(
 	AutoDismiss::DEFAULT,
 	RegistrySource::Builtin,
 );
+inventory::submit! { NotificationReg(&NOTIF_READONLY_ENABLED) }
 
 static NOTIF_READONLY_DISABLED: NotificationDef = NotificationDef::new(
 	"readonly_disabled",
@@ -228,6 +262,7 @@ static NOTIF_READONLY_DISABLED: NotificationDef = NotificationDef::new(
 	AutoDismiss::DEFAULT,
 	RegistrySource::Builtin,
 );
+inventory::submit! { NotificationReg(&NOTIF_READONLY_DISABLED) }
 
 static NOTIF_OPTION_SET: NotificationDef = NotificationDef::new(
 	"option_set",
@@ -235,6 +270,7 @@ static NOTIF_OPTION_SET: NotificationDef = NotificationDef::new(
 	AutoDismiss::DEFAULT,
 	RegistrySource::Builtin,
 );
+inventory::submit! { NotificationReg(&NOTIF_OPTION_SET) }
 
 #[allow(non_upper_case_globals, non_camel_case_types)]
 pub mod keys {
@@ -417,38 +453,3 @@ pub mod keys {
 	}
 }
 
-pub(crate) static NOTIFICATIONS: &[&NotificationDef] = &[
-	&NOTIF_BUFFER_READONLY,
-	&NOTIF_NOTHING_TO_UNDO,
-	&NOTIF_NOTHING_TO_REDO,
-	&NOTIF_UNDO,
-	&NOTIF_REDO,
-	&NOTIF_SEARCH_WRAPPED,
-	&NOTIF_NO_SEARCH_PATTERN,
-	&NOTIF_NO_SELECTION,
-	&NOTIF_NO_MORE_MATCHES,
-	&NOTIF_NO_MATCHES_FOUND,
-	&NOTIF_NO_BUFFERS,
-	&NOTIF_BUFFER_MODIFIED,
-	&NOTIF_NO_SELECTIONS_REMAIN,
-	&NOTIF_YANKED_CHARS,
-	&NOTIF_YANKED_LINES,
-	&NOTIF_DELETED_CHARS,
-	&NOTIF_PATTERN_NOT_FOUND,
-	&NOTIF_REGEX_ERROR,
-	&NOTIF_SEARCH_INFO,
-	&NOTIF_REPLACED,
-	&NOTIF_MATCHES_COUNT,
-	&NOTIF_SPLITS_COUNT,
-	&NOTIF_SELECTIONS_KEPT,
-	&NOTIF_FILE_SAVED,
-	&NOTIF_FILE_NOT_FOUND,
-	&NOTIF_FILE_LOAD_ERROR,
-	&NOTIF_FILE_SAVE_ERROR,
-	&NOTIF_BUFFER_CLOSED,
-	&NOTIF_SPLIT_NO_RANGES,
-	&NOTIF_NO_MATCHES_TO_SPLIT,
-	&NOTIF_READONLY_ENABLED,
-	&NOTIF_READONLY_DISABLED,
-	&NOTIF_OPTION_SET,
-];

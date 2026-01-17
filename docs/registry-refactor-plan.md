@@ -139,16 +139,16 @@ The codebase recently removed `linkme` (distributed slices) and now uses **manua
 
 ### Phase 4: Roll Out to Remaining Registries
 
-- [ ] **4.1** Migrate Commands registry (18 items)
-- [ ] **4.2** Migrate Motions registry (22 items)
-- [ ] **4.3** Migrate TextObjects registry (13 items)
-- [ ] **4.4** Migrate Gutters registry (4 items)
-- [ ] **4.5** Migrate Hooks registry (3 items)
-- [ ] **4.6** Migrate Statusline registry (7 items)
-- [ ] **4.7** Migrate Options registry (5 items)
-- [ ] **4.8** Migrate Themes registry (1 item)
-- [ ] **4.9** Migrate Notifications registry (50+ items)
-- [ ] **4.10** Migrate EditorCommands registry (7 items)
+- [x] **4.1** Migrate Commands registry (18 items)
+- [x] **4.2** Migrate Motions registry (22 items)
+- [x] **4.3** Migrate TextObjects registry (13 items)
+- [x] **4.4** Migrate Gutters registry (4 items)
+- [x] **4.5** Migrate Hooks registry (3 items)
+- [x] **4.6** Migrate Statusline registry (7 items)
+- [x] **4.7** Migrate Options registry (5 items)
+- [x] **4.8** Migrate Themes registry (1 item)
+- [x] **4.9** Migrate Notifications registry (50+ items)
+- [x] **4.10** Migrate EditorCommands registry (7 items)
 
 ### Phase 5: Optional Optimizations
 

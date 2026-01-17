@@ -1,6 +1,9 @@
 //! Command notification keys.
 
-use crate::{AutoDismiss, Level, Notification, NotificationDef, NotificationKey, RegistrySource};
+use crate::{
+	AutoDismiss, Level, Notification, NotificationDef, NotificationKey, NotificationReg,
+	RegistrySource,
+};
 
 static NOTIF_UNKNOWN_COMMAND: NotificationDef = NotificationDef::new(
 	"unknown_command",
@@ -8,6 +11,7 @@ static NOTIF_UNKNOWN_COMMAND: NotificationDef = NotificationDef::new(
 	AutoDismiss::DEFAULT,
 	RegistrySource::Builtin,
 );
+inventory::submit! { NotificationReg(&NOTIF_UNKNOWN_COMMAND) }
 
 static NOTIF_COMMAND_ERROR: NotificationDef = NotificationDef::new(
 	"command_error",
@@ -15,6 +19,7 @@ static NOTIF_COMMAND_ERROR: NotificationDef = NotificationDef::new(
 	AutoDismiss::DEFAULT,
 	RegistrySource::Builtin,
 );
+inventory::submit! { NotificationReg(&NOTIF_COMMAND_ERROR) }
 
 static NOTIF_UNSAVED_CHANGES_FORCE_QUIT: NotificationDef = NotificationDef::new(
 	"unsaved_changes_force_quit",
@@ -22,6 +27,7 @@ static NOTIF_UNSAVED_CHANGES_FORCE_QUIT: NotificationDef = NotificationDef::new(
 	AutoDismiss::DEFAULT,
 	RegistrySource::Builtin,
 );
+inventory::submit! { NotificationReg(&NOTIF_UNSAVED_CHANGES_FORCE_QUIT) }
 
 static NOTIF_NOT_IMPLEMENTED: NotificationDef = NotificationDef::new(
 	"not_implemented",
@@ -29,6 +35,7 @@ static NOTIF_NOT_IMPLEMENTED: NotificationDef = NotificationDef::new(
 	AutoDismiss::DEFAULT,
 	RegistrySource::Builtin,
 );
+inventory::submit! { NotificationReg(&NOTIF_NOT_IMPLEMENTED) }
 
 static NOTIF_HELP_TEXT: NotificationDef = NotificationDef::new(
 	"help_text",
@@ -36,6 +43,7 @@ static NOTIF_HELP_TEXT: NotificationDef = NotificationDef::new(
 	AutoDismiss::Never,
 	RegistrySource::Builtin,
 );
+inventory::submit! { NotificationReg(&NOTIF_HELP_TEXT) }
 
 static NOTIF_DIAGNOSTIC_OUTPUT: NotificationDef = NotificationDef::new(
 	"diagnostic_output",
@@ -43,6 +51,7 @@ static NOTIF_DIAGNOSTIC_OUTPUT: NotificationDef = NotificationDef::new(
 	AutoDismiss::Never,
 	RegistrySource::Builtin,
 );
+inventory::submit! { NotificationReg(&NOTIF_DIAGNOSTIC_OUTPUT) }
 
 static NOTIF_DIAGNOSTIC_WARNING: NotificationDef = NotificationDef::new(
 	"diagnostic_warning",
@@ -50,6 +59,7 @@ static NOTIF_DIAGNOSTIC_WARNING: NotificationDef = NotificationDef::new(
 	AutoDismiss::Never,
 	RegistrySource::Builtin,
 );
+inventory::submit! { NotificationReg(&NOTIF_DIAGNOSTIC_WARNING) }
 
 static NOTIF_NO_COLLISIONS: NotificationDef = NotificationDef::new(
 	"no_collisions",
@@ -57,6 +67,7 @@ static NOTIF_NO_COLLISIONS: NotificationDef = NotificationDef::new(
 	AutoDismiss::DEFAULT,
 	RegistrySource::Builtin,
 );
+inventory::submit! { NotificationReg(&NOTIF_NO_COLLISIONS) }
 
 static NOTIF_THEME_SET: NotificationDef = NotificationDef::new(
 	"theme_set",
@@ -64,6 +75,7 @@ static NOTIF_THEME_SET: NotificationDef = NotificationDef::new(
 	AutoDismiss::DEFAULT,
 	RegistrySource::Builtin,
 );
+inventory::submit! { NotificationReg(&NOTIF_THEME_SET) }
 
 #[allow(non_upper_case_globals, non_camel_case_types)]
 pub mod keys {
@@ -136,14 +148,3 @@ pub mod keys {
 	}
 }
 
-pub(crate) static NOTIFICATIONS: &[&NotificationDef] = &[
-	&NOTIF_UNKNOWN_COMMAND,
-	&NOTIF_COMMAND_ERROR,
-	&NOTIF_UNSAVED_CHANGES_FORCE_QUIT,
-	&NOTIF_NOT_IMPLEMENTED,
-	&NOTIF_HELP_TEXT,
-	&NOTIF_DIAGNOSTIC_OUTPUT,
-	&NOTIF_DIAGNOSTIC_WARNING,
-	&NOTIF_NO_COLLISIONS,
-	&NOTIF_THEME_SET,
-];

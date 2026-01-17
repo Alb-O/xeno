@@ -1,6 +1,6 @@
 //! Action notification keys.
 
-use crate::{AutoDismiss, Level, Notification, NotificationDef, RegistrySource};
+use crate::{AutoDismiss, Level, Notification, NotificationDef, NotificationReg, RegistrySource};
 
 static NOTIF_UNKNOWN_ACTION: NotificationDef = NotificationDef::new(
 	"unknown_action",
@@ -8,6 +8,7 @@ static NOTIF_UNKNOWN_ACTION: NotificationDef = NotificationDef::new(
 	AutoDismiss::DEFAULT,
 	RegistrySource::Builtin,
 );
+inventory::submit! { NotificationReg(&NOTIF_UNKNOWN_ACTION) }
 
 static NOTIF_ACTION_ERROR: NotificationDef = NotificationDef::new(
 	"action_error",
@@ -15,6 +16,7 @@ static NOTIF_ACTION_ERROR: NotificationDef = NotificationDef::new(
 	AutoDismiss::DEFAULT,
 	RegistrySource::Builtin,
 );
+inventory::submit! { NotificationReg(&NOTIF_ACTION_ERROR) }
 
 #[allow(non_upper_case_globals, non_camel_case_types)]
 pub mod keys {
@@ -37,5 +39,3 @@ pub mod keys {
 	}
 }
 
-pub(crate) static NOTIFICATIONS: &[&NotificationDef] =
-	&[&NOTIF_UNKNOWN_ACTION, &NOTIF_ACTION_ERROR];

@@ -21,6 +21,10 @@ use std::time::Duration;
 
 pub use xeno_registry_core::{Key, RegistryMetadata, RegistrySource};
 
+/// Wrapper for [`inventory`] collection of notification definitions.
+pub struct NotificationReg(pub &'static NotificationDef);
+inventory::collect!(NotificationReg);
+
 mod actions;
 mod builtins;
 mod commands;
@@ -106,13 +110,9 @@ impl NotificationDef {
 }
 
 /// Registry of all notification definitions.
-pub static NOTIFICATIONS: LazyLock<Vec<&NotificationDef>> = LazyLock::new(|| {
-	let mut defs = Vec::new();
-	defs.extend_from_slice(actions::NOTIFICATIONS);
-	defs.extend_from_slice(builtins::NOTIFICATIONS);
-	defs.extend_from_slice(commands::NOTIFICATIONS);
-	defs.extend_from_slice(editor::NOTIFICATIONS);
-	defs.extend_from_slice(runtime::NOTIFICATIONS);
+pub static NOTIFICATIONS: LazyLock<Vec<&'static NotificationDef>> = LazyLock::new(|| {
+	let mut defs: Vec<_> = inventory::iter::<NotificationReg>().map(|r| r.0).collect();
+	defs.sort_by_key(|d| d.id);
 	defs
 });
 
