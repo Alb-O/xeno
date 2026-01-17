@@ -12,7 +12,7 @@ macro_rules! __gutter_enabled {
 	};
 }
 
-/// Registers a gutter column in the [`GUTTERS`](crate::GUTTERS) slice.
+/// Defines a gutter column definition.
 ///
 /// # Examples
 ///
@@ -66,8 +66,7 @@ macro_rules! gutter {
 	}, $render:expr) => {
 		paste::paste! {
 			#[allow(non_upper_case_globals)]
-			#[linkme::distributed_slice($crate::GUTTERS)]
-			static [<GUTTER_ $name:upper>]: $crate::GutterDef = $crate::GutterDef {
+			pub static [<GUTTER_ $name:upper>]: $crate::GutterDef = $crate::GutterDef {
 				meta: $crate::RegistryMeta {
 					id: concat!(env!("CARGO_PKG_NAME"), "::", stringify!($name)),
 					name: stringify!($name),

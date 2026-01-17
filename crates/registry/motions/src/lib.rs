@@ -5,12 +5,11 @@
 //!
 //! This crate provides:
 //! - Type definitions ([`MotionDef`], [`MotionHandler`])
-//! - Distributed slice ([`MOTIONS`])
+//! - Static registry list ([`MOTIONS`])
 //! - Registration macro ([`motion!`])
 //! - Movement algorithms ([`movement`] module)
 //! - Built-in implementations (basic, word, line, document)
 
-use linkme::distributed_slice;
 use ropey::RopeSlice;
 use xeno_primitives::Range;
 pub use xeno_registry_core::{
@@ -112,18 +111,40 @@ impl_registry_entry!(MotionDef);
 pub type MotionKey = Key<MotionDef>;
 
 /// Registry of all motion definitions.
-#[distributed_slice]
-pub static MOTIONS: [MotionDef];
+pub static MOTIONS: &[&MotionDef] = &[
+	&impls::basic::MOTION_left,
+	&impls::basic::MOTION_right,
+	&impls::basic::MOTION_up,
+	&impls::basic::MOTION_down,
+	&impls::document::MOTION_document_start,
+	&impls::document::MOTION_document_end,
+	&impls::document::MOTION_find_char_forward,
+	&impls::line::MOTION_line_start,
+	&impls::line::MOTION_line_end,
+	&impls::line::MOTION_first_nonwhitespace,
+	&impls::paragraph::MOTION_next_paragraph,
+	&impls::paragraph::MOTION_prev_paragraph,
+	&impls::word::MOTION_next_word_start,
+	&impls::word::MOTION_prev_word_start,
+	&impls::word::MOTION_next_word_end,
+	&impls::word::MOTION_next_WORD_start,
+	&impls::word::MOTION_next_long_word_start,
+	&impls::word::MOTION_prev_WORD_start,
+	&impls::word::MOTION_prev_long_word_start,
+	&impls::word::MOTION_next_WORD_end,
+	&impls::word::MOTION_next_long_word_end,
+];
 
 /// Finds a motion by name or alias.
 pub fn find(name: &str) -> Option<MotionKey> {
 	MOTIONS
 		.iter()
+		.copied()
 		.find(|m| m.name() == name || m.aliases().contains(&name))
 		.map(MotionKey::new)
 }
 
 /// Returns all registered motions.
 pub fn all() -> impl Iterator<Item = &'static MotionDef> {
-	MOTIONS.iter()
+	MOTIONS.iter().copied()
 }

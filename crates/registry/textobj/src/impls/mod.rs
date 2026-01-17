@@ -1,9 +1,9 @@
 //! Built-in text object implementations.
 
-mod argument;
-mod line;
-mod number;
-mod paragraph;
-mod quotes;
-mod surround;
-mod word;
+pub(super) mod argument;
+pub(super) mod line;
+pub(super) mod number;
+pub(super) mod paragraph;
+pub(super) mod quotes;
+pub(super) mod surround;
+pub(super) mod word;

@@ -1,6 +1,6 @@
 //! Gutter column registry.
 //!
-//! Gutter columns are registered at compile-time using [`linkme`] and rendered
+//! Gutter columns are defined in static lists and rendered
 //! left-to-right based on priority. Each column provides a closure that computes
 //! the display text for each line, enabling arbitrary formatting (absolute,
 //! relative, hexadecimal, custom symbols, etc.).
@@ -14,7 +14,6 @@
 
 use std::path::Path;
 
-use linkme::distributed_slice;
 use ropey::RopeSlice;
 
 mod impls;
@@ -125,24 +124,32 @@ impl core::fmt::Debug for GutterDef {
 }
 
 /// Registry of all gutter column definitions.
-#[distributed_slice]
-pub static GUTTERS: [GutterDef];
+pub static GUTTERS: &[&GutterDef] = &[
+	&impls::hybrid::GUTTER_HYBRID_LINE_NUMBERS,
+	&impls::line_numbers::GUTTER_LINE_NUMBERS,
+	&impls::relative::GUTTER_RELATIVE_LINE_NUMBERS,
+	&impls::signs::GUTTER_SIGNS,
+];
 
 /// Returns enabled gutters sorted by priority (left to right).
 pub fn enabled_gutters() -> impl Iterator<Item = &'static GutterDef> {
-	let mut gutters: Vec<_> = GUTTERS.iter().filter(|g| g.default_enabled).collect();
+	let mut gutters: Vec<_> = GUTTERS
+		.iter()
+		.copied()
+		.filter(|g| g.default_enabled)
+		.collect();
 	gutters.sort_by_key(|g| g.meta.priority);
 	gutters.into_iter()
 }
 
 /// Finds a gutter column by name.
 pub fn find(name: &str) -> Option<&'static GutterDef> {
-	GUTTERS.iter().find(|g| g.meta.name == name)
+	GUTTERS.iter().copied().find(|g| g.meta.name == name)
 }
 
 /// Returns all registered gutter columns.
 pub fn all() -> impl Iterator<Item = &'static GutterDef> {
-	GUTTERS.iter()
+	GUTTERS.iter().copied()
 }
 
 /// Computes the width of a single gutter column.

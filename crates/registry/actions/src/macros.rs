@@ -24,7 +24,7 @@ macro_rules! __opt_slice {
 	};
 }
 
-/// Registers an action in the [`ACTIONS`](crate::ACTIONS) slice.
+/// Defines an action definition.
 ///
 /// Actions are the primary unit of editor functionality. Each action has a name,
 /// description, and handler that returns an [`ActionResult`]. Actions can optionally
@@ -108,8 +108,7 @@ macro_rules! action {
 	}, handler: $handler:expr) => {
 		paste::paste! {
 			#[allow(non_upper_case_globals)]
-			#[linkme::distributed_slice($crate::ACTIONS)]
-			static [<ACTION_ $name>]: $crate::ActionDef = $crate::ActionDef {
+			pub static [<ACTION_ $name>]: $crate::ActionDef = $crate::ActionDef {
 				meta: $crate::RegistryMeta {
 					id: concat!(env!("CARGO_PKG_NAME"), "::", stringify!($name)),
 					name: stringify!($name),

@@ -4,18 +4,18 @@
 //! since they need direct [`Editor`] access.
 
 /// Buffer navigation and management commands.
-mod buffer;
+pub(super) mod buffer;
 /// File editing commands (edit, open).
-mod edit;
+pub(super) mod edit;
 /// Help and documentation commands.
-mod help;
+pub(super) mod help;
 /// Quit and exit commands.
-mod quit;
+pub(super) mod quit;
 /// Registry diagnostic commands.
-mod registry_diag;
+pub(super) mod registry_diag;
 /// Option setting commands.
-mod set;
+pub(super) mod set;
 /// Theme switching commands.
-mod theme;
+pub(super) mod theme;
 /// Write and save commands.
-mod write;
+pub(super) mod write;

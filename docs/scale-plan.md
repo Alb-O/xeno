@@ -289,12 +289,12 @@ macro_rules! action {
 
 ### Tasks
 
-* [ ] Update `action!` macro to define-only (remove linkme)
-* [ ] Update `command!`, `motion!`, `gutter!`, etc. similarly
-* [ ] Add a small `source:` convention:
-  * [ ] Builtins should use `RegistrySource::Builtin`
-  * [ ] Crate-provided builtins can use `RegistrySource::Crate(env!("CARGO_PKG_NAME"))` via helper macro if desired
-* [ ] Ensure all defs remain `pub static` so references remain `'static`
+* [x] Update `action!` macro to define-only (remove linkme)
+* [x] Update `command!`, `motion!`, `gutter!`, etc. similarly
+* [x] Add a small `source:` convention:
+  * [x] Builtins should use `RegistrySource::Builtin`
+  * [x] Crate-provided builtins can use `RegistrySource::Crate(env!("CARGO_PKG_NAME"))` via helper macro if desired
+* [x] Ensure all defs remain `pub static` so references remain `'static`
 
 ### Dependencies
 

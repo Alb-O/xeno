@@ -1,7 +1,7 @@
 //! Async hook system for editor events.
 //!
 //! Hooks allow extensions to react to editor events like file open, save,
-//! mode change, etc. They are registered at compile-time using `linkme`.
+//! mode change, etc. They are defined in static lists.
 //!
 //! # Async Support
 //!
@@ -25,7 +25,8 @@
 //! });
 //! ```
 
-use linkme::distributed_slice;
+use std::sync::{Mutex, OnceLock};
+
 
 mod context;
 mod emit;
@@ -195,15 +196,70 @@ xeno_macro::define_events! {
 }
 
 /// Registry of all hook definitions.
-#[distributed_slice]
-pub static HOOKS: [HookDef];
+pub static HOOKS: &[&HookDef] = &[
+	&impls::log_buffer_open::HOOK_log_buffer_open,
+	&impls::log_mode_change::HOOK_log_mode_change,
+	&impls::log_option_change::HOOK_log_option_change,
+];
+
+static EXTRA_HOOKS: OnceLock<Mutex<Vec<&'static HookDef>>> = OnceLock::new();
+
+/// Registers an extra hook definition at runtime.
+pub fn register_hook(def: &'static HookDef) {
+	let mut extras = EXTRA_HOOKS
+		.get_or_init(|| Mutex::new(Vec::new()))
+		.lock()
+		.expect("extra hook lock poisoned");
+
+	if HOOKS.iter().any(|&existing| std::ptr::eq(existing, def)) {
+		return;
+	}
+
+	if extras.iter().any(|&existing| std::ptr::eq(existing, def)) {
+		return;
+	}
+
+	extras.push(def);
+}
+
+/// Returns hooks matching the given event, including extra registrations.
+pub fn hooks_for_event(event: HookEvent) -> Vec<&'static HookDef> {
+	let mut hooks: Vec<_> = HOOKS
+		.iter()
+		.copied()
+		.filter(|h| h.event == event)
+		.collect();
+
+	if let Some(extras) = EXTRA_HOOKS.get() {
+		hooks.extend(
+			extras
+				.lock()
+				.expect("extra hook lock poisoned")
+				.iter()
+				.copied()
+				.filter(|h| h.event == event),
+		);
+	}
+
+	hooks
+}
 
 /// Find all hooks registered for a specific event.
 pub fn find_hooks(event: HookEvent) -> impl Iterator<Item = &'static HookDef> {
-	HOOKS.iter().filter(move |h| h.event == event)
+	hooks_for_event(event).into_iter()
 }
 
 /// List all registered hooks.
 pub fn all_hooks() -> impl Iterator<Item = &'static HookDef> {
-	HOOKS.iter()
+	let mut hooks: Vec<_> = HOOKS.iter().copied().collect();
+	if let Some(extras) = EXTRA_HOOKS.get() {
+		hooks.extend(
+			extras
+				.lock()
+				.expect("extra hook lock poisoned")
+				.iter()
+				.copied(),
+		);
+	}
+	hooks.into_iter()
 }

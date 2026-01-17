@@ -1,9 +1,8 @@
-/// Registers a statusline segment in the [`STATUSLINE_SEGMENTS`] slice.
+/// Defines a statusline segment definition.
 #[macro_export]
 macro_rules! statusline_segment {
 	($static_name:ident, $name:expr, $position:expr, $priority:expr, $enabled:expr, $render:expr) => {
-		#[::linkme::distributed_slice($crate::STATUSLINE_SEGMENTS)]
-		static $static_name: $crate::StatuslineSegmentDef = $crate::StatuslineSegmentDef {
+		pub static $static_name: $crate::StatuslineSegmentDef = $crate::StatuslineSegmentDef {
 			meta: $crate::RegistryMeta {
 				id: $name,
 				name: $name,

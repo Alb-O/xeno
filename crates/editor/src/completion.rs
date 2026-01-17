@@ -171,6 +171,7 @@ impl CompletionSource for CommandSource {
 
 		let items: Vec<_> = COMMANDS
 			.iter()
+			.copied()
 			.filter(|cmd| {
 				cmd.name().starts_with(input) || cmd.aliases().iter().any(|a| a.starts_with(input))
 			})

@@ -107,7 +107,10 @@ mod tests {
 	use super::*;
 	use std::collections::HashSet;
 
-	fn assert_unique_ids<T: RegistryMetadata>(label: &str, items: &[T]) {
+	fn assert_unique_ids<T: RegistryMetadata + 'static>(
+		label: &str,
+		items: impl IntoIterator<Item = &'static T>,
+	) {
 		let mut seen = HashSet::new();
 		let mut duplicates = Vec::new();
 
@@ -167,7 +170,10 @@ mod tests {
 		has_separator && !last_was_separator
 	}
 
-	fn assert_namespaced_ids<T: RegistryMetadata>(label: &str, items: &[T]) {
+	fn assert_namespaced_ids<T: RegistryMetadata + 'static>(
+		label: &str,
+		items: impl IntoIterator<Item = &'static T>,
+	) {
 		let mut invalid = Vec::new();
 
 		for item in items {
@@ -219,30 +225,30 @@ mod tests {
 
 	#[test]
 	fn registry_id_uniqueness_by_kind() {
-		assert_unique_ids("actions", &ACTIONS);
-		assert_unique_ids("commands", &COMMANDS);
-		assert_unique_ids("motions", &MOTIONS);
-		assert_unique_ids("gutters", &GUTTERS);
-		assert_unique_ids("hooks", &HOOKS);
-		assert_unique_ids("statusline", &STATUSLINE_SEGMENTS);
-		assert_unique_ids("text_objects", &TEXT_OBJECTS);
-		assert_unique_ids("options", &options::OPTIONS);
-		assert_unique_ids("themes", &themes::THEMES);
+		assert_unique_ids("actions", ACTIONS.iter().copied());
+		assert_unique_ids("commands", COMMANDS.iter().copied());
+		assert_unique_ids("motions", MOTIONS.iter().copied());
+		assert_unique_ids("gutters", GUTTERS.iter().copied());
+		assert_unique_ids("hooks", HOOKS.iter().copied());
+		assert_unique_ids("statusline", STATUSLINE_SEGMENTS.iter().copied());
+		assert_unique_ids("text_objects", TEXT_OBJECTS.iter().copied());
+		assert_unique_ids("options", options::OPTIONS.iter());
+		assert_unique_ids("themes", themes::THEMES.iter());
 	}
 
 	#[test]
 	fn registry_id_namespacing() {
-		assert_namespaced_ids("actions", &ACTIONS);
-		assert_namespaced_ids("commands", &COMMANDS);
-		assert_namespaced_ids("motions", &MOTIONS);
-		assert_namespaced_ids("gutters", &GUTTERS);
-		assert_namespaced_ids("hooks", &HOOKS);
-		assert_namespaced_ids("text_objects", &TEXT_OBJECTS);
+		assert_namespaced_ids("actions", ACTIONS.iter().copied());
+		assert_namespaced_ids("commands", COMMANDS.iter().copied());
+		assert_namespaced_ids("motions", MOTIONS.iter().copied());
+		assert_namespaced_ids("gutters", GUTTERS.iter().copied());
+		assert_namespaced_ids("hooks", HOOKS.iter().copied());
+		assert_namespaced_ids("text_objects", TEXT_OBJECTS.iter().copied());
 	}
 
 	#[test]
 	fn command_names_and_aliases_resolve() {
-		for command in COMMANDS.iter() {
+		for &command in COMMANDS.iter() {
 			assert!(
 				find_command(command.meta.name).is_some(),
 				"command name missing from index: {}",

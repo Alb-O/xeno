@@ -1,9 +1,8 @@
 //! Statusline segment registry
 //!
-//! Segments are registered at compile-time using [`linkme`] and rendered
+//! Segments are defined in static lists and rendered
 //! in order based on their position and priority.
 
-use linkme::distributed_slice;
 
 mod impls;
 /// Statusline segment registration macros.
@@ -102,8 +101,15 @@ impl core::fmt::Debug for StatuslineSegmentDef {
 }
 
 /// Registry of all statusline segment definitions.
-#[distributed_slice]
-pub static STATUSLINE_SEGMENTS: [StatuslineSegmentDef];
+pub static STATUSLINE_SEGMENTS: &[&StatuslineSegmentDef] = &[
+	&impls::count::SEG_COUNT,
+	&impls::file::SEG_FILE,
+	&impls::filetype::SEG_FILETYPE,
+	&impls::mode::SEG_MODE,
+	&impls::position::SEG_POSITION,
+	&impls::progress::SEG_PROGRESS,
+	&impls::readonly::SEG_READONLY,
+];
 
 /// Get all segments for a given position, sorted by priority.
 pub fn segments_for_position(
@@ -111,6 +117,7 @@ pub fn segments_for_position(
 ) -> impl Iterator<Item = &'static StatuslineSegmentDef> {
 	let mut segments: Vec<_> = STATUSLINE_SEGMENTS
 		.iter()
+		.copied()
 		.filter(move |s| s.position == position && s.default_enabled)
 		.collect();
 	segments.sort_by_key(|s| s.meta.priority);
@@ -126,12 +133,15 @@ pub fn render_position(position: SegmentPosition, ctx: &StatuslineContext) -> Ve
 
 /// Find a segment by name.
 pub fn find_segment(name: &str) -> Option<&'static StatuslineSegmentDef> {
-	STATUSLINE_SEGMENTS.iter().find(|s| s.meta.name == name)
+	STATUSLINE_SEGMENTS
+		.iter()
+		.copied()
+		.find(|s| s.meta.name == name)
 }
 
 /// Get all registered segments.
 pub fn all_segments() -> impl Iterator<Item = &'static StatuslineSegmentDef> {
-	STATUSLINE_SEGMENTS.iter()
+	STATUSLINE_SEGMENTS.iter().copied()
 }
 
 impl_registry_entry!(StatuslineSegmentDef);

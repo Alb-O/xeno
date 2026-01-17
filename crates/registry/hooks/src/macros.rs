@@ -26,7 +26,7 @@ macro_rules! __hook_param_expr {
 	};
 }
 
-/// Define a hook and register it in the [`HOOKS`](crate::HOOKS) slice.
+/// Define a hook definition.
 ///
 /// # Example
 ///
@@ -50,8 +50,7 @@ macro_rules! hook {
 			}
 
 			#[allow(non_upper_case_globals)]
-			#[linkme::distributed_slice($crate::HOOKS)]
-			static [<HOOK_ $name>]: $crate::HookDef = $crate::HookDef {
+			pub static [<HOOK_ $name>]: $crate::HookDef = $crate::HookDef {
 				meta: $crate::RegistryMeta {
 					id: concat!(env!("CARGO_PKG_NAME"), "::", stringify!($name)),
 					name: stringify!($name),
@@ -84,8 +83,7 @@ macro_rules! hook {
 			}
 
 			#[allow(non_upper_case_globals)]
-			#[linkme::distributed_slice($crate::HOOKS)]
-			static [<HOOK_ $name>]: $crate::HookDef = $crate::HookDef {
+			pub static [<HOOK_ $name>]: $crate::HookDef = $crate::HookDef {
 				meta: $crate::RegistryMeta {
 					id: concat!(env!("CARGO_PKG_NAME"), "::", stringify!($name)),
 					name: stringify!($name),

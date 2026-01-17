@@ -5,11 +5,10 @@
 //!
 //! This crate provides:
 //! - Type definitions ([`TextObjectDef`], [`TextObjectHandler`])
-//! - Distributed slice ([`TEXT_OBJECTS`])
+//! - Static registry list ([`TEXT_OBJECTS`])
 //! - Registration macros ([`text_object!`], [`symmetric_text_object!`], [`bracket_pair_object!`])
 //! - Built-in implementations (word, line, paragraph, surround, quotes, etc.)
 
-use linkme::distributed_slice;
 use ropey::RopeSlice;
 use xeno_primitives::Range;
 
@@ -113,13 +112,27 @@ impl TextObjectDef {
 impl_registry_entry!(TextObjectDef);
 
 /// Registry of all text object definitions.
-#[distributed_slice]
-pub static TEXT_OBJECTS: [TextObjectDef];
+pub static TEXT_OBJECTS: &[&TextObjectDef] = &[
+	&impls::argument::OBJ_argument,
+	&impls::line::OBJ_line,
+	&impls::number::OBJ_number,
+	&impls::paragraph::OBJ_paragraph,
+	&impls::quotes::OBJ_double_quotes,
+	&impls::quotes::OBJ_single_quotes,
+	&impls::quotes::OBJ_backticks,
+	&impls::surround::OBJ_parentheses,
+	&impls::surround::OBJ_braces,
+	&impls::surround::OBJ_brackets,
+	&impls::surround::OBJ_angle_brackets,
+	&impls::word::OBJ_word,
+	&impls::word::OBJ_WORD,
+];
 
 /// Finds a text object by trigger character.
 pub fn find_by_trigger(trigger: char) -> Option<&'static TextObjectDef> {
 	TEXT_OBJECTS
 		.iter()
+		.copied()
 		.find(|o| o.trigger == trigger || o.alt_triggers.contains(&trigger))
 }
 
@@ -127,10 +140,11 @@ pub fn find_by_trigger(trigger: char) -> Option<&'static TextObjectDef> {
 pub fn find(name: &str) -> Option<&'static TextObjectDef> {
 	TEXT_OBJECTS
 		.iter()
+		.copied()
 		.find(|o| o.name() == name || o.aliases().contains(&name))
 }
 
 /// Returns all registered text objects.
 pub fn all() -> impl Iterator<Item = &'static TextObjectDef> {
-	TEXT_OBJECTS.iter()
+	TEXT_OBJECTS.iter().copied()
 }

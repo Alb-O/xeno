@@ -1,14 +1,14 @@
 //! Command registry
 //!
-//! Defines command types and compile-time registrations.
+//! Defines command types and static registrations.
 
 use std::any::Any;
 use std::future::Future;
 use std::path::PathBuf;
 use std::pin::Pin;
+use std::sync::{Mutex, OnceLock};
 
 use futures::future::LocalBoxFuture;
-use linkme::distributed_slice;
 use thiserror::Error;
 use xeno_registry_notifications::Notification;
 
@@ -228,20 +228,75 @@ pub mod flags {
 	pub const NONE: u32 = 0;
 }
 
-/// Distributed slice for compile-time command registration.
-#[distributed_slice]
-pub static COMMANDS: [CommandDef];
+/// Registry of all command definitions.
+pub static COMMANDS: &[&CommandDef] = &[
+	&impls::buffer::CMD_buffer,
+	&impls::buffer::CMD_buffer_next,
+	&impls::buffer::CMD_buffer_prev,
+	&impls::buffer::CMD_delete_buffer,
+	&impls::buffer::CMD_readonly,
+	&impls::edit::CMD_edit,
+	&impls::help::CMD_help,
+	&impls::quit::CMD_quit,
+	&impls::quit::CMD_quit_force,
+	&impls::registry_diag::CMD_registry_diag,
+	&impls::registry_diag::CMD_registry_doctor,
+	&impls::set::CMD_set,
+	&impls::set::CMD_setlocal,
+	&impls::theme::CMD_theme,
+	&impls::write::CMD_write,
+	&impls::write::CMD_wq,
+];
+
+static EXTRA_COMMANDS: OnceLock<Mutex<Vec<&'static CommandDef>>> = OnceLock::new();
+
+/// Registers an extra command definition at runtime.
+pub fn register_command(def: &'static CommandDef) {
+	let mut extras = EXTRA_COMMANDS
+		.get_or_init(|| Mutex::new(Vec::new()))
+		.lock()
+		.expect("extra command lock poisoned");
+
+	if COMMANDS.iter().any(|&existing| std::ptr::eq(existing, def)) {
+		return;
+	}
+
+	if extras.iter().any(|&existing| std::ptr::eq(existing, def)) {
+		return;
+	}
+
+	extras.push(def);
+}
 
 /// Finds a command by name or alias.
 pub fn find_command(name: &str) -> Option<&'static CommandDef> {
 	COMMANDS
 		.iter()
+		.copied()
 		.find(|c| c.name() == name || c.aliases().contains(&name))
+		.or_else(|| {
+			let extras = EXTRA_COMMANDS.get()?;
+			extras
+				.lock()
+				.expect("extra command lock poisoned")
+				.iter()
+				.copied()
+				.find(|c| c.name() == name || c.aliases().contains(&name))
+		})
 }
 
 /// Returns an iterator over all registered commands, sorted by name.
 pub fn all_commands() -> impl Iterator<Item = &'static CommandDef> {
-	let mut commands: Vec<_> = COMMANDS.iter().collect();
+	let mut commands: Vec<_> = COMMANDS.iter().copied().collect();
+	if let Some(extras) = EXTRA_COMMANDS.get() {
+		commands.extend(
+			extras
+				.lock()
+				.expect("extra command lock poisoned")
+				.iter()
+				.copied(),
+		);
+	}
 	commands.sort_by_key(|c| c.name());
 	commands.into_iter()
 }

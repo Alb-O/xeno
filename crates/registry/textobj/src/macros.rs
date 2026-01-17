@@ -24,7 +24,7 @@ macro_rules! __text_obj_opt {
 	};
 }
 
-/// Registers a text object in the [`TEXT_OBJECTS`](crate::TEXT_OBJECTS) slice.
+/// Defines a text object definition.
 ///
 /// # Example
 ///
@@ -56,8 +56,7 @@ macro_rules! text_object {
 	}) => {
 		paste::paste! {
 			#[allow(non_upper_case_globals)]
-			#[linkme::distributed_slice($crate::TEXT_OBJECTS)]
-			static [<OBJ_ $name>]: $crate::TextObjectDef = $crate::TextObjectDef::new(
+			pub static [<OBJ_ $name>]: $crate::TextObjectDef = $crate::TextObjectDef::new(
 				$crate::RegistryMeta {
 					id: concat!(env!("CARGO_PKG_NAME"), "::", stringify!($name)),
 					name: stringify!($name),

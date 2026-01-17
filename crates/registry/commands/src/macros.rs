@@ -22,7 +22,7 @@ macro_rules! __opt_slice {
 	};
 }
 
-/// Registers an ex-mode command in the [`COMMANDS`](crate::COMMANDS) slice.
+/// Defines an ex-mode command definition.
 #[macro_export]
 macro_rules! command {
 	($name:ident, {
@@ -36,8 +36,7 @@ macro_rules! command {
 	}, handler: $handler:expr) => {
 		paste::paste! {
 			#[allow(non_upper_case_globals)]
-			#[::linkme::distributed_slice($crate::COMMANDS)]
-			static [<CMD_ $name>]: $crate::CommandDef = $crate::CommandDef {
+			pub static [<CMD_ $name>]: $crate::CommandDef = $crate::CommandDef {
 				meta: $crate::RegistryMeta {
 					id: concat!(env!("CARGO_PKG_NAME"), "::", stringify!($name)),
 					name: stringify!($name),

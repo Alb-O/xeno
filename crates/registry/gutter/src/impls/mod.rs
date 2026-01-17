@@ -13,7 +13,7 @@
 //! Note: `line_numbers`, `relative_line_numbers`, and `hybrid_line_numbers` all
 //! have priority 0 and are mutually exclusive. Only one should be enabled at a time.
 
-mod hybrid;
-mod line_numbers;
-mod relative;
-mod signs;
+pub(super) mod hybrid;
+pub(super) mod line_numbers;
+pub(super) mod relative;
+pub(super) mod signs;

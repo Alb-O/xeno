@@ -1,9 +1,9 @@
 //! Built-in statusline segment implementations.
 
-mod count;
-mod file;
-mod filetype;
-mod mode;
-mod position;
-mod progress;
-mod readonly;
+pub(super) mod count;
+pub(super) mod file;
+pub(super) mod filetype;
+pub(super) mod mode;
+pub(super) mod position;
+pub(super) mod progress;
+pub(super) mod readonly;

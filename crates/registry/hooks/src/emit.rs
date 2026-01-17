@@ -2,7 +2,7 @@
 
 use tracing::warn;
 
-use super::HOOKS;
+use super::hooks_for_event;
 use super::context::{HookContext, MutableHookContext};
 use super::types::{BoxFuture, HookAction, HookHandler, HookMutability, HookPriority, HookResult};
 
@@ -14,7 +14,7 @@ use super::types::{BoxFuture, HookAction, HookHandler, HookMutability, HookPrior
 /// Returns [`HookResult::Cancel`] if any hook cancels, otherwise [`HookResult::Continue`].
 pub async fn emit(ctx: &HookContext<'_>) -> HookResult {
 	let event = ctx.event();
-	let mut matching: Vec<_> = HOOKS.iter().filter(|h| h.event == event).collect();
+	let mut matching = hooks_for_event(event);
 	matching.sort_by_key(|h| h.meta.priority);
 
 	for hook in matching {
@@ -42,7 +42,7 @@ pub async fn emit(ctx: &HookContext<'_>) -> HookResult {
 /// will log a warning and be skipped.
 pub fn emit_sync(ctx: &HookContext<'_>) -> HookResult {
 	let event = ctx.event();
-	let mut matching: Vec<_> = HOOKS.iter().filter(|h| h.event == event).collect();
+	let mut matching = hooks_for_event(event);
 	matching.sort_by_key(|h| h.meta.priority);
 
 	for hook in matching {
@@ -75,7 +75,7 @@ pub fn emit_sync(ctx: &HookContext<'_>) -> HookResult {
 /// Returns [`HookResult::Cancel`] if any hook cancels, otherwise [`HookResult::Continue`].
 pub async fn emit_mutable(ctx: &mut MutableHookContext<'_>) -> HookResult {
 	let event = ctx.event;
-	let mut matching: Vec<_> = HOOKS.iter().filter(|h| h.event == event).collect();
+	let mut matching = hooks_for_event(event);
 	matching.sort_by_key(|h| h.meta.priority);
 
 	for hook in matching {
@@ -119,7 +119,7 @@ pub trait HookScheduler {
 /// Returns [`HookResult::Cancel`] if any sync hook cancels, otherwise [`HookResult::Continue`].
 pub fn emit_sync_with<S: HookScheduler>(ctx: &HookContext<'_>, scheduler: &mut S) -> HookResult {
 	let event = ctx.event();
-	let mut matching: Vec<_> = HOOKS.iter().filter(|h| h.event == event).collect();
+	let mut matching = hooks_for_event(event);
 	matching.sort_by_key(|h| h.meta.priority);
 
 	for hook in matching {

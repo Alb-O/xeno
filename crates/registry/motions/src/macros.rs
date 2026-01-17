@@ -22,7 +22,7 @@ macro_rules! __motion_opt_slice {
 	};
 }
 
-/// Registers a motion primitive in the [`MOTIONS`](crate::MOTIONS) slice.
+/// Defines a motion primitive.
 ///
 /// # Example
 ///
@@ -54,8 +54,7 @@ macro_rules! motion {
 			}
 
 			#[allow(non_upper_case_globals)]
-			#[linkme::distributed_slice($crate::MOTIONS)]
-			static [<MOTION_ $name>]: $crate::MotionDef = $crate::MotionDef {
+			pub static [<MOTION_ $name>]: $crate::MotionDef = $crate::MotionDef {
 				meta: $crate::RegistryMeta {
 					id: concat!(env!("CARGO_PKG_NAME"), "::", stringify!($name)),
 					name: stringify!($name),

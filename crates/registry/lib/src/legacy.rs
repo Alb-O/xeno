@@ -1,5 +1,5 @@
 use crate::builder::{RegistryBuilder, RegistryError};
-use crate::{ACTIONS, COMMANDS, MOTIONS, TEXT_OBJECTS};
+use crate::{MOTIONS, TEXT_OBJECTS};
 
 pub fn ingest_all(builder: &mut RegistryBuilder) -> Result<(), RegistryError> {
 	ingest_actions(builder)?;
@@ -10,28 +10,28 @@ pub fn ingest_all(builder: &mut RegistryBuilder) -> Result<(), RegistryError> {
 }
 
 pub fn ingest_actions(builder: &mut RegistryBuilder) -> Result<(), RegistryError> {
-	for def in ACTIONS.iter() {
+	for def in crate::actions::all_actions() {
 		builder.register_action(def)?;
 	}
 	Ok(())
 }
 
 pub fn ingest_commands(builder: &mut RegistryBuilder) -> Result<(), RegistryError> {
-	for def in COMMANDS.iter() {
+	for def in crate::commands::all_commands() {
 		builder.register_command(def)?;
 	}
 	Ok(())
 }
 
 pub fn ingest_motions(builder: &mut RegistryBuilder) -> Result<(), RegistryError> {
-	for def in MOTIONS.iter() {
+	for &def in MOTIONS.iter() {
 		builder.register_motion(def)?;
 	}
 	Ok(())
 }
 
 pub fn ingest_text_objects(builder: &mut RegistryBuilder) -> Result<(), RegistryError> {
-	for def in TEXT_OBJECTS.iter() {
+	for &def in TEXT_OBJECTS.iter() {
 		builder.register_text_object(def)?;
 	}
 	Ok(())
