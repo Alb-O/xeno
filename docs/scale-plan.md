@@ -173,17 +173,17 @@ pub fn ingest_legacy(builder: &mut RegistryBuilder) -> Result<(), RegistryError>
 
 ### Tasks
 
-* [ ] Add `XenoPlugin` trait
-* [ ] Add `RegistryBuilder` + `RegistryError`
-* [ ] Add builder collision checks:
-  * [ ] duplicate `meta.id`
-  * [ ] duplicate `meta.name` within same kind (optional but recommended)
-  * [ ] duplicate aliases within same kind
-* [ ] Add adapter modules to ingest legacy distributed slices per registry kind
-* [ ] Update app startup to use `RegistryBuilder` + legacy ingestion:
-  * [ ] `RegistryBuilder::new()`
-  * [ ] call `legacy_ingest_all(&mut builder)`
-  * [ ] `registry = builder.build()?`
+* [x] Add `XenoPlugin` trait
+* [x] Add `RegistryBuilder` + `RegistryError`
+* [x] Add builder collision checks:
+  * [x] duplicate `meta.id`
+  * [x] duplicate `meta.name` within same kind (optional but recommended)
+  * [x] duplicate aliases within same kind
+* [x] Add adapter modules to ingest legacy distributed slices per registry kind
+* [x] Update app startup to use `RegistryBuilder` + legacy ingestion:
+  * [x] `RegistryBuilder::new()`
+  * [x] call `legacy_ingest_all(&mut builder)`
+  * [x] `registry = builder.build()?`
 
 ### Dependencies
 
@@ -619,11 +619,11 @@ Even after migrating away from distributed slices, registry scale can still bite
 
 ## Phase 1
 
-* [ ] `XenoPlugin` trait
-* [ ] `RegistryBuilder` + errors
-* [ ] Collision validation (id/name/alias)
-* [ ] Legacy ingestion adapters
-* [ ] App startup builds registry from builder
+* [x] `XenoPlugin` trait
+* [x] `RegistryBuilder` + errors
+* [x] Collision validation (id/name/alias)
+* [x] Legacy ingestion adapters
+* [x] App startup builds registry from builder
 
 ## Phase 2
 

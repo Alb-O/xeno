@@ -30,6 +30,12 @@
 pub mod index;
 /// Unified keymap registry using trie-based matching.
 pub mod keymap_registry;
+/// Explicit registry builder for plugin-style registration.
+pub mod builder;
+/// Legacy ingestion adapter for distributed slices.
+pub mod legacy;
+/// Plugin registration trait for explicit wiring.
+pub mod plugin;
 
 // Re-export commonly used items at the crate root for convenience
 // Data-oriented edit operations
@@ -86,6 +92,8 @@ pub use textobj::{
 };
 // Re-export shared types from registry core (canonical source)
 pub use xeno_registry_core::{ActionId, RegistryMetadata, RegistrySource};
+pub use builder::{RegistryBuilder, RegistryError};
+pub use plugin::XenoPlugin;
 pub use {
 	xeno_registry_actions as actions, xeno_registry_commands as commands,
 	xeno_registry_gutter as gutter, xeno_registry_hooks as hooks, xeno_registry_motions as motions,

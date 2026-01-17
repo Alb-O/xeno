@@ -18,6 +18,7 @@ pub use lookups::{
 	find_command, find_motion, find_text_object_by_trigger, resolve_action_id, resolve_action_key,
 };
 pub use types::{ActionRegistryIndex, ExtensionRegistry, RegistryIndex};
+pub(crate) use builders::build_registry_from_defs;
 
 /// Global extension registry singleton.
 static REGISTRY: OnceLock<ExtensionRegistry> = OnceLock::new();

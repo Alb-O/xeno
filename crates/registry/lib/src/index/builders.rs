@@ -9,37 +9,54 @@ use super::collision::{Collision, CollisionKind};
 use super::diagnostics::diagnostics_internal;
 use super::types::{ActionRegistryIndex, ExtensionRegistry, RegistryIndex};
 use crate::RegistryMetadata;
-use crate::actions::{ACTIONS, ActionDef};
-use crate::commands::{COMMANDS, CommandDef};
-use crate::motions::{MOTIONS, MotionDef};
-use crate::textobj::{TEXT_OBJECTS, TextObjectDef};
+use crate::actions::ActionDef;
+use crate::builder::RegistryBuilder;
+use crate::commands::CommandDef;
+use crate::legacy;
+use crate::motions::MotionDef;
+use crate::textobj::TextObjectDef;
 
 /// Builds the complete extension registry from distributed slices.
 ///
 /// Processes all registered extensions (actions, commands, motions, etc.),
 /// resolves collisions based on priority, and performs validation checks.
 pub(super) fn build_registry() -> ExtensionRegistry {
-	let commands = build_command_index();
-	let actions = build_action_index();
-	let motions = build_motion_index();
-	let text_objects = build_text_object_index();
-
-	let registry = ExtensionRegistry {
-		commands,
-		actions,
-		motions,
-		text_objects,
-	};
+	let mut builder = RegistryBuilder::new();
+	if let Err(err) = legacy::ingest_all(&mut builder) {
+		panic!("Legacy registry ingestion failed: {err}");
+	}
+	let registry = builder
+		.build()
+		.unwrap_or_else(|err| panic!("Registry build failed: {err}"));
 
 	validate_registry(&registry);
 
 	registry
 }
 
+pub(crate) fn build_registry_from_defs(
+	commands: &[&'static CommandDef],
+	actions: &[&'static ActionDef],
+	motions: &[&'static MotionDef],
+	text_objects: &[&'static TextObjectDef],
+) -> ExtensionRegistry {
+	let commands = build_command_index_from_defs(commands);
+	let actions = build_action_index_from_defs(actions);
+	let motions = build_motion_index_from_defs(motions);
+	let text_objects = build_text_object_index_from_defs(text_objects);
+
+	ExtensionRegistry {
+		commands,
+		actions,
+		motions,
+		text_objects,
+	}
+}
+
 /// Builds the command registry index from the COMMANDS distributed slice.
-fn build_command_index() -> RegistryIndex<CommandDef> {
+fn build_command_index_from_defs(commands: &[&'static CommandDef]) -> RegistryIndex<CommandDef> {
 	let mut index = RegistryIndex::new();
-	let mut sorted: Vec<_> = COMMANDS.iter().collect();
+	let mut sorted: Vec<_> = commands.to_vec();
 	sorted.sort_by(|a, b| {
 		b.meta
 			.priority
@@ -61,13 +78,13 @@ fn build_command_index() -> RegistryIndex<CommandDef> {
 }
 
 /// Builds the action registry index with ActionId mappings.
-fn build_action_index() -> ActionRegistryIndex {
+fn build_action_index_from_defs(actions: &[&'static ActionDef]) -> ActionRegistryIndex {
 	let mut base = RegistryIndex::new();
 	let mut by_action_id: Vec<&'static ActionDef> = Vec::new();
 	let mut name_to_id: HashMap<&'static str, ActionId> = HashMap::new();
 	let mut alias_to_id: HashMap<&'static str, ActionId> = HashMap::new();
 
-	let mut sorted: Vec<_> = ACTIONS.iter().collect();
+	let mut sorted: Vec<_> = actions.to_vec();
 	sorted.sort_by(|a, b| b.priority().cmp(&a.priority()).then(a.id().cmp(b.id())));
 
 	for action in sorted {
@@ -129,9 +146,9 @@ fn build_action_index() -> ActionRegistryIndex {
 }
 
 /// Builds the motion registry index from the MOTIONS distributed slice.
-fn build_motion_index() -> RegistryIndex<MotionDef> {
+fn build_motion_index_from_defs(motions: &[&'static MotionDef]) -> RegistryIndex<MotionDef> {
 	let mut index = RegistryIndex::new();
-	let mut sorted: Vec<_> = MOTIONS.iter().collect();
+	let mut sorted: Vec<_> = motions.to_vec();
 	sorted.sort_by(|a, b| b.priority().cmp(&a.priority()).then(a.id().cmp(b.id())));
 
 	for motion in sorted {
@@ -148,9 +165,11 @@ fn build_motion_index() -> RegistryIndex<MotionDef> {
 }
 
 /// Builds the text object registry index from the TEXT_OBJECTS distributed slice.
-fn build_text_object_index() -> RegistryIndex<TextObjectDef> {
+fn build_text_object_index_from_defs(
+	text_objects: &[&'static TextObjectDef],
+) -> RegistryIndex<TextObjectDef> {
 	let mut index = RegistryIndex::new();
-	let mut sorted: Vec<_> = TEXT_OBJECTS.iter().collect();
+	let mut sorted: Vec<_> = text_objects.to_vec();
 	sorted.sort_by(|a, b| b.priority().cmp(&a.priority()).then(a.id().cmp(b.id())));
 
 	for obj in sorted {
