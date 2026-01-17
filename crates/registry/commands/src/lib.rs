@@ -1,20 +1,22 @@
-//! Command registry
-//!
-//! Defines command types and static registrations.
+//! Command registry with auto-collection via `inventory`.
 
 use std::any::Any;
+use std::collections::HashMap;
 use std::future::Future;
 use std::path::PathBuf;
 use std::pin::Pin;
-use std::sync::{Mutex, OnceLock};
+use std::sync::{LazyLock, Mutex, OnceLock};
 
 use futures::future::LocalBoxFuture;
 use thiserror::Error;
 use xeno_registry_notifications::Notification;
 
 mod impls;
-/// Internal macro helpers for command registration.
 mod macros;
+
+/// Wrapper for [`inventory`] collection of command definitions.
+pub struct CommandReg(pub &'static CommandDef);
+inventory::collect!(CommandReg);
 
 pub use xeno_registry_core::{
 	Capability, RegistryEntry, RegistryMeta, RegistryMetadata, RegistrySource, impl_registry_entry,
@@ -228,75 +230,71 @@ pub mod flags {
 	pub const NONE: u32 = 0;
 }
 
-/// Registry of all command definitions.
-pub static COMMANDS: &[&CommandDef] = &[
-	&impls::buffer::CMD_buffer,
-	&impls::buffer::CMD_buffer_next,
-	&impls::buffer::CMD_buffer_prev,
-	&impls::buffer::CMD_delete_buffer,
-	&impls::buffer::CMD_readonly,
-	&impls::edit::CMD_edit,
-	&impls::help::CMD_help,
-	&impls::quit::CMD_quit,
-	&impls::quit::CMD_quit_force,
-	&impls::registry_diag::CMD_registry_diag,
-	&impls::registry_diag::CMD_registry_doctor,
-	&impls::set::CMD_set,
-	&impls::set::CMD_setlocal,
-	&impls::theme::CMD_theme,
-	&impls::write::CMD_write,
-	&impls::write::CMD_wq,
-];
-
+/// Runtime-registered commands (plugins, user extensions).
 static EXTRA_COMMANDS: OnceLock<Mutex<Vec<&'static CommandDef>>> = OnceLock::new();
 
+/// O(1) command lookup index, keyed by name and aliases.
+static COMMAND_INDEX: LazyLock<Mutex<HashMap<&'static str, &'static CommandDef>>> =
+	LazyLock::new(|| {
+		let mut map = HashMap::new();
+		for reg in inventory::iter::<CommandReg> {
+			insert_command_into_index(&mut map, reg.0);
+		}
+		Mutex::new(map)
+	});
+
+fn insert_command_into_index(
+	map: &mut HashMap<&'static str, &'static CommandDef>,
+	def: &'static CommandDef,
+) {
+	map.insert(def.name(), def);
+	for &alias in def.aliases() {
+		map.insert(alias, def);
+	}
+}
+
 /// Registers an extra command definition at runtime.
+///
+/// This is a no-op if the command is already registered via inventory or a previous
+/// call to this function.
 pub fn register_command(def: &'static CommandDef) {
+	if inventory::iter::<CommandReg>().any(|reg| std::ptr::eq(reg.0, def)) {
+		return;
+	}
+
 	let mut extras = EXTRA_COMMANDS
 		.get_or_init(|| Mutex::new(Vec::new()))
 		.lock()
-		.expect("extra command lock poisoned");
-
-	if COMMANDS.iter().any(|&existing| std::ptr::eq(existing, def)) {
-		return;
-	}
+		.expect("poisoned");
 
 	if extras.iter().any(|&existing| std::ptr::eq(existing, def)) {
 		return;
 	}
-
 	extras.push(def);
+	drop(extras);
+
+	let mut index = COMMAND_INDEX.lock().expect("poisoned");
+	insert_command_into_index(&mut index, def);
 }
 
 /// Finds a command by name or alias.
 pub fn find_command(name: &str) -> Option<&'static CommandDef> {
-	COMMANDS
-		.iter()
-		.copied()
-		.find(|c| c.name() == name || c.aliases().contains(&name))
-		.or_else(|| {
-			let extras = EXTRA_COMMANDS.get()?;
-			extras
-				.lock()
-				.expect("extra command lock poisoned")
-				.iter()
-				.copied()
-				.find(|c| c.name() == name || c.aliases().contains(&name))
-		})
+	COMMAND_INDEX.lock().expect("poisoned").get(name).copied()
 }
 
-/// Returns an iterator over all registered commands, sorted by name.
+/// Returns all registered commands, sorted by name.
 pub fn all_commands() -> impl Iterator<Item = &'static CommandDef> {
-	let mut commands: Vec<_> = COMMANDS.to_vec();
+	let mut commands: Vec<_> = inventory::iter::<CommandReg>().map(|r| r.0).collect();
 	if let Some(extras) = EXTRA_COMMANDS.get() {
-		commands.extend(
-			extras
-				.lock()
-				.expect("extra command lock poisoned")
-				.iter()
-				.copied(),
-		);
+		commands.extend(extras.lock().expect("poisoned").iter().copied());
 	}
 	commands.sort_by_key(|c| c.name());
 	commands.into_iter()
 }
+
+/// Lazy reference to all commands for iteration.
+pub static COMMANDS: LazyLock<Vec<&'static CommandDef>> = LazyLock::new(|| {
+	let mut commands: Vec<_> = inventory::iter::<CommandReg>().map(|r| r.0).collect();
+	commands.sort_by_key(|c| c.name());
+	commands
+});

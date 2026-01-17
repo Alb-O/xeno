@@ -77,7 +77,9 @@
 //!
 //! Options have a scope (global or buffer). Global options (like `theme`) in
 //! language blocks will generate warnings at parse time and be ignored.
+use std::collections::HashMap;
 use std::marker::PhantomData;
+use std::sync::LazyLock;
 
 // Re-export self for proc macro absolute path resolution
 #[doc(hidden)]
@@ -113,6 +115,10 @@ pub mod keys {
 pub use xeno_registry_core::{
 	Key, RegistryEntry, RegistryMeta, RegistryMetadata, RegistrySource, impl_registry_entry,
 };
+
+/// Wrapper for [`inventory`] collection of option definitions.
+pub struct OptionReg(pub &'static OptionDef);
+inventory::collect!(OptionReg);
 
 /// Validator function signature for option constraints.
 pub type OptionValidator = fn(&OptionValue) -> Result<(), String>;
@@ -372,18 +378,34 @@ impl<T: FromOptionValue> core::fmt::Debug for TypedOptionKey<T> {
 	}
 }
 
-/// Registry of all option definitions.
-pub static OPTIONS: &[&OptionDef] = &[
-	&impls::cursorline::__OPT_CURSORLINE,
-	&impls::indent::__OPT_TAB_WIDTH,
-	&impls::scroll::__OPT_SCROLL_LINES,
-	&impls::scroll::__OPT_SCROLL_MARGIN,
-	&impls::theme::__OPT_THEME,
-];
+/// O(1) option lookup index by name.
+static OPTION_NAME_INDEX: LazyLock<HashMap<&'static str, &'static OptionDef>> = LazyLock::new(|| {
+	let mut map = HashMap::new();
+	for reg in inventory::iter::<OptionReg> {
+		map.insert(reg.0.meta.name, reg.0);
+	}
+	map
+});
+
+/// O(1) option lookup index by KDL key.
+static OPTION_KDL_INDEX: LazyLock<HashMap<&'static str, &'static OptionDef>> = LazyLock::new(|| {
+	let mut map = HashMap::new();
+	for reg in inventory::iter::<OptionReg> {
+		map.insert(reg.0.kdl_key, reg.0);
+	}
+	map
+});
+
+/// Lazy reference to all options for iteration.
+pub static OPTIONS: LazyLock<Vec<&'static OptionDef>> = LazyLock::new(|| {
+	let mut opts: Vec<_> = inventory::iter::<OptionReg>().map(|r| r.0).collect();
+	opts.sort_by_key(|o| o.meta.priority);
+	opts
+});
 
 /// Finds an option definition by name.
 pub fn find(name: &str) -> Option<&'static OptionDef> {
-	OPTIONS.iter().copied().find(|o| o.meta.name == name)
+	OPTION_NAME_INDEX.get(name).copied()
 }
 
 /// Finds an option definition by its internal name.
@@ -391,7 +413,7 @@ pub fn find(name: &str) -> Option<&'static OptionDef> {
 /// This is equivalent to [`find`] and is provided for clarity when
 /// distinguishing between name-based and KDL key-based lookups.
 pub fn find_by_name(name: &str) -> Option<&'static OptionDef> {
-	OPTIONS.iter().copied().find(|o| o.meta.name == name)
+	OPTION_NAME_INDEX.get(name).copied()
 }
 
 /// Finds an option definition by its KDL configuration key.
@@ -399,7 +421,7 @@ pub fn find_by_name(name: &str) -> Option<&'static OptionDef> {
 /// Use this when parsing config files where options are identified
 /// by their KDL key (e.g., "tab-width" instead of "tab_width").
 pub fn find_by_kdl(kdl_key: &str) -> Option<&'static OptionDef> {
-	OPTIONS.iter().copied().find(|o| o.kdl_key == kdl_key)
+	OPTION_KDL_INDEX.get(kdl_key).copied()
 }
 
 /// Returns all registered options.

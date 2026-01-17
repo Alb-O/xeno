@@ -6,7 +6,8 @@
 //! - [`THEMES`] registry for compile-time registration
 //! - Runtime theme loading via [`register_runtime_themes`]
 
-use std::sync::OnceLock;
+use std::collections::HashMap;
+use std::sync::{LazyLock, OnceLock};
 
 pub use xeno_primitives::{Color, Mode, Modifier, Style};
 use xeno_registry_core::{RegistryMeta, RegistrySource, impl_registry_entry};
@@ -14,6 +15,10 @@ use xeno_registry_core::{RegistryMeta, RegistrySource, impl_registry_entry};
 mod syntax;
 
 pub use syntax::{SyntaxStyle, SyntaxStyles};
+
+/// Wrapper for [`inventory`] collection of theme definitions.
+pub struct ThemeReg(pub &'static Theme);
+inventory::collect!(ThemeReg);
 
 /// Runtime theme registry for dynamically loaded themes.
 static RUNTIME_THEMES: OnceLock<Vec<&'static Theme>> = OnceLock::new();
@@ -307,8 +312,26 @@ pub fn runtime_themes() -> &'static [&'static Theme] {
 	RUNTIME_THEMES.get().map(|v| v.as_slice()).unwrap_or(&[])
 }
 
-/// Compile-time theme registry.
-pub static THEMES: &[&Theme] = &[&DEFAULT_THEME];
+/// O(1) theme lookup index by name.
+static THEME_INDEX: LazyLock<HashMap<&'static str, &'static Theme>> = LazyLock::new(|| {
+	let mut map = HashMap::new();
+	for reg in inventory::iter::<ThemeReg> {
+		map.insert(reg.0.meta.name, reg.0);
+		for alias in reg.0.meta.aliases {
+			map.insert(*alias, reg.0);
+		}
+	}
+	map
+});
+
+/// Lazy reference to all compile-time themes for iteration.
+pub static THEMES: LazyLock<Vec<&'static Theme>> = LazyLock::new(|| {
+	let mut themes: Vec<_> = inventory::iter::<ThemeReg>().map(|r| r.0).collect();
+	themes.sort_by_key(|t| t.meta.priority);
+	themes
+});
+
+inventory::submit! { ThemeReg(&DEFAULT_THEME) }
 
 /// Default fallback theme (minimal terminal colors).
 pub static DEFAULT_THEME: Theme = Theme {
@@ -368,6 +391,9 @@ pub static DEFAULT_THEME: Theme = Theme {
 pub const DEFAULT_THEME_ID: &str = "gruvbox";
 
 /// Find a theme by name or alias.
+///
+/// Resolution order: runtime themes (KDL) → exact compile-time match → normalized search.
+/// Normalization strips hyphens/underscores and lowercases for fuzzy matching.
 pub fn get_theme(name: &str) -> Option<&'static Theme> {
 	let normalize = |s: &str| -> String {
 		s.chars()
@@ -378,14 +404,16 @@ pub fn get_theme(name: &str) -> Option<&'static Theme> {
 
 	let search = normalize(name);
 
-	// Check runtime themes first (from KDL files)
 	if let Some(theme) = runtime_themes().iter().find(|t| {
 		normalize(t.meta.name) == search || t.meta.aliases.iter().any(|a| normalize(a) == search)
 	}) {
 		return Some(theme);
 	}
 
-	// Fall back to compile-time themes
+	if let Some(theme) = THEME_INDEX.get(name).copied() {
+		return Some(theme);
+	}
+
 	THEMES.iter().copied().find(|t| {
 		normalize(t.meta.name) == search || t.meta.aliases.iter().any(|a| normalize(a) == search)
 	})
@@ -419,7 +447,7 @@ pub fn suggest_theme(name: &str) -> Option<&'static str> {
 		}
 	}
 
-	for &theme in THEMES {
+	for &theme in THEMES.iter() {
 		let score = strsim::jaro_winkler(&name, theme.meta.name);
 		if score > best_score {
 			best_score = score;

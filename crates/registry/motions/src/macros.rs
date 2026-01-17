@@ -22,15 +22,7 @@ macro_rules! __motion_opt_slice {
 	};
 }
 
-/// Defines a motion primitive.
-///
-/// # Example
-///
-/// ```ignore
-/// motion!(move_left, { description: "Move left" }, |text, range, count, extend| {
-///     // implementation
-/// });
-/// ```
+/// Defines a motion primitive and registers it with inventory.
 #[macro_export]
 macro_rules! motion {
 	($name:ident, {
@@ -71,6 +63,8 @@ macro_rules! motion {
 			#[doc = concat!("Typed handle for the `", stringify!($name), "` motion.")]
 			#[allow(non_upper_case_globals)]
 			pub const $name: $crate::MotionKey = $crate::MotionKey::new(&[<MOTION_ $name>]);
+
+			inventory::submit! { $crate::MotionReg(&[<MOTION_ $name>]) }
 		}
 	};
 }

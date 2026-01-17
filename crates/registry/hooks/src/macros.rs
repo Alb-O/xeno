@@ -26,17 +26,7 @@ macro_rules! __hook_param_expr {
 	};
 }
 
-/// Define a hook definition.
-///
-/// # Example
-///
-/// ```ignore
-/// hook!(log_open, BufferOpen, 100, "Log buffer opens", |ctx| {
-///     if let HookContext::BufferOpen { path, .. } = ctx {
-///         tracing::info!(path = %path.display(), "Opened buffer");
-///     }
-/// });
-/// ```
+/// Define a hook definition and register it with inventory.
 #[macro_export]
 macro_rules! hook {
 	($name:ident, $event:ident, $priority:expr, $desc:expr, mutable |$ctx:ident| $body:expr) => {
@@ -66,6 +56,8 @@ macro_rules! hook {
 				execution_priority: $crate::HookPriority::Interactive,
 				handler: $crate::HookHandler::Mutable([<hook_handler_ $name>]),
 			};
+
+			inventory::submit! { $crate::HookReg(&[<HOOK_ $name>]) }
 		}
 	};
 	($name:ident, $event:ident, $priority:expr, $desc:expr, |$($param:ident : $ty:ty),*| $body:expr) => {
@@ -99,6 +91,8 @@ macro_rules! hook {
 				execution_priority: $crate::HookPriority::Interactive,
 				handler: $crate::HookHandler::Immutable([<hook_handler_ $name>]),
 			};
+
+			inventory::submit! { $crate::HookReg(&[<HOOK_ $name>]) }
 		}
 	};
 }

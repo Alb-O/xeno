@@ -96,8 +96,13 @@ fn insert_action_into_index(
 
 /// Registers an action definition at runtime.
 ///
-/// Duplicate registrations (by pointer equality) are ignored.
+/// This is a no-op if the action is already registered via inventory or a previous
+/// call to this function.
 pub fn register_action(def: &'static ActionDef) {
+	if inventory::iter::<ActionReg>().any(|reg| std::ptr::eq(reg.0, def)) {
+		return;
+	}
+
 	let mut extras = EXTRA_ACTIONS
 		.get_or_init(|| Mutex::new(Vec::new()))
 		.lock()

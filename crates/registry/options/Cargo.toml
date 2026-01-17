@@ -6,6 +6,7 @@ edition.workspace = true
 license.workspace = true
 
 [dependencies]
+inventory.workspace = true
 strsim.workspace = true
 xeno-macro.workspace = true
 xeno-registry-core.workspace = true

@@ -22,7 +22,7 @@ macro_rules! __opt_slice {
 	};
 }
 
-/// Defines an ex-mode command definition.
+/// Defines an ex-mode command definition and registers it with inventory.
 #[macro_export]
 macro_rules! command {
 	($name:ident, {
@@ -53,6 +53,8 @@ macro_rules! command {
 				handler: $handler,
 				user_data: None,
 			};
+
+			inventory::submit! { $crate::CommandReg(&[<CMD_ $name>]) }
 		}
 	};
 }

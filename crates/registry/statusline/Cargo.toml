@@ -6,6 +6,8 @@ edition.workspace = true
 license.workspace = true
 
 [dependencies]
+inventory.workspace = true
+paste.workspace = true
 xeno-registry-core.workspace = true
 
 [lints]

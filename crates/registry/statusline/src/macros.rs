@@ -17,5 +17,7 @@ macro_rules! statusline_segment {
 			default_enabled: $enabled,
 			render: $render,
 		};
+
+		inventory::submit! { $crate::StatuslineSegmentReg(&$static_name) }
 	};
 }

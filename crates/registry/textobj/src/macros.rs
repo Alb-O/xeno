@@ -24,20 +24,7 @@ macro_rules! __text_obj_opt {
 	};
 }
 
-/// Defines a text object definition.
-///
-/// # Example
-///
-/// ```ignore
-/// text_object!(
-///     word,
-///     { trigger: 'w', description: "Select word" },
-///     {
-///         inner: word_inner,
-///         around: word_around,
-///     }
-/// );
-/// ```
+/// Defines a text object definition and registers it with inventory.
 #[macro_export]
 macro_rules! text_object {
 	($name:ident, {
@@ -72,6 +59,8 @@ macro_rules! text_object {
 				$inner,
 				$around,
 			);
+
+			inventory::submit! { $crate::TextObjectReg(&[<OBJ_ $name>]) }
 		}
 	};
 }

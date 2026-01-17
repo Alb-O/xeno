@@ -12,7 +12,9 @@
 //! - `hybrid_line_numbers` - Absolute on cursor, relative elsewhere (disabled)
 //! - `signs` - Sign column for diagnostics/breakpoints (enabled by default)
 
+use std::collections::HashMap;
 use std::path::Path;
+use std::sync::LazyLock;
 
 use ropey::RopeSlice;
 
@@ -22,6 +24,10 @@ mod macros;
 pub use xeno_registry_core::{
 	RegistryEntry, RegistryMeta, RegistryMetadata, RegistrySource, impl_registry_entry,
 };
+
+/// Wrapper for [`inventory`] collection of gutter definitions.
+pub struct GutterReg(pub &'static GutterDef);
+inventory::collect!(GutterReg);
 
 /// Context passed to each gutter render closure (per-line).
 pub struct GutterLineContext<'a> {
@@ -123,31 +129,33 @@ impl core::fmt::Debug for GutterDef {
 	}
 }
 
-/// Registry of all gutter column definitions.
-pub static GUTTERS: &[&GutterDef] = &[
-	&impls::hybrid::GUTTER_HYBRID_LINE_NUMBERS,
-	&impls::line_numbers::GUTTER_LINE_NUMBERS,
-	&impls::relative::GUTTER_RELATIVE_LINE_NUMBERS,
-	&impls::signs::GUTTER_SIGNS,
-];
+/// O(1) gutter lookup index by name.
+static GUTTER_INDEX: LazyLock<HashMap<&'static str, &'static GutterDef>> = LazyLock::new(|| {
+	let mut map = HashMap::new();
+	for reg in inventory::iter::<GutterReg> {
+		map.insert(reg.0.meta.name, reg.0);
+	}
+	map
+});
+
+/// Lazy reference to all gutters for iteration.
+pub static GUTTERS: LazyLock<Vec<&'static GutterDef>> = LazyLock::new(|| {
+	let mut gutters: Vec<_> = inventory::iter::<GutterReg>().map(|r| r.0).collect();
+	gutters.sort_by_key(|g| g.meta.priority);
+	gutters
+});
 
 /// Returns enabled gutters sorted by priority (left to right).
 pub fn enabled_gutters() -> impl Iterator<Item = &'static GutterDef> {
-	let mut gutters: Vec<_> = GUTTERS
-		.iter()
-		.copied()
-		.filter(|g| g.default_enabled)
-		.collect();
-	gutters.sort_by_key(|g| g.meta.priority);
-	gutters.into_iter()
+	GUTTERS.iter().copied().filter(|g| g.default_enabled)
 }
 
 /// Finds a gutter column by name.
 pub fn find(name: &str) -> Option<&'static GutterDef> {
-	GUTTERS.iter().copied().find(|g| g.meta.name == name)
+	GUTTER_INDEX.get(name).copied()
 }
 
-/// Returns all registered gutter columns.
+/// Returns all registered gutter columns, sorted by priority.
 pub fn all() -> impl Iterator<Item = &'static GutterDef> {
 	GUTTERS.iter().copied()
 }

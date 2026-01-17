@@ -1,13 +1,10 @@
-//! Text objects registry
+//! Text objects registry with auto-collection via `inventory`.
 //!
 //! Text objects define selections around semantic units (words, paragraphs,
 //! brackets, etc.) with `inner` and `around` variants.
-//!
-//! This crate provides:
-//! - Type definitions ([`TextObjectDef`], [`TextObjectHandler`])
-//! - Static registry list ([`TEXT_OBJECTS`])
-//! - Registration macros ([`text_object!`], [`symmetric_text_object!`], [`bracket_pair_object!`])
-//! - Built-in implementations (word, line, paragraph, surround, quotes, etc.)
+
+use std::collections::HashMap;
+use std::sync::LazyLock;
 
 use ropey::RopeSlice;
 use xeno_primitives::Range;
@@ -15,11 +12,14 @@ use xeno_primitives::Range;
 mod impls;
 mod macros;
 
-// Re-export shared types from core registry for consistency
 pub use xeno_registry_core::{
 	Capability, RegistryEntry, RegistryMeta, RegistryMetadata, RegistrySource, impl_registry_entry,
 };
 pub use xeno_registry_motions::{flags, movement};
+
+/// Wrapper for [`inventory`] collection of text object definitions.
+pub struct TextObjectReg(pub &'static TextObjectDef);
+inventory::collect!(TextObjectReg);
 
 /// Handler signature for text object selection.
 ///
@@ -111,40 +111,52 @@ impl TextObjectDef {
 
 impl_registry_entry!(TextObjectDef);
 
-/// Registry of all text object definitions.
-pub static TEXT_OBJECTS: &[&TextObjectDef] = &[
-	&impls::argument::OBJ_argument,
-	&impls::line::OBJ_line,
-	&impls::number::OBJ_number,
-	&impls::paragraph::OBJ_paragraph,
-	&impls::quotes::OBJ_double_quotes,
-	&impls::quotes::OBJ_single_quotes,
-	&impls::quotes::OBJ_backticks,
-	&impls::surround::OBJ_parentheses,
-	&impls::surround::OBJ_braces,
-	&impls::surround::OBJ_brackets,
-	&impls::surround::OBJ_angle_brackets,
-	&impls::word::OBJ_word,
-	&impls::word::OBJ_WORD,
-];
+/// O(1) text object lookup by name/alias.
+static TEXT_OBJECT_NAME_INDEX: LazyLock<HashMap<&'static str, &'static TextObjectDef>> =
+	LazyLock::new(|| {
+		let mut map = HashMap::new();
+		for reg in inventory::iter::<TextObjectReg> {
+			let def = reg.0;
+			map.insert(def.name(), def);
+			for &alias in def.aliases() {
+				map.insert(alias, def);
+			}
+		}
+		map
+	});
+
+/// O(1) text object lookup by trigger character.
+static TEXT_OBJECT_TRIGGER_INDEX: LazyLock<HashMap<char, &'static TextObjectDef>> =
+	LazyLock::new(|| {
+		let mut map = HashMap::new();
+		for reg in inventory::iter::<TextObjectReg> {
+			let def = reg.0;
+			map.insert(def.trigger, def);
+			for &alt in def.alt_triggers {
+				map.insert(alt, def);
+			}
+		}
+		map
+	});
+
+/// Lazy reference to all text objects for iteration.
+pub static TEXT_OBJECTS: LazyLock<Vec<&'static TextObjectDef>> = LazyLock::new(|| {
+	let mut objs: Vec<_> = inventory::iter::<TextObjectReg>().map(|r| r.0).collect();
+	objs.sort_by_key(|o| o.name());
+	objs
+});
 
 /// Finds a text object by trigger character.
 pub fn find_by_trigger(trigger: char) -> Option<&'static TextObjectDef> {
-	TEXT_OBJECTS
-		.iter()
-		.copied()
-		.find(|o| o.trigger == trigger || o.alt_triggers.contains(&trigger))
+	TEXT_OBJECT_TRIGGER_INDEX.get(&trigger).copied()
 }
 
 /// Finds a text object by name or alias.
 pub fn find(name: &str) -> Option<&'static TextObjectDef> {
-	TEXT_OBJECTS
-		.iter()
-		.copied()
-		.find(|o| o.name() == name || o.aliases().contains(&name))
+	TEXT_OBJECT_NAME_INDEX.get(name).copied()
 }
 
-/// Returns all registered text objects.
+/// Returns all registered text objects, sorted by name.
 pub fn all() -> impl Iterator<Item = &'static TextObjectDef> {
 	TEXT_OBJECTS.iter().copied()
 }

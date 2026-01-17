@@ -56,6 +56,7 @@ macro_rules! __gutter_enabled {
 ///     })
 /// });
 /// ```
+/// Defines a gutter column definition and registers it with inventory.
 #[macro_export]
 macro_rules! gutter {
 	($name:ident, {
@@ -81,6 +82,8 @@ macro_rules! gutter {
 				width: $crate::GutterWidth::$width_kind($width_val),
 				render: $render,
 			};
+
+			inventory::submit! { $crate::GutterReg(&[<GUTTER_ $name:upper>]) }
 		}
 	};
 }

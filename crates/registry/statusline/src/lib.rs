@@ -1,15 +1,20 @@
-//! Statusline segment registry
+//! Statusline segment registry.
 //!
-//! Segments are defined in static lists and rendered
-//! in order based on their position and priority.
+//! Segments are rendered in order based on their position and priority.
+
+use std::collections::HashMap;
+use std::sync::LazyLock;
 
 mod impls;
-/// Statusline segment registration macros.
 mod macros;
 
 pub use xeno_registry_core::{
 	RegistryEntry, RegistryMeta, RegistryMetadata, RegistrySource, impl_registry_entry,
 };
+
+/// Wrapper for [`inventory`] collection of statusline segment definitions.
+pub struct StatuslineSegmentReg(pub &'static StatuslineSegmentDef);
+inventory::collect!(StatuslineSegmentReg);
 
 /// Position in the statusline.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -99,28 +104,31 @@ impl core::fmt::Debug for StatuslineSegmentDef {
 	}
 }
 
-/// Registry of all statusline segment definitions.
-pub static STATUSLINE_SEGMENTS: &[&StatuslineSegmentDef] = &[
-	&impls::count::SEG_COUNT,
-	&impls::file::SEG_FILE,
-	&impls::filetype::SEG_FILETYPE,
-	&impls::mode::SEG_MODE,
-	&impls::position::SEG_POSITION,
-	&impls::progress::SEG_PROGRESS,
-	&impls::readonly::SEG_READONLY,
-];
+/// O(1) segment lookup index by name.
+static SEGMENT_INDEX: LazyLock<HashMap<&'static str, &'static StatuslineSegmentDef>> =
+	LazyLock::new(|| {
+		let mut map = HashMap::new();
+		for reg in inventory::iter::<StatuslineSegmentReg> {
+			map.insert(reg.0.meta.name, reg.0);
+		}
+		map
+	});
+
+/// Lazy reference to all segments for iteration.
+pub static STATUSLINE_SEGMENTS: LazyLock<Vec<&'static StatuslineSegmentDef>> = LazyLock::new(|| {
+	let mut segs: Vec<_> = inventory::iter::<StatuslineSegmentReg>().map(|r| r.0).collect();
+	segs.sort_by_key(|s| s.meta.priority);
+	segs
+});
 
 /// Get all segments for a given position, sorted by priority.
 pub fn segments_for_position(
 	position: SegmentPosition,
 ) -> impl Iterator<Item = &'static StatuslineSegmentDef> {
-	let mut segments: Vec<_> = STATUSLINE_SEGMENTS
+	STATUSLINE_SEGMENTS
 		.iter()
 		.copied()
 		.filter(move |s| s.position == position && s.default_enabled)
-		.collect();
-	segments.sort_by_key(|s| s.meta.priority);
-	segments.into_iter()
 }
 
 /// Render all segments for a position.
@@ -132,13 +140,10 @@ pub fn render_position(position: SegmentPosition, ctx: &StatuslineContext) -> Ve
 
 /// Find a segment by name.
 pub fn find_segment(name: &str) -> Option<&'static StatuslineSegmentDef> {
-	STATUSLINE_SEGMENTS
-		.iter()
-		.copied()
-		.find(|s| s.meta.name == name)
+	SEGMENT_INDEX.get(name).copied()
 }
 
-/// Get all registered segments.
+/// Get all registered segments, sorted by priority.
 pub fn all_segments() -> impl Iterator<Item = &'static StatuslineSegmentDef> {
 	STATUSLINE_SEGMENTS.iter().copied()
 }

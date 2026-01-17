@@ -1,7 +1,7 @@
 //! Async hook system for editor events.
 //!
 //! Hooks allow extensions to react to editor events like file open, save,
-//! mode change, etc. They are defined in static lists.
+//! mode change, etc.
 //!
 //! # Async Support
 //!
@@ -19,17 +19,17 @@
 //! // Async hook - returns a future
 //! hook!(my_async_hook, BufferOpen, 100, "Start LSP for buffer", |ctx| {
 //!     HookAction::Async(Box::pin(async move {
-//!         lsp_manager.on_buffer_open(path).await;
-//!         HookResult::Continue
+//!         start_lsp().await;
+//!         HookResult::Ok
 //!     }))
 //! });
 //! ```
 
-use std::sync::{Mutex, OnceLock};
+use std::collections::HashMap;
+use std::sync::{LazyLock, Mutex, OnceLock};
 
 mod context;
 mod emit;
-/// Hook implementations for core events.
 mod impls;
 mod macros;
 mod types;
@@ -44,6 +44,10 @@ pub use types::{
 	RegistryEntry, RegistryMeta, RegistryMetadata, RegistrySource, impl_registry_entry,
 };
 pub use xeno_primitives::Mode;
+
+/// Wrapper for [`inventory`] collection of hook definitions.
+pub struct HookReg(pub &'static HookDef);
+inventory::collect!(HookReg);
 
 // Generate HookEvent, HookEventData, OwnedHookContext, and extractor macros
 // from this single source of truth. Adding a new event only requires adding
@@ -194,42 +198,57 @@ xeno_macro::define_events! {
 	},
 }
 
-/// Registry of all hook definitions.
-pub static HOOKS: &[&HookDef] = &[
-	&impls::log_buffer_open::HOOK_log_buffer_open,
-	&impls::log_mode_change::HOOK_log_mode_change,
-	&impls::log_option_change::HOOK_log_option_change,
-];
-
+/// Runtime-registered hooks (plugins, user extensions).
 static EXTRA_HOOKS: OnceLock<Mutex<Vec<&'static HookDef>>> = OnceLock::new();
 
+/// Lazy index of hooks by event type.
+static HOOK_EVENT_INDEX: LazyLock<HashMap<HookEvent, Vec<&'static HookDef>>> = LazyLock::new(|| {
+	let mut map: HashMap<HookEvent, Vec<&'static HookDef>> = HashMap::new();
+	for reg in inventory::iter::<HookReg> {
+		map.entry(reg.0.event).or_default().push(reg.0);
+	}
+	map
+});
+
+/// Lazy reference to all hooks for iteration.
+pub static HOOKS: LazyLock<Vec<&'static HookDef>> = LazyLock::new(|| {
+	let mut hooks: Vec<_> = inventory::iter::<HookReg>().map(|r| r.0).collect();
+	hooks.sort_by_key(|h| h.meta.name);
+	hooks
+});
+
 /// Registers an extra hook definition at runtime.
+///
+/// This is a no-op if the hook is already registered via inventory or a previous
+/// call to this function.
 pub fn register_hook(def: &'static HookDef) {
+	if HOOK_EVENT_INDEX
+		.get(&def.event)
+		.is_some_and(|v| v.iter().any(|&existing| std::ptr::eq(existing, def)))
+	{
+		return;
+	}
+
 	let mut extras = EXTRA_HOOKS
 		.get_or_init(|| Mutex::new(Vec::new()))
 		.lock()
-		.expect("extra hook lock poisoned");
-
-	if HOOKS.iter().any(|&existing| std::ptr::eq(existing, def)) {
-		return;
-	}
+		.expect("poisoned");
 
 	if extras.iter().any(|&existing| std::ptr::eq(existing, def)) {
 		return;
 	}
-
 	extras.push(def);
 }
 
-/// Returns hooks matching the given event, including extra registrations.
+/// Returns hooks matching the given event, including runtime registrations.
 pub fn hooks_for_event(event: HookEvent) -> Vec<&'static HookDef> {
-	let mut hooks: Vec<_> = HOOKS.iter().copied().filter(|h| h.event == event).collect();
+	let mut hooks: Vec<_> = HOOK_EVENT_INDEX.get(&event).cloned().unwrap_or_default();
 
 	if let Some(extras) = EXTRA_HOOKS.get() {
 		hooks.extend(
 			extras
 				.lock()
-				.expect("extra hook lock poisoned")
+				.expect("poisoned")
 				.iter()
 				.copied()
 				.filter(|h| h.event == event),
@@ -248,13 +267,7 @@ pub fn find_hooks(event: HookEvent) -> impl Iterator<Item = &'static HookDef> {
 pub fn all_hooks() -> impl Iterator<Item = &'static HookDef> {
 	let mut hooks: Vec<_> = HOOKS.to_vec();
 	if let Some(extras) = EXTRA_HOOKS.get() {
-		hooks.extend(
-			extras
-				.lock()
-				.expect("extra hook lock poisoned")
-				.iter()
-				.copied(),
-		);
+		hooks.extend(extras.lock().expect("poisoned").iter().copied());
 	}
 	hooks.into_iter()
 }

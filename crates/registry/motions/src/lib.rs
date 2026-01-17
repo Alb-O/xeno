@@ -1,14 +1,10 @@
-//! Motion registry
+//! Motion registry with auto-collection via `inventory`.
 //!
 //! Motions are the fundamental cursor movement operations (char, word, line, etc.).
 //! They're composed by actions to implement editor commands.
-//!
-//! This crate provides:
-//! - Type definitions ([`MotionDef`], [`MotionHandler`])
-//! - Static registry list ([`MOTIONS`])
-//! - Registration macro ([`motion!`])
-//! - Movement algorithms ([`movement`] module)
-//! - Built-in implementations (basic, word, line, document)
+
+use std::collections::HashMap;
+use std::sync::LazyLock;
 
 use ropey::RopeSlice;
 use xeno_primitives::Range;
@@ -17,11 +13,13 @@ pub use xeno_registry_core::{
 	impl_registry_entry,
 };
 
-/// Built-in motion implementations (char, word, line, etc.).
 pub(crate) mod impls;
-/// Macro definitions for motion registration.
 mod macros;
 pub mod movement;
+
+/// Wrapper for [`inventory`] collection of motion definitions.
+pub struct MotionReg(pub &'static MotionDef);
+inventory::collect!(MotionReg);
 
 /// Typed handles for built-in motions.
 ///
@@ -110,41 +108,32 @@ impl_registry_entry!(MotionDef);
 /// Typed handle to a motion definition.
 pub type MotionKey = Key<MotionDef>;
 
-/// Registry of all motion definitions.
-pub static MOTIONS: &[&MotionDef] = &[
-	&impls::basic::MOTION_left,
-	&impls::basic::MOTION_right,
-	&impls::basic::MOTION_up,
-	&impls::basic::MOTION_down,
-	&impls::document::MOTION_document_start,
-	&impls::document::MOTION_document_end,
-	&impls::document::MOTION_find_char_forward,
-	&impls::line::MOTION_line_start,
-	&impls::line::MOTION_line_end,
-	&impls::line::MOTION_first_nonwhitespace,
-	&impls::paragraph::MOTION_next_paragraph,
-	&impls::paragraph::MOTION_prev_paragraph,
-	&impls::word::MOTION_next_word_start,
-	&impls::word::MOTION_prev_word_start,
-	&impls::word::MOTION_next_word_end,
-	&impls::word::MOTION_next_WORD_start,
-	&impls::word::MOTION_next_long_word_start,
-	&impls::word::MOTION_prev_WORD_start,
-	&impls::word::MOTION_prev_long_word_start,
-	&impls::word::MOTION_next_WORD_end,
-	&impls::word::MOTION_next_long_word_end,
-];
+/// O(1) motion lookup index, keyed by name and aliases.
+static MOTION_INDEX: LazyLock<HashMap<&'static str, &'static MotionDef>> = LazyLock::new(|| {
+	let mut map = HashMap::new();
+	for reg in inventory::iter::<MotionReg> {
+		let def = reg.0;
+		map.insert(def.name(), def);
+		for &alias in def.aliases() {
+			map.insert(alias, def);
+		}
+	}
+	map
+});
+
+/// Lazy reference to all motions for iteration.
+pub static MOTIONS: LazyLock<Vec<&'static MotionDef>> = LazyLock::new(|| {
+	let mut motions: Vec<_> = inventory::iter::<MotionReg>().map(|r| r.0).collect();
+	motions.sort_by_key(|m| m.name());
+	motions
+});
 
 /// Finds a motion by name or alias.
 pub fn find(name: &str) -> Option<MotionKey> {
-	MOTIONS
-		.iter()
-		.copied()
-		.find(|m| m.name() == name || m.aliases().contains(&name))
-		.map(MotionKey::new)
+	MOTION_INDEX.get(name).map(|&def| MotionKey::new(def))
 }
 
-/// Returns all registered motions.
+/// Returns all registered motions, sorted by name.
 pub fn all() -> impl Iterator<Item = &'static MotionDef> {
 	MOTIONS.iter().copied()
 }

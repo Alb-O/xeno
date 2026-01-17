@@ -198,6 +198,8 @@ pub fn derive_option(input: TokenStream) -> TokenStream {
 			validator: #validator_expr,
 		};
 
+		::inventory::submit! { ::xeno_registry_options::OptionReg(&#internal_static) }
+
 		#(#other_attrs)*
 		#[doc = concat!("Typed handle for the `", stringify!(#name), "` option.")]
 		#vis const #name: ::xeno_registry_options::TypedOptionKey<#key_type> =
