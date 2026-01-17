@@ -19,6 +19,7 @@ use super::Editor;
 use crate::lsp::pending::{
 	LSP_DEBOUNCE, LSP_MAX_INCREMENTAL_BYTES, LSP_MAX_INCREMENTAL_CHANGES,
 };
+use crate::metrics::StatsSnapshot;
 use crate::types::{Invocation, InvocationPolicy, InvocationResult};
 
 impl Editor {
@@ -157,8 +158,9 @@ impl Editor {
 		let now = Instant::now();
 		let sync = self.lsp.sync().clone();
 		let buffers = &self.core.buffers;
+		let metrics = &self.metrics;
 
-		self.pending_lsp.flush_due(now, LSP_DEBOUNCE, &sync, |doc_id| {
+		self.pending_lsp.flush_due(now, LSP_DEBOUNCE, &sync, metrics, |doc_id| {
 			buffers
 				.buffers()
 				.find(|b| b.document_id() == doc_id)
@@ -348,6 +350,33 @@ impl Editor {
 			}
 		}
 		false
+	}
+
+	/// Collects a snapshot of current editor statistics.
+	pub fn stats_snapshot(&self) -> StatsSnapshot {
+		#[cfg(feature = "lsp")]
+		let (lsp_pending_docs, lsp_in_flight) = (
+			self.pending_lsp.pending_count(),
+			self.pending_lsp.in_flight_count(),
+		);
+		#[cfg(not(feature = "lsp"))]
+		let (lsp_pending_docs, lsp_in_flight) = (0, 0);
+
+		StatsSnapshot {
+			hooks_pending: self.hook_runtime.pending_count(),
+			hooks_scheduled: self.hook_runtime.scheduled_total(),
+			hooks_completed: self.hook_runtime.completed_total(),
+			lsp_pending_docs,
+			lsp_in_flight,
+			lsp_full_sync: self.metrics.full_sync_count(),
+			lsp_incremental_sync: self.metrics.incremental_sync_count(),
+			lsp_send_errors: self.metrics.send_error_count(),
+		}
+	}
+
+	/// Emits current statistics as a tracing event.
+	pub fn emit_stats(&self) {
+		self.stats_snapshot().emit();
 	}
 }
 

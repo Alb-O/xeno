@@ -65,6 +65,41 @@ impl StoredEntry {
 	}
 }
 
+/// Tracked editor statistics from editor.stats events.
+#[derive(Debug, Default, Clone)]
+struct EditorStats {
+	hooks_pending: u64,
+	hooks_scheduled: u64,
+	hooks_completed: u64,
+	lsp_pending_docs: u64,
+	lsp_in_flight: u64,
+	lsp_full_sync: u64,
+	lsp_incremental_sync: u64,
+	lsp_send_errors: u64,
+	last_updated: Option<Instant>,
+}
+
+impl EditorStats {
+	fn update_from_fields(&mut self, fields: &[(String, String)]) {
+		for (key, value) in fields {
+			if let Ok(v) = value.parse::<u64>() {
+				match key.as_str() {
+					"hooks_pending" => self.hooks_pending = v,
+					"hooks_scheduled" => self.hooks_scheduled = v,
+					"hooks_completed" => self.hooks_completed = v,
+					"lsp_pending_docs" => self.lsp_pending_docs = v,
+					"lsp_in_flight" => self.lsp_in_flight = v,
+					"lsp_full_sync" => self.lsp_full_sync = v,
+					"lsp_incremental_sync" => self.lsp_incremental_sync = v,
+					"lsp_send_errors" => self.lsp_send_errors = v,
+					_ => {}
+				}
+			}
+		}
+		self.last_updated = Some(Instant::now());
+	}
+}
+
 pub struct LogViewer {
 	entries: VecDeque<StoredEntry>,
 	active_spans: HashMap<u64, ActiveSpan>,
@@ -78,6 +113,8 @@ pub struct LogViewer {
 	term_height: u16,
 	term_width: u16,
 	show_help: bool,
+	show_stats: bool,
+	stats: EditorStats,
 	dirty: bool,
 	disconnected: bool,
 }
@@ -110,6 +147,8 @@ impl LogViewer {
 			term_height: height,
 			term_width: width,
 			show_help: false,
+			show_stats: false,
+			stats: EditorStats::default(),
 			dirty: true,
 			disconnected: false,
 		}
@@ -157,8 +196,14 @@ impl LogViewer {
 	fn handle_message(&mut self, msg: LogMessage) {
 		let relative_ms = self.start_time.elapsed().as_millis() as u64;
 		match msg {
-			LogMessage::Event(event) => {
-				self.push_entry(StoredEntry::Event { event, relative_ms });
+			LogMessage::Event(ref event) => {
+				if event.message == "editor.stats" {
+					self.stats.update_from_fields(&event.fields);
+				}
+				self.push_entry(StoredEntry::Event {
+					event: event.clone(),
+					relative_ms,
+				});
 			}
 			LogMessage::Span(span_event) => self.handle_span(span_event, relative_ms),
 			LogMessage::Disconnected => self.disconnected = true,
@@ -231,7 +276,6 @@ impl LogViewer {
 					event.level.colored(),
 					event.layer.colored()
 				)];
-				// Split message on newlines to handle multi-line log messages
 				for (i, msg_line) in event.message.lines().enumerate() {
 					if i == 0 {
 						lines.push(format!("{}{} > {}", cont, dim(&target), msg_line));
@@ -239,7 +283,6 @@ impl LogViewer {
 						lines.push(format!("{}  {}", cont, msg_line));
 					}
 				}
-				// Filter out log.* meta-fields and compute max key width
 				let fields: Vec<_> = event
 					.fields
 					.iter()
@@ -280,7 +323,6 @@ impl LogViewer {
 					),
 					format!("{}{} {}", cont, dim(&target), cyan(name)),
 				];
-				// Filter out log.* meta-fields
 				let fields: Vec<_> = fields
 					.iter()
 					.filter(|(k, _)| !k.starts_with("log."))
@@ -314,8 +356,6 @@ impl LogViewer {
 		queue!(stdout, cursor::MoveTo(0, 0))?;
 
 		let content_height = self.term_height.saturating_sub(1) as usize;
-
-		// Collect all visible lines (filtered)
 		let all_lines: Vec<String> = self
 			.entries
 			.iter()
@@ -359,6 +399,9 @@ impl LogViewer {
 		self.render_status_bar(stdout, visible_entries)?;
 		if self.show_help {
 			self.render_help(stdout)?;
+		}
+		if self.show_stats {
+			self.render_stats(stdout)?;
 		}
 
 		stdout.flush()
@@ -449,6 +492,7 @@ impl LogViewer {
 			"    Space     Toggle pause",
 			"",
 			"  Other:",
+			"    s         Toggle stats overlay",
 			"    c         Clear logs",
 			"    /         Set target filter",
 			"    Esc       Clear filter / close help",
@@ -473,9 +517,66 @@ impl LogViewer {
 		Ok(())
 	}
 
+	fn render_stats(&self, stdout: &mut io::Stdout) -> io::Result<()> {
+		let age = self
+			.stats
+			.last_updated
+			.map(|t| {
+				let secs = t.elapsed().as_secs();
+				if secs < 60 {
+					format!("{}s ago", secs)
+				} else {
+					format!("{}m ago", secs / 60)
+				}
+			})
+			.unwrap_or_else(|| "never".to_string());
+
+		let lines: Vec<String> = vec![
+			String::new(),
+			"  Editor Statistics".to_string(),
+			"  ─────────────────".to_string(),
+			String::new(),
+			"  Hooks:".to_string(),
+			format!("    Pending:   {:>8}", self.stats.hooks_pending),
+			format!("    Scheduled: {:>8}", self.stats.hooks_scheduled),
+			format!("    Completed: {:>8}", self.stats.hooks_completed),
+			String::new(),
+			"  LSP Sync:".to_string(),
+			format!("    Pending:     {:>6}", self.stats.lsp_pending_docs),
+			format!("    In-flight:   {:>6}", self.stats.lsp_in_flight),
+			format!("    Full sync:   {:>6}", self.stats.lsp_full_sync),
+			format!("    Incremental: {:>6}", self.stats.lsp_incremental_sync),
+			format!("    Errors:      {:>6}", self.stats.lsp_send_errors),
+			String::new(),
+			format!("  Updated: {}", age),
+			String::new(),
+		];
+
+		let box_width = 30usize;
+		let start_col = self.term_width.saturating_sub(box_width as u16 + 2);
+		let start_row = 1u16;
+
+		for (i, line) in lines.iter().enumerate() {
+			queue!(stdout, cursor::MoveTo(start_col, start_row + i as u16))?;
+			write!(
+				stdout,
+				"\x1b[42;30m{:width$}\x1b[0m",
+				line,
+				width = box_width
+			)?;
+		}
+
+		Ok(())
+	}
+
 	fn handle_key(&mut self, key: KeyEvent) -> bool {
 		if self.show_help {
 			self.show_help = false;
+			self.dirty = true;
+			return false;
+		}
+		if self.show_stats {
+			self.show_stats = false;
 			self.dirty = true;
 			return false;
 		}
@@ -488,6 +589,7 @@ impl LogViewer {
 				return true;
 			}
 			KeyCode::Char('?') => self.show_help = true,
+			KeyCode::Char('s') => self.show_stats = !self.show_stats,
 			KeyCode::Char('t') => self.min_level = Level::Trace,
 			KeyCode::Char('d') => self.min_level = Level::Debug,
 			KeyCode::Char('i') => self.min_level = Level::Info,

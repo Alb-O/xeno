@@ -7,7 +7,7 @@ license.workspace = true
 
 [features]
 default = []
-lsp = ["dep:xeno-lsp", "dep:frizbee", "dep:thiserror", "dep:tokio-util", "dep:paste"]
+lsp = ["dep:xeno-lsp", "dep:frizbee", "dep:thiserror", "dep:tokio-util"]
 [dependencies]
 anyhow.workspace = true
 clap.workspace = true
@@ -15,7 +15,7 @@ dirs.workspace = true
 frizbee = { workspace = true, optional = true }
 futures.workspace = true
 linkme.workspace = true
-paste = { workspace = true, optional = true }
+paste.workspace = true
 regex.workspace = true
 ropey.workspace = true
 serde.workspace = true

@@ -29,6 +29,7 @@
 
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use ropey::Rope;
@@ -38,6 +39,7 @@ use xeno_lsp::{DocumentSync, OffsetEncoding};
 use xeno_primitives::LspDocumentChange;
 
 use crate::buffer::DocumentId;
+use crate::metrics::EditorMetrics;
 
 /// Default debounce duration for LSP notifications.
 pub const LSP_DEBOUNCE: Duration = Duration::from_millis(30);
@@ -45,8 +47,8 @@ pub const LSP_DEBOUNCE: Duration = Duration::from_millis(30);
 /// Maximum number of incremental changes before falling back to full sync.
 pub const LSP_MAX_INCREMENTAL_CHANGES: usize = 100;
 
-/// Maximum total bytes of inserted text before falling back to full sync.
-pub const LSP_MAX_INCREMENTAL_BYTES: usize = 100 * 1024; // 100 KB
+/// Maximum total bytes of inserted text before falling back to full sync (100 KB).
+pub const LSP_MAX_INCREMENTAL_BYTES: usize = 100 * 1024;
 
 /// Retry delay after LSP send failure before attempting full sync.
 pub const LSP_ERROR_RETRY_DELAY: Duration = Duration::from_millis(250);
@@ -231,6 +233,9 @@ impl PendingLspState {
 		encoding: OffsetEncoding,
 		editor_version: u64,
 	) {
+		let added_changes = changes.len();
+		let added_bytes: usize = changes.iter().map(|c| c.new_text.len()).sum();
+
 		let entry = self.pending.entry(doc_id).or_insert_with(|| {
 			PendingLsp::new(
 				path.clone(),
@@ -246,6 +251,16 @@ impl PendingLspState {
 		entry.supports_incremental = supports_incremental;
 		entry.encoding = encoding;
 		entry.append_changes(changes, force_full, editor_version);
+
+		tracing::trace!(
+			doc_id = doc_id.0,
+			added_changes,
+			added_bytes,
+			total_changes = entry.changes.len(),
+			total_bytes = entry.bytes,
+			force_full = entry.force_full,
+			"lsp.pending_append"
+		);
 	}
 
 	/// Flushes due documents and spawns LSP notification tasks.
@@ -254,6 +269,7 @@ impl PendingLspState {
 		now: Instant,
 		debounce: Duration,
 		sync: &DocumentSync,
+		metrics: &Arc<EditorMetrics>,
 		content_provider: impl Fn(DocumentId) -> Option<Rope>,
 	) -> usize {
 		self.poll_completions();
@@ -270,28 +286,54 @@ impl PendingLspState {
 			let language = pending.language.clone();
 			let use_incremental = pending.use_incremental();
 			let changes = std::mem::take(&mut pending.changes);
+			let change_count = changes.len();
+			let bytes = pending.bytes;
+			let editor_version = pending.editor_version;
+			let mode = if use_incremental { "incremental" } else { "full" };
 
 			debug!(
+				doc_id = doc_id.0,
 				path = ?path,
-				mode = if use_incremental { "incremental" } else { "full" },
-				change_count = changes.len(),
-				bytes = pending.bytes,
-				editor_version = pending.editor_version,
-				"LSP flush triggered"
+				mode,
+				change_count,
+				bytes,
+				editor_version,
+				"lsp.flush_start"
 			);
 
 			let sync = sync.clone();
 			let tx = self.completion_tx.clone();
+			let metrics = metrics.clone();
 			self.in_flight.insert(doc_id);
 
 			if use_incremental {
 				tokio::spawn(async move {
-					let success =
-						sync.notify_change_incremental_no_content(&path, &language, changes)
-							.await
-							.is_ok();
-					if !success {
-						tracing::warn!(path = ?path, "LSP incremental change failed, will retry with full sync");
+					let start = Instant::now();
+					let result =
+						sync.notify_change_incremental_no_content(&path, &language, changes).await;
+					let success = result.is_ok();
+					let latency_ms = start.elapsed().as_millis() as u64;
+
+					if success {
+						metrics.inc_incremental_sync();
+						tracing::debug!(
+							doc_id = doc_id.0,
+							path = ?path,
+							mode = "incremental",
+							latency_ms,
+							editor_version,
+							"lsp.flush_done"
+						);
+					} else {
+						metrics.inc_send_error();
+						tracing::warn!(
+							doc_id = doc_id.0,
+							path = ?path,
+							mode = "incremental",
+							latency_ms,
+							error = ?result.err(),
+							"lsp.flush_done"
+						);
 					}
 					let _ = tx.send(FlushComplete { doc_id, success });
 				});
@@ -301,12 +343,31 @@ impl PendingLspState {
 					continue;
 				};
 				tokio::spawn(async move {
-					let success = sync
-						.notify_change_full(&path, &language, &content)
-						.await
-						.is_ok();
-					if !success {
-						tracing::warn!(path = ?path, "LSP full change failed, will retry");
+					let start = Instant::now();
+					let result = sync.notify_change_full(&path, &language, &content).await;
+					let success = result.is_ok();
+					let latency_ms = start.elapsed().as_millis() as u64;
+
+					if success {
+						metrics.inc_full_sync();
+						tracing::debug!(
+							doc_id = doc_id.0,
+							path = ?path,
+							mode = "full",
+							latency_ms,
+							editor_version,
+							"lsp.flush_done"
+						);
+					} else {
+						metrics.inc_send_error();
+						tracing::warn!(
+							doc_id = doc_id.0,
+							path = ?path,
+							mode = "full",
+							latency_ms,
+							error = ?result.err(),
+							"lsp.flush_done"
+						);
 					}
 					let _ = tx.send(FlushComplete { doc_id, success });
 				});
@@ -356,7 +417,6 @@ mod tests {
 			0,
 		);
 
-		// Append many small changes
 		for i in 0..LSP_MAX_INCREMENTAL_CHANGES + 1 {
 			pending.append_changes(
 				vec![LspDocumentChange {
@@ -384,7 +444,6 @@ mod tests {
 			0,
 		);
 
-		// Just created, not due yet
 		assert!(!pending.is_due(Instant::now(), LSP_DEBOUNCE));
 	}
 

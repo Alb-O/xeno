@@ -385,37 +385,37 @@ You can move to Phase D when:
 
 #### D1 — Hook tracing
 
-- [ ] Emit `hook.schedule` events (hook name/id, pending count).
-- [ ] Emit `hook.complete` events (duration, success/failure).
-- [ ] Include budget info during drain: `hook.drain_budget` (budget_ms, completed_count, pending_after).
+- [x] Emit `hook.schedule` events (hook name/id, pending count).
+- [x] Emit `hook.complete` events (duration, success/failure).
+- [x] Include budget info during drain: `hook.drain_budget` (budget_ms, completed_count, pending_after).
 
 #### D2 — LSP tracing
 
-- [ ] `lsp.pending_append` (doc id, added_changes, bytes, force_full).
-- [ ] `lsp.flush_start` (doc id, mode=inc/full, changes_count, bytes).
-- [ ] `lsp.flush_done` (latency_ms, success/failure, lsp_version, editor_version).
+- [x] `lsp.pending_append` (doc id, added_changes, bytes, force_full).
+- [x] `lsp.flush_start` (doc id, mode=inc/full, changes_count, bytes).
+- [x] `lsp.flush_done` (latency_ms, success/failure, lsp_version, editor_version).
 
 #### D3 — Lightweight metrics (optional but recommended)
 
-- [ ] gauge: `hooks.pending`
-- [ ] gauge: `lsp.pending_docs`
-- [ ] counter: `lsp.full_sync`
-- [ ] counter: `lsp.incremental_sync`
-- [ ] counter: `lsp.send_errors`
+- [x] gauge: `hooks.pending`
+- [x] gauge: `lsp.pending_docs`
+- [x] counter: `lsp.full_sync`
+- [x] counter: `lsp.incremental_sync`
+- [x] counter: `lsp.send_errors`
 
 #### D4 — Debug command / overlay
 
-- [ ] Add a debug command (or statusline detail) to dump:
-  - [ ] hook pending count
-  - [ ] pending LSP docs
-  - [ ] per-doc pending change counts
+- [x] Add a debug command (or statusline detail) to dump:
+  - [x] hook pending count
+  - [x] pending LSP docs
+  - [x] per-doc pending change counts
 
 ### Phase gate
 
 You can move to Phase E when:
 
-- [ ] Hook and LSP activity is visible in tracing.
-- [ ] There is at least one “user-facing” way to inspect backlog state.
+- [x] Hook and LSP activity is visible in tracing.
+- [x] There is at least one "user-facing" way to inspect backlog state.
 
 ---
 
@@ -479,5 +479,5 @@ These are valuable but should follow the core hardening.
 - [x] Phase A: Hooks concurrent + budgeted drain + backlog safety
 - [x] Phase B: LSP pending accumulator + debounce + eliminate incremental content clone
 - [x] Phase C: LSP version discipline + single-flight + error recovery
-- [ ] Phase D: Tracing spans + minimal metrics + debug inspection
+- [x] Phase D: Tracing spans + minimal metrics + debug inspection
 - [ ] Phase E: Coalescing + hook priorities + unified scheduler + expanded tests

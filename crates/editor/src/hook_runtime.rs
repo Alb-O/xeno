@@ -89,13 +89,34 @@ impl HookRuntime {
 			return;
 		}
 
-		let deadline = Instant::now() + budget;
+		let start = Instant::now();
+		let deadline = start + budget;
+		let completed_before = self.completed_total;
+
 		while Instant::now() < deadline {
 			let remaining = deadline.saturating_duration_since(Instant::now());
 			match tokio::time::timeout(remaining, self.running.next()).await {
-				Ok(Some(_)) => self.completed_total += 1,
+				Ok(Some(_)) => {
+					self.completed_total += 1;
+					tracing::trace!(
+						completed_total = self.completed_total,
+						pending = self.running.len(),
+						"hook.complete"
+					);
+				}
 				_ => break,
 			}
+		}
+
+		let completed_this_drain = self.completed_total - completed_before;
+		if completed_this_drain > 0 || self.running.len() > 0 {
+			tracing::debug!(
+				budget_ms = budget.as_millis() as u64,
+				elapsed_ms = start.elapsed().as_millis() as u64,
+				completed = completed_this_drain,
+				pending_after = self.running.len(),
+				"hook.drain_budget"
+			);
 		}
 
 		if self.running.len() > HOOK_BACKLOG_HIGH_WATER {
@@ -123,6 +144,11 @@ impl HookScheduler for HookRuntime {
 	fn schedule(&mut self, fut: HookBoxFuture) {
 		self.running.push(fut);
 		self.scheduled_total += 1;
+		tracing::trace!(
+			pending = self.running.len(),
+			scheduled_total = self.scheduled_total,
+			"hook.schedule"
+		);
 	}
 }
 
@@ -177,7 +203,6 @@ mod tests {
 		let counter = Arc::new(AtomicUsize::new(0));
 		let mut runtime = HookRuntime::new();
 
-		// Schedule two fast hooks.
 		for _ in 0..2 {
 			let c = counter.clone();
 			runtime.schedule(Box::pin(async move {
@@ -187,8 +212,6 @@ mod tests {
 		}
 
 		assert_eq!(runtime.pending_count(), 2);
-
-		// Generous budget should complete all fast hooks.
 		runtime.drain_budget(Duration::from_millis(100)).await;
 
 		assert!(!runtime.has_pending());
@@ -200,7 +223,6 @@ mod tests {
 		let mut runtime = HookRuntime::new();
 		let start = Instant::now();
 		runtime.drain_budget(Duration::from_secs(10)).await;
-		// Should return immediately when empty, not wait 10 seconds.
 		assert!(start.elapsed() < Duration::from_millis(100));
 	}
 
@@ -208,19 +230,15 @@ mod tests {
 	async fn test_drain_budget_respects_timeout() {
 		let mut runtime = HookRuntime::new();
 
-		// Schedule a hook that takes a long time.
 		runtime.schedule(Box::pin(async {
 			tokio::time::sleep(Duration::from_secs(10)).await;
 			HookResult::Continue
 		}));
 
 		let start = Instant::now();
-		// Use a short budget.
 		runtime.drain_budget(Duration::from_millis(10)).await;
 
-		// Should return near the budget, not wait for the slow hook.
 		assert!(start.elapsed() < Duration::from_millis(100));
-		// Hook is still pending.
 		assert!(runtime.has_pending());
 	}
 
@@ -229,8 +247,6 @@ mod tests {
 		let order = Arc::new(std::sync::Mutex::new(Vec::new()));
 		let mut runtime = HookRuntime::new();
 
-		// Schedule hooks that record completion order.
-		// With concurrent execution, order may vary.
 		for i in 0..3 {
 			let o = order.clone();
 			runtime.schedule(Box::pin(async move {
@@ -243,7 +259,6 @@ mod tests {
 
 		let completed = order.lock().unwrap();
 		assert_eq!(completed.len(), 3);
-		// All hooks completed (order may vary due to concurrency).
 		assert!(completed.contains(&0));
 		assert!(completed.contains(&1));
 		assert!(completed.contains(&2));

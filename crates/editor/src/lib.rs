@@ -40,6 +40,8 @@ pub mod extensions;
 /// Async hook execution runtime.
 pub mod hook_runtime;
 pub mod impls;
+/// Runtime metrics for observability.
+pub mod metrics;
 /// Info popups for documentation and contextual help.
 pub mod info_popup;
 /// Input handling: key events, modes, and pending actions.

@@ -186,6 +186,9 @@ pub struct Editor {
 
 	/// Type-erased storage for UI overlays (popups, palette, completions).
 	pub overlays: OverlayManager,
+
+	/// Runtime metrics for observability.
+	pub metrics: std::sync::Arc<crate::metrics::EditorMetrics>,
 }
 
 impl xeno_registry::EditorOps for Editor {}
@@ -295,6 +298,7 @@ impl Editor {
 			style_overlays: StyleOverlays::new(),
 			hook_runtime,
 			overlays: OverlayManager::new(),
+			metrics: std::sync::Arc::new(crate::metrics::EditorMetrics::new()),
 		}
 	}
 
