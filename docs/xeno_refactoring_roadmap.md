@@ -223,9 +223,9 @@ pub enum EditError {
 ## Phase 7 — Slim the Buffer edit API to one canonical entrypoint
 **Goal:** one way to apply a transaction, with policy explicitly passed.
 
-- [ ] Choose the canonical method: `Buffer::apply(tx, ApplyPolicy, loader)`.
-- [ ] Convert other variants (`apply_with_lsp`, “with undo”, “with syntax”) into thin wrappers.
-- [ ] Deprecate legacy variants; delete after call sites migrate.
+- [x] Choose the canonical method: `Buffer::apply(tx, ApplyPolicy, loader)`.
+- [x] Convert other variants (`apply_with_lsp`, “with undo”, “with syntax”) into thin wrappers.
+- [x] Deprecate legacy variants; delete after call sites migrate.
 
 ---
 

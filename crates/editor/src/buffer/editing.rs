@@ -78,7 +78,7 @@ impl Buffer {
 	/// use [`prepare_insert`] and apply with [`apply_transaction_with_syntax`].
 	pub fn insert_text(&mut self, text: &str) -> Transaction {
 		let (tx, new_selection) = self.prepare_insert(text);
-		let result = self.apply_transaction(&tx);
+		let result = self.apply(&tx, ApplyPolicy::BARE, &LanguageLoader::new());
 		if !result.applied {
 			return tx;
 		}
@@ -146,7 +146,7 @@ impl Buffer {
 	/// use [`prepare_paste_after`] and apply with [`apply_transaction_with_syntax`].
 	pub fn paste_after(&mut self, text: &str) -> Option<Transaction> {
 		let (tx, new_selection) = self.prepare_paste_after(text)?;
-		let result = self.apply_transaction(&tx);
+		let result = self.apply(&tx, ApplyPolicy::BARE, &LanguageLoader::new());
 		if !result.applied {
 			return None;
 		}
@@ -175,7 +175,7 @@ impl Buffer {
 	/// use [`prepare_paste_before`] and apply with [`apply_transaction_with_syntax`].
 	pub fn paste_before(&mut self, text: &str) -> Option<Transaction> {
 		let (tx, new_selection) = self.prepare_paste_before(text)?;
-		let result = self.apply_transaction(&tx);
+		let result = self.apply(&tx, ApplyPolicy::BARE, &LanguageLoader::new());
 		if !result.applied {
 			return None;
 		}
@@ -208,7 +208,7 @@ impl Buffer {
 	/// use [`prepare_delete_selection`] and apply with [`apply_transaction_with_syntax`].
 	pub fn delete_selection(&mut self) -> Option<Transaction> {
 		let (tx, new_selection) = self.prepare_delete_selection()?;
-		let result = self.apply_transaction(&tx);
+		let result = self.apply(&tx, ApplyPolicy::BARE, &LanguageLoader::new());
 		if !result.applied {
 			return None;
 		}
@@ -316,6 +316,10 @@ impl Buffer {
 	///
 	/// Shorthand for `apply(tx, ApplyPolicy::BARE, &LanguageLoader::new())`.
 	/// Use this for internal operations that don't need undo tracking.
+	#[deprecated(
+		since = "0.4.0",
+		note = "Use `apply()` with `ApplyPolicy::BARE` instead"
+	)]
 	pub fn apply_transaction(&self, tx: &Transaction) -> CommitResult {
 		self.apply(tx, ApplyPolicy::BARE, &LanguageLoader::new())
 	}
@@ -429,7 +433,8 @@ impl Buffer {
 #[cfg(test)]
 #[allow(deprecated)]
 mod tests {
-	use crate::buffer::{Buffer, BufferId};
+	use crate::buffer::{ApplyPolicy, Buffer, BufferId};
+	use xeno_runtime_language::LanguageLoader;
 
 	#[cfg(feature = "lsp")]
 	#[allow(deprecated)]
@@ -561,7 +566,7 @@ mod tests {
 		let mut buffer = Buffer::scratch(BufferId::SCRATCH);
 		let (tx, _selection) = buffer.prepare_insert("hi");
 		buffer.set_readonly(true);
-		let result = buffer.apply_transaction(&tx);
+		let result = buffer.apply(&tx, ApplyPolicy::BARE, &LanguageLoader::new());
 		assert!(!result.applied);
 		assert_eq!(buffer.with_doc(|doc| doc.content().to_string()), "");
 	}
@@ -574,7 +579,7 @@ mod tests {
 		assert!(buffer.is_readonly());
 
 		let (tx, _selection) = buffer.prepare_insert("hi");
-		let result = buffer.apply_transaction(&tx);
+		let result = buffer.apply(&tx, ApplyPolicy::BARE, &LanguageLoader::new());
 		assert!(!result.applied);
 		assert_eq!(buffer.with_doc(|doc| doc.content().to_string()), "");
 	}
@@ -590,7 +595,7 @@ mod tests {
 		assert!(!buffer.is_readonly());
 
 		let (tx, _selection) = buffer.prepare_insert("hi");
-		let result = buffer.apply_transaction(&tx);
+		let result = buffer.apply(&tx, ApplyPolicy::BARE, &LanguageLoader::new());
 		assert!(result.applied);
 		assert_eq!(buffer.with_doc(|doc| doc.content().to_string()), "hi");
 	}
