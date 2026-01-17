@@ -3365,6 +3365,7 @@ dependencies = [
  "insta",
  "linkme",
  "paste",
+ "proptest",
  "regex",
  "ropey",
  "serde",

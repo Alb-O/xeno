@@ -373,11 +373,13 @@ fn handle_capability_violation(
 mod tests {
 	use std::cell::Cell;
 
+	use futures::future::LocalBoxFuture;
 	use xeno_primitives::range::CharIdx;
 	use xeno_primitives::{Mode, Selection};
 	use xeno_registry::{
-		ActionEffects, ActionResult, Capability, CursorAccess, EditorCapabilities, ModeAccess,
-		Notification, NotificationAccess, SelectionAccess, action, hook, HookAction, HookEventData,
+		ActionEffects, ActionResult, Capability, CommandContext, CommandError, CommandOutcome,
+		CursorAccess, EditorCapabilities, ModeAccess, Notification, NotificationAccess,
+		SelectionAccess, action, command, hook, HookAction, HookEventData,
 	};
 
 	use super::*;
@@ -390,6 +392,15 @@ mod tests {
 	action!(
 		invocation_test_action,
 		{ description: "Invocation test action" },
+		|_ctx| ActionResult::Effects(ActionEffects::ok())
+	);
+
+	action!(
+		invocation_edit_action,
+		{
+			description: "Invocation edit action",
+			caps: &[Capability::Edit]
+		},
 		|_ctx| ActionResult::Effects(ActionEffects::ok())
 	);
 
@@ -417,6 +428,18 @@ mod tests {
 			}
 			HookAction::done()
 		}
+	);
+
+	fn invocation_test_command_fail<'a>(
+		_ctx: &'a mut CommandContext<'a>,
+	) -> LocalBoxFuture<'a, Result<CommandOutcome, CommandError>> {
+		Box::pin(async move { Err(CommandError::Failed("boom".into())) })
+	}
+
+	command!(
+		invocation_test_command_fail,
+		{ description: "Invocation test command failure" },
+		handler: invocation_test_command_fail
 	);
 
 	struct MockEditor {
@@ -581,5 +604,54 @@ mod tests {
 
 		assert_eq!(pre_count, 1);
 		assert_eq!(post_count, 1);
+	}
+
+	#[test]
+	fn readonly_enforcement_blocks_edit_actions() {
+		let mut editor = Editor::new_scratch();
+		editor.buffer_mut().set_readonly(true);
+
+		let result = editor.run_action_invocation(
+			"invocation_edit_action",
+			1,
+			false,
+			None,
+			None,
+			InvocationPolicy::enforcing(),
+		);
+
+		assert!(matches!(result, InvocationResult::ReadonlyDenied));
+	}
+
+	#[test]
+	fn readonly_disabled_allows_edit_actions() {
+		let mut editor = Editor::new_scratch();
+		editor.buffer_mut().set_readonly(true);
+
+		let result = editor.run_action_invocation(
+			"invocation_edit_action",
+			1,
+			false,
+			None,
+			None,
+			InvocationPolicy::log_only(),
+		);
+
+		assert!(matches!(result, InvocationResult::Ok));
+	}
+
+	#[test]
+	fn command_error_propagates() {
+		let mut editor = Editor::new_scratch();
+		let result = futures::executor::block_on(editor.run_command_invocation(
+			"invocation_test_command_fail",
+			Vec::new(),
+			InvocationPolicy::enforcing(),
+		));
+
+		assert!(matches!(
+			result,
+			InvocationResult::CommandError(msg) if msg.contains("boom")
+		));
 	}
 }

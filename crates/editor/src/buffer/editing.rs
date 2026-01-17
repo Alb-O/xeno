@@ -439,11 +439,13 @@ mod tests {
 	#[cfg(feature = "lsp")]
 	#[allow(deprecated)]
 	mod lsp_batching {
-		use xeno_lsp::OffsetEncoding;
+		use xeno_lsp::{IncrementalResult, OffsetEncoding, compute_lsp_changes};
 		use xeno_primitives::Selection;
 		use xeno_primitives::lsp::{LspPosition, LspRange};
+		use xeno_primitives::SyntaxPolicy;
+		use xeno_runtime_language::LanguageLoader;
 
-		use crate::buffer::{Buffer, BufferId};
+		use crate::buffer::{ApplyPolicy, Buffer, BufferId};
 
 		fn make_buffer(content: &str) -> Buffer {
 			let buffer = Buffer::scratch(BufferId::SCRATCH);
@@ -533,6 +535,39 @@ mod tests {
 
 			assert_eq!(changes[2].range, LspRange::point(LspPosition::new(2, 0)));
 			assert_eq!(changes[2].new_text, "X");
+		}
+
+		#[test]
+		fn incremental_changes_match_reference() {
+			let mut buffer = make_buffer("hello");
+			buffer.set_selection(Selection::single(5, 5));
+
+			let (tx, new_sel) = buffer.prepare_insert("!");
+			let expected =
+				buffer.with_doc(|doc| compute_lsp_changes(doc.content(), &tx, OffsetEncoding::Utf16));
+
+			let loader = LanguageLoader::new();
+			let result = buffer.apply_with_lsp(
+				&tx,
+				ApplyPolicy::BARE.with_syntax(SyntaxPolicy::IncrementalOrDirty),
+				&loader,
+				OffsetEncoding::Utf16,
+			);
+			assert!(result.applied);
+			buffer.finalize_selection(new_sel);
+
+			match expected {
+				IncrementalResult::Incremental(changes) => {
+					let actual = buffer.drain_lsp_changes();
+					assert_eq!(actual, changes);
+					assert!(!buffer.with_doc(|doc| doc.needs_full_lsp_sync()));
+				}
+				IncrementalResult::FallbackToFull => {
+					let actual = buffer.drain_lsp_changes();
+					assert!(actual.is_empty());
+					assert!(buffer.with_doc(|doc| doc.needs_full_lsp_sync()));
+				}
+			}
 		}
 
 		#[test]

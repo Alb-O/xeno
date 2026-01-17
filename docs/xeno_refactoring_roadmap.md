@@ -232,21 +232,21 @@ pub enum EditError {
 ## Phase 8 — Testing and verification (keep regressions near zero)
 
 ### Unit tests (fast)
-- [ ] Capability gating matrix: enforce vs log-only, and readonly enforcement.
-- [ ] Invocation pipeline: pre/post hooks exactly-once, errors propagate predictably.
-- [ ] UndoManager: prepare/finalize called in all cases (success/failure).
+- [x] Capability gating matrix: enforce vs log-only, and readonly enforcement.
+- [x] Invocation pipeline: pre/post hooks exactly-once, errors propagate predictably.
+- [x] UndoManager: prepare/finalize called in all cases (success/failure).
 
 ### Property tests (high value)
-- [ ] **Edit/undo/redo roundtrip:** applying random transaction sequences followed by undo/redo returns to identical rope + selection state.
-- [ ] **Undo group boundaries:** random insert streams should group as expected; non-insert edits break groups.
+- [x] **Edit/undo/redo roundtrip:** applying random transaction sequences followed by undo/redo returns to identical rope + selection state.
+- [x] **Undo group boundaries:** random insert streams should group as expected; non-insert edits break groups.
 
 ### Integration tests
-- [ ] LSP incremental sync correctness against a reference apply path (feature-gated).
-- [ ] Multi-buffer same-document: sibling selection sync after apply.
+- [x] LSP incremental sync correctness against a reference apply path (feature-gated).
+- [x] Multi-buffer same-document: sibling selection sync after apply.
 
 ### CI guardrails
-- [ ] “No raw lock access” grep/lint.
-- [ ] “No legacy invocation” grep: forbid new call sites to `actions_exec` once Phase 1 is complete.
+- [x] “No raw lock access” grep/lint.
+- [x] “No legacy invocation” grep: forbid new call sites to `actions_exec` once Phase 1 is complete.
 
 ---
 

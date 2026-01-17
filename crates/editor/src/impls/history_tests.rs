@@ -1,5 +1,6 @@
 //! Behavior-lock tests for editor-level undo/redo.
 
+use proptest::prelude::*;
 use xeno_primitives::range::CharIdx;
 use xeno_primitives::transaction::Change;
 use xeno_primitives::{EditOrigin, Selection, Transaction, UndoPolicy};
@@ -348,4 +349,151 @@ fn record_policy_breaks_merge_group() {
 		2,
 		"Record policy should create new group"
 	);
+}
+
+#[test]
+fn sibling_selection_sync_after_apply() {
+	let mut editor = test_editor("abcd");
+	let buffer1_id = editor.focused_view();
+	let buffer2_id = editor.core.buffers.clone_focused_buffer_for_split();
+
+	let original_selection = {
+		let buffer = editor
+			.core
+			.buffers
+			.get_buffer_mut(buffer2_id)
+			.expect("split buffer exists");
+		let selection = Selection::single(1, 3);
+		buffer.set_cursor_and_selection(3, selection.clone());
+		selection
+	};
+
+	let (tx, new_selection) = {
+		let buffer = editor
+			.core
+			.buffers
+			.get_buffer_mut(buffer1_id)
+			.expect("buffer exists");
+		buffer.set_cursor_and_selection(0, Selection::single(0, 0));
+		buffer.prepare_insert("Z")
+	};
+
+	let applied = editor.apply_edit(
+		buffer1_id,
+		&tx,
+		Some(new_selection),
+		UndoPolicy::Record,
+		EditOrigin::Internal("test"),
+	);
+	assert!(applied);
+
+	let expected = tx.map_selection(&original_selection);
+	let buffer2 = editor
+		.core
+		.buffers
+		.get_buffer(buffer2_id)
+		.expect("split buffer exists");
+	assert_eq!(buffer2.selection, expected);
+}
+
+proptest! {
+	#[test]
+	fn undo_redo_roundtrip(ops in prop::collection::vec((0usize..100, "[a-z]{1,3}"), 1..20)) {
+		let mut editor = test_editor("");
+		let buffer_id = editor.focused_view();
+		let steps = ops.len();
+
+		for (pos_seed, text) in ops {
+			let len = editor
+				.core
+				.buffers
+				.get_buffer(buffer_id)
+				.expect("buffer exists")
+				.with_doc(|doc| doc.content().len_chars());
+			let pos = if len == 0 { 0 } else { pos_seed % (len + 1) };
+			{
+				let buffer = editor
+					.core
+					.buffers
+					.get_buffer_mut(buffer_id)
+					.expect("buffer exists");
+				buffer.set_cursor_and_selection(pos, Selection::single(pos, pos));
+			}
+			editor.insert_text(&text);
+		}
+
+		let (final_text, final_selection, final_cursor) = {
+			let buffer = editor
+				.core
+				.buffers
+				.get_buffer(buffer_id)
+				.expect("buffer exists");
+			(
+				buffer.with_doc(|doc| doc.content().to_string()),
+				buffer.selection.clone(),
+				buffer.cursor,
+			)
+		};
+
+		for _ in 0..steps {
+			editor.undo();
+		}
+		for _ in 0..steps {
+			editor.redo();
+		}
+
+		let buffer = editor
+			.core
+			.buffers
+			.get_buffer(buffer_id)
+			.expect("buffer exists");
+		let redo_text = buffer.with_doc(|doc| doc.content().to_string());
+		prop_assert_eq!(redo_text, final_text);
+		prop_assert_eq!(&buffer.selection, &final_selection);
+		prop_assert_eq!(buffer.cursor, final_cursor);
+	}
+
+	#[test]
+	fn insert_group_boundaries(ops in prop::collection::vec(any::<bool>(), 1..40)) {
+		let mut editor = test_editor("");
+		let buffer_id = editor.focused_view();
+		let mut expected_groups = 0;
+		let mut in_insert_group = false;
+
+		for is_insert in ops {
+			let (tx, new_selection) = {
+				let buffer = editor
+					.core
+					.buffers
+					.get_buffer_mut(buffer_id)
+					.expect("buffer exists");
+				let len = buffer.with_doc(|doc| doc.content().len_chars());
+				buffer.set_cursor_and_selection(len, Selection::single(len, len));
+				buffer.prepare_insert(if is_insert { "i" } else { "x" })
+			};
+
+			let undo = if is_insert {
+				if !in_insert_group {
+					expected_groups += 1;
+					in_insert_group = true;
+				}
+				UndoPolicy::MergeWithCurrentGroup
+			} else {
+				expected_groups += 1;
+				in_insert_group = false;
+				UndoPolicy::Record
+			};
+
+			let applied = editor.apply_edit(
+				buffer_id,
+				&tx,
+				Some(new_selection),
+				undo,
+				EditOrigin::Internal("prop"),
+			);
+			prop_assert!(applied);
+		}
+
+		prop_assert_eq!(editor.core.undo_manager.undo_len(), expected_groups);
+	}
 }
