@@ -349,6 +349,25 @@ impl RegistryMeta {
 ///
 /// Implement this trait to enable generic registry operations like
 /// collision detection, help generation, and introspection.
+///
+/// # Trait Trio
+///
+/// The registry uses three related types for metadata:
+///
+/// - [`RegistryMeta`]: Pure data struct holding all metadata fields
+/// - [`RegistryEntry`]: Trait requiring `fn meta(&self) -> &RegistryMeta`
+/// - [`RegistryMetadata`]: Minimal trait for type-erased access
+///
+/// Use [`impl_registry_entry!`] to implement both traits for types with a
+/// `meta: RegistryMeta` field.
+///
+/// # Future: Trait Consolidation
+///
+/// A unified `HasRegistryMeta` trait could replace this trio. Worth doing if:
+///
+/// 1. Boilerplate impls become annoying weekly
+/// 2. Contributors frequently misuse the trait relationships
+/// 3. Plugin API is blocked by awkward metadata access
 pub trait RegistryEntry {
 	/// Returns the metadata struct for this registry item.
 	fn meta(&self) -> &RegistryMeta;

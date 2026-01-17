@@ -27,6 +27,16 @@ pub trait RegistryReg<T: RegistryEntry + 'static>: 'static {
 }
 
 /// Policy for handling duplicate keys during index construction.
+///
+/// # Interaction with Sort Order
+///
+/// When using [`RegistryBuilder::sort_default`] (priority descending):
+///
+/// - [`FirstWins`](Self::FirstWins) → highest priority wins (intended behavior)
+/// - [`LastWins`](Self::LastWins) → lowest priority wins (usually wrong)
+///
+/// The default from [`for_build()`](Self::for_build) returns `FirstWins` in release
+/// and `Panic` in debug, matching the intended semantics.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum DuplicatePolicy {
 	/// Panic with detailed error message.
@@ -35,8 +45,13 @@ pub enum DuplicatePolicy {
 	#[default]
 	Panic,
 	/// Keep the first definition seen for a key.
+	///
+	/// With default priority sorting, this means highest-priority wins.
 	FirstWins,
 	/// Overwrite with the last definition seen.
+	///
+	/// With default priority sorting, this means lowest-priority wins
+	/// (usually not what you want).
 	LastWins,
 }
 
@@ -313,6 +328,60 @@ impl<T: 'static> Default for RuntimeExtras<T> {
 /// // Later at runtime:
 /// COMMANDS.register(&MY_PLUGIN_COMMAND);
 /// ```
+///
+/// # Performance Considerations
+///
+/// The current implementation uses `RwLock<RuntimeExtras<T>>` which takes a read
+/// lock on every [`get()`](Self::get) call. This is acceptable for current usage
+/// but has upgrade paths if `get()` becomes hot:
+///
+/// ## Freeze-After-Init Pattern
+///
+/// If runtime registration only happens during startup/plugin-load:
+///
+/// ```ignore
+/// impl<T> RuntimeRegistry<T> {
+///     /// Call after all plugins loaded. Merges extras into builtins for lock-free reads.
+///     pub fn freeze(&self) { ... }
+/// }
+/// ```
+///
+/// ## Snapshot Swapping (ArcSwap)
+///
+/// If registration can happen at any time but is rare, use `arc_swap::ArcSwap`
+/// for lock-free reads with clone-and-swap writes.
+///
+/// # Static Lifetime Constraint
+///
+/// Requires `&'static T` and `&'static str` keys. This works for:
+///
+/// - Compile-time builtins
+/// - Crates linked at startup (inventory pattern)
+/// - Leaked allocations (acceptable for long-lived plugins)
+///
+/// Does **not** work for truly dynamic plugins (dlopen, WASM, user scripts)
+/// or reloadable/unloadable plugins. See "Layered Registry" below.
+///
+/// # Future: Layered Registry for Unloadable Plugins
+///
+/// If unloadable plugins are needed, consider layered scopes:
+///
+/// ```ignore
+/// pub struct LayeredRegistry<T> {
+///     builtins: RegistryIndex<T>,
+///     layers: Vec<(PluginId, HashMap<String, Arc<T>>)>,
+/// }
+///
+/// impl<T> LayeredRegistry<T> {
+///     /// Lookup: newest layer -> older layers -> builtins
+///     pub fn get(&self, key: &str) -> Option<&T> { ... }
+///     /// Remove entire plugin layer
+///     pub fn unload_plugin(&mut self, id: PluginId) { ... }
+/// }
+/// ```
+///
+/// Benefits: `Arc<T>` + `String` keys (no 'static), deterministic unload,
+/// natural shadowing (newer layers win).
 pub struct RuntimeRegistry<T: RegistryEntry + 'static> {
 	label: &'static str,
 	builtins: RegistryIndex<T>,
