@@ -317,6 +317,10 @@ result_handler!(
 	}
 );
 
+pub(crate) fn register_result_handlers() {
+	xeno_registry::actions::register_result_handler(&HANDLE_EFFECTS);
+}
+
 #[cfg(test)]
 #[path = "editor_ctx_tests.rs"]
 mod editor_ctx_tests;

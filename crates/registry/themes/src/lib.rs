@@ -3,12 +3,11 @@
 //! This crate provides:
 //! - [`Theme`] and [`ThemeColors`] for complete theme definitions
 //! - [`SyntaxStyles`] for tree-sitter syntax highlighting
-//! - [`THEMES`] distributed slice for compile-time registration
+//! - [`THEMES`] registry for compile-time registration
 //! - Runtime theme loading via [`register_runtime_themes`]
 
 use std::sync::OnceLock;
 
-use linkme::distributed_slice;
 pub use xeno_primitives::{Color, Mode, Modifier, Style};
 use xeno_registry_core::{RegistryMeta, RegistrySource, impl_registry_entry};
 
@@ -308,12 +307,10 @@ pub fn runtime_themes() -> &'static [&'static Theme] {
 	RUNTIME_THEMES.get().map(|v| v.as_slice()).unwrap_or(&[])
 }
 
-/// Distributed slice for compile-time theme registration.
-#[distributed_slice]
-pub static THEMES: [Theme] = [..];
+/// Compile-time theme registry.
+pub static THEMES: &[&Theme] = &[&DEFAULT_THEME];
 
 /// Default fallback theme (minimal terminal colors).
-#[distributed_slice(THEMES)]
 pub static DEFAULT_THEME: Theme = Theme {
 	meta: RegistryMeta {
 		id: "default",
@@ -389,9 +386,13 @@ pub fn get_theme(name: &str) -> Option<&'static Theme> {
 	}
 
 	// Fall back to compile-time themes
-	THEMES.iter().find(|t| {
-		normalize(t.meta.name) == search || t.meta.aliases.iter().any(|a| normalize(a) == search)
-	})
+	THEMES
+		.iter()
+		.copied()
+		.find(|t| {
+			normalize(t.meta.name) == search
+				|| t.meta.aliases.iter().any(|a| normalize(a) == search)
+		})
 }
 
 /// Blend two colors with the given alpha (0.0 = bg, 1.0 = fg).
@@ -422,7 +423,7 @@ pub fn suggest_theme(name: &str) -> Option<&'static str> {
 		}
 	}
 
-	for theme in THEMES {
+	for &theme in THEMES {
 		let score = strsim::jaro_winkler(&name, theme.meta.name);
 		if score > best_score {
 			best_score = score;

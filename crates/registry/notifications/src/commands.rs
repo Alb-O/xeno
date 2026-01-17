@@ -1,13 +1,7 @@
 //! Command notification keys.
 
-use linkme::distributed_slice;
+use crate::{AutoDismiss, Level, Notification, NotificationDef, NotificationKey, RegistrySource};
 
-use crate::{
-	AutoDismiss, Level, NOTIFICATIONS, Notification, NotificationDef, NotificationKey,
-	RegistrySource,
-};
-
-#[distributed_slice(NOTIFICATIONS)]
 static NOTIF_UNKNOWN_COMMAND: NotificationDef = NotificationDef::new(
 	"unknown_command",
 	Level::Error,
@@ -15,7 +9,6 @@ static NOTIF_UNKNOWN_COMMAND: NotificationDef = NotificationDef::new(
 	RegistrySource::Builtin,
 );
 
-#[distributed_slice(NOTIFICATIONS)]
 static NOTIF_COMMAND_ERROR: NotificationDef = NotificationDef::new(
 	"command_error",
 	Level::Error,
@@ -23,7 +16,6 @@ static NOTIF_COMMAND_ERROR: NotificationDef = NotificationDef::new(
 	RegistrySource::Builtin,
 );
 
-#[distributed_slice(NOTIFICATIONS)]
 static NOTIF_UNSAVED_CHANGES_FORCE_QUIT: NotificationDef = NotificationDef::new(
 	"unsaved_changes_force_quit",
 	Level::Error,
@@ -31,7 +23,6 @@ static NOTIF_UNSAVED_CHANGES_FORCE_QUIT: NotificationDef = NotificationDef::new(
 	RegistrySource::Builtin,
 );
 
-#[distributed_slice(NOTIFICATIONS)]
 static NOTIF_NOT_IMPLEMENTED: NotificationDef = NotificationDef::new(
 	"not_implemented",
 	Level::Warn,
@@ -39,7 +30,6 @@ static NOTIF_NOT_IMPLEMENTED: NotificationDef = NotificationDef::new(
 	RegistrySource::Builtin,
 );
 
-#[distributed_slice(NOTIFICATIONS)]
 static NOTIF_HELP_TEXT: NotificationDef = NotificationDef::new(
 	"help_text",
 	Level::Info,
@@ -47,7 +37,6 @@ static NOTIF_HELP_TEXT: NotificationDef = NotificationDef::new(
 	RegistrySource::Builtin,
 );
 
-#[distributed_slice(NOTIFICATIONS)]
 static NOTIF_DIAGNOSTIC_OUTPUT: NotificationDef = NotificationDef::new(
 	"diagnostic_output",
 	Level::Info,
@@ -55,7 +44,6 @@ static NOTIF_DIAGNOSTIC_OUTPUT: NotificationDef = NotificationDef::new(
 	RegistrySource::Builtin,
 );
 
-#[distributed_slice(NOTIFICATIONS)]
 static NOTIF_DIAGNOSTIC_WARNING: NotificationDef = NotificationDef::new(
 	"diagnostic_warning",
 	Level::Warn,
@@ -63,7 +51,6 @@ static NOTIF_DIAGNOSTIC_WARNING: NotificationDef = NotificationDef::new(
 	RegistrySource::Builtin,
 );
 
-#[distributed_slice(NOTIFICATIONS)]
 static NOTIF_NO_COLLISIONS: NotificationDef = NotificationDef::new(
 	"no_collisions",
 	Level::Info,
@@ -71,7 +58,6 @@ static NOTIF_NO_COLLISIONS: NotificationDef = NotificationDef::new(
 	RegistrySource::Builtin,
 );
 
-#[distributed_slice(NOTIFICATIONS)]
 static NOTIF_THEME_SET: NotificationDef = NotificationDef::new(
 	"theme_set",
 	Level::Info,
@@ -149,3 +135,15 @@ pub mod keys {
 		}
 	}
 }
+
+pub(crate) static NOTIFICATIONS: &[&NotificationDef] = &[
+	&NOTIF_UNKNOWN_COMMAND,
+	&NOTIF_COMMAND_ERROR,
+	&NOTIF_UNSAVED_CHANGES_FORCE_QUIT,
+	&NOTIF_NOT_IMPLEMENTED,
+	&NOTIF_HELP_TEXT,
+	&NOTIF_DIAGNOSTIC_OUTPUT,
+	&NOTIF_DIAGNOSTIC_WARNING,
+	&NOTIF_NO_COLLISIONS,
+	&NOTIF_THEME_SET,
+];

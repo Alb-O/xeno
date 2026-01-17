@@ -38,8 +38,8 @@ pub use keybindings::{
 pub use motion_helpers::{cursor_motion, insert_with_motion, selection_motion, word_motion};
 pub use pending::PendingAction;
 pub use result::{
-	ActionResult, RESULT_EFFECTS_HANDLERS, RESULT_EXTENSION_HANDLERS, ScreenPosition,
-	dispatch_result,
+	ActionResult, RESULT_EFFECTS_HANDLERS, RESULT_EXTENSION_HANDLERS, ResultHandlerRegistry,
+	ScreenPosition, dispatch_result, register_result_extension_handler, register_result_handler,
 };
 pub use xeno_primitives::direction::{Axis, SeqDirection, SpatialDirection};
 pub use xeno_primitives::{Mode, ObjectSelectionKind, PendingKind};

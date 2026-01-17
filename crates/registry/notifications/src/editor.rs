@@ -2,15 +2,8 @@
 
 use std::path::Path;
 use std::time::Duration;
+use crate::{AutoDismiss, Level, Notification, NotificationDef, NotificationKey, RegistrySource};
 
-use linkme::distributed_slice;
-
-use crate::{
-	AutoDismiss, Level, NOTIFICATIONS, Notification, NotificationDef, NotificationKey,
-	RegistrySource,
-};
-
-#[distributed_slice(NOTIFICATIONS)]
 static NOTIF_BUFFER_READONLY: NotificationDef = NotificationDef::new(
 	"buffer_readonly",
 	Level::Warn,
@@ -18,7 +11,6 @@ static NOTIF_BUFFER_READONLY: NotificationDef = NotificationDef::new(
 	RegistrySource::Builtin,
 );
 
-#[distributed_slice(NOTIFICATIONS)]
 static NOTIF_NOTHING_TO_UNDO: NotificationDef = NotificationDef::new(
 	"nothing_to_undo",
 	Level::Warn,
@@ -26,7 +18,6 @@ static NOTIF_NOTHING_TO_UNDO: NotificationDef = NotificationDef::new(
 	RegistrySource::Builtin,
 );
 
-#[distributed_slice(NOTIFICATIONS)]
 static NOTIF_NOTHING_TO_REDO: NotificationDef = NotificationDef::new(
 	"nothing_to_redo",
 	Level::Warn,
@@ -34,7 +25,6 @@ static NOTIF_NOTHING_TO_REDO: NotificationDef = NotificationDef::new(
 	RegistrySource::Builtin,
 );
 
-#[distributed_slice(NOTIFICATIONS)]
 static NOTIF_UNDO: NotificationDef = NotificationDef::new(
 	"undo",
 	Level::Info,
@@ -42,7 +32,6 @@ static NOTIF_UNDO: NotificationDef = NotificationDef::new(
 	RegistrySource::Builtin,
 );
 
-#[distributed_slice(NOTIFICATIONS)]
 static NOTIF_REDO: NotificationDef = NotificationDef::new(
 	"redo",
 	Level::Info,
@@ -50,7 +39,6 @@ static NOTIF_REDO: NotificationDef = NotificationDef::new(
 	RegistrySource::Builtin,
 );
 
-#[distributed_slice(NOTIFICATIONS)]
 static NOTIF_SEARCH_WRAPPED: NotificationDef = NotificationDef::new(
 	"search_wrapped",
 	Level::Info,
@@ -58,7 +46,6 @@ static NOTIF_SEARCH_WRAPPED: NotificationDef = NotificationDef::new(
 	RegistrySource::Builtin,
 );
 
-#[distributed_slice(NOTIFICATIONS)]
 static NOTIF_NO_SEARCH_PATTERN: NotificationDef = NotificationDef::new(
 	"no_search_pattern",
 	Level::Warn,
@@ -66,7 +53,6 @@ static NOTIF_NO_SEARCH_PATTERN: NotificationDef = NotificationDef::new(
 	RegistrySource::Builtin,
 );
 
-#[distributed_slice(NOTIFICATIONS)]
 static NOTIF_NO_SELECTION: NotificationDef = NotificationDef::new(
 	"no_selection",
 	Level::Warn,
@@ -74,7 +60,6 @@ static NOTIF_NO_SELECTION: NotificationDef = NotificationDef::new(
 	RegistrySource::Builtin,
 );
 
-#[distributed_slice(NOTIFICATIONS)]
 static NOTIF_NO_MORE_MATCHES: NotificationDef = NotificationDef::new(
 	"no_more_matches",
 	Level::Warn,
@@ -82,7 +67,6 @@ static NOTIF_NO_MORE_MATCHES: NotificationDef = NotificationDef::new(
 	RegistrySource::Builtin,
 );
 
-#[distributed_slice(NOTIFICATIONS)]
 static NOTIF_NO_MATCHES_FOUND: NotificationDef = NotificationDef::new(
 	"no_matches_found",
 	Level::Warn,
@@ -90,7 +74,6 @@ static NOTIF_NO_MATCHES_FOUND: NotificationDef = NotificationDef::new(
 	RegistrySource::Builtin,
 );
 
-#[distributed_slice(NOTIFICATIONS)]
 static NOTIF_NO_BUFFERS: NotificationDef = NotificationDef::new(
 	"no_buffers",
 	Level::Warn,
@@ -98,7 +81,6 @@ static NOTIF_NO_BUFFERS: NotificationDef = NotificationDef::new(
 	RegistrySource::Builtin,
 );
 
-#[distributed_slice(NOTIFICATIONS)]
 static NOTIF_BUFFER_MODIFIED: NotificationDef = NotificationDef::new(
 	"buffer_modified",
 	Level::Warn,
@@ -106,7 +88,6 @@ static NOTIF_BUFFER_MODIFIED: NotificationDef = NotificationDef::new(
 	RegistrySource::Builtin,
 );
 
-#[distributed_slice(NOTIFICATIONS)]
 static NOTIF_NO_SELECTIONS_REMAIN: NotificationDef = NotificationDef::new(
 	"no_selections_remain",
 	Level::Warn,
@@ -114,7 +95,6 @@ static NOTIF_NO_SELECTIONS_REMAIN: NotificationDef = NotificationDef::new(
 	RegistrySource::Builtin,
 );
 
-#[distributed_slice(NOTIFICATIONS)]
 static NOTIF_YANKED_CHARS: NotificationDef = NotificationDef::new(
 	"yanked_chars",
 	Level::Info,
@@ -122,7 +102,6 @@ static NOTIF_YANKED_CHARS: NotificationDef = NotificationDef::new(
 	RegistrySource::Builtin,
 );
 
-#[distributed_slice(NOTIFICATIONS)]
 static NOTIF_YANKED_LINES: NotificationDef = NotificationDef::new(
 	"yanked_lines",
 	Level::Info,
@@ -130,7 +109,6 @@ static NOTIF_YANKED_LINES: NotificationDef = NotificationDef::new(
 	RegistrySource::Builtin,
 );
 
-#[distributed_slice(NOTIFICATIONS)]
 static NOTIF_DELETED_CHARS: NotificationDef = NotificationDef::new(
 	"deleted_chars",
 	Level::Info,
@@ -138,7 +116,6 @@ static NOTIF_DELETED_CHARS: NotificationDef = NotificationDef::new(
 	RegistrySource::Builtin,
 );
 
-#[distributed_slice(NOTIFICATIONS)]
 static NOTIF_PATTERN_NOT_FOUND: NotificationDef = NotificationDef::new(
 	"pattern_not_found",
 	Level::Warn,
@@ -146,7 +123,6 @@ static NOTIF_PATTERN_NOT_FOUND: NotificationDef = NotificationDef::new(
 	RegistrySource::Builtin,
 );
 
-#[distributed_slice(NOTIFICATIONS)]
 static NOTIF_REGEX_ERROR: NotificationDef = NotificationDef::new(
 	"regex_error",
 	Level::Error,
@@ -154,7 +130,6 @@ static NOTIF_REGEX_ERROR: NotificationDef = NotificationDef::new(
 	RegistrySource::Builtin,
 );
 
-#[distributed_slice(NOTIFICATIONS)]
 static NOTIF_SEARCH_INFO: NotificationDef = NotificationDef::new(
 	"search_info",
 	Level::Info,
@@ -162,7 +137,6 @@ static NOTIF_SEARCH_INFO: NotificationDef = NotificationDef::new(
 	RegistrySource::Builtin,
 );
 
-#[distributed_slice(NOTIFICATIONS)]
 static NOTIF_REPLACED: NotificationDef = NotificationDef::new(
 	"replaced",
 	Level::Info,
@@ -170,7 +144,6 @@ static NOTIF_REPLACED: NotificationDef = NotificationDef::new(
 	RegistrySource::Builtin,
 );
 
-#[distributed_slice(NOTIFICATIONS)]
 static NOTIF_MATCHES_COUNT: NotificationDef = NotificationDef::new(
 	"matches_count",
 	Level::Info,
@@ -178,7 +151,6 @@ static NOTIF_MATCHES_COUNT: NotificationDef = NotificationDef::new(
 	RegistrySource::Builtin,
 );
 
-#[distributed_slice(NOTIFICATIONS)]
 static NOTIF_SPLITS_COUNT: NotificationDef = NotificationDef::new(
 	"splits_count",
 	Level::Info,
@@ -186,7 +158,6 @@ static NOTIF_SPLITS_COUNT: NotificationDef = NotificationDef::new(
 	RegistrySource::Builtin,
 );
 
-#[distributed_slice(NOTIFICATIONS)]
 static NOTIF_SELECTIONS_KEPT: NotificationDef = NotificationDef::new(
 	"selections_kept",
 	Level::Info,
@@ -194,7 +165,6 @@ static NOTIF_SELECTIONS_KEPT: NotificationDef = NotificationDef::new(
 	RegistrySource::Builtin,
 );
 
-#[distributed_slice(NOTIFICATIONS)]
 static NOTIF_FILE_SAVED: NotificationDef = NotificationDef::new(
 	"file_saved",
 	Level::Success,
@@ -202,7 +172,6 @@ static NOTIF_FILE_SAVED: NotificationDef = NotificationDef::new(
 	RegistrySource::Builtin,
 );
 
-#[distributed_slice(NOTIFICATIONS)]
 static NOTIF_FILE_NOT_FOUND: NotificationDef = NotificationDef::new(
 	"file_not_found",
 	Level::Error,
@@ -210,7 +179,6 @@ static NOTIF_FILE_NOT_FOUND: NotificationDef = NotificationDef::new(
 	RegistrySource::Builtin,
 );
 
-#[distributed_slice(NOTIFICATIONS)]
 static NOTIF_FILE_LOAD_ERROR: NotificationDef = NotificationDef::new(
 	"file_load_error",
 	Level::Error,
@@ -218,7 +186,6 @@ static NOTIF_FILE_LOAD_ERROR: NotificationDef = NotificationDef::new(
 	RegistrySource::Builtin,
 );
 
-#[distributed_slice(NOTIFICATIONS)]
 static NOTIF_FILE_SAVE_ERROR: NotificationDef = NotificationDef::new(
 	"file_save_error",
 	Level::Error,
@@ -226,7 +193,6 @@ static NOTIF_FILE_SAVE_ERROR: NotificationDef = NotificationDef::new(
 	RegistrySource::Builtin,
 );
 
-#[distributed_slice(NOTIFICATIONS)]
 static NOTIF_BUFFER_CLOSED: NotificationDef = NotificationDef::new(
 	"buffer_closed",
 	Level::Info,
@@ -234,7 +200,6 @@ static NOTIF_BUFFER_CLOSED: NotificationDef = NotificationDef::new(
 	RegistrySource::Builtin,
 );
 
-#[distributed_slice(NOTIFICATIONS)]
 static NOTIF_SPLIT_NO_RANGES: NotificationDef = NotificationDef::new(
 	"split_no_ranges",
 	Level::Warn,
@@ -242,7 +207,6 @@ static NOTIF_SPLIT_NO_RANGES: NotificationDef = NotificationDef::new(
 	RegistrySource::Builtin,
 );
 
-#[distributed_slice(NOTIFICATIONS)]
 static NOTIF_NO_MATCHES_TO_SPLIT: NotificationDef = NotificationDef::new(
 	"no_matches_to_split",
 	Level::Warn,
@@ -250,7 +214,6 @@ static NOTIF_NO_MATCHES_TO_SPLIT: NotificationDef = NotificationDef::new(
 	RegistrySource::Builtin,
 );
 
-#[distributed_slice(NOTIFICATIONS)]
 static NOTIF_READONLY_ENABLED: NotificationDef = NotificationDef::new(
 	"readonly_enabled",
 	Level::Info,
@@ -258,7 +221,6 @@ static NOTIF_READONLY_ENABLED: NotificationDef = NotificationDef::new(
 	RegistrySource::Builtin,
 );
 
-#[distributed_slice(NOTIFICATIONS)]
 static NOTIF_READONLY_DISABLED: NotificationDef = NotificationDef::new(
 	"readonly_disabled",
 	Level::Info,
@@ -266,7 +228,6 @@ static NOTIF_READONLY_DISABLED: NotificationDef = NotificationDef::new(
 	RegistrySource::Builtin,
 );
 
-#[distributed_slice(NOTIFICATIONS)]
 static NOTIF_OPTION_SET: NotificationDef = NotificationDef::new(
 	"option_set",
 	Level::Info,
@@ -454,3 +415,39 @@ pub mod keys {
 		}
 	}
 }
+
+pub(crate) static NOTIFICATIONS: &[&NotificationDef] = &[
+	&NOTIF_BUFFER_READONLY,
+	&NOTIF_NOTHING_TO_UNDO,
+	&NOTIF_NOTHING_TO_REDO,
+	&NOTIF_UNDO,
+	&NOTIF_REDO,
+	&NOTIF_SEARCH_WRAPPED,
+	&NOTIF_NO_SEARCH_PATTERN,
+	&NOTIF_NO_SELECTION,
+	&NOTIF_NO_MORE_MATCHES,
+	&NOTIF_NO_MATCHES_FOUND,
+	&NOTIF_NO_BUFFERS,
+	&NOTIF_BUFFER_MODIFIED,
+	&NOTIF_NO_SELECTIONS_REMAIN,
+	&NOTIF_YANKED_CHARS,
+	&NOTIF_YANKED_LINES,
+	&NOTIF_DELETED_CHARS,
+	&NOTIF_PATTERN_NOT_FOUND,
+	&NOTIF_REGEX_ERROR,
+	&NOTIF_SEARCH_INFO,
+	&NOTIF_REPLACED,
+	&NOTIF_MATCHES_COUNT,
+	&NOTIF_SPLITS_COUNT,
+	&NOTIF_SELECTIONS_KEPT,
+	&NOTIF_FILE_SAVED,
+	&NOTIF_FILE_NOT_FOUND,
+	&NOTIF_FILE_LOAD_ERROR,
+	&NOTIF_FILE_SAVE_ERROR,
+	&NOTIF_BUFFER_CLOSED,
+	&NOTIF_SPLIT_NO_RANGES,
+	&NOTIF_NO_MATCHES_TO_SPLIT,
+	&NOTIF_READONLY_ENABLED,
+	&NOTIF_READONLY_DISABLED,
+	&NOTIF_OPTION_SET,
+];

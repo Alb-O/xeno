@@ -1,7 +1,7 @@
 //! Procedural macros for Xeno editor.
 //!
 //! Provides derive macros and attribute macros:
-//! - `#[derive(DispatchResult)]` - generates result handler slices
+//! - `#[derive(DispatchResult)]` - generates result handler registries
 //! - `#[derive(Option)]` - option registration from static definitions
 //! - `define_events!` - hook event generation
 
@@ -30,7 +30,7 @@ pub fn register_notification(input: TokenStream) -> TokenStream {
 
 /// Derives dispatch infrastructure for `ActionResult`.
 ///
-/// Generates handler slice declarations (`RESULT_*_HANDLERS`), a `dispatch_result`
+/// Generates handler registry declarations (`RESULT_*_HANDLERS`), a `dispatch_result`
 /// function, and `is_terminal_safe` method.
 ///
 /// Attributes:

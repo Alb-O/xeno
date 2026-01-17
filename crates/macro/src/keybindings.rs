@@ -9,7 +9,7 @@ use syn::parse::{Parse, ParseStream};
 use syn::{Token, parse_macro_input};
 
 
-/// Parses keybinding definitions and generates distributed slice entries.
+/// Parses keybinding definitions and generates static keybinding lists.
 pub fn parse_keybindings(input: TokenStream) -> TokenStream {
 	let input = parse_macro_input!(input as ParseKeybindingsInput);
 

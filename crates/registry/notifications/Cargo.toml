@@ -6,7 +6,6 @@ edition.workspace = true
 license.workspace = true
 
 [dependencies]
-linkme.workspace = true
 xeno-registry-core.workspace = true
 
 [lints]

@@ -1,7 +1,7 @@
 //! Registry indexing and lookup for editor extensions.
 //!
-//! This module provides compile-time distributed slice indexing for actions, commands,
-//! motions, text objects, and file types.
+//! This module provides registry indexing for actions, commands, motions, text objects,
+//! and file types.
 
 mod builders;
 mod collision;

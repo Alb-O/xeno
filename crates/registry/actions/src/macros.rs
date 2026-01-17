@@ -146,7 +146,9 @@ macro_rules! action {
 	};
 }
 
-/// Registers a handler for an [`ActionResult`](crate::ActionResult) variant.
+/// Defines a handler for an [`ActionResult`](crate::ActionResult) variant.
+///
+/// Register it explicitly with [`register_result_handler`](crate::register_result_handler).
 #[macro_export]
 macro_rules! result_handler {
 	($slice:ident, $static_name:ident, $name:literal, $body:expr) => {
@@ -170,8 +172,8 @@ macro_rules! result_handler {
 		},
 		$body:expr
 	) => {
-		#[::linkme::distributed_slice($crate::$slice)]
-		static $static_name: $crate::editor_ctx::ResultHandler =
+		#[allow(non_upper_case_globals)]
+		pub static $static_name: $crate::editor_ctx::ResultHandler =
 			$crate::editor_ctx::ResultHandler {
 				name: $name,
 				priority: $crate::__opt!($({$priority})?, 0),
@@ -215,7 +217,10 @@ macro_rules! key_prefix {
 	};
 }
 
-/// Registers an extension handler for [`ActionResult`](crate::ActionResult).
+/// Defines an extension handler for [`ActionResult`](crate::ActionResult).
+///
+/// Register it explicitly with
+/// [`register_result_extension_handler`](crate::register_result_extension_handler).
 ///
 /// Extension handlers run after the core per-variant handlers, in priority order.
 /// They should return [`HandleOutcome::NotHandled`](crate::editor_ctx::HandleOutcome::NotHandled)
@@ -241,8 +246,8 @@ macro_rules! result_extension_handler {
 		},
 		$body:expr
 	) => {
-		#[::linkme::distributed_slice($crate::RESULT_EXTENSION_HANDLERS)]
-		static $static_name: $crate::editor_ctx::ResultHandler =
+		#[allow(non_upper_case_globals)]
+		pub static $static_name: $crate::editor_ctx::ResultHandler =
 			$crate::editor_ctx::ResultHandler {
 				name: $name,
 				priority: $crate::__opt!($({$priority})?, 0),

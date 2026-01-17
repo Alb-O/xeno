@@ -1,14 +1,13 @@
 //! Action definition and handler types.
 //!
-//! Actions are registered at compile time via [`linkme`] distributed slices
-//! and looked up by keybindings.
+//! Actions are registered explicitly and looked up by keybindings.
 
 use crate::{ActionContext, ActionResult, RegistryMeta};
 
 /// Definition of a registered action.
 ///
 /// Actions are the fundamental unit of editor behavior. They're registered
-/// at compile time via [`linkme`] distributed slices and looked up by keybindings.
+/// explicitly and looked up by keybindings.
 ///
 /// # Registration
 ///

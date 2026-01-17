@@ -16,7 +16,7 @@ use crate::builtins;
 use crate::motions::MotionDef;
 use crate::textobj::TextObjectDef;
 
-/// Builds the complete extension registry from distributed slices.
+/// Builds the complete extension registry from registered definitions.
 ///
 /// Processes all registered extensions (actions, commands, motions, etc.),
 /// resolves collisions based on priority, and performs validation checks.
@@ -53,7 +53,7 @@ pub(crate) fn build_registry_from_defs(
 	}
 }
 
-/// Builds the command registry index from the COMMANDS distributed slice.
+/// Builds the command registry index from command definitions.
 fn build_command_index_from_defs(commands: &[&'static CommandDef]) -> RegistryIndex<CommandDef> {
 	let mut index = RegistryIndex::new();
 	let mut sorted: Vec<_> = commands.to_vec();
@@ -145,7 +145,7 @@ fn build_action_index_from_defs(actions: &[&'static ActionDef]) -> ActionRegistr
 	}
 }
 
-/// Builds the motion registry index from the MOTIONS distributed slice.
+/// Builds the motion registry index from motion definitions.
 fn build_motion_index_from_defs(motions: &[&'static MotionDef]) -> RegistryIndex<MotionDef> {
 	let mut index = RegistryIndex::new();
 	let mut sorted: Vec<_> = motions.to_vec();
@@ -164,7 +164,7 @@ fn build_motion_index_from_defs(motions: &[&'static MotionDef]) -> RegistryIndex
 	index
 }
 
-/// Builds the text object registry index from the TEXT_OBJECTS distributed slice.
+/// Builds the text object registry index from text object definitions.
 fn build_text_object_index_from_defs(
 	text_objects: &[&'static TextObjectDef],
 ) -> RegistryIndex<TextObjectDef> {

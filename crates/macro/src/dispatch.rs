@@ -107,7 +107,7 @@ pub fn derive_dispatch_result(input: TokenStream) -> TokenStream {
 		};
 
 		match_arms.push(quote! {
-			#pattern => run_handlers(&#slice_ident, result, ctx, extend)
+			#pattern => run_handlers(#slice_ident.snapshot(), result, ctx, extend)
 		});
 
 		let name_str = variant_name.to_string();
@@ -144,18 +144,14 @@ pub fn derive_dispatch_result(input: TokenStream) -> TokenStream {
 
 	let expanded = quote! {
 		#[allow(non_upper_case_globals, missing_docs)]
-		mod __dispatch_result_slices {
-			use super::*;
-			use ::linkme::distributed_slice;
-			use crate::editor_ctx::ResultHandler;
-
+		mod __dispatch_result_registries {
 			#(
-				#[distributed_slice]
-				pub static #slice_names: [ResultHandler];
+				pub static #slice_names: crate::ResultHandlerRegistry =
+					crate::ResultHandlerRegistry::new();
 			)*
 		}
 
-		pub use __dispatch_result_slices::*;
+		pub use __dispatch_result_registries::*;
 
 		impl #enum_name {
 			/// Returns the variant name as a static string.
@@ -189,12 +185,11 @@ pub fn derive_dispatch_result(input: TokenStream) -> TokenStream {
 			use crate::editor_ctx::HandleOutcome;
 
 			fn run_handlers(
-				handlers: &[crate::editor_ctx::ResultHandler],
+				mut handlers: Vec<&crate::editor_ctx::ResultHandler>,
 				result: &#enum_name,
 				ctx: &mut crate::editor_ctx::EditorContext,
 				extend: bool,
 			) -> HandleOutcome {
-				let mut handlers = handlers.iter().collect::<Vec<_>>();
 				handlers.sort_by_key(|handler| handler.priority);
 				for handler in handlers {
 					match (handler.handle)(result, ctx, extend) {
@@ -217,7 +212,8 @@ pub fn derive_dispatch_result(input: TokenStream) -> TokenStream {
 				HandleOutcome::NotHandled => {}
 			}
 
-			let extension_outcome = run_handlers(&RESULT_EXTENSION_HANDLERS, result, ctx, extend);
+			let extension_outcome =
+				run_handlers(RESULT_EXTENSION_HANDLERS.snapshot(), result, ctx, extend);
 			match extension_outcome {
 				HandleOutcome::Quit => return true,
 				HandleOutcome::Handled => handled = true,

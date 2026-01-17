@@ -1,13 +1,7 @@
 //! Runtime notification keys (result handlers, input state).
 
-use linkme::distributed_slice;
+use crate::{AutoDismiss, Level, Notification, NotificationDef, NotificationKey, RegistrySource};
 
-use crate::{
-	AutoDismiss, Level, NOTIFICATIONS, Notification, NotificationDef, NotificationKey,
-	RegistrySource,
-};
-
-#[distributed_slice(NOTIFICATIONS)]
 static NOTIF_VIEWPORT_UNAVAILABLE: NotificationDef = NotificationDef::new(
 	"viewport_unavailable",
 	Level::Error,
@@ -15,7 +9,6 @@ static NOTIF_VIEWPORT_UNAVAILABLE: NotificationDef = NotificationDef::new(
 	RegistrySource::Builtin,
 );
 
-#[distributed_slice(NOTIFICATIONS)]
 static NOTIF_SCREEN_MOTION_UNAVAILABLE: NotificationDef = NotificationDef::new(
 	"screen_motion_unavailable",
 	Level::Error,
@@ -23,7 +16,6 @@ static NOTIF_SCREEN_MOTION_UNAVAILABLE: NotificationDef = NotificationDef::new(
 	RegistrySource::Builtin,
 );
 
-#[distributed_slice(NOTIFICATIONS)]
 static NOTIF_PENDING_PROMPT: NotificationDef = NotificationDef::new(
 	"pending_prompt",
 	Level::Info,
@@ -31,7 +23,6 @@ static NOTIF_PENDING_PROMPT: NotificationDef = NotificationDef::new(
 	RegistrySource::Builtin,
 );
 
-#[distributed_slice(NOTIFICATIONS)]
 static NOTIF_COUNT_DISPLAY: NotificationDef = NotificationDef::new(
 	"count_display",
 	Level::Info,
@@ -39,7 +30,6 @@ static NOTIF_COUNT_DISPLAY: NotificationDef = NotificationDef::new(
 	RegistrySource::Builtin,
 );
 
-#[distributed_slice(NOTIFICATIONS)]
 static NOTIF_UNHANDLED_RESULT: NotificationDef = NotificationDef::new(
 	"unhandled_result",
 	Level::Debug,
@@ -91,3 +81,11 @@ pub mod keys {
 		}
 	}
 }
+
+pub(crate) static NOTIFICATIONS: &[&NotificationDef] = &[
+	&NOTIF_VIEWPORT_UNAVAILABLE,
+	&NOTIF_SCREEN_MOTION_UNAVAILABLE,
+	&NOTIF_PENDING_PROMPT,
+	&NOTIF_COUNT_DISPLAY,
+	&NOTIF_UNHANDLED_RESULT,
+];

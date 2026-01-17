@@ -1,10 +1,7 @@
 //! Generic fallback notifications. Prefer domain-specific keys when available.
 
-use linkme::distributed_slice;
+use crate::{AutoDismiss, Level, Notification, NotificationDef, RegistrySource};
 
-use crate::{AutoDismiss, Level, NOTIFICATIONS, Notification, NotificationDef, RegistrySource};
-
-#[distributed_slice(NOTIFICATIONS)]
 static NOTIF_INFO: NotificationDef = NotificationDef::new(
 	"info",
 	Level::Info,
@@ -12,7 +9,6 @@ static NOTIF_INFO: NotificationDef = NotificationDef::new(
 	RegistrySource::Builtin,
 );
 
-#[distributed_slice(NOTIFICATIONS)]
 static NOTIF_WARN: NotificationDef = NotificationDef::new(
 	"warn",
 	Level::Warn,
@@ -20,7 +16,6 @@ static NOTIF_WARN: NotificationDef = NotificationDef::new(
 	RegistrySource::Builtin,
 );
 
-#[distributed_slice(NOTIFICATIONS)]
 static NOTIF_ERROR: NotificationDef = NotificationDef::new(
 	"error",
 	Level::Error,
@@ -28,7 +23,6 @@ static NOTIF_ERROR: NotificationDef = NotificationDef::new(
 	RegistrySource::Builtin,
 );
 
-#[distributed_slice(NOTIFICATIONS)]
 static NOTIF_SUCCESS: NotificationDef = NotificationDef::new(
 	"success",
 	Level::Success,
@@ -36,7 +30,6 @@ static NOTIF_SUCCESS: NotificationDef = NotificationDef::new(
 	RegistrySource::Builtin,
 );
 
-#[distributed_slice(NOTIFICATIONS)]
 static NOTIF_DEBUG: NotificationDef = NotificationDef::new(
 	"debug",
 	Level::Debug,
@@ -88,3 +81,11 @@ pub mod keys {
 		}
 	}
 }
+
+pub(crate) static NOTIFICATIONS: &[&NotificationDef] = &[
+	&NOTIF_INFO,
+	&NOTIF_WARN,
+	&NOTIF_ERROR,
+	&NOTIF_SUCCESS,
+	&NOTIF_DEBUG,
+];

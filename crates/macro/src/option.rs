@@ -18,7 +18,7 @@ use syn::{Expr, Item, Lit, Meta, parse_macro_input};
 /// ```
 ///
 /// Generates:
-/// - `__OPT_TAB_WIDTH` static registered in `OPTIONS` slice
+/// - `__OPT_TAB_WIDTH` static registered in `OPTIONS` list
 /// - `TAB_WIDTH` constant as `TypedOptionKey<i64>`
 ///
 /// The `validate` attribute is optional and references a validator function
@@ -179,8 +179,8 @@ pub fn derive_option(input: TokenStream) -> TokenStream {
 
 	let expanded = quote! {
 		#[allow(non_upper_case_globals)]
-		#[::linkme::distributed_slice(::xeno_registry_options::OPTIONS)]
-		static #internal_static: ::xeno_registry_options::OptionDef = ::xeno_registry_options::OptionDef {
+		pub(crate) static #internal_static: ::xeno_registry_options::OptionDef =
+			::xeno_registry_options::OptionDef {
 			meta: ::xeno_registry_options::RegistryMeta {
 				id: ::core::concat!(::core::env!("CARGO_PKG_NAME"), "::", ::core::stringify!(#name)),
 				name: ::core::stringify!(#name),

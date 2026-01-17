@@ -1,10 +1,7 @@
 //! Action notification keys.
 
-use linkme::distributed_slice;
+use crate::{AutoDismiss, Level, Notification, NotificationDef, RegistrySource};
 
-use crate::{AutoDismiss, Level, NOTIFICATIONS, Notification, NotificationDef, RegistrySource};
-
-#[distributed_slice(NOTIFICATIONS)]
 static NOTIF_UNKNOWN_ACTION: NotificationDef = NotificationDef::new(
 	"unknown_action",
 	Level::Error,
@@ -12,7 +9,6 @@ static NOTIF_UNKNOWN_ACTION: NotificationDef = NotificationDef::new(
 	RegistrySource::Builtin,
 );
 
-#[distributed_slice(NOTIFICATIONS)]
 static NOTIF_ACTION_ERROR: NotificationDef = NotificationDef::new(
 	"action_error",
 	Level::Error,
@@ -40,3 +36,8 @@ pub mod keys {
 		}
 	}
 }
+
+pub(crate) static NOTIFICATIONS: &[&NotificationDef] = &[
+	&NOTIF_UNKNOWN_ACTION,
+	&NOTIF_ACTION_ERROR,
+];

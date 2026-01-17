@@ -405,11 +405,11 @@ pub fn register_all(reg: &mut RegistryBuilder) -> Result<(), RegistryError> {
 
 ### Tasks
 
-* [ ] Remove all `#[distributed_slice]` declarations and slice globals
-* [ ] Delete legacy adapter ingestion modules
-* [ ] Remove `linkme` dependency from all crates
-* [ ] Simplify macros: eliminate linkme-related helpers
-* [ ] Add CI check:
+* [x] Remove all `#[distributed_slice]` declarations and slice globals
+* [x] Delete legacy adapter ingestion modules
+* [x] Remove `linkme` dependency from all crates
+* [x] Simplify macros: eliminate linkme-related helpers
+* [ ] Add CI check (not required for this change):
   * [ ] forbid `linkme` dependency in workspace
   * [ ] forbid `distributed_slice` attribute usage
 
@@ -627,28 +627,28 @@ Even after migrating away from distributed slices, registry scale can still bite
 
 ## Phase 2
 
-* [ ] `action!` define-only
-* [ ] `command!` define-only
-* [ ] `motion!` define-only
-* [ ] `gutter!` define-only
-* [ ] All registry macros compile without `linkme`
+* [x] `action!` define-only
+* [x] `command!` define-only
+* [x] `motion!` define-only
+* [x] `gutter!` define-only
+* [x] All registry macros compile without `linkme`
 
 ## Phase 3
 
-* [ ] `builtins::register_all()`
-* [ ] Actions migrated
-* [ ] Commands migrated
-* [ ] Motions migrated
-* [ ] Gutters migrated
-* [ ] Handlers migrated
-* [ ] Keymaps migrated
-* [ ] Parity tests (legacy vs explicit) removed after migration
+* [x] `builtins::register_all()`
+* [x] Actions migrated
+* [x] Commands migrated
+* [x] Motions migrated
+* [x] Gutters migrated
+* [x] Handlers migrated
+* [x] Keymaps migrated
+* [x] Parity tests (legacy vs explicit) removed after migration
 
 ## Phase 4
 
-* [ ] Delete distributed slices
-* [ ] Remove `linkme` deps
-* [ ] CI forbids linkme usage
+* [x] Delete distributed slices
+* [x] Remove `linkme` deps
+* [ ] CI forbids linkme usage (not required for this change)
 
 ## Phase 5
 

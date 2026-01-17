@@ -16,9 +16,8 @@
 //! ctx.emit(keys::file_saved::call(&path));
 //! ```
 
+use std::sync::LazyLock;
 use std::time::Duration;
-
-use linkme::distributed_slice;
 pub use xeno_registry_core::{Key, RegistryMetadata, RegistrySource};
 
 mod actions;
@@ -72,7 +71,7 @@ impl Default for AutoDismiss {
 	}
 }
 
-/// Static notification definition registered in the distributed slice.
+/// Static notification definition registered in the notification list.
 ///
 /// This contains the metadata for a notification type, but not the message
 /// content itself. Messages are provided at emit time via [`Notification`].
@@ -106,8 +105,15 @@ impl NotificationDef {
 }
 
 /// Registry of all notification definitions.
-#[distributed_slice]
-pub static NOTIFICATIONS: [NotificationDef];
+pub static NOTIFICATIONS: LazyLock<Vec<&NotificationDef>> = LazyLock::new(|| {
+	let mut defs = Vec::new();
+	defs.extend_from_slice(actions::NOTIFICATIONS);
+	defs.extend_from_slice(builtins::NOTIFICATIONS);
+	defs.extend_from_slice(commands::NOTIFICATIONS);
+	defs.extend_from_slice(editor::NOTIFICATIONS);
+	defs.extend_from_slice(runtime::NOTIFICATIONS);
+	defs
+});
 
 /// Runtime notification instance ready to display.
 ///

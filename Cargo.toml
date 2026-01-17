@@ -37,7 +37,6 @@ kdl = "6.5"
 kitty-test-harness = "0.1"
 libc = "0.2"
 libloading = "0.9"
-linkme = "0.3"
 log = { version = "0.4", features = ["kv"] }
 lsp-types = "0.97"
 notify = "8.2"

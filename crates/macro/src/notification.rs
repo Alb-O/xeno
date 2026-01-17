@@ -84,7 +84,6 @@ pub fn register_notification(input: TokenStream) -> TokenStream {
 	let trait_name = format_ident!("Notify{}Ext", static_name);
 
 	let expanded = quote! {
-		#[::linkme::distributed_slice(xeno_registry::notifications::NOTIFICATION_TYPES)]
 		pub static #static_name: xeno_registry::notifications::NotificationTypeDef =
 			xeno_registry::notifications::NotificationTypeDef {
 				id: #id,

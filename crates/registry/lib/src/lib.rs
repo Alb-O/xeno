@@ -34,8 +34,6 @@ pub mod keymap_registry;
 pub mod builder;
 /// Built-in registry registrations.
 pub mod builtins;
-/// Legacy ingestion adapter for distributed slices.
-pub mod legacy;
 /// Plugin registration trait for explicit wiring.
 pub mod plugin;
 
@@ -193,9 +191,6 @@ mod tests {
 	}
 
 	/// Sanity check to catch registry list regressions.
-	///
-	/// If distributed slice registration breaks (e.g., due to linker issues
-	/// or missing feature flags), these counts will drop to zero.
 	#[test]
 	fn registry_sanity_check() {
 		assert!(
@@ -234,8 +229,8 @@ mod tests {
 		assert_unique_ids("hooks", HOOKS.iter().copied());
 		assert_unique_ids("statusline", STATUSLINE_SEGMENTS.iter().copied());
 		assert_unique_ids("text_objects", TEXT_OBJECTS.iter().copied());
-		assert_unique_ids("options", options::OPTIONS.iter());
-		assert_unique_ids("themes", themes::THEMES.iter());
+		assert_unique_ids("options", options::OPTIONS.iter().copied());
+		assert_unique_ids("themes", themes::THEMES.iter().copied());
 	}
 
 	#[test]

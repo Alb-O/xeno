@@ -32,7 +32,7 @@ impl CompletionSource for ThemeSource {
 		let mut items: Vec<_> = runtime_themes()
 			.iter()
 			.copied()
-			.chain(THEMES.iter())
+			.chain(THEMES.iter().copied())
 			.filter(|t| {
 				t.meta.name.starts_with(prefix)
 					|| t.meta.aliases.iter().any(|a| a.starts_with(prefix))

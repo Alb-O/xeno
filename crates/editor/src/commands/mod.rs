@@ -13,7 +13,6 @@ mod lsp;
 use std::any::Any;
 
 use futures::future::LocalBoxFuture;
-use linkme::distributed_slice;
 use xeno_registry::Capability;
 pub use xeno_registry::RegistrySource;
 pub use xeno_registry::commands::{CommandError, CommandOutcome, CommandResult};
@@ -62,20 +61,34 @@ pub struct EditorCommandDef {
 	pub source: RegistrySource,
 }
 
-/// Distributed slice for compile-time editor command registration.
-#[distributed_slice]
-pub static EDITOR_COMMANDS: [EditorCommandDef];
+/// Registry of editor-direct commands.
+pub static EDITOR_COMMANDS: &[&EditorCommandDef] = &[
+	&debug::EDITOR_CMD_stats,
+	#[cfg(feature = "lsp")]
+	&lsp::EDITOR_CMD_hover,
+	#[cfg(feature = "lsp")]
+	&lsp::EDITOR_CMD_gd,
+	#[cfg(feature = "lsp")]
+	&lsp::EDITOR_CMD_code_action,
+	#[cfg(feature = "lsp")]
+	&lsp::EDITOR_CMD_rename,
+	#[cfg(feature = "lsp")]
+	&lsp::EDITOR_CMD_diagnostic_next,
+	#[cfg(feature = "lsp")]
+	&lsp::EDITOR_CMD_diagnostic_prev,
+];
 
 /// Finds an editor command by name or alias.
 pub fn find_editor_command(name: &str) -> Option<&'static EditorCommandDef> {
 	EDITOR_COMMANDS
 		.iter()
+		.copied()
 		.find(|c| c.name == name || c.aliases.contains(&name))
 }
 
 /// Returns an iterator over all registered editor commands, sorted by name.
 pub fn all_editor_commands() -> impl Iterator<Item = &'static EditorCommandDef> {
-	let mut commands: Vec<_> = EDITOR_COMMANDS.iter().collect();
+	let mut commands: Vec<_> = EDITOR_COMMANDS.iter().copied().collect();
 	commands.sort_by_key(|c| c.name);
 	commands.into_iter()
 }
@@ -92,8 +105,7 @@ macro_rules! editor_command {
 	}, handler: $handler:expr) => {
 		paste::paste! {
 			#[allow(non_upper_case_globals)]
-			#[::linkme::distributed_slice($crate::commands::EDITOR_COMMANDS)]
-			static [<EDITOR_CMD_ $name>]: $crate::commands::EditorCommandDef =
+			pub static [<EDITOR_CMD_ $name>]: $crate::commands::EditorCommandDef =
 				$crate::commands::EditorCommandDef {
 					id: concat!(env!("CARGO_PKG_NAME"), "::", stringify!($name)),
 					name: stringify!($name),

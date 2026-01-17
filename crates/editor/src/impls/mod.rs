@@ -220,6 +220,8 @@ impl Editor {
 
 	/// Creates an editor from the given content and optional file path.
 	pub fn from_content(content: String, path: Option<PathBuf>) -> Self {
+		crate::editor_ctx::register_result_handlers();
+
 		// Initialize language loader from embedded languages.kdl
 		let language_loader = LanguageLoader::from_embedded();
 

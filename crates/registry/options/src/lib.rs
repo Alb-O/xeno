@@ -3,7 +3,7 @@
 //! Options are named settings that can be configured globally or per-buffer.
 //! This crate provides:
 //! - Type definitions ([`OptionDef`], [`OptionValue`], [`OptionType`], [`OptionScope`])
-//! - Distributed slice ([`OPTIONS`])
+//! - Registry list ([`OPTIONS`])
 //! - Registration via `#[derive_option]` proc macro
 //! - Typed keys ([`TypedOptionKey<T>`]) for compile-time type safety
 //! - Validation via [`OptionDef::validator`] and [`validators`] module
@@ -77,10 +77,7 @@
 //!
 //! Options have a scope (global or buffer). Global options (like `theme`) in
 //! language blocks will generate warnings at parse time and be ignored.
-
 use std::marker::PhantomData;
-
-use linkme::distributed_slice;
 
 // Re-export self for proc macro absolute path resolution
 #[doc(hidden)]
@@ -376,12 +373,20 @@ impl<T: FromOptionValue> core::fmt::Debug for TypedOptionKey<T> {
 }
 
 /// Registry of all option definitions.
-#[distributed_slice]
-pub static OPTIONS: [OptionDef];
+pub static OPTIONS: &[&OptionDef] = &[
+	&impls::cursorline::__OPT_CURSORLINE,
+	&impls::indent::__OPT_TAB_WIDTH,
+	&impls::scroll::__OPT_SCROLL_LINES,
+	&impls::scroll::__OPT_SCROLL_MARGIN,
+	&impls::theme::__OPT_THEME,
+];
 
 /// Finds an option definition by name.
 pub fn find(name: &str) -> Option<&'static OptionDef> {
-	OPTIONS.iter().find(|o| o.meta.name == name)
+	OPTIONS
+		.iter()
+		.copied()
+		.find(|o| o.meta.name == name)
 }
 
 /// Finds an option definition by its internal name.
@@ -389,7 +394,10 @@ pub fn find(name: &str) -> Option<&'static OptionDef> {
 /// This is equivalent to [`find`] and is provided for clarity when
 /// distinguishing between name-based and KDL key-based lookups.
 pub fn find_by_name(name: &str) -> Option<&'static OptionDef> {
-	OPTIONS.iter().find(|o| o.meta.name == name)
+	OPTIONS
+		.iter()
+		.copied()
+		.find(|o| o.meta.name == name)
 }
 
 /// Finds an option definition by its KDL configuration key.
@@ -397,19 +405,22 @@ pub fn find_by_name(name: &str) -> Option<&'static OptionDef> {
 /// Use this when parsing config files where options are identified
 /// by their KDL key (e.g., "tab-width" instead of "tab_width").
 pub fn find_by_kdl(kdl_key: &str) -> Option<&'static OptionDef> {
-	OPTIONS.iter().find(|o| o.kdl_key == kdl_key)
+	OPTIONS
+		.iter()
+		.copied()
+		.find(|o| o.kdl_key == kdl_key)
 }
 
 /// Returns all registered options.
 pub fn all() -> impl Iterator<Item = &'static OptionDef> {
-	OPTIONS.iter()
+	OPTIONS.iter().copied()
 }
 
 /// Returns all options sorted by KDL key.
 ///
 /// Useful for documentation, completion, and consistent ordering.
 pub fn all_sorted() -> impl Iterator<Item = &'static OptionDef> {
-	let mut opts: Vec<_> = OPTIONS.iter().collect();
+	let mut opts: Vec<_> = OPTIONS.iter().copied().collect();
 	opts.sort_by_key(|o| o.kdl_key);
 	opts.into_iter()
 }
