@@ -20,16 +20,19 @@
 //! - Document synchronization via [`xeno_lsp::DocumentSync`]
 //! - Server registry via [`xeno_lsp::Registry`]
 //!
-//! # Submodules
+//! # Module Organization
 //!
-//! - [`completion_controller`] - Completion request debouncing and cancellation
-//! - [`completion_filter`] - Fuzzy filtering for completion items
-//! - [`diagnostics`] - Diagnostic navigation helpers
-//! - [`events`] - LSP UI event handling
-//! - [`menu`] - Completion menu rendering and interaction
-//! - [`prompt`] - LSP rename prompt handling
-//! - [`snippet`] - Snippet parsing for completions
-//! - [`workspace_edit`] - Workspace edit planning and application
+//! Interactive features are split by concern: [`completion`] handles the completion
+//! lifecycle from triggering through application, [`code_action`] manages the code action
+//! menu, and [`signature_help`] displays function signatures. All three share navigation
+//! logic via [`menu`].
+//!
+//! Infrastructure supports these features: [`completion_controller`] debounces requests
+//! and manages cancellation, [`completion_filter`] provides fuzzy matching, [`snippet`]
+//! parses LSP snippet syntax, and [`workspace_edit`] applies multi-file edits.
+//!
+//! Coordination happens through [`events`] (async UI event routing) and [`diagnostics`]
+//! (navigation between errors/warnings).
 //!
 //! # Usage
 //!
@@ -53,6 +56,8 @@
 //! ```
 
 pub(crate) mod coalesce;
+pub(crate) mod code_action;
+pub(crate) mod completion;
 pub(crate) mod completion_controller;
 pub(crate) mod completion_filter;
 pub(crate) mod diagnostics;
@@ -60,6 +65,7 @@ pub(crate) mod events;
 pub(crate) mod menu;
 pub(crate) mod pending;
 pub(crate) mod prompt;
+pub(crate) mod signature_help;
 pub(crate) mod snippet;
 pub(crate) mod types;
 pub(crate) mod workspace_edit;
