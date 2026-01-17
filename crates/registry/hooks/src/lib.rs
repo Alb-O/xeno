@@ -214,12 +214,21 @@ pub static HOOKS: LazyLock<RegistryIndex<HookDef>> = LazyLock::new(|| {
 		.build()
 });
 
-/// Builtin hooks grouped by event type.
+/// Builtin hooks grouped by event type, sorted by priority then name.
 static BUILTIN_BY_EVENT: LazyLock<HashMap<HookEvent, Vec<&'static HookDef>>> =
 	LazyLock::new(|| {
 		let mut map: HashMap<HookEvent, Vec<&'static HookDef>> = HashMap::new();
 		for hook in HOOKS.iter() {
 			map.entry(hook.event).or_default().push(hook);
+		}
+		// Sort each event's hooks by priority (asc), then name (asc)
+		for hooks in map.values_mut() {
+			hooks.sort_by(|a, b| {
+				a.meta
+					.priority
+					.cmp(&b.meta.priority)
+					.then_with(|| a.meta.name.cmp(b.meta.name))
+			});
 		}
 		map
 	});
@@ -231,6 +240,7 @@ static EXTRA_BY_EVENT: LazyLock<std::sync::RwLock<HashMap<HookEvent, Vec<&'stati
 /// Registers an extra hook definition at runtime.
 ///
 /// Returns `true` if the hook was added, `false` if already registered.
+/// Maintains sorted order (priority asc, name asc) within each event.
 pub fn register_hook(def: &'static HookDef) -> bool {
 	if HOOKS.items().iter().any(|&h| std::ptr::eq(h, def)) {
 		return false;
@@ -243,7 +253,16 @@ pub fn register_hook(def: &'static HookDef) -> bool {
 		return false;
 	}
 
-	event_hooks.push(def);
+	// Insert in sorted position (priority asc, name asc)
+	let pos = event_hooks
+		.binary_search_by(|h| {
+			h.meta
+				.priority
+				.cmp(&def.meta.priority)
+				.then_with(|| h.meta.name.cmp(def.meta.name))
+		})
+		.unwrap_or_else(|i| i);
+	event_hooks.insert(pos, def);
 	true
 }
 

@@ -216,8 +216,9 @@ impl<T: RegistryEntry + 'static> RegistryBuilder<T> {
 	///
 	/// Panics if duplicate keys are found and policy is [`DuplicatePolicy::Panic`].
 	pub fn build(mut self) -> RegistryIndex<T> {
-		let mut seen = std::collections::HashSet::with_capacity(self.defs.len());
-		self.defs.retain(|d| seen.insert(*d as *const T as usize));
+		let mut seen: std::collections::HashSet<*const T> =
+			std::collections::HashSet::with_capacity(self.defs.len());
+		self.defs.retain(|d| seen.insert(*d as *const T));
 
 		let mut by_key = HashMap::with_capacity(self.defs.len() * 2);
 
@@ -271,11 +272,32 @@ impl<T: RegistryEntry + 'static> RegistryBuilder<T> {
 	}
 }
 
+/// Runtime overlay for registry extensions.
+///
+/// Holds both the list of extra definitions and their key mappings in a single
+/// lock to ensure atomic registration.
+struct RuntimeExtras<T: 'static> {
+	items: Vec<&'static T>,
+	by_key: HashMap<&'static str, &'static T>,
+}
+
+impl<T: 'static> Default for RuntimeExtras<T> {
+	fn default() -> Self {
+		Self {
+			items: Vec::new(),
+			by_key: HashMap::new(),
+		}
+	}
+}
+
 /// Registry wrapper for runtime-extensible registries.
 ///
 /// Combines an immutable [`RegistryIndex`] of builtins with a mutable overlay
 /// for runtime additions. Provides the same API as `RegistryIndex` plus
 /// [`register`](Self::register) for adding definitions at runtime.
+///
+/// Registration is atomic: either the definition and all its keys are added,
+/// or none are (on conflict with `DuplicatePolicy::Panic`).
 ///
 /// # Example
 ///
@@ -294,8 +316,7 @@ impl<T: RegistryEntry + 'static> RegistryBuilder<T> {
 pub struct RuntimeRegistry<T: RegistryEntry + 'static> {
 	label: &'static str,
 	builtins: RegistryIndex<T>,
-	extras_items: std::sync::RwLock<Vec<&'static T>>,
-	extras_by_key: std::sync::RwLock<HashMap<&'static str, &'static T>>,
+	extras: std::sync::RwLock<RuntimeExtras<T>>,
 	policy: DuplicatePolicy,
 }
 
@@ -305,8 +326,7 @@ impl<T: RegistryEntry + 'static> RuntimeRegistry<T> {
 		Self {
 			label,
 			builtins,
-			extras_items: std::sync::RwLock::new(Vec::new()),
-			extras_by_key: std::sync::RwLock::new(HashMap::new()),
+			extras: std::sync::RwLock::new(RuntimeExtras::default()),
 			policy: DuplicatePolicy::for_build(),
 		}
 	}
@@ -320,8 +340,7 @@ impl<T: RegistryEntry + 'static> RuntimeRegistry<T> {
 		Self {
 			label,
 			builtins,
-			extras_items: std::sync::RwLock::new(Vec::new()),
-			extras_by_key: std::sync::RwLock::new(HashMap::new()),
+			extras: std::sync::RwLock::new(RuntimeExtras::default()),
 			policy,
 		}
 	}
@@ -330,9 +349,10 @@ impl<T: RegistryEntry + 'static> RuntimeRegistry<T> {
 	///
 	/// Checks runtime extras first (allowing overrides), then builtins.
 	pub fn get(&self, key: &str) -> Option<&'static T> {
-		self.extras_by_key
+		self.extras
 			.read()
 			.expect("poisoned")
+			.by_key
 			.get(key)
 			.copied()
 			.or_else(|| self.builtins.get(key))
@@ -343,31 +363,85 @@ impl<T: RegistryEntry + 'static> RuntimeRegistry<T> {
 	/// Returns `true` if the definition was added, `false` if it was already
 	/// registered (either as builtin or previous runtime addition).
 	///
+	/// Registration is atomic: all keys are validated before any are inserted.
+	/// If validation fails with `DuplicatePolicy::Panic`, no partial state remains.
+	///
 	/// # Panics
 	///
 	/// Panics if the definition's keys conflict with existing keys and the
 	/// policy is [`DuplicatePolicy::Panic`].
 	pub fn register(&self, def: &'static T) -> bool {
+		// Check builtins first (no lock needed, immutable)
 		if self.builtins.items().iter().any(|&b| std::ptr::eq(b, def)) {
 			return false;
 		}
 
-		let mut extras = self.extras_items.write().expect("poisoned");
-		if extras.iter().any(|&e| std::ptr::eq(e, def)) {
+		let mut extras = self.extras.write().expect("poisoned");
+
+		// Check if already registered in extras
+		if extras.items.iter().any(|&e| std::ptr::eq(e, def)) {
 			return false;
 		}
-		extras.push(def);
-		drop(extras);
 
-		let mut by_key = self.extras_by_key.write().expect("poisoned");
+		// Collect all keys for this definition
 		let meta = def.meta();
-		self.insert_key(&mut by_key, meta.name, def);
-		self.insert_key(&mut by_key, meta.id, def);
-		for &alias in meta.aliases {
-			self.insert_key(&mut by_key, alias, def);
+		let keys: Vec<&'static str> = std::iter::once(meta.name)
+			.chain(std::iter::once(meta.id))
+			.chain(meta.aliases.iter().copied())
+			.collect();
+
+		// Validate ALL keys before inserting any (atomic check)
+		for &key in &keys {
+			if let Err(conflict) = self.validate_key(&extras, key, def) {
+				match self.policy {
+					DuplicatePolicy::Panic => panic!("{}", conflict),
+					DuplicatePolicy::FirstWins | DuplicatePolicy::LastWins => {}
+				}
+			}
 		}
 
+		// Insert keys according to policy
+		for &key in &keys {
+			self.insert_key(&mut extras.by_key, key, def);
+		}
+
+		// Commit the item
+		extras.items.push(def);
 		true
+	}
+
+	/// Validates a key can be inserted, returning an error message if not.
+	fn validate_key(
+		&self,
+		extras: &RuntimeExtras<T>,
+		key: &'static str,
+		def: &'static T,
+	) -> Result<(), String> {
+		// Check builtin conflict
+		if let Some(existing) = self.builtins.get(key) {
+			if !std::ptr::eq(existing, def) {
+				return Err(format!(
+					"runtime registry key conflict in {}: key={:?} conflicts with builtin id={}",
+					self.label,
+					key,
+					existing.id()
+				));
+			}
+		}
+
+		// Check extras conflict
+		if let Some(&existing) = extras.by_key.get(key) {
+			if !std::ptr::eq(existing, def) {
+				return Err(format!(
+					"runtime registry key conflict in {}: key={:?} conflicts with id={}",
+					self.label,
+					key,
+					existing.id()
+				));
+			}
+		}
+
+		Ok(())
 	}
 
 	fn insert_key(
@@ -376,31 +450,25 @@ impl<T: RegistryEntry + 'static> RuntimeRegistry<T> {
 		key: &'static str,
 		def: &'static T,
 	) {
+		// Skip if builtin shadows this key and policy is FirstWins
 		if let Some(existing) = self.builtins.get(key) {
 			if std::ptr::eq(existing, def) {
 				return;
 			}
 			match self.policy {
-				DuplicatePolicy::Panic => panic!(
-					"runtime registry key conflict in {}: key={:?} conflicts with builtin",
-					self.label, key
-				),
+				DuplicatePolicy::Panic => unreachable!("validated above"),
 				DuplicatePolicy::FirstWins => return,
 				DuplicatePolicy::LastWins => {}
 			}
 		}
 
+		// Handle extras conflict
 		if let Some(&existing) = map.get(key) {
 			if std::ptr::eq(existing, def) {
 				return;
 			}
 			match self.policy {
-				DuplicatePolicy::Panic => {
-					panic!(
-						"runtime registry key conflict in {}: key={:?}",
-						self.label, key
-					)
-				}
+				DuplicatePolicy::Panic => unreachable!("validated above"),
 				DuplicatePolicy::FirstWins => return,
 				DuplicatePolicy::LastWins => {}
 			}
@@ -411,12 +479,12 @@ impl<T: RegistryEntry + 'static> RuntimeRegistry<T> {
 
 	/// Returns the number of unique definitions (builtins + extras).
 	pub fn len(&self) -> usize {
-		self.builtins.len() + self.extras_items.read().expect("poisoned").len()
+		self.builtins.len() + self.extras.read().expect("poisoned").items.len()
 	}
 
 	/// Returns true if the registry contains no definitions.
 	pub fn is_empty(&self) -> bool {
-		self.builtins.is_empty() && self.extras_items.read().expect("poisoned").is_empty()
+		self.builtins.is_empty() && self.extras.read().expect("poisoned").items.is_empty()
 	}
 
 	/// Returns all definitions (builtins followed by extras).
@@ -425,7 +493,7 @@ impl<T: RegistryEntry + 'static> RuntimeRegistry<T> {
 	/// call won't be reflected.
 	pub fn all(&self) -> Vec<&'static T> {
 		let mut items: Vec<_> = self.builtins.items().to_vec();
-		items.extend(self.extras_items.read().expect("poisoned").iter().copied());
+		items.extend(self.extras.read().expect("poisoned").items.iter().copied());
 		items
 	}
 
