@@ -19,6 +19,8 @@ pub struct EditorMetrics {
 	pub lsp_send_errors: AtomicU64,
 	/// Total changes coalesced (removed by merging).
 	pub lsp_coalesced: AtomicU64,
+	/// Total bytes snapshotted for full document syncs.
+	pub lsp_snapshot_bytes: AtomicU64,
 }
 
 impl EditorMetrics {
@@ -47,6 +49,11 @@ impl EditorMetrics {
 		self.lsp_coalesced.fetch_add(count, Ordering::Relaxed);
 	}
 
+	/// Adds to the snapshot bytes counter.
+	pub fn add_snapshot_bytes(&self, bytes: u64) {
+		self.lsp_snapshot_bytes.fetch_add(bytes, Ordering::Relaxed);
+	}
+
 	/// Returns the current full sync count.
 	pub fn full_sync_count(&self) -> u64 {
 		self.lsp_full_sync.load(Ordering::Relaxed)
@@ -65,6 +72,11 @@ impl EditorMetrics {
 	/// Returns the current coalesced count.
 	pub fn coalesced_count(&self) -> u64 {
 		self.lsp_coalesced.load(Ordering::Relaxed)
+	}
+
+	/// Returns the current snapshot byte count.
+	pub fn snapshot_bytes_count(&self) -> u64 {
+		self.lsp_snapshot_bytes.load(Ordering::Relaxed)
 	}
 }
 
@@ -89,6 +101,8 @@ pub struct StatsSnapshot {
 	pub lsp_send_errors: u64,
 	/// Total changes coalesced.
 	pub lsp_coalesced: u64,
+	/// Total bytes snapshotted for full syncs.
+	pub lsp_snapshot_bytes: u64,
 }
 
 impl StatsSnapshot {
@@ -104,6 +118,7 @@ impl StatsSnapshot {
 			lsp_incremental_sync = self.lsp_incremental_sync,
 			lsp_send_errors = self.lsp_send_errors,
 			lsp_coalesced = self.lsp_coalesced,
+			lsp_snapshot_bytes = self.lsp_snapshot_bytes,
 			"editor.stats"
 		);
 	}

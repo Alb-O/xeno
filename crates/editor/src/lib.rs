@@ -94,3 +94,6 @@ pub use xeno_registry::themes::{
 	ColorPair, ModeColors, PopupColors, SemanticColors, THEMES, Theme, ThemeColors, UiColors,
 	blend_colors, get_theme, suggest_theme,
 };
+
+#[cfg(test)]
+mod smoke_tests;

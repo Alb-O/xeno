@@ -97,6 +97,84 @@ pub use {
 #[cfg(test)]
 mod tests {
 	use super::*;
+	use std::collections::HashSet;
+
+	fn assert_unique_ids<T: RegistryMetadata>(label: &str, items: &[T]) {
+		let mut seen = HashSet::new();
+		let mut duplicates = Vec::new();
+
+		for item in items {
+			let id = item.id();
+			if !seen.insert(id) {
+				duplicates.push(id);
+			}
+		}
+
+		assert!(
+			duplicates.is_empty(),
+			"{label} duplicate ids: {}",
+			duplicates.join(", ")
+		);
+	}
+
+	fn is_namespaced_id(id: &str) -> bool {
+		if id.is_empty() {
+			return false;
+		}
+
+		let bytes = id.as_bytes();
+		let mut has_separator = false;
+		let mut last_was_separator = false;
+		let mut i = 0;
+
+		while i < bytes.len() {
+			match bytes[i] {
+				b'a'..=b'z' | b'A'..=b'Z' | b'0'..=b'9' | b'-' | b'_' => {
+					last_was_separator = false;
+					i += 1;
+				}
+				b'.' => {
+					has_separator = true;
+					if last_was_separator {
+						return false;
+					}
+					last_was_separator = true;
+					i += 1;
+				}
+				b':' => {
+					if i + 1 >= bytes.len() || bytes[i + 1] != b':' {
+						return false;
+					}
+					has_separator = true;
+					if last_was_separator {
+						return false;
+					}
+					last_was_separator = true;
+					i += 2;
+				}
+				_ => return false,
+			}
+		}
+
+		has_separator && !last_was_separator
+	}
+
+	fn assert_namespaced_ids<T: RegistryMetadata>(label: &str, items: &[T]) {
+		let mut invalid = Vec::new();
+
+		for item in items {
+			let id = item.id();
+			if !is_namespaced_id(id) {
+				invalid.push(id);
+			}
+		}
+
+		assert!(
+			invalid.is_empty(),
+			"{label} ids should be namespaced: {}",
+			invalid.join(", ")
+		);
+	}
 
 	/// Sanity check to catch linkme registration failures.
 	///
@@ -129,5 +207,58 @@ mod tests {
 			"Expected at least 10 text objects registered, got {}",
 			TEXT_OBJECTS.len()
 		);
+	}
+
+	#[test]
+	fn registry_id_uniqueness_by_kind() {
+		assert_unique_ids("actions", &ACTIONS);
+		assert_unique_ids("commands", &COMMANDS);
+		assert_unique_ids("motions", &MOTIONS);
+		assert_unique_ids("gutters", &GUTTERS);
+		assert_unique_ids("hooks", &HOOKS);
+		assert_unique_ids("statusline", &STATUSLINE_SEGMENTS);
+		assert_unique_ids("text_objects", &TEXT_OBJECTS);
+		assert_unique_ids("options", &options::OPTIONS);
+		assert_unique_ids("themes", &themes::THEMES);
+	}
+
+	#[test]
+	fn registry_id_namespacing() {
+		assert_namespaced_ids("actions", &ACTIONS);
+		assert_namespaced_ids("commands", &COMMANDS);
+		assert_namespaced_ids("motions", &MOTIONS);
+		assert_namespaced_ids("gutters", &GUTTERS);
+		assert_namespaced_ids("hooks", &HOOKS);
+		assert_namespaced_ids("text_objects", &TEXT_OBJECTS);
+	}
+
+	#[test]
+	fn command_names_and_aliases_resolve() {
+		for command in COMMANDS.iter() {
+			assert!(
+				find_command(command.meta.name).is_some(),
+				"command name missing from index: {}",
+				command.meta.name
+			);
+
+			for &alias in command.meta.aliases {
+				assert!(
+					find_command(alias).is_some(),
+					"command alias missing from index: {}",
+					alias
+				);
+			}
+		}
+	}
+
+	#[test]
+	fn keybindings_resolve_actions() {
+		for binding in KEYBINDINGS.iter() {
+			assert!(
+				resolve_action_id(binding.action).is_some(),
+				"keybinding refers to unknown action: {}",
+				binding.action
+			);
+		}
 	}
 }

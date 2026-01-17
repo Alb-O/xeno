@@ -196,7 +196,9 @@ impl Editor {
 			&& total_bytes <= LSP_MAX_INCREMENTAL_BYTES;
 
 		let content = buffer.with_doc(|doc| doc.content().clone());
+		let snapshot_bytes = content.len_bytes() as u64;
 		let sync = self.lsp.sync().clone();
+		let metrics = self.metrics.clone();
 		let (tx, rx) = oneshot::channel();
 
 		tokio::spawn(async move {
@@ -205,15 +207,25 @@ impl Editor {
 					.notify_change_incremental_no_content_with_ack(&path, &language, changes)
 					.await
 				{
-					Ok(ack) => Ok(ack),
+					Ok(ack) => {
+						metrics.inc_incremental_sync();
+						Ok(ack)
+					}
 					Err(_) => {
+						metrics.inc_send_error();
+						metrics.add_snapshot_bytes(snapshot_bytes);
 						sync.notify_change_full_with_ack(&path, &language, &content)
 							.await
+							.inspect(|_| metrics.inc_full_sync())
+							.inspect_err(|_| metrics.inc_send_error())
 					}
 				}
 			} else {
+				metrics.add_snapshot_bytes(snapshot_bytes);
 				sync.notify_change_full_with_ack(&path, &language, &content)
 					.await
+					.inspect(|_| metrics.inc_full_sync())
+					.inspect_err(|_| metrics.inc_send_error())
 			};
 			match result {
 				Ok(Some(ack)) => {
@@ -378,6 +390,7 @@ impl Editor {
 			lsp_incremental_sync: self.metrics.incremental_sync_count(),
 			lsp_send_errors: self.metrics.send_error_count(),
 			lsp_coalesced: self.metrics.coalesced_count(),
+			lsp_snapshot_bytes: self.metrics.snapshot_bytes_count(),
 		}
 	}
 

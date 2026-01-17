@@ -39,19 +39,19 @@ This document is a multi-phase, checkbox-driven plan to:
 
 ### Tasks
 
-* [ ] **Registry inventory script / report**: list counts and IDs per registry type (actions/commands/motions/gutters/etc.)
-* [ ] **Collision audit**: verify unique `RegistryMeta.id` across each registry type (even before migration)
-* [ ] **Smoke tests** (manual checklist):
-  * [ ] Can start editor
-  * [ ] Commands resolve by `name` and `aliases`
-  * [ ] Keybindings work
-  * [ ] LSP connects and produces diagnostics
-* [ ] **Add CI lint** to prevent new registries from silently proliferating:
-  * [ ] enforce naming pattern for `meta.id` (e.g. `core.save`, `lsp.hover`)
+* [x] **Registry inventory script / report**: list counts and IDs per registry type (actions/commands/motions/gutters/etc.)
+* [x] **Collision audit**: verify unique `RegistryMeta.id` across each registry type (even before migration)
+* [x] **Smoke tests** (manual checklist):
+  * [x] Can start editor
+  * [x] Commands resolve by `name` and `aliases`
+  * [x] Keybindings work
+  * [x] LSP connects and produces diagnostics
+* [x] **Add CI lint** to prevent new registries from silently proliferating:
+  * [x] enforce naming pattern for `meta.id` (e.g. `core.save`, `lsp.hover`)
   * [ ] enforce max alias count or format (optional)
-* [ ] **Add perf counters** (even temporary):
-  * [ ] LSP flush: count full-sync vs incremental
-  * [ ] LSP: bytes of document text cloned per tick
+* [x] **Add perf counters** (even temporary):
+  * [x] LSP flush: count full-sync vs incremental
+  * [x] LSP: bytes of document text cloned per tick
 
 ### Risks
 
@@ -611,11 +611,11 @@ Even after migrating away from distributed slices, registry scale can still bite
 
 ## Phase 0
 
-* [ ] Inventory report
-* [ ] Collision audit
-* [ ] Smoke test checklist
-* [ ] CI lint checks
-* [ ] LSP clone counters
+* [x] Inventory report
+* [x] Collision audit
+* [x] Smoke test checklist
+* [x] CI lint checks
+* [x] LSP clone counters
 
 ## Phase 1
 

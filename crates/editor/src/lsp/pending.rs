@@ -374,6 +374,7 @@ impl PendingLspState {
 					self.in_flight.remove(&doc_id);
 					continue;
 				};
+				metrics.add_snapshot_bytes(content.len_bytes() as u64);
 				tokio::spawn(async move {
 					let start = Instant::now();
 					let result = sync.notify_change_full(&path, &language, &content).await;
