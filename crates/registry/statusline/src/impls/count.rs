@@ -1,8 +1,12 @@
 //! Count prefix segment.
 
-use crate::{RenderedSegment, SegmentPosition, SegmentStyle, statusline_segment};
+use crate::{RenderedSegment, SegmentStyle, segment};
 
-statusline_segment!(SEG_COUNT, "count", SegmentPosition::Left, 10, true, |ctx| {
+segment!(count, {
+	position: Left,
+	description: "Numeric count prefix",
+	priority: 10,
+}, |ctx| {
 	if ctx.count > 0 {
 		Some(RenderedSegment {
 			text: format!(" {} ", ctx.count),

@@ -1,21 +1,18 @@
 //! Read-only indicator segment.
 
-use crate::{RenderedSegment, SegmentPosition, SegmentStyle, statusline_segment};
+use crate::{RenderedSegment, SegmentStyle, segment};
 
-statusline_segment!(
-	SEG_READONLY,
-	"readonly",
-	SegmentPosition::Left,
-	5,
-	true,
-	|ctx| {
-		if ctx.readonly {
-			Some(RenderedSegment {
-				text: " READ-ONLY ".to_string(),
-				style: SegmentStyle::Warning,
-			})
-		} else {
-			None
-		}
+segment!(readonly, {
+	position: Left,
+	description: "Read-only buffer indicator",
+	priority: 5,
+}, |ctx| {
+	if ctx.readonly {
+		Some(RenderedSegment {
+			text: " READ-ONLY ".to_string(),
+			style: SegmentStyle::Warning,
+		})
+	} else {
+		None
 	}
-);
+});

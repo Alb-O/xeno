@@ -1,8 +1,11 @@
 //! File path and modified indicator segment.
 
-use crate::{RenderedSegment, SegmentPosition, SegmentStyle, statusline_segment};
+use crate::{RenderedSegment, SegmentStyle, segment};
 
-statusline_segment!(SEG_FILE, "file", SegmentPosition::Center, 0, true, |ctx| {
+segment!(file, {
+	position: Center,
+	description: "File path with modified and buffer indicators",
+}, |ctx| {
 	let path = ctx.path.unwrap_or("[scratch]");
 	let modified = if ctx.modified { " [+]" } else { "" };
 	let buffer_indicator = if ctx.buffer_count > 1 {

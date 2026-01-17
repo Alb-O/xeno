@@ -1,17 +1,13 @@
 //! Cursor position segment.
 
-use crate::{RenderedSegment, SegmentPosition, SegmentStyle, statusline_segment};
+use crate::{RenderedSegment, SegmentStyle, segment};
 
-statusline_segment!(
-	SEG_POSITION,
-	"position",
-	SegmentPosition::Right,
-	0,
-	true,
-	|ctx| {
-		Some(RenderedSegment {
-			text: format!(" {}:{} ", ctx.line, ctx.col),
-			style: SegmentStyle::Inverted,
-		})
-	}
-);
+segment!(position, {
+	position: Right,
+	description: "Cursor line and column position",
+}, |ctx| {
+	Some(RenderedSegment {
+		text: format!(" {}:{} ", ctx.line, ctx.col),
+		style: SegmentStyle::Inverted,
+	})
+});

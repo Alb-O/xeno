@@ -85,8 +85,8 @@ pub use notifications::{
 pub use plugin::XenoPlugin;
 pub use statusline::{
 	RenderedSegment, STATUSLINE_SEGMENTS, SegmentPosition, SegmentStyle, StatuslineContext,
-	StatuslineSegmentDef, all_segments, find_segment, render_position, segments_for_position,
-	statusline_segment,
+	StatuslineSegmentDef, all_segments, find_segment, render_position, segment,
+	segments_for_position,
 };
 pub use textobj::{
 	TEXT_OBJECTS, TextObjectDef, TextObjectHandler, bracket_pair_object, symmetric_text_object,
