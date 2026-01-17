@@ -28,20 +28,7 @@ inventory::collect!(NotificationReg);
 #[macro_use]
 mod macros;
 
-mod actions;
-mod builtins;
-mod commands;
-mod editor;
-mod runtime;
-
-/// All notification keys, organized by domain.
-pub mod keys {
-	pub use crate::actions::keys::*;
-	pub use crate::builtins::keys::*;
-	pub use crate::commands::keys::*;
-	pub use crate::editor::keys::*;
-	pub use crate::runtime::keys::*;
-}
+pub mod keys;
 
 /// Severity level for notifications.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
