@@ -169,40 +169,49 @@ impl Editor {
 	}
 
 	/// Queues an immediate LSP change and returns an ack receiver when written.
+	///
+	/// Tries incremental sync first (avoiding content cloning), falling back to
+	/// full sync if the document isn't open on the server.
 	#[cfg(feature = "lsp")]
 	fn queue_lsp_change_immediate(
 		&mut self,
 		buffer_id: crate::buffer::BufferId,
 	) -> Option<oneshot::Receiver<()>> {
 		let buffer = self.core.buffers.get_buffer(buffer_id)?;
-		let (Some(path), Some(language)) = (buffer.path(), buffer.file_type()) else {
-			return None;
-		};
+		let (path, language) = (buffer.path()?, buffer.file_type()?);
 		let (force_full_sync, has_pending) =
 			buffer.with_doc(|doc| (doc.needs_full_lsp_sync(), doc.has_pending_lsp_sync()));
 		if !has_pending {
 			return None;
 		}
-		let content = buffer.with_doc(|doc| doc.content().clone());
 		let changes = buffer.drain_lsp_changes();
 		if force_full_sync {
 			buffer.with_doc_mut(|doc| doc.clear_full_lsp_sync());
 		}
-		let supports_incremental = self.lsp.incremental_encoding_for_buffer(buffer).is_some();
-		let change_count = changes.len();
+
 		let total_bytes: usize = changes.iter().map(|c| c.new_text.len()).sum();
 		let use_incremental = !force_full_sync
-			&& supports_incremental
+			&& self.lsp.incremental_encoding_for_buffer(buffer).is_some()
 			&& !changes.is_empty()
-			&& change_count <= LSP_MAX_INCREMENTAL_CHANGES
+			&& changes.len() <= LSP_MAX_INCREMENTAL_CHANGES
 			&& total_bytes <= LSP_MAX_INCREMENTAL_BYTES;
 
+		let content = buffer.with_doc(|doc| doc.content().clone());
 		let sync = self.lsp.sync().clone();
 		let (tx, rx) = oneshot::channel();
+
 		tokio::spawn(async move {
 			let result = if use_incremental {
-				sync.notify_change_incremental_with_ack(&path, &language, &content, changes)
+				match sync
+					.notify_change_incremental_no_content_with_ack(&path, &language, changes)
 					.await
+				{
+					Ok(ack) => Ok(ack),
+					Err(_) => {
+						sync.notify_change_full_with_ack(&path, &language, &content)
+							.await
+					}
+				}
 			} else {
 				sync.notify_change_full_with_ack(&path, &language, &content)
 					.await
@@ -317,8 +326,6 @@ impl Editor {
 	/// Returns `true` if any command requested quit.
 	pub async fn drain_command_queue(&mut self) -> bool {
 		let commands: Vec<_> = self.core.workspace.command_queue.drain().collect();
-
-		// Use log-only mode for now (Phase 6 migration)
 		let policy = InvocationPolicy::log_only();
 
 		for cmd in commands {

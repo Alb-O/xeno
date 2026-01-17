@@ -68,7 +68,6 @@ pub fn register_notification(input: TokenStream) -> TokenStream {
 		match name.to_string().as_str() {
 			"level" => level = quote! { #val },
 			"semantic" => semantic = quote! { #val },
-			"style" => semantic = quote! { #val }, // Alias for backward compat during migration
 			"dismiss" => dismiss = quote! { #val },
 			"icon" => icon = quote! { Some(#val) },
 			"animation" => animation = quote! { #val },

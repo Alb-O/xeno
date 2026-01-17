@@ -48,8 +48,8 @@
 //! // Open a document
 //! lsp.on_buffer_open(&buffer).await?;
 //!
-//! // Notify of changes
-//! lsp.on_buffer_change(&buffer).await?;
+//! // Accumulate changes (debounced flush happens automatically)
+//! // editor.accumulate_lsp_change(&buffer, changes);
 //! ```
 
 pub(crate) mod coalesce;
@@ -79,8 +79,6 @@ use xeno_lsp::{
 	ClientHandle, DiagnosticsEvent, DiagnosticsEventReceiver, DocumentStateManager, DocumentSync,
 	OffsetEncoding, Registry, Result,
 };
-use xeno_primitives::LspDocumentChange;
-
 use crate::buffer::Buffer;
 
 /// Central manager for LSP functionality.
@@ -196,44 +194,6 @@ impl LspManager {
 			.open_document(&abs_path, language, &content)
 			.await?;
 		Ok(Some(client))
-	}
-
-	/// Called when a buffer's content changes.
-	///
-	/// Sends a full document sync to the language server.
-	pub async fn on_buffer_change(&self, buffer: &Buffer) -> Result<()> {
-		let Some(path) = &buffer.path() else {
-			return Ok(());
-		};
-
-		let Some(language) = &buffer.file_type() else {
-			return Ok(());
-		};
-
-		let content = buffer.with_doc(|doc| doc.content().clone());
-		self.sync.notify_change_full(path, language, &content).await
-	}
-
-	/// Called when a buffer's content changes incrementally.
-	///
-	/// Sends incremental document sync to the language server using pre-computed ranges.
-	pub async fn on_buffer_change_incremental(
-		&self,
-		buffer: &Buffer,
-		changes: Vec<LspDocumentChange>,
-	) -> Result<()> {
-		let Some(path) = &buffer.path() else {
-			return Ok(());
-		};
-
-		let Some(language) = &buffer.file_type() else {
-			return Ok(());
-		};
-
-		let content = buffer.with_doc(|doc| doc.content().clone());
-		self.sync
-			.notify_change_incremental(path, language, &content, changes)
-			.await
 	}
 
 	/// Called before a buffer is saved.

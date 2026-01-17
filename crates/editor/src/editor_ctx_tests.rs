@@ -5,7 +5,7 @@ use xeno_primitives::{Mode, Selection};
 use xeno_registry::actions::editor_ctx::{
 	CursorAccess, EditorCapabilities, ModeAccess, NotificationAccess, SelectionAccess,
 };
-use xeno_registry::{ActionEffects, Effect};
+use xeno_registry::{ActionEffects, AppEffect, UiEffect, ViewEffect};
 use xeno_registry_notifications::Notification;
 
 use crate::editor_ctx::apply_effects;
@@ -93,11 +93,11 @@ fn effects_apply_in_order() {
 	let mut ctx = xeno_registry::actions::editor_ctx::EditorContext::new(&mut editor);
 
 	let effects = ActionEffects::new()
-		.with(Effect::SetCursor(CharIdx::from(10usize)))
-		.with(Effect::SetSelection(Selection::point(CharIdx::from(
+		.with(ViewEffect::SetCursor(CharIdx::from(10usize)))
+		.with(ViewEffect::SetSelection(Selection::point(CharIdx::from(
 			20usize,
 		))))
-		.with(Effect::SetMode(Mode::Insert));
+		.with(AppEffect::SetMode(Mode::Insert));
 
 	apply_effects(&effects, &mut ctx, false);
 
@@ -150,9 +150,9 @@ fn multiple_cursor_updates_apply_sequentially() {
 	let mut ctx = xeno_registry::actions::editor_ctx::EditorContext::new(&mut editor);
 
 	let effects = ActionEffects::new()
-		.with(Effect::SetCursor(CharIdx::from(5usize)))
-		.with(Effect::SetCursor(CharIdx::from(10usize)))
-		.with(Effect::SetCursor(CharIdx::from(15usize)));
+		.with(ViewEffect::SetCursor(CharIdx::from(5usize)))
+		.with(ViewEffect::SetCursor(CharIdx::from(10usize)))
+		.with(ViewEffect::SetCursor(CharIdx::from(15usize)));
 
 	apply_effects(&effects, &mut ctx, false);
 
@@ -174,9 +174,8 @@ fn notify_effect_emits_notification() {
 	let mut editor = MockEditor::new();
 	let mut ctx = xeno_registry::actions::editor_ctx::EditorContext::new(&mut editor);
 
-	let effects = ActionEffects::from_effect(Effect::Notify(
-		xeno_registry_notifications::keys::undo.into(),
-	));
+	let effects =
+		ActionEffects::from_effect(UiEffect::Notify(xeno_registry_notifications::keys::undo.into()).into());
 	apply_effects(&effects, &mut ctx, false);
 
 	assert_eq!(editor.notifications.len(), 1);
@@ -243,7 +242,7 @@ fn selection_applied_before_mode_change() {
 	let mut ctx = xeno_registry::actions::editor_ctx::EditorContext::new(&mut editor);
 
 	let sel = Selection::point(CharIdx::from(42usize));
-	let effects = ActionEffects::motion(sel).with(Effect::SetMode(Mode::Insert));
+	let effects = ActionEffects::motion(sel).with(AppEffect::SetMode(Mode::Insert));
 
 	apply_effects(&effects, &mut ctx, false);
 
@@ -273,9 +272,9 @@ fn effects_after_quit_still_execute() {
 	let mut ctx = xeno_registry::actions::editor_ctx::EditorContext::new(&mut editor);
 
 	let effects = ActionEffects::new()
-		.with(Effect::Quit { force: false })
-		.with(Effect::SetCursor(CharIdx::from(99usize)))
-		.with(Effect::SetMode(Mode::Insert));
+		.with(AppEffect::Quit { force: false })
+		.with(ViewEffect::SetCursor(CharIdx::from(99usize)))
+		.with(AppEffect::SetMode(Mode::Insert));
 
 	let outcome = apply_effects(&effects, &mut ctx, false);
 
@@ -294,11 +293,11 @@ fn notifications_are_side_effects() {
 	let mut ctx = xeno_registry::actions::editor_ctx::EditorContext::new(&mut editor);
 
 	let effects = ActionEffects::new()
-		.with(Effect::SetCursor(CharIdx::from(10usize)))
-		.with(Effect::Notify(
+		.with(ViewEffect::SetCursor(CharIdx::from(10usize)))
+		.with(UiEffect::Notify(
 			xeno_registry_notifications::keys::undo.into(),
 		))
-		.with(Effect::SetCursor(CharIdx::from(20usize)));
+		.with(ViewEffect::SetCursor(CharIdx::from(20usize)));
 
 	apply_effects(&effects, &mut ctx, false);
 

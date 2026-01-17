@@ -65,7 +65,7 @@ action!(document_end, {
 }, |ctx| cursor_motion(ctx, motions::document_end));
 ```
 
-Actions receive an immutable `ActionContext` containing `text: RopeSlice`, `cursor: CharIdx`, `selection: &Selection`, `count: usize`, and `args: ActionArgs`. They return `ActionResult::Effects(ActionEffects)` rather than mutating state directly. Effects compose via builder methods: `ActionEffects::motion(sel).with(Effect::SetMode(Mode::Insert))`.
+Actions receive an immutable `ActionContext` containing `text: RopeSlice`, `cursor: CharIdx`, `selection: &Selection`, `count: usize`, and `args: ActionArgs`. They return `ActionResult::Effects(ActionEffects)` rather than mutating state directly. Effects use nested enums for type safety: `ActionEffects::motion(sel).with(Effect::App(AppEffect::SetMode(Mode::Insert)))`.
 
 ### Edit Operations
 

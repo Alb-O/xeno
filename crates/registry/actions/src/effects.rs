@@ -14,8 +14,8 @@
 //! ```ignore
 //! // Instead of a compound InsertWithMotion variant:
 //! ActionEffects::new()
-//!     .with(Effect::SetSelection(sel))
-//!     .with(Effect::SetMode(Mode::Insert))
+//!     .with(ViewEffect::SetSelection(sel))
+//!     .with(AppEffect::SetMode(Mode::Insert))
 //! ```
 //!
 //! [`ActionResult`]: crate::ActionResult
@@ -408,124 +408,7 @@ pub enum Effect {
 
 	/// Application-level effect (mode, focus, lifecycle).
 	App(AppEffect),
-
-	// Legacy flat variants for backward compatibility.
-	// These will be deprecated in a future version.
-	/// Set cursor to absolute position.
-	#[doc(hidden)]
-	SetCursor(CharIdx),
-
-	/// Set selection (includes cursor at primary head).
-	#[doc(hidden)]
-	SetSelection(Selection),
-
-	/// Move cursor to screen-relative position (H/M/L).
-	#[doc(hidden)]
-	ScreenMotion {
-		position: ScreenPosition,
-		count: usize,
-	},
-
-	/// Change editor mode.
-	#[doc(hidden)]
-	SetMode(Mode),
-
-	/// Enter pending state for multi-key action.
-	#[doc(hidden)]
-	Pending(PendingAction),
-
-	/// Execute a data-oriented edit operation.
-	#[doc(hidden)]
-	EditOp(crate::edit_op::EditOp),
-
-	/// Scroll the viewport.
-	#[doc(hidden)]
-	Scroll {
-		direction: Direction,
-		amount: ScrollAmount,
-		extend: bool,
-	},
-
-	/// Move cursor visually (wrapped lines).
-	#[doc(hidden)]
-	VisualMove {
-		direction: Direction,
-		count: usize,
-		extend: bool,
-	},
-
-	/// Paste from yank register.
-	#[doc(hidden)]
-	Paste { before: bool },
-
-	/// Switch buffer in sequential direction.
-	#[doc(hidden)]
-	FocusBuffer(SeqDirection),
-
-	/// Focus split in spatial direction.
-	#[doc(hidden)]
-	FocusSplit(SpatialDirection),
-
-	/// Create a new split.
-	#[doc(hidden)]
-	Split(Axis),
-
-	/// Close current split.
-	#[doc(hidden)]
-	CloseSplit,
-
-	/// Close all other buffers.
-	#[doc(hidden)]
-	CloseOtherBuffers,
-
-	/// Show a notification.
-	#[doc(hidden)]
-	Notify(Notification),
-
-	/// Display an error message.
-	#[doc(hidden)]
-	Error(String),
-
-	/// Open command palette.
-	#[doc(hidden)]
-	OpenPalette,
-
-	/// Close command palette.
-	#[doc(hidden)]
-	ClosePalette,
-
-	/// Execute command in palette.
-	#[doc(hidden)]
-	ExecutePalette,
-
-	/// Force a redraw.
-	#[doc(hidden)]
-	ForceRedraw,
-
-	/// Search in direction.
-	#[doc(hidden)]
-	Search {
-		direction: SeqDirection,
-		add_selection: bool,
-	},
-
-	/// Use current selection as search pattern.
-	#[doc(hidden)]
-	UseSelectionAsSearch,
-
-	/// Quit the editor.
-	#[doc(hidden)]
-	Quit { force: bool },
-
-	/// Queue a command for async execution.
-	#[doc(hidden)]
-	QueueCommand {
-		name: &'static str,
-		args: Vec<String>,
-	},
 }
-
-// From implementations for nested enums -> Effect
 
 impl From<ViewEffect> for Effect {
 	fn from(effect: ViewEffect) -> Self {
@@ -551,35 +434,33 @@ impl From<AppEffect> for Effect {
 	}
 }
 
-// From implementations for common types -> Effect (backward compatibility)
-
 impl From<Selection> for Effect {
 	fn from(sel: Selection) -> Self {
-		Effect::SetSelection(sel)
+		Effect::View(ViewEffect::SetSelection(sel))
 	}
 }
 
 impl From<Mode> for Effect {
 	fn from(mode: Mode) -> Self {
-		Effect::SetMode(mode)
+		Effect::App(AppEffect::SetMode(mode))
 	}
 }
 
 impl From<crate::edit_op::EditOp> for Effect {
 	fn from(op: crate::edit_op::EditOp) -> Self {
-		Effect::EditOp(op)
+		Effect::Edit(EditEffect::EditOp(op))
 	}
 }
 
 impl From<PendingAction> for Effect {
 	fn from(action: PendingAction) -> Self {
-		Effect::Pending(action)
+		Effect::App(AppEffect::Pending(action))
 	}
 }
 
 impl From<Notification> for Effect {
 	fn from(notification: Notification) -> Self {
-		Effect::Notify(notification)
+		Effect::Ui(UiEffect::Notify(notification))
 	}
 }
 
@@ -590,7 +471,7 @@ mod tests {
 	#[test]
 	fn test_effects_composition() {
 		let sel = Selection::single(10, 10);
-		let effects = ActionEffects::motion(sel.clone()).with(Effect::SetMode(Mode::Insert));
+		let effects = ActionEffects::motion(sel.clone()).with(AppEffect::SetMode(Mode::Insert));
 
 		assert_eq!(effects.len(), 2);
 		assert!(matches!(
@@ -599,7 +480,7 @@ mod tests {
 		));
 		assert!(matches!(
 			effects.as_slice()[1],
-			Effect::SetMode(Mode::Insert)
+			Effect::App(AppEffect::SetMode(Mode::Insert))
 		));
 	}
 
@@ -611,7 +492,7 @@ mod tests {
 
 	#[test]
 	fn test_from_effect() {
-		let effects: ActionEffects = Effect::SetMode(Mode::Normal).into();
+		let effects: ActionEffects = AppEffect::SetMode(Mode::Normal).into();
 		assert_eq!(effects.len(), 1);
 	}
 
@@ -646,14 +527,15 @@ mod tests {
 	}
 
 	#[test]
-	fn test_legacy_flat_variants_still_work() {
-		let effects = ActionEffects::new()
-			.with(Effect::SetCursor(CharIdx::from(10usize)))
-			.with(Effect::SetMode(Mode::Insert))
-			.with(Effect::Notify(
-				xeno_registry_notifications::keys::undo.into(),
-			));
+	fn test_from_implementations() {
+		let effect: Effect = Selection::point(CharIdx::from(10usize)).into();
+		assert!(matches!(effect, Effect::View(ViewEffect::SetSelection(_))));
 
-		assert_eq!(effects.len(), 3);
+		let effect: Effect = Mode::Insert.into();
+		assert!(matches!(effect, Effect::App(AppEffect::SetMode(Mode::Insert))));
+
+		let notification: Notification = xeno_registry_notifications::keys::undo.into();
+		let effect: Effect = notification.into();
+		assert!(matches!(effect, Effect::Ui(UiEffect::Notify(_))));
 	}
 }
