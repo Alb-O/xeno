@@ -1,4 +1,4 @@
-//! Command registry with auto-collection via `inventory`.
+//! Command registry.
 //!
 //! This crate provides trait-based commands through the [`CommandEditorOps`] abstraction.
 //! Commands registered here are portable and don't depend on specific editor internals.
@@ -33,7 +33,7 @@ pub use xeno_registry_core::{
 	RegistryReg, RegistrySource, RuntimeRegistry, impl_registry_entry,
 };
 
-/// Wrapper for [`inventory`] collection of command definitions.
+/// Registry wrapper for command definitions.
 pub struct CommandReg(pub &'static CommandDef);
 inventory::collect!(CommandReg);
 

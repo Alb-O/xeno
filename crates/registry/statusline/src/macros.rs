@@ -75,4 +75,3 @@ macro_rules! segment {
 		}
 	};
 }
-

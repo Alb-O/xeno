@@ -1,14 +1,14 @@
 //! Debug commands for observability.
 
 use futures::future::LocalBoxFuture;
+use xeno_registry::index::get_registry;
+use xeno_registry::options::OPTIONS;
+use xeno_registry::themes::THEMES;
+use xeno_registry::{Capability, GUTTERS, HOOKS, NOTIFICATIONS, STATUSLINE_SEGMENTS};
 
 use super::{CommandError, CommandOutcome, EditorCommandContext};
 use crate::editor_command;
 use crate::info_popup::PopupAnchor;
-use xeno_registry::{Capability, GUTTERS, HOOKS, NOTIFICATIONS, STATUSLINE_SEGMENTS};
-use xeno_registry::index::get_registry;
-use xeno_registry::options::OPTIONS;
-use xeno_registry::themes::THEMES;
 
 editor_command!(
 	stats,
@@ -163,7 +163,9 @@ fn parse_registry_args<'a>(args: &'a [&'a str]) -> (Option<RegistryKind>, Option
 	let mut prefix = None;
 
 	for arg in args {
-		if kind.is_none() && let Some(parsed) = RegistryKind::parse(arg) {
+		if kind.is_none()
+			&& let Some(parsed) = RegistryKind::parse(arg)
+		{
 			kind = Some(parsed);
 			continue;
 		}
@@ -353,11 +355,7 @@ fn collect_registry_items(kind: RegistryKind) -> Vec<RegistryItem> {
 			.map(|def| RegistryItem {
 				id: def.id,
 				name: def.id,
-				description: format!(
-					"level={:?}, auto_dismiss={:?}",
-					def.level,
-					def.auto_dismiss
-				),
+				description: format!("level={:?}, auto_dismiss={:?}", def.level, def.auto_dismiss),
 				priority: 0,
 				source: def.source,
 				required_caps: &[],

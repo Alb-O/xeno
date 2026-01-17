@@ -13,10 +13,7 @@ fn cmd_buffer<'a>(
 		if ctx.args.is_empty() {
 			return Err(CommandError::MissingArgument("buffer name or number"));
 		}
-		ctx.emit(keys::not_implemented(&format!(
-			"buffer {}",
-			ctx.args[0]
-		)));
+		ctx.emit(keys::not_implemented(&format!("buffer {}", ctx.args[0])));
 		Ok(CommandOutcome::Ok)
 	})
 }

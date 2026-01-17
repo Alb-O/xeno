@@ -465,8 +465,9 @@ impl PendingLspState {
 
 #[cfg(test)]
 mod tests {
-	use super::*;
 	use std::sync::atomic::{AtomicUsize, Ordering};
+
+	use super::*;
 
 	#[test]
 	fn test_pending_lsp_append_respects_thresholds() {

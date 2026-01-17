@@ -25,7 +25,7 @@ pub use xeno_registry_core::{
 	RegistrySource, impl_registry_entry,
 };
 
-/// Wrapper for [`inventory`] collection of gutter definitions.
+/// Registry wrapper for gutter definitions.
 pub struct GutterReg(pub &'static GutterDef);
 inventory::collect!(GutterReg);
 

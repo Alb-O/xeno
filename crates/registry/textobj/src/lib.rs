@@ -1,4 +1,4 @@
-//! Text objects registry with auto-collection via `inventory`.
+//! Text object registry.
 //!
 //! Text objects define selections around semantic units (words, paragraphs,
 //! brackets, etc.) with `inner` and `around` variants.
@@ -18,7 +18,7 @@ pub use xeno_registry_core::{
 };
 pub use xeno_registry_motions::{flags, movement};
 
-/// Wrapper for [`inventory`] collection of text object definitions.
+/// Registry wrapper for text object definitions.
 pub struct TextObjectReg(pub &'static TextObjectDef);
 inventory::collect!(TextObjectReg);
 

@@ -9,7 +9,7 @@ extern crate self as xeno_registry_actions;
 
 pub use xeno_registry_core::{RegistryBuilder, RegistryReg, RuntimeRegistry};
 
-/// Wrapper for [`inventory`] collection of action definitions.
+/// Registry wrapper for action definitions.
 pub struct ActionReg(pub &'static ActionDef);
 inventory::collect!(ActionReg);
 
@@ -43,12 +43,12 @@ pub use edit_op::{
 pub use effects::{
 	ActionEffects, AppEffect, EditEffect, Effect, ScrollAmount, UiEffect, ViewEffect,
 };
+pub use impls::insert::insert_with_motion;
+pub use impls::motions::{cursor_motion, selection_motion, word_motion};
 pub use keybindings::{
 	BindingMode, KEY_PREFIXES, KEYBINDINGS, KeyBindingDef, KeyBindingSetReg, KeyPrefixDef,
 	KeyPrefixReg, find_prefix,
 };
-pub use impls::insert::insert_with_motion;
-pub use impls::motions::{cursor_motion, selection_motion, word_motion};
 pub use pending::PendingAction;
 pub use result::{
 	ActionResult, RESULT_EFFECTS_HANDLERS, RESULT_EXTENSION_HANDLERS, ResultHandlerRegistry,

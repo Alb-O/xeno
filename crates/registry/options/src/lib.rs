@@ -116,7 +116,7 @@ pub use xeno_registry_core::{
 	RegistryMeta, RegistryMetadata, RegistryReg, RegistrySource, impl_registry_entry,
 };
 
-/// Wrapper for [`inventory`] collection of option definitions.
+/// Registry wrapper for option definitions.
 pub struct OptionReg(pub &'static OptionDef);
 inventory::collect!(OptionReg);
 

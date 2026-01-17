@@ -29,7 +29,7 @@ pub use xeno_registry::commands::{CommandError, CommandOutcome, CommandResult};
 
 use crate::impls::Editor;
 
-/// Wrapper for [`inventory`] collection of editor command definitions.
+/// Registry wrapper for editor-direct command definitions.
 pub struct EditorCommandReg(pub &'static EditorCommandDef);
 inventory::collect!(EditorCommandReg);
 

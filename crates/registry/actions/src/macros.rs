@@ -24,7 +24,7 @@ macro_rules! __opt_slice {
 	};
 }
 
-/// Defines keybinding lists for an action and registers them with inventory.
+/// Defines keybinding lists for an action.
 #[doc(hidden)]
 #[macro_export]
 macro_rules! __action_keybindings {

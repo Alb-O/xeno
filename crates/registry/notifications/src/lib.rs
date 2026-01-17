@@ -21,7 +21,7 @@ use std::time::Duration;
 
 pub use xeno_registry_core::{Key, RegistryMetadata, RegistrySource};
 
-/// Wrapper for [`inventory`] collection of notification definitions.
+/// Registry wrapper for notification definitions.
 pub struct NotificationReg(pub &'static NotificationDef);
 inventory::collect!(NotificationReg);
 

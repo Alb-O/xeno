@@ -47,7 +47,7 @@ pub use types::{
 };
 pub use xeno_primitives::Mode;
 
-/// Wrapper for [`inventory`] collection of hook definitions.
+/// Registry wrapper for hook definitions.
 pub struct HookReg(pub &'static HookDef);
 inventory::collect!(HookReg);
 
@@ -215,13 +215,14 @@ pub static HOOKS: LazyLock<RegistryIndex<HookDef>> = LazyLock::new(|| {
 });
 
 /// Builtin hooks grouped by event type.
-static BUILTIN_BY_EVENT: LazyLock<HashMap<HookEvent, Vec<&'static HookDef>>> = LazyLock::new(|| {
-	let mut map: HashMap<HookEvent, Vec<&'static HookDef>> = HashMap::new();
-	for hook in HOOKS.iter() {
-		map.entry(hook.event).or_default().push(hook);
-	}
-	map
-});
+static BUILTIN_BY_EVENT: LazyLock<HashMap<HookEvent, Vec<&'static HookDef>>> =
+	LazyLock::new(|| {
+		let mut map: HashMap<HookEvent, Vec<&'static HookDef>> = HashMap::new();
+		for hook in HOOKS.iter() {
+			map.entry(hook.event).or_default().push(hook);
+		}
+		map
+	});
 
 /// Runtime hooks grouped by event type.
 static EXTRA_BY_EVENT: LazyLock<std::sync::RwLock<HashMap<HookEvent, Vec<&'static HookDef>>>> =
@@ -248,11 +249,18 @@ pub fn register_hook(def: &'static HookDef) -> bool {
 
 /// Returns hooks matching the given event, including runtime registrations.
 pub fn hooks_for_event(event: HookEvent) -> Vec<&'static HookDef> {
-	let builtins = BUILTIN_BY_EVENT.get(&event).map(Vec::as_slice).unwrap_or(&[]);
+	let builtins = BUILTIN_BY_EVENT
+		.get(&event)
+		.map(Vec::as_slice)
+		.unwrap_or(&[]);
 	let extras_guard = EXTRA_BY_EVENT.read().expect("poisoned");
 	let extras = extras_guard.get(&event).map(Vec::as_slice).unwrap_or(&[]);
 
-	builtins.iter().copied().chain(extras.iter().copied()).collect()
+	builtins
+		.iter()
+		.copied()
+		.chain(extras.iter().copied())
+		.collect()
 }
 
 /// Find all hooks registered for a specific event.

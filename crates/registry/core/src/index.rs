@@ -17,21 +17,10 @@ use std::collections::HashMap;
 
 use crate::RegistryEntry;
 
-/// Trait for inventory wrapper types to expose their definition.
+/// Trait for registry wrapper types to expose their definition.
 ///
 /// Implement this for your registry's wrapper type (e.g., `MotionReg`)
 /// to allow [`RegistryBuilder::extend_inventory`] to extract definitions.
-///
-/// # Example
-///
-/// ```rust,ignore
-/// pub struct MotionReg(pub &'static MotionDef);
-/// inventory::collect!(MotionReg);
-///
-/// impl RegistryReg<MotionDef> for MotionReg {
-///     fn def(&self) -> &'static MotionDef { self.0 }
-/// }
-/// ```
 pub trait RegistryReg<T: RegistryEntry + 'static>: 'static {
 	/// Returns the static definition reference from this wrapper.
 	fn def(&self) -> &'static T;
@@ -407,7 +396,10 @@ impl<T: RegistryEntry + 'static> RuntimeRegistry<T> {
 			}
 			match self.policy {
 				DuplicatePolicy::Panic => {
-					panic!("runtime registry key conflict in {}: key={:?}", self.label, key)
+					panic!(
+						"runtime registry key conflict in {}: key={:?}",
+						self.label, key
+					)
 				}
 				DuplicatePolicy::FirstWins => return,
 				DuplicatePolicy::LastWins => {}

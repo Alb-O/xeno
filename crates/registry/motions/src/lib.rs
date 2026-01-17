@@ -1,4 +1,4 @@
-//! Motion registry with auto-collection via `inventory`.
+//! Motion registry.
 //!
 //! Motions are fundamental cursor movement operations (char, word, line, etc.) that
 //! actions compose to implement editor commands. Each motion module co-locates its
@@ -12,8 +12,8 @@ use std::sync::LazyLock;
 use ropey::RopeSlice;
 use xeno_primitives::Range;
 pub use xeno_registry_core::{
-	Capability, Key, RegistryBuilder, RegistryEntry, RegistryIndex, RegistryMeta,
-	RegistryMetadata, RegistryReg, RegistrySource, impl_registry_entry,
+	Capability, Key, RegistryBuilder, RegistryEntry, RegistryIndex, RegistryMeta, RegistryMetadata,
+	RegistryReg, RegistrySource, impl_registry_entry,
 };
 
 #[macro_use]
@@ -28,7 +28,7 @@ mod word;
 
 pub mod movement;
 
-/// Wrapper for [`inventory`] collection of motion definitions.
+/// Registry wrapper for motion definitions.
 pub struct MotionReg(pub &'static MotionDef);
 inventory::collect!(MotionReg);
 

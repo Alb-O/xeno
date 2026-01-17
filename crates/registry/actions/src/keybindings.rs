@@ -2,21 +2,21 @@
 //!
 //! Uses a trie-based registry for efficient sequence matching (e.g., `g g` for
 //! document_start). Keybindings are colocated with their action definitions using
-//! the `action!` macro's `bindings:` syntax and auto-collected via `inventory`.
+//! the `action!` macro's `bindings:` syntax.
 
 use std::sync::LazyLock;
 
 use xeno_primitives::Mode;
 
-/// Wrapper for [`inventory`] collection of keybinding sets.
+/// Registry wrapper for keybinding sets.
 pub struct KeyBindingSetReg(pub &'static [KeyBindingDef]);
 inventory::collect!(KeyBindingSetReg);
 
-/// Wrapper for [`inventory`] collection of key prefix definitions.
+/// Registry wrapper for key prefix definitions.
 pub struct KeyPrefixReg(pub &'static KeyPrefixDef);
 inventory::collect!(KeyPrefixReg);
 
-/// All keybindings, auto-collected from `action!` macro `bindings:` syntax.
+/// All keybindings from `action!` macro `bindings:` syntax.
 pub static KEYBINDINGS: LazyLock<Vec<KeyBindingDef>> = LazyLock::new(|| {
 	let mut bindings = Vec::new();
 	for set in inventory::iter::<KeyBindingSetReg> {
@@ -25,12 +25,11 @@ pub static KEYBINDINGS: LazyLock<Vec<KeyBindingDef>> = LazyLock::new(|| {
 	bindings
 });
 
-/// All key prefixes, auto-collected from `key_prefix!` macro.
+/// All key prefixes from `key_prefix!` macro.
 ///
 /// Used by the which-key HUD to show a description for the pressed prefix key.
-pub static KEY_PREFIXES: LazyLock<Vec<&'static KeyPrefixDef>> = LazyLock::new(|| {
-	inventory::iter::<KeyPrefixReg>().map(|r| r.0).collect()
-});
+pub static KEY_PREFIXES: LazyLock<Vec<&'static KeyPrefixDef>> =
+	LazyLock::new(|| inventory::iter::<KeyPrefixReg>().map(|r| r.0).collect());
 
 /// Definition of a key sequence prefix with its description.
 ///

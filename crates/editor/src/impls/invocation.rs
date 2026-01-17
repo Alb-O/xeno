@@ -101,9 +101,7 @@ impl Editor {
 		policy: InvocationPolicy,
 	) -> InvocationResult {
 		let Some(action) = find_action(name) else {
-			self.show_notification(xeno_registry_notifications::keys::unknown_action(
-				name,
-			));
+			self.show_notification(xeno_registry_notifications::keys::unknown_action(name));
 			return InvocationResult::NotFound(format!("action:{name}"));
 		};
 
@@ -348,9 +346,7 @@ fn notify_capability_denied(editor: &mut Editor, kind: InvocationKind, error: &C
 		}
 		InvocationKind::Command | InvocationKind::EditorCommand => {
 			let error = error.to_string();
-			editor.show_notification(xeno_registry_notifications::keys::command_error(
-				&error,
-			));
+			editor.show_notification(xeno_registry_notifications::keys::command_error(&error));
 		}
 	}
 }

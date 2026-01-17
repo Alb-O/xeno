@@ -13,10 +13,7 @@ fn cmd_edit<'a>(
 		if ctx.args.is_empty() {
 			return Err(CommandError::MissingArgument("filename"));
 		}
-		ctx.emit(keys::not_implemented(&format!(
-			"edit {}",
-			ctx.args[0]
-		)));
+		ctx.emit(keys::not_implemented(&format!("edit {}", ctx.args[0])));
 		Ok(CommandOutcome::Ok)
 	})
 }

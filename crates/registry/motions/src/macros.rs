@@ -22,7 +22,7 @@ macro_rules! __motion_opt_slice {
 	};
 }
 
-/// Defines a motion primitive and registers it with inventory.
+/// Defines a motion primitive.
 #[macro_export]
 macro_rules! motion {
 	($name:ident, {

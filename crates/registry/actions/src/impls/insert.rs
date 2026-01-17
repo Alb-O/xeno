@@ -2,8 +2,7 @@
 
 use xeno_primitives::range::Range;
 use xeno_primitives::{Mode, Selection};
-use xeno_registry_motions::keys as motions;
-use xeno_registry_motions::MotionKey;
+use xeno_registry_motions::{MotionKey, keys as motions};
 
 use crate::{ActionContext, ActionEffects, ActionResult, AppEffect, Effect, action, edit_op};
 

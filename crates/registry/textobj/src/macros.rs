@@ -24,7 +24,7 @@ macro_rules! __text_obj_opt {
 	};
 }
 
-/// Defines a text object definition and registers it with inventory.
+/// Defines a text object.
 #[macro_export]
 macro_rules! text_object {
 	($name:ident, {

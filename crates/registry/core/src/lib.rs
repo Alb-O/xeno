@@ -8,7 +8,7 @@
 //! - [`Capability`]: Editor capability requirements
 //! - [`CommandError`]: Errors from command/action execution
 //! - [`Key`]: Typed handle to a registry definition
-//! - [`RegistryIndex`]: O(1) lookup index built from inventory
+//! - [`RegistryIndex`]: O(1) lookup index for static registries
 //! - [`RegistryBuilder`]: Fluent builder for constructing indexes
 
 use thiserror::Error;

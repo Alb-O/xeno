@@ -106,7 +106,11 @@ pub fn move_to_next_word_end(
 		}
 	}
 
-	make_range_select(range, pos.saturating_sub(1).min(len.saturating_sub(1)), extend)
+	make_range_select(
+		range,
+		pos.saturating_sub(1).min(len.saturating_sub(1)),
+		extend,
+	)
 }
 
 /// Move to previous word start (`b` command).

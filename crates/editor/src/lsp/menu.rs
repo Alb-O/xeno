@@ -261,9 +261,7 @@ impl Editor {
 			return false;
 		};
 		if !client.supports_code_action() {
-			self.notify(keys::warn(
-				"Code actions not supported for this buffer",
-			));
+			self.notify(keys::warn("Code actions not supported for this buffer"));
 			return false;
 		}
 

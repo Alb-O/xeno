@@ -8,7 +8,7 @@ use std::path::Path;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Instant;
 
-	use lsp_types::{Diagnostic, DiagnosticSeverity, ProgressParams, Uri};
+use lsp_types::{Diagnostic, DiagnosticSeverity, ProgressParams, Uri};
 use parking_lot::RwLock;
 use tokio::sync::mpsc;
 use tracing::debug;
@@ -140,7 +140,12 @@ impl DocumentStateManager {
 	///
 	/// Creates document state on-demand if the document isn't registered,
 	/// enabling project-wide diagnostics from LSP servers.
-	pub fn update_diagnostics(&self, uri: &Uri, diagnostics: Vec<Diagnostic>, version: Option<i32>) {
+	pub fn update_diagnostics(
+		&self,
+		uri: &Uri,
+		diagnostics: Vec<Diagnostic>,
+		version: Option<i32>,
+	) {
 		let error_count = diagnostics
 			.iter()
 			.filter(|d| d.severity == Some(DiagnosticSeverity::ERROR))
@@ -415,6 +420,8 @@ impl DocumentStateManager {
 	pub fn pending_change_count(&self, uri: &Uri) -> usize {
 		let key = self.uri_key(uri);
 		let docs = self.documents.read();
-		docs.get(&key).map(|s| s.pending_versions_len()).unwrap_or(0)
+		docs.get(&key)
+			.map(|s| s.pending_versions_len())
+			.unwrap_or(0)
 	}
 }

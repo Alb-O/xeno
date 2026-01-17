@@ -4,10 +4,9 @@
 //! and the helper functions for applying motions to selections.
 
 use tracing::trace;
-use xeno_primitives::range::Range;
 use xeno_primitives::Selection;
-use xeno_registry_motions::keys as motions;
-use xeno_registry_motions::MotionKey;
+use xeno_primitives::range::Range;
+use xeno_registry_motions::{MotionKey, keys as motions};
 
 use crate::{ActionContext, ActionEffects, ActionResult, ScreenPosition, action};
 

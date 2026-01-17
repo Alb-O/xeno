@@ -849,9 +849,12 @@ pub fn start_server(
 					count = params.diagnostics.len(),
 					"Received diagnostics"
 				);
-				state
-					.event_handler
-					.on_diagnostics(state.server_id, params.uri, params.diagnostics, params.version);
+				state.event_handler.on_diagnostics(
+					state.server_id,
+					params.uri,
+					params.diagnostics,
+					params.version,
+				);
 				ControlFlow::Continue(())
 			})
 			.notification::<lsp_types::notification::Progress>(|state, params| {

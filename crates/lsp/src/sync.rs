@@ -157,7 +157,8 @@ impl DocumentSync {
 		language: &str,
 		text: &Rope,
 	) -> Result<ClientHandle> {
-		self.open_document_text(path, language, text.to_string()).await
+		self.open_document_text(path, language, text.to_string())
+			.await
 	}
 
 	/// Open a document using an owned snapshot.
@@ -373,14 +374,14 @@ impl DocumentSync {
 			.queue_change(&uri)
 			.ok_or_else(|| crate::Error::Protocol("Document not registered".into()))?;
 
-		let ack = match client.text_document_did_change_with_ack(uri.clone(), version, content_changes)
-		{
-			Ok(ack) => ack,
-			Err(err) => {
-				self.documents.mark_force_full_sync(&uri);
-				return Err(err);
-			}
-		};
+		let ack =
+			match client.text_document_did_change_with_ack(uri.clone(), version, content_changes) {
+				Ok(ack) => ack,
+				Err(err) => {
+					self.documents.mark_force_full_sync(&uri);
+					return Err(err);
+				}
+			};
 		Ok(Some(self.wrap_ack(uri, version, ack)))
 	}
 

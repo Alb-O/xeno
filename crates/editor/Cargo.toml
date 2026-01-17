@@ -13,8 +13,8 @@ anyhow.workspace = true
 clap.workspace = true
 dirs.workspace = true
 frizbee = { workspace = true, optional = true }
-inventory.workspace = true
 futures.workspace = true
+inventory.workspace = true
 paste.workspace = true
 regex.workspace = true
 ropey.workspace = true

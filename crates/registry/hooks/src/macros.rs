@@ -26,7 +26,7 @@ macro_rules! __hook_param_expr {
 	};
 }
 
-/// Define a hook definition and register it with inventory.
+/// Define a hook.
 #[macro_export]
 macro_rules! hook {
 	($name:ident, $event:ident, $priority:expr, $desc:expr, mutable |$ctx:ident| $body:expr) => {

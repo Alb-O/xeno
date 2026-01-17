@@ -17,7 +17,7 @@ mod syntax;
 
 pub use syntax::{SyntaxStyle, SyntaxStyles};
 
-/// Wrapper for [`inventory`] collection of theme definitions.
+/// Registry wrapper for theme definitions.
 pub struct ThemeReg(pub &'static Theme);
 inventory::collect!(ThemeReg);
 

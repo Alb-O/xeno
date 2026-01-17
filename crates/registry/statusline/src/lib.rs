@@ -12,7 +12,7 @@ pub use xeno_registry_core::{
 	RegistrySource, impl_registry_entry,
 };
 
-/// Wrapper for [`inventory`] collection of statusline segment definitions.
+/// Registry wrapper for statusline segment definitions.
 pub struct StatuslineSegmentReg(pub &'static StatuslineSegmentDef);
 inventory::collect!(StatuslineSegmentReg);
 
@@ -111,12 +111,13 @@ impl core::fmt::Debug for StatuslineSegmentDef {
 }
 
 /// Indexed collection of all statusline segments.
-pub static STATUSLINE_SEGMENTS: LazyLock<RegistryIndex<StatuslineSegmentDef>> = LazyLock::new(|| {
-	RegistryBuilder::new("statusline")
-		.extend_inventory::<StatuslineSegmentReg>()
-		.sort_by(|a, b| a.meta.priority.cmp(&b.meta.priority))
-		.build()
-});
+pub static STATUSLINE_SEGMENTS: LazyLock<RegistryIndex<StatuslineSegmentDef>> =
+	LazyLock::new(|| {
+		RegistryBuilder::new("statusline")
+			.extend_inventory::<StatuslineSegmentReg>()
+			.sort_by(|a, b| a.meta.priority.cmp(&b.meta.priority))
+			.build()
+	});
 
 /// Get all segments for a given position, sorted by priority.
 pub fn segments_for_position(

@@ -56,7 +56,7 @@ macro_rules! __gutter_enabled {
 ///     })
 /// });
 /// ```
-/// Defines a gutter column definition and registers it with inventory.
+/// Defines a gutter column.
 #[macro_export]
 macro_rules! gutter {
 	($name:ident, {

@@ -22,7 +22,7 @@ macro_rules! __opt_slice {
 	};
 }
 
-/// Defines an ex-mode command definition and registers it with inventory.
+/// Defines an ex-mode command.
 #[macro_export]
 macro_rules! command {
 	($name:ident, {
