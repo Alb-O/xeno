@@ -85,7 +85,7 @@ pub use textobj::{
 	text_object,
 };
 // Re-export shared types from registry core (canonical source)
-pub use xeno_registry_core::{ActionId, RegistryMetadata, RegistrySource, impl_registry_metadata};
+pub use xeno_registry_core::{ActionId, RegistryMetadata, RegistrySource};
 pub use {
 	xeno_registry_actions as actions, xeno_registry_commands as commands,
 	xeno_registry_gutter as gutter, xeno_registry_hooks as hooks, xeno_registry_motions as motions,

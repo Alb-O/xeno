@@ -7,8 +7,8 @@ use tracing::{debug, trace, trace_span, warn};
 use xeno_registry::actions::find_action;
 use xeno_registry::commands::find_command;
 use xeno_registry::{
-	ActionArgs, ActionContext, CommandContext, CommandError, EditorContext, HookContext,
-	HookEventData, emit_sync_with as emit_hook_sync_with,
+	ActionArgs, ActionContext, ActionResult, CommandContext, CommandError, EditorContext,
+	HookContext, HookEventData, dispatch_result, emit_sync_with as emit_hook_sync_with,
 };
 
 use crate::commands::{CommandOutcome, EditorCommandContext, find_editor_command};
@@ -36,11 +36,7 @@ impl Editor {
 	}
 
 	/// Executes a registry command with enforcement defaults.
-	pub async fn invoke_command(
-		&mut self,
-		name: &str,
-		args: Vec<String>,
-	) -> InvocationResult {
+	pub async fn invoke_command(&mut self, name: &str, args: Vec<String>) -> InvocationResult {
 		self.run_command_invocation(name, args, InvocationPolicy::enforcing())
 			.await
 	}
@@ -118,15 +114,14 @@ impl Editor {
 			let mut e_ctx = EditorContext::new(self);
 			e_ctx.check_all_capabilities(required_caps).err()
 		};
-		if let Some(e) = caps_error {
-			if let Some(result) = handle_capability_violation(
+		if let Some(e) = caps_error
+			&& let Some(result) = handle_capability_violation(
 				policy,
 				e,
 				|err| notify_capability_denied(self, InvocationKind::Action, err),
 				|err| warn!(action = name, error = %err, "Capability check failed (log-only mode)"),
 			) {
-				return result;
-			}
+			return result;
 		}
 
 		if policy.enforce_readonly
@@ -206,8 +201,8 @@ impl Editor {
 			let mut e_ctx = EditorContext::new(self);
 			e_ctx.check_all_capabilities(required_caps).err()
 		};
-		if let Some(e) = caps_error {
-			if let Some(result) = handle_capability_violation(
+		if let Some(e) = caps_error
+			&& let Some(result) = handle_capability_violation(
 				policy,
 				e,
 				|err| notify_capability_denied(self, InvocationKind::Command, err),
@@ -219,8 +214,7 @@ impl Editor {
 					);
 				},
 			) {
-				return result;
-			}
+			return result;
 		}
 
 		if policy.enforce_readonly
@@ -272,8 +266,8 @@ impl Editor {
 			let mut e_ctx = EditorContext::new(self);
 			e_ctx.check_all_capabilities(required_caps).err()
 		};
-		if let Some(e) = caps_error {
-			if let Some(result) = handle_capability_violation(
+		if let Some(e) = caps_error
+			&& let Some(result) = handle_capability_violation(
 				policy,
 				e,
 				|err| notify_capability_denied(self, InvocationKind::EditorCommand, err),
@@ -285,8 +279,7 @@ impl Editor {
 					);
 				},
 			) {
-				return result;
-			}
+			return result;
 		}
 
 		if policy.enforce_readonly
@@ -317,6 +310,29 @@ impl Editor {
 			}
 		}
 	}
+
+	/// Dispatches an action result to handlers and emits post-action hook.
+	pub(crate) fn apply_action_result(
+		&mut self,
+		action_id: &'static str,
+		result: ActionResult,
+		extend: bool,
+	) -> bool {
+		let mut ctx = EditorContext::new(self);
+		let result_variant = result.variant_name();
+		let should_quit = dispatch_result(&result, &mut ctx, extend);
+		emit_hook_sync_with(
+			&HookContext::new(
+				HookEventData::ActionPost {
+					action_id,
+					result_variant,
+				},
+				Some(&self.extensions),
+			),
+			&mut self.hook_runtime,
+		);
+		should_quit
+	}
 }
 
 enum InvocationKind {
@@ -327,12 +343,14 @@ enum InvocationKind {
 
 fn notify_capability_denied(editor: &mut Editor, kind: InvocationKind, error: &CommandError) {
 	match kind {
-		InvocationKind::Action => editor.show_notification(
-			xeno_registry_notifications::keys::action_error::call(error),
-		),
+		InvocationKind::Action => {
+			editor.show_notification(xeno_registry_notifications::keys::action_error::call(error))
+		}
 		InvocationKind::Command | InvocationKind::EditorCommand => {
 			let error = error.to_string();
-			editor.show_notification(xeno_registry_notifications::keys::command_error::call(&error));
+			editor.show_notification(xeno_registry_notifications::keys::command_error::call(
+				&error,
+			));
 		}
 	}
 }
@@ -378,8 +396,8 @@ mod tests {
 	use xeno_primitives::{Mode, Selection};
 	use xeno_registry::{
 		ActionEffects, ActionResult, Capability, CommandContext, CommandError, CommandOutcome,
-		CursorAccess, EditorCapabilities, ModeAccess, Notification, NotificationAccess,
-		SelectionAccess, action, command, hook, HookAction, HookEventData,
+		CursorAccess, EditorCapabilities, HookAction, HookEventData, ModeAccess, Notification,
+		NotificationAccess, SelectionAccess, action, command, hook,
 	};
 
 	use super::*;

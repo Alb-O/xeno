@@ -21,7 +21,6 @@
 //! ```
 
 use std::collections::HashMap;
-
 #[cfg(test)]
 use std::sync::atomic::{AtomicUsize, Ordering};
 

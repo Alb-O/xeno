@@ -5,8 +5,8 @@
 use xeno_primitives::{EditOrigin, Selection, Transaction, UndoPolicy};
 use xeno_registry_notifications::keys;
 
-use super::undo_host::EditorUndoHost;
 use super::Editor;
+use super::undo_host::EditorUndoHost;
 use crate::buffer::BufferId;
 
 impl Editor {

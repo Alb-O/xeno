@@ -13,8 +13,8 @@ use std::any::Any;
 
 use futures::future::LocalBoxFuture;
 use linkme::distributed_slice;
-pub use xeno_registry::RegistrySource;
 use xeno_registry::Capability;
+pub use xeno_registry::RegistrySource;
 pub use xeno_registry::commands::{CommandError, CommandOutcome, CommandResult};
 
 use crate::impls::Editor;

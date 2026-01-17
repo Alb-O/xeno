@@ -174,7 +174,7 @@ impl Editor {
 	///
 	/// Collects view snapshots and creates a single [`EditorUndoGroup`] for all
 	/// affected documents. Document-level undo is recorded by each buffer's
-	/// `apply_transaction_with_syntax_and_undo()` call in [`apply_buffer_edit_plan`].
+	/// `apply()` call in [`apply_buffer_edit_plan`].
 	fn begin_workspace_edit_group(&mut self, plan: &WorkspaceEditPlan) {
 		let mut seen_docs = HashSet::new();
 		let mut affected_docs = Vec::new();

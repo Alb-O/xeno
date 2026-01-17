@@ -15,7 +15,7 @@ use ropey::RopeSlice;
 use xeno_primitives::Range;
 pub use xeno_registry_core::{
 	Capability, Key, RegistryEntry, RegistryMeta, RegistryMetadata, RegistrySource,
-	impl_registry_entry, impl_registry_metadata,
+	impl_registry_entry,
 };
 
 /// Built-in motion implementations (char, word, line, etc.).

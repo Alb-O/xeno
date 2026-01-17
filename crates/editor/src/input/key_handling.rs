@@ -49,14 +49,8 @@ impl Editor {
 				char_arg,
 			} => {
 				let quit = if let Some(action) = find_action_by_id(*id) {
-					self.invoke_action(
-						action.name(),
-						*count,
-						*extend,
-						*register,
-						Some(*char_arg),
-					)
-					.is_quit()
+					self.invoke_action(action.name(), *count, *extend, *register, Some(*char_arg))
+						.is_quit()
 				} else {
 					self.show_notification(
 						xeno_registry_notifications::keys::unknown_action::call(&id.to_string()),
@@ -141,7 +135,9 @@ impl Editor {
 
 		let mut quit = false;
 		let mut handled = false;
+		#[cfg(feature = "lsp")]
 		let mut inserted_char = None;
+		#[cfg(feature = "lsp")]
 		let mut mode_change = None;
 
 		if let ActionDispatch::Executed(action_quit) = self.dispatch_action(&result) {
@@ -169,14 +165,20 @@ impl Editor {
 					if leaving_insert {
 						self.buffer_mut().clear_insert_undo_active();
 					}
-					mode_change = Some(new_mode);
+					#[cfg(feature = "lsp")]
+					{
+						mode_change = Some(new_mode);
+					}
 				}
 				KeyResult::InsertChar(c) => {
 					if !self.guard_readonly() {
 						return false;
 					}
 					self.insert_text(&c.to_string());
-					inserted_char = Some(c);
+					#[cfg(feature = "lsp")]
+					{
+						inserted_char = Some(c);
+					}
 				}
 				KeyResult::Consumed | KeyResult::Unhandled => {}
 				KeyResult::Quit => {

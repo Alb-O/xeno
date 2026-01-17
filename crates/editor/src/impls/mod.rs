@@ -13,8 +13,6 @@
 //!
 //! [`FileOpsAccess`]: xeno_registry::FileOpsAccess
 
-/// Action dispatch and context setup.
-mod actions_exec;
 /// Buffer creation operations.
 mod buffer_ops;
 /// Core editing state.
@@ -31,8 +29,6 @@ mod file_ops;
 mod focus;
 /// Undo/redo history.
 mod history;
-/// Undo host adapter.
-mod undo_host;
 /// Unified invocation dispatch.
 mod invocation;
 /// Editor lifecycle (tick, render).
@@ -49,6 +45,8 @@ mod search;
 mod splits;
 /// Theme management.
 mod theming;
+/// Undo host adapter.
+mod undo_host;
 /// Buffer access and viewport management.
 mod views;
 

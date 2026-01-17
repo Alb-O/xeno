@@ -4,6 +4,7 @@
 
 use std::path::PathBuf;
 
+#[cfg(feature = "lsp")]
 use tracing::warn;
 use xeno_registry::commands::CommandError;
 use xeno_registry::{HookContext, HookEventData, emit as emit_hook};

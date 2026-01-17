@@ -8,6 +8,7 @@ use std::path::PathBuf;
 
 #[cfg(feature = "lsp")]
 use futures::channel::oneshot;
+#[cfg(feature = "lsp")]
 use tracing::{debug, warn};
 use xeno_registry::{HookContext, HookEventData, emit_sync_with as emit_hook_sync_with};
 
@@ -351,7 +352,6 @@ impl Editor {
 		}
 		false
 	}
-
 }
 
 #[cfg(feature = "lsp")]

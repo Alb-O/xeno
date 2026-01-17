@@ -19,11 +19,11 @@ mod tests;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
 
-use xeno_primitives::{
-	CommitResult, EditCommit, EditError, Range, ReadOnlyReason, ReadOnlyScope, Rope,
-	SyntaxOutcome, SyntaxPolicy, UndoPolicy,
-};
 use xeno_primitives::transaction::Operation;
+use xeno_primitives::{
+	CommitResult, EditCommit, EditError, Range, ReadOnlyReason, ReadOnlyScope, Rope, SyntaxOutcome,
+	SyntaxPolicy, UndoPolicy,
+};
 use xeno_runtime_language::LanguageLoader;
 use xeno_runtime_language::syntax::Syntax;
 

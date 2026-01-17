@@ -6,6 +6,7 @@ workspace and will not compile.
 ## auth/
 
 OAuth/PKCE authentication providers for AI services (Claude, Codex). Includes:
+
 - Token storage and refresh
 - Local callback server for OAuth flow
 - XDG-compliant credential storage

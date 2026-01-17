@@ -7,7 +7,7 @@ license.workspace = true
 
 [features]
 default = []
-lsp = ["dep:xeno-lsp", "dep:frizbee"]
+lsp = ["dep:xeno-lsp", "dep:frizbee", "dep:thiserror", "dep:tokio-util", "dep:paste"]
 [dependencies]
 anyhow.workspace = true
 clap.workspace = true
@@ -15,15 +15,15 @@ dirs.workspace = true
 frizbee = { workspace = true, optional = true }
 futures.workspace = true
 linkme.workspace = true
-paste.workspace = true
+paste = { workspace = true, optional = true }
 regex.workspace = true
 ropey.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 termina.workspace = true
-thiserror.workspace = true
+thiserror = { workspace = true, optional = true }
 tokio.workspace = true
-tokio-util.workspace = true
+tokio-util = { workspace = true, optional = true }
 tracing.workspace = true
 xeno-keymap-core.workspace = true
 xeno-lsp = { workspace = true, features = ["position"], optional = true }

@@ -23,9 +23,9 @@ use std::collections::{HashMap, HashSet};
 use tracing::warn;
 use xeno_registry_notifications::keys;
 
+use super::undo_host::EditorUndoHost;
 use crate::buffer::{Buffer, BufferId, DocumentId};
 use crate::impls::{Editor, UndoHost, ViewSnapshot};
-use super::undo_host::EditorUndoHost;
 
 impl Buffer {
 	/// Creates a snapshot of this buffer's view state.

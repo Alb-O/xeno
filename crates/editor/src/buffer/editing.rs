@@ -75,7 +75,7 @@ impl Buffer {
 	/// Inserts text at all cursor positions, returning the applied [`Transaction`].
 	///
 	/// Note: This does NOT update syntax highlighting. For syntax-aware insertion,
-	/// use [`prepare_insert`] and apply with [`apply_transaction_with_syntax`].
+	/// use [`prepare_insert`] and apply with [`apply`] using `ApplyPolicy::EDIT`.
 	pub fn insert_text(&mut self, text: &str) -> Transaction {
 		let (tx, new_selection) = self.prepare_insert(text);
 		let result = self.apply(&tx, ApplyPolicy::BARE, &LanguageLoader::new());
@@ -143,7 +143,7 @@ impl Buffer {
 	/// Pastes text after the cursor position, returning the applied [`Transaction`].
 	///
 	/// Note: This does NOT update syntax highlighting. For syntax-aware paste,
-	/// use [`prepare_paste_after`] and apply with [`apply_transaction_with_syntax`].
+	/// use [`prepare_paste_after`] and apply with [`apply`] using `ApplyPolicy::EDIT`.
 	pub fn paste_after(&mut self, text: &str) -> Option<Transaction> {
 		let (tx, new_selection) = self.prepare_paste_after(text)?;
 		let result = self.apply(&tx, ApplyPolicy::BARE, &LanguageLoader::new());
@@ -172,7 +172,7 @@ impl Buffer {
 	/// Pastes text before the cursor position, returning the applied [`Transaction`].
 	///
 	/// Note: This does NOT update syntax highlighting. For syntax-aware paste,
-	/// use [`prepare_paste_before`] and apply with [`apply_transaction_with_syntax`].
+	/// use [`prepare_paste_before`] and apply with [`apply`] using `ApplyPolicy::EDIT`.
 	pub fn paste_before(&mut self, text: &str) -> Option<Transaction> {
 		let (tx, new_selection) = self.prepare_paste_before(text)?;
 		let result = self.apply(&tx, ApplyPolicy::BARE, &LanguageLoader::new());
@@ -205,7 +205,7 @@ impl Buffer {
 	/// Deletes the current selection, returning the applied [`Transaction`] if non-empty.
 	///
 	/// Note: This does NOT update syntax highlighting. For syntax-aware deletion,
-	/// use [`prepare_delete_selection`] and apply with [`apply_transaction_with_syntax`].
+	/// use [`prepare_delete_selection`] and apply with [`apply`] using `ApplyPolicy::EDIT`.
 	pub fn delete_selection(&mut self) -> Option<Transaction> {
 		let (tx, new_selection) = self.prepare_delete_selection()?;
 		let result = self.apply(&tx, ApplyPolicy::BARE, &LanguageLoader::new());
@@ -246,9 +246,8 @@ impl Buffer {
 				.with_doc(|doc| CommitResult::blocked(doc.version(), doc.insert_undo_active()));
 		}
 		if self.readonly_override.is_none() {
-			let (readonly, version, insert_active) = self.with_doc(|doc| {
-				(doc.is_readonly(), doc.version(), doc.insert_undo_active())
-			});
+			let (readonly, version, insert_active) =
+				self.with_doc(|doc| (doc.is_readonly(), doc.version(), doc.insert_undo_active()));
 			if readonly {
 				return CommitResult::blocked(version, insert_active);
 			}
@@ -280,9 +279,8 @@ impl Buffer {
 				.with_doc(|doc| CommitResult::blocked(doc.version(), doc.insert_undo_active()));
 		}
 		if self.readonly_override.is_none() {
-			let (readonly, version, insert_active) = self.with_doc(|doc| {
-				(doc.is_readonly(), doc.version(), doc.insert_undo_active())
-			});
+			let (readonly, version, insert_active) =
+				self.with_doc(|doc| (doc.is_readonly(), doc.version(), doc.insert_undo_active()));
 			if readonly {
 				return CommitResult::blocked(version, insert_active);
 			}
@@ -312,111 +310,6 @@ impl Buffer {
 		})
 	}
 
-	/// Applies a transaction without undo or syntax updates.
-	///
-	/// Shorthand for `apply(tx, ApplyPolicy::BARE, &LanguageLoader::new())`.
-	/// Use this for internal operations that don't need undo tracking.
-	#[deprecated(
-		since = "0.4.0",
-		note = "Use `apply()` with `ApplyPolicy::BARE` instead"
-	)]
-	pub fn apply_transaction(&self, tx: &Transaction) -> CommitResult {
-		self.apply(tx, ApplyPolicy::BARE, &LanguageLoader::new())
-	}
-
-	/// Applies a transaction with the specified undo policy (no syntax update).
-	#[deprecated(
-		since = "0.4.0",
-		note = "Use `apply()` with `ApplyPolicy::BARE.with_undo(policy)` instead"
-	)]
-	pub fn apply_transaction_with_undo(&self, tx: &Transaction, undo: UndoPolicy) -> CommitResult {
-		self.apply(
-			tx,
-			ApplyPolicy::BARE.with_undo(undo),
-			&LanguageLoader::new(),
-		)
-	}
-
-	/// Applies a transaction with syntax update (no undo).
-	#[deprecated(
-		since = "0.4.0",
-		note = "Use `apply()` with `ApplyPolicy::BARE.with_syntax(IncrementalOrDirty)` instead"
-	)]
-	pub fn apply_transaction_with_syntax(
-		&self,
-		tx: &Transaction,
-		language_loader: &LanguageLoader,
-	) -> CommitResult {
-		self.apply(
-			tx,
-			ApplyPolicy::BARE.with_syntax(SyntaxPolicy::IncrementalOrDirty),
-			language_loader,
-		)
-	}
-
-	/// Applies a transaction with syntax update and undo policy.
-	#[deprecated(
-		since = "0.4.0",
-		note = "Use `apply()` with `ApplyPolicy::EDIT` instead"
-	)]
-	pub fn apply_transaction_with_syntax_and_undo(
-		&self,
-		tx: &Transaction,
-		language_loader: &LanguageLoader,
-		undo: UndoPolicy,
-	) -> CommitResult {
-		self.apply(
-			tx,
-			ApplyPolicy::BARE
-				.with_undo(undo)
-				.with_syntax(SyntaxPolicy::IncrementalOrDirty),
-			language_loader,
-		)
-	}
-
-	/// Applies a transaction with LSP sync (no undo).
-	#[cfg(feature = "lsp")]
-	#[deprecated(
-		since = "0.4.0",
-		note = "Use `apply_with_lsp()` with `ApplyPolicy::BARE.with_syntax(IncrementalOrDirty)` instead"
-	)]
-	pub fn apply_edit_with_lsp(
-		&self,
-		tx: &Transaction,
-		language_loader: &LanguageLoader,
-		encoding: OffsetEncoding,
-	) -> CommitResult {
-		self.apply_with_lsp(
-			tx,
-			ApplyPolicy::BARE.with_syntax(SyntaxPolicy::IncrementalOrDirty),
-			language_loader,
-			encoding,
-		)
-	}
-
-	/// Applies a transaction with LSP sync and undo policy.
-	#[cfg(feature = "lsp")]
-	#[deprecated(
-		since = "0.4.0",
-		note = "Use `apply_with_lsp()` with `ApplyPolicy` instead"
-	)]
-	pub fn apply_edit_with_lsp_and_undo(
-		&self,
-		tx: &Transaction,
-		language_loader: &LanguageLoader,
-		encoding: OffsetEncoding,
-		undo: UndoPolicy,
-	) -> CommitResult {
-		self.apply_with_lsp(
-			tx,
-			ApplyPolicy::BARE
-				.with_undo(undo)
-				.with_syntax(SyntaxPolicy::IncrementalOrDirty),
-			language_loader,
-			encoding,
-		)
-	}
-
 	/// Drains pending LSP changes for this document.
 	#[cfg(feature = "lsp")]
 	pub fn drain_lsp_changes(&self) -> Vec<LspDocumentChange> {
@@ -431,21 +324,23 @@ impl Buffer {
 }
 
 #[cfg(test)]
-#[allow(deprecated)]
 mod tests {
-	use crate::buffer::{ApplyPolicy, Buffer, BufferId};
 	use xeno_runtime_language::LanguageLoader;
 
+	use crate::buffer::{ApplyPolicy, Buffer, BufferId};
+
 	#[cfg(feature = "lsp")]
-	#[allow(deprecated)]
 	mod lsp_batching {
 		use xeno_lsp::{IncrementalResult, OffsetEncoding, compute_lsp_changes};
-		use xeno_primitives::Selection;
 		use xeno_primitives::lsp::{LspPosition, LspRange};
-		use xeno_primitives::SyntaxPolicy;
+		use xeno_primitives::{Selection, SyntaxPolicy};
 		use xeno_runtime_language::LanguageLoader;
 
 		use crate::buffer::{ApplyPolicy, Buffer, BufferId};
+
+		/// Policy shorthand for LSP-synced edits without undo.
+		const LSP_POLICY: ApplyPolicy =
+			ApplyPolicy::BARE.with_syntax(SyntaxPolicy::IncrementalOrDirty);
 
 		fn make_buffer(content: &str) -> Buffer {
 			let buffer = Buffer::scratch(BufferId::SCRATCH);
@@ -463,7 +358,7 @@ mod tests {
 
 			let (tx, _sel) = buffer.prepare_insert(" world");
 			let loader = xeno_runtime_language::LanguageLoader::new();
-			buffer.apply_edit_with_lsp(&tx, &loader, OffsetEncoding::Utf16);
+			buffer.apply_with_lsp(&tx, LSP_POLICY, &loader, OffsetEncoding::Utf16);
 
 			let changes = buffer.drain_lsp_changes();
 			assert_eq!(changes.len(), 1);
@@ -479,14 +374,14 @@ mod tests {
 			// First transaction: insert at start of line 1
 			buffer.set_selection(Selection::single(0, 0));
 			let (tx1, sel1) = buffer.prepare_insert("A");
-			buffer.apply_edit_with_lsp(&tx1, &loader, OffsetEncoding::Utf16);
+			buffer.apply_with_lsp(&tx1, LSP_POLICY, &loader, OffsetEncoding::Utf16);
 			buffer.finalize_selection(sel1);
 
 			// Second transaction: insert at start of line 2
 			// After first insert, "Aline1\nline2\n", line 2 starts at char 7
 			buffer.set_selection(Selection::single(7, 7));
 			let (tx2, sel2) = buffer.prepare_insert("B");
-			buffer.apply_edit_with_lsp(&tx2, &loader, OffsetEncoding::Utf16);
+			buffer.apply_with_lsp(&tx2, LSP_POLICY, &loader, OffsetEncoding::Utf16);
 			buffer.finalize_selection(sel2);
 
 			let changes = buffer.drain_lsp_changes();
@@ -518,7 +413,7 @@ mod tests {
 			));
 
 			let (tx, _sel) = buffer.prepare_insert("X");
-			buffer.apply_edit_with_lsp(&tx, &loader, OffsetEncoding::Utf16);
+			buffer.apply_with_lsp(&tx, LSP_POLICY, &loader, OffsetEncoding::Utf16);
 
 			let changes = buffer.drain_lsp_changes();
 			assert_eq!(changes.len(), 3);
@@ -543,8 +438,8 @@ mod tests {
 			buffer.set_selection(Selection::single(5, 5));
 
 			let (tx, new_sel) = buffer.prepare_insert("!");
-			let expected =
-				buffer.with_doc(|doc| compute_lsp_changes(doc.content(), &tx, OffsetEncoding::Utf16));
+			let expected = buffer
+				.with_doc(|doc| compute_lsp_changes(doc.content(), &tx, OffsetEncoding::Utf16));
 
 			let loader = LanguageLoader::new();
 			let result = buffer.apply_with_lsp(
@@ -577,7 +472,7 @@ mod tests {
 
 			buffer.set_selection(Selection::single(4, 4));
 			let (tx, _sel) = buffer.prepare_insert("!");
-			buffer.apply_edit_with_lsp(&tx, &loader, OffsetEncoding::Utf16);
+			buffer.apply_with_lsp(&tx, LSP_POLICY, &loader, OffsetEncoding::Utf16);
 
 			let changes = buffer.drain_lsp_changes();
 			assert_eq!(changes.len(), 1);

@@ -19,7 +19,7 @@
 use std::time::Duration;
 
 use linkme::distributed_slice;
-pub use xeno_registry_core::{Key, RegistryMetadata, RegistrySource, impl_registry_metadata};
+pub use xeno_registry_core::{Key, RegistryMetadata, RegistrySource};
 
 mod actions;
 mod builtins;

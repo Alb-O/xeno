@@ -18,7 +18,6 @@ mod macros;
 
 pub use xeno_registry_core::{
 	Capability, RegistryEntry, RegistryMeta, RegistryMetadata, RegistrySource, impl_registry_entry,
-	impl_registry_metadata,
 };
 
 /// Function signature for async command handlers.

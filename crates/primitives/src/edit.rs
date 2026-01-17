@@ -3,8 +3,9 @@
 //! These types form the foundation for a single, authoritative edit gate
 //! that handles undo/redo, readonly checks, and syntax scheduling.
 
-use crate::{Range, Selection, Transaction};
 use smallvec::SmallVec;
+
+use crate::{Range, Selection, Transaction};
 
 /// Error type for edit operations.
 #[derive(Debug, Clone, thiserror::Error)]

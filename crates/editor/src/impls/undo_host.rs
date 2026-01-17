@@ -2,8 +2,7 @@ use std::collections::HashMap;
 
 use tracing::warn;
 use xeno_primitives::{Selection, SyntaxPolicy, Transaction, UndoPolicy};
-use xeno_registry_notifications::keys;
-use xeno_registry_notifications::Notification;
+use xeno_registry_notifications::{Notification, keys};
 
 use crate::buffer::{ApplyPolicy, BufferId, DocumentId};
 use crate::buffer_manager::BufferManager;
@@ -52,7 +51,9 @@ impl EditorUndoHost<'_> {
 			} else {
 				buffer.apply(tx, policy, &self.config.language_loader)
 			};
-			if result.applied && let Some(selection) = new_selection {
+			if result.applied
+				&& let Some(selection) = new_selection
+			{
 				buffer.finalize_selection(selection);
 			}
 			result
@@ -65,7 +66,9 @@ impl EditorUndoHost<'_> {
 				.get_buffer_mut(buffer_id)
 				.expect("focused buffer must exist");
 			let result = buffer.apply(tx, policy, &self.config.language_loader);
-			if result.applied && let Some(selection) = new_selection {
+			if result.applied
+				&& let Some(selection) = new_selection
+			{
 				buffer.finalize_selection(selection);
 			}
 			result

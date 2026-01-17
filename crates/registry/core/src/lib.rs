@@ -209,11 +209,11 @@ pub trait RegistryEntry {
 	}
 }
 
-/// Legacy trait for basic metadata access.
+/// Trait for basic metadata access.
 ///
 /// This trait provides the minimal metadata interface. Types implementing
-/// [`RegistryEntry`] (with `meta: RegistryMeta` field) get this automatically.
-/// Legacy types with individual fields use [`impl_registry_metadata!`].
+/// [`RegistryEntry`] (with `meta: RegistryMeta` field) get this automatically
+/// via [`impl_registry_entry!`].
 pub trait RegistryMetadata {
 	/// Returns the unique identifier for this registry item.
 	fn id(&self) -> &'static str;
@@ -247,30 +247,6 @@ macro_rules! impl_registry_entry {
 			}
 			fn source(&self) -> $crate::RegistrySource {
 				self.meta.source
-			}
-		}
-	};
-}
-
-/// Implements [`RegistryMetadata`] for a type with individual `id`, `name`, `priority`, `source` fields.
-///
-/// This is the legacy macro for types not yet migrated to `meta: RegistryMeta`.
-/// New code should use [`impl_registry_entry!`] with the consolidated field.
-#[macro_export]
-macro_rules! impl_registry_metadata {
-	($type:ty) => {
-		impl $crate::RegistryMetadata for $type {
-			fn id(&self) -> &'static str {
-				self.id
-			}
-			fn name(&self) -> &'static str {
-				self.name
-			}
-			fn priority(&self) -> i16 {
-				self.priority
-			}
-			fn source(&self) -> $crate::RegistrySource {
-				self.source
 			}
 		}
 	};

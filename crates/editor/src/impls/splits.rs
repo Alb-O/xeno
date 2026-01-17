@@ -4,6 +4,7 @@
 
 use std::path::PathBuf;
 
+#[cfg(feature = "lsp")]
 use tracing::warn;
 use xeno_registry::{
 	HookContext, HookEventData, SplitDirection, ViewId, emit_sync_with as emit_hook_sync_with,

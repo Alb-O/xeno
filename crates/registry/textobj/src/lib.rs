@@ -19,7 +19,6 @@ mod macros;
 // Re-export shared types from core registry for consistency
 pub use xeno_registry_core::{
 	Capability, RegistryEntry, RegistryMeta, RegistryMetadata, RegistrySource, impl_registry_entry,
-	impl_registry_metadata,
 };
 pub use xeno_registry_motions::{flags, movement};
 
