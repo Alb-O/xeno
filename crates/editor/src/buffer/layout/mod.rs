@@ -13,11 +13,9 @@ mod navigation;
 mod tests;
 mod types;
 
-pub use types::{BufferView, SplitDirection, SplitPath};
+pub use types::{SplitDirection, SplitPath, ViewId};
 pub use xeno_primitives::SpatialDirection;
 use xeno_tui::layout::Rect;
-
-use super::BufferId;
 
 /// Layout tree for buffer arrangement.
 ///
@@ -29,15 +27,15 @@ use super::BufferId;
 ///
 /// ```text
 /// Layout::Split
-/// ├── first: Layout::Single(BufferId(1))
+/// ├── first: Layout::Single(ViewId(1))
 /// └── second: Layout::Split
-///     ├── first: Layout::Single(BufferId(2))
-///     └── second: Layout::Single(BufferId(3))
+///     ├── first: Layout::Single(ViewId(2))
+///     └── second: Layout::Single(ViewId(3))
 /// ```
 #[derive(Debug, Clone)]
 pub enum Layout {
 	/// A single text buffer.
-	Single(BufferId),
+	Single(ViewId),
 	/// A split containing two child layouts.
 	Split {
 		/// Direction of the split (horizontal or vertical).
@@ -61,12 +59,12 @@ impl Layout {
 	pub const MIN_HEIGHT: u16 = 3;
 
 	/// Creates a new single-buffer layout.
-	pub fn single(buffer_id: BufferId) -> Self {
+	pub fn single(buffer_id: ViewId) -> Self {
 		Layout::Single(buffer_id)
 	}
 
 	/// Creates a new single-buffer layout (alias for `single`).
-	pub fn text(buffer_id: BufferId) -> Self {
+	pub fn text(buffer_id: ViewId) -> Self {
 		Layout::Single(buffer_id)
 	}
 
@@ -97,7 +95,7 @@ impl Layout {
 	}
 
 	/// Returns the first buffer in the layout (leftmost/topmost).
-	pub fn first_view(&self) -> BufferId {
+	pub fn first_view(&self) -> ViewId {
 		match self {
 			Layout::Single(id) => *id,
 			Layout::Split { first, .. } => first.first_view(),
@@ -105,7 +103,7 @@ impl Layout {
 	}
 
 	/// Returns the last buffer in the layout (rightmost/bottommost).
-	pub fn last_view(&self) -> BufferId {
+	pub fn last_view(&self) -> ViewId {
 		match self {
 			Layout::Single(id) => *id,
 			Layout::Split { second, .. } => second.last_view(),
@@ -113,12 +111,12 @@ impl Layout {
 	}
 
 	/// Returns the first buffer ID (same as first_view for text-only layouts).
-	pub fn first_buffer(&self) -> Option<BufferId> {
+	pub fn first_buffer(&self) -> Option<ViewId> {
 		Some(self.first_view())
 	}
 
 	/// Returns all buffer IDs in this layout.
-	pub fn views(&self) -> Vec<BufferId> {
+	pub fn views(&self) -> Vec<ViewId> {
 		match self {
 			Layout::Single(id) => vec![*id],
 			Layout::Split { first, second, .. } => {
@@ -130,12 +128,12 @@ impl Layout {
 	}
 
 	/// Returns all buffer IDs in this layout (alias for views).
-	pub fn buffer_ids(&self) -> Vec<BufferId> {
+	pub fn buffer_ids(&self) -> Vec<ViewId> {
 		self.views()
 	}
 
 	/// Checks if this layout contains a specific buffer.
-	pub fn contains_view(&self, buffer_id: BufferId) -> bool {
+	pub fn contains_view(&self, buffer_id: ViewId) -> bool {
 		match self {
 			Layout::Single(id) => *id == buffer_id,
 			Layout::Split { first, second, .. } => {
@@ -145,12 +143,12 @@ impl Layout {
 	}
 
 	/// Checks if this layout contains a specific buffer (alias for contains_view).
-	pub fn contains(&self, buffer_id: BufferId) -> bool {
+	pub fn contains(&self, buffer_id: ViewId) -> bool {
 		self.contains_view(buffer_id)
 	}
 
 	/// Replaces a buffer with a new layout (for splitting). Returns true if replaced.
-	pub fn replace_view(&mut self, target: BufferId, new_layout: Layout) -> bool {
+	pub fn replace_view(&mut self, target: ViewId, new_layout: Layout) -> bool {
 		match self {
 			Layout::Single(id) if *id == target => {
 				*self = new_layout;
@@ -165,13 +163,13 @@ impl Layout {
 	}
 
 	/// Replaces a buffer with a new layout (alias for replace_view).
-	pub fn replace(&mut self, target: BufferId, new_layout: Layout) -> bool {
+	pub fn replace(&mut self, target: ViewId, new_layout: Layout) -> bool {
 		self.replace_view(target, new_layout)
 	}
 
 	/// Removes a buffer from the layout, collapsing splits as needed.
 	/// Returns None if removing would leave no buffers.
-	pub fn remove_view(&self, target: BufferId) -> Option<Layout> {
+	pub fn remove_view(&self, target: ViewId) -> Option<Layout> {
 		match self {
 			Layout::Single(id) if *id == target => None,
 			Layout::Single(_) => Some(self.clone()),
@@ -194,7 +192,7 @@ impl Layout {
 	}
 
 	/// Removes a buffer from the layout (alias for remove_view).
-	pub fn remove(&self, target: BufferId) -> Option<Layout> {
+	pub fn remove(&self, target: ViewId) -> Option<Layout> {
 		self.remove_view(target)
 	}
 

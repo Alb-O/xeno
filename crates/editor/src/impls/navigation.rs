@@ -11,7 +11,7 @@ use xeno_primitives::selection::Selection;
 use xeno_registry::options::keys;
 
 use super::Editor;
-use crate::buffer::BufferId;
+use crate::buffer::ViewId;
 
 /// Target location for navigation.
 #[derive(Debug, Clone)]
@@ -94,7 +94,7 @@ impl Editor {
 	///
 	/// The buffer ID of the target buffer, or an error if the file couldn't
 	/// be opened.
-	pub async fn goto_location(&mut self, location: &Location) -> anyhow::Result<BufferId> {
+	pub async fn goto_location(&mut self, location: &Location) -> anyhow::Result<ViewId> {
 		// Check if we already have this file open
 		let buffer_id = if let Some(id) = self.core.buffers.find_by_path(&location.path) {
 			// Switch to existing buffer

@@ -10,7 +10,7 @@ use xeno_tui::widgets::BorderType;
 use xeno_tui::widgets::block::Padding;
 
 use crate::Editor;
-use crate::buffer::BufferId;
+use crate::buffer::ViewId;
 use crate::window::{FloatingStyle, GutterSelector, Window, WindowId};
 
 /// Active command palette instance.
@@ -19,7 +19,7 @@ pub struct Palette {
 	/// The floating window containing the input buffer.
 	pub window_id: WindowId,
 	/// The scratch buffer used for input.
-	pub buffer_id: BufferId,
+	pub buffer_id: ViewId,
 }
 
 /// Palette lifecycle state.
@@ -52,7 +52,7 @@ impl PaletteState {
 	}
 
 	/// Returns the buffer ID if palette is open.
-	pub fn buffer_id(&self) -> Option<BufferId> {
+	pub fn buffer_id(&self) -> Option<ViewId> {
 		self.active().map(|p| p.buffer_id)
 	}
 }

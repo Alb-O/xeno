@@ -5,7 +5,7 @@ use std::collections::HashMap;
 use xeno_tui::layout::Rect;
 
 use super::types::{BaseWindow, FloatingStyle, FloatingWindow, Window, WindowId};
-use crate::buffer::{BufferId, Layout};
+use crate::buffer::{Layout, ViewId};
 
 /// Tracks all editor windows and their ordering.
 pub struct WindowManager {
@@ -17,7 +17,7 @@ pub struct WindowManager {
 
 impl WindowManager {
 	/// Creates a new window manager with a base window.
-	pub fn new(base_layout: Layout, focused_buffer: BufferId) -> Self {
+	pub fn new(base_layout: Layout, focused_buffer: ViewId) -> Self {
 		let base_id = WindowId(1);
 		let base_window = BaseWindow {
 			layout: base_layout,
@@ -86,7 +86,7 @@ impl WindowManager {
 	/// Creates a new floating window and returns its ID.
 	pub fn create_floating(
 		&mut self,
-		buffer: BufferId,
+		buffer: ViewId,
 		rect: Rect,
 		style: FloatingStyle,
 	) -> WindowId {

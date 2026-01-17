@@ -1,6 +1,6 @@
 //! Buffer storage, ID generation, and focus tracking.
 //!
-//! [`BufferManager`] centralizes ownership of text buffers.
+//! [`ViewManager`] centralizes ownership of text buffers.
 //! Focus state is mirrored from the [`Editor`] for compatibility.
 
 use std::collections::HashMap;
@@ -8,22 +8,22 @@ use std::path::PathBuf;
 
 use xeno_runtime_language::LanguageLoader;
 
-use crate::buffer::{Buffer, BufferId, BufferView};
+use crate::buffer::{Buffer, ViewId};
 
 /// Owns text buffers, tracks focus, and generates unique IDs.
-pub struct BufferManager {
+pub struct ViewManager {
 	/// Map of buffer IDs to their buffer instances.
-	buffers: HashMap<BufferId, Buffer>,
+	buffers: HashMap<ViewId, Buffer>,
 	/// Counter for generating unique buffer IDs.
 	next_buffer_id: u64,
 	/// Currently focused view (buffer ID), mirrored from the editor focus.
-	focused_view: BufferView,
+	focused_view: ViewId,
 }
 
-impl BufferManager {
+impl ViewManager {
 	/// Creates a manager with an initial buffer (ID 1) as the focused view.
 	pub fn new(content: String, path: Option<PathBuf>, language_loader: &LanguageLoader) -> Self {
-		let buffer_id = BufferId(1);
+		let buffer_id = ViewId(1);
 		let buffer = Buffer::new(buffer_id, content, path);
 		buffer.init_syntax(language_loader);
 
@@ -57,8 +57,8 @@ impl BufferManager {
 		path: Option<PathBuf>,
 		language_loader: &LanguageLoader,
 		window_width: Option<u16>,
-	) -> BufferId {
-		let buffer_id = BufferId(self.next_buffer_id);
+	) -> ViewId {
+		let buffer_id = ViewId(self.next_buffer_id);
 		self.next_buffer_id += 1;
 
 		let mut buffer = Buffer::new(buffer_id, content, path);
@@ -75,8 +75,8 @@ impl BufferManager {
 	/// Creates an empty scratch buffer without syntax highlighting.
 	///
 	/// Used for temporary input buffers like command palette.
-	pub fn create_scratch(&mut self) -> BufferId {
-		let buffer_id = BufferId(self.next_buffer_id);
+	pub fn create_scratch(&mut self) -> ViewId {
+		let buffer_id = ViewId(self.next_buffer_id);
 		self.next_buffer_id += 1;
 
 		let buffer = Buffer::new(buffer_id, String::new(), None);
@@ -88,8 +88,8 @@ impl BufferManager {
 	///
 	/// The new buffer has independent cursor/selection/scroll state but
 	/// edits in either buffer affect both (they share the same Document).
-	pub fn clone_focused_buffer_for_split(&mut self) -> BufferId {
-		let new_id = BufferId(self.next_buffer_id);
+	pub fn clone_focused_buffer_for_split(&mut self) -> ViewId {
+		let new_id = ViewId(self.next_buffer_id);
 		self.next_buffer_id += 1;
 
 		let new_buffer = self.focused_buffer().clone_for_split(new_id);
@@ -98,19 +98,19 @@ impl BufferManager {
 	}
 
 	/// Removes a buffer. Does not update focus.
-	pub fn remove_buffer(&mut self, id: BufferId) -> Option<Buffer> {
+	pub fn remove_buffer(&mut self, id: ViewId) -> Option<Buffer> {
 		self.buffers.remove(&id)
 	}
 
 	/// Returns the currently focused view (buffer ID).
-	pub fn focused_view(&self) -> BufferView {
+	pub fn focused_view(&self) -> ViewId {
 		self.focused_view
 	}
 
 	/// Sets the focused view. Returns true if the view exists.
 	///
 	/// This should be driven by the editor focus model.
-	pub fn set_focused_view(&mut self, view: BufferView) -> bool {
+	pub fn set_focused_view(&mut self, view: ViewId) -> bool {
 		if self.buffers.contains_key(&view) {
 			self.focused_view = view;
 			true
@@ -127,7 +127,7 @@ impl BufferManager {
 	}
 
 	/// Returns the ID of the focused text buffer.
-	pub fn focused_buffer_id(&self) -> Option<BufferId> {
+	pub fn focused_buffer_id(&self) -> Option<ViewId> {
 		Some(self.focused_view)
 	}
 
@@ -156,17 +156,17 @@ impl BufferManager {
 	}
 
 	/// Returns a buffer by ID.
-	pub fn get_buffer(&self, id: BufferId) -> Option<&Buffer> {
+	pub fn get_buffer(&self, id: ViewId) -> Option<&Buffer> {
 		self.buffers.get(&id)
 	}
 
 	/// Returns a buffer mutably by ID.
-	pub fn get_buffer_mut(&mut self, id: BufferId) -> Option<&mut Buffer> {
+	pub fn get_buffer_mut(&mut self, id: ViewId) -> Option<&mut Buffer> {
 		self.buffers.get_mut(&id)
 	}
 
 	/// Returns an iterator over all buffer IDs.
-	pub fn buffer_ids(&self) -> impl Iterator<Item = BufferId> + '_ {
+	pub fn buffer_ids(&self) -> impl Iterator<Item = ViewId> + '_ {
 		self.buffers.keys().copied()
 	}
 
@@ -190,7 +190,7 @@ impl BufferManager {
 	/// Returns the first buffer that has a matching path. Note that multiple
 	/// buffers may share the same document (via splits), so this returns
 	/// just one of them.
-	pub fn find_by_path(&self, path: &std::path::Path) -> Option<BufferId> {
+	pub fn find_by_path(&self, path: &std::path::Path) -> Option<ViewId> {
 		self.buffers
 			.values()
 			.find(|b| b.path().as_deref() == Some(path))

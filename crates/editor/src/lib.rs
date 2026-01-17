@@ -15,17 +15,15 @@
 //!
 //! ```text
 //! Editor
-//! ├── buffers: HashMap<BufferId, Buffer>      // Text editing
+//! ├── buffers: HashMap<ViewId, Buffer>        // Text editing
 //! ├── layout: Layout                          // Split arrangement
-//! └── focused_buffer: BufferId                // Current focus
+//! └── focused_buffer: ViewId                  // Current focus
 //! ```
 //!
 //! Views can be split horizontally or vertically, with each split containing
 //! a text buffer.
 
 pub mod buffer;
-/// Buffer storage and management.
-pub mod buffer_manager;
 pub mod capabilities;
 /// Command queue for deferred execution.
 pub mod command_queue;
@@ -77,10 +75,12 @@ pub mod theme_source;
 pub mod types;
 /// UI management: focus tracking.
 pub mod ui;
+/// View storage and management.
+pub mod view_manager;
 /// Window management and floating UI.
 pub mod window;
 
-pub use buffer::{Buffer, BufferId, HistoryResult};
+pub use buffer::{Buffer, HistoryResult, ViewId};
 pub use completion::{
 	CompletionContext, CompletionItem, CompletionKind, CompletionSource, CompletionState,
 };

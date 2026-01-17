@@ -7,7 +7,7 @@ use xeno_tui::layout::Rect;
 
 use super::manager::LayoutManager;
 use super::types::LayerIndex;
-use crate::buffer::{BufferView, Layout};
+use crate::buffer::{Layout, ViewId};
 
 impl LayoutManager {
 	/// Returns the layout at a specific layer, if it exists.
@@ -57,7 +57,7 @@ impl LayoutManager {
 	}
 
 	/// Finds which layer contains a view.
-	pub fn layer_of_view(&self, base_layout: &Layout, view: BufferView) -> Option<LayerIndex> {
+	pub fn layer_of_view(&self, base_layout: &Layout, view: ViewId) -> Option<LayerIndex> {
 		if base_layout.contains_view(view) {
 			return Some(0);
 		}

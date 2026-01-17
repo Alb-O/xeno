@@ -37,7 +37,7 @@ mod tests {
 	use xeno_tui::layout::Rect;
 
 	use super::*;
-	use crate::buffer::{BufferId, Layout};
+	use crate::buffer::{Layout, ViewId};
 
 	fn make_doc_area() -> Rect {
 		Rect {
@@ -61,11 +61,11 @@ mod tests {
 	fn view_at_position_finds_buffer() {
 		let mgr = LayoutManager::new();
 		let doc = make_doc_area();
-		let base_layout = Layout::text(BufferId(0));
+		let base_layout = Layout::text(ViewId(0));
 
 		let hit = mgr.view_at_position(&base_layout, doc, 40, 12);
 		assert!(hit.is_some());
 		let (view, _) = hit.unwrap();
-		assert_eq!(view, BufferId(0), "clicking in base area returns buffer 0");
+		assert_eq!(view, ViewId(0), "clicking in base area returns buffer 0");
 	}
 }

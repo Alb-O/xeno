@@ -17,6 +17,7 @@ This is correct separation: `RegistryIndex` handles identity/introspection, even
 ## Ordering Guarantees
 
 Hooks within each event are sorted by `(priority asc, name asc)`:
+
 - Lower priority numbers run first
 - Name provides stable tie-breaking
 
@@ -34,15 +35,18 @@ pub struct HookIndex {
 ```
 
 Benefits:
+
 - Smaller memory footprint (usize vs pointer)
 - No lifetime gymnastics
 - Single source of truth
 
 Tradeoffs:
+
 - Indirect lookup (index → slice → def)
 - More complex runtime registration
 
 Current approach is fine given hook count (~10 total). Reconsider if:
+
 - Hook count grows significantly (100+)
 - Memory pressure becomes concern
 - Need to support hook removal

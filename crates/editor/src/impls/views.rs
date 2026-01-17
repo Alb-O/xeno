@@ -1,11 +1,11 @@
 //! Buffer access and viewport management.
 //!
-//! Provides convenient methods for accessing buffers. Delegates to [`BufferManager`].
+//! Provides convenient methods for accessing buffers. Delegates to [`ViewManager`].
 
 use xeno_registry::options::keys;
 
 use super::{Editor, FocusTarget};
-use crate::buffer::{Buffer, BufferId, BufferView};
+use crate::buffer::{Buffer, ViewId};
 use crate::window::Window;
 
 impl Editor {
@@ -56,7 +56,7 @@ impl Editor {
 	}
 
 	/// Returns the currently focused view (buffer ID).
-	pub fn focused_view(&self) -> BufferView {
+	pub fn focused_view(&self) -> ViewId {
 		match &self.focus {
 			FocusTarget::Buffer { buffer, .. } => *buffer,
 			FocusTarget::Panel(_) => self.base_window().focused_buffer,
@@ -69,22 +69,22 @@ impl Editor {
 	}
 
 	/// Returns the ID of the focused text buffer.
-	pub fn focused_buffer_id(&self) -> Option<BufferId> {
+	pub fn focused_buffer_id(&self) -> Option<ViewId> {
 		Some(self.focused_view())
 	}
 
 	/// Returns all text buffer IDs.
-	pub fn buffer_ids(&self) -> Vec<BufferId> {
+	pub fn buffer_ids(&self) -> Vec<ViewId> {
 		self.core.buffers.buffer_ids().collect()
 	}
 
 	/// Returns a reference to a specific buffer by ID.
-	pub fn get_buffer(&self, id: BufferId) -> Option<&Buffer> {
+	pub fn get_buffer(&self, id: ViewId) -> Option<&Buffer> {
 		self.core.buffers.get_buffer(id)
 	}
 
 	/// Returns a mutable reference to a specific buffer by ID.
-	pub fn get_buffer_mut(&mut self, id: BufferId) -> Option<&mut Buffer> {
+	pub fn get_buffer_mut(&mut self, id: ViewId) -> Option<&mut Buffer> {
 		self.core.buffers.get_buffer_mut(id)
 	}
 
@@ -98,7 +98,7 @@ impl Editor {
 	/// Resolves through the option layers: buffer-local → language → global → default.
 	/// This helper is useful when you need to pre-resolve the option before borrowing
 	/// the buffer mutably.
-	pub fn tab_width_for(&self, buffer_id: BufferId) -> usize {
+	pub fn tab_width_for(&self, buffer_id: ViewId) -> usize {
 		self.core
 			.buffers
 			.get_buffer(buffer_id)
@@ -112,7 +112,7 @@ impl Editor {
 	}
 
 	/// Returns whether cursorline is enabled for a specific buffer.
-	pub fn cursorline_for(&self, buffer_id: BufferId) -> bool {
+	pub fn cursorline_for(&self, buffer_id: ViewId) -> bool {
 		self.core
 			.buffers
 			.get_buffer(buffer_id)
@@ -121,7 +121,7 @@ impl Editor {
 	}
 
 	/// Returns the scroll margin for a specific buffer.
-	pub fn scroll_margin_for(&self, buffer_id: BufferId) -> usize {
+	pub fn scroll_margin_for(&self, buffer_id: ViewId) -> usize {
 		self.core
 			.buffers
 			.get_buffer(buffer_id)

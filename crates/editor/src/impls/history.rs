@@ -24,7 +24,7 @@ use tracing::warn;
 use xeno_registry_notifications::keys;
 
 use super::undo_host::EditorUndoHost;
-use crate::buffer::{Buffer, BufferId, DocumentId};
+use crate::buffer::{Buffer, DocumentId, ViewId};
 use crate::impls::{Editor, UndoHost, ViewSnapshot};
 
 impl Buffer {
@@ -53,7 +53,7 @@ impl UndoHost for Editor {
 		self.guard_readonly()
 	}
 
-	fn doc_id_for_buffer(&self, buffer_id: BufferId) -> DocumentId {
+	fn doc_id_for_buffer(&self, buffer_id: ViewId) -> DocumentId {
 		self.core
 			.buffers
 			.get_buffer(buffer_id)
@@ -61,7 +61,7 @@ impl UndoHost for Editor {
 			.document_id()
 	}
 
-	fn collect_view_snapshots(&self, doc_id: DocumentId) -> HashMap<BufferId, ViewSnapshot> {
+	fn collect_view_snapshots(&self, doc_id: DocumentId) -> HashMap<ViewId, ViewSnapshot> {
 		self.core
 			.buffers
 			.buffers()
@@ -73,7 +73,7 @@ impl UndoHost for Editor {
 	fn capture_current_view_snapshots(
 		&self,
 		doc_ids: &[DocumentId],
-	) -> HashMap<BufferId, ViewSnapshot> {
+	) -> HashMap<ViewId, ViewSnapshot> {
 		let doc_set: HashSet<_> = doc_ids.iter().copied().collect();
 		self.core
 			.buffers
@@ -83,7 +83,7 @@ impl UndoHost for Editor {
 			.collect()
 	}
 
-	fn restore_view_snapshots(&mut self, snapshots: &HashMap<BufferId, ViewSnapshot>) {
+	fn restore_view_snapshots(&mut self, snapshots: &HashMap<ViewId, ViewSnapshot>) {
 		for buffer in self.core.buffers.buffers_mut() {
 			if let Some(snapshot) = snapshots.get(&buffer.id) {
 				buffer.restore_view(snapshot);

@@ -8,7 +8,7 @@ use xeno_registry::options::{
 };
 
 use super::Editor;
-use crate::buffer::BufferId;
+use crate::buffer::ViewId;
 
 impl Editor {
 	/// Resolves an option for a specific buffer through the full hierarchy.
@@ -30,7 +30,7 @@ impl Editor {
 	///
 	/// let value = editor.resolve_option(buffer_id, keys::TAB_WIDTH.untyped());
 	/// ```
-	pub fn resolve_option(&self, buffer_id: BufferId, key: OptionKey) -> OptionValue {
+	pub fn resolve_option(&self, buffer_id: ViewId, key: OptionKey) -> OptionValue {
 		let buffer = self
 			.core
 			.buffers
@@ -63,7 +63,7 @@ impl Editor {
 	/// ```
 	pub fn resolve_typed_option<T: FromOptionValue>(
 		&self,
-		buffer_id: BufferId,
+		buffer_id: ViewId,
 		key: TypedOptionKey<T>,
 	) -> T {
 		T::from_option(&self.resolve_option(buffer_id, key.untyped()))

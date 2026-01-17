@@ -327,7 +327,7 @@ impl Buffer {
 mod tests {
 	use xeno_runtime_language::LanguageLoader;
 
-	use crate::buffer::{ApplyPolicy, Buffer, BufferId};
+	use crate::buffer::{ApplyPolicy, Buffer, ViewId};
 
 	#[cfg(feature = "lsp")]
 	mod lsp_batching {
@@ -336,14 +336,14 @@ mod tests {
 		use xeno_primitives::{Selection, SyntaxPolicy};
 		use xeno_runtime_language::LanguageLoader;
 
-		use crate::buffer::{ApplyPolicy, Buffer, BufferId};
+		use crate::buffer::{ApplyPolicy, Buffer, ViewId};
 
 		/// Policy shorthand for LSP-synced edits without undo.
 		const LSP_POLICY: ApplyPolicy =
 			ApplyPolicy::BARE.with_syntax(SyntaxPolicy::IncrementalOrDirty);
 
 		fn make_buffer(content: &str) -> Buffer {
-			let buffer = Buffer::scratch(BufferId::SCRATCH);
+			let buffer = Buffer::scratch(ViewId::SCRATCH);
 			if !content.is_empty() {
 				let rope = ropey::Rope::from(content);
 				buffer.with_doc_mut(|doc| doc.reset_content(rope));
@@ -485,7 +485,7 @@ mod tests {
 
 	#[test]
 	fn readonly_flag_roundtrip() {
-		let buffer = Buffer::scratch(BufferId::SCRATCH);
+		let buffer = Buffer::scratch(ViewId::SCRATCH);
 		assert!(!buffer.is_readonly());
 		buffer.set_readonly(true);
 		assert!(buffer.is_readonly());
@@ -493,7 +493,7 @@ mod tests {
 
 	#[test]
 	fn readonly_blocks_apply_transaction() {
-		let mut buffer = Buffer::scratch(BufferId::SCRATCH);
+		let mut buffer = Buffer::scratch(ViewId::SCRATCH);
 		let (tx, _selection) = buffer.prepare_insert("hi");
 		buffer.set_readonly(true);
 		let result = buffer.apply(&tx, ApplyPolicy::BARE, &LanguageLoader::new());
@@ -503,7 +503,7 @@ mod tests {
 
 	#[test]
 	fn readonly_override_blocks_transaction() {
-		let mut buffer = Buffer::scratch(BufferId::SCRATCH);
+		let mut buffer = Buffer::scratch(ViewId::SCRATCH);
 		assert!(!buffer.with_doc(|doc| doc.is_readonly()));
 		buffer.set_readonly_override(Some(true));
 		assert!(buffer.is_readonly());
@@ -516,7 +516,7 @@ mod tests {
 
 	#[test]
 	fn readonly_override_allows_write_on_readonly_doc() {
-		let mut buffer = Buffer::scratch(BufferId::SCRATCH);
+		let mut buffer = Buffer::scratch(ViewId::SCRATCH);
 		// Document is readonly, but buffer override makes it writable
 		buffer.set_readonly(true);
 		assert!(buffer.is_readonly());
@@ -532,7 +532,7 @@ mod tests {
 
 	#[test]
 	fn readonly_override_none_defers_to_document() {
-		let mut buffer = Buffer::scratch(BufferId::SCRATCH);
+		let mut buffer = Buffer::scratch(ViewId::SCRATCH);
 		buffer.set_readonly_override(None);
 		assert!(!buffer.is_readonly()); // Document is writable
 
@@ -542,11 +542,11 @@ mod tests {
 
 	#[test]
 	fn split_does_not_inherit_readonly_override() {
-		let mut buffer = Buffer::scratch(BufferId::SCRATCH);
+		let mut buffer = Buffer::scratch(ViewId::SCRATCH);
 		buffer.set_readonly_override(Some(true));
 		assert!(buffer.is_readonly());
 
-		let split = buffer.clone_for_split(BufferId(1));
+		let split = buffer.clone_for_split(ViewId(1));
 		// Split should defer to document (writable), not inherit override
 		assert!(!split.is_readonly());
 	}

@@ -7,7 +7,7 @@ use xeno_primitives::range::CharIdx;
 
 use super::completion_filter::{extract_query, filter_items};
 use super::types::{LspMenuKind, LspMenuState};
-use crate::buffer::BufferId;
+use crate::buffer::ViewId;
 use crate::completion::{CompletionState, SelectionIntent};
 use crate::impls::Editor;
 use crate::info_popup::PopupAnchor;
@@ -16,7 +16,7 @@ use crate::{CompletionItem, CompletionKind};
 pub enum LspUiEvent {
 	CompletionResult {
 		generation: u64,
-		buffer_id: BufferId,
+		buffer_id: ViewId,
 		cursor: CharIdx,
 		doc_version: u64,
 		replace_start: usize,
@@ -24,7 +24,7 @@ pub enum LspUiEvent {
 	},
 	SignatureHelp {
 		generation: u64,
-		buffer_id: BufferId,
+		buffer_id: ViewId,
 		cursor: CharIdx,
 		doc_version: u64,
 		contents: String,

@@ -2,7 +2,7 @@
 
 use std::collections::HashSet;
 
-use crate::buffer::{BufferId, BufferView};
+use crate::buffer::ViewId;
 
 /// Per-frame runtime state.
 ///
@@ -16,9 +16,9 @@ pub struct FrameState {
 	/// Last tick timestamp.
 	pub last_tick: std::time::SystemTime,
 	/// Buffers with pending content changes for `BufferChange` hooks.
-	pub dirty_buffers: HashSet<BufferId>,
+	pub dirty_buffers: HashSet<ViewId>,
 	/// Views with sticky focus (resist mouse hover focus changes).
-	pub sticky_views: HashSet<BufferView>,
+	pub sticky_views: HashSet<ViewId>,
 }
 
 impl Default for FrameState {

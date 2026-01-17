@@ -7,7 +7,7 @@ use xeno_registry_notifications::keys;
 
 use super::Editor;
 use super::undo_host::EditorUndoHost;
-use crate::buffer::BufferId;
+use crate::buffer::ViewId;
 
 impl Editor {
 	pub(crate) fn guard_readonly(&mut self) -> bool {
@@ -26,7 +26,7 @@ impl Editor {
 	/// 3. Finalizes via `UndoManager` (pushes `EditorUndoGroup` if needed)
 	pub(crate) fn apply_edit(
 		&mut self,
-		buffer_id: BufferId,
+		buffer_id: ViewId,
 		tx: &Transaction,
 		new_selection: Option<Selection>,
 		undo: UndoPolicy,

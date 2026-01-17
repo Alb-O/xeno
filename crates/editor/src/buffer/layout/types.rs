@@ -1,6 +1,6 @@
 //! Layout type definitions.
 
-use super::super::BufferId;
+pub use xeno_primitives::ViewId;
 
 /// Path to a split in the layout tree.
 ///
@@ -20,9 +20,3 @@ pub enum SplitDirection {
 	/// Vertical split (buffers stacked).
 	Vertical,
 }
-
-/// Type alias for buffer views in the layout.
-///
-/// All views in the layout are now text buffers. This type alias maintains
-/// API compatibility while the layout system only supports text buffers.
-pub type BufferView = BufferId;

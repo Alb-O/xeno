@@ -15,9 +15,9 @@ use xeno_primitives::Selection;
 use xeno_primitives::range::CharIdx;
 use xeno_registry::{CommandQueueAccess, CursorAccess, MacroAccess, SelectionAccess};
 
-use crate::buffer::{Buffer, BufferId, BufferView};
-use crate::buffer_manager::BufferManager;
+use crate::buffer::{Buffer, ViewId};
 use crate::types::{UndoManager, Workspace};
+use crate::view_manager::ViewManager;
 
 /// Core editing state: buffers, workspace, undo history.
 ///
@@ -29,7 +29,7 @@ use crate::types::{UndoManager, Workspace};
 ///
 /// ```text
 /// EditorCore
-/// ├── buffers: BufferManager     // Text buffer storage and focus tracking
+/// ├── buffers: ViewManager       // Text buffer storage and focus tracking
 /// ├── workspace: Workspace       // Session state (registers, jumps, macros)
 /// └── undo_manager: UndoManager  // Undo/redo grouping stacks
 /// ```
@@ -37,7 +37,7 @@ pub struct EditorCore {
 	/// Buffer and document storage.
 	///
 	/// Manages text buffers, tracks focused view, and generates unique IDs.
-	pub buffers: BufferManager,
+	pub buffers: ViewManager,
 
 	/// Session state persisting across buffer switches.
 	///
@@ -54,7 +54,7 @@ pub struct EditorCore {
 
 impl EditorCore {
 	/// Creates a new EditorCore with the given components.
-	pub fn new(buffers: BufferManager, workspace: Workspace, undo_manager: UndoManager) -> Self {
+	pub fn new(buffers: ViewManager, workspace: Workspace, undo_manager: UndoManager) -> Self {
 		Self {
 			buffers,
 			workspace,
@@ -64,7 +64,7 @@ impl EditorCore {
 
 	/// Returns the focused view (buffer ID).
 	#[inline]
-	pub fn focused_view(&self) -> BufferView {
+	pub fn focused_view(&self) -> ViewId {
 		self.buffers.focused_view()
 	}
 
@@ -89,12 +89,12 @@ impl EditorCore {
 	}
 
 	/// Returns a buffer by ID.
-	pub fn get_buffer(&self, id: BufferId) -> Option<&Buffer> {
+	pub fn get_buffer(&self, id: ViewId) -> Option<&Buffer> {
 		self.buffers.get_buffer(id)
 	}
 
 	/// Returns a buffer mutably by ID.
-	pub fn get_buffer_mut(&mut self, id: BufferId) -> Option<&mut Buffer> {
+	pub fn get_buffer_mut(&mut self, id: ViewId) -> Option<&mut Buffer> {
 		self.buffers.get_buffer_mut(id)
 	}
 }

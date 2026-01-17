@@ -5,7 +5,7 @@ use std::collections::HashMap;
 use termina::event::KeyEvent;
 use xeno_primitives::range::CharIdx;
 
-use crate::buffer::BufferId;
+use crate::buffer::ViewId;
 use crate::impls::CommandQueue;
 
 /// Named registers for storing yanked text.
@@ -19,7 +19,7 @@ pub struct Registers {
 #[derive(Clone, Debug)]
 pub struct JumpLocation {
 	/// The buffer containing this jump.
-	pub buffer_id: BufferId,
+	pub buffer_id: ViewId,
 	/// Cursor position at time of jump.
 	pub cursor: CharIdx,
 }

@@ -96,8 +96,9 @@ impl LayoutManager {
 						.unwrap()
 						.set_hovering(false);
 				} else {
-					self.separator_hover_animation =
-						Some(SeparatorHoverAnimation::new_at_intensity(old_rect, 1.0, false));
+					self.separator_hover_animation = Some(
+						SeparatorHoverAnimation::new_at_intensity(old_rect, 1.0, false),
+					);
 				}
 			}
 			(Some((_, old_rect)), Some((_, new_rect))) if old_rect != new_rect => {

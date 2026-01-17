@@ -16,7 +16,7 @@ use std::collections::HashMap;
 use xeno_primitives::range::CharIdx;
 use xeno_primitives::{EditOrigin, Rope, Selection};
 
-use crate::buffer::{BufferId, DocumentId};
+use crate::buffer::{DocumentId, ViewId};
 
 /// Document-level undo entry storing only document state.
 ///
@@ -63,7 +63,7 @@ pub struct EditorUndoGroup {
 	/// Documents affected by this undo group.
 	pub affected_docs: Vec<DocumentId>,
 	/// View snapshots for each buffer at the time of the edit.
-	pub view_snapshots: HashMap<BufferId, ViewSnapshot>,
+	pub view_snapshots: HashMap<ViewId, ViewSnapshot>,
 	/// Origin of this edit group.
 	pub origin: EditOrigin,
 }

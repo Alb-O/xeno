@@ -3,19 +3,18 @@
 use xeno_tui::layout::Rect;
 
 use super::Layout;
-use super::types::{BufferView, SplitDirection, SplitPath};
-use crate::buffer::BufferId;
+use super::types::{SplitDirection, SplitPath, ViewId};
 
 impl Layout {
 	/// Finds the view at the given screen coordinates.
-	pub fn view_at_position(&self, area: Rect, x: u16, y: u16) -> Option<(BufferView, Rect)> {
+	pub fn view_at_position(&self, area: Rect, x: u16, y: u16) -> Option<(ViewId, Rect)> {
 		self.compute_view_areas(area).into_iter().find(|(_, rect)| {
 			x >= rect.x && x < rect.x + rect.width && y >= rect.y && y < rect.y + rect.height
 		})
 	}
 
 	/// Computes rectangular areas for each view in the layout.
-	pub fn compute_view_areas(&self, area: Rect) -> Vec<(BufferView, Rect)> {
+	pub fn compute_view_areas(&self, area: Rect) -> Vec<(ViewId, Rect)> {
 		match self {
 			Layout::Single(view) => vec![(*view, area)],
 			Layout::Split {
@@ -34,7 +33,7 @@ impl Layout {
 	}
 
 	/// Computes rectangular areas for each buffer in the layout.
-	pub fn compute_areas(&self, area: Rect) -> Vec<(BufferId, Rect)> {
+	pub fn compute_areas(&self, area: Rect) -> Vec<(ViewId, Rect)> {
 		self.compute_view_areas(area)
 	}
 

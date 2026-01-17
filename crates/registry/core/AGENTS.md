@@ -50,11 +50,13 @@ Readers get a snapshot reference (no lock). Writers clone-and-swap (more expensi
 ### Static Lifetime Constraint
 
 Current `RuntimeRegistry` requires `&'static T` and `&'static str` keys. This works for:
+
 - Compile-time builtins
 - Crates linked at startup (inventory pattern)
 - Leaked allocations (acceptable for long-lived plugins)
 
 **Does NOT work for:**
+
 - Truly dynamic plugins (dlopen, WASM, user scripts)
 - Reloadable/unloadable plugins
 
@@ -79,6 +81,7 @@ impl<T> LayeredRegistry<T> {
 ```
 
 This model:
+
 - Uses `Arc<T>` + `String` keys (no 'static requirement)
 - Makes unload deterministic (remove whole layer)
 - Handles shadowing naturally (newer layers win)
@@ -86,6 +89,7 @@ This model:
 ## DuplicatePolicy + Sort Order Interaction
 
 With `sort_default()` (priority descending):
+
 - `FirstWins` → highest priority wins (intended behavior)
 - `LastWins` → lowest priority wins (usually wrong)
 
@@ -94,11 +98,13 @@ Current default `DuplicatePolicy::for_build()` returns `FirstWins` in release an
 ## Trait Consolidation (Deferred)
 
 Current traits:
+
 - `RegistryMeta`: pure data struct
 - `RegistryEntry`: trait requiring `fn meta(&self) -> &RegistryMeta`
 - `RegistryMetadata`: additional trait for type-erased access
 
 Consolidation would be:
+
 ```rust
 pub trait HasRegistryMeta {
     fn meta(&self) -> &RegistryMeta;
@@ -106,6 +112,7 @@ pub trait HasRegistryMeta {
 ```
 
 Only worth doing if:
+
 1. Boilerplate impls are annoying weekly
 2. Contributors frequently misuse the trio
 3. Plugin API is blocked by awkward metadata access

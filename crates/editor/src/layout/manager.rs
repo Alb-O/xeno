@@ -4,7 +4,7 @@
 
 use xeno_tui::layout::Rect;
 
-use crate::buffer::{BufferView, Layout, SplitDirection};
+use crate::buffer::{Layout, SplitDirection, ViewId};
 use crate::separator::{DragState, MouseVelocityTracker, SeparatorHoverAnimation};
 
 /// Manages stacked layout layers and separator interactions.
@@ -37,7 +37,7 @@ pub struct LayoutManager {
 	pub dragging_separator: Option<DragState>,
 
 	/// Tracks the view where a text selection drag started.
-	pub text_selection_origin: Option<(BufferView, Rect)>,
+	pub text_selection_origin: Option<(ViewId, Rect)>,
 }
 
 impl Default for LayoutManager {

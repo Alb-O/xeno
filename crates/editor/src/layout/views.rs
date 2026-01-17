@@ -5,11 +5,11 @@
 use xeno_tui::layout::Rect;
 
 use super::manager::LayoutManager;
-use crate::buffer::{BufferId, BufferView, Layout, SpatialDirection};
+use crate::buffer::{Layout, SpatialDirection, ViewId};
 
 impl LayoutManager {
 	/// Returns the first view in the layout (from topmost non-empty layer).
-	pub fn first_view(&self, base_layout: &Layout) -> BufferView {
+	pub fn first_view(&self, base_layout: &Layout) -> ViewId {
 		for i in (1..self.layers.len()).rev() {
 			if let Some(layout) = &self.layers[i] {
 				return layout.first_view();
@@ -19,7 +19,7 @@ impl LayoutManager {
 	}
 
 	/// Returns the first text buffer ID if one exists (searches all layers).
-	pub fn first_buffer(&self, base_layout: &Layout) -> Option<BufferId> {
+	pub fn first_buffer(&self, base_layout: &Layout) -> Option<ViewId> {
 		for i in (1..self.layers.len()).rev() {
 			if let Some(layout) = &self.layers[i]
 				&& let Some(id) = layout.first_buffer()
@@ -43,7 +43,7 @@ impl LayoutManager {
 	}
 
 	/// Returns all views across all layers.
-	pub fn views(&self, base_layout: &Layout) -> Vec<BufferView> {
+	pub fn views(&self, base_layout: &Layout) -> Vec<ViewId> {
 		let mut views = base_layout.views();
 		views.extend(
 			self.layers
@@ -56,7 +56,7 @@ impl LayoutManager {
 	}
 
 	/// Returns all text buffer IDs across all layers.
-	pub fn buffer_ids(&self, base_layout: &Layout) -> Vec<BufferId> {
+	pub fn buffer_ids(&self, base_layout: &Layout) -> Vec<ViewId> {
 		let mut ids = base_layout.buffer_ids();
 		ids.extend(
 			self.layers
@@ -69,7 +69,7 @@ impl LayoutManager {
 	}
 
 	/// Checks if any layer contains a specific view.
-	pub fn contains_view(&self, base_layout: &Layout, view: BufferView) -> bool {
+	pub fn contains_view(&self, base_layout: &Layout, view: ViewId) -> bool {
 		if base_layout.contains_view(view) {
 			return true;
 		}
@@ -81,7 +81,7 @@ impl LayoutManager {
 	}
 
 	/// Returns the next view in layout order (searches current layer first).
-	pub fn next_view(&self, base_layout: &Layout, current: BufferView) -> BufferView {
+	pub fn next_view(&self, base_layout: &Layout, current: ViewId) -> ViewId {
 		if let Some(layer_idx) = self.layer_of_view(base_layout, current)
 			&& layer_idx != 0
 			&& let Some(layout) = &self.layers[layer_idx]
@@ -92,7 +92,7 @@ impl LayoutManager {
 	}
 
 	/// Returns the previous view in layout order.
-	pub fn prev_view(&self, base_layout: &Layout, current: BufferView) -> BufferView {
+	pub fn prev_view(&self, base_layout: &Layout, current: ViewId) -> ViewId {
 		if let Some(layer_idx) = self.layer_of_view(base_layout, current)
 			&& layer_idx != 0
 			&& let Some(layout) = &self.layers[layer_idx]
@@ -103,12 +103,12 @@ impl LayoutManager {
 	}
 
 	/// Returns the next buffer ID in layout order.
-	pub fn next_buffer(&self, base_layout: &Layout, current: BufferId) -> BufferId {
+	pub fn next_buffer(&self, base_layout: &Layout, current: ViewId) -> ViewId {
 		base_layout.next_buffer(current)
 	}
 
 	/// Returns the previous buffer ID in layout order.
-	pub fn prev_buffer(&self, base_layout: &Layout, current: BufferId) -> BufferId {
+	pub fn prev_buffer(&self, base_layout: &Layout, current: ViewId) -> ViewId {
 		base_layout.prev_buffer(current)
 	}
 
@@ -119,7 +119,7 @@ impl LayoutManager {
 		area: Rect,
 		x: u16,
 		y: u16,
-	) -> Option<(BufferView, Rect)> {
+	) -> Option<(ViewId, Rect)> {
 		for i in (1..self.layers.len()).rev() {
 			if let Some(layout) = &self.layers[i] {
 				let layer_area = self.layer_area(i, area);
@@ -132,7 +132,7 @@ impl LayoutManager {
 	}
 
 	/// Computes rectangular areas for each view in the base layer.
-	pub fn compute_view_areas(&self, base_layout: &Layout, area: Rect) -> Vec<(BufferView, Rect)> {
+	pub fn compute_view_areas(&self, base_layout: &Layout, area: Rect) -> Vec<(ViewId, Rect)> {
 		base_layout.compute_view_areas(area)
 	}
 
@@ -142,14 +142,14 @@ impl LayoutManager {
 		base_layout: &Layout,
 		layer: super::types::LayerIndex,
 		area: Rect,
-	) -> Vec<(BufferView, Rect)> {
+	) -> Vec<(ViewId, Rect)> {
 		self.layer(base_layout, layer)
 			.map(|l| l.compute_view_areas(area))
 			.unwrap_or_default()
 	}
 
 	/// Computes rectangular areas for each buffer in the base layer.
-	pub fn compute_buffer_areas(&self, base_layout: &Layout, area: Rect) -> Vec<(BufferId, Rect)> {
+	pub fn compute_buffer_areas(&self, base_layout: &Layout, area: Rect) -> Vec<(ViewId, Rect)> {
 		base_layout.compute_areas(area)
 	}
 
@@ -158,10 +158,10 @@ impl LayoutManager {
 		&self,
 		base_layout: &Layout,
 		area: Rect,
-		current: BufferView,
+		current: ViewId,
 		direction: SpatialDirection,
 		hint: u16,
-	) -> Option<BufferView> {
+	) -> Option<ViewId> {
 		if let Some(idx) = self.layer_of_view(base_layout, current)
 			&& idx != 0
 			&& let Some(layout) = &self.layers[idx]

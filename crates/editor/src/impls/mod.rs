@@ -65,8 +65,7 @@ use xeno_registry::{
 use xeno_runtime_language::LanguageLoader;
 use xeno_tui::layout::Rect;
 
-use crate::buffer::{BufferId, Layout};
-pub use crate::buffer_manager::BufferManager;
+use crate::buffer::{Layout, ViewId};
 pub use crate::command_queue::CommandQueue;
 use crate::extensions::{ExtensionMap, StyleOverlays};
 pub use crate::hook_runtime::HookRuntime;
@@ -83,6 +82,7 @@ pub use crate::types::{
 	UndoManager, ViewSnapshot, Viewport, Workspace,
 };
 use crate::ui::UiManager;
+pub use crate::view_manager::ViewManager;
 use crate::window::{BaseWindow, FloatingStyle, WindowId, WindowManager};
 
 static REGISTRY_SUMMARY_ONCE: Once = Once::new();
@@ -114,7 +114,7 @@ fn log_registry_summary_once() {
 ///
 /// # View System
 ///
-/// The editor tracks focus via [`BufferView`] (a type alias for [`BufferId`]).
+/// The editor tracks focus via [`ViewId`] (a type alias for [`ViewId`]).
 /// The layout tree arranges views in splits:
 ///
 /// ```text
@@ -140,8 +140,8 @@ fn log_registry_summary_once() {
 /// - [`focus_buffer`] - Focus by ID
 /// - [`focus_next_view`] / [`focus_prev_view`] - Cycle through views
 ///
-/// [`BufferView`]: crate::buffer::BufferView
-/// [`BufferId`]: crate::buffer::BufferId
+/// [`ViewId`]: crate::buffer::ViewId
+/// [`ViewId`]: crate::buffer::ViewId
 /// [`focused_view`]: Self::focused_view
 /// [`focus_buffer`]: Self::focus_buffer
 /// [`focus_next_view`]: Self::focus_next_view
@@ -252,8 +252,8 @@ impl Editor {
 		let language_loader = LanguageLoader::from_embedded();
 
 		// Create buffer manager with initial buffer
-		let buffer_manager = BufferManager::new(content, path.clone(), &language_loader);
-		let buffer_id = buffer_manager.focused_buffer_id().unwrap();
+		let view_manager = ViewManager::new(content, path.clone(), &language_loader);
+		let buffer_id = view_manager.focused_buffer_id().unwrap();
 		let window_manager = WindowManager::new(Layout::text(buffer_id), buffer_id);
 		let focus = focus::FocusTarget::Buffer {
 			window: window_manager.base_id(),
@@ -278,7 +278,7 @@ impl Editor {
 
 		let scratch_path = PathBuf::from("[scratch]");
 		let hook_path = path.as_ref().unwrap_or(&scratch_path);
-		let buffer = buffer_manager.focused_buffer();
+		let buffer = view_manager.focused_buffer();
 		let content = buffer.with_doc(|doc| doc.content().clone());
 
 		emit_hook_sync_with(
@@ -294,7 +294,7 @@ impl Editor {
 		);
 
 		// Create EditorCore with buffers, workspace, and undo manager
-		let core = EditorCore::new(buffer_manager, Workspace::default(), UndoManager::new());
+		let core = EditorCore::new(view_manager, Workspace::default(), UndoManager::new());
 
 		Self {
 			core,
@@ -343,7 +343,7 @@ impl Editor {
 	/// Creates a floating window and emits a hook.
 	pub fn create_floating_window(
 		&mut self,
-		buffer: BufferId,
+		buffer: ViewId,
 		rect: Rect,
 		style: FloatingStyle,
 	) -> WindowId {
@@ -387,7 +387,7 @@ impl Editor {
 	/// This is a compatibility accessor for code that previously accessed
 	/// `editor.buffers` directly. New code should use `editor.core.buffers`.
 	#[inline]
-	pub fn buffers(&self) -> &BufferManager {
+	pub fn buffers(&self) -> &ViewManager {
 		&self.core.buffers
 	}
 
@@ -396,7 +396,7 @@ impl Editor {
 	/// This is a compatibility accessor for code that previously accessed
 	/// `editor.buffers` directly. New code should use `editor.core.buffers`.
 	#[inline]
-	pub fn buffers_mut(&mut self) -> &mut BufferManager {
+	pub fn buffers_mut(&mut self) -> &mut ViewManager {
 		&mut self.core.buffers
 	}
 

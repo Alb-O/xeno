@@ -4,12 +4,11 @@ use xeno_primitives::SpatialDirection;
 use xeno_tui::layout::Rect;
 
 use super::Layout;
-use super::types::BufferView;
-use crate::buffer::BufferId;
+use super::types::ViewId;
 
 impl Layout {
 	/// Returns the next view in the layout order (for `Ctrl+w w` navigation).
-	pub fn next_view(&self, current: BufferView) -> BufferView {
+	pub fn next_view(&self, current: ViewId) -> ViewId {
 		let views = self.views();
 		if views.is_empty() {
 			return current;
@@ -19,7 +18,7 @@ impl Layout {
 	}
 
 	/// Returns the previous view in the layout order.
-	pub fn prev_view(&self, current: BufferView) -> BufferView {
+	pub fn prev_view(&self, current: ViewId) -> ViewId {
 		let views = self.views();
 		if views.is_empty() {
 			return current;
@@ -29,7 +28,7 @@ impl Layout {
 	}
 
 	/// Returns the next buffer ID in layout order (for `:bnext`).
-	pub fn next_buffer(&self, current: BufferId) -> BufferId {
+	pub fn next_buffer(&self, current: ViewId) -> ViewId {
 		let ids = self.buffer_ids();
 		if ids.is_empty() {
 			return current;
@@ -39,7 +38,7 @@ impl Layout {
 	}
 
 	/// Returns the previous buffer ID in layout order (for `:bprev`).
-	pub fn prev_buffer(&self, current: BufferId) -> BufferId {
+	pub fn prev_buffer(&self, current: ViewId) -> ViewId {
 		let ids = self.buffer_ids();
 		if ids.is_empty() {
 			return current;
@@ -55,10 +54,10 @@ impl Layout {
 	pub fn view_in_direction(
 		&self,
 		area: Rect,
-		current: BufferView,
+		current: ViewId,
 		direction: SpatialDirection,
 		hint: u16,
-	) -> Option<BufferView> {
+	) -> Option<ViewId> {
 		let views = self.compute_view_areas(area);
 		let current_rect = views.iter().find(|(v, _)| *v == current)?.1;
 

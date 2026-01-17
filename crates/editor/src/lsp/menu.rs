@@ -19,7 +19,7 @@ use super::events::map_completion_item_with_indices;
 use super::snippet::{Snippet, SnippetPlaceholder, parse_snippet};
 use super::types::{LspMenuKind, LspMenuState};
 use super::workspace_edit::{ApplyError, BufferEditPlan, PlannedTextEdit, convert_text_edit};
-use crate::buffer::BufferId;
+use crate::buffer::ViewId;
 use crate::completion::{CompletionState, SelectionIntent};
 use crate::impls::Editor;
 use crate::info_popup::PopupAnchor;
@@ -440,7 +440,7 @@ impl Editor {
 		self.frame.needs_redraw = true;
 	}
 
-	async fn apply_completion_item(&mut self, buffer_id: BufferId, item: CompletionItem) {
+	async fn apply_completion_item(&mut self, buffer_id: ViewId, item: CompletionItem) {
 		let (encoding, selection, cursor, rope, readonly) = {
 			let Some(buffer) = self.core.buffers.get_buffer(buffer_id) else {
 				return;
@@ -556,7 +556,7 @@ impl Editor {
 
 	async fn apply_code_action_or_command(
 		&mut self,
-		buffer_id: BufferId,
+		buffer_id: ViewId,
 		action: CodeActionOrCommand,
 	) {
 		match action {
@@ -581,7 +581,7 @@ impl Editor {
 		}
 	}
 
-	async fn execute_lsp_command(&mut self, buffer_id: BufferId, command: Command) {
+	async fn execute_lsp_command(&mut self, buffer_id: ViewId, command: Command) {
 		let Some(buffer) = self.core.buffers.get_buffer(buffer_id) else {
 			return;
 		};
@@ -661,7 +661,7 @@ fn ranges_overlap(a: StdRange<CharIdx>, b: StdRange<CharIdx>) -> bool {
 	a.start < b.end && b.start < a.end
 }
 
-fn signature_help_anchor(editor: &Editor, buffer_id: BufferId) -> PopupAnchor {
+fn signature_help_anchor(editor: &Editor, buffer_id: ViewId) -> PopupAnchor {
 	let Some(buffer) = editor.get_buffer(buffer_id) else {
 		return PopupAnchor::Center;
 	};
@@ -779,7 +779,7 @@ fn completion_text_edit(
 
 fn validate_non_overlapping(
 	edits: &mut [PlannedTextEdit],
-	buffer_id: BufferId,
+	buffer_id: ViewId,
 ) -> Result<(), ApplyError> {
 	edits.sort_by_key(|edit| (edit.range.start, edit.range.end));
 	for window in edits.windows(2) {

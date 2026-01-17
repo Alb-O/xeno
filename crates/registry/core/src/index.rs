@@ -401,25 +401,25 @@ impl<T: RegistryEntry + 'static> RuntimeRegistry<T> {
 
 	/// Panics if key conflicts with an existing definition.
 	fn check_conflict(&self, extras: &RuntimeExtras<T>, key: &'static str, def: &'static T) {
-		if let Some(existing) = self.builtins.get(key) {
-			if !std::ptr::eq(existing, def) {
-				panic!(
-					"runtime registry key conflict in {}: key={:?} conflicts with builtin id={}",
-					self.label,
-					key,
-					existing.id()
-				);
-			}
+		if let Some(existing) = self.builtins.get(key)
+			&& !std::ptr::eq(existing, def)
+		{
+			panic!(
+				"runtime registry key conflict in {}: key={:?} conflicts with builtin id={}",
+				self.label,
+				key,
+				existing.id()
+			);
 		}
-		if let Some(&existing) = extras.by_key.get(key) {
-			if !std::ptr::eq(existing, def) {
-				panic!(
-					"runtime registry key conflict in {}: key={:?} conflicts with id={}",
-					self.label,
-					key,
-					existing.id()
-				);
-			}
+		if let Some(&existing) = extras.by_key.get(key)
+			&& !std::ptr::eq(existing, def)
+		{
+			panic!(
+				"runtime registry key conflict in {}: key={:?} conflicts with id={}",
+				self.label,
+				key,
+				existing.id()
+			);
 		}
 	}
 

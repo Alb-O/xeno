@@ -157,7 +157,7 @@ impl Editor {
 
 	async fn apply_rename(
 		&mut self,
-		buffer_id: crate::buffer::BufferId,
+		buffer_id: crate::buffer::ViewId,
 		position: usize,
 		new_name: String,
 	) {

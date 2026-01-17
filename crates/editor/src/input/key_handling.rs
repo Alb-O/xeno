@@ -229,7 +229,7 @@ impl Editor {
 	fn update_lsp_completion_state(
 		&mut self,
 		mode_change: Option<&xeno_primitives::Mode>,
-		old_buffer_id: crate::buffer::BufferId,
+		old_buffer_id: crate::buffer::ViewId,
 		old_cursor: usize,
 		old_version: u64,
 		inserted_char: Option<char>,

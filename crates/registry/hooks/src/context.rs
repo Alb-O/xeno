@@ -4,21 +4,9 @@ use std::any::Any;
 use std::path::Path;
 
 use xeno_primitives::Rope;
+pub use xeno_primitives::ViewId;
 
 use super::{HookEvent, HookEventData, OwnedHookContext};
-
-/// Identifier for a focused view in hook payloads.
-///
-/// All views are text buffers, identified by their buffer ID.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct ViewId(pub u64);
-
-impl ViewId {
-	/// Creates a new view ID for a text buffer.
-	pub const fn text(id: u64) -> Self {
-		Self(id)
-	}
-}
 
 /// Identifier for a window in hook payloads.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

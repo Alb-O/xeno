@@ -6,6 +6,8 @@ pub mod direction;
 pub mod edit;
 /// Grapheme cluster boundary detection.
 pub mod graphemes;
+/// Identifier types for editor entities.
+pub mod ids;
 /// Key and mouse event types.
 pub mod key;
 /// LSP sync primitives (position/range/change).
@@ -30,6 +32,7 @@ pub use edit::{
 	CommitResult, EditCommit, EditError, EditOrigin, ReadOnlyReason, ReadOnlyScope, SyntaxOutcome,
 	SyntaxPolicy, UndoPolicy,
 };
+pub use ids::ViewId;
 pub use key::{Key, KeyCode, Modifiers, MouseButton, MouseEvent, ScrollDirection};
 pub use lsp::{LspChangeSet, LspDocumentChange, LspPosition, LspRange};
 pub use mode::Mode;

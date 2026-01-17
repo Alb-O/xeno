@@ -20,7 +20,7 @@ use xeno_primitives::{Selection, Transaction};
 use xeno_registry::edit_op::EditOp;
 
 use super::Editor;
-use crate::buffer::BufferId;
+use crate::buffer::ViewId;
 use crate::types::ApplyEditPolicy;
 
 /// Centralized executor for all edit operations.
@@ -42,7 +42,7 @@ impl<'a> EditExecutor<'a> {
 	}
 
 	/// Returns the focused buffer ID.
-	pub fn focused_buffer(&self) -> BufferId {
+	pub fn focused_buffer(&self) -> ViewId {
 		self.editor.focused_view()
 	}
 
@@ -54,7 +54,7 @@ impl<'a> EditExecutor<'a> {
 	/// 3. Finalizes via `UndoManager` (pushes `EditorUndoGroup` if needed)
 	pub fn apply_transaction(
 		&mut self,
-		buffer_id: BufferId,
+		buffer_id: ViewId,
 		tx: &Transaction,
 		new_selection: Option<Selection>,
 		policy: ApplyEditPolicy,

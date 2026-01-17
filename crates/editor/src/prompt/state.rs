@@ -3,20 +3,20 @@ use xeno_tui::layout::Rect;
 use xeno_tui::widgets::BorderType;
 use xeno_tui::widgets::block::Padding;
 
-use crate::buffer::BufferId;
+use crate::buffer::ViewId;
 use crate::window::{FloatingStyle, WindowId};
 
 #[derive(Debug, Clone)]
 pub struct Prompt {
 	pub window_id: WindowId,
-	pub buffer_id: BufferId,
+	pub buffer_id: ViewId,
 	pub kind: PromptKind,
 }
 
 #[derive(Debug, Clone)]
 pub enum PromptKind {
 	Rename {
-		target_buffer: BufferId,
+		target_buffer: ViewId,
 		position: CharIdx,
 	},
 }
@@ -44,7 +44,7 @@ impl PromptState {
 		self.active().map(|prompt| prompt.window_id)
 	}
 
-	pub fn buffer_id(&self) -> Option<BufferId> {
+	pub fn buffer_id(&self) -> Option<ViewId> {
 		self.active().map(|prompt| prompt.buffer_id)
 	}
 }

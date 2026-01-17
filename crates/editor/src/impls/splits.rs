@@ -11,18 +11,12 @@ use xeno_registry::{
 };
 
 use super::Editor;
-use crate::buffer::{BufferId, BufferView};
-
-/// Converts a buffer view to a hook-compatible view ID.
-fn hook_view_id(view: BufferView) -> ViewId {
-	ViewId::text(view.0)
-}
 
 impl Editor {
 	/// Creates a horizontal split with the current view and a new buffer below.
 	///
 	/// Matches Vim's `:split` / Helix's `hsplit` (Ctrl+w s).
-	pub fn split_horizontal(&mut self, new_buffer_id: BufferId) {
+	pub fn split_horizontal(&mut self, new_buffer_id: ViewId) {
 		let current_view = self.focused_view();
 		let doc_area = self.doc_area();
 		let base_layout = &mut self.windows.base_window_mut().layout;
@@ -32,7 +26,7 @@ impl Editor {
 		emit_hook_sync_with(
 			&HookContext::new(
 				HookEventData::SplitCreated {
-					view_id: hook_view_id(new_buffer_id),
+					view_id: new_buffer_id,
 					direction: SplitDirection::Horizontal,
 				},
 				Some(&self.extensions),
@@ -44,7 +38,7 @@ impl Editor {
 	/// Creates a vertical split with the current view and a new buffer to the right.
 	///
 	/// Matches Vim's `:vsplit` / Helix's `vsplit` (Ctrl+w v).
-	pub fn split_vertical(&mut self, new_buffer_id: BufferId) {
+	pub fn split_vertical(&mut self, new_buffer_id: ViewId) {
 		let current_view = self.focused_view();
 		let doc_area = self.doc_area();
 		let base_layout = &mut self.windows.base_window_mut().layout;
@@ -54,7 +48,7 @@ impl Editor {
 		emit_hook_sync_with(
 			&HookContext::new(
 				HookEventData::SplitCreated {
-					view_id: hook_view_id(new_buffer_id),
+					view_id: new_buffer_id,
 					direction: SplitDirection::Vertical,
 				},
 				Some(&self.extensions),
@@ -81,7 +75,7 @@ impl Editor {
 	/// Closes a view (buffer).
 	///
 	/// Returns true if the view was closed.
-	pub fn close_view(&mut self, view: BufferView) -> bool {
+	pub fn close_view(&mut self, view: ViewId) -> bool {
 		if self.layout.count(&self.base_window().layout) <= 1 {
 			return false;
 		}
@@ -109,9 +103,7 @@ impl Editor {
 
 		emit_hook_sync_with(
 			&HookContext::new(
-				HookEventData::SplitClosed {
-					view_id: hook_view_id(view),
-				},
+				HookEventData::SplitClosed { view_id: view },
 				Some(&self.extensions),
 			),
 			&mut self.hook_runtime,
@@ -142,7 +134,7 @@ impl Editor {
 	/// Closes a buffer.
 	///
 	/// Returns true if the buffer was closed.
-	pub fn close_buffer(&mut self, id: BufferId) -> bool {
+	pub fn close_buffer(&mut self, id: ViewId) -> bool {
 		self.close_view(id)
 	}
 

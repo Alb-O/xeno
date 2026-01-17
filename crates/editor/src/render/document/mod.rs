@@ -16,14 +16,14 @@ use xeno_tui::widgets::{Block, Borders, Clear, Paragraph};
 use self::separator::{SeparatorStyle, junction_glyph};
 use super::buffer::{BufferRenderContext, ensure_buffer_cursor_visible};
 use crate::Editor;
-use crate::buffer::{BufferView, SplitDirection};
+use crate::buffer::{SplitDirection, ViewId};
 use crate::impls::FocusTarget;
 
 /// Per-layer rendering data: (layer_index, layer_area, view_areas, separators).
 type LayerRenderData = (
 	usize,
 	Rect,
-	Vec<(BufferView, Rect)>,
+	Vec<(ViewId, Rect)>,
 	Vec<(SplitDirection, u8, Rect)>,
 );
 

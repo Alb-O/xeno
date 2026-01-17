@@ -14,7 +14,7 @@ use xeno_tui::widgets::BorderType;
 use xeno_tui::widgets::block::Padding;
 
 use crate::Editor;
-use crate::buffer::BufferId;
+use crate::buffer::ViewId;
 use crate::window::{FloatingStyle, GutterSelector, Window, WindowId};
 
 /// Unique identifier for an info popup.
@@ -29,7 +29,7 @@ pub struct InfoPopup {
 	/// The floating window containing the content.
 	pub window_id: WindowId,
 	/// The read-only buffer displaying content.
-	pub buffer_id: BufferId,
+	pub buffer_id: ViewId,
 	/// Anchor position for the popup (where it should appear relative to).
 	pub anchor: PopupAnchor,
 }

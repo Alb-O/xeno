@@ -19,8 +19,9 @@ use std::sync::{Arc, RwLock};
 pub use document::{Document, DocumentId};
 pub use editing::ApplyPolicy;
 pub use history::HistoryResult;
-pub use layout::{BufferView, Layout, SpatialDirection, SplitDirection, SplitPath};
+pub use layout::{Layout, SpatialDirection, SplitDirection, SplitPath};
 pub use undo_store::{DocumentSnapshot, SnapshotUndoStore, TxnUndoStore, UndoBackend};
+pub use xeno_primitives::ViewId;
 use xeno_primitives::range::CharIdx;
 use xeno_primitives::{Mode, Selection};
 use xeno_registry::options::{
@@ -29,15 +30,6 @@ use xeno_registry::options::{
 use xeno_runtime_language::LanguageLoader;
 
 use crate::input::InputHandler;
-
-/// Unique identifier for a buffer.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct BufferId(pub u64);
-
-impl BufferId {
-	/// Identifier for the default scratch buffer.
-	pub const SCRATCH: BufferId = BufferId(0);
-}
 
 #[derive(Clone)]
 pub(crate) struct DocumentHandle(Arc<RwLock<Document>>);
@@ -70,7 +62,7 @@ impl DocumentHandle {
 /// For split views, multiple Buffers can share the same underlying Document.
 pub struct Buffer {
 	/// Unique identifier for this buffer/view.
-	pub id: BufferId,
+	pub id: ViewId,
 
 	/// The underlying document (shared across split views).
 	document: DocumentHandle,
@@ -133,7 +125,7 @@ pub struct Buffer {
 
 impl Buffer {
 	/// Creates a new buffer with the given ID and content.
-	pub fn new(id: BufferId, content: String, path: Option<PathBuf>) -> Self {
+	pub fn new(id: ViewId, content: String, path: Option<PathBuf>) -> Self {
 		let document = DocumentHandle::new(Document::new(content, path));
 		Self {
 			id,
@@ -154,7 +146,7 @@ impl Buffer {
 	}
 
 	/// Creates a new scratch buffer.
-	pub fn scratch(id: BufferId) -> Self {
+	pub fn scratch(id: ViewId) -> Self {
 		Self::new(id, String::new(), None)
 	}
 
@@ -165,7 +157,7 @@ impl Buffer {
 	/// split can have independent option overrides. The readonly override is
 	/// intentionally NOT cloned - splits start with no override (deferring to
 	/// the document's readonly state).
-	pub fn clone_for_split(&self, new_id: BufferId) -> Self {
+	pub fn clone_for_split(&self, new_id: ViewId) -> Self {
 		Self {
 			id: new_id,
 			document: self.document.clone(),

@@ -6,7 +6,7 @@ use xeno_primitives::Mode;
 use xeno_registry::{HookContext, HookEventData, ViewId, emit_sync_with as emit_hook_sync_with};
 
 use super::Editor;
-use crate::buffer::{BufferId, BufferView, SpatialDirection};
+use crate::buffer::SpatialDirection;
 use crate::palette::PaletteState;
 use crate::window::{Window, WindowId};
 
@@ -16,7 +16,7 @@ pub type PanelId = String;
 /// Identifies what has keyboard focus.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum FocusTarget {
-	Buffer { window: WindowId, buffer: BufferId },
+	Buffer { window: WindowId, buffer: ViewId },
 	Panel(PanelId),
 }
 
@@ -34,7 +34,7 @@ pub enum FocusReason {
 }
 
 /// Converts a buffer view to a hook-compatible view ID.
-fn hook_view_id(view: BufferView) -> ViewId {
+fn hook_view_id(view: ViewId) -> ViewId {
 	ViewId::text(view.0)
 }
 
@@ -43,7 +43,7 @@ impl Editor {
 	///
 	/// Returns true if the view exists and was focused.
 	/// Explicit focus can override sticky focus and will close dockables.
-	pub fn focus_view(&mut self, view: BufferView) -> bool {
+	pub fn focus_view(&mut self, view: ViewId) -> bool {
 		let window_id = self.windows.base_id();
 		self.focus_buffer_in_window(window_id, view, true)
 	}
@@ -52,7 +52,7 @@ impl Editor {
 	///
 	/// Returns true if the view exists and was focused.
 	/// Respects sticky focus - won't steal focus from sticky views.
-	pub fn focus_view_implicit(&mut self, view: BufferView) -> bool {
+	pub fn focus_view_implicit(&mut self, view: ViewId) -> bool {
 		let current = self.focused_view();
 		if current == view || self.frame.sticky_views.contains(&current) {
 			return false;
@@ -65,7 +65,7 @@ impl Editor {
 	pub(crate) fn focus_buffer_in_window(
 		&mut self,
 		window_id: WindowId,
-		view: BufferView,
+		view: ViewId,
 		explicit: bool,
 	) -> bool {
 		if self.core.buffers.get_buffer(view).is_none() {
@@ -112,7 +112,7 @@ impl Editor {
 	/// Focuses a specific buffer by ID.
 	///
 	/// Returns true if the buffer exists and was focused.
-	pub fn focus_buffer(&mut self, id: BufferId) -> bool {
+	pub fn focus_buffer(&mut self, id: ViewId) -> bool {
 		self.focus_view(id)
 	}
 

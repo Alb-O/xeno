@@ -4,13 +4,13 @@ use tracing::warn;
 use xeno_primitives::{Selection, SyntaxPolicy, Transaction, UndoPolicy};
 use xeno_registry_notifications::{Notification, keys};
 
-use crate::buffer::{ApplyPolicy, BufferId, DocumentId};
-use crate::buffer_manager::BufferManager;
+use crate::buffer::{ApplyPolicy, DocumentId, ViewId};
 use crate::impls::messaging::push_notification;
 use crate::types::{Config, FrameState, UndoHost, ViewSnapshot};
+use crate::view_manager::ViewManager;
 
 pub(super) struct EditorUndoHost<'a> {
-	pub buffers: &'a mut BufferManager,
+	pub buffers: &'a mut ViewManager,
 	pub config: &'a Config,
 	pub frame: &'a mut FrameState,
 	pub notifications: &'a mut xeno_tui::widgets::notifications::ToastManager,
@@ -21,7 +21,7 @@ pub(super) struct EditorUndoHost<'a> {
 impl EditorUndoHost<'_> {
 	pub(super) fn apply_transaction_inner(
 		&mut self,
-		buffer_id: BufferId,
+		buffer_id: ViewId,
 		tx: &Transaction,
 		new_selection: Option<Selection>,
 		undo: UndoPolicy,
@@ -86,7 +86,7 @@ impl EditorUndoHost<'_> {
 		push_notification(self.config, self.notifications, notification.into());
 	}
 
-	fn mark_buffer_dirty_for_full_sync(&mut self, buffer_id: BufferId) {
+	fn mark_buffer_dirty_for_full_sync(&mut self, buffer_id: ViewId) {
 		if let Some(buffer) = self.buffers.get_buffer_mut(buffer_id) {
 			buffer.with_doc_mut(|doc| {
 				doc.increment_version();
@@ -97,7 +97,7 @@ impl EditorUndoHost<'_> {
 		self.frame.dirty_buffers.insert(buffer_id);
 	}
 
-	fn sync_sibling_selections(&mut self, buffer_id: BufferId, tx: &Transaction) {
+	fn sync_sibling_selections(&mut self, buffer_id: ViewId, tx: &Transaction) {
 		let doc_id = self
 			.buffers
 			.get_buffer(buffer_id)
@@ -180,14 +180,14 @@ impl UndoHost for EditorUndoHost<'_> {
 		true
 	}
 
-	fn doc_id_for_buffer(&self, buffer_id: BufferId) -> DocumentId {
+	fn doc_id_for_buffer(&self, buffer_id: ViewId) -> DocumentId {
 		self.buffers
 			.get_buffer(buffer_id)
 			.expect("buffer must exist")
 			.document_id()
 	}
 
-	fn collect_view_snapshots(&self, doc_id: DocumentId) -> HashMap<BufferId, ViewSnapshot> {
+	fn collect_view_snapshots(&self, doc_id: DocumentId) -> HashMap<ViewId, ViewSnapshot> {
 		self.buffers
 			.buffers()
 			.filter(|b| b.document_id() == doc_id)
@@ -198,7 +198,7 @@ impl UndoHost for EditorUndoHost<'_> {
 	fn capture_current_view_snapshots(
 		&self,
 		doc_ids: &[DocumentId],
-	) -> HashMap<BufferId, ViewSnapshot> {
+	) -> HashMap<ViewId, ViewSnapshot> {
 		self.buffers
 			.buffers()
 			.filter(|b| doc_ids.contains(&b.document_id()))
@@ -206,7 +206,7 @@ impl UndoHost for EditorUndoHost<'_> {
 			.collect()
 	}
 
-	fn restore_view_snapshots(&mut self, snapshots: &HashMap<BufferId, ViewSnapshot>) {
+	fn restore_view_snapshots(&mut self, snapshots: &HashMap<ViewId, ViewSnapshot>) {
 		for buffer in self.buffers.buffers_mut() {
 			if let Some(snapshot) = snapshots.get(&buffer.id) {
 				buffer.restore_view(snapshot);

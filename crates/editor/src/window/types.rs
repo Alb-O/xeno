@@ -5,7 +5,7 @@ use xeno_tui::layout::Rect;
 use xeno_tui::widgets::BorderType;
 use xeno_tui::widgets::block::Padding;
 
-use crate::buffer::{BufferId, Layout};
+use crate::buffer::{Layout, ViewId};
 
 /// Unique identifier for a window.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -52,14 +52,14 @@ pub enum Window {
 /// The main editor window with split layout.
 pub struct BaseWindow {
 	pub layout: Layout,
-	pub focused_buffer: BufferId,
+	pub focused_buffer: ViewId,
 }
 
 /// A floating window with absolute positioning.
 #[derive(Debug, Clone)]
 pub struct FloatingWindow {
 	pub id: WindowId,
-	pub buffer: BufferId,
+	pub buffer: ViewId,
 	pub rect: Rect,
 	/// Gutter configuration for this window.
 	pub gutter: GutterSelector,

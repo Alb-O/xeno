@@ -28,7 +28,7 @@ use tracing::trace;
 use xeno_primitives::{CommitResult, EditOrigin, UndoPolicy};
 
 use super::{EditorUndoGroup, ViewSnapshot};
-use crate::buffer::{BufferId, DocumentId};
+use crate::buffer::{DocumentId, ViewId};
 
 #[cfg(test)]
 static FINALIZE_CALLS: AtomicUsize = AtomicUsize::new(0);
@@ -62,7 +62,7 @@ pub struct PreparedEdit {
 	/// Documents affected by this edit.
 	pub affected_docs: Vec<DocumentId>,
 	/// View snapshots captured before the edit.
-	pub pre_views: HashMap<BufferId, ViewSnapshot>,
+	pub pre_views: HashMap<ViewId, ViewSnapshot>,
 	/// Whether this edit should start a new undo group.
 	pub start_new_group: bool,
 	/// Origin of this edit.
@@ -85,19 +85,19 @@ pub trait UndoHost {
 	fn guard_readonly(&mut self) -> bool;
 
 	/// Returns the document ID for a buffer.
-	fn doc_id_for_buffer(&self, buffer_id: BufferId) -> DocumentId;
+	fn doc_id_for_buffer(&self, buffer_id: ViewId) -> DocumentId;
 
 	/// Collects view snapshots for all buffers viewing a document.
-	fn collect_view_snapshots(&self, doc_id: DocumentId) -> HashMap<BufferId, ViewSnapshot>;
+	fn collect_view_snapshots(&self, doc_id: DocumentId) -> HashMap<ViewId, ViewSnapshot>;
 
 	/// Captures current view snapshots for all buffers viewing the given documents.
 	fn capture_current_view_snapshots(
 		&self,
 		doc_ids: &[DocumentId],
-	) -> HashMap<BufferId, ViewSnapshot>;
+	) -> HashMap<ViewId, ViewSnapshot>;
 
 	/// Restores view snapshots to their corresponding buffers.
-	fn restore_view_snapshots(&mut self, snapshots: &HashMap<BufferId, ViewSnapshot>);
+	fn restore_view_snapshots(&mut self, snapshots: &HashMap<ViewId, ViewSnapshot>);
 
 	/// Undoes all documents in the given list.
 	/// Returns `true` if all undos succeeded.
@@ -181,7 +181,7 @@ impl UndoManager {
 	pub fn prepare_edit(
 		&self,
 		host: &impl UndoHost,
-		buffer_id: BufferId,
+		buffer_id: ViewId,
 		undo: UndoPolicy,
 		origin: EditOrigin,
 	) -> PreparedEdit {
@@ -230,7 +230,7 @@ impl UndoManager {
 	pub fn with_edit<H, F>(
 		&mut self,
 		host: &mut H,
-		buffer_id: BufferId,
+		buffer_id: ViewId,
 		undo: UndoPolicy,
 		origin: EditOrigin,
 		apply: F,
@@ -357,14 +357,14 @@ mod tests {
 	use super::*;
 
 	struct TestHost {
-		buffer_id: BufferId,
+		buffer_id: ViewId,
 		doc_id: DocumentId,
 	}
 
 	impl TestHost {
 		fn new() -> Self {
 			Self {
-				buffer_id: BufferId(1),
+				buffer_id: ViewId(1),
 				doc_id: DocumentId(1),
 			}
 		}
@@ -384,11 +384,11 @@ mod tests {
 			true
 		}
 
-		fn doc_id_for_buffer(&self, _buffer_id: BufferId) -> DocumentId {
+		fn doc_id_for_buffer(&self, _buffer_id: ViewId) -> DocumentId {
 			self.doc_id
 		}
 
-		fn collect_view_snapshots(&self, doc_id: DocumentId) -> HashMap<BufferId, ViewSnapshot> {
+		fn collect_view_snapshots(&self, doc_id: DocumentId) -> HashMap<ViewId, ViewSnapshot> {
 			if doc_id == self.doc_id {
 				HashMap::from([(self.buffer_id, self.snapshot())])
 			} else {
@@ -399,7 +399,7 @@ mod tests {
 		fn capture_current_view_snapshots(
 			&self,
 			doc_ids: &[DocumentId],
-		) -> HashMap<BufferId, ViewSnapshot> {
+		) -> HashMap<ViewId, ViewSnapshot> {
 			if doc_ids.contains(&self.doc_id) {
 				HashMap::from([(self.buffer_id, self.snapshot())])
 			} else {
@@ -407,7 +407,7 @@ mod tests {
 			}
 		}
 
-		fn restore_view_snapshots(&mut self, _snapshots: &HashMap<BufferId, ViewSnapshot>) {}
+		fn restore_view_snapshots(&mut self, _snapshots: &HashMap<ViewId, ViewSnapshot>) {}
 
 		fn undo_documents(&mut self, _doc_ids: &[DocumentId]) -> bool {
 			true

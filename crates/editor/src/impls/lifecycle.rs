@@ -101,7 +101,7 @@ impl Editor {
 	///
 	/// Use this after operations that replace the entire document content (e.g., undo/redo)
 	/// where incremental sync is not possible.
-	pub(crate) fn mark_buffer_dirty_for_full_sync(&mut self, buffer_id: crate::buffer::BufferId) {
+	pub(crate) fn mark_buffer_dirty_for_full_sync(&mut self, buffer_id: crate::buffer::ViewId) {
 		if let Some(buffer) = self.core.buffers.get_buffer_mut(buffer_id) {
 			buffer.with_doc_mut(|doc| {
 				doc.increment_version();
@@ -142,7 +142,7 @@ impl Editor {
 	/// Instead of immediately sending notifications, changes are accumulated
 	/// in [`PendingLspState`] and flushed after the debounce period elapses.
 	#[cfg(feature = "lsp")]
-	fn accumulate_lsp_change(&mut self, buffer_id: crate::buffer::BufferId) {
+	fn accumulate_lsp_change(&mut self, buffer_id: crate::buffer::ViewId) {
 		let Some(buffer) = self.core.buffers.get_buffer(buffer_id) else {
 			return;
 		};
@@ -215,7 +215,7 @@ impl Editor {
 	#[cfg(feature = "lsp")]
 	fn queue_lsp_change_immediate(
 		&mut self,
-		buffer_id: crate::buffer::BufferId,
+		buffer_id: crate::buffer::ViewId,
 	) -> Option<oneshot::Receiver<()>> {
 		let buffer = self.core.buffers.get_buffer(buffer_id)?;
 		let (path, language) = (buffer.path()?, buffer.file_type()?);
@@ -296,7 +296,7 @@ impl Editor {
 
 	/// Immediately flush LSP changes for specified buffers.
 	#[cfg(feature = "lsp")]
-	pub fn flush_lsp_sync_now(&mut self, buffer_ids: &[crate::buffer::BufferId]) -> FlushHandle {
+	pub fn flush_lsp_sync_now(&mut self, buffer_ids: &[crate::buffer::ViewId]) -> FlushHandle {
 		let mut handles = Vec::new();
 		for &buffer_id in buffer_ids {
 			if let Some(handle) = self.queue_lsp_change_immediate(buffer_id) {

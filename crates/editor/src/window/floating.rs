@@ -3,11 +3,11 @@
 use xeno_tui::layout::Rect;
 
 use super::types::{FloatingStyle, FloatingWindow, GutterSelector, WindowId};
-use crate::buffer::BufferId;
+use crate::buffer::ViewId;
 
 impl FloatingWindow {
 	/// Creates a new floating window with default behaviors.
-	pub fn new(id: WindowId, buffer: BufferId, rect: Rect, style: FloatingStyle) -> Self {
+	pub fn new(id: WindowId, buffer: ViewId, rect: Rect, style: FloatingStyle) -> Self {
 		Self {
 			id,
 			buffer,

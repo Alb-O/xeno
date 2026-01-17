@@ -5,17 +5,17 @@
 
 use xeno_lsp::lsp_types::{CodeActionOrCommand, CompletionItem as LspCompletionItem};
 
-use crate::buffer::BufferId;
+use crate::buffer::ViewId;
 
 /// The kind of LSP-driven menu currently active.
 #[derive(Clone)]
 pub enum LspMenuKind {
 	Completion {
-		buffer_id: BufferId,
+		buffer_id: ViewId,
 		items: Vec<LspCompletionItem>,
 	},
 	CodeAction {
-		buffer_id: BufferId,
+		buffer_id: ViewId,
 		actions: Vec<CodeActionOrCommand>,
 	},
 }

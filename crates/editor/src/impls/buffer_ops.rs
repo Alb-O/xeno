@@ -11,14 +11,14 @@ use xeno_registry::{
 };
 
 use super::{Editor, is_writable};
-use crate::buffer::BufferId;
+use crate::buffer::ViewId;
 
 impl Editor {
 	/// Opens a new buffer from content, optionally with a path.
 	///
 	/// This async version awaits all hooks including async ones (e.g., LSP).
 	/// For sync contexts like split operations, use [`open_buffer_sync`](Self::open_buffer_sync).
-	pub async fn open_buffer(&mut self, content: String, path: Option<PathBuf>) -> BufferId {
+	pub async fn open_buffer(&mut self, content: String, path: Option<PathBuf>) -> ViewId {
 		let buffer_id = self.core.buffers.create_buffer(
 			content,
 			path.clone(),
@@ -56,7 +56,7 @@ impl Editor {
 	///
 	/// Use this in sync contexts like split operations. Async hooks are queued
 	/// in the hook runtime and will execute when the main loop drains them.
-	pub fn open_buffer_sync(&mut self, content: String, path: Option<PathBuf>) -> BufferId {
+	pub fn open_buffer_sync(&mut self, content: String, path: Option<PathBuf>) -> ViewId {
 		let buffer_id = self.core.buffers.create_buffer(
 			content,
 			path.clone(),
@@ -88,7 +88,7 @@ impl Editor {
 	///
 	/// Returns the new buffer's ID, or an error if the file couldn't be read.
 	/// If the file exists but is not writable, the buffer is opened in readonly mode.
-	pub async fn open_file(&mut self, path: PathBuf) -> anyhow::Result<BufferId> {
+	pub async fn open_file(&mut self, path: PathBuf) -> anyhow::Result<ViewId> {
 		let content = match tokio::fs::read_to_string(&path).await {
 			Ok(s) => s,
 			Err(e) if e.kind() == std::io::ErrorKind::NotFound => String::new(),
@@ -109,7 +109,7 @@ impl Editor {
 	///
 	/// This is used for split operations - both buffers see the same content
 	/// but have independent cursor/selection/scroll state.
-	pub fn clone_buffer_for_split(&mut self) -> BufferId {
+	pub fn clone_buffer_for_split(&mut self) -> ViewId {
 		self.core.buffers.clone_focused_buffer_for_split()
 	}
 

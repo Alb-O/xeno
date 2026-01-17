@@ -6,7 +6,7 @@ use xeno_primitives::transaction::Change;
 use xeno_primitives::{EditOrigin, Selection, Transaction, UndoPolicy};
 
 use super::Editor;
-use crate::buffer::BufferId;
+use crate::buffer::ViewId;
 
 fn test_editor(content: &str) -> Editor {
 	Editor::from_content(content.to_string(), None)
@@ -47,7 +47,7 @@ fn set_scroll(editor: &mut Editor, line: usize, segment: usize) {
 	buffer.scroll_segment = segment;
 }
 
-fn get_cursor(editor: &Editor, buffer_id: BufferId) -> usize {
+fn get_cursor(editor: &Editor, buffer_id: ViewId) -> usize {
 	editor
 		.core
 		.buffers
@@ -57,7 +57,7 @@ fn get_cursor(editor: &Editor, buffer_id: BufferId) -> usize {
 		.into()
 }
 
-fn get_scroll(editor: &Editor, buffer_id: BufferId) -> (usize, usize) {
+fn get_scroll(editor: &Editor, buffer_id: ViewId) -> (usize, usize) {
 	let buffer = editor.core.buffers.get_buffer(buffer_id).unwrap();
 	(buffer.scroll_line, buffer.scroll_segment)
 }

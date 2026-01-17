@@ -5,15 +5,15 @@
 use xeno_tui::layout::Rect;
 
 use super::manager::LayoutManager;
-use crate::buffer::{BufferId, BufferView, Layout};
+use crate::buffer::{Layout, ViewId};
 
 impl LayoutManager {
 	/// Creates a horizontal split with a new buffer below the current view.
 	pub fn split_horizontal(
 		&mut self,
 		base_layout: &mut Layout,
-		current_view: BufferView,
-		new_buffer_id: BufferId,
+		current_view: ViewId,
+		new_buffer_id: ViewId,
 		doc_area: Rect,
 	) {
 		let Some(view_area) = self.view_area(base_layout, current_view, doc_area) else {
@@ -38,8 +38,8 @@ impl LayoutManager {
 	pub fn split_vertical(
 		&mut self,
 		base_layout: &mut Layout,
-		current_view: BufferView,
-		new_buffer_id: BufferId,
+		current_view: ViewId,
+		new_buffer_id: ViewId,
 		doc_area: Rect,
 	) {
 		let Some(view_area) = self.view_area(base_layout, current_view, doc_area) else {
@@ -64,7 +64,7 @@ impl LayoutManager {
 	pub(super) fn view_area(
 		&self,
 		base_layout: &Layout,
-		view: BufferView,
+		view: ViewId,
 		doc_area: Rect,
 	) -> Option<Rect> {
 		let layer_idx = self.layer_of_view(base_layout, view)?;
@@ -84,9 +84,9 @@ impl LayoutManager {
 	pub fn remove_view(
 		&mut self,
 		base_layout: &mut Layout,
-		view: BufferView,
+		view: ViewId,
 		doc_area: Rect,
-	) -> Option<BufferView> {
+	) -> Option<ViewId> {
 		let layer_idx = self.layer_of_view(base_layout, view)?;
 
 		if layer_idx == 0 && base_layout.count() <= 1 {
@@ -135,14 +135,20 @@ impl LayoutManager {
 /// view that expanded to fill the hole). On ties, prefers views closer to the
 /// closed view's center.
 fn suggested_focus_after_close(
-	before: &[(BufferView, Rect)],
-	after: &[(BufferView, Rect)],
-	closed: BufferView,
-) -> Option<BufferView> {
+	before: &[(ViewId, Rect)],
+	after: &[(ViewId, Rect)],
+	closed: ViewId,
+) -> Option<ViewId> {
 	let closed_rect = before.iter().find(|(v, _)| *v == closed)?.1;
 	after
 		.iter()
-		.map(|(v, r)| (*v, overlap_area(closed_rect, *r), center_dist_sq(closed_rect, *r)))
+		.map(|(v, r)| {
+			(
+				*v,
+				overlap_area(closed_rect, *r),
+				center_dist_sq(closed_rect, *r),
+			)
+		})
 		.max_by(|a, b| a.1.cmp(&b.1).then_with(|| b.2.cmp(&a.2)))
 		.map(|(v, _, _)| v)
 }

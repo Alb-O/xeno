@@ -14,7 +14,7 @@ use xeno_primitives::range::CharIdx;
 use xeno_primitives::transaction::{Change, Tendril};
 use xeno_primitives::{EditOrigin, SyntaxPolicy, Transaction, UndoPolicy};
 
-use crate::buffer::{ApplyPolicy, BufferId};
+use crate::buffer::{ApplyPolicy, ViewId};
 use crate::impls::{Editor, EditorUndoGroup};
 use crate::types::UndoHost;
 
@@ -24,13 +24,13 @@ pub struct WorkspaceEditPlan {
 }
 
 impl WorkspaceEditPlan {
-	pub fn affected_buffer_ids(&self) -> Vec<BufferId> {
+	pub fn affected_buffer_ids(&self) -> Vec<ViewId> {
 		self.per_buffer.iter().map(|p| p.buffer_id).collect()
 	}
 }
 
 pub struct BufferEditPlan {
-	pub buffer_id: BufferId,
+	pub buffer_id: ViewId,
 	pub edits: Vec<PlannedTextEdit>,
 	pub opened_temporarily: bool,
 }
@@ -156,7 +156,7 @@ impl Editor {
 		Ok(())
 	}
 
-	async fn resolve_uri_to_buffer(&mut self, uri: &Uri) -> Result<(BufferId, bool), ApplyError> {
+	async fn resolve_uri_to_buffer(&mut self, uri: &Uri) -> Result<(ViewId, bool), ApplyError> {
 		let path =
 			xeno_lsp::path_from_uri(uri).ok_or_else(|| ApplyError::InvalidUri(uri.to_string()))?;
 		if let Some(buffer_id) = self.core.buffers.find_by_path(&path) {
@@ -282,7 +282,7 @@ impl Editor {
 		}
 	}
 
-	fn close_headless_buffer(&mut self, buffer_id: BufferId) {
+	fn close_headless_buffer(&mut self, buffer_id: ViewId) {
 		let Some(buffer) = self.core.buffers.get_buffer(buffer_id) else {
 			return;
 		};

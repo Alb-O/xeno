@@ -487,10 +487,10 @@ impl Buffer {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::buffer::{Buffer, BufferId};
+	use crate::buffer::{Buffer, ViewId};
 
 	fn make_buffer(content: &str) -> Buffer {
-		Buffer::new(BufferId(1), content.to_string(), None)
+		Buffer::new(ViewId(1), content.to_string(), None)
 	}
 
 	#[test]
