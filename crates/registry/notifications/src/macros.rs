@@ -33,7 +33,7 @@ macro_rules! notif {
 	($name:ident, $level:ident, $msg:literal) => {
 		paste::paste! {
 			static [<NOTIF_ $name:upper>]: $crate::NotificationDef = $crate::NotificationDef::new(
-				stringify!($name),
+				concat!(env!("CARGO_PKG_NAME"), "::", stringify!($name)),
 				$crate::Level::$level,
 				$crate::AutoDismiss::DEFAULT,
 				$crate::RegistrySource::Builtin,
@@ -50,7 +50,7 @@ macro_rules! notif {
 	($name:ident, $level:ident, $msg:literal, auto_dismiss: $dismiss:expr) => {
 		paste::paste! {
 			static [<NOTIF_ $name:upper>]: $crate::NotificationDef = $crate::NotificationDef::new(
-				stringify!($name),
+				concat!(env!("CARGO_PKG_NAME"), "::", stringify!($name)),
 				$crate::Level::$level,
 				$dismiss,
 				$crate::RegistrySource::Builtin,
@@ -67,7 +67,7 @@ macro_rules! notif {
 	($name:ident ( $($arg:ident : $ty:ty),* $(,)? ), $level:ident, $fmt:expr) => {
 		paste::paste! {
 			static [<NOTIF_ $name:upper>]: $crate::NotificationDef = $crate::NotificationDef::new(
-				stringify!($name),
+				concat!(env!("CARGO_PKG_NAME"), "::", stringify!($name)),
 				$crate::Level::$level,
 				$crate::AutoDismiss::DEFAULT,
 				$crate::RegistrySource::Builtin,
@@ -89,7 +89,7 @@ macro_rules! notif {
 	($name:ident ( $($arg:ident : $ty:ty),* $(,)? ), $level:ident, $fmt:expr, auto_dismiss: $dismiss:expr) => {
 		paste::paste! {
 			static [<NOTIF_ $name:upper>]: $crate::NotificationDef = $crate::NotificationDef::new(
-				stringify!($name),
+				concat!(env!("CARGO_PKG_NAME"), "::", stringify!($name)),
 				$crate::Level::$level,
 				$dismiss,
 				$crate::RegistrySource::Builtin,

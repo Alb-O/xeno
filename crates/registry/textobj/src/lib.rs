@@ -13,13 +13,20 @@ mod impls;
 mod macros;
 
 pub use xeno_registry_core::{
-	Capability, RegistryEntry, RegistryMeta, RegistryMetadata, RegistrySource, impl_registry_entry,
+	Capability, DuplicatePolicy, RegistryBuilder, RegistryEntry, RegistryIndex, RegistryMeta,
+	RegistryMetadata, RegistryReg, RegistrySource, build_map, impl_registry_entry,
 };
 pub use xeno_registry_motions::{flags, movement};
 
 /// Wrapper for [`inventory`] collection of text object definitions.
 pub struct TextObjectReg(pub &'static TextObjectDef);
 inventory::collect!(TextObjectReg);
+
+impl RegistryReg<TextObjectDef> for TextObjectReg {
+	fn def(&self) -> &'static TextObjectDef {
+		self.0
+	}
+}
 
 /// Handler signature for text object selection.
 ///
@@ -111,40 +118,31 @@ impl TextObjectDef {
 
 impl_registry_entry!(TextObjectDef);
 
-/// O(1) text object lookup by name/alias.
-static TEXT_OBJECT_NAME_INDEX: LazyLock<HashMap<&'static str, &'static TextObjectDef>> =
-	LazyLock::new(|| {
-		let mut map = HashMap::new();
-		for reg in inventory::iter::<TextObjectReg> {
-			let def = reg.0;
-			map.insert(def.name(), def);
-			for &alias in def.aliases() {
-				map.insert(alias, def);
-			}
-		}
-		map
-	});
+/// Indexed collection of all text objects with O(1) lookup by name/alias.
+pub static TEXT_OBJECTS: LazyLock<RegistryIndex<TextObjectDef>> = LazyLock::new(|| {
+	RegistryBuilder::new("text_objects")
+		.extend_inventory::<TextObjectReg>()
+		.sort_by(|a, b| a.meta.name.cmp(b.meta.name))
+		.build()
+});
 
 /// O(1) text object lookup by trigger character.
 static TEXT_OBJECT_TRIGGER_INDEX: LazyLock<HashMap<char, &'static TextObjectDef>> =
 	LazyLock::new(|| {
-		let mut map = HashMap::new();
-		for reg in inventory::iter::<TextObjectReg> {
-			let def = reg.0;
-			map.insert(def.trigger, def);
+		let mut map = build_map(
+			"textobj.trigger",
+			TEXT_OBJECTS.items(),
+			DuplicatePolicy::for_build(),
+			|def| Some(def.trigger),
+		);
+		// Also index by alt_triggers
+		for def in TEXT_OBJECTS.iter() {
 			for &alt in def.alt_triggers {
-				map.insert(alt, def);
+				map.entry(alt).or_insert(def);
 			}
 		}
 		map
 	});
-
-/// Lazy reference to all text objects for iteration.
-pub static TEXT_OBJECTS: LazyLock<Vec<&'static TextObjectDef>> = LazyLock::new(|| {
-	let mut objs: Vec<_> = inventory::iter::<TextObjectReg>().map(|r| r.0).collect();
-	objs.sort_by_key(|o| o.name());
-	objs
-});
 
 /// Finds a text object by trigger character.
 pub fn find_by_trigger(trigger: char) -> Option<&'static TextObjectDef> {
@@ -153,10 +151,10 @@ pub fn find_by_trigger(trigger: char) -> Option<&'static TextObjectDef> {
 
 /// Finds a text object by name or alias.
 pub fn find(name: &str) -> Option<&'static TextObjectDef> {
-	TEXT_OBJECT_NAME_INDEX.get(name).copied()
+	TEXT_OBJECTS.get(name)
 }
 
 /// Returns all registered text objects, sorted by name.
 pub fn all() -> impl Iterator<Item = &'static TextObjectDef> {
-	TEXT_OBJECTS.iter().copied()
+	TEXT_OBJECTS.iter()
 }

@@ -8,8 +8,15 @@
 //! - [`Capability`]: Editor capability requirements
 //! - [`CommandError`]: Errors from command/action execution
 //! - [`Key`]: Typed handle to a registry definition
+//! - [`RegistryIndex`]: O(1) lookup index built from inventory
+//! - [`RegistryBuilder`]: Fluent builder for constructing indexes
 
 use thiserror::Error;
+
+mod index;
+pub use index::{
+	DuplicatePolicy, RegistryBuilder, RegistryIndex, RegistryReg, RuntimeRegistry, build_map,
+};
 
 /// Represents an editor capability required by a registry item.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

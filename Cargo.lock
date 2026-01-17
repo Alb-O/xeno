@@ -3512,6 +3512,7 @@ dependencies = [
 name = "xeno-registry-core"
 version = "0.4.0"
 dependencies = [
+ "inventory",
  "thiserror 2.0.17",
 ]
 

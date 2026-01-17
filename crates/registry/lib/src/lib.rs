@@ -226,23 +226,23 @@ mod tests {
 	fn registry_id_uniqueness_by_kind() {
 		assert_unique_ids("actions", all_actions());
 		assert_unique_ids("commands", COMMANDS.iter().copied());
-		assert_unique_ids("motions", MOTIONS.iter().copied());
-		assert_unique_ids("gutters", GUTTERS.iter().copied());
+		assert_unique_ids("motions", MOTIONS.iter());
+		assert_unique_ids("gutters", GUTTERS.iter());
 		assert_unique_ids("hooks", HOOKS.iter().copied());
-		assert_unique_ids("statusline", STATUSLINE_SEGMENTS.iter().copied());
-		assert_unique_ids("text_objects", TEXT_OBJECTS.iter().copied());
-		assert_unique_ids("options", options::OPTIONS.iter().copied());
-		assert_unique_ids("themes", themes::THEMES.iter().copied());
+		assert_unique_ids("statusline", STATUSLINE_SEGMENTS.iter());
+		assert_unique_ids("text_objects", TEXT_OBJECTS.iter());
+		assert_unique_ids("options", options::OPTIONS.iter());
+		assert_unique_ids("themes", themes::THEMES.iter());
 	}
 
 	#[test]
 	fn registry_id_namespacing() {
 		assert_namespaced_ids("actions", all_actions());
 		assert_namespaced_ids("commands", COMMANDS.iter().copied());
-		assert_namespaced_ids("motions", MOTIONS.iter().copied());
-		assert_namespaced_ids("gutters", GUTTERS.iter().copied());
+		assert_namespaced_ids("motions", MOTIONS.iter());
+		assert_namespaced_ids("gutters", GUTTERS.iter());
 		assert_namespaced_ids("hooks", HOOKS.iter().copied());
-		assert_namespaced_ids("text_objects", TEXT_OBJECTS.iter().copied());
+		assert_namespaced_ids("text_objects", TEXT_OBJECTS.iter());
 	}
 
 	#[test]

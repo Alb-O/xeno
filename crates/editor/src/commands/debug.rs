@@ -324,7 +324,6 @@ fn collect_registry_items(kind: RegistryKind) -> Vec<RegistryItem> {
 			.collect(),
 		RegistryKind::Gutters => GUTTERS
 			.iter()
-			.copied()
 			.map(|def| RegistryItem {
 				id: def.meta.id,
 				name: def.meta.name,
@@ -367,7 +366,6 @@ fn collect_registry_items(kind: RegistryKind) -> Vec<RegistryItem> {
 			.collect(),
 		RegistryKind::Options => OPTIONS
 			.iter()
-			.copied()
 			.map(|def| RegistryItem {
 				id: def.meta.id,
 				name: def.meta.name,
@@ -380,7 +378,6 @@ fn collect_registry_items(kind: RegistryKind) -> Vec<RegistryItem> {
 			.collect(),
 		RegistryKind::Statusline => STATUSLINE_SEGMENTS
 			.iter()
-			.copied()
 			.map(|def| RegistryItem {
 				id: def.meta.id,
 				name: def.meta.name,
@@ -393,7 +390,6 @@ fn collect_registry_items(kind: RegistryKind) -> Vec<RegistryItem> {
 			.collect(),
 		RegistryKind::Themes => THEMES
 			.iter()
-			.copied()
 			.map(|def| RegistryItem {
 				id: def.meta.id,
 				name: def.meta.name,

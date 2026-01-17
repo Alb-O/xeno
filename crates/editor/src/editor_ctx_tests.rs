@@ -180,7 +180,10 @@ fn notify_effect_emits_notification() {
 	apply_effects(&effects, &mut ctx, false);
 
 	assert_eq!(editor.notifications.len(), 1);
-	assert_eq!(editor.notifications[0].def.id, "undo");
+	assert_eq!(
+		editor.notifications[0].def.id,
+		"xeno-registry-notifications::undo"
+	);
 }
 
 #[test]
@@ -192,7 +195,10 @@ fn error_effect_emits_error_notification() {
 	apply_effects(&effects, &mut ctx, false);
 
 	assert_eq!(editor.notifications.len(), 1);
-	assert_eq!(editor.notifications[0].def.id, "action_error");
+	assert_eq!(
+		editor.notifications[0].def.id,
+		"xeno-registry-notifications::action_error"
+	);
 }
 
 #[test]

@@ -7,14 +7,13 @@
 //!
 //! The [`movement`] module re-exports movement functions and shared utilities.
 
-use std::collections::HashMap;
 use std::sync::LazyLock;
 
 use ropey::RopeSlice;
 use xeno_primitives::Range;
 pub use xeno_registry_core::{
-	Capability, Key, RegistryEntry, RegistryMeta, RegistryMetadata, RegistrySource,
-	impl_registry_entry,
+	Capability, Key, RegistryBuilder, RegistryEntry, RegistryIndex, RegistryMeta,
+	RegistryMetadata, RegistryReg, RegistrySource, impl_registry_entry,
 };
 
 #[macro_use]
@@ -32,6 +31,12 @@ pub mod movement;
 /// Wrapper for [`inventory`] collection of motion definitions.
 pub struct MotionReg(pub &'static MotionDef);
 inventory::collect!(MotionReg);
+
+impl RegistryReg<MotionDef> for MotionReg {
+	fn def(&self) -> &'static MotionDef {
+		self.0
+	}
+}
 
 /// Typed handles for built-in motions.
 ///
@@ -121,32 +126,20 @@ impl_registry_entry!(MotionDef);
 /// Typed handle to a motion definition.
 pub type MotionKey = Key<MotionDef>;
 
-/// O(1) motion lookup index, keyed by name and aliases.
-static MOTION_INDEX: LazyLock<HashMap<&'static str, &'static MotionDef>> = LazyLock::new(|| {
-	let mut map = HashMap::new();
-	for reg in inventory::iter::<MotionReg> {
-		let def = reg.0;
-		map.insert(def.name(), def);
-		for &alias in def.aliases() {
-			map.insert(alias, def);
-		}
-	}
-	map
-});
-
-/// Lazy reference to all motions for iteration.
-pub static MOTIONS: LazyLock<Vec<&'static MotionDef>> = LazyLock::new(|| {
-	let mut motions: Vec<_> = inventory::iter::<MotionReg>().map(|r| r.0).collect();
-	motions.sort_by_key(|m| m.name());
-	motions
+/// Indexed collection of all registered motions.
+pub static MOTIONS: LazyLock<RegistryIndex<MotionDef>> = LazyLock::new(|| {
+	RegistryBuilder::new("motions")
+		.extend_inventory::<MotionReg>()
+		.sort_by(|a, b| a.name().cmp(b.name()))
+		.build()
 });
 
 /// Finds a motion by name or alias.
 pub fn find(name: &str) -> Option<MotionKey> {
-	MOTION_INDEX.get(name).map(|&def| MotionKey::new(def))
+	MOTIONS.get(name).map(MotionKey::new)
 }
 
 /// Returns all registered motions, sorted by name.
 pub fn all() -> impl Iterator<Item = &'static MotionDef> {
-	MOTIONS.iter().copied()
+	MOTIONS.iter()
 }

@@ -44,12 +44,12 @@ fn main() {
 
 	print_registry("Actions", all_actions());
 	print_registry("Commands", COMMANDS.iter().copied());
-	print_registry("Motions", MOTIONS.iter().copied());
-	print_registry("Gutters", GUTTERS.iter().copied());
+	print_registry("Motions", MOTIONS.iter());
+	print_registry("Gutters", GUTTERS.iter());
 	print_registry("Hooks", HOOKS.iter().copied());
-	print_registry("Statusline Segments", STATUSLINE_SEGMENTS.iter().copied());
-	print_registry("Text Objects", TEXT_OBJECTS.iter().copied());
-	print_registry("Options", xeno_registry::options::OPTIONS.iter().copied());
-	print_registry("Themes", xeno_registry::themes::THEMES.iter().copied());
+	print_registry("Statusline Segments", STATUSLINE_SEGMENTS.iter());
+	print_registry("Text Objects", TEXT_OBJECTS.iter());
+	print_registry("Options", xeno_registry::options::OPTIONS.iter());
+	print_registry("Themes", xeno_registry::themes::THEMES.iter());
 	print_notifications("Notifications", NOTIFICATIONS.iter().copied());
 }

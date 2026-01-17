@@ -77,7 +77,6 @@
 //!
 //! Options have a scope (global or buffer). Global options (like `theme`) in
 //! language blocks will generate warnings at parse time and be ignored.
-use std::collections::HashMap;
 use std::marker::PhantomData;
 use std::sync::LazyLock;
 
@@ -113,13 +112,19 @@ pub mod keys {
 }
 
 pub use xeno_registry_core::{
-	FromOptionValue, Key, OptionType, OptionValue, RegistryEntry, RegistryMeta, RegistryMetadata,
-	RegistrySource, impl_registry_entry,
+	FromOptionValue, Key, OptionType, OptionValue, RegistryBuilder, RegistryEntry, RegistryIndex,
+	RegistryMeta, RegistryMetadata, RegistryReg, RegistrySource, impl_registry_entry,
 };
 
 /// Wrapper for [`inventory`] collection of option definitions.
 pub struct OptionReg(pub &'static OptionDef);
 inventory::collect!(OptionReg);
+
+impl RegistryReg<OptionDef> for OptionReg {
+	fn def(&self) -> &'static OptionDef {
+		self.0
+	}
+}
 
 /// Validator function signature for option constraints.
 pub type OptionValidator = fn(&OptionValue) -> Result<(), String>;
@@ -236,34 +241,27 @@ impl<T: FromOptionValue> core::fmt::Debug for TypedOptionKey<T> {
 	}
 }
 
-/// O(1) option lookup index by name.
-static OPTION_NAME_INDEX: LazyLock<HashMap<&'static str, &'static OptionDef>> = LazyLock::new(|| {
-	let mut map = HashMap::new();
-	for reg in inventory::iter::<OptionReg> {
-		map.insert(reg.0.meta.name, reg.0);
-	}
-	map
+/// Indexed collection of all options.
+pub static OPTIONS: LazyLock<RegistryIndex<OptionDef>> = LazyLock::new(|| {
+	RegistryBuilder::new("options")
+		.extend_inventory::<OptionReg>()
+		.sort_by(|a, b| a.meta.priority.cmp(&b.meta.priority))
+		.build()
 });
 
 /// O(1) option lookup index by KDL key.
-static OPTION_KDL_INDEX: LazyLock<HashMap<&'static str, &'static OptionDef>> = LazyLock::new(|| {
-	let mut map = HashMap::new();
-	for reg in inventory::iter::<OptionReg> {
-		map.insert(reg.0.kdl_key, reg.0);
-	}
-	map
-});
-
-/// Lazy reference to all options for iteration.
-pub static OPTIONS: LazyLock<Vec<&'static OptionDef>> = LazyLock::new(|| {
-	let mut opts: Vec<_> = inventory::iter::<OptionReg>().map(|r| r.0).collect();
-	opts.sort_by_key(|o| o.meta.priority);
-	opts
-});
+static OPTION_KDL_INDEX: LazyLock<std::collections::HashMap<&'static str, &'static OptionDef>> =
+	LazyLock::new(|| {
+		let mut map = std::collections::HashMap::new();
+		for opt in OPTIONS.iter() {
+			map.insert(opt.kdl_key, opt);
+		}
+		map
+	});
 
 /// Finds an option definition by name.
 pub fn find(name: &str) -> Option<&'static OptionDef> {
-	OPTION_NAME_INDEX.get(name).copied()
+	OPTIONS.get(name)
 }
 
 /// Finds an option definition by its internal name.
@@ -271,7 +269,7 @@ pub fn find(name: &str) -> Option<&'static OptionDef> {
 /// This is equivalent to [`find`] and is provided for clarity when
 /// distinguishing between name-based and KDL key-based lookups.
 pub fn find_by_name(name: &str) -> Option<&'static OptionDef> {
-	OPTION_NAME_INDEX.get(name).copied()
+	OPTIONS.get(name)
 }
 
 /// Finds an option definition by its KDL configuration key.
@@ -284,14 +282,14 @@ pub fn find_by_kdl(kdl_key: &str) -> Option<&'static OptionDef> {
 
 /// Returns all registered options.
 pub fn all() -> impl Iterator<Item = &'static OptionDef> {
-	OPTIONS.iter().copied()
+	OPTIONS.iter()
 }
 
 /// Returns all options sorted by KDL key.
 ///
 /// Useful for documentation, completion, and consistent ordering.
 pub fn all_sorted() -> impl Iterator<Item = &'static OptionDef> {
-	let mut opts: Vec<_> = OPTIONS.to_vec();
+	let mut opts: Vec<_> = OPTIONS.items().to_vec();
 	opts.sort_by_key(|o| o.kdl_key);
 	opts.into_iter()
 }
