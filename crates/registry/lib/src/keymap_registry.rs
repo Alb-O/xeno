@@ -88,7 +88,7 @@ impl KeymapRegistry {
 		}
 	}
 
-	/// Initialize from the KEYBINDINGS distributed slice.
+	/// Initialize from the KEYBINDINGS list.
 	pub fn from_slice() -> Self {
 		use crate::index::{find_action, resolve_action_id};
 
@@ -175,7 +175,7 @@ static KEYMAP_REGISTRY: OnceLock<KeymapRegistry> = OnceLock::new();
 
 /// Returns the global keymap registry.
 ///
-/// The registry is lazily initialized from the `KEYBINDINGS` distributed slice.
+/// The registry is lazily initialized from the `KEYBINDINGS` list.
 pub fn get_keymap_registry() -> &'static KeymapRegistry {
 	KEYMAP_REGISTRY.get_or_init(KeymapRegistry::from_slice)
 }

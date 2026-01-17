@@ -1,6 +1,6 @@
 //! KDL keybinding parsing macro.
 //!
-//! Parses keybindings in KDL format and emits them to the KEYBINDINGS distributed slice.
+//! Parses keybindings in KDL format and emits a static keybinding list per action.
 //! Supports key sequences like `"g g"` for multi-key bindings.
 
 use proc_macro::TokenStream;
@@ -8,7 +8,6 @@ use quote::{format_ident, quote};
 use syn::parse::{Parse, ParseStream};
 use syn::{Token, parse_macro_input};
 
-use crate::dispatch::to_screaming_snake_case;
 
 /// Parses keybinding definitions and generates distributed slice entries.
 pub fn parse_keybindings(input: TokenStream) -> TokenStream {
@@ -44,7 +43,7 @@ impl Parse for ParseKeybindingsInput {
 	}
 }
 
-/// Generates static keybinding entries for the distributed slice.
+/// Generates a static keybinding list for an action.
 fn generate_keybindings(
 	action_name: &str,
 	kdl_str: &str,
@@ -53,12 +52,10 @@ fn generate_keybindings(
 		.parse()
 		.map_err(|e: kdl::KdlError| format!("KDL parse error: {e}"))?;
 
-	let mut statics = Vec::new();
-	let action_upper = to_screaming_snake_case(action_name);
+	let mut bindings = Vec::new();
 
 	for node in doc.nodes() {
 		let mode_name = node.name().value();
-		let mode_upper = mode_name.to_uppercase();
 
 		let mode_variant = match mode_name {
 			"normal" => quote! { Normal },
@@ -73,7 +70,7 @@ fn generate_keybindings(
 			}
 		};
 
-		for (idx, entry) in node.entries().iter().enumerate() {
+		for entry in node.entries().iter() {
 			if entry.name().is_some() {
 				continue;
 			}
@@ -86,21 +83,23 @@ fn generate_keybindings(
 			xeno_keymap_parser::parse_seq(key_str)
 				.map_err(|e| format!("Invalid key sequence \"{key_str}\": {e}"))?;
 
-			let static_ident = format_ident!("KB_{}_{}__{}", action_upper, mode_upper, idx);
-
-			statics.push(quote! {
-				#[allow(non_upper_case_globals)]
-				#[::linkme::distributed_slice(xeno_registry_actions::keybindings::KEYBINDINGS)]
-				static #static_ident: xeno_registry_actions::keybindings::KeyBindingDef =
-					xeno_registry_actions::keybindings::KeyBindingDef {
-						mode: xeno_registry_actions::keybindings::BindingMode::#mode_variant,
-						keys: #key_str,
-						action: #action_name,
-						priority: 100,
-					};
+			bindings.push(quote! {
+				xeno_registry_actions::KeyBindingDef {
+					mode: xeno_registry_actions::BindingMode::#mode_variant,
+					keys: #key_str,
+					action: #action_name,
+					priority: 100,
+				}
 			});
 		}
 	}
 
-	Ok(quote! { #(#statics)* })
+	let static_ident = format_ident!("KEYBINDINGS_{}", action_name);
+
+	Ok(quote! {
+		#[allow(non_upper_case_globals)]
+		pub static #static_ident: &[xeno_registry_actions::KeyBindingDef] = &[
+			#(#bindings),*
+		];
+	})
 }

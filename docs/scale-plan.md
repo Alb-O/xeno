@@ -350,40 +350,40 @@ pub fn register_all(reg: &mut RegistryBuilder) -> Result<(), RegistryError> {
 
 #### 3.1 Actions
 
-* [ ] Create `*_plugin.rs` per contributing crate (or per domain module)
-* [ ] Add explicit `register()` calls listing action statics
-* [ ] Switch app startup from legacy ingestion → `builtins::register_all`
-* [ ] Keep legacy ingestion only for other registry kinds still on slices
+* [x] Create `*_plugin.rs` per contributing crate (or per domain module)
+* [x] Add explicit `register()` calls listing action statics
+* [x] Switch app startup from legacy ingestion → `builtins::register_all`
+* [x] Keep legacy ingestion only for other registry kinds still on slices
 
 #### 3.2 Commands
 
-* [ ] Convert `command!` to define-only (if not already)
-* [ ] Create command registration lists per plugin
-* [ ] Add command collision checks for `name` and `aliases`
+* [x] Convert `command!` to define-only (if not already)
+* [x] Create command registration lists per plugin
+* [x] Add command collision checks for `name` and `aliases`
 
 #### 3.3 Motions / Gutters / Handlers
 
-* [ ] Repeat conversion for each registry kind
-* [ ] Add any missing indices you currently computed by iterating slices
+* [x] Repeat conversion for each registry kind
+* [x] Add any missing indices you currently computed by iterating slices
 
 #### 3.4 Keymaps / Prefixes
 
-* [ ] If keymaps are built from distributed slices today, change to explicit registration
+* [x] If keymaps are built from distributed slices today, change to explicit registration
 * [ ] Consider splitting:
   * *definitions* (available bindings)
   * *configuration* (enabled bindings per mode/profile)
 
 ### Tasks (core)
 
-* [ ] Implement `builtins::register_all()`
-* [ ] For each crate that currently contributes to registries:
-  * [ ] Add `Plugin` type implementing `XenoPlugin`
-  * [ ] Register all statics explicitly
-* [ ] Remove legacy ingestion for a registry kind once fully migrated
-* [ ] Add tests:
-  * [ ] all actions can be resolved by id
-  * [ ] all commands resolve by name/alias
-  * [ ] no duplicate aliases
+* [x] Implement `builtins::register_all()`
+* [x] For each crate that currently contributes to registries:
+  * [x] Add `Plugin` type implementing `XenoPlugin`
+  * [x] Register all statics explicitly
+* [x] Remove legacy ingestion for a registry kind once fully migrated
+* [x] Add tests:
+  * [x] all actions can be resolved by id
+  * [x] all commands resolve by name/alias
+  * [x] no duplicate aliases
 
 ### Dependencies
 

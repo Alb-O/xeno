@@ -32,6 +32,8 @@ pub mod index;
 pub mod keymap_registry;
 /// Explicit registry builder for plugin-style registration.
 pub mod builder;
+/// Built-in registry registrations.
+pub mod builtins;
 /// Legacy ingestion adapter for distributed slices.
 pub mod legacy;
 /// Plugin registration trait for explicit wiring.
@@ -105,7 +107,7 @@ pub use {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use std::collections::HashSet;
+	use std::collections::{HashMap, HashSet};
 
 	fn assert_unique_ids<T: RegistryMetadata + 'static>(
 		label: &str,
@@ -190,7 +192,7 @@ mod tests {
 		);
 	}
 
-	/// Sanity check to catch linkme registration failures.
+	/// Sanity check to catch registry list regressions.
 	///
 	/// If distributed slice registration breaks (e.g., due to linker issues
 	/// or missing feature flags), these counts will drop to zero.
@@ -247,6 +249,20 @@ mod tests {
 	}
 
 	#[test]
+	fn action_ids_resolve() {
+		for &action in ACTIONS.iter() {
+			let action_id = resolve_action_id(action.name()).unwrap_or_else(|| {
+				panic!("action name missing from index: {}", action.name());
+			});
+			assert!(
+				find_action_by_id(action_id).is_some(),
+				"action id missing from index: {}",
+				action.name()
+			);
+		}
+	}
+
+	#[test]
 	fn command_names_and_aliases_resolve() {
 		for &command in COMMANDS.iter() {
 			assert!(
@@ -263,6 +279,46 @@ mod tests {
 				);
 			}
 		}
+	}
+
+	#[test]
+	fn command_aliases_unique() {
+		let mut names: HashMap<&'static str, &'static CommandDef> = HashMap::new();
+		for &command in COMMANDS.iter() {
+			names.insert(command.meta.name, command);
+		}
+
+		let mut aliases: HashMap<&'static str, &'static CommandDef> = HashMap::new();
+		let mut duplicates = HashSet::new();
+
+		for &command in COMMANDS.iter() {
+			for &alias in command.meta.aliases {
+				if let Some(existing) = names.get(alias) {
+					if !std::ptr::eq(*existing, command) {
+						duplicates.insert(alias);
+						continue;
+					}
+				}
+
+				if let Some(existing) = aliases.get(alias) {
+					if !std::ptr::eq(*existing, command) {
+						duplicates.insert(alias);
+					}
+					continue;
+				}
+
+				aliases.insert(alias, command);
+			}
+		}
+
+		let mut duplicates: Vec<_> = duplicates.into_iter().collect();
+		duplicates.sort();
+
+		assert!(
+			duplicates.is_empty(),
+			"duplicate command aliases: {}",
+			duplicates.join(", ")
+		);
 	}
 
 	#[test]

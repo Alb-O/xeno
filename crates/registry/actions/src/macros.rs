@@ -24,6 +24,21 @@ macro_rules! __opt_slice {
 	};
 }
 
+/// Defines keybinding lists for an action.
+#[doc(hidden)]
+#[macro_export]
+macro_rules! __action_keybindings {
+	($name:ident, $kdl:literal) => {
+		xeno_macro::parse_keybindings!($name, $kdl);
+	};
+	($name:ident) => {
+		paste::paste! {
+			#[allow(non_upper_case_globals)]
+			pub static [<KEYBINDINGS_ $name>]: &'static [$crate::KeyBindingDef] = &[];
+		}
+	};
+}
+
 /// Defines an action definition.
 ///
 /// Actions are the primary unit of editor functionality. Each action has a name,
@@ -87,12 +102,11 @@ macro_rules! action {
 				$(aliases: $aliases,)?
 				description: $desc
 				$(, short_desc: $short)?
+				$(, bindings: $kdl)?
 				$(, priority: $priority)?
 				$(, caps: $caps)?
 				$(, flags: $flags)?
 			}, handler: [<handler_ $name>]);
-
-			$(xeno_macro::parse_keybindings!($name, $kdl);)?
 		}
 	};
 
@@ -127,7 +141,7 @@ macro_rules! action {
 			#[allow(non_upper_case_globals)]
 			pub const $name: $crate::ActionKey = $crate::ActionKey::new(&[<ACTION_ $name>]);
 
-			$(xeno_macro::parse_keybindings!($name, $kdl);)?
+			$crate::__action_keybindings!($name $(, $kdl)?);
 		}
 	};
 }
@@ -182,8 +196,7 @@ macro_rules! key_prefix {
 	($mode:ident $keys:literal => $desc:literal) => {
 		paste::paste! {
 			#[allow(non_upper_case_globals)]
-			#[linkme::distributed_slice($crate::KEY_PREFIXES)]
-			static [<KEY_PREFIX_ $mode:upper _ $keys>]: $crate::KeyPrefixDef = $crate::KeyPrefixDef {
+			pub static [<KEY_PREFIX_ $mode:upper _ $keys>]: $crate::KeyPrefixDef = $crate::KeyPrefixDef {
 				mode: $crate::BindingMode::[<$mode:camel>],
 				keys: $keys,
 				description: $desc,
@@ -193,8 +206,7 @@ macro_rules! key_prefix {
 	($mode:ident $keys:literal as $id:ident => $desc:literal) => {
 		paste::paste! {
 			#[allow(non_upper_case_globals)]
-			#[linkme::distributed_slice($crate::KEY_PREFIXES)]
-			static [<KEY_PREFIX_ $mode:upper _ $id:upper>]: $crate::KeyPrefixDef = $crate::KeyPrefixDef {
+			pub static [<KEY_PREFIX_ $mode:upper _ $id:upper>]: $crate::KeyPrefixDef = $crate::KeyPrefixDef {
 				mode: $crate::BindingMode::[<$mode:camel>],
 				keys: $keys,
 				description: $desc,

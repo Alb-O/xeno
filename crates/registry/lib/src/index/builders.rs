@@ -1,4 +1,4 @@
-//! Registry builder logic - constructs indices from distributed slices.
+//! Registry builder logic - constructs indices from registered definitions.
 
 use std::collections::HashMap;
 
@@ -12,7 +12,7 @@ use crate::RegistryMetadata;
 use crate::actions::ActionDef;
 use crate::builder::RegistryBuilder;
 use crate::commands::CommandDef;
-use crate::legacy;
+use crate::builtins;
 use crate::motions::MotionDef;
 use crate::textobj::TextObjectDef;
 
@@ -22,8 +22,8 @@ use crate::textobj::TextObjectDef;
 /// resolves collisions based on priority, and performs validation checks.
 pub(super) fn build_registry() -> ExtensionRegistry {
 	let mut builder = RegistryBuilder::new();
-	if let Err(err) = legacy::ingest_all(&mut builder) {
-		panic!("Legacy registry ingestion failed: {err}");
+	if let Err(err) = builtins::register_all(&mut builder) {
+		panic!("Registry registration failed: {err}");
 	}
 	let registry = builder
 		.build()
