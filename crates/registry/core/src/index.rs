@@ -27,7 +27,7 @@ pub trait RegistryReg<T: RegistryEntry + 'static>: 'static {
 }
 
 /// Policy for handling duplicate keys during index construction.
-#[derive(Clone, Copy, Debug, Default)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum DuplicatePolicy {
 	/// Panic with detailed error message.
 	///
@@ -363,85 +363,64 @@ impl<T: RegistryEntry + 'static> RuntimeRegistry<T> {
 	/// Returns `true` if the definition was added, `false` if it was already
 	/// registered (either as builtin or previous runtime addition).
 	///
-	/// Registration is atomic: all keys are validated before any are inserted.
-	/// If validation fails with `DuplicatePolicy::Panic`, no partial state remains.
+	/// All keys are validated before any are inserted, ensuring atomic registration.
 	///
 	/// # Panics
 	///
 	/// Panics if the definition's keys conflict with existing keys and the
 	/// policy is [`DuplicatePolicy::Panic`].
 	pub fn register(&self, def: &'static T) -> bool {
-		// Check builtins first (no lock needed, immutable)
 		if self.builtins.items().iter().any(|&b| std::ptr::eq(b, def)) {
 			return false;
 		}
 
 		let mut extras = self.extras.write().expect("poisoned");
-
-		// Check if already registered in extras
 		if extras.items.iter().any(|&e| std::ptr::eq(e, def)) {
 			return false;
 		}
 
-		// Collect all keys for this definition
 		let meta = def.meta();
 		let keys: Vec<&'static str> = std::iter::once(meta.name)
 			.chain(std::iter::once(meta.id))
 			.chain(meta.aliases.iter().copied())
 			.collect();
 
-		// Validate ALL keys before inserting any (atomic check)
-		for &key in &keys {
-			if let Err(conflict) = self.validate_key(&extras, key, def) {
-				match self.policy {
-					DuplicatePolicy::Panic => panic!("{}", conflict),
-					DuplicatePolicy::FirstWins | DuplicatePolicy::LastWins => {}
-				}
+		if self.policy == DuplicatePolicy::Panic {
+			for &key in &keys {
+				self.check_conflict(&extras, key, def);
 			}
 		}
 
-		// Insert keys according to policy
 		for &key in &keys {
 			self.insert_key(&mut extras.by_key, key, def);
 		}
 
-		// Commit the item
 		extras.items.push(def);
 		true
 	}
 
-	/// Validates a key can be inserted, returning an error message if not.
-	fn validate_key(
-		&self,
-		extras: &RuntimeExtras<T>,
-		key: &'static str,
-		def: &'static T,
-	) -> Result<(), String> {
-		// Check builtin conflict
+	/// Panics if key conflicts with an existing definition.
+	fn check_conflict(&self, extras: &RuntimeExtras<T>, key: &'static str, def: &'static T) {
 		if let Some(existing) = self.builtins.get(key) {
 			if !std::ptr::eq(existing, def) {
-				return Err(format!(
+				panic!(
 					"runtime registry key conflict in {}: key={:?} conflicts with builtin id={}",
 					self.label,
 					key,
 					existing.id()
-				));
+				);
 			}
 		}
-
-		// Check extras conflict
 		if let Some(&existing) = extras.by_key.get(key) {
 			if !std::ptr::eq(existing, def) {
-				return Err(format!(
+				panic!(
 					"runtime registry key conflict in {}: key={:?} conflicts with id={}",
 					self.label,
 					key,
 					existing.id()
-				));
+				);
 			}
 		}
-
-		Ok(())
 	}
 
 	fn insert_key(
@@ -450,27 +429,21 @@ impl<T: RegistryEntry + 'static> RuntimeRegistry<T> {
 		key: &'static str,
 		def: &'static T,
 	) {
-		// Skip if builtin shadows this key and policy is FirstWins
 		if let Some(existing) = self.builtins.get(key) {
 			if std::ptr::eq(existing, def) {
 				return;
 			}
-			match self.policy {
-				DuplicatePolicy::Panic => unreachable!("validated above"),
-				DuplicatePolicy::FirstWins => return,
-				DuplicatePolicy::LastWins => {}
+			if self.policy == DuplicatePolicy::FirstWins {
+				return;
 			}
 		}
 
-		// Handle extras conflict
 		if let Some(&existing) = map.get(key) {
 			if std::ptr::eq(existing, def) {
 				return;
 			}
-			match self.policy {
-				DuplicatePolicy::Panic => unreachable!("validated above"),
-				DuplicatePolicy::FirstWins => return,
-				DuplicatePolicy::LastWins => {}
+			if self.policy == DuplicatePolicy::FirstWins {
+				return;
 			}
 		}
 
