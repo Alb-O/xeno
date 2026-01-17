@@ -26,7 +26,9 @@
 //! ```
 
 use std::collections::HashMap;
-use std::sync::{LazyLock, Mutex, OnceLock};
+use std::sync::LazyLock;
+
+pub use xeno_registry_core::{RegistryBuilder, RegistryIndex, RegistryReg};
 
 mod context;
 mod emit;
@@ -48,6 +50,12 @@ pub use xeno_primitives::Mode;
 /// Wrapper for [`inventory`] collection of hook definitions.
 pub struct HookReg(pub &'static HookDef);
 inventory::collect!(HookReg);
+
+impl RegistryReg<HookDef> for HookReg {
+	fn def(&self) -> &'static HookDef {
+		self.0
+	}
+}
 
 // Generate HookEvent, HookEventData, OwnedHookContext, and extractor macros
 // from this single source of truth. Adding a new event only requires adding
@@ -198,64 +206,53 @@ xeno_macro::define_events! {
 	},
 }
 
-/// Runtime-registered hooks (plugins, user extensions).
-static EXTRA_HOOKS: OnceLock<Mutex<Vec<&'static HookDef>>> = OnceLock::new();
+/// Indexed collection of all builtin hooks.
+pub static HOOKS: LazyLock<RegistryIndex<HookDef>> = LazyLock::new(|| {
+	RegistryBuilder::new("hooks")
+		.extend_inventory::<HookReg>()
+		.sort_by(|a, b| a.meta.name.cmp(b.meta.name))
+		.build()
+});
 
-/// Lazy index of hooks by event type.
-static HOOK_EVENT_INDEX: LazyLock<HashMap<HookEvent, Vec<&'static HookDef>>> = LazyLock::new(|| {
+/// Builtin hooks grouped by event type.
+static BUILTIN_BY_EVENT: LazyLock<HashMap<HookEvent, Vec<&'static HookDef>>> = LazyLock::new(|| {
 	let mut map: HashMap<HookEvent, Vec<&'static HookDef>> = HashMap::new();
-	for reg in inventory::iter::<HookReg> {
-		map.entry(reg.0.event).or_default().push(reg.0);
+	for hook in HOOKS.iter() {
+		map.entry(hook.event).or_default().push(hook);
 	}
 	map
 });
 
-/// Lazy reference to all hooks for iteration.
-pub static HOOKS: LazyLock<Vec<&'static HookDef>> = LazyLock::new(|| {
-	let mut hooks: Vec<_> = inventory::iter::<HookReg>().map(|r| r.0).collect();
-	hooks.sort_by_key(|h| h.meta.name);
-	hooks
-});
+/// Runtime hooks grouped by event type.
+static EXTRA_BY_EVENT: LazyLock<std::sync::RwLock<HashMap<HookEvent, Vec<&'static HookDef>>>> =
+	LazyLock::new(|| std::sync::RwLock::new(HashMap::new()));
 
 /// Registers an extra hook definition at runtime.
 ///
-/// This is a no-op if the hook is already registered via inventory or a previous
-/// call to this function.
-pub fn register_hook(def: &'static HookDef) {
-	if HOOK_EVENT_INDEX
-		.get(&def.event)
-		.is_some_and(|v| v.iter().any(|&existing| std::ptr::eq(existing, def)))
-	{
-		return;
+/// Returns `true` if the hook was added, `false` if already registered.
+pub fn register_hook(def: &'static HookDef) -> bool {
+	if HOOKS.items().iter().any(|&h| std::ptr::eq(h, def)) {
+		return false;
 	}
 
-	let mut extras = EXTRA_HOOKS
-		.get_or_init(|| Mutex::new(Vec::new()))
-		.lock()
-		.expect("poisoned");
+	let mut extras = EXTRA_BY_EVENT.write().expect("poisoned");
+	let event_hooks = extras.entry(def.event).or_default();
 
-	if extras.iter().any(|&existing| std::ptr::eq(existing, def)) {
-		return;
+	if event_hooks.iter().any(|&h| std::ptr::eq(h, def)) {
+		return false;
 	}
-	extras.push(def);
+
+	event_hooks.push(def);
+	true
 }
 
 /// Returns hooks matching the given event, including runtime registrations.
 pub fn hooks_for_event(event: HookEvent) -> Vec<&'static HookDef> {
-	let mut hooks: Vec<_> = HOOK_EVENT_INDEX.get(&event).cloned().unwrap_or_default();
+	let builtins = BUILTIN_BY_EVENT.get(&event).map(Vec::as_slice).unwrap_or(&[]);
+	let extras_guard = EXTRA_BY_EVENT.read().expect("poisoned");
+	let extras = extras_guard.get(&event).map(Vec::as_slice).unwrap_or(&[]);
 
-	if let Some(extras) = EXTRA_HOOKS.get() {
-		hooks.extend(
-			extras
-				.lock()
-				.expect("poisoned")
-				.iter()
-				.copied()
-				.filter(|h| h.event == event),
-		);
-	}
-
-	hooks
+	builtins.iter().copied().chain(extras.iter().copied()).collect()
 }
 
 /// Find all hooks registered for a specific event.
@@ -263,11 +260,12 @@ pub fn find_hooks(event: HookEvent) -> impl Iterator<Item = &'static HookDef> {
 	hooks_for_event(event).into_iter()
 }
 
-/// List all registered hooks.
+/// List all registered hooks (builtins + runtime).
 pub fn all_hooks() -> impl Iterator<Item = &'static HookDef> {
-	let mut hooks: Vec<_> = HOOKS.to_vec();
-	if let Some(extras) = EXTRA_HOOKS.get() {
-		hooks.extend(extras.lock().expect("poisoned").iter().copied());
+	let mut hooks: Vec<_> = HOOKS.items().to_vec();
+	let extras = EXTRA_BY_EVENT.read().expect("poisoned");
+	for event_hooks in extras.values() {
+		hooks.extend(event_hooks.iter().copied());
 	}
 	hooks.into_iter()
 }

@@ -225,10 +225,10 @@ mod tests {
 	#[test]
 	fn registry_id_uniqueness_by_kind() {
 		assert_unique_ids("actions", all_actions());
-		assert_unique_ids("commands", COMMANDS.iter().copied());
+		assert_unique_ids("commands", COMMANDS.iter());
 		assert_unique_ids("motions", MOTIONS.iter());
 		assert_unique_ids("gutters", GUTTERS.iter());
-		assert_unique_ids("hooks", HOOKS.iter().copied());
+		assert_unique_ids("hooks", HOOKS.iter());
 		assert_unique_ids("statusline", STATUSLINE_SEGMENTS.iter());
 		assert_unique_ids("text_objects", TEXT_OBJECTS.iter());
 		assert_unique_ids("options", options::OPTIONS.iter());
@@ -238,10 +238,10 @@ mod tests {
 	#[test]
 	fn registry_id_namespacing() {
 		assert_namespaced_ids("actions", all_actions());
-		assert_namespaced_ids("commands", COMMANDS.iter().copied());
+		assert_namespaced_ids("commands", COMMANDS.iter());
 		assert_namespaced_ids("motions", MOTIONS.iter());
 		assert_namespaced_ids("gutters", GUTTERS.iter());
-		assert_namespaced_ids("hooks", HOOKS.iter().copied());
+		assert_namespaced_ids("hooks", HOOKS.iter());
 		assert_namespaced_ids("text_objects", TEXT_OBJECTS.iter());
 	}
 
@@ -261,7 +261,7 @@ mod tests {
 
 	#[test]
 	fn command_names_and_aliases_resolve() {
-		for &command in COMMANDS.iter() {
+		for command in COMMANDS.iter() {
 			assert!(
 				find_command(command.meta.name).is_some(),
 				"command name missing from index: {}",
@@ -281,14 +281,14 @@ mod tests {
 	#[test]
 	fn command_aliases_unique() {
 		let mut names: HashMap<&'static str, &'static CommandDef> = HashMap::new();
-		for &command in COMMANDS.iter() {
+		for command in COMMANDS.iter() {
 			names.insert(command.meta.name, command);
 		}
 
 		let mut aliases: HashMap<&'static str, &'static CommandDef> = HashMap::new();
 		let mut duplicates = HashSet::new();
 
-		for &command in COMMANDS.iter() {
+		for command in COMMANDS.iter() {
 			for &alias in command.meta.aliases {
 				if let Some(existing) = names.get(alias) {
 					if !std::ptr::eq(*existing, command) {

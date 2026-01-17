@@ -120,7 +120,7 @@ fn collect_command_collisions(collisions: &mut Vec<CollisionReport>) {
 	let mut by_name = HashMap::new();
 	let mut by_alias = HashMap::new();
 
-	for &cmd in COMMANDS.iter() {
+	for cmd in COMMANDS.iter() {
 		register_command_collision(CollisionKind::Id, cmd.id(), cmd, &mut by_id, collisions);
 		register_command_collision(
 			CollisionKind::Name,

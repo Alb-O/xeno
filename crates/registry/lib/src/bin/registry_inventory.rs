@@ -43,10 +43,10 @@ fn main() {
 	println!();
 
 	print_registry("Actions", all_actions());
-	print_registry("Commands", COMMANDS.iter().copied());
+	print_registry("Commands", COMMANDS.iter());
 	print_registry("Motions", MOTIONS.iter());
 	print_registry("Gutters", GUTTERS.iter());
-	print_registry("Hooks", HOOKS.iter().copied());
+	print_registry("Hooks", HOOKS.iter());
 	print_registry("Statusline Segments", STATUSLINE_SEGMENTS.iter());
 	print_registry("Text Objects", TEXT_OBJECTS.iter());
 	print_registry("Options", xeno_registry::options::OPTIONS.iter());

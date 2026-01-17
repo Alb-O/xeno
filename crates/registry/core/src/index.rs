@@ -441,6 +441,18 @@ impl<T: RegistryEntry + 'static> RuntimeRegistry<T> {
 	pub fn builtins(&self) -> &RegistryIndex<T> {
 		&self.builtins
 	}
+
+	/// Returns an iterator over builtin definitions only.
+	///
+	/// For all definitions including runtime additions, use [`all`](Self::all).
+	pub fn iter(&self) -> impl Iterator<Item = &'static T> + '_ {
+		self.builtins.iter()
+	}
+
+	/// Returns the builtin items slice.
+	pub fn items(&self) -> &[&'static T] {
+		self.builtins.items()
+	}
 }
 
 /// Builds a secondary index map with custom keys.

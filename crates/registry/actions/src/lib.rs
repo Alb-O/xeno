@@ -3,14 +3,21 @@
 //! Actions are the primary unit of editor functionality, executed via keybindings.
 //! This module provides auto-registration via the [`action!`] macro and O(1) lookup.
 
-use std::collections::HashMap;
-use std::sync::{LazyLock, Mutex, OnceLock};
+use std::sync::LazyLock;
 
 extern crate self as xeno_registry_actions;
+
+pub use xeno_registry_core::{RegistryBuilder, RegistryReg, RuntimeRegistry};
 
 /// Wrapper for [`inventory`] collection of action definitions.
 pub struct ActionReg(pub &'static ActionDef);
 inventory::collect!(ActionReg);
+
+impl RegistryReg<ActionDef> for ActionReg {
+	fn def(&self) -> &'static ActionDef {
+		self.0
+	}
+}
 
 mod context;
 mod definition;
@@ -70,69 +77,30 @@ pub mod keys {
 	pub use crate::impls::window::*;
 }
 
-/// Runtime-registered actions (plugins, user extensions).
-static EXTRA_ACTIONS: OnceLock<Mutex<Vec<&'static ActionDef>>> = OnceLock::new();
-
-/// O(1) action lookup index, keyed by id, name, and aliases.
-static ACTION_INDEX: LazyLock<Mutex<HashMap<&'static str, &'static ActionDef>>> =
-	LazyLock::new(|| {
-		let mut map = HashMap::new();
-		for reg in inventory::iter::<ActionReg> {
-			insert_action_into_index(&mut map, reg.0);
-		}
-		Mutex::new(map)
-	});
-
-fn insert_action_into_index(
-	map: &mut HashMap<&'static str, &'static ActionDef>,
-	def: &'static ActionDef,
-) {
-	map.insert(def.id(), def);
-	map.insert(def.name(), def);
-	for &alias in def.aliases() {
-		map.insert(alias, def);
-	}
-}
+/// Indexed collection of all actions with runtime registration support.
+pub static ACTIONS: LazyLock<RuntimeRegistry<ActionDef>> = LazyLock::new(|| {
+	let builtins = RegistryBuilder::new("actions")
+		.extend_inventory::<ActionReg>()
+		.sort_by(|a, b| a.meta.name.cmp(b.meta.name))
+		.build();
+	RuntimeRegistry::new("actions", builtins)
+});
 
 /// Registers an action definition at runtime.
 ///
-/// This is a no-op if the action is already registered via inventory or a previous
-/// call to this function.
-pub fn register_action(def: &'static ActionDef) {
-	if inventory::iter::<ActionReg>().any(|reg| std::ptr::eq(reg.0, def)) {
-		return;
-	}
-
-	let mut extras = EXTRA_ACTIONS
-		.get_or_init(|| Mutex::new(Vec::new()))
-		.lock()
-		.expect("extra action lock poisoned");
-
-	if extras.iter().any(|&existing| std::ptr::eq(existing, def)) {
-		return;
-	}
-	extras.push(def);
-	drop(extras);
-
-	let mut index = ACTION_INDEX.lock().expect("action index lock poisoned");
-	insert_action_into_index(&mut index, def);
+/// Returns `true` if the action was added, `false` if already registered.
+pub fn register_action(def: &'static ActionDef) -> bool {
+	ACTIONS.register(def)
 }
 
 /// Finds an action by name, alias, or id.
 pub fn find_action(name: &str) -> Option<&'static ActionDef> {
-	ACTION_INDEX.lock().expect("poisoned").get(name).copied()
+	ACTIONS.get(name)
 }
 
-/// Returns all registered actions, sorted by name.
+/// Returns all registered actions (builtins + runtime), sorted by name.
 pub fn all_actions() -> impl Iterator<Item = &'static ActionDef> {
-	let mut actions: Vec<_> = inventory::iter::<ActionReg>().map(|r| r.0).collect();
-
-	if let Some(extras) = EXTRA_ACTIONS.get() {
-		actions.extend(extras.lock().expect("poisoned").iter().copied());
-	}
-
-	actions.sort_by_key(|action| action.name());
-	actions.into_iter()
+	ACTIONS.all().into_iter()
 }
 
 #[cfg(test)]
