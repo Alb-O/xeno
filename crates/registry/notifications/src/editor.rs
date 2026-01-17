@@ -3,453 +3,75 @@
 use std::path::Path;
 use std::time::Duration;
 
-use crate::{
-	AutoDismiss, Level, Notification, NotificationDef, NotificationKey, NotificationReg,
-	RegistrySource,
-};
+use crate::AutoDismiss;
 
-static NOTIF_BUFFER_READONLY: NotificationDef = NotificationDef::new(
-	"buffer_readonly",
-	Level::Warn,
-	AutoDismiss::DEFAULT,
-	RegistrySource::Builtin,
-);
-inventory::submit! { NotificationReg(&NOTIF_BUFFER_READONLY) }
-
-static NOTIF_NOTHING_TO_UNDO: NotificationDef = NotificationDef::new(
-	"nothing_to_undo",
-	Level::Warn,
-	AutoDismiss::DEFAULT,
-	RegistrySource::Builtin,
-);
-inventory::submit! { NotificationReg(&NOTIF_NOTHING_TO_UNDO) }
-
-static NOTIF_NOTHING_TO_REDO: NotificationDef = NotificationDef::new(
-	"nothing_to_redo",
-	Level::Warn,
-	AutoDismiss::DEFAULT,
-	RegistrySource::Builtin,
-);
-inventory::submit! { NotificationReg(&NOTIF_NOTHING_TO_REDO) }
-
-static NOTIF_UNDO: NotificationDef = NotificationDef::new(
-	"undo",
-	Level::Info,
-	AutoDismiss::DEFAULT,
-	RegistrySource::Builtin,
-);
-inventory::submit! { NotificationReg(&NOTIF_UNDO) }
-
-static NOTIF_REDO: NotificationDef = NotificationDef::new(
-	"redo",
-	Level::Info,
-	AutoDismiss::DEFAULT,
-	RegistrySource::Builtin,
-);
-inventory::submit! { NotificationReg(&NOTIF_REDO) }
-
-static NOTIF_SEARCH_WRAPPED: NotificationDef = NotificationDef::new(
-	"search_wrapped",
-	Level::Info,
-	AutoDismiss::DEFAULT,
-	RegistrySource::Builtin,
-);
-inventory::submit! { NotificationReg(&NOTIF_SEARCH_WRAPPED) }
-
-static NOTIF_NO_SEARCH_PATTERN: NotificationDef = NotificationDef::new(
-	"no_search_pattern",
-	Level::Warn,
-	AutoDismiss::DEFAULT,
-	RegistrySource::Builtin,
-);
-inventory::submit! { NotificationReg(&NOTIF_NO_SEARCH_PATTERN) }
-
-static NOTIF_NO_SELECTION: NotificationDef = NotificationDef::new(
-	"no_selection",
-	Level::Warn,
-	AutoDismiss::DEFAULT,
-	RegistrySource::Builtin,
-);
-inventory::submit! { NotificationReg(&NOTIF_NO_SELECTION) }
-
-static NOTIF_NO_MORE_MATCHES: NotificationDef = NotificationDef::new(
-	"no_more_matches",
-	Level::Warn,
-	AutoDismiss::DEFAULT,
-	RegistrySource::Builtin,
-);
-inventory::submit! { NotificationReg(&NOTIF_NO_MORE_MATCHES) }
-
-static NOTIF_NO_MATCHES_FOUND: NotificationDef = NotificationDef::new(
-	"no_matches_found",
-	Level::Warn,
-	AutoDismiss::DEFAULT,
-	RegistrySource::Builtin,
-);
-inventory::submit! { NotificationReg(&NOTIF_NO_MATCHES_FOUND) }
-
-static NOTIF_NO_BUFFERS: NotificationDef = NotificationDef::new(
-	"no_buffers",
-	Level::Warn,
-	AutoDismiss::DEFAULT,
-	RegistrySource::Builtin,
-);
-inventory::submit! { NotificationReg(&NOTIF_NO_BUFFERS) }
-
-static NOTIF_BUFFER_MODIFIED: NotificationDef = NotificationDef::new(
-	"buffer_modified",
-	Level::Warn,
-	AutoDismiss::DEFAULT,
-	RegistrySource::Builtin,
-);
-inventory::submit! { NotificationReg(&NOTIF_BUFFER_MODIFIED) }
-
-static NOTIF_NO_SELECTIONS_REMAIN: NotificationDef = NotificationDef::new(
-	"no_selections_remain",
-	Level::Warn,
-	AutoDismiss::DEFAULT,
-	RegistrySource::Builtin,
-);
-inventory::submit! { NotificationReg(&NOTIF_NO_SELECTIONS_REMAIN) }
-
-static NOTIF_YANKED_CHARS: NotificationDef = NotificationDef::new(
-	"yanked_chars",
-	Level::Info,
-	AutoDismiss::DEFAULT,
-	RegistrySource::Builtin,
-);
-inventory::submit! { NotificationReg(&NOTIF_YANKED_CHARS) }
-
-static NOTIF_YANKED_LINES: NotificationDef = NotificationDef::new(
-	"yanked_lines",
-	Level::Info,
-	AutoDismiss::DEFAULT,
-	RegistrySource::Builtin,
-);
-inventory::submit! { NotificationReg(&NOTIF_YANKED_LINES) }
-
-static NOTIF_DELETED_CHARS: NotificationDef = NotificationDef::new(
-	"deleted_chars",
-	Level::Info,
-	AutoDismiss::DEFAULT,
-	RegistrySource::Builtin,
-);
-inventory::submit! { NotificationReg(&NOTIF_DELETED_CHARS) }
-
-static NOTIF_PATTERN_NOT_FOUND: NotificationDef = NotificationDef::new(
-	"pattern_not_found",
-	Level::Warn,
-	AutoDismiss::DEFAULT,
-	RegistrySource::Builtin,
-);
-inventory::submit! { NotificationReg(&NOTIF_PATTERN_NOT_FOUND) }
-
-static NOTIF_REGEX_ERROR: NotificationDef = NotificationDef::new(
-	"regex_error",
-	Level::Error,
-	AutoDismiss::After(Duration::from_secs(8)),
-	RegistrySource::Builtin,
-);
-inventory::submit! { NotificationReg(&NOTIF_REGEX_ERROR) }
-
-static NOTIF_SEARCH_INFO: NotificationDef = NotificationDef::new(
-	"search_info",
-	Level::Info,
-	AutoDismiss::DEFAULT,
-	RegistrySource::Builtin,
-);
-inventory::submit! { NotificationReg(&NOTIF_SEARCH_INFO) }
-
-static NOTIF_REPLACED: NotificationDef = NotificationDef::new(
-	"replaced",
-	Level::Info,
-	AutoDismiss::DEFAULT,
-	RegistrySource::Builtin,
-);
-inventory::submit! { NotificationReg(&NOTIF_REPLACED) }
-
-static NOTIF_MATCHES_COUNT: NotificationDef = NotificationDef::new(
-	"matches_count",
-	Level::Info,
-	AutoDismiss::DEFAULT,
-	RegistrySource::Builtin,
-);
-inventory::submit! { NotificationReg(&NOTIF_MATCHES_COUNT) }
-
-static NOTIF_SPLITS_COUNT: NotificationDef = NotificationDef::new(
-	"splits_count",
-	Level::Info,
-	AutoDismiss::DEFAULT,
-	RegistrySource::Builtin,
-);
-inventory::submit! { NotificationReg(&NOTIF_SPLITS_COUNT) }
-
-static NOTIF_SELECTIONS_KEPT: NotificationDef = NotificationDef::new(
-	"selections_kept",
-	Level::Info,
-	AutoDismiss::DEFAULT,
-	RegistrySource::Builtin,
-);
-inventory::submit! { NotificationReg(&NOTIF_SELECTIONS_KEPT) }
-
-static NOTIF_FILE_SAVED: NotificationDef = NotificationDef::new(
-	"file_saved",
-	Level::Success,
-	AutoDismiss::DEFAULT,
-	RegistrySource::Builtin,
-);
-inventory::submit! { NotificationReg(&NOTIF_FILE_SAVED) }
-
-static NOTIF_FILE_NOT_FOUND: NotificationDef = NotificationDef::new(
-	"file_not_found",
-	Level::Error,
-	AutoDismiss::DEFAULT,
-	RegistrySource::Builtin,
-);
-inventory::submit! { NotificationReg(&NOTIF_FILE_NOT_FOUND) }
-
-static NOTIF_FILE_LOAD_ERROR: NotificationDef = NotificationDef::new(
-	"file_load_error",
-	Level::Error,
-	AutoDismiss::DEFAULT,
-	RegistrySource::Builtin,
-);
-inventory::submit! { NotificationReg(&NOTIF_FILE_LOAD_ERROR) }
-
-static NOTIF_FILE_SAVE_ERROR: NotificationDef = NotificationDef::new(
-	"file_save_error",
-	Level::Error,
-	AutoDismiss::DEFAULT,
-	RegistrySource::Builtin,
-);
-inventory::submit! { NotificationReg(&NOTIF_FILE_SAVE_ERROR) }
-
-static NOTIF_BUFFER_CLOSED: NotificationDef = NotificationDef::new(
-	"buffer_closed",
-	Level::Info,
-	AutoDismiss::DEFAULT,
-	RegistrySource::Builtin,
-);
-inventory::submit! { NotificationReg(&NOTIF_BUFFER_CLOSED) }
-
-static NOTIF_SPLIT_NO_RANGES: NotificationDef = NotificationDef::new(
-	"split_no_ranges",
-	Level::Warn,
-	AutoDismiss::DEFAULT,
-	RegistrySource::Builtin,
-);
-inventory::submit! { NotificationReg(&NOTIF_SPLIT_NO_RANGES) }
-
-static NOTIF_NO_MATCHES_TO_SPLIT: NotificationDef = NotificationDef::new(
-	"no_matches_to_split",
-	Level::Warn,
-	AutoDismiss::DEFAULT,
-	RegistrySource::Builtin,
-);
-inventory::submit! { NotificationReg(&NOTIF_NO_MATCHES_TO_SPLIT) }
-
-static NOTIF_READONLY_ENABLED: NotificationDef = NotificationDef::new(
-	"readonly_enabled",
-	Level::Info,
-	AutoDismiss::DEFAULT,
-	RegistrySource::Builtin,
-);
-inventory::submit! { NotificationReg(&NOTIF_READONLY_ENABLED) }
-
-static NOTIF_READONLY_DISABLED: NotificationDef = NotificationDef::new(
-	"readonly_disabled",
-	Level::Info,
-	AutoDismiss::DEFAULT,
-	RegistrySource::Builtin,
-);
-inventory::submit! { NotificationReg(&NOTIF_READONLY_DISABLED) }
-
-static NOTIF_OPTION_SET: NotificationDef = NotificationDef::new(
-	"option_set",
-	Level::Info,
-	AutoDismiss::DEFAULT,
-	RegistrySource::Builtin,
-);
-inventory::submit! { NotificationReg(&NOTIF_OPTION_SET) }
-
-#[allow(non_upper_case_globals, non_camel_case_types)]
 pub mod keys {
 	use super::*;
 
-	pub const buffer_readonly: NotificationKey =
-		NotificationKey::new(&NOTIF_BUFFER_READONLY, "Buffer is read-only");
-	pub const nothing_to_undo: NotificationKey =
-		NotificationKey::new(&NOTIF_NOTHING_TO_UNDO, "Nothing to undo");
-	pub const nothing_to_redo: NotificationKey =
-		NotificationKey::new(&NOTIF_NOTHING_TO_REDO, "Nothing to redo");
-	pub const undo: NotificationKey = NotificationKey::new(&NOTIF_UNDO, "Undo");
-	pub const redo: NotificationKey = NotificationKey::new(&NOTIF_REDO, "Redo");
-	pub const search_wrapped: NotificationKey =
-		NotificationKey::new(&NOTIF_SEARCH_WRAPPED, "Search wrapped to beginning");
-	pub const no_search_pattern: NotificationKey =
-		NotificationKey::new(&NOTIF_NO_SEARCH_PATTERN, "No search pattern");
-	pub const no_selection: NotificationKey =
-		NotificationKey::new(&NOTIF_NO_SELECTION, "No selection");
-	pub const no_more_matches: NotificationKey =
-		NotificationKey::new(&NOTIF_NO_MORE_MATCHES, "No more matches");
-	pub const no_matches_found: NotificationKey =
-		NotificationKey::new(&NOTIF_NO_MATCHES_FOUND, "No matches found");
-	pub const no_buffers: NotificationKey =
-		NotificationKey::new(&NOTIF_NO_BUFFERS, "No buffers open");
-	pub const buffer_modified: NotificationKey =
-		NotificationKey::new(&NOTIF_BUFFER_MODIFIED, "Buffer has unsaved changes");
-	pub const no_selections_remain: NotificationKey =
-		NotificationKey::new(&NOTIF_NO_SELECTIONS_REMAIN, "No selections remain");
-	pub const pattern_not_found: NotificationKey =
-		NotificationKey::new(&NOTIF_PATTERN_NOT_FOUND, "Pattern not found");
-	pub const no_selection_to_search: NotificationKey =
-		NotificationKey::new(&NOTIF_NO_SELECTION, "No selection to search in");
-	pub const no_selection_to_split: NotificationKey =
-		NotificationKey::new(&NOTIF_NO_SELECTION, "No selection to split");
-	pub const split_no_ranges: NotificationKey =
-		NotificationKey::new(&NOTIF_SPLIT_NO_RANGES, "Split produced no ranges");
-	pub const no_matches_to_split: NotificationKey =
-		NotificationKey::new(&NOTIF_NO_MATCHES_TO_SPLIT, "No matches found to split on");
-	pub const readonly_enabled: NotificationKey =
-		NotificationKey::new(&NOTIF_READONLY_ENABLED, "Read-only enabled");
-	pub const readonly_disabled: NotificationKey =
-		NotificationKey::new(&NOTIF_READONLY_DISABLED, "Read-only disabled");
+	// Buffer state
+	notif!(buffer_readonly, Warn, "Buffer is read-only");
+	notif!(buffer_modified, Warn, "Buffer has unsaved changes");
+	notif!(no_buffers, Warn, "No buffers open");
+	notif!(readonly_enabled, Info, "Read-only enabled");
+	notif!(readonly_disabled, Info, "Read-only disabled");
 
-	/// "Yanked N chars".
-	pub struct yanked_chars;
-	impl yanked_chars {
-		pub fn call(count: usize) -> Notification {
-			Notification::new(&NOTIF_YANKED_CHARS, format!("Yanked {} chars", count))
-		}
-	}
+	// Undo/redo
+	notif!(nothing_to_undo, Warn, "Nothing to undo");
+	notif!(nothing_to_redo, Warn, "Nothing to redo");
+	notif!(undo, Info, "Undo");
+	notif!(redo, Info, "Redo");
 
-	/// "Yanked N lines".
-	pub struct yanked_lines;
-	impl yanked_lines {
-		pub fn call(count: usize) -> Notification {
-			Notification::new(&NOTIF_YANKED_LINES, format!("Yanked {} lines", count))
-		}
-	}
+	// Selection
+	notif!(no_selection, Warn, "No selection");
+	notif_alias!(
+		no_selection_to_search,
+		no_selection,
+		"No selection to search in"
+	);
+	notif_alias!(no_selection_to_split, no_selection, "No selection to split");
+	notif!(no_selections_remain, Warn, "No selections remain");
 
-	/// "Deleted N chars".
-	pub struct deleted_chars;
-	impl deleted_chars {
-		pub fn call(count: usize) -> Notification {
-			Notification::new(&NOTIF_DELETED_CHARS, format!("Deleted {} chars", count))
-		}
-	}
+	// Search
+	notif!(search_wrapped, Info, "Search wrapped to beginning");
+	notif!(no_search_pattern, Warn, "No search pattern");
+	notif!(no_more_matches, Warn, "No more matches");
+	notif!(no_matches_found, Warn, "No matches found");
+	notif!(pattern_not_found, Warn, "Pattern not found");
+	notif!(
+		pattern_not_found_with(pattern: &str),
+		Warn,
+		format!("Pattern '{}' not found", pattern)
+	);
+	notif!(
+		regex_error(err: &str),
+		Error,
+		format!("Regex error: {}", err),
+		auto_dismiss: AutoDismiss::After(Duration::from_secs(8))
+	);
+	notif!(search_info(text: &str), Info, format!("Search: {}", text));
 
-	/// "Pattern 'X' not found".
-	pub struct pattern_not_found_with;
-	impl pattern_not_found_with {
-		pub fn call(pattern: &str) -> Notification {
-			Notification::new(
-				&NOTIF_PATTERN_NOT_FOUND,
-				format!("Pattern '{}' not found", pattern),
-			)
-		}
-	}
+	// Replace
+	notif!(replaced(count: usize), Info, format!("Replaced {} occurrences", count));
 
-	/// Regex compilation error.
-	pub struct regex_error;
-	impl regex_error {
-		pub fn call(err: &str) -> Notification {
-			Notification::new(&NOTIF_REGEX_ERROR, format!("Regex error: {}", err))
-		}
-	}
+	// Match/split operations
+	notif!(matches_count(count: usize), Info, format!("{} matches", count));
+	notif!(splits_count(count: usize), Info, format!("{} splits", count));
+	notif!(selections_kept(count: usize), Info, format!("{} selections kept", count));
+	notif!(split_no_ranges, Warn, "Split produced no ranges");
+	notif!(no_matches_to_split, Warn, "No matches found to split on");
 
-	/// "Search: X".
-	pub struct search_info;
-	impl search_info {
-		pub fn call(text: &str) -> Notification {
-			Notification::new(&NOTIF_SEARCH_INFO, format!("Search: {}", text))
-		}
-	}
+	// Yank/delete
+	notif!(yanked_chars(count: usize), Info, format!("Yanked {} chars", count));
+	notif!(yanked_lines(count: usize), Info, format!("Yanked {} lines", count));
+	notif!(deleted_chars(count: usize), Info, format!("Deleted {} chars", count));
 
-	/// "Replaced N occurrences".
-	pub struct replaced;
-	impl replaced {
-		pub fn call(count: usize) -> Notification {
-			Notification::new(&NOTIF_REPLACED, format!("Replaced {} occurrences", count))
-		}
-	}
+	// File operations
+	notif!(file_saved(path: &Path), Success, format!("Saved {}", path.display()));
+	notif!(file_not_found(path: &Path), Error, format!("File not found: {}", path.display()));
+	notif!(file_load_error(err: &str), Error, format!("Failed to load file: {}", err));
+	notif!(file_save_error(err: &str), Error, format!("Failed to save: {}", err));
+	notif!(buffer_closed(name: &str), Info, format!("Closed {}", name));
 
-	/// "N matches".
-	pub struct matches_count;
-	impl matches_count {
-		pub fn call(count: usize) -> Notification {
-			Notification::new(&NOTIF_MATCHES_COUNT, format!("{} matches", count))
-		}
-	}
-
-	/// "N splits".
-	pub struct splits_count;
-	impl splits_count {
-		pub fn call(count: usize) -> Notification {
-			Notification::new(&NOTIF_SPLITS_COUNT, format!("{} splits", count))
-		}
-	}
-
-	/// "N selections kept".
-	pub struct selections_kept;
-	impl selections_kept {
-		pub fn call(count: usize) -> Notification {
-			Notification::new(&NOTIF_SELECTIONS_KEPT, format!("{} selections kept", count))
-		}
-	}
-
-	/// "Saved /path/to/file".
-	pub struct file_saved;
-	impl file_saved {
-		pub fn call(path: &Path) -> Notification {
-			Notification::new(&NOTIF_FILE_SAVED, format!("Saved {}", path.display()))
-		}
-	}
-
-	/// "File not found: /path".
-	pub struct file_not_found;
-	impl file_not_found {
-		pub fn call(path: &Path) -> Notification {
-			Notification::new(
-				&NOTIF_FILE_NOT_FOUND,
-				format!("File not found: {}", path.display()),
-			)
-		}
-	}
-
-	/// File load error.
-	pub struct file_load_error;
-	impl file_load_error {
-		pub fn call(err: &str) -> Notification {
-			Notification::new(
-				&NOTIF_FILE_LOAD_ERROR,
-				format!("Failed to load file: {}", err),
-			)
-		}
-	}
-
-	/// File save error.
-	pub struct file_save_error;
-	impl file_save_error {
-		pub fn call(err: &str) -> Notification {
-			Notification::new(&NOTIF_FILE_SAVE_ERROR, format!("Failed to save: {}", err))
-		}
-	}
-
-	/// "Closed name".
-	pub struct buffer_closed;
-	impl buffer_closed {
-		pub fn call(name: &str) -> Notification {
-			Notification::new(&NOTIF_BUFFER_CLOSED, format!("Closed {}", name))
-		}
-	}
-
-	/// "Set option = value".
-	pub struct option_set;
-	impl option_set {
-		pub fn call(key: &str, value: &str) -> Notification {
-			Notification::new(&NOTIF_OPTION_SET, format!("{}={}", key, value))
-		}
-	}
+	// Options
+	notif!(option_set(key: &str, value: &str), Info, format!("{}={}", key, value));
 }
-

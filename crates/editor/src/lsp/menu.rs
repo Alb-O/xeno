@@ -261,7 +261,7 @@ impl Editor {
 			return false;
 		};
 		if !client.supports_code_action() {
-			self.notify(keys::warn::call(
+			self.notify(keys::warn(
 				"Code actions not supported for this buffer",
 			));
 			return false;
@@ -282,7 +282,7 @@ impl Editor {
 		let Some(range) =
 			buffer.with_doc(|doc| char_range_to_lsp_range(doc.content(), start, end, encoding))
 		else {
-			self.notify(keys::error::call("Invalid range for code actions"));
+			self.notify(keys::error("Invalid range for code actions"));
 			return false;
 		};
 		let diagnostics = buffer.with_doc(|doc| {
@@ -302,7 +302,7 @@ impl Editor {
 			Ok(Some(actions)) => actions,
 			Ok(None) => Vec::new(),
 			Err(err) => {
-				self.notify(keys::error::call(err.to_string()));
+				self.notify(keys::error(err.to_string()));
 				return false;
 			}
 		};
@@ -316,7 +316,7 @@ impl Editor {
 			.collect::<Vec<_>>();
 
 		if actions.is_empty() {
-			self.notify(keys::info::call("No code actions available"));
+			self.notify(keys::info("No code actions available"));
 			return false;
 		}
 
@@ -456,7 +456,7 @@ impl Editor {
 			)
 		};
 		if readonly {
-			self.notify(keys::buffer_readonly);
+			self.notify(keys::BUFFER_READONLY);
 			return;
 		}
 		let command = item.command.clone();
@@ -493,7 +493,7 @@ impl Editor {
 		) {
 			Ok(result) => result,
 			Err(err) => {
-				self.notify(keys::error::call(err));
+				self.notify(keys::error(err));
 				return;
 			}
 		};
@@ -505,7 +505,7 @@ impl Editor {
 				match planned {
 					Ok(planned) => edits.push(planned),
 					Err(err) => {
-						self.notify(keys::error::call(err.to_string()));
+						self.notify(keys::error(err.to_string()));
 						return;
 					}
 				}
@@ -513,7 +513,7 @@ impl Editor {
 		}
 
 		if let Err(err) = validate_non_overlapping(&mut edits, buffer_id) {
-			self.notify(keys::error::call(err.to_string()));
+			self.notify(keys::error(err.to_string()));
 			return;
 		}
 
@@ -526,7 +526,7 @@ impl Editor {
 		let tx = match self.apply_buffer_edit_plan(&plan) {
 			Ok(tx) => tx,
 			Err(err) => {
-				self.notify(keys::error::call(err.to_string()));
+				self.notify(keys::error(err.to_string()));
 				return;
 			}
 		};
@@ -567,13 +567,13 @@ impl Editor {
 			}
 			CodeActionOrCommand::CodeAction(action) => {
 				if let Some(disabled) = action.disabled {
-					self.notify(keys::warn::call(disabled.reason));
+					self.notify(keys::warn(disabled.reason));
 					return;
 				}
 				if let Some(edit) = action.edit
 					&& let Err(err) = self.apply_workspace_edit(edit).await
 				{
-					self.notify(keys::error::call(err.to_string()));
+					self.notify(keys::error(err.to_string()));
 					return;
 				}
 				if let Some(command) = action.command {
@@ -588,7 +588,7 @@ impl Editor {
 			return;
 		};
 		let Some((client, _, _)) = self.lsp.prepare_position_request(buffer).ok().flatten() else {
-			self.notify(keys::error::call("LSP client unavailable for command"));
+			self.notify(keys::error("LSP client unavailable for command"));
 			return;
 		};
 
@@ -598,7 +598,7 @@ impl Editor {
 		{
 			Ok(Some(_)) | Ok(None) => {}
 			Err(err) => {
-				self.notify(keys::error::call(err.to_string()));
+				self.notify(keys::error(err.to_string()));
 			}
 		}
 	}

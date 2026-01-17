@@ -25,7 +25,7 @@ impl Editor {
 		};
 		let diagnostics = self.lsp.get_diagnostics(buffer);
 		if diagnostics.is_empty() {
-			self.notify(keys::info::call("No diagnostics"));
+			self.notify(keys::info("No diagnostics"));
 			return;
 		}
 
@@ -40,7 +40,7 @@ impl Editor {
 		positions.dedup();
 
 		if positions.is_empty() {
-			self.notify(keys::info::call("No diagnostics"));
+			self.notify(keys::info("No diagnostics"));
 			return;
 		}
 

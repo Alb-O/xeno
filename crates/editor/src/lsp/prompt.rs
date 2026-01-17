@@ -36,7 +36,7 @@ impl Editor {
 			(buffer.cursor, word_at_cursor(buffer), rename_supported)
 		};
 		if !rename_supported {
-			self.notify(keys::warn::call("Rename not supported for this buffer"));
+			self.notify(keys::warn("Rename not supported for this buffer"));
 			return false;
 		}
 
@@ -165,33 +165,33 @@ impl Editor {
 			return;
 		};
 		if buffer.is_readonly() {
-			self.notify(keys::buffer_readonly);
+			self.notify(keys::BUFFER_READONLY);
 			return;
 		}
 		let Some((client, uri, _)) = self.lsp.prepare_position_request(buffer).ok().flatten()
 		else {
-			self.notify(keys::warn::call("Rename not supported for this buffer"));
+			self.notify(keys::warn("Rename not supported for this buffer"));
 			return;
 		};
 		let encoding = client.offset_encoding();
 		let Some(pos) = buffer
 			.with_doc(|doc| xeno_lsp::char_to_lsp_position(doc.content(), position, encoding))
 		else {
-			self.notify(keys::error::call("Invalid rename position"));
+			self.notify(keys::error("Invalid rename position"));
 			return;
 		};
 
 		match client.rename(uri, pos, new_name).await {
 			Ok(Some(edit)) => {
 				if let Err(err) = self.apply_workspace_edit(edit).await {
-					self.notify(keys::error::call(err.to_string()));
+					self.notify(keys::error(err.to_string()));
 				}
 			}
 			Ok(None) => {
-				self.notify(keys::info::call("Rename not supported for this buffer"));
+				self.notify(keys::info("Rename not supported for this buffer"));
 			}
 			Err(err) => {
-				self.notify(keys::error::call(err.to_string()));
+				self.notify(keys::error(err.to_string()));
 			}
 		}
 	}

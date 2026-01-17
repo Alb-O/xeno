@@ -537,7 +537,7 @@ mod tests {
 			Effect::App(AppEffect::SetMode(Mode::Insert))
 		));
 
-		let notification: Notification = xeno_registry_notifications::keys::undo.into();
+		let notification: Notification = xeno_registry_notifications::keys::UNDO.into();
 		let effect: Effect = notification.into();
 		assert!(matches!(effect, Effect::Ui(UiEffect::Notify(_))));
 	}

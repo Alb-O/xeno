@@ -25,7 +25,7 @@ fn cmd_theme<'a>(
 			.first()
 			.ok_or(CommandError::MissingArgument("theme name"))?;
 		ctx.editor.set_theme(theme_name)?;
-		ctx.emit(keys::theme_set::call(theme_name));
+		ctx.emit(keys::theme_set(theme_name));
 		Ok(CommandOutcome::Ok)
 	})
 }

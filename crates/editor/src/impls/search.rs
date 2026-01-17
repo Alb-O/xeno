@@ -32,14 +32,14 @@ impl Editor {
 					}
 				}
 				Ok(None) => {
-					self.notify(keys::pattern_not_found);
+					self.notify(keys::PATTERN_NOT_FOUND);
 				}
 				Err(e) => {
-					self.notify(keys::regex_error::call(&e.to_string()));
+					self.notify(keys::regex_error(&e.to_string()));
 				}
 			}
 		} else {
-			self.notify(keys::no_search_pattern);
+			self.notify(keys::NO_SEARCH_PATTERN);
 		}
 		false
 	}
@@ -71,14 +71,14 @@ impl Editor {
 					}
 				}
 				Ok(None) => {
-					self.notify(keys::pattern_not_found);
+					self.notify(keys::PATTERN_NOT_FOUND);
 				}
 				Err(e) => {
-					self.notify(keys::regex_error::call(&e.to_string()));
+					self.notify(keys::regex_error(&e.to_string()));
 				}
 			}
 		} else {
-			self.notify(keys::no_search_pattern);
+			self.notify(keys::NO_SEARCH_PATTERN);
 		}
 		false
 	}
@@ -97,7 +97,7 @@ impl Editor {
 			self.buffer_mut()
 				.input
 				.set_last_search(pattern.clone(), false);
-			self.notify(keys::search_info::call(&text));
+			self.notify(keys::search_info(&text));
 			let search_result = self
 				.buffer()
 				.with_doc(|doc| movement::find_next(doc.content().slice(..), &pattern, to));
@@ -107,14 +107,14 @@ impl Editor {
 						.set_selection(Selection::single(range.min(), range.max()));
 				}
 				Ok(None) => {
-					self.notify(keys::no_more_matches);
+					self.notify(keys::NO_MORE_MATCHES);
 				}
 				Err(e) => {
-					self.notify(keys::regex_error::call(&e.to_string()));
+					self.notify(keys::regex_error(&e.to_string()));
 				}
 			}
 		} else {
-			self.notify(keys::no_selection);
+			self.notify(keys::NO_SELECTION);
 		}
 		false
 	}
@@ -126,7 +126,7 @@ impl Editor {
 		let from = primary.from();
 		let to = primary.to();
 		if from >= to {
-			self.notify(keys::no_selection_to_search);
+			self.notify(keys::NO_SELECTION_TO_SEARCH);
 			return false;
 		}
 
@@ -142,13 +142,13 @@ impl Editor {
 				let count = new_ranges.len();
 				self.buffer_mut()
 					.set_selection(Selection::from_vec(new_ranges, 0));
-				self.notify(keys::matches_count::call(count));
+				self.notify(keys::matches_count(count));
 			}
 			Ok(_) => {
-				self.notify(keys::no_matches_found);
+				self.notify(keys::NO_MATCHES_FOUND);
 			}
 			Err(e) => {
-				self.notify(keys::regex_error::call(&e.to_string()));
+				self.notify(keys::regex_error(&e.to_string()));
 			}
 		}
 		false
@@ -161,7 +161,7 @@ impl Editor {
 		let from = primary.from();
 		let to = primary.to();
 		if from >= to {
-			self.notify(keys::no_selection_to_split);
+			self.notify(keys::NO_SELECTION_TO_SPLIT);
 			return false;
 		}
 
@@ -186,16 +186,16 @@ impl Editor {
 					let count = new_ranges.len();
 					self.buffer_mut()
 						.set_selection(Selection::from_vec(new_ranges, 0));
-					self.notify(keys::splits_count::call(count));
+					self.notify(keys::splits_count(count));
 				} else {
-					self.notify(keys::split_no_ranges);
+					self.notify(keys::SPLIT_NO_RANGES);
 				}
 			}
 			Ok(_) => {
-				self.notify(keys::no_matches_to_split);
+				self.notify(keys::NO_MATCHES_TO_SPLIT);
 			}
 			Err(e) => {
-				self.notify(keys::regex_error::call(&e.to_string()));
+				self.notify(keys::regex_error(&e.to_string()));
 			}
 		}
 		false
@@ -234,7 +234,7 @@ impl Editor {
 					}
 				}
 				Err(e) => {
-					self.notify(keys::regex_error::call(&e.to_string()));
+					self.notify(keys::regex_error(&e.to_string()));
 					had_error = true;
 					break;
 				}
@@ -246,12 +246,12 @@ impl Editor {
 		}
 
 		if kept_ranges.is_empty() {
-			self.notify(keys::no_selections_remain);
+			self.notify(keys::NO_SELECTIONS_REMAIN);
 		} else {
 			let count = kept_ranges.len();
 			self.buffer_mut()
 				.set_selection(Selection::from_vec(kept_ranges, 0));
-			self.notify(keys::selections_kept::call(count));
+			self.notify(keys::selections_kept(count));
 		}
 		false
 	}

@@ -45,16 +45,16 @@ impl Editor {
 	/// Emits a typed notification.
 	///
 	/// Accepts anything that converts to a [`Notification`]:
-	/// - `keys::buffer_readonly` (static message key)
-	/// - `keys::yanked_chars::call(42)` (parameterized builder)
+	/// - `keys::BUFFER_READONLY` (static message key)
+	/// - `keys::yanked_chars(42)` (parameterized builder)
 	///
 	/// # Examples
 	///
 	/// ```ignore
 	/// use xeno_registry_notifications::keys;
 	///
-	/// editor.notify(keys::buffer_readonly);
-	/// editor.notify(keys::regex_error::call(&err));
+	/// editor.notify(keys::BUFFER_READONLY);
+	/// editor.notify(keys::regex_error(&err));
 	/// ```
 	pub fn notify(&mut self, notification: impl Into<Notification>) {
 		self.show_notification(notification.into());

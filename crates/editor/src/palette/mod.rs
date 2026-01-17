@@ -180,7 +180,7 @@ impl Editor {
 			self.core.workspace.command_queue.push(cmd.name(), args);
 			Some(input)
 		} else {
-			self.notify(xeno_registry::notifications::keys::unknown_command::call(
+			self.notify(xeno_registry::notifications::keys::unknown_command(
 				name,
 			));
 			None

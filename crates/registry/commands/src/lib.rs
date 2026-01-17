@@ -132,8 +132,8 @@ impl<'a> CommandContext<'a> {
 	///
 	/// ```ignore
 	/// use xeno_registry_notifications::keys;
-	/// ctx.emit(keys::buffer_readonly);
-	/// ctx.emit(keys::file_saved.call(&path));
+	/// ctx.emit(keys::BUFFER_READONLY);
+	/// ctx.emit(keys::file_saved(&path));
 	/// ```
 	pub fn emit(&mut self, notification: impl Into<Notification>) {
 		self.editor.emit(notification.into());

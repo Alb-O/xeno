@@ -408,7 +408,7 @@ impl Editor {
 					match self.run_invocation(invocation, policy).await {
 						InvocationResult::NotFound(_) => {
 							self.show_notification(
-								xeno_registry_notifications::keys::unknown_command::call(cmd.name),
+								xeno_registry_notifications::keys::unknown_command(cmd.name),
 							);
 						}
 						InvocationResult::Quit | InvocationResult::ForceQuit => return true,

@@ -1,92 +1,24 @@
 //! Runtime notification keys (result handlers, input state).
 
-use crate::{
-	AutoDismiss, Level, Notification, NotificationDef, NotificationKey, NotificationReg,
-	RegistrySource,
-};
-
-static NOTIF_VIEWPORT_UNAVAILABLE: NotificationDef = NotificationDef::new(
-	"viewport_unavailable",
-	Level::Error,
-	AutoDismiss::DEFAULT,
-	RegistrySource::Builtin,
-);
-inventory::submit! { NotificationReg(&NOTIF_VIEWPORT_UNAVAILABLE) }
-
-static NOTIF_SCREEN_MOTION_UNAVAILABLE: NotificationDef = NotificationDef::new(
-	"screen_motion_unavailable",
-	Level::Error,
-	AutoDismiss::DEFAULT,
-	RegistrySource::Builtin,
-);
-inventory::submit! { NotificationReg(&NOTIF_SCREEN_MOTION_UNAVAILABLE) }
-
-static NOTIF_PENDING_PROMPT: NotificationDef = NotificationDef::new(
-	"pending_prompt",
-	Level::Info,
-	AutoDismiss::DEFAULT,
-	RegistrySource::Builtin,
-);
-inventory::submit! { NotificationReg(&NOTIF_PENDING_PROMPT) }
-
-static NOTIF_COUNT_DISPLAY: NotificationDef = NotificationDef::new(
-	"count_display",
-	Level::Info,
-	AutoDismiss::DEFAULT,
-	RegistrySource::Builtin,
-);
-inventory::submit! { NotificationReg(&NOTIF_COUNT_DISPLAY) }
-
-static NOTIF_UNHANDLED_RESULT: NotificationDef = NotificationDef::new(
-	"unhandled_result",
-	Level::Debug,
-	AutoDismiss::DEFAULT,
-	RegistrySource::Builtin,
-);
-inventory::submit! { NotificationReg(&NOTIF_UNHANDLED_RESULT) }
-
-#[allow(non_upper_case_globals, non_camel_case_types)]
 pub mod keys {
-	use super::*;
 
-	pub const viewport_unavailable: NotificationKey = NotificationKey::new(
-		&NOTIF_VIEWPORT_UNAVAILABLE,
-		"Viewport info unavailable for screen motion",
+	// Viewport/screen motion
+	notif!(viewport_unavailable, Error, "Viewport info unavailable for screen motion");
+	notif_alias!(
+		viewport_height_unavailable,
+		viewport_unavailable,
+		"Viewport height unavailable for screen motion"
 	);
-	pub const viewport_height_unavailable: NotificationKey = NotificationKey::new(
-		&NOTIF_VIEWPORT_UNAVAILABLE,
-		"Viewport height unavailable for screen motion",
+	notif!(screen_motion_unavailable, Error, "Screen motion target is unavailable");
+
+	// Input state
+	notif!(pending_prompt(prompt: &str), Info, prompt.to_string());
+	notif!(count_display(count: usize), Info, count.to_string());
+
+	// Debug
+	notif!(
+		unhandled_result(discriminant: impl core::fmt::Debug),
+		Debug,
+		format!("Unhandled action result: {:?}", discriminant)
 	);
-	pub const screen_motion_unavailable: NotificationKey = NotificationKey::new(
-		&NOTIF_SCREEN_MOTION_UNAVAILABLE,
-		"Screen motion target is unavailable",
-	);
-
-	/// Pending input prompt.
-	pub struct pending_prompt;
-	impl pending_prompt {
-		pub fn call(prompt: &str) -> Notification {
-			Notification::new(&NOTIF_PENDING_PROMPT, prompt.to_string())
-		}
-	}
-
-	/// Numeric count display.
-	pub struct count_display;
-	impl count_display {
-		pub fn call(count: usize) -> Notification {
-			Notification::new(&NOTIF_COUNT_DISPLAY, count.to_string())
-		}
-	}
-
-	/// Unhandled action result (debug).
-	pub struct unhandled_result;
-	impl unhandled_result {
-		pub fn call(discriminant: impl core::fmt::Debug) -> Notification {
-			Notification::new(
-				&NOTIF_UNHANDLED_RESULT,
-				format!("Unhandled action result: {:?}", discriminant),
-			)
-		}
-	}
 }
-

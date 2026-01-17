@@ -86,7 +86,7 @@ impl ModeAccess for Editor {
 
 	fn set_mode(&mut self, mode: Mode) {
 		if matches!(mode, Mode::Insert) && self.buffer().is_readonly() {
-			NotificationAccess::emit(self, keys::buffer_readonly.into());
+			NotificationAccess::emit(self, keys::BUFFER_READONLY.into());
 			return;
 		}
 		#[cfg(feature = "lsp")]

@@ -35,7 +35,7 @@ impl Editor {
 						.is_quit()
 				} else {
 					self.show_notification(
-						xeno_registry_notifications::keys::unknown_action::call(&id.to_string()),
+						xeno_registry_notifications::keys::unknown_action(&id.to_string()),
 					);
 					false
 				};
@@ -53,7 +53,7 @@ impl Editor {
 						.is_quit()
 				} else {
 					self.show_notification(
-						xeno_registry_notifications::keys::unknown_action::call(&id.to_string()),
+						xeno_registry_notifications::keys::unknown_action(&id.to_string()),
 					);
 					false
 				};

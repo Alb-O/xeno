@@ -13,7 +13,7 @@ fn cmd_buffer<'a>(
 		if ctx.args.is_empty() {
 			return Err(CommandError::MissingArgument("buffer name or number"));
 		}
-		ctx.emit(keys::not_implemented::call(&format!(
+		ctx.emit(keys::not_implemented(&format!(
 			"buffer {}",
 			ctx.args[0]
 		)));
@@ -32,7 +32,7 @@ fn cmd_buffer_next<'a>(
 	ctx: &'a mut CommandContext<'a>,
 ) -> LocalBoxFuture<'a, Result<CommandOutcome, CommandError>> {
 	Box::pin(async move {
-		ctx.emit(keys::not_implemented::call("buffer-next"));
+		ctx.emit(keys::not_implemented("buffer-next"));
 		Ok(CommandOutcome::Ok)
 	})
 }
@@ -48,7 +48,7 @@ fn cmd_buffer_prev<'a>(
 	ctx: &'a mut CommandContext<'a>,
 ) -> LocalBoxFuture<'a, Result<CommandOutcome, CommandError>> {
 	Box::pin(async move {
-		ctx.emit(keys::not_implemented::call("buffer-previous"));
+		ctx.emit(keys::not_implemented("buffer-previous"));
 		Ok(CommandOutcome::Ok)
 	})
 }
@@ -64,7 +64,7 @@ fn cmd_delete_buffer<'a>(
 	ctx: &'a mut CommandContext<'a>,
 ) -> LocalBoxFuture<'a, Result<CommandOutcome, CommandError>> {
 	Box::pin(async move {
-		ctx.emit(keys::not_implemented::call("delete-buffer"));
+		ctx.emit(keys::not_implemented("delete-buffer"));
 		Ok(CommandOutcome::Ok)
 	})
 }
@@ -83,9 +83,9 @@ fn cmd_readonly<'a>(
 		let current = ctx.is_readonly();
 		ctx.set_readonly(!current);
 		if !current {
-			ctx.emit(keys::readonly_enabled);
+			ctx.emit(keys::READONLY_ENABLED);
 		} else {
-			ctx.emit(keys::readonly_disabled);
+			ctx.emit(keys::READONLY_DISABLED);
 		}
 		Ok(CommandOutcome::Ok)
 	})

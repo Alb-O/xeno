@@ -9,11 +9,11 @@
 //! use xeno_registry_notifications::keys;
 //!
 //! // Static message notifications
-//! ctx.emit(keys::buffer_readonly);
+//! ctx.emit(keys::BUFFER_READONLY);
 //!
 //! // Parameterized notifications
-//! ctx.emit(keys::yanked_chars::call(42));
-//! ctx.emit(keys::file_saved::call(&path));
+//! ctx.emit(keys::yanked_chars(42));
+//! ctx.emit(keys::file_saved(&path));
 //! ```
 
 use std::sync::LazyLock;
@@ -24,6 +24,9 @@ pub use xeno_registry_core::{Key, RegistryMetadata, RegistrySource};
 /// Wrapper for [`inventory`] collection of notification definitions.
 pub struct NotificationReg(pub &'static NotificationDef);
 inventory::collect!(NotificationReg);
+
+#[macro_use]
+mod macros;
 
 mod actions;
 mod builtins;

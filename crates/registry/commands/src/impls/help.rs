@@ -28,7 +28,7 @@ fn cmd_help<'a>(
 						.collect();
 					out.push(format!("Required Capabilities: {}", caps.join(", ")));
 				}
-				ctx.emit(keys::help_text::call(out.join("\n")));
+				ctx.emit(keys::help_text(out.join("\n")));
 				return Ok(CommandOutcome::Ok);
 			} else {
 				return Err(CommandError::NotFound(cmd_name.to_string()));
@@ -49,7 +49,7 @@ fn cmd_help<'a>(
 				format!(":{}{} - {}", c.name(), aliases, c.description())
 			})
 			.collect();
-		ctx.emit(keys::help_text::call(help_text.join(" | ")));
+		ctx.emit(keys::help_text(help_text.join(" | ")));
 		Ok(CommandOutcome::Ok)
 	})
 }

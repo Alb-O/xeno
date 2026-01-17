@@ -313,9 +313,9 @@ fn cmd_registry_diag<'a>(
 		}
 
 		if has_collisions {
-			ctx.emit(keys::diagnostic_warning::call(out.join("\n")));
+			ctx.emit(keys::diagnostic_warning(out.join("\n")));
 		} else {
-			ctx.emit(keys::diagnostic_output::call(out.join("\n")));
+			ctx.emit(keys::diagnostic_output(out.join("\n")));
 		}
 		Ok(CommandOutcome::Ok)
 	})
@@ -328,7 +328,7 @@ fn cmd_registry_doctor<'a>(
 	Box::pin(async move {
 		let diag = diagnostics();
 		if diag.collisions.is_empty() {
-			ctx.emit(keys::no_collisions);
+			ctx.emit(keys::NO_COLLISIONS);
 			return Ok(CommandOutcome::Ok);
 		}
 
@@ -370,7 +370,7 @@ fn cmd_registry_doctor<'a>(
 			}
 		}
 
-		ctx.emit(keys::diagnostic_warning::call(out.join("\n")));
+		ctx.emit(keys::diagnostic_warning(out.join("\n")));
 		Ok(CommandOutcome::Ok)
 	})
 }

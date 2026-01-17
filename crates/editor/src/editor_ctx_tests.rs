@@ -175,7 +175,7 @@ fn notify_effect_emits_notification() {
 	let mut ctx = xeno_registry::actions::editor_ctx::EditorContext::new(&mut editor);
 
 	let effects = ActionEffects::from_effect(
-		UiEffect::Notify(xeno_registry_notifications::keys::undo.into()).into(),
+		UiEffect::Notify(xeno_registry_notifications::keys::UNDO.into()).into(),
 	);
 	apply_effects(&effects, &mut ctx, false);
 
@@ -296,7 +296,7 @@ fn notifications_are_side_effects() {
 	let effects = ActionEffects::new()
 		.with(ViewEffect::SetCursor(CharIdx::from(10usize)))
 		.with(UiEffect::Notify(
-			xeno_registry_notifications::keys::undo.into(),
+			xeno_registry_notifications::keys::UNDO.into(),
 		))
 		.with(ViewEffect::SetCursor(CharIdx::from(20usize)));
 

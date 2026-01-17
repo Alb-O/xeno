@@ -12,7 +12,7 @@ use crate::buffer::BufferId;
 impl Editor {
 	pub(crate) fn guard_readonly(&mut self) -> bool {
 		if self.buffer().is_readonly() {
-			self.notify(keys::buffer_readonly);
+			self.notify(keys::BUFFER_READONLY);
 			return false;
 		}
 		true
@@ -101,7 +101,7 @@ impl Editor {
 		);
 
 		if !applied {
-			self.notify(keys::buffer_readonly);
+			self.notify(keys::BUFFER_READONLY);
 		}
 	}
 
@@ -109,7 +109,7 @@ impl Editor {
 	pub fn yank_selection(&mut self) {
 		if let Some((text, count)) = self.buffer_mut().yank_selection() {
 			self.core.workspace.registers.yank = text;
-			self.notify(keys::yanked_chars::call(count));
+			self.notify(keys::yanked_chars(count));
 		}
 	}
 
@@ -146,7 +146,7 @@ impl Editor {
 		);
 
 		if !applied {
-			self.notify(keys::buffer_readonly);
+			self.notify(keys::BUFFER_READONLY);
 		}
 	}
 
@@ -183,7 +183,7 @@ impl Editor {
 		);
 
 		if !applied {
-			self.notify(keys::buffer_readonly);
+			self.notify(keys::BUFFER_READONLY);
 		}
 	}
 
@@ -219,7 +219,7 @@ impl Editor {
 		);
 
 		if !applied {
-			self.notify(keys::buffer_readonly);
+			self.notify(keys::BUFFER_READONLY);
 		}
 	}
 

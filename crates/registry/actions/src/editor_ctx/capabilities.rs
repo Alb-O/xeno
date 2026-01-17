@@ -99,10 +99,10 @@ pub trait ModeAccess {
 /// use xeno_registry_notifications::keys;
 ///
 /// // Static message notification
-/// ctx.emit(keys::buffer_readonly);
+/// ctx.emit(keys::BUFFER_READONLY);
 ///
 /// // Parameterized notification
-/// ctx.emit(keys::yanked_chars::call(42));
+/// ctx.emit(keys::yanked_chars(42));
 /// ```
 pub trait NotificationAccess {
 	/// Emits a notification to the user.

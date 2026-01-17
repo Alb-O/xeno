@@ -40,7 +40,7 @@ fn cmd_set<'a>(
 
 		let (key, value) = parse_set_args(ctx.args)?;
 		ctx.editor.set_option(&key, &value)?;
-		ctx.emit(keys::option_set::call(&key, &value));
+		ctx.emit(keys::option_set(&key, &value));
 		Ok(CommandOutcome::Ok)
 	})
 }
@@ -59,7 +59,7 @@ fn cmd_setlocal<'a>(
 
 		let (key, value) = parse_set_args(ctx.args)?;
 		ctx.editor.set_local_option(&key, &value)?;
-		ctx.emit(keys::option_set::call(&key, &value));
+		ctx.emit(keys::option_set(&key, &value));
 		Ok(CommandOutcome::Ok)
 	})
 }

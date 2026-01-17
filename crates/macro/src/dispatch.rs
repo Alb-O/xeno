@@ -221,7 +221,7 @@ pub fn derive_dispatch_result(input: TokenStream) -> TokenStream {
 			}
 
 			if !handled {
-				ctx.emit(xeno_registry_notifications::keys::unhandled_result::call(
+				ctx.emit(xeno_registry_notifications::keys::unhandled_result(
 					::std::mem::discriminant(result)
 				));
 			}

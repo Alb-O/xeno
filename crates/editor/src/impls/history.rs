@@ -110,19 +110,19 @@ impl UndoHost for Editor {
 	}
 
 	fn notify_undo(&mut self) {
-		self.notify(keys::undo);
+		self.notify(keys::UNDO);
 	}
 
 	fn notify_redo(&mut self) {
-		self.notify(keys::redo);
+		self.notify(keys::REDO);
 	}
 
 	fn notify_nothing_to_undo(&mut self) {
-		self.notify(keys::nothing_to_undo);
+		self.notify(keys::NOTHING_TO_UNDO);
 	}
 
 	fn notify_nothing_to_redo(&mut self) {
-		self.notify(keys::nothing_to_redo);
+		self.notify(keys::NOTHING_TO_REDO);
 	}
 }
 

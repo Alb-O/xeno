@@ -57,7 +57,7 @@ impl xeno_registry::FileOpsAccess for Editor {
 				.map_err(|e| CommandError::Io(e.to_string()))?;
 
 			self.buffer_mut().set_modified(false);
-			self.show_notification(xeno_registry_notifications::keys::file_saved::call(
+			self.show_notification(xeno_registry_notifications::keys::file_saved(
 				&path_owned,
 			));
 

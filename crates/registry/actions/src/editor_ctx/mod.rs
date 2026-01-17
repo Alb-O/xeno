@@ -213,8 +213,8 @@ impl<'a> EditorContext<'a> {
 	///
 	/// ```ignore
 	/// use xeno_registry_notifications::keys;
-	/// ctx.emit(keys::buffer_readonly);
-	/// ctx.emit(keys::yanked_chars::call(42));
+	/// ctx.emit(keys::BUFFER_READONLY);
+	/// ctx.emit(keys::yanked_chars(42));
 	/// ```
 	pub fn emit(&mut self, notification: impl Into<xeno_registry_notifications::Notification>) {
 		self.inner.emit(notification.into());

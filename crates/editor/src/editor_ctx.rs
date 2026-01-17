@@ -167,7 +167,7 @@ fn apply_ui_effect(effect: &UiEffect, ctx: &mut xeno_registry::actions::editor_c
 		}
 
 		UiEffect::Error(msg) => {
-			ctx.emit(keys::action_error::call(msg));
+			ctx.emit(keys::action_error(msg));
 		}
 
 		UiEffect::OpenPalette => {
@@ -204,7 +204,7 @@ fn apply_app_effect(
 		}
 
 		AppEffect::Pending(pending) => {
-			ctx.emit(keys::pending_prompt::call(&pending.prompt));
+			ctx.emit(keys::pending_prompt(&pending.prompt));
 			ctx.set_mode(Mode::PendingAction(pending.kind));
 		}
 
@@ -296,13 +296,13 @@ fn apply_screen_motion(
 	extend: bool,
 ) {
 	let Some(viewport) = ctx.viewport() else {
-		ctx.emit(keys::viewport_unavailable);
+		ctx.emit(keys::VIEWPORT_UNAVAILABLE);
 		return;
 	};
 
 	let height = viewport.viewport_height();
 	if height == 0 {
-		ctx.emit(keys::viewport_height_unavailable);
+		ctx.emit(keys::VIEWPORT_HEIGHT_UNAVAILABLE);
 		return;
 	}
 
@@ -317,7 +317,7 @@ fn apply_screen_motion(
 	}
 
 	let Some(target) = viewport.viewport_row_to_doc_position(row) else {
-		ctx.emit(keys::screen_motion_unavailable);
+		ctx.emit(keys::SCREEN_MOTION_UNAVAILABLE);
 		return;
 	};
 

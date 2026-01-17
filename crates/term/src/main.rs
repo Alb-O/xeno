@@ -116,7 +116,7 @@ async fn main() -> anyhow::Result<()> {
 	}
 
 	for (filename, error) in theme_errors {
-		editor.notify(xeno_registry::notification_keys::error::call(format!(
+		editor.notify(xeno_registry::notification_keys::error(format!(
 			"{filename}: {error}"
 		)));
 	}
@@ -374,7 +374,7 @@ async fn run_editor_normal() -> anyhow::Result<()> {
 	}
 
 	for (filename, error) in theme_errors {
-		editor.notify(xeno_registry::notification_keys::error::call(format!(
+		editor.notify(xeno_registry::notification_keys::error(format!(
 			"{filename}: {error}"
 		)));
 	}

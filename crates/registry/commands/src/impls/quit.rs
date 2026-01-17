@@ -11,7 +11,7 @@ fn cmd_quit<'a>(
 ) -> LocalBoxFuture<'a, Result<CommandOutcome, CommandError>> {
 	Box::pin(async move {
 		if ctx.editor.is_modified() {
-			ctx.emit(keys::unsaved_changes_force_quit);
+			ctx.emit(keys::UNSAVED_CHANGES_FORCE_QUIT);
 			return Ok(CommandOutcome::Ok);
 		}
 		Ok(CommandOutcome::Quit)
