@@ -280,6 +280,54 @@ impl DocumentSync {
 		Ok(())
 	}
 
+	/// Notify language servers of an incremental document change without content.
+	///
+	/// This variant does not require the full document content, making it suitable
+	/// for debounced incremental sync where we know the document is already open.
+	/// If the document is not open, returns an error (caller should fall back to
+	/// full sync or re-open the document).
+	pub async fn notify_change_incremental_no_content(
+		&self,
+		path: &Path,
+		language: &str,
+		changes: Vec<LspDocumentChange>,
+	) -> Result<()> {
+		if changes.is_empty() {
+			return Ok(());
+		}
+
+		let uri = crate::uri_from_path(path)
+			.ok_or_else(|| crate::Error::Protocol("Invalid path".into()))?;
+
+		if !self.documents.is_opened(&uri) {
+			return Err(crate::Error::Protocol(
+				"Document not opened for incremental sync".into(),
+			));
+		}
+
+		let version = self
+			.documents
+			.increment_version(&uri)
+			.ok_or_else(|| crate::Error::Protocol("Document not registered".into()))?;
+
+		let content_changes: Vec<TextDocumentContentChangeEvent> = changes
+			.into_iter()
+			.map(|change| TextDocumentContentChangeEvent {
+				range: Some(base_range_to_lsp(change.range)),
+				range_length: None,
+				text: change.new_text,
+			})
+			.collect();
+
+		let Some(client) = self.registry.get(language, path) else {
+			return Err(crate::Error::Protocol("No client for language".into()));
+		};
+
+		client.text_document_did_change(uri, version, content_changes)?;
+
+		Ok(())
+	}
+
 	/// Notify language servers of an incremental change with an ack after write.
 	pub async fn notify_change_incremental_with_ack(
 		&self,

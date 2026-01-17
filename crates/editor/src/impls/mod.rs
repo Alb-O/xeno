@@ -159,6 +159,9 @@ pub struct Editor {
 	/// LSP manager for language server integration.
 	#[cfg(feature = "lsp")]
 	pub lsp: crate::lsp::LspManager,
+	/// Pending LSP changes for debounced sync.
+	#[cfg(feature = "lsp")]
+	pub pending_lsp: crate::lsp::pending::PendingLspState,
 	/// Completion controller (debounce/cancel/state).
 	#[cfg(feature = "lsp")]
 	pub completion_controller: CompletionController,
@@ -277,6 +280,8 @@ impl Editor {
 			extensions: ExtensionMap::new(),
 			#[cfg(feature = "lsp")]
 			lsp: crate::lsp::LspManager::new(),
+			#[cfg(feature = "lsp")]
+			pending_lsp: crate::lsp::pending::PendingLspState::new(),
 			#[cfg(feature = "lsp")]
 			completion_controller: CompletionController::new(),
 			#[cfg(feature = "lsp")]

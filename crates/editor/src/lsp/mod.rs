@@ -57,6 +57,7 @@ pub(crate) mod completion_filter;
 pub(crate) mod diagnostics;
 pub(crate) mod events;
 pub(crate) mod menu;
+pub(crate) mod pending;
 pub(crate) mod prompt;
 pub(crate) mod snippet;
 pub(crate) mod types;

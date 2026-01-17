@@ -58,11 +58,11 @@ Add these to the existing invariant set:
 
 ### Tasks
 
-#### A1 — Switch from FIFO “await-all” to concurrent execution
+#### A1 — Switch from FIFO "await-all" to concurrent execution
 
-- [ ] Replace `VecDeque<HookBoxFuture>` with `FuturesUnordered<HookBoxFuture>` (or equivalent).
-- [ ] Keep `HookScheduler::schedule(fut)` unchanged for call sites.
-- [ ] Add `HookRuntime::pending_count()` and `HookRuntime::has_pending()` backed by `running.len()`.
+- [x] Replace `VecDeque<HookBoxFuture>` with `FuturesUnordered<HookBoxFuture>` (or equivalent).
+- [x] Keep `HookScheduler::schedule(fut)` unchanged for call sites.
+- [x] Add `HookRuntime::pending_count()` and `HookRuntime::has_pending()` backed by `running.len()`.
 
 **Code sketch (core runtime):**
 
@@ -97,8 +97,8 @@ impl HookScheduler for HookRuntime {
 
 #### A2 — Add budgeted draining (poll completions only within a time budget)
 
-- [ ] Implement `HookRuntime::drain_budget(budget: Duration)`.
-- [ ] Ensure `drain_budget` returns promptly when:
+- [x] Implement `HookRuntime::drain_budget(budget: Duration)`.
+- [x] Ensure `drain_budget` returns promptly when:
   - no hooks are pending,
   - budget is exhausted,
   - no hook completes within remaining time.
@@ -132,11 +132,11 @@ impl HookRuntime {
 
 #### A3 — Wire budgets into the main loop
 
-- [ ] Replace `editor.hook_runtime.drain().await` with `drain_budget(...)`.
-- [ ] Choose budgets that preserve responsiveness:
+- [x] Replace `editor.hook_runtime.drain().await` with `drain_budget(...)`.
+- [x] Choose budgets that preserve responsiveness:
   - **Fast redraw (16ms):** 1–2ms budget
   - **Slow redraw (50ms):** 3–5ms budget
-- [ ] Add a debug log when pending depth exceeds a high-water mark.
+- [x] Add a debug log when pending depth exceeds a high-water mark.
 
 **Code sketch (main loop):**
 
@@ -156,18 +156,18 @@ if editor.hook_runtime.pending_count() > 500 {
 
 #### A4 — Backpressure safety valve (minimal)
 
-- [ ] Define a high-water mark (e.g., 500–2,000 depending on expected load).
-- [ ] If exceeded:
-  - [ ] log a warning with queue depth and last few hook types (if available),
+- [x] Define a high-water mark (e.g., 500–2,000 depending on expected load).
+- [x] If exceeded:
+  - [x] log a warning with queue depth and last few hook types (if available),
   - [ ] optionally drop **non-critical** hooks (Phase E can refine).
 
 ### Phase gate
 
 You can move to Phase B when:
 
-- [ ] Rendering remains responsive even when hooks are slow.
-- [ ] `HookRuntime::drain_budget` is used in the main loop.
-- [ ] There is a visible warning mechanism for sustained hook backlog.
+- [x] Rendering remains responsive even when hooks are slow.
+- [x] `HookRuntime::drain_budget` is used in the main loop.
+- [x] There is a visible warning mechanism for sustained hook backlog.
 
 ---
 
@@ -189,8 +189,8 @@ You can move to Phase B when:
 
 #### B1 — Add pending LSP accumulator per document
 
-- [ ] Add `pending_lsp: HashMap<DocumentId, PendingLsp>` to editor state (or LSP manager).
-- [ ] When a buffer is dirty, drain its doc’s pending LSP changes and append into `PendingLsp`.
+- [x] Add `pending_lsp: HashMap<DocumentId, PendingLsp>` to editor state (or LSP manager).
+- [x] When a buffer is dirty, drain its doc's pending LSP changes and append into `PendingLsp`.
 
 **Data model sketch:**
 
@@ -207,12 +207,12 @@ struct PendingLsp {
 
 #### B2 — Implement tick-based debounce flush
 
-- [ ] Choose a debounce target (start with **30ms**).
-- [ ] Add `flush_lsp_pending(now)` at end of `Editor::tick()`.
-- [ ] Flush conditions:
-  - [ ] `now - last_edit_at >= debounce`, OR
-  - [ ] thresholds exceeded, OR
-  - [ ] `force_full == true`.
+- [x] Choose a debounce target (start with **30ms**).
+- [x] Add `flush_lsp_pending(now)` at end of `Editor::tick()`.
+- [x] Flush conditions:
+  - [x] `now - last_edit_at >= debounce`, OR
+  - [x] thresholds exceeded, OR
+  - [x] `force_full == true`.
 
 **Flush logic sketch (single send per doc):**
 
@@ -242,8 +242,8 @@ Today you clone content even for incremental sends. Replace with one of:
 
 **Preferred:** change `DocumentSync` API:
 
-- [ ] Update `notify_change_incremental` to not require `content`.
-- [ ] Keep `notify_change_full` requiring full text.
+- [x] Update `notify_change_incremental` to not require `content`.
+- [x] Keep `notify_change_full` requiring full text.
 
 **API sketch:**
 
@@ -265,8 +265,8 @@ async fn notify_change_full(
 
 **Fallback option:** lazy provider:
 
-- [ ] Replace `content: Rope` parameter with `content_provider: impl FnOnce() -> Rope`.
-- [ ] Only call provider on full sync.
+- [x] Replace `content: Rope` parameter with `content_provider: impl FnOnce() -> Rope`.
+- [x] Only call provider on full sync.
 
 #### B4 — Keep existing thresholds, apply them at the accumulator level
 
@@ -277,16 +277,16 @@ You already have:
 
 Move the threshold logic to the pending accumulator:
 
-- [ ] As changes are appended, track total change count and bytes.
-- [ ] If thresholds exceeded, set `force_full = true`.
+- [x] As changes are appended, track total change count and bytes.
+- [x] If thresholds exceeded, set `force_full = true`.
 
 ### Phase gate
 
 You can move to Phase C when:
 
-- [ ] LSP sends are debounced and no longer fire per tick while typing.
-- [ ] Incremental sync does not clone the full document content.
-- [ ] Threshold-triggered fallback to full sync still works correctly.
+- [x] LSP sends are debounced and no longer fire per tick while typing.
+- [x] Incremental sync does not clone the full document content.
+- [x] Threshold-triggered fallback to full sync still works correctly.
 
 ---
 
@@ -306,20 +306,20 @@ You can move to Phase C when:
 
 ### Tasks
 
-#### C1 — Separate “editor version” from “LSP message version”
+#### C1 — Separate "editor version" from "LSP message version"
 
-- [ ] Treat editor `doc.version()` as internal monotonic truth.
-- [ ] Treat LSP `DocumentState.version()` as “messages sent” counter.
+- [x] Treat editor `doc.version()` as internal monotonic truth.
+- [x] Treat LSP `DocumentState.version()` as "messages sent" counter.
 
 Add per-document tracking (in your sync layer):
 
-- [ ] `last_sent_editor_version: u64` (atomic or lock-protected).
+- [x] `last_sent_editor_version: u64` (atomic or lock-protected).
 
 #### C2 — Attach editor version to pending flush
 
-- [ ] Record `PendingLsp.editor_version` at accumulation time.
-- [ ] On flush, read current editor version:
-  - [ ] if `current_editor_version != pending.editor_version` and pending is old, either:
+- [x] Record `PendingLsp.editor_version` at accumulation time.
+- [x] On flush, read current editor version:
+  - [x] if `current_editor_version != pending.editor_version` and pending is old, either:
     - drop stale pending and rebuild from current changes, or
     - force full sync.
 
@@ -329,10 +329,10 @@ Rule of thumb:
 
 #### C3 — Make sends per-document single-flight
 
-- [ ] Ensure at most one in-flight send per document.
-- [ ] If a send is in-flight and new edits arrive:
-  - [ ] accumulate new edits in pending,
-  - [ ] next flush occurs after the in-flight send completes.
+- [x] Ensure at most one in-flight send per document.
+- [x] If a send is in-flight and new edits arrive:
+  - [x] accumulate new edits in pending,
+  - [x] next flush occurs after the in-flight send completes.
 
 Implementation options:
 - Keep sending on the tick thread (no `tokio::spawn`), awaiting with a short budget and resuming later (requires async-aware tick), OR
@@ -345,27 +345,27 @@ Implementation options:
 
 #### C4 — Error recovery forces full
 
-- [ ] On any send error:
-  - [ ] log with doc/path/language,
-  - [ ] set `force_full = true`,
-  - [ ] schedule retry after a backoff (e.g., 250ms).
+- [x] On any send error:
+  - [x] log with doc/path/language,
+  - [x] set `force_full = true`,
+  - [x] schedule retry after a backoff (e.g., 250ms).
 
 #### C5 — Desync detection / full resync triggers
 
 Add full sync triggers when:
 
-- [ ] incremental conversion fails (`FallbackToFull`),
-- [ ] thresholds exceeded,
-- [ ] server rejects an edit / returns an error indicating mismatch,
-- [ ] document open state changes or language ID changes.
+- [x] incremental conversion fails (`FallbackToFull`),
+- [x] thresholds exceeded,
+- [x] server rejects an edit / returns an error indicating mismatch,
+- [x] document open state changes or language ID changes.
 
 ### Phase gate
 
 You can move to Phase D when:
 
-- [ ] There are no overlapping sends per document.
-- [ ] Errors reliably force full sync and the system recovers.
-- [ ] Version counters are coherent and exercised by tests.
+- [x] There are no overlapping sends per document.
+- [x] Errors reliably force full sync and the system recovers.
+- [x] Version counters are coherent and exercised by tests.
 
 ---
 
@@ -476,8 +476,8 @@ These are valuable but should follow the core hardening.
 
 ## Checklist Summary
 
-- [ ] Phase A: Hooks concurrent + budgeted drain + backlog safety
-- [ ] Phase B: LSP pending accumulator + debounce + eliminate incremental content clone
-- [ ] Phase C: LSP version discipline + single-flight + error recovery
+- [x] Phase A: Hooks concurrent + budgeted drain + backlog safety
+- [x] Phase B: LSP pending accumulator + debounce + eliminate incremental content clone
+- [x] Phase C: LSP version discipline + single-flight + error recovery
 - [ ] Phase D: Tracing spans + minimal metrics + debug inspection
 - [ ] Phase E: Coalescing + hook priorities + unified scheduler + expanded tests

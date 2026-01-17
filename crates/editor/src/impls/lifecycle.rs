@@ -5,14 +5,20 @@
 #[cfg(feature = "lsp")]
 use std::collections::HashSet;
 use std::path::PathBuf;
+#[cfg(feature = "lsp")]
+use std::time::Instant;
 
 #[cfg(feature = "lsp")]
 use futures::channel::oneshot;
 #[cfg(feature = "lsp")]
-use tracing::{debug, warn};
+use tracing::warn;
 use xeno_registry::{HookContext, HookEventData, emit_sync_with as emit_hook_sync_with};
 
 use super::Editor;
+#[cfg(feature = "lsp")]
+use crate::lsp::pending::{
+	LSP_DEBOUNCE, LSP_MAX_INCREMENTAL_BYTES, LSP_MAX_INCREMENTAL_CHANGES,
+};
 use crate::types::{Invocation, InvocationPolicy, InvocationResult};
 
 impl Editor {
@@ -36,7 +42,6 @@ impl Editor {
 
 	/// Runs the main editor tick: dirty buffer hooks, LSP sync, and animations.
 	pub fn tick(&mut self) {
-		// Check if separator animation needs continuous redraws
 		if self.layout.animation_needs_redraw() {
 			self.frame.needs_redraw = true;
 		}
@@ -74,10 +79,14 @@ impl Editor {
 
 				#[cfg(feature = "lsp")]
 				if lsp_docs.insert(buffer.document_id()) {
-					self.queue_lsp_change(buffer_id);
+					self.accumulate_lsp_change(buffer_id);
 				}
 			}
 		}
+
+		#[cfg(feature = "lsp")]
+		self.flush_lsp_pending();
+
 		emit_hook_sync_with(
 			&HookContext::new(HookEventData::EditorTick, Some(&self.extensions)),
 			&mut self.hook_runtime,
@@ -99,65 +108,61 @@ impl Editor {
 		self.frame.dirty_buffers.insert(buffer_id);
 	}
 
-	/// Maximum number of incremental changes before falling back to full sync.
+	/// Accumulates LSP buffer changes for debounced sync.
+	///
+	/// Instead of immediately sending notifications, changes are accumulated
+	/// in [`PendingLspState`] and flushed after the debounce period elapses.
 	#[cfg(feature = "lsp")]
-	const LSP_MAX_INCREMENTAL_CHANGES: usize = 100;
-
-	/// Maximum total bytes of inserted text before falling back to full sync.
-	#[cfg(feature = "lsp")]
-	const LSP_MAX_INCREMENTAL_BYTES: usize = 100 * 1024; // 100 KB
-
-	/// Queues an LSP buffer change notification to be processed asynchronously.
-	#[cfg(feature = "lsp")]
-	fn queue_lsp_change(&mut self, buffer_id: crate::buffer::BufferId) {
+	fn accumulate_lsp_change(&mut self, buffer_id: crate::buffer::BufferId) {
 		let Some(buffer) = self.core.buffers.get_buffer(buffer_id) else {
 			return;
 		};
 		let (Some(path), Some(language)) = (buffer.path(), buffer.file_type()) else {
 			return;
 		};
-		let (force_full_sync, has_pending) =
-			buffer.with_doc(|doc| (doc.needs_full_lsp_sync(), doc.has_pending_lsp_sync()));
+		let (force_full_sync, has_pending, editor_version) = buffer.with_doc(|doc| {
+			(
+				doc.needs_full_lsp_sync(),
+				doc.has_pending_lsp_sync(),
+				doc.version(),
+			)
+		});
 		if !has_pending {
 			return;
 		}
-		let content = buffer.with_doc(|doc| doc.content().clone());
+		let doc_id = buffer.document_id();
 		let changes = buffer.drain_lsp_changes();
 		if force_full_sync {
 			buffer.with_doc_mut(|doc| doc.clear_full_lsp_sync());
 		}
+
 		let supports_incremental = self.lsp.incremental_encoding_for_buffer(buffer).is_some();
+		let encoding = self.lsp.offset_encoding_for_buffer(buffer);
 
-		// Safety fallback: skip incremental if too many changes or too much data
-		let change_count = changes.len();
-		let total_bytes: usize = changes.iter().map(|c| c.new_text.len()).sum();
-		let use_incremental = !force_full_sync
-			&& supports_incremental
-			&& !changes.is_empty()
-			&& change_count <= Self::LSP_MAX_INCREMENTAL_CHANGES
-			&& total_bytes <= Self::LSP_MAX_INCREMENTAL_BYTES;
-
-		debug!(
-			path = ?path,
-			mode = if use_incremental { "incremental" } else { "full" },
-			change_count,
-			total_bytes,
-			supports_incremental,
+		self.pending_lsp.accumulate(
+			doc_id,
+			path,
+			language,
+			changes,
 			force_full_sync,
-			"LSP sync mode selected"
+			supports_incremental,
+			encoding,
+			editor_version,
 		);
+	}
 
+	/// Flushes pending LSP changes that have exceeded the debounce period.
+	#[cfg(feature = "lsp")]
+	fn flush_lsp_pending(&mut self) {
+		let now = Instant::now();
 		let sync = self.lsp.sync().clone();
-		tokio::spawn(async move {
-			let result = if use_incremental {
-				sync.notify_change_incremental(&path, &language, &content, changes)
-					.await
-			} else {
-				sync.notify_change_full(&path, &language, &content).await
-			};
-			if let Err(e) = result {
-				warn!(error = %e, path = ?path, "LSP change notification failed");
-			}
+		let buffers = &self.core.buffers;
+
+		self.pending_lsp.flush_due(now, LSP_DEBOUNCE, &sync, |doc_id| {
+			buffers
+				.buffers()
+				.find(|b| b.document_id() == doc_id)
+				.map(|b| b.with_doc(|doc| doc.content().clone()))
 		});
 	}
 
@@ -187,8 +192,8 @@ impl Editor {
 		let use_incremental = !force_full_sync
 			&& supports_incremental
 			&& !changes.is_empty()
-			&& change_count <= Self::LSP_MAX_INCREMENTAL_CHANGES
-			&& total_bytes <= Self::LSP_MAX_INCREMENTAL_BYTES;
+			&& change_count <= LSP_MAX_INCREMENTAL_CHANGES
+			&& total_bytes <= LSP_MAX_INCREMENTAL_BYTES;
 
 		let sync = self.lsp.sync().clone();
 		let (tx, rx) = oneshot::channel();
@@ -245,7 +250,6 @@ impl Editor {
 		self.viewport.width = Some(width);
 		self.viewport.height = Some(height);
 
-		// Update text width for all buffers
 		for buffer in self.core.buffers.buffers_mut() {
 			buffer.text_width = width.saturating_sub(buffer.gutter_width()) as usize;
 		}
@@ -317,26 +321,19 @@ impl Editor {
 
 		for cmd in commands {
 			let args: Vec<String> = cmd.args.iter().map(|s| s.to_string()).collect();
-
-			// Try editor command first
 			let invocation = Invocation::EditorCommand {
 				name: cmd.name.to_string(),
 				args: args.clone(),
 			};
 
 			let result = self.run_invocation(invocation, policy).await;
-
 			match result {
 				InvocationResult::NotFound(_) => {
-					// Not an editor command, try registry command
 					let invocation = Invocation::Command {
 						name: cmd.name.to_string(),
 						args,
 					};
-
-					let result = self.run_invocation(invocation, policy).await;
-
-					match result {
+					match self.run_invocation(invocation, policy).await {
 						InvocationResult::NotFound(_) => {
 							self.show_notification(
 								xeno_registry_notifications::keys::unknown_command::call(cmd.name),
