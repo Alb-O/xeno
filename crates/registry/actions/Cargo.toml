@@ -16,7 +16,6 @@ ropey.workspace = true
 tracing.workspace = true
 xeno-macro.workspace = true
 xeno-primitives.workspace = true
-xeno-registry-commands.workspace = true
 xeno-registry-core.workspace = true
 xeno-registry-motions.workspace = true
 xeno-registry-notifications.workspace = true

@@ -3488,7 +3488,6 @@ dependencies = [
  "tracing",
  "xeno-macro",
  "xeno-primitives",
- "xeno-registry-commands",
  "xeno-registry-core",
  "xeno-registry-motions",
  "xeno-registry-notifications",
@@ -3503,7 +3502,6 @@ dependencies = [
  "futures",
  "inventory",
  "paste",
- "thiserror 2.0.17",
  "xeno-registry-core",
  "xeno-registry-motions",
  "xeno-registry-notifications",
@@ -3513,6 +3511,9 @@ dependencies = [
 [[package]]
 name = "xeno-registry-core"
 version = "0.4.0"
+dependencies = [
+ "thiserror 2.0.17",
+]
 
 [[package]]
 name = "xeno-registry-gutter"

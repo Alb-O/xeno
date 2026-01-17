@@ -19,7 +19,6 @@ mod effects;
 pub(crate) mod impls;
 mod keybindings;
 mod macros;
-mod motion_helpers;
 mod pending;
 mod result;
 
@@ -41,7 +40,8 @@ pub use keybindings::{
 	BindingMode, KEY_PREFIXES, KEYBINDINGS, KeyBindingDef, KeyBindingSetReg, KeyPrefixDef,
 	KeyPrefixReg, find_prefix,
 };
-pub use motion_helpers::{cursor_motion, insert_with_motion, selection_motion, word_motion};
+pub use impls::insert::insert_with_motion;
+pub use impls::motions::{cursor_motion, selection_motion, word_motion};
 pub use pending::PendingAction;
 pub use result::{
 	ActionResult, RESULT_EFFECTS_HANDLERS, RESULT_EXTENSION_HANDLERS, ResultHandlerRegistry,
@@ -49,9 +49,9 @@ pub use result::{
 };
 pub use xeno_primitives::direction::{Axis, SeqDirection, SpatialDirection};
 pub use xeno_primitives::{Mode, ObjectSelectionKind, PendingKind};
-pub use xeno_registry_commands::CommandError;
 pub use xeno_registry_core::{
-	Capability, RegistryEntry, RegistryMeta, RegistryMetadata, RegistrySource, impl_registry_entry,
+	Capability, CommandError, RegistryEntry, RegistryMeta, RegistryMetadata, RegistrySource,
+	impl_registry_entry,
 };
 pub use xeno_registry_motions::flags;
 

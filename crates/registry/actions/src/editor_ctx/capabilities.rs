@@ -36,8 +36,9 @@ use ropey::RopeSlice;
 use xeno_primitives::direction::{Axis, SeqDirection, SpatialDirection};
 use xeno_primitives::range::{CharIdx, Direction};
 use xeno_primitives::selection::Selection;
+use xeno_registry_core::{FromOptionValue, OptionValue};
 use xeno_registry_notifications::Notification;
-use xeno_registry_options::{FromOptionValue, OptionKey, OptionValue, TypedOptionKey};
+use xeno_registry_options::{OptionKey, TypedOptionKey};
 
 use crate::Mode;
 

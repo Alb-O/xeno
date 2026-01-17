@@ -6,7 +6,10 @@
 //! - [`RegistryMeta`]: Common metadata struct for registry items
 //! - [`RegistryEntry`]: Trait for accessing registry metadata
 //! - [`Capability`]: Editor capability requirements
+//! - [`CommandError`]: Errors from command/action execution
 //! - [`Key`]: Typed handle to a registry definition
+
+use thiserror::Error;
 
 /// Represents an editor capability required by a registry item.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -29,6 +32,181 @@ pub enum Capability {
 	Undo,
 	/// Access to file system operations.
 	FileOps,
+}
+
+/// Errors that can occur during command execution.
+///
+/// This error type is shared between the command and action registries to avoid
+/// circular dependencies. Actions re-export this type for convenience.
+#[derive(Error, Debug, Clone)]
+pub enum CommandError {
+	/// General command failure with message.
+	#[error("{0}")]
+	Failed(String),
+	/// A required argument was not provided.
+	#[error("missing argument: {0}")]
+	MissingArgument(&'static str),
+	/// An argument was provided but invalid.
+	#[error("invalid argument: {0}")]
+	InvalidArgument(String),
+	/// File I/O operation failed.
+	#[error("I/O error: {0}")]
+	Io(String),
+	/// Command name was not found in registry.
+	#[error("command not found: {0}")]
+	NotFound(String),
+	/// Command requires a capability the context doesn't provide.
+	#[error("missing capability: {0:?}")]
+	MissingCapability(Capability),
+	/// Operation not supported in current context.
+	#[error("unsupported operation: {0}")]
+	Unsupported(&'static str),
+	/// Catch-all for other errors.
+	#[error("{0}")]
+	Other(String),
+}
+
+/// The value of an option.
+#[derive(Debug, Clone, PartialEq)]
+pub enum OptionValue {
+	/// Boolean value (true/false).
+	Bool(bool),
+	/// Integer value.
+	Int(i64),
+	/// String value.
+	String(String),
+}
+
+impl OptionValue {
+	/// Returns the boolean value if this is a `Bool` variant.
+	pub fn as_bool(&self) -> Option<bool> {
+		match self {
+			OptionValue::Bool(v) => Some(*v),
+			_ => None,
+		}
+	}
+
+	/// Returns the integer value if this is an `Int` variant.
+	pub fn as_int(&self) -> Option<i64> {
+		match self {
+			OptionValue::Int(v) => Some(*v),
+			_ => None,
+		}
+	}
+
+	/// Returns the string value if this is a `String` variant.
+	pub fn as_str(&self) -> Option<&str> {
+		match self {
+			OptionValue::String(v) => Some(v),
+			_ => None,
+		}
+	}
+
+	/// Returns true if this value matches the given type.
+	pub fn matches_type(&self, ty: OptionType) -> bool {
+		matches!(
+			(self, ty),
+			(OptionValue::Bool(_), OptionType::Bool)
+				| (OptionValue::Int(_), OptionType::Int)
+				| (OptionValue::String(_), OptionType::String)
+		)
+	}
+
+	/// Returns the type name of this value.
+	pub fn type_name(&self) -> &'static str {
+		match self {
+			OptionValue::Bool(_) => "bool",
+			OptionValue::Int(_) => "int",
+			OptionValue::String(_) => "string",
+		}
+	}
+}
+
+impl From<bool> for OptionValue {
+	fn from(v: bool) -> Self {
+		OptionValue::Bool(v)
+	}
+}
+
+impl From<i64> for OptionValue {
+	fn from(v: i64) -> Self {
+		OptionValue::Int(v)
+	}
+}
+
+impl From<String> for OptionValue {
+	fn from(v: String) -> Self {
+		OptionValue::String(v)
+	}
+}
+
+impl From<&str> for OptionValue {
+	fn from(v: &str) -> Self {
+		OptionValue::String(v.to_string())
+	}
+}
+
+/// The type of an option's value.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum OptionType {
+	/// Boolean type.
+	Bool,
+	/// Integer type.
+	Int,
+	/// String type.
+	String,
+}
+
+// Seal the FromOptionValue trait to prevent external implementations.
+mod sealed {
+	pub trait Sealed {}
+	impl Sealed for i64 {}
+	impl Sealed for bool {}
+	impl Sealed for String {}
+}
+
+/// Trait for types that can be extracted from an [`OptionValue`].
+///
+/// This trait is sealed and only implemented for:
+/// - `i64` (from `OptionValue::Int`)
+/// - `bool` (from `OptionValue::Bool`)
+/// - `String` (from `OptionValue::String`)
+pub trait FromOptionValue: sealed::Sealed + Sized {
+	/// Extracts the value from an `OptionValue`, returning `None` if the type doesn't match.
+	fn from_option(value: &OptionValue) -> Option<Self>;
+
+	/// Returns the `OptionType` corresponding to this Rust type.
+	fn option_type() -> OptionType;
+}
+
+impl FromOptionValue for i64 {
+	fn from_option(value: &OptionValue) -> Option<Self> {
+		value.as_int()
+	}
+
+	fn option_type() -> OptionType {
+		OptionType::Int
+	}
+}
+
+impl FromOptionValue for bool {
+	fn from_option(value: &OptionValue) -> Option<Self> {
+		value.as_bool()
+	}
+
+	fn option_type() -> OptionType {
+		OptionType::Bool
+	}
+}
+
+impl FromOptionValue for String {
+	fn from_option(value: &OptionValue) -> Option<Self> {
+		value.as_str().map(|s| s.to_string())
+	}
+
+	fn option_type() -> OptionType {
+		OptionType::String
+	}
 }
 
 /// Numeric identifier for an action in the registry.

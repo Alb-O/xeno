@@ -1,4 +1,20 @@
 //! Command registry with auto-collection via `inventory`.
+//!
+//! This crate provides trait-based commands through the [`CommandEditorOps`] abstraction.
+//! Commands registered here are portable and don't depend on specific editor internals.
+//! For commands needing direct editor access (LSP, debugging), see `xeno-editor/src/commands/`.
+//!
+//! # Example
+//!
+//! ```ignore
+//! command!(write, {
+//!     aliases: &["w"],
+//!     description: "Save the current buffer",
+//! }, |ctx| Box::pin(async move {
+//!     ctx.editor.save().await?;
+//!     Ok(CommandOutcome::Ok)
+//! }));
+//! ```
 
 use std::any::Any;
 use std::collections::HashMap;
@@ -8,7 +24,6 @@ use std::pin::Pin;
 use std::sync::{LazyLock, Mutex, OnceLock};
 
 use futures::future::LocalBoxFuture;
-use thiserror::Error;
 use xeno_registry_notifications::Notification;
 
 mod impls;
@@ -19,7 +34,8 @@ pub struct CommandReg(pub &'static CommandDef);
 inventory::collect!(CommandReg);
 
 pub use xeno_registry_core::{
-	Capability, RegistryEntry, RegistryMeta, RegistryMetadata, RegistrySource, impl_registry_entry,
+	Capability, CommandError, RegistryEntry, RegistryMeta, RegistryMetadata, RegistrySource,
+	impl_registry_entry,
 };
 
 /// Function signature for async command handlers.
@@ -29,35 +45,6 @@ pub type CommandHandler = for<'a> fn(
 
 /// Simplified result type for command operations.
 pub type CommandResult = Result<(), CommandError>;
-
-/// Errors that can occur during command execution.
-#[derive(Error, Debug, Clone)]
-pub enum CommandError {
-	/// General command failure with message.
-	#[error("{0}")]
-	Failed(String),
-	/// A required argument was not provided.
-	#[error("missing argument: {0}")]
-	MissingArgument(&'static str),
-	/// An argument was provided but invalid.
-	#[error("invalid argument: {0}")]
-	InvalidArgument(String),
-	/// File I/O operation failed.
-	#[error("I/O error: {0}")]
-	Io(String),
-	/// Command name was not found in registry.
-	#[error("command not found: {0}")]
-	NotFound(String),
-	/// Command requires a capability the context doesn't provide.
-	#[error("missing capability: {0:?}")]
-	MissingCapability(Capability),
-	/// Operation not supported in current context.
-	#[error("unsupported operation: {0}")]
-	Unsupported(&'static str),
-	/// Catch-all for other errors.
-	#[error("{0}")]
-	Other(String),
-}
 
 /// Outcome of a successfully executed command.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

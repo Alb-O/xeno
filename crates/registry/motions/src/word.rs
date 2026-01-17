@@ -1,9 +1,9 @@
-//! Word movement functions (`w`, `b`, `e` commands).
+//! Word-based cursor movement (w, b, e, W, B, E commands).
 
 use ropey::RopeSlice;
 use xeno_primitives::range::{CharIdx, Range};
 
-use super::{WordType, is_word_char, make_range_select};
+use crate::movement::{WordType, is_word_char, make_range_select};
 
 /// Move to next word start (`w` command).
 /// Selects the word and following whitespace on the right.
@@ -44,14 +44,15 @@ pub fn move_to_next_word_start(
 			pos += 1;
 		}
 
-		while pos < len && text.char(pos).is_whitespace() {
-			// For word movement, skip whitespace but also watch for newlines
+		while pos < len {
 			let c = text.char(pos);
-			if c == '\n' {
-				pos += 1;
+			if !c.is_whitespace() {
 				break;
 			}
 			pos += 1;
+			if c == '\n' {
+				break;
+			}
 		}
 	}
 
@@ -74,7 +75,6 @@ pub fn move_to_next_word_end(
 	let mut pos: CharIdx = range.head;
 
 	for _ in 0..count {
-		// Move at least one position
 		if pos < len {
 			pos += 1;
 		}
@@ -106,10 +106,7 @@ pub fn move_to_next_word_end(
 		}
 	}
 
-	// End position is one before where we stopped (last char of word)
-	let end_pos = pos.saturating_sub(1).min(len.saturating_sub(1));
-
-	make_range_select(range, end_pos, extend)
+	make_range_select(range, pos.saturating_sub(1).min(len.saturating_sub(1)), extend)
 }
 
 /// Move to previous word start (`b` command).
@@ -128,10 +125,8 @@ pub fn move_to_prev_word_start(
 	let mut pos: CharIdx = range.head;
 
 	for _ in 0..count {
-		// Move at least one position back
 		pos = pos.saturating_sub(1);
 
-		// Skip whitespace going backward
 		while pos > 0 && text.char(pos).is_whitespace() {
 			pos -= 1;
 		}
@@ -161,6 +156,78 @@ pub fn move_to_prev_word_start(
 
 	make_range_select(range, pos, extend)
 }
+
+motion!(
+	next_word_start,
+	{ description: "Move to next word start" },
+	|text, range, count, extend| {
+		move_to_next_word_start(text, range, count, WordType::Word, extend)
+	}
+);
+
+motion!(
+	prev_word_start,
+	{ description: "Move to previous word start" },
+	|text, range, count, extend| {
+		move_to_prev_word_start(text, range, count, WordType::Word, extend)
+	}
+);
+
+motion!(
+	next_word_end,
+	{ description: "Move to next word end" },
+	|text, range, count, extend| {
+		move_to_next_word_end(text, range, count, WordType::Word, extend)
+	}
+);
+
+motion!(
+	next_WORD_start,
+	{ description: "Move to next WORD start" },
+	|text, range, count, extend| {
+		move_to_next_word_start(text, range, count, WordType::WORD, extend)
+	}
+);
+
+motion!(
+	next_long_word_start,
+	{ description: "Move to next WORD start" },
+	|text, range, count, extend| {
+		move_to_next_word_start(text, range, count, WordType::WORD, extend)
+	}
+);
+
+motion!(
+	prev_WORD_start,
+	{ description: "Move to previous WORD start" },
+	|text, range, count, extend| {
+		move_to_prev_word_start(text, range, count, WordType::WORD, extend)
+	}
+);
+
+motion!(
+	prev_long_word_start,
+	{ description: "Move to previous WORD start" },
+	|text, range, count, extend| {
+		move_to_prev_word_start(text, range, count, WordType::WORD, extend)
+	}
+);
+
+motion!(
+	next_WORD_end,
+	{ description: "Move to next WORD end" },
+	|text, range, count, extend| {
+		move_to_next_word_end(text, range, count, WordType::WORD, extend)
+	}
+);
+
+motion!(
+	next_long_word_end,
+	{ description: "Move to next WORD end" },
+	|text, range, count, extend| {
+		move_to_next_word_end(text, range, count, WordType::WORD, extend)
+	}
+);
 
 #[cfg(test)]
 mod tests {

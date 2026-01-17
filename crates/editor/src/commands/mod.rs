@@ -1,8 +1,16 @@
 //! Editor-direct command registry.
 //!
-//! Commands that need direct [`Editor`] access are registered here instead of
-//! in `xeno-registry-commands`. This avoids bloating [`CommandEditorOps`] with
-//! editor-specific methods.
+//! Xeno has two command systems. Registry commands in `xeno-registry-commands` use
+//! the [`CommandEditorOps`] trait abstraction, making them portable across editor
+//! implementations. They handle standard operations like `:write`, `:quit`, and `:set`.
+//!
+//! Editor commands (this module) have direct [`Editor`] access, providing full access
+//! to editor internals and the async runtime. Use these for LSP operations, debugging,
+//! and editor introspection (`:hover`, `:definition`, `:registry-list`).
+//!
+//! Prefer registry commands when the operation fits within [`CommandEditorOps`].
+//! Use editor commands when you need the async runtime, LSP client, or other
+//! editor-specific features.
 //!
 //! [`CommandEditorOps`]: xeno_registry::commands::CommandEditorOps
 

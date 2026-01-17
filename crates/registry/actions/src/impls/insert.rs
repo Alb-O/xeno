@@ -1,8 +1,24 @@
+//! Insert mode text entry actions.
+
 use xeno_primitives::range::Range;
 use xeno_primitives::{Mode, Selection};
 use xeno_registry_motions::keys as motions;
+use xeno_registry_motions::MotionKey;
 
-use crate::{ActionEffects, ActionResult, AppEffect, Effect, action, edit_op, insert_with_motion};
+use crate::{ActionContext, ActionEffects, ActionResult, AppEffect, Effect, action, edit_op};
+
+/// Applies a typed motion to all cursors before entering insert mode.
+pub fn insert_with_motion(ctx: &ActionContext, motion: MotionKey) -> ActionResult {
+	let motion_def = motion.def();
+	let mut new_selection = ctx.selection.clone();
+	new_selection.transform_mut(|range| {
+		*range = (motion_def.handler)(ctx.text, *range, 1, false);
+	});
+
+	ActionResult::Effects(
+		ActionEffects::motion(new_selection).with(Effect::App(AppEffect::SetMode(Mode::Insert))),
+	)
+}
 
 action!(insert_mode, { description: "Switch to insert mode", bindings: r#"normal "i""# }, |ctx| {
 	let ranges: Vec<_> = ctx.selection.ranges().iter()

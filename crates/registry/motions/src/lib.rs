@@ -1,7 +1,11 @@
 //! Motion registry with auto-collection via `inventory`.
 //!
-//! Motions are the fundamental cursor movement operations (char, word, line, etc.).
-//! They're composed by actions to implement editor commands.
+//! Motions are fundamental cursor movement operations (char, word, line, etc.) that
+//! actions compose to implement editor commands. Each motion module co-locates its
+//! registration with implementation: [`horizontal`], [`vertical`], [`word`], [`line`],
+//! [`paragraph`], and [`document`].
+//!
+//! The [`movement`] module re-exports movement functions and shared utilities.
 
 use std::collections::HashMap;
 use std::sync::LazyLock;
@@ -13,8 +17,16 @@ pub use xeno_registry_core::{
 	impl_registry_entry,
 };
 
-pub(crate) mod impls;
-mod macros;
+#[macro_use]
+pub(crate) mod macros;
+
+mod document;
+mod horizontal;
+mod line;
+mod paragraph;
+mod vertical;
+mod word;
+
 pub mod movement;
 
 /// Wrapper for [`inventory`] collection of motion definitions.
@@ -25,11 +37,12 @@ inventory::collect!(MotionReg);
 ///
 /// Note: Duplicate motion names across crates will conflict at compile time.
 pub mod keys {
-	pub use crate::impls::basic::*;
-	pub use crate::impls::document::*;
-	pub use crate::impls::line::*;
-	pub use crate::impls::paragraph::*;
-	pub use crate::impls::word::*;
+	pub use crate::document::*;
+	pub use crate::horizontal::*;
+	pub use crate::line::*;
+	pub use crate::paragraph::*;
+	pub use crate::vertical::*;
+	pub use crate::word::*;
 }
 
 /// Command flags for motion definitions.
