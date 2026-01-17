@@ -5,6 +5,7 @@ use termina::escape::csi::{Csi, Cursor};
 use termina::event::{Event, KeyEventKind};
 use termina::{PlatformTerminal, Terminal as _};
 use xeno_editor::Editor;
+use xeno_editor::hook_runtime::HookDrainBudget;
 use xeno_primitives::Mode;
 use xeno_registry::{
 	HookContext, HookEventData, emit as emit_hook, emit_sync_with as emit_hook_sync_with,
@@ -14,9 +15,15 @@ use xeno_tui::Terminal;
 use crate::backend::TerminaBackend;
 
 /// Hook drain budget for fast redraw (Insert mode, panels open).
-const HOOK_BUDGET_FAST: Duration = Duration::from_millis(1);
+const HOOK_BUDGET_FAST: HookDrainBudget = HookDrainBudget {
+	duration: Duration::from_millis(1),
+	max_completions: 32,
+};
 /// Hook drain budget for slow redraw (Normal mode, idle).
-const HOOK_BUDGET_SLOW: Duration = Duration::from_millis(3);
+const HOOK_BUDGET_SLOW: HookDrainBudget = HookDrainBudget {
+	duration: Duration::from_millis(3),
+	max_completions: 64,
+};
 
 /// Render timing configuration for frame pacing.
 #[derive(Debug, Clone, Copy)]
@@ -74,7 +81,10 @@ pub async fn run_editor(mut editor: Editor) -> io::Result<()> {
 			} else {
 				HOOK_BUDGET_SLOW
 			};
-			editor.hook_runtime.drain_budget(hook_budget).await;
+			let hook_stats = editor.hook_runtime.drain_budget(hook_budget).await;
+			editor
+				.metrics
+				.record_hook_tick(hook_stats.completed, hook_stats.pending);
 
 			if editor.drain_command_queue().await {
 				break;

@@ -64,6 +64,7 @@ pub struct EditorCommandDef {
 /// Registry of editor-direct commands.
 pub static EDITOR_COMMANDS: &[&EditorCommandDef] = &[
 	&debug::EDITOR_CMD_stats,
+	&debug::EDITOR_CMD_registry,
 	#[cfg(feature = "lsp")]
 	&lsp::EDITOR_CMD_hover,
 	#[cfg(feature = "lsp")]

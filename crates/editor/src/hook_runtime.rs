@@ -21,6 +21,36 @@ const HOOK_BACKLOG_HIGH_WATER: usize = 500;
 /// Threshold at which background hooks are dropped to prevent unbounded growth.
 const BACKGROUND_DROP_THRESHOLD: usize = 200;
 
+#[derive(Debug, Clone, Copy)]
+pub struct HookDrainBudget {
+	pub duration: Duration,
+	pub max_completions: usize,
+}
+
+impl HookDrainBudget {
+	pub fn new(duration: Duration, max_completions: usize) -> Self {
+		Self {
+			duration,
+			max_completions,
+		}
+	}
+}
+
+impl From<Duration> for HookDrainBudget {
+	fn from(duration: Duration) -> Self {
+		Self {
+			duration,
+			max_completions: usize::MAX,
+		}
+	}
+}
+
+#[derive(Debug, Default, Clone, Copy)]
+pub struct HookDrainStats {
+	pub completed: u64,
+	pub pending: usize,
+}
+
 /// Runtime for managing async hook execution.
 ///
 /// Async hooks queued during sync emission are stored here and drained
@@ -103,26 +133,36 @@ impl HookRuntime {
 		self.dropped_total
 	}
 
-	/// Drains completions within a time budget.
+	/// Drains completions within a time and count budget.
 	///
 	/// Interactive hooks are processed first (they must complete). Background
 	/// hooks are processed only if time remains. Returns promptly when no hooks
 	/// are pending, the budget is exhausted, or no hook completes within the
 	/// remaining time.
-	pub async fn drain_budget(&mut self, budget: Duration) {
+	pub async fn drain_budget(&mut self, budget: impl Into<HookDrainBudget>) -> HookDrainStats {
 		if !self.has_pending() {
-			return;
+			return HookDrainStats::default();
 		}
 
+		let budget = budget.into();
 		let start = Instant::now();
-		let deadline = start + budget;
+		let deadline = start + budget.duration;
 		let completed_before = self.completed_total;
+		let mut remaining = budget.max_completions;
 
-		while Instant::now() < deadline && !self.interactive.is_empty() {
-			let remaining = deadline.saturating_duration_since(Instant::now());
-			match tokio::time::timeout(remaining, self.interactive.next()).await {
+		if remaining == 0 {
+			return HookDrainStats {
+				completed: 0,
+				pending: self.pending_count(),
+			};
+		}
+
+		while Instant::now() < deadline && !self.interactive.is_empty() && remaining > 0 {
+			let time_left = deadline.saturating_duration_since(Instant::now());
+			match tokio::time::timeout(time_left, self.interactive.next()).await {
 				Ok(Some(_)) => {
 					self.completed_total += 1;
+					remaining = remaining.saturating_sub(1);
 					tracing::trace!(
 						completed_total = self.completed_total,
 						interactive_pending = self.interactive.len(),
@@ -134,11 +174,12 @@ impl HookRuntime {
 			}
 		}
 
-		while Instant::now() < deadline && !self.background.is_empty() {
-			let remaining = deadline.saturating_duration_since(Instant::now());
-			match tokio::time::timeout(remaining, self.background.next()).await {
+		while Instant::now() < deadline && !self.background.is_empty() && remaining > 0 {
+			let time_left = deadline.saturating_duration_since(Instant::now());
+			match tokio::time::timeout(time_left, self.background.next()).await {
 				Ok(Some(_)) => {
 					self.completed_total += 1;
+					remaining = remaining.saturating_sub(1);
 					tracing::trace!(
 						completed_total = self.completed_total,
 						background_pending = self.background.len(),
@@ -154,9 +195,10 @@ impl HookRuntime {
 		let pending_after = self.pending_count();
 		if completed_this_drain > 0 || pending_after > 0 {
 			tracing::debug!(
-				budget_ms = budget.as_millis() as u64,
+				budget_ms = budget.duration.as_millis() as u64,
 				elapsed_ms = start.elapsed().as_millis() as u64,
 				completed = completed_this_drain,
+				budget_max = budget.max_completions,
 				interactive_pending = self.interactive.len(),
 				background_pending = self.background.len(),
 				"hook.drain_budget"
@@ -172,6 +214,11 @@ impl HookRuntime {
 				dropped = self.dropped_total,
 				"hook backlog exceeds high-water mark"
 			);
+		}
+
+		HookDrainStats {
+			completed: completed_this_drain,
+			pending: pending_after,
 		}
 	}
 

@@ -321,7 +321,7 @@ impl DocumentSync {
 			.queue_change(&uri)
 			.ok_or_else(|| crate::Error::Protocol("Document not registered".into()))?;
 
-		if let Err(err) = client.text_document_did_change(uri, version, content_changes) {
+		if let Err(err) = client.text_document_did_change(uri.clone(), version, content_changes) {
 			self.documents.mark_force_full_sync(&uri);
 			return Err(err);
 		}

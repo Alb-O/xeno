@@ -52,6 +52,7 @@ mod views;
 
 pub use core::EditorCore;
 use std::path::PathBuf;
+use std::sync::Once;
 
 pub use edit_executor::EditExecutor;
 pub use focus::{FocusReason, FocusTarget, PanelId};
@@ -59,6 +60,8 @@ pub use navigation::Location;
 use xeno_registry::{
 	HookContext, HookEventData, WindowKind, emit_sync_with as emit_hook_sync_with,
 };
+use xeno_registry::options::OPTIONS;
+use xeno_registry::themes::THEMES;
 use xeno_runtime_language::LanguageLoader;
 use xeno_tui::layout::Rect;
 
@@ -81,6 +84,28 @@ pub use crate::types::{
 };
 use crate::ui::UiManager;
 use crate::window::{BaseWindow, FloatingStyle, WindowId, WindowManager};
+
+static REGISTRY_SUMMARY_ONCE: Once = Once::new();
+
+fn log_registry_summary_once() {
+	REGISTRY_SUMMARY_ONCE.call_once(|| {
+		let reg = xeno_registry::index::get_registry();
+		tracing::info!(
+			actions = reg.actions.base.by_id.len(),
+			commands = reg.commands.by_id.len(),
+			editor_commands = crate::commands::EDITOR_COMMANDS.len(),
+			motions = reg.motions.by_id.len(),
+			text_objects = reg.text_objects.by_id.len(),
+			gutters = xeno_registry::GUTTERS.len(),
+			hooks = xeno_registry::HOOKS.len(),
+			notifications = xeno_registry::NOTIFICATIONS.len(),
+			options = OPTIONS.len(),
+			statusline = xeno_registry::STATUSLINE_SEGMENTS.len(),
+			themes = THEMES.len(),
+			"registry.summary"
+		);
+	});
+}
 
 /// The main editor/workspace structure.
 ///
@@ -221,6 +246,7 @@ impl Editor {
 	/// Creates an editor from the given content and optional file path.
 	pub fn from_content(content: String, path: Option<PathBuf>) -> Self {
 		crate::editor_ctx::register_result_handlers();
+		log_registry_summary_once();
 
 		// Initialize language loader from embedded languages.kdl
 		let language_loader = LanguageLoader::from_embedded();

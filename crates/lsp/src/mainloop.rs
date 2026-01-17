@@ -5,6 +5,7 @@ use std::future::{Future, poll_fn};
 use std::ops::ControlFlow;
 use std::pin::Pin;
 use std::task::{Context, Poll, ready};
+use std::time::{Duration, Instant};
 
 use futures::channel::{mpsc, oneshot};
 use futures::io::BufReader;
@@ -19,6 +20,9 @@ use crate::message::Message;
 use crate::socket::{ClientSocket, MainLoopEvent, PeerSocket, ServerSocket};
 use crate::types::{AnyResponse, RequestId, ResponseError};
 use crate::{LspService, Result};
+
+const TASK_DRAIN_MAX: usize = 32;
+const TASK_DRAIN_WINDOW: Duration = Duration::from_millis(2);
 
 /// Macro to define getter methods for accessing inner service fields.
 #[macro_export]
@@ -133,31 +137,63 @@ where
 		pin_mut!(incoming, outgoing);
 
 		let mut flush_fut = futures::future::Fuse::terminated();
+		let mut task_budget_remaining = TASK_DRAIN_MAX;
+		let mut task_budget_completed = 0u64;
+		let mut task_budget_defer = false;
+		let mut task_budget_deadline = Instant::now() + TASK_DRAIN_WINDOW;
 		let ret = loop {
 			// Outgoing > internal > incoming.
 			// Preference on outgoing data provides back pressure in case of
 			// flooding incoming requests.
-			let ctl = select_biased! {
-				// Concurrently flush out the previous message.
-				ret = flush_fut => { ret?; continue; }
+			let ctl = if task_budget_defer {
+				select_biased! {
+					// Concurrently flush out the previous message.
+					ret = flush_fut => { ret?; continue; }
 
-				resp = self.tasks.select_next_some() => ControlFlow::Continue(Some(OutgoingMessage {
-					message: Message::Response(resp),
-					ack: None,
-				})),
-				event = self.rx.next() => self.dispatch_event(event.expect("Sender is alive")),
-				msg = incoming.next() => {
-					let dispatch_fut = self.dispatch_message(msg.expect("Never ends")?).fuse();
-					pin_mut!(dispatch_fut);
-					// NB. Concurrently wait for `poll_ready`, and write out the last message.
-					// If the service is waiting for client's response of the last request, while
-					// the last message is not delivered on the first write, it can deadlock.
-					loop {
-						select_biased! {
-							// Dispatch first. It usually succeeds immediately for non-requests,
-							// and the service is hardly busy.
-							ctl = dispatch_fut => break ctl,
-							ret = flush_fut => { ret?; continue }
+					event = self.rx.next() => self.dispatch_event(event.expect("Sender is alive")),
+					msg = incoming.next() => {
+						let dispatch_fut = self.dispatch_message(msg.expect("Never ends")?).fuse();
+						pin_mut!(dispatch_fut);
+						// NB. Concurrently wait for `poll_ready`, and write out the last message.
+						// If the service is waiting for client's response of the last request, while
+						// the last message is not delivered on the first write, it can deadlock.
+						loop {
+							select_biased! {
+								// Dispatch first. It usually succeeds immediately for non-requests,
+								// and the service is hardly busy.
+								ctl = dispatch_fut => break ctl,
+								ret = flush_fut => { ret?; continue }
+							}
+						}
+					}
+					resp = self.tasks.select_next_some() => ControlFlow::Continue(Some(OutgoingMessage {
+						message: Message::Response(resp),
+						ack: None,
+					})),
+				}
+			} else {
+				select_biased! {
+					// Concurrently flush out the previous message.
+					ret = flush_fut => { ret?; continue; }
+
+					resp = self.tasks.select_next_some() => ControlFlow::Continue(Some(OutgoingMessage {
+						message: Message::Response(resp),
+						ack: None,
+					})),
+					event = self.rx.next() => self.dispatch_event(event.expect("Sender is alive")),
+					msg = incoming.next() => {
+						let dispatch_fut = self.dispatch_message(msg.expect("Never ends")?).fuse();
+						pin_mut!(dispatch_fut);
+						// NB. Concurrently wait for `poll_ready`, and write out the last message.
+						// If the service is waiting for client's response of the last request, while
+						// the last message is not delivered on the first write, it can deadlock.
+						loop {
+							select_biased! {
+								// Dispatch first. It usually succeeds immediately for non-requests,
+								// and the service is hardly busy.
+								ctl = dispatch_fut => break ctl,
+								ret = flush_fut => { ret?; continue }
+							}
 						}
 					}
 				}
@@ -167,6 +203,30 @@ where
 				ControlFlow::Continue(None) => continue,
 				ControlFlow::Break(ret) => break ret,
 			};
+			match msg.message {
+				Message::Response(_) => {
+					task_budget_remaining = task_budget_remaining.saturating_sub(1);
+					task_budget_completed += 1;
+					if task_budget_remaining == 0 || Instant::now() >= task_budget_deadline {
+						task_budget_defer = true;
+					}
+				}
+				_ => {
+					if task_budget_completed > 0 || !self.tasks.is_empty() {
+						tracing::debug!(
+							completed = task_budget_completed,
+							backlog = self.tasks.len(),
+							budget_max = TASK_DRAIN_MAX,
+							budget_ms = TASK_DRAIN_WINDOW.as_millis() as u64,
+							"lsp.tasks.drain_budget"
+						);
+					}
+					task_budget_remaining = TASK_DRAIN_MAX;
+					task_budget_completed = 0;
+					task_budget_defer = false;
+					task_budget_deadline = Instant::now() + TASK_DRAIN_WINDOW;
+				}
+			}
 			// Flush the previous one and load a new message to send.
 			outgoing.feed(msg).await?;
 			flush_fut = outgoing.flush().fuse();

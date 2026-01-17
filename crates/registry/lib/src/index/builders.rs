@@ -2,7 +2,7 @@
 
 use std::collections::HashMap;
 
-use tracing::{debug, warn};
+use tracing::debug;
 use xeno_registry_core::ActionId;
 
 use super::collision::{Collision, CollisionKind};
@@ -272,46 +272,32 @@ fn validate_registry(reg: &ExtensionRegistry) {
 		return;
 	}
 
-	let fatal_collisions: Vec<_> = diag
-		.collisions
-		.iter()
-		.filter(|c| c.winner_priority == c.shadowed_priority)
-		.collect();
-
-	if !fatal_collisions.is_empty() && cfg!(debug_assertions) {
-		let mut msg =
-			String::from("Unresolved extension collisions (equal priority) in debug build:\n");
-		for c in &fatal_collisions {
-			msg.push_str(&format!(
-				"  {} collision on '{}': {} (from {}) and {} (from {}) both have priority {}\n",
-				c.kind,
-				c.key,
-				c.shadowed_id,
-				c.shadowed_source,
-				c.winner_id,
-				c.winner_source,
-				c.winner_priority
-			));
-		}
-		msg.push_str("Please resolve these collisions by renaming or adjusting priorities.");
-		panic!("{}", msg);
+	for c in &diag.collisions {
+		debug!(
+			kind = %c.kind,
+			key = c.key,
+			shadowed_source = %c.shadowed_source,
+			winner_id = c.winner_id,
+			winner_priority = c.winner_priority,
+			shadowed_priority = c.shadowed_priority,
+			"Extension shadowing"
+		);
 	}
 
-	if cfg!(debug_assertions) {
-		for c in &diag.collisions {
-			if c.winner_priority != c.shadowed_priority {
-				debug!(
-					kind = %c.kind,
-					key = c.key,
-					shadowed_source = %c.shadowed_source,
-					winner_id = c.winner_id,
-					winner_priority = c.winner_priority,
-					shadowed_priority = c.shadowed_priority,
-					"Extension shadowing"
-				);
-			}
-		}
-	} else {
-		warn!("Extension collisions detected. Use :ext doctor to resolve.");
+	let mut msg = String::from("Registry collisions detected:\n");
+	for c in &diag.collisions {
+		msg.push_str(&format!(
+			"  {} collision on '{}': {} (from {}) and {} (from {}) priorities {} vs {}\n",
+			c.kind,
+			c.key,
+			c.shadowed_id,
+			c.shadowed_source,
+			c.winner_id,
+			c.winner_source,
+			c.shadowed_priority,
+			c.winner_priority
+		));
 	}
+	msg.push_str("Please resolve these collisions by renaming or adjusting priorities.");
+	panic!("{}", msg);
 }

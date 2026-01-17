@@ -11,6 +11,10 @@ use std::sync::atomic::{AtomicU64, Ordering};
 /// critical, but trends should be visible.
 #[derive(Debug, Default)]
 pub struct EditorMetrics {
+	/// Hooks completed in the last tick.
+	pub hooks_completed_tick: AtomicU64,
+	/// Hooks pending after the last tick.
+	pub hooks_pending_tick: AtomicU64,
 	/// Total LSP full sync sends.
 	pub lsp_full_sync: AtomicU64,
 	/// Total LSP incremental sync sends.
@@ -60,6 +64,14 @@ impl EditorMetrics {
 		self.lsp_snapshot_bytes.fetch_add(bytes, Ordering::Relaxed);
 	}
 
+	/// Records per-tick hook drain stats.
+	pub fn record_hook_tick(&self, completed: u64, pending: usize) {
+		self.hooks_completed_tick
+			.store(completed, Ordering::Relaxed);
+		self.hooks_pending_tick
+			.store(pending as u64, Ordering::Relaxed);
+	}
+
 	/// Records per-tick LSP sync counts.
 	pub fn record_lsp_tick(&self, full_syncs: u64, incremental_syncs: u64, snapshot_bytes: u64) {
 		self.lsp_full_sync_tick.store(full_syncs, Ordering::Relaxed);
@@ -94,6 +106,16 @@ impl EditorMetrics {
 		self.lsp_snapshot_bytes.load(Ordering::Relaxed)
 	}
 
+	/// Returns hooks completed in the last tick.
+	pub fn hooks_completed_tick_count(&self) -> u64 {
+		self.hooks_completed_tick.load(Ordering::Relaxed)
+	}
+
+	/// Returns hooks pending after the last tick.
+	pub fn hooks_pending_tick_count(&self) -> u64 {
+		self.hooks_pending_tick.load(Ordering::Relaxed)
+	}
+
 	/// Returns the last tick full sync count.
 	pub fn full_sync_tick_count(&self) -> u64 {
 		self.lsp_full_sync_tick.load(Ordering::Relaxed)
@@ -119,6 +141,10 @@ pub struct StatsSnapshot {
 	pub hooks_scheduled: u64,
 	/// Total hooks completed.
 	pub hooks_completed: u64,
+	/// Hooks completed in the last tick.
+	pub hooks_completed_tick: u64,
+	/// Hooks pending after the last tick.
+	pub hooks_pending_tick: u64,
 	/// Documents with pending LSP changes.
 	pub lsp_pending_docs: usize,
 	/// Documents with in-flight LSP sends.
@@ -148,6 +174,8 @@ impl StatsSnapshot {
 			hooks_pending = self.hooks_pending,
 			hooks_scheduled = self.hooks_scheduled,
 			hooks_completed = self.hooks_completed,
+			hooks_completed_tick = self.hooks_completed_tick,
+			hooks_pending_tick = self.hooks_pending_tick,
 			lsp_pending_docs = self.lsp_pending_docs,
 			lsp_in_flight = self.lsp_in_flight,
 			lsp_full_sync = self.lsp_full_sync,

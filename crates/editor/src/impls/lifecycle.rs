@@ -436,6 +436,8 @@ impl Editor {
 			hooks_pending: self.hook_runtime.pending_count(),
 			hooks_scheduled: self.hook_runtime.scheduled_total(),
 			hooks_completed: self.hook_runtime.completed_total(),
+			hooks_completed_tick: self.metrics.hooks_completed_tick_count(),
+			hooks_pending_tick: self.metrics.hooks_pending_tick_count(),
 			lsp_pending_docs,
 			lsp_in_flight,
 			lsp_full_sync: self.metrics.full_sync_count(),

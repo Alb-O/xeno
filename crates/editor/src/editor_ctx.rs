@@ -1,6 +1,8 @@
 //! Editor context and effect handling.
 
-use tracing::trace;
+use std::time::Instant;
+
+use tracing::{trace, trace_span};
 use xeno_primitives::range::Range;
 use xeno_primitives::{Mode, Selection};
 pub use xeno_registry::actions::editor_ctx::*;
@@ -28,6 +30,11 @@ pub fn apply_effects(
 	let mut outcome = HandleOutcome::Handled;
 
 	for effect in effects {
+		let (kind, triggers_lsp_sync) = effect_kind(effect);
+		let span = trace_span!("editor.effect", kind, triggers_lsp_sync);
+		let _guard = span.enter();
+		let start = Instant::now();
+
 		match effect {
 			Effect::View(view) => apply_view_effect(view, ctx, extend),
 			Effect::Edit(edit) => apply_edit_effect(edit, ctx),
@@ -37,11 +44,28 @@ pub fn apply_effects(
 					outcome = quit;
 				}
 			}
-			_ => trace!(?effect, "unhandled effect variant"),
+			_ => {
+				debug_assert!(false, "Unhandled effect variant: {effect:?}");
+				trace!(?effect, "unhandled effect variant");
+			}
 		}
+		trace!(
+			duration_ms = start.elapsed().as_millis() as u64,
+			"effect.applied"
+		);
 	}
 
 	outcome
+}
+
+fn effect_kind(effect: &Effect) -> (&'static str, bool) {
+	match effect {
+		Effect::View(_) => ("view", false),
+		Effect::Edit(_) => ("edit", true),
+		Effect::Ui(_) => ("ui", false),
+		Effect::App(_) => ("app", false),
+		_ => ("unknown", false),
+	}
 }
 
 /// Applies a view-related effect.
@@ -103,7 +127,10 @@ fn apply_view_effect(
 			}
 		}
 
-		_ => trace!(?effect, "unhandled view effect variant"),
+		_ => {
+			debug_assert!(false, "Unhandled view effect variant: {effect:?}");
+			trace!(?effect, "unhandled view effect variant");
+		}
 	}
 }
 
@@ -125,7 +152,10 @@ fn apply_edit_effect(
 			}
 		}
 
-		_ => trace!(?effect, "unhandled edit effect variant"),
+		_ => {
+			debug_assert!(false, "Unhandled edit effect variant: {effect:?}");
+			trace!(?effect, "unhandled edit effect variant");
+		}
 	}
 }
 
@@ -154,7 +184,10 @@ fn apply_ui_effect(effect: &UiEffect, ctx: &mut xeno_registry::actions::editor_c
 
 		UiEffect::ForceRedraw => {}
 
-		_ => trace!(?effect, "unhandled ui effect variant"),
+		_ => {
+			debug_assert!(false, "Unhandled ui effect variant: {effect:?}");
+			trace!(?effect, "unhandled ui effect variant");
+		}
 	}
 }
 
@@ -215,7 +248,10 @@ fn apply_app_effect(
 			}
 		}
 
-		_ => trace!(?effect, "unhandled app effect variant"),
+		_ => {
+			debug_assert!(false, "Unhandled app effect variant: {effect:?}");
+			trace!(?effect, "unhandled app effect variant");
+		}
 	}
 
 	None

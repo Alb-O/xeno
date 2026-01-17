@@ -537,13 +537,13 @@ ______________________________________________________________________
 
 ### Tasks
 
-- [ ] Introduce `drain_budget()` pattern:
-  - [ ] process at most N completions per tick
-  - [ ] time-budget option (e.g. 1–2 ms)
-- [ ] Apply budget to:
-  - [ ] hook runtime futures (if any)
-  - [ ] LSP main loop `FuturesUnordered` drain
-- [ ] Add debug counters: completions processed per tick, backlog size
+- [x] Introduce `drain_budget()` pattern:
+  - [x] process at most N completions per tick (`HookDrainBudget.max_completions`, `TASK_DRAIN_MAX`)
+  - [x] time-budget option (e.g. 1–2 ms) (`HookDrainBudget.duration`, `TASK_DRAIN_WINDOW`)
+- [x] Apply budget to:
+  - [x] hook runtime futures (`HookRuntime::drain_budget()`)
+  - [x] LSP main loop `FuturesUnordered` drain (`task_budget_*` variables)
+- [x] Add debug counters: completions processed per tick, backlog size (`hooks_completed_tick`, `hooks_pending_tick`)
 
 ### Risks
 
@@ -558,13 +558,13 @@ Even after migrating away from distributed slices, registry scale can still bite
 
 ### Tasks
 
-- [ ] Add `:registry` command:
-  - [ ] list items by kind, sorted by priority
-  - [ ] filter by prefix (`core.*`, `lsp.*`)
-  - [ ] show `meta.source`, required caps, flags, description
-- [ ] Print startup summary:
-  - [ ] counts per kind
-  - [ ] collisions as hard errors (not warnings)
+- [x] Add `:registry` command (`crates/editor/src/commands/debug.rs`):
+  - [x] list items by kind, sorted by priority
+  - [x] filter by prefix (`core.*`, `lsp.*`)
+  - [x] show `meta.source`, required caps, flags, description
+- [x] Print startup summary:
+  - [x] counts per kind (`impls/mod.rs` tracing log)
+  - [x] collisions as hard errors (not warnings) (`RegistryBuilder` validation)
 
 ### Risks
 
@@ -655,9 +655,9 @@ ______________________________________________________________________
 
 ## Phase 6
 
-- [ ] Budgeted drain patterns
-- [ ] `:registry` command
-- [ ] Tracing spans and counters
+- [x] Budgeted drain patterns (`HookDrainBudget`, `TASK_DRAIN_MAX/WINDOW`)
+- [x] `:registry` command (`:reg` alias, filters by kind/prefix)
+- [ ] Tracing spans and counters (6C - optional)
 
 ______________________________________________________________________
 

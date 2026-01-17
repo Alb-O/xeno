@@ -173,7 +173,7 @@ impl DocumentStateManager {
 				state
 			} else {
 				let state = DocumentState::from_uri(self.normalize_uri(uri));
-				docs.insert(uri_key, state);
+				docs.insert(uri_key.clone(), state);
 				docs.get(&uri_key).expect("state just inserted")
 			};
 
