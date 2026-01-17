@@ -3368,6 +3368,7 @@ dependencies = [
  "xeno-lsp",
  "xeno-primitives",
  "xeno-registry",
+ "xeno-registry-core",
  "xeno-registry-notifications",
  "xeno-runtime-language",
  "xeno-tui",

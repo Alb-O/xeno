@@ -1,29 +1,5 @@
 //! Action and result handler registration macros.
 
-/// Selects a provided value or falls back to a default.
-#[doc(hidden)]
-#[macro_export]
-macro_rules! __opt {
-	({$val:expr}, $default:expr) => {
-		$val
-	};
-	(, $default:expr) => {
-		$default
-	};
-}
-
-/// Selects a provided slice or returns an empty slice.
-#[doc(hidden)]
-#[macro_export]
-macro_rules! __opt_slice {
-	({$val:expr}) => {
-		$val
-	};
-	() => {
-		&[]
-	};
-}
-
 /// Defines keybinding lists for an action.
 #[doc(hidden)]
 #[macro_export]
@@ -129,14 +105,14 @@ macro_rules! action {
 				meta: $crate::RegistryMeta {
 					id: concat!(env!("CARGO_PKG_NAME"), "::", stringify!($name)),
 					name: stringify!($name),
-					aliases: $crate::__opt_slice!($({$aliases})?),
+					aliases: xeno_registry_core::__reg_opt_slice!($({$aliases})?),
 					description: $desc,
-					priority: $crate::__opt!($({$priority})?, 0),
+					priority: xeno_registry_core::__reg_opt!($({$priority})?, 0),
 					source: $crate::RegistrySource::Crate(env!("CARGO_PKG_NAME")),
-					required_caps: $crate::__opt_slice!($({$caps})?),
-					flags: $crate::__opt!($({$flags})?, $crate::flags::NONE),
+					required_caps: xeno_registry_core::__reg_opt_slice!($({$caps})?),
+					flags: xeno_registry_core::__reg_opt!($({$flags})?, $crate::flags::NONE),
 				},
-				short_desc: $crate::__opt!($({$short})?, ""),
+				short_desc: xeno_registry_core::__reg_opt!($({$short})?, ""),
 				handler: $handler,
 			};
 
@@ -181,8 +157,8 @@ macro_rules! result_handler {
 		pub static $static_name: $crate::editor_ctx::ResultHandler =
 			$crate::editor_ctx::ResultHandler {
 				name: $name,
-				priority: $crate::__opt!($({$priority})?, 0),
-				required_caps: $crate::__opt_slice!($({$caps})?),
+				priority: xeno_registry_core::__reg_opt!($({$priority})?, 0),
+				required_caps: xeno_registry_core::__reg_opt_slice!($({$caps})?),
 				handle: $body,
 			};
 	};
@@ -257,8 +233,8 @@ macro_rules! result_extension_handler {
 		pub static $static_name: $crate::editor_ctx::ResultHandler =
 			$crate::editor_ctx::ResultHandler {
 				name: $name,
-				priority: $crate::__opt!($({$priority})?, 0),
-				required_caps: $crate::__opt_slice!($({$caps})?),
+				priority: xeno_registry_core::__reg_opt!($({$priority})?, 0),
+				required_caps: xeno_registry_core::__reg_opt_slice!($({$caps})?),
 				handle: $body,
 			};
 	};

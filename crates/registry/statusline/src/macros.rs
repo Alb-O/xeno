@@ -1,17 +1,5 @@
 //! Statusline segment registration macros.
 
-/// Helper to select optional value or default.
-#[doc(hidden)]
-#[macro_export]
-macro_rules! __seg_opt {
-	({$val:expr}, $default:expr) => {
-		$val
-	};
-	(, $default:expr) => {
-		$default
-	};
-}
-
 /// Defines a statusline segment with named parameters.
 ///
 /// # Examples
@@ -61,13 +49,13 @@ macro_rules! segment {
 						name: stringify!($name),
 						aliases: &[],
 						description: $desc,
-						priority: $crate::__seg_opt!($({$priority})?, 0),
+						priority: xeno_registry_core::__reg_opt!($({$priority})?, 0),
 						source: $crate::RegistrySource::Crate(env!("CARGO_PKG_NAME")),
 						required_caps: &[],
 						flags: 0,
 					},
 					position: $crate::SegmentPosition::$position,
-					default_enabled: $crate::__seg_opt!($({$enabled})?, true),
+					default_enabled: xeno_registry_core::__reg_opt!($({$enabled})?, true),
 					render: $render,
 				};
 

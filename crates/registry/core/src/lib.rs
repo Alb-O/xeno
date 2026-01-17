@@ -475,3 +475,43 @@ impl<T: RegistryMetadata> core::fmt::Debug for Key<T> {
 		f.debug_tuple("Key").field(&self.0.name()).finish()
 	}
 }
+
+/// Selects a provided value or falls back to a default.
+///
+/// Used by registry macros to handle optional parameters.
+///
+/// # Example
+///
+/// ```ignore
+/// let priority = __reg_opt!($({$priority})?, 0);
+/// ```
+#[doc(hidden)]
+#[macro_export]
+macro_rules! __reg_opt {
+	({$val:expr}, $default:expr) => {
+		$val
+	};
+	(, $default:expr) => {
+		$default
+	};
+}
+
+/// Selects a provided slice or returns an empty slice.
+///
+/// Used by registry macros to handle optional slice parameters.
+///
+/// # Example
+///
+/// ```ignore
+/// let aliases = __reg_opt_slice!($({$aliases})?);
+/// ```
+#[doc(hidden)]
+#[macro_export]
+macro_rules! __reg_opt_slice {
+	({$val:expr}) => {
+		$val
+	};
+	() => {
+		&[]
+	};
+}

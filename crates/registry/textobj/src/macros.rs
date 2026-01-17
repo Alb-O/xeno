@@ -1,29 +1,5 @@
 //! Registration macros for text objects.
 
-/// Helper macro to handle optional slice parameters.
-#[doc(hidden)]
-#[macro_export]
-macro_rules! __text_obj_opt_slice {
-	() => {
-		&[]
-	};
-	({$val:expr}) => {
-		$val
-	};
-}
-
-/// Helper macro to handle optional value parameters.
-#[doc(hidden)]
-#[macro_export]
-macro_rules! __text_obj_opt {
-	({$val:expr}, $default:expr) => {
-		$val
-	};
-	(, $default:expr) => {
-		$default
-	};
-}
-
 /// Defines a text object.
 #[macro_export]
 macro_rules! text_object {
@@ -47,15 +23,15 @@ macro_rules! text_object {
 				$crate::RegistryMeta {
 					id: concat!(env!("CARGO_PKG_NAME"), "::", stringify!($name)),
 					name: stringify!($name),
-					aliases: $crate::__text_obj_opt_slice!($({$aliases})?),
+					aliases: xeno_registry_core::__reg_opt_slice!($({$aliases})?),
 					description: $desc,
-					priority: $crate::__text_obj_opt!($({$priority})?, 0),
-					source: $crate::__text_obj_opt!($({$source})?, $crate::RegistrySource::Crate(env!("CARGO_PKG_NAME"))),
-					required_caps: $crate::__text_obj_opt_slice!($({$caps})?),
-					flags: $crate::__text_obj_opt!($({$flags})?, $crate::flags::NONE),
+					priority: xeno_registry_core::__reg_opt!($({$priority})?, 0),
+					source: xeno_registry_core::__reg_opt!($({$source})?, $crate::RegistrySource::Crate(env!("CARGO_PKG_NAME"))),
+					required_caps: xeno_registry_core::__reg_opt_slice!($({$caps})?),
+					flags: xeno_registry_core::__reg_opt!($({$flags})?, $crate::flags::NONE),
 				},
 				$trigger,
-				$crate::__text_obj_opt_slice!($({$alt_triggers})?),
+				xeno_registry_core::__reg_opt_slice!($({$alt_triggers})?),
 				$inner,
 				$around,
 			);
