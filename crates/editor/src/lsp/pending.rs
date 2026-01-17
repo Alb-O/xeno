@@ -212,10 +212,10 @@ impl PendingLspState {
 	pub fn poll_completions(&mut self) {
 		while let Ok(complete) = self.completion_rx.try_recv() {
 			self.in_flight.remove(&complete.doc_id);
-			if !complete.success {
-				if let Some(pending) = self.pending.get_mut(&complete.doc_id) {
-					pending.mark_error_retry();
-				}
+			if !complete.success
+				&& let Some(pending) = self.pending.get_mut(&complete.doc_id)
+			{
+				pending.mark_error_retry();
 			}
 		}
 	}
@@ -309,7 +309,11 @@ impl PendingLspState {
 			let change_count = changes.len();
 			let bytes = pending.bytes;
 			let editor_version = pending.editor_version;
-			let mode = if use_incremental { "incremental" } else { "full" };
+			let mode = if use_incremental {
+				"incremental"
+			} else {
+				"full"
+			};
 
 			debug!(
 				doc_id = doc_id.0,
@@ -336,8 +340,9 @@ impl PendingLspState {
 			if use_incremental {
 				tokio::spawn(async move {
 					let start = Instant::now();
-					let result =
-						sync.notify_change_incremental_no_content(&path, &language, changes).await;
+					let result = sync
+						.notify_change_incremental_no_content(&path, &language, changes)
+						.await;
 					let success = result.is_ok();
 					let latency_ms = start.elapsed().as_millis() as u64;
 
@@ -518,7 +523,10 @@ mod tests {
 			42,
 		);
 
-		assert_eq!(state.pending.get(&DocumentId(1)).unwrap().editor_version, 42);
+		assert_eq!(
+			state.pending.get(&DocumentId(1)).unwrap().editor_version,
+			42
+		);
 	}
 
 	#[test]

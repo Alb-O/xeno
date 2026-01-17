@@ -174,8 +174,9 @@ fn notify_effect_emits_notification() {
 	let mut editor = MockEditor::new();
 	let mut ctx = xeno_registry::actions::editor_ctx::EditorContext::new(&mut editor);
 
-	let effects =
-		ActionEffects::from_effect(UiEffect::Notify(xeno_registry_notifications::keys::undo.into()).into());
+	let effects = ActionEffects::from_effect(
+		UiEffect::Notify(xeno_registry_notifications::keys::undo.into()).into(),
+	);
 	apply_effects(&effects, &mut ctx, false);
 
 	assert_eq!(editor.notifications.len(), 1);

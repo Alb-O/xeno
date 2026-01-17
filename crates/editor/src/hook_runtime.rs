@@ -180,10 +180,10 @@ impl HookRuntime {
 	/// Unlike [`drain_budget`](Self::drain_budget), this blocks until all hooks
 	/// complete. Use sparingly (e.g., at editor shutdown).
 	pub async fn drain_all(&mut self) {
-		while let Some(_) = self.interactive.next().await {
+		while self.interactive.next().await.is_some() {
 			self.completed_total += 1;
 		}
-		while let Some(_) = self.background.next().await {
+		while self.background.next().await.is_some() {
 			self.completed_total += 1;
 		}
 	}
@@ -240,8 +240,8 @@ impl HookScheduler for HookRuntime {
 
 #[cfg(test)]
 mod tests {
-	use std::sync::atomic::{AtomicUsize, Ordering};
 	use std::sync::Arc;
+	use std::sync::atomic::{AtomicUsize, Ordering};
 
 	use xeno_registry::HookResult;
 

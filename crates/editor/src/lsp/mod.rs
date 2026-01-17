@@ -79,6 +79,7 @@ use xeno_lsp::{
 	ClientHandle, DiagnosticsEvent, DiagnosticsEventReceiver, DocumentStateManager, DocumentSync,
 	OffsetEncoding, Registry, Result,
 };
+
 use crate::buffer::Buffer;
 
 /// Central manager for LSP functionality.

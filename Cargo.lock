@@ -3355,7 +3355,7 @@ checksum = "9edde0db4769d2dc68579893f2306b26c6ecfbe0ef499b013d731b7b9247e0b9"
 
 [[package]]
 name = "xeno-editor"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "anyhow",
  "clap",
@@ -3386,7 +3386,7 @@ dependencies = [
 
 [[package]]
 name = "xeno-keymap-core"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "kdl",
  "serde",
@@ -3398,7 +3398,7 @@ dependencies = [
 
 [[package]]
 name = "xeno-keymap-derive"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -3411,7 +3411,7 @@ dependencies = [
 
 [[package]]
 name = "xeno-keymap-parser"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "serde",
  "strum",
@@ -3421,7 +3421,7 @@ dependencies = [
 
 [[package]]
 name = "xeno-lsp"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "futures",
  "lsp-types",
@@ -3447,7 +3447,7 @@ dependencies = [
 
 [[package]]
 name = "xeno-macro"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "kdl",
  "proc-macro2",
@@ -3458,7 +3458,7 @@ dependencies = [
 
 [[package]]
 name = "xeno-primitives"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "proptest",
  "ropey",
@@ -3472,7 +3472,7 @@ dependencies = [
 
 [[package]]
 name = "xeno-registry"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "tracing",
  "xeno-keymap-core",
@@ -3491,7 +3491,7 @@ dependencies = [
 
 [[package]]
 name = "xeno-registry-actions"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "linkme",
  "paste",
@@ -3509,7 +3509,7 @@ dependencies = [
 
 [[package]]
 name = "xeno-registry-commands"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "futures",
  "linkme",
@@ -3523,11 +3523,11 @@ dependencies = [
 
 [[package]]
 name = "xeno-registry-core"
-version = "0.3.0"
+version = "0.4.0"
 
 [[package]]
 name = "xeno-registry-gutter"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "linkme",
  "paste",
@@ -3537,7 +3537,7 @@ dependencies = [
 
 [[package]]
 name = "xeno-registry-hooks"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "linkme",
  "paste",
@@ -3549,7 +3549,7 @@ dependencies = [
 
 [[package]]
 name = "xeno-registry-motions"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "linkme",
  "paste",
@@ -3561,7 +3561,7 @@ dependencies = [
 
 [[package]]
 name = "xeno-registry-notifications"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "linkme",
  "xeno-registry-core",
@@ -3569,7 +3569,7 @@ dependencies = [
 
 [[package]]
 name = "xeno-registry-options"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "linkme",
  "strsim",
@@ -3579,7 +3579,7 @@ dependencies = [
 
 [[package]]
 name = "xeno-registry-statusline"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "linkme",
  "xeno-registry-core",
@@ -3587,7 +3587,7 @@ dependencies = [
 
 [[package]]
 name = "xeno-registry-textobj"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "linkme",
  "paste",
@@ -3599,7 +3599,7 @@ dependencies = [
 
 [[package]]
 name = "xeno-registry-themes"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "linkme",
  "strsim",
@@ -3609,7 +3609,7 @@ dependencies = [
 
 [[package]]
 name = "xeno-runtime-config"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "kdl",
  "notify",
@@ -3622,14 +3622,14 @@ dependencies = [
 
 [[package]]
 name = "xeno-runtime-data"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "include_dir",
 ]
 
 [[package]]
 name = "xeno-runtime-language"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "cc",
  "kdl",
@@ -3648,7 +3648,7 @@ dependencies = [
 
 [[package]]
 name = "xeno-term"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "anyhow",
  "clap",
@@ -3675,7 +3675,7 @@ dependencies = [
 
 [[package]]
 name = "xeno-tui"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "anstyle",
  "bitflags 2.10.0",

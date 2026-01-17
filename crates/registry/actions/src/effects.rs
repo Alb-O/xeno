@@ -532,7 +532,10 @@ mod tests {
 		assert!(matches!(effect, Effect::View(ViewEffect::SetSelection(_))));
 
 		let effect: Effect = Mode::Insert.into();
-		assert!(matches!(effect, Effect::App(AppEffect::SetMode(Mode::Insert))));
+		assert!(matches!(
+			effect,
+			Effect::App(AppEffect::SetMode(Mode::Insert))
+		));
 
 		let notification: Notification = xeno_registry_notifications::keys::undo.into();
 		let effect: Effect = notification.into();

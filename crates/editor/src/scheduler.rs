@@ -112,10 +112,10 @@ impl WorkScheduler {
 			HookPriority::Background => {
 				if self.background.len() >= BACKGROUND_DROP_THRESHOLD {
 					self.dropped_total += 1;
-					if let Some(doc_id) = item.doc_id {
-						if let Some(count) = self.pending_by_doc.get_mut(&(doc_id, item.kind)) {
-							*count = count.saturating_sub(1);
-						}
+					if let Some(doc_id) = item.doc_id
+						&& let Some(count) = self.pending_by_doc.get_mut(&(doc_id, item.kind))
+					{
+						*count = count.saturating_sub(1);
 					}
 					tracing::debug!(
 						background_pending = self.background.len(),
@@ -151,7 +151,10 @@ impl WorkScheduler {
 
 	/// Returns the count of pending work for a document and kind.
 	pub fn pending_for_doc(&self, doc_id: DocId, kind: WorkKind) -> usize {
-		self.pending_by_doc.get(&(doc_id, kind)).copied().unwrap_or(0)
+		self.pending_by_doc
+			.get(&(doc_id, kind))
+			.copied()
+			.unwrap_or(0)
 	}
 
 	/// Returns true if there is pending work.
@@ -269,8 +272,8 @@ impl WorkScheduler {
 
 #[cfg(test)]
 mod tests {
-	use std::sync::atomic::{AtomicUsize, Ordering};
 	use std::sync::Arc;
+	use std::sync::atomic::{AtomicUsize, Ordering};
 
 	use super::*;
 

@@ -16,9 +16,7 @@ use xeno_registry::{HookContext, HookEventData, emit_sync_with as emit_hook_sync
 
 use super::Editor;
 #[cfg(feature = "lsp")]
-use crate::lsp::pending::{
-	LSP_DEBOUNCE, LSP_MAX_INCREMENTAL_BYTES, LSP_MAX_INCREMENTAL_CHANGES,
-};
+use crate::lsp::pending::{LSP_DEBOUNCE, LSP_MAX_INCREMENTAL_BYTES, LSP_MAX_INCREMENTAL_CHANGES};
 use crate::metrics::StatsSnapshot;
 use crate::types::{Invocation, InvocationPolicy, InvocationResult};
 
@@ -160,12 +158,13 @@ impl Editor {
 		let buffers = &self.core.buffers;
 		let metrics = &self.metrics;
 
-		self.pending_lsp.flush_due(now, LSP_DEBOUNCE, &sync, metrics, |doc_id| {
-			buffers
-				.buffers()
-				.find(|b| b.document_id() == doc_id)
-				.map(|b| b.with_doc(|doc| doc.content().clone()))
-		});
+		self.pending_lsp
+			.flush_due(now, LSP_DEBOUNCE, &sync, metrics, |doc_id| {
+				buffers
+					.buffers()
+					.find(|b| b.document_id() == doc_id)
+					.map(|b| b.with_doc(|doc| doc.content().clone()))
+			});
 	}
 
 	/// Queues an immediate LSP change and returns an ack receiver when written.
