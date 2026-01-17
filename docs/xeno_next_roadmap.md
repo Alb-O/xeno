@@ -427,10 +427,10 @@ These are valuable but should follow the core hardening.
 
 **Goal:** reduce LSP payload size and number of edits.
 
-- [ ] Coalesce at flush time (operate on `PendingLsp.changes`).
-- [ ] Merge adjacent deletes.
-- [ ] Merge consecutive inserts at same point.
-- [ ] Convert delete+insert at same range to replace.
+- [x] Coalesce at flush time (operate on `PendingLsp.changes`).
+- [x] Merge adjacent deletes.
+- [x] Merge consecutive inserts at same point.
+- [x] Convert delete+insert at same range to replace.
 
 **Gate:** payload sizes decrease measurably under sustained typing.
 
@@ -438,29 +438,29 @@ These are valuable but should follow the core hardening.
 
 **Goal:** prevent low-value hooks from starving interactive behavior.
 
-- [ ] Introduce `HookPriority { Interactive, Background }`.
-- [ ] Allow drop policy for Background hooks under backlog.
-- [ ] Optionally preserve ordering only for Interactive hooks.
+- [x] Introduce `HookPriority { Interactive, Background }`.
+- [x] Allow drop policy for Background hooks under backlog.
+- [x] Optionally preserve ordering only for Interactive hooks.
 
 ### E3 — Unify async work under a scheduler abstraction
 
 **Goal:** a single backpressure system for hooks, LSP, indexing, watchers.
 
-- [ ] Introduce `Scheduler` trait and route hooks + LSP flush through it.
-- [ ] Per-tick budgets and priorities become explicit.
-- [ ] Add cancellation by `(doc_id, kind)`.
+- [x] Introduce `Scheduler` trait and route hooks + LSP flush through it.
+- [x] Per-tick budgets and priorities become explicit.
+- [x] Add cancellation by `(doc_id, kind)`.
 
 ### E4 — Test expansions
 
-- [ ] HookRuntime:
-  - [ ] budgeted drain does not block beyond budget (use tokio time control)
-  - [ ] backlog warnings trigger
-- [ ] LSP:
-  - [ ] debounce sends at most one notification per window
-  - [ ] incremental path does not clone full content
-  - [ ] error forces full and recovers
-  - [ ] no overlapping sends per doc
-- [ ] Optional: coalescing property tests
+- [x] HookRuntime:
+  - [x] budgeted drain does not block beyond budget (use tokio time control)
+  - [x] backlog warnings trigger
+- [x] LSP:
+  - [x] debounce sends at most one notification per window
+  - [x] incremental path does not clone full content
+  - [x] error forces full and recovers
+  - [x] no overlapping sends per doc
+- [x] Optional: coalescing property tests (11 tests in coalesce module)
 
 ---
 
@@ -480,4 +480,4 @@ These are valuable but should follow the core hardening.
 - [x] Phase B: LSP pending accumulator + debounce + eliminate incremental content clone
 - [x] Phase C: LSP version discipline + single-flight + error recovery
 - [x] Phase D: Tracing spans + minimal metrics + debug inspection
-- [ ] Phase E: Coalescing + hook priorities + unified scheduler + expanded tests
+- [x] Phase E: Coalescing + hook priorities + unified scheduler + expanded tests

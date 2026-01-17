@@ -62,6 +62,8 @@ pub mod paths;
 pub mod prompt;
 /// Rendering utilities for buffers, status line, and completion.
 pub mod render;
+/// Unified async work scheduler.
+pub mod scheduler;
 /// Separator drag and hover state.
 pub mod separator;
 /// Style utilities and conversions.

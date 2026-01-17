@@ -24,7 +24,6 @@ fn cmd_stats<'a>(
 		// Emit to tracing for log viewer
 		stats.emit();
 
-		// Also show in a popup for immediate visibility
 		let content = format!(
 			"# Editor Statistics
 
@@ -38,7 +37,8 @@ fn cmd_stats<'a>(
 - In-flight: {}
 - Full syncs: {}
 - Incremental syncs: {}
-- Send errors: {}",
+- Send errors: {}
+- Coalesced: {}",
 			stats.hooks_pending,
 			stats.hooks_scheduled,
 			stats.hooks_completed,
@@ -47,6 +47,7 @@ fn cmd_stats<'a>(
 			stats.lsp_full_sync,
 			stats.lsp_incremental_sync,
 			stats.lsp_send_errors,
+			stats.lsp_coalesced,
 		);
 
 		crate::impls::Editor::open_info_popup(

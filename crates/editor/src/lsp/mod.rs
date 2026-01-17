@@ -52,6 +52,7 @@
 //! lsp.on_buffer_change(&buffer).await?;
 //! ```
 
+pub(crate) mod coalesce;
 pub(crate) mod completion_controller;
 pub(crate) mod completion_filter;
 pub(crate) mod diagnostics;

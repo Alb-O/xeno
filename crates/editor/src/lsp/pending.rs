@@ -38,6 +38,7 @@ use tracing::debug;
 use xeno_lsp::{DocumentSync, OffsetEncoding};
 use xeno_primitives::LspDocumentChange;
 
+use super::coalesce::coalesce_changes;
 use crate::buffer::DocumentId;
 use crate::metrics::EditorMetrics;
 
@@ -219,6 +220,23 @@ impl PendingLspState {
 		}
 	}
 
+	/// Returns whether a document has an in-flight send.
+	pub fn is_in_flight(&self, doc_id: &DocumentId) -> bool {
+		self.in_flight.contains(doc_id)
+	}
+
+	/// Marks a document as having an in-flight send.
+	#[cfg(test)]
+	pub fn mark_in_flight(&mut self, doc_id: DocumentId) {
+		self.in_flight.insert(doc_id);
+	}
+
+	/// Clears the in-flight state for a document.
+	#[cfg(test)]
+	pub fn clear_in_flight(&mut self, doc_id: &DocumentId) {
+		self.in_flight.remove(doc_id);
+	}
+
 	/// Accumulates changes for a document.
 	///
 	/// Call this instead of immediately spawning an LSP notification task.
@@ -285,7 +303,9 @@ impl PendingLspState {
 			let path = pending.path.clone();
 			let language = pending.language.clone();
 			let use_incremental = pending.use_incremental();
-			let changes = std::mem::take(&mut pending.changes);
+			let raw_changes = std::mem::take(&mut pending.changes);
+			let raw_count = raw_changes.len();
+			let changes = coalesce_changes(raw_changes);
 			let change_count = changes.len();
 			let bytes = pending.bytes;
 			let editor_version = pending.editor_version;
@@ -295,11 +315,18 @@ impl PendingLspState {
 				doc_id = doc_id.0,
 				path = ?path,
 				mode,
+				raw_count,
 				change_count,
+				coalesced = raw_count.saturating_sub(change_count),
 				bytes,
 				editor_version,
 				"lsp.flush_start"
 			);
+
+			let coalesced = raw_count.saturating_sub(change_count);
+			if coalesced > 0 {
+				metrics.add_coalesced(coalesced as u64);
+			}
 
 			let sync = sync.clone();
 			let tx = self.completion_tx.clone();
@@ -492,5 +519,105 @@ mod tests {
 		);
 
 		assert_eq!(state.pending.get(&DocumentId(1)).unwrap().editor_version, 42);
+	}
+
+	#[test]
+	fn test_single_flight_sends_tracked() {
+		let mut state = PendingLspState::new();
+
+		assert!(!state.in_flight.contains(&DocumentId(1)));
+
+		state.mark_in_flight(DocumentId(1));
+		assert!(state.in_flight.contains(&DocumentId(1)));
+		assert!(state.is_in_flight(&DocumentId(1)));
+
+		state.clear_in_flight(&DocumentId(1));
+		assert!(!state.in_flight.contains(&DocumentId(1)));
+	}
+
+	#[test]
+	fn test_error_forces_full_sync() {
+		let mut pending = PendingLsp::new(
+			PathBuf::from("test.rs"),
+			"rust".to_string(),
+			true,
+			OffsetEncoding::Utf16,
+			0,
+		);
+
+		assert!(!pending.force_full);
+		pending.mark_error_retry();
+		assert!(pending.force_full);
+		assert!(pending.retry_after.is_some());
+		assert!(pending.retry_after.unwrap() > Instant::now());
+	}
+
+	#[test]
+	fn test_accumulate_while_in_flight() {
+		let mut state = PendingLspState::new();
+
+		state.accumulate(
+			DocumentId(1),
+			PathBuf::from("test.rs"),
+			"rust".to_string(),
+			vec![LspDocumentChange {
+				range: xeno_primitives::lsp::LspRange::point(
+					xeno_primitives::lsp::LspPosition::new(0, 0),
+				),
+				new_text: "a".to_string(),
+			}],
+			false,
+			true,
+			OffsetEncoding::Utf16,
+			1,
+		);
+		state.mark_in_flight(DocumentId(1));
+		state.pending.remove(&DocumentId(1));
+
+		state.accumulate(
+			DocumentId(1),
+			PathBuf::from("test.rs"),
+			"rust".to_string(),
+			vec![LspDocumentChange {
+				range: xeno_primitives::lsp::LspRange::point(
+					xeno_primitives::lsp::LspPosition::new(0, 1),
+				),
+				new_text: "b".to_string(),
+			}],
+			false,
+			true,
+			OffsetEncoding::Utf16,
+			2,
+		);
+
+		let pending = state.pending.get(&DocumentId(1)).unwrap();
+		assert_eq!(pending.changes.len(), 1);
+		assert_eq!(pending.editor_version, 2);
+		assert!(state.is_in_flight(&DocumentId(1)));
+	}
+
+	#[test]
+	fn test_bytes_threshold_triggers_full_sync() {
+		let mut pending = PendingLsp::new(
+			PathBuf::from("test.rs"),
+			"rust".to_string(),
+			true,
+			OffsetEncoding::Utf16,
+			0,
+		);
+
+		pending.append_changes(
+			vec![LspDocumentChange {
+				range: xeno_primitives::lsp::LspRange::point(
+					xeno_primitives::lsp::LspPosition::new(0, 0),
+				),
+				new_text: "x".repeat(LSP_MAX_INCREMENTAL_BYTES + 1),
+			}],
+			false,
+			1,
+		);
+
+		assert!(pending.force_full);
+		assert!(pending.changes.is_empty());
 	}
 }

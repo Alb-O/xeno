@@ -371,6 +371,7 @@ impl Editor {
 			lsp_full_sync: self.metrics.full_sync_count(),
 			lsp_incremental_sync: self.metrics.incremental_sync_count(),
 			lsp_send_errors: self.metrics.send_error_count(),
+			lsp_coalesced: self.metrics.coalesced_count(),
 		}
 	}
 

@@ -76,6 +76,7 @@ struct EditorStats {
 	lsp_full_sync: u64,
 	lsp_incremental_sync: u64,
 	lsp_send_errors: u64,
+	lsp_coalesced: u64,
 	last_updated: Option<Instant>,
 }
 
@@ -92,6 +93,7 @@ impl EditorStats {
 					"lsp_full_sync" => self.lsp_full_sync = v,
 					"lsp_incremental_sync" => self.lsp_incremental_sync = v,
 					"lsp_send_errors" => self.lsp_send_errors = v,
+					"lsp_coalesced" => self.lsp_coalesced = v,
 					_ => {}
 				}
 			}
@@ -547,6 +549,7 @@ impl LogViewer {
 			format!("    Full sync:   {:>6}", self.stats.lsp_full_sync),
 			format!("    Incremental: {:>6}", self.stats.lsp_incremental_sync),
 			format!("    Errors:      {:>6}", self.stats.lsp_send_errors),
+			format!("    Coalesced:   {:>6}", self.stats.lsp_coalesced),
 			String::new(),
 			format!("  Updated: {}", age),
 			String::new(),

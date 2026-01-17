@@ -64,6 +64,7 @@ macro_rules! hook {
 				},
 				event: $crate::HookEvent::$event,
 				mutability: $crate::HookMutability::Mutable,
+				execution_priority: $crate::HookPriority::Interactive,
 				handler: $crate::HookHandler::Mutable([<hook_handler_ $name>]),
 			};
 		}
@@ -97,6 +98,7 @@ macro_rules! hook {
 				},
 				event: $crate::HookEvent::$event,
 				mutability: $crate::HookMutability::Immutable,
+				execution_priority: $crate::HookPriority::Interactive,
 				handler: $crate::HookHandler::Immutable([<hook_handler_ $name>]),
 			};
 		}

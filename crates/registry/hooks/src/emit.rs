@@ -4,7 +4,7 @@ use tracing::warn;
 
 use super::HOOKS;
 use super::context::{HookContext, MutableHookContext};
-use super::types::{BoxFuture, HookAction, HookHandler, HookMutability, HookResult};
+use super::types::{BoxFuture, HookAction, HookHandler, HookMutability, HookPriority, HookResult};
 
 /// Emit an event to all registered hooks.
 ///
@@ -104,7 +104,10 @@ pub async fn emit_mutable(ctx: &mut MutableHookContext<'_>) -> HookResult {
 /// for later execution.
 pub trait HookScheduler {
 	/// Queue an async hook future for later execution.
-	fn schedule(&mut self, fut: BoxFuture);
+	///
+	/// The `priority` indicates whether this hook is interactive (must complete) or
+	/// background (can be dropped under backlog).
+	fn schedule(&mut self, fut: BoxFuture, priority: HookPriority);
 }
 
 /// Emit an event synchronously, scheduling async hooks for later execution.
@@ -134,7 +137,7 @@ pub fn emit_sync_with<S: HookScheduler>(ctx: &HookContext<'_>, scheduler: &mut S
 				}
 			}
 			HookAction::Async(fut) => {
-				scheduler.schedule(fut);
+				scheduler.schedule(fut, hook.execution_priority);
 			}
 		}
 	}

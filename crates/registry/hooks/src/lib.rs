@@ -40,8 +40,8 @@ pub use context::{
 };
 pub use emit::{HookScheduler, emit, emit_mutable, emit_sync, emit_sync_with};
 pub use types::{
-	BoxFuture, HookAction, HookDef, HookHandler, HookMutability, HookResult, RegistryEntry,
-	RegistryMeta, RegistryMetadata, RegistrySource, impl_registry_entry,
+	BoxFuture, HookAction, HookDef, HookHandler, HookMutability, HookPriority, HookResult,
+	RegistryEntry, RegistryMeta, RegistryMetadata, RegistrySource, impl_registry_entry,
 };
 pub use xeno_primitives::Mode;
 

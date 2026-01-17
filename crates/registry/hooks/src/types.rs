@@ -10,6 +10,19 @@ pub use xeno_registry_core::{
 use super::HookEvent;
 use super::context::{HookContext, MutableHookContext};
 
+/// Execution priority for async hooks.
+///
+/// Interactive hooks must always complete; background hooks can be dropped
+/// under backlog to prevent UI stalls.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum HookPriority {
+	/// High-priority hook that must complete (e.g., LSP sync, user-visible feedback).
+	#[default]
+	Interactive,
+	/// Low-priority hook that can be dropped under backlog (e.g., analytics, telemetry).
+	Background,
+}
+
 /// Result of a hook execution.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum HookResult {
@@ -85,6 +98,8 @@ pub struct HookDef {
 	pub event: HookEvent,
 	/// Whether this hook can mutate editor state.
 	pub mutability: HookMutability,
+	/// Execution priority for scheduling (Interactive vs Background).
+	pub execution_priority: HookPriority,
 	/// The hook handler function.
 	///
 	/// Returns [`HookAction::Done`] for sync completion or [`HookAction::Async`]
@@ -98,6 +113,7 @@ impl std::fmt::Debug for HookDef {
 			.field("name", &self.meta.name)
 			.field("event", &self.event)
 			.field("mutability", &self.mutability)
+			.field("execution_priority", &self.execution_priority)
 			.field("priority", &self.meta.priority)
 			.field("description", &self.meta.description)
 			.finish()
