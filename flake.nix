@@ -6,7 +6,7 @@
   inputs = {
     # Core inputs
     flake-parts.url = "github:hercules-ci/flake-parts";
-    imp.url = "github:imp-nix/imp";
+    imp.url = "github:imp-nix/imp-nix";
     nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
     systems.url = "github:nix-systems/default";
 

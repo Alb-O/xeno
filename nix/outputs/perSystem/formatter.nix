@@ -13,7 +13,7 @@
       rootSrc,
       ...
     }:
-    imp-fmt-lib.make {
+    imp-fmt-lib.mk {
       inherit pkgs treefmt-nix;
       excludes = [
         "target/*"
