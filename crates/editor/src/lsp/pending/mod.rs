@@ -60,6 +60,19 @@ pub const LSP_ERROR_RETRY_DELAY: Duration = Duration::from_millis(250);
 /// Maximum number of documents flushed per tick.
 pub const LSP_MAX_DOCS_PER_TICK: usize = 8;
 
+/// LSP document configuration for change accumulation.
+#[derive(Debug, Clone)]
+pub struct LspDocumentConfig {
+	/// File path for this document.
+	pub path: PathBuf,
+	/// Language ID for this document.
+	pub language: String,
+	/// Whether this document supports incremental sync.
+	pub supports_incremental: bool,
+	/// Offset encoding for the LSP server.
+	pub encoding: OffsetEncoding,
+}
+
 /// Pending LSP changes for a single document.
 #[derive(Debug)]
 pub struct PendingLsp {
@@ -87,22 +100,16 @@ pub struct PendingLsp {
 
 impl PendingLsp {
 	/// Creates a new pending state for a document.
-	pub fn new(
-		path: PathBuf,
-		language: String,
-		supports_incremental: bool,
-		encoding: OffsetEncoding,
-		editor_version: u64,
-	) -> Self {
+	pub fn new(config: LspDocumentConfig, editor_version: u64) -> Self {
 		Self {
 			last_edit_at: Instant::now(),
 			force_full: false,
 			changes: Vec::new(),
 			bytes: 0,
-			path,
-			language,
-			supports_incremental,
-			encoding,
+			path: config.path,
+			language: config.language,
+			supports_incremental: config.supports_incremental,
+			encoding: config.encoding,
 			editor_version,
 			retry_after: None,
 		}
@@ -155,6 +162,14 @@ impl PendingLsp {
 	/// Returns true if incremental sync should be used.
 	pub fn use_incremental(&self) -> bool {
 		!self.force_full && self.supports_incremental && !self.changes.is_empty()
+	}
+
+	/// Updates the document configuration fields.
+	fn update_config(&mut self, config: LspDocumentConfig) {
+		self.path = config.path;
+		self.language = config.language;
+		self.supports_incremental = config.supports_incremental;
+		self.encoding = config.encoding;
 	}
 
 	/// Marks this pending state for full sync retry after an error.
@@ -257,31 +272,20 @@ impl PendingLspState {
 	pub fn accumulate(
 		&mut self,
 		doc_id: DocumentId,
-		path: PathBuf,
-		language: String,
+		config: LspDocumentConfig,
 		changes: Vec<LspDocumentChange>,
 		force_full: bool,
-		supports_incremental: bool,
-		encoding: OffsetEncoding,
 		editor_version: u64,
 	) {
 		let added_changes = changes.len();
 		let added_bytes: usize = changes.iter().map(|c| c.new_text.len()).sum();
 
-		let entry = self.pending.entry(doc_id).or_insert_with(|| {
-			PendingLsp::new(
-				path.clone(),
-				language.clone(),
-				supports_incremental,
-				encoding,
-				editor_version,
-			)
-		});
+		let entry = self
+			.pending
+			.entry(doc_id)
+			.or_insert_with(|| PendingLsp::new(config.clone(), editor_version));
 
-		entry.path = path;
-		entry.language = language;
-		entry.supports_incremental = supports_incremental;
-		entry.encoding = encoding;
+		entry.update_config(config);
 		entry.append_changes(changes, force_full, editor_version);
 
 		tracing::trace!(

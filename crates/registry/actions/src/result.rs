@@ -15,6 +15,12 @@ pub struct ResultHandlerRegistry {
 	handlers: OnceLock<Mutex<Vec<&'static ResultHandler>>>,
 }
 
+impl Default for ResultHandlerRegistry {
+	fn default() -> Self {
+		Self::new()
+	}
+}
+
 impl ResultHandlerRegistry {
 	/// Creates a new empty registry.
 	pub const fn new() -> Self {

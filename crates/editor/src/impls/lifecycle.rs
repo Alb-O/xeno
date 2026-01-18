@@ -120,7 +120,7 @@ impl Editor {
 			return;
 		}
 
-		let uri_set: HashSet<_> = uris.into_iter().collect();
+		let uri_set: HashSet<&str> = uris.iter().map(|u| u.as_str()).collect();
 		for buffer in self.core.buffers.buffers_mut() {
 			let Some(path) = buffer.path() else {
 				continue;
@@ -128,7 +128,7 @@ impl Editor {
 			let Some(uri) = xeno_lsp::uri_from_path(&path) else {
 				continue;
 			};
-			if !uri_set.contains(&uri) {
+			if !uri_set.contains(uri.as_str()) {
 				continue;
 			}
 
@@ -170,12 +170,14 @@ impl Editor {
 
 		self.pending_lsp.accumulate(
 			doc_id,
-			path,
-			language,
+			crate::lsp::pending::LspDocumentConfig {
+				path,
+				language,
+				supports_incremental,
+				encoding,
+			},
 			changes,
 			force_full_sync,
-			supports_incremental,
-			encoding,
 			editor_version,
 		);
 	}

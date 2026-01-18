@@ -2,15 +2,18 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 
 use super::*;
 
+fn test_config() -> LspDocumentConfig {
+	LspDocumentConfig {
+		path: PathBuf::from("test.rs"),
+		language: "rust".to_string(),
+		supports_incremental: true,
+		encoding: OffsetEncoding::Utf16,
+	}
+}
+
 #[test]
 fn test_pending_lsp_append_respects_thresholds() {
-	let mut pending = PendingLsp::new(
-		PathBuf::from("test.rs"),
-		"rust".to_string(),
-		true,
-		OffsetEncoding::Utf16,
-		0,
-	);
+	let mut pending = PendingLsp::new(test_config(), 0);
 
 	for i in 0..LSP_MAX_INCREMENTAL_CHANGES + 1 {
 		pending.append_changes(
@@ -31,43 +34,22 @@ fn test_pending_lsp_append_respects_thresholds() {
 
 #[test]
 fn test_pending_lsp_is_due_respects_debounce() {
-	let pending = PendingLsp::new(
-		PathBuf::from("test.rs"),
-		"rust".to_string(),
-		true,
-		OffsetEncoding::Utf16,
-		0,
-	);
-
+	let pending = PendingLsp::new(test_config(), 0);
 	assert!(!pending.is_due(Instant::now(), LSP_DEBOUNCE));
 }
 
 #[test]
 fn test_pending_lsp_force_full_is_due_immediately() {
-	let mut pending = PendingLsp::new(
-		PathBuf::from("test.rs"),
-		"rust".to_string(),
-		true,
-		OffsetEncoding::Utf16,
-		0,
-	);
+	let mut pending = PendingLsp::new(test_config(), 0);
 	pending.force_full = true;
-
 	assert!(pending.is_due(Instant::now(), LSP_DEBOUNCE));
 }
 
 #[test]
 fn test_pending_lsp_retry_after_delays_flush() {
-	let mut pending = PendingLsp::new(
-		PathBuf::from("test.rs"),
-		"rust".to_string(),
-		true,
-		OffsetEncoding::Utf16,
-		0,
-	);
+	let mut pending = PendingLsp::new(test_config(), 0);
 	pending.force_full = true;
 	pending.retry_after = Some(Instant::now() + Duration::from_secs(1));
-
 	assert!(!pending.is_due(Instant::now(), LSP_DEBOUNCE));
 }
 
@@ -75,16 +57,7 @@ fn test_pending_lsp_retry_after_delays_flush() {
 fn test_pending_state_accumulate_updates_version() {
 	let mut state = PendingLspState::new();
 
-	state.accumulate(
-		DocumentId(1),
-		PathBuf::from("test.rs"),
-		"rust".to_string(),
-		vec![],
-		false,
-		true,
-		OffsetEncoding::Utf16,
-		42,
-	);
+	state.accumulate(DocumentId(1), test_config(), vec![], false, 42);
 
 	assert_eq!(
 		state.pending.get(&DocumentId(1)).unwrap().editor_version,
@@ -108,13 +81,7 @@ fn test_single_flight_sends_tracked() {
 
 #[test]
 fn test_error_forces_full_sync() {
-	let mut pending = PendingLsp::new(
-		PathBuf::from("test.rs"),
-		"rust".to_string(),
-		true,
-		OffsetEncoding::Utf16,
-		0,
-	);
+	let mut pending = PendingLsp::new(test_config(), 0);
 
 	assert!(!pending.force_full);
 	pending.mark_error_retry();
@@ -129,8 +96,7 @@ fn test_accumulate_while_in_flight() {
 
 	state.accumulate(
 		DocumentId(1),
-		PathBuf::from("test.rs"),
-		"rust".to_string(),
+		test_config(),
 		vec![LspDocumentChange {
 			range: xeno_primitives::lsp::LspRange::point(xeno_primitives::lsp::LspPosition::new(
 				0, 0,
@@ -138,8 +104,6 @@ fn test_accumulate_while_in_flight() {
 			new_text: "a".to_string(),
 		}],
 		false,
-		true,
-		OffsetEncoding::Utf16,
 		1,
 	);
 	state.mark_in_flight(DocumentId(1));
@@ -147,8 +111,7 @@ fn test_accumulate_while_in_flight() {
 
 	state.accumulate(
 		DocumentId(1),
-		PathBuf::from("test.rs"),
-		"rust".to_string(),
+		test_config(),
 		vec![LspDocumentChange {
 			range: xeno_primitives::lsp::LspRange::point(xeno_primitives::lsp::LspPosition::new(
 				0, 1,
@@ -156,8 +119,6 @@ fn test_accumulate_while_in_flight() {
 			new_text: "b".to_string(),
 		}],
 		false,
-		true,
-		OffsetEncoding::Utf16,
 		2,
 	);
 
@@ -169,13 +130,7 @@ fn test_accumulate_while_in_flight() {
 
 #[test]
 fn test_bytes_threshold_triggers_full_sync() {
-	let mut pending = PendingLsp::new(
-		PathBuf::from("test.rs"),
-		"rust".to_string(),
-		true,
-		OffsetEncoding::Utf16,
-		0,
-	);
+	let mut pending = PendingLsp::new(test_config(), 0);
 
 	pending.append_changes(
 		vec![LspDocumentChange {
@@ -200,8 +155,7 @@ async fn test_incremental_flush_skips_snapshot() {
 
 	state.accumulate(
 		DocumentId(1),
-		PathBuf::from("test.rs"),
-		"rust".to_string(),
+		test_config(),
 		vec![LspDocumentChange {
 			range: xeno_primitives::lsp::LspRange::point(xeno_primitives::lsp::LspPosition::new(
 				0, 0,
@@ -209,8 +163,6 @@ async fn test_incremental_flush_skips_snapshot() {
 			new_text: "x".to_string(),
 		}],
 		false,
-		true,
-		OffsetEncoding::Utf16,
 		1,
 	);
 
