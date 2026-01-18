@@ -2,10 +2,7 @@
   "nodes": {
     "docgen": {
       "inputs": {
-        "imp-fmt": [
-          "imp",
-          "imp-fmt"
-        ],
+        "imp-fmt": "imp-fmt",
         "nix-unit": [
           "imp",
           "nix-unit"
@@ -73,17 +70,16 @@
       "inputs": {
         "docgen": "docgen",
         "flake-parts": "flake-parts_2",
-        "imp-fmt": "imp-fmt",
         "nix-unit": "nix-unit",
         "nixpkgs": "nixpkgs",
-        "treefmt-nix": "treefmt-nix"
+        "treefmt-nix": "treefmt-nix_2"
       },
       "locked": {
-        "lastModified": 1767276715,
-        "narHash": "sha256-HCl/DQQUHi2oePNGThCN3Gk4RazvOZhPN54pP6ae8Ss=",
+        "lastModified": 1768731087,
+        "narHash": "sha256-hBilN+VuedXWZfOO+YdMHLXLc5PbzKQHDjnsV0viOQM=",
         "owner": "imp-nix",
         "repo": "imp.lib",
-        "rev": "ad9570a3b439eda0fbded2f00b5afa4d1bda1b01",
+        "rev": "8adc2bd8d1c274b3270ab41acc61523a924bbb05",
         "type": "github"
       },
       "original": {
@@ -96,33 +92,12 @@
       "inputs": {
         "nixpkgs": [
           "imp",
+          "docgen",
           "nixpkgs"
         ],
         "treefmt-nix": [
           "imp",
-          "treefmt-nix"
-        ]
-      },
-      "locked": {
-        "lastModified": 1767008577,
-        "narHash": "sha256-z1Wj2WfHFJ/s3v85RDLdYKsqH+DrfN2ANqIZxAo+LXk=",
-        "owner": "imp-nix",
-        "repo": "imp.fmt",
-        "rev": "b20265fcef391f9ec97d43e5f5ea445302db7b77",
-        "type": "github"
-      },
-      "original": {
-        "owner": "imp-nix",
-        "repo": "imp.fmt",
-        "type": "github"
-      }
-    },
-    "imp-fmt_2": {
-      "inputs": {
-        "nixpkgs": [
-          "nixpkgs"
-        ],
-        "treefmt-nix": [
+          "docgen",
           "treefmt-nix"
         ]
       },
@@ -173,10 +148,7 @@
           "imp",
           "nixpkgs"
         ],
-        "treefmt-nix": [
-          "imp",
-          "treefmt-nix"
-        ]
+        "treefmt-nix": "treefmt-nix"
       },
       "locked": {
         "lastModified": 1762774186,
@@ -258,11 +230,10 @@
       "inputs": {
         "flake-parts": "flake-parts",
         "imp": "imp",
-        "imp-fmt": "imp-fmt_2",
         "nixpkgs": "nixpkgs_2",
         "rust-overlay": "rust-overlay",
         "systems": "systems",
-        "treefmt-nix": "treefmt-nix_2"
+        "treefmt-nix": "treefmt-nix_3"
       }
     },
     "rust-overlay": {
@@ -304,6 +275,28 @@
       "inputs": {
         "nixpkgs": [
           "imp",
+          "nix-unit",
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "lastModified": 1768158989,
+        "narHash": "sha256-67vyT1+xClLldnumAzCTBvU0jLZ1YBcf4vANRWP3+Ak=",
+        "owner": "numtide",
+        "repo": "treefmt-nix",
+        "rev": "e96d59dff5c0d7fddb9d113ba108f03c3ef99eca",
+        "type": "github"
+      },
+      "original": {
+        "owner": "numtide",
+        "repo": "treefmt-nix",
+        "type": "github"
+      }
+    },
+    "treefmt-nix_2": {
+      "inputs": {
+        "nixpkgs": [
+          "imp",
           "nixpkgs"
         ]
       },
@@ -321,7 +314,7 @@
         "type": "github"
       }
     },
-    "treefmt-nix_2": {
+    "treefmt-nix_3": {
       "inputs": {
         "nixpkgs": [
           "nixpkgs"
