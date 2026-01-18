@@ -1,11 +1,7 @@
 {
   __inputs = {
-    imp-fmt.url = "github:imp-nix/imp.fmt";
-    imp-fmt.inputs.nixpkgs.follows = "nixpkgs";
-
     treefmt-nix.url = "github:numtide/treefmt-nix";
     treefmt-nix.inputs.nixpkgs.follows = "nixpkgs";
-    imp-fmt.inputs.treefmt-nix.follows = "treefmt-nix";
   };
 
   __functor =
@@ -17,7 +13,7 @@
       rootSrc,
       ...
     }:
-    imp-fmt-lib.make {
+    imp-fmt-lib.mk {
       inherit pkgs treefmt-nix;
       excludes = [
         "target/*"
@@ -28,6 +24,6 @@
         enable = true;
         package = pkgs.rust-bin.fromRustupToolchainFile (rootSrc + "/rust-toolchain.toml");
       };
-      kdlfmt.enable = true;
+      kdlfmt = true;
     };
 }
