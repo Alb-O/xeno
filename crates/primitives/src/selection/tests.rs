@@ -1,6 +1,5 @@
-use crate::Range;
-
 use super::*;
+use crate::Range;
 
 #[test]
 fn single_selection() {

@@ -13,10 +13,10 @@
 use std::collections::BTreeMap;
 use std::ops::Range as StdRange;
 
+use xeno_lsp::OffsetEncoding;
 use xeno_lsp::lsp_types::{
 	CompletionItem, CompletionTextEdit, CompletionTriggerKind, InsertTextFormat, TextEdit,
 };
-use xeno_lsp::{OffsetEncoding, char_range_to_lsp_range};
 use xeno_primitives::range::CharIdx;
 use xeno_primitives::transaction::Bias;
 use xeno_primitives::{Range, Selection};
@@ -28,16 +28,13 @@ use super::events::map_completion_item_with_indices;
 use super::snippet::{Snippet, SnippetPlaceholder, parse_snippet};
 use super::types::{LspMenuKind, LspMenuState};
 use super::workspace_edit::{ApplyError, BufferEditPlan, PlannedTextEdit, convert_text_edit};
+use crate::CompletionItem as UiCompletionItem;
 use crate::buffer::ViewId;
 use crate::completion::{CompletionState, SelectionIntent};
 use crate::impls::Editor;
-use crate::CompletionItem as UiCompletionItem;
 
 impl Editor {
-	pub(crate) fn is_completion_trigger_key(
-		&self,
-		key: &termina::event::KeyEvent,
-	) -> bool {
+	pub(crate) fn is_completion_trigger_key(&self, key: &termina::event::KeyEvent) -> bool {
 		use termina::event::{KeyCode, Modifiers};
 		key.code == KeyCode::Char(' ')
 			&& key.modifiers.contains(Modifiers::CONTROL)

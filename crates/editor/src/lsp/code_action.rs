@@ -48,9 +48,9 @@ impl Editor {
 			selection.to()
 		};
 		let encoding = client.offset_encoding();
-		let Some(range) = buffer.with_doc(|doc| {
-			xeno_lsp::char_range_to_lsp_range(doc.content(), start, end, encoding)
-		}) else {
+		let Some(range) = buffer
+			.with_doc(|doc| xeno_lsp::char_range_to_lsp_range(doc.content(), start, end, encoding))
+		else {
 			self.notify(keys::error("Invalid range for code actions"));
 			return false;
 		};
