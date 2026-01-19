@@ -3507,6 +3507,7 @@ dependencies = [
  "xeno-registry-motions",
  "xeno-registry-notifications",
  "xeno-registry-textobj",
+ "xeno-runtime-language",
 ]
 
 [[package]]

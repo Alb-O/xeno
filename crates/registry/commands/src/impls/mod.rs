@@ -13,6 +13,8 @@ pub(super) mod help;
 pub(super) mod quit;
 /// Registry diagnostic commands.
 pub(super) mod registry_diag;
+/// Runtime asset reseeding command.
+pub(super) mod reseed;
 /// Option setting commands.
 pub(super) mod set;
 /// Theme switching commands.

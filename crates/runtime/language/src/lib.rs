@@ -45,4 +45,4 @@ pub use lsp_config::{
 	load_lsp_configs,
 };
 pub use query::{CapturedNode, IndentQuery, RainbowQuery, TagQuery, TextObjectQuery, read_query};
-pub use runtime::{ensure_runtime, reseed_runtime};
+pub use runtime::{RuntimeStatus, ensure_runtime, reseed_runtime};
