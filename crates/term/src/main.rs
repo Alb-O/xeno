@@ -4,6 +4,7 @@ mod app;
 mod backend;
 mod cli;
 mod log_launcher;
+mod splash;
 mod terminal;
 #[cfg(test)]
 mod tests;
@@ -29,7 +30,9 @@ async fn main() -> anyhow::Result<()> {
 		return run_log_launcher_mode(&cli);
 	}
 
-	setup_tracing();
+	let startup_time = std::time::Instant::now();
+	let log_buffer = splash::new_log_buffer();
+	setup_tracing(Some(log_buffer.clone()));
 
 	match cli.command {
 		Some(Command::Grammar { action }) => return handle_grammar_command(action),
@@ -126,7 +129,7 @@ async fn main() -> anyhow::Result<()> {
 		)));
 	}
 
-	run_editor(editor).await?;
+	run_editor(editor, Some((log_buffer, startup_time))).await?;
 	Ok(())
 }
 
@@ -299,7 +302,7 @@ fn setup_socket_tracing(socket_path: &str) {
 	use tracing_subscriber::prelude::*;
 
 	let Ok(layer) = log_launcher::SocketLayer::new(socket_path) else {
-		setup_tracing();
+		setup_tracing(None);
 		return;
 	};
 
@@ -389,7 +392,7 @@ async fn run_editor_normal() -> anyhow::Result<()> {
 		)));
 	}
 
-	run_editor(editor).await?;
+	run_editor(editor, None).await?;
 	Ok(())
 }
 
@@ -397,7 +400,10 @@ async fn run_editor_normal() -> anyhow::Result<()> {
 ///
 /// Logs go to `~/.local/share/xeno/xeno.log` (or platform equivalent).
 /// Set `XENO_LOG` env var to control filtering (e.g., `XENO_LOG=debug` or `XENO_LOG=xeno_lsp=trace`).
-fn setup_tracing() {
+///
+/// If a log buffer is provided, also registers a splash screen layer to capture
+/// recent logs for display during startup.
+fn setup_tracing(log_buffer: Option<splash::LogBuffer>) {
 	use std::fs::OpenOptions;
 
 	use tracing_subscriber::EnvFilter;
@@ -426,9 +432,12 @@ fn setup_tracing() {
 		.with_span_events(FmtSpan::CLOSE)
 		.with_target(true);
 
+	let splash_layer = log_buffer.map(splash::SplashLogLayer::new);
+
 	tracing_subscriber::registry()
 		.with(filter)
 		.with(file_layer)
+		.with(splash_layer)
 		.init();
 
 	info!(path = ?log_path, "Tracing initialized");
