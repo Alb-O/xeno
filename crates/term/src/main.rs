@@ -9,11 +9,10 @@ mod terminal;
 mod tests;
 
 use std::ffi::OsStr;
-use std::path::PathBuf;
 
 use app::run_editor;
 use clap::Parser;
-use cli::{Cli, Command, GrammarAction};
+use cli::{Cli, Command, FileLocation, GrammarAction};
 use tracing::{info, warn};
 use xeno_editor::Editor;
 use xeno_registry::options::keys;
@@ -73,8 +72,14 @@ async fn main() -> anyhow::Result<()> {
 		None
 	};
 
-	let mut editor = match cli.file {
-		Some(path) => Editor::new(path).await?,
+	let mut editor = match cli.file_location() {
+		Some(loc) => {
+			let mut ed = Editor::new(loc.path).await?;
+			if let Some(line) = loc.line {
+				ed.goto_line_col(line, loc.column.unwrap_or(0));
+			}
+			ed
+		}
 		None => Editor::new_scratch(),
 	};
 
@@ -265,7 +270,7 @@ fn run_log_launcher_mode(cli: &Cli) -> anyhow::Result<()> {
 
 	let mut args: Vec<&OsStr> = Vec::new();
 	if let Some(ref file) = cli.file {
-		args.push(file.as_os_str());
+		args.push(OsStr::new(file));
 	}
 	if let Some(ref theme) = cli.theme {
 		args.push(OsStr::new("--theme"));
@@ -342,10 +347,15 @@ async fn run_editor_normal() -> anyhow::Result<()> {
 			},
 		);
 
-	let file: Option<PathBuf> = std::env::args().nth(1).map(PathBuf::from);
-	let mut editor = match file {
-		Some(path) if path.exists() || !path.to_string_lossy().starts_with('-') => {
-			Editor::new(path).await?
+	let file_arg = std::env::args().nth(1);
+	let mut editor = match file_arg {
+		Some(arg) if !arg.starts_with('-') => {
+			let loc = FileLocation::parse(&arg);
+			let mut ed = Editor::new(loc.path).await?;
+			if let Some(line) = loc.line {
+				ed.goto_line_col(line, loc.column.unwrap_or(0));
+			}
+			ed
 		}
 		_ => Editor::new_scratch(),
 	};
