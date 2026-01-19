@@ -23,6 +23,10 @@ pub enum TerminalSequence {
 	PopKittyKeyboardFlags,
 	/// Reset cursor to default style.
 	ResetCursorStyle,
+	/// Enable bracketed paste mode.
+	EnableBracketedPaste,
+	/// Disable bracketed paste mode.
+	DisableBracketedPaste,
 }
 
 /// Configures terminal feature sequences used by the UI.
@@ -42,6 +46,7 @@ const TERMINAL_CONFIG_ENV: &str = "XENO_TERMINAL_CONFIG";
 /// Default enter sequences with full kitty keyboard support.
 const DEFAULT_ENTER: &[TerminalSequence] = &[
 	TerminalSequence::EnableAlternateScreen,
+	TerminalSequence::EnableBracketedPaste,
 	TerminalSequence::PushKittyKeyboardDisambiguate,
 	TerminalSequence::EnableMouseTracking,
 	TerminalSequence::EnableSgrMouse,
@@ -52,6 +57,7 @@ const DEFAULT_ENTER: &[TerminalSequence] = &[
 const DEFAULT_EXIT: &[TerminalSequence] = &[
 	TerminalSequence::ResetCursorStyle,
 	TerminalSequence::PopKittyKeyboardFlags,
+	TerminalSequence::DisableBracketedPaste,
 	TerminalSequence::DisableMouseTracking,
 	TerminalSequence::DisableSgrMouse,
 	TerminalSequence::DisableAnyEventMouse,
@@ -61,6 +67,7 @@ const DEFAULT_EXIT: &[TerminalSequence] = &[
 /// Enter sequences for terminals without kitty keyboard support.
 const NO_KITTY_ENTER: &[TerminalSequence] = &[
 	TerminalSequence::EnableAlternateScreen,
+	TerminalSequence::EnableBracketedPaste,
 	TerminalSequence::EnableMouseTracking,
 	TerminalSequence::EnableSgrMouse,
 	TerminalSequence::EnableAnyEventMouse,
@@ -69,6 +76,7 @@ const NO_KITTY_ENTER: &[TerminalSequence] = &[
 /// Exit sequences for terminals without kitty keyboard support.
 const NO_KITTY_EXIT: &[TerminalSequence] = &[
 	TerminalSequence::ResetCursorStyle,
+	TerminalSequence::DisableBracketedPaste,
 	TerminalSequence::DisableMouseTracking,
 	TerminalSequence::DisableSgrMouse,
 	TerminalSequence::DisableAnyEventMouse,

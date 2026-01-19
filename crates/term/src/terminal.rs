@@ -56,6 +56,12 @@ fn sequence_to_csi(sequence: TerminalSequence) -> Csi {
 		TerminalSequence::ResetCursorStyle => {
 			Csi::Cursor(Cursor::CursorStyle(CursorStyle::Default))
 		}
+		TerminalSequence::EnableBracketedPaste => Csi::Mode(Mode::SetDecPrivateMode(
+			DecPrivateMode::Code(DecPrivateModeCode::BracketedPaste),
+		)),
+		TerminalSequence::DisableBracketedPaste => Csi::Mode(Mode::ResetDecPrivateMode(
+			DecPrivateMode::Code(DecPrivateModeCode::BracketedPaste),
+		)),
 	}
 }
 
