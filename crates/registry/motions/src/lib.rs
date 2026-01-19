@@ -19,6 +19,7 @@ pub use xeno_registry_core::{
 #[macro_use]
 pub(crate) mod macros;
 
+mod diff;
 mod document;
 mod horizontal;
 mod line;
@@ -42,6 +43,7 @@ impl RegistryReg<MotionDef> for MotionReg {
 ///
 /// Note: Duplicate motion names across crates will conflict at compile time.
 pub mod keys {
+	pub use crate::diff::*;
 	pub use crate::document::*;
 	pub use crate::horizontal::*;
 	pub use crate::line::*;

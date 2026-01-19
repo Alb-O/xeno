@@ -196,8 +196,8 @@ syntax {
 	}
 	// Diff
 	diff {
-		plus fg=$green
-		minus fg=$red
-		delta fg=$orange
+		plus fg=$green bg="#1d2b1d"
+		minus fg=$red bg="#2b1d1d"
+		delta fg=$orange bg="#2b2b1d"
 	}
 }

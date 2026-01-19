@@ -227,3 +227,15 @@ action!(move_middle_screen, { description: "Move to middle of screen", bindings:
 action!(move_bottom_screen, { description: "Move to bottom of screen" }, |ctx| {
 	ActionResult::Effects(ActionEffects::screen_motion(ScreenPosition::Bottom, ctx.count))
 });
+
+action!(goto_next_hunk, {
+	description: "Goto next diff hunk",
+	short_desc: "Next hunk",
+	bindings: r#"normal "] c""#,
+}, |ctx| cursor_motion(ctx, motions::next_hunk));
+
+action!(goto_prev_hunk, {
+	description: "Goto previous diff hunk",
+	short_desc: "Previous hunk",
+	bindings: r#"normal "[ c""#,
+}, |ctx| cursor_motion(ctx, motions::prev_hunk));
