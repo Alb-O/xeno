@@ -20,7 +20,7 @@ let
   generatedRules = pkgs.runCommand "ast-grep-rules" { buildInputs = [ pkgs.yq-go ]; } ''
     mkdir -p $out
     ${lib.concatMapStringsSep "\n" (
-      r: ''echo '${astGrep.toJson r.rule}' | yq -P > $out/${r.name}.yml''
+      r: "echo '${astGrep.toJson r.rule}' | yq -P > $out/${r.name}.yml"
     ) rules}
   '';
 in

@@ -100,7 +100,10 @@ fn resolve_non_cursor_style(input: CellStyleInput<'_>) -> Style {
 
 /// Computes selection highlight style.
 fn resolve_selection_style(input: CellStyleInput<'_>, base: Style) -> Style {
-	let syntax_fg = base.fg.or(input.base_style.fg).unwrap_or(input.line_ctx.base_bg);
+	let syntax_fg = base
+		.fg
+		.or(input.base_style.fg)
+		.unwrap_or(input.line_ctx.base_bg);
 	let selection_bg = input
 		.line_ctx
 		.base_bg

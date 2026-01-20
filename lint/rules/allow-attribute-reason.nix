@@ -9,7 +9,7 @@ mkRule {
     any = [
       {
         all = [
-          { pattern = ''#[allow($$$ARGS)]''; }
+          { pattern = "#[allow($$$ARGS)]"; }
           {
             not = {
               regex = ''reason\s*='';
@@ -19,7 +19,7 @@ mkRule {
       }
       {
         all = [
-          { pattern = ''#![allow($$$ARGS)]''; }
+          { pattern = "#![allow($$$ARGS)]"; }
           {
             not = {
               regex = ''reason\s*='';

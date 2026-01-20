@@ -59,24 +59,26 @@ impl FileLocation {
 			let line_str = &s[second_last_abs + 1..last_colon_abs];
 
 			if let (Ok(line), Ok(col)) = (line_str.parse::<usize>(), after_last.parse::<usize>())
-				&& line > 0 {
-					return Some(Self {
-						path: PathBuf::from(&s[..second_last_abs]),
-						line: Some(line - 1),
-						column: Some(col.saturating_sub(1)),
-					});
-				}
+				&& line > 0
+			{
+				return Some(Self {
+					path: PathBuf::from(&s[..second_last_abs]),
+					line: Some(line - 1),
+					column: Some(col.saturating_sub(1)),
+				});
+			}
 		}
 
 		// Try path:line
 		if let Ok(line) = after_last.parse::<usize>()
-			&& line > 0 {
-				return Some(Self {
-					path: PathBuf::from(&s[..last_colon_abs]),
-					line: Some(line - 1),
-					column: None,
-				});
-			}
+			&& line > 0
+		{
+			return Some(Self {
+				path: PathBuf::from(&s[..last_colon_abs]),
+				line: Some(line - 1),
+				column: None,
+			});
+		}
 
 		None
 	}

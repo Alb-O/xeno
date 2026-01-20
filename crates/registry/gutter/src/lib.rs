@@ -88,7 +88,13 @@ pub struct GutterCell {
 impl GutterCell {
 	/// Creates a cell with a single uniformly-styled segment.
 	pub fn new(text: impl Into<String>, fg: Option<Color>, dim: bool) -> Self {
-		Self { segments: vec![GutterSegment { text: text.into(), fg, dim }] }
+		Self {
+			segments: vec![GutterSegment {
+				text: text.into(),
+				fg,
+				dim,
+			}],
+		}
 	}
 
 	/// Creates a cell from multiple styled segments.
@@ -176,8 +182,8 @@ pub fn column_width(gutter: &GutterDef, ctx: &GutterWidthContext) -> u16 {
 
 /// Computes total gutter width from enabled columns (includes trailing separator).
 pub fn total_width(ctx: &GutterWidthContext) -> u16 {
-	let columns_width: u16 = enabled_gutters().map(|g| column_width(g, ctx)).sum();
-	(columns_width > 0).then_some(columns_width + 1).unwrap_or(0)
+	let width: u16 = enabled_gutters().map(|g| column_width(g, ctx)).sum();
+	if width > 0 { width + 1 } else { 0 }
 }
 
 /// Computes widths for all enabled columns, returning (width, def) pairs sorted by priority.

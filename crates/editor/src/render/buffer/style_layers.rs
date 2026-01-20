@@ -80,7 +80,10 @@ impl LineStyleContext {
 	///
 	/// # Returns
 	/// The computed background color, or None if default should be used.
-	#[allow(dead_code, reason = "utility method, cell_style module handles full style resolution")]
+	#[allow(
+		dead_code,
+		reason = "utility method, cell_style module handles full style resolution"
+	)]
 	pub fn cell_bg(
 		&self,
 		syntax_bg: Option<Color>,

@@ -13,11 +13,11 @@ use tracing::field::{Field, Visit};
 use tracing::{Event, Level, Subscriber};
 use tracing_subscriber::Layer;
 use tracing_subscriber::layer::Context;
+use xeno_tui::Terminal;
 use xeno_tui::layout::Rect;
 use xeno_tui::style::{Color, Style};
 use xeno_tui::text::{Line, Span, Text};
 use xeno_tui::widgets::{Block, Clear, Paragraph};
-use xeno_tui::Terminal;
 
 use crate::backend::TerminaBackend;
 
@@ -138,7 +138,10 @@ pub fn render_splash(
 				let msg = truncate_str(&entry.message, max_msg_len);
 
 				lines.push(Line::from(vec![
-					Span::styled(format!("{:5}", entry.level), Style::default().fg(level_color)),
+					Span::styled(
+						format!("{:5}", entry.level),
+						Style::default().fg(level_color),
+					),
 					Span::raw(" "),
 					Span::styled(
 						format!("{:12}", truncate_str(short_target, 12)),

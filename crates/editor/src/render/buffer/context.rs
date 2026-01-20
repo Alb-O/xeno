@@ -307,8 +307,8 @@ impl<'a> BufferRenderContext<'a> {
 			gutter
 		};
 
-		let diff_line_numbers: Option<Vec<DiffLineNumbers>> = is_diff_file
-			.then(|| buffer.with_doc(|doc| compute_diff_line_numbers(doc.content())));
+		let diff_line_numbers: Option<Vec<DiffLineNumbers>> =
+			is_diff_file.then(|| buffer.with_doc(|doc| compute_diff_line_numbers(doc.content())));
 
 		let gutter_layout = GutterLayout::from_selector(effective_gutter, total_lines, area.width);
 		let gutter_width = gutter_layout.total_width;
@@ -607,7 +607,10 @@ impl<'a> BufferRenderContext<'a> {
 			GutterSelector::Registry => GutterSelector::Named(DIFF_WITH_SIGNS),
 			GutterSelector::Named(names) => {
 				let has_line_nums = names.iter().any(|n| {
-					matches!(*n, "line_numbers" | "relative_line_numbers" | "hybrid_line_numbers")
+					matches!(
+						*n,
+						"line_numbers" | "relative_line_numbers" | "hybrid_line_numbers"
+					)
 				});
 				let has_signs = names.contains(&"signs");
 

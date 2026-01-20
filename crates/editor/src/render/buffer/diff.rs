@@ -131,15 +131,24 @@ pub fn compute_diff_line_numbers(text: &Rope) -> Vec<DiffLineNumbers> {
 
 		match DiffLineType::from_line(&line_str) {
 			DiffLineType::Addition => {
-				result.push(DiffLineNumbers { old: None, new: new_line });
+				result.push(DiffLineNumbers {
+					old: None,
+					new: new_line,
+				});
 				new_line = new_line.map(|n| n + 1);
 			}
 			DiffLineType::Deletion => {
-				result.push(DiffLineNumbers { old: old_line, new: None });
+				result.push(DiffLineNumbers {
+					old: old_line,
+					new: None,
+				});
 				old_line = old_line.map(|n| n + 1);
 			}
 			DiffLineType::Context if old_line.is_some() || new_line.is_some() => {
-				result.push(DiffLineNumbers { old: old_line, new: new_line });
+				result.push(DiffLineNumbers {
+					old: old_line,
+					new: new_line,
+				});
 				old_line = old_line.map(|n| n + 1);
 				new_line = new_line.map(|n| n + 1);
 			}
@@ -168,13 +177,19 @@ mod tests {
 
 	#[test]
 	fn detect_addition() {
-		assert_eq!(DiffLineType::from_line("+added line"), DiffLineType::Addition);
+		assert_eq!(
+			DiffLineType::from_line("+added line"),
+			DiffLineType::Addition
+		);
 		assert_eq!(DiffLineType::from_line("+ "), DiffLineType::Addition);
 	}
 
 	#[test]
 	fn detect_deletion() {
-		assert_eq!(DiffLineType::from_line("-removed line"), DiffLineType::Deletion);
+		assert_eq!(
+			DiffLineType::from_line("-removed line"),
+			DiffLineType::Deletion
+		);
 		assert_eq!(DiffLineType::from_line("- "), DiffLineType::Deletion);
 	}
 
@@ -188,16 +203,25 @@ mod tests {
 
 	#[test]
 	fn detect_context() {
-		assert_eq!(DiffLineType::from_line(" context line"), DiffLineType::Context);
+		assert_eq!(
+			DiffLineType::from_line(" context line"),
+			DiffLineType::Context
+		);
 		assert_eq!(DiffLineType::from_line("plain line"), DiffLineType::Context);
 	}
 
 	#[test]
 	fn file_headers_are_context() {
 		assert_eq!(DiffLineType::from_line("+++"), DiffLineType::Context);
-		assert_eq!(DiffLineType::from_line("+++ a/file.rs"), DiffLineType::Context);
+		assert_eq!(
+			DiffLineType::from_line("+++ a/file.rs"),
+			DiffLineType::Context
+		);
 		assert_eq!(DiffLineType::from_line("---"), DiffLineType::Context);
-		assert_eq!(DiffLineType::from_line("--- b/file.rs"), DiffLineType::Context);
+		assert_eq!(
+			DiffLineType::from_line("--- b/file.rs"),
+			DiffLineType::Context
+		);
 	}
 
 	#[test]

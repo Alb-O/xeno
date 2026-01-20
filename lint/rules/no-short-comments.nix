@@ -19,7 +19,7 @@ mkRule {
       {
         not = {
           any = [
-            { regex = ''^//[/!]''; }
+            { regex = "^//[/!]"; }
             {
               regex = ''^//\s*(?i)(TODO|FIXME|BUG|SAFETY|NOTE|CHECK|XXX|HACK|DEBUG|INTERNAL|TEST|STUB|WAIT|FALLTHROUGH|REFACTOR|OPTIMIZE|DOCS|FIX|PERF|WARN|WARNING|INFO|LINT|ANCHOR)'';
             }

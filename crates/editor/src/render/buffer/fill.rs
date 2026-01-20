@@ -39,7 +39,8 @@ impl FillConfig {
 
 	/// Creates a fill span of the given width, or `None` if no background.
 	pub fn fill_span(self, width: usize) -> Option<Span<'static>> {
-		self.bg.map(|bg| Span::styled(" ".repeat(width), Style::default().bg(bg)))
+		self.bg
+			.map(|bg| Span::styled(" ".repeat(width), Style::default().bg(bg)))
 	}
 
 	/// Creates a fill span, returning an empty span if no background.
