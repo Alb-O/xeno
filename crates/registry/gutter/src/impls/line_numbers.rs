@@ -1,6 +1,6 @@
 //! Absolute line numbers gutter column.
 
-use crate::{GutterCell, GutterStyle, gutter};
+use crate::{GutterCell, gutter};
 
 /// Computes dynamic width based on total line count.
 ///
@@ -16,18 +16,8 @@ gutter!(line_numbers, {
 	width: Dynamic(line_number_width)
 }, |ctx| {
 	if ctx.is_continuation {
-		Some(GutterCell {
-			text: "\u{2506}".into(), // ┆ box drawings light triple dash vertical
-			style: GutterStyle::Dim,
-		})
+		Some(GutterCell::new("┆", None, true))
 	} else {
-		Some(GutterCell {
-			text: format!("{}", ctx.line_idx + 1),
-			style: if ctx.is_cursor_line {
-				GutterStyle::Cursor
-			} else {
-				GutterStyle::Normal
-			},
-		})
+		Some(GutterCell::new(format!("{}", ctx.line_idx + 1), None, false))
 	}
 });

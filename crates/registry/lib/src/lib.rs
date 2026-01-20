@@ -60,9 +60,9 @@ pub use commands::{
 	CommandOutcome, CommandResult, all_commands, command, find_command,
 };
 pub use gutter::{
-	GUTTERS, GutterAnnotations, GutterCell, GutterDef, GutterLineContext, GutterStyle, GutterWidth,
-	GutterWidthContext, all as all_gutters, column_width, column_widths, enabled_gutters,
-	find as find_gutter, gutter, total_width as gutter_total_width,
+	Color, GUTTERS, GutterAnnotations, GutterCell, GutterDef, GutterLineContext, GutterSegment,
+	GutterWidth, GutterWidthContext, Theme, all as all_gutters, column_width, column_widths,
+	enabled_gutters, find as find_gutter, gutter, total_width as gutter_total_width,
 };
 pub use hooks::{
 	Bool, BoxFuture, HOOKS, HookAction, HookContext, HookDef, HookEvent, HookEventData,

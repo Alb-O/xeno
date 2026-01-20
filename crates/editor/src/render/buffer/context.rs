@@ -609,7 +609,7 @@ impl<'a> BufferRenderContext<'a> {
 				let has_line_nums = names.iter().any(|n| {
 					matches!(*n, "line_numbers" | "relative_line_numbers" | "hybrid_line_numbers")
 				});
-				let has_signs = names.iter().any(|n| *n == "signs");
+				let has_signs = names.contains(&"signs");
 
 				match (has_line_nums, has_signs) {
 					(true, true) => GutterSelector::Named(DIFF_WITH_SIGNS),

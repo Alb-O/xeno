@@ -4,8 +4,8 @@ use std::path::Path;
 
 use ropey::RopeSlice;
 use xeno_registry::gutter::{
-	GutterAnnotations, GutterCell, GutterLineContext, GutterStyle, GutterWidthContext,
-	column_width, column_widths, find as find_gutter, total_width,
+	GutterAnnotations, GutterCell, GutterLineContext, GutterWidthContext, column_width,
+	column_widths, find as find_gutter, total_width,
 };
 use xeno_registry::themes::Theme;
 use xeno_tui::style::{Color, Style};
@@ -119,16 +119,12 @@ impl GutterLayout {
 	}
 
 	fn columns_total_width(columns: &[(u16, &'static xeno_registry::gutter::GutterDef)]) -> u16 {
-		let columns_width: u16 = columns.iter().map(|(width, _)| *width).sum();
-		if columns_width > 0 {
-			columns_width + 1
-		} else {
-			0
-		}
+		let width: u16 = columns.iter().map(|(w, _)| *w).sum();
+		(width > 0).then_some(width + 1).unwrap_or(0)
 	}
 
 	/// Renders gutter spans for a single line.
-	#[allow(clippy::too_many_arguments)]
+	#[allow(clippy::too_many_arguments, reason = "render context requires all parameters")]
 	pub fn render_line(
 		&self,
 		line_idx: usize,
@@ -149,18 +145,10 @@ impl GutterLayout {
 				if self.total_width == 0 {
 					return Vec::new();
 				}
-				let cell = if is_continuation {
-					None
-				} else {
-					Some(GutterCell {
-						text: prompt.to_string(),
-						style: GutterStyle::Normal,
-					})
-				};
-				vec![
-					self.format_cell(cell, 1, is_cursor_line, theme, cursorline_bg),
-					self.separator_span(is_cursor_line, cursorline_bg),
-				]
+				let cell = (!is_continuation).then(|| GutterCell::new(prompt.to_string(), None, false));
+				let mut spans = self.format_cell(cell, 1, is_cursor_line, theme, cursorline_bg);
+				spans.push(self.separator_span(is_cursor_line, cursorline_bg));
+				spans
 			}
 			GutterLayoutKind::Custom { width, render } => {
 				if *width == 0 {
@@ -175,12 +163,11 @@ impl GutterLayout {
 					line_text,
 					path,
 					annotations,
+					theme,
 				};
-				let cell = render(&ctx);
-				vec![
-					self.format_cell(cell, *width, is_cursor_line, theme, cursorline_bg),
-					self.separator_span(is_cursor_line, cursorline_bg),
-				]
+				let mut spans = self.format_cell(render(&ctx), *width, is_cursor_line, theme, cursorline_bg);
+				spans.push(self.separator_span(is_cursor_line, cursorline_bg));
+				spans
 			}
 			GutterLayoutKind::Columns(columns) => {
 				if columns.is_empty() {
@@ -196,16 +183,13 @@ impl GutterLayout {
 					line_text,
 					path,
 					annotations,
+					theme,
 				};
 
-				let mut spans = Vec::with_capacity(columns.len() + 1);
-
+				let mut spans = Vec::with_capacity(columns.len() * 2 + 1);
 				for (width, gutter_def) in columns {
-					let cell = (gutter_def.render)(&ctx);
-					let span = self.format_cell(cell, *width, is_cursor_line, theme, cursorline_bg);
-					spans.push(span);
+					spans.extend(self.format_cell((gutter_def.render)(&ctx), *width, is_cursor_line, theme, cursorline_bg));
 				}
-
 				spans.push(self.separator_span(is_cursor_line, cursorline_bg));
 				spans
 			}
@@ -231,27 +215,21 @@ impl GutterLayout {
 				}
 
 				let dim_color = theme.colors.ui.gutter_fg.blend(theme.colors.ui.bg, 0.5);
-				let style = Style::default().fg(dim_color);
-
-				// Right-align ~ within total_width - 1 (for trailing space)
 				let width = self.total_width.saturating_sub(1) as usize;
-				let text = format!("{:>width$} ", "~", width = width);
-
-				vec![Span::styled(text, style)]
+				vec![Span::styled(
+					format!("{:>width$} ", "~", width = width),
+					Style::default().fg(dim_color),
+				)]
 			}
 		}
 	}
 
 	fn separator_span(&self, is_cursor_line: bool, cursorline_bg: Color) -> Span<'static> {
-		let sep_style = if is_cursor_line {
-			Style::default().bg(cursorline_bg)
-		} else {
-			Style::default()
-		};
-		Span::styled(" ", sep_style)
+		let style = if is_cursor_line { Style::default().bg(cursorline_bg) } else { Style::default() };
+		Span::styled(" ", style)
 	}
 
-	/// Formats a gutter cell into a styled span.
+	/// Formats a gutter cell into styled spans.
 	fn format_cell(
 		&self,
 		cell: Option<GutterCell>,
@@ -259,39 +237,28 @@ impl GutterLayout {
 		is_cursor_line: bool,
 		theme: &Theme,
 		cursorline_bg: Color,
-	) -> Span<'static> {
+	) -> Vec<Span<'static>> {
 		let width = width as usize;
+		let base_style = if is_cursor_line { Style::default().bg(cursorline_bg) } else { Style::default() };
 
-		match cell {
-			Some(cell) => {
-				let fg = match cell.style {
-					GutterStyle::Normal | GutterStyle::Cursor => theme.colors.ui.gutter_fg,
-					GutterStyle::Dim | GutterStyle::Hint => {
-						theme.colors.ui.gutter_fg.blend(theme.colors.ui.bg, 0.5)
-					}
-					GutterStyle::Error => theme.colors.semantic.error,
-					GutterStyle::Warning => theme.colors.semantic.warning,
-					GutterStyle::Info => theme.colors.semantic.info,
-				};
+		let Some(cell) = cell else {
+			return vec![Span::styled(" ".repeat(width), base_style)];
+		};
 
-				let mut style = Style::default().fg(fg);
-				if is_cursor_line {
-					style = style.bg(cursorline_bg);
-				}
+		let content_len: usize = cell.segments.iter().map(|s| s.text.len()).sum();
+		let padding = width.saturating_sub(content_len);
 
-				// Right-align the text within the column width
-				let text = format!("{:>width$}", cell.text, width = width);
-				Span::styled(text, style)
-			}
-			None => {
-				// Empty cell - just spaces
-				let style = if is_cursor_line {
-					Style::default().bg(cursorline_bg)
-				} else {
-					Style::default()
-				};
-				Span::styled(" ".repeat(width), style)
-			}
+		let mut spans = Vec::with_capacity(cell.segments.len() + 1);
+		if padding > 0 {
+			spans.push(Span::styled(" ".repeat(padding), base_style));
 		}
+
+		for seg in cell.segments {
+			let base_fg = seg.fg.unwrap_or(theme.colors.ui.gutter_fg);
+			let fg = if seg.dim { base_fg.blend(theme.colors.ui.bg, 0.5) } else { base_fg };
+			spans.push(Span::styled(seg.text, base_style.fg(fg)));
+		}
+
+		spans
 	}
 }

@@ -1,6 +1,6 @@
 //! Sign column for diagnostics, breakpoints, and custom markers.
 
-use crate::{GutterCell, GutterStyle, gutter};
+use crate::{GutterCell, gutter};
 
 gutter!(signs, {
 	description: "Sign column for diagnostics and markers",
@@ -8,20 +8,16 @@ gutter!(signs, {
 	width: Fixed(2),
 	enabled: true
 }, |ctx| {
-	// Custom signs take priority (breakpoints, bookmarks, etc.)
 	if let Some(sign) = ctx.annotations.sign {
-		return Some(GutterCell {
-			text: sign.to_string(),
-			style: GutterStyle::Normal,
-		});
+		return Some(GutterCell::new(sign.to_string(), None, false));
 	}
 
-	// Diagnostic signs with semantic styling
+	let colors = &ctx.theme.colors.semantic;
 	match ctx.annotations.diagnostic_severity {
-		4 => Some(GutterCell { text: "●".into(), style: GutterStyle::Error }),
-		3 => Some(GutterCell { text: "●".into(), style: GutterStyle::Warning }),
-		2 => Some(GutterCell { text: "●".into(), style: GutterStyle::Info }),
-		1 => Some(GutterCell { text: "●".into(), style: GutterStyle::Hint }),
+		4 => Some(GutterCell::new("●", Some(colors.error), false)),
+		3 => Some(GutterCell::new("●", Some(colors.warning), false)),
+		2 => Some(GutterCell::new("●", Some(colors.info), false)),
+		1 => Some(GutterCell::new("●", None, true)),
 		_ => None,
 	}
 });

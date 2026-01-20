@@ -16,6 +16,7 @@ use std::path::Path;
 use std::sync::LazyLock;
 
 use ropey::RopeSlice;
+pub use xeno_registry_themes::{Color, Theme};
 
 mod impls;
 mod macros;
@@ -53,6 +54,8 @@ pub struct GutterLineContext<'a> {
 	pub path: Option<&'a Path>,
 	/// Per-line annotation data (diagnostics, git, etc.).
 	pub annotations: &'a GutterAnnotations,
+	/// Theme for color lookups.
+	pub theme: &'a Theme,
 }
 
 /// Context for width calculation (per-document, not per-line).
@@ -64,33 +67,34 @@ pub struct GutterWidthContext {
 	pub viewport_width: u16,
 }
 
+/// A styled segment within a gutter cell.
+#[derive(Debug, Clone)]
+pub struct GutterSegment {
+	/// Text content.
+	pub text: String,
+	/// Foreground color (None = default gutter_fg from theme).
+	pub fg: Option<Color>,
+	/// Whether to dim the text (blend fg toward bg).
+	pub dim: bool,
+}
+
 /// What a gutter column renders for a single line.
 #[derive(Debug, Clone)]
 pub struct GutterCell {
-	/// Text content (right-aligned within column width by renderer).
-	pub text: String,
-	/// Style hint.
-	pub style: GutterStyle,
+	/// Styled segments (concatenated, then right-aligned within column width).
+	pub segments: Vec<GutterSegment>,
 }
 
-/// Style hints for gutter cells.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum GutterStyle {
-	/// Normal gutter foreground color.
-	#[default]
-	Normal,
-	/// Dimmed (continuations, empty lines).
-	Dim,
-	/// Highlighted (cursor line).
-	Cursor,
-	/// Error diagnostic (theme error color).
-	Error,
-	/// Warning diagnostic (theme warning color).
-	Warning,
-	/// Info diagnostic (theme info color).
-	Info,
-	/// Hint diagnostic (dimmed).
-	Hint,
+impl GutterCell {
+	/// Creates a cell with a single uniformly-styled segment.
+	pub fn new(text: impl Into<String>, fg: Option<Color>, dim: bool) -> Self {
+		Self { segments: vec![GutterSegment { text: text.into(), fg, dim }] }
+	}
+
+	/// Creates a cell from multiple styled segments.
+	pub fn styled(segments: Vec<GutterSegment>) -> Self {
+		Self { segments }
+	}
 }
 
 /// Width calculation strategy.
@@ -170,14 +174,10 @@ pub fn column_width(gutter: &GutterDef, ctx: &GutterWidthContext) -> u16 {
 	}
 }
 
-/// Computes total gutter width from enabled columns.
+/// Computes total gutter width from enabled columns (includes trailing separator).
 pub fn total_width(ctx: &GutterWidthContext) -> u16 {
 	let columns_width: u16 = enabled_gutters().map(|g| column_width(g, ctx)).sum();
-	if columns_width > 0 {
-		columns_width + 1 // trailing separator space
-	} else {
-		0
-	}
+	(columns_width > 0).then_some(columns_width + 1).unwrap_or(0)
 }
 
 /// Computes widths for all enabled columns, returning (width, def) pairs sorted by priority.

@@ -3526,6 +3526,7 @@ dependencies = [
  "paste",
  "ropey",
  "xeno-registry-core",
+ "xeno-registry-themes",
 ]
 
 [[package]]

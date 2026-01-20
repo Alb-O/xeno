@@ -1,6 +1,6 @@
 //! Relative line numbers gutter column.
 
-use crate::{GutterCell, GutterStyle, gutter};
+use crate::{GutterCell, gutter};
 
 /// Computes dynamic width based on total line count.
 fn line_number_width(ctx: &crate::GutterWidthContext) -> u16 {
@@ -14,19 +14,8 @@ gutter!(relative_line_numbers, {
 	enabled: false
 }, |ctx| {
 	if ctx.is_continuation {
-		Some(GutterCell {
-			text: "\u{2506}".into(),
-			style: GutterStyle::Dim,
-		})
+		Some(GutterCell::new("┆", None, true))
 	} else {
-		let distance = ctx.line_idx.abs_diff(ctx.cursor_line);
-		Some(GutterCell {
-			text: format!("{}", distance),
-			style: if ctx.is_cursor_line {
-				GutterStyle::Cursor
-			} else {
-				GutterStyle::Normal
-			},
-		})
+		Some(GutterCell::new(format!("{}", ctx.line_idx.abs_diff(ctx.cursor_line)), None, false))
 	}
 });
