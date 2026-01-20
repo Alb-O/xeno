@@ -3364,6 +3364,7 @@ dependencies = [
  "tokio",
  "tokio-util",
  "tracing",
+ "unicode-width 0.2.2",
  "xeno-keymap-core",
  "xeno-lsp",
  "xeno-primitives",

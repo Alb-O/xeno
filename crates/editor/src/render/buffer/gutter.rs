@@ -3,6 +3,7 @@
 use std::path::Path;
 
 use ropey::RopeSlice;
+use unicode_width::UnicodeWidthStr;
 use xeno_registry::gutter::{
 	GutterAnnotations, GutterCell, GutterLineContext, GutterWidthContext, column_width,
 	column_widths, find as find_gutter, total_width,
@@ -264,7 +265,7 @@ impl GutterLayout {
 			return vec![Span::styled(" ".repeat(width), base_style)];
 		};
 
-		let content_len: usize = cell.segments.iter().map(|s| s.text.len()).sum();
+		let content_len: usize = cell.segments.iter().map(|s| s.text.width()).sum();
 		let padding = width.saturating_sub(content_len);
 
 		let mut spans = Vec::with_capacity(cell.segments.len() + 1);
