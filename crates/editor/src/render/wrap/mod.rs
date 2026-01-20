@@ -14,12 +14,17 @@ pub struct WrapSegment {
 	pub text: String,
 	/// Character offset from the start of the original line.
 	pub start_offset: usize,
+	/// Visual indent width to prepend for this segment (0 for first segment).
+	pub indent_cols: usize,
 }
 
 /// Wraps a line of text into segments that fit within a maximum width.
 ///
 /// Breaks at word boundaries when possible, keeping punctuation attached
 /// to their associated words (sticky punctuation).
+///
+/// Continuation lines (after the first segment) are indented to match the
+/// leading whitespace of the original line, creating visually aligned wrapped text.
 pub fn wrap_line(line: &str, max_width: usize, tab_width: usize) -> Vec<WrapSegment> {
 	if max_width == 0 {
 		return vec![];
@@ -30,10 +35,23 @@ pub fn wrap_line(line: &str, max_width: usize, tab_width: usize) -> Vec<WrapSegm
 		return vec![];
 	}
 
+	const MIN_CONTINUATION_CONTENT: usize = 20;
+
+	let raw_indent = leading_indent_width(&chars, tab_width);
+	let has_room = max_width.saturating_sub(raw_indent) >= MIN_CONTINUATION_CONTENT;
+	let indent_cols = if has_room { raw_indent } else { 0 };
+	let continuation_width = max_width - indent_cols;
+
 	let mut segments = Vec::new();
 	let mut pos = 0;
+	let mut is_first = true;
 
 	while pos < chars.len() {
+		let effective_width = if is_first {
+			max_width
+		} else {
+			continuation_width
+		};
 		let mut col = 0usize;
 		let mut end = pos;
 
@@ -48,7 +66,7 @@ pub fn wrap_line(line: &str, max_width: usize, tab_width: usize) -> Vec<WrapSegm
 				w = 1;
 			}
 
-			let remaining = max_width.saturating_sub(col);
+			let remaining = effective_width.saturating_sub(col);
 			if remaining == 0 {
 				break;
 			}
@@ -58,7 +76,7 @@ pub fn wrap_line(line: &str, max_width: usize, tab_width: usize) -> Vec<WrapSegm
 
 			col += w;
 			end += 1;
-			if col >= max_width {
+			if col >= effective_width {
 				break;
 			}
 		}
@@ -77,12 +95,27 @@ pub fn wrap_line(line: &str, max_width: usize, tab_width: usize) -> Vec<WrapSegm
 		segments.push(WrapSegment {
 			text: chars[pos..break_pos].iter().collect(),
 			start_offset: pos,
+			indent_cols: if is_first { 0 } else { indent_cols },
 		});
 
 		pos = break_pos;
+		is_first = false;
 	}
 
 	segments
+}
+
+/// Calculates the visual width of leading whitespace (spaces and tabs).
+fn leading_indent_width(chars: &[char], tab_width: usize) -> usize {
+	let mut col = 0;
+	for &ch in chars {
+		match ch {
+			' ' => col += 1,
+			'\t' => col += tab_width.saturating_sub(col % tab_width).max(1),
+			_ => break,
+		}
+	}
+	col
 }
 
 fn is_trailing_punct(ch: char) -> bool {
@@ -110,22 +143,16 @@ fn can_break_after(chars: &[char], i: usize) -> bool {
 		return true;
 	};
 
-	// Keep "word." together - don't break before trailing punct
 	if is_trailing_punct(next_ch) && !next_ch.is_whitespace() {
 		return false;
 	}
-
-	// Keep "(word" together - don't break after leading punct
 	if is_leading_punct(ch) {
 		return false;
 	}
-
-	// Break after trailing punct when followed by new word unit
 	if is_trailing_punct(ch) {
 		return next_ch.is_whitespace() || is_leading_punct(next_ch) || next_ch.is_alphanumeric();
 	}
 
-	// Path separators remain breakable
 	ch == '-' || ch == '/'
 }
 

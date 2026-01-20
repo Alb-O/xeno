@@ -399,8 +399,15 @@ impl<'a> BufferRenderContext<'a> {
 					)
 				});
 
+				let mut seg_col = segment.indent_cols;
+				if seg_col > 0 {
+					let indent_style = line_style
+						.fill_bg()
+						.map_or(Style::default(), |bg| Style::default().bg(bg));
+					spans.push(Span::styled(" ".repeat(seg_col), indent_style));
+				}
+
 				let seg_char_offset = segment.start_offset;
-				let mut seg_col = 0usize;
 				for (i, ch) in segment.text.chars().enumerate() {
 					if seg_col >= text_width {
 						break;

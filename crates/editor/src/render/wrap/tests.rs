@@ -7,6 +7,13 @@ fn wrap(text: &str, width: usize) -> Vec<String> {
 		.collect()
 }
 
+fn wrap_with_indent(text: &str, width: usize) -> Vec<(String, usize)> {
+	wrap_line(text, width, 4)
+		.into_iter()
+		.map(|s| (s.text, s.indent_cols))
+		.collect()
+}
+
 #[test]
 fn basic_words() {
 	assert_eq!(wrap("hello world", 6), vec!["hello ", "world"]);
@@ -46,4 +53,51 @@ fn multiple_trailing_punct() {
 #[test]
 fn quote_with_word() {
 	assert_eq!(wrap("say \"hi\" ok", 9), vec!["say \"hi\" ", "ok"]);
+}
+
+#[test]
+fn indent_aware_wrapping() {
+	// Indented line at sufficient width: continuation segments have indent_cols set
+	// "    hello world" at width 30 (enough room for 20+ chars after 4-char indent)
+	let result = wrap_with_indent("    hello world this is a test of wrapping", 30);
+	assert!(result.len() >= 2);
+	assert_eq!(result[0].1, 0); // first segment has no indent
+	assert_eq!(result[1].1, 4); // continuation has 4-space indent
+}
+
+#[test]
+fn no_indent_no_continuation_indent() {
+	// Non-indented line: continuation should have 0 indent
+	let result = wrap_with_indent("hello world foo bar baz qux", 15);
+	assert!(result.len() >= 2);
+	assert_eq!(result[0].1, 0);
+	assert_eq!(result[1].1, 0); // no leading indent means no continuation indent
+}
+
+#[test]
+fn tab_indent_aware() {
+	// Tab-indented line (tab_width=4) at sufficient width
+	let result = wrap_with_indent("\thello world this is a longer line", 30);
+	assert!(result.len() >= 2);
+	assert_eq!(result[0].1, 0); // first has no indent padding
+	assert_eq!(result[1].1, 4); // continuation gets tab's visual width
+}
+
+#[test]
+fn narrow_window_disables_indent() {
+	// When window is too narrow (< 20 chars after indent), indent-aware wrapping is disabled
+	// 4-space indent with width 20 leaves only 16 chars, below the 20-char minimum
+	let result = wrap_with_indent("    hello world foo bar", 20);
+	assert!(result.len() >= 2);
+	assert_eq!(result[0].1, 0);
+	assert_eq!(result[1].1, 0); // indent disabled due to narrow width
+}
+
+#[test]
+fn deep_indent_disables_indent() {
+	// Deep indent that would leave too little content space
+	let result = wrap_with_indent("                deep indent text here", 30);
+	assert!(result.len() >= 2);
+	// 16-space indent with width 30 leaves only 14 chars, below minimum
+	assert_eq!(result[1].1, 0); // indent disabled
 }
