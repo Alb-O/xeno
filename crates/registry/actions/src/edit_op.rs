@@ -170,8 +170,6 @@ pub struct EditPlan {
 pub enum PreEffect {
 	/// Yank the current selection before modifying.
 	Yank,
-	/// Extend selection forward by one character if selection is empty.
-	ExtendForwardIfEmpty,
 }
 
 /// Selection modification before edit.
@@ -314,9 +312,7 @@ pub enum CursorAdjust {
 /// # Arguments
 /// * `yank` - If true, yank selection before deleting.
 pub fn delete(yank: bool) -> EditOp {
-	let mut op = EditOp::new()
-		.with_pre(PreEffect::ExtendForwardIfEmpty)
-		.with_transform(TextTransform::Delete);
+	let mut op = EditOp::new().with_transform(TextTransform::Delete);
 	if yank {
 		op = op.with_pre(PreEffect::Yank);
 	}
@@ -465,6 +461,7 @@ mod tests {
 	#[test]
 	fn test_change_enters_insert_mode() {
 		let op = change(false);
+		assert!(matches!(op.transform, TextTransform::Delete));
 		assert!(op.post.contains(&PostEffect::SetMode(Mode::Insert)));
 	}
 

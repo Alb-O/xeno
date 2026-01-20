@@ -57,10 +57,10 @@ fn test_transaction_insert() {
 #[test]
 fn test_transaction_delete() {
 	let mut doc = Rope::from("hello world");
-	let sel = Selection::single(5, 6);
+	let sel = Selection::single(5, 6); // Deletes ' ' and 'w' (inclusive of head)
 	let tx = Transaction::delete(doc.slice(..), &sel);
 	tx.apply(&mut doc);
-	assert_eq!(doc.to_string(), "helloworld");
+	assert_eq!(doc.to_string(), "helloorld");
 }
 
 #[test]

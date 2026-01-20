@@ -332,7 +332,9 @@ fn test_incremental_syntax_update() {
 	assert_eq!(after_insert, "fn main() { let x = 42;}");
 
 	let old_source = source.clone();
-	let delete_selection = Selection::single(11, 23);
+	// Delete " let x = 42;" (positions 11-22). Transaction::delete uses
+	// to_inclusive(), so head should be at position 22 (the ';').
+	let delete_selection = Selection::single(11, 22);
 	let tx = Transaction::delete(source.slice(..), &delete_selection);
 	tx.apply(&mut source);
 

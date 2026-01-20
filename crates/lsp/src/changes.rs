@@ -91,7 +91,10 @@ mod tests {
 	#[test]
 	fn test_delete_line_computes_correct_range() {
 		let rope = Rope::from("line1\nline2\nline3\n");
-		let sel = Selection::single(6, 12);
+		// Selection from 6 (start of "line2") to 11 (the \n after "line2").
+		// Transaction::delete uses to_inclusive(), so we select up to but not
+		// including position 12 to delete exactly "line2\n".
+		let sel = Selection::single(6, 11);
 		let tx = Transaction::delete(rope.slice(..), &sel);
 
 		let changes = compute_lsp_changes(&rope, &tx, OffsetEncoding::Utf16);

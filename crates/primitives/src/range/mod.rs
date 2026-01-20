@@ -68,11 +68,12 @@ impl Range {
 		self.min()
 	}
 
-	/// Returns the end of the selection extent (exclusive).
+	/// Returns the end of the selection extent (exclusive of end position).
 	///
-	/// For backward selections, this includes the anchor character by
-	/// returning `anchor + 1`. This ensures the character under the cursor
-	/// when selection started is included.
+	/// For forward selections, returns `head` (cursor position excluded).
+	/// For backward selections, returns `anchor + 1` (starting position included).
+	///
+	/// Use [`to_inclusive`] for operations that should always include the cursor.
 	#[inline]
 	pub fn to(&self) -> CharIdx {
 		if self.direction() == Direction::Backward {
@@ -80,6 +81,16 @@ impl Range {
 		} else {
 			self.max()
 		}
+	}
+
+	/// Returns the end of the selection extent, always including the cursor.
+	///
+	/// Unlike [`to`], this always returns `max() + 1` to ensure the character
+	/// at the cursor position (head) is included in operations regardless of
+	/// selection direction.
+	#[inline]
+	pub fn to_inclusive(&self) -> CharIdx {
+		self.max() + 1
 	}
 
 	/// Returns the length of the range in characters.

@@ -87,7 +87,7 @@ impl Editor {
 	pub(crate) fn do_use_selection_as_search(&mut self) -> bool {
 		let primary = self.buffer().selection.primary();
 		let from = primary.from();
-		let to = primary.to();
+		let to = primary.to_inclusive();
 		if from < to {
 			let (text, pattern) = self.buffer().with_doc(|doc| {
 				let text: String = doc.content().slice(from..to).chars().collect();
@@ -124,7 +124,7 @@ impl Editor {
 	pub(crate) fn select_regex(&mut self, pattern: &str) -> bool {
 		let primary = self.buffer().selection.primary();
 		let from = primary.from();
-		let to = primary.to();
+		let to = primary.to_inclusive();
 		if from >= to {
 			self.notify(keys::NO_SELECTION_TO_SEARCH);
 			return false;
@@ -159,7 +159,7 @@ impl Editor {
 	pub(crate) fn split_regex(&mut self, pattern: &str) -> bool {
 		let primary = self.buffer().selection.primary();
 		let from = primary.from();
-		let to = primary.to();
+		let to = primary.to_inclusive();
 		if from >= to {
 			self.notify(keys::NO_SELECTION_TO_SPLIT);
 			return false;
@@ -216,7 +216,7 @@ impl Editor {
 					.iter()
 					.map(|range| {
 						let from = range.from();
-						let to = range.to();
+						let to = range.to_inclusive();
 						let text: String = doc.content().slice(from..to).chars().collect();
 						(*range, text)
 					})

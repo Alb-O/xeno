@@ -2,6 +2,7 @@
 
 use std::collections::HashSet;
 
+use unicode_width::UnicodeWidthChar;
 use xeno_primitives::Mode;
 use xeno_primitives::range::CharIdx;
 use xeno_registry::gutter::GutterAnnotations;
@@ -456,23 +457,21 @@ impl<'a> BufferRenderContext<'a> {
 							tab_cells = 1;
 						}
 						tab_cells = tab_cells.min(remaining);
-
-						if is_cursor && use_block_cursor {
-							spans.push(Span::styled(" ", resolved.cursor));
-							if tab_cells > 1 {
-								spans.push(Span::styled(
-									" ".repeat(tab_cells - 1),
-									non_cursor_style,
-								));
-							}
-						} else {
-							spans.push(Span::styled(" ".repeat(tab_cells), style));
-						}
-
+						spans.push(Span::styled(" ".repeat(tab_cells), style));
 						seg_col += tab_cells;
 					} else {
-						spans.push(Span::styled(ch.to_string(), style));
-						seg_col += 1;
+						let char_width = ch.width().unwrap_or(1).max(1);
+						let remaining = text_width.saturating_sub(seg_col);
+						if remaining == 0 {
+							break;
+						}
+						if char_width <= remaining {
+							spans.push(Span::styled(ch.to_string(), style));
+							seg_col += char_width;
+						} else {
+							spans.push(Span::styled(" ".repeat(remaining), style));
+							seg_col += remaining;
+						}
 					}
 				}
 

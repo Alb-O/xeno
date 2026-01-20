@@ -115,8 +115,8 @@ impl Transaction {
 
 	/// Creates a transaction that deletes each selection range.
 	///
-	/// For each range in the selection, deletes the text in `[from, to)`.
-	/// For backward selections, this includes the anchor character.
+	/// For each range in the selection, deletes the text in `[from, to_inclusive)`.
+	/// This ensures the cursor position is always included in the deletion.
 	///
 	/// # Parameters
 	/// - `doc`: The document slice
@@ -129,7 +129,7 @@ impl Transaction {
 			doc,
 			selection.iter().map(|r: &Range| Change {
 				start: r.from(),
-				end: r.to(),
+				end: r.to_inclusive(),
 				replacement: None,
 			}),
 		)

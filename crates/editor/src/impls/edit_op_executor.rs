@@ -85,32 +85,6 @@ impl Editor {
 			PreEffect::Yank => {
 				self.yank_selection();
 			}
-			PreEffect::ExtendForwardIfEmpty => {
-				if self.buffer().selection.primary().is_empty() {
-					let new_ranges: Vec<_> = {
-						let buffer = self.buffer();
-						buffer.with_doc(|doc| {
-							buffer
-								.selection
-								.ranges()
-								.iter()
-								.map(|r| {
-									movement::move_horizontally(
-										doc.content().slice(..),
-										*r,
-										MoveDir::Forward,
-										1,
-										true,
-									)
-								})
-								.collect()
-						})
-					};
-					let primary_index = self.buffer().selection.primary_index();
-					self.buffer_mut()
-						.set_selection(Selection::from_vec(new_ranges, primary_index));
-				}
-			}
 		}
 	}
 
@@ -219,7 +193,11 @@ impl Editor {
 						if idx == buffer.selection.primary_index() {
 							primary_index = ranges.len();
 						}
-						ranges.push(Range::new(range.head - 1, range.head));
+						// Create a collapsed cursor at the character to delete.
+						// Transaction::delete uses to_inclusive() which adds 1,
+						// so a cursor at (head - 1) deletes exactly [head-1, head).
+						let pos = range.head - 1;
+						ranges.push(Range::new(pos, pos));
 					}
 					(ranges, primary_index)
 				};
@@ -416,12 +394,10 @@ impl Editor {
 
 	/// Builds a delete transaction for the current selection.
 	///
-	/// Returns `None` if the selection is empty.
+	/// For empty selections (cursor only), deletes the character at the cursor
+	/// position since `to_inclusive()` ensures the cursor is always included.
 	fn build_delete_transaction(&self) -> Option<(Transaction, Selection)> {
 		let buffer = self.buffer();
-		if buffer.selection.primary().is_empty() {
-			return None;
-		}
 		buffer.with_doc(|doc| {
 			let tx = Transaction::delete(doc.content().slice(..), &buffer.selection);
 			let new_sel = tx.map_selection(&buffer.selection);
@@ -466,7 +442,7 @@ impl Editor {
 			let replacement_str: String = replacement.into();
 			let changes = buffer.selection.iter().map(|range| Change {
 				start: range.from(),
-				end: range.to(),
+				end: range.to_inclusive(),
 				replacement: Some(replacement_str.clone()),
 			});
 			let tx = Transaction::change(doc.content().slice(..), changes);
@@ -483,7 +459,7 @@ impl Editor {
 		let buffer = self.buffer();
 		let primary = buffer.selection.primary();
 		let from = primary.from();
-		let to = primary.to();
+		let to = primary.to_inclusive();
 		if from >= to {
 			return None;
 		}
@@ -498,7 +474,7 @@ impl Editor {
 
 			let changes = buffer.selection.iter().map(|range| Change {
 				start: range.from(),
-				end: range.to(),
+				end: range.to_inclusive(),
 				replacement: Some(mapped.clone()),
 			});
 			let tx = Transaction::change(doc.content().slice(..), changes);
@@ -514,7 +490,7 @@ impl Editor {
 		let buffer = self.buffer();
 		let primary = buffer.selection.primary();
 		let from = primary.from();
-		let to = primary.to();
+		let to = primary.to_inclusive();
 
 		buffer.with_doc(|doc| {
 			let len = if from < to { to - from } else { 1 };
@@ -528,7 +504,7 @@ impl Editor {
 
 			let changes = selection.iter().map(|range| Change {
 				start: range.from(),
-				end: range.to(),
+				end: range.to_inclusive(),
 				replacement: Some(replacement.clone()),
 			});
 			let tx = Transaction::change(doc.content().slice(..), changes);

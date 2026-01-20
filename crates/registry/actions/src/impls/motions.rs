@@ -1,14 +1,30 @@
 //! Motion-based cursor movement actions.
-//!
-//! This module provides actions that wrap motion primitives from `xeno-registry-motions`
-//! and the helper functions for applying motions to selections.
 
+use ropey::RopeSlice;
 use tracing::trace;
 use xeno_primitives::Selection;
-use xeno_primitives::range::Range;
+use xeno_primitives::range::{CharIdx, Range};
+use xeno_registry_motions::movement::is_word_char;
 use xeno_registry_motions::{MotionKey, keys as motions};
 
 use crate::{ActionContext, ActionEffects, ActionResult, ScreenPosition, action};
+
+fn find_word_start(text: RopeSlice, pos: CharIdx) -> CharIdx {
+	let mut start = pos;
+	while start > 0 && text.get_char(start - 1).is_some_and(is_word_char) {
+		start -= 1;
+	}
+	start
+}
+
+fn find_word_end(text: RopeSlice, pos: CharIdx) -> CharIdx {
+	let len = text.len_chars();
+	let mut end = pos;
+	while end + 1 < len && text.get_char(end + 1).is_some_and(is_word_char) {
+		end += 1;
+	}
+	end
+}
 
 /// Applies a typed motion as a cursor movement.
 ///
@@ -92,10 +108,14 @@ pub fn selection_motion(ctx: &ActionContext, motion: MotionKey) -> ActionResult 
 	ActionResult::Effects(ActionEffects::motion(sel))
 }
 
-/// Applies a typed motion as a word-selecting action (Kakoune/Helix style).
+/// Applies a word motion with boundary-aware selection semantics.
 ///
-/// Each press selects a single word from cursor to motion target. With extend
-/// (shift held), accumulates selection across multiple words instead.
+/// Selection behavior depends on cursor position and motion direction:
+/// - Forward from word: selects to target, excluding next word's first char
+/// - Backward, or non-word landing on word: selects just the target word
+/// - Landing on non-word: moves cursor without selection
+///
+/// With extend (shift held), extends existing selection to the new position.
 pub fn word_motion(ctx: &ActionContext, motion: MotionKey) -> ActionResult {
 	let motion_def = motion.def();
 
@@ -115,9 +135,39 @@ pub fn word_motion(ctx: &ActionContext, motion: MotionKey) -> ActionResult {
 			.collect();
 		Selection::from_vec(new_ranges, ctx.selection.primary_index())
 	} else {
-		let current_range = Range::point(ctx.cursor);
-		let new_range = (motion_def.handler)(ctx.text, current_range, ctx.count, false);
-		Selection::single(new_range.anchor, new_range.head)
+		let new_range = (motion_def.handler)(ctx.text, Range::point(ctx.cursor), ctx.count, false);
+		let cursor_on_word = ctx.text.get_char(ctx.cursor).is_some_and(is_word_char);
+		let target_on_word = ctx
+			.text
+			.get_char(new_range.head)
+			.is_some_and(is_word_char);
+		let is_forward = new_range.head >= new_range.anchor;
+
+		if cursor_on_word && is_forward {
+			let at_boundary = !target_on_word
+				|| new_range
+					.head
+					.checked_sub(1)
+					.and_then(|p| ctx.text.get_char(p))
+					.is_none_or(|c| !is_word_char(c));
+			if at_boundary && new_range.head > new_range.anchor + 1 {
+				Selection::single(new_range.anchor, new_range.head - 1)
+			} else if at_boundary {
+				Selection::point(new_range.head)
+			} else {
+				Selection::single(new_range.anchor, new_range.head)
+			}
+		} else if target_on_word {
+			if is_forward {
+				let word_start = find_word_start(ctx.text, new_range.head);
+				Selection::single(word_start, new_range.head)
+			} else {
+				let word_end = find_word_end(ctx.text, new_range.head);
+				Selection::single(word_end, new_range.head)
+			}
+		} else {
+			Selection::point(new_range.head)
+		}
 	};
 
 	ActionResult::Effects(ActionEffects::motion(sel))
