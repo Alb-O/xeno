@@ -11,7 +11,7 @@ use xeno_registry::themes::Theme;
 use xeno_tui::style::{Color, Style};
 use xeno_tui::text::Span;
 
-use super::context::CursorlineConfig;
+use super::style_layers::LineStyleContext;
 use crate::window::GutterSelector;
 
 enum GutterLayoutKind {
@@ -133,14 +133,15 @@ impl GutterLayout {
 		&self,
 		line_idx: usize,
 		total_lines: usize,
-		cursorline: &CursorlineConfig,
+		line_style: &LineStyleContext,
 		is_continuation: bool,
 		line_text: RopeSlice<'_>,
 		path: Option<&Path>,
 		annotations: &GutterAnnotations,
 		theme: &Theme,
 	) -> Vec<Span<'static>> {
-		let is_cursor_line = cursorline.should_highlight(line_idx);
+		let is_cursor_line = line_style.should_highlight_cursorline();
+		let cursorline_bg = line_style.gutter_cursorline_bg();
 
 		match &self.kind {
 			GutterLayoutKind::Hidden => Vec::new(),
@@ -157,8 +158,8 @@ impl GutterLayout {
 					})
 				};
 				vec![
-					self.format_cell(cell, 1, is_cursor_line, theme, cursorline.bg),
-					self.separator_span(is_cursor_line, cursorline.bg),
+					self.format_cell(cell, 1, is_cursor_line, theme, cursorline_bg),
+					self.separator_span(is_cursor_line, cursorline_bg),
 				]
 			}
 			GutterLayoutKind::Custom { width, render } => {
@@ -168,7 +169,7 @@ impl GutterLayout {
 				let ctx = GutterLineContext {
 					line_idx,
 					total_lines,
-					cursor_line: cursorline.line,
+					cursor_line: line_style.cursor_line,
 					is_cursor_line,
 					is_continuation,
 					line_text,
@@ -177,8 +178,8 @@ impl GutterLayout {
 				};
 				let cell = render(&ctx);
 				vec![
-					self.format_cell(cell, *width, is_cursor_line, theme, cursorline.bg),
-					self.separator_span(is_cursor_line, cursorline.bg),
+					self.format_cell(cell, *width, is_cursor_line, theme, cursorline_bg),
+					self.separator_span(is_cursor_line, cursorline_bg),
 				]
 			}
 			GutterLayoutKind::Columns(columns) => {
@@ -189,7 +190,7 @@ impl GutterLayout {
 				let ctx = GutterLineContext {
 					line_idx,
 					total_lines,
-					cursor_line: cursorline.line,
+					cursor_line: line_style.cursor_line,
 					is_cursor_line,
 					is_continuation,
 					line_text,
@@ -201,11 +202,11 @@ impl GutterLayout {
 
 				for (width, gutter_def) in columns {
 					let cell = (gutter_def.render)(&ctx);
-					let span = self.format_cell(cell, *width, is_cursor_line, theme, cursorline.bg);
+					let span = self.format_cell(cell, *width, is_cursor_line, theme, cursorline_bg);
 					spans.push(span);
 				}
 
-				spans.push(self.separator_span(is_cursor_line, cursorline.bg));
+				spans.push(self.separator_span(is_cursor_line, cursorline_bg));
 				spans
 			}
 		}

@@ -4,9 +4,13 @@
 //! given a `BufferRenderContext`. This enables proper split view rendering
 //! where multiple buffers are rendered simultaneously.
 
+mod cell_style;
 mod context;
 mod diagnostics;
+mod diff;
+mod fill;
 mod gutter;
+mod style_layers;
 mod viewport;
 
 pub use context::{BufferRenderContext, RenderResult};

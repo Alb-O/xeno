@@ -3,34 +3,6 @@
 use std::collections::HashSet;
 
 use xeno_primitives::Mode;
-
-/// Type of line in a diff file, used for full-line background styling.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum DiffLineType {
-	/// Added line (starts with `+` but not `+++`).
-	Addition,
-	/// Deleted line (starts with `-` but not `---`).
-	Deletion,
-	/// Hunk header (starts with `@@`).
-	Hunk,
-	/// Context or other line (no special styling).
-	Context,
-}
-
-impl DiffLineType {
-	/// Detects the diff line type from line content.
-	fn from_line(line: &str) -> Self {
-		if line.starts_with("@@") {
-			Self::Hunk
-		} else if line.starts_with('+') && !line.starts_with("+++") {
-			Self::Addition
-		} else if line.starts_with('-') && !line.starts_with("---") {
-			Self::Deletion
-		} else {
-			Self::Context
-		}
-	}
-}
 use xeno_primitives::range::CharIdx;
 use xeno_registry::gutter::GutterAnnotations;
 use xeno_registry::themes::{SyntaxStyles, Theme};
@@ -41,8 +13,12 @@ use xeno_tui::style::{Modifier, Style};
 use xeno_tui::text::{Line, Span};
 use xeno_tui::widgets::Paragraph;
 
+use super::cell_style::{CellStyleInput, CursorStyleSet, resolve_cell_style};
 use super::diagnostics::{DiagnosticLineMap, DiagnosticRangeMap};
+use super::diff::diff_line_bg;
+use super::fill::FillConfig;
 use super::gutter::GutterLayout;
+use super::style_layers::{LineStyleContext, blend};
 use crate::buffer::Buffer;
 use crate::extensions::StyleOverlays;
 use crate::render::wrap::wrap_line;
@@ -86,24 +62,14 @@ pub struct CursorStyles {
 	pub unfocused: Style,
 }
 
-/// Cursor line highlight configuration.
-///
-/// Separates cursor position (needed for relative line numbers) from
-/// highlight enablement (can be toggled per-buffer).
-#[derive(Debug, Clone, Copy)]
-pub struct CursorlineConfig {
-	/// Whether cursorline highlighting is enabled.
-	pub enabled: bool,
-	/// Background color for cursorline (mode-aware).
-	pub bg: xeno_tui::style::Color,
-	/// Cursor line index (real position, used for relative line numbers).
-	pub line: usize,
-}
-
-impl CursorlineConfig {
-	/// Returns whether a given line should have cursorline styling.
-	pub fn should_highlight(&self, line_idx: usize) -> bool {
-		self.enabled && line_idx == self.line
+impl CursorStyles {
+	/// Extracts the cursor style set for cell style resolution.
+	pub fn to_cursor_set(&self) -> CursorStyleSet {
+		CursorStyleSet {
+			primary: self.primary,
+			secondary: self.secondary,
+			unfocused: self.unfocused,
+		}
 	}
 }
 
@@ -346,11 +312,9 @@ impl<'a> BufferRenderContext<'a> {
 
 		let highlight_spans = self.collect_highlight_spans(buffer, area);
 		let mode_color = self.mode_color(buffer.mode());
-		let cursorline_config = CursorlineConfig {
-			enabled: cursorline,
-			bg: self.theme.colors.ui.bg.blend(mode_color, 0.92), // 92% bg, 8% mode
-			line: buffer.cursor_line(),
-		};
+		let base_bg = self.theme.colors.ui.bg;
+		let cursor_line = buffer.cursor_line();
+		let cursor_styles = styles.to_cursor_set();
 
 		let buffer_path_owned = buffer.path();
 		let buffer_path = buffer_path_owned.as_deref();
@@ -364,7 +328,7 @@ impl<'a> BufferRenderContext<'a> {
 		let viewport_height = area.height as usize;
 
 		while output_lines.len() < viewport_height && current_line_idx < total_lines {
-			let is_cursor_line = cursorline_config.should_highlight(current_line_idx);
+			let is_cursor_line = cursorline && current_line_idx == cursor_line;
 
 			let line_annotations = if let Some(diags) = self.diagnostics
 				&& let Some(&severity) = diags.get(&current_line_idx)
@@ -390,16 +354,14 @@ impl<'a> BufferRenderContext<'a> {
 			let line_text = line_text.trim_end_matches('\n');
 			let line_content_end: CharIdx = line_start + line_text.chars().count();
 
-			// Compute line-level background for diff files
-			let diff_line_bg = if is_diff_file {
-				match DiffLineType::from_line(line_text) {
-					DiffLineType::Addition => self.theme.colors.syntax.diff_plus.bg,
-					DiffLineType::Deletion => self.theme.colors.syntax.diff_minus.bg,
-					DiffLineType::Hunk => self.theme.colors.syntax.diff_delta.bg,
-					DiffLineType::Context => None,
-				}
-			} else {
-				None
+			let line_diff_bg = diff_line_bg(is_diff_file, line_text, self.theme);
+			let line_style = LineStyleContext {
+				base_bg,
+				diff_bg: line_diff_bg,
+				mode_color,
+				is_cursor_line,
+				cursorline_enabled: cursorline,
+				cursor_line,
 			};
 
 			let wrapped_segments = wrap_line(line_text, text_width, tab_width);
@@ -418,7 +380,7 @@ impl<'a> BufferRenderContext<'a> {
 					gutter_layout.render_line(
 						current_line_idx,
 						total_lines,
-						&cursorline_config,
+						&line_style,
 						is_continuation,
 						doc.content().line(current_line_idx),
 						buffer_path,
@@ -441,54 +403,28 @@ impl<'a> BufferRenderContext<'a> {
 						doc_pos >= r.from() && doc_pos < r.to()
 					});
 
-					let cursor_style = if !is_focused {
-						styles.unfocused
-					} else if is_primary_cursor {
-						styles.primary
-					} else {
-						styles.secondary
-					};
-
-					// Convert char position to byte position for highlight lookup
 					let byte_pos = buffer.with_doc(|doc| doc.content().char_to_byte(doc_pos));
 					let syntax_style = self.style_for_byte_pos(byte_pos, &highlight_spans);
-
-					// Apply style overlays (e.g., zen mode dimming)
 					let syntax_style = self.apply_style_overlay(byte_pos, syntax_style);
 
-					let non_cursor_style = if in_selection {
-						// Blend bg + mode color + syntax fg for selection highlight
-						let base = syntax_style.unwrap_or(styles.base);
-						let syntax_fg = base.fg.unwrap_or(self.theme.colors.ui.fg);
-						let bg = self.theme.colors.ui.bg;
-						// blend(other, alpha): alpha=1 → self, alpha=0 → other
-						let selection_bg = bg
-							.blend(mode_color, 0.78) // 78% bg, 22% mode
-							.blend(syntax_fg, 0.88) // 88% prev, 12% syntax tint
-							.ensure_min_contrast(bg, 1.5);
-						Style::default()
-							.bg(selection_bg)
-							.fg(syntax_fg)
-							.add_modifier(base.add_modifier)
-					} else {
-						let base = syntax_style.unwrap_or(styles.base);
-						if is_cursor_line && base.bg.is_none() {
-							base.bg(cursorline_config.bg)
-						} else {
-							base
-						}
+					let cell_input = CellStyleInput {
+						line_ctx: &line_style,
+						syntax_style,
+						in_selection,
+						is_primary_cursor,
+						is_focused,
+						cursor_styles: &cursor_styles,
+						base_style: styles.base,
 					};
-
-					// Apply diagnostic underlines based on character position
-					let char_in_line = seg_char_offset + i;
+					let resolved = resolve_cell_style(cell_input);
 					let non_cursor_style = self.apply_diagnostic_underline(
 						current_line_idx,
-						char_in_line,
-						non_cursor_style,
+						seg_char_offset + i,
+						resolved.non_cursor,
 					);
 
 					let style = if is_cursor && (use_block_cursor || !is_focused) {
-						cursor_style
+						resolved.cursor
 					} else {
 						non_cursor_style
 					};
@@ -505,7 +441,7 @@ impl<'a> BufferRenderContext<'a> {
 						tab_cells = tab_cells.min(remaining);
 
 						if is_cursor && use_block_cursor {
-							spans.push(Span::styled(" ", cursor_style));
+							spans.push(Span::styled(" ", resolved.cursor));
 							if tab_cells > 1 {
 								spans.push(Span::styled(
 									" ".repeat(tab_cells - 1),
@@ -530,11 +466,9 @@ impl<'a> BufferRenderContext<'a> {
 						.colors
 						.ui
 						.gutter_fg
-						.blend(self.theme.colors.ui.bg, 0.5);
+						.blend(self.theme.colors.ui.bg, blend::GUTTER_DIM_ALPHA);
 					let mut fill_style = Style::default().fg(dim_color);
-					if is_cursor_line {
-						fill_style = fill_style.bg(cursorline_config.bg);
-					} else if let Some(bg) = diff_line_bg {
+					if let Some(bg) = line_style.fill_bg() {
 						fill_style = fill_style.bg(bg);
 					}
 					spans.push(Span::styled(" ".repeat(fill_count), fill_style));
@@ -567,22 +501,14 @@ impl<'a> BufferRenderContext<'a> {
 						seg_col += 1;
 					}
 
-					if seg_col < text_width {
-						let fill_bg = if is_cursor_line {
-							Some(cursorline_config.bg)
-						} else {
-							diff_line_bg
-						};
-						if let Some(bg) = fill_bg {
-							spans.push(Span::styled(
-								" ".repeat(text_width - seg_col),
-								Style::default().bg(bg),
-							));
-						}
+					if let Some(fill_span) =
+						FillConfig::from_bg(line_style.fill_bg()).fill_span(text_width - seg_col)
+					{
+						spans.push(fill_span);
 					}
 				}
 
-				let line = if let Some(bg) = diff_line_bg {
+				let line = if let Some(bg) = line_style.fill_bg() {
 					Line::from(spans).style(Style::default().bg(bg))
 				} else {
 					Line::from(spans)
@@ -598,8 +524,8 @@ impl<'a> BufferRenderContext<'a> {
 					gutter_layout.render_line(
 						current_line_idx,
 						total_lines,
-						&cursorline_config,
-						false, // not a continuation
+						&line_style,
+						false,
 						doc.content().line(current_line_idx),
 						buffer_path,
 						&line_annotations,
@@ -633,21 +559,13 @@ impl<'a> BufferRenderContext<'a> {
 					cols_used = 1;
 				}
 
-				if cols_used < text_width {
-					let fill_bg = if is_cursor_line {
-						Some(cursorline_config.bg)
-					} else {
-						diff_line_bg
-					};
-					if let Some(bg) = fill_bg {
-						spans.push(Span::styled(
-							" ".repeat(text_width - cols_used),
-							Style::default().bg(bg),
-						));
-					}
+				if let Some(fill_span) =
+					FillConfig::from_bg(line_style.fill_bg()).fill_span(text_width - cols_used)
+				{
+					spans.push(fill_span);
 				}
 
-				let line = if let Some(bg) = diff_line_bg {
+				let line = if let Some(bg) = line_style.fill_bg() {
 					Line::from(spans).style(Style::default().bg(bg))
 				} else {
 					Line::from(spans)
