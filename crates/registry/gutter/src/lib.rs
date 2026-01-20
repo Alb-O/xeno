@@ -111,6 +111,10 @@ pub struct GutterAnnotations {
 	pub diagnostic_severity: u8,
 	/// Custom sign character (breakpoint, bookmark, etc.).
 	pub sign: Option<char>,
+	/// Line number in old file (for diff `-` and context lines).
+	pub diff_old_line: Option<u32>,
+	/// Line number in new file (for diff `+` and context lines).
+	pub diff_new_line: Option<u32>,
 }
 
 /// Definition of a gutter column.

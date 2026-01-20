@@ -15,7 +15,7 @@ use xeno_tui::widgets::Paragraph;
 
 use super::cell_style::{CellStyleInput, CursorStyleSet, resolve_cell_style};
 use super::diagnostics::{DiagnosticLineMap, DiagnosticRangeMap};
-use super::diff::diff_line_bg;
+use super::diff::{DiffLineNumbers, compute_diff_line_numbers, diff_line_bg};
 use super::fill::FillConfig;
 use super::gutter::GutterLayout;
 use super::style_layers::{LineStyleContext, blend};
@@ -299,7 +299,18 @@ impl<'a> BufferRenderContext<'a> {
 		cursorline: bool,
 	) -> RenderResult {
 		let total_lines = buffer.with_doc(|doc| doc.content().len_lines());
-		let gutter_layout = GutterLayout::from_selector(gutter, total_lines, area.width);
+		let is_diff_file = buffer.file_type().is_some_and(|ft| ft == "diff");
+
+		let effective_gutter = if is_diff_file {
+			Self::diff_gutter_selector(gutter)
+		} else {
+			gutter
+		};
+
+		let diff_line_numbers: Option<Vec<DiffLineNumbers>> = is_diff_file
+			.then(|| buffer.with_doc(|doc| compute_diff_line_numbers(doc.content())));
+
+		let gutter_layout = GutterLayout::from_selector(effective_gutter, total_lines, area.width);
 		let gutter_width = gutter_layout.total_width;
 		let text_width = area.width.saturating_sub(gutter_width) as usize;
 
@@ -319,9 +330,6 @@ impl<'a> BufferRenderContext<'a> {
 		let buffer_path_owned = buffer.path();
 		let buffer_path = buffer_path_owned.as_deref();
 
-		// Check if this is a diff file for full-line background styling
-		let is_diff_file = buffer.file_type().is_some_and(|ft| ft == "diff");
-
 		let mut output_lines: Vec<Line> = Vec::new();
 		let mut current_line_idx = buffer.scroll_line;
 		let mut start_segment = buffer.scroll_segment;
@@ -330,15 +338,17 @@ impl<'a> BufferRenderContext<'a> {
 		while output_lines.len() < viewport_height && current_line_idx < total_lines {
 			let is_cursor_line = cursorline && current_line_idx == cursor_line;
 
-			let line_annotations = if let Some(diags) = self.diagnostics
-				&& let Some(&severity) = diags.get(&current_line_idx)
-			{
-				GutterAnnotations {
-					diagnostic_severity: severity,
-					..Default::default()
-				}
-			} else {
-				GutterAnnotations::default()
+			let diff_nums = diff_line_numbers
+				.as_ref()
+				.and_then(|nums| nums.get(current_line_idx));
+			let line_annotations = GutterAnnotations {
+				diagnostic_severity: self
+					.diagnostics
+					.and_then(|d| d.get(&current_line_idx).copied())
+					.unwrap_or(0),
+				sign: None,
+				diff_old_line: diff_nums.and_then(|dn| dn.old),
+				diff_new_line: diff_nums.and_then(|dn| dn.new),
 			};
 			let (line_start, line_end, line_text): (CharIdx, CharIdx, String) =
 				buffer.with_doc(|doc| {
@@ -584,6 +594,30 @@ impl<'a> BufferRenderContext<'a> {
 
 		RenderResult {
 			widget: Paragraph::new(output_lines),
+		}
+	}
+
+	/// Transforms a gutter selector for diff files by replacing standard line
+	/// number gutters with `diff_line_numbers` while keeping other gutters intact.
+	fn diff_gutter_selector(selector: GutterSelector) -> GutterSelector {
+		static DIFF_WITH_SIGNS: &[&str] = &["diff_line_numbers", "signs"];
+		static DIFF_ONLY: &[&str] = &["diff_line_numbers"];
+
+		match selector {
+			GutterSelector::Registry => GutterSelector::Named(DIFF_WITH_SIGNS),
+			GutterSelector::Named(names) => {
+				let has_line_nums = names.iter().any(|n| {
+					matches!(*n, "line_numbers" | "relative_line_numbers" | "hybrid_line_numbers")
+				});
+				let has_signs = names.iter().any(|n| *n == "signs");
+
+				match (has_line_nums, has_signs) {
+					(true, true) => GutterSelector::Named(DIFF_WITH_SIGNS),
+					(true, false) => GutterSelector::Named(DIFF_ONLY),
+					(false, _) => GutterSelector::Named(names),
+				}
+			}
+			other => other,
 		}
 	}
 }
