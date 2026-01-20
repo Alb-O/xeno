@@ -3,6 +3,34 @@
 use std::collections::HashSet;
 
 use xeno_primitives::Mode;
+
+/// Type of line in a diff file, used for full-line background styling.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum DiffLineType {
+	/// Added line (starts with `+` but not `+++`).
+	Addition,
+	/// Deleted line (starts with `-` but not `---`).
+	Deletion,
+	/// Hunk header (starts with `@@`).
+	Hunk,
+	/// Context or other line (no special styling).
+	Context,
+}
+
+impl DiffLineType {
+	/// Detects the diff line type from line content.
+	fn from_line(line: &str) -> Self {
+		if line.starts_with("@@") {
+			Self::Hunk
+		} else if line.starts_with('+') && !line.starts_with("+++") {
+			Self::Addition
+		} else if line.starts_with('-') && !line.starts_with("---") {
+			Self::Deletion
+		} else {
+			Self::Context
+		}
+	}
+}
 use xeno_primitives::range::CharIdx;
 use xeno_registry::gutter::GutterAnnotations;
 use xeno_registry::themes::{SyntaxStyles, Theme};
@@ -327,6 +355,9 @@ impl<'a> BufferRenderContext<'a> {
 		let buffer_path_owned = buffer.path();
 		let buffer_path = buffer_path_owned.as_deref();
 
+		// Check if this is a diff file for full-line background styling
+		let is_diff_file = buffer.file_type().is_some_and(|ft| ft == "diff");
+
 		let mut output_lines: Vec<Line> = Vec::new();
 		let mut current_line_idx = buffer.scroll_line;
 		let mut start_segment = buffer.scroll_segment;
@@ -358,6 +389,18 @@ impl<'a> BufferRenderContext<'a> {
 				});
 			let line_text = line_text.trim_end_matches('\n');
 			let line_content_end: CharIdx = line_start + line_text.chars().count();
+
+			// Compute line-level background for diff files
+			let diff_line_bg = if is_diff_file {
+				match DiffLineType::from_line(line_text) {
+					DiffLineType::Addition => self.theme.colors.syntax.diff_plus.bg,
+					DiffLineType::Deletion => self.theme.colors.syntax.diff_minus.bg,
+					DiffLineType::Hunk => self.theme.colors.syntax.diff_delta.bg,
+					DiffLineType::Context => None,
+				}
+			} else {
+				None
+			};
 
 			let wrapped_segments = wrap_line(line_text, text_width, tab_width);
 			let num_segments = wrapped_segments.len().max(1);
@@ -491,6 +534,8 @@ impl<'a> BufferRenderContext<'a> {
 					let mut fill_style = Style::default().fg(dim_color);
 					if is_cursor_line {
 						fill_style = fill_style.bg(cursorline_config.bg);
+					} else if let Some(bg) = diff_line_bg {
+						fill_style = fill_style.bg(bg);
 					}
 					spans.push(Span::styled(" ".repeat(fill_count), fill_style));
 				}
@@ -522,15 +567,27 @@ impl<'a> BufferRenderContext<'a> {
 						seg_col += 1;
 					}
 
-					if is_cursor_line && seg_col < text_width {
-						spans.push(Span::styled(
-							" ".repeat(text_width - seg_col),
-							Style::default().bg(cursorline_config.bg),
-						));
+					if seg_col < text_width {
+						let fill_bg = if is_cursor_line {
+							Some(cursorline_config.bg)
+						} else {
+							diff_line_bg
+						};
+						if let Some(bg) = fill_bg {
+							spans.push(Span::styled(
+								" ".repeat(text_width - seg_col),
+								Style::default().bg(bg),
+							));
+						}
 					}
 				}
 
-				output_lines.push(Line::from(spans));
+				let line = if let Some(bg) = diff_line_bg {
+					Line::from(spans).style(Style::default().bg(bg))
+				} else {
+					Line::from(spans)
+				};
+				output_lines.push(line);
 			}
 
 			if wrapped_segments.is_empty()
@@ -576,14 +633,26 @@ impl<'a> BufferRenderContext<'a> {
 					cols_used = 1;
 				}
 
-				if is_cursor_line && cols_used < text_width {
-					spans.push(Span::styled(
-						" ".repeat(text_width - cols_used),
-						Style::default().bg(cursorline_config.bg),
-					));
+				if cols_used < text_width {
+					let fill_bg = if is_cursor_line {
+						Some(cursorline_config.bg)
+					} else {
+						diff_line_bg
+					};
+					if let Some(bg) = fill_bg {
+						spans.push(Span::styled(
+							" ".repeat(text_width - cols_used),
+							Style::default().bg(bg),
+						));
+					}
 				}
 
-				output_lines.push(Line::from(spans));
+				let line = if let Some(bg) = diff_line_bg {
+					Line::from(spans).style(Style::default().bg(bg))
+				} else {
+					Line::from(spans)
+				};
+				output_lines.push(line);
 			}
 
 			start_segment = 0;
