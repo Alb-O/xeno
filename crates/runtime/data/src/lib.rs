@@ -1,5 +1,8 @@
 //! Embedded runtime data and assets.
 //!
+//! Assets are embedded directly into the binary at compile time using `include_dir!`.
+//! This provides instant access without filesystem operations.
+//!
 //! Provides compile-time embedded access to:
 //! - Tree-sitter queries (highlights, indents, textobjects, etc.)
 //! - Theme definitions (KDL files)
@@ -46,7 +49,7 @@ pub mod queries {
 			.filter_map(|n| n.to_str())
 	}
 
-	/// Returns the root queries directory for extraction/seeding.
+	/// Returns the root queries directory for iteration.
 	pub fn root() -> &'static Dir<'static> {
 		&QUERIES_DIR
 	}
@@ -76,7 +79,7 @@ pub mod themes {
 			.filter_map(|n| n.to_str())
 	}
 
-	/// Returns the root themes directory for extraction/seeding.
+	/// Returns the root themes directory for iteration.
 	pub fn root() -> &'static include_dir::Dir<'static> {
 		&THEMES_DIR
 	}
@@ -138,7 +141,7 @@ pub mod language {
 		get_file(name).and_then(|f| f.contents_utf8())
 	}
 
-	/// Returns the root language directory for extraction/seeding.
+	/// Returns the root language directory for iteration.
 	pub fn root() -> &'static include_dir::Dir<'static> {
 		&LANGUAGE_DIR
 	}

@@ -14,13 +14,17 @@ use crate::grammar::query_search_paths;
 
 /// Reads a query file for a language.
 ///
-/// Searches query paths and handles the `; inherits` directive
-/// using tree-house's `read_query` helper.
+/// Checks embedded assets first, then filesystem paths for user overrides.
+/// Resolves `; inherits` directives via [`tree_house::read_query`].
 pub fn read_query(lang: &str, filename: &str) -> String {
+	let query_type = filename.strip_suffix(".scm").unwrap_or(filename);
+
 	tree_house::read_query(lang, |query_lang| {
+		if let Some(content) = xeno_runtime_data::queries::get_str(query_lang, query_type) {
+			return content.to_string();
+		}
 		for path in query_search_paths() {
-			let query_path = path.join(query_lang).join(filename);
-			if let Ok(content) = std::fs::read_to_string(&query_path) {
+			if let Ok(content) = std::fs::read_to_string(path.join(query_lang).join(filename)) {
 				return content;
 			}
 		}

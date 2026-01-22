@@ -15,10 +15,10 @@ notify = { workspace = true, optional = true }
 thiserror.workspace = true
 xeno-primitives.workspace = true
 xeno-registry.workspace = true
+xeno-runtime-data.workspace = true
 
 [dev-dependencies]
 tempfile.workspace = true
-xeno-runtime-data.workspace = true
 
 [lints]
 workspace = true

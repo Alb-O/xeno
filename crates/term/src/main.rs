@@ -36,36 +36,8 @@ async fn main() -> anyhow::Result<()> {
 		None => {}
 	}
 
-	// Load themes from runtime directory
-	let themes_dir = xeno_runtime_language::runtime_dir().join("themes");
-	let mut theme_errors = Vec::new();
-	match xeno_runtime_config::load_and_register_themes(&themes_dir) {
-		Ok(errors) => theme_errors.extend(errors),
-		Err(e) => warn!(error = %e, "failed to read themes directory"),
-	}
-
-	// Load user config if present
-	let user_config = if let Some(config_dir) = xeno_editor::paths::get_config_dir() {
-		let config_path = config_dir.join("config.kdl");
-		if config_path.exists() {
-			match xeno_runtime_config::Config::load(&config_path) {
-				Ok(config) => {
-					for warning in &config.warnings {
-						warn!("{warning}");
-					}
-					Some(config)
-				}
-				Err(e) => {
-					warn!(error = %e, "failed to load config");
-					None
-				}
-			}
-		} else {
-			None
-		}
-	} else {
-		None
-	};
+	let theme_errors = load_themes();
+	let user_config = load_user_config();
 
 	let mut editor = match cli.file_location() {
 		Some(loc) => {
@@ -79,36 +51,12 @@ async fn main() -> anyhow::Result<()> {
 	};
 
 	configure_lsp_servers(&mut editor);
-
-	// Initialize LSP for the initial buffer (opened before servers were configured)
 	if let Err(e) = editor.init_lsp_for_open_buffers().await {
 		warn!(error = %e, "Failed to initialize LSP for initial buffer");
 	}
 
-	// Apply user config to editor
-	if let Some(config) = user_config {
-		// Apply global options
-		editor.config.global_options.merge(&config.options);
+	apply_user_config(&mut editor, user_config);
 
-		// Apply language-specific options
-		for lang_config in config.languages {
-			editor
-				.config
-				.language_options
-				.entry(lang_config.name)
-				.or_default()
-				.merge(&lang_config.options);
-		}
-
-		// Apply theme from config if specified
-		if let Some(theme_name) = config.options.get_string(keys::THEME.untyped())
-			&& let Err(e) = editor.set_theme(theme_name)
-		{
-			warn!(theme = theme_name, error = %e, "failed to set config theme");
-		}
-	}
-
-	// CLI theme flag overrides config
 	if let Some(theme_name) = cli.theme
 		&& let Err(e) = editor.set_theme(&theme_name)
 	{
@@ -123,6 +71,64 @@ async fn main() -> anyhow::Result<()> {
 
 	run_editor(editor).await?;
 	Ok(())
+}
+
+/// Loads embedded themes and overlays user themes from config directory.
+fn load_themes() -> Vec<(String, String)> {
+	let mut errors = xeno_runtime_config::load_and_register_embedded_themes();
+
+	if let Some(user_themes_dir) = xeno_editor::paths::get_config_dir().map(|d| d.join("themes"))
+		&& user_themes_dir.exists()
+	{
+		match xeno_runtime_config::load_and_register_themes(&user_themes_dir) {
+			Ok(e) => errors.extend(e),
+			Err(e) => warn!(error = %e, "failed to read user themes directory"),
+		}
+	}
+	errors
+}
+
+/// Loads user config from `~/.config/xeno/config.kdl`.
+fn load_user_config() -> Option<xeno_runtime_config::Config> {
+	let config_path = xeno_editor::paths::get_config_dir()?.join("config.kdl");
+	if !config_path.exists() {
+		return None;
+	}
+
+	match xeno_runtime_config::Config::load(&config_path) {
+		Ok(config) => {
+			for warning in &config.warnings {
+				warn!("{warning}");
+			}
+			Some(config)
+		}
+		Err(e) => {
+			warn!(error = %e, "failed to load config");
+			None
+		}
+	}
+}
+
+/// Applies user config options to the editor.
+fn apply_user_config(editor: &mut Editor, config: Option<xeno_runtime_config::Config>) {
+	let Some(config) = config else { return };
+
+	editor.config.global_options.merge(&config.options);
+
+	for lang_config in config.languages {
+		editor
+			.config
+			.language_options
+			.entry(lang_config.name)
+			.or_default()
+			.merge(&lang_config.options);
+	}
+
+	if let Some(theme_name) = config.options.get_string(keys::THEME.untyped())
+		&& let Err(e) = editor.set_theme(theme_name)
+	{
+		warn!(theme = theme_name, error = %e, "failed to set config theme");
+	}
 }
 
 /// Handles grammar fetch/build/sync subcommands.
@@ -309,37 +315,12 @@ fn setup_socket_tracing(socket_path: &str) {
 	info!("Socket tracing initialized");
 }
 
-/// Runs the editor with standard initialization (used by socket logging mode).
+/// Runs the editor with standard initialization for socket logging mode.
 async fn run_editor_normal() -> anyhow::Result<()> {
-	let themes_dir = xeno_runtime_language::runtime_dir().join("themes");
-	let theme_errors = match xeno_runtime_config::load_and_register_themes(&themes_dir) {
-		Ok(errors) => errors,
-		Err(e) => {
-			warn!(error = %e, "failed to read themes directory");
-			Vec::new()
-		}
-	};
+	let theme_errors = load_themes();
+	let user_config = load_user_config();
 
-	let user_config = xeno_editor::paths::get_config_dir()
-		.map(|d| d.join("config.kdl"))
-		.filter(|p| p.exists())
-		.and_then(
-			|config_path| match xeno_runtime_config::Config::load(&config_path) {
-				Ok(config) => {
-					for warning in &config.warnings {
-						warn!("{warning}");
-					}
-					Some(config)
-				}
-				Err(e) => {
-					warn!(error = %e, "failed to load config");
-					None
-				}
-			},
-		);
-
-	let file_arg = std::env::args().nth(1);
-	let mut editor = match file_arg {
+	let mut editor = match std::env::args().nth(1) {
 		Some(arg) if !arg.starts_with('-') => {
 			let loc = FileLocation::parse(&arg);
 			let mut ed = Editor::new(loc.path).await?;
@@ -352,27 +333,11 @@ async fn run_editor_normal() -> anyhow::Result<()> {
 	};
 
 	configure_lsp_servers(&mut editor);
-
 	if let Err(e) = editor.init_lsp_for_open_buffers().await {
 		warn!(error = %e, "Failed to initialize LSP for initial buffer");
 	}
 
-	if let Some(config) = user_config {
-		editor.config.global_options.merge(&config.options);
-		for lang_config in config.languages {
-			editor
-				.config
-				.language_options
-				.entry(lang_config.name)
-				.or_default()
-				.merge(&lang_config.options);
-		}
-		if let Some(theme_name) = config.options.get_string(keys::THEME.untyped())
-			&& let Err(e) = editor.set_theme(theme_name)
-		{
-			warn!(theme = theme_name, error = %e, "failed to set config theme");
-		}
-	}
+	apply_user_config(&mut editor, user_config);
 
 	for (filename, error) in theme_errors {
 		editor.notify(xeno_registry::notification_keys::error(format!(

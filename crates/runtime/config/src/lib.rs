@@ -265,3 +265,57 @@ pub fn load_and_register_themes(dir: impl AsRef<Path>) -> Result<Vec<(String, St
 	xeno_registry::themes::register_runtime_themes(owned);
 	Ok(result.errors)
 }
+
+/// Result of loading embedded themes.
+pub struct EmbeddedThemeLoadResult {
+	/// Successfully parsed themes.
+	pub themes: Vec<ParsedTheme>,
+	/// Parse failures as (filename, error message) pairs.
+	pub errors: Vec<(String, String)>,
+}
+
+/// Loads all themes embedded in the binary.
+pub fn load_embedded_themes() -> EmbeddedThemeLoadResult {
+	let mut themes = Vec::new();
+	let mut errors = Vec::new();
+
+	for filename in xeno_runtime_data::themes::list() {
+		let Some(content) = xeno_runtime_data::themes::get_str(filename) else {
+			continue;
+		};
+		match theme::parse_standalone_theme(content) {
+			Ok(theme) => themes.push(theme),
+			Err(e) => errors.push((filename.to_string(), e.to_string())),
+		}
+	}
+
+	EmbeddedThemeLoadResult { themes, errors }
+}
+
+/// Loads embedded themes and registers them in the runtime theme registry.
+///
+/// Returns parse errors as (filename, error message) pairs for notification.
+pub fn load_and_register_embedded_themes() -> Vec<(String, String)> {
+	let result = load_embedded_themes();
+	xeno_registry::themes::register_runtime_themes(
+		result
+			.themes
+			.into_iter()
+			.map(|t| t.into_owned_theme())
+			.collect(),
+	);
+	result.errors
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+
+	#[test]
+	fn test_load_embedded_themes() {
+		let result = load_embedded_themes();
+		assert!(!result.themes.is_empty());
+		assert!(result.errors.is_empty());
+		assert!(result.themes.iter().any(|t| t.name == "gruvbox"));
+	}
+}

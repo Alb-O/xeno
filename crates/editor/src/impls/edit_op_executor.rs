@@ -214,8 +214,13 @@ impl Editor {
 							if r.head == 0 {
 								return None;
 							}
-							let word_start =
-								movement::move_to_prev_word_start(text, *r, 1, WordType::Word, false);
+							let word_start = movement::move_to_prev_word_start(
+								text,
+								*r,
+								1,
+								WordType::Word,
+								false,
+							);
 							(r.head > word_start.head)
 								.then(|| Range::new(word_start.head, r.head - 1))
 						})
@@ -234,8 +239,13 @@ impl Editor {
 							if r.head >= len {
 								return None;
 							}
-							let word_end =
-								movement::move_to_next_word_start(text, *r, 1, WordType::Word, false);
+							let word_end = movement::move_to_next_word_start(
+								text,
+								*r,
+								1,
+								WordType::Word,
+								false,
+							);
 							(word_end.head > r.head).then(|| Range::new(r.head, word_end.head - 1))
 						})
 					})
