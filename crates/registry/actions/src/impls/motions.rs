@@ -137,10 +137,7 @@ pub fn word_motion(ctx: &ActionContext, motion: MotionKey) -> ActionResult {
 	} else {
 		let new_range = (motion_def.handler)(ctx.text, Range::point(ctx.cursor), ctx.count, false);
 		let cursor_on_word = ctx.text.get_char(ctx.cursor).is_some_and(is_word_char);
-		let target_on_word = ctx
-			.text
-			.get_char(new_range.head)
-			.is_some_and(is_word_char);
+		let target_on_word = ctx.text.get_char(new_range.head).is_some_and(is_word_char);
 		let is_forward = new_range.head >= new_range.anchor;
 
 		if cursor_on_word && is_forward {

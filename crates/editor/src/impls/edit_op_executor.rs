@@ -229,7 +229,10 @@ impl Editor {
 								WordType::Word,
 								false,
 							);
-							ranges.push(Range::new(word_start.head, range.head));
+							// Head - 1 compensates for to_inclusive() in Transaction::delete.
+							if range.head > word_start.head {
+								ranges.push(Range::new(word_start.head, range.head - 1));
+							}
 						}
 						(ranges, primary_index)
 					})
@@ -263,7 +266,10 @@ impl Editor {
 								WordType::Word,
 								false,
 							);
-							ranges.push(Range::new(range.head, word_end.head));
+							// Head - 1 compensates for to_inclusive() in Transaction::delete.
+							if word_end.head > range.head {
+								ranges.push(Range::new(range.head, word_end.head - 1));
+							}
 						}
 						(ranges, primary_index)
 					})
