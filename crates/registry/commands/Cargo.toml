@@ -13,7 +13,6 @@ xeno-registry-core.workspace = true
 xeno-registry-motions.workspace = true
 xeno-registry-notifications.workspace = true
 xeno-registry-textobj.workspace = true
-xeno-runtime-language.workspace = true
 
 [lints]
 workspace = true

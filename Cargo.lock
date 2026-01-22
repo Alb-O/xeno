@@ -3508,7 +3508,6 @@ dependencies = [
  "xeno-registry-motions",
  "xeno-registry-notifications",
  "xeno-registry-textobj",
- "xeno-runtime-language",
 ]
 
 [[package]]
@@ -3634,7 +3633,6 @@ dependencies = [
  "regex",
  "ropey",
  "serde_json",
- "tempfile",
  "thiserror 2.0.17",
  "tracing",
  "tree-house",

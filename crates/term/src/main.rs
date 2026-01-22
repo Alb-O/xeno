@@ -36,14 +36,6 @@ async fn main() -> anyhow::Result<()> {
 		None => {}
 	}
 
-	let runtime_status = match xeno_runtime_language::ensure_runtime() {
-		Ok(status) => Some(status),
-		Err(e) => {
-			warn!(error = %e, "failed to seed runtime");
-			None
-		}
-	};
-
 	// Load themes from runtime directory
 	let themes_dir = xeno_runtime_language::runtime_dir().join("themes");
 	let mut theme_errors = Vec::new();
@@ -126,13 +118,6 @@ async fn main() -> anyhow::Result<()> {
 	for (filename, error) in theme_errors {
 		editor.notify(xeno_registry::notification_keys::error(format!(
 			"{filename}: {error}"
-		)));
-	}
-
-	if let Some(xeno_runtime_language::RuntimeStatus::Outdated { local, expected }) = runtime_status
-	{
-		editor.notify(xeno_registry::notification_keys::warn(format!(
-			"Runtime assets from v{local} (current: v{expected}). Run :reseed to update."
 		)));
 	}
 
@@ -326,14 +311,6 @@ fn setup_socket_tracing(socket_path: &str) {
 
 /// Runs the editor with standard initialization (used by socket logging mode).
 async fn run_editor_normal() -> anyhow::Result<()> {
-	let runtime_status = match xeno_runtime_language::ensure_runtime() {
-		Ok(status) => Some(status),
-		Err(e) => {
-			warn!(error = %e, "failed to seed runtime");
-			None
-		}
-	};
-
 	let themes_dir = xeno_runtime_language::runtime_dir().join("themes");
 	let theme_errors = match xeno_runtime_config::load_and_register_themes(&themes_dir) {
 		Ok(errors) => errors,
@@ -400,13 +377,6 @@ async fn run_editor_normal() -> anyhow::Result<()> {
 	for (filename, error) in theme_errors {
 		editor.notify(xeno_registry::notification_keys::error(format!(
 			"{filename}: {error}"
-		)));
-	}
-
-	if let Some(xeno_runtime_language::RuntimeStatus::Outdated { local, expected }) = runtime_status
-	{
-		editor.notify(xeno_registry::notification_keys::warn(format!(
-			"Runtime assets from v{local} (current: v{expected}). Run :reseed to update."
 		)));
 	}
 

@@ -28,7 +28,7 @@ pub mod language;
 pub mod loader;
 pub mod lsp_config;
 pub mod query;
-pub mod runtime;
+mod runtime;
 pub mod syntax;
 mod utils;
 
@@ -45,4 +45,3 @@ pub use lsp_config::{
 	load_lsp_configs,
 };
 pub use query::{CapturedNode, IndentQuery, RainbowQuery, TagQuery, TextObjectQuery, read_query};
-pub use runtime::{RuntimeStatus, ensure_runtime, reseed_runtime};

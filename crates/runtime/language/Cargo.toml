@@ -19,8 +19,5 @@ xeno-primitives.workspace = true
 xeno-registry-themes.workspace = true
 xeno-runtime-data.workspace = true
 
-[dev-dependencies]
-tempfile.workspace = true
-
 [lints]
 workspace = true
