@@ -1,5 +1,5 @@
 use std::io::{self, Write};
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use termina::escape::csi::{Csi, Cursor};
 use termina::event::{Event, KeyEventKind};
@@ -49,17 +49,13 @@ impl Default for RenderTiming {
 		}
 	}
 }
-use crate::splash::{self, LogBuffer};
 use crate::terminal::{
 	coalesce_resize_events, cursor_style_for_mode, disable_terminal_features,
 	enable_terminal_features, install_panic_hook,
 };
 
-/// Runs the editor main loop with optional splash screen on slow startups.
-pub async fn run_editor(
-	mut editor: Editor,
-	splash_state: Option<(LogBuffer, Instant)>,
-) -> io::Result<()> {
+/// Runs the editor main loop.
+pub async fn run_editor(mut editor: Editor) -> io::Result<()> {
 	let mut platform_terminal = PlatformTerminal::new()?;
 	install_panic_hook(&mut platform_terminal);
 	enable_terminal_features(&mut platform_terminal)?;
@@ -68,10 +64,6 @@ pub async fn run_editor(
 
 	let backend = TerminaBackend::new(platform_terminal);
 	let mut terminal = Terminal::new(backend)?;
-
-	if let Some((ref buf, started_at)) = splash_state {
-		splash::render_splash(&mut terminal, buf, started_at)?;
-	}
 
 	editor.ui_startup();
 	emit_hook_sync_with(

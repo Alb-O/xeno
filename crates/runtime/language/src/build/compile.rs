@@ -4,6 +4,8 @@ use std::fs;
 use std::path::Path;
 use std::process::{Command, Stdio};
 
+use tracing::info;
+
 use super::config::{GrammarConfig, get_grammar_src_dir, grammar_lib_dir, library_extension};
 use super::{GrammarBuildError, Result};
 
@@ -84,6 +86,8 @@ pub fn build_grammar(grammar: &GrammarConfig) -> Result<BuildStatus> {
 	if !needs_recompile(&src_dir, &lib_path) {
 		return Ok(BuildStatus::AlreadyBuilt);
 	}
+
+	info!(grammar = %grammar.grammar_id, "Compiling grammar");
 
 	let scanner_cc = src_dir.join("scanner.cc");
 	let scanner_c = src_dir.join("scanner.c");

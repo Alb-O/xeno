@@ -97,10 +97,12 @@ fn auto_build_grammar(name: &str) -> Result<(), GrammarError> {
 		.find(|c| c.grammar_id == name)
 		.ok_or_else(|| GrammarError::NotFound(format!("{} (no config in grammars.kdl)", name)))?;
 
+	eprintln!("Fetching grammar: {name}");
 	info!(grammar = name, "Fetching grammar source");
 	fetch_grammar(&config)
 		.map_err(|e| GrammarError::Io(std::io::Error::other(format!("fetch failed: {}", e))))?;
 
+	eprintln!("Compiling grammar: {name}");
 	info!(grammar = name, "Building grammar");
 	build_grammar(&config)
 		.map_err(|e| GrammarError::Io(std::io::Error::other(format!("build failed: {}", e))))?;

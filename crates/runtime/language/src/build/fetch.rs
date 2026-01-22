@@ -3,6 +3,8 @@
 use std::fs;
 use std::process::Command;
 
+use tracing::info;
+
 use super::config::{GrammarConfig, GrammarSource, grammar_sources_dir};
 use super::{GrammarBuildError, Result};
 
@@ -42,6 +44,7 @@ pub fn fetch_grammar(grammar: &GrammarConfig) -> Result<FetchStatus> {
 
 	// Check for .git/HEAD to ensure this is a valid git repo, not a partial clone
 	if grammar_dir.join(".git").join("HEAD").exists() {
+		info!(grammar = %grammar.grammar_id, "Updating grammar");
 		let fetch_output = Command::new("git")
 			.args(["fetch", "--depth", "1", "origin", revision])
 			.current_dir(&grammar_dir)
@@ -90,6 +93,7 @@ pub fn fetch_grammar(grammar: &GrammarConfig) -> Result<FetchStatus> {
 			fs::create_dir_all(&grammar_dir)?;
 		}
 
+		info!(grammar = %grammar.grammar_id, "Cloning grammar");
 		let clone_output = Command::new("git")
 			.args([
 				"clone",

@@ -60,6 +60,7 @@ pub fn ensure_runtime() -> io::Result<RuntimeStatus> {
 				expected: RUNTIME_VERSION.to_string(),
 			});
 		}
+		eprintln!("Initializing runtime assets...");
 		seed_all(&runtime)?;
 		write_version_file(&runtime)?;
 		return Ok(RuntimeStatus::FreshInstall);
