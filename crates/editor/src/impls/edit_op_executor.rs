@@ -59,7 +59,9 @@ impl Editor {
 			self.apply_pre_effect(pre);
 		}
 
-		self.apply_selection_op(&plan.op.selection);
+		if !self.apply_selection_op(&plan.op.selection) {
+			return;
+		}
 
 		let original_cursor = self.buffer().cursor;
 
@@ -89,9 +91,12 @@ impl Editor {
 	}
 
 	/// Applies a selection operation before text transformation.
-	fn apply_selection_op(&mut self, op: &SelectionOp) {
+	///
+	/// Returns `false` if the operation produced no valid targets (e.g., backspace
+	/// at document start), signaling that the transform should be skipped.
+	fn apply_selection_op(&mut self, op: &SelectionOp) -> bool {
 		match op {
-			SelectionOp::None => {}
+			SelectionOp::None => true,
 
 			SelectionOp::Extend { direction, count } => {
 				let new_ranges: Vec<_> = {
@@ -116,6 +121,7 @@ impl Editor {
 				let primary_index = self.buffer().selection.primary_index();
 				self.buffer_mut()
 					.set_selection(Selection::from_vec(new_ranges, primary_index));
+				true
 			}
 
 			SelectionOp::ToLineStart => {
@@ -135,6 +141,7 @@ impl Editor {
 				};
 				self.buffer_mut()
 					.set_selection(Selection::from_vec(new_ranges, primary_index));
+				true
 			}
 
 			SelectionOp::ToLineEnd => {
@@ -152,6 +159,7 @@ impl Editor {
 				};
 				self.buffer_mut()
 					.set_selection(Selection::from_vec(new_ranges, primary_index));
+				true
 			}
 
 			SelectionOp::ExpandToFullLines => {
@@ -179,6 +187,7 @@ impl Editor {
 				};
 				self.buffer_mut()
 					.set_selection(Selection::from_vec(new_ranges, primary_index));
+				true
 			}
 
 			SelectionOp::SelectCharBefore => {
@@ -196,10 +205,12 @@ impl Editor {
 					let pos = range.head - 1;
 					ranges.push(Range::new(pos, pos));
 				}
-				if !ranges.is_empty() {
-					self.buffer_mut()
-						.set_selection(Selection::from_vec(ranges, primary_index));
+				if ranges.is_empty() {
+					return false;
 				}
+				self.buffer_mut()
+					.set_selection(Selection::from_vec(ranges, primary_index));
+				true
 			}
 
 			SelectionOp::SelectCharAfter => {
@@ -222,10 +233,12 @@ impl Editor {
 						(ranges, primary_index)
 					})
 				};
-				if !ranges.is_empty() {
-					self.buffer_mut()
-						.set_selection(Selection::from_vec(ranges, primary_index));
+				if ranges.is_empty() {
+					return false;
 				}
+				self.buffer_mut()
+					.set_selection(Selection::from_vec(ranges, primary_index));
+				true
 			}
 
 			SelectionOp::SelectWordBefore => {
@@ -233,13 +246,14 @@ impl Editor {
 					let buffer = self.buffer();
 					buffer.with_doc(|doc| {
 						let text = doc.content().slice(..);
+						let primary_sel_idx = buffer.selection.primary_index();
 						let mut ranges = Vec::new();
 						let mut primary_index = 0usize;
 						for (idx, range) in buffer.selection.ranges().iter().enumerate() {
 							if range.head == 0 {
 								continue;
 							}
-							if idx == buffer.selection.primary_index() {
+							if idx == primary_sel_idx {
 								primary_index = ranges.len();
 							}
 							let word_start = movement::move_to_prev_word_start(
@@ -249,7 +263,6 @@ impl Editor {
 								WordType::Word,
 								false,
 							);
-							// Head - 1 compensates for to_inclusive() in Transaction::delete.
 							if range.head > word_start.head {
 								ranges.push(Range::new(word_start.head, range.head - 1));
 							}
@@ -257,11 +270,12 @@ impl Editor {
 						(ranges, primary_index)
 					})
 				};
-
-				if !ranges.is_empty() {
-					self.buffer_mut()
-						.set_selection(Selection::from_vec(ranges, primary_index));
+				if ranges.is_empty() {
+					return false;
 				}
+				self.buffer_mut()
+					.set_selection(Selection::from_vec(ranges, primary_index));
+				true
 			}
 
 			SelectionOp::SelectWordAfter => {
@@ -270,13 +284,14 @@ impl Editor {
 					buffer.with_doc(|doc| {
 						let text = doc.content().slice(..);
 						let len = text.len_chars();
+						let primary_sel_idx = buffer.selection.primary_index();
 						let mut ranges = Vec::new();
 						let mut primary_index = 0usize;
 						for (idx, range) in buffer.selection.ranges().iter().enumerate() {
 							if range.head >= len {
 								continue;
 							}
-							if idx == buffer.selection.primary_index() {
+							if idx == primary_sel_idx {
 								primary_index = ranges.len();
 							}
 							let word_end = movement::move_to_next_word_start(
@@ -286,7 +301,6 @@ impl Editor {
 								WordType::Word,
 								false,
 							);
-							// Head - 1 compensates for to_inclusive() in Transaction::delete.
 							if word_end.head > range.head {
 								ranges.push(Range::new(range.head, word_end.head - 1));
 							}
@@ -294,15 +308,16 @@ impl Editor {
 						(ranges, primary_index)
 					})
 				};
-
-				if !ranges.is_empty() {
-					self.buffer_mut()
-						.set_selection(Selection::from_vec(ranges, primary_index));
+				if ranges.is_empty() {
+					return false;
 				}
+				self.buffer_mut()
+					.set_selection(Selection::from_vec(ranges, primary_index));
+				true
 			}
 
 			SelectionOp::SelectToNextLineStart => {
-				let (selection, valid) = {
+				let selection = {
 					let buffer = self.buffer();
 					buffer.with_doc(|doc| {
 						let primary = buffer.selection.primary();
@@ -310,14 +325,18 @@ impl Editor {
 						let total_lines = doc.content().len_lines();
 						if line + 1 < total_lines {
 							let end_of_line = doc.content().line_to_char(line + 1) - 1;
-							(Selection::single(end_of_line, end_of_line + 1), true)
+							Some(Selection::single(end_of_line, end_of_line + 1))
 						} else {
-							(buffer.selection.clone(), false)
+							None
 						}
 					})
 				};
-				if valid {
-					self.buffer_mut().set_selection(selection);
+				match selection {
+					Some(sel) => {
+						self.buffer_mut().set_selection(sel);
+						true
+					}
+					None => false,
 				}
 			}
 
@@ -340,6 +359,7 @@ impl Editor {
 				let primary_index = self.buffer().selection.primary_index();
 				self.buffer_mut()
 					.set_selection(Selection::from_vec(new_ranges, primary_index));
+				true
 			}
 		}
 	}
