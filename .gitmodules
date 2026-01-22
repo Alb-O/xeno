@@ -1,0 +1,6 @@
+[submodule "nix/bundles/rust"]
+	path = nix/bundles/rust
+	url = https://github.com/imp-nix/bundle.rust
+[submodule "nix/bundles/cargo-rail"]
+	path = nix/bundles/cargo-rail
+	url = https://github.com/imp-nix/bundle.cargo-rail
