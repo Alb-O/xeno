@@ -52,6 +52,14 @@ impl xeno_registry::FileOpsAccess for Editor {
 				content
 			});
 
+			if let Some(parent) = path_owned.parent() {
+				if !parent.as_os_str().is_empty() {
+					tokio::fs::create_dir_all(parent)
+						.await
+						.map_err(|e| CommandError::Io(e.to_string()))?;
+				}
+			}
+
 			tokio::fs::write(&path_owned, &content)
 				.await
 				.map_err(|e| CommandError::Io(e.to_string()))?;
