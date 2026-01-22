@@ -195,7 +195,19 @@ pub enum SelectionOp {
 	/// Expand selection to include full lines.
 	ExpandToFullLines,
 	/// Select the character before cursor.
+	///
+	/// Creates a collapsed selection at `head - 1`. Combined with [`Transaction::delete`]
+	/// (which uses `to_inclusive()` adding 1), this deletes exactly `[head-1, head)`.
+	///
+	/// [`Transaction::delete`]: xeno_primitives::transaction::Transaction::delete
 	SelectCharBefore,
+	/// Select the character after cursor.
+	///
+	/// Creates a collapsed selection at `head`. Combined with [`Transaction::delete`]
+	/// (which uses `to_inclusive()` adding 1), this deletes exactly `[head, head+1)`.
+	///
+	/// [`Transaction::delete`]: xeno_primitives::transaction::Transaction::delete
+	SelectCharAfter,
 	/// Select from cursor back to previous word start.
 	SelectWordBefore,
 	/// Select from cursor forward to next word end.
@@ -385,6 +397,13 @@ pub fn join_lines() -> EditOp {
 pub fn delete_back() -> EditOp {
 	EditOp::new()
 		.with_selection(SelectionOp::SelectCharBefore)
+		.with_transform(TextTransform::Delete)
+}
+
+/// Creates a delete-forward (delete key) operation.
+pub fn delete_forward() -> EditOp {
+	EditOp::new()
+		.with_selection(SelectionOp::SelectCharAfter)
 		.with_transform(TextTransform::Delete)
 }
 

@@ -126,6 +126,11 @@ impl Key {
 		matches!(self.code, KeyCode::Backspace) && self.modifiers.is_empty()
 	}
 
+	/// Check if this key is delete.
+	pub fn is_delete(&self) -> bool {
+		matches!(self.code, KeyCode::Delete) && self.modifiers.is_empty()
+	}
+
 	/// Check if this key is enter.
 	pub fn is_enter(&self) -> bool {
 		matches!(self.code, KeyCode::Enter) && self.modifiers.is_empty()

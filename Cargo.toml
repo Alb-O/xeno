@@ -35,7 +35,7 @@ include_dir = "0.7"
 insta = "1.46"
 inventory = "0.3"
 kdl = "6.5"
-kitty-test-harness = "0.1"
+kitty-test-harness = "0.2"
 libc = "0.2"
 libloading = "0.9"
 log = { version = "0.4", features = ["kv"] }

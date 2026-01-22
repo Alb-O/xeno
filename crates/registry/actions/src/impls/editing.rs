@@ -61,6 +61,9 @@ action!(open_above, { description: "Open line above", bindings: r#"normal "O""# 
 action!(delete_back, { description: "Delete character before cursor", bindings: r#"normal "backspace""# },
 	|_ctx| ActionResult::Effects(ActionEffects::edit_op(edit_op::delete_back())));
 
+action!(delete_forward, { description: "Delete character after cursor", bindings: r#""# },
+	|_ctx| ActionResult::Effects(ActionEffects::edit_op(edit_op::delete_forward())));
+
 action!(delete_word_back, {
 	description: "Delete word before cursor",
 	bindings: r#"normal "ctrl-backspace"

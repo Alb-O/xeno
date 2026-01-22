@@ -18,9 +18,15 @@ impl InputHandler {
 			return KeyResult::ModeChange(Mode::Normal);
 		}
 
-		if key.is_backspace() {
-			let id = resolve_action_key(actions::delete_back)
-				.expect("delete_back action not registered");
+		let direct_action = if key.is_backspace() {
+			Some(actions::delete_back)
+		} else if key.is_delete() {
+			Some(actions::delete_forward)
+		} else {
+			None
+		};
+		if let Some(action_key) = direct_action {
+			let id = resolve_action_key(action_key).expect("action not registered");
 			return KeyResult::ActionById {
 				id,
 				count: 1,

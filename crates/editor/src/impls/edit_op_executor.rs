@@ -182,26 +182,46 @@ impl Editor {
 			}
 
 			SelectionOp::SelectCharBefore => {
+				let buffer = self.buffer();
+				let primary_sel_idx = buffer.selection.primary_index();
+				let mut ranges = Vec::new();
+				let mut primary_index = 0usize;
+				for (idx, range) in buffer.selection.ranges().iter().enumerate() {
+					if range.head == 0 {
+						continue;
+					}
+					if idx == primary_sel_idx {
+						primary_index = ranges.len();
+					}
+					let pos = range.head - 1;
+					ranges.push(Range::new(pos, pos));
+				}
+				if !ranges.is_empty() {
+					self.buffer_mut()
+						.set_selection(Selection::from_vec(ranges, primary_index));
+				}
+			}
+
+			SelectionOp::SelectCharAfter => {
 				let (ranges, primary_index) = {
 					let buffer = self.buffer();
-					let mut ranges = Vec::new();
-					let mut primary_index = 0usize;
-					for (idx, range) in buffer.selection.ranges().iter().enumerate() {
-						if range.head == 0 {
-							continue;
+					buffer.with_doc(|doc| {
+						let len = doc.content().len_chars();
+						let primary_sel_idx = buffer.selection.primary_index();
+						let mut ranges = Vec::new();
+						let mut primary_index = 0usize;
+						for (idx, range) in buffer.selection.ranges().iter().enumerate() {
+							if range.head >= len {
+								continue;
+							}
+							if idx == primary_sel_idx {
+								primary_index = ranges.len();
+							}
+							ranges.push(Range::new(range.head, range.head));
 						}
-						if idx == buffer.selection.primary_index() {
-							primary_index = ranges.len();
-						}
-						// Create a collapsed cursor at the character to delete.
-						// Transaction::delete uses to_inclusive() which adds 1,
-						// so a cursor at (head - 1) deletes exactly [head-1, head).
-						let pos = range.head - 1;
-						ranges.push(Range::new(pos, pos));
-					}
-					(ranges, primary_index)
+						(ranges, primary_index)
+					})
 				};
-
 				if !ranges.is_empty() {
 					self.buffer_mut()
 						.set_selection(Selection::from_vec(ranges, primary_index));
