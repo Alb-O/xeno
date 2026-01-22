@@ -2,10 +2,41 @@
 
 use std::fs;
 use std::path::Path;
-use std::process::Command;
+use std::process::{Command, Stdio};
 
 use super::config::{GrammarConfig, get_grammar_src_dir, grammar_lib_dir, library_extension};
 use super::{GrammarBuildError, Result};
+
+/// Returns the first compiler from `candidates` that executes successfully.
+fn find_compiler<'a>(candidates: &[&'a str]) -> Option<&'a str> {
+	candidates.iter().copied().find(|name| {
+		Command::new(name)
+			.arg("--version")
+			.stdout(Stdio::null())
+			.stderr(Stdio::null())
+			.status()
+			.is_ok()
+	})
+}
+
+/// Resolves C and C++ compilers, preferring env vars then probing common names.
+///
+/// Returns `None` for a compiler if neither env var nor any candidate is found.
+fn resolve_compilers() -> (Option<&'static str>, Option<&'static str>) {
+	static COMPILERS: std::sync::OnceLock<(Option<&'static str>, Option<&'static str>)> =
+		std::sync::OnceLock::new();
+	*COMPILERS.get_or_init(|| {
+		let cc = std::env::var("CC")
+			.ok()
+			.map(|s| s.leak() as &str)
+			.or_else(|| find_compiler(&["cc", "clang", "gcc"]));
+		let cxx = std::env::var("CXX")
+			.ok()
+			.map(|s| s.leak() as &str)
+			.or_else(|| find_compiler(&["c++", "clang++", "g++"]));
+		(cc, cxx)
+	})
+}
 
 /// Status of a build operation.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -16,34 +47,23 @@ pub enum BuildStatus {
 	Built,
 }
 
-/// Check if a grammar needs to be recompiled.
+/// Returns true if any source file is newer than the compiled library.
 fn needs_recompile(src_dir: &Path, lib_path: &Path) -> bool {
-	if !lib_path.exists() {
+	let Ok(lib_mtime) = fs::metadata(lib_path).and_then(|m| m.modified()) else {
 		return true;
-	}
-
-	let lib_mtime = match fs::metadata(lib_path).and_then(|m| m.modified()) {
-		Ok(t) => t,
-		Err(_) => return true,
 	};
 
-	// Check if any source file is newer than the library
-	let source_files = ["parser.c", "scanner.c", "scanner.cc"];
-	for file in source_files {
-		let src_path = src_dir.join(file);
-		if src_path.exists()
-			&& let Ok(meta) = fs::metadata(&src_path)
-			&& let Ok(src_mtime) = meta.modified()
-			&& src_mtime > lib_mtime
-		{
-			return true;
-		}
-	}
-
-	false
+	["parser.c", "scanner.c", "scanner.cc"].iter().any(|file| {
+		fs::metadata(src_dir.join(file))
+			.and_then(|m| m.modified())
+			.is_ok_and(|src_mtime| src_mtime > lib_mtime)
+	})
 }
 
-/// Build a single grammar into a dynamic library.
+/// Compiles a tree-sitter grammar into a dynamic library.
+///
+/// Uses [`cc`] to compile object files, then links into a shared library.
+/// Library name uses `lib` prefix to match [`load_grammar`](super::load_grammar) expectations.
 pub fn build_grammar(grammar: &GrammarConfig) -> Result<BuildStatus> {
 	let src_dir = get_grammar_src_dir(grammar);
 	let parser_path = src_dir.join("parser.c");
@@ -55,25 +75,47 @@ pub fn build_grammar(grammar: &GrammarConfig) -> Result<BuildStatus> {
 	let lib_dir = grammar_lib_dir();
 	fs::create_dir_all(&lib_dir)?;
 
-	// Use lib prefix to match what load_grammar() expects
-	let lib_name = format!(
+	let lib_path = lib_dir.join(format!(
 		"lib{}.{}",
 		grammar.grammar_id.replace('-', "_"),
 		library_extension()
-	);
-	let lib_path = lib_dir.join(&lib_name);
+	));
 
 	if !needs_recompile(&src_dir, &lib_path) {
 		return Ok(BuildStatus::AlreadyBuilt);
 	}
 
-	// Set HOST and TARGET env vars if not present (needed outside cargo).
+	let scanner_cc = src_dir.join("scanner.cc");
+	let scanner_c = src_dir.join("scanner.c");
+	let needs_cxx = scanner_cc.exists();
+
+	let (cc, cxx) = resolve_compilers();
+	let compiler = if needs_cxx {
+		cxx.ok_or_else(|| {
+			GrammarBuildError::Compilation(format!(
+				"C++ compiler required for {} (scanner.cc) but none found. \
+				 Install clang++/g++ or set CXX env var.",
+				grammar.grammar_id
+			))
+		})?
+	} else {
+		cc.ok_or_else(|| {
+			GrammarBuildError::Compilation(
+				"C compiler required but none found. Install clang/gcc or set CC env var."
+					.to_string(),
+			)
+		})?
+	};
+
 	let target = std::env::var("TARGET")
-		.unwrap_or_else(|_| std::env::consts::ARCH.to_string() + "-unknown-linux-gnu");
-	// SAFETY: We're setting env vars before any multi-threaded work happens in the cc crate
+		.unwrap_or_else(|_| format!("{}-unknown-linux-gnu", std::env::consts::ARCH));
+
+	// SAFETY: env vars set before cc crate spawns threads
 	unsafe {
 		std::env::set_var("TARGET", &target);
 		std::env::set_var("HOST", &target);
+		std::env::set_var("CC", cc.unwrap_or(compiler));
+		std::env::set_var("CXX", cxx.unwrap_or(compiler));
 	}
 
 	let mut build = cc::Build::new();
@@ -83,17 +125,11 @@ pub fn build_grammar(grammar: &GrammarConfig) -> Result<BuildStatus> {
 		.warnings(false)
 		.include(&src_dir)
 		.host(&target)
-		.target(&target);
-
-	build.file(&parser_path);
-
-	let scanner_c = src_dir.join("scanner.c");
-	let scanner_cc = src_dir.join("scanner.cc");
+		.target(&target)
+		.file(&parser_path);
 
 	if scanner_cc.exists() {
-		build.cpp(true);
-		build.file(&scanner_cc);
-		build.std("c++14");
+		build.cpp(true).file(&scanner_cc).std("c++14");
 	} else if scanner_c.exists() {
 		build.file(&scanner_c);
 	}
@@ -106,46 +142,44 @@ pub fn build_grammar(grammar: &GrammarConfig) -> Result<BuildStatus> {
 		.try_compile(&grammar.grammar_id)
 		.map_err(|e| GrammarBuildError::Compilation(e.to_string()))?;
 
-	compile_shared_library(&grammar.grammar_id, &src_dir, &lib_path)?;
+	compile_shared_library(&src_dir, &lib_path)?;
 
 	Ok(BuildStatus::Built)
 }
 
-/// Compile a grammar directly into a shared library using the system compiler.
-fn compile_shared_library(_name: &str, src_dir: &Path, lib_path: &Path) -> Result<()> {
+/// Links object files into a shared library using the system compiler.
+///
+/// Caller must ensure required compiler exists (checked in [`build_grammar`]).
+fn compile_shared_library(src_dir: &Path, lib_path: &Path) -> Result<()> {
 	let parser_path = src_dir.join("parser.c");
-	let scanner_c = src_dir.join("scanner.c");
 	let scanner_cc = src_dir.join("scanner.cc");
+	let scanner_c = src_dir.join("scanner.c");
 
 	#[cfg(unix)]
 	{
-		let compiler = if scanner_cc.exists() { "c++" } else { "cc" };
+		let (cc, cxx) = resolve_compilers();
+		let compiler = if scanner_cc.exists() {
+			cxx.expect("C++ compiler checked in build_grammar")
+		} else {
+			cc.expect("C compiler checked in build_grammar")
+		};
 
 		let mut cmd = Command::new(compiler);
-		cmd.arg("-shared")
-			.arg("-fPIC")
-			.arg("-O3")
-			.arg("-fno-exceptions")
+		cmd.args(["-shared", "-fPIC", "-O3", "-fno-exceptions"])
 			.arg("-I")
 			.arg(src_dir)
 			.arg("-o")
-			.arg(lib_path);
-
-		cmd.arg(&parser_path);
+			.arg(lib_path)
+			.arg(&parser_path);
 
 		if scanner_cc.exists() {
-			cmd.arg("-std=c++14");
-			cmd.arg(&scanner_cc);
-			cmd.arg("-lstdc++");
+			cmd.args(["-std=c++14", "-lstdc++"]).arg(&scanner_cc);
 		} else if scanner_c.exists() {
 			cmd.arg(&scanner_c);
 		}
 
-		// Security hardening on Linux
 		#[cfg(target_os = "linux")]
-		{
-			cmd.arg("-Wl,-z,relro,-z,now");
-		}
+		cmd.arg("-Wl,-z,relro,-z,now");
 
 		let output = cmd
 			.output()
@@ -153,26 +187,21 @@ fn compile_shared_library(_name: &str, src_dir: &Path, lib_path: &Path) -> Resul
 
 		if !output.status.success() {
 			return Err(GrammarBuildError::Compilation(
-				String::from_utf8_lossy(&output.stderr).to_string(),
+				String::from_utf8_lossy(&output.stderr).into(),
 			));
 		}
 	}
 
 	#[cfg(windows)]
 	{
-		// Windows compilation using MSVC
 		let mut cmd = Command::new("cl.exe");
-		cmd.arg("/nologo")
-			.arg("/LD")
-			.arg("/O2")
-			.arg("/utf-8")
+		cmd.args(["/nologo", "/LD", "/O2", "/utf-8"])
 			.arg(format!("/I{}", src_dir.display()))
 			.arg(format!("/Fe:{}", lib_path.display()))
 			.arg(&parser_path);
 
 		if scanner_cc.exists() {
-			cmd.arg("/std:c++14");
-			cmd.arg(&scanner_cc);
+			cmd.arg("/std:c++14").arg(&scanner_cc);
 		} else if scanner_c.exists() {
 			cmd.arg(&scanner_c);
 		}
@@ -183,7 +212,7 @@ fn compile_shared_library(_name: &str, src_dir: &Path, lib_path: &Path) -> Resul
 
 		if !output.status.success() {
 			return Err(GrammarBuildError::Compilation(
-				String::from_utf8_lossy(&output.stderr).to_string(),
+				String::from_utf8_lossy(&output.stderr).into(),
 			));
 		}
 	}
