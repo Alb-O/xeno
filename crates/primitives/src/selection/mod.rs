@@ -147,6 +147,33 @@ impl Selection {
 		self.normalize();
 	}
 
+	/// Transforms ranges with a fallible function, filtering out `None` results.
+	///
+	/// Returns `None` if all ranges are filtered out. Remaps primary index automatically.
+	pub fn try_filter_transform<F>(&self, mut f: F) -> Option<Self>
+	where
+		F: FnMut(&Range) -> Option<Range>,
+	{
+		let primary_sel_idx = self.primary_index;
+		let mut ranges = Vec::new();
+		let mut new_primary_index = 0;
+
+		for (idx, range) in self.ranges.iter().enumerate() {
+			if let Some(new_range) = f(range) {
+				if idx == primary_sel_idx {
+					new_primary_index = ranges.len();
+				}
+				ranges.push(new_range);
+			}
+		}
+
+		if ranges.is_empty() {
+			None
+		} else {
+			Some(Self::from_vec(ranges, new_primary_index))
+		}
+	}
+
 	/// Merge overlapping AND adjacent ranges.
 	///
 	/// Unlike `normalize()` (which only merges overlapping ranges), this also

@@ -43,13 +43,7 @@ impl Editor {
 		self.execute_edit_plan(plan);
 	}
 
-	/// Executes a compiled edit plan.
-	///
-	/// Uses the compile -> commit pattern:
-	/// 1. Check readonly and apply pre-effects/selection ops
-	/// 2. Build the transaction from the transform
-	/// 3. Apply via `apply_edit()` which handles undo recording inside commit
-	/// 4. Apply post-effects
+	/// Executes a compiled edit plan using the compile -> commit pattern.
 	pub fn execute_edit_plan(&mut self, plan: EditPlan) {
 		if plan.op.modifies_text() && !self.guard_readonly() {
 			return;
@@ -191,129 +185,62 @@ impl Editor {
 			}
 
 			SelectionOp::SelectCharBefore => {
-				let buffer = self.buffer();
-				let primary_sel_idx = buffer.selection.primary_index();
-				let mut ranges = Vec::new();
-				let mut primary_index = 0usize;
-				for (idx, range) in buffer.selection.ranges().iter().enumerate() {
-					if range.head == 0 {
-						continue;
-					}
-					if idx == primary_sel_idx {
-						primary_index = ranges.len();
-					}
-					let pos = range.head - 1;
-					ranges.push(Range::new(pos, pos));
-				}
-				if ranges.is_empty() {
-					return false;
-				}
-				self.buffer_mut()
-					.set_selection(Selection::from_vec(ranges, primary_index));
-				true
+				let new_sel = self
+					.buffer()
+					.selection
+					.try_filter_transform(|r| (r.head > 0).then(|| Range::point(r.head - 1)));
+				self.apply_selection_or_abort(new_sel)
 			}
 
 			SelectionOp::SelectCharAfter => {
-				let (ranges, primary_index) = {
+				let new_sel = {
 					let buffer = self.buffer();
 					buffer.with_doc(|doc| {
 						let len = doc.content().len_chars();
-						let primary_sel_idx = buffer.selection.primary_index();
-						let mut ranges = Vec::new();
-						let mut primary_index = 0usize;
-						for (idx, range) in buffer.selection.ranges().iter().enumerate() {
-							if range.head >= len {
-								continue;
-							}
-							if idx == primary_sel_idx {
-								primary_index = ranges.len();
-							}
-							ranges.push(Range::new(range.head, range.head));
-						}
-						(ranges, primary_index)
+						buffer
+							.selection
+							.try_filter_transform(|r| (r.head < len).then(|| Range::point(r.head)))
 					})
 				};
-				if ranges.is_empty() {
-					return false;
-				}
-				self.buffer_mut()
-					.set_selection(Selection::from_vec(ranges, primary_index));
-				true
+				self.apply_selection_or_abort(new_sel)
 			}
 
 			SelectionOp::SelectWordBefore => {
-				let (ranges, primary_index) = {
+				let new_sel = {
 					let buffer = self.buffer();
 					buffer.with_doc(|doc| {
 						let text = doc.content().slice(..);
-						let primary_sel_idx = buffer.selection.primary_index();
-						let mut ranges = Vec::new();
-						let mut primary_index = 0usize;
-						for (idx, range) in buffer.selection.ranges().iter().enumerate() {
-							if range.head == 0 {
-								continue;
+						buffer.selection.try_filter_transform(|r| {
+							if r.head == 0 {
+								return None;
 							}
-							if idx == primary_sel_idx {
-								primary_index = ranges.len();
-							}
-							let word_start = movement::move_to_prev_word_start(
-								text,
-								*range,
-								1,
-								WordType::Word,
-								false,
-							);
-							if range.head > word_start.head {
-								ranges.push(Range::new(word_start.head, range.head - 1));
-							}
-						}
-						(ranges, primary_index)
+							let word_start =
+								movement::move_to_prev_word_start(text, *r, 1, WordType::Word, false);
+							(r.head > word_start.head)
+								.then(|| Range::new(word_start.head, r.head - 1))
+						})
 					})
 				};
-				if ranges.is_empty() {
-					return false;
-				}
-				self.buffer_mut()
-					.set_selection(Selection::from_vec(ranges, primary_index));
-				true
+				self.apply_selection_or_abort(new_sel)
 			}
 
 			SelectionOp::SelectWordAfter => {
-				let (ranges, primary_index) = {
+				let new_sel = {
 					let buffer = self.buffer();
 					buffer.with_doc(|doc| {
 						let text = doc.content().slice(..);
 						let len = text.len_chars();
-						let primary_sel_idx = buffer.selection.primary_index();
-						let mut ranges = Vec::new();
-						let mut primary_index = 0usize;
-						for (idx, range) in buffer.selection.ranges().iter().enumerate() {
-							if range.head >= len {
-								continue;
+						buffer.selection.try_filter_transform(|r| {
+							if r.head >= len {
+								return None;
 							}
-							if idx == primary_sel_idx {
-								primary_index = ranges.len();
-							}
-							let word_end = movement::move_to_next_word_start(
-								text,
-								*range,
-								1,
-								WordType::Word,
-								false,
-							);
-							if word_end.head > range.head {
-								ranges.push(Range::new(range.head, word_end.head - 1));
-							}
-						}
-						(ranges, primary_index)
+							let word_end =
+								movement::move_to_next_word_start(text, *r, 1, WordType::Word, false);
+							(word_end.head > r.head).then(|| Range::new(r.head, word_end.head - 1))
+						})
 					})
 				};
-				if ranges.is_empty() {
-					return false;
-				}
-				self.buffer_mut()
-					.set_selection(Selection::from_vec(ranges, primary_index));
-				true
+				self.apply_selection_or_abort(new_sel)
 			}
 
 			SelectionOp::SelectToNextLineStart => {
@@ -361,6 +288,17 @@ impl Editor {
 					.set_selection(Selection::from_vec(new_ranges, primary_index));
 				true
 			}
+		}
+	}
+
+	/// Applies a new selection. Returns `false` if selection is `None`.
+	fn apply_selection_or_abort(&mut self, new_sel: Option<Selection>) -> bool {
+		match new_sel {
+			Some(sel) => {
+				self.buffer_mut().set_selection(sel);
+				true
+			}
+			None => false,
 		}
 	}
 
