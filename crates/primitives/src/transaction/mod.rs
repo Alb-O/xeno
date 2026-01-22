@@ -56,10 +56,11 @@ impl Transaction {
 	{
 		let mut changeset = ChangeSet::new(doc);
 		let mut last: CharIdx = 0;
+		let doc_len = doc.len_chars();
 
 		for change in changes {
 			let from = change.start;
-			let to = change.end;
+			let to = change.end.min(doc_len);
 			let replacement = change.replacement;
 			debug_assert!(from <= to);
 			debug_assert!(from >= last);
