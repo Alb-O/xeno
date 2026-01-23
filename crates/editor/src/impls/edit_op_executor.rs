@@ -197,7 +197,11 @@ impl Editor {
 					let buffer = self.buffer();
 					buffer.with_doc(|doc| {
 						let len = doc.content().len_chars();
-						(len > 0).then(|| buffer.selection.transform(|r| Range::point(r.head.min(len))))
+						(len > 0).then(|| {
+							buffer
+								.selection
+								.transform(|r| Range::point(r.head.min(len)))
+						})
 					})
 				};
 				self.apply_selection_or_abort(new_sel)

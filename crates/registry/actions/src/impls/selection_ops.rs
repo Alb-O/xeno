@@ -420,6 +420,9 @@ mod tests {
 		};
 		let primary = new_sel.primary();
 		assert_eq!(primary.anchor, 0);
-		assert_eq!(primary.head, 13, "should select 2 lines (ending at newline of line 1)");
+		assert_eq!(
+			primary.head, 13,
+			"should select 2 lines (ending at newline of line 1)"
+		);
 	}
 }
