@@ -61,22 +61,22 @@ fn select_line_impl(ctx: &ActionContext) -> ActionResult {
 	ActionResult::Effects(ActionEffects::motion(new_sel))
 }
 
-/// Extends selection to include additional lines, preserving anchor.
+/// Extends selection to cover full lines, then extends by additional lines on repeat.
 fn extend_line_impl(ctx: &ActionContext) -> ActionResult {
 	let mut new_sel = ctx.selection.clone();
 	let count = ctx.count.max(1);
 	new_sel.transform_mut(|r| {
+		let anchor_line = ctx.text.char_to_line(r.anchor);
 		let head_line = ctx.text.char_to_line(r.head);
-		let at_line_end = r.head == line_end_pos(ctx.text, head_line);
-		let offset = if at_line_end { count } else { count - 1 };
-		let target = (head_line + offset).min(ctx.text.len_lines().saturating_sub(1));
-		let end = line_end_pos(ctx.text, target);
+		let full_anchor = ctx.text.line_to_char(anchor_line);
+		let full_head = line_end_pos(ctx.text, head_line);
 
-		if ctx.extend || at_line_end {
-			r.head = end;
+		if r.anchor == full_anchor && r.head == full_head {
+			let target = (head_line + count).min(ctx.text.len_lines().saturating_sub(1));
+			r.head = line_end_pos(ctx.text, target);
 		} else {
-			r.anchor = ctx.text.line_to_char(head_line);
-			r.head = end;
+			r.anchor = full_anchor;
+			r.head = full_head;
 		}
 	});
 	ActionResult::Effects(ActionEffects::motion(new_sel))
