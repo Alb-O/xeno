@@ -377,6 +377,7 @@ impl<'a> BufferRenderContext<'a> {
 				is_cursor_line,
 				cursorline_enabled: cursorline,
 				cursor_line,
+				is_nontext: false,
 			};
 
 			let wrapped_segments = wrap_line(line_text, text_width, tab_width);
@@ -558,6 +559,7 @@ impl<'a> BufferRenderContext<'a> {
 						is_cursor_line: false,
 						cursorline_enabled: false,
 						cursor_line,
+						is_nontext: true,
 					};
 					let mut spans = buffer.with_doc(|doc| {
 						gutter_layout.render_line(

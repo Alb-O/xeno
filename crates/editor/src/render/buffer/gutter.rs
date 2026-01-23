@@ -141,6 +141,7 @@ impl GutterLayout {
 		theme: &Theme,
 	) -> Vec<Span<'static>> {
 		let is_cursor_line = line_style.should_highlight_cursorline();
+		let is_nontext = line_style.is_nontext;
 		let cursorline_bg = line_style.gutter_cursorline_bg();
 
 		match &self.kind {
@@ -151,8 +152,9 @@ impl GutterLayout {
 				}
 				let cell =
 					(!is_continuation).then(|| GutterCell::new(prompt.to_string(), None, false));
-				let mut spans = self.format_cell(cell, 1, is_cursor_line, theme, cursorline_bg);
-				spans.push(self.separator_span(is_cursor_line, cursorline_bg));
+				let mut spans =
+					self.format_cell(cell, 1, is_cursor_line, is_nontext, theme, cursorline_bg);
+				spans.push(self.separator_span(is_cursor_line, is_nontext, theme, cursorline_bg));
 				spans
 			}
 			GutterLayoutKind::Custom { width, render } => {
@@ -170,9 +172,15 @@ impl GutterLayout {
 					annotations,
 					theme,
 				};
-				let mut spans =
-					self.format_cell(render(&ctx), *width, is_cursor_line, theme, cursorline_bg);
-				spans.push(self.separator_span(is_cursor_line, cursorline_bg));
+				let mut spans = self.format_cell(
+					render(&ctx),
+					*width,
+					is_cursor_line,
+					is_nontext,
+					theme,
+					cursorline_bg,
+				);
+				spans.push(self.separator_span(is_cursor_line, is_nontext, theme, cursorline_bg));
 				spans
 			}
 			GutterLayoutKind::Columns(columns) => {
@@ -198,11 +206,12 @@ impl GutterLayout {
 						(gutter_def.render)(&ctx),
 						*width,
 						is_cursor_line,
+						is_nontext,
 						theme,
 						cursorline_bg,
 					));
 				}
-				spans.push(self.separator_span(is_cursor_line, cursorline_bg));
+				spans.push(self.separator_span(is_cursor_line, is_nontext, theme, cursorline_bg));
 				spans
 			}
 		}
@@ -238,8 +247,16 @@ impl GutterLayout {
 		}
 	}
 
-	fn separator_span(&self, is_cursor_line: bool, cursorline_bg: Color) -> Span<'static> {
-		let style = if is_cursor_line {
+	fn separator_span(
+		&self,
+		is_cursor_line: bool,
+		is_nontext: bool,
+		theme: &Theme,
+		cursorline_bg: Color,
+	) -> Span<'static> {
+		let style = if is_nontext {
+			Style::default().bg(theme.colors.ui.nontext_bg)
+		} else if is_cursor_line {
 			Style::default().bg(cursorline_bg)
 		} else {
 			Style::default()
@@ -253,11 +270,15 @@ impl GutterLayout {
 		cell: Option<GutterCell>,
 		width: u16,
 		is_cursor_line: bool,
+		is_nontext: bool,
 		theme: &Theme,
 		cursorline_bg: Color,
 	) -> Vec<Span<'static>> {
 		let width = width as usize;
-		let base_style = if is_cursor_line {
+		let nontext_bg = theme.colors.ui.nontext_bg;
+		let base_style = if is_nontext {
+			Style::default().bg(nontext_bg)
+		} else if is_cursor_line {
 			Style::default().bg(cursorline_bg)
 		} else {
 			Style::default()
@@ -277,8 +298,8 @@ impl GutterLayout {
 
 		for seg in cell.segments {
 			let base_fg = seg.fg.unwrap_or(theme.colors.ui.gutter_fg);
-			let fg = if seg.dim {
-				base_fg.blend(theme.colors.ui.bg, 0.5)
+			let fg = if is_nontext || seg.dim {
+				base_fg.blend(nontext_bg, 0.5)
 			} else {
 				base_fg
 			};

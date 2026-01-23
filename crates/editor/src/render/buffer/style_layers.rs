@@ -41,6 +41,8 @@ pub struct LineStyleContext {
 	pub cursorline_enabled: bool,
 	/// Cursor line index.
 	pub cursor_line: usize,
+	/// Whether this line is in the nontext area.
+	pub is_nontext: bool,
 }
 
 impl LineStyleContext {
@@ -132,6 +134,7 @@ mod tests {
 			is_cursor_line,
 			cursorline_enabled: true,
 			cursor_line: 0,
+			is_nontext: false,
 		}
 	}
 

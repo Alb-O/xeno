@@ -141,6 +141,7 @@ mod tests {
 			is_cursor_line: false,
 			cursorline_enabled: true,
 			cursor_line: 0,
+			is_nontext: false,
 		}
 	}
 
