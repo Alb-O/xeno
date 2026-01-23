@@ -49,6 +49,7 @@ palette {
 ui {
 	bg $bg0
 	fg $fg1
+	nontext-bg $bg0-hard
 	gutter-fg $gray
 	cursor-bg $fg1
 	cursor-fg $bg0

@@ -300,6 +300,10 @@ impl<'a> BufferRenderContext<'a> {
 		cursorline: bool,
 	) -> RenderResult {
 		let total_lines = buffer.with_doc(|doc| doc.content().len_lines());
+		let has_trailing_newline = buffer.with_doc(|doc| {
+			let len = doc.content().len_chars();
+			len > 0 && doc.content().char(len - 1) == '\n'
+		});
 		let is_diff_file = buffer.file_type().is_some_and(|ft| ft == "diff");
 
 		let effective_gutter = if is_diff_file {
@@ -542,72 +546,106 @@ impl<'a> BufferRenderContext<'a> {
 				&& start_segment == 0
 				&& output_lines.len() < viewport_height
 			{
-				let mut spans = buffer.with_doc(|doc| {
-					gutter_layout.render_line(
-						current_line_idx,
-						total_lines,
-						&line_style,
-						false,
-						doc.content().line(current_line_idx),
-						buffer_path,
-						&line_annotations,
-						self.theme,
-					)
-				});
-
 				let is_last_doc_line = current_line_idx + 1 >= total_lines;
-				let cursor_at_eol = cursor_heads.iter().any(|pos: &CharIdx| {
-					if is_last_doc_line {
-						*pos >= line_start && *pos <= line_end
-					} else {
-						*pos >= line_start && *pos < line_end
-					}
-				});
-				let mut cols_used = 0;
-				if cursor_at_eol && (use_block_cursor || !is_focused) {
-					let primary_here = if is_last_doc_line {
-						primary_cursor >= line_start && primary_cursor <= line_end
-					} else {
-						primary_cursor >= line_start && primary_cursor < line_end
-					};
-					let cursor_style = if !is_focused {
-						styles.unfocused
-					} else if primary_here {
-						styles.primary
-					} else {
-						styles.secondary
-					};
-					let has_newline = !is_last_doc_line || line_end > line_start;
-					let eol_char = if has_newline { "¬" } else { " " };
-					let eol_style = match (cursor_style.fg, cursor_style.bg) {
-						(Some(fg), Some(bg)) => cursor_style.fg(fg.blend(bg, 0.35)),
-						_ => cursor_style,
-					};
-					spans.push(Span::styled(eol_char, eol_style));
-					cols_used = 1;
-				}
+				let is_phantom_line = is_last_doc_line && has_trailing_newline;
 
-				if let Some(fill_span) =
-					FillConfig::from_bg(line_style.fill_bg()).fill_span(text_width - cols_used)
-				{
-					spans.push(fill_span);
-				}
-
-				let line = if let Some(bg) = line_style.fill_bg() {
-					Line::from(spans).style(Style::default().bg(bg))
+				if is_phantom_line {
+					let nontext_bg = self.theme.colors.ui.nontext_bg;
+					let phantom_style = LineStyleContext {
+						base_bg: nontext_bg,
+						diff_bg: None,
+						mode_color,
+						is_cursor_line: false,
+						cursorline_enabled: false,
+						cursor_line,
+					};
+					let mut spans = buffer.with_doc(|doc| {
+						gutter_layout.render_line(
+							current_line_idx,
+							total_lines,
+							&phantom_style,
+							false,
+							doc.content().line(current_line_idx),
+							buffer_path,
+							&line_annotations,
+							self.theme,
+						)
+					});
+					let fill_style = Style::default().bg(nontext_bg);
+					spans.push(Span::styled(" ".repeat(text_width), fill_style));
+					output_lines.push(Line::from(spans).style(fill_style));
 				} else {
-					Line::from(spans)
-				};
-				output_lines.push(line);
+					let mut spans = buffer.with_doc(|doc| {
+						gutter_layout.render_line(
+							current_line_idx,
+							total_lines,
+							&line_style,
+							false,
+							doc.content().line(current_line_idx),
+							buffer_path,
+							&line_annotations,
+							self.theme,
+						)
+					});
+
+					let cursor_at_eol = cursor_heads.iter().any(|pos: &CharIdx| {
+						if is_last_doc_line {
+							*pos >= line_start && *pos <= line_end
+						} else {
+							*pos >= line_start && *pos < line_end
+						}
+					});
+					let mut cols_used = 0;
+					if cursor_at_eol && (use_block_cursor || !is_focused) {
+						let primary_here = if is_last_doc_line {
+							primary_cursor >= line_start && primary_cursor <= line_end
+						} else {
+							primary_cursor >= line_start && primary_cursor < line_end
+						};
+						let cursor_style = if !is_focused {
+							styles.unfocused
+						} else if primary_here {
+							styles.primary
+						} else {
+							styles.secondary
+						};
+						let has_newline = !is_last_doc_line || line_end > line_start;
+						let eol_char = if has_newline { "¬" } else { " " };
+						let eol_style = match (cursor_style.fg, cursor_style.bg) {
+							(Some(fg), Some(bg)) => cursor_style.fg(fg.blend(bg, 0.35)),
+							_ => cursor_style,
+						};
+						spans.push(Span::styled(eol_char, eol_style));
+						cols_used = 1;
+					}
+
+					if let Some(fill_span) =
+						FillConfig::from_bg(line_style.fill_bg()).fill_span(text_width - cols_used)
+					{
+						spans.push(fill_span);
+					}
+
+					let line = if let Some(bg) = line_style.fill_bg() {
+						Line::from(spans).style(Style::default().bg(bg))
+					} else {
+						Line::from(spans)
+					};
+					output_lines.push(line);
+				}
 			}
 
 			start_segment = 0;
 			current_line_idx += 1;
 		}
 
+		let nontext_bg = self.theme.colors.ui.nontext_bg;
 		while output_lines.len() < viewport_height {
-			let spans = gutter_layout.render_empty_line(self.theme);
-			output_lines.push(Line::from(spans));
+			let mut spans = gutter_layout.render_empty_line(self.theme);
+			spans.push(Span::styled(
+				" ".repeat(text_width),
+				Style::default().bg(nontext_bg),
+			));
+			output_lines.push(Line::from(spans).style(Style::default().bg(nontext_bg)));
 		}
 
 		RenderResult {

@@ -47,6 +47,8 @@ pub struct UiColors {
 	pub bg: Color,
 	/// Main editor foreground (text) color.
 	pub fg: Color,
+	/// Background color for out-of-bounds areas (past EOF, phantom lines).
+	pub nontext_bg: Color,
 	/// Line number gutter foreground color.
 	pub gutter_fg: Color,
 	/// Cursor background color.
@@ -346,6 +348,7 @@ pub static DEFAULT_THEME: Theme = Theme {
 		ui: UiColors {
 			bg: Color::Reset,
 			fg: Color::Reset,
+			nontext_bg: Color::Rgb(5, 5, 5),
 			gutter_fg: Color::DarkGray,
 			cursor_bg: Color::White,
 			cursor_fg: Color::Black,

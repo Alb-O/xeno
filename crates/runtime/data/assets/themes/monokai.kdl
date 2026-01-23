@@ -26,6 +26,7 @@ palette {
 ui {
 	bg $bg
 	fg $fg
+	nontext-bg $bg-dark
 	gutter-fg $gray
 	cursor-bg $fg-bright
 	cursor-fg $bg

@@ -210,6 +210,8 @@ impl GutterLayout {
 
 	/// Renders gutter spans for empty lines past EOF (the ~ indicator).
 	pub fn render_empty_line(&self, theme: &Theme) -> Vec<Span<'static>> {
+		let nontext_bg = theme.colors.ui.nontext_bg;
+
 		match &self.kind {
 			GutterLayoutKind::Hidden => Vec::new(),
 			GutterLayoutKind::Prompt { .. } | GutterLayoutKind::Custom { .. } => {
@@ -218,7 +220,7 @@ impl GutterLayout {
 				}
 				vec![Span::styled(
 					" ".repeat(self.total_width as usize),
-					Style::default(),
+					Style::default().bg(nontext_bg),
 				)]
 			}
 			GutterLayoutKind::Columns(columns) => {
@@ -226,11 +228,11 @@ impl GutterLayout {
 					return Vec::new();
 				}
 
-				let dim_color = theme.colors.ui.gutter_fg.blend(theme.colors.ui.bg, 0.5);
+				let dim_color = theme.colors.ui.gutter_fg.blend(nontext_bg, 0.5);
 				let width = self.total_width.saturating_sub(1) as usize;
 				vec![Span::styled(
 					format!("{:>width$} ", "~", width = width),
-					Style::default().fg(dim_color),
+					Style::default().fg(dim_color).bg(nontext_bg),
 				)]
 			}
 		}

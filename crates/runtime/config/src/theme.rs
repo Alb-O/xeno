@@ -12,7 +12,7 @@ pub use xeno_registry::themes::{
 use xeno_registry::themes::{SyntaxStyle, SyntaxStyles};
 
 use crate::error::{ConfigError, Result};
-use crate::utils::{ParseContext, get_color_field, parse_modifier, parse_palette};
+use crate::utils::{ParseContext, get_color_field, get_color_field_opt, parse_modifier, parse_palette};
 
 /// A parsed theme with owned data suitable for runtime use.
 #[derive(Debug, Clone)]
@@ -172,9 +172,14 @@ fn parse_ui_colors(node: Option<&KdlNode>, ctx: &ParseContext) -> Result<UiColor
 		.children()
 		.ok_or_else(|| ConfigError::MissingField("ui".into()))?;
 
+	let bg = get_color_field(children, "bg", ctx)?;
+	let nontext_bg = get_color_field_opt(children, "nontext-bg", ctx)?
+		.unwrap_or_else(|| bg.blend(xeno_primitives::Color::Black, 0.85));
+
 	Ok(UiColors {
-		bg: get_color_field(children, "bg", ctx)?,
+		bg,
 		fg: get_color_field(children, "fg", ctx)?,
+		nontext_bg,
 		gutter_fg: get_color_field(children, "gutter-fg", ctx)?,
 		cursor_bg: get_color_field(children, "cursor-bg", ctx)?,
 		cursor_fg: get_color_field(children, "cursor-fg", ctx)?,
