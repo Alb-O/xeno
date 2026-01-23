@@ -25,11 +25,7 @@ pub fn move_vertically(
 
 	let new_line_start = text.line_to_char(new_line);
 	let new_line_len = text.line(new_line).len_chars();
-	let line_end_offset = if new_line == text.len_lines().saturating_sub(1) {
-		new_line_len
-	} else {
-		new_line_len.saturating_sub(1)
-	};
+	let line_end_offset = new_line_len.saturating_sub(1);
 
 	let new_col = col.min(line_end_offset);
 	let new_pos: CharIdx = new_line_start + new_col;

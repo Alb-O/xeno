@@ -136,9 +136,9 @@ impl Buffer {
 					let next_seg = &segments[current_seg_idx + 1];
 					let seg_len = next_seg.text.chars().count().saturating_sub(1);
 					let col_in_seg = goal_col.saturating_sub(next_seg.start_offset);
-					let new_col = next_seg.start_offset + col_in_seg.min(seg_len);
-					line_start + new_col
+					line_start + next_seg.start_offset + col_in_seg.min(seg_len)
 				} else if let Some((next_line_start, next_line_text)) = next_line_data {
+					let has_newline = next_line_text.ends_with('\n');
 					let next_line_text = next_line_text.trim_end_matches('\n');
 					let next_segments = self.wrap_line(next_line_text, self.text_width, tab_width);
 
@@ -146,9 +146,14 @@ impl Buffer {
 						next_line_start
 					} else {
 						let first_seg = &next_segments[0];
-						let seg_len = first_seg.text.chars().count().saturating_sub(1).max(0);
-						let new_col = goal_col.min(seg_len);
-						next_line_start + new_col
+						let is_last_seg = next_segments.len() == 1;
+						let seg_char_count = first_seg.text.chars().count();
+						let seg_len = if is_last_seg && has_newline {
+							seg_char_count
+						} else {
+							seg_char_count.saturating_sub(1)
+						};
+						next_line_start + goal_col.min(seg_len)
 					}
 				} else {
 					cursor
@@ -159,19 +164,23 @@ impl Buffer {
 					let prev_seg = &segments[current_seg_idx - 1];
 					let seg_len = prev_seg.text.chars().count().saturating_sub(1);
 					let col_in_seg = goal_col.saturating_sub(prev_seg.start_offset);
-					let new_col = prev_seg.start_offset + col_in_seg.min(seg_len);
-					line_start + new_col
+					line_start + prev_seg.start_offset + col_in_seg.min(seg_len)
 				} else if let Some((prev_line_start, prev_line_text)) = prev_line_data {
+					let has_newline = prev_line_text.ends_with('\n');
 					let prev_line_text = prev_line_text.trim_end_matches('\n');
 					let prev_segments = self.wrap_line(prev_line_text, self.text_width, tab_width);
 
 					if prev_segments.is_empty() {
 						prev_line_start
 					} else {
-						let last_seg = &prev_segments[prev_segments.len() - 1];
-						let seg_len = last_seg.text.chars().count().saturating_sub(1).max(0);
-						let new_col = last_seg.start_offset + goal_col.min(seg_len);
-						prev_line_start + new_col
+						let last_seg = prev_segments.last().unwrap();
+						let seg_char_count = last_seg.text.chars().count();
+						let seg_len = if has_newline {
+							seg_char_count
+						} else {
+							seg_char_count.saturating_sub(1)
+						};
+						prev_line_start + last_seg.start_offset + goal_col.min(seg_len)
 					}
 				} else {
 					cursor
@@ -326,7 +335,9 @@ impl Buffer {
 					}
 					visual_row += 1;
 				} else {
-					for segment in segments.iter().skip(start_segment) {
+					let num_segments = segments.len();
+					for (seg_idx, segment) in segments.iter().skip(start_segment).enumerate() {
+						let actual_seg_idx = start_segment + seg_idx;
 						if visual_row == screen_row as usize {
 							if segment.text.is_empty() {
 								return Some(line_start + segment.start_offset);
@@ -336,29 +347,28 @@ impl Buffer {
 							let mut last_char_offset = 0usize;
 							for (i, ch) in segment.text.chars().enumerate() {
 								last_char_offset = i;
-								let mut w = if ch == '\t' {
-									tab_width.saturating_sub(col % tab_width)
+								let w = if ch == '\t' {
+									tab_width.saturating_sub(col % tab_width).max(1)
 								} else {
 									1
 								};
-								if w == 0 {
-									w = 1;
-								}
 
 								let remaining = self.text_width.saturating_sub(col);
 								if remaining == 0 {
 									break;
 								}
-								if w > remaining {
-									w = remaining;
-								}
+								let w = w.min(remaining);
 
 								if text_col < col + w {
 									return Some(line_start + segment.start_offset + i);
 								}
 								col += w;
 							}
-							return Some(line_start + segment.start_offset + last_char_offset);
+
+							let is_last_segment = actual_seg_idx == num_segments - 1;
+							let has_newline = line_idx + 1 < total_lines;
+							let offset = if is_last_segment && has_newline { 1 } else { 0 };
+							return Some(line_start + segment.start_offset + last_char_offset + offset);
 						}
 						visual_row += 1;
 					}
@@ -506,9 +516,9 @@ mod tests {
 		assert_eq!(buffer.cursor, 20);
 		assert_eq!(buffer.goal_column, Some(10));
 
-		// Move to "short" - clamps to end but goal preserved
+		// Move to "short" - clamps to newline (col 5) but goal preserved
 		buffer.move_visual_vertical(MoveDir::Forward, 1, false, 4);
-		assert_eq!(buffer.cursor, 25);
+		assert_eq!(buffer.cursor, 26); // position of '\n' after "short"
 		assert_eq!(buffer.goal_column, Some(10));
 
 		// Move to long line - restores to col 10
@@ -543,7 +553,7 @@ mod tests {
 		// First vertical move sets goal from current col
 		buffer.move_visual_vertical(MoveDir::Forward, 1, false, 4);
 		assert_eq!(buffer.goal_column, Some(8));
-		assert_eq!(buffer.cursor, 13); // end of "hi"
+		assert_eq!(buffer.cursor, 14); // position of '\n' after "hi"
 
 		// Restore to col 8 on longer line
 		buffer.move_visual_vertical(MoveDir::Forward, 1, false, 4);
@@ -563,7 +573,7 @@ mod tests {
 		assert_eq!(buffer.goal_column, Some(15));
 
 		buffer.move_visual_vertical(MoveDir::Backward, 1, false, 4);
-		assert_eq!(buffer.cursor, 27); // end of "short"
+		assert_eq!(buffer.cursor, 28); // position of '\n' after "short"
 		assert_eq!(buffer.goal_column, Some(15));
 
 		buffer.move_visual_vertical(MoveDir::Backward, 1, false, 4);

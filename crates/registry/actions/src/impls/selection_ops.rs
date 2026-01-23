@@ -43,13 +43,15 @@ action!(extend_line, {
 	bindings: r#"normal "X""#,
 }, handler: extend_line_impl);
 
-/// Selects a single line. Advances to next line if head is already at line end.
+/// Selects a single line, advancing to the next if already fully selected.
 fn select_line_impl(ctx: &ActionContext) -> ActionResult {
 	let mut new_sel = ctx.selection.clone();
 	let count = ctx.count.max(1);
 	new_sel.transform_mut(|r| {
 		let mut line = ctx.text.char_to_line(r.head);
-		if r.head == line_end_pos(ctx.text, line) && line + 1 < ctx.text.len_lines() {
+		let line_start = ctx.text.line_to_char(line);
+		let fully_selected = r.anchor == line_start && r.head == line_end_pos(ctx.text, line);
+		if fully_selected && line + 1 < ctx.text.len_lines() {
 			line += 1;
 		}
 		let target = (line + count - 1).min(ctx.text.len_lines().saturating_sub(1));
@@ -315,16 +317,17 @@ mod tests {
 	use crate::{ActionArgs, Effect, ViewEffect};
 
 	#[test]
-	fn test_select_line_extend() {
+	fn test_select_line_at_newline_but_not_fully_selected() {
+		// When head is at newline but line is NOT fully selected, select current line
 		let text = Rope::from("line 1\nline 2\nline 3\n");
-		let sel = Selection::single(1, 6);
+		let sel = Selection::single(1, 6); // anchor=1 (not line start), head=6 (newline)
 
 		let ctx = ActionContext {
 			text: text.slice(..),
 			cursor: 6,
 			selection: &sel,
 			count: 1,
-			extend: true,
+			extend: false,
 			register: None,
 			args: ActionArgs::default(),
 		};
@@ -335,17 +338,43 @@ mod tests {
 			panic!("Expected SetSelection effect");
 		};
 		let primary = new_sel.primary();
-		assert_eq!(
-			primary.anchor, 1,
-			"Anchor should be preserved when extending"
-		);
-		assert_eq!(primary.head, 7, "Head should be at end of line");
+		// Line not fully selected, so select current line 0
+		assert_eq!(primary.anchor, 0, "Anchor should be at start of line 0");
+		assert_eq!(primary.head, 6, "Head should be at newline of line 0");
 	}
 
 	#[test]
-	fn test_select_line_repeated() {
+	fn test_select_line_fully_selected_advances() {
+		// When line IS fully selected, advance to next line
 		let text = Rope::from("line 1\nline 2\nline 3\n");
-		let sel = Selection::single(0, 7);
+		let sel = Selection::single(0, 6); // anchor=0 (line start), head=6 (newline) - fully selected
+
+		let ctx = ActionContext {
+			text: text.slice(..),
+			cursor: 6,
+			selection: &sel,
+			count: 1,
+			extend: false,
+			register: None,
+			args: ActionArgs::default(),
+		};
+
+		let ActionResult::Effects(effects) = select_line_impl(&ctx);
+		let Some(Effect::View(ViewEffect::SetSelection(new_sel))) = effects.as_slice().first()
+		else {
+			panic!("Expected SetSelection effect");
+		};
+		let primary = new_sel.primary();
+		// Line fully selected, so advance to next line
+		assert_eq!(primary.anchor, 7, "Anchor should be at start of line 1");
+		assert_eq!(primary.head, 13, "Head should be at newline of line 1");
+	}
+
+	#[test]
+	fn test_select_line_from_middle() {
+		// When head is not at line end, select the current line
+		let text = Rope::from("line 1\nline 2\nline 3\n");
+		let sel = Selection::single(0, 7); // head at start of line 1 (not at line end)
 
 		let ctx = ActionContext {
 			text: text.slice(..),
@@ -363,15 +392,14 @@ mod tests {
 			panic!("Expected SetSelection effect");
 		};
 		let primary = new_sel.primary();
-		assert_eq!(
-			primary.anchor, 7,
-			"Anchor should move to start of next line"
-		);
-		assert_eq!(primary.head, 14, "Head should move to end of next line");
+		// Head at 7 (start of line 1), not at line end, so select line 1
+		assert_eq!(primary.anchor, 7, "Anchor should be at start of line 1");
+		assert_eq!(primary.head, 13, "Head should be at newline of line 1");
 	}
 
 	#[test]
 	fn test_select_line_count() {
+		// With count=2, select from line 0 to end of line 1
 		let text = Rope::from("line 1\nline 2\nline 3\n");
 		let sel = Selection::point(0);
 
@@ -392,6 +420,6 @@ mod tests {
 		};
 		let primary = new_sel.primary();
 		assert_eq!(primary.anchor, 0);
-		assert_eq!(primary.head, 14, "should select 2 complete lines");
+		assert_eq!(primary.head, 13, "should select 2 lines (ending at newline of line 1)");
 	}
 }

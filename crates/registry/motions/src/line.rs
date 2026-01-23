@@ -12,18 +12,12 @@ pub fn move_to_line_start(text: RopeSlice, range: Range, extend: bool) -> Range 
 	make_range(range, start_pos, extend)
 }
 
-/// Moves the cursor to the end of the current line.
+/// Moves the cursor to the end of the current line (on the newline character if present).
 pub fn move_to_line_end(text: RopeSlice, range: Range, extend: bool) -> Range {
 	let line_idx = text.char_to_line(range.head);
 	let start_pos = text.line_to_char(line_idx);
 	let line_len = text.line(line_idx).len_chars();
-
-	let is_last_line = line_idx == text.len_lines().saturating_sub(1);
-	let end_pos: CharIdx = if is_last_line {
-		start_pos + line_len
-	} else {
-		start_pos + line_len.saturating_sub(1)
-	};
+	let end_pos: CharIdx = start_pos + line_len.saturating_sub(1);
 
 	make_range(range, end_pos, extend)
 }
