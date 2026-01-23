@@ -2,6 +2,8 @@
 
 use ropey::RopeSlice;
 
+use crate::range::CharIdx;
+
 /// Returns the number of user-visible lines, excluding the phantom empty line
 /// after a trailing newline.
 ///
@@ -14,6 +16,21 @@ pub fn visible_line_count(text: RopeSlice) -> usize {
 		text.len_lines() - 1
 	} else {
 		text.len_lines()
+	}
+}
+
+/// Returns the maximum valid cursor position, excluding the phantom position
+/// after a trailing newline.
+///
+/// For text ending with `\n`, the cursor should land on the final newline
+/// character, not past it (which would be on the phantom empty line).
+#[inline]
+pub fn max_cursor_pos(text: RopeSlice) -> CharIdx {
+	let len = text.len_chars();
+	if len > 0 && text.char(len - 1) == '\n' {
+		len - 1
+	} else {
+		len
 	}
 }
 

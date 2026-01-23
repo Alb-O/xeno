@@ -2,19 +2,10 @@
 
 use ropey::RopeSlice;
 use xeno_primitives::graphemes::{next_grapheme_boundary, prev_grapheme_boundary};
+use xeno_primitives::max_cursor_pos;
 use xeno_primitives::range::{CharIdx, Direction, Range};
 
 use crate::movement::make_range;
-
-/// Maximum valid cursor position, clamped to the final newline if present.
-fn max_cursor_pos(text: RopeSlice) -> CharIdx {
-	let len = text.len_chars();
-	if len > 0 && text.char(len - 1) == '\n' {
-		len - 1
-	} else {
-		len
-	}
-}
 
 /// Moves the cursor horizontally by the given number of graphemes.
 pub fn move_horizontally(

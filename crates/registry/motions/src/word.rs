@@ -1,12 +1,12 @@
 //! Word-based cursor movement (w, b, e, W, B, E commands).
 
 use ropey::RopeSlice;
+use xeno_primitives::max_cursor_pos;
 use xeno_primitives::range::{CharIdx, Range};
 
 use crate::movement::{WordType, is_word_char, make_range_select};
 
-/// Move to next word start (`w` command).
-/// Selects the word and following whitespace on the right.
+/// Moves to the start of the next word, creating a selection over skipped text.
 pub fn move_to_next_word_start(
 	text: RopeSlice,
 	range: Range,
@@ -15,6 +15,7 @@ pub fn move_to_next_word_start(
 	extend: bool,
 ) -> Range {
 	let len = text.len_chars();
+	let max_pos = max_cursor_pos(text);
 	if len == 0 {
 		return range;
 	}
@@ -56,14 +57,13 @@ pub fn move_to_next_word_start(
 		}
 	}
 
-	make_range_select(range, pos.min(len), extend)
+	make_range_select(range, pos.min(max_pos), extend)
 }
 
-/// Moves to next word end.
+/// Moves to the end of the next word.
 ///
-/// In [`WordType::Word`] mode, skips trailing punctuation at EOL rather than
-/// targeting it. Selection anchor starts at the target word, not trailing
-/// across the newline.
+/// In [`WordType::Word`] mode, skips trailing punctuation at EOL to land on
+/// the next word instead.
 pub fn move_to_next_word_end(
 	text: RopeSlice,
 	range: Range,
@@ -355,14 +355,23 @@ mod tests {
 
 	#[test]
 	fn test_word_end_word_mode() {
-		// WORD mode (shift+E) should treat all non-whitespace as a word
 		let text = Rope::from("foo.bar baz");
 		let slice = text.slice(..);
 
 		let range = Range::point(0);
 		let moved = move_to_next_word_end(slice, range, 1, WordType::WORD, false);
 
-		// Should land on 'r' (position 6) - end of "foo.bar" as a single WORD
 		assert_eq!(moved.head, 6, "WORD mode should span punctuation");
+	}
+
+	#[test]
+	fn test_next_word_start_avoids_phantom_line() {
+		let text = Rope::from("hello\n");
+		let slice = text.slice(..);
+
+		let range = Range::point(5);
+		let moved = move_to_next_word_start(slice, range, 1, WordType::Word, false);
+
+		assert_eq!(moved.head, 5, "should not land on phantom line");
 	}
 }

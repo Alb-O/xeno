@@ -11,6 +11,7 @@ use ropey::RopeSlice;
 pub use search::{escape_pattern, find_all_matches, find_next, find_prev, matches_pattern};
 pub use word::{move_to_next_word_end, move_to_next_word_start, move_to_prev_word_start};
 use xeno_primitives::graphemes::{next_grapheme_boundary, prev_grapheme_boundary};
+use xeno_primitives::max_cursor_pos;
 use xeno_primitives::range::{CharIdx, Direction, Range};
 use xeno_primitives::visible_line_count;
 
@@ -48,16 +49,6 @@ pub(crate) fn make_range_select(range: Range, new_head: CharIdx, extend: bool) -
 	} else {
 		// Selection-creating motion: anchor at previous head, creates selection to new position
 		Range::new(range.head, new_head)
-	}
-}
-
-/// Maximum valid cursor position, clamped to the final newline if present.
-fn max_cursor_pos(text: RopeSlice) -> CharIdx {
-	let len = text.len_chars();
-	if len > 0 && text.char(len - 1) == '\n' {
-		len - 1
-	} else {
-		len
 	}
 }
 
