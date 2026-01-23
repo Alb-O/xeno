@@ -200,36 +200,32 @@ impl Buffer {
 		0
 	}
 
-	/// Handles mouse scroll events.
+	/// Scrolls the viewport without moving the cursor.
 	///
-	/// # Parameters
-	/// - `direction`: Scroll direction
-	/// - `count`: Number of lines to scroll
-	/// - `tab_width`: Number of spaces a tab character occupies (from options)
+	/// Sets [`suppress_auto_scroll`] to prevent the viewport from chasing the
+	/// cursor back into view.
+	///
+	/// [`suppress_auto_scroll`]: Buffer::suppress_auto_scroll
 	pub fn handle_mouse_scroll(
 		&mut self,
 		direction: ScrollDirection,
 		count: usize,
 		tab_width: usize,
 	) {
-		self.ensure_valid_selection();
 		match direction {
 			ScrollDirection::Up => {
 				for _ in 0..count {
 					self.scroll_viewport_up(tab_width);
 				}
-				self.move_visual_vertical(MoveDir::Backward, count, false, tab_width);
 			}
 			ScrollDirection::Down => {
 				for _ in 0..count {
 					self.scroll_viewport_down(tab_width);
 				}
-				self.move_visual_vertical(MoveDir::Forward, count, false, tab_width);
 			}
-			ScrollDirection::Left | ScrollDirection::Right => {
-				// Horizontal scroll not implemented yet
-			}
+			ScrollDirection::Left | ScrollDirection::Right => {}
 		}
+		self.suppress_auto_scroll = true;
 	}
 
 	/// Scrolls viewport up by one visual line.

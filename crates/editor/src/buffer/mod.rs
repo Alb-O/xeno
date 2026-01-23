@@ -91,8 +91,14 @@ pub struct Buffer {
 	/// Cursor position observed during the last render.
 	pub last_rendered_cursor: CharIdx,
 
-	/// Whether to suppress auto-scroll down to keep the cursor visible.
-	pub suppress_scroll_down: bool,
+	/// Suppresses automatic viewport adjustment to keep cursor visible.
+	///
+	/// When set, [`ensure_buffer_cursor_visible`] skips viewport adjustment,
+	/// allowing the cursor to be outside the visible area. Used during mouse
+	/// scrolling and split resizing for viewport stability. Cleared on cursor move.
+	///
+	/// [`ensure_buffer_cursor_visible`]: crate::render::buffer::viewport::ensure_buffer_cursor_visible
+	pub suppress_auto_scroll: bool,
 
 	/// Buffer-local option overrides (set via `:setlocal`).
 	///
@@ -138,7 +144,7 @@ impl Buffer {
 			text_width: 80,
 			last_viewport_height: 0,
 			last_rendered_cursor: 0,
-			suppress_scroll_down: false,
+			suppress_auto_scroll: false,
 			local_options: OptionStore::new(),
 			readonly_override: None,
 			goal_column: None,
@@ -169,7 +175,7 @@ impl Buffer {
 			text_width: self.text_width,
 			last_viewport_height: 0,
 			last_rendered_cursor: self.cursor,
-			suppress_scroll_down: false,
+			suppress_auto_scroll: false,
 			local_options: self.local_options.clone(),
 			readonly_override: None,
 			goal_column: None,

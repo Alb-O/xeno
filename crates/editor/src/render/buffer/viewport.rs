@@ -32,8 +32,8 @@ struct ViewportEnsureEvent {
 	cursor_segment: usize,
 	/// Whether the viewport is shrinking.
 	viewport_shrinking: bool,
-	/// Whether downward scrolling is suppressed.
-	suppress_scroll_down: bool,
+	/// Whether auto-scrolling is suppressed.
+	suppress_auto_scroll: bool,
 }
 
 impl ViewportEnsureEvent {
@@ -58,7 +58,7 @@ impl ViewportEnsureEvent {
 			cursor_line,
 			cursor_segment,
 			viewport_shrinking,
-			suppress_scroll_down: buffer.suppress_scroll_down,
+			suppress_auto_scroll: buffer.suppress_auto_scroll,
 		});
 	}
 }
@@ -76,22 +76,13 @@ impl ViewportEnsureEvent {
 /// viewport scrolls to restore the margin. At buffer boundaries (first/last line),
 /// the cursor is allowed to reach the edge since scrolling further is impossible.
 ///
-/// # Viewport Shrink Behavior
+/// # Auto-scroll Suppression
 ///
-/// When the viewport height shrinks (e.g., due to an adjacent split being resized),
-/// this function will NOT scroll down to chase a cursor that went off-screen below.
-/// This preserves the visual stability of the viewport's top edge during resize
-/// operations. The cursor will become visible again when the user moves it or
-/// when the viewport expands.
+/// When [`suppress_auto_scroll`] is set, skips viewport adjustment entirely.
+/// This allows the cursor to be outside the visible viewport during mouse
+/// scrolling or split resizing. The flag is cleared when the cursor moves.
 ///
-/// Scrolling UP to bring an off-screen cursor into view from above is always
-/// performed, as this is typically intentional (cursor moved up, not resize).
-///
-/// # Parameters
-/// - `buffer`: The buffer to ensure cursor visibility for
-/// - `area`: The rectangular area the buffer is rendered into
-/// - `tab_width`: Number of spaces a tab character occupies (from options)
-/// - `scroll_margin`: Preferred minimum lines above/below cursor
+/// [`suppress_auto_scroll`]: Buffer::suppress_auto_scroll
 pub fn ensure_buffer_cursor_visible(
 	buffer: &mut Buffer,
 	area: Rect,
@@ -105,15 +96,12 @@ pub fn ensure_buffer_cursor_visible(
 
 	let cursor_pos: CharIdx = buffer.cursor;
 	if cursor_pos != buffer.last_rendered_cursor {
-		buffer.suppress_scroll_down = false;
+		buffer.suppress_auto_scroll = false;
 	}
 
 	let prev_viewport_height = buffer.last_viewport_height;
-
-	// Detect if viewport is shrinking - used to avoid chasing cursor downward
 	let viewport_shrinking = viewport_height < prev_viewport_height;
 
-	// Debug: log viewport size changes
 	if viewport_height != prev_viewport_height && prev_viewport_height > 0 {
 		debug!(
 			prev_height = prev_viewport_height,
@@ -186,17 +174,24 @@ pub fn ensure_buffer_cursor_visible(
 		Some(row) => row > max_row && cursor_line + 1 < total_lines,
 	};
 
-	// Handle viewport shrinking - don't chase cursor downward
-	if needs_scroll_down && (viewport_shrinking || buffer.suppress_scroll_down) {
-		if viewport_shrinking {
-			buffer.suppress_scroll_down = true;
-		}
+	if buffer.suppress_auto_scroll && (needs_scroll_up || needs_scroll_down) {
 		ViewportEnsureEvent::log(
-			if viewport_shrinking {
-				"suppress_scroll_down"
-			} else {
-				"skip_scroll_down"
-			},
+			"suppress_auto_scroll",
+			buffer,
+			viewport_height,
+			prev_viewport_height,
+			cursor_line,
+			cursor_segment,
+			viewport_shrinking,
+		);
+		buffer.last_rendered_cursor = cursor_pos;
+		return;
+	}
+
+	if needs_scroll_down && viewport_shrinking {
+		buffer.suppress_auto_scroll = true;
+		ViewportEnsureEvent::log(
+			"viewport_shrinking",
 			buffer,
 			viewport_height,
 			prev_viewport_height,
@@ -210,32 +205,26 @@ pub fn ensure_buffer_cursor_visible(
 
 	let original_scroll = (buffer.scroll_line, buffer.scroll_segment);
 
-	if needs_scroll_up {
-		// Scroll up: put cursor at min_row
-		let (new_line, new_seg) = scroll_position_for_cursor_at_row(
-			buffer,
-			cursor_line,
-			cursor_segment,
-			min_row,
-			text_width,
-			tab_width,
-		);
-		buffer.scroll_line = new_line;
-		buffer.scroll_segment = new_seg;
-		buffer.suppress_scroll_down = false;
+	let target_row = if needs_scroll_up {
+		Some(min_row)
 	} else if needs_scroll_down {
-		// Scroll down: put cursor at max_row
+		Some(max_row)
+	} else {
+		None
+	};
+
+	if let Some(row) = target_row {
 		let (new_line, new_seg) = scroll_position_for_cursor_at_row(
 			buffer,
 			cursor_line,
 			cursor_segment,
-			max_row,
+			row,
 			text_width,
 			tab_width,
 		);
 		buffer.scroll_line = new_line;
 		buffer.scroll_segment = new_seg;
-		buffer.suppress_scroll_down = false;
+		buffer.suppress_auto_scroll = false;
 	}
 
 	let new_scroll = (buffer.scroll_line, buffer.scroll_segment);
