@@ -2,6 +2,7 @@
 
 use ropey::RopeSlice;
 use xeno_primitives::range::{CharIdx, Direction, Range};
+use xeno_primitives::visible_line_count;
 
 use crate::movement::make_range;
 
@@ -19,7 +20,7 @@ pub fn move_vertically(
 	let col = pos - line_start;
 
 	let new_line = match direction {
-		Direction::Forward => (line + count).min(text.len_lines().saturating_sub(1)),
+		Direction::Forward => (line + count).min(visible_line_count(text).saturating_sub(1)),
 		Direction::Backward => line.saturating_sub(count),
 	};
 

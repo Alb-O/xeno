@@ -1,3 +1,4 @@
+use xeno_primitives::visible_line_count;
 use xeno_registry::{
 	RenderedSegment, SegmentPosition, SegmentStyle, StatuslineContext, render_position,
 };
@@ -28,7 +29,7 @@ impl Editor {
 		let modified = buffer.modified();
 		let readonly = buffer.is_readonly();
 		let count = buffer.input.count();
-		let total_lines = buffer.with_doc(|doc| doc.content().len_lines());
+		let total_lines = buffer.with_doc(|doc| visible_line_count(doc.content().slice(..)));
 		let mode_name = self.mode_name();
 		let line = self.cursor_line() + 1;
 		let col = self.cursor_col() + 1;

@@ -3,6 +3,7 @@
 use serde::Serialize;
 use tracing::{debug, trace};
 use xeno_primitives::range::CharIdx;
+use xeno_primitives::visible_line_count;
 use xeno_tui::layout::Rect;
 
 use crate::buffer::Buffer;
@@ -89,7 +90,7 @@ pub fn ensure_buffer_cursor_visible(
 	tab_width: usize,
 	scroll_margin: usize,
 ) {
-	let total_lines = buffer.with_doc(|doc| doc.content().len_lines());
+	let total_lines = buffer.with_doc(|doc| visible_line_count(doc.content().slice(..)));
 	let gutter_width = buffer.gutter_width();
 	let text_width = area.width.saturating_sub(gutter_width) as usize;
 	let viewport_height = area.height as usize;
@@ -359,7 +360,7 @@ fn cursor_row_in_viewport(
 		return None;
 	}
 
-	let total_lines = buffer.with_doc(|doc| doc.content().len_lines());
+	let total_lines = buffer.with_doc(|doc| visible_line_count(doc.content().slice(..)));
 	if start_line >= total_lines {
 		return None;
 	}
@@ -388,24 +389,25 @@ fn advance_one_visual_row(
 	text_width: usize,
 	tab_width: usize,
 ) -> bool {
-	let (total_lines, line_text) = buffer.with_doc(|doc| {
-		let total = doc.content().len_lines();
-		if *line >= total {
-			return (total, String::new());
+	let (visible_lines, line_text) = buffer.with_doc(|doc| {
+		let content = doc.content();
+		let visible = visible_line_count(content.slice(..));
+		if *line >= visible {
+			return (visible, String::new());
 		}
 
-		let line_start: CharIdx = doc.content().line_to_char(*line);
-		let line_end: CharIdx = if *line + 1 < total {
-			doc.content().line_to_char(*line + 1)
+		let line_start: CharIdx = content.line_to_char(*line);
+		let line_end: CharIdx = if *line + 1 < content.len_lines() {
+			content.line_to_char(*line + 1)
 		} else {
-			doc.content().len_chars()
+			content.len_chars()
 		};
 
-		let text: String = doc.content().slice(line_start..line_end).into();
-		(total, text)
+		let text: String = content.slice(line_start..line_end).into();
+		(visible, text)
 	});
 
-	if *line >= total_lines {
+	if *line >= visible_lines {
 		return false;
 	}
 
@@ -418,7 +420,7 @@ fn advance_one_visual_row(
 		return true;
 	}
 
-	if *line + 1 < total_lines {
+	if *line + 1 < visible_lines {
 		*line += 1;
 		*segment = 0;
 		return true;

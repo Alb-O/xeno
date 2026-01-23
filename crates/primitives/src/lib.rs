@@ -20,6 +20,8 @@ pub mod pending;
 pub mod prelude;
 /// Text range types: byte, char, and line indices.
 pub mod range;
+/// Rope utilities and extensions.
+pub mod rope;
 /// Selection types for single and multi-cursor editing.
 pub mod selection;
 /// Undo/redo transaction primitives.
@@ -38,6 +40,7 @@ pub use lsp::{LspChangeSet, LspDocumentChange, LspPosition, LspRange};
 pub use mode::Mode;
 pub use pending::{ObjectSelectionKind, PendingKind};
 pub use range::Range;
+pub use rope::visible_line_count;
 pub use ropey::{Rope, RopeSlice};
 pub use selection::Selection;
 pub use transaction::{ChangeSet, Transaction};

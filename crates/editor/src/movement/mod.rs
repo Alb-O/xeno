@@ -12,6 +12,7 @@ pub use search::{escape_pattern, find_all_matches, find_next, find_prev, matches
 pub use word::{move_to_next_word_end, move_to_next_word_start, move_to_prev_word_start};
 use xeno_primitives::graphemes::{next_grapheme_boundary, prev_grapheme_boundary};
 use xeno_primitives::range::{CharIdx, Direction, Range};
+use xeno_primitives::visible_line_count;
 
 /// Word type for word movements.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -50,6 +51,16 @@ pub(crate) fn make_range_select(range: Range, new_head: CharIdx, extend: bool) -
 	}
 }
 
+/// Maximum valid cursor position, clamped to the final newline if present.
+fn max_cursor_pos(text: RopeSlice) -> CharIdx {
+	let len = text.len_chars();
+	if len > 0 && text.char(len - 1) == '\n' {
+		len - 1
+	} else {
+		len
+	}
+}
+
 /// Moves the cursor horizontally by the given number of graphemes.
 pub fn move_horizontally(
 	text: RopeSlice,
@@ -59,11 +70,16 @@ pub fn move_horizontally(
 	extend: bool,
 ) -> Range {
 	let pos: CharIdx = range.head;
+	let max_pos = max_cursor_pos(text);
 	let new_pos: CharIdx = match direction {
 		Direction::Forward => {
 			let mut p = pos;
 			for _ in 0..count {
-				p = next_grapheme_boundary(text, p);
+				let next = next_grapheme_boundary(text, p);
+				if next > max_pos {
+					break;
+				}
+				p = next;
 			}
 			p
 		}
@@ -92,17 +108,20 @@ pub fn move_vertically(
 	let line_start = text.line_to_char(line);
 	let col = pos - line_start;
 
+	let visible_lines = visible_line_count(text);
 	let new_line = match direction {
-		Direction::Forward => (line + count).min(text.len_lines().saturating_sub(1)),
+		Direction::Forward => (line + count).min(visible_lines.saturating_sub(1)),
 		Direction::Backward => line.saturating_sub(count),
 	};
 
 	let new_line_start = text.line_to_char(new_line);
-	let new_line_len = text.line(new_line).len_chars();
-	let line_end_offset = if new_line == text.len_lines().saturating_sub(1) {
-		new_line_len
+	let new_line_content = text.line(new_line);
+	let new_line_len = new_line_content.len_chars();
+	let has_newline = new_line_len > 0 && new_line_content.char(new_line_len - 1) == '\n';
+	let line_end_offset = if has_newline {
+		new_line_len - 1
 	} else {
-		new_line_len.saturating_sub(1)
+		new_line_len
 	};
 
 	let new_col = col.min(line_end_offset);
@@ -119,18 +138,16 @@ pub fn move_to_line_start(text: RopeSlice, range: Range, extend: bool) -> Range 
 }
 
 /// Moves the cursor to the end of the current line.
+///
+/// Positions on the newline character if present, or at EOF for the final line
+/// without a trailing newline.
 pub fn move_to_line_end(text: RopeSlice, range: Range, extend: bool) -> Range {
 	let line = text.char_to_line(range.head);
 	let line_start = text.line_to_char(line);
-	let line_len = text.line(line).len_chars();
-
-	let is_last_line = line == text.len_lines().saturating_sub(1);
-	let line_end: CharIdx = if is_last_line {
-		line_start + line_len
-	} else {
-		line_start + line_len.saturating_sub(1)
-	};
-
+	let line_content = text.line(line);
+	let line_len = line_content.len_chars();
+	let has_newline = line_len > 0 && line_content.char(line_len - 1) == '\n';
+	let line_end = line_start + if has_newline { line_len - 1 } else { line_len };
 	make_range(range, line_end, extend)
 }
 

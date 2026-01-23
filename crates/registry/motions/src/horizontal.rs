@@ -6,6 +6,16 @@ use xeno_primitives::range::{CharIdx, Direction, Range};
 
 use crate::movement::make_range;
 
+/// Maximum valid cursor position, clamped to the final newline if present.
+fn max_cursor_pos(text: RopeSlice) -> CharIdx {
+	let len = text.len_chars();
+	if len > 0 && text.char(len - 1) == '\n' {
+		len - 1
+	} else {
+		len
+	}
+}
+
 /// Moves the cursor horizontally by the given number of graphemes.
 pub fn move_horizontally(
 	text: RopeSlice,
@@ -15,11 +25,16 @@ pub fn move_horizontally(
 	extend: bool,
 ) -> Range {
 	let pos: CharIdx = range.head;
+	let max_pos = max_cursor_pos(text);
 	let new_pos: CharIdx = match direction {
 		Direction::Forward => {
 			let mut p = pos;
 			for _ in 0..count {
-				p = next_grapheme_boundary(text, p);
+				let next = next_grapheme_boundary(text, p);
+				if next > max_pos {
+					break;
+				}
+				p = next;
 			}
 			p
 		}
