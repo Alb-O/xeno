@@ -6,6 +6,32 @@ use xeno_primitives::{ScrollDirection, Selection};
 use super::Buffer;
 use crate::render::wrap::WrapSegment;
 
+/// Maps a screen column to a character offset within a wrap segment.
+///
+/// Returns `(offset, matched)` where `matched` is true if `text_col` fell
+/// within the segment's content, false if it was past the end.
+fn col_to_char_offset(segment: &WrapSegment, text_col: usize, tab_width: usize) -> (usize, bool) {
+	if segment.text.is_empty() {
+		return (segment.start_offset, false);
+	}
+
+	let mut col = 0;
+	let mut last_i = 0;
+	for (i, ch) in segment.text.chars().enumerate() {
+		last_i = i;
+		let w = if ch == '\t' {
+			tab_width.saturating_sub(col % tab_width).max(1)
+		} else {
+			1
+		};
+		if text_col < col + w {
+			return (segment.start_offset + i, true);
+		}
+		col += w;
+	}
+	(segment.start_offset + last_i, false)
+}
+
 impl Buffer {
 	/// Moves cursors vertically, accounting for line wrapping.
 	///
@@ -289,10 +315,8 @@ impl Buffer {
 
 	/// Converts screen coordinates to document position.
 	///
-	/// # Parameters
-	/// - `screen_row`: Row on screen
-	/// - `screen_col`: Column on screen
-	/// - `tab_width`: Tab width for column calculation (from options)
+	/// Returns `None` for clicks in the gutter area within document bounds.
+	/// Clicks below the document map to the corresponding column on the last line.
 	pub fn screen_to_doc_position(
 		&self,
 		screen_row: u16,
@@ -300,12 +324,8 @@ impl Buffer {
 		tab_width: usize,
 	) -> Option<usize> {
 		let gutter_width = self.gutter_width();
-
-		if screen_col < gutter_width {
-			return None;
-		}
-
-		let text_col = (screen_col - gutter_width) as usize;
+		let in_gutter = screen_col < gutter_width;
+		let text_col = screen_col.saturating_sub(gutter_width) as usize;
 		let mut visual_row = 0;
 		let mut line_idx = self.scroll_line;
 		let mut start_segment = self.scroll_segment;
@@ -327,44 +347,26 @@ impl Buffer {
 
 				if segments.is_empty() {
 					if visual_row == screen_row as usize {
-						return Some(line_start);
+						return if in_gutter { None } else { Some(line_start) };
 					}
 					visual_row += 1;
 				} else {
 					let num_segments = segments.len();
 					for (seg_idx, segment) in segments.iter().skip(start_segment).enumerate() {
-						let actual_seg_idx = start_segment + seg_idx;
 						if visual_row == screen_row as usize {
-							if segment.text.is_empty() {
-								return Some(line_start + segment.start_offset);
+							if in_gutter {
+								return None;
 							}
-
-							let mut col = 0usize;
-							let mut last_char_offset = 0usize;
-							for (i, ch) in segment.text.chars().enumerate() {
-								last_char_offset = i;
-								let w = if ch == '\t' {
-									tab_width.saturating_sub(col % tab_width).max(1)
-								} else {
-									1
-								};
-
-								let remaining = self.text_width.saturating_sub(col);
-								if remaining == 0 {
-									break;
-								}
-								let w = w.min(remaining);
-
-								if text_col < col + w {
-									return Some(line_start + segment.start_offset + i);
-								}
-								col += w;
-							}
-
-							let is_last_segment = actual_seg_idx == num_segments - 1;
-							let has_newline = line_idx + 1 < total_lines;
-							let offset = if is_last_segment && has_newline { 1 } else { 0 };
-							return Some(line_start + segment.start_offset + last_char_offset + offset);
+							let (offset, matched) =
+								col_to_char_offset(segment, text_col, tab_width);
+							let past_end_offset = if !matched {
+								let is_last_seg = start_segment + seg_idx == num_segments - 1;
+								let has_newline = is_last_seg && line_idx + 1 < total_lines;
+								if has_newline { 1 } else { 0 }
+							} else {
+								0
+							};
+							return Some(line_start + offset + past_end_offset);
 						}
 						visual_row += 1;
 					}
@@ -374,7 +376,24 @@ impl Buffer {
 				line_idx += 1;
 			}
 
-			Some(doc.content().len_chars().saturating_sub(1).max(0))
+			let last_line = total_lines.saturating_sub(1);
+			let last_line_start = doc.content().line_to_char(last_line);
+			let last_line_text: String = doc
+				.content()
+				.slice(last_line_start..doc.content().len_chars())
+				.into();
+			let last_line_text = last_line_text.trim_end_matches('\n');
+
+			match self
+				.wrap_line(last_line_text, self.text_width, tab_width)
+				.last()
+			{
+				None => Some(last_line_start),
+				Some(segment) => {
+					let (offset, matched) = col_to_char_offset(segment, text_col, tab_width);
+					Some(last_line_start + offset + if matched { 0 } else { 1 })
+				}
+			}
 		})
 	}
 
