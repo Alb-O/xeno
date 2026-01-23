@@ -36,7 +36,7 @@ action!(insert_line_end, { description: "Insert at end of line", bindings: r#"no
 action!(insert_after, { description: "Insert after cursor", bindings: r#"normal "a""# }, |ctx| {
 	let max_pos = ctx.text.len_chars();
 	let ranges: Vec<_> = ctx.selection.ranges().iter()
-		.map(|r| Range::new(r.min(), (r.max() + 1).min(max_pos)))
+		.map(|r| Range::point((r.max() + 1).min(max_pos)))
 		.collect();
 	let sel = Selection::from_vec(ranges, ctx.selection.primary_index());
 	ActionResult::Effects(ActionEffects::motion(sel).with(Effect::App(AppEffect::SetMode(Mode::Insert))))
