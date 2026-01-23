@@ -513,7 +513,13 @@ impl<'a> BufferRenderContext<'a> {
 						} else {
 							styles.secondary
 						};
-						spans.push(Span::styled(" ", cursor_style));
+						let has_newline = !is_last_doc_line || line_end > line_content_end;
+						let eol_char = if has_newline { "¬" } else { " " };
+						let eol_style = match (cursor_style.fg, cursor_style.bg) {
+							(Some(fg), Some(bg)) => cursor_style.fg(fg.blend(bg, 0.35)),
+							_ => cursor_style,
+						};
+						spans.push(Span::styled(eol_char, eol_style));
 						seg_col += 1;
 					}
 
@@ -571,7 +577,13 @@ impl<'a> BufferRenderContext<'a> {
 					} else {
 						styles.secondary
 					};
-					spans.push(Span::styled(" ", cursor_style));
+					let has_newline = !is_last_doc_line || line_end > line_start;
+					let eol_char = if has_newline { "¬" } else { " " };
+					let eol_style = match (cursor_style.fg, cursor_style.bg) {
+						(Some(fg), Some(bg)) => cursor_style.fg(fg.blend(bg, 0.35)),
+						_ => cursor_style,
+					};
+					spans.push(Span::styled(eol_char, eol_style));
 					cols_used = 1;
 				}
 
