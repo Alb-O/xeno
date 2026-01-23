@@ -197,7 +197,6 @@ impl Editor {
 					let buffer = self.buffer();
 					buffer.with_doc(|doc| {
 						let len = doc.content().len_chars();
-						// Pass through clamped position; build_delete_transaction handles end-of-doc
 						(len > 0).then(|| buffer.selection.transform(|r| Range::point(r.head.min(len))))
 					})
 				};
@@ -387,9 +386,8 @@ impl Editor {
 
 	/// Builds a delete transaction for the current selection.
 	///
-	/// For empty selections (cursor only), deletes the character at the cursor
-	/// position since `to_inclusive()` ensures the cursor is always included.
-	/// At document end, falls back to deleting the character before.
+	/// For point selections, [`Transaction::delete`] uses [`Range::to_inclusive`] to include
+	/// the character at cursor. At document end, falls back to deleting the character before.
 	fn build_delete_transaction(&self) -> Option<(Transaction, Selection)> {
 		let buffer = self.buffer();
 		buffer.with_doc(|doc| {

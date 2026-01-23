@@ -38,27 +38,55 @@ action!(select_line, {
 	bindings: r#"normal "x""#,
 }, handler: select_line_impl);
 
-/// Implements line selection with count support.
+action!(extend_line, {
+	description: "Extend selection by line",
+	bindings: r#"normal "X""#,
+}, handler: extend_line_impl);
+
+/// Selects a single line. Advances to next line if head is already at line end.
 fn select_line_impl(ctx: &ActionContext) -> ActionResult {
 	let mut new_sel = ctx.selection.clone();
 	let count = ctx.count.max(1);
 	new_sel.transform_mut(|r| {
-		let line = ctx.text.char_to_line(r.head);
-		let start = ctx.text.line_to_char(line);
-		let end = if line + count < ctx.text.len_lines() {
-			ctx.text.line_to_char(line + count)
-		} else {
-			ctx.text.len_chars()
-		};
+		let mut line = ctx.text.char_to_line(r.head);
+		if r.head == line_end_pos(ctx.text, line) && line + 1 < ctx.text.len_lines() {
+			line += 1;
+		}
+		let target = (line + count - 1).min(ctx.text.len_lines().saturating_sub(1));
+		r.anchor = ctx.text.line_to_char(line);
+		r.head = line_end_pos(ctx.text, target);
+	});
+	ActionResult::Effects(ActionEffects::motion(new_sel))
+}
 
-		if ctx.extend {
+/// Extends selection to include additional lines, preserving anchor.
+fn extend_line_impl(ctx: &ActionContext) -> ActionResult {
+	let mut new_sel = ctx.selection.clone();
+	let count = ctx.count.max(1);
+	new_sel.transform_mut(|r| {
+		let head_line = ctx.text.char_to_line(r.head);
+		let at_line_end = r.head == line_end_pos(ctx.text, head_line);
+		let offset = if at_line_end { count } else { count - 1 };
+		let target = (head_line + offset).min(ctx.text.len_lines().saturating_sub(1));
+		let end = line_end_pos(ctx.text, target);
+
+		if ctx.extend || at_line_end {
 			r.head = end;
 		} else {
-			r.anchor = start;
+			r.anchor = ctx.text.line_to_char(head_line);
 			r.head = end;
 		}
 	});
 	ActionResult::Effects(ActionEffects::motion(new_sel))
+}
+
+/// Returns position of the line's trailing newline, or last char for final line.
+fn line_end_pos(text: ropey::RopeSlice, line: usize) -> usize {
+	if line + 1 < text.len_lines() {
+		text.line_to_char(line + 1).saturating_sub(1)
+	} else {
+		text.len_chars().saturating_sub(1)
+	}
 }
 
 action!(select_all, {
