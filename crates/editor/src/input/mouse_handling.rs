@@ -3,7 +3,7 @@
 //! Processing mouse input for text selection and separator dragging.
 
 use termina::event::MouseEventKind;
-use xeno_primitives::Selection;
+use xeno_primitives::{ScrollDirection, Selection};
 
 use crate::impls::{Editor, FocusTarget};
 use crate::input::KeyResult;
@@ -93,7 +93,7 @@ impl Editor {
 		// Handle active text selection drag - confine to origin view
 		if let Some((origin_view, origin_area)) = self.layout.text_selection_origin {
 			match mouse.kind {
-				MouseEventKind::Drag(_) => {
+				MouseEventKind::Drag(_) | MouseEventKind::ScrollUp | MouseEventKind::ScrollDown => {
 					let clamped_x =
 						mouse_x.clamp(origin_area.x, origin_area.right().saturating_sub(1));
 					let clamped_y =
@@ -102,7 +102,17 @@ impl Editor {
 					let local_col = clamped_x.saturating_sub(origin_area.x);
 
 					let tab_width = self.tab_width_for(origin_view);
+					let scroll_lines = self.scroll_lines_for(origin_view);
 					if let Some(buffer) = self.core.buffers.get_buffer_mut(origin_view) {
+						if let MouseEventKind::ScrollUp | MouseEventKind::ScrollDown = mouse.kind {
+							let direction = if matches!(mouse.kind, MouseEventKind::ScrollUp) {
+								ScrollDirection::Up
+							} else {
+								ScrollDirection::Down
+							};
+							buffer.handle_mouse_scroll(direction, scroll_lines, tab_width);
+						}
+
 						let _ = buffer.input.handle_mouse(mouse.into());
 						let doc_pos = buffer
 							.screen_to_doc_position(local_row, local_col, tab_width)

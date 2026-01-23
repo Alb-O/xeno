@@ -111,6 +111,15 @@ impl Editor {
 		(self.buffer().option(keys::TAB_WIDTH, self) as usize).max(1)
 	}
 
+	/// Returns the scroll-lines setting for a specific buffer.
+	pub fn scroll_lines_for(&self, buffer_id: ViewId) -> usize {
+		self.core
+			.buffers
+			.get_buffer(buffer_id)
+			.map(|b| (b.option(keys::SCROLL_LINES, self) as usize).max(1))
+			.unwrap_or(1)
+	}
+
 	/// Returns whether cursorline is enabled for a specific buffer.
 	pub fn cursorline_for(&self, buffer_id: ViewId) -> bool {
 		self.core
