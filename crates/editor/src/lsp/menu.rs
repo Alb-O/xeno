@@ -42,7 +42,7 @@ impl Editor {
 
 		match key.code {
 			KeyCode::Escape => {
-				self.state.completion_controller.cancel();
+				self.state.lsp.cancel_completion();
 				if self
 					.state
 					.overlays
@@ -80,7 +80,7 @@ impl Editor {
 					.get::<CompletionState>()
 					.and_then(|state| state.selected_idx);
 				if let Some(idx) = selected_idx {
-					self.state.completion_controller.cancel();
+					self.state.lsp.cancel_completion();
 					self.clear_lsp_menu();
 					match menu_kind {
 						LspMenuKind::Completion { buffer_id, items } => {
@@ -110,7 +110,7 @@ impl Editor {
 				let idx = state
 					.and_then(|s| s.selected_idx)
 					.or_else(|| state.filter(|s| !s.items.is_empty()).map(|_| 0));
-				self.state.completion_controller.cancel();
+				self.state.lsp.cancel_completion();
 				self.clear_lsp_menu();
 				if let Some(idx) = idx {
 					match menu_kind {

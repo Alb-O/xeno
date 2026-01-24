@@ -100,12 +100,12 @@ impl Editor {
 			uri,
 			position,
 			debounce: trigger.debounce(),
-			ui_tx: self.state.lsp_ui_tx.clone(),
+			ui_tx: self.state.lsp.ui_tx(),
 			trigger_kind: completion_trigger_kind(&trigger, trigger_char),
 			trigger_character: trigger_char.map(|c| c.to_string()),
 		};
 
-		self.state.completion_controller.trigger(request);
+		self.state.lsp.trigger_completion(request);
 	}
 
 	/// Refilters the active completion menu with the current query.

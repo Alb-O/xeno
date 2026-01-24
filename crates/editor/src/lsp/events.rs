@@ -34,7 +34,7 @@ pub enum LspUiEvent {
 
 impl Editor {
 	pub(crate) fn drain_lsp_ui_events(&mut self) {
-		while let Ok(event) = self.state.lsp_ui_rx.try_recv() {
+		while let Some(event) = self.state.lsp.try_recv_ui_event() {
 			self.handle_lsp_ui_event(event);
 		}
 	}
@@ -55,7 +55,7 @@ impl Editor {
 				replace_start,
 				response,
 			} => {
-				if generation != self.state.completion_controller.generation() {
+				if generation != self.state.lsp.completion_generation() {
 					return;
 				}
 				let Some(buffer) = self.state.core.buffers.get_buffer(buffer_id) else {
@@ -112,7 +112,7 @@ impl Editor {
 				contents,
 				anchor,
 			} => {
-				if generation != self.state.signature_help_generation {
+				if generation != self.state.lsp.signature_help_generation() {
 					return;
 				}
 				let Some(buffer) = self.state.core.buffers.get_buffer(buffer_id) else {

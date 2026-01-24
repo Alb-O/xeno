@@ -172,7 +172,7 @@ impl Editor {
 			.is_some();
 		let encoding = self.state.lsp.offset_encoding_for_buffer(buffer);
 
-		self.state.pending_lsp.accumulate(
+		self.state.lsp.pending_mut().accumulate(
 			doc_id,
 			crate::lsp::pending::LspDocumentConfig {
 				path,
@@ -194,7 +194,7 @@ impl Editor {
 		let buffers = &self.state.core.buffers;
 		let metrics = &self.state.metrics;
 
-		let stats = self.state.pending_lsp.flush_due(
+		let stats = self.state.lsp.pending_mut().flush_due(
 			now,
 			LSP_DEBOUNCE,
 			LSP_MAX_DOCS_PER_TICK,
@@ -436,8 +436,8 @@ impl Editor {
 	pub fn stats_snapshot(&self) -> StatsSnapshot {
 		#[cfg(feature = "lsp")]
 		let (lsp_pending_docs, lsp_in_flight) = (
-			self.state.pending_lsp.pending_count(),
-			self.state.pending_lsp.in_flight_count(),
+			self.state.lsp.pending().pending_count(),
+			self.state.lsp.pending().in_flight_count(),
 		);
 		#[cfg(not(feature = "lsp"))]
 		let (lsp_pending_docs, lsp_in_flight) = (0, 0);

@@ -39,14 +39,13 @@ impl Editor {
 		};
 
 		self.cancel_signature_help();
-		self.state.signature_help_generation = self.state.signature_help_generation.wrapping_add(1);
-		let generation = self.state.signature_help_generation;
+		let generation = self.state.lsp.bump_signature_help_generation();
 
 		let cancel = CancellationToken::new();
-		self.state.signature_help_cancel = Some(cancel.clone());
+		self.state.lsp.set_signature_help_cancel(cancel.clone());
 
 		let anchor = signature_help_anchor(self, buffer_id);
-		let ui_tx = self.state.lsp_ui_tx.clone();
+		let ui_tx = self.state.lsp.ui_tx();
 
 		tokio::spawn(async move {
 			let help = tokio::select! {
@@ -80,7 +79,7 @@ impl Editor {
 	}
 
 	pub(crate) fn cancel_signature_help(&mut self) {
-		if let Some(cancel) = self.state.signature_help_cancel.take() {
+		if let Some(cancel) = self.state.lsp.take_signature_help_cancel() {
 			cancel.cancel();
 		}
 	}

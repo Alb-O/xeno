@@ -240,7 +240,7 @@ impl Editor {
 		if let Some(new_mode) = mode_change
 			&& !matches!(new_mode, xeno_primitives::Mode::Insert)
 		{
-			self.state.completion_controller.cancel();
+			self.state.lsp.cancel_completion();
 			self.cancel_signature_help();
 			self.clear_lsp_menu();
 		}
@@ -263,14 +263,14 @@ impl Editor {
 			.unwrap_or(0);
 
 		if cursor < replace_start {
-			self.state.completion_controller.cancel();
+			self.state.lsp.cancel_completion();
 			self.clear_lsp_menu();
 		} else if menu_active && cursor_changed {
 			self.state.frame.needs_redraw = true;
 		}
 
 		if focus_changed {
-			self.state.completion_controller.cancel();
+			self.state.lsp.cancel_completion();
 			self.cancel_signature_help();
 			self.clear_lsp_menu();
 		} else if content_changed {

@@ -65,15 +65,12 @@ use xeno_registry::{
 use xeno_runtime_language::LanguageLoader;
 use xeno_tui::layout::Rect;
 
+use crate::LspSystem;
 use crate::buffer::{Layout, ViewId};
 pub use crate::command_queue::CommandQueue;
 use crate::extensions::{ExtensionMap, StyleOverlays};
 pub use crate::hook_runtime::HookRuntime;
 pub use crate::layout::{LayoutManager, SeparatorHit, SeparatorId};
-#[cfg(feature = "lsp")]
-use crate::lsp::CompletionController;
-#[cfg(feature = "lsp")]
-use crate::lsp::LspUiEvent;
 use crate::overlay::OverlayManager;
 pub use crate::separator::{DragState, MouseVelocityTracker, SeparatorHoverAnimation};
 pub use crate::types::{
@@ -181,27 +178,8 @@ pub(crate) struct EditorState {
 	/// Used for loosely-coupled features that can't be direct dependencies.
 	pub(crate) extensions: ExtensionMap,
 
-	/// LSP manager for language server integration.
-	#[cfg(feature = "lsp")]
-	pub(crate) lsp: crate::lsp::LspManager,
-	/// Pending LSP changes for debounced sync.
-	#[cfg(feature = "lsp")]
-	pub(crate) pending_lsp: crate::lsp::pending::PendingLspState,
-	/// Completion controller (debounce/cancel/state).
-	#[cfg(feature = "lsp")]
-	pub(crate) completion_controller: CompletionController,
-	/// Signature help request generation.
-	#[cfg(feature = "lsp")]
-	pub(crate) signature_help_generation: u64,
-	/// Signature help cancellation token.
-	#[cfg(feature = "lsp")]
-	pub(crate) signature_help_cancel: Option<tokio_util::sync::CancellationToken>,
-	/// LSP UI event sender.
-	#[cfg(feature = "lsp")]
-	pub(crate) lsp_ui_tx: tokio::sync::mpsc::UnboundedSender<LspUiEvent>,
-	/// LSP UI event receiver.
-	#[cfg(feature = "lsp")]
-	pub(crate) lsp_ui_rx: tokio::sync::mpsc::UnboundedReceiver<LspUiEvent>,
+	/// LSP system (real or no-op depending on feature flags).
+	pub(crate) lsp: LspSystem,
 
 	/// Style overlays for rendering modifications.
 	pub(crate) style_overlays: StyleOverlays,
@@ -266,9 +244,6 @@ impl Editor {
 
 		let mut hook_runtime = HookRuntime::new();
 
-		#[cfg(feature = "lsp")]
-		let (lsp_ui_tx, lsp_ui_rx) = tokio::sync::mpsc::unbounded_channel();
-
 		emit_hook_sync_with(
 			&HookContext::new(
 				HookEventData::WindowCreated {
@@ -314,20 +289,7 @@ impl Editor {
 					.max_visible(Some(5))
 					.overflow(xeno_tui::widgets::notifications::Overflow::DropOldest),
 				extensions: ExtensionMap::new(),
-				#[cfg(feature = "lsp")]
-				lsp: crate::lsp::LspManager::new(),
-				#[cfg(feature = "lsp")]
-				pending_lsp: crate::lsp::pending::PendingLspState::new(),
-				#[cfg(feature = "lsp")]
-				completion_controller: CompletionController::new(),
-				#[cfg(feature = "lsp")]
-				signature_help_generation: 0,
-				#[cfg(feature = "lsp")]
-				signature_help_cancel: None,
-				#[cfg(feature = "lsp")]
-				lsp_ui_tx,
-				#[cfg(feature = "lsp")]
-				lsp_ui_rx,
+				lsp: LspSystem::new(),
 				style_overlays: StyleOverlays::new(),
 				hook_runtime,
 				overlays: OverlayManager::new(),
@@ -547,90 +509,14 @@ impl Editor {
 		&mut self.state.extensions
 	}
 
-	#[cfg(feature = "lsp")]
 	#[inline]
-	pub fn lsp(&self) -> &crate::lsp::LspManager {
+	pub fn lsp(&self) -> &LspSystem {
 		&self.state.lsp
 	}
 
-	#[cfg(feature = "lsp")]
 	#[inline]
-	pub fn lsp_mut(&mut self) -> &mut crate::lsp::LspManager {
+	pub fn lsp_mut(&mut self) -> &mut LspSystem {
 		&mut self.state.lsp
-	}
-
-	#[cfg(feature = "lsp")]
-	#[inline]
-	pub fn pending_lsp(&self) -> &crate::lsp::pending::PendingLspState {
-		&self.state.pending_lsp
-	}
-
-	#[cfg(feature = "lsp")]
-	#[inline]
-	pub fn pending_lsp_mut(&mut self) -> &mut crate::lsp::pending::PendingLspState {
-		&mut self.state.pending_lsp
-	}
-
-	#[cfg(feature = "lsp")]
-	#[inline]
-	pub fn completion_controller(&self) -> &CompletionController {
-		&self.state.completion_controller
-	}
-
-	#[cfg(feature = "lsp")]
-	#[inline]
-	pub fn completion_controller_mut(&mut self) -> &mut CompletionController {
-		&mut self.state.completion_controller
-	}
-
-	#[cfg(feature = "lsp")]
-	#[inline]
-	pub fn signature_help_generation(&self) -> u64 {
-		self.state.signature_help_generation
-	}
-
-	#[cfg(feature = "lsp")]
-	#[inline]
-	pub fn signature_help_generation_mut(&mut self) -> &mut u64 {
-		&mut self.state.signature_help_generation
-	}
-
-	#[cfg(feature = "lsp")]
-	#[inline]
-	pub fn signature_help_cancel(&self) -> &Option<tokio_util::sync::CancellationToken> {
-		&self.state.signature_help_cancel
-	}
-
-	#[cfg(feature = "lsp")]
-	#[inline]
-	pub fn signature_help_cancel_mut(
-		&mut self,
-	) -> &mut Option<tokio_util::sync::CancellationToken> {
-		&mut self.state.signature_help_cancel
-	}
-
-	#[cfg(feature = "lsp")]
-	#[inline]
-	pub fn lsp_ui_tx(&self) -> &tokio::sync::mpsc::UnboundedSender<LspUiEvent> {
-		&self.state.lsp_ui_tx
-	}
-
-	#[cfg(feature = "lsp")]
-	#[inline]
-	pub fn lsp_ui_tx_mut(&mut self) -> &mut tokio::sync::mpsc::UnboundedSender<LspUiEvent> {
-		&mut self.state.lsp_ui_tx
-	}
-
-	#[cfg(feature = "lsp")]
-	#[inline]
-	pub fn lsp_ui_rx(&self) -> &tokio::sync::mpsc::UnboundedReceiver<LspUiEvent> {
-		&self.state.lsp_ui_rx
-	}
-
-	#[cfg(feature = "lsp")]
-	#[inline]
-	pub fn lsp_ui_rx_mut(&mut self) -> &mut tokio::sync::mpsc::UnboundedReceiver<LspUiEvent> {
-		&mut self.state.lsp_ui_rx
 	}
 
 	#[inline]

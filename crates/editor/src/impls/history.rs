@@ -138,7 +138,6 @@ impl Editor {
 			config: &self.state.config,
 			frame: &mut self.state.frame,
 			notifications: &mut self.state.notifications,
-			#[cfg(feature = "lsp")]
 			lsp: &mut self.state.lsp,
 		};
 		core.undo_manager.undo(&mut host);
@@ -152,7 +151,6 @@ impl Editor {
 			config: &self.state.config,
 			frame: &mut self.state.frame,
 			notifications: &mut self.state.notifications,
-			#[cfg(feature = "lsp")]
 			lsp: &mut self.state.lsp,
 		};
 		core.undo_manager.redo(&mut host);

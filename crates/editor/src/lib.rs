@@ -46,6 +46,8 @@ pub mod input;
 pub mod layout;
 #[cfg(feature = "lsp")]
 pub mod lsp;
+#[path = "lsp/system.rs"]
+mod lsp_system;
 /// Runtime metrics for observability.
 pub mod metrics;
 /// Cursor movement functions.
@@ -86,6 +88,7 @@ pub use completion::{
 };
 pub use editor_ctx::{EditorCapabilities, EditorContext, EditorOps, HandleOutcome, apply_effects};
 pub use impls::Editor;
+pub use lsp_system::LspSystem;
 pub use movement::WordType;
 pub use terminal_config::{TerminalConfig, TerminalSequence};
 pub use theme_source::ThemeSource;
