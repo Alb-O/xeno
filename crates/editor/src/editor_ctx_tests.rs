@@ -125,7 +125,7 @@ fn set_selection_updates_cursor_and_selection() {
 	let mut ctx = xeno_registry::actions::editor_ctx::EditorContext::new(&mut editor);
 
 	let sel = Selection::single(5, 15);
-	let effects = ActionEffects::motion(sel.clone());
+	let effects = ActionEffects::selection(sel.clone());
 	apply_effects(&effects, &mut ctx, false);
 
 	assert_eq!(usize::from(editor.cursor), 15);
@@ -249,7 +249,7 @@ fn selection_applied_before_mode_change() {
 	let mut ctx = xeno_registry::actions::editor_ctx::EditorContext::new(&mut editor);
 
 	let sel = Selection::point(CharIdx::from(42usize));
-	let effects = ActionEffects::motion(sel).with(AppEffect::SetMode(Mode::Insert));
+	let effects = ActionEffects::selection(sel).with(AppEffect::SetMode(Mode::Insert));
 
 	apply_effects(&effects, &mut ctx, false);
 
@@ -326,7 +326,7 @@ fn set_selection_emits_cursor_then_selection() {
 	let mut ctx = xeno_registry::actions::editor_ctx::EditorContext::new(&mut editor);
 
 	let sel = Selection::single(5, 15);
-	let effects = ActionEffects::motion(sel);
+	let effects = ActionEffects::selection(sel);
 
 	apply_effects(&effects, &mut ctx, false);
 

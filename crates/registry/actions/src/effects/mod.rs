@@ -144,9 +144,9 @@ impl ActionEffects {
 		Self::from_effect(ViewEffect::SetCursor(pos).into())
 	}
 
-	/// Sets the selection (motion result).
+	/// Sets the selection directly (action-computed result).
 	#[inline]
-	pub fn motion(sel: Selection) -> Self {
+	pub fn selection(sel: Selection) -> Self {
 		Self::from_effect(ViewEffect::SetSelection(sel).into())
 	}
 
@@ -462,7 +462,7 @@ pub enum AppEffect {
 /// 1. **Cursor/Selection before Mode** - Set cursor/selection before changing
 ///    mode, so mode-entry logic sees the correct position.
 ///    ```ignore
-///    ActionEffects::motion(sel).with(Effect::App(AppEffect::SetMode(Mode::Insert)))
+///    ActionEffects::selection(sel).with(Effect::App(AppEffect::SetMode(Mode::Insert)))
 ///    ```
 ///
 /// 2. **EditOp is self-contained** - `EditOp` effects handle their own cursor

@@ -3,7 +3,7 @@ use super::*;
 #[test]
 fn test_effects_composition() {
 	let sel = Selection::single(10, 10);
-	let effects = ActionEffects::motion(sel.clone()).with(AppEffect::SetMode(Mode::Insert));
+	let effects = ActionEffects::selection(sel.clone()).with(AppEffect::SetMode(Mode::Insert));
 
 	assert_eq!(effects.len(), 2);
 	assert!(matches!(

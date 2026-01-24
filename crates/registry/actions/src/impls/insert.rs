@@ -31,7 +31,7 @@ action!(insert_mode, { description: "Switch to insert mode", bindings: r#"normal
 		.map(|r| Range::new(r.max(), r.min()))
 		.collect();
 	let sel = Selection::from_vec(ranges, ctx.selection.primary_index());
-	ActionResult::Effects(ActionEffects::motion(sel).with(Effect::App(AppEffect::SetMode(Mode::Insert))))
+	ActionResult::Effects(ActionEffects::selection(sel).with(Effect::App(AppEffect::SetMode(Mode::Insert))))
 });
 
 action!(insert_line_start, { description: "Insert at start of line", bindings: r#"normal "I""# },
@@ -46,7 +46,7 @@ action!(insert_after, { description: "Insert after cursor", bindings: r#"normal 
 		.map(|r| Range::point((r.max() + 1).min(max_pos)))
 		.collect();
 	let sel = Selection::from_vec(ranges, ctx.selection.primary_index());
-	ActionResult::Effects(ActionEffects::motion(sel).with(Effect::App(AppEffect::SetMode(Mode::Insert))))
+	ActionResult::Effects(ActionEffects::selection(sel).with(Effect::App(AppEffect::SetMode(Mode::Insert))))
 });
 
 action!(insert_newline, {

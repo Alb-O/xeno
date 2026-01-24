@@ -44,7 +44,7 @@ fn select_object_with_trigger(
 		}
 	});
 
-	ActionResult::Effects(ActionEffects::motion(new_sel))
+	ActionResult::Effects(ActionEffects::selection(new_sel))
 }
 
 /// Selects from cursor to the start or end boundary of a text object.

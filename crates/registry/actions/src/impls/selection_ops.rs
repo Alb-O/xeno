@@ -8,7 +8,7 @@ action!(collapse_selection, {
 }, |ctx| {
 	let mut new_sel = ctx.selection.clone();
 	new_sel.transform_mut(|r| r.anchor = r.head);
-	ActionResult::Effects(ActionEffects::motion(new_sel))
+	ActionResult::Effects(ActionEffects::selection(new_sel))
 });
 
 action!(flip_selection, {
@@ -17,7 +17,7 @@ action!(flip_selection, {
 }, |ctx| {
 	let mut new_sel = ctx.selection.clone();
 	new_sel.transform_mut(|r| std::mem::swap(&mut r.anchor, &mut r.head));
-	ActionResult::Effects(ActionEffects::motion(new_sel))
+	ActionResult::Effects(ActionEffects::selection(new_sel))
 });
 
 action!(ensure_forward, {
@@ -30,7 +30,7 @@ action!(ensure_forward, {
 			std::mem::swap(&mut r.anchor, &mut r.head);
 		}
 	});
-	ActionResult::Effects(ActionEffects::motion(new_sel))
+	ActionResult::Effects(ActionEffects::selection(new_sel))
 });
 
 action!(select_line, {
@@ -58,7 +58,7 @@ fn select_line_impl(ctx: &ActionContext) -> ActionResult {
 		r.anchor = ctx.text.line_to_char(line);
 		r.head = line_end_pos(ctx.text, target);
 	});
-	ActionResult::Effects(ActionEffects::motion(new_sel))
+	ActionResult::Effects(ActionEffects::selection(new_sel))
 }
 
 /// Extends selection to cover full lines, then extends by additional lines on repeat.
@@ -79,7 +79,7 @@ fn extend_line_impl(ctx: &ActionContext) -> ActionResult {
 			r.head = full_head;
 		}
 	});
-	ActionResult::Effects(ActionEffects::motion(new_sel))
+	ActionResult::Effects(ActionEffects::selection(new_sel))
 }
 
 /// Returns position of the line's trailing newline, or last char for final line.
@@ -96,7 +96,7 @@ action!(select_all, {
 	bindings: r#"normal "%""#,
 }, |ctx| {
 	let end = ctx.text.len_chars();
-	ActionResult::Effects(ActionEffects::motion(Selection::single(0, end)))
+	ActionResult::Effects(ActionEffects::selection(Selection::single(0, end)))
 });
 
 action!(expand_to_line, {
@@ -117,7 +117,7 @@ fn expand_to_line_impl(ctx: &ActionContext) -> ActionResult {
 			ctx.text.len_chars()
 		};
 	});
-	ActionResult::Effects(ActionEffects::motion(new_sel))
+	ActionResult::Effects(ActionEffects::selection(new_sel))
 }
 
 action!(remove_primary_selection, {
@@ -129,14 +129,14 @@ action!(remove_primary_selection, {
 	}
 	let mut new_sel = ctx.selection.clone();
 	new_sel.remove_primary();
-	ActionResult::Effects(ActionEffects::motion(new_sel))
+	ActionResult::Effects(ActionEffects::selection(new_sel))
 });
 
 action!(remove_selections_except_primary, {
 	description: "Remove all selections except the primary one",
 	bindings: r#"normal ",""#,
 }, |ctx| {
-	ActionResult::Effects(ActionEffects::motion(Selection::single(
+	ActionResult::Effects(ActionEffects::selection(Selection::single(
 		ctx.selection.primary().anchor,
 		ctx.selection.primary().head,
 	)))
@@ -148,7 +148,7 @@ action!(rotate_selections_forward, {
 }, |ctx| {
 	let mut new_sel = ctx.selection.clone();
 	new_sel.rotate_forward();
-	ActionResult::Effects(ActionEffects::motion(new_sel))
+	ActionResult::Effects(ActionEffects::selection(new_sel))
 });
 
 action!(rotate_selections_backward, {
@@ -157,7 +157,7 @@ action!(rotate_selections_backward, {
 }, |ctx| {
 	let mut new_sel = ctx.selection.clone();
 	new_sel.rotate_backward();
-	ActionResult::Effects(ActionEffects::motion(new_sel))
+	ActionResult::Effects(ActionEffects::selection(new_sel))
 });
 
 action!(split_lines, {
@@ -199,7 +199,7 @@ fn split_lines_impl(ctx: &ActionContext) -> ActionResult {
 	if new_ranges.is_empty() {
 		ActionResult::Effects(ActionEffects::ok())
 	} else {
-		ActionResult::Effects(ActionEffects::motion(Selection::from_vec(new_ranges, 0)))
+		ActionResult::Effects(ActionEffects::selection(Selection::from_vec(new_ranges, 0)))
 	}
 }
 
@@ -239,7 +239,7 @@ fn duplicate_selections_down_impl(ctx: &ActionContext) -> ActionResult {
 		}
 	}
 
-	ActionResult::Effects(ActionEffects::motion(Selection::from_vec(
+	ActionResult::Effects(ActionEffects::selection(Selection::from_vec(
 		new_ranges,
 		primary_index,
 	)))
@@ -282,7 +282,7 @@ fn duplicate_selections_up_impl(ctx: &ActionContext) -> ActionResult {
 		}
 	}
 
-	ActionResult::Effects(ActionEffects::motion(Selection::from_vec(
+	ActionResult::Effects(ActionEffects::selection(Selection::from_vec(
 		new_ranges,
 		primary_index,
 	)))
@@ -306,7 +306,7 @@ action!(merge_selections, {
 }, |ctx| {
 	let mut new_sel = ctx.selection.clone();
 	new_sel.merge_overlaps_and_adjacent();
-	ActionResult::Effects(ActionEffects::motion(new_sel))
+	ActionResult::Effects(ActionEffects::selection(new_sel))
 });
 
 #[cfg(test)]

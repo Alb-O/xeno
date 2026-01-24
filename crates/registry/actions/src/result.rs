@@ -104,11 +104,11 @@ pub enum ScreenPosition {
 /// use xeno_registry::{ActionEffects, ActionResult, AppEffect, Mode};
 ///
 /// // Motion action
-/// ActionResult::Effects(ActionEffects::motion(selection))
+/// ActionResult::Effects(ActionEffects::selection(selection))
 ///
 /// // Composed action: motion + mode change
 /// ActionResult::Effects(
-///     ActionEffects::motion(sel).with(AppEffect::SetMode(Mode::Insert))
+///     ActionEffects::selection(sel).with(AppEffect::SetMode(Mode::Insert))
 /// )
 ///
 /// // No-op

@@ -11,7 +11,7 @@ action!(find_char, {
 		new_sel.transform_mut(|r| {
 			*r = movement::find_char_forward(ctx.text, *r, ch, ctx.count, true, ctx.extend);
 		});
-		ActionResult::Effects(ActionEffects::motion(new_sel))
+		ActionResult::Effects(ActionEffects::selection(new_sel))
 	}
 	None => ActionResult::Effects(ActionEffects::pending(PendingAction {
 		kind: PendingKind::FindChar { inclusive: true },
@@ -28,7 +28,7 @@ action!(find_char_to, {
 		new_sel.transform_mut(|r| {
 			*r = movement::find_char_forward(ctx.text, *r, ch, ctx.count, false, ctx.extend);
 		});
-		ActionResult::Effects(ActionEffects::motion(new_sel))
+		ActionResult::Effects(ActionEffects::selection(new_sel))
 	}
 	None => ActionResult::Effects(ActionEffects::pending(PendingAction {
 		kind: PendingKind::FindChar { inclusive: false },
@@ -45,7 +45,7 @@ action!(find_char_reverse, {
 		new_sel.transform_mut(|r| {
 			*r = movement::find_char_backward(ctx.text, *r, ch, ctx.count, true, ctx.extend);
 		});
-		ActionResult::Effects(ActionEffects::motion(new_sel))
+		ActionResult::Effects(ActionEffects::selection(new_sel))
 	}
 	None => ActionResult::Effects(ActionEffects::pending(PendingAction {
 		kind: PendingKind::FindCharReverse { inclusive: true },
@@ -62,7 +62,7 @@ action!(find_char_to_reverse, {
 		new_sel.transform_mut(|r| {
 			*r = movement::find_char_backward(ctx.text, *r, ch, ctx.count, false, ctx.extend);
 		});
-		ActionResult::Effects(ActionEffects::motion(new_sel))
+		ActionResult::Effects(ActionEffects::selection(new_sel))
 	}
 	None => ActionResult::Effects(ActionEffects::pending(PendingAction {
 		kind: PendingKind::FindCharReverse { inclusive: false },
