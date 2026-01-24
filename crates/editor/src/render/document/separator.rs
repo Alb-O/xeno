@@ -46,26 +46,27 @@ impl SeparatorStyle {
 	/// Creates a new separator style from the current editor state.
 	pub fn new(editor: &Editor, doc_area: Rect) -> Self {
 		Self {
-			hovered_rect: editor.layout.hovered_separator.map(|(_, rect)| rect),
-			dragging_rect: editor.layout.drag_state().and_then(|ds| {
+			hovered_rect: editor.state.layout.hovered_separator.map(|(_, rect)| rect),
+			dragging_rect: editor.state.layout.drag_state().and_then(|ds| {
 				editor
+					.state
 					.layout
 					.separator_rect(&editor.base_window().layout, doc_area, &ds.id)
 			}),
-			anim_rect: editor.layout.animation_rect(),
-			anim_intensity: editor.layout.animation_intensity(),
+			anim_rect: editor.state.layout.animation_rect(),
+			anim_intensity: editor.state.layout.animation_intensity(),
 			base_bg: [
-				editor.config.theme.colors.ui.bg,
-				editor.config.theme.colors.popup.bg,
+				editor.state.config.theme.colors.ui.bg,
+				editor.state.config.theme.colors.popup.bg,
 			],
 			base_fg: [
-				editor.config.theme.colors.ui.gutter_fg,
-				editor.config.theme.colors.popup.fg,
+				editor.state.config.theme.colors.ui.gutter_fg,
+				editor.state.config.theme.colors.popup.fg,
 			],
-			hover_fg: editor.config.theme.colors.ui.cursor_fg,
-			hover_bg: editor.config.theme.colors.ui.selection_bg,
-			drag_fg: editor.config.theme.colors.ui.bg,
-			drag_bg: editor.config.theme.colors.ui.fg,
+			hover_fg: editor.state.config.theme.colors.ui.cursor_fg,
+			hover_bg: editor.state.config.theme.colors.ui.selection_bg,
+			drag_fg: editor.state.config.theme.colors.ui.bg,
+			drag_bg: editor.state.config.theme.colors.ui.fg,
 		}
 	}
 

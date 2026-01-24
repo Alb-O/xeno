@@ -113,11 +113,11 @@ fn load_user_config() -> Option<xeno_runtime_config::Config> {
 fn apply_user_config(editor: &mut Editor, config: Option<xeno_runtime_config::Config>) {
 	let Some(config) = config else { return };
 
-	editor.config.global_options.merge(&config.options);
+	editor.config_mut().global_options.merge(&config.options);
 
 	for lang_config in config.languages {
 		editor
-			.config
+			.config_mut()
 			.language_options
 			.entry(lang_config.name)
 			.or_default()
@@ -410,7 +410,7 @@ fn configure_lsp_servers(editor: &mut Editor) {
 		}) else {
 			continue;
 		};
-		editor.lsp.configure_server(
+		editor.lsp_mut().configure_server(
 			language.clone(),
 			xeno_editor::lsp::LanguageServerConfig {
 				command: server_def.command.clone(),

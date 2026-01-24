@@ -34,7 +34,7 @@ pub enum LspUiEvent {
 
 impl Editor {
 	pub(crate) fn drain_lsp_ui_events(&mut self) {
-		while let Ok(event) = self.lsp_ui_rx.try_recv() {
+		while let Ok(event) = self.state.lsp_ui_rx.try_recv() {
 			self.handle_lsp_ui_event(event);
 		}
 	}
@@ -55,10 +55,10 @@ impl Editor {
 				replace_start,
 				response,
 			} => {
-				if generation != self.completion_controller.generation() {
+				if generation != self.state.completion_controller.generation() {
 					return;
 				}
-				let Some(buffer) = self.core.buffers.get_buffer(buffer_id) else {
+				let Some(buffer) = self.state.core.buffers.get_buffer(buffer_id) else {
 					return;
 				};
 				if buffer.cursor < replace_start {
@@ -90,7 +90,7 @@ impl Editor {
 					})
 					.collect();
 
-				let completions = self.overlays.get_or_default::<CompletionState>();
+				let completions = self.state.overlays.get_or_default::<CompletionState>();
 				completions.items = display_items;
 				completions.selected_idx = None;
 				completions.selection_intent = SelectionIntent::Auto;
@@ -99,10 +99,10 @@ impl Editor {
 				completions.scroll_offset = 0;
 				completions.query = query;
 
-				let menu_state = self.overlays.get_or_default::<LspMenuState>();
+				let menu_state = self.state.overlays.get_or_default::<LspMenuState>();
 				menu_state.set(LspMenuKind::Completion { buffer_id, items });
 
-				self.frame.needs_redraw = true;
+				self.state.frame.needs_redraw = true;
 			}
 			LspUiEvent::SignatureHelp {
 				generation,
@@ -112,10 +112,10 @@ impl Editor {
 				contents,
 				anchor,
 			} => {
-				if generation != self.signature_help_generation {
+				if generation != self.state.signature_help_generation {
 					return;
 				}
-				let Some(buffer) = self.core.buffers.get_buffer(buffer_id) else {
+				let Some(buffer) = self.state.core.buffers.get_buffer(buffer_id) else {
 					return;
 				};
 				if buffer.version() != doc_version || buffer.cursor != cursor {
@@ -130,10 +130,10 @@ impl Editor {
 	}
 
 	pub(crate) fn clear_lsp_menu(&mut self) {
-		if let Some(completions) = self.overlays.get::<CompletionState>()
+		if let Some(completions) = self.state.overlays.get::<CompletionState>()
 			&& completions.active
 		{
-			let completions = self.overlays.get_or_default::<CompletionState>();
+			let completions = self.state.overlays.get_or_default::<CompletionState>();
 			completions.items.clear();
 			completions.selected_idx = None;
 			completions.active = false;
@@ -142,14 +142,14 @@ impl Editor {
 			completions.query.clear();
 		}
 
-		if let Some(menu_state) = self.overlays.get::<LspMenuState>()
+		if let Some(menu_state) = self.state.overlays.get::<LspMenuState>()
 			&& menu_state.is_active()
 		{
-			let menu_state = self.overlays.get_or_default::<LspMenuState>();
+			let menu_state = self.state.overlays.get_or_default::<LspMenuState>();
 			menu_state.clear();
 		}
 
-		self.frame.needs_redraw = true;
+		self.state.frame.needs_redraw = true;
 	}
 }
 

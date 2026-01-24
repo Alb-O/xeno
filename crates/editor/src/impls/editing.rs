@@ -32,15 +32,15 @@ impl Editor {
 		undo: UndoPolicy,
 		origin: EditOrigin,
 	) -> bool {
-		let core = &mut self.core;
+		let core = &mut self.state.core;
 		let undo_manager = &mut core.undo_manager;
 		let mut host = EditorUndoHost {
 			buffers: &mut core.buffers,
-			config: &self.config,
-			frame: &mut self.frame,
-			notifications: &mut self.notifications,
+			config: &self.state.config,
+			frame: &mut self.state.frame,
+			notifications: &mut self.state.notifications,
 			#[cfg(feature = "lsp")]
-			lsp: &mut self.lsp,
+			lsp: &mut self.state.lsp,
 		};
 
 		undo_manager.with_edit(&mut host, buffer_id, undo, origin, |host| {
@@ -85,6 +85,7 @@ impl Editor {
 
 		let (tx, new_selection) = {
 			let buffer = self
+				.state
 				.core
 				.buffers
 				.get_buffer_mut(buffer_id)
@@ -108,14 +109,14 @@ impl Editor {
 	/// Copies the current selection to the yank register.
 	pub fn yank_selection(&mut self) {
 		if let Some((text, count)) = self.buffer_mut().yank_selection() {
-			self.core.workspace.registers.yank = text;
+			self.state.core.workspace.registers.yank = text;
 			self.notify(keys::yanked_chars(count));
 		}
 	}
 
 	/// Pastes the yank register content after the cursor.
 	pub fn paste_after(&mut self) {
-		if self.core.workspace.registers.yank.is_empty() {
+		if self.state.core.workspace.registers.yank.is_empty() {
 			return;
 		}
 
@@ -124,10 +125,11 @@ impl Editor {
 		}
 
 		let buffer_id = self.focused_view();
-		let yank = self.core.workspace.registers.yank.clone();
+		let yank = self.state.core.workspace.registers.yank.clone();
 
 		let Some((tx, new_selection)) = ({
 			let buffer = self
+				.state
 				.core
 				.buffers
 				.get_buffer_mut(buffer_id)
@@ -152,7 +154,7 @@ impl Editor {
 
 	/// Pastes the yank register content before the cursor.
 	pub fn paste_before(&mut self) {
-		if self.core.workspace.registers.yank.is_empty() {
+		if self.state.core.workspace.registers.yank.is_empty() {
 			return;
 		}
 
@@ -161,10 +163,11 @@ impl Editor {
 		}
 
 		let buffer_id = self.focused_view();
-		let yank = self.core.workspace.registers.yank.clone();
+		let yank = self.state.core.workspace.registers.yank.clone();
 
 		let Some((tx, new_selection)) = ({
 			let buffer = self
+				.state
 				.core
 				.buffers
 				.get_buffer_mut(buffer_id)
@@ -201,6 +204,7 @@ impl Editor {
 
 		let Some((tx, new_selection)) = ({
 			let buffer = self
+				.state
 				.core
 				.buffers
 				.get_buffer_mut(buffer_id)
@@ -226,14 +230,15 @@ impl Editor {
 	/// Triggers a full syntax reparse of the focused buffer.
 	///
 	/// Accesses the buffer directly rather than through `self.buffer_mut()` to
-	/// avoid a borrow conflict with `self.config.language_loader`.
+	/// avoid a borrow conflict with `self.state.config.language_loader`.
 	pub fn reparse_syntax(&mut self) {
 		let buffer_id = self.focused_view();
 		let buffer = self
+			.state
 			.core
 			.buffers
 			.get_buffer_mut(buffer_id)
 			.expect("focused buffer must exist");
-		buffer.reparse_syntax(&self.config.language_loader);
+		buffer.reparse_syntax(&self.state.config.language_loader);
 	}
 }

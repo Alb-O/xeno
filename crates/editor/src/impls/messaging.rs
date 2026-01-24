@@ -62,11 +62,15 @@ impl Editor {
 
 	/// Shows a typed notification (internal).
 	pub fn show_notification(&mut self, notification: Notification) {
-		push_notification(&self.config, &mut self.notifications, notification);
+		push_notification(
+			&self.state.config,
+			&mut self.state.notifications,
+			notification,
+		);
 	}
 
 	/// Clears all visible notifications.
 	pub fn clear_all_notifications(&mut self) {
-		self.notifications.clear();
+		self.state.notifications.clear();
 	}
 }

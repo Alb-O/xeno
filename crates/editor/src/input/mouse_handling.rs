@@ -12,8 +12,8 @@ use crate::window::Window;
 impl Editor {
 	/// Processes a mouse event, returning true if the event triggered a quit.
 	pub async fn handle_mouse(&mut self, mouse: termina::event::MouseEvent) -> bool {
-		let width = self.viewport.width.unwrap_or(80);
-		let height = self.viewport.height.unwrap_or(24);
+		let width = self.state.viewport.width.unwrap_or(80);
+		let height = self.state.viewport.height.unwrap_or(24);
 
 		// Main area excludes status line (1 row)
 		let main_height = height.saturating_sub(1);
@@ -24,21 +24,21 @@ impl Editor {
 			height: main_height,
 		};
 
-		let mut ui = std::mem::take(&mut self.ui);
+		let mut ui = std::mem::take(&mut self.state.ui);
 		let dock_layout = ui.compute_layout(main_area);
 
 		if ui.handle_mouse(self, mouse, &dock_layout) {
 			if ui.take_wants_redraw() {
-				self.frame.needs_redraw = true;
+				self.state.frame.needs_redraw = true;
 			}
-			self.ui = ui;
+			self.state.ui = ui;
 			self.sync_focus_from_ui();
 			return false;
 		}
 		if ui.take_wants_redraw() {
-			self.frame.needs_redraw = true;
+			self.state.frame.needs_redraw = true;
 		}
-		self.ui = ui;
+		self.state.ui = ui;
 		self.sync_focus_from_ui();
 
 		// Get the document area (excluding panels/docks)
@@ -67,23 +67,23 @@ impl Editor {
 		let mouse_x = mouse.column;
 		let mouse_y = mouse.row;
 
-		if let Some(drag_state) = self.layout.drag_state().cloned() {
+		if let Some(drag_state) = self.state.layout.drag_state().cloned() {
 			match mouse.kind {
 				MouseEventKind::Drag(_) => {
-					let base_layout = &mut self.windows.base_window_mut().layout;
-					self.layout.resize_separator(
+					let base_layout = &mut self.state.windows.base_window_mut().layout;
+					self.state.layout.resize_separator(
 						base_layout,
 						doc_area,
 						&drag_state.id,
 						mouse_x,
 						mouse_y,
 					);
-					self.frame.needs_redraw = true;
+					self.state.frame.needs_redraw = true;
 					return false;
 				}
 				MouseEventKind::Up(_) => {
-					self.layout.end_drag();
-					self.frame.needs_redraw = true;
+					self.state.layout.end_drag();
+					self.state.frame.needs_redraw = true;
 					return false;
 				}
 				_ => {}
@@ -91,7 +91,7 @@ impl Editor {
 		}
 
 		// Handle active text selection drag - confine to origin view
-		if let Some((origin_view, origin_area)) = self.layout.text_selection_origin {
+		if let Some((origin_view, origin_area)) = self.state.layout.text_selection_origin {
 			match mouse.kind {
 				MouseEventKind::Drag(_) | MouseEventKind::ScrollUp | MouseEventKind::ScrollDown => {
 					let clamped_x =
@@ -103,7 +103,7 @@ impl Editor {
 
 					let tab_width = self.tab_width_for(origin_view);
 					let scroll_lines = self.scroll_lines_for(origin_view);
-					if let Some(buffer) = self.core.buffers.get_buffer_mut(origin_view) {
+					if let Some(buffer) = self.state.core.buffers.get_buffer_mut(origin_view) {
 						if let MouseEventKind::ScrollUp | MouseEventKind::ScrollDown = mouse.kind {
 							let direction = if matches!(mouse.kind, MouseEventKind::ScrollUp) {
 								ScrollDirection::Up
@@ -135,19 +135,19 @@ impl Editor {
 							buffer.sync_cursor_to_selection();
 						}
 					}
-					self.frame.needs_redraw = true;
+					self.state.frame.needs_redraw = true;
 					return false;
 				}
 				MouseEventKind::Up(_) => {
-					self.layout.text_selection_origin = None;
-					self.frame.needs_redraw = true;
+					self.state.layout.text_selection_origin = None;
+					self.state.frame.needs_redraw = true;
 				}
 				_ => {}
 			}
 		}
 
 		let mut floating_hit = None;
-		for (window_id, window) in self.windows.floating_windows() {
+		for (window_id, window) in self.state.windows.floating_windows() {
 			if window.contains(mouse_x, mouse_y) {
 				floating_hit = Some((window_id, window));
 			}
@@ -157,65 +157,67 @@ impl Editor {
 			None
 		} else {
 			let base_layout = &self.base_window().layout;
-			self.layout
+			self.state
+				.layout
 				.separator_hit_at_position(base_layout, doc_area, mouse_x, mouse_y)
 		};
 
-		self.layout.update_mouse_velocity(mouse_x, mouse_y);
-		let is_fast_mouse = self.layout.is_mouse_fast();
+		self.state.layout.update_mouse_velocity(mouse_x, mouse_y);
+		let is_fast_mouse = self.state.layout.is_mouse_fast();
 
 		let current_separator = separator_hit.as_ref().map(|hit| (hit.direction, hit.rect));
-		self.layout.separator_under_mouse = current_separator;
+		self.state.layout.separator_under_mouse = current_separator;
 
 		match mouse.kind {
 			MouseEventKind::Moved => {
-				let old_hover = self.layout.hovered_separator;
+				let old_hover = self.state.layout.hovered_separator;
 
 				// Hover activation: sticky once active, velocity-gated for new hovers
-				self.layout.hovered_separator = match (old_hover, current_separator) {
+				self.state.layout.hovered_separator = match (old_hover, current_separator) {
 					(Some(old), Some(new)) if old == new => Some(old),
 					(_, Some(sep)) if !is_fast_mouse => Some(sep),
 					(_, Some(_)) => {
-						self.frame.needs_redraw = true;
+						self.state.frame.needs_redraw = true;
 						None
 					}
 					(_, None) => None,
 				};
 
-				if old_hover != self.layout.hovered_separator {
-					self.layout
-						.update_hover_animation(old_hover, self.layout.hovered_separator);
-					self.frame.needs_redraw = true;
+				if old_hover != self.state.layout.hovered_separator {
+					self.state
+						.layout
+						.update_hover_animation(old_hover, self.state.layout.hovered_separator);
+					self.state.frame.needs_redraw = true;
 				}
 
-				if self.layout.hovered_separator.is_some() {
+				if self.state.layout.hovered_separator.is_some() {
 					return false;
 				}
 			}
 			MouseEventKind::Down(_) => {
 				if let Some(hit) = &separator_hit {
-					self.layout.start_drag(hit);
-					self.frame.needs_redraw = true;
+					self.state.layout.start_drag(hit);
+					self.state.frame.needs_redraw = true;
 					return false;
 				}
-				if self.layout.hovered_separator.is_some() {
-					let old_hover = self.layout.hovered_separator.take();
-					self.layout.update_hover_animation(old_hover, None);
-					self.frame.needs_redraw = true;
+				if self.state.layout.hovered_separator.is_some() {
+					let old_hover = self.state.layout.hovered_separator.take();
+					self.state.layout.update_hover_animation(old_hover, None);
+					self.state.frame.needs_redraw = true;
 				}
 			}
 			MouseEventKind::Drag(_) => {
-				if self.layout.hovered_separator.is_some() {
-					let old_hover = self.layout.hovered_separator.take();
-					self.layout.update_hover_animation(old_hover, None);
-					self.frame.needs_redraw = true;
+				if self.state.layout.hovered_separator.is_some() {
+					let old_hover = self.state.layout.hovered_separator.take();
+					self.state.layout.update_hover_animation(old_hover, None);
+					self.state.frame.needs_redraw = true;
 				}
 			}
 			_ => {
-				if separator_hit.is_none() && self.layout.hovered_separator.is_some() {
-					let old_hover = self.layout.hovered_separator.take();
-					self.layout.update_hover_animation(old_hover, None);
-					self.frame.needs_redraw = true;
+				if separator_hit.is_none() && self.state.layout.hovered_separator.is_some() {
+					let old_hover = self.state.layout.hovered_separator.take();
+					self.state.layout.update_hover_animation(old_hover, None);
+					self.state.frame.needs_redraw = true;
 				}
 			}
 		}
@@ -224,20 +226,21 @@ impl Editor {
 			Some((window.buffer, window.content_rect(), window_id))
 		} else {
 			let base_layout = &self.base_window().layout;
-			self.layout
+			self.state
+				.layout
 				.view_at_position(base_layout, doc_area, mouse_x, mouse_y)
-				.map(|(view, area)| (view, area, self.windows.base_id()))
+				.map(|(view, area)| (view, area, self.state.windows.base_id()))
 		};
 		let Some((target_view, view_area, target_window)) = view_hit else {
 			return false;
 		};
 
-		let focused_window = match &self.focus {
+		let focused_window = match &self.state.focus {
 			FocusTarget::Buffer { window, .. } => Some(*window),
 			FocusTarget::Panel(_) => None,
 		};
 		let sticky_floating = focused_window
-			.and_then(|id| self.windows.get(id))
+			.and_then(|id| self.state.windows.get(id))
 			.and_then(|window| match window {
 				Window::Floating(floating) => Some(floating.sticky),
 				Window::Base(_) => None,
@@ -251,7 +254,7 @@ impl Editor {
 			return false;
 		}
 
-		let needs_focus = match &self.focus {
+		let needs_focus = match &self.state.focus {
 			FocusTarget::Buffer { window, buffer } => {
 				*window != target_window || *buffer != target_view
 			}
@@ -263,7 +266,7 @@ impl Editor {
 					self.focus_buffer_in_window(target_window, target_view, true)
 				}
 				_ => {
-					if target_window == self.windows.base_id() {
+					if target_window == self.state.windows.base_id() {
 						self.focus_view_implicit(target_view)
 					} else {
 						self.focus_buffer_in_window(target_window, target_view, false)
@@ -283,7 +286,7 @@ impl Editor {
 		let result = self.buffer_mut().input.handle_mouse(mouse.into());
 		match result {
 			KeyResult::MouseClick { extend, .. } => {
-				self.layout.text_selection_origin = Some((target_view, view_area));
+				self.state.layout.text_selection_origin = Some((target_view, view_area));
 				self.handle_mouse_click_local(local_row, local_col, extend);
 				false
 			}
@@ -305,14 +308,15 @@ impl Editor {
 	/// and then finds the focused view's rectangle within that area.
 	pub(crate) fn focused_view_area(&self) -> xeno_tui::layout::Rect {
 		let doc_area = self.doc_area();
-		if let FocusTarget::Buffer { window, .. } = &self.focus
-			&& *window != self.windows.base_id()
-			&& let Some(Window::Floating(floating)) = self.windows.get(*window)
+		if let FocusTarget::Buffer { window, .. } = &self.state.focus
+			&& *window != self.state.windows.base_id()
+			&& let Some(Window::Floating(floating)) = self.state.windows.get(*window)
 		{
 			return floating.content_rect();
 		}
 		let focused = self.focused_view();
 		for (view, area) in self
+			.state
 			.layout
 			.compute_view_areas(&self.base_window().layout, doc_area)
 		{
@@ -325,8 +329,8 @@ impl Editor {
 
 	/// Computes the document area based on current window dimensions.
 	pub fn doc_area(&self) -> xeno_tui::layout::Rect {
-		let width = self.viewport.width.unwrap_or(80);
-		let height = self.viewport.height.unwrap_or(24);
+		let width = self.state.viewport.width.unwrap_or(80);
+		let height = self.state.viewport.height.unwrap_or(24);
 		// Exclude status line (1 row)
 		let main_height = height.saturating_sub(1);
 		let main_area = xeno_tui::layout::Rect {
@@ -335,6 +339,6 @@ impl Editor {
 			width,
 			height: main_height,
 		};
-		self.ui.compute_layout(main_area).doc_area
+		self.state.ui.compute_layout(main_area).doc_area
 	}
 }

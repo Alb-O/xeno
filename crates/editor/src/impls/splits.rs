@@ -19,8 +19,8 @@ impl Editor {
 	pub fn split_horizontal(&mut self, new_buffer_id: ViewId) {
 		let current_view = self.focused_view();
 		let doc_area = self.doc_area();
-		let base_layout = &mut self.windows.base_window_mut().layout;
-		let layout = &mut self.layout;
+		let base_layout = &mut self.state.windows.base_window_mut().layout;
+		let layout = &mut self.state.layout;
 		layout.split_horizontal(base_layout, current_view, new_buffer_id, doc_area);
 		self.focus_buffer(new_buffer_id);
 		emit_hook_sync_with(
@@ -29,9 +29,9 @@ impl Editor {
 					view_id: new_buffer_id,
 					direction: SplitDirection::Horizontal,
 				},
-				Some(&self.extensions),
+				Some(&self.state.extensions),
 			),
-			&mut self.hook_runtime,
+			&mut self.state.hook_runtime,
 		);
 	}
 
@@ -41,8 +41,8 @@ impl Editor {
 	pub fn split_vertical(&mut self, new_buffer_id: ViewId) {
 		let current_view = self.focused_view();
 		let doc_area = self.doc_area();
-		let base_layout = &mut self.windows.base_window_mut().layout;
-		let layout = &mut self.layout;
+		let base_layout = &mut self.state.windows.base_window_mut().layout;
+		let layout = &mut self.state.layout;
 		layout.split_vertical(base_layout, current_view, new_buffer_id, doc_area);
 		self.focus_buffer(new_buffer_id);
 		emit_hook_sync_with(
@@ -51,21 +51,21 @@ impl Editor {
 					view_id: new_buffer_id,
 					direction: SplitDirection::Vertical,
 				},
-				Some(&self.extensions),
+				Some(&self.state.extensions),
 			),
-			&mut self.hook_runtime,
+			&mut self.state.hook_runtime,
 		);
 	}
 
 	/// Requests the editor to quit after the current event loop iteration.
 	pub fn request_quit(&mut self) {
-		self.frame.pending_quit = true;
+		self.state.frame.pending_quit = true;
 	}
 
 	/// Consumes and returns the pending quit request, if any.
 	pub fn take_quit_request(&mut self) -> bool {
-		if self.frame.pending_quit {
-			self.frame.pending_quit = false;
+		if self.state.frame.pending_quit {
+			self.state.frame.pending_quit = false;
 			true
 		} else {
 			false
@@ -76,11 +76,11 @@ impl Editor {
 	///
 	/// Returns true if the view was closed.
 	pub fn close_view(&mut self, view: ViewId) -> bool {
-		if self.layout.count(&self.base_window().layout) <= 1 {
+		if self.state.layout.count(&self.base_window().layout) <= 1 {
 			return false;
 		}
 
-		if let Some(buffer) = self.core.buffers.get_buffer(view) {
+		if let Some(buffer) = self.state.core.buffers.get_buffer(view) {
 			let scratch_path = PathBuf::from("[scratch]");
 			let path = buffer.path().unwrap_or_else(|| scratch_path.clone());
 			let file_type = buffer.file_type();
@@ -90,13 +90,13 @@ impl Editor {
 						path: &path,
 						file_type: file_type.as_deref(),
 					},
-					Some(&self.extensions),
+					Some(&self.state.extensions),
 				),
-				&mut self.hook_runtime,
+				&mut self.state.hook_runtime,
 			);
 
 			#[cfg(feature = "lsp")]
-			if let Err(e) = self.lsp.on_buffer_close(buffer) {
+			if let Err(e) = self.state.lsp.on_buffer_close(buffer) {
 				warn!(error = %e, "LSP buffer close failed");
 			}
 		}
@@ -104,21 +104,21 @@ impl Editor {
 		emit_hook_sync_with(
 			&HookContext::new(
 				HookEventData::SplitClosed { view_id: view },
-				Some(&self.extensions),
+				Some(&self.state.extensions),
 			),
-			&mut self.hook_runtime,
+			&mut self.state.hook_runtime,
 		);
 
 		// Remove from layout - returns the new focus target if successful
 		let doc_area = self.doc_area();
-		let base_layout = &mut self.windows.base_window_mut().layout;
-		let layout = &mut self.layout;
+		let base_layout = &mut self.state.windows.base_window_mut().layout;
+		let layout = &mut self.state.layout;
 		let new_focus = layout.remove_view(base_layout, view, doc_area);
 		if new_focus.is_none() {
 			return false;
 		}
 
-		self.core.buffers.remove_buffer(view);
+		self.state.core.buffers.remove_buffer(view);
 
 		// If we closed the focused view, focus another one
 		if self.focused_view() == view
@@ -127,7 +127,7 @@ impl Editor {
 			self.focus_view(focus);
 		}
 
-		self.frame.needs_redraw = true;
+		self.state.frame.needs_redraw = true;
 		true
 	}
 

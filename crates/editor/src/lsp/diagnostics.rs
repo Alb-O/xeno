@@ -20,16 +20,16 @@ impl Editor {
 
 	fn goto_diagnostic(&mut self, direction: NavDirection) {
 		let buffer_id = self.focused_view();
-		let Some(buffer) = self.core.buffers.get_buffer(buffer_id) else {
+		let Some(buffer) = self.state.core.buffers.get_buffer(buffer_id) else {
 			return;
 		};
-		let diagnostics = self.lsp.get_diagnostics(buffer);
+		let diagnostics = self.state.lsp.get_diagnostics(buffer);
 		if diagnostics.is_empty() {
 			self.notify(keys::info("No diagnostics"));
 			return;
 		}
 
-		let encoding = self.lsp.offset_encoding_for_buffer(buffer);
+		let encoding = self.state.lsp.offset_encoding_for_buffer(buffer);
 		let mut positions: Vec<_> = buffer.with_doc(|doc| {
 			diagnostics
 				.iter()
@@ -59,11 +59,11 @@ impl Editor {
 				.unwrap_or_else(|| *positions.last().unwrap()),
 		};
 
-		let Some(buffer) = self.core.buffers.get_buffer_mut(buffer_id) else {
+		let Some(buffer) = self.state.core.buffers.get_buffer_mut(buffer_id) else {
 			return;
 		};
 		buffer.set_cursor_and_selection(next_pos, Selection::point(next_pos));
 		buffer.establish_goal_column();
-		self.frame.needs_redraw = true;
+		self.state.frame.needs_redraw = true;
 	}
 }

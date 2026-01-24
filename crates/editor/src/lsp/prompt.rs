@@ -10,6 +10,7 @@ use crate::window::{GutterSelector, Window};
 impl Editor {
 	pub fn open_rename_prompt(&mut self) -> bool {
 		if self
+			.state
 			.overlays
 			.get::<PromptState>()
 			.is_some_and(|state| state.is_open())
@@ -17,17 +18,18 @@ impl Editor {
 			return false;
 		}
 
-		let (width, height) = match (self.viewport.width, self.viewport.height) {
+		let (width, height) = match (self.state.viewport.width, self.state.viewport.height) {
 			(Some(w), Some(h)) => (w, h),
 			_ => return false,
 		};
 
 		let buffer_id = self.focused_view();
 		let (cursor, word, rename_supported) = {
-			let Some(buffer) = self.core.buffers.get_buffer(buffer_id) else {
+			let Some(buffer) = self.state.core.buffers.get_buffer(buffer_id) else {
 				return false;
 			};
 			let rename_supported = self
+				.state
 				.lsp
 				.prepare_position_request(buffer)
 				.ok()
@@ -41,10 +43,11 @@ impl Editor {
 		}
 
 		let rect = prompt_rect(width, height);
-		let prompt_buffer_id = self.core.buffers.create_scratch();
+		let prompt_buffer_id = self.state.core.buffers.create_scratch();
 		let window_id = self.create_floating_window(prompt_buffer_id, rect, prompt_style("Rename"));
 
-		let Window::Floating(float) = self.windows.get_mut(window_id).expect("just created") else {
+		let Window::Floating(float) = self.state.windows.get_mut(window_id).expect("just created")
+		else {
 			unreachable!()
 		};
 		float.sticky = true;
@@ -55,6 +58,7 @@ impl Editor {
 		if !word.is_empty() {
 			let end = word.chars().count();
 			let buffer = self
+				.state
 				.core
 				.buffers
 				.get_buffer_mut(prompt_buffer_id)
@@ -62,14 +66,15 @@ impl Editor {
 			buffer.reset_content(word.as_str());
 			buffer.set_cursor_and_selection(end, Selection::single(0, end));
 		}
-		self.core
+		self.state
+			.core
 			.buffers
 			.get_buffer_mut(prompt_buffer_id)
 			.expect("prompt buffer exists")
 			.input
 			.set_mode(Mode::Insert);
 
-		self.overlays.insert(PromptState::Open(Prompt {
+		self.state.overlays.insert(PromptState::Open(Prompt {
 			window_id,
 			buffer_id: prompt_buffer_id,
 			kind: PromptKind::Rename {
@@ -81,13 +86,15 @@ impl Editor {
 	}
 
 	pub fn prompt_is_open(&self) -> bool {
-		self.overlays
+		self.state
+			.overlays
 			.get::<PromptState>()
 			.is_some_and(|state| state.is_open())
 	}
 
 	pub fn close_prompt(&mut self) {
 		let Some(prompt) = self
+			.state
 			.overlays
 			.get::<PromptState>()
 			.and_then(|state| state.active())
@@ -101,17 +108,18 @@ impl Editor {
 		};
 
 		self.close_floating_window(window_id);
-		self.core.buffers.remove_buffer(buffer_id);
-		self.overlays.insert(PromptState::Closed);
+		self.state.core.buffers.remove_buffer(buffer_id);
+		self.state.overlays.insert(PromptState::Closed);
 
 		self.focus_view(target_buffer);
-		if let Some(buffer) = self.core.buffers.get_buffer_mut(target_buffer) {
+		if let Some(buffer) = self.state.core.buffers.get_buffer_mut(target_buffer) {
 			buffer.input.set_mode(Mode::Normal);
 		}
 	}
 
 	pub async fn execute_prompt(&mut self) {
 		let Some(prompt) = self
+			.state
 			.overlays
 			.get::<PromptState>()
 			.and_then(|state| state.active())
@@ -121,6 +129,7 @@ impl Editor {
 		};
 
 		let input = self
+			.state
 			.core
 			.buffers
 			.get_buffer(prompt.buffer_id)
@@ -145,14 +154,15 @@ impl Editor {
 	}
 
 	fn focus_prompt_window(&mut self, window_id: crate::window::WindowId) {
-		let Window::Floating(float) = self.windows.get(window_id).expect("window exists") else {
+		let Window::Floating(float) = self.state.windows.get(window_id).expect("window exists")
+		else {
 			return;
 		};
-		self.focus = crate::impls::FocusTarget::Buffer {
+		self.state.focus = crate::impls::FocusTarget::Buffer {
 			window: window_id,
 			buffer: float.buffer,
 		};
-		self.frame.needs_redraw = true;
+		self.state.frame.needs_redraw = true;
 	}
 
 	async fn apply_rename(
@@ -161,14 +171,19 @@ impl Editor {
 		position: usize,
 		new_name: String,
 	) {
-		let Some(buffer) = self.core.buffers.get_buffer(buffer_id) else {
+		let Some(buffer) = self.state.core.buffers.get_buffer(buffer_id) else {
 			return;
 		};
 		if buffer.is_readonly() {
 			self.notify(keys::BUFFER_READONLY);
 			return;
 		}
-		let Some((client, uri, _)) = self.lsp.prepare_position_request(buffer).ok().flatten()
+		let Some((client, uri, _)) = self
+			.state
+			.lsp
+			.prepare_position_request(buffer)
+			.ok()
+			.flatten()
 		else {
 			self.notify(keys::warn("Rename not supported for this buffer"));
 			return;

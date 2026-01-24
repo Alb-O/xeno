@@ -32,6 +32,7 @@ impl Editor {
 	/// ```
 	pub fn resolve_option(&self, buffer_id: ViewId, key: OptionKey) -> OptionValue {
 		let buffer = self
+			.state
 			.core
 			.buffers
 			.get_buffer(buffer_id)
@@ -39,12 +40,12 @@ impl Editor {
 
 		let language_store = buffer
 			.file_type()
-			.and_then(|ft| self.config.language_options.get(&ft));
+			.and_then(|ft| self.state.config.language_options.get(&ft));
 
 		Self::resolve_with_stores(
 			&buffer.local_options,
 			language_store,
-			&self.config.global_options,
+			&self.state.config.global_options,
 			key,
 		)
 	}

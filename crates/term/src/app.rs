@@ -66,9 +66,10 @@ pub async fn run_editor(mut editor: Editor) -> io::Result<()> {
 	let mut terminal = Terminal::new(backend)?;
 
 	editor.ui_startup();
+	let (extensions, hook_runtime) = editor.extensions_and_hook_runtime_mut();
 	emit_hook_sync_with(
-		&HookContext::new(HookEventData::EditorStart, Some(&editor.extensions)),
-		&mut editor.hook_runtime,
+		&HookContext::new(HookEventData::EditorStart, Some(extensions)),
+		hook_runtime,
 	);
 
 	let result: io::Result<()> = async {
@@ -81,9 +82,9 @@ pub async fn run_editor(mut editor: Editor) -> io::Result<()> {
 			} else {
 				HOOK_BUDGET_SLOW
 			};
-			let hook_stats = editor.hook_runtime.drain_budget(hook_budget).await;
+			let hook_stats = editor.hook_runtime_mut().drain_budget(hook_budget).await;
 			editor
-				.metrics
+				.metrics()
 				.record_hook_tick(hook_stats.completed, hook_stats.pending);
 
 			if editor.drain_command_queue().await {
@@ -97,7 +98,7 @@ pub async fn run_editor(mut editor: Editor) -> io::Result<()> {
 			terminal.draw(|frame| editor.render(frame))?;
 
 			let cursor_style = editor
-				.ui
+				.ui()
 				.cursor_style()
 				.unwrap_or_else(|| cursor_style_for_mode(editor.mode()));
 			write!(
@@ -108,8 +109,8 @@ pub async fn run_editor(mut editor: Editor) -> io::Result<()> {
 			terminal.backend_mut().terminal_mut().flush()?;
 
 			let mut filter = |e: &Event| !e.is_escape();
-			let needs_fast_redraw = editor.frame.needs_redraw;
-			editor.frame.needs_redraw = false;
+			let needs_fast_redraw = editor.frame().needs_redraw;
+			editor.frame_mut().needs_redraw = false;
 
 			let timeout = if matches!(editor.mode(), Mode::Insert)
 				|| editor.any_panel_open()
@@ -166,7 +167,7 @@ pub async fn run_editor(mut editor: Editor) -> io::Result<()> {
 
 	emit_hook(&HookContext::new(
 		HookEventData::EditorQuit,
-		Some(&editor.extensions),
+		Some(editor.extensions()),
 	))
 	.await;
 

@@ -12,7 +12,7 @@ impl Editor {
 	/// Sets the editor's color theme by name.
 	pub fn set_theme(&mut self, theme_name: &str) -> Result<(), CommandError> {
 		if let Some(theme) = xeno_registry::themes::get_theme(theme_name) {
-			self.config.theme = theme;
+			self.state.config.theme = theme;
 			Ok(())
 		} else {
 			let mut err = format!("Theme not found: {}", theme_name);
@@ -51,12 +51,12 @@ impl Editor {
 
 			let highlight_styles = xeno_runtime_language::highlight::HighlightStyles::new(
 				SyntaxStyles::scope_names(),
-				|scope| self.config.theme.colors.syntax.resolve(scope),
+				|scope| self.state.config.theme.colors.syntax.resolve(scope),
 			);
 
 			let highlighter = syntax.highlighter(
 				doc.content().slice(..),
-				&self.config.language_loader,
+				&self.state.config.language_loader,
 				start_byte..end_byte,
 			);
 
@@ -95,7 +95,7 @@ impl Editor {
 	) -> Option<xeno_tui::style::Style> {
 		use xeno_tui::animation::Animatable;
 
-		let Some(modification) = self.style_overlays.modification_at(byte_pos) else {
+		let Some(modification) = self.state.style_overlays.modification_at(byte_pos) else {
 			return style;
 		};
 
@@ -103,7 +103,7 @@ impl Editor {
 		let modified = match modification {
 			StyleMod::Dim(factor) => {
 				// Convert theme bg color to xeno_tui color for blending
-				let bg: xeno_tui::style::Color = self.config.theme.colors.ui.bg;
+				let bg: xeno_tui::style::Color = self.state.config.theme.colors.ui.bg;
 				if let Some(fg) = style.fg {
 					// Blend fg toward bg using Animatable::lerp
 					// factor=1.0 means no dimming (full fg), factor=0.0 means full bg

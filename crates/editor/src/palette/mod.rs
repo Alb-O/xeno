@@ -85,6 +85,7 @@ impl Editor {
 	/// Returns `false` if the palette is already open or window dimensions are unavailable.
 	pub fn open_palette(&mut self) -> bool {
 		if self
+			.state
 			.overlays
 			.get::<PaletteState>()
 			.is_some_and(|p| p.is_open())
@@ -92,14 +93,15 @@ impl Editor {
 			return false;
 		}
 
-		let (width, height) = match (self.viewport.width, self.viewport.height) {
+		let (width, height) = match (self.state.viewport.width, self.state.viewport.height) {
 			(Some(w), Some(h)) => (w, h),
 			_ => return false,
 		};
 
 		let rect = palette_rect(width, height);
-		let buffer_id = self.core.buffers.create_scratch();
-		self.core
+		let buffer_id = self.state.core.buffers.create_scratch();
+		self.state
+			.core
 			.buffers
 			.get_buffer_mut(buffer_id)
 			.expect("just created")
@@ -107,7 +109,8 @@ impl Editor {
 			.set(keys::CURSORLINE.untyped(), OptionValue::Bool(false));
 		let window_id = self.create_floating_window(buffer_id, rect, palette_style());
 
-		let Window::Floating(float) = self.windows.get_mut(window_id).expect("just created") else {
+		let Window::Floating(float) = self.state.windows.get_mut(window_id).expect("just created")
+		else {
 			unreachable!()
 		};
 		float.sticky = true;
@@ -115,14 +118,15 @@ impl Editor {
 		float.gutter = GutterSelector::Prompt('>');
 
 		self.focus_floating_window(window_id);
-		self.core
+		self.state
+			.core
 			.buffers
 			.get_buffer_mut(buffer_id)
 			.expect("just created")
 			.input
 			.set_mode(Mode::Insert);
 
-		self.overlays.insert(PaletteState::Open(Palette {
+		self.state.overlays.insert(PaletteState::Open(Palette {
 			window_id,
 			buffer_id,
 		}));
@@ -131,15 +135,20 @@ impl Editor {
 
 	/// Closes the command palette without executing.
 	pub fn close_palette(&mut self) {
-		let Some(palette) = self.overlays.get::<PaletteState>().and_then(|p| p.active()) else {
+		let Some(palette) = self
+			.state
+			.overlays
+			.get::<PaletteState>()
+			.and_then(|p| p.active())
+		else {
 			return;
 		};
 		let window_id = palette.window_id;
 		let buffer_id = palette.buffer_id;
 
 		self.close_floating_window(window_id);
-		self.core.buffers.remove_buffer(buffer_id);
-		self.overlays.insert(PaletteState::Closed);
+		self.state.core.buffers.remove_buffer(buffer_id);
+		self.state.overlays.insert(PaletteState::Closed);
 
 		self.focus_base_window();
 		self.focused_buffer_mut().input.set_mode(Mode::Normal);
@@ -152,10 +161,12 @@ impl Editor {
 	/// open, the input was empty, or the command was not found.
 	pub fn execute_palette(&mut self) -> Option<String> {
 		let buffer_id = self
+			.state
 			.overlays
 			.get::<PaletteState>()
 			.and_then(|p| p.buffer_id())?;
 		let input = self
+			.state
 			.core
 			.buffers
 			.get_buffer(buffer_id)?
@@ -174,10 +185,14 @@ impl Editor {
 
 		// Check editor-direct commands first (e.g., LSP commands), then registry commands
 		if let Some(cmd) = crate::commands::find_editor_command(name) {
-			self.core.workspace.command_queue.push(cmd.name, args);
+			self.state.core.workspace.command_queue.push(cmd.name, args);
 			Some(input)
 		} else if let Some(cmd) = xeno_registry::commands::find_command(name) {
-			self.core.workspace.command_queue.push(cmd.name(), args);
+			self.state
+				.core
+				.workspace
+				.command_queue
+				.push(cmd.name(), args);
 			Some(input)
 		} else {
 			self.notify(xeno_registry::notifications::keys::unknown_command(name));
@@ -187,28 +202,30 @@ impl Editor {
 
 	/// Returns `true` if the palette is currently open.
 	pub fn palette_is_open(&self) -> bool {
-		self.overlays
+		self.state
+			.overlays
 			.get::<PaletteState>()
 			.is_some_and(|p| p.is_open())
 	}
 
 	fn focus_floating_window(&mut self, window_id: WindowId) {
-		let Window::Floating(float) = self.windows.get(window_id).expect("window exists") else {
+		let Window::Floating(float) = self.state.windows.get(window_id).expect("window exists")
+		else {
 			return;
 		};
-		self.focus = crate::impls::FocusTarget::Buffer {
+		self.state.focus = crate::impls::FocusTarget::Buffer {
 			window: window_id,
 			buffer: float.buffer,
 		};
-		self.frame.needs_redraw = true;
+		self.state.frame.needs_redraw = true;
 	}
 
 	fn focus_base_window(&mut self) {
-		let base_id = self.windows.base_id();
-		self.focus = crate::impls::FocusTarget::Buffer {
+		let base_id = self.state.windows.base_id();
+		self.state.focus = crate::impls::FocusTarget::Buffer {
 			window: base_id,
 			buffer: self.base_window().focused_buffer,
 		};
-		self.frame.needs_redraw = true;
+		self.state.frame.needs_redraw = true;
 	}
 }

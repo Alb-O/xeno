@@ -67,6 +67,7 @@ impl Editor {
 	/// Creates a widget for rendering the completion popup menu.
 	pub fn render_completion_menu(&self, _area: Rect) -> impl Widget + '_ {
 		let completions = self
+			.state
 			.overlays
 			.get::<CompletionState>()
 			.cloned()
@@ -98,21 +99,21 @@ impl Editor {
 				};
 
 				let kind_color = match item.kind {
-					CompletionKind::Command => self.config.theme.colors.mode.command.bg,
-					CompletionKind::File => self.config.theme.colors.mode.normal.bg,
-					CompletionKind::Buffer => self.config.theme.colors.semantic.accent,
-					CompletionKind::Snippet => self.config.theme.colors.mode.prefix.bg,
-					CompletionKind::Theme => self.config.theme.colors.semantic.accent,
+					CompletionKind::Command => self.state.config.theme.colors.mode.command.bg,
+					CompletionKind::File => self.state.config.theme.colors.mode.normal.bg,
+					CompletionKind::Buffer => self.state.config.theme.colors.semantic.accent,
+					CompletionKind::Snippet => self.state.config.theme.colors.mode.prefix.bg,
+					CompletionKind::Theme => self.state.config.theme.colors.semantic.accent,
 				};
 
 				let base_style = if is_selected {
 					Style::default()
-						.bg(self.config.theme.colors.ui.selection_bg)
-						.fg(self.config.theme.colors.ui.selection_fg)
+						.bg(self.state.config.theme.colors.ui.selection_bg)
+						.fg(self.state.config.theme.colors.ui.selection_fg)
 				} else {
 					Style::default()
-						.bg(self.config.theme.colors.popup.bg)
-						.fg(self.config.theme.colors.popup.fg)
+						.bg(self.state.config.theme.colors.popup.bg)
+						.fg(self.state.config.theme.colors.popup.fg)
 				};
 
 				let icon_style = if is_selected {
@@ -120,7 +121,7 @@ impl Editor {
 				} else {
 					Style::default()
 						.fg(kind_color)
-						.bg(self.config.theme.colors.popup.bg)
+						.bg(self.state.config.theme.colors.popup.bg)
 				};
 
 				let label_style = if is_selected {
@@ -141,11 +142,11 @@ impl Editor {
 					base_style
 				} else {
 					Style::default()
-						.fg(self.config.theme.colors.semantic.dim)
-						.bg(self.config.theme.colors.popup.bg)
+						.fg(self.state.config.theme.colors.semantic.dim)
+						.bg(self.state.config.theme.colors.popup.bg)
 				};
 
-				let match_style = label_style.fg(self.config.theme.colors.semantic.match_hl);
+				let match_style = label_style.fg(self.state.config.theme.colors.semantic.match_hl);
 				let label_spans = build_highlighted_label(
 					&item.label,
 					item.match_indices.as_deref(),
@@ -164,7 +165,7 @@ impl Editor {
 			})
 			.collect();
 
-		let stripe_style = Style::default().fg(self.config.theme.colors.mode.normal.bg);
+		let stripe_style = Style::default().fg(self.state.config.theme.colors.mode.normal.bg);
 		let border_set = xeno_tui::symbols::border::Set {
 			top_left: "▏",
 			vertical_left: "▏",
@@ -173,7 +174,7 @@ impl Editor {
 		};
 
 		let block = Block::default()
-			.style(Style::default().bg(self.config.theme.colors.popup.bg))
+			.style(Style::default().bg(self.state.config.theme.colors.popup.bg))
 			.borders(Borders::LEFT)
 			.border_set(border_set)
 			.border_style(stripe_style);
@@ -185,6 +186,7 @@ impl Editor {
 	#[cfg(feature = "lsp")]
 	pub fn render_completion_popup(&self, frame: &mut xeno_tui::Frame) {
 		let completions = self
+			.state
 			.overlays
 			.get::<CompletionState>()
 			.cloned()
@@ -193,7 +195,12 @@ impl Editor {
 			return;
 		}
 
-		let Some(menu_state) = self.overlays.get::<LspMenuState>().and_then(|s| s.active()) else {
+		let Some(menu_state) = self
+			.state
+			.overlays
+			.get::<LspMenuState>()
+			.and_then(|s| s.active())
+		else {
 			return;
 		};
 		let buffer_id = match menu_state {

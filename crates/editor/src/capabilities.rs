@@ -53,29 +53,29 @@ fn parse_option_value(kdl_key: &str, value: &str) -> Result<OptionValue, Command
 
 impl CursorAccess for Editor {
 	fn cursor(&self) -> CharIdx {
-		self.core.cursor()
+		self.state.core.cursor()
 	}
 
 	fn cursor_line_col(&self) -> Option<(usize, usize)> {
-		self.core.cursor_line_col()
+		self.state.core.cursor_line_col()
 	}
 
 	fn set_cursor(&mut self, pos: CharIdx) {
-		self.core.set_cursor(pos);
+		self.state.core.set_cursor(pos);
 	}
 }
 
 impl SelectionAccess for Editor {
 	fn selection(&self) -> &Selection {
-		self.core.selection()
+		self.state.core.selection()
 	}
 
 	fn selection_mut(&mut self) -> &mut Selection {
-		self.core.selection_mut()
+		self.state.core.selection_mut()
 	}
 
 	fn set_selection(&mut self, sel: Selection) {
-		self.core.set_selection(sel);
+		self.state.core.set_selection(sel);
 	}
 }
 
@@ -91,7 +91,8 @@ impl ModeAccess for Editor {
 		}
 		#[cfg(feature = "lsp")]
 		if matches!(mode, Mode::Insert) {
-			self.overlays
+			self.state
+				.overlays
 				.get_or_default::<crate::CompletionState>()
 				.suppressed = false;
 		}
@@ -142,11 +143,11 @@ impl UndoAccess for Editor {
 	}
 
 	fn can_undo(&self) -> bool {
-		self.core.undo_manager.can_undo()
+		self.state.core.undo_manager.can_undo()
 	}
 
 	fn can_redo(&self) -> bool {
-		self.core.undo_manager.can_redo()
+		self.state.core.undo_manager.can_redo()
 	}
 }
 
@@ -214,7 +215,11 @@ impl CommandEditorOps for Editor {
 
 	fn set_option(&mut self, kdl_key: &str, value: &str) -> Result<(), CommandError> {
 		let opt_value = parse_option_value(kdl_key, value)?;
-		let _ = self.config.global_options.set_by_kdl(kdl_key, opt_value);
+		let _ = self
+			.state
+			.config
+			.global_options
+			.set_by_kdl(kdl_key, opt_value);
 
 		if let Some(def) = find_by_kdl(kdl_key) {
 			emit_hook_sync_with(
@@ -223,9 +228,9 @@ impl CommandEditorOps for Editor {
 						key: def.kdl_key,
 						scope: "global",
 					},
-					Some(&self.extensions),
+					Some(&self.state.extensions),
 				),
-				&mut self.hook_runtime,
+				&mut self.state.hook_runtime,
 			);
 		}
 		Ok(())
@@ -258,9 +263,9 @@ impl CommandEditorOps for Editor {
 					key: def.kdl_key,
 					scope: "buffer",
 				},
-				Some(&self.extensions),
+				Some(&self.state.extensions),
 			),
-			&mut self.hook_runtime,
+			&mut self.state.hook_runtime,
 		);
 		Ok(())
 	}
@@ -345,7 +350,7 @@ impl ViewportAccess for Editor {
 
 impl JumpAccess for Editor {
 	fn jump_forward(&mut self) -> bool {
-		if let Some(loc) = self.core.workspace.jump_list.jump_forward() {
+		if let Some(loc) = self.state.core.workspace.jump_list.jump_forward() {
 			let buffer_id = loc.buffer_id;
 			let cursor = loc.cursor;
 			if self.focused_view() != buffer_id {
@@ -361,12 +366,13 @@ impl JumpAccess for Editor {
 	fn jump_backward(&mut self) -> bool {
 		let buffer_id = self.focused_view();
 		let cursor = self.buffer().cursor;
-		self.core
+		self.state
+			.core
 			.workspace
 			.jump_list
 			.push(crate::impls::JumpLocation { buffer_id, cursor });
 
-		if let Some(loc) = self.core.workspace.jump_list.jump_backward() {
+		if let Some(loc) = self.state.core.workspace.jump_list.jump_backward() {
 			let buffer_id = loc.buffer_id;
 			let cursor = loc.cursor;
 			if self.focused_view() != buffer_id {
@@ -382,7 +388,8 @@ impl JumpAccess for Editor {
 	fn save_jump(&mut self) {
 		let buffer_id = self.focused_view();
 		let cursor = self.buffer().cursor;
-		self.core
+		self.state
+			.core
 			.workspace
 			.jump_list
 			.push(crate::impls::JumpLocation { buffer_id, cursor });
@@ -391,25 +398,25 @@ impl JumpAccess for Editor {
 
 impl MacroAccess for Editor {
 	fn record(&mut self) {
-		self.core.record();
+		self.state.core.record();
 	}
 
 	fn stop_recording(&mut self) {
-		self.core.stop_recording();
+		self.state.core.stop_recording();
 	}
 
 	fn play(&mut self) {
-		self.core.play();
+		self.state.core.play();
 	}
 
 	fn is_recording(&self) -> bool {
-		self.core.is_recording()
+		self.state.core.is_recording()
 	}
 }
 
 impl CommandQueueAccess for Editor {
 	fn queue_command(&mut self, name: &'static str, args: Vec<String>) {
-		self.core.queue_command(name, args);
+		self.state.core.queue_command(name, args);
 	}
 }
 

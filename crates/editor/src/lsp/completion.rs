@@ -51,8 +51,12 @@ impl Editor {
 		let is_manual = matches!(trigger, CompletionTrigger::Manual);
 
 		if is_trigger_char || is_manual {
-			self.overlays.get_or_default::<CompletionState>().suppressed = false;
+			self.state
+				.overlays
+				.get_or_default::<CompletionState>()
+				.suppressed = false;
 		} else if self
+			.state
 			.overlays
 			.get::<CompletionState>()
 			.is_some_and(|s| s.suppressed)
@@ -68,8 +72,12 @@ impl Editor {
 			return;
 		}
 
-		let Some((client, uri, position)) =
-			self.lsp.prepare_position_request(buffer).ok().flatten()
+		let Some((client, uri, position)) = self
+			.state
+			.lsp
+			.prepare_position_request(buffer)
+			.ok()
+			.flatten()
 		else {
 			return;
 		};
@@ -92,12 +100,12 @@ impl Editor {
 			uri,
 			position,
 			debounce: trigger.debounce(),
-			ui_tx: self.lsp_ui_tx.clone(),
+			ui_tx: self.state.lsp_ui_tx.clone(),
 			trigger_kind: completion_trigger_kind(&trigger, trigger_char),
 			trigger_character: trigger_char.map(|c| c.to_string()),
 		};
 
-		self.completion_controller.trigger(request);
+		self.state.completion_controller.trigger(request);
 	}
 
 	/// Refilters the active completion menu with the current query.
@@ -105,18 +113,23 @@ impl Editor {
 	/// Called when the user types or deletes while a completion menu is visible,
 	/// to update filtering without waiting for a new LSP response.
 	pub(crate) fn refilter_completion(&mut self) {
-		let menu_kind = self.overlays.get::<LspMenuState>().and_then(|s| s.active());
+		let menu_kind = self
+			.state
+			.overlays
+			.get::<LspMenuState>()
+			.and_then(|s| s.active());
 		let Some(LspMenuKind::Completion { buffer_id, items }) = menu_kind else {
 			return;
 		};
 		let buffer_id = *buffer_id;
 		let items = items.clone();
 
-		let Some(buffer) = self.core.buffers.get_buffer(buffer_id) else {
+		let Some(buffer) = self.state.core.buffers.get_buffer(buffer_id) else {
 			return;
 		};
 
 		let replace_start = self
+			.state
 			.overlays
 			.get::<CompletionState>()
 			.map(|s| s.replace_start)
@@ -141,23 +154,23 @@ impl Editor {
 			.map(|f| map_completion_item_with_indices(&items[f.index], f.match_indices.clone()))
 			.collect();
 
-		let completions = self.overlays.get_or_default::<CompletionState>();
+		let completions = self.state.overlays.get_or_default::<CompletionState>();
 		completions.items = display_items;
 		completions.selected_idx = None;
 		completions.selection_intent = SelectionIntent::Auto;
 		completions.scroll_offset = 0;
 		completions.query = query;
 
-		self.frame.needs_redraw = true;
+		self.state.frame.needs_redraw = true;
 	}
 
 	pub(crate) async fn apply_completion_item(&mut self, buffer_id: ViewId, item: CompletionItem) {
 		let (encoding, selection, cursor, rope, readonly) = {
-			let Some(buffer) = self.core.buffers.get_buffer(buffer_id) else {
+			let Some(buffer) = self.state.core.buffers.get_buffer(buffer_id) else {
 				return;
 			};
 			(
-				self.lsp.offset_encoding_for_buffer(buffer),
+				self.state.lsp.offset_encoding_for_buffer(buffer),
 				buffer.selection.primary(),
 				buffer.cursor,
 				buffer.with_doc(|doc| doc.content().clone()),
@@ -171,7 +184,8 @@ impl Editor {
 		let command = item.command.clone();
 
 		let replace_start = if selection.is_empty() {
-			self.overlays
+			self.state
+				.overlays
 				.get::<CompletionState>()
 				.map(|state| state.replace_start)
 				.unwrap_or_else(|| completion_replace_start_at(&rope, cursor))
@@ -243,7 +257,7 @@ impl Editor {
 		self.flush_lsp_sync_now(&[buffer_id]);
 
 		if let Some(selection) = completion_snippet_selection(&tx, base_start, snippet) {
-			if let Some(buffer) = self.core.buffers.get_buffer_mut(buffer_id) {
+			if let Some(buffer) = self.state.core.buffers.get_buffer_mut(buffer_id) {
 				let cursor = selection.primary().head;
 				buffer.set_cursor_and_selection(cursor, selection);
 			}
@@ -257,7 +271,7 @@ impl Editor {
 			.changes()
 			.map_pos(base_start, Bias::Left)
 			.saturating_add(insert_text.chars().count());
-		if let Some(buffer) = self.core.buffers.get_buffer_mut(buffer_id) {
+		if let Some(buffer) = self.state.core.buffers.get_buffer_mut(buffer_id) {
 			buffer.set_cursor_and_selection(new_cursor, Selection::point(new_cursor));
 		}
 		if let Some(command) = command {

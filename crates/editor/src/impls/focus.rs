@@ -44,7 +44,7 @@ impl Editor {
 	/// Returns true if the view exists and was focused.
 	/// Explicit focus can override sticky focus and will close dockables.
 	pub fn focus_view(&mut self, view: ViewId) -> bool {
-		let window_id = self.windows.base_id();
+		let window_id = self.state.windows.base_id();
 		self.focus_buffer_in_window(window_id, view, true)
 	}
 
@@ -54,10 +54,10 @@ impl Editor {
 	/// Respects sticky focus - won't steal focus from sticky views.
 	pub fn focus_view_implicit(&mut self, view: ViewId) -> bool {
 		let current = self.focused_view();
-		if current == view || self.frame.sticky_views.contains(&current) {
+		if current == view || self.state.frame.sticky_views.contains(&current) {
 			return false;
 		}
-		let window_id = self.windows.base_id();
+		let window_id = self.state.windows.base_id();
 		self.focus_buffer_in_window(window_id, view, false)
 	}
 
@@ -68,26 +68,26 @@ impl Editor {
 		view: ViewId,
 		explicit: bool,
 	) -> bool {
-		if self.core.buffers.get_buffer(view).is_none() {
+		if self.state.core.buffers.get_buffer(view).is_none() {
 			return false;
 		}
 
-		let old_focus = self.focus.clone();
+		let old_focus = self.state.focus.clone();
 		let old_view = self.focused_view();
-		let base_window_id = self.windows.base_id();
+		let base_window_id = self.state.windows.base_id();
 
-		self.focus = FocusTarget::Buffer {
+		self.state.focus = FocusTarget::Buffer {
 			window: window_id,
 			buffer: view,
 		};
 		if window_id == base_window_id {
 			self.base_window_mut().focused_buffer = view;
 		}
-		let _ = self.core.buffers.set_focused_view(view);
-		self.frame.needs_redraw = true;
+		let _ = self.state.core.buffers.set_focused_view(view);
+		self.state.frame.needs_redraw = true;
 
 		if explicit && view != old_view {
-			self.frame.sticky_views.remove(&old_view);
+			self.state.frame.sticky_views.remove(&old_view);
 		}
 
 		if view != old_view {
@@ -97,13 +97,13 @@ impl Editor {
 						view_id: hook_view_id(view),
 						prev_view_id: Some(hook_view_id(old_view)),
 					},
-					Some(&self.extensions),
+					Some(&self.state.extensions),
 				),
-				&mut self.hook_runtime,
+				&mut self.state.hook_runtime,
 			);
 		}
 
-		let new_focus = self.focus.clone();
+		let new_focus = self.state.focus.clone();
 		self.handle_window_focus_change(old_focus, &new_focus);
 
 		true
@@ -119,6 +119,7 @@ impl Editor {
 	/// Focuses the next view in the layout.
 	pub fn focus_next_view(&mut self) {
 		let next = self
+			.state
 			.layout
 			.next_view(&self.base_window().layout, self.focused_view());
 		self.focus_view(next);
@@ -127,6 +128,7 @@ impl Editor {
 	/// Focuses the previous view in the layout.
 	pub fn focus_prev_view(&mut self) {
 		let prev = self
+			.state
 			.layout
 			.prev_view(&self.base_window().layout, self.focused_view());
 		self.focus_view(prev);
@@ -136,6 +138,7 @@ impl Editor {
 	pub fn focus_next_buffer(&mut self) {
 		let current_id = self.focused_view();
 		let next_id = self
+			.state
 			.layout
 			.next_buffer(&self.base_window().layout, current_id);
 		self.focus_buffer(next_id);
@@ -145,6 +148,7 @@ impl Editor {
 	pub fn focus_prev_buffer(&mut self) {
 		let current_id = self.focused_view();
 		let prev_id = self
+			.state
 			.layout
 			.prev_buffer(&self.base_window().layout, current_id);
 		self.focus_buffer(prev_id);
@@ -156,7 +160,7 @@ impl Editor {
 		let current = self.focused_view();
 		let hint = self.cursor_screen_pos(direction, area);
 
-		if let Some(target) = self.layout.view_in_direction(
+		if let Some(target) = self.state.layout.view_in_direction(
 			&self.base_window().layout,
 			area,
 			current,
@@ -168,19 +172,19 @@ impl Editor {
 	}
 
 	pub(crate) fn sync_focus_from_ui(&mut self) {
-		let old_focus = self.focus.clone();
-		if let Some(panel_id) = self.ui.focused_panel_id() {
-			self.focus = FocusTarget::Panel(panel_id.to_string());
-		} else if matches!(self.focus, FocusTarget::Panel(_)) {
+		let old_focus = self.state.focus.clone();
+		if let Some(panel_id) = self.state.ui.focused_panel_id() {
+			self.state.focus = FocusTarget::Panel(panel_id.to_string());
+		} else if matches!(self.state.focus, FocusTarget::Panel(_)) {
 			let buffer = self.base_window().focused_buffer;
-			self.focus = FocusTarget::Buffer {
-				window: self.windows.base_id(),
+			self.state.focus = FocusTarget::Buffer {
+				window: self.state.windows.base_id(),
 				buffer,
 			};
 		}
 
-		if old_focus != self.focus {
-			let new_focus = self.focus.clone();
+		if old_focus != self.state.focus {
+			let new_focus = self.state.focus.clone();
 			self.handle_window_focus_change(old_focus, &new_focus);
 		}
 	}
@@ -189,6 +193,7 @@ impl Editor {
 	fn cursor_screen_pos(&self, direction: SpatialDirection, area: xeno_tui::layout::Rect) -> u16 {
 		let buffer = self.buffer();
 		let view_rect = self
+			.state
 			.layout
 			.compute_view_areas(&self.base_window().layout, area)
 			.into_iter()
@@ -238,9 +243,9 @@ impl Editor {
 							window_id: window.into(),
 							focused: false,
 						},
-						Some(&self.extensions),
+						Some(&self.state.extensions),
 					),
-					&mut self.hook_runtime,
+					&mut self.state.hook_runtime,
 				);
 			}
 			if let Some(window) = new_window {
@@ -250,9 +255,9 @@ impl Editor {
 							window_id: window.into(),
 							focused: true,
 						},
-						Some(&self.extensions),
+						Some(&self.state.extensions),
 					),
-					&mut self.hook_runtime,
+					&mut self.state.hook_runtime,
 				);
 			}
 		}
@@ -261,11 +266,12 @@ impl Editor {
 			&& old_window != new_window
 		{
 			let should_close = matches!(
-				self.windows.get(window),
+				self.state.windows.get(window),
 				Some(Window::Floating(floating)) if floating.dismiss_on_blur
 			);
 			if should_close {
 				let palette_window = self
+					.state
 					.overlays
 					.get::<PaletteState>()
 					.and_then(|p| p.window_id());

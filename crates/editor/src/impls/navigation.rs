@@ -96,7 +96,7 @@ impl Editor {
 	/// be opened.
 	pub async fn goto_location(&mut self, location: &Location) -> anyhow::Result<ViewId> {
 		// Check if we already have this file open
-		let buffer_id = if let Some(id) = self.core.buffers.find_by_path(&location.path) {
+		let buffer_id = if let Some(id) = self.state.core.buffers.find_by_path(&location.path) {
 			// Switch to existing buffer
 			self.focus_buffer(id);
 			id

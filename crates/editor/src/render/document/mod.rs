@@ -61,10 +61,10 @@ impl Editor {
 	pub fn render(&mut self, frame: &mut xeno_tui::Frame) {
 		let now = SystemTime::now();
 		let delta = now
-			.duration_since(self.frame.last_tick)
+			.duration_since(self.state.frame.last_tick)
 			.unwrap_or(Duration::from_millis(16));
-		self.frame.last_tick = now;
-		self.notifications.tick(delta);
+		self.state.frame.last_tick = now;
+		self.state.notifications.tick(delta);
 
 		// Update style overlays to reflect current cursor position.
 		// This must happen at render time (not tick time) to handle
@@ -74,12 +74,13 @@ impl Editor {
 		let use_block_cursor = true;
 
 		let area = frame.area();
-		self.viewport.width = Some(area.width);
-		self.viewport.height = Some(area.height);
+		self.state.viewport.width = Some(area.width);
+		self.state.viewport.height = Some(area.height);
 
 		frame.render_widget(Clear, area);
 
-		let bg_block = Block::default().style(Style::default().bg(self.config.theme.colors.ui.bg));
+		let bg_block =
+			Block::default().style(Style::default().bg(self.state.config.theme.colors.ui.bg));
 		frame.render_widget(bg_block, area);
 
 		let chunks = Layout::default()
@@ -90,10 +91,10 @@ impl Editor {
 		let main_area = chunks[0];
 		let status_area = chunks[1];
 
-		let mut ui = std::mem::take(&mut self.ui);
+		let mut ui = std::mem::take(&mut self.state.ui);
 		let dock_layout = ui.compute_layout(main_area);
 		let doc_area = dock_layout.doc_area;
-		self.viewport.doc_area = Some(doc_area);
+		self.state.viewport.doc_area = Some(doc_area);
 
 		let doc_focused = ui.focus.focused().is_editor();
 
@@ -101,26 +102,29 @@ impl Editor {
 		self.render_split_buffers(frame, doc_area, use_block_cursor && doc_focused);
 		self.render_floating_windows(frame, use_block_cursor && doc_focused);
 
-		if let Some(cursor_pos) = ui.render_panels(self, frame, &dock_layout, self.config.theme) {
+		if let Some(cursor_pos) =
+			ui.render_panels(self, frame, &dock_layout, self.state.config.theme)
+		{
 			frame.set_cursor_position(cursor_pos);
 		}
 		if ui.take_wants_redraw() {
-			self.frame.needs_redraw = true;
+			self.state.frame.needs_redraw = true;
 		}
-		self.ui = ui;
+		self.state.ui = ui;
 
 		#[cfg(feature = "lsp")]
 		self.render_completion_popup(frame);
 
 		let status_bg =
-			Block::default().style(Style::default().bg(self.config.theme.colors.popup.bg));
+			Block::default().style(Style::default().bg(self.state.config.theme.colors.popup.bg));
 		frame.render_widget(status_bg, status_area);
 		frame.render_widget(self.render_status_line(), status_area);
 
 		let mut notifications_area = doc_area;
 		notifications_area.height = notifications_area.height.saturating_sub(1);
 		notifications_area.width = notifications_area.width.saturating_sub(1);
-		self.notifications
+		self.state
+			.notifications
 			.render(notifications_area, frame.buffer_mut());
 
 		self.render_whichkey_hud(frame, doc_area);
@@ -139,25 +143,29 @@ impl Editor {
 		let focused_view = self.focused_view();
 		let base_layout = &self.base_window().layout;
 
-		let layer_count = self.layout.layer_count();
+		let layer_count = self.state.layout.layer_count();
 		let mut layer_data: Vec<LayerRenderData> = Vec::new();
 
 		for layer_idx in 0..layer_count {
-			if self.layout.layer(base_layout, layer_idx).is_some() {
-				let layer_area = self.layout.layer_area(layer_idx, doc_area);
-				let view_areas =
-					self.layout
-						.compute_view_areas_for_layer(base_layout, layer_idx, layer_area);
-				let separators =
-					self.layout
-						.separator_positions_for_layer(base_layout, layer_idx, layer_area);
+			if self.state.layout.layer(base_layout, layer_idx).is_some() {
+				let layer_area = self.state.layout.layer_area(layer_idx, doc_area);
+				let view_areas = self.state.layout.compute_view_areas_for_layer(
+					base_layout,
+					layer_idx,
+					layer_area,
+				);
+				let separators = self.state.layout.separator_positions_for_layer(
+					base_layout,
+					layer_idx,
+					layer_area,
+				);
 				layer_data.push((layer_idx, layer_area, view_areas, separators));
 			}
 		}
 
 		// During mouse drag (text_selection_origin is Some), disable scroll margin
 		// to allow cursor to reach screen edges without triggering scrolloff.
-		let mouse_drag_active = self.layout.text_selection_origin.is_some();
+		let mouse_drag_active = self.state.layout.text_selection_origin.is_some();
 		for (_, _, view_areas, _) in &layer_data {
 			for (buffer_id, area) in view_areas {
 				let tab_width = self.tab_width_for(*buffer_id);
@@ -172,20 +180,21 @@ impl Editor {
 			}
 		}
 
-		if self.layout.hovered_separator.is_none()
-			&& self.layout.separator_under_mouse.is_some()
-			&& !self.layout.is_mouse_fast()
+		if self.state.layout.hovered_separator.is_none()
+			&& self.state.layout.separator_under_mouse.is_some()
+			&& !self.state.layout.is_mouse_fast()
 		{
-			let old_hover = self.layout.hovered_separator.take();
-			self.layout.hovered_separator = self.layout.separator_under_mouse;
-			if old_hover != self.layout.hovered_separator {
-				self.layout
-					.update_hover_animation(old_hover, self.layout.hovered_separator);
-				self.frame.needs_redraw = true;
+			let old_hover = self.state.layout.hovered_separator.take();
+			self.state.layout.hovered_separator = self.state.layout.separator_under_mouse;
+			if old_hover != self.state.layout.hovered_separator {
+				self.state
+					.layout
+					.update_hover_animation(old_hover, self.state.layout.hovered_separator);
+				self.state.frame.needs_redraw = true;
 			}
 		}
-		if self.layout.animation_needs_redraw() {
-			self.frame.needs_redraw = true;
+		if self.state.layout.animation_needs_redraw() {
+			self.state.frame.needs_redraw = true;
 		}
 
 		let sep_style = SeparatorStyle::new(self, doc_area);
@@ -198,7 +207,7 @@ impl Editor {
 				if let Some(buffer) = self.get_buffer(*buffer_id) {
 					#[cfg(feature = "lsp")]
 					let (diag_map, diag_ranges) = {
-						let diagnostics = self.lsp.get_diagnostics(buffer);
+						let diagnostics = self.state.lsp.get_diagnostics(buffer);
 						(
 							super::buffer::build_diagnostic_line_map(&diagnostics),
 							super::buffer::build_diagnostic_range_map(&diagnostics),
@@ -206,9 +215,9 @@ impl Editor {
 					};
 
 					let ctx = BufferRenderContext {
-						theme: self.config.theme,
-						language_loader: &self.config.language_loader,
-						style_overlays: &self.style_overlays,
+						theme: self.state.config.theme,
+						language_loader: &self.state.config.language_loader,
+						style_overlays: &self.state.style_overlays,
 						#[cfg(feature = "lsp")]
 						diagnostics: Some(&diag_map),
 						#[cfg(not(feature = "lsp"))]
@@ -251,12 +260,13 @@ impl Editor {
 	/// Renders floating windows above the base layout.
 	fn render_floating_windows(&mut self, frame: &mut xeno_tui::Frame, use_block_cursor: bool) {
 		let bounds = frame.area();
-		let focused = match &self.focus {
+		let focused = match &self.state.focus {
 			FocusTarget::Buffer { window, buffer } => Some((*window, *buffer)),
 			_ => None,
 		};
 
 		let floating_windows: Vec<_> = self
+			.state
 			.windows
 			.floating_windows()
 			.map(|(id, window)| (id, window.clone()))
@@ -300,8 +310,8 @@ impl Editor {
 					height: rect.height,
 				};
 				if let Some(shadow) = clamp_rect(shadow_rect, bounds) {
-					let shadow_block =
-						Block::default().style(Style::default().bg(self.config.theme.colors.ui.bg));
+					let shadow_block = Block::default()
+						.style(Style::default().bg(self.state.config.theme.colors.ui.bg));
 					frame.render_widget(shadow_block, shadow);
 				}
 			}
@@ -309,13 +319,13 @@ impl Editor {
 			frame.render_widget(Clear, rect);
 
 			let mut block = Block::default()
-				.style(Style::default().bg(self.config.theme.colors.popup.bg))
+				.style(Style::default().bg(self.state.config.theme.colors.popup.bg))
 				.padding(window.style.padding);
 			if window.style.border {
 				block = block
 					.borders(Borders::ALL)
 					.border_type(window.style.border_type)
-					.border_style(Style::default().fg(self.config.theme.colors.popup.fg));
+					.border_style(Style::default().fg(self.state.config.theme.colors.popup.fg));
 				if let Some(title) = &window.style.title {
 					block = block.title(title.as_str());
 				}
@@ -338,7 +348,7 @@ impl Editor {
 
 				#[cfg(feature = "lsp")]
 				let (diag_map, diag_ranges) = {
-					let diagnostics = self.lsp.get_diagnostics(buffer);
+					let diagnostics = self.state.lsp.get_diagnostics(buffer);
 					(
 						super::buffer::build_diagnostic_line_map(&diagnostics),
 						super::buffer::build_diagnostic_range_map(&diagnostics),
@@ -346,9 +356,9 @@ impl Editor {
 				};
 
 				let ctx = BufferRenderContext {
-					theme: self.config.theme,
-					language_loader: &self.config.language_loader,
-					style_overlays: &self.style_overlays,
+					theme: self.state.config.theme,
+					language_loader: &self.state.config.language_loader,
+					style_overlays: &self.state.style_overlays,
 					#[cfg(feature = "lsp")]
 					diagnostics: Some(&diag_map),
 					#[cfg(not(feature = "lsp"))]

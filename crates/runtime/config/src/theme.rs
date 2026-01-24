@@ -12,7 +12,9 @@ pub use xeno_registry::themes::{
 use xeno_registry::themes::{SyntaxStyle, SyntaxStyles};
 
 use crate::error::{ConfigError, Result};
-use crate::utils::{ParseContext, get_color_field, get_color_field_opt, parse_modifier, parse_palette};
+use crate::utils::{
+	ParseContext, get_color_field, get_color_field_opt, parse_modifier, parse_palette,
+};
 
 /// A parsed theme with owned data suitable for runtime use.
 #[derive(Debug, Clone)]

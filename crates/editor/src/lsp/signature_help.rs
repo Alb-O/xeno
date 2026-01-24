@@ -23,8 +23,12 @@ impl Editor {
 			if buffer.mode() != xeno_primitives::Mode::Insert {
 				return;
 			}
-			let Some((client, uri, position)) =
-				self.lsp.prepare_position_request(buffer).ok().flatten()
+			let Some((client, uri, position)) = self
+				.state
+				.lsp
+				.prepare_position_request(buffer)
+				.ok()
+				.flatten()
 			else {
 				return;
 			};
@@ -35,14 +39,14 @@ impl Editor {
 		};
 
 		self.cancel_signature_help();
-		self.signature_help_generation = self.signature_help_generation.wrapping_add(1);
-		let generation = self.signature_help_generation;
+		self.state.signature_help_generation = self.state.signature_help_generation.wrapping_add(1);
+		let generation = self.state.signature_help_generation;
 
 		let cancel = CancellationToken::new();
-		self.signature_help_cancel = Some(cancel.clone());
+		self.state.signature_help_cancel = Some(cancel.clone());
 
 		let anchor = signature_help_anchor(self, buffer_id);
-		let ui_tx = self.lsp_ui_tx.clone();
+		let ui_tx = self.state.lsp_ui_tx.clone();
 
 		tokio::spawn(async move {
 			let help = tokio::select! {
@@ -76,7 +80,7 @@ impl Editor {
 	}
 
 	pub(crate) fn cancel_signature_help(&mut self) {
-		if let Some(cancel) = self.signature_help_cancel.take() {
+		if let Some(cancel) = self.state.signature_help_cancel.take() {
 			cancel.cancel();
 		}
 	}

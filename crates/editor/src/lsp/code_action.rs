@@ -24,10 +24,15 @@ use crate::{CompletionItem as UiCompletionItem, CompletionKind};
 impl Editor {
 	pub(crate) async fn open_code_action_menu(&mut self) -> bool {
 		let buffer_id = self.focused_view();
-		let Some(buffer) = self.core.buffers.get_buffer(buffer_id) else {
+		let Some(buffer) = self.state.core.buffers.get_buffer(buffer_id) else {
 			return false;
 		};
-		let Some((client, uri, _)) = self.lsp.prepare_position_request(buffer).ok().flatten()
+		let Some((client, uri, _)) = self
+			.state
+			.lsp
+			.prepare_position_request(buffer)
+			.ok()
+			.flatten()
 		else {
 			return false;
 		};
@@ -56,7 +61,7 @@ impl Editor {
 		};
 		let diagnostics = buffer.with_doc(|doc| {
 			diagnostics_for_range(
-				&self.lsp.get_diagnostics(buffer),
+				&self.state.lsp.get_diagnostics(buffer),
 				doc.content(),
 				encoding,
 				start..end,
@@ -92,17 +97,17 @@ impl Editor {
 		let display_items: Vec<UiCompletionItem> =
 			actions.iter().map(map_code_action_item).collect();
 
-		let completions = self.overlays.get_or_default::<CompletionState>();
+		let completions = self.state.overlays.get_or_default::<CompletionState>();
 		completions.items = display_items;
 		completions.selected_idx = Some(0);
 		completions.active = true;
 		completions.replace_start = 0;
 		completions.scroll_offset = 0;
 
-		let menu_state = self.overlays.get_or_default::<LspMenuState>();
+		let menu_state = self.state.overlays.get_or_default::<LspMenuState>();
 		menu_state.set(LspMenuKind::CodeAction { buffer_id, actions });
 
-		self.frame.needs_redraw = true;
+		self.state.frame.needs_redraw = true;
 		true
 	}
 
@@ -134,10 +139,16 @@ impl Editor {
 	}
 
 	pub(crate) async fn execute_lsp_command(&mut self, buffer_id: ViewId, command: Command) {
-		let Some(buffer) = self.core.buffers.get_buffer(buffer_id) else {
+		let Some(buffer) = self.state.core.buffers.get_buffer(buffer_id) else {
 			return;
 		};
-		let Some((client, _, _)) = self.lsp.prepare_position_request(buffer).ok().flatten() else {
+		let Some((client, _, _)) = self
+			.state
+			.lsp
+			.prepare_position_request(buffer)
+			.ok()
+			.flatten()
+		else {
 			self.notify(keys::error("LSP client unavailable for command"));
 			return;
 		};

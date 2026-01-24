@@ -21,7 +21,7 @@ fn cmd_hover<'a>(
 	Box::pin(async move {
 		let hover = ctx
 			.editor
-			.lsp
+			.lsp()
 			.hover(ctx.editor.buffer())
 			.await
 			.map_err(|e| CommandError::Failed(e.to_string()))?
@@ -51,7 +51,7 @@ fn cmd_goto_definition<'a>(
 
 		let response = ctx
 			.editor
-			.lsp
+			.lsp()
 			.goto_definition(ctx.editor.buffer())
 			.await
 			.map_err(|e| CommandError::Failed(e.to_string()))?

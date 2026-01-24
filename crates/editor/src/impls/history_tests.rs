@@ -15,7 +15,7 @@ fn test_editor(content: &str) -> Editor {
 fn apply_test_edit(editor: &mut Editor, text: &str, at: usize) -> bool {
 	let buffer_id = editor.focused_view();
 	let tx = {
-		let buffer = editor.core.buffers.focused_buffer();
+		let buffer = editor.state.core.buffers.focused_buffer();
 		let rope = buffer.with_doc(|doc| doc.content().clone());
 		Transaction::change(
 			rope.slice(..),
@@ -36,19 +36,20 @@ fn apply_test_edit(editor: &mut Editor, text: &str, at: usize) -> bool {
 }
 
 fn set_cursor(editor: &mut Editor, pos: usize) {
-	let buffer = editor.core.buffers.focused_buffer_mut();
+	let buffer = editor.state.core.buffers.focused_buffer_mut();
 	buffer.cursor = CharIdx::from(pos);
 	buffer.selection = Selection::point(CharIdx::from(pos));
 }
 
 fn set_scroll(editor: &mut Editor, line: usize, segment: usize) {
-	let buffer = editor.core.buffers.focused_buffer_mut();
+	let buffer = editor.state.core.buffers.focused_buffer_mut();
 	buffer.scroll_line = line;
 	buffer.scroll_segment = segment;
 }
 
 fn get_cursor(editor: &Editor, buffer_id: ViewId) -> usize {
 	editor
+		.state
 		.core
 		.buffers
 		.get_buffer(buffer_id)
@@ -58,7 +59,7 @@ fn get_cursor(editor: &Editor, buffer_id: ViewId) -> usize {
 }
 
 fn get_scroll(editor: &Editor, buffer_id: ViewId) -> (usize, usize) {
-	let buffer = editor.core.buffers.get_buffer(buffer_id).unwrap();
+	let buffer = editor.state.core.buffers.get_buffer(buffer_id).unwrap();
 	(buffer.scroll_line, buffer.scroll_segment)
 }
 
@@ -69,7 +70,7 @@ fn undo_restores_cursor_position() {
 
 	apply_test_edit(&mut editor, " there", 5);
 
-	assert_eq!(editor.core.undo_manager.undo_len(), 1);
+	assert_eq!(editor.state.core.undo_manager.undo_len(), 1);
 
 	editor.undo();
 
@@ -99,15 +100,16 @@ fn undo_restores_view_state_for_multiple_buffers_same_document() {
 	set_cursor(&mut editor, 7);
 	set_scroll(&mut editor, 0, 0);
 
-	let buffer2_id = editor.core.buffers.clone_focused_buffer_for_split();
-	editor.core.buffers.set_focused_view(buffer2_id);
+	let buffer2_id = editor.state.core.buffers.clone_focused_buffer_for_split();
+	editor.state.core.buffers.set_focused_view(buffer2_id);
 	set_cursor(&mut editor, 15);
 	set_scroll(&mut editor, 1, 0);
 
 	apply_test_edit(&mut editor, "X", 0);
 
-	assert_eq!(editor.core.undo_manager.undo_len(), 1);
+	assert_eq!(editor.state.core.undo_manager.undo_len(), 1);
 	let group = editor
+		.state
 		.core
 		.undo_manager
 		.last_undo_group()
@@ -178,18 +180,18 @@ fn redo_stack_clears_on_new_edit() {
 	let mut editor = test_editor("hello");
 
 	apply_test_edit(&mut editor, " world", 5);
-	assert_eq!(editor.core.undo_manager.undo_len(), 1);
+	assert_eq!(editor.state.core.undo_manager.undo_len(), 1);
 
 	editor.undo();
 	assert_eq!(
-		editor.core.undo_manager.redo_len(),
+		editor.state.core.undo_manager.redo_len(),
 		1,
 		"redo stack should have one entry after undo"
 	);
 
 	apply_test_edit(&mut editor, "!", 5);
 	assert!(
-		!editor.core.undo_manager.can_redo(),
+		!editor.state.core.undo_manager.can_redo(),
 		"new edit should clear redo stack"
 	);
 }
@@ -200,11 +202,11 @@ fn redo_stack_clears_only_when_group_pushed() {
 
 	apply_test_edit(&mut editor, " world", 5);
 	editor.undo();
-	assert_eq!(editor.core.undo_manager.redo_len(), 1);
+	assert_eq!(editor.state.core.undo_manager.redo_len(), 1);
 
 	let buffer_id = editor.focused_view();
 	let tx = {
-		let buffer = editor.core.buffers.focused_buffer();
+		let buffer = editor.state.core.buffers.focused_buffer();
 		let rope = buffer.with_doc(|doc| doc.content().clone());
 		Transaction::change(
 			rope.slice(..),
@@ -224,7 +226,7 @@ fn redo_stack_clears_only_when_group_pushed() {
 	);
 
 	assert_eq!(
-		editor.core.undo_manager.redo_len(),
+		editor.state.core.undo_manager.redo_len(),
 		1,
 		"NoUndo edit should not clear redo stack"
 	);
@@ -236,7 +238,7 @@ fn merge_with_current_group_creates_single_undo_group_for_consecutive_inserts() 
 
 	let buffer_id = editor.focused_view();
 	let tx1 = {
-		let buffer = editor.core.buffers.focused_buffer();
+		let buffer = editor.state.core.buffers.focused_buffer();
 		let rope = buffer.with_doc(|doc| doc.content().clone());
 		Transaction::change(
 			rope.slice(..),
@@ -256,13 +258,13 @@ fn merge_with_current_group_creates_single_undo_group_for_consecutive_inserts() 
 	);
 
 	assert_eq!(
-		editor.core.undo_manager.undo_len(),
+		editor.state.core.undo_manager.undo_len(),
 		1,
 		"first MergeWithCurrentGroup should create group"
 	);
 
 	let tx2 = {
-		let buffer = editor.core.buffers.focused_buffer();
+		let buffer = editor.state.core.buffers.focused_buffer();
 		let rope = buffer.with_doc(|doc| doc.content().clone());
 		Transaction::change(
 			rope.slice(..),
@@ -282,13 +284,14 @@ fn merge_with_current_group_creates_single_undo_group_for_consecutive_inserts() 
 	);
 
 	assert_eq!(
-		editor.core.undo_manager.undo_len(),
+		editor.state.core.undo_manager.undo_len(),
 		1,
 		"consecutive MergeWithCurrentGroup should NOT create new group"
 	);
 
 	editor.undo();
 	let content = editor
+		.state
 		.core
 		.buffers
 		.focused_buffer()
@@ -305,7 +308,7 @@ fn record_policy_breaks_merge_group() {
 	let buffer_id = editor.focused_view();
 
 	let tx1 = {
-		let buffer = editor.core.buffers.focused_buffer();
+		let buffer = editor.state.core.buffers.focused_buffer();
 		let rope = buffer.with_doc(|doc| doc.content().clone());
 		Transaction::change(
 			rope.slice(..),
@@ -325,7 +328,7 @@ fn record_policy_breaks_merge_group() {
 	);
 
 	let tx2 = {
-		let buffer = editor.core.buffers.focused_buffer();
+		let buffer = editor.state.core.buffers.focused_buffer();
 		let rope = buffer.with_doc(|doc| doc.content().clone());
 		Transaction::change(
 			rope.slice(..),
@@ -345,7 +348,7 @@ fn record_policy_breaks_merge_group() {
 	);
 
 	assert_eq!(
-		editor.core.undo_manager.undo_len(),
+		editor.state.core.undo_manager.undo_len(),
 		2,
 		"Record policy should create new group"
 	);
@@ -355,10 +358,11 @@ fn record_policy_breaks_merge_group() {
 fn sibling_selection_sync_after_apply() {
 	let mut editor = test_editor("abcd");
 	let buffer1_id = editor.focused_view();
-	let buffer2_id = editor.core.buffers.clone_focused_buffer_for_split();
+	let buffer2_id = editor.state.core.buffers.clone_focused_buffer_for_split();
 
 	let original_selection = {
 		let buffer = editor
+			.state
 			.core
 			.buffers
 			.get_buffer_mut(buffer2_id)
@@ -370,6 +374,7 @@ fn sibling_selection_sync_after_apply() {
 
 	let (tx, new_selection) = {
 		let buffer = editor
+			.state
 			.core
 			.buffers
 			.get_buffer_mut(buffer1_id)
@@ -389,6 +394,7 @@ fn sibling_selection_sync_after_apply() {
 
 	let expected = tx.map_selection(&original_selection);
 	let buffer2 = editor
+		.state
 		.core
 		.buffers
 		.get_buffer(buffer2_id)
@@ -404,16 +410,14 @@ proptest! {
 		let steps = ops.len();
 
 		for (pos_seed, text) in ops {
-			let len = editor
-				.core
+			let len = editor.state.core
 				.buffers
 				.get_buffer(buffer_id)
 				.expect("buffer exists")
 				.with_doc(|doc| doc.content().len_chars());
 			let pos = if len == 0 { 0 } else { pos_seed % (len + 1) };
 			{
-				let buffer = editor
-					.core
+				let buffer = editor.state.core
 					.buffers
 					.get_buffer_mut(buffer_id)
 					.expect("buffer exists");
@@ -423,8 +427,7 @@ proptest! {
 		}
 
 		let (final_text, final_selection, final_cursor) = {
-			let buffer = editor
-				.core
+			let buffer = editor.state.core
 				.buffers
 				.get_buffer(buffer_id)
 				.expect("buffer exists");
@@ -442,8 +445,7 @@ proptest! {
 			editor.redo();
 		}
 
-		let buffer = editor
-			.core
+		let buffer = editor.state.core
 			.buffers
 			.get_buffer(buffer_id)
 			.expect("buffer exists");
@@ -462,8 +464,7 @@ proptest! {
 
 		for is_insert in ops {
 			let (tx, new_selection) = {
-				let buffer = editor
-					.core
+				let buffer = editor.state.core
 					.buffers
 					.get_buffer_mut(buffer_id)
 					.expect("buffer exists");
@@ -494,6 +495,6 @@ proptest! {
 			prop_assert!(applied);
 		}
 
-		prop_assert_eq!(editor.core.undo_manager.undo_len(), expected_groups);
+		prop_assert_eq!(editor.state.core.undo_manager.undo_len(), expected_groups);
 	}
 }

@@ -98,12 +98,12 @@ impl Editor {
 		let block = Block::default()
 			.style(
 				Style::default()
-					.bg(self.config.theme.colors.popup.bg)
-					.fg(self.config.theme.colors.popup.fg),
+					.bg(self.state.config.theme.colors.popup.bg)
+					.fg(self.state.config.theme.colors.popup.fg),
 			)
 			.borders(Borders::ALL)
 			.border_type(BorderType::Stripe)
-			.border_style(Style::default().fg(self.config.theme.colors.semantic.accent))
+			.border_style(Style::default().fg(self.state.config.theme.colors.semantic.accent))
 			.padding(Padding::horizontal(1));
 
 		let inner = block.inner(hud_area);
@@ -112,15 +112,15 @@ impl Editor {
 
 		let mut tree = KeyTree::new(root, children)
 			.ancestors(ancestors)
-			.ancestor_style(Style::default().fg(self.config.theme.colors.ui.gutter_fg))
+			.ancestor_style(Style::default().fg(self.state.config.theme.colors.ui.gutter_fg))
 			.key_style(
 				Style::default()
-					.fg(self.config.theme.colors.semantic.accent)
+					.fg(self.state.config.theme.colors.semantic.accent)
 					.add_modifier(Modifier::BOLD),
 			)
-			.desc_style(Style::default().fg(self.config.theme.colors.popup.fg))
-			.suffix_style(Style::default().fg(self.config.theme.colors.ui.gutter_fg))
-			.line_style(Style::default().fg(self.config.theme.colors.ui.gutter_fg));
+			.desc_style(Style::default().fg(self.state.config.theme.colors.popup.fg))
+			.suffix_style(Style::default().fg(self.state.config.theme.colors.ui.gutter_fg))
+			.line_style(Style::default().fg(self.state.config.theme.colors.ui.gutter_fg));
 
 		if let Some(desc) = root_desc {
 			tree = tree.root_desc(desc);

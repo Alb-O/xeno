@@ -146,74 +146,78 @@ fn log_registry_summary_once() {
 /// [`focus_buffer`]: Self::focus_buffer
 /// [`focus_next_view`]: Self::focus_next_view
 /// [`focus_prev_view`]: Self::focus_prev_view
-pub struct Editor {
+pub(crate) struct EditorState {
 	/// Core editing state: buffers, workspace, undo history.
 	///
 	/// Contains essential state for text editing operations. UI, layout,
 	/// and presentation concerns are kept separate in other Editor fields.
-	pub core: EditorCore,
+	pub(crate) core: EditorCore,
 
 	/// Window management (base + floating).
-	pub windows: WindowManager,
+	pub(crate) windows: WindowManager,
 
 	/// Current keyboard focus target.
-	pub focus: focus::FocusTarget,
+	pub(crate) focus: focus::FocusTarget,
 
 	/// Layout and split management.
-	pub layout: LayoutManager,
+	pub(crate) layout: LayoutManager,
 
 	/// Terminal viewport dimensions.
-	pub viewport: Viewport,
+	pub(crate) viewport: Viewport,
 
 	/// UI manager (panels, dock, etc.).
-	pub ui: UiManager,
+	pub(crate) ui: UiManager,
 
 	/// Per-frame runtime state (redraw flags, dirty buffers, etc.).
-	pub frame: FrameState,
+	pub(crate) frame: FrameState,
 
 	/// Editor configuration (theme, languages, options).
-	pub config: Config,
+	pub(crate) config: Config,
 
 	/// Notification system.
-	pub notifications: xeno_tui::widgets::notifications::ToastManager,
+	pub(crate) notifications: xeno_tui::widgets::notifications::ToastManager,
 
 	/// Extension map (typemap for extension state).
 	/// Used for loosely-coupled features that can't be direct dependencies.
-	pub extensions: ExtensionMap,
+	pub(crate) extensions: ExtensionMap,
 
 	/// LSP manager for language server integration.
 	#[cfg(feature = "lsp")]
-	pub lsp: crate::lsp::LspManager,
+	pub(crate) lsp: crate::lsp::LspManager,
 	/// Pending LSP changes for debounced sync.
 	#[cfg(feature = "lsp")]
-	pub pending_lsp: crate::lsp::pending::PendingLspState,
+	pub(crate) pending_lsp: crate::lsp::pending::PendingLspState,
 	/// Completion controller (debounce/cancel/state).
 	#[cfg(feature = "lsp")]
-	pub completion_controller: CompletionController,
+	pub(crate) completion_controller: CompletionController,
 	/// Signature help request generation.
 	#[cfg(feature = "lsp")]
-	pub signature_help_generation: u64,
+	pub(crate) signature_help_generation: u64,
 	/// Signature help cancellation token.
 	#[cfg(feature = "lsp")]
-	pub signature_help_cancel: Option<tokio_util::sync::CancellationToken>,
+	pub(crate) signature_help_cancel: Option<tokio_util::sync::CancellationToken>,
 	/// LSP UI event sender.
 	#[cfg(feature = "lsp")]
-	pub lsp_ui_tx: tokio::sync::mpsc::UnboundedSender<LspUiEvent>,
+	pub(crate) lsp_ui_tx: tokio::sync::mpsc::UnboundedSender<LspUiEvent>,
 	/// LSP UI event receiver.
 	#[cfg(feature = "lsp")]
-	pub lsp_ui_rx: tokio::sync::mpsc::UnboundedReceiver<LspUiEvent>,
+	pub(crate) lsp_ui_rx: tokio::sync::mpsc::UnboundedReceiver<LspUiEvent>,
 
 	/// Style overlays for rendering modifications.
-	pub style_overlays: StyleOverlays,
+	pub(crate) style_overlays: StyleOverlays,
 
 	/// Runtime for scheduling async hooks during sync emission.
-	pub hook_runtime: HookRuntime,
+	pub(crate) hook_runtime: HookRuntime,
 
 	/// Type-erased storage for UI overlays (popups, palette, completions).
-	pub overlays: OverlayManager,
+	pub(crate) overlays: OverlayManager,
 
 	/// Runtime metrics for observability.
-	pub metrics: std::sync::Arc<crate::metrics::EditorMetrics>,
+	pub(crate) metrics: std::sync::Arc<crate::metrics::EditorMetrics>,
+}
+
+pub struct Editor {
+	pub(crate) state: EditorState,
 }
 
 impl xeno_registry::EditorOps for Editor {}
@@ -297,47 +301,49 @@ impl Editor {
 		let core = EditorCore::new(view_manager, Workspace::default(), UndoManager::new());
 
 		Self {
-			core,
-			windows: window_manager,
-			focus,
-			layout: LayoutManager::new(),
-			viewport: Viewport::default(),
-			ui: UiManager::new(),
-			frame: FrameState::default(),
-			config: Config::new(language_loader),
-			notifications: xeno_tui::widgets::notifications::ToastManager::new()
-				.max_visible(Some(5))
-				.overflow(xeno_tui::widgets::notifications::Overflow::DropOldest),
-			extensions: ExtensionMap::new(),
-			#[cfg(feature = "lsp")]
-			lsp: crate::lsp::LspManager::new(),
-			#[cfg(feature = "lsp")]
-			pending_lsp: crate::lsp::pending::PendingLspState::new(),
-			#[cfg(feature = "lsp")]
-			completion_controller: CompletionController::new(),
-			#[cfg(feature = "lsp")]
-			signature_help_generation: 0,
-			#[cfg(feature = "lsp")]
-			signature_help_cancel: None,
-			#[cfg(feature = "lsp")]
-			lsp_ui_tx,
-			#[cfg(feature = "lsp")]
-			lsp_ui_rx,
-			style_overlays: StyleOverlays::new(),
-			hook_runtime,
-			overlays: OverlayManager::new(),
-			metrics: std::sync::Arc::new(crate::metrics::EditorMetrics::new()),
+			state: EditorState {
+				core,
+				windows: window_manager,
+				focus,
+				layout: LayoutManager::new(),
+				viewport: Viewport::default(),
+				ui: UiManager::new(),
+				frame: FrameState::default(),
+				config: Config::new(language_loader),
+				notifications: xeno_tui::widgets::notifications::ToastManager::new()
+					.max_visible(Some(5))
+					.overflow(xeno_tui::widgets::notifications::Overflow::DropOldest),
+				extensions: ExtensionMap::new(),
+				#[cfg(feature = "lsp")]
+				lsp: crate::lsp::LspManager::new(),
+				#[cfg(feature = "lsp")]
+				pending_lsp: crate::lsp::pending::PendingLspState::new(),
+				#[cfg(feature = "lsp")]
+				completion_controller: CompletionController::new(),
+				#[cfg(feature = "lsp")]
+				signature_help_generation: 0,
+				#[cfg(feature = "lsp")]
+				signature_help_cancel: None,
+				#[cfg(feature = "lsp")]
+				lsp_ui_tx,
+				#[cfg(feature = "lsp")]
+				lsp_ui_rx,
+				style_overlays: StyleOverlays::new(),
+				hook_runtime,
+				overlays: OverlayManager::new(),
+				metrics: std::sync::Arc::new(crate::metrics::EditorMetrics::new()),
+			},
 		}
 	}
 
 	/// Returns the base window.
 	pub fn base_window(&self) -> &BaseWindow {
-		self.windows.base_window()
+		self.state.windows.base_window()
 	}
 
 	/// Returns the base window mutably.
 	pub fn base_window_mut(&mut self) -> &mut BaseWindow {
-		self.windows.base_window_mut()
+		self.state.windows.base_window_mut()
 	}
 
 	/// Creates a floating window and emits a hook.
@@ -347,16 +353,16 @@ impl Editor {
 		rect: Rect,
 		style: FloatingStyle,
 	) -> WindowId {
-		let id = self.windows.create_floating(buffer, rect, style);
+		let id = self.state.windows.create_floating(buffer, rect, style);
 		emit_hook_sync_with(
 			&HookContext::new(
 				HookEventData::WindowCreated {
 					window_id: id.into(),
 					kind: WindowKind::Floating,
 				},
-				Some(&self.extensions),
+				Some(&self.state.extensions),
 			),
-			&mut self.hook_runtime,
+			&mut self.state.hook_runtime,
 		);
 		id
 	}
@@ -364,76 +370,307 @@ impl Editor {
 	/// Closes a floating window and emits a hook.
 	pub fn close_floating_window(&mut self, id: WindowId) {
 		if !matches!(
-			self.windows.get(id),
+			self.state.windows.get(id),
 			Some(crate::window::Window::Floating(_))
 		) {
 			return;
 		}
 
-		self.windows.close_floating(id);
+		self.state.windows.close_floating(id);
 		emit_hook_sync_with(
 			&HookContext::new(
 				HookEventData::WindowClosed {
 					window_id: id.into(),
 				},
-				Some(&self.extensions),
+				Some(&self.state.extensions),
 			),
-			&mut self.hook_runtime,
+			&mut self.state.hook_runtime,
 		);
 	}
 
 	/// Returns a reference to the buffer manager.
 	///
 	/// This is a compatibility accessor for code that previously accessed
-	/// `editor.buffers` directly. New code should use `editor.core.buffers`.
+	/// `editor.buffers` directly. New code should use `editor.core().buffers`.
 	#[inline]
 	pub fn buffers(&self) -> &ViewManager {
-		&self.core.buffers
+		&self.state.core.buffers
 	}
 
 	/// Returns a mutable reference to the buffer manager.
 	///
 	/// This is a compatibility accessor for code that previously accessed
-	/// `editor.buffers` directly. New code should use `editor.core.buffers`.
+	/// `editor.buffers` directly. New code should use `editor.core().buffers`.
 	#[inline]
 	pub fn buffers_mut(&mut self) -> &mut ViewManager {
-		&mut self.core.buffers
+		&mut self.state.core.buffers
 	}
 
 	/// Returns a reference to the workspace session state.
 	///
 	/// This is a compatibility accessor for code that previously accessed
-	/// `editor.workspace` directly. New code should use `editor.core.workspace`.
+	/// `editor.workspace` directly. New code should use `editor.core().workspace`.
 	#[inline]
 	pub fn workspace(&self) -> &Workspace {
-		&self.core.workspace
+		&self.state.core.workspace
 	}
 
 	/// Returns a mutable reference to the workspace session state.
 	///
 	/// This is a compatibility accessor for code that previously accessed
-	/// `editor.workspace` directly. New code should use `editor.core.workspace`.
+	/// `editor.workspace` directly. New code should use `editor.core().workspace`.
 	#[inline]
 	pub fn workspace_mut(&mut self) -> &mut Workspace {
-		&mut self.core.workspace
+		&mut self.state.core.workspace
 	}
 
 	/// Returns a reference to the undo manager.
 	///
 	/// This is a compatibility accessor for code that previously accessed
-	/// `editor.undo_manager` directly. New code should use `editor.core.undo_manager`.
+	/// `editor.undo_manager` directly. New code should use `editor.core().undo_manager`.
 	#[inline]
 	pub fn undo_manager(&self) -> &UndoManager {
-		&self.core.undo_manager
+		&self.state.core.undo_manager
 	}
 
 	/// Returns a mutable reference to the undo manager.
 	///
 	/// This is a compatibility accessor for code that previously accessed
-	/// `editor.undo_manager` directly. New code should use `editor.core.undo_manager`.
+	/// `editor.undo_manager` directly. New code should use `editor.core().undo_manager`.
 	#[inline]
 	pub fn undo_manager_mut(&mut self) -> &mut UndoManager {
-		&mut self.core.undo_manager
+		&mut self.state.core.undo_manager
+	}
+
+	#[inline]
+	pub fn core(&self) -> &EditorCore {
+		&self.state.core
+	}
+
+	#[inline]
+	pub fn core_mut(&mut self) -> &mut EditorCore {
+		&mut self.state.core
+	}
+
+	#[inline]
+	pub fn windows(&self) -> &WindowManager {
+		&self.state.windows
+	}
+
+	#[inline]
+	pub fn windows_mut(&mut self) -> &mut WindowManager {
+		&mut self.state.windows
+	}
+
+	#[inline]
+	pub fn focus(&self) -> &FocusTarget {
+		&self.state.focus
+	}
+
+	#[inline]
+	pub fn focus_mut(&mut self) -> &mut FocusTarget {
+		&mut self.state.focus
+	}
+
+	#[inline]
+	pub fn layout(&self) -> &LayoutManager {
+		&self.state.layout
+	}
+
+	#[inline]
+	pub fn layout_mut(&mut self) -> &mut LayoutManager {
+		&mut self.state.layout
+	}
+
+	#[inline]
+	pub fn viewport(&self) -> &Viewport {
+		&self.state.viewport
+	}
+
+	#[inline]
+	pub fn viewport_mut(&mut self) -> &mut Viewport {
+		&mut self.state.viewport
+	}
+
+	#[inline]
+	pub fn ui(&self) -> &UiManager {
+		&self.state.ui
+	}
+
+	#[inline]
+	pub fn ui_mut(&mut self) -> &mut UiManager {
+		&mut self.state.ui
+	}
+
+	#[inline]
+	pub fn frame(&self) -> &FrameState {
+		&self.state.frame
+	}
+
+	#[inline]
+	pub fn frame_mut(&mut self) -> &mut FrameState {
+		&mut self.state.frame
+	}
+
+	#[inline]
+	pub fn config(&self) -> &Config {
+		&self.state.config
+	}
+
+	#[inline]
+	pub fn config_mut(&mut self) -> &mut Config {
+		&mut self.state.config
+	}
+
+	#[inline]
+	pub fn notifications(&self) -> &xeno_tui::widgets::notifications::ToastManager {
+		&self.state.notifications
+	}
+
+	#[inline]
+	pub fn notifications_mut(&mut self) -> &mut xeno_tui::widgets::notifications::ToastManager {
+		&mut self.state.notifications
+	}
+
+	#[inline]
+	pub fn extensions(&self) -> &ExtensionMap {
+		&self.state.extensions
+	}
+
+	#[inline]
+	pub fn extensions_and_hook_runtime_mut(&mut self) -> (&ExtensionMap, &mut HookRuntime) {
+		(&self.state.extensions, &mut self.state.hook_runtime)
+	}
+
+	#[inline]
+	pub fn extensions_mut(&mut self) -> &mut ExtensionMap {
+		&mut self.state.extensions
+	}
+
+	#[cfg(feature = "lsp")]
+	#[inline]
+	pub fn lsp(&self) -> &crate::lsp::LspManager {
+		&self.state.lsp
+	}
+
+	#[cfg(feature = "lsp")]
+	#[inline]
+	pub fn lsp_mut(&mut self) -> &mut crate::lsp::LspManager {
+		&mut self.state.lsp
+	}
+
+	#[cfg(feature = "lsp")]
+	#[inline]
+	pub fn pending_lsp(&self) -> &crate::lsp::pending::PendingLspState {
+		&self.state.pending_lsp
+	}
+
+	#[cfg(feature = "lsp")]
+	#[inline]
+	pub fn pending_lsp_mut(&mut self) -> &mut crate::lsp::pending::PendingLspState {
+		&mut self.state.pending_lsp
+	}
+
+	#[cfg(feature = "lsp")]
+	#[inline]
+	pub fn completion_controller(&self) -> &CompletionController {
+		&self.state.completion_controller
+	}
+
+	#[cfg(feature = "lsp")]
+	#[inline]
+	pub fn completion_controller_mut(&mut self) -> &mut CompletionController {
+		&mut self.state.completion_controller
+	}
+
+	#[cfg(feature = "lsp")]
+	#[inline]
+	pub fn signature_help_generation(&self) -> u64 {
+		self.state.signature_help_generation
+	}
+
+	#[cfg(feature = "lsp")]
+	#[inline]
+	pub fn signature_help_generation_mut(&mut self) -> &mut u64 {
+		&mut self.state.signature_help_generation
+	}
+
+	#[cfg(feature = "lsp")]
+	#[inline]
+	pub fn signature_help_cancel(&self) -> &Option<tokio_util::sync::CancellationToken> {
+		&self.state.signature_help_cancel
+	}
+
+	#[cfg(feature = "lsp")]
+	#[inline]
+	pub fn signature_help_cancel_mut(
+		&mut self,
+	) -> &mut Option<tokio_util::sync::CancellationToken> {
+		&mut self.state.signature_help_cancel
+	}
+
+	#[cfg(feature = "lsp")]
+	#[inline]
+	pub fn lsp_ui_tx(&self) -> &tokio::sync::mpsc::UnboundedSender<LspUiEvent> {
+		&self.state.lsp_ui_tx
+	}
+
+	#[cfg(feature = "lsp")]
+	#[inline]
+	pub fn lsp_ui_tx_mut(&mut self) -> &mut tokio::sync::mpsc::UnboundedSender<LspUiEvent> {
+		&mut self.state.lsp_ui_tx
+	}
+
+	#[cfg(feature = "lsp")]
+	#[inline]
+	pub fn lsp_ui_rx(&self) -> &tokio::sync::mpsc::UnboundedReceiver<LspUiEvent> {
+		&self.state.lsp_ui_rx
+	}
+
+	#[cfg(feature = "lsp")]
+	#[inline]
+	pub fn lsp_ui_rx_mut(&mut self) -> &mut tokio::sync::mpsc::UnboundedReceiver<LspUiEvent> {
+		&mut self.state.lsp_ui_rx
+	}
+
+	#[inline]
+	pub fn style_overlays(&self) -> &StyleOverlays {
+		&self.state.style_overlays
+	}
+
+	#[inline]
+	pub fn style_overlays_mut(&mut self) -> &mut StyleOverlays {
+		&mut self.state.style_overlays
+	}
+
+	#[inline]
+	pub fn hook_runtime(&self) -> &HookRuntime {
+		&self.state.hook_runtime
+	}
+
+	#[inline]
+	pub fn hook_runtime_mut(&mut self) -> &mut HookRuntime {
+		&mut self.state.hook_runtime
+	}
+
+	#[inline]
+	pub fn overlays(&self) -> &OverlayManager {
+		&self.state.overlays
+	}
+
+	#[inline]
+	pub fn overlays_mut(&mut self) -> &mut OverlayManager {
+		&mut self.state.overlays
+	}
+
+	#[inline]
+	pub fn metrics(&self) -> &std::sync::Arc<crate::metrics::EditorMetrics> {
+		&self.state.metrics
+	}
+
+	#[inline]
+	pub fn metrics_mut(&mut self) -> &mut std::sync::Arc<crate::metrics::EditorMetrics> {
+		&mut self.state.metrics
 	}
 }
 

@@ -66,21 +66,21 @@ impl Editor {
 	/// Processes a key event, routing to UI or input state machine.
 	pub async fn handle_key(&mut self, key: termina::event::KeyEvent) -> bool {
 		// UI global bindings (panels, focus, etc.)
-		if self.ui.handle_global_key(&key) {
-			if self.ui.take_wants_redraw() {
-				self.frame.needs_redraw = true;
+		if self.state.ui.handle_global_key(&key) {
+			if self.state.ui.take_wants_redraw() {
+				self.state.frame.needs_redraw = true;
 			}
 			self.sync_focus_from_ui();
 			return false;
 		}
 
-		if self.ui.focused_panel_id().is_some() {
-			let mut ui = std::mem::take(&mut self.ui);
+		if self.state.ui.focused_panel_id().is_some() {
+			let mut ui = std::mem::take(&mut self.state.ui);
 			let _ = ui.handle_focused_key(self, key);
 			if ui.take_wants_redraw() {
-				self.frame.needs_redraw = true;
+				self.state.frame.needs_redraw = true;
 			}
-			self.ui = ui;
+			self.state.ui = ui;
 			self.sync_focus_from_ui();
 			return false;
 		}
@@ -102,13 +102,13 @@ impl Editor {
 
 		if self.palette_is_open() && key.code == KeyCode::Enter {
 			self.execute_palette();
-			self.frame.needs_redraw = true;
+			self.state.frame.needs_redraw = true;
 			return false;
 		}
 		#[cfg(feature = "lsp")]
 		if self.prompt_is_open() && key.code == KeyCode::Enter {
 			self.execute_prompt().await;
-			self.frame.needs_redraw = true;
+			self.state.frame.needs_redraw = true;
 			return false;
 		}
 
@@ -148,7 +148,7 @@ impl Editor {
 		if !handled {
 			match result {
 				KeyResult::Pending { .. } => {
-					self.frame.needs_redraw = true;
+					self.state.frame.needs_redraw = true;
 				}
 				KeyResult::ModeChange(new_mode) => {
 					let leaving_insert = !matches!(new_mode, Mode::Insert);
@@ -158,7 +158,7 @@ impl Editor {
 								old_mode,
 								new_mode: new_mode.clone(),
 							},
-							Some(&self.extensions),
+							Some(&self.state.extensions),
 						))
 						.await;
 					}
@@ -240,7 +240,7 @@ impl Editor {
 		if let Some(new_mode) = mode_change
 			&& !matches!(new_mode, xeno_primitives::Mode::Insert)
 		{
-			self.completion_controller.cancel();
+			self.state.completion_controller.cancel();
 			self.cancel_signature_help();
 			self.clear_lsp_menu();
 		}
@@ -251,24 +251,26 @@ impl Editor {
 
 		let cursor = self.buffer().cursor;
 		let menu_active = self
+			.state
 			.overlays
 			.get::<CompletionState>()
 			.is_some_and(|s| s.active);
 		let replace_start = self
+			.state
 			.overlays
 			.get::<CompletionState>()
 			.map(|s| s.replace_start)
 			.unwrap_or(0);
 
 		if cursor < replace_start {
-			self.completion_controller.cancel();
+			self.state.completion_controller.cancel();
 			self.clear_lsp_menu();
 		} else if menu_active && cursor_changed {
-			self.frame.needs_redraw = true;
+			self.state.frame.needs_redraw = true;
 		}
 
 		if focus_changed {
-			self.completion_controller.cancel();
+			self.state.completion_controller.cancel();
 			self.cancel_signature_help();
 			self.clear_lsp_menu();
 		} else if content_changed {
@@ -333,37 +335,39 @@ impl Editor {
 			return false;
 		}
 
-		let FocusTarget::Buffer { window, .. } = self.focus else {
+		let FocusTarget::Buffer { window, .. } = self.state.focus else {
 			return false;
 		};
 
-		if window == self.windows.base_id() {
+		if window == self.state.windows.base_id() {
 			return false;
 		}
 
-		let Some(Window::Floating(floating)) = self.windows.get(window) else {
+		let Some(Window::Floating(floating)) = self.state.windows.get(window) else {
 			return false;
 		};
 
 		let palette_window = self
+			.state
 			.overlays
 			.get::<PaletteState>()
 			.and_then(|p| p.window_id());
 		if Some(window) == palette_window {
 			self.close_palette();
-			self.frame.needs_redraw = true;
+			self.state.frame.needs_redraw = true;
 			return true;
 		}
 
 		#[cfg(feature = "lsp")]
 		{
 			let prompt_window = self
+				.state
 				.overlays
 				.get::<crate::prompt::PromptState>()
 				.and_then(|state| state.window_id());
 			if Some(window) == prompt_window {
 				self.close_prompt();
-				self.frame.needs_redraw = true;
+				self.state.frame.needs_redraw = true;
 				return true;
 			}
 		}
@@ -374,7 +378,7 @@ impl Editor {
 
 		let base_buffer = self.base_window().focused_buffer;
 		self.focus_view(base_buffer);
-		self.frame.needs_redraw = true;
+		self.state.frame.needs_redraw = true;
 		true
 	}
 }

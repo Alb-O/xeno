@@ -11,9 +11,8 @@ use ropey::RopeSlice;
 pub use search::{escape_pattern, find_all_matches, find_next, find_prev, matches_pattern};
 pub use word::{move_to_next_word_end, move_to_next_word_start, move_to_prev_word_start};
 use xeno_primitives::graphemes::{next_grapheme_boundary, prev_grapheme_boundary};
-use xeno_primitives::max_cursor_pos;
 use xeno_primitives::range::{CharIdx, Direction, Range};
-use xeno_primitives::visible_line_count;
+use xeno_primitives::{max_cursor_pos, visible_line_count};
 
 /// Word type for word movements.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

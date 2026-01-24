@@ -25,31 +25,31 @@ use crate::types::{Invocation, InvocationPolicy, InvocationResult};
 impl Editor {
 	/// Initializes the UI layer at editor startup.
 	pub fn ui_startup(&mut self) {
-		let mut ui = std::mem::take(&mut self.ui);
+		let mut ui = std::mem::take(&mut self.state.ui);
 		ui.startup();
-		self.ui = ui;
-		self.frame.needs_redraw = true;
+		self.state.ui = ui;
+		self.state.frame.needs_redraw = true;
 	}
 
 	/// Ticks the UI layer, allowing it to update and request redraws.
 	pub fn ui_tick(&mut self) {
-		let mut ui = std::mem::take(&mut self.ui);
+		let mut ui = std::mem::take(&mut self.state.ui);
 		ui.tick(self);
 		if ui.take_wants_redraw() {
-			self.frame.needs_redraw = true;
+			self.state.frame.needs_redraw = true;
 		}
-		self.ui = ui;
+		self.state.ui = ui;
 	}
 
 	/// Runs the main editor tick: dirty buffer hooks, LSP sync, and animations.
 	pub fn tick(&mut self) {
-		if self.layout.animation_needs_redraw() {
-			self.frame.needs_redraw = true;
+		if self.state.layout.animation_needs_redraw() {
+			self.state.frame.needs_redraw = true;
 		}
 
 		#[cfg(feature = "lsp")]
-		if !self.lsp.poll_diagnostics().is_empty() {
-			self.frame.needs_redraw = true;
+		if !self.state.lsp.poll_diagnostics().is_empty() {
+			self.state.frame.needs_redraw = true;
 		}
 		#[cfg(feature = "lsp")]
 		self.drain_lsp_ui_events();
@@ -60,9 +60,9 @@ impl Editor {
 		#[cfg(feature = "lsp")]
 		let mut lsp_docs: HashSet<crate::buffer::DocumentId> = HashSet::new();
 
-		let dirty_ids: Vec<_> = self.frame.dirty_buffers.drain().collect();
+		let dirty_ids: Vec<_> = self.state.frame.dirty_buffers.drain().collect();
 		for buffer_id in dirty_ids {
-			if let Some(buffer) = self.core.buffers.get_buffer(buffer_id) {
+			if let Some(buffer) = self.state.core.buffers.get_buffer(buffer_id) {
 				let scratch_path = PathBuf::from("[scratch]");
 				let path = buffer.path().unwrap_or_else(|| scratch_path.clone());
 				let file_type = buffer.file_type();
@@ -76,9 +76,9 @@ impl Editor {
 							file_type: file_type.as_deref(),
 							version,
 						},
-						Some(&self.extensions),
+						Some(&self.state.extensions),
 					),
-					&mut self.hook_runtime,
+					&mut self.state.hook_runtime,
 				);
 
 				#[cfg(feature = "lsp")]
@@ -92,8 +92,8 @@ impl Editor {
 		self.flush_lsp_pending();
 
 		emit_hook_sync_with(
-			&HookContext::new(HookEventData::EditorTick, Some(&self.extensions)),
-			&mut self.hook_runtime,
+			&HookContext::new(HookEventData::EditorTick, Some(&self.state.extensions)),
+			&mut self.state.hook_runtime,
 		);
 	}
 
@@ -102,26 +102,26 @@ impl Editor {
 	/// Use this after operations that replace the entire document content (e.g., undo/redo)
 	/// where incremental sync is not possible.
 	pub(crate) fn mark_buffer_dirty_for_full_sync(&mut self, buffer_id: crate::buffer::ViewId) {
-		if let Some(buffer) = self.core.buffers.get_buffer_mut(buffer_id) {
+		if let Some(buffer) = self.state.core.buffers.get_buffer_mut(buffer_id) {
 			buffer.with_doc_mut(|doc| {
 				doc.increment_version();
 				#[cfg(feature = "lsp")]
 				doc.mark_for_full_lsp_sync();
 			});
 		}
-		self.frame.dirty_buffers.insert(buffer_id);
+		self.state.frame.dirty_buffers.insert(buffer_id);
 	}
 
 	/// Queues full LSP syncs for documents flagged by the LSP state manager.
 	#[cfg(feature = "lsp")]
 	fn queue_lsp_resyncs_from_documents(&mut self) {
-		let uris = self.lsp.documents().take_force_full_sync_uris();
+		let uris = self.state.lsp.documents().take_force_full_sync_uris();
 		if uris.is_empty() {
 			return;
 		}
 
 		let uri_set: HashSet<&str> = uris.iter().map(|u| u.as_str()).collect();
-		for buffer in self.core.buffers.buffers_mut() {
+		for buffer in self.state.core.buffers.buffers_mut() {
 			let Some(path) = buffer.path() else {
 				continue;
 			};
@@ -133,7 +133,7 @@ impl Editor {
 			}
 
 			buffer.with_doc_mut(|doc| doc.mark_for_full_lsp_sync());
-			self.frame.dirty_buffers.insert(buffer.id);
+			self.state.frame.dirty_buffers.insert(buffer.id);
 		}
 	}
 
@@ -143,7 +143,7 @@ impl Editor {
 	/// in [`PendingLspState`] and flushed after the debounce period elapses.
 	#[cfg(feature = "lsp")]
 	fn accumulate_lsp_change(&mut self, buffer_id: crate::buffer::ViewId) {
-		let Some(buffer) = self.core.buffers.get_buffer(buffer_id) else {
+		let Some(buffer) = self.state.core.buffers.get_buffer(buffer_id) else {
 			return;
 		};
 		let (Some(path), Some(language)) = (buffer.path(), buffer.file_type()) else {
@@ -165,10 +165,14 @@ impl Editor {
 			buffer.with_doc_mut(|doc| doc.clear_full_lsp_sync());
 		}
 
-		let supports_incremental = self.lsp.incremental_encoding_for_buffer(buffer).is_some();
-		let encoding = self.lsp.offset_encoding_for_buffer(buffer);
+		let supports_incremental = self
+			.state
+			.lsp
+			.incremental_encoding_for_buffer(buffer)
+			.is_some();
+		let encoding = self.state.lsp.offset_encoding_for_buffer(buffer);
 
-		self.pending_lsp.accumulate(
+		self.state.pending_lsp.accumulate(
 			doc_id,
 			crate::lsp::pending::LspDocumentConfig {
 				path,
@@ -186,11 +190,11 @@ impl Editor {
 	#[cfg(feature = "lsp")]
 	fn flush_lsp_pending(&mut self) {
 		let now = Instant::now();
-		let sync = self.lsp.sync().clone();
-		let buffers = &self.core.buffers;
-		let metrics = &self.metrics;
+		let sync = self.state.lsp.sync().clone();
+		let buffers = &self.state.core.buffers;
+		let metrics = &self.state.metrics;
 
-		let stats = self.pending_lsp.flush_due(
+		let stats = self.state.pending_lsp.flush_due(
 			now,
 			LSP_DEBOUNCE,
 			LSP_MAX_DOCS_PER_TICK,
@@ -203,7 +207,7 @@ impl Editor {
 					.map(|b| b.with_doc(|doc| doc.content().clone()))
 			},
 		);
-		self.metrics.record_lsp_tick(
+		self.state.metrics.record_lsp_tick(
 			stats.full_syncs,
 			stats.incremental_syncs,
 			stats.snapshot_bytes,
@@ -219,7 +223,7 @@ impl Editor {
 		&mut self,
 		buffer_id: crate::buffer::ViewId,
 	) -> Option<oneshot::Receiver<()>> {
-		let buffer = self.core.buffers.get_buffer(buffer_id)?;
+		let buffer = self.state.core.buffers.get_buffer(buffer_id)?;
 		let (path, language) = (buffer.path()?, buffer.file_type()?);
 		let (force_full_sync, has_pending) =
 			buffer.with_doc(|doc| (doc.needs_full_lsp_sync(), doc.has_pending_lsp_sync()));
@@ -233,14 +237,18 @@ impl Editor {
 
 		let total_bytes: usize = changes.iter().map(|c| c.new_text.len()).sum();
 		let use_incremental = !force_full_sync
-			&& self.lsp.incremental_encoding_for_buffer(buffer).is_some()
+			&& self
+				.state
+				.lsp
+				.incremental_encoding_for_buffer(buffer)
+				.is_some()
 			&& !changes.is_empty()
 			&& changes.len() <= LSP_MAX_INCREMENTAL_CHANGES
 			&& total_bytes <= LSP_MAX_INCREMENTAL_BYTES;
 
 		let content = buffer.with_doc(|doc| doc.content().clone());
-		let sync = self.lsp.sync().clone();
-		let metrics = self.metrics.clone();
+		let sync = self.state.lsp.sync().clone();
+		let metrics = self.state.metrics.clone();
 		let (tx, rx) = oneshot::channel();
 
 		tokio::spawn(async move {
@@ -310,72 +318,72 @@ impl Editor {
 
 	/// Clears and updates style overlays (called before each render frame).
 	pub fn update_style_overlays(&mut self) {
-		self.style_overlays.clear();
-		if self.style_overlays.has_animations() {
-			self.frame.needs_redraw = true;
+		self.state.style_overlays.clear();
+		if self.state.style_overlays.has_animations() {
+			self.state.frame.needs_redraw = true;
 		}
 	}
 
 	/// Returns true if any UI panel is currently open.
 	pub fn any_panel_open(&self) -> bool {
-		self.ui.any_panel_open()
+		self.state.ui.any_panel_open()
 	}
 
 	/// Handles terminal window resize events, updating buffer text widths and emitting hooks.
 	pub fn handle_window_resize(&mut self, width: u16, height: u16) {
-		self.viewport.width = Some(width);
-		self.viewport.height = Some(height);
+		self.state.viewport.width = Some(width);
+		self.state.viewport.height = Some(height);
 
-		for buffer in self.core.buffers.buffers_mut() {
+		for buffer in self.state.core.buffers.buffers_mut() {
 			buffer.text_width = width.saturating_sub(buffer.gutter_width()) as usize;
 		}
 
-		let mut ui = std::mem::take(&mut self.ui);
+		let mut ui = std::mem::take(&mut self.state.ui);
 		ui.notify_resize(self, width, height);
 		if ui.take_wants_redraw() {
-			self.frame.needs_redraw = true;
+			self.state.frame.needs_redraw = true;
 		}
-		self.ui = ui;
-		self.frame.needs_redraw = true;
+		self.state.ui = ui;
+		self.state.frame.needs_redraw = true;
 		emit_hook_sync_with(
 			&HookContext::new(
 				HookEventData::WindowResize { width, height },
-				Some(&self.extensions),
+				Some(&self.state.extensions),
 			),
-			&mut self.hook_runtime,
+			&mut self.state.hook_runtime,
 		);
 	}
 
 	/// Handles terminal focus gained events, emitting the FocusGained hook.
 	pub fn handle_focus_in(&mut self) {
-		self.frame.needs_redraw = true;
+		self.state.frame.needs_redraw = true;
 		emit_hook_sync_with(
-			&HookContext::new(HookEventData::FocusGained, Some(&self.extensions)),
-			&mut self.hook_runtime,
+			&HookContext::new(HookEventData::FocusGained, Some(&self.state.extensions)),
+			&mut self.state.hook_runtime,
 		);
 	}
 
 	/// Handles terminal focus lost events, emitting the FocusLost hook.
 	pub fn handle_focus_out(&mut self) {
-		self.frame.needs_redraw = true;
+		self.state.frame.needs_redraw = true;
 		emit_hook_sync_with(
-			&HookContext::new(HookEventData::FocusLost, Some(&self.extensions)),
-			&mut self.hook_runtime,
+			&HookContext::new(HookEventData::FocusLost, Some(&self.state.extensions)),
+			&mut self.state.hook_runtime,
 		);
 	}
 
 	/// Handles paste events, delegating to UI or inserting text directly.
 	pub fn handle_paste(&mut self, content: String) {
-		let mut ui = std::mem::take(&mut self.ui);
+		let mut ui = std::mem::take(&mut self.state.ui);
 		let handled = ui.handle_paste(self, content.clone());
 		if ui.take_wants_redraw() {
-			self.frame.needs_redraw = true;
+			self.state.frame.needs_redraw = true;
 		}
-		self.ui = ui;
+		self.state.ui = ui;
 		self.sync_focus_from_ui();
 
 		if handled {
-			self.frame.needs_redraw = true;
+			self.state.frame.needs_redraw = true;
 			return;
 		}
 
@@ -390,7 +398,7 @@ impl Editor {
 	///
 	/// Returns `true` if any command requested quit.
 	pub async fn drain_command_queue(&mut self) -> bool {
-		let commands: Vec<_> = self.core.workspace.command_queue.drain().collect();
+		let commands: Vec<_> = self.state.core.workspace.command_queue.drain().collect();
 		let policy = InvocationPolicy::log_only();
 
 		for cmd in commands {
@@ -428,28 +436,28 @@ impl Editor {
 	pub fn stats_snapshot(&self) -> StatsSnapshot {
 		#[cfg(feature = "lsp")]
 		let (lsp_pending_docs, lsp_in_flight) = (
-			self.pending_lsp.pending_count(),
-			self.pending_lsp.in_flight_count(),
+			self.state.pending_lsp.pending_count(),
+			self.state.pending_lsp.in_flight_count(),
 		);
 		#[cfg(not(feature = "lsp"))]
 		let (lsp_pending_docs, lsp_in_flight) = (0, 0);
 
 		StatsSnapshot {
-			hooks_pending: self.hook_runtime.pending_count(),
-			hooks_scheduled: self.hook_runtime.scheduled_total(),
-			hooks_completed: self.hook_runtime.completed_total(),
-			hooks_completed_tick: self.metrics.hooks_completed_tick_count(),
-			hooks_pending_tick: self.metrics.hooks_pending_tick_count(),
+			hooks_pending: self.state.hook_runtime.pending_count(),
+			hooks_scheduled: self.state.hook_runtime.scheduled_total(),
+			hooks_completed: self.state.hook_runtime.completed_total(),
+			hooks_completed_tick: self.state.metrics.hooks_completed_tick_count(),
+			hooks_pending_tick: self.state.metrics.hooks_pending_tick_count(),
 			lsp_pending_docs,
 			lsp_in_flight,
-			lsp_full_sync: self.metrics.full_sync_count(),
-			lsp_incremental_sync: self.metrics.incremental_sync_count(),
-			lsp_send_errors: self.metrics.send_error_count(),
-			lsp_coalesced: self.metrics.coalesced_count(),
-			lsp_snapshot_bytes: self.metrics.snapshot_bytes_count(),
-			lsp_full_sync_tick: self.metrics.full_sync_tick_count(),
-			lsp_incremental_sync_tick: self.metrics.incremental_sync_tick_count(),
-			lsp_snapshot_bytes_tick: self.metrics.snapshot_bytes_tick_count(),
+			lsp_full_sync: self.state.metrics.full_sync_count(),
+			lsp_incremental_sync: self.state.metrics.incremental_sync_count(),
+			lsp_send_errors: self.state.metrics.send_error_count(),
+			lsp_coalesced: self.state.metrics.coalesced_count(),
+			lsp_snapshot_bytes: self.state.metrics.snapshot_bytes_count(),
+			lsp_full_sync_tick: self.state.metrics.full_sync_tick_count(),
+			lsp_incremental_sync_tick: self.state.metrics.incremental_sync_tick_count(),
+			lsp_snapshot_bytes_tick: self.state.metrics.snapshot_bytes_tick_count(),
 		}
 	}
 

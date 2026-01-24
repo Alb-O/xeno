@@ -35,12 +35,12 @@ impl xeno_registry::FileOpsAccess for Editor {
 					path: &path_owned,
 					text: text_slice.slice(..),
 				},
-				Some(&self.extensions),
+				Some(&self.state.extensions),
 			))
 			.await;
 
 			#[cfg(feature = "lsp")]
-			if let Err(e) = self.lsp.on_buffer_will_save(self.buffer()) {
+			if let Err(e) = self.state.lsp.on_buffer_will_save(self.buffer()) {
 				warn!(error = %e, "LSP will_save notification failed");
 			}
 
@@ -53,11 +53,12 @@ impl xeno_registry::FileOpsAccess for Editor {
 			});
 
 			if let Some(parent) = path_owned.parent()
-				&& !parent.as_os_str().is_empty() {
-					tokio::fs::create_dir_all(parent)
-						.await
-						.map_err(|e| CommandError::Io(e.to_string()))?;
-				}
+				&& !parent.as_os_str().is_empty()
+			{
+				tokio::fs::create_dir_all(parent)
+					.await
+					.map_err(|e| CommandError::Io(e.to_string()))?;
+			}
 
 			tokio::fs::write(&path_owned, &content)
 				.await
@@ -67,13 +68,13 @@ impl xeno_registry::FileOpsAccess for Editor {
 			self.show_notification(xeno_registry_notifications::keys::file_saved(&path_owned));
 
 			#[cfg(feature = "lsp")]
-			if let Err(e) = self.lsp.on_buffer_did_save(self.buffer(), true) {
+			if let Err(e) = self.state.lsp.on_buffer_did_save(self.buffer(), true) {
 				warn!(error = %e, "LSP did_save notification failed");
 			}
 
 			emit_hook(&HookContext::new(
 				HookEventData::BufferWrite { path: &path_owned },
-				Some(&self.extensions),
+				Some(&self.state.extensions),
 			))
 			.await;
 

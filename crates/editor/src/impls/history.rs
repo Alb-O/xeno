@@ -54,7 +54,8 @@ impl UndoHost for Editor {
 	}
 
 	fn doc_id_for_buffer(&self, buffer_id: ViewId) -> DocumentId {
-		self.core
+		self.state
+			.core
 			.buffers
 			.get_buffer(buffer_id)
 			.expect("buffer must exist")
@@ -62,7 +63,8 @@ impl UndoHost for Editor {
 	}
 
 	fn collect_view_snapshots(&self, doc_id: DocumentId) -> HashMap<ViewId, ViewSnapshot> {
-		self.core
+		self.state
+			.core
 			.buffers
 			.buffers()
 			.filter(|b| b.document_id() == doc_id)
@@ -75,7 +77,8 @@ impl UndoHost for Editor {
 		doc_ids: &[DocumentId],
 	) -> HashMap<ViewId, ViewSnapshot> {
 		let doc_set: HashSet<_> = doc_ids.iter().copied().collect();
-		self.core
+		self.state
+			.core
 			.buffers
 			.buffers()
 			.filter(|b| doc_set.contains(&b.document_id()))
@@ -84,7 +87,7 @@ impl UndoHost for Editor {
 	}
 
 	fn restore_view_snapshots(&mut self, snapshots: &HashMap<ViewId, ViewSnapshot>) {
-		for buffer in self.core.buffers.buffers_mut() {
+		for buffer in self.state.core.buffers.buffers_mut() {
 			if let Some(snapshot) = snapshots.get(&buffer.id) {
 				buffer.restore_view(snapshot);
 			} else {
@@ -129,28 +132,28 @@ impl UndoHost for Editor {
 impl Editor {
 	/// Undoes the last change, restoring view state for all affected buffers.
 	pub fn undo(&mut self) {
-		let core = &mut self.core;
+		let core = &mut self.state.core;
 		let mut host = EditorUndoHost {
 			buffers: &mut core.buffers,
-			config: &self.config,
-			frame: &mut self.frame,
-			notifications: &mut self.notifications,
+			config: &self.state.config,
+			frame: &mut self.state.frame,
+			notifications: &mut self.state.notifications,
 			#[cfg(feature = "lsp")]
-			lsp: &mut self.lsp,
+			lsp: &mut self.state.lsp,
 		};
 		core.undo_manager.undo(&mut host);
 	}
 
 	/// Redoes the last undone change, restoring view state for all affected buffers.
 	pub fn redo(&mut self) {
-		let core = &mut self.core;
+		let core = &mut self.state.core;
 		let mut host = EditorUndoHost {
 			buffers: &mut core.buffers,
-			config: &self.config,
-			frame: &mut self.frame,
-			notifications: &mut self.notifications,
+			config: &self.state.config,
+			frame: &mut self.state.frame,
+			notifications: &mut self.state.notifications,
 			#[cfg(feature = "lsp")]
-			lsp: &mut self.lsp,
+			lsp: &mut self.state.lsp,
 		};
 		core.undo_manager.redo(&mut host);
 	}
@@ -158,6 +161,7 @@ impl Editor {
 	/// Undoes a single document's last change.
 	fn undo_document(&mut self, doc_id: DocumentId) -> bool {
 		let buffer_id = self
+			.state
 			.core
 			.buffers
 			.buffers()
@@ -170,11 +174,12 @@ impl Editor {
 		};
 
 		let ok = self
+			.state
 			.core
 			.buffers
 			.get_buffer_mut(buffer_id)
 			.expect("buffer exists")
-			.with_doc_mut(|doc| doc.undo(&self.config.language_loader));
+			.with_doc_mut(|doc| doc.undo(&self.state.config.language_loader));
 
 		if ok {
 			self.mark_buffer_dirty_for_full_sync(buffer_id);
@@ -185,6 +190,7 @@ impl Editor {
 	/// Redoes a single document's last undone change.
 	fn redo_document(&mut self, doc_id: DocumentId) -> bool {
 		let buffer_id = self
+			.state
 			.core
 			.buffers
 			.buffers()
@@ -197,11 +203,12 @@ impl Editor {
 		};
 
 		let ok = self
+			.state
 			.core
 			.buffers
 			.get_buffer_mut(buffer_id)
 			.expect("buffer exists")
-			.with_doc_mut(|doc| doc.redo(&self.config.language_loader));
+			.with_doc_mut(|doc| doc.redo(&self.state.config.language_loader));
 
 		if ok {
 			self.mark_buffer_dirty_for_full_sync(buffer_id);

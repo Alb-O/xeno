@@ -137,9 +137,9 @@ impl Editor {
 				HookEventData::ActionPre {
 					action_id: action.id(),
 				},
-				Some(&self.extensions),
+				Some(&self.state.extensions),
 			),
-			&mut self.hook_runtime,
+			&mut self.state.hook_runtime,
 		);
 
 		let span = trace_span!(
@@ -328,9 +328,9 @@ impl Editor {
 					action_id,
 					result_variant,
 				},
-				Some(&self.extensions),
+				Some(&self.state.extensions),
 			),
-			&mut self.hook_runtime,
+			&mut self.state.hook_runtime,
 		);
 		should_quit
 	}
