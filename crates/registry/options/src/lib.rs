@@ -105,10 +105,10 @@ pub use store::OptionStore;
 /// println!("Default tab width: {:?}", (def.default)());
 /// ```
 pub mod keys {
-	pub use crate::impls::cursorline::*;
-	pub use crate::impls::indent::*;
-	pub use crate::impls::scroll::*;
-	pub use crate::impls::theme::*;
+	pub use crate::impls::cursorline::CURSORLINE;
+	pub use crate::impls::indent::TAB_WIDTH;
+	pub use crate::impls::scroll::{SCROLL_LINES, SCROLL_MARGIN};
+	pub use crate::impls::theme::{DEFAULT_THEME_ID, THEME};
 }
 
 pub use xeno_registry_core::{
