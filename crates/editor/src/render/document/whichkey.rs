@@ -11,10 +11,16 @@ use xeno_tui::widgets::keytree::{KeyTree, KeyTreeNode};
 use xeno_tui::widgets::{Block, BorderType, Borders, Clear, Padding};
 
 use crate::Editor;
+use crate::render::RenderCtx;
 
 impl Editor {
 	/// Renders the which-key HUD when there are pending keys.
-	pub fn render_whichkey_hud(&self, frame: &mut xeno_tui::Frame, doc_area: Rect) {
+	pub fn render_whichkey_hud(
+		&self,
+		frame: &mut xeno_tui::Frame,
+		doc_area: Rect,
+		ctx: &RenderCtx,
+	) {
 		let pending_keys = self.buffer().input.pending_keys();
 		if pending_keys.is_empty() {
 			return;
@@ -98,12 +104,12 @@ impl Editor {
 		let block = Block::default()
 			.style(
 				Style::default()
-					.bg(self.state.config.theme.colors.popup.bg)
-					.fg(self.state.config.theme.colors.popup.fg),
+					.bg(ctx.theme.colors.popup.bg)
+					.fg(ctx.theme.colors.popup.fg),
 			)
 			.borders(Borders::ALL)
 			.border_type(BorderType::Stripe)
-			.border_style(Style::default().fg(self.state.config.theme.colors.semantic.accent))
+			.border_style(Style::default().fg(ctx.theme.colors.semantic.accent))
 			.padding(Padding::horizontal(1));
 
 		let inner = block.inner(hud_area);
@@ -112,15 +118,15 @@ impl Editor {
 
 		let mut tree = KeyTree::new(root, children)
 			.ancestors(ancestors)
-			.ancestor_style(Style::default().fg(self.state.config.theme.colors.ui.gutter_fg))
+			.ancestor_style(Style::default().fg(ctx.theme.colors.ui.gutter_fg))
 			.key_style(
 				Style::default()
-					.fg(self.state.config.theme.colors.semantic.accent)
+					.fg(ctx.theme.colors.semantic.accent)
 					.add_modifier(Modifier::BOLD),
 			)
-			.desc_style(Style::default().fg(self.state.config.theme.colors.popup.fg))
-			.suffix_style(Style::default().fg(self.state.config.theme.colors.ui.gutter_fg))
-			.line_style(Style::default().fg(self.state.config.theme.colors.ui.gutter_fg));
+			.desc_style(Style::default().fg(ctx.theme.colors.popup.fg))
+			.suffix_style(Style::default().fg(ctx.theme.colors.ui.gutter_fg))
+			.line_style(Style::default().fg(ctx.theme.colors.ui.gutter_fg));
 
 		if let Some(desc) = root_desc {
 			tree = tree.root_desc(desc);

@@ -120,7 +120,7 @@ impl AnimatedOverlay {
 ///
 /// Overlays can be added during rendering to modify how text is displayed.
 /// Static overlays are cleared each frame; animated overlays persist until complete.
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct StyleOverlays {
 	/// Static overlays that apply for a single frame.
 	overlays: Vec<StyleOverlay>,

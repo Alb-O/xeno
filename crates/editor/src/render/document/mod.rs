@@ -18,6 +18,7 @@ use super::buffer::{BufferRenderContext, ensure_buffer_cursor_visible};
 use crate::Editor;
 use crate::buffer::{SplitDirection, ViewId};
 use crate::impls::FocusTarget;
+use crate::render::RenderCtx;
 
 /// Per-layer rendering data: (layer_index, layer_area, view_areas, separators).
 type LayerRenderData = (
@@ -96,15 +97,31 @@ impl Editor {
 		let doc_area = dock_layout.doc_area;
 		self.state.viewport.doc_area = Some(doc_area);
 
+		if self.state.layout.hovered_separator.is_none()
+			&& self.state.layout.separator_under_mouse.is_some()
+			&& !self.state.layout.is_mouse_fast()
+		{
+			let old_hover = self.state.layout.hovered_separator.take();
+			self.state.layout.hovered_separator = self.state.layout.separator_under_mouse;
+			if old_hover != self.state.layout.hovered_separator {
+				self.state
+					.layout
+					.update_hover_animation(old_hover, self.state.layout.hovered_separator);
+				self.state.frame.needs_redraw = true;
+			}
+		}
+		if self.state.layout.animation_needs_redraw() {
+			self.state.frame.needs_redraw = true;
+		}
+
+		let ctx = self.render_ctx();
 		let doc_focused = ui.focus.focused().is_editor();
 
 		// Render all buffers in the layout
-		self.render_split_buffers(frame, doc_area, use_block_cursor && doc_focused);
-		self.render_floating_windows(frame, use_block_cursor && doc_focused);
+		self.render_split_buffers(frame, doc_area, use_block_cursor && doc_focused, &ctx);
+		self.render_floating_windows(frame, use_block_cursor && doc_focused, &ctx);
 
-		if let Some(cursor_pos) =
-			ui.render_panels(self, frame, &dock_layout, self.state.config.theme)
-		{
+		if let Some(cursor_pos) = ui.render_panels(self, frame, &dock_layout, &ctx.theme) {
 			frame.set_cursor_position(cursor_pos);
 		}
 		if ui.take_wants_redraw() {
@@ -115,8 +132,7 @@ impl Editor {
 		#[cfg(feature = "lsp")]
 		self.render_completion_popup(frame);
 
-		let status_bg =
-			Block::default().style(Style::default().bg(self.state.config.theme.colors.popup.bg));
+		let status_bg = Block::default().style(Style::default().bg(ctx.theme.colors.popup.bg));
 		frame.render_widget(status_bg, status_area);
 		frame.render_widget(self.render_status_line(), status_area);
 
@@ -127,7 +143,7 @@ impl Editor {
 			.notifications
 			.render(notifications_area, frame.buffer_mut());
 
-		self.render_whichkey_hud(frame, doc_area);
+		self.render_whichkey_hud(frame, doc_area, &ctx);
 	}
 
 	/// Renders all views across all layout layers.
@@ -139,6 +155,7 @@ impl Editor {
 		frame: &mut xeno_tui::Frame,
 		doc_area: Rect,
 		use_block_cursor: bool,
+		ctx: &RenderCtx,
 	) {
 		let focused_view = self.focused_view();
 		let base_layout = &self.base_window().layout;
@@ -180,24 +197,7 @@ impl Editor {
 			}
 		}
 
-		if self.state.layout.hovered_separator.is_none()
-			&& self.state.layout.separator_under_mouse.is_some()
-			&& !self.state.layout.is_mouse_fast()
-		{
-			let old_hover = self.state.layout.hovered_separator.take();
-			self.state.layout.hovered_separator = self.state.layout.separator_under_mouse;
-			if old_hover != self.state.layout.hovered_separator {
-				self.state
-					.layout
-					.update_hover_animation(old_hover, self.state.layout.hovered_separator);
-				self.state.frame.needs_redraw = true;
-			}
-		}
-		if self.state.layout.animation_needs_redraw() {
-			self.state.frame.needs_redraw = true;
-		}
-
-		let sep_style = SeparatorStyle::new(self, doc_area);
+		let sep_style = SeparatorStyle::new(ctx);
 
 		for (_, _, view_areas, separators) in &layer_data {
 			for (buffer_id, area) in view_areas {
@@ -205,29 +205,14 @@ impl Editor {
 				let tab_width = self.tab_width_for(*buffer_id);
 				let cursorline = self.cursorline_for(*buffer_id);
 				if let Some(buffer) = self.get_buffer(*buffer_id) {
-					#[cfg(feature = "lsp")]
-					let (diag_map, diag_ranges) = {
-						let diagnostics = self.state.lsp.get_diagnostics(buffer);
-						(
-							super::buffer::build_diagnostic_line_map(&diagnostics),
-							super::buffer::build_diagnostic_range_map(&diagnostics),
-						)
-					};
-
-					let ctx = BufferRenderContext {
-						theme: self.state.config.theme,
+					let buffer_ctx = BufferRenderContext {
+						theme: &ctx.theme,
 						language_loader: &self.state.config.language_loader,
-						style_overlays: &self.state.style_overlays,
-						#[cfg(feature = "lsp")]
-						diagnostics: Some(&diag_map),
-						#[cfg(not(feature = "lsp"))]
-						diagnostics: None,
-						#[cfg(feature = "lsp")]
-						diagnostic_ranges: Some(&diag_ranges),
-						#[cfg(not(feature = "lsp"))]
-						diagnostic_ranges: None,
+						style_overlays: &ctx.style_overlays,
+						diagnostics: ctx.lsp.diagnostics_for(*buffer_id),
+						diagnostic_ranges: ctx.lsp.diagnostic_ranges_for(*buffer_id),
 					};
-					let result = ctx.render_buffer(
+					let result = buffer_ctx.render_buffer(
 						buffer,
 						*area,
 						use_block_cursor,
@@ -258,7 +243,12 @@ impl Editor {
 	}
 
 	/// Renders floating windows above the base layout.
-	fn render_floating_windows(&mut self, frame: &mut xeno_tui::Frame, use_block_cursor: bool) {
+	fn render_floating_windows(
+		&mut self,
+		frame: &mut xeno_tui::Frame,
+		use_block_cursor: bool,
+		ctx: &RenderCtx,
+	) {
 		let bounds = frame.area();
 		let focused = match &self.state.focus {
 			FocusTarget::Buffer { window, buffer } => Some((*window, *buffer)),
@@ -310,8 +300,8 @@ impl Editor {
 					height: rect.height,
 				};
 				if let Some(shadow) = clamp_rect(shadow_rect, bounds) {
-					let shadow_block = Block::default()
-						.style(Style::default().bg(self.state.config.theme.colors.ui.bg));
+					let shadow_block =
+						Block::default().style(Style::default().bg(ctx.theme.colors.ui.bg));
 					frame.render_widget(shadow_block, shadow);
 				}
 			}
@@ -319,13 +309,13 @@ impl Editor {
 			frame.render_widget(Clear, rect);
 
 			let mut block = Block::default()
-				.style(Style::default().bg(self.state.config.theme.colors.popup.bg))
+				.style(Style::default().bg(ctx.theme.colors.popup.bg))
 				.padding(window.style.padding);
 			if window.style.border {
 				block = block
 					.borders(Borders::ALL)
 					.border_type(window.style.border_type)
-					.border_style(Style::default().fg(self.state.config.theme.colors.popup.fg));
+					.border_style(Style::default().fg(ctx.theme.colors.popup.fg));
 				if let Some(title) = &window.style.title {
 					block = block.title(title.as_str());
 				}
@@ -346,29 +336,14 @@ impl Editor {
 				let tab_width = self.tab_width_for(window.buffer);
 				let cursorline = self.cursorline_for(window.buffer);
 
-				#[cfg(feature = "lsp")]
-				let (diag_map, diag_ranges) = {
-					let diagnostics = self.state.lsp.get_diagnostics(buffer);
-					(
-						super::buffer::build_diagnostic_line_map(&diagnostics),
-						super::buffer::build_diagnostic_range_map(&diagnostics),
-					)
-				};
-
-				let ctx = BufferRenderContext {
-					theme: self.state.config.theme,
+				let buffer_ctx = BufferRenderContext {
+					theme: &ctx.theme,
 					language_loader: &self.state.config.language_loader,
-					style_overlays: &self.state.style_overlays,
-					#[cfg(feature = "lsp")]
-					diagnostics: Some(&diag_map),
-					#[cfg(not(feature = "lsp"))]
-					diagnostics: None,
-					#[cfg(feature = "lsp")]
-					diagnostic_ranges: Some(&diag_ranges),
-					#[cfg(not(feature = "lsp"))]
-					diagnostic_ranges: None,
+					style_overlays: &ctx.style_overlays,
+					diagnostics: ctx.lsp.diagnostics_for(window.buffer),
+					diagnostic_ranges: ctx.lsp.diagnostic_ranges_for(window.buffer),
 				};
-				let result = ctx.render_buffer_with_gutter(
+				let result = buffer_ctx.render_buffer_with_gutter(
 					buffer,
 					content_area,
 					use_block_cursor,

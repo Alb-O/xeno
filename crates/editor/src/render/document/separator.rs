@@ -7,7 +7,7 @@ use xeno_tui::animation::Animatable;
 use xeno_tui::layout::Rect;
 use xeno_tui::style::{Color, Style};
 
-use crate::Editor;
+use crate::render::RenderCtx;
 use crate::test_events::SeparatorAnimationEvent;
 
 /// Extracts RGB components from a color, if it's an RGB color.
@@ -43,30 +43,19 @@ pub struct SeparatorStyle {
 }
 
 impl SeparatorStyle {
-	/// Creates a new separator style from the current editor state.
-	pub fn new(editor: &Editor, doc_area: Rect) -> Self {
+	/// Creates a new separator style from the current render context.
+	pub fn new(ctx: &RenderCtx) -> Self {
 		Self {
-			hovered_rect: editor.state.layout.hovered_separator.map(|(_, rect)| rect),
-			dragging_rect: editor.state.layout.drag_state().and_then(|ds| {
-				editor
-					.state
-					.layout
-					.separator_rect(&editor.base_window().layout, doc_area, &ds.id)
-			}),
-			anim_rect: editor.state.layout.animation_rect(),
-			anim_intensity: editor.state.layout.animation_intensity(),
-			base_bg: [
-				editor.state.config.theme.colors.ui.bg,
-				editor.state.config.theme.colors.popup.bg,
-			],
-			base_fg: [
-				editor.state.config.theme.colors.ui.gutter_fg,
-				editor.state.config.theme.colors.popup.fg,
-			],
-			hover_fg: editor.state.config.theme.colors.ui.cursor_fg,
-			hover_bg: editor.state.config.theme.colors.ui.selection_bg,
-			drag_fg: editor.state.config.theme.colors.ui.bg,
-			drag_bg: editor.state.config.theme.colors.ui.fg,
+			hovered_rect: ctx.layout.hovered_separator.map(|(_, rect)| rect),
+			dragging_rect: ctx.layout.dragging_rect,
+			anim_rect: ctx.layout.animation_rect,
+			anim_intensity: ctx.layout.animation_intensity,
+			base_bg: [ctx.theme.colors.ui.bg, ctx.theme.colors.popup.bg],
+			base_fg: [ctx.theme.colors.ui.gutter_fg, ctx.theme.colors.popup.fg],
+			hover_fg: ctx.theme.colors.ui.cursor_fg,
+			hover_bg: ctx.theme.colors.ui.selection_bg,
+			drag_fg: ctx.theme.colors.ui.bg,
+			drag_bg: ctx.theme.colors.ui.fg,
 		}
 	}
 

@@ -1,6 +1,7 @@
 mod buffer;
 /// Completion popup rendering.
 mod completion;
+mod context;
 mod document;
 /// Status line rendering.
 mod status;
@@ -12,4 +13,5 @@ pub use buffer::build_diagnostic_line_map;
 pub use buffer::{
 	BufferRenderContext, DiagnosticLineMap, RenderResult, ensure_buffer_cursor_visible,
 };
+pub use context::{LayoutSnapshot, LspRenderSnapshot, RenderCtx};
 pub use wrap::{WrapSegment, wrap_line};

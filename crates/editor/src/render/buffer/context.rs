@@ -38,7 +38,7 @@ pub struct RenderResult {
 /// in the editor, enabling proper split view support.
 pub struct BufferRenderContext<'a> {
 	/// The current theme.
-	pub theme: &'static Theme,
+	pub theme: &'a Theme,
 	/// Language loader for syntax highlighting.
 	pub language_loader: &'a LanguageLoader,
 	/// Style overlays (e.g., zen mode dimming).
