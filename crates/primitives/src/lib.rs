@@ -14,6 +14,8 @@ pub mod key;
 pub mod lsp;
 /// Editor mode definitions.
 pub mod mode;
+/// Movement helper functions for cursor manipulation.
+pub mod movement;
 /// Pending action state types.
 pub mod pending;
 /// Common re-exports for convenience.
@@ -34,7 +36,7 @@ pub use edit::{
 	CommitResult, EditCommit, EditError, EditOrigin, ReadOnlyReason, ReadOnlyScope, SyntaxOutcome,
 	SyntaxPolicy, UndoPolicy,
 };
-pub use ids::ViewId;
+pub use ids::{MotionId, ViewId, motion_ids};
 pub use key::{Key, KeyCode, Modifiers, MouseButton, MouseEvent, ScrollDirection};
 pub use lsp::{LspChangeSet, LspDocumentChange, LspPosition, LspRange};
 pub use mode::Mode;

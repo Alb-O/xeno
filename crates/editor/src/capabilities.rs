@@ -8,15 +8,17 @@ use std::pin::Pin;
 
 use xeno_primitives::direction::{Axis, SeqDirection, SpatialDirection};
 use xeno_primitives::range::{CharIdx, Direction as MoveDir};
-use xeno_primitives::{Mode, Selection};
+use xeno_primitives::{Mode, Range, Selection};
 use xeno_registry::commands::{CommandEditorOps, CommandError};
 use xeno_registry::options::{OptionKey, OptionScope, OptionValue, find_by_kdl, parse};
 use xeno_registry::{
 	CommandQueueAccess, CursorAccess, EditAccess, EditorCapabilities, FileOpsAccess, FocusOps,
 	HookContext, HookEventData, JumpAccess, MacroAccess, ModeAccess, MotionAccess,
-	NotificationAccess, OptionAccess, PaletteAccess, SearchAccess, SelectionAccess, SplitOps,
-	ThemeAccess, UndoAccess, ViewportAccess, emit_sync_with as emit_hook_sync_with,
+	MotionDispatchAccess, MotionKind, MotionRequest, NotificationAccess, OptionAccess,
+	PaletteAccess, SearchAccess, SelectionAccess, SplitOps, ThemeAccess, UndoAccess,
+	ViewportAccess, emit_sync_with as emit_hook_sync_with,
 };
+use xeno_registry_motions as motions;
 use xeno_registry_notifications::{Notification, keys};
 
 use crate::impls::Editor;
@@ -168,6 +170,44 @@ impl EditAccess for Editor {
 impl MotionAccess for Editor {
 	fn move_visual_vertical(&mut self, direction: MoveDir, count: usize, extend: bool) {
 		self.move_visual_vertical(direction, count, extend);
+	}
+}
+
+impl MotionDispatchAccess for Editor {
+	fn apply_motion(&mut self, req: &MotionRequest) -> Selection {
+		let Some(motion_key) = motions::find(req.id.as_str()) else {
+			tracing::warn!("unknown motion: {}", req.id.as_str());
+			return self.selection().clone();
+		};
+
+		let handler = motion_key.def().handler;
+		let selection = self.selection().clone();
+		let MotionRequest {
+			count,
+			extend,
+			kind,
+			..
+		} = *req;
+
+		let new_ranges = self.buffer().with_doc(|doc| {
+			let text = doc.content().slice(..);
+			selection
+				.ranges()
+				.iter()
+				.map(|range| {
+					let new_range = handler(text, *range, count, extend);
+					match kind {
+						MotionKind::Cursor if extend => Range::new(range.anchor, new_range.head),
+						MotionKind::Cursor => Range::point(new_range.head),
+						MotionKind::Selection => Range::new(range.anchor, new_range.head),
+						MotionKind::Word if extend => Range::new(range.anchor, new_range.head),
+						MotionKind::Word => new_range,
+					}
+				})
+				.collect::<Vec<_>>()
+		});
+
+		Selection::from_vec(new_ranges, selection.primary_index())
 	}
 }
 
@@ -458,6 +498,10 @@ impl EditorCapabilities for Editor {
 	}
 
 	fn motion(&mut self) -> Option<&mut dyn MotionAccess> {
+		Some(self)
+	}
+
+	fn motion_dispatch(&mut self) -> Option<&mut dyn MotionDispatchAccess> {
 		Some(self)
 	}
 

@@ -1,21 +1,28 @@
 //! Insert mode text entry actions.
 
 use xeno_primitives::range::Range;
-use xeno_primitives::{Mode, Selection};
-use xeno_registry_motions::{MotionKey, keys as motions};
+use xeno_primitives::{Mode, MotionId, Selection, motion_ids};
 
-use crate::{ActionContext, ActionEffects, ActionResult, AppEffect, Effect, action, edit_op};
+use crate::{
+	ActionContext, ActionEffects, ActionResult, AppEffect, Effect, MotionKind, MotionRequest,
+	ViewEffect, action, edit_op,
+};
 
-/// Applies a typed motion to all cursors before entering insert mode.
-pub fn insert_with_motion(ctx: &ActionContext, motion: MotionKey) -> ActionResult {
-	let motion_def = motion.def();
-	let mut new_selection = ctx.selection.clone();
-	new_selection.transform_mut(|range| {
-		*range = (motion_def.handler)(ctx.text, *range, 1, false);
-	});
-
+/// Emits a motion request followed by a mode change to insert mode.
+///
+/// The executor will apply the motion first, then switch to insert mode.
+pub fn insert_with_motion(_ctx: &ActionContext, id: MotionId) -> ActionResult {
 	ActionResult::Effects(
-		ActionEffects::motion(new_selection).with(Effect::App(AppEffect::SetMode(Mode::Insert))),
+		ActionEffects::from_effect(
+			ViewEffect::Motion(MotionRequest {
+				id,
+				count: 1,
+				extend: false,
+				kind: MotionKind::Cursor,
+			})
+			.into(),
+		)
+		.with(Effect::App(AppEffect::SetMode(Mode::Insert))),
 	)
 }
 
@@ -28,10 +35,10 @@ action!(insert_mode, { description: "Switch to insert mode", bindings: r#"normal
 });
 
 action!(insert_line_start, { description: "Insert at start of line", bindings: r#"normal "I""# },
-	|ctx| insert_with_motion(ctx, motions::line_start));
+	|ctx| insert_with_motion(ctx, motion_ids::LINE_START));
 
 action!(insert_line_end, { description: "Insert at end of line", bindings: r#"normal "A""# },
-	|ctx| insert_with_motion(ctx, motions::line_end));
+	|ctx| insert_with_motion(ctx, motion_ids::LINE_END));
 
 action!(insert_after, { description: "Insert after cursor", bindings: r#"normal "a""# }, |ctx| {
 	let max_pos = ctx.text.len_chars();

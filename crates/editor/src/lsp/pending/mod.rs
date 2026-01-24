@@ -250,6 +250,7 @@ impl PendingLspState {
 	}
 
 	/// Returns whether a document has an in-flight send.
+	#[cfg(test)]
 	pub fn is_in_flight(&self, doc_id: &DocumentId) -> bool {
 		self.in_flight.contains(doc_id)
 	}
@@ -462,10 +463,5 @@ impl PendingLspState {
 	/// Returns the number of documents with in-flight sends.
 	pub fn in_flight_count(&self) -> usize {
 		self.in_flight.len()
-	}
-
-	/// Returns true if there are any pending changes.
-	pub fn has_pending(&self) -> bool {
-		!self.pending.is_empty()
 	}
 }

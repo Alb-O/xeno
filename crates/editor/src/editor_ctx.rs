@@ -87,6 +87,18 @@ fn apply_view_effect(
 			emit_selection_hook(ctx, sel);
 		}
 
+		ViewEffect::Motion(req) => {
+			if let Some(dispatch) = ctx.motion_dispatch() {
+				let sel = dispatch.apply_motion(req);
+				ctx.set_cursor(sel.primary().head);
+				ctx.set_selection(sel.clone());
+				emit_cursor_hook(ctx);
+				emit_selection_hook(ctx, &sel);
+			} else {
+				trace!("motion dispatch not available");
+			}
+		}
+
 		ViewEffect::ScreenMotion { position, count } => {
 			apply_screen_motion(ctx, *position, *count, extend);
 		}

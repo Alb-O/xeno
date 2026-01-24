@@ -17,8 +17,6 @@ pub enum LspUiEvent {
 	CompletionResult {
 		generation: u64,
 		buffer_id: ViewId,
-		cursor: CharIdx,
-		doc_version: u64,
 		replace_start: usize,
 		response: Option<CompletionResponse>,
 	},
@@ -50,8 +48,6 @@ impl Editor {
 			LspUiEvent::CompletionResult {
 				generation,
 				buffer_id,
-				cursor: _,
-				doc_version: _,
 				replace_start,
 				response,
 			} => {

@@ -1,4 +1,4 @@
-use xeno_registry_motions::movement;
+use xeno_primitives::movement;
 
 use crate::{ActionEffects, ActionResult, PendingAction, PendingKind, action};
 

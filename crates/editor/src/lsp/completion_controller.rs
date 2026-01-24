@@ -6,7 +6,6 @@ use tokio::time::sleep;
 use tokio_util::sync::CancellationToken;
 use xeno_lsp::ClientHandle;
 use xeno_lsp::lsp_types::{CompletionContext, CompletionTriggerKind, Position, Uri};
-use xeno_primitives::range::CharIdx;
 
 use super::events::LspUiEvent;
 use crate::buffer::ViewId;
@@ -86,8 +85,6 @@ impl CompletionController {
 			let _ = request.ui_tx.send(LspUiEvent::CompletionResult {
 				generation,
 				buffer_id: request.buffer_id,
-				cursor: request.cursor,
-				doc_version: request.doc_version,
 				replace_start: request.replace_start,
 				response,
 			});
@@ -97,8 +94,6 @@ impl CompletionController {
 
 pub struct CompletionRequest {
 	pub buffer_id: ViewId,
-	pub cursor: CharIdx,
-	pub doc_version: u64,
 	pub replace_start: usize,
 	pub client: ClientHandle,
 	pub uri: Uri,

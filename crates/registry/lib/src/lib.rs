@@ -42,15 +42,16 @@ pub mod plugin;
 pub use actions::editor_ctx::{
 	CommandQueueAccess, CursorAccess, EditAccess, EditorCapabilities, EditorContext, EditorOps,
 	FileOpsAccess, FocusOps, HandleOutcome, JumpAccess, MacroAccess, ModeAccess, MotionAccess,
-	NotificationAccess, OptionAccess, PaletteAccess, ResultHandler, SearchAccess, SelectionAccess,
-	SplitOps, TextAccess, ThemeAccess, UndoAccess, ViewportAccess,
+	MotionDispatchAccess, NotificationAccess, OptionAccess, PaletteAccess, ResultHandler,
+	SearchAccess, SelectionAccess, SplitOps, TextAccess, ThemeAccess, UndoAccess, ViewportAccess,
 };
 pub use actions::{
 	ActionArgs, ActionContext, ActionDef, ActionEffects, ActionHandler, ActionResult, AppEffect,
 	BindingMode, EditEffect, Effect, KEY_PREFIXES, KEYBINDINGS, KeyBindingDef, KeyPrefixDef, Mode,
-	ObjectSelectionKind, PendingAction, PendingKind, RESULT_EFFECTS_HANDLERS,
-	RESULT_EXTENSION_HANDLERS, ScreenPosition, ScrollAmount, UiEffect, ViewEffect, action,
-	dispatch_result, edit_op, find_prefix, key_prefix, result_extension_handler, result_handler,
+	MotionKind, MotionRequest, ObjectSelectionKind, PendingAction, PendingKind,
+	RESULT_EFFECTS_HANDLERS, RESULT_EXTENSION_HANDLERS, ScreenPosition, ScrollAmount, UiEffect,
+	ViewEffect, action, dispatch_result, edit_op, find_prefix, key_prefix,
+	result_extension_handler, result_handler,
 };
 // Re-export direction types (via actions which re-exports from xeno-base)
 pub use actions::{Axis, SeqDirection, SpatialDirection};

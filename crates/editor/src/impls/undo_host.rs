@@ -14,6 +14,7 @@ pub(super) struct EditorUndoHost<'a> {
 	pub config: &'a Config,
 	pub frame: &'a mut FrameState,
 	pub notifications: &'a mut xeno_tui::widgets::notifications::ToastManager,
+	#[cfg(feature = "lsp")]
 	pub lsp: &'a mut crate::LspSystem,
 }
 

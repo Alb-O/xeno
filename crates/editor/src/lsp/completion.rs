@@ -93,8 +93,6 @@ impl Editor {
 		};
 		let request = CompletionRequest {
 			buffer_id: self.focused_view(),
-			cursor: buffer.cursor,
-			doc_version: buffer.version(),
 			replace_start,
 			client,
 			uri,

@@ -22,10 +22,51 @@
 
 use xeno_primitives::direction::{Axis, SeqDirection, SpatialDirection};
 use xeno_primitives::range::{CharIdx, Direction};
-use xeno_primitives::{Mode, Selection};
+use xeno_primitives::{Mode, MotionId, Selection};
 use xeno_registry_notifications::Notification;
 
 use crate::{PendingAction, ScreenPosition};
+
+/// Specifies how a motion should be applied to the selection.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum MotionKind {
+	/// Move cursor, collapse to point if not extending.
+	///
+	/// This is the default cursor movement behavior (h, j, k, l, etc.).
+	#[default]
+	Cursor,
+
+	/// Create selection from current position to motion target.
+	///
+	/// Used for operator-pending or shift-modified motions where the
+	/// selection should span from current cursor to the new position.
+	Selection,
+
+	/// Word-boundary-aware selection semantics.
+	///
+	/// Applies sophisticated selection logic based on word boundaries:
+	/// - Forward from word: selects to target, excluding next word's first char
+	/// - Backward or non-word landing on word: selects just the target word
+	/// - Landing on non-word: moves cursor without selection
+	Word,
+}
+
+/// Request to execute a motion primitive.
+///
+/// Actions emit this instead of calling motion handlers directly.
+/// The executor resolves the motion ID to a handler and applies
+/// it with the appropriate selection semantics.
+#[derive(Debug, Clone)]
+pub struct MotionRequest {
+	/// The motion to execute.
+	pub id: MotionId,
+	/// Repeat count (1 if not specified).
+	pub count: usize,
+	/// Whether to extend selection or move cursor.
+	pub extend: bool,
+	/// How to apply the motion to the selection.
+	pub kind: MotionKind,
+}
 
 #[cfg(test)]
 mod tests;
@@ -107,6 +148,48 @@ impl ActionEffects {
 	#[inline]
 	pub fn motion(sel: Selection) -> Self {
 		Self::from_effect(ViewEffect::SetSelection(sel).into())
+	}
+
+	/// Emits a [`MotionKind::Cursor`] motion request.
+	#[inline]
+	pub fn cursor_motion(id: MotionId, count: usize, extend: bool) -> Self {
+		Self::from_effect(
+			ViewEffect::Motion(MotionRequest {
+				id,
+				count,
+				extend,
+				kind: MotionKind::Cursor,
+			})
+			.into(),
+		)
+	}
+
+	/// Emits a [`MotionKind::Selection`] motion request.
+	#[inline]
+	pub fn selection_motion(id: MotionId, count: usize, extend: bool) -> Self {
+		Self::from_effect(
+			ViewEffect::Motion(MotionRequest {
+				id,
+				count,
+				extend,
+				kind: MotionKind::Selection,
+			})
+			.into(),
+		)
+	}
+
+	/// Emits a [`MotionKind::Word`] motion request.
+	#[inline]
+	pub fn word_motion(id: MotionId, count: usize, extend: bool) -> Self {
+		Self::from_effect(
+			ViewEffect::Motion(MotionRequest {
+				id,
+				count,
+				extend,
+				kind: MotionKind::Word,
+			})
+			.into(),
+		)
 	}
 
 	/// Changes the editor mode.
@@ -228,6 +311,9 @@ pub enum ViewEffect {
 
 	/// Set selection (includes cursor at primary head).
 	SetSelection(Selection),
+
+	/// Execute a motion primitive by ID.
+	Motion(MotionRequest),
 
 	/// Move cursor to screen-relative position (H/M/L).
 	ScreenMotion {

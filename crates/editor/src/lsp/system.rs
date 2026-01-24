@@ -1,12 +1,13 @@
 use crate::buffer::Buffer;
 use crate::render::{DiagnosticLineMap, DiagnosticRangeMap};
 
+#[cfg(feature = "lsp")]
 pub struct LspSystem {
-	#[cfg(feature = "lsp")]
 	inner: RealLspSystem,
-	#[cfg(not(feature = "lsp"))]
-	inner: NoopLspSystem,
 }
+
+#[cfg(not(feature = "lsp"))]
+pub struct LspSystem;
 
 #[cfg(feature = "lsp")]
 struct RealLspSystem {
@@ -19,33 +20,28 @@ struct RealLspSystem {
 	ui_rx: tokio::sync::mpsc::UnboundedReceiver<crate::lsp::LspUiEvent>,
 }
 
-#[cfg(not(feature = "lsp"))]
-struct NoopLspSystem;
-
+#[cfg(feature = "lsp")]
 impl LspSystem {
 	pub fn new() -> Self {
-		#[cfg(feature = "lsp")]
-		{
-			let (ui_tx, ui_rx) = tokio::sync::mpsc::unbounded_channel();
-			Self {
-				inner: RealLspSystem {
-					manager: crate::lsp::LspManager::new(),
-					pending: crate::lsp::pending::PendingLspState::new(),
-					completion: crate::lsp::CompletionController::new(),
-					signature_gen: 0,
-					signature_cancel: None,
-					ui_tx,
-					ui_rx,
-				},
-			}
+		let (ui_tx, ui_rx) = tokio::sync::mpsc::unbounded_channel();
+		Self {
+			inner: RealLspSystem {
+				manager: crate::lsp::LspManager::new(),
+				pending: crate::lsp::pending::PendingLspState::new(),
+				completion: crate::lsp::CompletionController::new(),
+				signature_gen: 0,
+				signature_cancel: None,
+				ui_tx,
+				ui_rx,
+			},
 		}
+	}
+}
 
-		#[cfg(not(feature = "lsp"))]
-		{
-			Self {
-				inner: NoopLspSystem,
-			}
-		}
+#[cfg(not(feature = "lsp"))]
+impl LspSystem {
+	pub fn new() -> Self {
+		Self
 	}
 }
 

@@ -151,6 +151,11 @@ impl<'a> EditorContext<'a> {
 		self.inner.motion()
 	}
 
+	/// Returns motion dispatch access if the capability is available.
+	pub fn motion_dispatch(&mut self) -> Option<&mut dyn MotionDispatchAccess> {
+		self.inner.motion_dispatch()
+	}
+
 	/// Returns split operations if the capability is available.
 	pub fn split_ops(&mut self) -> Option<&mut dyn SplitOps> {
 		self.inner.split_ops()
@@ -283,6 +288,13 @@ pub trait EditorCapabilities:
 
 	/// Access to visual cursor motion (optional).
 	fn motion(&mut self) -> Option<&mut dyn MotionAccess> {
+		None
+	}
+
+	/// Access to motion dispatch with text access (optional).
+	///
+	/// This enables resolving motion IDs to handlers and applying them.
+	fn motion_dispatch(&mut self) -> Option<&mut dyn MotionDispatchAccess> {
 		None
 	}
 

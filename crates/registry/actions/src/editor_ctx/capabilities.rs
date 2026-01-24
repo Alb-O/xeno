@@ -41,6 +41,7 @@ use xeno_registry_notifications::Notification;
 use xeno_registry_options::{OptionKey, TypedOptionKey};
 
 use crate::Mode;
+use crate::effects::MotionRequest;
 
 /// Cursor position access (required).
 ///
@@ -212,6 +213,17 @@ pub trait MotionAccess {
 	/// - `count`: Number of visual lines to move
 	/// - `extend`: If true, extends selection rather than moving
 	fn move_visual_vertical(&mut self, direction: Direction, count: usize, extend: bool);
+}
+
+/// Motion dispatch via ID resolution.
+///
+/// Resolves [`MotionId`] to handlers and applies them. Separate from
+/// [`MotionAccess`] because it requires document text access.
+///
+/// [`MotionId`]: xeno_primitives::MotionId
+pub trait MotionDispatchAccess {
+	/// Applies a motion request, returning the resulting selection.
+	fn apply_motion(&mut self, req: &MotionRequest) -> Selection;
 }
 
 /// File operations (optional).

@@ -41,7 +41,8 @@ pub use edit_op::{
 	CharMapKind, CursorAdjust, EditOp, EditPlan, PostEffect, PreEffect, SelectionOp, TextTransform,
 };
 pub use effects::{
-	ActionEffects, AppEffect, EditEffect, Effect, ScrollAmount, UiEffect, ViewEffect,
+	ActionEffects, AppEffect, EditEffect, Effect, MotionKind, MotionRequest, ScrollAmount,
+	UiEffect, ViewEffect,
 };
 pub use impls::insert::insert_with_motion;
 pub use impls::motions::{cursor_motion, selection_motion, word_motion};
@@ -60,7 +61,11 @@ pub use xeno_registry_core::{
 	Capability, CommandError, RegistryEntry, RegistryMeta, RegistryMetadata, RegistrySource,
 	impl_registry_entry,
 };
-pub use xeno_registry_motions::flags;
+/// Command flags for action definitions.
+pub mod flags {
+	/// No flags set.
+	pub const NONE: u32 = 0;
+}
 
 /// Typed handles for built-in actions.
 pub mod keys {
