@@ -50,7 +50,7 @@ async fn main() -> anyhow::Result<()> {
 	};
 
 	editor.kick_theme_load();
-	configure_lsp_servers(&mut editor);
+	editor.kick_lsp_catalog_load();
 	apply_user_config(&mut editor, user_config);
 
 	if let Some(theme_name) = cli.theme {
@@ -305,7 +305,7 @@ async fn run_editor_normal() -> anyhow::Result<()> {
 	};
 
 	editor.kick_theme_load();
-	configure_lsp_servers(&mut editor);
+	editor.kick_lsp_catalog_load();
 	apply_user_config(&mut editor, user_config);
 
 	run_editor(editor).await?;
@@ -351,35 +351,4 @@ fn setup_tracing() {
 		.init();
 
 	info!(path = ?log_path, "Tracing initialized");
-}
-
-/// Configures language servers from embedded `lsp.kdl` and `languages.kdl`.
-fn configure_lsp_servers(editor: &mut Editor) {
-	let Ok(server_defs) = xeno_runtime_language::load_lsp_configs() else {
-		return;
-	};
-	let lang_mapping = xeno_runtime_language::language_db().lsp_mapping();
-
-	let server_map: std::collections::HashMap<_, _> =
-		server_defs.iter().map(|s| (s.name.as_str(), s)).collect();
-
-	for (language, info) in &lang_mapping {
-		let Some(server_def) = info.servers.iter().find_map(|name| {
-			let def = server_map.get(name.as_str())?;
-			which::which(&def.command).ok().map(|_| def)
-		}) else {
-			continue;
-		};
-		editor.lsp_mut().configure_server(
-			language.clone(),
-			xeno_editor::lsp::LanguageServerConfig {
-				command: server_def.command.clone(),
-				args: server_def.args.clone(),
-				env: server_def.environment.clone(),
-				root_markers: info.roots.clone(),
-				config: server_def.config.clone(),
-				..Default::default()
-			},
-		);
-	}
 }

@@ -13,9 +13,14 @@ pub enum LspMsg {
 }
 
 impl LspMsg {
-    pub fn apply(self, _editor: &mut Editor) -> Dirty {
+    /// Applies this message to editor state, returning dirty flags.
+    pub fn apply(self, editor: &mut Editor) -> Dirty {
         match self {
-            Self::CatalogReady => Dirty::NONE,
+            Self::CatalogReady => {
+                tracing::debug!("LSP catalog ready, initializing for open buffers");
+                editor.kick_lsp_init_for_open_buffers();
+                Dirty::NONE
+            }
             Self::ServerFailed { language, error } => {
                 tracing::warn!(language, error, "LSP server failed");
                 Dirty::NONE
