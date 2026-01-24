@@ -77,6 +77,14 @@ impl LspSystem {
 		self.inner.manager.sync()
 	}
 
+	/// Get a cloned sync handle for background LSP operations.
+	///
+	/// This allows spawning background tasks that can open documents
+	/// without blocking the main thread.
+	pub fn sync_clone(&self) -> xeno_lsp::DocumentSync {
+		self.inner.manager.sync().clone()
+	}
+
 	pub fn registry(&self) -> &xeno_lsp::Registry {
 		self.inner.manager.registry()
 	}

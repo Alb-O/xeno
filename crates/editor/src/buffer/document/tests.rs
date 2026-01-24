@@ -342,13 +342,22 @@ fn reset_content_marks_syntax_dirty_and_reparses() {
 	let mut doc = Document::new("fn main() {}".into(), None);
 	let loader = language_loader();
 
+	// init_syntax_for_language now only sets language_id (lazy loading)
 	doc.init_syntax_for_language("rust", &loader);
+	assert!(doc.language_id().is_some());
+	assert!(!doc.has_syntax()); // syntax is created lazily on first ensure_syntax_clean
+	assert!(!doc.is_syntax_dirty());
+
+	// ensure_syntax_clean creates syntax on first call
+	doc.ensure_syntax_clean(&loader);
 	assert!(doc.has_syntax());
 	assert!(!doc.is_syntax_dirty());
 
+	// reset_content marks syntax as dirty
 	doc.reset_content("let x = 1;");
 	assert!(doc.is_syntax_dirty());
 
+	// ensure_syntax_clean reparses the syntax
 	doc.ensure_syntax_clean(&loader);
 	assert!(!doc.is_syntax_dirty());
 	assert!(doc.has_syntax());

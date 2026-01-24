@@ -51,9 +51,8 @@ async fn main() -> anyhow::Result<()> {
 	};
 
 	configure_lsp_servers(&mut editor);
-	if let Err(e) = editor.init_lsp_for_open_buffers().await {
-		warn!(error = %e, "Failed to initialize LSP for initial buffer");
-	}
+	// LSP init moved to run_editor - see kick_lsp_init_for_open_buffers()
+	// This ensures first frame renders before LSP server spawn/initialize
 
 	apply_user_config(&mut editor, user_config);
 
@@ -333,9 +332,8 @@ async fn run_editor_normal() -> anyhow::Result<()> {
 	};
 
 	configure_lsp_servers(&mut editor);
-	if let Err(e) = editor.init_lsp_for_open_buffers().await {
-		warn!(error = %e, "Failed to initialize LSP for initial buffer");
-	}
+	// LSP init moved to run_editor - see kick_lsp_init_for_open_buffers()
+	// This ensures first frame renders before LSP server spawn/initialize
 
 	apply_user_config(&mut editor, user_config);
 

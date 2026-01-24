@@ -168,7 +168,7 @@ impl DocumentSync {
 		language: &str,
 		text: String,
 	) -> Result<ClientHandle> {
-		let client = self.registry.get_or_start(language, path).await?;
+		let client = self.registry.get_or_start(language, path)?;
 
 		let uri = self
 			.documents

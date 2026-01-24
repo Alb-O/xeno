@@ -26,12 +26,13 @@
 //! });
 //!
 //! // Get or start a server for a Rust file
-//! let client = registry.get_or_start("rust", "/path/to/project").await?;
+//! let client = registry.get_or_start("rust", "/path/to/project")?;
 //! ```
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::time::Duration;
 
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
@@ -41,7 +42,7 @@ use tracing::{info, trace, warn};
 
 use crate::Result;
 use crate::client::{
-	ClientHandle, LanguageServerId, ServerConfig, SharedEventHandler, start_server,
+	ClientHandle, LanguageServerId, ServerConfig, ServerState, SharedEventHandler, start_server,
 };
 
 /// Configuration for a language server.
@@ -182,12 +183,14 @@ impl Registry {
 		self.configs.read().keys().cloned().collect()
 	}
 
-	/// Get an active client for a language and file path, starting one if needed.
+	/// Get or start a language server for a file path.
 	///
-	/// This finds the project root based on the configured root markers,
-	/// then returns an existing server for that root or starts a new one.
-	/// If an existing server has crashed, it will be cleaned up and restarted.
-	pub async fn get_or_start(&self, language: &str, file_path: &Path) -> Result<ClientHandle> {
+	/// Finds the project root based on configured root markers, then returns an existing
+	/// server or starts a new one. Crashed servers are cleaned up and restarted.
+	///
+	/// Returns immediately after spawning. Initialization runs in background with messages
+	/// queued until complete.
+	pub fn get_or_start(&self, language: &str, file_path: &Path) -> Result<ClientHandle> {
 		let config = self.get_config(language).ok_or_else(|| {
 			crate::Error::Protocol(format!("No server configured for {language}"))
 		})?;
@@ -195,7 +198,6 @@ impl Registry {
 		let root_path = find_root_path(file_path, &config.root_markers);
 		let key = (language.to_string(), root_path.clone());
 
-		// Check for existing server, clean up if dead
 		{
 			let servers = self.servers.read();
 			if let Some(instance) = servers.get(&key) {
@@ -206,16 +208,10 @@ impl Registry {
 			}
 		}
 
-		// Remove dead server if present
 		self.servers.write().remove(&key);
 
 		let id = LanguageServerId(self.next_id.fetch_add(1, Ordering::Relaxed));
-		info!(
-			language = %language,
-			command = %config.command,
-			root = ?root_path,
-			"Starting language server"
-		);
+		info!(language = %language, command = %config.command, root = ?root_path, "Starting language server");
 
 		let server_config = ServerConfig::new(&config.command, &root_path)
 			.args(config.args.iter().cloned())
@@ -229,9 +225,28 @@ impl Registry {
 			self.event_handler.clone(),
 		)?;
 
-		handle
-			.initialize(config.enable_snippets, config.config.clone())
-			.await?;
+		let init_handle = handle.clone();
+		let enable_snippets = config.enable_snippets;
+		let init_config = config.config.clone();
+
+		tokio::spawn(async move {
+			match tokio::time::timeout(
+				Duration::from_secs(30),
+				init_handle.initialize(enable_snippets, init_config),
+			)
+			.await
+			{
+				Ok(Ok(_)) => {}
+				Ok(Err(e)) => {
+					warn!(error = %e, "LSP initialize failed");
+					init_handle.set_state(ServerState::Dead);
+				}
+				Err(_) => {
+					warn!("LSP initialize timed out");
+					init_handle.set_state(ServerState::Dead);
+				}
+			}
+		});
 
 		self.servers.write().insert(
 			key,

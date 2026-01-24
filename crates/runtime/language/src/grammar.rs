@@ -105,8 +105,7 @@ fn auto_build_grammar(name: &str) -> Result<(), GrammarError> {
 
 	match fetch_status {
 		FetchStatus::Updated => {
-			eprintln!("Fetched grammar: {name}");
-			info!(grammar = name, "Fetched grammar source");
+			info!(grammar = %name, "Fetched grammar source");
 		}
 		FetchStatus::UpToDate | FetchStatus::Local => {}
 	}
@@ -116,8 +115,7 @@ fn auto_build_grammar(name: &str) -> Result<(), GrammarError> {
 
 	match build_status {
 		BuildStatus::Built => {
-			eprintln!("Compiled grammar: {name}");
-			info!(grammar = name, "Compiled grammar");
+			info!(grammar = %name, "Compiled grammar");
 		}
 		BuildStatus::AlreadyBuilt => {}
 	}

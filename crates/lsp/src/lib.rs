@@ -96,7 +96,7 @@ pub mod client;
 #[cfg(feature = "client")]
 pub use client::{
 	ClientHandle, LanguageServerId, LogLevel, LspEventHandler, NoOpEventHandler, OffsetEncoding,
-	ServerConfig, SharedEventHandler, start_server,
+	ServerConfig, ServerState, SharedEventHandler, start_server,
 };
 
 #[cfg(feature = "position")]

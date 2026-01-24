@@ -1,3 +1,6 @@
+// Prevent TUI pollution - grammar operations must use tracing, not stderr
+#![deny(clippy::print_stderr)]
+
 //! Tree-sitter syntax integration
 //!
 //! This crate provides Tree-sitter parsing, syntax highlighting, and structural

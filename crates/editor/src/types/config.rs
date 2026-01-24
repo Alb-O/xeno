@@ -1,6 +1,7 @@
 //! Editor configuration.
 
 use std::collections::HashMap;
+use std::sync::Arc;
 
 use xeno_registry::options::OptionStore;
 use xeno_registry::themes::Theme;
@@ -13,8 +14,8 @@ use xeno_runtime_language::LanguageLoader;
 pub struct Config {
 	/// Current theme.
 	pub theme: &'static Theme,
-	/// Language configuration loader.
-	pub language_loader: LanguageLoader,
+	/// Language configuration loader (Arc-wrapped for background task cloning).
+	pub language_loader: Arc<LanguageLoader>,
 	/// Global user configuration options.
 	pub global_options: OptionStore,
 	/// Per-language option overrides.
@@ -27,7 +28,7 @@ impl Config {
 		Self {
 			theme: xeno_registry::themes::get_theme(xeno_registry::themes::DEFAULT_THEME_ID)
 				.unwrap_or(&xeno_registry::themes::DEFAULT_THEME),
-			language_loader,
+			language_loader: Arc::new(language_loader),
 			global_options: OptionStore::new(),
 			language_options: HashMap::new(),
 		}

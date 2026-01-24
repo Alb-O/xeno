@@ -135,4 +135,51 @@ impl Editor {
 	pub async fn init_lsp_for_open_buffers(&mut self) -> anyhow::Result<()> {
 		Ok(())
 	}
+
+	/// Spawns background LSP init for open buffers.
+	///
+	/// Called after first frame setup to ensure TTFP is not blocked by
+	/// LSP server spawn/initialize.
+	#[cfg(feature = "lsp")]
+	pub fn kick_lsp_init_for_open_buffers(&mut self) {
+		use std::path::PathBuf;
+
+		let specs: Vec<(PathBuf, String, String)> = self
+			.state
+			.core
+			.buffers
+			.buffer_ids()
+			.filter_map(|id| {
+				let buffer = self.state.core.buffers.get_buffer(id)?;
+				let path = buffer.path()?;
+				let language = buffer.file_type()?;
+				if self.state.lsp.registry().get_config(&language).is_none() {
+					return None;
+				}
+				let abs_path = path
+					.canonicalize()
+					.unwrap_or_else(|_| std::env::current_dir().unwrap_or_default().join(path));
+				let content = buffer.with_doc(|doc| doc.content().to_string());
+				Some((abs_path, language, content))
+			})
+			.collect();
+
+		if specs.is_empty() {
+			return;
+		}
+
+		tracing::debug!(count = specs.len(), "Kicking background LSP init");
+		let sync = self.state.lsp.sync_clone();
+
+		tokio::spawn(async move {
+			for (path, language, content) in specs {
+				if let Err(e) = sync.open_document_text(&path, &language, content).await {
+					tracing::warn!(path = %path.display(), language, error = %e, "Background LSP init failed");
+				}
+			}
+		});
+	}
+
+	#[cfg(not(feature = "lsp"))]
+	pub fn kick_lsp_init_for_open_buffers(&mut self) {}
 }

@@ -181,6 +181,9 @@ pub(crate) struct EditorState {
 	/// LSP system (real or no-op depending on feature flags).
 	pub(crate) lsp: LspSystem,
 
+	/// Background syntax loading manager.
+	pub(crate) syntax_manager: crate::syntax_manager::SyntaxManager,
+
 	/// Style overlays for rendering modifications.
 	pub(crate) style_overlays: StyleOverlays,
 
@@ -290,6 +293,7 @@ impl Editor {
 					.overflow(xeno_tui::widgets::notifications::Overflow::DropOldest),
 				extensions: ExtensionMap::new(),
 				lsp: LspSystem::new(),
+				syntax_manager: crate::syntax_manager::SyntaxManager::new(),
 				style_overlays: StyleOverlays::new(),
 				hook_runtime,
 				overlays: OverlayManager::new(),

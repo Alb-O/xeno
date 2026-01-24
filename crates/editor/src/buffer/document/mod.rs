@@ -96,6 +96,10 @@ pub struct Document {
 	/// Detected file type (e.g., "rust", "python").
 	pub file_type: Option<String>,
 
+	/// Language ID for syntax highlighting (set by init_syntax).
+	/// Actual Syntax loading is deferred to SyntaxManager.
+	language_id: Option<xeno_runtime_language::LanguageId>,
+
 	/// Syntax highlighting state.
 	syntax: Option<Syntax>,
 
@@ -133,6 +137,7 @@ impl Document {
 			readonly: false,
 			undo_backend: UndoBackend::default(),
 			file_type: None,
+			language_id: None,
 			syntax: None,
 			syntax_dirty: false,
 			insert_undo_active: false,
@@ -174,22 +179,34 @@ impl Document {
 	}
 
 	/// Initializes syntax highlighting for this document based on file path.
+	///
+	/// This only sets the `language_id` and `file_type` fields. Actual syntax
+	/// loading is deferred to [`SyntaxManager`] for async background parsing.
+	///
+	/// [`SyntaxManager`]: crate::syntax_manager::SyntaxManager
 	pub fn init_syntax(&mut self, language_loader: &LanguageLoader) {
 		if let Some(ref p) = self.path
 			&& let Some(lang_id) = language_loader.language_for_path(p)
 		{
 			let lang_data = language_loader.get(lang_id);
 			self.file_type = lang_data.map(|l| l.name.clone());
-			self.syntax = Syntax::new(self.content.slice(..), lang_id, language_loader).ok();
+			self.language_id = Some(lang_id);
+			// Syntax loading deferred to SyntaxManager - do NOT call Syntax::new here
 		}
 	}
 
 	/// Initializes syntax highlighting for this document by language name.
+	///
+	/// This only sets the `language_id` and `file_type` fields. Actual syntax
+	/// loading is deferred to [`SyntaxManager`] for async background parsing.
+	///
+	/// [`SyntaxManager`]: crate::syntax_manager::SyntaxManager
 	pub fn init_syntax_for_language(&mut self, name: &str, language_loader: &LanguageLoader) {
 		if let Some(lang_id) = language_loader.language_for_name(name) {
 			let lang_data = language_loader.get(lang_id);
 			self.file_type = lang_data.map(|l| l.name.clone());
-			self.syntax = Syntax::new(self.content.slice(..), lang_id, language_loader).ok();
+			self.language_id = Some(lang_id);
+			// Syntax loading deferred to SyntaxManager - do NOT call Syntax::new here
 		}
 	}
 
@@ -554,14 +571,23 @@ impl Document {
 		self.syntax_dirty
 	}
 
-	/// Ensures the syntax tree is up-to-date, reparsing if marked dirty.
+	/// Ensures the syntax tree is up-to-date, creating or reparsing as needed.
 	///
 	/// Call this before accessing syntax highlights to ensure consistency.
-	/// This is the lazy reparse hook - edits mark syntax as dirty, and this
-	/// method performs the actual reparse when highlights are needed.
+	/// This is the lazy load hook - syntax is only created when first needed
+	/// (not during buffer creation), and reparsed when marked dirty.
 	pub fn ensure_syntax_clean(&mut self, language_loader: &LanguageLoader) {
-		if self.syntax_dirty {
+		// If syntax exists and is dirty, reparse it
+		if self.syntax.is_some() && self.syntax_dirty {
 			self.reparse_syntax(language_loader);
+			return;
+		}
+
+		// If no syntax but language_id is set, create syntax lazily
+		if self.syntax.is_none() {
+			if let Some(lang_id) = self.language_id {
+				self.syntax = Syntax::new(self.content.slice(..), lang_id, language_loader).ok();
+			}
 		}
 	}
 
@@ -573,6 +599,26 @@ impl Document {
 	/// Returns a mutable reference to the syntax highlighting state.
 	pub fn syntax_mut(&mut self) -> Option<&mut Syntax> {
 		self.syntax.as_mut()
+	}
+
+	/// Returns the language ID for this document.
+	pub fn language_id(&self) -> Option<xeno_runtime_language::LanguageId> {
+		self.language_id
+	}
+
+	/// Updates the syntax from a completed background parse.
+	///
+	/// Called by [`SyntaxManager`] when a background parse completes.
+	///
+	/// [`SyntaxManager`]: crate::syntax_manager::SyntaxManager
+	pub fn set_syntax(&mut self, syntax: Option<Syntax>) {
+		self.syntax = syntax;
+		self.syntax_dirty = false;
+	}
+
+	/// Marks syntax as dirty (needing reparse).
+	pub fn mark_syntax_dirty(&mut self) {
+		self.syntax_dirty = true;
 	}
 
 	/// Resets the insert undo grouping flag.

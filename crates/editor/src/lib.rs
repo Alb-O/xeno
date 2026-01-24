@@ -66,6 +66,8 @@ pub mod render;
 pub mod scheduler;
 /// Separator drag and hover state.
 pub mod separator;
+/// Background syntax loading manager.
+pub mod syntax_manager;
 /// Style utilities and conversions.
 pub mod styles;
 /// Terminal capability configuration.

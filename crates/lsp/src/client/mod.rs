@@ -48,6 +48,7 @@
 //! let hover = client.hover(uri, position).await?;
 //! ```
 
+use std::collections::{HashMap, VecDeque};
 use std::ops::ControlFlow;
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
@@ -62,7 +63,7 @@ use lsp_types::{
 };
 use serde_json::Value;
 use tokio::process::Command;
-use tokio::sync::{Notify, OnceCell, mpsc};
+use tokio::sync::{Notify, OnceCell, mpsc, watch};
 use tracing::{debug, error, info, warn};
 
 mod capabilities;
@@ -78,6 +79,17 @@ use crate::router::Router;
 use crate::socket::MainLoopEvent;
 use crate::types::{AnyNotification, AnyRequest, AnyResponse, RequestId};
 use crate::{Error, MainLoop, Result, ServerSocket};
+
+/// LSP server lifecycle state.
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+pub enum ServerState {
+	/// Process spawned, initialize in progress.
+	Starting,
+	/// initialize/initialized complete, ready for requests.
+	Ready,
+	/// Failed or exited.
+	Dead,
+}
 
 /// Handle to an LSP language server.
 ///
@@ -102,6 +114,8 @@ pub struct ClientHandle {
 	outbound_tx: mpsc::Sender<OutboundMsg>,
 	/// Per-request timeout.
 	timeout: Duration,
+	/// Server state broadcast channel (sender).
+	state_tx: watch::Sender<ServerState>,
 }
 
 impl std::fmt::Debug for ClientHandle {
@@ -129,6 +143,21 @@ impl ClientHandle {
 	/// Check if the server has been initialized.
 	pub fn is_initialized(&self) -> bool {
 		self.capabilities.initialized()
+	}
+
+	/// Get the current server state.
+	pub fn state(&self) -> ServerState {
+		*self.state_tx.borrow()
+	}
+
+	/// Set the server state.
+	pub fn set_state(&self, state: ServerState) {
+		let _ = self.state_tx.send(state);
+	}
+
+	/// Subscribe to state changes.
+	pub fn subscribe_state(&self) -> watch::Receiver<ServerState> {
+		self.state_tx.subscribe()
 	}
 
 	/// Get the server's capabilities.
@@ -276,6 +305,9 @@ impl ClientHandle {
 
 		// Send initialized notification
 		self.notify::<lsp_types::notification::Initialized>(lsp_types::InitializedParams {})?;
+
+		// Transition to Ready state
+		self.set_state(ServerState::Ready);
 
 		Ok(result)
 	}
@@ -726,31 +758,159 @@ enum OutboundMsg {
 	},
 }
 
-async fn outbound_dispatcher(mut rx: mpsc::Receiver<OutboundMsg>, socket: ServerSocket) {
-	while let Some(msg) = rx.recv().await {
-		let result = match msg {
-			OutboundMsg::Notification { notification } => socket
+const MAX_PENDING_MSGS: usize = 1024;
+
+/// Queue for messages pending server initialization.
+///
+/// Coalesces didOpen/didChange by URI to prevent unbounded growth during slow init.
+struct PendingQueue {
+	/// didOpen notifications keyed by URI (latest wins).
+	did_open: HashMap<String, OutboundMsg>,
+	/// didChange notifications keyed by URI (latest wins).
+	did_change: HashMap<String, OutboundMsg>,
+	/// Other messages in FIFO order.
+	fifo: VecDeque<OutboundMsg>,
+}
+
+impl PendingQueue {
+	fn new() -> Self {
+		Self {
+			did_open: HashMap::new(),
+			did_change: HashMap::new(),
+			fifo: VecDeque::new(),
+		}
+	}
+
+	fn len(&self) -> usize {
+		self.did_open.len() + self.did_change.len() + self.fifo.len()
+	}
+
+	/// Enqueue a message, coalescing by URI for document notifications.
+	/// Returns false if queue is full.
+	fn enqueue(&mut self, msg: OutboundMsg) -> bool {
+		if self.len() >= MAX_PENDING_MSGS {
+			return false;
+		}
+
+		match &msg {
+			OutboundMsg::Notification { notification } => {
+				if notification.method == "textDocument/didOpen" {
+					if let Some(uri) = extract_uri(&notification.params) {
+						self.did_open.insert(uri, msg);
+						return true;
+					}
+				}
+				self.fifo.push_back(msg);
+			}
+			OutboundMsg::DidChange { notification, .. } => {
+				if let Some(uri) = extract_uri(&notification.params) {
+					self.did_change.insert(uri, msg);
+					return true;
+				}
+				self.fifo.push_back(msg);
+			}
+			OutboundMsg::Request { .. } => {
+				self.fifo.push_back(msg);
+			}
+		}
+		true
+	}
+
+	/// Flush all pending messages in order: didOpen, didChange, then FIFO.
+	fn flush(&mut self) -> Vec<OutboundMsg> {
+		let mut result = Vec::with_capacity(self.len());
+		result.extend(self.did_open.drain().map(|(_, v)| v));
+		result.extend(self.did_change.drain().map(|(_, v)| v));
+		result.extend(self.fifo.drain(..));
+		result
+	}
+}
+
+/// Extract URI from textDocument notification params.
+fn extract_uri(params: &Value) -> Option<String> {
+	params
+		.get("textDocument")
+		.and_then(|td| td.get("uri"))
+		.and_then(|u| u.as_str())
+		.map(String::from)
+}
+
+/// Send a message to the socket.
+fn send_msg(socket: &ServerSocket, msg: OutboundMsg) -> std::result::Result<(), ()> {
+	match msg {
+		OutboundMsg::Notification { notification } => socket
+			.0
+			.send(MainLoopEvent::Outgoing(Message::Notification(notification)))
+			.map_err(|_| ()),
+		OutboundMsg::Request {
+			request,
+			response_tx,
+		} => socket
+			.0
+			.send(MainLoopEvent::OutgoingRequest(request, response_tx))
+			.map_err(|_| ()),
+		OutboundMsg::DidChange { notification, ack } => match ack {
+			Some(ack) => socket
 				.0
-				.send(MainLoopEvent::Outgoing(Message::Notification(notification))),
-			OutboundMsg::Request {
-				request,
-				response_tx,
-			} => socket
-				.0
-				.send(MainLoopEvent::OutgoingRequest(request, response_tx)),
-			OutboundMsg::DidChange { notification, ack } => match ack {
-				Some(ack) => socket.0.send(MainLoopEvent::OutgoingWithAck(
+				.send(MainLoopEvent::OutgoingWithAck(
 					Message::Notification(notification),
 					ack,
-				)),
-				None => socket
-					.0
-					.send(MainLoopEvent::Outgoing(Message::Notification(notification))),
-			},
-		};
+				))
+				.map_err(|_| ()),
+			None => socket
+				.0
+				.send(MainLoopEvent::Outgoing(Message::Notification(notification)))
+				.map_err(|_| ()),
+		},
+	}
+}
 
-		if let Err(err) = result {
-			warn!(error = %err, "Failed to queue LSP outbound message");
+/// Dispatches outbound messages to the server.
+///
+/// Gates traffic until `initialized` notification is sent, ensuring LSP protocol ordering.
+async fn outbound_dispatcher(
+	mut rx: mpsc::Receiver<OutboundMsg>,
+	socket: ServerSocket,
+	mut state_rx: watch::Receiver<ServerState>,
+) {
+	let mut pending = PendingQueue::new();
+	let mut initialized = false;
+
+	loop {
+		tokio::select! {
+			biased;
+
+			msg = rx.recv() => {
+				let Some(msg) = msg else { break };
+
+				if initialized {
+					let _ = send_msg(&socket, msg);
+					continue;
+				}
+
+				let is_init_request =
+					matches!(&msg, OutboundMsg::Request { request, .. } if request.method == "initialize");
+				let is_initialized_notif =
+					matches!(&msg, OutboundMsg::Notification { notification } if notification.method == "initialized");
+
+				if is_init_request || is_initialized_notif {
+					let _ = send_msg(&socket, msg);
+					if is_initialized_notif {
+						initialized = true;
+						for queued in pending.flush() {
+							let _ = send_msg(&socket, queued);
+						}
+					}
+				} else if !pending.enqueue(msg) {
+					warn!("LSP pending queue full, dropping message");
+				}
+			}
+
+			_ = state_rx.changed() => {
+				if *state_rx.borrow() == ServerState::Dead {
+					break;
+				}
+			}
 		}
 	}
 }
@@ -832,6 +992,7 @@ pub fn start_server(
 
 	let capabilities = Arc::new(OnceCell::new());
 	let initialize_notify = Arc::new(Notify::new());
+	let (state_tx, state_rx) = watch::channel(ServerState::Starting);
 
 	// Use provided event handler or a no-op default
 	let handler: SharedEventHandler = event_handler.unwrap_or_else(|| Arc::new(NoOpEventHandler));
@@ -923,7 +1084,7 @@ pub fn start_server(
 	});
 
 	let (outbound_tx, outbound_rx) = mpsc::channel(OUTBOUND_QUEUE_LEN);
-	tokio::spawn(outbound_dispatcher(outbound_rx, socket));
+	tokio::spawn(outbound_dispatcher(outbound_rx, socket, state_rx));
 
 	let handle = ClientHandle {
 		id,
@@ -934,6 +1095,7 @@ pub fn start_server(
 		initialize_notify,
 		outbound_tx,
 		timeout: Duration::from_secs(config.timeout_secs),
+		state_tx,
 	};
 
 	let server_id = id;
@@ -976,13 +1138,26 @@ mod tests {
 	use crate::socket::PeerSocket;
 
 	#[tokio::test]
-	async fn outbound_dispatcher_preserves_fifo_order() {
+	async fn outbound_dispatcher_preserves_fifo_order_after_init() {
 		let (peer_tx, mut peer_rx) = futures::channel::mpsc::unbounded();
 		let socket = ServerSocket(PeerSocket { tx: peer_tx });
 
+		let (_state_tx, state_rx) = watch::channel(ServerState::Starting);
 		let (outbound_tx, outbound_rx) = mpsc::channel(4);
-		tokio::spawn(outbound_dispatcher(outbound_rx, socket));
+		tokio::spawn(outbound_dispatcher(outbound_rx, socket, state_rx));
 
+		// Send initialized notification to unlock the dispatcher
+		outbound_tx
+			.send(OutboundMsg::Notification {
+				notification: AnyNotification {
+					method: "initialized".into(),
+					params: serde_json::Value::Null,
+				},
+			})
+			.await
+			.unwrap();
+
+		// Now send actual notifications
 		outbound_tx
 			.send(OutboundMsg::Notification {
 				notification: AnyNotification {
@@ -1002,6 +1177,15 @@ mod tests {
 			.await
 			.unwrap();
 
+		// First should be the initialized notification
+		let init = peer_rx.next().await.expect("init event");
+		match init {
+			MainLoopEvent::Outgoing(Message::Notification(notif)) => {
+				assert_eq!(notif.method, "initialized");
+			}
+			other => panic!("unexpected init event: {:?}", other),
+		}
+
 		let first = peer_rx.next().await.expect("first event");
 		let second = peer_rx.next().await.expect("second event");
 
@@ -1017,6 +1201,55 @@ mod tests {
 				assert_eq!(notif.method, "second");
 			}
 			other => panic!("unexpected second event: {:?}", other),
+		}
+	}
+
+	#[tokio::test]
+	async fn outbound_dispatcher_gates_until_initialized() {
+		let (peer_tx, mut peer_rx) = futures::channel::mpsc::unbounded();
+		let socket = ServerSocket(PeerSocket { tx: peer_tx });
+
+		let (_state_tx, state_rx) = watch::channel(ServerState::Starting);
+		let (outbound_tx, outbound_rx) = mpsc::channel(4);
+		tokio::spawn(outbound_dispatcher(outbound_rx, socket, state_rx));
+
+		// Send a didOpen notification before initialized - should be queued
+		outbound_tx
+			.send(OutboundMsg::Notification {
+				notification: AnyNotification {
+					method: "textDocument/didOpen".into(),
+					params: serde_json::json!({"textDocument": {"uri": "file:///test.rs"}}),
+				},
+			})
+			.await
+			.unwrap();
+
+		// Send initialized to flush the queue
+		outbound_tx
+			.send(OutboundMsg::Notification {
+				notification: AnyNotification {
+					method: "initialized".into(),
+					params: serde_json::Value::Null,
+				},
+			})
+			.await
+			.unwrap();
+
+		// First should be initialized, then the queued didOpen
+		let init = peer_rx.next().await.expect("init event");
+		match init {
+			MainLoopEvent::Outgoing(Message::Notification(notif)) => {
+				assert_eq!(notif.method, "initialized");
+			}
+			other => panic!("unexpected init event: {:?}", other),
+		}
+
+		let did_open = peer_rx.next().await.expect("didOpen event");
+		match did_open {
+			MainLoopEvent::Outgoing(Message::Notification(notif)) => {
+				assert_eq!(notif.method, "textDocument/didOpen");
+			}
+			other => panic!("unexpected didOpen event: {:?}", other),
 		}
 	}
 }
