@@ -28,7 +28,10 @@ fn ensure_git_available() -> Result<()> {
 	Ok(())
 }
 
-/// Fetch a single grammar from its git repository.
+/// Fetches a grammar from its git repository.
+///
+/// Checks the current revision before fetching to avoid unnecessary network calls.
+/// Returns [`FetchStatus::Local`] for non-git sources.
 pub fn fetch_grammar(grammar: &GrammarConfig) -> Result<FetchStatus> {
 	let GrammarSource::Git {
 		remote, revision, ..
@@ -42,120 +45,104 @@ pub fn fetch_grammar(grammar: &GrammarConfig) -> Result<FetchStatus> {
 	let grammar_dir = grammar_sources_dir().join(&grammar.grammar_id);
 	fs::create_dir_all(&grammar_dir)?;
 
-	// Check for .git/HEAD to ensure this is a valid git repo, not a partial clone
-	if grammar_dir.join(".git").join("HEAD").exists() {
-		info!(grammar = %grammar.grammar_id, "Updating grammar");
-		let fetch_output = Command::new("git")
-			.args(["fetch", "--depth", "1", "origin", revision])
-			.current_dir(&grammar_dir)
-			.output()
-			.map_err(|e| GrammarBuildError::GitCommand(e.to_string()))?;
-
-		if !fetch_output.status.success() {
-			return Err(GrammarBuildError::GitCommand(
-				String::from_utf8_lossy(&fetch_output.stderr).to_string(),
-			));
-		}
-
-		// Check if we're already at the right revision
-		let rev_parse = Command::new("git")
-			.args(["rev-parse", "HEAD"])
-			.current_dir(&grammar_dir)
-			.output()
-			.map_err(|e| GrammarBuildError::GitCommand(e.to_string()))?;
-
-		let current_rev = String::from_utf8_lossy(&rev_parse.stdout)
-			.trim()
-			.to_string();
-
-		if current_rev.starts_with(revision) || revision.starts_with(&current_rev) {
-			return Ok(FetchStatus::UpToDate);
-		}
-
-		// Checkout the new revision
-		let checkout_output = Command::new("git")
-			.args(["checkout", "FETCH_HEAD"])
-			.current_dir(&grammar_dir)
-			.output()
-			.map_err(|e| GrammarBuildError::GitCommand(e.to_string()))?;
-
-		if !checkout_output.status.success() {
-			return Err(GrammarBuildError::GitCommand(
-				String::from_utf8_lossy(&checkout_output.stderr).to_string(),
-			));
-		}
-
-		Ok(FetchStatus::Updated)
+	if is_valid_git_repo(&grammar_dir) {
+		update_existing_repo(&grammar_dir, &grammar.grammar_id, revision)
 	} else {
-		// Clean up any partial/corrupted clone before trying again
-		if grammar_dir.exists() {
-			fs::remove_dir_all(&grammar_dir)?;
-			fs::create_dir_all(&grammar_dir)?;
-		}
+		clone_fresh(&grammar_dir, &grammar.grammar_id, remote, revision)
+	}
+}
 
-		info!(grammar = %grammar.grammar_id, "Cloning grammar");
-		let clone_output = Command::new("git")
-			.args([
-				"clone",
-				"--depth",
-				"1",
-				"--single-branch",
-				remote,
-				grammar_dir.to_str().unwrap(),
-			])
-			.output()
-			.map_err(|e| GrammarBuildError::GitCommand(e.to_string()))?;
+fn is_valid_git_repo(dir: &std::path::Path) -> bool {
+	dir.join(".git").join("HEAD").exists()
+}
 
-		if !clone_output.status.success() {
-			return Err(GrammarBuildError::GitCommand(
-				String::from_utf8_lossy(&clone_output.stderr).to_string(),
-			));
-		}
+fn update_existing_repo(
+	grammar_dir: &std::path::Path,
+	grammar_id: &str,
+	revision: &str,
+) -> Result<FetchStatus> {
+	let current_rev = git_rev_parse(grammar_dir)?;
 
-		// Fetch the specific revision
-		let fetch_output = Command::new("git")
-			.args(["fetch", "--depth", "1", "origin", revision])
-			.current_dir(&grammar_dir)
-			.output()
-			.map_err(|e| GrammarBuildError::GitCommand(e.to_string()))?;
+	if current_rev.starts_with(revision) || revision.starts_with(&current_rev) {
+		return Ok(FetchStatus::UpToDate);
+	}
 
-		if !fetch_output.status.success() {
-			// Try without depth for older git versions or if revision is a branch
-			let fetch_output = Command::new("git")
-				.args(["fetch", "origin", revision])
-				.current_dir(&grammar_dir)
-				.output()
-				.map_err(|e| GrammarBuildError::GitCommand(e.to_string()))?;
+	info!(grammar = %grammar_id, "Updating grammar");
+	git_fetch(grammar_dir, revision)?;
+	git_checkout(grammar_dir, "FETCH_HEAD")?;
 
-			if !fetch_output.status.success() {
-				return Err(GrammarBuildError::GitCommand(
-					String::from_utf8_lossy(&fetch_output.stderr).to_string(),
-				));
-			}
-		}
+	Ok(FetchStatus::Updated)
+}
 
-		// Checkout the revision
-		let checkout_output = Command::new("git")
-			.args(["checkout", revision])
-			.current_dir(&grammar_dir)
-			.output()
-			.map_err(|e| GrammarBuildError::GitCommand(e.to_string()))?;
+fn clone_fresh(
+	grammar_dir: &std::path::Path,
+	grammar_id: &str,
+	remote: &str,
+	revision: &str,
+) -> Result<FetchStatus> {
+	if grammar_dir.exists() {
+		fs::remove_dir_all(grammar_dir)?;
+		fs::create_dir_all(grammar_dir)?;
+	}
 
-		if !checkout_output.status.success() {
-			// Try FETCH_HEAD if direct checkout fails
-			let checkout_output = Command::new("git")
-				.args(["checkout", "FETCH_HEAD"])
-				.current_dir(&grammar_dir)
-				.output()
-				.map_err(|e| GrammarBuildError::GitCommand(e.to_string()))?;
+	info!(grammar = %grammar_id, "Cloning grammar");
+	git_clone(remote, grammar_dir)?;
+	git_fetch(grammar_dir, revision).or_else(|_| git_fetch_full(grammar_dir, revision))?;
+	git_checkout(grammar_dir, revision).or_else(|_| git_checkout(grammar_dir, "FETCH_HEAD"))?;
 
-			if !checkout_output.status.success() {
-				return Err(GrammarBuildError::GitCommand(
-					String::from_utf8_lossy(&checkout_output.stderr).to_string(),
-				));
-			}
-		}
+	Ok(FetchStatus::Updated)
+}
 
-		Ok(FetchStatus::Updated)
+fn git_rev_parse(dir: &std::path::Path) -> Result<String> {
+	let output = Command::new("git")
+		.args(["rev-parse", "HEAD"])
+		.current_dir(dir)
+		.output()
+		.map_err(|e| GrammarBuildError::GitCommand(e.to_string()))?;
+
+	Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
+}
+
+fn git_fetch(dir: &std::path::Path, revision: &str) -> Result<()> {
+	run_git(dir, &["fetch", "--depth", "1", "origin", revision])
+}
+
+fn git_fetch_full(dir: &std::path::Path, revision: &str) -> Result<()> {
+	run_git(dir, &["fetch", "origin", revision])
+}
+
+fn git_checkout(dir: &std::path::Path, target: &str) -> Result<()> {
+	run_git(dir, &["checkout", target])
+}
+
+fn git_clone(remote: &str, dest: &std::path::Path) -> Result<()> {
+	let output = Command::new("git")
+		.args(["clone", "--depth", "1", "--single-branch", remote])
+		.arg(dest)
+		.output()
+		.map_err(|e| GrammarBuildError::GitCommand(e.to_string()))?;
+
+	if output.status.success() {
+		Ok(())
+	} else {
+		Err(GrammarBuildError::GitCommand(
+			String::from_utf8_lossy(&output.stderr).into(),
+		))
+	}
+}
+
+fn run_git(dir: &std::path::Path, args: &[&str]) -> Result<()> {
+	let output = Command::new("git")
+		.args(args)
+		.current_dir(dir)
+		.output()
+		.map_err(|e| GrammarBuildError::GitCommand(e.to_string()))?;
+
+	if output.status.success() {
+		Ok(())
+	} else {
+		Err(GrammarBuildError::GitCommand(
+			String::from_utf8_lossy(&output.stderr).into(),
+		))
 	}
 }

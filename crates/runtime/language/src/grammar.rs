@@ -49,6 +49,7 @@ pub fn load_grammar(name: &str) -> Result<Grammar, GrammarError> {
 
 	for path in grammar_search_paths() {
 		let lib_path = path.join(&lib_name);
+		tracing::debug!(grammar = name, path = %lib_path.display(), exists = lib_path.exists(), "Checking grammar path");
 
 		if lib_path.exists() {
 			return load_grammar_from_path(&lib_path, name);
@@ -87,7 +88,9 @@ pub fn load_grammar_or_build(name: &str) -> Result<Grammar, GrammarError> {
 
 /// Fetches grammar source from git and compiles it to a shared library.
 fn auto_build_grammar(name: &str) -> Result<(), GrammarError> {
-	use crate::build::{build_grammar, fetch_grammar, load_grammar_configs};
+	use crate::build::{
+		BuildStatus, FetchStatus, build_grammar, fetch_grammar, load_grammar_configs,
+	};
 
 	let configs = load_grammar_configs()
 		.map_err(|e| GrammarError::Io(std::io::Error::other(e.to_string())))?;
@@ -97,23 +100,38 @@ fn auto_build_grammar(name: &str) -> Result<(), GrammarError> {
 		.find(|c| c.grammar_id == name)
 		.ok_or_else(|| GrammarError::NotFound(format!("{} (no config in grammars.kdl)", name)))?;
 
-	eprintln!("Fetching grammar: {name}");
-	info!(grammar = name, "Fetching grammar source");
-	fetch_grammar(&config)
+	let fetch_status = fetch_grammar(&config)
 		.map_err(|e| GrammarError::Io(std::io::Error::other(format!("fetch failed: {}", e))))?;
 
-	eprintln!("Compiling grammar: {name}");
-	info!(grammar = name, "Building grammar");
-	build_grammar(&config)
+	match fetch_status {
+		FetchStatus::Updated => {
+			eprintln!("Fetched grammar: {name}");
+			info!(grammar = name, "Fetched grammar source");
+		}
+		FetchStatus::UpToDate | FetchStatus::Local => {}
+	}
+
+	let build_status = build_grammar(&config)
 		.map_err(|e| GrammarError::Io(std::io::Error::other(format!("build failed: {}", e))))?;
 
-	info!(grammar = name, "Successfully built grammar");
+	match build_status {
+		BuildStatus::Built => {
+			eprintln!("Compiled grammar: {name}");
+			info!(grammar = name, "Compiled grammar");
+		}
+		BuildStatus::AlreadyBuilt => {}
+	}
+
 	Ok(())
 }
 
 /// Loads a grammar from a specific library path.
+///
+/// # Safety
+///
+/// Loads a tree-sitter grammar from a dynamic library, which requires
+/// the library to export the expected `tree_sitter_{name}` symbol.
 fn load_grammar_from_path(path: &Path, name: &str) -> Result<Grammar, GrammarError> {
-	// SAFETY: Loading a tree-sitter grammar from a dynamic library.
 	unsafe {
 		Grammar::new(name, path)
 			.map_err(|e| GrammarError::LoadError(format!("{}: {}", path.display(), e)))
