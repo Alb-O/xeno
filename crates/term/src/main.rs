@@ -40,9 +40,9 @@ async fn main() -> anyhow::Result<()> {
 
 	let mut editor = match cli.file_location() {
 		Some(loc) => {
-			let mut ed = Editor::new(loc.path).await?;
+			let mut ed = Editor::new_with_path(loc.path);
 			if let Some(line) = loc.line {
-				ed.goto_line_col(line, loc.column.unwrap_or(0));
+				ed.set_deferred_goto(line, loc.column.unwrap_or(0));
 			}
 			ed
 		}

@@ -98,20 +98,60 @@ impl Editor {
 	/// Applies a loaded file to the editor.
 	///
 	/// Called by [`IoMsg::FileLoaded`] when background file loading completes.
-	/// Replaces the current buffer's content with the loaded rope.
-	#[allow(unused_variables)]
+	/// Replaces the buffer's content with the loaded rope and emits hooks.
 	pub(crate) fn apply_loaded_file(&mut self, path: PathBuf, rope: Rope, readonly: bool) {
 		tracing::debug!(path = %path.display(), len = rope.len_bytes(), "File loaded");
+
+		self.state.loading_file = None;
+
+		let Some(buffer_id) = self.state.core.buffers.find_by_path(&path) else {
+			tracing::warn!(path = %path.display(), "No buffer found for loaded file");
+			return;
+		};
+
+		let Some(buffer) = self.state.core.buffers.get_buffer_mut(buffer_id) else {
+			return;
+		};
+
+		buffer.reset_content(rope.clone());
+		if readonly {
+			buffer.set_readonly(true);
+		}
+		buffer.set_modified(false);
+		buffer.set_cursor_and_selection(0, xeno_primitives::Selection::point(0));
+
+		let file_type = buffer.file_type();
+		crate::impls::emit_hook_sync_with(
+			&HookContext::new(
+				HookEventData::BufferOpen {
+					path: &path,
+					text: rope.slice(..),
+					file_type: file_type.as_deref(),
+				},
+				None,
+			),
+			&mut self.state.hook_runtime,
+		);
+
+		if let Some((line, column)) = self.state.deferred_goto.take() {
+			self.goto_line_col(line, column);
+		}
 	}
 
-	/// Notifies the user of a file load error.
-	///
-	/// Called by [`IoMsg::LoadFailed`] when background file loading fails.
+	/// Notifies the user of a file load error and clears loading state.
 	pub(crate) fn notify_load_error(&mut self, path: &Path, error: &io::Error) {
+		if self.state.loading_file.as_deref() == Some(path) {
+			self.state.loading_file = None;
+		}
 		self.show_notification(xeno_registry_notifications::keys::error(format!(
 			"Failed to load {}: {}",
 			path.display(),
 			error
 		)));
+	}
+
+	/// Returns the path of the file currently being loaded, if any.
+	pub fn loading_file(&self) -> Option<&Path> {
+		self.state.loading_file.as_deref()
 	}
 }

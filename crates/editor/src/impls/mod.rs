@@ -203,6 +203,12 @@ pub(crate) struct EditorState {
 	pub(crate) msg_tx: MsgSender,
 	/// Message receiver for main loop drain.
 	pub(crate) msg_rx: MsgReceiver,
+
+	/// Path of file currently being loaded in background, if any.
+	pub(crate) loading_file: Option<PathBuf>,
+
+	/// Deferred cursor position to apply after file loads (line, column).
+	pub(crate) deferred_goto: Option<(usize, usize)>,
 }
 
 pub struct Editor {
@@ -212,9 +218,30 @@ pub struct Editor {
 impl xeno_registry::EditorOps for Editor {}
 
 impl Editor {
+	/// Creates an editor with a file path, loading content in the background.
+	///
+	/// Returns immediately with an empty buffer and loading indicator. Content
+	/// is loaded asynchronously via [`kick_file_load`] and swapped in when ready.
+	///
+	/// [`kick_file_load`]: Self::kick_file_load
+	pub fn new_with_path(path: PathBuf) -> Self {
+		let mut editor = Self::from_content(String::new(), Some(path.clone()));
+		editor.state.loading_file = Some(path.clone());
+		editor.kick_file_load(path);
+		editor
+	}
+
+	/// Sets a deferred goto position to apply after file finishes loading.
+	pub fn set_deferred_goto(&mut self, line: usize, column: usize) {
+		self.state.deferred_goto = Some((line, column));
+	}
+
 	/// Creates a new editor by loading content from the given file path.
 	///
-	/// If the file exists but is not writable, the buffer is opened in readonly mode.
+	/// Prefer [`new_with_path`] for non-blocking startup. This method blocks
+	/// on file I/O before returning.
+	///
+	/// [`new_with_path`]: Self::new_with_path
 	pub async fn new(path: PathBuf) -> anyhow::Result<Self> {
 		let content = match tokio::fs::read_to_string(&path).await {
 			Ok(s) => s,
@@ -310,6 +337,8 @@ impl Editor {
 				metrics: std::sync::Arc::new(crate::metrics::EditorMetrics::new()),
 				msg_tx,
 				msg_rx,
+				loading_file: None,
+				deferred_goto: None,
 			},
 		}
 	}
