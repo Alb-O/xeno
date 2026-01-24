@@ -10,13 +10,17 @@ use crate::msg::{EditorMsg, IoMsg, MsgSender, ThemeMsg};
 use super::Editor;
 
 impl Editor {
-    /// Spawns a background task to load themes.
+    /// Spawns a background task to load and register themes.
     ///
+    /// Loads embedded themes and user themes from the config directory.
     /// Sends [`ThemeMsg::ThemesReady`] when complete.
     pub fn kick_theme_load(&self) {
         let tx = self.msg_tx();
+        let user_themes_dir = crate::paths::get_config_dir().map(|d| d.join("themes"));
+
         tokio::spawn(async move {
-            send(&tx, ThemeMsg::ThemesReady);
+            let errors = load_themes_blocking(user_themes_dir).await;
+            send(&tx, ThemeMsg::ThemesReady { errors });
         });
     }
 
@@ -38,6 +42,30 @@ impl Editor {
             }
         });
     }
+}
+
+/// Loads embedded and user themes in a blocking context.
+///
+/// Returns parse errors as (filename, error message) pairs.
+async fn load_themes_blocking(user_themes_dir: Option<PathBuf>) -> Vec<(String, String)> {
+    tokio::task::spawn_blocking(move || {
+        let mut errors = xeno_runtime_config::load_and_register_embedded_themes();
+
+        if let Some(dir) = user_themes_dir {
+            if dir.exists() {
+                match xeno_runtime_config::load_and_register_themes(&dir) {
+                    Ok(e) => errors.extend(e),
+                    Err(e) => {
+                        tracing::warn!(error = %e, "failed to read user themes directory");
+                    }
+                }
+            }
+        }
+
+        errors
+    })
+    .await
+    .unwrap_or_default()
 }
 
 fn send<M: Into<EditorMsg>>(tx: &MsgSender, msg: M) {

@@ -23,11 +23,17 @@ pub struct Config {
 }
 
 impl Config {
-	/// Creates a new config with default theme and empty options.
+	/// Creates a new config with bootstrap theme and empty options.
+	///
+	/// Uses [`DEFAULT_THEME`] directly to avoid triggering lazy theme registry
+	/// initialization. The configured theme is resolved when
+	/// [`ThemeMsg::ThemesReady`] fires.
+	///
+	/// [`DEFAULT_THEME`]: xeno_registry::themes::DEFAULT_THEME
+	/// [`ThemeMsg::ThemesReady`]: crate::msg::ThemeMsg::ThemesReady
 	pub fn new(language_loader: LanguageLoader) -> Self {
 		Self {
-			theme: xeno_registry::themes::get_theme(xeno_registry::themes::DEFAULT_THEME_ID)
-				.unwrap_or(&xeno_registry::themes::DEFAULT_THEME),
+			theme: &xeno_registry::themes::DEFAULT_THEME,
 			language_loader: Arc::new(language_loader),
 			global_options: OptionStore::new(),
 			language_options: HashMap::new(),

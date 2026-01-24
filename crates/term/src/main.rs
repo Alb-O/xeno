@@ -36,7 +36,6 @@ async fn main() -> anyhow::Result<()> {
 		None => {}
 	}
 
-	let theme_errors = load_themes();
 	let user_config = load_user_config();
 
 	let mut editor = match cli.file_location() {
@@ -50,41 +49,20 @@ async fn main() -> anyhow::Result<()> {
 		None => Editor::new_scratch(),
 	};
 
+	editor.kick_theme_load();
 	configure_lsp_servers(&mut editor);
-	// LSP init moved to run_editor - see kick_lsp_init_for_open_buffers()
-	// This ensures first frame renders before LSP server spawn/initialize
-
 	apply_user_config(&mut editor, user_config);
 
-	if let Some(theme_name) = cli.theme
-		&& let Err(e) = editor.set_theme(&theme_name)
-	{
-		warn!(theme = %theme_name, error = %e, "failed to set theme");
-	}
-
-	for (filename, error) in theme_errors {
-		editor.notify(xeno_registry::notification_keys::error(format!(
-			"{filename}: {error}"
-		)));
+	if let Some(theme_name) = cli.theme {
+		use xeno_registry::options::OptionValue;
+		editor
+			.config_mut()
+			.global_options
+			.set(keys::THEME.untyped(), OptionValue::String(theme_name));
 	}
 
 	run_editor(editor).await?;
 	Ok(())
-}
-
-/// Loads embedded themes and overlays user themes from config directory.
-fn load_themes() -> Vec<(String, String)> {
-	let mut errors = xeno_runtime_config::load_and_register_embedded_themes();
-
-	if let Some(user_themes_dir) = xeno_editor::paths::get_config_dir().map(|d| d.join("themes"))
-		&& user_themes_dir.exists()
-	{
-		match xeno_runtime_config::load_and_register_themes(&user_themes_dir) {
-			Ok(e) => errors.extend(e),
-			Err(e) => warn!(error = %e, "failed to read user themes directory"),
-		}
-	}
-	errors
 }
 
 /// Loads user config from `~/.config/xeno/config.kdl`.
@@ -109,6 +87,8 @@ fn load_user_config() -> Option<xeno_runtime_config::Config> {
 }
 
 /// Applies user config options to the editor.
+///
+/// Theme preferences are stored but not resolved until themes finish loading.
 fn apply_user_config(editor: &mut Editor, config: Option<xeno_runtime_config::Config>) {
 	let Some(config) = config else { return };
 
@@ -121,12 +101,6 @@ fn apply_user_config(editor: &mut Editor, config: Option<xeno_runtime_config::Co
 			.entry(lang_config.name)
 			.or_default()
 			.merge(&lang_config.options);
-	}
-
-	if let Some(theme_name) = config.options.get_string(keys::THEME.untyped())
-		&& let Err(e) = editor.set_theme(theme_name)
-	{
-		warn!(theme = theme_name, error = %e, "failed to set config theme");
 	}
 }
 
@@ -316,7 +290,6 @@ fn setup_socket_tracing(socket_path: &str) {
 
 /// Runs the editor with standard initialization for socket logging mode.
 async fn run_editor_normal() -> anyhow::Result<()> {
-	let theme_errors = load_themes();
 	let user_config = load_user_config();
 
 	let mut editor = match std::env::args().nth(1) {
@@ -331,17 +304,9 @@ async fn run_editor_normal() -> anyhow::Result<()> {
 		_ => Editor::new_scratch(),
 	};
 
+	editor.kick_theme_load();
 	configure_lsp_servers(&mut editor);
-	// LSP init moved to run_editor - see kick_lsp_init_for_open_buffers()
-	// This ensures first frame renders before LSP server spawn/initialize
-
 	apply_user_config(&mut editor, user_config);
-
-	for (filename, error) in theme_errors {
-		editor.notify(xeno_registry::notification_keys::error(format!(
-			"{filename}: {error}"
-		)));
-	}
 
 	run_editor(editor).await?;
 	Ok(())
