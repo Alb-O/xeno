@@ -5,7 +5,9 @@
 
 use std::path::PathBuf;
 
-use crate::msg::{EditorMsg, IoMsg, LspMsg, MsgSender, ThemeMsg};
+use crate::msg::{EditorMsg, IoMsg, MsgSender, ThemeMsg};
+#[cfg(feature = "lsp")]
+use crate::msg::LspMsg;
 
 use super::Editor;
 

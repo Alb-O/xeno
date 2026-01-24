@@ -571,23 +571,16 @@ impl Document {
 		self.syntax_dirty
 	}
 
-	/// Ensures the syntax tree is up-to-date, creating or reparsing as needed.
+	/// Ensures the syntax tree is up-to-date by reparsing if marked dirty.
 	///
 	/// Call this before accessing syntax highlights to ensure consistency.
-	/// This is the lazy load hook - syntax is only created when first needed
-	/// (not during buffer creation), and reparsed when marked dirty.
+	/// Only reparses existing syntax; initial syntax creation is handled by
+	/// [`SyntaxManager`] in the background to avoid blocking render.
+	///
+	/// [`SyntaxManager`]: crate::syntax_manager::SyntaxManager
 	pub fn ensure_syntax_clean(&mut self, language_loader: &LanguageLoader) {
-		// If syntax exists and is dirty, reparse it
 		if self.syntax.is_some() && self.syntax_dirty {
 			self.reparse_syntax(language_loader);
-			return;
-		}
-
-		// If no syntax but language_id is set, create syntax lazily
-		if self.syntax.is_none() {
-			if let Some(lang_id) = self.language_id {
-				self.syntax = Syntax::new(self.content.slice(..), lang_id, language_loader).ok();
-			}
 		}
 	}
 
@@ -619,6 +612,16 @@ impl Document {
 	/// Marks syntax as dirty (needing reparse).
 	pub fn mark_syntax_dirty(&mut self) {
 		self.syntax_dirty = true;
+	}
+
+	/// Clears the syntax dirty flag.
+	pub fn clear_syntax_dirty(&mut self) {
+		self.syntax_dirty = false;
+	}
+
+	/// Takes the syntax out of the document, leaving `None`.
+	pub fn take_syntax(&mut self) -> Option<Syntax> {
+		self.syntax.take()
 	}
 
 	/// Resets the insert undo grouping flag.

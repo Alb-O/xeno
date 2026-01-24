@@ -339,17 +339,20 @@ fn commit_incremental_or_dirty_without_syntax_marks_dirty() {
 
 #[test]
 fn reset_content_marks_syntax_dirty_and_reparses() {
+	use xeno_runtime_language::syntax::Syntax;
+
 	let mut doc = Document::new("fn main() {}".into(), None);
 	let loader = language_loader();
 
-	// init_syntax_for_language now only sets language_id (lazy loading)
+	// init_syntax_for_language sets language_id (syntax creation is deferred to SyntaxManager)
 	doc.init_syntax_for_language("rust", &loader);
 	assert!(doc.language_id().is_some());
-	assert!(!doc.has_syntax()); // syntax is created lazily on first ensure_syntax_clean
+	assert!(!doc.has_syntax());
 	assert!(!doc.is_syntax_dirty());
 
-	// ensure_syntax_clean creates syntax on first call
-	doc.ensure_syntax_clean(&loader);
+	// Create syntax directly (simulating what SyntaxManager would do)
+	let syntax = Syntax::new(doc.content().slice(..), doc.language_id().unwrap(), &loader).ok();
+	doc.set_syntax(syntax);
 	assert!(doc.has_syntax());
 	assert!(!doc.is_syntax_dirty());
 

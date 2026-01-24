@@ -97,6 +97,79 @@ impl Editor {
 		);
 	}
 
+	/// Polls background syntax parsing for all buffers, installing results when ready.
+	///
+	/// Non-blocking: pending parses are polled but do not block render. Buffers with
+	/// clean syntax are skipped. Buffer info is collected upfront to avoid holding
+	/// borrows across [`SyntaxManager`] calls.
+	///
+	/// [`SyntaxManager`]: crate::syntax_manager::SyntaxManager
+	pub fn ensure_syntax_for_buffers(&mut self) {
+		let loader = std::sync::Arc::clone(&self.state.config.language_loader);
+
+		let buffer_info: Vec<_> = self
+			.state
+			.core
+			.buffers
+			.buffer_ids()
+			.filter_map(|id| {
+				let buffer = self.state.core.buffers.get_buffer(id)?;
+				let (doc_id, version, lang_id, content, has_syntax, syntax_dirty) =
+					buffer.with_doc(|doc| {
+						(
+							doc.id,
+							doc.version(),
+							doc.language_id(),
+							doc.content().clone(),
+							doc.syntax().is_some(),
+							doc.is_syntax_dirty(),
+						)
+					});
+				if has_syntax && !syntax_dirty {
+					return None;
+				}
+				Some((id, doc_id, version, lang_id, content))
+			})
+			.collect();
+
+		for (buffer_id, doc_id, version, lang_id, content) in buffer_info {
+			let (mut syntax, mut dirty) = self
+				.state
+				.core
+				.buffers
+				.get_buffer(buffer_id)
+				.map(|b| b.with_doc_mut(|doc| (doc.take_syntax(), doc.is_syntax_dirty())))
+				.unwrap_or((None, false));
+
+			let result = self.state.syntax_manager.ensure_syntax(
+				doc_id,
+				version,
+				lang_id,
+				&content,
+				&mut syntax,
+				&mut dirty,
+				&loader,
+			);
+
+			if let Some(buffer) = self.state.core.buffers.get_buffer(buffer_id) {
+				buffer.with_doc_mut(|doc| {
+					doc.set_syntax(syntax);
+					if !dirty {
+						doc.clear_syntax_dirty();
+					}
+				});
+			}
+
+			if matches!(
+				result,
+				crate::syntax_manager::SyntaxPollResult::Ready
+					| crate::syntax_manager::SyntaxPollResult::Kicked
+			) {
+				self.state.frame.needs_redraw = true;
+			}
+		}
+	}
+
 	/// Marks a buffer dirty for LSP full sync (clears incremental changes, bumps version).
 	///
 	/// Use this after operations that replace the entire document content (e.g., undo/redo)

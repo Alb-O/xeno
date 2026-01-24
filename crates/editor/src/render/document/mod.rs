@@ -72,6 +72,9 @@ impl Editor {
 		// mouse clicks and other events that modify cursor after tick.
 		self.update_style_overlays();
 
+		// Poll background syntax parsing, installing results if ready.
+		self.ensure_syntax_for_buffers();
+
 		let use_block_cursor = true;
 
 		let area = frame.area();
