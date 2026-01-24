@@ -38,6 +38,8 @@ pub mod extensions;
 /// Async hook execution runtime.
 pub mod hook_runtime;
 pub mod impls;
+/// Async message bus for background task hydration.
+pub mod msg;
 /// Info popups for documentation and contextual help.
 pub mod info_popup;
 /// Input handling: key events, modes, and pending actions.
@@ -94,6 +96,7 @@ pub use lsp_system::LspSystem;
 pub use movement::WordType;
 pub use terminal_config::{TerminalConfig, TerminalSequence};
 pub use theme_source::ThemeSource;
+pub use msg::{Dirty, EditorMsg, IoMsg, LspMsg, MsgSender, ThemeMsg};
 pub use ui::UiManager;
 pub use xeno_registry::themes::{
 	ColorPair, ModeColors, PopupColors, SemanticColors, THEMES, Theme, ThemeColors, UiColors,

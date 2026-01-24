@@ -9,6 +9,24 @@ use super::Editor;
 use crate::extensions::StyleMod;
 
 impl Editor {
+	/// Resolves and applies the configured theme after themes are registered.
+	///
+	/// Called by [`ThemeMsg::ThemesReady`] after background theme loading completes.
+	/// Falls back to current theme if resolution fails.
+	pub(crate) fn resolve_configured_theme(&mut self) {
+		use xeno_registry::options::keys;
+		let theme_id = self
+			.state
+			.config
+			.global_options
+			.get_string(keys::THEME.untyped())
+			.map(|s| s.to_string())
+			.unwrap_or_else(|| xeno_registry::themes::DEFAULT_THEME_ID.to_string());
+		if let Err(e) = self.set_theme(&theme_id) {
+			tracing::warn!(theme = %theme_id, error = %e, "Failed to resolve configured theme");
+		}
+	}
+
 	/// Sets the editor's color theme by name.
 	pub fn set_theme(&mut self, theme_name: &str) -> Result<(), CommandError> {
 		if let Some(theme) = xeno_registry::themes::get_theme(theme_name) {

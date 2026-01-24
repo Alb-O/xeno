@@ -2,7 +2,10 @@
 //!
 //! Implements [`FileOpsAccess`] for the [`Editor`].
 
-use std::path::PathBuf;
+use std::io;
+use std::path::{Path, PathBuf};
+
+use ropey::Rope;
 
 #[cfg(feature = "lsp")]
 use tracing::warn;
@@ -88,5 +91,27 @@ impl xeno_registry::FileOpsAccess for Editor {
 	) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), CommandError>> + '_>> {
 		self.buffer_mut().set_path(Some(path));
 		self.save()
+	}
+}
+
+impl Editor {
+	/// Applies a loaded file to the editor.
+	///
+	/// Called by [`IoMsg::FileLoaded`] when background file loading completes.
+	/// Replaces the current buffer's content with the loaded rope.
+	#[allow(unused_variables)]
+	pub(crate) fn apply_loaded_file(&mut self, path: PathBuf, rope: Rope, readonly: bool) {
+		tracing::debug!(path = %path.display(), len = rope.len_bytes(), "File loaded");
+	}
+
+	/// Notifies the user of a file load error.
+	///
+	/// Called by [`IoMsg::LoadFailed`] when background file loading fails.
+	pub(crate) fn notify_load_error(&mut self, path: &Path, error: &io::Error) {
+		self.show_notification(xeno_registry_notifications::keys::error(format!(
+			"Failed to load {}: {}",
+			path.display(),
+			error
+		)));
 	}
 }

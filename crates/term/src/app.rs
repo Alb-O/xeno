@@ -98,6 +98,11 @@ pub async fn run_editor(mut editor: Editor) -> io::Result<()> {
 				break;
 			}
 
+			let msg_dirty = editor.drain_messages();
+			if msg_dirty.needs_redraw() {
+				editor.frame_mut().needs_redraw = true;
+			}
+
 			terminal.draw(|frame| editor.render(frame))?;
 
 			let cursor_style = editor

@@ -29,6 +29,8 @@ mod file_ops;
 mod focus;
 /// Undo/redo history.
 mod history;
+/// Background task spawning helpers.
+mod kick;
 /// Unified invocation dispatch.
 mod invocation;
 /// Editor lifecycle (tick, render).
@@ -69,6 +71,7 @@ use crate::LspSystem;
 use crate::buffer::{Layout, ViewId};
 pub use crate::command_queue::CommandQueue;
 use crate::extensions::{ExtensionMap, StyleOverlays};
+use crate::msg::{MsgReceiver, MsgSender};
 pub use crate::hook_runtime::HookRuntime;
 pub use crate::layout::{LayoutManager, SeparatorHit, SeparatorId};
 use crate::overlay::OverlayManager;
@@ -195,6 +198,11 @@ pub(crate) struct EditorState {
 
 	/// Runtime metrics for observability.
 	pub(crate) metrics: std::sync::Arc<crate::metrics::EditorMetrics>,
+
+	/// Message sender for background tasks.
+	pub(crate) msg_tx: MsgSender,
+	/// Message receiver for main loop drain.
+	pub(crate) msg_rx: MsgReceiver,
 }
 
 pub struct Editor {
@@ -232,6 +240,8 @@ impl Editor {
 	pub fn from_content(content: String, path: Option<PathBuf>) -> Self {
 		crate::editor_ctx::register_result_handlers();
 		log_registry_summary_once();
+
+		let (msg_tx, msg_rx) = crate::msg::channel();
 
 		// Initialize language loader from embedded languages.kdl
 		let language_loader = LanguageLoader::from_embedded();
@@ -298,6 +308,8 @@ impl Editor {
 				hook_runtime,
 				overlays: OverlayManager::new(),
 				metrics: std::sync::Arc::new(crate::metrics::EditorMetrics::new()),
+				msg_tx,
+				msg_rx,
 			},
 		}
 	}
@@ -561,6 +573,23 @@ impl Editor {
 	#[inline]
 	pub fn metrics_mut(&mut self) -> &mut std::sync::Arc<crate::metrics::EditorMetrics> {
 		&mut self.state.metrics
+	}
+
+	/// Returns a cloneable message sender for background tasks.
+	#[inline]
+	pub fn msg_tx(&self) -> MsgSender {
+		self.state.msg_tx.clone()
+	}
+
+	/// Drains pending messages, applying them to editor state.
+	///
+	/// Returns aggregated dirty flags indicating what needs redraw.
+	pub fn drain_messages(&mut self) -> crate::msg::Dirty {
+		let mut dirty = crate::msg::Dirty::NONE;
+		while let Ok(msg) = self.state.msg_rx.try_recv() {
+			dirty |= msg.apply(self);
+		}
+		dirty
 	}
 }
 
