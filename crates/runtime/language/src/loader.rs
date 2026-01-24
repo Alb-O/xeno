@@ -1,17 +1,18 @@
 //! Language loader and registry.
 //!
-//! The [`LanguageLoader`] is the central registry for all language configurations.
-//! It implements [`tree_house::LanguageLoader`] for injection handling.
+//! The [`LanguageLoader`] is a thin wrapper over [`LanguageDb`] that implements
+//! [`tree_house::LanguageLoader`] for injection handling.
+//!
+//! [`LanguageDb`]: crate::db::LanguageDb
 
 use std::borrow::Cow;
-use std::collections::HashMap;
 use std::path::Path;
+use std::sync::Arc;
 
-use tracing::error;
 pub use tree_house::Language as LanguageId;
 use tree_house::{InjectionLanguageMarker, Language, LanguageConfig as TreeHouseConfig};
 
-use crate::config::load_language_configs;
+use crate::db::{LanguageDb, language_db};
 use crate::language::LanguageData;
 
 /// Simple glob pattern matching for file detection.
@@ -68,76 +69,54 @@ fn glob_match_simple(pattern: &str, text: &str) -> bool {
 	t.next().is_none()
 }
 
-/// Central registry for all language configurations.
+/// Wrapper over [`LanguageDb`] implementing `tree_house::LanguageLoader`.
 ///
-/// Handles language registration with file type associations, lazy loading of
-/// grammars and queries, and lookup by filename, extension, shebang, or name.
-#[derive(Debug, Default)]
+/// Use [`from_embedded()`](Self::from_embedded) to create a loader backed by
+/// the global language database (parsed once from `languages.kdl`).
+#[derive(Debug, Clone)]
 pub struct LanguageLoader {
-	/// All registered language configurations.
-	languages: Vec<LanguageData>,
-	/// Maps file extensions to language indices.
-	by_extension: HashMap<String, usize>,
-	/// Maps exact filenames to language indices.
-	by_filename: HashMap<String, usize>,
-	/// Glob patterns paired with their language indices.
-	globs: Vec<(String, usize)>,
-	/// Maps shebang interpreter names to language indices.
-	by_shebang: HashMap<String, usize>,
-	/// Maps language names to their indices.
-	by_name: HashMap<String, usize>,
+	db: Arc<LanguageDb>,
+}
+
+impl Default for LanguageLoader {
+	fn default() -> Self {
+		Self::from_embedded()
+	}
 }
 
 impl LanguageLoader {
-	/// Creates a new empty loader.
+	/// Creates an empty loader.
+	///
+	/// Use [`from_embedded()`](Self::from_embedded) for a loader backed by the
+	/// global language database.
 	pub fn new() -> Self {
-		Self::default()
+		Self {
+			db: Arc::new(LanguageDb::new()),
+		}
 	}
 
-	/// Creates a loader populated from the embedded `languages.kdl`.
+	/// Creates a loader backed by the global language database.
 	pub fn from_embedded() -> Self {
-		let mut loader = Self::new();
-		match load_language_configs() {
-			Ok(langs) => {
-				for lang in langs {
-					loader.register(lang);
-				}
-			}
-			Err(e) => error!(error = %e, "Failed to load language configs"),
+		Self {
+			db: Arc::clone(language_db()),
 		}
-		loader
 	}
 
-	/// Registers a language and returns its ID.
-	pub fn register(&mut self, data: LanguageData) -> Language {
-		let idx = self.languages.len();
-
-		for ext in &data.extensions {
-			self.by_extension.insert(ext.clone(), idx);
-		}
-		for fname in &data.filenames {
-			self.by_filename.insert(fname.clone(), idx);
-		}
-		for glob in &data.globs {
-			self.globs.push((glob.clone(), idx));
-		}
-		for shebang in &data.shebangs {
-			self.by_shebang.insert(shebang.clone(), idx);
-		}
-		self.by_name.insert(data.name.clone(), idx);
-		self.languages.push(data);
-
-		Language::new(idx as u32)
+	/// Creates a loader from a custom database.
+	pub fn from_db(db: Arc<LanguageDb>) -> Self {
+		Self { db }
 	}
 
 	/// Gets language data by ID.
 	pub fn get(&self, lang: Language) -> Option<&LanguageData> {
-		self.languages.get(lang.idx())
+		self.db.get(lang.idx())
 	}
 
 	/// Finds a language by name.
 	pub fn language_for_name(&self, name: &str) -> Option<Language> {
-		self.by_name.get(name).map(|&idx| Language::new(idx as u32))
+		self.db
+			.index_for_name(name)
+			.map(|idx| Language::new(idx as u32))
 	}
 
 	/// Finds a language by file path.
@@ -145,21 +124,21 @@ impl LanguageLoader {
 		let filename = path.file_name().and_then(|n| n.to_str());
 
 		if let Some(name) = filename
-			&& let Some(&idx) = self.by_filename.get(name)
+			&& let Some(idx) = self.db.index_for_filename(name)
 		{
 			return Some(Language::new(idx as u32));
 		}
 
-		if let Some(&idx) = path
+		if let Some(idx) = path
 			.extension()
 			.and_then(|ext| ext.to_str())
-			.and_then(|ext| self.by_extension.get(ext))
+			.and_then(|ext| self.db.index_for_extension(ext))
 		{
 			return Some(Language::new(idx as u32));
 		}
 
 		let path_str = path.to_string_lossy();
-		for (pattern, idx) in &self.globs {
+		for (pattern, idx) in self.db.globs() {
 			if glob_matches(pattern, &path_str, filename) {
 				return Some(Language::new(*idx as u32));
 			}
@@ -186,15 +165,15 @@ impl LanguageLoader {
 
 		interpreter.and_then(|interp| {
 			let base = interp.trim_end_matches(|c: char| c.is_ascii_digit());
-			self.by_shebang
-				.get(base)
-				.map(|&idx| Language::new(idx as u32))
+			self.db
+				.index_for_shebang(base)
+				.map(|idx| Language::new(idx as u32))
 		})
 	}
 
 	/// Finds a language by matching text against injection regexes.
 	fn language_for_injection_match(&self, text: &str) -> Option<Language> {
-		self.languages.iter().enumerate().find_map(|(idx, lang)| {
+		self.db.languages().find_map(|(idx, lang)| {
 			lang.injection_regex
 				.as_ref()
 				.filter(|r| r.is_match(text))
@@ -204,20 +183,19 @@ impl LanguageLoader {
 
 	/// Returns all registered languages.
 	pub fn languages(&self) -> impl Iterator<Item = (Language, &LanguageData)> {
-		self.languages
-			.iter()
-			.enumerate()
+		self.db
+			.languages()
 			.map(|(idx, data)| (Language::new(idx as u32), data))
 	}
 
 	/// Returns the number of registered languages.
 	pub fn len(&self) -> usize {
-		self.languages.len()
+		self.db.len()
 	}
 
 	/// Returns true if no languages are registered.
 	pub fn is_empty(&self) -> bool {
-		self.languages.is_empty()
+		self.db.is_empty()
 	}
 }
 
@@ -238,7 +216,7 @@ impl tree_house::LanguageLoader for LanguageLoader {
 	}
 
 	fn get_config(&self, lang: Language) -> Option<&TreeHouseConfig> {
-		self.languages.get(lang.idx())?.syntax_config()
+		self.db.get(lang.idx())?.syntax_config()
 	}
 }
 
@@ -246,10 +224,9 @@ impl tree_house::LanguageLoader for LanguageLoader {
 mod tests {
 	use super::*;
 
-	#[test]
-	fn loader_registration() {
-		let mut loader = LanguageLoader::new();
-		let data = LanguageData::new(
+	fn test_db() -> Arc<LanguageDb> {
+		let mut db = LanguageDb::new();
+		db.register(LanguageData::new(
 			"rust".to_string(),
 			None,
 			vec!["rs".to_string()],
@@ -259,18 +236,10 @@ mod tests {
 			vec!["//".to_string()],
 			Some(("/*".to_string(), "*/".to_string())),
 			None,
-		);
-
-		let lang = loader.register(data);
-		assert_eq!(lang.idx(), 0);
-		assert_eq!(loader.language_for_path(Path::new("test.rs")), Some(lang));
-		assert_eq!(loader.language_for_name("rust"), Some(lang));
-	}
-
-	#[test]
-	fn shebang_detection() {
-		let mut loader = LanguageLoader::new();
-		let data = LanguageData::new(
+			vec![],
+			vec![],
+		));
+		db.register(LanguageData::new(
 			"python".to_string(),
 			None,
 			vec!["py".to_string()],
@@ -280,9 +249,28 @@ mod tests {
 			vec!["#".to_string()],
 			None,
 			None,
-		);
+			vec![],
+			vec![],
+		));
+		Arc::new(db)
+	}
 
-		let lang = loader.register(data);
+	#[test]
+	fn loader_from_db() {
+		let db = test_db();
+		let loader = LanguageLoader::from_db(db);
+
+		let lang = loader.language_for_name("rust").unwrap();
+		assert_eq!(lang.idx(), 0);
+		assert_eq!(loader.language_for_path(Path::new("test.rs")), Some(lang));
+	}
+
+	#[test]
+	fn shebang_detection() {
+		let db = test_db();
+		let loader = LanguageLoader::from_db(db);
+
+		let lang = loader.language_for_name("python").unwrap();
 
 		assert_eq!(loader.language_for_shebang("#!/usr/bin/python"), Some(lang));
 		assert_eq!(
@@ -294,5 +282,15 @@ mod tests {
 			Some(lang)
 		);
 		assert_eq!(loader.language_for_shebang("not a shebang"), None);
+	}
+
+	#[test]
+	fn from_embedded_uses_global_db() {
+		let loader = LanguageLoader::from_embedded();
+		assert!(!loader.is_empty());
+
+		let rust = loader.language_for_name("rust").expect("rust language");
+		let data = loader.get(rust).unwrap();
+		assert!(data.extensions.contains(&"rs".to_string()));
 	}
 }

@@ -358,15 +358,12 @@ fn configure_lsp_servers(editor: &mut Editor) {
 	let Ok(server_defs) = xeno_runtime_language::load_lsp_configs() else {
 		return;
 	};
-	let Ok(lang_mapping) = xeno_runtime_language::load_language_lsp_mapping() else {
-		return;
-	};
+	let lang_mapping = xeno_runtime_language::language_db().lsp_mapping();
 
 	let server_map: std::collections::HashMap<_, _> =
 		server_defs.iter().map(|s| (s.name.as_str(), s)).collect();
 
 	for (language, info) in &lang_mapping {
-		// Try each configured server in order until one with an available binary is found
 		let Some(server_def) = info.servers.iter().find_map(|name| {
 			let def = server_map.get(name.as_str())?;
 			which::which(&def.command).ok().map(|_| def)

@@ -34,6 +34,10 @@ pub struct LanguageData {
 	pub block_comment: Option<(String, String)>,
 	/// Injection regex for matching in code blocks.
 	pub injection_regex: Option<regex::Regex>,
+	/// LSP server names (in priority order).
+	pub lsp_servers: Vec<String>,
+	/// Root markers for project detection (e.g., `Cargo.toml`).
+	pub roots: Vec<String>,
 	/// Lazily-loaded syntax configuration.
 	config: OnceCell<Option<TreeHouseConfig>>,
 }
@@ -54,6 +58,8 @@ impl LanguageData {
 		comment_tokens: Vec<String>,
 		block_comment: Option<(String, String)>,
 		injection_regex: Option<&str>,
+		lsp_servers: Vec<String>,
+		roots: Vec<String>,
 	) -> Self {
 		Self {
 			grammar_name: grammar_name.unwrap_or_else(|| name.clone()),
@@ -69,6 +75,8 @@ impl LanguageData {
 					.map_err(|e| warn!(regex = r, error = %e, "Invalid injection regex"))
 					.ok()
 			}),
+			lsp_servers,
+			roots,
 			config: OnceCell::new(),
 		}
 	}
@@ -168,11 +176,15 @@ mod tests {
 			vec!["//".to_string()],
 			Some(("/*".to_string(), "*/".to_string())),
 			Some(r"^rust$"),
+			vec!["rust-analyzer".to_string()],
+			vec!["Cargo.toml".to_string()],
 		);
 
 		assert_eq!(data.name, "rust");
 		assert_eq!(data.grammar_name, "rust");
 		assert!(data.injection_regex.is_some());
+		assert_eq!(data.lsp_servers, vec!["rust-analyzer"]);
+		assert_eq!(data.roots, vec!["Cargo.toml"]);
 	}
 
 	#[test]
@@ -187,6 +199,8 @@ mod tests {
 			vec!["//".to_string()],
 			None,
 			None,
+			vec![],
+			vec![],
 		);
 
 		assert_eq!(data.name, "typescript");

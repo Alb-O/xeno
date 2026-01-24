@@ -25,6 +25,7 @@
 
 pub mod build;
 pub mod config;
+pub mod db;
 pub mod grammar;
 pub mod highlight;
 pub mod language;
@@ -36,6 +37,7 @@ pub mod syntax;
 mod utils;
 
 pub use config::{LanguageConfigError, load_language_configs};
+pub use db::{LanguageDb, language_db};
 pub use grammar::{
 	GrammarError, GrammarSource, cache_dir, grammar_search_paths, load_grammar,
 	load_grammar_or_build, query_search_paths, runtime_dir,
@@ -43,8 +45,5 @@ pub use grammar::{
 pub use highlight::{Highlight, HighlightEvent, HighlightSpan, HighlightStyles, Highlighter};
 pub use language::LanguageData;
 pub use loader::{LanguageId, LanguageLoader};
-pub use lsp_config::{
-	LanguageLspInfo, LanguageLspMapping, LspConfigError, LspServerDef, load_language_lsp_mapping,
-	load_lsp_configs,
-};
+pub use lsp_config::{LanguageLspInfo, LanguageLspMapping, LspConfigError, LspServerDef, load_lsp_configs};
 pub use query::{CapturedNode, IndentQuery, RainbowQuery, TagQuery, TextObjectQuery, read_query};

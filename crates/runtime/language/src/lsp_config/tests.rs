@@ -120,16 +120,16 @@ language name=toml scope=source.toml {
 }
 
 #[test]
-fn load_embedded_language_lsp_mapping() {
-	let mapping = load_language_lsp_mapping().expect("embedded languages.kdl should parse");
+fn lsp_mapping_from_language_db() {
+	use crate::db::language_db;
+
+	let mapping = language_db().lsp_mapping();
 	assert!(!mapping.is_empty());
 
-	// Check rust has rust-analyzer
 	let rust = mapping.get("rust").expect("rust should have servers");
 	assert!(rust.servers.contains(&"rust-analyzer".to_string()));
 	assert!(rust.roots.contains(&"Cargo.toml".to_string()));
 
-	// Check python has servers
 	let python = mapping.get("python").expect("python should have servers");
 	assert!(!python.servers.is_empty());
 }

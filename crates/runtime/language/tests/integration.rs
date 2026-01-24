@@ -7,14 +7,16 @@
 //! Without grammars, tests verify the API works but can't produce highlights.
 //! To get grammars, run: `XENO_RUNTIME=runtime xeno grammar fetch && xeno grammar build`
 
+use std::sync::Arc;
+
 use ropey::Rope;
 use xeno_runtime_language::grammar::{grammar_search_paths, load_grammar};
 use xeno_runtime_language::highlight::{Highlight, HighlightStyles};
 use xeno_runtime_language::syntax::Syntax;
-use xeno_runtime_language::{LanguageData, LanguageLoader};
+use xeno_runtime_language::{LanguageData, LanguageDb, LanguageLoader};
 
-fn create_test_loader() -> LanguageLoader {
-	let mut loader = LanguageLoader::new();
+fn create_test_loader() -> (LanguageLoader, tree_house::Language) {
+	let mut db = LanguageDb::new();
 	let rust = LanguageData::new(
 		"rust".to_string(),
 		None,
@@ -25,14 +27,16 @@ fn create_test_loader() -> LanguageLoader {
 		vec!["//".to_string()],
 		Some(("/*".to_string(), "*/".to_string())),
 		Some("rust"),
+		vec![],
+		vec![],
 	);
-	loader.register(rust);
-	loader
+	let rust_lang = db.register(rust);
+	(LanguageLoader::from_db(Arc::new(db)), rust_lang)
 }
 
 #[test]
 fn test_language_registration() {
-	let loader = create_test_loader();
+	let (loader, _) = create_test_loader();
 
 	assert!(
 		loader.language_for_name("rust").is_some(),
@@ -54,7 +58,7 @@ fn test_language_registration() {
 
 #[test]
 fn test_language_data_fields() {
-	let loader = create_test_loader();
+	let (loader, _) = create_test_loader();
 
 	let lang = loader.language_for_name("rust").unwrap();
 	let data = loader.get(lang).unwrap();
@@ -71,7 +75,7 @@ fn test_language_data_fields() {
 
 #[test]
 fn test_syntax_config_loading() {
-	let loader = create_test_loader();
+	let (loader, _) = create_test_loader();
 
 	let lang = loader.language_for_name("rust").unwrap();
 	let data = loader.get(lang).unwrap();
@@ -129,10 +133,10 @@ fn test_highlight_styles_resolution() {
 
 #[test]
 fn test_syntax_creation_without_grammar() {
-	let loader = create_test_loader();
+	let (loader, rust_lang) = create_test_loader();
 	let source = Rope::from_str("fn main() { println!(\"Hello\"); }");
 
-	let lang = loader.language_for_name("rust").unwrap();
+	let lang = rust_lang;
 
 	// Try to create syntax - may fail without grammar
 	let syntax = Syntax::new(source.slice(..), lang, &loader);
@@ -177,7 +181,7 @@ fn test_grammar_loading_debug() {
 fn test_full_highlighting_pipeline() {
 	use xeno_primitives::{Color, Style};
 
-	let mut loader = LanguageLoader::new();
+	let mut db = LanguageDb::new();
 
 	let rust = LanguageData::new(
 		"rust".to_string(),
@@ -189,8 +193,11 @@ fn test_full_highlighting_pipeline() {
 		vec!["//".to_string()],
 		Some(("/*".to_string(), "*/".to_string())),
 		Some("rust"),
+		vec![],
+		vec![],
 	);
-	let rust_lang = loader.register(rust);
+	let rust_lang = db.register(rust);
+	let loader = LanguageLoader::from_db(Arc::new(db));
 
 	let source = Rope::from_str("fn main() {\n    let x = 42;\n}");
 
@@ -274,7 +281,7 @@ fn test_language_loader_tree_house_trait() {
 fn test_incremental_syntax_update() {
 	use xeno_primitives::{Selection, Transaction};
 
-	let mut loader = LanguageLoader::new();
+	let mut db = LanguageDb::new();
 
 	let rust = LanguageData::new(
 		"rust".to_string(),
@@ -286,8 +293,11 @@ fn test_incremental_syntax_update() {
 		vec!["//".to_string()],
 		Some(("/*".to_string(), "*/".to_string())),
 		Some("rust"),
+		vec![],
+		vec![],
 	);
-	let rust_lang = loader.register(rust);
+	let rust_lang = db.register(rust);
+	let loader = LanguageLoader::from_db(Arc::new(db));
 
 	let mut source = Rope::from_str("fn main() {}");
 
@@ -627,7 +637,7 @@ fn main() {}
 /// not just the text after the prefix.
 #[test]
 fn test_highlight_span_positions_doc_comment() {
-	let mut loader = LanguageLoader::new();
+	let mut db = LanguageDb::new();
 
 	let rust = LanguageData::new(
 		"rust".to_string(),
@@ -639,8 +649,11 @@ fn test_highlight_span_positions_doc_comment() {
 		vec!["//".to_string()],
 		Some(("/*".to_string(), "*/".to_string())),
 		Some("rust"),
+		vec![],
+		vec![],
 	);
-	let rust_lang = loader.register(rust);
+	let rust_lang = db.register(rust);
+	let loader = LanguageLoader::from_db(Arc::new(db));
 
 	let source = Rope::from_str("//! Hello world\nfn main() {}");
 

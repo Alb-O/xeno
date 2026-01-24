@@ -69,6 +69,8 @@ fn parse_language_node(node: &KdlNode) -> Result<Option<LanguageData>> {
 	comment_tokens.extend(parse_string_args(children, "comment-tokens"));
 
 	let block_comment = parse_block_comment(node, children);
+	let lsp_servers = parse_language_servers(children);
+	let roots = parse_string_args(children, "roots");
 
 	Ok(Some(LanguageData::new(
 		name,
@@ -80,7 +82,43 @@ fn parse_language_node(node: &KdlNode) -> Result<Option<LanguageData>> {
 		comment_tokens,
 		block_comment,
 		injection_regex,
+		lsp_servers,
+		roots,
 	)))
+}
+
+/// Parses the `language-servers` field from a language node's children.
+fn parse_language_servers(children: Option<&kdl::KdlDocument>) -> Vec<String> {
+	let Some(children) = children else {
+		return Vec::new();
+	};
+
+	let Some(ls_node) = children.get("language-servers") else {
+		return Vec::new();
+	};
+
+	let inline: Vec<String> = ls_node
+		.entries()
+		.iter()
+		.filter(|e| e.name().is_none())
+		.filter_map(|e| e.value().as_string())
+		.map(String::from)
+		.collect();
+
+	if !inline.is_empty() {
+		return inline;
+	}
+
+	let Some(ls_children) = ls_node.children() else {
+		return Vec::new();
+	};
+
+	ls_children
+		.nodes()
+		.iter()
+		.filter(|n| n.name().value() == "-")
+		.filter_map(|n| n.get("name").and_then(|v| v.as_string()).map(String::from))
+		.collect()
 }
 
 /// Parses file-types from either simple args (`file-types rs toml`) or
@@ -222,6 +260,21 @@ language name=python scope=source.python comment-token="#" {
 	}
 
 	#[test]
+	fn parse_lsp_fields() {
+		let kdl = r#"
+language name=rust {
+    file-types rs
+    language-servers rust-analyzer
+    roots Cargo.toml Cargo.lock
+}
+"#;
+		let langs = parse_language_configs(kdl).unwrap();
+		let rust = &langs[0];
+		assert_eq!(rust.lsp_servers, vec!["rust-analyzer"]);
+		assert_eq!(rust.roots, vec!["Cargo.toml", "Cargo.lock"]);
+	}
+
+	#[test]
 	fn load_embedded_languages() {
 		let langs = load_language_configs().expect("embedded languages.kdl should parse");
 		assert!(!langs.is_empty());
@@ -231,5 +284,6 @@ language name=python scope=source.python comment-token="#" {
 			.find(|l| l.name == "rust")
 			.expect("rust language");
 		assert!(rust.extensions.contains(&"rs".to_string()));
+		assert!(rust.lsp_servers.contains(&"rust-analyzer".to_string()));
 	}
 }
