@@ -74,25 +74,16 @@ impl Editor {
 		}
 	}
 
-	#[cfg(feature = "lsp")]
 	fn lsp_render_snapshot(&self) -> LspRenderSnapshot {
 		let mut snapshot = LspRenderSnapshot::default();
 		for buffer in self.state.core.buffers.buffers() {
-			let diagnostics = self.state.lsp.get_diagnostics(buffer);
-			snapshot.diagnostics.insert(
-				buffer.id,
-				super::buffer::build_diagnostic_line_map(&diagnostics),
-			);
-			snapshot.diagnostic_ranges.insert(
-				buffer.id,
-				super::buffer::build_diagnostic_range_map(&diagnostics),
-			);
+			snapshot
+				.diagnostics
+				.insert(buffer.id, self.state.lsp.get_diagnostic_line_map(buffer));
+			snapshot
+				.diagnostic_ranges
+				.insert(buffer.id, self.state.lsp.get_diagnostic_range_map(buffer));
 		}
 		snapshot
-	}
-
-	#[cfg(not(feature = "lsp"))]
-	fn lsp_render_snapshot(&self) -> LspRenderSnapshot {
-		LspRenderSnapshot::default()
 	}
 }

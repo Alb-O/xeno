@@ -1,7 +1,10 @@
-//! Diagnostic types and builders for buffer rendering.
+//! Diagnostic types for buffer rendering.
 //!
-//! This module provides types for mapping LSP diagnostics to line-based
+//! This module provides types for mapping diagnostics to line-based
 //! structures suitable for gutter signs and inline underlines.
+//!
+//! Builder functions that convert from LSP diagnostics live in the
+//! `lsp::diagnostics` module to keep LSP dependencies out of the render path.
 
 use std::collections::HashMap;
 
@@ -30,82 +33,3 @@ pub struct DiagnosticSpan {
 ///
 /// Used for rendering underlines under diagnostic ranges.
 pub type DiagnosticRangeMap = HashMap<usize, Vec<DiagnosticSpan>>;
-
-/// Builds a diagnostic line map from LSP diagnostics.
-///
-/// Converts LSP severity to gutter severity and keeps only the highest
-/// severity per line.
-#[cfg(feature = "lsp")]
-pub fn build_diagnostic_line_map(
-	diagnostics: &[xeno_lsp::lsp_types::Diagnostic],
-) -> DiagnosticLineMap {
-	use xeno_lsp::lsp_types::DiagnosticSeverity;
-
-	let mut map = DiagnosticLineMap::new();
-
-	for diag in diagnostics {
-		let line = diag.range.start.line as usize;
-		// LSP: 1=Error, 2=Warning, 3=Info, 4=Hint → Gutter: 4, 3, 2, 1
-		let severity = match diag.severity {
-			Some(DiagnosticSeverity::ERROR) => 4,
-			Some(DiagnosticSeverity::WARNING) => 3,
-			Some(DiagnosticSeverity::INFORMATION) => 2,
-			Some(DiagnosticSeverity::HINT) => 1,
-			_ => 0,
-		};
-		map.entry(line)
-			.and_modify(|e| *e = (*e).max(severity))
-			.or_insert(severity);
-	}
-
-	map
-}
-
-/// Builds a diagnostic range map from LSP diagnostics.
-///
-/// Creates per-line spans with character ranges for rendering underlines.
-#[cfg(feature = "lsp")]
-pub fn build_diagnostic_range_map(
-	diagnostics: &[xeno_lsp::lsp_types::Diagnostic],
-) -> DiagnosticRangeMap {
-	use xeno_lsp::lsp_types::DiagnosticSeverity;
-
-	let mut map = DiagnosticRangeMap::new();
-
-	for diag in diagnostics {
-		let severity = match diag.severity {
-			Some(DiagnosticSeverity::ERROR) => 4,
-			Some(DiagnosticSeverity::WARNING) => 3,
-			Some(DiagnosticSeverity::INFORMATION) => 2,
-			Some(DiagnosticSeverity::HINT) => 1,
-			_ => 0,
-		};
-
-		if severity == 0 {
-			continue;
-		}
-
-		let start_line = diag.range.start.line as usize;
-		let end_line = diag.range.end.line as usize;
-
-		for line in start_line..=end_line {
-			let start_char = if line == start_line {
-				diag.range.start.character as usize
-			} else {
-				0
-			};
-			let end_char = if line == end_line {
-				diag.range.end.character as usize
-			} else {
-				usize::MAX
-			};
-			map.entry(line).or_default().push(DiagnosticSpan {
-				start_char,
-				end_char,
-				severity,
-			});
-		}
-	}
-
-	map
-}

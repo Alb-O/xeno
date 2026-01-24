@@ -14,8 +14,5 @@ mod style_layers;
 mod viewport;
 
 pub use context::{BufferRenderContext, RenderResult};
-pub use diagnostics::DiagnosticLineMap;
-#[cfg(feature = "lsp")]
-#[allow(unused_imports, reason = "re-exported for public API completeness")]
-pub use diagnostics::{DiagnosticRangeMap, build_diagnostic_line_map, build_diagnostic_range_map};
+pub use diagnostics::{DiagnosticLineMap, DiagnosticRangeMap, DiagnosticSpan};
 pub use viewport::ensure_buffer_cursor_visible;

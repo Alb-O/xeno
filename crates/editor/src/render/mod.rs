@@ -8,10 +8,9 @@ mod status;
 /// Line wrapping with sticky punctuation.
 pub mod wrap;
 
-#[cfg(feature = "lsp")]
-pub use buffer::build_diagnostic_line_map;
 pub use buffer::{
-	BufferRenderContext, DiagnosticLineMap, RenderResult, ensure_buffer_cursor_visible,
+	BufferRenderContext, DiagnosticLineMap, DiagnosticRangeMap, DiagnosticSpan, RenderResult,
+	ensure_buffer_cursor_visible,
 };
 pub use context::{LayoutSnapshot, LspRenderSnapshot, RenderCtx};
 pub use wrap::{WrapSegment, wrap_line};

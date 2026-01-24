@@ -129,7 +129,6 @@ impl Editor {
 		}
 		self.state.ui = ui;
 
-		#[cfg(feature = "lsp")]
 		self.render_completion_popup(frame);
 
 		let status_bg = Block::default().style(Style::default().bg(ctx.theme.colors.popup.bg));
