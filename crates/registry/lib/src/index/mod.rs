@@ -12,7 +12,7 @@ mod types;
 use std::sync::OnceLock;
 
 pub(crate) use builders::build_registry_from_defs;
-pub use collision::{Collision, CollisionKind};
+pub use collision::CollisionKind;
 pub use diagnostics::{CollisionReport, DiagnosticReport, diagnostics};
 pub use lookups::{
 	all_actions, all_commands, all_motions, all_text_objects, find_action, find_action_by_id,

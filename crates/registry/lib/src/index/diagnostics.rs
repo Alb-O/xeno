@@ -2,9 +2,16 @@
 //!
 //! Provides reports on registry collisions where multiple items share the
 //! same key, allowing users to identify and resolve registration conflicts.
+//!
+//! Collisions are aggregated from the core registries which enforce invariants:
+//! - ID uniqueness (always fatal, never appears in collision reports)
+//! - No name/alias shadowing IDs (always fatal)
+//! - Name/alias conflicts are reported here for diagnostics
 
-use crate::index::ExtensionRegistry;
+use xeno_registry_core::{Collision as CoreCollision, KeyKind, RegistryEntry};
+
 use crate::index::collision::CollisionKind;
+use crate::{actions, commands, motions, textobj};
 
 /// Report containing all detected registry collisions.
 pub struct DiagnosticReport {
@@ -32,38 +39,52 @@ pub struct CollisionReport {
 	pub shadowed_priority: i16,
 }
 
-/// Generates diagnostics for a specific registry.
-pub(crate) fn diagnostics_internal(reg: &ExtensionRegistry) -> DiagnosticReport {
+/// Converts a core collision to a collision report by looking up definitions.
+fn core_collision_to_report<T: RegistryEntry + 'static>(
+	collision: &CoreCollision,
+	lookup: impl Fn(&str) -> Option<&'static T>,
+) -> Option<CollisionReport> {
+	let winner = lookup(collision.winner_id)?;
+	let shadowed = lookup(collision.existing_id)?;
+
+	Some(CollisionReport {
+		kind: match collision.kind {
+			KeyKind::Id => CollisionKind::Id,
+			KeyKind::Name => CollisionKind::Name,
+			KeyKind::Alias => CollisionKind::Alias,
+		},
+		key: collision.key.to_string(),
+		winner_id: collision.winner_id,
+		winner_source: winner.source().to_string(),
+		winner_priority: winner.priority(),
+		shadowed_id: collision.existing_id,
+		shadowed_source: shadowed.source().to_string(),
+		shadowed_priority: shadowed.priority(),
+	})
+}
+
+/// Generates a diagnostic report aggregating collisions from all core registries.
+pub fn diagnostics() -> DiagnosticReport {
 	let mut reports = Vec::new();
 
 	macro_rules! collect {
-		($index:expr) => {
-			for c in &$index.collisions {
-				reports.push(CollisionReport {
-					kind: c.kind,
-					key: c.key.clone(),
-					winner_id: c.winner.id(),
-					winner_source: c.winner.source().to_string(),
-					winner_priority: c.winner.priority(),
-					shadowed_id: c.shadowed.id(),
-					shadowed_source: c.shadowed.source().to_string(),
-					shadowed_priority: c.shadowed.priority(),
-				});
+		($registry:expr) => {
+			for collision in $registry.collisions() {
+				if let Some(report) =
+					core_collision_to_report(&collision, |id| $registry.get_by_id(id))
+				{
+					reports.push(report);
+				}
 			}
 		};
 	}
 
-	collect!(reg.commands);
-	collect!(reg.actions.base);
-	collect!(reg.motions);
-	collect!(reg.text_objects);
+	collect!(actions::ACTIONS);
+	collect!(commands::COMMANDS);
+	collect!(motions::MOTIONS);
+	collect!(textobj::TEXT_OBJECTS);
 
 	DiagnosticReport {
 		collisions: reports,
 	}
-}
-
-/// Generates a diagnostic report for the global extension registry.
-pub fn diagnostics() -> DiagnosticReport {
-	diagnostics_internal(super::get_registry())
 }

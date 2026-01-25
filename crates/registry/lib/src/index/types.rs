@@ -4,13 +4,15 @@ use std::collections::HashMap;
 
 use xeno_registry_core::ActionId;
 
-use super::collision::Collision;
 use crate::actions::ActionDef;
 use crate::commands::CommandDef;
 use crate::motions::MotionDef;
 use crate::textobj::TextObjectDef;
 
-/// Generic registry index with collision tracking.
+/// Generic registry index for ExtensionRegistry lookups.
+///
+/// Provides secondary indices for ID-first lookup semantics.
+/// Collision tracking and invariant enforcement is handled by core registries.
 pub struct RegistryIndex<T: 'static> {
 	/// Lookup by unique identifier.
 	pub by_id: HashMap<&'static str, &'static T>,
@@ -18,10 +20,8 @@ pub struct RegistryIndex<T: 'static> {
 	pub by_name: HashMap<&'static str, &'static T>,
 	/// Lookup by alternative name/alias.
 	pub by_alias: HashMap<&'static str, &'static T>,
-	/// Lookup by trigger character (for motions/text objects).
+	/// Lookup by trigger character (for text objects).
 	pub by_trigger: HashMap<char, &'static T>,
-	/// Collisions detected during index construction.
-	pub collisions: Vec<Collision<T>>,
 }
 
 /// Index for actions with typed ActionId support.
@@ -50,7 +50,6 @@ impl<T: 'static> RegistryIndex<T> {
 			by_name: HashMap::new(),
 			by_alias: HashMap::new(),
 			by_trigger: HashMap::new(),
-			collisions: Vec::new(),
 		}
 	}
 }

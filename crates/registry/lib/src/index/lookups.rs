@@ -1,4 +1,7 @@
 //! Public lookup functions for registry queries.
+//!
+//! All lookups use ID-first semantics: `by_id` → `by_name` → `by_alias`.
+//! This ensures stable references when looking up by ID.
 
 use xeno_registry_core::ActionId;
 
@@ -8,24 +11,30 @@ use crate::commands::CommandDef;
 use crate::motions::{MotionDef, MotionKey};
 use crate::textobj::TextObjectDef;
 
-/// Finds a command definition by name or alias.
-pub fn find_command(name: &str) -> Option<&'static CommandDef> {
+/// Finds a command definition by ID, name, or alias.
+///
+/// Uses ID-first lookup: checks `by_id` before `by_name` and `by_alias`.
+pub fn find_command(key: &str) -> Option<&'static CommandDef> {
 	let reg = get_registry();
 	reg.commands
-		.by_name
-		.get(name)
-		.or_else(|| reg.commands.by_alias.get(name))
+		.by_id
+		.get(key)
+		.or_else(|| reg.commands.by_name.get(key))
+		.or_else(|| reg.commands.by_alias.get(key))
 		.copied()
 }
 
-/// Finds an action definition by name or alias.
-pub fn find_action(name: &str) -> Option<&'static ActionDef> {
+/// Finds an action definition by ID, name, or alias.
+///
+/// Uses ID-first lookup: checks `by_id` before `by_name` and `by_alias`.
+pub fn find_action(key: &str) -> Option<&'static ActionDef> {
 	let reg = get_registry();
 	reg.actions
 		.base
-		.by_name
-		.get(name)
-		.or_else(|| reg.actions.base.by_alias.get(name))
+		.by_id
+		.get(key)
+		.or_else(|| reg.actions.base.by_name.get(key))
+		.or_else(|| reg.actions.base.by_alias.get(key))
 		.copied()
 }
 
@@ -57,13 +66,16 @@ pub fn resolve_action_key(key: ActionKey) -> Option<ActionId> {
 	resolve_action_id(key.name())
 }
 
-/// Finds a motion definition by name or alias.
-pub fn find_motion(name: &str) -> Option<MotionKey> {
+/// Finds a motion definition by ID, name, or alias.
+///
+/// Uses ID-first lookup: checks `by_id` before `by_name` and `by_alias`.
+pub fn find_motion(key: &str) -> Option<MotionKey> {
 	let reg = get_registry();
 	reg.motions
-		.by_name
-		.get(name)
-		.or_else(|| reg.motions.by_alias.get(name))
+		.by_id
+		.get(key)
+		.or_else(|| reg.motions.by_name.get(key))
+		.or_else(|| reg.motions.by_alias.get(key))
 		.copied()
 		.map(MotionKey::new)
 }
