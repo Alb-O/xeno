@@ -250,11 +250,7 @@ impl PendingLspState {
 		entry.update_config(config);
 		entry.touch(editor_version);
 
-		tracing::trace!(
-			doc_id = doc_id.0,
-			editor_version,
-			"lsp.pending_touch"
-		);
+		tracing::trace!(doc_id = doc_id.0, editor_version, "lsp.pending_touch");
 	}
 
 	/// Flushes due documents and spawns LSP notification tasks.

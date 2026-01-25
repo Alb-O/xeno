@@ -18,6 +18,8 @@ use std::sync::{Arc, RwLock};
 
 pub use document::{Document, DocumentId};
 pub use editing::ApplyPolicy;
+#[cfg(feature = "lsp")]
+pub use editing::LspCommitResult;
 pub use history::HistoryResult;
 pub use layout::{Layout, SpatialDirection, SplitDirection, SplitPath};
 pub use undo_store::{DocumentSnapshot, SnapshotUndoStore, TxnUndoStore, UndoBackend};

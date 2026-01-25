@@ -49,6 +49,31 @@ impl Editor {
 			warn!(error = %e, "LSP buffer open failed");
 		}
 
+		#[cfg(feature = "lsp")]
+		if let Some(buffer) = self.state.core.buffers.get_buffer(buffer_id)
+			&& let (Some(path), Some(language)) = (buffer.path(), buffer.file_type())
+		{
+			let doc_id = buffer.document_id();
+			let version = buffer.with_doc(|doc| doc.version());
+			let supports_incremental = self
+				.state
+				.lsp
+				.incremental_encoding_for_buffer(buffer)
+				.is_some();
+			let encoding = self.state.lsp.offset_encoding_for_buffer(buffer);
+
+			self.state.lsp.sync_manager_mut().on_doc_open(
+				doc_id,
+				crate::lsp::pending::LspDocumentConfig {
+					path,
+					language,
+					supports_incremental,
+					encoding,
+				},
+				version,
+			);
+		}
+
 		buffer_id
 	}
 
@@ -122,9 +147,30 @@ impl Editor {
 		for buffer_id in self.state.core.buffers.buffer_ids().collect::<Vec<_>>() {
 			if let Some(buffer) = self.state.core.buffers.get_buffer(buffer_id)
 				&& buffer.path().is_some()
-				&& let Err(e) = self.state.lsp.on_buffer_open(buffer).await
 			{
-				warn!(error = %e, "Failed to initialize LSP for buffer");
+				if let Err(e) = self.state.lsp.on_buffer_open(buffer).await {
+					warn!(error = %e, "Failed to initialize LSP for buffer");
+				} else if let (Some(path), Some(language)) = (buffer.path(), buffer.file_type()) {
+					let doc_id = buffer.document_id();
+					let version = buffer.with_doc(|doc| doc.version());
+					let supports_incremental = self
+						.state
+						.lsp
+						.incremental_encoding_for_buffer(buffer)
+						.is_some();
+					let encoding = self.state.lsp.offset_encoding_for_buffer(buffer);
+
+					self.state.lsp.sync_manager_mut().on_doc_open(
+						doc_id,
+						crate::lsp::pending::LspDocumentConfig {
+							path,
+							language,
+							supports_incremental,
+							encoding,
+						},
+						version,
+					);
+				}
 			}
 		}
 		Ok(())

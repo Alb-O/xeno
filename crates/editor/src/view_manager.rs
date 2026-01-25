@@ -6,17 +6,19 @@
 use std::collections::HashMap;
 use std::path::PathBuf;
 
+use smallvec::SmallVec;
 use xeno_runtime_language::LanguageLoader;
 
-use crate::buffer::{Buffer, ViewId};
+use crate::buffer::{Buffer, DocumentId, ViewId};
 
 /// Owns text buffers, tracks focus, and generates unique IDs.
+///
+/// Maintains a reverse index from `DocumentId` to `ViewId` for O(1) lookup
+/// when acquiring snapshots for LSP sync.
 pub struct ViewManager {
-	/// Map of buffer IDs to their buffer instances.
 	buffers: HashMap<ViewId, Buffer>,
-	/// Counter for generating unique buffer IDs.
+	doc_to_views: HashMap<DocumentId, SmallVec<[ViewId; 2]>>,
 	next_buffer_id: u64,
-	/// Currently focused view (buffer ID), mirrored from the editor focus.
 	focused_view: ViewId,
 }
 
@@ -26,12 +28,17 @@ impl ViewManager {
 		let buffer_id = ViewId(1);
 		let buffer = Buffer::new(buffer_id, content, path);
 		buffer.init_syntax(language_loader);
+		let doc_id = buffer.document_id();
 
 		let mut buffers = HashMap::new();
 		buffers.insert(buffer_id, buffer);
 
+		let mut doc_to_views: HashMap<DocumentId, SmallVec<[ViewId; 2]>> = HashMap::new();
+		doc_to_views.insert(doc_id, smallvec::smallvec![buffer_id]);
+
 		Self {
 			buffers,
+			doc_to_views,
 			next_buffer_id: 2,
 			focused_view: buffer_id,
 		}
@@ -40,11 +47,17 @@ impl ViewManager {
 	/// Creates a manager with an existing buffer.
 	pub fn with_buffer(buffer: Buffer) -> Self {
 		let buffer_id = buffer.id;
+		let doc_id = buffer.document_id();
+
 		let mut buffers = HashMap::new();
 		buffers.insert(buffer_id, buffer);
 
+		let mut doc_to_views: HashMap<DocumentId, SmallVec<[ViewId; 2]>> = HashMap::new();
+		doc_to_views.insert(doc_id, smallvec::smallvec![buffer_id]);
+
 		Self {
 			buffers,
+			doc_to_views,
 			next_buffer_id: buffer_id.0 + 1,
 			focused_view: buffer_id,
 		}
@@ -68,7 +81,9 @@ impl ViewManager {
 			buffer.text_width = width.saturating_sub(buffer.gutter_width()) as usize;
 		}
 
+		let doc_id = buffer.document_id();
 		self.buffers.insert(buffer_id, buffer);
+		self.index_add(doc_id, buffer_id);
 		buffer_id
 	}
 
@@ -80,7 +95,9 @@ impl ViewManager {
 		self.next_buffer_id += 1;
 
 		let buffer = Buffer::new(buffer_id, String::new(), None);
+		let doc_id = buffer.document_id();
 		self.buffers.insert(buffer_id, buffer);
+		self.index_add(doc_id, buffer_id);
 		buffer_id
 	}
 
@@ -93,13 +110,24 @@ impl ViewManager {
 		self.next_buffer_id += 1;
 
 		let new_buffer = self.focused_buffer().clone_for_split(new_id);
+		let doc_id = new_buffer.document_id();
+		debug_assert_eq!(
+			doc_id,
+			self.focused_buffer().document_id(),
+			"split buffer must share document"
+		);
 		self.buffers.insert(new_id, new_buffer);
+		self.index_add(doc_id, new_id);
 		new_id
 	}
 
 	/// Removes a buffer. Does not update focus.
 	pub fn remove_buffer(&mut self, id: ViewId) -> Option<Buffer> {
-		self.buffers.remove(&id)
+		let removed = self.buffers.remove(&id);
+		if let Some(ref buffer) = removed {
+			self.index_remove(buffer.document_id(), id);
+		}
+		removed
 	}
 
 	/// Returns the currently focused view (buffer ID).
@@ -195,5 +223,33 @@ impl ViewManager {
 			.values()
 			.find(|b| b.path().as_deref() == Some(path))
 			.map(|b| b.id)
+	}
+
+	/// Returns any view ID for the given document, if one exists.
+	///
+	/// Useful for LSP sync snapshot acquisition where we need any buffer
+	/// that can provide the document content.
+	pub fn any_buffer_for_doc(&self, doc_id: DocumentId) -> Option<ViewId> {
+		self.doc_to_views
+			.get(&doc_id)
+			.and_then(|views| views.first().copied())
+	}
+
+	/// Adds a view to the reverse index for a document.
+	fn index_add(&mut self, doc_id: DocumentId, view_id: ViewId) {
+		self.doc_to_views
+			.entry(doc_id)
+			.or_default()
+			.push(view_id);
+	}
+
+	/// Removes a view from the reverse index for a document.
+	fn index_remove(&mut self, doc_id: DocumentId, view_id: ViewId) {
+		if let Some(views) = self.doc_to_views.get_mut(&doc_id) {
+			views.retain(|v| *v != view_id);
+			if views.is_empty() {
+				self.doc_to_views.remove(&doc_id);
+			}
+		}
 	}
 }

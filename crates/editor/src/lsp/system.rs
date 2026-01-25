@@ -13,6 +13,7 @@ pub struct LspSystem;
 struct RealLspSystem {
 	manager: crate::lsp::LspManager,
 	pending: crate::lsp::pending::PendingLspState,
+	sync_manager: crate::lsp::sync_manager::LspSyncManager,
 	completion: crate::lsp::CompletionController,
 	signature_gen: u64,
 	signature_cancel: Option<tokio_util::sync::CancellationToken>,
@@ -28,6 +29,7 @@ impl LspSystem {
 			inner: RealLspSystem {
 				manager: crate::lsp::LspManager::new(),
 				pending: crate::lsp::pending::PendingLspState::new(),
+				sync_manager: crate::lsp::sync_manager::LspSyncManager::new(),
 				completion: crate::lsp::CompletionController::new(),
 				signature_gen: 0,
 				signature_cancel: None,
@@ -205,6 +207,14 @@ impl LspSystem {
 
 	pub(crate) fn pending_mut(&mut self) -> &mut crate::lsp::pending::PendingLspState {
 		&mut self.inner.pending
+	}
+
+	pub(crate) fn sync_manager(&self) -> &crate::lsp::sync_manager::LspSyncManager {
+		&self.inner.sync_manager
+	}
+
+	pub(crate) fn sync_manager_mut(&mut self) -> &mut crate::lsp::sync_manager::LspSyncManager {
+		&mut self.inner.sync_manager
 	}
 
 	pub(crate) fn completion_generation(&self) -> u64 {

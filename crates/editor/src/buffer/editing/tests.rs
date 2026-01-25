@@ -24,53 +24,55 @@ mod lsp_batching {
 	}
 
 	#[test]
-	fn single_insert_queues_one_change() {
+	fn single_insert_returns_one_change() {
 		let mut buffer = make_buffer("hello");
 		buffer.set_selection(Selection::single(5, 5)); // cursor at end
 
 		let (tx, _sel) = buffer.prepare_insert(" world");
 		let loader = xeno_runtime_language::LanguageLoader::new();
-		buffer.apply_with_lsp(&tx, LSP_POLICY, &loader, OffsetEncoding::Utf16);
+		let result = buffer.apply_with_lsp(&tx, LSP_POLICY, &loader, OffsetEncoding::Utf16);
 
-		let changes = buffer.lsp_take_batch();
+		assert!(result.commit.applied);
+		let changes = result.lsp_changes.expect("should have changes");
 		assert_eq!(changes.len(), 1);
 		assert_eq!(changes[0].range, LspRange::point(LspPosition::new(0, 5)));
 		assert_eq!(changes[0].new_text, " world");
 	}
 
 	#[test]
-	fn multiple_transactions_accumulate_changes() {
+	fn multiple_transactions_return_changes() {
 		let mut buffer = make_buffer("line1\nline2\n");
 		let loader = xeno_runtime_language::LanguageLoader::new();
 
 		// First transaction: insert at start of line 1
 		buffer.set_selection(Selection::single(0, 0));
 		let (tx1, sel1) = buffer.prepare_insert("A");
-		buffer.apply_with_lsp(&tx1, LSP_POLICY, &loader, OffsetEncoding::Utf16);
+		let result1 = buffer.apply_with_lsp(&tx1, LSP_POLICY, &loader, OffsetEncoding::Utf16);
 		buffer.finalize_selection(sel1);
+		let changes1 = result1.lsp_changes.expect("should have changes");
 
 		// Second transaction: insert at start of line 2
 		// After first insert, "Aline1\nline2\n", line 2 starts at char 7
 		buffer.set_selection(Selection::single(7, 7));
 		let (tx2, sel2) = buffer.prepare_insert("B");
-		buffer.apply_with_lsp(&tx2, LSP_POLICY, &loader, OffsetEncoding::Utf16);
+		let result2 = buffer.apply_with_lsp(&tx2, LSP_POLICY, &loader, OffsetEncoding::Utf16);
 		buffer.finalize_selection(sel2);
-
-		let changes = buffer.lsp_take_batch();
-		assert_eq!(changes.len(), 2);
+		let changes2 = result2.lsp_changes.expect("should have changes");
 
 		// First change: insert "A" at (0, 0) in original doc
-		assert_eq!(changes[0].range, LspRange::point(LspPosition::new(0, 0)));
-		assert_eq!(changes[0].new_text, "A");
+		assert_eq!(changes1.len(), 1);
+		assert_eq!(changes1[0].range, LspRange::point(LspPosition::new(0, 0)));
+		assert_eq!(changes1[0].new_text, "A");
 
 		// Second change: insert "B" at (1, 0) in doc after first change
 		// The position is computed against the state AFTER first transaction
-		assert_eq!(changes[1].range, LspRange::point(LspPosition::new(1, 0)));
-		assert_eq!(changes[1].new_text, "B");
+		assert_eq!(changes2.len(), 1);
+		assert_eq!(changes2[0].range, LspRange::point(LspPosition::new(1, 0)));
+		assert_eq!(changes2[0].new_text, "B");
 	}
 
 	#[test]
-	fn multi_cursor_single_transaction_queues_ordered_changes() {
+	fn multi_cursor_single_transaction_returns_ordered_changes() {
 		let mut buffer = make_buffer("aaa\nbbb\nccc\n");
 		let loader = xeno_runtime_language::LanguageLoader::new();
 
@@ -85,9 +87,9 @@ mod lsp_batching {
 		));
 
 		let (tx, _sel) = buffer.prepare_insert("X");
-		buffer.apply_with_lsp(&tx, LSP_POLICY, &loader, OffsetEncoding::Utf16);
+		let result = buffer.apply_with_lsp(&tx, LSP_POLICY, &loader, OffsetEncoding::Utf16);
 
-		let changes = buffer.lsp_take_batch();
+		let changes = result.lsp_changes.expect("should have changes");
 		assert_eq!(changes.len(), 3);
 
 		// Changes are ordered by position in pre-change document,
@@ -120,38 +122,34 @@ mod lsp_batching {
 			&loader,
 			OffsetEncoding::Utf16,
 		);
-		assert!(result.applied);
+		assert!(result.commit.applied);
 		buffer.finalize_selection(new_sel);
 
 		match expected {
 			IncrementalResult::Incremental(changes) => {
-				let actual = buffer.lsp_take_batch();
+				let actual = result.lsp_changes.expect("should have changes");
 				assert_eq!(actual, changes);
-				assert!(!buffer.with_doc(|doc| doc.needs_full_lsp_sync()));
 			}
 			IncrementalResult::FallbackToFull => {
-				let actual = buffer.lsp_take_batch();
-				assert!(actual.is_empty());
-				assert!(buffer.with_doc(|doc| doc.needs_full_lsp_sync()));
+				assert!(result.lsp_changes.is_none());
 			}
 		}
 	}
 
 	#[test]
-	fn drain_clears_pending_changes() {
+	fn readonly_blocks_lsp_changes() {
 		let mut buffer = make_buffer("test");
 		let loader = xeno_runtime_language::LanguageLoader::new();
 
+		buffer.set_readonly(true);
 		buffer.set_selection(Selection::single(4, 4));
 		let (tx, _sel) = buffer.prepare_insert("!");
-		buffer.apply_with_lsp(&tx, LSP_POLICY, &loader, OffsetEncoding::Utf16);
+		let result = buffer.apply_with_lsp(&tx, LSP_POLICY, &loader, OffsetEncoding::Utf16);
 
-		let changes = buffer.lsp_take_batch();
-		assert_eq!(changes.len(), 1);
-
-		// Second drain should be empty
-		let changes2 = buffer.lsp_take_batch();
-		assert!(changes2.is_empty());
+		assert!(!result.commit.applied);
+		// Blocked commits return empty changes
+		let changes = result.lsp_changes.expect("should have empty changes");
+		assert!(changes.is_empty());
 	}
 }
 

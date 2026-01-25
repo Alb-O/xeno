@@ -67,6 +67,7 @@ pub(crate) mod pending;
 pub(crate) mod prompt;
 pub(crate) mod signature_help;
 pub(crate) mod snippet;
+pub(crate) mod sync_manager;
 pub(crate) mod types;
 pub(crate) mod workspace_edit;
 

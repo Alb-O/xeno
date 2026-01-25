@@ -32,12 +32,15 @@ impl EditorUndoHost<'_> {
 		};
 
 		#[cfg(feature = "lsp")]
-		let encoding = {
+		let (encoding, doc_id) = {
 			let buffer = self
 				.buffers
 				.get_buffer(buffer_id)
 				.expect("focused buffer must exist");
-			self.lsp.incremental_encoding_for_buffer(buffer)
+			(
+				self.lsp.incremental_encoding_for_buffer(buffer),
+				buffer.document_id(),
+			)
 		};
 
 		#[cfg(feature = "lsp")]
@@ -47,7 +50,25 @@ impl EditorUndoHost<'_> {
 				.get_buffer_mut(buffer_id)
 				.expect("focused buffer must exist");
 			let result = if let Some(encoding) = encoding {
-				buffer.apply_with_lsp(tx, policy, &self.config.language_loader, encoding)
+				let lsp_result =
+					buffer.apply_with_lsp(tx, policy, &self.config.language_loader, encoding);
+
+				if lsp_result.commit.applied {
+					if let Some(changes) = lsp_result.lsp_changes {
+						if !changes.is_empty() {
+							self.lsp.sync_manager_mut().on_doc_edit(
+								doc_id,
+								lsp_result.commit.version_after,
+								changes,
+								lsp_result.lsp_bytes,
+							);
+						}
+					} else {
+						self.lsp.sync_manager_mut().escalate_full(doc_id);
+					}
+				}
+
+				lsp_result.commit
 			} else {
 				buffer.apply(tx, policy, &self.config.language_loader)
 			};
@@ -88,11 +109,15 @@ impl EditorUndoHost<'_> {
 
 	fn mark_buffer_dirty_for_full_sync(&mut self, buffer_id: ViewId) {
 		if let Some(buffer) = self.buffers.get_buffer_mut(buffer_id) {
+			#[cfg(feature = "lsp")]
+			let doc_id = buffer.document_id();
+
 			buffer.with_doc_mut(|doc| {
 				doc.increment_version();
-				#[cfg(feature = "lsp")]
-				doc.mark_for_full_lsp_sync();
 			});
+
+			#[cfg(feature = "lsp")]
+			self.lsp.sync_manager_mut().escalate_full(doc_id);
 		}
 		self.frame.dirty_buffers.insert(buffer_id);
 	}

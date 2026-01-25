@@ -907,18 +907,27 @@ pub fn start_server(
 		reason: e.to_string(),
 	})?;
 
-	let stdin = process.stdin.take().ok_or_else(|| crate::Error::ServerSpawn {
-		server: config.command.clone(),
-		reason: "stdin pipe not available".into(),
-	})?;
-	let stdout = process.stdout.take().ok_or_else(|| crate::Error::ServerSpawn {
-		server: config.command.clone(),
-		reason: "stdout pipe not available".into(),
-	})?;
-	let stderr = process.stderr.take().ok_or_else(|| crate::Error::ServerSpawn {
-		server: config.command.clone(),
-		reason: "stderr pipe not available".into(),
-	})?;
+	let stdin = process
+		.stdin
+		.take()
+		.ok_or_else(|| crate::Error::ServerSpawn {
+			server: config.command.clone(),
+			reason: "stdin pipe not available".into(),
+		})?;
+	let stdout = process
+		.stdout
+		.take()
+		.ok_or_else(|| crate::Error::ServerSpawn {
+			server: config.command.clone(),
+			reason: "stdout pipe not available".into(),
+		})?;
+	let stderr = process
+		.stderr
+		.take()
+		.ok_or_else(|| crate::Error::ServerSpawn {
+			server: config.command.clone(),
+			reason: "stderr pipe not available".into(),
+		})?;
 
 	// Log stderr from the LSP server
 	let stderr_id = id;
