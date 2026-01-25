@@ -72,9 +72,6 @@ pub async fn run_editor(mut editor: Editor) -> io::Result<()> {
 		hook_runtime,
 	);
 
-	// Fire-and-forget background init - must not block first frame
-	editor.kick_lsp_init_for_open_buffers();
-
 	let result: io::Result<()> = async {
 		loop {
 			editor.ui_tick();

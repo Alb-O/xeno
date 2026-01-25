@@ -189,7 +189,7 @@ impl Registry {
 	/// server or starts a new one. Crashed servers are cleaned up and restarted.
 	///
 	/// Returns immediately after spawning. Initialization runs in background with messages
-	/// queued until complete.
+	/// queued until complete. Holds write lock through check-and-start to prevent races.
 	pub fn get_or_start(&self, language: &str, file_path: &Path) -> Result<ClientHandle> {
 		let config = self.get_config(language).ok_or_else(|| {
 			crate::Error::Protocol(format!("No server configured for {language}"))
@@ -198,17 +198,16 @@ impl Registry {
 		let root_path = find_root_path(file_path, &config.root_markers);
 		let key = (language.to_string(), root_path.clone());
 
-		{
-			let servers = self.servers.read();
-			if let Some(instance) = servers.get(&key) {
-				if instance.is_alive() {
-					return Ok(instance.handle.clone());
-				}
-				warn!(language = %language, root = ?root_path, "Language server crashed, restarting");
+		let mut servers = self.servers.write();
+
+		if let Some(instance) = servers.get(&key) {
+			if instance.is_alive() {
+				return Ok(instance.handle.clone());
 			}
+			warn!(language = %language, root = ?root_path, "Language server crashed, restarting");
 		}
 
-		self.servers.write().remove(&key);
+		servers.remove(&key);
 
 		let id = LanguageServerId(self.next_id.fetch_add(1, Ordering::Relaxed));
 		info!(language = %language, command = %config.command, root = ?root_path, "Starting language server");
@@ -248,7 +247,7 @@ impl Registry {
 			}
 		});
 
-		self.servers.write().insert(
+		servers.insert(
 			key,
 			ServerInstance {
 				handle: handle.clone(),
