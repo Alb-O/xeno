@@ -237,10 +237,7 @@ impl ViewManager {
 
 	/// Adds a view to the reverse index for a document.
 	fn index_add(&mut self, doc_id: DocumentId, view_id: ViewId) {
-		self.doc_to_views
-			.entry(doc_id)
-			.or_default()
-			.push(view_id);
+		self.doc_to_views.entry(doc_id).or_default().push(view_id);
 	}
 
 	/// Removes a view from the reverse index for a document.

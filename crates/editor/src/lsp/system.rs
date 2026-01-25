@@ -12,7 +12,6 @@ pub struct LspSystem;
 #[cfg(feature = "lsp")]
 struct RealLspSystem {
 	manager: crate::lsp::LspManager,
-	pending: crate::lsp::pending::PendingLspState,
 	sync_manager: crate::lsp::sync_manager::LspSyncManager,
 	completion: crate::lsp::CompletionController,
 	signature_gen: u64,
@@ -28,7 +27,6 @@ impl LspSystem {
 		Self {
 			inner: RealLspSystem {
 				manager: crate::lsp::LspManager::new(),
-				pending: crate::lsp::pending::PendingLspState::new(),
 				sync_manager: crate::lsp::sync_manager::LspSyncManager::new(),
 				completion: crate::lsp::CompletionController::new(),
 				signature_gen: 0,
@@ -199,14 +197,6 @@ impl LspSystem {
 
 	pub fn offset_encoding_for_buffer(&self, buffer: &Buffer) -> xeno_lsp::OffsetEncoding {
 		self.inner.manager.offset_encoding_for_buffer(buffer)
-	}
-
-	pub(crate) fn pending(&self) -> &crate::lsp::pending::PendingLspState {
-		&self.inner.pending
-	}
-
-	pub(crate) fn pending_mut(&mut self) -> &mut crate::lsp::pending::PendingLspState {
-		&mut self.inner.pending
 	}
 
 	pub(crate) fn sync_manager(&self) -> &crate::lsp::sync_manager::LspSyncManager {

@@ -64,7 +64,7 @@ impl Editor {
 
 			self.state.lsp.sync_manager_mut().on_doc_open(
 				doc_id,
-				crate::lsp::pending::LspDocumentConfig {
+				crate::lsp::sync_manager::LspDocumentConfig {
 					path,
 					language,
 					supports_incremental,
@@ -162,7 +162,7 @@ impl Editor {
 
 					self.state.lsp.sync_manager_mut().on_doc_open(
 						doc_id,
-						crate::lsp::pending::LspDocumentConfig {
+						crate::lsp::sync_manager::LspDocumentConfig {
 							path,
 							language,
 							supports_incremental,

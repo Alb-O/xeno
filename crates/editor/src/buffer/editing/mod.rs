@@ -334,12 +334,6 @@ impl Buffer {
 		}
 	}
 
-	/// Takes pending LSP changes for this document.
-	#[cfg(feature = "lsp")]
-	pub fn lsp_take_batch(&self) -> Vec<LspDocumentChange> {
-		self.with_doc_mut(|doc| doc.lsp_take_batch())
-	}
-
 	/// Finalizes selection/cursor after a transaction is applied.
 	pub fn finalize_selection(&mut self, new_selection: xeno_primitives::Selection) {
 		self.set_selection(new_selection);

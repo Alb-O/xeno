@@ -2,8 +2,6 @@
 //!
 //! Tick, startup, and render update methods.
 
-#[cfg(feature = "lsp")]
-use std::collections::HashSet;
 use std::path::PathBuf;
 #[cfg(feature = "lsp")]
 use std::time::Instant;
@@ -16,9 +14,7 @@ use xeno_registry::{HookContext, HookEventData, emit_sync_with as emit_hook_sync
 
 use super::Editor;
 #[cfg(feature = "lsp")]
-use crate::lsp::pending::{
-	LSP_DEBOUNCE, LSP_MAX_DOCS_PER_TICK, LSP_MAX_INCREMENTAL_BYTES, LSP_MAX_INCREMENTAL_CHANGES,
-};
+use crate::lsp::sync_manager::{LSP_MAX_INCREMENTAL_BYTES, LSP_MAX_INCREMENTAL_CHANGES};
 use crate::metrics::StatsSnapshot;
 use crate::types::{Invocation, InvocationPolicy, InvocationResult};
 
@@ -57,9 +53,6 @@ impl Editor {
 		#[cfg(feature = "lsp")]
 		self.queue_lsp_resyncs_from_documents();
 
-		#[cfg(feature = "lsp")]
-		let mut lsp_docs: HashSet<crate::buffer::DocumentId> = HashSet::new();
-
 		let dirty_ids: Vec<_> = self.state.frame.dirty_buffers.drain().collect();
 		for buffer_id in dirty_ids {
 			if let Some(buffer) = self.state.core.buffers.get_buffer(buffer_id) {
@@ -80,16 +73,11 @@ impl Editor {
 					),
 					&mut self.state.hook_runtime,
 				);
-
-				#[cfg(feature = "lsp")]
-				if lsp_docs.insert(buffer.document_id()) {
-					self.accumulate_lsp_change(buffer_id);
-				}
 			}
 		}
 
 		#[cfg(feature = "lsp")]
-		self.flush_lsp_pending();
+		self.tick_lsp_sync();
 
 		emit_hook_sync_with(
 			&HookContext::new(HookEventData::EditorTick, Some(&self.state.extensions)),
@@ -176,11 +164,15 @@ impl Editor {
 	/// where incremental sync is not possible.
 	pub(crate) fn mark_buffer_dirty_for_full_sync(&mut self, buffer_id: crate::buffer::ViewId) {
 		if let Some(buffer) = self.state.core.buffers.get_buffer_mut(buffer_id) {
+			#[cfg(feature = "lsp")]
+			let doc_id = buffer.document_id();
+
 			buffer.with_doc_mut(|doc| {
 				doc.increment_version();
-				#[cfg(feature = "lsp")]
-				doc.mark_for_full_lsp_sync();
 			});
+
+			#[cfg(feature = "lsp")]
+			self.state.lsp.sync_manager_mut().escalate_full(doc_id);
 		}
 		self.state.frame.dirty_buffers.insert(buffer_id);
 	}
@@ -188,13 +180,15 @@ impl Editor {
 	/// Queues full LSP syncs for documents flagged by the LSP state manager.
 	#[cfg(feature = "lsp")]
 	fn queue_lsp_resyncs_from_documents(&mut self) {
+		use std::collections::HashSet;
+
 		let uris = self.state.lsp.documents().take_force_full_sync_uris();
 		if uris.is_empty() {
 			return;
 		}
 
 		let uri_set: HashSet<&str> = uris.iter().map(|u| u.as_str()).collect();
-		for buffer in self.state.core.buffers.buffers_mut() {
+		for buffer in self.state.core.buffers.buffers() {
 			let Some(path) = buffer.path() else {
 				continue;
 			};
@@ -205,77 +199,26 @@ impl Editor {
 				continue;
 			}
 
-			buffer.with_doc_mut(|doc| doc.mark_for_full_lsp_sync());
-			self.state.frame.dirty_buffers.insert(buffer.id);
+			self.state
+				.lsp
+				.sync_manager_mut()
+				.escalate_full(buffer.document_id());
 		}
 	}
 
-	/// Registers a buffer for debounced LSP sync.
+	/// Ticks the LSP sync manager, flushing due documents.
 	#[cfg(feature = "lsp")]
-	fn accumulate_lsp_change(&mut self, buffer_id: crate::buffer::ViewId) {
-		let Some(buffer) = self.state.core.buffers.get_buffer(buffer_id) else {
-			return;
-		};
-		let (Some(path), Some(language)) = (buffer.path(), buffer.file_type()) else {
-			return;
-		};
-		let (has_pending, editor_version) =
-			buffer.with_doc(|doc| (doc.has_pending_lsp_sync(), doc.version()));
-		if !has_pending {
-			return;
-		}
-		let doc_id = buffer.document_id();
-
-		let supports_incremental = self
-			.state
-			.lsp
-			.incremental_encoding_for_buffer(buffer)
-			.is_some();
-		let encoding = self.state.lsp.offset_encoding_for_buffer(buffer);
-
-		self.state.lsp.pending_mut().accumulate(
-			doc_id,
-			crate::lsp::pending::LspDocumentConfig {
-				path,
-				language,
-				supports_incremental,
-				encoding,
-			},
-			editor_version,
-		);
-	}
-
-	/// Flushes pending LSP changes past the debounce period.
-	#[cfg(feature = "lsp")]
-	fn flush_lsp_pending(&mut self) {
-		use crate::lsp::pending::DocumentLspData;
-
+	fn tick_lsp_sync(&mut self) {
 		let sync = self.state.lsp.sync().clone();
 		let buffers = &self.state.core.buffers;
-		let stats = self.state.lsp.pending_mut().flush_due(
+		let stats = self.state.lsp.sync_manager_mut().tick(
 			Instant::now(),
-			LSP_DEBOUNCE,
-			LSP_MAX_DOCS_PER_TICK,
 			&sync,
 			&self.state.metrics,
 			|doc_id| {
-				buffers
-					.buffers()
-					.find(|b| b.document_id() == doc_id)
-					.map(|b| {
-						b.with_doc_mut(|doc| {
-							let force_full = doc.needs_full_lsp_sync();
-							if force_full {
-								doc.clear_full_lsp_sync();
-							}
-							DocumentLspData {
-								content: doc.content().clone(),
-								change_bytes: doc.pending_lsp_bytes(),
-								changes: doc.lsp_take_batch(),
-								force_full,
-							}
-						})
-					})
+				let view_id = buffers.any_buffer_for_doc(doc_id)?;
+				let buffer = buffers.get_buffer(view_id)?;
+				Some(buffer.with_doc(|doc| (doc.content().clone(), doc.version())))
 			},
 		);
 		self.state.metrics.record_lsp_tick(
@@ -296,22 +239,12 @@ impl Editor {
 	) -> Option<oneshot::Receiver<()>> {
 		let buffer = self.state.core.buffers.get_buffer(buffer_id)?;
 		let (path, language) = (buffer.path()?, buffer.file_type()?);
-		let (force_full_sync, has_pending, change_count, total_bytes) = buffer.with_doc(|doc| {
-			(
-				doc.needs_full_lsp_sync(),
-				doc.has_pending_lsp_sync(),
-				doc.pending_lsp_count(),
-				doc.pending_lsp_bytes(),
-			)
-		});
-		if !has_pending {
-			return None;
-		}
-		let changes = buffer.with_doc_mut(|doc| doc.lsp_take_batch());
-		if force_full_sync {
-			buffer.with_doc_mut(|doc| doc.clear_full_lsp_sync());
-		}
+		let doc_id = buffer.document_id();
 
+		let (changes, force_full_sync, total_bytes) =
+			self.state.lsp.sync_manager_mut().take_immediate(doc_id)?;
+
+		let change_count = changes.len();
 		let use_incremental = !force_full_sync
 			&& self
 				.state
@@ -512,8 +445,8 @@ impl Editor {
 	pub fn stats_snapshot(&self) -> StatsSnapshot {
 		#[cfg(feature = "lsp")]
 		let (lsp_pending_docs, lsp_in_flight) = (
-			self.state.lsp.pending().pending_count(),
-			self.state.lsp.pending().in_flight_count(),
+			self.state.lsp.sync_manager().pending_count(),
+			self.state.lsp.sync_manager().in_flight_count(),
 		);
 		#[cfg(not(feature = "lsp"))]
 		let (lsp_pending_docs, lsp_in_flight) = (0, 0);

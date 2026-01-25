@@ -1,18 +1,10 @@
 //! Unified LSP sync manager with owned pending state.
 //!
-//! [`LspSyncManager`] owns all pending changes per document, eliminating the
-//! split-brain between scheduling state and document pending fields. It tracks:
-//! - Pending incremental batches per document
+//! [`LspSyncManager`] owns all pending changes per document and tracks:
+//! - Pending incremental change batches
 //! - Full-sync escalation and initial open state
 //! - Debounce scheduling and retry timing
-//! - Per-document single in-flight sends with ack timeout
-//!
-//! # Design
-//!
-//! Unlike the previous `PendingLspState` which only tracked scheduling metadata
-//! while actual changes lived in `Document`, this manager owns the pending
-//! payload. This eliminates data loss scenarios where changes were drained
-//! from Document before successful send completion.
+//! - Single in-flight sends with ack timeout
 //!
 //! # Error Handling
 //!
@@ -20,25 +12,62 @@
 //! - Other errors: escalate to full sync, set retry delay
 
 use std::collections::HashMap;
+use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use ropey::Rope;
 use tokio::sync::mpsc;
 use tracing::{debug, warn};
-use xeno_lsp::DocumentSync;
+use xeno_lsp::{DocumentSync, OffsetEncoding};
 use xeno_primitives::LspDocumentChange;
 
 use super::coalesce::coalesce_changes;
-use super::pending::{
-	FlushComplete, FlushStats, LSP_DEBOUNCE, LSP_ERROR_RETRY_DELAY, LSP_MAX_DOCS_PER_TICK,
-	LSP_MAX_INCREMENTAL_BYTES, LSP_MAX_INCREMENTAL_CHANGES, LspDocumentConfig,
-};
 use crate::buffer::DocumentId;
 use crate::metrics::EditorMetrics;
 
+/// Default debounce duration for LSP notifications.
+pub const LSP_DEBOUNCE: Duration = Duration::from_millis(30);
+
+/// Maximum number of incremental changes before falling back to full sync.
+pub const LSP_MAX_INCREMENTAL_CHANGES: usize = 100;
+
+/// Maximum total bytes of inserted text before falling back to full sync (100 KB).
+pub const LSP_MAX_INCREMENTAL_BYTES: usize = 100 * 1024;
+
+/// Retry delay after LSP send failure before attempting full sync.
+pub const LSP_ERROR_RETRY_DELAY: Duration = Duration::from_millis(250);
+
+/// Maximum number of documents flushed per tick.
+pub const LSP_MAX_DOCS_PER_TICK: usize = 8;
+
 /// Timeout for waiting on send acknowledgment before recovery.
 pub const LSP_ACK_TIMEOUT: Duration = Duration::from_secs(10);
+
+/// LSP document configuration.
+#[derive(Debug, Clone)]
+pub struct LspDocumentConfig {
+	pub path: PathBuf,
+	pub language: String,
+	pub supports_incremental: bool,
+	pub encoding: OffsetEncoding,
+}
+
+/// Completion message from spawned LSP send tasks.
+#[derive(Debug)]
+pub struct FlushComplete {
+	pub doc_id: DocumentId,
+	pub success: bool,
+}
+
+/// Statistics from a flush operation.
+#[derive(Debug, Default, Clone, Copy)]
+pub struct FlushStats {
+	pub flushed_docs: usize,
+	pub full_syncs: u64,
+	pub incremental_syncs: u64,
+	pub snapshot_bytes: u64,
+}
 
 /// Current phase of a document's sync state.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -51,49 +80,35 @@ pub enum SyncPhase {
 	InFlight,
 }
 
-/// Per-document sync state owned by the manager.
+/// Per-document sync state.
 #[derive(Debug)]
 pub struct DocSyncState {
-	/// Configuration for this document.
 	pub config: LspDocumentConfig,
-	/// Whether didOpen has been sent for this document.
 	pub open_sent: bool,
-	/// Whether a full sync is required (e.g., after error or threshold exceeded).
 	pub needs_full: bool,
-	/// Pending incremental changes.
 	pub pending_changes: Vec<LspDocumentChange>,
-	/// Total bytes in pending change text.
 	pub pending_bytes: usize,
-	/// Current sync phase.
 	pub phase: SyncPhase,
-	/// When the most recent edit occurred.
 	pub last_edit_at: Instant,
-	/// Earliest retry time after error.
 	pub retry_after: Option<Instant>,
-	/// Latest editor document version.
 	pub editor_version: u64,
-	/// In-flight send metadata (when phase is InFlight).
 	pub inflight: Option<InFlightInfo>,
 }
 
 /// Metadata about an in-flight send.
 #[derive(Debug, Clone)]
 pub struct InFlightInfo {
-	/// Whether this was a full sync send.
 	pub is_full: bool,
-	/// Version at time of send.
 	pub version: u64,
-	/// When the send started.
 	pub started_at: Instant,
 }
 
 impl DocSyncState {
-	/// Creates a new document sync state.
 	pub fn new(config: LspDocumentConfig, version: u64) -> Self {
 		Self {
 			config,
 			open_sent: false,
-			needs_full: true, // First sync is always full (didOpen)
+			needs_full: true,
 			pending_changes: Vec::new(),
 			pending_bytes: 0,
 			phase: SyncPhase::Idle,
@@ -104,7 +119,7 @@ impl DocSyncState {
 		}
 	}
 
-	/// Records new changes, escalating to full sync if thresholds are exceeded.
+	/// Records changes, escalating to full sync if thresholds are exceeded.
 	pub fn record_changes(&mut self, changes: Vec<LspDocumentChange>, bytes: usize, version: u64) {
 		self.editor_version = version;
 		self.last_edit_at = Instant::now();
@@ -124,16 +139,13 @@ impl DocSyncState {
 		}
 	}
 
-	/// Marks this document for full sync.
 	pub fn escalate_full(&mut self) {
 		self.needs_full = true;
 		self.pending_changes.clear();
 		self.pending_bytes = 0;
 	}
 
-	/// Returns true if this document is ready to flush.
-	///
-	/// Full syncs bypass the debounce window; incremental syncs wait for it.
+	/// Full syncs bypass debounce; incremental syncs wait for it.
 	pub fn is_due(&self, now: Instant, debounce: Duration) -> bool {
 		if self.phase == SyncPhase::InFlight || self.retry_after.is_some_and(|t| now < t) {
 			return false;
@@ -144,17 +156,17 @@ impl DocSyncState {
 		!self.pending_changes.is_empty() && now.duration_since(self.last_edit_at) >= debounce
 	}
 
-	/// Marks this state for retry after an error.
 	pub fn mark_error_retry(&mut self) {
 		self.retry_after = Some(Instant::now() + LSP_ERROR_RETRY_DELAY);
 		self.phase = SyncPhase::Debouncing;
 		self.inflight = None;
 	}
 
-	/// Takes the pending payload for sending, transitioning to in-flight.
+	/// Takes pending payload and transitions to in-flight.
 	pub fn take_for_send(&mut self, is_full: bool) -> (Vec<LspDocumentChange>, usize) {
 		let changes = std::mem::take(&mut self.pending_changes);
-		let bytes = std::mem::take(&mut self.pending_bytes);
+		let bytes = self.pending_bytes;
+		self.pending_bytes = 0;
 
 		self.phase = SyncPhase::InFlight;
 		self.inflight = Some(InFlightInfo {
@@ -171,7 +183,6 @@ impl DocSyncState {
 		(changes, bytes)
 	}
 
-	/// Marks the in-flight send as complete.
 	pub fn mark_complete(&mut self, success: bool) {
 		self.inflight = None;
 
@@ -188,7 +199,7 @@ impl DocSyncState {
 		}
 	}
 
-	/// Checks if the in-flight send has timed out, recovering with a full sync if so.
+	/// Checks for ack timeout, recovering with full sync escalation.
 	pub fn check_ack_timeout(&mut self, now: Instant, timeout: Duration) -> bool {
 		let Some(ref info) = self.inflight else {
 			return false;
@@ -212,10 +223,6 @@ impl DocSyncState {
 }
 
 /// Unified LSP sync manager owning all pending changes per document.
-///
-/// Unlike `PendingLspState` which only tracked scheduling while changes lived
-/// in `Document`, this manager owns the pending payload to eliminate data loss
-/// when changes are drained before send completion.
 pub struct LspSyncManager {
 	docs: HashMap<DocumentId, DocSyncState>,
 	completion_rx: mpsc::UnboundedReceiver<FlushComplete>,
@@ -246,21 +253,17 @@ impl LspSyncManager {
 		}
 	}
 
-	/// Registers a document for LSP sync tracking.
 	pub fn on_doc_open(&mut self, doc_id: DocumentId, config: LspDocumentConfig, version: u64) {
 		debug!(doc_id = doc_id.0, path = ?config.path, version, "lsp.sync_manager.doc_open");
 		self.docs.insert(doc_id, DocSyncState::new(config, version));
 	}
 
-	/// Removes a document from LSP sync tracking.
 	pub fn on_doc_close(&mut self, doc_id: DocumentId) {
 		debug!(doc_id = doc_id.0, "lsp.sync_manager.doc_close");
 		self.docs.remove(&doc_id);
 	}
 
-	/// Records edits to a document for later sync.
-	///
-	/// Documents not tracked (no LSP server configured) are silently ignored.
+	/// Records edits for later sync. Untracked documents are silently ignored.
 	pub fn on_doc_edit(
 		&mut self,
 		doc_id: DocumentId,
@@ -280,12 +283,33 @@ impl LspSyncManager {
 		}
 	}
 
-	/// Marks a document for full sync (e.g., after a complex transaction).
 	pub fn escalate_full(&mut self, doc_id: DocumentId) {
 		if let Some(state) = self.docs.get_mut(&doc_id) {
 			debug!(doc_id = doc_id.0, "lsp.sync_manager.escalate_full");
 			state.escalate_full();
 		}
+	}
+
+	/// Takes pending changes for immediate sync, bypassing debounce.
+	///
+	/// Returns `(changes, needs_full, bytes)` or `None` if nothing pending.
+	pub fn take_immediate(
+		&mut self,
+		doc_id: DocumentId,
+	) -> Option<(Vec<LspDocumentChange>, bool, usize)> {
+		let state = self.docs.get_mut(&doc_id)?;
+		if state.pending_changes.is_empty() && !state.needs_full {
+			return None;
+		}
+
+		let changes = std::mem::take(&mut state.pending_changes);
+		let bytes = state.pending_bytes;
+		state.pending_bytes = 0;
+		let needs_full = state.needs_full;
+		state.needs_full = false;
+		state.phase = SyncPhase::Idle;
+
+		Some((changes, needs_full, bytes))
 	}
 
 	pub fn is_tracked(&self, doc_id: &DocumentId) -> bool {
@@ -319,8 +343,6 @@ impl LspSyncManager {
 	}
 
 	/// Flushes documents that are due for sync.
-	///
-	/// `snapshot_provider` returns `(content, version)` for full sync, called per document.
 	pub fn tick<F>(
 		&mut self,
 		now: Instant,
@@ -495,15 +517,8 @@ mod tests {
 		assert_eq!(mgr.doc_count(), 0);
 	}
 
-	#[test]
-	fn test_record_changes() {
-		let mut mgr = LspSyncManager::new();
-		let doc_id = DocumentId(1);
-
-		mgr.on_doc_open(doc_id, test_config(), 1);
-
-		// First edit
-		let changes = vec![LspDocumentChange {
+	fn test_change(text: &str) -> LspDocumentChange {
+		LspDocumentChange {
 			range: xeno_primitives::LspRange {
 				start: xeno_primitives::LspPosition {
 					line: 0,
@@ -514,10 +529,17 @@ mod tests {
 					character: 0,
 				},
 			},
-			new_text: "hello".to_string(),
-		}];
+			new_text: text.to_string(),
+		}
+	}
 
-		mgr.on_doc_edit(doc_id, 2, changes, 5);
+	#[test]
+	fn test_record_changes() {
+		let mut mgr = LspSyncManager::new();
+		let doc_id = DocumentId(1);
+		mgr.on_doc_open(doc_id, test_config(), 1);
+
+		mgr.on_doc_edit(doc_id, 2, vec![test_change("hello")], 5);
 
 		let state = mgr.docs.get(&doc_id).unwrap();
 		assert_eq!(state.pending_changes.len(), 1);
@@ -530,29 +552,13 @@ mod tests {
 	fn test_threshold_escalation() {
 		let mut mgr = LspSyncManager::new();
 		let doc_id = DocumentId(1);
-
 		mgr.on_doc_open(doc_id, test_config(), 1);
 
-		// Record many changes to exceed threshold
 		for i in 0..LSP_MAX_INCREMENTAL_CHANGES + 1 {
-			let changes = vec![LspDocumentChange {
-				range: xeno_primitives::LspRange {
-					start: xeno_primitives::LspPosition {
-						line: 0,
-						character: 0,
-					},
-					end: xeno_primitives::LspPosition {
-						line: 0,
-						character: 0,
-					},
-				},
-				new_text: "x".to_string(),
-			}];
-			mgr.on_doc_edit(doc_id, i as u64 + 2, changes, 1);
+			mgr.on_doc_edit(doc_id, i as u64 + 2, vec![test_change("x")], 1);
 		}
 
 		let state = mgr.docs.get(&doc_id).unwrap();
-		// Should have escalated to full sync
 		assert!(state.needs_full);
 		assert!(state.pending_changes.is_empty());
 	}

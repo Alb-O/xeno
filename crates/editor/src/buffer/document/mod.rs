@@ -117,16 +117,6 @@ pub struct Document {
 	///
 	/// Used for LSP synchronization and cache invalidation.
 	version: u64,
-
-	/// Pending LSP changes queued for sync.
-	#[cfg(feature = "lsp")]
-	pending_lsp_changes: Vec<xeno_primitives::LspDocumentChange>,
-	/// Total bytes in pending LSP change text (for threshold tracking).
-	#[cfg(feature = "lsp")]
-	pending_lsp_bytes: usize,
-	/// Force a full LSP sync on the next flush.
-	#[cfg(feature = "lsp")]
-	force_full_sync: bool,
 }
 
 impl Document {
@@ -145,12 +135,6 @@ impl Document {
 			syntax_dirty: false,
 			insert_undo_active: false,
 			version: 0,
-			#[cfg(feature = "lsp")]
-			pending_lsp_changes: Vec::new(),
-			#[cfg(feature = "lsp")]
-			pending_lsp_bytes: 0,
-			#[cfg(feature = "lsp")]
-			force_full_sync: false,
 		}
 	}
 
@@ -494,12 +478,6 @@ impl Document {
 		self.undo_backend = UndoBackend::default();
 		self.modified = false;
 		self.version = 0;
-		#[cfg(feature = "lsp")]
-		{
-			self.pending_lsp_changes.clear();
-			self.pending_lsp_bytes = 0;
-			self.force_full_sync = false;
-		}
 	}
 
 	/// Returns whether the document has unsaved changes.
@@ -633,75 +611,6 @@ impl Document {
 	/// Resets the insert undo grouping flag.
 	pub(crate) fn reset_insert_undo(&mut self) {
 		self.insert_undo_active = false;
-	}
-
-	/// Returns whether there are pending LSP changes or a full sync is required.
-	#[cfg(feature = "lsp")]
-	pub fn has_pending_lsp_sync(&self) -> bool {
-		self.force_full_sync || !self.pending_lsp_changes.is_empty()
-	}
-
-	/// Returns whether a full LSP sync is required.
-	#[cfg(feature = "lsp")]
-	pub fn needs_full_lsp_sync(&self) -> bool {
-		self.force_full_sync
-	}
-
-	/// Marks that a full LSP sync is required.
-	#[cfg(feature = "lsp")]
-	pub fn mark_for_full_lsp_sync(&mut self) {
-		self.force_full_sync = true;
-		self.pending_lsp_changes.clear();
-		self.pending_lsp_bytes = 0;
-	}
-
-	/// Clears the full sync flag (called after performing full sync).
-	#[cfg(feature = "lsp")]
-	pub fn clear_full_lsp_sync(&mut self) {
-		self.force_full_sync = false;
-	}
-
-	/// Records LSP changes with threshold-based full sync fallback.
-	#[cfg(feature = "lsp")]
-	pub fn lsp_record_changes(
-		&mut self,
-		changes: Vec<xeno_primitives::LspDocumentChange>,
-		max_changes: usize,
-		max_bytes: usize,
-	) {
-		if self.force_full_sync {
-			return;
-		}
-		self.extend_lsp_changes(changes);
-		if self.pending_lsp_changes.len() > max_changes || self.pending_lsp_bytes > max_bytes {
-			self.mark_for_full_lsp_sync();
-		}
-	}
-
-	/// Appends LSP changes to the pending queue.
-	#[cfg(feature = "lsp")]
-	pub fn extend_lsp_changes(&mut self, changes: Vec<xeno_primitives::LspDocumentChange>) {
-		self.pending_lsp_bytes += changes.iter().map(|c| c.new_text.len()).sum::<usize>();
-		self.pending_lsp_changes.extend(changes);
-	}
-
-	/// Takes all pending LSP changes, resetting the accumulator.
-	#[cfg(feature = "lsp")]
-	pub fn lsp_take_batch(&mut self) -> Vec<xeno_primitives::LspDocumentChange> {
-		self.pending_lsp_bytes = 0;
-		std::mem::take(&mut self.pending_lsp_changes)
-	}
-
-	/// Returns the number of pending LSP changes.
-	#[cfg(feature = "lsp")]
-	pub fn pending_lsp_count(&self) -> usize {
-		self.pending_lsp_changes.len()
-	}
-
-	/// Returns the total bytes in pending LSP change text.
-	#[cfg(feature = "lsp")]
-	pub fn pending_lsp_bytes(&self) -> usize {
-		self.pending_lsp_bytes
 	}
 }
 

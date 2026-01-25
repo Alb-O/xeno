@@ -253,12 +253,12 @@ impl Editor {
 				undo: UndoPolicy::Record,
 				syntax: SyntaxPolicy::IncrementalOrDirty,
 			};
-			let result = buffer.apply(&tx, policy, &self.state.config.language_loader);
-			if result.applied {
-				buffer.with_doc_mut(|doc| doc.mark_for_full_lsp_sync());
-			}
-			result
+			buffer.apply(&tx, policy, &self.state.config.language_loader)
 		};
+
+		if result.applied {
+			self.state.lsp.sync_manager_mut().escalate_full(doc_id);
+		}
 
 		if !result.applied {
 			return Err(ApplyError::ReadOnly(buffer_id.0.to_string()));
