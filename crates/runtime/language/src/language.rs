@@ -64,7 +64,10 @@ impl From<&LanguageData> for LanguageDataRaw {
 			shebangs: data.shebangs.clone(),
 			comment_tokens: data.comment_tokens.clone(),
 			block_comment: data.block_comment.clone(),
-			injection_regex: data.injection_regex.as_ref().map(|r| r.as_str().to_string()),
+			injection_regex: data
+				.injection_regex
+				.as_ref()
+				.map(|r| r.as_str().to_string()),
 			lsp_servers: data.lsp_servers.clone(),
 			roots: data.roots.clone(),
 		}

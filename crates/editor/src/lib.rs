@@ -40,8 +40,6 @@ pub mod extensions;
 /// Async hook execution runtime.
 pub mod hook_runtime;
 pub mod impls;
-/// Async message bus for background task hydration.
-pub mod msg;
 /// Info popups for documentation and contextual help.
 pub mod info_popup;
 /// Input handling: key events, modes, and pending actions.
@@ -56,6 +54,8 @@ mod lsp_system;
 pub mod metrics;
 /// Cursor movement functions.
 pub mod movement;
+/// Async message bus for background task hydration.
+pub mod msg;
 /// Type-erased UI overlay storage.
 pub mod overlay;
 /// Command palette for executing commands.
@@ -70,10 +70,10 @@ pub mod render;
 pub mod scheduler;
 /// Separator drag and hover state.
 pub mod separator;
-/// Background syntax loading manager.
-pub mod syntax_manager;
 /// Style utilities and conversions.
 pub mod styles;
+/// Background syntax loading manager.
+pub mod syntax_manager;
 /// Terminal capability configuration.
 pub mod terminal_config;
 pub mod test_events;
@@ -96,9 +96,9 @@ pub use editor_ctx::{EditorCapabilities, EditorContext, EditorOps, HandleOutcome
 pub use impls::Editor;
 pub use lsp_system::LspSystem;
 pub use movement::WordType;
+pub use msg::{Dirty, EditorMsg, IoMsg, LspMsg, MsgSender, ThemeMsg};
 pub use terminal_config::{TerminalConfig, TerminalSequence};
 pub use theme_source::ThemeSource;
-pub use msg::{Dirty, EditorMsg, IoMsg, LspMsg, MsgSender, ThemeMsg};
 pub use ui::UiManager;
 pub use xeno_registry::themes::{
 	ColorPair, ModeColors, PopupColors, SemanticColors, THEMES, Theme, ThemeColors, UiColors,

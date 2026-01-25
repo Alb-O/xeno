@@ -29,10 +29,10 @@ mod file_ops;
 mod focus;
 /// Undo/redo history.
 mod history;
-/// Background task spawning helpers.
-mod kick;
 /// Unified invocation dispatch.
 mod invocation;
+/// Background task spawning helpers.
+mod kick;
 /// Editor lifecycle (tick, render).
 mod lifecycle;
 /// Message and notification display.
@@ -71,9 +71,9 @@ use crate::LspSystem;
 use crate::buffer::{Layout, ViewId};
 pub use crate::command_queue::CommandQueue;
 use crate::extensions::{ExtensionMap, StyleOverlays};
-use crate::msg::{MsgReceiver, MsgSender};
 pub use crate::hook_runtime::HookRuntime;
 pub use crate::layout::{LayoutManager, SeparatorHit, SeparatorId};
+use crate::msg::{MsgReceiver, MsgSender};
 use crate::overlay::OverlayManager;
 pub use crate::separator::{DragState, MouseVelocityTracker, SeparatorHoverAnimation};
 pub use crate::types::{

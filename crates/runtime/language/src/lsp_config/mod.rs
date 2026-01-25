@@ -88,8 +88,7 @@ impl From<&LspServerDef> for LspServerDefRaw {
 
 /// Loads LSP server configurations from precompiled bincode.
 pub fn load_lsp_configs() -> Result<Vec<LspServerDef>> {
-	let payload =
-		crate::precompiled::validate_blob(LSP_BIN).ok_or(LspConfigError::InvalidBlob)?;
+	let payload = crate::precompiled::validate_blob(LSP_BIN).ok_or(LspConfigError::InvalidBlob)?;
 	let raw: Vec<LspServerDefRaw> = bincode::deserialize(payload)?;
 	Ok(raw.into_iter().map(LspServerDef::from).collect())
 }
@@ -109,9 +108,10 @@ pub type LanguageLspMapping = HashMap<String, LanguageLspInfo>;
 // Test-only KDL parsing functions
 #[cfg(test)]
 mod parsing {
+	use kdl::{KdlDocument, KdlNode};
+
 	use super::*;
 	use crate::utils::parse_string_args;
-	use kdl::{KdlDocument, KdlNode};
 
 	#[derive(Debug, thiserror::Error)]
 	pub enum ParseError {

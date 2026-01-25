@@ -141,10 +141,10 @@ impl SyntaxManager {
 		loader: &Arc<LanguageLoader>,
 	) {
 		let loader = Arc::clone(loader);
-		let task = tokio::task::spawn_blocking(move || {
-			Syntax::new(content.slice(..), language, &loader)
-		});
-		self.pending.insert(doc_id, PendingSyntaxTask { doc_version, task });
+		let task =
+			tokio::task::spawn_blocking(move || Syntax::new(content.slice(..), language, &loader));
+		self.pending
+			.insert(doc_id, PendingSyntaxTask { doc_version, task });
 	}
 
 	pub fn has_pending(&self, doc_id: DocumentId) -> bool {

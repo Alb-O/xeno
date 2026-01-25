@@ -114,8 +114,8 @@ impl Editor {
 			.buffer_ids()
 			.filter_map(|id| {
 				let buffer = self.state.core.buffers.get_buffer(id)?;
-				let (doc_id, version, lang_id, content, has_syntax, syntax_dirty) =
-					buffer.with_doc(|doc| {
+				let (doc_id, version, lang_id, content, has_syntax, syntax_dirty) = buffer
+					.with_doc(|doc| {
 						(
 							doc.id,
 							doc.version(),

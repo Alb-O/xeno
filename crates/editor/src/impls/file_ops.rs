@@ -6,7 +6,6 @@ use std::io;
 use std::path::{Path, PathBuf};
 
 use ropey::Rope;
-
 #[cfg(feature = "lsp")]
 use tracing::warn;
 use xeno_registry::commands::CommandError;

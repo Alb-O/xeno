@@ -34,8 +34,8 @@ impl Config {
 	/// [`DEFAULT_THEME`]: xeno_registry::themes::DEFAULT_THEME
 	/// [`ThemeMsg::ThemesReady`]: crate::msg::ThemeMsg::ThemesReady
 	pub fn new(language_loader: LanguageLoader) -> Self {
-		let bootstrap_theme = crate::bootstrap::get()
-			.unwrap_or(&xeno_registry::themes::DEFAULT_THEME);
+		let bootstrap_theme =
+			crate::bootstrap::get().unwrap_or(&xeno_registry::themes::DEFAULT_THEME);
 		Self {
 			theme: bootstrap_theme,
 			language_loader: Arc::new(language_loader),
