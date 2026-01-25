@@ -735,9 +735,7 @@ impl ClientHandle {
 	fn send_outbound(&self, msg: OutboundMsg) -> Result<()> {
 		self.outbound_tx.try_send(msg).map_err(|err| match err {
 			tokio::sync::mpsc::error::TrySendError::Closed(_) => Error::ServiceStopped,
-			tokio::sync::mpsc::error::TrySendError::Full(_) => {
-				Error::Protocol("Outbound LSP queue is full".into())
-			}
+			tokio::sync::mpsc::error::TrySendError::Full(_) => Error::Backpressure,
 		})
 	}
 }

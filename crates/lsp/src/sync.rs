@@ -219,6 +219,10 @@ impl DocumentSync {
 			return Ok(());
 		};
 
+		if !client.is_initialized() {
+			return Err(crate::Error::NotReady);
+		}
+
 		let version = self
 			.documents
 			.queue_change(&uri)
@@ -264,6 +268,10 @@ impl DocumentSync {
 			return Ok(None);
 		};
 
+		if !client.is_initialized() {
+			return Err(crate::Error::NotReady);
+		}
+
 		let version = self
 			.documents
 			.queue_change(&uri)
@@ -304,6 +312,14 @@ impl DocumentSync {
 			));
 		}
 
+		let Some(client) = self.registry.get(language, path) else {
+			return Err(crate::Error::Protocol("No client for language".into()));
+		};
+
+		if !client.is_initialized() {
+			return Err(crate::Error::NotReady);
+		}
+
 		let content_changes: Vec<TextDocumentContentChangeEvent> = changes
 			.into_iter()
 			.map(|change| TextDocumentContentChangeEvent {
@@ -312,10 +328,6 @@ impl DocumentSync {
 				text: change.new_text,
 			})
 			.collect();
-
-		let Some(client) = self.registry.get(language, path) else {
-			return Err(crate::Error::Protocol("No client for language".into()));
-		};
 
 		let version = self
 			.documents
@@ -331,12 +343,7 @@ impl DocumentSync {
 		Ok(())
 	}
 
-	/// Notify language servers of an incremental document change without content,
-	/// returning an acknowledgment receiver.
-	///
-	/// Like [`notify_change_incremental_no_content`](Self::notify_change_incremental_no_content)
-	/// but returns a oneshot receiver that completes when the notification has been
-	/// written to the transport. If the document is not open, returns an error.
+	/// Like [`notify_change_incremental_no_content`] but returns an ack receiver.
 	pub async fn notify_change_incremental_no_content_with_ack(
 		&self,
 		path: &Path,
@@ -356,6 +363,14 @@ impl DocumentSync {
 			));
 		}
 
+		let Some(client) = self.registry.get(language, path) else {
+			return Err(crate::Error::Protocol("No client for language".into()));
+		};
+
+		if !client.is_initialized() {
+			return Err(crate::Error::NotReady);
+		}
+
 		let content_changes: Vec<TextDocumentContentChangeEvent> = changes
 			.into_iter()
 			.map(|change| TextDocumentContentChangeEvent {
@@ -364,10 +379,6 @@ impl DocumentSync {
 				text: change.new_text,
 			})
 			.collect();
-
-		let Some(client) = self.registry.get(language, path) else {
-			return Err(crate::Error::Protocol("No client for language".into()));
-		};
 
 		let version = self
 			.documents

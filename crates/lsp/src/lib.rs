@@ -177,6 +177,12 @@ pub enum Error {
 		/// The failure reason.
 		reason: String,
 	},
+	/// Outbound queue is full. Retry later.
+	#[error("outbound queue full (backpressure)")]
+	Backpressure,
+	/// Server not yet initialized. Retry after initialization completes.
+	#[error("server not ready")]
+	NotReady,
 }
 
 /// Converts a filesystem path to an LSP URI.

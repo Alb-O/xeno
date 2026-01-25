@@ -19,7 +19,7 @@ use std::time::{Duration, Instant};
 use ropey::Rope;
 use tokio::sync::mpsc;
 use tracing::{debug, warn};
-use xeno_lsp::{DocumentSync, OffsetEncoding};
+use xeno_lsp::{DocumentSync, Error as LspError};
 use xeno_primitives::LspDocumentChange;
 
 use super::coalesce::coalesce_changes;
@@ -50,14 +50,34 @@ pub struct LspDocumentConfig {
 	pub path: PathBuf,
 	pub language: String,
 	pub supports_incremental: bool,
-	pub encoding: OffsetEncoding,
+}
+
+/// Result of a flush attempt.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FlushResult {
+	/// Send succeeded.
+	Success,
+	/// Retryable error (backpressure, not ready). Don't escalate to full sync.
+	Retryable,
+	/// Non-recoverable error. Escalate to full sync.
+	Failed,
+}
+
+impl FlushResult {
+	/// Classify an LSP error into a flush result.
+	fn from_error(err: &LspError) -> Self {
+		match err {
+			LspError::Backpressure | LspError::NotReady => FlushResult::Retryable,
+			_ => FlushResult::Failed,
+		}
+	}
 }
 
 /// Completion message from spawned LSP send tasks.
 #[derive(Debug)]
 pub struct FlushComplete {
 	pub doc_id: DocumentId,
-	pub success: bool,
+	pub result: FlushResult,
 }
 
 /// Statistics from a flush operation.
@@ -183,19 +203,23 @@ impl DocSyncState {
 		(changes, bytes)
 	}
 
-	pub fn mark_complete(&mut self, success: bool) {
+	pub fn mark_complete(&mut self, result: FlushResult) {
 		self.inflight = None;
 
-		if success {
-			self.retry_after = None;
-			self.phase = if self.pending_changes.is_empty() && !self.needs_full {
-				SyncPhase::Idle
-			} else {
-				SyncPhase::Debouncing
-			};
-		} else {
-			self.mark_error_retry();
-			self.needs_full = true;
+		match result {
+			FlushResult::Success => {
+				self.retry_after = None;
+				self.phase = if self.pending_changes.is_empty() && !self.needs_full {
+					SyncPhase::Idle
+				} else {
+					SyncPhase::Debouncing
+				};
+			}
+			FlushResult::Retryable => self.mark_error_retry(),
+			FlushResult::Failed => {
+				self.mark_error_retry();
+				self.needs_full = true;
+			}
 		}
 	}
 
@@ -312,11 +336,13 @@ impl LspSyncManager {
 		Some((changes, needs_full, bytes))
 	}
 
-	pub fn is_tracked(&self, doc_id: &DocumentId) -> bool {
+	#[cfg(test)]
+	fn is_tracked(&self, doc_id: &DocumentId) -> bool {
 		self.docs.contains_key(doc_id)
 	}
 
-	pub fn doc_count(&self) -> usize {
+	#[cfg(test)]
+	fn doc_count(&self) -> usize {
 		self.docs.len()
 	}
 
@@ -337,7 +363,7 @@ impl LspSyncManager {
 	fn poll_completions(&mut self) {
 		while let Ok(complete) = self.completion_rx.try_recv() {
 			if let Some(state) = self.docs.get_mut(&complete.doc_id) {
-				state.mark_complete(complete.success);
+				state.mark_complete(complete.result);
 			}
 		}
 	}
@@ -415,18 +441,30 @@ impl LspSyncManager {
 					let result = sync
 						.notify_change_full_with_ack_text(&path, &language, snapshot)
 						.await;
-					let success = result.is_ok();
 					let latency_ms = start.elapsed().as_millis() as u64;
 
-					if success {
-						metrics.inc_full_sync();
-						debug!(doc_id = doc_id.0, path = ?path, mode = "full", latency_ms, "lsp.sync_manager.flush_done");
-					} else {
-						metrics.inc_send_error();
-						warn!(doc_id = doc_id.0, path = ?path, mode = "full", latency_ms, error = ?result.err(), "lsp.sync_manager.flush_failed");
-					}
+					let flush_result = match &result {
+						Ok(_) => {
+							metrics.inc_full_sync();
+							debug!(doc_id = doc_id.0, path = ?path, mode = "full", latency_ms, "lsp.sync_manager.flush_done");
+							FlushResult::Success
+						}
+						Err(err) => {
+							metrics.inc_send_error();
+							let classified = FlushResult::from_error(err);
+							if classified == FlushResult::Retryable {
+								debug!(doc_id = doc_id.0, path = ?path, mode = "full", latency_ms, error = ?err, "lsp.sync_manager.flush_retryable");
+							} else {
+								warn!(doc_id = doc_id.0, path = ?path, mode = "full", latency_ms, error = ?err, "lsp.sync_manager.flush_failed");
+							}
+							classified
+						}
+					};
 
-					let _ = tx.send(FlushComplete { doc_id, success });
+					let _ = tx.send(FlushComplete {
+						doc_id,
+						result: flush_result,
+					});
 				});
 			} else {
 				let (raw_changes, _) = state.take_for_send(false);
@@ -460,18 +498,30 @@ impl LspSyncManager {
 					let result = sync
 						.notify_change_incremental_no_content_with_ack(&path, &language, changes)
 						.await;
-					let success = result.is_ok();
 					let latency_ms = start.elapsed().as_millis() as u64;
 
-					if success {
-						metrics.inc_incremental_sync();
-						debug!(doc_id = doc_id.0, path = ?path, mode = "incremental", latency_ms, "lsp.sync_manager.flush_done");
-					} else {
-						metrics.inc_send_error();
-						warn!(doc_id = doc_id.0, path = ?path, mode = "incremental", latency_ms, error = ?result.err(), "lsp.sync_manager.flush_failed");
-					}
+					let flush_result = match &result {
+						Ok(_) => {
+							metrics.inc_incremental_sync();
+							debug!(doc_id = doc_id.0, path = ?path, mode = "incremental", latency_ms, "lsp.sync_manager.flush_done");
+							FlushResult::Success
+						}
+						Err(err) => {
+							metrics.inc_send_error();
+							let classified = FlushResult::from_error(err);
+							if classified == FlushResult::Retryable {
+								debug!(doc_id = doc_id.0, path = ?path, mode = "incremental", latency_ms, error = ?err, "lsp.sync_manager.flush_retryable");
+							} else {
+								warn!(doc_id = doc_id.0, path = ?path, mode = "incremental", latency_ms, error = ?err, "lsp.sync_manager.flush_failed");
+							}
+							classified
+						}
+					};
 
-					let _ = tx.send(FlushComplete { doc_id, success });
+					let _ = tx.send(FlushComplete {
+						doc_id,
+						result: flush_result,
+					});
 				});
 			}
 
@@ -490,8 +540,6 @@ impl LspSyncManager {
 mod tests {
 	use std::path::PathBuf;
 
-	use xeno_lsp::OffsetEncoding;
-
 	use super::*;
 
 	fn test_config() -> LspDocumentConfig {
@@ -499,7 +547,6 @@ mod tests {
 			path: PathBuf::from("/test/file.rs"),
 			language: "rust".to_string(),
 			supports_incremental: true,
-			encoding: OffsetEncoding::Utf16,
 		}
 	}
 
@@ -561,5 +608,103 @@ mod tests {
 		let state = mgr.docs.get(&doc_id).unwrap();
 		assert!(state.needs_full);
 		assert!(state.pending_changes.is_empty());
+	}
+
+	#[test]
+	fn test_flush_result_error_classification() {
+		assert_eq!(
+			FlushResult::from_error(&LspError::Backpressure),
+			FlushResult::Retryable
+		);
+		assert_eq!(
+			FlushResult::from_error(&LspError::NotReady),
+			FlushResult::Retryable
+		);
+		assert_eq!(
+			FlushResult::from_error(&LspError::Protocol("test".into())),
+			FlushResult::Failed
+		);
+		assert_eq!(
+			FlushResult::from_error(&LspError::ServiceStopped),
+			FlushResult::Failed
+		);
+	}
+
+	#[test]
+	fn test_retryable_error_does_not_escalate() {
+		let mut state = DocSyncState::new(test_config(), 1);
+		state.needs_full = false;
+		state.phase = SyncPhase::InFlight;
+
+		state.mark_complete(FlushResult::Retryable);
+
+		assert!(!state.needs_full);
+		assert!(state.retry_after.is_some());
+		assert_eq!(state.phase, SyncPhase::Debouncing);
+	}
+
+	#[test]
+	fn test_failed_error_escalates_to_full() {
+		let mut state = DocSyncState::new(test_config(), 1);
+		state.needs_full = false;
+		state.phase = SyncPhase::InFlight;
+
+		state.mark_complete(FlushResult::Failed);
+
+		assert!(state.needs_full);
+		assert!(state.retry_after.is_some());
+		assert_eq!(state.phase, SyncPhase::Debouncing);
+	}
+
+	#[test]
+	fn test_success_clears_retry_state() {
+		let mut state = DocSyncState::new(test_config(), 1);
+		state.needs_full = false;
+		state.phase = SyncPhase::InFlight;
+		state.retry_after = Some(Instant::now() + Duration::from_secs(1));
+
+		state.mark_complete(FlushResult::Success);
+
+		assert!(!state.needs_full);
+		assert!(state.retry_after.is_none());
+		assert_eq!(state.phase, SyncPhase::Idle);
+	}
+
+	#[test]
+	fn test_ack_timeout_escalates_to_full() {
+		let mut state = DocSyncState::new(test_config(), 1);
+		state.needs_full = false;
+		state.phase = SyncPhase::InFlight;
+		state.inflight = Some(InFlightInfo {
+			is_full: false,
+			version: 5,
+			started_at: Instant::now() - LSP_ACK_TIMEOUT - Duration::from_secs(1),
+		});
+
+		let timed_out = state.check_ack_timeout(Instant::now(), LSP_ACK_TIMEOUT);
+
+		assert!(timed_out);
+		assert!(state.needs_full);
+		assert!(state.inflight.is_none());
+		assert!(state.retry_after.is_some());
+		assert_eq!(state.phase, SyncPhase::Debouncing);
+	}
+
+	#[test]
+	fn test_no_timeout_when_recent() {
+		let mut state = DocSyncState::new(test_config(), 1);
+		state.needs_full = false;
+		state.phase = SyncPhase::InFlight;
+		state.inflight = Some(InFlightInfo {
+			is_full: false,
+			version: 5,
+			started_at: Instant::now() - Duration::from_millis(100),
+		});
+
+		let timed_out = state.check_ack_timeout(Instant::now(), LSP_ACK_TIMEOUT);
+
+		assert!(!timed_out);
+		assert!(!state.needs_full);
+		assert!(state.inflight.is_some());
 	}
 }

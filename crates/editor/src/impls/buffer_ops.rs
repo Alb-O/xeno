@@ -60,7 +60,6 @@ impl Editor {
 				.lsp
 				.incremental_encoding_for_buffer(buffer)
 				.is_some();
-			let encoding = self.state.lsp.offset_encoding_for_buffer(buffer);
 
 			self.state.lsp.sync_manager_mut().on_doc_open(
 				doc_id,
@@ -68,7 +67,6 @@ impl Editor {
 					path,
 					language,
 					supports_incremental,
-					encoding,
 				},
 				version,
 			);
@@ -158,7 +156,6 @@ impl Editor {
 						.lsp
 						.incremental_encoding_for_buffer(buffer)
 						.is_some();
-					let encoding = self.state.lsp.offset_encoding_for_buffer(buffer);
 
 					self.state.lsp.sync_manager_mut().on_doc_open(
 						doc_id,
@@ -166,7 +163,6 @@ impl Editor {
 							path,
 							language,
 							supports_incremental,
-							encoding,
 						},
 						version,
 					);
