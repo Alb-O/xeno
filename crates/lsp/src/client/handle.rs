@@ -10,12 +10,11 @@ use lsp_types::request::Request;
 use lsp_types::{ServerCapabilities, Uri};
 use tokio::sync::{Notify, OnceCell, mpsc, watch};
 
-use crate::types::{AnyNotification, AnyRequest, RequestId};
-use crate::{Error, Result};
-
 use super::config::{LanguageServerId, OffsetEncoding};
 use super::outbox::OutboundMsg;
 use super::state::ServerState;
+use crate::types::{AnyNotification, AnyRequest, RequestId};
+use crate::{Error, Result};
 
 /// Handle to an LSP language server.
 ///

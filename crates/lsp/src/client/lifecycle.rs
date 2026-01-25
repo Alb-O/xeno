@@ -8,14 +8,13 @@ use tokio::process::Command;
 use tokio::sync::{Notify, OnceCell, mpsc, watch};
 use tracing::{error, info, warn};
 
-use crate::{MainLoop, Result, uri_from_path};
-
 use super::config::{LanguageServerId, ServerConfig};
 use super::event_handler::{NoOpEventHandler, SharedEventHandler};
 use super::handle::ClientHandle;
 use super::outbox::{OUTBOUND_QUEUE_LEN, outbound_dispatcher};
 use super::router_setup::{ClientState, build_router};
 use super::state::ServerState;
+use crate::{MainLoop, Result, uri_from_path};
 
 /// Start a language server process and return a handle to communicate with it.
 ///

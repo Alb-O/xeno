@@ -158,17 +158,17 @@ impl DocSyncState {
 	) {
 		self.last_edit_at = Instant::now();
 
-		if let Some(expected) = self.expected_prev {
-			if expected != prev_version {
-				warn!(expected, got = prev_version, "lsp.sync.contiguity_break");
-				self.escalate_full();
-				self.expected_prev = Some(new_version);
-				self.editor_version = new_version;
-				if self.phase == SyncPhase::Idle {
-					self.phase = SyncPhase::Debouncing;
-				}
-				return;
+		if let Some(expected) = self.expected_prev
+			&& expected != prev_version
+		{
+			warn!(expected, got = prev_version, "lsp.sync.contiguity_break");
+			self.escalate_full();
+			self.expected_prev = Some(new_version);
+			self.editor_version = new_version;
+			if self.phase == SyncPhase::Idle {
+				self.phase = SyncPhase::Debouncing;
 			}
+			return;
 		}
 
 		self.expected_prev = Some(new_version);
@@ -540,7 +540,9 @@ impl LspSyncManager {
 				tokio::spawn(async move {
 					let start = Instant::now();
 					let result = sync
-						.notify_change_incremental_no_content_with_barrier(&path, &language, changes)
+						.notify_change_incremental_no_content_with_barrier(
+							&path, &language, changes,
+						)
 						.await;
 					let latency_ms = start.elapsed().as_millis() as u64;
 

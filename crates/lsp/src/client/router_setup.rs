@@ -5,10 +5,9 @@ use std::sync::Arc;
 
 use tracing::{debug, error, info, warn};
 
-use crate::router::Router;
-
 use super::config::LanguageServerId;
 use super::event_handler::{LogLevel, SharedEventHandler};
+use crate::router::Router;
 
 /// State for the LSP client service.
 ///
@@ -99,8 +98,8 @@ pub(super) fn build_router(state: Arc<ClientState>) -> Router<Arc<ClientState>> 
 				params.items.iter().map(|_| serde_json::json!({})).collect();
 			async move { Ok(result) }
 		})
-		.request::<lsp_types::request::WorkDoneProgressCreate, _>(|_state, _params| {
-			async move { Ok(()) }
+		.request::<lsp_types::request::WorkDoneProgressCreate, _>(|_state, _params| async move {
+			Ok(())
 		})
 		.unhandled_notification(|_state, notif| {
 			debug!(target: "lsp", method = %notif.method, "Unhandled notification");

@@ -284,13 +284,14 @@ impl DocumentSync {
 			.queue_change(&uri)
 			.ok_or_else(|| crate::Error::Protocol("Document not registered".into()))?;
 
-		let barrier = match client.text_document_did_change_full_with_barrier(uri.clone(), version, text) {
-			Ok(barrier) => barrier,
-			Err(err) => {
-				self.documents.mark_force_full_sync(&uri);
-				return Err(err);
-			}
-		};
+		let barrier =
+			match client.text_document_did_change_full_with_barrier(uri.clone(), version, text) {
+				Ok(barrier) => barrier,
+				Err(err) => {
+					self.documents.mark_force_full_sync(&uri);
+					return Err(err);
+				}
+			};
 		Ok(Some(self.wrap_barrier(uri, version, barrier)))
 	}
 
@@ -392,14 +393,17 @@ impl DocumentSync {
 			.queue_change(&uri)
 			.ok_or_else(|| crate::Error::Protocol("Document not registered".into()))?;
 
-		let barrier =
-			match client.text_document_did_change_with_barrier(uri.clone(), version, content_changes) {
-				Ok(barrier) => barrier,
-				Err(err) => {
-					self.documents.mark_force_full_sync(&uri);
-					return Err(err);
-				}
-			};
+		let barrier = match client.text_document_did_change_with_barrier(
+			uri.clone(),
+			version,
+			content_changes,
+		) {
+			Ok(barrier) => barrier,
+			Err(err) => {
+				self.documents.mark_force_full_sync(&uri);
+				return Err(err);
+			}
+		};
 		Ok(Some(self.wrap_barrier(uri, version, barrier)))
 	}
 

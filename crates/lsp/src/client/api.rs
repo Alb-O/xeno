@@ -8,13 +8,12 @@ use lsp_types::notification::Notification;
 use lsp_types::{ClientInfo, InitializeParams, InitializeResult, Uri, WorkspaceFolder};
 use serde_json::Value;
 
-use crate::types::AnyNotification;
-use crate::{Result, uri_from_path};
-
 use super::capabilities::client_capabilities;
 use super::handle::ClientHandle;
 use super::outbox::OutboundMsg;
 use super::state::ServerState;
+use crate::types::AnyNotification;
+use crate::{Result, uri_from_path};
 
 impl ClientHandle {
 	/// Initialize the language server.

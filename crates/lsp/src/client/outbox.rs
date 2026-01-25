@@ -3,11 +3,10 @@
 use futures::channel::oneshot;
 use tokio::sync::{mpsc, watch};
 
+use super::state::ServerState;
 use crate::message::Message;
 use crate::socket::{MainLoopEvent, ServerSocket};
 use crate::types::{AnyNotification, AnyRequest, AnyResponse};
-
-use super::state::ServerState;
 
 /// Outbound queue capacity.
 pub(super) const OUTBOUND_QUEUE_LEN: usize = 256;
