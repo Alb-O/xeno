@@ -15,7 +15,8 @@ use thiserror::Error;
 
 mod index;
 pub use index::{
-	DuplicatePolicy, RegistryBuilder, RegistryIndex, RegistryReg, RuntimeRegistry, build_map,
+	ChooseWinner, Collision, DuplicatePolicy, InsertAction, InsertFatal, KeyKind, KeyStore,
+	RegistryBuilder, RegistryIndex, RegistryReg, RuntimeRegistry, build_map, insert_typed_key,
 };
 
 /// Represents an editor capability required by a registry item.
