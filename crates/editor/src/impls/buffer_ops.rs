@@ -200,6 +200,25 @@ impl Editor {
 					.canonicalize()
 					.unwrap_or_else(|_| std::env::current_dir().unwrap_or_default().join(path));
 				let content = buffer.with_doc(|doc| doc.content().to_string());
+
+				// Register with sync manager so edits are tracked
+				let doc_id = buffer.document_id();
+				let version = buffer.with_doc(|doc| doc.version());
+				let supports_incremental = self
+					.state
+					.lsp
+					.incremental_encoding_for_buffer(buffer)
+					.is_some();
+				self.state.lsp.sync_manager_mut().on_doc_open(
+					doc_id,
+					crate::lsp::sync_manager::LspDocumentConfig {
+						path: abs_path.clone(),
+						language: language.clone(),
+						supports_incremental,
+					},
+					version,
+				);
+
 				Some((abs_path, language, content))
 			})
 			.collect();

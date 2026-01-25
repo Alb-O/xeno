@@ -193,8 +193,18 @@ impl DocumentStateManager {
 	}
 
 	fn send_diagnostics_event(&self, uri: &Uri, error_count: usize, warning_count: usize) {
+		let has_sender = self.event_sender.is_some();
+		let path = crate::path_from_uri(uri);
+		debug!(
+			uri = uri.as_str(),
+			?path,
+			error_count,
+			warning_count,
+			has_sender,
+			"Sending diagnostics event"
+		);
 		if let Some(ref sender) = self.event_sender
-			&& let Some(path) = crate::path_from_uri(uri)
+			&& let Some(path) = path
 		{
 			let _ = sender.send(DiagnosticsEvent {
 				path,

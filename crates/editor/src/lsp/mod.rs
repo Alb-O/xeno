@@ -131,11 +131,18 @@ impl LspManager {
 	/// This should be called during the editor's main loop to process LSP events.
 	pub fn poll_diagnostics(&mut self) -> Vec<DiagnosticsEvent> {
 		let Some(ref mut receiver) = self.diagnostics_receiver else {
+			tracing::trace!("poll_diagnostics: no receiver");
 			return Vec::new();
 		};
 
 		let mut events = Vec::new();
 		while let Ok(event) = receiver.try_recv() {
+			tracing::debug!(
+				path = ?event.path,
+				errors = event.error_count,
+				warnings = event.warning_count,
+				"poll_diagnostics: received event"
+			);
 			events.push(event);
 		}
 		events

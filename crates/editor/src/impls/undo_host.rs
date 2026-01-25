@@ -70,7 +70,12 @@ impl EditorUndoHost<'_> {
 
 				lsp_result.commit
 			} else {
-				buffer.apply(tx, policy, &self.config.language_loader)
+				let result = buffer.apply(tx, policy, &self.config.language_loader);
+				// No incremental support - trigger full sync if edit applied
+				if result.applied {
+					self.lsp.sync_manager_mut().escalate_full(doc_id);
+				}
+				result
 			};
 			if result.applied
 				&& let Some(selection) = new_selection

@@ -71,11 +71,18 @@ impl DocumentSyncEventHandler {
 impl LspEventHandler for DocumentSyncEventHandler {
 	fn on_diagnostics(
 		&self,
-		_server_id: LanguageServerId,
+		server_id: LanguageServerId,
 		uri: Uri,
 		diagnostics: Vec<Diagnostic>,
 		version: Option<i32>,
 	) {
+		tracing::debug!(
+			server_id = server_id.0,
+			uri = uri.as_str(),
+			count = diagnostics.len(),
+			version = ?version,
+			"Diagnostics received by event handler"
+		);
 		self.documents
 			.update_diagnostics(&uri, diagnostics, version);
 	}
