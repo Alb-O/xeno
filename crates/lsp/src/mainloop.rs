@@ -150,7 +150,10 @@ where
 					// Concurrently flush out the previous message.
 					ret = flush_fut => { ret?; continue; }
 
-					event = self.rx.next() => self.dispatch_event(event.expect("Sender is alive")),
+					event = self.rx.next() => match event {
+						Some(e) => self.dispatch_event(e),
+						None => break Ok(()),
+					},
 					msg = incoming.next() => {
 						let dispatch_fut = self.dispatch_message(msg.expect("Never ends")?).fuse();
 						pin_mut!(dispatch_fut);
@@ -180,7 +183,10 @@ where
 						message: Message::Response(resp),
 						ack: None,
 					})),
-					event = self.rx.next() => self.dispatch_event(event.expect("Sender is alive")),
+					event = self.rx.next() => match event {
+						Some(e) => self.dispatch_event(e),
+						None => break Ok(()),
+					},
 					msg = incoming.next() => {
 						let dispatch_fut = self.dispatch_message(msg.expect("Never ends")?).fuse();
 						pin_mut!(dispatch_fut);
