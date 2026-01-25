@@ -23,6 +23,8 @@
 //! Views can be split horizontally or vertically, with each split containing
 //! a text buffer.
 
+/// Theme bootstrap cache for instant first-frame rendering.
+pub mod bootstrap;
 pub mod buffer;
 pub mod capabilities;
 /// Command queue for deferred execution.

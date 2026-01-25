@@ -36,6 +36,8 @@ async fn main() -> anyhow::Result<()> {
 		None => {}
 	}
 
+	xeno_editor::bootstrap::init();
+
 	let user_config = load_user_config();
 
 	let mut editor = match cli.file_location() {
@@ -290,6 +292,8 @@ fn setup_socket_tracing(socket_path: &str) {
 
 /// Runs the editor with standard initialization for socket logging mode.
 async fn run_editor_normal() -> anyhow::Result<()> {
+	xeno_editor::bootstrap::init();
+
 	let user_config = load_user_config();
 
 	let mut editor = match std::env::args().nth(1) {

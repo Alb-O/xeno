@@ -120,13 +120,8 @@ impl Editor {
 		let ctx = self.render_ctx();
 		let doc_focused = ui.focus.focused().is_editor();
 
-		// Render all buffers in the layout
 		self.render_split_buffers(frame, doc_area, use_block_cursor && doc_focused, &ctx);
 		self.render_floating_windows(frame, use_block_cursor && doc_focused, &ctx);
-
-		if let Some(loading_path) = &self.state.loading_file {
-			self.render_loading_overlay(frame, doc_area, loading_path, &ctx);
-		}
 
 		if let Some(cursor_pos) = ui.render_panels(self, frame, &dock_layout, &ctx.theme) {
 			frame.set_cursor_position(cursor_pos);
@@ -468,41 +463,5 @@ impl Editor {
 				cell.set_style(style);
 			}
 		}
-	}
-
-	/// Renders a centered loading indicator while a file is being loaded.
-	fn render_loading_overlay(
-		&self,
-		frame: &mut xeno_tui::Frame,
-		area: Rect,
-		path: &std::path::Path,
-		ctx: &RenderCtx,
-	) {
-		let filename = path.file_name().and_then(|s| s.to_str()).unwrap_or("file");
-		let text = format!("Loading {filename}...");
-
-		let popup_width = (text.len() as u16 + 4).min(area.width);
-		let popup_height = 3u16.min(area.height);
-		let popup_area = Rect::new(
-			area.x + (area.width.saturating_sub(popup_width)) / 2,
-			area.y + (area.height.saturating_sub(popup_height)) / 2,
-			popup_width,
-			popup_height,
-		);
-
-		let colors = &ctx.theme.colors.popup;
-		let block = Block::default()
-			.borders(Borders::ALL)
-			.border_type(xeno_tui::widgets::BorderType::Rounded)
-			.border_style(Style::default().fg(colors.fg))
-			.style(Style::default().bg(colors.bg));
-
-		frame.render_widget(Clear, popup_area);
-		let inner = block.inner(popup_area);
-		frame.render_widget(block, popup_area);
-		frame.render_widget(
-			Paragraph::new(Span::styled(text, Style::default().fg(colors.fg))),
-			inner,
-		);
 	}
 }
