@@ -1406,4 +1406,87 @@ mod tests {
 			&DEF_RUNTIME
 		));
 	}
+
+	#[test]
+	#[should_panic(expected = "shadows ID")]
+	fn test_runtime_name_shadows_runtime_id_fatal() {
+		static DEF_RUNTIME1: TestDef = TestDef {
+			meta: RegistryMeta {
+				id: "runtime::first",
+				name: "first_name",
+				aliases: &[],
+				description: "Runtime def 1",
+				priority: 0,
+				source: RegistrySource::Runtime,
+				required_caps: &[],
+				flags: 0,
+			},
+		};
+
+		static DEF_RUNTIME2: TestDef = TestDef {
+			meta: RegistryMeta {
+				id: "runtime::second",
+				name: "runtime::first", // Name equals first runtime def's ID
+				aliases: &[],
+				description: "Runtime def 2",
+				priority: 0,
+				source: RegistrySource::Runtime,
+				required_caps: &[],
+				flags: 0,
+			},
+		};
+
+		let builtins = RegistryBuilder::new("test")
+			.duplicate_policy(DuplicatePolicy::FirstWins)
+			.build();
+
+		let registry = RuntimeRegistry::with_policy("test", builtins, DuplicatePolicy::FirstWins);
+		registry.register(&DEF_RUNTIME1);
+		registry.register(&DEF_RUNTIME2);
+	}
+
+	#[test]
+	fn test_runtime_collision_recorded() {
+		static DEF_RUNTIME1: TestDef = TestDef {
+			meta: RegistryMeta {
+				id: "runtime::first",
+				name: "shared_name",
+				aliases: &[],
+				description: "Runtime def 1",
+				priority: 0,
+				source: RegistrySource::Runtime,
+				required_caps: &[],
+				flags: 0,
+			},
+		};
+
+		static DEF_RUNTIME2: TestDef = TestDef {
+			meta: RegistryMeta {
+				id: "runtime::second",
+				name: "shared_name", // Same name, should record collision
+				aliases: &[],
+				description: "Runtime def 2",
+				priority: 0,
+				source: RegistrySource::Runtime,
+				required_caps: &[],
+				flags: 0,
+			},
+		};
+
+		let builtins = RegistryBuilder::new("test")
+			.duplicate_policy(DuplicatePolicy::FirstWins)
+			.build();
+
+		let registry = RuntimeRegistry::with_policy("test", builtins, DuplicatePolicy::FirstWins);
+		registry.register(&DEF_RUNTIME1);
+		registry.register(&DEF_RUNTIME2);
+
+		let collisions = registry.collisions();
+		assert_eq!(collisions.len(), 1);
+		assert_eq!(collisions[0].kind, KeyKind::Name);
+		assert_eq!(collisions[0].key, "shared_name");
+		assert_eq!(collisions[0].existing_id, "runtime::first");
+		assert_eq!(collisions[0].new_id, "runtime::second");
+		assert_eq!(collisions[0].winner_id, "runtime::first"); // FirstWins
+	}
 }
