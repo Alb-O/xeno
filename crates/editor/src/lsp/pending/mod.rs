@@ -73,28 +73,25 @@ pub struct LspDocumentConfig {
 	pub encoding: OffsetEncoding,
 }
 
-/// Pending LSP changes for a single document.
+/// Scheduling metadata for pending LSP sync.
+///
+/// Change data is stored in [`Document`](crate::buffer::Document); this tracks
+/// debounce timing, retry state, and server configuration.
 #[derive(Debug)]
 pub struct PendingLsp {
 	/// When the most recent edit occurred.
 	pub last_edit_at: Instant,
-	/// Force a full sync (threshold exceeded or fallback required).
-	pub force_full: bool,
-	/// Accumulated changes since last flush.
-	pub changes: Vec<LspDocumentChange>,
-	/// Total bytes in accumulated change text.
-	pub bytes: usize,
-	/// File path for this document.
+	/// File path.
 	pub path: PathBuf,
-	/// Language ID for this document.
+	/// Language ID.
 	pub language: String,
-	/// Whether this document supports incremental sync.
+	/// Whether incremental sync is supported.
 	pub supports_incremental: bool,
-	/// Offset encoding for the LSP server.
+	/// Offset encoding.
 	pub encoding: OffsetEncoding,
-	/// Editor document version when changes were accumulated.
+	/// Editor document version.
 	pub editor_version: u64,
-	/// Earliest time a retry is allowed (after error).
+	/// Earliest retry time after error.
 	pub retry_after: Option<Instant>,
 }
 
@@ -103,9 +100,6 @@ impl PendingLsp {
 	pub fn new(config: LspDocumentConfig, editor_version: u64) -> Self {
 		Self {
 			last_edit_at: Instant::now(),
-			force_full: false,
-			changes: Vec::new(),
-			bytes: 0,
 			path: config.path,
 			language: config.language,
 			supports_incremental: config.supports_incremental,
@@ -115,53 +109,18 @@ impl PendingLsp {
 		}
 	}
 
-	/// Appends changes to the pending queue.
-	///
-	/// If thresholds are exceeded, marks for full sync.
-	pub fn append_changes(
-		&mut self,
-		new_changes: Vec<LspDocumentChange>,
-		force_full: bool,
-		editor_version: u64,
-	) {
+	/// Updates the scheduling state when new changes are recorded.
+	pub fn touch(&mut self, editor_version: u64) {
 		self.last_edit_at = Instant::now();
 		self.editor_version = editor_version;
-
-		if force_full {
-			self.force_full = true;
-			self.changes.clear();
-			self.bytes = 0;
-			return;
-		}
-
-		if self.force_full {
-			return;
-		}
-
-		let new_bytes: usize = new_changes.iter().map(|c| c.new_text.len()).sum();
-		self.bytes += new_bytes;
-		self.changes.extend(new_changes);
-
-		if self.changes.len() > LSP_MAX_INCREMENTAL_CHANGES
-			|| self.bytes > LSP_MAX_INCREMENTAL_BYTES
-		{
-			self.force_full = true;
-			self.changes.clear();
-			self.bytes = 0;
-		}
 	}
 
-	/// Returns true if this pending state should be flushed.
-	pub fn is_due(&self, now: Instant, debounce: Duration) -> bool {
+	/// Returns true if ready to flush.
+	pub fn is_due(&self, now: Instant, debounce: Duration, force_full: bool) -> bool {
 		if self.retry_after.is_some_and(|t| now < t) {
 			return false;
 		}
-		now.duration_since(self.last_edit_at) >= debounce || self.force_full
-	}
-
-	/// Returns true if incremental sync should be used.
-	pub fn use_incremental(&self) -> bool {
-		!self.force_full && self.supports_incremental && !self.changes.is_empty()
+		force_full || now.duration_since(self.last_edit_at) >= debounce
 	}
 
 	/// Updates the document configuration fields.
@@ -172,11 +131,8 @@ impl PendingLsp {
 		self.encoding = config.encoding;
 	}
 
-	/// Marks this pending state for full sync retry after an error.
+	/// Marks this pending state for retry after an error.
 	pub fn mark_error_retry(&mut self) {
-		self.force_full = true;
-		self.changes.clear();
-		self.bytes = 0;
 		self.retry_after = Some(Instant::now() + LSP_ERROR_RETRY_DELAY);
 	}
 }
@@ -188,6 +144,18 @@ pub struct FlushComplete {
 	pub doc_id: DocumentId,
 	/// Whether the send succeeded.
 	pub success: bool,
+}
+
+/// Document data for LSP sync.
+pub struct DocumentLspData {
+	/// Full document content.
+	pub content: Rope,
+	/// Pending changes.
+	pub changes: Vec<LspDocumentChange>,
+	/// Total bytes in change text.
+	pub change_bytes: usize,
+	/// Whether full sync is required.
+	pub force_full: bool,
 }
 
 #[derive(Debug, Default, Clone, Copy)]
@@ -267,36 +235,25 @@ impl PendingLspState {
 		self.in_flight.remove(doc_id);
 	}
 
-	/// Accumulates changes for a document.
-	///
-	/// Call this instead of immediately spawning an LSP notification task.
+	/// Registers a document for pending sync.
 	pub fn accumulate(
 		&mut self,
 		doc_id: DocumentId,
 		config: LspDocumentConfig,
-		changes: Vec<LspDocumentChange>,
-		force_full: bool,
 		editor_version: u64,
 	) {
-		let added_changes = changes.len();
-		let added_bytes: usize = changes.iter().map(|c| c.new_text.len()).sum();
-
 		let entry = self
 			.pending
 			.entry(doc_id)
 			.or_insert_with(|| PendingLsp::new(config.clone(), editor_version));
 
 		entry.update_config(config);
-		entry.append_changes(changes, force_full, editor_version);
+		entry.touch(editor_version);
 
 		tracing::trace!(
 			doc_id = doc_id.0,
-			added_changes,
-			added_bytes,
-			total_changes = entry.changes.len(),
-			total_bytes = entry.bytes,
-			force_full = entry.force_full,
-			"lsp.pending_append"
+			editor_version,
+			"lsp.pending_touch"
 		);
 	}
 
@@ -308,7 +265,7 @@ impl PendingLspState {
 		max_docs: usize,
 		sync: &DocumentSync,
 		metrics: &Arc<EditorMetrics>,
-		content_provider: impl Fn(DocumentId) -> Option<Rope>,
+		document_provider: impl Fn(DocumentId) -> Option<DocumentLspData>,
 	) -> FlushStats {
 		self.poll_completions();
 
@@ -319,24 +276,45 @@ impl PendingLspState {
 			return stats;
 		}
 
-		for (&doc_id, pending) in &mut self.pending {
+		// Collect doc_ids first to avoid borrow issues with document_provider
+		let due_docs: Vec<_> = self
+			.pending
+			.iter()
+			.filter(|&(&doc_id, _)| !self.in_flight.contains(&doc_id))
+			.map(|(&doc_id, _)| doc_id)
+			.take(max_docs)
+			.collect();
+
+		for doc_id in due_docs {
 			if stats.flushed_docs >= max_docs {
 				break;
 			}
 
-			if self.in_flight.contains(&doc_id) || !pending.is_due(now, debounce) {
+			let Some(pending) = self.pending.get_mut(&doc_id) else {
+				continue;
+			};
+
+			// Get document data to check if due (need force_full flag)
+			let Some(doc_data) = document_provider(doc_id) else {
+				continue;
+			};
+
+			if !pending.is_due(now, debounce, doc_data.force_full) {
 				continue;
 			}
 
 			let path = pending.path.clone();
 			let language = pending.language.clone();
-			let use_incremental = pending.use_incremental();
-			let raw_changes = std::mem::take(&mut pending.changes);
+			let supports_incremental = pending.supports_incremental;
+			let editor_version = pending.editor_version;
+
+			let raw_changes = doc_data.changes;
 			let raw_count = raw_changes.len();
 			let changes = coalesce_changes(raw_changes);
 			let change_count = changes.len();
-			let bytes = pending.bytes;
-			let editor_version = pending.editor_version;
+			let bytes = doc_data.change_bytes;
+			let use_incremental =
+				!doc_data.force_full && supports_incremental && !changes.is_empty();
 			let mode = if use_incremental {
 				"incremental"
 			} else {
@@ -399,10 +377,7 @@ impl PendingLspState {
 					let _ = tx.send(FlushComplete { doc_id, success });
 				});
 			} else {
-				let Some(content) = content_provider(doc_id) else {
-					self.in_flight.remove(&doc_id);
-					continue;
-				};
+				let content = doc_data.content;
 				let snapshot_bytes = content.len_bytes() as u64;
 				stats.full_syncs += 1;
 				stats.snapshot_bytes += snapshot_bytes;
@@ -441,9 +416,9 @@ impl PendingLspState {
 				});
 			}
 
-			pending.bytes = 0;
-			pending.force_full = false;
-			pending.retry_after = None;
+			if let Some(pending) = self.pending.get_mut(&doc_id) {
+				pending.retry_after = None;
+			}
 			to_remove.push(doc_id);
 			stats.flushed_docs += 1;
 		}

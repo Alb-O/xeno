@@ -210,10 +210,7 @@ impl Editor {
 		}
 	}
 
-	/// Accumulates LSP buffer changes for debounced sync.
-	///
-	/// Instead of immediately sending notifications, changes are accumulated
-	/// in [`PendingLspState`] and flushed after the debounce period elapses.
+	/// Registers a buffer for debounced LSP sync.
 	#[cfg(feature = "lsp")]
 	fn accumulate_lsp_change(&mut self, buffer_id: crate::buffer::ViewId) {
 		let Some(buffer) = self.state.core.buffers.get_buffer(buffer_id) else {
@@ -222,21 +219,12 @@ impl Editor {
 		let (Some(path), Some(language)) = (buffer.path(), buffer.file_type()) else {
 			return;
 		};
-		let (force_full_sync, has_pending, editor_version) = buffer.with_doc(|doc| {
-			(
-				doc.needs_full_lsp_sync(),
-				doc.has_pending_lsp_sync(),
-				doc.version(),
-			)
-		});
+		let (has_pending, editor_version) =
+			buffer.with_doc(|doc| (doc.has_pending_lsp_sync(), doc.version()));
 		if !has_pending {
 			return;
 		}
 		let doc_id = buffer.document_id();
-		let changes = buffer.drain_lsp_changes();
-		if force_full_sync {
-			buffer.with_doc_mut(|doc| doc.clear_full_lsp_sync());
-		}
 
 		let supports_incremental = self
 			.state
@@ -253,31 +241,41 @@ impl Editor {
 				supports_incremental,
 				encoding,
 			},
-			changes,
-			force_full_sync,
 			editor_version,
 		);
 	}
 
-	/// Flushes pending LSP changes that have exceeded the debounce period.
+	/// Flushes pending LSP changes past the debounce period.
 	#[cfg(feature = "lsp")]
 	fn flush_lsp_pending(&mut self) {
-		let now = Instant::now();
+		use crate::lsp::pending::DocumentLspData;
+
 		let sync = self.state.lsp.sync().clone();
 		let buffers = &self.state.core.buffers;
-		let metrics = &self.state.metrics;
-
 		let stats = self.state.lsp.pending_mut().flush_due(
-			now,
+			Instant::now(),
 			LSP_DEBOUNCE,
 			LSP_MAX_DOCS_PER_TICK,
 			&sync,
-			metrics,
+			&self.state.metrics,
 			|doc_id| {
 				buffers
 					.buffers()
 					.find(|b| b.document_id() == doc_id)
-					.map(|b| b.with_doc(|doc| doc.content().clone()))
+					.map(|b| {
+						b.with_doc_mut(|doc| {
+							let force_full = doc.needs_full_lsp_sync();
+							if force_full {
+								doc.clear_full_lsp_sync();
+							}
+							DocumentLspData {
+								content: doc.content().clone(),
+								change_bytes: doc.pending_lsp_bytes(),
+								changes: doc.lsp_take_batch(),
+								force_full,
+							}
+						})
+					})
 			},
 		);
 		self.state.metrics.record_lsp_tick(
@@ -298,25 +296,30 @@ impl Editor {
 	) -> Option<oneshot::Receiver<()>> {
 		let buffer = self.state.core.buffers.get_buffer(buffer_id)?;
 		let (path, language) = (buffer.path()?, buffer.file_type()?);
-		let (force_full_sync, has_pending) =
-			buffer.with_doc(|doc| (doc.needs_full_lsp_sync(), doc.has_pending_lsp_sync()));
+		let (force_full_sync, has_pending, change_count, total_bytes) = buffer.with_doc(|doc| {
+			(
+				doc.needs_full_lsp_sync(),
+				doc.has_pending_lsp_sync(),
+				doc.pending_lsp_count(),
+				doc.pending_lsp_bytes(),
+			)
+		});
 		if !has_pending {
 			return None;
 		}
-		let changes = buffer.drain_lsp_changes();
+		let changes = buffer.with_doc_mut(|doc| doc.lsp_take_batch());
 		if force_full_sync {
 			buffer.with_doc_mut(|doc| doc.clear_full_lsp_sync());
 		}
 
-		let total_bytes: usize = changes.iter().map(|c| c.new_text.len()).sum();
 		let use_incremental = !force_full_sync
 			&& self
 				.state
 				.lsp
 				.incremental_encoding_for_buffer(buffer)
 				.is_some()
-			&& !changes.is_empty()
-			&& changes.len() <= LSP_MAX_INCREMENTAL_CHANGES
+			&& change_count > 0
+			&& change_count <= LSP_MAX_INCREMENTAL_CHANGES
 			&& total_bytes <= LSP_MAX_INCREMENTAL_BYTES;
 
 		let content = buffer.with_doc(|doc| doc.content().clone());

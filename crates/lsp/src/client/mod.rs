@@ -48,7 +48,7 @@
 //! let hover = client.hover(uri, position).await?;
 //! ```
 
-use std::collections::{HashMap, VecDeque};
+use std::collections::VecDeque;
 use std::ops::ControlFlow;
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
@@ -758,82 +758,8 @@ enum OutboundMsg {
 	},
 }
 
-const MAX_PENDING_MSGS: usize = 1024;
-
-/// Queue for messages pending server initialization.
-///
-/// Coalesces didOpen/didChange by URI to prevent unbounded growth during slow init.
-struct PendingQueue {
-	/// didOpen notifications keyed by URI (latest wins).
-	did_open: HashMap<String, OutboundMsg>,
-	/// didChange notifications keyed by URI (latest wins).
-	did_change: HashMap<String, OutboundMsg>,
-	/// Other messages in FIFO order.
-	fifo: VecDeque<OutboundMsg>,
-}
-
-impl PendingQueue {
-	fn new() -> Self {
-		Self {
-			did_open: HashMap::new(),
-			did_change: HashMap::new(),
-			fifo: VecDeque::new(),
-		}
-	}
-
-	fn len(&self) -> usize {
-		self.did_open.len() + self.did_change.len() + self.fifo.len()
-	}
-
-	/// Enqueue a message, coalescing by URI for document notifications.
-	/// Returns false if queue is full.
-	fn enqueue(&mut self, msg: OutboundMsg) -> bool {
-		if self.len() >= MAX_PENDING_MSGS {
-			return false;
-		}
-
-		match &msg {
-			OutboundMsg::Notification { notification } => {
-				if notification.method == "textDocument/didOpen"
-					&& let Some(uri) = extract_uri(&notification.params)
-				{
-					self.did_open.insert(uri, msg);
-					return true;
-				}
-				self.fifo.push_back(msg);
-			}
-			OutboundMsg::DidChange { notification, .. } => {
-				if let Some(uri) = extract_uri(&notification.params) {
-					self.did_change.insert(uri, msg);
-					return true;
-				}
-				self.fifo.push_back(msg);
-			}
-			OutboundMsg::Request { .. } => {
-				self.fifo.push_back(msg);
-			}
-		}
-		true
-	}
-
-	/// Flush all pending messages in order: didOpen, didChange, then FIFO.
-	fn flush(&mut self) -> Vec<OutboundMsg> {
-		let mut result = Vec::with_capacity(self.len());
-		result.extend(self.did_open.drain().map(|(_, v)| v));
-		result.extend(self.did_change.drain().map(|(_, v)| v));
-		result.extend(self.fifo.drain(..));
-		result
-	}
-}
-
-/// Extract URI from textDocument notification params.
-fn extract_uri(params: &Value) -> Option<String> {
-	params
-		.get("textDocument")
-		.and_then(|td| td.get("uri"))
-		.and_then(|u| u.as_str())
-		.map(String::from)
-}
+/// Maximum messages buffered during server initialization.
+const MAX_INIT_BUFFER: usize = 4096;
 
 /// Send a message to the socket.
 fn send_msg(socket: &ServerSocket, msg: OutboundMsg) -> std::result::Result<(), ()> {
@@ -868,12 +794,13 @@ fn send_msg(socket: &ServerSocket, msg: OutboundMsg) -> std::result::Result<(), 
 /// Dispatches outbound messages to the server.
 ///
 /// Gates traffic until `initialized` notification is sent, ensuring LSP protocol ordering.
+/// Messages are buffered in FIFO order during initialization to preserve change sequencing.
 async fn outbound_dispatcher(
 	mut rx: mpsc::Receiver<OutboundMsg>,
 	socket: ServerSocket,
 	mut state_rx: watch::Receiver<ServerState>,
 ) {
-	let mut pending = PendingQueue::new();
+	let mut pending: VecDeque<OutboundMsg> = VecDeque::new();
 	let mut initialized = false;
 
 	loop {
@@ -897,12 +824,14 @@ async fn outbound_dispatcher(
 					let _ = send_msg(&socket, msg);
 					if is_initialized_notif {
 						initialized = true;
-						for queued in pending.flush() {
+						for queued in pending.drain(..) {
 							let _ = send_msg(&socket, queued);
 						}
 					}
-				} else if !pending.enqueue(msg) {
-					warn!("LSP pending queue full, dropping message");
+				} else if pending.len() < MAX_INIT_BUFFER {
+					pending.push_back(msg);
+				} else {
+					warn!("LSP init buffer full, dropping message");
 				}
 			}
 
@@ -973,11 +902,23 @@ pub fn start_server(
 	#[cfg(unix)]
 	cmd.process_group(0);
 
-	let mut process = cmd.spawn().map_err(crate::Error::Io)?;
+	let mut process = cmd.spawn().map_err(|e| crate::Error::ServerSpawn {
+		server: config.command.clone(),
+		reason: e.to_string(),
+	})?;
 
-	let stdin = process.stdin.take().expect("Failed to open stdin");
-	let stdout = process.stdout.take().expect("Failed to open stdout");
-	let stderr = process.stderr.take().expect("Failed to open stderr");
+	let stdin = process.stdin.take().ok_or_else(|| crate::Error::ServerSpawn {
+		server: config.command.clone(),
+		reason: "stdin pipe not available".into(),
+	})?;
+	let stdout = process.stdout.take().ok_or_else(|| crate::Error::ServerSpawn {
+		server: config.command.clone(),
+		reason: "stdout pipe not available".into(),
+	})?;
+	let stderr = process.stderr.take().ok_or_else(|| crate::Error::ServerSpawn {
+		server: config.command.clone(),
+		reason: "stderr pipe not available".into(),
+	})?;
 
 	// Log stderr from the LSP server
 	let stderr_id = id;

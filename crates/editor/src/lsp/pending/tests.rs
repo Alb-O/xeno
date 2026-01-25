@@ -12,52 +12,32 @@ fn test_config() -> LspDocumentConfig {
 }
 
 #[test]
-fn test_pending_lsp_append_respects_thresholds() {
-	let mut pending = PendingLsp::new(test_config(), 0);
-
-	for i in 0..LSP_MAX_INCREMENTAL_CHANGES + 1 {
-		pending.append_changes(
-			vec![LspDocumentChange {
-				range: xeno_primitives::lsp::LspRange::point(
-					xeno_primitives::lsp::LspPosition::new(0, 0),
-				),
-				new_text: "x".to_string(),
-			}],
-			false,
-			i as u64,
-		);
-	}
-
-	assert!(pending.force_full);
-	assert!(pending.changes.is_empty());
-}
-
-#[test]
 fn test_pending_lsp_is_due_respects_debounce() {
 	let pending = PendingLsp::new(test_config(), 0);
-	assert!(!pending.is_due(Instant::now(), LSP_DEBOUNCE));
+	// Not due immediately without force_full
+	assert!(!pending.is_due(Instant::now(), LSP_DEBOUNCE, false));
 }
 
 #[test]
 fn test_pending_lsp_force_full_is_due_immediately() {
-	let mut pending = PendingLsp::new(test_config(), 0);
-	pending.force_full = true;
-	assert!(pending.is_due(Instant::now(), LSP_DEBOUNCE));
+	let pending = PendingLsp::new(test_config(), 0);
+	// Due immediately when force_full is true
+	assert!(pending.is_due(Instant::now(), LSP_DEBOUNCE, true));
 }
 
 #[test]
 fn test_pending_lsp_retry_after_delays_flush() {
 	let mut pending = PendingLsp::new(test_config(), 0);
-	pending.force_full = true;
 	pending.retry_after = Some(Instant::now() + Duration::from_secs(1));
-	assert!(!pending.is_due(Instant::now(), LSP_DEBOUNCE));
+	// Not due even with force_full when retry_after is in the future
+	assert!(!pending.is_due(Instant::now(), LSP_DEBOUNCE, true));
 }
 
 #[test]
 fn test_pending_state_accumulate_updates_version() {
 	let mut state = PendingLspState::new();
 
-	state.accumulate(DocumentId(1), test_config(), vec![], false, 42);
+	state.accumulate(DocumentId(1), test_config(), 42);
 
 	assert_eq!(
 		state.pending.get(&DocumentId(1)).unwrap().editor_version,
@@ -80,12 +60,11 @@ fn test_single_flight_sends_tracked() {
 }
 
 #[test]
-fn test_error_forces_full_sync() {
+fn test_error_marks_retry() {
 	let mut pending = PendingLsp::new(test_config(), 0);
 
-	assert!(!pending.force_full);
+	assert!(pending.retry_after.is_none());
 	pending.mark_error_retry();
-	assert!(pending.force_full);
 	assert!(pending.retry_after.is_some());
 	assert!(pending.retry_after.unwrap() > Instant::now());
 }
@@ -94,84 +73,44 @@ fn test_error_forces_full_sync() {
 fn test_accumulate_while_in_flight() {
 	let mut state = PendingLspState::new();
 
-	state.accumulate(
-		DocumentId(1),
-		test_config(),
-		vec![LspDocumentChange {
-			range: xeno_primitives::lsp::LspRange::point(xeno_primitives::lsp::LspPosition::new(
-				0, 0,
-			)),
-			new_text: "a".to_string(),
-		}],
-		false,
-		1,
-	);
+	state.accumulate(DocumentId(1), test_config(), 1);
 	state.mark_in_flight(DocumentId(1));
 	state.pending.remove(&DocumentId(1));
 
-	state.accumulate(
-		DocumentId(1),
-		test_config(),
-		vec![LspDocumentChange {
-			range: xeno_primitives::lsp::LspRange::point(xeno_primitives::lsp::LspPosition::new(
-				0, 1,
-			)),
-			new_text: "b".to_string(),
-		}],
-		false,
-		2,
-	);
+	// Accumulate again while in-flight
+	state.accumulate(DocumentId(1), test_config(), 2);
 
 	let pending = state.pending.get(&DocumentId(1)).unwrap();
-	assert_eq!(pending.changes.len(), 1);
 	assert_eq!(pending.editor_version, 2);
 	assert!(state.is_in_flight(&DocumentId(1)));
 }
 
 #[test]
-fn test_bytes_threshold_triggers_full_sync() {
+fn test_touch_updates_timing() {
 	let mut pending = PendingLsp::new(test_config(), 0);
+	let initial_time = pending.last_edit_at;
 
-	pending.append_changes(
-		vec![LspDocumentChange {
-			range: xeno_primitives::lsp::LspRange::point(xeno_primitives::lsp::LspPosition::new(
-				0, 0,
-			)),
-			new_text: "x".repeat(LSP_MAX_INCREMENTAL_BYTES + 1),
-		}],
-		false,
-		1,
-	);
+	std::thread::sleep(Duration::from_millis(1));
+	pending.touch(42);
 
-	assert!(pending.force_full);
-	assert!(pending.changes.is_empty());
+	assert!(pending.last_edit_at > initial_time);
+	assert_eq!(pending.editor_version, 42);
 }
 
 #[tokio::test]
-async fn test_incremental_flush_skips_snapshot() {
+async fn test_incremental_flush_uses_changes() {
 	let (sync, _registry, _documents, _receiver) = DocumentSync::create();
 	let metrics = Arc::new(EditorMetrics::new());
 	let mut state = PendingLspState::new();
 
-	state.accumulate(
-		DocumentId(1),
-		test_config(),
-		vec![LspDocumentChange {
-			range: xeno_primitives::lsp::LspRange::point(xeno_primitives::lsp::LspPosition::new(
-				0, 0,
-			)),
-			new_text: "x".to_string(),
-		}],
-		false,
-		1,
-	);
+	state.accumulate(DocumentId(1), test_config(), 1);
 
 	if let Some(pending) = state.pending.get_mut(&DocumentId(1)) {
 		pending.last_edit_at = Instant::now() - LSP_DEBOUNCE;
 	}
 
-	let snapshot_calls = Arc::new(AtomicUsize::new(0));
-	let snapshot_calls_clone = snapshot_calls.clone();
+	let provider_calls = Arc::new(AtomicUsize::new(0));
+	let provider_calls_clone = provider_calls.clone();
 
 	let stats = state.flush_due(
 		Instant::now(),
@@ -180,11 +119,57 @@ async fn test_incremental_flush_skips_snapshot() {
 		&sync,
 		&metrics,
 		|_| {
-			snapshot_calls_clone.fetch_add(1, Ordering::Relaxed);
-			Some(Rope::from_str(""))
+			provider_calls_clone.fetch_add(1, Ordering::Relaxed);
+			Some(DocumentLspData {
+				content: Rope::from_str("test content"),
+				changes: vec![LspDocumentChange {
+					range: xeno_primitives::lsp::LspRange::point(
+						xeno_primitives::lsp::LspPosition::new(0, 0),
+					),
+					new_text: "x".to_string(),
+				}],
+				change_bytes: 1,
+				force_full: false,
+			})
 		},
 	);
 
+	// Provider should be called once
+	assert_eq!(provider_calls.load(Ordering::Relaxed), 1);
+	// Should do incremental sync since changes provided and not force_full
+	assert_eq!(stats.incremental_syncs, 1);
 	assert_eq!(stats.full_syncs, 0);
-	assert_eq!(snapshot_calls.load(Ordering::Relaxed), 0);
+}
+
+#[tokio::test]
+async fn test_full_sync_when_force_full() {
+	let (sync, _registry, _documents, _receiver) = DocumentSync::create();
+	let metrics = Arc::new(EditorMetrics::new());
+	let mut state = PendingLspState::new();
+
+	state.accumulate(DocumentId(1), test_config(), 1);
+
+	if let Some(pending) = state.pending.get_mut(&DocumentId(1)) {
+		pending.last_edit_at = Instant::now() - LSP_DEBOUNCE;
+	}
+
+	let stats = state.flush_due(
+		Instant::now(),
+		LSP_DEBOUNCE,
+		LSP_MAX_DOCS_PER_TICK,
+		&sync,
+		&metrics,
+		|_| {
+			Some(DocumentLspData {
+				content: Rope::from_str("test content"),
+				changes: vec![],
+				change_bytes: 0,
+				force_full: true, // Force full sync
+			})
+		},
+	);
+
+	// Should do full sync since force_full is true
+	assert_eq!(stats.full_syncs, 1);
+	assert_eq!(stats.incremental_syncs, 0);
 }

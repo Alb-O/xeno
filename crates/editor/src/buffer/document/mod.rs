@@ -121,6 +121,9 @@ pub struct Document {
 	/// Pending LSP changes queued for sync.
 	#[cfg(feature = "lsp")]
 	pending_lsp_changes: Vec<xeno_primitives::LspDocumentChange>,
+	/// Total bytes in pending LSP change text (for threshold tracking).
+	#[cfg(feature = "lsp")]
+	pending_lsp_bytes: usize,
 	/// Force a full LSP sync on the next flush.
 	#[cfg(feature = "lsp")]
 	force_full_sync: bool,
@@ -144,6 +147,8 @@ impl Document {
 			version: 0,
 			#[cfg(feature = "lsp")]
 			pending_lsp_changes: Vec::new(),
+			#[cfg(feature = "lsp")]
+			pending_lsp_bytes: 0,
 			#[cfg(feature = "lsp")]
 			force_full_sync: false,
 		}
@@ -492,6 +497,7 @@ impl Document {
 		#[cfg(feature = "lsp")]
 		{
 			self.pending_lsp_changes.clear();
+			self.pending_lsp_bytes = 0;
 			self.force_full_sync = false;
 		}
 	}
@@ -646,6 +652,7 @@ impl Document {
 	pub fn mark_for_full_lsp_sync(&mut self) {
 		self.force_full_sync = true;
 		self.pending_lsp_changes.clear();
+		self.pending_lsp_bytes = 0;
 	}
 
 	/// Clears the full sync flag (called after performing full sync).
@@ -654,16 +661,47 @@ impl Document {
 		self.force_full_sync = false;
 	}
 
+	/// Records LSP changes with threshold-based full sync fallback.
+	#[cfg(feature = "lsp")]
+	pub fn lsp_record_changes(
+		&mut self,
+		changes: Vec<xeno_primitives::LspDocumentChange>,
+		max_changes: usize,
+		max_bytes: usize,
+	) {
+		if self.force_full_sync {
+			return;
+		}
+		self.extend_lsp_changes(changes);
+		if self.pending_lsp_changes.len() > max_changes || self.pending_lsp_bytes > max_bytes {
+			self.mark_for_full_lsp_sync();
+		}
+	}
+
 	/// Appends LSP changes to the pending queue.
 	#[cfg(feature = "lsp")]
 	pub fn extend_lsp_changes(&mut self, changes: Vec<xeno_primitives::LspDocumentChange>) {
+		self.pending_lsp_bytes += changes.iter().map(|c| c.new_text.len()).sum::<usize>();
 		self.pending_lsp_changes.extend(changes);
 	}
 
-	/// Drains and returns all pending LSP changes.
+	/// Takes all pending LSP changes, resetting the accumulator.
 	#[cfg(feature = "lsp")]
-	pub fn drain_lsp_changes(&mut self) -> Vec<xeno_primitives::LspDocumentChange> {
+	pub fn lsp_take_batch(&mut self) -> Vec<xeno_primitives::LspDocumentChange> {
+		self.pending_lsp_bytes = 0;
 		std::mem::take(&mut self.pending_lsp_changes)
+	}
+
+	/// Returns the number of pending LSP changes.
+	#[cfg(feature = "lsp")]
+	pub fn pending_lsp_count(&self) -> usize {
+		self.pending_lsp_changes.len()
+	}
+
+	/// Returns the total bytes in pending LSP change text.
+	#[cfg(feature = "lsp")]
+	pub fn pending_lsp_bytes(&self) -> usize {
+		self.pending_lsp_bytes
 	}
 }
 

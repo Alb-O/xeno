@@ -313,10 +313,10 @@ impl Buffer {
 		})
 	}
 
-	/// Drains pending LSP changes for this document.
+	/// Takes pending LSP changes for this document.
 	#[cfg(feature = "lsp")]
-	pub fn drain_lsp_changes(&self) -> Vec<LspDocumentChange> {
-		self.with_doc_mut(|doc| doc.drain_lsp_changes())
+	pub fn lsp_take_batch(&self) -> Vec<LspDocumentChange> {
+		self.with_doc_mut(|doc| doc.lsp_take_batch())
 	}
 
 	/// Finalizes selection/cursor after a transaction is applied.

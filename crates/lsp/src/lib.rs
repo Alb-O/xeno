@@ -169,6 +169,14 @@ pub enum Error {
 	/// [`router::Router::unhandled_notification`]) are installed.
 	#[error("{0}")]
 	Routing(String),
+	/// Failed to spawn the language server process.
+	#[error("failed to spawn LSP server '{server}': {reason}")]
+	ServerSpawn {
+		/// The server command that failed.
+		server: String,
+		/// The failure reason.
+		reason: String,
+	},
 }
 
 /// Converts a filesystem path to an LSP URI.

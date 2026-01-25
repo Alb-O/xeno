@@ -32,7 +32,7 @@ mod lsp_batching {
 		let loader = xeno_runtime_language::LanguageLoader::new();
 		buffer.apply_with_lsp(&tx, LSP_POLICY, &loader, OffsetEncoding::Utf16);
 
-		let changes = buffer.drain_lsp_changes();
+		let changes = buffer.lsp_take_batch();
 		assert_eq!(changes.len(), 1);
 		assert_eq!(changes[0].range, LspRange::point(LspPosition::new(0, 5)));
 		assert_eq!(changes[0].new_text, " world");
@@ -56,7 +56,7 @@ mod lsp_batching {
 		buffer.apply_with_lsp(&tx2, LSP_POLICY, &loader, OffsetEncoding::Utf16);
 		buffer.finalize_selection(sel2);
 
-		let changes = buffer.drain_lsp_changes();
+		let changes = buffer.lsp_take_batch();
 		assert_eq!(changes.len(), 2);
 
 		// First change: insert "A" at (0, 0) in original doc
@@ -87,7 +87,7 @@ mod lsp_batching {
 		let (tx, _sel) = buffer.prepare_insert("X");
 		buffer.apply_with_lsp(&tx, LSP_POLICY, &loader, OffsetEncoding::Utf16);
 
-		let changes = buffer.drain_lsp_changes();
+		let changes = buffer.lsp_take_batch();
 		assert_eq!(changes.len(), 3);
 
 		// Changes are ordered by position in pre-change document,
@@ -125,12 +125,12 @@ mod lsp_batching {
 
 		match expected {
 			IncrementalResult::Incremental(changes) => {
-				let actual = buffer.drain_lsp_changes();
+				let actual = buffer.lsp_take_batch();
 				assert_eq!(actual, changes);
 				assert!(!buffer.with_doc(|doc| doc.needs_full_lsp_sync()));
 			}
 			IncrementalResult::FallbackToFull => {
-				let actual = buffer.drain_lsp_changes();
+				let actual = buffer.lsp_take_batch();
 				assert!(actual.is_empty());
 				assert!(buffer.with_doc(|doc| doc.needs_full_lsp_sync()));
 			}
@@ -146,11 +146,11 @@ mod lsp_batching {
 		let (tx, _sel) = buffer.prepare_insert("!");
 		buffer.apply_with_lsp(&tx, LSP_POLICY, &loader, OffsetEncoding::Utf16);
 
-		let changes = buffer.drain_lsp_changes();
+		let changes = buffer.lsp_take_batch();
 		assert_eq!(changes.len(), 1);
 
 		// Second drain should be empty
-		let changes2 = buffer.drain_lsp_changes();
+		let changes2 = buffer.lsp_take_batch();
 		assert!(changes2.is_empty());
 	}
 }
