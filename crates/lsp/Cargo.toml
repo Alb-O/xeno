@@ -47,8 +47,6 @@ xeno-primitives = { workspace = true, optional = true }
 tempfile.workspace = true
 tokio = { workspace = true, features = ["io-std", "io-util", "macros", "process", "rt", "time"] }
 tokio-util.workspace = true
-tower.workspace = true
-tracing-subscriber.workspace = true
 
 [lints]
 workspace = true
