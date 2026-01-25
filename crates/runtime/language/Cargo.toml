@@ -6,11 +6,13 @@ edition.workspace = true
 license.workspace = true
 
 [dependencies]
+bincode.workspace = true
 cc.workspace = true
 kdl.workspace = true
 once_cell.workspace = true
 regex.workspace = true
 ropey.workspace = true
+serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
 tracing.workspace = true
@@ -19,5 +21,11 @@ xeno-primitives.workspace = true
 xeno-registry-themes.workspace = true
 xeno-runtime-data.workspace = true
 
-[lints]
-workspace = true
+[build-dependencies]
+bincode.workspace = true
+kdl.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+
+[lints.rust]
+unused_crate_dependencies = "warn"

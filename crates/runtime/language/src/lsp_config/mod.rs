@@ -1,214 +1,101 @@
-//! LSP server configuration parsing from KDL.
+//! LSP server configuration loading.
 //!
-//! Parses `lsp.kdl` to extract language server definitions including commands,
-//! arguments, environment variables, and initialization options.
-//!
-//! Also parses `languages.kdl` to extract language-to-server mappings.
-//!
-//! # KDL Format
-//!
-//! ```kdl
-//! // Simple server (command = server name)
-//! rust-analyzer {
-//!     source "https://github.com/rust-lang/rust-analyzer"
-//!     nix rust-analyzer
-//!     config {
-//!         inlayHints {
-//!             enable #true
-//!         }
-//!     }
-//! }
-//!
-//! // Server with different command
-//! angular ngserver {
-//!     args --stdio --tsProbeLocations . --ngProbeLocations .
-//!     source "https://github.com/angular/vscode-ng-language-service"
-//!     nix angular-language-server
-//! }
-//! ```
+//! Server definitions are loaded from bincode blobs compiled at build time.
 
 use std::collections::HashMap;
 
-use kdl::{KdlDocument, KdlNode};
+use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
 use thiserror::Error;
-
-use crate::utils::parse_string_args;
 
 #[cfg(test)]
 mod tests;
 
-/// Errors from LSP configuration parsing.
+/// Errors that can occur when loading LSP configurations.
 #[derive(Debug, Error)]
 pub enum LspConfigError {
-	/// KDL syntax error.
-	#[error("failed to parse KDL: {0}")]
-	KdlParse(#[from] kdl::KdlError),
+	#[error("failed to deserialize precompiled data: {0}")]
+	Bincode(#[from] bincode::Error),
+	#[error("invalid precompiled blob (magic/version mismatch)")]
+	InvalidBlob,
 }
 
 /// Result type for LSP configuration operations.
 pub type Result<T> = std::result::Result<T, LspConfigError>;
 
-/// A parsed LSP server configuration.
+static LSP_BIN: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/lsp.bin"));
+
+/// LSP server definition parsed from `lsp.kdl`.
 #[derive(Debug, Clone)]
 pub struct LspServerDef {
-	/// Server identifier (node name in KDL).
+	/// Server identifier (e.g., "rust-analyzer", "pyright").
 	pub name: String,
-	/// Command to execute (may differ from name).
+	/// Executable command to spawn the server.
 	pub command: String,
-	/// Command-line arguments.
+	/// Command-line arguments passed to the server.
 	pub args: Vec<String>,
-	/// Environment variables.
+	/// Environment variables set when spawning.
 	pub environment: HashMap<String, String>,
-	/// Initialization options (config block).
+	/// Server-specific configuration sent via `workspace/didChangeConfiguration`.
 	pub config: Option<JsonValue>,
-	/// Source URL (for documentation).
+	/// URL for downloading/installing the server.
 	pub source: Option<String>,
-	/// Nix package attribute (for installation hints).
+	/// Nix package attribute for the server binary.
 	pub nix: Option<String>,
 }
 
-/// Loads LSP server configurations from the embedded `lsp.kdl`.
+/// Serializable LSP server configuration for build-time compilation.
+///
+/// Stores config as JSON string (bincode doesn't support `serde_json::Value`).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LspServerDefRaw {
+	pub name: String,
+	pub command: String,
+	pub args: Vec<String>,
+	pub environment: HashMap<String, String>,
+	pub config_json: Option<String>,
+	pub source: Option<String>,
+	pub nix: Option<String>,
+}
+
+impl From<LspServerDefRaw> for LspServerDef {
+	fn from(raw: LspServerDefRaw) -> Self {
+		Self {
+			name: raw.name,
+			command: raw.command,
+			args: raw.args,
+			environment: raw.environment,
+			config: raw.config_json.and_then(|s| serde_json::from_str(&s).ok()),
+			source: raw.source,
+			nix: raw.nix,
+		}
+	}
+}
+
+impl From<&LspServerDef> for LspServerDefRaw {
+	fn from(def: &LspServerDef) -> Self {
+		Self {
+			name: def.name.clone(),
+			command: def.command.clone(),
+			args: def.args.clone(),
+			environment: def.environment.clone(),
+			config_json: def.config.as_ref().map(|v| v.to_string()),
+			source: def.source.clone(),
+			nix: def.nix.clone(),
+		}
+	}
+}
+
+/// Loads LSP server configurations from precompiled bincode.
 pub fn load_lsp_configs() -> Result<Vec<LspServerDef>> {
-	parse_lsp_configs(xeno_runtime_data::language::lsp_kdl())
-}
-
-/// Parses LSP server configurations from a KDL string.
-pub fn parse_lsp_configs(input: &str) -> Result<Vec<LspServerDef>> {
-	let doc: KdlDocument = input.parse()?;
-	let mut servers = Vec::new();
-
-	for node in doc.nodes() {
-		servers.push(parse_server_node(node));
-	}
-
-	Ok(servers)
-}
-
-/// Parses a single server node into LspServerDef.
-fn parse_server_node(node: &KdlNode) -> LspServerDef {
-	let name = node.name().value().to_string();
-
-	// Command is either the first positional arg or the server name
-	let command = node
-		.entry(0)
-		.and_then(|e| {
-			if e.name().is_none() {
-				e.value().as_string().map(String::from)
-			} else {
-				None
-			}
-		})
-		.unwrap_or_else(|| name.clone());
-
-	let children = node.children();
-	let args = parse_string_args(children, "args");
-	let environment = parse_environment(children);
-	let config = children.and_then(|c| c.get("config")).map(kdl_node_to_json);
-	let source = children
-		.and_then(|c| c.get("source"))
-		.and_then(|n| n.entry(0))
-		.and_then(|e| e.value().as_string())
-		.map(String::from);
-	let nix = children.and_then(|c| c.get("nix")).and_then(|n| {
-		let entry = n.entry(0)?;
-		if entry.value().as_bool() == Some(false) {
-			None
-		} else {
-			entry.value().as_string().map(String::from)
-		}
-	});
-
-	LspServerDef {
-		name,
-		command,
-		args,
-		environment,
-		config,
-		source,
-		nix,
-	}
-}
-
-/// Parses environment variables from the environment block.
-fn parse_environment(children: Option<&KdlDocument>) -> HashMap<String, String> {
-	let mut env = HashMap::new();
-
-	let Some(env_node) = children.and_then(|c| c.get("environment")) else {
-		return env;
-	};
-
-	// Environment can be key=value entries on the node itself
-	for entry in env_node.entries() {
-		if let Some(name) = entry.name()
-			&& let Some(value) = entry.value().as_string()
-		{
-			env.insert(name.value().to_string(), value.to_string());
-		}
-	}
-
-	// Or children nodes with values
-	if let Some(env_children) = env_node.children() {
-		for child in env_children.nodes() {
-			if let Some(value) = child.entry(0).and_then(|e| e.value().as_string()) {
-				env.insert(child.name().value().to_string(), value.to_string());
-			}
-		}
-	}
-
-	env
-}
-
-/// Converts a KDL node's children into a JSON value.
-fn kdl_node_to_json(node: &KdlNode) -> JsonValue {
-	let Some(children) = node.children() else {
-		// No children - check for a direct value
-		if let Some(entry) = node.entry(0) {
-			return kdl_value_to_json(entry.value());
-		}
-		return JsonValue::Object(serde_json::Map::new());
-	};
-
-	kdl_doc_to_json(children)
-}
-
-/// Converts a KDL document into a JSON object.
-fn kdl_doc_to_json(doc: &KdlDocument) -> JsonValue {
-	let mut map = serde_json::Map::new();
-
-	for node in doc.nodes() {
-		let key = node.name().value().to_string();
-
-		// Check if it has children (nested object)
-		if node.children().is_some() {
-			map.insert(key, kdl_node_to_json(node));
-		} else if let Some(entry) = node.entry(0) {
-			// Single value
-			map.insert(key, kdl_value_to_json(entry.value()));
-		} else {
-			// Empty node - treat as true (presence = enabled)
-			map.insert(key, JsonValue::Bool(true));
-		}
-	}
-
-	JsonValue::Object(map)
-}
-
-/// Converts a KDL value to a JSON value.
-fn kdl_value_to_json(value: &kdl::KdlValue) -> JsonValue {
-	if let Some(s) = value.as_string() {
-		JsonValue::String(s.to_string())
-	} else if let Some(i) = value.as_integer() {
-		JsonValue::Number((i as i64).into())
-	} else if let Some(b) = value.as_bool() {
-		JsonValue::Bool(b)
-	} else {
-		JsonValue::Null
-	}
+	let payload =
+		crate::precompiled::validate_blob(LSP_BIN).ok_or(LspConfigError::InvalidBlob)?;
+	let raw: Vec<LspServerDefRaw> = bincode::deserialize(payload)?;
+	Ok(raw.into_iter().map(LspServerDef::from).collect())
 }
 
 /// Language LSP configuration extracted from languages.kdl.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LanguageLspInfo {
 	/// LSP server names for this language.
 	pub servers: Vec<String>,
@@ -219,69 +106,187 @@ pub struct LanguageLspInfo {
 /// Mapping of language name to its LSP configuration.
 pub type LanguageLspMapping = HashMap<String, LanguageLspInfo>;
 
-/// Loads language-to-LSP server mappings from the embedded `languages.kdl`.
-pub fn load_language_lsp_mapping() -> Result<LanguageLspMapping> {
-	parse_language_lsp_mapping(xeno_runtime_data::language::languages_kdl())
-}
+// Test-only KDL parsing functions
+#[cfg(test)]
+mod parsing {
+	use super::*;
+	use crate::utils::parse_string_args;
+	use kdl::{KdlDocument, KdlNode};
 
-/// Parses language-to-LSP server mappings from a KDL string.
-pub fn parse_language_lsp_mapping(input: &str) -> Result<LanguageLspMapping> {
-	let doc: KdlDocument = input.parse()?;
-	let mut mapping = HashMap::new();
+	#[derive(Debug, thiserror::Error)]
+	pub enum ParseError {
+		#[error("failed to parse KDL: {0}")]
+		Kdl(#[from] kdl::KdlError),
+	}
 
-	for node in doc.nodes() {
-		if node.name().value() != "language" {
-			continue;
+	pub fn parse_lsp_configs(input: &str) -> std::result::Result<Vec<LspServerDef>, ParseError> {
+		let doc: KdlDocument = input.parse()?;
+		Ok(doc.nodes().iter().map(parse_server_node).collect())
+	}
+
+	fn parse_server_node(node: &KdlNode) -> LspServerDef {
+		let name = node.name().value().to_string();
+		let command = node
+			.entry(0)
+			.and_then(|e| {
+				if e.name().is_none() {
+					e.value().as_string().map(String::from)
+				} else {
+					None
+				}
+			})
+			.unwrap_or_else(|| name.clone());
+
+		let children = node.children();
+		let args = parse_string_args(children, "args");
+		let environment = parse_environment(children);
+		let config = children.and_then(|c| c.get("config")).map(kdl_node_to_json);
+		let source = children
+			.and_then(|c| c.get("source"))
+			.and_then(|n| n.entry(0))
+			.and_then(|e| e.value().as_string())
+			.map(String::from);
+		let nix = children.and_then(|c| c.get("nix")).and_then(|n| {
+			let entry = n.entry(0)?;
+			if entry.value().as_bool() == Some(false) {
+				None
+			} else {
+				entry.value().as_string().map(String::from)
+			}
+		});
+
+		LspServerDef {
+			name,
+			command,
+			args,
+			environment,
+			config,
+			source,
+			nix,
 		}
+	}
 
-		let Some(name) = node.get("name").and_then(|v| v.as_string()) else {
-			continue;
+	fn parse_environment(children: Option<&KdlDocument>) -> HashMap<String, String> {
+		let mut env = HashMap::new();
+		let Some(env_node) = children.and_then(|c| c.get("environment")) else {
+			return env;
 		};
 
-		let servers = parse_language_servers(node);
-		let roots = parse_string_args(node.children(), "roots");
+		for entry in env_node.entries() {
+			if let Some(name) = entry.name()
+				&& let Some(value) = entry.value().as_string()
+			{
+				env.insert(name.value().to_string(), value.to_string());
+			}
+		}
 
-		// Only include languages that have LSP servers configured
-		if !servers.is_empty() {
-			mapping.insert(name.to_string(), LanguageLspInfo { servers, roots });
+		if let Some(env_children) = env_node.children() {
+			for child in env_children.nodes() {
+				if let Some(value) = child.entry(0).and_then(|e| e.value().as_string()) {
+					env.insert(child.name().value().to_string(), value.to_string());
+				}
+			}
+		}
+
+		env
+	}
+
+	fn kdl_node_to_json(node: &KdlNode) -> JsonValue {
+		let Some(children) = node.children() else {
+			if let Some(entry) = node.entry(0) {
+				return kdl_value_to_json(entry.value());
+			}
+			return JsonValue::Object(serde_json::Map::new());
+		};
+		kdl_doc_to_json(children)
+	}
+
+	fn kdl_doc_to_json(doc: &KdlDocument) -> JsonValue {
+		let mut map = serde_json::Map::new();
+		for node in doc.nodes() {
+			let key = node.name().value().to_string();
+			if node.children().is_some() {
+				map.insert(key, kdl_node_to_json(node));
+			} else if let Some(entry) = node.entry(0) {
+				map.insert(key, kdl_value_to_json(entry.value()));
+			} else {
+				map.insert(key, JsonValue::Bool(true));
+			}
+		}
+		JsonValue::Object(map)
+	}
+
+	fn kdl_value_to_json(value: &kdl::KdlValue) -> JsonValue {
+		if let Some(s) = value.as_string() {
+			JsonValue::String(s.to_string())
+		} else if let Some(i) = value.as_integer() {
+			JsonValue::Number((i as i64).into())
+		} else if let Some(b) = value.as_bool() {
+			JsonValue::Bool(b)
+		} else {
+			JsonValue::Null
 		}
 	}
 
-	Ok(mapping)
-}
+	pub fn parse_language_lsp_mapping(
+		input: &str,
+	) -> std::result::Result<LanguageLspMapping, ParseError> {
+		let doc: KdlDocument = input.parse()?;
+		let mut mapping = HashMap::new();
 
-/// Parses the `language-servers` field from a language node.
-fn parse_language_servers(node: &KdlNode) -> Vec<String> {
-	let Some(children) = node.children() else {
-		return Vec::new();
-	};
+		for node in doc.nodes() {
+			if node.name().value() != "language" {
+				continue;
+			}
 
-	let Some(ls_node) = children.get("language-servers") else {
-		return Vec::new();
-	};
+			let Some(name) = node.get("name").and_then(|v| v.as_string()) else {
+				continue;
+			};
 
-	// Try inline args first: `language-servers rust-analyzer`
-	let inline: Vec<String> = ls_node
-		.entries()
-		.iter()
-		.filter(|e| e.name().is_none())
-		.filter_map(|e| e.value().as_string())
-		.map(String::from)
-		.collect();
+			let servers = parse_language_servers(node);
+			let roots = parse_string_args(node.children(), "roots");
 
-	if !inline.is_empty() {
-		return inline;
+			if !servers.is_empty() {
+				mapping.insert(name.to_string(), LanguageLspInfo { servers, roots });
+			}
+		}
+
+		Ok(mapping)
 	}
 
-	// Try block format: `language-servers { - name="..." }`
-	let Some(ls_children) = ls_node.children() else {
-		return Vec::new();
-	};
+	fn parse_language_servers(node: &KdlNode) -> Vec<String> {
+		let Some(children) = node.children() else {
+			return Vec::new();
+		};
 
-	ls_children
-		.nodes()
-		.iter()
-		.filter(|n| n.name().value() == "-")
-		.filter_map(|n| n.get("name").and_then(|v| v.as_string()).map(String::from))
-		.collect()
+		let Some(ls_node) = children.get("language-servers") else {
+			return Vec::new();
+		};
+
+		let inline: Vec<String> = ls_node
+			.entries()
+			.iter()
+			.filter(|e| e.name().is_none())
+			.filter_map(|e| e.value().as_string())
+			.map(String::from)
+			.collect();
+
+		if !inline.is_empty() {
+			return inline;
+		}
+
+		let Some(ls_children) = ls_node.children() else {
+			return Vec::new();
+		};
+
+		ls_children
+			.nodes()
+			.iter()
+			.filter(|n| n.name().value() == "-")
+			.filter_map(|n| n.get("name").and_then(|v| v.as_string()).map(String::from))
+			.collect()
+	}
 }
+
+#[cfg(test)]
+pub use parsing::{parse_language_lsp_mapping, parse_lsp_configs};

@@ -153,9 +153,7 @@ impl Editor {
 				let buffer = self.state.core.buffers.get_buffer(id)?;
 				let path = buffer.path()?;
 				let language = buffer.file_type()?;
-				if self.state.lsp.registry().get_config(&language).is_none() {
-					return None;
-				}
+				self.state.lsp.registry().get_config(&language)?;
 				let abs_path = path
 					.canonicalize()
 					.unwrap_or_else(|_| std::env::current_dir().unwrap_or_default().join(path));

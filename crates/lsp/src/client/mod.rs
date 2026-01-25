@@ -794,12 +794,11 @@ impl PendingQueue {
 
 		match &msg {
 			OutboundMsg::Notification { notification } => {
-				if notification.method == "textDocument/didOpen" {
-					if let Some(uri) = extract_uri(&notification.params) {
+				if notification.method == "textDocument/didOpen"
+					&& let Some(uri) = extract_uri(&notification.params) {
 						self.did_open.insert(uri, msg);
 						return true;
 					}
-				}
 				self.fifo.push_back(msg);
 			}
 			OutboundMsg::DidChange { notification, .. } => {

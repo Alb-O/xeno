@@ -4,12 +4,72 @@
 //! about a language, including file associations and lazily-loaded syntax config.
 
 use once_cell::sync::OnceCell;
+use serde::{Deserialize, Serialize};
 use tracing::warn;
 use tree_house::LanguageConfig as TreeHouseConfig;
 use xeno_registry_themes::SyntaxStyles;
 
 use crate::grammar::load_grammar_or_build;
 use crate::query::read_query;
+
+/// Serializable language data for build-time compilation.
+///
+/// Wire format for precompiled configs. Stores injection regex as string
+/// (compiled to [`regex::Regex`] when converted to [`LanguageData`]).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LanguageDataRaw {
+	pub name: String,
+	pub grammar_name: String,
+	pub extensions: Vec<String>,
+	pub filenames: Vec<String>,
+	pub globs: Vec<String>,
+	pub shebangs: Vec<String>,
+	pub comment_tokens: Vec<String>,
+	pub block_comment: Option<(String, String)>,
+	pub injection_regex: Option<String>,
+	pub lsp_servers: Vec<String>,
+	pub roots: Vec<String>,
+}
+
+impl From<LanguageDataRaw> for LanguageData {
+	fn from(raw: LanguageDataRaw) -> Self {
+		Self::new(
+			raw.name,
+			if raw.grammar_name.is_empty() {
+				None
+			} else {
+				Some(raw.grammar_name)
+			},
+			raw.extensions,
+			raw.filenames,
+			raw.globs,
+			raw.shebangs,
+			raw.comment_tokens,
+			raw.block_comment,
+			raw.injection_regex.as_deref(),
+			raw.lsp_servers,
+			raw.roots,
+		)
+	}
+}
+
+impl From<&LanguageData> for LanguageDataRaw {
+	fn from(data: &LanguageData) -> Self {
+		Self {
+			name: data.name.clone(),
+			grammar_name: data.grammar_name.clone(),
+			extensions: data.extensions.clone(),
+			filenames: data.filenames.clone(),
+			globs: data.globs.clone(),
+			shebangs: data.shebangs.clone(),
+			comment_tokens: data.comment_tokens.clone(),
+			block_comment: data.block_comment.clone(),
+			injection_regex: data.injection_regex.as_ref().map(|r| r.as_str().to_string()),
+			lsp_servers: data.lsp_servers.clone(),
+			roots: data.roots.clone(),
+		}
+	}
+}
 
 /// Language data with lazily-loaded syntax configuration.
 ///

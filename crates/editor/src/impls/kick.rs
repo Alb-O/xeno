@@ -110,8 +110,8 @@ async fn load_themes_blocking(user_themes_dir: Option<PathBuf>) -> Vec<(String, 
     tokio::task::spawn_blocking(move || {
         let mut errors = xeno_runtime_config::load_and_register_embedded_themes();
 
-        if let Some(dir) = user_themes_dir {
-            if dir.exists() {
+        if let Some(dir) = user_themes_dir
+            && dir.exists() {
                 match xeno_runtime_config::load_and_register_themes(&dir) {
                     Ok(e) => errors.extend(e),
                     Err(e) => {
@@ -119,7 +119,6 @@ async fn load_themes_blocking(user_themes_dir: Option<PathBuf>) -> Vec<(String, 
                     }
                 }
             }
-        }
 
         errors
     })

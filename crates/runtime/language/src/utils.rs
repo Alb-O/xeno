@@ -1,10 +1,12 @@
-//! Shared utilities for KDL parsing.
+//! Shared utilities for KDL parsing (test-only).
 
+#[cfg(test)]
 use kdl::KdlDocument;
 
 /// Extracts string arguments from a named child node.
 ///
 /// Given a KDL structure like `args foo bar baz`, returns `["foo", "bar", "baz"]`.
+#[cfg(test)]
 pub fn parse_string_args(children: Option<&KdlDocument>, name: &str) -> Vec<String> {
 	children
 		.and_then(|c| c.get(name))

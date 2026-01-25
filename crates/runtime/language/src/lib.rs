@@ -13,11 +13,11 @@
 //! - [`loader`]: Language registry implementing `tree_house::LanguageLoader`
 //! - [`query`]: Query types for indentation, text objects, tags
 //! - [`highlight`]: Syntax highlighting via tree-sitter queries
-//! - [`config`]: Language configuration parsing from KDL
+//! - [`config`]: Language configuration loading
 //!
 //! # Integration with Xeno
 //!
-//! Languages are loaded from `languages.kdl` at runtime via [`config::load_language_configs`].
+//! Languages are loaded from precompiled bincode via [`config::load_language_configs`].
 //! Each language definition includes:
 //! - Grammar name (for loading the .so file)
 //! - File type associations (extensions, filenames, globs)
@@ -31,6 +31,7 @@ pub mod highlight;
 pub mod language;
 pub mod loader;
 pub mod lsp_config;
+mod precompiled;
 pub mod query;
 mod runtime;
 pub mod syntax;
@@ -43,7 +44,10 @@ pub use grammar::{
 	load_grammar_or_build, query_search_paths, runtime_dir,
 };
 pub use highlight::{Highlight, HighlightEvent, HighlightSpan, HighlightStyles, Highlighter};
-pub use language::LanguageData;
+pub use language::{LanguageData, LanguageDataRaw};
 pub use loader::{LanguageId, LanguageLoader};
-pub use lsp_config::{LanguageLspInfo, LanguageLspMapping, LspConfigError, LspServerDef, load_lsp_configs};
+pub use lsp_config::{
+	LanguageLspInfo, LanguageLspMapping, LspConfigError, LspServerDef, LspServerDefRaw,
+	load_lsp_configs,
+};
 pub use query::{CapturedNode, IndentQuery, RainbowQuery, TagQuery, TextObjectQuery, read_query};
