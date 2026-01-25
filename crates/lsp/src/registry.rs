@@ -332,6 +332,14 @@ impl Registry {
 	pub fn active_count(&self) -> usize {
 		self.servers.read().len()
 	}
+
+	/// Check if any server is ready (initialized and accepting requests).
+	pub fn any_server_ready(&self) -> bool {
+		self.servers
+			.read()
+			.values()
+			.any(|instance| instance.is_alive() && instance.handle.is_ready())
+	}
 }
 
 /// Find the project root by walking up from the file path.

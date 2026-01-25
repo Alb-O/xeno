@@ -54,17 +54,20 @@ impl EditorUndoHost<'_> {
 					buffer.apply_with_lsp(tx, policy, &self.config.language_loader, encoding);
 
 				if lsp_result.commit.applied {
-					if let Some(changes) = lsp_result.lsp_changes {
-						if !changes.is_empty() {
+					let prev_version = lsp_result.prev_version();
+					let new_version = lsp_result.new_version();
+					match lsp_result.lsp_changes {
+						Some(changes) if !changes.is_empty() => {
 							self.lsp.sync_manager_mut().on_doc_edit(
 								doc_id,
-								lsp_result.commit.version_after,
+								prev_version,
+								new_version,
 								changes,
 								lsp_result.lsp_bytes,
 							);
 						}
-					} else {
-						self.lsp.sync_manager_mut().escalate_full(doc_id);
+						Some(_) => {}
+						None => self.lsp.sync_manager_mut().escalate_full(doc_id),
 					}
 				}
 

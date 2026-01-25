@@ -210,9 +210,11 @@ impl Editor {
 	#[cfg(feature = "lsp")]
 	fn tick_lsp_sync(&mut self) {
 		let sync = self.state.lsp.sync().clone();
+		let client_ready = sync.registry().any_server_ready();
 		let buffers = &self.state.core.buffers;
 		let stats = self.state.lsp.sync_manager_mut().tick(
 			Instant::now(),
+			client_ready,
 			&sync,
 			&self.state.metrics,
 			|doc_id| {
@@ -228,7 +230,7 @@ impl Editor {
 		);
 	}
 
-	/// Queues an immediate LSP change and returns an ack receiver when written.
+	/// Queues an immediate LSP change and returns a receiver for write completion.
 	///
 	/// Tries incremental sync first (avoiding content cloning), falling back to
 	/// full sync if the document isn't open on the server.

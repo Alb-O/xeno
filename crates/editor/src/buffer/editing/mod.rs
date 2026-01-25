@@ -69,6 +69,19 @@ pub struct LspCommitResult {
 	pub lsp_bytes: usize,
 }
 
+#[cfg(feature = "lsp")]
+impl LspCommitResult {
+	/// Version before this commit was applied.
+	pub fn prev_version(&self) -> u64 {
+		self.commit.version_before
+	}
+
+	/// Version after this commit was applied.
+	pub fn new_version(&self) -> u64 {
+		self.commit.version_after
+	}
+}
+
 impl Buffer {
 	/// Inserts text at all cursor positions, returning the [`Transaction`] without applying it.
 	///

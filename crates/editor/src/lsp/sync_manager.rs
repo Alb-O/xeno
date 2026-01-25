@@ -4,7 +4,7 @@
 //! - Pending incremental change batches
 //! - Full-sync escalation and initial open state
 //! - Debounce scheduling and retry timing
-//! - Single in-flight sends with ack timeout
+//! - Single in-flight sends with write timeout
 //!
 //! # Error Handling
 //!
@@ -41,8 +41,8 @@ pub const LSP_ERROR_RETRY_DELAY: Duration = Duration::from_millis(250);
 /// Maximum number of documents flushed per tick.
 pub const LSP_MAX_DOCS_PER_TICK: usize = 8;
 
-/// Timeout for waiting on send acknowledgment before recovery.
-pub const LSP_ACK_TIMEOUT: Duration = Duration::from_secs(10);
+/// Timeout for waiting on write barrier completion before recovery.
+pub const LSP_WRITE_TIMEOUT: Duration = Duration::from_secs(10);
 
 /// LSP document configuration.
 #[derive(Debug, Clone)]
@@ -78,6 +78,8 @@ impl FlushResult {
 pub struct FlushComplete {
 	pub doc_id: DocumentId,
 	pub result: FlushResult,
+	/// Whether this was a full sync (for expected_prev reset).
+	pub was_full: bool,
 }
 
 /// Statistics from a flush operation.
@@ -96,7 +98,7 @@ pub enum SyncPhase {
 	Idle,
 	/// Changes pending, waiting for debounce period to elapse.
 	Debouncing,
-	/// A send is in progress, waiting for acknowledgment.
+	/// A send is in progress, waiting for write barrier.
 	InFlight,
 }
 
@@ -113,6 +115,10 @@ pub struct DocSyncState {
 	pub retry_after: Option<Instant>,
 	pub editor_version: u64,
 	pub inflight: Option<InFlightInfo>,
+	/// Expected previous version for contiguity checking.
+	///
+	/// Set after each successful commit to detect gaps or reorders.
+	pub expected_prev: Option<u64>,
 }
 
 /// Metadata about an in-flight send.
@@ -136,13 +142,37 @@ impl DocSyncState {
 			retry_after: None,
 			editor_version: version,
 			inflight: None,
+			expected_prev: None,
 		}
 	}
 
-	/// Records changes, escalating to full sync if thresholds are exceeded.
-	pub fn record_changes(&mut self, changes: Vec<LspDocumentChange>, bytes: usize, version: u64) {
-		self.editor_version = version;
+	/// Records changes with contiguity checking.
+	///
+	/// Detects version gaps or reorders and escalates to full sync if detected.
+	pub fn record_changes(
+		&mut self,
+		prev_version: u64,
+		new_version: u64,
+		changes: Vec<LspDocumentChange>,
+		bytes: usize,
+	) {
 		self.last_edit_at = Instant::now();
+
+		if let Some(expected) = self.expected_prev {
+			if expected != prev_version {
+				warn!(expected, got = prev_version, "lsp.sync.contiguity_break");
+				self.escalate_full();
+				self.expected_prev = Some(new_version);
+				self.editor_version = new_version;
+				if self.phase == SyncPhase::Idle {
+					self.phase = SyncPhase::Debouncing;
+				}
+				return;
+			}
+		}
+
+		self.expected_prev = Some(new_version);
+		self.editor_version = new_version;
 
 		let new_count = self.pending_changes.len() + changes.len();
 		let new_bytes = self.pending_bytes + bytes;
@@ -203,7 +233,7 @@ impl DocSyncState {
 		(changes, bytes)
 	}
 
-	pub fn mark_complete(&mut self, result: FlushResult) {
+	pub fn mark_complete(&mut self, result: FlushResult, was_full: bool) {
 		self.inflight = None;
 
 		match result {
@@ -214,6 +244,9 @@ impl DocSyncState {
 				} else {
 					SyncPhase::Debouncing
 				};
+				if was_full {
+					self.expected_prev = Some(self.editor_version);
+				}
 			}
 			FlushResult::Retryable => self.mark_error_retry(),
 			FlushResult::Failed => {
@@ -223,8 +256,8 @@ impl DocSyncState {
 		}
 	}
 
-	/// Checks for ack timeout, recovering with full sync escalation.
-	pub fn check_ack_timeout(&mut self, now: Instant, timeout: Duration) -> bool {
+	/// Checks for write timeout, recovering with full sync escalation.
+	pub fn check_write_timeout(&mut self, now: Instant, timeout: Duration) -> bool {
 		let Some(ref info) = self.inflight else {
 			return false;
 		};
@@ -235,7 +268,7 @@ impl DocSyncState {
 		warn!(
 			version = info.version,
 			is_full = info.is_full,
-			"lsp.sync_ack_timeout"
+			"lsp.sync_write_timeout"
 		);
 
 		self.inflight = None;
@@ -291,19 +324,21 @@ impl LspSyncManager {
 	pub fn on_doc_edit(
 		&mut self,
 		doc_id: DocumentId,
-		version: u64,
+		prev_version: u64,
+		new_version: u64,
 		changes: Vec<LspDocumentChange>,
 		bytes: usize,
 	) {
 		if let Some(state) = self.docs.get_mut(&doc_id) {
 			tracing::trace!(
 				doc_id = doc_id.0,
-				version,
+				prev_version,
+				new_version,
 				change_count = changes.len(),
 				bytes,
 				"lsp.sync_manager.doc_edit"
 			);
-			state.record_changes(changes, bytes, version);
+			state.record_changes(prev_version, new_version, changes, bytes);
 		}
 	}
 
@@ -363,15 +398,19 @@ impl LspSyncManager {
 	fn poll_completions(&mut self) {
 		while let Ok(complete) = self.completion_rx.try_recv() {
 			if let Some(state) = self.docs.get_mut(&complete.doc_id) {
-				state.mark_complete(complete.result);
+				state.mark_complete(complete.result, complete.was_full);
 			}
 		}
 	}
 
 	/// Flushes documents that are due for sync.
+	///
+	/// When `client_ready` is `false`, skips flushing but still polls
+	/// completions and checks for write timeouts.
 	pub fn tick<F>(
 		&mut self,
 		now: Instant,
+		client_ready: bool,
 		sync: &DocumentSync,
 		metrics: &Arc<EditorMetrics>,
 		snapshot_provider: F,
@@ -381,11 +420,15 @@ impl LspSyncManager {
 	{
 		self.poll_completions();
 
-		let mut stats = FlushStats::default();
-
 		for state in self.docs.values_mut() {
-			state.check_ack_timeout(now, LSP_ACK_TIMEOUT);
+			state.check_write_timeout(now, LSP_WRITE_TIMEOUT);
 		}
+
+		if !client_ready {
+			return FlushStats::default();
+		}
+
+		let mut stats = FlushStats::default();
 
 		let due_docs: Vec<_> = self
 			.docs
@@ -464,6 +507,7 @@ impl LspSyncManager {
 					let _ = tx.send(FlushComplete {
 						doc_id,
 						result: flush_result,
+						was_full: true,
 					});
 				});
 			} else {
@@ -521,6 +565,7 @@ impl LspSyncManager {
 					let _ = tx.send(FlushComplete {
 						doc_id,
 						result: flush_result,
+						was_full: false,
 					});
 				});
 			}
@@ -586,7 +631,7 @@ mod tests {
 		let doc_id = DocumentId(1);
 		mgr.on_doc_open(doc_id, test_config(), 1);
 
-		mgr.on_doc_edit(doc_id, 2, vec![test_change("hello")], 5);
+		mgr.on_doc_edit(doc_id, 1, 2, vec![test_change("hello")], 5);
 
 		let state = mgr.docs.get(&doc_id).unwrap();
 		assert_eq!(state.pending_changes.len(), 1);
@@ -602,7 +647,9 @@ mod tests {
 		mgr.on_doc_open(doc_id, test_config(), 1);
 
 		for i in 0..LSP_MAX_INCREMENTAL_CHANGES + 1 {
-			mgr.on_doc_edit(doc_id, i as u64 + 2, vec![test_change("x")], 1);
+			let prev = i as u64 + 1;
+			let new = i as u64 + 2;
+			mgr.on_doc_edit(doc_id, prev, new, vec![test_change("x")], 1);
 		}
 
 		let state = mgr.docs.get(&doc_id).unwrap();
@@ -636,7 +683,7 @@ mod tests {
 		state.needs_full = false;
 		state.phase = SyncPhase::InFlight;
 
-		state.mark_complete(FlushResult::Retryable);
+		state.mark_complete(FlushResult::Retryable, false);
 
 		assert!(!state.needs_full);
 		assert!(state.retry_after.is_some());
@@ -649,7 +696,7 @@ mod tests {
 		state.needs_full = false;
 		state.phase = SyncPhase::InFlight;
 
-		state.mark_complete(FlushResult::Failed);
+		state.mark_complete(FlushResult::Failed, false);
 
 		assert!(state.needs_full);
 		assert!(state.retry_after.is_some());
@@ -663,7 +710,7 @@ mod tests {
 		state.phase = SyncPhase::InFlight;
 		state.retry_after = Some(Instant::now() + Duration::from_secs(1));
 
-		state.mark_complete(FlushResult::Success);
+		state.mark_complete(FlushResult::Success, false);
 
 		assert!(!state.needs_full);
 		assert!(state.retry_after.is_none());
@@ -671,17 +718,17 @@ mod tests {
 	}
 
 	#[test]
-	fn test_ack_timeout_escalates_to_full() {
+	fn test_write_timeout_escalates_to_full() {
 		let mut state = DocSyncState::new(test_config(), 1);
 		state.needs_full = false;
 		state.phase = SyncPhase::InFlight;
 		state.inflight = Some(InFlightInfo {
 			is_full: false,
 			version: 5,
-			started_at: Instant::now() - LSP_ACK_TIMEOUT - Duration::from_secs(1),
+			started_at: Instant::now() - LSP_WRITE_TIMEOUT - Duration::from_secs(1),
 		});
 
-		let timed_out = state.check_ack_timeout(Instant::now(), LSP_ACK_TIMEOUT);
+		let timed_out = state.check_write_timeout(Instant::now(), LSP_WRITE_TIMEOUT);
 
 		assert!(timed_out);
 		assert!(state.needs_full);
@@ -701,10 +748,78 @@ mod tests {
 			started_at: Instant::now() - Duration::from_millis(100),
 		});
 
-		let timed_out = state.check_ack_timeout(Instant::now(), LSP_ACK_TIMEOUT);
+		let timed_out = state.check_write_timeout(Instant::now(), LSP_WRITE_TIMEOUT);
 
 		assert!(!timed_out);
 		assert!(!state.needs_full);
 		assert!(state.inflight.is_some());
+	}
+
+	#[test]
+	fn test_contiguity_check_success() {
+		let mut state = DocSyncState::new(test_config(), 1);
+		state.needs_full = false;
+
+		// First commit establishes baseline
+		state.record_changes(1, 2, vec![test_change("a")], 1);
+		assert!(!state.needs_full);
+		assert_eq!(state.expected_prev, Some(2));
+
+		// Contiguous commits work
+		state.record_changes(2, 3, vec![test_change("b")], 1);
+		assert!(!state.needs_full);
+		assert_eq!(state.expected_prev, Some(3));
+
+		state.record_changes(3, 4, vec![test_change("c")], 1);
+		assert!(!state.needs_full);
+		assert_eq!(state.expected_prev, Some(4));
+		assert_eq!(state.pending_changes.len(), 3);
+	}
+
+	#[test]
+	fn test_contiguity_check_gap_triggers_full_sync() {
+		let mut state = DocSyncState::new(test_config(), 1);
+		state.needs_full = false;
+
+		// Establish baseline
+		state.record_changes(1, 2, vec![test_change("a")], 1);
+		assert!(!state.needs_full);
+
+		// Gap detected (expected 2, got 5)
+		state.record_changes(5, 6, vec![test_change("b")], 1);
+		assert!(state.needs_full);
+		assert!(state.pending_changes.is_empty());
+		assert_eq!(state.expected_prev, Some(6));
+	}
+
+	#[test]
+	fn test_contiguity_check_reorder_triggers_full_sync() {
+		let mut state = DocSyncState::new(test_config(), 1);
+		state.needs_full = false;
+
+		// Establish baseline with version 5
+		state.record_changes(4, 5, vec![test_change("a")], 1);
+		assert!(!state.needs_full);
+		assert_eq!(state.expected_prev, Some(5));
+
+		// Reorder detected (expected 5, got 3 - stale commit)
+		state.record_changes(3, 4, vec![test_change("b")], 1);
+		assert!(state.needs_full);
+		assert!(state.pending_changes.is_empty());
+	}
+
+	#[test]
+	fn test_full_sync_resets_expected_prev() {
+		let mut state = DocSyncState::new(test_config(), 1);
+		state.needs_full = false;
+		state.expected_prev = Some(5);
+		state.editor_version = 10;
+		state.phase = SyncPhase::InFlight;
+
+		// Successful full sync resets expected_prev to current editor_version
+		state.mark_complete(FlushResult::Success, true);
+
+		assert_eq!(state.expected_prev, Some(10));
+		assert_eq!(state.phase, SyncPhase::Idle);
 	}
 }
