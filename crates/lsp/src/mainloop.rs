@@ -66,7 +66,7 @@ pub struct MainLoop<S: LspService> {
 
 struct OutgoingMessage {
 	message: Message,
-	ack: Option<oneshot::Sender<()>>,
+	barrier: Option<oneshot::Sender<()>>,
 }
 
 define_getters!(impl[S: LspService] MainLoop<S>, service: S);
@@ -129,8 +129,8 @@ where
 		let outgoing =
 			futures::sink::unfold(output, |mut output, outgoing: OutgoingMessage| async move {
 				Message::write(&outgoing.message, &mut output).await?;
-				if let Some(ack) = outgoing.ack {
-					let _ = ack.send(());
+				if let Some(barrier) = outgoing.barrier {
+					let _ = barrier.send(());
 				}
 				Ok(output)
 			});
@@ -171,7 +171,7 @@ where
 					}
 					resp = self.tasks.select_next_some() => ControlFlow::Continue(Some(OutgoingMessage {
 						message: Message::Response(resp),
-						ack: None,
+						barrier: None,
 					})),
 				}
 			} else {
@@ -181,7 +181,7 @@ where
 
 					resp = self.tasks.select_next_some() => ControlFlow::Continue(Some(OutgoingMessage {
 						message: Message::Response(resp),
-						ack: None,
+						barrier: None,
 					})),
 					event = self.rx.next() => match event {
 						Some(e) => self.dispatch_event(e),
@@ -257,7 +257,7 @@ where
 					};
 					return ControlFlow::Continue(Some(OutgoingMessage {
 						message: Message::Response(resp),
-						ack: None,
+						barrier: None,
 					}));
 				}
 				let id = req.id.clone();
@@ -289,17 +289,17 @@ where
 				self.outgoing_id += 1;
 				ControlFlow::Continue(Some(OutgoingMessage {
 					message: Message::Request(req),
-					ack: None,
+					barrier: None,
 				}))
 			}
 			MainLoopEvent::Outgoing(msg) => ControlFlow::Continue(Some(OutgoingMessage {
 				message: msg,
-				ack: None,
+				barrier: None,
 			})),
-			MainLoopEvent::OutgoingWithAck(msg, ack) => {
+			MainLoopEvent::OutgoingWithBarrier(msg, barrier) => {
 				ControlFlow::Continue(Some(OutgoingMessage {
 					message: msg,
-					ack: Some(ack),
+					barrier: Some(barrier),
 				}))
 			}
 			MainLoopEvent::Any(event) => {

@@ -244,19 +244,19 @@ impl DocumentSync {
 		Ok(())
 	}
 
-	/// Notify language servers of a document change with an ack after write.
-	pub async fn notify_change_full_with_ack(
+	/// Notify language servers of a document change with a barrier after write.
+	pub async fn notify_change_full_with_barrier(
 		&self,
 		path: &Path,
 		language: &str,
 		text: &Rope,
 	) -> Result<Option<oneshot::Receiver<()>>> {
-		self.notify_change_full_with_ack_text(path, language, text.to_string())
+		self.notify_change_full_with_barrier_text(path, language, text.to_string())
 			.await
 	}
 
-	/// Notify language servers of a full document change with an ack and owned snapshot.
-	pub async fn notify_change_full_with_ack_text(
+	/// Notify language servers of a full document change with a barrier and owned snapshot.
+	pub async fn notify_change_full_with_barrier_text(
 		&self,
 		path: &Path,
 		language: &str,
@@ -284,14 +284,14 @@ impl DocumentSync {
 			.queue_change(&uri)
 			.ok_or_else(|| crate::Error::Protocol("Document not registered".into()))?;
 
-		let ack = match client.text_document_did_change_full_with_ack(uri.clone(), version, text) {
-			Ok(ack) => ack,
+		let barrier = match client.text_document_did_change_full_with_barrier(uri.clone(), version, text) {
+			Ok(barrier) => barrier,
 			Err(err) => {
 				self.documents.mark_force_full_sync(&uri);
 				return Err(err);
 			}
 		};
-		Ok(Some(self.wrap_ack(uri, version, ack)))
+		Ok(Some(self.wrap_barrier(uri, version, barrier)))
 	}
 
 	/// Notify language servers of an incremental document change without content.
@@ -350,8 +350,8 @@ impl DocumentSync {
 		Ok(())
 	}
 
-	/// Like [`notify_change_incremental_no_content`] but returns an ack receiver.
-	pub async fn notify_change_incremental_no_content_with_ack(
+	/// Like [`notify_change_incremental_no_content`] but returns a barrier receiver.
+	pub async fn notify_change_incremental_no_content_with_barrier(
 		&self,
 		path: &Path,
 		language: &str,
@@ -392,27 +392,27 @@ impl DocumentSync {
 			.queue_change(&uri)
 			.ok_or_else(|| crate::Error::Protocol("Document not registered".into()))?;
 
-		let ack =
-			match client.text_document_did_change_with_ack(uri.clone(), version, content_changes) {
-				Ok(ack) => ack,
+		let barrier =
+			match client.text_document_did_change_with_barrier(uri.clone(), version, content_changes) {
+				Ok(barrier) => barrier,
 				Err(err) => {
 					self.documents.mark_force_full_sync(&uri);
 					return Err(err);
 				}
 			};
-		Ok(Some(self.wrap_ack(uri, version, ack)))
+		Ok(Some(self.wrap_barrier(uri, version, barrier)))
 	}
 
-	fn wrap_ack(
+	fn wrap_barrier(
 		&self,
 		uri: Uri,
 		version: i32,
-		ack: oneshot::Receiver<()>,
+		barrier: oneshot::Receiver<()>,
 	) -> oneshot::Receiver<()> {
 		let (tx, rx) = oneshot::channel();
 		let documents = self.documents.clone();
 		tokio::spawn(async move {
-			let _ = ack.await;
+			let _ = barrier.await;
 			documents.ack_change(&uri, version);
 			let _ = tx.send(());
 		});

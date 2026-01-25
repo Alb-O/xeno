@@ -275,7 +275,7 @@ impl Editor {
 
 			let result = if use_incremental {
 				match sync
-					.notify_change_incremental_no_content_with_ack(&path, &language, changes)
+					.notify_change_incremental_no_content_with_barrier(&path, &language, changes)
 					.await
 				{
 					Ok(ack) => {
@@ -286,7 +286,7 @@ impl Editor {
 						metrics.inc_send_error();
 						let (snapshot, bytes) = take_snapshot();
 						metrics.add_snapshot_bytes(bytes);
-						sync.notify_change_full_with_ack_text(&path, &language, snapshot)
+						sync.notify_change_full_with_barrier_text(&path, &language, snapshot)
 							.await
 							.inspect(|_| metrics.inc_full_sync())
 							.inspect_err(|_| metrics.inc_send_error())
@@ -295,7 +295,7 @@ impl Editor {
 			} else {
 				let (snapshot, bytes) = take_snapshot();
 				metrics.add_snapshot_bytes(bytes);
-				sync.notify_change_full_with_ack_text(&path, &language, snapshot)
+				sync.notify_change_full_with_barrier_text(&path, &language, snapshot)
 					.await
 					.inspect(|_| metrics.inc_full_sync())
 					.inspect_err(|_| metrics.inc_send_error())

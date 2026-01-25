@@ -36,7 +36,7 @@ fn send_msg(socket: &ServerSocket, msg: OutboundMsg) -> std::result::Result<(), 
 		} => match barrier {
 			Some(barrier) => socket
 				.0
-				.send(MainLoopEvent::OutgoingWithAck(
+				.send(MainLoopEvent::OutgoingWithBarrier(
 					Message::Notification(notification),
 					barrier,
 				))
@@ -140,10 +140,10 @@ mod tests {
 			.await
 			.unwrap();
 
-		// Consume the OutgoingWithAck event and fire the barrier (simulating mainloop)
+		// Consume the OutgoingWithBarrier event and fire the barrier (simulating mainloop)
 		let event = peer_rx.next().await.expect("event");
 		match event {
-			MainLoopEvent::OutgoingWithAck(Message::Notification(notif), barrier) => {
+			MainLoopEvent::OutgoingWithBarrier(Message::Notification(notif), barrier) => {
 				assert_eq!(notif.method, "test");
 				let _ = barrier.send(());
 			}

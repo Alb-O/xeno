@@ -482,7 +482,7 @@ impl LspSyncManager {
 					metrics.add_snapshot_bytes(snapshot_bytes);
 
 					let result = sync
-						.notify_change_full_with_ack_text(&path, &language, snapshot)
+						.notify_change_full_with_barrier_text(&path, &language, snapshot)
 						.await;
 					let latency_ms = start.elapsed().as_millis() as u64;
 
@@ -540,7 +540,7 @@ impl LspSyncManager {
 				tokio::spawn(async move {
 					let start = Instant::now();
 					let result = sync
-						.notify_change_incremental_no_content_with_ack(&path, &language, changes)
+						.notify_change_incremental_no_content_with_barrier(&path, &language, changes)
 						.await;
 					let latency_ms = start.elapsed().as_millis() as u64;
 

@@ -133,7 +133,7 @@ impl ClientHandle {
 	}
 
 	/// Notify the server that a document was changed (full sync) with a write barrier.
-	pub fn text_document_did_change_full_with_ack(
+	pub fn text_document_did_change_full_with_barrier(
 		&self,
 		uri: Uri,
 		version: i32,
@@ -181,7 +181,7 @@ impl ClientHandle {
 	}
 
 	/// Notify the server that a document was changed (incremental sync) with a write barrier.
-	pub fn text_document_did_change_with_ack(
+	pub fn text_document_did_change_with_barrier(
 		&self,
 		uri: Uri,
 		version: i32,
