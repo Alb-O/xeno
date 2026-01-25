@@ -16,7 +16,7 @@ The workspace contains many crates under `crates/`. The main binary lives in `cr
 
 The `crates/registry/` subtree contains many sub-crates for extensible components. Each uses `inventory` to collect registrations: actions for keybindings, commands for `:` ex-mode, motions for cursor movement, textobj for selection expansion, gutter for line decorations, statusline for status segments, hooks for lifecycle events. Adding a new action means annotating a function and it appears in the registry without touching dispatch code.
 
-`xeno-lsp` implements a Tower-based async client that spawns language server processes, converts positions between byte/char/line representations, and routes diagnostics to the gutter and inline decorations.
+`xeno-lsp` implements the LSP client stack. See [docs/agents/lsp.md](docs/agents/lsp.md) for architecture details.
 
 `xeno-tui` is a modified Ratatui vendor. It renders to crossterm.
 
