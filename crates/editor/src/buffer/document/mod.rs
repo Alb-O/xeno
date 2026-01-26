@@ -263,15 +263,16 @@ impl Document {
 		};
 
 		if let Some(old_source) = old_source_for_syntax
-			&& let Some(ref mut syntax) = self.syntax {
-				let _ = syntax.update_from_changeset(
-					old_source.slice(..),
-					self.content.slice(..),
-					tx.changes(),
-					language_loader,
-					xeno_runtime_language::SyntaxOptions::default(),
-				);
-			}
+			&& let Some(ref mut syntax) = self.syntax
+		{
+			let _ = syntax.update_from_changeset(
+				old_source.slice(..),
+				self.content.slice(..),
+				tx.changes(),
+				language_loader,
+				xeno_runtime_language::SyntaxOptions::default(),
+			);
+		}
 		// Always schedule a background reparse after undo to avoid long-lived
 		// desyncs if incremental updates mis-parse.
 		self.syntax_dirty = true;
@@ -315,15 +316,16 @@ impl Document {
 		};
 
 		if let Some(old_source) = old_source_for_syntax
-			&& let Some(ref mut syntax) = self.syntax {
-				let _ = syntax.update_from_changeset(
-					old_source.slice(..),
-					self.content.slice(..),
-					tx.changes(),
-					language_loader,
-					xeno_runtime_language::SyntaxOptions::default(),
-				);
-			}
+			&& let Some(ref mut syntax) = self.syntax
+		{
+			let _ = syntax.update_from_changeset(
+				old_source.slice(..),
+				self.content.slice(..),
+				tx.changes(),
+				language_loader,
+				xeno_runtime_language::SyntaxOptions::default(),
+			);
+		}
 		// Always schedule a background reparse after redo to avoid long-lived
 		// desyncs if incremental updates mis-parse.
 		self.syntax_dirty = true;

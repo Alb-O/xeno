@@ -35,8 +35,8 @@ fn no_cfg_lsp_in_render() {
 fn actions_no_direct_motions_import() {
 	let output = Command::new("rg")
 		.args([
-			"use xeno_registry::motions",
-			"crates/registry/actions/src",
+			r#"use (crate|xeno_registry)::motions"#,
+			"crates/registry/src/actions",
 			"--type",
 			"rust",
 		])
@@ -55,10 +55,7 @@ fn actions_no_direct_motions_import() {
 #[test]
 fn actions_cargo_no_motions_dep() {
 	let output = Command::new("rg")
-		.args([
-			"xeno-registry-motions",
-			"crates/registry/actions/Cargo.toml",
-		])
+		.args(["xeno-registry-motions", "crates/registry/Cargo.toml"])
 		.output()
 		.expect("rg command failed");
 
@@ -98,7 +95,7 @@ fn build_no_default_features() {
 fn motion_ids_match_definitions() {
 	let ids_output = Command::new("rg")
 		.args([
-			r#"MotionId\("xeno-registry-motions::(\w+)"\)"#,
+			r#"MotionId\("xeno-registry::(\w+)"\)"#,
 			"crates/primitives/src/ids.rs",
 			"-or",
 			"$1",
@@ -112,7 +109,7 @@ fn motion_ids_match_definitions() {
 	let defs_output = Command::new("rg")
 		.args([
 			r#"motion!\((\w+),"#,
-			"crates/registry/motions/src",
+			"crates/registry/src/motions",
 			"-or",
 			"$1",
 		])

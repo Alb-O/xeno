@@ -99,7 +99,7 @@ pub async fn emit_mutable(ctx: &mut MutableHookContext<'_>) -> HookResult {
 
 /// Trait for scheduling async hook futures.
 ///
-/// This allows sync emission to queue async hooks without coupling `xeno-registry-hooks`
+/// This allows sync emission to queue async hooks without coupling `xeno-registry`
 /// to any specific runtime. The caller provides an implementor that stores futures
 /// for later execution.
 pub trait HookScheduler {

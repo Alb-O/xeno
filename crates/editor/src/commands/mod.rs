@@ -1,6 +1,6 @@
 //! Editor-direct command registry.
 //!
-//! Xeno has two command systems. Registry commands in `xeno-registry-commands` use
+//! Xeno has two command systems. Registry commands in `xeno-registry` use
 //! the [`CommandEditorOps`] trait abstraction, making them portable across editor
 //! implementations. They handle standard operations like `:write`, `:quit`, and `:set`.
 //!
