@@ -100,13 +100,10 @@ impl Editor {
 				KeyResult::ModeChange(new_mode) => {
 					let leaving_insert = !matches!(new_mode, Mode::Insert);
 					if new_mode != old_mode {
-						emit_hook(&HookContext::new(
-							HookEventData::ModeChange {
-								old_mode,
-								new_mode: new_mode.clone(),
-							},
-							Some(&self.state.extensions),
-						))
+						emit_hook(&HookContext::new(HookEventData::ModeChange {
+							old_mode,
+							new_mode: new_mode.clone(),
+						}))
 						.await;
 					}
 					if leaving_insert {

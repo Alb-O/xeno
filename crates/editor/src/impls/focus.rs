@@ -92,13 +92,10 @@ impl Editor {
 
 		if view != old_view {
 			emit_hook_sync_with(
-				&HookContext::new(
-					HookEventData::ViewFocusChanged {
-						view_id: hook_view_id(view),
-						prev_view_id: Some(hook_view_id(old_view)),
-					},
-					Some(&self.state.extensions),
-				),
+				&HookContext::new(HookEventData::ViewFocusChanged {
+					view_id: hook_view_id(view),
+					prev_view_id: Some(hook_view_id(old_view)),
+				}),
 				&mut self.state.hook_runtime,
 			);
 		}
@@ -238,25 +235,19 @@ impl Editor {
 		if old_window != new_window {
 			if let Some(window) = old_window {
 				emit_hook_sync_with(
-					&HookContext::new(
-						HookEventData::WindowFocusChanged {
-							window_id: window.into(),
-							focused: false,
-						},
-						Some(&self.state.extensions),
-					),
+					&HookContext::new(HookEventData::WindowFocusChanged {
+						window_id: window.into(),
+						focused: false,
+					}),
 					&mut self.state.hook_runtime,
 				);
 			}
 			if let Some(window) = new_window {
 				emit_hook_sync_with(
-					&HookContext::new(
-						HookEventData::WindowFocusChanged {
-							window_id: window.into(),
-							focused: true,
-						},
-						Some(&self.state.extensions),
-					),
+					&HookContext::new(HookEventData::WindowFocusChanged {
+						window_id: window.into(),
+						focused: true,
+					}),
 					&mut self.state.hook_runtime,
 				);
 			}

@@ -32,13 +32,10 @@ impl xeno_registry::FileOpsAccess for Editor {
 			};
 
 			let text_slice = self.buffer().with_doc(|doc| doc.content().clone());
-			emit_hook(&HookContext::new(
-				HookEventData::BufferWritePre {
-					path: &path_owned,
-					text: text_slice.slice(..),
-				},
-				Some(&self.state.extensions),
-			))
+			emit_hook(&HookContext::new(HookEventData::BufferWritePre {
+				path: &path_owned,
+				text: text_slice.slice(..),
+			}))
 			.await;
 
 			#[cfg(feature = "lsp")]
@@ -74,10 +71,9 @@ impl xeno_registry::FileOpsAccess for Editor {
 				warn!(error = %e, "LSP did_save notification failed");
 			}
 
-			emit_hook(&HookContext::new(
-				HookEventData::BufferWrite { path: &path_owned },
-				Some(&self.state.extensions),
-			))
+			emit_hook(&HookContext::new(HookEventData::BufferWrite {
+				path: &path_owned,
+			}))
 			.await;
 
 			Ok(())
@@ -121,14 +117,11 @@ impl Editor {
 
 		let file_type = buffer.file_type();
 		crate::impls::emit_hook_sync_with(
-			&HookContext::new(
-				HookEventData::BufferOpen {
-					path: &path,
-					text: rope.slice(..),
-					file_type: file_type.as_deref(),
-				},
-				None,
-			),
+			&HookContext::new(HookEventData::BufferOpen {
+				path: &path,
+				text: rope.slice(..),
+				file_type: file_type.as_deref(),
+			}),
 			&mut self.state.hook_runtime,
 		);
 

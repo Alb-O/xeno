@@ -116,37 +116,6 @@ impl<'a> BufferRenderContext<'a> {
 		None
 	}
 
-	/// Applies style overlay modifications (e.g., zen mode dimming).
-	pub fn apply_style_overlay(&self, byte_pos: usize, style: Option<Style>) -> Option<Style> {
-		use xeno_tui::animation::Animatable;
-
-		use crate::extensions::StyleMod;
-
-		let Some(modification) = self.style_overlays.modification_at(byte_pos) else {
-			return style;
-		};
-
-		let style = style.unwrap_or_default();
-		let modified = match modification {
-			StyleMod::Dim(factor) => {
-				// Convert theme bg color to xeno_tui color for blending
-				let bg: xeno_tui::style::Color = self.theme.colors.ui.bg;
-				if let Some(fg) = style.fg {
-					// Blend fg toward bg using Animatable::lerp
-					// factor=1.0 means no dimming (full fg), factor=0.0 means full bg
-					let dimmed = bg.lerp(&fg, factor);
-					style.fg(dimmed)
-				} else {
-					style.fg(xeno_tui::style::Color::DarkGray)
-				}
-			}
-			StyleMod::Fg(color) => style.fg(color),
-			StyleMod::Bg(color) => style.bg(color),
-		};
-
-		Some(modified)
-	}
-
 	/// Gets the diagnostic severity for a character position on a line.
 	///
 	/// Returns the highest severity if multiple diagnostics overlap at this position.
@@ -382,7 +351,6 @@ impl<'a> BufferRenderContext<'a> {
 
 					let byte_pos = buffer.with_doc(|doc| doc.content().char_to_byte(doc_pos));
 					let syntax_style = self.style_for_byte_pos(byte_pos, &highlight_spans);
-					let syntax_style = self.apply_style_overlay(byte_pos, syntax_style);
 
 					let cell_input = CellStyleInput {
 						line_ctx: &line_style,

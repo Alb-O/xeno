@@ -133,12 +133,9 @@ impl Editor {
 		}
 
 		emit_hook_sync_with(
-			&HookContext::new(
-				HookEventData::ActionPre {
-					action_id: action.id(),
-				},
-				Some(&self.state.extensions),
-			),
+			&HookContext::new(HookEventData::ActionPre {
+				action_id: action.id(),
+			}),
 			&mut self.state.hook_runtime,
 		);
 
@@ -323,13 +320,10 @@ impl Editor {
 		let result_variant = result.variant_name();
 		let should_quit = dispatch_result(&result, &mut ctx, extend);
 		emit_hook_sync_with(
-			&HookContext::new(
-				HookEventData::ActionPost {
-					action_id,
-					result_variant,
-				},
-				Some(&self.state.extensions),
-			),
+			&HookContext::new(HookEventData::ActionPost {
+				action_id,
+				result_variant,
+			}),
 			&mut self.state.hook_runtime,
 		);
 		should_quit

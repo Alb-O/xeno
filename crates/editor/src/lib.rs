@@ -35,8 +35,6 @@ pub mod commands;
 pub mod completion;
 /// Editor context and effect handling.
 pub mod editor_ctx;
-/// Extension container and style overlays.
-pub mod extensions;
 /// Async hook execution runtime.
 pub mod hook_runtime;
 pub mod impls;

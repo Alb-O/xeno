@@ -24,13 +24,10 @@ impl Editor {
 		layout.split_horizontal(base_layout, current_view, new_buffer_id, doc_area);
 		self.focus_buffer(new_buffer_id);
 		emit_hook_sync_with(
-			&HookContext::new(
-				HookEventData::SplitCreated {
-					view_id: new_buffer_id,
-					direction: SplitDirection::Horizontal,
-				},
-				Some(&self.state.extensions),
-			),
+			&HookContext::new(HookEventData::SplitCreated {
+				view_id: new_buffer_id,
+				direction: SplitDirection::Horizontal,
+			}),
 			&mut self.state.hook_runtime,
 		);
 	}
@@ -46,13 +43,10 @@ impl Editor {
 		layout.split_vertical(base_layout, current_view, new_buffer_id, doc_area);
 		self.focus_buffer(new_buffer_id);
 		emit_hook_sync_with(
-			&HookContext::new(
-				HookEventData::SplitCreated {
-					view_id: new_buffer_id,
-					direction: SplitDirection::Vertical,
-				},
-				Some(&self.state.extensions),
-			),
+			&HookContext::new(HookEventData::SplitCreated {
+				view_id: new_buffer_id,
+				direction: SplitDirection::Vertical,
+			}),
 			&mut self.state.hook_runtime,
 		);
 	}
@@ -93,13 +87,10 @@ impl Editor {
 			let path = buffer.path().unwrap_or_else(|| scratch_path.clone());
 			let file_type = buffer.file_type();
 			emit_hook_sync_with(
-				&HookContext::new(
-					HookEventData::BufferClose {
-						path: &path,
-						file_type: file_type.as_deref(),
-					},
-					Some(&self.state.extensions),
-				),
+				&HookContext::new(HookEventData::BufferClose {
+					path: &path,
+					file_type: file_type.as_deref(),
+				}),
 				&mut self.state.hook_runtime,
 			);
 
@@ -110,10 +101,7 @@ impl Editor {
 		}
 
 		emit_hook_sync_with(
-			&HookContext::new(
-				HookEventData::SplitClosed { view_id: view },
-				Some(&self.state.extensions),
-			),
+			&HookContext::new(HookEventData::SplitClosed { view_id: view }),
 			&mut self.state.hook_runtime,
 		);
 

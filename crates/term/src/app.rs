@@ -66,11 +66,8 @@ pub async fn run_editor(mut editor: Editor) -> io::Result<()> {
 	let mut terminal = Terminal::new(backend)?;
 
 	editor.ui_startup();
-	let (extensions, hook_runtime) = editor.extensions_and_hook_runtime_mut();
-	emit_hook_sync_with(
-		&HookContext::new(HookEventData::EditorStart, Some(extensions)),
-		hook_runtime,
-	);
+	let hook_runtime = editor.hook_runtime_mut();
+	emit_hook_sync_with(&HookContext::new(HookEventData::EditorStart), hook_runtime);
 
 	let result: io::Result<()> = async {
 		loop {
@@ -170,11 +167,7 @@ pub async fn run_editor(mut editor: Editor) -> io::Result<()> {
 	}
 	.await;
 
-	emit_hook(&HookContext::new(
-		HookEventData::EditorQuit,
-		Some(editor.extensions()),
-	))
-	.await;
+	emit_hook(&HookContext::new(HookEventData::EditorQuit)).await;
 
 	let terminal_inner = terminal.backend_mut().terminal_mut();
 	let cleanup_result = disable_terminal_features(terminal_inner);

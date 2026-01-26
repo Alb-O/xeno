@@ -11,10 +11,7 @@ use std::collections::HashMap;
 
 /// Type-erased storage for UI overlay state.
 ///
-/// Similar to [`ExtensionMap`] but for transient UI overlays like popups,
-/// palettes, and completion menus.
-///
-/// [`ExtensionMap`]: crate::extensions::ExtensionMap
+/// Stores transient UI overlays like popups, palettes, and completion menus.
 #[derive(Default)]
 pub struct OverlayManager {
 	inner: HashMap<TypeId, Box<dyn Any + Send + Sync>>,

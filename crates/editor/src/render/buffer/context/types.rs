@@ -5,7 +5,6 @@ use xeno_tui::widgets::Paragraph;
 
 use super::super::cell_style::CursorStyleSet;
 use super::super::diagnostics::{DiagnosticLineMap, DiagnosticRangeMap};
-use crate::extensions::StyleOverlays;
 
 /// Result of rendering a buffer's content.
 pub struct RenderResult {
@@ -23,8 +22,6 @@ pub struct BufferRenderContext<'a> {
 	pub theme: &'a Theme,
 	/// Language loader for syntax highlighting.
 	pub language_loader: &'a LanguageLoader,
-	/// Style overlays (e.g., zen mode dimming).
-	pub style_overlays: &'a StyleOverlays,
 	/// Optional diagnostic line map for gutter signs.
 	pub diagnostics: Option<&'a DiagnosticLineMap>,
 	/// Optional diagnostic range map for underlines.

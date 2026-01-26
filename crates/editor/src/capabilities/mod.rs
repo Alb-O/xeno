@@ -262,13 +262,10 @@ impl CommandEditorOps for Editor {
 
 		if let Some(def) = find_by_kdl(kdl_key) {
 			emit_hook_sync_with(
-				&HookContext::new(
-					HookEventData::OptionChanged {
-						key: def.kdl_key,
-						scope: "global",
-					},
-					Some(&self.state.extensions),
-				),
+				&HookContext::new(HookEventData::OptionChanged {
+					key: def.kdl_key,
+					scope: "global",
+				}),
 				&mut self.state.hook_runtime,
 			);
 		}
@@ -297,13 +294,10 @@ impl CommandEditorOps for Editor {
 			.set_by_kdl(kdl_key, opt_value);
 
 		emit_hook_sync_with(
-			&HookContext::new(
-				HookEventData::OptionChanged {
-					key: def.kdl_key,
-					scope: "buffer",
-				},
-				Some(&self.state.extensions),
-			),
+			&HookContext::new(HookEventData::OptionChanged {
+				key: def.kdl_key,
+				scope: "buffer",
+			}),
 			&mut self.state.hook_runtime,
 		);
 		Ok(())

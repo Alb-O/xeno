@@ -32,14 +32,11 @@ impl Editor {
 
 		let text_slice = buffer.with_doc(|doc| doc.content().clone());
 		let file_type = buffer.file_type();
-		emit_hook(&HookContext::new(
-			HookEventData::BufferOpen {
-				path: hook_path,
-				text: text_slice.slice(..),
-				file_type: file_type.as_deref(),
-			},
-			Some(&self.state.extensions),
-		))
+		emit_hook(&HookContext::new(HookEventData::BufferOpen {
+			path: hook_path,
+			text: text_slice.slice(..),
+			file_type: file_type.as_deref(),
+		}))
 		.await;
 
 		#[cfg(feature = "lsp")]
@@ -93,14 +90,11 @@ impl Editor {
 
 		let text = buffer.with_doc(|doc| doc.content().clone());
 		emit_hook_sync_with(
-			&HookContext::new(
-				HookEventData::BufferOpen {
-					path: hook_path,
-					text: text.slice(..),
-					file_type: buffer.file_type().as_deref(),
-				},
-				Some(&self.state.extensions),
-			),
+			&HookContext::new(HookEventData::BufferOpen {
+				path: hook_path,
+				text: text.slice(..),
+				file_type: buffer.file_type().as_deref(),
+			}),
 			&mut self.state.hook_runtime,
 		);
 

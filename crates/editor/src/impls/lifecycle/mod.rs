@@ -53,15 +53,12 @@ impl Editor {
 				let version = buffer.version();
 				let content = buffer.with_doc(|doc| doc.content().clone());
 				emit_hook_sync_with(
-					&HookContext::new(
-						HookEventData::BufferChange {
-							path: &path,
-							text: content.slice(..),
-							file_type: file_type.as_deref(),
-							version,
-						},
-						Some(&self.state.extensions),
-					),
+					&HookContext::new(HookEventData::BufferChange {
+						path: &path,
+						text: content.slice(..),
+						file_type: file_type.as_deref(),
+						version,
+					}),
 					&mut self.state.hook_runtime,
 				);
 			}
@@ -71,17 +68,9 @@ impl Editor {
 		self.tick_lsp_sync();
 
 		emit_hook_sync_with(
-			&HookContext::new(HookEventData::EditorTick, Some(&self.state.extensions)),
+			&HookContext::new(HookEventData::EditorTick),
 			&mut self.state.hook_runtime,
 		);
-	}
-
-	/// Clears and updates style overlays (called before each render frame).
-	pub fn update_style_overlays(&mut self) {
-		self.state.style_overlays.clear();
-		if self.state.style_overlays.has_animations() {
-			self.state.frame.needs_redraw = true;
-		}
 	}
 
 	/// Returns true if any UI panel is currently open.
@@ -106,10 +95,7 @@ impl Editor {
 		self.state.ui = ui;
 		self.state.frame.needs_redraw = true;
 		emit_hook_sync_with(
-			&HookContext::new(
-				HookEventData::WindowResize { width, height },
-				Some(&self.state.extensions),
-			),
+			&HookContext::new(HookEventData::WindowResize { width, height }),
 			&mut self.state.hook_runtime,
 		);
 	}
@@ -118,7 +104,7 @@ impl Editor {
 	pub fn handle_focus_in(&mut self) {
 		self.state.frame.needs_redraw = true;
 		emit_hook_sync_with(
-			&HookContext::new(HookEventData::FocusGained, Some(&self.state.extensions)),
+			&HookContext::new(HookEventData::FocusGained),
 			&mut self.state.hook_runtime,
 		);
 	}
@@ -127,7 +113,7 @@ impl Editor {
 	pub fn handle_focus_out(&mut self) {
 		self.state.frame.needs_redraw = true;
 		emit_hook_sync_with(
-			&HookContext::new(HookEventData::FocusLost, Some(&self.state.extensions)),
+			&HookContext::new(HookEventData::FocusLost),
 			&mut self.state.hook_runtime,
 		);
 	}

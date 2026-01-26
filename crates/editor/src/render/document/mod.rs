@@ -67,11 +67,6 @@ impl Editor {
 		self.state.frame.last_tick = now;
 		self.state.notifications.tick(delta);
 
-		// Update style overlays to reflect current cursor position.
-		// This must happen at render time (not tick time) to handle
-		// mouse clicks and other events that modify cursor after tick.
-		self.update_style_overlays();
-
 		// Poll background syntax parsing, installing results if ready.
 		self.ensure_syntax_for_buffers();
 
@@ -209,7 +204,6 @@ impl Editor {
 					let buffer_ctx = BufferRenderContext {
 						theme: &ctx.theme,
 						language_loader: &self.state.config.language_loader,
-						style_overlays: &ctx.style_overlays,
 						diagnostics: ctx.lsp.diagnostics_for(*buffer_id),
 						diagnostic_ranges: ctx.lsp.diagnostic_ranges_for(*buffer_id),
 					};
@@ -340,7 +334,6 @@ impl Editor {
 				let buffer_ctx = BufferRenderContext {
 					theme: &ctx.theme,
 					language_loader: &self.state.config.language_loader,
-					style_overlays: &ctx.style_overlays,
 					diagnostics: ctx.lsp.diagnostics_for(window.buffer),
 					diagnostic_ranges: ctx.lsp.diagnostic_ranges_for(window.buffer),
 				};

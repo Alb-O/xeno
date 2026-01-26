@@ -281,23 +281,17 @@ fn scroll_amount_to_lines(amount: &ScrollAmount) -> usize {
 /// Emits cursor move hook if position is available.
 fn emit_cursor_hook(ctx: &xeno_registry::actions::editor_ctx::EditorContext) {
 	if let Some((line, col)) = ctx.cursor_line_col() {
-		emit_hook_sync(&HookContext::new(
-			HookEventData::CursorMove { line, col },
-			None,
-		));
+		emit_hook_sync(&HookContext::new(HookEventData::CursorMove { line, col }));
 	}
 }
 
 /// Emits selection change hook.
 fn emit_selection_hook(_ctx: &xeno_registry::actions::editor_ctx::EditorContext, sel: &Selection) {
 	let primary = sel.primary();
-	emit_hook_sync(&HookContext::new(
-		HookEventData::SelectionChange {
-			anchor: primary.anchor,
-			head: primary.head,
-		},
-		None,
-	));
+	emit_hook_sync(&HookContext::new(HookEventData::SelectionChange {
+		anchor: primary.anchor,
+		head: primary.head,
+	}));
 }
 
 /// Applies a screen-relative motion (H/M/L).

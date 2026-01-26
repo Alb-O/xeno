@@ -1,7 +1,7 @@
 //! Editor core structure and coordination.
 //!
 //! The [`Editor`] is the central workspace container, managing buffers, layout,
-//! extensions, and UI state. Implementation is split across focused modules:
+//! and UI state. Implementation is split across focused modules:
 //!
 //! - [`buffer_ops`] - Buffer creation and management
 //! - [`editing`] - Text modification operations
@@ -70,7 +70,6 @@ use xeno_tui::layout::Rect;
 use crate::LspSystem;
 use crate::buffer::{Layout, ViewId};
 pub use crate::command_queue::CommandQueue;
-use crate::extensions::{ExtensionMap, StyleOverlays};
 pub use crate::hook_runtime::HookRuntime;
 pub use crate::layout::{LayoutManager, SeparatorHit, SeparatorId};
 use crate::msg::{MsgReceiver, MsgSender};
@@ -109,7 +108,7 @@ fn log_registry_summary_once() {
 /// The main editor/workspace structure.
 ///
 /// Contains text buffers and manages workspace-level state including theme, UI,
-/// notifications, and extensions. Supports split views for text buffers.
+/// and notifications. Supports split views for text buffers.
 ///
 /// # View System
 ///
@@ -176,18 +175,11 @@ pub(crate) struct EditorState {
 	/// Notification system.
 	pub(crate) notifications: xeno_tui::widgets::notifications::ToastManager,
 
-	/// Extension map (typemap for extension state).
-	/// Used for loosely-coupled features that can't be direct dependencies.
-	pub(crate) extensions: ExtensionMap,
-
 	/// LSP system (real or no-op depending on feature flags).
 	pub(crate) lsp: LspSystem,
 
 	/// Background syntax loading manager.
 	pub(crate) syntax_manager: crate::syntax_manager::SyntaxManager,
-
-	/// Style overlays for rendering modifications.
-	pub(crate) style_overlays: StyleOverlays,
 
 	/// Runtime for scheduling async hooks during sync emission.
 	pub(crate) hook_runtime: HookRuntime,
@@ -284,13 +276,10 @@ impl Editor {
 		let mut hook_runtime = HookRuntime::new();
 
 		emit_hook_sync_with(
-			&HookContext::new(
-				HookEventData::WindowCreated {
-					window_id: window_manager.base_id().into(),
-					kind: WindowKind::Base,
-				},
-				None,
-			),
+			&HookContext::new(HookEventData::WindowCreated {
+				window_id: window_manager.base_id().into(),
+				kind: WindowKind::Base,
+			}),
 			&mut hook_runtime,
 		);
 
@@ -300,14 +289,11 @@ impl Editor {
 		let content = buffer.with_doc(|doc| doc.content().clone());
 
 		emit_hook_sync_with(
-			&HookContext::new(
-				HookEventData::BufferOpen {
-					path: hook_path,
-					text: content.slice(..),
-					file_type: buffer.file_type().as_deref(),
-				},
-				None,
-			),
+			&HookContext::new(HookEventData::BufferOpen {
+				path: hook_path,
+				text: content.slice(..),
+				file_type: buffer.file_type().as_deref(),
+			}),
 			&mut hook_runtime,
 		);
 
@@ -327,10 +313,8 @@ impl Editor {
 				notifications: xeno_tui::widgets::notifications::ToastManager::new()
 					.max_visible(Some(5))
 					.overflow(xeno_tui::widgets::notifications::Overflow::DropOldest),
-				extensions: ExtensionMap::new(),
 				lsp: LspSystem::new(),
 				syntax_manager: crate::syntax_manager::SyntaxManager::new(2),
-				style_overlays: StyleOverlays::new(),
 				hook_runtime,
 				overlays: OverlayManager::new(),
 				metrics: std::sync::Arc::new(crate::metrics::EditorMetrics::new()),
@@ -361,13 +345,10 @@ impl Editor {
 	) -> WindowId {
 		let id = self.state.windows.create_floating(buffer, rect, style);
 		emit_hook_sync_with(
-			&HookContext::new(
-				HookEventData::WindowCreated {
-					window_id: id.into(),
-					kind: WindowKind::Floating,
-				},
-				Some(&self.state.extensions),
-			),
+			&HookContext::new(HookEventData::WindowCreated {
+				window_id: id.into(),
+				kind: WindowKind::Floating,
+			}),
 			&mut self.state.hook_runtime,
 		);
 		id
@@ -384,12 +365,9 @@ impl Editor {
 
 		self.state.windows.close_floating(id);
 		emit_hook_sync_with(
-			&HookContext::new(
-				HookEventData::WindowClosed {
-					window_id: id.into(),
-				},
-				Some(&self.state.extensions),
-			),
+			&HookContext::new(HookEventData::WindowClosed {
+				window_id: id.into(),
+			}),
 			&mut self.state.hook_runtime,
 		);
 	}
@@ -485,21 +463,6 @@ impl Editor {
 	}
 
 	#[inline]
-	pub fn extensions(&self) -> &ExtensionMap {
-		&self.state.extensions
-	}
-
-	#[inline]
-	pub fn extensions_and_hook_runtime_mut(&mut self) -> (&ExtensionMap, &mut HookRuntime) {
-		(&self.state.extensions, &mut self.state.hook_runtime)
-	}
-
-	#[inline]
-	pub fn extensions_mut(&mut self) -> &mut ExtensionMap {
-		&mut self.state.extensions
-	}
-
-	#[inline]
 	pub fn lsp(&self) -> &LspSystem {
 		&self.state.lsp
 	}
@@ -507,16 +470,6 @@ impl Editor {
 	#[inline]
 	pub fn lsp_mut(&mut self) -> &mut LspSystem {
 		&mut self.state.lsp
-	}
-
-	#[inline]
-	pub fn style_overlays(&self) -> &StyleOverlays {
-		&self.state.style_overlays
-	}
-
-	#[inline]
-	pub fn style_overlays_mut(&mut self) -> &mut StyleOverlays {
-		&mut self.state.style_overlays
 	}
 
 	#[inline]

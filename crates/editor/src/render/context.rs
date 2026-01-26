@@ -5,7 +5,6 @@ use xeno_tui::layout::Rect;
 
 use super::buffer::{DiagnosticLineMap, DiagnosticRangeMap};
 use crate::buffer::{Layout, SplitDirection, ViewId};
-use crate::extensions::StyleOverlays;
 use crate::impls::Editor;
 use crate::layout::LayoutManager;
 use crate::types::Viewport;
@@ -13,7 +12,6 @@ use crate::types::Viewport;
 pub struct RenderCtx {
 	pub theme: Theme,
 	pub viewport: Viewport,
-	pub style_overlays: StyleOverlays,
 	pub layout: LayoutSnapshot,
 	pub lsp: LspRenderSnapshot,
 }
@@ -64,7 +62,6 @@ impl Editor {
 		RenderCtx {
 			theme: *self.state.config.theme,
 			viewport: self.state.viewport,
-			style_overlays: self.state.style_overlays.clone(),
 			layout: LayoutSnapshot::new(
 				&self.state.layout,
 				&self.base_window().layout,

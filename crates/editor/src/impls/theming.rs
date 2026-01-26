@@ -6,7 +6,6 @@ use xeno_registry::commands::CommandError;
 use xeno_registry::themes::SyntaxStyles;
 
 use super::Editor;
-use crate::extensions::StyleMod;
 
 impl Editor {
 	/// Resolves and applies the configured theme after themes are registered.
@@ -103,38 +102,5 @@ impl Editor {
 			}
 		}
 		None
-	}
-
-	/// Applies any active style overlay (e.g., dimming) at the given byte position.
-	pub fn apply_style_overlay(
-		&self,
-		byte_pos: usize,
-		style: Option<xeno_tui::style::Style>,
-	) -> Option<xeno_tui::style::Style> {
-		use xeno_tui::animation::Animatable;
-
-		let Some(modification) = self.state.style_overlays.modification_at(byte_pos) else {
-			return style;
-		};
-
-		let style = style.unwrap_or_default();
-		let modified = match modification {
-			StyleMod::Dim(factor) => {
-				// Convert theme bg color to xeno_tui color for blending
-				let bg: xeno_tui::style::Color = self.state.config.theme.colors.ui.bg;
-				if let Some(fg) = style.fg {
-					// Blend fg toward bg using Animatable::lerp
-					// factor=1.0 means no dimming (full fg), factor=0.0 means full bg
-					let dimmed = bg.lerp(&fg, factor);
-					style.fg(dimmed)
-				} else {
-					style.fg(xeno_tui::style::Color::DarkGray)
-				}
-			}
-			StyleMod::Fg(color) => style.fg(color),
-			StyleMod::Bg(color) => style.bg(color),
-		};
-
-		Some(modified)
 	}
 }
