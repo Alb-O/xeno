@@ -695,7 +695,7 @@ fn test_id_override() {
 	builder.push(builtin);
 	let builtins = builder.build();
 
-	let mut rr = RuntimeRegistry::with_policy("t", builtins, DuplicatePolicy::ByPriority);
+	let rr = RuntimeRegistry::with_policy("t", builtins, DuplicatePolicy::ByPriority);
 	rr.set_allow_id_overrides(true);
 
 	// Runtime override with higher priority
@@ -723,7 +723,7 @@ fn test_id_override_shadow_guard() {
 	builder.push(builtin);
 	let builtins = builder.build();
 
-	let mut rr = RuntimeRegistry::with_policy("t", builtins, DuplicatePolicy::ByPriority);
+	let rr = RuntimeRegistry::with_policy("t", builtins, DuplicatePolicy::ByPriority);
 	rr.set_allow_id_overrides(true);
 
 	let override_def = leak_def(meta_with("id.foo", "name.new", 10, RegistrySource::Runtime));

@@ -43,7 +43,7 @@ pub struct RuntimeRegistry<T: RegistryEntry + 'static> {
 	pub(super) builtins: RegistryIndex<T>,
 	pub(super) extras: std::sync::RwLock<RuntimeExtras<T>>,
 	pub(super) policy: DuplicatePolicy,
-	pub(super) allow_id_overrides: bool,
+	pub(super) allow_id_overrides: std::sync::atomic::AtomicBool,
 }
 
 macro_rules! poison_policy {
@@ -64,7 +64,7 @@ impl<T: RegistryEntry + 'static> RuntimeRegistry<T> {
 			builtins,
 			extras: std::sync::RwLock::new(RuntimeExtras::default()),
 			policy: DuplicatePolicy::for_build(),
-			allow_id_overrides: false,
+			allow_id_overrides: std::sync::atomic::AtomicBool::new(false),
 		}
 	}
 
@@ -79,13 +79,14 @@ impl<T: RegistryEntry + 'static> RuntimeRegistry<T> {
 			builtins,
 			extras: std::sync::RwLock::new(RuntimeExtras::default()),
 			policy,
-			allow_id_overrides: false,
+			allow_id_overrides: std::sync::atomic::AtomicBool::new(false),
 		}
 	}
 
 	/// Enables or disables ID overrides for this registry.
-	pub fn set_allow_id_overrides(&mut self, allow: bool) {
-		self.allow_id_overrides = allow;
+	pub fn set_allow_id_overrides(&self, allow: bool) {
+		self.allow_id_overrides
+			.store(allow, std::sync::atomic::Ordering::Relaxed);
 	}
 
 	/// Looks up a definition by ID, name, or alias.
@@ -177,7 +178,10 @@ impl<T: RegistryEntry + 'static> RuntimeRegistry<T> {
 			for def in new_defs {
 				let meta = def.meta();
 
-				if self.allow_id_overrides {
+				if self
+					.allow_id_overrides
+					.load(std::sync::atomic::Ordering::Relaxed)
+				{
 					insert_id_key_runtime(&mut store, self.label, choose_winner, meta.id, def)?;
 				} else {
 					insert_typed_key(
@@ -247,7 +251,10 @@ impl<T: RegistryEntry + 'static> RuntimeRegistry<T> {
 				extras: &mut extras,
 			};
 
-			if self.allow_id_overrides {
+			if self
+				.allow_id_overrides
+				.load(std::sync::atomic::Ordering::Relaxed)
+			{
 				insert_id_key_runtime(&mut store, self.label, choose_winner, meta.id, def)?;
 			} else {
 				insert_typed_key(

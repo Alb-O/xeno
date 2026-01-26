@@ -1,102 +1,284 @@
-# Registry System Architecture
+# Xeno Registry System (Agent Guide)
 
-Xeno uses a decentralized registry pattern to manage extensible editor components (actions,
-commands, motions, text objects, options, themes, gutters, statusline, hooks, notifications).
-Most builtins live in `crates/registry` and register themselves at compile time using
-`inventory`, while lookups are centralized for O(1) resolution and strict invariants.
+This is an agent-facing, task-first map of Xeno’s registry system: how items are defined, registered, indexed, extended (plugins + runtime overlays), and finally invoked with capability gating.
 
-## Core Concepts
+Scope: actions, commands, motions, text objects, options, themes, gutters, statusline, hooks, notifications.
 
-### Registry Metadata
-The foundation of the registry is `RegistryMeta`, defined in `xeno-registry-core`.
-Every registered item provides:
+---
 
-- ID: A unique, sacred identifier (typically `crate::name`).
-- Name: The primary human-readable lookup key.
-- Aliases: Alternative strings for lookup.
-- Priority: Used for collision resolution (higher wins).
-- Source: Indicates if the item is Builtin, from a Crate, or added at Runtime.
-- Required Capabilities: Slice of editor capabilities needed for execution.
+## Mental model
 
-### IDs and Stability
-Registry macros generate IDs with `concat!(env!("CARGO_PKG_NAME"), "::", name)`. Since builtins
-are consolidated in the `xeno-registry` crate, their IDs look like `xeno-registry::left`.
-Use ID constants from `xeno-primitives` (for example `xeno_primitives::motion_ids::LEFT`) when
-requesting motions instead of hardcoding strings.
+- A “registry item” is a `&'static T` where `T: RegistryEntry` (has a `meta: RegistryMeta`).
+- Compile-time registration uses `inventory` (`Reg<T>` / `RegSlice<T>`). Startup builds a `RegistryDb` by iterating inventory and building per-domain indices.
+- Indices are strict about **ID invariants**. Name/alias collisions are allowed (with deterministic winner selection).
+- Runtime extensibility is via `RuntimeRegistry<T>`: a thread-safe overlay on top of the built index. Lookup is layered (extras-first) and atomic registration is supported.
+- Dispatch (`Editor::run_invocation`) looks up the action/command by registry name/alias/id, then gates execution via `required_caps` from metadata.
 
-### The Trait Trio
-Registration and introspection are handled by three related traits:
-1. `RegistryMeta`: The raw data structure.
-2. `RegistryEntry`: Requires `fn meta(&self) -> &RegistryMeta`.
-3. `RegistryMetadata`: Simplified type-erased access to core fields.
+---
 
-The macro `impl_registry_entry!` boilerplates these traits for any struct with a
-`meta: RegistryMeta` field.
+## Where the “source of truth” lives
 
-## Registration Flow
+### Core (xeno-registry-core)
+- `RegistryMeta`, `RegistrySource`, `Capability`
+- `RegistryEntry`, `RegistryMetadata`, `impl_registry_entry!`
+- `RegistryBuilder<T>`: build-time invariant enforcement, collision tracking
+- `RegistryIndex<T>`: built index, ID-first lookup
+- `RuntimeRegistry<T>`: runtime overlay + atomic batch insertion
+- `DuplicatePolicy`, `Collision`, insertion error types
 
-### Compile-time (Inventory)
-Most components register using the `inventory` crate via `xeno-registry` wrappers:
-1. `xeno_registry::inventory::Reg<T>` registers a single definition.
-2. `xeno_registry::inventory::RegSlice<T>` registers a slice (used for keybindings, prefixes).
-3. Macros like `action!`, `command!`, `motion!`, `text_object!`:
-   - Generate a `static` definition.
-   - Create a typed `Key<T>` handle.
-   - Submit `Reg(&static_def)` to inventory.
+### Registry crate (xeno-registry)
+- `inventory::{Reg<T>, RegSlice<T>}` wrappers
+- Domain modules: `actions`, `motions`, `commands`, …
+- `db::{RegistryDb, RegistryDbBuilder, RegistryIndices, plugin::{XenoPlugin, register_plugin!}}`
 
-Example action that emits a motion by ID:
+### Editor
+- `Editor::run_invocation` / `invoke_action` / `invoke_command`
+- Capability gating via `EditorContext::check_all_capabilities(required_caps)`
+- Hook emission around invocations
+
+---
+
+## Hard Rules (do not violate)
+
+| Rule | Why it exists | How to comply (agent checklist) | Failure mode |
+|---|---|---|---|
+| IDs are sacred (global uniqueness per domain) | IDs are the stable identity and the first lookup namespace | Use macro-generated IDs (`concat!(env!("CARGO_PKG_NAME"), "::", name)`); don’t handwrite IDs unless you know you need stability across crates/plugins | Build-time fatal: duplicate IDs |
+| “ID shadowing” is forbidden in the base index | If name/alias insertion could shadow an existing ID, `get(id)` would become ambiguous | Never set `name`/`alias` equal to some other item’s `id`; avoid “looks like an ID” strings | Build-time fatal: “ID shadowing” |
+| Name/alias collisions are allowed but deterministic | UX keys (name/alias) are flexible, but must be predictable | If you intentionally collide, set `priority` and `source` intentionally; otherwise keep names unique | Surprise winner changes if priorities change |
+| Prefer `id` for machine references, `name` for humans | IDs are stable; names are UI-facing | Code should store/emit IDs; UI should display `name` + `description` | Breakage when names change |
+| `required_caps` must match runtime behavior | Dispatch gates execution based on `required_caps` | Add caps in the macro/def; keep minimal; validate via invocations in tests | CapabilityDenied, readonly denial, or unsafe behavior |
+| Registry items must be leak-to-static (current policy) | Lookups store `&'static T` and typed handles hold `&'static T` | `static DEF: T = ...` OR `Box::leak(Box::new(T{...}))` (plugins/extensions) | Lifetime mismatch / cannot store |
+
+---
+
+## Registration paths
+
+### 3.1 Builtins (inventory)
+Use domain macros (`action!`, `motion!`, `command!`, …). These:
+- Define a `static <DOMAIN>_<name>: <DomainDef>`
+- Define a typed handle `pub const <name>: Key<DomainDef>`
+- `inventory::submit! { Reg(&static_def) }`
+- Some domains also submit `RegSlice` side tables (keybindings, prefixes, etc.)
+
+### 3.2 Startup plugins (inventory-driven, builder extension)
+Implement `XenoPlugin` and register with `register_plugin!(YourPlugin)`.
+- Plugin is discovered via `inventory` and executed during `RegistryDb` construction.
+- Plugin registers new items by pushing definitions into `RegistryDbBuilder` fields.
+
+### 3.3 Runtime overlays (after startup)
+Use `RuntimeRegistry<T>::register` / `register_many` (atomic batch). Current policy accepts leak-to-static entries.
+
+---
+
+## Lookup semantics (what “get(name)” really means)
+
+- ID-first: `RegistryIndex::get` checks the ID map first, then name, then aliases.
+- RuntimeRegistry layering: for each namespace (ID, name, alias), “extras first then builtins”.
+- Collisions: build-time collisions can be inspected (per index) to expose diagnostics.
+
+Consequence: if you want an override behavior for UI keys, colliding on *name* is viable (priority decides winner). If you want a true identity override, you need an **explicit ID override mechanism** (see "Override semantics").
+
+---
+
+## Task-first recipes
+
+### Recipe A: Add a new builtin action
+
+Goal: define a new action `foo_bar` with keybindings.
+
+Edits (typical):
+1. `crates/registry/src/actions/builtins/<some_module>.rs`
+2. `crates/registry/src/actions/builtins/mod.rs` (ensure module is included)
+3. (Optional) `crates/editor/...` if the handler needs new editor APIs
+
+Steps:
+- Add an action using the macro:
 
 ```rust
-action!(move_left, {
-    description: "Move cursor left",
-    bindings: r#"normal "h" "left"
-insert "left""#,
-}, |ctx| cursor_motion(ctx, motion_ids::LEFT));
+action!(foo_bar, {
+    description: "Do foo then bar",
+    bindings: r#"normal "g b" "foo_bar""#,
+    // optional:
+    // aliases: &["fb"],
+    // short_desc: "FooBar",
+    // priority: 10,
+    // caps: &[Capability::Edit],
+    // flags: actions::flags::NONE,
+}, |ctx| {
+    // handler body -> ActionResult
+    ActionResult::Noop
+});
 ```
 
-This expands into:
-- An `ActionDef` registration.
-- A `KeyBinding` registration (when bindings are provided).
-- A typed `ActionKey` constant.
+Verification:
+- `rg -n "foo_bar" crates/registry/src/actions`
+- `cargo test -p xeno-registry` (or workspace equivalent)
+- Manual: bind key, invoke, ensure capability behavior matches.
 
-### RegistryDb Construction (`db` feature)
-When `xeno-registry` is built with the `db` feature, startup builds a `RegistryDb`:
-1. `RegistryDbBuilder` collects definitions from inventory (`Reg<T>` or domain-specific regs).
-2. Plugin entries registered with `register_plugin!` can extend the builder.
-3. Each domain is built into a `RegistryIndex` via `RegistryBuilder::build`.
-4. Indexes are wrapped in `RuntimeRegistry` for runtime overlays.
+Gotchas:
+- If the action emits motions, prefer stable motion ID constants rather than strings.
+- If you require editing but forget `caps`, readonly buffers may still execute (or later be denied in unexpected places).
 
-### RegistryBuilder Two-pass Construction
-`RegistryBuilder` (in `xeno-registry-core`) enforces invariants:
-- Pass 1: Insert all IDs (duplicate IDs are fatal).
-- Pass 2: Insert names/aliases (ID shadowing is fatal; collisions resolved by `DuplicatePolicy`).
+---
 
-## Lookup Mechanics
+### Recipe B: Add a new builtin motion
 
-### ID-first Lookup
-`RegistryIndex::get` checks the ID namespace first, then falls back to name/alias lookups.
-This guarantees ID lookups resolve to the intended definition even if names collide.
+Edits:
+1. `crates/registry/src/motions/builtins/<some_module>.rs`
+2. `crates/registry/src/motions/builtins/mod.rs`
 
-### Secondary Indexes
-Some registries build extra indices for efficient domain-specific lookup:
-- `TEXT_OBJECT_TRIGGER_INDEX` (trigger character -> text object).
-- `OPTION_KDL_INDEX` (KDL key -> option).
-- `BUILTIN_HOOK_BY_EVENT` (event -> hooks, sorted by priority).
+Example:
 
-## Runtime Extensibility
+```rust
+motion!(my_motion, {
+    description: "My cursor movement",
+    // caps: &[Capability::Edit], // if needed
+}, |text, range, count, extend| {
+    range // compute new Range
+});
+```
 
-`RuntimeRegistry<T>` provides a thread-safe overlay for adding definitions after startup:
-- Layered lookup: ID (Extras then Builtins) then Name/Alias (Extras then Builtins).
-- Atomic registration: all-or-nothing insertion under a write lock.
-- Deterministic resolution: `DuplicatePolicy::ByPriority` orders by Priority, Source rank,
-  then ID.
+Verification:
+- `cargo test -p xeno-registry`
+- Add an action that references this motion (or expose it in `motions::keys`) and manually exercise.
 
-## Handles and Safety
+---
 
-The `Key<T>` type is a typed wrapper around `&'static T`. It enforces that a "Motion handle"
-cannot be used where an "Action handle" is expected while remaining zero-cost at runtime.
+### Recipe C: Add a startup plugin that registers registry items
 
-## Collision Diagnostics
+Goal: ship a crate that adds actions/motions/etc during `RegistryDb` build.
 
-Registries track name/alias collisions during construction. These are accessible via
-`RegistryIndex::collisions()` for debugging or warning users about shadowed definitions.
+Edits (in plugin crate):
+1. Implement the plugin:
+
+```rust
+use xeno_registry::db::builder::{RegistryDbBuilder, RegistryError};
+use xeno_registry::db::plugin::XenoPlugin;
+
+pub struct MyPlugin;
+
+impl XenoPlugin for MyPlugin {
+    const ID: &'static str = "my_plugin";
+    fn register(db: &mut RegistryDbBuilder) -> Result<(), RegistryError> {
+        // definitions must be &'static
+        db.register_action(Box::leak(Box::new(make_action_def())));
+        Ok(())
+    }
+}
+```
+
+2. Register it:
+
+```rust
+xeno_registry::register_plugin!(MyPlugin);
+```
+
+Verification:
+- `rg -n "register_plugin!" -S crates`
+- `cargo test -p xeno-registry --features db`
+- Runtime smoke: ensure plugin errors are not swallowed silently (check logs).
+
+Gotchas:
+- Plugin `ID` should be globally unique for diagnostics.
+- Avoid side effects in plugin `register`; keep it pure “push definitions into builder”.
+
+---
+
+### Recipe D: Register many runtime entries atomically (load-only extension)
+
+Goal: install a batch of actions in one shot (all-or-nothing).
+
+Pseudo-flow:
+1. Parse extension config.
+2. Build `Vec<&'static ActionDef>` via `Box::leak`.
+3. Call `ACTIONS.register_many(&defs)` (or similar).
+
+Verification:
+- Unit test: ensure partial failure leaves registry unchanged (atomicity).
+- Regression test: ensure collisions follow expected `DuplicatePolicy`.
+
+Gotchas:
+- If actions are required to participate in `ActionId` numeric mapping, runtime registration will **not** update that mapping unless you also update/replace the mapping. Prefer startup registration for ActionId-stable items.
+
+---
+
+## Capability enforcement & dispatch (how metadata becomes behavior)
+
+Key linkage:
+- `RegistryMeta.required_caps: &'static [Capability]` is *the* declarative contract for an item.
+- Domain defs expose `required_caps()` by delegating to `meta.required_caps`.
+
+Dispatch enforcement:
+- Invocation path resolves item via registry lookup (name/alias/id).
+- The editor checks capabilities (typically `EditorContext::check_all_capabilities(required_caps)`).
+- If enforcement is enabled, missing caps block the invocation (and return a capability-denied result).
+- Some policies also gate readonly execution if `required_caps` imply mutation.
+
+Agent rule of thumb:
+- If the handler can mutate document state, add the edit capability. If it reads-only (navigation, inspection), keep caps empty.
+- For new capabilities, update:
+  - the `Capability` enum
+  - editor capability-check implementation
+  - docs + tests (capability denied path)
+
+---
+
+## Override semantics (names vs IDs)
+
+### Name/alias override (safe and already supported)
+If you want to “replace” behavior under a UI name, define a new item with the same `name` or `alias` and set a higher `priority`. Deterministic selection chooses the winner.
+
+This does **not** change identity: `get(old_id)` still resolves to the old item.
+
+### ID override (explicit, opt-in)
+If you want identity override (`get(id)` resolves to the new entry), use `RuntimeRegistry::set_allow_id_overrides(true)`.
+When enabled:
+- Runtime definitions can shadow built-in IDs.
+- Winner is selected by `DuplicatePolicy` (typically priority-based).
+- Collisions are recorded with `KeyKind::Id`.
+- Name/alias shadowing of the ID remains forbidden for unrelated definitions.
+
+---
+
+## Static lifetime today; Arc-based entries tomorrow
+
+Current state: registries store `&'static T` and typed handles are `Key<T> = wrapper(&'static T)`. This is a deliberate choice for zero-cost lookups and trivial sharing.
+
+If you move to `Arc<T>` entries, you’ll need to decide what becomes the “typed handle”:
+
+### Option 1: `Key<T> = Arc<T>` (cheap clone, simplest)
+Pros: easy; no unsafe; no leaking; plugins can unload if you keep Arc counts.
+Cons: breaks the “zero-sized key” property; changes APIs everywhere.
+
+### Option 2: Keep `Key<T>` but store an index + generation
+Pros: handles remain Copy-sized; underlying storage can be `Vec<Arc<T>>`.
+Cons: needs indirection; must solve ABA / removal.
+
+Given Xeno’s current “load-only extensions” policy, the cleanest future state is usually:
+- `RegistryIndex<T>` stores `Arc<T>` internally.
+- `Key<T>` becomes a thin `Arc<T>` newtype.
+
+---
+
+## Grep/verify cheatsheet
+
+- Find all registry macros:
+  - `rg -n "macro_rules! (action|motion|command|text_object)" crates/registry`
+- Find all plugin registrations:
+  - `rg -n "register_plugin!" crates`
+- Find capability gating:
+  - `rg -n "check_all_capabilities|required_caps|CapabilityDenied" crates/editor`
+- Inspect collisions/overrides:
+  - `rg -n "collisions\\(|Collision" crates/registry/core`
+
+---
+
+## Minimal test checklist
+
+- [ ] Build-time: duplicate IDs => fatal
+- [ ] Build-time: name/alias collision => deterministic winner (policy)
+- [ ] Build-time: “ID shadowing” (name/alias equals someone else’s id) => fatal
+- [ ] Runtime: register_many is atomic (failure leaves state unchanged)
+- [ ] Runtime: explicit ID override shadows the old entry (and is recorded)
+- [ ] Dispatch: missing caps => CapabilityDenied when enforcement enabled
+- [ ] Dispatch: log-only mode continues execution but warns
