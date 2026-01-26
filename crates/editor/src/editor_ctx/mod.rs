@@ -370,5 +370,4 @@ pub(crate) fn register_result_handlers() {
 }
 
 #[cfg(test)]
-#[path = "editor_ctx_tests.rs"]
-mod editor_ctx_tests;
+mod tests;

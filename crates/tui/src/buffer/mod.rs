@@ -592,5 +592,4 @@ impl fmt::Debug for Buffer {
 }
 
 #[cfg(test)]
-#[path = "tests/mod.rs"]
 mod tests;

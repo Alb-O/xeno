@@ -601,5 +601,4 @@ impl Styled for Block<'_> {
 }
 
 #[cfg(test)]
-#[path = "tests/mod.rs"]
 mod tests;

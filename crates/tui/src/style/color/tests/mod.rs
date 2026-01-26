@@ -2,17 +2,12 @@
 
 use super::*;
 
-#[path = "conversions.rs"]
 mod conversions;
-#[path = "display.rs"]
 mod display;
 #[cfg(feature = "palette")]
-#[path = "palette_tests.rs"]
 mod palette_tests;
-#[path = "parsing.rs"]
 mod parsing;
 #[cfg(feature = "serde")]
-#[path = "serde_tests.rs"]
 mod serde_tests;
 
 #[test]

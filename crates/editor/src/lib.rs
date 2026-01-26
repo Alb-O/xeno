@@ -48,8 +48,7 @@ pub mod input;
 pub mod layout;
 #[cfg(feature = "lsp")]
 pub mod lsp;
-#[path = "lsp/system.rs"]
-mod lsp_system;
+pub mod lsp_system;
 /// Runtime metrics for observability.
 pub mod metrics;
 /// Cursor movement functions.
@@ -104,6 +103,3 @@ pub use xeno_registry::themes::{
 	ColorPair, ModeColors, PopupColors, SemanticColors, THEMES, Theme, ThemeColors, UiColors,
 	blend_colors, get_theme, suggest_theme,
 };
-
-#[cfg(test)]
-mod smoke_tests;

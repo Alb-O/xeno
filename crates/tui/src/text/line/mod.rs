@@ -487,5 +487,4 @@ impl Styled for Line<'_> {
 }
 
 #[cfg(test)]
-#[path = "tests/mod.rs"]
 mod tests;

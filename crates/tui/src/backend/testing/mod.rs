@@ -457,5 +457,4 @@ fn append_to_scrollback(scrollback: &mut Buffer, cells: impl IntoIterator<Item =
 }
 
 #[cfg(test)]
-#[path = "tests/mod.rs"]
 mod tests;

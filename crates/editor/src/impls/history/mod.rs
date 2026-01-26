@@ -218,5 +218,4 @@ impl Editor {
 }
 
 #[cfg(test)]
-#[path = "history_tests.rs"]
-mod history_tests;
+mod tests;

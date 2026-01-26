@@ -477,5 +477,4 @@ impl fmt::Display for Span<'_> {
 }
 
 #[cfg(test)]
-#[path = "tests/mod.rs"]
 mod tests;
