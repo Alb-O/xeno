@@ -18,7 +18,7 @@ thiserror.workspace = true
 tracing.workspace = true
 tree-house.workspace = true
 xeno-primitives.workspace = true
-xeno-registry-themes.workspace = true
+xeno-registry.workspace = true
 xeno-runtime-data.workspace = true
 
 [build-dependencies]

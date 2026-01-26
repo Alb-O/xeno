@@ -104,7 +104,7 @@ impl Editor {
 		policy: InvocationPolicy,
 	) -> InvocationResult {
 		let Some(action) = find_action(name) else {
-			self.show_notification(xeno_registry_notifications::keys::unknown_action(name));
+			self.show_notification(xeno_registry::notifications::keys::unknown_action(name));
 			return InvocationResult::NotFound(format!("action:{name}"));
 		};
 
@@ -239,7 +239,7 @@ impl Editor {
 			Ok(CommandOutcome::Quit) => InvocationResult::Quit,
 			Ok(CommandOutcome::ForceQuit) => InvocationResult::ForceQuit,
 			Err(e) => {
-				self.show_notification(xeno_registry_notifications::keys::command_error(
+				self.show_notification(xeno_registry::notifications::keys::command_error(
 					&e.to_string(),
 				));
 				InvocationResult::CommandError(e.to_string())
@@ -304,7 +304,7 @@ impl Editor {
 			Ok(CommandOutcome::Quit) => InvocationResult::Quit,
 			Ok(CommandOutcome::ForceQuit) => InvocationResult::ForceQuit,
 			Err(e) => {
-				self.show_notification(xeno_registry_notifications::keys::command_error(
+				self.show_notification(xeno_registry::notifications::keys::command_error(
 					&e.to_string(),
 				));
 				InvocationResult::CommandError(e.to_string())
@@ -345,17 +345,17 @@ enum InvocationKind {
 fn notify_capability_denied(editor: &mut Editor, kind: InvocationKind, error: &CommandError) {
 	match kind {
 		InvocationKind::Action => {
-			editor.show_notification(xeno_registry_notifications::keys::action_error(error))
+			editor.show_notification(xeno_registry::notifications::keys::action_error(error))
 		}
 		InvocationKind::Command | InvocationKind::EditorCommand => {
 			let error = error.to_string();
-			editor.show_notification(xeno_registry_notifications::keys::command_error(&error));
+			editor.show_notification(xeno_registry::notifications::keys::command_error(&error));
 		}
 	}
 }
 
 fn notify_readonly_denied(editor: &mut Editor) -> InvocationResult {
-	editor.show_notification(xeno_registry_notifications::keys::BUFFER_READONLY.into());
+	editor.show_notification(xeno_registry::notifications::keys::BUFFER_READONLY.into());
 	InvocationResult::ReadonlyDenied
 }
 

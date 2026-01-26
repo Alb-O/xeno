@@ -3,7 +3,7 @@
 //! Insert, delete, yank, paste, and transaction application.
 
 use xeno_primitives::{EditOrigin, Selection, Transaction, UndoPolicy};
-use xeno_registry_notifications::keys;
+use xeno_registry::notifications::keys;
 
 use super::Editor;
 use super::undo_host::EditorUndoHost;

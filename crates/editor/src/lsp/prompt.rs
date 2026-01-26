@@ -1,7 +1,7 @@
 //! Prompt overlay helpers.
 
 use xeno_primitives::{Mode, Selection};
-use xeno_registry_notifications::keys;
+use xeno_registry::notifications::keys;
 
 use crate::impls::Editor;
 use crate::prompt::{Prompt, PromptKind, PromptState, prompt_rect, prompt_style};

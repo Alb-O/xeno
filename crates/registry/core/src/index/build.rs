@@ -1,10 +1,9 @@
 use std::cmp::Ordering;
 use std::collections::HashMap;
 
-use super::collision::{
-	ChooseWinner, Collision, DuplicatePolicy, KeyKind, KeyStore, insert_typed_key,
-};
-use super::mod_types::{RegistryIndex, RegistryReg};
+use super::collision::{ChooseWinner, Collision, DuplicatePolicy, KeyKind, KeyStore};
+use super::insert::insert_typed_key;
+use super::types::RegistryIndex;
 use crate::RegistryEntry;
 
 /// Builder for constructing a [`RegistryIndex`].
@@ -55,27 +54,13 @@ impl<T: RegistryEntry + 'static> RegistryBuilder<T> {
 	}
 
 	/// Adds a single definition to the builder.
-	pub fn push(mut self, def: &'static T) -> Self {
+	pub fn push(&mut self, def: &'static T) {
 		self.defs.push(def);
-		self
 	}
 
 	/// Adds multiple definitions to the builder.
-	pub fn extend<I: IntoIterator<Item = &'static T>>(mut self, defs: I) -> Self {
+	pub fn extend<I: IntoIterator<Item = &'static T>>(&mut self, defs: I) {
 		self.defs.extend(defs);
-		self
-	}
-
-	/// Collects all definitions from inventory via the wrapper type.
-	pub fn extend_inventory<R>(mut self) -> Self
-	where
-		R: RegistryReg<T>,
-		inventory::iter<R>: IntoIterator<Item = &'static R>,
-	{
-		for reg in inventory::iter::<R> {
-			self.defs.push(reg.def());
-		}
-		self
 	}
 
 	/// Sorts definitions using the provided comparison function.
@@ -91,67 +76,74 @@ impl<T: RegistryEntry + 'static> RegistryBuilder<T> {
 	}
 
 	/// Builds the index with two-pass insertion and invariant enforcement.
-	pub fn build(mut self) -> RegistryIndex<T> {
+	pub fn build(self) -> RegistryIndex<T> {
+		let policy = self.policy;
+		let label = self.label;
+		let include_id = self.include_id;
+		let include_name = self.include_name;
+		let include_aliases = self.include_aliases;
+
+		let mut defs = self.defs; // Move out of self
 		let mut seen: std::collections::HashSet<*const T> =
-			std::collections::HashSet::with_capacity(self.defs.len());
-		self.defs.retain(|d| seen.insert(*d as *const T));
+			std::collections::HashSet::with_capacity(defs.len());
+		defs.retain(|d| seen.insert(*d as *const T));
 
 		let mut store = BuildStore::<T> {
-			by_id: HashMap::with_capacity(self.defs.len()),
-			by_key: HashMap::with_capacity(self.defs.len() * 2),
+			by_id: HashMap::with_capacity(defs.len()),
+			by_key: HashMap::with_capacity(defs.len() * 2),
 			collisions: Vec::new(),
 		};
 
-		let choose_winner = self.make_choose_winner();
+		let choose_winner = Self::make_choose_winner(policy);
 
-		if self.include_id {
-			for &def in &self.defs {
+		if include_id {
+			for &def in &defs {
 				if let Err(e) = insert_typed_key(
 					&mut store,
-					self.label,
+					label,
 					choose_winner,
 					KeyKind::Id,
 					def.meta().id,
 					def,
 				) {
-					panic!("registry {}: {}", self.label, e);
+					panic!("registry {}: {}", label, e);
 				}
 			}
 		}
 
-		for &def in &self.defs {
+		for &def in &defs {
 			let meta = def.meta();
 
-			if self.include_name
+			if include_name
 				&& let Err(e) = insert_typed_key(
 					&mut store,
-					self.label,
+					label,
 					choose_winner,
 					KeyKind::Name,
 					meta.name,
 					def,
 				) {
-				panic!("registry {}: {}", self.label, e);
+				panic!("registry {}: {}", label, e);
 			}
 
-			if self.include_aliases {
+			if include_aliases {
 				for &alias in meta.aliases {
 					if let Err(e) = insert_typed_key(
 						&mut store,
-						self.label,
+						label,
 						choose_winner,
 						KeyKind::Alias,
 						alias,
 						def,
 					) {
-						panic!("registry {}: {}", self.label, e);
+						panic!("registry {}: {}", label, e);
 					}
 				}
 			}
 		}
 
 		let mut effective_set: std::collections::HashSet<*const T> =
-			std::collections::HashSet::with_capacity(self.defs.len());
+			std::collections::HashSet::with_capacity(defs.len());
 		for &def in store.by_id.values() {
 			effective_set.insert(def as *const T);
 		}
@@ -159,8 +151,7 @@ impl<T: RegistryEntry + 'static> RegistryBuilder<T> {
 			effective_set.insert(def as *const T);
 		}
 
-		let items_effective: Vec<&'static T> = self
-			.defs
+		let items_effective: Vec<&'static T> = defs
 			.iter()
 			.copied()
 			.filter(|&d| effective_set.contains(&(d as *const T)))
@@ -169,15 +160,15 @@ impl<T: RegistryEntry + 'static> RegistryBuilder<T> {
 		RegistryIndex {
 			by_id: store.by_id,
 			by_key: store.by_key,
-			items_all: self.defs,
+			items_all: defs,
 			items_effective,
 			collisions: store.collisions,
 		}
 	}
 
 	/// Creates a winner selection function based on the policy.
-	fn make_choose_winner(&self) -> ChooseWinner<T> {
-		match self.policy {
+	fn make_choose_winner(policy: DuplicatePolicy) -> ChooseWinner<T> {
+		match policy {
 			DuplicatePolicy::Panic => |kind, key, existing, new| {
 				panic!(
 					"duplicate registry key: kind={} key={:?} existing_id={} new_id={}",

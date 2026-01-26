@@ -1,6 +1,6 @@
 //! Notification display for the editor.
 
-use xeno_registry_notifications::{AutoDismiss, Level, Notification};
+use xeno_registry::notifications::{AutoDismiss, Level, Notification};
 use xeno_tui::style::Style;
 use xeno_tui::widgets::icon::presets as icon_presets;
 use xeno_tui::widgets::notifications::{self as notif, Anchor, Toast, ToastIcon, ToastManager};
@@ -51,7 +51,7 @@ impl Editor {
 	/// # Examples
 	///
 	/// ```ignore
-	/// use xeno_registry_notifications::keys;
+	/// use xeno_registry::notifications::keys;
 	///
 	/// editor.notify(keys::BUFFER_READONLY);
 	/// editor.notify(keys::regex_error(&err));

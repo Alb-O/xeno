@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use tracing::warn;
 use xeno_primitives::{Selection, SyntaxPolicy, Transaction, UndoPolicy};
-use xeno_registry_notifications::{Notification, keys};
+use xeno_registry::notifications::{Notification, keys};
 
 use crate::buffer::{ApplyPolicy, DocumentId, ViewId};
 use crate::impls::messaging::push_notification;

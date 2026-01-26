@@ -146,8 +146,8 @@ pub fn derive_dispatch_result(input: TokenStream) -> TokenStream {
 		#[allow(non_upper_case_globals, missing_docs)]
 		mod __dispatch_result_registries {
 			#(
-				pub static #slice_names: crate::ResultHandlerRegistry =
-					crate::ResultHandlerRegistry::new();
+				pub static #slice_names: crate::actions::editor_ctx::ResultHandlerRegistry =
+					crate::actions::editor_ctx::ResultHandlerRegistry::new();
 			)*
 		}
 
@@ -179,15 +179,15 @@ pub fn derive_dispatch_result(input: TokenStream) -> TokenStream {
 		/// Returns `true` if the editor should quit.
 		pub fn dispatch_result(
 			result: &#enum_name,
-			ctx: &mut crate::editor_ctx::EditorContext,
+			ctx: &mut crate::actions::editor_ctx::EditorContext,
 			extend: bool,
 		) -> bool {
-			use crate::editor_ctx::HandleOutcome;
+			use crate::actions::editor_ctx::HandleOutcome;
 
 			fn run_handlers(
-				mut handlers: Vec<&crate::editor_ctx::ResultHandler>,
+				mut handlers: Vec<&crate::actions::editor_ctx::ResultHandler>,
 				result: &#enum_name,
-				ctx: &mut crate::editor_ctx::EditorContext,
+				ctx: &mut crate::actions::editor_ctx::EditorContext,
 				extend: bool,
 			) -> HandleOutcome {
 				handlers.sort_by_key(|handler| handler.priority);
@@ -221,7 +221,7 @@ pub fn derive_dispatch_result(input: TokenStream) -> TokenStream {
 			}
 
 			if !handled {
-				ctx.emit(xeno_registry_notifications::keys::unhandled_result(
+				ctx.emit(xeno_registry::notifications::keys::unhandled_result(
 					::std::mem::discriminant(result)
 				));
 			}

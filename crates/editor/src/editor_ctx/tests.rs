@@ -5,8 +5,8 @@ use xeno_primitives::{Mode, Selection};
 use xeno_registry::actions::editor_ctx::{
 	CursorAccess, EditorCapabilities, ModeAccess, NotificationAccess, SelectionAccess,
 };
+use xeno_registry::notifications::Notification;
 use xeno_registry::{ActionEffects, AppEffect, UiEffect, ViewEffect};
-use xeno_registry_notifications::Notification;
 
 use crate::editor_ctx::apply_effects;
 
@@ -175,15 +175,12 @@ fn notify_effect_emits_notification() {
 	let mut ctx = xeno_registry::actions::editor_ctx::EditorContext::new(&mut editor);
 
 	let effects = ActionEffects::from_effect(
-		UiEffect::Notify(xeno_registry_notifications::keys::UNDO.into()).into(),
+		UiEffect::Notify(xeno_registry::notifications::keys::UNDO.into()).into(),
 	);
 	apply_effects(&effects, &mut ctx, false);
 
 	assert_eq!(editor.notifications.len(), 1);
-	assert_eq!(
-		editor.notifications[0].def.id,
-		"xeno-registry-notifications::undo"
-	);
+	assert_eq!(editor.notifications[0].def.id, "xeno-registry::undo");
 }
 
 #[test]
@@ -197,7 +194,7 @@ fn error_effect_emits_error_notification() {
 	assert_eq!(editor.notifications.len(), 1);
 	assert_eq!(
 		editor.notifications[0].def.id,
-		"xeno-registry-notifications::action_error"
+		"xeno-registry::action_error"
 	);
 }
 
@@ -302,7 +299,7 @@ fn notifications_are_side_effects() {
 	let effects = ActionEffects::new()
 		.with(ViewEffect::SetCursor(CharIdx::from(10usize)))
 		.with(UiEffect::Notify(
-			xeno_registry_notifications::keys::UNDO.into(),
+			xeno_registry::notifications::keys::UNDO.into(),
 		))
 		.with(ViewEffect::SetCursor(CharIdx::from(20usize)));
 

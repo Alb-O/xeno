@@ -13,7 +13,7 @@ use std::ops::Range as StdRange;
 use xeno_lsp::lsp_types::{CodeActionOrCommand, Command, Diagnostic};
 use xeno_lsp::{OffsetEncoding, lsp_range_to_char_range};
 use xeno_primitives::range::CharIdx;
-use xeno_registry_notifications::keys;
+use xeno_registry::notifications::keys;
 
 use super::types::{LspMenuKind, LspMenuState};
 use crate::buffer::ViewId;

@@ -89,13 +89,12 @@ static REGISTRY_SUMMARY_ONCE: Once = Once::new();
 
 fn log_registry_summary_once() {
 	REGISTRY_SUMMARY_ONCE.call_once(|| {
-		let reg = xeno_registry::index::get_registry();
 		tracing::info!(
-			actions = reg.actions.base.by_id.len(),
-			commands = reg.commands.by_id.len(),
+			actions = xeno_registry::all_actions().count(),
+			commands = xeno_registry::COMMANDS.len(),
 			editor_commands = crate::commands::EDITOR_COMMANDS.len(),
-			motions = reg.motions.by_id.len(),
-			text_objects = reg.text_objects.by_id.len(),
+			motions = xeno_registry::MOTIONS.len(),
+			text_objects = xeno_registry::TEXT_OBJECTS.len(),
 			gutters = xeno_registry::GUTTERS.len(),
 			hooks = xeno_registry::HOOKS.len(),
 			notifications = xeno_registry::NOTIFICATIONS.len(),

@@ -1,5 +1,7 @@
+use std::collections::HashMap;
+
 use super::*;
-use crate::{RegistryMeta, RegistrySource};
+use crate::{RegistryEntry, RegistryMeta, RegistrySource};
 
 /// Test definition type.
 #[derive(Debug, PartialEq, Eq)]
@@ -41,11 +43,10 @@ static DEF_B: TestDef = TestDef {
 
 #[test]
 fn test_index_lookup() {
-	let index = RegistryBuilder::new("test")
-		.push(&DEF_A)
-		.push(&DEF_B)
-		.duplicate_policy(DuplicatePolicy::Panic)
-		.build();
+	let mut builder = RegistryBuilder::new("test");
+	builder.push(&DEF_A);
+	builder.push(&DEF_B);
+	let index = builder.duplicate_policy(DuplicatePolicy::Panic).build();
 
 	assert_eq!(index.len(), 2);
 
@@ -65,11 +66,10 @@ fn test_index_lookup() {
 
 #[test]
 fn test_sort_default() {
-	let index = RegistryBuilder::new("test")
-		.push(&DEF_A)
-		.push(&DEF_B)
-		.sort_default()
-		.build();
+	let mut builder = RegistryBuilder::new("test");
+	builder.push(&DEF_A);
+	builder.push(&DEF_B);
+	let index = builder.sort_default().build();
 
 	// DEF_B has higher priority (10), so it comes first.
 	assert!(std::ptr::eq(index.items()[0], &DEF_B));
@@ -91,11 +91,10 @@ fn test_first_wins() {
 		},
 	};
 
-	let index = RegistryBuilder::new("test")
-		.push(&DEF_A)
-		.push(&DEF_A2)
-		.duplicate_policy(DuplicatePolicy::FirstWins)
-		.build();
+	let mut builder = RegistryBuilder::new("test");
+	builder.push(&DEF_A);
+	builder.push(&DEF_A2);
+	let index = builder.duplicate_policy(DuplicatePolicy::FirstWins).build();
 
 	// First wins: DEF_A should be in the index for key "a".
 	assert!(std::ptr::eq(index.get("a").unwrap(), &DEF_A));
@@ -118,11 +117,10 @@ fn test_last_wins() {
 		},
 	};
 
-	let index = RegistryBuilder::new("test")
-		.push(&DEF_A)
-		.push(&DEF_A2)
-		.duplicate_policy(DuplicatePolicy::LastWins)
-		.build();
+	let mut builder = RegistryBuilder::new("test");
+	builder.push(&DEF_A);
+	builder.push(&DEF_A2);
+	let index = builder.duplicate_policy(DuplicatePolicy::LastWins).build();
 
 	// Last wins: DEF_A2 should be in the index for key "a".
 	assert!(std::ptr::eq(index.get("a").unwrap(), &DEF_A2));
@@ -144,11 +142,10 @@ fn test_panic_on_duplicate() {
 		},
 	};
 
-	let _index = RegistryBuilder::new("test")
-		.push(&DEF_A)
-		.push(&DEF_A2)
-		.duplicate_policy(DuplicatePolicy::Panic)
-		.build();
+	let mut builder = RegistryBuilder::new("test");
+	builder.push(&DEF_A);
+	builder.push(&DEF_A2);
+	let _index = builder.duplicate_policy(DuplicatePolicy::Panic).build();
 }
 
 #[test]
@@ -168,9 +165,10 @@ fn test_duplicate_id_fatal_regardless_of_policy() {
 		},
 	};
 
-	let _index = RegistryBuilder::new("test")
-		.push(&DEF_A)
-		.push(&DEF_DUP_ID)
+	let mut builder = RegistryBuilder::new("test");
+	builder.push(&DEF_A);
+	builder.push(&DEF_DUP_ID);
+	let _index = builder
 		.duplicate_policy(DuplicatePolicy::FirstWins) // Not Panic!
 		.build();
 }
@@ -192,9 +190,10 @@ fn test_name_shadows_id_fatal() {
 		},
 	};
 
-	let _index = RegistryBuilder::new("test")
-		.push(&DEF_A)
-		.push(&DEF_NAME_SHADOWS)
+	let mut builder = RegistryBuilder::new("test");
+	builder.push(&DEF_A);
+	builder.push(&DEF_NAME_SHADOWS);
+	let _index = builder
 		.duplicate_policy(DuplicatePolicy::FirstWins) // Not Panic!
 		.build();
 }
@@ -216,9 +215,10 @@ fn test_alias_shadows_id_fatal() {
 		},
 	};
 
-	let _index = RegistryBuilder::new("test")
-		.push(&DEF_A)
-		.push(&DEF_ALIAS_SHADOWS)
+	let mut builder = RegistryBuilder::new("test");
+	builder.push(&DEF_A);
+	builder.push(&DEF_ALIAS_SHADOWS);
+	let _index = builder
 		.duplicate_policy(DuplicatePolicy::FirstWins) // Not Panic!
 		.build();
 }
@@ -239,11 +239,10 @@ fn test_collision_recorded() {
 		},
 	};
 
-	let index = RegistryBuilder::new("test")
-		.push(&DEF_A)
-		.push(&DEF_COLLISION)
-		.duplicate_policy(DuplicatePolicy::FirstWins)
-		.build();
+	let mut builder = RegistryBuilder::new("test");
+	builder.push(&DEF_A);
+	builder.push(&DEF_COLLISION);
+	let index = builder.duplicate_policy(DuplicatePolicy::FirstWins).build();
 
 	// Should have recorded the collision
 	assert_eq!(index.collisions().len(), 1);
@@ -271,7 +270,9 @@ fn test_id_first_lookup() {
 		},
 	};
 
-	let index = RegistryBuilder::new("test").push(&DEF_ID_FIRST).build();
+	let mut builder = RegistryBuilder::new("test");
+	builder.push(&DEF_ID_FIRST);
+	let index = builder.build();
 
 	// Lookup by ID should work
 	assert!(std::ptr::eq(
@@ -300,9 +301,10 @@ fn test_items_all_vs_effective() {
 		},
 	};
 
-	let index = RegistryBuilder::new("test")
-		.push(&DEF_A)
-		.push(&DEF_SHADOWED)
+	let mut builder = RegistryBuilder::new("test");
+	builder.push(&DEF_A);
+	builder.push(&DEF_SHADOWED);
+	let index = builder
 		.sort_default() // DEF_A (priority 0) before DEF_SHADOWED (priority -1)
 		.duplicate_policy(DuplicatePolicy::FirstWins)
 		.build();
@@ -319,7 +321,6 @@ fn test_items_all_vs_effective() {
 }
 
 #[test]
-#[should_panic(expected = "duplicate ID")]
 fn test_runtime_duplicate_id_with_builtin_fatal() {
 	// Runtime def with same ID as builtin should be fatal
 	static DEF_RUNTIME_DUP: TestDef = TestDef {
@@ -335,17 +336,15 @@ fn test_runtime_duplicate_id_with_builtin_fatal() {
 		},
 	};
 
-	let builtins = RegistryBuilder::new("test")
-		.push(&DEF_A)
-		.duplicate_policy(DuplicatePolicy::FirstWins)
-		.build();
+	let mut builder = RegistryBuilder::new("test");
+	builder.push(&DEF_A);
+	let builtins = builder.duplicate_policy(DuplicatePolicy::FirstWins).build();
 
 	let registry = RuntimeRegistry::with_policy("test", builtins, DuplicatePolicy::FirstWins);
-	registry.register(&DEF_RUNTIME_DUP);
+	assert!(registry.try_register(&DEF_RUNTIME_DUP).is_err());
 }
 
 #[test]
-#[should_panic(expected = "shadows ID")]
 fn test_runtime_name_shadows_builtin_id_fatal() {
 	// Runtime name that equals builtin ID should be fatal
 	static DEF_RUNTIME_SHADOW: TestDef = TestDef {
@@ -361,13 +360,12 @@ fn test_runtime_name_shadows_builtin_id_fatal() {
 		},
 	};
 
-	let builtins = RegistryBuilder::new("test")
-		.push(&DEF_A)
-		.duplicate_policy(DuplicatePolicy::FirstWins)
-		.build();
+	let mut builder = RegistryBuilder::new("test");
+	builder.push(&DEF_A);
+	let builtins = builder.duplicate_policy(DuplicatePolicy::FirstWins).build();
 
 	let registry = RuntimeRegistry::with_policy("test", builtins, DuplicatePolicy::FirstWins);
-	registry.register(&DEF_RUNTIME_SHADOW);
+	assert!(registry.try_register(&DEF_RUNTIME_SHADOW).is_err());
 }
 
 #[test]
@@ -386,10 +384,9 @@ fn test_runtime_id_first_lookup() {
 		},
 	};
 
-	let builtins = RegistryBuilder::new("test")
-		.push(&DEF_A)
-		.duplicate_policy(DuplicatePolicy::FirstWins)
-		.build();
+	let mut builder = RegistryBuilder::new("test");
+	builder.push(&DEF_A);
+	let builtins = builder.duplicate_policy(DuplicatePolicy::FirstWins).build();
 
 	let registry = RuntimeRegistry::with_policy("test", builtins, DuplicatePolicy::FirstWins);
 	registry.register(&DEF_RUNTIME);
@@ -410,7 +407,6 @@ fn test_runtime_id_first_lookup() {
 }
 
 #[test]
-#[should_panic(expected = "shadows ID")]
 fn test_runtime_name_shadows_runtime_id_fatal() {
 	static DEF_RUNTIME1: TestDef = TestDef {
 		meta: RegistryMeta {
@@ -443,8 +439,8 @@ fn test_runtime_name_shadows_runtime_id_fatal() {
 		.build();
 
 	let registry = RuntimeRegistry::with_policy("test", builtins, DuplicatePolicy::FirstWins);
-	registry.register(&DEF_RUNTIME1);
-	registry.register(&DEF_RUNTIME2);
+	assert!(registry.try_register(&DEF_RUNTIME1).is_ok());
+	assert!(registry.try_register(&DEF_RUNTIME2).is_err());
 }
 
 #[test]
@@ -540,10 +536,9 @@ fn runtime_register_shadowing_is_atomic() {
 		flags: 0,
 	});
 
-	let builtins = RegistryBuilder::new("t")
-		.include_aliases(false)
-		.push(builtin)
-		.build();
+	let mut builder = RegistryBuilder::new("t").include_aliases(false);
+	builder.push(builtin);
+	let builtins = builder.build();
 
 	let rr = RuntimeRegistry::new("t", builtins);
 
@@ -562,9 +557,7 @@ fn runtime_register_shadowing_is_atomic() {
 	let before_all = rr.all();
 	let before_collisions = rr.collisions();
 
-	let res = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-		rr.register(bad);
-	}));
+	let res = rr.try_register(bad);
 	assert!(res.is_err());
 
 	// No ghost insert by id/name
@@ -586,9 +579,7 @@ fn runtime_duplicate_id_does_not_overwrite() {
 	assert!(rr.get("dup.id").is_some());
 	assert!(std::ptr::eq(rr.get("dup.id").unwrap(), a));
 
-	let res = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-		rr.register(b);
-	}));
+	let res = rr.try_register(b);
 	assert!(res.is_err());
 
 	// Still A

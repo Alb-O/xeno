@@ -83,8 +83,8 @@ fn generate_keybindings(
 				.map_err(|e| format!("Invalid key sequence \"{key_str}\": {e}"))?;
 
 			bindings.push(quote! {
-				xeno_registry_actions::KeyBindingDef {
-					mode: xeno_registry_actions::BindingMode::#mode_variant,
+				xeno_registry::actions::KeyBindingDef {
+					mode: xeno_registry::actions::BindingMode::#mode_variant,
 					keys: #key_str,
 					action: #action_name,
 					priority: 100,
@@ -97,7 +97,7 @@ fn generate_keybindings(
 
 	Ok(quote! {
 		#[allow(non_upper_case_globals)]
-		pub static #static_ident: &[xeno_registry_actions::KeyBindingDef] = &[
+		pub static #static_ident: &[xeno_registry::actions::KeyBindingDef] = &[
 			#(#bindings),*
 		];
 	})

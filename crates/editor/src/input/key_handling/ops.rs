@@ -20,7 +20,7 @@ impl Editor {
 					self.invoke_action(action.name(), *count, *extend, *register, None)
 						.is_quit()
 				} else {
-					self.show_notification(xeno_registry_notifications::keys::unknown_action(
+					self.show_notification(xeno_registry::notifications::keys::unknown_action(
 						&id.to_string(),
 					));
 					false
@@ -38,7 +38,7 @@ impl Editor {
 					self.invoke_action(action.name(), *count, *extend, *register, Some(*char_arg))
 						.is_quit()
 				} else {
-					self.show_notification(xeno_registry_notifications::keys::unknown_action(
+					self.show_notification(xeno_registry::notifications::keys::unknown_action(
 						&id.to_string(),
 					));
 					false

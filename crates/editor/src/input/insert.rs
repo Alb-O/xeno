@@ -3,8 +3,7 @@
 use xeno_keymap_core::ToKeyMap;
 use xeno_primitives::key::{Key, KeyCode, Modifiers};
 use xeno_registry::actions::keys as actions;
-use xeno_registry::keymap_registry::LookupResult;
-use xeno_registry::{BindingMode, get_keymap_registry, resolve_action_key};
+use xeno_registry::{BindingMode, LookupResult, get_keymap_registry, resolve_action_key};
 
 use super::InputHandler;
 use super::types::{KeyResult, Mode};

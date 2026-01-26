@@ -21,7 +21,7 @@
 use std::collections::{HashMap, HashSet};
 
 use tracing::warn;
-use xeno_registry_notifications::keys;
+use xeno_registry::notifications::keys;
 
 use super::undo_host::EditorUndoHost;
 use crate::buffer::{Buffer, DocumentId, ViewId};

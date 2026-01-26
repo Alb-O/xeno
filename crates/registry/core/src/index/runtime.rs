@@ -1,11 +1,11 @@
 use std::cmp::Ordering;
 use std::collections::HashMap;
 
-use super::collision::{
-	ChooseWinner, Collision, DuplicatePolicy, KeyKind, KeyStore, insert_typed_key,
-};
-use super::mod_types::RegistryIndex;
+use super::collision::{ChooseWinner, Collision, DuplicatePolicy, KeyKind, KeyStore};
+use super::insert::insert_typed_key;
+use super::types::RegistryIndex;
 use crate::RegistryEntry;
+use crate::error::{InsertAction, RegistryError};
 
 /// Runtime overlay for registry extensions.
 pub(super) struct RuntimeExtras<T: RegistryEntry + 'static> {
@@ -105,19 +105,24 @@ impl<T: RegistryEntry + 'static> RuntimeRegistry<T> {
 
 	/// Registers a definition at runtime.
 	pub fn register(&self, def: &'static T) -> bool {
+		self.try_register(def).is_ok()
+	}
+
+	/// Attempts to register a definition at runtime, returning detailed error info.
+	pub fn try_register(&self, def: &'static T) -> Result<InsertAction, RegistryError> {
 		if self
 			.builtins
 			.items_all()
 			.iter()
 			.any(|&b| std::ptr::eq(b, def))
 		{
-			return false;
+			return Ok(InsertAction::KeptExisting);
 		}
 
-		let mut extras_guard = poison_policy!(self.extras, write);
+		let mut extras_guard = self.extras.write().map_err(|_| RegistryError::Poisoned)?;
 
 		if extras_guard.items.iter().any(|&e| std::ptr::eq(e, def)) {
-			return false;
+			return Ok(InsertAction::KeptExisting);
 		}
 
 		let mut extras = (*extras_guard).clone();
@@ -128,44 +133,38 @@ impl<T: RegistryEntry + 'static> RuntimeRegistry<T> {
 			extras: &mut extras,
 		};
 
-		if let Err(e) = insert_typed_key(
+		insert_typed_key(
 			&mut store,
 			self.label,
 			choose_winner,
 			KeyKind::Id,
 			meta.id,
 			def,
-		) {
-			panic!("runtime registry {}: {}", self.label, e);
-		}
+		)?;
 
-		if let Err(e) = insert_typed_key(
+		let action = insert_typed_key(
 			&mut store,
 			self.label,
 			choose_winner,
 			KeyKind::Name,
 			meta.name,
 			def,
-		) {
-			panic!("runtime registry {}: {}", self.label, e);
-		}
+		)?;
 
 		for &alias in meta.aliases {
-			if let Err(e) = insert_typed_key(
+			insert_typed_key(
 				&mut store,
 				self.label,
 				choose_winner,
 				KeyKind::Alias,
 				alias,
 				def,
-			) {
-				panic!("runtime registry {}: {}", self.label, e);
-			}
+			)?;
 		}
 
 		extras.items.push(def);
 		*extras_guard = extras;
-		true
+		Ok(action)
 	}
 
 	fn make_choose_winner(&self) -> ChooseWinner<T> {

@@ -22,7 +22,7 @@ use syn::{Expr, Item, Lit, Meta, parse_macro_input};
 /// - `TAB_WIDTH` constant as `TypedOptionKey<i64>`
 ///
 /// The `validate` attribute is optional and references a validator function
-/// from `xeno_registry_options::validators`.
+/// from `xeno_registry::options::validators`.
 pub fn derive_option(input: TokenStream) -> TokenStream {
 	let input = parse_macro_input!(input as Item);
 
@@ -173,37 +173,37 @@ pub fn derive_option(input: TokenStream) -> TokenStream {
 		.collect();
 
 	let validator_expr = match validator {
-		Some(v) => quote! { Some(::xeno_registry_options::validators::#v) },
+		Some(v) => quote! { Some(::xeno_registry::options::validators::#v) },
 		None => quote! { None },
 	};
 
 	let expanded = quote! {
 		#[allow(non_upper_case_globals)]
-		pub(crate) static #internal_static: ::xeno_registry_options::OptionDef =
-			::xeno_registry_options::OptionDef {
-			meta: ::xeno_registry_options::RegistryMeta {
+		pub(crate) static #internal_static: ::xeno_registry::options::OptionDef =
+			::xeno_registry::options::OptionDef {
+			meta: ::xeno_registry::options::RegistryMeta {
 				id: ::core::concat!(::core::env!("CARGO_PKG_NAME"), "::", ::core::stringify!(#name)),
 				name: ::core::stringify!(#name),
 				aliases: &[],
 				description: #description,
 				priority: #priority,
-				source: ::xeno_registry_options::RegistrySource::Crate(::core::env!("CARGO_PKG_NAME")),
+				source: ::xeno_registry::options::RegistrySource::Crate(::core::env!("CARGO_PKG_NAME")),
 				required_caps: &[],
 				flags: 0,
 			},
 			kdl_key: #kdl_key,
-			value_type: ::xeno_registry_options::OptionType::#option_type,
-			default: || ::xeno_registry_options::OptionValue::#value_wrapper(#default_value),
-			scope: ::xeno_registry_options::OptionScope::#scope_variant,
+			value_type: ::xeno_registry::options::OptionType::#option_type,
+			default: || ::xeno_registry::options::OptionValue::#value_wrapper(#default_value),
+			scope: ::xeno_registry::options::OptionScope::#scope_variant,
 			validator: #validator_expr,
 		};
 
-		::inventory::submit! { ::xeno_registry_options::OptionReg(&#internal_static) }
+		::inventory::submit! { ::xeno_registry::options::OptionReg(&#internal_static) }
 
 		#(#other_attrs)*
 		#[doc = concat!("Typed handle for the `", stringify!(#name), "` option.")]
-		#vis const #name: ::xeno_registry_options::TypedOptionKey<#key_type> =
-			::xeno_registry_options::TypedOptionKey::new(&#internal_static);
+		#vis const #name: ::xeno_registry::options::TypedOptionKey<#key_type> =
+			::xeno_registry::options::TypedOptionKey::new(&#internal_static);
 	};
 
 	expanded.into()

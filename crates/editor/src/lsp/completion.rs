@@ -20,7 +20,7 @@ use xeno_lsp::{CompletionRequest, CompletionTrigger, OffsetEncoding};
 use xeno_primitives::range::CharIdx;
 use xeno_primitives::transaction::Bias;
 use xeno_primitives::{Range, Selection};
-use xeno_registry_notifications::keys;
+use xeno_registry::notifications::keys;
 
 use super::completion_filter::{extract_query, filter_items};
 use super::events::map_completion_item_with_indices;

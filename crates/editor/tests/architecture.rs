@@ -35,7 +35,7 @@ fn no_cfg_lsp_in_render() {
 fn actions_no_direct_motions_import() {
 	let output = Command::new("rg")
 		.args([
-			"use xeno_registry_motions",
+			"use xeno_registry::motions",
 			"crates/registry/actions/src",
 			"--type",
 			"rust",

@@ -1,7 +1,7 @@
 //! Debug commands for observability.
 
 use futures::future::LocalBoxFuture;
-use xeno_registry::index::get_registry;
+use xeno_registry::index::{all_actions, all_commands, all_motions, all_text_objects};
 use xeno_registry::options::OPTIONS;
 use xeno_registry::themes::THEMES;
 use xeno_registry::{Capability, GUTTERS, HOOKS, NOTIFICATIONS, STATUSLINE_SEGMENTS};
@@ -248,14 +248,8 @@ fn append_registry_section(
 }
 
 fn collect_registry_items(kind: RegistryKind) -> Vec<RegistryItem> {
-	let reg = get_registry();
 	match kind {
-		RegistryKind::Actions => reg
-			.actions
-			.base
-			.by_id
-			.values()
-			.copied()
+		RegistryKind::Actions => all_actions()
 			.map(|def| RegistryItem {
 				id: def.meta.id,
 				name: def.meta.name,
@@ -266,11 +260,7 @@ fn collect_registry_items(kind: RegistryKind) -> Vec<RegistryItem> {
 				flags: def.meta.flags,
 			})
 			.collect(),
-		RegistryKind::Commands => reg
-			.commands
-			.by_id
-			.values()
-			.copied()
+		RegistryKind::Commands => all_commands()
 			.map(|def| RegistryItem {
 				id: def.meta.id,
 				name: def.meta.name,
@@ -294,11 +284,7 @@ fn collect_registry_items(kind: RegistryKind) -> Vec<RegistryItem> {
 				flags: 0,
 			})
 			.collect(),
-		RegistryKind::Motions => reg
-			.motions
-			.by_id
-			.values()
-			.copied()
+		RegistryKind::Motions => all_motions()
 			.map(|def| RegistryItem {
 				id: def.meta.id,
 				name: def.meta.name,
@@ -309,11 +295,7 @@ fn collect_registry_items(kind: RegistryKind) -> Vec<RegistryItem> {
 				flags: def.meta.flags,
 			})
 			.collect(),
-		RegistryKind::TextObjects => reg
-			.text_objects
-			.by_id
-			.values()
-			.copied()
+		RegistryKind::TextObjects => all_text_objects()
 			.map(|def| RegistryItem {
 				id: def.meta.id,
 				name: def.meta.name,

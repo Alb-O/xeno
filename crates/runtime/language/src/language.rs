@@ -7,7 +7,7 @@ use once_cell::sync::OnceCell;
 use serde::{Deserialize, Serialize};
 use tracing::warn;
 use tree_house::LanguageConfig as TreeHouseConfig;
-use xeno_registry_themes::SyntaxStyles;
+use xeno_registry::themes::SyntaxStyles;
 
 use crate::grammar::load_grammar_or_build;
 use crate::query::read_query;

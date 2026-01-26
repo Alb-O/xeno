@@ -3251,8 +3251,6 @@ dependencies = [
  "xeno-primitives",
  "xeno-registry",
  "xeno-registry-core",
- "xeno-registry-motions",
- "xeno-registry-notifications",
  "xeno-runtime-config",
  "xeno-runtime-language",
  "xeno-tui",
@@ -3343,140 +3341,25 @@ dependencies = [
 name = "xeno-registry"
 version = "0.5.15"
 dependencies = [
- "tracing",
- "xeno-keymap-core",
- "xeno-registry-actions",
- "xeno-registry-commands",
- "xeno-registry-core",
- "xeno-registry-gutter",
- "xeno-registry-hooks",
- "xeno-registry-motions",
- "xeno-registry-notifications",
- "xeno-registry-options",
- "xeno-registry-statusline",
- "xeno-registry-textobj",
- "xeno-registry-themes",
-]
-
-[[package]]
-name = "xeno-registry-actions"
-version = "0.5.15"
-dependencies = [
- "inventory",
- "paste",
- "ropey",
- "xeno-macro",
- "xeno-primitives",
- "xeno-registry-core",
- "xeno-registry-notifications",
- "xeno-registry-options",
- "xeno-registry-textobj",
-]
-
-[[package]]
-name = "xeno-registry-commands"
-version = "0.5.15"
-dependencies = [
  "futures",
  "inventory",
  "paste",
+ "regex",
+ "ropey",
+ "strsim",
+ "thiserror 2.0.17",
+ "tracing",
+ "xeno-keymap-core",
+ "xeno-macro",
+ "xeno-primitives",
  "xeno-registry-core",
- "xeno-registry-motions",
- "xeno-registry-notifications",
- "xeno-registry-textobj",
 ]
 
 [[package]]
 name = "xeno-registry-core"
 version = "0.5.15"
 dependencies = [
- "inventory",
  "thiserror 2.0.17",
-]
-
-[[package]]
-name = "xeno-registry-gutter"
-version = "0.5.15"
-dependencies = [
- "inventory",
- "paste",
- "ropey",
- "xeno-registry-core",
- "xeno-registry-themes",
-]
-
-[[package]]
-name = "xeno-registry-hooks"
-version = "0.5.15"
-dependencies = [
- "inventory",
- "paste",
- "tracing",
- "xeno-macro",
- "xeno-primitives",
- "xeno-registry-core",
-]
-
-[[package]]
-name = "xeno-registry-motions"
-version = "0.5.15"
-dependencies = [
- "inventory",
- "paste",
- "regex",
- "ropey",
- "xeno-primitives",
- "xeno-registry-core",
-]
-
-[[package]]
-name = "xeno-registry-notifications"
-version = "0.5.15"
-dependencies = [
- "inventory",
- "paste",
- "xeno-registry-core",
-]
-
-[[package]]
-name = "xeno-registry-options"
-version = "0.5.15"
-dependencies = [
- "inventory",
- "strsim",
- "xeno-macro",
- "xeno-registry-core",
-]
-
-[[package]]
-name = "xeno-registry-statusline"
-version = "0.5.15"
-dependencies = [
- "inventory",
- "paste",
- "xeno-registry-core",
-]
-
-[[package]]
-name = "xeno-registry-textobj"
-version = "0.5.15"
-dependencies = [
- "inventory",
- "paste",
- "ropey",
- "xeno-primitives",
- "xeno-registry-core",
- "xeno-registry-motions",
-]
-
-[[package]]
-name = "xeno-registry-themes"
-version = "0.5.15"
-dependencies = [
- "inventory",
- "strsim",
- "xeno-primitives",
- "xeno-registry-core",
 ]
 
 [[package]]
@@ -3515,7 +3398,7 @@ dependencies = [
  "tracing",
  "tree-house",
  "xeno-primitives",
- "xeno-registry-themes",
+ "xeno-registry",
  "xeno-runtime-data",
 ]
 

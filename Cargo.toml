@@ -6,7 +6,8 @@ members = [
     "crates/lsp",
     "crates/macro",
     "crates/primitives",
-    "crates/registry/*",
+    "crates/registry",
+    "crates/registry/core",
     "crates/runtime/*",
     "crates/term",
     "crates/tui",
@@ -94,18 +95,8 @@ xeno-keymap-parser = { path = "crates/keymap/parser" }
 xeno-lsp = { path = "crates/lsp" }
 xeno-macro = { path = "crates/macro" }
 xeno-primitives = { path = "crates/primitives" }
-xeno-registry = { path = "crates/registry/lib" }
-xeno-registry-actions = { path = "crates/registry/actions" }
-xeno-registry-commands = { path = "crates/registry/commands" }
+xeno-registry = { path = "crates/registry" }
 xeno-registry-core = { path = "crates/registry/core" }
-xeno-registry-gutter = { path = "crates/registry/gutter" }
-xeno-registry-hooks = { path = "crates/registry/hooks" }
-xeno-registry-motions = { path = "crates/registry/motions" }
-xeno-registry-notifications = { path = "crates/registry/notifications" }
-xeno-registry-options = { path = "crates/registry/options" }
-xeno-registry-statusline = { path = "crates/registry/statusline" }
-xeno-registry-textobj = { path = "crates/registry/textobj" }
-xeno-registry-themes = { path = "crates/registry/themes" }
 xeno-runtime-config = { path = "crates/runtime/config" }
 xeno-runtime-data = { path = "crates/runtime/data" }
 xeno-runtime-language = { path = "crates/runtime/language" }

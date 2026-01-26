@@ -33,8 +33,6 @@ xeno-lsp = { workspace = true, features = ["position"], optional = true }
 xeno-primitives.workspace = true
 xeno-registry.workspace = true
 xeno-registry-core.workspace = true
-xeno-registry-motions.workspace = true
-xeno-registry-notifications.workspace = true
 xeno-runtime-config.workspace = true
 xeno-runtime-language.workspace = true
 xeno-tui.workspace = true
