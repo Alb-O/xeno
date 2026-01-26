@@ -653,3 +653,83 @@ fn test_total_order_tie_breaker() {
 	rr_lex.register(b_id);
 	assert!(std::ptr::eq(rr_lex.get("lex").unwrap(), b_id));
 }
+
+#[test]
+fn test_register_many() {
+	let builtins = RegistryBuilder::new("t").build();
+	let rr = RuntimeRegistry::new("t", builtins);
+
+	let a = leak_def(meta("id.a", "a", 0));
+	let b = leak_def(meta("id.b", "b", 0));
+	let c = leak_def(meta("id.c", "c", 0));
+
+	let res = rr.register_many(vec![a, b, c]);
+	assert_eq!(res.unwrap(), 3);
+
+	assert!(std::ptr::eq(rr.get("id.a").unwrap(), a));
+	assert!(std::ptr::eq(rr.get("id.b").unwrap(), b));
+	assert!(std::ptr::eq(rr.get("id.c").unwrap(), c));
+}
+
+#[test]
+fn test_register_many_atomic_failure() {
+	let builtins = RegistryBuilder::new("t").build();
+	let rr = RuntimeRegistry::new("t", builtins);
+
+	let a = leak_def(meta("id.a", "a", 0));
+	let b = leak_def(meta("id.b", "b", 0));
+	let bad = leak_def(meta("id.a", "bad", 0)); // Duplicate ID
+
+	let res = rr.try_register_many(vec![a, b, bad]);
+	assert!(res.is_err());
+
+	// Atomic: nothing should be registered
+	assert!(rr.get("id.a").is_none());
+	assert!(rr.get("id.b").is_none());
+}
+
+#[test]
+fn test_id_override() {
+	let builtin = leak_def(meta_with("id.foo", "name.foo", 0, RegistrySource::Builtin));
+	let mut builder = RegistryBuilder::new("t");
+	builder.push(builtin);
+	let builtins = builder.build();
+
+	let mut rr = RuntimeRegistry::with_policy("t", builtins, DuplicatePolicy::ByPriority);
+	rr.set_allow_id_overrides(true);
+
+	// Runtime override with higher priority
+	let override_def = leak_def(meta_with("id.foo", "name.new", 10, RegistrySource::Runtime));
+	assert!(rr.register(override_def));
+
+	// get_by_id should return the override
+	assert!(std::ptr::eq(rr.get_by_id("id.foo").unwrap(), override_def));
+	// get by ID should also return the override
+	assert!(std::ptr::eq(rr.get("id.foo").unwrap(), override_def));
+
+	// Collision should be recorded for ID
+	let collisions = rr.collisions();
+	assert!(
+		collisions
+			.iter()
+			.any(|c| c.kind == KeyKind::Id && c.key == "id.foo" && c.winner_id == "id.foo")
+	);
+}
+
+#[test]
+fn test_id_override_shadow_guard() {
+	let builtin = leak_def(meta_with("id.foo", "name.foo", 0, RegistrySource::Builtin));
+	let mut builder = RegistryBuilder::new("t");
+	builder.push(builtin);
+	let builtins = builder.build();
+
+	let mut rr = RuntimeRegistry::with_policy("t", builtins, DuplicatePolicy::ByPriority);
+	rr.set_allow_id_overrides(true);
+
+	let override_def = leak_def(meta_with("id.foo", "name.new", 10, RegistrySource::Runtime));
+	rr.register(override_def);
+
+	// Attempt to register a def whose name equals the ID
+	let bad = leak_def(meta_with("id.bad", "id.foo", 20, RegistrySource::Runtime));
+	assert!(rr.try_register(bad).is_err()); // KeyShadowsId
+}

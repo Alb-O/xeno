@@ -43,6 +43,7 @@ pub struct RuntimeRegistry<T: RegistryEntry + 'static> {
 	pub(super) builtins: RegistryIndex<T>,
 	pub(super) extras: std::sync::RwLock<RuntimeExtras<T>>,
 	pub(super) policy: DuplicatePolicy,
+	pub(super) allow_id_overrides: bool,
 }
 
 macro_rules! poison_policy {
@@ -63,6 +64,7 @@ impl<T: RegistryEntry + 'static> RuntimeRegistry<T> {
 			builtins,
 			extras: std::sync::RwLock::new(RuntimeExtras::default()),
 			policy: DuplicatePolicy::for_build(),
+			allow_id_overrides: false,
 		}
 	}
 
@@ -77,7 +79,13 @@ impl<T: RegistryEntry + 'static> RuntimeRegistry<T> {
 			builtins,
 			extras: std::sync::RwLock::new(RuntimeExtras::default()),
 			policy,
+			allow_id_overrides: false,
 		}
+	}
+
+	/// Enables or disables ID overrides for this registry.
+	pub fn set_allow_id_overrides(&mut self, allow: bool) {
+		self.allow_id_overrides = allow;
 	}
 
 	/// Looks up a definition by ID, name, or alias.
@@ -108,6 +116,109 @@ impl<T: RegistryEntry + 'static> RuntimeRegistry<T> {
 		self.try_register(def).is_ok()
 	}
 
+	/// Registers many definitions at runtime in a single atomic operation.
+	pub fn register_many<I>(&self, defs: I) -> Result<usize, RegistryError>
+	where
+		I: IntoIterator<Item = &'static T>,
+	{
+		Ok(self.try_register_many(defs)?.len())
+	}
+
+	/// Attempts to register many definitions at runtime in a single atomic operation.
+	pub fn try_register_many<I>(&self, defs: I) -> Result<Vec<InsertAction>, RegistryError>
+	where
+		I: IntoIterator<Item = &'static T>,
+	{
+		use std::collections::HashSet;
+
+		let mut extras_guard = poison_policy!(self.extras, write);
+
+		// Build pointer set of already registered items
+		let mut existing_ptrs: HashSet<*const T> =
+			HashSet::with_capacity(self.builtins.items_all().len() + extras_guard.items.len());
+		for &b in self.builtins.items_all() {
+			existing_ptrs.insert(b as *const T);
+		}
+		for &e in &extras_guard.items {
+			existing_ptrs.insert(e as *const T);
+		}
+
+		// Filter input: skip already-present and dedup within batch
+		let mut seen_new: HashSet<*const T> = HashSet::new();
+		let mut new_defs: Vec<&'static T> = Vec::new();
+		for def in defs {
+			let ptr = def as *const T;
+			if existing_ptrs.contains(&ptr) {
+				continue;
+			}
+			if seen_new.insert(ptr) {
+				new_defs.push(def);
+			}
+		}
+
+		if new_defs.is_empty() {
+			return Ok(Vec::new());
+		}
+
+		let mut next = (*extras_guard).clone();
+		next.items.reserve(new_defs.len());
+		next.by_id.reserve(new_defs.len());
+		next.by_key.reserve(new_defs.len() * 2);
+
+		let choose_winner = self.make_choose_winner();
+		let mut actions = Vec::with_capacity(new_defs.len());
+
+		{
+			let mut store = RuntimeStore {
+				builtins: &self.builtins,
+				extras: &mut next,
+			};
+
+			for def in new_defs {
+				let meta = def.meta();
+
+				if self.allow_id_overrides {
+					insert_id_key_runtime(&mut store, self.label, choose_winner, meta.id, def)?;
+				} else {
+					insert_typed_key(
+						&mut store,
+						self.label,
+						choose_winner,
+						KeyKind::Id,
+						meta.id,
+						def,
+					)?;
+				}
+
+				let action = insert_typed_key(
+					&mut store,
+					self.label,
+					choose_winner,
+					KeyKind::Name,
+					meta.name,
+					def,
+				)?;
+
+				for &alias in meta.aliases {
+					insert_typed_key(
+						&mut store,
+						self.label,
+						choose_winner,
+						KeyKind::Alias,
+						alias,
+						def,
+					)?;
+				}
+
+				store.extras.items.push(def);
+				actions.push(action);
+			}
+		}
+
+		*extras_guard = next;
+		Ok(actions)
+	}
+
 	/// Attempts to register a definition at runtime, returning detailed error info.
 	pub fn try_register(&self, def: &'static T) -> Result<InsertAction, RegistryError> {
 		if self
@@ -119,7 +230,7 @@ impl<T: RegistryEntry + 'static> RuntimeRegistry<T> {
 			return Ok(InsertAction::KeptExisting);
 		}
 
-		let mut extras_guard = self.extras.write().map_err(|_| RegistryError::Poisoned)?;
+		let mut extras_guard = poison_policy!(self.extras, write);
 
 		if extras_guard.items.iter().any(|&e| std::ptr::eq(e, def)) {
 			return Ok(InsertAction::KeptExisting);
@@ -128,38 +239,46 @@ impl<T: RegistryEntry + 'static> RuntimeRegistry<T> {
 		let mut extras = (*extras_guard).clone();
 		let meta = def.meta();
 		let choose_winner = self.make_choose_winner();
-		let mut store = RuntimeStore {
-			builtins: &self.builtins,
-			extras: &mut extras,
-		};
+		let action;
 
-		insert_typed_key(
-			&mut store,
-			self.label,
-			choose_winner,
-			KeyKind::Id,
-			meta.id,
-			def,
-		)?;
+		{
+			let mut store = RuntimeStore {
+				builtins: &self.builtins,
+				extras: &mut extras,
+			};
 
-		let action = insert_typed_key(
-			&mut store,
-			self.label,
-			choose_winner,
-			KeyKind::Name,
-			meta.name,
-			def,
-		)?;
+			if self.allow_id_overrides {
+				insert_id_key_runtime(&mut store, self.label, choose_winner, meta.id, def)?;
+			} else {
+				insert_typed_key(
+					&mut store,
+					self.label,
+					choose_winner,
+					KeyKind::Id,
+					meta.id,
+					def,
+				)?;
+			}
 
-		for &alias in meta.aliases {
-			insert_typed_key(
+			action = insert_typed_key(
 				&mut store,
 				self.label,
 				choose_winner,
-				KeyKind::Alias,
-				alias,
+				KeyKind::Name,
+				meta.name,
 				def,
 			)?;
+
+			for &alias in meta.aliases {
+				insert_typed_key(
+					&mut store,
+					self.label,
+					choose_winner,
+					KeyKind::Alias,
+					alias,
+					def,
+				)?;
+			}
 		}
 
 		extras.items.push(def);
@@ -231,6 +350,51 @@ impl<T: RegistryEntry + 'static> RuntimeRegistry<T> {
 	}
 }
 
+/// Inserts an ID key with runtime override support.
+fn insert_id_key_runtime<T: RegistryEntry + 'static>(
+	store: &mut RuntimeStore<'_, T>,
+	registry_label: &'static str,
+	choose_winner: ChooseWinner<T>,
+	id: &'static str,
+	def: &'static T,
+) -> Result<InsertAction, RegistryError> {
+	let existing = store
+		.extras
+		.by_id
+		.get(id)
+		.copied()
+		.or_else(|| store.builtins.get_by_id(id));
+
+	let Some(existing) = existing else {
+		store.extras.by_id.insert(id, def);
+		return Ok(InsertAction::InsertedNew);
+	};
+
+	if std::ptr::eq(existing, def) {
+		return Ok(InsertAction::KeptExisting);
+	}
+
+	let new_wins = choose_winner(KeyKind::Id, id, existing, def);
+	let (action, winner_id) = if new_wins {
+		store.extras.by_id.insert(id, def);
+		(InsertAction::ReplacedExisting, def.id())
+	} else {
+		(InsertAction::KeptExisting, existing.id())
+	};
+
+	store.push_collision(Collision {
+		kind: KeyKind::Id,
+		key: id,
+		existing_id: existing.id(),
+		new_id: def.id(),
+		winner_id,
+		action,
+		registry: registry_label,
+	});
+
+	Ok(action)
+}
+
 /// Layered [`KeyStore`] for runtime insertion: checks builtins first, then extras.
 struct RuntimeStore<'a, T: RegistryEntry + 'static> {
 	builtins: &'a RegistryIndex<T>,
@@ -239,9 +403,11 @@ struct RuntimeStore<'a, T: RegistryEntry + 'static> {
 
 impl<T: RegistryEntry + 'static> KeyStore<T> for RuntimeStore<'_, T> {
 	fn get_id_owner(&self, id: &str) -> Option<&'static T> {
-		self.builtins
-			.get_by_id(id)
-			.or_else(|| self.extras.by_id.get(id).copied())
+		self.extras
+			.by_id
+			.get(id)
+			.copied()
+			.or_else(|| self.builtins.get_by_id(id))
 	}
 
 	fn get_key_winner(&self, key: &str) -> Option<&'static T> {
