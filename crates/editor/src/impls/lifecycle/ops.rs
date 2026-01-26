@@ -76,7 +76,9 @@ impl Editor {
 			if let Some(buffer) = self.state.core.buffers.get_buffer(buffer_id) {
 				buffer.with_doc_mut(|doc| {
 					doc.set_syntax(syntax);
-					if !dirty {
+					if dirty {
+						doc.mark_syntax_dirty();
+					} else {
 						doc.clear_syntax_dirty();
 					}
 				});

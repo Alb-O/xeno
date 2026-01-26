@@ -41,6 +41,10 @@ pub struct SnapshotUndoStep {
 	pub rope: Rope,
 	/// Document version at this point in history.
 	pub version: u64,
+	/// Transaction to apply for undo (reverses the original edit).
+	pub undo_tx: Transaction,
+	/// Transaction to apply for redo (re-applies the original edit).
+	pub redo_tx: Transaction,
 }
 
 /// Transaction-based undo step (new behavior).
@@ -103,10 +107,13 @@ impl SnapshotUndoStore {
 	///
 	/// Call this before applying the transaction to capture the pre-edit state.
 	/// Automatically enforces [`MAX_UNDO`] limit by removing the oldest entry.
-	pub fn record_snapshot(&mut self, snapshot: DocumentSnapshot) {
+	pub fn record_snapshot(&mut self, snapshot: DocumentSnapshot, tx: &Transaction) {
+		let undo_tx = tx.invert(&snapshot.rope);
 		self.undo_stack.push(SnapshotUndoStep {
 			rope: snapshot.rope,
 			version: snapshot.version,
+			undo_tx: undo_tx.clone(),
+			redo_tx: tx.clone(),
 		});
 		self.redo_stack.clear();
 
@@ -120,18 +127,23 @@ impl SnapshotUndoStore {
 	/// Pops the most recent snapshot from the undo stack and saves the current
 	/// state to the redo stack. Returns the restored document state, or `None`
 	/// if the undo stack is empty.
-	pub fn undo(&mut self, current: DocumentSnapshot) -> Option<DocumentSnapshot> {
+	pub fn undo(&mut self, current: DocumentSnapshot) -> Option<(DocumentSnapshot, Transaction)> {
 		let step = self.undo_stack.pop()?;
+		let SnapshotUndoStep {
+			rope,
+			version,
+			undo_tx,
+			redo_tx,
+		} = step;
 
 		self.redo_stack.push(SnapshotUndoStep {
 			rope: current.rope,
 			version: current.version,
+			undo_tx: undo_tx.clone(),
+			redo_tx: redo_tx.clone(),
 		});
 
-		Some(DocumentSnapshot {
-			rope: step.rope,
-			version: step.version,
-		})
+		Some((DocumentSnapshot { rope, version }, undo_tx))
 	}
 
 	/// Redoes the last undone change.
@@ -139,18 +151,23 @@ impl SnapshotUndoStore {
 	/// Pops the most recent snapshot from the redo stack and saves the current
 	/// state to the undo stack. Returns the restored document state, or `None`
 	/// if the redo stack is empty.
-	pub fn redo(&mut self, current: DocumentSnapshot) -> Option<DocumentSnapshot> {
+	pub fn redo(&mut self, current: DocumentSnapshot) -> Option<(DocumentSnapshot, Transaction)> {
 		let step = self.redo_stack.pop()?;
+		let SnapshotUndoStep {
+			rope,
+			version,
+			undo_tx,
+			redo_tx,
+		} = step;
 
 		self.undo_stack.push(SnapshotUndoStep {
 			rope: current.rope,
 			version: current.version,
+			undo_tx: undo_tx.clone(),
+			redo_tx: redo_tx.clone(),
 		});
 
-		Some(DocumentSnapshot {
-			rope: step.rope,
-			version: step.version,
-		})
+		Some((DocumentSnapshot { rope, version }, redo_tx))
 	}
 }
 
@@ -335,7 +352,7 @@ impl UndoBackend {
 	pub fn record_commit(&mut self, tx: &Transaction, before: &DocumentSnapshot) {
 		match self {
 			Self::Snapshot(s) => {
-				s.record_snapshot(before.clone());
+				s.record_snapshot(before.clone(), tx);
 			}
 			Self::Transaction(t) => {
 				t.record_transaction(tx.clone(), before);
@@ -348,38 +365,38 @@ impl UndoBackend {
 	/// Restores document state from the undo stack and increments the version.
 	/// The `reparse` closure is called after content restoration for syntax updates.
 	///
-	/// Returns `true` if undo was performed, `false` if the undo stack was empty.
+	/// Returns the applied transaction if undo was performed.
 	pub fn undo(
 		&mut self,
 		content: &mut Rope,
 		version: &mut u64,
 		language_loader: &LanguageLoader,
 		reparse: impl FnOnce(&mut Rope, &LanguageLoader),
-	) -> bool {
+	) -> Option<Transaction> {
 		match self {
 			Self::Snapshot(s) => {
 				let current = DocumentSnapshot {
 					rope: content.clone(),
 					version: *version,
 				};
-				if let Some(restored) = s.undo(current) {
+				if let Some((restored, tx)) = s.undo(current) {
 					*content = restored.rope;
 					*version = version.wrapping_add(1);
 					reparse(content, language_loader);
-					true
+					Some(tx)
 				} else {
-					false
+					None
 				}
 			}
 			Self::Transaction(t) => {
-				if let Some(tx) = t.undo() {
+				if let Some(tx) = t.undo().cloned() {
 					tx.apply(content);
 					*version = version.wrapping_add(1);
 					t.commit_undo();
 					reparse(content, language_loader);
-					true
+					Some(tx)
 				} else {
-					false
+					None
 				}
 			}
 		}
@@ -390,38 +407,38 @@ impl UndoBackend {
 	/// Restores document state from the redo stack and increments the version.
 	/// The `reparse` closure is called after content restoration for syntax updates.
 	///
-	/// Returns `true` if redo was performed, `false` if the redo stack was empty.
+	/// Returns the applied transaction if redo was performed.
 	pub fn redo(
 		&mut self,
 		content: &mut Rope,
 		version: &mut u64,
 		language_loader: &LanguageLoader,
 		reparse: impl FnOnce(&mut Rope, &LanguageLoader),
-	) -> bool {
+	) -> Option<Transaction> {
 		match self {
 			Self::Snapshot(s) => {
 				let current = DocumentSnapshot {
 					rope: content.clone(),
 					version: *version,
 				};
-				if let Some(restored) = s.redo(current) {
+				if let Some((restored, tx)) = s.redo(current) {
 					*content = restored.rope;
 					*version = version.wrapping_add(1);
 					reparse(content, language_loader);
-					true
+					Some(tx)
 				} else {
-					false
+					None
 				}
 			}
 			Self::Transaction(t) => {
-				if let Some(tx) = t.redo() {
+				if let Some(tx) = t.redo().cloned() {
 					tx.apply(content);
 					*version = version.wrapping_add(1);
 					t.commit_redo();
 					reparse(content, language_loader);
-					true
+					Some(tx)
 				} else {
-					false
+					None
 				}
 			}
 		}

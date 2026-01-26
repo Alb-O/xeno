@@ -205,7 +205,6 @@ impl Document {
 	///
 	/// Public API entrypoint: schedule a background full reparse.
 	pub fn reparse_syntax(&mut self, _language_loader: &LanguageLoader) {
-		self.syntax = None;
 		self.syntax_dirty = true;
 	}
 
@@ -243,17 +242,41 @@ impl Document {
 			return false;
 		}
 
-		let ok = self.undo_backend.undo(
+		let allow_sync_incremental = self.syntax.is_some()
+			&& !self.syntax_dirty
+			&& self.content.len_bytes() <= Self::MAX_SYNC_INCREMENTAL_BYTES;
+		let old_source_for_syntax = if allow_sync_incremental {
+			Some(self.content.clone())
+		} else {
+			None
+		};
+
+		let tx = self.undo_backend.undo(
 			&mut self.content,
 			&mut self.version,
 			language_loader,
 			|_, _| {},
 		);
 
-		if ok {
-			self.reparse_syntax(language_loader);
-		}
-		ok
+		let Some(tx) = tx else {
+			return false;
+		};
+
+		if let Some(old_source) = old_source_for_syntax
+			&& let Some(ref mut syntax) = self.syntax {
+				let _ = syntax.update_from_changeset(
+					old_source.slice(..),
+					self.content.slice(..),
+					tx.changes(),
+					language_loader,
+					xeno_runtime_language::SyntaxOptions::default(),
+				);
+			}
+		// Always schedule a background reparse after undo to avoid long-lived
+		// desyncs if incremental updates mis-parse.
+		self.syntax_dirty = true;
+
+		true
 	}
 
 	/// Redoes the last undone document change.
@@ -271,17 +294,41 @@ impl Document {
 			return false;
 		}
 
-		let ok = self.undo_backend.redo(
+		let allow_sync_incremental = self.syntax.is_some()
+			&& !self.syntax_dirty
+			&& self.content.len_bytes() <= Self::MAX_SYNC_INCREMENTAL_BYTES;
+		let old_source_for_syntax = if allow_sync_incremental {
+			Some(self.content.clone())
+		} else {
+			None
+		};
+
+		let tx = self.undo_backend.redo(
 			&mut self.content,
 			&mut self.version,
 			language_loader,
 			|_, _| {},
 		);
 
-		if ok {
-			self.reparse_syntax(language_loader);
-		}
-		ok
+		let Some(tx) = tx else {
+			return false;
+		};
+
+		if let Some(old_source) = old_source_for_syntax
+			&& let Some(ref mut syntax) = self.syntax {
+				let _ = syntax.update_from_changeset(
+					old_source.slice(..),
+					self.content.slice(..),
+					tx.changes(),
+					language_loader,
+					xeno_runtime_language::SyntaxOptions::default(),
+				);
+			}
+		// Always schedule a background reparse after redo to avoid long-lived
+		// desyncs if incremental updates mis-parse.
+		self.syntax_dirty = true;
+
+		true
 	}
 
 	/// Applies an edit through the authoritative edit gate.
@@ -363,6 +410,7 @@ impl Document {
 		// Capture old source for incremental syntax if needed
 		let allow_sync_incremental = matches!(commit.syntax, SyntaxPolicy::IncrementalOrDirty)
 			&& self.syntax.is_some()
+			&& !self.syntax_dirty
 			&& self.content.len_bytes() <= Self::MAX_SYNC_INCREMENTAL_BYTES;
 
 		let old_source_for_syntax = if allow_sync_incremental {

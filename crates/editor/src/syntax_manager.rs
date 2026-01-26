@@ -282,15 +282,16 @@ impl SyntaxManager {
 
 		// Poll inflight.
 		if let Some(p) = st.inflight.as_mut() {
-			if !p.task.is_finished() {
+			let join = (&mut p.task).now_or_never();
+			if join.is_none() {
 				return SyntaxPollResult::Pending;
 			}
-
 			let done = st.inflight.take().expect("inflight present");
-			let join = done.task.now_or_never().expect("is_finished => ready");
+			let join = join.expect("checked ready");
+			let done_version = done.doc_version;
 
 			match join {
-				Ok(Ok(syntax)) if done.doc_version == doc_version => {
+				Ok(Ok(syntax)) if done_version == doc_version => {
 					*current_syntax = Some(syntax);
 					*syntax_dirty = false;
 					st.cooldown_until = None;

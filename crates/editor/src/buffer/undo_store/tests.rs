@@ -12,11 +12,15 @@ fn test_rope() -> Rope {
 fn snapshot_store_basic_undo() {
 	let mut store = SnapshotUndoStore::new();
 	let original = test_rope();
+	let tx = Transaction::new(original.slice(..));
 
-	store.record_snapshot(DocumentSnapshot {
-		rope: original.clone(),
-		version: 0,
-	});
+	store.record_snapshot(
+		DocumentSnapshot {
+			rope: original.clone(),
+			version: 0,
+		},
+		&tx,
+	);
 
 	let edited = Rope::from("goodbye world");
 
@@ -27,18 +31,22 @@ fn snapshot_store_basic_undo() {
 		})
 		.expect("should have undo");
 
-	assert_eq!(restored.rope.to_string(), "hello world");
+	assert_eq!(restored.0.rope.to_string(), "hello world");
 }
 
 #[test]
 fn snapshot_store_undo_redo_cycle() {
 	let mut store = SnapshotUndoStore::new();
 	let original = test_rope();
+	let tx = Transaction::new(original.slice(..));
 
-	store.record_snapshot(DocumentSnapshot {
-		rope: original,
-		version: 0,
-	});
+	store.record_snapshot(
+		DocumentSnapshot {
+			rope: original,
+			version: 0,
+		},
+		&tx,
+	);
 
 	let edited = Rope::from("goodbye world");
 
@@ -48,15 +56,15 @@ fn snapshot_store_undo_redo_cycle() {
 			version: 1,
 		})
 		.expect("should undo");
-	assert_eq!(restored.rope.to_string(), "hello world");
+	assert_eq!(restored.0.rope.to_string(), "hello world");
 
 	let re_edited = store
 		.redo(DocumentSnapshot {
-			rope: restored.rope,
+			rope: restored.0.rope,
 			version: 2,
 		})
 		.expect("should redo");
-	assert_eq!(re_edited.rope.to_string(), "goodbye world");
+	assert_eq!(re_edited.0.rope.to_string(), "goodbye world");
 }
 
 #[test]
@@ -64,10 +72,15 @@ fn snapshot_store_max_undo_limit() {
 	let mut store = SnapshotUndoStore::new();
 
 	for i in 0..=MAX_UNDO + 10 {
-		store.record_snapshot(DocumentSnapshot {
-			rope: Rope::from(format!("version {}", i)),
-			version: i as u64,
-		});
+		let rope = Rope::from(format!("version {}", i));
+		let tx = Transaction::new(rope.slice(..));
+		store.record_snapshot(
+			DocumentSnapshot {
+				rope,
+				version: i as u64,
+			},
+			&tx,
+		);
 	}
 
 	assert_eq!(store.undo_len(), MAX_UNDO);
@@ -185,12 +198,12 @@ fn backend_undo_redo_snapshot() {
 	version = 1;
 
 	let undone = backend.undo(&mut content, &mut version, &loader, |_, _| {});
-	assert!(undone);
+	assert!(undone.is_some());
 	assert_eq!(content.to_string(), "hello world");
 	assert_eq!(version, 2);
 
 	let redone = backend.redo(&mut content, &mut version, &loader, |_, _| {});
-	assert!(redone);
+	assert!(redone.is_some());
 	assert_eq!(content.to_string(), "goodbye world");
 	assert_eq!(version, 3);
 }
@@ -224,12 +237,12 @@ fn backend_undo_redo_transaction() {
 	assert_eq!(content.to_string(), "goodbye world");
 
 	let undone = backend.undo(&mut content, &mut version, &loader, |_, _| {});
-	assert!(undone);
+	assert!(undone.is_some());
 	assert_eq!(content.to_string(), "hello world");
 	assert_eq!(version, 2);
 
 	let redone = backend.redo(&mut content, &mut version, &loader, |_, _| {});
-	assert!(redone);
+	assert!(redone.is_some());
 	assert_eq!(content.to_string(), "goodbye world");
 	assert_eq!(version, 3);
 }
