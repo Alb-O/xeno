@@ -16,6 +16,8 @@ The `crates/registry/` subtree contains many sub-crates for components. [Read th
 
 `xeno-lsp` implements the LSP client stack. [Read this](docs/agents/lsp.md) if needing more context.
 
+`xeno-runtime-language` handles tree-sitter integration and syntax highlighting. [Read this](docs/agents/syntax.md) if needing more context.
+
 `xeno-tui` is a modified Ratatui vendor. It renders to crossterm.
 
 KDL files parsed by `xeno-runtime-config`. Runtime assets (queries, themes, language configs) inside `crates/runtime/data/assets` embed via `xeno-runtime-data`.
