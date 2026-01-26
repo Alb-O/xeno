@@ -67,8 +67,6 @@ impl<'a> BufferRenderContext<'a> {
 		buffer: &Buffer,
 		area: Rect,
 	) -> Vec<(HighlightSpan, Style)> {
-		buffer.with_doc_mut(|doc| doc.ensure_syntax_clean(self.language_loader));
-
 		buffer.with_doc(|doc| {
 			let Some(syntax) = doc.syntax() else {
 				return Vec::new();

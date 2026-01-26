@@ -29,9 +29,13 @@ pub enum GrammarError {
 	#[error("failed to load grammar library: {0}")]
 	LoadError(String),
 
-	/// Grammar library exists but doesn't export the expected symbol.
-	#[error("grammar library missing language function: {0}")]
-	MissingSymbol(String),
+	/// Auto-build was attempted but failed.
+	#[error("failed to build grammar: {0}")]
+	BuildFailed(String),
+
+	/// JIT grammar building disabled.
+	#[error("jit grammar build disabled: {0}")]
+	JitDisabled(String),
 
 	/// Filesystem I/O error.
 	#[error("IO error: {0}")]
@@ -72,15 +76,20 @@ pub fn load_grammar_or_build(name: &str) -> Result<Grammar, GrammarError> {
 		Err(GrammarError::NotFound(_)) => {
 			info!(
 				grammar = name,
-				"Grammar not found, attempting to fetch and build"
+				"Grammar not found in bundle/cache; JIT build is fallback"
 			);
 		}
 		Err(e) => return Err(e),
 	}
 
+	// Allow packagers/users to disable JIT builds entirely (no system C toolchain).
+	if std::env::var_os("XENO_DISABLE_JIT_GRAMMARS").is_some() {
+		return Err(GrammarError::JitDisabled(name.to_string()));
+	}
+
 	if let Err(e) = auto_build_grammar(name) {
 		warn!(grammar = name, error = %e, "Failed to auto-build grammar");
-		return Err(GrammarError::NotFound(name.to_string()));
+		return Err(GrammarError::BuildFailed(e.to_string()));
 	}
 
 	load_grammar(name)
@@ -195,6 +204,24 @@ pub fn cache_dir() -> Option<PathBuf> {
 /// Returns directories to search for compiled grammar libraries.
 pub fn grammar_search_paths() -> Vec<PathBuf> {
 	let mut dirs = Vec::new();
+
+	// Bundled runtime (preferred): packagers should ship prebuilt grammars here.
+	if let Ok(runtime) = std::env::var("XENO_RUNTIME") {
+		dirs.push(PathBuf::from(runtime).join("language").join("grammars"));
+	}
+
+	// Installed runtime next to binary (optional).
+	if let Ok(exe) = std::env::current_exe()
+		&& let Some(bin_dir) = exe.parent()
+	{
+		// <bin>/../share/xeno/grammars
+		let share = bin_dir
+			.join("..")
+			.join("share")
+			.join("xeno")
+			.join("grammars");
+		dirs.push(share);
+	}
 
 	if let Ok(manifest) = std::env::var("CARGO_MANIFEST_DIR")
 		&& let Some(workspace) = PathBuf::from(manifest).ancestors().nth(2)

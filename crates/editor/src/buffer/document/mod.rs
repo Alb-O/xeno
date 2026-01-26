@@ -120,6 +120,8 @@ pub struct Document {
 }
 
 impl Document {
+	const MAX_SYNC_INCREMENTAL_BYTES: usize = 256 * 1024; // Tier S only
+
 	/// Creates a new document with the given content and optional file path.
 	pub fn new(content: String, path: Option<PathBuf>) -> Self {
 		Self {
@@ -201,14 +203,10 @@ impl Document {
 
 	/// Reparses the entire syntax tree from scratch.
 	///
-	/// Used after operations that replace the entire document (undo/redo).
-	/// Clears the `syntax_dirty` flag.
-	pub fn reparse_syntax(&mut self, language_loader: &LanguageLoader) {
-		self.syntax_dirty = false;
-		if self.syntax.is_some() {
-			let lang_id = self.syntax.as_ref().unwrap().root_language();
-			self.syntax = Syntax::new(self.content.slice(..), lang_id, language_loader).ok();
-		}
+	/// Public API entrypoint: schedule a background full reparse.
+	pub fn reparse_syntax(&mut self, _language_loader: &LanguageLoader) {
+		self.syntax = None;
+		self.syntax_dirty = true;
 	}
 
 	/// Records the current document state as an undo boundary.
@@ -363,12 +361,15 @@ impl Document {
 		};
 
 		// Capture old source for incremental syntax if needed
-		let old_source_for_syntax =
-			if matches!(commit.syntax, SyntaxPolicy::IncrementalOrDirty) && self.syntax.is_some() {
-				Some(self.content.clone())
-			} else {
-				None
-			};
+		let allow_sync_incremental = matches!(commit.syntax, SyntaxPolicy::IncrementalOrDirty)
+			&& self.syntax.is_some()
+			&& self.content.len_bytes() <= Self::MAX_SYNC_INCREMENTAL_BYTES;
+
+		let old_source_for_syntax = if allow_sync_incremental {
+			Some(self.content.clone())
+		} else {
+			None
+		};
 
 		commit.tx.apply(&mut self.content);
 		self.modified = true;
@@ -396,6 +397,7 @@ impl Document {
 							self.content.slice(..),
 							commit.tx.changes(),
 							language_loader,
+							xeno_runtime_language::SyntaxOptions::default(),
 						) {
 							Ok(()) => {
 								self.syntax_dirty = false;
@@ -416,8 +418,9 @@ impl Document {
 				}
 			}
 			SyntaxPolicy::FullReparseNow => {
+				// Never do a blocking full reparse on the commit path.
 				self.reparse_syntax(language_loader);
-				SyntaxOutcome::Reparsed
+				SyntaxOutcome::MarkedDirty
 			}
 		};
 
@@ -473,6 +476,7 @@ impl Document {
 	pub fn reset_content(&mut self, content: impl Into<Rope>) {
 		let had_syntax = self.syntax.is_some();
 		self.content = content.into();
+		self.syntax = None;
 		self.syntax_dirty = had_syntax;
 		self.insert_undo_active = false;
 		self.undo_backend = UndoBackend::default();
@@ -553,19 +557,6 @@ impl Document {
 	/// Set by commits with `SyntaxPolicy::MarkDirty` or `IncrementalOrDirty`.
 	pub fn is_syntax_dirty(&self) -> bool {
 		self.syntax_dirty
-	}
-
-	/// Ensures the syntax tree is up-to-date by reparsing if marked dirty.
-	///
-	/// Call this before accessing syntax highlights to ensure consistency.
-	/// Only reparses existing syntax; initial syntax creation is handled by
-	/// [`SyntaxManager`] in the background to avoid blocking render.
-	///
-	/// [`SyntaxManager`]: crate::syntax_manager::SyntaxManager
-	pub fn ensure_syntax_clean(&mut self, language_loader: &LanguageLoader) {
-		if self.syntax.is_some() && self.syntax_dirty {
-			self.reparse_syntax(language_loader);
-		}
 	}
 
 	/// Returns a reference to the syntax highlighting state.

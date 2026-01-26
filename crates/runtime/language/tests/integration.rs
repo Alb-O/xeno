@@ -139,7 +139,12 @@ fn test_syntax_creation_without_grammar() {
 	let lang = rust_lang;
 
 	// Try to create syntax - may fail without grammar
-	let syntax = Syntax::new(source.slice(..), lang, &loader);
+	let syntax = Syntax::new(
+		source.slice(..),
+		lang,
+		&loader,
+		xeno_runtime_language::SyntaxOptions::default(),
+	);
 
 	if let Ok(syntax) = syntax {
 		println!("Syntax created successfully!");
@@ -201,7 +206,12 @@ fn test_full_highlighting_pipeline() {
 
 	let source = Rope::from_str("fn main() {\n    let x = 42;\n}");
 
-	let syntax = match Syntax::new(source.slice(..), rust_lang, &loader) {
+	let syntax = match Syntax::new(
+		source.slice(..),
+		rust_lang,
+		&loader,
+		xeno_runtime_language::SyntaxOptions::default(),
+	) {
 		Ok(s) => s,
 		Err(e) => {
 			println!("Skipping highlight test - no grammar available: {:?}", e);
@@ -301,7 +311,12 @@ fn test_incremental_syntax_update() {
 
 	let mut source = Rope::from_str("fn main() {}");
 
-	let mut syntax = match Syntax::new(source.slice(..), rust_lang, &loader) {
+	let mut syntax = match Syntax::new(
+		source.slice(..),
+		rust_lang,
+		&loader,
+		xeno_runtime_language::SyntaxOptions::default(),
+	) {
 		Ok(s) => s,
 		Err(e) => {
 			println!(
@@ -328,6 +343,7 @@ fn test_incremental_syntax_update() {
 			source.slice(..),
 			tx.changes(),
 			&loader,
+			xeno_runtime_language::SyntaxOptions::default(),
 		)
 		.expect("Incremental update should succeed");
 
@@ -354,6 +370,7 @@ fn test_incremental_syntax_update() {
 			source.slice(..),
 			tx.changes(),
 			&loader,
+			xeno_runtime_language::SyntaxOptions::default(),
 		)
 		.expect("Delete update should succeed");
 
@@ -394,7 +411,12 @@ fn main() {}
 "#,
 	);
 
-	let syntax = match Syntax::new(source.slice(..), rust_lang, &loader) {
+	let syntax = match Syntax::new(
+		source.slice(..),
+		rust_lang,
+		&loader,
+		xeno_runtime_language::SyntaxOptions::default(),
+	) {
 		Ok(s) => s,
 		Err(e) => {
 			println!(
@@ -657,7 +679,12 @@ fn test_highlight_span_positions_doc_comment() {
 
 	let source = Rope::from_str("//! Hello world\nfn main() {}");
 
-	let syntax = match Syntax::new(source.slice(..), rust_lang, &loader) {
+	let syntax = match Syntax::new(
+		source.slice(..),
+		rust_lang,
+		&loader,
+		xeno_runtime_language::SyntaxOptions::default(),
+	) {
 		Ok(s) => s,
 		Err(e) => {
 			println!(

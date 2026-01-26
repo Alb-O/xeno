@@ -1,3 +1,4 @@
+#[cfg(feature = "lsp")]
 use std::path::Path;
 
 #[cfg(feature = "lsp")]

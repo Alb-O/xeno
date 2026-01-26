@@ -18,6 +18,10 @@ impl Editor {
 	/// Polls background syntax parsing for all buffers, installing results when ready.
 	pub fn ensure_syntax_for_buffers(&mut self) {
 		let loader = std::sync::Arc::clone(&self.state.config.language_loader);
+		let mut visible_ids = self.state.windows.base_window().layout.views();
+		for (_, floating) in self.state.windows.floating_windows() {
+			visible_ids.push(floating.buffer);
+		}
 
 		let buffer_info: Vec<_> = self
 			.state
@@ -37,14 +41,19 @@ impl Editor {
 							doc.is_syntax_dirty(),
 						)
 					});
-				if has_syntax && !syntax_dirty {
+				if has_syntax && !syntax_dirty && !self.state.syntax_manager.has_pending(doc_id) {
 					return None;
 				}
-				Some((id, doc_id, version, lang_id, content))
+				let hotness = if visible_ids.contains(&id) {
+					crate::syntax_manager::SyntaxHotness::Visible
+				} else {
+					crate::syntax_manager::SyntaxHotness::Warm
+				};
+				Some((id, doc_id, version, lang_id, content, hotness))
 			})
 			.collect();
 
-		for (buffer_id, doc_id, version, lang_id, content) in buffer_info {
+		for (buffer_id, doc_id, version, lang_id, content, hotness) in buffer_info {
 			let (mut syntax, mut dirty) = self
 				.state
 				.core
@@ -60,6 +69,7 @@ impl Editor {
 				&content,
 				&mut syntax,
 				&mut dirty,
+				hotness,
 				&loader,
 			);
 

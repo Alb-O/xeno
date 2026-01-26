@@ -351,19 +351,21 @@ fn reset_content_marks_syntax_dirty_and_reparses() {
 	assert!(!doc.is_syntax_dirty());
 
 	// Create syntax directly (simulating what SyntaxManager would do)
-	let syntax = Syntax::new(doc.content().slice(..), doc.language_id().unwrap(), &loader).ok();
+	let syntax = Syntax::new(
+		doc.content().slice(..),
+		doc.language_id().unwrap(),
+		&loader,
+		xeno_runtime_language::SyntaxOptions::default(),
+	)
+	.ok();
 	doc.set_syntax(syntax);
 	assert!(doc.has_syntax());
 	assert!(!doc.is_syntax_dirty());
 
-	// reset_content marks syntax as dirty
+	// reset_content marks syntax as dirty and drops it
 	doc.reset_content("let x = 1;");
 	assert!(doc.is_syntax_dirty());
-
-	// ensure_syntax_clean reparses the syntax
-	doc.ensure_syntax_clean(&loader);
-	assert!(!doc.is_syntax_dirty());
-	assert!(doc.has_syntax());
+	assert!(!doc.has_syntax());
 }
 
 #[test]

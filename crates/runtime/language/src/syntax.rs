@@ -15,7 +15,36 @@ use crate::highlight::Highlighter;
 use crate::loader::LanguageLoader;
 
 /// Default parse timeout (500ms).
-const PARSE_TIMEOUT: Duration = Duration::from_millis(500);
+const DEFAULT_PARSE_TIMEOUT: Duration = Duration::from_millis(500);
+
+/// Injection handling policy.
+///
+/// NOTE: actual injection enable/disable is implemented by `LanguageLoader`
+/// (tree-house queries + injected language resolution). `SyntaxOptions` just
+/// plumbs the intent through the call chain.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum InjectionPolicy {
+	/// Build all injection layers (current behavior).
+	Eager,
+	/// Disable injection layers entirely (root language only).
+	Disabled,
+}
+
+/// Options controlling a (re)parse.
+#[derive(Debug, Clone, Copy)]
+pub struct SyntaxOptions {
+	pub parse_timeout: Duration,
+	pub injections: InjectionPolicy,
+}
+
+impl Default for SyntaxOptions {
+	fn default() -> Self {
+		Self {
+			parse_timeout: DEFAULT_PARSE_TIMEOUT,
+			injections: InjectionPolicy::Eager,
+		}
+	}
+}
 
 /// Errors that can occur during syntax operations.
 #[derive(Error, Debug)]
@@ -35,7 +64,10 @@ pub enum SyntaxError {
 
 impl From<tree_house::Error> for SyntaxError {
 	fn from(e: tree_house::Error) -> Self {
-		SyntaxError::Parse(e.to_string())
+		match e {
+			tree_house::Error::Timeout => SyntaxError::Timeout,
+			other => SyntaxError::Parse(other.to_string()),
+		}
 	}
 }
 
@@ -44,45 +76,52 @@ impl From<tree_house::Error> for SyntaxError {
 pub struct Syntax {
 	/// The underlying tree-house syntax tree.
 	inner: tree_house::Syntax,
+	/// Options used for the current parse.
+	opts: SyntaxOptions,
 }
 
 impl Syntax {
-	/// Creates a new Syntax for the given source and language.
+	/// Creates a new syntax tree with the given options.
 	pub fn new(
 		source: RopeSlice,
 		language: Language,
 		loader: &LanguageLoader,
+		opts: SyntaxOptions,
 	) -> Result<Self, SyntaxError> {
-		let inner = tree_house::Syntax::new(source, language, PARSE_TIMEOUT, loader)?;
-		Ok(Self { inner })
+		let loader = loader.with_injections(matches!(opts.injections, InjectionPolicy::Eager));
+		let inner = tree_house::Syntax::new(source, language, opts.parse_timeout, &loader)?;
+		Ok(Self { inner, opts })
 	}
 
-	/// Updates the syntax tree after edits.
-	///
-	/// This performs incremental re-parsing based on the provided edits.
+	/// Updates the syntax tree after edits (incremental) with the given options.
 	pub fn update(
 		&mut self,
 		source: RopeSlice,
 		edits: &[InputEdit],
 		loader: &LanguageLoader,
+		opts: SyntaxOptions,
 	) -> Result<(), SyntaxError> {
 		if edits.is_empty() {
 			return Ok(());
 		}
-		self.inner.update(source, PARSE_TIMEOUT, edits, loader)?;
+		self.opts = opts;
+		let loader = loader.with_injections(matches!(opts.injections, InjectionPolicy::Eager));
+		self.inner
+			.update(source, opts.parse_timeout, edits, &loader)?;
 		Ok(())
 	}
 
-	/// Updates from a Xeno ChangeSet.
+	/// Updates from a Xeno ChangeSet with the given options.
 	pub fn update_from_changeset(
 		&mut self,
 		old_source: RopeSlice,
 		new_source: RopeSlice,
 		changeset: &xeno_primitives::ChangeSet,
 		loader: &LanguageLoader,
+		opts: SyntaxOptions,
 	) -> Result<(), SyntaxError> {
 		let edits = generate_edits(old_source, changeset);
-		self.update(new_source, &edits, loader)
+		self.update(new_source, &edits, loader, opts)
 	}
 
 	/// Returns the root syntax tree.
@@ -151,6 +190,50 @@ fn generate_edits(old_text: RopeSlice, changeset: &xeno_primitives::ChangeSet) -
 	use tree_house::tree_sitter::Point;
 	use xeno_primitives::transaction::Operation;
 
+	fn point_at_char(text: RopeSlice, char_idx: usize) -> Point {
+		let row = text.char_to_line(char_idx) as u32;
+		let line_start_char = text.line_to_char(row as usize);
+		let in_line_chars = char_idx.saturating_sub(line_start_char);
+		// tree-sitter Point.column is in BYTES, not chars
+		let line = text.line(row as usize);
+		let col_bytes = line.char_to_byte(in_line_chars) as u32;
+		Point {
+			row,
+			col: col_bytes,
+		}
+	}
+
+	fn point_after_insert(start: Point, inserted: &str) -> Point {
+		if inserted.is_empty() {
+			return start;
+		}
+		let bytes = inserted.as_bytes();
+		let mut rows = 0u32;
+		let mut last_line_bytes = 0u32;
+		let mut cur = 0u32;
+		for &b in bytes {
+			cur += 1;
+			if b == b'\n' {
+				rows += 1;
+				last_line_bytes = 0;
+				cur = 0;
+			} else {
+				last_line_bytes = cur;
+			}
+		}
+		if rows == 0 {
+			Point {
+				row: start.row,
+				col: start.col + last_line_bytes,
+			}
+		} else {
+			Point {
+				row: start.row + rows,
+				col: last_line_bytes,
+			}
+		}
+	}
+
 	let mut edits = Vec::new();
 	let mut old_pos = 0usize;
 
@@ -172,41 +255,46 @@ fn generate_edits(old_text: RopeSlice, changeset: &xeno_primitives::ChangeSet) -
 			Operation::Delete(_) => {
 				let start_byte = old_text.char_to_byte(old_pos) as u32;
 				let old_end_byte = old_text.char_to_byte(old_end) as u32;
+				let start_point = point_at_char(old_text, old_pos);
+				let old_end_point = point_at_char(old_text, old_end);
 
 				edits.push(InputEdit {
 					start_byte,
 					old_end_byte,
 					new_end_byte: start_byte,
-					start_point: Point::ZERO,
-					old_end_point: Point::ZERO,
-					new_end_point: Point::ZERO,
+					start_point,
+					old_end_point,
+					new_end_point: start_point,
 				});
 			}
 			Operation::Insert(s) => {
 				let start_byte = old_text.char_to_byte(old_pos) as u32;
+				let start_point = point_at_char(old_text, old_pos);
+				let new_end_point = point_after_insert(start_point, &s.text);
 
 				// Check for subsequent delete (replacement)
 				if let Some(Operation::Delete(del_len)) = iter.peek() {
 					old_end = old_pos + del_len;
 					let old_end_byte = old_text.char_to_byte(old_end) as u32;
+					let old_end_point = point_at_char(old_text, old_end);
 					iter.next();
 
 					edits.push(InputEdit {
 						start_byte,
 						old_end_byte,
 						new_end_byte: start_byte + s.text.len() as u32,
-						start_point: Point::ZERO,
-						old_end_point: Point::ZERO,
-						new_end_point: Point::ZERO,
+						start_point,
+						old_end_point,
+						new_end_point,
 					});
 				} else {
 					edits.push(InputEdit {
 						start_byte,
 						old_end_byte: start_byte,
 						new_end_byte: start_byte + s.text.len() as u32,
-						start_point: Point::ZERO,
-						old_end_point: Point::ZERO,
-						new_end_point: Point::ZERO,
+						start_point,
+						old_end_point: start_point,
+						new_end_point,
 					});
 				}
 			}

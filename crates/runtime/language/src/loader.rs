@@ -197,6 +197,33 @@ impl LanguageLoader {
 	pub fn is_empty(&self) -> bool {
 		self.db.is_empty()
 	}
+
+	/// Returns a loader view with the specified injection policy.
+	pub fn with_injections(&self, injections: bool) -> LoaderView<'_> {
+		LoaderView {
+			base: self,
+			injections,
+		}
+	}
+}
+
+/// A view of a [`LanguageLoader`] with a specific injection policy.
+pub struct LoaderView<'a> {
+	base: &'a LanguageLoader,
+	injections: bool,
+}
+
+impl tree_house::LanguageLoader for LoaderView<'_> {
+	fn language_for_marker(&self, marker: InjectionLanguageMarker) -> Option<Language> {
+		if !self.injections {
+			return None;
+		}
+		self.base.language_for_marker(marker)
+	}
+
+	fn get_config(&self, lang: Language) -> Option<&TreeHouseConfig> {
+		self.base.get_config(lang)
+	}
 }
 
 impl tree_house::LanguageLoader for LanguageLoader {

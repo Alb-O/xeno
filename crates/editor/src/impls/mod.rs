@@ -330,7 +330,7 @@ impl Editor {
 					.overflow(xeno_tui::widgets::notifications::Overflow::DropOldest),
 				extensions: ExtensionMap::new(),
 				lsp: LspSystem::new(),
-				syntax_manager: crate::syntax_manager::SyntaxManager::new(),
+				syntax_manager: crate::syntax_manager::SyntaxManager::new(2),
 				style_overlays: StyleOverlays::new(),
 				hook_runtime,
 				overlays: OverlayManager::new(),
@@ -393,60 +393,6 @@ impl Editor {
 			),
 			&mut self.state.hook_runtime,
 		);
-	}
-
-	/// Returns a reference to the buffer manager.
-	///
-	/// This is a compatibility accessor for code that previously accessed
-	/// `editor.buffers` directly. New code should use `editor.core().buffers`.
-	#[inline]
-	pub fn buffers(&self) -> &ViewManager {
-		&self.state.core.buffers
-	}
-
-	/// Returns a mutable reference to the buffer manager.
-	///
-	/// This is a compatibility accessor for code that previously accessed
-	/// `editor.buffers` directly. New code should use `editor.core().buffers`.
-	#[inline]
-	pub fn buffers_mut(&mut self) -> &mut ViewManager {
-		&mut self.state.core.buffers
-	}
-
-	/// Returns a reference to the workspace session state.
-	///
-	/// This is a compatibility accessor for code that previously accessed
-	/// `editor.workspace` directly. New code should use `editor.core().workspace`.
-	#[inline]
-	pub fn workspace(&self) -> &Workspace {
-		&self.state.core.workspace
-	}
-
-	/// Returns a mutable reference to the workspace session state.
-	///
-	/// This is a compatibility accessor for code that previously accessed
-	/// `editor.workspace` directly. New code should use `editor.core().workspace`.
-	#[inline]
-	pub fn workspace_mut(&mut self) -> &mut Workspace {
-		&mut self.state.core.workspace
-	}
-
-	/// Returns a reference to the undo manager.
-	///
-	/// This is a compatibility accessor for code that previously accessed
-	/// `editor.undo_manager` directly. New code should use `editor.core().undo_manager`.
-	#[inline]
-	pub fn undo_manager(&self) -> &UndoManager {
-		&self.state.core.undo_manager
-	}
-
-	/// Returns a mutable reference to the undo manager.
-	///
-	/// This is a compatibility accessor for code that previously accessed
-	/// `editor.undo_manager` directly. New code should use `editor.core().undo_manager`.
-	#[inline]
-	pub fn undo_manager_mut(&mut self) -> &mut UndoManager {
-		&mut self.state.core.undo_manager
 	}
 
 	#[inline]
