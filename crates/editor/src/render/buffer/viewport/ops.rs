@@ -1,89 +1,17 @@
-//! Viewport scrolling and cursor visibility logic.
-
-use serde::Serialize;
 use tracing::{debug, trace};
 use xeno_primitives::range::CharIdx;
 use xeno_primitives::visible_line_count;
 use xeno_tui::layout::Rect;
 
+use super::types::ViewportEnsureEvent;
 use crate::buffer::Buffer;
 use crate::render::wrap::{WrapSegment, wrap_line};
-
-/// Test event emitted when viewport scrolling occurs.
-#[derive(Serialize)]
-struct ViewportEnsureEvent {
-	/// Event type identifier.
-	#[serde(rename = "type")]
-	kind: &'static str,
-	/// Action taken (scroll_up, scroll_down, suppress_scroll_down, etc.).
-	action: &'static str,
-	/// ID of the buffer being scrolled.
-	buffer_id: u64,
-	/// Current viewport height in lines.
-	viewport_height: usize,
-	/// Previous viewport height before resize.
-	prev_viewport_height: usize,
-	/// Line number at top of viewport.
-	scroll_line: usize,
-	/// Wrap segment at top of viewport.
-	scroll_segment: usize,
-	/// Line number of the cursor.
-	cursor_line: usize,
-	/// Wrap segment of the cursor.
-	cursor_segment: usize,
-	/// Whether the viewport is shrinking.
-	viewport_shrinking: bool,
-	/// Whether auto-scrolling is suppressed.
-	suppress_auto_scroll: bool,
-}
-
-impl ViewportEnsureEvent {
-	/// Logs a viewport event for testing purposes.
-	fn log(
-		action: &'static str,
-		buffer: &Buffer,
-		viewport_height: usize,
-		prev_viewport_height: usize,
-		cursor_line: usize,
-		cursor_segment: usize,
-		viewport_shrinking: bool,
-	) {
-		crate::test_events::write_test_event(&Self {
-			kind: "viewport_ensure",
-			action,
-			buffer_id: buffer.id.0,
-			viewport_height,
-			prev_viewport_height,
-			scroll_line: buffer.scroll_line,
-			scroll_segment: buffer.scroll_segment,
-			cursor_line,
-			cursor_segment,
-			viewport_shrinking,
-			suppress_auto_scroll: buffer.suppress_auto_scroll,
-		});
-	}
-}
 
 /// Ensures the cursor is visible in the buffer's viewport with scroll margins.
 ///
 /// This function adjusts `buffer.scroll_line` and `buffer.scroll_segment` to ensure
 /// the primary cursor is visible within the given area, maintaining a minimum
 /// distance from the viewport edges when possible.
-///
-/// # Scroll Margin
-///
-/// The `scroll_margin` parameter specifies the preferred minimum lines between
-/// the cursor and viewport edges. When the cursor moves within this zone, the
-/// viewport scrolls to restore the margin. At buffer boundaries (first/last line),
-/// the cursor is allowed to reach the edge since scrolling further is impossible.
-///
-/// # Auto-scroll Suppression
-///
-/// When [`suppress_auto_scroll`] is set, skips viewport adjustment entirely.
-/// This allows the cursor to be outside the visible viewport during mouse
-/// scrolling or split resizing. The flag is cleared when the cursor moves.
-///
-/// [`suppress_auto_scroll`]: Buffer::suppress_auto_scroll
 pub fn ensure_buffer_cursor_visible(
 	buffer: &mut Buffer,
 	area: Rect,

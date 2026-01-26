@@ -1,25 +1,18 @@
-//! High-level typed LSP API methods.
-//!
-//! This module contains the convenience methods on `ClientHandle` for
-//! common LSP operations like hover, completion, formatting, etc.
-
 use futures::channel::oneshot;
 use lsp_types::notification::Notification;
-use lsp_types::{ClientInfo, InitializeParams, InitializeResult, Uri, WorkspaceFolder};
+use lsp_types::{ClientInfo, InitializeParams, InitializeResult, Uri};
 use serde_json::Value;
 
-use super::capabilities::client_capabilities;
-use super::handle::ClientHandle;
-use super::outbox::OutboundMsg;
-use super::state::ServerState;
+use super::super::capabilities::client_capabilities;
+use super::super::handle::ClientHandle;
+use super::super::outbox::OutboundMsg;
+use super::super::state::ServerState;
+use super::types::workspace_folder_from_uri;
 use crate::types::AnyNotification;
 use crate::{Result, uri_from_path};
 
 impl ClientHandle {
 	/// Initialize the language server.
-	///
-	/// This sends the `initialize` request and waits for the response.
-	/// After initialization, sends `initialized` notification.
 	pub async fn initialize(
 		&self,
 		enable_snippets: bool,
@@ -236,8 +229,6 @@ impl ClientHandle {
 	}
 
 	/// Request hover information.
-	///
-	/// Returns `Ok(None)` if the server doesn't support hover.
 	pub async fn hover(
 		&self,
 		uri: Uri,
@@ -257,8 +248,6 @@ impl ClientHandle {
 	}
 
 	/// Request completions.
-	///
-	/// Returns `Ok(None)` if the server doesn't support completion.
 	pub async fn completion(
 		&self,
 		uri: Uri,
@@ -281,8 +270,6 @@ impl ClientHandle {
 	}
 
 	/// Request go to definition.
-	///
-	/// Returns `Ok(None)` if the server doesn't support definition.
 	pub async fn goto_definition(
 		&self,
 		uri: Uri,
@@ -303,8 +290,6 @@ impl ClientHandle {
 	}
 
 	/// Request references.
-	///
-	/// Returns `Ok(None)` if the server doesn't support references.
 	pub async fn references(
 		&self,
 		uri: Uri,
@@ -329,8 +314,6 @@ impl ClientHandle {
 	}
 
 	/// Request document symbols.
-	///
-	/// Returns `Ok(None)` if the server doesn't support document symbols.
 	pub async fn document_symbol(
 		&self,
 		uri: Uri,
@@ -347,8 +330,6 @@ impl ClientHandle {
 	}
 
 	/// Request formatting.
-	///
-	/// Returns `Ok(None)` if the server doesn't support formatting.
 	pub async fn formatting(
 		&self,
 		uri: Uri,
@@ -366,8 +347,6 @@ impl ClientHandle {
 	}
 
 	/// Request code actions.
-	///
-	/// Returns `Ok(None)` if the server doesn't support code actions.
 	pub async fn code_action(
 		&self,
 		uri: Uri,
@@ -388,8 +367,6 @@ impl ClientHandle {
 	}
 
 	/// Request signature help.
-	///
-	/// Returns `Ok(None)` if the server doesn't support signature help.
 	pub async fn signature_help(
 		&self,
 		uri: Uri,
@@ -431,8 +408,6 @@ impl ClientHandle {
 	}
 
 	/// Execute a command on the server.
-	///
-	/// Returns `Ok(None)` if the server doesn't support execute command.
 	pub async fn execute_command(
 		&self,
 		command: String,
@@ -449,16 +424,4 @@ impl ClientHandle {
 		})
 		.await
 	}
-}
-
-/// Create a workspace folder from a URI.
-fn workspace_folder_from_uri(uri: Uri) -> WorkspaceFolder {
-	let name = uri
-		.as_str()
-		.rsplit('/')
-		.next()
-		.filter(|s| !s.is_empty())
-		.unwrap_or_default()
-		.to_string();
-	WorkspaceFolder { name, uri }
 }

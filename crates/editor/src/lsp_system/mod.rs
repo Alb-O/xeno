@@ -1,3 +1,10 @@
+use std::path::Path;
+
+#[cfg(feature = "lsp")]
+use xeno_lsp::lsp_types::{TextDocumentSyncCapability, TextDocumentSyncKind};
+#[cfg(feature = "lsp")]
+use xeno_lsp::{LspManager, OffsetEncoding};
+
 use crate::buffer::Buffer;
 use crate::render::{DiagnosticLineMap, DiagnosticRangeMap};
 
@@ -11,9 +18,9 @@ pub struct LspSystem;
 
 #[cfg(feature = "lsp")]
 struct RealLspSystem {
-	manager: crate::lsp::LspManager,
+	manager: LspManager,
 	sync_manager: crate::lsp::sync_manager::LspSyncManager,
-	completion: crate::lsp::CompletionController,
+	completion: xeno_lsp::CompletionController,
 	signature_gen: u64,
 	signature_cancel: Option<tokio_util::sync::CancellationToken>,
 	ui_tx: tokio::sync::mpsc::UnboundedSender<crate::lsp::LspUiEvent>,
@@ -26,9 +33,9 @@ impl LspSystem {
 		let (ui_tx, ui_rx) = tokio::sync::mpsc::unbounded_channel();
 		Self {
 			inner: RealLspSystem {
-				manager: crate::lsp::LspManager::new(),
+				manager: LspManager::new(),
 				sync_manager: crate::lsp::sync_manager::LspSyncManager::new(),
-				completion: crate::lsp::CompletionController::new(),
+				completion: xeno_lsp::CompletionController::new(),
 				signature_gen: 0,
 				signature_cancel: None,
 				ui_tx,
@@ -77,10 +84,6 @@ impl LspSystem {
 		self.inner.manager.sync()
 	}
 
-	/// Get a cloned sync handle for background LSP operations.
-	///
-	/// This allows spawning background tasks that can open documents
-	/// without blocking the main thread.
 	pub fn sync_clone(&self) -> xeno_lsp::DocumentSync {
 		self.inner.manager.sync().clone()
 	}
@@ -97,39 +100,97 @@ impl LspSystem {
 		&self,
 		buffer: &Buffer,
 	) -> xeno_lsp::Result<Option<xeno_lsp::ClientHandle>> {
-		self.inner.manager.on_buffer_open(buffer).await
+		let Some(path) = buffer.path() else {
+			return Ok(None);
+		};
+		let Some(language) = &buffer.file_type() else {
+			return Ok(None);
+		};
+
+		if self.registry().get_config(language).is_none() {
+			return Ok(None);
+		}
+
+		let abs_path = path
+			.canonicalize()
+			.unwrap_or_else(|_| std::env::current_dir().unwrap_or_default().join(&path));
+
+		let content = buffer.with_doc(|doc| doc.content().clone());
+		let client = self
+			.sync()
+			.open_document(&abs_path, language, &content)
+			.await?;
+		Ok(Some(client))
 	}
 
 	pub fn on_buffer_will_save(&self, buffer: &Buffer) -> xeno_lsp::Result<()> {
-		self.inner.manager.on_buffer_will_save(buffer)
+		let Some(path) = &buffer.path() else {
+			return Ok(());
+		};
+		let Some(language) = &buffer.file_type() else {
+			return Ok(());
+		};
+		self.sync().notify_will_save(path, language)
 	}
 
 	pub fn on_buffer_did_save(&self, buffer: &Buffer, include_text: bool) -> xeno_lsp::Result<()> {
-		self.inner.manager.on_buffer_did_save(buffer, include_text)
+		let Some(path) = &buffer.path() else {
+			return Ok(());
+		};
+		let Some(language) = &buffer.file_type() else {
+			return Ok(());
+		};
+		let text = buffer.with_doc(|doc| {
+			if include_text {
+				Some(doc.content().clone())
+			} else {
+				None
+			}
+		});
+		self.sync()
+			.notify_did_save(path, language, include_text, text.as_ref())
 	}
 
 	pub fn on_buffer_close(&self, buffer: &Buffer) -> xeno_lsp::Result<()> {
-		self.inner.manager.on_buffer_close(buffer)
+		let Some(path) = &buffer.path() else {
+			return Ok(());
+		};
+		let Some(language) = &buffer.file_type() else {
+			return Ok(());
+		};
+		self.sync().close_document(path, language)
 	}
 
 	pub fn get_diagnostics(&self, buffer: &Buffer) -> Vec<xeno_lsp::lsp_types::Diagnostic> {
-		self.inner.manager.get_diagnostics(buffer)
+		buffer
+			.path()
+			.as_ref()
+			.map(|p| self.sync().get_diagnostics(p))
+			.unwrap_or_default()
 	}
 
 	pub fn error_count(&self, buffer: &Buffer) -> usize {
-		self.inner.manager.error_count(buffer)
+		buffer
+			.path()
+			.as_ref()
+			.map(|p| self.sync().error_count(p))
+			.unwrap_or(0)
 	}
 
 	pub fn warning_count(&self, buffer: &Buffer) -> usize {
-		self.inner.manager.warning_count(buffer)
+		buffer
+			.path()
+			.as_ref()
+			.map(|p| self.sync().warning_count(p))
+			.unwrap_or(0)
 	}
 
 	pub fn total_error_count(&self) -> usize {
-		self.inner.manager.total_error_count()
+		self.inner.manager.sync().total_error_count()
 	}
 
 	pub fn total_warning_count(&self) -> usize {
-		self.inner.manager.total_warning_count()
+		self.inner.manager.sync().total_warning_count()
 	}
 
 	pub(crate) fn prepare_position_request(
@@ -142,28 +203,60 @@ impl LspSystem {
 			xeno_lsp::lsp_types::Position,
 		)>,
 	> {
-		self.inner.manager.prepare_position_request(buffer)
+		let Some(path) = buffer.path() else {
+			return Ok(None);
+		};
+		let Some(language) = buffer.file_type() else {
+			return Ok(None);
+		};
+
+		let abs_path = path
+			.canonicalize()
+			.unwrap_or_else(|_| std::env::current_dir().unwrap_or_default().join(&path));
+
+		let Some(client) = self.sync().registry().get(&language, &abs_path) else {
+			return Ok(None);
+		};
+
+		let uri = xeno_lsp::uri_from_path(&abs_path)
+			.ok_or_else(|| xeno_lsp::Error::Protocol("Invalid path".into()))?;
+
+		let encoding = client.offset_encoding();
+		let position = buffer
+			.with_doc(|doc| xeno_lsp::char_to_lsp_position(doc.content(), buffer.cursor, encoding))
+			.ok_or_else(|| xeno_lsp::Error::Protocol("Invalid position".into()))?;
+
+		Ok(Some((client, uri, position)))
 	}
 
 	pub async fn hover(
 		&self,
 		buffer: &Buffer,
 	) -> xeno_lsp::Result<Option<xeno_lsp::lsp_types::Hover>> {
-		self.inner.manager.hover(buffer).await
+		let Some((client, uri, position)) = self.prepare_position_request(buffer)? else {
+			return Ok(None);
+		};
+		client.hover(uri, position).await
 	}
 
 	pub async fn completion(
 		&self,
 		buffer: &Buffer,
 	) -> xeno_lsp::Result<Option<xeno_lsp::lsp_types::CompletionResponse>> {
-		self.inner.manager.completion(buffer).await
+		let Some((client, uri, position)) = self.prepare_position_request(buffer)? else {
+			return Ok(None);
+		};
+		client.completion(uri, position, None).await
 	}
 
 	pub async fn goto_definition(
 		&self,
 		buffer: &Buffer,
 	) -> xeno_lsp::Result<Option<xeno_lsp::lsp_types::GotoDefinitionResponse>> {
-		self.inner.manager.goto_definition(buffer).await
+		let Some((client, uri, position)) = self.prepare_position_request(buffer)? else {
+			return Ok(None);
+		};
+		client.goto_definition(uri, position).await
 	}
 
 	pub async fn references(
@@ -171,17 +264,25 @@ impl LspSystem {
 		buffer: &Buffer,
 		include_declaration: bool,
 	) -> xeno_lsp::Result<Option<Vec<xeno_lsp::lsp_types::Location>>> {
-		self.inner
-			.manager
-			.references(buffer, include_declaration)
-			.await
+		let Some((client, uri, position)) = self.prepare_position_request(buffer)? else {
+			return Ok(None);
+		};
+		client.references(uri, position, include_declaration).await
 	}
 
 	pub async fn format(
 		&self,
 		buffer: &Buffer,
 	) -> xeno_lsp::Result<Option<Vec<xeno_lsp::lsp_types::TextEdit>>> {
-		self.inner.manager.format(buffer).await
+		let Some((client, uri, _)) = self.prepare_position_request(buffer)? else {
+			return Ok(None);
+		};
+		let options = xeno_lsp::lsp_types::FormattingOptions {
+			tab_size: 4,
+			insert_spaces: false,
+			..Default::default()
+		};
+		client.formatting(uri, options).await
 	}
 
 	pub async fn shutdown_all(&self) {
@@ -192,11 +293,44 @@ impl LspSystem {
 		&self,
 		buffer: &Buffer,
 	) -> Option<xeno_lsp::OffsetEncoding> {
-		self.inner.manager.incremental_encoding_for_buffer(buffer)
+		let path = buffer.path()?;
+		let language = buffer.file_type()?;
+		self.incremental_encoding(&path, &language)
 	}
 
 	pub fn offset_encoding_for_buffer(&self, buffer: &Buffer) -> xeno_lsp::OffsetEncoding {
-		self.inner.manager.offset_encoding_for_buffer(buffer)
+		let Some(path) = buffer.path() else {
+			return OffsetEncoding::Utf16;
+		};
+		let Some(language) = buffer.file_type() else {
+			return OffsetEncoding::Utf16;
+		};
+
+		self.sync()
+			.registry()
+			.get(&language, &path)
+			.map(|client| client.offset_encoding())
+			.unwrap_or(OffsetEncoding::Utf16)
+	}
+
+	fn incremental_encoding(&self, path: &Path, language: &str) -> Option<OffsetEncoding> {
+		let client = self.sync().registry().get(language, path)?;
+		let caps = client.try_capabilities()?;
+		let supports_incremental = match &caps.text_document_sync {
+			Some(TextDocumentSyncCapability::Kind(kind)) => {
+				*kind == TextDocumentSyncKind::INCREMENTAL
+			}
+			Some(TextDocumentSyncCapability::Options(options)) => {
+				matches!(options.change, Some(TextDocumentSyncKind::INCREMENTAL))
+			}
+			None => false,
+		};
+
+		if supports_incremental {
+			Some(client.offset_encoding())
+		} else {
+			None
+		}
 	}
 
 	pub(crate) fn sync_manager(&self) -> &crate::lsp::sync_manager::LspSyncManager {
@@ -213,9 +347,21 @@ impl LspSystem {
 
 	pub(crate) fn trigger_completion(
 		&mut self,
-		request: crate::lsp::completion_controller::CompletionRequest,
+		request: xeno_lsp::CompletionRequest<crate::buffer::ViewId>,
 	) {
-		self.inner.completion.trigger(request);
+		use crate::lsp::LspUiEvent;
+		let ui_tx = self.inner.ui_tx.clone();
+		self.inner.completion.trigger(
+			request,
+			move |generation, buffer_id, replace_start, response| {
+				let _ = ui_tx.send(LspUiEvent::CompletionResult {
+					generation,
+					buffer_id,
+					replace_start,
+					response,
+				});
+			},
+		);
 	}
 
 	pub(crate) fn cancel_completion(&mut self) {
@@ -357,8 +503,6 @@ impl LspSystem {
 	}
 
 	/// Renders the LSP completion popup if active.
-	///
-	/// No-op when LSP feature is disabled.
 	pub fn render_completion_popup(
 		&self,
 		_editor: &crate::impls::Editor,

@@ -13,16 +13,15 @@
 use std::collections::BTreeMap;
 use std::ops::Range as StdRange;
 
-use xeno_lsp::OffsetEncoding;
 use xeno_lsp::lsp_types::{
 	CompletionItem, CompletionTextEdit, CompletionTriggerKind, InsertTextFormat, TextEdit,
 };
+use xeno_lsp::{CompletionRequest, CompletionTrigger, OffsetEncoding};
 use xeno_primitives::range::CharIdx;
 use xeno_primitives::transaction::Bias;
 use xeno_primitives::{Range, Selection};
 use xeno_registry_notifications::keys;
 
-use super::completion_controller::{CompletionRequest, CompletionTrigger};
 use super::completion_filter::{extract_query, filter_items};
 use super::events::map_completion_item_with_indices;
 use super::snippet::{Snippet, SnippetPlaceholder, parse_snippet};
@@ -92,13 +91,12 @@ impl Editor {
 			selection.from()
 		};
 		let request = CompletionRequest {
-			buffer_id: self.focused_view(),
+			id: self.focused_view(),
 			replace_start,
 			client,
 			uri,
 			position,
 			debounce: trigger.debounce(),
-			ui_tx: self.state.lsp.ui_tx(),
 			trigger_kind: completion_trigger_kind(&trigger, trigger_char),
 			trigger_character: trigger_char.map(|c| c.to_string()),
 		};

@@ -1,82 +1,17 @@
-//! Data-oriented edit operation executor.
-//!
-//! This module provides a single executor function that processes [`EditOp`]
-//! records. All text editing operations are expressed as data and processed
-//! uniformly by this executor.
-//!
-//! # Compile -> Commit Pattern
-//!
-//! The executor compiles EditOp into an EditPlan with resolved policies, then
-//! builds a transaction and applies it via `apply_edit()`. This ensures:
-//!
-//! - Undo recording happens inside `commit()` with proper transaction context
-//! - View snapshots are captured by `apply_edit()` before the transaction
-//! - Syntax updates use the lazy `MarkDirty` policy by default
-//!
-//! # Execution Phases
-//!
-//! 1. Compile: Resolve undo/syntax policies based on transform type
-//! 2. Pre-effects: Execute yank, extend selection
-//! 3. Selection modification: Adjust selection before transform
-//! 4. Build transaction: Create transaction from the transform
-//! 5. Apply: Call `apply_edit()` which handles undo and commits the transaction
-//! 6. Post-effects: Mode change, cursor adjustment
-
 use xeno_primitives::range::{Direction as MoveDir, Range};
 use xeno_primitives::transaction::Change;
-use xeno_primitives::{EditOrigin, Selection, Transaction, UndoPolicy};
+use xeno_primitives::{Selection, Transaction};
 use xeno_registry::ModeAccess;
 use xeno_registry::edit_op::{
-	CharMapKind, CursorAdjust, EditOp, EditPlan, PostEffect, PreEffect, SelectionOp, TextTransform,
+	CharMapKind, CursorAdjust, EditPlan, PostEffect, PreEffect, SelectionOp, TextTransform,
 };
 
-use super::Editor;
+use super::super::Editor;
 use crate::movement::{self, WordType};
 
 impl Editor {
-	/// Executes a data-oriented edit operation.
-	///
-	/// Compiles the operation into an [`EditPlan`] with resolved policies,
-	/// then executes it using the compile -> commit pattern.
-	pub fn execute_edit_op(&mut self, op: EditOp) {
-		let plan = op.compile();
-		self.execute_edit_plan(plan);
-	}
-
-	/// Executes a compiled edit plan using the compile -> commit pattern.
-	pub fn execute_edit_plan(&mut self, plan: EditPlan) {
-		if plan.op.modifies_text() && !self.guard_readonly() {
-			return;
-		}
-
-		for pre in &plan.op.pre {
-			self.apply_pre_effect(pre);
-		}
-
-		if !self.apply_selection_op(&plan.op.selection) {
-			return;
-		}
-
-		let original_cursor = self.buffer().cursor;
-
-		if let Some((tx, new_selection)) = self.build_transform_transaction(&plan) {
-			let buffer_id = self.focused_view();
-			self.apply_edit(
-				buffer_id,
-				&tx,
-				Some(new_selection),
-				plan.undo_policy,
-				EditOrigin::Internal("edit_op"),
-			);
-		}
-
-		for post in &plan.op.post {
-			self.apply_post_effect(post, original_cursor);
-		}
-	}
-
 	/// Applies a pre-effect before the main transformation.
-	fn apply_pre_effect(&mut self, effect: &PreEffect) {
+	pub(super) fn apply_pre_effect(&mut self, effect: &PreEffect) {
 		match effect {
 			PreEffect::Yank => {
 				self.yank_selection();
@@ -88,7 +23,7 @@ impl Editor {
 	///
 	/// Returns `false` if the operation produced no valid targets (e.g., backspace
 	/// at document start), signaling that the transform should be skipped.
-	fn apply_selection_op(&mut self, op: &SelectionOp) -> bool {
+	pub(super) fn apply_selection_op(&mut self, op: &SelectionOp) -> bool {
 		match op {
 			SelectionOp::None => true,
 
@@ -304,7 +239,7 @@ impl Editor {
 	}
 
 	/// Applies a new selection. Returns `false` if selection is `None`.
-	fn apply_selection_or_abort(&mut self, new_sel: Option<Selection>) -> bool {
+	pub(super) fn apply_selection_or_abort(&mut self, new_sel: Option<Selection>) -> bool {
 		match new_sel {
 			Some(sel) => {
 				self.buffer_mut().set_selection(sel);
@@ -321,7 +256,10 @@ impl Editor {
 	///
 	/// Meta transforms (Undo/Redo) are executed directly since they don't produce
 	/// a transaction that can be composed with apply_edit.
-	fn build_transform_transaction(&mut self, plan: &EditPlan) -> Option<(Transaction, Selection)> {
+	pub(super) fn build_transform_transaction(
+		&mut self,
+		plan: &EditPlan,
+	) -> Option<(Transaction, Selection)> {
 		match &plan.op.transform {
 			TextTransform::None => None,
 			TextTransform::Delete => self.build_delete_transaction(),
@@ -346,7 +284,7 @@ impl Editor {
 	///
 	/// For [`CursorAdjust::ToStart`] and [`CursorAdjust::ToEnd`], the cursor is already
 	/// positioned by the insert operation, so no action is needed.
-	fn apply_post_effect(&mut self, effect: &PostEffect, original_cursor: usize) {
+	pub(super) fn apply_post_effect(&mut self, effect: &PostEffect, original_cursor: usize) {
 		match effect {
 			PostEffect::SetMode(mode) => {
 				self.set_mode(mode.clone());
@@ -389,10 +327,7 @@ impl Editor {
 	}
 
 	/// Builds a delete transaction for the current selection.
-	///
-	/// For point selections, [`Transaction::delete`] uses [`Range::to_inclusive`] to include
-	/// the character at cursor. At document end, falls back to deleting the character before.
-	fn build_delete_transaction(&self) -> Option<(Transaction, Selection)> {
+	pub(super) fn build_delete_transaction(&self) -> Option<(Transaction, Selection)> {
 		let buffer = self.buffer();
 		buffer.with_doc(|doc| {
 			let len = doc.content().len_chars();
@@ -408,13 +343,18 @@ impl Editor {
 	}
 
 	/// Builds an insert transaction for the given text.
-	fn build_insert_transaction(&mut self, text: &str) -> Option<(Transaction, Selection)> {
+	pub(super) fn build_insert_transaction(
+		&mut self,
+		text: &str,
+	) -> Option<(Transaction, Selection)> {
 		let buffer = self.buffer_mut();
 		Some(buffer.prepare_insert(text))
 	}
 
 	/// Builds a newline+indent insert transaction.
-	fn build_newline_with_indent_transaction(&mut self) -> Option<(Transaction, Selection)> {
+	pub(super) fn build_newline_with_indent_transaction(
+		&mut self,
+	) -> Option<(Transaction, Selection)> {
 		let indent = {
 			let buffer = self.buffer();
 			let cursor = buffer.cursor;
@@ -431,11 +371,10 @@ impl Editor {
 	}
 
 	/// Builds a replace transaction (delete selection + insert replacement).
-	///
-	/// Uses [`Transaction::change`] to build a single transaction that replaces
-	/// each selection range with the given text. If the selection is empty,
-	/// falls back to a simple insert.
-	fn build_replace_transaction(&mut self, replacement: &str) -> Option<(Transaction, Selection)> {
+	pub(super) fn build_replace_transaction(
+		&mut self,
+		replacement: &str,
+	) -> Option<(Transaction, Selection)> {
 		if self.buffer().selection.primary().is_empty() {
 			return self.build_insert_transaction(replacement);
 		}
@@ -454,7 +393,7 @@ impl Editor {
 	}
 
 	/// Builds a character mapping transaction (e.g., uppercase, lowercase, swap case).
-	fn build_char_mapping_transaction(
+	pub(super) fn build_char_mapping_transaction(
 		&self,
 		kind: CharMapKind,
 	) -> Option<(Transaction, Selection)> {
@@ -486,9 +425,10 @@ impl Editor {
 	}
 
 	/// Builds a replace-each-char transaction (e.g., vim's `r` command).
-	///
-	/// For empty selections, replaces the single character at cursor position.
-	fn build_replace_each_char_transaction(&self, ch: char) -> Option<(Transaction, Selection)> {
+	pub(super) fn build_replace_each_char_transaction(
+		&self,
+		ch: char,
+	) -> Option<(Transaction, Selection)> {
 		let buffer = self.buffer();
 		let primary = buffer.selection.primary();
 		let from = primary.from();
@@ -516,11 +456,10 @@ impl Editor {
 	}
 
 	/// Builds a deindent transaction.
-	///
-	/// Removes up to `max_spaces` leading spaces from the current line and
-	/// adjusts cursor position accordingly. Returns `None` if there are no
-	/// leading spaces to remove.
-	fn build_deindent_transaction(&self, max_spaces: usize) -> Option<(Transaction, Selection)> {
+	pub(super) fn build_deindent_transaction(
+		&self,
+		max_spaces: usize,
+	) -> Option<(Transaction, Selection)> {
 		let buffer = self.buffer();
 		buffer.with_doc(|doc| {
 			let line = doc.content().char_to_line(buffer.cursor);
@@ -551,25 +490,5 @@ impl Editor {
 
 			Some((tx, Selection::point(new_cursor)))
 		})
-	}
-
-	/// Replaces the current selection with the given text.
-	///
-	/// This is a helper for text replacement operations.
-	pub fn replace_selection(&mut self, text: &str) {
-		if !self.guard_readonly() {
-			return;
-		}
-
-		if let Some((tx, new_selection)) = self.build_replace_transaction(text) {
-			let buffer_id = self.focused_view();
-			self.apply_edit(
-				buffer_id,
-				&tx,
-				Some(new_selection),
-				UndoPolicy::Record,
-				EditOrigin::Internal("replace_selection"),
-			);
-		}
 	}
 }

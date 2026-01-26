@@ -135,6 +135,13 @@ pub mod sync;
 #[cfg(feature = "position")]
 pub use sync::{DocumentSync, DocumentSyncEventHandler};
 
+#[cfg(feature = "client")]
+#[cfg_attr(docsrs, doc(cfg(feature = "client")))]
+pub mod session;
+
+#[cfg(feature = "client")]
+pub use session::{CompletionController, CompletionRequest, CompletionTrigger, LspManager};
+
 /// A convenient type alias for `Result` with `E` = [`enum@crate::Error`].
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 

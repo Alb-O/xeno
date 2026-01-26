@@ -1,78 +1,26 @@
-//! Buffer rendering context and cursor styling.
-
 use std::collections::HashSet;
 
 use unicode_width::UnicodeWidthChar;
 use xeno_primitives::Mode;
 use xeno_primitives::range::CharIdx;
 use xeno_registry::gutter::GutterAnnotations;
-use xeno_registry::themes::{SyntaxStyles, Theme};
-use xeno_runtime_language::LanguageLoader;
+use xeno_registry::themes::SyntaxStyles;
 use xeno_runtime_language::highlight::{HighlightSpan, HighlightStyles};
 use xeno_tui::layout::Rect;
 use xeno_tui::style::{Modifier, Style};
 use xeno_tui::text::{Line, Span};
 use xeno_tui::widgets::Paragraph;
 
-use super::cell_style::{CellStyleInput, CursorStyleSet, resolve_cell_style};
-use super::diagnostics::{DiagnosticLineMap, DiagnosticRangeMap};
-use super::diff::{DiffLineNumbers, compute_diff_line_numbers, diff_line_bg};
-use super::fill::FillConfig;
-use super::gutter::GutterLayout;
-use super::style_layers::{LineStyleContext, blend};
+use super::super::cell_style::{CellStyleInput, resolve_cell_style};
+use super::super::diagnostics::DiagnosticLineMap;
+use super::super::diff::{compute_diff_line_numbers, diff_line_bg};
+use super::super::fill::FillConfig;
+use super::super::gutter::GutterLayout;
+use super::super::style_layers::{LineStyleContext, blend};
+use super::types::{BufferRenderContext, CursorStyles, RenderResult};
 use crate::buffer::Buffer;
-use crate::extensions::StyleOverlays;
 use crate::render::wrap::wrap_line;
 use crate::window::GutterSelector;
-
-/// Result of rendering a buffer's content.
-pub struct RenderResult {
-	/// The rendered paragraph widget ready for display.
-	pub widget: Paragraph<'static>,
-}
-
-/// Context for rendering a buffer.
-///
-/// Contains all shared resources needed to render any buffer.
-/// This allows the same rendering logic to be applied to any buffer
-/// in the editor, enabling proper split view support.
-pub struct BufferRenderContext<'a> {
-	/// The current theme.
-	pub theme: &'a Theme,
-	/// Language loader for syntax highlighting.
-	pub language_loader: &'a LanguageLoader,
-	/// Style overlays (e.g., zen mode dimming).
-	pub style_overlays: &'a StyleOverlays,
-	/// Optional diagnostic line map for gutter signs.
-	pub diagnostics: Option<&'a DiagnosticLineMap>,
-	/// Optional diagnostic range map for underlines.
-	pub diagnostic_ranges: Option<&'a DiagnosticRangeMap>,
-}
-
-/// Cursor styling configuration for rendering.
-pub struct CursorStyles {
-	/// Style for the primary (main) cursor.
-	pub primary: Style,
-	/// Style for secondary (additional) cursors in multi-cursor mode.
-	pub secondary: Style,
-	/// Base text style.
-	pub base: Style,
-	/// Selection highlight style.
-	pub selection: Style,
-	/// Style for cursors in unfocused buffers (dimmed like secondary cursors).
-	pub unfocused: Style,
-}
-
-impl CursorStyles {
-	/// Extracts the cursor style set for cell style resolution.
-	pub fn to_cursor_set(&self) -> CursorStyleSet {
-		CursorStyleSet {
-			primary: self.primary,
-			secondary: self.secondary,
-			unfocused: self.unfocused,
-		}
-	}
-}
 
 impl<'a> BufferRenderContext<'a> {
 	/// Creates cursor styling configuration based on theme and mode.
@@ -312,7 +260,7 @@ impl<'a> BufferRenderContext<'a> {
 			gutter
 		};
 
-		let diff_line_numbers: Option<Vec<DiffLineNumbers>> =
+		let diff_line_numbers =
 			is_diff_file.then(|| buffer.with_doc(|doc| compute_diff_line_numbers(doc.content())));
 
 		let gutter_layout = GutterLayout::from_selector(effective_gutter, total_lines, area.width);
@@ -349,13 +297,13 @@ impl<'a> BufferRenderContext<'a> {
 			let line_annotations = GutterAnnotations {
 				diagnostic_severity: self
 					.diagnostics
-					.and_then(|d| d.get(&current_line_idx).copied())
+					.and_then(|d: &DiagnosticLineMap| d.get(&current_line_idx).copied())
 					.unwrap_or(0),
 				sign: None,
 				diff_old_line: diff_nums.and_then(|dn| dn.old),
 				diff_new_line: diff_nums.and_then(|dn| dn.new),
 			};
-			let (line_start, line_end, line_text): (CharIdx, CharIdx, String) =
+			let (line_start, _line_end, line_text): (CharIdx, CharIdx, String) =
 				buffer.with_doc(|doc| {
 					let start = doc.content().line_to_char(current_line_idx);
 					let end = if current_line_idx + 1 < total_lines {
@@ -368,6 +316,14 @@ impl<'a> BufferRenderContext<'a> {
 				});
 			let line_text = line_text.trim_end_matches('\n');
 			let line_content_end: CharIdx = line_start + line_text.chars().count();
+			// We need the actual line end including newline for cursor at EOL checks
+			let line_end = buffer.with_doc(|doc| {
+				if current_line_idx + 1 < total_lines {
+					doc.content().line_to_char(current_line_idx + 1)
+				} else {
+					doc.content().len_chars()
+				}
+			});
 
 			let line_diff_bg = diff_line_bg(is_diff_file, line_text, self.theme);
 			let line_style = LineStyleContext {

@@ -1,18 +1,34 @@
-//! LSP completion controller with debounce and cancellation.
-
 use std::time::Duration;
 
+use lsp_types::{CompletionContext, CompletionResponse, CompletionTriggerKind, Position, Uri};
 use tokio::time::sleep;
 use tokio_util::sync::CancellationToken;
-use xeno_lsp::ClientHandle;
-use xeno_lsp::lsp_types::{CompletionContext, CompletionTriggerKind, Position, Uri};
 
-use super::events::LspUiEvent;
-use crate::buffer::ViewId;
+use crate::ClientHandle;
 
 pub enum CompletionTrigger {
 	Typing,
 	Manual,
+}
+
+impl CompletionTrigger {
+	pub fn debounce(&self) -> Duration {
+		match self {
+			CompletionTrigger::Typing => Duration::from_millis(80),
+			CompletionTrigger::Manual => Duration::ZERO,
+		}
+	}
+}
+
+pub struct CompletionRequest<T> {
+	pub id: T,
+	pub replace_start: usize,
+	pub client: ClientHandle,
+	pub uri: Uri,
+	pub position: Position,
+	pub debounce: Duration,
+	pub trigger_kind: CompletionTriggerKind,
+	pub trigger_character: Option<String>,
 }
 
 pub struct CompletionController {
@@ -22,6 +38,12 @@ pub struct CompletionController {
 
 struct InFlightCompletion {
 	cancel: CancellationToken,
+}
+
+impl Default for CompletionController {
+	fn default() -> Self {
+		Self::new()
+	}
 }
 
 impl CompletionController {
@@ -42,7 +64,11 @@ impl CompletionController {
 		}
 	}
 
-	pub fn trigger(&mut self, request: CompletionRequest) {
+	pub fn trigger<T, F>(&mut self, request: CompletionRequest<T>, callback: F)
+	where
+		T: Send + 'static,
+		F: FnOnce(u64, T, usize, Option<CompletionResponse>) + Send + 'static,
+	{
 		self.generation = self.generation.wrapping_add(1);
 		let generation = self.generation;
 		if let Some(in_flight) = self.in_flight.take() {
@@ -82,33 +108,7 @@ impl CompletionController {
 				return;
 			}
 
-			let _ = request.ui_tx.send(LspUiEvent::CompletionResult {
-				generation,
-				buffer_id: request.buffer_id,
-				replace_start: request.replace_start,
-				response,
-			});
+			callback(generation, request.id, request.replace_start, response);
 		});
-	}
-}
-
-pub struct CompletionRequest {
-	pub buffer_id: ViewId,
-	pub replace_start: usize,
-	pub client: ClientHandle,
-	pub uri: Uri,
-	pub position: Position,
-	pub debounce: Duration,
-	pub ui_tx: tokio::sync::mpsc::UnboundedSender<LspUiEvent>,
-	pub trigger_kind: CompletionTriggerKind,
-	pub trigger_character: Option<String>,
-}
-
-impl CompletionTrigger {
-	pub fn debounce(&self) -> Duration {
-		match self {
-			CompletionTrigger::Typing => Duration::from_millis(80),
-			CompletionTrigger::Manual => Duration::ZERO,
-		}
 	}
 }
