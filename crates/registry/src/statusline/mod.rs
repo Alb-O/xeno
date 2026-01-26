@@ -117,7 +117,15 @@ pub fn segments_for_position(
 /// Render all segments for a position.
 #[cfg(feature = "db")]
 pub fn render_position(position: SegmentPosition, ctx: &StatuslineContext) -> Vec<RenderedSegment> {
-	segments_for_position(position)
+	let mut segments: Vec<_> = segments_for_position(position).collect();
+	segments.sort_by(|a, b| {
+		b.meta
+			.priority
+			.cmp(&a.meta.priority)
+			.then_with(|| a.meta.name.cmp(b.meta.name))
+	});
+	segments
+		.into_iter()
 		.filter_map(|seg| (seg.render)(ctx))
 		.collect()
 }

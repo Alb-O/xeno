@@ -5,7 +5,7 @@ use crate::statusline::{RenderedSegment, SegmentStyle, segment};
 segment!(readonly, {
 	position: Left,
 	description: "Read-only buffer indicator",
-	priority: 5,
+	priority: 10,
 }, |ctx| {
 	if ctx.readonly {
 		Some(RenderedSegment {
