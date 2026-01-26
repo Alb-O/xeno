@@ -21,17 +21,12 @@
 //! ```
 
 use std::collections::HashMap;
-#[cfg(test)]
-use std::sync::atomic::{AtomicUsize, Ordering};
 
 use tracing::trace;
 use xeno_primitives::{CommitResult, EditOrigin, UndoPolicy};
 
 use super::{EditorUndoGroup, ViewSnapshot};
 use crate::buffer::{DocumentId, ViewId};
-
-#[cfg(test)]
-static FINALIZE_CALLS: AtomicUsize = AtomicUsize::new(0);
 
 /// Manages editor-level undo/redo stacks.
 ///
@@ -48,6 +43,8 @@ pub struct UndoManager {
 	undo_stack: Vec<EditorUndoGroup>,
 	/// Editor-level redo grouping stack.
 	redo_stack: Vec<EditorUndoGroup>,
+	#[cfg(test)]
+	pub finalize_calls: usize,
 }
 
 /// Pre-edit state captured by [`UndoManager::prepare_edit`].
@@ -205,7 +202,9 @@ impl UndoManager {
 	/// and clears the redo stack.
 	pub fn finalize_edit(&mut self, result: &CommitResult, prep: PreparedEdit) {
 		#[cfg(test)]
-		FINALIZE_CALLS.fetch_add(1, Ordering::SeqCst);
+		{
+			self.finalize_calls += 1;
+		}
 
 		if result.applied && prep.start_new_group && result.undo_recorded {
 			trace!(

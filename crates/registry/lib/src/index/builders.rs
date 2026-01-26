@@ -89,7 +89,7 @@ fn build_action_index_from_defs(actions: &[&'static ActionDef]) -> ActionRegistr
 	for action in sorted {
 		base.by_id.insert(action.id(), action);
 
-		if base.by_name.get(action.name()).is_none() {
+		if !base.by_name.contains_key(action.name()) {
 			let action_id = ActionId(by_action_id.len() as u32);
 			by_action_id.push(action);
 			name_to_id.insert(action.name(), action_id);
@@ -97,7 +97,7 @@ fn build_action_index_from_defs(actions: &[&'static ActionDef]) -> ActionRegistr
 		}
 
 		for alias in action.aliases() {
-			if base.by_name.get(alias).is_none() && base.by_alias.get(alias).is_none() {
+			if !base.by_name.contains_key(alias) && !base.by_alias.contains_key(alias) {
 				base.by_alias.insert(alias, action);
 				if let Some(&id) = name_to_id.get(action.name()) {
 					alias_to_id.insert(alias, id);

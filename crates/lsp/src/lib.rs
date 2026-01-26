@@ -137,6 +137,7 @@ pub use sync::{DocumentSync, DocumentSyncEventHandler};
 
 #[cfg(feature = "client")]
 #[cfg_attr(docsrs, doc(cfg(feature = "client")))]
+/// LSP session management (completion, etc.).
 pub mod session;
 
 #[cfg(feature = "client")]

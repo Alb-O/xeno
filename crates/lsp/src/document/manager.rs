@@ -426,6 +426,7 @@ impl DocumentStateManager {
 			.retain(|(sid, _), _| *sid != server_id.0);
 	}
 
+	/// Returns the number of pending changes for a document.
 	#[cfg(test)]
 	pub fn pending_change_count(&self, uri: &Uri) -> usize {
 		let key = self.uri_key(uri);

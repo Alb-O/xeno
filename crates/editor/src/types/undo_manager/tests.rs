@@ -75,17 +75,8 @@ impl UndoHost for TestHost {
 	fn notify_nothing_to_redo(&mut self) {}
 }
 
-fn reset_finalize_calls() {
-	FINALIZE_CALLS.store(0, Ordering::SeqCst);
-}
-
-fn finalize_calls() -> usize {
-	FINALIZE_CALLS.load(Ordering::SeqCst)
-}
-
 #[test]
 fn with_edit_pushes_group_on_apply() {
-	reset_finalize_calls();
 	let mut manager = UndoManager::new();
 	let mut host = TestHost::new();
 	let buffer_id = host.buffer_id;
@@ -101,12 +92,11 @@ fn with_edit_pushes_group_on_apply() {
 	assert!(applied);
 	assert_eq!(manager.undo_len(), 1);
 	assert_eq!(manager.redo_len(), 0);
-	assert_eq!(finalize_calls(), 1);
+	assert_eq!(manager.finalize_calls, 1);
 }
 
 #[test]
 fn with_edit_calls_finalize_on_failure() {
-	reset_finalize_calls();
 	let mut manager = UndoManager::new();
 	let mut host = TestHost::new();
 	let buffer_id = host.buffer_id;
@@ -122,5 +112,5 @@ fn with_edit_calls_finalize_on_failure() {
 	assert!(!applied);
 	assert_eq!(manager.undo_len(), 0);
 	assert_eq!(manager.redo_len(), 0);
-	assert_eq!(finalize_calls(), 1);
+	assert_eq!(manager.finalize_calls, 1);
 }
