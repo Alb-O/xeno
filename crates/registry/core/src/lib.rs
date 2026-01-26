@@ -12,6 +12,7 @@
 //! - [`RegistryBuilder`]: Fluent builder for constructing indexes
 
 use std::cmp::Ordering;
+
 use thiserror::Error;
 
 mod index;
