@@ -108,7 +108,7 @@ impl std::fmt::Display for InsertFatal {
 impl std::error::Error for InsertFatal {}
 
 /// Records a non-fatal collision (name/alias conflicts resolved by policy).
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Collision {
 	/// What kind of key collided.
 	pub kind: KeyKind,
@@ -255,30 +255,29 @@ pub enum DuplicatePolicy {
 	/// Panic with detailed error message.
 	///
 	/// Best for debug builds and CI - fails fast and loud.
-	#[default]
 	Panic,
 	/// Keep the first definition seen for a key.
-	///
-	/// With default priority sorting, this means highest-priority wins.
 	FirstWins,
 	/// Overwrite with the last definition seen.
-	///
-	/// With default priority sorting, this means lowest-priority wins
-	/// (usually not what you want).
 	LastWins,
+	/// Select winner by priority (higher wins), then source rank, then ID.
+	///
+	/// This provides a stable, deterministic total order for collision resolution.
+	#[default]
+	ByPriority,
 }
 
 impl DuplicatePolicy {
 	/// Returns the appropriate policy based on build configuration.
 	///
 	/// - Debug builds: `Panic` for immediate feedback
-	/// - Release builds: `FirstWins` for graceful degradation
+	/// - Release builds: `ByPriority` for deterministic resolution
 	#[inline]
 	pub fn for_build() -> Self {
 		if cfg!(debug_assertions) {
 			DuplicatePolicy::Panic
 		} else {
-			DuplicatePolicy::FirstWins
+			DuplicatePolicy::ByPriority
 		}
 	}
 }
@@ -310,6 +309,18 @@ pub struct RegistryIndex<T: RegistryEntry + 'static> {
 	items_effective: Vec<&'static T>,
 	/// Recorded collisions for diagnostics.
 	collisions: Vec<Collision>,
+}
+
+impl<T: RegistryEntry + 'static> Clone for RegistryIndex<T> {
+	fn clone(&self) -> Self {
+		Self {
+			by_id: self.by_id.clone(),
+			by_key: self.by_key.clone(),
+			items_all: self.items_all.clone(),
+			items_effective: self.items_effective.clone(),
+			collisions: self.collisions.clone(),
+		}
+	}
 }
 
 impl<T: RegistryEntry + 'static> RegistryIndex<T> {
@@ -474,16 +485,13 @@ impl<T: RegistryEntry + 'static> RegistryBuilder<T> {
 		self
 	}
 
-	/// Sorts definitions by priority (descending), then name, then id.
+	/// Sorts definitions using the global total order.
 	///
-	/// This is the default sort order for most registries.
+	/// 1. Priority (Descending)
+	/// 2. Source Rank (Builtin > Crate > Runtime)
+	/// 3. ID (Lexical higher wins)
 	pub fn sort_default(mut self) -> Self {
-		self.defs.sort_by(|a, b| {
-			b.priority()
-				.cmp(&a.priority())
-				.then_with(|| a.name().cmp(b.name()))
-				.then_with(|| a.id().cmp(b.id()))
-		});
+		self.defs.sort_by(|a, b| b.total_order_cmp(a));
 		self
 	}
 
@@ -598,6 +606,9 @@ impl<T: RegistryEntry + 'static> RegistryBuilder<T> {
 			},
 			DuplicatePolicy::FirstWins => |_, _, _, _| false,
 			DuplicatePolicy::LastWins => |_, _, _, _| true,
+			DuplicatePolicy::ByPriority => |_, _, existing, new| {
+				new.total_order_cmp(existing) == Ordering::Greater
+			},
 		}
 	}
 }
@@ -623,7 +634,13 @@ impl<T: RegistryEntry + 'static> KeyStore<T> for BuildStore<T> {
 	}
 
 	fn insert_id(&mut self, id: &'static str, def: &'static T) -> Option<&'static T> {
-		self.by_id.insert(id, def)
+		match self.by_id.entry(id) {
+			std::collections::hash_map::Entry::Vacant(v) => {
+				v.insert(def);
+				None
+			}
+			std::collections::hash_map::Entry::Occupied(o) => Some(*o.get()),
+		}
 	}
 
 	fn push_collision(&mut self, c: Collision) {
@@ -643,6 +660,17 @@ struct RuntimeExtras<T: RegistryEntry + 'static> {
 	by_key: HashMap<&'static str, &'static T>,
 	/// Recorded collisions for diagnostics.
 	collisions: Vec<Collision>,
+}
+
+impl<T: RegistryEntry + 'static> Clone for RuntimeExtras<T> {
+	fn clone(&self) -> Self {
+		Self {
+			items: self.items.clone(),
+			by_id: self.by_id.clone(),
+			by_key: self.by_key.clone(),
+			collisions: self.collisions.clone(),
+		}
+	}
 }
 
 impl<T: RegistryEntry + 'static> Default for RuntimeExtras<T> {
@@ -740,6 +768,16 @@ pub struct RuntimeRegistry<T: RegistryEntry + 'static> {
 	policy: DuplicatePolicy,
 }
 
+macro_rules! poison_policy {
+	($lock:expr, $method:ident) => {
+		if cfg!(any(test, debug_assertions)) {
+			$lock.$method().unwrap_or_else(|e| e.into_inner())
+		} else {
+			$lock.$method().expect("registry lock poisoned")
+		}
+	};
+}
+
 impl<T: RegistryEntry + 'static> RuntimeRegistry<T> {
 	/// Creates a new runtime registry with the given builtins.
 	pub fn new(label: &'static str, builtins: RegistryIndex<T>) -> Self {
@@ -770,7 +808,7 @@ impl<T: RegistryEntry + 'static> RuntimeRegistry<T> {
 	/// Uses ID-first, extras-first lookup: `extras.by_id` → `builtins.by_id` →
 	/// `extras.by_key` → `builtins.by_key`.
 	pub fn get(&self, key: &str) -> Option<&'static T> {
-		let extras = self.extras.read().expect("poisoned");
+		let extras = poison_policy!(self.extras, read);
 
 		extras
 			.by_id
@@ -783,7 +821,7 @@ impl<T: RegistryEntry + 'static> RuntimeRegistry<T> {
 
 	/// Returns the definition for a given ID, if it exists.
 	pub fn get_by_id(&self, id: &str) -> Option<&'static T> {
-		let extras = self.extras.read().expect("poisoned");
+		let extras = poison_policy!(self.extras, read);
 		extras
 			.by_id
 			.get(id)
@@ -810,12 +848,13 @@ impl<T: RegistryEntry + 'static> RuntimeRegistry<T> {
 			return false;
 		}
 
-		let mut extras = self.extras.write().expect("poisoned");
+		let mut extras_guard = poison_policy!(self.extras, write);
 
-		if extras.items.iter().any(|&e| std::ptr::eq(e, def)) {
+		if extras_guard.items.iter().any(|&e| std::ptr::eq(e, def)) {
 			return false;
 		}
 
+		let mut extras = (*extras_guard).clone();
 		let meta = def.meta();
 		let choose_winner = self.make_choose_winner();
 		let mut store = RuntimeStore {
@@ -859,6 +898,7 @@ impl<T: RegistryEntry + 'static> RuntimeRegistry<T> {
 		}
 
 		extras.items.push(def);
+		*extras_guard = extras;
 		true
 	}
 
@@ -875,17 +915,20 @@ impl<T: RegistryEntry + 'static> RuntimeRegistry<T> {
 			},
 			DuplicatePolicy::FirstWins => |_, _, _, _| false,
 			DuplicatePolicy::LastWins => |_, _, _, _| true,
+			DuplicatePolicy::ByPriority => |_, _, existing, new| {
+				new.total_order_cmp(existing) == Ordering::Greater
+			},
 		}
 	}
 
 	/// Returns the number of unique definitions (builtins + extras).
 	pub fn len(&self) -> usize {
-		self.builtins.len() + self.extras.read().expect("poisoned").items.len()
+		self.builtins.len() + poison_policy!(self.extras, read).items.len()
 	}
 
 	/// Returns true if the registry contains no definitions.
 	pub fn is_empty(&self) -> bool {
-		self.builtins.is_empty() && self.extras.read().expect("poisoned").items.is_empty()
+		self.builtins.is_empty() && poison_policy!(self.extras, read).items.is_empty()
 	}
 
 	/// Returns all definitions (builtins followed by extras).
@@ -894,8 +937,16 @@ impl<T: RegistryEntry + 'static> RuntimeRegistry<T> {
 	/// call won't be reflected.
 	pub fn all(&self) -> Vec<&'static T> {
 		let mut items: Vec<_> = self.builtins.items().to_vec();
-		items.extend(self.extras.read().expect("poisoned").items.iter().copied());
+		items.extend(poison_policy!(self.extras, read).items.iter().copied());
 		items
+	}
+
+/// Returns definitions added at runtime.
+	///
+	/// Useful for secondary dispatch maps that need to selectively process
+	/// runtime extensions without re-scanning the immutable builtin set.
+	pub fn extras_items(&self) -> Vec<&'static T> {
+		poison_policy!(self.extras, read).items.clone()
 	}
 
 	/// Returns the underlying builtins index.
@@ -918,7 +969,7 @@ impl<T: RegistryEntry + 'static> RuntimeRegistry<T> {
 	/// Returns all recorded collisions (builtins + runtime).
 	pub fn collisions(&self) -> Vec<Collision> {
 		let mut collisions = self.builtins.collisions().to_vec();
-		collisions.extend(self.extras.read().expect("poisoned").collisions.iter().cloned());
+		collisions.extend(poison_policy!(self.extras, read).collisions.iter().cloned());
 		collisions
 	}
 }
@@ -949,9 +1000,16 @@ impl<T: RegistryEntry + 'static> KeyStore<T> for RuntimeStore<'_, T> {
 	}
 
 	fn insert_id(&mut self, id: &'static str, def: &'static T) -> Option<&'static T> {
-		self.builtins
-			.get_by_id(id)
-			.or_else(|| self.extras.by_id.insert(id, def))
+		if let Some(builtin) = self.builtins.get_by_id(id) {
+			return Some(builtin);
+		}
+		match self.extras.by_id.entry(id) {
+			std::collections::hash_map::Entry::Vacant(v) => {
+				v.insert(def);
+				None
+			}
+			std::collections::hash_map::Entry::Occupied(o) => Some(*o.get()),
+		}
 	}
 
 	fn push_collision(&mut self, c: Collision) {
@@ -969,7 +1027,7 @@ pub fn build_map<T, K, F>(
 	mut key_of: F,
 ) -> HashMap<K, &'static T>
 where
-	T: 'static,
+	T: RegistryEntry + 'static,
 	K: Eq + std::hash::Hash + std::fmt::Debug,
 	F: FnMut(&'static T) -> Option<K>,
 {
@@ -990,6 +1048,11 @@ where
 				DuplicatePolicy::LastWins => {
 					map.insert(key, item);
 				}
+				DuplicatePolicy::ByPriority => {
+					if item.total_order_cmp(existing) == Ordering::Greater {
+						map.insert(key, item);
+					}
+				}
 			}
 		} else {
 			map.insert(key, item);
@@ -1005,6 +1068,7 @@ mod tests {
 	use crate::{RegistryMeta, RegistrySource};
 
 	/// Test definition type.
+	#[derive(Debug, PartialEq, Eq)]
 	struct TestDef {
 		meta: RegistryMeta,
 	}
@@ -1488,5 +1552,181 @@ mod tests {
 		assert_eq!(collisions[0].existing_id, "runtime::first");
 		assert_eq!(collisions[0].new_id, "runtime::second");
 		assert_eq!(collisions[0].winner_id, "runtime::first"); // FirstWins
+	}
+
+	fn meta(id: &'static str, name: &'static str, priority: i16) -> RegistryMeta {
+		RegistryMeta {
+			id,
+			name,
+			aliases: &[],
+			description: "",
+			priority,
+			source: RegistrySource::Builtin,
+			required_caps: &[],
+			flags: 0,
+		}
+	}
+
+	fn meta_with(
+		id: &'static str,
+		name: &'static str,
+		priority: i16,
+		source: RegistrySource,
+	) -> RegistryMeta {
+		RegistryMeta {
+			id,
+			name,
+			aliases: &[],
+			description: "",
+			priority,
+			source,
+			required_caps: &[],
+			flags: 0,
+		}
+	}
+
+	fn leak_def(meta: RegistryMeta) -> &'static TestDef {
+		Box::leak(Box::new(TestDef { meta }))
+	}
+
+	#[test]
+	fn runtime_register_shadowing_is_atomic() {
+		let builtin = leak_def(RegistryMeta {
+			id: "builtin.id",
+			name: "builtin.name",
+			aliases: &[],
+			description: "",
+			priority: 0,
+			source: RegistrySource::Builtin,
+			required_caps: &[],
+			flags: 0,
+		});
+
+		let builtins = RegistryBuilder::new("t")
+			.include_aliases(false)
+			.push(builtin)
+			.build();
+
+		let rr = RuntimeRegistry::new("t", builtins);
+
+		// This def's *name* shadows an existing ID => fatal.
+		let bad = leak_def(RegistryMeta {
+			id: "runtime.id",
+			name: "builtin.id", // <-- shadows ID
+			aliases: &[],
+			description: "",
+			priority: 0,
+			source: RegistrySource::Runtime,
+			required_caps: &[],
+			flags: 0,
+		});
+
+		let before_all = rr.all();
+		let before_collisions = rr.collisions();
+
+		let res = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+			rr.register(bad);
+		}));
+		assert!(res.is_err());
+
+		// No ghost insert by id/name
+		assert!(rr.get_by_id("runtime.id").is_none());
+		assert!(rr.get("runtime.id").is_none());
+		assert_eq!(rr.all(), before_all);
+		assert_eq!(rr.collisions(), before_collisions);
+	}
+
+	#[test]
+	fn runtime_duplicate_id_does_not_overwrite() {
+		let builtins = RegistryBuilder::new("t").build();
+		let rr = RuntimeRegistry::new("t", builtins);
+
+		let a = leak_def(meta("dup.id", "a", 0));
+		let b = leak_def(meta("dup.id", "b", 0));
+
+		assert!(rr.register(a));
+		assert!(rr.get("dup.id").is_some());
+		assert!(std::ptr::eq(rr.get("dup.id").unwrap(), a));
+
+		let res = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+			rr.register(b);
+		}));
+		assert!(res.is_err());
+
+		// Still A
+		assert!(std::ptr::eq(rr.get("dup.id").unwrap(), a));
+	}
+
+	#[test]
+	fn runtime_bypriority_winner_is_order_independent() {
+		let builtins = RegistryBuilder::new("t").build();
+
+		let hi = leak_def(meta_with(
+			"id.hi",
+			"same",
+			100,
+			RegistrySource::Crate("x"),
+		));
+		let lo = leak_def(meta_with("id.lo", "same", 0, RegistrySource::Runtime));
+
+		// order 1
+		let rr1 = RuntimeRegistry::with_policy("t", builtins.clone(), DuplicatePolicy::ByPriority);
+		rr1.register(lo);
+		rr1.register(hi);
+		assert!(std::ptr::eq(rr1.get("same").unwrap(), hi));
+
+		// order 2
+		let rr2 = RuntimeRegistry::with_policy("t", builtins, DuplicatePolicy::ByPriority);
+		rr2.register(hi);
+		rr2.register(lo);
+		assert!(std::ptr::eq(rr2.get("same").unwrap(), hi));
+	}
+
+	#[test]
+	fn test_total_order_tie_breaker() {
+		let builtins = RegistryBuilder::new("t").build();
+		let rr = RuntimeRegistry::with_policy("t", builtins, DuplicatePolicy::ByPriority);
+
+		// 1. Priority (Higher wins)
+		let hi_prio = leak_def(meta_with("id.hi", "same", 100, RegistrySource::Runtime));
+		let lo_prio = leak_def(meta_with("id.lo", "same", 0, RegistrySource::Runtime));
+		rr.register(lo_prio);
+		rr.register(hi_prio);
+		assert!(std::ptr::eq(rr.get("same").unwrap(), hi_prio));
+
+		// 2. Source Rank (Builtin > Crate > Runtime)
+		let builtin_src = leak_def(meta_with("id.builtin", "src", 10, RegistrySource::Builtin));
+		let crate_src = leak_def(meta_with("id.crate", "src", 10, RegistrySource::Crate("x")));
+		let runtime_src = leak_def(meta_with("id.runtime", "src", 10, RegistrySource::Runtime));
+
+		let rr_src = RuntimeRegistry::with_policy(
+			"src",
+			RegistryIndex {
+				by_id: HashMap::from([("id.builtin", builtin_src)]),
+				by_key: HashMap::from([("src", builtin_src)]),
+				items_all: vec![builtin_src],
+				items_effective: vec![builtin_src],
+				collisions: vec![],
+			},
+			DuplicatePolicy::ByPriority,
+		);
+
+		rr_src.register(crate_src);
+		rr_src.register(runtime_src);
+
+		// Runtime should win over Crate and Builtin at same priority
+		assert!(std::ptr::eq(rr_src.get("src").unwrap(), runtime_src));
+
+		// 3. ID (Lexical higher wins)
+		let a_id = leak_def(meta_with("id.a", "lex", 10, RegistrySource::Runtime));
+		let b_id = leak_def(meta_with("id.b", "lex", 10, RegistrySource::Runtime));
+		let rr_lex = RuntimeRegistry::with_policy(
+			"lex",
+			RegistryBuilder::new("t").build(),
+			DuplicatePolicy::ByPriority,
+		);
+		rr_lex.register(a_id);
+		rr_lex.register(b_id);
+		assert!(std::ptr::eq(rr_lex.get("lex").unwrap(), b_id));
 	}
 }

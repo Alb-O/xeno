@@ -11,6 +11,7 @@
 //! - [`RegistryIndex`]: O(1) lookup index for static registries
 //! - [`RegistryBuilder`]: Fluent builder for constructing indexes
 
+use std::cmp::Ordering;
 use thiserror::Error;
 
 mod index;
@@ -259,6 +260,21 @@ pub enum RegistrySource {
 	Runtime,
 }
 
+impl RegistrySource {
+	/// Returns the precedence rank of the source (lower is higher precedence).
+	///
+	/// 1. Builtin (Standard editor features)
+	/// 2. Crate (Static libraries/plugins)
+	/// 3. Runtime (User config, dynamic plugins)
+	pub const fn rank(self) -> u8 {
+		match self {
+			Self::Builtin => 0,
+			Self::Crate(_) => 1,
+			Self::Runtime => 2,
+		}
+	}
+}
+
 impl core::fmt::Display for RegistrySource {
 	fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
 		match self {
@@ -286,7 +302,7 @@ impl core::fmt::Display for RegistrySource {
 /// - `source`: Origin (builtin, crate, runtime)
 /// - `required_caps`: Capabilities needed to execute
 /// - `flags`: Bitflags for behavior hints
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RegistryMeta {
 	/// Unique identifier (e.g., "xeno-stdlib::move_left").
 	pub id: &'static str,
@@ -411,6 +427,25 @@ pub trait RegistryEntry {
 	/// Returns behavior flags.
 	fn flags(&self) -> u32 {
 		self.meta().flags
+	}
+
+	/// Compares this entry against another using the global total order.
+	///
+	/// The total order is defined by:
+	/// 1. Priority: Higher number takes precedence.
+	/// 2. Source Precedence: Determined by [`RegistrySource::rank`].
+	/// 3. Identity: Lexical comparison of [`RegistryMeta::id`] as a final stable tie-breaker.
+	///
+	/// This order ensures deterministic behavior across all registry operations,
+	/// including build-time construction and runtime registration.
+	fn total_order_cmp(&self, other: &Self) -> Ordering
+	where
+		Self: Sized,
+	{
+		self.priority()
+			.cmp(&other.priority())
+			.then_with(|| self.source().rank().cmp(&other.source().rank()))
+			.then_with(|| self.id().cmp(other.id()))
 	}
 }
 

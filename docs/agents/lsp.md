@@ -15,18 +15,18 @@ Two-layer LSP stack; transport/client core is editor-agnostic, editor owns doc s
 
 ### Client-side (protocol/lifecycle)
 
-* **No implicit pre-init buffering**: if `ServerState != Ready`, API returns `Error::NotReady` (or caller must `wait_ready()`).
-* **Single-writer outbox**: exactly one task writes bytes to socket; all outbound traffic goes through `Outbox`.
-* **Total request correlation**: every sent request either completes a pending entry or triggers `ProtocolError` (unknown/duplicate IDs).
-* **Shutdown drains pending**: state→Dead forces all pending requests to resolve `ServiceStopped` (no hangs).
-* **Ready transition is explicit**: `initialize` request → set caps → `initialized` notification → *write barrier completes* → state = Ready.
+* No implicit pre-init buffering: if `ServerState != Ready`, API returns `Error::NotReady` (or caller must `wait_ready()`).
+* Single-writer outbox: exactly one task writes bytes to socket; all outbound traffic goes through `Outbox`.
+* Total request correlation: every sent request either completes a pending entry or triggers `ProtocolError` (unknown/duplicate IDs).
+* Shutdown drains pending: state→Dead forces all pending requests to resolve `ServiceStopped` (no hangs).
+* Ready transition is explicit: `initialize` request → set caps → `initialized` notification → *write barrier completes* → state = Ready.
 
 ### Editor-side (document correctness)
 
-* **SyncManager is the only edit buffer**: edits accumulate locally while server Starting/Dead/backpressured.
-* **Contiguity is explicit**: each commit carries `(prev_version, new_version)`; mismatch => force full.
-* **Incremental chain is valid or discarded**: if you can’t prove “server baseline version + contiguous commits”, you full-sync.
-* **“Clean” means “no unsent local deltas”** (transmitted), not “server processed notification” (not observable for notifications).
+* SyncManager is the only edit buffer: edits accumulate locally while server Starting/Dead/backpressured.
+* Contiguity is explicit: each commit carries `(prev_version, new_version)`; mismatch => force full.
+* Incremental chain is valid or discarded: if you can’t prove “server baseline version + contiguous commits”, you full-sync.
+* “Clean” means “no unsent local deltas” (transmitted), not “server processed notification” (not observable for notifications).
 
 ---
 
@@ -174,8 +174,8 @@ pub enum SyncPhase { Idle, Debouncing, InFlight }
 
 Two fence strengths, only one is explicit:
 
-* **WriteFence**: `WriteBarrier` completion; proves bytes written to transport.
-* **ProcessFence**: *implicit* via any request/response round-trip after flushing. Use this when you need “server has observed updates enough to answer.”
+* WriteFence: `WriteBarrier` completion; proves bytes written to transport.
+* ProcessFence: *implicit* via any request/response round-trip after flushing. Use this when you need “server has observed updates enough to answer.”
 
 Rule: didChange cleanliness uses WriteFence; feature correctness uses ProcessFence (request response).
 
@@ -312,14 +312,14 @@ Registry:
 
 ## Updated invariants list
 
-1. **No pre-init send**: client refuses unless Ready.
-2. **Edits never lost**: SyncManager accumulates until Ready.
-3. **Contiguity is validated**: commit carries `(prev,new)`; mismatch => full.
-4. **Write ordering**: single-writer + barrier ensures FIFO at transport.
-5. **No phantom “server ack”**: notifications don’t ack; use request response as process fence when required.
-6. **Dedupe**: one server per `(language, root_path)` (registry).
-7. **Timeout safety**: inflight write timeout breaks deadlocks.
-8. **Backpressure resilience**: bounded outbox + retry scheduling.
+1. No pre-init send: client refuses unless Ready.
+2. Edits never lost: SyncManager accumulates until Ready.
+3. Contiguity is validated: commit carries `(prev,new)`; mismatch => full.
+4. Write ordering: single-writer + barrier ensures FIFO at transport.
+5. No phantom “server ack”: notifications don’t ack; use request response as process fence when required.
+6. Dedupe: one server per `(language, root_path)` (registry).
+7. Timeout safety: inflight write timeout breaks deadlocks.
+8. Backpressure resilience: bounded outbox + retry scheduling.
 
 ---
 

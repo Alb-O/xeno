@@ -28,7 +28,7 @@
 use std::collections::HashMap;
 use std::sync::LazyLock;
 
-pub use xeno_registry_core::{RegistryBuilder, RegistryIndex, RegistryReg};
+pub use xeno_registry_core::{RegistryBuilder, RegistryIndex, RegistryReg, RuntimeRegistry};
 
 mod context;
 mod emit;
@@ -206,158 +206,74 @@ xeno_macro::define_events! {
 	},
 }
 
-/// Indexed collection of all builtin hooks.
-///
-/// # Event-Indexed Pattern
-///
-/// Unlike actions/commands which use [`RuntimeRegistry`] for name-based lookup,
-/// hooks use a different pattern because dispatch is by [`HookEvent`] enum, not
-/// by string name. The registry is split into three components:
-///
-/// | Component | Type | Purpose |
-/// |-----------|------|---------|
-/// | [`HOOKS`] | [`RegistryIndex`] | Name/ID lookup, iteration, introspection |
-/// | `BUILTIN_BY_EVENT` | `HashMap` | Compile-time hook dispatch by event |
-/// | `EXTRA_BY_EVENT` | `RwLock<HashMap>` | Runtime hook dispatch by event |
-///
-/// This separation is intentional: [`RegistryIndex`] handles identity and
-/// introspection, while the event maps handle efficient dispatch.
-///
-/// # Ordering Guarantees
-///
-/// Hooks within each event are sorted by `(priority asc, name asc)`:
-/// - Lower priority numbers run first
-/// - Name provides stable tie-breaking
-///
-/// This matches the emit behavior in [`emit`](crate::emit).
-///
-/// # Future Considerations
-///
-/// ## Index-Based References
-///
-/// Current implementation stores `Vec<&'static HookDef>` in event maps.
-/// An alternative is storing indices into [`HOOKS`]:
-///
-/// ```ignore
-/// pub struct HookIndex {
-///     pub hooks: RegistryIndex<HookDef>,
-///     pub by_event: HashMap<HookEvent, Vec<usize>>,
-/// }
-/// ```
-///
-/// Benefits: smaller memory footprint, no lifetime gymnastics, single source of truth.
-/// Tradeoffs: indirect lookup, more complex runtime registration.
-///
-/// Current approach is fine given hook count (~10 total). Reconsider if:
-/// - Hook count grows significantly (100+)
-/// - Memory pressure becomes a concern
-/// - Need to support hook removal
-///
-/// ## Array-Based Event Index
-///
-/// If [`HookEvent`] remains a small enum (~20 variants), consider:
-///
-/// ```ignore
-/// struct EventIndex {
-///     // Direct indexing, no hash lookup
-///     by_event: [Vec<&'static HookDef>; HookEvent::COUNT],
-/// }
-/// ```
-///
-/// Requires [`HookEvent`] to implement `as_usize()` and `COUNT`.
-///
-/// [`RuntimeRegistry`]: xeno_registry_core::RuntimeRegistry
-pub static HOOKS: LazyLock<RegistryIndex<HookDef>> = LazyLock::new(|| {
-	RegistryBuilder::new("hooks")
+/// Indexed collection of all hooks with runtime registration support.
+pub static HOOKS: LazyLock<RuntimeRegistry<HookDef>> = LazyLock::new(|| {
+	let builtins = RegistryBuilder::new("hooks")
 		.extend_inventory::<HookReg>()
 		.sort_by(|a, b| a.meta.name.cmp(b.meta.name))
-		.build()
+		.build();
+	RuntimeRegistry::new("hooks", builtins)
 });
 
 /// Builtin hooks grouped by event type for efficient dispatch.
 ///
-/// Hooks are sorted by `(priority asc, name asc)` within each event.
-/// See [`HOOKS`] for architectural rationale.
+/// Hooks are sorted by `(priority asc, name asc, id asc)` within each event.
 static BUILTIN_BY_EVENT: LazyLock<HashMap<HookEvent, Vec<&'static HookDef>>> =
 	LazyLock::new(|| {
 		let mut map: HashMap<HookEvent, Vec<&'static HookDef>> = HashMap::new();
-		for hook in HOOKS.iter() {
+		for hook in HOOKS.builtins().iter() {
 			map.entry(hook.event).or_default().push(hook);
 		}
-		// Sort each event's hooks by priority (asc), then name (asc)
+		// Sort each event's hooks by priority (asc), then name (asc), then id (asc)
 		for hooks in map.values_mut() {
 			hooks.sort_by(|a, b| {
 				a.meta
 					.priority
 					.cmp(&b.meta.priority)
 					.then_with(|| a.meta.name.cmp(b.meta.name))
+					.then_with(|| a.meta.id.cmp(b.meta.id))
 			});
 		}
 		map
 	});
 
-/// Runtime-registered hooks grouped by event type.
+/// Registers a new hook definition at runtime.
 ///
-/// Separated from [`BUILTIN_BY_EVENT`] to allow runtime registration without
-/// rebuilding the entire index. See [`HOOKS`] for architectural rationale.
-static EXTRA_BY_EVENT: LazyLock<std::sync::RwLock<HashMap<HookEvent, Vec<&'static HookDef>>>> =
-	LazyLock::new(|| std::sync::RwLock::new(HashMap::new()));
-
-/// Registers an extra hook definition at runtime.
+/// Returns `true` if the hook was successfully added, or `false` if a hook with
+/// the same identity is already registered (either as a builtin or a previous
+/// runtime addition).
 ///
-/// Returns `true` if the hook was added, `false` if already registered.
-/// Maintains sorted order `(priority asc, name asc)` within each event
-/// via `binary_search_by()` + `insert()`.
+/// # Panics
 ///
-/// # Future: Batch Registration
-///
-/// If plugin registration becomes batch-oriented, consider:
-///
-/// ```ignore
-/// pub fn register_hooks_batch(defs: &[&'static HookDef]) {
-///     // Add all to extras, rebuild by_event from scratch
-///     // More efficient than N sorted inserts
-/// }
-/// ```
+/// Panics if the hook violates registry invariants (e.g., name shadows an ID).
 pub fn register_hook(def: &'static HookDef) -> bool {
-	if HOOKS.items().iter().any(|&h| std::ptr::eq(h, def)) {
-		return false;
-	}
-
-	let mut extras = EXTRA_BY_EVENT.write().expect("poisoned");
-	let event_hooks = extras.entry(def.event).or_default();
-
-	if event_hooks.iter().any(|&h| std::ptr::eq(h, def)) {
-		return false;
-	}
-
-	// Insert in sorted position (priority asc, name asc)
-	let pos = event_hooks
-		.binary_search_by(|h| {
-			h.meta
-				.priority
-				.cmp(&def.meta.priority)
-				.then_with(|| h.meta.name.cmp(def.meta.name))
-		})
-		.unwrap_or_else(|i| i);
-	event_hooks.insert(pos, def);
-	true
+	HOOKS.register(def)
 }
 
-/// Returns hooks matching the given event, including runtime registrations.
+/// Returns all hooks registered for the given `event`, in execution order.
+///
+/// The execution order is strictly deterministic and follows the registry's
+/// global total order (Priority, Source, then ID). Both builtin and runtime-added
+/// hooks are included.
 pub fn hooks_for_event(event: HookEvent) -> Vec<&'static HookDef> {
-	let builtins = BUILTIN_BY_EVENT
+	let mut hooks: Vec<_> = BUILTIN_BY_EVENT
 		.get(&event)
 		.map(Vec::as_slice)
-		.unwrap_or(&[]);
-	let extras_guard = EXTRA_BY_EVENT.read().expect("poisoned");
-	let extras = extras_guard.get(&event).map(Vec::as_slice).unwrap_or(&[]);
+		.unwrap_or(&[])
+		.to_vec();
 
-	builtins
-		.iter()
-		.copied()
-		.chain(extras.iter().copied())
-		.collect()
+	// Integrate runtime extensions matching this event
+	hooks.extend(
+		HOOKS
+			.extras_items()
+			.into_iter()
+			.filter(|h| h.event == event),
+	);
+
+	// Ensure global consistency across builtin and runtime hooks
+	hooks.sort_by(|a, b| a.total_order_cmp(b));
+
+	hooks
 }
 
 /// Find all hooks registered for a specific event.
@@ -367,10 +283,5 @@ pub fn find_hooks(event: HookEvent) -> impl Iterator<Item = &'static HookDef> {
 
 /// List all registered hooks (builtins + runtime).
 pub fn all_hooks() -> impl Iterator<Item = &'static HookDef> {
-	let mut hooks: Vec<_> = HOOKS.items().to_vec();
-	let extras = EXTRA_BY_EVENT.read().expect("poisoned");
-	for event_hooks in extras.values() {
-		hooks.extend(event_hooks.iter().copied());
-	}
-	hooks.into_iter()
+	HOOKS.all().into_iter()
 }
