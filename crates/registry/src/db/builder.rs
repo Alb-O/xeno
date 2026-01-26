@@ -33,6 +33,18 @@ pub struct RegistryDbBuilder {
 	pub hooks: RegistryBuilder<HookDef>,
 }
 
+pub struct RegistryIndices {
+	pub actions: RegistryIndex<ActionDef>,
+	pub commands: RegistryIndex<CommandDef>,
+	pub motions: RegistryIndex<MotionDef>,
+	pub text_objects: RegistryIndex<TextObjectDef>,
+	pub options: RegistryIndex<OptionDef>,
+	pub themes: RegistryIndex<ThemeDef>,
+	pub gutters: RegistryIndex<GutterDef>,
+	pub statusline: RegistryIndex<StatuslineSegmentDef>,
+	pub hooks: RegistryIndex<HookDef>,
+}
+
 impl RegistryDbBuilder {
 	pub fn new() -> Self {
 		Self {
@@ -64,30 +76,18 @@ impl RegistryDbBuilder {
 		self.text_objects.push(def);
 	}
 
-	pub fn build(
-		self,
-	) -> (
-		RegistryIndex<ActionDef>,
-		RegistryIndex<CommandDef>,
-		RegistryIndex<MotionDef>,
-		RegistryIndex<TextObjectDef>,
-		RegistryIndex<OptionDef>,
-		RegistryIndex<ThemeDef>,
-		RegistryIndex<GutterDef>,
-		RegistryIndex<StatuslineSegmentDef>,
-		RegistryIndex<HookDef>,
-	) {
-		(
-			self.actions.build(),
-			self.commands.build(),
-			self.motions.build(),
-			self.text_objects.build(),
-			self.options.build(),
-			self.themes.build(),
-			self.gutters.build(),
-			self.statusline.build(),
-			self.hooks.build(),
-		)
+	pub fn build(self) -> RegistryIndices {
+		RegistryIndices {
+			actions: self.actions.build(),
+			commands: self.commands.build(),
+			motions: self.motions.build(),
+			text_objects: self.text_objects.build(),
+			options: self.options.build(),
+			themes: self.themes.build(),
+			gutters: self.gutters.build(),
+			statusline: self.statusline.build(),
+			hooks: self.hooks.build(),
+		}
 	}
 }
 

@@ -92,11 +92,10 @@ pub fn get_db() -> &'static RegistryDb {
 			tracing::error!("Registry plugins failed: {}", e);
 		}
 
-		let (actions, commands, motions, text_objects, options, themes, gutters, statusline, hooks) =
-			builder.build();
+		let indices = builder.build();
 
 		// Build numeric ID mapping for actions
-		let action_id_to_def = actions.items_all().to_vec();
+		let action_id_to_def = indices.actions.items_all().to_vec();
 
 		let mut notifications: Vec<_> =
 			inventory::iter::<crate::inventory::Reg<crate::notifications::NotificationDef>>
@@ -106,15 +105,15 @@ pub fn get_db() -> &'static RegistryDb {
 		notifications.sort_by_key(|d| d.id);
 
 		RegistryDb {
-			actions: RuntimeRegistry::new("actions", actions),
-			commands: RuntimeRegistry::new("commands", commands),
-			motions: RuntimeRegistry::new("motions", motions),
-			text_objects: RuntimeRegistry::new("text_objects", text_objects),
-			options: RuntimeRegistry::new("options", options),
-			themes: RuntimeRegistry::new("themes", themes),
-			gutters: RuntimeRegistry::new("gutters", gutters),
-			statusline: RuntimeRegistry::new("statusline", statusline),
-			hooks: RuntimeRegistry::new("hooks", hooks),
+			actions: RuntimeRegistry::new("actions", indices.actions),
+			commands: RuntimeRegistry::new("commands", indices.commands),
+			motions: RuntimeRegistry::new("motions", indices.motions),
+			text_objects: RuntimeRegistry::new("text_objects", indices.text_objects),
+			options: RuntimeRegistry::new("options", indices.options),
+			themes: RuntimeRegistry::new("themes", indices.themes),
+			gutters: RuntimeRegistry::new("gutters", indices.gutters),
+			statusline: RuntimeRegistry::new("statusline", indices.statusline),
+			hooks: RuntimeRegistry::new("hooks", indices.hooks),
 			action_id_to_def,
 			notifications,
 		}

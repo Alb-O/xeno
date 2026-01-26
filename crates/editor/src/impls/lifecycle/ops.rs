@@ -63,14 +63,18 @@ impl Editor {
 				.unwrap_or((None, false));
 
 			let result = self.state.syntax_manager.ensure_syntax(
-				doc_id,
-				version,
-				lang_id,
-				&content,
-				&mut syntax,
-				&mut dirty,
-				hotness,
-				&loader,
+				crate::syntax_manager::EnsureSyntaxContext {
+					doc_id,
+					doc_version: version,
+					language_id: lang_id,
+					content: &content,
+					hotness,
+					loader: &loader,
+				},
+				crate::syntax_manager::SyntaxSlot {
+					current: &mut syntax,
+					dirty: &mut dirty,
+				},
 			);
 
 			if let Some(buffer) = self.state.core.buffers.get_buffer(buffer_id) {

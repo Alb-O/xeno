@@ -189,6 +189,20 @@ impl Default for SyntaxManager {
 	}
 }
 
+pub struct EnsureSyntaxContext<'a> {
+	pub doc_id: DocumentId,
+	pub doc_version: u64,
+	pub language_id: Option<LanguageId>,
+	pub content: &'a Rope,
+	pub hotness: SyntaxHotness,
+	pub loader: &'a Arc<LanguageLoader>,
+}
+
+pub struct SyntaxSlot<'a> {
+	pub current: &'a mut Option<Syntax>,
+	pub dirty: &'a mut bool,
+}
+
 impl SyntaxManager {
 	pub fn new(max_concurrency: usize) -> Self {
 		Self {
@@ -234,30 +248,24 @@ impl SyntaxManager {
 	/// Polls or kicks background syntax parsing.
 	pub fn ensure_syntax(
 		&mut self,
-		doc_id: DocumentId,
-		doc_version: u64,
-		language_id: Option<LanguageId>,
-		content: &Rope,
-		current_syntax: &mut Option<Syntax>,
-		syntax_dirty: &mut bool,
-		hotness: SyntaxHotness,
-		loader: &Arc<LanguageLoader>,
+		ctx: EnsureSyntaxContext<'_>,
+		slot: SyntaxSlot<'_>,
 	) -> SyntaxPollResult {
-		let Some(lang_id) = language_id else {
+		let Some(lang_id) = ctx.language_id else {
 			return SyntaxPollResult::NoLanguage;
 		};
 
 		let now = Instant::now();
 		let st = self
 			.docs
-			.entry(doc_id)
+			.entry(ctx.doc_id)
 			.or_insert_with(|| DocState::new(now));
 
-		if matches!(hotness, SyntaxHotness::Visible | SyntaxHotness::Warm) {
+		if matches!(ctx.hotness, SyntaxHotness::Visible | SyntaxHotness::Warm) {
 			st.last_visible_at = now;
 		}
 
-		let bytes = content.len_bytes();
+		let bytes = ctx.content.len_bytes();
 		let tier = self.policy.tier_for_bytes(bytes);
 		let cfg = self.policy.cfg(tier);
 
@@ -266,17 +274,17 @@ impl SyntaxManager {
 			now,
 			st,
 			cfg.retention_hidden,
-			hotness,
-			current_syntax,
-			syntax_dirty,
+			ctx.hotness,
+			slot.current,
+			slot.dirty,
 		);
 
-		if current_syntax.is_some() && !*syntax_dirty {
+		if slot.current.is_some() && !*slot.dirty {
 			return SyntaxPollResult::Ready;
 		}
 
 		// If hidden and this tier forbids background parsing, bail early.
-		if !matches!(hotness, SyntaxHotness::Visible) && !cfg.parse_when_hidden {
+		if !matches!(ctx.hotness, SyntaxHotness::Visible) && !cfg.parse_when_hidden {
 			return SyntaxPollResult::Disabled;
 		}
 
@@ -291,9 +299,9 @@ impl SyntaxManager {
 			let done_version = done.doc_version;
 
 			match join {
-				Ok(Ok(syntax)) if done_version == doc_version => {
-					*current_syntax = Some(syntax);
-					*syntax_dirty = false;
+				Ok(Ok(syntax)) if done_version == ctx.doc_version => {
+					*slot.current = Some(syntax);
+					*slot.dirty = false;
 					st.cooldown_until = None;
 					return SyntaxPollResult::Ready;
 				}
@@ -306,12 +314,12 @@ impl SyntaxManager {
 					return SyntaxPollResult::CoolingDown;
 				}
 				Ok(Err(e)) => {
-					tracing::warn!(doc_id=?doc_id, tier=?tier, error=%e, "Background syntax parse failed");
+					tracing::warn!(doc_id=?ctx.doc_id, tier=?tier, error=%e, "Background syntax parse failed");
 					st.cooldown_until = Some(now + cfg.cooldown_on_error);
 					return SyntaxPollResult::CoolingDown;
 				}
 				Err(e) => {
-					tracing::warn!(doc_id=?doc_id, tier=?tier, error=%e, "Background syntax task panicked");
+					tracing::warn!(doc_id=?ctx.doc_id, tier=?tier, error=%e, "Background syntax task panicked");
 					st.cooldown_until = Some(now + cfg.cooldown_on_error);
 					return SyntaxPollResult::CoolingDown;
 				}
@@ -338,8 +346,8 @@ impl SyntaxManager {
 		};
 
 		// Spawn parse.
-		let loader = Arc::clone(loader);
-		let content = content.clone();
+		let loader = Arc::clone(ctx.loader);
+		let content = ctx.content.clone();
 		let opts = SyntaxOptions {
 			parse_timeout: cfg.parse_timeout,
 			injections: cfg.injections,
@@ -349,7 +357,7 @@ impl SyntaxManager {
 			Syntax::new(content.slice(..), lang_id, &loader, opts)
 		});
 		st.inflight = Some(PendingSyntaxTask {
-			doc_version,
+			doc_version: ctx.doc_version,
 			_started_at: now,
 			task,
 		});
