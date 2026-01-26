@@ -46,9 +46,7 @@ pub mod info_popup;
 pub mod input;
 /// Split layout management.
 pub mod layout;
-#[cfg(feature = "lsp")]
 pub mod lsp;
-pub mod lsp_system;
 /// Runtime metrics for observability.
 pub mod metrics;
 /// Cursor movement functions.
@@ -93,7 +91,7 @@ pub use completion::{
 };
 pub use editor_ctx::{EditorCapabilities, EditorContext, EditorOps, HandleOutcome, apply_effects};
 pub use impls::Editor;
-pub use lsp_system::LspSystem;
+pub use lsp::LspSystem;
 pub use movement::WordType;
 pub use msg::{Dirty, EditorMsg, IoMsg, LspMsg, MsgSender, ThemeMsg};
 pub use terminal_config::{TerminalConfig, TerminalSequence};
