@@ -2,4 +2,4 @@
 
 mod state;
 
-pub use state::{Prompt, PromptKind, PromptState, prompt_rect, prompt_style};
+pub use state::{Prompt, PromptKind, PromptState, SearchPromptRuntime, prompt_rect, prompt_style};

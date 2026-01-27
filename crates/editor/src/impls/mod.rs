@@ -41,6 +41,8 @@ mod messaging;
 mod navigation;
 /// Option resolution.
 mod options;
+/// Prompt overlay helpers.
+mod prompt;
 /// Search state and operations.
 mod search;
 /// Split view operations.

@@ -351,6 +351,16 @@ pub enum ViewEffect {
 		add_selection: bool,
 	},
 
+	/// Repeat last search.
+	SearchRepeat {
+		/// Flip direction relative to last search direction.
+		flip: bool,
+		/// Whether to add matches to existing selections.
+		add_selection: bool,
+		/// Whether to extend current selection.
+		extend: bool,
+	},
+
 	/// Use current selection as search pattern.
 	UseSelectionAsSearch,
 }
@@ -419,6 +429,12 @@ pub enum AppEffect {
 
 	/// Close all other buffers.
 	CloseOtherBuffers,
+
+	/// Open search prompt.
+	OpenSearchPrompt {
+		/// Search direction (false = forward, true = reverse).
+		reverse: bool,
+	},
 
 	/// Quit the editor.
 	Quit {

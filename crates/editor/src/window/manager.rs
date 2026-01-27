@@ -73,6 +73,11 @@ impl WindowManager {
 		self.windows.get_mut(&id)
 	}
 
+	/// Iterates all windows.
+	pub fn windows(&self) -> impl Iterator<Item = (WindowId, &Window)> {
+		self.windows.iter().map(|(id, w)| (*id, w))
+	}
+
 	/// Iterates floating windows in z-order from bottom to top.
 	pub fn floating_windows(&self) -> impl Iterator<Item = (WindowId, &FloatingWindow)> {
 		self.floating_order

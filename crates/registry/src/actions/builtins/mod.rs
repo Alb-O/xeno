@@ -16,6 +16,8 @@ pub mod palette;
 pub mod prefixes;
 /// Viewport scrolling actions.
 pub mod scroll;
+/// Search actions.
+pub mod search;
 /// Selection manipulation actions.
 pub mod selection_ops;
 /// Text object actions.

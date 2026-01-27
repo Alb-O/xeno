@@ -162,32 +162,54 @@ impl InputHandler {
 			return KeyResult::Consumed;
 		}
 
-		let key = self.process_shift_extend(key);
-
-		let Ok(node) = key.to_keymap() else {
-			self.reset_params();
-			return KeyResult::Unhandled;
+		// Helper: try lookup with a specific key, mutating key_sequence only if not None
+		let lookup_with = |k: Key, seq: &mut Vec<Node>| -> Option<LookupResult> {
+			let node = k.to_keymap().ok()?;
+			seq.push(node);
+			let res = registry.lookup(binding_mode, seq);
+			if matches!(res, LookupResult::None) {
+				seq.pop();
+				None
+			} else {
+				Some(res)
+			}
 		};
 
-		self.key_sequence.push(node.clone());
+		// Build primary key for lookup:
+		// - if shift+alphabetic char, canonicalize to uppercase-char-without-shift (Vim semantics)
+		// - otherwise try raw key as-is (so Shift+Tab etc can be bound)
+		let mut primary = key;
+		let mut extend_fallback: Option<Key> = None;
 
-		let lookup_result = registry.lookup(binding_mode, &self.key_sequence);
+		if let KeyCode::Char(c) = key.code {
+			if c.is_ascii_alphabetic() && key.modifiers.shift {
+				// Primary: uppercase, no shift (bindable as "N")
+				let mut k = key.drop_shift();
+				k.code = KeyCode::Char(c.to_ascii_uppercase());
+				primary = k;
 
-		let lookup_result = match (&lookup_result, key.code) {
-			(LookupResult::None, KeyCode::Char(c)) if c.is_ascii_uppercase() => {
-				self.key_sequence.pop();
-				let lowercase_key = Key {
-					code: KeyCode::Char(c.to_ascii_lowercase()),
-					modifiers: key.modifiers,
-				};
-				if let Ok(lowercase_node) = lowercase_key.to_keymap() {
-					self.key_sequence.push(lowercase_node);
-					registry.lookup(binding_mode, &self.key_sequence)
+				// Fallback: lowercase, no shift (bindable as "n") with extend=true
+				let mut fb = key.drop_shift();
+				fb.code = KeyCode::Char(c.to_ascii_lowercase());
+				extend_fallback = Some(fb);
+			} else if key.modifiers.shift {
+				extend_fallback = Some(key.drop_shift());
+			}
+		} else if key.modifiers.shift {
+			extend_fallback = Some(key.drop_shift());
+		}
+
+		let lookup_result = match lookup_with(primary, &mut self.key_sequence) {
+			None => {
+				// If primary failed and shift was held, fallback to extend semantics
+				if let Some(fallback) = extend_fallback {
+					self.extend = true;
+					lookup_with(fallback, &mut self.key_sequence).unwrap_or(LookupResult::None)
 				} else {
-					lookup_result
+					LookupResult::None
 				}
 			}
-			_ => lookup_result,
+			Some(res) => res,
 		};
 
 		match lookup_result {
@@ -235,26 +257,6 @@ impl InputHandler {
 		}
 	}
 
-	/// Processes shift modifier to set extend flag and normalize the key.
-	fn process_shift_extend(&mut self, key: Key) -> Key {
-		if let KeyCode::Char(c) = key.code
-			&& c.is_ascii_uppercase()
-		{
-			if key.modifiers.shift {
-				self.extend = true;
-			}
-			return key.drop_shift();
-		}
-
-		if key.modifiers.shift {
-			self.extend = true;
-			return key.drop_shift();
-		}
-
-		key
-	}
-
-	/// Processes a mouse event and returns the appropriate result.
 	pub fn handle_mouse(&mut self, event: MouseEvent) -> KeyResult {
 		match event {
 			MouseEvent::Press {

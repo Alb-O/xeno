@@ -13,8 +13,6 @@ pub(crate) mod events;
 #[cfg(feature = "lsp")]
 pub(crate) mod menu;
 #[cfg(feature = "lsp")]
-pub(crate) mod prompt;
-#[cfg(feature = "lsp")]
 pub(crate) mod signature_help;
 #[cfg(feature = "lsp")]
 pub(crate) mod snippet;

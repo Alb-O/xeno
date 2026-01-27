@@ -49,6 +49,15 @@ pub enum Window {
 	Floating(FloatingWindow),
 }
 
+impl Window {
+	pub fn buffer(&self) -> ViewId {
+		match self {
+			Window::Base(b) => b.focused_buffer,
+			Window::Floating(f) => f.buffer,
+		}
+	}
+}
+
 /// The main editor window with split layout.
 pub struct BaseWindow {
 	pub layout: Layout,

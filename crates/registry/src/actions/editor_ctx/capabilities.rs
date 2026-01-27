@@ -132,6 +132,12 @@ pub trait SearchAccess {
 	/// - `add_selection`: if true, adds match to selections instead of replacing
 	/// - `extend`: if true, extends the current selection to include the match
 	fn search(&mut self, direction: SeqDirection, add_selection: bool, extend: bool) -> bool;
+	/// Repeats the last search.
+	///
+	/// - `flip`: if true, searches in the opposite direction of the last search
+	/// - `add_selection`: if true, adds match to selections instead of replacing
+	/// - `extend`: if true, extends the current selection to include the match
+	fn search_repeat(&mut self, flip: bool, add_selection: bool, extend: bool) -> bool;
 	/// Uses the current selection text as the search pattern.
 	fn use_selection_as_pattern(&mut self) -> bool;
 	/// Returns the current search pattern, if any.

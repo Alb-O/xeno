@@ -5,6 +5,43 @@ use super::Editor;
 use crate::movement;
 
 impl Editor {
+	/// Applies a search hit by updating the cursor and selection.
+	///
+	/// Consistent with Vim, the cursor is placed at the start of the match.
+	///
+	/// # Arguments
+	///
+	/// * `hit` - The range of the matched text.
+	/// * `add_selection` - Whether to add the hit to existing selections.
+	/// * `extend` - Whether to extend the primary selection to the match start.
+	fn apply_search_hit(
+		&mut self,
+		hit: xeno_primitives::range::Range,
+		add_selection: bool,
+		extend: bool,
+	) {
+		let start = hit.min();
+		let end = hit.max();
+
+		self.buffer_mut().set_cursor(start);
+
+		if add_selection {
+			self.buffer_mut()
+				.selection
+				.push(xeno_primitives::range::Range::new(start, end));
+			return;
+		}
+
+		if extend {
+			let anchor = self.buffer().selection.primary().anchor;
+			self.buffer_mut()
+				.set_selection(Selection::single(anchor, start));
+		} else {
+			self.buffer_mut()
+				.set_selection(Selection::single(start, end));
+		}
+	}
+
 	/// Searches forward for the current pattern.
 	pub(crate) fn do_search_next(&mut self, add_selection: bool, extend: bool) -> bool {
 		let search_info = self
@@ -14,22 +51,14 @@ impl Editor {
 			.map(|(p, r)| (p.to_string(), r));
 		if let Some((pattern, _reverse)) = search_info {
 			let cursor_pos = self.buffer().cursor;
+			let from = cursor_pos.saturating_add(1);
+
 			let search_result = self.buffer().with_doc(|doc| {
-				movement::find_next(doc.content().slice(..), &pattern, cursor_pos + 1)
+				movement::find_next(doc.content().slice(..), &pattern, from)
 			});
 			match search_result {
 				Ok(Some(range)) => {
-					self.buffer_mut().set_cursor(range.head);
-					if add_selection {
-						self.buffer_mut().selection.push(range);
-					} else if extend {
-						let anchor = self.buffer().selection.primary().anchor;
-						self.buffer_mut()
-							.set_selection(Selection::single(anchor, range.max()));
-					} else {
-						self.buffer_mut()
-							.set_selection(Selection::single(range.min(), range.max()));
-					}
+					self.apply_search_hit(range, add_selection, extend);
 				}
 				Ok(None) => {
 					self.notify(keys::PATTERN_NOT_FOUND);
@@ -53,22 +82,14 @@ impl Editor {
 			.map(|(p, r)| (p.to_string(), r));
 		if let Some((pattern, _reverse)) = search_info {
 			let cursor_pos = self.buffer().cursor;
+			let from = cursor_pos.saturating_sub(1);
+
 			let search_result = self
 				.buffer()
-				.with_doc(|doc| movement::find_prev(doc.content().slice(..), &pattern, cursor_pos));
+				.with_doc(|doc| movement::find_prev(doc.content().slice(..), &pattern, from));
 			match search_result {
 				Ok(Some(range)) => {
-					self.buffer_mut().set_cursor(range.head);
-					if add_selection {
-						self.buffer_mut().selection.push(range);
-					} else if extend {
-						let anchor = self.buffer().selection.primary().anchor;
-						self.buffer_mut()
-							.set_selection(Selection::single(anchor, range.min()));
-					} else {
-						self.buffer_mut()
-							.set_selection(Selection::single(range.min(), range.max()));
-					}
+					self.apply_search_hit(range, add_selection, extend);
 				}
 				Ok(None) => {
 					self.notify(keys::PATTERN_NOT_FOUND);
@@ -254,5 +275,30 @@ impl Editor {
 			self.notify(keys::selections_kept(count));
 		}
 		false
+	}
+
+	/// Repeat last search. `flip=false` => same direction as last; `flip=true` => opposite.
+	pub(crate) fn do_search_repeat(
+		&mut self,
+		flip: bool,
+		add_selection: bool,
+		extend: bool,
+	) -> bool {
+		use xeno_registry::actions::SeqDirection;
+		let Some((_, reverse)) = self.buffer().input.last_search() else {
+			self.notify(keys::NO_SEARCH_PATTERN);
+			return false;
+		};
+
+		let dir = match (reverse, flip) {
+			(false, false) => SeqDirection::Next,
+			(false, true) => SeqDirection::Prev,
+			(true, false) => SeqDirection::Prev,
+			(true, true) => SeqDirection::Next,
+		};
+		match dir {
+			SeqDirection::Next => self.do_search_next(add_selection, extend),
+			SeqDirection::Prev => self.do_search_prev(add_selection, extend),
+		}
 	}
 }

@@ -34,27 +34,7 @@ pub fn find_next(
 	pos: CharIdx,
 ) -> Result<Option<Range>, regex::Error> {
 	let re = Regex::new(pattern)?;
-	let text_str: String = text.chars().collect();
-
-	let byte_pos = char_to_byte_offset(&text_str, pos);
-	if byte_pos < text_str.len()
-		&& let Some(m) = re.find(&text_str[byte_pos..])
-	{
-		let start = pos + byte_to_char_offset(&text_str[byte_pos..], m.start());
-		let end = pos + byte_to_char_offset(&text_str[byte_pos..], m.end());
-		return Ok(Some(Range::new(start, end)));
-	}
-
-	// Wrap around: search from start to pos
-	if let Some(m) = re.find(&text_str) {
-		let start = byte_to_char_offset(&text_str, m.start());
-		let end = byte_to_char_offset(&text_str, m.end());
-		if start < pos {
-			return Ok(Some(Range::new(start, end)));
-		}
-	}
-
-	Ok(None)
+	Ok(find_next_re(text, &re, pos))
 }
 
 /// Find the previous match before the given position.
@@ -64,6 +44,48 @@ pub fn find_prev(
 	pos: CharIdx,
 ) -> Result<Option<Range>, regex::Error> {
 	let re = Regex::new(pattern)?;
+	Ok(find_prev_re(text, &re, pos))
+}
+
+/// Find the next match after the given position using a precompiled regex.
+///
+/// Wraps around to the start of the text if no match is found after `pos`.
+pub fn find_next_re(
+	text: RopeSlice,
+	re: &Regex,
+	pos: CharIdx,
+) -> Option<Range> {
+	let text_str: String = text.chars().collect();
+	let byte_pos = char_to_byte_offset(&text_str, pos);
+
+	if byte_pos < text_str.len()
+		&& let Some(m) = re.find(&text_str[byte_pos..])
+	{
+		let start = pos + byte_to_char_offset(&text_str[byte_pos..], m.start());
+		let end = pos + byte_to_char_offset(&text_str[byte_pos..], m.end());
+		return Some(Range::new(start, end));
+	}
+
+	// Wrap around: search from start to pos
+	if let Some(m) = re.find(&text_str) {
+		let start = byte_to_char_offset(&text_str, m.start());
+		let end = byte_to_char_offset(&text_str, m.end());
+		if start < pos {
+			return Some(Range::new(start, end));
+		}
+	}
+
+	None
+}
+
+/// Find the previous match before the given position using a precompiled regex.
+///
+/// Wraps around to the end of the text if no match is found before `pos`.
+pub fn find_prev_re(
+	text: RopeSlice,
+	re: &Regex,
+	pos: CharIdx,
+) -> Option<Range> {
 	let text_str: String = text.chars().collect();
 
 	// Find all matches before pos
@@ -79,7 +101,7 @@ pub fn find_prev(
 	}
 
 	if last_before.is_some() {
-		return Ok(last_before);
+		return last_before;
 	}
 
 	// Wrap around: find last match in document
@@ -90,7 +112,7 @@ pub fn find_prev(
 		last = Some(Range::new(start, end));
 	}
 
-	Ok(last)
+	last
 }
 
 /// Converts a byte offset to a character offset in a string.

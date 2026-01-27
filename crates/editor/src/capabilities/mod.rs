@@ -119,6 +119,10 @@ impl SearchAccess for Editor {
 		}
 	}
 
+	fn search_repeat(&mut self, flip: bool, add_selection: bool, extend: bool) -> bool {
+		self.do_search_repeat(flip, add_selection, extend)
+	}
+
 	fn use_selection_as_pattern(&mut self) -> bool {
 		self.do_use_selection_as_search()
 	}
@@ -532,6 +536,10 @@ impl EditorCapabilities for Editor {
 
 	fn option_ops(&self) -> Option<&dyn OptionAccess> {
 		Some(self)
+	}
+
+	fn open_search_prompt(&mut self, reverse: bool) {
+		self.open_search_prompt(reverse);
 	}
 
 	fn is_readonly(&self) -> bool {

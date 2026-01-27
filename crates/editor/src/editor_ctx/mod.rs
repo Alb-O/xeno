@@ -133,6 +133,16 @@ fn apply_view_effect(
 			}
 		}
 
+		ViewEffect::SearchRepeat {
+			flip,
+			add_selection,
+			extend: repeat_extend,
+		} => {
+			if let Some(search) = ctx.search() {
+				search.search_repeat(*flip, *add_selection, *repeat_extend);
+			}
+		}
+
 		ViewEffect::UseSelectionAsSearch => {
 			if let Some(search) = ctx.search() {
 				search.use_selection_as_pattern();
@@ -250,7 +260,12 @@ fn apply_app_effect(
 			}
 		}
 
+		AppEffect::OpenSearchPrompt { reverse } => {
+			ctx.open_search_prompt(*reverse);
+		}
+
 		AppEffect::Quit { force: _ } => {
+
 			return Some(HandleOutcome::Quit);
 		}
 

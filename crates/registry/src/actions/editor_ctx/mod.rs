@@ -213,6 +213,11 @@ impl<'a> EditorContext<'a> {
 		}
 	}
 
+	/// Opens the search prompt.
+	pub fn open_search_prompt(&mut self, reverse: bool) {
+		self.inner.open_search_prompt(reverse);
+	}
+
 	/// Returns whether the current buffer is read-only.
 	pub fn is_readonly(&self) -> bool {
 		self.inner.is_readonly()
@@ -348,6 +353,9 @@ pub trait EditorCapabilities:
 	fn option_ops(&self) -> Option<&dyn OptionAccess> {
 		None
 	}
+
+	/// Opens the search prompt.
+	fn open_search_prompt(&mut self, _reverse: bool) {}
 
 	/// Returns whether the current buffer is read-only.
 	fn is_readonly(&self) -> bool {

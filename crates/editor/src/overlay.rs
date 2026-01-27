@@ -28,6 +28,11 @@ impl OverlayManager {
 		self.inner.get(&TypeId::of::<T>())?.downcast_ref()
 	}
 
+	/// Returns a mutable reference to overlay state of type `T`, if present.
+	pub fn get_mut<T: Any + Send + Sync>(&mut self) -> Option<&mut T> {
+		self.inner.get_mut(&TypeId::of::<T>())?.downcast_mut()
+	}
+
 	/// Returns a mutable reference to overlay state, inserting the default if absent.
 	pub fn get_or_default<T: Any + Send + Sync + Default>(&mut self) -> &mut T {
 		let type_id = TypeId::of::<T>();

@@ -21,6 +21,7 @@ impl Editor {
 				self.state.frame.needs_redraw = true;
 			}
 			self.sync_focus_from_ui();
+			self.update_overlays_after_input();
 			return false;
 		}
 
@@ -32,10 +33,13 @@ impl Editor {
 			}
 			self.state.ui = ui;
 			self.sync_focus_from_ui();
+			self.update_overlays_after_input();
 			return false;
 		}
 
-		self.handle_key_active(key).await
+		let quit = self.handle_key_active(key).await;
+		self.update_overlays_after_input();
+		quit
 	}
 
 	/// Handles a key event when in active editing mode.
@@ -55,7 +59,7 @@ impl Editor {
 			self.state.frame.needs_redraw = true;
 			return false;
 		}
-		#[cfg(feature = "lsp")]
+
 		if self.prompt_is_open() && key.code == KeyCode::Enter {
 			self.execute_prompt().await;
 			self.state.frame.needs_redraw = true;
@@ -187,18 +191,15 @@ impl Editor {
 			return true;
 		}
 
-		#[cfg(feature = "lsp")]
-		{
-			let prompt_window = self
-				.state
-				.overlays
-				.get::<crate::prompt::PromptState>()
-				.and_then(|state| state.window_id());
-			if Some(window) == prompt_window {
-				self.close_prompt();
-				self.state.frame.needs_redraw = true;
-				return true;
-			}
+		let prompt_window = self
+			.state
+			.overlays
+			.get::<crate::prompt::PromptState>()
+			.and_then(|state| state.window_id());
+		if Some(window) == prompt_window {
+			self.close_prompt(true);
+			self.state.frame.needs_redraw = true;
+			return true;
 		}
 
 		if floating.dismiss_on_blur {

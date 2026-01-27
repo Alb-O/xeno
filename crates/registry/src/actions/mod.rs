@@ -66,6 +66,7 @@ pub mod keys {
 	pub use crate::actions::builtins::motions::*;
 	pub use crate::actions::builtins::palette::*;
 	pub use crate::actions::builtins::scroll::*;
+	pub use crate::actions::builtins::search::*;
 	pub use crate::actions::builtins::selection_ops::*;
 	pub use crate::actions::builtins::text_objects::*;
 	pub use crate::actions::builtins::window::*;

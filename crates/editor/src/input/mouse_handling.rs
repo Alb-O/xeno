@@ -33,6 +33,7 @@ impl Editor {
 			}
 			self.state.ui = ui;
 			self.sync_focus_from_ui();
+			self.update_overlays_after_input();
 			return false;
 		}
 		if ui.take_wants_redraw() {
@@ -44,7 +45,9 @@ impl Editor {
 		// Get the document area (excluding panels/docks)
 		let doc_area = dock_layout.doc_area;
 
-		self.handle_mouse_in_doc_area(mouse, doc_area).await
+		let quit = self.handle_mouse_in_doc_area(mouse, doc_area).await;
+		self.update_overlays_after_input();
+		quit
 	}
 
 	/// Handles mouse events within the document area (where splits live).
