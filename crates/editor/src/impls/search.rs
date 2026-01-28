@@ -53,9 +53,9 @@ impl Editor {
 			let cursor_pos = self.buffer().cursor;
 			let from = cursor_pos.saturating_add(1);
 
-			let search_result = self.buffer().with_doc(|doc| {
-				movement::find_next(doc.content().slice(..), &pattern, from)
-			});
+			let search_result = self
+				.buffer()
+				.with_doc(|doc| movement::find_next(doc.content().slice(..), &pattern, from));
 			match search_result {
 				Ok(Some(range)) => {
 					self.apply_search_hit(range, add_selection, extend);

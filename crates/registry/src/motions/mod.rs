@@ -2,36 +2,43 @@
 //!
 //! Motions are fundamental cursor movement operations (char, word, line, etc.) that
 //! actions compose to implement editor commands. Each motion module co-locates its
-//! registration with implementation: [`builtins::horizontal`], [`builtins::vertical`],
-//! [`builtins::word`], [`builtins::line`], [`builtins::paragraph`], and [`builtins::document`].
+//! registration with implementation.
 //!
 //! The [`movement`] module re-exports movement functions and shared utilities.
 
 use ropey::RopeSlice;
 use xeno_primitives::Range;
-pub use xeno_registry_core::{
+
+pub use crate::core::{
 	Capability, Key, RegistryBuilder, RegistryEntry, RegistryIndex, RegistryMeta, RegistryMetadata,
-	RegistrySource, RuntimeRegistry, impl_registry_entry,
+	RegistrySource, RuntimeRegistry,
 };
 
 #[macro_use]
 pub(crate) mod macros;
 
-pub(crate) mod builtins;
+pub mod builtins;
 pub mod movement;
+
+pub use builtins::register_builtins;
+
+pub fn register_plugin(db: &mut crate::db::builder::RegistryDbBuilder) {
+	register_builtins(db);
+}
+
+inventory::submit! {
+	crate::PluginDef::new(
+		crate::RegistryMeta::minimal("motions-builtin", "Motions Builtin", "Builtin motion set"),
+		register_plugin
+	)
+}
 
 // Re-export macros
 pub use crate::motion;
 
 /// Typed handles for built-in motions.
 pub mod keys {
-	pub use crate::motions::builtins::diff::*;
-	pub use crate::motions::builtins::document::*;
-	pub use crate::motions::builtins::horizontal::*;
-	pub use crate::motions::builtins::line::*;
-	pub use crate::motions::builtins::paragraph::*;
-	pub use crate::motions::builtins::vertical::*;
-	pub use crate::motions::builtins::word::*;
+	pub use crate::motions::builtins::*;
 }
 
 /// Command flags for motion definitions.
@@ -93,7 +100,7 @@ impl MotionDef {
 	}
 }
 
-impl_registry_entry!(MotionDef);
+crate::impl_registry_entry!(MotionDef);
 
 /// Typed handle to a motion definition.
 pub type MotionKey = Key<MotionDef>;

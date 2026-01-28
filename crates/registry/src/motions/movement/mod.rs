@@ -3,25 +3,43 @@
 //! This module provides shared utilities and re-exports movement functions
 //! from their co-located modules.
 
+mod diff;
+mod document;
 mod find;
+mod horizontal;
+mod line;
 mod objects;
+mod paragraph;
 mod search;
+mod vertical;
+mod word;
 
-pub use find::{find_char_backward, find_char_forward};
-pub use objects::{select_surround_object, select_word_object};
-pub use search::{escape_pattern, find_all_matches, find_next, find_prev, matches_pattern};
+pub use diff::*;
+pub use document::*;
+pub use find::*;
+pub use horizontal::*;
+pub use line::*;
+pub use objects::*;
+pub use paragraph::*;
+pub use search::*;
+pub use vertical::*;
+pub use word::*;
 use xeno_primitives::range::{CharIdx, Range};
 
-pub use crate::motions::builtins::document::{move_to_document_end, move_to_document_start};
-pub use crate::motions::builtins::horizontal::move_horizontally;
-pub use crate::motions::builtins::line::{
-	move_to_first_nonwhitespace, move_to_line_end, move_to_line_start,
-};
-pub use crate::motions::builtins::paragraph::{move_to_next_paragraph, move_to_prev_paragraph};
-pub use crate::motions::builtins::vertical::move_vertically;
-pub use crate::motions::builtins::word::{
-	move_to_next_word_end, move_to_next_word_start, move_to_prev_word_start,
-};
+/// Word boundary type.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WordBoundary {
+	Start,
+	End,
+}
+
+/// Line boundary type.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LineBoundary {
+	Start,
+	End,
+	FirstNonBlank,
+}
 
 /// Word type for word movements.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

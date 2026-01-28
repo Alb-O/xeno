@@ -8,8 +8,7 @@
 //! - No name/alias shadowing IDs (always fatal)
 //! - Name/alias conflicts are reported here for diagnostics
 
-use xeno_registry_core::{Collision as CoreCollision, KeyKind, RegistryEntry};
-
+use crate::core::{Collision as CoreCollision, KeyKind, RegistryEntry};
 use crate::db::index::collision::CollisionKind;
 use crate::db::{ACTIONS, COMMANDS, MOTIONS, TEXT_OBJECTS};
 

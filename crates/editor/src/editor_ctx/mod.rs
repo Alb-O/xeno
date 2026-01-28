@@ -265,7 +265,6 @@ fn apply_app_effect(
 		}
 
 		AppEffect::Quit { force: _ } => {
-
 			return Some(HandleOutcome::Quit);
 		}
 

@@ -2,14 +2,13 @@
 //!
 //! Segments are rendered in order based on their position and priority.
 
-pub(crate) mod builtins;
+pub mod builtins;
 mod macros;
 
-pub use xeno_registry_core::{
+pub use crate::core::{
 	RegistryBuilder, RegistryEntry, RegistryIndex, RegistryMeta, RegistryMetadata, RegistrySource,
-	impl_registry_entry,
+	RuntimeRegistry,
 };
-
 // Re-export macros
 pub use crate::segment;
 
@@ -142,4 +141,16 @@ pub fn all_segments() -> impl Iterator<Item = &'static StatuslineSegmentDef> {
 	STATUSLINE_SEGMENTS.iter()
 }
 
-impl_registry_entry!(StatuslineSegmentDef);
+crate::impl_registry_entry!(StatuslineSegmentDef);
+pub use builtins::register_builtins;
+
+pub fn register_plugin(db: &mut crate::db::builder::RegistryDbBuilder) {
+	register_builtins(db);
+}
+
+inventory::submit! {
+	crate::PluginDef::new(
+		crate::RegistryMeta::minimal("statusline-builtin", "Statusline Builtin", "Builtin statusline segments"),
+		register_plugin
+	)
+}

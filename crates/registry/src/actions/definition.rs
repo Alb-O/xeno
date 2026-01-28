@@ -81,4 +81,4 @@ impl ActionDef {
 /// describing what the editor should do.
 pub type ActionHandler = fn(&ActionContext) -> ActionResult;
 
-crate::actions::impl_registry_entry!(ActionDef);
+crate::impl_registry_entry!(ActionDef);

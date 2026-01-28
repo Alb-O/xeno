@@ -1,7 +1,8 @@
 //! Theme and syntax highlighting registry
 
 pub use xeno_primitives::{Color, Mode, Modifier, Style};
-use xeno_registry_core::impl_registry_entry;
+
+use crate::impl_registry_entry;
 
 pub mod syntax;
 pub mod theme;
@@ -10,3 +11,18 @@ pub use syntax::{SyntaxStyle, SyntaxStyles};
 pub use theme::{ThemeDef as Theme, *};
 
 impl_registry_entry!(ThemeDef);
+
+pub fn register_builtins(builder: &mut crate::db::builder::RegistryDbBuilder) {
+	builder.register_theme(&theme::DEFAULT_THEME);
+}
+
+pub fn register_plugin(db: &mut crate::db::builder::RegistryDbBuilder) {
+	register_builtins(db);
+}
+
+inventory::submit! {
+	crate::PluginDef::new(
+		crate::RegistryMeta::minimal("themes-builtin", "Themes Builtin", "Builtin theme set"),
+		register_plugin
+	)
+}

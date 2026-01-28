@@ -5,7 +5,7 @@ use std::path::Path;
 use xeno_primitives::Rope;
 pub use xeno_primitives::ViewId;
 
-use super::{HookEvent, HookEventData, OwnedHookContext};
+use crate::{HookEvent, HookEventData, OwnedHookContext};
 
 /// Identifier for a window in hook payloads.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

@@ -5,13 +5,26 @@
 
 use std::time::Duration;
 
-pub use xeno_registry_core::{Key, RegistryMetadata, RegistrySource};
+pub use crate::core::{Key, RegistryMetadata, RegistrySource};
 
 #[macro_use]
 mod macros;
 
-pub(crate) mod builtins;
+pub mod builtins;
 pub mod keys;
+
+pub use builtins::register_builtins;
+
+pub fn register_plugin(db: &mut crate::db::builder::RegistryDbBuilder) {
+	register_builtins(db);
+}
+
+inventory::submit! {
+	crate::PluginDef::new(
+		crate::RegistryMeta::minimal("notifications-builtin", "Notifications Builtin", "Builtin notification set"),
+		register_plugin
+	)
+}
 
 // Re-export macros
 pub use crate::{notif, notif_alias};

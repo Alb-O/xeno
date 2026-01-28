@@ -1,14 +1,11 @@
 use xeno_primitives::range::Range;
 
 use crate::actions::{
-	ActionContext, ActionEffects, ActionResult, ObjectSelectionKind, PendingAction, PendingKind,
-	action,
+	ActionEffects, ActionResult, ObjectSelectionKind, PendingAction, PendingKind, action,
 };
-use crate::textobj::{TextObjectDef, find_by_trigger};
 
-/// Selects a text object by its trigger character.
 fn select_object_with_trigger(
-	ctx: &ActionContext,
+	ctx: &crate::actions::ActionContext,
 	selection_kind: ObjectSelectionKind,
 ) -> ActionResult {
 	let Some(trigger) = ctx.args.char else {
@@ -23,7 +20,7 @@ fn select_object_with_trigger(
 		}));
 	};
 
-	let Some(obj) = find_by_trigger(trigger) else {
+	let Some(obj) = crate::textobj::find_by_trigger(trigger) else {
 		return ActionResult::Effects(ActionEffects::error(format!(
 			"Unknown text object: {}",
 			trigger
@@ -47,10 +44,9 @@ fn select_object_with_trigger(
 	ActionResult::Effects(ActionEffects::selection(new_sel))
 }
 
-/// Selects from cursor to the start or end boundary of a text object.
 fn select_to_boundary(
-	ctx: &ActionContext,
-	obj: &TextObjectDef,
+	ctx: &crate::actions::ActionContext,
+	obj: &crate::textobj::TextObjectDef,
 	pos: usize,
 	to_start: bool,
 ) -> Option<Range> {
@@ -81,3 +77,10 @@ action!(select_object_to_end, {
 	description: "Select to object end",
 	bindings: r#"normal "]" "}""#,
 }, |ctx| select_object_with_trigger(ctx, ObjectSelectionKind::ToEnd));
+
+pub(super) const DEFS: &[&crate::actions::ActionDef] = &[
+	&ACTION_select_object_inner,
+	&ACTION_select_object_around,
+	&ACTION_select_object_to_start,
+	&ACTION_select_object_to_end,
+];

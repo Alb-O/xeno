@@ -1,15 +1,3 @@
-//! Split and window management actions.
-//!
-//! Split names follow Vim/Helix conventions based on the divider line orientation:
-//! - `split_horizontal`: horizontal divider → windows stacked top/bottom
-//! - `split_vertical`: vertical divider → windows side-by-side left/right
-//!
-//! Bindings use hierarchical key sequences under `ctrl-w`:
-//! - `s h/v` - Split horizontal/vertical
-//! - `f h/j/k/l` - Focus directions
-//! - `f n/p` - Buffer next/previous
-//! - `c c/o` - Close current/others
-
 use xeno_primitives::direction::{Axis, SeqDirection, SpatialDirection};
 
 use crate::actions::{ActionResult, AppEffect, action};
@@ -73,3 +61,16 @@ action!(close_other_buffers, {
 	short_desc: "Others",
 	bindings: r#"normal "ctrl-w c o""#,
 }, |_ctx| ActionResult::Effects(AppEffect::CloseOtherBuffers.into()));
+
+pub(super) const DEFS: &[&crate::actions::ActionDef] = &[
+	&ACTION_split_horizontal,
+	&ACTION_split_vertical,
+	&ACTION_focus_left,
+	&ACTION_focus_down,
+	&ACTION_focus_up,
+	&ACTION_focus_right,
+	&ACTION_buffer_next,
+	&ACTION_buffer_prev,
+	&ACTION_close_split,
+	&ACTION_close_other_buffers,
+];

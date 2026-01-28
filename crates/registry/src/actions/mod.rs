@@ -3,9 +3,12 @@
 //! Actions are the primary unit of editor functionality, executed via keybindings.
 //! This module provides auto-registration via the [`action!`] macro and O(1) lookup.
 
-pub use xeno_registry_core::{RegistryBuilder, RuntimeRegistry};
+pub use crate::core::{
+	Capability, CommandError, RegistryBuilder, RegistryEntry, RegistryMeta, RegistryMetadata,
+	RegistrySource, RuntimeRegistry,
+};
 
-pub(crate) mod builtins;
+pub mod builtins;
 mod context;
 mod definition;
 pub mod edit_op;
@@ -19,16 +22,15 @@ pub mod editor_ctx;
 
 pub use context::{ActionArgs, ActionContext};
 pub use definition::{ActionDef, ActionHandler};
-pub use xeno_registry_core::Key;
 
-// Re-export macros for module-local usage
+// Re-export macros
 pub use crate::action;
+pub use crate::core::Key;
 pub use crate::{key_prefix, result_extension_handler, result_handler};
 
 /// Typed handle to an action definition.
 pub type ActionKey = Key<ActionDef>;
-pub use builtins::insert::insert_with_motion;
-pub use builtins::motions::{cursor_motion, selection_motion, word_motion};
+pub use builtins::{cursor_motion, selection_motion};
 pub use edit_op::{
 	CharMapKind, CursorAdjust, EditOp, EditPlan, PostEffect, PreEffect, SelectionOp, TextTransform,
 };
@@ -46,10 +48,7 @@ pub use result::{
 };
 pub use xeno_primitives::direction::{Axis, SeqDirection, SpatialDirection};
 pub use xeno_primitives::{Mode, ObjectSelectionKind, PendingKind};
-pub use xeno_registry_core::{
-	Capability, CommandError, RegistryEntry, RegistryMeta, RegistryMetadata, RegistrySource,
-	impl_registry_entry,
-};
+
 /// Command flags for action definitions.
 pub mod flags {
 	/// No flags set.
@@ -58,22 +57,24 @@ pub mod flags {
 
 /// Typed handles for built-in actions.
 pub mod keys {
-	pub use crate::actions::builtins::editing::*;
-	pub use crate::actions::builtins::find::*;
-	pub use crate::actions::builtins::insert::*;
-	pub use crate::actions::builtins::misc::*;
-	pub use crate::actions::builtins::modes::*;
-	pub use crate::actions::builtins::motions::*;
-	pub use crate::actions::builtins::palette::*;
-	pub use crate::actions::builtins::scroll::*;
-	pub use crate::actions::builtins::search::*;
-	pub use crate::actions::builtins::selection_ops::*;
-	pub use crate::actions::builtins::text_objects::*;
-	pub use crate::actions::builtins::window::*;
+	pub use super::builtins::*;
 }
+
+pub use builtins::register_builtins;
 
 #[cfg(feature = "db")]
 pub use crate::db::ACTIONS;
+
+pub fn register_plugin(db: &mut crate::db::builder::RegistryDbBuilder) {
+	register_builtins(db);
+}
+
+inventory::submit! {
+	crate::PluginDef::new(
+		crate::RegistryMeta::minimal("actions-builtin", "Actions Builtin", "Builtin action set"),
+		register_plugin
+	)
+}
 
 /// Registers an action definition at runtime.
 ///

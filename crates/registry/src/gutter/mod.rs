@@ -10,14 +10,26 @@ use ropey::RopeSlice;
 pub use crate::themes::Color;
 pub use crate::themes::theme::ThemeDef as Theme;
 
-pub(crate) mod builtins;
+pub mod builtins;
 mod macros;
 
-pub use xeno_registry_core::{
-	RegistryBuilder, RegistryEntry, RegistryIndex, RegistryMeta, RegistryMetadata, RegistrySource,
-	impl_registry_entry,
-};
+pub use builtins::register_builtins;
 
+pub fn register_plugin(db: &mut crate::db::builder::RegistryDbBuilder) {
+	register_builtins(db);
+}
+
+inventory::submit! {
+	crate::PluginDef::new(
+		crate::RegistryMeta::minimal("gutter-builtin", "Gutter Builtin", "Builtin gutter set"),
+		register_plugin
+	)
+}
+
+pub use crate::core::{
+	RegistryBuilder, RegistryEntry, RegistryIndex, RegistryMeta, RegistryMetadata, RegistrySource,
+	RuntimeRegistry,
+};
 // Re-export macros
 pub use crate::gutter;
 
@@ -176,4 +188,4 @@ pub fn column_widths(ctx: &GutterWidthContext) -> Vec<(u16, &'static GutterDef)>
 		.collect()
 }
 
-impl_registry_entry!(GutterDef);
+crate::impl_registry_entry!(GutterDef);

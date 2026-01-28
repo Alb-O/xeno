@@ -1,11 +1,11 @@
 use futures::future::LocalBoxFuture;
 
-use crate::commands::{CommandContext, CommandError, CommandOutcome, command};
+use crate::command;
+use crate::commands::{CommandContext, CommandError, CommandOutcome};
 use crate::notifications::keys;
 
 command!(buffer, { aliases: &["b"], description: "Switch to buffer" }, handler: cmd_buffer);
 
-/// Handler for the `:buffer` command.
 fn cmd_buffer<'a>(
 	ctx: &'a mut CommandContext<'a>,
 ) -> LocalBoxFuture<'a, Result<CommandOutcome, CommandError>> {
@@ -24,7 +24,6 @@ command!(
 	handler: cmd_buffer_next
 );
 
-/// Handler for the `:buffer-next` command.
 fn cmd_buffer_next<'a>(
 	ctx: &'a mut CommandContext<'a>,
 ) -> LocalBoxFuture<'a, Result<CommandOutcome, CommandError>> {
@@ -40,7 +39,6 @@ command!(
 	handler: cmd_buffer_prev
 );
 
-/// Handler for the `:buffer-prev` command.
 fn cmd_buffer_prev<'a>(
 	ctx: &'a mut CommandContext<'a>,
 ) -> LocalBoxFuture<'a, Result<CommandOutcome, CommandError>> {
@@ -56,7 +54,6 @@ command!(
 	handler: cmd_delete_buffer
 );
 
-/// Handler for the `:delete-buffer` command.
 fn cmd_delete_buffer<'a>(
 	ctx: &'a mut CommandContext<'a>,
 ) -> LocalBoxFuture<'a, Result<CommandOutcome, CommandError>> {
@@ -72,7 +69,6 @@ command!(
 	handler: cmd_readonly
 );
 
-/// Handler for the `:readonly` command.
 fn cmd_readonly<'a>(
 	ctx: &'a mut CommandContext<'a>,
 ) -> LocalBoxFuture<'a, Result<CommandOutcome, CommandError>> {
@@ -87,3 +83,11 @@ fn cmd_readonly<'a>(
 		Ok(CommandOutcome::Ok)
 	})
 }
+
+pub const DEFS: &[&crate::commands::CommandDef] = &[
+	&CMD_buffer,
+	&CMD_buffer_next,
+	&CMD_buffer_prev,
+	&CMD_delete_buffer,
+	&CMD_readonly,
+];

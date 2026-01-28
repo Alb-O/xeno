@@ -1,7 +1,7 @@
 use xeno_primitives::{Color, Mode, Style};
-use xeno_registry_core::{RegistryMeta, RegistrySource};
 
 use super::super::syntax::SyntaxStyles;
+use crate::core::{RegistryMeta, RegistrySource};
 
 /// Whether a theme uses a light or dark background.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]

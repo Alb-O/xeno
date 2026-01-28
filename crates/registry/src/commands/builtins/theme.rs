@@ -1,8 +1,7 @@
-//! Theme command for switching editor color schemes.
-
 use futures::future::LocalBoxFuture;
 
-use crate::commands::{CommandContext, CommandError, CommandOutcome, RegistrySource, command};
+use crate::command;
+use crate::commands::{CommandContext, CommandError, CommandOutcome, RegistrySource};
 use crate::notifications::keys;
 
 command!(
@@ -15,7 +14,6 @@ command!(
 	handler: cmd_theme
 );
 
-/// Handler for the `:theme` command.
 fn cmd_theme<'a>(
 	ctx: &'a mut CommandContext<'a>,
 ) -> LocalBoxFuture<'a, Result<CommandOutcome, CommandError>> {
@@ -29,3 +27,7 @@ fn cmd_theme<'a>(
 		Ok(CommandOutcome::Ok)
 	})
 }
+
+pub const DEFS: &[&crate::commands::CommandDef] = &[
+	&CMD_theme,
+];

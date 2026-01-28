@@ -69,3 +69,10 @@ action!(find_char_to_reverse, {
 		prompt: "to<-".into(),
 	})),
 });
+
+pub(super) const DEFS: &[&crate::actions::ActionDef] = &[
+	&ACTION_find_char,
+	&ACTION_find_char_to,
+	&ACTION_find_char_reverse,
+	&ACTION_find_char_to_reverse,
+];

@@ -50,11 +50,7 @@ pub fn find_prev(
 /// Find the next match after the given position using a precompiled regex.
 ///
 /// Wraps around to the start of the text if no match is found after `pos`.
-pub fn find_next_re(
-	text: RopeSlice,
-	re: &Regex,
-	pos: CharIdx,
-) -> Option<Range> {
+pub fn find_next_re(text: RopeSlice, re: &Regex, pos: CharIdx) -> Option<Range> {
 	let text_str: String = text.chars().collect();
 	let byte_pos = char_to_byte_offset(&text_str, pos);
 
@@ -81,11 +77,7 @@ pub fn find_next_re(
 /// Find the previous match before the given position using a precompiled regex.
 ///
 /// Wraps around to the end of the text if no match is found before `pos`.
-pub fn find_prev_re(
-	text: RopeSlice,
-	re: &Regex,
-	pos: CharIdx,
-) -> Option<Range> {
+pub fn find_prev_re(text: RopeSlice, re: &Regex, pos: CharIdx) -> Option<Range> {
 	let text_str: String = text.chars().collect();
 
 	// Find all matches before pos

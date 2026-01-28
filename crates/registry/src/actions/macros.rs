@@ -65,14 +65,14 @@ macro_rules! action {
 				meta: $crate::actions::RegistryMeta {
 					id: concat!(env!("CARGO_PKG_NAME"), "::", stringify!($name)),
 					name: stringify!($name),
-					aliases: $crate::xeno_registry_core::__reg_opt_slice!($({$aliases})?),
+					aliases: $crate::__reg_opt_slice!($({$aliases})?),
 					description: $desc,
-					priority: $crate::xeno_registry_core::__reg_opt!($({$priority})?, 0),
+					priority: $crate::__reg_opt!($({$priority})?, 0),
 					source: $crate::RegistrySource::Crate(env!("CARGO_PKG_NAME")),
-					required_caps: $crate::xeno_registry_core::__reg_opt_slice!($({$caps})?),
-					flags: $crate::xeno_registry_core::__reg_opt!($({$flags})?, $crate::actions::flags::NONE),
+					required_caps: $crate::__reg_opt_slice!($({$caps})?),
+					flags: $crate::__reg_opt!($({$flags})?, $crate::actions::flags::NONE),
 				},
-				short_desc: $crate::xeno_registry_core::__reg_opt!($({$short})?, ""),
+				short_desc: $crate::__reg_opt!($({$short})?, ""),
 				handler: $handler,
 			};
 
@@ -115,8 +115,8 @@ macro_rules! result_handler {
 		pub static $static_name: $crate::actions::editor_ctx::ResultHandler =
 			$crate::actions::editor_ctx::ResultHandler {
 				name: $name,
-				priority: $crate::xeno_registry_core::__reg_opt!($({$priority})?, 0),
-				required_caps: $crate::xeno_registry_core::__reg_opt_slice!($({$caps})?),
+				priority: $crate::__reg_opt!($({$priority})?, 0),
+				required_caps: $crate::__reg_opt_slice!($({$caps})?),
 				handle: $body,
 			};
 	};
@@ -175,8 +175,8 @@ macro_rules! result_extension_handler {
 		pub static $static_name: $crate::actions::editor_ctx::ResultHandler =
 			$crate::actions::editor_ctx::ResultHandler {
 				name: $name,
-				priority: $crate::xeno_registry_core::__reg_opt!($({$priority})?, 0),
-				required_caps: $crate::xeno_registry_core::__reg_opt_slice!($({$caps})?),
+				priority: $crate::__reg_opt!($({$priority})?, 0),
+				required_caps: $crate::__reg_opt_slice!($({$caps})?),
 				handle: $body,
 			};
 	};

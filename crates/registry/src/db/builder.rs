@@ -1,10 +1,9 @@
-pub use xeno_registry_core::{
+use crate::actions::ActionDef;
+use crate::commands::CommandDef;
+pub use crate::core::{
 	Capability, CommandError, DuplicatePolicy, KeyKind, RegistryBuilder, RegistryEntry,
 	RegistryIndex, RegistryMeta, RegistrySource, RuntimeRegistry, insert_typed_key,
 };
-
-use crate::actions::ActionDef;
-use crate::commands::CommandDef;
 use crate::gutter::GutterDef;
 use crate::hooks::HookDef;
 use crate::motions::MotionDef;
@@ -16,7 +15,7 @@ use crate::themes::theme::ThemeDef;
 #[derive(Debug, thiserror::Error)]
 pub enum RegistryError {
 	#[error("fatal insertion error: {0}")]
-	Insert(#[from] xeno_registry_core::InsertFatal),
+	Insert(#[from] crate::core::InsertFatal),
 	#[error("plugin error: {0}")]
 	Plugin(String),
 }
@@ -31,6 +30,7 @@ pub struct RegistryDbBuilder {
 	pub gutters: RegistryBuilder<GutterDef>,
 	pub statusline: RegistryBuilder<StatuslineSegmentDef>,
 	pub hooks: RegistryBuilder<HookDef>,
+	pub notifications: Vec<&'static crate::notifications::NotificationDef>,
 }
 
 pub struct RegistryIndices {
@@ -43,6 +43,7 @@ pub struct RegistryIndices {
 	pub gutters: RegistryIndex<GutterDef>,
 	pub statusline: RegistryIndex<StatuslineSegmentDef>,
 	pub hooks: RegistryIndex<HookDef>,
+	pub notifications: Vec<&'static crate::notifications::NotificationDef>,
 }
 
 impl RegistryDbBuilder {
@@ -57,6 +58,7 @@ impl RegistryDbBuilder {
 			gutters: RegistryBuilder::new("gutters"),
 			statusline: RegistryBuilder::new("statusline"),
 			hooks: RegistryBuilder::new("hooks"),
+			notifications: Vec::new(),
 		}
 	}
 
@@ -76,6 +78,30 @@ impl RegistryDbBuilder {
 		self.text_objects.push(def);
 	}
 
+	pub fn register_option(&mut self, def: &'static OptionDef) {
+		self.options.push(def);
+	}
+
+	pub fn register_theme(&mut self, def: &'static ThemeDef) {
+		self.themes.push(def);
+	}
+
+	pub fn register_gutter(&mut self, def: &'static GutterDef) {
+		self.gutters.push(def);
+	}
+
+	pub fn register_statusline_segment(&mut self, def: &'static StatuslineSegmentDef) {
+		self.statusline.push(def);
+	}
+
+	pub fn register_hook(&mut self, def: &'static HookDef) {
+		self.hooks.push(def);
+	}
+
+	pub fn register_notification(&mut self, def: &'static crate::notifications::NotificationDef) {
+		self.notifications.push(def);
+	}
+
 	pub fn build(self) -> RegistryIndices {
 		RegistryIndices {
 			actions: self.actions.build(),
@@ -87,6 +113,7 @@ impl RegistryDbBuilder {
 			gutters: self.gutters.build(),
 			statusline: self.statusline.build(),
 			hooks: self.hooks.build(),
+			notifications: self.notifications,
 		}
 	}
 }

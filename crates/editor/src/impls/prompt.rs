@@ -9,7 +9,9 @@ use xeno_registry::options::keys as opt_keys;
 use crate::buffer::ViewId;
 use crate::impls::Editor;
 use crate::movement;
-use crate::prompt::{Prompt, PromptKind, PromptState, SearchPromptRuntime, prompt_rect, prompt_style};
+use crate::prompt::{
+	Prompt, PromptKind, PromptState, SearchPromptRuntime, prompt_rect, prompt_style,
+};
 use crate::render::ensure_buffer_cursor_visible;
 use crate::window::{GutterSelector, Window};
 
@@ -135,7 +137,11 @@ impl Editor {
 
 		let rect = prompt_rect(width, height);
 		let prompt_buffer_id = self.state.core.buffers.create_scratch();
-		let title = if reverse { "Search (reverse)" } else { "Search" };
+		let title = if reverse {
+			"Search (reverse)"
+		} else {
+			"Search"
+		};
 		let window_id = self.create_floating_window(prompt_buffer_id, rect, prompt_style(title));
 
 		let Window::Floating(float) = self.state.windows.get_mut(window_id).expect("just created")
@@ -264,16 +270,18 @@ impl Editor {
 
 				let origin_cursor = search_rt.as_ref().map(|rt| rt.origin_cursor).unwrap_or(0);
 
-				let (result, err) = self.buffer_for(target_buffer).with_doc(|doc| {
-					let text = doc.content().slice(..);
-					if reverse {
-						movement::find_prev(text, &input, origin_cursor)
-					} else {
-						movement::find_next(text, &input, origin_cursor + 1)
-					}
-				})
-				.map(|opt| (opt, None))
-				.unwrap_or_else(|e| (None, Some(e.to_string())));
+				let (result, err) = self
+					.buffer_for(target_buffer)
+					.with_doc(|doc| {
+						let text = doc.content().slice(..);
+						if reverse {
+							movement::find_prev(text, &input, origin_cursor)
+						} else {
+							movement::find_next(text, &input, origin_cursor + 1)
+						}
+					})
+					.map(|opt| (opt, None))
+					.unwrap_or_else(|e| (None, Some(e.to_string())));
 
 				match (result, err) {
 					(_, Some(e)) => {
@@ -281,7 +289,8 @@ impl Editor {
 						self.close_prompt(true);
 					}
 					(Some(range), None) => {
-						if let Some(buffer) = self.state.core.buffers.get_buffer_mut(target_buffer) {
+						if let Some(buffer) = self.state.core.buffers.get_buffer_mut(target_buffer)
+						{
 							buffer.input.set_last_search(input.clone(), reverse);
 							let start = range.min();
 							let end = range.max();
@@ -292,7 +301,8 @@ impl Editor {
 						self.close_prompt(false);
 					}
 					(None, None) => {
-						if let Some(buffer) = self.state.core.buffers.get_buffer_mut(target_buffer) {
+						if let Some(buffer) = self.state.core.buffers.get_buffer_mut(target_buffer)
+						{
 							buffer.input.set_last_search(input.clone(), reverse);
 						}
 						self.notify(keys::PATTERN_NOT_FOUND);
@@ -371,7 +381,8 @@ impl Editor {
 						}
 						let origin_cursor = rt.origin_cursor;
 						let origin_selection = rt.origin_selection.clone();
-						if let Some(buffer) = self.state.core.buffers.get_buffer_mut(target_buffer) {
+						if let Some(buffer) = self.state.core.buffers.get_buffer_mut(target_buffer)
+						{
 							buffer.set_cursor(origin_cursor);
 							buffer.set_selection(origin_selection);
 						}
@@ -388,17 +399,17 @@ impl Editor {
 		}
 
 		let (target_buffer, reverse, origin_cursor, origin_selection, re) = {
-			let Some((prompt, rt)) = self
-				.state
-				.overlays
-				.get::<PromptState>()
-				.and_then(|s| match s {
-					PromptState::Open {
-						prompt,
-						search: Some(rt),
-					} => Some((prompt, rt)),
-					_ => None,
-				})
+			let Some((prompt, rt)) =
+				self.state
+					.overlays
+					.get::<PromptState>()
+					.and_then(|s| match s {
+						PromptState::Open {
+							prompt,
+							search: Some(rt),
+						} => Some((prompt, rt)),
+						_ => None,
+					})
 			else {
 				return;
 			};
@@ -435,7 +446,8 @@ impl Editor {
 			match found {
 				Ok(Some(range)) => {
 					if rt.last_preview != Some(range) {
-						if let Some(buffer) = self.state.core.buffers.get_buffer_mut(target_buffer) {
+						if let Some(buffer) = self.state.core.buffers.get_buffer_mut(target_buffer)
+						{
 							let start = range.min();
 							let end = range.max();
 							buffer.set_cursor(start);
@@ -448,7 +460,8 @@ impl Editor {
 				}
 				Ok(None) => {
 					if rt.last_preview.is_some() {
-						if let Some(buffer) = self.state.core.buffers.get_buffer_mut(target_buffer) {
+						if let Some(buffer) = self.state.core.buffers.get_buffer_mut(target_buffer)
+						{
 							buffer.set_cursor(origin_cursor);
 							buffer.set_selection(origin_selection);
 						}
@@ -529,7 +542,11 @@ impl Editor {
 	}
 
 	fn buffer_for(&self, view_id: ViewId) -> &crate::buffer::Buffer {
-		self.state.core.buffers.get_buffer(view_id).expect("buffer exists")
+		self.state
+			.core
+			.buffers
+			.get_buffer(view_id)
+			.expect("buffer exists")
 	}
 
 	fn focus_prompt_window(&mut self, window_id: crate::window::WindowId) {
@@ -544,12 +561,7 @@ impl Editor {
 		self.state.frame.needs_redraw = true;
 	}
 
-	async fn apply_rename(
-		&mut self,
-		buffer_id: ViewId,
-		position: usize,
-		new_name: String,
-	) {
+	async fn apply_rename(&mut self, buffer_id: ViewId, position: usize, new_name: String) {
 		#[cfg(feature = "lsp")]
 		{
 			let Some(buffer) = self.state.core.buffers.get_buffer(buffer_id) else {

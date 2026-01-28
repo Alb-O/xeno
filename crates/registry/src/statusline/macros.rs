@@ -19,13 +19,13 @@ macro_rules! segment {
 						name: stringify!($name),
 						aliases: &[],
 						description: $desc,
-						priority: $crate::xeno_registry_core::__reg_opt!($({$priority})?, 0),
+						priority: $crate::__reg_opt!($({$priority})?, 0),
 						source: $crate::RegistrySource::Crate(env!("CARGO_PKG_NAME")),
 						required_caps: &[],
 						flags: 0,
 					},
 					position: $crate::statusline::SegmentPosition::$position,
-					default_enabled: $crate::xeno_registry_core::__reg_opt!($({$enabled})?, true),
+					default_enabled: $crate::__reg_opt!($({$enabled})?, true),
 					render: $render,
 				};
 

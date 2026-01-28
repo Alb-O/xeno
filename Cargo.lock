@@ -3250,7 +3250,6 @@ dependencies = [
  "xeno-lsp",
  "xeno-primitives",
  "xeno-registry",
- "xeno-registry-core",
  "xeno-runtime-config",
  "xeno-runtime-language",
  "xeno-tui",
@@ -3352,14 +3351,6 @@ dependencies = [
  "xeno-keymap-core",
  "xeno-macro",
  "xeno-primitives",
- "xeno-registry-core",
-]
-
-[[package]]
-name = "xeno-registry-core"
-version = "0.5.16"
-dependencies = [
- "thiserror 2.0.17",
 ]
 
 [[package]]

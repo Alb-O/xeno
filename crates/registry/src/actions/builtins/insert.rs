@@ -1,17 +1,13 @@
-//! Insert mode text entry actions.
-
 use xeno_primitives::range::Range;
 use xeno_primitives::{Mode, MotionId, Selection, motion_ids};
 
 use crate::actions::{
-	ActionContext, ActionEffects, ActionResult, AppEffect, Effect, MotionKind, MotionRequest,
-	ViewEffect, action, edit_op,
+	ActionEffects, ActionResult, AppEffect, Effect, MotionKind, MotionRequest, ViewEffect, action,
+	edit_op,
 };
 
 /// Emits a motion request followed by a mode change to insert mode.
-///
-/// The executor will apply the motion first, then switch to insert mode.
-pub fn insert_with_motion(_ctx: &ActionContext, id: MotionId) -> ActionResult {
+fn insert_with_motion(_ctx: &crate::actions::ActionContext, id: MotionId) -> ActionResult {
 	ActionResult::Effects(
 		ActionEffects::from_effect(
 			ViewEffect::Motion(MotionRequest {
@@ -53,3 +49,11 @@ action!(insert_newline, {
 	description: "Insert newline with indentation",
 	bindings: r#"insert "enter""#,
 }, |_ctx| ActionResult::Effects(ActionEffects::edit_op(edit_op::insert_newline())));
+
+pub(super) const DEFS: &[&crate::actions::ActionDef] = &[
+	&ACTION_insert_mode,
+	&ACTION_insert_line_start,
+	&ACTION_insert_line_end,
+	&ACTION_insert_after,
+	&ACTION_insert_newline,
+];

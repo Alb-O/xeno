@@ -1,14 +1,13 @@
 use std::sync::{LazyLock, OnceLock};
 
-pub use xeno_registry_core::{ActionId, RegistryIndex, RuntimeRegistry};
+pub use crate::core::{ActionId, RegistryIndex, RuntimeRegistry};
 
 pub mod builder;
+pub mod builtins;
 pub mod index;
 #[cfg(feature = "keymap")]
 pub mod keymap_registry;
 pub mod plugin;
-
-use inventory;
 
 use crate::actions::ActionDef;
 use crate::commands::CommandDef;
@@ -40,69 +39,22 @@ pub fn get_db() -> &'static RegistryDb {
 	DB.get_or_init(|| {
 		let mut builder = builder::RegistryDbBuilder::new();
 
-		// Collect from inventory
-		builder.actions.extend(
-			inventory::iter::<crate::inventory::Reg<ActionDef>>
-				.into_iter()
-				.map(|r| r.0),
-		);
-		builder.commands.extend(
-			inventory::iter::<crate::inventory::Reg<CommandDef>>
-				.into_iter()
-				.map(|r| r.0),
-		);
-		builder.motions.extend(
-			inventory::iter::<crate::inventory::Reg<MotionDef>>
-				.into_iter()
-				.map(|r| r.0),
-		);
-		builder.text_objects.extend(
-			inventory::iter::<crate::inventory::Reg<TextObjectDef>>
-				.into_iter()
-				.map(|r| r.0),
-		);
-		builder.options.extend(
-			inventory::iter::<crate::options::OptionReg>
-				.into_iter()
-				.map(|r| r.0),
-		);
-		builder.themes.extend(
-			inventory::iter::<crate::inventory::Reg<ThemeDef>>
-				.into_iter()
-				.map(|r| r.0),
-		);
-		builder.gutters.extend(
-			inventory::iter::<crate::inventory::Reg<GutterDef>>
-				.into_iter()
-				.map(|r| r.0),
-		);
-		builder.statusline.extend(
-			inventory::iter::<crate::inventory::Reg<StatuslineSegmentDef>>
-				.into_iter()
-				.map(|r| r.0),
-		);
-		builder.hooks.extend(
-			inventory::iter::<crate::inventory::Reg<HookDef>>
-				.into_iter()
-				.map(|r| r.0),
-		);
+		// 1) Register builtins explicitly (not via inventory)
+		// Wait, I'm currently using PluginDef for builtins too, so they will be registered in step 2.
+		// Actually, ChatGPT suggested separating them.
+		// For now, they are all in PluginDef inventory.
 
-		// Run plugins
+		// 2) Run plugins (including builtins which now register via PluginDef)
 		if let Err(e) = plugin::run_plugins(&mut builder) {
 			tracing::error!("Registry plugins failed: {}", e);
 		}
 
-		let indices = builder.build();
+		let mut indices = builder.build();
 
 		// Build numeric ID mapping for actions
 		let action_id_to_def = indices.actions.items_all().to_vec();
 
-		let mut notifications: Vec<_> =
-			inventory::iter::<crate::inventory::Reg<crate::notifications::NotificationDef>>
-				.into_iter()
-				.map(|r| r.0)
-				.collect();
-		notifications.sort_by_key(|d| d.id);
+		indices.notifications.sort_by_key(|d| d.id);
 
 		RegistryDb {
 			actions: RuntimeRegistry::new("actions", indices.actions),
@@ -115,7 +67,7 @@ pub fn get_db() -> &'static RegistryDb {
 			statusline: RuntimeRegistry::new("statusline", indices.statusline),
 			hooks: RuntimeRegistry::new("hooks", indices.hooks),
 			action_id_to_def,
-			notifications,
+			notifications: indices.notifications,
 		}
 	})
 }
@@ -163,16 +115,16 @@ pub static OPTION_KDL_INDEX: LazyLock<std::collections::HashMap<&'static str, &'
 	});
 
 pub static BUILTIN_HOOK_BY_EVENT: LazyLock<
-	std::collections::HashMap<crate::hooks::HookEvent, Vec<&'static HookDef>>,
+	std::collections::HashMap<crate::HookEvent, Vec<&'static HookDef>>,
 > = LazyLock::new(|| {
-	let mut map: std::collections::HashMap<crate::hooks::HookEvent, Vec<&'static HookDef>> =
+	let mut map: std::collections::HashMap<crate::HookEvent, Vec<&'static HookDef>> =
 		std::collections::HashMap::new();
 	for hook in HOOKS.builtins().iter() {
 		map.entry(hook.event).or_default().push(hook);
 	}
 	// Sort each event's hooks by priority (asc), then name (asc), then id (asc)
 	for hooks in map.values_mut() {
-		hooks.sort_by(|a, b| {
+		hooks.sort_by(|a: &&HookDef, b: &&HookDef| {
 			a.meta
 				.priority
 				.cmp(&b.meta.priority)
@@ -193,7 +145,7 @@ pub fn resolve_action_id_from_static(id: &'static str) -> ActionId {
 	let db = get_db();
 	db.action_id_to_def
 		.iter()
-		.position(|&a| a.id() == id)
+		.position(|&a: &&ActionDef| a.id() == id)
 		.map(|pos| ActionId(pos as u32))
 		.unwrap_or(ActionId::INVALID)
 }

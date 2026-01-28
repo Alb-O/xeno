@@ -4,26 +4,26 @@
 
 use std::marker::PhantomData;
 
-pub(crate) mod builtins;
+pub mod builtins;
 pub mod parse;
 mod resolver;
 mod store;
 pub mod validators;
 
+pub use builtins::register_builtins;
 pub use resolver::OptionResolver;
 pub use store::OptionStore;
 
 /// Typed handles for built-in options.
 pub mod keys {
-	pub use crate::options::builtins::cursorline::CURSORLINE;
-	pub use crate::options::builtins::indent::TAB_WIDTH;
-	pub use crate::options::builtins::scroll::{SCROLL_LINES, SCROLL_MARGIN};
-	pub use crate::options::builtins::theme::{DEFAULT_THEME_ID, THEME};
+	pub use crate::options::builtins::{
+		CURSORLINE, DEFAULT_THEME_ID, SCROLL_LINES, SCROLL_MARGIN, TAB_WIDTH, THEME,
+	};
 }
 
-pub use xeno_registry_core::{
+pub use crate::core::{
 	FromOptionValue, Key, OptionType, OptionValue, RegistryBuilder, RegistryEntry, RegistryIndex,
-	RegistryMeta, RegistryMetadata, RegistrySource, impl_registry_entry,
+	RegistryMeta, RegistryMetadata, RegistrySource, RuntimeRegistry,
 };
 
 /// Validator function signature for option constraints.
@@ -221,4 +221,15 @@ pub fn validate(kdl_key: &str, value: &OptionValue) -> Result<(), OptionError> {
 	Ok(())
 }
 
-impl_registry_entry!(OptionDef);
+crate::impl_registry_entry!(OptionDef);
+
+pub fn register_plugin(db: &mut crate::db::builder::RegistryDbBuilder) {
+	register_builtins(db);
+}
+
+inventory::submit! {
+	crate::PluginDef::new(
+		crate::RegistryMeta::minimal("options-builtin", "Options Builtin", "Builtin option set"),
+		register_plugin
+	)
+}

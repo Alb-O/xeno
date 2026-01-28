@@ -41,7 +41,7 @@ macro_rules! hook {
 
 			#[allow(non_upper_case_globals)]
 			pub static [<HOOK_ $name>]: $crate::hooks::HookDef = $crate::hooks::HookDef {
-				meta: $crate::hooks::RegistryMeta {
+				meta: $crate::RegistryMeta {
 					id: concat!(env!("CARGO_PKG_NAME"), "::", stringify!($name)),
 					name: stringify!($name),
 					aliases: &[],
@@ -51,7 +51,7 @@ macro_rules! hook {
 					required_caps: &[],
 					flags: 0,
 				},
-				event: $crate::hooks::HookEvent::$event,
+				event: $crate::HookEvent::$event,
 				mutability: $crate::hooks::HookMutability::Mutable,
 				execution_priority: $crate::hooks::HookPriority::Interactive,
 				handler: $crate::hooks::HookHandler::Mutable([<hook_handler_ $name>]),
@@ -62,10 +62,11 @@ macro_rules! hook {
 	};
 	($name:ident, $event:ident, $priority:expr, $desc:expr, |$($param:ident : $ty:ty),*| $body:expr) => {
 		$crate::hooks::hook!($name, $event, $priority, $desc, |ctx| {
-			$crate::hooks::__hook_extract!($event, ctx, $($param : $ty),*);
+			__hook_extract!($event, ctx, $($param : $ty),*);
 			$body
 		});
 	};
+
 	($name:ident, $event:ident, $priority:expr, $desc:expr, |$ctx:ident| $body:expr) => {
 		paste::paste! {
 			#[allow(clippy::unused_unit)]
@@ -76,7 +77,7 @@ macro_rules! hook {
 
 			#[allow(non_upper_case_globals)]
 			pub static [<HOOK_ $name>]: $crate::hooks::HookDef = $crate::hooks::HookDef {
-				meta: $crate::hooks::RegistryMeta {
+				meta: $crate::RegistryMeta {
 					id: concat!(env!("CARGO_PKG_NAME"), "::", stringify!($name)),
 					name: stringify!($name),
 					aliases: &[],
@@ -86,7 +87,7 @@ macro_rules! hook {
 					required_caps: &[],
 					flags: 0,
 				},
-				event: $crate::hooks::HookEvent::$event,
+				event: $crate::HookEvent::$event,
 				mutability: $crate::hooks::HookMutability::Immutable,
 				execution_priority: $crate::hooks::HookPriority::Interactive,
 				handler: $crate::hooks::HookHandler::Immutable([<hook_handler_ $name>]),
@@ -105,7 +106,7 @@ macro_rules! async_hook {
 			$($setup)*
 			let owned = $ctx.to_owned();
 			$crate::hooks::HookAction::Async(::std::boxed::Box::pin(async move {
-				$crate::hooks::__async_hook_extract!($event, owned);
+				__async_hook_extract!($event, owned);
 				let result = { $body };
 				::core::convert::Into::into(result)
 			}))
@@ -115,7 +116,7 @@ macro_rules! async_hook {
 		$crate::hooks::hook!($name, $event, $priority, $desc, |ctx| {
 			let owned = ctx.to_owned();
 			$crate::hooks::HookAction::Async(::std::boxed::Box::pin(async move {
-				$crate::hooks::__async_hook_extract!($event, owned);
+				__async_hook_extract!($event, owned);
 				let result = { $body };
 				::core::convert::Into::into(result)
 			}))
@@ -126,7 +127,7 @@ macro_rules! async_hook {
 			$($setup)*
 			let owned = $ctx.to_owned();
 			$crate::hooks::HookAction::Async(::std::boxed::Box::pin(async move {
-				$crate::hooks::__async_hook_extract!($event, owned, $($param : $ty),*);
+				__async_hook_extract!($event, owned, $($param : $ty),*);
 				let result = { $body };
 				::core::convert::Into::into(result)
 			}))
@@ -136,7 +137,7 @@ macro_rules! async_hook {
 		$crate::hooks::hook!($name, $event, $priority, $desc, |ctx| {
 			let owned = ctx.to_owned();
 			$crate::hooks::HookAction::Async(::std::boxed::Box::pin(async move {
-				$crate::hooks::__async_hook_extract!($event, owned, $($param : $ty),*);
+				__async_hook_extract!($event, owned, $($param : $ty),*);
 				let result = { $body };
 				::core::convert::Into::into(result)
 			}))

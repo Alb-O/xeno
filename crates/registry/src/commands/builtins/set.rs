@@ -1,8 +1,7 @@
-//! Set option commands.
-
 use futures::future::LocalBoxFuture;
 
-use crate::commands::{CommandContext, CommandError, CommandOutcome, RegistrySource, command};
+use crate::command;
+use crate::commands::{CommandContext, CommandError, CommandOutcome, RegistrySource};
 use crate::notifications::keys;
 
 command!(
@@ -25,16 +24,11 @@ command!(
 	handler: cmd_setlocal
 );
 
-/// Handler for the `:set` command.
-///
-/// Accepts either `option=value` or `option value` syntax.
-/// For boolean options, `option` alone sets to true and `nooption` sets to false.
 fn cmd_set<'a>(
 	ctx: &'a mut CommandContext<'a>,
 ) -> LocalBoxFuture<'a, Result<CommandOutcome, CommandError>> {
 	Box::pin(async move {
 		if ctx.args.is_empty() {
-			// TODO: Show all options that differ from defaults
 			return Ok(CommandOutcome::Ok);
 		}
 
@@ -45,15 +39,11 @@ fn cmd_set<'a>(
 	})
 }
 
-/// Handler for the `:setlocal` command.
-///
-/// Same syntax as `:set`, but applies the option only to the current buffer.
 fn cmd_setlocal<'a>(
 	ctx: &'a mut CommandContext<'a>,
 ) -> LocalBoxFuture<'a, Result<CommandOutcome, CommandError>> {
 	Box::pin(async move {
 		if ctx.args.is_empty() {
-			// TODO: Show all buffer-local options
 			return Ok(CommandOutcome::Ok);
 		}
 
@@ -64,13 +54,6 @@ fn cmd_setlocal<'a>(
 	})
 }
 
-/// Parses `:set` arguments into (key, value).
-///
-/// Supports multiple formats:
-/// - `option=value` (e.g., `tab-width=4`)
-/// - `option value` (e.g., `tab-width 4`)
-/// - `option` for boolean true (e.g., `cursorline`)
-/// - `nooption` for boolean false (e.g., `nocursorline`)
 fn parse_set_args(args: &[&str]) -> Result<(String, String), CommandError> {
 	let first = args[0];
 
@@ -88,3 +71,8 @@ fn parse_set_args(args: &[&str]) -> Result<(String, String), CommandError> {
 		Ok((first.to_string(), "true".to_string()))
 	}
 }
+
+pub const DEFS: &[&crate::commands::CommandDef] = &[
+	&CMD_set,
+	&CMD_setlocal,
+];

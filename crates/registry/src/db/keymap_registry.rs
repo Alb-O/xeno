@@ -7,9 +7,9 @@ use tracing::warn;
 use xeno_keymap_core::parser::{Node, parse_seq};
 pub use xeno_keymap_core::{ContinuationEntry, ContinuationKind};
 use xeno_keymap_core::{MatchResult, Matcher};
-use xeno_registry_core::ActionId;
 
 use crate::actions::{BindingMode, KEYBINDINGS};
+use crate::core::ActionId;
 
 /// Binding entry storing action info and the key sequence.
 #[derive(Debug, Clone)]

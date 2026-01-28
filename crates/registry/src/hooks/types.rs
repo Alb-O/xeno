@@ -3,12 +3,9 @@
 use std::future::Future;
 use std::pin::Pin;
 
-pub use xeno_registry_core::{
-	RegistryEntry, RegistryMeta, RegistryMetadata, RegistrySource, impl_registry_entry,
-};
-
-use super::HookEvent;
 use super::context::{HookContext, MutableHookContext};
+use crate::HookEvent;
+pub use crate::core::{RegistryEntry, RegistryMeta, RegistryMetadata};
 
 /// Execution priority for async hooks.
 ///
@@ -120,4 +117,4 @@ impl std::fmt::Debug for HookDef {
 	}
 }
 
-impl_registry_entry!(HookDef);
+crate::impl_registry_entry!(HookDef);

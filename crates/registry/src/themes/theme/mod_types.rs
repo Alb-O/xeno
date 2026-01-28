@@ -24,13 +24,13 @@ pub fn runtime_themes() -> &'static [&'static ThemeDef] {
 
 /// Default fallback theme (minimal terminal colors).
 pub static DEFAULT_THEME: ThemeDef = ThemeDef {
-	meta: xeno_registry_core::RegistryMeta {
+	meta: crate::core::RegistryMeta {
 		id: "default",
 		name: "default",
 		aliases: &[],
 		description: "",
 		priority: 0,
-		source: xeno_registry_core::RegistrySource::Builtin,
+		source: crate::core::RegistrySource::Builtin,
 		required_caps: &[],
 		flags: 0,
 	},

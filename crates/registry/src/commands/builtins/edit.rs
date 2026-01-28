@@ -1,11 +1,11 @@
 use futures::future::LocalBoxFuture;
 
-use crate::commands::{CommandContext, CommandError, CommandOutcome, command};
+use crate::command;
+use crate::commands::{CommandContext, CommandError, CommandOutcome};
 use crate::notifications::keys;
 
 command!(edit, { aliases: &["e"], description: "Edit a file" }, handler: cmd_edit);
 
-/// Handler for the `:edit` command.
 fn cmd_edit<'a>(
 	ctx: &'a mut CommandContext<'a>,
 ) -> LocalBoxFuture<'a, Result<CommandOutcome, CommandError>> {
@@ -17,3 +17,7 @@ fn cmd_edit<'a>(
 		Ok(CommandOutcome::Ok)
 	})
 }
+
+pub const DEFS: &[&crate::commands::CommandDef] = &[
+	&CMD_edit,
+];

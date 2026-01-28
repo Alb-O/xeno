@@ -6,14 +6,26 @@
 use ropey::RopeSlice;
 use xeno_primitives::Range;
 
-pub(crate) mod builtins;
+pub mod builtins;
 mod macros;
 
-pub use xeno_registry_core::{
-	Capability, DuplicatePolicy, RegistryBuilder, RegistryEntry, RegistryIndex, RegistryMeta,
-	RegistryMetadata, RegistrySource, impl_registry_entry,
-};
+pub use builtins::register_builtins;
 
+pub fn register_plugin(db: &mut crate::db::builder::RegistryDbBuilder) {
+	register_builtins(db);
+}
+
+inventory::submit! {
+	crate::PluginDef::new(
+		crate::RegistryMeta::minimal("textobj-builtin", "Text Objects Builtin", "Builtin text object set"),
+		register_plugin
+	)
+}
+
+pub use crate::core::{
+	Capability, DuplicatePolicy, RegistryBuilder, RegistryEntry, RegistryIndex, RegistryMeta,
+	RegistryMetadata, RegistrySource,
+};
 pub use crate::motions::{flags, movement};
 // Re-export macros
 pub use crate::text_object;
@@ -96,7 +108,7 @@ impl TextObjectDef {
 	}
 }
 
-impl_registry_entry!(TextObjectDef);
+crate::impl_registry_entry!(TextObjectDef);
 
 #[cfg(feature = "db")]
 pub use crate::db::TEXT_OBJECT_TRIGGER_INDEX;

@@ -13,16 +13,28 @@ use futures::future::LocalBoxFuture;
 
 use crate::notifications::Notification;
 
-pub(crate) mod builtins;
+pub mod builtins;
 mod macros;
 
-pub use xeno_registry_core::{
-	Capability, CommandError, RegistryBuilder, RegistryEntry, RegistryMeta, RegistryMetadata,
-	RegistrySource, RuntimeRegistry, impl_registry_entry,
-};
+pub use builtins::register_builtins;
+
+pub fn register_plugin(db: &mut crate::db::builder::RegistryDbBuilder) {
+	register_builtins(db);
+}
+
+inventory::submit! {
+	crate::PluginDef::new(
+		crate::RegistryMeta::minimal("commands-builtin", "Commands Builtin", "Builtin command set"),
+		register_plugin
+	)
+}
 
 // Re-export macros
 pub use crate::command;
+pub use crate::core::{
+	Capability, CommandError, RegistryBuilder, RegistryEntry, RegistryMeta, RegistryMetadata,
+	RegistrySource, RuntimeRegistry,
+};
 
 /// Function signature for async command handlers.
 pub type CommandHandler = for<'a> fn(
@@ -187,7 +199,7 @@ impl CommandDef {
 	}
 }
 
-impl_registry_entry!(CommandDef);
+crate::impl_registry_entry!(CommandDef);
 
 /// Command flags for optional behavior hints.
 pub mod flags {

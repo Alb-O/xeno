@@ -1,9 +1,8 @@
 //! Public lookup functions for registry queries.
 
-use xeno_registry_core::ActionId;
-
 use crate::actions::{ActionDef, ActionKey};
 use crate::commands::CommandDef;
+use crate::core::ActionId;
 use crate::db::{
 	ACTIONS, COMMANDS, MOTIONS, TEXT_OBJECT_TRIGGER_INDEX, TEXT_OBJECTS,
 	resolve_action_id_from_static, resolve_action_id_typed,
