@@ -10,14 +10,14 @@ The project uses Nix flakes with `direnv` or `nix develop -c` directly. Formatti
 
 ## Architecture
 
-The workspace contains many crates under `crates/`. The main binary lives in `crates/term` and produces the `xeno` executable.
+- The workspace contains multiple crates under `crates/`. The main binary lives in `crates/term` and produces the `xeno` executable.
+- `crates/registry` contains the core registry system for all editor components. It managemes actions, commands, and options. [Read this](docs/agents/registry.md) if needing more context.
+- `xeno-lsp` implements the LSP client stack. [Read this](docs/agents/lsp.md) if needing more context.
+- `xeno-editor` contains the core editor implementation and the unified overlay/interaction system. [Read this](docs/agents/overlay.md) if needing more context.
+- `xeno-runtime-language` handles tree-sitter integration and syntax highlighting. [Read this](docs/agents/syntax.md) if needing more context.
+- `xeno-tui` is a modified Ratatui vendor. It renders to crossterm.
+- KDL files parsed by `xeno-runtime-config`. Runtime assets (queries, themes, language configs) inside `crates/runtime/data/assets` embed via `xeno-runtime-data`.
 
-The `crates/registry/` subtree contains many sub-crates for components. [Read this](docs/agents/registry.md) if needing more context.
+## Documentation
 
-`xeno-lsp` implements the LSP client stack. [Read this](docs/agents/lsp.md) if needing more context.
-
-`xeno-runtime-language` handles tree-sitter integration and syntax highlighting. [Read this](docs/agents/syntax.md) if needing more context.
-
-`xeno-tui` is a modified Ratatui vendor. It renders to crossterm.
-
-KDL files parsed by `xeno-runtime-config`. Runtime assets (queries, themes, language configs) inside `crates/runtime/data/assets` embed via `xeno-runtime-data`.
+- Always update relevant files in `docs/agents/` after making foundational changes or API changes

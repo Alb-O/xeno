@@ -5,36 +5,41 @@ use crate::overlay::{CloseReason, controllers};
 impl Editor {
 	pub fn interaction_on_buffer_edited(&mut self) {
 		let view_id = self.focused_view();
-		let mut interaction = std::mem::take(&mut self.state.interaction);
+		let mut interaction: crate::overlay::OverlayManager =
+			std::mem::take(&mut self.state.overlay_system.interaction);
 		interaction.on_buffer_edited(self, view_id);
-		self.state.interaction = interaction;
+		self.state.overlay_system.interaction = interaction;
 	}
 
 	pub async fn interaction_commit(&mut self) {
-		let mut interaction = std::mem::take(&mut self.state.interaction);
+		let mut interaction: crate::overlay::OverlayManager =
+			std::mem::take(&mut self.state.overlay_system.interaction);
 		interaction.commit(self).await;
-		self.state.interaction = interaction;
+		self.state.overlay_system.interaction = interaction;
 	}
 
 	pub fn interaction_cancel(&mut self) {
-		let mut interaction = std::mem::take(&mut self.state.interaction);
+		let mut interaction: crate::overlay::OverlayManager =
+			std::mem::take(&mut self.state.overlay_system.interaction);
 		interaction.close(self, CloseReason::Cancel);
-		self.state.interaction = interaction;
+		self.state.overlay_system.interaction = interaction;
 	}
 
 	pub fn open_search(&mut self, reverse: bool) -> bool {
 		let ctl = controllers::SearchOverlay::new(self.focused_view(), reverse);
-		let mut interaction = std::mem::take(&mut self.state.interaction);
+		let mut interaction: crate::overlay::OverlayManager =
+			std::mem::take(&mut self.state.overlay_system.interaction);
 		let result = interaction.open(self, Box::new(ctl));
-		self.state.interaction = interaction;
+		self.state.overlay_system.interaction = interaction;
 		result
 	}
 
 	pub fn open_command_palette(&mut self) -> bool {
 		let ctl = controllers::CommandPaletteOverlay::new();
-		let mut interaction = std::mem::take(&mut self.state.interaction);
+		let mut interaction: crate::overlay::OverlayManager =
+			std::mem::take(&mut self.state.overlay_system.interaction);
 		let result = interaction.open(self, Box::new(ctl));
-		self.state.interaction = interaction;
+		self.state.overlay_system.interaction = interaction;
 		result
 	}
 
@@ -66,9 +71,10 @@ impl Editor {
 		let word = word_at_cursor(buffer);
 
 		let ctl = controllers::RenameOverlay::new(buffer_id, cursor, word);
-		let mut interaction = std::mem::take(&mut self.state.interaction);
+		let mut interaction: crate::overlay::OverlayManager =
+			std::mem::take(&mut self.state.overlay_system.interaction);
 		let result = interaction.open(self, Box::new(ctl));
-		self.state.interaction = interaction;
+		self.state.overlay_system.interaction = interaction;
 		result
 	}
 

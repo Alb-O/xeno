@@ -33,7 +33,12 @@ impl SearchOverlay {
 		}
 	}
 
-	fn search_preview_find(&self, ed: &Editor, re: &Regex) -> Result<Option<Range>, regex::Error> {
+	fn search_preview_find(
+		&self,
+		ed: &Editor,
+		session: &OverlaySession,
+		re: &Regex,
+	) -> Result<Option<Range>, regex::Error> {
 		const PREVIEW_WINDOW_CHARS: usize = 200_000;
 		const FULL_SCAN_PREVIEW_MAX: usize = 500_000;
 
@@ -41,7 +46,12 @@ impl SearchOverlay {
 			return Ok(None);
 		};
 
-		let origin_cursor = buffer.cursor;
+		let origin_cursor = session
+			.capture
+			.per_view
+			.get(&self.target)
+			.map(|(c, _)| *c)
+			.unwrap_or(buffer.cursor);
 
 		buffer.with_doc(|doc| {
 			let content = doc.content();
@@ -148,7 +158,7 @@ impl OverlayController for SearchOverlay {
 		}
 
 		let Some((_, re)) = &self.cached else { return };
-		let found = self.search_preview_find(ed, re);
+		let found = self.search_preview_find(ed, session, re);
 
 		match found {
 			Ok(Some(range)) => {

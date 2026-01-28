@@ -75,7 +75,7 @@ pub use crate::command_queue::CommandQueue;
 pub use crate::hook_runtime::HookRuntime;
 pub use crate::layout::{LayoutManager, SeparatorHit, SeparatorId};
 use crate::msg::{MsgReceiver, MsgSender};
-pub use crate::overlay::{OverlayManager, OverlayStore};
+pub use crate::overlay::{OverlayStore, OverlaySystem};
 pub use crate::separator::{DragState, MouseVelocityTracker, SeparatorHoverAnimation};
 pub use crate::types::{
 	ApplyEditPolicy, Config, EditorUndoGroup, FrameState, Invocation, InvocationPolicy,
@@ -186,11 +186,8 @@ pub(crate) struct EditorState {
 	/// Runtime for scheduling async hooks during sync emission.
 	pub(crate) hook_runtime: HookRuntime,
 
-	/// Type-erased storage for UI overlays (popups, palette, completions).
-	pub(crate) overlays: OverlayStore,
-
-	/// Interaction manager for active overlays (search, palette, rename).
-	pub(crate) interaction: OverlayManager,
+	/// Unified overlay system for modal interactions and passive layers.
+	pub(crate) overlay_system: OverlaySystem,
 
 	/// Runtime metrics for observability.
 	pub(crate) metrics: std::sync::Arc<crate::metrics::EditorMetrics>,
@@ -321,8 +318,7 @@ impl Editor {
 				lsp: LspSystem::new(),
 				syntax_manager: crate::syntax_manager::SyntaxManager::new(2),
 				hook_runtime,
-				overlays: OverlayStore::new(),
-				interaction: OverlayManager::default(),
+				overlay_system: OverlaySystem::default(),
 				metrics: std::sync::Arc::new(crate::metrics::EditorMetrics::new()),
 				msg_tx,
 				msg_rx,
@@ -490,12 +486,12 @@ impl Editor {
 
 	#[inline]
 	pub fn overlays(&self) -> &OverlayStore {
-		&self.state.overlays
+		&self.state.overlay_system.store
 	}
 
 	#[inline]
 	pub fn overlays_mut(&mut self) -> &mut OverlayStore {
-		&mut self.state.overlays
+		&mut self.state.overlay_system.store
 	}
 
 	#[inline]

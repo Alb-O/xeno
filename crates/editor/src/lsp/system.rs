@@ -423,8 +423,7 @@ impl LspSystem {
 		use crate::lsp::{LspMenuKind, LspMenuState};
 
 		let completions = editor
-			.state
-			.overlays
+			.overlays()
 			.get::<CompletionState>()
 			.cloned()
 			.unwrap_or_default();
@@ -433,16 +432,15 @@ impl LspSystem {
 		}
 
 		let Some(menu_state) = editor
-			.state
-			.overlays
+			.overlays()
 			.get::<LspMenuState>()
-			.and_then(|s| s.active())
+			.and_then(|s: &LspMenuState| s.active())
 		else {
 			return;
 		};
 		let buffer_id = match menu_state {
-			LspMenuKind::Completion { buffer_id, .. } => *buffer_id,
-			LspMenuKind::CodeAction { buffer_id, .. } => *buffer_id,
+			LspMenuKind::Completion { buffer_id, .. } => buffer_id.clone(),
+			LspMenuKind::CodeAction { buffer_id, .. } => buffer_id.clone(),
 		};
 		if buffer_id != editor.focused_view() {
 			return;

@@ -197,7 +197,7 @@ impl Editor {
 		float.dismiss_on_blur = true;
 		float.gutter = GutterSelector::Hidden;
 
-		let store = self.state.overlays.get_or_default::<InfoPopupStore>();
+		let store = self.overlays_mut().get_or_default::<InfoPopupStore>();
 		let popup_id = store.next_id();
 		store.insert(InfoPopup {
 			id: popup_id,
@@ -213,8 +213,7 @@ impl Editor {
 	/// Closes an info popup by ID.
 	pub fn close_info_popup(&mut self, popup_id: InfoPopupId) {
 		let Some(popup) = self
-			.state
-			.overlays
+			.overlays_mut()
 			.get_or_default::<InfoPopupStore>()
 			.remove(popup_id)
 		else {
@@ -228,8 +227,7 @@ impl Editor {
 	/// Closes all open info popups.
 	pub fn close_all_info_popups(&mut self) {
 		let popup_ids: Vec<_> = self
-			.state
-			.overlays
+			.overlays_mut()
 			.get_or_default::<InfoPopupStore>()
 			.ids()
 			.collect();
@@ -246,8 +244,7 @@ impl Editor {
 		file_type: Option<&str>,
 	) -> bool {
 		let Some(buffer_id) = self
-			.state
-			.overlays
+			.overlays()
 			.get::<InfoPopupStore>()
 			.and_then(|s: &InfoPopupStore| s.get(popup_id))
 			.map(|p| p.buffer_id)
@@ -278,8 +275,7 @@ impl Editor {
 
 	/// Returns the number of open info popups.
 	pub fn info_popup_count(&self) -> usize {
-		self.state
-			.overlays
+		self.overlays()
 			.get::<InfoPopupStore>()
 			.map_or(0, |s: &InfoPopupStore| s.len())
 	}

@@ -260,13 +260,14 @@ impl Editor {
 				Some(Window::Floating(floating)) if floating.dismiss_on_blur
 			);
 			if should_close {
-				if self.state.interaction.is_open() {
+				if self.state.overlay_system.interaction.is_open() {
 					if self
 						.state
+						.overlay_system
 						.interaction
-						.session
+						.active
 						.as_ref()
-						.map_or(false, |s| s.windows.contains(&window))
+						.map_or(false, |a| a.session.windows.contains(&window))
 					{
 						self.interaction_cancel();
 						return;

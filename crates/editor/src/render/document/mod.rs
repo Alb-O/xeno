@@ -128,6 +128,8 @@ impl Editor {
 
 		self.render_completion_popup(frame);
 
+		self.state.overlay_system.layers.render(self, frame);
+
 		let status_bg = Block::default().style(Style::default().bg(ctx.theme.colors.popup.bg));
 		frame.render_widget(status_bg, status_area);
 		frame.render_widget(self.render_status_line(), status_area);

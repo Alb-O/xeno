@@ -53,14 +53,15 @@ impl Editor {
 		#[cfg(feature = "lsp")]
 		let old_version = self.buffer().version();
 
-		let mut interaction = std::mem::take(&mut self.state.interaction);
+		let mut interaction: crate::overlay::OverlayManager =
+			std::mem::take(&mut self.state.overlay_system.interaction);
 		let handled = interaction.handle_key(self, key);
-		self.state.interaction = interaction;
+		self.state.overlay_system.interaction = interaction;
 		if handled {
 			return false;
 		}
 
-		if self.state.interaction.is_open() && key.code == KeyCode::Enter {
+		if self.state.overlay_system.interaction.is_open() && key.code == KeyCode::Enter {
 			self.interaction_commit().await;
 			self.state.frame.needs_redraw = true;
 			return false;
@@ -104,6 +105,9 @@ impl Editor {
 				KeyResult::ModeChange(new_mode) => {
 					let leaving_insert = !matches!(new_mode, Mode::Insert);
 					if new_mode != old_mode {
+						let mut layers = std::mem::take(&mut self.state.overlay_system.layers);
+						layers.notify_event(self, crate::overlay::LayerEvent::ModeChanged);
+						self.state.overlay_system.layers = layers;
 						emit_hook(&HookContext::new(HookEventData::ModeChange {
 							old_mode,
 							new_mode: new_mode.clone(),
@@ -180,13 +184,14 @@ impl Editor {
 			return false;
 		};
 
-		if self.state.interaction.is_open() {
+		if self.state.overlay_system.interaction.is_open() {
 			if self
 				.state
+				.overlay_system
 				.interaction
-				.session
+				.active
 				.as_ref()
-				.map_or(false, |s| s.windows.contains(&window))
+				.map_or(false, |a| a.session.windows.contains(&window))
 			{
 				self.interaction_cancel();
 				self.state.frame.needs_redraw = true;

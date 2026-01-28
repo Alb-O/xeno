@@ -97,14 +97,14 @@ impl Editor {
 		let display_items: Vec<UiCompletionItem> =
 			actions.iter().map(map_code_action_item).collect();
 
-		let completions = self.state.overlays.get_or_default::<CompletionState>();
+		let completions = self.overlays_mut().get_or_default::<CompletionState>();
 		completions.items = display_items;
 		completions.selected_idx = Some(0);
 		completions.active = true;
 		completions.replace_start = 0;
 		completions.scroll_offset = 0;
 
-		let menu_state = self.state.overlays.get_or_default::<LspMenuState>();
+		let menu_state = self.overlays_mut().get_or_default::<LspMenuState>();
 		menu_state.set(LspMenuKind::CodeAction { buffer_id, actions });
 
 		self.state.frame.needs_redraw = true;

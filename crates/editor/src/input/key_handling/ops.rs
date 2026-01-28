@@ -77,13 +77,11 @@ impl Editor {
 
 		let cursor = self.buffer().cursor;
 		let menu_active = self
-			.state
-			.overlays
+			.overlays()
 			.get::<CompletionState>()
 			.is_some_and(|s| s.active);
 		let replace_start = self
-			.state
-			.overlays
+			.overlays()
 			.get::<CompletionState>()
 			.map(|s| s.replace_start)
 			.unwrap_or(0);

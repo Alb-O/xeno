@@ -86,7 +86,7 @@ impl Editor {
 					})
 					.collect();
 
-				let completions = self.state.overlays.get_or_default::<CompletionState>();
+				let completions = self.overlays_mut().get_or_default::<CompletionState>();
 				completions.items = display_items;
 				completions.selected_idx = None;
 				completions.selection_intent = SelectionIntent::Auto;
@@ -95,7 +95,7 @@ impl Editor {
 				completions.scroll_offset = 0;
 				completions.query = query;
 
-				let menu_state = self.state.overlays.get_or_default::<LspMenuState>();
+				let menu_state = self.overlays_mut().get_or_default::<LspMenuState>();
 				menu_state.set(LspMenuKind::Completion { buffer_id, items });
 
 				self.state.frame.needs_redraw = true;
@@ -126,10 +126,10 @@ impl Editor {
 	}
 
 	pub(crate) fn clear_lsp_menu(&mut self) {
-		if let Some(completions) = self.state.overlays.get::<CompletionState>()
+		if let Some(completions) = self.overlays().get::<CompletionState>()
 			&& completions.active
 		{
-			let completions = self.state.overlays.get_or_default::<CompletionState>();
+			let completions = self.overlays_mut().get_or_default::<CompletionState>();
 			completions.items.clear();
 			completions.selected_idx = None;
 			completions.active = false;
@@ -138,10 +138,10 @@ impl Editor {
 			completions.query.clear();
 		}
 
-		if let Some(menu_state) = self.state.overlays.get::<LspMenuState>()
+		if let Some(menu_state) = self.overlays().get::<LspMenuState>()
 			&& menu_state.is_active()
 		{
-			let menu_state = self.state.overlays.get_or_default::<LspMenuState>();
+			let menu_state = self.overlays_mut().get_or_default::<LspMenuState>();
 			menu_state.clear();
 		}
 

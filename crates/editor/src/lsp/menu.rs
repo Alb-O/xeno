@@ -22,18 +22,17 @@ impl Editor {
 	/// Returns `true` if the key was consumed by the menu, `false` otherwise.
 	pub(crate) async fn handle_lsp_menu_key(&mut self, key: &KeyEvent) -> bool {
 		let menu_kind = self
-			.state
-			.overlays
+			.overlays()
 			.get::<LspMenuState>()
-			.and_then(|state| state.active())
+			.and_then(|state: &LspMenuState| state.active())
 			.cloned();
 		let Some(menu_kind) = menu_kind else {
 			return false;
 		};
 
 		let buffer_id = match &menu_kind {
-			LspMenuKind::Completion { buffer_id, .. } => *buffer_id,
-			LspMenuKind::CodeAction { buffer_id, .. } => *buffer_id,
+			LspMenuKind::Completion { buffer_id, .. } => buffer_id.clone(),
+			LspMenuKind::CodeAction { buffer_id, .. } => buffer_id.clone(),
 		};
 		if buffer_id != self.focused_view() {
 			self.clear_lsp_menu();
@@ -44,13 +43,11 @@ impl Editor {
 			KeyCode::Escape => {
 				self.state.lsp.cancel_completion();
 				if self
-					.state
-					.overlays
+					.overlays()
 					.get::<CompletionState>()
 					.is_some_and(|s| s.active)
 				{
-					self.state
-						.overlays
+					self.overlays_mut()
 						.get_or_default::<CompletionState>()
 						.suppressed = true;
 				}
@@ -75,8 +72,7 @@ impl Editor {
 			}
 			KeyCode::Tab => {
 				let selected_idx = self
-					.state
-					.overlays
+					.overlays()
 					.get::<CompletionState>()
 					.and_then(|state| state.selected_idx);
 				if let Some(idx) = selected_idx {
@@ -95,7 +91,7 @@ impl Editor {
 						}
 					}
 				} else {
-					let state = self.state.overlays.get_or_default::<CompletionState>();
+					let state = self.overlays_mut().get_or_default::<CompletionState>();
 					if !state.items.is_empty() {
 						state.selected_idx = Some(0);
 						state.selection_intent = SelectionIntent::Manual;
@@ -106,7 +102,7 @@ impl Editor {
 				return true;
 			}
 			KeyCode::Char('y') if key.modifiers.contains(Modifiers::CONTROL) => {
-				let state = self.state.overlays.get::<CompletionState>();
+				let state = self.overlays().get::<CompletionState>();
 				let idx = state
 					.and_then(|s| s.selected_idx)
 					.or_else(|| state.filter(|s| !s.items.is_empty()).map(|_| 0));
@@ -136,7 +132,7 @@ impl Editor {
 	}
 
 	fn move_lsp_menu_selection(&mut self, delta: isize) {
-		let state = self.state.overlays.get_or_default::<CompletionState>();
+		let state = self.overlays_mut().get_or_default::<CompletionState>();
 		if state.items.is_empty() {
 			return;
 		}
@@ -155,7 +151,7 @@ impl Editor {
 	}
 
 	fn page_lsp_menu_selection(&mut self, direction: isize) {
-		let state = self.state.overlays.get_or_default::<CompletionState>();
+		let state = self.overlays_mut().get_or_default::<CompletionState>();
 		if state.items.is_empty() {
 			return;
 		}

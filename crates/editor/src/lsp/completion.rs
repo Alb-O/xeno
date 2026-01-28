@@ -50,13 +50,11 @@ impl Editor {
 		let is_manual = matches!(trigger, CompletionTrigger::Manual);
 
 		if is_trigger_char || is_manual {
-			self.state
-				.overlays
+			self.overlays_mut()
 				.get_or_default::<CompletionState>()
 				.suppressed = false;
 		} else if self
-			.state
-			.overlays
+			.overlays()
 			.get::<CompletionState>()
 			.is_some_and(|s| s.suppressed)
 		{
@@ -110,14 +108,13 @@ impl Editor {
 	/// to update filtering without waiting for a new LSP response.
 	pub(crate) fn refilter_completion(&mut self) {
 		let menu_kind = self
-			.state
-			.overlays
+			.overlays()
 			.get::<LspMenuState>()
-			.and_then(|s| s.active());
+			.and_then(|s: &LspMenuState| s.active());
 		let Some(LspMenuKind::Completion { buffer_id, items }) = menu_kind else {
 			return;
 		};
-		let buffer_id = *buffer_id;
+		let buffer_id = buffer_id.clone();
 		let items = items.clone();
 
 		let Some(buffer) = self.state.core.buffers.get_buffer(buffer_id) else {
@@ -125,8 +122,7 @@ impl Editor {
 		};
 
 		let replace_start = self
-			.state
-			.overlays
+			.overlays()
 			.get::<CompletionState>()
 			.map(|s| s.replace_start)
 			.unwrap_or(0);
@@ -150,7 +146,7 @@ impl Editor {
 			.map(|f| map_completion_item_with_indices(&items[f.index], f.match_indices.clone()))
 			.collect();
 
-		let completions = self.state.overlays.get_or_default::<CompletionState>();
+		let completions = self.overlays_mut().get_or_default::<CompletionState>();
 		completions.items = display_items;
 		completions.selected_idx = None;
 		completions.selection_intent = SelectionIntent::Auto;
@@ -180,8 +176,7 @@ impl Editor {
 		let command = item.command.clone();
 
 		let replace_start = if selection.is_empty() {
-			self.state
-				.overlays
+			self.overlays()
 				.get::<CompletionState>()
 				.map(|state| state.replace_start)
 				.unwrap_or_else(|| completion_replace_start_at(&rope, cursor))

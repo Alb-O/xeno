@@ -63,6 +63,9 @@ impl CursorAccess for Editor {
 
 	fn set_cursor(&mut self, pos: CharIdx) {
 		self.state.core.set_cursor(pos);
+		let mut layers = std::mem::take(&mut self.state.overlay_system.layers);
+		layers.notify_event(self, crate::overlay::LayerEvent::CursorMoved);
+		self.state.overlay_system.layers = layers;
 	}
 }
 
@@ -77,6 +80,9 @@ impl SelectionAccess for Editor {
 
 	fn set_selection(&mut self, sel: Selection) {
 		self.state.core.set_selection(sel);
+		let mut layers = std::mem::take(&mut self.state.overlay_system.layers);
+		layers.notify_event(self, crate::overlay::LayerEvent::CursorMoved);
+		self.state.overlay_system.layers = layers;
 	}
 }
 
@@ -92,8 +98,7 @@ impl ModeAccess for Editor {
 		}
 		#[cfg(feature = "lsp")]
 		if matches!(mode, Mode::Insert) {
-			self.state
-				.overlays
+			self.overlays_mut()
 				.get_or_default::<crate::CompletionState>()
 				.suppressed = false;
 		}
@@ -475,7 +480,7 @@ impl PaletteAccess for Editor {
 	}
 
 	fn palette_is_open(&self) -> bool {
-		self.state.interaction.is_open()
+		self.state.overlay_system.interaction.is_open()
 	}
 }
 

@@ -65,8 +65,7 @@ impl Editor {
 	/// Creates a widget for rendering the completion popup menu.
 	pub fn render_completion_menu(&self, _area: Rect) -> impl Widget + '_ {
 		let completions = self
-			.state
-			.overlays
+			.overlays()
 			.get::<CompletionState>()
 			.cloned()
 			.unwrap_or_default();

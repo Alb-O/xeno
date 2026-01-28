@@ -36,7 +36,10 @@ pub fn apply_effects(
 		let start = Instant::now();
 
 		match effect {
-			Effect::View(view) => apply_view_effect(view, ctx, extend),
+			Effect::View(view) => {
+				apply_view_effect(view, ctx, extend);
+				// TODO: notify overlay system about cursor moves
+			}
 			Effect::Edit(edit) => apply_edit_effect(edit, ctx),
 			Effect::Ui(ui) => apply_ui_effect(ui, ctx),
 			Effect::App(app) => {

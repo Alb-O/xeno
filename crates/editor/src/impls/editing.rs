@@ -43,9 +43,16 @@ impl Editor {
 			lsp: &mut self.state.lsp,
 		};
 
-		undo_manager.with_edit(&mut host, buffer_id, undo, origin, |host| {
+		let res = undo_manager.with_edit(&mut host, buffer_id, undo, origin, |host| {
 			host.apply_transaction_inner(buffer_id, tx, new_selection, undo)
-		})
+		});
+
+		if res {
+			let mut layers = std::mem::take(&mut self.state.overlay_system.layers);
+			layers.notify_event(self, crate::overlay::LayerEvent::BufferEdited(buffer_id));
+			self.state.overlay_system.layers = layers;
+		}
+		res
 	}
 
 	/// Inserts a newline with smart indentation.
