@@ -29,8 +29,6 @@ macro_rules! command {
 				handler: $handler,
 				user_data: None,
 			};
-
-			inventory::submit! { $crate::inventory::Reg(&[<CMD_ $name>]) }
 		}
 	};
 }

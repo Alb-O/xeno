@@ -35,8 +35,6 @@ macro_rules! text_object {
 				$inner,
 				$around,
 			);
-
-			inventory::submit! { $crate::inventory::Reg(&[<OBJ_ $name>]) }
 		}
 	};
 }

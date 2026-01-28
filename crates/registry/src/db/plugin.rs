@@ -2,9 +2,19 @@ use super::builder::{RegistryDbBuilder, RegistryError};
 use crate::core::plugin::PluginDef;
 
 pub fn run_plugins(builder: &mut RegistryDbBuilder) -> Result<(), RegistryError> {
-	for entry in inventory::iter::<PluginDef> {
-		(entry.register)(builder);
+	let mut plugins: Vec<&'static PluginDef> = inventory::iter::<PluginDef>.into_iter().collect();
+	plugins.sort_by(|a, b| {
+		b.meta
+			.priority
+			.cmp(&a.meta.priority)
+			.then_with(|| a.meta.source.rank().cmp(&b.meta.source.rank()))
+			.then_with(|| a.meta.id.cmp(b.meta.id))
+	});
+
+	for plugin in plugins {
+		builder.register_plugin(plugin)?;
 	}
+
 	Ok(())
 }
 

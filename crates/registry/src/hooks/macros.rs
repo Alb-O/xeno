@@ -56,8 +56,6 @@ macro_rules! hook {
 				execution_priority: $crate::hooks::HookPriority::Interactive,
 				handler: $crate::hooks::HookHandler::Mutable([<hook_handler_ $name>]),
 			};
-
-			inventory::submit! { $crate::inventory::Reg(&[<HOOK_ $name>]) }
 		}
 	};
 	($name:ident, $event:ident, $priority:expr, $desc:expr, |$($param:ident : $ty:ty),*| $body:expr) => {
@@ -92,8 +90,6 @@ macro_rules! hook {
 				execution_priority: $crate::hooks::HookPriority::Interactive,
 				handler: $crate::hooks::HookHandler::Immutable([<hook_handler_ $name>]),
 			};
-
-			inventory::submit! { $crate::inventory::Reg(&[<HOOK_ $name>]) }
 		}
 	};
 }

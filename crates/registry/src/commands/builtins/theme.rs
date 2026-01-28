@@ -28,6 +28,4 @@ fn cmd_theme<'a>(
 	})
 }
 
-pub const DEFS: &[&crate::commands::CommandDef] = &[
-	&CMD_theme,
-];
+pub const DEFS: &[&crate::commands::CommandDef] = &[&CMD_theme];

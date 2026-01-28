@@ -9,8 +9,10 @@ pub mod index;
 pub mod keymap_registry;
 pub mod plugin;
 
-use crate::actions::ActionDef;
+use crate::actions::{ActionDef, KeyPrefixDef};
 use crate::commands::CommandDef;
+#[cfg(feature = "keymap")]
+use crate::db::keymap_registry::KeymapRegistry;
 use crate::gutter::GutterDef;
 use crate::hooks::HookDef;
 use crate::motions::MotionDef;
@@ -31,6 +33,9 @@ pub struct RegistryDb {
 	pub hooks: RuntimeRegistry<HookDef>,
 	pub(crate) action_id_to_def: Vec<&'static ActionDef>,
 	pub notifications: Vec<&'static crate::notifications::NotificationDef>,
+	pub key_prefixes: Vec<KeyPrefixDef>,
+	#[cfg(feature = "keymap")]
+	pub keymap: KeymapRegistry,
 }
 
 static DB: OnceLock<RegistryDb> = OnceLock::new();
@@ -54,6 +59,9 @@ pub fn get_db() -> &'static RegistryDb {
 		// Build numeric ID mapping for actions
 		let action_id_to_def = indices.actions.items_all().to_vec();
 
+		#[cfg(feature = "keymap")]
+		let keymap = KeymapRegistry::build(&indices.actions, &indices.keybindings);
+
 		indices.notifications.sort_by_key(|d| d.id);
 
 		RegistryDb {
@@ -68,6 +76,9 @@ pub fn get_db() -> &'static RegistryDb {
 			hooks: RuntimeRegistry::new("hooks", indices.hooks),
 			action_id_to_def,
 			notifications: indices.notifications,
+			key_prefixes: indices.key_prefixes,
+			#[cfg(feature = "keymap")]
+			keymap,
 		}
 	})
 }

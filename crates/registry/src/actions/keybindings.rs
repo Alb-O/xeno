@@ -2,27 +2,26 @@
 
 use std::sync::LazyLock;
 
-use inventory;
 use xeno_primitives::Mode;
 
-use crate::inventory::Reg;
+#[cfg(feature = "db")]
+use crate::db::get_db;
 
-/// All keybindings from `action!` macro `bindings:` syntax.
-pub static KEYBINDINGS: LazyLock<Vec<KeyBindingDef>> = LazyLock::new(|| {
-	let mut bindings = Vec::new();
-	for set in inventory::iter::<crate::inventory::RegSlice<KeyBindingDef>>.into_iter() {
-		bindings.extend_from_slice(set.0);
+/// Key prefixes extracted from the registry database.
+pub static KEY_PREFIXES: LazyLock<&'static [KeyPrefixDef]> =
+	LazyLock::new(|| current_key_prefixes());
+
+fn current_key_prefixes() -> &'static [KeyPrefixDef] {
+	#[cfg(feature = "db")]
+	{
+		get_db().key_prefixes.as_slice()
 	}
-	bindings
-});
 
-/// All key prefixes from `key_prefix!` macro.
-pub static KEY_PREFIXES: LazyLock<Vec<&'static KeyPrefixDef>> = LazyLock::new(|| {
-	inventory::iter::<Reg<KeyPrefixDef>>
-		.into_iter()
-		.map(|r| r.0)
-		.collect()
-});
+	#[cfg(not(feature = "db"))]
+	{
+		&[]
+	}
+}
 
 /// Definition of a key sequence prefix with its description.
 #[derive(Debug, Clone, Copy)]
@@ -35,14 +34,10 @@ pub struct KeyPrefixDef {
 	pub description: &'static str,
 }
 
-// Manually collect here to ensure visibility
-inventory::collect!(Reg<KeyPrefixDef>);
-
 /// Finds a prefix definition for the given mode and key sequence.
 pub fn find_prefix(mode: BindingMode, keys: &str) -> Option<&'static KeyPrefixDef> {
 	KEY_PREFIXES
 		.iter()
-		.copied()
 		.find(|p| p.mode == mode && p.keys == keys)
 }
 
@@ -71,7 +66,7 @@ impl std::fmt::Debug for KeyBindingDef {
 }
 
 /// Mode in which a keybinding is active.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum BindingMode {
 	/// Normal mode (default editing mode).
 	Normal,

@@ -4,13 +4,10 @@
 #[doc(hidden)]
 #[macro_export]
 macro_rules! __action_keybindings {
-	($name:ident, $kdl:literal) => {
-		xeno_macro::parse_keybindings!($name, $kdl);
-		paste::paste! {
-			inventory::submit! { $crate::inventory::RegSlice([<KEYBINDINGS_ $name>]) }
-		}
+	($name:ident, bindings: $kdl:literal, action_id: $action_id:expr $(,)?) => {
+		xeno_macro::parse_keybindings!($name, $kdl, $action_id);
 	};
-	($name:ident) => {
+	($name:ident, action_id: $action_id:expr $(,)?) => {
 		paste::paste! {
 			#[allow(non_upper_case_globals)]
 			pub static [<KEYBINDINGS_ $name>]: &'static [$crate::actions::KeyBindingDef] = &[];
@@ -74,15 +71,18 @@ macro_rules! action {
 				},
 				short_desc: $crate::__reg_opt!($({$short})?, ""),
 				handler: $handler,
+				bindings: [<KEYBINDINGS_ $name>],
 			};
 
 			#[doc = concat!("Typed handle for the `", stringify!($name), "` action.")]
 			#[allow(non_upper_case_globals)]
 			pub const $name: $crate::actions::ActionKey = $crate::actions::ActionKey::new(&[<ACTION_ $name>]);
 
-			inventory::submit! { $crate::inventory::Reg(&[<ACTION_ $name>]) }
-
-			$crate::__action_keybindings!($name $(, $kdl)?);
+			$crate::__action_keybindings! {
+				$name,
+				$(bindings: $kdl,)?
+				action_id: concat!(env!("CARGO_PKG_NAME"), "::", stringify!($name)),
+			}
 		}
 	};
 }
@@ -128,23 +128,23 @@ macro_rules! key_prefix {
 	($mode:ident $keys:literal => $desc:literal) => {
 		paste::paste! {
 			#[allow(non_upper_case_globals)]
-			pub static [<KEY_PREFIX_ $mode:upper _ $keys>]: $crate::actions::KeyPrefixDef = $crate::actions::KeyPrefixDef {
-				mode: $crate::actions::BindingMode::[<$mode:camel>],
-				keys: $keys,
-				description: $desc,
-			};
-			inventory::submit! { $crate::inventory::Reg(&[<KEY_PREFIX_ $mode:upper _ $keys>]) }
+			pub static [<KEY_PREFIX_ $mode:upper _ $keys>]: $crate::actions::KeyPrefixDef =
+				$crate::actions::KeyPrefixDef {
+					mode: $crate::actions::BindingMode::[<$mode:camel>],
+					keys: $keys,
+					description: $desc,
+				};
 		}
 	};
 	($mode:ident $keys:literal as $id:ident => $desc:literal) => {
 		paste::paste! {
 			#[allow(non_upper_case_globals)]
-			pub static [<KEY_PREFIX_ $mode:upper _ $id:upper>]: $crate::actions::KeyPrefixDef = $crate::actions::KeyPrefixDef {
-				mode: $crate::actions::BindingMode::[<$mode:camel>],
-				keys: $keys,
-				description: $desc,
-			};
-			inventory::submit! { $crate::inventory::Reg(&[<KEY_PREFIX_ $mode:upper _ $id:upper>]) }
+			pub static [<KEY_PREFIX_ $mode:upper _ $id:upper>]: $crate::actions::KeyPrefixDef =
+				$crate::actions::KeyPrefixDef {
+					mode: $crate::actions::BindingMode::[<$mode:camel>],
+					keys: $keys,
+					description: $desc,
+				};
 		}
 	};
 }

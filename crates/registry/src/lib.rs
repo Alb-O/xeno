@@ -185,39 +185,6 @@ pub mod textobj;
 #[cfg(feature = "themes")]
 pub mod themes;
 
-// Centralized inventory collection
-#[cfg(feature = "actions")]
-crate::inventory::collect!(crate::actions::ActionDef);
-#[cfg(feature = "actions")]
-crate::inventory::collect_slice!(crate::actions::KeyBindingDef);
-
-#[cfg(feature = "commands")]
-crate::inventory::collect!(crate::commands::CommandDef);
-
-#[cfg(feature = "motions")]
-crate::inventory::collect!(crate::motions::MotionDef);
-
-#[cfg(feature = "textobj")]
-crate::inventory::collect!(crate::textobj::TextObjectDef);
-
-#[cfg(feature = "options")]
-crate::inventory::collect!(crate::options::OptionDef);
-
-#[cfg(feature = "themes")]
-crate::inventory::collect!(crate::themes::theme::ThemeDef);
-
-#[cfg(feature = "statusline")]
-crate::inventory::collect!(crate::statusline::StatuslineSegmentDef);
-
-#[cfg(feature = "gutter")]
-crate::inventory::collect!(crate::gutter::GutterDef);
-
-#[cfg(feature = "hooks")]
-crate::inventory::collect!(crate::hooks::HookDef);
-
-#[cfg(feature = "notifications")]
-crate::inventory::collect!(crate::notifications::NotificationDef);
-
 // Re-exports for convenience
 #[cfg(feature = "actions")]
 pub use actions::editor_ctx::{

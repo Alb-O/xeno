@@ -39,8 +39,6 @@ macro_rules! motion {
 			#[doc = concat!("Typed handle for the `", stringify!($name), "` motion.")]
 			#[allow(non_upper_case_globals)]
 			pub const $name: $crate::motions::MotionKey = $crate::motions::MotionKey::new(&[<MOTION_ $name>]);
-
-			inventory::submit! { $crate::inventory::Reg(&[<MOTION_ $name>]) }
 		}
 	};
 }

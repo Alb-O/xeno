@@ -1,5 +1,5 @@
 use crate::command;
-use crate::commands::{CommandOutcome};
+use crate::commands::CommandOutcome;
 
 command!(quit, {
 	aliases: &["q"],
@@ -19,7 +19,4 @@ command!(force_quit, {
 	})
 });
 
-pub const DEFS: &[&crate::commands::CommandDef] = &[
-	&CMD_quit,
-	&CMD_force_quit,
-];
+pub const DEFS: &[&crate::commands::CommandDef] = &[&CMD_quit, &CMD_force_quit];

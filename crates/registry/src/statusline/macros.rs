@@ -28,8 +28,6 @@ macro_rules! segment {
 					default_enabled: $crate::__reg_opt!($({$enabled})?, true),
 					render: $render,
 				};
-
-			inventory::submit! { $crate::inventory::Reg(&[<SEG_ $name:upper>]) }
 		}
 	};
 }

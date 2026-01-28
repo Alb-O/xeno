@@ -29,6 +29,11 @@ impl<T: RegistryEntry + 'static> RegistryBuilder<T> {
 		}
 	}
 
+	/// Returns the number of definitions that have been registered so far.
+	pub fn len(&self) -> usize {
+		self.defs.len()
+	}
+
 	/// Sets whether to index definitions by their id.
 	pub fn include_id(mut self, on: bool) -> Self {
 		self.include_id = on;

@@ -38,9 +38,7 @@ pub use effects::{
 	ActionEffects, AppEffect, EditEffect, Effect, MotionKind, MotionRequest, ScrollAmount,
 	UiEffect, ViewEffect,
 };
-pub use keybindings::{
-	BindingMode, KEY_PREFIXES, KEYBINDINGS, KeyBindingDef, KeyPrefixDef, find_prefix,
-};
+pub use keybindings::{BindingMode, KEY_PREFIXES, KeyBindingDef, KeyPrefixDef, find_prefix};
 pub use pending::PendingAction;
 pub use result::{
 	ActionResult, RESULT_EFFECTS_HANDLERS, RESULT_EXTENSION_HANDLERS, ResultHandlerRegistry,
@@ -57,7 +55,17 @@ pub mod flags {
 
 /// Typed handles for built-in actions.
 pub mod keys {
-	pub use super::builtins::*;
+	pub use super::builtins::editing::*;
+	pub use super::builtins::find::*;
+	pub use super::builtins::insert::*;
+	pub use super::builtins::misc::*;
+	pub use super::builtins::modes::*;
+	pub use super::builtins::navigation::*;
+	pub use super::builtins::scrolling::*;
+	pub use super::builtins::search::*;
+	pub use super::builtins::selection::*;
+	pub use super::builtins::text_objects::*;
+	pub use super::builtins::window::*;
 }
 
 pub use builtins::register_builtins;

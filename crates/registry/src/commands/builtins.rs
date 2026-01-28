@@ -1,5 +1,3 @@
-//! Built-in command implementations.
-
 mod buffer;
 mod edit;
 mod help;
@@ -10,21 +8,21 @@ mod theme;
 mod write;
 
 use crate::commands::CommandDef;
-use crate::db::builder::RegistryDbBuilder;
+use crate::db::builder::{BuiltinGroup, RegistryDbBuilder};
 
-fn register_slice(builder: &mut RegistryDbBuilder, defs: &[&'static CommandDef]) {
-	for def in defs {
-		builder.register_command(def);
-	}
-}
+const GROUPS: &[BuiltinGroup<CommandDef>] = &[
+	BuiltinGroup::new("quit", quit::DEFS),
+	BuiltinGroup::new("write", write::DEFS),
+	BuiltinGroup::new("edit", edit::DEFS),
+	BuiltinGroup::new("buffer", buffer::DEFS),
+	BuiltinGroup::new("help", help::DEFS),
+	BuiltinGroup::new("set", set::DEFS),
+	BuiltinGroup::new("theme", theme::DEFS),
+	BuiltinGroup::new("registry", registry::DEFS),
+];
 
 pub fn register_builtins(builder: &mut RegistryDbBuilder) {
-	register_slice(builder, quit::DEFS);
-	register_slice(builder, write::DEFS);
-	register_slice(builder, edit::DEFS);
-	register_slice(builder, buffer::DEFS);
-	register_slice(builder, help::DEFS);
-	register_slice(builder, set::DEFS);
-	register_slice(builder, theme::DEFS);
-	register_slice(builder, registry::DEFS);
+	for group in GROUPS {
+		builder.register_command_group(group);
+	}
 }

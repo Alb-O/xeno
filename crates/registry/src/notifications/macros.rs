@@ -12,7 +12,6 @@ macro_rules! notif {
 				$crate::notifications::AutoDismiss::DEFAULT,
 				$crate::RegistrySource::Builtin,
 			);
-			inventory::submit! { $crate::inventory::Reg(&[<NOTIF_ $name:upper>]) }
 
 			#[doc = concat!("Static notification: ", $msg)]
 			pub const [<$name:upper>]: $crate::notifications::NotificationKey =
@@ -29,7 +28,6 @@ macro_rules! notif {
 				$dismiss,
 				$crate::RegistrySource::Builtin,
 			);
-			inventory::submit! { $crate::inventory::Reg(&[<NOTIF_ $name:upper>]) }
 
 			#[doc = concat!("Static notification: ", $msg)]
 			pub const [<$name:upper>]: $crate::notifications::NotificationKey =
@@ -46,7 +44,6 @@ macro_rules! notif {
 				$crate::notifications::AutoDismiss::DEFAULT,
 				$crate::RegistrySource::Builtin,
 			);
-			inventory::submit! { $crate::inventory::Reg(&[<NOTIF_ $name:upper>]) }
 
 			/// Const key for pattern matching and introspection.
 			pub const [<$name:upper>]: $crate::notifications::NotificationKey =
@@ -68,7 +65,6 @@ macro_rules! notif {
 				$dismiss,
 				$crate::RegistrySource::Builtin,
 			);
-			inventory::submit! { $crate::inventory::Reg(&[<NOTIF_ $name:upper>]) }
 
 			/// Const key for pattern matching and introspection.
 			pub const [<$name:upper>]: $crate::notifications::NotificationKey =

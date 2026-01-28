@@ -6,13 +6,13 @@
 use proc_macro::TokenStream;
 use quote::{format_ident, quote};
 use syn::parse::{Parse, ParseStream};
-use syn::{Token, parse_macro_input};
+use syn::{Expr, Token, parse_macro_input};
 
 /// Parses keybinding definitions and generates static keybinding lists.
 pub fn parse_keybindings(input: TokenStream) -> TokenStream {
 	let input = parse_macro_input!(input as ParseKeybindingsInput);
 
-	match generate_keybindings(&input.action_name, &input.kdl_str) {
+	match generate_keybindings(&input.action_name, &input.kdl_str, &input.action_id) {
 		Ok(tokens) => tokens.into(),
 		Err(e) => syn::Error::new(input.kdl_span, e).to_compile_error().into(),
 	}
@@ -24,6 +24,8 @@ struct ParseKeybindingsInput {
 	action_name: String,
 	/// Raw KDL string containing binding definitions.
 	kdl_str: String,
+	/// Expression providing the canonical action ID string.
+	action_id: Expr,
 	/// Span for error reporting.
 	kdl_span: proc_macro2::Span,
 }
@@ -33,10 +35,13 @@ impl Parse for ParseKeybindingsInput {
 		let action_ident: syn::Ident = input.parse()?;
 		input.parse::<Token![,]>()?;
 		let kdl_lit: syn::LitStr = input.parse()?;
+		input.parse::<Token![,]>()?;
+		let action_id: syn::Expr = input.parse()?;
 
 		Ok(ParseKeybindingsInput {
 			action_name: action_ident.to_string(),
 			kdl_str: kdl_lit.value(),
+			action_id,
 			kdl_span: kdl_lit.span(),
 		})
 	}
@@ -46,6 +51,7 @@ impl Parse for ParseKeybindingsInput {
 fn generate_keybindings(
 	action_name: &str,
 	kdl_str: &str,
+	action_id: &Expr,
 ) -> Result<proc_macro2::TokenStream, String> {
 	let doc: kdl::KdlDocument = kdl_str
 		.parse()
@@ -86,7 +92,7 @@ fn generate_keybindings(
 				xeno_registry::actions::KeyBindingDef {
 					mode: xeno_registry::actions::BindingMode::#mode_variant,
 					keys: #key_str,
-					action: #action_name,
+					action: #action_id,
 					priority: 100,
 				}
 			});

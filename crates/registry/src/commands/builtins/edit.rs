@@ -18,6 +18,4 @@ fn cmd_edit<'a>(
 	})
 }
 
-pub const DEFS: &[&crate::commands::CommandDef] = &[
-	&CMD_edit,
-];
+pub const DEFS: &[&crate::commands::CommandDef] = &[&CMD_edit];

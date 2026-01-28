@@ -4,9 +4,9 @@
 
 Xeno is a TUI modal text editor written in Rust. Tree-sitter for syntax analysis, LSP IDE features. The architecture uses an registry pattern via the `inventory` crate, allowing components (actions, commands, motions, text objects) to register themselves at compile time without centralized wiring.
 
-## Build and Test
+## Build, test, format
 
-The project uses Nix flakes with `direnv` or `nix develop -c` directly.
+The project uses Nix flakes with `direnv` or `nix develop -c` directly. Formatting: use `nix fmt`
 
 ## Architecture
 

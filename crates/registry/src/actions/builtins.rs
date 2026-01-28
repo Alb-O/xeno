@@ -1,50 +1,38 @@
-//! Built-in action implementations.
+pub(crate) mod editing;
+pub(crate) mod find;
+pub(crate) mod insert;
+pub(crate) mod misc;
+pub(crate) mod modes;
+pub(crate) mod navigation;
+pub(crate) mod prefixes;
+pub(crate) mod scrolling;
+pub(crate) mod search;
+pub(crate) mod selection;
+pub(crate) mod text_objects;
+pub(crate) mod window;
 
-mod editing;
-mod find;
-mod insert;
-mod misc;
-mod modes;
-mod navigation;
-mod prefixes;
-mod scrolling;
-mod search;
-mod selection;
-mod text_objects;
-mod window;
-
-pub use editing::*;
-pub use find::*;
-pub use insert::*;
-pub use misc::*;
-pub use modes::*;
-pub use navigation::*;
-pub use scrolling::*;
-pub use search::*;
-pub use selection::*;
-pub use text_objects::*;
-pub use window::*;
 pub use navigation::{cursor_motion, selection_motion};
 
 use crate::actions::ActionDef;
-use crate::db::builder::RegistryDbBuilder;
+use crate::db::builder::{BuiltinGroup, RegistryDbBuilder};
 
-fn register_slice(builder: &mut RegistryDbBuilder, defs: &[&'static ActionDef]) {
-	for def in defs {
-		builder.register_action(def);
-	}
-}
+const GROUPS: &[BuiltinGroup<ActionDef>] = &[
+	BuiltinGroup::new("modes", modes::DEFS),
+	BuiltinGroup::new("editing", editing::DEFS),
+	BuiltinGroup::new("insert", insert::DEFS),
+	BuiltinGroup::new("navigation", navigation::DEFS),
+	BuiltinGroup::new("scrolling", scrolling::DEFS),
+	BuiltinGroup::new("find", find::DEFS),
+	BuiltinGroup::new("search", search::DEFS),
+	BuiltinGroup::new("selection", selection::DEFS),
+	BuiltinGroup::new("text_objects", text_objects::DEFS),
+	BuiltinGroup::new("misc", misc::DEFS),
+	BuiltinGroup::new("window", window::DEFS),
+];
 
 pub fn register_builtins(builder: &mut RegistryDbBuilder) {
-	register_slice(builder, modes::DEFS);
-	register_slice(builder, editing::DEFS);
-	register_slice(builder, insert::DEFS);
-	register_slice(builder, navigation::DEFS);
-	register_slice(builder, scrolling::DEFS);
-	register_slice(builder, find::DEFS);
-	register_slice(builder, search::DEFS);
-	register_slice(builder, selection::DEFS);
-	register_slice(builder, text_objects::DEFS);
-	register_slice(builder, misc::DEFS);
-	register_slice(builder, window::DEFS);
+	for group in GROUPS {
+		builder.register_action_group(group);
+	}
+	prefixes::register_prefixes(builder);
 }

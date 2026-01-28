@@ -38,8 +38,6 @@ macro_rules! gutter {
 				width: $crate::gutter::GutterWidth::$width_kind($width_val),
 				render: $render,
 			};
-
-			inventory::submit! { $crate::inventory::Reg(&[<GUTTER_ $name:upper>]) }
 		}
 	};
 }

@@ -2,6 +2,7 @@
 //!
 //! Actions are registered explicitly and looked up by keybindings.
 
+use super::keybindings::KeyBindingDef;
 use crate::actions::{ActionContext, ActionResult, RegistryMeta};
 
 /// Definition of a registered action.
@@ -31,6 +32,8 @@ pub struct ActionDef {
 	pub short_desc: &'static str,
 	/// The function that executes this action.
 	pub handler: ActionHandler,
+	/// Keybindings associated with the action.
+	pub bindings: &'static [KeyBindingDef],
 }
 
 impl ActionDef {
@@ -47,6 +50,11 @@ impl ActionDef {
 	/// Returns alternative names for lookup.
 	pub fn aliases(&self) -> &'static [&'static str] {
 		self.meta.aliases
+	}
+
+	/// Returns the keybindings declared alongside this action.
+	pub fn bindings(&self) -> &'static [KeyBindingDef] {
+		self.bindings
 	}
 
 	/// Returns the description.

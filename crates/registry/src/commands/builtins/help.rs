@@ -54,6 +54,4 @@ fn cmd_help<'a>(
 	})
 }
 
-pub const DEFS: &[&crate::commands::CommandDef] = &[
-	&CMD_help,
-];
+pub const DEFS: &[&crate::commands::CommandDef] = &[&CMD_help];

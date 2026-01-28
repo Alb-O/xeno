@@ -2,11 +2,9 @@ use std::collections::HashMap;
 
 use futures::future::LocalBoxFuture;
 
-use crate::command;
 use crate::commands::{COMMANDS, CommandContext, CommandError, CommandOutcome};
-use crate::motions;
 use crate::notifications::keys;
-use crate::textobj;
+use crate::{command, motions, textobj};
 
 command!(
 	registry_diag,
@@ -285,7 +283,4 @@ fn cmd_registry_doctor<'a>(
 	})
 }
 
-pub const DEFS: &[&crate::commands::CommandDef] = &[
-	&CMD_registry_diag,
-	&CMD_registry_doctor,
-];
+pub const DEFS: &[&crate::commands::CommandDef] = &[&CMD_registry_diag, &CMD_registry_doctor];

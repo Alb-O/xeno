@@ -35,7 +35,4 @@ fn cmd_write_quit<'a>(
 	})
 }
 
-pub const DEFS: &[&crate::commands::CommandDef] = &[
-	&CMD_write,
-	&CMD_wq,
-];
+pub const DEFS: &[&crate::commands::CommandDef] = &[&CMD_write, &CMD_wq];

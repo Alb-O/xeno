@@ -72,7 +72,4 @@ fn parse_set_args(args: &[&str]) -> Result<(String, String), CommandError> {
 	}
 }
 
-pub const DEFS: &[&crate::commands::CommandDef] = &[
-	&CMD_set,
-	&CMD_setlocal,
-];
+pub const DEFS: &[&crate::commands::CommandDef] = &[&CMD_set, &CMD_setlocal];

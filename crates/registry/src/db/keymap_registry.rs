@@ -1,15 +1,14 @@
 //! Unified keymap registry using trie-based matching.
 
 use std::collections::HashMap;
-use std::sync::OnceLock;
 
 use tracing::warn;
 use xeno_keymap_core::parser::{Node, parse_seq};
 pub use xeno_keymap_core::{ContinuationEntry, ContinuationKind};
 use xeno_keymap_core::{MatchResult, Matcher};
 
-use crate::actions::{BindingMode, KEYBINDINGS};
-use crate::core::ActionId;
+use crate::actions::{ActionDef, BindingMode, KeyBindingDef};
+use crate::core::{ActionId, RegistryIndex};
 
 /// Binding entry storing action info and the key sequence.
 #[derive(Debug, Clone)]
@@ -44,6 +43,17 @@ pub enum LookupResult<'a> {
 pub struct KeymapRegistry {
 	/// Per-mode trie matchers for key sequences.
 	matchers: HashMap<BindingMode, Matcher<BindingEntry>>,
+	conflicts: Vec<KeymapConflict>,
+}
+
+#[derive(Debug, Clone)]
+pub struct KeymapConflict {
+	pub mode: BindingMode,
+	pub keys: &'static str,
+	pub kept_action: &'static str,
+	pub dropped_action: &'static str,
+	pub kept_priority: i16,
+	pub dropped_priority: i16,
 }
 
 impl Default for KeymapRegistry {
@@ -57,6 +67,7 @@ impl KeymapRegistry {
 	pub fn new() -> Self {
 		Self {
 			matchers: HashMap::new(),
+			conflicts: Vec::new(),
 		}
 	}
 
@@ -78,44 +89,99 @@ impl KeymapRegistry {
 		}
 	}
 
-	/// Initialize from the KEYBINDINGS list.
-	pub fn from_slice() -> Self {
-		use crate::db::index::{find_action, resolve_action_id};
-
+	/// Build registry from action index + builtin keybindings.
+	pub fn build(actions: &RegistryIndex<ActionDef>, bindings: &[KeyBindingDef]) -> Self {
 		let mut registry = Self::new();
+		let mut sorted: Vec<KeyBindingDef> = bindings.to_vec();
+		sorted.sort_by(|a, b| {
+			a.mode
+				.cmp(&b.mode)
+				.then_with(|| a.keys.cmp(&b.keys))
+				.then_with(|| a.priority.cmp(&b.priority))
+				.then_with(|| a.action.cmp(&b.action))
+		});
 
-		for def in KEYBINDINGS.iter() {
-			let Some(action_id) = resolve_action_id(def.action) else {
-				warn!(
-					action = def.action,
-					mode = ?def.mode,
-					"Unknown action in keybinding"
-				);
+		let action_id_lookup: HashMap<&'static str, ActionId> = actions
+			.items_all()
+			.iter()
+			.enumerate()
+			.map(|(idx, def)| (def.id(), ActionId(idx as u32)))
+			.collect();
+
+		let mut seen: HashMap<(BindingMode, &'static str), (&'static str, i16)> = HashMap::new();
+		let mut unknown_actions: Vec<(&'static str, BindingMode)> = Vec::new();
+		let mut parse_failures: Vec<(&'static str, &'static str)> = Vec::new();
+
+		for def in sorted {
+			let Some(action_def) = actions.get(def.action) else {
+				if unknown_actions.len() < 5 {
+					unknown_actions.push((def.action, def.mode));
+				}
 				continue;
 			};
+
+			let Some(action_id) = action_id_lookup.get(action_def.id()).copied() else {
+				if unknown_actions.len() < 5 {
+					unknown_actions.push((action_def.id(), def.mode));
+				}
+				continue;
+			};
+
+			if let Some((kept_action, kept_priority)) = seen.get(&(def.mode, def.keys)).copied() {
+				registry.conflicts.push(KeymapConflict {
+					mode: def.mode,
+					keys: def.keys,
+					kept_action,
+					dropped_action: action_def.id(),
+					kept_priority,
+					dropped_priority: def.priority,
+				});
+				continue;
+			}
 
 			let Ok(keys) = parse_seq(def.keys) else {
-				warn!(
-					keys = def.keys,
-					action = def.action,
-					"Failed to parse key sequence"
-				);
+				if parse_failures.len() < 5 {
+					parse_failures.push((def.keys, def.action));
+				}
 				continue;
 			};
 
-			let (description, short_desc) = find_action(def.action)
-				.map(|a| (a.description(), a.short_desc))
-				.unwrap_or(("", ""));
+			seen.insert((def.mode, def.keys), (action_def.id(), def.priority));
 
 			let entry = BindingEntry {
 				action_id,
-				action_name: def.action,
-				description,
-				short_desc,
+				action_name: action_def.name(),
+				description: action_def.description(),
+				short_desc: action_def.short_desc,
 				keys: keys.clone(),
 			};
 
 			registry.add(def.mode, keys, entry);
+		}
+
+		if !registry.conflicts.is_empty() {
+			let samples: Vec<_> = registry.conflicts.iter().take(5).collect();
+			warn!(
+				count = registry.conflicts.len(),
+				?samples,
+				"Keymap conflicts detected"
+			);
+		}
+
+		if !unknown_actions.is_empty() {
+			warn!(
+				count = unknown_actions.len(),
+				?unknown_actions,
+				"Unknown actions referenced by keybindings"
+			);
+		}
+
+		if !parse_failures.is_empty() {
+			warn!(
+				count = parse_failures.len(),
+				?parse_failures,
+				"Failed to parse keybinding sequences"
+			);
 		}
 
 		registry
@@ -144,12 +210,13 @@ impl KeymapRegistry {
 		};
 		matcher.continuations_with_kind(prefix)
 	}
-}
 
-/// Global keymap registry singleton.
-static KEYMAP_REGISTRY: OnceLock<KeymapRegistry> = OnceLock::new();
+	pub fn conflicts(&self) -> &[KeymapConflict] {
+		&self.conflicts
+	}
+}
 
 /// Returns the global keymap registry.
 pub fn get_keymap_registry() -> &'static KeymapRegistry {
-	KEYMAP_REGISTRY.get_or_init(KeymapRegistry::from_slice)
+	&crate::db::get_db().keymap
 }
