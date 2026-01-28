@@ -73,18 +73,6 @@ pub struct ResolvedCellStyle {
 	pub non_cursor: Style,
 }
 
-impl ResolvedCellStyle {
-	/// Returns the appropriate style based on whether to show cursor.
-	#[allow(dead_code, reason = "utility method for callers")]
-	pub fn select(self, show_cursor: bool) -> Style {
-		if show_cursor {
-			self.cursor
-		} else {
-			self.non_cursor
-		}
-	}
-}
-
 /// Resolves the non-cursor style for a character.
 fn resolve_non_cursor_style(input: CellStyleInput<'_>) -> Style {
 	let base = input.syntax_style.unwrap_or(input.base_style);

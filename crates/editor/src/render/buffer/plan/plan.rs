@@ -13,8 +13,6 @@ pub struct RowPlan {
 #[derive(Debug, Clone)]
 pub struct ViewportPlan {
 	pub rows: Vec<RowPlan>,
-	pub start_line: usize,
-	pub start_seg: usize,
 }
 
 impl ViewportPlan {
@@ -67,10 +65,6 @@ impl ViewportPlan {
 			});
 		}
 
-		Self {
-			rows,
-			start_line,
-			start_seg,
-		}
+		Self { rows }
 	}
 }

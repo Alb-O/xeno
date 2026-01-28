@@ -117,10 +117,13 @@ pub fn ensure_buffer_cursor_visible(
 		return;
 	}
 
+	// Note: Previously we set suppress_auto_scroll=true here on viewport shrink,
+	// but this caused the cursor to remain offscreen indefinitely until cursor
+	// movement. Now we skip adjustment for this frame only (non-sticky).
+	// External code (mouse scroll, separator drag) sets suppression explicitly.
 	if needs_scroll_down && viewport_shrinking {
-		buffer.suppress_auto_scroll = true;
 		ViewportEnsureEvent::log(
-			"viewport_shrinking",
+			"skip_scroll_on_shrink",
 			buffer,
 			viewport_height,
 			prev_viewport_height,

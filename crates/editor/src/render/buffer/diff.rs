@@ -45,12 +45,6 @@ impl DiffLineType {
 			Self::Context => None,
 		}
 	}
-
-	/// Returns whether this line type has a special background.
-	#[allow(dead_code, reason = "utility method for callers")]
-	pub fn has_background(self) -> bool {
-		!matches!(self, Self::Context)
-	}
 }
 
 /// Parsed hunk header from `@@ -old_start,count +new_start,count @@`.

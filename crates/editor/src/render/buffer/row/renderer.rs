@@ -22,7 +22,6 @@ pub struct RowRenderInput<'a> {
 
 	pub layout: &'a RenderLayout,
 	pub buffer_path: Option<&'a Path>,
-	pub is_diff_file: bool,
 	pub is_focused: bool,
 	pub use_block_cursor: bool,
 	pub tab_width: usize,
@@ -52,11 +51,19 @@ impl TextRowRenderer {
 				let mut cols_used = 0;
 
 				for glyph in shaper {
-					let syntax_style = input.highlight.style_at(glyph.doc_byte);
-					let in_selection = input
-						.overlays
-						.in_selection(line.line_idx, glyph.line_char_off);
-					let cursor_kind = input.overlays.cursor_kind(glyph.doc_char, input.is_focused);
+					// Virtual glyphs (indent/tab expansion) don't participate in overlays
+					// to avoid cursor/selection duplication on expanded tabs.
+					let (syntax_style, in_selection, cursor_kind) = if glyph.is_virtual {
+						(None, false, CursorKind::None)
+					} else {
+						(
+							input.highlight.style_at(glyph.doc_byte),
+							input
+								.overlays
+								.in_selection(line.line_idx, glyph.line_char_off),
+							input.overlays.cursor_kind(glyph.doc_char, input.is_focused),
+						)
+					};
 
 					let cell_input = CellStyleInput {
 						line_ctx: &input.line_style,

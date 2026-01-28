@@ -1,32 +1,45 @@
-use unicode_width::UnicodeWidthChar;
 use xeno_primitives::range::CharIdx;
 
 use super::super::plan::LineSlice;
-use crate::render::wrap::WrappedSegment;
+use crate::render::wrap::{WrappedSegment, cell_width};
 
+/// A single display cell (glyph) in the rendered output.
+///
+/// Each glyph represents one display column. For expanded tabs and continuation
+/// indents, multiple glyphs may share the same document position.
 #[derive(Debug, Clone, Copy)]
 pub struct Glyph {
+	/// Document character index (may be shared by virtual glyphs).
 	pub doc_char: CharIdx,
+	/// Character offset within the line.
 	pub line_char_off: usize,
+	/// Document byte offset.
 	pub doc_byte: u32,
+	/// Display character (may be space for tab expansion).
 	pub ch: char,
+	/// Display width in columns (usually 1).
 	pub width: usize,
+	/// True for glyphs that don't correspond to actual document characters
+	/// (tab expansion spaces, continuation indent).
 	pub is_virtual: bool,
 }
 
+/// Iterator that converts a line segment into display glyphs.
+///
+/// Handles:
+/// - Continuation indent (virtual spaces at start of wrapped lines)
+/// - Tab expansion (variable-width, virtual spaces after first)
+/// - Unicode width calculation
 pub struct SegmentGlyphIter<'a> {
 	line: &'a LineSlice,
 	segment: &'a WrappedSegment,
 	tab_width: usize,
 	text_width: usize,
-
 	chars: std::str::Chars<'a>,
 	current_char_idx: usize,
 	current_byte_off: u32,
 	current_col: usize,
-
 	pending_tab_spaces: usize,
-	// Track the tab's metadata for expanded spaces
 	tab_meta: Option<(CharIdx, usize, u32)>,
 }
 
@@ -68,7 +81,20 @@ impl<'a> Iterator for SegmentGlyphIter<'a> {
 			return None;
 		}
 
-		// Handle expanded tabs
+		// Emit virtual spaces for continuation indent on wrapped lines.
+		if self.current_col < self.segment.indent_cols && self.segment.start_char_offset > 0 {
+			self.current_col += 1;
+			return Some(Glyph {
+				doc_char: self.line.start_char,
+				line_char_off: 0,
+				doc_byte: self.line.start_byte,
+				ch: ' ',
+				width: 1,
+				is_virtual: true,
+			});
+		}
+
+		// Emit remaining spaces for expanded tabs (all but first are virtual).
 		if self.pending_tab_spaces > 0 {
 			self.pending_tab_spaces -= 1;
 			self.current_col += 1;
@@ -79,7 +105,7 @@ impl<'a> Iterator for SegmentGlyphIter<'a> {
 				doc_byte,
 				ch: ' ',
 				width: 1,
-				is_virtual: false,
+				is_virtual: true,
 			});
 		}
 
@@ -124,7 +150,7 @@ impl<'a> Iterator for SegmentGlyphIter<'a> {
 			});
 		}
 
-		let char_width = ch.width().unwrap_or(1).max(1);
+		let char_width = cell_width(ch, self.current_col, self.tab_width);
 		let remaining = self.text_width - self.current_col;
 
 		if char_width > remaining {

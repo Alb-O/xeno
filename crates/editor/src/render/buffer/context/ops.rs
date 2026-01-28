@@ -184,11 +184,11 @@ impl<'a> BufferRenderContext<'a> {
 		let text_width = area.width.saturating_sub(gutter_width) as usize;
 		let viewport_height = area.height as usize;
 
+		let _viewport_height = viewport_height;
+		let _gutter_width = gutter_width;
 		let layout = RenderLayout {
 			total_lines,
-			viewport_height,
 			gutter_layout,
-			gutter_width,
 			text_width,
 		};
 
@@ -291,7 +291,6 @@ impl<'a> BufferRenderContext<'a> {
 					line_style,
 					layout: &layout,
 					buffer_path: buffer_path.as_deref(),
-					is_diff_file,
 					is_focused,
 					use_block_cursor,
 					tab_width,

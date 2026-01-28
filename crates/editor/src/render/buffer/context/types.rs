@@ -1,13 +1,11 @@
 use xeno_registry::themes::Theme;
 use xeno_runtime_language::LanguageLoader;
-use xeno_tui::layout::Rect;
 use xeno_tui::style::Style;
 use xeno_tui::text::Line;
 
 use super::super::cell_style::CursorStyleSet;
 use super::super::diagnostics::{DiagnosticLineMap, DiagnosticRangeMap};
 use super::super::gutter::GutterLayout;
-use crate::window::GutterSelector;
 
 /// Result of rendering a buffer's content.
 pub struct RenderResult {
@@ -19,22 +17,10 @@ pub struct RenderResult {
 	pub text: Vec<Line<'static>>,
 }
 
-/// Configuration for a render pass.
-pub struct RenderConfig {
-	pub area: Rect,
-	pub tab_width: usize,
-	pub use_block_cursor: bool,
-	pub is_focused: bool,
-	pub gutter: GutterSelector,
-	pub cursorline: bool,
-}
-
 /// Derived layout constants for a render pass.
 pub struct RenderLayout {
 	pub total_lines: usize,
-	pub viewport_height: usize,
 	pub gutter_layout: GutterLayout,
-	pub gutter_width: u16,
 	pub text_width: usize,
 }
 

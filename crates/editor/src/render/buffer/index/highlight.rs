@@ -15,6 +15,23 @@ impl HighlightIndex {
 			.map(|(s, style)| (s.start..s.end, style))
 			.collect();
 		index_spans.sort_by_key(|(r, _)| r.start);
+
+		// Debug validation: ensure spans are non-overlapping
+		// Overlapping spans would break binary_search_by correctness
+		#[cfg(debug_assertions)]
+		{
+			for window in index_spans.windows(2) {
+				let (r1, _) = &window[0];
+				let (r2, _) = &window[1];
+				debug_assert!(
+					r1.end <= r2.start,
+					"Overlapping highlight spans detected: {:?} and {:?}",
+					r1,
+					r2
+				);
+			}
+		}
+
 		Self { spans: index_spans }
 	}
 

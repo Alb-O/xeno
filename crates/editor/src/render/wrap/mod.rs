@@ -5,8 +5,23 @@
 //! - Leading punctuation (`( [ { @ # $`) stays with following word
 //! - Path separators (`- /`) remain breakable
 
+use unicode_width::UnicodeWidthChar;
+
 #[cfg(test)]
 mod tests;
+
+/// Calculates the display width of a character at a given column position.
+///
+/// This is the single source of truth for character widths across the rendering
+/// pipeline. It handles:
+/// - Tabs: variable width to reach next tab stop
+/// - Unicode: uses UnicodeWidthChar for CJK, emoji, etc.
+pub fn cell_width(ch: char, col: usize, tab_width: usize) -> usize {
+	match ch {
+		'\t' => tab_width.saturating_sub(col % tab_width).max(1),
+		_ => UnicodeWidthChar::width(ch).unwrap_or(1).max(1),
+	}
+}
 
 /// A segment of a wrapped line.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -63,21 +78,14 @@ pub fn wrap_line_ranges(line: &str, max_width: usize, tab_width: usize) -> Vec<W
 
 		while end < chars.len() {
 			let ch = chars[end];
-			let mut w = if ch == '\t' {
-				tab_width.saturating_sub(col % tab_width)
-			} else {
-				1
-			};
-			if w == 0 {
-				w = 1;
-			}
+			let w = cell_width(ch, col, tab_width);
 
 			let remaining = effective_width.saturating_sub(col);
 			if remaining == 0 {
 				break;
 			}
 			if w > remaining {
-				w = remaining;
+				break;
 			}
 
 			col += w;
@@ -136,10 +144,10 @@ pub fn wrap_line(line: &str, max_width: usize, tab_width: usize) -> Vec<WrapSegm
 fn leading_indent_width(chars: &[char], tab_width: usize) -> usize {
 	let mut col = 0;
 	for &ch in chars {
-		match ch {
-			' ' => col += 1,
-			'\t' => col += tab_width.saturating_sub(col % tab_width).max(1),
-			_ => break,
+		if ch == ' ' || ch == '\t' {
+			col += cell_width(ch, col, tab_width);
+		} else {
+			break;
 		}
 	}
 	col

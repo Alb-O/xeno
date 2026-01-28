@@ -19,6 +19,7 @@ use crate::Editor;
 use crate::buffer::{SplitDirection, ViewId};
 use crate::impls::FocusTarget;
 use crate::render::RenderCtx;
+use crate::window::Window;
 
 /// Per-layer rendering data: (layer_index, layer_area, view_areas, separators).
 type LayerRenderData = (
@@ -264,13 +265,22 @@ impl Editor {
 			_ => None,
 		};
 
-		let floating_windows: Vec<_> = self
+		// Collect only IDs to avoid cloning windows; borrow windows in tight scopes
+		let floating_ids: Vec<_> = self
 			.state
 			.windows
 			.floating_windows()
-			.map(|(id, window)| (id, window.clone()))
+			.map(|(id, _)| id)
 			.collect();
-		for (_, window) in &floating_windows {
+
+		// First pass: ensure cursor visible (needs &mut self)
+		for &window_id in &floating_ids {
+			let Some(window) = self.state.windows.get(window_id) else {
+				continue;
+			};
+			let Window::Floating(window) = window else {
+				continue;
+			};
 			let Some(rect) = clamp_rect(window.rect, bounds) else {
 				continue;
 			};
@@ -289,14 +299,22 @@ impl Editor {
 				continue;
 			}
 
-			let tab_width = self.tab_width_for(window.buffer);
-			let scroll_margin = self.scroll_margin_for(window.buffer);
-			if let Some(buffer) = self.get_buffer_mut(window.buffer) {
+			let buffer_id = window.buffer;
+			let tab_width = self.tab_width_for(buffer_id);
+			let scroll_margin = self.scroll_margin_for(buffer_id);
+			if let Some(buffer) = self.get_buffer_mut(buffer_id) {
 				ensure_buffer_cursor_visible(buffer, content_area, tab_width, scroll_margin);
 			}
 		}
 
-		for (window_id, window) in floating_windows {
+		// Second pass: render (borrows windows again)
+		for &window_id in &floating_ids {
+			let Some(window) = self.state.windows.get(window_id) else {
+				continue;
+			};
+			let Window::Floating(window) = window else {
+				continue;
+			};
 			let Some(rect) = clamp_rect(window.rect, bounds) else {
 				continue;
 			};
@@ -378,6 +396,11 @@ impl Editor {
 	}
 
 	/// Renders junction glyphs where separators intersect within a layer.
+	///
+	/// Uses a raster-based approach: builds an occupancy map of separator cells,
+	/// then derives junction connectivity from neighbor relationships. This is
+	/// simpler and more correct than the previous O(n²) rectangle intersection
+	/// logic with complex adjacency predicates.
 	fn render_separator_junctions(
 		&self,
 		frame: &mut xeno_tui::Frame,
@@ -386,100 +409,83 @@ impl Editor {
 	) {
 		use std::collections::HashMap;
 
-		type JunctionState = (bool, bool, bool, bool, u8);
-		type JunctionMap = HashMap<(u16, u16), JunctionState>;
+		/// Occupancy state for a separator cell.
+		#[derive(Debug, Clone, Copy, Default)]
+		struct CellOcc {
+			/// Has horizontal line (from Vertical split direction).
+			has_h: bool,
+			/// Has vertical line (from Horizontal split direction).
+			has_v: bool,
+			/// Maximum priority at this cell.
+			prio: u8,
+		}
 
-		// SplitDirection::Vertical = stacked = horizontal line; Horizontal = side-by-side = vertical line
-		let h_seps: Vec<_> = separators
-			.iter()
-			.filter(|(d, _, _)| *d == SplitDirection::Vertical)
-			.collect();
-		let v_seps: Vec<_> = separators
-			.iter()
-			.filter(|(d, _, _)| *d == SplitDirection::Horizontal)
-			.collect();
+		type OccMap = HashMap<(u16, u16), CellOcc>;
 
-		// (x, y) -> (has_up, has_down, has_left, has_right, priority)
-		let mut all_junctions: JunctionMap = HashMap::new();
+		let mut occ: OccMap = HashMap::new();
 
-		for (_, v_prio, v_rect) in &v_seps {
-			let x = v_rect.x;
-
-			for (_, h_prio, h_rect) in &h_seps {
-				let y = h_rect.y;
-
-				let at_left_edge = x + 1 == h_rect.x;
-				let at_right_edge = x == h_rect.right();
-				let x_overlaps = x >= h_rect.x && x < h_rect.right();
-
-				let touches_above = y >= v_rect.y && y < v_rect.bottom();
-				let adjacent_above = y == v_rect.bottom();
-				let adjacent_below = y + 1 == v_rect.y;
-				let touches_below = y + 1 >= v_rect.y && y + 1 < v_rect.bottom();
-				let within = x_overlaps && touches_above;
-
-				let dominated_above = x_overlaps && adjacent_above;
-				let dominated_below = x_overlaps && adjacent_below;
-
-				if !(at_left_edge
-					|| at_right_edge
-					|| within || dominated_above
-					|| dominated_below
-					|| (x_overlaps && touches_below))
-				{
-					continue;
-				}
-
-				if touches_above || touches_below || within || dominated_above || dominated_below {
-					let entry = all_junctions
-						.entry((x, y))
-						.or_insert((false, false, false, false, 0));
-					if within {
-						entry.0 |= y > v_rect.y;
-						entry.1 |= y < v_rect.bottom().saturating_sub(1);
-						entry.2 |= x > h_rect.x;
-						entry.3 |= x < h_rect.right().saturating_sub(1);
-					} else if dominated_above {
-						entry.0 = true;
-						entry.2 |= x > h_rect.x;
-						entry.3 |= x < h_rect.right().saturating_sub(1);
-					} else if dominated_below {
-						entry.1 = true;
-						entry.2 |= x > h_rect.x;
-						entry.3 |= x < h_rect.right().saturating_sub(1);
-					} else if x_overlaps {
-						entry.0 |= touches_above;
-						entry.1 |= touches_below;
-						entry.2 |= x > h_rect.x;
-						entry.3 |= x < h_rect.right().saturating_sub(1);
-					} else {
-						entry.0 |= touches_above;
-						entry.1 |= touches_below;
-						entry.2 |= at_right_edge;
-						entry.3 |= at_left_edge;
+		// Rasterize all separators into occupancy map
+		for (direction, prio, rect) in separators {
+			match direction {
+				// Horizontal split = side-by-side buffers = vertical separator line
+				SplitDirection::Horizontal => {
+					let x = rect.x;
+					for y in rect.y..rect.bottom() {
+						let cell = occ.entry((x, y)).or_default();
+						cell.has_v = true;
+						cell.prio = cell.prio.max(*prio);
 					}
-					entry.4 = entry.4.max(*v_prio).max(*h_prio);
+				}
+				// Vertical split = stacked buffers = horizontal separator line
+				SplitDirection::Vertical => {
+					let y = rect.y;
+					for x in rect.x..rect.right() {
+						let cell = occ.entry((x, y)).or_default();
+						cell.has_h = true;
+						cell.prio = cell.prio.max(*prio);
+					}
 				}
 			}
 		}
 
 		let buf = frame.buffer_mut();
-		for ((x, y), (has_up, has_down, has_left, has_right, priority)) in all_junctions {
-			let connectivity = (has_up as u8)
-				| ((has_down as u8) << 1)
-				| ((has_left as u8) << 2)
-				| ((has_right as u8) << 3);
 
-			if connectivity == 0b0011 {
+		// Compute junctions from occupancy and neighbor relationships
+		for (&(x, y), cell) in &occ {
+			// Check neighbor occupancy for connectivity
+			let has_up = occ.get(&(x, y.saturating_sub(1))).is_some_and(|c| c.has_v);
+			let has_down = occ.get(&(x, y + 1)).is_some_and(|c| c.has_v);
+			let has_left = occ.get(&(x.saturating_sub(1), y)).is_some_and(|c| c.has_h);
+			let has_right = occ.get(&(x + 1, y)).is_some_and(|c| c.has_h);
+
+			// Current cell contributes to its own direction
+			let up = cell.has_v || has_up;
+			let down = cell.has_v || has_down;
+			let left = cell.has_h || has_left;
+			let right = cell.has_h || has_right;
+
+			// Only render junctions where lines actually meet or change
+			let is_junction = (cell.has_h && cell.has_v) // cross
+				|| (cell.has_h && (has_up || has_down)) // T-junction on h-line
+				|| (cell.has_v && (has_left || has_right)); // T-junction on v-line
+
+			if !is_junction {
 				continue;
 			}
 
-			let glyph = junction_glyph(connectivity);
-			let style = sep_style.for_junction(x, y, priority);
+			let connectivity =
+				(up as u8) | ((down as u8) << 1) | ((left as u8) << 2) | ((right as u8) << 3);
 
-			if let Some(cell) = buf.cell_mut((x, y)) {
-				cell.set_char(glyph);
-				cell.set_style(style);
+			if connectivity == 0b0011 {
+				continue; // Just a horizontal line segment
+			}
+
+			let glyph = junction_glyph(connectivity);
+			let style = sep_style.for_junction(x, y, cell.prio);
+
+			if let Some(buf_cell) = buf.cell_mut((x, y)) {
+				buf_cell.set_char(glyph);
+				buf_cell.set_style(style);
 			}
 		}
 	}
