@@ -439,8 +439,8 @@ impl LspSystem {
 			return;
 		};
 		let buffer_id = match menu_state {
-			LspMenuKind::Completion { buffer_id, .. } => buffer_id.clone(),
-			LspMenuKind::CodeAction { buffer_id, .. } => buffer_id.clone(),
+			LspMenuKind::Completion { buffer_id, .. } => *buffer_id,
+			LspMenuKind::CodeAction { buffer_id, .. } => *buffer_id,
 		};
 		if buffer_id != editor.focused_view() {
 			return;

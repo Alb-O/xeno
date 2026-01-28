@@ -14,7 +14,7 @@ mod navigation;
 mod undo_store;
 
 use std::path::PathBuf;
-use std::sync::{Arc, RwLock};
+use std::sync::Arc;
 
 pub use document::{Document, DocumentId};
 pub use editing::ApplyPolicy;
@@ -22,6 +22,7 @@ pub use editing::ApplyPolicy;
 pub use editing::LspCommitResult;
 pub use history::HistoryResult;
 pub use layout::{Layout, SpatialDirection, SplitDirection, SplitPath};
+use parking_lot::RwLock;
 pub use undo_store::{DocumentSnapshot, SnapshotUndoStore, TxnUndoStore, UndoBackend};
 pub use xeno_primitives::ViewId;
 use xeno_primitives::range::CharIdx;
@@ -42,12 +43,12 @@ impl DocumentHandle {
 	}
 
 	fn with<R>(&self, f: impl FnOnce(&Document) -> R) -> R {
-		let guard = self.0.read().expect("doc lock poisoned");
+		let guard = self.0.read();
 		f(&guard)
 	}
 
 	fn with_mut<R>(&self, f: impl FnOnce(&mut Document) -> R) -> R {
-		let mut guard = self.0.write().expect("doc lock poisoned");
+		let mut guard = self.0.write();
 		f(&mut guard)
 	}
 
@@ -425,7 +426,7 @@ impl Buffer {
 		editor: &crate::impls::Editor,
 	) -> T {
 		T::from_option(&self.option_raw(key.untyped(), editor))
-			.or_else(|| T::from_option(&(key.def().default)()))
+			.or_else(|| T::from_option(&key.def().default.to_value()))
 			.expect("option type mismatch with registered default")
 	}
 

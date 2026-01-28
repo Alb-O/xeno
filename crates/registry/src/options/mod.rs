@@ -24,8 +24,8 @@ pub mod keys {
 }
 
 pub use crate::core::{
-	FromOptionValue, Key, OptionType, OptionValue, RegistryBuilder, RegistryEntry, RegistryIndex,
-	RegistryMeta, RegistryMetadata, RegistrySource, RuntimeRegistry,
+	FromOptionValue, Key, OptionDefault, OptionType, OptionValue, RegistryBuilder, RegistryEntry,
+	RegistryIndex, RegistryMeta, RegistryMetadata, RegistrySource, RuntimeRegistry,
 };
 
 /// Validator function signature for option constraints.
@@ -49,7 +49,7 @@ pub struct OptionDef {
 	/// Value type constraint.
 	pub value_type: OptionType,
 	/// Default value factory.
-	pub default: fn() -> OptionValue,
+	pub default: OptionDefault,
 	/// Application scope.
 	pub scope: OptionScope,
 	/// Optional validator for value constraints.

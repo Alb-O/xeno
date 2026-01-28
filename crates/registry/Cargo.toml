@@ -66,6 +66,7 @@ actions-handler-coverage = ["actions-builtins"]
 arc-swap = { workspace = true }
 futures = { workspace = true, optional = true }
 inventory.workspace = true
+parking_lot.workspace = true
 paste.workspace = true
 regex = { workspace = true, optional = true }
 ropey = { workspace = true, optional = true }

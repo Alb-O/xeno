@@ -8,8 +8,7 @@ use xeno_primitives::Mode;
 use crate::db::get_db;
 
 /// Key prefixes extracted from the registry database.
-pub static KEY_PREFIXES: LazyLock<&'static [KeyPrefixDef]> =
-	LazyLock::new(|| current_key_prefixes());
+pub static KEY_PREFIXES: LazyLock<&'static [KeyPrefixDef]> = LazyLock::new(current_key_prefixes);
 
 fn current_key_prefixes() -> &'static [KeyPrefixDef] {
 	#[cfg(feature = "db")]

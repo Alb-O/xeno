@@ -18,7 +18,6 @@ pub fn derive_dispatch_result(input: TokenStream) -> TokenStream {
 	let mut slice_names: Vec<syn::Ident> = Vec::new();
 	let mut match_arms = Vec::new();
 	let mut variant_name_arms = Vec::new();
-	let mut terminal_safe_variants = Vec::new();
 	let mut coverage_checks = Vec::new();
 
 	let mut coverage_error = false;
@@ -70,20 +69,6 @@ pub fn derive_dispatch_result(input: TokenStream) -> TokenStream {
 			}
 		}
 		let handler_name = handler_name.unwrap_or_else(|| variant_name.clone());
-
-		let is_terminal_safe = variant
-			.attrs
-			.iter()
-			.any(|attr| attr.path().is_ident("terminal_safe"));
-
-		if is_terminal_safe {
-			let pattern = match &variant.fields {
-				syn::Fields::Unit => quote! { Self::#variant_name },
-				syn::Fields::Unnamed(_) => quote! { Self::#variant_name(..) },
-				syn::Fields::Named(_) => quote! { Self::#variant_name { .. } },
-			};
-			terminal_safe_variants.push(pattern);
-		}
 
 		let handler_screaming = to_screaming_snake_case(&handler_name.to_string());
 		let slice_ident = format_ident!("RESULT_{}_HANDLERS", handler_screaming);
@@ -161,16 +146,6 @@ pub fn derive_dispatch_result(input: TokenStream) -> TokenStream {
 				match self {
 					#(#variant_name_arms,)*
 				}
-			}
-
-			/// Returns true if this result can be applied when a terminal is focused.
-			///
-			/// Always returns true since panels are no longer supported.
-			pub fn is_terminal_safe(&self) -> bool {
-			  // TODO: (refactor)
-				// All results are now safe since we only have text buffers
-				let _ = self;
-				true
 			}
 		}
 

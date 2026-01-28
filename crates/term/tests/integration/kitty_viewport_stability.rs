@@ -1,16 +1,15 @@
 //! Viewport stability tests using kitty harness.
 
-mod helpers;
-
 use std::time::Duration;
 
-use helpers::{reset_test_file, type_chars, workspace_dir, xeno_cmd_debug_with_log};
 use kitty_test_harness::{
 	KeyPress, MouseButton, cleanup_test_log, create_test_log, kitty_send_keys, pause_briefly,
 	read_test_log, require_kitty, run_with_timeout, send_keys, send_mouse_drag_with_steps,
 	wait_for_screen_text_clean, with_kitty_capture,
 };
 use termwiz::input::{KeyCode, Modifiers};
+
+use crate::helpers::{reset_test_file, type_chars, workspace_dir, xeno_cmd_debug_with_log};
 
 const TEST_TIMEOUT: Duration = Duration::from_secs(30);
 

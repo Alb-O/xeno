@@ -1,15 +1,14 @@
 //! Split resize tests using kitty harness.
 
-mod helpers;
-
 use std::time::Duration;
 
-use helpers::{insert_text, reset_test_file, workspace_dir, xeno_cmd_debug_theme};
 use kitty_test_harness::{
 	MouseButton, kitty_send_keys, pause_briefly, require_kitty, run_with_timeout,
 	send_mouse_drag_with_steps, wait_for_screen_text_clean, with_kitty_capture,
 };
 use termwiz::input::{KeyCode, Modifiers};
+
+use crate::helpers::{insert_text, reset_test_file, workspace_dir, xeno_cmd_debug_theme};
 
 const TEST_TIMEOUT: Duration = Duration::from_secs(20);
 

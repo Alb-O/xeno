@@ -394,7 +394,7 @@ pub trait OptionAccess {
 		Self: Sized,
 	{
 		T::from_option(&self.option_raw(key.untyped()))
-			.or_else(|| T::from_option(&(key.def().default)()))
+			.or_else(|| T::from_option(&key.def().default.to_value()))
 			.expect("option type mismatch with registered default")
 	}
 }

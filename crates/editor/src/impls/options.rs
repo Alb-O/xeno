@@ -68,7 +68,7 @@ impl Editor {
 		key: TypedOptionKey<T>,
 	) -> T {
 		T::from_option(&self.resolve_option(buffer_id, key.untyped()))
-			.or_else(|| T::from_option(&(key.def().default)()))
+			.or_else(|| T::from_option(&key.def().default.to_value()))
 			.expect("option type mismatch with registered default")
 	}
 

@@ -31,8 +31,8 @@ impl Editor {
 		};
 
 		let buffer_id = match &menu_kind {
-			LspMenuKind::Completion { buffer_id, .. } => buffer_id.clone(),
-			LspMenuKind::CodeAction { buffer_id, .. } => buffer_id.clone(),
+			LspMenuKind::Completion { buffer_id, .. } => *buffer_id,
+			LspMenuKind::CodeAction { buffer_id, .. } => *buffer_id,
 		};
 		if buffer_id != self.focused_view() {
 			self.clear_lsp_menu();

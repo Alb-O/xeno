@@ -134,6 +134,27 @@ pub struct PluginBuildRecord {
 	pub counts: DomainCounts,
 }
 
+/// Validates that an option definition's default type matches its declared value type.
+///
+/// This validation ensures that the `OptionDefault` factory produces a variant
+/// compatible with the [`OptionType`] constraint.
+///
+/// # Panics
+///
+/// Panics if the types do not match. This is considered a programmer error and
+/// should be caught during build or initialization.
+fn validate_option_def(def: &'static OptionDef) {
+	if def.default.value_type() != def.value_type {
+		panic!(
+			"OptionDef default type mismatch: name={} kdl_key={} value_type={:?} default_type={:?}",
+			def.meta.name,
+			def.kdl_key,
+			def.value_type,
+			def.default.value_type(),
+		);
+	}
+}
+
 impl RegistryDbBuilder {
 	pub fn new() -> Self {
 		Self {
@@ -172,6 +193,7 @@ impl RegistryDbBuilder {
 	}
 
 	pub fn register_option(&mut self, def: &'static OptionDef) {
+		validate_option_def(def);
 		self.options.push(def);
 	}
 
@@ -284,5 +306,40 @@ impl RegistryDbBuilder {
 impl Default for RegistryDbBuilder {
 	fn default() -> Self {
 		Self::new()
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use crate::core::{OptionDefault, OptionType, RegistryMeta, RegistrySource};
+	use crate::options::OptionScope;
+
+	fn def_bool() -> bool {
+		true
+	}
+
+	static BAD_OPT: crate::options::OptionDef = crate::options::OptionDef {
+		meta: RegistryMeta {
+			id: "test::BAD_OPT",
+			name: "BAD_OPT",
+			aliases: &[],
+			description: "bad opt",
+			priority: 0,
+			source: RegistrySource::Builtin,
+			required_caps: &[],
+			flags: 0,
+		},
+		kdl_key: "bad-opt",
+		value_type: OptionType::Int,            // claims int
+		default: OptionDefault::Bool(def_bool), // actually bool
+		scope: OptionScope::Global,
+		validator: None,
+	};
+
+	#[test]
+	#[should_panic(expected = "OptionDef default type mismatch")]
+	fn register_option_panics_on_default_type_mismatch() {
+		// test the invariant directly; no builder construction needed
+		super::validate_option_def(&BAD_OPT);
 	}
 }

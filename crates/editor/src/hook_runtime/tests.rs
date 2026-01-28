@@ -1,6 +1,7 @@
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
+use parking_lot::Mutex;
 use xeno_registry::HookResult;
 
 use super::*;
@@ -102,14 +103,14 @@ async fn test_drain_budget_respects_timeout() {
 
 #[tokio::test]
 async fn test_concurrent_execution() {
-	let order = Arc::new(std::sync::Mutex::new(Vec::new()));
+	let order = Arc::new(Mutex::new(Vec::new()));
 	let mut runtime = HookRuntime::new();
 
 	for i in 0..3 {
 		let o = order.clone();
 		runtime.schedule(
 			Box::pin(async move {
-				o.lock().unwrap().push(i);
+				o.lock().push(i);
 				HookResult::Continue
 			}),
 			HookPriority::Interactive,
@@ -118,7 +119,7 @@ async fn test_concurrent_execution() {
 
 	runtime.drain_all().await;
 
-	let completed = order.lock().unwrap();
+	let completed = order.lock();
 	assert_eq!(completed.len(), 3);
 	assert!(completed.contains(&0));
 	assert!(completed.contains(&1));
@@ -127,13 +128,13 @@ async fn test_concurrent_execution() {
 
 #[tokio::test]
 async fn test_interactive_hooks_run_before_background() {
-	let order = Arc::new(std::sync::Mutex::new(Vec::new()));
+	let order = Arc::new(Mutex::new(Vec::new()));
 	let mut runtime = HookRuntime::new();
 
 	let o1 = order.clone();
 	runtime.schedule(
 		Box::pin(async move {
-			o1.lock().unwrap().push("background");
+			o1.lock().push("background");
 			HookResult::Continue
 		}),
 		HookPriority::Background,
@@ -142,7 +143,7 @@ async fn test_interactive_hooks_run_before_background() {
 	let o2 = order.clone();
 	runtime.schedule(
 		Box::pin(async move {
-			o2.lock().unwrap().push("interactive");
+			o2.lock().push("interactive");
 			HookResult::Continue
 		}),
 		HookPriority::Interactive,
@@ -150,7 +151,7 @@ async fn test_interactive_hooks_run_before_background() {
 
 	runtime.drain_all().await;
 
-	let completed = order.lock().unwrap();
+	let completed = order.lock();
 	assert_eq!(completed.len(), 2);
 	assert_eq!(completed[0], "interactive");
 	assert_eq!(completed[1], "background");

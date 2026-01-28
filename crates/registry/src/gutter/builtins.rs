@@ -28,7 +28,7 @@ gutter!(relative, {
 	if ctx.is_continuation {
 		Some(GutterCell::new("┆", None, true))
 	} else {
-		let rel = (ctx.line_idx as isize - ctx.cursor_line as isize).abs() as usize;
+		let rel = (ctx.line_idx as isize - ctx.cursor_line as isize).unsigned_abs();
 		Some(GutterCell::new(format!("{}", rel), None, false))
 	}
 });
@@ -44,7 +44,7 @@ gutter!(hybrid, {
 	} else if ctx.is_cursor_line {
 		Some(GutterCell::new(format!("{}", ctx.line_idx + 1), None, false))
 	} else {
-		let rel = (ctx.line_idx as isize - ctx.cursor_line as isize).abs() as usize;
+		let rel = (ctx.line_idx as isize - ctx.cursor_line as isize).unsigned_abs();
 		Some(GutterCell::new(format!("{}", rel), None, false))
 	}
 });

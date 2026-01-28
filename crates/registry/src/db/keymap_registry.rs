@@ -96,9 +96,9 @@ impl KeymapRegistry {
 		sorted.sort_by(|a, b| {
 			a.mode
 				.cmp(&b.mode)
-				.then_with(|| a.keys.cmp(&b.keys))
+				.then_with(|| a.keys.cmp(b.keys))
 				.then_with(|| a.priority.cmp(&b.priority))
-				.then_with(|| a.action.cmp(&b.action))
+				.then_with(|| a.action.cmp(b.action))
 		});
 
 		let action_id_lookup: HashMap<&'static str, ActionId> = actions

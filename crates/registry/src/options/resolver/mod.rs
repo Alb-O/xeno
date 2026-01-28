@@ -102,37 +102,99 @@ impl<'a> OptionResolver<'a> {
 		{
 			return v.clone();
 		}
-		(key.def().default)()
+		key.def().default.to_value()
 	}
 
 	/// Resolves an integer option through the hierarchy.
 	///
 	/// If the resolved value is not an integer (type mismatch), falls back
 	/// to the option's default value.
+	///
+	/// # Panics
+	///
+	/// Panics if the option's default value is not an integer. This invariant
+	/// is enforced at build-time by [`RegistryDbBuilder::register_option`].
 	pub fn resolve_int(&self, key: OptionKey) -> i64 {
-		self.resolve(key)
-			.as_int()
-			.unwrap_or_else(|| (key.def().default)().as_int().unwrap())
+		let resolved = self.resolve(key);
+		if let Some(v) = resolved.as_int() {
+			return v;
+		}
+
+		let def = key.def();
+		tracing::warn!(
+			domain = "options",
+			name = def.meta.name,
+			kdl_key = def.kdl_key,
+			expected = "int",
+			got = resolved.type_name(),
+			"option type mismatch; falling back to default",
+		);
+
+		match def.default {
+			crate::options::OptionDefault::Int(f) => f(),
+			_ => unreachable!("validated in RegistryDbBuilder::register_option"),
+		}
 	}
 
 	/// Resolves a boolean option through the hierarchy.
 	///
 	/// If the resolved value is not a boolean (type mismatch), falls back
 	/// to the option's default value.
+	///
+	/// # Panics
+	///
+	/// Panics if the option's default value is not a boolean. This invariant
+	/// is enforced at build-time by [`RegistryDbBuilder::register_option`].
 	pub fn resolve_bool(&self, key: OptionKey) -> bool {
-		self.resolve(key)
-			.as_bool()
-			.unwrap_or_else(|| (key.def().default)().as_bool().unwrap())
+		let resolved = self.resolve(key);
+		if let Some(v) = resolved.as_bool() {
+			return v;
+		}
+
+		let def = key.def();
+		tracing::warn!(
+			domain = "options",
+			name = def.meta.name,
+			kdl_key = def.kdl_key,
+			expected = "bool",
+			got = resolved.type_name(),
+			"option type mismatch; falling back to default",
+		);
+
+		match def.default {
+			crate::options::OptionDefault::Bool(f) => f(),
+			_ => unreachable!("validated in RegistryDbBuilder::register_option"),
+		}
 	}
 
 	/// Resolves a string option through the hierarchy.
 	///
 	/// If the resolved value is not a string (type mismatch), falls back
 	/// to the option's default value.
+	///
+	/// # Panics
+	///
+	/// Panics if the option's default value is not a string. This invariant
+	/// is enforced at build-time by [`RegistryDbBuilder::register_option`].
 	pub fn resolve_string(&self, key: OptionKey) -> String {
-		self.resolve(key)
-			.as_str()
-			.map(|s| s.to_string())
-			.unwrap_or_else(|| (key.def().default)().as_str().unwrap().to_string())
+		let resolved = self.resolve(key);
+		if let Some(v) = resolved.as_str() {
+			return v.to_string();
+		}
+
+		let def = key.def();
+		tracing::warn!(
+			domain = "options",
+			name = def.meta.name,
+			kdl_key = def.kdl_key,
+			expected = "string",
+			got = resolved.type_name(),
+			"option type mismatch; falling back to default",
+		);
+
+		match def.default {
+			crate::options::OptionDefault::String(f) => f(),
+			_ => unreachable!("validated in RegistryDbBuilder::register_option"),
+		}
 	}
 }

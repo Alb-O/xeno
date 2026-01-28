@@ -15,7 +15,7 @@ pub use index::{
 	ChooseWinner, Collision, DuplicatePolicy, KeyKind, KeyStore, RegistryBuilder, RegistryIndex,
 	RuntimeRegistry, insert_typed_key,
 };
-pub use key::{FromOptionValue, Key, OptionType, OptionValue};
+pub use key::{FromOptionValue, Key, OptionDefault, OptionType, OptionValue};
 pub use meta::{ActionId, RegistryMeta, RegistrySource};
 pub use plugin::PluginDef;
 pub use traits::{RegistryEntry, RegistryMetadata};

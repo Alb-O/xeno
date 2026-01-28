@@ -30,24 +30,22 @@ pub fn register_notification(input: TokenStream) -> TokenStream {
 
 /// Derives dispatch infrastructure for `ActionResult`.
 ///
-/// Generates handler registry declarations (`RESULT_*_HANDLERS`), a `dispatch_result`
-/// function, and `is_terminal_safe` method.
+/// Generates handler registry declarations (`RESULT_*_HANDLERS`) and a `dispatch_result`
+/// function.
 ///
 /// Attributes:
 /// - `#[handler(Foo)]` - Use `RESULT_FOO_HANDLERS` instead of deriving from variant name
-/// - `#[terminal_safe]` - Mark variant as safe to execute when terminal is focused
 ///
 /// ```ignore
 /// #[derive(DispatchResult)]
 /// pub enum ActionResult {
-///     #[terminal_safe]
 ///     Ok,
 ///     #[handler(Quit)]
 ///     Quit,
 ///     Motion(Selection),
 /// }
 /// ```
-#[proc_macro_derive(DispatchResult, attributes(handler, terminal_safe, handler_coverage))]
+#[proc_macro_derive(DispatchResult, attributes(handler, handler_coverage))]
 pub fn derive_dispatch_result(input: TokenStream) -> TokenStream {
 	dispatch::derive_dispatch_result(input)
 }

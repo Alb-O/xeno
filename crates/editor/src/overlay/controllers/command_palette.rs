@@ -10,6 +10,12 @@ use crate::window::GutterSelector;
 
 pub struct CommandPaletteOverlay;
 
+impl Default for CommandPaletteOverlay {
+	fn default() -> Self {
+		Self::new()
+	}
+}
+
 impl CommandPaletteOverlay {
 	pub fn new() -> Self {
 		Self

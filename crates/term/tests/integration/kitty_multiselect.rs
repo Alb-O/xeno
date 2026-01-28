@@ -1,15 +1,14 @@
 //! Multi-cursor selection tests using kitty harness.
 
-mod helpers;
-
 use std::time::Duration;
 
-use helpers::{insert_lines, reset_test_file, workspace_dir, xeno_cmd_debug_theme};
 use kitty_test_harness::{
 	kitty_send_keys, pause_briefly, require_kitty, run_with_timeout, wait_for_clean_contains,
 	wait_for_screen_text_clean, with_kitty_capture,
 };
 use termwiz::input::KeyCode;
+
+use crate::helpers::{insert_lines, reset_test_file, workspace_dir, xeno_cmd_debug_theme};
 
 const TEST_TIMEOUT: Duration = Duration::from_secs(15);
 

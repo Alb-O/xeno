@@ -2,9 +2,9 @@
 
 use std::io::Write;
 use std::os::unix::net::UnixStream;
-use std::sync::Mutex;
 use std::time::{Instant, SystemTime};
 
+use parking_lot::Mutex;
 use tracing::span::{Attributes, Id, Record};
 use tracing::{Event, Subscriber};
 use tracing_subscriber::Layer;
@@ -30,9 +30,8 @@ impl SocketLayer {
 
 	/// Sends a log message over the socket.
 	fn send(&self, msg: &LogMessage) {
-		if let Ok(mut socket) = self.socket.lock()
-			&& let Ok(json) = serde_json::to_string(msg)
-		{
+		let mut socket = self.socket.lock();
+		if let Ok(json) = serde_json::to_string(msg) {
 			// Write length-prefixed JSON for framing
 			let bytes = json.as_bytes();
 			let len = bytes.len() as u32;

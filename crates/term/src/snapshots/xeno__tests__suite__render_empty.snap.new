@@ -1,0 +1,15 @@
+---
+source: crates/term/src/tests.rs
+assertion_line: 19
+expression: terminal.backend()
+---
+"  1                                                                             "
+"    ~                                                                           "
+"    ~                                                                           "
+"    ~                                                                           "
+"    ~                                                                           "
+"    ~                                                                           "
+"    ~                                                                           "
+"    ~                                                                           "
+"    ~                                                                           "
+" NORMAL  test.txt  1:1  100%                                                    "

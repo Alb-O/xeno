@@ -1,3 +1,4 @@
+#![cfg_attr(test, allow(unused_crate_dependencies))]
 //! Ratatui is a library for building terminal user interfaces in Rust.
 //!
 //! It is a lightweight library that provides a set of widgets and utilities to build complex

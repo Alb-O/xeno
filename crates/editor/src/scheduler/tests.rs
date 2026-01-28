@@ -1,9 +1,9 @@
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
+use parking_lot::Mutex;
 use xeno_registry::HookPriority;
 
-use super::ops::*;
 use super::state::*;
 use super::types::*;
 
@@ -39,13 +39,13 @@ async fn test_schedule_and_drain() {
 
 #[tokio::test]
 async fn test_interactive_before_background() {
-	let order = Arc::new(std::sync::Mutex::new(Vec::new()));
+	let order = Arc::new(Mutex::new(Vec::new()));
 	let mut scheduler = WorkScheduler::new();
 
 	let o = order.clone();
 	scheduler.schedule(WorkItem {
 		future: Box::pin(async move {
-			o.lock().unwrap().push("background");
+			o.lock().push("background");
 		}),
 		kind: WorkKind::Hook,
 		priority: HookPriority::Background,
@@ -55,7 +55,7 @@ async fn test_interactive_before_background() {
 	let o = order.clone();
 	scheduler.schedule(WorkItem {
 		future: Box::pin(async move {
-			o.lock().unwrap().push("interactive");
+			o.lock().push("interactive");
 		}),
 		kind: WorkKind::Hook,
 		priority: HookPriority::Interactive,
@@ -63,7 +63,7 @@ async fn test_interactive_before_background() {
 	});
 
 	scheduler.drain_all().await;
-	let completed = order.lock().unwrap();
+	let completed = order.lock();
 	assert_eq!(completed[0], "interactive");
 	assert_eq!(completed[1], "background");
 }

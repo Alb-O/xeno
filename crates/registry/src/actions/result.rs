@@ -3,8 +3,9 @@
 //! The [`ActionResult`] enum is the return type for all action handlers,
 //! describing what the editor should do after an action executes.
 
-use std::sync::{Mutex, OnceLock};
+use std::sync::OnceLock;
 
+use parking_lot::Mutex;
 use xeno_macro::DispatchResult;
 
 use crate::actions::editor_ctx::ResultHandler;
@@ -32,7 +33,7 @@ impl ResultHandlerRegistry {
 	/// Returns the number of registered handlers.
 	pub fn len(&self) -> usize {
 		let handlers = self.handlers.get_or_init(|| Mutex::new(Vec::new()));
-		handlers.lock().expect("result handler lock poisoned").len()
+		handlers.lock().len()
 	}
 
 	/// Returns true if no handlers are registered.
@@ -43,7 +44,7 @@ impl ResultHandlerRegistry {
 	/// Registers a handler for this registry.
 	pub fn register(&self, handler: &'static ResultHandler) {
 		let handlers = self.handlers.get_or_init(|| Mutex::new(Vec::new()));
-		let mut handlers = handlers.lock().expect("result handler lock poisoned");
+		let mut handlers = handlers.lock();
 		if handlers
 			.iter()
 			.any(|&existing| std::ptr::eq(existing, handler))
@@ -56,14 +57,7 @@ impl ResultHandlerRegistry {
 	/// Returns a snapshot of registered handlers.
 	pub fn snapshot(&self) -> Vec<&'static ResultHandler> {
 		let handlers = self.handlers.get_or_init(|| Mutex::new(Vec::new()));
-		handlers
-			.lock()
-			.expect("result handler lock poisoned")
-			.clone()
-		// I must implement Clone for ResultHandler manually or derive it if it's safe.
-		// ResultHandler contains a function pointer, which is Copy/Clone.
-		// So `handlers.clone()` should work if ResultHandler implements Clone.
-		// Let's check ResultHandler in editor_ctx/handlers.rs
+		handlers.lock().clone()
 	}
 }
 

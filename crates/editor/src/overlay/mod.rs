@@ -58,16 +58,22 @@ impl OverlayStore {
 
 	/// Returns a mutable reference to a stored value of type `T`,
 	/// inserting a default value if it doesn't exist.
+	///
+	/// # Panics
+	///
+	/// Panics if a value of a different type is already stored for `TypeId::of::<T>()`.
+	/// This is an invariant violation indicating that multiple types are attempting
+	/// to use the same `TypeId` slot, which should be impossible in safe Rust.
 	pub fn get_or_default<T: Any + Send + Sync + Default>(&mut self) -> &mut T {
 		let type_id = TypeId::of::<T>();
-		self.inner
+		let slot = self
+			.inner
 			.entry(type_id)
 			.or_insert_with(|| Box::<T>::default());
-		self.inner
-			.get_mut(&type_id)
-			.unwrap()
-			.downcast_mut()
-			.unwrap()
+
+		slot.downcast_mut::<T>().expect(
+			"OverlayStore invariant violation: TypeId present with non-matching concrete type",
+		)
 	}
 
 	/// Inserts a value of type `T` into the store.
@@ -249,14 +255,9 @@ impl LayerEvent {
 }
 
 /// Collection of passive UI layers with ordered rendering and event propagation.
+#[derive(Default)]
 pub struct OverlayLayers {
 	layers: Vec<Box<dyn OverlayLayer>>,
-}
-
-impl Default for OverlayLayers {
-	fn default() -> Self {
-		Self { layers: Vec::new() }
-	}
 }
 
 impl OverlayLayers {
@@ -290,10 +291,10 @@ impl OverlayLayers {
 		};
 
 		for layer in &self.layers {
-			if layer.is_visible(ed) {
-				if let Some(area) = layer.layout(ed, screen) {
-					layer.render(ed, frame, area);
-				}
+			if layer.is_visible(ed)
+				&& let Some(area) = layer.layout(ed, screen)
+			{
+				layer.render(ed, frame, area);
 			}
 		}
 	}
@@ -389,5 +390,40 @@ impl OverlayManager {
 	/// Called when terminal viewport dimensions change.
 	pub fn on_viewport_changed(&mut self, _ed: &mut crate::impls::Editor) {
 		// TODO: implement reflow logic in host
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+
+	#[test]
+	fn overlay_store_get_or_default_is_stable_and_mutable() {
+		#[derive(Default, Debug, PartialEq)]
+		struct Foo {
+			n: i32,
+		}
+
+		let mut s = OverlayStore {
+			inner: Default::default(),
+		};
+
+		let p1 = {
+			let r = s.get_or_default::<Foo>();
+			r.n = 7;
+			r as *mut Foo
+		};
+
+		let p2 = {
+			let r = s.get_or_default::<Foo>();
+			assert_eq!(r.n, 7);
+			r.n = 9;
+			r as *mut Foo
+		};
+
+		assert_eq!(p1, p2);
+
+		let r = s.get_or_default::<Foo>();
+		assert_eq!(r.n, 9);
 	}
 }

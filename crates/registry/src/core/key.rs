@@ -91,6 +91,52 @@ pub enum OptionType {
 	String,
 }
 
+/// Typed carrier for option default values.
+///
+/// Unlike [`OptionValue`], this encodes the variant type at the Rust level via
+/// function pointers. This enables build-time validation of option definitions
+/// (ensuring the default matches the declared [`OptionType`]) and eliminates
+/// runtime downcasting/unwraps during resolution.
+#[derive(Clone, Copy)]
+pub enum OptionDefault {
+	/// Boolean default value factory.
+	Bool(fn() -> bool),
+	/// Integer default value factory.
+	Int(fn() -> i64),
+	/// String default value factory.
+	String(fn() -> String),
+}
+
+impl core::fmt::Debug for OptionDefault {
+	fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+		match self {
+			OptionDefault::Bool(_) => f.write_str("OptionDefault::Bool(..)"),
+			OptionDefault::Int(_) => f.write_str("OptionDefault::Int(..)"),
+			OptionDefault::String(_) => f.write_str("OptionDefault::String(..)"),
+		}
+	}
+}
+
+impl OptionDefault {
+	/// Returns the [`OptionType`] produced by this default.
+	pub fn value_type(self) -> OptionType {
+		match self {
+			OptionDefault::Bool(_) => OptionType::Bool,
+			OptionDefault::Int(_) => OptionType::Int,
+			OptionDefault::String(_) => OptionType::String,
+		}
+	}
+
+	/// Invokes the factory function and returns the value as an [`OptionValue`].
+	pub fn to_value(self) -> OptionValue {
+		match self {
+			OptionDefault::Bool(f) => OptionValue::Bool(f()),
+			OptionDefault::Int(f) => OptionValue::Int(f()),
+			OptionDefault::String(f) => OptionValue::String(f()),
+		}
+	}
+}
+
 // Seal the FromOptionValue trait to prevent external implementations.
 mod sealed {
 	pub trait Sealed {}

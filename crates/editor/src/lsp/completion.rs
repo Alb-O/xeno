@@ -114,7 +114,7 @@ impl Editor {
 		let Some(LspMenuKind::Completion { buffer_id, items }) = menu_kind else {
 			return;
 		};
-		let buffer_id = buffer_id.clone();
+		let buffer_id = *buffer_id;
 		let items = items.clone();
 
 		let Some(buffer) = self.state.core.buffers.get_buffer(buffer_id) else {

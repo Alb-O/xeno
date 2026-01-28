@@ -1,3 +1,4 @@
+#![allow(unused_crate_dependencies)]
 //! Integration tests for xeno-language syntax highlighting.
 //!
 //! These tests verify the complete pipeline from language registration

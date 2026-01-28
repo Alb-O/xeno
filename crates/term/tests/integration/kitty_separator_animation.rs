@@ -3,13 +3,8 @@
 //! These tests verify that the separator hover effect includes smooth fade-in
 //! and fade-out animations, and that velocity-based suppression works correctly.
 
-mod helpers;
-
 use std::time::Duration;
 
-use helpers::{
-	insert_text, reset_test_file, workspace_dir, xeno_cmd_debug_theme, xeno_cmd_debug_with_log,
-};
 use kitty_test_harness::{
 	AnsiColor, cleanup_test_log, create_test_log, extract_row_colors_parsed,
 	find_separator_rows_at_col, find_vertical_separator_col, kitty_send_keys, pause_briefly,
@@ -18,6 +13,10 @@ use kitty_test_harness::{
 };
 use serde::Deserialize;
 use termwiz::input::{KeyCode, Modifiers};
+
+use crate::helpers::{
+	insert_text, reset_test_file, workspace_dir, xeno_cmd_debug_theme, xeno_cmd_debug_with_log,
+};
 
 const TEST_TIMEOUT: Duration = Duration::from_secs(20);
 

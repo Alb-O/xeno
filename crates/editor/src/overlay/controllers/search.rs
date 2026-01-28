@@ -137,7 +137,7 @@ impl OverlayController for SearchOverlay {
 			return;
 		}
 
-		let is_cached = self.cached.as_ref().map_or(false, |(p, _)| p == &input);
+		let is_cached = self.cached.as_ref().is_some_and(|(p, _)| p == &input);
 		if !is_cached {
 			match Regex::new(&input) {
 				Ok(re) => {

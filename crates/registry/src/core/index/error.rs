@@ -37,7 +37,4 @@ pub enum InsertFatal {
 pub enum RegistryError {
 	#[error("fatal insertion error: {0}")]
 	Insert(#[from] InsertFatal),
-
-	#[error("lock poisoned")]
-	Poisoned,
 }

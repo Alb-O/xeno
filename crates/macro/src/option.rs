@@ -181,22 +181,22 @@ pub fn derive_option(input: TokenStream) -> TokenStream {
 		#[allow(non_upper_case_globals)]
 		pub(crate) static #internal_static: ::xeno_registry::options::OptionDef =
 			::xeno_registry::options::OptionDef {
-			meta: ::xeno_registry::options::RegistryMeta {
-				id: ::core::concat!(::core::env!("CARGO_PKG_NAME"), "::", ::core::stringify!(#name)),
-				name: ::core::stringify!(#name),
-				aliases: &[],
-				description: #description,
-				priority: #priority,
-				source: ::xeno_registry::options::RegistrySource::Crate(::core::env!("CARGO_PKG_NAME")),
-				required_caps: &[],
-				flags: 0,
-			},
-			kdl_key: #kdl_key,
-			value_type: ::xeno_registry::options::OptionType::#option_type,
-			default: || ::xeno_registry::options::OptionValue::#value_wrapper(#default_value),
-			scope: ::xeno_registry::options::OptionScope::#scope_variant,
-			validator: #validator_expr,
-		};
+		meta: ::xeno_registry::options::RegistryMeta {
+			id: ::core::concat!(::core::env!("CARGO_PKG_NAME"), "::", ::core::stringify!(#name)),
+			name: ::core::stringify!(#name),
+			aliases: &[],
+			description: #description,
+			priority: #priority,
+			source: ::xeno_registry::options::RegistrySource::Crate(::core::env!("CARGO_PKG_NAME")),
+			required_caps: &[],
+			flags: 0,
+		},
+		kdl_key: #kdl_key,
+		value_type: ::xeno_registry::options::OptionType::#option_type,
+		default: ::xeno_registry::options::OptionDefault::#value_wrapper(|| #default_value),
+		scope: ::xeno_registry::options::OptionScope::#scope_variant,
+		validator: #validator_expr,
+	};
 
 		::inventory::submit! { ::xeno_registry::options::OptionReg(&#internal_static) }
 

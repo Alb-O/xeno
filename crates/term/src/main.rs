@@ -1,3 +1,4 @@
+#![cfg_attr(test, allow(unused_crate_dependencies))]
 //! Xeno terminal application entry point.
 
 mod app;

@@ -16,6 +16,7 @@ dirs.workspace = true
 frizbee = { workspace = true, optional = true }
 futures.workspace = true
 inventory.workspace = true
+parking_lot.workspace = true
 paste.workspace = true
 regex.workspace = true
 ropey.workspace = true
