@@ -64,6 +64,11 @@ impl UiManager {
 		self.dock.any_open()
 	}
 
+	/// Returns whether a panel with the given ID is registered.
+	pub fn has_panel(&self, id: &str) -> bool {
+		self.panels.contains_key(id)
+	}
+
 	/// Returns and clears the redraw flag, indicating if a redraw was requested.
 	pub fn take_wants_redraw(&mut self) -> bool {
 		let v = self.wants_redraw;

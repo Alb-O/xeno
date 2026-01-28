@@ -32,10 +32,12 @@ impl Editor {
 		undo: UndoPolicy,
 		origin: EditOrigin,
 	) -> bool {
+		let focused_view = self.focused_view();
 		let core = &mut self.state.core;
 		let undo_manager = &mut core.undo_manager;
 		let mut host = EditorUndoHost {
 			buffers: &mut core.buffers,
+			focused_view,
 			config: &self.state.config,
 			frame: &mut self.state.frame,
 			notifications: &mut self.state.notifications,

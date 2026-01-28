@@ -217,7 +217,19 @@ impl Editor {
 						tab_width,
 						cursorline,
 					);
-					frame.render_widget(result.widget, *area);
+
+					let gutter_area = Rect {
+						width: result.gutter_width,
+						..*area
+					};
+					let text_area = Rect {
+						x: area.x + result.gutter_width,
+						width: area.width.saturating_sub(result.gutter_width),
+						..*area
+					};
+
+					frame.render_widget(Paragraph::new(result.gutter), gutter_area);
+					frame.render_widget(Paragraph::new(result.text), text_area);
 				}
 			}
 
@@ -348,7 +360,19 @@ impl Editor {
 					tab_width,
 					cursorline,
 				);
-				frame.render_widget(result.widget, content_area);
+
+				let gutter_area = Rect {
+					width: result.gutter_width,
+					..content_area
+				};
+				let text_area = Rect {
+					x: content_area.x + result.gutter_width,
+					width: content_area.width.saturating_sub(result.gutter_width),
+					..content_area
+				};
+
+				frame.render_widget(Paragraph::new(result.gutter), gutter_area);
+				frame.render_widget(Paragraph::new(result.text), text_area);
 			}
 		}
 	}

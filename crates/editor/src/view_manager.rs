@@ -1,7 +1,6 @@
 //! Buffer storage, ID generation, and focus tracking.
 //!
 //! [`ViewManager`] centralizes ownership of text buffers.
-//! Focus state is mirrored from the [`Editor`] for compatibility.
 
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -11,7 +10,7 @@ use xeno_runtime_language::LanguageLoader;
 
 use crate::buffer::{Buffer, DocumentId, ViewId};
 
-/// Owns text buffers, tracks focus, and generates unique IDs.
+/// Owns text buffers and tracks document associations.
 ///
 /// Maintains a reverse index from `DocumentId` to `ViewId` for O(1) lookup
 /// when acquiring snapshots for LSP sync.
@@ -19,11 +18,10 @@ pub struct ViewManager {
 	buffers: HashMap<ViewId, Buffer>,
 	doc_to_views: HashMap<DocumentId, SmallVec<[ViewId; 2]>>,
 	next_buffer_id: u64,
-	focused_view: ViewId,
 }
 
 impl ViewManager {
-	/// Creates a manager with an initial buffer (ID 1) as the focused view.
+	/// Creates a manager with an initial buffer (ID 1).
 	pub fn new(content: String, path: Option<PathBuf>, language_loader: &LanguageLoader) -> Self {
 		let buffer_id = ViewId(1);
 		let buffer = Buffer::new(buffer_id, content, path);
@@ -40,7 +38,6 @@ impl ViewManager {
 			buffers,
 			doc_to_views,
 			next_buffer_id: 2,
-			focused_view: buffer_id,
 		}
 	}
 
@@ -59,11 +56,10 @@ impl ViewManager {
 			buffers,
 			doc_to_views,
 			next_buffer_id: buffer_id.0 + 1,
-			focused_view: buffer_id,
 		}
 	}
 
-	/// Creates a new buffer with syntax highlighting. Does not change focus.
+	/// Creates a new buffer with syntax highlighting.
 	pub fn create_buffer(
 		&mut self,
 		content: String,
@@ -88,8 +84,6 @@ impl ViewManager {
 	}
 
 	/// Creates an empty scratch buffer without syntax highlighting.
-	///
-	/// Used for temporary input buffers like command palette.
 	pub fn create_scratch(&mut self) -> ViewId {
 		let buffer_id = ViewId(self.next_buffer_id);
 		self.next_buffer_id += 1;
@@ -101,86 +95,46 @@ impl ViewManager {
 		buffer_id
 	}
 
-	/// Creates a new buffer that shares the same document as the focused buffer.
+	pub(crate) fn next_buffer_id(&mut self) -> u64 {
+		let id = self.next_buffer_id;
+		self.next_buffer_id += 1;
+		id
+	}
+
+	/// Creates a new buffer that shares the same document as the specified buffer.
 	///
 	/// The new buffer has independent cursor/selection/scroll state but
 	/// edits in either buffer affect both (they share the same Document).
-	pub fn clone_focused_buffer_for_split(&mut self) -> ViewId {
+	pub fn clone_buffer_for_split(&mut self, source_id: ViewId) -> Option<ViewId> {
+		let source_buffer = self.buffers.get(&source_id)?;
 		let new_id = ViewId(self.next_buffer_id);
 		self.next_buffer_id += 1;
 
-		let new_buffer = self.focused_buffer().clone_for_split(new_id);
+		let new_buffer = source_buffer.clone_for_split(new_id);
 		let doc_id = new_buffer.document_id();
 		debug_assert_eq!(
 			doc_id,
-			self.focused_buffer().document_id(),
+			source_buffer.document_id(),
 			"split buffer must share document"
 		);
 		self.buffers.insert(new_id, new_buffer);
 		self.index_add(doc_id, new_id);
-		new_id
+		Some(new_id)
 	}
 
-	/// Removes a buffer. Does not update focus.
-	pub fn remove_buffer(&mut self, id: ViewId) -> Option<Buffer> {
+	pub(crate) fn insert_buffer(&mut self, id: ViewId, buffer: Buffer) {
+		let doc_id = buffer.document_id();
+		self.buffers.insert(id, buffer);
+		self.index_add(doc_id, id);
+	}
+
+	/// Removes a buffer.
+	pub(crate) fn remove_buffer(&mut self, id: ViewId) -> Option<Buffer> {
 		let removed = self.buffers.remove(&id);
 		if let Some(ref buffer) = removed {
 			self.index_remove(buffer.document_id(), id);
 		}
 		removed
-	}
-
-	/// Returns the currently focused view (buffer ID).
-	pub fn focused_view(&self) -> ViewId {
-		self.focused_view
-	}
-
-	/// Sets the focused view. Returns true if the view exists.
-	///
-	/// This should be driven by the editor focus model.
-	pub fn set_focused_view(&mut self, view: ViewId) -> bool {
-		if self.buffers.contains_key(&view) {
-			self.focused_view = view;
-			true
-		} else {
-			false
-		}
-	}
-
-	/// Returns true if the focused view is a text buffer.
-	///
-	/// Always returns true since all views are now text buffers.
-	pub fn is_text_focused(&self) -> bool {
-		true
-	}
-
-	/// Returns the ID of the focused text buffer.
-	pub fn focused_buffer_id(&self) -> Option<ViewId> {
-		Some(self.focused_view)
-	}
-
-	/// Returns the focused text buffer.
-	///
-	/// # Panics
-	///
-	/// Panics if the focused buffer doesn't exist.
-	#[inline]
-	pub fn focused_buffer(&self) -> &Buffer {
-		self.buffers
-			.get(&self.focused_view)
-			.expect("focused buffer must exist")
-	}
-
-	/// Returns the focused text buffer mutably.
-	///
-	/// # Panics
-	///
-	/// Panics if the focused buffer doesn't exist.
-	#[inline]
-	pub fn focused_buffer_mut(&mut self) -> &mut Buffer {
-		self.buffers
-			.get_mut(&self.focused_view)
-			.expect("focused buffer must exist")
 	}
 
 	/// Returns a buffer by ID.
@@ -214,10 +168,6 @@ impl ViewManager {
 	}
 
 	/// Finds a buffer by its file path.
-	///
-	/// Returns the first buffer that has a matching path. Note that multiple
-	/// buffers may share the same document (via splits), so this returns
-	/// just one of them.
 	pub fn find_by_path(&self, path: &std::path::Path) -> Option<ViewId> {
 		self.buffers
 			.values()
@@ -226,9 +176,6 @@ impl ViewManager {
 	}
 
 	/// Returns any view ID for the given document, if one exists.
-	///
-	/// Useful for LSP sync snapshot acquisition where we need any buffer
-	/// that can provide the document content.
 	pub fn any_buffer_for_doc(&self, doc_id: DocumentId) -> Option<ViewId> {
 		self.doc_to_views
 			.get(&doc_id)

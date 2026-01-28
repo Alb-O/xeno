@@ -11,6 +11,7 @@ use crate::view_manager::ViewManager;
 
 pub(super) struct EditorUndoHost<'a> {
 	pub buffers: &'a mut ViewManager,
+	pub focused_view: ViewId,
 	pub config: &'a Config,
 	pub frame: &'a mut FrameState,
 	pub notifications: &'a mut xeno_tui::widgets::notifications::ToastManager,
@@ -36,7 +37,7 @@ impl EditorUndoHost<'_> {
 			let buffer = self
 				.buffers
 				.get_buffer(buffer_id)
-				.expect("focused buffer must exist");
+				.expect("buffer must exist");
 			(
 				self.lsp.incremental_encoding_for_buffer(buffer),
 				buffer.document_id(),
@@ -48,7 +49,7 @@ impl EditorUndoHost<'_> {
 			let buffer = self
 				.buffers
 				.get_buffer_mut(buffer_id)
-				.expect("focused buffer must exist");
+				.expect("buffer must exist");
 			let result = if let Some(encoding) = encoding {
 				let lsp_result =
 					buffer.apply_with_lsp(tx, policy, &self.config.language_loader, encoding);
@@ -93,7 +94,7 @@ impl EditorUndoHost<'_> {
 			let buffer = self
 				.buffers
 				.get_buffer_mut(buffer_id)
-				.expect("focused buffer must exist");
+				.expect("buffer must exist");
 			let result = buffer.apply(tx, policy, &self.config.language_loader);
 			if result.applied
 				&& let Some(selection) = new_selection
@@ -134,7 +135,7 @@ impl EditorUndoHost<'_> {
 		let doc_id = self
 			.buffers
 			.get_buffer(buffer_id)
-			.expect("focused buffer must exist")
+			.expect("buffer must exist")
 			.document_id();
 
 		let sibling_ids: Vec<_> = self
@@ -206,7 +207,11 @@ impl EditorUndoHost<'_> {
 
 impl UndoHost for EditorUndoHost<'_> {
 	fn guard_readonly(&mut self) -> bool {
-		if self.buffers.focused_buffer().is_readonly() {
+		let buffer = self
+			.buffers
+			.get_buffer(self.focused_view)
+			.expect("focused buffer must exist");
+		if buffer.is_readonly() {
 			self.notify(keys::BUFFER_READONLY);
 			return false;
 		}

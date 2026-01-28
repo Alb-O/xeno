@@ -159,6 +159,11 @@ pub(crate) struct EditorState {
 	/// Current keyboard focus target.
 	pub(crate) focus: focus::FocusTarget,
 
+	/// Focus epoch - incremented on every focus or structural change.
+	///
+	/// Used by async tasks to detect stale view references.
+	pub(crate) focus_epoch: focus::FocusEpoch,
+
 	/// Layout and split management.
 	pub(crate) layout: LayoutManager,
 
@@ -268,7 +273,7 @@ impl Editor {
 
 		// Create buffer manager with initial buffer
 		let view_manager = ViewManager::new(content, path.clone(), &language_loader);
-		let buffer_id = view_manager.focused_buffer_id().unwrap();
+		let buffer_id = ViewId(1); // Known initial ID
 		let window_manager = WindowManager::new(Layout::text(buffer_id), buffer_id);
 		let focus = focus::FocusTarget::Buffer {
 			window: window_manager.base_id(),
@@ -287,7 +292,9 @@ impl Editor {
 
 		let scratch_path = PathBuf::from("[scratch]");
 		let hook_path = path.as_ref().unwrap_or(&scratch_path);
-		let buffer = view_manager.focused_buffer();
+		let buffer = view_manager
+			.get_buffer(buffer_id)
+			.expect("initial buffer exists");
 		let content = buffer.with_doc(|doc| doc.content().clone());
 
 		emit_hook_sync_with(
@@ -307,6 +314,7 @@ impl Editor {
 				core,
 				windows: window_manager,
 				focus,
+				focus_epoch: focus::FocusEpoch::initial(),
 				layout: LayoutManager::new(),
 				viewport: Viewport::default(),
 				ui: UiManager::new(),
@@ -372,6 +380,7 @@ impl Editor {
 			}),
 			&mut self.state.hook_runtime,
 		);
+		self.repair_invariants();
 	}
 
 	#[inline]

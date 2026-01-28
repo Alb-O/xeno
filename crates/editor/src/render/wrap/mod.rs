@@ -9,6 +9,18 @@
 mod tests;
 
 /// A segment of a wrapped line.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct WrappedSegment {
+	/// Character offset from the start of the original line.
+	pub start_char_offset: usize,
+	/// Length of this segment in characters.
+	pub char_len: usize,
+	/// Visual indent width to prepend for this segment (0 for first segment).
+	pub indent_cols: usize,
+}
+
+/// A segment of a wrapped line with owned text.
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct WrapSegment {
 	/// The text content of this segment.
 	pub text: String,
@@ -18,14 +30,8 @@ pub struct WrapSegment {
 	pub indent_cols: usize,
 }
 
-/// Wraps a line of text into segments that fit within a maximum width.
-///
-/// Breaks at word boundaries when possible, keeping punctuation attached
-/// to their associated words (sticky punctuation).
-///
-/// Continuation lines (after the first segment) are indented to match the
-/// leading whitespace of the original line, creating visually aligned wrapped text.
-pub fn wrap_line(line: &str, max_width: usize, tab_width: usize) -> Vec<WrapSegment> {
+/// Wraps a line of text into ranges that fit within a maximum width.
+pub fn wrap_line_ranges(line: &str, max_width: usize, tab_width: usize) -> Vec<WrappedSegment> {
 	if max_width == 0 {
 		return vec![];
 	}
@@ -92,9 +98,9 @@ pub fn wrap_line(line: &str, max_width: usize, tab_width: usize) -> Vec<WrapSegm
 			chars.len()
 		};
 
-		segments.push(WrapSegment {
-			text: chars[pos..break_pos].iter().collect(),
-			start_offset: pos,
+		segments.push(WrappedSegment {
+			start_char_offset: pos,
+			char_len: break_pos - pos,
 			indent_cols: if is_first { 0 } else { indent_cols },
 		});
 
@@ -103,6 +109,27 @@ pub fn wrap_line(line: &str, max_width: usize, tab_width: usize) -> Vec<WrapSegm
 	}
 
 	segments
+}
+
+/// Wraps a line of text into segments that fit within a maximum width.
+///
+/// Breaks at word boundaries when possible, keeping punctuation attached
+/// to their associated words (sticky punctuation).
+///
+/// Continuation lines (after the first segment) are indented to match the
+/// leading whitespace of the original line, creating visually aligned wrapped text.
+pub fn wrap_line(line: &str, max_width: usize, tab_width: usize) -> Vec<WrapSegment> {
+	let chars: Vec<char> = line.chars().collect();
+	wrap_line_ranges(line, max_width, tab_width)
+		.into_iter()
+		.map(|s| WrapSegment {
+			text: chars[s.start_char_offset..s.start_char_offset + s.char_len]
+				.iter()
+				.collect(),
+			start_offset: s.start_char_offset,
+			indent_cols: s.indent_cols,
+		})
+		.collect()
 }
 
 /// Calculates the visual width of leading whitespace (spaces and tabs).

@@ -132,9 +132,11 @@ impl UndoHost for Editor {
 impl Editor {
 	/// Undoes the last change, restoring view state for all affected buffers.
 	pub fn undo(&mut self) {
+		let focused_view = self.focused_view();
 		let core = &mut self.state.core;
 		let mut host = EditorUndoHost {
 			buffers: &mut core.buffers,
+			focused_view,
 			config: &self.state.config,
 			frame: &mut self.state.frame,
 			notifications: &mut self.state.notifications,
@@ -146,9 +148,11 @@ impl Editor {
 
 	/// Redoes the last undone change, restoring view state for all affected buffers.
 	pub fn redo(&mut self) {
+		let focused_view = self.focused_view();
 		let core = &mut self.state.core;
 		let mut host = EditorUndoHost {
 			buffers: &mut core.buffers,
+			focused_view,
 			config: &self.state.config,
 			frame: &mut self.state.frame,
 			notifications: &mut self.state.notifications,

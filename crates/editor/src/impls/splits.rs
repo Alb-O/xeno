@@ -13,6 +13,34 @@ use xeno_registry::{
 use super::Editor;
 
 impl Editor {
+	/// Creates a new buffer that shares the same document as the focused buffer.
+	fn clone_focused_buffer_for_split(&mut self) -> ViewId {
+		let _focused_id = self.focused_view();
+		let new_id = ViewId(self.state.core.buffers.next_buffer_id());
+
+		let new_buffer = self.buffer().clone_for_split(new_id);
+		let _doc_id = new_buffer.document_id();
+
+		self.state.core.buffers.insert_buffer(new_id, new_buffer);
+		new_id
+	}
+
+	/// Creates a horizontal split with the current view and a new buffer below.
+	///
+	/// Matches Vim's `:split` / Helix's `hsplit` (Ctrl+w s).
+	pub fn split_horizontal_with_clone(&mut self) {
+		let new_id = self.clone_focused_buffer_for_split();
+		self.split_horizontal(new_id);
+	}
+
+	/// Creates a vertical split with the current view and a new buffer to the right.
+	///
+	/// Matches Vim's `:vsplit` / Helix's `vsplit` (Ctrl+w v).
+	pub fn split_vertical_with_clone(&mut self) {
+		let new_id = self.clone_focused_buffer_for_split();
+		self.split_vertical(new_id);
+	}
+
 	/// Creates a horizontal split with the current view and a new buffer below.
 	///
 	/// Matches Vim's `:split` / Helix's `hsplit` (Ctrl+w s).
@@ -124,12 +152,7 @@ impl Editor {
 			self.state.lsp.sync_manager_mut().on_doc_close(doc_id);
 		}
 
-		// If we closed the focused view, focus another one
-		if self.focused_view() == view
-			&& let Some(focus) = new_focus
-		{
-			self.focus_view(focus);
-		}
+		self.repair_invariants();
 
 		self.state.frame.needs_redraw = true;
 		true

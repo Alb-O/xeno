@@ -1,25 +1,19 @@
-use std::collections::HashSet;
-
-use unicode_width::UnicodeWidthChar;
 use xeno_primitives::Mode;
-use xeno_primitives::range::CharIdx;
 use xeno_registry::gutter::GutterAnnotations;
 use xeno_registry::themes::SyntaxStyles;
 use xeno_runtime_language::highlight::{HighlightSpan, HighlightStyles};
 use xeno_tui::layout::Rect;
 use xeno_tui::style::{Modifier, Style};
-use xeno_tui::text::{Line, Span};
-use xeno_tui::widgets::Paragraph;
 
-use super::super::cell_style::{CellStyleInput, resolve_cell_style};
-use super::super::diagnostics::DiagnosticLineMap;
 use super::super::diff::{compute_diff_line_numbers, diff_line_bg};
-use super::super::fill::FillConfig;
 use super::super::gutter::GutterLayout;
-use super::super::style_layers::{LineStyleContext, blend};
-use super::types::{BufferRenderContext, CursorStyles, RenderResult};
+use super::super::index::{HighlightIndex, OverlayIndex};
+use super::super::plan::{LineSource, RowKind, ViewportPlan};
+use super::super::row::{GutterRenderer, RowRenderInput, TextRowRenderer};
+use super::super::style_layers::LineStyleContext;
+use super::types::{BufferRenderContext, CursorStyles, RenderLayout, RenderResult};
 use crate::buffer::Buffer;
-use crate::render::wrap::wrap_line;
+use crate::render::wrap::wrap_line_ranges;
 use crate::window::GutterSelector;
 
 impl<'a> BufferRenderContext<'a> {
@@ -58,10 +52,6 @@ impl<'a> BufferRenderContext<'a> {
 	}
 
 	/// Collects syntax highlight spans for a buffer's visible viewport.
-	///
-	/// Performs lazy syntax reparsing if the document's syntax tree is marked dirty.
-	/// This is the hook point where `SyntaxPolicy::MarkDirty` edits get their
-	/// syntax trees updated.
 	pub fn collect_highlight_spans(
 		&self,
 		buffer: &Buffer,
@@ -102,23 +92,7 @@ impl<'a> BufferRenderContext<'a> {
 		})
 	}
 
-	/// Looks up the style for a byte position from pre-computed highlight spans.
-	pub fn style_for_byte_pos(
-		&self,
-		byte_pos: usize,
-		spans: &[(HighlightSpan, Style)],
-	) -> Option<Style> {
-		for (span, style) in spans.iter().rev() {
-			if byte_pos >= span.start as usize && byte_pos < span.end as usize {
-				return Some(*style);
-			}
-		}
-		None
-	}
-
 	/// Gets the diagnostic severity for a character position on a line.
-	///
-	/// Returns the highest severity if multiple diagnostics overlap at this position.
 	pub fn diagnostic_severity_at(&self, line_idx: usize, char_idx: usize) -> Option<u8> {
 		let spans = self.diagnostic_ranges?.get(&line_idx)?;
 		let mut max_severity = 0u8;
@@ -135,12 +109,6 @@ impl<'a> BufferRenderContext<'a> {
 	}
 
 	/// Applies diagnostic underline styling to a style if the position has a diagnostic.
-	///
-	/// Uses colored curly underlines based on severity:
-	/// - Error (4): Red curly underline
-	/// - Warning (3): Yellow curly underline
-	/// - Info (2): Blue curly underline
-	/// - Hint (1): Cyan curly underline
 	pub fn apply_diagnostic_underline(
 		&self,
 		line_idx: usize,
@@ -187,23 +155,7 @@ impl<'a> BufferRenderContext<'a> {
 		)
 	}
 
-	/// Renders a buffer into a paragraph widget.
-	///
-	/// This is the main buffer rendering function that handles:
-	/// - Line wrapping and viewport positioning
-	/// - Cursor rendering (primary and secondary)
-	/// - Selection highlighting
-	/// - Gutter rendering
-	/// - Cursor blinking in insert mode
-	///
-	/// # Parameters
-	/// - `buffer`: The buffer to render
-	/// - `area`: The rectangular area to render into
-	/// - `use_block_cursor`: Whether to render block-style cursors
-	/// - `is_focused`: Whether this buffer is the focused/active buffer
-	/// - `gutter`: Gutter selection for this render pass
-	/// - `tab_width`: Number of spaces a tab character occupies (from options)
-	/// - `cursorline`: Whether to highlight the cursor line
+	/// Renders a buffer into gutter and text columns.
 	pub fn render_buffer_with_gutter(
 		&self,
 		buffer: &Buffer,
@@ -227,354 +179,142 @@ impl<'a> BufferRenderContext<'a> {
 			gutter
 		};
 
-		let diff_line_numbers =
-			is_diff_file.then(|| buffer.with_doc(|doc| compute_diff_line_numbers(doc.content())));
-
 		let gutter_layout = GutterLayout::from_selector(effective_gutter, total_lines, area.width);
 		let gutter_width = gutter_layout.total_width;
 		let text_width = area.width.saturating_sub(gutter_width) as usize;
+		let viewport_height = area.height as usize;
 
-		let cursor = buffer.cursor;
-		let ranges = buffer.selection.ranges();
-		let primary_cursor = cursor;
-		let cursor_heads: HashSet<CharIdx> =
-			buffer.selection.ranges().iter().map(|r| r.head).collect();
+		let layout = RenderLayout {
+			total_lines,
+			viewport_height,
+			gutter_layout,
+			gutter_width,
+			text_width,
+		};
+
 		let styles = self.make_cursor_styles(buffer.mode());
-
+		let cursor_style_set = styles.to_cursor_set();
 		let highlight_spans = self.collect_highlight_spans(buffer, area);
+		let highlight_index = HighlightIndex::new(highlight_spans);
+
+		let diff_line_numbers = buffer.with_doc(|doc| {
+			if is_diff_file {
+				Some(compute_diff_line_numbers(doc.content()))
+			} else {
+				None
+			}
+		});
+
 		let mode_color = self.mode_color(buffer.mode());
 		let base_bg = self.theme.colors.ui.bg;
 		let cursor_line = buffer.cursor_line();
-		let cursor_styles = styles.to_cursor_set();
+		let buffer_path = buffer.path();
 
-		let buffer_path_owned = buffer.path();
-		let buffer_path = buffer_path_owned.as_deref();
+		buffer.with_doc(|doc| {
+			let overlays =
+				OverlayIndex::new(&buffer.selection, buffer.cursor, is_focused, doc.content());
 
-		let mut output_lines: Vec<Line> = Vec::new();
-		let mut current_line_idx = buffer.scroll_line;
-		let mut start_segment = buffer.scroll_segment;
-		let viewport_height = area.height as usize;
-
-		while output_lines.len() < viewport_height && current_line_idx < total_lines {
-			let is_cursor_line = cursorline && current_line_idx == cursor_line;
-
-			let diff_nums = diff_line_numbers
-				.as_ref()
-				.and_then(|nums| nums.get(current_line_idx));
-			let line_annotations = GutterAnnotations {
-				diagnostic_severity: self
-					.diagnostics
-					.and_then(|d: &DiagnosticLineMap| d.get(&current_line_idx).copied())
-					.unwrap_or(0),
-				sign: None,
-				diff_old_line: diff_nums.and_then(|dn| dn.old),
-				diff_new_line: diff_nums.and_then(|dn| dn.new),
-			};
-			let (line_start, _line_end, line_text): (CharIdx, CharIdx, String) =
-				buffer.with_doc(|doc| {
-					let start = doc.content().line_to_char(current_line_idx);
-					let end = if current_line_idx + 1 < total_lines {
-						doc.content().line_to_char(current_line_idx + 1)
+			let plan = ViewportPlan::new(
+				buffer.scroll_line,
+				buffer.scroll_segment,
+				viewport_height,
+				total_lines,
+				has_trailing_newline,
+				|line_idx| {
+					if let Some(slice) = LineSource::load(doc.content(), line_idx) {
+						wrap_line_ranges(&slice.text, text_width, tab_width).len()
 					} else {
-						doc.content().len_chars()
-					};
-					let text: String = doc.content().slice(start..end).into();
-					(start, end, text)
-				});
-			let line_text = line_text.trim_end_matches('\n');
-			let line_content_end: CharIdx = line_start + line_text.chars().count();
-			// We need the actual line end including newline for cursor at EOL checks
-			let line_end = buffer.with_doc(|doc| {
-				if current_line_idx + 1 < total_lines {
-					doc.content().line_to_char(current_line_idx + 1)
-				} else {
-					doc.content().len_chars()
-				}
-			});
-
-			let line_diff_bg = diff_line_bg(is_diff_file, line_text, self.theme);
-			let line_style = LineStyleContext {
-				base_bg,
-				diff_bg: line_diff_bg,
-				mode_color,
-				is_cursor_line,
-				cursorline_enabled: cursorline,
-				cursor_line,
-				is_nontext: false,
-			};
-
-			let wrapped_segments = wrap_line(line_text, text_width, tab_width);
-			let num_segments = wrapped_segments.len().max(1);
-
-			for (seg_idx, segment) in wrapped_segments.iter().enumerate().skip(start_segment) {
-				if output_lines.len() >= viewport_height {
-					break;
-				}
-
-				let is_first_segment = seg_idx == 0;
-				let is_last_segment = seg_idx == num_segments - 1;
-				let is_continuation = !is_first_segment;
-
-				let mut spans = buffer.with_doc(|doc| {
-					gutter_layout.render_line(
-						current_line_idx,
-						total_lines,
-						&line_style,
-						is_continuation,
-						doc.content().line(current_line_idx),
-						buffer_path,
-						&line_annotations,
-						self.theme,
-					)
-				});
-
-				let mut seg_col = segment.indent_cols;
-				if seg_col > 0 {
-					let indent_style = line_style
-						.fill_bg()
-						.map_or(Style::default(), |bg| Style::default().bg(bg));
-					spans.push(Span::styled(" ".repeat(seg_col), indent_style));
-				}
-
-				let seg_char_offset = segment.start_offset;
-				for (i, ch) in segment.text.chars().enumerate() {
-					if seg_col >= text_width {
-						break;
+						0
 					}
+				},
+			);
 
-					let doc_pos: CharIdx = line_start + seg_char_offset + i;
-					let is_cursor = cursor_heads.contains(&doc_pos);
-					let is_primary_cursor = doc_pos == primary_cursor;
-					let in_selection = ranges.iter().any(|r: &xeno_primitives::range::Range| {
-						doc_pos >= r.from() && doc_pos < r.to()
-					});
+			let mut gutter_lines = Vec::with_capacity(viewport_height);
+			let mut text_lines = Vec::with_capacity(viewport_height);
 
-					let byte_pos = buffer.with_doc(|doc| doc.content().char_to_byte(doc_pos));
-					let syntax_style = self.style_for_byte_pos(byte_pos, &highlight_spans);
-
-					let cell_input = CellStyleInput {
-						line_ctx: &line_style,
-						syntax_style,
-						in_selection,
-						is_primary_cursor,
-						is_focused,
-						cursor_styles: &cursor_styles,
-						base_style: styles.base,
-					};
-					let resolved = resolve_cell_style(cell_input);
-					let non_cursor_style = self.apply_diagnostic_underline(
-						current_line_idx,
-						seg_char_offset + i,
-						resolved.non_cursor,
-					);
-
-					let style = if is_cursor && (use_block_cursor || !is_focused) {
-						resolved.cursor
-					} else {
-						non_cursor_style
-					};
-
-					if ch == '\t' {
-						let remaining = text_width.saturating_sub(seg_col);
-						if remaining == 0 {
-							break;
-						}
-						let mut tab_cells = tab_width.saturating_sub(seg_col % tab_width);
-						if tab_cells == 0 {
-							tab_cells = 1;
-						}
-						tab_cells = tab_cells.min(remaining);
-						spans.push(Span::styled(" ".repeat(tab_cells), style));
-						seg_col += tab_cells;
-					} else {
-						let char_width = ch.width().unwrap_or(1).max(1);
-						let remaining = text_width.saturating_sub(seg_col);
-						if remaining == 0 {
-							break;
-						}
-						if char_width <= remaining {
-							spans.push(Span::styled(ch.to_string(), style));
-							seg_col += char_width;
-						} else {
-							spans.push(Span::styled(" ".repeat(remaining), style));
-							seg_col += remaining;
-						}
+			for row in plan.rows {
+				let (line, segment, is_continuation, is_last_segment) = match row.kind {
+					RowKind::Text { line_idx, seg_idx } => {
+						let slice = LineSource::load(doc.content(), line_idx);
+						let segments = slice
+							.as_ref()
+							.map(|s| wrap_line_ranges(&s.text, text_width, tab_width))
+							.unwrap_or_default();
+						let num_segs = segments.len().max(1);
+						let segment = segments.into_iter().nth(seg_idx);
+						(slice, segment, seg_idx > 0, seg_idx == num_segs - 1)
 					}
-				}
-
-				if !is_last_segment && seg_col < text_width {
-					let fill_count = text_width - seg_col;
-					let dim_color = self
-						.theme
-						.colors
-						.ui
-						.gutter_fg
-						.blend(self.theme.colors.ui.bg, blend::GUTTER_DIM_ALPHA);
-					let mut fill_style = Style::default().fg(dim_color);
-					if let Some(bg) = line_style.fill_bg() {
-						fill_style = fill_style.bg(bg);
+					RowKind::PhantomTrailingNewline { line_idx } => {
+						(LineSource::load(doc.content(), line_idx), None, false, true)
 					}
-					spans.push(Span::styled(" ".repeat(fill_count), fill_style));
-				}
-
-				if is_last_segment {
-					let is_last_doc_line = current_line_idx + 1 >= total_lines;
-					let cursor_at_eol = cursor_heads.iter().any(|pos: &CharIdx| {
-						if is_last_doc_line {
-							*pos >= line_content_end && *pos <= line_end
-						} else {
-							*pos >= line_content_end && *pos < line_end
-						}
-					});
-
-					if cursor_at_eol && (use_block_cursor || !is_focused) {
-						let primary_here = if is_last_doc_line {
-							primary_cursor >= line_content_end && primary_cursor <= line_end
-						} else {
-							primary_cursor >= line_content_end && primary_cursor < line_end
-						};
-						let cursor_style = if !is_focused {
-							styles.unfocused
-						} else if primary_here {
-							styles.primary
-						} else {
-							styles.secondary
-						};
-						let has_newline = !is_last_doc_line || line_end > line_content_end;
-						let eol_char = if has_newline { "¬" } else { " " };
-						let eol_style = match (cursor_style.fg, cursor_style.bg) {
-							(Some(fg), Some(bg)) => cursor_style.fg(fg.blend(bg, 0.35)),
-							_ => cursor_style,
-						};
-						spans.push(Span::styled(eol_char, eol_style));
-						seg_col += 1;
-					}
-
-					if let Some(fill_span) =
-						FillConfig::from_bg(line_style.fill_bg()).fill_span(text_width - seg_col)
-					{
-						spans.push(fill_span);
-					}
-				}
-
-				let line = if let Some(bg) = line_style.fill_bg() {
-					Line::from(spans).style(Style::default().bg(bg))
-				} else {
-					Line::from(spans)
+					RowKind::NonTextBeyondEof => (None, None, false, true),
 				};
-				output_lines.push(line);
-			}
 
-			if wrapped_segments.is_empty()
-				&& start_segment == 0
-				&& output_lines.len() < viewport_height
-			{
-				let is_last_doc_line = current_line_idx + 1 >= total_lines;
-				let is_phantom_line = is_last_doc_line && has_trailing_newline;
+				let line_idx = line.as_ref().map(|l| l.line_idx).unwrap_or(total_lines);
 
-				if is_phantom_line {
-					let nontext_bg = self.theme.colors.ui.nontext_bg;
-					let phantom_style = LineStyleContext {
-						base_bg: nontext_bg,
-						diff_bg: None,
-						mode_color,
-						is_cursor_line: false,
-						cursorline_enabled: false,
-						cursor_line,
-						is_nontext: true,
-					};
-					let mut spans = buffer.with_doc(|doc| {
-						gutter_layout.render_line(
-							current_line_idx,
-							total_lines,
-							&phantom_style,
-							false,
-							doc.content().line(current_line_idx),
-							buffer_path,
-							&line_annotations,
-							self.theme,
-						)
-					});
-					let fill_style = Style::default().bg(nontext_bg);
-					spans.push(Span::styled(" ".repeat(text_width), fill_style));
-					output_lines.push(Line::from(spans).style(fill_style));
-				} else {
-					let mut spans = buffer.with_doc(|doc| {
-						gutter_layout.render_line(
-							current_line_idx,
-							total_lines,
-							&line_style,
-							false,
-							doc.content().line(current_line_idx),
-							buffer_path,
-							&line_annotations,
-							self.theme,
-						)
-					});
+				let diff_nums = diff_line_numbers
+					.as_ref()
+					.and_then(|nums| nums.get(line_idx));
+				let line_annotations = GutterAnnotations {
+					diagnostic_severity: self
+						.diagnostics
+						.and_then(|d| d.get(&line_idx).copied())
+						.unwrap_or(0),
+					sign: None,
+					diff_old_line: diff_nums.and_then(|dn| dn.old),
+					diff_new_line: diff_nums.and_then(|dn| dn.new),
+				};
 
-					let cursor_at_eol = cursor_heads.iter().any(|pos: &CharIdx| {
-						if is_last_doc_line {
-							*pos >= line_start && *pos <= line_end
-						} else {
-							*pos >= line_start && *pos < line_end
-						}
-					});
-					let mut cols_used = 0;
-					if cursor_at_eol && (use_block_cursor || !is_focused) {
-						let primary_here = if is_last_doc_line {
-							primary_cursor >= line_start && primary_cursor <= line_end
-						} else {
-							primary_cursor >= line_start && primary_cursor < line_end
-						};
-						let cursor_style = if !is_focused {
-							styles.unfocused
-						} else if primary_here {
-							styles.primary
-						} else {
-							styles.secondary
-						};
-						let has_newline = !is_last_doc_line || line_end > line_start;
-						let eol_char = if has_newline { "¬" } else { " " };
-						let eol_style = match (cursor_style.fg, cursor_style.bg) {
-							(Some(fg), Some(bg)) => cursor_style.fg(fg.blend(bg, 0.35)),
-							_ => cursor_style,
-						};
-						spans.push(Span::styled(eol_char, eol_style));
-						cols_used = 1;
-					}
-
-					if let Some(fill_span) =
-						FillConfig::from_bg(line_style.fill_bg()).fill_span(text_width - cols_used)
-					{
-						spans.push(fill_span);
-					}
-
-					let line = if let Some(bg) = line_style.fill_bg() {
-						Line::from(spans).style(Style::default().bg(bg))
+				let line_text = line.as_ref().map(|l| l.text.as_str()).unwrap_or("");
+				let line_diff_bg = diff_line_bg(is_diff_file, line_text, self.theme);
+				let line_style = LineStyleContext {
+					base_bg: if matches!(row.kind, RowKind::NonTextBeyondEof) {
+						self.theme.colors.ui.nontext_bg
 					} else {
-						Line::from(spans)
-					};
-					output_lines.push(line);
-				}
+						base_bg
+					},
+					diff_bg: line_diff_bg,
+					mode_color,
+					is_cursor_line: cursorline && line_idx == cursor_line,
+					cursorline_enabled: cursorline,
+					cursor_line,
+					is_nontext: matches!(
+						row.kind,
+						RowKind::NonTextBeyondEof | RowKind::PhantomTrailingNewline { .. }
+					),
+				};
+
+				let row_input = RowRenderInput {
+					ctx: self,
+					theme_cursor_styles: &styles,
+					cursor_style_set,
+					line_style,
+					layout: &layout,
+					buffer_path: buffer_path.as_deref(),
+					is_diff_file,
+					is_focused,
+					use_block_cursor,
+					tab_width,
+					doc_content: doc.content(),
+					line: line.as_ref(),
+					segment: segment.as_ref(),
+					is_continuation,
+					is_last_segment,
+					highlight: &highlight_index,
+					overlays: &overlays,
+					line_annotations,
+				};
+
+				gutter_lines.push(GutterRenderer::render_row(&row_input));
+				text_lines.push(TextRowRenderer::render_row(&row_input));
 			}
 
-			start_segment = 0;
-			current_line_idx += 1;
-		}
-
-		let nontext_bg = self.theme.colors.ui.nontext_bg;
-		while output_lines.len() < viewport_height {
-			let mut spans = gutter_layout.render_empty_line(self.theme);
-			spans.push(Span::styled(
-				" ".repeat(text_width),
-				Style::default().bg(nontext_bg),
-			));
-			output_lines.push(Line::from(spans).style(Style::default().bg(nontext_bg)));
-		}
-
-		RenderResult {
-			widget: Paragraph::new(output_lines),
-		}
+			RenderResult {
+				gutter_width,
+				gutter: gutter_lines,
+				text: text_lines,
+			}
+		})
 	}
 
 	/// Transforms a gutter selector for diff files by replacing standard line

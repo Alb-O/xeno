@@ -5,11 +5,14 @@
 //! where multiple buffers are rendered simultaneously.
 
 mod cell_style;
-mod context;
+pub mod context;
 mod diagnostics;
 mod diff;
 mod fill;
 mod gutter;
+mod index;
+mod plan;
+mod row;
 mod style_layers;
 mod viewport;
 

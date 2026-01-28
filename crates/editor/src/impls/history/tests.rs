@@ -15,7 +15,15 @@ fn test_editor(content: &str) -> Editor {
 fn apply_test_edit(editor: &mut Editor, text: &str, at: usize) -> bool {
 	let buffer_id = editor.focused_view();
 	let tx = {
-		let buffer = editor.state.core.buffers.focused_buffer();
+		let buffer = {
+			let focused = editor.focused_view();
+			editor
+				.state
+				.core
+				.buffers
+				.get_buffer(focused)
+				.expect("focused buffer exists")
+		};
 		let rope = buffer.with_doc(|doc| doc.content().clone());
 		Transaction::change(
 			rope.slice(..),
@@ -36,13 +44,29 @@ fn apply_test_edit(editor: &mut Editor, text: &str, at: usize) -> bool {
 }
 
 fn set_cursor(editor: &mut Editor, pos: usize) {
-	let buffer = editor.state.core.buffers.focused_buffer_mut();
+	let buffer = {
+		let focused = editor.focused_view();
+		editor
+			.state
+			.core
+			.buffers
+			.get_buffer_mut(focused)
+			.expect("focused buffer exists")
+	};
 	buffer.cursor = CharIdx::from(pos);
 	buffer.selection = Selection::point(CharIdx::from(pos));
 }
 
 fn set_scroll(editor: &mut Editor, line: usize, segment: usize) {
-	let buffer = editor.state.core.buffers.focused_buffer_mut();
+	let buffer = {
+		let focused = editor.focused_view();
+		editor
+			.state
+			.core
+			.buffers
+			.get_buffer_mut(focused)
+			.expect("focused buffer exists")
+	};
 	buffer.scroll_line = line;
 	buffer.scroll_segment = segment;
 }
@@ -100,8 +124,17 @@ fn undo_restores_view_state_for_multiple_buffers_same_document() {
 	set_cursor(&mut editor, 7);
 	set_scroll(&mut editor, 0, 0);
 
-	let buffer2_id = editor.state.core.buffers.clone_focused_buffer_for_split();
-	editor.state.core.buffers.set_focused_view(buffer2_id);
+	let focused = editor.focused_view();
+	let buffer2_id = editor
+		.state
+		.core
+		.buffers
+		.clone_buffer_for_split(focused)
+		.expect("focused buffer exists");
+
+	// Must add buffer to layout before focusing, otherwise focus normalization will reject it
+	editor.split_horizontal(buffer2_id);
+
 	set_cursor(&mut editor, 15);
 	set_scroll(&mut editor, 1, 0);
 
@@ -206,7 +239,15 @@ fn redo_stack_clears_only_when_group_pushed() {
 
 	let buffer_id = editor.focused_view();
 	let tx = {
-		let buffer = editor.state.core.buffers.focused_buffer();
+		let buffer = {
+			let focused = editor.focused_view();
+			editor
+				.state
+				.core
+				.buffers
+				.get_buffer(focused)
+				.expect("focused buffer exists")
+		};
 		let rope = buffer.with_doc(|doc| doc.content().clone());
 		Transaction::change(
 			rope.slice(..),
@@ -238,7 +279,15 @@ fn merge_with_current_group_creates_single_undo_group_for_consecutive_inserts() 
 
 	let buffer_id = editor.focused_view();
 	let tx1 = {
-		let buffer = editor.state.core.buffers.focused_buffer();
+		let buffer = {
+			let focused = editor.focused_view();
+			editor
+				.state
+				.core
+				.buffers
+				.get_buffer(focused)
+				.expect("focused buffer exists")
+		};
 		let rope = buffer.with_doc(|doc| doc.content().clone());
 		Transaction::change(
 			rope.slice(..),
@@ -264,7 +313,15 @@ fn merge_with_current_group_creates_single_undo_group_for_consecutive_inserts() 
 	);
 
 	let tx2 = {
-		let buffer = editor.state.core.buffers.focused_buffer();
+		let buffer = {
+			let focused = editor.focused_view();
+			editor
+				.state
+				.core
+				.buffers
+				.get_buffer(focused)
+				.expect("focused buffer exists")
+		};
 		let rope = buffer.with_doc(|doc| doc.content().clone());
 		Transaction::change(
 			rope.slice(..),
@@ -290,12 +347,16 @@ fn merge_with_current_group_creates_single_undo_group_for_consecutive_inserts() 
 	);
 
 	editor.undo();
-	let content = editor
-		.state
-		.core
-		.buffers
-		.focused_buffer()
-		.with_doc(|doc| doc.content().to_string());
+	let content = {
+		let focused = editor.focused_view();
+		editor
+			.state
+			.core
+			.buffers
+			.get_buffer(focused)
+			.expect("focused buffer exists")
+			.with_doc(|doc| doc.content().to_string())
+	};
 	assert_eq!(
 		content, "hello",
 		"single undo should revert both merged edits"
@@ -308,7 +369,15 @@ fn record_policy_breaks_merge_group() {
 	let buffer_id = editor.focused_view();
 
 	let tx1 = {
-		let buffer = editor.state.core.buffers.focused_buffer();
+		let buffer = {
+			let focused = editor.focused_view();
+			editor
+				.state
+				.core
+				.buffers
+				.get_buffer(focused)
+				.expect("focused buffer exists")
+		};
 		let rope = buffer.with_doc(|doc| doc.content().clone());
 		Transaction::change(
 			rope.slice(..),
@@ -328,7 +397,15 @@ fn record_policy_breaks_merge_group() {
 	);
 
 	let tx2 = {
-		let buffer = editor.state.core.buffers.focused_buffer();
+		let buffer = {
+			let focused = editor.focused_view();
+			editor
+				.state
+				.core
+				.buffers
+				.get_buffer(focused)
+				.expect("focused buffer exists")
+		};
 		let rope = buffer.with_doc(|doc| doc.content().clone());
 		Transaction::change(
 			rope.slice(..),
@@ -358,7 +435,12 @@ fn record_policy_breaks_merge_group() {
 fn sibling_selection_sync_after_apply() {
 	let mut editor = test_editor("abcd");
 	let buffer1_id = editor.focused_view();
-	let buffer2_id = editor.state.core.buffers.clone_focused_buffer_for_split();
+	let buffer2_id = editor
+		.state
+		.core
+		.buffers
+		.clone_buffer_for_split(buffer1_id)
+		.expect("focused buffer exists");
 
 	let original_selection = {
 		let buffer = editor

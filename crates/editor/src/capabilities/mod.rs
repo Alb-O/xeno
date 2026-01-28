@@ -54,15 +54,16 @@ fn parse_option_value(kdl_key: &str, value: &str) -> Result<OptionValue, Command
 
 impl CursorAccess for Editor {
 	fn cursor(&self) -> CharIdx {
-		self.state.core.cursor()
+		self.buffer().cursor
 	}
 
 	fn cursor_line_col(&self) -> Option<(usize, usize)> {
-		self.state.core.cursor_line_col()
+		let buffer = self.buffer();
+		Some((buffer.cursor_line(), buffer.cursor_col()))
 	}
 
 	fn set_cursor(&mut self, pos: CharIdx) {
-		self.state.core.set_cursor(pos);
+		self.buffer_mut().set_cursor(pos);
 		let mut layers = std::mem::take(&mut self.state.overlay_system.layers);
 		layers.notify_event(self, crate::overlay::LayerEvent::CursorMoved);
 		self.state.overlay_system.layers = layers;
@@ -71,15 +72,15 @@ impl CursorAccess for Editor {
 
 impl SelectionAccess for Editor {
 	fn selection(&self) -> &Selection {
-		self.state.core.selection()
+		&self.buffer().selection
 	}
 
 	fn selection_mut(&mut self) -> &mut Selection {
-		self.state.core.selection_mut()
+		&mut self.buffer_mut().selection
 	}
 
 	fn set_selection(&mut self, sel: Selection) {
-		self.state.core.set_selection(sel);
+		self.buffer_mut().set_selection(sel);
 		let mut layers = std::mem::take(&mut self.state.overlay_system.layers);
 		layers.notify_event(self, crate::overlay::LayerEvent::CursorMoved);
 		self.state.overlay_system.layers = layers;
@@ -440,25 +441,25 @@ impl JumpAccess for Editor {
 
 impl MacroAccess for Editor {
 	fn record(&mut self) {
-		self.state.core.record();
+		self.state.core.workspace.macro_state.start_recording('q');
 	}
 
 	fn stop_recording(&mut self) {
-		self.state.core.stop_recording();
+		self.state.core.workspace.macro_state.stop_recording();
 	}
 
 	fn play(&mut self) {
-		self.state.core.play();
+		// TODO: Requires event loop integration
 	}
 
 	fn is_recording(&self) -> bool {
-		self.state.core.is_recording()
+		self.state.core.workspace.macro_state.is_recording()
 	}
 }
 
 impl CommandQueueAccess for Editor {
 	fn queue_command(&mut self, name: &'static str, args: Vec<String>) {
-		self.state.core.queue_command(name, args);
+		self.state.core.workspace.command_queue.push(name, args);
 	}
 }
 
