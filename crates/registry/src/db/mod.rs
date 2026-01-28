@@ -14,23 +14,20 @@ use crate::commands::CommandDef;
 #[cfg(feature = "keymap")]
 use crate::db::keymap_registry::KeymapRegistry;
 use crate::gutter::GutterDef;
-use crate::hooks::HookDef;
 use crate::motions::MotionDef;
-use crate::options::OptionDef;
 use crate::statusline::StatuslineSegmentDef;
-use crate::textobj::TextObjectDef;
 use crate::themes::theme::ThemeDef;
 
 pub struct RegistryDb {
 	pub actions: RuntimeRegistry<ActionDef>,
 	pub commands: RuntimeRegistry<CommandDef>,
 	pub motions: RuntimeRegistry<MotionDef>,
-	pub text_objects: RuntimeRegistry<TextObjectDef>,
-	pub options: RuntimeRegistry<OptionDef>,
+	pub text_objects: crate::textobj::TextObjectRegistry,
+	pub options: crate::options::OptionsRegistry,
 	pub themes: RuntimeRegistry<ThemeDef>,
 	pub gutters: RuntimeRegistry<GutterDef>,
 	pub statusline: RuntimeRegistry<StatuslineSegmentDef>,
-	pub hooks: RuntimeRegistry<HookDef>,
+	pub hooks: crate::hooks::HooksRegistry,
 	pub(crate) action_id_to_def: Vec<&'static ActionDef>,
 	pub notifications: Vec<&'static crate::notifications::NotificationDef>,
 	pub key_prefixes: Vec<KeyPrefixDef>,
@@ -45,11 +42,11 @@ pub fn get_db() -> &'static RegistryDb {
 		let mut builder = builder::RegistryDbBuilder::new();
 
 		// 1) Register builtins explicitly (not via inventory)
-		// Wait, I'm currently using PluginDef for builtins too, so they will be registered in step 2.
-		// Actually, ChatGPT suggested separating them.
-		// For now, they are all in PluginDef inventory.
+		if let Err(e) = builtins::register_all(&mut builder) {
+			tracing::error!("Builtin registration failed: {}", e);
+		}
 
-		// 2) Run plugins (including builtins which now register via PluginDef)
+		// 2) Run plugins
 		if let Err(e) = plugin::run_plugins(&mut builder) {
 			tracing::error!("Registry plugins failed: {}", e);
 		}
@@ -68,12 +65,12 @@ pub fn get_db() -> &'static RegistryDb {
 			actions: RuntimeRegistry::new("actions", indices.actions),
 			commands: RuntimeRegistry::new("commands", indices.commands),
 			motions: RuntimeRegistry::new("motions", indices.motions),
-			text_objects: RuntimeRegistry::new("text_objects", indices.text_objects),
-			options: RuntimeRegistry::new("options", indices.options),
+			text_objects: crate::textobj::TextObjectRegistry::new(indices.text_objects),
+			options: crate::options::OptionsRegistry::new(indices.options),
 			themes: RuntimeRegistry::new("themes", indices.themes),
 			gutters: RuntimeRegistry::new("gutters", indices.gutters),
 			statusline: RuntimeRegistry::new("statusline", indices.statusline),
-			hooks: RuntimeRegistry::new("hooks", indices.hooks),
+			hooks: crate::hooks::HooksRegistry::new(indices.hooks),
 			action_id_to_def,
 			notifications: indices.notifications,
 			key_prefixes: indices.key_prefixes,
@@ -89,9 +86,9 @@ pub static COMMANDS: LazyLock<&'static RuntimeRegistry<CommandDef>> =
 	LazyLock::new(|| &get_db().commands);
 pub static MOTIONS: LazyLock<&'static RuntimeRegistry<MotionDef>> =
 	LazyLock::new(|| &get_db().motions);
-pub static TEXT_OBJECTS: LazyLock<&'static RuntimeRegistry<TextObjectDef>> =
+pub static TEXT_OBJECTS: LazyLock<&'static crate::textobj::TextObjectRegistry> =
 	LazyLock::new(|| &get_db().text_objects);
-pub static OPTIONS: LazyLock<&'static RuntimeRegistry<OptionDef>> =
+pub static OPTIONS: LazyLock<&'static crate::options::OptionsRegistry> =
 	LazyLock::new(|| &get_db().options);
 pub static THEMES: LazyLock<&'static RuntimeRegistry<ThemeDef>> =
 	LazyLock::new(|| &get_db().themes);
@@ -99,52 +96,10 @@ pub static GUTTERS: LazyLock<&'static RuntimeRegistry<GutterDef>> =
 	LazyLock::new(|| &get_db().gutters);
 pub static STATUSLINE_SEGMENTS: LazyLock<&'static RuntimeRegistry<StatuslineSegmentDef>> =
 	LazyLock::new(|| &get_db().statusline);
-pub static HOOKS: LazyLock<&'static RuntimeRegistry<HookDef>> = LazyLock::new(|| &get_db().hooks);
+pub static HOOKS: LazyLock<&'static crate::hooks::HooksRegistry> =
+	LazyLock::new(|| &get_db().hooks);
 pub static NOTIFICATIONS: LazyLock<&'static [&'static crate::notifications::NotificationDef]> =
 	LazyLock::new(|| get_db().notifications.as_slice());
-
-pub static TEXT_OBJECT_TRIGGER_INDEX: LazyLock<
-	std::collections::HashMap<char, &'static TextObjectDef>,
-> = LazyLock::new(|| {
-	let mut map = std::collections::HashMap::new();
-	for def in TEXT_OBJECTS.iter() {
-		map.entry(def.trigger).or_insert(def);
-		for &alt in def.alt_triggers {
-			map.entry(alt).or_insert(def);
-		}
-	}
-	map
-});
-
-pub static OPTION_KDL_INDEX: LazyLock<std::collections::HashMap<&'static str, &'static OptionDef>> =
-	LazyLock::new(|| {
-		let mut map = std::collections::HashMap::new();
-		for opt in OPTIONS.iter() {
-			map.insert(opt.kdl_key, opt);
-		}
-		map
-	});
-
-pub static BUILTIN_HOOK_BY_EVENT: LazyLock<
-	std::collections::HashMap<crate::HookEvent, Vec<&'static HookDef>>,
-> = LazyLock::new(|| {
-	let mut map: std::collections::HashMap<crate::HookEvent, Vec<&'static HookDef>> =
-		std::collections::HashMap::new();
-	for hook in HOOKS.builtins().iter() {
-		map.entry(hook.event).or_default().push(hook);
-	}
-	// Sort each event's hooks by priority (asc), then name (asc), then id (asc)
-	for hooks in map.values_mut() {
-		hooks.sort_by(|a: &&HookDef, b: &&HookDef| {
-			a.meta
-				.priority
-				.cmp(&b.meta.priority)
-				.then_with(|| a.meta.name.cmp(b.meta.name))
-				.then_with(|| a.meta.id.cmp(b.meta.id))
-		});
-	}
-	map
-});
 
 /// Resolves an ActionId to its definition.
 pub fn resolve_action_id_typed(id: ActionId) -> Option<&'static ActionDef> {

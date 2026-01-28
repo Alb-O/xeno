@@ -1,15 +1,14 @@
-use std::collections::HashMap;
+use crate::{Collision, RegistryEntry};
 
-use super::collision::Collision;
-use crate::RegistryEntry;
+pub(super) type Map<K, V> = rustc_hash::FxHashMap<K, V>;
 
 /// Indexed collection of registry definitions with O(1) lookup.
 pub struct RegistryIndex<T: RegistryEntry + 'static> {
-	pub(super) by_id: HashMap<&'static str, &'static T>,
-	pub(super) by_key: HashMap<&'static str, &'static T>,
-	pub(super) items_all: Vec<&'static T>,
-	pub(super) items_effective: Vec<&'static T>,
-	pub(super) collisions: Vec<Collision>,
+	pub(crate) by_id: Map<&'static str, &'static T>,
+	pub(crate) by_key: Map<&'static str, &'static T>,
+	pub(crate) items_all: Vec<&'static T>,
+	pub(crate) items_effective: Vec<&'static T>,
+	pub(crate) collisions: Vec<Collision>,
 }
 
 impl<T: RegistryEntry + 'static> Clone for RegistryIndex<T> {

@@ -4,8 +4,8 @@ use crate::actions::{ActionDef, ActionKey};
 use crate::commands::CommandDef;
 use crate::core::ActionId;
 use crate::db::{
-	ACTIONS, COMMANDS, MOTIONS, TEXT_OBJECT_TRIGGER_INDEX, TEXT_OBJECTS,
-	resolve_action_id_from_static, resolve_action_id_typed,
+	ACTIONS, COMMANDS, MOTIONS, TEXT_OBJECTS, resolve_action_id_from_static,
+	resolve_action_id_typed,
 };
 use crate::motions::{MotionDef, MotionKey};
 use crate::textobj::TextObjectDef;
@@ -44,7 +44,7 @@ pub fn find_motion(key: &str) -> Option<MotionKey> {
 
 /// Finds a text object definition by its trigger character.
 pub fn find_text_object_by_trigger(trigger: char) -> Option<&'static TextObjectDef> {
-	TEXT_OBJECT_TRIGGER_INDEX.get(&trigger).copied()
+	TEXT_OBJECTS.by_trigger(trigger)
 }
 
 /// Returns an iterator over all command definitions, sorted by name.

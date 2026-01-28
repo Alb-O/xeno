@@ -320,7 +320,7 @@ fn collect_registry_items(kind: RegistryKind) -> Vec<RegistryItem> {
 			.collect(),
 		RegistryKind::Hooks => HOOKS
 			.iter()
-			.copied()
+			.into_iter()
 			.map(|def| RegistryItem {
 				id: def.meta.id,
 				name: def.meta.name,
@@ -346,6 +346,7 @@ fn collect_registry_items(kind: RegistryKind) -> Vec<RegistryItem> {
 			.collect(),
 		RegistryKind::Options => OPTIONS
 			.iter()
+			.into_iter()
 			.map(|def| RegistryItem {
 				id: def.meta.id,
 				name: def.meta.name,

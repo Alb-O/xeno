@@ -144,8 +144,13 @@ pub fn all_segments() -> impl Iterator<Item = &'static StatuslineSegmentDef> {
 crate::impl_registry_entry!(StatuslineSegmentDef);
 pub use builtins::register_builtins;
 
-pub fn register_plugin(db: &mut crate::db::builder::RegistryDbBuilder) {
+use crate::error::RegistryError;
+
+pub fn register_plugin(
+	db: &mut crate::db::builder::RegistryDbBuilder,
+) -> Result<(), RegistryError> {
 	register_builtins(db);
+	Ok(())
 }
 
 inventory::submit! {

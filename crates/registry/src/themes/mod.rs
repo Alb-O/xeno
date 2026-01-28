@@ -16,8 +16,13 @@ pub fn register_builtins(builder: &mut crate::db::builder::RegistryDbBuilder) {
 	builder.register_theme(&theme::DEFAULT_THEME);
 }
 
-pub fn register_plugin(db: &mut crate::db::builder::RegistryDbBuilder) {
+use crate::error::RegistryError;
+
+pub fn register_plugin(
+	db: &mut crate::db::builder::RegistryDbBuilder,
+) -> Result<(), RegistryError> {
 	register_builtins(db);
+	Ok(())
 }
 
 inventory::submit! {

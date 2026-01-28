@@ -63,11 +63,13 @@ notifications-builtins = ["notifications"]
 actions-handler-coverage = ["actions-builtins"]
 
 [dependencies]
+arc-swap = { workspace = true }
 futures = { workspace = true, optional = true }
 inventory.workspace = true
 paste.workspace = true
 regex = { workspace = true, optional = true }
 ropey = { workspace = true, optional = true }
+rustc-hash = { workspace = true }
 strsim = { workspace = true, optional = true }
 thiserror.workspace = true
 tracing = { workspace = true, optional = true }

@@ -9,19 +9,19 @@ pub mod builtins;
 mod context;
 mod emit;
 mod macros;
+pub mod registry;
 mod types;
 
 pub use builtins::register_builtins;
+pub use registry::HooksRegistry;
 
-pub fn register_plugin(db: &mut crate::db::builder::RegistryDbBuilder) {
+use crate::error::RegistryError;
+
+pub fn register_plugin(
+	db: &mut crate::db::builder::RegistryDbBuilder,
+) -> Result<(), RegistryError> {
 	register_builtins(db);
-}
-
-inventory::submit! {
-	crate::PluginDef::new(
-		crate::RegistryMeta::minimal("hooks-builtin", "Hooks Builtin", "Builtin hook set"),
-		register_plugin
-	)
+	Ok(())
 }
 
 pub use context::{
@@ -36,8 +36,6 @@ pub use xeno_primitives::Mode;
 
 pub use crate::async_hook;
 #[cfg(feature = "db")]
-pub use crate::db::BUILTIN_HOOK_BY_EVENT;
-#[cfg(feature = "db")]
 pub use crate::db::HOOKS;
 // Re-export macros
 pub use crate::hook;
@@ -51,24 +49,7 @@ pub fn register_hook(def: &'static HookDef) -> bool {
 /// Returns all hooks registered for the given `event`, in execution order.
 #[cfg(feature = "db")]
 pub fn hooks_for_event(event: crate::HookEvent) -> Vec<&'static HookDef> {
-	let mut hooks: Vec<_> = BUILTIN_HOOK_BY_EVENT
-		.get(&event)
-		.map(Vec::as_slice)
-		.unwrap_or(&[])
-		.to_vec();
-
-	// Integrate runtime extensions matching this event
-	hooks.extend(
-		HOOKS
-			.extras_items()
-			.into_iter()
-			.filter(|h| h.event == event),
-	);
-
-	// Ensure global consistency across builtin and runtime hooks
-	hooks.sort_by(|a: &&HookDef, b: &&HookDef| a.total_order_cmp(b));
-
-	hooks
+	HOOKS.for_event(event)
 }
 
 /// Find all hooks registered for a specific event.

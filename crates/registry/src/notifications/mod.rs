@@ -15,15 +15,13 @@ pub mod keys;
 
 pub use builtins::register_builtins;
 
-pub fn register_plugin(db: &mut crate::db::builder::RegistryDbBuilder) {
-	register_builtins(db);
-}
+use crate::error::RegistryError;
 
-inventory::submit! {
-	crate::PluginDef::new(
-		crate::RegistryMeta::minimal("notifications-builtin", "Notifications Builtin", "Builtin notification set"),
-		register_plugin
-	)
+pub fn register_plugin(
+	db: &mut crate::db::builder::RegistryDbBuilder,
+) -> Result<(), RegistryError> {
+	register_builtins(db);
+	Ok(())
 }
 
 // Re-export macros

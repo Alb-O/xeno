@@ -1,5 +1,6 @@
 use std::cmp::Ordering;
-use std::collections::HashMap;
+
+use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
 
 use super::collision::{ChooseWinner, Collision, DuplicatePolicy, KeyKind, KeyStore};
 use super::insert::insert_typed_key;
@@ -89,13 +90,13 @@ impl<T: RegistryEntry + 'static> RegistryBuilder<T> {
 		let include_aliases = self.include_aliases;
 
 		let mut defs = self.defs; // Move out of self
-		let mut seen: std::collections::HashSet<*const T> =
-			std::collections::HashSet::with_capacity(defs.len());
+		let mut seen: HashSet<*const T> =
+			HashSet::with_capacity_and_hasher(defs.len(), Default::default());
 		defs.retain(|d| seen.insert(*d as *const T));
 
 		let mut store = BuildStore::<T> {
-			by_id: HashMap::with_capacity(defs.len()),
-			by_key: HashMap::with_capacity(defs.len() * 2),
+			by_id: HashMap::with_capacity_and_hasher(defs.len(), Default::default()),
+			by_key: HashMap::with_capacity_and_hasher(defs.len() * 2, Default::default()),
 			collisions: Vec::new(),
 		};
 
@@ -147,8 +148,8 @@ impl<T: RegistryEntry + 'static> RegistryBuilder<T> {
 			}
 		}
 
-		let mut effective_set: std::collections::HashSet<*const T> =
-			std::collections::HashSet::with_capacity(defs.len());
+		let mut effective_set: HashSet<*const T> =
+			HashSet::with_capacity_and_hasher(defs.len(), Default::default());
 		for &def in store.by_id.values() {
 			effective_set.insert(def as *const T);
 		}

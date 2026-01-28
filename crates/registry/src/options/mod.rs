@@ -6,11 +6,13 @@ use std::marker::PhantomData;
 
 pub mod builtins;
 pub mod parse;
+pub mod registry;
 mod resolver;
 mod store;
 pub mod validators;
 
 pub use builtins::register_builtins;
+pub use registry::OptionsRegistry;
 pub use resolver::OptionResolver;
 pub use store::OptionStore;
 
@@ -117,8 +119,6 @@ pub struct OptionReg(pub &'static OptionDef);
 inventory::collect!(OptionReg);
 
 #[cfg(feature = "db")]
-pub use crate::db::OPTION_KDL_INDEX;
-#[cfg(feature = "db")]
 pub use crate::db::OPTIONS;
 
 /// Finds an option definition by name.
@@ -136,13 +136,13 @@ pub fn find_by_name(name: &str) -> Option<&'static OptionDef> {
 /// Finds an option definition by its KDL configuration key.
 #[cfg(feature = "db")]
 pub fn find_by_kdl(kdl_key: &str) -> Option<&'static OptionDef> {
-	OPTION_KDL_INDEX.get(kdl_key).copied()
+	OPTIONS.by_kdl_key(kdl_key)
 }
 
 /// Returns all registered options.
 #[cfg(feature = "db")]
 pub fn all() -> impl Iterator<Item = &'static OptionDef> {
-	OPTIONS.iter()
+	OPTIONS.iter().into_iter()
 }
 
 /// Returns all options sorted by KDL key.
@@ -223,8 +223,13 @@ pub fn validate(kdl_key: &str, value: &OptionValue) -> Result<(), OptionError> {
 
 crate::impl_registry_entry!(OptionDef);
 
-pub fn register_plugin(db: &mut crate::db::builder::RegistryDbBuilder) {
+use crate::error::RegistryError;
+
+pub fn register_plugin(
+	db: &mut crate::db::builder::RegistryDbBuilder,
+) -> Result<(), RegistryError> {
 	register_builtins(db);
+	Ok(())
 }
 
 inventory::submit! {

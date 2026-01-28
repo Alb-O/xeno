@@ -8,18 +8,18 @@ use xeno_primitives::Range;
 
 pub mod builtins;
 mod macros;
+pub mod registry;
 
 pub use builtins::register_builtins;
+pub use registry::TextObjectRegistry;
 
-pub fn register_plugin(db: &mut crate::db::builder::RegistryDbBuilder) {
+use crate::error::RegistryError;
+
+pub fn register_plugin(
+	db: &mut crate::db::builder::RegistryDbBuilder,
+) -> Result<(), RegistryError> {
 	register_builtins(db);
-}
-
-inventory::submit! {
-	crate::PluginDef::new(
-		crate::RegistryMeta::minimal("textobj-builtin", "Text Objects Builtin", "Builtin text object set"),
-		register_plugin
-	)
+	Ok(())
 }
 
 pub use crate::core::{
@@ -111,14 +111,12 @@ impl TextObjectDef {
 crate::impl_registry_entry!(TextObjectDef);
 
 #[cfg(feature = "db")]
-pub use crate::db::TEXT_OBJECT_TRIGGER_INDEX;
-#[cfg(feature = "db")]
 pub use crate::db::TEXT_OBJECTS;
 
 /// Finds a text object by trigger character.
 #[cfg(feature = "db")]
 pub fn find_by_trigger(trigger: char) -> Option<&'static TextObjectDef> {
-	TEXT_OBJECT_TRIGGER_INDEX.get(&trigger).copied()
+	TEXT_OBJECTS.by_trigger(trigger)
 }
 
 /// Finds a text object by name or alias.
@@ -130,5 +128,5 @@ pub fn find(name: &str) -> Option<&'static TextObjectDef> {
 /// Returns all registered text objects, sorted by name.
 #[cfg(feature = "db")]
 pub fn all() -> impl Iterator<Item = &'static TextObjectDef> {
-	TEXT_OBJECTS.iter()
+	TEXT_OBJECTS.iter().into_iter()
 }

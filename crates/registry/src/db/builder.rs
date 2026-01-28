@@ -5,7 +5,7 @@ use crate::commands::CommandDef;
 use crate::core::plugin::PluginDef;
 pub use crate::core::{
 	Capability, CommandError, DuplicatePolicy, KeyKind, RegistryBuilder, RegistryEntry,
-	RegistryIndex, RegistryMeta, RegistrySource, RuntimeRegistry, insert_typed_key,
+	RegistryError, RegistryIndex, RegistryMeta, RegistrySource, RuntimeRegistry, insert_typed_key,
 };
 use crate::gutter::GutterDef;
 use crate::hooks::HookDef;
@@ -14,14 +14,6 @@ use crate::options::OptionDef;
 use crate::statusline::StatuslineSegmentDef;
 use crate::textobj::TextObjectDef;
 use crate::themes::theme::ThemeDef;
-
-#[derive(Debug, thiserror::Error)]
-pub enum RegistryError {
-	#[error("fatal insertion error: {0}")]
-	Insert(#[from] crate::core::InsertFatal),
-	#[error("plugin error: {0}")]
-	Plugin(String),
-}
 
 #[derive(Debug)]
 pub struct BuiltinGroup<T: 'static> {
@@ -260,7 +252,7 @@ impl RegistryDbBuilder {
 		);
 		let _guard = span.enter();
 
-		(plugin.register)(self);
+		(plugin.register)(self)?;
 
 		let after = DomainCounts::snapshot(self);
 		self.plugin_records.push(PluginBuildRecord {

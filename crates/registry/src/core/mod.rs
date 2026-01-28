@@ -6,6 +6,7 @@ pub mod index;
 pub mod key;
 pub mod meta;
 pub mod plugin;
+pub mod runtime_alloc;
 pub mod traits;
 
 pub use capability::Capability;

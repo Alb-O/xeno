@@ -72,16 +72,13 @@ pub use builtins::register_builtins;
 
 #[cfg(feature = "db")]
 pub use crate::db::ACTIONS;
+use crate::error::RegistryError;
 
-pub fn register_plugin(db: &mut crate::db::builder::RegistryDbBuilder) {
+pub fn register_plugin(
+	db: &mut crate::db::builder::RegistryDbBuilder,
+) -> Result<(), RegistryError> {
 	register_builtins(db);
-}
-
-inventory::submit! {
-	crate::PluginDef::new(
-		crate::RegistryMeta::minimal("actions-builtin", "Actions Builtin", "Builtin action set"),
-		register_plugin
-	)
+	Ok(())
 }
 
 /// Registers an action definition at runtime.

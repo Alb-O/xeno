@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-
 use super::*;
 use crate::{RegistryEntry, RegistryMeta, RegistrySource};
 
@@ -623,17 +621,9 @@ fn test_total_order_tie_breaker() {
 	let crate_src = leak_def(meta_with("id.crate", "src", 10, RegistrySource::Crate("x")));
 	let runtime_src = leak_def(meta_with("id.runtime", "src", 10, RegistrySource::Runtime));
 
-	let rr_src = RuntimeRegistry::with_policy(
-		"src",
-		RegistryIndex {
-			by_id: HashMap::from([("id.builtin", builtin_src)]),
-			by_key: HashMap::from([("src", builtin_src)]),
-			items_all: vec![builtin_src],
-			items_effective: vec![builtin_src],
-			collisions: vec![],
-		},
-		DuplicatePolicy::ByPriority,
-	);
+	let mut builder = RegistryBuilder::new("src");
+	builder.push(builtin_src);
+	let rr_src = RuntimeRegistry::with_policy("src", builder.build(), DuplicatePolicy::ByPriority);
 
 	rr_src.register(crate_src);
 	rr_src.register(runtime_src);
@@ -696,11 +686,10 @@ fn test_id_override() {
 	let builtins = builder.build();
 
 	let rr = RuntimeRegistry::with_policy("t", builtins, DuplicatePolicy::ByPriority);
-	rr.set_allow_id_overrides(true);
 
 	// Runtime override with higher priority
 	let override_def = leak_def(meta_with("id.foo", "name.new", 10, RegistrySource::Runtime));
-	assert!(rr.register(override_def));
+	assert!(rr.try_register_override(override_def).is_ok());
 
 	// get_by_id should return the override
 	assert!(std::ptr::eq(rr.get_by_id("id.foo").unwrap(), override_def));
@@ -724,10 +713,9 @@ fn test_id_override_shadow_guard() {
 	let builtins = builder.build();
 
 	let rr = RuntimeRegistry::with_policy("t", builtins, DuplicatePolicy::ByPriority);
-	rr.set_allow_id_overrides(true);
 
 	let override_def = leak_def(meta_with("id.foo", "name.new", 10, RegistrySource::Runtime));
-	rr.register(override_def);
+	assert!(rr.try_register_override(override_def).is_ok());
 
 	// Attempt to register a def whose name equals the ID
 	let bad = leak_def(meta_with("id.bad", "id.foo", 20, RegistrySource::Runtime));

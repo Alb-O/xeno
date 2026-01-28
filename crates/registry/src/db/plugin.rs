@@ -1,15 +1,13 @@
 use super::builder::{RegistryDbBuilder, RegistryError};
 use crate::core::plugin::PluginDef;
+use crate::core::traits::RegistryEntry;
 
 pub fn run_plugins(builder: &mut RegistryDbBuilder) -> Result<(), RegistryError> {
 	let mut plugins: Vec<&'static PluginDef> = inventory::iter::<PluginDef>.into_iter().collect();
-	plugins.sort_by(|a, b| {
-		b.meta
-			.priority
-			.cmp(&a.meta.priority)
-			.then_with(|| a.meta.source.rank().cmp(&b.meta.source.rank()))
-			.then_with(|| a.meta.id.cmp(b.meta.id))
-	});
+	// Sort by total order (higher priority wins/runs later if we want it to override?
+	// Actually total_order_cmp is used for winner selection.
+	// Let's just use it for stable ordering.
+	plugins.sort_by(|a, b| a.total_order_cmp(b));
 
 	for plugin in plugins {
 		builder.register_plugin(plugin)?;

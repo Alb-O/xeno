@@ -18,15 +18,13 @@ mod macros;
 
 pub use builtins::register_builtins;
 
-pub fn register_plugin(db: &mut crate::db::builder::RegistryDbBuilder) {
-	register_builtins(db);
-}
+use crate::error::RegistryError;
 
-inventory::submit! {
-	crate::PluginDef::new(
-		crate::RegistryMeta::minimal("commands-builtin", "Commands Builtin", "Builtin command set"),
-		register_plugin
-	)
+pub fn register_plugin(
+	db: &mut crate::db::builder::RegistryDbBuilder,
+) -> Result<(), RegistryError> {
+	register_builtins(db);
+	Ok(())
 }
 
 // Re-export macros

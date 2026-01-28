@@ -1,284 +1,1 @@
-# Xeno Registry System (Agent Guide)
-
-This is an agent-facing, task-first map of Xeno’s registry system: how items are defined, registered, indexed, extended (plugins + runtime overlays), and finally invoked with capability gating.
-
-Scope: actions, commands, motions, text objects, options, themes, gutters, statusline, hooks, notifications.
-
----
-
-## Mental model
-
-- A “registry item” is a `&'static T` where `T: RegistryEntry` (has a `meta: RegistryMeta`).
-- Compile-time registration uses `inventory` (`Reg<T>` / `RegSlice<T>`). Startup builds a `RegistryDb` by iterating inventory and building per-domain indices.
-- Indices are strict about **ID invariants**. Name/alias collisions are allowed (with deterministic winner selection).
-- Runtime extensibility is via `RuntimeRegistry<T>`: a thread-safe overlay on top of the built index. Lookup is layered (extras-first) and atomic registration is supported.
-- Dispatch (`Editor::run_invocation`) looks up the action/command by registry name/alias/id, then gates execution via `required_caps` from metadata.
-
----
-
-## Where the “source of truth” lives
-
-### Core (xeno-registry-core)
-- `RegistryMeta`, `RegistrySource`, `Capability`
-- `RegistryEntry`, `RegistryMetadata`, `impl_registry_entry!`
-- `RegistryBuilder<T>`: build-time invariant enforcement, collision tracking
-- `RegistryIndex<T>`: built index, ID-first lookup
-- `RuntimeRegistry<T>`: runtime overlay + atomic batch insertion
-- `DuplicatePolicy`, `Collision`, insertion error types
-
-### Registry crate (xeno-registry)
-- `inventory::{Reg<T>, RegSlice<T>}` wrappers
-- Domain modules: `actions`, `motions`, `commands`, …
-- `db::{RegistryDb, RegistryDbBuilder, RegistryIndices, plugin::{XenoPlugin, register_plugin!}}`
-
-### Editor
-- `Editor::run_invocation` / `invoke_action` / `invoke_command`
-- Capability gating via `EditorContext::check_all_capabilities(required_caps)`
-- Hook emission around invocations
-
----
-
-## Hard Rules (do not violate)
-
-| Rule | Why it exists | How to comply (agent checklist) | Failure mode |
-|---|---|---|---|
-| IDs are sacred (global uniqueness per domain) | IDs are the stable identity and the first lookup namespace | Use macro-generated IDs (`concat!(env!("CARGO_PKG_NAME"), "::", name)`); don’t handwrite IDs unless you know you need stability across crates/plugins | Build-time fatal: duplicate IDs |
-| “ID shadowing” is forbidden in the base index | If name/alias insertion could shadow an existing ID, `get(id)` would become ambiguous | Never set `name`/`alias` equal to some other item’s `id`; avoid “looks like an ID” strings | Build-time fatal: “ID shadowing” |
-| Name/alias collisions are allowed but deterministic | UX keys (name/alias) are flexible, but must be predictable | If you intentionally collide, set `priority` and `source` intentionally; otherwise keep names unique | Surprise winner changes if priorities change |
-| Prefer `id` for machine references, `name` for humans | IDs are stable; names are UI-facing | Code should store/emit IDs; UI should display `name` + `description` | Breakage when names change |
-| `required_caps` must match runtime behavior | Dispatch gates execution based on `required_caps` | Add caps in the macro/def; keep minimal; validate via invocations in tests | CapabilityDenied, readonly denial, or unsafe behavior |
-| Registry items must be leak-to-static (current policy) | Lookups store `&'static T` and typed handles hold `&'static T` | `static DEF: T = ...` OR `Box::leak(Box::new(T{...}))` (plugins/extensions) | Lifetime mismatch / cannot store |
-
----
-
-## Registration paths
-
-### 3.1 Builtins (inventory)
-Use domain macros (`action!`, `motion!`, `command!`, …). These:
-- Define a `static <DOMAIN>_<name>: <DomainDef>`
-- Define a typed handle `pub const <name>: Key<DomainDef>`
-- `inventory::submit! { Reg(&static_def) }`
-- Some domains also submit `RegSlice` side tables (keybindings, prefixes, etc.)
-
-### 3.2 Startup plugins (inventory-driven, builder extension)
-Implement `XenoPlugin` and register with `register_plugin!(YourPlugin)`.
-- Plugin is discovered via `inventory` and executed during `RegistryDb` construction.
-- Plugin registers new items by pushing definitions into `RegistryDbBuilder` fields.
-
-### 3.3 Runtime overlays (after startup)
-Use `RuntimeRegistry<T>::register` / `register_many` (atomic batch). Current policy accepts leak-to-static entries.
-
----
-
-## Lookup semantics (what “get(name)” really means)
-
-- ID-first: `RegistryIndex::get` checks the ID map first, then name, then aliases.
-- RuntimeRegistry layering: for each namespace (ID, name, alias), “extras first then builtins”.
-- Collisions: build-time collisions can be inspected (per index) to expose diagnostics.
-
-Consequence: if you want an override behavior for UI keys, colliding on *name* is viable (priority decides winner). If you want a true identity override, you need an **explicit ID override mechanism** (see "Override semantics").
-
----
-
-## Task-first recipes
-
-### Recipe A: Add a new builtin action
-
-Goal: define a new action `foo_bar` with keybindings.
-
-Edits (typical):
-1. `crates/registry/src/actions/builtins/<some_module>.rs`
-2. `crates/registry/src/actions/builtins/mod.rs` (ensure module is included)
-3. (Optional) `crates/editor/...` if the handler needs new editor APIs
-
-Steps:
-- Add an action using the macro:
-
-```rust
-action!(foo_bar, {
-    description: "Do foo then bar",
-    bindings: r#"normal "g b" "foo_bar""#,
-    // optional:
-    // aliases: &["fb"],
-    // short_desc: "FooBar",
-    // priority: 10,
-    // caps: &[Capability::Edit],
-    // flags: actions::flags::NONE,
-}, |ctx| {
-    // handler body -> ActionResult
-    ActionResult::Noop
-});
-```
-
-Verification:
-- `rg -n "foo_bar" crates/registry/src/actions`
-- `cargo test -p xeno-registry` (or workspace equivalent)
-- Manual: bind key, invoke, ensure capability behavior matches.
-
-Gotchas:
-- If the action emits motions, prefer stable motion ID constants rather than strings.
-- If you require editing but forget `caps`, readonly buffers may still execute (or later be denied in unexpected places).
-
----
-
-### Recipe B: Add a new builtin motion
-
-Edits:
-1. `crates/registry/src/motions/builtins/<some_module>.rs`
-2. `crates/registry/src/motions/builtins/mod.rs`
-
-Example:
-
-```rust
-motion!(my_motion, {
-    description: "My cursor movement",
-    // caps: &[Capability::Edit], // if needed
-}, |text, range, count, extend| {
-    range // compute new Range
-});
-```
-
-Verification:
-- `cargo test -p xeno-registry`
-- Add an action that references this motion (or expose it in `motions::keys`) and manually exercise.
-
----
-
-### Recipe C: Add a startup plugin that registers registry items
-
-Goal: ship a crate that adds actions/motions/etc during `RegistryDb` build.
-
-Edits (in plugin crate):
-1. Implement the plugin:
-
-```rust
-use xeno_registry::db::builder::{RegistryDbBuilder, RegistryError};
-use xeno_registry::db::plugin::XenoPlugin;
-
-pub struct MyPlugin;
-
-impl XenoPlugin for MyPlugin {
-    const ID: &'static str = "my_plugin";
-    fn register(db: &mut RegistryDbBuilder) -> Result<(), RegistryError> {
-        // definitions must be &'static
-        db.register_action(Box::leak(Box::new(make_action_def())));
-        Ok(())
-    }
-}
-```
-
-2. Register it:
-
-```rust
-xeno_registry::register_plugin!(MyPlugin);
-```
-
-Verification:
-- `rg -n "register_plugin!" -S crates`
-- `cargo test -p xeno-registry --features db`
-- Runtime smoke: ensure plugin errors are not swallowed silently (check logs).
-
-Gotchas:
-- Plugin `ID` should be globally unique for diagnostics.
-- Avoid side effects in plugin `register`; keep it pure “push definitions into builder”.
-
----
-
-### Recipe D: Register many runtime entries atomically (load-only extension)
-
-Goal: install a batch of actions in one shot (all-or-nothing).
-
-Pseudo-flow:
-1. Parse extension config.
-2. Build `Vec<&'static ActionDef>` via `Box::leak`.
-3. Call `ACTIONS.register_many(&defs)` (or similar).
-
-Verification:
-- Unit test: ensure partial failure leaves registry unchanged (atomicity).
-- Regression test: ensure collisions follow expected `DuplicatePolicy`.
-
-Gotchas:
-- If actions are required to participate in `ActionId` numeric mapping, runtime registration will **not** update that mapping unless you also update/replace the mapping. Prefer startup registration for ActionId-stable items.
-
----
-
-## Capability enforcement & dispatch (how metadata becomes behavior)
-
-Key linkage:
-- `RegistryMeta.required_caps: &'static [Capability]` is *the* declarative contract for an item.
-- Domain defs expose `required_caps()` by delegating to `meta.required_caps`.
-
-Dispatch enforcement:
-- Invocation path resolves item via registry lookup (name/alias/id).
-- The editor checks capabilities (typically `EditorContext::check_all_capabilities(required_caps)`).
-- If enforcement is enabled, missing caps block the invocation (and return a capability-denied result).
-- Some policies also gate readonly execution if `required_caps` imply mutation.
-
-Agent rule of thumb:
-- If the handler can mutate document state, add the edit capability. If it reads-only (navigation, inspection), keep caps empty.
-- For new capabilities, update:
-  - the `Capability` enum
-  - editor capability-check implementation
-  - docs + tests (capability denied path)
-
----
-
-## Override semantics (names vs IDs)
-
-### Name/alias override (safe and already supported)
-If you want to “replace” behavior under a UI name, define a new item with the same `name` or `alias` and set a higher `priority`. Deterministic selection chooses the winner.
-
-This does **not** change identity: `get(old_id)` still resolves to the old item.
-
-### ID override (explicit, opt-in)
-If you want identity override (`get(id)` resolves to the new entry), use `RuntimeRegistry::set_allow_id_overrides(true)`.
-When enabled:
-- Runtime definitions can shadow built-in IDs.
-- Winner is selected by `DuplicatePolicy` (typically priority-based).
-- Collisions are recorded with `KeyKind::Id`.
-- Name/alias shadowing of the ID remains forbidden for unrelated definitions.
-
----
-
-## Static lifetime today; Arc-based entries tomorrow
-
-Current state: registries store `&'static T` and typed handles are `Key<T> = wrapper(&'static T)`. This is a deliberate choice for zero-cost lookups and trivial sharing.
-
-If you move to `Arc<T>` entries, you’ll need to decide what becomes the “typed handle”:
-
-### Option 1: `Key<T> = Arc<T>` (cheap clone, simplest)
-Pros: easy; no unsafe; no leaking; plugins can unload if you keep Arc counts.
-Cons: breaks the “zero-sized key” property; changes APIs everywhere.
-
-### Option 2: Keep `Key<T>` but store an index + generation
-Pros: handles remain Copy-sized; underlying storage can be `Vec<Arc<T>>`.
-Cons: needs indirection; must solve ABA / removal.
-
-Given Xeno’s current “load-only extensions” policy, the cleanest future state is usually:
-- `RegistryIndex<T>` stores `Arc<T>` internally.
-- `Key<T>` becomes a thin `Arc<T>` newtype.
-
----
-
-## Grep/verify cheatsheet
-
-- Find all registry macros:
-  - `rg -n "macro_rules! (action|motion|command|text_object)" crates/registry`
-- Find all plugin registrations:
-  - `rg -n "register_plugin!" crates`
-- Find capability gating:
-  - `rg -n "check_all_capabilities|required_caps|CapabilityDenied" crates/editor`
-- Inspect collisions/overrides:
-  - `rg -n "collisions\\(|Collision" crates/registry/core`
-
----
-
-## Minimal test checklist
-
-- [ ] Build-time: duplicate IDs => fatal
-- [ ] Build-time: name/alias collision => deterministic winner (policy)
-- [ ] Build-time: “ID shadowing” (name/alias equals someone else’s id) => fatal
-- [ ] Runtime: register_many is atomic (failure leaves state unchanged)
-- [ ] Runtime: explicit ID override shadows the old entry (and is recorded)
-- [ ] Dispatch: missing caps => CapabilityDenied when enforcement enabled
-- [ ] Dispatch: log-only mode continues execution but warns
+# Xeno registry systemThis guide describes the current registry architecture: build-time indices, runtime mutation via ArcSwap snapshots, explicit ID override APIs, and domain registries with derived indices kept inside the snapshot.Key files (read these first):- Runtime snapshot core: crates/registry/src/core/index/runtime.rs- Domain registries with derived indices:  - crates/registry/src/textobj/registry.rs  - crates/registry/src/options/registry.rs  - crates/registry/src/hooks/registry.rs- Database init and public surfaces: crates/registry/src/db/mod.rs- Plugin execution ordering: crates/registry/src/db/plugin.rs- Plugin definition type: crates/registry/src/core/plugin.rsScope: actions, commands, motions, themes, gutters, statusline, text objects, options, hooks, notifications.## Mental model- A registry item is a `&'static T` where `T: RegistryEntry`.- Build phase produces `RegistryIndex<T>` per domain (static/builtin content).- Runtime phase wraps the built index in a registry that owns an ArcSwap snapshot (single atomic source of truth for lookups).- Lookups are read-only and lock-free: `snap.load()` and map lookups.- Writes are atomic batches: clone snapshot → mutate → compare_and_swap (CAS) retry loop.The result is that builtins and runtime extensions are always viewed as a single coherent snapshot, not layered maps.## Data model and invariantsRegistryEntry / metadata:- `T: RegistryEntry` exposes `meta() -> &RegistryMeta`, including:  - `id`, `name`, `aliases`, `priority`, `source`, required caps, etc.Invariants to preserve:- IDs are the stable identity. Treat ID uniqueness as a rule for additive registration.- Name/alias are user-facing keys. Collisions are allowed, but must be deterministic (DuplicatePolicy).- Runtime registration is load-only (definitions are leaked to `'static` via `Box::leak` or statics).## Build flow (builtins + plugins)RegistryDb is constructed once via get_db() in crates/registry/src/db/mod.rs:1) Create a RegistryDbBuilder.2) Register builtins explicitly:   - `builtins::register_all(&mut builder)` (db/builtins.rs; not inventory-driven)3) Run plugins:   - `plugin::run_plugins(&mut builder)` (db/plugin.rs)   - plugins are collected from inventory as `PluginDef` (core/plugin.rs)   - run order is deterministic: inventory list sorted by `total_order_cmp`4) Builder produces per-domain `RegistryIndex<T>` values.5) RegistryDb wraps each built index into the runtime registry types:   - `RuntimeRegistry<T>::new(label, index)` for most domains   - domain registries for text objects/options/hooksPublic access:- Use `get_db()` and the exported LazyLock handles in db/mod.rs:  - ACTIONS, COMMANDS, MOTIONS, TEXT_OBJECTS, OPTIONS, HOOKS, etc.## RuntimeRegistry<T> (snapshot core)Implementation: crates/registry/src/core/index/runtime.rsRuntimeRegistry contains:- `builtins: RegistryIndex<T>` (kept for reference/diagnostics)- `snap: ArcSwap<Snapshot<T>>` where Snapshot contains:  - `by_id: Map<&'static str, &'static T>`  - `by_key: Map<&'static str, &'static T>` (name + aliases)  - `items_all: Vec<&'static T>` (builtins + runtime appended)  - `items_effective: Vec<&'static T>` (only winners present in by_id/by_key)  - `collisions: Vec<Collision>` (build + runtime collisions)Reads:- `get(key)` checks id first, then by_key.- `get_by_id(id)` checks by_id.- `len/is_empty/all/collisions` read from the snapshot.Writes (atomic batch):- `try_register_many(defs)`:  - loop:    - `cur = snap.load_full()`    - `next = (*cur).clone()`    - mutate next    - `compare_and_swap(&cur, Arc::new(next))`    - retry on CAS failureThis provides atomicity: either the entire batch is visible, or none is.### Explicit ID override APIsDo not use a global mutable “allow override” flag. Override is opt-in per call.APIs:- `try_register_override(def)`- `try_register_many_override(defs)`Behavioral rule:- Use non-override registration only for additive items with unique IDs.- Use override registration only when you intend to shadow an existing ID.Important nuance:- The override path treats the ID contest as admission: if the new def loses the ID contest, it is not inserted at all (no name/alias side effects).- The non-override path does not have this admission gate. Avoid registering an ID-conflicting definition via non-override unless you explicitly want “name/alias may still win” behavior.## Domain registries (derived indices inside the snapshot)These domains require extra lookup keys beyond id/name/alias. The derived indices live inside the snapshot and are updated as part of the CAS write, so runtime-registered items are visible immediately and atomically.### TextObjectRegistryImplementation: crates/registry/src/textobj/registry.rsSnapshot includes:- `by_trigger: HashMap<char, &'static TextObjectDef>`Public surface:- `get(key)`, `get_by_id(id)`- `by_trigger(ch)`- `all()`, `collisions()`, `len()`, `is_empty()`- `try_register_many`, `try_register_many_override`, plus single-item helpersTrigger resolution:- Winner selection uses the registry DuplicatePolicy (first/last/by_priority/panic).- Current code resolves trigger conflicts but does not record them into collisions. If you need trigger-conflict diagnostics, add Collision emission for trigger inserts.Replacement for old global:- Previously: TEXT_OBJECT_TRIGGER_INDEX (builtin-only LazyLock)- Now: `TEXT_OBJECTS.by_trigger(ch)` (snapshot-backed, includes runtime)### OptionsRegistryImplementation: crates/registry/src/options/registry.rsSnapshot includes:- `by_kdl: HashMap<&'static str, &'static OptionDef>`Public surface:- `get(key)`, `get_by_id(id)`- `by_kdl_key(kdl_key)`- `items()/all()`, `collisions()`, `len()`, `is_empty()`- override and non-override registration APIsReplacement for old global:- Previously: OPTION_KDL_INDEX (builtin-only LazyLock)- Now: `OPTIONS.by_kdl_key(k)` (snapshot-backed, includes runtime)Like text objects, KDL-key conflict resolution currently does not emit Collision records.### HooksRegistryImplementation: crates/registry/src/hooks/registry.rsSnapshot includes:- `by_event: HashMap<HookEvent, Vec<&'static HookDef>>`Public surface:- `get(key)`, `get_by_id(id)`- `for_event(event)` (returns a Vec today; if this becomes hot, add a slice/closure API)- `all()`, `collisions()`, `len()`, `is_empty()`- override and non-override registration APIsEvent list ordering:- Insertion uses binary_search by `total_order_cmp` to keep a stable sorted Vec per event.- This means runtime hooks are merged into the same ordered list as builtins and remain ordered after every atomic snapshot update.Replacement for old global:- Previously: BUILTIN_HOOK_BY_EVENT (builtin-only LazyLock)- Now: `HOOKS.for_event(event)` (snapshot-backed, includes runtime)## Diagnostics (how to get them now)Do not read global maps or derived static indices. Everything should come from registry surfaces.Primary diagnostics API:- `registry.collisions()` returns build-time and runtime collisions already recorded in the snapshot.- `registry.all()` / `registry.items()` returns the effective set (winners).Domain diagnostics:- Text objects: `TEXT_OBJECTS.collisions()` plus `TEXT_OBJECTS.all()` and `TEXT_OBJECTS.by_trigger(...)`.- Options: `OPTIONS.collisions()` plus `OPTIONS.items()` and `OPTIONS.by_kdl_key(...)`.- Hooks: `HOOKS.collisions()` plus `HOOKS.all()` and `HOOKS.for_event(...)`.If you need deeper inspection:- Domain registries expose `with_snapshot(|snap| ...)` to read internal maps without threading state through callers.- RuntimeRegistry<T> currently exposes the snapshot only via public getters; if you need raw-map diagnostics, add `with_snapshot` to RuntimeRegistry as well (mirror domain registries).Note on derived-key conflicts:- Trigger/KDL/event conflicts are currently resolved but not recorded as Collision entries in the provided code. If you need “why did this trigger/kdl/event resolve to X”, add Collision emission for those derived insert paths.## Task-first recipes### Add a builtin item (any domain)Where:- Builtins live under db/builtins.rs (and per-domain modules it calls).- The registry build path is db/mod.rs: builtins::register_all then plugin::run_plugins then builder.build.Steps:1) Add the builtin def and ensure it is included by builtins::register_all.2) Ensure IDs are unique within the domain.3) If you add a derived-key item (text object trigger / option kdl / hook event), ensure keys are unique or intentionally rely on DuplicatePolicy.Verify:- `cargo test -p xeno-registry` (or workspace equivalent)- `rg -n "register_all\\(|run_plugins\\(|try_register_many_override" crates/registry`### Add a plugin (startup registration)Where:- Define `PluginDef` (core/plugin.rs) and submit via inventory in your plugin crate.- Plugins are executed during RegistryDb construction (db/plugin.rs).Rules:- Plugin register function returns `Result<(), RegistryError>`.- Keep plugin register pure: only register definitions into the builder.- Ordering is deterministic: sorted by `total_order_cmp`.Verify:- `rg -n "inventory::collect!\\(PluginDef\\)" crates/registry`- `rg -n "inventory::iter::<PluginDef>" crates/registry`### Register runtime items (post-init)Choose the right API:- Additive, unique IDs: `try_register(def)` / `try_register_many(defs)` or the infallible `register/register_many`.- Intentional ID shadow: `try_register_override(def)` / `try_register_many_override(defs)`.Domain-specific derived lookups after runtime registration:- text objects: `TEXT_OBJECTS.by_trigger(ch)`- options: `OPTIONS.by_kdl_key(k)`- hooks: `HOOKS.for_event(event)`Atomicity guarantee:- Batch APIs are CAS-based; callers never observe partially applied batches.## Grep/verify cheatsheet- RegistryDb construction and flow:  - `rg -n "builtins::register_all|plugin::run_plugins|builder\\.build" crates/registry/src/db`- Snapshot write path:  - `rg -n "ArcSwap|load_full\\(|compare_and_swap\\(|try_register_many_internal" crates/registry/src/core/index/runtime.rs`- Override usage:  - `rg -n "try_register(_many)?_override" crates`- Derived index usage:  - `rg -n "by_trigger\\(|by_kdl_key\\(|for_event\\(" crates`## Minimal test checklist- Build-time duplicate IDs are rejected in indices (builder/index tests).- Runtime try_register_many is atomic (CAS loop, no partial visibility).- Explicit override methods shadow by ID without relying on any global flag.- Derived lookup APIs (by_trigger/by_kdl_key/for_event) reflect runtime registrations.- Plugin ordering is deterministic (total_order_cmp sort).- Collisions are obtainable via `.collisions()` on the registry (and used for diagnostics tooling).

@@ -2,7 +2,7 @@
 
 mod build;
 mod collision;
-mod insert;
+pub(crate) mod insert;
 mod runtime;
 mod types;
 
