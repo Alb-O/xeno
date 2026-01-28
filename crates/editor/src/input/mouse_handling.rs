@@ -33,7 +33,7 @@ impl Editor {
 			}
 			self.state.ui = ui;
 			self.sync_focus_from_ui();
-			self.update_overlays_after_input();
+			self.interaction_on_buffer_edited();
 			return false;
 		}
 		if ui.take_wants_redraw() {
@@ -46,7 +46,7 @@ impl Editor {
 		let doc_area = dock_layout.doc_area;
 
 		let quit = self.handle_mouse_in_doc_area(mouse, doc_area).await;
-		self.update_overlays_after_input();
+		self.interaction_on_buffer_edited();
 		quit
 	}
 

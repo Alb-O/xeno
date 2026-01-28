@@ -29,6 +29,8 @@ mod file_ops;
 mod focus;
 /// Undo/redo history.
 mod history;
+/// Interaction manager for active overlays.
+mod interaction;
 /// Unified invocation dispatch.
 mod invocation;
 /// Background task spawning helpers.
@@ -41,8 +43,6 @@ mod messaging;
 mod navigation;
 /// Option resolution.
 mod options;
-/// Prompt overlay helpers.
-mod prompt;
 /// Search state and operations.
 mod search;
 /// Split view operations.
@@ -75,7 +75,7 @@ pub use crate::command_queue::CommandQueue;
 pub use crate::hook_runtime::HookRuntime;
 pub use crate::layout::{LayoutManager, SeparatorHit, SeparatorId};
 use crate::msg::{MsgReceiver, MsgSender};
-use crate::overlay::OverlayManager;
+pub use crate::overlay::{OverlayManager, OverlayStore};
 pub use crate::separator::{DragState, MouseVelocityTracker, SeparatorHoverAnimation};
 pub use crate::types::{
 	ApplyEditPolicy, Config, EditorUndoGroup, FrameState, Invocation, InvocationPolicy,
@@ -187,7 +187,10 @@ pub(crate) struct EditorState {
 	pub(crate) hook_runtime: HookRuntime,
 
 	/// Type-erased storage for UI overlays (popups, palette, completions).
-	pub(crate) overlays: OverlayManager,
+	pub(crate) overlays: OverlayStore,
+
+	/// Interaction manager for active overlays (search, palette, rename).
+	pub(crate) interaction: OverlayManager,
 
 	/// Runtime metrics for observability.
 	pub(crate) metrics: std::sync::Arc<crate::metrics::EditorMetrics>,
@@ -318,7 +321,8 @@ impl Editor {
 				lsp: LspSystem::new(),
 				syntax_manager: crate::syntax_manager::SyntaxManager::new(2),
 				hook_runtime,
-				overlays: OverlayManager::new(),
+				overlays: OverlayStore::new(),
+				interaction: OverlayManager::default(),
 				metrics: std::sync::Arc::new(crate::metrics::EditorMetrics::new()),
 				msg_tx,
 				msg_rx,
@@ -485,12 +489,12 @@ impl Editor {
 	}
 
 	#[inline]
-	pub fn overlays(&self) -> &OverlayManager {
+	pub fn overlays(&self) -> &OverlayStore {
 		&self.state.overlays
 	}
 
 	#[inline]
-	pub fn overlays_mut(&mut self) -> &mut OverlayManager {
+	pub fn overlays_mut(&mut self) -> &mut OverlayStore {
 		&mut self.state.overlays
 	}
 

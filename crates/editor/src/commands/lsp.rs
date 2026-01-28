@@ -141,7 +141,7 @@ fn cmd_rename<'a>(
 	ctx: &'a mut EditorCommandContext<'a>,
 ) -> LocalBoxFuture<'a, Result<CommandOutcome, CommandError>> {
 	Box::pin(async move {
-		ctx.editor.open_rename_prompt();
+		ctx.editor.open_rename();
 		Ok(CommandOutcome::Ok)
 	})
 }

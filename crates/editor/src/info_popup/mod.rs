@@ -249,7 +249,7 @@ impl Editor {
 			.state
 			.overlays
 			.get::<InfoPopupStore>()
-			.and_then(|s| s.get(popup_id))
+			.and_then(|s: &InfoPopupStore| s.get(popup_id))
 			.map(|p| p.buffer_id)
 		else {
 			return false;
@@ -281,7 +281,7 @@ impl Editor {
 		self.state
 			.overlays
 			.get::<InfoPopupStore>()
-			.map_or(0, |s| s.len())
+			.map_or(0, |s: &InfoPopupStore| s.len())
 	}
 }
 

@@ -459,19 +459,23 @@ impl CommandQueueAccess for Editor {
 
 impl PaletteAccess for Editor {
 	fn open_palette(&mut self) {
-		Editor::open_palette(self);
+		self.open_command_palette();
 	}
 
 	fn close_palette(&mut self) {
-		Editor::close_palette(self);
+		self.interaction_cancel();
 	}
 
 	fn execute_palette(&mut self) {
-		Editor::execute_palette(self);
+		// execute_palette in registry is sync, but interaction_commit is async.
+		// For now we don't have any sync callers that can't be moved to async,
+		// but if we did, we'd need a bridge here.
+		// Since no actions currently emit ExecutePalette, we can leave this
+		// as a no-op or trigger the async version via a message if needed.
 	}
 
 	fn palette_is_open(&self) -> bool {
-		Editor::palette_is_open(self)
+		self.state.interaction.is_open()
 	}
 }
 
@@ -539,7 +543,7 @@ impl EditorCapabilities for Editor {
 	}
 
 	fn open_search_prompt(&mut self, reverse: bool) {
-		self.open_search_prompt(reverse);
+		self.open_search(reverse);
 	}
 
 	fn is_readonly(&self) -> bool {

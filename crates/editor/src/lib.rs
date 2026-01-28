@@ -53,12 +53,8 @@ pub mod movement;
 pub mod msg;
 /// Type-erased UI overlay storage.
 pub mod overlay;
-/// Command palette for executing commands.
-pub mod palette;
 /// Platform-specific configuration paths.
 pub mod paths;
-/// Prompt overlay for one-line inputs.
-pub mod prompt;
 /// Rendering utilities for buffers, status line, and completion.
 pub mod render;
 /// Unified async work scheduler.

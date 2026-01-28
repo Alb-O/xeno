@@ -7,7 +7,6 @@ use xeno_registry::{HookContext, HookEventData, ViewId, emit_sync_with as emit_h
 
 use super::Editor;
 use crate::buffer::SpatialDirection;
-use crate::palette::PaletteState;
 use crate::window::{Window, WindowId};
 
 /// Panel identifier used by focus targets.
@@ -261,16 +260,19 @@ impl Editor {
 				Some(Window::Floating(floating)) if floating.dismiss_on_blur
 			);
 			if should_close {
-				let palette_window = self
-					.state
-					.overlays
-					.get::<PaletteState>()
-					.and_then(|p| p.window_id());
-				if Some(window) == palette_window {
-					self.close_palette();
-				} else {
-					self.close_floating_window(window);
+				if self.state.interaction.is_open() {
+					if self
+						.state
+						.interaction
+						.session
+						.as_ref()
+						.map_or(false, |s| s.windows.contains(&window))
+					{
+						self.interaction_cancel();
+						return;
+					}
 				}
+				self.close_floating_window(window);
 			}
 		}
 	}

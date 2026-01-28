@@ -9,7 +9,6 @@ use xeno_primitives::{Key, Mode};
 
 use crate::impls::{Editor, FocusTarget};
 use crate::input::KeyResult;
-use crate::palette::PaletteState;
 use crate::window::Window;
 
 impl Editor {
@@ -21,7 +20,7 @@ impl Editor {
 				self.state.frame.needs_redraw = true;
 			}
 			self.sync_focus_from_ui();
-			self.update_overlays_after_input();
+			self.interaction_on_buffer_edited();
 			return false;
 		}
 
@@ -33,12 +32,12 @@ impl Editor {
 			}
 			self.state.ui = ui;
 			self.sync_focus_from_ui();
-			self.update_overlays_after_input();
+			self.interaction_on_buffer_edited();
 			return false;
 		}
 
 		let quit = self.handle_key_active(key).await;
-		self.update_overlays_after_input();
+		self.interaction_on_buffer_edited();
 		quit
 	}
 
@@ -54,14 +53,15 @@ impl Editor {
 		#[cfg(feature = "lsp")]
 		let old_version = self.buffer().version();
 
-		if self.palette_is_open() && key.code == KeyCode::Enter {
-			self.execute_palette();
-			self.state.frame.needs_redraw = true;
+		let mut interaction = std::mem::take(&mut self.state.interaction);
+		let handled = interaction.handle_key(self, key);
+		self.state.interaction = interaction;
+		if handled {
 			return false;
 		}
 
-		if self.prompt_is_open() && key.code == KeyCode::Enter {
-			self.execute_prompt().await;
+		if self.state.interaction.is_open() && key.code == KeyCode::Enter {
+			self.interaction_commit().await;
 			self.state.frame.needs_redraw = true;
 			return false;
 		}
@@ -180,26 +180,18 @@ impl Editor {
 			return false;
 		};
 
-		let palette_window = self
-			.state
-			.overlays
-			.get::<PaletteState>()
-			.and_then(|p| p.window_id());
-		if Some(window) == palette_window {
-			self.close_palette();
-			self.state.frame.needs_redraw = true;
-			return true;
-		}
-
-		let prompt_window = self
-			.state
-			.overlays
-			.get::<crate::prompt::PromptState>()
-			.and_then(|state| state.window_id());
-		if Some(window) == prompt_window {
-			self.close_prompt(true);
-			self.state.frame.needs_redraw = true;
-			return true;
+		if self.state.interaction.is_open() {
+			if self
+				.state
+				.interaction
+				.session
+				.as_ref()
+				.map_or(false, |s| s.windows.contains(&window))
+			{
+				self.interaction_cancel();
+				self.state.frame.needs_redraw = true;
+				return true;
+			}
 		}
 
 		if floating.dismiss_on_blur {
