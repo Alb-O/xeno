@@ -100,3 +100,19 @@ pub fn find_action(name: &str) -> Option<&'static ActionDef> {
 pub fn all_actions() -> impl Iterator<Item = &'static ActionDef> {
 	ACTIONS.all().into_iter()
 }
+
+#[cfg(all(test, feature = "db"))]
+mod tests {
+	use super::*;
+
+	#[test]
+	fn test_actions_short_desc_not_empty() {
+		for action in all_actions() {
+			assert!(
+				!action.short_desc.trim().is_empty(),
+				"Action '{}' is missing a short_desc. Please provide one for the which-key HUD.",
+				action.id()
+			);
+		}
+	}
+}

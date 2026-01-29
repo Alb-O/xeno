@@ -69,7 +69,7 @@ macro_rules! action {
 					required_caps: $crate::__reg_opt_slice!($({$caps})?),
 					flags: $crate::__reg_opt!($({$flags})?, $crate::actions::flags::NONE),
 				},
-				short_desc: $crate::__reg_opt!($({$short})?, ""),
+				short_desc: $crate::__reg_opt!($({$short})?, $desc),
 				handler: $handler,
 				bindings: [<KEYBINDINGS_ $name>],
 			};

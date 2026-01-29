@@ -21,9 +21,9 @@ fn find_compiler<'a>(candidates: &[&'a str]) -> Option<&'a str> {
 	})
 }
 
-/// Resolves C and C++ compilers, preferring env vars then probing common names.
+/// Resolves C and C++ compilers, preferring environment variables then probing common names.
 ///
-/// Returns `None` for a compiler if neither env var nor any candidate is found.
+/// Returns `None` for a compiler if neither the environment variable nor any candidate is found.
 fn resolve_compilers() -> (Option<&'static str>, Option<&'static str>) {
 	static COMPILERS: std::sync::OnceLock<(Option<&'static str>, Option<&'static str>)> =
 		std::sync::OnceLock::new();
@@ -62,15 +62,19 @@ fn needs_recompile(src_dir: &Path, lib_path: &Path) -> bool {
 	})
 }
 
-/// Compiles a tree-sitter grammar into a dynamic library.
+/// Compiles a Tree-sitter grammar into a dynamic library.
 ///
-/// Uses [`cc`] to compile object files, then links into a shared library.
-/// Skips compilation if the library is newer than all source files.
+/// This function coordinates the compilation process:
+/// 1. Verifies the presence of `parser.c`.
+/// 2. Resolves suitable C/C++ compilers.
+/// 3. Checks if a recompile is necessary by comparing mtimes.
+/// 4. Compiles object files using the [`cc`] crate.
+/// 5. Links the objects into a platform-specific shared library.
 ///
 /// # Errors
 ///
-/// Returns [`GrammarBuildError::NoParserSource`] if `parser.c` is missing,
-/// or [`GrammarBuildError::Compilation`] if compilation fails.
+/// * Returns [`GrammarBuildError::NoParserSource`] if the grammar source is incomplete.
+/// * Returns [`GrammarBuildError::Compilation`] if either the compilation or linking stage fails.
 pub fn build_grammar(grammar: &GrammarConfig) -> Result<BuildStatus> {
 	let src_dir = get_grammar_src_dir(grammar);
 	if !src_dir.join("parser.c").exists() {
@@ -100,11 +104,25 @@ pub fn build_grammar(grammar: &GrammarConfig) -> Result<BuildStatus> {
 	info!(grammar = %grammar.grammar_id, lib_path = %lib_path.display(), "Compiling grammar");
 
 	let needs_cxx = src_dir.join("scanner.cc").exists();
-	let compiler = get_compiler(needs_cxx, &grammar.grammar_id)?;
+	let (cc, cxx) = resolve_compilers();
+	let compiler = if needs_cxx {
+		cxx.ok_or_else(|| {
+			GrammarBuildError::Compilation(format!(
+				"C++ compiler required for {} but none found. \
+				 Install clang++/g++ or set CXX env var.",
+				grammar.grammar_id
+			))
+		})?
+	} else {
+		cc.ok_or_else(|| {
+			GrammarBuildError::Compilation(
+				"C compiler required but none found. Install clang/gcc or set CC env var.".into(),
+			)
+		})?
+	};
 
-	setup_cc_env(compiler)?;
-	compile_objects(&src_dir, &lib_dir, &grammar.grammar_id)?;
-	link_shared_library(&src_dir, &lib_path)?;
+	compile_objects(&src_dir, &lib_dir, &grammar.grammar_id, compiler, needs_cxx)?;
+	link_shared_library(&src_dir, &lib_path, compiler, needs_cxx)?;
 
 	if !lib_path.exists() {
 		return Err(GrammarBuildError::Compilation(format!(
@@ -117,40 +135,13 @@ pub fn build_grammar(grammar: &GrammarConfig) -> Result<BuildStatus> {
 	Ok(BuildStatus::Built)
 }
 
-fn get_compiler(needs_cxx: bool, grammar_id: &str) -> Result<&'static str> {
-	let (cc, cxx) = resolve_compilers();
-	if needs_cxx {
-		cxx.ok_or_else(|| {
-			GrammarBuildError::Compilation(format!(
-				"C++ compiler required for {grammar_id} but none found. \
-				 Install clang++/g++ or set CXX env var."
-			))
-		})
-	} else {
-		cc.ok_or_else(|| {
-			GrammarBuildError::Compilation(
-				"C compiler required but none found. Install clang/gcc or set CC env var.".into(),
-			)
-		})
-	}
-}
-
-fn setup_cc_env(compiler: &str) -> Result<()> {
-	let (cc, cxx) = resolve_compilers();
-	let target = std::env::var("TARGET")
-		.unwrap_or_else(|_| format!("{}-unknown-linux-gnu", std::env::consts::ARCH));
-
-	// SAFETY: env vars set before cc crate spawns threads
-	unsafe {
-		std::env::set_var("TARGET", &target);
-		std::env::set_var("HOST", &target);
-		std::env::set_var("CC", cc.unwrap_or(compiler));
-		std::env::set_var("CXX", cxx.unwrap_or(compiler));
-	}
-	Ok(())
-}
-
-fn compile_objects(src_dir: &Path, lib_dir: &Path, grammar_id: &str) -> Result<()> {
+fn compile_objects(
+	src_dir: &Path,
+	lib_dir: &Path,
+	grammar_id: &str,
+	compiler: &str,
+	needs_cxx: bool,
+) -> Result<()> {
 	let target = std::env::var("TARGET")
 		.unwrap_or_else(|_| format!("{}-unknown-linux-gnu", std::env::consts::ARCH));
 
@@ -165,9 +156,10 @@ fn compile_objects(src_dir: &Path, lib_dir: &Path, grammar_id: &str) -> Result<(
 		.include(src_dir)
 		.host(&target)
 		.target(&target)
+		.compiler(compiler)
 		.file(src_dir.join("parser.c"));
 
-	if scanner_cc.exists() {
+	if needs_cxx && scanner_cc.exists() {
 		build.cpp(true).file(&scanner_cc).std("c++14");
 	} else if scanner_c.exists() {
 		build.file(&scanner_c);
@@ -183,19 +175,17 @@ fn compile_objects(src_dir: &Path, lib_dir: &Path, grammar_id: &str) -> Result<(
 }
 
 /// Links source files into a shared library using the system compiler.
-fn link_shared_library(src_dir: &Path, lib_path: &Path) -> Result<()> {
+fn link_shared_library(
+	src_dir: &Path,
+	lib_path: &Path,
+	compiler: &str,
+	needs_cxx: bool,
+) -> Result<()> {
 	let scanner_cc = src_dir.join("scanner.cc");
 	let scanner_c = src_dir.join("scanner.c");
 
 	#[cfg(unix)]
 	{
-		let (cc, cxx) = resolve_compilers();
-		let compiler = if scanner_cc.exists() {
-			cxx.expect("C++ compiler checked in build_grammar")
-		} else {
-			cc.expect("C compiler checked in build_grammar")
-		};
-
 		let mut cmd = Command::new(compiler);
 		cmd.args(["-shared", "-fPIC", "-O3", "-fno-exceptions"])
 			.arg("-I")
@@ -204,7 +194,7 @@ fn link_shared_library(src_dir: &Path, lib_path: &Path) -> Result<()> {
 			.arg(lib_path)
 			.arg(src_dir.join("parser.c"));
 
-		if scanner_cc.exists() {
+		if needs_cxx && scanner_cc.exists() {
 			cmd.args(["-std=c++14", "-lstdc++"]).arg(&scanner_cc);
 		} else if scanner_c.exists() {
 			cmd.arg(&scanner_c);
@@ -224,7 +214,7 @@ fn link_shared_library(src_dir: &Path, lib_path: &Path) -> Result<()> {
 			.arg(format!("/Fe:{}", lib_path.display()))
 			.arg(src_dir.join("parser.c"));
 
-		if scanner_cc.exists() {
+		if needs_cxx && scanner_cc.exists() {
 			cmd.arg("/std:c++14").arg(&scanner_cc);
 		} else if scanner_c.exists() {
 			cmd.arg(&scanner_c);

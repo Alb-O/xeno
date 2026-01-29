@@ -246,6 +246,14 @@ impl SyntaxManager {
 	}
 
 	/// Polls or kicks background syntax parsing.
+	///
+	/// This is the main entry point for the syntax scheduler. It:
+	/// 1. Updates document visibility/hotness.
+	/// 2. Applies retention policies (dropping hidden trees).
+	/// 3. Polls any in-flight background parsing tasks.
+	/// 4. Handles stale results by installing them but keeping the dirty flag.
+	/// 5. Respects debounce and backoff (cooldown) timers.
+	/// 6. Spawns new background parse tasks if permits are available.
 	pub fn ensure_syntax(
 		&mut self,
 		ctx: EnsureSyntaxContext<'_>,
@@ -299,14 +307,17 @@ impl SyntaxManager {
 			let done_version = done.doc_version;
 
 			match join {
-				Ok(Ok(syntax)) if done_version == ctx.doc_version => {
+				Ok(Ok(syntax)) => {
 					*slot.current = Some(syntax);
-					*slot.dirty = false;
-					st.cooldown_until = None;
-					return SyntaxPollResult::Ready;
-				}
-				Ok(Ok(_stale)) => {
-					// Stale result (doc changed while parsing). Discard and continue to scheduling.
+					if done_version == ctx.doc_version {
+						*slot.dirty = false;
+						st.cooldown_until = None;
+						return SyntaxPollResult::Ready;
+					}
+					// Stale result (doc changed while parsing).
+					// We install it anyway to ensure "something" is highlighted,
+					// but keep the dirty flag set so the scheduler immediately
+					// kicks off a fresh parse for the latest document version.
 				}
 				Ok(Err(SyntaxError::Timeout)) => {
 					st.cooldown_until = Some(now + cfg.cooldown_on_timeout);
