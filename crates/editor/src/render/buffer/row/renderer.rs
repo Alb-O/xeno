@@ -47,7 +47,13 @@ impl TextRowRenderer {
 
 		match (input.line, input.segment) {
 			(Some(line), Some(segment)) => {
-				let shaper = SegmentGlyphIter::new(line, segment, input.tab_width, text_width);
+				let shaper = SegmentGlyphIter::new(
+					input.doc_content,
+					line,
+					segment,
+					input.tab_width,
+					text_width,
+				);
 				let mut cols_used = 0;
 
 				for glyph in shaper {

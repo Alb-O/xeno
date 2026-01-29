@@ -117,6 +117,12 @@ pub struct Document {
 	///
 	/// Used for LSP synchronization and cache invalidation.
 	version: u64,
+
+	/// Syntax version, incremented when the syntax tree is updated.
+	///
+	/// Used as a cache key for highlight spans. Tracks when the syntax tree
+	/// actually updates, separate from `version` which tracks content changes.
+	pub syntax_version: u64,
 }
 
 impl Document {
@@ -137,6 +143,7 @@ impl Document {
 			syntax_dirty: false,
 			insert_undo_active: false,
 			version: 0,
+			syntax_version: 0,
 		}
 	}
 
@@ -182,6 +189,7 @@ impl Document {
 			let lang_data = language_loader.get(lang_id);
 			self.file_type = lang_data.map(|l| l.name.clone());
 			self.language_id = Some(lang_id);
+			self.syntax_version = self.syntax_version.wrapping_add(1);
 			// Syntax loading deferred to SyntaxManager - do NOT call Syntax::new here
 		}
 	}
@@ -197,6 +205,7 @@ impl Document {
 			let lang_data = language_loader.get(lang_id);
 			self.file_type = lang_data.map(|l| l.name.clone());
 			self.language_id = Some(lang_id);
+			self.syntax_version = self.syntax_version.wrapping_add(1);
 			// Syntax loading deferred to SyntaxManager - do NOT call Syntax::new here
 		}
 	}
@@ -206,6 +215,7 @@ impl Document {
 	/// Public API entrypoint: schedule a background full reparse.
 	pub fn reparse_syntax(&mut self, _language_loader: &LanguageLoader) {
 		self.syntax_dirty = true;
+		self.syntax_version = self.syntax_version.wrapping_add(1);
 	}
 
 	/// Records the current document state as an undo boundary.
@@ -451,6 +461,7 @@ impl Document {
 						) {
 							Ok(()) => {
 								self.syntax_dirty = false;
+								self.syntax_version = self.syntax_version.wrapping_add(1);
 								SyntaxOutcome::IncrementalApplied
 							}
 							Err(_) => {
@@ -632,6 +643,7 @@ impl Document {
 	pub fn set_syntax(&mut self, syntax: Option<Syntax>) {
 		self.syntax = syntax;
 		self.syntax_dirty = false;
+		self.syntax_version = self.syntax_version.wrapping_add(1);
 	}
 
 	/// Marks syntax as dirty (needing reparse).

@@ -4,7 +4,6 @@ use std::collections::{HashMap, HashSet};
 use std::ops::Range;
 
 use thiserror::Error;
-use tracing::warn;
 use xeno_lsp::lsp_types::{
 	AnnotatedTextEdit, DocumentChangeOperation, DocumentChanges, OneOf, TextDocumentEdit, TextEdit,
 	Uri, WorkspaceEdit,
@@ -161,7 +160,7 @@ impl Editor {
 		let path =
 			xeno_lsp::path_from_uri(uri).ok_or_else(|| ApplyError::InvalidUri(uri.to_string()))?;
 		if let Some(buffer_id) = self.state.core.buffers.find_by_path(&path) {
-			return Ok((buffer_id, false));
+			self.finalize_buffer_removal(buffer_id);
 		}
 
 		let buffer_id = self
@@ -294,10 +293,10 @@ impl Editor {
 			&& buffer.file_type().is_some()
 			&& let Err(e) = self.state.lsp.on_buffer_close(buffer)
 		{
-			warn!(error = %e, "LSP buffer close failed");
+			tracing::warn!(error = %e, "LSP buffer close failed");
 		}
 
-		self.state.core.buffers.remove_buffer(buffer_id);
+		self.finalize_buffer_removal(buffer_id);
 	}
 }
 

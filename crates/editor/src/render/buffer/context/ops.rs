@@ -1,7 +1,6 @@
 use xeno_primitives::Mode;
 use xeno_registry::gutter::GutterAnnotations;
-use xeno_registry::themes::SyntaxStyles;
-use xeno_runtime_language::highlight::{HighlightSpan, HighlightStyles};
+use xeno_runtime_language::highlight::HighlightSpan;
 use xeno_tui::layout::Rect;
 use xeno_tui::style::{Modifier, Style};
 
@@ -13,7 +12,7 @@ use super::super::row::{GutterRenderer, RowRenderInput, TextRowRenderer};
 use super::super::style_layers::LineStyleContext;
 use super::types::{BufferRenderContext, CursorStyles, RenderLayout, RenderResult};
 use crate::buffer::Buffer;
-use crate::render::wrap::wrap_line_ranges;
+use crate::render::cache::RenderCache;
 use crate::window::GutterSelector;
 
 impl<'a> BufferRenderContext<'a> {
@@ -52,43 +51,34 @@ impl<'a> BufferRenderContext<'a> {
 	}
 
 	/// Collects syntax highlight spans for a buffer's visible viewport.
+	///
+	/// Uses the render cache to avoid recomputing highlights every frame.
 	pub fn collect_highlight_spans(
 		&self,
 		buffer: &Buffer,
 		area: Rect,
+		cache: &mut RenderCache,
 	) -> Vec<(HighlightSpan, Style)> {
+		let start_line = buffer.scroll_line;
+
 		buffer.with_doc(|doc| {
 			let Some(syntax) = doc.syntax() else {
 				return Vec::new();
 			};
 
-			let start_line = buffer.scroll_line;
 			let end_line = (start_line + area.height as usize).min(doc.content().len_lines());
 
-			let start_byte = doc.content().line_to_byte(start_line) as u32;
-			let end_byte = if end_line < doc.content().len_lines() {
-				doc.content().line_to_byte(end_line) as u32
-			} else {
-				doc.content().len_bytes() as u32
-			};
-
-			let highlight_styles = HighlightStyles::new(SyntaxStyles::scope_names(), |scope| {
-				self.theme.colors.syntax.resolve(scope)
-			});
-
-			let highlighter = syntax.highlighter(
-				doc.content().slice(..),
+			cache.highlight.get_spans(
+				doc.id,
+				doc.syntax_version,
+				doc.language_id(),
+				doc.content(),
+				syntax,
 				self.language_loader,
-				start_byte..end_byte,
-			);
-
-			highlighter
-				.map(|span| {
-					let abstract_style = highlight_styles.style_for_highlight(span.highlight);
-					let xeno_tui_style: Style = abstract_style;
-					(span, xeno_tui_style)
-				})
-				.collect()
+				|scope| self.theme.colors.syntax.resolve(scope),
+				start_line,
+				end_line,
+			)
 		})
 	}
 
@@ -143,6 +133,7 @@ impl<'a> BufferRenderContext<'a> {
 		is_focused: bool,
 		tab_width: usize,
 		cursorline: bool,
+		cache: &mut RenderCache,
 	) -> RenderResult {
 		self.render_buffer_with_gutter(
 			buffer,
@@ -152,10 +143,18 @@ impl<'a> BufferRenderContext<'a> {
 			GutterSelector::Registry,
 			tab_width,
 			cursorline,
+			cache,
 		)
 	}
 
 	/// Renders a buffer into gutter and text columns.
+	///
+	/// Orchestrates the full rendering pipeline for a single buffer viewport:
+	/// 1. Snapshots document state for consistency and short-lock duration.
+	/// 2. Resolves viewport layout and gutter configurations.
+	/// 3. Populates render caches (wrap, highlight) for the visible range.
+	/// 4. Generates a [`ViewportPlan`] for row layout.
+	/// 5. Renders each row (gutter + text) using specialized renderers.
 	pub fn render_buffer_with_gutter(
 		&self,
 		buffer: &Buffer,
@@ -165,12 +164,25 @@ impl<'a> BufferRenderContext<'a> {
 		gutter: GutterSelector,
 		tab_width: usize,
 		cursorline: bool,
+		cache: &mut RenderCache,
 	) -> RenderResult {
-		let total_lines = buffer.with_doc(|doc| doc.content().len_lines());
-		let has_trailing_newline = buffer.with_doc(|doc| {
-			let len = doc.content().len_chars();
-			len > 0 && doc.content().char(len - 1) == '\n'
-		});
+		let (doc_id, doc_content, doc_version, total_lines, has_trailing_newline) = buffer
+			.with_doc(|doc| {
+				let content = doc.content().clone();
+				let total_lines = content.len_lines();
+				let has_trailing_newline = {
+					let len = content.len_chars();
+					len > 0 && content.char(len - 1) == '\n'
+				};
+				(
+					doc.id,
+					content,
+					doc.version(),
+					total_lines,
+					has_trailing_newline,
+				)
+			});
+
 		let is_diff_file = buffer.file_type().is_some_and(|ft| ft == "diff");
 
 		let effective_gutter = if is_diff_file {
@@ -184,8 +196,6 @@ impl<'a> BufferRenderContext<'a> {
 		let text_width = area.width.saturating_sub(gutter_width) as usize;
 		let viewport_height = area.height as usize;
 
-		let _viewport_height = viewport_height;
-		let _gutter_width = gutter_width;
 		let layout = RenderLayout {
 			total_lines,
 			gutter_layout,
@@ -194,126 +204,137 @@ impl<'a> BufferRenderContext<'a> {
 
 		let styles = self.make_cursor_styles(buffer.mode());
 		let cursor_style_set = styles.to_cursor_set();
-		let highlight_spans = self.collect_highlight_spans(buffer, area);
+		let highlight_spans = self.collect_highlight_spans(buffer, area, cache);
 		let highlight_index = HighlightIndex::new(highlight_spans);
 
-		let diff_line_numbers = buffer.with_doc(|doc| {
-			if is_diff_file {
-				Some(compute_diff_line_numbers(doc.content()))
-			} else {
-				None
-			}
-		});
+		let diff_line_numbers = if is_diff_file {
+			Some(compute_diff_line_numbers(&doc_content))
+		} else {
+			None
+		};
 
 		let mode_color = self.mode_color(buffer.mode());
 		let base_bg = self.theme.colors.ui.bg;
 		let cursor_line = buffer.cursor_line();
 		let buffer_path = buffer.path();
 
-		buffer.with_doc(|doc| {
-			let overlays =
-				OverlayIndex::new(&buffer.selection, buffer.cursor, is_focused, doc.content());
+		let overlays =
+			OverlayIndex::new(&buffer.selection, buffer.cursor, is_focused, &doc_content);
 
-			let plan = ViewportPlan::new(
-				buffer.scroll_line,
-				buffer.scroll_segment,
-				viewport_height,
-				total_lines,
-				has_trailing_newline,
-				|line_idx| {
-					if let Some(slice) = LineSource::load(doc.content(), line_idx) {
-						wrap_line_ranges(&slice.text, text_width, tab_width).len()
-					} else {
-						0
-					}
-				},
-			);
+		let start_line = buffer.scroll_line;
+		let end_line = (start_line + viewport_height + 2).min(total_lines);
+		let wrap_key = (text_width, tab_width);
 
-			let mut gutter_lines = Vec::with_capacity(viewport_height);
-			let mut text_lines = Vec::with_capacity(viewport_height);
+		cache.wrap.get_or_build(doc_id, wrap_key);
+		cache.wrap.build_range(
+			doc_id,
+			wrap_key,
+			&doc_content,
+			doc_version,
+			start_line,
+			end_line,
+		);
 
-			for row in plan.rows {
-				let (line, segment, is_continuation, is_last_segment) = match row.kind {
-					RowKind::Text { line_idx, seg_idx } => {
-						let slice = LineSource::load(doc.content(), line_idx);
-						let segments = slice
-							.as_ref()
-							.map(|s| wrap_line_ranges(&s.text, text_width, tab_width))
-							.unwrap_or_default();
-						let num_segs = segments.len().max(1);
-						let segment = segments.into_iter().nth(seg_idx);
-						(slice, segment, seg_idx > 0, seg_idx == num_segs - 1)
-					}
-					RowKind::PhantomTrailingNewline { line_idx } => {
-						(LineSource::load(doc.content(), line_idx), None, false, true)
-					}
-					RowKind::NonTextBeyondEof => (None, None, false, true),
-				};
+		let wrap_bucket = cache.wrap.get_or_build(doc_id, wrap_key);
 
-				let line_idx = line.as_ref().map(|l| l.line_idx).unwrap_or(total_lines);
+		let plan = ViewportPlan::new_with_wrap(
+			buffer.scroll_line,
+			buffer.scroll_segment,
+			viewport_height,
+			total_lines,
+			has_trailing_newline,
+			&*wrap_bucket,
+		);
 
-				let diff_nums = diff_line_numbers
+		let mut gutter_lines = Vec::with_capacity(viewport_height);
+		let mut text_lines = Vec::with_capacity(viewport_height);
+
+		for row in plan.rows {
+			let (line, segment, is_continuation, is_last_segment) = match row.kind {
+				RowKind::Text { line_idx, seg_idx } => {
+					let slice = LineSource::load(&doc_content, line_idx);
+					let segments = wrap_bucket.get_segments(line_idx, doc_version);
+					let num_segs = segments.map(|s| s.len()).unwrap_or(0).max(1);
+					let segment = segments.and_then(|s| s.get(seg_idx));
+					(slice, segment, seg_idx > 0, seg_idx == num_segs - 1)
+				}
+				RowKind::PhantomTrailingNewline { line_idx } => {
+					(LineSource::load(&doc_content, line_idx), None, false, true)
+				}
+				RowKind::NonTextBeyondEof => (None, None, false, true),
+			};
+
+			let line_idx = line.as_ref().map(|l| l.line_idx).unwrap_or(total_lines);
+
+			let diff_nums = diff_line_numbers
+				.as_ref()
+				.and_then(|nums| nums.get(line_idx));
+			let line_annotations = GutterAnnotations {
+				diagnostic_severity: self
+					.diagnostics
+					.and_then(|d| d.get(&line_idx).copied())
+					.unwrap_or(0),
+				sign: None,
+				diff_old_line: diff_nums.and_then(|dn| dn.old),
+				diff_new_line: diff_nums.and_then(|dn| dn.new),
+			};
+
+			let line_diff_bg = if is_diff_file {
+				let line_text = line
 					.as_ref()
-					.and_then(|nums| nums.get(line_idx));
-				let line_annotations = GutterAnnotations {
-					diagnostic_severity: self
-						.diagnostics
-						.and_then(|d| d.get(&line_idx).copied())
-						.unwrap_or(0),
-					sign: None,
-					diff_old_line: diff_nums.and_then(|dn| dn.old),
-					diff_new_line: diff_nums.and_then(|dn| dn.new),
-				};
+					.map(|l| l.content_string(&doc_content))
+					.unwrap_or_default();
+				diff_line_bg(true, &line_text, self.theme)
+			} else {
+				None
+			};
 
-				let line_text = line.as_ref().map(|l| l.text.as_str()).unwrap_or("");
-				let line_diff_bg = diff_line_bg(is_diff_file, line_text, self.theme);
-				let line_style = LineStyleContext {
-					base_bg: if matches!(row.kind, RowKind::NonTextBeyondEof) {
-						self.theme.colors.ui.nontext_bg
-					} else {
-						base_bg
-					},
-					diff_bg: line_diff_bg,
-					mode_color,
-					is_cursor_line: cursorline && line_idx == cursor_line,
-					cursorline_enabled: cursorline,
-					cursor_line,
-					is_nontext: matches!(
-						row.kind,
-						RowKind::NonTextBeyondEof | RowKind::PhantomTrailingNewline { .. }
-					),
-				};
+			let line_style = LineStyleContext {
+				base_bg: if matches!(row.kind, RowKind::NonTextBeyondEof) {
+					self.theme.colors.ui.nontext_bg
+				} else {
+					base_bg
+				},
+				diff_bg: line_diff_bg,
+				mode_color,
+				is_cursor_line: cursorline && line_idx == cursor_line,
+				cursorline_enabled: cursorline,
+				cursor_line,
+				is_nontext: matches!(
+					row.kind,
+					RowKind::NonTextBeyondEof | RowKind::PhantomTrailingNewline { .. }
+				),
+			};
 
-				let row_input = RowRenderInput {
-					ctx: self,
-					theme_cursor_styles: &styles,
-					cursor_style_set,
-					line_style,
-					layout: &layout,
-					buffer_path: buffer_path.as_deref(),
-					is_focused,
-					use_block_cursor,
-					tab_width,
-					doc_content: doc.content(),
-					line: line.as_ref(),
-					segment: segment.as_ref(),
-					is_continuation,
-					is_last_segment,
-					highlight: &highlight_index,
-					overlays: &overlays,
-					line_annotations,
-				};
+			let row_input = RowRenderInput {
+				ctx: self,
+				theme_cursor_styles: &styles,
+				cursor_style_set,
+				line_style,
+				layout: &layout,
+				buffer_path: buffer_path.as_deref(),
+				is_focused,
+				use_block_cursor,
+				tab_width,
+				doc_content: &doc_content,
+				line: line.as_ref(),
+				segment,
+				is_continuation,
+				is_last_segment,
+				highlight: &highlight_index,
+				overlays: &overlays,
+				line_annotations,
+			};
 
-				gutter_lines.push(GutterRenderer::render_row(&row_input));
-				text_lines.push(TextRowRenderer::render_row(&row_input));
-			}
+			gutter_lines.push(GutterRenderer::render_row(&row_input));
+			text_lines.push(TextRowRenderer::render_row(&row_input));
+		}
 
-			RenderResult {
-				gutter_width,
-				gutter: gutter_lines,
-				text: text_lines,
-			}
-		})
+		RenderResult {
+			gutter_width,
+			gutter: gutter_lines,
+			text: text_lines,
+		}
 	}
 
 	/// Transforms a gutter selector for diff files by replacing standard line

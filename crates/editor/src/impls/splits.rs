@@ -4,8 +4,6 @@
 
 use std::path::PathBuf;
 
-#[cfg(feature = "lsp")]
-use tracing::warn;
 use xeno_registry::{
 	HookContext, HookEventData, SplitDirection, ViewId, emit_sync_with as emit_hook_sync_with,
 };
@@ -102,14 +100,6 @@ impl Editor {
 			return false;
 		}
 
-		#[cfg(feature = "lsp")]
-		let doc_id_to_close = self
-			.state
-			.core
-			.buffers
-			.get_buffer(view)
-			.map(|b| b.document_id());
-
 		if let Some(buffer) = self.state.core.buffers.get_buffer(view) {
 			let scratch_path = PathBuf::from("[scratch]");
 			let path = buffer.path().unwrap_or_else(|| scratch_path.clone());
@@ -124,7 +114,7 @@ impl Editor {
 
 			#[cfg(feature = "lsp")]
 			if let Err(e) = self.state.lsp.on_buffer_close(buffer) {
-				warn!(error = %e, "LSP buffer close failed");
+				tracing::warn!(error = %e, "LSP buffer close failed");
 			}
 		}
 
@@ -142,15 +132,7 @@ impl Editor {
 			return false;
 		}
 
-		self.state.core.buffers.remove_buffer(view);
-
-		// Close in sync manager if this was the last view for the document
-		#[cfg(feature = "lsp")]
-		if let Some(doc_id) = doc_id_to_close
-			&& self.state.core.buffers.any_buffer_for_doc(doc_id).is_none()
-		{
-			self.state.lsp.sync_manager_mut().on_doc_close(doc_id);
-		}
+		self.finalize_buffer_removal(view);
 
 		self.repair_invariants();
 

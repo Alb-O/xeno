@@ -141,14 +141,19 @@ impl Editor {
 	/// that were opened before the servers were registered.
 	#[cfg(feature = "lsp")]
 	pub async fn init_lsp_for_open_buffers(&mut self) -> anyhow::Result<()> {
+		let mut seen_docs = std::collections::HashSet::new();
 		for buffer_id in self.state.core.buffers.buffer_ids().collect::<Vec<_>>() {
 			if let Some(buffer) = self.state.core.buffers.get_buffer(buffer_id)
 				&& buffer.path().is_some()
 			{
+				let doc_id = buffer.document_id();
+				if !seen_docs.insert(doc_id) {
+					continue;
+				}
+
 				if let Err(e) = self.state.lsp.on_buffer_open(buffer).await {
-					warn!(error = %e, "Failed to initialize LSP for buffer");
+					tracing::warn!(error = %e, "Failed to initialize LSP for buffer");
 				} else if let (Some(path), Some(language)) = (buffer.path(), buffer.file_type()) {
-					let doc_id = buffer.document_id();
 					let version = buffer.with_doc(|doc| doc.version());
 					let supports_incremental = self
 						.state
@@ -183,8 +188,10 @@ impl Editor {
 	/// LSP server spawn/initialize.
 	#[cfg(feature = "lsp")]
 	pub fn kick_lsp_init_for_open_buffers(&mut self) {
+		use std::collections::HashSet;
 		use std::path::PathBuf;
 
+		let mut seen_docs = HashSet::new();
 		let specs: Vec<(PathBuf, String, String)> = self
 			.state
 			.core
@@ -192,6 +199,11 @@ impl Editor {
 			.buffer_ids()
 			.filter_map(|id| {
 				let buffer = self.state.core.buffers.get_buffer(id)?;
+				let doc_id = buffer.document_id();
+				if !seen_docs.insert(doc_id) {
+					return None;
+				}
+
 				let path = buffer.path()?;
 				let language = buffer.file_type()?;
 				self.state.lsp.registry().get_config(&language)?;
@@ -201,7 +213,6 @@ impl Editor {
 				let content = buffer.with_doc(|doc| doc.content().to_string());
 
 				// Register with sync manager so edits are tracked
-				let doc_id = buffer.document_id();
 				let version = buffer.with_doc(|doc| doc.version());
 				let supports_incremental = self
 					.state
@@ -240,4 +251,26 @@ impl Editor {
 
 	#[cfg(not(feature = "lsp"))]
 	pub fn kick_lsp_init_for_open_buffers(&mut self) {}
+
+	/// Removes a buffer and performs final cleanup for its associated document.
+	///
+	/// If the removed buffer was the last one referencing its document, this
+	/// method also:
+	/// 1. Invalidates the document in the [`RenderCache`].
+	/// 2. Notifies the LSP sync manager to close the document.
+	///
+	/// This should be the authoritative path for buffer destruction.
+	pub(crate) fn finalize_buffer_removal(&mut self, id: ViewId) {
+		let removed = self.state.core.buffers.remove_buffer(id);
+		if let Some(buffer) = removed {
+			let doc_id = buffer.document_id();
+			if self.state.core.buffers.any_buffer_for_doc(doc_id).is_none() {
+				// Last view for this document is gone, cleanup resources
+				#[cfg(feature = "lsp")]
+				self.state.lsp.sync_manager_mut().on_doc_close(doc_id);
+
+				self.state.render_cache.invalidate_document(doc_id);
+			}
+		}
+	}
 }

@@ -6,6 +6,7 @@
 //! - Path separators (`- /`) remain breakable
 
 use unicode_width::UnicodeWidthChar;
+use xeno_primitives::RopeSlice;
 
 #[cfg(test)]
 mod tests;
@@ -201,4 +202,122 @@ fn find_wrap_break(chars: &[char], start: usize, max_end: usize) -> usize {
 	}
 
 	max_end
+}
+
+/// Wraps a line from a [`RopeSlice`] into ranges that fit within a maximum width.
+///
+/// Operates directly on the rope content to avoid string allocations. Uses a
+/// forward scan with best-break tracking to find optimal wrap points.
+pub fn wrap_line_ranges_rope(
+	line: RopeSlice<'_>,
+	max_width: usize,
+	tab_width: usize,
+) -> Vec<WrappedSegment> {
+	if max_width == 0 {
+		return vec![];
+	}
+
+	let line_len = line.len_chars();
+	if line_len == 0 {
+		return vec![];
+	}
+
+	const MIN_CONTINUATION_CONTENT: usize = 20;
+
+	let raw_indent = leading_indent_width_rope(&line, tab_width);
+	let has_room = max_width.saturating_sub(raw_indent) >= MIN_CONTINUATION_CONTENT;
+	let indent_cols = if has_room { raw_indent } else { 0 };
+	let continuation_width = max_width - indent_cols;
+
+	let mut segments = Vec::new();
+	let mut pos = 0;
+	let mut is_first = true;
+
+	while pos < line_len {
+		let effective_width = if is_first {
+			max_width
+		} else {
+			continuation_width
+		};
+
+		let mut col = 0usize;
+		let mut end = pos;
+		let mut best_break = pos;
+
+		let mut iter = line.slice(pos..).chars().peekable();
+		while let Some(ch) = iter.next() {
+			let w = cell_width(ch, col, tab_width);
+
+			let remaining = effective_width.saturating_sub(col);
+			if remaining == 0 || w > remaining {
+				break;
+			}
+
+			col += w;
+			end += 1;
+
+			let next_ch = iter.peek().copied();
+			if can_break_after_rope(ch, next_ch) {
+				best_break = end;
+			}
+
+			if col >= effective_width {
+				break;
+			}
+		}
+
+		if end == pos {
+			end = (pos + 1).min(line_len);
+			best_break = end;
+		} else if best_break == pos {
+			best_break = end;
+		}
+
+		segments.push(WrappedSegment {
+			start_char_offset: pos,
+			char_len: best_break - pos,
+			indent_cols: if is_first { 0 } else { indent_cols },
+		});
+
+		pos = best_break;
+		is_first = false;
+	}
+
+	segments
+}
+
+/// Calculates the visual width of leading whitespace from a RopeSlice.
+fn leading_indent_width_rope(line: &RopeSlice<'_>, tab_width: usize) -> usize {
+	let mut col = 0;
+	for ch in line.chars() {
+		if ch == ' ' || ch == '\t' {
+			col += cell_width(ch, col, tab_width);
+		} else {
+			break;
+		}
+	}
+	col
+}
+
+/// Checks if we can break after a character, given the next character.
+fn can_break_after_rope(ch: char, next_ch: Option<char>) -> bool {
+	if ch == ' ' || ch == '\t' {
+		return true;
+	}
+
+	let Some(next) = next_ch else {
+		return true;
+	};
+
+	if is_trailing_punct(next) && !next.is_whitespace() {
+		return false;
+	}
+	if is_leading_punct(ch) {
+		return false;
+	}
+	if is_trailing_punct(ch) {
+		return next.is_whitespace() || is_leading_punct(next) || next.is_alphanumeric();
+	}
+
+	ch == '-' || ch == '/'
 }

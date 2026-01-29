@@ -52,21 +52,31 @@ pub fn build_diagnostic_range_map(diagnostics: &[Diagnostic]) -> DiagnosticRange
 
 		let start_line = diag.range.start.line as usize;
 		let end_line = diag.range.end.line as usize;
+		let start_char = diag.range.start.character as usize;
+		let end_char = diag.range.end.character as usize;
 
-		for line in start_line..=end_line {
-			let start_char = if line == start_line {
-				diag.range.start.character as usize
-			} else {
-				0
-			};
-			let end_char = if line == end_line {
-				diag.range.end.character as usize
+		// Skip zero-length diagnostics on a single line
+		if start_line == end_line && start_char == end_char {
+			continue;
+		}
+
+		// If diagnostic ends at start of next line, don't include that line
+		let effective_end_line = if end_line > start_line && end_char == 0 {
+			end_line - 1
+		} else {
+			end_line
+		};
+
+		for line in start_line..=effective_end_line {
+			let line_start_char = if line == start_line { start_char } else { 0 };
+			let line_end_char = if line == end_line {
+				end_char
 			} else {
 				usize::MAX
 			};
 			map.entry(line).or_default().push(DiagnosticSpan {
-				start_char,
-				end_char,
+				start_char: line_start_char,
+				end_char: line_end_char,
 				severity,
 			});
 		}

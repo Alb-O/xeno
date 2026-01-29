@@ -568,7 +568,6 @@ impl Editor {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::buffer::ViewId;
 	use crate::impls::Editor;
 
 	#[test]
@@ -593,7 +592,7 @@ mod tests {
 		assert_eq!(editor.focused_view(), buffer2);
 
 		// Remove buffer2 to make it truly invalid
-		editor.state.core.buffers.remove_buffer(buffer2);
+		editor.finalize_buffer_removal(buffer2);
 
 		// Try to focus the now-invalid buffer2 - should normalize to buffer1
 		let result = editor.set_focus(
@@ -639,7 +638,7 @@ mod tests {
 		let buffer1 = editor.focused_view();
 
 		// Remove all buffers
-		editor.state.core.buffers.remove_buffer(buffer1);
+		editor.finalize_buffer_removal(buffer1);
 
 		// Try to focus invalid buffer - should create scratch
 		let result = editor.set_focus(

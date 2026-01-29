@@ -11,11 +11,12 @@ mod diff;
 mod fill;
 mod gutter;
 mod index;
-mod plan;
+pub mod plan;
 mod row;
 mod style_layers;
 mod viewport;
 
 pub use context::{BufferRenderContext, RenderResult};
 pub use diagnostics::{DiagnosticLineMap, DiagnosticRangeMap, DiagnosticSpan};
+pub use plan::{LineSlice, LineSource, RowKind, ViewportPlan, WrapAccess};
 pub use viewport::ensure_buffer_cursor_visible;

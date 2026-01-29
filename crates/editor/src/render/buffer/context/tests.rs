@@ -6,7 +6,6 @@ mod tests {
 	use xeno_tui::layout::Rect;
 	use xeno_tui::widgets::Paragraph;
 
-	use super::*;
 	use crate::buffer::Buffer;
 	use crate::render::BufferRenderContext;
 	use crate::window::GutterSelector;
@@ -25,6 +24,7 @@ mod tests {
 		};
 
 		let area = Rect::new(0, 0, 20, 3);
+		let mut cache = crate::render::cache::RenderCache::new();
 		let result = ctx.render_buffer_with_gutter(
 			&buffer,
 			area,
@@ -33,6 +33,7 @@ mod tests {
 			GutterSelector::Registry,
 			4,
 			false,
+			&mut cache,
 		);
 
 		let backend = TestBackend::new(20, 3);
@@ -90,6 +91,7 @@ mod tests {
 
 		// 30 width, gutter will take ~6, leaving ~24 for text
 		let area = Rect::new(0, 0, 30, 5);
+		let mut cache = crate::render::cache::RenderCache::new();
 		let result = ctx.render_buffer_with_gutter(
 			&buffer,
 			area,
@@ -98,6 +100,7 @@ mod tests {
 			GutterSelector::Registry,
 			4,
 			false,
+			&mut cache,
 		);
 
 		let backend = TestBackend::new(30, 5);

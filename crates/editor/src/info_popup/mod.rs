@@ -220,7 +220,7 @@ impl Editor {
 			return;
 		};
 		self.close_floating_window(popup.window_id);
-		self.state.core.buffers.remove_buffer(popup.buffer_id);
+		self.finalize_buffer_removal(popup.buffer_id);
 		self.state.frame.needs_redraw = true;
 	}
 

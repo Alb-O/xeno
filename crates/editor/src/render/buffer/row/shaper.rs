@@ -1,3 +1,4 @@
+use xeno_primitives::Rope;
 use xeno_primitives::range::CharIdx;
 
 use super::super::plan::LineSlice;
@@ -35,7 +36,7 @@ pub struct SegmentGlyphIter<'a> {
 	segment: &'a WrappedSegment,
 	tab_width: usize,
 	text_width: usize,
-	chars: std::str::Chars<'a>,
+	chars: ropey::iter::Chars<'a>,
 	current_char_idx: usize,
 	current_byte_off: u32,
 	current_col: usize,
@@ -45,16 +46,18 @@ pub struct SegmentGlyphIter<'a> {
 
 impl<'a> SegmentGlyphIter<'a> {
 	pub fn new(
+		rope: &'a Rope,
 		line: &'a LineSlice,
 		segment: &'a WrappedSegment,
 		tab_width: usize,
 		text_width: usize,
 	) -> Self {
-		let mut chars = line.text.chars();
-		let mut byte_off = 0;
+		let content_slice = line.content_slice(rope);
+		let mut chars = content_slice.chars();
+		let mut byte_off: u32 = 0;
 		for _ in 0..segment.start_char_offset {
 			if let Some(ch) = chars.next() {
-				byte_off += ch.len_utf8() as u32;
+				byte_off = byte_off.wrapping_add(ch.len_utf8() as u32);
 			}
 		}
 

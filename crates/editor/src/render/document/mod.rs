@@ -8,6 +8,7 @@ mod whichkey;
 
 use std::time::{Duration, SystemTime};
 
+use xeno_registry::options::keys;
 use xeno_tui::layout::{Constraint, Direction, Layout, Rect};
 use xeno_tui::style::Style;
 use xeno_tui::text::{Line, Span};
@@ -113,6 +114,7 @@ impl Editor {
 			self.state.frame.needs_redraw = true;
 		}
 
+		// Use the editor's render cache for this frame
 		let ctx = self.render_ctx();
 		let doc_focused = ui.focus.focused().is_editor();
 
@@ -198,15 +200,20 @@ impl Editor {
 
 		let sep_style = SeparatorStyle::new(ctx);
 
-		for (_, _, view_areas, separators) in &layer_data {
+		// Use mem::take to move cache out of self, allowing free use of &self in the loop
+		let mut cache = std::mem::take(&mut self.state.render_cache);
+		let language_loader = &self.state.config.language_loader;
+
+		for (_, _, view_areas, _) in &layer_data {
 			for (buffer_id, area) in view_areas {
 				let is_focused = *buffer_id == focused_view;
-				let tab_width = self.tab_width_for(*buffer_id);
-				let cursorline = self.cursorline_for(*buffer_id);
-				if let Some(buffer) = self.get_buffer(*buffer_id) {
+				if let Some(buffer) = self.state.core.buffers.get_buffer(*buffer_id) {
+					let tab_width = (buffer.option(keys::TAB_WIDTH, self) as usize).max(1);
+					let cursorline = buffer.option(keys::CURSORLINE, self);
+
 					let buffer_ctx = BufferRenderContext {
 						theme: &ctx.theme,
-						language_loader: &self.state.config.language_loader,
+						language_loader,
 						diagnostics: ctx.lsp.diagnostics_for(*buffer_id),
 						diagnostic_ranges: ctx.lsp.diagnostic_ranges_for(*buffer_id),
 					};
@@ -217,6 +224,7 @@ impl Editor {
 						is_focused,
 						tab_width,
 						cursorline,
+						&mut cache,
 					);
 
 					let gutter_area = Rect {
@@ -233,7 +241,12 @@ impl Editor {
 					frame.render_widget(Paragraph::new(result.text), text_area);
 				}
 			}
+		}
 
+		// Put cache back
+		self.state.render_cache = cache;
+
+		for (_, _, _, separators) in &layer_data {
 			for (direction, priority, sep_rect) in separators {
 				let style = sep_style.for_rect(*sep_rect, *priority);
 				let lines: Vec<Line> = match direction {
@@ -308,6 +321,9 @@ impl Editor {
 		}
 
 		// Second pass: render (borrows windows again)
+		// Use mem::take to move cache out of self, allowing free use of &self in the loop
+		let mut cache = std::mem::take(&mut self.state.render_cache);
+		let language_loader = &self.state.config.language_loader;
 		for &window_id in &floating_ids {
 			let Some(window) = self.state.windows.get(window_id) else {
 				continue;
@@ -356,16 +372,16 @@ impl Editor {
 				continue;
 			}
 
-			if let Some(buffer) = self.get_buffer(window.buffer) {
+			if let Some(buffer) = self.state.core.buffers.get_buffer(window.buffer) {
 				let is_focused = focused
 					.map(|(win, buf)| win == window_id && buf == window.buffer)
 					.unwrap_or(false);
-				let tab_width = self.tab_width_for(window.buffer);
-				let cursorline = self.cursorline_for(window.buffer);
+				let tab_width = (buffer.option(keys::TAB_WIDTH, self) as usize).max(1);
+				let cursorline = buffer.option(keys::CURSORLINE, self);
 
 				let buffer_ctx = BufferRenderContext {
 					theme: &ctx.theme,
-					language_loader: &self.state.config.language_loader,
+					language_loader,
 					diagnostics: ctx.lsp.diagnostics_for(window.buffer),
 					diagnostic_ranges: ctx.lsp.diagnostic_ranges_for(window.buffer),
 				};
@@ -377,6 +393,7 @@ impl Editor {
 					window.gutter,
 					tab_width,
 					cursorline,
+					&mut cache,
 				);
 
 				let gutter_area = Rect {
@@ -393,6 +410,9 @@ impl Editor {
 				frame.render_widget(Paragraph::new(result.text), text_area);
 			}
 		}
+
+		// Put cache back
+		self.state.render_cache = cache;
 	}
 
 	/// Renders junction glyphs where separators intersect within a layer.

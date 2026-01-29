@@ -1,11 +1,10 @@
-use tracing::{debug, trace};
 use xeno_primitives::range::CharIdx;
 use xeno_primitives::visible_line_count;
 use xeno_tui::layout::Rect;
 
 use super::types::ViewportEnsureEvent;
-use crate::buffer::Buffer;
-use crate::render::wrap::{WrapSegment, wrap_line};
+use crate::buffer::{Buffer, Document};
+use crate::render::wrap::{WrappedSegment, wrap_line_ranges_rope};
 
 /// Ensures the cursor is visible in the buffer's viewport with scroll margins.
 ///
@@ -18,7 +17,7 @@ pub fn ensure_buffer_cursor_visible(
 	tab_width: usize,
 	scroll_margin: usize,
 ) {
-	let total_lines = buffer.with_doc(|doc| visible_line_count(doc.content().slice(..)));
+	let total_lines = buffer.with_doc(|doc: &Document| visible_line_count(doc.content().slice(..)));
 	let gutter_width = buffer.gutter_width();
 	let text_width = area.width.saturating_sub(gutter_width) as usize;
 	let viewport_height = area.height as usize;
@@ -30,15 +29,6 @@ pub fn ensure_buffer_cursor_visible(
 
 	let prev_viewport_height = buffer.last_viewport_height;
 	let viewport_shrinking = viewport_height < prev_viewport_height;
-
-	if viewport_height != prev_viewport_height && prev_viewport_height > 0 {
-		debug!(
-			prev_height = prev_viewport_height,
-			new_height = viewport_height,
-			shrinking = viewport_shrinking,
-			"Viewport height changed"
-		);
-	}
 
 	buffer.text_width = text_width;
 	buffer.last_viewport_height = viewport_height;
@@ -56,28 +46,28 @@ pub fn ensure_buffer_cursor_visible(
 	);
 
 	let cursor_line = buffer.cursor_line();
-	let (cursor_line_start, cursor_line_text): (CharIdx, String) = buffer.with_doc(|doc| {
+	let (cursor_col, cursor_segments) = buffer.with_doc(|doc: &Document| {
 		let start = doc.content().line_to_char(cursor_line);
-		let end = if cursor_line + 1 < total_lines {
-			doc.content().line_to_char(cursor_line + 1)
+		let col = cursor_pos.saturating_sub(start);
+		let line_slice = doc.content().line(cursor_line);
+		let line_len = line_slice.len_chars();
+		let has_newline = line_len > 0 && line_slice.char(line_len - 1) == '\n';
+		let content = if has_newline {
+			line_slice.slice(..line_len - 1)
 		} else {
-			doc.content().len_chars()
+			line_slice
 		};
-		let text: String = doc.content().slice(start..end).into();
-		(start, text)
+		let segments = wrap_line_ranges_rope(content, text_width, tab_width);
+		(col, segments)
 	});
-	let cursor_col = cursor_pos.saturating_sub(cursor_line_start);
-	let cursor_line_text = cursor_line_text.trim_end_matches('\n');
-	let cursor_segments = wrap_line(cursor_line_text, text_width, tab_width);
 	let cursor_segment = find_segment_for_col(&cursor_segments, cursor_col);
 
 	let effective_margin = scroll_margin.min(viewport_height.saturating_sub(1) / 2);
-	let min_row = effective_margin; // cursor should be at least this far from top
+	let min_row = effective_margin;
 	let max_row = viewport_height
 		.saturating_sub(1)
 		.saturating_sub(effective_margin);
 
-	// Find cursor's current visual row in viewport (None if not visible)
 	let cursor_row = cursor_row_in_viewport(
 		buffer,
 		buffer.scroll_line,
@@ -89,7 +79,6 @@ pub fn ensure_buffer_cursor_visible(
 		tab_width,
 	);
 
-	// Determine if scroll adjustment is needed
 	let needs_scroll_up = match cursor_row {
 		None => {
 			cursor_line < buffer.scroll_line
@@ -99,7 +88,7 @@ pub fn ensure_buffer_cursor_visible(
 	};
 
 	let needs_scroll_down = match cursor_row {
-		None => !needs_scroll_up, // cursor below viewport
+		None => !needs_scroll_up,
 		Some(row) => row > max_row && cursor_line + 1 < total_lines,
 	};
 
@@ -117,10 +106,6 @@ pub fn ensure_buffer_cursor_visible(
 		return;
 	}
 
-	// Note: Previously we set suppress_auto_scroll=true here on viewport shrink,
-	// but this caused the cursor to remain offscreen indefinitely until cursor
-	// movement. Now we skip adjustment for this frame only (non-sticky).
-	// External code (mouse scroll, separator drag) sets suppression explicitly.
 	if needs_scroll_down && viewport_shrinking {
 		ViewportEnsureEvent::log(
 			"skip_scroll_on_shrink",
@@ -166,14 +151,6 @@ pub fn ensure_buffer_cursor_visible(
 		} else {
 			"scroll_down"
 		};
-		trace!(
-			from = original_scroll.0,
-			to = buffer.scroll_line,
-			cursor_line = cursor_line,
-			viewport_height = viewport_height,
-			action,
-			"Scrolled to maintain margin"
-		);
 		ViewportEnsureEvent::log(
 			action,
 			buffer,
@@ -216,22 +193,23 @@ fn scroll_position_for_cursor_at_row(
 
 /// Returns the number of wrap segments for a line.
 fn line_segment_count(buffer: &Buffer, line: usize, text_width: usize, tab_width: usize) -> usize {
-	buffer.with_doc(|doc| {
+	buffer.with_doc(|doc: &Document| {
 		let total_lines = doc.content().len_lines();
 		if line >= total_lines {
 			return 1;
 		}
 
-		let line_start: CharIdx = doc.content().line_to_char(line);
-		let line_end: CharIdx = if line + 1 < total_lines {
-			doc.content().line_to_char(line + 1)
+		let line_slice = doc.content().line(line);
+		let line_len = line_slice.len_chars();
+		let has_newline = line_len > 0 && line_slice.char(line_len - 1) == '\n';
+		let content = if has_newline {
+			line_slice.slice(..line_len - 1)
 		} else {
-			doc.content().len_chars()
+			line_slice
 		};
-
-		let line_text: String = doc.content().slice(line_start..line_end).into();
-		let line_text = line_text.trim_end_matches('\n');
-		wrap_line(line_text, text_width, tab_width).len().max(1)
+		wrap_line_ranges_rope(content, text_width, tab_width)
+			.len()
+			.max(1)
 	})
 }
 
@@ -243,22 +221,21 @@ fn clamp_segment_for_line(
 	text_width: usize,
 	tab_width: usize,
 ) -> usize {
-	buffer.with_doc(|doc| {
+	buffer.with_doc(|doc: &Document| {
 		let total_lines = doc.content().len_lines();
 		if line >= total_lines {
 			return 0;
 		}
 
-		let line_start: CharIdx = doc.content().line_to_char(line);
-		let line_end: CharIdx = if line + 1 < total_lines {
-			doc.content().line_to_char(line + 1)
+		let line_slice = doc.content().line(line);
+		let line_len = line_slice.len_chars();
+		let has_newline = line_len > 0 && line_slice.char(line_len - 1) == '\n';
+		let content = if has_newline {
+			line_slice.slice(..line_len - 1)
 		} else {
-			doc.content().len_chars()
+			line_slice
 		};
-
-		let line_text: String = doc.content().slice(line_start..line_end).into();
-		let line_text = line_text.trim_end_matches('\n');
-		let segments = wrap_line(line_text, text_width, tab_width);
+		let segments = wrap_line_ranges_rope(content, text_width, tab_width);
 		let num_segments = segments.len().max(1);
 
 		segment.min(num_segments.saturating_sub(1))
@@ -266,9 +243,9 @@ fn clamp_segment_for_line(
 }
 
 /// Finds which wrap segment contains the given column.
-fn find_segment_for_col(segments: &[WrapSegment], col: usize) -> usize {
+fn find_segment_for_col(segments: &[WrappedSegment], col: usize) -> usize {
 	for (i, seg) in segments.iter().enumerate() {
-		let seg_end = seg.start_offset + seg.text.chars().count();
+		let seg_end = seg.start_char_offset + seg.char_len;
 		if col < seg_end {
 			return i;
 		}
@@ -291,7 +268,7 @@ fn cursor_row_in_viewport(
 		return None;
 	}
 
-	let total_lines = buffer.with_doc(|doc| visible_line_count(doc.content().slice(..)));
+	let total_lines = buffer.with_doc(|doc: &Document| visible_line_count(doc.content().slice(..)));
 	if start_line >= total_lines {
 		return None;
 	}
@@ -320,31 +297,30 @@ fn advance_one_visual_row(
 	text_width: usize,
 	tab_width: usize,
 ) -> bool {
-	let (visible_lines, line_text) = buffer.with_doc(|doc| {
+	let (visible_lines, num_segments) = buffer.with_doc(|doc: &Document| {
 		let content = doc.content();
 		let visible = visible_line_count(content.slice(..));
 		if *line >= visible {
-			return (visible, String::new());
+			return (visible, 0);
 		}
 
-		let line_start: CharIdx = content.line_to_char(*line);
-		let line_end: CharIdx = if *line + 1 < content.len_lines() {
-			content.line_to_char(*line + 1)
+		let line_slice = content.line(*line);
+		let line_len = line_slice.len_chars();
+		let has_newline = line_len > 0 && line_slice.char(line_len - 1) == '\n';
+		let content = if has_newline {
+			line_slice.slice(..line_len - 1)
 		} else {
-			content.len_chars()
+			line_slice
 		};
-
-		let text: String = content.slice(line_start..line_end).into();
-		(visible, text)
+		let n = wrap_line_ranges_rope(content, text_width, tab_width)
+			.len()
+			.max(1);
+		(visible, n)
 	});
 
 	if *line >= visible_lines {
 		return false;
 	}
-
-	let line_text = line_text.trim_end_matches('\n');
-	let segments = wrap_line(line_text, text_width, tab_width);
-	let num_segments = segments.len().max(1);
 
 	if *segment + 1 < num_segments {
 		*segment += 1;

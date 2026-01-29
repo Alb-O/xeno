@@ -134,7 +134,7 @@ impl OverlayHost {
 			ed.close_floating_window(window_id);
 		}
 		for buffer_id in session.buffers {
-			ed.state.core.buffers.remove_buffer(buffer_id);
+			ed.finalize_buffer_removal(buffer_id);
 		}
 
 		// Restore original state

@@ -30,6 +30,9 @@ impl Editor {
 	pub fn set_theme(&mut self, theme_name: &str) -> Result<(), CommandError> {
 		if let Some(theme) = xeno_registry::themes::get_theme(theme_name) {
 			self.state.config.theme = theme;
+			// Increment theme epoch to invalidate highlight cache
+			let new_epoch = self.state.render_cache.theme_epoch.wrapping_add(1);
+			self.state.render_cache.set_theme_epoch(new_epoch);
 			Ok(())
 		} else {
 			let mut err = format!("Theme not found: {}", theme_name);

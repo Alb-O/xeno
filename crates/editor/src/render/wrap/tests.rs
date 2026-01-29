@@ -101,3 +101,15 @@ fn deep_indent_disables_indent() {
 	// 16-space indent with width 30 leaves only 14 chars, below minimum
 	assert_eq!(result[1].1, 0); // indent disabled
 }
+
+#[test]
+fn wrap_line_ranges_rope_wide_char_progress() {
+	use xeno_primitives::Rope;
+	let rope = Rope::from("🚀🚀🚀");
+	let segments = wrap_line_ranges_rope(rope.slice(..), 1, 4);
+	// Should not infinite loop and should have 3 segments of 1 char each
+	assert_eq!(segments.len(), 3);
+	for seg in segments {
+		assert_eq!(seg.char_len, 1);
+	}
+}
