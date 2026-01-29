@@ -26,7 +26,7 @@ const CACHE_FILE: &str = "theme_bootstrap.bin";
 
 /// Minimal color data for first-frame rendering.
 ///
-/// Cache format: 8-byte magic (`XENOBOOT`) + 4-byte LE version + bincode payload.
+/// Cache format: 8-byte magic (`XENOBOOT`) + 4-byte LE version + postcard payload.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BootstrapColors {
 	pub theme_id: String,
@@ -62,7 +62,7 @@ impl From<BootstrapVariant> for ThemeVariant {
 	}
 }
 
-/// Serializable mirror of [`Color`] for bincode.
+/// Serializable mirror of [`Color`] for postcard.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub enum SerializableColor {
 	Reset,
@@ -165,12 +165,12 @@ fn load_bootstrap_cache() -> Option<BootstrapColors> {
 	if version != SCHEMA_VERSION {
 		return None;
 	}
-	bincode::deserialize(&data[12..]).ok()
+	postcard::from_bytes(&data[12..]).ok()
 }
 
 fn write_bootstrap_cache(colors: &BootstrapColors) {
 	let Some(path) = cache_path() else { return };
-	let Ok(payload) = bincode::serialize(colors) else {
+	let Ok(payload) = postcard::to_stdvec(colors) else {
 		return;
 	};
 

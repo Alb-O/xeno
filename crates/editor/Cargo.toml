@@ -10,13 +10,13 @@ default = []
 lsp = ["dep:xeno-lsp", "dep:frizbee", "dep:thiserror", "dep:tokio-util"]
 [dependencies]
 anyhow.workspace = true
-bincode.workspace = true
 clap.workspace = true
 dirs.workspace = true
 frizbee = { workspace = true, optional = true }
 inventory.workspace = true
 parking_lot.workspace = true
 paste.workspace = true
+postcard.workspace = true
 regex.workspace = true
 ropey.workspace = true
 serde.workspace = true

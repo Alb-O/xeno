@@ -17,7 +17,7 @@
 //!
 //! # Integration with Xeno
 //!
-//! Languages are loaded from precompiled bincode via [`config::load_language_configs`].
+//! Languages are loaded from precompiled postcard blobs via [`config::load_language_configs`].
 //! Each language definition includes:
 //! - Grammar name (for loading the .so file)
 //! - File type associations (extensions, filenames, globs)

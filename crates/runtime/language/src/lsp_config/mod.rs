@@ -1,6 +1,6 @@
 //! LSP server configuration loading.
 //!
-//! Server definitions are loaded from bincode blobs compiled at build time.
+//! Server definitions are loaded from postcard blobs compiled at build time.
 
 use std::collections::HashMap;
 
@@ -15,7 +15,7 @@ mod tests;
 #[derive(Debug, Error)]
 pub enum LspConfigError {
 	#[error("failed to deserialize precompiled data: {0}")]
-	Bincode(#[from] bincode::Error),
+	Postcard(#[from] postcard::Error),
 	#[error("invalid precompiled blob (magic/version mismatch)")]
 	InvalidBlob,
 }
@@ -46,7 +46,7 @@ pub struct LspServerDef {
 
 /// Serializable LSP server configuration for build-time compilation.
 ///
-/// Stores config as JSON string (bincode doesn't support `serde_json::Value`).
+/// Stores config as JSON string (postcard doesn't support `serde_json::Value`).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LspServerDefRaw {
 	pub name: String,
@@ -86,10 +86,10 @@ impl From<&LspServerDef> for LspServerDefRaw {
 	}
 }
 
-/// Loads LSP server configurations from precompiled bincode.
+/// Loads LSP server configurations from precompiled postcard blobs.
 pub fn load_lsp_configs() -> Result<Vec<LspServerDef>> {
 	let payload = crate::precompiled::validate_blob(LSP_BIN).ok_or(LspConfigError::InvalidBlob)?;
-	let raw: Vec<LspServerDefRaw> = bincode::deserialize(payload)?;
+	let raw: Vec<LspServerDefRaw> = postcard::from_bytes(payload)?;
 	Ok(raw.into_iter().map(LspServerDef::from).collect())
 }
 

@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 use std::io::Write;
 use std::path::PathBuf;
 use std::{env, fs};
@@ -30,7 +30,7 @@ struct LspServerDefRaw {
 	name: String,
 	command: String,
 	args: Vec<String>,
-	environment: HashMap<String, String>,
+	environment: BTreeMap<String, String>,
 	config_json: Option<String>,
 	source: Option<String>,
 	nix: Option<String>,
@@ -247,8 +247,8 @@ fn kdl_node_to_json(node: &KdlNode) -> JsonValue {
 	kdl_doc_to_json(children)
 }
 
-fn parse_lsp_environment(children: Option<&KdlDocument>) -> HashMap<String, String> {
-	let mut env = HashMap::new();
+fn parse_lsp_environment(children: Option<&KdlDocument>) -> BTreeMap<String, String> {
+	let mut env = BTreeMap::new();
 	let Some(env_node) = children.and_then(|c| c.get("environment")) else {
 		return env;
 	};
@@ -333,13 +333,13 @@ fn main() {
 	println!("cargo:rerun-if-changed={}", languages_path.display());
 	let languages_kdl = fs::read_to_string(&languages_path).expect("failed to read languages.kdl");
 	let languages = parse_languages_kdl(&languages_kdl);
-	let languages_bin = bincode::serialize(&languages).expect("failed to serialize languages");
+	let languages_bin = postcard::to_stdvec(&languages).expect("failed to serialize languages");
 	write_blob(&out_dir.join("languages.bin"), &languages_bin);
 
 	let lsp_path = data_dir.join("lsp.kdl");
 	println!("cargo:rerun-if-changed={}", lsp_path.display());
 	let lsp_kdl = fs::read_to_string(&lsp_path).expect("failed to read lsp.kdl");
 	let lsp_servers = parse_lsp_kdl(&lsp_kdl);
-	let lsp_bin = bincode::serialize(&lsp_servers).expect("failed to serialize lsp");
+	let lsp_bin = postcard::to_stdvec(&lsp_servers).expect("failed to serialize lsp");
 	write_blob(&out_dir.join("lsp.bin"), &lsp_bin);
 }

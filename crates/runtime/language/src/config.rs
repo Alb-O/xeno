@@ -1,6 +1,6 @@
 //! Language configuration loading.
 //!
-//! Configurations are loaded from bincode blobs compiled at build time.
+//! Configurations are loaded from postcard blobs compiled at build time.
 
 use thiserror::Error;
 
@@ -10,7 +10,7 @@ use crate::language::{LanguageData, LanguageDataRaw};
 #[derive(Debug, Error)]
 pub enum LanguageConfigError {
 	#[error("failed to deserialize precompiled data: {0}")]
-	Bincode(#[from] bincode::Error),
+	Postcard(#[from] postcard::Error),
 	#[error("invalid precompiled blob (magic/version mismatch)")]
 	InvalidBlob,
 }
@@ -20,11 +20,11 @@ pub type Result<T> = std::result::Result<T, LanguageConfigError>;
 
 static LANGUAGES_BIN: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/languages.bin"));
 
-/// Loads language configurations from precompiled bincode.
+/// Loads language configurations from precompiled postcard blobs.
 pub fn load_language_configs() -> Result<Vec<LanguageData>> {
 	let payload =
 		crate::precompiled::validate_blob(LANGUAGES_BIN).ok_or(LanguageConfigError::InvalidBlob)?;
-	let raw: Vec<LanguageDataRaw> = bincode::deserialize(payload)?;
+	let raw: Vec<LanguageDataRaw> = postcard::from_bytes(payload)?;
 	Ok(raw.into_iter().map(LanguageData::from).collect())
 }
 

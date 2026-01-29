@@ -6,10 +6,10 @@ edition.workspace = true
 license.workspace = true
 
 [dependencies]
-bincode.workspace = true
 cc.workspace = true
 kdl.workspace = true
 once_cell.workspace = true
+postcard.workspace = true
 regex.workspace = true
 ropey.workspace = true
 serde.workspace = true
@@ -22,8 +22,8 @@ xeno-registry.workspace = true
 xeno-runtime-data.workspace = true
 
 [build-dependencies]
-bincode.workspace = true
 kdl.workspace = true
+postcard.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 
