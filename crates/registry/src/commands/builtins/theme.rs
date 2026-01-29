@@ -1,4 +1,4 @@
-use xeno_primitives::LocalBoxFuture;
+use xeno_primitives::BoxFutureLocal;
 
 use crate::command;
 use crate::commands::{CommandContext, CommandError, CommandOutcome, RegistrySource};
@@ -16,7 +16,7 @@ command!(
 
 fn cmd_theme<'a>(
 	ctx: &'a mut CommandContext<'a>,
-) -> LocalBoxFuture<'a, Result<CommandOutcome, CommandError>> {
+) -> BoxFutureLocal<'a, Result<CommandOutcome, CommandError>> {
 	Box::pin(async move {
 		let theme_name = ctx
 			.args

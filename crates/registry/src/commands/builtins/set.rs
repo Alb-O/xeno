@@ -1,4 +1,4 @@
-use xeno_primitives::LocalBoxFuture;
+use xeno_primitives::BoxFutureLocal;
 
 use crate::command;
 use crate::commands::{CommandContext, CommandError, CommandOutcome, RegistrySource};
@@ -26,7 +26,7 @@ command!(
 
 fn cmd_set<'a>(
 	ctx: &'a mut CommandContext<'a>,
-) -> LocalBoxFuture<'a, Result<CommandOutcome, CommandError>> {
+) -> BoxFutureLocal<'a, Result<CommandOutcome, CommandError>> {
 	Box::pin(async move {
 		if ctx.args.is_empty() {
 			return Ok(CommandOutcome::Ok);
@@ -41,7 +41,7 @@ fn cmd_set<'a>(
 
 fn cmd_setlocal<'a>(
 	ctx: &'a mut CommandContext<'a>,
-) -> LocalBoxFuture<'a, Result<CommandOutcome, CommandError>> {
+) -> BoxFutureLocal<'a, Result<CommandOutcome, CommandError>> {
 	Box::pin(async move {
 		if ctx.args.is_empty() {
 			return Ok(CommandOutcome::Ok);

@@ -1,6 +1,6 @@
 //! Debug commands for observability.
 
-use xeno_primitives::LocalBoxFuture;
+use xeno_primitives::BoxFutureLocal;
 use xeno_registry::index::{all_actions, all_commands, all_motions, all_text_objects};
 use xeno_registry::options::OPTIONS;
 use xeno_registry::themes::THEMES;
@@ -30,7 +30,7 @@ editor_command!(
 
 fn cmd_stats<'a>(
 	ctx: &'a mut EditorCommandContext<'a>,
-) -> LocalBoxFuture<'a, Result<CommandOutcome, CommandError>> {
+) -> BoxFutureLocal<'a, Result<CommandOutcome, CommandError>> {
 	Box::pin(async move {
 		let stats = ctx.editor.stats_snapshot();
 
@@ -144,7 +144,7 @@ struct RegistryItem {
 
 fn cmd_registry<'a>(
 	ctx: &'a mut EditorCommandContext<'a>,
-) -> LocalBoxFuture<'a, Result<CommandOutcome, CommandError>> {
+) -> BoxFutureLocal<'a, Result<CommandOutcome, CommandError>> {
 	Box::pin(async move {
 		let (kind, prefix) = parse_registry_args(ctx.args);
 		let content = build_registry_report(kind, prefix);

@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use xeno_primitives::LocalBoxFuture;
+use xeno_primitives::BoxFutureLocal;
 
 use crate::commands::{COMMANDS, CommandContext, CommandError, CommandOutcome};
 use crate::notifications::keys;
@@ -225,7 +225,7 @@ fn collect_text_object_collisions(collisions: &mut Vec<CollisionReport>) {
 
 fn cmd_registry_diag<'a>(
 	ctx: &'a mut CommandContext<'a>,
-) -> LocalBoxFuture<'a, Result<CommandOutcome, CommandError>> {
+) -> BoxFutureLocal<'a, Result<CommandOutcome, CommandError>> {
 	Box::pin(async move {
 		let report = diagnostics();
 		if report.collisions.is_empty() {
@@ -261,7 +261,7 @@ fn cmd_registry_diag<'a>(
 
 fn cmd_registry_doctor<'a>(
 	ctx: &'a mut CommandContext<'a>,
-) -> LocalBoxFuture<'a, Result<CommandOutcome, CommandError>> {
+) -> BoxFutureLocal<'a, Result<CommandOutcome, CommandError>> {
 	Box::pin(async move {
 		let report = diagnostics();
 		if report.collisions.is_empty() {

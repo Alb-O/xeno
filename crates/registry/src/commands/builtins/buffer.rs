@@ -1,4 +1,4 @@
-use xeno_primitives::LocalBoxFuture;
+use xeno_primitives::BoxFutureLocal;
 
 use crate::command;
 use crate::commands::{CommandContext, CommandError, CommandOutcome};
@@ -8,7 +8,7 @@ command!(buffer, { aliases: &["b"], description: "Switch to buffer" }, handler: 
 
 fn cmd_buffer<'a>(
 	ctx: &'a mut CommandContext<'a>,
-) -> LocalBoxFuture<'a, Result<CommandOutcome, CommandError>> {
+) -> BoxFutureLocal<'a, Result<CommandOutcome, CommandError>> {
 	Box::pin(async move {
 		if ctx.args.is_empty() {
 			return Err(CommandError::MissingArgument("buffer name or number"));
@@ -26,7 +26,7 @@ command!(
 
 fn cmd_buffer_next<'a>(
 	ctx: &'a mut CommandContext<'a>,
-) -> LocalBoxFuture<'a, Result<CommandOutcome, CommandError>> {
+) -> BoxFutureLocal<'a, Result<CommandOutcome, CommandError>> {
 	Box::pin(async move {
 		ctx.emit(keys::not_implemented("buffer-next"));
 		Ok(CommandOutcome::Ok)
@@ -41,7 +41,7 @@ command!(
 
 fn cmd_buffer_prev<'a>(
 	ctx: &'a mut CommandContext<'a>,
-) -> LocalBoxFuture<'a, Result<CommandOutcome, CommandError>> {
+) -> BoxFutureLocal<'a, Result<CommandOutcome, CommandError>> {
 	Box::pin(async move {
 		ctx.emit(keys::not_implemented("buffer-previous"));
 		Ok(CommandOutcome::Ok)
@@ -56,7 +56,7 @@ command!(
 
 fn cmd_delete_buffer<'a>(
 	ctx: &'a mut CommandContext<'a>,
-) -> LocalBoxFuture<'a, Result<CommandOutcome, CommandError>> {
+) -> BoxFutureLocal<'a, Result<CommandOutcome, CommandError>> {
 	Box::pin(async move {
 		ctx.emit(keys::not_implemented("delete-buffer"));
 		Ok(CommandOutcome::Ok)
@@ -71,7 +71,7 @@ command!(
 
 fn cmd_readonly<'a>(
 	ctx: &'a mut CommandContext<'a>,
-) -> LocalBoxFuture<'a, Result<CommandOutcome, CommandError>> {
+) -> BoxFutureLocal<'a, Result<CommandOutcome, CommandError>> {
 	Box::pin(async move {
 		let current = ctx.is_readonly();
 		ctx.set_readonly(!current);

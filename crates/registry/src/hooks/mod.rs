@@ -30,7 +30,7 @@ pub use context::{
 };
 pub use emit::{HookScheduler, emit, emit_mutable, emit_sync, emit_sync_with};
 pub use types::{
-	BoxFuture, HookAction, HookDef, HookHandler, HookMutability, HookPriority, HookResult,
+	HookAction, HookDef, HookFuture, HookHandler, HookMutability, HookPriority, HookResult,
 };
 pub use xeno_primitives::Mode;
 

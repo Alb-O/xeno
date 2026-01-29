@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use xeno_primitives::LocalBoxFuture;
+use xeno_primitives::BoxFutureLocal;
 
 use crate::command;
 use crate::commands::{CommandContext, CommandError, CommandOutcome};
@@ -9,7 +9,7 @@ command!(write, { aliases: &["w"], description: "Write buffer to file" }, handle
 
 fn cmd_write<'a>(
 	ctx: &'a mut CommandContext<'a>,
-) -> LocalBoxFuture<'a, Result<CommandOutcome, CommandError>> {
+) -> BoxFutureLocal<'a, Result<CommandOutcome, CommandError>> {
 	Box::pin(async move {
 		if let Some(&filename) = ctx.args.first() {
 			ctx.editor.save_as(PathBuf::from(filename)).await?;
@@ -24,7 +24,7 @@ command!(wq, { aliases: &["x"], description: "Write and quit" }, handler: cmd_wr
 
 fn cmd_write_quit<'a>(
 	ctx: &'a mut CommandContext<'a>,
-) -> LocalBoxFuture<'a, Result<CommandOutcome, CommandError>> {
+) -> BoxFutureLocal<'a, Result<CommandOutcome, CommandError>> {
 	Box::pin(async move {
 		if let Some(&filename) = ctx.args.first() {
 			ctx.editor.save_as(PathBuf::from(filename)).await?;

@@ -11,12 +11,6 @@ pub type BoxFutureSend<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
 /// A pinned, boxed future that is required to be Send and 'static.
 pub type BoxFutureStatic<T> = Pin<Box<dyn Future<Output = T> + Send + 'static>>;
 
-/// Legacy alias for BoxFutureLocal.
-pub type LocalBoxFuture<'a, T> = BoxFutureLocal<'a, T>;
-
-/// Legacy alias for BoxFutureSend.
-pub type BoxFuture<'a, T> = BoxFutureSend<'a, T>;
-
 /// Polls a future once without registering for wakeups.
 ///
 /// Only use this if you know the future is ready or

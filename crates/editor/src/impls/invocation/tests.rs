@@ -1,7 +1,7 @@
 use std::cell::Cell;
 
 use xeno_primitives::range::CharIdx;
-use xeno_primitives::{LocalBoxFuture, Mode, Selection};
+use xeno_primitives::{BoxFutureLocal, Mode, Selection};
 use xeno_registry::{
 	ActionEffects, ActionResult, Capability, CommandContext, CommandError, CommandOutcome,
 	CursorAccess, EditorCapabilities, HookAction, HookEventData, ModeAccess, Notification,
@@ -58,7 +58,7 @@ hook!(
 
 fn invocation_test_command_fail<'a>(
 	_ctx: &'a mut CommandContext<'a>,
-) -> LocalBoxFuture<'a, Result<CommandOutcome, CommandError>> {
+) -> BoxFutureLocal<'a, Result<CommandOutcome, CommandError>> {
 	Box::pin(async move { Err(CommandError::Failed("boom".into())) })
 }
 

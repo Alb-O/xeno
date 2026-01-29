@@ -1,7 +1,7 @@
 //! LSP commands with direct [`Editor`] access.
 
 use xeno_lsp::lsp_types::{GotoDefinitionResponse, HoverContents, MarkedString, MarkupContent};
-use xeno_primitives::LocalBoxFuture;
+use xeno_primitives::BoxFutureLocal;
 use xeno_registry::Capability;
 
 use super::{CommandError, CommandOutcome, EditorCommandContext};
@@ -17,7 +17,7 @@ editor_command!(
 
 fn cmd_hover<'a>(
 	ctx: &'a mut EditorCommandContext<'a>,
-) -> LocalBoxFuture<'a, Result<CommandOutcome, CommandError>> {
+) -> BoxFutureLocal<'a, Result<CommandOutcome, CommandError>> {
 	Box::pin(async move {
 		let hover = ctx
 			.editor
@@ -45,7 +45,7 @@ editor_command!(
 
 fn cmd_goto_definition<'a>(
 	ctx: &'a mut EditorCommandContext<'a>,
-) -> LocalBoxFuture<'a, Result<CommandOutcome, CommandError>> {
+) -> BoxFutureLocal<'a, Result<CommandOutcome, CommandError>> {
 	Box::pin(async move {
 		use crate::impls::Location;
 
@@ -120,7 +120,7 @@ editor_command!(
 
 fn cmd_code_action<'a>(
 	ctx: &'a mut EditorCommandContext<'a>,
-) -> LocalBoxFuture<'a, Result<CommandOutcome, CommandError>> {
+) -> BoxFutureLocal<'a, Result<CommandOutcome, CommandError>> {
 	Box::pin(async move {
 		ctx.editor.open_code_action_menu().await;
 		Ok(CommandOutcome::Ok)
@@ -139,7 +139,7 @@ editor_command!(
 
 fn cmd_rename<'a>(
 	ctx: &'a mut EditorCommandContext<'a>,
-) -> LocalBoxFuture<'a, Result<CommandOutcome, CommandError>> {
+) -> BoxFutureLocal<'a, Result<CommandOutcome, CommandError>> {
 	Box::pin(async move {
 		ctx.editor.open_rename();
 		Ok(CommandOutcome::Ok)
@@ -157,7 +157,7 @@ editor_command!(
 
 fn cmd_diagnostic_next<'a>(
 	ctx: &'a mut EditorCommandContext<'a>,
-) -> LocalBoxFuture<'a, Result<CommandOutcome, CommandError>> {
+) -> BoxFutureLocal<'a, Result<CommandOutcome, CommandError>> {
 	Box::pin(async move {
 		ctx.editor.goto_next_diagnostic();
 		Ok(CommandOutcome::Ok)
@@ -175,7 +175,7 @@ editor_command!(
 
 fn cmd_diagnostic_prev<'a>(
 	ctx: &'a mut EditorCommandContext<'a>,
-) -> LocalBoxFuture<'a, Result<CommandOutcome, CommandError>> {
+) -> BoxFutureLocal<'a, Result<CommandOutcome, CommandError>> {
 	Box::pin(async move {
 		ctx.editor.goto_prev_diagnostic();
 		Ok(CommandOutcome::Ok)

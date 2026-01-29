@@ -13,7 +13,7 @@
 use std::time::{Duration, Instant};
 
 use tokio::task::JoinSet;
-use xeno_registry::{BoxFuture as HookBoxFuture, HookPriority, HookScheduler};
+use xeno_registry::{HookFuture as HookBoxFuture, HookPriority, HookScheduler};
 
 /// High-water mark for pending hooks before warning.
 const HOOK_BACKLOG_HIGH_WATER: usize = 500;

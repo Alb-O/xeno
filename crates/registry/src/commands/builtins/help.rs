@@ -1,4 +1,4 @@
-use xeno_primitives::LocalBoxFuture;
+use xeno_primitives::BoxFutureLocal;
 
 use crate::command;
 use crate::commands::{CommandContext, CommandError, CommandOutcome, all_commands, find_command};
@@ -8,7 +8,7 @@ command!(help, { aliases: &["h"], description: "Show help for commands" }, handl
 
 fn cmd_help<'a>(
 	ctx: &'a mut CommandContext<'a>,
-) -> LocalBoxFuture<'a, Result<CommandOutcome, CommandError>> {
+) -> BoxFutureLocal<'a, Result<CommandOutcome, CommandError>> {
 	Box::pin(async move {
 		if let Some(cmd_name) = ctx.args.first() {
 			if let Some(cmd) = find_command(cmd_name) {

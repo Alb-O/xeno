@@ -231,7 +231,7 @@ pub use gutter::{
 };
 #[cfg(feature = "hooks")]
 pub use hooks::{
-	Bool, BoxFuture, HookAction, HookContext, HookDef, HookHandler, HookMutability, HookPriority,
+	Bool, HookAction, HookContext, HookDef, HookFuture, HookHandler, HookMutability, HookPriority,
 	HookResult, HookScheduler, MutableHookContext, OptionViewId, SplitDirection, Str, ViewId,
 	WindowId, WindowKind, emit, emit_mutable, emit_sync, emit_sync_with,
 };

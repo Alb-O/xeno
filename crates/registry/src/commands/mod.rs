@@ -36,7 +36,7 @@ pub use crate::core::{
 pub type CommandHandler =
 	for<'a> fn(
 		&'a mut CommandContext<'a>,
-	) -> xeno_primitives::LocalBoxFuture<'a, Result<CommandOutcome, CommandError>>;
+	) -> xeno_primitives::BoxFutureLocal<'a, Result<CommandOutcome, CommandError>>;
 
 /// Simplified result type for command operations.
 pub type CommandResult = Result<(), CommandError>;

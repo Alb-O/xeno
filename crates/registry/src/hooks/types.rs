@@ -28,7 +28,7 @@ pub enum HookResult {
 }
 
 /// A boxed future that returns a [`HookResult`].
-pub type BoxFuture = xeno_primitives::BoxFutureStatic<HookResult>;
+pub type HookFuture = xeno_primitives::BoxFutureStatic<HookResult>;
 
 /// Action returned by a hook handler.
 ///
@@ -38,7 +38,7 @@ pub enum HookAction {
 	/// Hook completed synchronously with the given result.
 	Done(HookResult),
 	/// Hook needs async work. The future will be awaited.
-	Async(BoxFuture),
+	Async(HookFuture),
 }
 
 impl HookAction {
