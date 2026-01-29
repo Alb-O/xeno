@@ -12,32 +12,39 @@ use crate::render::cache::RenderCache;
 use crate::window::GutterSelector;
 
 /// Result of rendering a buffer's content.
+///
+/// Contains the layout and content lines for both gutter and text columns,
+/// optimized for immediate rendering by the TUI backend.
 pub struct RenderResult {
 	/// Total width of the rendered gutter column.
 	pub gutter_width: u16,
-	/// Rendered gutter lines (length == viewport height).
+	/// Rendered gutter lines. Length matches viewport height.
 	pub gutter: Vec<Line<'static>>,
-	/// Rendered text content lines (length == viewport height).
+	/// Rendered text content lines. Length matches viewport height.
 	pub text: Vec<Line<'static>>,
 }
 
 /// Parameters for rendering a buffer.
+///
+/// This object encapsulates all configuration for a single render pass,
+/// preventing positional argument errors ("bool soup") and allowing
+/// for future extensions without breaking internal APIs.
 pub struct RenderBufferParams<'a> {
 	/// The buffer to render.
 	pub buffer: &'a Buffer,
 	/// The area to render into.
 	pub area: Rect,
-	/// Whether to use a block cursor.
+	/// Whether to use a block cursor (typically for Normal mode).
 	pub use_block_cursor: bool,
-	/// Whether the buffer is focused.
+	/// Whether the buffer should be rendered as focused (e.g. selection visibility).
 	pub is_focused: bool,
 	/// Gutter selection configuration.
 	pub gutter: GutterSelector,
 	/// Tab width override.
 	pub tab_width: usize,
-	/// Whether to highlight the cursor line.
+	/// Whether to highlight the line containing the primary cursor.
 	pub cursorline: bool,
-	/// The render cache.
+	/// The shared render cache for this pass.
 	pub cache: &'a mut RenderCache,
 }
 

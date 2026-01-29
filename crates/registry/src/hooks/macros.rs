@@ -31,7 +31,6 @@ macro_rules! __hook_param_expr {
 macro_rules! hook {
 	($name:ident, $event:ident, $priority:expr, $desc:expr, mutable |$ctx:ident| $body:expr) => {
 		paste::paste! {
-			#[allow(clippy::unused_unit)]
 			fn [<hook_handler_ $name>](
 				$ctx: &mut $crate::hooks::MutableHookContext,
 			) -> $crate::hooks::HookAction {
@@ -67,7 +66,6 @@ macro_rules! hook {
 
 	($name:ident, $event:ident, $priority:expr, $desc:expr, |$ctx:ident| $body:expr) => {
 		paste::paste! {
-			#[allow(clippy::unused_unit)]
 			fn [<hook_handler_ $name>]($ctx: &$crate::hooks::HookContext) -> $crate::hooks::HookAction {
 				let result = { $body };
 				::core::convert::Into::into(result)

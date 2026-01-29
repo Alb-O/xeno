@@ -49,6 +49,9 @@ pub struct HighlightTile {
 }
 
 /// Query parameters for retrieving highlight spans.
+///
+/// Groups all parameters needed for a highlight query into a single object
+/// to avoid "bool soup" and provide a stable interface.
 pub struct HighlightSpanQuery<'a, F>
 where
 	F: Fn(&str) -> Style,

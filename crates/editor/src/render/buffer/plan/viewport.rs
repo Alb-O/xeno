@@ -1,18 +1,33 @@
+//! Viewport layout planning.
+//!
+//! Orchestrates the mapping between visual rows in the UI and physical lines
+//! in the document, handling soft-wrapping and EOF markers.
+
+/// Type of content for a visual row.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RowKind {
-	Text { line_idx: usize, seg_idx: usize },
+	/// Row contains text from a specific document line and wrap segment.
+	Text {
+		/// The 0-based index of the physical line.
+		line_idx: usize,
+		/// The 0-based index of the wrap segment within that line.
+		seg_idx: usize,
+	},
+	/// Row is beyond the end of the document (typically rendered as '~').
 	NonTextBeyondEof,
 }
 
+/// A plan for a single visual row.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RowPlan {
+	/// The kind of content to render in this row.
 	pub kind: RowKind,
 }
 
 /// Trait for accessing wrap segment counts during viewport planning.
 ///
-/// Abstracts over different wrap data sources (closures, cache buckets, etc.)
-/// to allow the viewport planner to work with any implementation.
+/// This abstraction allows the planner to work with either cached wrap data
+/// or on-the-fly calculations without knowing the underlying implementation.
 pub trait WrapAccess {
 	/// Returns the number of segments for a given line.
 	fn segment_count(&self, line_idx: usize) -> usize;
@@ -27,16 +42,20 @@ where
 	}
 }
 
-/// Viewport rendering plan.
+/// A complete plan for a viewport's rows.
 ///
-/// Maps visual rows to document content (text or EOF markers).
+/// Maps visual rows to document content. The plan is generated once per
+/// render pass to ensure layout consistency.
 #[derive(Debug, Clone)]
 pub struct ViewportPlan {
+	/// The planned visual rows.
 	pub rows: Vec<RowPlan>,
 }
 
 impl ViewportPlan {
 	/// Creates a viewport plan using a closure for wrap counts.
+	///
+	/// Use this when wrap data is computed on-the-fly.
 	pub fn new(
 		start_line: usize,
 		start_seg: usize,
