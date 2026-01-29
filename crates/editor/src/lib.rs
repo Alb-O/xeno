@@ -35,6 +35,8 @@ pub mod commands;
 pub mod completion;
 /// Editor context and effect handling.
 pub mod editor_ctx;
+/// Execution gate for task ordering.
+pub mod execution_gate;
 /// Async hook execution runtime.
 pub mod hook_runtime;
 pub mod impls;

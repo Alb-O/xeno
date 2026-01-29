@@ -15,6 +15,8 @@ use std::time::{Duration, Instant};
 use tokio::task::JoinSet;
 use xeno_registry::{HookFuture as HookBoxFuture, HookPriority, HookScheduler};
 
+use super::execution_gate::ExecutionGate;
+
 /// High-water mark for pending hooks before warning.
 const HOOK_BACKLOG_HIGH_WATER: usize = 500;
 
@@ -55,23 +57,13 @@ pub struct HookDrainStats {
 ///
 /// Async hooks queued during sync emission are stored here and drained
 /// by the main loop (typically once per tick or after each event batch).
-///
-/// # Example
-///
-/// ```ignore
-/// let mut runtime = HookRuntime::new();
-///
-/// // During sync event handling:
-/// emit_hook_sync_with(&HookContext::new(HookEventData::EditorTick, None), &mut runtime);
-///
-/// // Later, drain queued async work with a time budget:
-/// runtime.drain_budget(Duration::from_millis(2)).await;
-/// ```
 pub struct HookRuntime {
 	/// Interactive hooks (must complete).
 	interactive: JoinSet<xeno_registry::HookResult>,
 	/// Background hooks (can be dropped under backlog).
 	background: JoinSet<xeno_registry::HookResult>,
+	/// Gate for enforcing strict ordering.
+	gate: ExecutionGate,
 	/// Total hooks scheduled (for instrumentation).
 	scheduled_total: u64,
 	/// Total hooks completed (for instrumentation).
@@ -85,6 +77,7 @@ impl Default for HookRuntime {
 		Self {
 			interactive: JoinSet::new(),
 			background: JoinSet::new(),
+			gate: ExecutionGate::new(),
 			scheduled_total: 0,
 			completed_total: 0,
 			dropped_total: 0,
@@ -134,11 +127,6 @@ impl HookRuntime {
 	}
 
 	/// Drains completions within a time and count budget.
-	///
-	/// Interactive hooks are processed first (they must complete). Background
-	/// hooks are processed only if time remains. Returns promptly when no hooks
-	/// are pending, the budget is exhausted, or no hook completes within the
-	/// remaining time.
 	pub async fn drain_budget(&mut self, budget: impl Into<HookDrainBudget>) -> HookDrainStats {
 		if !self.has_pending() {
 			return HookDrainStats::default();
@@ -177,23 +165,27 @@ impl HookRuntime {
 			}
 		}
 
-		while Instant::now() < deadline && !self.background.is_empty() && remaining > 0 {
-			let time_left = deadline.saturating_duration_since(Instant::now());
-			match tokio::time::timeout(time_left, self.background.join_next()).await {
-				Ok(Some(res)) => {
-					if let Err(e) = res {
-						tracing::error!(?e, "background hook failed");
+		if self.interactive.is_empty() {
+			let _scope = self.gate.open_background_scope();
+
+			while Instant::now() < deadline && !self.background.is_empty() && remaining > 0 {
+				let time_left = deadline.saturating_duration_since(Instant::now());
+				match tokio::time::timeout(time_left, self.background.join_next()).await {
+					Ok(Some(res)) => {
+						if let Err(e) = res {
+							tracing::error!(?e, "background hook failed");
+						}
+						self.completed_total += 1;
+						remaining = remaining.saturating_sub(1);
+						tracing::trace!(
+							completed_total = self.completed_total,
+							background_pending = self.background.len(),
+							priority = "background",
+							"hook.complete"
+						);
 					}
-					self.completed_total += 1;
-					remaining = remaining.saturating_sub(1);
-					tracing::trace!(
-						completed_total = self.completed_total,
-						background_pending = self.background.len(),
-						priority = "background",
-						"hook.complete"
-					);
+					_ => break,
 				}
-				_ => break,
 			}
 		}
 
@@ -229,9 +221,6 @@ impl HookRuntime {
 	}
 
 	/// Drains and awaits all queued async hooks concurrently.
-	///
-	/// Unlike [`drain_budget`](Self::drain_budget), this blocks until all hooks
-	/// complete. Use sparingly (e.g., at editor shutdown).
 	pub async fn drain_all(&mut self) {
 		while let Some(res) = self.interactive.join_next().await {
 			if let Err(e) = res {
@@ -239,17 +228,18 @@ impl HookRuntime {
 			}
 			self.completed_total += 1;
 		}
-		while let Some(res) = self.background.join_next().await {
-			if let Err(e) = res {
-				tracing::error!(?e, "background hook failed during drain_all");
+		{
+			let _scope = self.gate.open_background_scope();
+			while let Some(res) = self.background.join_next().await {
+				if let Err(e) = res {
+					tracing::error!(?e, "background hook failed during drain_all");
+				}
+				self.completed_total += 1;
 			}
-			self.completed_total += 1;
 		}
 	}
 
 	/// Drops all pending background hooks.
-	///
-	/// Use when the system is under severe load and background work must be shed.
 	pub fn drop_background(&mut self) {
 		let count = self.background.len();
 		if count > 0 {
@@ -267,7 +257,11 @@ impl HookScheduler for HookRuntime {
 
 		match priority {
 			HookPriority::Interactive => {
-				self.interactive.spawn(fut);
+				let guard = self.gate.enter_interactive();
+				self.interactive.spawn(async move {
+					let _guard = guard;
+					fut.await
+				});
 				tracing::trace!(
 					interactive_pending = self.interactive.len(),
 					scheduled_total = self.scheduled_total,
@@ -286,7 +280,11 @@ impl HookScheduler for HookRuntime {
 					);
 					return;
 				}
-				self.background.spawn(fut);
+				let gate = self.gate.clone();
+				self.background.spawn(async move {
+					gate.wait_for_background().await;
+					fut.await
+				});
 				tracing::trace!(
 					background_pending = self.background.len(),
 					scheduled_total = self.scheduled_total,

@@ -22,7 +22,11 @@ impl WorkScheduler {
 
 		match item.priority {
 			HookPriority::Interactive => {
-				self.interactive.spawn(item.future);
+				let guard = self.gate.enter_interactive();
+				self.interactive.spawn(async move {
+					let _guard = guard;
+					item.future.await;
+				});
 				tracing::trace!(
 					interactive_pending = self.interactive.len(),
 					kind = ?item.kind,
@@ -46,7 +50,11 @@ impl WorkScheduler {
 					);
 					return;
 				}
-				self.background.spawn(item.future);
+				let gate = self.gate.clone();
+				self.background.spawn(async move {
+					gate.wait_for_background().await;
+					item.future.await;
+				});
 				tracing::trace!(
 					background_pending = self.background.len(),
 					kind = ?item.kind,
@@ -133,17 +141,21 @@ impl WorkScheduler {
 			}
 		}
 
-		while Instant::now() < deadline && !self.background.is_empty() {
-			let remaining = deadline.saturating_duration_since(Instant::now());
-			match tokio::time::timeout(remaining, self.background.join_next()).await {
-				Ok(Some(Ok(()))) => {
-					self.completed_total += 1;
+		if self.interactive.is_empty() {
+			let _scope = self.gate.open_background_scope();
+
+			while Instant::now() < deadline && !self.background.is_empty() {
+				let remaining = deadline.saturating_duration_since(Instant::now());
+				match tokio::time::timeout(remaining, self.background.join_next()).await {
+					Ok(Some(Ok(()))) => {
+						self.completed_total += 1;
+					}
+					Ok(Some(Err(e))) => {
+						self.completed_total += 1;
+						tracing::error!(?e, "background work task failed");
+					}
+					_ => break,
 				}
-				Ok(Some(Err(e))) => {
-					self.completed_total += 1;
-					tracing::error!(?e, "background work task failed");
-				}
-				_ => break,
 			}
 		}
 
@@ -180,11 +192,14 @@ impl WorkScheduler {
 			}
 			self.completed_total += 1;
 		}
-		while let Some(res) = self.background.join_next().await {
-			if let Err(e) = res {
-				tracing::error!(?e, "background work task failed during drain_all");
+		{
+			let _scope = self.gate.open_background_scope();
+			while let Some(res) = self.background.join_next().await {
+				if let Err(e) = res {
+					tracing::error!(?e, "background work task failed during drain_all");
+				}
+				self.completed_total += 1;
 			}
-			self.completed_total += 1;
 		}
 	}
 

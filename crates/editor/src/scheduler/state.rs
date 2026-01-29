@@ -2,6 +2,7 @@ use std::collections::HashMap;
 
 use tokio::task::JoinSet;
 
+use super::super::execution_gate::ExecutionGate;
 use super::types::{DocId, WorkKind};
 
 /// Unified scheduler for async work.
@@ -13,6 +14,8 @@ pub struct WorkScheduler {
 	pub(super) interactive: JoinSet<()>,
 	/// Background work (can be dropped).
 	pub(super) background: JoinSet<()>,
+	/// Gate for enforcing strict ordering.
+	pub(super) gate: ExecutionGate,
 	/// Pending work items by (doc_id, kind) for cancellation.
 	pub(super) pending_by_doc: HashMap<(DocId, WorkKind), usize>,
 	/// Total work scheduled.
@@ -34,6 +37,7 @@ impl Default for WorkScheduler {
 		Self {
 			interactive: JoinSet::new(),
 			background: JoinSet::new(),
+			gate: ExecutionGate::new(),
 			pending_by_doc: HashMap::new(),
 			scheduled_total: 0,
 			completed_total: 0,
