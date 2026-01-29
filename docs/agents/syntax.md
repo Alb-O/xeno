@@ -9,7 +9,7 @@ Hard invariants
 * UI thread never blocks on parsing.
 * single-flight per DocumentId: max 1 parse task running per doc.
 * bounded global concurrency: max N parse tasks running across docs (semaphore).
-* install discipline: parse result installs only if parse_version == doc.current_version at install time.
+* install discipline: always install the last completed parse to avoid "never highlighted" behavior; the document remains marked as "syntax dirty" until a parse result matches the current document version.
 * no abort storms: edits do not abort running spawn_blocking parses; edits set dirty and schedule follow-up.
 * cooldown after failures/timeouts: prevent retry loops.
 
@@ -95,7 +95,7 @@ Policy is pure function:
 Hotness semantics
 
 * Visible: doc currently rendered; parse allowed; retention keep.
-* Warm: not rendered but likely soon; retention treated like Visible (extend last_visible_at), parsing typically not allowed unless explicitly configured.
+* Warm: not rendered but likely soon; retention treated like Visible (extend last_visible_at); parsing typically disallowed (counts as hidden for parsing gating).
 * Cold: hidden; retention applies; parsing typically disallowed.
 
 ## 4. SyntaxManager scheduler
@@ -141,8 +141,7 @@ Algorithm (ensure_syntax)
    * if inflight exists and not finished => Pending
    * if finished => join via now_or_never (no executor); handle result:
 
-     * Ok(syntax) and version matches => install, clear dirty, clear cooldown, Ready
-     * Ok(syntax) stale => discard; keep dirty
+     * Ok(syntax): install result into slot.current. If version matches => clear dirty, clear cooldown, Ready. Else => keep dirty (stale results are better than none).
      * Err(Timeout) => set cooldown_until = now + cfg.cooldown_on_timeout; CoolingDown
      * Err(other) => set cooldown_until = now + cfg.cooldown_on_error; CoolingDown
      * JoinError => set cooldown_until similarly; CoolingDown
@@ -220,22 +219,6 @@ Bundle-first load order
 4. cache: ~/.cache/xeno/grammars
 5. helix runtime dirs
 
-JIT fallback
-
-* only if grammar not found in above search paths
-* JIT can be disabled via env var:
-
-  * XENO_DISABLE_JIT_GRAMMARS=1 => return GrammarError::JitDisabled
-* build failures must be surfaced distinctly:
-
-  * GrammarError::BuildFailed (not NotFound)
-
-Build mechanics
-
-* fetch grammar repo (pinned rev preferred)
-* compile via cc crate into shared library in cache/build dir
-* load produced dylib via libloading
-
 ## 8. Incremental updates (ChangeSet -> InputEdit)
 
 * convert ChangeSet ops into Vec<InputEdit>
@@ -276,4 +259,3 @@ Done criteria
 * cargo check + full tests pass
 * open 2MB file: no UI stalls, retries occur after idle, injections disabled
 * run without system compiler + missing grammar bundle: clean JitDisabled error (no crash, no loop)
-

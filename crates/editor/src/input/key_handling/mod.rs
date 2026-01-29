@@ -105,9 +105,11 @@ impl Editor {
 				KeyResult::ModeChange(new_mode) => {
 					let leaving_insert = !matches!(new_mode, Mode::Insert);
 					if new_mode != old_mode {
-						let mut layers = std::mem::take(&mut self.state.overlay_system.layers);
-						layers.notify_event(self, crate::overlay::LayerEvent::ModeChanged);
-						self.state.overlay_system.layers = layers;
+						let view = self.focused_view();
+						self.notify_overlay_event(crate::overlay::LayerEvent::ModeChanged {
+							view,
+							mode: new_mode.clone(),
+						});
 						emit_hook(&HookContext::new(HookEventData::ModeChange {
 							old_mode,
 							new_mode: new_mode.clone(),

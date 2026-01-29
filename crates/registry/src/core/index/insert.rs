@@ -1,6 +1,6 @@
 use super::collision::{ChooseWinner, Collision, KeyKind, KeyStore};
 use crate::RegistryEntry;
-use crate::error::{InsertAction, InsertFatal};
+use crate::error::{InsertAction, InsertFatal, RegistryError};
 
 /// Inserts a key with proper invariant checking.
 pub fn insert_typed_key<T: RegistryEntry + 'static>(
@@ -67,4 +67,45 @@ pub fn insert_typed_key<T: RegistryEntry + 'static>(
 			}
 		}
 	}
+}
+
+/// Inserts an ID key with runtime override support.
+pub fn insert_id_key_runtime<T: RegistryEntry + 'static>(
+	store: &mut dyn KeyStore<T>,
+	registry_label: &'static str,
+	choose_winner: ChooseWinner<T>,
+	id: &'static str,
+	def: &'static T,
+) -> Result<InsertAction, RegistryError> {
+	let existing = store.get_id_owner(id);
+
+	let Some(existing) = existing else {
+		store.insert_id(id, def);
+		return Ok(InsertAction::InsertedNew);
+	};
+
+	if std::ptr::eq(existing, def) {
+		return Ok(InsertAction::KeptExisting);
+	}
+
+	let new_wins = choose_winner(KeyKind::Id, id, existing, def);
+	let (action, winner_id) = if new_wins {
+		store.evict_def(existing);
+		store.set_id_owner(id, def);
+		(InsertAction::ReplacedExisting, def.id())
+	} else {
+		(InsertAction::KeptExisting, existing.id())
+	};
+
+	store.push_collision(Collision {
+		kind: KeyKind::Id,
+		key: id,
+		existing_id: existing.id(),
+		new_id: def.id(),
+		winner_id,
+		action,
+		registry: registry_label,
+	});
+
+	Ok(action)
 }

@@ -50,7 +50,7 @@ impl SearchOverlay {
 			.capture
 			.per_view
 			.get(&self.target)
-			.map(|(c, _)| *c)
+			.map(|(_, c, _)| *c)
 			.unwrap_or(buffer.cursor);
 
 		buffer.with_doc(|doc| {
@@ -205,7 +205,7 @@ impl OverlayController for SearchOverlay {
 			.capture
 			.per_view
 			.get(&self.target)
-			.map(|(c, _)| *c)
+			.map(|(_, c, _)| *c)
 			.unwrap_or(0);
 
 		let result = ed.state.core.buffers.get_buffer(self.target).map(|b| {

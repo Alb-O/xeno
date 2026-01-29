@@ -37,8 +37,8 @@ pub struct OverlaySession {
 /// Storage for buffer states captured before transient changes.
 #[derive(Default)]
 pub struct PreviewCapture {
-	/// Mapping of view ID to (cursor position, selection).
-	pub per_view: HashMap<ViewId, (CharIdx, Selection)>,
+	/// Mapping of view ID to (version, cursor position, selection).
+	pub per_view: HashMap<ViewId, (u64, CharIdx, Selection)>,
 }
 
 /// Metadata about the current session status.
@@ -78,7 +78,7 @@ impl OverlaySession {
 		if let Some(buffer) = ed.state.core.buffers.get_buffer(view) {
 			self.capture
 				.per_view
-				.insert(view, (buffer.cursor, buffer.selection.clone()));
+				.insert(view, (buffer.version(), buffer.cursor, buffer.selection.clone()));
 		}
 	}
 
@@ -88,8 +88,8 @@ impl OverlaySession {
 		if let Some(buffer) = ed.state.core.buffers.get_buffer_mut(view) {
 			let start = range.min();
 			let end = range.max();
-			buffer.set_cursor(start);
-			buffer.set_selection(Selection::single(start, end));
+			let selection = Selection::single(start, end);
+			buffer.set_cursor_and_selection(start, selection);
 		}
 	}
 
@@ -98,10 +98,13 @@ impl OverlaySession {
 	/// This is non-destructive; the capture map remains intact until
 	/// [`Self::clear_capture`] is called.
 	pub fn restore_all(&self, ed: &mut Editor) {
-		for (view, (cursor, selection)) in &self.capture.per_view {
+		for (view, (version, cursor, selection)) in &self.capture.per_view {
 			if let Some(buffer) = ed.state.core.buffers.get_buffer_mut(*view) {
-				buffer.set_cursor(*cursor);
-				buffer.set_selection(selection.clone());
+				// Only restore if the buffer hasn't been modified since capture.
+				// This prevents clobbering user edits that happened while the overlay was open.
+				if buffer.version() == *version {
+					buffer.set_cursor_and_selection(*cursor, selection.clone());
+				}
 			}
 		}
 	}
@@ -119,5 +122,19 @@ impl OverlaySession {
 	/// Clears the session status message.
 	pub fn clear_status(&mut self) {
 		self.status.message = None;
+	}
+
+	/// Cleans up all resources allocated for the session.
+	///
+	/// Closes floating windows first, then removes scratch buffers.
+	/// Safe to call multiple times.
+	pub fn teardown(&mut self, ed: &mut Editor) {
+		for window_id in self.windows.drain(..) {
+			ed.close_floating_window(window_id);
+		}
+		for buffer_id in self.buffers.drain(..) {
+			ed.finalize_buffer_removal(buffer_id);
+		}
+		self.clear_capture();
 	}
 }

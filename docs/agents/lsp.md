@@ -27,6 +27,7 @@ Two-layer LSP stack; transport/client core is editor-agnostic, editor owns doc s
 * Contiguity is explicit: each commit carries `(prev_version, new_version)`; mismatch => force full.
 * Incremental chain is valid or discarded: if you can’t prove “server baseline version + contiguous commits”, you full-sync.
 * “Clean” means “no unsent local deltas” (transmitted), not “server processed notification” (not observable for notifications).
+* Path normalization: all LSP operations (open, save, close, requests) must use canonical absolute paths to ensure consistent document identity.
 
 ---
 
@@ -61,20 +62,21 @@ src/
     event_handler.rs   // LspEventHandler trait + NoOpEventHandler
 ```
 
-### `crates/editor/src/lsp/`
+### `crates/editor/src/lsp/` (Current Implementation)
+
+The integration root in the editor is `LspSystem`, which wraps `xeno_lsp::LspManager`.
 
 ```
 src/lsp/
-  mod.rs               // LspManager: integration root
-  system.rs            // LspSystem: top-level coordinator (owns managers + controllers)
-  sync_manager.rs      // doc sync policy + state machine (thresholds inline)
-  events.rs            // LspUiEvent fanout
+  mod.rs               // Module exports and UI event routing
+  system.rs            // LspSystem: top-level coordinator
+  sync_manager.rs      // doc sync policy + state machine
+  events.rs            // LspUiEvent fanout and completion/signature application
   diagnostics.rs       // diagnostic navigation
-  completion.rs        // completion lifecycle + application
-  completion_controller.rs // debounce + cancellation
+  completion.rs        // completion triggering and application logic
   completion_filter.rs // fuzzy matching
   code_action.rs       // code action menu
-  signature_help.rs    // function signature display
+  signature_help.rs    // signature help logic
   menu.rs              // shared navigation logic
   snippet.rs           // LSP snippet parsing
   workspace_edit.rs    // multi-file edit application
@@ -320,6 +322,7 @@ Registry:
 6. Dedupe: one server per `(language, root_path)` (registry).
 7. Timeout safety: inflight write timeout breaks deadlocks.
 8. Backpressure resilience: bounded outbox + retry scheduling.
+9. Path normalization: always canonicalize absolute paths for document identity.
 
 ---
 

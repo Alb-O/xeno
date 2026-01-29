@@ -4,7 +4,7 @@ use std::sync::Arc;
 use arc_swap::ArcSwap;
 use rustc_hash::FxHashMap as HashMap;
 
-use crate::core::index::insert::insert_typed_key;
+use crate::core::index::insert::{insert_id_key_runtime, insert_typed_key};
 use crate::core::index::{
 	ChooseWinner, Collision, DuplicatePolicy, KeyKind, KeyStore, RegistryIndex,
 };
@@ -296,45 +296,6 @@ impl HooksRegistry {
 	}
 }
 
-fn insert_id_key_runtime(
-	store: &mut SnapshotStore<'_>,
-	registry_label: &'static str,
-	choose_winner: ChooseWinner<HookDef>,
-	id: &'static str,
-	def: &'static HookDef,
-) -> Result<InsertAction, RegistryError> {
-	let existing = store.snap.by_id.get(id).copied();
-
-	let Some(existing) = existing else {
-		store.snap.by_id.insert(id, def);
-		return Ok(InsertAction::InsertedNew);
-	};
-
-	if std::ptr::eq(existing, def) {
-		return Ok(InsertAction::KeptExisting);
-	}
-
-	let new_wins = choose_winner(KeyKind::Id, id, existing, def);
-	let (action, winner_id) = if new_wins {
-		store.snap.by_id.insert(id, def);
-		(InsertAction::ReplacedExisting, def.id())
-	} else {
-		(InsertAction::KeptExisting, existing.id())
-	};
-
-	store.snap.collisions.push(Collision {
-		kind: KeyKind::Id,
-		key: id,
-		existing_id: existing.id(),
-		new_id: def.id(),
-		winner_id,
-		action,
-		registry: registry_label,
-	});
-
-	Ok(action)
-}
-
 struct SnapshotStore<'a> {
 	snap: &'a mut HooksSnapshot,
 }
@@ -359,6 +320,17 @@ impl KeyStore<HookDef> for SnapshotStore<'_> {
 				None
 			}
 			std::collections::hash_map::Entry::Occupied(o) => Some(*o.get()),
+		}
+	}
+
+	fn set_id_owner(&mut self, id: &'static str, def: &'static HookDef) {
+		self.snap.by_id.insert(id, def);
+	}
+
+	fn evict_def(&mut self, def: &'static HookDef) {
+		self.snap.by_key.retain(|_, &mut v| !std::ptr::eq(v, def));
+		for hooks in self.snap.by_event.values_mut() {
+			hooks.retain(|&v| !std::ptr::eq(v, def));
 		}
 	}
 

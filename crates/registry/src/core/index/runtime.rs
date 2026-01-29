@@ -4,7 +4,7 @@ use std::sync::Arc;
 use arc_swap::ArcSwap;
 
 use super::collision::{ChooseWinner, Collision, DuplicatePolicy, KeyKind, KeyStore};
-use super::insert::insert_typed_key;
+use super::insert::{insert_id_key_runtime, insert_typed_key};
 use super::types::{Map, RegistryIndex};
 use crate::RegistryEntry;
 use crate::error::{InsertAction, RegistryError};
@@ -361,46 +361,6 @@ impl<T: RegistryEntry + 'static> RuntimeRegistry<T> {
 	}
 }
 
-/// Inserts an ID key with runtime override support.
-fn insert_id_key_runtime<T: RegistryEntry + 'static>(
-	store: &mut SnapshotStore<'_, T>,
-	registry_label: &'static str,
-	choose_winner: ChooseWinner<T>,
-	id: &'static str,
-	def: &'static T,
-) -> Result<InsertAction, RegistryError> {
-	let existing = store.snap.by_id.get(id).copied();
-
-	let Some(existing) = existing else {
-		store.snap.by_id.insert(id, def);
-		return Ok(InsertAction::InsertedNew);
-	};
-
-	if std::ptr::eq(existing, def) {
-		return Ok(InsertAction::KeptExisting);
-	}
-
-	let new_wins = choose_winner(KeyKind::Id, id, existing, def);
-	let (action, winner_id) = if new_wins {
-		store.snap.by_id.insert(id, def);
-		(InsertAction::ReplacedExisting, def.id())
-	} else {
-		(InsertAction::KeptExisting, existing.id())
-	};
-
-	store.snap.collisions.push(Collision {
-		kind: KeyKind::Id,
-		key: id,
-		existing_id: existing.id(),
-		new_id: def.id(),
-		winner_id,
-		action,
-		registry: registry_label,
-	});
-
-	Ok(action)
-}
-
 /// KeyStore over Snapshot for shared insertion logic.
 struct SnapshotStore<'a, T: RegistryEntry + 'static> {
 	snap: &'a mut Snapshot<T>,
@@ -427,6 +387,14 @@ impl<T: RegistryEntry + 'static> KeyStore<T> for SnapshotStore<'_, T> {
 			}
 			std::collections::hash_map::Entry::Occupied(o) => Some(*o.get()),
 		}
+	}
+
+	fn set_id_owner(&mut self, id: &'static str, def: &'static T) {
+		self.snap.by_id.insert(id, def);
+	}
+
+	fn evict_def(&mut self, def: &'static T) {
+		self.snap.by_key.retain(|_, &mut v| !std::ptr::eq(v, def));
 	}
 
 	fn push_collision(&mut self, c: Collision) {

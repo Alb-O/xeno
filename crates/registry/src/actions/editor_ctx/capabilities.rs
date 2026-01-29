@@ -48,6 +48,8 @@ use crate::options::{OptionKey, TypedOptionKey};
 /// Provides read/write access to the primary cursor position in the document.
 /// The cursor is a character index (not byte offset).
 pub trait CursorAccess {
+	/// Returns the identifier of the currently focused view.
+	fn focused_view(&self) -> crate::hooks::ViewId;
 	/// Returns the current cursor position as a character index.
 	fn cursor(&self) -> CharIdx;
 	/// Returns the cursor line and column, if available.

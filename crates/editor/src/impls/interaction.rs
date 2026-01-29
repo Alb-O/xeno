@@ -78,6 +78,13 @@ impl Editor {
 		result
 	}
 
+	/// Broadcasts an event to all passive overlay layers.
+	pub fn notify_overlay_event(&mut self, event: crate::overlay::LayerEvent) {
+		let mut layers = std::mem::take(&mut self.state.overlay_system.layers);
+		layers.notify_event(self, event);
+		self.state.overlay_system.layers = layers;
+	}
+
 	/// Ensures the cursor is visible in the specified view, scrolling if necessary.
 	///
 	/// Synchronizes the viewport visibility logic with the render pipeline by

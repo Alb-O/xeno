@@ -97,6 +97,11 @@ impl LspSystem {
 		self.inner.manager.documents()
 	}
 
+	fn canonicalize_path(&self, path: &std::path::Path) -> std::path::PathBuf {
+		path.canonicalize()
+			.unwrap_or_else(|_| std::env::current_dir().unwrap_or_default().join(path))
+	}
+
 	pub async fn on_buffer_open(
 		&self,
 		buffer: &Buffer,
@@ -112,9 +117,7 @@ impl LspSystem {
 			return Ok(None);
 		}
 
-		let abs_path = path
-			.canonicalize()
-			.unwrap_or_else(|_| std::env::current_dir().unwrap_or_default().join(&path));
+		let abs_path = self.canonicalize_path(&path);
 
 		let content = buffer.with_doc(|doc| doc.content().clone());
 		let client = self
@@ -125,22 +128,24 @@ impl LspSystem {
 	}
 
 	pub fn on_buffer_will_save(&self, buffer: &Buffer) -> xeno_lsp::Result<()> {
-		let Some(path) = &buffer.path() else {
+		let Some(path) = buffer.path() else {
 			return Ok(());
 		};
-		let Some(language) = &buffer.file_type() else {
+		let Some(language) = buffer.file_type() else {
 			return Ok(());
 		};
-		self.sync().notify_will_save(path, language)
+		let abs_path = self.canonicalize_path(&path);
+		self.sync().notify_will_save(&abs_path, &language)
 	}
 
 	pub fn on_buffer_did_save(&self, buffer: &Buffer, include_text: bool) -> xeno_lsp::Result<()> {
-		let Some(path) = &buffer.path() else {
+		let Some(path) = buffer.path() else {
 			return Ok(());
 		};
-		let Some(language) = &buffer.file_type() else {
+		let Some(language) = buffer.file_type() else {
 			return Ok(());
 		};
+		let abs_path = self.canonicalize_path(&path);
 		let text = buffer.with_doc(|doc| {
 			if include_text {
 				Some(doc.content().clone())
@@ -149,17 +154,18 @@ impl LspSystem {
 			}
 		});
 		self.sync()
-			.notify_did_save(path, language, include_text, text.as_ref())
+			.notify_did_save(&abs_path, &language, include_text, text.as_ref())
 	}
 
 	pub fn on_buffer_close(&self, buffer: &Buffer) -> xeno_lsp::Result<()> {
-		let Some(path) = &buffer.path() else {
+		let Some(path) = buffer.path() else {
 			return Ok(());
 		};
-		let Some(language) = &buffer.file_type() else {
+		let Some(language) = buffer.file_type() else {
 			return Ok(());
 		};
-		self.sync().close_document(path, language)
+		let abs_path = self.canonicalize_path(&path);
+		self.sync().close_document(&abs_path, &language)
 	}
 
 	pub fn get_diagnostics(&self, buffer: &Buffer) -> Vec<xeno_lsp::lsp_types::Diagnostic> {
@@ -211,9 +217,7 @@ impl LspSystem {
 			return Ok(None);
 		};
 
-		let abs_path = path
-			.canonicalize()
-			.unwrap_or_else(|_| std::env::current_dir().unwrap_or_default().join(&path));
+		let abs_path = self.canonicalize_path(&path);
 
 		let Some(client) = self.sync().registry().get(&language, &abs_path) else {
 			return Ok(None);

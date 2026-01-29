@@ -44,6 +44,10 @@ impl Editor {
 	/// after `replace_start` (allowing continued typing without dismissing the menu).
 	/// Stale results from cancelled requests are silently discarded.
 	fn handle_lsp_ui_event(&mut self, event: LspUiEvent) {
+		if self.state.overlay_system.interaction.is_open() {
+			return;
+		}
+
 		match event {
 			LspUiEvent::CompletionResult {
 				generation,

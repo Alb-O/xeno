@@ -86,6 +86,11 @@ impl<'a> EditorContext<'a> {
 		Self { inner }
 	}
 
+	/// Returns the identifier of the currently focused view.
+	pub fn focused_view(&self) -> crate::hooks::ViewId {
+		self.inner.focused_view()
+	}
+
 	/// Returns the current cursor position as a character index.
 	pub fn cursor(&self) -> CharIdx {
 		self.inner.cursor()
@@ -104,6 +109,11 @@ impl<'a> EditorContext<'a> {
 	/// Returns a reference to the current selection.
 	pub fn selection(&self) -> &Selection {
 		self.inner.selection()
+	}
+
+	/// Returns a mutable reference as `dyn Any` for downcasting.
+	pub fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
+		self.inner.as_any_mut()
 	}
 
 	/// Sets the current selection.
@@ -282,6 +292,9 @@ impl<'a> EditorContext<'a> {
 pub trait EditorCapabilities:
 	CursorAccess + SelectionAccess + ModeAccess + NotificationAccess
 {
+	/// Returns a mutable reference as `dyn Any` for downcasting.
+	fn as_any_mut(&mut self) -> &mut dyn std::any::Any;
+
 	/// Access to search operations (optional).
 	fn search(&mut self) -> Option<&mut dyn SearchAccess> {
 		None

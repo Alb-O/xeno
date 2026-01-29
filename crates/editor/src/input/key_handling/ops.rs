@@ -137,6 +137,8 @@ impl Editor {
 			}
 			buffer.sync_cursor_to_selection();
 			buffer.establish_goal_column();
+			let view = self.focused_view();
+			self.notify_overlay_event(crate::overlay::LayerEvent::CursorMoved { view });
 		}
 	}
 
@@ -151,6 +153,8 @@ impl Editor {
 			let anchor = buffer.selection.primary().anchor;
 			buffer.set_selection(Selection::single(anchor, doc_pos));
 			buffer.sync_cursor_to_selection();
+			let view = self.focused_view();
+			self.notify_overlay_event(crate::overlay::LayerEvent::CursorMoved { view });
 		}
 	}
 }

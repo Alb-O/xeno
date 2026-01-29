@@ -52,7 +52,7 @@ pub enum WindowRole {
 	/// A preview of the selected item's content.
 	Preview,
 	/// Custom application-specific role.
-	Custom,
+	Custom(&'static str),
 }
 
 /// Policy for calculating the screen area of an overlay window.
@@ -78,7 +78,10 @@ pub enum RectPolicy {
 impl RectPolicy {
 	/// Resolves the policy into a concrete [`Rect`] based on the screen size
 	/// and already resolved window roles.
-	pub fn resolve(&self, screen: Rect, roles: &HashMap<WindowRole, Rect>) -> Rect {
+	///
+	/// Clamps the resulting area to ensure it stays within the screen bounds.
+	/// Returns `None` if an anchor role required for relative positioning is missing.
+	pub fn resolve_opt(&self, screen: Rect, roles: &HashMap<WindowRole, Rect>) -> Option<Rect> {
 		match self {
 			Self::TopCenter {
 				width_percent,
@@ -88,17 +91,103 @@ impl RectPolicy {
 				height,
 			} => {
 				let width = (screen.width * width_percent / 100).clamp(*min_width, *max_width);
+				let width = width.min(screen.width);
 				let x = (screen.width.saturating_sub(width)) / 2;
-				let y = screen.height * y_frac.0 / y_frac.1;
-				Rect::new(x, y, width, *height)
+
+				let y_base = screen.height * y_frac.0 / y_frac.1;
+				let height = (*height).min(screen.height);
+				let y = if y_base + height > screen.height {
+					screen.height.saturating_sub(height)
+				} else {
+					y_base
+				};
+
+				Some(Rect::new(x, y, width, height))
 			}
 			Self::Below(role, offset_y, height) => {
-				if let Some(r) = roles.get(role) {
-					Rect::new(r.x, r.y + r.height + offset_y, r.width, *height)
-				} else {
-					Rect::default()
+				let r = roles.get(role)?;
+				let x = r.x;
+				let width = r.width;
+
+				let y_base = r.y + r.height + offset_y;
+				let height = (*height).min(screen.height.saturating_sub(y_base).max(0) as u16);
+				if height == 0 {
+					return None;
 				}
+
+				Some(Rect::new(x, y_base, width, height))
 			}
 		}
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+
+	#[test]
+	fn test_rect_policy_top_center_clamping() {
+		let screen = Rect::new(0, 0, 100, 50);
+		let roles = HashMap::new();
+		let policy = RectPolicy::TopCenter {
+			width_percent: 50,
+			max_width: 80,
+			min_width: 20,
+			y_frac: (1, 4),
+			height: 10,
+		};
+
+		let rect = policy.resolve_opt(screen, &roles).unwrap();
+		assert_eq!(rect.width, 50);
+		assert_eq!(rect.x, 25);
+		assert_eq!(rect.y, 12);
+		assert_eq!(rect.height, 10);
+
+		// Oversized width
+		let policy_oversized = RectPolicy::TopCenter {
+			width_percent: 150,
+			max_width: 200,
+			min_width: 20,
+			y_frac: (1, 4),
+			height: 10,
+		};
+		let rect_oversized = policy_oversized.resolve_opt(screen, &roles).unwrap();
+		assert_eq!(rect_oversized.width, 100);
+		assert_eq!(rect_oversized.x, 0);
+
+		// Oversized height
+		let policy_tall = RectPolicy::TopCenter {
+			width_percent: 50,
+			max_width: 80,
+			min_width: 20,
+			y_frac: (3, 4),
+			height: 20,
+		};
+		let rect_tall = policy_tall.resolve_opt(screen, &roles).unwrap();
+		assert!(rect_tall.y + rect_tall.height <= 50);
+	}
+
+	#[test]
+	fn test_rect_policy_below_missing_anchor() {
+		let screen = Rect::new(0, 0, 100, 50);
+		let roles = HashMap::new();
+		let policy = RectPolicy::Below(WindowRole::Input, 1, 5);
+
+		assert!(policy.resolve_opt(screen, &roles).is_none());
+	}
+
+	#[test]
+	fn test_rect_policy_below_clamping() {
+		let screen = Rect::new(0, 0, 100, 50);
+		let mut roles = HashMap::new();
+		roles.insert(WindowRole::Input, Rect::new(10, 40, 80, 5));
+
+		let policy = RectPolicy::Below(WindowRole::Input, 2, 10);
+		let rect = policy.resolve_opt(screen, &roles).unwrap();
+
+		assert_eq!(rect.x, 10);
+		assert_eq!(rect.width, 80);
+		assert_eq!(rect.y, 47);
+		assert_eq!(rect.height, 3); // 50 - 47
 	}
 }

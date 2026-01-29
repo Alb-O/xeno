@@ -59,7 +59,7 @@ impl OverlayHost {
 		session.buffers.push(input_buffer);
 
 		let mut roles = std::collections::HashMap::new();
-		let input_rect = spec.rect.resolve(screen, &roles);
+		let input_rect = spec.rect.resolve_opt(screen, &roles)?;
 		roles.insert(super::WindowRole::Input, input_rect);
 
 		let window_id = ed.create_floating_window(input_buffer, input_rect, spec.style);
@@ -82,7 +82,10 @@ impl OverlayHost {
 				}
 			}
 
-			let rect = win_spec.rect.resolve(screen, &roles);
+			let rect = match win_spec.rect.resolve_opt(screen, &roles) {
+				Some(r) => r,
+				None => continue,
+			};
 			roles.insert(win_spec.role, rect);
 
 			let win_id = ed.create_floating_window(buffer_id, rect, win_spec.style);
@@ -130,12 +133,7 @@ impl OverlayHost {
 			session.restore_all(ed);
 		}
 
-		for window_id in session.windows {
-			ed.close_floating_window(window_id);
-		}
-		for buffer_id in session.buffers {
-			ed.finalize_buffer_removal(buffer_id);
-		}
+		session.teardown(ed);
 
 		// Restore original state
 		ed.state.focus = session.origin_focus;

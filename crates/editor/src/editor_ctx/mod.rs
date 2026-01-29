@@ -38,7 +38,10 @@ pub fn apply_effects(
 		match effect {
 			Effect::View(view) => {
 				apply_view_effect(view, ctx, extend);
-				// TODO: notify overlay system about cursor moves
+				let view_id = ctx.focused_view();
+				if let Some(ed) = ctx.as_any_mut().downcast_mut::<crate::impls::Editor>() {
+					ed.notify_overlay_event(crate::overlay::LayerEvent::CursorMoved { view: view_id.into() });
+				}
 			}
 			Effect::Edit(edit) => apply_edit_effect(edit, ctx),
 			Effect::Ui(ui) => apply_ui_effect(ui, ctx),

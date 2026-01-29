@@ -71,9 +71,9 @@ Key routing priority (typical call pattern)
 3) If nobody consumes:
    - normal editor keymap executes.
 
-Event routing (cursor moved, mode changed, buffer edited)
+Event routing (cursor moved, mode changed, buffer edited, focus changed)
 - The editor emits LayerEvent values into OverlayLayers::notify_event(...)
-- Layers decide whether to update/dismiss based on event.
+- Layers decide whether to update/dismiss based on event and its payload.
 
 State sharing
 - OverlayStore is a global type-erased map used by layers and the editor to stash overlay-related state (completion model, signature help snapshot, info popup queue, etc).
@@ -152,6 +152,7 @@ Setup path: setup_session(ed, controller) -> Option<OverlaySession>
    - origin_mode: Mode (mode of focused buffer at open)
 4) Allocates scratch buffers and windows:
    - Primary input buffer/window is created from OverlayUiSpec rect/style/gutter.
+   - Primary input window is always sticky and dismiss-on-blur.
    - Auxiliary windows are created from OverlayUiSpec.windows (WindowSpec list).
    - Buffer-local options from WindowSpec.buffer_options are applied via set_by_kdl.
 5) Focuses primary input and forces its buffer mode to Insert.
@@ -160,8 +161,8 @@ Setup path: setup_session(ed, controller) -> Option<OverlaySession>
 Cleanup path: cleanup_session(ed, controller, session, reason)
 1) controller.on_close(ed, &mut session, reason)
 2) If reason != Commit:
-   - session.restore_all(ed) restores captured cursor/selection for any preview-mutated views.
-3) Closes floating windows and removes scratch buffers.
+   - session.restore_all(ed) restores captured cursor/selection for any preview-mutated views if buffer version matches.
+3) session.teardown(ed) closes floating windows and removes scratch buffers.
 4) Restores:
    - ed.state.focus = session.origin_focus
    - origin_view buffer mode = session.origin_mode
@@ -191,7 +192,8 @@ Restoration:
 - origin_view: ViewId
 
 Transient preview capture:
-- capture: PreviewCapture { per_view: HashMap<ViewId, (CharIdx, Selection)> }
+- capture: PreviewCapture { per_view: HashMap<ViewId, (u64, CharIdx, Selection)> }
+- Stores buffer version to prevent clobbering user edits during restoration.
 
 Status:
 - status: OverlayStatus { message: Option<(StatusKind, String)> }
@@ -200,16 +202,17 @@ Status:
 Session APIs used by controllers:
 - input_text(ed) -> String
 - capture_view(ed, view)
-- preview_select(ed, view, range) (captures then sets cursor+selection)
-- restore_all(ed) (non-destructive)
+- preview_select(ed, view, range) (captures then sets cursor+selection atomically)
+- restore_all(ed) (non-destructive; version-aware)
 - clear_capture()
+- teardown(ed) (resource cleanup)
 - set_status(kind, msg)
 - clear_status()
 
 Invariants and usage rules:
 - Any controller that mutates a non-input view for preview must call capture_view() first (or use preview_select()).
 - restore_all() is intended for cancel paths and “clear input restores origin” behavior.
-- clear_capture() is only needed if a controller wants to intentionally drop the origin snapshot while keeping the session alive. Most controllers never call it because sessions are torn down on close.
+- teardown() must be called to ensure resource cleanup.
 
 ### OverlayLayers (passive/inline lane)
 
@@ -233,11 +236,12 @@ Screen rect:
 - OverlayLayers::render resolves the screen rect from viewport width/height and passes it to each layer layout().
 
 LayerEvent:
-- CursorMoved
-- ModeChanged
+- CursorMoved { view: ViewId }
+- ModeChanged { view: ViewId, mode: Mode }
 - BufferEdited(ViewId)
+- FocusChanged { from: FocusTarget, to: FocusTarget }
 
-The editor is responsible for emitting LayerEvent(s) at the appropriate places in the input/mode/mutation pipeline.
+The editor is responsible for emitting LayerEvent(s) via Editor::notify_overlay_event().
 
 ### OverlayLayer (passive/inline behavior)
 
@@ -245,7 +249,7 @@ Trait defined in crates/editor/src/overlay/mod.rs.
 
 Responsibilities:
 - is_visible(ed) -> bool (cheap; called often)
-- layout(ed, screen) -> Option<Rect> (compute placement)
+- layout(ed, screen) -> Option<Rect> (compute placement; handle clamping)
 - render(ed, frame, area) (draw)
 - on_key(ed, key) -> bool (optional; only called when visible)
 - on_event(ed, event) (optional; update/dismiss on events)
@@ -257,9 +261,8 @@ Layer design rule:
 
 Example: InfoPopupLayer
 - is_visible uses OverlayStore state (InfoPopupStore) to decide visibility.
-- on_event closes popups on CursorMoved/ModeChanged.
-- Current implementation is an event-only bridge (layout returns None; render is no-op) because InfoPopup is still rendered via floating windows elsewhere.
-  - Target state: migrate InfoPopup to a pure-layer render path or to a host-managed passive window type, but do not duplicate lifecycle logic across both.
+- on_event closes popups on relevant CursorMoved/ModeChanged/FocusChanged.
+- Note: Completion and Signature Help currently use direct render hooks in LspSystem rather than the OverlayLayer trait, but they use OverlayStore for state.
 
 ---
 
@@ -295,7 +298,7 @@ Commit/cancel
   - calls OverlayHost::cleanup_session(..., reason)
 
 Host cleanup invariants:
-- reason != Commit => session.restore_all(ed) is invoked before windows/buffers are destroyed.
+- reason != Commit => session.restore_all(ed) is invoked before teardown.
 - focus and mode are restored after resources are closed/removed.
 
 ### Layer lifecycle
@@ -312,7 +315,7 @@ Layout/render
   - if Some(area): layer.render(ed, frame, area)
 
 Events
-- The editor sends LayerEvent notifications via OverlayLayers::notify_event(ed, event).
+- The editor sends LayerEvent notifications via Editor::notify_overlay_event(event).
 - Layers use these to update their internal state in OverlayStore or dismiss themselves.
 
 Typical event policy patterns:
@@ -338,7 +341,7 @@ Defined in crates/editor/src/overlay/spec.rs:
 - windows: Vec<WindowSpec> (aux windows)
 
 WindowSpec:
-- role: WindowRole (Input | List | Preview | Custom)
+- role: WindowRole (Input | List | Preview | Custom(&'static str))
 - rect: RectPolicy (can be relative via Below)
 - style: FloatingStyle
 - buffer_options: HashMap<String, OptionValue> (applied via set_by_kdl)
@@ -354,9 +357,10 @@ Resolution model (in OverlayHost::setup_session):
 - roles: HashMap<WindowRole, Rect> is built as windows resolve.
 - Primary input rect is resolved first and inserted as role Input.
 - Auxiliary windows resolve their rect against roles; Below uses roles.get(role) and positions directly below it.
+- All rects are clamped to screen bounds during resolution (resolve_opt).
 
 Rules:
-- RectPolicy::Below requires the referenced role to already be resolved. If the role is missing, resolve returns Rect::default() (0 area). Treat this as a spec bug; do not ship overlays relying on missing roles.
+- RectPolicy::Below requires the referenced role to already be resolved. If the role is missing, resolve_opt returns None.
 - Keep rect policies simple and deterministic. Geometry belongs in spec, not in controller code.
 
 Viewport changes
@@ -416,7 +420,7 @@ Steps:
 Verify:
 - rg -n "impl OverlayController" crates/editor/src/overlay/controllers
 - cargo test / run UI smoke test
-- Ensure Cancel restores focus/mode and any preview state.
+- Ensure Cancel restores focus/mode and any preview state (if versions match).
 
 ### Add a new passive layer
 
@@ -431,14 +435,12 @@ Steps:
 4) Implement layout(ed, screen) to return a rect:
    - anchor to cursor (requires editor helper; not shown here)
    - or use fixed placement (TopRight, Bottom, etc) if suitable
+   - handle screen clamping
 5) Implement render(ed, frame, area).
 6) Register the layer in OverlaySystem::new() via layers.add(Box::new(MyLayer)).
 
 Events:
-- Ensure the editor emits LayerEvent values at the correct times. Minimum:
-  - CursorMoved
-  - ModeChanged
-  - BufferEdited(focused_view)
+- Ensure the editor emits LayerEvent values via notify_overlay_event().
 
 Key interception:
 - If the layer is inline-interactive (completion), implement on_key and only consume an explicit allowlist of keys.
@@ -486,19 +488,19 @@ Modal interactions
 - Cancel (Esc) restores:
   - focus target (origin_focus)
   - origin buffer mode (origin_mode)
-  - preview-mutated views (cursor/selection restore_all)
+  - preview-mutated views (cursor/selection restore_all if version matches)
 - Commit does not restore preview captures unless controller does it explicitly.
-- Session cleanup always removes scratch buffers and closes all floating windows.
+- Session cleanup always removes scratch buffers and closes all floating windows (teardown).
 - on_buffer_edited only triggers on session.input changes; editing other buffers does not call controller.on_input_changed.
 
 RectPolicy
-- TopCenter respects min_width/max_width and y_frac placement.
-- Below positions relative to a previously resolved role and uses correct width.
+- TopCenter respects min_width/max_width and y_frac placement, with clamping.
+- Below positions relative to a previously resolved role and uses correct width, with clamping.
 
 Layers
 - Render order matches insertion order; key routing is reverse order.
-- notify_event broadcasts CursorMoved/ModeChanged/BufferEdited and layers can dismiss/update.
-- InfoPopupLayer dismisses popups on CursorMoved and ModeChanged.
+- notify_overlay_event broadcasts CursorMoved/ModeChanged/BufferEdited/FocusChanged and layers can dismiss/update.
+- InfoPopupLayer dismisses popups on CursorMoved, ModeChanged, and FocusChanged.
 
 Store
 - get_or_default inserts exactly once per type and returns stable mutable reference.
@@ -507,3 +509,4 @@ Store
 Known TODOs / follow-ups
 - Implement OverlayManager::on_viewport_changed + host reflow.
 - Migrate InfoPopupLayer from event-only to true layer rendering or host-managed passive window type (remove the “layout returns None” special case).
+- Gate LSP UI against modal overlays in LspSystem.

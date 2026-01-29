@@ -234,17 +234,19 @@ pub trait OverlayLayer: Send + Sync {
 	}
 
 	/// Notifies the layer about editor state changes.
-	fn on_event(&mut self, _ed: &mut crate::impls::Editor, _event: LayerEvent) {}
+	fn on_event(&mut self, _ed: &mut crate::impls::Editor, _event: &LayerEvent) {}
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LayerEvent {
 	/// Primary cursor moved in the focused buffer.
-	CursorMoved,
+	CursorMoved { view: ViewId },
 	/// Global editor mode changed (e.g. Insert -> Normal).
-	ModeChanged,
+	ModeChanged { view: ViewId, mode: xeno_primitives::Mode },
 	/// Content of a buffer was modified.
 	BufferEdited(ViewId),
+	/// Focus shifted between windows or panels.
+	FocusChanged { from: crate::impls::FocusTarget, to: crate::impls::FocusTarget },
 }
 
 impl LayerEvent {
@@ -279,7 +281,7 @@ impl OverlayLayers {
 	/// Propagates events to all layers.
 	pub fn notify_event(&mut self, ed: &mut crate::impls::Editor, event: LayerEvent) {
 		for layer in &mut self.layers {
-			layer.on_event(ed, event);
+			layer.on_event(ed, &event);
 		}
 	}
 
@@ -319,6 +321,9 @@ impl OverlayManager {
 		}
 
 		if let Some(mut session) = OverlayHost::setup_session(ed, &*controller) {
+			#[cfg(feature = "lsp")]
+			ed.clear_lsp_menu();
+
 			controller.on_open(ed, &mut session);
 			self.active = Some(ActiveOverlay {
 				session,

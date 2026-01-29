@@ -136,6 +136,10 @@ impl Editor {
 		}
 
 		self.state.focus = effective.clone();
+		self.notify_overlay_event(crate::overlay::LayerEvent::FocusChanged {
+			from: old_focus.clone(),
+			to: effective.clone(),
+		});
 
 		if let FocusTarget::Buffer { window, buffer } = effective
 			&& window == self.state.windows.base_id()

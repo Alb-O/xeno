@@ -228,6 +228,14 @@ impl<T: RegistryEntry + 'static> KeyStore<T> for BuildStore<T> {
 		}
 	}
 
+	fn set_id_owner(&mut self, _id: &'static str, _def: &'static T) {
+		panic!("set_id_owner not supported during build phase");
+	}
+
+	fn evict_def(&mut self, _def: &'static T) {
+		panic!("evict_def not supported during build phase");
+	}
+
 	fn push_collision(&mut self, c: Collision) {
 		self.collisions.push(c);
 	}

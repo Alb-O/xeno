@@ -31,6 +31,10 @@ impl MockEditor {
 }
 
 impl CursorAccess for MockEditor {
+	fn focused_view(&self) -> xeno_registry::hooks::ViewId {
+		xeno_registry::hooks::ViewId::text(1)
+	}
+
 	fn cursor(&self) -> CharIdx {
 		self.cursor
 	}
@@ -84,7 +88,11 @@ impl NotificationAccess for MockEditor {
 	}
 }
 
-impl EditorCapabilities for MockEditor {}
+impl EditorCapabilities for MockEditor {
+	fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
+		self
+	}
+}
 
 #[test]
 fn effects_apply_in_order() {

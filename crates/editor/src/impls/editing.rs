@@ -50,9 +50,7 @@ impl Editor {
 		});
 
 		if res {
-			let mut layers = std::mem::take(&mut self.state.overlay_system.layers);
-			layers.notify_event(self, crate::overlay::LayerEvent::BufferEdited(buffer_id));
-			self.state.overlay_system.layers = layers;
+			self.notify_overlay_event(crate::overlay::LayerEvent::BufferEdited(buffer_id));
 		}
 		res
 	}

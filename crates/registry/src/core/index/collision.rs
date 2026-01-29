@@ -59,6 +59,12 @@ pub trait KeyStore<T: RegistryEntry + 'static> {
 	/// Inserts into the ID table. Returns the previous occupant if any.
 	fn insert_id(&mut self, id: &'static str, def: &'static T) -> Option<&'static T>;
 
+	/// Sets the owner of an ID, overwriting any previous owner.
+	fn set_id_owner(&mut self, id: &'static str, def: &'static T);
+
+	/// Evicts all keys (name, alias, etc.) that point to the given definition.
+	fn evict_def(&mut self, def: &'static T);
+
 	/// Records a collision for diagnostics.
 	fn push_collision(&mut self, c: Collision);
 }

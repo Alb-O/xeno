@@ -721,3 +721,26 @@ fn test_id_override_shadow_guard() {
 	let bad = leak_def(meta_with("id.bad", "id.foo", 20, RegistrySource::Runtime));
 	assert!(rr.try_register(bad).is_err()); // KeyShadowsId
 }
+
+#[test]
+fn test_id_override_eviction() {
+	let builtin = leak_def(meta_with("id.foo", "name.foo", 0, RegistrySource::Builtin));
+	let mut builder = RegistryBuilder::new("t");
+	builder.push(builtin);
+	let builtins = builder.build();
+
+	let rr = RuntimeRegistry::with_policy("t", builtins, DuplicatePolicy::ByPriority);
+
+	// Initial name lookup works
+	assert!(std::ptr::eq(rr.get("name.foo").unwrap(), builtin));
+
+	// Runtime override with higher priority
+	let override_def = leak_def(meta_with("id.foo", "name.new", 10, RegistrySource::Runtime));
+	assert!(rr.try_register_override(override_def).is_ok());
+
+	// Old name should NO LONGER work (evicted)
+	assert!(rr.get("name.foo").is_none());
+
+	// New name should work
+	assert!(std::ptr::eq(rr.get("name.new").unwrap(), override_def));
+}

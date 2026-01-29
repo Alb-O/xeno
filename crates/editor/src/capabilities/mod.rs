@@ -53,6 +53,10 @@ fn parse_option_value(kdl_key: &str, value: &str) -> Result<OptionValue, Command
 }
 
 impl CursorAccess for Editor {
+	fn focused_view(&self) -> xeno_registry::hooks::ViewId {
+		self.focused_view().into()
+	}
+
 	fn cursor(&self) -> CharIdx {
 		self.buffer().cursor
 	}
@@ -63,10 +67,9 @@ impl CursorAccess for Editor {
 	}
 
 	fn set_cursor(&mut self, pos: CharIdx) {
+		let view = self.focused_view();
 		self.buffer_mut().set_cursor(pos);
-		let mut layers = std::mem::take(&mut self.state.overlay_system.layers);
-		layers.notify_event(self, crate::overlay::LayerEvent::CursorMoved);
-		self.state.overlay_system.layers = layers;
+		self.notify_overlay_event(crate::overlay::LayerEvent::CursorMoved { view });
 	}
 }
 
@@ -80,10 +83,9 @@ impl SelectionAccess for Editor {
 	}
 
 	fn set_selection(&mut self, sel: Selection) {
+		let view = self.focused_view();
 		self.buffer_mut().set_selection(sel);
-		let mut layers = std::mem::take(&mut self.state.overlay_system.layers);
-		layers.notify_event(self, crate::overlay::LayerEvent::CursorMoved);
-		self.state.overlay_system.layers = layers;
+		self.notify_overlay_event(crate::overlay::LayerEvent::CursorMoved { view });
 	}
 }
 
@@ -103,7 +105,9 @@ impl ModeAccess for Editor {
 				.get_or_default::<crate::CompletionState>()
 				.suppressed = false;
 		}
-		self.buffer_mut().input.set_mode(mode);
+		let view = self.focused_view();
+		self.buffer_mut().input.set_mode(mode.clone());
+		self.notify_overlay_event(crate::overlay::LayerEvent::ModeChanged { view, mode });
 	}
 }
 
@@ -407,6 +411,7 @@ impl JumpAccess for Editor {
 				self.focus_buffer(buffer_id);
 			}
 			self.buffer_mut().set_cursor(cursor);
+			self.notify_overlay_event(crate::overlay::LayerEvent::CursorMoved { view: buffer_id });
 			true
 		} else {
 			false
@@ -429,6 +434,7 @@ impl JumpAccess for Editor {
 				self.focus_buffer(buffer_id);
 			}
 			self.buffer_mut().set_cursor(cursor);
+			self.notify_overlay_event(crate::overlay::LayerEvent::CursorMoved { view: buffer_id });
 			true
 		} else {
 			false
@@ -499,6 +505,10 @@ impl OptionAccess for Editor {
 }
 
 impl EditorCapabilities for Editor {
+	fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
+		self
+	}
+
 	fn search(&mut self) -> Option<&mut dyn SearchAccess> {
 		Some(self)
 	}
