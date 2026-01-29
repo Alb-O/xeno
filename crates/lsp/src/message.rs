@@ -1,7 +1,7 @@
 //! JSON-RPC message framing and I/O.
 
-use futures::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt};
 use serde::{Deserialize, Serialize};
+use tokio::io::{AsyncBufRead, AsyncBufReadExt, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 
 use crate::types::{AnyNotification, AnyRequest, AnyResponse};
 use crate::{Error, Result};
@@ -51,7 +51,7 @@ impl Message {
 	const CONTENT_LENGTH: &'static str = "Content-Length";
 
 	/// Reads a complete JSON-RPC message from the input stream.
-	pub async fn read(mut reader: impl futures::AsyncBufRead + Unpin) -> Result<Self> {
+	pub async fn read(mut reader: impl AsyncBufRead + Unpin) -> Result<Self> {
 		let mut line = String::new();
 		let mut content_len = None;
 		loop {
@@ -86,7 +86,7 @@ impl Message {
 	}
 
 	/// Writes this message to the output stream with HTTP headers.
-	pub async fn write(&self, mut writer: impl futures::AsyncWrite + Unpin) -> Result<()> {
+	pub async fn write(&self, mut writer: impl AsyncWrite + Unpin) -> Result<()> {
 		let buf = serde_json::to_string(&RawMessage::new(self))?;
 		::tracing::trace!(msg = %buf, "outgoing");
 		writer

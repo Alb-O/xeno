@@ -13,7 +13,6 @@ use std::ops::ControlFlow;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 
-use futures::future::Either;
 use lsp_types::notification::{self, Notification};
 use lsp_types::request::{self, Request};
 use pin_project_lite::pin_project;
@@ -23,6 +22,31 @@ use tower_service::Service;
 use crate::{
 	AnyEvent, AnyNotification, AnyRequest, Error, ErrorCode, LspService, ResponseError, Result,
 };
+
+pin_project! {
+	#[project = EitherProj]
+	#[derive(Debug)]
+	#[allow(missing_docs)]
+	pub enum Either<A, B> {
+		Left { #[pin] inner: A },
+		Right { #[pin] inner: B },
+	}
+}
+
+impl<A, B> Future for Either<A, B>
+where
+	A: Future,
+	B: Future<Output = A::Output>,
+{
+	type Output = A::Output;
+
+	fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+		match self.project() {
+			EitherProj::Left { inner } => inner.poll(cx),
+			EitherProj::Right { inner } => inner.poll(cx),
+		}
+	}
+}
 
 /// Language Server lifecycle state.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
@@ -78,34 +102,42 @@ where
 		let inner = match (self.state, &*req.method) {
 			(State::Uninitialized, request::Initialize::METHOD) => {
 				self.state = State::Initializing;
-				Either::Left(self.service.call(req))
+				Either::Left {
+					inner: self.service.call(req),
+				}
 			}
-			(State::Uninitialized | State::Initializing, _) => {
-				Either::Right(ready(Err(ResponseError {
+			(State::Uninitialized | State::Initializing, _) => Either::Right {
+				inner: ready(Err(ResponseError {
 					code: ErrorCode::SERVER_NOT_INITIALIZED,
 					message: "Server is not initialized yet".into(),
 					data: None,
 				}
-				.into())))
-			}
-			(_, request::Initialize::METHOD) => Either::Right(ready(Err(ResponseError {
-				code: ErrorCode::INVALID_REQUEST,
-				message: "Server is already initialized".into(),
-				data: None,
-			}
-			.into()))),
+				.into())),
+			},
+			(_, request::Initialize::METHOD) => Either::Right {
+				inner: ready(Err(ResponseError {
+					code: ErrorCode::INVALID_REQUEST,
+					message: "Server is already initialized".into(),
+					data: None,
+				}
+				.into())),
+			},
 			(State::Ready, _) => {
 				if req.method == request::Shutdown::METHOD {
 					self.state = State::ShuttingDown;
 				}
-				Either::Left(self.service.call(req))
+				Either::Left {
+					inner: self.service.call(req),
+				}
 			}
-			(State::ShuttingDown, _) => Either::Right(ready(Err(ResponseError {
-				code: ErrorCode::INVALID_REQUEST,
-				message: "Server is shutting down".into(),
-				data: None,
-			}
-			.into()))),
+			(State::ShuttingDown, _) => Either::Right {
+				inner: ready(Err(ResponseError {
+					code: ErrorCode::INVALID_REQUEST,
+					message: "Server is shutting down".into(),
+					data: None,
+				}
+				.into())),
+			},
 		};
 		ResponseFuture { inner }
 	}

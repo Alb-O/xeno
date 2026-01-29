@@ -1,8 +1,7 @@
 use std::cell::Cell;
 
-use futures::future::LocalBoxFuture;
 use xeno_primitives::range::CharIdx;
-use xeno_primitives::{Mode, Selection};
+use xeno_primitives::{LocalBoxFuture, Mode, Selection};
 use xeno_registry::{
 	ActionEffects, ActionResult, Capability, CommandContext, CommandError, CommandOutcome,
 	CursorAccess, EditorCapabilities, HookAction, HookEventData, ModeAccess, Notification,
@@ -12,8 +11,8 @@ use xeno_registry::{
 use super::*;
 
 thread_local! {
-	static ACTION_PRE_COUNT: Cell<usize> = Cell::new(0);
-	static ACTION_POST_COUNT: Cell<usize> = Cell::new(0);
+	static ACTION_PRE_COUNT: Cell<usize> = const { Cell::new(0) };
+	static ACTION_POST_COUNT: Cell<usize> = const { Cell::new(0) };
 }
 
 action!(
@@ -101,7 +100,7 @@ impl CursorAccess for MockEditor {
 	}
 
 	fn cursor_line_col(&self) -> Option<(usize, usize)> {
-		Some((0, usize::from(self.cursor)))
+		Some((0, self.cursor))
 	}
 
 	fn set_cursor(&mut self, pos: CharIdx) {
@@ -282,7 +281,11 @@ fn readonly_disabled_allows_edit_actions() {
 fn command_error_propagates() {
 	register_invocation_test_defs();
 	let mut editor = Editor::new_scratch();
-	let result = futures::executor::block_on(editor.run_command_invocation(
+	let rt = tokio::runtime::Builder::new_current_thread()
+		.enable_all()
+		.build()
+		.unwrap();
+	let result = rt.block_on(editor.run_command_invocation(
 		"invocation_test_command_fail",
 		Vec::new(),
 		InvocationPolicy::enforcing(),

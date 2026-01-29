@@ -11,20 +11,37 @@ use std::future::Future;
 use std::num::NonZeroUsize;
 use std::ops::ControlFlow;
 use std::pin::Pin;
-use std::sync::{Arc, Weak};
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::task::{Context, Poll};
 use std::thread::available_parallelism;
 
-use futures::stream::{AbortHandle, Abortable};
-use futures::task::AtomicWaker;
 use lsp_types::notification::{self, Notification};
 use pin_project_lite::pin_project;
+use tokio::sync::{Notify, OwnedSemaphorePermit, Semaphore};
 use tower_layer::Layer;
 use tower_service::Service;
 
 use crate::{
 	AnyEvent, AnyNotification, AnyRequest, ErrorCode, LspService, RequestId, ResponseError, Result,
 };
+
+struct CancelState {
+	notify: Notify,
+	done: AtomicBool,
+	cancelled: AtomicBool,
+}
+
+struct DoneSignaller(Arc<CancelState>);
+
+impl Drop for DoneSignaller {
+	fn drop(&mut self) {
+		self.0.done.store(true, Ordering::Relaxed);
+	}
+}
+
+type AcquireFuture =
+	Pin<Box<dyn Future<Output = Result<OwnedSemaphorePermit, tokio::sync::AcquireError>> + Send>>;
 
 /// The middleware for incoming request multiplexing limits and cancellation.
 ///
@@ -34,10 +51,14 @@ pub struct Concurrency<S> {
 	service: S,
 	/// Maximum number of concurrent requests allowed.
 	max_concurrency: NonZeroUsize,
-	/// A specialized single-acquire-multiple-release semaphore, using `Arc::weak_count` as tokens.
-	semaphore: Arc<AtomicWaker>,
-	/// Map of in-flight request IDs to their abort handles.
-	ongoing: HashMap<RequestId, AbortHandle>,
+	/// Semaphore for limiting concurrency.
+	semaphore: Arc<Semaphore>,
+	/// Pending permit acquisition.
+	ready_fut: Option<AcquireFuture>,
+	/// Acquired permit for the next call.
+	ready_permit: Option<OwnedSemaphorePermit>,
+	/// Map of in-flight request IDs to their cancellation states.
+	ongoing: HashMap<RequestId, Arc<CancelState>>,
 }
 
 define_getters!(impl[S] Concurrency<S>, service: S);
@@ -51,65 +72,60 @@ where
 	type Future = ResponseFuture<S::Future>;
 
 	fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
-		if Arc::weak_count(&self.semaphore) >= self.max_concurrency.get() {
-			self.semaphore.register(cx.waker());
-			// No guards dropped between the check and register?
-			if Arc::weak_count(&self.semaphore) >= self.max_concurrency.get() {
-				return Poll::Pending;
-			}
+		if self.ready_permit.is_some() {
+			return Poll::Ready(Ok(()));
 		}
 
-		// Here we have `weak_count < max_concurrency`. The service is ready for new calls.
-		Poll::Ready(Ok(()))
+		if self.ready_fut.is_none() {
+			let sema = self.semaphore.clone();
+			self.ready_fut = Some(Box::pin(async move { sema.acquire_owned().await }));
+		}
+
+		let fut = self.ready_fut.as_mut().unwrap();
+		match fut.as_mut().poll(cx) {
+			Poll::Pending => Poll::Pending,
+			Poll::Ready(Ok(permit)) => {
+				self.ready_fut = None;
+				self.ready_permit = Some(permit);
+				Poll::Ready(Ok(()))
+			}
+			Poll::Ready(Err(_)) => {
+				// Semaphore closed? Should not happen in normal lifecycle.
+				Poll::Ready(Err(ResponseError::new(
+					ErrorCode::INTERNAL_ERROR,
+					"concurrency semaphore closed",
+				)
+				.into()))
+			}
+		}
 	}
 
 	fn call(&mut self, req: AnyRequest) -> Self::Future {
-		let guard = SemaphoreGuard(Arc::downgrade(&self.semaphore));
-		debug_assert!(
-			Arc::weak_count(&self.semaphore) <= self.max_concurrency.get(),
-			"`poll_ready` is not called before `call`",
-		);
+		let permit = self
+			.ready_permit
+			.take()
+			.expect("poll_ready not called before call");
 
-		let (handle, registration) = AbortHandle::new_pair();
-
-		// Purge completed tasks: costs 2*N time to remove N tasks (amortized O(1)).
+		// Purge completed tasks
 		if self.ongoing.len() >= self.max_concurrency.get() * 2 {
-			self.ongoing.retain(|_, handle| !handle.is_aborted());
+			self.ongoing
+				.retain(|_, st| !st.done.load(Ordering::Relaxed));
 		}
-		self.ongoing.insert(req.id.clone(), handle.clone());
+
+		let st = Arc::new(CancelState {
+			notify: Notify::new(),
+			done: AtomicBool::new(false),
+			cancelled: AtomicBool::new(false),
+		});
+		self.ongoing.insert(req.id.clone(), st.clone());
 
 		let fut = self.service.call(req);
-		let fut = Abortable::new(fut, registration);
 		ResponseFuture {
 			fut,
-			_abort_on_drop: AbortOnDrop(handle),
-			_guard: guard,
+			permit,
+			st: st.clone(),
+			_signaller: DoneSignaller(st),
 		}
-	}
-}
-
-/// RAII guard that wakes the semaphore when dropped.
-struct SemaphoreGuard(Weak<AtomicWaker>);
-
-impl Drop for SemaphoreGuard {
-	fn drop(&mut self) {
-		if let Some(sema) = self.0.upgrade()
-			&& let Some(waker) = sema.take()
-		{
-			drop(sema);
-			waker.wake();
-		}
-	}
-}
-
-/// By default, the `AbortHandle` only transfers information from it to `Abortable<_>`, not in
-/// reverse. But we want to set the flag on drop (either success or failure), so that the `ongoing`
-/// map can be purged regularly without bloating indefinitely.
-struct AbortOnDrop(AbortHandle);
-
-impl Drop for AbortOnDrop {
-	fn drop(&mut self) {
-		self.0.abort();
 	}
 }
 
@@ -117,11 +133,10 @@ pin_project! {
 	/// The [`Future`] type used by the [`Concurrency`] middleware.
 	pub struct ResponseFuture<Fut> {
 		#[pin]
-		fut: Abortable<Fut>,
-		// NB. Comes before `SemaphoreGuard`. So that when the guard wake up the caller, it is able
-		// to purge the current future from `ongoing` map immediately.
-		_abort_on_drop: AbortOnDrop,
-		_guard: SemaphoreGuard,
+		fut: Fut,
+		permit: OwnedSemaphorePermit,
+		st: Arc<CancelState>,
+		_signaller: DoneSignaller,
 	}
 }
 
@@ -133,18 +148,40 @@ where
 	type Output = Fut::Output;
 
 	fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-		match self.project().fut.poll(cx) {
-			Poll::Pending => Poll::Pending,
-			Poll::Ready(Ok(inner_ret)) => Poll::Ready(inner_ret),
-			Poll::Ready(Err(_aborted)) => Poll::Ready(Err(ResponseError {
-				code: ErrorCode::REQUEST_CANCELLED,
-				message: "Client cancelled the request".into(),
-				data: None,
-			}
-			.into())),
+		let this = self.project();
+
+		// Fast path for cancellation
+		if this.st.cancelled.load(Ordering::Relaxed) {
+			return Poll::Ready(Err(ResponseError::new(
+				ErrorCode::REQUEST_CANCELLED,
+				"Client cancelled the request",
+			)
+			.into()));
 		}
+
+		// Poll the actual work
+		if let Poll::Ready(res) = this.fut.poll(cx) {
+			return Poll::Ready(res);
+		}
+
+		// Check for cancellation signal
+		let mut n = this.st.notify.notified();
+		// SAFETY: we only poll this locally and don't move it while polled.
+		let mut n_pinned = unsafe { Pin::new_unchecked(&mut n) };
+		if let Poll::Ready(()) = n_pinned.as_mut().poll(cx) {
+			this.st.cancelled.store(true, Ordering::Relaxed);
+			return Poll::Ready(Err(ResponseError::new(
+				ErrorCode::REQUEST_CANCELLED,
+				"Client cancelled the request",
+			)
+			.into()));
+		}
+
+		Poll::Pending
 	}
 }
+
+// Remove the manual Drop implementation here as DoneSignaller handles it
 
 impl<S: LspService> LspService for Concurrency<S>
 where
@@ -152,8 +189,11 @@ where
 {
 	fn notify(&mut self, notif: AnyNotification) -> ControlFlow<Result<()>> {
 		if notif.method == notification::Cancel::METHOD {
-			if let Ok(params) = serde_json::from_value::<lsp_types::CancelParams>(notif.params) {
-				self.ongoing.remove(&params.id);
+			if let Ok(params) = serde_json::from_value::<lsp_types::CancelParams>(notif.params)
+				&& let Some(st) = self.ongoing.remove(&params.id)
+			{
+				st.cancelled.store(true, Ordering::Relaxed);
+				st.notify.notify_waiters();
 			}
 			return ControlFlow::Continue(());
 		}
@@ -201,14 +241,10 @@ impl<S> Layer<S> for ConcurrencyBuilder {
 		Concurrency {
 			service: inner,
 			max_concurrency: self.max_concurrency,
-			semaphore: Arc::new(AtomicWaker::new()),
-			// See `Concurrency::call` for why the factor 2.
-			ongoing: HashMap::with_capacity(
-				self.max_concurrency
-					.get()
-					.checked_mul(2)
-					.expect("max_concurrency overflow"),
-			),
+			semaphore: Arc::new(Semaphore::new(self.max_concurrency.get())),
+			ready_fut: None,
+			ready_permit: None,
+			ongoing: HashMap::with_capacity(self.max_concurrency.get() * 2),
 		}
 	}
 }

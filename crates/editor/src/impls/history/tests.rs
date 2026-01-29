@@ -79,7 +79,6 @@ fn get_cursor(editor: &Editor, buffer_id: ViewId) -> usize {
 		.get_buffer(buffer_id)
 		.unwrap()
 		.cursor
-		.into()
 }
 
 fn get_scroll(editor: &Editor, buffer_id: ViewId) -> (usize, usize) {

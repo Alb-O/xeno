@@ -113,6 +113,7 @@ impl HighlightTiles {
 	/// - `style_resolver`: Function to resolve highlight styles
 	/// - `start_line`: First line to highlight (inclusive)
 	/// - `end_line`: Last line to highlight (exclusive)
+	#[allow(clippy::too_many_arguments)]
 	pub fn get_spans<F>(
 		&mut self,
 		doc_id: DocumentId,

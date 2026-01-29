@@ -187,7 +187,7 @@ mod tests {
 		let mapping = db.lsp_mapping();
 
 		assert!(mapping.contains_key("rust"));
-		for (_, info) in &mapping {
+		for info in mapping.values() {
 			assert!(!info.servers.is_empty());
 		}
 	}

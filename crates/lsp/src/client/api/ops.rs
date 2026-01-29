@@ -1,7 +1,7 @@
-use futures::channel::oneshot;
 use lsp_types::notification::Notification;
 use lsp_types::{ClientInfo, InitializeParams, InitializeResult, Uri};
 use serde_json::Value;
+use tokio::sync::oneshot;
 
 use super::super::capabilities::client_capabilities;
 use super::super::handle::ClientHandle;

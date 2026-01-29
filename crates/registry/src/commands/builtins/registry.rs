@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use futures::future::LocalBoxFuture;
+use xeno_primitives::LocalBoxFuture;
 
 use crate::commands::{COMMANDS, CommandContext, CommandError, CommandOutcome};
 use crate::notifications::keys;

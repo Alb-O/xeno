@@ -1,5 +1,6 @@
 #[cfg(test)]
 mod tests {
+	#![allow(clippy::module_inception)]
 	use xeno_primitives::ViewId;
 	use xeno_tui::Terminal;
 	use xeno_tui::backend::TestBackend;
@@ -17,7 +18,7 @@ mod tests {
 		let loader = xeno_runtime_language::LanguageLoader::from_embedded();
 
 		let ctx = BufferRenderContext {
-			theme: &theme,
+			theme,
 			language_loader: &loader,
 			diagnostics: None,
 			diagnostic_ranges: None,
@@ -83,7 +84,7 @@ mod tests {
 		let loader = xeno_runtime_language::LanguageLoader::from_embedded();
 
 		let ctx = BufferRenderContext {
-			theme: &theme,
+			theme,
 			language_loader: &loader,
 			diagnostics: None,
 			diagnostic_ranges: None,

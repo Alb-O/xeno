@@ -521,9 +521,7 @@ impl Editor {
 			let right = cell.has_h || has_right;
 
 			// Only render junctions where lines actually meet or change
-			let is_junction = (cell.has_h && cell.has_v) // cross
-				|| (cell.has_h && (has_up || has_down)) // T-junction on h-line
-				|| (cell.has_v && (has_left || has_right)); // T-junction on v-line
+			let is_junction = (has_down || has_up || cell.has_v) && cell.has_h;
 
 			if !is_junction {
 				continue;

@@ -1,10 +1,10 @@
 use std::future::ready;
 use std::ops::ControlFlow;
 
-use futures::future::BoxFuture;
 use lsp_types::notification::{self, Notification};
 use lsp_types::request::{self, Request};
 use lsp_types::{lsp_notification, lsp_request};
+use xeno_primitives::BoxFutureStatic;
 
 use self::sealed::NotifyResult;
 use crate::router::Router;
@@ -44,7 +44,7 @@ mod sealed {
 }
 
 /// Boxed future type for LSP request responses.
-type ResponseFuture<R, E> = BoxFuture<'static, Result<<R as Request>::Result, E>>;
+type ResponseFuture<R, E> = BoxFutureStatic<Result<<R as Request>::Result, E>>;
 
 /// Returns a future that resolves to a method-not-found error.
 fn method_not_found<R, E>() -> ResponseFuture<R, E>

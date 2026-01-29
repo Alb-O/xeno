@@ -1,6 +1,6 @@
 use std::time::{Duration, Instant};
 
-use futures::stream::{FuturesUnordered, StreamExt};
+use tokio::task::JoinSet;
 use xeno_registry::HookPriority;
 
 use super::state::{BACKGROUND_DROP_THRESHOLD, BACKLOG_HIGH_WATER, WorkScheduler};
@@ -22,7 +22,7 @@ impl WorkScheduler {
 
 		match item.priority {
 			HookPriority::Interactive => {
-				self.interactive.push(item.future);
+				self.interactive.spawn(item.future);
 				tracing::trace!(
 					interactive_pending = self.interactive.len(),
 					kind = ?item.kind,
@@ -46,7 +46,7 @@ impl WorkScheduler {
 					);
 					return;
 				}
-				self.background.push(item.future);
+				self.background.spawn(item.future);
 				tracing::trace!(
 					background_pending = self.background.len(),
 					kind = ?item.kind,
@@ -121,9 +121,13 @@ impl WorkScheduler {
 
 		while Instant::now() < deadline && !self.interactive.is_empty() {
 			let remaining = deadline.saturating_duration_since(Instant::now());
-			match tokio::time::timeout(remaining, self.interactive.next()).await {
-				Ok(Some(())) => {
+			match tokio::time::timeout(remaining, self.interactive.join_next()).await {
+				Ok(Some(Ok(()))) => {
 					self.completed_total += 1;
+				}
+				Ok(Some(Err(e))) => {
+					self.completed_total += 1;
+					tracing::error!(?e, "interactive work task failed");
 				}
 				_ => break,
 			}
@@ -131,9 +135,13 @@ impl WorkScheduler {
 
 		while Instant::now() < deadline && !self.background.is_empty() {
 			let remaining = deadline.saturating_duration_since(Instant::now());
-			match tokio::time::timeout(remaining, self.background.next()).await {
-				Ok(Some(())) => {
+			match tokio::time::timeout(remaining, self.background.join_next()).await {
+				Ok(Some(Ok(()))) => {
 					self.completed_total += 1;
+				}
+				Ok(Some(Err(e))) => {
+					self.completed_total += 1;
+					tracing::error!(?e, "background work task failed");
 				}
 				_ => break,
 			}
@@ -166,10 +174,16 @@ impl WorkScheduler {
 
 	/// Drains all pending work.
 	pub async fn drain_all(&mut self) {
-		while let Some(()) = self.interactive.next().await {
+		while let Some(res) = self.interactive.join_next().await {
+			if let Err(e) = res {
+				tracing::error!(?e, "interactive work task failed during drain_all");
+			}
 			self.completed_total += 1;
 		}
-		while let Some(()) = self.background.next().await {
+		while let Some(res) = self.background.join_next().await {
+			if let Err(e) = res {
+				tracing::error!(?e, "background work task failed during drain_all");
+			}
 			self.completed_total += 1;
 		}
 	}
@@ -178,7 +192,8 @@ impl WorkScheduler {
 	pub fn drop_background(&mut self) {
 		let count = self.background.len();
 		if count > 0 {
-			self.background = FuturesUnordered::new();
+			self.background.abort_all();
+			self.background = JoinSet::new();
 			self.dropped_total += count as u64;
 			tracing::info!(dropped = count, "dropped all background work");
 		}

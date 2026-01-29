@@ -30,9 +30,9 @@
 use std::path::Path;
 use std::sync::Arc;
 
-use futures::channel::oneshot;
 use lsp_types::{Diagnostic, TextDocumentContentChangeEvent, TextDocumentSaveReason, Uri};
 use ropey::Rope;
+use tokio::sync::oneshot;
 use xeno_primitives::lsp::LspDocumentChange;
 
 use crate::Result;

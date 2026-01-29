@@ -169,7 +169,7 @@ fn txn_store_max_undo_limit() {
 			[Change {
 				start: 0,
 				end: content.len_chars(),
-				replacement: Some(format!("version {}", i).into()),
+				replacement: Some(format!("version {}", i)),
 			}],
 		);
 		store.record_transaction(tx.clone(), &before);

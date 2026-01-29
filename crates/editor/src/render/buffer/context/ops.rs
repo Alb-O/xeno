@@ -150,12 +150,8 @@ impl<'a> BufferRenderContext<'a> {
 
 	/// Renders a buffer into gutter and text columns.
 	///
-	/// Orchestrates the full rendering pipeline for a single buffer viewport:
-	/// 1. Snapshots document state for consistency and short-lock duration.
-	/// 2. Resolves viewport layout and gutter configurations.
-	/// 3. Populates render caches (wrap, highlight) for the visible range.
-	/// 4. Generates a [`ViewportPlan`] for row layout.
-	/// 5. Renders each row (gutter + text) using specialized renderers.
+	/// Orchestrates the full rendering pipeline for a single buffer viewport.
+	#[allow(clippy::too_many_arguments)]
 	pub fn render_buffer_with_gutter(
 		&self,
 		buffer: &Buffer,

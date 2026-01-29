@@ -22,7 +22,7 @@ use std::any::Any;
 use std::collections::HashMap;
 use std::sync::LazyLock;
 
-use futures::future::LocalBoxFuture;
+use xeno_primitives::LocalBoxFuture;
 use xeno_registry::Capability;
 pub use xeno_registry::RegistrySource;
 pub use xeno_registry::commands::{CommandError, CommandOutcome, CommandResult};

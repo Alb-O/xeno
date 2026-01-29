@@ -11,7 +11,6 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use futures::FutureExt;
 use ropey::Rope;
 use tokio::sync::{OwnedSemaphorePermit, Semaphore};
 use tokio::task::JoinHandle;
@@ -298,7 +297,7 @@ impl SyntaxManager {
 
 		// Poll inflight.
 		if let Some(p) = st.inflight.as_mut() {
-			let join = (&mut p.task).now_or_never();
+			let join = xeno_primitives::future::now_or_never(&mut p.task);
 			if join.is_none() {
 				return SyntaxPollResult::Pending;
 			}

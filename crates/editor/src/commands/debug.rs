@@ -1,6 +1,6 @@
 //! Debug commands for observability.
 
-use futures::future::LocalBoxFuture;
+use xeno_primitives::LocalBoxFuture;
 use xeno_registry::index::{all_actions, all_commands, all_motions, all_text_objects};
 use xeno_registry::options::OPTIONS;
 use xeno_registry::themes::THEMES;

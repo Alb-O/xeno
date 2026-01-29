@@ -14,7 +14,6 @@ bincode.workspace = true
 clap.workspace = true
 dirs.workspace = true
 frizbee = { workspace = true, optional = true }
-futures.workspace = true
 inventory.workspace = true
 parking_lot.workspace = true
 paste.workspace = true

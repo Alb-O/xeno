@@ -118,10 +118,6 @@ pub fn start_server(
 
 	let server_id = id;
 	let join_handle = tokio::spawn(async move {
-		// Convert tokio I/O to futures I/O
-		let stdin = tokio_util::compat::TokioAsyncWriteCompatExt::compat_write(stdin);
-		let stdout = tokio_util::compat::TokioAsyncReadCompatExt::compat(stdout);
-
 		let result = main_loop.run_buffered(stdout, stdin).await;
 		if let Err(ref e) = result {
 			error!(server_id = server_id.0, error = %e, "LSP main loop error");

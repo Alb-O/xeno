@@ -9,15 +9,14 @@ license.workspace = true
 default = ["client-monitor", "omni-trait", "stdio"]
 client-monitor = ["dep:waitpid-any", "dep:rustix"]
 omni-trait = []
-stdio = ["dep:rustix", "rustix?/fs", "tokio?/net"]
+stdio = ["dep:rustix", "rustix?/fs", "tokio/net"]
 forward = []
-tokio = ["dep:tokio"]
+tokio = []
 # LSP client support (spawns and manages language server processes)
 client = [
-    "dep:tokio",
-    "tokio?/process",
-    "tokio?/io-util",
-    "tokio?/sync",
+    "tokio/process",
+    "tokio/io-util",
+    "tokio/sync",
     "dep:parking_lot",
     "dep:tokio-util",
 ]
@@ -25,7 +24,6 @@ client = [
 position = ["dep:ropey", "client", "dep:xeno-primitives"]
 
 [dependencies]
-futures.workspace = true
 lsp-types.workspace = true
 parking_lot = { workspace = true, optional = true }
 pin-project-lite.workspace = true
@@ -34,8 +32,8 @@ rustix = { workspace = true, optional = true }
 serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
-tokio = { workspace = true, optional = true }
-tokio-util = { workspace = true, optional = true, features = ["compat"] }
+tokio = { workspace = true, features = ["rt", "sync", "io-util", "macros"] }
+tokio-util = { workspace = true, optional = true }
 tower-layer.workspace = true
 tower-service.workspace = true
 tracing.workspace = true

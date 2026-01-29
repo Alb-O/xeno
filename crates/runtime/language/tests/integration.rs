@@ -433,8 +433,10 @@ fn main() {}
 
 	// Check what layers exist
 	println!("\n--- Layers ---");
-	let mut layer_count = 0;
-	for layer in syntax.layers_for_byte_range(0, source.len_bytes() as u32) {
+	for (layer_count, layer) in syntax
+		.layers_for_byte_range(0, source.len_bytes() as u32)
+		.enumerate()
+	{
 		let layer_data = syntax.layer(layer);
 		let lang = loader.get(layer_data.language);
 		println!(
@@ -443,7 +445,6 @@ fn main() {}
 			lang.map(|l| &l.name),
 			layer_data.language.idx()
 		);
-		layer_count += 1;
 	}
 
 	// Get highlights

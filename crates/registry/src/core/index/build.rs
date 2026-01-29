@@ -35,6 +35,11 @@ impl<T: RegistryEntry + 'static> RegistryBuilder<T> {
 		self.defs.len()
 	}
 
+	/// Returns true if no definitions have been registered so far.
+	pub fn is_empty(&self) -> bool {
+		self.defs.is_empty()
+	}
+
 	/// Sets whether to index definitions by their id.
 	pub fn include_id(mut self, on: bool) -> Self {
 		self.include_id = on;

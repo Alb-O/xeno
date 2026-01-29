@@ -9,8 +9,6 @@ use std::future::Future;
 use std::path::PathBuf;
 use std::pin::Pin;
 
-use futures::future::LocalBoxFuture;
-
 use crate::notifications::Notification;
 
 pub mod builtins;
@@ -35,9 +33,10 @@ pub use crate::core::{
 };
 
 /// Function signature for async command handlers.
-pub type CommandHandler = for<'a> fn(
-	&'a mut CommandContext<'a>,
-) -> LocalBoxFuture<'a, Result<CommandOutcome, CommandError>>;
+pub type CommandHandler =
+	for<'a> fn(
+		&'a mut CommandContext<'a>,
+	) -> xeno_primitives::LocalBoxFuture<'a, Result<CommandOutcome, CommandError>>;
 
 /// Simplified result type for command operations.
 pub type CommandResult = Result<(), CommandError>;

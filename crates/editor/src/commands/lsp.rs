@@ -1,7 +1,7 @@
 //! LSP commands with direct [`Editor`] access.
 
-use futures::future::LocalBoxFuture;
 use xeno_lsp::lsp_types::{GotoDefinitionResponse, HoverContents, MarkedString, MarkupContent};
+use xeno_primitives::LocalBoxFuture;
 use xeno_registry::Capability;
 
 use super::{CommandError, CommandOutcome, EditorCommandContext};

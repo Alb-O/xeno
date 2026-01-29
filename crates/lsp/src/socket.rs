@@ -5,10 +5,10 @@ use std::marker::PhantomData;
 use std::pin::Pin;
 use std::task::{Context, Poll, ready};
 
-use futures::channel::{mpsc, oneshot};
 use lsp_types::notification::Notification;
 use lsp_types::request::Request;
 use serde::de::DeserializeOwned;
+use tokio::sync::{mpsc, oneshot};
 
 use crate::event::AnyEvent;
 use crate::message::Message;
@@ -100,13 +100,13 @@ pub(crate) struct PeerSocket {
 impl PeerSocket {
 	/// Creates a closed socket that always returns errors.
 	pub fn new_closed() -> Self {
-		let (tx, _rx) = mpsc::unbounded();
+		let (tx, _rx) = mpsc::unbounded_channel();
 		Self { tx }
 	}
 
 	/// Sends an event to the main loop.
 	pub(crate) fn send(&self, v: MainLoopEvent) -> Result<()> {
-		self.tx.unbounded_send(v).map_err(|_| Error::ServiceStopped)
+		self.tx.send(v).map_err(|_| Error::ServiceStopped)
 	}
 
 	/// Sends a typed request and returns a future for the response.

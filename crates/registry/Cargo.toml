@@ -37,7 +37,7 @@ actions = [
     "options",
     "textobj",
 ]
-commands = ["dep:futures", "motions", "notifications", "textobj"]
+commands = ["motions", "notifications", "textobj"]
 motions = ["dep:regex", "dep:ropey", "dep:xeno-primitives"]
 textobj = ["dep:ropey", "dep:xeno-primitives", "motions"]
 options = ["dep:strsim", "dep:xeno-macro"]
@@ -64,7 +64,6 @@ actions-handler-coverage = ["actions-builtins"]
 
 [dependencies]
 arc-swap = { workspace = true }
-futures = { workspace = true, optional = true }
 inventory.workspace = true
 parking_lot.workspace = true
 paste.workspace = true

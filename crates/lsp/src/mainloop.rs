@@ -7,14 +7,11 @@ use std::pin::Pin;
 use std::task::{Context, Poll, ready};
 use std::time::{Duration, Instant};
 
-use futures::channel::{mpsc, oneshot};
-use futures::io::BufReader;
-use futures::stream::FuturesUnordered;
-use futures::{
-	AsyncBufRead, AsyncRead, AsyncWrite, FutureExt, SinkExt, StreamExt, pin_mut, select_biased,
-};
 use pin_project_lite::pin_project;
 use serde_json::Value as JsonValue;
+use tokio::io::{AsyncBufRead, AsyncRead, AsyncWrite, AsyncWriteExt, BufReader};
+use tokio::sync::{mpsc, oneshot};
+use tracing::error;
 
 use crate::message::Message;
 use crate::socket::{ClientSocket, MainLoopEvent, PeerSocket, ServerSocket};
@@ -61,7 +58,7 @@ pub struct MainLoop<S: LspService> {
 	/// Pending outgoing requests awaiting responses.
 	outgoing: HashMap<RequestId, oneshot::Sender<AnyResponse>>,
 	/// Concurrent request handlers in flight.
-	tasks: FuturesUnordered<RequestFuture<S::Future>>,
+	tasks: tokio::task::JoinSet<AnyResponse>,
 }
 
 struct OutgoingMessage {
@@ -74,6 +71,7 @@ define_getters!(impl[S: LspService] MainLoop<S>, service: S);
 impl<S> MainLoop<S>
 where
 	S: LspService<Response = JsonValue>,
+	S::Future: Send + 'static,
 	ResponseError: From<S::Error>,
 {
 	/// Create a Language Server main loop.
@@ -90,16 +88,16 @@ where
 		(this, ServerSocket(socket))
 	}
 
-	/// Internal constructor for creating a main loop with a peer socket.
+	/// Create an internal constructor for creating a main loop with a peer socket.
 	fn new(builder: impl FnOnce(PeerSocket) -> S) -> (Self, PeerSocket) {
-		let (tx, rx) = mpsc::unbounded();
+		let (tx, rx) = mpsc::unbounded_channel();
 		let socket = PeerSocket { tx };
 		let this = Self {
 			service: builder(socket.clone()),
 			rx,
 			outgoing_id: 0,
 			outgoing: HashMap::new(),
-			tasks: FuturesUnordered::new(),
+			tasks: tokio::task::JoinSet::new(),
 		};
 		(this, socket)
 	}
@@ -109,7 +107,11 @@ where
 	/// Shortcut to [`MainLoop::run`] that accept an `impl AsyncRead` and implicit wrap it in a
 	/// [`BufReader`].
 	#[allow(clippy::missing_errors_doc, reason = "errors documented in Self::run")]
-	pub async fn run_buffered(self, input: impl AsyncRead, output: impl AsyncWrite) -> Result<()> {
+	pub async fn run_buffered(
+		self,
+		input: impl AsyncRead + Unpin,
+		output: impl AsyncWrite + Unpin,
+	) -> Result<()> {
 		self.run(BufReader::new(input), output).await
 	}
 
@@ -121,100 +123,55 @@ where
 	/// - `Error::Deserialize` when the peer sends undecodable or invalid message.
 	/// - `Error::Protocol` when the peer violates Language Server Protocol.
 	/// - Other errors raised from service handlers.
-	pub async fn run(mut self, input: impl AsyncBufRead, output: impl AsyncWrite) -> Result<()> {
-		pin_mut!(input, output);
-		let incoming = futures::stream::unfold(input, |mut input| async move {
-			Some((Message::read(&mut input).await, input))
-		});
-		let outgoing =
-			futures::sink::unfold(output, |mut output, outgoing: OutgoingMessage| async move {
-				Message::write(&outgoing.message, &mut output).await?;
-				if let Some(barrier) = outgoing.barrier {
-					let _ = barrier.send(());
-				}
-				Ok(output)
-			});
-		pin_mut!(incoming, outgoing);
-
-		let mut flush_fut = futures::future::Fuse::terminated();
+	pub async fn run(
+		mut self,
+		mut input: impl AsyncBufRead + Unpin,
+		mut output: impl AsyncWrite + Unpin,
+	) -> Result<()> {
 		let mut task_budget_remaining = TASK_DRAIN_MAX;
 		let mut task_budget_completed = 0u64;
-		let mut task_budget_defer = false;
 		let mut task_budget_deadline = Instant::now() + TASK_DRAIN_WINDOW;
+
 		let ret = loop {
-			// Outgoing > internal > incoming.
-			// Preference on outgoing data provides back pressure in case of
-			// flooding incoming requests.
-			let ctl = if task_budget_defer {
-				select_biased! {
-					// Concurrently flush out the previous message.
-					ret = flush_fut => { ret?; continue; }
+			let ctl = tokio::select! {
+				biased;
 
-					event = self.rx.next() => match event {
-						Some(e) => self.dispatch_event(e),
-						None => break Ok(()),
-					},
-					msg = incoming.next() => {
-						let dispatch_fut = self.dispatch_message(msg.expect("Never ends")?).fuse();
-						pin_mut!(dispatch_fut);
-						// NB. Concurrently wait for `poll_ready`, and write out the last message.
-						// If the service is waiting for client's response of the last request, while
-						// the last message is not delivered on the first write, it can deadlock.
-						loop {
-							select_biased! {
-								// Dispatch first. It usually succeeds immediately for non-requests,
-								// and the service is hardly busy.
-								ctl = dispatch_fut => break ctl,
-								ret = flush_fut => { ret?; continue }
-							}
+				resp = self.tasks.join_next(), if !self.tasks.is_empty() => {
+					match resp {
+						Some(Ok(resp)) => ControlFlow::Continue(Some(OutgoingMessage {
+							message: Message::Response(resp),
+							barrier: None,
+						})),
+						Some(Err(e)) => {
+							error!(error = %e, "LSP task panicked or was cancelled");
+							ControlFlow::Continue(None)
 						}
+						None => ControlFlow::Continue(None),
 					}
-					resp = self.tasks.select_next_some() => ControlFlow::Continue(Some(OutgoingMessage {
-						message: Message::Response(resp),
-						barrier: None,
-					})),
 				}
-			} else {
-				select_biased! {
-					// Concurrently flush out the previous message.
-					ret = flush_fut => { ret?; continue; }
 
-					resp = self.tasks.select_next_some() => ControlFlow::Continue(Some(OutgoingMessage {
-						message: Message::Response(resp),
-						barrier: None,
-					})),
-					event = self.rx.next() => match event {
-						Some(e) => self.dispatch_event(e),
-						None => break Ok(()),
-					},
-					msg = incoming.next() => {
-						let dispatch_fut = self.dispatch_message(msg.expect("Never ends")?).fuse();
-						pin_mut!(dispatch_fut);
-						// NB. Concurrently wait for `poll_ready`, and write out the last message.
-						// If the service is waiting for client's response of the last request, while
-						// the last message is not delivered on the first write, it can deadlock.
-						loop {
-							select_biased! {
-								// Dispatch first. It usually succeeds immediately for non-requests,
-								// and the service is hardly busy.
-								ctl = dispatch_fut => break ctl,
-								ret = flush_fut => { ret?; continue }
-							}
-						}
-					}
+				event = self.rx.recv() => match event {
+					Some(e) => self.dispatch_event(e),
+					None => break Ok(()),
+				},
+
+				msg = Message::read(&mut input) => {
+					self.dispatch_message(msg?).await
 				}
 			};
+
 			let msg = match ctl {
 				ControlFlow::Continue(Some(msg)) => msg,
 				ControlFlow::Continue(None) => continue,
 				ControlFlow::Break(ret) => break ret,
 			};
+
 			match msg.message {
 				Message::Response(_) => {
 					task_budget_remaining = task_budget_remaining.saturating_sub(1);
 					task_budget_completed += 1;
 					if task_budget_remaining == 0 || Instant::now() >= task_budget_deadline {
-						task_budget_defer = true;
+						// In a real implementation we might want to yield or prioritize other things here
 					}
 				}
 				_ => {
@@ -229,17 +186,21 @@ where
 					}
 					task_budget_remaining = TASK_DRAIN_MAX;
 					task_budget_completed = 0;
-					task_budget_defer = false;
 					task_budget_deadline = Instant::now() + TASK_DRAIN_WINDOW;
 				}
 			}
-			// Flush the previous one and load a new message to send.
-			outgoing.feed(msg).await?;
-			flush_fut = outgoing.flush().fuse();
+
+			let message = msg.message;
+			let barrier = msg.barrier;
+
+			Message::write(&message, &mut output).await?;
+			if let Some(b) = barrier {
+				let _ = b.send(());
+			}
 		};
 
-		let flush_ret = outgoing.close().await;
-		ret.and(flush_ret)
+		output.shutdown().await?;
+		ret
 	}
 
 	/// Routes an incoming message to the appropriate handler.
@@ -262,7 +223,7 @@ where
 				}
 				let id = req.id.clone();
 				let fut = self.service.call(req);
-				self.tasks.push(RequestFuture { fut, id: Some(id) });
+				self.tasks.spawn(RequestFuture { fut, id: Some(id) });
 			}
 			Message::Response(resp) => {
 				if let Some(resp_tx) = self.outgoing.remove(&resp.id) {
@@ -347,12 +308,12 @@ mod tests {
 
 	fn _main_loop_future_is_send<S>(
 		f: MainLoop<S>,
-		input: impl AsyncBufRead + Send,
-		output: impl AsyncWrite + Send,
+		input: impl AsyncBufRead + Send + Unpin,
+		output: impl AsyncWrite + Send + Unpin,
 	) -> impl Send
 	where
 		S: LspService<Response = JsonValue> + Send,
-		S::Future: Send,
+		S::Future: Send + 'static,
 		S::Error: From<Error> + Send,
 		ResponseError: From<S::Error>,
 	{

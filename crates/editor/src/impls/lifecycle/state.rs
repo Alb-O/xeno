@@ -1,5 +1,5 @@
 #[cfg(feature = "lsp")]
-use futures::channel::oneshot;
+use tokio::sync::oneshot;
 
 #[cfg(feature = "lsp")]
 pub struct FlushHandle {

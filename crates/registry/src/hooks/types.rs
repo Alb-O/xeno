@@ -1,8 +1,5 @@
 //! Hook type definitions: HookDef, HookAction, HookResult.
 
-use std::future::Future;
-use std::pin::Pin;
-
 use super::context::{HookContext, MutableHookContext};
 use crate::HookEvent;
 pub use crate::core::{RegistryEntry, RegistryMeta, RegistryMetadata};
@@ -31,7 +28,7 @@ pub enum HookResult {
 }
 
 /// A boxed future that returns a [`HookResult`].
-pub type BoxFuture = Pin<Box<dyn Future<Output = HookResult> + Send + 'static>>;
+pub type BoxFuture = xeno_primitives::BoxFutureStatic<HookResult>;
 
 /// Action returned by a hook handler.
 ///

@@ -1,7 +1,6 @@
 //! Outbound message queue and dispatcher for LSP client.
 
-use futures::channel::oneshot;
-use tokio::sync::{mpsc, watch};
+use tokio::sync::{mpsc, oneshot, watch};
 
 use super::state::ServerState;
 use crate::message::Message;
@@ -84,14 +83,12 @@ pub(super) async fn outbound_dispatcher(
 
 #[cfg(test)]
 mod tests {
-	use futures::StreamExt;
-
 	use super::*;
 	use crate::socket::PeerSocket;
 
 	#[tokio::test]
 	async fn outbound_dispatcher_forwards_notifications() {
-		let (peer_tx, mut peer_rx) = futures::channel::mpsc::unbounded();
+		let (peer_tx, mut peer_rx) = tokio::sync::mpsc::unbounded_channel();
 		let socket = ServerSocket(PeerSocket { tx: peer_tx });
 
 		let (_state_tx, state_rx) = watch::channel(ServerState::Ready);
@@ -109,7 +106,7 @@ mod tests {
 			.await
 			.unwrap();
 
-		let event = peer_rx.next().await.expect("event");
+		let event = peer_rx.recv().await.expect("event");
 		match event {
 			MainLoopEvent::Outgoing(Message::Notification(notif)) => {
 				assert_eq!(notif.method, "test");
@@ -120,7 +117,7 @@ mod tests {
 
 	#[tokio::test]
 	async fn outbound_dispatcher_fires_write_barrier() {
-		let (peer_tx, mut peer_rx) = futures::channel::mpsc::unbounded();
+		let (peer_tx, mut peer_rx) = tokio::sync::mpsc::unbounded_channel();
 		let socket = ServerSocket(PeerSocket { tx: peer_tx });
 
 		let (_state_tx, state_rx) = watch::channel(ServerState::Ready);
@@ -140,7 +137,7 @@ mod tests {
 			.unwrap();
 
 		// Consume the OutgoingWithBarrier event and fire the barrier (simulating mainloop)
-		let event = peer_rx.next().await.expect("event");
+		let event = peer_rx.recv().await.expect("event");
 		match event {
 			MainLoopEvent::OutgoingWithBarrier(Message::Notification(notif), barrier) => {
 				assert_eq!(notif.method, "test");
@@ -155,7 +152,7 @@ mod tests {
 
 	#[tokio::test]
 	async fn outbound_dispatcher_preserves_fifo_order() {
-		let (peer_tx, mut peer_rx) = futures::channel::mpsc::unbounded();
+		let (peer_tx, mut peer_rx) = tokio::sync::mpsc::unbounded_channel();
 		let socket = ServerSocket(PeerSocket { tx: peer_tx });
 
 		let (_state_tx, state_rx) = watch::channel(ServerState::Ready);
@@ -183,8 +180,8 @@ mod tests {
 			.await
 			.unwrap();
 
-		let first = peer_rx.next().await.expect("first event");
-		let second = peer_rx.next().await.expect("second event");
+		let first = peer_rx.recv().await.expect("first event");
+		let second = peer_rx.recv().await.expect("second event");
 
 		match first {
 			MainLoopEvent::Outgoing(Message::Notification(notif)) => {
@@ -203,7 +200,7 @@ mod tests {
 
 	#[tokio::test]
 	async fn outbound_dispatcher_stops_on_dead() {
-		let (peer_tx, _peer_rx) = futures::channel::mpsc::unbounded();
+		let (peer_tx, _peer_rx) = tokio::sync::mpsc::unbounded_channel();
 		let socket = ServerSocket(PeerSocket { tx: peer_tx });
 
 		let (state_tx, state_rx) = watch::channel(ServerState::Starting);

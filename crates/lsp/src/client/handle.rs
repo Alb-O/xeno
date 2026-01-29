@@ -4,11 +4,10 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Duration;
 
-use futures::channel::oneshot;
 use lsp_types::notification::Notification;
 use lsp_types::request::Request;
 use lsp_types::{ServerCapabilities, Uri};
-use tokio::sync::{Notify, OnceCell, mpsc, watch};
+use tokio::sync::{Notify, OnceCell, mpsc, oneshot, watch};
 
 use super::config::{LanguageServerId, OffsetEncoding};
 use super::outbox::OutboundMsg;

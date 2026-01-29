@@ -105,6 +105,9 @@ pub struct LanguageLspInfo {
 /// Mapping of language name to its LSP configuration.
 pub type LanguageLspMapping = HashMap<String, LanguageLspInfo>;
 
+#[cfg(test)]
+pub use parsing::{parse_language_lsp_mapping, parse_lsp_configs};
+
 // Test-only KDL parsing functions
 #[cfg(test)]
 mod parsing {
@@ -287,6 +290,3 @@ mod parsing {
 			.collect()
 	}
 }
-
-#[cfg(test)]
-pub use parsing::{parse_language_lsp_mapping, parse_lsp_configs};

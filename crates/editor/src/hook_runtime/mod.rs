@@ -12,7 +12,7 @@
 
 use std::time::{Duration, Instant};
 
-use futures::stream::{FuturesUnordered, StreamExt};
+use tokio::task::JoinSet;
 use xeno_registry::{BoxFuture as HookBoxFuture, HookPriority, HookScheduler};
 
 /// High-water mark for pending hooks before warning.
@@ -69,9 +69,9 @@ pub struct HookDrainStats {
 /// ```
 pub struct HookRuntime {
 	/// Interactive hooks (must complete).
-	interactive: FuturesUnordered<HookBoxFuture>,
+	interactive: JoinSet<xeno_registry::HookResult>,
 	/// Background hooks (can be dropped under backlog).
-	background: FuturesUnordered<HookBoxFuture>,
+	background: JoinSet<xeno_registry::HookResult>,
 	/// Total hooks scheduled (for instrumentation).
 	scheduled_total: u64,
 	/// Total hooks completed (for instrumentation).
@@ -83,8 +83,8 @@ pub struct HookRuntime {
 impl Default for HookRuntime {
 	fn default() -> Self {
 		Self {
-			interactive: FuturesUnordered::new(),
-			background: FuturesUnordered::new(),
+			interactive: JoinSet::new(),
+			background: JoinSet::new(),
 			scheduled_total: 0,
 			completed_total: 0,
 			dropped_total: 0,
@@ -159,8 +159,11 @@ impl HookRuntime {
 
 		while Instant::now() < deadline && !self.interactive.is_empty() && remaining > 0 {
 			let time_left = deadline.saturating_duration_since(Instant::now());
-			match tokio::time::timeout(time_left, self.interactive.next()).await {
-				Ok(Some(_)) => {
+			match tokio::time::timeout(time_left, self.interactive.join_next()).await {
+				Ok(Some(res)) => {
+					if let Err(e) = res {
+						tracing::error!(?e, "interactive hook failed");
+					}
 					self.completed_total += 1;
 					remaining = remaining.saturating_sub(1);
 					tracing::trace!(
@@ -176,8 +179,11 @@ impl HookRuntime {
 
 		while Instant::now() < deadline && !self.background.is_empty() && remaining > 0 {
 			let time_left = deadline.saturating_duration_since(Instant::now());
-			match tokio::time::timeout(time_left, self.background.next()).await {
-				Ok(Some(_)) => {
+			match tokio::time::timeout(time_left, self.background.join_next()).await {
+				Ok(Some(res)) => {
+					if let Err(e) = res {
+						tracing::error!(?e, "background hook failed");
+					}
 					self.completed_total += 1;
 					remaining = remaining.saturating_sub(1);
 					tracing::trace!(
@@ -227,10 +233,16 @@ impl HookRuntime {
 	/// Unlike [`drain_budget`](Self::drain_budget), this blocks until all hooks
 	/// complete. Use sparingly (e.g., at editor shutdown).
 	pub async fn drain_all(&mut self) {
-		while self.interactive.next().await.is_some() {
+		while let Some(res) = self.interactive.join_next().await {
+			if let Err(e) = res {
+				tracing::error!(?e, "interactive hook failed during drain_all");
+			}
 			self.completed_total += 1;
 		}
-		while self.background.next().await.is_some() {
+		while let Some(res) = self.background.join_next().await {
+			if let Err(e) = res {
+				tracing::error!(?e, "background hook failed during drain_all");
+			}
 			self.completed_total += 1;
 		}
 	}
@@ -241,7 +253,8 @@ impl HookRuntime {
 	pub fn drop_background(&mut self) {
 		let count = self.background.len();
 		if count > 0 {
-			self.background = FuturesUnordered::new();
+			self.background.abort_all();
+			self.background = JoinSet::new();
 			self.dropped_total += count as u64;
 			tracing::info!(dropped = count, "dropped background hooks due to backlog");
 		}
@@ -254,7 +267,7 @@ impl HookScheduler for HookRuntime {
 
 		match priority {
 			HookPriority::Interactive => {
-				self.interactive.push(fut);
+				self.interactive.spawn(fut);
 				tracing::trace!(
 					interactive_pending = self.interactive.len(),
 					scheduled_total = self.scheduled_total,
@@ -273,7 +286,7 @@ impl HookScheduler for HookRuntime {
 					);
 					return;
 				}
-				self.background.push(fut);
+				self.background.spawn(fut);
 				tracing::trace!(
 					background_pending = self.background.len(),
 					scheduled_total = self.scheduled_total,

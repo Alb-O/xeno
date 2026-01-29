@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use futures::future::LocalBoxFuture;
+use xeno_primitives::LocalBoxFuture;
 
 use crate::command;
 use crate::commands::{CommandContext, CommandError, CommandOutcome};

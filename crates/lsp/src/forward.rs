@@ -3,8 +3,7 @@ use std::ops::ControlFlow;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 
-use futures::FutureExt;
-use futures::channel::oneshot;
+use tokio::sync::oneshot;
 use tower_service::Service;
 
 use crate::event::AnyEvent;
@@ -23,7 +22,7 @@ impl Future for PeerSocketResponseFuture {
 	type Output = Result<serde_json::Value, ResponseError>;
 
 	fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-		match self.rx.poll_unpin(cx) {
+		match Pin::new(&mut self.rx).poll(cx) {
 			Poll::Ready(Ok(resp)) => Poll::Ready(match resp.error {
 				None => Ok(resp.result.unwrap_or_default()),
 				Some(resp_err) => Err(resp_err),

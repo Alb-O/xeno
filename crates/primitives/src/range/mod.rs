@@ -99,6 +99,15 @@ impl Range {
 		self.to() - self.from()
 	}
 
+	/// Returns true if the range is empty.
+	///
+	/// In the 1-cell minimum model, a range is never empty as it always contains
+	/// at least one character cell.
+	#[inline]
+	pub fn is_empty(&self) -> bool {
+		false
+	}
+
 	/// Returns true if anchor equals head (point selection).
 	///
 	/// In the 1-cell minimum model, a point selection still selects one character.

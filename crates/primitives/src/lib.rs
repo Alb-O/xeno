@@ -4,6 +4,8 @@
 pub mod direction;
 /// Edit operation types: errors, policies, and results.
 pub mod edit;
+/// Async future aliases.
+pub mod future;
 /// Grapheme cluster boundary detection.
 pub mod graphemes;
 /// Identifier types for editor entities.
@@ -36,6 +38,7 @@ pub use edit::{
 	CommitResult, EditCommit, EditError, EditOrigin, ReadOnlyReason, ReadOnlyScope, SyntaxOutcome,
 	SyntaxPolicy, UndoPolicy,
 };
+pub use future::{BoxFuture, BoxFutureStatic, LocalBoxFuture};
 pub use ids::{MotionId, ViewId, motion_ids};
 pub use key::{Key, KeyCode, Modifiers, MouseButton, MouseEvent, ScrollDirection};
 pub use lsp::{LspChangeSet, LspDocumentChange, LspPosition, LspRange};
