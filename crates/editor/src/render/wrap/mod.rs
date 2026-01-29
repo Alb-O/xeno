@@ -47,6 +47,9 @@ pub struct WrapSegment {
 }
 
 /// Wraps a line of text into ranges that fit within a maximum width.
+///
+/// # Empty Lines
+/// Returns a single segment of length 0 for empty strings.
 pub fn wrap_line_ranges(line: &str, max_width: usize, tab_width: usize) -> Vec<WrappedSegment> {
 	if max_width == 0 {
 		return vec![];
@@ -54,7 +57,11 @@ pub fn wrap_line_ranges(line: &str, max_width: usize, tab_width: usize) -> Vec<W
 
 	let chars: Vec<char> = line.chars().collect();
 	if chars.is_empty() {
-		return vec![];
+		return vec![WrappedSegment {
+			start_char_offset: 0,
+			char_len: 0,
+			indent_cols: 0,
+		}];
 	}
 
 	const MIN_CONTINUATION_CONTENT: usize = 20;
@@ -208,6 +215,10 @@ fn find_wrap_break(chars: &[char], start: usize, max_end: usize) -> usize {
 ///
 /// Operates directly on the rope content to avoid string allocations. Uses a
 /// forward scan with best-break tracking to find optimal wrap points.
+///
+/// # Empty Lines
+/// Returns a single segment of length 0 for empty lines, ensuring they can be
+/// rendered with a cursor.
 pub fn wrap_line_ranges_rope(
 	line: RopeSlice<'_>,
 	max_width: usize,
@@ -219,7 +230,11 @@ pub fn wrap_line_ranges_rope(
 
 	let line_len = line.len_chars();
 	if line_len == 0 {
-		return vec![];
+		return vec![WrappedSegment {
+			start_char_offset: 0,
+			char_len: 0,
+			indent_cols: 0,
+		}];
 	}
 
 	const MIN_CONTINUATION_CONTENT: usize = 20;

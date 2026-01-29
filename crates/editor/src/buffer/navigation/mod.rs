@@ -1,15 +1,11 @@
 //! Cursor navigation for buffers.
 
 use xeno_primitives::range::{Direction as MoveDir, Range};
-use xeno_primitives::{ScrollDirection, Selection, visible_line_count};
+use xeno_primitives::{ScrollDirection, Selection, max_cursor_pos, visible_line_count};
 
 use super::Buffer;
 use crate::render::wrap::WrapSegment;
 
-/// Maps a screen column to a character offset within a wrap segment.
-///
-/// Returns `(offset, matched)` where `matched` is true if `text_col` fell
-/// within the segment's content, false if it was past the end.
 /// Maps a screen column to a character offset within a wrap segment.
 ///
 /// Returns `(offset, matched)` where `matched` is true if `text_col` fell
@@ -113,12 +109,12 @@ impl Buffer {
 		tab_width: usize,
 		goal_col: usize,
 	) -> usize {
-		let (_doc_line, line_start, _visible_lines, line_text, next_line_data, prev_line_data) =
-			self.with_doc(|doc| {
+		let (_doc_line, line_start, _total_lines, line_text, next_line_data, prev_line_data) = self
+			.with_doc(|doc| {
 				let content = doc.content();
 				let doc_line = content.char_to_line(cursor);
 				let line_start = content.line_to_char(doc_line);
-				let visible_lines = visible_line_count(content.slice(..));
+				let total_lines = visible_line_count(content.slice(..));
 
 				let line_end = if doc_line + 1 < content.len_lines() {
 					content.line_to_char(doc_line + 1)
@@ -127,7 +123,7 @@ impl Buffer {
 				};
 				let line_text: String = content.slice(line_start..line_end).into();
 
-				let next_line_data = if doc_line + 1 < visible_lines {
+				let next_line_data = if doc_line + 1 < total_lines {
 					let next_line_start = content.line_to_char(doc_line + 1);
 					let next_line_end = if doc_line + 2 < content.len_lines() {
 						content.line_to_char(doc_line + 2)
@@ -152,7 +148,7 @@ impl Buffer {
 				(
 					doc_line,
 					line_start,
-					visible_lines,
+					total_lines,
 					line_text,
 					next_line_data,
 					prev_line_data,
@@ -268,16 +264,17 @@ impl Buffer {
 		} else if self.scroll_line > 0 {
 			self.scroll_line -= 1;
 			let num_segments = self.with_doc(|doc| {
-				let line_start = doc.content().line_to_char(self.scroll_line);
-				let line_end = if self.scroll_line + 1 < doc.content().len_lines() {
-					doc.content().line_to_char(self.scroll_line + 1)
+				let line_slice = doc.content().line(self.scroll_line);
+				let line_len = line_slice.len_chars();
+				let has_newline = line_len > 0 && line_slice.char(line_len - 1) == '\n';
+				let content = if has_newline {
+					line_slice.slice(..line_len - 1)
 				} else {
-					doc.content().len_chars()
+					line_slice
 				};
-				let text: String = doc.content().slice(line_start..line_end).into();
-				let segments =
-					self.wrap_line(text.trim_end_matches('\n'), self.text_width, tab_width);
-				segments.len()
+				let text: String = content.into();
+				let segments = self.wrap_line(&text, self.text_width, tab_width);
+				segments.len().max(1)
 			});
 			self.scroll_segment = num_segments.saturating_sub(1);
 		}
@@ -285,29 +282,30 @@ impl Buffer {
 
 	/// Scrolls viewport down by one visual line.
 	pub fn scroll_viewport_down(&mut self, tab_width: usize) {
-		let (visible_lines, num_segments) = self.with_doc(|doc| {
+		let (total_lines, num_segments) = self.with_doc(|doc| {
 			let content = doc.content();
-			let visible_lines = visible_line_count(content.slice(..));
-			if self.scroll_line < visible_lines {
-				let line_start = content.line_to_char(self.scroll_line);
-				let line_end = if self.scroll_line + 1 < content.len_lines() {
-					content.line_to_char(self.scroll_line + 1)
+			let total_lines = visible_line_count(content.slice(..));
+			if self.scroll_line < total_lines {
+				let line_slice = content.line(self.scroll_line);
+				let line_len = line_slice.len_chars();
+				let has_newline = line_len > 0 && line_slice.char(line_len - 1) == '\n';
+				let content = if has_newline {
+					line_slice.slice(..line_len - 1)
 				} else {
-					content.len_chars()
+					line_slice
 				};
-				let line_text: String = content.slice(line_start..line_end).into();
-				let segments =
-					self.wrap_line(line_text.trim_end_matches('\n'), self.text_width, tab_width);
-				(visible_lines, segments.len().max(1))
+				let text: String = content.into();
+				let segments = self.wrap_line(&text, self.text_width, tab_width);
+				(total_lines, segments.len().max(1))
 			} else {
-				(visible_lines, 1)
+				(total_lines, 1)
 			}
 		});
 
-		if self.scroll_line < visible_lines {
+		if self.scroll_line < total_lines {
 			if self.scroll_segment + 1 < num_segments {
 				self.scroll_segment += 1;
-			} else if self.scroll_line + 1 < visible_lines {
+			} else if self.scroll_line + 1 < total_lines {
 				self.scroll_line += 1;
 				self.scroll_segment = 0;
 			}
@@ -333,19 +331,21 @@ impl Buffer {
 
 		self.with_doc(|doc| {
 			let content = doc.content();
-			let visible_lines = visible_line_count(content.slice(..));
+			let total_lines = visible_line_count(content.slice(..));
+			let max_pos = max_cursor_pos(content.slice(..));
 
-			while line_idx < visible_lines {
+			while line_idx < total_lines {
 				let line_start = content.line_to_char(line_idx);
-				let line_end = if line_idx + 1 < content.len_lines() {
-					content.line_to_char(line_idx + 1)
-				} else {
-					content.len_chars()
-				};
+				let line_text = content.line(line_idx);
+				let line_len = line_text.len_chars();
+				let has_newline = line_len > 0 && line_text.char(line_len - 1) == '\n';
 
-				let line_text: String = content.slice(line_start..line_end).into();
-				let line_text = line_text.trim_end_matches('\n');
-				let segments = self.wrap_line(line_text, self.text_width, tab_width);
+				let text_for_wrap: String = if has_newline {
+					line_text.slice(..line_len - 1).into()
+				} else {
+					line_text.into()
+				};
+				let segments = self.wrap_line(&text_for_wrap, self.text_width, tab_width);
 
 				if segments.is_empty() {
 					if visual_row == screen_row as usize {
@@ -364,17 +364,16 @@ impl Buffer {
 								col_to_char_offset(segment, text_col, tab_width);
 							let is_last_seg = seg_idx == num_segments - 1;
 
-							// Positions at wrap boundaries belong to the next segment
 							if !matched && !is_last_seg {
-								// Handled by continuing to next visual_row
+								let next_segment = &segments[seg_idx + 1];
+								return Some((line_start + next_segment.start_offset).min(max_pos));
 							} else {
 								let past_end_offset = if !matched {
-									let has_newline = is_last_seg && line_idx + 1 < visible_lines;
 									if has_newline { 1 } else { 0 }
 								} else {
 									0
 								};
-								return Some(line_start + offset + past_end_offset);
+								return Some((line_start + offset + past_end_offset).min(max_pos));
 							}
 						}
 						visual_row += 1;
@@ -385,21 +384,7 @@ impl Buffer {
 				line_idx += 1;
 			}
 
-			let last_line = visible_lines.saturating_sub(1);
-			let last_line_start = content.line_to_char(last_line);
-			let last_line_text: String = content.slice(last_line_start..content.len_chars()).into();
-			let last_line_text = last_line_text.trim_end_matches('\n');
-
-			match self
-				.wrap_line(last_line_text, self.text_width, tab_width)
-				.last()
-			{
-				None => Some(last_line_start),
-				Some(segment) => {
-					let (offset, matched) = col_to_char_offset(segment, text_col, tab_width);
-					Some(last_line_start + offset + if matched { 0 } else { 1 })
-				}
-			}
+			Some(max_pos)
 		})
 	}
 
@@ -409,9 +394,9 @@ impl Buffer {
 	pub fn doc_to_screen_position(&self, doc_pos: usize, tab_width: usize) -> Option<(u16, u16)> {
 		self.with_doc(|doc| {
 			let content = doc.content();
-			let visible_lines = visible_line_count(content.slice(..));
+			let total_lines = visible_line_count(content.slice(..));
 			let line_idx = content.char_to_line(doc_pos.min(content.len_chars()));
-			if line_idx < self.scroll_line || self.scroll_line >= visible_lines {
+			if line_idx < self.scroll_line || self.scroll_line >= total_lines {
 				return None;
 			}
 

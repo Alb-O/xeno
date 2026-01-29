@@ -101,9 +101,9 @@ pub fn move_vertically(
 	let line_start = text.line_to_char(line);
 	let col = pos - line_start;
 
-	let visible_lines = visible_line_count(text);
+	let total_lines = visible_line_count(text);
 	let new_line = match direction {
-		Direction::Forward => (line + count).min(visible_lines.saturating_sub(1)),
+		Direction::Forward => (line + count).min(total_lines.saturating_sub(1)),
 		Direction::Backward => line.saturating_sub(count),
 	};
 
@@ -168,7 +168,7 @@ pub fn move_to_document_start(_text: RopeSlice, range: Range, extend: bool) -> R
 
 /// Move to document end.
 pub fn move_to_document_end(text: RopeSlice, range: Range, extend: bool) -> Range {
-	make_range(range, text.len_chars() as CharIdx, extend)
+	make_range(range, max_cursor_pos(text), extend)
 }
 
 #[cfg(test)]

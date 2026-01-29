@@ -106,7 +106,7 @@ motion!(document_start, { description: "Move to document start" }, |_text, range
 });
 
 motion!(document_end, { description: "Move to document end" }, |text, range, _count, extend| {
-	make_range(range, text.len_chars(), extend)
+	make_range(range, max_cursor_pos(text), extend)
 });
 
 // --- Paragraph ---

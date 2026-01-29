@@ -6,16 +6,11 @@ use super::types::ViewportEnsureEvent;
 use crate::buffer::{Buffer, Document};
 use crate::render::wrap::{WrappedSegment, wrap_line_ranges_rope};
 
-/// Ensures the cursor is visible in the buffer's viewport with scroll margins.
+/// Ensures the primary cursor is visible within the viewport.
 ///
-/// This function adjusts `buffer.scroll_line` and `buffer.scroll_segment` to ensure
-/// the primary cursor is visible within the given area, maintaining a minimum
-/// distance from the viewport edges when possible.
-/// Ensures the cursor is visible in the buffer's viewport with scroll margins.
-///
-/// This function adjusts `buffer.scroll_line` and `buffer.scroll_segment` to ensure
-/// the primary cursor is visible within the given area, maintaining a minimum
-/// distance from the viewport edges when possible.
+/// Adjusts `buffer.scroll_line` and `buffer.scroll_segment` to keep the cursor
+/// inside the visible area while preserving the configured scroll margin when
+/// possible.
 pub fn ensure_buffer_cursor_visible(
 	buffer: &mut Buffer,
 	area: Rect,
@@ -301,11 +296,11 @@ fn advance_one_visual_row(
 	text_width: usize,
 	tab_width: usize,
 ) -> bool {
-	let (visible_lines, num_segments) = buffer.with_doc(|doc: &Document| {
+	let (total_lines, num_segments) = buffer.with_doc(|doc: &Document| {
 		let content = doc.content();
-		let visible = visible_line_count(content.slice(..));
-		if *line >= visible {
-			return (visible, 0);
+		let total = visible_line_count(content.slice(..));
+		if *line >= total {
+			return (total, 0);
 		}
 
 		let line_slice = content.line(*line);
@@ -319,10 +314,10 @@ fn advance_one_visual_row(
 		let n = wrap_line_ranges_rope(content, text_width, tab_width)
 			.len()
 			.max(1);
-		(visible, n)
+		(total, n)
 	});
 
-	if *line >= visible_lines {
+	if *line >= total_lines {
 		return false;
 	}
 
@@ -331,7 +326,7 @@ fn advance_one_visual_row(
 		return true;
 	}
 
-	if *line + 1 < visible_lines {
+	if *line + 1 < total_lines {
 		*line += 1;
 		*segment = 0;
 		return true;

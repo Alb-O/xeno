@@ -1,7 +1,6 @@
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RowKind {
 	Text { line_idx: usize, seg_idx: usize },
-	PhantomTrailingNewline { line_idx: usize },
 	NonTextBeyondEof,
 }
 
@@ -30,7 +29,7 @@ where
 
 /// Viewport rendering plan.
 ///
-/// Maps visual rows to document content (text, phantom lines, or EOF markers).
+/// Maps visual rows to document content (text or EOF markers).
 #[derive(Debug, Clone)]
 pub struct ViewportPlan {
 	pub rows: Vec<RowPlan>,
@@ -43,17 +42,9 @@ impl ViewportPlan {
 		start_seg: usize,
 		viewport_height: usize,
 		total_lines: usize,
-		has_trailing_newline: bool,
 		wrap_fn: impl Fn(usize) -> usize,
 	) -> Self {
-		Self::new_with_wrap(
-			start_line,
-			start_seg,
-			viewport_height,
-			total_lines,
-			has_trailing_newline,
-			wrap_fn,
-		)
+		Self::new_with_wrap(start_line, start_seg, viewport_height, total_lines, wrap_fn)
 	}
 
 	/// Creates a viewport plan using a [`WrapAccess`] implementation.
@@ -64,7 +55,6 @@ impl ViewportPlan {
 		start_seg: usize,
 		viewport_height: usize,
 		total_lines: usize,
-		has_trailing_newline: bool,
 		wrap_access: impl WrapAccess,
 	) -> Self {
 		let mut rows = Vec::with_capacity(viewport_height);
@@ -88,14 +78,6 @@ impl ViewportPlan {
 				current_line += 1;
 				current_seg = 0;
 			}
-		}
-
-		if rows.len() < viewport_height && has_trailing_newline && current_line == total_lines {
-			rows.push(RowPlan {
-				kind: RowKind::PhantomTrailingNewline {
-					line_idx: total_lines - 1,
-				},
-			});
 		}
 
 		while rows.len() < viewport_height {

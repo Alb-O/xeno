@@ -1,4 +1,4 @@
-use xeno_primitives::Mode;
+use xeno_primitives::{Mode, visible_line_count};
 use xeno_registry::gutter::GutterAnnotations;
 use xeno_runtime_language::highlight::HighlightSpan;
 use xeno_tui::layout::Rect;
@@ -66,7 +66,8 @@ impl<'a> BufferRenderContext<'a> {
 				return Vec::new();
 			};
 
-			let end_line = (start_line + area.height as usize).min(doc.content().len_lines());
+			let total_lines = visible_line_count(doc.content().slice(..));
+			let end_line = (start_line + area.height as usize).min(total_lines);
 
 			cache.highlight.get_spans(
 				doc.id,
@@ -166,22 +167,12 @@ impl<'a> BufferRenderContext<'a> {
 		cursorline: bool,
 		cache: &mut RenderCache,
 	) -> RenderResult {
-		let (doc_id, doc_content, doc_version, total_lines, has_trailing_newline) = buffer
-			.with_doc(|doc| {
-				let content = doc.content().clone();
-				let total_lines = content.len_lines();
-				let has_trailing_newline = {
-					let len = content.len_chars();
-					len > 0 && content.char(len - 1) == '\n'
-				};
-				(
-					doc.id,
-					content,
-					doc.version(),
-					total_lines,
-					has_trailing_newline,
-				)
-			});
+		// Snapshot document state to minimize lock duration and ensure consistency
+		let (doc_id, doc_content, doc_version, total_lines) = buffer.with_doc(|doc| {
+			let content = doc.content().clone();
+			let total_lines = content.len_lines();
+			(doc.id, content, doc.version(), total_lines)
+		});
 
 		let is_diff_file = buffer.file_type().is_some_and(|ft| ft == "diff");
 
@@ -242,7 +233,6 @@ impl<'a> BufferRenderContext<'a> {
 			buffer.scroll_segment,
 			viewport_height,
 			total_lines,
-			has_trailing_newline,
 			&*wrap_bucket,
 		);
 
@@ -257,9 +247,6 @@ impl<'a> BufferRenderContext<'a> {
 					let num_segs = segments.map(|s| s.len()).unwrap_or(0).max(1);
 					let segment = segments.and_then(|s| s.get(seg_idx));
 					(slice, segment, seg_idx > 0, seg_idx == num_segs - 1)
-				}
-				RowKind::PhantomTrailingNewline { line_idx } => {
-					(LineSource::load(&doc_content, line_idx), None, false, true)
 				}
 				RowKind::NonTextBeyondEof => (None, None, false, true),
 			};
@@ -300,10 +287,7 @@ impl<'a> BufferRenderContext<'a> {
 				is_cursor_line: cursorline && line_idx == cursor_line,
 				cursorline_enabled: cursorline,
 				cursor_line,
-				is_nontext: matches!(
-					row.kind,
-					RowKind::NonTextBeyondEof | RowKind::PhantomTrailingNewline { .. }
-				),
+				is_nontext: matches!(row.kind, RowKind::NonTextBeyondEof),
 			};
 
 			let row_input = RowRenderInput {
