@@ -308,6 +308,24 @@ impl Selection {
 		}
 		self.normalize();
 	}
+
+	/// Returns `true` if all ranges are within valid bounds.
+	///
+	/// Checks that:
+	/// - `primary_index` is valid
+	/// - All range endpoints (anchor, head, from, to) are `<= len`
+	/// - Range ordering is correct (`from <= to`)
+	#[inline]
+	pub fn is_in_bounds(&self, len: CharIdx) -> bool {
+		if self.primary_index >= self.ranges.len() {
+			return false;
+		}
+		self.ranges.iter().all(|r| {
+			let from = r.from();
+			let to = r.to();
+			from <= to && to <= len && r.head <= len && r.anchor <= len
+		})
+	}
 }
 
 impl Default for Selection {

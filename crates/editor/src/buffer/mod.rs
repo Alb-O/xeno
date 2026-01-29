@@ -381,6 +381,33 @@ impl Buffer {
 		self.cursor = self.cursor.min(max_char);
 	}
 
+	/// Asserts that selection and cursor are within valid document bounds.
+	///
+	/// Only active in debug builds. Use after mutations to catch invalid state early.
+	#[cfg(debug_assertions)]
+	pub fn debug_assert_valid_state(&self) {
+		self.with_doc(|doc| {
+			let len = doc.content().len_chars();
+			debug_assert!(
+				self.selection.is_in_bounds(len),
+				"selection out of bounds: len={}, selection={:?}",
+				len,
+				self.selection
+			);
+			debug_assert!(
+				self.cursor <= len,
+				"cursor out of bounds: cursor={}, len={}",
+				self.cursor,
+				len
+			);
+		});
+	}
+
+	/// No-op in release builds.
+	#[cfg(not(debug_assertions))]
+	#[inline]
+	pub fn debug_assert_valid_state(&self) {}
+
 	/// Maps selection and cursor through a [`Transaction`](xeno_base::Transaction).
 	pub fn map_selection_through(&mut self, tx: &xeno_primitives::Transaction) {
 		self.set_selection(tx.map_selection(&self.selection));

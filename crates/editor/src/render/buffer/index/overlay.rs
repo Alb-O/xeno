@@ -45,9 +45,12 @@ impl OverlayIndex {
 		_is_focused: bool,
 		rope: &xeno_primitives::Rope,
 	) -> Self {
+		let len = rope.len_chars();
+		let primary_cursor = primary_cursor.min(len);
+
 		let mut cursor_heads = HashSet::new();
 		for range in selection.ranges() {
-			cursor_heads.insert(range.head);
+			cursor_heads.insert(range.head.min(len));
 		}
 
 		let mut selection_by_line: HashMap<usize, Vec<Range<usize>>> = HashMap::new();
@@ -56,8 +59,14 @@ impl OverlayIndex {
 				continue;
 			}
 
-			let from = range.from();
-			let to = range.to();
+			let mut from = range.from().min(len);
+			let mut to = range.to().min(len);
+			if from > to {
+				std::mem::swap(&mut from, &mut to);
+			}
+			if from == to {
+				continue;
+			}
 			let start_line = rope.char_to_line(from);
 			let end_line = rope.char_to_line(to);
 

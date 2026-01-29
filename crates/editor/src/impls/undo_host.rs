@@ -152,6 +152,30 @@ impl EditorUndoHost<'_> {
 		for sibling_id in sibling_ids {
 			if let Some(sibling) = self.buffers.get_buffer_mut(sibling_id) {
 				sibling.map_selection_through(tx);
+				sibling.ensure_valid_selection();
+				sibling.debug_assert_valid_state();
+			}
+		}
+	}
+
+	/// Clamps selections and cursors for all views of a document to valid bounds.
+	///
+	/// Call after any document mutation to ensure no view holds stale positions.
+	fn normalize_all_views_for_doc(&mut self, doc_id: DocumentId) {
+		let view_ids: Vec<_> = self
+			.buffers
+			.buffer_ids()
+			.filter(|&id| {
+				self.buffers
+					.get_buffer(id)
+					.is_some_and(|b| b.document_id() == doc_id)
+			})
+			.collect();
+
+		for view_id in view_ids {
+			if let Some(buffer) = self.buffers.get_buffer_mut(view_id) {
+				buffer.ensure_valid_selection();
+				buffer.debug_assert_valid_state();
 			}
 		}
 	}
@@ -176,6 +200,7 @@ impl EditorUndoHost<'_> {
 
 		if ok {
 			self.mark_buffer_dirty_for_full_sync(buffer_id);
+			self.normalize_all_views_for_doc(doc_id);
 		}
 		ok
 	}
@@ -200,6 +225,7 @@ impl EditorUndoHost<'_> {
 
 		if ok {
 			self.mark_buffer_dirty_for_full_sync(buffer_id);
+			self.normalize_all_views_for_doc(doc_id);
 		}
 		ok
 	}
