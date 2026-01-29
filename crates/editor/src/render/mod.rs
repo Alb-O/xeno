@@ -11,8 +11,9 @@ mod status;
 pub mod wrap;
 
 pub use buffer::{
-	BufferRenderContext, DiagnosticLineMap, DiagnosticRangeMap, DiagnosticSpan, LineSlice,
-	LineSource, RenderResult, RowKind, ViewportPlan, WrapAccess, ensure_buffer_cursor_visible,
+	BufferRenderContext, DiagnosticLineMap, DiagnosticRangeMap, DiagnosticSpan, GutterLayout,
+	LineSlice, LineSource, RenderResult, RowKind, ViewportPlan, WrapAccess,
+	ensure_buffer_cursor_visible,
 };
 pub use cache::{
 	DiagnosticsCache, DiagnosticsCacheKey, DiagnosticsEntry, HighlightKey, HighlightTile,

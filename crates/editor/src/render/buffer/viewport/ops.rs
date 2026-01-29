@@ -11,15 +11,19 @@ use crate::render::wrap::{WrappedSegment, wrap_line_ranges_rope};
 /// This function adjusts `buffer.scroll_line` and `buffer.scroll_segment` to ensure
 /// the primary cursor is visible within the given area, maintaining a minimum
 /// distance from the viewport edges when possible.
+/// Ensures the cursor is visible in the buffer's viewport with scroll margins.
+///
+/// This function adjusts `buffer.scroll_line` and `buffer.scroll_segment` to ensure
+/// the primary cursor is visible within the given area, maintaining a minimum
+/// distance from the viewport edges when possible.
 pub fn ensure_buffer_cursor_visible(
 	buffer: &mut Buffer,
 	area: Rect,
+	text_width: usize,
 	tab_width: usize,
 	scroll_margin: usize,
 ) {
 	let total_lines = buffer.with_doc(|doc: &Document| visible_line_count(doc.content().slice(..)));
-	let gutter_width = buffer.gutter_width();
-	let text_width = area.width.saturating_sub(gutter_width) as usize;
 	let viewport_height = area.height as usize;
 
 	let cursor_pos: CharIdx = buffer.cursor;

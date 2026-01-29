@@ -300,15 +300,6 @@ impl Default for HighlightTiles {
 mod tests {
 	use super::*;
 
-	#[cfg(test)]
-	fn dummy_style_resolver(scope: &str) -> Style {
-		match scope {
-			"keyword" => Style::default().fg(xeno_primitives::Color::Red),
-			"string" => Style::default().fg(xeno_primitives::Color::Green),
-			_ => Style::default(),
-		}
-	}
-
 	#[test]
 	fn test_highlight_tiles_new() {
 		let cache = HighlightTiles::new();

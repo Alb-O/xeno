@@ -18,5 +18,6 @@ mod viewport;
 
 pub use context::{BufferRenderContext, RenderResult};
 pub use diagnostics::{DiagnosticLineMap, DiagnosticRangeMap, DiagnosticSpan};
+pub use gutter::GutterLayout;
 pub use plan::{LineSlice, LineSource, RowKind, ViewportPlan, WrapAccess};
 pub use viewport::ensure_buffer_cursor_visible;

@@ -10,6 +10,14 @@ use crate::render::wrap::WrapSegment;
 ///
 /// Returns `(offset, matched)` where `matched` is true if `text_col` fell
 /// within the segment's content, false if it was past the end.
+/// Maps a screen column to a character offset within a wrap segment.
+///
+/// Returns `(offset, matched)` where `matched` is true if `text_col` fell
+/// within the segment's content, false if it was past the end.
+///
+/// # Boundary Rule
+/// For non-last segments, positions at the end of the segment content map to
+/// the start of the next segment (handled by the caller's visual row logic).
 fn col_to_char_offset(segment: &WrapSegment, text_col: usize, tab_width: usize) -> (usize, bool) {
 	if segment.text.is_empty() {
 		return (segment.start_offset, false);
@@ -96,8 +104,8 @@ impl Buffer {
 
 	/// Computes a new cursor position from visual line movement.
 	///
-	/// Uses `goal_col` (column in original line) to restore horizontal position
-	/// when the target line is long enough.
+	/// Uses `goal_col` to restore horizontal position when the target line
+	/// is long enough.
 	fn visual_move_from(
 		&self,
 		cursor: usize,
@@ -231,8 +239,6 @@ impl Buffer {
 	///
 	/// Sets [`suppress_auto_scroll`] to prevent the viewport from chasing the
 	/// cursor back into view.
-	///
-	/// [`suppress_auto_scroll`]: Buffer::suppress_auto_scroll
 	pub fn handle_mouse_scroll(
 		&mut self,
 		direction: ScrollDirection,
@@ -256,15 +262,12 @@ impl Buffer {
 	}
 
 	/// Scrolls viewport up by one visual line.
-	///
-	/// # Parameters
-	/// - `tab_width`: Number of spaces a tab character occupies (from options)
 	pub fn scroll_viewport_up(&mut self, tab_width: usize) {
 		if self.scroll_segment > 0 {
 			self.scroll_segment -= 1;
 		} else if self.scroll_line > 0 {
 			self.scroll_line -= 1;
-			let (line_text, num_segments) = self.with_doc(|doc| {
+			let num_segments = self.with_doc(|doc| {
 				let line_start = doc.content().line_to_char(self.scroll_line);
 				let line_end = if self.scroll_line + 1 < doc.content().len_lines() {
 					doc.content().line_to_char(self.scroll_line + 1)
@@ -274,17 +277,13 @@ impl Buffer {
 				let text: String = doc.content().slice(line_start..line_end).into();
 				let segments =
 					self.wrap_line(text.trim_end_matches('\n'), self.text_width, tab_width);
-				(text, segments.len())
+				segments.len()
 			});
-			let _ = line_text;
 			self.scroll_segment = num_segments.saturating_sub(1);
 		}
 	}
 
 	/// Scrolls viewport down by one visual line.
-	///
-	/// # Parameters
-	/// - `tab_width`: Number of spaces a tab character occupies (from options)
 	pub fn scroll_viewport_down(&mut self, tab_width: usize) {
 		let (visible_lines, num_segments) = self.with_doc(|doc| {
 			let content = doc.content();
@@ -355,21 +354,28 @@ impl Buffer {
 					visual_row += 1;
 				} else {
 					let num_segments = segments.len();
-					for (seg_idx, segment) in segments.iter().skip(start_segment).enumerate() {
+					for (seg_idx, segment) in segments.iter().enumerate().skip(start_segment) {
 						if visual_row == screen_row as usize {
 							if in_gutter {
 								return None;
 							}
+
 							let (offset, matched) =
 								col_to_char_offset(segment, text_col, tab_width);
-							let past_end_offset = if !matched {
-								let is_last_seg = start_segment + seg_idx == num_segments - 1;
-								let has_newline = is_last_seg && line_idx + 1 < visible_lines;
-								if has_newline { 1 } else { 0 }
+							let is_last_seg = seg_idx == num_segments - 1;
+
+							// Positions at wrap boundaries belong to the next segment
+							if !matched && !is_last_seg {
+								// Handled by continuing to next visual_row
 							} else {
-								0
-							};
-							return Some(line_start + offset + past_end_offset);
+								let past_end_offset = if !matched {
+									let has_newline = is_last_seg && line_idx + 1 < visible_lines;
+									if has_newline { 1 } else { 0 }
+								} else {
+									0
+								};
+								return Some(line_start + offset + past_end_offset);
+							}
 						}
 						visual_row += 1;
 					}
@@ -437,11 +443,14 @@ impl Buffer {
 					}
 
 					let mut seg_row = visual_row;
-					for segment in segments.iter().skip(start_segment) {
+					let num_segments = segments.len();
+					for (seg_idx, segment) in segments.iter().enumerate().skip(start_segment) {
 						let seg_start = segment.start_offset;
 						let seg_len = segment.text.chars().count();
 						let seg_end = seg_start + seg_len;
-						if col_in_line <= seg_end {
+
+						let is_last_seg = seg_idx == num_segments - 1;
+						if col_in_line < seg_end || is_last_seg {
 							let offset = col_in_line.saturating_sub(seg_start);
 							let mut col = 0usize;
 							for (idx, ch) in segment.text.chars().enumerate() {

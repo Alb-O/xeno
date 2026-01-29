@@ -137,8 +137,9 @@ impl Editor {
 
 	/// Initializes LSP for all currently open buffers.
 	///
-	/// This is called after LSP servers are configured to handle buffers
-	/// that were opened before the servers were registered.
+	/// Called after LSP servers are configured to handle buffers opened before
+	/// server registration. Deduplicates by [`DocumentId`] to avoid redundant
+	/// open notifications.
 	#[cfg(feature = "lsp")]
 	pub async fn init_lsp_for_open_buffers(&mut self) -> anyhow::Result<()> {
 		let mut seen_docs = std::collections::HashSet::new();
@@ -182,10 +183,10 @@ impl Editor {
 		Ok(())
 	}
 
-	/// Spawns background LSP init for open buffers.
+	/// Spawns background LSP initialization for open buffers.
 	///
-	/// Called after first frame setup to ensure TTFP is not blocked by
-	/// LSP server spawn/initialize.
+	/// Called after first frame setup to ensure Time-To-First-Paint (TTFP) is
+	/// not blocked by LSP server spawning. Deduplicates by [`DocumentId`].
 	#[cfg(feature = "lsp")]
 	pub fn kick_lsp_init_for_open_buffers(&mut self) {
 		use std::collections::HashSet;
@@ -212,7 +213,6 @@ impl Editor {
 					.unwrap_or_else(|_| std::env::current_dir().unwrap_or_default().join(path));
 				let content = buffer.with_doc(|doc| doc.content().to_string());
 
-				// Register with sync manager so edits are tracked
 				let version = buffer.with_doc(|doc| doc.version());
 				let supports_incremental = self
 					.state
@@ -254,18 +254,18 @@ impl Editor {
 
 	/// Removes a buffer and performs final cleanup for its associated document.
 	///
-	/// If the removed buffer was the last one referencing its document, this
-	/// method also:
+	/// If the removed buffer was the last view for its document, this method:
 	/// 1. Invalidates the document in the [`RenderCache`].
 	/// 2. Notifies the LSP sync manager to close the document.
 	///
-	/// This should be the authoritative path for buffer destruction.
+	/// This is the authoritative path for buffer destruction.
+	///
+	/// [`RenderCache`]: crate::render::cache::RenderCache
 	pub(crate) fn finalize_buffer_removal(&mut self, id: ViewId) {
-		let removed = self.state.core.buffers.remove_buffer(id);
+		let removed = self.state.core.buffers.remove_buffer_raw(id);
 		if let Some(buffer) = removed {
 			let doc_id = buffer.document_id();
 			if self.state.core.buffers.any_buffer_for_doc(doc_id).is_none() {
-				// Last view for this document is gone, cleanup resources
 				#[cfg(feature = "lsp")]
 				self.state.lsp.sync_manager_mut().on_doc_close(doc_id);
 

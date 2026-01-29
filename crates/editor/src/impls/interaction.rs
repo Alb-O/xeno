@@ -78,6 +78,10 @@ impl Editor {
 		result
 	}
 
+	/// Ensures the cursor is visible in the specified view, scrolling if necessary.
+	///
+	/// Synchronizes the viewport visibility logic with the render pipeline by
+	/// using the same gutter layout and text width calculation.
 	pub fn reveal_cursor_in_view(&mut self, buffer_id: ViewId) {
 		use xeno_registry::options::keys as opt_keys;
 		let tab_width = self.resolve_typed_option(buffer_id, opt_keys::TAB_WIDTH) as usize;
@@ -85,7 +89,29 @@ impl Editor {
 		let area = self.view_area(buffer_id);
 
 		if let Some(buffer) = self.state.core.buffers.get_buffer_mut(buffer_id) {
-			crate::render::ensure_buffer_cursor_visible(buffer, area, tab_width, scroll_margin);
+			let total_lines = buffer.with_doc(|doc| doc.content().len_lines());
+			let is_diff_file = buffer.file_type().is_some_and(|ft| ft == "diff");
+			let gutter = crate::window::GutterSelector::Registry;
+			let effective_gutter = if is_diff_file {
+				crate::render::BufferRenderContext::diff_gutter_selector(gutter)
+			} else {
+				gutter
+			};
+
+			let gutter_layout = crate::render::GutterLayout::from_selector(
+				effective_gutter,
+				total_lines,
+				area.width,
+			);
+			let text_width = area.width.saturating_sub(gutter_layout.total_width) as usize;
+
+			crate::render::ensure_buffer_cursor_visible(
+				buffer,
+				area,
+				text_width,
+				tab_width,
+				scroll_margin,
+			);
 			self.state.frame.needs_redraw = true;
 		}
 	}

@@ -34,6 +34,11 @@ pub fn build_diagnostic_line_map(diagnostics: &[Diagnostic]) -> DiagnosticLineMa
 /// Builds a diagnostic range map from LSP diagnostics.
 ///
 /// Creates per-line spans with character ranges for rendering underlines.
+///
+/// # Boundary Logic
+/// - Skips zero-length diagnostics (start == end).
+/// - Excludes the final line if a multi-line diagnostic ends at character 0
+///   of that line, preventing phantom underlines on empty lines.
 pub fn build_diagnostic_range_map(diagnostics: &[Diagnostic]) -> DiagnosticRangeMap {
 	let mut map = DiagnosticRangeMap::new();
 
@@ -55,12 +60,10 @@ pub fn build_diagnostic_range_map(diagnostics: &[Diagnostic]) -> DiagnosticRange
 		let start_char = diag.range.start.character as usize;
 		let end_char = diag.range.end.character as usize;
 
-		// Skip zero-length diagnostics on a single line
 		if start_line == end_line && start_char == end_char {
 			continue;
 		}
 
-		// If diagnostic ends at start of next line, don't include that line
 		let effective_end_line = if end_line > start_line && end_char == 0 {
 			end_line - 1
 		} else {

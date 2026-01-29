@@ -15,12 +15,12 @@ use xeno_tui::text::{Line, Span};
 use xeno_tui::widgets::{Block, Borders, Clear, Paragraph};
 
 use self::separator::{SeparatorStyle, junction_glyph};
-use super::buffer::{BufferRenderContext, ensure_buffer_cursor_visible};
+use super::buffer::{BufferRenderContext, GutterLayout, ensure_buffer_cursor_visible};
 use crate::Editor;
 use crate::buffer::{SplitDirection, ViewId};
 use crate::impls::FocusTarget;
 use crate::render::RenderCtx;
-use crate::window::Window;
+use crate::window::{GutterSelector, Window};
 
 /// Per-layer rendering data: (layer_index, layer_area, view_areas, separators).
 type LayerRenderData = (
@@ -54,13 +54,13 @@ impl Editor {
 	///
 	/// This is the main rendering entry point that orchestrates all UI elements:
 	/// - Document content with cursor and selections (including splits)
-	/// - UI panels (if any)
-	/// - Command/message line
-	/// - Status line
+	/// - UI panels and docks
+	/// - Floating windows and overlays
+	/// - Command/message line and status line
 	/// - Notifications
 	///
 	/// # Parameters
-	/// - `frame`: The xeno_tui frame to render into
+	/// - `frame`: The terminal frame to render into
 	pub fn render(&mut self, frame: &mut xeno_tui::Frame) {
 		let now = SystemTime::now();
 		let delta = now
@@ -69,7 +69,6 @@ impl Editor {
 		self.state.frame.last_tick = now;
 		self.state.notifications.tick(delta);
 
-		// Poll background syntax parsing, installing results if ready.
 		self.ensure_syntax_for_buffers();
 
 		let use_block_cursor = true;
@@ -114,7 +113,6 @@ impl Editor {
 			self.state.frame.needs_redraw = true;
 		}
 
-		// Use the editor's render cache for this frame
 		let ctx = self.render_ctx();
 		let doc_focused = ui.focus.focused().is_editor();
 
@@ -147,10 +145,11 @@ impl Editor {
 		self.render_whichkey_hud(frame, doc_area, &ctx);
 	}
 
-	/// Renders all views across all layout layers.
+	/// Renders all views and separators across all layout layers.
 	///
-	/// Layer 0 is rendered first (base), then overlay layers on top.
-	/// Each layer's views and separators are rendered together before moving to the next layer.
+	/// Orchestrates a two-pass rendering process:
+	/// 1. Visibility pass: Ensures cursors are within visible viewports.
+	/// 2. Render pass: Draws buffer content and gutters using the render cache.
 	fn render_split_buffers(
 		&mut self,
 		frame: &mut xeno_tui::Frame,
@@ -181,8 +180,6 @@ impl Editor {
 			}
 		}
 
-		// During mouse drag (text_selection_origin is Some), disable scroll margin
-		// to allow cursor to reach screen edges without triggering scrolloff.
 		let mouse_drag_active = self.state.layout.text_selection_origin.is_some();
 		for (_, _, view_areas, _) in &layer_data {
 			for (buffer_id, area) in view_areas {
@@ -192,15 +189,34 @@ impl Editor {
 				} else {
 					self.scroll_margin_for(*buffer_id)
 				};
+
 				if let Some(buffer) = self.get_buffer_mut(*buffer_id) {
-					ensure_buffer_cursor_visible(buffer, *area, tab_width, scroll_margin);
+					let total_lines = buffer.with_doc(|doc| doc.content().len_lines());
+					let is_diff_file = buffer.file_type().is_some_and(|ft| ft == "diff");
+					let gutter = GutterSelector::Registry;
+					let effective_gutter = if is_diff_file {
+						BufferRenderContext::diff_gutter_selector(gutter)
+					} else {
+						gutter
+					};
+
+					let gutter_layout =
+						GutterLayout::from_selector(effective_gutter, total_lines, area.width);
+					let text_width = area.width.saturating_sub(gutter_layout.total_width) as usize;
+
+					ensure_buffer_cursor_visible(
+						buffer,
+						*area,
+						text_width,
+						tab_width,
+						scroll_margin,
+					);
 				}
 			}
 		}
 
 		let sep_style = SeparatorStyle::new(ctx);
 
-		// Use mem::take to move cache out of self, allowing free use of &self in the loop
 		let mut cache = std::mem::take(&mut self.state.render_cache);
 		let language_loader = &self.state.config.language_loader;
 
@@ -243,7 +259,6 @@ impl Editor {
 			}
 		}
 
-		// Put cache back
 		self.state.render_cache = cache;
 
 		for (_, _, _, separators) in &layer_data {
@@ -288,35 +303,56 @@ impl Editor {
 
 		// First pass: ensure cursor visible (needs &mut self)
 		for &window_id in &floating_ids {
-			let Some(window) = self.state.windows.get(window_id) else {
-				continue;
-			};
-			let Window::Floating(window) = window else {
-				continue;
-			};
-			let Some(rect) = clamp_rect(window.rect, bounds) else {
-				continue;
-			};
-			let content_area = if window.style.border {
-				Rect {
-					x: rect.x.saturating_add(1),
-					y: rect.y.saturating_add(1),
-					width: rect.width.saturating_sub(2),
-					height: rect.height.saturating_sub(2),
+			let (buffer_id, content_area, gutter_selector) = {
+				let Some(window) = self.state.windows.get(window_id) else {
+					continue;
+				};
+				let Window::Floating(window) = window else {
+					continue;
+				};
+				let Some(rect) = clamp_rect(window.rect, bounds) else {
+					continue;
+				};
+				let content_area = if window.style.border {
+					Rect {
+						x: rect.x.saturating_add(1),
+						y: rect.y.saturating_add(1),
+						width: rect.width.saturating_sub(2),
+						height: rect.height.saturating_sub(2),
+					}
+				} else {
+					rect
+				};
+
+				if content_area.width == 0 || content_area.height == 0 {
+					continue;
 				}
-			} else {
-				rect
+				(window.buffer, content_area, window.gutter)
 			};
 
-			if content_area.width == 0 || content_area.height == 0 {
-				continue;
-			}
-
-			let buffer_id = window.buffer;
 			let tab_width = self.tab_width_for(buffer_id);
 			let scroll_margin = self.scroll_margin_for(buffer_id);
 			if let Some(buffer) = self.get_buffer_mut(buffer_id) {
-				ensure_buffer_cursor_visible(buffer, content_area, tab_width, scroll_margin);
+				let total_lines = buffer.with_doc(|doc| doc.content().len_lines());
+				let is_diff_file = buffer.file_type().is_some_and(|ft| ft == "diff");
+				let effective_gutter = if is_diff_file {
+					BufferRenderContext::diff_gutter_selector(gutter_selector)
+				} else {
+					gutter_selector
+				};
+
+				let gutter_layout =
+					GutterLayout::from_selector(effective_gutter, total_lines, content_area.width);
+				let text_width =
+					content_area.width.saturating_sub(gutter_layout.total_width) as usize;
+
+				ensure_buffer_cursor_visible(
+					buffer,
+					content_area,
+					text_width,
+					tab_width,
+					scroll_margin,
+				);
 			}
 		}
 

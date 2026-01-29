@@ -122,14 +122,20 @@ impl ViewManager {
 		Some(new_id)
 	}
 
+	/// Inserts a buffer into the manager and updates the reverse index.
 	pub(crate) fn insert_buffer(&mut self, id: ViewId, buffer: Buffer) {
 		let doc_id = buffer.document_id();
 		self.buffers.insert(id, buffer);
 		self.index_add(doc_id, id);
 	}
 
-	/// Removes a buffer.
-	pub(crate) fn remove_buffer(&mut self, id: ViewId) -> Option<Buffer> {
+	/// Removes a buffer without performing document-level cleanup.
+	///
+	/// Internal use only. Callers should typically use [`Editor::finalize_buffer_removal`]
+	/// to ensure document-level cleanup (cache invalidation, LSP sync).
+	///
+	/// [`Editor::finalize_buffer_removal`]: crate::impls::Editor::finalize_buffer_removal
+	pub(crate) fn remove_buffer_raw(&mut self, id: ViewId) -> Option<Buffer> {
 		let removed = self.buffers.remove(&id);
 		if let Some(ref buffer) = removed {
 			self.index_remove(buffer.document_id(), id);
@@ -175,7 +181,7 @@ impl ViewManager {
 			.map(|b| b.id)
 	}
 
-	/// Returns any view ID for the given document, if one exists.
+	/// Returns any view ID associated with the given document.
 	pub fn any_buffer_for_doc(&self, doc_id: DocumentId) -> Option<ViewId> {
 		self.doc_to_views
 			.get(&doc_id)

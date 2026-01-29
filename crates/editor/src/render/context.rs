@@ -81,14 +81,15 @@ impl Editor {
 	/// Builds the LSP render snapshot using cached diagnostics.
 	///
 	/// Uses the diagnostics cache to avoid rebuilding maps every frame.
-	/// The global diagnostics_version from the LSP layer serves as the epoch.
+	/// The global diagnostics version from the LSP layer serves as the epoch.
+	///
+	/// Diagnostics are only fetched and processed on cache misses to ensure
+	/// high performance in the render loop.
 	#[cfg(feature = "lsp")]
 	fn lsp_render_snapshot(&mut self) -> LspRenderSnapshot {
 		use crate::lsp::diagnostics::{build_diagnostic_line_map, build_diagnostic_range_map};
 
 		let mut snapshot = LspRenderSnapshot::default();
-
-		// Get the global diagnostics epoch from LSP layer
 		let epoch = self.state.lsp.diagnostics_version();
 
 		for buffer in self.state.core.buffers.buffers() {

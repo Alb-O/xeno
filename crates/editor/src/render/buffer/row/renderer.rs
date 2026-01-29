@@ -14,6 +14,10 @@ use super::shaper::SegmentGlyphIter;
 use super::span_builder::SpanRunBuilder;
 use crate::render::wrap::WrappedSegment;
 
+/// Input data for rendering a single visual row.
+///
+/// Contains the resolved styles, layout information, and document slices
+/// required to render both the gutter and text portions of a row.
 pub struct RowRenderInput<'a> {
 	pub ctx: &'a BufferRenderContext<'a>,
 	pub theme_cursor_styles: &'a CursorStyles,
@@ -41,6 +45,11 @@ pub struct RowRenderInput<'a> {
 pub struct TextRowRenderer;
 
 impl TextRowRenderer {
+	/// Renders the text portion of a visual row into a [`Line`].
+	///
+	/// Orchestrates glyph shaping, syntax highlighting, and overlay application
+	/// (selection and cursor). Handles special cases like tab expansion and
+	/// EOL cursor rendering.
 	pub fn render_row(input: &RowRenderInput<'_>) -> Line<'static> {
 		let mut builder = SpanRunBuilder::new();
 		let text_width = input.layout.text_width;
@@ -57,8 +66,6 @@ impl TextRowRenderer {
 				let mut cols_used = 0;
 
 				for glyph in shaper {
-					// Virtual glyphs (indent/tab expansion) don't participate in overlays
-					// to avoid cursor/selection duplication on expanded tabs.
 					let (syntax_style, in_selection, cursor_kind) = if glyph.is_virtual {
 						(None, false, CursorKind::None)
 					} else {
@@ -98,20 +105,9 @@ impl TextRowRenderer {
 					cols_used += glyph.width;
 				}
 
-				// Handle EOL cursor
 				if cols_used < text_width && input.is_last_segment {
-					let line_end = line.end_char_incl_nl;
-					let content_end = line.content_end_char;
-
-					// Check if any cursor is at EOL
-					let mut eol_cursor_kind = CursorKind::None;
-					for pos in content_end..=line_end {
-						let kind = input.overlays.cursor_kind(pos, input.is_focused);
-						if kind != CursorKind::None {
-							eol_cursor_kind = kind;
-							break;
-						}
-					}
+					let eol_pos = line.content_end_char;
+					let eol_cursor_kind = input.overlays.cursor_kind(eol_pos, input.is_focused);
 
 					if eol_cursor_kind != CursorKind::None
 						&& (input.use_block_cursor || !input.is_focused)
@@ -134,13 +130,11 @@ impl TextRowRenderer {
 					}
 				}
 
-				// Fill remaining
 				if cols_used < text_width {
 					let fill_count = text_width - cols_used;
 					if let Some(bg) = input.line_style.fill_bg() {
 						builder.push_spaces(Style::default().bg(bg), fill_count);
 					} else if !input.is_last_segment {
-						// Continuation fill
 						let dim_color = input
 							.ctx
 							.theme
@@ -150,7 +144,6 @@ impl TextRowRenderer {
 							.blend(input.ctx.theme.colors.ui.bg, blend::GUTTER_DIM_ALPHA);
 						builder.push_spaces(Style::default().fg(dim_color), fill_count);
 					} else {
-						// Normal line fill
 						use super::super::fill::FillConfig;
 						if let Some(fill_span) =
 							FillConfig::from_bg(input.line_style.fill_bg()).fill_span(fill_count)
@@ -161,7 +154,6 @@ impl TextRowRenderer {
 				}
 			}
 			_ => {
-				// Phantom or NonText fill
 				let bg = input.line_style.base_bg;
 				builder.push_spaces(Style::default().bg(bg), text_width);
 			}
@@ -178,6 +170,7 @@ impl TextRowRenderer {
 pub struct GutterRenderer;
 
 impl GutterRenderer {
+	/// Renders the gutter portion of a visual row.
 	pub fn render_row(input: &RowRenderInput<'_>) -> Line<'static> {
 		let spans = if let Some(line) = input.line {
 			input.layout.gutter_layout.render_line(

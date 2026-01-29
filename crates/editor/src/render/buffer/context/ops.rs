@@ -339,7 +339,7 @@ impl<'a> BufferRenderContext<'a> {
 
 	/// Transforms a gutter selector for diff files by replacing standard line
 	/// number gutters with `diff_line_numbers` while keeping other gutters intact.
-	fn diff_gutter_selector(selector: GutterSelector) -> GutterSelector {
+	pub fn diff_gutter_selector(selector: GutterSelector) -> GutterSelector {
 		static DIFF_WITH_SIGNS: &[&str] = &["diff_line_numbers", "signs"];
 		static DIFF_ONLY: &[&str] = &["diff_line_numbers"];
 
