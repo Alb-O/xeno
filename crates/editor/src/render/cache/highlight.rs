@@ -48,6 +48,31 @@ pub struct HighlightTile {
 	pub spans: Vec<(HighlightSpan, Style)>,
 }
 
+/// Query parameters for retrieving highlight spans.
+pub struct HighlightSpanQuery<'a, F>
+where
+	F: Fn(&str) -> Style,
+{
+	/// The document ID.
+	pub doc_id: DocumentId,
+	/// Current syntax version for cache validation.
+	pub syntax_version: u64,
+	/// The language ID for the document.
+	pub language_id: Option<LanguageId>,
+	/// The document content.
+	pub rope: &'a Rope,
+	/// The syntax tree for highlighting.
+	pub syntax: &'a Syntax,
+	/// The language loader.
+	pub language_loader: &'a LanguageLoader,
+	/// Function to resolve highlight styles.
+	pub style_resolver: F,
+	/// First line to highlight (inclusive).
+	pub start_line: usize,
+	/// Last line to highlight (exclusive).
+	pub end_line: usize,
+}
+
 /// Manual LRU cache for highlight tiles.
 ///
 /// Stores up to 16 highlight tiles covering TILE_SIZE line blocks. Evicts the
@@ -102,68 +127,45 @@ impl HighlightTiles {
 	/// Checks the cache for tiles covering the requested range. Missing or
 	/// stale tiles are recomputed and cached, potentially evicting LRU tiles
 	/// if the cache is at capacity.
-	///
-	/// # Parameters
-	/// - `doc_id`: The document ID
-	/// - `syntax_version`: Current syntax version for cache validation
-	/// - `language_id`: The language ID for the document
-	/// - `rope`: The document content
-	/// - `syntax`: The syntax tree for highlighting
-	/// - `language_loader`: The language loader
-	/// - `style_resolver`: Function to resolve highlight styles
-	/// - `start_line`: First line to highlight (inclusive)
-	/// - `end_line`: Last line to highlight (exclusive)
-	#[allow(clippy::too_many_arguments)]
-	pub fn get_spans<F>(
-		&mut self,
-		doc_id: DocumentId,
-		syntax_version: u64,
-		language_id: Option<LanguageId>,
-		rope: &Rope,
-		syntax: &Syntax,
-		language_loader: &LanguageLoader,
-		style_resolver: F,
-		start_line: usize,
-		end_line: usize,
-	) -> Vec<(HighlightSpan, Style)>
+	pub fn get_spans<F>(&mut self, q: HighlightSpanQuery<'_, F>) -> Vec<(HighlightSpan, Style)>
 	where
 		F: Fn(&str) -> Style,
 	{
-		if start_line >= end_line {
+		if q.start_line >= q.end_line {
 			return Vec::new();
 		}
 
-		let start_byte = rope.line_to_byte(start_line.min(rope.len_lines())) as u32;
-		let end_byte = if end_line < rope.len_lines() {
-			rope.line_to_byte(end_line) as u32
+		let start_byte = q.rope.line_to_byte(q.start_line.min(q.rope.len_lines())) as u32;
+		let end_byte = if q.end_line < q.rope.len_lines() {
+			q.rope.line_to_byte(q.end_line) as u32
 		} else {
-			rope.len_bytes() as u32
+			q.rope.len_bytes() as u32
 		};
 
-		let start_tile = start_line / TILE_SIZE;
-		let end_tile = (end_line.saturating_sub(1)) / TILE_SIZE;
+		let start_tile = q.start_line / TILE_SIZE;
+		let end_tile = (q.end_line.saturating_sub(1)) / TILE_SIZE;
 
 		let mut all_spans = Vec::new();
 
 		for tile_idx in start_tile..=end_tile {
 			let key = HighlightKey {
-				syntax_version,
+				syntax_version: q.syntax_version,
 				theme_epoch: self.theme_epoch,
-				language_id,
+				language_id: q.language_id,
 				tile_idx,
 			};
 
-			let spans = if let Some(tile) = self.get_cached_tile(doc_id, tile_idx, &key) {
+			let spans = if let Some(tile) = self.get_cached_tile(q.doc_id, tile_idx, &key) {
 				&tile.spans
 			} else {
 				let tile_start_line = tile_idx * TILE_SIZE;
-				let tile_end_line = ((tile_idx + 1) * TILE_SIZE).min(rope.len_lines());
+				let tile_end_line = ((tile_idx + 1) * TILE_SIZE).min(q.rope.len_lines());
 
 				let spans = self.build_tile_spans(
-					rope,
-					syntax,
-					language_loader,
-					&style_resolver,
+					q.rope,
+					q.syntax,
+					q.language_loader,
+					&q.style_resolver,
 					tile_start_line,
 					tile_end_line,
 				);
@@ -173,10 +175,10 @@ impl HighlightTiles {
 					spans: spans.clone(),
 				};
 
-				self.insert_tile(doc_id, tile_idx, tile);
+				self.insert_tile(q.doc_id, tile_idx, tile);
 				&self.tiles[self
 					.index
-					.get(&doc_id)
+					.get(&q.doc_id)
 					.unwrap()
 					.get(&tile_idx)
 					.copied()

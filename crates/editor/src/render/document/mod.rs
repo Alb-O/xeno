@@ -20,6 +20,7 @@ use crate::Editor;
 use crate::buffer::{SplitDirection, ViewId};
 use crate::impls::FocusTarget;
 use crate::render::RenderCtx;
+use crate::render::buffer::context::types::RenderBufferParams;
 use crate::window::{GutterSelector, Window};
 
 /// Per-layer rendering data: (layer_index, layer_area, view_areas, separators).
@@ -421,16 +422,16 @@ impl Editor {
 					diagnostics: ctx.lsp.diagnostics_for(window.buffer),
 					diagnostic_ranges: ctx.lsp.diagnostic_ranges_for(window.buffer),
 				};
-				let result = buffer_ctx.render_buffer_with_gutter(
+				let result = buffer_ctx.render_buffer_with_gutter(RenderBufferParams {
 					buffer,
-					content_area,
+					area: content_area,
 					use_block_cursor,
 					is_focused,
-					window.gutter,
+					gutter: window.gutter,
 					tab_width,
 					cursorline,
-					&mut cache,
-				);
+					cache: &mut cache,
+				});
 
 				let gutter_area = Rect {
 					width: result.gutter_width,

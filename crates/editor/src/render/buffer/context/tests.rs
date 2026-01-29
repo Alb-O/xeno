@@ -27,14 +27,16 @@ mod tests {
 		let area = Rect::new(0, 0, 20, 3);
 		let mut cache = crate::render::cache::RenderCache::new();
 		let result = ctx.render_buffer_with_gutter(
-			&buffer,
-			area,
-			true,
-			true,
-			GutterSelector::Registry,
-			4,
-			false,
-			&mut cache,
+			crate::render::buffer::context::types::RenderBufferParams {
+				buffer: &buffer,
+				area,
+				use_block_cursor: true,
+				is_focused: true,
+				gutter: GutterSelector::Registry,
+				tab_width: 4,
+				cursorline: false,
+				cache: &mut cache,
+			},
 		);
 
 		let backend = TestBackend::new(20, 3);
@@ -94,14 +96,16 @@ mod tests {
 		let area = Rect::new(0, 0, 30, 5);
 		let mut cache = crate::render::cache::RenderCache::new();
 		let result = ctx.render_buffer_with_gutter(
-			&buffer,
-			area,
-			true,
-			true,
-			GutterSelector::Registry,
-			4,
-			false,
-			&mut cache,
+			crate::render::buffer::context::types::RenderBufferParams {
+				buffer: &buffer,
+				area,
+				use_block_cursor: true,
+				is_focused: true,
+				gutter: GutterSelector::Registry,
+				tab_width: 4,
+				cursorline: false,
+				cache: &mut cache,
+			},
 		);
 
 		let backend = TestBackend::new(30, 5);

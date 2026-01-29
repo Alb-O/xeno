@@ -1,11 +1,15 @@
 use xeno_registry::themes::Theme;
 use xeno_runtime_language::LanguageLoader;
+use xeno_tui::layout::Rect;
 use xeno_tui::style::Style;
 use xeno_tui::text::Line;
 
 use super::super::cell_style::CursorStyleSet;
 use super::super::diagnostics::{DiagnosticLineMap, DiagnosticRangeMap};
 use super::super::gutter::GutterLayout;
+use crate::buffer::Buffer;
+use crate::render::cache::RenderCache;
+use crate::window::GutterSelector;
 
 /// Result of rendering a buffer's content.
 pub struct RenderResult {
@@ -15,6 +19,26 @@ pub struct RenderResult {
 	pub gutter: Vec<Line<'static>>,
 	/// Rendered text content lines (length == viewport height).
 	pub text: Vec<Line<'static>>,
+}
+
+/// Parameters for rendering a buffer.
+pub struct RenderBufferParams<'a> {
+	/// The buffer to render.
+	pub buffer: &'a Buffer,
+	/// The area to render into.
+	pub area: Rect,
+	/// Whether to use a block cursor.
+	pub use_block_cursor: bool,
+	/// Whether the buffer is focused.
+	pub is_focused: bool,
+	/// Gutter selection configuration.
+	pub gutter: GutterSelector,
+	/// Tab width override.
+	pub tab_width: usize,
+	/// Whether to highlight the cursor line.
+	pub cursorline: bool,
+	/// The render cache.
+	pub cache: &'a mut RenderCache,
 }
 
 /// Derived layout constants for a render pass.

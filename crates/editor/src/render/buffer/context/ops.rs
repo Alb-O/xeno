@@ -4,15 +4,18 @@ use xeno_runtime_language::highlight::HighlightSpan;
 use xeno_tui::layout::Rect;
 use xeno_tui::style::{Modifier, Style};
 
-use super::super::diff::{compute_diff_line_numbers, diff_line_bg};
+use super::super::diff::{DiffLineNumbers, compute_diff_line_numbers, diff_line_bg};
 use super::super::gutter::GutterLayout;
 use super::super::index::{HighlightIndex, OverlayIndex};
-use super::super::plan::{LineSource, RowKind, ViewportPlan};
+use super::super::plan::{LineSlice, LineSource, RowKind, ViewportPlan};
 use super::super::row::{GutterRenderer, RowRenderInput, TextRowRenderer};
 use super::super::style_layers::LineStyleContext;
-use super::types::{BufferRenderContext, CursorStyles, RenderLayout, RenderResult};
-use crate::buffer::Buffer;
-use crate::render::cache::RenderCache;
+use super::types::{
+	BufferRenderContext, CursorStyles, RenderBufferParams, RenderLayout, RenderResult,
+};
+use crate::buffer::{Buffer, Document};
+use crate::render::cache::{HighlightSpanQuery, RenderCache};
+use crate::render::wrap::WrappedSegment;
 use crate::window::GutterSelector;
 
 impl<'a> BufferRenderContext<'a> {
@@ -69,17 +72,17 @@ impl<'a> BufferRenderContext<'a> {
 			let total_lines = visible_line_count(doc.content().slice(..));
 			let end_line = (start_line + area.height as usize).min(total_lines);
 
-			cache.highlight.get_spans(
-				doc.id,
-				doc.syntax_version,
-				doc.language_id(),
-				doc.content(),
+			cache.highlight.get_spans(HighlightSpanQuery {
+				doc_id: doc.id,
+				syntax_version: doc.syntax_version,
+				language_id: doc.language_id(),
+				rope: doc.content(),
 				syntax,
-				self.language_loader,
-				|scope| self.theme.colors.syntax.resolve(scope),
+				language_loader: self.language_loader,
+				style_resolver: |scope: &str| self.theme.colors.syntax.resolve(scope),
 				start_line,
 				end_line,
-			)
+			})
 		})
 	}
 
@@ -136,52 +139,43 @@ impl<'a> BufferRenderContext<'a> {
 		cursorline: bool,
 		cache: &mut RenderCache,
 	) -> RenderResult {
-		self.render_buffer_with_gutter(
+		self.render_buffer_with_gutter(RenderBufferParams {
 			buffer,
 			area,
 			use_block_cursor,
 			is_focused,
-			GutterSelector::Registry,
+			gutter: GutterSelector::Registry,
 			tab_width,
 			cursorline,
 			cache,
-		)
+		})
 	}
 
 	/// Renders a buffer into gutter and text columns.
 	///
 	/// Orchestrates the full rendering pipeline for a single buffer viewport.
-	#[allow(clippy::too_many_arguments)]
-	pub fn render_buffer_with_gutter(
-		&self,
-		buffer: &Buffer,
-		area: Rect,
-		use_block_cursor: bool,
-		is_focused: bool,
-		gutter: GutterSelector,
-		tab_width: usize,
-		cursorline: bool,
-		cache: &mut RenderCache,
-	) -> RenderResult {
+	pub fn render_buffer_with_gutter(&self, p: RenderBufferParams<'_>) -> RenderResult {
 		// Snapshot document state to minimize lock duration and ensure consistency
-		let (doc_id, doc_content, doc_version, total_lines) = buffer.with_doc(|doc| {
-			let content = doc.content().clone();
-			let total_lines = content.len_lines();
-			(doc.id, content, doc.version(), total_lines)
-		});
+		let (doc_id, doc_content, doc_version, total_lines) =
+			p.buffer.with_doc(|doc: &Document| {
+				let content = doc.content().clone();
+				let total_lines = content.len_lines();
+				(doc.id, content, doc.version(), total_lines)
+			});
 
-		let is_diff_file = buffer.file_type().is_some_and(|ft| ft == "diff");
+		let is_diff_file = p.buffer.file_type().is_some_and(|ft| ft == "diff");
 
 		let effective_gutter = if is_diff_file {
-			Self::diff_gutter_selector(gutter)
+			Self::diff_gutter_selector(p.gutter)
 		} else {
-			gutter
+			p.gutter
 		};
 
-		let gutter_layout = GutterLayout::from_selector(effective_gutter, total_lines, area.width);
+		let gutter_layout =
+			GutterLayout::from_selector(effective_gutter, total_lines, p.area.width);
 		let gutter_width = gutter_layout.total_width;
-		let text_width = area.width.saturating_sub(gutter_width) as usize;
-		let viewport_height = area.height as usize;
+		let text_width = p.area.width.saturating_sub(gutter_width) as usize;
+		let viewport_height = p.area.height as usize;
 
 		let layout = RenderLayout {
 			total_lines,
@@ -189,9 +183,9 @@ impl<'a> BufferRenderContext<'a> {
 			text_width,
 		};
 
-		let styles = self.make_cursor_styles(buffer.mode());
+		let styles = self.make_cursor_styles(p.buffer.mode());
 		let cursor_style_set = styles.to_cursor_set();
-		let highlight_spans = self.collect_highlight_spans(buffer, area, cache);
+		let highlight_spans = self.collect_highlight_spans(p.buffer, p.area, p.cache);
 		let highlight_index = HighlightIndex::new(highlight_spans);
 
 		let diff_line_numbers = if is_diff_file {
@@ -200,20 +194,24 @@ impl<'a> BufferRenderContext<'a> {
 			None
 		};
 
-		let mode_color = self.mode_color(buffer.mode());
+		let mode_color = self.mode_color(p.buffer.mode());
 		let base_bg = self.theme.colors.ui.bg;
-		let cursor_line = buffer.cursor_line();
-		let buffer_path = buffer.path();
+		let cursor_line = p.buffer.cursor_line();
+		let buffer_path = p.buffer.path();
 
-		let overlays =
-			OverlayIndex::new(&buffer.selection, buffer.cursor, is_focused, &doc_content);
+		let overlays = OverlayIndex::new(
+			&p.buffer.selection,
+			p.buffer.cursor,
+			p.is_focused,
+			&doc_content,
+		);
 
-		let start_line = buffer.scroll_line;
+		let start_line = p.buffer.scroll_line;
 		let end_line = (start_line + viewport_height + 2).min(total_lines);
-		let wrap_key = (text_width, tab_width);
+		let wrap_key = (text_width, p.tab_width);
 
-		cache.wrap.get_or_build(doc_id, wrap_key);
-		cache.wrap.build_range(
+		p.cache.wrap.get_or_build(doc_id, wrap_key);
+		p.cache.wrap.build_range(
 			doc_id,
 			wrap_key,
 			&doc_content,
@@ -222,11 +220,11 @@ impl<'a> BufferRenderContext<'a> {
 			end_line,
 		);
 
-		let wrap_bucket = cache.wrap.get_or_build(doc_id, wrap_key);
+		let wrap_bucket = p.cache.wrap.get_or_build(doc_id, wrap_key);
 
 		let plan = ViewportPlan::new_with_wrap(
-			buffer.scroll_line,
-			buffer.scroll_segment,
+			p.buffer.scroll_line,
+			p.buffer.scroll_segment,
 			viewport_height,
 			total_lines,
 			&*wrap_bucket,
@@ -238,34 +236,41 @@ impl<'a> BufferRenderContext<'a> {
 		for row in plan.rows {
 			let (line, segment, is_continuation, is_last_segment) = match row.kind {
 				RowKind::Text { line_idx, seg_idx } => {
-					let slice = LineSource::load(&doc_content, line_idx);
-					let segments = wrap_bucket.get_segments(line_idx, doc_version);
-					let num_segs = segments.map(|s| s.len()).unwrap_or(0).max(1);
-					let segment = segments.and_then(|s| s.get(seg_idx));
+					let slice: Option<LineSlice> = LineSource::load(&doc_content, line_idx);
+					let segments: Option<&[WrappedSegment]> =
+						wrap_bucket.get_segments(line_idx, doc_version);
+					let num_segs = segments
+						.map(|s: &[WrappedSegment]| s.len())
+						.unwrap_or(0)
+						.max(1);
+					let segment = segments.and_then(|s: &[WrappedSegment]| s.get(seg_idx));
 					(slice, segment, seg_idx > 0, seg_idx == num_segs - 1)
 				}
 				RowKind::NonTextBeyondEof => (None, None, false, true),
 			};
 
-			let line_idx = line.as_ref().map(|l| l.line_idx).unwrap_or(total_lines);
+			let line_idx = line
+				.as_ref()
+				.map(|l: &LineSlice| l.line_idx)
+				.unwrap_or(total_lines);
 
 			let diff_nums = diff_line_numbers
 				.as_ref()
-				.and_then(|nums| nums.get(line_idx));
+				.and_then(|nums: &Vec<DiffLineNumbers>| nums.get(line_idx));
 			let line_annotations = GutterAnnotations {
 				diagnostic_severity: self
 					.diagnostics
 					.and_then(|d| d.get(&line_idx).copied())
 					.unwrap_or(0),
 				sign: None,
-				diff_old_line: diff_nums.and_then(|dn| dn.old),
-				diff_new_line: diff_nums.and_then(|dn| dn.new),
+				diff_old_line: diff_nums.and_then(|dn: &DiffLineNumbers| dn.old),
+				diff_new_line: diff_nums.and_then(|dn: &DiffLineNumbers| dn.new),
 			};
 
 			let line_diff_bg = if is_diff_file {
 				let line_text = line
 					.as_ref()
-					.map(|l| l.content_string(&doc_content))
+					.map(|l: &LineSlice| l.content_string(&doc_content))
 					.unwrap_or_default();
 				diff_line_bg(true, &line_text, self.theme)
 			} else {
@@ -280,8 +285,8 @@ impl<'a> BufferRenderContext<'a> {
 				},
 				diff_bg: line_diff_bg,
 				mode_color,
-				is_cursor_line: cursorline && line_idx == cursor_line,
-				cursorline_enabled: cursorline,
+				is_cursor_line: p.cursorline && line_idx == cursor_line,
+				cursorline_enabled: p.cursorline,
 				cursor_line,
 				is_nontext: matches!(row.kind, RowKind::NonTextBeyondEof),
 			};
@@ -293,9 +298,9 @@ impl<'a> BufferRenderContext<'a> {
 				line_style,
 				layout: &layout,
 				buffer_path: buffer_path.as_deref(),
-				is_focused,
-				use_block_cursor,
-				tab_width,
+				is_focused: p.is_focused,
+				use_block_cursor: p.use_block_cursor,
+				tab_width: p.tab_width,
 				doc_content: &doc_content,
 				line: line.as_ref(),
 				segment,
