@@ -197,14 +197,14 @@ pub enum SelectionOp {
 	/// Select the character before cursor.
 	///
 	/// Creates a collapsed selection at `head - 1`. Combined with [`Transaction::delete`]
-	/// (which uses `to_inclusive()` adding 1), this deletes exactly `[head-1, head)`.
+	/// (which is inclusive of the head cell), this deletes exactly `[head-1, head)`.
 	///
 	/// [`Transaction::delete`]: xeno_primitives::transaction::Transaction::delete
 	SelectCharBefore,
 	/// Select the character after cursor.
 	///
 	/// Creates a collapsed selection at `head`. Combined with [`Transaction::delete`]
-	/// (which uses `to_inclusive()` adding 1), this deletes exactly `[head, head+1)`.
+	/// (which is inclusive of the head cell), this deletes exactly `[head, head+1)`.
 	///
 	/// [`Transaction::delete`]: xeno_primitives::transaction::Transaction::delete
 	SelectCharAfter,

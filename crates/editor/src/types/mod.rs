@@ -26,5 +26,5 @@ pub use history::{DocumentHistoryEntry, EditorUndoGroup, ViewSnapshot};
 pub use invocation::{Invocation, InvocationPolicy, InvocationResult};
 pub use undo_manager::{PreparedEdit, UndoHost, UndoManager};
 pub use viewport::Viewport;
-pub use workspace::{JumpList, JumpLocation, MacroState, Registers, Workspace};
+pub use workspace::{JumpList, JumpLocation, MacroState, Registers, Workspace, Yank};
 pub use xeno_primitives::range::CharIdx;

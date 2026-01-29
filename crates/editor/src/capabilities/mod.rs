@@ -191,6 +191,8 @@ impl MotionDispatchAccess for Editor {
 
 		let handler = motion_key.def().handler;
 		let selection = self.selection().clone();
+		let is_normal = self.mode() == Mode::Normal;
+
 		let MotionRequest {
 			count,
 			extend,
@@ -204,13 +206,18 @@ impl MotionDispatchAccess for Editor {
 				.ranges()
 				.iter()
 				.map(|range| {
-					let new_range = handler(text, *range, count, extend);
+					let mut target = handler(text, *range, count, extend);
+
+					if is_normal {
+						target.head = xeno_primitives::rope::clamp_to_cell(target.head, text);
+					}
+
 					match kind {
-						MotionKind::Cursor if extend => Range::new(range.anchor, new_range.head),
-						MotionKind::Cursor => Range::point(new_range.head),
-						MotionKind::Selection => Range::new(range.anchor, new_range.head),
-						MotionKind::Word if extend => Range::new(range.anchor, new_range.head),
-						MotionKind::Word => new_range,
+						MotionKind::Cursor if extend => Range::new(range.anchor, target.head),
+						MotionKind::Cursor => Range::point(target.head),
+						MotionKind::Selection => Range::new(range.anchor, target.head),
+						MotionKind::Word if extend => Range::new(range.anchor, target.head),
+						MotionKind::Word => target,
 					}
 				})
 				.collect::<Vec<_>>()

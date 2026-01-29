@@ -8,11 +8,32 @@ use xeno_primitives::range::CharIdx;
 use crate::buffer::ViewId;
 use crate::impls::CommandQueue;
 
+/// Represents yanked content, preserving individual selection fragments.
+#[derive(Debug, Clone, Default)]
+pub struct Yank {
+	/// Text fragments from each selection range.
+	pub parts: Vec<String>,
+	/// Total character count across all parts.
+	pub total_chars: usize,
+}
+
+impl Yank {
+	/// Returns the flattened string representation of the yanked content.
+	pub fn joined(&self) -> String {
+		self.parts.join("\n")
+	}
+
+	/// Returns true if the yanked content is empty.
+	pub fn is_empty(&self) -> bool {
+		self.parts.is_empty()
+	}
+}
+
 /// Named registers for storing yanked text.
 #[derive(Default)]
 pub struct Registers {
 	/// Default yank register content.
-	pub yank: String,
+	pub yank: Yank,
 }
 
 /// A saved position in the jump list.

@@ -22,7 +22,7 @@ pub fn find_all_matches(text: RopeSlice, pattern: &str) -> Result<Vec<Range>, re
 	for m in re.find_iter(&text_str) {
 		let start = byte_to_char_offset(&text_str, m.start());
 		let end = byte_to_char_offset(&text_str, m.end());
-		matches.push(Range::new(start, end));
+		matches.push(Range::from_exclusive(start, end));
 	}
 
 	Ok(matches)
@@ -43,7 +43,7 @@ pub fn find_next(
 	{
 		let start = pos + byte_to_char_offset(&text_str[byte_pos..], m.start());
 		let end = pos + byte_to_char_offset(&text_str[byte_pos..], m.end());
-		return Ok(Some(Range::new(start, end)));
+		return Ok(Some(Range::from_exclusive(start, end)));
 	}
 
 	// Wrap around: search from start to pos
@@ -51,7 +51,7 @@ pub fn find_next(
 		let start = byte_to_char_offset(&text_str, m.start());
 		let end = byte_to_char_offset(&text_str, m.end());
 		if start < pos {
-			return Ok(Some(Range::new(start, end)));
+			return Ok(Some(Range::from_exclusive(start, end)));
 		}
 	}
 
@@ -73,7 +73,7 @@ pub fn find_prev(
 		let start = byte_to_char_offset(&text_str, m.start());
 		if start < pos {
 			let end = byte_to_char_offset(&text_str, m.end());
-			last_before = Some(Range::new(start, end));
+			last_before = Some(Range::from_exclusive(start, end));
 		} else {
 			break;
 		}
@@ -88,7 +88,7 @@ pub fn find_prev(
 	for m in re.find_iter(&text_str) {
 		let start = byte_to_char_offset(&text_str, m.start());
 		let end = byte_to_char_offset(&text_str, m.end());
-		last = Some(Range::new(start, end));
+		last = Some(Range::from_exclusive(start, end));
 	}
 
 	Ok(last)
@@ -120,11 +120,11 @@ mod tests {
 
 		let m = find_next(slice, "hello", 0).unwrap().unwrap();
 		assert_eq!(m.min(), 0);
-		assert_eq!(m.max(), 5);
+		assert_eq!(m.max(), 4);
 
 		let m = find_next(slice, "hello", 1).unwrap().unwrap();
 		assert_eq!(m.min(), 12);
-		assert_eq!(m.max(), 17);
+		assert_eq!(m.max(), 16);
 
 		let m = find_next(slice, "hello", 13).unwrap().unwrap();
 		assert_eq!(m.min(), 0);

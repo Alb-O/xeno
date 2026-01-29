@@ -108,7 +108,7 @@ impl Editor {
 	pub(crate) fn do_use_selection_as_search(&mut self) -> bool {
 		let primary = self.buffer().selection.primary();
 		let from = primary.from();
-		let to = primary.to_inclusive();
+		let to = primary.to();
 		if from < to {
 			let (text, pattern) = self.buffer().with_doc(|doc| {
 				let text: String = doc.content().slice(from..to).chars().collect();
@@ -145,7 +145,7 @@ impl Editor {
 	pub(crate) fn select_regex(&mut self, pattern: &str) -> bool {
 		let primary = self.buffer().selection.primary();
 		let from = primary.from();
-		let to = primary.to_inclusive();
+		let to = primary.to();
 		if from >= to {
 			self.notify(keys::NO_SELECTION_TO_SEARCH);
 			return false;
@@ -180,7 +180,7 @@ impl Editor {
 	pub(crate) fn split_regex(&mut self, pattern: &str) -> bool {
 		let primary = self.buffer().selection.primary();
 		let from = primary.from();
-		let to = primary.to_inclusive();
+		let to = primary.to();
 		if from >= to {
 			self.notify(keys::NO_SELECTION_TO_SPLIT);
 			return false;
@@ -196,12 +196,15 @@ impl Editor {
 				for m in matches {
 					let match_start = from + m.min();
 					if match_start > last_end {
-						new_ranges.push(xeno_primitives::range::Range::new(last_end, match_start));
+						new_ranges.push(xeno_primitives::range::Range::from_exclusive(
+							last_end,
+							match_start,
+						));
 					}
-					last_end = from + m.max();
+					last_end = from + m.to();
 				}
 				if last_end < to {
-					new_ranges.push(xeno_primitives::range::Range::new(last_end, to));
+					new_ranges.push(xeno_primitives::range::Range::from_exclusive(last_end, to));
 				}
 				if !new_ranges.is_empty() {
 					let count = new_ranges.len();
@@ -237,7 +240,7 @@ impl Editor {
 					.iter()
 					.map(|range| {
 						let from = range.from();
-						let to = range.to_inclusive();
+						let to = range.to();
 						let text: String = doc.content().slice(from..to).chars().collect();
 						(*range, text)
 					})

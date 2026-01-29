@@ -93,22 +93,25 @@ impl Transaction {
 
 	/// Creates a transaction that inserts text at each selection range.
 	///
-	/// For each range in the selection, replaces the range `[min, max)` with the
-	/// provided text. This enables multi-cursor editing.
+	/// In the 1-cell minimum model, this inserts text before each range's
+	/// start position. This enables multi-cursor editing while preserving
+	/// the cell under the cursor.
 	///
 	/// # Parameters
-	/// - `doc`: The document slice
-	/// - `selection`: The ranges where text should be inserted
-	/// - `text`: The text to insert at each range
+	///
+	/// - `doc`: The document slice.
+	/// - `selection`: The ranges where text should be inserted.
+	/// - `text`: The text to insert at each range.
 	///
 	/// # Returns
+	///
 	/// A new [`Transaction`] representing the insertions.
 	pub fn insert(doc: RopeSlice, selection: &Selection, text: Tendril) -> Self {
 		Self::change(
 			doc,
 			selection.iter().map(|r: &Range| Change {
 				start: r.from(),
-				end: r.to(),
+				end: r.from(),
 				replacement: Some(text.clone()),
 			}),
 		)
@@ -116,21 +119,23 @@ impl Transaction {
 
 	/// Creates a transaction that deletes each selection range.
 	///
-	/// For each range in the selection, deletes the text in `[from, to_inclusive)`.
-	/// This ensures the cursor position is always included in the deletion.
+	/// For each range in the selection, deletes the text in `[from, to)`.
 	///
 	/// # Parameters
-	/// - `doc`: The document slice
-	/// - `selection`: The ranges to delete
+	///
+	/// - `doc`: The document slice.
+	/// - `selection`: The ranges to delete.
 	///
 	/// # Returns
+	///
 	/// A new [`Transaction`] representing the deletions.
 	pub fn delete(doc: RopeSlice, selection: &Selection) -> Self {
+		let len = doc.len_chars();
 		Self::change(
 			doc,
 			selection.iter().map(|r: &Range| Change {
 				start: r.from(),
-				end: r.to_inclusive(),
+				end: r.to().min(len),
 				replacement: None,
 			}),
 		)

@@ -55,15 +55,9 @@ impl OverlayIndex {
 
 		let mut selection_by_line: HashMap<usize, Vec<Range<usize>>> = HashMap::new();
 		for range in selection.ranges() {
-			if range.is_empty() {
-				continue;
-			}
+			let from = range.from().min(len);
+			let to = range.to().min(len);
 
-			let mut from = range.from().min(len);
-			let mut to = range.to().min(len);
-			if from > to {
-				std::mem::swap(&mut from, &mut to);
-			}
 			if from == to {
 				continue;
 			}

@@ -7,8 +7,8 @@ fn range_basics() {
 	let r = Range::new(5, 10);
 	assert_eq!(r.min(), 5);
 	assert_eq!(r.max(), 10);
-	assert_eq!(r.len(), 5);
-	assert!(!r.is_empty());
+	assert_eq!(r.len(), 6);
+	assert!(!r.is_point());
 	assert_eq!(r.direction(), Direction::Forward);
 }
 
@@ -23,11 +23,11 @@ fn range_backward() {
 #[test]
 fn range_from_to_forward() {
 	// Forward selection: anchor=5, head=10
-	// Selects characters 5,6,7,8,9 (head position is cursor, not selected)
+	// Selects characters 5,6,7,8,9,10 (head position is included)
 	let r = Range::new(5, 10);
 	assert_eq!(r.from(), 5);
-	assert_eq!(r.to(), 10);
-	assert_eq!(r.len(), 5);
+	assert_eq!(r.to(), 11);
+	assert_eq!(r.len(), 6);
 }
 
 #[test]
@@ -36,7 +36,7 @@ fn range_from_to_backward() {
 	// Selects characters 5,6,7,8,9,10 (anchor char IS selected)
 	let r = Range::new(10, 5);
 	assert_eq!(r.from(), 5);
-	assert_eq!(r.to(), 11); // anchor + 1 to include anchor char
+	assert_eq!(r.to(), 11);
 	assert_eq!(r.len(), 6);
 }
 
@@ -51,7 +51,8 @@ fn range_flip() {
 #[test]
 fn range_point() {
 	let r = Range::point(5);
-	assert!(r.is_empty());
+	assert_eq!(r.len(), 1);
+	assert!(r.is_point());
 	assert_eq!(r.anchor, 5);
 	assert_eq!(r.head, 5);
 }
@@ -62,7 +63,7 @@ fn range_contains() {
 	assert!(!r.contains(4));
 	assert!(r.contains(5));
 	assert!(r.contains(7));
-	assert!(!r.contains(10));
+	assert!(r.contains(10));
 }
 
 #[test]
@@ -72,7 +73,7 @@ fn range_overlaps() {
 	let r3 = Range::new(10, 15);
 
 	assert!(r1.overlaps(&r2));
-	assert!(!r1.overlaps(&r3));
+	assert!(r1.overlaps(&r3)); // Overlap at character 10
 }
 
 #[test]

@@ -43,7 +43,21 @@ impl Range {
 		Self { anchor, head }
 	}
 
-	/// Creates a zero-width range (cursor) at the given position.
+	/// Creates a new range from an exclusive interval `[start, end)`.
+	///
+	/// In the 1-cell minimum model, this maps to an inclusive range `[start, end - 1]`.
+	///
+	/// # Panics
+	///
+	/// Panics if `start >= end`, as an exclusive range must contain at least one character cell.
+	pub fn from_exclusive(start: CharIdx, end: CharIdx) -> Self {
+		assert!(start < end, "exclusive range must have at least one cell");
+		Self::new(start, end - 1)
+	}
+
+	/// Creates a 1-cell range (cursor) at the given position.
+	///
+	/// In the 1-cell model, a point selection still selects one character.
 	pub fn point(pos: CharIdx) -> Self {
 		Self::new(pos, pos)
 	}
@@ -70,39 +84,34 @@ impl Range {
 
 	/// Returns the end of the selection extent (exclusive of end position).
 	///
-	/// For forward selections, returns `head` (cursor position excluded).
-	/// For backward selections, returns `anchor + 1` (starting position included).
-	///
-	/// Use [`to_inclusive`] for operations that should always include the cursor.
+	/// In the 1-cell minimum model, this is always `max() + 1`, ensuring the
+	/// character at the head position is included in operations.
 	#[inline]
 	pub fn to(&self) -> CharIdx {
-		if self.direction() == Direction::Backward {
-			self.anchor + 1
-		} else {
-			self.max()
-		}
-	}
-
-	/// Returns the end of the selection extent, always including the cursor.
-	///
-	/// Unlike [`to`], this always returns `max() + 1` to ensure the character
-	/// at the cursor position (head) is included in operations regardless of
-	/// selection direction.
-	#[inline]
-	pub fn to_inclusive(&self) -> CharIdx {
 		self.max() + 1
 	}
 
 	/// Returns the length of the range in characters.
+	///
+	/// A point selection (anchor == head) has a length of 1.
 	#[inline]
 	pub fn len(&self) -> CharLen {
 		self.to() - self.from()
 	}
 
-	/// Returns true if anchor equals head (zero-width cursor).
+	/// Returns true if anchor equals head (point selection).
+	///
+	/// In the 1-cell minimum model, a point selection still selects one character.
 	#[inline]
-	pub fn is_empty(&self) -> bool {
+	pub fn is_point(&self) -> bool {
 		self.anchor == self.head
+	}
+
+	/// Returns the selection extent [from, to) clamped to document length.
+	///
+	/// Collapses to [len, len) if selection is beyond EOF.
+	pub fn extent_clamped(&self, len: CharIdx) -> (CharIdx, CharIdx) {
+		(self.from().min(len), self.to().min(len))
 	}
 
 	/// Returns the direction of this range.
@@ -161,18 +170,17 @@ impl Range {
 		Self { anchor, head }
 	}
 
-	/// Returns true if the position is within the range (exclusive of max).
+	/// Returns true if the position is within the range (inclusive of max).
+	///
+	/// In the 1-cell minimum model, a range [min, max] selects characters
+	/// from min to max inclusive.
 	pub fn contains(&self, pos: CharIdx) -> bool {
-		pos >= self.min() && pos < self.max()
+		pos >= self.min() && pos <= self.max()
 	}
 
 	/// Returns true if this range overlaps with another.
 	pub fn overlaps(&self, other: &Range) -> bool {
-		if self.min() < other.max() && other.min() < self.max() {
-			return true;
-		}
-
-		self.is_empty() && other.is_empty() && self.min() == other.min()
+		self.min() <= other.max() && other.min() <= self.max()
 	}
 
 	/// Merges two ranges, preserving direction of self.

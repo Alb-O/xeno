@@ -21,9 +21,16 @@ impl Editor {
 
 	/// Applies a selection operation before text transformation.
 	///
-	/// Returns `false` if the operation produced no valid targets (e.g., backspace
-	/// at document start), signaling that the transform should be skipped.
+	/// These operations adjust the selection state (e.g., expanding to full lines,
+	/// moving to line boundaries) before the primary [`TextTransform`] is executed.
+	/// In Normal mode, resulting cursor positions are snapped to valid cell indices.
+	///
+	/// # Returns
+	///
+	/// Returns `false` if the operation produced no valid targets, signaling that the
+	/// transform phase should be skipped.
 	pub(super) fn apply_selection_op(&mut self, op: &SelectionOp) -> bool {
+		let is_normal = self.mode() == xeno_primitives::Mode::Normal;
 		match op {
 			SelectionOp::None => true,
 
@@ -31,18 +38,19 @@ impl Editor {
 				let new_ranges: Vec<_> = {
 					let buffer = self.buffer();
 					buffer.with_doc(|doc| {
+						let text = doc.content().slice(..);
 						buffer
 							.selection
 							.ranges()
 							.iter()
 							.map(|r| {
-								movement::move_horizontally(
-									doc.content().slice(..),
-									*r,
-									*direction,
-									*count,
-									true,
-								)
+								let mut new_range =
+									movement::move_horizontally(text, *r, *direction, *count, true);
+								if is_normal {
+									new_range.head =
+										xeno_primitives::rope::clamp_to_cell(new_range.head, text);
+								}
+								new_range
 							})
 							.collect()
 					})
@@ -57,12 +65,19 @@ impl Editor {
 				let (new_ranges, primary_index) = {
 					let buffer = self.buffer();
 					buffer.with_doc(|doc| {
+						let text = doc.content().slice(..);
 						let ranges: Vec<_> = buffer
 							.selection
 							.ranges()
 							.iter()
 							.map(|r| {
-								movement::move_to_line_start(doc.content().slice(..), *r, false)
+								let mut new_range = movement::move_to_line_start(text, *r, false);
+								if is_normal {
+									new_range.head =
+										xeno_primitives::rope::clamp_to_cell(new_range.head, text);
+									new_range.anchor = new_range.head;
+								}
+								new_range
 							})
 							.collect();
 						(ranges, buffer.selection.primary_index())
@@ -77,11 +92,20 @@ impl Editor {
 				let (new_ranges, primary_index) = {
 					let buffer = self.buffer();
 					buffer.with_doc(|doc| {
+						let text = doc.content().slice(..);
 						let ranges: Vec<_> = buffer
 							.selection
 							.ranges()
 							.iter()
-							.map(|r| movement::move_to_line_end(doc.content().slice(..), *r, false))
+							.map(|r| {
+								let mut new_range = movement::move_to_line_end(text, *r, false);
+								if is_normal {
+									new_range.head =
+										xeno_primitives::rope::clamp_to_cell(new_range.head, text);
+									new_range.anchor = new_range.head;
+								}
+								new_range
+							})
 							.collect();
 						(ranges, buffer.selection.primary_index())
 					})
@@ -108,7 +132,7 @@ impl Editor {
 								} else {
 									doc.content().len_chars()
 								};
-								Range::new(start, end)
+								Range::from_exclusive(start, end)
 							})
 							.collect();
 						(ranges, buffer.selection.primary_index())
@@ -199,7 +223,7 @@ impl Editor {
 						let total_lines = doc.content().len_lines();
 						if line + 1 < total_lines {
 							let end_of_line = doc.content().line_to_char(line + 1) - 1;
-							Some(Selection::single(end_of_line, end_of_line + 1))
+							Some(Selection::point(end_of_line))
 						} else {
 							None
 						}
@@ -218,13 +242,17 @@ impl Editor {
 				let new_ranges: Vec<_> = {
 					let buffer = self.buffer();
 					buffer.with_doc(|doc| {
-						let len = doc.content().len_chars();
+						let text = doc.content().slice(..);
 						buffer
 							.selection
 							.ranges()
 							.iter()
 							.map(|r| {
-								let new_pos = (r.head + 1).min(len);
+								let new_pos = if is_normal {
+									xeno_primitives::rope::clamp_to_cell(r.head + 1, text)
+								} else {
+									(r.head + 1).min(text.len_chars())
+								};
 								Range::point(new_pos)
 							})
 							.collect()
@@ -375,15 +403,12 @@ impl Editor {
 		&mut self,
 		replacement: &str,
 	) -> Option<(Transaction, Selection)> {
-		if self.buffer().selection.primary().is_empty() {
-			return self.build_insert_transaction(replacement);
-		}
 		let buffer = self.buffer();
 		buffer.with_doc(|doc| {
 			let replacement_str: String = replacement.into();
 			let changes = buffer.selection.iter().map(|range| Change {
 				start: range.from(),
-				end: range.to_inclusive(),
+				end: range.to(),
 				replacement: Some(replacement_str.clone()),
 			});
 			let tx = Transaction::change(doc.content().slice(..), changes);
@@ -400,7 +425,7 @@ impl Editor {
 		let buffer = self.buffer();
 		let primary = buffer.selection.primary();
 		let from = primary.from();
-		let to = primary.to_inclusive();
+		let to = primary.to();
 		if from >= to {
 			return None;
 		}
@@ -415,7 +440,7 @@ impl Editor {
 
 			let changes = buffer.selection.iter().map(|range| Change {
 				start: range.from(),
-				end: range.to_inclusive(),
+				end: range.to(),
 				replacement: Some(mapped.clone()),
 			});
 			let tx = Transaction::change(doc.content().slice(..), changes);
@@ -432,7 +457,7 @@ impl Editor {
 		let buffer = self.buffer();
 		let primary = buffer.selection.primary();
 		let from = primary.from();
-		let to = primary.to_inclusive();
+		let to = primary.to();
 
 		buffer.with_doc(|doc| {
 			let len = if from < to { to - from } else { 1 };
@@ -446,7 +471,7 @@ impl Editor {
 
 			let changes = selection.iter().map(|range| Change {
 				start: range.from(),
-				end: range.to_inclusive(),
+				end: range.to(),
 				replacement: Some(replacement.clone()),
 			});
 			let tx = Transaction::change(doc.content().slice(..), changes);

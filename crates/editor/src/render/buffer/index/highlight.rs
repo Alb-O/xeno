@@ -9,30 +9,51 @@ pub struct HighlightIndex {
 }
 
 impl HighlightIndex {
+	/// Creates a new highlight index from a collection of spans.
+	///
+	/// Flatten overlapping spans by clipping them. Preserves the last span
+	/// (most specific/highest priority) when multiple spans start at the same
+	/// position or overlap.
+	///
+	/// # Parameters
+	///
+	/// - `spans`: The highlight spans with associated styles.
 	pub fn new(spans: Vec<(HighlightSpan, Style)>) -> Self {
 		let mut index_spans: Vec<_> = spans
 			.into_iter()
 			.map(|(s, style)| (s.start..s.end, style))
 			.collect();
-		index_spans.sort_by_key(|(r, _)| r.start);
 
-		// Debug validation: ensure spans are non-overlapping
-		// Overlapping spans would break binary_search_by correctness
-		#[cfg(debug_assertions)]
-		{
-			for window in index_spans.windows(2) {
-				let (r1, _) = &window[0];
-				let (r2, _) = &window[1];
-				debug_assert!(
-					r1.end <= r2.start,
-					"Overlapping highlight spans detected: {:?} and {:?}",
-					r1,
-					r2
-				);
+		// Sort primarily by start, then by end (longer spans first).
+		index_spans
+			.sort_by(|(r1, _), (r2, _)| r1.start.cmp(&r2.start).then_with(|| r1.end.cmp(&r2.end)));
+
+		let mut flattened: Vec<(Range<u32>, Style)> = Vec::with_capacity(index_spans.len());
+		for (range, style) in index_spans {
+			if let Some((last_range, _)) = flattened.last_mut()
+				&& range.start < last_range.end
+			{
+				// Overlap detected.
+				if range.start == last_range.start {
+					// Both start at the same point. Replace the previous one (last-wins).
+					*last_range = range;
+					continue;
+				} else {
+					// New span starts after previous but before it ends. Clip the previous span.
+					last_range.end = range.start;
+					if last_range.start >= last_range.end {
+						flattened.pop();
+					}
+				}
 			}
+			flattened.push((range, style));
 		}
 
-		Self { spans: index_spans }
+		// Final dedup of any now-empty or identical spans after clipping.
+		flattened.retain(|(r, _)| r.start < r.end);
+		flattened.dedup_by(|(r2, _), (r1, _)| r1.start == r2.start && r1.end == r2.end);
+
+		Self { spans: flattened }
 	}
 
 	pub fn style_at(&self, byte_pos: u32) -> Option<Style> {

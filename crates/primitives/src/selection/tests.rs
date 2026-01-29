@@ -12,7 +12,7 @@ fn single_selection() {
 fn point_selection() {
 	let sel = Selection::point(5);
 	assert_eq!(sel.len(), 1);
-	assert!(sel.primary().is_empty());
+	assert!(sel.primary().is_point());
 }
 
 #[test]
@@ -44,14 +44,14 @@ fn merge_duplicate_cursors() {
 }
 
 #[test]
-fn do_not_merge_adjacent() {
+fn do_not_merge_near_adjacent() {
 	let primary = Range::new(0, 5);
-	let others = vec![Range::new(5, 10)];
+	let others = vec![Range::new(6, 10)];
 	let sel = Selection::new(primary, others);
 	assert_eq!(sel.len(), 2);
 	assert_eq!(sel.ranges()[0].min(), 0);
 	assert_eq!(sel.ranges()[0].max(), 5);
-	assert_eq!(sel.ranges()[1].min(), 5);
+	assert_eq!(sel.ranges()[1].min(), 6);
 	assert_eq!(sel.ranges()[1].max(), 10);
 }
 
@@ -87,5 +87,5 @@ fn contains() {
 	assert!(!sel.contains(4));
 	assert!(sel.contains(5));
 	assert!(sel.contains(7));
-	assert!(!sel.contains(10));
+	assert!(sel.contains(10));
 }

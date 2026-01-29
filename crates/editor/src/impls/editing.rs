@@ -117,8 +117,9 @@ impl Editor {
 
 	/// Copies the current selection to the yank register.
 	pub fn yank_selection(&mut self) {
-		if let Some((text, count)) = self.buffer_mut().yank_selection() {
-			self.state.core.workspace.registers.yank = text;
+		if let Some(yank) = self.buffer_mut().yank_selection() {
+			let count = yank.total_chars;
+			self.state.core.workspace.registers.yank = yank;
 			self.notify(keys::yanked_chars(count));
 		}
 	}
@@ -134,7 +135,7 @@ impl Editor {
 		}
 
 		let buffer_id = self.focused_view();
-		let yank = self.state.core.workspace.registers.yank.clone();
+		let yank = self.state.core.workspace.registers.yank.joined();
 
 		let Some((tx, new_selection)) = ({
 			let buffer = self
@@ -172,7 +173,7 @@ impl Editor {
 		}
 
 		let buffer_id = self.focused_view();
-		let yank = self.state.core.workspace.registers.yank.clone();
+		let yank = self.state.core.workspace.registers.yank.joined();
 
 		let Some((tx, new_selection)) = ({
 			let buffer = self
@@ -201,10 +202,6 @@ impl Editor {
 
 	/// Deletes the currently selected text.
 	pub fn delete_selection(&mut self) {
-		if self.buffer().selection.primary().is_empty() {
-			return;
-		}
-
 		if !self.guard_readonly() {
 			return;
 		}

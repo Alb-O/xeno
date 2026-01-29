@@ -92,7 +92,11 @@ action!(select_all, {
 	description: "Select all text",
 	bindings: r#"normal "%""#,
 }, |ctx| {
-	let end = ctx.text.len_chars();
+	let len = ctx.text.len_chars();
+	if len == 0 {
+		return ActionResult::Effects(ActionEffects::selection(Selection::point(0)));
+	}
+	let end = len - 1;
 	ActionResult::Effects(ActionEffects::selection(Selection::single(0, end)))
 });
 
@@ -107,11 +111,7 @@ fn expand_to_line_impl(ctx: &crate::actions::ActionContext) -> ActionResult {
 		let start_line = ctx.text.char_to_line(r.min());
 		let end_line = ctx.text.char_to_line(r.max());
 		r.anchor = ctx.text.line_to_char(start_line);
-		r.head = if end_line + 1 < ctx.text.len_lines() {
-			ctx.text.line_to_char(end_line + 1)
-		} else {
-			ctx.text.len_chars()
-		};
+		r.head = line_end_pos(ctx.text, end_line);
 	});
 	ActionResult::Effects(ActionEffects::selection(new_sel))
 }

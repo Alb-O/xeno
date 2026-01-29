@@ -65,16 +65,16 @@ fn test_transaction_delete() {
 
 #[test]
 fn test_transaction_delete_at_end() {
-	// Deleting selection at document end where to_inclusive() exceeds doc length
+	// Deleting selection at document end where to() exceeds doc length
 	let mut doc = Rope::from("hello");
-	let sel = Selection::single(0, 4); // Selection covers entire doc, to_inclusive() = 5 = doc.len_chars()
+	let sel = Selection::single(0, 4); // Selection covers entire doc, to() = 5 = doc.len_chars()
 	let tx = Transaction::delete(doc.slice(..), &sel);
 	tx.apply(&mut doc);
 	assert_eq!(doc.to_string(), "");
 
 	// Cursor at the very last position
 	let mut doc2 = Rope::from("ab");
-	let sel2 = Selection::single(1, 1); // Cursor at position 1, to_inclusive() = 2 = doc.len_chars()
+	let sel2 = Selection::single(1, 1); // Cursor at position 1, to() = 2 = doc.len_chars()
 	let tx2 = Transaction::delete(doc2.slice(..), &sel2);
 	tx2.apply(&mut doc2);
 	assert_eq!(doc2.to_string(), "a");

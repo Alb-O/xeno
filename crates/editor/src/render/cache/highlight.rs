@@ -132,6 +132,13 @@ impl HighlightTiles {
 			return Vec::new();
 		}
 
+		let start_byte = rope.line_to_byte(start_line.min(rope.len_lines())) as u32;
+		let end_byte = if end_line < rope.len_lines() {
+			rope.line_to_byte(end_line) as u32
+		} else {
+			rope.len_bytes() as u32
+		};
+
 		let start_tile = start_line / TILE_SIZE;
 		let end_tile = (end_line.saturating_sub(1)) / TILE_SIZE;
 
@@ -145,8 +152,8 @@ impl HighlightTiles {
 				tile_idx,
 			};
 
-			if let Some(tile) = self.get_cached_tile(doc_id, tile_idx, &key) {
-				all_spans.extend(tile.spans.iter().cloned());
+			let spans = if let Some(tile) = self.get_cached_tile(doc_id, tile_idx, &key) {
+				&tile.spans
 			} else {
 				let tile_start_line = tile_idx * TILE_SIZE;
 				let tile_end_line = ((tile_idx + 1) * TILE_SIZE).min(rope.len_lines());
@@ -166,7 +173,33 @@ impl HighlightTiles {
 				};
 
 				self.insert_tile(doc_id, tile_idx, tile);
-				all_spans.extend(spans);
+				&self.tiles[self
+					.index
+					.get(&doc_id)
+					.unwrap()
+					.get(&tile_idx)
+					.copied()
+					.unwrap()]
+				.spans
+			};
+
+			// Clip spans to the requested byte range. This handles cases where tiles
+			// return spans extending beyond the tile boundary or where the caller
+			// only requested a sub-portion of the tiles.
+			for (span, style) in spans {
+				let s = span.start.max(start_byte);
+				let e = span.end.min(end_byte);
+
+				if s < e {
+					all_spans.push((
+						HighlightSpan {
+							start: s,
+							end: e,
+							highlight: span.highlight,
+						},
+						*style,
+					));
+				}
 			}
 		}
 

@@ -31,8 +31,20 @@ pub fn move_to_line_end(text: RopeSlice, range: Range, extend: bool) -> Range {
 	let line_start = text.line_to_char(line);
 	let line_content = text.line(line);
 	let line_len = line_content.len_chars();
-	let has_newline = line_len > 0 && line_content.char(line_len - 1) == '\n';
-	let line_end = line_start + if has_newline { line_len - 1 } else { line_len };
+
+	let line_end = if line_len > 0 {
+		let has_newline = line_content.char(line_len - 1) == '\n';
+		if has_newline && line_len > 1 {
+			// Land on the last character before the newline
+			line_start + line_len - 2
+		} else {
+			// Land on the last character (which might be the newline if it's the only char)
+			line_start + line_len - 1
+		}
+	} else {
+		line_start
+	};
+
 	make_range(range, line_end, extend)
 }
 

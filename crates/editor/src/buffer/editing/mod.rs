@@ -7,6 +7,8 @@ use xeno_primitives::LspDocumentChange;
 use xeno_primitives::{CommitResult, EditCommit, Range, SyntaxPolicy, Transaction, UndoPolicy};
 use xeno_runtime_language::LanguageLoader;
 
+use crate::types::Yank;
+
 /// Policy for applying a transaction to a buffer.
 ///
 /// Combines undo and syntax policies. Use builder methods to configure,
@@ -115,22 +117,41 @@ impl Buffer {
 		tx
 	}
 
-	/// Yanks (copies) the primary selection to the provided register string.
+	/// Yanks the current selections to the yank register.
 	///
-	/// Returns the yanked text and count, or None if selection is empty or invalid.
-	pub fn yank_selection(&mut self) -> Option<(String, usize)> {
+	/// In the 1-cell minimum model, this preserves each selection fragment as a separate
+	/// entry in the [`Yank`] payload. Point selections (cursors) yank exactly one character
+	/// (the character cell they occupy).
+	///
+	/// # Returns
+	///
+	/// Returns `Some(Yank)` containing the fragments and total count, or `None` if the
+	/// document is empty.
+	pub fn yank_selection(&mut self) -> Option<Yank> {
 		self.ensure_valid_selection();
 
-		let primary = self.selection.primary();
-		let from = primary.min();
-		let to = primary.max();
-		if from < to {
-			let text = self.with_doc(|doc| doc.content().slice(from..to).to_string());
-			let count = to - from;
-			Some((text, count))
-		} else {
-			None
-		}
+		self.with_doc(|doc| {
+			let text = doc.content().slice(..);
+			let len = text.len_chars();
+
+			let mut parts = Vec::new();
+			let mut total_chars = 0;
+
+			for range in self.selection.ranges() {
+				let (from, to) = range.extent_clamped(len);
+				if from < to {
+					let fragment = text.slice(from..to).to_string();
+					total_chars += fragment.chars().count();
+					parts.push(fragment);
+				}
+			}
+
+			if !parts.is_empty() {
+				Some(Yank { parts, total_chars })
+			} else {
+				None
+			}
+		})
 	}
 
 	/// Prepares paste after cursor, returning transaction and new selection without applying.
@@ -220,14 +241,9 @@ impl Buffer {
 	) -> Option<(Transaction, xeno_primitives::Selection)> {
 		self.ensure_valid_selection();
 
-		if !self.selection.primary().is_empty() {
-			let tx =
-				self.with_doc(|doc| Transaction::delete(doc.content().slice(..), &self.selection));
-			let new_selection = tx.map_selection(&self.selection);
-			Some((tx, new_selection))
-		} else {
-			None
-		}
+		let tx = self.with_doc(|doc| Transaction::delete(doc.content().slice(..), &self.selection));
+		let new_selection = tx.map_selection(&self.selection);
+		Some((tx, new_selection))
 	}
 
 	/// Deletes the current selection, returning the applied [`Transaction`] if non-empty.

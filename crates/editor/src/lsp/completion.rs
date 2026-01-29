@@ -83,7 +83,7 @@ impl Editor {
 		}
 
 		let selection = buffer.selection.primary();
-		let replace_start = if selection.is_empty() {
+		let replace_start = if selection.is_point() {
 			completion_replace_start(buffer)
 		} else {
 			selection.from()
@@ -175,7 +175,7 @@ impl Editor {
 		}
 		let command = item.command.clone();
 
-		let replace_start = if selection.is_empty() {
+		let replace_start = if selection.is_point() {
 			self.overlays()
 				.get::<CompletionState>()
 				.map(|state| state.replace_start)
@@ -183,7 +183,7 @@ impl Editor {
 		} else {
 			selection.from()
 		};
-		let replace_end = if selection.is_empty() {
+		let replace_end = if selection.is_point() {
 			cursor
 		} else {
 			selection.to()

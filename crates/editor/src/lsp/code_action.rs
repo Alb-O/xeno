@@ -42,12 +42,12 @@ impl Editor {
 		}
 
 		let selection = buffer.selection.primary();
-		let start = if selection.is_empty() {
+		let start = if selection.is_point() {
 			buffer.cursor
 		} else {
 			selection.from()
 		};
-		let end = if selection.is_empty() {
+		let end = if selection.is_point() {
 			buffer.cursor
 		} else {
 			selection.to()

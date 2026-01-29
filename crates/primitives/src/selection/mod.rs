@@ -309,12 +309,13 @@ impl Selection {
 		self.normalize();
 	}
 
-	/// Returns `true` if all ranges are within valid bounds.
+	/// Returns `true` if all ranges are within valid document boundaries.
 	///
-	/// Checks that:
-	/// - `primary_index` is valid
-	/// - All range endpoints (anchor, head, from, to) are `<= len`
-	/// - Range ordering is correct (`from <= to`)
+	/// A selection is considered in-bounds if:
+	/// - The primary index is valid for the current ranges vector.
+	/// - All range endpoints are within document bounds `[0, len]`.
+	/// - The extent `[from, to)` is allowed to be `[0, 1)` even for empty documents
+	///   to represent the 1-cell cursor (consumers should clamp this to the actual length).
 	#[inline]
 	pub fn is_in_bounds(&self, len: CharIdx) -> bool {
 		if self.primary_index >= self.ranges.len() {
@@ -323,7 +324,7 @@ impl Selection {
 		self.ranges.iter().all(|r| {
 			let from = r.from();
 			let to = r.to();
-			from <= to && to <= len && r.head <= len && r.anchor <= len
+			from <= len && to <= len + 1 && r.head <= len && r.anchor <= len
 		})
 	}
 }

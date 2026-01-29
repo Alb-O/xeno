@@ -26,9 +26,11 @@ mod lsp_batching {
 	#[test]
 	fn single_insert_returns_one_change() {
 		let mut buffer = make_buffer("hello");
-		buffer.set_selection(Selection::single(5, 5)); // cursor at end
+		// Selection on 'o' (last cell)
+		buffer.set_selection(Selection::point(4));
 
-		let (tx, _sel) = buffer.prepare_insert(" world");
+		// Insert after 'o' (simulate 'a')
+		let (tx, _sel) = buffer.prepare_paste_after(" world").unwrap();
 		let loader = xeno_runtime_language::LanguageLoader::new();
 		let result = buffer.apply_with_lsp(&tx, LSP_POLICY, &loader, OffsetEncoding::Utf16);
 
