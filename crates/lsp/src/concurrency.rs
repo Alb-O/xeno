@@ -40,8 +40,8 @@ impl Drop for DoneSignaller {
 	}
 }
 
-type AcquireFuture =
-	Pin<Box<dyn Future<Output = Result<OwnedSemaphorePermit, tokio::sync::AcquireError>> + Send>>;
+pub(super) type PermitFuture =
+	xeno_primitives::BoxFutureStatic<Result<OwnedSemaphorePermit, tokio::sync::AcquireError>>;
 
 /// The middleware for incoming request multiplexing limits and cancellation.
 ///
@@ -54,7 +54,7 @@ pub struct Concurrency<S> {
 	/// Semaphore for limiting concurrency.
 	semaphore: Arc<Semaphore>,
 	/// Pending permit acquisition.
-	ready_fut: Option<AcquireFuture>,
+	ready_fut: Option<PermitFuture>,
 	/// Acquired permit for the next call.
 	ready_permit: Option<OwnedSemaphorePermit>,
 	/// Map of in-flight request IDs to their cancellation states.

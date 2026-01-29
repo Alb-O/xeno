@@ -3,20 +3,28 @@ use std::pin::Pin;
 use std::task::{Context, Poll, RawWaker, RawWakerVTable, Waker};
 
 /// A pinned, boxed future that is not required to be Send.
-pub type LocalBoxFuture<'a, T> = Pin<Box<dyn Future<Output = T> + 'a>>;
+pub type BoxFutureLocal<'a, T> = Pin<Box<dyn Future<Output = T> + 'a>>;
 
 /// A pinned, boxed future that is required to be Send.
-pub type BoxFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
+pub type BoxFutureSend<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
 
 /// A pinned, boxed future that is required to be Send and 'static.
 pub type BoxFutureStatic<T> = Pin<Box<dyn Future<Output = T> + Send + 'static>>;
 
-/// Simple helper to poll a future once and return the result if ready.
-pub fn now_or_never<F: Future>(mut fut: F) -> Option<F::Output> {
-	let fut = unsafe { Pin::new_unchecked(&mut fut) };
+/// Legacy alias for BoxFutureLocal.
+pub type LocalBoxFuture<'a, T> = BoxFutureLocal<'a, T>;
+
+/// Legacy alias for BoxFutureSend.
+pub type BoxFuture<'a, T> = BoxFutureSend<'a, T>;
+
+/// Polls a future once without registering for wakeups.
+///
+/// Only use this if you know the future is ready or
+/// if you are intentionally performing a non-blocking check.
+pub fn poll_once<F: Future + Unpin>(mut fut: F) -> Option<F::Output> {
 	let noop_waker = unsafe { Waker::from_raw(noop_raw_waker()) };
 	let mut cx = Context::from_waker(&noop_waker);
-	match fut.poll(&mut cx) {
+	match Pin::new(&mut fut).poll(&mut cx) {
 		Poll::Ready(res) => Some(res),
 		Poll::Pending => None,
 	}

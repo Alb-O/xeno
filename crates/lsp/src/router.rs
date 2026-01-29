@@ -3,7 +3,6 @@ use std::any::TypeId;
 use std::collections::HashMap;
 use std::future::{Future, ready};
 use std::ops::ControlFlow;
-use std::pin::Pin;
 use std::task::{Context, Poll};
 
 use lsp_types::notification::Notification;
@@ -33,7 +32,7 @@ pub struct Router<St, Error = ResponseError> {
 }
 
 /// Boxed future for request handlers.
-type BoxReqFuture<Error> = Pin<Box<dyn Future<Output = Result<JsonValue, Error>> + Send>>;
+type BoxReqFuture<Error> = xeno_primitives::BoxFutureStatic<Result<JsonValue, Error>>;
 /// Boxed async request handler function.
 type BoxReqHandler<St, Error> = Box<dyn Fn(&mut St, AnyRequest) -> BoxReqFuture<Error> + Send>;
 /// Boxed sync notification handler function.

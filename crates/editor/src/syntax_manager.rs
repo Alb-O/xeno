@@ -297,7 +297,7 @@ impl SyntaxManager {
 
 		// Poll inflight.
 		if let Some(p) = st.inflight.as_mut() {
-			let join = xeno_primitives::future::now_or_never(&mut p.task);
+			let join = xeno_primitives::future::poll_once(&mut p.task);
 			if join.is_none() {
 				return SyntaxPollResult::Pending;
 			}
