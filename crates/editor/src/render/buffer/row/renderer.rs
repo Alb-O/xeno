@@ -10,7 +10,7 @@ use super::super::context::types::{BufferRenderContext, CursorStyles, RenderLayo
 use super::super::index::{CursorKind, HighlightIndex, OverlayIndex};
 use super::super::plan::LineSlice;
 use super::super::style_layers::{LineStyleContext, blend};
-use super::shaper::SegmentGlyphIter;
+use super::shaper::{GlyphVirtual, SegmentGlyphIter};
 use super::span_builder::SpanRunBuilder;
 use crate::render::wrap::WrappedSegment;
 
@@ -47,9 +47,10 @@ pub struct TextRowRenderer;
 impl TextRowRenderer {
 	/// Renders the text portion of a visual row into a [`Line`].
 	///
-	/// Orchestrates glyph shaping, syntax highlighting, and overlay application
-	/// (selection and cursor). Handles special cases like tab expansion and
-	/// EOL cursor rendering.
+	/// Coordinates glyph shaping, syntax highlighting, and overlay application.
+	/// Ensures that multi-column characters (tabs, wide Unicode) and layout
+	/// features (soft-wrap indentation) are rendered with correct styling
+	/// and selection highlights.
 	pub fn render_row(input: &RowRenderInput<'_>) -> Line<'static> {
 		let mut builder = SpanRunBuilder::new();
 		let text_width = input.layout.text_width;
@@ -66,16 +67,22 @@ impl TextRowRenderer {
 				let mut cols_used = 0;
 
 				for glyph in shaper {
-					let (syntax_style, in_selection, cursor_kind) = if glyph.is_virtual {
-						(None, false, CursorKind::None)
-					} else {
-						(
+					let (syntax_style, in_selection, cursor_kind) = match glyph.virtual_kind {
+						GlyphVirtual::Layout => {
+							let seg_selected = input.overlays.segment_selected(
+								line.line_idx,
+								segment.start_char_offset,
+								segment.start_char_offset + segment.char_len,
+							);
+							(None, seg_selected, CursorKind::None)
+						}
+						GlyphVirtual::None | GlyphVirtual::Fill => (
 							input.highlight.style_at(glyph.doc_byte),
 							input
 								.overlays
 								.in_selection(line.line_idx, glyph.line_char_off),
 							input.overlays.cursor_kind(glyph.doc_char, input.is_focused),
-						)
+						),
 					};
 
 					let cell_input = CellStyleInput {
@@ -89,16 +96,22 @@ impl TextRowRenderer {
 					};
 
 					let resolved = resolve_cell_style(cell_input);
-					let style = if cursor_kind != CursorKind::None
-						&& (input.use_block_cursor || !input.is_focused)
-					{
+
+					let paint_cursor = cursor_kind != CursorKind::None
+						&& (input.use_block_cursor || !input.is_focused || glyph.is_leading);
+
+					let style = if paint_cursor {
 						resolved.cursor
 					} else {
-						input.ctx.apply_diagnostic_underline(
-							line.line_idx,
-							glyph.line_char_off,
-							resolved.non_cursor,
-						)
+						let mut base = resolved.non_cursor;
+						if !matches!(glyph.virtual_kind, GlyphVirtual::Layout) {
+							base = input.ctx.apply_diagnostic_underline(
+								line.line_idx,
+								glyph.line_char_off,
+								base,
+							);
+						}
+						base
 					};
 
 					builder.push_text(style, &glyph.ch.to_string());

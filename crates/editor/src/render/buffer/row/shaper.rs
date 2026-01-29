@@ -4,25 +4,48 @@ use xeno_primitives::range::CharIdx;
 use super::super::plan::LineSlice;
 use crate::render::wrap::{WrappedSegment, cell_width};
 
+/// Classification of visual cells for overlay and layout logic.
+///
+/// Distinguishes between cells that represent real document characters and those
+/// generated for visual formatting (like tab expansion or soft-wrap indentation).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum GlyphVirtual {
+	/// A cell corresponding to a unique document character position.
+	None,
+	/// An auxiliary cell generated for a multi-column character.
+	///
+	/// Used for the 2nd and subsequent columns of a tab. These cells inherit the
+	/// document position and metadata of the leading cell but are marked as fill
+	/// to allow overlays (selection, cursor) to expand across the full width.
+	Fill,
+	/// A synthetic cell for UI or layout purposes with no document counterpart.
+	///
+	/// Used for continuation indents on soft-wrapped lines. These cells do not
+	/// trigger syntax highlight lookups or diagnostic overlays but may participate
+	/// in selection continuity.
+	Layout,
+}
+
 /// A single display cell (glyph) in the rendered output.
 ///
-/// Each glyph represents one display column. For expanded tabs and continuation
-/// indents, multiple glyphs may share the same document position.
+/// Each glyph represents one display column. Multi-column characters like tabs
+/// are expanded into multiple glyphs sharing the same document metadata.
 #[derive(Debug, Clone, Copy)]
 pub struct Glyph {
-	/// Document character index (may be shared by virtual glyphs).
+	/// Document character index.
 	pub doc_char: CharIdx,
 	/// Character offset within the line.
 	pub line_char_off: usize,
 	/// Document byte offset.
 	pub doc_byte: u32,
-	/// Display character (may be space for tab expansion).
+	/// Display character (typically ' ' for virtual fill/layout).
 	pub ch: char,
-	/// Display width in columns (usually 1).
+	/// Display width in columns.
 	pub width: usize,
-	/// True for glyphs that don't correspond to actual document characters
-	/// (tab expansion spaces, continuation indent).
-	pub is_virtual: bool,
+	/// Internal classification for overlay and rendering logic.
+	pub virtual_kind: GlyphVirtual,
+	/// Indicates if this is the first (or only) cell representing a document character.
+	pub is_leading: bool,
 }
 
 /// Iterator that converts a line segment into display glyphs.
@@ -93,7 +116,8 @@ impl<'a> Iterator for SegmentGlyphIter<'a> {
 				doc_byte: self.line.start_byte,
 				ch: ' ',
 				width: 1,
-				is_virtual: true,
+				virtual_kind: GlyphVirtual::Layout,
+				is_leading: false,
 			});
 		}
 
@@ -108,7 +132,8 @@ impl<'a> Iterator for SegmentGlyphIter<'a> {
 				doc_byte,
 				ch: ' ',
 				width: 1,
-				is_virtual: true,
+				virtual_kind: GlyphVirtual::Fill,
+				is_leading: false,
 			});
 		}
 
@@ -149,7 +174,8 @@ impl<'a> Iterator for SegmentGlyphIter<'a> {
 				doc_byte,
 				ch: ' ',
 				width: 1,
-				is_virtual: false,
+				virtual_kind: GlyphVirtual::None,
+				is_leading: true,
 			});
 		}
 
@@ -168,7 +194,8 @@ impl<'a> Iterator for SegmentGlyphIter<'a> {
 			doc_byte: self.line.start_byte + self.current_byte_off,
 			ch,
 			width: char_width,
-			is_virtual: false,
+			virtual_kind: GlyphVirtual::None,
+			is_leading: true,
 		};
 
 		self.current_char_idx += 1;

@@ -34,11 +34,16 @@ pub struct OverlayIndex {
 impl OverlayIndex {
 	/// Builds an overlay index from the current selection state.
 	///
-	/// # Arguments
-	/// * `selection` - The current multi-cursor selection
-	/// * `primary_cursor` - The active cursor position
-	/// * `_is_focused` - Whether the buffer is focused (unused, kept for API)
-	/// * `rope` - Document content for line mapping
+	/// Aggregates all cursor positions and builds a line-indexed selection map.
+	/// Selection ranges on each line are automatically sorted and merged to ensure
+	/// efficient binary search lookups during rendering.
+	///
+	/// # Parameters
+	///
+	/// - `selection`: The current multi-cursor selection.
+	/// - `primary_cursor`: The active cursor position.
+	/// - `_is_focused`: Unused focus flag (preserved for API compatibility).
+	/// - `rope`: Document content for line mapping.
 	pub fn new(
 		selection: &Selection,
 		primary_cursor: CharIdx,
@@ -84,14 +89,12 @@ impl OverlayIndex {
 			}
 		}
 
-		// Sort and merge selection ranges per line
 		for ranges in selection_by_line.values_mut() {
 			ranges.sort_by_key(|r| r.start);
-			// Merge overlapping/adjacent ranges to ensure binary_search correctness
+
 			let mut i = 0;
 			while i + 1 < ranges.len() {
 				if ranges[i].end >= ranges[i + 1].start {
-					// Merge: extend end to max of both, remove next
 					ranges[i].end = ranges[i].end.max(ranges[i + 1].end);
 					ranges.remove(i + 1);
 				} else {
@@ -143,5 +146,18 @@ impl OverlayIndex {
 		} else {
 			CursorKind::Secondary
 		}
+	}
+
+	/// Checks if any part of the given line segment is covered by a selection.
+	///
+	/// Used to ensure visual continuity of selection highlights across layout
+	/// boundaries like soft-wrap indents.
+	pub fn segment_selected(&self, line_idx: usize, start: usize, end: usize) -> bool {
+		let Some(ranges) = self.selection_by_line.get(&line_idx) else {
+			return false;
+		};
+
+		// Check if any selection range on this line overlaps [start, end)
+		ranges.iter().any(|r| r.start < end && start < r.end)
 	}
 }
