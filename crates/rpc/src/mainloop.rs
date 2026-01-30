@@ -198,9 +198,13 @@ where
 			}
 		};
 
-		if let Err(e) = output.shutdown().await {
-			tracing::debug!(error = %e, "rpc.output.shutdown");
-		}
+		if let Err(e) = output.shutdown().await
+			&& e.kind() != std::io::ErrorKind::BrokenPipe
+				&& e.kind() != std::io::ErrorKind::ConnectionReset
+				&& e.kind() != std::io::ErrorKind::UnexpectedEof
+			{
+				return Err(S::LoopError::from(e));
+			}
 		ret
 	}
 

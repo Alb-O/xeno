@@ -80,8 +80,10 @@ pub struct LspServerConfig {
 pub struct Response {
 	/// The request this responds to.
 	pub request_id: RequestId,
-	/// The response payload.
-	pub payload: ResponsePayload,
+	/// The response payload when successful.
+	pub payload: Option<ResponsePayload>,
+	/// The error code when the request failed.
+	pub error: Option<ErrorCode>,
 }
 
 /// Response payload variants.
@@ -103,8 +105,6 @@ pub enum ResponsePayload {
 		/// The LSP message (JSON-RPC string).
 		message: String,
 	},
-	/// Error response.
-	Error(ErrorCode),
 }
 
 /// Error codes for broker operations.

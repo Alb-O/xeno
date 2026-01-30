@@ -125,20 +125,22 @@ impl Protocol for BrokerProtocol {
 	fn response_ok(id: Self::Id, result: Self::ReqResult) -> Self::Response {
 		Response {
 			request_id: id,
-			payload: result,
+			payload: Some(result),
+			error: None,
 		}
 	}
 
 	fn response_err(id: Self::Id, error: Self::ReqError) -> Self::Response {
 		Response {
 			request_id: id,
-			payload: ResponsePayload::Error(error),
+			payload: None,
+			error: Some(error),
 		}
 	}
 
 	fn post_response_messages(resp: &Self::Response) -> Vec<Self::Message> {
-		match resp.payload {
-			ResponsePayload::Subscribed => vec![IpcFrame::Event(Event::Heartbeat)],
+		match &resp.payload {
+			Some(ResponsePayload::Subscribed) => vec![IpcFrame::Event(Event::Heartbeat)],
 			_ => Vec::new(),
 		}
 	}

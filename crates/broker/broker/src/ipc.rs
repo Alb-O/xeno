@@ -104,10 +104,12 @@ mod tests {
 		if let IpcFrame::Response(Response {
 			request_id,
 			payload,
+			error,
 		}) = frame
 		{
 			assert_eq!(request_id, RequestId(1));
-			assert!(matches!(payload, ResponsePayload::Pong));
+			assert!(matches!(payload, Some(ResponsePayload::Pong)));
+			assert!(error.is_none());
 		} else {
 			panic!("expected response frame");
 		}
@@ -137,10 +139,12 @@ mod tests {
 		if let IpcFrame::Response(Response {
 			request_id,
 			payload,
+			error,
 		}) = resp
 		{
 			assert_eq!(request_id, RequestId(2));
-			assert!(matches!(payload, ResponsePayload::Subscribed));
+			assert!(matches!(payload, Some(ResponsePayload::Subscribed)));
+			assert!(error.is_none());
 		} else {
 			panic!("expected response frame");
 		}
