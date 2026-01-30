@@ -109,4 +109,9 @@ pub trait Protocol: Send + 'static {
 
 	/// Create an error response.
 	fn response_err(id: Self::Id, error: Self::ReqError) -> Self::Response;
+
+	/// Additional messages to emit immediately after a successful response.
+	fn post_response_messages(_resp: &Self::Response) -> Vec<Self::Message> {
+		Vec::new()
+	}
 }

@@ -19,6 +19,8 @@ use crate::socket::{MainLoopEvent, PeerSocket};
 const TASK_DRAIN_MAX: usize = 32;
 const TASK_DRAIN_WINDOW_MS: u64 = 2;
 
+type PendingMessage<M> = (M, Vec<M>);
+
 /// Service trait for RPC handlers.
 ///
 /// This combines `tower::Service` for requests with handlers for notifications and events.
@@ -107,54 +109,82 @@ where
 			tokio::time::Instant::now() + tokio::time::Duration::from_millis(TASK_DRAIN_WINDOW_MS);
 
 		let ret = loop {
-			let ctl = tokio::select! {
-				biased;
+			let drain_active = !self.tasks.is_empty()
+				&& task_budget_remaining > 0
+				&& tokio::time::Instant::now() < task_budget_deadline;
 
-				resp = self.tasks.join_next(), if !self.tasks.is_empty() => {
-					match resp {
-						Some(Ok(resp)) => {
-							let wrapped = P::wrap_response(resp);
-							ControlFlow::Continue(Some(wrapped))
-						}
-						Some(Err(e)) => {
-							tracing::error!(error = %e, "RPC task panicked or was cancelled");
-							ControlFlow::Continue(None)
-						}
-						None => ControlFlow::Continue(None),
-					}
+			let (ctl, from_task) = if drain_active {
+				tokio::select! {
+				   biased;
+
+				   resp = self.tasks.join_next(), if !self.tasks.is_empty() => {
+					   match resp {
+						   Some(Ok(resp)) => {
+							   let extras = P::post_response_messages(&resp);
+							   let wrapped = P::wrap_response(resp);
+							   (ControlFlow::Continue(Some((wrapped, extras))), true)
+						   }
+						   Some(Err(e)) => {
+							   tracing::error!(error = %e, "RPC task panicked or was cancelled");
+							   (ControlFlow::Continue(None), true)
+						   }
+						   None => (ControlFlow::Continue(None), true),
+					   }
+				   }
+
+				   event = self.rx.recv() => match event {
+					   Some(e) => (self.dispatch_event(e), false),
+					   None => break Ok(()),
+				   },
+
+				   msg = self.protocol.read_message(&mut input) => {
+					   match msg {
+						   Ok(msg) => (self.dispatch_message(msg).await, false),
+						   Err(e) => break Err(S::LoopError::from(e)),
+					   }
+				   }
 				}
+			} else {
+				tokio::select! {
+				   event = self.rx.recv() => match event {
+					   Some(e) => (self.dispatch_event(e), false),
+					   None => break Ok(()),
+				   },
 
-				event = self.rx.recv() => match event {
-					Some(e) => self.dispatch_event(e),
-					None => break Ok(()),
-				},
+				   msg = self.protocol.read_message(&mut input) => {
+					   match msg {
+						   Ok(msg) => (self.dispatch_message(msg).await, false),
+						   Err(e) => break Err(S::LoopError::from(e)),
+					   }
+				   },
 
-				msg = self.protocol.read_message(&mut input) => {
-					match msg {
-						Ok(msg) => self.dispatch_message(msg).await,
-						Err(e) => {
-							break Err(S::LoopError::from(e));
-						}
-					}
+				   resp = self.tasks.join_next(), if !self.tasks.is_empty() => {
+					   match resp {
+						   Some(Ok(resp)) => {
+							   let extras = P::post_response_messages(&resp);
+							   let wrapped = P::wrap_response(resp);
+							   (ControlFlow::Continue(Some((wrapped, extras))), true)
+						   }
+						   Some(Err(e)) => {
+							   tracing::error!(error = %e, "RPC task panicked or was cancelled");
+							   (ControlFlow::Continue(None), true)
+						   }
+						   None => (ControlFlow::Continue(None), true),
+					   }
+				   }
 				}
 			};
 
-			// Handle control flow from dispatch
 			let msg = match ctl {
 				ControlFlow::Continue(Some(msg)) => msg,
 				ControlFlow::Continue(None) => continue,
 				ControlFlow::Break(ret) => break ret,
 			};
-
-			// Track task budget for response draining
-			let is_response = true; // All messages from task results are responses
-			if is_response {
-				task_budget_remaining = task_budget_remaining.saturating_sub(1);
-				task_budget_completed += 1;
-				if task_budget_remaining == 0 || tokio::time::Instant::now() >= task_budget_deadline
-				{
-					// Budget exhausted, continue normally
-				}
+			let (main_msg, extras) = msg;
+			if from_task {
+				let frame_count = 1 + extras.len();
+				task_budget_remaining = task_budget_remaining.saturating_sub(frame_count);
+				task_budget_completed += frame_count as u64;
 			} else {
 				if task_budget_completed > 0 || !self.tasks.is_empty() {
 					tracing::debug!(
@@ -170,11 +200,16 @@ where
 					+ tokio::time::Duration::from_millis(TASK_DRAIN_WINDOW_MS);
 			}
 
-			// Write the message
 			self.protocol
-				.write_message(&mut output, &msg)
+				.write_message(&mut output, &main_msg)
 				.await
 				.map_err(S::LoopError::from)?;
+			for extra in extras {
+				self.protocol
+					.write_message(&mut output, &extra)
+					.await
+					.map_err(S::LoopError::from)?;
+			}
 		};
 
 		output.shutdown().await.map_err(S::LoopError::from)?;
@@ -185,14 +220,14 @@ where
 	async fn dispatch_message(
 		&mut self,
 		msg: P::Message,
-	) -> ControlFlow<std::result::Result<(), S::LoopError>, Option<P::Message>> {
+	) -> ControlFlow<std::result::Result<(), S::LoopError>, Option<PendingMessage<P::Message>>> {
 		match P::split_inbound(msg) {
 			Inbound::Request(req) => {
 				// Ensure service is ready
 				if let Err(err) = poll_fn(|cx| self.service.poll_ready(cx)).await {
 					let id = P::request_id(&req);
 					let resp = P::response_err(id, err);
-					return ControlFlow::Continue(Some(P::wrap_response(resp)));
+					return ControlFlow::Continue(Some((P::wrap_response(resp), Vec::new())));
 				}
 
 				let id = P::request_id(&req);
@@ -226,20 +261,20 @@ where
 	fn dispatch_event(
 		&mut self,
 		event: MainLoopEvent<P::Message, P::Request, P::Response>,
-	) -> ControlFlow<std::result::Result<(), S::LoopError>, Option<P::Message>> {
+	) -> ControlFlow<std::result::Result<(), S::LoopError>, Option<PendingMessage<P::Message>>> {
 		match event {
 			MainLoopEvent::OutgoingRequest(mut req, resp_tx) => {
 				let id = P::next_id(&mut self.id_gen);
 				P::set_request_id(&mut req, id.clone());
 				assert!(self.outgoing.insert(id, resp_tx).is_none());
-				ControlFlow::Continue(Some(P::wrap_request(req)))
+				ControlFlow::Continue(Some((P::wrap_request(req), Vec::new())))
 			}
 
-			MainLoopEvent::Outgoing(msg) => ControlFlow::Continue(Some(msg)),
+			MainLoopEvent::Outgoing(msg) => ControlFlow::Continue(Some((msg, Vec::new()))),
 
 			MainLoopEvent::OutgoingWithBarrier(msg, _barrier) => {
 				// TODO: properly track barrier through write
-				ControlFlow::Continue(Some(msg))
+				ControlFlow::Continue(Some((msg, Vec::new())))
 			}
 
 			MainLoopEvent::Any(event) => match self.service.emit(event) {

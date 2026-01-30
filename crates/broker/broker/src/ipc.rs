@@ -44,11 +44,8 @@ pub(crate) async fn handle_connection(stream: UnixStream) {
 	let id_gen = xeno_rpc::CounterIdGen::new();
 
 	// Create mainloop (service takes a clone of the peer socket)
-	let (main_loop, _socket) = xeno_rpc::MainLoop::new(
-		|socket| BrokerService::new(socket.clone()),
-		protocol,
-		id_gen,
-	);
+	let (main_loop, _socket) =
+		xeno_rpc::MainLoop::new(|_socket| BrokerService::new(), protocol, id_gen);
 
 	// Run the mainloop
 	// Note: This is a simplified version. In production, you'd want proper

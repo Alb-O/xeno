@@ -3,23 +3,20 @@
 use std::ops::ControlFlow;
 
 use tower_service::Service;
-use xeno_broker_proto::types::{
-	ErrorCode, Event, IpcFrame, Request, RequestPayload, Response, ResponsePayload,
-};
-use xeno_rpc::{AnyEvent, MainLoopEvent, PeerSocket, RpcService};
+use xeno_broker_proto::types::{ErrorCode, Event, Request, RequestPayload, ResponsePayload};
+use xeno_rpc::{AnyEvent, RpcService};
 
 use crate::protocol::BrokerProtocol;
 
 /// Broker service state and request handlers.
-#[derive(Debug)]
-pub struct BrokerService {
-	socket: PeerSocket<IpcFrame, Request, Response>,
-}
+#[derive(Debug, Default)]
+pub struct BrokerService;
 
 impl BrokerService {
-	/// Create a new broker service that can send events via the provided socket.
-	pub fn new(socket: PeerSocket<IpcFrame, Request, Response>) -> Self {
-		Self { socket }
+	/// Create a new broker service instance.
+	#[must_use]
+	pub fn new() -> Self {
+		Self
 	}
 }
 
@@ -39,15 +36,11 @@ impl Service<Request> for BrokerService {
 
 	fn call(&mut self, req: Request) -> Self::Future {
 		let payload = req.payload;
-		let socket = self.socket.clone();
 
 		Box::pin(async move {
 			let response = match payload {
 				RequestPayload::Ping => ResponsePayload::Pong,
-				RequestPayload::Subscribe { .. } => {
-					let _ = socket.send(MainLoopEvent::Outgoing(IpcFrame::Event(Event::Heartbeat)));
-					ResponsePayload::Subscribed
-				}
+				RequestPayload::Subscribe { .. } => ResponsePayload::Subscribed,
 				RequestPayload::LspStart { .. } => {
 					ResponsePayload::Error(ErrorCode::NotImplemented)
 				}

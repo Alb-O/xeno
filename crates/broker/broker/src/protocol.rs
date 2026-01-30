@@ -135,4 +135,11 @@ impl Protocol for BrokerProtocol {
 			payload: ResponsePayload::Error(error),
 		}
 	}
+
+	fn post_response_messages(resp: &Self::Response) -> Vec<Self::Message> {
+		match &resp.payload {
+			ResponsePayload::Subscribed => vec![IpcFrame::Event(Event::Heartbeat)],
+			_ => Vec::new(),
+		}
+	}
 }
