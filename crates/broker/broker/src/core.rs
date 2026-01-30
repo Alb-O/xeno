@@ -1,11 +1,13 @@
-//! Shared broker core state.
+//! Shared broker core state and session management.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 
 use tokio::sync::oneshot;
-use xeno_broker_proto::types::{DocId, IpcFrame, Request, Response, ServerId, SessionId};
+use xeno_broker_proto::types::{
+	DocId, Event, IpcFrame, LspServerConfig, Request, Response, ServerId, SessionId,
+};
 use xeno_rpc::{MainLoopEvent, PeerSocket};
 
 /// Sink for sending events to a connected session.
@@ -23,17 +25,64 @@ pub type LspReplyResult = Result<serde_json::Value, xeno_lsp::ResponseError>;
 /// and document version state to enable asynchronous proxying and event fan-out.
 #[derive(Debug, Default)]
 pub struct BrokerCore {
-	/// Connected sessions and their event sinks.
-	sessions: Mutex<HashMap<SessionId, SessionSink>>,
-	/// Running LSP server instances.
-	servers: Mutex<HashMap<ServerId, LspInstance>>,
-	/// Pending requests initiated by LSP servers awaiting editor replies.
-	pending_client_reqs:
-		Mutex<HashMap<(ServerId, xeno_lsp::RequestId), oneshot::Sender<LspReplyResult>>>,
-	/// Document registry for version tracking.
-	docs: Mutex<DocRegistry>,
+	/// Synchronized internal state.
+	state: Mutex<BrokerState>,
 	/// Next available server ID.
 	next_server_id: AtomicU64,
+}
+
+#[derive(Debug, Default)]
+struct BrokerState {
+	/// Connected sessions and their state.
+	sessions: HashMap<SessionId, SessionEntry>,
+	/// Running LSP server instances and their state.
+	servers: HashMap<ServerId, ServerEntry>,
+	/// Mapping from project key to server ID.
+	projects: HashMap<ProjectKey, ServerId>,
+	/// Pending requests initiated by LSP servers awaiting editor replies.
+	pending_client_reqs: HashMap<(ServerId, xeno_lsp::RequestId), PendingClientReq>,
+}
+
+/// Unique key for deduplicating LSP servers by project.
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+pub struct ProjectKey {
+	/// The command used to start the server.
+	pub command: String,
+	/// Arguments passed to the command.
+	pub args: Vec<String>,
+	/// The project root directory.
+	pub cwd: String,
+}
+
+impl From<&LspServerConfig> for ProjectKey {
+	fn from(cfg: &LspServerConfig) -> Self {
+		Self {
+			command: cfg.command.clone(),
+			args: cfg.args.clone(),
+			cwd: cfg.cwd.clone().unwrap_or_default(),
+		}
+	}
+}
+
+#[derive(Debug)]
+struct SessionEntry {
+	sink: SessionSink,
+	attached: HashSet<ServerId>,
+}
+
+#[derive(Debug)]
+struct ServerEntry {
+	instance: LspInstance,
+	project: ProjectKey,
+	attached: HashSet<SessionId>,
+	leader: SessionId,
+	docs: DocRegistry,
+}
+
+#[derive(Debug)]
+struct PendingClientReq {
+	responder: SessionId,
+	tx: oneshot::Sender<LspReplyResult>,
 }
 
 impl BrokerCore {
@@ -45,49 +94,165 @@ impl BrokerCore {
 
 	/// Register an editor session with its outbound event sink.
 	pub fn register_session(&self, session_id: SessionId, sink: SessionSink) {
-		self.sessions.lock().unwrap().insert(session_id, sink);
+		let mut state = self.state.lock().unwrap();
+		state.sessions.insert(
+			session_id,
+			SessionEntry {
+				sink,
+				attached: HashSet::new(),
+			},
+		);
 	}
 
-	/// Unregister an editor session.
+	/// Unregister an editor session and detach from all servers.
 	pub fn unregister_session(&self, session_id: SessionId) {
-		self.sessions.lock().unwrap().remove(&session_id);
-	}
-
-	/// Send an asynchronous event to a registered session.
-	///
-	/// If the session is no longer connected, the event is silently dropped.
-	pub fn send_event(&self, session_id: SessionId, event: IpcFrame) {
-		let sessions = self.sessions.lock().unwrap();
-		if let Some(sink) = sessions.get(&session_id) {
-			let _ = sink.send(MainLoopEvent::Outgoing(event));
+		let mut state = self.state.lock().unwrap();
+		if let Some(session) = state.sessions.remove(&session_id) {
+			for server_id in session.attached {
+				if let Some(server) = state.servers.get_mut(&server_id) {
+					server.attached.remove(&session_id);
+					if server.leader == session_id {
+						// Elect new leader
+						if let Some(&new_leader) = server.attached.iter().next() {
+							server.leader = new_leader;
+						}
+					}
+				}
+			}
 		}
+
+		// Cancel pending requests for this session
+		state.pending_client_reqs.retain(|_, req| {
+			if req.responder == session_id {
+				// We don't have a good way to send error here without consuming tx,
+				// but retain doesn't allow it. We'll let them drop and trigger Timeout/Eof.
+				false
+			} else {
+				true
+			}
+		});
 	}
 
-	/// Broadcast an event to all sessions.
-	pub fn broadcast_event(&self, event: IpcFrame) {
-		let sessions = self.sessions.lock().unwrap();
-		for sink in sessions.values() {
-			let _ = sink.send(MainLoopEvent::Outgoing(event.clone()));
+	/// Look up an existing server for a project or return None.
+	pub fn find_server_for_project(&self, config: &LspServerConfig) -> Option<ServerId> {
+		let key = ProjectKey::from(config);
+		let state = self.state.lock().unwrap();
+		state.projects.get(&key).cloned()
+	}
+
+	/// Attach a session to an existing server.
+	pub fn attach_session(&self, server_id: ServerId, session_id: SessionId) -> bool {
+		let mut state = self.state.lock().unwrap();
+		if let Some(server) = state.servers.get_mut(&server_id) {
+			server.attached.insert(session_id);
+			if let Some(session) = state.sessions.get_mut(&session_id) {
+				session.attached.insert(server_id);
+			}
+			true
+		} else {
+			false
 		}
 	}
 
 	/// Register a new running LSP instance.
-	pub fn register_server(&self, server_id: ServerId, instance: LspInstance) {
-		self.servers.lock().unwrap().insert(server_id, instance);
+	pub fn register_server(
+		&self,
+		server_id: ServerId,
+		instance: LspInstance,
+		config: &LspServerConfig,
+		owner: SessionId,
+	) {
+		let project = ProjectKey::from(config);
+		let mut state = self.state.lock().unwrap();
+
+		state.projects.insert(project.clone(), server_id);
+
+		let mut attached = HashSet::new();
+		attached.insert(owner);
+
+		state.servers.insert(
+			server_id,
+			ServerEntry {
+				instance,
+				project,
+				attached,
+				leader: owner,
+				docs: DocRegistry::default(),
+			},
+		);
+
+		if let Some(session) = state.sessions.get_mut(&owner) {
+			session.attached.insert(server_id);
+		}
 	}
 
 	/// Unregister an LSP instance and release its resources.
 	pub fn unregister_server(&self, server_id: ServerId) {
-		self.servers.lock().unwrap().remove(&server_id);
+		let mut state = self.state.lock().unwrap();
+		if let Some(server) = state.servers.remove(&server_id) {
+			state.projects.remove(&server.project);
+			for session_id in server.attached {
+				if let Some(session) = state.sessions.get_mut(&session_id) {
+					session.attached.remove(&server_id);
+				}
+			}
+		}
 	}
 
 	/// Retrieves the communication handle for a specific LSP server.
 	pub fn get_server_tx(&self, server_id: ServerId) -> Option<LspTx> {
-		self.servers
-			.lock()
-			.unwrap()
+		let state = self.state.lock().unwrap();
+		state
+			.servers
 			.get(&server_id)
-			.map(|s| s.lsp_tx.clone())
+			.map(|s| s.instance.lsp_tx.clone())
+	}
+
+	/// Send an asynchronous event to a registered session.
+	pub fn send_event(&self, session_id: SessionId, event: IpcFrame) {
+		let state = self.state.lock().unwrap();
+		if let Some(session) = state.sessions.get(&session_id) {
+			let _ = session.sink.send(MainLoopEvent::Outgoing(event));
+		}
+	}
+
+	/// Broadcast an event to all sessions attached to a server.
+	pub fn broadcast_to_server(&self, server_id: ServerId, event: Event) {
+		let (sinks, frame) = {
+			let state = self.state.lock().unwrap();
+			let Some(server) = state.servers.get(&server_id) else {
+				return;
+			};
+
+			let sinks: Vec<_> = server
+				.attached
+				.iter()
+				.filter_map(|sid| state.sessions.get(sid).map(|s| s.sink.clone()))
+				.collect();
+
+			(sinks, IpcFrame::Event(event))
+		};
+
+		for sink in sinks {
+			let _ = sink.send(MainLoopEvent::Outgoing(frame.clone()));
+		}
+	}
+
+	/// Send an event only to the leader session of a server.
+	pub fn send_to_leader(&self, server_id: ServerId, event: Event) {
+		let (sink, frame) = {
+			let state = self.state.lock().unwrap();
+			let Some(server) = state.servers.get(&server_id) else {
+				return;
+			};
+
+			let sink = state.sessions.get(&server.leader).map(|s| s.sink.clone());
+			(sink, IpcFrame::Event(event))
+		};
+
+		if let Some(sink) = sink {
+			let _ = sink.send(MainLoopEvent::Outgoing(frame));
+		}
 	}
 
 	/// Register a pending server-to-editor request.
@@ -96,61 +261,75 @@ impl BrokerCore {
 		server_id: ServerId,
 		request_id: xeno_lsp::RequestId,
 		tx: oneshot::Sender<LspReplyResult>,
-	) {
-		self.pending_client_reqs
-			.lock()
-			.unwrap()
-			.insert((server_id, request_id), tx);
+	) -> Option<SessionId> {
+		let mut state = self.state.lock().unwrap();
+		let leader = state.servers.get(&server_id).map(|s| s.leader)?;
+
+		state.pending_client_reqs.insert(
+			(server_id, request_id),
+			PendingClientReq {
+				responder: leader,
+				tx,
+			},
+		);
+
+		Some(leader)
 	}
 
 	/// Complete a pending server-to-editor request with a reply.
 	pub fn complete_client_request(
 		&self,
+		session_id: SessionId,
 		server_id: ServerId,
 		request_id: xeno_lsp::RequestId,
 		result: LspReplyResult,
 	) -> bool {
-		if let Some(tx) = self
+		let mut state = self.state.lock().unwrap();
+		if let Some(req) = state
 			.pending_client_reqs
-			.lock()
-			.unwrap()
-			.remove(&(server_id, request_id))
+			.get(&(server_id, request_id.clone()))
 		{
-			let _ = tx.send(result);
+			if req.responder != session_id {
+				return false;
+			}
+		} else {
+			return false;
+		}
+
+		if let Some(req) = state.pending_client_reqs.remove(&(server_id, request_id)) {
+			let _ = req.tx.send(result);
 			true
 		} else {
 			false
 		}
 	}
 
-	/// Update server status and notify the owning session.
-	///
-	/// Only emits an event if the status has actually changed.
+	/// Update server status and notify all attached sessions.
 	pub fn set_server_status(
 		&self,
 		server_id: ServerId,
 		status: xeno_broker_proto::types::LspServerStatus,
 	) {
-		let (owner, changed) = {
-			let servers = self.servers.lock().unwrap();
-			if let Some(instance) = servers.get(&server_id) {
-				let mut current = instance.status.lock().unwrap();
+		let (sessions, changed) = {
+			let state = self.state.lock().unwrap();
+			if let Some(server) = state.servers.get(&server_id) {
+				let mut current = server.instance.status.lock().unwrap();
 				if *current != status {
 					*current = status;
-					(Some(instance.owner), true)
+					(server.attached.clone(), true)
 				} else {
-					(Some(instance.owner), false)
+					(HashSet::new(), false)
 				}
 			} else {
-				(None, false)
+				(HashSet::new(), false)
 			}
 		};
 
-		if changed && let Some(owner) = owner {
-			self.send_event(
-				owner,
-				IpcFrame::Event(xeno_broker_proto::types::Event::LspStatus { server_id, status }),
-			);
+		if changed {
+			let event = Event::LspStatus { server_id, status };
+			for sid in sessions {
+				self.send_event(sid, IpcFrame::Event(event.clone()));
+			}
 		}
 	}
 
@@ -160,27 +339,29 @@ impl BrokerCore {
 	}
 
 	/// Retrieve the DocId and last known version for a URI.
-	pub fn get_doc_by_uri(&self, uri: &str) -> Option<(DocId, u32)> {
-		self.docs.lock().unwrap().by_uri.get(uri).cloned()
+	pub fn get_doc_by_uri(&self, server_id: ServerId, uri: &str) -> Option<(DocId, u32)> {
+		let state = self.state.lock().unwrap();
+		let server = state.servers.get(&server_id)?;
+		server.docs.by_uri.get(uri).cloned()
 	}
 
 	/// Update document version tracking by observing editor-to-server traffic.
-	///
-	/// Currently monitors `didOpen` and `didChange` notifications.
-	pub fn on_editor_message(&self, _server_id: ServerId, msg: &xeno_lsp::Message) {
+	pub fn on_editor_message(&self, server_id: ServerId, msg: &xeno_lsp::Message) {
 		if let xeno_lsp::Message::Notification(notif) = msg {
-			let mut docs = self.docs.lock().unwrap();
-			match notif.method.as_str() {
-				"textDocument/didOpen" | "textDocument/didChange" => {
-					if let Some(doc) = notif.params.get("textDocument")
-						&& let Some(uri) = doc.get("uri").and_then(|u| u.as_str())
-					{
-						let version =
-							doc.get("version").and_then(|v| v.as_u64()).unwrap_or(0) as u32;
-						docs.update(uri.to_string(), version);
+			let mut state = self.state.lock().unwrap();
+			if let Some(server) = state.servers.get_mut(&server_id) {
+				match notif.method.as_str() {
+					"textDocument/didOpen" | "textDocument/didChange" => {
+						if let Some(doc) = notif.params.get("textDocument")
+							&& let Some(uri) = doc.get("uri").and_then(|u| u.as_str())
+						{
+							let version =
+								doc.get("version").and_then(|v| v.as_u64()).unwrap_or(0) as u32;
+							server.docs.update(uri.to_string(), version);
+						}
 					}
+					_ => {}
 				}
-				_ => {}
 			}
 		}
 	}
@@ -189,10 +370,6 @@ impl BrokerCore {
 /// A running LSP server instance and its associated handles.
 #[derive(Debug)]
 pub struct LspInstance {
-	/// The session that started this server.
-	pub owner: SessionId,
-	/// Globally unique server identifier.
-	pub server_id: ServerId,
 	/// Socket for sending requests/notifications to the server's stdio.
 	pub lsp_tx: LspTx,
 	/// Child process handle for lifecycle management.
@@ -202,10 +379,6 @@ pub struct LspInstance {
 }
 
 /// Registry for document version tracking.
-///
-/// Maps document URIs to internal DocIds and the latest version reported
-/// by the editor. This enables the broker to correlate diagnostics with
-/// specific document states.
 #[derive(Debug, Default)]
 struct DocRegistry {
 	/// Map of URI to (DocId, last_version).

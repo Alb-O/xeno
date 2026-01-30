@@ -6,7 +6,7 @@ use std::time::Duration;
 
 use tokio::time::timeout;
 use tower_service::Service;
-use xeno_broker_proto::types::{Event, IpcFrame, LspServerStatus, ServerId, SessionId};
+use xeno_broker_proto::types::{Event, LspServerStatus, ServerId};
 use xeno_lsp::protocol::JsonRpcProtocol;
 use xeno_lsp::{AnyNotification, AnyRequest, ErrorCode, Message, ResponseError};
 use xeno_rpc::{AnyEvent, RpcService};
@@ -17,13 +17,11 @@ use crate::core::BrokerCore;
 ///
 /// This service acts as a Language Client on the server's stdio. It receives
 /// responses and notifications from the LSP server, serializes them to JSON,
-/// and forwards them to the owning editor session as IPC events.
+/// and forwards them to the attached editor sessions as IPC events.
 #[derive(Debug)]
 pub struct LspProxyService {
 	/// Shared broker core for event fan-out.
 	core: Arc<BrokerCore>,
-	/// Session that owns this LSP instance.
-	owner: SessionId,
 	/// Server ID assigned to this instance.
 	server_id: ServerId,
 }
@@ -31,18 +29,14 @@ pub struct LspProxyService {
 impl LspProxyService {
 	/// Create a new LSP proxy service instance.
 	#[must_use]
-	pub fn new(core: Arc<BrokerCore>, owner: SessionId, server_id: ServerId) -> Self {
-		Self {
-			core,
-			owner,
-			server_id,
-		}
+	pub fn new(core: Arc<BrokerCore>, server_id: ServerId) -> Self {
+		Self { core, server_id }
 	}
 
-	/// Forward an inbound LSP message to the owner session.
+	/// Forward an inbound LSP message to the attached session(s).
 	///
 	/// If the message is a `publishDiagnostics` notification, it also emits
-	/// a structured `Event::LspDiagnostics` to the session.
+	/// a structured `Event::LspDiagnostics` to all sessions.
 	fn forward(&self, msg: Message) {
 		// Transition status to Running on receipt of any message from the server.
 		self.core
@@ -56,35 +50,52 @@ impl LspProxyService {
 			}
 		};
 
-		self.core.send_event(
-			self.owner,
-			IpcFrame::Event(Event::LspMessage {
-				server_id: self.server_id,
-				message: json,
-			}),
-		);
+		match msg {
+			Message::Request(_) => {
+				// Server->Client requests go only to leader
+				self.core.send_to_leader(
+					self.server_id,
+					Event::LspRequest {
+						server_id: self.server_id,
+						message: json,
+					},
+				);
+			}
+			Message::Notification(ref notif) => {
+				// Broadcast notifications to all attached sessions
+				self.core.broadcast_to_server(
+					self.server_id,
+					Event::LspMessage {
+						server_id: self.server_id,
+						message: json,
+					},
+				);
 
-		// Extract structured diagnostics if applicable.
-		if let Message::Notification(notif) = &msg
-			&& notif.method == "textDocument/publishDiagnostics"
-			&& let Some(uri) = notif.params.get("uri").and_then(|u| u.as_str())
-			&& let Some((doc_id, version)) = self.core.get_doc_by_uri(uri)
-		{
-			let diagnostics = notif
-				.params
-				.get("diagnostics")
-				.map(ToString::to_string)
-				.unwrap_or_else(|| "[]".to_string());
-			self.core.send_event(
-				self.owner,
-				IpcFrame::Event(Event::LspDiagnostics {
-					server_id: self.server_id,
-					doc_id,
-					uri: uri.to_string(),
-					version,
-					diagnostics,
-				}),
-			);
+				// Extract structured diagnostics if applicable.
+				if notif.method == "textDocument/publishDiagnostics"
+					&& let Some(uri) = notif.params.get("uri").and_then(|u| u.as_str())
+					&& let Some((doc_id, version)) = self.core.get_doc_by_uri(self.server_id, uri)
+				{
+					let diagnostics = notif
+						.params
+						.get("diagnostics")
+						.map(ToString::to_string)
+						.unwrap_or_else(|| "[]".to_string());
+					self.core.broadcast_to_server(
+						self.server_id,
+						Event::LspDiagnostics {
+							server_id: self.server_id,
+							doc_id,
+							uri: uri.to_string(),
+							version,
+							diagnostics,
+						},
+					);
+				}
+			}
+			Message::Response(_) => {
+				// Broker handled responses via MainLoop already.
+			}
 		}
 	}
 }
@@ -108,12 +119,22 @@ impl Service<AnyRequest> for LspProxyService {
 		let server_id = self.server_id;
 		let request_id = req.id.clone();
 
-		// Forward request to editor as an async event
+		// Forward request to leader as an async event
 		self.forward(Message::Request(req));
 
-		// Register a oneshot and wait for the editor to reply via LspReply.
+		// Register a oneshot and wait for the leader to reply via LspReply.
 		let (tx, rx) = tokio::sync::oneshot::channel();
-		core.register_client_request(server_id, request_id, tx);
+		if core
+			.register_client_request(server_id, request_id, tx)
+			.is_none()
+		{
+			return Box::pin(async {
+				Err(ResponseError::new(
+					ErrorCode::METHOD_NOT_FOUND,
+					"No leader session available for request",
+				))
+			});
+		}
 
 		Box::pin(async move {
 			// Wait for reply from editor (with 30s timeout for client requests)

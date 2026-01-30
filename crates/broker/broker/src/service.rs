@@ -52,12 +52,19 @@ impl BrokerService {
 		session_id: SessionId,
 		config: LspServerConfig,
 	) -> Result<ServerId, ErrorCode> {
+		// Check for existing server for this project
+		if let Some(server_id) = core.find_server_for_project(&config)
+			&& core.attach_session(server_id, session_id)
+		{
+			return Ok(server_id);
+		}
+
 		let server_id = core.next_server_id();
 
-		let mut child = tokio::process::Command::new(config.command)
-			.args(config.args)
-			.envs(config.env)
-			.current_dir(config.cwd.unwrap_or_default())
+		let mut child = tokio::process::Command::new(&config.command)
+			.args(&config.args)
+			.envs(config.env.iter().cloned())
+			.current_dir(config.cwd.as_deref().unwrap_or_default())
 			.stdin(Stdio::piped())
 			.stdout(Stdio::piped())
 			.stderr(Stdio::inherit())
@@ -75,19 +82,17 @@ impl BrokerService {
 
 		let core_clone = core.clone();
 		let (lsp_loop, lsp_socket) = xeno_rpc::MainLoop::new(
-			move |_| LspProxyService::new(core_clone.clone(), session_id, server_id),
+			move |_| LspProxyService::new(core_clone.clone(), server_id),
 			protocol,
 			id_gen,
 		);
 
 		let instance = LspInstance {
-			owner: session_id,
-			server_id,
 			lsp_tx: lsp_socket,
 			child,
 			status: Mutex::new(LspServerStatus::Starting),
 		};
-		core.register_server(server_id, instance);
+		core.register_server(server_id, instance, &config, session_id);
 
 		let core_clone = core.clone();
 		tokio::spawn(async move {
@@ -101,6 +106,14 @@ impl BrokerService {
 		core.set_server_status(server_id, LspServerStatus::Starting);
 
 		Ok(server_id)
+	}
+}
+
+impl Drop for BrokerService {
+	fn drop(&mut self) {
+		if let Some(session_id) = self.session_id {
+			self.core.unregister_session(session_id);
+		}
 	}
 }
 
@@ -146,6 +159,11 @@ impl Service<Request> for BrokerService {
 					let lsp_msg: xeno_lsp::Message =
 						serde_json::from_str(&message).map_err(|_| ErrorCode::InvalidArgs)?;
 
+					// Enforce notifications only for LspSend
+					if matches!(lsp_msg, xeno_lsp::Message::Request(_)) {
+						return Err(ErrorCode::InvalidArgs);
+					}
+
 					core.on_editor_message(server_id, &lsp_msg);
 
 					let _ = lsp_tx.send(xeno_rpc::MainLoopEvent::Outgoing(lsp_msg));
@@ -180,6 +198,7 @@ impl Service<Request> for BrokerService {
 					})
 				}
 				RequestPayload::LspReply { server_id, message } => {
+					let session_id = session_id.ok_or(ErrorCode::AuthFailed)?;
 					let resp: xeno_lsp::AnyResponse =
 						serde_json::from_str(&message).map_err(|_| ErrorCode::InvalidArgs)?;
 
@@ -190,7 +209,7 @@ impl Service<Request> for BrokerService {
 						Ok(resp.result.unwrap_or(serde_json::Value::Null))
 					};
 
-					if core.complete_client_request(server_id, request_id, result) {
+					if core.complete_client_request(session_id, server_id, request_id, result) {
 						Ok(ResponsePayload::LspSent { server_id })
 					} else {
 						Err(ErrorCode::Internal)

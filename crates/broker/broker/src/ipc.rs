@@ -46,14 +46,17 @@ pub(crate) async fn handle_connection(stream: UnixStream, core: Arc<BrokerCore>)
 	let id_gen = xeno_rpc::CounterIdGen::new();
 
 	// Create mainloop
-	let (main_loop, _socket) =
-		xeno_rpc::MainLoop::new(|socket| BrokerService::new(core, socket), protocol, id_gen);
+	let (main_loop, _socket) = xeno_rpc::MainLoop::new(
+		|socket| BrokerService::new(core.clone(), socket),
+		protocol,
+		id_gen,
+	);
 
 	// Run the mainloop
-	// Note: This is a simplified version. In production, you'd want proper
-	// buffering and error handling here.
 	let reader = tokio::io::BufReader::new(reader);
-	if let Err(e) = main_loop.run(reader, writer).await {
+	let result = main_loop.run(reader, writer).await;
+
+	if let Err(e) = result {
 		tracing::error!(error = %e, "Broker connection error");
 	}
 

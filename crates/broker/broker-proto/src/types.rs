@@ -181,6 +181,13 @@ pub enum Event {
 		/// The LSP message (JSON-RPC string).
 		message: String,
 	},
+	/// LSP request received from server (requires response via LspReply).
+	LspRequest {
+		/// Source server.
+		server_id: ServerId,
+		/// The LSP request (JSON-RPC string).
+		message: String,
+	},
 }
 
 /// Status of an LSP server.

@@ -325,6 +325,14 @@ impl RpcService<BrokerProtocol> for BrokerClientService {
 			}
 			Event::LspMessage { server_id, message } => {
 				if let Ok(msg) = serde_json::from_str::<Message>(&message) {
+					let _ = self.tx.send(TransportEvent::Message {
+						server: LanguageServerId(server_id.0),
+						message: msg,
+					});
+				}
+			}
+			Event::LspRequest { server_id, message } => {
+				if let Ok(msg) = serde_json::from_str::<Message>(&message) {
 					if let Message::Request(req) = &msg {
 						self.pending.insert(server_id, req.id.clone());
 					}
