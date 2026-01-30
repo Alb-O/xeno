@@ -278,6 +278,15 @@ pub trait ThemeAccess {
 	fn set_theme(&mut self, name: &str) -> Result<(), crate::actions::CommandError>;
 }
 
+/// Errors that can occur during split operations.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SplitError {
+	/// The target view was not found in any layout layer.
+	ViewNotFound,
+	/// The view area is too small to split.
+	AreaTooSmall,
+}
+
 /// Split management operations.
 ///
 /// # Split Naming Convention
@@ -292,9 +301,16 @@ pub trait ThemeAccess {
 /// - Edits sync across all views of the same document
 /// - Undo history is shared
 /// - Each view has independent cursor, selection, and scroll position
+///
+/// # Atomicity
+///
+/// Split operations are atomic: if they return an error, no state changes
+/// have occurred (no buffer allocated, no layout modified, no focus changed).
 pub trait SplitOps {
 	/// Split along the given axis. See trait docs for axis semantics.
-	fn split(&mut self, axis: Axis);
+	///
+	/// Returns `Ok(())` on success, or an error if the split cannot be created.
+	fn split(&mut self, axis: Axis) -> Result<(), SplitError>;
 
 	/// Close the current split.
 	fn close_split(&mut self);

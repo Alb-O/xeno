@@ -110,7 +110,7 @@ impl RectPolicy {
 				let width = r.width;
 
 				let y_base = r.y + r.height + offset_y;
-				let height = (*height).min(screen.height.saturating_sub(y_base).max(0) as u16);
+				let height = (*height).min(screen.height.saturating_sub(y_base));
 				if height == 0 {
 					return None;
 				}

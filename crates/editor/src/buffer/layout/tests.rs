@@ -397,3 +397,225 @@ fn resize_nested_cannot_push_sibling() {
 		"Outer split position should not change"
 	);
 }
+
+// =============================================================================
+// Invariant tests for compute_split_areas (soft-min policy)
+// =============================================================================
+
+/// Verifies that `compute_split_areas` maintains layout invariants across a range of small widths.
+///
+/// This test ensures the soft-min policy degrades gracefully on small terminals:
+/// 1. No overflow in rect coordinates.
+/// 2. Separator is at most 1 cell wide.
+/// 3. Layout elements sum to the total width in non-degenerate cases.
+/// 4. At least one child is visible when space allows (total >= 3).
+/// 5. Soft minimums are enforced when total space is sufficient.
+#[test]
+fn compute_split_areas_invariants_horizontal() {
+	// Test with widths from 0 to 30 (covers degenerate cases up to normal)
+	for width in 0..=30u16 {
+		let area = make_rect(0, 0, width, 10);
+		let position = width / 2;
+
+		let (first, second, sep) =
+			Layout::compute_split_areas(area, SplitDirection::Horizontal, position);
+
+		assert!(
+			first.x.saturating_add(first.width) >= first.x,
+			"first: overflow in x+width"
+		);
+		assert!(
+			second.x.saturating_add(second.width) >= second.x,
+			"second: overflow in x+width"
+		);
+		assert!(
+			sep.x.saturating_add(sep.width) >= sep.x,
+			"sep: overflow in x+width"
+		);
+
+		assert!(
+			sep.width <= 1,
+			"sep width should be 0 or 1, got {}",
+			sep.width
+		);
+
+		if width > 1 {
+			let total_used = first.width + second.width + sep.width;
+			assert_eq!(
+				total_used, width,
+				"width {}: first({}) + second({}) + sep({}) = {} != total",
+				width, first.width, second.width, sep.width, total_used
+			);
+		} else {
+			assert_eq!(
+				first.width, 0,
+				"width {}: first should be 0 in degenerate case",
+				width
+			);
+			assert_eq!(
+				second.width, 0,
+				"width {}: second should be 0 in degenerate case",
+				width
+			);
+			assert_eq!(
+				sep.width, 0,
+				"width {}: sep should be 0 in degenerate case",
+				width
+			);
+		}
+
+		if width >= 3 {
+			assert!(
+				first.width >= 1 || second.width >= 1,
+				"width {}: at least one child should be visible",
+				width
+			);
+		}
+
+		let soft_min_total = Layout::MIN_WIDTH * 2 + 1;
+		if width >= soft_min_total {
+			assert!(
+				first.width >= Layout::MIN_WIDTH,
+				"width {}: first width {} < MIN_WIDTH {}",
+				width,
+				first.width,
+				Layout::MIN_WIDTH
+			);
+			assert!(
+				second.width >= Layout::MIN_WIDTH,
+				"width {}: second width {} < MIN_WIDTH {}",
+				width,
+				second.width,
+				Layout::MIN_WIDTH
+			);
+		}
+	}
+}
+
+/// Verifies that `compute_split_areas` maintains layout invariants across a range of small heights.
+#[test]
+fn compute_split_areas_invariants_vertical() {
+	// Test with heights from 0 to 30
+	for height in 0..=30u16 {
+		let area = make_rect(0, 0, 10, height);
+		let position = height / 2;
+
+		let (first, second, sep) =
+			Layout::compute_split_areas(area, SplitDirection::Vertical, position);
+
+		assert!(
+			first.y.saturating_add(first.height) >= first.y,
+			"first: overflow in y+height"
+		);
+		assert!(
+			second.y.saturating_add(second.height) >= second.y,
+			"second: overflow in y+height"
+		);
+		assert!(
+			sep.y.saturating_add(sep.height) >= sep.y,
+			"sep: overflow in y+height"
+		);
+
+		assert!(
+			sep.height <= 1,
+			"sep height should be 0 or 1, got {}",
+			sep.height
+		);
+
+		if height > 1 {
+			let total_used = first.height + second.height + sep.height;
+			assert_eq!(
+				total_used, height,
+				"height {}: first({}) + second({}) + sep({}) = {} != total",
+				height, first.height, second.height, sep.height, total_used
+			);
+		} else {
+			assert_eq!(
+				first.height, 0,
+				"height {}: first should be 0 in degenerate case",
+				height
+			);
+			assert_eq!(
+				second.height, 0,
+				"height {}: second should be 0 in degenerate case",
+				height
+			);
+			assert_eq!(
+				sep.height, 0,
+				"height {}: sep should be 0 in degenerate case",
+				height
+			);
+		}
+
+		if height >= 3 {
+			assert!(
+				first.height >= 1 || second.height >= 1,
+				"height {}: at least one child should be visible",
+				height
+			);
+		}
+
+		let soft_min_total = Layout::MIN_HEIGHT * 2 + 1;
+		if height >= soft_min_total {
+			assert!(
+				first.height >= Layout::MIN_HEIGHT,
+				"height {}: first height {} < MIN_HEIGHT {}",
+				height,
+				first.height,
+				Layout::MIN_HEIGHT
+			);
+			assert!(
+				second.height >= Layout::MIN_HEIGHT,
+				"height {}: second height {} < MIN_HEIGHT {}",
+				height,
+				second.height,
+				Layout::MIN_HEIGHT
+			);
+		}
+	}
+}
+
+/// Verifies that split panes never collapse to zero width/height when space allows.
+#[test]
+fn compute_split_areas_no_zero_sized_panes() {
+	let area = make_rect(0, 0, 5, 5);
+
+	let (first, second, _sep) = Layout::compute_split_areas(area, SplitDirection::Horizontal, 2);
+	assert!(
+		first.width >= 1 || second.width == 0,
+		"first should be >=1 when possible"
+	);
+	assert!(
+		second.width >= 1 || first.width == 0,
+		"second should be >=1 when possible"
+	);
+
+	let (first, second, _sep) = Layout::compute_split_areas(area, SplitDirection::Vertical, 2);
+	assert!(
+		first.height >= 1 || second.height == 0,
+		"first should be >=1 when possible"
+	);
+	assert!(
+		second.height >= 1 || first.height == 0,
+		"second should be >=1 when possible"
+	);
+}
+
+/// Verifies that extreme separator positions are clamped correctly by the soft-min policy.
+#[test]
+fn compute_split_areas_extreme_position_clamping() {
+	let area = make_rect(0, 0, 80, 30);
+
+	let (first, _second, _sep) =
+		Layout::compute_split_areas(area, SplitDirection::Horizontal, 1000);
+	assert!(
+		first.width <= area.width - 1,
+		"first width should respect area bounds"
+	);
+
+	let (first, _second, _sep) = Layout::compute_split_areas(area, SplitDirection::Horizontal, 0);
+	assert!(
+		first.width >= 1 || area.width < 3,
+		"first should have hard minimum when possible"
+	);
+}

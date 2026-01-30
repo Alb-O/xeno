@@ -14,7 +14,7 @@
 //! # Modules
 //!
 //! - [`manager`] - Core `LayoutManager` struct
-//! - [`types`] - Type definitions (`LayerIndex`, `SeparatorId`, `SeparatorHit`)
+//! - [`types`] - Type definitions ([`LayerId`], [`SeparatorId`], [`SeparatorHit`])
 //! - [`layers`] - Layer management and area computation
 //! - [`views`] - View navigation and lookup
 //! - [`splits`] - Split creation and removal
@@ -30,7 +30,8 @@ mod types;
 mod views;
 
 pub use manager::LayoutManager;
-pub use types::{SeparatorHit, SeparatorId};
+pub use splits::SplitError;
+pub use types::{LayerError, LayerId, SeparatorHit, SeparatorId};
 
 #[cfg(test)]
 mod tests {
@@ -53,7 +54,7 @@ mod tests {
 		let mgr = LayoutManager::new();
 		let doc = make_doc_area();
 
-		let layer0 = mgr.layer_area(0, doc);
+		let layer0 = mgr.layer_area(LayerId::BASE, doc);
 		assert_eq!(layer0, doc, "base layer gets full area");
 	}
 

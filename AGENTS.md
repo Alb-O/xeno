@@ -32,6 +32,7 @@ Agent docs are the ground truth for subsystem behavior and invariants, must read
 - LSP: `docs/agents/lsp.md`
 - Overlay: `docs/agents/overlay.md`
 - Syntax: `docs/agents/syntax.md`
+- Windowing: `docs/agents/windowing.md`
 
 Workspace layout:
 - `crates/term`: main binary (`xeno`)
@@ -104,3 +105,4 @@ If you touch these areas, you MUST consult and update the matching agent doc:
 - overlay session/event wiring/focus rules → `docs/agents/overlay.md`
 - LSP identity/sync/generation/UI gating → `docs/agents/lsp.md`
 - syntax scheduling/hotness/tier policy/stale installs → `docs/agents/syntax.md`
+- windowing/splits/floating windows/layers → `docs/agents/windowing.md`

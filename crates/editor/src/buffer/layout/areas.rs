@@ -233,8 +233,16 @@ impl Layout {
 	/// Computes the areas for a split given parent-local separator position.
 	///
 	/// Returns (first_area, second_area, separator_rect).
-	/// The separator position is clamped to ensure both areas meet minimum size requirements.
-	/// The `position` parameter is an offset from the parent origin (0..width-1 or 0..height-1).
+	///
+	/// # Soft-Min Policy
+	///
+	/// This function implements a "soft minimum" sizing policy:
+	/// - When there's enough space, enforce [`Self::MIN_WIDTH`] (10) / [`Self::MIN_HEIGHT`] (3).
+	/// - When space is tight, degrade gracefully to hard minimums (at least 1 cell).
+	/// - Never produce 0-sized panes or overflow if total size allows.
+	///
+	/// The invariant `first_size + second_size + 1 == total_size` is maintained
+	/// when `total_size >= 1` (separator takes 1 cell).
 	pub(super) fn compute_split_areas(
 		area: Rect,
 		direction: SplitDirection,
@@ -242,11 +250,38 @@ impl Layout {
 	) -> (Rect, Rect, Rect) {
 		match direction {
 			SplitDirection::Horizontal => {
-				let min_pos = Self::MIN_WIDTH;
-				let max_pos = area.width.saturating_sub(Self::MIN_WIDTH + 1);
-				let pos = position_local.clamp(min_pos.min(max_pos), max_pos);
+				let total = area.width;
+				let sep = 1u16;
+
+				if total <= sep {
+					let zero = Rect {
+						x: area.x,
+						y: area.y,
+						width: 0,
+						height: area.height,
+					};
+					return (zero, zero, zero);
+				}
+
+				let avail = total - sep;
+				let soft_first = Self::MIN_WIDTH;
+				let soft_second = Self::MIN_WIDTH;
+
+				let hard_first = 1u16;
+				let hard_second = 1u16.min(avail.saturating_sub(hard_first));
+
+				let pos = if avail >= soft_first + soft_second {
+					let max_pos = avail - soft_second;
+					position_local.clamp(soft_first, max_pos)
+				} else {
+					let max_pos = avail.saturating_sub(hard_second);
+					position_local.clamp(hard_first, max_pos.max(hard_first))
+				};
+
 				let sep_x = area.x + pos;
 				let first_width = pos;
+				let second_width = avail - pos;
+
 				(
 					Rect {
 						x: area.x,
@@ -257,23 +292,50 @@ impl Layout {
 					Rect {
 						x: sep_x + 1,
 						y: area.y,
-						width: area.width.saturating_sub(first_width).saturating_sub(1),
+						width: second_width,
 						height: area.height,
 					},
 					Rect {
 						x: sep_x,
 						y: area.y,
-						width: 1,
+						width: sep,
 						height: area.height,
 					},
 				)
 			}
 			SplitDirection::Vertical => {
-				let min_pos = Self::MIN_HEIGHT;
-				let max_pos = area.height.saturating_sub(Self::MIN_HEIGHT + 1);
-				let pos = position_local.clamp(min_pos.min(max_pos), max_pos);
+				let total = area.height;
+				let sep = 1u16;
+
+				if total <= sep {
+					let zero = Rect {
+						x: area.x,
+						y: area.y,
+						width: area.width,
+						height: 0,
+					};
+					return (zero, zero, zero);
+				}
+
+				let avail = total - sep;
+				let soft_first = Self::MIN_HEIGHT;
+				let soft_second = Self::MIN_HEIGHT;
+
+				let hard_first = 1u16;
+				let hard_second = 1u16.min(avail.saturating_sub(hard_first));
+
+				let pos = if avail >= soft_first + soft_second {
+					let max_pos = avail - soft_second;
+					position_local.clamp(soft_first, max_pos)
+				} else {
+					let max_pos = avail.saturating_sub(hard_second);
+					position_local.clamp(hard_first, max_pos.max(hard_first))
+				};
+
 				let sep_y = area.y + pos;
 				let first_height = pos;
+				let second_height = avail - pos;
+
 				(
 					Rect {
 						x: area.x,
@@ -285,13 +347,13 @@ impl Layout {
 						x: area.x,
 						y: sep_y + 1,
 						width: area.width,
-						height: area.height.saturating_sub(first_height).saturating_sub(1),
+						height: second_height,
 					},
 					Rect {
 						x: area.x,
 						y: sep_y,
 						width: area.width,
-						height: 1,
+						height: sep,
 					},
 				)
 			}

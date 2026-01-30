@@ -30,7 +30,9 @@ impl OverlayLayer for InfoPopupLayer {
 
 	fn on_event(&mut self, ed: &mut Editor, event: &LayerEvent) {
 		match event {
-			LayerEvent::CursorMoved { .. } | LayerEvent::ModeChanged { .. } | LayerEvent::FocusChanged { .. } => {
+			LayerEvent::CursorMoved { .. }
+			| LayerEvent::ModeChanged { .. }
+			| LayerEvent::FocusChanged { .. } => {
 				ed.close_all_info_popups();
 			}
 			_ => {}

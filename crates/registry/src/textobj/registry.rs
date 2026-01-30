@@ -344,7 +344,9 @@ impl KeyStore<TextObjectDef> for SnapshotStore<'_> {
 
 	fn evict_def(&mut self, def: &'static TextObjectDef) {
 		self.snap.by_key.retain(|_, &mut v| !std::ptr::eq(v, def));
-		self.snap.by_trigger.retain(|_, &mut v| !std::ptr::eq(v, def));
+		self.snap
+			.by_trigger
+			.retain(|_, &mut v| !std::ptr::eq(v, def));
 	}
 
 	fn push_collision(&mut self, c: Collision) {

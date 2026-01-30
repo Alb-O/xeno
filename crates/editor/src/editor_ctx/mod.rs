@@ -40,7 +40,9 @@ pub fn apply_effects(
 				apply_view_effect(view, ctx, extend);
 				let view_id = ctx.focused_view();
 				if let Some(ed) = ctx.as_any_mut().downcast_mut::<crate::impls::Editor>() {
-					ed.notify_overlay_event(crate::overlay::LayerEvent::CursorMoved { view: view_id.into() });
+					ed.notify_overlay_event(crate::overlay::LayerEvent::CursorMoved {
+						view: view_id,
+					});
 				}
 			}
 			Effect::Edit(edit) => apply_edit_effect(edit, ctx),
@@ -249,8 +251,10 @@ fn apply_app_effect(
 		}
 
 		AppEffect::Split(axis) => {
-			if let Some(ops) = ctx.split_ops() {
-				ops.split(*axis);
+			if let Some(ops) = ctx.split_ops()
+				&& let Err(e) = ops.split(*axis)
+			{
+				tracing::warn!(error = ?e, "Split operation failed");
 			}
 		}
 

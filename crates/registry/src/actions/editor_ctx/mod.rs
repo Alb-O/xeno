@@ -29,8 +29,8 @@ mod handlers;
 pub use capabilities::{
 	CommandQueueAccess, CursorAccess, EditAccess, EditorOps, FileOpsAccess, FocusOps, JumpAccess,
 	MacroAccess, ModeAccess, MotionAccess, MotionDispatchAccess, NotificationAccess, OptionAccess,
-	PaletteAccess, SearchAccess, SelectionAccess, SplitOps, TextAccess, ThemeAccess, UndoAccess,
-	ViewportAccess,
+	PaletteAccess, SearchAccess, SelectionAccess, SplitError, SplitOps, TextAccess, ThemeAccess,
+	UndoAccess, ViewportAccess,
 };
 pub use handlers::{HandleOutcome, ResultHandler};
 use xeno_primitives::range::CharIdx;

@@ -19,13 +19,14 @@ use super::buffer::{BufferRenderContext, GutterLayout, ensure_buffer_cursor_visi
 use crate::Editor;
 use crate::buffer::{SplitDirection, ViewId};
 use crate::impls::FocusTarget;
+use crate::layout::LayerId;
 use crate::render::RenderCtx;
 use crate::render::buffer::context::types::RenderBufferParams;
 use crate::window::{GutterSelector, Window};
 
-/// Per-layer rendering data: (layer_index, layer_area, view_areas, separators).
+/// Per-layer rendering data: (layer_id, layer_area, view_areas, separators).
 type LayerRenderData = (
-	usize,
+	LayerId,
 	Rect,
 	Vec<(ViewId, Rect)>,
 	Vec<(SplitDirection, u8, Rect)>,
@@ -164,20 +165,38 @@ impl Editor {
 		let layer_count = self.state.layout.layer_count();
 		let mut layer_data: Vec<LayerRenderData> = Vec::new();
 
-		for layer_idx in 0..layer_count {
-			if self.state.layout.layer(base_layout, layer_idx).is_some() {
-				let layer_area = self.state.layout.layer_area(layer_idx, doc_area);
+		// Base layer (index 0)
+		{
+			let layer_id = LayerId::BASE;
+			let layer_area = self.state.layout.layer_area(layer_id, doc_area);
+			let view_areas =
+				self.state
+					.layout
+					.compute_view_areas_for_layer(base_layout, layer_id, layer_area);
+			let separators =
+				self.state
+					.layout
+					.separator_positions_for_layer(base_layout, layer_id, layer_area);
+			layer_data.push((layer_id, layer_area, view_areas, separators));
+		}
+
+		// Overlay layers (index 1+)
+		for layer_idx in 1..layer_count {
+			if self.state.layout.layer_slot_has_layout(layer_idx) {
+				let generation = self.state.layout.layer_slot_generation(layer_idx);
+				let layer_id = LayerId::new(layer_idx as u16, generation);
+				let layer_area = self.state.layout.layer_area(layer_id, doc_area);
 				let view_areas = self.state.layout.compute_view_areas_for_layer(
 					base_layout,
-					layer_idx,
+					layer_id,
 					layer_area,
 				);
 				let separators = self.state.layout.separator_positions_for_layer(
 					base_layout,
-					layer_idx,
+					layer_id,
 					layer_area,
 				);
-				layer_data.push((layer_idx, layer_area, view_areas, separators));
+				layer_data.push((layer_id, layer_area, view_areas, separators));
 			}
 		}
 

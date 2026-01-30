@@ -4,16 +4,21 @@
 
 use xeno_tui::layout::Rect;
 
-use crate::buffer::{Layout, SplitDirection, ViewId};
+use crate::buffer::{SplitDirection, ViewId};
+use crate::layout::types::LayerSlot;
 use crate::separator::{DragState, MouseVelocityTracker, SeparatorHoverAnimation};
 
 /// Manages stacked layout layers and separator interactions.
 ///
 /// Layouts are organized in ordered layers. Layer 0 is the base layout
-/// owned by the base window; higher layers overlay on top with transparent backgrounds.
+/// owned by the base window; higher layers overlay on top with
+/// transparent backgrounds.
+///
+/// Overlay layers use generational tracking to prevent stale references.
 pub struct LayoutManager {
 	/// Layout layers above the base layout (index 0 reserved for base).
-	pub(super) layers: Vec<Option<Layout>>,
+	/// Uses generational slots to prevent stale references.
+	pub(super) layers: Vec<LayerSlot>,
 
 	/// Revision counter incremented on structural layout changes.
 	///
@@ -43,7 +48,7 @@ pub struct LayoutManager {
 impl Default for LayoutManager {
 	fn default() -> Self {
 		Self {
-			layers: vec![None],
+			layers: vec![LayerSlot::empty()],
 			layout_revision: 0,
 			hovered_separator: None,
 			separator_under_mouse: None,
@@ -56,21 +61,21 @@ impl Default for LayoutManager {
 }
 
 impl LayoutManager {
-	/// Creates a new layout manager without owning the base layout.
+	/// Creates a new `LayoutManager` without owning the base layout.
 	pub fn new() -> Self {
 		Self::default()
 	}
 
 	/// Returns the current layout revision.
 	///
-	/// This value is incremented on structural changes (splits, removals).
+	/// Structural changes (splits, removals) increment this value.
 	pub fn layout_revision(&self) -> u64 {
 		self.layout_revision
 	}
 
 	/// Increments the layout revision counter.
 	///
-	/// Call this after any structural layout change (split creation, view removal).
+	/// Call this after any structural change to the layout.
 	pub(super) fn increment_revision(&mut self) {
 		self.layout_revision = self.layout_revision.wrapping_add(1);
 	}

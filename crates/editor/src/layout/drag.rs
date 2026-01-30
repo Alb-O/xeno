@@ -16,7 +16,7 @@ impl LayoutManager {
 		self.mouse_velocity.update(x, y);
 	}
 
-	/// Returns true if the mouse is moving fast enough to suppress hover effects.
+	/// Returns `true` if the mouse is moving fast enough to suppress hover effects.
 	pub fn is_mouse_fast(&self) -> bool {
 		self.mouse_velocity.is_fast()
 	}
@@ -34,20 +34,39 @@ impl LayoutManager {
 		}
 	}
 
-	/// Checks if the current drag state is stale (layout changed since drag started).
+	/// Checks if the current drag state is stale.
 	///
-	/// Returns true if there is an active drag and the layout revision has changed
-	/// since the drag started, meaning the stored separator path may be invalid.
+	/// Returns `true` if there is an active drag and:
+	/// - The layout revision has changed, OR
+	/// - The stored separator's layer generation is invalid (layer was cleared or reused).
 	pub fn is_drag_stale(&self) -> bool {
-		self.dragging_separator
-			.as_ref()
-			.map(|drag| drag.revision != self.layout_revision())
-			.unwrap_or(false)
+		let Some(drag) = &self.dragging_separator else {
+			return false;
+		};
+
+		if drag.revision != self.layout_revision() {
+			return true;
+		}
+
+		self.drag_separator_stale_by_generation()
+	}
+
+	/// Validates that the drag separator's generation is still valid.
+	fn drag_separator_stale_by_generation(&self) -> bool {
+		let Some(drag) = &self.dragging_separator else {
+			return false;
+		};
+
+		let layer = match &drag.id {
+			crate::layout::types::SeparatorId::Split { layer, .. } => *layer,
+		};
+
+		!self.is_valid_layer(layer)
 	}
 
 	/// Cancels the drag if the layout has changed since it started.
 	///
-	/// Returns true if the drag was canceled due to staleness.
+	/// Returns `true` if the drag was canceled due to staleness.
 	pub fn cancel_if_stale(&mut self) -> bool {
 		if self.is_drag_stale() {
 			self.end_drag();
@@ -63,7 +82,7 @@ impl LayoutManager {
 		self.hovered_separator = None;
 	}
 
-	/// Returns true if a separator drag is active.
+	/// Returns `true` if a separator drag is active.
 	pub fn is_dragging(&self) -> bool {
 		self.dragging_separator.is_some()
 	}
@@ -109,7 +128,7 @@ impl LayoutManager {
 		}
 	}
 
-	/// Returns true if the hover animation needs a redraw.
+	/// Returns `true` if the hover animation needs a redraw.
 	pub fn animation_needs_redraw(&self) -> bool {
 		self.separator_hover_animation
 			.as_ref()

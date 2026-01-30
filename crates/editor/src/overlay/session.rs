@@ -76,9 +76,10 @@ impl OverlaySession {
 			return;
 		}
 		if let Some(buffer) = ed.state.core.buffers.get_buffer(view) {
-			self.capture
-				.per_view
-				.insert(view, (buffer.version(), buffer.cursor, buffer.selection.clone()));
+			self.capture.per_view.insert(
+				view,
+				(buffer.version(), buffer.cursor, buffer.selection.clone()),
+			);
 		}
 	}
 

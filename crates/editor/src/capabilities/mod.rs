@@ -54,7 +54,7 @@ fn parse_option_value(kdl_key: &str, value: &str) -> Result<OptionValue, Command
 
 impl CursorAccess for Editor {
 	fn focused_view(&self) -> xeno_registry::hooks::ViewId {
-		self.focused_view().into()
+		self.focused_view()
 	}
 
 	fn cursor(&self) -> CharIdx {
@@ -350,11 +350,19 @@ impl CommandEditorOps for Editor {
 }
 
 impl SplitOps for Editor {
-	fn split(&mut self, axis: Axis) {
-		let new_id = self.clone_buffer_for_split();
+	fn split(&mut self, axis: Axis) -> Result<(), xeno_registry::actions::editor_ctx::SplitError> {
+		use xeno_registry::actions::editor_ctx::SplitError;
 		match axis {
-			Axis::Horizontal => Editor::split_horizontal(self, new_id),
-			Axis::Vertical => Editor::split_vertical(self, new_id),
+			Axis::Horizontal => match Editor::split_horizontal_with_clone(self) {
+				Ok(()) => Ok(()),
+				Err(crate::layout::SplitError::ViewNotFound) => Err(SplitError::ViewNotFound),
+				Err(crate::layout::SplitError::AreaTooSmall) => Err(SplitError::AreaTooSmall),
+			},
+			Axis::Vertical => match Editor::split_vertical_with_clone(self) {
+				Ok(()) => Ok(()),
+				Err(crate::layout::SplitError::ViewNotFound) => Err(SplitError::ViewNotFound),
+				Err(crate::layout::SplitError::AreaTooSmall) => Err(SplitError::AreaTooSmall),
+			},
 		}
 	}
 

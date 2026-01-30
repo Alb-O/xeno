@@ -242,11 +242,17 @@ pub enum LayerEvent {
 	/// Primary cursor moved in the focused buffer.
 	CursorMoved { view: ViewId },
 	/// Global editor mode changed (e.g. Insert -> Normal).
-	ModeChanged { view: ViewId, mode: xeno_primitives::Mode },
+	ModeChanged {
+		view: ViewId,
+		mode: xeno_primitives::Mode,
+	},
 	/// Content of a buffer was modified.
 	BufferEdited(ViewId),
 	/// Focus shifted between windows or panels.
-	FocusChanged { from: crate::impls::FocusTarget, to: crate::impls::FocusTarget },
+	FocusChanged {
+		from: crate::impls::FocusTarget,
+		to: crate::impls::FocusTarget,
+	},
 }
 
 impl LayerEvent {
