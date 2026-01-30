@@ -59,9 +59,9 @@ impl<S> LspServiceWrapper<S> {
 	}
 }
 
-/// Future that wraps the service future and maps the error type to ResponseError.
-///
-/// This is an internal implementation detail and should not be used directly.
+// Future that wraps the service future and maps the error type to ResponseError.
+//
+// This is an internal implementation detail and should not be used directly.
 pin_project! {
 	pub struct ServiceFuture<Fut> {
 		#[pin]

@@ -101,7 +101,6 @@ impl LspTransport for LocalTransport {
 
 		let (state_tx, state_rx) = watch::channel(ServerState::Starting);
 		let handler = Arc::new(TransportEventHandler {
-			server: id,
 			tx: self.events_tx.clone(),
 		});
 
@@ -231,7 +230,6 @@ impl LspTransport for LocalTransport {
 }
 
 struct TransportEventHandler {
-	server: LanguageServerId,
 	tx: mpsc::UnboundedSender<TransportEvent>,
 }
 

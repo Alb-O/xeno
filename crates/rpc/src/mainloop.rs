@@ -68,6 +68,24 @@ pub struct MainLoop<S, P: Protocol> {
 	protocol: P,
 }
 
+type MainLoopOutput<S, P> = (
+	ControlFlow<
+		std::result::Result<(), <S as RpcService<P>>::LoopError>,
+		Option<PendingMessage<<P as Protocol>::Message>>,
+	>,
+	bool,
+);
+
+type MainLoopControl<S, P> = ControlFlow<
+	std::result::Result<(), <S as RpcService<P>>::LoopError>,
+	Option<PendingMessage<<P as Protocol>::Message>>,
+>;
+
+type MainLoopNew<S, P> = (
+	MainLoop<S, P>,
+	PeerSocket<<P as Protocol>::Message, <P as Protocol>::Request, <P as Protocol>::Response>,
+);
+
 impl<S, P> MainLoop<S, P>
 where
 	P: Protocol,
@@ -81,7 +99,7 @@ where
 		builder: impl FnOnce(PeerSocket<P::Message, P::Request, P::Response>) -> S,
 		protocol: P,
 		id_gen: P::IdGen,
-	) -> (Self, PeerSocket<P::Message, P::Request, P::Response>) {
+	) -> MainLoopNew<S, P> {
 		let (tx, rx) = mpsc::unbounded_channel();
 		let socket = PeerSocket { tx };
 		let this = Self {
@@ -222,10 +240,7 @@ where
 	fn handle_task_response(
 		&self,
 		resp: Option<Result<P::Response, tokio::task::JoinError>>,
-	) -> (
-		ControlFlow<std::result::Result<(), S::LoopError>, Option<PendingMessage<P::Message>>>,
-		bool,
-	) {
+	) -> MainLoopOutput<S, P> {
 		match resp {
 			Some(Ok(resp)) => {
 				let extras = P::post_response_messages(&resp);
@@ -241,10 +256,7 @@ where
 	}
 
 	/// Routes an incoming message to the appropriate handler.
-	async fn dispatch_message(
-		&mut self,
-		msg: P::Message,
-	) -> ControlFlow<std::result::Result<(), S::LoopError>, Option<PendingMessage<P::Message>>> {
+	async fn dispatch_message(&mut self, msg: P::Message) -> MainLoopControl<S, P> {
 		match P::split_inbound(msg) {
 			Inbound::Request(req) => {
 				// Ensure service is ready
@@ -285,7 +297,7 @@ where
 	fn dispatch_event(
 		&mut self,
 		event: MainLoopEvent<P::Message, P::Request, P::Response>,
-	) -> ControlFlow<std::result::Result<(), S::LoopError>, Option<PendingMessage<P::Message>>> {
+	) -> MainLoopControl<S, P> {
 		match event {
 			MainLoopEvent::OutgoingRequest(mut req, resp_tx) => {
 				let id = P::next_id(&mut self.id_gen);
@@ -309,7 +321,7 @@ where
 	}
 }
 
-/// Future wrapper for request handlers that captures the request ID.
+// Future wrapper for request handlers that captures the request ID.
 pin_project! {
 	struct RequestFuture<Fut, P: Protocol> {
 		#[pin]

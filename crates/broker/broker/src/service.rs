@@ -143,9 +143,9 @@ impl Service<Request> for BrokerService {
 								| "textDocument/didChange"
 								| "textDocument/didClose"
 						) && !core.gate_text_sync(session_id, server_id, notif)
-						{
-							return Err(ErrorCode::NotDocOwner);
-						}
+					{
+						return Err(ErrorCode::NotDocOwner);
+					}
 
 					core.on_editor_message(server_id, &lsp_msg);
 

@@ -64,13 +64,6 @@ impl LayerSlot {
 			layout: None,
 		}
 	}
-
-	/// Validates a `LayerId` against this slot.
-	///
-	/// Returns `true` if the generation matches and the slot contains a layout.
-	pub fn is_valid(&self, id: LayerId) -> bool {
-		self.generation == id.generation && self.layout.is_some()
-	}
 }
 
 /// Identifies which separator is being interacted with.

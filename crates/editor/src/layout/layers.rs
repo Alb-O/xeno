@@ -172,16 +172,4 @@ impl LayoutManager {
 		let idx = self.validate_layer(layer).ok()?;
 		self.layers.get(idx)?.layout.as_ref()
 	}
-
-	/// Returns a mutable reference to the layout for an overlay layer.
-	///
-	/// This helper validates the identifier and returns the layout only for
-	/// overlay layers. Returns `None` for the base layer.
-	pub(crate) fn overlay_layout_mut(&mut self, layer: LayerId) -> Option<&mut Layout> {
-		if layer.is_base() {
-			return None;
-		}
-		let idx = self.validate_layer(layer).ok()?;
-		self.layers.get_mut(idx)?.layout.as_mut()
-	}
 }

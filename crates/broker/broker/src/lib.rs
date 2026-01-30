@@ -1,6 +1,6 @@
-//! Xeno broker library for managing LSP servers and AI providers.
-
 #![warn(missing_docs)]
+
+//! Xeno broker library for managing LSP servers and AI providers.
 
 pub mod core;
 pub mod ipc;

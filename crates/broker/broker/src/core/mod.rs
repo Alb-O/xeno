@@ -150,6 +150,13 @@ pub struct PendingC2sReq {
 	pub origin_id: xeno_lsp::RequestId,
 }
 
+/// Snapshot of the current broker state for debugging or testing.
+pub type BrokerStateSnapshot = (
+	HashSet<SessionId>,
+	HashMap<ServerId, Vec<SessionId>>,
+	HashMap<ProjectKey, ServerId>,
+);
+
 impl BrokerCore {
 	/// Create a new broker core instance with default configuration.
 	#[must_use]
@@ -446,13 +453,7 @@ impl BrokerCore {
 
 	/// Retrieves a snapshot of the current broker state for debugging or testing.
 	#[doc(hidden)]
-	pub fn get_state(
-		&self,
-	) -> (
-		HashSet<SessionId>,
-		HashMap<ServerId, Vec<SessionId>>,
-		HashMap<ProjectKey, ServerId>,
-	) {
+	pub fn get_state(&self) -> BrokerStateSnapshot {
 		let state = self.state.lock().unwrap();
 		let sessions = state.sessions.keys().cloned().collect();
 		let servers = state
@@ -980,12 +981,10 @@ impl BrokerCore {
 
 /// Handle to a child process that can be real or mocked for tests.
 #[derive(Debug)]
+#[non_exhaustive]
 pub enum ChildHandle {
 	/// Real spawned process.
 	Real(tokio::process::Child),
-	/// Mock handle for tests.
-	#[doc(hidden)]
-	Mock,
 }
 
 /// Channels for controlling and monitoring a server instance.
@@ -1108,9 +1107,15 @@ pub struct DocGateResult {
 /// Kind of text sync operation.
 pub enum DocGateKind {
 	/// Document opened.
-	DidOpen { version: u32 },
+	DidOpen {
+		/// New version.
+		version: u32,
+	},
 	/// Document changed.
-	DidChange { version: u32 },
+	DidChange {
+		/// New version.
+		version: u32,
+	},
 	/// Document closed.
 	DidClose,
 }

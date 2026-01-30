@@ -18,6 +18,7 @@ impl CounterIdGen {
 	}
 
 	/// Generates the next unique ID and increments the counter.
+	#[allow(clippy::should_implement_trait, reason = "convention")]
 	pub fn next(&mut self) -> u64 {
 		let id = self.0;
 		self.0 += 1;
