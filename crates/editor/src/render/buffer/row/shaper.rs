@@ -92,7 +92,7 @@ impl<'a> SegmentGlyphIter<'a> {
 			chars,
 			current_char_idx: segment.start_char_offset,
 			current_byte_off: byte_off,
-			current_col: segment.indent_cols,
+			current_col: 0,
 			pending_tab_spaces: 0,
 			tab_meta: None,
 		}

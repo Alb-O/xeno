@@ -98,7 +98,9 @@ impl TextRowRenderer {
 					let resolved = resolve_cell_style(cell_input);
 
 					let paint_cursor = cursor_kind != CursorKind::None
-						&& (input.use_block_cursor || !input.is_focused || glyph.is_leading);
+						&& (input.use_block_cursor
+							|| !input.is_focused || glyph.is_leading
+							|| glyph.virtual_kind == GlyphVirtual::Fill);
 
 					let style = if paint_cursor {
 						resolved.cursor
