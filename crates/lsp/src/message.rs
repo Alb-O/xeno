@@ -37,7 +37,7 @@ pub(crate) enum RpcVersion {
 /// A JSON-RPC message (request, response, or notification).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
-pub(crate) enum Message {
+pub enum Message {
 	/// An incoming or outgoing request.
 	Request(AnyRequest),
 	/// A response to a request.

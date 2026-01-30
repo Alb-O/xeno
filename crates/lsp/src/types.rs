@@ -191,7 +191,7 @@ pub struct AnyNotification {
 /// A dynamic runtime response.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[non_exhaustive]
-pub(crate) struct AnyResponse {
+pub struct AnyResponse {
 	/// The request id this response corresponds to.
 	pub id: RequestId,
 	/// The result value on success (mutually exclusive with `error`).

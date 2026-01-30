@@ -8,7 +8,7 @@ use std::task::{Context, Poll, ready};
 use lsp_types::notification::Notification;
 use lsp_types::request::Request;
 use serde::de::DeserializeOwned;
-use tokio::sync::{mpsc, oneshot};
+use tokio::sync::oneshot;
 
 use crate::event::AnyEvent;
 use crate::message::Message;
@@ -16,17 +16,7 @@ use crate::types::{AnyNotification, AnyRequest, AnyResponse, RequestId};
 use crate::{Error, Result};
 
 /// Internal event types for the main loop.
-#[derive(Debug)]
-pub(crate) enum MainLoopEvent {
-	/// A message to send to the peer.
-	Outgoing(Message),
-	/// A message to send to the peer with an acknowledgement.
-	OutgoingWithBarrier(Message, oneshot::Sender<()>),
-	/// An outgoing request with response channel.
-	OutgoingRequest(AnyRequest, oneshot::Sender<AnyResponse>),
-	/// A user-defined loopback event.
-	Any(AnyEvent),
-}
+pub(crate) type MainLoopEvent = xeno_rpc::MainLoopEvent<Message, AnyRequest, AnyResponse>;
 
 /// Macro to implement common socket wrapper methods for Client/Server sockets.
 macro_rules! impl_socket_wrapper {
@@ -93,20 +83,26 @@ impl_socket_wrapper!(ServerSocket);
 /// Internal socket for communicating with the peer.
 #[derive(Debug, Clone)]
 pub(crate) struct PeerSocket {
-	/// Channel sender for outgoing messages.
-	pub tx: mpsc::UnboundedSender<MainLoopEvent>,
+	/// The underlying RPC socket.
+	inner: xeno_rpc::PeerSocket<Message, AnyRequest, AnyResponse>,
 }
 
 impl PeerSocket {
 	/// Creates a closed socket that always returns errors.
 	pub fn new_closed() -> Self {
-		let (tx, _rx) = mpsc::unbounded_channel();
-		Self { tx }
+		Self {
+			inner: xeno_rpc::PeerSocket::new_closed(),
+		}
+	}
+
+	/// Creates a PeerSocket from an RPC socket.
+	pub(crate) fn from_rpc(socket: xeno_rpc::PeerSocket<Message, AnyRequest, AnyResponse>) -> Self {
+		Self { inner: socket }
 	}
 
 	/// Sends an event to the main loop.
 	pub(crate) fn send(&self, v: MainLoopEvent) -> Result<()> {
-		self.tx.send(v).map_err(|_| Error::ServiceStopped)
+		self.inner.send(v).map_err(|_| Error::ServiceStopped)
 	}
 
 	/// Sends a typed request and returns a future for the response.
@@ -138,6 +134,12 @@ impl PeerSocket {
 	/// Emits a user-defined event to the service handler.
 	pub fn emit<E: Send + 'static>(&self, event: E) -> Result<()> {
 		self.send(MainLoopEvent::Any(AnyEvent::new(event)))
+	}
+}
+
+impl Default for PeerSocket {
+	fn default() -> Self {
+		Self::new_closed()
 	}
 }
 

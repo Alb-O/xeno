@@ -3301,6 +3301,7 @@ dependencies = [
  "url",
  "waitpid-any",
  "xeno-primitives",
+ "xeno-rpc",
 ]
 
 [[package]]
@@ -3345,6 +3346,17 @@ dependencies = [
  "xeno-keymap-core",
  "xeno-macro",
  "xeno-primitives",
+]
+
+[[package]]
+name = "xeno-rpc"
+version = "0.6.5"
+dependencies = [
+ "pin-project-lite",
+ "thiserror 2.0.17",
+ "tokio",
+ "tower-service",
+ "tracing",
 ]
 
 [[package]]

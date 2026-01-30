@@ -41,7 +41,7 @@ impl Drop for DoneSignaller {
 }
 
 pub(super) type PermitFuture =
-	xeno_primitives::BoxFutureStatic<Result<OwnedSemaphorePermit, tokio::sync::AcquireError>>;
+	crate::router::BoxFutureStatic<Result<OwnedSemaphorePermit, tokio::sync::AcquireError>>;
 
 /// The middleware for incoming request multiplexing limits and cancellation.
 ///

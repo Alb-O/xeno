@@ -1,0 +1,19 @@
+[package]
+name = "xeno-rpc"
+description = "Generic async RPC message pump and protocol framework"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+pin-project-lite.workspace = true
+thiserror.workspace = true
+tokio = { workspace = true, features = ["rt", "sync", "io-util", "macros"] }
+tower-service.workspace = true
+tracing.workspace = true
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["io-std", "macros", "rt", "time"] }
+
+[lints]
+workspace = true

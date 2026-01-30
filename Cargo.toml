@@ -7,6 +7,7 @@ members = [
     "crates/macro",
     "crates/primitives",
     "crates/registry",
+    "crates/rpc",
     "crates/runtime/*",
     "crates/term",
     "crates/tui",
@@ -95,6 +96,7 @@ xeno-lsp = { path = "crates/lsp" }
 xeno-macro = { path = "crates/macro" }
 xeno-primitives = { path = "crates/primitives" }
 xeno-registry = { path = "crates/registry" }
+xeno-rpc = { path = "crates/rpc" }
 xeno-runtime-config = { path = "crates/runtime/config" }
 xeno-runtime-data = { path = "crates/runtime/data" }
 xeno-runtime-language = { path = "crates/runtime/language" }

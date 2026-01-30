@@ -1,12 +1,15 @@
 use std::future::ready;
 use std::ops::ControlFlow;
+use std::pin::Pin;
 
 use lsp_types::notification::{self, Notification};
 use lsp_types::request::{self, Request};
 use lsp_types::{lsp_notification, lsp_request};
-use xeno_primitives::BoxFutureStatic;
 
 use self::sealed::NotifyResult;
+
+/// Boxed future type alias for static dispatch.
+pub type BoxFutureStatic<T> = Pin<Box<dyn std::future::Future<Output = T> + Send + 'static>>;
 use crate::router::Router;
 use crate::{ClientSocket, ErrorCode, ResponseError, Result, ServerSocket};
 

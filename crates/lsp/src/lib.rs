@@ -55,6 +55,7 @@ mod event;
 #[macro_use]
 mod mainloop;
 mod message;
+mod protocol;
 mod socket;
 mod types;
 

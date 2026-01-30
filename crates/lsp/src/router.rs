@@ -3,6 +3,7 @@ use std::any::TypeId;
 use std::collections::HashMap;
 use std::future::{Future, ready};
 use std::ops::ControlFlow;
+use std::pin::Pin;
 use std::task::{Context, Poll};
 
 use lsp_types::notification::Notification;
@@ -12,6 +13,9 @@ use tower_service::Service;
 use crate::{
 	AnyEvent, AnyNotification, AnyRequest, ErrorCode, JsonValue, LspService, ResponseError, Result,
 };
+
+/// Boxed future type for static dispatch.
+pub type BoxFutureStatic<T> = Pin<Box<dyn Future<Output = T> + Send + 'static>>;
 
 /// A router dispatching requests and notifications to individual handlers.
 pub struct Router<St, Error = ResponseError> {
@@ -32,7 +36,7 @@ pub struct Router<St, Error = ResponseError> {
 }
 
 /// Boxed future for request handlers.
-type BoxReqFuture<Error> = xeno_primitives::BoxFutureStatic<Result<JsonValue, Error>>;
+type BoxReqFuture<Error> = BoxFutureStatic<Result<JsonValue, Error>>;
 /// Boxed async request handler function.
 type BoxReqHandler<St, Error> = Box<dyn Fn(&mut St, AnyRequest) -> BoxReqFuture<Error> + Send>;
 /// Boxed sync notification handler function.

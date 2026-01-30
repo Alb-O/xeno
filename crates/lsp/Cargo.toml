@@ -40,6 +40,7 @@ tracing.workspace = true
 url.workspace = true
 waitpid-any = { workspace = true, optional = true }
 xeno-primitives = { workspace = true, optional = true }
+xeno-rpc.workspace = true
 
 [dev-dependencies]
 tempfile.workspace = true
