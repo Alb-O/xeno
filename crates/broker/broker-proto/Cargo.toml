@@ -6,6 +6,7 @@ edition.workspace = true
 license.workspace = true
 
 [dependencies]
+dirs.workspace = true
 postcard = { workspace = true, default-features = false, features = ["use-std"] }
 serde.workspace = true
 tokio = { workspace = true, features = ["io-util"] }

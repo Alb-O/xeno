@@ -3,7 +3,7 @@
 use std::collections::VecDeque;
 use std::ops::ControlFlow;
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use async_trait::async_trait;
 use dashmap::DashMap;
@@ -23,6 +23,10 @@ use xeno_lsp::{
 use xeno_rpc::{AnyEvent, MainLoop, MainLoopEvent, PeerSocket, RpcService};
 
 /// Transport that communicates with a Xeno broker over a Unix socket.
+///
+/// This transport is responsible for connecting to the broker daemon and
+/// managing the lifecycle of the connection. If the broker is not running,
+/// it will attempt to spawn it automatically.
 pub struct BrokerTransport {
 	session_id: SessionId,
 	socket_path: std::path::PathBuf,
@@ -39,13 +43,15 @@ struct BrokerRpc {
 }
 
 impl BrokerTransport {
-	/// Create a new broker transport with default socket path.
+	/// Create a new broker transport with the default socket path.
+	#[must_use]
 	pub fn new() -> Arc<Self> {
-		let socket_path = std::env::temp_dir().join("xeno-broker.sock");
+		let socket_path = xeno_broker_proto::paths::default_socket_path();
 		Self::with_socket_path(socket_path)
 	}
 
 	/// Create a new broker transport with a specific socket path and session ID.
+	#[must_use]
 	pub fn with_socket_and_session(
 		socket_path: std::path::PathBuf,
 		session_id: SessionId,
@@ -62,7 +68,7 @@ impl BrokerTransport {
 	}
 
 	fn with_socket_path(socket_path: std::path::PathBuf) -> Arc<Self> {
-		let session_id = SessionId(std::process::id() as u64);
+		let session_id = SessionId(u64::from(std::process::id()));
 		Self::with_socket_and_session(socket_path, session_id)
 	}
 
@@ -75,9 +81,7 @@ impl BrokerTransport {
 			});
 		}
 
-		let stream = UnixStream::connect(socket_path)
-			.await
-			.map_err(xeno_lsp::Error::Io)?;
+		let stream = self.connect_or_spawn(socket_path).await?;
 		let (r, w) = stream.into_split();
 		let reader = tokio::io::BufReader::new(r);
 
@@ -115,13 +119,148 @@ impl BrokerTransport {
 			Duration::from_secs(5),
 		)
 		.await
-		.map_err(|e| xeno_lsp::Error::Protocol(format!("subscribe failed: {:?}", e)))?;
+		.map_err(|e| xeno_lsp::Error::Protocol(format!("subscribe failed: {e:?}")))?;
 
 		*rpc_lock = Some(BrokerRpc {
 			socket: socket.clone(),
 		});
 		Ok(rpc)
 	}
+
+	/// Attempts to connect to the broker, spawning it if it's not currently running.
+	///
+	/// Handles cases where the socket is missing (`NotFound`) or the daemon has crashed
+	/// leaving a stale socket file (`ConnectionRefused`).
+	async fn connect_or_spawn(&self, socket_path: &std::path::Path) -> Result<UnixStream> {
+		match UnixStream::connect(socket_path).await {
+			Ok(s) => Ok(s),
+			Err(e)
+				if matches!(
+					e.kind(),
+					std::io::ErrorKind::NotFound | std::io::ErrorKind::ConnectionRefused
+				) =>
+			{
+				self.ensure_broker_running(socket_path).await?;
+				UnixStream::connect(socket_path).await.map_err(|e2| {
+					xeno_lsp::Error::Protocol(format!(
+						"broker connect failed after spawn: path={} err={}",
+						socket_path.display(),
+						e2
+					))
+				})
+			}
+			Err(e) => Err(xeno_lsp::Error::Protocol(format!(
+				"broker connect failed: path={} err={}",
+				socket_path.display(),
+				e
+			))),
+		}
+	}
+
+	/// Synchronizes broker startup across multiple editor instances using a file lock.
+	///
+	/// If the broker is not running, this method:
+	/// 1. Acquires an exclusive lock on `<socket>.lock`.
+	/// 2. Double-checks connectability to avoid redundant spawns.
+	/// 3. Removes stale socket files.
+	/// 4. Spawns the daemon and waits for it to become ready.
+	///
+	/// # Errors
+	/// Returns a protocol error if the broker fails to spawn or time out during startup.
+	async fn ensure_broker_running(&self, socket_path: &std::path::Path) -> Result<()> {
+		let lock_path = socket_path.with_extension("lock");
+		let lock_file = std::fs::OpenOptions::new()
+			.write(true)
+			.create(true)
+			.truncate(false)
+			.open(&lock_path)
+			.map_err(xeno_lsp::Error::Io)?;
+
+		use fs2::FileExt;
+		lock_file.lock_exclusive().map_err(xeno_lsp::Error::Io)?;
+
+		// Double-check under lock
+		if UnixStream::connect(socket_path).await.is_ok() {
+			let _ = lock_file.unlock();
+			return Ok(());
+		}
+
+		if socket_path.exists() {
+			let _ = std::fs::remove_file(socket_path);
+		}
+
+		self.spawn_broker_daemon(socket_path).await?;
+
+		let deadline = Instant::now() + Duration::from_secs(3);
+		while Instant::now() < deadline {
+			if UnixStream::connect(socket_path).await.is_ok() {
+				let _ = lock_file.unlock();
+				return Ok(());
+			}
+			tokio::time::sleep(Duration::from_millis(20)).await;
+		}
+
+		let _ = lock_file.unlock();
+		Err(xeno_lsp::Error::Protocol("broker spawn timeout".into()))
+	}
+
+	/// Spawns the broker daemon process.
+	///
+	/// The daemon is spawned with its own session and detached from the editor's
+	/// lifecycle. Stdio is suppressed to avoid cluttering the editor's terminal.
+	async fn spawn_broker_daemon(&self, socket_path: &std::path::Path) -> Result<()> {
+		let bin = resolve_broker_bin();
+
+		let mut child = tokio::process::Command::new(&bin)
+			.arg("--socket")
+			.arg(socket_path)
+			.stdin(std::process::Stdio::null())
+			.stdout(std::process::Stdio::null())
+			.stderr(std::process::Stdio::null())
+			.spawn()
+			.map_err(|e| {
+				xeno_lsp::Error::Protocol(format!(
+					"failed to spawn broker '{}': {} (checked XENO_BROKER_BIN, sibling, then PATH)",
+					bin.display(),
+					e
+				))
+			})?;
+
+		tokio::spawn(async move {
+			let _ = child.wait().await;
+		});
+
+		Ok(())
+	}
+}
+
+/// Resolves the path to the `xeno-broker` binary.
+///
+/// Prioritizes:
+/// 1. `XENO_BROKER_BIN` environment variable.
+/// 2. Sibling binary to the current executable (useful for development).
+/// 3. Binary name in system `PATH`.
+fn resolve_broker_bin() -> std::path::PathBuf {
+	if let Ok(val) = std::env::var("XENO_BROKER_BIN") {
+		return std::path::PathBuf::from(val);
+	}
+
+	let bin_name = if cfg!(windows) {
+		"xeno-broker.exe"
+	} else {
+		"xeno-broker"
+	};
+
+	if let Ok(exe) = std::env::current_exe()
+		&& let Some(dir) = exe.parent()
+	{
+		let candidate = dir.join(bin_name);
+		if candidate.exists() {
+			return candidate;
+		}
+	}
+
+	std::path::PathBuf::from(bin_name)
 }
 
 impl BrokerRpc {

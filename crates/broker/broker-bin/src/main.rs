@@ -29,35 +29,32 @@ struct Args {
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
 	let args = Args::parse();
 
-	// Initialize tracing
-	let subscriber = tracing_subscriber::fmt()
+	tracing_subscriber::fmt()
 		.with_max_level(if args.verbose {
 			tracing::Level::DEBUG
 		} else {
 			tracing::Level::INFO
 		})
-		.finish();
+		.init();
 
-	tracing::subscriber::set_global_default(subscriber)?;
+	info!("starting xeno-broker");
 
-	info!("Starting xeno-broker");
+	let socket_path = args
+		.socket
+		.unwrap_or_else(xeno_broker_proto::paths::default_socket_path);
 
-	// Determine socket path
-	let socket_path = args.socket.unwrap_or_else(|| {
-		let runtime_dir = dirs::runtime_dir()
-			.or_else(dirs::cache_dir)
-			.unwrap_or_else(std::env::temp_dir);
-		runtime_dir.join("xeno-broker.sock")
-	});
+	if let Some(parent) = socket_path.parent()
+		&& !parent.exists()
+	{
+		std::fs::create_dir_all(parent)?;
+	}
 
 	info!(socket = %socket_path.display(), "IPC socket path");
 
-	// Initialize broker core
 	let core = xeno_broker::core::BrokerCore::new();
 	let shutdown = CancellationToken::new();
 
-	// Start IPC server
-	info!("Starting IPC server");
+	info!("starting IPC server");
 	xeno_broker::ipc::serve(&socket_path, core, shutdown).await?;
 
 	Ok(())

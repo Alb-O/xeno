@@ -251,6 +251,7 @@ impl BrokerCore {
 	/// Look up an existing server for a project configuration.
 	///
 	/// Returns the [`ServerId`] if a matching server is already running or warm.
+	#[must_use]
 	pub fn find_server_for_project(&self, config: &LspServerConfig) -> Option<ServerId> {
 		let key = ProjectKey::from(config);
 		let state = self.state.lock().unwrap();
@@ -268,6 +269,7 @@ impl BrokerCore {
 		};
 
 		server.attached.insert(session_id);
+
 		// Maintain deterministic leader (min session id)
 		let min_id = *server.attached.iter().min().unwrap();
 		server.leader = min_id;
