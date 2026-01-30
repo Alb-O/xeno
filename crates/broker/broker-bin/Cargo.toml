@@ -1,0 +1,21 @@
+[package]
+name = "xeno-broker-bin"
+description = "Xeno broker binary"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "xeno-broker"
+path = "src/main.rs"
+
+[dependencies]
+clap = { workspace = true, features = ["derive"] }
+dirs.workspace = true
+tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
+tracing.workspace = true
+tracing-subscriber.workspace = true
+xeno-broker = { path = "../broker" }
+
+[lints]
+workspace = true

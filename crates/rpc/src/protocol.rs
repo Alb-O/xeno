@@ -4,6 +4,27 @@ use std::hash::Hash;
 
 use tokio::io::{AsyncBufRead, AsyncWrite};
 
+/// Simple counter-based ID generator for protocols.
+///
+/// This is the standard implementation for sequential integer IDs.
+#[derive(Debug, Default, Clone, Copy)]
+pub struct CounterIdGen(pub u64);
+
+impl CounterIdGen {
+	/// Creates a new counter starting at 0.
+	#[must_use]
+	pub const fn new() -> Self {
+		Self(0)
+	}
+
+	/// Generates the next unique ID and increments the counter.
+	pub fn next(&mut self) -> u64 {
+		let id = self.0;
+		self.0 += 1;
+		id
+	}
+}
+
 /// Classification of an inbound message.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Inbound<Req, Resp, Notif> {

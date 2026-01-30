@@ -3216,6 +3216,37 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9edde0db4769d2dc68579893f2306b26c6ecfbe0ef499b013d731b7b9247e0b9"
 
 [[package]]
+name = "xeno-broker"
+version = "0.6.5"
+dependencies = [
+ "postcard",
+ "tokio",
+ "tower-service",
+ "tracing",
+ "xeno-broker-proto",
+ "xeno-rpc",
+]
+
+[[package]]
+name = "xeno-broker-bin"
+version = "0.6.5"
+dependencies = [
+ "clap",
+ "dirs",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+ "xeno-broker",
+]
+
+[[package]]
+name = "xeno-broker-proto"
+version = "0.6.5"
+dependencies = [
+ "serde",
+]
+
+[[package]]
 name = "xeno-editor"
 version = "0.6.5"
 dependencies = [

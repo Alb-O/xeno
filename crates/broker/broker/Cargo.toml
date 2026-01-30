@@ -1,0 +1,20 @@
+[package]
+name = "xeno-broker"
+description = "Xeno broker library for managing LSP servers and AI providers"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+postcard = { workspace = true, default-features = false, features = ["use-std"] }
+tokio = { workspace = true, features = ["rt", "sync", "io-util", "net", "macros"] }
+tower-service.workspace = true
+tracing.workspace = true
+xeno-broker-proto = { path = "../broker-proto" }
+xeno-rpc.workspace = true
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["io-std", "macros", "rt", "time"] }
+
+[lints]
+workspace = true

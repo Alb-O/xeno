@@ -34,12 +34,10 @@ impl xeno_rpc::Protocol for JsonRpcProtocol {
 	type ReqResult = JsonValue;
 	type ReqError = crate::types::ResponseError;
 	type LoopError = Error;
-	type IdGen = i32;
+	type IdGen = xeno_rpc::CounterIdGen;
 
 	fn next_id(id_gen: &mut Self::IdGen) -> Self::Id {
-		let id = RequestId::Number(*id_gen);
-		*id_gen += 1;
-		id
+		RequestId::Number(id_gen.next() as i32)
 	}
 
 	async fn read_message(

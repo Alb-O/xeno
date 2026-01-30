@@ -17,5 +17,5 @@ pub mod socket;
 pub use error::{Error, Result};
 pub use event::AnyEvent;
 pub use mainloop::{MainLoop, RpcService};
-pub use protocol::{Inbound, Protocol};
+pub use protocol::{CounterIdGen, Inbound, Protocol};
 pub use socket::{MainLoopEvent, PeerSocket};

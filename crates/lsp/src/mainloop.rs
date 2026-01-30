@@ -60,6 +60,8 @@ impl<S> LspServiceWrapper<S> {
 }
 
 /// Future that wraps the service future and maps the error type to ResponseError.
+///
+/// This is an internal implementation detail and should not be used directly.
 pin_project! {
 	pub struct ServiceFuture<Fut> {
 		#[pin]
@@ -129,8 +131,6 @@ where
 	}
 }
 
-define_getters!(impl[S: LspService<Response = JsonValue>] MainLoop<S>, inner: xeno_rpc::MainLoop<LspServiceWrapper<S>, JsonRpcProtocol>);
-
 impl<S> MainLoop<S>
 where
 	S: LspService<Response = JsonValue> + Send + 'static,
@@ -140,7 +140,7 @@ where
 	/// Create a Language Server main loop.
 	#[must_use]
 	pub fn new_server(builder: impl FnOnce(ClientSocket) -> S) -> (Self, ClientSocket) {
-		let id_gen: i32 = 0;
+		let id_gen = xeno_rpc::CounterIdGen::new();
 		let protocol = JsonRpcProtocol::new();
 		let (inner, rpc_socket) = xeno_rpc::MainLoop::new(
 			|socket| LspServiceWrapper::new(builder(ClientSocket(PeerSocket::from_rpc(socket)))),
@@ -154,7 +154,7 @@ where
 	/// Create a Language Client main loop.
 	#[must_use]
 	pub fn new_client(builder: impl FnOnce(ServerSocket) -> S) -> (Self, ServerSocket) {
-		let id_gen: i32 = 0;
+		let id_gen = xeno_rpc::CounterIdGen::new();
 		let protocol = JsonRpcProtocol::new();
 		let (inner, rpc_socket) = xeno_rpc::MainLoop::new(
 			|socket| LspServiceWrapper::new(builder(ServerSocket(PeerSocket::from_rpc(socket)))),
