@@ -637,13 +637,24 @@ impl Document {
 
 	/// Updates the syntax from a completed background parse.
 	///
-	/// Called by [`SyntaxManager`] when a background parse completes.
-	///
-	/// [`SyntaxManager`]: crate::syntax_manager::SyntaxManager
+	/// This is the primary entry point for installing a successful parse result.
+	/// MUST clear `syntax_dirty`.
+	/// MUST bump `syntax_version`.
 	pub fn set_syntax(&mut self, syntax: Option<Syntax>) {
 		self.syntax = syntax;
 		self.syntax_dirty = false;
 		self.syntax_version = self.syntax_version.wrapping_add(1);
+	}
+
+	/// Write-back for the syntax slot during scheduler integration.
+	///
+	/// MUST NOT change `syntax_dirty`.
+	/// MUST only bump `syntax_version` if `updated` is true.
+	pub fn put_syntax_slot(&mut self, syntax: Option<Syntax>, updated: bool) {
+		self.syntax = syntax;
+		if updated {
+			self.syntax_version = self.syntax_version.wrapping_add(1);
+		}
 	}
 
 	/// Marks syntax as dirty (needing reparse).

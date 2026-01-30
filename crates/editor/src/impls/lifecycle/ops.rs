@@ -16,70 +16,119 @@ use crate::types::{Invocation, InvocationPolicy, InvocationResult};
 
 impl Editor {
 	/// Polls background syntax parsing for all buffers, installing results when ready.
+	///
+	/// This implementation deduplicates parsing by document, ensuring we only
+	/// call the syntax manager once per document regardless of how many views
+	/// it has. It also correctly handles the "put-back" workflow to avoid
+	/// unnecessary syntax version bumps.
 	pub fn ensure_syntax_for_buffers(&mut self) {
+		use std::collections::HashMap;
+
+		use crate::syntax_manager::{EnsureSyntaxContext, SyntaxHotness, SyntaxSlot};
+
 		let loader = std::sync::Arc::clone(&self.state.config.language_loader);
 		let mut visible_ids = self.state.windows.base_window().layout.views();
 		for (_, floating) in self.state.windows.floating_windows() {
 			visible_ids.push(floating.buffer);
 		}
 
-		let buffer_info: Vec<_> = self
-			.state
-			.core
-			.buffers
-			.buffer_ids()
-			.filter_map(|id| {
-				let buffer = self.state.core.buffers.get_buffer(id)?;
-				let (doc_id, version, lang_id, content, has_syntax, syntax_dirty) = buffer
-					.with_doc(|doc| {
-						(
-							doc.id,
-							doc.version(),
-							doc.language_id(),
-							doc.content().clone(),
-							doc.syntax().is_some(),
-							doc.is_syntax_dirty(),
-						)
-					});
-				if has_syntax && !syntax_dirty && !self.state.syntax_manager.has_pending(doc_id) {
-					return None;
-				}
-				let hotness = if visible_ids.contains(&id) {
-					crate::syntax_manager::SyntaxHotness::Visible
-				} else {
-					crate::syntax_manager::SyntaxHotness::Warm
-				};
-				Some((id, doc_id, version, lang_id, content, hotness))
-			})
-			.collect();
+		// 1. Collect unique documents and determine their maximum "hotness" across all views.
+		struct DocWork {
+			doc_id: crate::buffer::DocumentId,
+			version: u64,
+			lang_id: Option<xeno_runtime_language::LanguageId>,
+			content: ropey::Rope,
+			hotness: SyntaxHotness,
+			representative_buffer: crate::buffer::ViewId,
+		}
 
-		for (buffer_id, doc_id, version, lang_id, content, hotness) in buffer_info {
+		let mut docs_to_poll: HashMap<crate::buffer::DocumentId, DocWork> = HashMap::new();
+
+		for buffer_id in self.state.core.buffers.buffer_ids() {
+			let Some(buffer) = self.state.core.buffers.get_buffer(buffer_id) else {
+				continue;
+			};
+
+			let (doc_id, version, lang_id, content, has_syntax, syntax_dirty) =
+				buffer.with_doc(|doc| {
+					(
+						doc.id,
+						doc.version(),
+						doc.language_id(),
+						doc.content().clone(),
+						doc.syntax().is_some(),
+						doc.is_syntax_dirty(),
+					)
+				});
+
+			// If it's already clean and no task is inflight, we might skip it.
+			// But we still need to check if SyntaxManager wants to poll an inflight task
+			// even if the doc was marked clean by something else (the "immortal task" fix).
+			if has_syntax && !syntax_dirty && !self.state.syntax_manager.has_pending(doc_id) {
+				continue;
+			}
+
+			let hotness = if visible_ids.contains(&buffer_id) {
+				SyntaxHotness::Visible
+			} else {
+				SyntaxHotness::Warm
+			};
+
+			let entry = docs_to_poll.entry(doc_id).or_insert(DocWork {
+				doc_id,
+				version,
+				lang_id,
+				content,
+				hotness,
+				representative_buffer: buffer_id,
+			});
+
+			// Promote hotness if this view is more visible than others.
+			if hotness == SyntaxHotness::Visible {
+				entry.hotness = SyntaxHotness::Visible;
+			}
+		}
+
+		// 2. Process each unique document.
+		for work in docs_to_poll.into_values() {
+			// Pick the representative buffer to move syntax out.
 			let (mut syntax, mut dirty) = self
 				.state
 				.core
 				.buffers
-				.get_buffer(buffer_id)
+				.get_buffer(work.representative_buffer)
 				.map(|b| b.with_doc_mut(|doc| (doc.take_syntax(), doc.is_syntax_dirty())))
 				.unwrap_or((None, false));
 
+			let mut updated = false;
+
 			let result = self.state.syntax_manager.ensure_syntax(
-				crate::syntax_manager::EnsureSyntaxContext {
-					doc_id,
-					doc_version: version,
-					language_id: lang_id,
-					content: &content,
-					hotness,
+				EnsureSyntaxContext {
+					doc_id: work.doc_id,
+					doc_version: work.version,
+					language_id: work.lang_id,
+					content: &work.content,
+					hotness: work.hotness,
 					loader: &loader,
 				},
-				crate::syntax_manager::SyntaxSlot {
+				SyntaxSlot {
 					current: &mut syntax,
 					dirty: &mut dirty,
+					updated: &mut updated,
 				},
 			);
 
-			if let Some(buffer) = self.state.core.buffers.get_buffer(buffer_id) {
+			// 3. Write back to the shared document.
+			// Since all buffers for this doc share the same Document instance,
+			// we only need to write back once through the representative buffer.
+			if let Some(buffer) = self
+				.state
+				.core
+				.buffers
+				.get_buffer(work.representative_buffer)
+			{
 				buffer.with_doc_mut(|doc| {
-					doc.set_syntax(syntax);
+					doc.put_syntax_slot(syntax, updated);
 					if dirty {
 						doc.mark_syntax_dirty();
 					} else {
@@ -88,11 +137,12 @@ impl Editor {
 				});
 			}
 
-			if matches!(
-				result,
-				crate::syntax_manager::SyntaxPollResult::Ready
-					| crate::syntax_manager::SyntaxPollResult::Kicked
-			) {
+			if updated
+				|| matches!(
+					result,
+					crate::syntax_manager::SyntaxPollResult::Ready
+						| crate::syntax_manager::SyntaxPollResult::Kicked
+				) {
 				self.state.frame.needs_redraw = true;
 			}
 		}

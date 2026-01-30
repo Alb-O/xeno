@@ -132,6 +132,12 @@ impl TieredSyntaxPolicy {
 	}
 }
 
+/// Key for checking if parse options have changed.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct OptKey {
+	injections: InjectionPolicy,
+}
+
 struct DocState {
 	last_edit_at: Instant,
 	last_visible_at: Instant,
@@ -152,6 +158,8 @@ impl DocState {
 
 struct PendingSyntaxTask {
 	doc_version: u64,
+	lang_id: LanguageId,
+	opts: OptKey,
 	_started_at: Instant,
 	task: JoinHandle<Result<Syntax, SyntaxError>>,
 }
@@ -175,11 +183,36 @@ pub enum SyntaxPollResult {
 	Throttled,
 }
 
+/// Abstract engine for parsing syntax (for test mockability).
+pub trait SyntaxEngine: Send + Sync {
+	fn parse(
+		&self,
+		content: ropey::RopeSlice<'_>,
+		lang: LanguageId,
+		loader: &LanguageLoader,
+		opts: SyntaxOptions,
+	) -> Result<Syntax, SyntaxError>;
+}
+
+struct RealSyntaxEngine;
+impl SyntaxEngine for RealSyntaxEngine {
+	fn parse(
+		&self,
+		content: ropey::RopeSlice<'_>,
+		lang: LanguageId,
+		loader: &LanguageLoader,
+		opts: SyntaxOptions,
+	) -> Result<Syntax, SyntaxError> {
+		Syntax::new(content, lang, loader, opts)
+	}
+}
+
 /// Background syntax scheduling + parsing.
 pub struct SyntaxManager {
 	policy: TieredSyntaxPolicy,
 	permits: Arc<Semaphore>,
 	docs: HashMap<DocumentId, DocState>,
+	engine: Arc<dyn SyntaxEngine>,
 }
 
 impl Default for SyntaxManager {
@@ -200,6 +233,7 @@ pub struct EnsureSyntaxContext<'a> {
 pub struct SyntaxSlot<'a> {
 	pub current: &'a mut Option<Syntax>,
 	pub dirty: &'a mut bool,
+	pub updated: &'a mut bool,
 }
 
 impl SyntaxManager {
@@ -208,6 +242,17 @@ impl SyntaxManager {
 			policy: TieredSyntaxPolicy::default(),
 			permits: Arc::new(Semaphore::new(max_concurrency.max(1))),
 			docs: HashMap::new(),
+			engine: Arc::new(RealSyntaxEngine),
+		}
+	}
+
+	#[cfg(test)]
+	pub fn new_with_engine(max_concurrency: usize, engine: Arc<dyn SyntaxEngine>) -> Self {
+		Self {
+			policy: TieredSyntaxPolicy::default(),
+			permits: Arc::new(Semaphore::new(max_concurrency.max(1))),
+			docs: HashMap::new(),
+			engine,
 		}
 	}
 
@@ -247,20 +292,17 @@ impl SyntaxManager {
 	/// Polls or kicks background syntax parsing.
 	///
 	/// This is the main entry point for the syntax scheduler. It:
-	/// 1. Updates document visibility/hotness.
-	/// 2. Applies retention policies (dropping hidden trees).
-	/// 3. Polls any in-flight background parsing tasks.
-	/// 4. Handles stale results by installing them but keeping the dirty flag.
-	/// 5. Respects debounce and backoff (cooldown) timers.
-	/// 6. Spawns new background parse tasks if permits are available.
+	/// 1. Polling/draining inflight tasks (immortal task prevention).
+	/// 2. Validating results against LanguageId and OptKey.
+	/// 3. Respecting retention policy at completion time.
+	/// 4. Handling debounce and backoff (cooldown) timers.
+	/// 5. Spawning new background parse tasks if permits are available.
 	pub fn ensure_syntax(
 		&mut self,
 		ctx: EnsureSyntaxContext<'_>,
 		slot: SyntaxSlot<'_>,
 	) -> SyntaxPollResult {
-		let Some(lang_id) = ctx.language_id else {
-			return SyntaxPollResult::NoLanguage;
-		};
+		*slot.updated = false;
 
 		let now = Instant::now();
 		let st = self
@@ -275,52 +317,47 @@ impl SyntaxManager {
 		let bytes = ctx.content.len_bytes();
 		let tier = self.policy.tier_for_bytes(bytes);
 		let cfg = self.policy.cfg(tier);
+		let current_opts_key = OptKey {
+			injections: cfg.injections,
+		};
 
-		// Memory retention: drop syntax when hidden/cold per tier config.
-		apply_retention(
-			now,
-			st,
-			cfg.retention_hidden,
-			ctx.hotness,
-			slot.current,
-			slot.dirty,
-		);
-
-		if slot.current.is_some() && !*slot.dirty {
-			return SyntaxPollResult::Ready;
-		}
-
-		// If hidden and this tier forbids background parsing, bail early.
-		if !matches!(ctx.hotness, SyntaxHotness::Visible) && !cfg.parse_when_hidden {
-			return SyntaxPollResult::Disabled;
-		}
-
-		// Poll inflight.
+		// 1) Poll/drain inflight FIRST (fixes “immortal inflight”)
 		if let Some(p) = st.inflight.as_mut() {
 			let join = xeno_primitives::future::poll_once(&mut p.task);
 			if join.is_none() {
+				// still running; do NOT short-circuit to Ready/Disabled
 				return SyntaxPollResult::Pending;
 			}
-			let done = st.inflight.take().expect("inflight present");
-			let join = join.expect("checked ready");
-			let done_version = done.doc_version;
 
-			match join {
+			let done = st.inflight.take().expect("inflight present");
+			match join.expect("checked ready") {
 				Ok(Ok(syntax)) => {
-					*slot.current = Some(syntax);
-					if done_version == ctx.doc_version {
+					// language gating: only install if language still matches
+					let Some(current_lang) = ctx.language_id else {
+						// language removed mid-flight: discard result
+						return SyntaxPollResult::NoLanguage;
+					};
+
+					let lang_ok = done.lang_id == current_lang;
+					let opts_ok = done.opts == current_opts_key;
+					let retain_ok =
+						retention_allows_install(now, st, cfg.retention_hidden, ctx.hotness);
+
+					if lang_ok && retain_ok {
+						*slot.current = Some(syntax);
+						*slot.updated = true;
+					}
+
+					// dirty clears only if this parse matches current version + “shape”
+					if lang_ok && opts_ok && done.doc_version == ctx.doc_version {
 						*slot.dirty = false;
 						st.cooldown_until = None;
 						return SyntaxPollResult::Ready;
 					}
-					// Stale result (doc changed while parsing).
-					// We install it anyway to ensure "something" is highlighted,
-					// but keep the dirty flag set so the scheduler immediately
-					// kicks off a fresh parse for the latest document version.
+					// else: keep dirty true (caller keeps chasing newest)
 				}
 				Ok(Err(SyntaxError::Timeout)) => {
 					st.cooldown_until = Some(now + cfg.cooldown_on_timeout);
-					// Keep dirty so we retry after cooldown.
 					return SyntaxPollResult::CoolingDown;
 				}
 				Ok(Err(e)) => {
@@ -336,12 +373,44 @@ impl SyntaxManager {
 			}
 		}
 
-		// Debounce: wait for quiet period.
+		// 2) Handle “no language” AFTER draining inflight to avoid leaks
+		let Some(lang_id) = ctx.language_id else {
+			if slot.current.is_some() {
+				*slot.current = None;
+				*slot.updated = true;
+			}
+			*slot.dirty = false;
+			st.cooldown_until = None;
+			return SyntaxPollResult::NoLanguage;
+		};
+
+		// 3) Retention AFTER inflight completion (don’t re-install dropped trees)
+		apply_retention(
+			now,
+			st,
+			cfg.retention_hidden,
+			ctx.hotness,
+			slot.current,
+			slot.dirty,
+			slot.updated,
+		);
+
+		// 4) Clean short-circuit (safe now: no inflight exists)
+		if slot.current.is_some() && !*slot.dirty {
+			return SyntaxPollResult::Ready;
+		}
+
+		// 5) Hidden policy check (safe now: inflight already drained)
+		if !matches!(ctx.hotness, SyntaxHotness::Visible) && !cfg.parse_when_hidden {
+			return SyntaxPollResult::Disabled;
+		}
+
+		// 6) Debounce
 		if now.duration_since(st.last_edit_at) < cfg.debounce {
 			return SyntaxPollResult::Pending;
 		}
 
-		// Cooldown: backoff.
+		// 7) Cooldown
 		if let Some(until) = st.cooldown_until {
 			if now < until {
 				return SyntaxPollResult::CoolingDown;
@@ -349,29 +418,50 @@ impl SyntaxManager {
 			st.cooldown_until = None;
 		}
 
-		// Global concurrency cap.
+		// 8) Concurrency cap
 		let permit = match Arc::clone(&self.permits).try_acquire_owned() {
 			Ok(p) => p,
 			Err(_) => return SyntaxPollResult::Throttled,
 		};
 
-		// Spawn parse.
+		// 9) Spawn
 		let loader = Arc::clone(ctx.loader);
 		let content = ctx.content.clone();
 		let opts = SyntaxOptions {
 			parse_timeout: cfg.parse_timeout,
 			injections: cfg.injections,
 		};
+		let engine = Arc::clone(&self.engine);
 		let task = tokio::task::spawn_blocking(move || {
 			let _permit: OwnedSemaphorePermit = permit;
-			Syntax::new(content.slice(..), lang_id, &loader, opts)
+			engine.parse(content.slice(..), lang_id, &loader, opts)
 		});
+
 		st.inflight = Some(PendingSyntaxTask {
 			doc_version: ctx.doc_version,
+			lang_id,
+			opts: current_opts_key,
 			_started_at: now,
 			task,
 		});
+
 		SyntaxPollResult::Kicked
+	}
+}
+
+fn retention_allows_install(
+	now: Instant,
+	st: &DocState,
+	policy: RetentionPolicy,
+	hotness: SyntaxHotness,
+) -> bool {
+	if matches!(hotness, SyntaxHotness::Visible | SyntaxHotness::Warm) {
+		return true;
+	}
+	match policy {
+		RetentionPolicy::Keep => true,
+		RetentionPolicy::DropWhenHidden => false,
+		RetentionPolicy::DropAfter(ttl) => now.duration_since(st.last_visible_at) <= ttl,
 	}
 }
 
@@ -382,6 +472,7 @@ fn apply_retention(
 	hotness: SyntaxHotness,
 	current_syntax: &mut Option<Syntax>,
 	syntax_dirty: &mut bool,
+	updated: &mut bool,
 ) {
 	if matches!(hotness, SyntaxHotness::Visible | SyntaxHotness::Warm) {
 		return;
@@ -393,13 +484,269 @@ fn apply_retention(
 			if current_syntax.is_some() {
 				*current_syntax = None;
 				*syntax_dirty = true;
+				*updated = true;
 			}
 		}
 		RetentionPolicy::DropAfter(ttl) => {
 			if current_syntax.is_some() && now.duration_since(st.last_visible_at) > ttl {
 				*current_syntax = None;
 				*syntax_dirty = true;
+				*updated = true;
 			}
 		}
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use std::sync::Mutex;
+
+	use tokio::sync::oneshot;
+
+	use super::*;
+
+	struct MockEngine {
+		gate: Mutex<Option<oneshot::Receiver<()>>>,
+	}
+
+	impl MockEngine {
+		fn new() -> Self {
+			Self {
+				gate: Mutex::new(None),
+			}
+		}
+
+		fn set_gate(&self, rx: oneshot::Receiver<()>) {
+			*self.gate.lock().unwrap() = Some(rx);
+		}
+	}
+
+	impl SyntaxEngine for MockEngine {
+		fn parse(
+			&self,
+			_content: ropey::RopeSlice<'_>,
+			_lang: LanguageId,
+			_loader: &LanguageLoader,
+			_opts: SyntaxOptions,
+		) -> Result<Syntax, SyntaxError> {
+			let gate = self.gate.lock().unwrap().take();
+			if let Some(rx) = gate {
+				let _ = rx.blocking_recv();
+			}
+
+			Err(SyntaxError::Timeout)
+		}
+	}
+
+	#[tokio::test]
+	async fn test_inflight_drained_even_if_doc_marked_clean() {
+		let engine = Arc::new(MockEngine::new());
+		let (tx, rx) = oneshot::channel();
+		engine.set_gate(rx);
+
+		let mut mgr = SyntaxManager::new_with_engine(1, engine.clone());
+		let mut policy = TieredSyntaxPolicy::default();
+		policy.s.debounce = Duration::from_millis(0);
+		policy.s.cooldown_on_timeout = Duration::from_millis(0);
+		mgr.set_policy(policy);
+
+		let doc_id = DocumentId(1);
+		let loader = Arc::new(LanguageLoader::new());
+		let lang_id = loader
+			.language_for_name("rust")
+			.unwrap_or_else(|| LanguageId::new(0u32));
+		let content = Rope::from("test");
+
+		let mut current = None;
+		let mut dirty = true;
+		let mut updated = false;
+		let poll = mgr.ensure_syntax(
+			EnsureSyntaxContext {
+				doc_id,
+				doc_version: 1,
+				language_id: Some(lang_id),
+				content: &content,
+				hotness: SyntaxHotness::Visible,
+				loader: &loader,
+			},
+			SyntaxSlot {
+				current: &mut current,
+				dirty: &mut dirty,
+				updated: &mut updated,
+			},
+		);
+		assert_eq!(poll, SyntaxPollResult::Kicked);
+		assert!(mgr.has_pending(doc_id));
+
+		dirty = false;
+		let _ = tx.send(());
+		tokio::time::sleep(Duration::from_millis(50)).await;
+
+		let poll = mgr.ensure_syntax(
+			EnsureSyntaxContext {
+				doc_id,
+				doc_version: 1,
+				language_id: Some(lang_id),
+				content: &content,
+				hotness: SyntaxHotness::Visible,
+				loader: &loader,
+			},
+			SyntaxSlot {
+				current: &mut current,
+				dirty: &mut dirty,
+				updated: &mut updated,
+			},
+		);
+
+		assert!(!mgr.has_pending(doc_id));
+		assert!(matches!(
+			poll,
+			SyntaxPollResult::Ready | SyntaxPollResult::CoolingDown
+		));
+	}
+
+	#[tokio::test]
+	async fn test_language_switch_discards_old_parse() {
+		let engine = Arc::new(MockEngine::new());
+		let (tx, rx) = oneshot::channel();
+		engine.set_gate(rx);
+
+		let mut mgr = SyntaxManager::new_with_engine(2, engine.clone());
+		let mut policy = TieredSyntaxPolicy::default();
+		policy.s.debounce = Duration::from_millis(0);
+		policy.s.cooldown_on_timeout = Duration::from_millis(0);
+		mgr.set_policy(policy);
+
+		let doc_id = DocumentId(1);
+		let loader = Arc::new(LanguageLoader::new());
+		let lang_id_old = loader
+			.language_for_name("rust")
+			.unwrap_or_else(|| LanguageId::new(1u32));
+		let lang_id_new = loader
+			.language_for_name("python")
+			.unwrap_or_else(|| LanguageId::new(2u32));
+		let content = Rope::from("test");
+
+		let mut current = None;
+		let mut dirty = true;
+		let mut updated = false;
+		mgr.ensure_syntax(
+			EnsureSyntaxContext {
+				doc_id,
+				doc_version: 1,
+				language_id: Some(lang_id_old),
+				content: &content,
+				hotness: SyntaxHotness::Visible,
+				loader: &loader,
+			},
+			SyntaxSlot {
+				current: &mut current,
+				dirty: &mut dirty,
+				updated: &mut updated,
+			},
+		);
+
+		let _ = tx.send(());
+		tokio::time::sleep(Duration::from_millis(50)).await;
+
+		let poll = mgr.ensure_syntax(
+			EnsureSyntaxContext {
+				doc_id,
+				doc_version: 1,
+				language_id: Some(lang_id_new),
+				content: &content,
+				hotness: SyntaxHotness::Visible,
+				loader: &loader,
+			},
+			SyntaxSlot {
+				current: &mut current,
+				dirty: &mut dirty,
+				updated: &mut updated,
+			},
+		);
+
+		assert!(current.is_none());
+		let poll = if poll == SyntaxPollResult::CoolingDown {
+			mgr.ensure_syntax(
+				EnsureSyntaxContext {
+					doc_id,
+					doc_version: 1,
+					language_id: Some(lang_id_new),
+					content: &content,
+					hotness: SyntaxHotness::Visible,
+					loader: &loader,
+				},
+				SyntaxSlot {
+					current: &mut current,
+					dirty: &mut dirty,
+					updated: &mut updated,
+				},
+			)
+		} else {
+			poll
+		};
+		assert_eq!(poll, SyntaxPollResult::Kicked);
+	}
+
+	#[tokio::test]
+	async fn test_dropwhenhidden_discards_completed_parse() {
+		let engine = Arc::new(MockEngine::new());
+		let (tx, rx) = oneshot::channel();
+		engine.set_gate(rx);
+
+		let mut mgr = SyntaxManager::new_with_engine(1, engine.clone());
+		let mut policy = TieredSyntaxPolicy::default();
+		policy.l.retention_hidden = RetentionPolicy::DropWhenHidden;
+		policy.l.debounce = Duration::from_millis(0);
+		policy.l.cooldown_on_timeout = Duration::from_millis(0);
+		mgr.set_policy(policy);
+
+		let doc_id = DocumentId(1);
+		let loader = Arc::new(LanguageLoader::new());
+		let lang_id = loader
+			.language_for_name("rust")
+			.unwrap_or_else(|| LanguageId::new(1u32));
+		let content = Rope::from(" ".repeat(2 * 1024 * 1024));
+
+		let mut current = None;
+		let mut dirty = true;
+		let mut updated = false;
+		mgr.ensure_syntax(
+			EnsureSyntaxContext {
+				doc_id,
+				doc_version: 1,
+				language_id: Some(lang_id),
+				content: &content,
+				hotness: SyntaxHotness::Visible,
+				loader: &loader,
+			},
+			SyntaxSlot {
+				current: &mut current,
+				dirty: &mut dirty,
+				updated: &mut updated,
+			},
+		);
+
+		let _ = tx.send(());
+		tokio::time::sleep(Duration::from_millis(50)).await;
+
+		mgr.ensure_syntax(
+			EnsureSyntaxContext {
+				doc_id,
+				doc_version: 1,
+				language_id: Some(lang_id),
+				content: &content,
+				hotness: SyntaxHotness::Cold,
+				loader: &loader,
+			},
+			SyntaxSlot {
+				current: &mut current,
+				dirty: &mut dirty,
+				updated: &mut updated,
+			},
+		);
+
+		assert!(current.is_none());
+		assert!(dirty);
 	}
 }
