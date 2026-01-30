@@ -1,60 +1,21 @@
 #[cfg(feature = "lsp")]
+mod common;
+
+#[cfg(feature = "lsp")]
 mod tests {
-	use std::sync::Arc;
 	use std::time::Duration;
 
-	use tokio_util::sync::CancellationToken;
-	use xeno_broker::core::BrokerCore;
-	use xeno_broker::ipc;
-	use xeno_broker::test_helpers::TestLauncher;
 	use xeno_broker_proto::types::{ServerId, SessionId};
 	use xeno_editor::lsp::broker_transport::BrokerTransport;
 	use xeno_lsp::client::transport::{LspTransport, StartedServer, TransportEvent};
 	use xeno_lsp::{AnyNotification, AnyResponse, Message};
 	use xeno_rpc::MainLoopEvent;
 
-	async fn spawn_broker() -> (
-		std::path::PathBuf,
-		Arc<BrokerCore>,
-		TestLauncher,
-		CancellationToken,
-		tempfile::TempDir,
-	) {
-		let _ = tracing_subscriber::fmt::try_init();
-		let tmp = tempfile::tempdir().unwrap();
-		let sock = tmp.path().join("broker.sock");
-		let core = BrokerCore::new();
-		let launcher = TestLauncher::new();
-		let shutdown = CancellationToken::new();
-
-		let core_clone = core.clone();
-		let launcher_clone = Arc::new(launcher.clone());
-		let sock_clone = sock.clone();
-		let shutdown_clone = shutdown.clone();
-
-		tokio::spawn(async move {
-			ipc::serve_with_launcher(sock_clone, core_clone, shutdown_clone, launcher_clone)
-				.await
-				.unwrap();
-		});
-
-		// Wait for socket to be ready
-		let mut attempts = 0;
-		while !sock.exists() && attempts < 50 {
-			tokio::time::sleep(Duration::from_millis(10)).await;
-			attempts += 1;
-		}
-
-		(sock, core, launcher, shutdown, tmp)
-	}
-
-	fn test_server_config() -> xeno_lsp::ServerConfig {
-		xeno_lsp::ServerConfig::new("rust-analyzer", "/test")
-	}
+	use super::common::{SpawnedBroker, spawn_broker, test_server_config};
 
 	#[tokio::test]
 	async fn test_broker_e2e_dedup_and_fanout() {
-		let (sock, _core, launcher, shutdown, _tmp) = spawn_broker().await;
+		let (sock, core, launcher, shutdown, _tmp): SpawnedBroker = spawn_broker().await;
 
 		let t1 = BrokerTransport::with_socket_and_session(sock.clone(), SessionId(1));
 		let t2 = BrokerTransport::with_socket_and_session(sock.clone(), SessionId(2));
@@ -97,8 +58,7 @@ mod tests {
 		let mut attempts = 0;
 		let handle = loop {
 			if let Some(h) = launcher.get_server(server_id) {
-				// We can't easily check FakeLsp internals from here without more wiring,
-				// so we'll just wait a bit for the message to propagate through the IPC.
+				// Wait a bit for the message to propagate through the IPC.
 				tokio::time::sleep(Duration::from_millis(100)).await;
 				break h;
 			}
@@ -109,9 +69,9 @@ mod tests {
 			}
 		};
 
-		// Also ensure broker has the doc registered by checking directly if we have access to core
+		// Also ensure broker has the doc registered by checking directly
 		let mut attempts = 0;
-		while _core.get_doc_by_uri(server_id, "file:///test.rs").is_none() {
+		while core.get_doc_by_uri(server_id, "file:///test.rs").is_none() {
 			tokio::time::sleep(Duration::from_millis(10)).await;
 			attempts += 1;
 			if attempts > 100 {
@@ -158,7 +118,7 @@ mod tests {
 
 	#[tokio::test]
 	async fn test_broker_e2e_leader_routing_and_reply() {
-		let (sock, _core, launcher, shutdown, _tmp) = spawn_broker().await;
+		let (sock, _core, launcher, shutdown, _tmp): SpawnedBroker = spawn_broker().await;
 
 		let t1 = BrokerTransport::with_socket_and_session(sock.clone(), SessionId(1));
 		let t2 = BrokerTransport::with_socket_and_session(sock.clone(), SessionId(2));
@@ -178,7 +138,7 @@ mod tests {
 		let handle = launcher.get_server(server_id).expect("server handle");
 
 		// Trigger server->client request
-		let (resp_tx, resp_rx) = tokio::sync::oneshot::channel();
+		let (resp_tx, resp_rx) = tokio::sync::oneshot::channel::<AnyResponse>();
 		let req: xeno_lsp::AnyRequest = serde_json::from_str(
 			r#"{
 			"id": 123,
@@ -220,6 +180,92 @@ mod tests {
 			.expect("Server timeout waiting for response")
 			.expect("response channel closed");
 		assert!(resp.error.is_none());
+
+		shutdown.cancel();
+	}
+
+	#[tokio::test(start_paused = true)]
+	async fn test_broker_e2e_persistence_warm_reattach() {
+		let (sock, _core, _launcher, shutdown, _tmp): SpawnedBroker = spawn_broker().await;
+
+		let cfg = test_server_config();
+
+		// Client 1 starts server
+		let t1 = BrokerTransport::with_socket_and_session(sock.clone(), SessionId(1));
+		let s1 = LspTransport::start(t1.as_ref(), cfg.clone())
+			.await
+			.expect("t1 start");
+
+		// Drop client 1 (disconnect)
+		drop(t1);
+		// Small sleep to allow broker to process disconnect
+		tokio::time::sleep(Duration::from_millis(50)).await;
+
+		// Client 2 connects to the same project
+		let t2 = BrokerTransport::with_socket_and_session(sock.clone(), SessionId(2));
+		let s2 = LspTransport::start(t2.as_ref(), cfg.clone())
+			.await
+			.expect("t2 start");
+
+		// Should be the same server ID
+		assert_eq!(s1.id, s2.id);
+
+		shutdown.cancel();
+	}
+
+	#[tokio::test(start_paused = true)]
+	async fn test_broker_e2e_persistence_lease_expiry() {
+		let (sock, core, _launcher, shutdown, _tmp): SpawnedBroker = spawn_broker().await;
+
+		let cfg = test_server_config();
+
+		// Client 1 starts server
+		let t1 = BrokerTransport::with_socket_and_session(sock.clone(), SessionId(1));
+		let s1 = LspTransport::start(t1.as_ref(), cfg.clone())
+			.await
+			.expect("t1 start");
+
+		// Drop client 1
+		drop(t1);
+
+		// Wait for broker to process disconnect
+		let mut attempts = 0;
+		while attempts < 100 {
+			{
+				let (sessions, servers, _projects) = core.get_state();
+				if sessions.is_empty() {
+					// Also check that it's detached from the server
+					if let Some(attached) = servers.get(&ServerId(s1.id.0)) {
+						if attached.is_empty() {
+							break;
+						}
+					} else {
+						// Already gone?
+						break;
+					}
+				}
+			}
+			tokio::time::sleep(Duration::from_millis(10)).await;
+			attempts += 1;
+		}
+
+		// Advance time past default 5 min lease
+		tokio::time::advance(Duration::from_secs(301)).await;
+		// Give the cleanup task a chance to run
+		tokio::task::yield_now().await;
+		tokio::task::yield_now().await;
+
+		// Client 2 connects
+		let t2 = BrokerTransport::with_socket_and_session(sock.clone(), SessionId(2));
+		let s2 = LspTransport::start(t2.as_ref(), cfg.clone())
+			.await
+			.expect("t2 start");
+
+		// Should be a NEW server ID
+		assert_ne!(
+			s1.id, s2.id,
+			"Server should have expired and a new one started"
+		);
 
 		shutdown.cancel();
 	}

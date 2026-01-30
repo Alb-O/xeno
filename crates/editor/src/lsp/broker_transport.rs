@@ -1,5 +1,6 @@
 //! Broker-based LSP transport implementation.
 
+use std::collections::VecDeque;
 use std::ops::ControlFlow;
 use std::sync::Arc;
 use std::time::Duration;
@@ -11,12 +12,14 @@ use tokio::sync::{mpsc, oneshot};
 use tokio::time::timeout;
 use xeno_broker_proto::BrokerProtocol;
 use xeno_broker_proto::types::{
-	ErrorCode, Event, IpcFrame, Request, RequestId, RequestPayload, Response, ResponsePayload,
-	ServerId, SessionId,
+	ErrorCode, Event, IpcFrame, Request, RequestPayload, Response, ResponsePayload, ServerId,
+	SessionId,
 };
 use xeno_lsp::client::LanguageServerId;
 use xeno_lsp::client::transport::{LspTransport, StartedServer, TransportEvent, TransportStatus};
-use xeno_lsp::{AnyNotification, AnyRequest, AnyResponse, JsonValue, Message, ResponseError};
+use xeno_lsp::{
+	AnyNotification, AnyRequest, AnyResponse, JsonValue, Message, ResponseError, Result,
+};
 use xeno_rpc::{AnyEvent, MainLoop, MainLoopEvent, PeerSocket, RpcService};
 
 /// Transport that communicates with a Xeno broker over a Unix socket.
@@ -26,7 +29,9 @@ pub struct BrokerTransport {
 	events_tx: mpsc::UnboundedSender<TransportEvent>,
 	events_rx: std::sync::Mutex<Option<mpsc::UnboundedReceiver<TransportEvent>>>,
 	rpc: tokio::sync::Mutex<Option<BrokerRpc>>,
-	pending_server_requests: Arc<DashMap<ServerId, xeno_lsp::RequestId>>,
+
+	/// One FIFO queue per server to track pipelined server-initiated requests.
+	pending_server_requests: Arc<DashMap<ServerId, VecDeque<xeno_lsp::RequestId>>>,
 }
 
 struct BrokerRpc {
@@ -41,8 +46,6 @@ impl BrokerTransport {
 	}
 
 	/// Create a new broker transport with a specific socket path and session ID.
-	///
-	/// This is primarily useful for testing.
 	pub fn with_socket_and_session(
 		socket_path: std::path::PathBuf,
 		session_id: SessionId,
@@ -58,17 +61,13 @@ impl BrokerTransport {
 		})
 	}
 
-	/// Create a new broker transport with a specific socket path.
 	fn with_socket_path(socket_path: std::path::PathBuf) -> Arc<Self> {
 		let session_id = SessionId(std::process::id() as u64);
 		Self::with_socket_and_session(socket_path, session_id)
 	}
 
 	/// Ensure we are connected to the broker.
-	async fn ensure_connected(
-		&self,
-		socket_path: &std::path::Path,
-	) -> Result<BrokerRpc, xeno_lsp::Error> {
+	async fn ensure_connected(&self, socket_path: &std::path::Path) -> Result<BrokerRpc> {
 		let mut rpc_lock = self.rpc.lock().await;
 		if let Some(rpc) = &*rpc_lock {
 			return Ok(BrokerRpc {
@@ -87,6 +86,7 @@ impl BrokerTransport {
 
 		let events_tx = self.events_tx.clone();
 		let pending = self.pending_server_requests.clone();
+
 		let (main_loop, socket) = MainLoop::new(
 			move |_| BrokerClientService {
 				tx: events_tx.clone(),
@@ -96,10 +96,12 @@ impl BrokerTransport {
 			id_gen,
 		);
 
-		let events_tx = self.events_tx.clone();
+		let events_tx2 = self.events_tx.clone();
 		tokio::spawn(async move {
-			let _ = main_loop.run(reader, w).await;
-			let _ = events_tx.send(TransportEvent::Disconnected);
+			if let Err(e) = main_loop.run(reader, w).await {
+				tracing::error!(error = %e, "Broker client mainloop failed");
+			}
+			let _ = events_tx2.send(TransportEvent::Disconnected);
 		});
 
 		let rpc = BrokerRpc {
@@ -128,12 +130,12 @@ impl BrokerRpc {
 		&self,
 		payload: RequestPayload,
 		timeout_dur: Duration,
-	) -> Result<ResponsePayload, ErrorCode> {
+	) -> std::result::Result<ResponsePayload, ErrorCode> {
 		let req = Request {
-			id: RequestId(0),
+			id: xeno_broker_proto::types::RequestId(0),
 			payload,
 		};
-		let (tx, rx) = oneshot::channel();
+		let (tx, rx) = oneshot::channel::<Response>();
 		let _ = self.socket.send(MainLoopEvent::OutgoingRequest(req, tx));
 
 		let resp = match timeout(timeout_dur, rx).await {
@@ -158,7 +160,7 @@ impl LspTransport for BrokerTransport {
 			.expect("events() called twice")
 	}
 
-	async fn start(&self, cfg: xeno_lsp::ServerConfig) -> xeno_lsp::Result<StartedServer> {
+	async fn start(&self, cfg: xeno_lsp::client::ServerConfig) -> Result<StartedServer> {
 		let rpc = self.ensure_connected(&self.socket_path).await?;
 
 		let broker_cfg = xeno_broker_proto::types::LspServerConfig {
@@ -171,7 +173,7 @@ impl LspTransport for BrokerTransport {
 		let resp = rpc
 			.call(
 				RequestPayload::LspStart { config: broker_cfg },
-				Duration::from_secs(10),
+				Duration::from_secs(30),
 			)
 			.await
 			.map_err(|e| xeno_lsp::Error::Protocol(format!("LspStart failed: {:?}", e)))?;
@@ -187,11 +189,7 @@ impl LspTransport for BrokerTransport {
 		}
 	}
 
-	async fn notify(
-		&self,
-		server: LanguageServerId,
-		notif: AnyNotification,
-	) -> xeno_lsp::Result<()> {
+	async fn notify(&self, server: LanguageServerId, notif: AnyNotification) -> Result<()> {
 		let rpc = self.ensure_connected(&self.socket_path).await?;
 		let msg = Message::Notification(notif);
 		let json =
@@ -214,9 +212,9 @@ impl LspTransport for BrokerTransport {
 		&self,
 		server: LanguageServerId,
 		notif: AnyNotification,
-	) -> xeno_lsp::Result<oneshot::Receiver<()>> {
+	) -> Result<oneshot::Receiver<()>> {
 		self.notify(server, notif).await?;
-		let (tx, rx) = oneshot::channel();
+		let (tx, rx) = oneshot::channel::<()>();
 		let _ = tx.send(());
 		Ok(rx)
 	}
@@ -226,7 +224,7 @@ impl LspTransport for BrokerTransport {
 		server: LanguageServerId,
 		req: AnyRequest,
 		timeout: Option<Duration>,
-	) -> xeno_lsp::Result<AnyResponse> {
+	) -> Result<AnyResponse> {
 		let rpc = self.ensure_connected(&self.socket_path).await?;
 		let json =
 			serde_json::to_string(&req).map_err(|e| xeno_lsp::Error::Protocol(e.to_string()))?;
@@ -259,25 +257,14 @@ impl LspTransport for BrokerTransport {
 		&self,
 		server: LanguageServerId,
 		resp: Result<JsonValue, ResponseError>,
-	) -> xeno_lsp::Result<()> {
+	) -> Result<()> {
 		let rpc = self.ensure_connected(&self.socket_path).await?;
 		let server_id = ServerId(server.0);
-		tracing::info!(?server_id, "Replying to request");
 		let request_id = self
 			.pending_server_requests
-			.remove(&server_id)
-			.ok_or_else(|| {
-				tracing::warn!(
-					?server_id,
-					"No pending request found for reply. Current keys: {:?}",
-					self.pending_server_requests
-						.iter()
-						.map(|r| *r.key())
-						.collect::<Vec<_>>()
-				);
-				xeno_lsp::Error::Protocol("No pending request for reply".into())
-			})?
-			.1;
+			.get_mut(&server_id)
+			.and_then(|mut queue| queue.pop_front())
+			.ok_or_else(|| xeno_lsp::Error::Protocol("No pending request for reply".into()))?;
 
 		let any_resp = match resp {
 			Ok(v) => AnyResponse::new_ok(request_id, v),
@@ -303,20 +290,23 @@ impl LspTransport for BrokerTransport {
 
 struct BrokerClientService {
 	tx: mpsc::UnboundedSender<TransportEvent>,
-	pending: Arc<DashMap<ServerId, xeno_lsp::RequestId>>,
+	pending: Arc<DashMap<ServerId, VecDeque<xeno_lsp::RequestId>>>,
 }
 
 impl tower_service::Service<Request> for BrokerClientService {
 	type Response = ResponsePayload;
 	type Error = ErrorCode;
 	type Future = std::pin::Pin<
-		Box<dyn std::future::Future<Output = Result<Self::Response, Self::Error>> + Send>,
+		Box<
+			dyn std::future::Future<Output = std::result::Result<Self::Response, Self::Error>>
+				+ Send,
+		>,
 	>;
 
 	fn poll_ready(
 		&mut self,
 		_: &mut std::task::Context<'_>,
-	) -> std::task::Poll<Result<(), Self::Error>> {
+	) -> std::task::Poll<std::result::Result<(), Self::Error>> {
 		std::task::Poll::Ready(Ok(()))
 	}
 
@@ -354,11 +344,12 @@ impl RpcService<BrokerProtocol> for BrokerClientService {
 				}
 			}
 			Event::LspRequest { server_id, message } => {
-				tracing::info!(?server_id, "Received LspRequest event");
 				if let Ok(msg) = serde_json::from_str::<Message>(&message) {
 					if let Message::Request(req) = &msg {
-						tracing::info!(?server_id, ?req.id, "Inserting pending request");
-						self.pending.insert(server_id, req.id.clone());
+						self.pending
+							.entry(server_id)
+							.or_default()
+							.push_back(req.id.clone());
 					}
 					let _ = self.tx.send(TransportEvent::Message {
 						server: LanguageServerId(server_id.0),

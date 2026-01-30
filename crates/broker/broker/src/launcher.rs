@@ -16,9 +16,9 @@ use crate::lsp::LspProxyService;
 pub trait LspLauncher: Send + Sync + 'static {
 	/// Launch a new LSP server instance.
 	///
-	/// Returns an [LspInstance] ready to be registered with the broker core.
-	/// The instance should include a handle to communicate with the server
-	/// and track its lifecycle.
+	/// Returns an [`LspInstance`] ready to be registered with the broker core.
+	/// The instance includes handles for bidirectional communication with the
+	/// server and tracking its lifecycle.
 	fn launch(
 		&self,
 		core: Arc<BrokerCore>,
@@ -34,6 +34,7 @@ pub struct ProcessLauncher;
 
 impl ProcessLauncher {
 	/// Create a new process launcher.
+	#[must_use]
 	pub fn new() -> Self {
 		Self
 	}
@@ -85,7 +86,7 @@ impl LspLauncher for ProcessLauncher {
 
 			let instance = LspInstance::new(lsp_socket, child, LspServerStatus::Starting);
 
-			// Spawn the proxy mainloop task
+			// Spawn the proxy mainloop task to handle server stdio.
 			tokio::spawn(async move {
 				let reader = BufReader::new(stdout);
 				let _ = lsp_loop.run(reader, stdin).await;
@@ -104,7 +105,7 @@ impl LspLauncher for ProcessLauncher {
 pub mod test_helpers {
 	use std::collections::HashMap;
 	use std::ops::ControlFlow;
-	use std::sync::Mutex;
+	use std::sync::{Arc, Mutex};
 
 	use tower_service::Service;
 	use xeno_lsp::protocol::JsonRpcProtocol;
@@ -115,7 +116,7 @@ pub mod test_helpers {
 
 	/// A fake LSP server for testing that runs in-process.
 	pub struct FakeLsp {
-		/// Track received didOpen notifications.
+		/// Track received didOpen notifications for verification in tests.
 		pub received_opens: Mutex<Vec<(String, String)>>,
 	}
 
@@ -127,6 +128,7 @@ pub mod test_helpers {
 
 	impl FakeLsp {
 		/// Create a new fake LSP server.
+		#[must_use]
 		pub fn new() -> Self {
 			Self {
 				received_opens: Mutex::new(Vec::new()),
@@ -217,6 +219,7 @@ pub mod test_helpers {
 
 	impl TestLauncher {
 		/// Create a new test launcher.
+		#[must_use]
 		pub fn new() -> Self {
 			Self {
 				servers: Arc::new(Mutex::new(HashMap::new())),

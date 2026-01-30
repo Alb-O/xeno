@@ -51,8 +51,9 @@ impl LspProxyService {
 		};
 
 		match msg {
-			Message::Request(_) => {
+			Message::Request(ref req) => {
 				// Server->Client requests go only to leader
+				tracing::trace!(?self.server_id, method = %req.method, "Forwarding server request to leader");
 				self.core.send_to_leader(
 					self.server_id,
 					Event::LspRequest {
@@ -63,6 +64,7 @@ impl LspProxyService {
 			}
 			Message::Notification(ref notif) => {
 				// Broadcast notifications to all attached sessions
+				tracing::trace!(?self.server_id, method = %notif.method, "Broadcasting server notification");
 				self.core.broadcast_to_server(
 					self.server_id,
 					Event::LspMessage {
@@ -76,6 +78,7 @@ impl LspProxyService {
 					&& let Some(uri) = notif.params.get("uri").and_then(|u| u.as_str())
 					&& let Some((doc_id, version)) = self.core.get_doc_by_uri(self.server_id, uri)
 				{
+					tracing::debug!(?self.server_id, %uri, "Broadcasting structured diagnostics");
 					let diagnostics = notif
 						.params
 						.get("diagnostics")

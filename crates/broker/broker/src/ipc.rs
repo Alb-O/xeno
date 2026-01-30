@@ -12,6 +12,14 @@ use crate::launcher::{LspLauncher, ProcessLauncher};
 use crate::service::BrokerService;
 
 /// Start the broker IPC server on a Unix domain socket.
+///
+/// This function uses the production [`ProcessLauncher`] to spawn real LSP
+/// server processes.
+///
+/// # Errors
+///
+/// Returns an error if the socket cannot be bound or if filesystem operations
+/// on the socket path fail.
 pub async fn serve(
 	socket_path: impl AsRef<Path>,
 	core: Arc<BrokerCore>,
@@ -22,7 +30,14 @@ pub async fn serve(
 	serve_with_launcher(socket_path, core, shutdown, launcher).await
 }
 
-/// Start the broker IPC server with a custom launcher (for testing).
+/// Start the broker IPC server with a custom launcher.
+///
+/// This is primarily used for testing to inject a mock launcher that does not
+/// spawn real processes.
+///
+/// # Errors
+///
+/// Returns an error if the socket cannot be bound.
 pub async fn serve_with_launcher(
 	socket_path: impl AsRef<Path>,
 	core: Arc<BrokerCore>,
@@ -44,6 +59,7 @@ pub async fn serve_with_launcher(
 		tokio::select! {
 			_ = shutdown.cancelled() => {
 				tracing::info!("Broker IPC server shutting down");
+				core.terminate_all();
 				break;
 			}
 			res = listener.accept() => {
@@ -62,7 +78,7 @@ pub async fn serve_with_launcher(
 	Ok(())
 }
 
-/// Handle a single IPC connection.
+/// Handle a single IPC connection from an editor session.
 pub(crate) async fn handle_connection(
 	stream: UnixStream,
 	core: Arc<BrokerCore>,

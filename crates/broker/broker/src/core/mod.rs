@@ -37,15 +37,12 @@ impl Default for BrokerConfig {
 
 /// Shared state for the broker.
 ///
-/// This registry tracks active editor sessions, running LSP server instances,
-/// and document version state to enable asynchronous proxying and event fan-out.
+/// Tracks active editor sessions, running LSP server instances, and
+/// server->client request routing state.
 #[derive(Debug)]
 pub struct BrokerCore {
-	/// Synchronized internal state.
 	state: Mutex<BrokerState>,
-	/// Next available server ID.
 	next_server_id: AtomicU64,
-	/// Broker configuration.
 	config: BrokerConfig,
 }
 
@@ -61,13 +58,9 @@ impl Default for BrokerCore {
 
 #[derive(Debug, Default)]
 struct BrokerState {
-	/// Connected sessions and their state.
 	sessions: HashMap<SessionId, SessionEntry>,
-	/// Running LSP server instances and their state.
 	servers: HashMap<ServerId, ServerEntry>,
-	/// Mapping from project key to server ID.
 	projects: HashMap<ProjectKey, ServerId>,
-	/// Pending requests initiated by LSP servers awaiting editor replies.
 	pending_client_reqs: HashMap<(ServerId, xeno_lsp::RequestId), PendingClientReq>,
 }
 
@@ -105,7 +98,6 @@ struct ServerEntry {
 	attached: HashSet<SessionId>,
 	leader: SessionId,
 	docs: DocRegistry,
-	/// Generation counter for lease validity.
 	lease_gen: u64,
 }
 
@@ -150,28 +142,19 @@ impl BrokerCore {
 		{
 			let mut state = self.state.lock().unwrap();
 			if let Some(session) = state.sessions.remove(&session_id) {
-				for server_id in session.attached {
-					servers_to_detach.push(server_id);
-				}
+				servers_to_detach.extend(session.attached);
 			}
 		}
 
-		// Detach from each server (this handles leader election and lease scheduling)
 		for server_id in servers_to_detach {
 			self.detach_session(server_id, session_id);
 		}
 
-		// Cancel pending requests for this session
+		// Drop pending requests where this session was the responder.
 		let mut state = self.state.lock().unwrap();
-		state.pending_client_reqs.retain(|_, req| {
-			if req.responder == session_id {
-				// We don't have a good way to send error here without consuming tx,
-				// but retain doesn't allow it. We'll let them drop and trigger Timeout/Eof.
-				false
-			} else {
-				true
-			}
-		});
+		state
+			.pending_client_reqs
+			.retain(|_, req| req.responder != session_id);
 	}
 
 	/// Look up an existing server for a project or return None.
@@ -184,68 +167,100 @@ impl BrokerCore {
 	/// Attach a session to an existing server.
 	pub fn attach_session(&self, server_id: ServerId, session_id: SessionId) -> bool {
 		let mut state = self.state.lock().unwrap();
-		if let Some(server) = state.servers.get_mut(&server_id) {
-			server.attached.insert(session_id);
-			// Update leader if this is the first session
-			if server.attached.len() == 1 {
-				server.leader = session_id;
-			}
-			// Cancel any pending lease by incrementing generation
-			server.lease_gen += 1;
+		let Some(server) = state.servers.get_mut(&server_id) else {
+			return false;
+		};
 
-			if let Some(session) = state.sessions.get_mut(&session_id) {
-				session.attached.insert(server_id);
-			}
-			true
-		} else {
-			false
+		server.attached.insert(session_id);
+		if server.attached.len() == 1 {
+			server.leader = session_id;
 		}
+
+		// Invalidate any pending lease tasks.
+		server.lease_gen += 1;
+
+		if let Some(session) = state.sessions.get_mut(&session_id) {
+			session.attached.insert(server_id);
+		}
+
+		true
 	}
 
 	/// Detach a session from a server.
+	///
+	/// If this was the last session, an idle lease is scheduled to eventually
+	/// terminate the server.
 	pub fn detach_session(self: &Arc<Self>, server_id: ServerId, session_id: SessionId) {
-		let mut state = self.state.lock().unwrap();
-		if let Some(server) = state.servers.get_mut(&server_id) {
-			server.attached.remove(&session_id);
-			if server.leader == session_id {
-				// Elect new leader
-				if let Some(&new_leader) = server.attached.iter().next() {
+		let mut maybe_schedule: Option<(u64, tokio::time::Instant)> = None;
+
+		{
+			let mut state = self.state.lock().unwrap();
+
+			// Update server side.
+			if let Some(server) = state.servers.get_mut(&server_id) {
+				server.attached.remove(&session_id);
+
+				if server.leader == session_id
+					&& let Some(&new_leader) = server.attached.iter().next()
+				{
 					server.leader = new_leader;
+				}
+
+				if server.attached.is_empty() {
+					server.lease_gen += 1;
+					let generation = server.lease_gen;
+					let deadline = tokio::time::Instant::now() + self.config.idle_lease;
+					maybe_schedule = Some((generation, deadline));
 				}
 			}
 
-			// If no sessions left, schedule lease cleanup
-			if server.attached.is_empty() {
-				server.lease_gen += 1;
-				let lease_gen = server.lease_gen;
-				let lease_duration = self.config.idle_lease;
-				let core = self.clone();
-
-				tokio::spawn(async move {
-					tokio::time::sleep(lease_duration).await;
-					core.check_lease_expiry(server_id, lease_gen);
-				});
+			// Update session side.
+			if let Some(session) = state.sessions.get_mut(&session_id) {
+				session.attached.remove(&server_id);
 			}
+		}
+
+		if let Some((generation, deadline)) = maybe_schedule {
+			let core = self.clone();
+			tokio::spawn(async move {
+				tokio::time::sleep_until(deadline).await;
+				core.check_lease_expiry(server_id, generation);
+			});
 		}
 	}
 
 	/// Check if a lease has expired and terminate the server if so.
-	fn check_lease_expiry(&self, server_id: ServerId, generation: u64) {
-		let mut state = self.state.lock().unwrap();
-		if let Some(server) = state.servers.get(&server_id)
-			&& server.lease_gen == generation
-			&& server.attached.is_empty()
-		{
-			// Lease expired and still empty/matching generation -> Terminate
+	fn check_lease_expiry(self: &Arc<Self>, server_id: ServerId, generation: u64) {
+		let maybe_instance = {
+			let mut state = self.state.lock().unwrap();
+
+			let Some(server) = state.servers.get(&server_id) else {
+				return;
+			};
+
+			if server.lease_gen != generation || !server.attached.is_empty() {
+				return;
+			}
+
 			let server = state.servers.remove(&server_id).unwrap();
 			state.projects.remove(&server.project);
-			// Server entry dropped here -> ChildHandle dropped -> process killed (if implemented) or left to OS
-			// We should probably ensure we kill it.
-			// For now rely on Drop or explicit kill if we add that to LspInstance.
 
-			// Also update status
-			let mut current = server.instance.status.lock().unwrap();
-			*current = xeno_broker_proto::types::LspServerStatus::Stopped;
+			// Drop any pending server->client requests for this server.
+			state
+				.pending_client_reqs
+				.retain(|(sid, _), _| *sid != server_id);
+
+			Some(server.instance)
+		};
+
+		if let Some(instance) = maybe_instance {
+			{
+				let mut current = instance.status.lock().unwrap();
+				*current = xeno_broker_proto::types::LspServerStatus::Stopped;
+			}
+			tokio::spawn(async move {
+				instance.terminate().await;
+			});
 		}
 	}
 
@@ -284,15 +299,81 @@ impl BrokerCore {
 
 	/// Unregister an LSP instance and release its resources.
 	pub fn unregister_server(&self, server_id: ServerId) {
-		let mut state = self.state.lock().unwrap();
-		if let Some(server) = state.servers.remove(&server_id) {
+		let maybe_instance = {
+			let mut state = self.state.lock().unwrap();
+
+			let Some(server) = state.servers.remove(&server_id) else {
+				return;
+			};
+
 			state.projects.remove(&server.project);
-			for session_id in server.attached {
-				if let Some(session) = state.sessions.get_mut(&session_id) {
+
+			for session_id in &server.attached {
+				if let Some(session) = state.sessions.get_mut(session_id) {
 					session.attached.remove(&server_id);
 				}
 			}
+
+			state
+				.pending_client_reqs
+				.retain(|(sid, _), _| *sid != server_id);
+
+			Some(server.instance)
+		};
+
+		if let Some(instance) = maybe_instance {
+			{
+				let mut current = instance.status.lock().unwrap();
+				*current = xeno_broker_proto::types::LspServerStatus::Stopped;
+			}
+			tokio::spawn(async move {
+				instance.terminate().await;
+			});
 		}
+	}
+
+	/// Terminate all running LSP servers.
+	pub fn terminate_all(&self) {
+		let instances = {
+			let mut state = self.state.lock().unwrap();
+			state.projects.clear();
+			state.pending_client_reqs.clear();
+			state
+				.servers
+				.drain()
+				.map(|(_, server)| server.instance)
+				.collect::<Vec<_>>()
+		};
+
+		for instance in instances {
+			{
+				let mut current = instance.status.lock().unwrap();
+				*current = xeno_broker_proto::types::LspServerStatus::Stopped;
+			}
+			tokio::spawn(async move {
+				instance.terminate().await;
+			});
+		}
+	}
+
+	/// Retrieves a snapshot of the current broker state for debugging or testing.
+	#[doc(hidden)]
+	pub fn get_state(
+		&self,
+	) -> (
+		HashSet<SessionId>,
+		HashMap<ServerId, Vec<SessionId>>,
+		HashMap<ProjectKey, ServerId>,
+	) {
+		let state = self.state.lock().unwrap();
+		let sessions = state.sessions.keys().cloned().collect();
+		let servers = state
+			.servers
+			.iter()
+			.map(|(id, s)| (*id, s.attached.iter().cloned().collect()))
+			.collect();
+		let projects = state.projects.clone();
+		(sessions, servers, projects)
 	}
 
 	/// Retrieves the communication handle for a specific LSP server.
@@ -360,7 +441,6 @@ impl BrokerCore {
 	) -> Option<SessionId> {
 		let mut state = self.state.lock().unwrap();
 		let server = state.servers.get(&server_id)?;
-		// Only return a leader if there are attached sessions
 		if server.attached.is_empty() {
 			return None;
 		}
@@ -386,14 +466,13 @@ impl BrokerCore {
 		result: LspReplyResult,
 	) -> bool {
 		let mut state = self.state.lock().unwrap();
-		if let Some(req) = state
+		let Some(req) = state
 			.pending_client_reqs
 			.get(&(server_id, request_id.clone()))
-		{
-			if req.responder != session_id {
-				return false;
-			}
-		} else {
+		else {
+			return false;
+		};
+		if req.responder != session_id {
 			return false;
 		}
 
@@ -511,6 +590,50 @@ impl LspInstance {
 			child: ChildHandle::Mock,
 			status: Mutex::new(status),
 		}
+	}
+
+	/// Best-effort graceful shutdown (shutdown request + exit notif), then kill if needed.
+	pub async fn terminate(self) {
+		let mut child = match self.child {
+			ChildHandle::Mock => return,
+			ChildHandle::Real(child) => child,
+		};
+
+		// 1) shutdown request (best-effort)
+		let shutdown_req: xeno_lsp::AnyRequest = serde_json::from_value(serde_json::json!({
+			"id": 0,
+			"method": "shutdown",
+			"params": serde_json::Value::Null
+		}))
+		.unwrap();
+
+		let (tx, rx) = oneshot::channel::<xeno_lsp::AnyResponse>();
+		let _ = self
+			.lsp_tx
+			.send(MainLoopEvent::OutgoingRequest(shutdown_req, tx));
+		let _ = tokio::time::timeout(Duration::from_millis(300), rx).await;
+
+		// 2) exit notification (best-effort)
+		let exit_notif: xeno_lsp::AnyNotification = serde_json::from_value(serde_json::json!({
+			"method": "exit",
+			"params": serde_json::Value::Null
+		}))
+		.unwrap();
+
+		let _ = self
+			.lsp_tx
+			.send(MainLoopEvent::Outgoing(xeno_lsp::Message::Notification(
+				exit_notif,
+			)));
+
+		// 3) Wait briefly for natural exit, then kill.
+		let exited = tokio::time::timeout(Duration::from_millis(500), child.wait()).await;
+		if exited.is_ok() {
+			return;
+		}
+
+		let _ = child.kill().await;
+		let _ = tokio::time::timeout(Duration::from_secs(1), child.wait()).await;
 	}
 }
 

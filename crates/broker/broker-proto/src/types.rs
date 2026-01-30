@@ -1,4 +1,8 @@
-//! Wire types for broker protocol.
+//! Wire types for the Xeno broker IPC protocol.
+//!
+//! This module defines the core data structures used for communication between
+//! editor sessions and the broker daemon, as well as between the broker and
+//! LSP servers.
 
 use serde::{Deserialize, Serialize};
 
@@ -30,12 +34,28 @@ pub enum IpcFrame {
 }
 
 /// A request from the editor to the broker.
+///
+/// # Note
+///
+/// The `id` field is automatically managed and overwritten by the RPC mainloop
+/// during transmission. When constructing a new request, use [`Request::new`]
+/// which sets a placeholder value.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Request {
 	/// Unique identifier for this request.
 	pub id: RequestId,
 	/// The request payload.
 	pub payload: RequestPayload,
+}
+
+impl Request {
+	/// Create a new request with a placeholder ID.
+	pub fn new(payload: RequestPayload) -> Self {
+		Self {
+			id: RequestId(0),
+			payload,
+		}
+	}
 }
 
 /// Request payload variants.
