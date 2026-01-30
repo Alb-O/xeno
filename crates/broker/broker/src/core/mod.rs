@@ -61,30 +61,32 @@ struct BrokerState {
 	sessions: HashMap<SessionId, SessionEntry>,
 	servers: HashMap<ServerId, ServerEntry>,
 	projects: HashMap<ProjectKey, ServerId>,
-	/// Pending server->client requests awaiting an editor reply (leader-routed).
+	/// Pending server-to-client requests awaiting an editor reply.
+	///
+	/// These are routed only to the server leader.
 	pending_s2c: HashMap<(ServerId, xeno_lsp::RequestId), PendingS2cReq>,
-	/// Pending client->server requests awaiting an LSP server response (broker rewrites ids).
+	/// Pending client-to-server requests awaiting an LSP server response.
+	///
+	/// The broker rewrites these IDs to prevent collisions between sessions.
 	pending_c2s: HashMap<(ServerId, xeno_lsp::RequestId), PendingC2sReq>,
 }
 
-/// Unique key for deduplicating LSP servers by project.
+/// Unique key for deduplicating LSP servers by project identity.
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub struct ProjectKey {
-	/// The command used to start the server.
+	/// Command used to start the server.
 	pub command: String,
 	/// Arguments passed to the command.
 	pub args: Vec<String>,
-	/// The project root directory.
+	/// Project root directory.
 	pub cwd: String,
 }
 
 impl From<&LspServerConfig> for ProjectKey {
 	fn from(cfg: &LspServerConfig) -> Self {
-		// Use a sentinel value for missing cwd to prevent incorrect deduplication.
-		// Configs without cwd should not dedup with each other.
 		let cwd = cfg.cwd.clone().unwrap_or_else(|| {
-			// Use a unique sentinel based on command+args hash to ensure
-			// different configs without cwd don't collide
+			// Configs without cwd should not dedup with each other unless
+			// command and args match exactly.
 			format!("__NO_CWD_{:016x}__", compute_config_hash(cfg))
 		});
 		Self {
@@ -116,11 +118,11 @@ struct SessionEntry {
 struct ServerEntry {
 	/// Handle to the running LSP process and its control channels.
 	instance: LspInstance,
-	/// Identity of the server (cmd/args/cwd) used for deduplication.
+	/// Identity of the server used for deduplication.
 	project: ProjectKey,
-	/// Set of editor sessions currently attached to this server.
+	/// Editor sessions currently attached to this server.
 	attached: HashSet<SessionId>,
-	/// The session responsible for answering server-initiated requests.
+	/// Session responsible for answering server-initiated requests.
 	leader: SessionId,
 	/// Tracked documents and their versions for this server.
 	docs: DocRegistry,
@@ -135,7 +137,7 @@ struct ServerEntry {
 /// Metadata for a pending server-to-client request awaiting a reply from the editor.
 #[derive(Debug)]
 struct PendingS2cReq {
-	/// The session elected as leader at the time of the request.
+	/// Session elected as leader at the time of the request.
 	responder: SessionId,
 	/// Completion channel for the proxied LSP response.
 	tx: oneshot::Sender<LspReplyResult>,
@@ -144,9 +146,9 @@ struct PendingS2cReq {
 /// Metadata for a pending client-to-server request awaiting a response from the LSP server.
 #[derive(Debug)]
 pub struct PendingC2sReq {
-	/// The editor session that initiated the request.
+	/// Editor session that initiated the request.
 	pub origin_session: SessionId,
-	/// The original request id as seen by the editor (pre-rewrite).
+	/// Original request id as seen by the editor.
 	pub origin_id: xeno_lsp::RequestId,
 }
 
@@ -192,7 +194,7 @@ impl BrokerCore {
 
 	/// Unregister an editor session and detach from all servers.
 	///
-	/// This method performs authoritative cleanup of the session state. It detaches
+	/// Performs authoritative cleanup of the session state. It detaches
 	/// the session from all running servers, potentially triggering idle leases,
 	/// and cancels any pending requests where this session was the responder.
 	pub fn unregister_session(self: &Arc<Self>, session_id: SessionId) {
@@ -206,9 +208,44 @@ impl BrokerCore {
 
 		for server_id in servers_to_detach {
 			self.detach_session(server_id, session_id);
+			self.cleanup_session_docs_on_server(server_id, session_id);
 		}
 
 		self.cancel_all_client_requests_for_session(session_id);
+		self.cancel_all_c2s_requests_for_session(session_id);
+	}
+
+	fn cleanup_session_docs_on_server(&self, server_id: ServerId, session_id: SessionId) {
+		let mut state = self.state.lock().unwrap();
+		let Some(server) = state.servers.get_mut(&server_id) else {
+			return;
+		};
+
+		let mut to_remove = Vec::new();
+		for (uri, owner_state) in server.doc_owners.by_uri.iter_mut() {
+			owner_state.open_refcounts.remove(&session_id);
+
+			if owner_state.owner == session_id {
+				// Re-elect owner or remove doc
+				if let Some(&new_owner) = owner_state.open_refcounts.keys().min() {
+					owner_state.owner = new_owner;
+				} else {
+					to_remove.push(uri.clone());
+				}
+			}
+		}
+
+		for uri in to_remove {
+			server.doc_owners.by_uri.remove(&uri);
+			server.docs.by_uri.remove(&uri);
+		}
+	}
+
+	fn cancel_all_c2s_requests_for_session(&self, session_id: SessionId) {
+		let mut state = self.state.lock().unwrap();
+		state
+			.pending_c2s
+			.retain(|_, req| req.origin_session != session_id);
 	}
 
 	/// Look up an existing server for a project configuration.
@@ -231,9 +268,9 @@ impl BrokerCore {
 		};
 
 		server.attached.insert(session_id);
-		if server.attached.len() == 1 {
-			server.leader = session_id;
-		}
+		// Maintain deterministic leader (min session id)
+		let min_id = *server.attached.iter().min().unwrap();
+		server.leader = min_id;
 
 		server.lease_gen += 1;
 
@@ -262,7 +299,7 @@ impl BrokerCore {
 
 				if server.leader == session_id {
 					old_leader = session_id;
-					if let Some(&new_leader) = server.attached.iter().next() {
+					if let Some(&new_leader) = server.attached.iter().min() {
 						server.leader = new_leader;
 						leader_changed = true;
 					}
@@ -282,11 +319,7 @@ impl BrokerCore {
 		}
 
 		if leader_changed {
-			tracing::info!(
-				?server_id,
-				?old_leader,
-				"Leader changed, cancelling pending requests"
-			);
+			tracing::info!(?server_id, ?old_leader, "leader re-elected");
 			self.cancel_pending_for_leader_change(server_id, old_leader);
 		}
 
@@ -519,7 +552,6 @@ impl BrokerCore {
 			let core = self.clone();
 			tokio::spawn(async move {
 				for session_id in failed_sessions {
-					tracing::warn!(?session_id, "Broadcast send failed, triggering cleanup");
 					core.handle_session_send_failure(session_id);
 				}
 			});
@@ -544,7 +576,6 @@ impl BrokerCore {
 		if let Some(sink) = sink
 			&& sink.send(MainLoopEvent::Outgoing(frame)).is_err()
 		{
-			tracing::warn!(?leader_id, "Leader session send failed, triggering cleanup");
 			let core = self.clone();
 			tokio::spawn(async move {
 				core.handle_session_send_failure(leader_id);
@@ -615,7 +646,7 @@ impl BrokerCore {
 		if let Some(req) = state.pending_s2c.remove(&(server_id, request_id)) {
 			let _ = req.tx.send(Err(xeno_lsp::ResponseError::new(
 				xeno_lsp::ErrorCode::REQUEST_CANCELLED,
-				"Request cancelled by broker",
+				"request cancelled by broker",
 			)));
 			true
 		} else {
@@ -657,24 +688,25 @@ impl BrokerCore {
 
 	/// Allocate a unique wire request ID for a server connection.
 	///
-	/// These IDs are used when forwarding client requests to the actual LSP server.
-	/// The broker maintains a mapping between these wire IDs and the original client IDs
-	/// to ensure correct response routing in a multiplexed environment.
+	/// Uses string IDs ("b:{server}:{seq}") to prevent numeric overflow.
 	pub fn alloc_wire_request_id(&self, server_id: ServerId) -> Option<xeno_lsp::RequestId> {
 		let mut state = self.state.lock().unwrap();
 		let server = state.servers.get_mut(&server_id)?;
 		let wire_num = server.next_wire_req_id;
 		server.next_wire_req_id += 1;
-		Some(xeno_lsp::RequestId::Number(wire_num as i32))
+		Some(xeno_lsp::RequestId::String(format!(
+			"b:{}:{}",
+			server_id.0, wire_num
+		)))
 	}
 
 	/// Register a pending client-to-server request mapping.
 	///
 	/// # Arguments
-	/// * `server_id` - The target LSP server.
-	/// * `wire_id` - The ID used on the wire to the server.
-	/// * `origin_session` - The editor session that initiated the request.
-	/// * `origin_id` - The original request ID from the editor.
+	/// * `server_id` - Target LSP server.
+	/// * `wire_id` - ID used on the wire to the server.
+	/// * `origin_session` - Editor session that initiated the request.
+	/// * `origin_id` - Original request ID from the editor.
 	pub fn register_c2s_pending(
 		&self,
 		server_id: ServerId,
@@ -713,17 +745,14 @@ impl BrokerCore {
 
 	/// Authoritatively cleans up a session that is determined to be dead.
 	pub fn handle_session_send_failure(self: &Arc<Self>, session_id: SessionId) {
-		tracing::info!(
-			?session_id,
-			"Handling session send failure, unregistering session"
-		);
+		tracing::warn!(?session_id, "session send failed, triggering cleanup");
 		self.cancel_all_client_requests_for_session(session_id);
 		self.unregister_session(session_id);
 	}
 
 	/// Authoritatively cleans up a server that has exited or crashed.
 	pub fn handle_server_exit(self: &Arc<Self>, server_id: ServerId, crashed: bool) {
-		tracing::info!(?server_id, crashed, "Handling server exit");
+		tracing::info!(?server_id, crashed, "handling server exit");
 
 		let maybe_instance = {
 			let mut state = self.state.lock().unwrap();
@@ -813,10 +842,6 @@ impl BrokerCore {
 				let core = self.clone();
 				tokio::spawn(async move {
 					for session_id in failed_sessions {
-						tracing::warn!(
-							?session_id,
-							"Status notification send failed, triggering cleanup"
-						);
 						core.handle_session_send_failure(session_id);
 					}
 				});
@@ -856,130 +881,9 @@ impl BrokerCore {
 			}
 		}
 	}
-
-	/// Gate a text synchronization notification to enforce single-writer ownership per URI.
-	///
-	/// This method ensures that only the session that first opened a document can send
-	/// subsequent modifications or close notifications for that document. If multiple sessions
-	/// have the same document open, only the "owner" session is permitted to synchronize
-	/// its state with the underlying LSP server.
-	///
-	/// Returns `true` if the notification is permitted and should be forwarded to the server.
-	pub fn gate_text_sync(
-		&self,
-		session_id: SessionId,
-		server_id: ServerId,
-		notif: &xeno_lsp::AnyNotification,
-	) -> bool {
-		let mut state = self.state.lock().unwrap();
-		let Some(server) = state.servers.get_mut(&server_id) else {
-			return false;
-		};
-
-		match notif.method.as_str() {
-			"textDocument/didOpen" => {
-				let Some(doc) = notif.params.get("textDocument") else {
-					return false;
-				};
-				let Some(uri) = doc.get("uri").and_then(|u| u.as_str()) else {
-					return false;
-				};
-				let version = doc.get("version").and_then(|v| v.as_u64()).unwrap_or(0) as u32;
-
-				match server.doc_owners.by_uri.get_mut(uri) {
-					None => {
-						// First open: become owner
-						let mut refcounts = HashMap::new();
-						refcounts.insert(session_id, 1);
-						server.doc_owners.by_uri.insert(
-							uri.to_string(),
-							DocOwnerState {
-								owner: session_id,
-								open_refcounts: refcounts,
-								last_version: version,
-							},
-						);
-						true
-					}
-					Some(owner_state) => {
-						// Increment refcount for this session
-						let count = owner_state.open_refcounts.entry(session_id).or_insert(0);
-						*count += 1;
-						// Only forward if this session is the owner
-						if session_id == owner_state.owner {
-							owner_state.last_version = version;
-							true
-						} else {
-							false
-						}
-					}
-				}
-			}
-			"textDocument/didChange" => {
-				let Some(doc) = notif.params.get("textDocument") else {
-					return false;
-				};
-				let Some(uri) = doc.get("uri").and_then(|u| u.as_str()) else {
-					return false;
-				};
-				let version = doc.get("version").and_then(|v| v.as_u64()).unwrap_or(0) as u32;
-
-				match server.doc_owners.by_uri.get_mut(uri) {
-					None => false,
-					Some(owner_state) => {
-						if session_id == owner_state.owner {
-							owner_state.last_version = version;
-							true
-						} else {
-							false
-						}
-					}
-				}
-			}
-			"textDocument/didClose" => {
-				let Some(doc) = notif.params.get("textDocument") else {
-					return false;
-				};
-				let Some(uri) = doc.get("uri").and_then(|u| u.as_str()) else {
-					return false;
-				};
-
-				match server.doc_owners.by_uri.get_mut(uri) {
-					None => false,
-					Some(owner_state) => {
-						// Decrement refcount
-						if let Some(count) = owner_state.open_refcounts.get_mut(&session_id) {
-							if *count > 0 {
-								*count -= 1;
-							}
-							if *count == 0 {
-								owner_state.open_refcounts.remove(&session_id);
-							}
-						}
-
-						// Only forward close if owner and no more refs
-						let should_forward = session_id == owner_state.owner
-							&& owner_state
-								.open_refcounts
-								.get(&session_id)
-								.copied()
-								.unwrap_or(0) == 0;
-
-						if should_forward {
-							server.doc_owners.by_uri.remove(uri);
-							true
-						} else {
-							false
-						}
-					}
-				}
-			}
-			_ => true,
-		}
-	}
 }
 
-/// Handle to a child process that can be real or mocked for tests.
+/// Handle to a child process.
 #[derive(Debug)]
 #[non_exhaustive]
 pub enum ChildHandle {
@@ -1021,7 +925,7 @@ impl LspInstance {
 		}
 	}
 
-	/// Create a mock LspInstance for tests (no real process).
+	/// Create a mock LspInstance for tests.
 	#[doc(hidden)]
 	pub fn mock(lsp_tx: LspTx, status: xeno_broker_proto::types::LspServerStatus) -> Self {
 		Self {
@@ -1031,32 +935,25 @@ impl LspInstance {
 		}
 	}
 
-	/// Best-effort graceful shutdown (shutdown request + exit notif), then kill if needed.
+	/// Best-effort graceful shutdown, then kill if needed.
 	pub async fn terminate(mut self) {
 		let Some(control) = self.control.take() else {
-			// Mock instance - nothing to do
 			return;
 		};
 
-		// 1) Request termination via control channel
 		let _ = control.term_tx.send(());
-
-		// 2) Wait for the monitor to complete (with timeout)
 		let _ = tokio::time::timeout(Duration::from_secs(2), control.done_rx).await;
 	}
 }
 
-/// Registry for document version tracking.
 #[derive(Debug, Default)]
 struct DocRegistry {
 	/// Map of URI to (DocId, last_version).
 	by_uri: HashMap<String, (DocId, u32)>,
-	/// Next available DocId.
 	next_doc_id: u64,
 }
 
 impl DocRegistry {
-	/// Update or create document version information.
 	fn update(&mut self, uri: String, version: u32) {
 		if let Some(info) = self.by_uri.get_mut(&uri) {
 			info.1 = version;
@@ -1068,18 +965,16 @@ impl DocRegistry {
 	}
 }
 
-/// Registry for document ownership tracking (single-writer per URI).
 #[derive(Debug, Default)]
 struct DocOwnerRegistry {
-	/// Keyed by URI.
 	by_uri: HashMap<String, DocOwnerState>,
 }
 
 #[derive(Debug)]
 struct DocOwnerState {
-	/// Session that owns this document (can send text sync).
+	/// Session that owns this document.
 	owner: SessionId,
-	/// Per-session open refcount (session may open doc multiple times).
+	/// Per-session open refcount.
 	open_refcounts: HashMap<SessionId, u32>,
 	/// Last observed version from the owner.
 	last_version: u32,
@@ -1088,19 +983,143 @@ struct DocOwnerState {
 /// Result of gating a text sync notification.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DocGateDecision {
-	/// Allow: session is the owner.
-	AllowAsOwner,
-	/// Reject: session is not the owner.
+	/// Forward to server: session is owner or first open.
+	Forward,
+	/// Drop silently: session is follower.
+	DropSilently,
+	/// Reject: session is not permitted to sync.
 	RejectNotOwner,
+}
+
+impl BrokerCore {
+	/// Gate a text synchronization notification to enforce single-writer ownership per URI.
+	///
+	/// This ensures only the owner session (first opener or elected successor) can send
+	/// modifications to the server.
+	pub fn gate_text_sync(
+		&self,
+		session_id: SessionId,
+		server_id: ServerId,
+		notif: &xeno_lsp::AnyNotification,
+	) -> DocGateDecision {
+		let mut state = self.state.lock().unwrap();
+		let Some(server) = state.servers.get_mut(&server_id) else {
+			return DocGateDecision::RejectNotOwner;
+		};
+
+		match notif.method.as_str() {
+			"textDocument/didOpen" => {
+				let Some(doc) = notif.params.get("textDocument") else {
+					return DocGateDecision::RejectNotOwner;
+				};
+				let Some(uri) = doc.get("uri").and_then(|u| u.as_str()) else {
+					return DocGateDecision::RejectNotOwner;
+				};
+				let version = doc.get("version").and_then(|v| v.as_u64()).unwrap_or(0) as u32;
+
+				match server.doc_owners.by_uri.get_mut(uri) {
+					None => {
+						let mut refcounts = HashMap::new();
+						refcounts.insert(session_id, 1);
+						server.doc_owners.by_uri.insert(
+							uri.to_string(),
+							DocOwnerState {
+								owner: session_id,
+								open_refcounts: refcounts,
+								last_version: version,
+							},
+						);
+						DocGateDecision::Forward
+					}
+					Some(owner_state) => {
+						let count = owner_state.open_refcounts.entry(session_id).or_insert(0);
+						*count += 1;
+
+						if !server.attached.contains(&owner_state.owner)
+							|| !owner_state.open_refcounts.contains_key(&owner_state.owner)
+						{
+							owner_state.owner = session_id;
+						}
+
+						DocGateDecision::DropSilently
+					}
+				}
+			}
+			"textDocument/didChange" => {
+				let Some(doc) = notif.params.get("textDocument") else {
+					return DocGateDecision::RejectNotOwner;
+				};
+				let Some(uri) = doc.get("uri").and_then(|u| u.as_str()) else {
+					return DocGateDecision::RejectNotOwner;
+				};
+				let version = doc.get("version").and_then(|v| v.as_u64()).unwrap_or(0) as u32;
+
+				match server.doc_owners.by_uri.get_mut(uri) {
+					None => DocGateDecision::RejectNotOwner,
+					Some(owner_state) => {
+						if session_id == owner_state.owner {
+							owner_state.last_version = version;
+							DocGateDecision::Forward
+						} else if !server.attached.contains(&owner_state.owner) {
+							owner_state.owner = session_id;
+							owner_state.last_version = version;
+							DocGateDecision::Forward
+						} else {
+							DocGateDecision::RejectNotOwner
+						}
+					}
+				}
+			}
+			"textDocument/didClose" => {
+				let Some(doc) = notif.params.get("textDocument") else {
+					return DocGateDecision::RejectNotOwner;
+				};
+				let Some(uri) = doc.get("uri").and_then(|u| u.as_str()) else {
+					return DocGateDecision::RejectNotOwner;
+				};
+
+				match server.doc_owners.by_uri.get_mut(uri) {
+					None => DocGateDecision::RejectNotOwner,
+					Some(owner_state) => {
+						if let Some(count) = owner_state.open_refcounts.get_mut(&session_id) {
+							if *count > 0 {
+								*count -= 1;
+							}
+							if *count == 0 {
+								owner_state.open_refcounts.remove(&session_id);
+							}
+						}
+
+						if session_id == owner_state.owner
+							&& !owner_state.open_refcounts.is_empty()
+							&& let Some(&new_owner) = owner_state.open_refcounts.keys().min()
+						{
+							owner_state.owner = new_owner;
+						}
+
+						let global_count: u32 = owner_state.open_refcounts.values().sum();
+						if global_count == 0 {
+							server.doc_owners.by_uri.remove(uri);
+							server.docs.by_uri.remove(uri);
+							DocGateDecision::Forward
+						} else {
+							DocGateDecision::DropSilently
+						}
+					}
+				}
+			}
+			_ => DocGateDecision::Forward,
+		}
+	}
 }
 
 /// Result struct for document gating operations.
 pub struct DocGateResult {
-	/// The decision (allow/reject).
+	/// Decision (allow/reject).
 	pub decision: DocGateDecision,
-	/// The URI being gated.
+	/// URI being gated.
 	pub uri: String,
-	/// The kind of operation.
+	/// Kind of operation.
 	pub kind: DocGateKind,
 }
 

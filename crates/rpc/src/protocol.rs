@@ -105,7 +105,16 @@ pub trait Protocol: Send + 'static {
 	/// Wrap a notification into a wire message.
 	fn wrap_notification(notif: Self::Notification) -> Self::Message;
 
-	/// Create a successful response.
+	/// Returns true if the loop should assign a new ID from `id_gen`.
+	///
+	/// Defaults to `true`. Protocols that support pre-assigned IDs (like
+	/// brokered LSP requests) can override this to skip ID generation.
+	fn should_assign_id(req: &Self::Request) -> bool {
+		let _ = req;
+		true
+	}
+
+	/// Create a successful response message.
 	fn response_ok(id: Self::Id, result: Self::ReqResult) -> Self::Response;
 
 	/// Create an error response.

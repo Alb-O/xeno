@@ -99,7 +99,7 @@ impl BrokerTransport {
 		let events_tx2 = self.events_tx.clone();
 		tokio::spawn(async move {
 			if let Err(e) = main_loop.run(reader, w).await {
-				tracing::error!(error = %e, "Broker client mainloop failed");
+				tracing::error!(error = %e, "broker client mainloop failed");
 			}
 			let _ = events_tx2.send(TransportEvent::Disconnected);
 		});
@@ -108,7 +108,6 @@ impl BrokerTransport {
 			socket: socket.clone(),
 		};
 
-		// Subscribe
 		rpc.call(
 			RequestPayload::Subscribe {
 				session_id: self.session_id,
@@ -116,7 +115,7 @@ impl BrokerTransport {
 			Duration::from_secs(5),
 		)
 		.await
-		.map_err(|e| xeno_lsp::Error::Protocol(format!("Subscribe failed: {:?}", e)))?;
+		.map_err(|e| xeno_lsp::Error::Protocol(format!("subscribe failed: {:?}", e)))?;
 
 		*rpc_lock = Some(BrokerRpc {
 			socket: socket.clone(),
@@ -184,7 +183,7 @@ impl LspTransport for BrokerTransport {
 			})
 		} else {
 			Err(xeno_lsp::Error::Protocol(
-				"Unexpected response to LspStart".into(),
+				"unexpected response to LspStart".into(),
 			))
 		}
 	}
@@ -250,7 +249,7 @@ impl LspTransport for BrokerTransport {
 			Ok(response)
 		} else {
 			Err(xeno_lsp::Error::Protocol(
-				"Unexpected response to LspRequest".into(),
+				"unexpected response to LspRequest".into(),
 			))
 		}
 	}
@@ -266,7 +265,7 @@ impl LspTransport for BrokerTransport {
 			.pending_server_requests
 			.get_mut(&server_id)
 			.and_then(|mut queue| queue.pop_front())
-			.ok_or_else(|| xeno_lsp::Error::Protocol("No pending request for reply".into()))?;
+			.ok_or_else(|| xeno_lsp::Error::Protocol("no pending request for reply".into()))?;
 
 		let any_resp = match resp {
 			Ok(v) => AnyResponse::new_ok(request_id, v),

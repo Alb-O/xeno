@@ -135,8 +135,7 @@ pub struct ResponseError {
 	pub code: ErrorCode,
 	/// A string providing a short description of the error.
 	pub message: String,
-	/// A primitive or structured value that contains additional
-	/// information about the error. Can be omitted.
+	/// Structured value that contains additional information about the error.
 	pub data: Option<JsonValue>,
 }
 
@@ -151,7 +150,7 @@ impl ResponseError {
 		}
 	}
 
-	/// Create a new error object with a JSON-RPC error code, a message, and any additional data.
+	/// Create a new error object with a JSON-RPC error code, a message, and additional data.
 	#[must_use]
 	pub fn new_with_data(code: ErrorCode, message: impl fmt::Display, data: JsonValue) -> Self {
 		Self {
@@ -190,10 +189,7 @@ pub struct AnyNotification {
 
 impl AnyNotification {
 	/// Create a new notification with the given method and params.
-	///
-	/// # Arguments
-	/// * `method` - The LSP notification method (e.g., `textDocument/didOpen`).
-	/// * `params` - Serialized JSON parameters for the notification.
+	#[must_use]
 	pub fn new(method: impl Into<String>, params: JsonValue) -> Self {
 		Self {
 			method: method.into(),
@@ -202,16 +198,16 @@ impl AnyNotification {
 	}
 }
 
-/// A dynamic runtime response.
+/// A dynamic runtime [LSP response](https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#responseMessage).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[non_exhaustive]
 pub struct AnyResponse {
-	/// The request id this response corresponds to.
+	/// Request ID this response corresponds to.
 	pub id: RequestId,
-	/// The result value on success (mutually exclusive with `error`).
+	/// Result value on success (mutually exclusive with `error`).
 	#[serde(skip_serializing_if = "Option::is_none")]
 	pub result: Option<JsonValue>,
-	/// The error object on failure (mutually exclusive with `result`).
+	/// Error object on failure (mutually exclusive with `result`).
 	#[serde(skip_serializing_if = "Option::is_none")]
 	pub error: Option<ResponseError>,
 }

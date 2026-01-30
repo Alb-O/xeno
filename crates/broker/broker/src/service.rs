@@ -79,9 +79,8 @@ impl Service<Request> for BrokerService {
 
 	/// Handle an incoming IPC request from an editor session.
 	///
-	/// Routes requests to the shared [`BrokerCore`] or specific LSP servers based
-	/// on the payload variant. Subscription requests must be sent first to establish
-	/// the session identity.
+	/// Subscription requests must be sent first to establish session identity.
+	/// Other requests are routed to the core state or specific LSP servers.
 	fn call(&mut self, req: Request) -> Self::Future {
 		let core = self.core.clone();
 		let socket = self.socket.clone();
@@ -142,9 +141,16 @@ impl Service<Request> for BrokerService {
 							"textDocument/didOpen"
 								| "textDocument/didChange"
 								| "textDocument/didClose"
-						) && !core.gate_text_sync(session_id, server_id, notif)
-					{
-						return Err(ErrorCode::NotDocOwner);
+						) {
+						match core.gate_text_sync(session_id, server_id, notif) {
+							crate::core::DocGateDecision::Forward => {}
+							crate::core::DocGateDecision::DropSilently => {
+								return Ok(ResponsePayload::LspSent { server_id });
+							}
+							crate::core::DocGateDecision::RejectNotOwner => {
+								return Err(ErrorCode::NotDocOwner);
+							}
+						}
 					}
 
 					core.on_editor_message(server_id, &lsp_msg);

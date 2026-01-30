@@ -1,7 +1,4 @@
 #[cfg(feature = "lsp")]
-mod common;
-
-#[cfg(feature = "lsp")]
 mod tests {
 	use std::time::Duration;
 
@@ -11,7 +8,7 @@ mod tests {
 	use xeno_lsp::{AnyNotification, AnyResponse, Message};
 	use xeno_rpc::MainLoopEvent;
 
-	use super::common::{SpawnedBroker, spawn_broker, test_server_config};
+	use crate::common::{SpawnedBroker, spawn_broker, test_server_config};
 
 	#[tokio::test]
 	async fn test_broker_e2e_dedup_and_fanout() {
@@ -20,8 +17,8 @@ mod tests {
 		let t1 = BrokerTransport::with_socket_and_session(sock.clone(), SessionId(1));
 		let t2 = BrokerTransport::with_socket_and_session(sock.clone(), SessionId(2));
 
-		let mut rx1 = t1.events();
-		let mut rx2 = t2.events();
+		let rx1 = t1.events();
+		let rx2 = t2.events();
 
 		let cfg = test_server_config();
 		let s1: StartedServer = LspTransport::start(t1.as_ref(), cfg.clone())

@@ -89,6 +89,12 @@ impl xeno_rpc::Protocol for JsonRpcProtocol {
 		Message::Notification(notif)
 	}
 
+	fn should_assign_id(req: &Self::Request) -> bool {
+		// Only assign if it's Number(0) or similar sentinel.
+		// Brokered requests use String IDs which must be preserved.
+		matches!(req.id, RequestId::Number(0))
+	}
+
 	fn response_ok(id: Self::Id, result: Self::ReqResult) -> Self::Response {
 		AnyResponse {
 			id,

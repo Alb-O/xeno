@@ -72,7 +72,7 @@ impl LspLauncher for ProcessLauncher {
 				.stderr(Stdio::inherit())
 				.spawn()
 				.map_err(|e| {
-					tracing::error!(error = %e, "Failed to spawn LSP server");
+					tracing::error!(error = %e, "failed to spawn LSP server");
 					ErrorCode::Internal
 				})?;
 
@@ -108,13 +108,13 @@ impl LspLauncher for ProcessLauncher {
 								core_crash.handle_server_exit(server_id, crashed);
 							}
 							Err(e) => {
-								tracing::error!(?server_id, error = %e, "Failed to wait on LSP server process");
+								tracing::error!(?server_id, error = %e, "failed to wait on LSP server process");
 								core_crash.handle_server_exit(server_id, true);
 							}
 						}
 					}
 					_ = &mut term_rx => {
-						tracing::info!(?server_id, "Termination requested, shutting down LSP server");
+						tracing::info!(?server_id, "termination requested, shutting down LSP server");
 
 						let shutdown_req: xeno_lsp::AnyRequest = serde_json::from_value(serde_json::json!({
 							"id": 0,
@@ -133,8 +133,7 @@ impl LspLauncher for ProcessLauncher {
 
 						let _ = lsp_tx_monitor.send(MainLoopEvent::Outgoing(xeno_lsp::Message::Notification(exit_notif)));
 
-						let exited = tokio::time::timeout(Duration::from_millis(500), child.wait()).await;
-						if exited.is_err() {
+						if tokio::time::timeout(Duration::from_millis(500), child.wait()).await.is_err() {
 							let _ = child.kill().await;
 							let _ = tokio::time::timeout(Duration::from_secs(1), child.wait()).await;
 						}
@@ -173,8 +172,8 @@ pub mod test_helpers {
 
 	/// A fake LSP server for testing that runs in-process.
 	pub struct FakeLsp {
-		/// Track received didOpen notifications for verification in tests.
-		pub received_opens: Mutex<Vec<(String, String)>>,
+		/// Track received notifications and requests for verification in tests.
+		pub received: Arc<Mutex<Vec<xeno_lsp::Message>>>,
 	}
 
 	impl Default for FakeLsp {
@@ -188,7 +187,7 @@ pub mod test_helpers {
 		#[must_use]
 		pub fn new() -> Self {
 			Self {
-				received_opens: Mutex::new(Vec::new()),
+				received: Arc::new(Mutex::new(Vec::new())),
 			}
 		}
 	}
@@ -208,6 +207,10 @@ pub mod test_helpers {
 		}
 
 		fn call(&mut self, req: AnyRequest) -> Self::Future {
+			self.received
+				.lock()
+				.unwrap()
+				.push(xeno_lsp::Message::Request(req.clone()));
 			match req.method.as_str() {
 				"initialize" => Box::pin(async move {
 					Ok(serde_json::json!({
@@ -220,10 +223,15 @@ pub mod test_helpers {
 					}))
 				}),
 				"shutdown" => Box::pin(async move { Ok(serde_json::Value::Null) }),
+				"textDocument/hover" => Box::pin(async move {
+					Ok(serde_json::json!({
+						"contents": "hover content"
+					}))
+				}),
 				_ => Box::pin(async move {
 					Err(ResponseError::new(
 						xeno_lsp::ErrorCode::METHOD_NOT_FOUND,
-						format!("Method not found: {}", req.method),
+						format!("method not found: {}", req.method),
 					))
 				}),
 			}
@@ -237,17 +245,10 @@ pub mod test_helpers {
 			&mut self,
 			notif: AnyNotification,
 		) -> ControlFlow<std::result::Result<(), Self::LoopError>> {
-			if notif.method.as_str() == "textDocument/didOpen"
-				&& let Some(doc) = notif.params.get("textDocument")
-				&& let (Some(uri), Some(lang)) = (
-					doc.get("uri").and_then(|u| u.as_str()),
-					doc.get("languageId").and_then(|l| l.as_str()),
-				) {
-				self.received_opens
-					.lock()
-					.unwrap()
-					.push((uri.to_string(), lang.to_string()));
-			}
+			self.received
+				.lock()
+				.unwrap()
+				.push(xeno_lsp::Message::Notification(notif));
 			ControlFlow::Continue(())
 		}
 
@@ -260,7 +261,7 @@ pub mod test_helpers {
 	}
 
 	/// Test launcher that creates in-process fake LSP servers.
-	#[derive(Clone)]
+	#[derive(Clone, Default)]
 	pub struct TestLauncher {
 		/// Map of server_id to the fake LSP instance and control channels.
 		pub servers: Arc<Mutex<HashMap<ServerId, TestServerHandle>>>,
@@ -268,19 +269,19 @@ pub mod test_helpers {
 
 	/// Handle to a fake LSP server for test control.
 	pub struct TestServerHandle {
-		/// The socket to send messages to the fake server (broker -> server).
+		/// Socket to send messages to the fake server.
 		pub lsp_tx: crate::core::LspTx,
-		/// The socket the fake server uses to send messages (server -> broker).
+		/// Socket the fake server uses to send messages.
 		pub server_socket: crate::core::LspTx,
+		/// List of messages received by the fake server.
+		pub received: Arc<Mutex<Vec<xeno_lsp::Message>>>,
 	}
 
 	impl TestLauncher {
 		/// Create a new test launcher.
 		#[must_use]
 		pub fn new() -> Self {
-			Self {
-				servers: Arc::new(Mutex::new(HashMap::new())),
-			}
+			Self::default()
 		}
 
 		/// Get a handle to a specific server for test control.
@@ -289,17 +290,12 @@ pub mod test_helpers {
 		}
 	}
 
-	impl Default for TestLauncher {
-		fn default() -> Self {
-			Self::new()
-		}
-	}
-
 	impl Clone for TestServerHandle {
 		fn clone(&self) -> Self {
 			Self {
 				lsp_tx: self.lsp_tx.clone(),
 				server_socket: self.server_socket.clone(),
+				received: self.received.clone(),
 			}
 		}
 	}
@@ -316,12 +312,10 @@ pub mod test_helpers {
 		> {
 			let servers = self.servers.clone();
 			Box::pin(async move {
-				// Create in-memory bidirectional pipe
 				let (proxy_end, server_end) = tokio::io::duplex(64 * 1024);
 				let (pr, pw) = tokio::io::split(proxy_end);
 				let (sr, sw) = tokio::io::split(server_end);
 
-				// Set up proxy side (same as production)
 				let protocol = JsonRpcProtocol::new();
 				let id_gen = xeno_rpc::CounterIdGen::new();
 
@@ -337,8 +331,8 @@ pub mod test_helpers {
 					let _ = proxy_loop.run(reader, pw).await;
 				});
 
-				// Set up fake LSP server side
 				let fake_lsp = FakeLsp::new();
+				let received = fake_lsp.received.clone();
 
 				let protocol = JsonRpcProtocol::new();
 				let id_gen = xeno_rpc::CounterIdGen::new();
@@ -351,15 +345,14 @@ pub mod test_helpers {
 					let _ = server_loop.run(reader, sw).await;
 				});
 
-				// Store handle for test control
 				let handle = TestServerHandle {
 					lsp_tx: lsp_socket.clone(),
 					server_socket,
+					received,
 				};
 
 				servers.lock().unwrap().insert(server_id, handle);
 
-				// Create instance with mock child
 				Ok(crate::core::LspInstance::mock(
 					lsp_socket,
 					LspServerStatus::Starting,
@@ -400,11 +393,11 @@ mod tests {
 	}
 
 	#[tokio::test(flavor = "current_thread")]
-	async fn fake_lsp_tracks_did_open() {
+	async fn fake_lsp_tracks_received_messages() {
 		let fake_lsp = FakeLsp::new();
 
-		// The FakeLsp should track didOpen via its RpcService implementation
+		// The FakeLsp should track received messages via its RpcService implementation
 		// This test verifies the struct is properly set up
-		assert!(fake_lsp.received_opens.lock().unwrap().is_empty());
+		assert!(fake_lsp.received.lock().unwrap().is_empty());
 	}
 }

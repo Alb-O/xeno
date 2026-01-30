@@ -54,6 +54,23 @@ pub async fn spawn_broker() -> SpawnedBroker {
 }
 
 /// Creates a standard server configuration for testing.
+#[must_use]
 pub fn test_server_config() -> ServerConfig {
 	ServerConfig::new("rust-analyzer", "/test")
+}
+
+/// Polls a condition with a timeout.
+pub async fn wait_until<F, Fut>(timeout: Duration, mut f: F) -> bool
+where
+	F: FnMut() -> Fut,
+	Fut: std::future::Future<Output = bool>,
+{
+	let start = std::time::Instant::now();
+	while start.elapsed() < timeout {
+		if f().await {
+			return true;
+		}
+		tokio::time::sleep(Duration::from_millis(10)).await;
+	}
+	false
 }

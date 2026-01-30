@@ -300,9 +300,18 @@ where
 	) -> MainLoopControl<S, P> {
 		match event {
 			MainLoopEvent::OutgoingRequest(mut req, resp_tx) => {
-				let id = P::next_id(&mut self.id_gen);
-				P::set_request_id(&mut req, id.clone());
-				assert!(self.outgoing.insert(id, resp_tx).is_none());
+				let id = if P::should_assign_id(&req) {
+					let id = P::next_id(&mut self.id_gen);
+					P::set_request_id(&mut req, id.clone());
+					id
+				} else {
+					P::request_id(&req)
+				};
+
+				if self.outgoing.insert(id, resp_tx).is_some() {
+					tracing::warn!("duplicate outgoing request ID, overwriting pending sender");
+				}
+
 				ControlFlow::Continue(Some((P::wrap_request(req), Vec::new())))
 			}
 

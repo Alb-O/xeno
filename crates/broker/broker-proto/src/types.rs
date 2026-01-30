@@ -11,31 +11,29 @@ use serde::{Deserialize, Serialize};
 pub struct RequestId(pub u64);
 
 /// Unique identifier for broker sessions (editor connections).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct SessionId(pub u64);
 
 /// Unique identifier for documents managed by the broker.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct DocId(pub u64);
 
 /// Unique identifier for LSP servers managed by the broker.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct ServerId(pub u64);
 
-/// A single IPC frame between editor and broker.
+/// Classification of frames transmitted over the IPC socket.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum IpcFrame {
 	/// A request from editor to broker.
 	Request(Request),
 	/// A response from broker to editor.
 	Response(Response),
-	/// An async event from broker to editor (no response expected).
+	/// An async event from broker to editor.
 	Event(Event),
 }
 
 /// A request from the editor to the broker.
-///
-/// # Note
 ///
 /// The `id` field is automatically managed and overwritten by the RPC mainloop
 /// during transmission. When constructing a new request, use [`Request::new`]
@@ -50,6 +48,7 @@ pub struct Request {
 
 impl Request {
 	/// Create a new request with a placeholder ID.
+	#[must_use]
 	pub fn new(payload: RequestPayload) -> Self {
 		Self {
 			id: RequestId(0),
@@ -68,17 +67,16 @@ pub enum RequestPayload {
 		/// Session ID for this connection.
 		session_id: SessionId,
 	},
-	/// Start an LSP server.
+	/// Start an LSP server for a project.
 	LspStart {
 		/// Configuration for the LSP server.
 		config: LspServerConfig,
 	},
-	/// Send a message to an LSP server.
+	/// Send a notification or request to an LSP server.
 	LspSend {
 		/// Session ID originating this message.
 		///
-		/// This is used by the broker to enforce document ownership and ensure
-		/// that only the session that opened a document can send modifications to it.
+		/// Enforces document ownership for text synchronization.
 		session_id: SessionId,
 		/// Target LSP server.
 		server_id: ServerId,
@@ -88,9 +86,6 @@ pub enum RequestPayload {
 	/// Send a request to an LSP server and wait for the response.
 	LspRequest {
 		/// Session ID originating this request.
-		///
-		/// Used for tracking pending requests and ensuring responses are routed
-		/// back to the correct session after ID rewriting.
 		session_id: SessionId,
 		/// Target LSP server.
 		server_id: ServerId,
