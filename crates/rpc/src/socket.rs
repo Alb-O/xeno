@@ -40,6 +40,14 @@ impl<M, Req, Resp> PeerSocket<M, Req, Resp> {
 		Self { tx }
 	}
 
+	/// Creates a socket from an existing sender.
+	///
+	/// This is intended for testing purposes in dependent crates.
+	#[doc(hidden)]
+	pub fn from_sender(tx: mpsc::UnboundedSender<MainLoopEvent<M, Req, Resp>>) -> Self {
+		Self { tx }
+	}
+
 	/// Sends an event to the main loop.
 	pub fn send(&self, v: MainLoopEvent<M, Req, Resp>) -> Result<()> {
 		self.tx.send(v).map_err(|_| Error::Stopped)

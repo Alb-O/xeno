@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use std::future::{Future, poll_fn};
 use std::ops::ControlFlow;
 use std::pin::Pin;
-use std::task::{Context, Poll, ready};
+use std::task::{Context, Poll};
 
 use pin_project_lite::pin_project;
 use tokio::io::{AsyncBufRead, AsyncWrite, AsyncWriteExt};
@@ -328,10 +328,16 @@ where
 
 	fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
 		let this = self.project();
-		let id = this.id.take().expect("Future polled after completion");
-		match ready!(this.fut.poll(cx)) {
-			Ok(result) => Poll::Ready(P::response_ok(id, result)),
-			Err(error) => Poll::Ready(P::response_err(id, error)),
+		match this.fut.poll(cx) {
+			Poll::Pending => Poll::Pending,
+			Poll::Ready(Ok(result)) => {
+				let id = this.id.take().expect("Future polled after completion");
+				Poll::Ready(P::response_ok(id, result))
+			}
+			Poll::Ready(Err(error)) => {
+				let id = this.id.take().expect("Future polled after completion");
+				Poll::Ready(P::response_err(id, error))
+			}
 		}
 	}
 }

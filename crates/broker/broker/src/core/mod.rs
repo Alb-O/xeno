@@ -3,6 +3,7 @@
 use std::collections::{HashMap, HashSet};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
+use std::time::Duration;
 
 use tokio::sync::oneshot;
 use xeno_broker_proto::types::{
@@ -19,16 +20,43 @@ pub type LspTx = PeerSocket<xeno_lsp::Message, xeno_lsp::AnyRequest, xeno_lsp::A
 /// Result of a server-to-editor request.
 pub type LspReplyResult = Result<serde_json::Value, xeno_lsp::ResponseError>;
 
+/// Configuration for the broker core.
+#[derive(Debug, Clone)]
+pub struct BrokerConfig {
+	/// Duration to keep an idle server alive after all sessions detach.
+	pub idle_lease: Duration,
+}
+
+impl Default for BrokerConfig {
+	fn default() -> Self {
+		Self {
+			idle_lease: Duration::from_secs(300), // 5 minutes default
+		}
+	}
+}
+
 /// Shared state for the broker.
 ///
 /// This registry tracks active editor sessions, running LSP server instances,
 /// and document version state to enable asynchronous proxying and event fan-out.
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct BrokerCore {
 	/// Synchronized internal state.
 	state: Mutex<BrokerState>,
 	/// Next available server ID.
 	next_server_id: AtomicU64,
+	/// Broker configuration.
+	config: BrokerConfig,
+}
+
+impl Default for BrokerCore {
+	fn default() -> Self {
+		Self {
+			state: Mutex::new(BrokerState::default()),
+			next_server_id: AtomicU64::new(0),
+			config: BrokerConfig::default(),
+		}
+	}
 }
 
 #[derive(Debug, Default)]
@@ -77,6 +105,8 @@ struct ServerEntry {
 	attached: HashSet<SessionId>,
 	leader: SessionId,
 	docs: DocRegistry,
+	/// Generation counter for lease validity.
+	lease_gen: u64,
 }
 
 #[derive(Debug)]
@@ -86,10 +116,20 @@ struct PendingClientReq {
 }
 
 impl BrokerCore {
-	/// Create a new broker core instance.
+	/// Create a new broker core instance with default configuration.
 	#[must_use]
 	pub fn new() -> Arc<Self> {
-		Arc::new(Self::default())
+		Self::new_with_config(BrokerConfig::default())
+	}
+
+	/// Create a new broker core instance with custom configuration.
+	#[must_use]
+	pub fn new_with_config(config: BrokerConfig) -> Arc<Self> {
+		Arc::new(Self {
+			state: Mutex::new(BrokerState::default()),
+			next_server_id: AtomicU64::new(0),
+			config,
+		})
 	}
 
 	/// Register an editor session with its outbound event sink.
@@ -105,23 +145,24 @@ impl BrokerCore {
 	}
 
 	/// Unregister an editor session and detach from all servers.
-	pub fn unregister_session(&self, session_id: SessionId) {
-		let mut state = self.state.lock().unwrap();
-		if let Some(session) = state.sessions.remove(&session_id) {
-			for server_id in session.attached {
-				if let Some(server) = state.servers.get_mut(&server_id) {
-					server.attached.remove(&session_id);
-					if server.leader == session_id {
-						// Elect new leader
-						if let Some(&new_leader) = server.attached.iter().next() {
-							server.leader = new_leader;
-						}
-					}
+	pub fn unregister_session(self: &Arc<Self>, session_id: SessionId) {
+		let mut servers_to_detach = Vec::new();
+		{
+			let mut state = self.state.lock().unwrap();
+			if let Some(session) = state.sessions.remove(&session_id) {
+				for server_id in session.attached {
+					servers_to_detach.push(server_id);
 				}
 			}
 		}
 
+		// Detach from each server (this handles leader election and lease scheduling)
+		for server_id in servers_to_detach {
+			self.detach_session(server_id, session_id);
+		}
+
 		// Cancel pending requests for this session
+		let mut state = self.state.lock().unwrap();
 		state.pending_client_reqs.retain(|_, req| {
 			if req.responder == session_id {
 				// We don't have a good way to send error here without consuming tx,
@@ -145,12 +186,66 @@ impl BrokerCore {
 		let mut state = self.state.lock().unwrap();
 		if let Some(server) = state.servers.get_mut(&server_id) {
 			server.attached.insert(session_id);
+			// Update leader if this is the first session
+			if server.attached.len() == 1 {
+				server.leader = session_id;
+			}
+			// Cancel any pending lease by incrementing generation
+			server.lease_gen += 1;
+
 			if let Some(session) = state.sessions.get_mut(&session_id) {
 				session.attached.insert(server_id);
 			}
 			true
 		} else {
 			false
+		}
+	}
+
+	/// Detach a session from a server.
+	pub fn detach_session(self: &Arc<Self>, server_id: ServerId, session_id: SessionId) {
+		let mut state = self.state.lock().unwrap();
+		if let Some(server) = state.servers.get_mut(&server_id) {
+			server.attached.remove(&session_id);
+			if server.leader == session_id {
+				// Elect new leader
+				if let Some(&new_leader) = server.attached.iter().next() {
+					server.leader = new_leader;
+				}
+			}
+
+			// If no sessions left, schedule lease cleanup
+			if server.attached.is_empty() {
+				server.lease_gen += 1;
+				let lease_gen = server.lease_gen;
+				let lease_duration = self.config.idle_lease;
+				let core = self.clone();
+
+				tokio::spawn(async move {
+					tokio::time::sleep(lease_duration).await;
+					core.check_lease_expiry(server_id, lease_gen);
+				});
+			}
+		}
+	}
+
+	/// Check if a lease has expired and terminate the server if so.
+	fn check_lease_expiry(&self, server_id: ServerId, generation: u64) {
+		let mut state = self.state.lock().unwrap();
+		if let Some(server) = state.servers.get(&server_id)
+			&& server.lease_gen == generation
+			&& server.attached.is_empty()
+		{
+			// Lease expired and still empty/matching generation -> Terminate
+			let server = state.servers.remove(&server_id).unwrap();
+			state.projects.remove(&server.project);
+			// Server entry dropped here -> ChildHandle dropped -> process killed (if implemented) or left to OS
+			// We should probably ensure we kill it.
+			// For now rely on Drop or explicit kill if we add that to LspInstance.
+
+			// Also update status
+			let mut current = server.instance.status.lock().unwrap();
+			*current = xeno_broker_proto::types::LspServerStatus::Stopped;
 		}
 	}
 
@@ -178,6 +273,7 @@ impl BrokerCore {
 				attached,
 				leader: owner,
 				docs: DocRegistry::default(),
+				lease_gen: 0,
 			},
 		);
 
@@ -263,7 +359,12 @@ impl BrokerCore {
 		tx: oneshot::Sender<LspReplyResult>,
 	) -> Option<SessionId> {
 		let mut state = self.state.lock().unwrap();
-		let leader = state.servers.get(&server_id).map(|s| s.leader)?;
+		let server = state.servers.get(&server_id)?;
+		// Only return a leader if there are attached sessions
+		if server.attached.is_empty() {
+			return None;
+		}
+		let leader = server.leader;
 
 		state.pending_client_reqs.insert(
 			(server_id, request_id),
@@ -367,15 +468,50 @@ impl BrokerCore {
 	}
 }
 
+/// Handle to a child process that can be real or mocked for tests.
+#[derive(Debug)]
+pub enum ChildHandle {
+	/// Real spawned process.
+	Real(tokio::process::Child),
+	/// Mock handle for tests.
+	#[doc(hidden)]
+	Mock,
+}
+
 /// A running LSP server instance and its associated handles.
 #[derive(Debug)]
 pub struct LspInstance {
 	/// Socket for sending requests/notifications to the server's stdio.
 	pub lsp_tx: LspTx,
 	/// Child process handle for lifecycle management.
-	pub child: tokio::process::Child,
+	pub child: ChildHandle,
 	/// Synchronized server lifecycle status.
 	pub status: Mutex<xeno_broker_proto::types::LspServerStatus>,
+}
+
+impl LspInstance {
+	/// Create a new LspInstance with a real child process.
+	pub fn new(
+		lsp_tx: LspTx,
+		child: tokio::process::Child,
+		status: xeno_broker_proto::types::LspServerStatus,
+	) -> Self {
+		Self {
+			lsp_tx,
+			child: ChildHandle::Real(child),
+			status: Mutex::new(status),
+		}
+	}
+
+	/// Create a mock LspInstance for tests (no real process).
+	#[doc(hidden)]
+	pub fn mock(lsp_tx: LspTx, status: xeno_broker_proto::types::LspServerStatus) -> Self {
+		Self {
+			lsp_tx,
+			child: ChildHandle::Mock,
+			status: Mutex::new(status),
+		}
+	}
 }
 
 /// Registry for document version tracking.
@@ -399,3 +535,6 @@ impl DocRegistry {
 		}
 	}
 }
+
+#[cfg(test)]
+mod tests;

@@ -42,6 +42,10 @@ xeno-runtime-language = { path = "../runtime/language" }
 xeno-tui = { path = "../tui" }
 [dev-dependencies]
 proptest.workspace = true
+tempfile = "3"
+tokio-util = { workspace = true, features = ["rt"] }
+tracing-subscriber = "0.3"
+xeno-broker = { path = "../broker/broker" }
 
 [lints]
 workspace = true

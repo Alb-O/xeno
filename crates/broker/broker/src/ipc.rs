@@ -4,13 +4,31 @@ use std::path::Path;
 use std::sync::Arc;
 
 use tokio::net::{UnixListener, UnixStream};
+use tokio_util::sync::CancellationToken;
 use xeno_broker_proto::BrokerProtocol;
 
 use crate::core::BrokerCore;
+use crate::launcher::{LspLauncher, ProcessLauncher};
 use crate::service::BrokerService;
 
 /// Start the broker IPC server on a Unix domain socket.
-pub async fn serve(socket_path: impl AsRef<Path>, core: Arc<BrokerCore>) -> std::io::Result<()> {
+pub async fn serve(
+	socket_path: impl AsRef<Path>,
+	core: Arc<BrokerCore>,
+	shutdown: CancellationToken,
+) -> std::io::Result<()> {
+	// Use the production process launcher by default
+	let launcher: Arc<dyn LspLauncher> = Arc::new(ProcessLauncher::new());
+	serve_with_launcher(socket_path, core, shutdown, launcher).await
+}
+
+/// Start the broker IPC server with a custom launcher (for testing).
+pub async fn serve_with_launcher(
+	socket_path: impl AsRef<Path>,
+	core: Arc<BrokerCore>,
+	shutdown: CancellationToken,
+	launcher: Arc<dyn LspLauncher>,
+) -> std::io::Result<()> {
 	// Remove existing socket file
 	let path = socket_path.as_ref();
 	if path.exists() {
@@ -23,19 +41,33 @@ pub async fn serve(socket_path: impl AsRef<Path>, core: Arc<BrokerCore>) -> std:
 
 	// Accept connections
 	loop {
-		match listener.accept().await {
-			Ok((stream, _addr)) => {
-				tokio::spawn(handle_connection(stream, core.clone()));
+		tokio::select! {
+			_ = shutdown.cancelled() => {
+				tracing::info!("Broker IPC server shutting down");
+				break;
 			}
-			Err(e) => {
-				tracing::error!(error = %e, "Failed to accept connection");
+			res = listener.accept() => {
+				match res {
+					Ok((stream, _addr)) => {
+						tokio::spawn(handle_connection(stream, core.clone(), launcher.clone()));
+					}
+					Err(e) => {
+						tracing::error!(error = %e, "Failed to accept connection");
+					}
+				}
 			}
 		}
 	}
+
+	Ok(())
 }
 
 /// Handle a single IPC connection.
-pub(crate) async fn handle_connection(stream: UnixStream, core: Arc<BrokerCore>) {
+pub(crate) async fn handle_connection(
+	stream: UnixStream,
+	core: Arc<BrokerCore>,
+	launcher: Arc<dyn LspLauncher>,
+) {
 	tracing::info!("New broker connection");
 
 	// Split into read/write halves
@@ -45,9 +77,9 @@ pub(crate) async fn handle_connection(stream: UnixStream, core: Arc<BrokerCore>)
 	let protocol = BrokerProtocol::new();
 	let id_gen = xeno_rpc::CounterIdGen::new();
 
-	// Create mainloop
+	// Create mainloop with launcher
 	let (main_loop, _socket) = xeno_rpc::MainLoop::new(
-		|socket| BrokerService::new(core.clone(), socket),
+		|socket| BrokerService::new(core.clone(), socket, launcher.clone()),
 		protocol,
 		id_gen,
 	);
@@ -94,8 +126,10 @@ mod tests {
 	#[tokio::test]
 	async fn ping_roundtrip() -> std::io::Result<()> {
 		let core = BrokerCore::new();
+		let launcher: Arc<dyn LspLauncher> = Arc::new(ProcessLauncher::new());
 		let (mut client, server) = UnixStream::pair()?;
-		let server_task = tokio::spawn(async move { handle_connection(server, core).await });
+		let server_task =
+			tokio::spawn(async move { handle_connection(server, core, launcher).await });
 
 		write_frame(
 			&mut client,
@@ -128,8 +162,10 @@ mod tests {
 	#[tokio::test]
 	async fn subscribe_emits_event() -> std::io::Result<()> {
 		let core = BrokerCore::new();
+		let launcher: Arc<dyn LspLauncher> = Arc::new(ProcessLauncher::new());
 		let (mut client, server) = UnixStream::pair()?;
-		let server_task = tokio::spawn(async move { handle_connection(server, core).await });
+		let server_task =
+			tokio::spawn(async move { handle_connection(server, core, launcher).await });
 
 		write_frame(
 			&mut client,
@@ -167,8 +203,10 @@ mod tests {
 	#[tokio::test]
 	async fn disconnect_during_write_is_clean() -> std::io::Result<()> {
 		let core = BrokerCore::new();
+		let launcher: Arc<dyn LspLauncher> = Arc::new(ProcessLauncher::new());
 		let (mut client, server) = UnixStream::pair()?;
-		let server_task = tokio::spawn(async move { handle_connection(server, core).await });
+		let server_task =
+			tokio::spawn(async move { handle_connection(server, core, launcher).await });
 
 		write_frame(
 			&mut client,

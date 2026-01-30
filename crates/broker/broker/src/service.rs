@@ -1,28 +1,24 @@
 //! Broker service implementation.
 
 use std::ops::ControlFlow;
-use std::process::Stdio;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use std::time::Duration;
 
-use tokio::io::BufReader;
 use tokio::time::timeout;
 use tower_service::Service;
 use xeno_broker_proto::BrokerProtocol;
 use xeno_broker_proto::types::{
-	ErrorCode, Event, LspServerConfig, LspServerStatus, Request, RequestPayload, ResponsePayload,
-	ServerId, SessionId,
+	ErrorCode, Event, Request, RequestPayload, ResponsePayload, SessionId,
 };
 use xeno_rpc::{AnyEvent, RpcService};
 
-use crate::core::{BrokerCore, LspInstance, SessionSink};
-use crate::lsp::LspProxyService;
+use crate::core::{BrokerCore, SessionSink};
+use crate::launcher::LspLauncher;
 
 /// Broker service state and request handlers.
 ///
 /// Each IPC connection to the broker is handled by an instance of this service.
 /// It routes editor requests to the shared [`BrokerCore`] or specific LSP servers.
-#[derive(Debug)]
 pub struct BrokerService {
 	/// Shared broker core.
 	core: Arc<BrokerCore>,
@@ -30,82 +26,31 @@ pub struct BrokerService {
 	socket: SessionSink,
 	/// Session ID for this connection (once subscribed).
 	session_id: Option<SessionId>,
+	/// Launcher for spawning LSP server instances.
+	launcher: Arc<dyn LspLauncher>,
+}
+
+impl std::fmt::Debug for BrokerService {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		f.debug_struct("BrokerService")
+			.field("core", &self.core)
+			.field("socket", &"<SessionSink>")
+			.field("session_id", &self.session_id)
+			.field("launcher", &"<dyn LspLauncher>")
+			.finish()
+	}
 }
 
 impl BrokerService {
 	/// Create a new broker service instance.
 	#[must_use]
-	pub fn new(core: Arc<BrokerCore>, socket: SessionSink) -> Self {
+	pub fn new(core: Arc<BrokerCore>, socket: SessionSink, launcher: Arc<dyn LspLauncher>) -> Self {
 		Self {
 			core,
 			socket,
 			session_id: None,
+			launcher,
 		}
-	}
-
-	/// Starts a new LSP server instance and returns its globally unique ID.
-	///
-	/// This spawns the server process, initializes the RPC main loop over its
-	/// stdio, and registers it with the core.
-	async fn lsp_start(
-		core: Arc<BrokerCore>,
-		session_id: SessionId,
-		config: LspServerConfig,
-	) -> Result<ServerId, ErrorCode> {
-		// Check for existing server for this project
-		if let Some(server_id) = core.find_server_for_project(&config)
-			&& core.attach_session(server_id, session_id)
-		{
-			return Ok(server_id);
-		}
-
-		let server_id = core.next_server_id();
-
-		let mut child = tokio::process::Command::new(&config.command)
-			.args(&config.args)
-			.envs(config.env.iter().cloned())
-			.current_dir(config.cwd.as_deref().unwrap_or_default())
-			.stdin(Stdio::piped())
-			.stdout(Stdio::piped())
-			.stderr(Stdio::inherit())
-			.spawn()
-			.map_err(|e| {
-				tracing::error!(error = %e, "Failed to spawn LSP server");
-				ErrorCode::Internal
-			})?;
-
-		let stdin = child.stdin.take().ok_or(ErrorCode::Internal)?;
-		let stdout = child.stdout.take().ok_or(ErrorCode::Internal)?;
-
-		let protocol = xeno_lsp::protocol::JsonRpcProtocol::new();
-		let id_gen = xeno_rpc::CounterIdGen::new();
-
-		let core_clone = core.clone();
-		let (lsp_loop, lsp_socket) = xeno_rpc::MainLoop::new(
-			move |_| LspProxyService::new(core_clone.clone(), server_id),
-			protocol,
-			id_gen,
-		);
-
-		let instance = LspInstance {
-			lsp_tx: lsp_socket,
-			child,
-			status: Mutex::new(LspServerStatus::Starting),
-		};
-		core.register_server(server_id, instance, &config, session_id);
-
-		let core_clone = core.clone();
-		tokio::spawn(async move {
-			let reader = BufReader::new(stdout);
-			let _ = lsp_loop.run(reader, stdin).await;
-
-			core_clone.unregister_server(server_id);
-			core_clone.set_server_status(server_id, LspServerStatus::Stopped);
-		});
-
-		core.set_server_status(server_id, LspServerStatus::Starting);
-
-		Ok(server_id)
 	}
 }
 
@@ -135,6 +80,7 @@ impl Service<Request> for BrokerService {
 		let core = self.core.clone();
 		let socket = self.socket.clone();
 		let session_id = self.session_id;
+		let launcher = self.launcher.clone();
 
 		// Session registration on subscription.
 		if let RequestPayload::Subscribe { session_id } = req.payload {
@@ -148,7 +94,27 @@ impl Service<Request> for BrokerService {
 				RequestPayload::Subscribe { .. } => Ok(ResponsePayload::Subscribed),
 				RequestPayload::LspStart { config } => {
 					let session_id = session_id.ok_or(ErrorCode::AuthFailed)?;
-					let server_id = Self::lsp_start(core, session_id, config).await?;
+
+					// Check for existing server for this project
+					if let Some(server_id) = core.find_server_for_project(&config)
+						&& core.attach_session(server_id, session_id)
+					{
+						return Ok(ResponsePayload::LspStarted { server_id });
+					}
+
+					let server_id = core.next_server_id();
+
+					// Use the launcher directly
+					let instance = launcher
+						.launch(core.clone(), server_id, &config, session_id)
+						.await?;
+
+					core.register_server(server_id, instance, &config, session_id);
+					core.set_server_status(
+						server_id,
+						xeno_broker_proto::types::LspServerStatus::Starting,
+					);
+
 					Ok(ResponsePayload::LspStarted { server_id })
 				}
 				RequestPayload::LspSend { server_id, message } => {

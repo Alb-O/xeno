@@ -8,6 +8,7 @@
 use std::path::PathBuf;
 
 use clap::Parser;
+use tokio_util::sync::CancellationToken;
 use tracing::info;
 
 /// Broker command line arguments.
@@ -53,10 +54,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 	// Initialize broker core
 	let core = xeno_broker::core::BrokerCore::new();
+	let shutdown = CancellationToken::new();
 
 	// Start IPC server
 	info!("Starting IPC server");
-	xeno_broker::ipc::serve(&socket_path, core).await?;
+	xeno_broker::ipc::serve(&socket_path, core, shutdown).await?;
 
 	Ok(())
 }
