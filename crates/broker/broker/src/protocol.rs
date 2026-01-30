@@ -137,9 +137,16 @@ impl Protocol for BrokerProtocol {
 	}
 
 	fn post_response_messages(resp: &Self::Response) -> Vec<Self::Message> {
-		match &resp.payload {
+		match resp.payload {
 			ResponsePayload::Subscribed => vec![IpcFrame::Event(Event::Heartbeat)],
 			_ => Vec::new(),
 		}
+	}
+
+	fn is_disconnect(err: &Self::LoopError) -> bool {
+		matches!(
+			err.kind(),
+			ErrorKind::UnexpectedEof | ErrorKind::BrokenPipe | ErrorKind::ConnectionReset
+		)
 	}
 }

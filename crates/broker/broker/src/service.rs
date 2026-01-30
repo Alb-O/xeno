@@ -35,10 +35,8 @@ impl Service<Request> for BrokerService {
 	}
 
 	fn call(&mut self, req: Request) -> Self::Future {
-		let payload = req.payload;
-
 		Box::pin(async move {
-			let response = match payload {
+			let response = match req.payload {
 				RequestPayload::Ping => ResponsePayload::Pong,
 				RequestPayload::Subscribe { .. } => ResponsePayload::Subscribed,
 				RequestPayload::LspStart { .. } => {

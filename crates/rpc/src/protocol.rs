@@ -110,6 +110,11 @@ pub trait Protocol: Send + 'static {
 	/// Create an error response.
 	fn response_err(id: Self::Id, error: Self::ReqError) -> Self::Response;
 
+	/// Returns true if the loop error represents a clean disconnect.
+	fn is_disconnect(_err: &Self::LoopError) -> bool {
+		false
+	}
+
 	/// Additional messages to emit immediately after a successful response.
 	fn post_response_messages(_resp: &Self::Response) -> Vec<Self::Message> {
 		Vec::new()

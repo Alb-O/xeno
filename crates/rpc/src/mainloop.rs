@@ -126,12 +126,17 @@ where
 					   None => break Ok(()),
 				   },
 
-				   msg = self.protocol.read_message(&mut input) => {
-					   match msg {
-						   Ok(msg) => (self.dispatch_message(msg).await, false),
-						   Err(e) => break Err(S::LoopError::from(e)),
-					   }
-				   }
+				msg = self.protocol.read_message(&mut input) => {
+					match msg {
+						Ok(msg) => (self.dispatch_message(msg).await, false),
+						Err(e) => {
+							if P::is_disconnect(&e) {
+								break Ok(());
+							}
+							break Err(S::LoopError::from(e));
+						}
+					}
+				}
 				}
 			} else {
 				tokio::select! {
@@ -140,12 +145,17 @@ where
 					   None => break Ok(()),
 				   },
 
-				   msg = self.protocol.read_message(&mut input) => {
-					   match msg {
-						   Ok(msg) => (self.dispatch_message(msg).await, false),
-						   Err(e) => break Err(S::LoopError::from(e)),
-					   }
-				   },
+				msg = self.protocol.read_message(&mut input) => {
+					match msg {
+						Ok(msg) => (self.dispatch_message(msg).await, false),
+						Err(e) => {
+							if P::is_disconnect(&e) {
+								break Ok(());
+							}
+							break Err(S::LoopError::from(e));
+						}
+					}
+				},
 
 				resp = self.tasks.join_next(), if !self.tasks.is_empty() => {
 					self.handle_task_response(resp)

@@ -43,7 +43,7 @@ pub(crate) async fn handle_connection(stream: UnixStream) {
 	let protocol = BrokerProtocol::new();
 	let id_gen = xeno_rpc::CounterIdGen::new();
 
-	// Create mainloop (service takes a clone of the peer socket)
+	// Create mainloop
 	let (main_loop, _socket) =
 		xeno_rpc::MainLoop::new(|_socket| BrokerService::new(), protocol, id_gen);
 
