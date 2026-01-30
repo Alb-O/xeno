@@ -60,6 +60,22 @@ pub enum RequestPayload {
 		/// The LSP message (JSON-RPC string).
 		message: String,
 	},
+	/// Send a request to an LSP server and wait for the response.
+	LspRequest {
+		/// Target LSP server.
+		server_id: ServerId,
+		/// The LSP request (JSON-RPC string).
+		message: String,
+		/// Optional timeout in milliseconds.
+		timeout_ms: Option<u64>,
+	},
+	/// Reply to a request initiated by an LSP server.
+	LspReply {
+		/// Target LSP server.
+		server_id: ServerId,
+		/// The LSP response (JSON-RPC string).
+		message: String,
+	},
 }
 
 /// Configuration for an LSP server.
@@ -129,6 +145,8 @@ pub enum ErrorCode {
 	AuthFailed,
 	/// Feature not implemented.
 	NotImplemented,
+	/// Request timed out.
+	Timeout,
 }
 
 /// Async event from broker to editor (no response expected).

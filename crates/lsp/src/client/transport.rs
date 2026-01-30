@@ -1,0 +1,92 @@
+//! LSP transport abstraction for pluggable backends (local vs brokered).
+
+use std::time::Duration;
+
+use async_trait::async_trait;
+use tokio::sync::mpsc;
+
+use crate::client::LanguageServerId;
+use crate::{AnyNotification, AnyRequest, AnyResponse, JsonValue, Message, ResponseError};
+
+/// Events emitted by the transport layer to the LSP manager.
+#[derive(Debug, Clone)]
+pub enum TransportEvent {
+	/// Server lifecycle status change.
+	Status {
+		/// Internal identifier for the server.
+		server: LanguageServerId,
+		/// New lifecycle status.
+		status: TransportStatus,
+	},
+	/// Inbound message from the server (notification or request).
+	Message {
+		/// Internal identifier for the server.
+		server: LanguageServerId,
+		/// The message payload.
+		message: Message,
+	},
+	/// Structured diagnostics event from the server.
+	Diagnostics {
+		/// Internal identifier for the server.
+		server: LanguageServerId,
+		/// Document URI.
+		uri: String,
+		/// Document version.
+		version: u32,
+		/// Diagnostics payload (JSON array).
+		diagnostics: JsonValue,
+	},
+	/// The transport backend has disconnected.
+	Disconnected,
+}
+
+/// Lifecycle status of an LSP server process.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TransportStatus {
+	/// Server is starting up.
+	Starting,
+	/// Server is running and responding to messages.
+	Running,
+	/// Server has stopped gracefully.
+	Stopped,
+	/// Server has crashed or terminated unexpectedly.
+	Crashed,
+}
+
+/// Handle for a successfully started/acquired server.
+#[derive(Debug, Clone, Copy)]
+pub struct StartedServer {
+	/// Internal identifier for the server.
+	pub id: LanguageServerId,
+}
+
+/// Pluggable transport for LSP communication.
+///
+/// This trait abstracts over whether the LSP server is running as a local child
+/// process or managed by an external broker.
+#[async_trait]
+pub trait LspTransport: Send + Sync {
+	/// Returns a receiver for asynchronous events from the transport.
+	fn events(&self) -> mpsc::UnboundedReceiver<TransportEvent>;
+
+	/// Starts or acquires a language server for the given configuration.
+	async fn start(&self, cfg: crate::client::ServerConfig) -> crate::Result<StartedServer>;
+
+	/// Sends an asynchronous notification to the server.
+	async fn notify(&self, server: LanguageServerId, notif: AnyNotification) -> crate::Result<()>;
+
+	/// Sends a synchronous request to the server and awaits its response.
+	async fn request(
+		&self,
+		server: LanguageServerId,
+		req: AnyRequest,
+		timeout: Option<Duration>,
+	) -> crate::Result<AnyResponse>;
+
+	/// Replies to a request initiated by the server.
+	async fn reply(
+		&self,
+		server: LanguageServerId,
+		resp: Result<JsonValue, ResponseError>,
+	) -> crate::Result<()>;
+}

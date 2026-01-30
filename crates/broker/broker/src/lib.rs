@@ -5,7 +5,7 @@
 pub mod core;
 pub mod ipc;
 pub mod lsp;
-pub mod protocol;
 pub mod service;
 
 pub use xeno_broker_proto as proto;
+pub use xeno_broker_proto::protocol;

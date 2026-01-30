@@ -3,10 +3,9 @@
 use std::io::{Error as IoError, ErrorKind};
 
 use tokio::io::{AsyncBufRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
-use xeno_broker_proto::types::{
-	ErrorCode, Event, IpcFrame, Request, RequestId, Response, ResponsePayload,
-};
 use xeno_rpc::{CounterIdGen, Inbound, Protocol};
+
+use crate::types::{ErrorCode, Event, IpcFrame, Request, RequestId, Response, ResponsePayload};
 
 /// Broker protocol implementation using length-delimited postcard encoding.
 #[derive(Debug, Clone, Default)]

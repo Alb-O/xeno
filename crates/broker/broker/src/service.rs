@@ -3,9 +3,12 @@
 use std::ops::ControlFlow;
 use std::process::Stdio;
 use std::sync::{Arc, Mutex};
+use std::time::Duration;
 
 use tokio::io::BufReader;
+use tokio::time::timeout;
 use tower_service::Service;
+use xeno_broker_proto::BrokerProtocol;
 use xeno_broker_proto::types::{
 	ErrorCode, Event, LspServerConfig, LspServerStatus, Request, RequestPayload, ResponsePayload,
 	ServerId, SessionId,
@@ -14,7 +17,6 @@ use xeno_rpc::{AnyEvent, RpcService};
 
 use crate::core::{BrokerCore, LspInstance, SessionSink};
 use crate::lsp::LspProxyService;
-use crate::protocol::BrokerProtocol;
 
 /// Broker service state and request handlers.
 ///
@@ -149,6 +151,50 @@ impl Service<Request> for BrokerService {
 					let _ = lsp_tx.send(xeno_rpc::MainLoopEvent::Outgoing(lsp_msg));
 
 					Ok(ResponsePayload::LspSent { server_id })
+				}
+				RequestPayload::LspRequest {
+					server_id,
+					message,
+					timeout_ms,
+				} => {
+					let lsp_tx = core
+						.get_server_tx(server_id)
+						.ok_or(ErrorCode::ServerNotFound)?;
+
+					let req: xeno_lsp::AnyRequest =
+						serde_json::from_str(&message).map_err(|_| ErrorCode::InvalidArgs)?;
+
+					let (resp_tx, resp_rx) = tokio::sync::oneshot::channel();
+					let _ = lsp_tx.send(xeno_rpc::MainLoopEvent::OutgoingRequest(req, resp_tx));
+
+					let dur = Duration::from_millis(timeout_ms.unwrap_or(10_000));
+					let resp = timeout(dur, resp_rx)
+						.await
+						.map_err(|_| ErrorCode::Timeout)?
+						.map_err(|_| ErrorCode::Internal)?;
+
+					let json = serde_json::to_string(&resp).map_err(|_| ErrorCode::Internal)?;
+					Ok(ResponsePayload::LspMessage {
+						server_id,
+						message: json,
+					})
+				}
+				RequestPayload::LspReply { server_id, message } => {
+					let resp: xeno_lsp::AnyResponse =
+						serde_json::from_str(&message).map_err(|_| ErrorCode::InvalidArgs)?;
+
+					let request_id = resp.id.clone();
+					let result = if let Some(error) = resp.error {
+						Err(error)
+					} else {
+						Ok(resp.result.unwrap_or(serde_json::Value::Null))
+					};
+
+					if core.complete_client_request(server_id, request_id, result) {
+						Ok(ResponsePayload::LspSent { server_id })
+					} else {
+						Err(ErrorCode::Internal)
+					}
 				}
 			}
 		})

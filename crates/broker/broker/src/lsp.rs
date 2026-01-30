@@ -2,7 +2,9 @@
 
 use std::ops::ControlFlow;
 use std::sync::Arc;
+use std::time::Duration;
 
+use tokio::time::timeout;
 use tower_service::Service;
 use xeno_broker_proto::types::{Event, IpcFrame, LspServerStatus, ServerId, SessionId};
 use xeno_lsp::protocol::JsonRpcProtocol;
@@ -100,18 +102,30 @@ impl Service<AnyRequest> for LspProxyService {
 	}
 
 	fn call(&mut self, req: AnyRequest) -> Self::Future {
+		let core = self.core.clone();
+		let server_id = self.server_id;
+		let request_id = req.id.clone();
+
 		// Forward request to editor as an async event
 		self.forward(Message::Request(req));
 
-		// Since we're just a proxy, we don't handle requests from the server synchronously.
-		// The editor will send a response back via LspSend which we'll push to the server.
-		// For now, we return a placeholder (or we could wait for the response, but Option B
-		// async proxy is simpler).
+		// Register a oneshot and wait for the editor to reply via LspReply.
+		let (tx, rx) = tokio::sync::oneshot::channel();
+		core.register_client_request(server_id, request_id, tx);
+
 		Box::pin(async move {
-			Err(ResponseError::new(
-				ErrorCode::METHOD_NOT_FOUND,
-				"Asynchronous proxy: response will follow via event",
-			))
+			// Wait for reply from editor (with 30s timeout for client requests)
+			match timeout(Duration::from_secs(30), rx).await {
+				Ok(Ok(result)) => result,
+				Ok(Err(_)) => Err(ResponseError::new(
+					ErrorCode::INTERNAL_ERROR,
+					"Broker internal error: reply channel closed",
+				)),
+				Err(_) => Err(ResponseError::new(
+					ErrorCode::REQUEST_CANCELLED,
+					"Broker timeout waiting for editor reply",
+				)),
+			}
 		})
 	}
 }

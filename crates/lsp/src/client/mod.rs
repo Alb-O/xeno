@@ -60,6 +60,7 @@ mod lifecycle;
 mod outbox;
 mod router_setup;
 mod state;
+pub mod transport;
 
 // Public re-exports (preserve existing API surface)
 pub use capabilities::client_capabilities;
@@ -68,3 +69,4 @@ pub use event_handler::{LogLevel, LspEventHandler, NoOpEventHandler, SharedEvent
 pub use handle::ClientHandle;
 pub use lifecycle::start_server;
 pub use state::ServerState;
+pub use transport::{LspTransport, TransportEvent, TransportStatus};

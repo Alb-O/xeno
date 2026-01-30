@@ -95,9 +95,19 @@ where
 		(this, socket)
 	}
 
-	/// Drive the service main loop.
+	/// Drive the service main loop until completion.
 	///
-	/// This runs until an error occurs, EOF is reached, or the service signals shutdown.
+	/// This asynchronous loop:
+	/// 1. Reads inbound messages using the protocol codec.
+	/// 2. Dispatches requests to the concurrent task pool (`JoinSet`).
+	/// 3. Routes notifications and internal events to the service handlers.
+	/// 4. Manages a "drain budget" to ensure high-throughput response writing
+	///    while maintaining fairness for new incoming work.
+	///
+	/// # Errors
+	///
+	/// Returns an error if the underlying IO fails or if the protocol is violated.
+	/// Connection resets and EOFs are treated as graceful shutdowns and return `Ok(())`.
 	pub async fn run(
 		mut self,
 		mut input: impl AsyncBufRead + Unpin + Send,

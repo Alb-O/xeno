@@ -4,6 +4,7 @@ use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 
+use tokio::sync::oneshot;
 use xeno_broker_proto::types::{DocId, IpcFrame, Request, Response, ServerId, SessionId};
 use xeno_rpc::{MainLoopEvent, PeerSocket};
 
@@ -12,6 +13,9 @@ pub type SessionSink = PeerSocket<IpcFrame, Request, Response>;
 
 /// Sink for sending messages to an LSP server.
 pub type LspTx = PeerSocket<xeno_lsp::Message, xeno_lsp::AnyRequest, xeno_lsp::AnyResponse>;
+
+/// Result of a server-to-editor request.
+pub type LspReplyResult = Result<serde_json::Value, xeno_lsp::ResponseError>;
 
 /// Shared state for the broker.
 ///
@@ -23,6 +27,9 @@ pub struct BrokerCore {
 	sessions: Mutex<HashMap<SessionId, SessionSink>>,
 	/// Running LSP server instances.
 	servers: Mutex<HashMap<ServerId, LspInstance>>,
+	/// Pending requests initiated by LSP servers awaiting editor replies.
+	pending_client_reqs:
+		Mutex<HashMap<(ServerId, xeno_lsp::RequestId), oneshot::Sender<LspReplyResult>>>,
 	/// Document registry for version tracking.
 	docs: Mutex<DocRegistry>,
 	/// Next available server ID.
@@ -73,6 +80,39 @@ impl BrokerCore {
 			.unwrap()
 			.get(&server_id)
 			.map(|s| s.lsp_tx.clone())
+	}
+
+	/// Register a pending server-to-editor request.
+	pub fn register_client_request(
+		&self,
+		server_id: ServerId,
+		request_id: xeno_lsp::RequestId,
+		tx: oneshot::Sender<LspReplyResult>,
+	) {
+		self.pending_client_reqs
+			.lock()
+			.unwrap()
+			.insert((server_id, request_id), tx);
+	}
+
+	/// Complete a pending server-to-editor request with a reply.
+	pub fn complete_client_request(
+		&self,
+		server_id: ServerId,
+		request_id: xeno_lsp::RequestId,
+		result: LspReplyResult,
+	) -> bool {
+		if let Some(tx) = self
+			.pending_client_reqs
+			.lock()
+			.unwrap()
+			.remove(&(server_id, request_id))
+		{
+			let _ = tx.send(result);
+			true
+		} else {
+			false
+		}
 	}
 
 	/// Update server status and notify the owning session.

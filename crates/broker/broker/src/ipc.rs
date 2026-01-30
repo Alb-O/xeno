@@ -4,9 +4,9 @@ use std::path::Path;
 use std::sync::Arc;
 
 use tokio::net::{UnixListener, UnixStream};
+use xeno_broker_proto::BrokerProtocol;
 
 use crate::core::BrokerCore;
-use crate::protocol::BrokerProtocol;
 use crate::service::BrokerService;
 
 /// Start the broker IPC server on a Unix domain socket.
