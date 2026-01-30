@@ -242,7 +242,7 @@ impl LspEventHandler for TransportEventHandler {
 		version: Option<i32>,
 	) {
 		let diagnostics = serde_json::to_value(&diags).unwrap_or(JsonValue::Array(vec![]));
-		let version_u32 = version.unwrap_or(0).max(0) as u32;
+		let version_u32 = version.map(|v| v.max(0) as u32);
 
 		let _ = self.tx.send(TransportEvent::Diagnostics {
 			server: server_id,

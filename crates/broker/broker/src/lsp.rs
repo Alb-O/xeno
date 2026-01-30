@@ -73,14 +73,33 @@ impl LspProxyService {
 
 				if notif.method == "textDocument/publishDiagnostics"
 					&& let Some(uri) = notif.params.get("uri").and_then(|u| u.as_str())
-					&& let Some((doc_id, version)) = self.core.get_doc_by_uri(self.server_id, uri)
 				{
 					tracing::debug!(?self.server_id, %uri, "Broadcasting structured diagnostics");
+
+					// Parse version from LSP payload (authoritative) or fall back to broker tracking
+					let version = notif
+						.params
+						.get("version")
+						.and_then(|v| v.as_u64())
+						.map(|v| v as u32)
+						.or_else(|| {
+							self.core
+								.get_doc_by_uri(self.server_id, uri)
+								.map(|(_, v)| v)
+						});
+
+					// Get doc_id if available (optional, only for broker debugging)
+					let doc_id = self
+						.core
+						.get_doc_by_uri(self.server_id, uri)
+						.map(|(id, _)| id);
+
 					let diagnostics = notif
 						.params
 						.get("diagnostics")
 						.map(ToString::to_string)
 						.unwrap_or_else(|| "[]".to_string());
+
 					self.core.broadcast_to_server(
 						self.server_id,
 						Event::LspDiagnostics {

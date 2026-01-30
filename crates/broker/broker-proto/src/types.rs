@@ -194,12 +194,18 @@ pub enum Event {
 	LspDiagnostics {
 		/// Source server.
 		server_id: ServerId,
-		/// Target document.
-		doc_id: DocId,
+		/// Target document ID (if known to broker).
+		///
+		/// Optional because diagnostics may arrive before the document
+		/// is registered via `didOpen`, or after all sessions close it.
+		doc_id: Option<DocId>,
 		/// Document URI.
 		uri: String,
-		/// Document version.
-		version: u32,
+		/// Document version from LSP server's publishDiagnostics payload.
+		///
+		/// Optional because the LSP protocol does not require servers
+		/// to include a version field in diagnostic notifications.
+		version: Option<u32>,
 		/// Diagnostics (serialized JSON).
 		diagnostics: String,
 	},

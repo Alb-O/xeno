@@ -31,8 +31,11 @@ pub enum TransportEvent {
 		server: LanguageServerId,
 		/// Document URI.
 		uri: String,
-		/// Document version.
-		version: u32,
+		/// Document version from LSP server's publishDiagnostics payload.
+		///
+		/// Optional because the LSP protocol does not require servers
+		/// to include a version field in diagnostic notifications.
+		version: Option<u32>,
 		/// Diagnostics payload (JSON array).
 		diagnostics: JsonValue,
 	},

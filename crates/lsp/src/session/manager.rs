@@ -50,7 +50,11 @@ impl LspManager {
 							&& let Ok(diags) =
 								serde_json::from_value::<Vec<lsp_types::Diagnostic>>(diagnostics)
 						{
-							documents_clone.update_diagnostics(&uri, diags, Some(version as i32));
+							documents_clone.update_diagnostics(
+								&uri,
+								diags,
+								version.map(|v| v as i32),
+							);
 						}
 					}
 					TransportEvent::Message { server: _, message } => {
