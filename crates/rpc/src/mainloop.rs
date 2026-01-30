@@ -117,20 +117,9 @@ where
 				tokio::select! {
 				   biased;
 
-				   resp = self.tasks.join_next(), if !self.tasks.is_empty() => {
-					   match resp {
-						   Some(Ok(resp)) => {
-							   let extras = P::post_response_messages(&resp);
-							   let wrapped = P::wrap_response(resp);
-							   (ControlFlow::Continue(Some((wrapped, extras))), true)
-						   }
-						   Some(Err(e)) => {
-							   tracing::error!(error = %e, "RPC task panicked or was cancelled");
-							   (ControlFlow::Continue(None), true)
-						   }
-						   None => (ControlFlow::Continue(None), true),
-					   }
-				   }
+				resp = self.tasks.join_next(), if !self.tasks.is_empty() => {
+					self.handle_task_response(resp)
+				}
 
 				   event = self.rx.recv() => match event {
 					   Some(e) => (self.dispatch_event(e), false),
@@ -158,20 +147,9 @@ where
 					   }
 				   },
 
-				   resp = self.tasks.join_next(), if !self.tasks.is_empty() => {
-					   match resp {
-						   Some(Ok(resp)) => {
-							   let extras = P::post_response_messages(&resp);
-							   let wrapped = P::wrap_response(resp);
-							   (ControlFlow::Continue(Some((wrapped, extras))), true)
-						   }
-						   Some(Err(e)) => {
-							   tracing::error!(error = %e, "RPC task panicked or was cancelled");
-							   (ControlFlow::Continue(None), true)
-						   }
-						   None => (ControlFlow::Continue(None), true),
-					   }
-				   }
+				resp = self.tasks.join_next(), if !self.tasks.is_empty() => {
+					self.handle_task_response(resp)
+				}
 				}
 			};
 
@@ -214,6 +192,27 @@ where
 
 		output.shutdown().await.map_err(S::LoopError::from)?;
 		ret
+	}
+
+	fn handle_task_response(
+		&self,
+		resp: Option<Result<P::Response, tokio::task::JoinError>>,
+	) -> (
+		ControlFlow<std::result::Result<(), S::LoopError>, Option<PendingMessage<P::Message>>>,
+		bool,
+	) {
+		match resp {
+			Some(Ok(resp)) => {
+				let extras = P::post_response_messages(&resp);
+				let wrapped = P::wrap_response(resp);
+				(ControlFlow::Continue(Some((wrapped, extras))), true)
+			}
+			Some(Err(e)) => {
+				tracing::error!(error = %e, "RPC task panicked or was cancelled");
+				(ControlFlow::Continue(None), true)
+			}
+			None => (ControlFlow::Continue(None), true),
+		}
 	}
 
 	/// Routes an incoming message to the appropriate handler.
