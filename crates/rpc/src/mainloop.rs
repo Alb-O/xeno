@@ -188,19 +188,19 @@ where
 					+ tokio::time::Duration::from_millis(TASK_DRAIN_WINDOW_MS);
 			}
 
-			self.protocol
-				.write_message(&mut output, &main_msg)
-				.await
-				.map_err(S::LoopError::from)?;
-			for extra in extras {
-				self.protocol
-					.write_message(&mut output, &extra)
-					.await
-					.map_err(S::LoopError::from)?;
+			for payload in std::iter::once(&main_msg).chain(extras.iter()) {
+				if let Err(e) = self.protocol.write_message(&mut output, payload).await {
+					if P::is_disconnect(&e) {
+						return Ok(());
+					}
+					return Err(S::LoopError::from(e));
+				}
 			}
 		};
 
-		output.shutdown().await.map_err(S::LoopError::from)?;
+		if let Err(e) = output.shutdown().await {
+			tracing::debug!(error = %e, "rpc.output.shutdown");
+		}
 		ret
 	}
 

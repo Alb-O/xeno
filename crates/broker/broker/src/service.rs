@@ -36,16 +36,12 @@ impl Service<Request> for BrokerService {
 
 	fn call(&mut self, req: Request) -> Self::Future {
 		Box::pin(async move {
-			let response = match req.payload {
-				RequestPayload::Ping => ResponsePayload::Pong,
-				RequestPayload::Subscribe { .. } => ResponsePayload::Subscribed,
-				RequestPayload::LspStart { .. } => {
-					ResponsePayload::Error(ErrorCode::NotImplemented)
-				}
-				RequestPayload::LspSend { .. } => ResponsePayload::Error(ErrorCode::NotImplemented),
-			};
-
-			Ok(response)
+			match req.payload {
+				RequestPayload::Ping => Ok(ResponsePayload::Pong),
+				RequestPayload::Subscribe { .. } => Ok(ResponsePayload::Subscribed),
+				RequestPayload::LspStart { .. } => Err(ErrorCode::NotImplemented),
+				RequestPayload::LspSend { .. } => Err(ErrorCode::NotImplemented),
+			}
 		})
 	}
 }
