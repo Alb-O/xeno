@@ -188,6 +188,20 @@ pub struct AnyNotification {
 	pub params: JsonValue,
 }
 
+impl AnyNotification {
+	/// Create a new notification with the given method and params.
+	///
+	/// # Arguments
+	/// * `method` - The LSP notification method (e.g., `textDocument/didOpen`).
+	/// * `params` - Serialized JSON parameters for the notification.
+	pub fn new(method: impl Into<String>, params: JsonValue) -> Self {
+		Self {
+			method: method.into(),
+			params,
+		}
+	}
+}
+
 /// A dynamic runtime response.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[non_exhaustive]

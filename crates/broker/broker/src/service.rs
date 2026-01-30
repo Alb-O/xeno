@@ -120,7 +120,11 @@ impl Service<Request> for BrokerService {
 
 					Ok(ResponsePayload::LspStarted { server_id })
 				}
-				RequestPayload::LspSend { server_id, message } => {
+				RequestPayload::LspSend {
+					session_id,
+					server_id,
+					message,
+				} => {
 					let lsp_tx = core
 						.get_server_tx(server_id)
 						.ok_or(ErrorCode::ServerNotFound)?;
@@ -132,6 +136,17 @@ impl Service<Request> for BrokerService {
 						return Err(ErrorCode::InvalidArgs);
 					}
 
+					if let xeno_lsp::Message::Notification(ref notif) = lsp_msg
+						&& matches!(
+							notif.method.as_str(),
+							"textDocument/didOpen"
+								| "textDocument/didChange"
+								| "textDocument/didClose"
+						) && !core.gate_text_sync(session_id, server_id, notif)
+						{
+							return Err(ErrorCode::NotDocOwner);
+						}
+
 					core.on_editor_message(server_id, &lsp_msg);
 
 					let _ = lsp_tx.send(xeno_rpc::MainLoopEvent::Outgoing(lsp_msg));
@@ -139,6 +154,7 @@ impl Service<Request> for BrokerService {
 					Ok(ResponsePayload::LspSent { server_id })
 				}
 				RequestPayload::LspRequest {
+					session_id,
 					server_id,
 					message,
 					timeout_ms,
@@ -147,23 +163,64 @@ impl Service<Request> for BrokerService {
 						.get_server_tx(server_id)
 						.ok_or(ErrorCode::ServerNotFound)?;
 
-					let req: xeno_lsp::AnyRequest =
+					let mut req: xeno_lsp::AnyRequest =
 						serde_json::from_str(&message).map_err(|_| ErrorCode::InvalidArgs)?;
 
+					let origin_id = req.id.clone();
+					let wire_id = core
+						.alloc_wire_request_id(server_id)
+						.ok_or(ErrorCode::ServerNotFound)?;
+
+					core.register_c2s_pending(
+						server_id,
+						wire_id.clone(),
+						session_id,
+						origin_id.clone(),
+					);
+
+					req.id = wire_id.clone();
+
 					let (resp_tx, resp_rx) = tokio::sync::oneshot::channel();
-					let _ = lsp_tx.send(xeno_rpc::MainLoopEvent::OutgoingRequest(req, resp_tx));
+					if lsp_tx
+						.send(xeno_rpc::MainLoopEvent::OutgoingRequest(req, resp_tx))
+						.is_err()
+					{
+						core.cancel_c2s_pending(server_id, &wire_id);
+						return Err(ErrorCode::ServerNotFound);
+					}
 
 					let dur = Duration::from_millis(timeout_ms.unwrap_or(10_000));
-					let resp = timeout(dur, resp_rx)
-						.await
-						.map_err(|_| ErrorCode::Timeout)?
-						.map_err(|_| ErrorCode::Internal)?;
-
-					let json = serde_json::to_string(&resp).map_err(|_| ErrorCode::Internal)?;
-					Ok(ResponsePayload::LspMessage {
-						server_id,
-						message: json,
-					})
+					match timeout(dur, resp_rx).await {
+						Ok(Ok(mut resp)) => {
+							if let Some(mapping) = core.take_c2s_pending(server_id, &resp.id) {
+								resp.id = mapping.origin_id;
+								let json = serde_json::to_string(&resp)
+									.map_err(|_| ErrorCode::Internal)?;
+								Ok(ResponsePayload::LspMessage {
+									server_id,
+									message: json,
+								})
+							} else {
+								tracing::warn!(?server_id, ?resp.id, "C2S response with unknown wire_id");
+								Err(ErrorCode::Internal)
+							}
+						}
+						Ok(Err(_)) => {
+							core.cancel_c2s_pending(server_id, &wire_id);
+							Err(ErrorCode::Internal)
+						}
+						Err(_) => {
+							core.cancel_c2s_pending(server_id, &wire_id);
+							let cancel_notif = xeno_lsp::AnyNotification::new(
+								"$/cancelRequest",
+								serde_json::json!({ "id": wire_id }),
+							);
+							let _ = lsp_tx.send(xeno_rpc::MainLoopEvent::Outgoing(
+								xeno_lsp::Message::Notification(cancel_notif),
+							));
+							Err(ErrorCode::Timeout)
+						}
+					}
 				}
 				RequestPayload::LspReply { server_id, message } => {
 					let session_id = session_id.ok_or(ErrorCode::AuthFailed)?;

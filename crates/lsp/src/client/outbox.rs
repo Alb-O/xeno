@@ -89,7 +89,9 @@ mod tests {
 	#[tokio::test]
 	async fn outbound_dispatcher_forwards_notifications() {
 		let (peer_tx, mut peer_rx) = tokio::sync::mpsc::unbounded_channel();
-		let socket = ServerSocket(PeerSocket { tx: peer_tx });
+		let rpc_socket =
+			xeno_rpc::PeerSocket::<Message, AnyRequest, AnyResponse>::from_sender(peer_tx);
+		let socket = ServerSocket(PeerSocket::from_rpc(rpc_socket));
 
 		let (_state_tx, state_rx) = watch::channel(ServerState::Ready);
 		let (outbound_tx, outbound_rx) = mpsc::channel(4);
@@ -118,7 +120,9 @@ mod tests {
 	#[tokio::test]
 	async fn outbound_dispatcher_fires_write_barrier() {
 		let (peer_tx, mut peer_rx) = tokio::sync::mpsc::unbounded_channel();
-		let socket = ServerSocket(PeerSocket { tx: peer_tx });
+		let rpc_socket =
+			xeno_rpc::PeerSocket::<Message, AnyRequest, AnyResponse>::from_sender(peer_tx);
+		let socket = ServerSocket(PeerSocket::from_rpc(rpc_socket));
 
 		let (_state_tx, state_rx) = watch::channel(ServerState::Ready);
 		let (outbound_tx, outbound_rx) = mpsc::channel(4);
@@ -153,7 +157,9 @@ mod tests {
 	#[tokio::test]
 	async fn outbound_dispatcher_preserves_fifo_order() {
 		let (peer_tx, mut peer_rx) = tokio::sync::mpsc::unbounded_channel();
-		let socket = ServerSocket(PeerSocket { tx: peer_tx });
+		let rpc_socket =
+			xeno_rpc::PeerSocket::<Message, AnyRequest, AnyResponse>::from_sender(peer_tx);
+		let socket = ServerSocket(PeerSocket::from_rpc(rpc_socket));
 
 		let (_state_tx, state_rx) = watch::channel(ServerState::Ready);
 		let (outbound_tx, outbound_rx) = mpsc::channel(4);
@@ -201,7 +207,9 @@ mod tests {
 	#[tokio::test]
 	async fn outbound_dispatcher_stops_on_dead() {
 		let (peer_tx, _peer_rx) = tokio::sync::mpsc::unbounded_channel();
-		let socket = ServerSocket(PeerSocket { tx: peer_tx });
+		let rpc_socket =
+			xeno_rpc::PeerSocket::<Message, AnyRequest, AnyResponse>::from_sender(peer_tx);
+		let socket = ServerSocket(PeerSocket::from_rpc(rpc_socket));
 
 		let (state_tx, state_rx) = watch::channel(ServerState::Starting);
 		let (_outbound_tx, outbound_rx) = mpsc::channel(4);

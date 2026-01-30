@@ -137,11 +137,71 @@ impl Default for LspManager {
 
 #[cfg(test)]
 mod tests {
+	use async_trait::async_trait;
+	use serde_json::Value as JsonValue;
+	use tokio::sync::{mpsc, oneshot};
+
 	use super::*;
+	use crate::client::LanguageServerId;
+	use crate::types::{AnyNotification, AnyRequest, AnyResponse, ResponseError};
+
+	/// Minimal stub transport for testing
+	struct StubTransport;
+
+	#[async_trait]
+	impl LspTransport for StubTransport {
+		fn events(&self) -> mpsc::UnboundedReceiver<TransportEvent> {
+			let (_, rx) = mpsc::unbounded_channel();
+			rx
+		}
+
+		async fn start(
+			&self,
+			_cfg: crate::client::ServerConfig,
+		) -> crate::Result<crate::client::transport::StartedServer> {
+			Err(crate::Error::Protocol("StubTransport".into()))
+		}
+
+		async fn notify(
+			&self,
+			_server: LanguageServerId,
+			_notif: AnyNotification,
+		) -> crate::Result<()> {
+			Ok(())
+		}
+
+		async fn notify_with_barrier(
+			&self,
+			_server: LanguageServerId,
+			_notif: AnyNotification,
+		) -> crate::Result<oneshot::Receiver<()>> {
+			let (tx, rx) = oneshot::channel();
+			let _ = tx.send(());
+			Ok(rx)
+		}
+
+		async fn request(
+			&self,
+			_server: LanguageServerId,
+			_req: AnyRequest,
+			_timeout: Option<std::time::Duration>,
+		) -> crate::Result<AnyResponse> {
+			Err(crate::Error::Protocol("StubTransport".into()))
+		}
+
+		async fn reply(
+			&self,
+			_server: LanguageServerId,
+			_resp: Result<JsonValue, ResponseError>,
+		) -> crate::Result<()> {
+			Ok(())
+		}
+	}
 
 	#[test]
 	fn test_lsp_manager_creation() {
-		let manager = LspManager::new();
+		let transport: Arc<dyn LspTransport> = Arc::new(StubTransport);
+		let manager = LspManager::new(transport);
 		assert_eq!(manager.diagnostics_version(), 0);
 	}
 }

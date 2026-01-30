@@ -2,7 +2,7 @@
 
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::time::Duration;
 
 use lsp_types::notification::Notification;
@@ -39,6 +39,8 @@ pub struct ClientHandle {
 	pub(super) transport: Arc<dyn LspTransport>,
 	/// Whether the server has completed initialization.
 	pub(super) is_ready: Arc<AtomicBool>,
+	/// Monotonic request ID generator for this client (shared across clones).
+	pub(super) next_request_id: Arc<AtomicU64>,
 }
 
 impl std::fmt::Debug for ClientHandle {
@@ -72,6 +74,7 @@ impl ClientHandle {
 			timeout: Duration::from_secs(30),
 			transport,
 			is_ready: Arc::new(AtomicBool::new(false)),
+			next_request_id: Arc::new(AtomicU64::new(1)),
 		}
 	}
 
@@ -204,9 +207,17 @@ impl ClientHandle {
 	}
 
 	/// Send a request to the language server.
+	///
+	/// A unique monotonic request ID is automatically generated and assigned to the outgoing
+	/// request. This ID is used by the underlying transport to correlate the response.
+	///
+	/// # Errors
+	/// Returns an error if the transport fails to send the request, if the request times out,
+	/// or if the server returns an LSP error response.
 	pub async fn request<R: Request>(&self, params: R::Params) -> Result<R::Result> {
+		let id_num = self.next_request_id.fetch_add(1, Ordering::Relaxed);
 		let req = AnyRequest {
-			id: RequestId::Number(0),
+			id: RequestId::Number(id_num as i32),
 			method: R::METHOD.into(),
 			params: serde_json::to_value(params).expect("Failed to serialize"),
 		};

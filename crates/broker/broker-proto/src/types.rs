@@ -75,6 +75,11 @@ pub enum RequestPayload {
 	},
 	/// Send a message to an LSP server.
 	LspSend {
+		/// Session ID originating this message.
+		///
+		/// This is used by the broker to enforce document ownership and ensure
+		/// that only the session that opened a document can send modifications to it.
+		session_id: SessionId,
 		/// Target LSP server.
 		server_id: ServerId,
 		/// The LSP message (JSON-RPC string).
@@ -82,6 +87,11 @@ pub enum RequestPayload {
 	},
 	/// Send a request to an LSP server and wait for the response.
 	LspRequest {
+		/// Session ID originating this request.
+		///
+		/// Used for tracking pending requests and ensuring responses are routed
+		/// back to the correct session after ID rewriting.
+		session_id: SessionId,
 		/// Target LSP server.
 		server_id: ServerId,
 		/// The LSP request (JSON-RPC string).
@@ -169,6 +179,15 @@ pub enum ErrorCode {
 	Timeout,
 	/// Request not found (e.g., reply to non-existent or already-cancelled request).
 	RequestNotFound,
+	/// Document is not owned by this session.
+	///
+	/// Returned when a session attempts to send text synchronization notifications
+	/// (didOpen, didChange, didClose) for a document currently owned by another session.
+	NotDocOwner,
+	/// Document is not open.
+	///
+	/// Returned when an operation requires `textDocument/didOpen` to have been called first.
+	DocNotOpen,
 }
 
 /// Async event from broker to editor (no response expected).

@@ -197,6 +197,7 @@ impl LspTransport for BrokerTransport {
 
 		rpc.call(
 			RequestPayload::LspSend {
+				session_id: self.session_id,
 				server_id: ServerId(server.0),
 				message: json,
 			},
@@ -233,6 +234,7 @@ impl LspTransport for BrokerTransport {
 		let resp = rpc
 			.call(
 				RequestPayload::LspRequest {
+					session_id: self.session_id,
 					server_id: ServerId(server.0),
 					message: json,
 					timeout_ms: Some(timeout_dur.as_millis() as u64),
