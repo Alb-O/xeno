@@ -2,11 +2,13 @@
 
 use std::process::Stdio;
 use std::sync::Arc;
+use std::time::Duration;
 
 use tokio::io::BufReader;
 use xeno_broker_proto::types::{ErrorCode, LspServerConfig, LspServerStatus, ServerId, SessionId};
+use xeno_rpc::MainLoopEvent;
 
-use crate::core::{BrokerCore, LspInstance};
+use crate::core::{BrokerCore, LspInstance, ServerControl};
 use crate::lsp::LspProxyService;
 
 /// Trait for launching LSP server instances.
@@ -33,7 +35,7 @@ pub trait LspLauncher: Send + Sync + 'static {
 pub struct ProcessLauncher;
 
 impl ProcessLauncher {
-	/// Create a new process launcher.
+	/// Create a new process launcher for spawning real LSP server processes.
 	#[must_use]
 	pub fn new() -> Self {
 		Self
@@ -47,6 +49,10 @@ impl Default for ProcessLauncher {
 }
 
 impl LspLauncher for ProcessLauncher {
+	/// Launch a new LSP server process and start its lifecycle monitor.
+	///
+	/// Spawns a background task that owns the child process and waits for its
+	/// termination or a graceful shutdown request from the broker.
 	fn launch(
 		&self,
 		core: Arc<BrokerCore>,
@@ -77,22 +83,73 @@ impl LspLauncher for ProcessLauncher {
 			let id_gen = xeno_rpc::CounterIdGen::new();
 
 			let core_clone1 = core.clone();
-			let core_clone2 = core.clone();
 			let (lsp_loop, lsp_socket) = xeno_rpc::MainLoop::new(
 				move |_| LspProxyService::new(core_clone1, server_id),
 				protocol,
 				id_gen,
 			);
 
-			let instance = LspInstance::new(lsp_socket, child, LspServerStatus::Starting);
+			let lsp_tx_monitor = lsp_socket.clone();
 
-			// Spawn the proxy mainloop task to handle server stdio.
+			let (term_tx, mut term_rx) = tokio::sync::oneshot::channel();
+			let (done_tx, done_rx) = tokio::sync::oneshot::channel();
+
+			let control = ServerControl { term_tx, done_rx };
+			let instance = LspInstance::new(lsp_socket, control, LspServerStatus::Starting);
+
+			let core_crash = core.clone();
+			tokio::spawn(async move {
+				tokio::select! {
+					res = child.wait() => {
+						match res {
+							Ok(status) => {
+								let crashed = !status.success();
+								tracing::info!(?server_id, ?status, crashed, "LSP server process exited");
+								core_crash.handle_server_exit(server_id, crashed);
+							}
+							Err(e) => {
+								tracing::error!(?server_id, error = %e, "Failed to wait on LSP server process");
+								core_crash.handle_server_exit(server_id, true);
+							}
+						}
+					}
+					_ = &mut term_rx => {
+						tracing::info!(?server_id, "Termination requested, shutting down LSP server");
+
+						let shutdown_req: xeno_lsp::AnyRequest = serde_json::from_value(serde_json::json!({
+							"id": 0,
+							"method": "shutdown",
+							"params": serde_json::Value::Null
+						})).unwrap();
+
+						let (tx, rx) = tokio::sync::oneshot::channel::<xeno_lsp::AnyResponse>();
+						let _ = lsp_tx_monitor.send(MainLoopEvent::OutgoingRequest(shutdown_req, tx));
+						let _ = tokio::time::timeout(Duration::from_millis(300), rx).await;
+
+						let exit_notif: xeno_lsp::AnyNotification = serde_json::from_value(serde_json::json!({
+							"method": "exit",
+							"params": serde_json::Value::Null
+						})).unwrap();
+
+						let _ = lsp_tx_monitor.send(MainLoopEvent::Outgoing(xeno_lsp::Message::Notification(exit_notif)));
+
+						let exited = tokio::time::timeout(Duration::from_millis(500), child.wait()).await;
+						if exited.is_err() {
+							let _ = child.kill().await;
+							let _ = tokio::time::timeout(Duration::from_secs(1), child.wait()).await;
+						}
+
+						core_crash.handle_server_exit(server_id, false);
+					}
+				}
+
+				let _ = done_tx.send(());
+			});
+
 			tokio::spawn(async move {
 				let reader = BufReader::new(stdout);
 				let _ = lsp_loop.run(reader, stdin).await;
-
-				core_clone2.unregister_server(server_id);
-				core_clone2.set_server_status(server_id, LspServerStatus::Stopped);
+				tracing::info!(?server_id, "LSP proxy mainloop ended");
 			});
 
 			Ok(instance)

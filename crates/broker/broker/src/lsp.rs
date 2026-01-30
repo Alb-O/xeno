@@ -35,10 +35,10 @@ impl LspProxyService {
 
 	/// Forward an inbound LSP message to the attached session(s).
 	///
-	/// If the message is a `publishDiagnostics` notification, it also emits
-	/// a structured `Event::LspDiagnostics` to all sessions.
+	/// Transitions server status to [`LspServerStatus::Running`] upon receipt.
+	/// Notifications are broadcast to all sessions, while requests are routed
+	/// only to the currently elected leader.
 	fn forward(&self, msg: Message) {
-		// Transition status to Running on receipt of any message from the server.
 		self.core
 			.set_server_status(self.server_id, LspServerStatus::Running);
 
@@ -52,7 +52,6 @@ impl LspProxyService {
 
 		match msg {
 			Message::Request(ref req) => {
-				// Server->Client requests go only to leader
 				tracing::trace!(?self.server_id, method = %req.method, "Forwarding server request to leader");
 				self.core.send_to_leader(
 					self.server_id,
@@ -63,7 +62,6 @@ impl LspProxyService {
 				);
 			}
 			Message::Notification(ref notif) => {
-				// Broadcast notifications to all attached sessions
 				tracing::trace!(?self.server_id, method = %notif.method, "Broadcasting server notification");
 				self.core.broadcast_to_server(
 					self.server_id,
@@ -73,7 +71,6 @@ impl LspProxyService {
 					},
 				);
 
-				// Extract structured diagnostics if applicable.
 				if notif.method == "textDocument/publishDiagnostics"
 					&& let Some(uri) = notif.params.get("uri").and_then(|u| u.as_str())
 					&& let Some((doc_id, version)) = self.core.get_doc_by_uri(self.server_id, uri)
@@ -96,9 +93,7 @@ impl LspProxyService {
 					);
 				}
 			}
-			Message::Response(_) => {
-				// Broker handled responses via MainLoop already.
-			}
+			Message::Response(_) => {}
 		}
 	}
 }
@@ -122,13 +117,11 @@ impl Service<AnyRequest> for LspProxyService {
 		let server_id = self.server_id;
 		let request_id = req.id.clone();
 
-		// Forward request to leader as an async event
-		self.forward(Message::Request(req));
-
-		// Register a oneshot and wait for the leader to reply via LspReply.
+		// Register a oneshot FIRST (before forwarding) to avoid race condition
+		// where leader replies before we register the pending request.
 		let (tx, rx) = tokio::sync::oneshot::channel();
 		if core
-			.register_client_request(server_id, request_id, tx)
+			.register_client_request(server_id, request_id.clone(), tx)
 			.is_none()
 		{
 			return Box::pin(async {
@@ -139,6 +132,9 @@ impl Service<AnyRequest> for LspProxyService {
 			});
 		}
 
+		// Now forward request to leader as an async event
+		self.forward(Message::Request(req));
+
 		Box::pin(async move {
 			// Wait for reply from editor (with 30s timeout for client requests)
 			match timeout(Duration::from_secs(30), rx).await {
@@ -147,10 +143,14 @@ impl Service<AnyRequest> for LspProxyService {
 					ErrorCode::INTERNAL_ERROR,
 					"Broker internal error: reply channel closed",
 				)),
-				Err(_) => Err(ResponseError::new(
-					ErrorCode::REQUEST_CANCELLED,
-					"Broker timeout waiting for editor reply",
-				)),
+				Err(_) => {
+					// Timeout: cancel the pending request to prevent memory leak
+					core.cancel_client_request(server_id, request_id);
+					Err(ResponseError::new(
+						ErrorCode::REQUEST_CANCELLED,
+						"Broker timeout waiting for editor reply",
+					))
+				}
 			}
 		})
 	}

@@ -512,8 +512,13 @@ async fn disconnect_leader_cancels_pending_requests() {
 	// Unregister leader
 	core.unregister_session(session1.session_id);
 
-	// Request should be cancelled (channel closed)
-	assert!(rx.try_recv().is_err());
+	// Request should be cancelled with proper error response
+	let result = rx.await.expect("oneshot should deliver a value");
+	assert!(
+		matches!(result, Err(ref e) if e.code == xeno_lsp::ErrorCode::REQUEST_CANCELLED),
+		"Expected REQUEST_CANCELLED error, got: {:?}",
+		result
+	);
 
 	// Session2 is now leader
 	let req_id2 = xeno_lsp::RequestId::Number(2);

@@ -167,6 +167,8 @@ pub enum ErrorCode {
 	NotImplemented,
 	/// Request timed out.
 	Timeout,
+	/// Request not found (e.g., reply to non-existent or already-cancelled request).
+	RequestNotFound,
 }
 
 /// Async event from broker to editor (no response expected).

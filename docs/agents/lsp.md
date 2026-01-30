@@ -25,6 +25,7 @@
 | `LspUiEvent` | Async UI result | Validated by generation | `crates/editor/src/lsp/events.rs`::`handle_lsp_ui_event` |
 | `DocSyncState` | Server's view of doc | MUST only apply changes in-order | `crates/editor/src/lsp/sync_manager/mod.rs`::`LspSyncManager` |
 | `ProjectKey` | Server identity | Deduplicated by cmd/args/cwd | `crates/broker/broker/src/core/mod.rs`::`ProjectKey` |
+| `ServerControl` | Lifecycle channels | Monitor task owns Child; LspInstance uses control channel | `crates/broker/broker/src/launcher.rs` (spawn) / `crates/broker/broker/src/core/mod.rs`::`LspInstance` |
 
 ## Invariants (hard rules)
 1. MUST canonicalize all paths before LSP calls.
@@ -43,15 +44,36 @@
    - Enforced in: `crates/broker/broker/src/core/mod.rs`::`BrokerCore::check_lease_expiry`
    - Tested by: `crates/broker/broker/src/core/tests.rs`::`test_lease_expiry_terminates_server`
    - Failure symptom: LSP processes leak after all editor sessions are closed.
+5. MUST register pending server→client requests before forwarding to prevent race.
+   - Enforced in: `crates/broker/broker/src/lsp.rs`::`LspProxyService::call`
+   - Tested by: `crates/broker/broker/src/core/tests.rs`::`reply_from_leader_completes_pending`
+   - Failure symptom: Server→client replies arrive before broker registers pending, causing "request not found" errors.
+6. MUST cancel pending requests on timeout, leader detach, and server exit.
+   - Enforced in: `crates/broker/broker/src/lsp.rs`::`LspProxyService::call` (timeout), `crates/broker/broker/src/core/mod.rs`::`cancel_client_request` (detach/exit)
+   - Tested by: `crates/broker/broker/src/core/tests.rs`::`disconnect_leader_cancels_pending_requests`
+   - Failure symptom: Memory leaks in pending_client_reqs map, or late replies misdelivered to wrong sessions.
+7. MUST detect and handle server process exit (crash or graceful).
+   - Enforced in: `crates/broker/broker/src/launcher.rs` (spawn monitor), `crates/broker/broker/src/core/mod.rs`::`handle_server_exit`
+   - Tested by: `crates/broker/broker/src/core/tests.rs` (server lifecycle tests)
+   - Failure symptom: Crashed servers remain "Running" indefinitely; new sessions attach to dead processes.
+8. MUST trigger session cleanup on send failure.
+   - Enforced in: `crates/broker/broker/src/core/mod.rs`::`broadcast_to_server`, `send_to_leader`, `set_server_status`
+   - Tested by: Implicit in disconnect tests
+   - Failure symptom: Dead sessions remain registered; leader routing blackholes requests.
+9. MUST deduplicate projects by normalized ProjectKey (no empty cwd).
+   - Enforced in: `crates/broker/broker/src/core/mod.rs`::`ProjectKey::from`
+   - Tested by: `crates/broker/broker/src/core/tests.rs`::`project_dedup_*` tests
+   - Failure symptom: Unrelated projects incorrectly share LSP servers, causing document identity confusion.
 
 ## Data flow
 1. Trigger: User types or triggers manual completion.
 2. Request: `LspSystem` builds request; `BrokerTransport` forwards to broker over Unix socket.
 3. Proxy: Broker routes request to the specific LSP server instance.
 4. Async boundary: LSP server sends JSON-RPC; broker awaits response and routes back to correct session.
-5. Fan-out: Server notifications (diagnostics/status) are broadcast by broker to all attached sessions.
-6. Validation: Result matches current generation and buffer version?
-7. Effect: Apply edits or open menu via `LspUiEvent`.
+5. Server→Client requests: Broker registers pending request BEFORE forwarding to leader. Reply completes pending; timeout/leader-change/server-exit cancels with REQUEST_CANCELLED error.
+6. Fan-out: Server notifications (diagnostics/status) are broadcast by broker to all attached sessions.
+7. Validation: Result matches current generation and buffer version?
+8. Effect: Apply edits or open menu via `LspUiEvent`.
 
 ## Lifecycle
 - Starting: Server process spawning and initializing.

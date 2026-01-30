@@ -55,6 +55,7 @@ impl BrokerService {
 }
 
 impl Drop for BrokerService {
+	/// Autoritatively cleans up the session when the IPC connection is dropped.
 	fn drop(&mut self) {
 		if let Some(session_id) = self.session_id {
 			self.core.unregister_session(session_id);
@@ -76,13 +77,17 @@ impl Service<Request> for BrokerService {
 		std::task::Poll::Ready(Ok(()))
 	}
 
+	/// Handle an incoming IPC request from an editor session.
+	///
+	/// Routes requests to the shared [`BrokerCore`] or specific LSP servers based
+	/// on the payload variant. Subscription requests must be sent first to establish
+	/// the session identity.
 	fn call(&mut self, req: Request) -> Self::Future {
 		let core = self.core.clone();
 		let socket = self.socket.clone();
 		let session_id = self.session_id;
 		let launcher = self.launcher.clone();
 
-		// Session registration on subscription.
 		if let RequestPayload::Subscribe { session_id } = req.payload {
 			self.session_id = Some(session_id);
 			core.register_session(session_id, socket);
@@ -95,7 +100,6 @@ impl Service<Request> for BrokerService {
 				RequestPayload::LspStart { config } => {
 					let session_id = session_id.ok_or(ErrorCode::AuthFailed)?;
 
-					// Check for existing server for this project
 					if let Some(server_id) = core.find_server_for_project(&config)
 						&& core.attach_session(server_id, session_id)
 					{
@@ -104,7 +108,6 @@ impl Service<Request> for BrokerService {
 
 					let server_id = core.next_server_id();
 
-					// Use the launcher directly
 					let instance = launcher
 						.launch(core.clone(), server_id, &config, session_id)
 						.await?;
@@ -125,7 +128,6 @@ impl Service<Request> for BrokerService {
 					let lsp_msg: xeno_lsp::Message =
 						serde_json::from_str(&message).map_err(|_| ErrorCode::InvalidArgs)?;
 
-					// Enforce notifications only for LspSend
 					if matches!(lsp_msg, xeno_lsp::Message::Request(_)) {
 						return Err(ErrorCode::InvalidArgs);
 					}
@@ -175,10 +177,21 @@ impl Service<Request> for BrokerService {
 						Ok(resp.result.unwrap_or(serde_json::Value::Null))
 					};
 
-					if core.complete_client_request(session_id, server_id, request_id, result) {
+					if core.complete_client_request(
+						session_id,
+						server_id,
+						request_id.clone(),
+						result,
+					) {
 						Ok(ResponsePayload::LspSent { server_id })
 					} else {
-						Err(ErrorCode::Internal)
+						tracing::warn!(
+							?session_id,
+							?server_id,
+							?request_id,
+							"LspReply failed: request not found or invalid responder"
+						);
+						Err(ErrorCode::RequestNotFound)
 					}
 				}
 			}

@@ -77,12 +77,29 @@ pub struct ProjectKey {
 
 impl From<&LspServerConfig> for ProjectKey {
 	fn from(cfg: &LspServerConfig) -> Self {
+		// Use a sentinel value for missing cwd to prevent incorrect deduplication.
+		// Configs without cwd should not dedup with each other.
+		let cwd = cfg.cwd.clone().unwrap_or_else(|| {
+			// Use a unique sentinel based on command+args hash to ensure
+			// different configs without cwd don't collide
+			format!("__NO_CWD_{:016x}__", compute_config_hash(cfg))
+		});
 		Self {
 			command: cfg.command.clone(),
 			args: cfg.args.clone(),
-			cwd: cfg.cwd.clone().unwrap_or_default(),
+			cwd,
 		}
 	}
+}
+
+/// Compute a stable hash of config for the no-cwd sentinel.
+fn compute_config_hash(cfg: &LspServerConfig) -> u64 {
+	use std::collections::hash_map::DefaultHasher;
+	use std::hash::{Hash, Hasher};
+	let mut hasher = DefaultHasher::new();
+	cfg.command.hash(&mut hasher);
+	cfg.args.hash(&mut hasher);
+	hasher.finish()
 }
 
 #[derive(Debug)]
@@ -91,19 +108,29 @@ struct SessionEntry {
 	attached: HashSet<ServerId>,
 }
 
+/// State for a single LSP server instance managed by the broker.
 #[derive(Debug)]
 struct ServerEntry {
+	/// Handle to the running LSP process and its control channels.
 	instance: LspInstance,
+	/// Identity of the server (cmd/args/cwd) used for deduplication.
 	project: ProjectKey,
+	/// Set of editor sessions currently attached to this server.
 	attached: HashSet<SessionId>,
+	/// The session responsible for answering server-initiated requests.
 	leader: SessionId,
+	/// Tracked documents and their versions for this server.
 	docs: DocRegistry,
+	/// Generation token used to invalidate stale lease tasks.
 	lease_gen: u64,
 }
 
+/// Metadata for a pending server-to-client request awaiting a reply from the editor.
 #[derive(Debug)]
 struct PendingClientReq {
+	/// The session elected as leader at the time of the request.
 	responder: SessionId,
+	/// Completion channel for the proxied LSP response.
 	tx: oneshot::Sender<LspReplyResult>,
 }
 
@@ -125,6 +152,10 @@ impl BrokerCore {
 	}
 
 	/// Register an editor session with its outbound event sink.
+	///
+	/// # Arguments
+	/// * `session_id` - Unique identifier for the editor session.
+	/// * `sink` - Communication channel back to the editor.
 	pub fn register_session(&self, session_id: SessionId, sink: SessionSink) {
 		let mut state = self.state.lock().unwrap();
 		state.sessions.insert(
@@ -137,6 +168,10 @@ impl BrokerCore {
 	}
 
 	/// Unregister an editor session and detach from all servers.
+	///
+	/// This method performs authoritative cleanup of the session state. It detaches
+	/// the session from all running servers, potentially triggering idle leases,
+	/// and cancels any pending requests where this session was the responder.
 	pub fn unregister_session(self: &Arc<Self>, session_id: SessionId) {
 		let mut servers_to_detach = Vec::new();
 		{
@@ -150,21 +185,22 @@ impl BrokerCore {
 			self.detach_session(server_id, session_id);
 		}
 
-		// Drop pending requests where this session was the responder.
-		let mut state = self.state.lock().unwrap();
-		state
-			.pending_client_reqs
-			.retain(|_, req| req.responder != session_id);
+		self.cancel_all_client_requests_for_session(session_id);
 	}
 
-	/// Look up an existing server for a project or return None.
+	/// Look up an existing server for a project configuration.
+	///
+	/// Returns the [`ServerId`] if a matching server is already running or warm.
 	pub fn find_server_for_project(&self, config: &LspServerConfig) -> Option<ServerId> {
 		let key = ProjectKey::from(config);
 		let state = self.state.lock().unwrap();
 		state.projects.get(&key).cloned()
 	}
 
-	/// Attach a session to an existing server.
+	/// Attach an editor session to an existing LSP server.
+	///
+	/// If the session is the first to attach, it is elected as the leader.
+	/// Attaching invalidates any pending idle leases for the server.
 	pub fn attach_session(&self, server_id: ServerId, session_id: SessionId) -> bool {
 		let mut state = self.state.lock().unwrap();
 		let Some(server) = state.servers.get_mut(&server_id) else {
@@ -176,7 +212,6 @@ impl BrokerCore {
 			server.leader = session_id;
 		}
 
-		// Invalidate any pending lease tasks.
 		server.lease_gen += 1;
 
 		if let Some(session) = state.sessions.get_mut(&session_id) {
@@ -186,24 +221,28 @@ impl BrokerCore {
 		true
 	}
 
-	/// Detach a session from a server.
+	/// Detach a session from an LSP server.
 	///
+	/// If the detached session was the leader, a new leader is elected.
 	/// If this was the last session, an idle lease is scheduled to eventually
-	/// terminate the server.
+	/// terminate the server process.
 	pub fn detach_session(self: &Arc<Self>, server_id: ServerId, session_id: SessionId) {
 		let mut maybe_schedule: Option<(u64, tokio::time::Instant)> = None;
+		let mut leader_changed = false;
+		let mut old_leader = session_id;
 
 		{
 			let mut state = self.state.lock().unwrap();
 
-			// Update server side.
 			if let Some(server) = state.servers.get_mut(&server_id) {
 				server.attached.remove(&session_id);
 
-				if server.leader == session_id
-					&& let Some(&new_leader) = server.attached.iter().next()
-				{
-					server.leader = new_leader;
+				if server.leader == session_id {
+					old_leader = session_id;
+					if let Some(&new_leader) = server.attached.iter().next() {
+						server.leader = new_leader;
+						leader_changed = true;
+					}
 				}
 
 				if server.attached.is_empty() {
@@ -214,10 +253,18 @@ impl BrokerCore {
 				}
 			}
 
-			// Update session side.
 			if let Some(session) = state.sessions.get_mut(&session_id) {
 				session.attached.remove(&server_id);
 			}
+		}
+
+		if leader_changed {
+			tracing::info!(
+				?server_id,
+				?old_leader,
+				"Leader changed, cancelling pending requests"
+			);
+			self.cancel_pending_for_leader_change(server_id, old_leader);
 		}
 
 		if let Some((generation, deadline)) = maybe_schedule {
@@ -226,6 +273,21 @@ impl BrokerCore {
 				tokio::time::sleep_until(deadline).await;
 				core.check_lease_expiry(server_id, generation);
 			});
+		}
+	}
+
+	fn cancel_pending_for_leader_change(&self, server_id: ServerId, old_leader: SessionId) {
+		let to_cancel: Vec<xeno_lsp::RequestId> = {
+			let state = self.state.lock().unwrap();
+			state
+				.pending_client_reqs
+				.iter()
+				.filter(|((sid, _), req)| *sid == server_id && req.responder == old_leader)
+				.map(|((_, rid), _)| rid.clone())
+				.collect()
+		};
+		for request_id in to_cancel {
+			self.cancel_client_request(server_id, request_id);
 		}
 	}
 
@@ -245,7 +307,6 @@ impl BrokerCore {
 			let server = state.servers.remove(&server_id).unwrap();
 			state.projects.remove(&server.project);
 
-			// Drop any pending server->client requests for this server.
 			state
 				.pending_client_reqs
 				.retain(|(sid, _), _| *sid != server_id);
@@ -332,12 +393,17 @@ impl BrokerCore {
 		}
 	}
 
-	/// Terminate all running LSP servers.
+	/// Terminate all running LSP servers and clear all attachments.
 	pub fn terminate_all(&self) {
 		let instances = {
 			let mut state = self.state.lock().unwrap();
 			state.projects.clear();
 			state.pending_client_reqs.clear();
+
+			for session in state.sessions.values_mut() {
+				session.attached.clear();
+			}
+
 			state
 				.servers
 				.drain()
@@ -386,53 +452,85 @@ impl BrokerCore {
 	}
 
 	/// Send an asynchronous event to a registered session.
-	pub fn send_event(&self, session_id: SessionId, event: IpcFrame) {
-		let state = self.state.lock().unwrap();
-		if let Some(session) = state.sessions.get(&session_id) {
-			let _ = session.sink.send(MainLoopEvent::Outgoing(event));
+	///
+	/// Returns false if the send failed, indicating the session is dead.
+	pub fn send_event(&self, session_id: SessionId, event: IpcFrame) -> bool {
+		let sink = {
+			let state = self.state.lock().unwrap();
+			state.sessions.get(&session_id).map(|s| s.sink.clone())
+		};
+		if let Some(sink) = sink {
+			sink.send(MainLoopEvent::Outgoing(event)).is_ok()
+		} else {
+			false
 		}
 	}
 
-	/// Broadcast an event to all sessions attached to a server.
-	pub fn broadcast_to_server(&self, server_id: ServerId, event: Event) {
-		let (sinks, frame) = {
+	/// Broadcast an event to all sessions attached to an LSP server.
+	///
+	/// Authoritatively cleans up any sessions where the IPC send fails.
+	pub fn broadcast_to_server(self: &Arc<Self>, server_id: ServerId, event: Event) {
+		let (session_sinks, frame) = {
 			let state = self.state.lock().unwrap();
 			let Some(server) = state.servers.get(&server_id) else {
 				return;
 			};
 
-			let sinks: Vec<_> = server
+			let session_sinks: Vec<(SessionId, SessionSink)> = server
 				.attached
 				.iter()
-				.filter_map(|sid| state.sessions.get(sid).map(|s| s.sink.clone()))
+				.filter_map(|sid| state.sessions.get(sid).map(|s| (*sid, s.sink.clone())))
 				.collect();
 
-			(sinks, IpcFrame::Event(event))
+			(session_sinks, IpcFrame::Event(event))
 		};
 
-		for sink in sinks {
-			let _ = sink.send(MainLoopEvent::Outgoing(frame.clone()));
+		let mut failed_sessions = Vec::new();
+		for (session_id, sink) in session_sinks {
+			if sink.send(MainLoopEvent::Outgoing(frame.clone())).is_err() {
+				failed_sessions.push(session_id);
+			}
+		}
+
+		if !failed_sessions.is_empty() {
+			let core = self.clone();
+			tokio::spawn(async move {
+				for session_id in failed_sessions {
+					tracing::warn!(?session_id, "Broadcast send failed, triggering cleanup");
+					core.handle_session_send_failure(session_id);
+				}
+			});
 		}
 	}
 
-	/// Send an event only to the leader session of a server.
-	pub fn send_to_leader(&self, server_id: ServerId, event: Event) {
-		let (sink, frame) = {
+	/// Send an event to the leader session of an LSP server.
+	///
+	/// Authoritatively cleans up the leader session if the IPC send fails.
+	pub fn send_to_leader(self: &Arc<Self>, server_id: ServerId, event: Event) {
+		let (leader_id, sink, frame) = {
 			let state = self.state.lock().unwrap();
 			let Some(server) = state.servers.get(&server_id) else {
 				return;
 			};
 
-			let sink = state.sessions.get(&server.leader).map(|s| s.sink.clone());
-			(sink, IpcFrame::Event(event))
+			let leader_id = server.leader;
+			let sink = state.sessions.get(&leader_id).map(|s| s.sink.clone());
+			(leader_id, sink, IpcFrame::Event(event))
 		};
 
-		if let Some(sink) = sink {
-			let _ = sink.send(MainLoopEvent::Outgoing(frame));
-		}
+		if let Some(sink) = sink
+			&& sink.send(MainLoopEvent::Outgoing(frame)).is_err() {
+				tracing::warn!(?leader_id, "Leader session send failed, triggering cleanup");
+				let core = self.clone();
+				tokio::spawn(async move {
+					core.handle_session_send_failure(leader_id);
+				});
+			}
 	}
 
 	/// Register a pending server-to-editor request.
+	///
+	/// Returns the [`SessionId`] of the leader elected to respond.
 	pub fn register_client_request(
 		&self,
 		server_id: ServerId,
@@ -458,6 +556,8 @@ impl BrokerCore {
 	}
 
 	/// Complete a pending server-to-editor request with a reply.
+	///
+	/// Returns true if the request was successfully completed.
 	pub fn complete_client_request(
 		&self,
 		session_id: SessionId,
@@ -484,9 +584,126 @@ impl BrokerCore {
 		}
 	}
 
+	/// Cancel a pending server-to-editor request with a standard error response.
+	pub fn cancel_client_request(
+		&self,
+		server_id: ServerId,
+		request_id: xeno_lsp::RequestId,
+	) -> bool {
+		let mut state = self.state.lock().unwrap();
+		if let Some(req) = state.pending_client_reqs.remove(&(server_id, request_id)) {
+			let _ = req.tx.send(Err(xeno_lsp::ResponseError::new(
+				xeno_lsp::ErrorCode::REQUEST_CANCELLED,
+				"Request cancelled by broker",
+			)));
+			true
+		} else {
+			false
+		}
+	}
+
+	/// Cancel all pending server-to-client requests for a given session.
+	pub fn cancel_all_client_requests_for_session(&self, session_id: SessionId) {
+		let to_cancel: Vec<(ServerId, xeno_lsp::RequestId)> = {
+			let state = self.state.lock().unwrap();
+			state
+				.pending_client_reqs
+				.iter()
+				.filter(|(_, req)| req.responder == session_id)
+				.map(|(key, _)| key.clone())
+				.collect()
+		};
+		for (server_id, request_id) in to_cancel {
+			self.cancel_client_request(server_id, request_id);
+		}
+	}
+
+	/// Cancel all pending server-to-client requests for a given server.
+	pub fn cancel_all_client_requests_for_server(&self, server_id: ServerId) {
+		let to_cancel: Vec<xeno_lsp::RequestId> = {
+			let state = self.state.lock().unwrap();
+			state
+				.pending_client_reqs
+				.iter()
+				.filter(|((sid, _), _)| *sid == server_id)
+				.map(|((_, rid), _)| rid.clone())
+				.collect()
+		};
+		for request_id in to_cancel {
+			self.cancel_client_request(server_id, request_id);
+		}
+	}
+
+	/// Authoritatively cleans up a session that is determined to be dead.
+	pub fn handle_session_send_failure(self: &Arc<Self>, session_id: SessionId) {
+		tracing::info!(
+			?session_id,
+			"Handling session send failure, unregistering session"
+		);
+		self.cancel_all_client_requests_for_session(session_id);
+		self.unregister_session(session_id);
+	}
+
+	/// Authoritatively cleans up a server that has exited or crashed.
+	pub fn handle_server_exit(self: &Arc<Self>, server_id: ServerId, crashed: bool) {
+		tracing::info!(?server_id, crashed, "Handling server exit");
+
+		let maybe_instance = {
+			let mut state = self.state.lock().unwrap();
+
+			let Some(server) = state.servers.remove(&server_id) else {
+				return;
+			};
+
+			state.projects.remove(&server.project);
+
+			for session_id in &server.attached {
+				if let Some(session) = state.sessions.get_mut(session_id) {
+					session.attached.remove(&server_id);
+				}
+			}
+
+			let pending_to_cancel: Vec<xeno_lsp::RequestId> = state
+				.pending_client_reqs
+				.iter()
+				.filter(|((sid, _), _)| *sid == server_id)
+				.map(|((_, rid), _)| rid.clone())
+				.collect();
+			drop(state);
+
+			for request_id in pending_to_cancel {
+				self.cancel_client_request(server_id, request_id);
+			}
+
+			Some((server.attached, server.instance))
+		};
+
+		if let Some((attached_sessions, instance)) = maybe_instance {
+			let status = if crashed {
+				xeno_broker_proto::types::LspServerStatus::Crashed
+			} else {
+				xeno_broker_proto::types::LspServerStatus::Stopped
+			};
+
+			{
+				let mut current = instance.status.lock().unwrap();
+				*current = status;
+			}
+
+			let event = Event::LspStatus { server_id, status };
+			for session_id in attached_sessions {
+				self.send_event(session_id, IpcFrame::Event(event.clone()));
+			}
+
+			tokio::spawn(async move {
+				instance.terminate().await;
+			});
+		}
+	}
+
 	/// Update server status and notify all attached sessions.
 	pub fn set_server_status(
-		&self,
+		self: &Arc<Self>,
 		server_id: ServerId,
 		status: xeno_broker_proto::types::LspServerStatus,
 	) {
@@ -507,8 +724,23 @@ impl BrokerCore {
 
 		if changed {
 			let event = Event::LspStatus { server_id, status };
+			let mut failed_sessions = Vec::new();
 			for sid in sessions {
-				self.send_event(sid, IpcFrame::Event(event.clone()));
+				if !self.send_event(sid, IpcFrame::Event(event.clone())) {
+					failed_sessions.push(sid);
+				}
+			}
+			if !failed_sessions.is_empty() {
+				let core = self.clone();
+				tokio::spawn(async move {
+					for session_id in failed_sessions {
+						tracing::warn!(
+							?session_id,
+							"Status notification send failed, triggering cleanup"
+						);
+						core.handle_session_send_failure(session_id);
+					}
+				});
 			}
 		}
 	}
@@ -525,7 +757,7 @@ impl BrokerCore {
 		server.docs.by_uri.get(uri).cloned()
 	}
 
-	/// Update document version tracking by observing editor-to-server traffic.
+	/// Observe editor-to-server traffic to update document version tracking.
 	pub fn on_editor_message(&self, server_id: ServerId, msg: &xeno_lsp::Message) {
 		if let xeno_lsp::Message::Notification(notif) = msg {
 			let mut state = self.state.lock().unwrap();
@@ -557,27 +789,36 @@ pub enum ChildHandle {
 	Mock,
 }
 
+/// Channels for controlling and monitoring a server instance.
+#[derive(Debug)]
+pub struct ServerControl {
+	/// Channel to request graceful termination.
+	pub term_tx: tokio::sync::oneshot::Sender<()>,
+	/// Channel to await completion of termination.
+	pub done_rx: tokio::sync::oneshot::Receiver<()>,
+}
+
 /// A running LSP server instance and its associated handles.
 #[derive(Debug)]
 pub struct LspInstance {
 	/// Socket for sending requests/notifications to the server's stdio.
 	pub lsp_tx: LspTx,
-	/// Child process handle for lifecycle management.
-	pub child: ChildHandle,
+	/// Control channels for the server lifecycle monitor.
+	pub control: Option<ServerControl>,
 	/// Synchronized server lifecycle status.
 	pub status: Mutex<xeno_broker_proto::types::LspServerStatus>,
 }
 
 impl LspInstance {
-	/// Create a new LspInstance with a real child process.
+	/// Create a new LspInstance with control channels.
 	pub fn new(
 		lsp_tx: LspTx,
-		child: tokio::process::Child,
+		control: ServerControl,
 		status: xeno_broker_proto::types::LspServerStatus,
 	) -> Self {
 		Self {
 			lsp_tx,
-			child: ChildHandle::Real(child),
+			control: Some(control),
 			status: Mutex::new(status),
 		}
 	}
@@ -587,53 +828,23 @@ impl LspInstance {
 	pub fn mock(lsp_tx: LspTx, status: xeno_broker_proto::types::LspServerStatus) -> Self {
 		Self {
 			lsp_tx,
-			child: ChildHandle::Mock,
+			control: None,
 			status: Mutex::new(status),
 		}
 	}
 
 	/// Best-effort graceful shutdown (shutdown request + exit notif), then kill if needed.
-	pub async fn terminate(self) {
-		let mut child = match self.child {
-			ChildHandle::Mock => return,
-			ChildHandle::Real(child) => child,
+	pub async fn terminate(mut self) {
+		let Some(control) = self.control.take() else {
+			// Mock instance - nothing to do
+			return;
 		};
 
-		// 1) shutdown request (best-effort)
-		let shutdown_req: xeno_lsp::AnyRequest = serde_json::from_value(serde_json::json!({
-			"id": 0,
-			"method": "shutdown",
-			"params": serde_json::Value::Null
-		}))
-		.unwrap();
+		// 1) Request termination via control channel
+		let _ = control.term_tx.send(());
 
-		let (tx, rx) = oneshot::channel::<xeno_lsp::AnyResponse>();
-		let _ = self
-			.lsp_tx
-			.send(MainLoopEvent::OutgoingRequest(shutdown_req, tx));
-		let _ = tokio::time::timeout(Duration::from_millis(300), rx).await;
-
-		// 2) exit notification (best-effort)
-		let exit_notif: xeno_lsp::AnyNotification = serde_json::from_value(serde_json::json!({
-			"method": "exit",
-			"params": serde_json::Value::Null
-		}))
-		.unwrap();
-
-		let _ = self
-			.lsp_tx
-			.send(MainLoopEvent::Outgoing(xeno_lsp::Message::Notification(
-				exit_notif,
-			)));
-
-		// 3) Wait briefly for natural exit, then kill.
-		let exited = tokio::time::timeout(Duration::from_millis(500), child.wait()).await;
-		if exited.is_ok() {
-			return;
-		}
-
-		let _ = child.kill().await;
-		let _ = tokio::time::timeout(Duration::from_secs(1), child.wait()).await;
+		// 2) Wait for the monitor to complete (with timeout)
+		let _ = tokio::time::timeout(Duration::from_secs(2), control.done_rx).await;
 	}
 }
 
