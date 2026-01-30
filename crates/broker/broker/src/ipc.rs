@@ -1,14 +1,16 @@
 //! IPC server and client for broker communication.
 
 use std::path::Path;
+use std::sync::Arc;
 
 use tokio::net::{UnixListener, UnixStream};
 
+use crate::core::BrokerCore;
 use crate::protocol::BrokerProtocol;
 use crate::service::BrokerService;
 
 /// Start the broker IPC server on a Unix domain socket.
-pub async fn serve(socket_path: impl AsRef<Path>) -> std::io::Result<()> {
+pub async fn serve(socket_path: impl AsRef<Path>, core: Arc<BrokerCore>) -> std::io::Result<()> {
 	// Remove existing socket file
 	let path = socket_path.as_ref();
 	if path.exists() {
@@ -23,7 +25,7 @@ pub async fn serve(socket_path: impl AsRef<Path>) -> std::io::Result<()> {
 	loop {
 		match listener.accept().await {
 			Ok((stream, _addr)) => {
-				tokio::spawn(handle_connection(stream));
+				tokio::spawn(handle_connection(stream, core.clone()));
 			}
 			Err(e) => {
 				tracing::error!(error = %e, "Failed to accept connection");
@@ -33,7 +35,7 @@ pub async fn serve(socket_path: impl AsRef<Path>) -> std::io::Result<()> {
 }
 
 /// Handle a single IPC connection.
-pub(crate) async fn handle_connection(stream: UnixStream) {
+pub(crate) async fn handle_connection(stream: UnixStream, core: Arc<BrokerCore>) {
 	tracing::info!("New broker connection");
 
 	// Split into read/write halves
@@ -45,7 +47,7 @@ pub(crate) async fn handle_connection(stream: UnixStream) {
 
 	// Create mainloop
 	let (main_loop, _socket) =
-		xeno_rpc::MainLoop::new(|_socket| BrokerService::new(), protocol, id_gen);
+		xeno_rpc::MainLoop::new(|socket| BrokerService::new(core, socket), protocol, id_gen);
 
 	// Run the mainloop
 	// Note: This is a simplified version. In production, you'd want proper
@@ -88,8 +90,9 @@ mod tests {
 
 	#[tokio::test]
 	async fn ping_roundtrip() -> std::io::Result<()> {
+		let core = BrokerCore::new();
 		let (mut client, server) = UnixStream::pair()?;
-		let server_task = tokio::spawn(async move { handle_connection(server).await });
+		let server_task = tokio::spawn(async move { handle_connection(server, core).await });
 
 		write_frame(
 			&mut client,
@@ -121,8 +124,9 @@ mod tests {
 
 	#[tokio::test]
 	async fn subscribe_emits_event() -> std::io::Result<()> {
+		let core = BrokerCore::new();
 		let (mut client, server) = UnixStream::pair()?;
-		let server_task = tokio::spawn(async move { handle_connection(server).await });
+		let server_task = tokio::spawn(async move { handle_connection(server, core).await });
 
 		write_frame(
 			&mut client,
@@ -153,6 +157,29 @@ mod tests {
 		assert!(matches!(event, IpcFrame::Event(Event::Heartbeat)));
 
 		drop(client);
+		server_task.await.expect("server task panicked");
+		Ok(())
+	}
+
+	#[tokio::test]
+	async fn disconnect_during_write_is_clean() -> std::io::Result<()> {
+		let core = BrokerCore::new();
+		let (mut client, server) = UnixStream::pair()?;
+		let server_task = tokio::spawn(async move { handle_connection(server, core).await });
+
+		write_frame(
+			&mut client,
+			&IpcFrame::Request(Request {
+				id: RequestId(9),
+				payload: RequestPayload::Ping,
+			}),
+		)
+		.await?;
+
+		// Drop immediately: server will attempt to write response into a closed socket.
+		drop(client);
+
+		// Should exit cleanly (no panic).
 		server_task.await.expect("server task panicked");
 		Ok(())
 	}

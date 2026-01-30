@@ -54,15 +54,16 @@ use tower_service::Service;
 mod event;
 #[macro_use]
 mod mainloop;
-mod message;
-mod protocol;
+pub mod message;
+pub mod protocol;
 mod socket;
-mod types;
+pub mod types;
 
 pub use event::AnyEvent;
 pub use mainloop::MainLoop;
+pub use message::Message;
 pub use socket::{ClientSocket, ServerSocket};
-pub use types::{AnyNotification, AnyRequest, ErrorCode, RequestId, ResponseError};
+pub use types::{AnyNotification, AnyRequest, AnyResponse, ErrorCode, RequestId, ResponseError};
 
 pub mod concurrency;
 pub mod panic;

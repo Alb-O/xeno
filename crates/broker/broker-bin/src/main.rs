@@ -51,9 +51,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 	info!(socket = %socket_path.display(), "IPC socket path");
 
+	// Initialize broker core
+	let core = xeno_broker::core::BrokerCore::new();
+
 	// Start IPC server
 	info!("Starting IPC server");
-	xeno_broker::ipc::serve(&socket_path).await?;
+	xeno_broker::ipc::serve(&socket_path, core).await?;
 
 	Ok(())
 }

@@ -105,6 +105,11 @@ pub enum ResponsePayload {
 		/// The LSP message (JSON-RPC string).
 		message: String,
 	},
+	/// Message sent to LSP server.
+	LspSent {
+		/// Target server.
+		server_id: ServerId,
+	},
 }
 
 /// Error codes for broker operations.
@@ -146,6 +151,13 @@ pub enum Event {
 		server_id: ServerId,
 		/// New status.
 		status: LspServerStatus,
+	},
+	/// LSP message received from server (asynchronously).
+	LspMessage {
+		/// Source server.
+		server_id: ServerId,
+		/// The LSP message (JSON-RPC string).
+		message: String,
 	},
 }
 

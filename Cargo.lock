@@ -3220,10 +3220,12 @@ name = "xeno-broker"
 version = "0.6.5"
 dependencies = [
  "postcard",
+ "serde_json",
  "tokio",
  "tower-service",
  "tracing",
  "xeno-broker-proto",
+ "xeno-lsp",
  "xeno-rpc",
 ]
 

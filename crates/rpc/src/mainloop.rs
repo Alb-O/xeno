@@ -198,13 +198,14 @@ where
 			}
 		};
 
-		if let Err(e) = output.shutdown().await
-			&& e.kind() != std::io::ErrorKind::BrokenPipe
-				&& e.kind() != std::io::ErrorKind::ConnectionReset
-				&& e.kind() != std::io::ErrorKind::UnexpectedEof
-			{
-				return Err(S::LoopError::from(e));
+		if let Err(e) = output.shutdown().await {
+			match e.kind() {
+				std::io::ErrorKind::BrokenPipe
+				| std::io::ErrorKind::ConnectionReset
+				| std::io::ErrorKind::UnexpectedEof => {}
+				_ => return Err(S::LoopError::from(e)),
 			}
+		}
 		ret
 	}
 

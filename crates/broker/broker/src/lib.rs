@@ -2,7 +2,9 @@
 
 #![warn(missing_docs)]
 
+pub mod core;
 pub mod ipc;
+pub mod lsp;
 pub mod protocol;
 pub mod service;
 
