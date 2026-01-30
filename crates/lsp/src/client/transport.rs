@@ -3,7 +3,7 @@
 use std::time::Duration;
 
 use async_trait::async_trait;
-use tokio::sync::mpsc;
+use tokio::sync::{mpsc, oneshot};
 
 use crate::client::LanguageServerId;
 use crate::{AnyNotification, AnyRequest, AnyResponse, JsonValue, Message, ResponseError};
@@ -74,6 +74,14 @@ pub trait LspTransport: Send + Sync {
 
 	/// Sends an asynchronous notification to the server.
 	async fn notify(&self, server: LanguageServerId, notif: AnyNotification) -> crate::Result<()>;
+
+	/// Sends a notification and returns a receiver that fires when the message
+	/// has been written to the underlying transport.
+	async fn notify_with_barrier(
+		&self,
+		server: LanguageServerId,
+		notif: AnyNotification,
+	) -> crate::Result<oneshot::Receiver<()>>;
 
 	/// Sends a synchronous request to the server and awaits its response.
 	async fn request(

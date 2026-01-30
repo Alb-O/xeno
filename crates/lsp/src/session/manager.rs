@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use crate::client::transport::{LspTransport, TransportEvent};
 use crate::{
 	DiagnosticsEvent, DiagnosticsEventReceiver, DocumentStateManager, DocumentSync,
 	LanguageServerConfig, Registry,
@@ -9,24 +10,73 @@ use crate::{
 pub struct LspManager {
 	sync: DocumentSync,
 	diagnostics_receiver: Option<DiagnosticsEventReceiver>,
+	transport: Arc<dyn LspTransport>,
 }
 
 impl LspManager {
-	/// Create a new LSP manager.
-	pub fn new() -> Self {
-		let (sync, _registry, _documents, diagnostics_receiver) = DocumentSync::create();
+	/// Create a new LSP manager with the given transport.
+	pub fn new(transport: Arc<dyn LspTransport>) -> Self {
+		let (sync, _registry, _documents, diagnostics_receiver) =
+			DocumentSync::create(transport.clone());
+
 		Self {
 			sync,
 			diagnostics_receiver: Some(diagnostics_receiver),
+			transport,
 		}
+	}
+
+	/// Spawn the background event router task.
+	///
+	/// This must be called from within a Tokio runtime.
+	pub fn spawn_router(&self) {
+		if tokio::runtime::Handle::try_current().is_err() {
+			return;
+		}
+		let events_rx = self.transport.events();
+		let documents_clone = self.sync.documents_arc();
+
+		tokio::spawn(async move {
+			let mut events_rx = events_rx;
+			while let Some(event) = events_rx.recv().await {
+				match event {
+					TransportEvent::Diagnostics {
+						server: _,
+						uri,
+						version,
+						diagnostics,
+					} => {
+						if let Ok(uri) = uri.parse::<lsp_types::Uri>()
+							&& let Ok(diags) =
+								serde_json::from_value::<Vec<lsp_types::Diagnostic>>(diagnostics)
+						{
+							documents_clone.update_diagnostics(&uri, diags, Some(version as i32));
+						}
+					}
+					TransportEvent::Message { server: _, message } => {
+						// TODO: route server->client requests
+						tracing::debug!(?message, "Received LSP message from transport");
+					}
+					TransportEvent::Status {
+						server: _,
+						status: _,
+					} => {
+						// TODO: update UI status
+					}
+					TransportEvent::Disconnected => break,
+				}
+			}
+		});
 	}
 
 	/// Create an LSP manager with existing registry and document state.
 	pub fn with_state(registry: Arc<Registry>, documents: Arc<DocumentStateManager>) -> Self {
+		let transport = registry.transport();
 		let sync = DocumentSync::with_registry(registry, documents);
 		Self {
 			sync,
 			diagnostics_receiver: None,
+			transport,
 		}
 	}
 
@@ -81,7 +131,7 @@ impl LspManager {
 
 impl Default for LspManager {
 	fn default() -> Self {
-		Self::new()
+		Self::new(crate::client::local_transport::LocalTransport::new())
 	}
 }
 

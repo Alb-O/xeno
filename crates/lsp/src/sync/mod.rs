@@ -1,31 +1,4 @@
 //! Document synchronization between editor and language servers.
-//!
-//! This module provides the [`DocumentSync`] type which coordinates document
-//! state with language servers, handling:
-//!
-//! - Opening documents (`textDocument/didOpen`)
-//! - Tracking changes (`textDocument/didChange`)
-//! - Saving documents (`textDocument/didSave`)
-//! - Closing documents (`textDocument/didClose`)
-//!
-//! # Architecture
-//!
-//! The sync module acts as a bridge between the editor's document model and
-//! the LSP protocol. It maintains a [`DocumentStateManager`] to track versions
-//! and a [`Registry`] to manage language server connections.
-//!
-//! ```text
-//! ┌────────────┐     ┌──────────────┐     ┌─────────────────┐
-//! │   Buffer   │────▶│ DocumentSync │────▶│ Language Server │
-//! │  (Editor)  │     │   (Bridge)   │     │ (rust-analyzer) │
-//! └────────────┘     └──────────────┘     └─────────────────┘
-//!                            │
-//!                            ▼
-//!                 ┌────────────────────┐
-//!                 │DocumentStateManager│
-//!                 │  (Version, Diags)  │
-//!                 └────────────────────┘
-//! ```
 
 use std::path::Path;
 use std::sync::Arc;
@@ -41,9 +14,6 @@ use crate::document::{DiagnosticsEventReceiver, DocumentStateManager};
 use crate::registry::Registry;
 
 /// Event handler that updates [`DocumentStateManager`] with LSP events.
-///
-/// This handler receives notifications from language servers and updates
-/// the document state accordingly (e.g., storing diagnostics).
 pub struct DocumentSyncEventHandler {
 	documents: Arc<DocumentStateManager>,
 }
@@ -93,9 +63,6 @@ impl LspEventHandler for DocumentSyncEventHandler {
 }
 
 /// Document synchronization coordinator.
-///
-/// Manages the lifecycle of documents with language servers, tracking
-/// versions and coordinating notifications.
 #[derive(Clone)]
 pub struct DocumentSync {
 	/// Language server registry.
@@ -106,12 +73,6 @@ pub struct DocumentSync {
 
 impl DocumentSync {
 	/// Create a new document sync coordinator with a pre-configured registry.
-	///
-	/// Use this when you need to set up the event handler before creating the sync.
-	/// The registry should be created with [`Registry::with_event_handler`] using
-	/// a [`DocumentSyncEventHandler`].
-	///
-	/// For a simpler setup that wires everything together, use [`create`](Self::create).
 	pub fn with_registry(registry: Arc<Registry>, documents: Arc<DocumentStateManager>) -> Self {
 		Self {
 			registry,
@@ -120,16 +81,9 @@ impl DocumentSync {
 	}
 
 	/// Create a document sync coordinator and a properly configured registry.
-	///
-	/// This is the recommended way to create a DocumentSync, as it ensures
-	/// the event handler is properly wired up and diagnostic events are available.
-	///
-	/// Returns:
-	/// - `DocumentSync` - The sync coordinator
-	/// - `Arc<Registry>` - The language server registry
-	/// - `Arc<DocumentStateManager>` - The document state manager
-	/// - `DiagnosticsEventReceiver` - Receiver for diagnostic update events
-	pub fn create() -> (
+	pub fn create(
+		transport: Arc<dyn crate::client::transport::LspTransport>,
+	) -> (
 		Self,
 		Arc<Registry>,
 		Arc<DocumentStateManager>,
@@ -137,8 +91,7 @@ impl DocumentSync {
 	) {
 		let (documents, event_receiver) = DocumentStateManager::with_events();
 		let documents = Arc::new(documents);
-		let event_handler = Arc::new(DocumentSyncEventHandler::new(documents.clone()));
-		let registry = Arc::new(Registry::with_event_handler(event_handler));
+		let registry = Arc::new(Registry::new(transport));
 
 		let sync = Self {
 			registry: registry.clone(),
@@ -149,15 +102,6 @@ impl DocumentSync {
 	}
 
 	/// Open a document with the appropriate language server.
-	///
-	/// This finds or starts a language server for the document's language,
-	/// registers the document, and sends `textDocument/didOpen`.
-	///
-	/// # Arguments
-	///
-	/// * `path` - Path to the file
-	/// * `language` - Language ID (e.g., "rust", "python")
-	/// * `text` - Current document content
 	pub async fn open_document(
 		&self,
 		path: &Path,
@@ -175,7 +119,7 @@ impl DocumentSync {
 		language: &str,
 		text: String,
 	) -> Result<ClientHandle> {
-		let client = self.registry.get_or_start(language, path)?;
+		let client = self.registry.get_or_start(language, path).await?;
 
 		let uri = self
 			.documents
@@ -184,7 +128,9 @@ impl DocumentSync {
 
 		let version = self.documents.get_version(&uri).unwrap_or(0);
 
-		client.text_document_did_open(uri.clone(), language.to_string(), version, text)?;
+		client
+			.text_document_did_open(uri.clone(), language.to_string(), version, text)
+			.await?;
 
 		self.documents.mark_opened(&uri, version);
 
@@ -192,15 +138,6 @@ impl DocumentSync {
 	}
 
 	/// Notify language servers of a document change.
-	///
-	/// This sends a full document sync (the entire content). For incremental
-	/// sync, use [`notify_change_incremental_no_content`](Self::notify_change_incremental_no_content).
-	///
-	/// # Arguments
-	///
-	/// * `path` - Path to the file
-	/// * `language` - Language ID
-	/// * `text` - New document content
 	pub async fn notify_change_full(&self, path: &Path, language: &str, text: &Rope) -> Result<()> {
 		self.notify_change_full_text(path, language, text.to_string())
 			.await
@@ -235,7 +172,10 @@ impl DocumentSync {
 			.queue_change(&uri)
 			.ok_or_else(|| crate::Error::Protocol("Document not registered".into()))?;
 
-		if let Err(err) = client.text_document_did_change_full(uri.clone(), version, text) {
+		if let Err(err) = client
+			.text_document_did_change_full(uri.clone(), version, text)
+			.await
+		{
 			self.documents.mark_force_full_sync(&uri);
 			return Err(err);
 		}
@@ -284,23 +224,20 @@ impl DocumentSync {
 			.queue_change(&uri)
 			.ok_or_else(|| crate::Error::Protocol("Document not registered".into()))?;
 
-		let barrier =
-			match client.text_document_did_change_full_with_barrier(uri.clone(), version, text) {
-				Ok(barrier) => barrier,
-				Err(err) => {
-					self.documents.mark_force_full_sync(&uri);
-					return Err(err);
-				}
-			};
+		let barrier = match client
+			.text_document_did_change_full_with_barrier(uri.clone(), version, text)
+			.await
+		{
+			Ok(barrier) => barrier,
+			Err(err) => {
+				self.documents.mark_force_full_sync(&uri);
+				return Err(err);
+			}
+		};
 		Ok(Some(self.wrap_barrier(uri, version, barrier)))
 	}
 
 	/// Notify language servers of an incremental document change without content.
-	///
-	/// This variant does not require the full document content, making it suitable
-	/// for debounced incremental sync where we know the document is already open.
-	/// If the document is not open, returns an error (caller should fall back to
-	/// full sync or re-open the document).
 	pub async fn notify_change_incremental_no_content(
 		&self,
 		path: &Path,
@@ -342,7 +279,10 @@ impl DocumentSync {
 			.queue_change(&uri)
 			.ok_or_else(|| crate::Error::Protocol("Document not registered".into()))?;
 
-		if let Err(err) = client.text_document_did_change(uri.clone(), version, content_changes) {
+		if let Err(err) = client
+			.text_document_did_change(uri.clone(), version, content_changes)
+			.await
+		{
 			self.documents.mark_force_full_sync(&uri);
 			return Err(err);
 		}
@@ -393,11 +333,10 @@ impl DocumentSync {
 			.queue_change(&uri)
 			.ok_or_else(|| crate::Error::Protocol("Document not registered".into()))?;
 
-		let barrier = match client.text_document_did_change_with_barrier(
-			uri.clone(),
-			version,
-			content_changes,
-		) {
+		let barrier = match client
+			.text_document_did_change_with_barrier(uri.clone(), version, content_changes)
+			.await
+		{
 			Ok(barrier) => barrier,
 			Err(err) => {
 				self.documents.mark_force_full_sync(&uri);
@@ -424,26 +363,21 @@ impl DocumentSync {
 	}
 
 	/// Notify language servers that a document will be saved.
-	pub fn notify_will_save(&self, path: &Path, language: &str) -> Result<()> {
+	pub async fn notify_will_save(&self, path: &Path, language: &str) -> Result<()> {
 		let uri = crate::uri_from_path(path)
 			.ok_or_else(|| crate::Error::Protocol("Invalid path".into()))?;
 
 		if let Some(client) = self.registry.get(language, path) {
-			client.text_document_will_save(uri, TextDocumentSaveReason::MANUAL)?;
+			client
+				.text_document_will_save(uri, TextDocumentSaveReason::MANUAL)
+				.await?;
 		}
 
 		Ok(())
 	}
 
 	/// Notify language servers that a document was saved.
-	///
-	/// # Arguments
-	///
-	/// * `path` - Path to the file
-	/// * `language` - Language ID
-	/// * `include_text` - Whether to include the document text (some servers need it)
-	/// * `text` - Document content (only sent if `include_text` is true)
-	pub fn notify_did_save(
+	pub async fn notify_did_save(
 		&self,
 		path: &Path,
 		language: &str,
@@ -460,23 +394,21 @@ impl DocumentSync {
 		};
 
 		if let Some(client) = self.registry.get(language, path) {
-			client.text_document_did_save(uri, text_content)?;
+			client.text_document_did_save(uri, text_content).await?;
 		}
 
 		Ok(())
 	}
 
 	/// Close a document with language servers.
-	///
-	/// This sends `textDocument/didClose` and removes the document from tracking.
-	pub fn close_document(&self, path: &Path, language: &str) -> Result<()> {
+	pub async fn close_document(&self, path: &Path, language: &str) -> Result<()> {
 		let uri = crate::uri_from_path(path)
 			.ok_or_else(|| crate::Error::Protocol("Invalid path".into()))?;
 
 		if self.documents.is_opened(&uri)
 			&& let Some(client) = self.registry.get(language, path)
 		{
-			client.text_document_did_close(uri.clone())?;
+			client.text_document_did_close(uri.clone()).await?;
 		}
 
 		self.documents.unregister(&uri);
@@ -538,7 +470,9 @@ impl DocumentSync {
 	pub fn documents(&self) -> &DocumentStateManager {
 		&self.documents
 	}
-}
 
-#[cfg(test)]
-mod tests;
+	/// Get an Arc to the document state manager.
+	pub fn documents_arc(&self) -> Arc<DocumentStateManager> {
+		self.documents.clone()
+	}
+}

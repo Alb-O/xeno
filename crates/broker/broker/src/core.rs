@@ -63,6 +63,14 @@ impl BrokerCore {
 		}
 	}
 
+	/// Broadcast an event to all sessions.
+	pub fn broadcast_event(&self, event: IpcFrame) {
+		let sessions = self.sessions.lock().unwrap();
+		for sink in sessions.values() {
+			let _ = sink.send(MainLoopEvent::Outgoing(event.clone()));
+		}
+	}
+
 	/// Register a new running LSP instance.
 	pub fn register_server(&self, server_id: ServerId, instance: LspInstance) {
 		self.servers.lock().unwrap().insert(server_id, instance);

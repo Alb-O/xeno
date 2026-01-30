@@ -97,8 +97,8 @@ pub use omni_trait::{LanguageClient, LanguageServer};
 pub mod client;
 #[cfg(feature = "client")]
 pub use client::{
-	ClientHandle, LanguageServerId, LogLevel, LspEventHandler, NoOpEventHandler, OffsetEncoding,
-	ServerConfig, ServerState, SharedEventHandler, start_server,
+	ClientHandle, LanguageServerId, LocalTransport, LogLevel, LspEventHandler, NoOpEventHandler,
+	OffsetEncoding, ServerConfig, ServerState, SharedEventHandler,
 };
 
 #[cfg(feature = "position")]

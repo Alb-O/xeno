@@ -208,8 +208,18 @@ impl Editor {
 			);
 
 			#[cfg(feature = "lsp")]
-			if let Err(e) = self.state.lsp.on_buffer_close(buffer) {
-				tracing::warn!(error = %e, "LSP buffer close failed");
+			{
+				let lsp_handle = self.state.lsp.handle();
+				if let (Some(path), Some(lang)) = (
+					buffer.path().map(|p| p.to_path_buf()),
+					buffer.file_type().map(|s| s.to_string()),
+				) {
+					tokio::spawn(async move {
+						if let Err(e) = lsp_handle.close_document(path, lang).await {
+							tracing::warn!(error = %e, "LSP buffer close failed");
+						}
+					});
+				}
 			}
 		}
 

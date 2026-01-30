@@ -18,6 +18,23 @@ pub struct LspSystem {
 pub struct LspSystem;
 
 #[cfg(feature = "lsp")]
+#[derive(Clone)]
+pub struct LspHandle {
+	sync: xeno_lsp::DocumentSync,
+}
+
+#[cfg(feature = "lsp")]
+impl LspHandle {
+	pub async fn close_document(
+		&self,
+		path: std::path::PathBuf,
+		language: String,
+	) -> xeno_lsp::Result<()> {
+		self.sync.close_document(&path, &language).await
+	}
+}
+
+#[cfg(feature = "lsp")]
 struct RealLspSystem {
 	manager: LspManager,
 	sync_manager: crate::lsp::sync_manager::LspSyncManager,
@@ -29,12 +46,28 @@ struct RealLspSystem {
 }
 
 #[cfg(feature = "lsp")]
+use std::sync::Arc;
+
+#[cfg(feature = "lsp")]
+use xeno_lsp::client::transport::LspTransport;
+
+#[cfg(feature = "lsp")]
 impl LspSystem {
 	pub fn new() -> Self {
 		let (ui_tx, ui_rx) = tokio::sync::mpsc::unbounded_channel();
+
+		let transport: Arc<dyn LspTransport> = if std::env::var("XENO_USE_BROKER").is_ok() {
+			crate::lsp::broker_transport::BrokerTransport::new()
+		} else {
+			xeno_lsp::LocalTransport::new()
+		};
+
+		let manager = LspManager::new(transport);
+		manager.spawn_router();
+
 		Self {
 			inner: RealLspSystem {
-				manager: LspManager::new(),
+				manager,
 				sync_manager: crate::lsp::sync_manager::LspSyncManager::new(),
 				completion: xeno_lsp::CompletionController::new(),
 				signature_gen: 0,
@@ -42,6 +75,12 @@ impl LspSystem {
 				ui_tx,
 				ui_rx,
 			},
+		}
+	}
+
+	pub fn handle(&self) -> LspHandle {
+		LspHandle {
+			sync: self.inner.manager.sync().clone(),
 		}
 	}
 }
@@ -127,22 +166,26 @@ impl LspSystem {
 		Ok(Some(client))
 	}
 
-	pub fn on_buffer_will_save(&self, buffer: &Buffer) -> xeno_lsp::Result<()> {
-		let Some(path) = buffer.path() else {
+	pub async fn on_buffer_will_save(&self, buffer: &Buffer) -> xeno_lsp::Result<()> {
+		let Some(path) = buffer.path().map(|p| p.to_path_buf()) else {
 			return Ok(());
 		};
-		let Some(language) = buffer.file_type() else {
+		let Some(language) = buffer.file_type().map(|s| s.to_string()) else {
 			return Ok(());
 		};
 		let abs_path = self.canonicalize_path(&path);
-		self.sync().notify_will_save(&abs_path, &language)
+		self.sync().notify_will_save(&abs_path, &language).await
 	}
 
-	pub fn on_buffer_did_save(&self, buffer: &Buffer, include_text: bool) -> xeno_lsp::Result<()> {
-		let Some(path) = buffer.path() else {
+	pub async fn on_buffer_did_save(
+		&self,
+		buffer: &Buffer,
+		include_text: bool,
+	) -> xeno_lsp::Result<()> {
+		let Some(path) = buffer.path().map(|p| p.to_path_buf()) else {
 			return Ok(());
 		};
-		let Some(language) = buffer.file_type() else {
+		let Some(language) = buffer.file_type().map(|s| s.to_string()) else {
 			return Ok(());
 		};
 		let abs_path = self.canonicalize_path(&path);
@@ -155,17 +198,18 @@ impl LspSystem {
 		});
 		self.sync()
 			.notify_did_save(&abs_path, &language, include_text, text.as_ref())
+			.await
 	}
 
-	pub fn on_buffer_close(&self, buffer: &Buffer) -> xeno_lsp::Result<()> {
-		let Some(path) = buffer.path() else {
+	pub async fn on_buffer_close(&self, buffer: &Buffer) -> xeno_lsp::Result<()> {
+		let Some(path) = buffer.path().map(|p| p.to_path_buf()) else {
 			return Ok(());
 		};
-		let Some(language) = buffer.file_type() else {
+		let Some(language) = buffer.file_type().map(|s| s.to_string()) else {
 			return Ok(());
 		};
 		let abs_path = self.canonicalize_path(&path);
-		self.sync().close_document(&abs_path, &language)
+		self.sync().close_document(&abs_path, &language).await
 	}
 
 	pub fn get_diagnostics(&self, buffer: &Buffer) -> Vec<xeno_lsp::lsp_types::Diagnostic> {

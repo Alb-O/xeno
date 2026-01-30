@@ -156,8 +156,12 @@ pub enum Event {
 	Heartbeat,
 	/// LSP diagnostics received.
 	LspDiagnostics {
+		/// Source server.
+		server_id: ServerId,
 		/// Target document.
 		doc_id: DocId,
+		/// Document URI.
+		uri: String,
 		/// Document version.
 		version: u32,
 		/// Diagnostics (serialized JSON).

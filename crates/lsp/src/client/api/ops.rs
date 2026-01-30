@@ -5,8 +5,6 @@ use tokio::sync::oneshot;
 
 use super::super::capabilities::client_capabilities;
 use super::super::handle::ClientHandle;
-use super::super::outbox::OutboundMsg;
-use super::super::state::ServerState;
 use super::types::workspace_folder_from_uri;
 use crate::types::AnyNotification;
 use crate::{Result, uri_from_path};
@@ -49,16 +47,20 @@ impl ClientHandle {
 		let _ = self.capabilities.set(result.capabilities.clone());
 		self.initialize_notify.notify_waiters();
 
-		let (barrier_tx, barrier_rx) = oneshot::channel();
-		self.send_outbound(OutboundMsg::Notification {
-			notification: AnyNotification {
-				method: lsp_types::notification::Initialized::METHOD.into(),
-				params: serde_json::to_value(lsp_types::InitializedParams {}).expect("serialize"),
-			},
-			barrier: Some(barrier_tx),
-		})?;
+		let barrier_rx = self
+			.transport
+			.notify_with_barrier(
+				self.id,
+				AnyNotification {
+					method: lsp_types::notification::Initialized::METHOD.into(),
+					params: serde_json::to_value(lsp_types::InitializedParams {})
+						.expect("serialize"),
+				},
+			)
+			.await?;
+
 		let _ = barrier_rx.await;
-		self.set_state(ServerState::Ready);
+		self.set_ready(true);
 
 		Ok(result)
 	}
@@ -69,18 +71,18 @@ impl ClientHandle {
 	}
 
 	/// Send exit notification to the server.
-	pub fn exit(&self) -> Result<()> {
-		self.notify::<lsp_types::notification::Exit>(())
+	pub async fn exit(&self) -> Result<()> {
+		self.notify::<lsp_types::notification::Exit>(()).await
 	}
 
 	/// Shutdown and exit the language server.
 	pub async fn shutdown_and_exit(&self) -> Result<()> {
 		self.shutdown().await?;
-		self.exit()
+		self.exit().await
 	}
 
 	/// Notify the server that a document was opened.
-	pub fn text_document_did_open(
+	pub async fn text_document_did_open(
 		&self,
 		uri: Uri,
 		language_id: String,
@@ -97,10 +99,11 @@ impl ClientHandle {
 				},
 			},
 		)
+		.await
 	}
 
 	/// Notify the server that a document was changed (full sync).
-	pub fn text_document_did_change_full(
+	pub async fn text_document_did_change_full(
 		&self,
 		uri: Uri,
 		version: i32,
@@ -118,14 +121,11 @@ impl ClientHandle {
 			})
 			.expect("Failed to serialize"),
 		};
-		self.send_outbound(OutboundMsg::Notification {
-			notification,
-			barrier: None,
-		})
+		self.transport.notify(self.id, notification).await
 	}
 
 	/// Notify the server that a document was changed (full sync) with a write barrier.
-	pub fn text_document_did_change_full_with_barrier(
+	pub async fn text_document_did_change_full_with_barrier(
 		&self,
 		uri: Uri,
 		version: i32,
@@ -143,16 +143,13 @@ impl ClientHandle {
 			})
 			.expect("Failed to serialize"),
 		};
-		let (tx, rx) = oneshot::channel();
-		self.send_outbound(OutboundMsg::Notification {
-			notification,
-			barrier: Some(tx),
-		})?;
-		Ok(rx)
+		self.transport
+			.notify_with_barrier(self.id, notification)
+			.await
 	}
 
 	/// Notify the server that a document was changed (incremental sync).
-	pub fn text_document_did_change(
+	pub async fn text_document_did_change(
 		&self,
 		uri: Uri,
 		version: i32,
@@ -166,14 +163,11 @@ impl ClientHandle {
 			})
 			.expect("Failed to serialize"),
 		};
-		self.send_outbound(OutboundMsg::Notification {
-			notification,
-			barrier: None,
-		})
+		self.transport.notify(self.id, notification).await
 	}
 
 	/// Notify the server that a document was changed (incremental sync) with a write barrier.
-	pub fn text_document_did_change_with_barrier(
+	pub async fn text_document_did_change_with_barrier(
 		&self,
 		uri: Uri,
 		version: i32,
@@ -187,16 +181,13 @@ impl ClientHandle {
 			})
 			.expect("Failed to serialize"),
 		};
-		let (tx, rx) = oneshot::channel();
-		self.send_outbound(OutboundMsg::Notification {
-			notification,
-			barrier: Some(tx),
-		})?;
-		Ok(rx)
+		self.transport
+			.notify_with_barrier(self.id, notification)
+			.await
 	}
 
 	/// Notify the server that a document will be saved.
-	pub fn text_document_will_save(
+	pub async fn text_document_will_save(
 		&self,
 		uri: Uri,
 		reason: lsp_types::TextDocumentSaveReason,
@@ -207,25 +198,28 @@ impl ClientHandle {
 				reason,
 			},
 		)
+		.await
 	}
 
 	/// Notify the server that a document was saved.
-	pub fn text_document_did_save(&self, uri: Uri, text: Option<String>) -> Result<()> {
+	pub async fn text_document_did_save(&self, uri: Uri, text: Option<String>) -> Result<()> {
 		self.notify::<lsp_types::notification::DidSaveTextDocument>(
 			lsp_types::DidSaveTextDocumentParams {
 				text_document: lsp_types::TextDocumentIdentifier { uri },
 				text,
 			},
 		)
+		.await
 	}
 
 	/// Notify the server that a document was closed.
-	pub fn text_document_did_close(&self, uri: Uri) -> Result<()> {
+	pub async fn text_document_did_close(&self, uri: Uri) -> Result<()> {
 		self.notify::<lsp_types::notification::DidCloseTextDocument>(
 			lsp_types::DidCloseTextDocumentParams {
 				text_document: lsp_types::TextDocumentIdentifier { uri },
 			},
 		)
+		.await
 	}
 
 	/// Request hover information.

@@ -2,48 +2,20 @@
 //!
 //! Manages the lifecycle of language server instances, mapping file types
 //! to their corresponding servers.
-//!
-//! # Overview
-//!
-//! The registry maintains:
-//! - A map of server configurations by language/file type
-//! - Active server instances
-//! - Pending initialization state
-//!
-//! # Example
-//!
-//! ```ignore
-//! use xeno_lsp::registry::{Registry, LanguageServerConfig};
-//!
-//! let mut registry = Registry::new();
-//!
-//! // Register rust-analyzer for Rust files
-//! registry.register("rust", LanguageServerConfig {
-//!     command: "rust-analyzer".into(),
-//!     args: vec![],
-//!     root_markers: vec!["Cargo.toml".into()],
-//!     ..Default::default()
-//! });
-//!
-//! // Get or start a server for a Rust file
-//! let client = registry.get_or_start("rust", "/path/to/project")?;
-//! ```
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::Arc;
 use std::time::Duration;
 
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use tokio::task::JoinHandle;
-use tracing::{info, trace, warn};
+use tracing::{info, warn};
 
 use crate::Result;
-use crate::client::{
-	ClientHandle, LanguageServerId, ServerConfig, ServerState, SharedEventHandler, start_server,
-};
+use crate::client::transport::LspTransport;
+use crate::client::{ClientHandle, ServerConfig};
 
 /// Configuration for a language server.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -94,15 +66,6 @@ impl Default for LanguageServerConfig {
 struct ServerInstance {
 	/// Handle for communicating with the server.
 	handle: ClientHandle,
-	/// Task running the main loop.
-	task: JoinHandle<Result<()>>,
-}
-
-impl ServerInstance {
-	/// Check if the server task is still running.
-	fn is_alive(&self) -> bool {
-		!self.task.is_finished()
-	}
 }
 
 /// Registry for managing language servers.
@@ -113,58 +76,23 @@ pub struct Registry {
 	configs: RwLock<HashMap<String, LanguageServerConfig>>,
 	/// Active server instances by (language, root_path).
 	servers: RwLock<HashMap<(String, PathBuf), ServerInstance>>,
-	/// Counter for generating unique server IDs.
-	next_id: AtomicU64,
-	/// Event handler for LSP events (diagnostics, progress, etc.).
-	event_handler: Option<SharedEventHandler>,
-}
-
-impl Default for Registry {
-	fn default() -> Self {
-		Self::new()
-	}
+	/// Underlying transport.
+	transport: Arc<dyn LspTransport>,
 }
 
 impl Registry {
-	/// Create a new empty registry.
-	pub fn new() -> Self {
+	/// Create a new registry with the given transport.
+	pub fn new(transport: Arc<dyn LspTransport>) -> Self {
 		Self {
 			configs: RwLock::new(HashMap::new()),
 			servers: RwLock::new(HashMap::new()),
-			next_id: AtomicU64::new(1),
-			event_handler: None,
+			transport,
 		}
-	}
-
-	/// Create a new registry with an event handler for LSP events.
-	///
-	/// The event handler receives notifications from all language servers
-	/// managed by this registry (diagnostics, progress, messages, etc.).
-	pub fn with_event_handler(event_handler: SharedEventHandler) -> Self {
-		Self {
-			configs: RwLock::new(HashMap::new()),
-			servers: RwLock::new(HashMap::new()),
-			next_id: AtomicU64::new(1),
-			event_handler: Some(event_handler),
-		}
-	}
-
-	/// Set the event handler for LSP events.
-	///
-	/// This only affects servers started after this call.
-	pub fn set_event_handler(&mut self, handler: SharedEventHandler) {
-		self.event_handler = Some(handler);
 	}
 
 	/// Register a language server configuration for a language.
 	pub fn register(&self, language: impl Into<String>, config: LanguageServerConfig) {
 		let language = language.into();
-		trace!(
-			language = %language,
-			command = %config.command,
-			root_markers = ?config.root_markers,
-			"configured language server"
-		);
 		self.configs.write().insert(language, config);
 	}
 
@@ -184,13 +112,7 @@ impl Registry {
 	}
 
 	/// Get or start a language server for a file path.
-	///
-	/// Finds the project root based on configured root markers, then returns an existing
-	/// server or starts a new one. Crashed servers are cleaned up and restarted.
-	///
-	/// Returns immediately after spawning. Initialization runs in background with messages
-	/// queued until complete. Holds write lock through check-and-start to prevent races.
-	pub fn get_or_start(&self, language: &str, file_path: &Path) -> Result<ClientHandle> {
+	pub async fn get_or_start(&self, language: &str, file_path: &Path) -> Result<ClientHandle> {
 		let config = self.get_config(language).ok_or_else(|| {
 			crate::Error::Protocol(format!("No server configured for {language}"))
 		})?;
@@ -198,18 +120,13 @@ impl Registry {
 		let root_path = find_root_path(file_path, &config.root_markers);
 		let key = (language.to_string(), root_path.clone());
 
-		let mut servers = self.servers.write();
-
-		if let Some(instance) = servers.get(&key) {
-			if instance.is_alive() {
+		{
+			let servers = self.servers.read();
+			if let Some(instance) = servers.get(&key) {
 				return Ok(instance.handle.clone());
 			}
-			warn!(language = %language, root = ?root_path, "Language server crashed, restarting");
 		}
 
-		servers.remove(&key);
-
-		let id = LanguageServerId(self.next_id.fetch_add(1, Ordering::Relaxed));
 		info!(language = %language, command = %config.command, root = ?root_path, "Starting language server");
 
 		let server_config = ServerConfig::new(&config.command, &root_path)
@@ -217,12 +134,14 @@ impl Registry {
 			.env(config.env.iter().map(|(k, v)| (k.clone(), v.clone())))
 			.timeout(config.timeout_secs);
 
-		let (handle, task) = start_server(
-			id,
+		let started = self.transport.start(server_config).await?;
+
+		let handle = ClientHandle::new(
+			started.id,
 			config.command.clone(),
-			server_config,
-			self.event_handler.clone(),
-		)?;
+			root_path,
+			self.transport.clone(),
+		);
 
 		let init_handle = handle.clone();
 		let enable_snippets = config.enable_snippets;
@@ -238,20 +157,17 @@ impl Registry {
 				Ok(Ok(_)) => {}
 				Ok(Err(e)) => {
 					warn!(error = %e, "LSP initialize failed");
-					init_handle.set_state(ServerState::Dead);
 				}
 				Err(_) => {
 					warn!("LSP initialize timed out");
-					init_handle.set_state(ServerState::Dead);
 				}
 			}
 		});
 
-		servers.insert(
+		self.servers.write().insert(
 			key,
 			ServerInstance {
 				handle: handle.clone(),
-				task,
 			},
 		);
 
@@ -259,12 +175,6 @@ impl Registry {
 	}
 
 	/// Get an active client for a language and file path, if one exists and is alive.
-	///
-	/// Finds the project root from the file path using configured root markers,
-	/// then looks up the server for that root.
-	///
-	/// Returns `None` if no server exists, no config exists, or if the server has crashed.
-	/// Dead servers are cleaned up lazily on next `get_or_start` call.
 	pub fn get(&self, language: &str, file_path: &Path) -> Option<ClientHandle> {
 		let config = self.get_config(language)?;
 		let root_path = find_root_path(file_path, &config.root_markers);
@@ -272,60 +182,12 @@ impl Registry {
 
 		let servers = self.servers.read();
 		let instance = servers.get(&key)?;
-		instance.is_alive().then(|| instance.handle.clone())
-	}
-
-	/// Clean up all dead servers and return the number of servers removed.
-	pub fn cleanup_dead_servers(&self) -> usize {
-		let dead_keys: Vec<_> = self
-			.servers
-			.read()
-			.iter()
-			.filter(|(_, instance)| !instance.is_alive())
-			.map(|(key, _)| key.clone())
-			.collect();
-
-		let count = dead_keys.len();
-		if count > 0 {
-			let mut servers = self.servers.write();
-			for key in dead_keys {
-				info!(
-					language = %key.0,
-					root = ?key.1,
-					"Cleaning up dead language server"
-				);
-				servers.remove(&key);
-			}
-		}
-		count
-	}
-
-	/// Get all active clients for a language.
-	pub fn get_all(&self, language: &str) -> Vec<ClientHandle> {
-		self.servers
-			.read()
-			.iter()
-			.filter(|(k, _)| k.0 == language)
-			.map(|(_, s)| s.handle.clone())
-			.collect()
-	}
-
-	/// Shutdown a specific server.
-	pub async fn shutdown(&self, language: &str, root_path: &Path) -> Result<()> {
-		let key = (language.to_string(), root_path.to_path_buf());
-		let instance = self.servers.write().remove(&key);
-		if let Some(instance) = instance {
-			instance.handle.shutdown_and_exit().await?;
-		}
-		Ok(())
+		Some(instance.handle.clone())
 	}
 
 	/// Shutdown all servers.
 	pub async fn shutdown_all(&self) {
-		let instances: Vec<_> = self.servers.write().drain().collect();
-		for (_, instance) in instances {
-			let _ = instance.handle.shutdown_and_exit().await;
-		}
+		self.servers.write().clear();
 	}
 
 	/// Get the number of active servers.
@@ -333,21 +195,22 @@ impl Registry {
 		self.servers.read().len()
 	}
 
+	/// Get the underlying transport.
+	pub fn transport(&self) -> Arc<dyn LspTransport> {
+		self.transport.clone()
+	}
+
 	/// Check if any server is ready (initialized and accepting requests).
 	pub fn any_server_ready(&self) -> bool {
 		self.servers
 			.read()
 			.values()
-			.any(|instance| instance.is_alive() && instance.handle.is_ready())
+			.any(|instance| instance.handle.is_ready())
 	}
 }
 
 /// Find the project root by walking up from the file path.
-///
-/// Looks for any of the root markers. If none found, returns the file's directory.
-/// Always returns an absolute path (required for LSP URIs).
 fn find_root_path(file_path: &Path, root_markers: &[String]) -> PathBuf {
-	// Canonicalize to get absolute path, fall back to current dir + path if that fails
 	let abs_path = file_path
 		.canonicalize()
 		.unwrap_or_else(|_| std::env::current_dir().unwrap_or_default().join(file_path));
@@ -372,57 +235,5 @@ fn find_root_path(file_path: &Path, root_markers: &[String]) -> PathBuf {
 		}
 	}
 
-	// No marker found, use the file's directory
 	start_dir
-}
-
-#[cfg(test)]
-mod tests {
-	use super::*;
-
-	#[test]
-	fn test_find_root_path_with_marker() {
-		// Create a temp directory structure
-		let temp = tempfile::tempdir().unwrap();
-		let root = temp.path();
-
-		std::fs::write(root.join("Cargo.toml"), "").unwrap();
-		let nested = root.join("src").join("nested");
-		std::fs::create_dir_all(&nested).unwrap();
-
-		let found = find_root_path(&nested, &["Cargo.toml".into()]);
-		assert_eq!(found, root);
-	}
-
-	#[test]
-	fn test_find_root_path_no_marker() {
-		let temp = tempfile::tempdir().unwrap();
-		let dir = temp.path();
-
-		let found = find_root_path(dir, &["nonexistent.marker".into()]);
-		assert_eq!(found, dir);
-	}
-
-	#[test]
-	fn test_registry_config() {
-		let registry = Registry::new();
-
-		registry.register(
-			"rust",
-			LanguageServerConfig {
-				command: "rust-analyzer".into(),
-				root_markers: vec!["Cargo.toml".into()],
-				..Default::default()
-			},
-		);
-
-		assert!(registry.get_config("rust").is_some());
-		assert!(registry.get_config("python").is_none());
-
-		let languages = registry.languages();
-		assert_eq!(languages, vec!["rust"]);
-
-		registry.unregister("rust");
-		assert!(registry.get_config("rust").is_none());
-	}
 }

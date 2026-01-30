@@ -1,4 +1,6 @@
 #[cfg(feature = "lsp")]
+pub(crate) mod broker_transport;
+#[cfg(feature = "lsp")]
 pub(crate) mod coalesce;
 #[cfg(feature = "lsp")]
 pub(crate) mod code_action;

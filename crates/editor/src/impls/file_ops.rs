@@ -39,7 +39,7 @@ impl xeno_registry::FileOpsAccess for Editor {
 			.await;
 
 			#[cfg(feature = "lsp")]
-			if let Err(e) = self.state.lsp.on_buffer_will_save(self.buffer()) {
+			if let Err(e) = self.state.lsp.on_buffer_will_save(self.buffer()).await {
 				warn!(error = %e, "LSP will_save notification failed");
 			}
 
@@ -67,7 +67,7 @@ impl xeno_registry::FileOpsAccess for Editor {
 			self.show_notification(xeno_registry::notifications::keys::file_saved(&path_owned));
 
 			#[cfg(feature = "lsp")]
-			if let Err(e) = self.state.lsp.on_buffer_did_save(self.buffer(), true) {
+			if let Err(e) = self.state.lsp.on_buffer_did_save(self.buffer(), true).await {
 				warn!(error = %e, "LSP did_save notification failed");
 			}
 

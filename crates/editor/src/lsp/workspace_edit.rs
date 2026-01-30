@@ -289,11 +289,16 @@ impl Editor {
 		let Some(buffer) = self.state.core.buffers.get_buffer(buffer_id) else {
 			return;
 		};
-		if buffer.path().is_some()
-			&& buffer.file_type().is_some()
-			&& let Err(e) = self.state.lsp.on_buffer_close(buffer)
-		{
-			tracing::warn!(error = %e, "LSP buffer close failed");
+		if let (Some(path), Some(lang)) = (
+			buffer.path().map(|p| p.to_path_buf()),
+			buffer.file_type().map(|s| s.to_string()),
+		) {
+			let lsp_handle = self.state.lsp.handle();
+			tokio::spawn(async move {
+				if let Err(e) = lsp_handle.close_document(path, lang).await {
+					tracing::warn!(error = %e, "LSP buffer close failed");
+				}
+			});
 		}
 
 		self.finalize_buffer_removal(buffer_id);

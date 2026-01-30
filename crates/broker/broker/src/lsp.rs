@@ -78,7 +78,9 @@ impl LspProxyService {
 			self.core.send_event(
 				self.owner,
 				IpcFrame::Event(Event::LspDiagnostics {
+					server_id: self.server_id,
 					doc_id,
+					uri: uri.to_string(),
 					version,
 					diagnostics,
 				}),

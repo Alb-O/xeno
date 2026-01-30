@@ -201,3 +201,25 @@ pub struct AnyResponse {
 	#[serde(skip_serializing_if = "Option::is_none")]
 	pub error: Option<ResponseError>,
 }
+
+impl AnyResponse {
+	/// Create a new successful response.
+	#[must_use]
+	pub fn new_ok(id: RequestId, result: JsonValue) -> Self {
+		Self {
+			id,
+			result: Some(result),
+			error: None,
+		}
+	}
+
+	/// Create a new error response.
+	#[must_use]
+	pub fn new_err(id: RequestId, error: ResponseError) -> Self {
+		Self {
+			id,
+			result: None,
+			error: Some(error),
+		}
+	}
+}

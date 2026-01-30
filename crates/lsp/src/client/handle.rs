@@ -2,24 +2,23 @@
 
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
 use lsp_types::notification::Notification;
 use lsp_types::request::Request;
 use lsp_types::{ServerCapabilities, Uri};
-use tokio::sync::{Notify, OnceCell, mpsc, oneshot, watch};
+use tokio::sync::{Notify, OnceCell};
 
 use super::config::{LanguageServerId, OffsetEncoding};
-use super::outbox::OutboundMsg;
-use super::state::ServerState;
+use super::transport::LspTransport;
+use crate::Result;
 use crate::types::{AnyNotification, AnyRequest, RequestId};
-use crate::{Error, Result};
 
 /// Handle to an LSP language server.
 ///
 /// This provides a high-level API for communicating with a language server.
-/// The actual I/O and main loop run in a separate task - this handle uses
-/// a message queue for outbound communication.
+/// It uses an underlying [`LspTransport`] for actual communication.
 #[derive(Clone)]
 pub struct ClientHandle {
 	/// Unique identifier for this client.
@@ -34,12 +33,12 @@ pub struct ClientHandle {
 	pub(super) root_uri: Option<Uri>,
 	/// Notification channel for initialization completion.
 	pub(super) initialize_notify: Arc<Notify>,
-	/// Outbound message queue for serialized writes.
-	pub(super) outbound_tx: mpsc::Sender<OutboundMsg>,
 	/// Per-request timeout.
 	pub(super) timeout: Duration,
-	/// Server state broadcast channel (sender).
-	pub(super) state_tx: watch::Sender<ServerState>,
+	/// Underlying transport.
+	pub(super) transport: Arc<dyn LspTransport>,
+	/// Whether the server has completed initialization.
+	pub(super) is_ready: Arc<AtomicBool>,
 }
 
 impl std::fmt::Debug for ClientHandle {
@@ -49,11 +48,33 @@ impl std::fmt::Debug for ClientHandle {
 			.field("name", &self.name)
 			.field("root_path", &self.root_path)
 			.field("initialized", &self.capabilities.initialized())
+			.field("ready", &self.is_ready.load(Ordering::Relaxed))
 			.finish_non_exhaustive()
 	}
 }
 
 impl ClientHandle {
+	/// Create a new client handle.
+	pub fn new(
+		id: LanguageServerId,
+		name: String,
+		root_path: PathBuf,
+		transport: Arc<dyn LspTransport>,
+	) -> Self {
+		let root_uri = crate::uri_from_path(&root_path);
+		Self {
+			id,
+			name,
+			capabilities: Arc::new(OnceCell::new()),
+			root_path,
+			root_uri,
+			initialize_notify: Arc::new(Notify::new()),
+			timeout: Duration::from_secs(30),
+			transport,
+			is_ready: Arc::new(AtomicBool::new(false)),
+		}
+	}
+
 	/// Get the client's unique identifier.
 	pub fn id(&self) -> LanguageServerId {
 		self.id
@@ -69,19 +90,14 @@ impl ClientHandle {
 		self.capabilities.initialized()
 	}
 
-	/// Get the current server state.
-	pub fn state(&self) -> ServerState {
-		*self.state_tx.borrow()
+	/// Check if the server is ready for requests.
+	pub fn is_ready(&self) -> bool {
+		self.is_ready.load(Ordering::Relaxed)
 	}
 
-	/// Set the server state.
-	pub fn set_state(&self, state: ServerState) {
-		let _ = self.state_tx.send(state);
-	}
-
-	/// Subscribe to state changes.
-	pub fn subscribe_state(&self) -> watch::Receiver<ServerState> {
-		self.state_tx.subscribe()
+	/// Set the server's ready state.
+	pub(crate) fn set_ready(&self, ready: bool) {
+		self.is_ready.store(ready, Ordering::Relaxed);
 	}
 
 	/// Get the server's capabilities.
@@ -187,31 +203,6 @@ impl ClientHandle {
 		self.initialize_notify.notified().await;
 	}
 
-	/// Wait for the server to be ready for normal requests.
-	///
-	/// Returns `Ok(())` when the server transitions to `Ready` state.
-	/// Returns `Err(Error::ServiceStopped)` if the server dies before becoming ready.
-	pub async fn wait_ready(&self) -> crate::Result<()> {
-		let mut state_rx = self.state_tx.subscribe();
-		loop {
-			let state = *state_rx.borrow();
-			match state {
-				ServerState::Ready => return Ok(()),
-				ServerState::Dead => return Err(crate::Error::ServiceStopped),
-				ServerState::Starting => {
-					if state_rx.changed().await.is_err() {
-						return Err(crate::Error::ServiceStopped);
-					}
-				}
-			}
-		}
-	}
-
-	/// Check if the server is ready (non-blocking).
-	pub fn is_ready(&self) -> bool {
-		*self.state_tx.borrow() == ServerState::Ready
-	}
-
 	/// Send a request to the language server.
 	pub async fn request<R: Request>(&self, params: R::Params) -> Result<R::Result> {
 		let req = AnyRequest {
@@ -219,44 +210,22 @@ impl ClientHandle {
 			method: R::METHOD.into(),
 			params: serde_json::to_value(params).expect("Failed to serialize"),
 		};
-		let (tx, rx) = oneshot::channel();
-		self.outbound_tx
-			.send(OutboundMsg::Request {
-				request: req,
-				response_tx: tx,
-			})
-			.await
-			.map_err(|_| Error::ServiceStopped)?;
-		let resp = if self.timeout == Duration::ZERO {
-			rx.await.map_err(|_| Error::ServiceStopped)?
-		} else {
-			match tokio::time::timeout(self.timeout, rx).await {
-				Ok(resp) => resp.map_err(|_| Error::ServiceStopped)?,
-				Err(_) => return Err(Error::RequestTimeout(R::METHOD.into())),
-			}
-		};
+		let resp = self
+			.transport
+			.request(self.id, req, Some(self.timeout))
+			.await?;
 		match resp.error {
 			None => Ok(serde_json::from_value(resp.result.unwrap_or_default())?),
-			Some(err) => Err(Error::Response(err)),
+			Some(err) => Err(crate::Error::Response(err)),
 		}
 	}
 
 	/// Send a notification to the language server.
-	pub fn notify<N: Notification>(&self, params: N::Params) -> Result<()> {
+	pub async fn notify<N: Notification>(&self, params: N::Params) -> Result<()> {
 		let notif = AnyNotification {
 			method: N::METHOD.into(),
 			params: serde_json::to_value(params).expect("Failed to serialize"),
 		};
-		self.send_outbound(OutboundMsg::Notification {
-			notification: notif,
-			barrier: None,
-		})
-	}
-
-	pub(super) fn send_outbound(&self, msg: OutboundMsg) -> Result<()> {
-		self.outbound_tx.try_send(msg).map_err(|err| match err {
-			tokio::sync::mpsc::error::TrySendError::Closed(_) => Error::ServiceStopped,
-			tokio::sync::mpsc::error::TrySendError::Full(_) => Error::Backpressure,
-		})
+		self.transport.notify(self.id, notif).await
 	}
 }
