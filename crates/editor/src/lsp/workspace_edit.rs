@@ -264,6 +264,16 @@ impl Editor {
 		if result.applied {
 			self.state.syntax_manager.note_edit(doc_id);
 			self.state.lsp.sync_manager_mut().escalate_full(doc_id);
+
+			if let Some(uri) = self
+				.state
+				.buffer_sync
+				.uri_for_doc_id(doc_id)
+				.map(str::to_string)
+				&& let Some(payload) = self.state.buffer_sync.prepare_delta(&uri, &tx)
+			{
+				let _ = self.state.lsp.buffer_sync_out_tx().send(payload);
+			}
 		}
 
 		if !result.applied {

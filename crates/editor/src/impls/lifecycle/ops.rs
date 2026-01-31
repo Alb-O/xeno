@@ -148,22 +148,6 @@ impl Editor {
 		}
 	}
 
-	/// Marks a buffer dirty for LSP full sync (clears incremental changes, bumps version).
-	pub(crate) fn mark_buffer_dirty_for_full_sync(&mut self, buffer_id: crate::buffer::ViewId) {
-		if let Some(buffer) = self.state.core.buffers.get_buffer_mut(buffer_id) {
-			#[cfg(feature = "lsp")]
-			let doc_id = buffer.document_id();
-
-			buffer.with_doc_mut(|doc| {
-				doc.increment_version();
-			});
-
-			#[cfg(feature = "lsp")]
-			self.state.lsp.sync_manager_mut().escalate_full(doc_id);
-		}
-		self.state.frame.dirty_buffers.insert(buffer_id);
-	}
-
 	/// Queues full LSP syncs for documents flagged by the LSP state manager.
 	#[cfg(feature = "lsp")]
 	pub(super) fn queue_lsp_resyncs_from_documents(&mut self) {

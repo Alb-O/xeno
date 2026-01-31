@@ -125,8 +125,7 @@ impl EditorUndoHost<'_> {
 		push_notification(self.config, self.notifications, notification.into());
 	}
 
-	/// Emits a buffer sync delta for the given document if it is owned by this
-	/// session and tracked by the sync manager.
+	/// Emits a buffer sync delta if the document is owned by this session.
 	#[cfg(feature = "lsp")]
 	fn emit_sync_delta(&mut self, doc_id: DocumentId, tx: &Transaction) {
 		if let Some(uri) = self.buffer_sync.uri_for_doc_id(doc_id).map(str::to_string)
@@ -138,6 +137,36 @@ impl EditorUndoHost<'_> {
 
 	#[cfg(not(feature = "lsp"))]
 	fn emit_sync_delta(&mut self, _doc_id: DocumentId, _tx: &Transaction) {}
+
+	/// Returns `true` if `doc_id` is tracked as a follower in buffer sync.
+	#[cfg(feature = "lsp")]
+	fn is_sync_follower(&self, doc_id: DocumentId) -> bool {
+		self.buffer_sync
+			.uri_for_doc_id(doc_id)
+			.is_some_and(|uri| self.buffer_sync.is_follower(uri))
+	}
+
+	/// Computes the sync delta for an undo/redo mutation.
+	///
+	/// Prefers the stored transaction when it correctly transforms `pre` into
+	/// `post` (preserves granularity for multi-cursor edits). Falls back to
+	/// [`rope_delta`] when it doesn't — the snapshot undo backend returns a
+	/// partial inverse for merged insert-mode groups.
+	///
+	/// [`rope_delta`]: crate::buffer_sync::convert::rope_delta
+	fn validated_sync_tx(
+		pre: &xeno_primitives::Rope,
+		post: &xeno_primitives::Rope,
+		stored_tx: Transaction,
+	) -> Transaction {
+		let mut check = pre.clone();
+		stored_tx.apply(&mut check);
+		if check == *post {
+			stored_tx
+		} else {
+			crate::buffer_sync::convert::rope_delta(pre, post)
+		}
+	}
 
 	fn mark_buffer_dirty_for_full_sync(&mut self, buffer_id: ViewId) {
 		if let Some(buffer) = self.buffers.get_buffer_mut(buffer_id) {
@@ -204,35 +233,25 @@ impl EditorUndoHost<'_> {
 	}
 
 	fn undo_document(&mut self, doc_id: DocumentId) -> bool {
-		let buffer_id = self
-			.buffers
-			.buffers()
-			.find(|b| b.document_id() == doc_id)
-			.map(|b| b.id);
-
-		let Some(buffer_id) = buffer_id else {
-			warn!(doc_id = ?doc_id, "Undo: no buffer for document");
-			return false;
-		};
-
-		let tx = self
-			.buffers
-			.get_buffer_mut(buffer_id)
-			.expect("buffer exists")
-			.with_doc_mut(|doc| doc.undo(&self.config.language_loader));
-
-		let Some(tx) = tx else {
-			return false;
-		};
-
-		self.syntax_manager.note_edit(doc_id);
-		self.emit_sync_delta(doc_id, &tx);
-		self.mark_buffer_dirty_for_full_sync(buffer_id);
-		self.normalize_all_views_for_doc(doc_id);
-		true
+		self.apply_history_op(doc_id, |doc, lang| doc.undo(lang))
 	}
 
 	fn redo_document(&mut self, doc_id: DocumentId) -> bool {
+		self.apply_history_op(doc_id, |doc, lang| doc.redo(lang))
+	}
+
+	/// Shared implementation for [`undo_document`] and [`redo_document`].
+	///
+	/// Blocks mutations on follower documents, captures the rope before and
+	/// after the history operation, and emits a validated sync delta.
+	fn apply_history_op(
+		&mut self,
+		doc_id: DocumentId,
+		op: impl FnOnce(
+			&mut crate::buffer::Document,
+			&xeno_runtime_language::LanguageLoader,
+		) -> Option<Transaction>,
+	) -> bool {
 		let buffer_id = self
 			.buffers
 			.buffers()
@@ -240,22 +259,41 @@ impl EditorUndoHost<'_> {
 			.map(|b| b.id);
 
 		let Some(buffer_id) = buffer_id else {
-			warn!(doc_id = ?doc_id, "Redo: no buffer for document");
+			warn!(doc_id = ?doc_id, "History op: no buffer for document");
 			return false;
 		};
+
+		#[cfg(feature = "lsp")]
+		if self.is_sync_follower(doc_id) {
+			return false;
+		}
+
+		let pre_rope = self
+			.buffers
+			.get_buffer(buffer_id)
+			.expect("buffer exists")
+			.with_doc(|doc| doc.content().clone());
 
 		let tx = self
 			.buffers
 			.get_buffer_mut(buffer_id)
 			.expect("buffer exists")
-			.with_doc_mut(|doc| doc.redo(&self.config.language_loader));
+			.with_doc_mut(|doc| op(doc, &self.config.language_loader));
 
 		let Some(tx) = tx else {
 			return false;
 		};
 
+		let post_rope = self
+			.buffers
+			.get_buffer(buffer_id)
+			.expect("buffer exists")
+			.with_doc(|doc| doc.content().clone());
+
+		let sync_tx = Self::validated_sync_tx(&pre_rope, &post_rope, tx);
+
 		self.syntax_manager.note_edit(doc_id);
-		self.emit_sync_delta(doc_id, &tx);
+		self.emit_sync_delta(doc_id, &sync_tx);
 		self.mark_buffer_dirty_for_full_sync(buffer_id);
 		self.normalize_all_views_for_doc(doc_id);
 		true
