@@ -3110,7 +3110,7 @@ checksum = "9edde0db4769d2dc68579893f2306b26c6ecfbe0ef499b013d731b7b9247e0b9"
 
 [[package]]
 name = "xeno-broker"
-version = "0.7.2"
+version = "0.7.3"
 dependencies = [
  "postcard",
  "ropey",
@@ -3127,7 +3127,7 @@ dependencies = [
 
 [[package]]
 name = "xeno-broker-bin"
-version = "0.7.2"
+version = "0.7.3"
 dependencies = [
  "clap",
  "tokio",
@@ -3140,7 +3140,7 @@ dependencies = [
 
 [[package]]
 name = "xeno-broker-proto"
-version = "0.7.2"
+version = "0.7.3"
 dependencies = [
  "dirs",
  "postcard",
@@ -3151,7 +3151,7 @@ dependencies = [
 
 [[package]]
 name = "xeno-editor"
-version = "0.7.2"
+version = "0.7.3"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -3194,7 +3194,7 @@ dependencies = [
 
 [[package]]
 name = "xeno-keymap-core"
-version = "0.7.2"
+version = "0.7.3"
 dependencies = [
  "kdl",
  "serde",
@@ -3206,7 +3206,7 @@ dependencies = [
 
 [[package]]
 name = "xeno-keymap-derive"
-version = "0.7.2"
+version = "0.7.3"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -3216,7 +3216,7 @@ dependencies = [
 
 [[package]]
 name = "xeno-keymap-parser"
-version = "0.7.2"
+version = "0.7.3"
 dependencies = [
  "serde",
  "strum",
@@ -3226,7 +3226,7 @@ dependencies = [
 
 [[package]]
 name = "xeno-lsp"
-version = "0.7.2"
+version = "0.7.3"
 dependencies = [
  "async-trait",
  "lsp-types",
@@ -3251,7 +3251,7 @@ dependencies = [
 
 [[package]]
 name = "xeno-macro"
-version = "0.7.2"
+version = "0.7.3"
 dependencies = [
  "kdl",
  "proc-macro2",
@@ -3262,7 +3262,7 @@ dependencies = [
 
 [[package]]
 name = "xeno-primitives"
-version = "0.7.2"
+version = "0.7.3"
 dependencies = [
  "proptest",
  "ropey",
@@ -3276,7 +3276,7 @@ dependencies = [
 
 [[package]]
 name = "xeno-registry"
-version = "0.7.2"
+version = "0.7.3"
 dependencies = [
  "arc-swap",
  "inventory",
@@ -3295,7 +3295,7 @@ dependencies = [
 
 [[package]]
 name = "xeno-rpc"
-version = "0.7.2"
+version = "0.7.3"
 dependencies = [
  "pin-project-lite",
  "thiserror 2.0.17",
@@ -3306,7 +3306,7 @@ dependencies = [
 
 [[package]]
 name = "xeno-runtime-config"
-version = "0.7.2"
+version = "0.7.3"
 dependencies = [
  "kdl",
  "notify",
@@ -3319,14 +3319,14 @@ dependencies = [
 
 [[package]]
 name = "xeno-runtime-data"
-version = "0.7.2"
+version = "0.7.3"
 dependencies = [
  "include_dir",
 ]
 
 [[package]]
 name = "xeno-runtime-language"
-version = "0.7.2"
+version = "0.7.3"
 dependencies = [
  "cc",
  "kdl",
@@ -3346,7 +3346,7 @@ dependencies = [
 
 [[package]]
 name = "xeno-term"
-version = "0.7.2"
+version = "0.7.3"
 dependencies = [
  "anyhow",
  "clap",
@@ -3375,7 +3375,7 @@ dependencies = [
 
 [[package]]
 name = "xeno-tui"
-version = "0.7.2"
+version = "0.7.3"
 dependencies = [
  "anstyle",
  "bitflags 2.10.0",

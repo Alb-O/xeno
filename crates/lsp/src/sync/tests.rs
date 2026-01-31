@@ -1,9 +1,10 @@
 use std::path::Path;
 use std::sync::Arc;
-use lsp_types::{Diagnostic, DiagnosticSeverity, Range, Uri};
-use tokio::sync::{mpsc, oneshot};
+
 use async_trait::async_trait;
+use lsp_types::{Diagnostic, DiagnosticSeverity, Range, Uri};
 use ropey::Rope;
+use tokio::sync::{mpsc, oneshot};
 
 use super::*;
 
@@ -14,19 +15,45 @@ impl crate::client::transport::LspTransport for SimpleStubTransport {
 		let (_, rx) = mpsc::unbounded_channel();
 		rx
 	}
-	async fn start(&self, _cfg: crate::client::ServerConfig) -> crate::Result<crate::client::transport::StartedServer> {
-		Ok(crate::client::transport::StartedServer { id: LanguageServerId(1) })
+	async fn start(
+		&self,
+		_cfg: crate::client::ServerConfig,
+	) -> crate::Result<crate::client::transport::StartedServer> {
+		Ok(crate::client::transport::StartedServer {
+			id: LanguageServerId(1),
+		})
 	}
-	async fn notify(&self, _server: LanguageServerId, _notif: crate::AnyNotification) -> crate::Result<()> { Ok(()) }
-	async fn notify_with_barrier(&self, _server: LanguageServerId, _notif: crate::AnyNotification) -> crate::Result<oneshot::Receiver<()>> {
+	async fn notify(
+		&self,
+		_server: LanguageServerId,
+		_notif: crate::AnyNotification,
+	) -> crate::Result<()> {
+		Ok(())
+	}
+	async fn notify_with_barrier(
+		&self,
+		_server: LanguageServerId,
+		_notif: crate::AnyNotification,
+	) -> crate::Result<oneshot::Receiver<()>> {
 		let (tx, rx) = oneshot::channel();
 		let _ = tx.send(());
 		Ok(rx)
 	}
-	async fn request(&self, _server: LanguageServerId, _req: crate::AnyRequest, _timeout: Option<std::time::Duration>) -> crate::Result<crate::AnyResponse> {
+	async fn request(
+		&self,
+		_server: LanguageServerId,
+		_req: crate::AnyRequest,
+		_timeout: Option<std::time::Duration>,
+	) -> crate::Result<crate::AnyResponse> {
 		Err(crate::Error::Protocol("SimpleStubTransport".into()))
 	}
-	async fn reply(&self, _server: LanguageServerId, _resp: std::result::Result<crate::JsonValue, crate::ResponseError>) -> crate::Result<()> { Ok(()) }
+	async fn reply(
+		&self,
+		_server: LanguageServerId,
+		_resp: std::result::Result<crate::JsonValue, crate::ResponseError>,
+	) -> crate::Result<()> {
+		Ok(())
+	}
 }
 
 #[test]
@@ -115,10 +142,13 @@ async fn test_document_sync_returns_not_ready_before_init() {
 			// Return a dummy response for initialize
 			Ok(crate::AnyResponse {
 				id: crate::RequestId::Number(1),
-				result: Some(serde_json::to_value(lsp_types::InitializeResult {
-					capabilities: lsp_types::ServerCapabilities::default(),
-					server_info: None,
-				}).unwrap()),
+				result: Some(
+					serde_json::to_value(lsp_types::InitializeResult {
+						capabilities: lsp_types::ServerCapabilities::default(),
+						server_info: None,
+					})
+					.unwrap(),
+				),
 				error: None,
 			})
 		}

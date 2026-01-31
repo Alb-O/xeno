@@ -127,7 +127,7 @@ pub async fn run_editor(mut editor: Editor) -> io::Result<()> {
 				write!(
 					terminal.backend_mut().terminal_mut(),
 					"{}",
-					Csi::Cursor(style.clone())
+					Csi::Cursor(style)
 				)?;
 				terminal.backend_mut().terminal_mut().flush()?;
 				last_cursor_style = Some(style);

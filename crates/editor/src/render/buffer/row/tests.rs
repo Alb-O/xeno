@@ -6,7 +6,6 @@ mod tests {
 	use xeno_tui::style::{Color, Style};
 
 	use crate::render::buffer::GutterLayout;
-	use crate::render::buffer::cell_style::CursorStyleSet;
 	use crate::render::buffer::context::types::{BufferRenderContext, CursorStyles, RenderLayout};
 	use crate::render::buffer::index::{HighlightIndex, OverlayIndex};
 	use crate::render::buffer::plan::LineSlice;

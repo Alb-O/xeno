@@ -1,3 +1,4 @@
+#![cfg_attr(test, allow(unused_crate_dependencies))]
 //! Editor engine and terminal UI infrastructure.
 //!
 //! This crate provides the core editor implementation, buffer management,

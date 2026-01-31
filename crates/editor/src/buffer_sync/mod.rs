@@ -103,6 +103,12 @@ pub struct BufferSyncManager {
 	doc_id_to_uri: HashMap<DocumentId, String>,
 }
 
+impl Default for BufferSyncManager {
+	fn default() -> Self {
+		Self::new()
+	}
+}
+
 impl BufferSyncManager {
 	/// Creates a new empty manager.
 	pub fn new() -> Self {
@@ -189,10 +195,10 @@ impl BufferSyncManager {
 	/// ahead due to optimistic incrementing in [`prepare_delta`], so stale acks
 	/// that would regress the counter are ignored.
 	pub fn handle_delta_ack(&mut self, uri: &str, seq: SyncSeq) {
-		if let Some(entry) = self.docs.get_mut(uri) {
-			if seq.0 > entry.seq.0 {
-				entry.seq = seq;
-			}
+		if let Some(entry) = self.docs.get_mut(uri)
+			&& seq.0 > entry.seq.0
+		{
+			entry.seq = seq;
 		}
 	}
 
