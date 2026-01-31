@@ -68,8 +68,8 @@ All files in `docs/agents/` MUST follow the standard template and remain machine
 
 Every invariant MUST include all three fields:
 
-- Enforced in: `<path>::<symbol>` (method/function-level granularity)
-- Tested by: `<path>::test_*` OR `TODO (add regression: test_...)`
+- Enforced in: `Symbol::method` (qualified symbol name, no file paths)
+- Tested by: `module::tests::test_*` OR `TODO (add regression: test_...)`
 - Failure symptom: concrete, user-visible or correctness symptom
 
 No invariant block is allowed to omit any of the triad fields.
@@ -82,8 +82,10 @@ No invariant block is allowed to omit any of the triad fields.
 
 ### Enforcement site formatting
 
-- Prefer method/function granularity:
-  - `crates/editor/src/overlay/session.rs`::`OverlaySession::restore_all`
+- Use qualified symbol names without file paths (findable via `rg`):
+  - `OverlaySession::restore_all`
+- For inline test references, include module context:
+  - `core::tests::project_dedup_*`
 - If multiple sites enforce the same rule, list all relevant symbols.
 
 ### Style rules

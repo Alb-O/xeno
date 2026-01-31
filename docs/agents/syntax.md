@@ -3,34 +3,34 @@
 ## Purpose
 - Owns: Background parsing scheduling, tiered syntax policy, and grammar loading.
 - Does not own: Rendering (owned by buffer render logic), tree-sitter core (external).
-- Source of truth: `SyntaxManager` in `crates/editor/src/syntax_manager.rs`.
+- Source of truth: `SyntaxManager`.
 
 ## Mental model
 - Terms: Tier (S/M/L policy), Hotness (Visible/Warm/Cold), Inflight (background task), Cooldown (backoff after error).
 - Lifecycle in one sentence: Edits trigger a debounced background parse, which installs results even if stale to ensure continuous highlighting.
 
 ## Module map
-- `crates/editor/src/syntax_manager.rs` — Scheduler, concurrency control, and policy enforcement.
-- `crates/runtime/language/` — Grammar loading, asset management, and `Syntax` wrapper.
+- `syntax_manager` — Scheduler, concurrency control, and policy enforcement.
+- `runtime::language` — Grammar loading, asset management, and `Syntax` wrapper.
 
 ## Key types
 | Type | Meaning | Constraints | Constructed / mutated in |
 |---|---|---|---|
 | `SyntaxManager` | Top-level scheduler | Global concurrency limit | `EditorState` |
 | `SyntaxHotness` | Visibility / priority | Affects retention/parsing | Render loop / pipeline |
-| `SyntaxTier` | Size-based config (S/M/L) | Controls timeouts/injections | `crates/editor/src/syntax_manager.rs`::`SyntaxManager::ensure_syntax` |
+| `SyntaxTier` | Size-based config (S/M/L) | Controls timeouts/injections | `SyntaxManager::ensure_syntax` |
 
 ## Invariants (hard rules)
 1. MUST NOT block UI thread on parsing.
-   - Enforced in: `crates/editor/src/syntax_manager.rs`::`SyntaxManager::ensure_syntax` (uses `spawn_blocking`)
+   - Enforced in: `SyntaxManager::ensure_syntax` (uses `spawn_blocking`)
    - Tested by: TODO (add regression: test_async_parsing)
    - Failure symptom: UI freezes or jitters during edits.
 2. MUST enforce single-flight per document.
-   - Enforced in: `DocState::inflight` check in `crates/editor/src/syntax_manager.rs`::`SyntaxManager::ensure_syntax`.
-   - Tested by: `crates/editor/src/syntax_manager.rs`::`scheduler::tests::test_pending_for_doc`
+   - Enforced in: `DocState::inflight` check in `SyntaxManager::ensure_syntax`.
+   - Tested by: `scheduler::tests::test_pending_for_doc`
    - Failure symptom: Multiple redundant parse tasks for the same document identity.
 3. MUST install last completed parse even if stale.
-   - Enforced in: `crates/editor/src/syntax_manager.rs`::`SyntaxManager::ensure_syntax` (poll inflight branch).
+   - Enforced in: `SyntaxManager::ensure_syntax` (poll inflight branch).
    - Tested by: TODO (add regression: test_stale_install_continuity)
    - Failure symptom: Document stays unhighlighted until an exact match completes.
    - Notes: Stale installs improve continuity, but `dirty` remains to force catch-up.
@@ -60,13 +60,13 @@
 ## Recipes
 ### Change tier thresholds
 Steps:
-- Update `TieredSyntaxPolicy::default()` in `crates/editor/src/syntax_manager.rs`.
+- Update `TieredSyntaxPolicy::default()`.
 - Ensure `max_bytes_inclusive` logic in `tier_for_bytes` matches.
 
 ## Tests
-- `crates/editor/src/buffer/document/tests.rs`::`commit_syntax_mark_dirty`
-- `crates/editor/src/buffer/document/tests.rs`::`reset_content_marks_syntax_dirty_and_reparses`
-- `crates/editor/src/syntax_manager.rs`::`scheduler::tests::test_pending_for_doc`
+- `buffer::document::tests::commit_syntax_mark_dirty`
+- `buffer::document::tests::reset_content_marks_syntax_dirty_and_reparses`
+- `scheduler::tests::test_pending_for_doc`
 
 ## Glossary
 - Tier: A set of performance parameters chosen based on document size.

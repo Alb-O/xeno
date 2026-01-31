@@ -4,9 +4,9 @@
 - Owns: window containers (base + floating), stacked layout layers, split-tree geometry (`buffer::Layout`), view navigation, separator hit/resize/drag state, and editor-level split/close integration.
 - Does not own: buffer/document content (owned by buffer/document subsystems), UI widget styling (owned by renderer + widget layer), overlay session policy (owned by overlay system; windowing only hosts floating windows and overlay layouts).
 - Source of truth:
-  - Layout/layers/splits/navigation: `crates/editor/src/layout/*` + `crates/editor/src/buffer/layout/*`
-  - Base/floating window containers: `crates/editor/src/window/*`
-  - Editor integration: `crates/editor/src/impls/splits.rs`
+  - Layout/layers/splits/navigation: `LayoutManager` + `buffer::Layout`
+  - Base/floating window containers: `WindowManager`, `BaseWindow`, `FloatingWindow`
+  - Editor integration: `Editor` split/close methods
 
 ## Mental model
 - There is exactly one base split tree (owned by `BaseWindow.layout`).
@@ -17,101 +17,84 @@
 - Split operations are atomic at editor level: feasibility is checked before buffer allocation and before mutating layout.
 
 ## Module map
-- `crates/editor/src/window/types.rs`
-  - `WindowId`, `Window`, `BaseWindow`, `FloatingWindow`, `FloatingStyle`, `GutterSelector`.
-- `crates/editor/src/window/manager.rs`
-  - `WindowManager`: owns base window + floating windows + z-order.
-- `crates/editor/src/window/floating.rs`
-  - `FloatingWindow` helpers (`contains`, `content_rect`).
-- `crates/editor/src/layout/types.rs`
-  - `LayerId`, `LayerSlot`, `LayerError`, `SeparatorId`, `SeparatorHit`.
-- `crates/editor/src/layout/manager.rs`
-  - `LayoutManager` core state: `layers`, `layout_revision`, hover/drag state.
-- `crates/editor/src/layout/layers.rs`
-  - `validate_layer`, `layer/layer_mut`, `set_layer`, `top_layer`, `layer_of_view`, `overlay_layout` helpers.
-- `crates/editor/src/layout/splits.rs`
-  - Split preflight (`can_split_*`), split apply, view removal (`remove_view`) + focus suggestion.
-- `crates/editor/src/layout/views.rs`
-  - View enumeration/navigation/hit-testing across layers; uses `overlay_layout()` for overlay access.
-- `crates/editor/src/layout/separators.rs`
-  - Separator hit-testing across layers, rect lookup, resize-by-id.
-- `crates/editor/src/layout/drag.rs`
-  - Drag lifecycle + stale detection (revision + generation).
-- `crates/editor/src/buffer/layout/mod.rs`
-  - `Layout` binary tree, min sizes, replace/remove primitives.
-- `crates/editor/src/buffer/layout/areas.rs`
-  - `compute_split_areas` soft-min policy, separator paths, resizing.
-- `crates/editor/src/buffer/layout/navigation.rs`
-  - `next/prev` ordering and spatial direction navigation.
-- `crates/editor/src/buffer/layout/tests.rs`
-  - Invariant + regression tests for split geometry and navigation.
-- `crates/editor/src/layout/mod.rs`
-  - Basic `LayoutManager` tests (layer area, hit-testing).
-- `crates/editor/src/impls/splits.rs`
-  - Editor entrypoints: split with clone, split apply, close view/buffer, hook ordering.
-- `crates/registry/src/actions/builtins/window.rs`
-  - User-facing actions mapped to effects (split, focus, close).
+- `window::types` — `WindowId`, `Window`, `BaseWindow`, `FloatingWindow`, `FloatingStyle`, `GutterSelector`.
+- `window::manager` — `WindowManager`: owns base window + floating windows + z-order.
+- `window::floating` — `FloatingWindow` helpers (`contains`, `content_rect`).
+- `layout::types` — `LayerId`, `LayerSlot`, `LayerError`, `SeparatorId`, `SeparatorHit`.
+- `layout::manager` — `LayoutManager` core state: `layers`, `layout_revision`, hover/drag state.
+- `layout::layers` — `validate_layer`, `layer/layer_mut`, `set_layer`, `top_layer`, `layer_of_view`, `overlay_layout` helpers.
+- `layout::splits` — Split preflight (`can_split_*`), split apply, view removal (`remove_view`) + focus suggestion.
+- `layout::views` — View enumeration/navigation/hit-testing across layers; uses `overlay_layout()` for overlay access.
+- `layout::separators` — Separator hit-testing across layers, rect lookup, resize-by-id.
+- `layout::drag` — Drag lifecycle + stale detection (revision + generation).
+- `buffer::layout` — `Layout` binary tree, min sizes, replace/remove primitives.
+- `buffer::layout::areas` — `compute_split_areas` soft-min policy, separator paths, resizing.
+- `buffer::layout::navigation` — `next/prev` ordering and spatial direction navigation.
+- `buffer::layout::tests` — Invariant + regression tests for split geometry and navigation.
+- `layout` — Basic `LayoutManager` tests (layer area, hit-testing).
+- `impls::splits` — Editor entrypoints: split with clone, split apply, close view/buffer, hook ordering.
+- `registry::actions::builtins::window` — User-facing actions mapped to effects (split, focus, close).
 
 ## Key types
 | Type | Meaning | Constraints | Constructed / mutated in |
 |---|---|---|---|
-| `WindowManager` | Owns all windows (base + floating) | MUST always contain exactly one base window | `crates/editor/src/window/manager.rs`::`WindowManager::new/create_floating/close_floating` |
-| `BaseWindow` | Base split tree container | `layout` is the base layer tree; `focused_buffer` MUST be a view in the base tree after repairs | `crates/editor/src/window/types.rs` (owned/mutated by editor state) |
-| `FloatingWindow` | Absolute-positioned overlay window | Pure data; policy fields are enforced elsewhere | `crates/editor/src/window/floating.rs`::`FloatingWindow::new` |
-| `LayoutManager` | Owns overlay layers + separator interaction | `layers[0]` is a dummy slot; base layout lives outside slots | `crates/editor/src/layout/manager.rs` + `layout/*` methods |
-| `LayerId` | Generational layer handle | MUST validate before deref unless `is_base()` | `crates/editor/src/layout/types.rs` + `layout/layers.rs` |
-| `LayerSlot` | Storage slot for overlay layer | `generation` MUST bump when layer identity ends (clear/replace) | `crates/editor/src/layout/layers.rs`::`set_layer` and `layout/splits.rs`::`remove_view` |
-| `LayerError` | Layer validation failure | MUST treat as stale/invalid and no-op/cancel | `crates/editor/src/layout/layers.rs`::`validate_layer` |
-| `Layout` | Split tree for arranging `ViewId` leaves | `position` is parent-local; geometry MUST obey soft-min policy | `crates/editor/src/buffer/layout/mod.rs` + `areas.rs` |
-| `SplitPath(Vec<bool>)` | Stable path to a split node | Path is relative to the current tree shape; stale paths MUST be rejected | `crates/editor/src/buffer/layout/areas.rs` path APIs |
-| `SeparatorId::Split{layer,path}` | Persistent separator identity | MUST validate layer generation + path before resize | `crates/editor/src/layout/separators.rs` + `layout/drag.rs` |
-| `SplitError` | Split preflight failure | MUST not allocate/insert buffers when preflight fails | `crates/editor/src/layout/splits.rs` + `crates/editor/src/impls/splits.rs` |
-| `DragState` | Active separator drag | MUST cancel when revision or layer generation invalidates id | `crates/editor/src/layout/drag.rs` |
+| `WindowManager` | Owns all windows (base + floating) | MUST always contain exactly one base window | `WindowManager::new`, `WindowManager::create_floating`, `WindowManager::close_floating` |
+| `BaseWindow` | Base split tree container | `layout` is the base layer tree; `focused_buffer` MUST be a view in the base tree after repairs | editor state |
+| `FloatingWindow` | Absolute-positioned overlay window | Pure data; policy fields are enforced elsewhere | `FloatingWindow::new` |
+| `LayoutManager` | Owns overlay layers + separator interaction | `layers[0]` is a dummy slot; base layout lives outside slots | `LayoutManager` + `layout::*` methods |
+| `LayerId` | Generational layer handle | MUST validate before deref unless `is_base()` | `layout::types` + `layout::layers` |
+| `LayerSlot` | Storage slot for overlay layer | `generation` MUST bump when layer identity ends (clear/replace) | `LayoutManager::set_layer`, `LayoutManager::remove_view` |
+| `LayerError` | Layer validation failure | MUST treat as stale/invalid and no-op/cancel | `LayoutManager::validate_layer` |
+| `Layout` | Split tree for arranging `ViewId` leaves | `position` is parent-local; geometry MUST obey soft-min policy | `buffer::layout` + `buffer::layout::areas` |
+| `SplitPath(Vec<bool>)` | Stable path to a split node | Path is relative to the current tree shape; stale paths MUST be rejected | `buffer::layout::areas` path APIs |
+| `SeparatorId::Split{layer,path}` | Persistent separator identity | MUST validate layer generation + path before resize | `layout::separators` + `layout::drag` |
+| `SplitError` | Split preflight failure | MUST not allocate/insert buffers when preflight fails | `layout::splits` + `impls::splits` |
+| `DragState` | Active separator drag | MUST cancel when revision or layer generation invalidates id | `layout::drag` |
 | `ViewId` | Leaf identity in layouts | A `ViewId` MUST not exist in multiple layers simultaneously | enforced by editor invariants/repair |
 
 ## Invariants (hard rules)
 1. MUST validate any stored `LayerId` before accessing an overlay layout.
-   - Enforced in: `crates/editor/src/layout/layers.rs`::`LayoutManager::validate_layer`, `LayoutManager::overlay_layout`, `LayoutManager::overlay_layout_mut`, `LayoutManager::layer`, `LayoutManager::layer_mut`
+   - Enforced in: `LayoutManager::validate_layer`, `LayoutManager::overlay_layout`, `LayoutManager::overlay_layout_mut`, `LayoutManager::layer`, `LayoutManager::layer_mut`
    - Tested by: TODO (add regression: test_layerid_generation_rejects_stale)
    - Failure symptom: separator drag/resize or focus targets operate on the wrong overlay after a layer is cleared/reused.
 
 2. MUST preserve `LayerId` generation across split preflight → apply.
-   - Enforced in: `crates/editor/src/layout/splits.rs`::`LayoutManager::can_split_horizontal`, `LayoutManager::can_split_vertical` and split apply APIs taking `LayerId`
+   - Enforced in: `LayoutManager::can_split_horizontal`, `LayoutManager::can_split_vertical` and split apply APIs taking `LayerId`
    - Tested by: TODO (add regression: test_split_preflight_apply_generation_preserved)
    - Failure symptom: split applies to the wrong layer if the overlay slot is replaced between check and apply.
 
 3. MUST NOT allocate/insert a new `ViewId` for a split if the split cannot be created.
-   - Enforced in: `crates/editor/src/impls/splits.rs`::`Editor::{split_horizontal_with_clone, split_vertical_with_clone, split_horizontal, split_vertical}` (preflight before buffer creation) and `crates/editor/src/layout/splits.rs`::`SplitError`
+   - Enforced in: `Editor::split_horizontal_with_clone`, `Editor::split_vertical_with_clone`, `Editor::split_horizontal`, `Editor::split_vertical` (preflight before buffer creation) and `SplitError`
    - Tested by: TODO (add regression: test_split_preflight_no_orphan_buffer)
    - Failure symptom: orphan `ViewId` exists in buffer store but not in any layout; focus may jump to a non-rendered view.
 
 4. MUST emit close hooks only after the view has been removed from layout successfully.
-   - Enforced in: `crates/editor/src/impls/splits.rs`::`Editor::close_view`
+   - Enforced in: `Editor::close_view`
    - Tested by: TODO (add regression: test_close_view_hooks_after_removal)
    - Failure symptom: hooks claim a close occurred when the layout removal was denied (e.g. closing the last base view).
 
 5. MUST apply suggested focus from `remove_view()` deterministically when the closed view was focused or current focus becomes invalid.
-   - Enforced in: `crates/editor/src/layout/splits.rs`::`LayoutManager::remove_view` (suggestion), `crates/editor/src/impls/splits.rs`::`Editor::close_view` (applies suggestion)
+   - Enforced in: `LayoutManager::remove_view` (suggestion), `Editor::close_view` (applies suggestion)
    - Tested by: TODO (add regression: test_close_view_focus_uses_overlap_suggestion)
    - Failure symptom: focus jumps to an unintuitive view (first leaf) or becomes invalid and relies on later repairs.
 
 6. MUST implement soft-min sizing for split geometry; MUST not produce zero-sized panes when space allows.
-   - Enforced in: `crates/editor/src/buffer/layout/areas.rs`::`Layout::compute_split_areas` (soft-min policy), `Layout::do_resize_at_path` (same policy during drag)
+   - Enforced in: `Layout::compute_split_areas` (soft-min policy), `Layout::do_resize_at_path` (same policy during drag)
    - Tested by:
-     - `crates/editor/src/buffer/layout/tests.rs`::`compute_split_areas_invariants_horizontal`
-     - `crates/editor/src/buffer/layout/tests.rs`::`compute_split_areas_invariants_vertical`
-     - `crates/editor/src/buffer/layout/tests.rs`::`compute_split_areas_no_zero_sized_panes`
-     - `crates/editor/src/buffer/layout/tests.rs`::`compute_split_areas_extreme_position_clamping`
+     - `buffer::layout::tests::compute_split_areas_invariants_horizontal`
+     - `buffer::layout::tests::compute_split_areas_invariants_vertical`
+     - `buffer::layout::tests::compute_split_areas_no_zero_sized_panes`
+     - `buffer::layout::tests::compute_split_areas_extreme_position_clamping`
      - TODO (add regression: test_compute_split_areas_soft_min_respected)
    - Failure symptom: panes collapse to width/height 0 on small terminals; hit-testing and cursor rendering desync.
 
 7. MUST cancel an active separator drag if the layout changes or the referenced layer is stale.
-   - Enforced in: `crates/editor/src/layout/drag.rs`::`LayoutManager::is_drag_stale`, `LayoutManager::cancel_if_stale`
+   - Enforced in: `LayoutManager::is_drag_stale`, `LayoutManager::cancel_if_stale`
    - Tested by: TODO (add regression: test_drag_cancels_on_layer_generation_change)
    - Failure symptom: dragging resizes the wrong separator or panics due to invalid path/layer after structural changes.
 
 8. MUST bump overlay layer generation when an overlay layer becomes empty (identity ended).
-   - Enforced in: `crates/editor/src/layout/splits.rs`::`LayoutManager::remove_view` (overlay clear path) and `crates/editor/src/layout/layers.rs`::`LayoutManager::set_layer` (replacement)
+   - Enforced in: `LayoutManager::remove_view` (overlay clear path), `LayoutManager::set_layer` (replacement)
    - Tested by: TODO (add regression: test_overlay_generation_bumps_on_clear)
    - Failure symptom: stale `LayerId` continues to validate and can target a different overlay session.
 
@@ -207,13 +190,13 @@ Steps:
 
 ## Tests
 Known invariants/regressions:
-- `crates/editor/src/layout/mod.rs`::`layer_area_base_only`
-- `crates/editor/src/layout/mod.rs`::`view_at_position_finds_buffer`
-- `crates/editor/src/buffer/layout/tests.rs`::`compute_split_areas_invariants_horizontal`
-- `crates/editor/src/buffer/layout/tests.rs`::`compute_split_areas_invariants_vertical`
-- `crates/editor/src/buffer/layout/tests.rs`::`compute_split_areas_no_zero_sized_panes`
-- `crates/editor/src/buffer/layout/tests.rs`::`compute_split_areas_extreme_position_clamping`
-- TODO (enumerate remaining): run `rg -n "fn\s+test_" crates/editor/src/buffer/layout/tests.rs` and list all `test_*` functions here.
+- `layout::tests::layer_area_base_only`
+- `layout::tests::view_at_position_finds_buffer`
+- `buffer::layout::tests::compute_split_areas_invariants_horizontal`
+- `buffer::layout::tests::compute_split_areas_invariants_vertical`
+- `buffer::layout::tests::compute_split_areas_no_zero_sized_panes`
+- `buffer::layout::tests::compute_split_areas_extreme_position_clamping`
+- TODO (enumerate remaining): list remaining `test_*` functions from `buffer::layout::tests`.
 
 ## Glossary
 - Base layer: The split tree owned by `BaseWindow.layout` and addressed by `LayerId::BASE`.

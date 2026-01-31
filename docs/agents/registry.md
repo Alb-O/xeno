@@ -10,9 +10,9 @@
 - Lifecycle in one sentence: A build-time index is wrapped in an `ArcSwap` snapshot, allowing atomic, lock-free runtime extension with deterministic collision rules.
 
 ## Module map
-- `crates/registry/src/core/index/` — Generic indexing, insertion, and collision logic.
-- `crates/registry/src/db/` — Database root and builtin/plugin orchestration.
-- `crates/registry/src/<domain>/registry.rs` — Domain-specific wrappers (Actions, Options, etc.).
+- `core::index` — Generic indexing, insertion, and collision logic.
+- `db` — Database root and builtin/plugin orchestration.
+- `<domain>::registry` — Domain-specific wrappers (Actions, Options, etc.).
 
 ## Key types
 | Type | Meaning | Constraints | Constructed / mutated in |
@@ -25,15 +25,15 @@
 
 ## Invariants (hard rules)
 1. MUST keep ID lookup unambiguous (one winner per ID).
-   - Enforced in: `crates/registry/src/core/index/insert.rs`::`insert_typed_key` (build-time) and `insert_id_key_runtime`.
-   - Tested by: `crates/registry/src/core/index/tests.rs`::`test_id_first_lookup`
+   - Enforced in: `insert_typed_key` (build-time), `insert_id_key_runtime` (runtime).
+   - Tested by: `core::index::tests::test_id_first_lookup`
    - Failure symptom: Panics during build/startup or stale name lookups after override.
 2. MUST evict old definitions on ID override.
-   - Enforced in: `crates/registry/src/core/index/insert.rs`::`insert_id_key_runtime` (calls `evict_def`).
-   - Tested by: `crates/registry/src/core/index/tests.rs`::`test_id_override_eviction`
+   - Enforced in: `insert_id_key_runtime` (calls `evict_def`).
+   - Tested by: `core::index::tests::test_id_override_eviction`
    - Failure symptom: Stale name/alias lookups pointing to a replaced definition.
 3. MUST maintain stable numeric IDs for builtin actions.
-   - Enforced in: `crates/registry/src/db/mod.rs`::`RegistryDbBuilder::build`.
+   - Enforced in: `RegistryDbBuilder::build`.
    - Tested by: TODO (add regression: test_stable_action_ids)
    - Failure symptom: Inconsistent `ActionId` mappings in optimized input handling.
 
@@ -65,9 +65,9 @@ Steps:
 - Ensure `new_def.meta().priority` is higher than the existing one if using `ByPriority`.
 
 ## Tests
-- `crates/registry/src/core/index/tests.rs`::`test_id_override_eviction`
-- `crates/registry/src/core/index/tests.rs`::`test_register_many_atomic_failure`
-- `crates/registry/src/core/index/tests.rs`::`test_total_order_tie_breaker`
+- `core::index::tests::test_id_override_eviction`
+- `core::index::tests::test_register_many_atomic_failure`
+- `core::index::tests::test_total_order_tie_breaker`
 
 ## Glossary
 - Builtin: A definition registered at compile-time.
