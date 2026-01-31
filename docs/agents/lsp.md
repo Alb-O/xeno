@@ -33,7 +33,7 @@
 | ClientHandle | RPC handle for a single language server instance | MUST NOT be treated as ready until initialization completes | `ClientHandle::*` |
 | TransportEvent | Transport → manager event stream | Router MUST process sequentially | `LspManager::spawn_router` |
 | TransportStatus | Lifecycle signals for server processes | Router MUST remove servers on Stopped/Crashed | `LspManager::spawn_router` |
-| BrokerTransport | Broker-backed LSP transport | MUST invalidate cached state on send failure | `BrokerTransport::mark_disconnected` |
+| BrokerTransport | Broker-backed LSP transport | MUST invalidate cached state on send failure | `BrokerTransport::ensure_connected` (cleanup task) |
 
 ## Invariants (hard rules)
 1. The editor MUST use the broker transport on Unix builds.
@@ -65,7 +65,7 @@
    - Tested by: TODO (add regression: test_server_request_workspace_folders_uri_encoding)
    - Failure symptom: servers mis-parse the workspace root for paths with spaces or non-ASCII characters and degrade indexing/navigation.
 8. BrokerTransport MUST invalidate cached RPC state and per-server request queues on send failure.
-   - Enforced in: `BrokerTransport::mark_disconnected`
+   - Enforced in: `BrokerTransport::ensure_connected` (spawned cleanup task)
    - Tested by: `test_broker_reconnect_wedge`
    - Failure symptom: reconnect wedges (stale cached RPC), servers never expire, or pending request queues grow unbounded.
 9. DocumentSync MUST NOT send change notifications before the client has completed initialization.
@@ -116,7 +116,7 @@
 
 ## Failure modes & recovery
 - Duplicate startup attempt: Recovery: singleflight blocks duplicates; waiters reuse the leader's handle.
-- Broker IPC send failure: Recovery: BrokerTransport calls mark_disconnected; subsequent operation reconnects.
+- Broker IPC send failure: Recovery: BrokerTransport cleanup task invalidates cached state; subsequent operation reconnects.
 - Server crash or stop: Recovery: router removes server; subsequent operation re-starts server via Registry.
 - Unsupported server-initiated request method: Recovery: handler returns METHOD_NOT_FOUND; add method to allowlist if required by real servers.
 - URI conversion failure for workspaceFolders: Recovery: handler returns empty array; server may operate without workspace folders.

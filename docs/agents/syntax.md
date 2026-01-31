@@ -40,7 +40,7 @@
    - Tested by: TODO (add regression: test_note_edit_called_on_undo_redo)
    - Failure symptom: Debounce gate in `SyntaxManager::ensure_syntax` is non-functional; background parses fire without waiting for edit silence.
 5. MUST bump `syntax_version` on successful incremental update (commits, undo, redo).
-   - Enforced in: `Document::try_incremental_syntax_update`
+   - Enforced in: `Document::try_incremental_syntax_update`, `Document::incremental_syntax_for_history`
    - Tested by: TODO (add regression: test_undo_redo_bumps_syntax_version)
    - Failure symptom: Highlight cache serves stale tiles until background reparse completes, causing a visual lag after undo/redo.
 

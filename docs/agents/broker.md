@@ -119,8 +119,8 @@
 
 ### Buffer sync
 1. Document open: Editor sends `BufferSyncOpen { uri, text }`. First opener becomes Owner with epoch=1, seq=0. Subsequent openers become Followers and receive a snapshot of the current content.
-2. Local edit (owner path): Editor applies transaction locally, then calls `BufferSyncManager::prepare_delta` which serializes to `WireTx` and sends `BufferSyncDelta { uri, epoch, base_seq, tx }` to the broker via fire-and-forget channel.
-3. Broker delta processing: Broker validates owner/epoch/seq, converts `WireTx` to `Transaction`, applies to authoritative rope, increments seq, broadcasts `Event::BufferSyncDelta` to all followers, and replies with `DeltaAck { seq }`.
+2. Local edit (owner path): Editor applies transaction locally, then calls `BufferSyncManager::prepare_delta` which serializes to `WireTx` and sends `BufferSyncDelta` to the broker. Outbound sender in `LspSystem` awaits the result and posts `DeltaAck` or `DeltaRejected` back to the editor loop.
+3. Broker delta processing: Broker validates owner/epoch/seq, converts `WireTx` to `Transaction`, applies to authoritative rope, increments seq, broadcasts `Event::BufferSyncDelta` to all followers, and replies with `BufferSyncDeltaAck { seq }`.
 4. Remote delta (follower path): Editor receives `BufferSyncEvent::RemoteDelta`, converts wire tx back to `Transaction`, applies with `UndoPolicy::NoUndo`, and maps selections for all views of the document.
 5. Ownership change: On owner disconnect or explicit `TakeOwnership`, broker bumps epoch, resets seq, broadcasts `Event::BufferSyncOwnerChanged`. New owner becomes writable; old owner (if still connected) becomes follower (readonly).
 6. Document close: Editor sends `BufferSyncClose`. Broker decrements refcount; if owner closed, elects successor (min session ID). Last close removes the entry.
