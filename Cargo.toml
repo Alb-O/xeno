@@ -91,6 +91,8 @@ vt100 = "0.16"
 waitpid-any = "0.3"
 webbrowser = "1.0"
 which = "8.0"
+xeno-broker = { path = "crates/broker/broker" }
+xeno-broker-proto = { path = "crates/broker/broker-proto" }
 xeno-editor = { path = "crates/editor" }
 xeno-keymap-core = { path = "crates/keymap/core" }
 xeno-keymap-derive = { path = "crates/keymap/derive" }

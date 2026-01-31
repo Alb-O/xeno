@@ -13,7 +13,7 @@ proc-macro = true
 proc-macro2 = { workspace = true }
 quote = { workspace = true }
 syn = { workspace = true }
-xeno-keymap-parser = { path = "../parser" }
+xeno-keymap-parser.workspace = true
 
 [lints]
 workspace = true

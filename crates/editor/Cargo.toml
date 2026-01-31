@@ -32,22 +32,22 @@ tokio-util = { workspace = true, optional = true }
 tower-service.workspace = true
 tracing.workspace = true
 unicode-width.workspace = true
-xeno-broker-proto = { path = "../broker/broker-proto" }
-xeno-keymap-core = { path = "../keymap/core" }
+xeno-broker-proto.workspace = true
+xeno-keymap-core.workspace = true
 xeno-lsp = { workspace = true, features = ["position"], optional = true }
-xeno-primitives = { path = "../primitives" }
-xeno-registry = { path = "../registry" }
+xeno-primitives.workspace = true
+xeno-registry.workspace = true
 xeno-rpc.workspace = true
-xeno-runtime-config = { path = "../runtime/config" }
-xeno-runtime-language = { path = "../runtime/language" }
-xeno-tui = { path = "../tui" }
+xeno-runtime-config.workspace = true
+xeno-runtime-language.workspace = true
+xeno-tui.workspace = true
 [dev-dependencies]
 proptest.workspace = true
 tempfile = "3"
 tokio-util = { workspace = true, features = ["rt"] }
 tracing-subscriber = "0.3"
-xeno-broker = { path = "../broker/broker" }
-xeno-lsp = { path = "../lsp", features = ["client", "position"] }
+xeno-broker.workspace = true
+xeno-lsp = { workspace = true, features = ["client", "position"] }
 
 [lints]
 workspace = true
