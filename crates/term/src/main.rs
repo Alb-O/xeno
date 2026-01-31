@@ -6,8 +6,6 @@ mod backend;
 mod cli;
 mod log_launcher;
 mod terminal;
-#[cfg(test)]
-mod tests;
 
 use std::ffi::OsStr;
 
