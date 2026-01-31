@@ -180,10 +180,12 @@ impl ClientHandle {
 	}
 
 	/// Get the offset encoding negotiated with the server.
+	///
+	/// Returns the LSP default (UTF-16) if the server has not yet finished
+	/// initialization and capabilities are unavailable.
 	pub fn offset_encoding(&self) -> OffsetEncoding {
-		self.capabilities()
-			.position_encoding
-			.as_ref()
+		self.try_capabilities()
+			.and_then(|c| c.position_encoding.as_ref())
 			.and_then(OffsetEncoding::from_lsp)
 			.unwrap_or_default()
 	}

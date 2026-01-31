@@ -263,6 +263,9 @@ impl LspSystem {
 		let Some(client) = self.sync().registry().get(&language, &abs_path) else {
 			return Ok(None);
 		};
+		if !client.is_initialized() {
+			return Ok(None);
+		}
 
 		let uri = xeno_lsp::uri_from_path(&abs_path)
 			.ok_or_else(|| xeno_lsp::Error::Protocol("Invalid path".into()))?;
