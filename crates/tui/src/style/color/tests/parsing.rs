@@ -1,6 +1,5 @@
 //! Tests for parsing colors from strings.
 
-use alloc::boxed::Box;
 use core::error::Error;
 use core::str::FromStr;
 

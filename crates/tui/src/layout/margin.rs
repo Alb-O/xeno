@@ -29,7 +29,7 @@ use core::fmt;
 /// let inner_area = area.inner(margin);
 ///
 /// // Or use with a layout (which only accepts uniform margins)
-/// let layout = Layout::vertical([Constraint::Fill(1)]).margin(2);
+/// let layout = Layout::vertical([Constraint::Min(1)]);
 /// ```
 ///
 /// For comprehensive layout documentation and examples, see the [`layout`](crate::layout) module.
@@ -60,8 +60,6 @@ impl fmt::Display for Margin {
 
 #[cfg(test)]
 mod tests {
-	use alloc::string::ToString;
-
 	use super::*;
 
 	#[test]

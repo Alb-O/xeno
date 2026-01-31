@@ -35,17 +35,17 @@
 /// [`Text`]: crate::text::Text
 /// [`Line`]: crate::text::Line
 /// [`Span`]: crate::text::Span
-/// [`vec!`]: alloc::vec!
+/// [`vec!`]: std::vec!
 #[macro_export]
 macro_rules! text {
     () => {
         $crate::text::Text::default()
     };
     ($line:expr; $n:expr) => {
-        $crate::text::Text::from($crate::vec![$line.into(); $n])
+        $crate::text::Text::from(::std::vec![$line.into(); $n])
     };
     ($($line:expr),+ $(,)?) => {{
-        $crate::text::Text::from($crate::vec![
+        $crate::text::Text::from(::std::vec![
         $(
             $line.into(),
         )+
@@ -55,8 +55,6 @@ macro_rules! text {
 
 #[cfg(test)]
 mod tests {
-	use alloc::vec;
-
 	use crate::text::Text;
 
 	#[test]

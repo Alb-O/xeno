@@ -1,8 +1,5 @@
 //! Tests for border symbol sets.
 
-use alloc::format;
-use alloc::string::String;
-
 use indoc::formatdoc;
 
 use super::*;

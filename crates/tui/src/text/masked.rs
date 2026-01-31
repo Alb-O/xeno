@@ -1,5 +1,5 @@
-use alloc::borrow::Cow;
 use core::fmt;
+use std::borrow::Cow;
 
 use crate::text::Text;
 
@@ -91,8 +91,6 @@ impl<'a> From<Masked<'a>> for Text<'a> {
 
 #[cfg(test)]
 mod tests {
-	use alloc::format;
-
 	use super::*;
 	use crate::text::Line;
 

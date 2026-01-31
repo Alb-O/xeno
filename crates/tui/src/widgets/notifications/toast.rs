@@ -1,7 +1,5 @@
 //! Toast notification widget.
 
-use alloc::string::String;
-
 use super::types::{Anchor, Animation, AutoDismiss, Level, SizeConstraint, SlideDirection, Timing};
 use crate::layout::HorizontalAlignment;
 use crate::style::Style;

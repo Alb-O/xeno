@@ -1,9 +1,5 @@
 //! Tests for `Backend::append_lines` implementation.
 
-use alloc::format;
-
-use itertools::Itertools as _;
-
 use super::*;
 
 #[test]
@@ -237,7 +233,10 @@ fn append_lines_truncates_beyond_u16_max() -> Result<()> {
 			backend.set_cursor_position(Position { x: 0, y: 4 })?;
 			backend.append_lines(1)?;
 		}
-		let cells = format!("{row:>10}").chars().map(Cell::from).collect_vec();
+		let cells = format!("{row:>10}")
+			.chars()
+			.map(Cell::from)
+			.collect::<Vec<_>>();
 		let content = cells
 			.iter()
 			.enumerate()

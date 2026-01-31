@@ -102,7 +102,7 @@ macro_rules! enum_display_from_str_tests {
 	($enum_ty:ty, [$($variant:ident),* $(,)?]) => {
 		// Test Display
 		$(
-			assert_eq!(alloc::format!("{}", <$enum_ty>::$variant), stringify!($variant));
+			assert_eq!(format!("{}", <$enum_ty>::$variant), stringify!($variant));
 		)*
 
 		// Test FromStr
@@ -130,7 +130,7 @@ macro_rules! enum_display_from_str_tests {
 macro_rules! enum_display_tests {
 	($enum_ty:ty, [$($variant:ident),* $(,)?]) => {
 		$(
-			assert_eq!(alloc::format!("{}", <$enum_ty>::$variant), stringify!($variant));
+			assert_eq!(format!("{}", <$enum_ty>::$variant), stringify!($variant));
 		)*
 	};
 }
@@ -158,14 +158,13 @@ macro_rules! enum_from_str_tests {
 /// Defines layout constraint test cases in a compact table format.
 ///
 /// This macro generates test functions that verify layout behavior for
-/// different flex modes and constraints.
+/// different constraints.
 ///
 /// # Examples
 ///
 /// ```ignore
 /// layout_constraint_tests! {
-///     test_name: percentage_legacy,
-///     flex: Flex::Start,
+///     test_name: percentage_tests,
 ///     width: 10,
 ///     cases: [
 ///         ([Percentage(0), Percentage(0)], "bbbbbbbbbb"),
@@ -178,7 +177,6 @@ macro_rules! enum_from_str_tests {
 macro_rules! layout_constraint_tests {
 	{
 		test_name: $name:ident,
-		flex: $flex:expr,
 		width: $width:expr,
 		cases: [
 			$(
@@ -188,16 +186,15 @@ macro_rules! layout_constraint_tests {
 	} => {
 		#[test]
 		fn $name() {
-			use $crate::layout::{Constraint, Flex, Layout, Rect};
+			use $crate::layout::{Constraint, Layout, Rect};
 
-			let flex = $flex;
 			let width: u16 = $width;
 
 			$(
 				{
 					let constraints: &[Constraint] = &[$($constraint),*];
 					let expected: &str = $expected;
-					letters(flex, constraints, width, expected);
+					letters(constraints, width, expected);
 				}
 			)*
 		}
@@ -213,20 +210,20 @@ macro_rules! layout_constraint_tests {
 ///
 /// ```ignore
 /// layout_cases!(letters, [
-///     (Flex::Start, 10, [Percentage(0), Percentage(0)], "bbbbbbbbbb"),
-///     (Flex::Start, 10, [Percentage(0), Percentage(25)], "bbbbbbbbbb"),
-///     (Flex::Start, 10, [Percentage(0), Percentage(0)], "          "),
+///     (10, [Percentage(0), Percentage(0)], "bbbbbbbbbb"),
+///     (10, [Percentage(0), Percentage(25)], "bbbbbbbbbb"),
+///     (10, [Percentage(0), Percentage(0)], "          "),
 /// ]);
 /// ```
 #[macro_export]
 macro_rules! layout_cases {
 	($harness:ident, [
 		$(
-			($flex:expr, $width:expr, [$($constraint:expr),* $(,)?], $expected:expr)
+			($width:expr, [$($constraint:expr),* $(,)?], $expected:expr)
 		),* $(,)?
 	]) => {
 		$(
-			$harness($flex, &[$($constraint),*], $width, $expected);
+			$harness(&[$($constraint),*], $width, $expected);
 		)*
 	};
 }
@@ -236,30 +233,29 @@ macro_rules! layout_cases {
 /// # Examples
 ///
 /// ```ignore
-/// layout_range_test!(constraint_length, Flex::Start, 100, [
+/// layout_range_tests!(constraint_length, 100, [
 ///     ([Length(25), Min(100)], [0..0, 0..100]),
 ///     ([Length(25), Min(0)], [0..25, 25..100]),
 /// ]);
 /// ```
 #[macro_export]
 macro_rules! layout_range_tests {
-	($name:ident, $flex:expr, $width:expr, [
+	($name:ident, $width:expr, [
 		$(
 			([$($constraint:expr),* $(,)?], [$($range:expr),* $(,)?])
 		),* $(,)?
 	]) => {
 		#[test]
 		fn $name() {
-			use $crate::layout::{Constraint, Flex, Layout, Rect};
+			use $crate::layout::{Constraint, Layout, Rect};
 
 			let rect = Rect::new(0, 0, $width, 1);
 
 			$(
 				{
-					let constraints = alloc::vec![$($constraint),*];
-					let expected: alloc::vec::Vec<core::ops::Range<u16>> = alloc::vec![$($range),*];
-					let ranges: alloc::vec::Vec<_> = Layout::horizontal(&constraints)
-						.flex($flex)
+					let constraints = vec![$($constraint),*];
+					let expected: Vec<core::ops::Range<u16>> = vec![$($range),*];
+					let ranges: Vec<_> = Layout::horizontal(&constraints)
 						.split(rect)
 						.iter()
 						.map(|r| r.left()..r.right())
@@ -276,33 +272,31 @@ macro_rules! layout_range_tests {
 /// # Examples
 ///
 /// ```ignore
-/// layout_pos_width_tests!(flex_spacing, 100, [
-///     ([(0, 20), (20, 20), (40, 20)], [Length(20), Length(20), Length(20)], Flex::Start, 0),
-///     ([(0, 20), (22, 20), (44, 20)], [Length(20), Length(20), Length(20)], Flex::Start, 2),
+/// layout_pos_width_tests!(basic_spacing, 100, [
+///     ([(0, 20), (20, 20), (40, 20)], [Length(20), Length(20), Length(20)]),
+///     ([(0, 30), (30, 70)], [Length(30), Min(1)]),
 /// ]);
 /// ```
 #[macro_export]
 macro_rules! layout_pos_width_tests {
 	($name:ident, $rect_width:expr, [
 		$(
-			([$(($x:expr, $w:expr)),* $(,)?], [$($constraint:expr),* $(,)?], $flex:expr, $spacing:expr)
+			([$(($x:expr, $w:expr)),* $(,)?], [$($constraint:expr),* $(,)?])
 		),* $(,)?
 	]) => {
 		#[test]
 		fn $name() {
-			use $crate::layout::{Constraint, Flex, Layout, Rect};
+			use $crate::layout::{Constraint, Layout, Rect};
 
 			let rect = Rect::new(0, 0, $rect_width, 1);
 
 			$(
 				{
-					let expected: alloc::vec::Vec<(u16, u16)> = alloc::vec![$(($x, $w)),*];
-					let constraints = alloc::vec![$($constraint),*];
+					let expected: Vec<(u16, u16)> = vec![$(($x, $w)),*];
+					let constraints = vec![$($constraint),*];
 					let r = Layout::horizontal(&constraints)
-						.flex($flex)
-						.spacing($spacing)
 						.split(rect);
-					let result: alloc::vec::Vec<(u16, u16)> = r
+					let result: Vec<(u16, u16)> = r
 						.iter()
 						.map(|r| (r.x, r.width))
 						.collect();

@@ -135,9 +135,6 @@ pub trait StatefulWidget {
 
 #[cfg(test)]
 mod tests {
-	use alloc::format;
-	use alloc::string::{String, ToString};
-
 	use rstest::{fixture, rstest};
 
 	use super::*;

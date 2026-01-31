@@ -1,6 +1,5 @@
 //! Toast manager for handling multiple notifications.
 
-use alloc::format;
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
 use std::vec::Vec;

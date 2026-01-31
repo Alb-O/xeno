@@ -9,11 +9,8 @@
 /// # use xeno_tui::layout::Constraint;
 /// use xeno_tui::constraint;
 /// assert_eq!(constraint!(>= 3 + 4), Constraint::Min(7));
-/// assert_eq!(constraint!(<= 3 + 4), Constraint::Max(7));
-/// assert_eq!(constraint!(== 1 / 3), Constraint::Ratio(1, 3));
 /// assert_eq!(constraint!(== 3), Constraint::Length(3));
 /// assert_eq!(constraint!(== 10 %), Constraint::Percentage(10));
-/// assert_eq!(constraint!(*= 1), Constraint::Fill(1));
 /// ```
 ///
 /// [`constraints!`]: crate::constraints
@@ -25,17 +22,8 @@ macro_rules! constraint {
 	(>= $expr:expr) => {
 		$crate::layout::Constraint::Min($expr)
 	};
-	(<= $expr:expr) => {
-		$crate::layout::Constraint::Max($expr)
-	};
-	(== $num:tt / $denom:tt) => {
-		$crate::layout::Constraint::Ratio($num as u32, $denom as u32)
-	};
 	(== $expr:expr) => {
 		$crate::layout::Constraint::Length($expr)
-	};
-	(*= $expr:expr) => {
-		$crate::layout::Constraint::Fill($expr)
 	};
 }
 
@@ -50,7 +38,7 @@ macro_rules! constraint {
 ///
 /// ```rust
 /// use xeno_tui::constraints;
-/// assert_eq!(constraints![==5, ==30%, >=3, <=1, ==1/2].len(), 5);
+/// assert_eq!(constraints![==5, ==30%, >=3].len(), 3);
 /// assert_eq!(constraints![==5; 5].len(), 5);
 /// ```
 ///
@@ -58,14 +46,11 @@ macro_rules! constraint {
 /// # use xeno_tui::layout::Constraint;
 /// # use xeno_tui::constraints;
 /// assert_eq!(
-///     constraints![==50, ==30%, >=3, <=1, ==1/2, *=1],
+///     constraints![==50, ==30%, >=3],
 ///     [
 ///         Constraint::Length(50),
 ///         Constraint::Percentage(30),
 ///         Constraint::Min(3),
-///         Constraint::Max(1),
-///         Constraint::Ratio(1, 2),
-///         Constraint::Fill(1),
 ///     ]
 /// )
 /// ```

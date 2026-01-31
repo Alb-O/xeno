@@ -1,7 +1,5 @@
 //! Span operator and debug tests
 
-use alloc::format;
-
 use rstest::rstest;
 
 use super::*;

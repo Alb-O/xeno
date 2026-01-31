@@ -1,8 +1,6 @@
 //! This module provides the `TestBackend` implementation for the [`Backend`] trait.
 //! It is used in the integration tests to verify the correctness of the library.
 
-use alloc::string::String;
-use alloc::vec;
 use core::fmt::{self, Write};
 use core::iter;
 

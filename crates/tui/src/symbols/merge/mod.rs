@@ -441,15 +441,27 @@ impl BorderSymbol {
 }
 
 /// Errors that can occur when parsing or converting border symbols.
-#[derive(thiserror::Error, Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq)]
 enum BorderSymbolError {
 	/// The input string is not a recognized box drawing character.
-	#[error("cannot parse &str `{0}` to BorderSymbol")]
-	CannotParse(alloc::string::String),
+	CannotParse(String),
 	/// The border symbol combination has no corresponding unicode character.
-	#[error("cannot convert BorderSymbol `{0:#?}` to &str: no such symbol exists")]
 	Unrepresentable(BorderSymbol),
 }
+
+impl std::fmt::Display for BorderSymbolError {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		match self {
+			Self::CannotParse(s) => write!(f, "cannot parse &str `{s}` to BorderSymbol"),
+			Self::Unrepresentable(sym) => write!(
+				f,
+				"cannot convert BorderSymbol `{sym:#?}` to &str: no such symbol exists"
+			),
+		}
+	}
+}
+
+impl std::error::Error for BorderSymbolError {}
 
 /// A visual style defining the appearance of a single line making up a block border.
 ///
@@ -516,7 +528,6 @@ macro_rules! define_symbols {
             type Err = BorderSymbolError;
             fn from_str(s: &str) -> Result<Self, Self::Err> {
                 use LineStyle::*;
-                use alloc::string::ToString;
                 match s {
                     $( $symbol => Ok(Self::new($right, $up, $left, $down)) ),* ,
                     _ => Err(BorderSymbolError::CannotParse(s.to_string())),

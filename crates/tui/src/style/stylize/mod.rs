@@ -1,6 +1,5 @@
-use alloc::borrow::Cow;
-use alloc::string::{String, ToString};
 use core::fmt;
+use std::borrow::Cow;
 
 use crate::style::{Color, Modifier, Style};
 use crate::text::Span;

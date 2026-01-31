@@ -15,8 +15,7 @@
 //! let tree = KeyTree::new("g", children);
 //! ```
 
-use alloc::borrow::Cow;
-use alloc::vec::Vec;
+use std::borrow::Cow;
 
 use crate::buffer::Buffer;
 use crate::layout::Rect;
@@ -307,9 +306,6 @@ impl Widget for KeyTree<'_> {
 
 #[cfg(test)]
 mod tests {
-	use alloc::string::{String, ToString};
-	use alloc::vec;
-
 	use super::*;
 
 	fn render_to_lines(tree: KeyTree<'_>, width: u16, height: u16) -> Vec<String> {

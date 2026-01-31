@@ -1,93 +1,37 @@
-use alloc::vec::Vec;
-use core::array::TryFromSliceError;
-use core::iter;
-#[cfg(feature = "layout-cache")]
-use core::num::NonZeroUsize;
+use std::rc::Rc;
 
-use hashbrown::HashMap;
-use itertools::Itertools;
-use kasuari::{AddConstraintError, Solver, Variable};
-#[cfg(feature = "layout-cache")]
-use lru::LruCache;
+use super::{Constraint, Direction, Rect};
 
-use super::solver::strengths::ALL_SEGMENT_GROW;
-use super::solver::{
-	Element, FLOAT_PRECISION_MULTIPLIER, Rects, changes_to_rects, configure_area,
-	configure_constraints, configure_fill_constraints, configure_flex_constraints,
-	configure_variable_constraints, configure_variable_in_area_constraints,
-};
-pub use super::spacing::Spacing;
-use crate::layout::{Constraint, Direction, Flex, Margin, Rect};
-
-/// Rectangles for layout segments corresponding to user-provided constraints.
-type Segments = super::solver::Rects;
-/// Rectangles for spacers between layout segments.
-type Spacers = super::solver::Rects;
-// The solution to a Layout solve contains two `Rects`, where `Rects` is effectively a `[Rect]`.
-//
-// 1. `[Rect]` that contains positions for the segments corresponding to user provided constraints
-// 2. `[Rect]` that contains spacers around the user provided constraints
-//
-// <------------------------------------80 px------------------------------------->
-// ┌   ┐┌──────────────────┐┌   ┐┌──────────────────┐┌   ┐┌──────────────────┐┌   ┐
-//   1  │        a         │  2  │         b        │  3  │         c        │  4
-// └   ┘└──────────────────┘└   ┘└──────────────────┘└   ┘└──────────────────┘└   ┘
-//
-// Number of spacers will always be one more than number of segments.
-/// LRU cache for layout results, keyed by area and layout configuration.
-#[cfg(feature = "layout-cache")]
-type Cache = LruCache<(Rect, Layout), (Segments, Spacers)>;
-
-#[cfg(feature = "layout-cache")]
-std::thread_local! {
-	static LAYOUT_CACHE: core::cell::RefCell<Cache> = core::cell::RefCell::new(Cache::new(
-		NonZeroUsize::new(Layout::DEFAULT_CACHE_SIZE).unwrap(),
-	));
-}
-
-/// Layout engine for dividing terminal space using constraints and direction.
+/// Layout engine for splitting terminal space using constraints.
 ///
-/// Splits rectangular areas using constraints (length, ratio, percentage, fill, min, max),
-/// direction (horizontal/vertical), margin, flex, and spacing. Uses the [`kasuari`] linear
-/// constraint solver. Results are cached in a thread-local LRU cache.
+/// Divides rectangular areas using constraints (length, percentage, min) and direction
+/// (horizontal/vertical). Uses a deterministic three-pass algorithm:
+///
+/// 1. `Length` constraints are allocated their exact value (clamped to remaining space).
+/// 2. `Percentage` constraints receive their proportional share (clamped to remaining).
+/// 3. `Min` constraints receive at least their minimum, then split any leftover evenly.
 ///
 /// # Example
 ///
 /// ```rust
 /// use xeno_tui::layout::{Constraint, Layout, Rect};
 ///
-/// let layout = Layout::vertical([Constraint::Length(5), Constraint::Fill(1)]);
+/// let layout = Layout::vertical([Constraint::Length(5), Constraint::Min(1)]);
 /// let [top, bottom] = layout.areas(Rect::new(0, 0, 80, 24));
 /// ```
-///
-/// [`kasuari`]: https://crates.io/crates/kasuari
 #[derive(Debug, Default, Clone, Eq, PartialEq, Hash)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Layout {
 	/// Layout direction (horizontal or vertical).
 	direction: Direction,
 	/// Size constraints for each segment.
 	constraints: Vec<Constraint>,
-	/// Margin around the layout area.
-	margin: Margin,
-	/// Flex behavior for distributing extra space.
-	flex: Flex,
-	/// Spacing or overlap between segments.
-	spacing: Spacing,
 }
 
 impl Layout {
-	/// This is a somewhat arbitrary size for the layout cache based on adding the columns and rows
-	/// on my laptop's terminal (171+51 = 222) and doubling it for good measure and then adding a
-	/// bit more to make it a round number. This gives enough entries to store a layout for every
-	/// row and every column, twice over, which should be enough for most apps. For those that need
-	/// more, the cache size can be set with `Layout::init_cache()` (requires the `layout-cache`
-	/// feature).
-	#[cfg(feature = "layout-cache")]
-	pub const DEFAULT_CACHE_SIZE: usize = 500;
-
 	/// Creates a new layout with the given direction and constraints.
-	/// Constraints can be arrays, slices, vectors, or iterators. `u16` also works via `Into<Constraint>`.
+	///
+	/// Constraints can be arrays, slices, vectors, or iterators. `u16` also works via
+	/// `Into<Constraint>`.
 	pub fn new<I>(direction: Direction, constraints: I) -> Self
 	where
 		I: IntoIterator,
@@ -96,7 +40,6 @@ impl Layout {
 		Self {
 			direction,
 			constraints: constraints.into_iter().map(Into::into).collect(),
-			..Self::default()
 		}
 	}
 
@@ -106,7 +49,7 @@ impl Layout {
 		I: IntoIterator,
 		I::Item: Into<Constraint>,
 	{
-		Self::new(Direction::Vertical, constraints.into_iter().map(Into::into))
+		Self::new(Direction::Vertical, constraints)
 	}
 
 	/// Creates a new horizontal layout.
@@ -115,27 +58,17 @@ impl Layout {
 		I: IntoIterator,
 		I::Item: Into<Constraint>,
 	{
-		Self::new(
-			Direction::Horizontal,
-			constraints.into_iter().map(Into::into),
-		)
+		Self::new(Direction::Horizontal, constraints)
 	}
 
-	/// Initialize the cache with a custom size (default: [`Self::DEFAULT_CACHE_SIZE`]).
-	#[cfg(feature = "layout-cache")]
-	pub fn init_cache(cache_size: NonZeroUsize) {
-		LAYOUT_CACHE.with_borrow_mut(|cache| cache.resize(cache_size));
-	}
-
-	/// Set the direction of the layout.
+	/// Sets the direction of the layout.
 	#[must_use = "method moves the value of self and returns the modified value"]
 	pub const fn direction(mut self, direction: Direction) -> Self {
 		self.direction = direction;
 		self
 	}
 
-	/// Sets the constraints. Note: mixing percentages/ratios with other constraints may
-	/// yield indeterminate results due to constraint solver behavior.
+	/// Sets the constraints.
 	#[must_use = "method moves the value of self and returns the modified value"]
 	pub fn constraints<I>(mut self, constraints: I) -> Self
 	where
@@ -146,186 +79,201 @@ impl Layout {
 		self
 	}
 
-	/// Set uniform margin on all sides.
-	#[must_use = "method moves the value of self and returns the modified value"]
-	pub const fn margin(mut self, margin: u16) -> Self {
-		self.margin = Margin {
-			horizontal: margin,
-			vertical: margin,
-		};
-		self
-	}
-
-	/// Set horizontal margin (left and right).
-	#[must_use = "method moves the value of self and returns the modified value"]
-	pub const fn horizontal_margin(mut self, horizontal: u16) -> Self {
-		self.margin.horizontal = horizontal;
-		self
-	}
-
-	/// Set vertical margin (top and bottom).
-	#[must_use = "method moves the value of self and returns the modified value"]
-	pub const fn vertical_margin(mut self, vertical: u16) -> Self {
-		self.margin.vertical = vertical;
-		self
-	}
-
-	/// Set flex behavior for space distribution. See [`Flex`] for variants.
-	#[must_use = "method moves the value of self and returns the modified value"]
-	pub const fn flex(mut self, flex: Flex) -> Self {
-		self.flex = flex;
-		self
-	}
-
-	/// Set spacing between segments (positive for gaps, negative for overlaps).
-	/// Not applied for single segments or `SpaceAround`/`SpaceEvenly`/`SpaceBetween` flex modes.
-	#[must_use = "method moves the value of self and returns the modified value"]
-	pub fn spacing<T>(mut self, spacing: T) -> Self
-	where
-		T: Into<Spacing>,
-	{
-		self.spacing = spacing.into();
-		self
-	}
-
-	/// Split into N sub-rects. Panics if constraint count != N. Use [`Self::split`] for runtime count.
+	/// Splits into N sub-rects. Panics if constraint count != N.
+	///
+	/// Use [`Self::split`] when the number of areas is only known at runtime.
 	pub fn areas<const N: usize>(&self, area: Rect) -> [Rect; N] {
-		let areas = self.split(area);
-		areas.as_ref().try_into().unwrap_or_else(|_| {
-			panic!(
-				"invalid number of rects: expected {N}, found {}",
-				areas.len()
-			)
-		})
-	}
-
-	/// Like [`Self::areas`] but returns `Result` instead of panicking.
-	pub fn try_areas<const N: usize>(&self, area: Rect) -> Result<[Rect; N], TryFromSliceError> {
-		self.split(area).as_ref().try_into()
-	}
-
-	/// Get spacer rectangles between layout areas. Panics if count != N.
-	pub fn spacers<const N: usize>(&self, area: Rect) -> [Rect; N] {
-		let (_, spacers) = self.split_with_spacers(area);
-		spacers
+		let rects = self.split(area);
+		rects
 			.as_ref()
 			.try_into()
-			.expect("invalid number of rects")
+			.unwrap_or_else(|_| panic!("expected {N} rects, got {}", rects.len()))
 	}
 
-	/// Split area into sub-rects. Results are cached. Use [`Self::areas`] for compile-time count.
-	pub fn split(&self, area: Rect) -> Rects {
-		self.split_with_spacers(area).0
-	}
+	/// Splits area into sub-rects using a deterministic algorithm.
+	///
+	/// Priority: Length > Percentage > Min (gets remainder).
+	pub fn split(&self, area: Rect) -> Rc<[Rect]> {
+		let total = match self.direction {
+			Direction::Horizontal => area.width,
+			Direction::Vertical => area.height,
+		} as i32;
 
-	/// Like [`Self::split`] but also returns spacer rectangles between areas.
-	pub fn split_with_spacers(&self, area: Rect) -> (Segments, Spacers) {
-		let split = || self.try_split(area).expect("failed to split");
+		let n = self.constraints.len();
+		if n == 0 {
+			return Rc::from([]);
+		}
 
-		#[cfg(feature = "layout-cache")]
-		{
-			LAYOUT_CACHE.with_borrow_mut(|cache| {
-				let key = (area, self.clone());
-				cache.get_or_insert(key, split).clone()
+		let mut sizes = vec![0i32; n];
+		let mut remaining = total;
+
+		// Pass 1: allocate Length constraints exactly
+		for (i, c) in self.constraints.iter().enumerate() {
+			if let Constraint::Length(len) = c {
+				let alloc = (*len as i32).min(remaining.max(0));
+				sizes[i] = alloc;
+				remaining -= alloc;
+			}
+		}
+
+		// Pass 2: allocate Percentage constraints
+		for (i, c) in self.constraints.iter().enumerate() {
+			if let Constraint::Percentage(pct) = c {
+				let alloc = ((total as i64 * *pct as i64) / 100) as i32;
+				let alloc = alloc.min(remaining.max(0));
+				sizes[i] = alloc;
+				remaining -= alloc;
+			}
+		}
+
+		// Pass 3: distribute remainder to Min constraints
+		let min_count = self
+			.constraints
+			.iter()
+			.filter(|c| matches!(c, Constraint::Min(_)))
+			.count();
+		if min_count > 0 {
+			// First ensure minimums
+			for (i, c) in self.constraints.iter().enumerate() {
+				if let Constraint::Min(min) = c {
+					let alloc = (*min as i32).min(remaining.max(0));
+					sizes[i] = alloc;
+					remaining -= alloc;
+				}
+			}
+			// Then distribute remaining evenly among Min constraints
+			if remaining > 0 {
+				let per_min = remaining / min_count as i32;
+				let mut extra = remaining % min_count as i32;
+				for (i, c) in self.constraints.iter().enumerate() {
+					if matches!(c, Constraint::Min(_)) {
+						sizes[i] += per_min;
+						if extra > 0 {
+							sizes[i] += 1;
+							extra -= 1;
+						}
+					}
+				}
+			}
+		}
+
+		// Clamp negative sizes to 0
+		for s in &mut sizes {
+			*s = (*s).max(0);
+		}
+
+		// Build rects
+		let mut pos = match self.direction {
+			Direction::Horizontal => area.x,
+			Direction::Vertical => area.y,
+		};
+
+		let rects: Vec<Rect> = sizes
+			.iter()
+			.map(|&size| {
+				let rect = match self.direction {
+					Direction::Horizontal => Rect::new(pos, area.y, size as u16, area.height),
+					Direction::Vertical => Rect::new(area.x, pos, area.width, size as u16),
+				};
+				pos += size as u16;
+				rect
 			})
-		}
+			.collect();
 
-		#[cfg(not(feature = "layout-cache"))]
-		split()
-	}
-
-	/// Attempts to split the area using the constraint solver, returning an error on failure.
-	fn try_split(&self, area: Rect) -> Result<(Segments, Spacers), AddConstraintError> {
-		// To take advantage of all of [`kasuari`] features, we would want to store the `Solver` in
-		// one of the fields of the Layout struct. And we would want to set it up such that we could
-		// add or remove constraints as and when needed.
-		// The advantage of doing it as described above is that it would allow users to
-		// incrementally add and remove constraints efficiently.
-		// Solves will just one constraint different would not need to resolve the entire layout.
-		//
-		// The disadvantage of this approach is that it requires tracking which constraints were
-		// added, and which variables they correspond to.
-		// This will also require introducing and maintaining the API for users to do so.
-		//
-		// Currently we don't support that use case and do not intend to support it in the future,
-		// and instead we require that the user re-solve the layout every time they call `split`.
-		// To minimize the time it takes to solve the same problem over and over again, we
-		// cache the `Layout` struct along with the results.
-		//
-		// `try_split` is the inner method in `split` that is called only when the LRU cache doesn't
-		// match the key. So inside `try_split`, we create a new instance of the solver.
-		//
-		// This is equivalent to storing the solver in `Layout` and calling `solver.reset()` here.
-		let mut solver = Solver::new();
-
-		let inner_area = area.inner(self.margin);
-		let (area_start, area_end) = match self.direction {
-			Direction::Horizontal => (
-				f64::from(inner_area.x) * FLOAT_PRECISION_MULTIPLIER,
-				f64::from(inner_area.right()) * FLOAT_PRECISION_MULTIPLIER,
-			),
-			Direction::Vertical => (
-				f64::from(inner_area.y) * FLOAT_PRECISION_MULTIPLIER,
-				f64::from(inner_area.bottom()) * FLOAT_PRECISION_MULTIPLIER,
-			),
-		};
-
-		// The layout solver uses alternating variables to represent segment boundaries and
-		// spacer regions. Given N constraints, there are N segments and N+1 spacers. The
-		// diagram below shows how variables map to segments (bold) and spacers (thin):
-		//
-		// area_size spans from area_start to area_end. Variables are interleaved such that
-		// odd-indexed pairs form segments (user content areas) and even-indexed pairs form
-		// spacers (gaps between segments). This allows the constraint solver to distribute
-		// space according to the flex mode while respecting segment size constraints.
-
-		let variable_count = self.constraints.len() * 2 + 2;
-		let variables = iter::repeat_with(Variable::new)
-			.take(variable_count)
-			.collect_vec();
-		let spacers = variables
-			.iter()
-			.tuples()
-			.map(|(a, b)| Element::from((*a, *b)))
-			.collect_vec();
-		let segments = variables
-			.iter()
-			.skip(1)
-			.tuples()
-			.map(|(a, b)| Element::from((*a, *b)))
-			.collect_vec();
-
-		let flex = self.flex;
-
-		let spacing = match self.spacing {
-			Spacing::Space(x) => x as i16,
-			Spacing::Overlap(x) => -(x as i16),
-		};
-
-		let constraints = &self.constraints;
-
-		let area_size = Element::from((*variables.first().unwrap(), *variables.last().unwrap()));
-		configure_area(&mut solver, area_size, area_start, area_end)?;
-		configure_variable_in_area_constraints(&mut solver, &variables, area_size)?;
-		configure_variable_constraints(&mut solver, &variables)?;
-		configure_flex_constraints(&mut solver, area_size, &spacers, flex, spacing)?;
-		configure_constraints(&mut solver, area_size, &segments, constraints)?;
-		configure_fill_constraints(&mut solver, &segments, constraints)?;
-		for (left, right) in segments.iter().tuple_windows() {
-			solver.add_constraint(left.has_size(right, ALL_SEGMENT_GROW))?;
-		}
-
-		// `solver.fetch_changes()` can only be called once per solve
-		let changes: HashMap<Variable, f64> = solver.fetch_changes().iter().copied().collect();
-		// debug_elements(&segments, &changes);
-		// debug_elements(&spacers, &changes);
-
-		let segment_rects = changes_to_rects(&changes, &segments, inner_area, self.direction);
-		let spacer_rects = changes_to_rects(&changes, &spacers, inner_area, self.direction);
-
-		Ok((segment_rects, spacer_rects))
+		Rc::from(rects)
 	}
 }
 
 #[cfg(test)]
-mod tests;
+mod tests {
+	use super::*;
+	use crate::layout::{Constraint, Rect};
+
+	#[test]
+	fn vertical_min_length() {
+		let layout = Layout::vertical([Constraint::Min(1), Constraint::Length(1)]);
+		let [content, status] = layout.areas(Rect::new(0, 0, 80, 24));
+		assert_eq!(content, Rect::new(0, 0, 80, 23));
+		assert_eq!(status, Rect::new(0, 23, 80, 1));
+	}
+
+	#[test]
+	fn vertical_min_length_tiny() {
+		let layout = Layout::vertical([Constraint::Min(1), Constraint::Length(1)]);
+		let [content, status] = layout.areas(Rect::new(0, 0, 80, 1));
+		assert_eq!(status, Rect::new(0, 0, 80, 1));
+		assert_eq!(content, Rect::new(0, 0, 80, 0));
+	}
+
+	#[test]
+	fn vertical_pct_min_pct() {
+		let layout = Layout::vertical([
+			Constraint::Percentage(25),
+			Constraint::Min(1),
+			Constraint::Percentage(10),
+		]);
+		let [top, mid, bot] = layout.areas(Rect::new(0, 0, 80, 100));
+		assert_eq!(top.height, 25);
+		assert_eq!(bot.height, 10);
+		assert_eq!(mid.height, 65);
+	}
+
+	#[test]
+	fn horizontal_split() {
+		let layout = Layout::horizontal([
+			Constraint::Percentage(25),
+			Constraint::Min(1),
+			Constraint::Percentage(25),
+		]);
+		let [left, mid, right] = layout.areas(Rect::new(0, 0, 80, 24));
+		assert_eq!(left.width, 20);
+		assert_eq!(right.width, 20);
+		assert_eq!(mid.width, 40);
+	}
+
+	#[test]
+	fn length_zero_collapses() {
+		let layout = Layout::vertical([
+			Constraint::Length(0),
+			Constraint::Min(1),
+			Constraint::Length(0),
+		]);
+		let [top, mid, bot] = layout.areas(Rect::new(0, 0, 80, 24));
+		assert_eq!(top.height, 0);
+		assert_eq!(bot.height, 0);
+		assert_eq!(mid.height, 24);
+	}
+
+	#[test]
+	fn sum_equals_total() {
+		let layout = Layout::vertical([
+			Constraint::Percentage(30),
+			Constraint::Min(1),
+			Constraint::Length(5),
+		]);
+		let rects = layout.split(Rect::new(0, 0, 80, 50));
+		let total_height: u16 = rects.iter().map(|r| r.height).sum();
+		assert_eq!(total_height, 50);
+	}
+
+	#[test]
+	fn contiguous_no_gaps() {
+		let layout = Layout::vertical([
+			Constraint::Percentage(30),
+			Constraint::Min(1),
+			Constraint::Length(5),
+		]);
+		let rects = layout.split(Rect::new(0, 0, 80, 50));
+		for pair in rects.windows(2) {
+			assert_eq!(pair[0].y + pair[0].height, pair[1].y);
+		}
+	}
+
+	#[test]
+	fn zero_height_area() {
+		let layout = Layout::vertical([Constraint::Min(1), Constraint::Length(1)]);
+		let [content, status] = layout.areas(Rect::new(0, 0, 80, 0));
+		assert_eq!(content.height, 0);
+		assert_eq!(status.height, 0);
+	}
+}

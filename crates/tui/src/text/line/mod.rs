@@ -1,10 +1,7 @@
 #![deny(missing_docs)]
 #![warn(clippy::pedantic, clippy::nursery, clippy::arithmetic_side_effects)]
-use alloc::borrow::Cow;
-use alloc::string::{String, ToString};
-use alloc::vec;
-use alloc::vec::Vec;
 use core::fmt;
+use std::borrow::Cow;
 
 use unicode_truncate::UnicodeTruncateStr;
 use unicode_width::UnicodeWidthStr;
@@ -218,7 +215,7 @@ impl UnicodeWidthStr for Line<'_> {
 
 impl<'a> IntoIterator for Line<'a> {
 	type Item = Span<'a>;
-	type IntoIter = alloc::vec::IntoIter<Span<'a>>;
+	type IntoIter = std::vec::IntoIter<Span<'a>>;
 
 	fn into_iter(self) -> Self::IntoIter {
 		self.spans.into_iter()

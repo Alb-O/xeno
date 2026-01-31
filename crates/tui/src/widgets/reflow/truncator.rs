@@ -1,7 +1,4 @@
 //! Line truncating line composer.
-use alloc::vec;
-use alloc::vec::Vec;
-
 use unicode_width::UnicodeWidthStr;
 
 use super::{LineComposer, WrappedLine, trim_offset};

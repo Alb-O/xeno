@@ -1,10 +1,8 @@
 #![cfg_attr(test, allow(unused_crate_dependencies))]
-//! Ratatui is a library for building terminal user interfaces in Rust.
+//! TUI library for building terminal user interfaces.
 //!
-//! It is a lightweight library that provides a set of widgets and utilities to build complex
-//! terminal user interfaces.
+//! Provides widgets, layout primitives, and a rendering pipeline for terminal applications.
 
-#![no_std]
 #![cfg_attr(docsrs, feature(doc_cfg))]
 #![warn(missing_docs)]
 #![allow(
@@ -13,15 +11,9 @@
 	reason = "module_inception is intentional for re-exports; unfulfilled_lint_expectations may vary by feature flags"
 )]
 
-extern crate alloc;
-#[cfg(feature = "std")]
-extern crate std;
-
-#[cfg(feature = "std")]
 pub mod animation;
 pub mod backend;
 pub mod buffer;
-pub mod init;
 pub mod layout;
 pub mod macros;
 pub mod style;
@@ -34,19 +26,9 @@ pub mod widgets;
 #[cfg(feature = "palette")]
 pub use palette;
 
-#[cfg(feature = "crossterm")]
-pub use crate::backend::crossterm::crossterm;
-#[cfg(feature = "crossterm")]
-pub use crate::init::{
-	DefaultTerminal, init, init_with_options, restore, run, try_init, try_init_with_options,
-	try_restore,
-};
 pub use crate::terminal::{CompletedFrame, Frame, Terminal, TerminalOptions, Viewport};
 
 /// The `core` module provides a re-export of the library's items for convenience.
 pub mod core {
 	pub use crate::*;
 }
-
-#[doc(hidden)]
-pub use alloc::{format, vec};

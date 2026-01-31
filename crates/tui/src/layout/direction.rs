@@ -1,5 +1,3 @@
-use strum::{Display, EnumString};
-
 /// Defines the direction of a layout.
 ///
 /// This enumeration is used with [`Layout`](crate::layout::Layout) to specify whether layout
@@ -9,7 +7,7 @@ use strum::{Display, EnumString};
 /// - `Vertical`: Layout segments are arranged top to bottom (default)
 ///
 /// For comprehensive layout documentation and examples, see the [`layout`](crate::layout) module.
-#[derive(Debug, Default, Display, EnumString, Clone, Copy, Eq, PartialEq, Hash)]
+#[derive(Debug, Default, Clone, Copy, Eq, PartialEq, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum Direction {
 	/// Layout segments are arranged side by side (left to right).
@@ -33,12 +31,29 @@ impl Direction {
 	}
 }
 
+impl std::fmt::Display for Direction {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		match self {
+			Self::Horizontal => write!(f, "Horizontal"),
+			Self::Vertical => write!(f, "Vertical"),
+		}
+	}
+}
+
+impl std::str::FromStr for Direction {
+	type Err = String;
+
+	fn from_str(s: &str) -> Result<Self, Self::Err> {
+		match s {
+			"Horizontal" => Ok(Self::Horizontal),
+			"Vertical" => Ok(Self::Vertical),
+			_ => Err(format!("unknown variant: {s}")),
+		}
+	}
+}
+
 #[cfg(test)]
 mod tests {
-	use alloc::string::ToString;
-
-	use strum::ParseError;
-
 	use super::*;
 
 	#[test]
@@ -51,7 +66,7 @@ mod tests {
 	fn direction_from_str() {
 		assert_eq!("Horizontal".parse::<Direction>(), Ok(Direction::Horizontal));
 		assert_eq!("Vertical".parse::<Direction>(), Ok(Direction::Vertical));
-		assert_eq!("".parse::<Direction>(), Err(ParseError::VariantNotFound));
+		assert!("".parse::<Direction>().is_err());
 	}
 
 	#[test]

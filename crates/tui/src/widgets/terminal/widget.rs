@@ -1,5 +1,3 @@
-use alloc::string::String;
-
 use super::state;
 use crate::buffer::Buffer;
 use crate::layout::Rect;

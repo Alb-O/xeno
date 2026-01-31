@@ -181,8 +181,6 @@ impl SubAssign<Offset> for Position {
 
 #[cfg(test)]
 mod tests {
-	use alloc::string::ToString;
-
 	use super::*;
 
 	#[test]

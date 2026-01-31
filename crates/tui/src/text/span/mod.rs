@@ -1,6 +1,5 @@
-use alloc::borrow::Cow;
-use alloc::string::ToString;
 use core::fmt;
+use std::borrow::Cow;
 
 use unicode_segmentation::UnicodeSegmentation;
 use unicode_width::UnicodeWidthStr;

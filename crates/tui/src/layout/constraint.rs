@@ -1,38 +1,30 @@
-use alloc::vec::Vec;
 use core::fmt;
-
-use strum::EnumIs;
 
 /// A constraint that defines the size of a layout element.
 ///
 /// Constraints are the core mechanism for defining how space should be allocated within a
 /// [`Layout`](crate::layout::Layout). They can specify fixed sizes (length), proportional sizes
-/// (percentage, ratio), size limits (min, max), or proportional fill values for layout elements.
-/// Relative constraints (percentage, ratio) are calculated relative to the entire space being
-/// divided, rather than the space available after applying more fixed constraints (min, max,
-/// length).
+/// (percentage), or minimum sizes for layout elements. Relative constraints (percentage) are
+/// calculated relative to the entire space being divided.
 ///
 /// Constraints are prioritized in the following order:
 ///
-/// 1. [`Constraint::Min`]
-/// 2. [`Constraint::Max`]
-/// 3. [`Constraint::Length`]
-/// 4. [`Constraint::Percentage`]
-/// 5. [`Constraint::Ratio`]
-/// 6. [`Constraint::Fill`]
+/// 1. [`Constraint::Length`] - allocated first (exact size)
+/// 2. [`Constraint::Percentage`] - allocated second (proportional)
+/// 3. [`Constraint::Min`] - receives remaining space
 ///
 /// # Size Calculation
 ///
-/// - [`apply`](Self::apply) - Apply the constraint to a length and return the resulting size
+/// The deterministic solver allocates space in priority passes:
+/// - **Pass 1**: `Length` constraints receive their exact value (clamped to remaining space).
+/// - **Pass 2**: `Percentage` constraints receive their proportional share (clamped to remaining).
+/// - **Pass 3**: `Min` constraints receive at least their minimum, then split any leftover evenly.
 ///
 /// # Collection Creation
 ///
 /// - [`from_lengths`](Self::from_lengths) - Create a collection of length constraints
-/// - [`from_ratios`](Self::from_ratios) - Create a collection of ratio constraints
 /// - [`from_percentages`](Self::from_percentages) - Create a collection of percentage constraints
-/// - [`from_maxes`](Self::from_maxes) - Create a collection of maximum constraints
 /// - [`from_mins`](Self::from_mins) - Create a collection of minimum constraints
-/// - [`from_fills`](Self::from_fills) - Create a collection of fill constraints
 ///
 /// # Conversion and Construction
 ///
@@ -52,27 +44,22 @@ use strum::EnumIs;
 /// // Create a layout with specified lengths for each element
 /// let constraints = Constraint::from_lengths([10, 20, 10]);
 ///
-/// // Create a centered layout using ratio or percentage constraints
-/// let constraints = Constraint::from_ratios([(1, 4), (1, 2), (1, 4)]);
+/// // Create a centered layout using percentage constraints
 /// let constraints = Constraint::from_percentages([25, 50, 25]);
 ///
 /// // Create a centered layout with a minimum size constraint for specific elements
 /// let constraints = Constraint::from_mins([0, 100, 0]);
-///
-/// // Create a sidebar layout specifying maximum sizes for the columns
-/// let constraints = Constraint::from_maxes([30, 170]);
-///
-/// // Create a layout with fill proportional sizes for each element
-/// let constraints = Constraint::from_fills([1, 2, 1]);
 /// ```
 ///
 /// For comprehensive layout documentation and examples, see the [`layout`](crate::layout) module.
-#[derive(Debug, Clone, Copy, Eq, PartialEq, Hash, EnumIs)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum Constraint {
-	/// Applies a minimum size constraint to the element
+	/// Applies a minimum size constraint to the element.
 	///
-	/// The element size is set to at least the specified amount.
+	/// The element size is set to at least the specified amount. Any remaining space after
+	/// `Length` and `Percentage` constraints are satisfied is distributed evenly among `Min`
+	/// constraints (after satisfying their minimums).
 	///
 	/// # Examples
 	///
@@ -93,32 +80,9 @@ pub enum Constraint {
 	/// ```
 	Min(u16),
 
-	/// Applies a maximum size constraint to the element
+	/// Applies a length constraint to the element.
 	///
-	/// The element size is set to at most the specified amount.
-	///
-	/// # Examples
-	///
-	/// `[Percentage(0), Max(20)]`
-	///
-	/// ```plain
-	/// ┌────────────────────────────┐┌──────────────────┐
-	/// │            30 px           ││       20 px      │
-	/// └────────────────────────────┘└──────────────────┘
-	/// ```
-	///
-	/// `[Percentage(0), Max(10)]`
-	///
-	/// ```plain
-	/// ┌──────────────────────────────────────┐┌────────┐
-	/// │                 40 px                ││  10 px │
-	/// └──────────────────────────────────────┘└────────┘
-	/// ```
-	Max(u16),
-
-	/// Applies a length constraint to the element
-	///
-	/// The element size is set to the specified amount.
+	/// The element size is set to the specified amount exactly.
 	///
 	/// # Examples
 	///
@@ -139,18 +103,14 @@ pub enum Constraint {
 	/// ```
 	Length(u16),
 
-	/// Applies a percentage of the available space to the element
+	/// Applies a percentage of the available space to the element.
 	///
-	/// Converts the given percentage to a floating-point value and multiplies that with area. This
-	/// value is rounded back to a integer as part of the layout split calculation.
-	///
-	/// **Note**: As this value only accepts a `u16`, certain percentages that cannot be
-	/// represented exactly (e.g. 1/3) are not possible. You might want to use
-	/// [`Constraint::Ratio`] or [`Constraint::Fill`] in such cases.
+	/// Converts the given percentage to a floating-point value and multiplies that with the total
+	/// area. This value is rounded back to an integer as part of the layout split calculation.
 	///
 	/// # Examples
 	///
-	/// `[Percentage(75), Fill(1)]`
+	/// `[Percentage(75), Min(1)]`
 	///
 	/// ```plain
 	/// ┌────────────────────────────────────┐┌──────────┐
@@ -158,7 +118,7 @@ pub enum Constraint {
 	/// └────────────────────────────────────┘└──────────┘
 	/// ```
 	///
-	/// `[Percentage(50), Fill(1)]`
+	/// `[Percentage(50), Min(1)]`
 	///
 	/// ```plain
 	/// ┌───────────────────────┐┌───────────────────────┐
@@ -166,60 +126,10 @@ pub enum Constraint {
 	/// └───────────────────────┘└───────────────────────┘
 	/// ```
 	Percentage(u16),
-
-	/// Applies a ratio of the available space to the element
-	///
-	/// Converts the given ratio to a floating-point value and multiplies that with area.
-	/// This value is rounded back to a integer as part of the layout split calculation.
-	///
-	/// # Examples
-	///
-	/// `[Ratio(1, 2) ; 2]`
-	///
-	/// ```plain
-	/// ┌───────────────────────┐┌───────────────────────┐
-	/// │         25 px         ││         25 px         │
-	/// └───────────────────────┘└───────────────────────┘
-	/// ```
-	///
-	/// `[Ratio(1, 4) ; 4]`
-	///
-	/// ```plain
-	/// ┌───────────┐┌──────────┐┌───────────┐┌──────────┐
-	/// │   13 px   ││   12 px  ││   13 px   ││   12 px  │
-	/// └───────────┘└──────────┘└───────────┘└──────────┘
-	/// ```
-	Ratio(u32, u32),
-
-	/// Applies the scaling factor proportional to all other [`Constraint::Fill`] elements
-	/// to fill excess space
-	///
-	/// The element will only expand or fill into excess available space, proportionally matching
-	/// other [`Constraint::Fill`] elements while satisfying all other constraints.
-	///
-	/// # Examples
-	///
-	///
-	/// `[Fill(1), Fill(2), Fill(3)]`
-	///
-	/// ```plain
-	/// ┌──────┐┌───────────────┐┌───────────────────────┐
-	/// │ 8 px ││     17 px     ││         25 px         │
-	/// └──────┘└───────────────┘└───────────────────────┘
-	/// ```
-	///
-	/// `[Fill(1), Percentage(50), Fill(1)]`
-	///
-	/// ```plain
-	/// ┌───────────┐┌───────────────────────┐┌──────────┐
-	/// │   13 px   ││         25 px         ││   12 px  │
-	/// └───────────┘└───────────────────────┘└──────────┘
-	/// ```
-	Fill(u16),
 }
 
 impl Constraint {
-	/// Convert an iterator of lengths into a vector of constraints
+	/// Convert an iterator of lengths into a vector of constraints.
 	///
 	/// # Examples
 	///
@@ -237,25 +147,7 @@ impl Constraint {
 		lengths.into_iter().map(Self::Length).collect()
 	}
 
-	/// Convert an iterator of ratios into a vector of constraints
-	///
-	/// # Examples
-	///
-	/// ```rust
-	/// use xeno_tui::layout::{Constraint, Layout, Rect};
-	///
-	/// # let area = Rect::default();
-	/// let constraints = Constraint::from_ratios([(1, 4), (1, 2), (1, 4)]);
-	/// let layout = Layout::default().constraints(constraints).split(area);
-	/// ```
-	pub fn from_ratios<T>(ratios: T) -> Vec<Self>
-	where
-		T: IntoIterator<Item = (u32, u32)>,
-	{
-		ratios.into_iter().map(|(n, d)| Self::Ratio(n, d)).collect()
-	}
-
-	/// Convert an iterator of percentages into a vector of constraints
+	/// Convert an iterator of percentages into a vector of constraints.
 	///
 	/// # Examples
 	///
@@ -273,25 +165,7 @@ impl Constraint {
 		percentages.into_iter().map(Self::Percentage).collect()
 	}
 
-	/// Convert an iterator of maxes into a vector of constraints
-	///
-	/// # Examples
-	///
-	/// ```rust
-	/// use xeno_tui::layout::{Constraint, Layout, Rect};
-	///
-	/// # let area = Rect::default();
-	/// let constraints = Constraint::from_maxes([1, 2, 3]);
-	/// let layout = Layout::default().constraints(constraints).split(area);
-	/// ```
-	pub fn from_maxes<T>(maxes: T) -> Vec<Self>
-	where
-		T: IntoIterator<Item = u16>,
-	{
-		maxes.into_iter().map(Self::Max).collect()
-	}
-
-	/// Convert an iterator of mins into a vector of constraints
+	/// Convert an iterator of mins into a vector of constraints.
 	///
 	/// # Examples
 	///
@@ -308,28 +182,10 @@ impl Constraint {
 	{
 		mins.into_iter().map(Self::Min).collect()
 	}
-
-	/// Convert an iterator of proportional factors into a vector of constraints
-	///
-	/// # Examples
-	///
-	/// ```rust
-	/// use xeno_tui::layout::{Constraint, Layout, Rect};
-	///
-	/// # let area = Rect::default();
-	/// let constraints = Constraint::from_fills([1, 2, 3]);
-	/// let layout = Layout::default().constraints(constraints).split(area);
-	/// ```
-	pub fn from_fills<T>(proportional_factors: T) -> Vec<Self>
-	where
-		T: IntoIterator<Item = u16>,
-	{
-		proportional_factors.into_iter().map(Self::Fill).collect()
-	}
 }
 
 impl From<u16> for Constraint {
-	/// Convert a `u16` into a [`Constraint::Length`]
+	/// Convert a `u16` into a [`Constraint::Length`].
 	///
 	/// This is useful when you want to specify a fixed size for a layout, but don't want to
 	/// explicitly create a [`Constraint::Length`] yourself.
@@ -371,10 +227,7 @@ impl fmt::Display for Constraint {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
 		match self {
 			Self::Percentage(p) => write!(f, "Percentage({p})"),
-			Self::Ratio(n, d) => write!(f, "Ratio({n}, {d})"),
 			Self::Length(l) => write!(f, "Length({l})"),
-			Self::Fill(l) => write!(f, "Fill({l})"),
-			Self::Max(m) => write!(f, "Max({m})"),
 			Self::Min(m) => write!(f, "Min({m})"),
 		}
 	}
@@ -382,9 +235,6 @@ impl fmt::Display for Constraint {
 
 #[cfg(test)]
 mod tests {
-	use alloc::string::ToString;
-	use alloc::vec;
-
 	use super::*;
 
 	#[test]
@@ -395,9 +245,7 @@ mod tests {
 	#[test]
 	fn to_string() {
 		assert_eq!(Constraint::Percentage(50).to_string(), "Percentage(50)");
-		assert_eq!(Constraint::Ratio(1, 2).to_string(), "Ratio(1, 2)");
 		assert_eq!(Constraint::Length(10).to_string(), "Length(10)");
-		assert_eq!(Constraint::Max(10).to_string(), "Max(10)");
 		assert_eq!(Constraint::Min(10).to_string(), "Min(10)");
 	}
 
@@ -413,20 +261,6 @@ mod tests {
 	}
 
 	#[test]
-	fn from_ratios() {
-		let expected = [
-			Constraint::Ratio(1, 4),
-			Constraint::Ratio(1, 2),
-			Constraint::Ratio(1, 4),
-		];
-		assert_eq!(Constraint::from_ratios([(1, 4), (1, 2), (1, 4)]), expected);
-		assert_eq!(
-			Constraint::from_ratios(vec![(1, 4), (1, 2), (1, 4)]),
-			expected
-		);
-	}
-
-	#[test]
 	fn from_percentages() {
 		let expected = [
 			Constraint::Percentage(25),
@@ -438,27 +272,9 @@ mod tests {
 	}
 
 	#[test]
-	fn from_maxes() {
-		let expected = [Constraint::Max(1), Constraint::Max(2), Constraint::Max(3)];
-		assert_eq!(Constraint::from_maxes([1, 2, 3]), expected);
-		assert_eq!(Constraint::from_maxes(vec![1, 2, 3]), expected);
-	}
-
-	#[test]
 	fn from_mins() {
 		let expected = [Constraint::Min(1), Constraint::Min(2), Constraint::Min(3)];
 		assert_eq!(Constraint::from_mins([1, 2, 3]), expected);
 		assert_eq!(Constraint::from_mins(vec![1, 2, 3]), expected);
-	}
-
-	#[test]
-	fn from_fills() {
-		let expected = [
-			Constraint::Fill(1),
-			Constraint::Fill(2),
-			Constraint::Fill(3),
-		];
-		assert_eq!(Constraint::from_fills([1, 2, 3]), expected);
-		assert_eq!(Constraint::from_fills(vec![1, 2, 3]), expected);
 	}
 }

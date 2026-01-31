@@ -1,8 +1,5 @@
 //! Span conversion and display tests
 
-use alloc::format;
-use alloc::string::String;
-
 use super::*;
 
 #[test]

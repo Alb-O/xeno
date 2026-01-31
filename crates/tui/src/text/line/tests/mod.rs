@@ -1,4 +1,3 @@
-use alloc::format;
 use core::iter;
 
 use rstest::{fixture, rstest};

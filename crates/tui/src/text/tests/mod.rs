@@ -1,7 +1,5 @@
 //! Tests for the Text type.
 
-use alloc::format;
-
 use rstest::fixture;
 
 use super::*;

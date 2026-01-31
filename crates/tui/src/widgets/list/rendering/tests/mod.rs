@@ -1,7 +1,3 @@
-use alloc::borrow::ToOwned;
-use alloc::vec;
-use alloc::vec::Vec;
-
 use rstest::{fixture, rstest};
 
 use crate::buffer::Buffer;
@@ -10,8 +6,7 @@ use crate::style::{Color, Modifier, Style, Stylize};
 use crate::text::Line;
 use crate::widgets::block::Block;
 use crate::widgets::borders::BorderType;
-use crate::widgets::list::{List, ListItem, ListState};
-use crate::widgets::table::HighlightSpacing;
+use crate::widgets::list::{HighlightSpacing, List, ListItem, ListState};
 use crate::widgets::{StatefulWidget, Widget};
 
 mod alignment;

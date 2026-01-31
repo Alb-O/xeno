@@ -1,8 +1,6 @@
 #![warn(missing_docs)]
 //! A module for the [`Buffer`] and [`Cell`] types.
 
-use alloc::vec;
-use alloc::vec::Vec;
 use core::ops::{Index, IndexMut};
 use core::{cmp, fmt};
 

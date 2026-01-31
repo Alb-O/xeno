@@ -11,7 +11,7 @@ mod iter;
 /// Arithmetic operations on Rect.
 mod ops;
 
-use super::{Constraint, Flex, Layout};
+use super::{Constraint, Layout};
 
 /// A rectangular area in the terminal.
 ///
@@ -417,7 +417,7 @@ impl Rect {
 	///     // Splits each row into left/right areas and renders labels and content
 	///     for (i, row) in area.rows().take(3).enumerate() {
 	///         let [left, right] =
-	///             Layout::horizontal([Constraint::Percentage(30), Constraint::Fill(1)]).areas(row);
+	///             Layout::horizontal([Constraint::Percentage(30), Constraint::Min(1)]).areas(row);
 	///
 	///         format!("{i}:").render(left, buf);
 	///         "Content".render(right, buf);
@@ -501,38 +501,48 @@ impl Rect {
 
 	/// Returns a new Rect, centered horizontally based on the provided constraint.
 	///
+	/// The constraint determines the width of the centered area:
+	/// - `Length(n)` - exact width of `n`
+	/// - `Percentage(p)` - `p%` of the original width
+	/// - `Min(n)` - at least `n`, but uses full width if larger
+	///
 	/// # Examples
 	///
 	/// ```
-	/// use xeno_tui::layout::Constraint;
-	/// use xeno_tui::terminal::Frame;
+	/// use xeno_tui::layout::{Constraint, Rect};
 	///
-	/// fn render(frame: &mut Frame) {
-	///     let area = frame.area().centered_horizontally(Constraint::Ratio(1, 2));
-	/// }
+	/// let area = Rect::new(0, 0, 80, 24);
+	/// let centered = area.centered_horizontally(Constraint::Length(40));
+	/// assert_eq!(centered, Rect::new(20, 0, 40, 24));
 	/// ```
 	#[must_use]
 	pub fn centered_horizontally(self, constraint: Constraint) -> Self {
-		let [area] = self.layout(&Layout::horizontal([constraint]).flex(Flex::Center));
-		area
+		let w = Self::resolve_constraint(constraint, self.width);
+		let x = self.x + (self.width.saturating_sub(w)) / 2;
+		Self::new(x, self.y, w, self.height)
 	}
 
 	/// Returns a new Rect, centered vertically based on the provided constraint.
 	///
+	/// The constraint determines the height of the centered area:
+	/// - `Length(n)` - exact height of `n`
+	/// - `Percentage(p)` - `p%` of the original height
+	/// - `Min(n)` - at least `n`, but uses full height if larger
+	///
 	/// # Examples
 	///
 	/// ```
-	/// use xeno_tui::layout::Constraint;
-	/// use xeno_tui::terminal::Frame;
+	/// use xeno_tui::layout::{Constraint, Rect};
 	///
-	/// fn render(frame: &mut Frame) {
-	///     let area = frame.area().centered_vertically(Constraint::Ratio(1, 2));
-	/// }
+	/// let area = Rect::new(0, 0, 80, 24);
+	/// let centered = area.centered_vertically(Constraint::Length(10));
+	/// assert_eq!(centered, Rect::new(0, 7, 80, 10));
 	/// ```
 	#[must_use]
 	pub fn centered_vertically(self, constraint: Constraint) -> Self {
-		let [area] = self.layout(&Layout::vertical([constraint]).flex(Flex::Center));
-		area
+		let h = Self::resolve_constraint(constraint, self.height);
+		let y = self.y + (self.height.saturating_sub(h)) / 2;
+		Self::new(self.x, y, self.width, h)
 	}
 
 	/// Returns a new Rect, centered horizontally and vertically based on the provided constraints.
@@ -540,14 +550,11 @@ impl Rect {
 	/// # Examples
 	///
 	/// ```
-	/// use xeno_tui::layout::Constraint;
-	/// use xeno_tui::terminal::Frame;
+	/// use xeno_tui::layout::{Constraint, Rect};
 	///
-	/// fn render(frame: &mut Frame) {
-	///     let area = frame
-	///         .area()
-	///         .centered(Constraint::Ratio(1, 2), Constraint::Ratio(1, 3));
-	/// }
+	/// let area = Rect::new(0, 0, 80, 24);
+	/// let centered = area.centered(Constraint::Length(40), Constraint::Length(10));
+	/// assert_eq!(centered, Rect::new(20, 7, 40, 10));
 	/// ```
 	#[must_use]
 	pub fn centered(
@@ -557,6 +564,17 @@ impl Rect {
 	) -> Self {
 		self.centered_horizontally(horizontal_constraint)
 			.centered_vertically(vertical_constraint)
+	}
+
+	/// Resolves a constraint to a concrete size given the available space.
+	fn resolve_constraint(constraint: Constraint, available: u16) -> u16 {
+		match constraint {
+			Constraint::Length(len) => len.min(available),
+			Constraint::Percentage(pct) => {
+				((available as u32 * pct as u32) / 100).min(available as u32) as u16
+			}
+			Constraint::Min(min) => available.max(min),
+		}
 	}
 
 	/// Split the rect into a number of sub-rects according to the given [`Layout`].
@@ -613,9 +631,8 @@ impl Rect {
 	/// assert_eq!(areas, vec![Rect::new(0, 0, 10, 1), Rect::new(0, 1, 10, 9),]);
 	/// ```
 	///
-	/// [`Vec`]: alloc::vec::Vec
 	#[must_use]
-	pub fn layout_vec(self, layout: &Layout) -> alloc::vec::Vec<Self> {
+	pub fn layout_vec(self, layout: &Layout) -> Vec<Self> {
 		layout.split(self).as_ref().to_vec()
 	}
 

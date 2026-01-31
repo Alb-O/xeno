@@ -2,7 +2,6 @@
 
 use std::dbg;
 
-use itertools::Itertools;
 use rstest::{fixture, rstest};
 
 use super::*;
@@ -118,12 +117,13 @@ fn set_line_styled(
 		.content
 		.iter()
 		.map(Cell::symbol)
+		.collect::<Vec<_>>()
 		.join("");
 	let actual_styles = small_one_line_buffer
 		.content
 		.iter()
 		.map(|c| c.fg)
-		.collect_vec();
+		.collect::<Vec<_>>();
 
 	// set_line only sets the style for non-empty cells (unlike Line::render which sets the
 	// style for all cells)
@@ -132,7 +132,7 @@ fn set_line_styled(
 			Color::default(),
 			5_usize.saturating_sub(content.len()),
 		))
-		.collect_vec();
+		.collect::<Vec<_>>();
 	assert_eq!(actual_contents, expected);
 	assert_eq!(actual_styles, expected_styles);
 }

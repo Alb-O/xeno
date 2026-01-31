@@ -1,5 +1,3 @@
-use alloc::vec;
-
 use super::*;
 use crate::style::{Color, Modifier, Stylize};
 use crate::{enum_display_from_str_tests, render_test};

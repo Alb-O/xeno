@@ -1,7 +1,5 @@
 //! Tests for the `TestBackend` implementation.
 
-use alloc::format;
-
 use super::*;
 
 mod append_lines;

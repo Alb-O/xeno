@@ -1,17 +1,15 @@
 //! The [`List`] widget is used to display a list of items and allows selecting one or multiple
 //! items.
 
-use alloc::vec::Vec;
-
-use strum::{Display, EnumString};
-
+pub use self::highlight_spacing::HighlightSpacing;
 pub use self::item::ListItem;
 pub use self::state::ListState;
 use crate::style::{Style, Styled};
 use crate::text::Line;
 use crate::widgets::block::Block;
-use crate::widgets::table::HighlightSpacing;
 
+/// Highlight spacing configuration.
+mod highlight_spacing;
 /// List item definition.
 mod item;
 /// List rendering implementation.
@@ -23,16 +21,12 @@ mod state;
 ///
 /// A list is a collection of [`ListItem`]s.
 ///
-/// This is different from a [`Table`] because it does not handle columns, headers or footers and
-/// the item's height is automatically determined. A `List` can also be put in reverse order (i.e.
-/// *bottom to top*) whereas a [`Table`] cannot.
-///
-/// [`Table`]: crate::widgets::table::Table
+/// This widget does not handle columns, headers, or footers and the item's height is automatically
+/// determined. A `List` can also be put in reverse order (i.e. *bottom to top*).
 ///
 /// List items can be aligned using [`Text::alignment`], for more details see [`ListItem`].
 ///
-/// [`List`] is also a [`StatefulWidget`], which means you can use it with [`ListState`] to allow
-/// the user to [scroll] through items and [select] one of them.
+/// Use [`ListState`] to allow the user to [scroll] through items and [select] one of them.
 ///
 /// See the list in the [Examples] directory for a more in depth example of the various
 /// configuration options and for how to handle state.
@@ -134,7 +128,7 @@ pub struct List<'a> {
 /// If there are too few items to fill the screen, the list will stick to the starting edge.
 ///
 /// See [`List::direction`].
-#[derive(Debug, Default, Display, EnumString, Clone, Copy, Eq, PartialEq, Hash)]
+#[derive(Debug, Default, Clone, Copy, Eq, PartialEq, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum ListDirection {
 	/// The first value is on the top, going to the bottom
@@ -142,6 +136,27 @@ pub enum ListDirection {
 	TopToBottom,
 	/// The first value is on the bottom, going to the top.
 	BottomToTop,
+}
+
+impl std::fmt::Display for ListDirection {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		match self {
+			Self::TopToBottom => write!(f, "TopToBottom"),
+			Self::BottomToTop => write!(f, "BottomToTop"),
+		}
+	}
+}
+
+impl std::str::FromStr for ListDirection {
+	type Err = String;
+
+	fn from_str(s: &str) -> Result<Self, Self::Err> {
+		match s {
+			"TopToBottom" => Ok(Self::TopToBottom),
+			"BottomToTop" => Ok(Self::BottomToTop),
+			_ => Err(format!("unknown variant: {s}")),
+		}
+	}
 }
 
 impl<'a> List<'a> {

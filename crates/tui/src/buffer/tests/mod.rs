@@ -1,5 +1,3 @@
-use alloc::format;
-use alloc::string::ToString;
 use core::iter;
 use std::println;
 

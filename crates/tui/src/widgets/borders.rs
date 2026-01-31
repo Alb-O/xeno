@@ -1,8 +1,7 @@
 //! Border related types ([`Borders`], [`BorderType`]) and a macro to create borders ([`border`]).
-use alloc::fmt;
+use core::fmt;
 
 use bitflags::bitflags;
-use strum::{Display, EnumString};
 
 use crate::symbols::border;
 
@@ -33,7 +32,7 @@ impl Borders {
 ///
 /// See the [`borders`](crate::widgets::block::Block::borders) method of `Block` to configure its
 /// borders.
-#[derive(Debug, Default, Display, EnumString, Clone, Copy, Eq, PartialEq, Hash)]
+#[derive(Debug, Default, Clone, Copy, Eq, PartialEq, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum BorderType {
 	/// A plain, simple border.
@@ -205,6 +204,51 @@ impl BorderType {
 	}
 }
 
+impl fmt::Display for BorderType {
+	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+		match self {
+			Self::Plain => write!(f, "Plain"),
+			Self::Rounded => write!(f, "Rounded"),
+			Self::Double => write!(f, "Double"),
+			Self::Thick => write!(f, "Thick"),
+			Self::LightDoubleDashed => write!(f, "LightDoubleDashed"),
+			Self::HeavyDoubleDashed => write!(f, "HeavyDoubleDashed"),
+			Self::LightTripleDashed => write!(f, "LightTripleDashed"),
+			Self::HeavyTripleDashed => write!(f, "HeavyTripleDashed"),
+			Self::LightQuadrupleDashed => write!(f, "LightQuadrupleDashed"),
+			Self::HeavyQuadrupleDashed => write!(f, "HeavyQuadrupleDashed"),
+			Self::QuadrantInside => write!(f, "QuadrantInside"),
+			Self::QuadrantOutside => write!(f, "QuadrantOutside"),
+			Self::Padded => write!(f, "Padded"),
+			Self::Stripe => write!(f, "Stripe"),
+		}
+	}
+}
+
+impl std::str::FromStr for BorderType {
+	type Err = String;
+
+	fn from_str(s: &str) -> Result<Self, Self::Err> {
+		match s {
+			"Plain" => Ok(Self::Plain),
+			"Rounded" => Ok(Self::Rounded),
+			"Double" => Ok(Self::Double),
+			"Thick" => Ok(Self::Thick),
+			"LightDoubleDashed" => Ok(Self::LightDoubleDashed),
+			"HeavyDoubleDashed" => Ok(Self::HeavyDoubleDashed),
+			"LightTripleDashed" => Ok(Self::LightTripleDashed),
+			"HeavyTripleDashed" => Ok(Self::HeavyTripleDashed),
+			"LightQuadrupleDashed" => Ok(Self::LightQuadrupleDashed),
+			"HeavyQuadrupleDashed" => Ok(Self::HeavyQuadrupleDashed),
+			"QuadrantInside" => Ok(Self::QuadrantInside),
+			"QuadrantOutside" => Ok(Self::QuadrantOutside),
+			"Padded" => Ok(Self::Padded),
+			"Stripe" => Ok(Self::Stripe),
+			_ => Err(format!("unknown variant: {s}")),
+		}
+	}
+}
+
 impl fmt::Debug for Borders {
 	/// Display the Borders bitflags as a list of names.
 	///
@@ -282,8 +326,6 @@ macro_rules! border {
 
 #[cfg(test)]
 mod tests {
-	use alloc::format;
-
 	use super::*;
 
 	#[test]

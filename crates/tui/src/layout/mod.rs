@@ -6,12 +6,9 @@
 //! divide the terminal screen into different areas using constraints, manage positioning and
 //! sizing, and handle complex UI arrangements.
 //!
-//! The layout system in Ratatui is based on the Cassowary constraint solver algorithm, implemented
-//! through the [`kasuari`] crate. This allows for sophisticated constraint-based layouts where
-//! multiple requirements can be satisfied simultaneously, with priorities determining which
-//! constraints take precedence when conflicts arise.
-//!
-//! [`kasuari`]: https://crates.io/crates/kasuari
+//! The layout system uses a deterministic three-pass algorithm that allocates space in priority
+//! order: `Length` (exact), `Percentage` (proportional), then `Min` (remainder). This provides
+//! predictable, cache-free layout results.
 //!
 //! # Core Concepts
 //!
@@ -33,9 +30,8 @@
 //!
 //! Layouts form the structural foundation of your terminal UI. The [`Layout`] struct divides
 //! available screen space into rectangular areas using a constraint-based approach. You define
-//! multiple constraints for how space should be allocated, and the Cassowary solver determines
-//! the optimal layout that satisfies as many constraints as possible. These areas can then be
-//! used to render widgets or nested layouts.
+//! multiple constraints for how space should be allocated, and the solver determines the layout
+//! deterministically. These areas can then be used to render widgets or nested layouts.
 //!
 //! Note that the [`Layout`] struct is not required to create layouts - you can also manually
 //! calculate and create [`Rect`] areas using simple mathematics to divide up the terminal space
@@ -53,9 +49,8 @@
 //!
 //! - [`Layout`] - The primary layout engine that divides space using constraints and direction
 //! - [`Rect`] - Represents a rectangular area with position and dimensions
-//! - [`Constraint`] - Defines how space should be allocated (length, percentage, ratio, etc.)
+//! - [`Constraint`] - Defines how space should be allocated (length, percentage, min)
 //! - [`Direction`] - Specifies layout orientation (horizontal or vertical)
-//! - [`Flex`] - Controls space distribution when constraints are satisfied
 //!
 //! ## Positioning and Sizing
 //!
@@ -63,7 +58,6 @@
 //! - [`Size`] - Represents dimensions (width and height)
 //! - [`Margin`] - Defines spacing around rectangular areas
 //! - [`Offset`] - Represents relative movement in the coordinate system
-//! - [`Spacing`] - Controls spacing or overlap between layout segments
 //!
 //! ## Alignment
 //!
@@ -102,7 +96,7 @@
 //! let area = Rect::new(0, 0, 80, 24);
 //! let [header, content, footer] = Layout::vertical([
 //!     Constraint::Length(3),
-//!     Constraint::Fill(1),
+//!     Constraint::Min(1),
 //!     Constraint::Length(1),
 //! ])
 //! .areas(area);
@@ -138,7 +132,7 @@
 //! let area = Rect::new(0, 0, 80, 24);
 //! let [header, content, footer] = Layout::vertical([
 //!     Constraint::Length(3), // Header: fixed height
-//!     Constraint::Fill(1),   // Content: flexible
+//!     Constraint::Min(1),   // Content: flexible
 //!     Constraint::Length(1), // Footer: fixed height
 //! ])
 //! .areas(area);
@@ -152,7 +146,7 @@
 //! let area = Rect::new(0, 0, 80, 24);
 //! let [sidebar, main] = Layout::horizontal([
 //!     Constraint::Length(20), // Sidebar: fixed width
-//!     Constraint::Fill(1),    // Main content: flexible
+//!     Constraint::Min(1),    // Main content: flexible
 //! ])
 //! .areas(area);
 //! ```
@@ -166,7 +160,7 @@
 //!     // First, split vertically
 //!     let [header, body, footer] = Layout::vertical([
 //!         Constraint::Length(3), // Header
-//!         Constraint::Fill(1),   // Body
+//!         Constraint::Min(1),   // Body
 //!         Constraint::Length(1), // Footer
 //!     ])
 //!     .areas(area);
@@ -174,7 +168,7 @@
 //!     // Then split the body horizontally
 //!     let [sidebar, main] = Layout::horizontal([
 //!         Constraint::Length(20), // Sidebar
-//!         Constraint::Fill(1),    // Main
+//!         Constraint::Min(1),    // Main
 //!     ])
 //!     .areas(body);
 //!
@@ -184,34 +178,12 @@
 //!
 //! # Working with Constraints
 //!
-//! [`Constraint`]s define how space is allocated within a layout using the Cassowary constraint
-//! solver algorithm. The constraint solver attempts to satisfy all constraints simultaneously,
-//! with priorities determining which constraints take precedence when conflicts arise. Different
-//! constraint types serve different purposes:
+//! [`Constraint`]s define how space is allocated within a layout. The deterministic solver
+//! allocates space in priority passes. Different constraint types serve different purposes:
 //!
-//! - [`Constraint::Min`] - Minimum size constraint
-//! - [`Constraint::Max`] - Maximum size constraint
-//! - [`Constraint::Length`] - Fixed size in character cells
-//! - [`Constraint::Percentage`] - Relative size as a percentage of available space
-//! - [`Constraint::Ratio`] - Proportional size using ratios
-//! - [`Constraint::Fill`] - Proportional fill of remaining space
-//!
-//! Constraints are resolved in priority order, with [`Constraint::Min`] having the highest
-//! priority and [`Constraint::Fill`] having the lowest. The constraint solver will satisfy as
-//! many constraints as possible while respecting these priorities.
-//!
-//! # Flexible Space Distribution
-//!
-//! The [`Flex`] enum controls how extra space is distributed when constraints are satisfied:
-//!
-//! - [`Flex::Start`] - Align content to the start, leaving excess space at the end
-//! - [`Flex::End`] - Align content to the end, leaving excess space at the start
-//! - [`Flex::Center`] - Center content, distributing excess space equally on both sides
-//! - [`Flex::SpaceBetween`] - Distribute excess space evenly *between* elements, none at the ends
-//! - [`Flex::SpaceAround`] - Distribute space *around* elements: equal padding on both sides of
-//!   each element; gaps between elements are twice the edge spacing
-//! - [`Flex::SpaceEvenly`] - Distribute space *evenly*: equal spacing between all elements,
-//!   including before the first and after the last.
+//! - [`Constraint::Length`] - Fixed size in character cells (allocated first)
+//! - [`Constraint::Percentage`] - Relative size as a percentage of total space (allocated second)
+//! - [`Constraint::Min`] - Minimum size, receives remaining space (allocated last)
 //!
 //! # Positioning and Alignment
 //!
@@ -231,16 +203,12 @@
 //!
 //! # Advanced Features
 //!
-//! ## Margins and Spacing
+//! ## Margins
 //!
-//! Add spacing around areas using uniform margins or between layout segments using [`Spacing`]:
+//! Add spacing around areas using margins:
 //!
 //! ```rust
-//! use xeno_tui::layout::{Constraint, Layout, Margin, Rect, Spacing};
-//!
-//! let layout = Layout::vertical([Constraint::Fill(1), Constraint::Fill(1)])
-//!     .margin(2) // 2-cell margin on all sides
-//!     .spacing(Spacing::Space(1)); // 1-cell spacing between segments
+//! use xeno_tui::layout::{Margin, Rect};
 //!
 //! // For asymmetric margins, use the Rect inner method directly
 //! let area = Rect::new(0, 0, 80, 24).inner(Margin::new(2, 1));
@@ -276,25 +244,15 @@
 //!     buffer[pos].set_symbol(&format!("{}", i % 10));
 //! }
 //! ```
-//!
-//! # Performance Considerations
-//!
-//! The layout system includes optional caching to improve performance for repeated layout
-//! calculations. Layout caching is enabled by default in the main `xeno_tui` crate, but requires
-//! explicitly enabling the `layout-cache` feature when using `xeno-tui` directly. When
-//! enabled, layout results are cached based on the area and layout configuration.
-//!
 
 /// Horizontal and vertical alignment types for positioning content within areas.
 mod alignment;
-/// Size constraints for layout calculations (length, percentage, ratio, fill, min, max).
+/// Size constraints for layout calculations (length, percentage, min).
 mod constraint;
 /// Layout direction (horizontal or vertical).
 mod direction;
 /// Core layout engine that divides space using constraints.
 mod engine;
-/// Flex behavior for distributing extra space in layouts.
-mod flex;
 /// Margin definitions for spacing around rectangular areas.
 mod margin;
 /// Offset type for relative positioning.
@@ -305,19 +263,13 @@ mod position;
 mod rect;
 /// Size type representing width and height dimensions.
 mod size;
-/// Constraint solver internals using the Cassowary algorithm.
-mod solver;
-/// Spacing configuration between layout segments.
-mod spacing;
 
 pub use alignment::{HorizontalAlignment, VerticalAlignment};
 pub use constraint::Constraint;
 pub use direction::Direction;
 pub use engine::Layout;
-pub use flex::Flex;
 pub use margin::Margin;
 pub use offset::Offset;
 pub use position::Position;
 pub use rect::{Columns, Positions, Rect, Rows};
 pub use size::Size;
-pub use spacing::Spacing;

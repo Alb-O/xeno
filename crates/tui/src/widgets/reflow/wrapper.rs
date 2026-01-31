@@ -1,8 +1,6 @@
 //! Word wrapping line composer.
-use alloc::collections::VecDeque;
-use alloc::vec;
-use alloc::vec::Vec;
 use core::mem;
+use std::collections::VecDeque;
 
 use super::{LineComposer, WrappedLine};
 use crate::layout::HorizontalAlignment;

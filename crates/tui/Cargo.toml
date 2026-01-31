@@ -10,54 +10,23 @@ license.workspace = true
 path = "src/lib.rs"
 
 [features]
-default = [
-    "crossterm",
-    "crossterm_0_29",
-    "underline-color",
-    "macros",
-    "layout-cache",
-    "scrolling-regions",
-    "std",
-]
-crossterm = ["std"]
-crossterm_0_29 = []
-crossterm_0_28 = []
-std = [
-    "itertools/use_std",
-    "thiserror/std",
-    "kasuari/std",
-    "compact_str/std",
-    "unicode-truncate/std",
-    "strum/std",
-]
+default = ["underline-color", "macros", "scrolling-regions"]
 underline-color = []
 macros = []
-layout-cache = ["std"]
-palette = ["std", "dep:palette"]
-serde = ["std", "dep:serde", "bitflags/serde", "compact_str/serde"]
+palette = ["dep:palette"]
+serde = ["dep:serde", "bitflags/serde", "compact_str/serde"]
 scrolling-regions = []
-portable-atomic = ["kasuari/portable-atomic"]
-unstable = ["unstable-rendered-line-info"]
-unstable-rendered-line-info = []
 
 [dependencies]
 anstyle = { version = "1", optional = true }
 bitflags = "2.10"
-compact_str = { version = "0.9", default-features = false }
-crossterm = "0.29"
-hashbrown = "0.16"
-instability = "0.3"
-itertools = { version = "0.14", default-features = false, features = ["use_alloc"] }
-kasuari = { version = "0.4", default-features = false }
+compact_str = "0.9"
 
-lru = "0.16"
 palette = { version = "0.7", optional = true }
 serde = { version = "1", optional = true, features = ["derive"] }
-strum = { version = "0.27", default-features = false, features = ["derive"] }
-thiserror = { version = "2.0", default-features = false }
 
 unicode-segmentation = "1"
-unicode-truncate = { version = "2", default-features = false }
+unicode-truncate = "2"
 unicode-width = ">=0.2.0, <=0.2.2"
 vt100 = "0.16"
 

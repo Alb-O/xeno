@@ -1,7 +1,3 @@
-use alloc::string::ToString;
-use alloc::vec;
-use alloc::vec::Vec;
-
 use pretty_assertions::assert_eq;
 use rstest::rstest;
 
@@ -243,7 +239,7 @@ fn split() {
 }
 
 #[test]
-#[should_panic(expected = "invalid number of rects")]
+#[should_panic(expected = "expected 3 rects, got 2")]
 fn split_invalid_number_of_recs() {
 	let layout = Layout::horizontal([Constraint::Percentage(50), Constraint::Percentage(50)]);
 	let [_a, _b, _c] = layout.areas(Rect::new(0, 0, 2, 1));

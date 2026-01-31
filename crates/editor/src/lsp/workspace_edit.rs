@@ -15,7 +15,6 @@ use xeno_primitives::{EditOrigin, SyntaxPolicy, Transaction, UndoPolicy};
 
 use crate::buffer::{ApplyPolicy, ViewId};
 use crate::impls::{Editor, EditorUndoGroup};
-use crate::types::UndoHost;
 
 /// A validated, ready-to-apply workspace edit plan.
 pub struct WorkspaceEditPlan {

@@ -1,5 +1,3 @@
-use alloc::format;
-
 use rstest::rstest;
 
 use super::*;

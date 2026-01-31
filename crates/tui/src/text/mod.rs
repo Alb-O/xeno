@@ -50,11 +50,8 @@
 
 #![warn(missing_docs)]
 
-use alloc::borrow::{Cow, ToOwned};
-use alloc::string::{String, ToString};
-use alloc::vec;
-use alloc::vec::Vec;
 use core::fmt;
+use std::borrow::Cow;
 
 use unicode_width::UnicodeWidthStr;
 
@@ -253,7 +250,7 @@ impl UnicodeWidthStr for Text<'_> {
 
 impl<'a> IntoIterator for Text<'a> {
 	type Item = Line<'a>;
-	type IntoIter = alloc::vec::IntoIter<Self::Item>;
+	type IntoIter = std::vec::IntoIter<Self::Item>;
 
 	fn into_iter(self) -> Self::IntoIter {
 		self.lines.into_iter()

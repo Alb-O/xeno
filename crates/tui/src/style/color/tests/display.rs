@@ -1,7 +1,5 @@
 //! Tests for Color Display implementation.
 
-use alloc::format;
-
 use super::*;
 
 #[test]

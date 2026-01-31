@@ -3,8 +3,7 @@
 //! This module provides a simple widget for rendering single-character icons
 //! (typically nerd font glyphs) with styling support.
 
-use alloc::borrow::Cow;
-use alloc::string::ToString;
+use std::borrow::Cow;
 
 use unicode_width::UnicodeWidthStr;
 

@@ -1,5 +1,3 @@
-use strum::{Display, EnumString};
-
 /// Horizontal content alignment within a layout area.
 ///
 /// This type is used throughout Ratatui to control how content is positioned horizontally within
@@ -7,7 +5,7 @@ use strum::{Display, EnumString};
 /// used in layout calculations.
 ///
 /// For comprehensive layout documentation and examples, see the [`layout`](crate::layout) module.
-#[derive(Debug, Default, Display, EnumString, Clone, Copy, Eq, PartialEq, Hash)]
+#[derive(Debug, Default, Clone, Copy, Eq, PartialEq, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum HorizontalAlignment {
 	/// Content is aligned to the left side of the area.
@@ -25,7 +23,7 @@ pub enum HorizontalAlignment {
 /// It complements [`HorizontalAlignment`] to provide full 2D positioning control.
 ///
 /// For comprehensive layout documentation and examples, see the [`layout`](crate::layout) module.
-#[derive(Debug, Default, Display, EnumString, Clone, Copy, Eq, PartialEq, Hash)]
+#[derive(Debug, Default, Clone, Copy, Eq, PartialEq, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum VerticalAlignment {
 	/// Content is aligned to the top of the area.
@@ -37,12 +35,54 @@ pub enum VerticalAlignment {
 	Bottom,
 }
 
+impl std::fmt::Display for HorizontalAlignment {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		match self {
+			Self::Left => write!(f, "Left"),
+			Self::Center => write!(f, "Center"),
+			Self::Right => write!(f, "Right"),
+		}
+	}
+}
+
+impl std::str::FromStr for HorizontalAlignment {
+	type Err = String;
+
+	fn from_str(s: &str) -> Result<Self, Self::Err> {
+		match s {
+			"Left" => Ok(Self::Left),
+			"Center" => Ok(Self::Center),
+			"Right" => Ok(Self::Right),
+			_ => Err(format!("unknown variant: {s}")),
+		}
+	}
+}
+
+impl std::fmt::Display for VerticalAlignment {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		match self {
+			Self::Top => write!(f, "Top"),
+			Self::Center => write!(f, "Center"),
+			Self::Bottom => write!(f, "Bottom"),
+		}
+	}
+}
+
+impl std::str::FromStr for VerticalAlignment {
+	type Err = String;
+
+	fn from_str(s: &str) -> Result<Self, Self::Err> {
+		match s {
+			"Top" => Ok(Self::Top),
+			"Center" => Ok(Self::Center),
+			"Bottom" => Ok(Self::Bottom),
+			_ => Err(format!("unknown variant: {s}")),
+		}
+	}
+}
+
 #[cfg(test)]
 mod tests {
-	use alloc::string::ToString;
-
-	use strum::ParseError;
-
 	use super::*;
 
 	#[test]
@@ -66,10 +106,7 @@ mod tests {
 			"Right".parse::<HorizontalAlignment>(),
 			Ok(HorizontalAlignment::Right)
 		);
-		assert_eq!(
-			"".parse::<HorizontalAlignment>(),
-			Err(ParseError::VariantNotFound)
-		);
+		assert!("".parse::<HorizontalAlignment>().is_err());
 	}
 
 	#[test]
@@ -91,6 +128,6 @@ mod tests {
 		assert_eq!(bottom, Ok(VerticalAlignment::Bottom));
 
 		let invalid = "".parse::<VerticalAlignment>();
-		assert_eq!(invalid, Err(ParseError::VariantNotFound));
+		assert!(invalid.is_err());
 	}
 }

@@ -1,6 +1,3 @@
-use alloc::format;
-
-use itertools::Itertools;
 use rstest::rstest;
 
 use super::*;
@@ -122,7 +119,10 @@ fn temporary_string_styled() {
 	// format!() is used to create a temporary String inside a closure, which suffers the same
 	// issue as above without the `Styled` trait impl for `String`
 	let items = [String::from("a"), String::from("b")];
-	let sss = items.iter().map(|s| format!("{s}{s}").red()).collect_vec();
+	let sss = items
+		.iter()
+		.map(|s| format!("{s}{s}").red())
+		.collect::<Vec<_>>();
 	assert_eq!(sss, [Span::from("aa").red(), Span::from("bb").red()]);
 }
 

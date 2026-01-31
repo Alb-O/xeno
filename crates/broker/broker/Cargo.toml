@@ -12,7 +12,7 @@ tokio-util = { workspace = true, features = ["rt"] }
 tower-service.workspace = true
 tracing.workspace = true
 xeno-broker-proto = { path = "../broker-proto" }
-xeno-lsp = { path = "../../lsp" }
+xeno-lsp = { path = "../../lsp", features = ["client", "position"] }
 xeno-rpc.workspace = true
 
 [dev-dependencies]

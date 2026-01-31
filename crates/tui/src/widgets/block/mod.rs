@@ -5,11 +5,6 @@
 //! In its simplest form, a `Block` is a [border](Borders) around another widget. It can have a
 //! [title](Block::title) and [padding](Block::padding).
 
-use alloc::vec::Vec;
-
-use itertools::Itertools;
-use strum::{Display, EnumString};
-
 pub use self::padding::Padding;
 use crate::buffer::Buffer;
 use crate::layout::{HorizontalAlignment, Rect};
@@ -72,13 +67,34 @@ pub struct Block<'a> {
 }
 
 /// Title position (top or bottom of block).
-#[derive(Debug, Default, Display, EnumString, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum TitlePosition {
 	/// Position the title at the top of the block.
 	#[default]
 	Top,
 	/// Position the title at the bottom of the block.
 	Bottom,
+}
+
+impl std::fmt::Display for TitlePosition {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		match self {
+			Self::Top => write!(f, "Top"),
+			Self::Bottom => write!(f, "Bottom"),
+		}
+	}
+}
+
+impl std::str::FromStr for TitlePosition {
+	type Err = String;
+
+	fn from_str(s: &str) -> Result<Self, Self::Err> {
+		match s {
+			"Top" => Ok(Self::Top),
+			"Bottom" => Ok(Self::Bottom),
+			_ => Err(format!("unknown variant: {s}")),
+		}
+	}
 }
 
 impl<'a> Block<'a> {
@@ -417,7 +433,7 @@ impl Block<'_> {
 		let area = self.titles_area(area, position);
 		let titles = self
 			.filtered_titles(position, HorizontalAlignment::Center)
-			.collect_vec();
+			.collect::<Vec<_>>();
 		// titles are rendered with a space after each title except the last one
 		let total_width = titles
 			.iter()

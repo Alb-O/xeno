@@ -1,28 +1,4 @@
-//! `xeno-tui` provides easy-to-use macros for simplifying boilerplate
-//! associated with creating UI using [Ratatui].
-//!
-//! This is an experimental playground for us to explore macros that would be useful to have in
-//! Ratatui proper.
-//!
-//! # Features
-//!
-//! - [Text macros](#text-macros) for easily defining styled [`Text`]s, [`Line`]s, and [`Span`]s.
-//! - [Layout macros](#layout-macros) for defining [`Layout`]s with [`Constraint`]s and directions.
-//! - [Table macros](#table-macros) for creating [`Row`]s and [`Cell`]s.
-//!
-//! # Getting Started
-//!
-//! Add `xeno-tui` as a dependency in your `Cargo.toml`:
-//!
-//! ```shell
-//! cargo add xeno-tui
-//! ```
-//!
-//! Then, import the macros in your Rust file:
-//!
-//! ```rust
-//! use xeno_tui::{constraint, constraints, horizontal, line, row, span, text, vertical};
-//! ```
+//! Macros for simplifying boilerplate when creating UI elements.
 //!
 //! # Text Macros
 //!
@@ -38,8 +14,7 @@
 //! let modified_greeting = span!(Modifier::BOLD; "hello {name}");
 //! ```
 //!
-//! The `line!` macro creates a [`Line`] that contains a sequence of [`Span`]s. It is similar to
-//! the `vec!` macro. Each element is converted into a [`Span`] using [`Into::into`].
+//! The `line!` macro creates a [`Line`] that contains a sequence of [`Span`]s.
 //!
 //! ```rust
 //! # use xeno_tui::style::{Color, Stylize};
@@ -51,8 +26,7 @@
 //! let line = line!["bye"; 2];
 //! ```
 //!
-//! The `text!` macro creates a [`Text`] that contains a sequence of [`Line`]. It is similar to
-//! the `vec!` macro. Each element is converted to a [`Line`] using [`Into::into`].
+//! The `text!` macro creates a [`Text`] that contains a sequence of [`Line`].
 //!
 //! ```rust
 //! # use xeno_tui::style::{Modifier, Stylize};
@@ -66,15 +40,12 @@
 //!
 //! # Layout Macros
 //!
-//! If you are new to Ratatui, check out the [Layout concepts] article on the Ratatui website before
-//! proceeding.
-//!
 //! The `constraints!` macro defines an array of [`Constraint`]s:
 //!
 //! ```rust
 //! # use xeno_tui::layout::Layout;
 //! # use xeno_tui::constraints;
-//! let layout = Layout::horizontal(constraints![==50, ==30%, >=3, <=1, ==1/2, *=1]);
+//! let layout = Layout::horizontal(constraints![==50, ==30%, >=3]);
 //! ```
 //!
 //! The `constraint!` macro defines individual [`Constraint`]s:
@@ -91,77 +62,20 @@
 //! # use xeno_tui::layout::Rect;
 //! # use xeno_tui::{vertical, horizontal};
 //! # let area = Rect { x: 0, y: 0, width: 10, height: 10 };
-//! let [top, main, bottom] = vertical![==1, *=1, >=3].areas(area);
-//! let [left, main, right] = horizontal![>=20, *=1, >=20].areas(main);
+//! let [top, main, bottom] = vertical![==1, >=1, >=3].areas(area);
+//! let [left, main, right] = horizontal![==2, >=1, ==2].areas(main);
 //! ```
 //!
-//! # Table Macros
-//!
-//! The `row!` macro creates a [`Row`] for a [`Table`] that contains a sequence of [`Cell`]s. It
-//! is similar to the `vec!` macro.
-//!
-//! ```rust
-//! # use xeno_tui::style::{Modifier, Stylize};
-//! # use xeno_tui::{constraints, line, row, span, text};
-//! # use xeno_tui::widgets::table::Table;
-//! let rows = [
-//!     row!["hello", "world"],
-//!     row!["goodbye", "world"],
-//!     row![
-//!         text!["line 1", line!["Line", "2".bold()]],
-//!         span!(Modifier::BOLD; "Cell 2"),
-//!     ],
-//! ];
-//! let table = Table::new(rows, constraints![==20, *=1]);
-//! ```
-//!
-//! # Contributing
-//!
-//! Contributions to `xeno-tui` are welcome! Whether it's submitting a bug report, a feature
-//! request, or a pull request, all forms of contributions are valued and appreciated.
-//!
-//! # Crate Organization
-//!
-//! `xeno-tui` is part of the Ratatui workspace that was modularized in version 0.30.0.
-//! This crate provides declarative macros to reduce boilerplate when working with
-//! Ratatui.
-//!
-//! **When to use `xeno-tui`:**
-//!
-//! - You want to reduce boilerplate when creating styled text, layouts, or tables
-//! - You prefer macro-based syntax for creating UI elements
-//! - You need compile-time generation of repetitive UI code
-//!
-//! **When to use the main [`xeno_tui`] crate:**
-//!
-//! - Building applications (recommended - includes macros when the `macros` feature is enabled)
-//! - You want the convenience of having everything available
-//!
-//! For detailed information about the workspace organization, see [ARCHITECTURE.md].
-//!
-//!
-//! [Crates.io badge]: https://img.shields.io/crates/v/xeno-tui?logo=rust&style=flat-square
-//! [License badge]: https://img.shields.io/crates/l/xeno-tui
-//! [CI Badge]:
-//! [Docs.rs badge]: https://img.shields.io/docsrs/xeno-tui?logo=rust&style=flat-square
-//! [Crate Downloads badge]:
-//!     https://img.shields.io/crates/d/xeno-tui?logo=rust&style=flat-square
-//! [API Docs]: https://docs.rs/xeno-tui
 //! [`Constraint`]: crate::layout::Constraint
 //! [`Layout`]: crate::layout::Layout
 //! [`Span`]: crate::text::Span
 //! [`Line`]: crate::text::Line
 //! [`Text`]: crate::text::Text
-//! [`Row`]: crate::widgets::table::Row
-//! [`Cell`]: crate::widgets::table::Cell
-//! [`Table`]: crate::widgets::table::Table
 
 /// Layout constraint construction macros.
 mod layout;
 /// Line construction macros.
 mod line;
-/// Table row construction macros.
-mod row;
 /// Span construction macros.
 mod span;
 #[cfg(test)]

@@ -1,22 +1,39 @@
 //! This module contains conversion functions for styles from the `anstyle` crate.
 use anstyle::{Ansi256Color, AnsiColor, Effects, RgbColor};
-use thiserror::Error;
 
 use super::{Color, Modifier, Style};
 
 /// Error type for converting between `anstyle` colors and `Color`
-#[derive(Debug, Error, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum TryFromColorError {
 	/// Color cannot be converted to an indexed Ansi256 color.
-	#[error("cannot convert Ratatui Color to an Ansi256Color as it is not an indexed color")]
 	Ansi256,
 	/// Color cannot be converted to a 4-bit ANSI color.
-	#[error("cannot convert Ratatui Color to AnsiColor as it is not a 4-bit color")]
 	Ansi,
 	/// Color cannot be converted to an RGB color.
-	#[error("cannot convert Ratatui Color to RgbColor as it is not an RGB color")]
 	RgbColor,
 }
+
+impl std::fmt::Display for TryFromColorError {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		match self {
+			Self::Ansi256 => write!(
+				f,
+				"cannot convert Ratatui Color to an Ansi256Color as it is not an indexed color"
+			),
+			Self::Ansi => write!(
+				f,
+				"cannot convert Ratatui Color to AnsiColor as it is not a 4-bit color"
+			),
+			Self::RgbColor => write!(
+				f,
+				"cannot convert Ratatui Color to RgbColor as it is not an RGB color"
+			),
+		}
+	}
+}
+
+impl std::error::Error for TryFromColorError {}
 
 impl From<Ansi256Color> for Color {
 	fn from(color: Ansi256Color) -> Self {

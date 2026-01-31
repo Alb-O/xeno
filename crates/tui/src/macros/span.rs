@@ -91,29 +91,29 @@
 /// [`Color`]: crate::style::Color
 /// [`Span`]: crate::text::Span
 /// [`Style`]: crate::style::Style
-/// [`format!`]: alloc::format!
+/// [`format!`]: std::format!
 #[macro_export]
 macro_rules! span {
     ($string:literal) => {
-        $crate::text::Span::raw($crate::format!($string))
+        $crate::text::Span::raw(::std::format!($string))
     };
     ($string:literal, $($arg:tt)*) => {
-        $crate::text::Span::raw($crate::format!($string, $($arg)*))
+        $crate::text::Span::raw(::std::format!($string, $($arg)*))
     };
     ($expr:expr) => {
-        $crate::text::Span::raw($crate::format!("{}", $expr))
+        $crate::text::Span::raw(::std::format!("{}", $expr))
     };
     ($style:expr, $($arg:tt)*) => {
         compile_error!("first parameter must be a formatting specifier followed by a comma OR a `Style` followed by a semicolon")
     };
     ($style:expr; $string:literal) => {
-        $crate::text::Span::styled($crate::format!($string), $style)
+        $crate::text::Span::styled(::std::format!($string), $style)
     };
     ($style:expr; $string:literal, $($arg:tt)*) => {
-        $crate::text::Span::styled($crate::format!($string, $($arg)*), $style)
+        $crate::text::Span::styled(::std::format!($string, $($arg)*), $style)
     };
     ($style:expr; $expr:expr) => {
-        $crate::text::Span::styled($crate::format!("{}", $expr), $style)
+        $crate::text::Span::styled(::std::format!("{}", $expr), $style)
     };
 }
 

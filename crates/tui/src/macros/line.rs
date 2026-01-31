@@ -33,17 +33,17 @@
 /// [`span!`]: crate::span
 /// [`Line`]: crate::text::Line
 /// [`Span`]: crate::text::Span
-/// [`vec!`]: alloc::vec!
+/// [`vec!`]: std::vec!
 #[macro_export]
 macro_rules! line {
     () => {
         $crate::text::Line::default()
     };
     ($span:expr; $n:expr) => {
-      $crate::text::Line::from($crate::vec![$span.into(); $n])
+      $crate::text::Line::from(::std::vec![$span.into(); $n])
     };
     ($($span:expr),+ $(,)?) => {{
-        $crate::text::Line::from($crate::vec![
+        $crate::text::Line::from(::std::vec![
         $(
             $span.into(),
         )+
@@ -53,8 +53,6 @@ macro_rules! line {
 
 #[cfg(test)]
 mod tests {
-	use alloc::vec;
-
 	use crate::text::{Line, Span};
 
 	#[test]

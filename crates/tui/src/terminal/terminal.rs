@@ -47,15 +47,10 @@ where
 	B: Backend,
 {
 	fn drop(&mut self) {
-		if self.hidden_cursor {
-			#[allow(
-				unused_variables,
-				reason = "err only used with std feature for error reporting"
-			)]
-			if let Err(err) = self.show_cursor() {
-				#[cfg(feature = "std")]
-				std::eprintln!("Failed to show the cursor: {err}");
-			}
+		if self.hidden_cursor
+			&& let Err(err) = self.show_cursor()
+		{
+			eprintln!("Failed to show the cursor: {err}");
 		}
 	}
 }

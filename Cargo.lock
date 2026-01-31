@@ -417,41 +417,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "darling"
-version = "0.20.11"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fc7f46116c46ff9ab3eb1597a45688b6715c6e628b5c133e288e709a29bcb4ee"
-dependencies = [
- "darling_core",
- "darling_macro",
-]
-
-[[package]]
-name = "darling_core"
-version = "0.20.11"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0d00b9596d185e565c2207a0b01f8bd1a135483d02d9b7b0a54b11da8d53412e"
-dependencies = [
- "fnv",
- "ident_case",
- "proc-macro2",
- "quote",
- "strsim",
- "syn 2.0.114",
-]
-
-[[package]]
-name = "darling_macro"
-version = "0.20.11"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fc34b93ccb385b40dc71c6fceac4b2ad23662c7eeb248cf10d529b7e055b6ead"
-dependencies = [
- "darling_core",
- "quote",
- "syn 2.0.114",
-]
-
-[[package]]
 name = "dashmap"
 version = "6.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -672,12 +637,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d9c4f5dac5e15c24eb999c26181a6ca40b39fe946cbe4c263c7209467bc83af2"
 
 [[package]]
-name = "foldhash"
-version = "0.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "77ce24cb58228fbb8aa041425bb1050850ac19177686ea6e0f41a70416f56fdb"
-
-[[package]]
 name = "form_urlencoded"
 version = "1.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -828,7 +787,7 @@ checksum = "9229cfe53dfd69f0609a49f65461bd93001ea1ef889cd5529dd176593f5338a1"
 dependencies = [
  "allocator-api2",
  "equivalent",
- "foldhash 0.1.5",
+ "foldhash",
 ]
 
 [[package]]
@@ -836,11 +795,6 @@ name = "hashbrown"
 version = "0.16.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "841d1cc9bed7f9236f321df977030373f4a4163ae1a7dbfe1a51a2c1a51d9100"
-dependencies = [
- "allocator-api2",
- "equivalent",
- "foldhash 0.2.0",
-]
 
 [[package]]
 name = "heck"
@@ -936,12 +890,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "ident_case"
-version = "1.0.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b9e0384b61958566e926dc50660321d12159025e767c18e043daf26b70104c39"
-
-[[package]]
 name = "idna"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1021,19 +969,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "instability"
-version = "0.3.10"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6778b0196eefee7df739db78758e5cf9b37412268bfa5650bfeed028aed20d9c"
-dependencies = [
- "darling",
- "indoc",
- "proc-macro2",
- "quote",
- "syn 2.0.114",
-]
-
-[[package]]
 name = "inventory"
 version = "0.3.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1058,15 +993,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "itertools"
-version = "0.14.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2b192c782037fadd9cfa75548310488aabdbf3d2da73885b31bd0abd03351285"
-dependencies = [
- "either",
-]
-
-[[package]]
 name = "itoa"
 version = "1.0.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1080,18 +1006,6 @@ checksum = "464a3709c7f55f1f721e5389aa6ea4e3bc6aba669353300af094b29ffbdde1d8"
 dependencies = [
  "once_cell",
  "wasm-bindgen",
-]
-
-[[package]]
-name = "kasuari"
-version = "0.4.11"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8fe90c1150662e858c7d5f945089b7517b0a80d8bf7ba4b1b5ffc984e7230a5b"
-dependencies = [
- "hashbrown 0.16.1",
- "portable-atomic",
- "portable-atomic-util",
- "thiserror 2.0.17",
 ]
 
 [[package]]
@@ -1246,15 +1160,6 @@ name = "log"
 version = "0.4.29"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5e5032e24019045c762d3c0f28f5b6b8bbf38563a65908389bf7978758920897"
-
-[[package]]
-name = "lru"
-version = "0.16.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "96051b46fc183dc9cd4a223960ef37b9af631b55191852a8274bfef064cda20f"
-dependencies = [
- "hashbrown 0.16.1",
-]
 
 [[package]]
 name = "lsp-types"
@@ -1691,21 +1596,6 @@ name = "pin-utils"
 version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8b870d8c151b6f2fb93e84a13146138f05d02ed11c7e7c54f8826aaaf7c9f184"
-
-[[package]]
-name = "portable-atomic"
-version = "1.13.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f89776e4d69bb58bc6993e99ffa1d11f228b839984854c7daeb5d37f87cbe950"
-
-[[package]]
-name = "portable-atomic-util"
-version = "0.2.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d8a2f0d8d040d7848a709caf78912debcc3f33ee4b3cac47d73d1e1069e83507"
-dependencies = [
- "portable-atomic",
-]
 
 [[package]]
 name = "postcard"
@@ -2276,9 +2166,6 @@ name = "strum"
 version = "0.27.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "af23d6f6c1a224baef9d3f61e287d2761385a5b88fdab4eb4c6f11aeb54c4bcf"
-dependencies = [
- "strum_macros",
-]
 
 [[package]]
 name = "strum_macros"
@@ -2725,7 +2612,7 @@ version = "2.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8fbf03860ff438702f3910ca5f28f8dac63c1c11e7efb5012b8b175493606330"
 dependencies = [
- "itertools 0.13.0",
+ "itertools",
  "unicode-segmentation",
  "unicode-width 0.2.2",
 ]
@@ -3223,7 +3110,7 @@ checksum = "9edde0db4769d2dc68579893f2306b26c6ecfbe0ef499b013d731b7b9247e0b9"
 
 [[package]]
 name = "xeno-broker"
-version = "0.7.1"
+version = "0.7.2"
 dependencies = [
  "postcard",
  "serde_json",
@@ -3238,7 +3125,7 @@ dependencies = [
 
 [[package]]
 name = "xeno-broker-bin"
-version = "0.7.1"
+version = "0.7.2"
 dependencies = [
  "clap",
  "tokio",
@@ -3251,7 +3138,7 @@ dependencies = [
 
 [[package]]
 name = "xeno-broker-proto"
-version = "0.7.1"
+version = "0.7.2"
 dependencies = [
  "dirs",
  "postcard",
@@ -3262,7 +3149,7 @@ dependencies = [
 
 [[package]]
 name = "xeno-editor"
-version = "0.7.1"
+version = "0.7.2"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -3304,7 +3191,7 @@ dependencies = [
 
 [[package]]
 name = "xeno-keymap-core"
-version = "0.7.1"
+version = "0.7.2"
 dependencies = [
  "kdl",
  "serde",
@@ -3316,7 +3203,7 @@ dependencies = [
 
 [[package]]
 name = "xeno-keymap-derive"
-version = "0.7.1"
+version = "0.7.2"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -3326,7 +3213,7 @@ dependencies = [
 
 [[package]]
 name = "xeno-keymap-parser"
-version = "0.7.1"
+version = "0.7.2"
 dependencies = [
  "serde",
  "strum",
@@ -3336,7 +3223,7 @@ dependencies = [
 
 [[package]]
 name = "xeno-lsp"
-version = "0.7.1"
+version = "0.7.2"
 dependencies = [
  "async-trait",
  "lsp-types",
@@ -3361,7 +3248,7 @@ dependencies = [
 
 [[package]]
 name = "xeno-macro"
-version = "0.7.1"
+version = "0.7.2"
 dependencies = [
  "kdl",
  "proc-macro2",
@@ -3372,7 +3259,7 @@ dependencies = [
 
 [[package]]
 name = "xeno-primitives"
-version = "0.7.1"
+version = "0.7.2"
 dependencies = [
  "proptest",
  "ropey",
@@ -3386,7 +3273,7 @@ dependencies = [
 
 [[package]]
 name = "xeno-registry"
-version = "0.7.1"
+version = "0.7.2"
 dependencies = [
  "arc-swap",
  "inventory",
@@ -3405,7 +3292,7 @@ dependencies = [
 
 [[package]]
 name = "xeno-rpc"
-version = "0.7.1"
+version = "0.7.2"
 dependencies = [
  "pin-project-lite",
  "thiserror 2.0.17",
@@ -3416,7 +3303,7 @@ dependencies = [
 
 [[package]]
 name = "xeno-runtime-config"
-version = "0.7.1"
+version = "0.7.2"
 dependencies = [
  "kdl",
  "notify",
@@ -3429,14 +3316,14 @@ dependencies = [
 
 [[package]]
 name = "xeno-runtime-data"
-version = "0.7.1"
+version = "0.7.2"
 dependencies = [
  "include_dir",
 ]
 
 [[package]]
 name = "xeno-runtime-language"
-version = "0.7.1"
+version = "0.7.2"
 dependencies = [
  "cc",
  "kdl",
@@ -3456,7 +3343,7 @@ dependencies = [
 
 [[package]]
 name = "xeno-term"
-version = "0.7.1"
+version = "0.7.2"
 dependencies = [
  "anyhow",
  "clap",
@@ -3484,25 +3371,17 @@ dependencies = [
 
 [[package]]
 name = "xeno-tui"
-version = "0.7.1"
+version = "0.7.2"
 dependencies = [
  "anstyle",
  "bitflags 2.10.0",
  "compact_str",
- "crossterm",
- "hashbrown 0.16.1",
  "indoc",
- "instability",
- "itertools 0.14.0",
- "kasuari",
- "lru",
  "palette",
  "pretty_assertions",
  "rstest",
  "serde",
  "serde_json",
- "strum",
- "thiserror 2.0.17",
  "unicode-segmentation",
  "unicode-truncate",
  "unicode-width 0.2.2",

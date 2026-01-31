@@ -1,5 +1,3 @@
-use alloc::vec;
-
 use rstest::rstest;
 
 use super::*;

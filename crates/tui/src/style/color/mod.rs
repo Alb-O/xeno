@@ -148,8 +148,6 @@ impl serde::Serialize for Color {
 	where
 		S: serde::Serializer,
 	{
-		use alloc::string::ToString;
-
 		serializer.serialize_str(&self.to_string())
 	}
 }
@@ -199,9 +197,6 @@ impl<'de> serde::Deserialize<'de> for Color {
 	where
 		D: serde::Deserializer<'de>,
 	{
-		use alloc::format;
-		use alloc::string::String;
-
 		let value = <String as serde::Deserialize>::deserialize(deserializer)
 			.map_err(|err| serde::de::Error::custom(format!("Failed to parse Colors: {err}")))?;
 		FromStr::from_str(&value).map_err(serde::de::Error::custom)
@@ -636,7 +631,6 @@ const fn indexed_to_rgb(idx: u8) -> (u8, u8, u8) {
 	}
 }
 
-#[cfg(feature = "std")]
 impl crate::animation::Animatable for Color {
 	/// Linearly interpolate between two colors.
 	///
