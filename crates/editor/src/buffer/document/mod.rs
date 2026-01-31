@@ -22,7 +22,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use xeno_primitives::transaction::Operation;
 use xeno_primitives::{
 	CommitResult, EditCommit, EditError, Range, ReadOnlyReason, ReadOnlyScope, Rope, SyntaxOutcome,
-	SyntaxPolicy, UndoPolicy,
+	SyntaxPolicy, Transaction, UndoPolicy,
 };
 use xeno_runtime_language::LanguageLoader;
 use xeno_runtime_language::syntax::Syntax;
@@ -288,14 +288,15 @@ impl Document {
 	/// Restores document content from the undo stack and reparses syntax.
 	/// View state restoration is handled at the editor level via [`EditorUndoGroup`].
 	///
-	/// Returns `true` if undo was successful, `false` if nothing to undo.
+	/// Returns the applied inverse transaction on success, or `None` if
+	/// nothing to undo.
 	///
 	/// [`EditorUndoGroup`]: crate::types::EditorUndoGroup
-	pub fn undo(&mut self, language_loader: &LanguageLoader) -> bool {
+	pub fn undo(&mut self, language_loader: &LanguageLoader) -> Option<Transaction> {
 		self.insert_undo_active = false;
 
 		if !self.undo_backend.can_undo() {
-			return false;
+			return None;
 		}
 
 		let old_source = self.can_sync_incremental().then(|| self.content.clone());
@@ -305,14 +306,10 @@ impl Document {
 			&mut self.version,
 			language_loader,
 			|_, _| {},
-		);
-
-		let Some(tx) = tx else {
-			return false;
-		};
+		)?;
 
 		self.try_incremental_syntax_update(old_source, tx.changes(), language_loader, "undo");
-		true
+		Some(tx)
 	}
 
 	/// Redoes the last undone document change.
@@ -320,14 +317,14 @@ impl Document {
 	/// Restores document content from the redo stack and reparses syntax.
 	/// View state restoration is handled at the editor level via [`EditorUndoGroup`].
 	///
-	/// Returns `true` if redo was successful, `false` if nothing to redo.
+	/// Returns the applied transaction on success, or `None` if nothing to redo.
 	///
 	/// [`EditorUndoGroup`]: crate::types::EditorUndoGroup
-	pub fn redo(&mut self, language_loader: &LanguageLoader) -> bool {
+	pub fn redo(&mut self, language_loader: &LanguageLoader) -> Option<Transaction> {
 		self.insert_undo_active = false;
 
 		if !self.undo_backend.can_redo() {
-			return false;
+			return None;
 		}
 
 		let old_source = self.can_sync_incremental().then(|| self.content.clone());
@@ -337,14 +334,10 @@ impl Document {
 			&mut self.version,
 			language_loader,
 			|_, _| {},
-		);
-
-		let Some(tx) = tx else {
-			return false;
-		};
+		)?;
 
 		self.try_incremental_syntax_update(old_source, tx.changes(), language_loader, "redo");
-		true
+		Some(tx)
 	}
 
 	/// Applies an edit through the authoritative edit gate.

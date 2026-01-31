@@ -1301,7 +1301,7 @@ impl BrokerCore {
 				return Err(ErrorCode::SyncSeqMismatch);
 			}
 
-			let tx = crate::wire_convert::wire_to_tx(wire_tx, doc.rope.len_chars());
+			let tx = crate::wire_convert::wire_to_tx(wire_tx, doc.rope.slice(..));
 			tx.apply(&mut doc.rope);
 			doc.seq = SyncSeq(doc.seq.0 + 1);
 

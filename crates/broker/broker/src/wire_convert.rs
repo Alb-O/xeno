@@ -26,16 +26,8 @@ pub fn tx_to_wire(tx: &Transaction) -> WireTx {
 /// Converts a [`WireTx`] back into a [`Transaction`] for application to a rope.
 ///
 /// Reconstructs a transaction by translating the wire operations into a sequence
-/// of [`Change`] items and building the transaction against a rope of the given
-/// character length.
-///
-/// # Parameters
-/// - `wire`: The wire transaction to convert.
-/// - `doc_char_len`: Character length of the document this transaction applies to.
-pub fn wire_to_tx(wire: &WireTx, doc_char_len: usize) -> Transaction {
-	let rope = Rope::from(String::from_utf8(vec![b'x'; doc_char_len]).unwrap());
-	let doc = rope.slice(..);
-
+/// of [`Change`] items and building the transaction against the given rope slice.
+pub fn wire_to_tx(wire: &WireTx, doc: ropey::RopeSlice<'_>) -> Transaction {
 	let mut changes = Vec::new();
 	let mut pos: usize = 0;
 
@@ -77,7 +69,7 @@ mod tests {
 		let rope = Rope::from("hello");
 		let tx = Transaction::change(rope.slice(..), std::iter::empty::<Change>());
 		let wire = tx_to_wire(&tx);
-		let reconstructed = wire_to_tx(&wire, rope.len_chars());
+		let reconstructed = wire_to_tx(&wire, rope.slice(..));
 
 		let mut r1 = rope.clone();
 		let mut r2 = rope;
@@ -98,7 +90,7 @@ mod tests {
 			}],
 		);
 		let wire = tx_to_wire(&tx);
-		let reconstructed = wire_to_tx(&wire, rope.len_chars());
+		let reconstructed = wire_to_tx(&wire, rope.slice(..));
 
 		let mut r1 = rope.clone();
 		let mut r2 = rope;
@@ -120,7 +112,7 @@ mod tests {
 			}],
 		);
 		let wire = tx_to_wire(&tx);
-		let reconstructed = wire_to_tx(&wire, rope.len_chars());
+		let reconstructed = wire_to_tx(&wire, rope.slice(..));
 
 		let mut r1 = rope.clone();
 		let mut r2 = rope;
@@ -149,7 +141,7 @@ mod tests {
 			],
 		);
 		let wire = tx_to_wire(&tx);
-		let reconstructed = wire_to_tx(&wire, rope.len_chars());
+		let reconstructed = wire_to_tx(&wire, rope.slice(..));
 
 		let mut r1 = rope.clone();
 		let mut r2 = rope;
@@ -171,7 +163,7 @@ mod tests {
 			}],
 		);
 		let wire = tx_to_wire(&tx);
-		let reconstructed = wire_to_tx(&wire, rope.len_chars());
+		let reconstructed = wire_to_tx(&wire, rope.slice(..));
 
 		let mut r1 = rope.clone();
 		let mut r2 = rope;

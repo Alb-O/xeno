@@ -57,6 +57,8 @@ impl Editor {
 			syntax_manager: &mut self.state.syntax_manager,
 			#[cfg(feature = "lsp")]
 			lsp: &mut self.state.lsp,
+			#[cfg(feature = "lsp")]
+			buffer_sync: &mut self.state.buffer_sync,
 		};
 		core.undo_manager.undo(&mut host);
 	}
@@ -74,6 +76,8 @@ impl Editor {
 			syntax_manager: &mut self.state.syntax_manager,
 			#[cfg(feature = "lsp")]
 			lsp: &mut self.state.lsp,
+			#[cfg(feature = "lsp")]
+			buffer_sync: &mut self.state.buffer_sync,
 		};
 		core.undo_manager.redo(&mut host);
 	}

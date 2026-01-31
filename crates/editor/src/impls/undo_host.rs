@@ -18,6 +18,8 @@ pub(super) struct EditorUndoHost<'a> {
 	pub syntax_manager: &'a mut crate::syntax_manager::SyntaxManager,
 	#[cfg(feature = "lsp")]
 	pub lsp: &'a mut crate::LspSystem,
+	#[cfg(feature = "lsp")]
+	pub buffer_sync: &'a mut crate::buffer_sync::BufferSyncManager,
 }
 
 impl EditorUndoHost<'_> {
@@ -123,6 +125,20 @@ impl EditorUndoHost<'_> {
 		push_notification(self.config, self.notifications, notification.into());
 	}
 
+	/// Emits a buffer sync delta for the given document if it is owned by this
+	/// session and tracked by the sync manager.
+	#[cfg(feature = "lsp")]
+	fn emit_sync_delta(&mut self, doc_id: DocumentId, tx: &Transaction) {
+		if let Some(uri) = self.buffer_sync.uri_for_doc_id(doc_id)
+			&& let Some(payload) = self.buffer_sync.prepare_delta(uri, tx)
+		{
+			let _ = self.lsp.buffer_sync_out_tx().send(payload);
+		}
+	}
+
+	#[cfg(not(feature = "lsp"))]
+	fn emit_sync_delta(&mut self, _doc_id: DocumentId, _tx: &Transaction) {}
+
 	fn mark_buffer_dirty_for_full_sync(&mut self, buffer_id: ViewId) {
 		if let Some(buffer) = self.buffers.get_buffer_mut(buffer_id) {
 			#[cfg(feature = "lsp")]
@@ -199,18 +215,21 @@ impl EditorUndoHost<'_> {
 			return false;
 		};
 
-		let ok = self
+		let tx = self
 			.buffers
 			.get_buffer_mut(buffer_id)
 			.expect("buffer exists")
 			.with_doc_mut(|doc| doc.undo(&self.config.language_loader));
 
-		if ok {
-			self.syntax_manager.note_edit(doc_id);
-			self.mark_buffer_dirty_for_full_sync(buffer_id);
-			self.normalize_all_views_for_doc(doc_id);
-		}
-		ok
+		let Some(tx) = tx else {
+			return false;
+		};
+
+		self.syntax_manager.note_edit(doc_id);
+		self.emit_sync_delta(doc_id, &tx);
+		self.mark_buffer_dirty_for_full_sync(buffer_id);
+		self.normalize_all_views_for_doc(doc_id);
+		true
 	}
 
 	fn redo_document(&mut self, doc_id: DocumentId) -> bool {
@@ -225,18 +244,21 @@ impl EditorUndoHost<'_> {
 			return false;
 		};
 
-		let ok = self
+		let tx = self
 			.buffers
 			.get_buffer_mut(buffer_id)
 			.expect("buffer exists")
 			.with_doc_mut(|doc| doc.redo(&self.config.language_loader));
 
-		if ok {
-			self.syntax_manager.note_edit(doc_id);
-			self.mark_buffer_dirty_for_full_sync(buffer_id);
-			self.normalize_all_views_for_doc(doc_id);
-		}
-		ok
+		let Some(tx) = tx else {
+			return false;
+		};
+
+		self.syntax_manager.note_edit(doc_id);
+		self.emit_sync_delta(doc_id, &tx);
+		self.mark_buffer_dirty_for_full_sync(buffer_id);
+		self.normalize_all_views_for_doc(doc_id);
+		true
 	}
 }
 
