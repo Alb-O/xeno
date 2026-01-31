@@ -140,6 +140,7 @@ impl Editor {
 			config: &self.state.config,
 			frame: &mut self.state.frame,
 			notifications: &mut self.state.notifications,
+			syntax_manager: &mut self.state.syntax_manager,
 			#[cfg(feature = "lsp")]
 			lsp: &mut self.state.lsp,
 		};
@@ -156,6 +157,7 @@ impl Editor {
 			config: &self.state.config,
 			frame: &mut self.state.frame,
 			notifications: &mut self.state.notifications,
+			syntax_manager: &mut self.state.syntax_manager,
 			#[cfg(feature = "lsp")]
 			lsp: &mut self.state.lsp,
 		};
@@ -186,6 +188,7 @@ impl Editor {
 			.with_doc_mut(|doc| doc.undo(&self.state.config.language_loader));
 
 		if ok {
+			self.state.syntax_manager.note_edit(doc_id);
 			self.mark_buffer_dirty_for_full_sync(buffer_id);
 		}
 		ok
@@ -215,6 +218,7 @@ impl Editor {
 			.with_doc_mut(|doc| doc.redo(&self.state.config.language_loader));
 
 		if ok {
+			self.state.syntax_manager.note_edit(doc_id);
 			self.mark_buffer_dirty_for_full_sync(buffer_id);
 		}
 		ok

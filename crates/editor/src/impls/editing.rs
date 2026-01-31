@@ -41,6 +41,7 @@ impl Editor {
 			config: &self.state.config,
 			frame: &mut self.state.frame,
 			notifications: &mut self.state.notifications,
+			syntax_manager: &mut self.state.syntax_manager,
 			#[cfg(feature = "lsp")]
 			lsp: &mut self.state.lsp,
 		};

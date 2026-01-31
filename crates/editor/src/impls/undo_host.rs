@@ -15,6 +15,7 @@ pub(super) struct EditorUndoHost<'a> {
 	pub config: &'a Config,
 	pub frame: &'a mut FrameState,
 	pub notifications: &'a mut xeno_tui::widgets::notifications::ToastManager,
+	pub syntax_manager: &'a mut crate::syntax_manager::SyntaxManager,
 	#[cfg(feature = "lsp")]
 	pub lsp: &'a mut crate::LspSystem,
 }
@@ -105,6 +106,12 @@ impl EditorUndoHost<'_> {
 		};
 
 		if result.applied {
+			let doc_id = self
+				.buffers
+				.get_buffer(buffer_id)
+				.expect("buffer must exist")
+				.document_id();
+			self.syntax_manager.note_edit(doc_id);
 			self.sync_sibling_selections(buffer_id, tx);
 			self.frame.dirty_buffers.insert(buffer_id);
 		}
@@ -199,6 +206,7 @@ impl EditorUndoHost<'_> {
 			.with_doc_mut(|doc| doc.undo(&self.config.language_loader));
 
 		if ok {
+			self.syntax_manager.note_edit(doc_id);
 			self.mark_buffer_dirty_for_full_sync(buffer_id);
 			self.normalize_all_views_for_doc(doc_id);
 		}
@@ -224,6 +232,7 @@ impl EditorUndoHost<'_> {
 			.with_doc_mut(|doc| doc.redo(&self.config.language_loader));
 
 		if ok {
+			self.syntax_manager.note_edit(doc_id);
 			self.mark_buffer_dirty_for_full_sync(buffer_id);
 			self.normalize_all_views_for_doc(doc_id);
 		}

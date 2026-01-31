@@ -34,13 +34,22 @@
    - Tested by: TODO (add regression: test_stale_install_continuity)
    - Failure symptom: Document stays unhighlighted until an exact match completes.
    - Notes: Stale installs improve continuity, but `dirty` remains to force catch-up.
+4. MUST call `SyntaxManager::note_edit` on every document mutation (edits, undo, redo).
+   - Enforced in: `EditorUndoHost::apply_transaction_inner`, `EditorUndoHost::undo_document`, `EditorUndoHost::redo_document`, `Editor::undo_document`, `Editor::redo_document`
+   - Tested by: TODO (add regression: test_note_edit_called_on_undo_redo)
+   - Failure symptom: Debounce gate in `SyntaxManager::ensure_syntax` is non-functional; background parses fire without waiting for edit silence.
+5. MUST bump `syntax_version` on successful incremental update during undo/redo.
+   - Enforced in: `Document::undo`, `Document::redo` (incremental Ok branch)
+   - Tested by: TODO (add regression: test_undo_redo_bumps_syntax_version)
+   - Failure symptom: Highlight cache serves stale tiles until background reparse completes, causing a visual lag after undo/redo.
 
 ## Data flow
-1. Trigger: `note_edit` or `ensure_syntax` called from render loop.
-2. Gating: Check visibility, size tier, debounce, and cooldown.
-3. Throttling: Acquire global concurrency permit (semaphore).
-4. Async boundary: `spawn_blocking` calls `Syntax::new`.
-5. Install: Polled result is installed; `dirty` flag cleared only if versions match.
+1. Trigger: `SyntaxManager::note_edit` called from edit/undo/redo paths to record debounce timestamp.
+2. Render loop: `ensure_syntax_for_buffers` calls `SyntaxManager::ensure_syntax` for each dirty document.
+3. Gating: Check visibility, size tier, debounce, and cooldown.
+4. Throttling: Acquire global concurrency permit (semaphore).
+5. Async boundary: `spawn_blocking` calls `Syntax::new`.
+6. Install: Polled result is installed; `dirty` flag cleared only if versions match.
 
 ## Lifecycle
 - Idle: Document is clean or cooling down.
@@ -67,6 +76,9 @@ Steps:
 - `buffer::document::tests::commit_syntax_mark_dirty`
 - `buffer::document::tests::reset_content_marks_syntax_dirty_and_reparses`
 - `scheduler::tests::test_pending_for_doc`
+- TODO (add regression: test_note_edit_called_on_undo_redo)
+- TODO (add regression: test_undo_redo_bumps_syntax_version)
+- TODO (add regression: test_stale_install_continuity)
 
 ## Glossary
 - Tier: A set of performance parameters chosen based on document size.

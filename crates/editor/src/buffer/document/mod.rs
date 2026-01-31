@@ -275,17 +275,25 @@ impl Document {
 		if let Some(old_source) = old_source_for_syntax
 			&& let Some(ref mut syntax) = self.syntax
 		{
-			let _ = syntax.update_from_changeset(
+			match syntax.update_from_changeset(
 				old_source.slice(..),
 				self.content.slice(..),
 				tx.changes(),
 				language_loader,
 				xeno_runtime_language::SyntaxOptions::default(),
-			);
+			) {
+				Ok(()) => {
+					self.syntax_dirty = false;
+					self.syntax_version = self.syntax_version.wrapping_add(1);
+				}
+				Err(e) => {
+					tracing::warn!(error=%e, "Incremental syntax update failed during undo");
+					self.syntax_dirty = true;
+				}
+			}
+		} else {
+			self.syntax_dirty = true;
 		}
-		// Always schedule a background reparse after undo to avoid long-lived
-		// desyncs if incremental updates mis-parse.
-		self.syntax_dirty = true;
 
 		true
 	}
@@ -328,17 +336,25 @@ impl Document {
 		if let Some(old_source) = old_source_for_syntax
 			&& let Some(ref mut syntax) = self.syntax
 		{
-			let _ = syntax.update_from_changeset(
+			match syntax.update_from_changeset(
 				old_source.slice(..),
 				self.content.slice(..),
 				tx.changes(),
 				language_loader,
 				xeno_runtime_language::SyntaxOptions::default(),
-			);
+			) {
+				Ok(()) => {
+					self.syntax_dirty = false;
+					self.syntax_version = self.syntax_version.wrapping_add(1);
+				}
+				Err(e) => {
+					tracing::warn!(error=%e, "Incremental syntax update failed during redo");
+					self.syntax_dirty = true;
+				}
+			}
+		} else {
+			self.syntax_dirty = true;
 		}
-		// Always schedule a background reparse after redo to avoid long-lived
-		// desyncs if incremental updates mis-parse.
-		self.syntax_dirty = true;
 
 		true
 	}
