@@ -70,6 +70,11 @@ pub enum BufferSyncEvent {
 		/// Current owner session.
 		owner: SessionId,
 	},
+	/// A delta request was rejected by the broker (seq/epoch mismatch or error).
+	DeltaRejected {
+		/// Document URI.
+		uri: String,
+	},
 	/// Broker transport disconnected — disable all sync tracking.
 	Disconnected,
 }
@@ -158,26 +163,46 @@ impl BufferSyncManager {
 	/// Prepares a `BufferSyncDelta` request if this session owns the document.
 	///
 	/// Serializes the transaction to wire format and returns the request payload.
+	/// The local sequence is optimistically incremented so that rapid edits
+	/// produce consecutive `base_seq` values without waiting for broker acks.
 	/// Returns `None` if the document is not tracked or the session is a follower.
-	pub fn prepare_delta(&self, uri: &str, tx: &Transaction) -> Option<RequestPayload> {
-		let entry = self.docs.get(uri)?;
-		if entry.role != BufferSyncRole::Owner {
+	pub fn prepare_delta(&mut self, uri: &str, tx: &Transaction) -> Option<RequestPayload> {
+		let entry = self.docs.get_mut(uri)?;
+		if entry.role != BufferSyncRole::Owner || entry.needs_resync {
 			return None;
 		}
 
 		let wire_tx = convert::tx_to_wire(tx);
+		let base_seq = entry.seq;
+		entry.seq = SyncSeq(entry.seq.0.wrapping_add(1));
 		Some(RequestPayload::BufferSyncDelta {
 			uri: uri.to_string(),
 			epoch: entry.epoch,
-			base_seq: entry.seq,
+			base_seq,
 			tx: wire_tx,
 		})
 	}
 
-	/// Updates the local sequence after a `BufferSyncDeltaAck` from the broker.
+	/// Handles a `DeltaAck` from the broker.
+	///
+	/// Only advances the local sequence forward. The local seq may already be
+	/// ahead due to optimistic incrementing in [`prepare_delta`], so stale acks
+	/// that would regress the counter are ignored.
 	pub fn handle_delta_ack(&mut self, uri: &str, seq: SyncSeq) {
 		if let Some(entry) = self.docs.get_mut(uri) {
-			entry.seq = seq;
+			if seq.0 > entry.seq.0 {
+				entry.seq = seq;
+			}
+		}
+	}
+
+	/// Marks a document as needing resync after a delta rejection.
+	///
+	/// Suppresses further [`prepare_delta`] calls until a resync snapshot
+	/// clears the flag, preventing repeated submissions against stale state.
+	pub fn mark_needs_resync(&mut self, uri: &str) {
+		if let Some(entry) = self.docs.get_mut(uri) {
+			entry.needs_resync = true;
 		}
 	}
 

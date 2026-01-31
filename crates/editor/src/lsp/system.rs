@@ -103,6 +103,8 @@ impl LspSystem {
 				use xeno_broker_proto::types::{RequestPayload, ResponsePayload};
 
 				while let Some(payload) = buffer_sync_out_rx.recv().await {
+					let is_delta = matches!(payload, RequestPayload::BufferSyncDelta { .. });
+
 					// Extract URI for error reporting.
 					let uri = match &payload {
 						RequestPayload::BufferSyncOpen { uri, .. }
@@ -154,6 +156,11 @@ impl LspSystem {
 						}
 						Err(e) => {
 							tracing::warn!(?uri, error = %e, "buffer sync request failed");
+							if is_delta {
+								let _ = in_tx_b.send(
+									crate::buffer_sync::BufferSyncEvent::DeltaRejected { uri },
+								);
+							}
 						}
 					}
 				}

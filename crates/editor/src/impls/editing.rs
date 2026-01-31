@@ -57,8 +57,12 @@ impl Editor {
 
 			#[cfg(feature = "lsp")]
 			if let Some(buffer) = self.state.core.buffers.get_buffer(buffer_id)
-				&& let Some(uri) = self.state.buffer_sync.uri_for_doc_id(buffer.document_id())
-				&& let Some(payload) = self.state.buffer_sync.prepare_delta(uri, tx)
+				&& let Some(uri) = self
+					.state
+					.buffer_sync
+					.uri_for_doc_id(buffer.document_id())
+					.map(str::to_string)
+				&& let Some(payload) = self.state.buffer_sync.prepare_delta(&uri, tx)
 			{
 				let _ = self.state.lsp.buffer_sync_out_tx().send(payload);
 			}

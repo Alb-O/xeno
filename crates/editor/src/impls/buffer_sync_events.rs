@@ -70,6 +70,10 @@ impl Editor {
 				self.state.buffer_sync.handle_delta_ack(&uri, seq);
 			}
 
+			BufferSyncEvent::DeltaRejected { uri } => {
+				self.state.buffer_sync.mark_needs_resync(&uri);
+			}
+
 			BufferSyncEvent::Snapshot {
 				uri,
 				text,

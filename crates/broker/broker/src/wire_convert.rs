@@ -3,7 +3,6 @@
 //! These functions bridge the serializable wire format used by the broker protocol
 //! with the internal transaction representation used by `xeno-primitives`.
 
-use ropey::Rope;
 use xeno_broker_proto::types::{WireOp, WireTx};
 use xeno_primitives::transaction::{Change, Operation, Transaction};
 

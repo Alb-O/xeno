@@ -129,8 +129,8 @@ impl EditorUndoHost<'_> {
 	/// session and tracked by the sync manager.
 	#[cfg(feature = "lsp")]
 	fn emit_sync_delta(&mut self, doc_id: DocumentId, tx: &Transaction) {
-		if let Some(uri) = self.buffer_sync.uri_for_doc_id(doc_id)
-			&& let Some(payload) = self.buffer_sync.prepare_delta(uri, tx)
+		if let Some(uri) = self.buffer_sync.uri_for_doc_id(doc_id).map(str::to_string)
+			&& let Some(payload) = self.buffer_sync.prepare_delta(&uri, tx)
 		{
 			let _ = self.lsp.buffer_sync_out_tx().send(payload);
 		}
