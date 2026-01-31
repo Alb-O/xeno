@@ -15,6 +15,17 @@ use crate::text::{Line, Span};
 mod cell;
 pub use cell::Cell;
 
+/// A single cell update produced by [`Buffer::diff_into`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct DiffUpdate {
+	/// Column position of the update.
+	pub x: u16,
+	/// Row position of the update.
+	pub y: u16,
+	/// Index into the next buffer's `content` array.
+	pub idx: usize,
+}
+
 /// Intermediate buffer for widget rendering.
 ///
 /// A grid of [`Cell`]s (grapheme + fg/bg colors) that widgets draw to before terminal output.
@@ -402,37 +413,61 @@ impl Buffer {
 	/// Next:    `aコ`
 	/// Updates: `0: a, 1: コ` (double width symbol at index 1 - skip index 2)
 	/// ```
-	pub fn diff<'a>(&self, other: &'a Self) -> Vec<(u16, u16, &'a Cell)> {
+	/// Computes index-based cell updates between `self` (previous) and `other` (next) into a
+	/// reusable output vector, avoiding per-frame allocation.
+	///
+	/// Each [`DiffUpdate`] records the (x, y) position and index into `other.content`. The
+	/// caller can then map indices to `&Cell` references at the appropriate scope.
+	///
+	/// We're assuming that buffers are well-formed, that is no double-width cell is followed by
+	/// a non-blank cell.
+	///
+	/// # Multi-width characters handling:
+	///
+	/// ```text
+	/// (Index:) `01`
+	/// Prev:    `コ`
+	/// Next:    `aa`
+	/// Updates: `0: a, 1: a'
+	/// ```
+	///
+	/// ```text
+	/// (Index:) `01`
+	/// Prev:    `a `
+	/// Next:    `コ`
+	/// Updates: `0: コ` (double width symbol at index 0 - skip index 1)
+	/// ```
+	///
+	/// ```text
+	/// (Index:) `012`
+	/// Prev:    `aaa`
+	/// Next:    `aコ`
+	/// Updates: `0: a, 1: コ` (double width symbol at index 1 - skip index 2)
+	/// ```
+	pub fn diff_into(&self, other: &Self, out: &mut Vec<DiffUpdate>) {
+		out.clear();
+		debug_assert_eq!(self.area, other.area, "diff_into: buffer areas must match");
+		debug_assert_eq!(
+			self.content.len(),
+			other.content.len(),
+			"diff_into: buffer content lengths must match"
+		);
 		let previous_buffer = &self.content;
 		let next_buffer = &other.content;
 
-		let mut updates: Vec<(u16, u16, &Cell)> = vec![];
-		// Cells invalidated by drawing/replacing preceding multi-width characters:
 		let mut invalidated: usize = 0;
-		// Cells from the current buffer to skip due to preceding multi-width characters taking
-		// their place (the skipped cells should be blank anyway), or due to per-cell-skipping:
 		let mut to_skip: usize = 0;
 		for (i, (current, previous)) in next_buffer.iter().zip(previous_buffer.iter()).enumerate() {
 			if !current.skip && (current != previous || invalidated > 0) && to_skip == 0 {
 				let (x, y) = self.pos_of(i);
-				updates.push((x, y, &next_buffer[i]));
+				out.push(DiffUpdate { x, y, idx: i });
 
-				// If the current cell is multi-width, ensure the trailing cells are explicitly
-				// cleared when they previously contained non-blank content. Some terminals do not
-				// reliably clear the trailing cell(s) when printing a wide grapheme, which can
-				// result in visual artifacts (e.g., leftover characters). Emitting an explicit
-				// update for the trailing cells avoids this.
 				let symbol = current.symbol();
 				let cell_width = symbol.width();
-				// Work around terminals that fail to clear the trailing cell of certain
-				// emoji presentation sequences (those containing VS16 / U+FE0F).
-				// Only emit explicit clears for such sequences to avoid bloating diffs
-				// for standard wide characters (e.g., CJK), which terminals handle well.
 				let contains_vs16 = symbol.chars().any(|c| c == '\u{FE0F}');
 				if cell_width > 1 && contains_vs16 {
 					for k in 1..cell_width {
 						let j = i + k;
-						// Make sure that we are still inside the buffer.
 						if j >= next_buffer.len() || j >= previous_buffer.len() {
 							break;
 						}
@@ -440,11 +475,11 @@ impl Buffer {
 						let next_trailing = &next_buffer[j];
 						if !next_trailing.skip && prev_trailing != next_trailing {
 							let (tx, ty) = self.pos_of(j);
-							// Push an explicit update for the trailing cell.
-							// This is expected to be a blank cell, but we use the actual
-							// content from the next buffer to handle cases where
-							// the user has explicitly set something else.
-							updates.push((tx, ty, next_trailing));
+							out.push(DiffUpdate {
+								x: tx,
+								y: ty,
+								idx: j,
+							});
 						}
 					}
 				}
@@ -455,7 +490,6 @@ impl Buffer {
 			let affected_width = cmp::max(current.symbol().width(), previous.symbol().width());
 			invalidated = cmp::max(affected_width, invalidated).saturating_sub(1);
 		}
-		updates
 	}
 }
 

@@ -6,8 +6,6 @@
 mod separator;
 mod whichkey;
 
-use std::time::{Duration, SystemTime};
-
 use xeno_registry::options::keys;
 use xeno_tui::layout::{Constraint, Direction, Layout, Rect};
 use xeno_tui::style::Style;
@@ -64,13 +62,6 @@ impl Editor {
 	/// # Parameters
 	/// - `frame`: The terminal frame to render into
 	pub fn render(&mut self, frame: &mut xeno_tui::Frame) {
-		let now = SystemTime::now();
-		let delta = now
-			.duration_since(self.state.frame.last_tick)
-			.unwrap_or(Duration::from_millis(16));
-		self.state.frame.last_tick = now;
-		self.state.notifications.tick(delta);
-
 		self.ensure_syntax_for_buffers();
 
 		let use_block_cursor = true;

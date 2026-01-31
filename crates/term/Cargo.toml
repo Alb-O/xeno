@@ -10,6 +10,9 @@ default-run = "xeno"
 name = "xeno"
 path = "src/main.rs"
 
+[features]
+perf = ["xeno-tui/perf"]
+
 [dependencies]
 anyhow.workspace = true
 clap.workspace = true
@@ -21,6 +24,7 @@ termina.workspace = true
 tokio.workspace = true
 tracing.workspace = true
 tracing-subscriber = { workspace = true, features = ["env-filter", "json"] }
+unicode-width.workspace = true
 uuid.workspace = true
 which.workspace = true
 xeno-editor = { workspace = true, features = ["lsp"] }

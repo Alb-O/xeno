@@ -211,3 +211,18 @@ fn paragraph_block_text_style() {
 	expected.set_style(Rect::new(1, 1, 11, 1), Style::default().fg(Color::Green));
 	assert_eq!(buf, expected);
 }
+
+#[test]
+fn wide_grapheme_paints_trailing_blank() {
+	let mut buf = Buffer::empty(Rect::new(0, 0, 3, 1));
+	// Pre-fill (1,0) with "X" to ensure the trailing cell is overwritten.
+	buf[(1u16, 0u16)].set_symbol("X");
+
+	Paragraph::new("❤️").render(Rect::new(0, 0, 3, 1), &mut buf);
+
+	// Head cell is the grapheme.
+	assert_eq!(buf[(0u16, 0u16)].symbol(), "❤️");
+	// Trailing cell must no longer be "X" — it should be blank.
+	assert_ne!(buf[(1u16, 0u16)].symbol(), "X");
+	assert!(buf[(1u16, 0u16)].symbol().trim().is_empty());
+}

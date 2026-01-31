@@ -11,6 +11,7 @@ path = "src/lib.rs"
 
 [features]
 default = ["underline-color", "macros", "scrolling-regions"]
+perf = ["dep:tracing"]
 underline-color = []
 macros = []
 palette = ["dep:palette"]
@@ -25,6 +26,7 @@ compact_str = "0.9"
 palette = { version = "0.7", optional = true }
 serde = { version = "1", optional = true, features = ["derive"] }
 
+tracing = { version = "0.1", optional = true }
 unicode-segmentation = "1"
 unicode-truncate = "2"
 unicode-width = ">=0.2.0, <=0.2.2"

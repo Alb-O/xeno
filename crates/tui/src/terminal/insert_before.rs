@@ -301,7 +301,10 @@ where
 				area,
 				content: to_draw.to_vec(),
 			};
-			self.backend.draw(old.diff(&new).into_iter())?;
+			let mut updates = Vec::new();
+			old.diff_into(&new, &mut updates);
+			self.backend
+				.draw(updates.iter().map(|u| (u.x, u.y, &new.content[u.idx])))?;
 			self.backend.flush()?;
 		}
 		Ok(remainder)

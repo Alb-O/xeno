@@ -401,7 +401,9 @@ impl Widget for Paragraph<'_> {
 impl Widget for &Paragraph<'_> {
 	fn render(self, area: Rect, buf: &mut Buffer) {
 		let area = area.intersection(buf.area);
-		buf.set_style(area, self.style);
+		if self.style != Style::default() {
+			buf.set_style(area, self.style);
+		}
 		self.block.as_ref().render(area, buf);
 		let inner = self.block.inner_if_some(area);
 		self.render_paragraph(inner, buf);
@@ -415,7 +417,6 @@ impl Paragraph<'_> {
 			return;
 		}
 
-		buf.set_style(text_area, self.style);
 		let styled = self.text.iter().map(|line| {
 			let graphemes = line.styled_graphemes(self.text.style);
 			let alignment = line.alignment.unwrap_or(self.alignment);
@@ -454,18 +455,34 @@ fn render_lines<'a, C: LineComposer<'a>>(mut composer: C, area: Rect, buf: &mut 
 }
 
 /// Renders a single wrapped line at the given y-offset.
+///
+/// `LineTruncator` may emit `""` for horizontally scrolled-away columns; these
+/// have zero display width and must be skipped rather than materialized as spaces.
 fn render_line(wrapped: &WrappedLine<'_, '_>, area: Rect, buf: &mut Buffer, y: u16) {
 	let mut x = get_line_offset(wrapped.width, area.width, wrapped.alignment);
 	for StyledGrapheme { symbol, style } in wrapped.graphemes {
+		if x >= area.width {
+			break;
+		}
 		let width = symbol.width();
 		if width == 0 {
 			continue;
 		}
-		// Make sure to overwrite any previous character with a space (rather than a zero-width)
+		// Defensive: if a producer ever emits empty with nonzero width, render as a space.
 		let symbol = if symbol.is_empty() { " " } else { symbol };
+		let w_u16 = u16::try_from(width).unwrap_or(u16::MAX);
 		let position = Position::new(area.left() + x, area.top() + y);
 		buf[position].set_symbol(symbol).set_style(*style);
-		x += u16::try_from(width).unwrap_or(u16::MAX);
+		// Paint trailing cells for wide graphemes to prevent stale content under
+		// characters that span multiple terminal columns.
+		for dx in 1..w_u16 {
+			if x + dx >= area.width {
+				break;
+			}
+			let trail_pos = Position::new(area.left() + x + dx, area.top() + y);
+			buf[trail_pos].set_symbol(" ").set_style(*style);
+		}
+		x += w_u16;
 	}
 }
 

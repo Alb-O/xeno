@@ -1,3 +1,4 @@
+use std::fmt::Write as FmtWrite;
 use std::io;
 use std::num::NonZeroU16;
 
@@ -6,6 +7,7 @@ use termina::escape::csi::{
 	Csi, Cursor, Edit, EraseInDisplay, Mode, Sgr, SgrAttributes, SgrModifiers,
 };
 use termina::style::{ColorSpec, RgbaColor};
+use unicode_width::UnicodeWidthStr;
 use xeno_tui::backend::{Backend, WindowSize};
 use xeno_tui::buffer::Cell;
 use xeno_tui::layout::{Position, Size};
@@ -40,107 +42,68 @@ impl<T: Terminal> Backend for TerminaBackend<T> {
 	where
 		I: Iterator<Item = (u16, u16, &'a Cell)>,
 	{
-		let mut last_y = 0;
-		let mut last_x = 0;
-		let mut first = true;
+		let mut out = String::with_capacity(4096);
+		let mut last_attrs = SgrAttributes::default();
+		let mut have_emitted_attrs = false;
+
+		// Run state for coalescing contiguous same-attrs text.
+		let mut run_y: u16 = 0;
+		let mut run_x0: u16 = 0;
+		let mut run_next_x: u16 = 0;
+		let mut run_attrs = SgrAttributes::default();
+		let mut run_text = String::new();
+		let mut in_run = false;
 
 		for (x, y, cell) in content {
-			if first || y != last_y || x != last_x + 1 {
-				// Termina uses 1-based coordinates
-				let line = NonZeroU16::new(y + 1).unwrap_or(NonZeroU16::MIN);
-				let col = NonZeroU16::new(x + 1).unwrap_or(NonZeroU16::MIN);
+			let attrs = attrs_from_cell(cell);
+			let sym = cell.symbol();
+			let sym = if sym.is_empty() { " " } else { sym };
+			let w = sym.width().max(1) as u16;
 
-				write!(
-					self.terminal,
-					"{}",
-					Csi::Cursor(Cursor::Position {
-						line: line.into(),
-						col: col.into()
-					})
-				)?;
-			}
-			last_x = x;
-			last_y = y;
-			first = false;
+			let appendable = in_run && y == run_y && x == run_next_x && attrs == run_attrs;
 
-			let mut attrs = SgrAttributes::default();
-
-			if let Some(color) = map_color(cell.fg) {
-				attrs.foreground = Some(color);
-			}
-
-			if let Some(color) = map_color(cell.bg) {
-				attrs.background = Some(color);
-			}
-
-			if cell.modifier.contains(xeno_tui::style::Modifier::BOLD) {
-				attrs.modifiers |= SgrModifiers::INTENSITY_BOLD;
-			}
-			if cell.modifier.contains(xeno_tui::style::Modifier::DIM) {
-				attrs.modifiers |= SgrModifiers::INTENSITY_DIM;
-			}
-			if cell.modifier.contains(xeno_tui::style::Modifier::ITALIC) {
-				attrs.modifiers |= SgrModifiers::ITALIC;
-			}
-			let underline_style = if cell.underline_style != xeno_tui::style::UnderlineStyle::Reset
-			{
-				cell.underline_style
-			} else if cell
-				.modifier
-				.contains(xeno_tui::style::Modifier::UNDERLINED)
-			{
-				xeno_tui::style::UnderlineStyle::Line
-			} else {
-				xeno_tui::style::UnderlineStyle::Reset
-			};
-
-			let underline_modifier = match underline_style {
-				xeno_tui::style::UnderlineStyle::Reset => None,
-				xeno_tui::style::UnderlineStyle::Line => Some(SgrModifiers::UNDERLINE_SINGLE),
-				xeno_tui::style::UnderlineStyle::Curl => Some(SgrModifiers::UNDERLINE_CURLY),
-				xeno_tui::style::UnderlineStyle::Dotted => Some(SgrModifiers::UNDERLINE_DOTTED),
-				xeno_tui::style::UnderlineStyle::Dashed => Some(SgrModifiers::UNDERLINE_DASHED),
-				xeno_tui::style::UnderlineStyle::DoubleLine => Some(SgrModifiers::UNDERLINE_DOUBLE),
-			};
-
-			if let Some(modifier) = underline_modifier {
-				if cell.underline_color != xeno_tui::style::Color::Reset {
-					attrs.underline_color = map_color(cell.underline_color);
+			if !appendable {
+				if in_run {
+					flush_run(
+						&mut out,
+						run_y,
+						run_x0,
+						&run_attrs,
+						&mut last_attrs,
+						&mut have_emitted_attrs,
+						&run_text,
+					);
 				}
-				attrs.modifiers |= modifier;
-			}
-			if cell
-				.modifier
-				.contains(xeno_tui::style::Modifier::SLOW_BLINK)
-			{
-				attrs.modifiers |= SgrModifiers::BLINK_SLOW;
-			}
-			if cell
-				.modifier
-				.contains(xeno_tui::style::Modifier::RAPID_BLINK)
-			{
-				attrs.modifiers |= SgrModifiers::BLINK_RAPID;
-			}
-			if cell.modifier.contains(xeno_tui::style::Modifier::REVERSED) {
-				attrs.modifiers |= SgrModifiers::REVERSE;
-			}
-			if cell.modifier.contains(xeno_tui::style::Modifier::HIDDEN) {
-				attrs.modifiers |= SgrModifiers::INVISIBLE;
-			}
-			if cell
-				.modifier
-				.contains(xeno_tui::style::Modifier::CROSSED_OUT)
-			{
-				attrs.modifiers |= SgrModifiers::STRIKE_THROUGH;
+				run_y = y;
+				run_x0 = x;
+				run_attrs = attrs;
+				run_text.clear();
+				in_run = true;
 			}
 
-			write!(self.terminal, "{}", Csi::Sgr(Sgr::Reset))?;
-			if !attrs.is_empty() {
-				write!(self.terminal, "{}", Csi::Sgr(Sgr::Attributes(attrs)))?;
-			}
-
-			write!(self.terminal, "{}", cell.symbol())?;
+			run_text.push_str(sym);
+			run_next_x = x + w;
 		}
+
+		if in_run {
+			flush_run(
+				&mut out,
+				run_y,
+				run_x0,
+				&run_attrs,
+				&mut last_attrs,
+				&mut have_emitted_attrs,
+				&run_text,
+			);
+		}
+
+		#[cfg(feature = "perf")]
+		tracing::debug!(
+			target: "perf",
+			termina_bytes_written = out.len() as u64,
+		);
+
+		self.terminal.write_all(out.as_bytes())?;
 		Ok(())
 	}
 
@@ -254,6 +217,118 @@ impl<T: Terminal> Backend for TerminaBackend<T> {
 	fn flush(&mut self) -> io::Result<()> {
 		self.terminal.flush()
 	}
+}
+
+/// Extracts SGR attributes from a TUI cell.
+fn attrs_from_cell(cell: &Cell) -> SgrAttributes {
+	let mut attrs = SgrAttributes::default();
+
+	if let Some(color) = map_color(cell.fg) {
+		attrs.foreground = Some(color);
+	}
+	if let Some(color) = map_color(cell.bg) {
+		attrs.background = Some(color);
+	}
+	if cell.modifier.contains(xeno_tui::style::Modifier::BOLD) {
+		attrs.modifiers |= SgrModifiers::INTENSITY_BOLD;
+	}
+	if cell.modifier.contains(xeno_tui::style::Modifier::DIM) {
+		attrs.modifiers |= SgrModifiers::INTENSITY_DIM;
+	}
+	if cell.modifier.contains(xeno_tui::style::Modifier::ITALIC) {
+		attrs.modifiers |= SgrModifiers::ITALIC;
+	}
+
+	let underline_style = if cell.underline_style != xeno_tui::style::UnderlineStyle::Reset {
+		cell.underline_style
+	} else if cell
+		.modifier
+		.contains(xeno_tui::style::Modifier::UNDERLINED)
+	{
+		xeno_tui::style::UnderlineStyle::Line
+	} else {
+		xeno_tui::style::UnderlineStyle::Reset
+	};
+
+	let underline_modifier = match underline_style {
+		xeno_tui::style::UnderlineStyle::Reset => None,
+		xeno_tui::style::UnderlineStyle::Line => Some(SgrModifiers::UNDERLINE_SINGLE),
+		xeno_tui::style::UnderlineStyle::Curl => Some(SgrModifiers::UNDERLINE_CURLY),
+		xeno_tui::style::UnderlineStyle::Dotted => Some(SgrModifiers::UNDERLINE_DOTTED),
+		xeno_tui::style::UnderlineStyle::Dashed => Some(SgrModifiers::UNDERLINE_DASHED),
+		xeno_tui::style::UnderlineStyle::DoubleLine => Some(SgrModifiers::UNDERLINE_DOUBLE),
+	};
+
+	if let Some(modifier) = underline_modifier {
+		if cell.underline_color != xeno_tui::style::Color::Reset {
+			attrs.underline_color = map_color(cell.underline_color);
+		}
+		attrs.modifiers |= modifier;
+	}
+	if cell
+		.modifier
+		.contains(xeno_tui::style::Modifier::SLOW_BLINK)
+	{
+		attrs.modifiers |= SgrModifiers::BLINK_SLOW;
+	}
+	if cell
+		.modifier
+		.contains(xeno_tui::style::Modifier::RAPID_BLINK)
+	{
+		attrs.modifiers |= SgrModifiers::BLINK_RAPID;
+	}
+	if cell.modifier.contains(xeno_tui::style::Modifier::REVERSED) {
+		attrs.modifiers |= SgrModifiers::REVERSE;
+	}
+	if cell.modifier.contains(xeno_tui::style::Modifier::HIDDEN) {
+		attrs.modifiers |= SgrModifiers::INVISIBLE;
+	}
+	if cell
+		.modifier
+		.contains(xeno_tui::style::Modifier::CROSSED_OUT)
+	{
+		attrs.modifiers |= SgrModifiers::STRIKE_THROUGH;
+	}
+
+	attrs
+}
+
+/// Flushes a coalesced text run to the output buffer.
+///
+/// Emits a cursor position, SGR change (only if attributes differ from the
+/// last emitted set), and the run's text content.
+fn flush_run(
+	out: &mut String,
+	y: u16,
+	x0: u16,
+	attrs: &SgrAttributes,
+	last_attrs: &mut SgrAttributes,
+	have_emitted: &mut bool,
+	text: &str,
+) {
+	let line = NonZeroU16::new(y + 1).unwrap_or(NonZeroU16::MIN);
+	let col = NonZeroU16::new(x0 + 1).unwrap_or(NonZeroU16::MIN);
+	let _ = write!(
+		out,
+		"{}",
+		Csi::Cursor(Cursor::Position {
+			line: line.into(),
+			col: col.into()
+		})
+	);
+
+	if !*have_emitted || *attrs != *last_attrs {
+		if attrs.is_empty() {
+			let _ = write!(out, "{}", Csi::Sgr(Sgr::Reset));
+		} else {
+			let _ = write!(out, "{}", Csi::Sgr(Sgr::Reset));
+			let _ = write!(out, "{}", Csi::Sgr(Sgr::Attributes(*attrs)));
+		}
+		*last_attrs = *attrs;
+		*have_emitted = true;
+	}
+
+	out.push_str(text);
 }
 
 /// Maps a TUI color to a termina color specification.

@@ -1,6 +1,6 @@
 use super::{CompletedFrame, Frame, Viewport};
 use crate::backend::{Backend, ClearType};
-use crate::buffer::Buffer;
+use crate::buffer::{Buffer, DiffUpdate};
 use crate::layout::{Position, Rect, Size};
 
 /// Main interface for drawing to the terminal.
@@ -33,6 +33,8 @@ where
 	pub(super) last_known_cursor_pos: Position,
 	/// Number of frames rendered (wraps on overflow).
 	frame_count: usize,
+	/// Reusable scratch buffer for diff output, avoiding per-frame allocation.
+	diff_scratch: Vec<DiffUpdate>,
 }
 
 /// Options for [`Terminal::with_options`].
@@ -95,6 +97,7 @@ where
 			last_known_area: area,
 			last_known_cursor_pos: cursor_pos,
 			frame_count: 0,
+			diff_scratch: Vec::new(),
 		})
 	}
 
@@ -129,14 +132,38 @@ where
 	}
 
 	/// Diffs current vs previous buffer and writes changes to the backend.
+	///
+	/// Uses a reusable scratch buffer for diff output to avoid per-frame allocation.
 	pub fn flush(&mut self) -> Result<(), B::Error> {
 		let previous_buffer = &self.buffers[1 - self.current];
 		let current_buffer = &self.buffers[self.current];
-		let updates = previous_buffer.diff(current_buffer);
-		if let Some((col, row, _)) = updates.last() {
-			self.last_known_cursor_pos = Position { x: *col, y: *row };
+
+		#[cfg(feature = "perf")]
+		let t0 = std::time::Instant::now();
+
+		previous_buffer.diff_into(current_buffer, &mut self.diff_scratch);
+
+		#[cfg(feature = "perf")]
+		{
+			let ns = t0.elapsed().as_nanos() as u64;
+			tracing::debug!(
+				target: "perf",
+				tui_diff_ns = ns,
+				tui_diff_updates = self.diff_scratch.len() as u64,
+			);
 		}
-		self.backend.draw(updates.into_iter())
+
+		if let Some(last) = self.diff_scratch.last() {
+			self.last_known_cursor_pos = Position {
+				x: last.x,
+				y: last.y,
+			};
+		}
+		self.backend.draw(
+			self.diff_scratch
+				.iter()
+				.map(|u| (u.x, u.y, &current_buffer.content[u.idx])),
+		)
 	}
 
 	/// Resizes internal buffers to match the given area. Clears the screen.

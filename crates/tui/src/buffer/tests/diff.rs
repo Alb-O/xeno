@@ -2,12 +2,22 @@
 
 use super::*;
 
+/// Helper to run diff_into and return (x, y, &Cell) tuples for assertion compatibility.
+fn run_diff<'a>(prev: &Buffer, next: &'a Buffer) -> Vec<(u16, u16, &'a Cell)> {
+	let mut updates = Vec::new();
+	prev.diff_into(next, &mut updates);
+	updates
+		.iter()
+		.map(|u| (u.x, u.y, &next.content[u.idx]))
+		.collect()
+}
+
 #[test]
 fn diff_empty_empty() {
 	let area = Rect::new(0, 0, 40, 40);
 	let prev = Buffer::empty(area);
 	let next = Buffer::empty(area);
-	let diff = prev.diff(&next);
+	let diff = run_diff(&prev, &next);
 	assert_eq!(diff, []);
 }
 
@@ -16,7 +26,7 @@ fn diff_empty_filled() {
 	let area = Rect::new(0, 0, 40, 40);
 	let prev = Buffer::empty(area);
 	let next = Buffer::filled(area, Cell::new("a"));
-	let diff = prev.diff(&next);
+	let diff = run_diff(&prev, &next);
 	assert_eq!(diff.len(), 40 * 40);
 }
 
@@ -25,7 +35,7 @@ fn diff_filled_filled() {
 	let area = Rect::new(0, 0, 40, 40);
 	let prev = Buffer::filled(area, Cell::new("a"));
 	let next = Buffer::filled(area, Cell::new("a"));
-	let diff = prev.diff(&next);
+	let diff = run_diff(&prev, &next);
 	assert_eq!(diff, []);
 }
 
@@ -45,7 +55,7 @@ fn diff_single_width() {
 		"│      │  ",
 		"└──────┘  ",
 	]);
-	let diff = prev.diff(&next);
+	let diff = run_diff(&prev, &next);
 	assert_eq!(
 		diff,
 		[
@@ -69,7 +79,7 @@ fn diff_multi_width() {
             "┌称号──┐  ",
             "└──────┘  ",
         ]);
-	let diff = prev.diff(&next);
+	let diff = run_diff(&prev, &next);
 	assert_eq!(
 		diff,
 		[
@@ -87,7 +97,7 @@ fn diff_multi_width_offset() {
 	let prev = Buffer::with_lines(["┌称号──┐"]);
 	let next = Buffer::with_lines(["┌─称号─┐"]);
 
-	let diff = prev.diff(&next);
+	let diff = run_diff(&prev, &next);
 	assert_eq!(
 		diff,
 		[
@@ -106,7 +116,7 @@ fn diff_skip() {
 		next.content[i].set_skip(true);
 	}
 
-	let diff = prev.diff(&next);
+	let diff = run_diff(&prev, &next);
 	assert_eq!(diff, [(0, 0, &Cell::new("4"))],);
 }
 
@@ -127,7 +137,7 @@ fn diff_clears_trailing_cell_for_wide_grapheme() {
 	// The diff should include an update for (0,0) to draw the emoji. Depending on
 	// terminal behavior, it may or may not be necessary to explicitly clear (1,0).
 	// At minimum, ensure the first cell is updated and nothing incorrect is emitted.
-	let diff = prev.diff(&next);
+	let diff = run_diff(&prev, &next);
 	assert!(
 		diff.iter()
 			.any(|(x, y, c)| *x == 0 && *y == 0 && c.symbol() == "⌨️")
@@ -138,4 +148,21 @@ fn diff_clears_trailing_cell_for_wide_grapheme() {
 		diff.iter()
 			.any(|(x, y, c)| *x == 1 && *y == 0 && c.symbol() == " ")
 	);
+}
+
+#[test]
+fn diff_vs16_wide_glyph_clears_trailing_cell() {
+	let prev = Buffer::with_lines(["ab"]);
+	assert_eq!(prev.area.width, 2);
+
+	let mut next = Buffer::with_lines(["  "]);
+	next.set_string(0, 0, "❤️", Style::new());
+
+	let mut updates = Vec::new();
+	prev.diff_into(&next, &mut updates);
+
+	// Head cell at (0,0) must be present.
+	assert!(updates.iter().any(|u| u.x == 0 && u.y == 0 && u.idx == 0));
+	// Trailing cell at (1,0) must be explicitly cleared.
+	assert!(updates.iter().any(|u| u.x == 1 && u.y == 0 && u.idx == 1));
 }

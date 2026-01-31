@@ -69,6 +69,9 @@ pub async fn run_editor(mut editor: Editor) -> io::Result<()> {
 	let hook_runtime = editor.hook_runtime_mut();
 	emit_hook_sync_with(&HookContext::new(HookEventData::EditorStart), hook_runtime);
 
+	let mut dirty = true;
+	let mut last_cursor_style: Option<Cursor> = None;
+
 	let result: io::Result<()> = async {
 		loop {
 			editor.ui_tick();
@@ -97,22 +100,41 @@ pub async fn run_editor(mut editor: Editor) -> io::Result<()> {
 				editor.frame_mut().needs_redraw = true;
 			}
 
-			terminal.draw(|frame| editor.render(frame))?;
+			if dirty || editor.frame().needs_redraw {
+				terminal.draw(|frame| {
+					#[cfg(feature = "perf")]
+					let t0 = std::time::Instant::now();
 
-			let cursor_style = editor
-				.ui()
-				.cursor_style()
-				.unwrap_or_else(|| cursor_style_for_mode(editor.mode()));
-			write!(
-				terminal.backend_mut().terminal_mut(),
-				"{}",
-				Csi::Cursor(Cursor::CursorStyle(cursor_style))
-			)?;
-			terminal.backend_mut().terminal_mut().flush()?;
+					editor.render(frame);
+
+					#[cfg(feature = "perf")]
+					tracing::debug!(
+						target: "perf",
+						term_editor_render_ns = t0.elapsed().as_nanos() as u64,
+					);
+				})?;
+				dirty = false;
+				editor.frame_mut().needs_redraw = false;
+			}
+
+			let style = Cursor::CursorStyle(
+				editor
+					.ui()
+					.cursor_style()
+					.unwrap_or_else(|| cursor_style_for_mode(editor.mode())),
+			);
+			if last_cursor_style.as_ref() != Some(&style) {
+				write!(
+					terminal.backend_mut().terminal_mut(),
+					"{}",
+					Csi::Cursor(style.clone())
+				)?;
+				terminal.backend_mut().terminal_mut().flush()?;
+				last_cursor_style = Some(style);
+			}
 
 			let mut filter = |e: &Event| !e.is_escape();
 			let needs_fast_redraw = editor.frame().needs_redraw;
-			editor.frame_mut().needs_redraw = false;
 
 			let timeout = if matches!(editor.mode(), Mode::Insert)
 				|| editor.any_panel_open()
@@ -133,6 +155,7 @@ pub async fn run_editor(mut editor: Editor) -> io::Result<()> {
 			}
 
 			let event = events.read(&mut filter)?;
+			dirty = true;
 
 			match event {
 				Event::Key(key)
