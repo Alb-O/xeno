@@ -412,8 +412,8 @@ impl SyntaxManager {
 			return SyntaxPollResult::Disabled;
 		}
 
-		// 6) Debounce
-		if now.duration_since(st.last_edit_at) < cfg.debounce {
+		// 6) Debounce (skip for bootstrap: no existing tree → parse immediately)
+		if slot.current.is_some() && now.duration_since(st.last_edit_at) < cfg.debounce {
 			return SyntaxPollResult::Pending;
 		}
 

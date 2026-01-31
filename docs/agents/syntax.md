@@ -39,7 +39,11 @@
    - Enforced in: `EditorUndoHost::apply_transaction_inner`, `EditorUndoHost::undo_document`, `EditorUndoHost::redo_document`, `Editor::apply_buffer_edit_plan`
    - Tested by: `syntax_manager::tests::test_note_edit_updates_timestamp`
    - Failure symptom: Debounce gate in `SyntaxManager::ensure_syntax` is non-functional; background parses fire without waiting for edit silence.
-5. MUST bump `syntax_version` on successful incremental update (commits, undo, redo).
+5. MUST skip debounce for bootstrap parses (no existing syntax tree).
+   - Enforced in: `SyntaxManager::ensure_syntax` (debounce gate conditioned on `slot.current.is_some()`)
+   - Tested by: `syntax_manager::tests::test_bootstrap_parse_skips_debounce`
+   - Failure symptom: Newly opened documents show unhighlighted text until the debounce timeout elapses.
+6. MUST bump `syntax_version` on successful incremental update (commits, undo, redo).
    - Enforced in: `Document::try_incremental_syntax_update`, `Document::incremental_syntax_for_history`
    - Tested by: `buffer::document::tests::test_undo_redo_bumps_syntax_version`
    - Failure symptom: Highlight cache serves stale tiles until background reparse completes, causing a visual lag after undo/redo.
@@ -81,6 +85,7 @@ Steps:
 - `buffer::document::tests::test_undo_redo_bumps_syntax_version`
 - `syntax_manager::tests::test_stale_install_continuity`
 - `syntax_manager::tests::test_stale_parse_does_not_overwrite_clean_incremental`
+- `syntax_manager::tests::test_bootstrap_parse_skips_debounce`
 
 ## Glossary
 - Tier: A set of performance parameters chosen based on document size.

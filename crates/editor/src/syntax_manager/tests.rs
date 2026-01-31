@@ -370,6 +370,51 @@ async fn test_stale_install_continuity() {
 	assert!(dirty); // dirty stays true because version mismatch (V1 != V2)
 }
 
+/// Bootstrap parse (no existing syntax tree) MUST skip the debounce gate
+/// so that newly opened documents get highlighted immediately instead of
+/// waiting for the debounce timeout to elapse.
+#[tokio::test]
+async fn test_bootstrap_parse_skips_debounce() {
+	let engine = Arc::new(MockEngine::new());
+
+	let mut mgr = SyntaxManager::new_with_engine(1, engine.clone());
+	// Keep the default 80ms debounce — the point is to prove it's skipped.
+
+	let doc_id = DocumentId(1);
+	let loader = Arc::new(LanguageLoader::from_embedded());
+	let lang_id = loader
+		.language_for_name("rust")
+		.expect("rust should be available in embedded loader");
+	let content = Rope::from("fn main() {}");
+
+	let mut current = None;
+	let mut dirty = true;
+	let mut updated = false;
+
+	// First call with no existing syntax tree must kick immediately.
+	let poll = mgr.ensure_syntax(
+		EnsureSyntaxContext {
+			doc_id,
+			doc_version: 1,
+			language_id: Some(lang_id),
+			content: &content,
+			hotness: SyntaxHotness::Visible,
+			loader: &loader,
+		},
+		SyntaxSlot {
+			current: &mut current,
+			dirty: &mut dirty,
+			updated: &mut updated,
+		},
+	);
+	assert_eq!(
+		poll,
+		SyntaxPollResult::Kicked,
+		"bootstrap parse must skip debounce and kick immediately"
+	);
+	assert!(mgr.has_pending(doc_id));
+}
+
 #[test]
 fn test_note_edit_updates_timestamp() {
 	let mut mgr = SyntaxManager::default();
