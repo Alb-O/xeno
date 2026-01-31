@@ -30,6 +30,7 @@ Always prefer comprehensive techspec docstrings over inline comments:
 Agent docs are the ground truth for subsystem behavior and invariants, must read when relevant:
 - Registry: `docs/agents/registry.md`
 - LSP: `docs/agents/lsp.md`
+- Broker: `docs/agents/broker.md`
 - Overlay: `docs/agents/overlay.md`
 - Syntax: `docs/agents/syntax.md`
 - Windowing: `docs/agents/windowing.md`
@@ -102,7 +103,8 @@ When changing core behavior, public API, or invariants in any subsystem:
 
 If you touch these areas, you MUST consult and update the matching agent doc:
 - registry/indexing/override behavior → `docs/agents/registry.md`
-- overlay session/event wiring/focus rules → `docs/agents/overlay.md`
 - LSP identity/sync/generation/UI gating → `docs/agents/lsp.md`
+- broker deduplication/routing/leases → `docs/agents/broker.md`
+- overlay session/event wiring/focus rules → `docs/agents/overlay.md`
 - syntax scheduling/hotness/tier policy/stale installs → `docs/agents/syntax.md`
 - windowing/splits/floating windows/layers → `docs/agents/windowing.md`

@@ -1,118 +1,154 @@
-# LSP System Architecture
+# LSP
 
 ## Purpose
-- Owns: LSP client stack, JSON-RPC transport, document sync policy, and feature-specific controllers.
-- Does not own: Document content (owned by `Document`), UI presentation (delegated via events).
-- Source of truth: `LspSystem` in `crates/editor/src/lsp/system.rs` (wraps `xeno_lsp::LspManager`).
-- Shared Sessions: Managed by a central broker daemon to deduplicate LSP servers across multiple editor windows.
+- Define the editor-side LSP client stack: document synchronization, server registry, transport integration, and server-initiated request handling.
+- Describe the broker-default transport behavior used by the editor on Unix.
+- Exclude broker daemon internals (deduplication, leases, leader routing, pending maps); see docs/agents/broker.md.
 
 ## Mental model
-- Terms: Client (server instance), Sync (didOpen/didChange), Generation (staleness token), Outbox (single writer), Broker (shared manager), ProjectKey (deduplication token), Lease (persistence window), Leader (request responder).
-- Lifecycle in one sentence: Sessions attach to project-scoped LSP servers via a broker; servers remain warm under an idle lease and fan-out notifications to all attached clients.
+- LspSystem is the editor integration root that constructs an LspManager with a broker-backed transport.
+- DocumentSync owns didOpen/didChange/didSave/didClose policy and the local DocumentStateManager (diagnostics, progress).
+- Registry maps (language, workspace root) to a ClientHandle and enforces singleflight for server startup.
+- LspManager::spawn_router is the event pump that applies TransportEvent streams to DocumentStateManager and replies to server-initiated requests in-order.
+- BrokerTransport is the only production transport on Unix builds; it carries JSON-RPC frames over an IPC channel to the broker daemon.
 
 ## Module map
-- `crates/lsp/` — Core framework, transport, and protocol implementation.
-- `crates/broker/` — Broker daemon, project deduplication, and lease management.
-- `crates/editor/src/lsp/system.rs` — Integration root and public API.
-- `crates/editor/src/lsp/broker_transport.rs` — IPC bridge between editor and broker.
-- `crates/editor/src/lsp/sync_manager/` — Coalescing and sync logic.
-- `crates/editor/src/lsp/events.rs` — UI event fanout and state application.
+- `crates/editor/src/lsp/system.rs` — Editor integration root that constructs LspManager and exposes LspHandle.
+- `crates/editor/src/lsp/broker_transport.rs` — Broker-backed implementation of xeno_lsp::client::transport::LspTransport. IPC connection caching and disconnect invalidation.
+- `crates/lsp/src/sync/mod.rs` — DocumentSync and DocumentSyncEventHandler. didOpen/didChange/didSave/didClose policy and barrier semantics.
+- `crates/lsp/src/registry.rs` — Registry and singleflight server startup. Server metadata used for server-initiated request handlers.
+- `crates/lsp/src/session/manager.rs` — LspManager and the router task (TransportEvent pump).
+- `crates/lsp/src/session/server_requests.rs` — Server-initiated request handlers (workspace/configuration, workspaceFolders, etc.).
+- `crates/term/src/main.rs` — File-based tracing setup (xeno.<pid>.log) and headless lsp-smoke command.
 
 ## Key types
 | Type | Meaning | Constraints | Constructed / mutated in |
 |---|---|---|---|
-| `ClientHandle` | Communication channel | MUST check `Ready` state | `crates/editor/src/lsp/system.rs`::`LspSystem::on_buffer_open` |
-| `LspUiEvent` | Async UI result | Validated by generation | `crates/editor/src/lsp/events.rs`::`handle_lsp_ui_event` |
-| `DocSyncState` | Server's view of doc | MUST only apply changes in-order | `crates/editor/src/lsp/sync_manager/mod.rs`::`LspSyncManager` |
-| `ProjectKey` | Server identity | Deduplicated by cmd/args/cwd | `crates/broker/broker/src/core/mod.rs`::`ProjectKey` |
-| `ServerControl` | Lifecycle channels | Monitor task owns Child; LspInstance uses control channel | `crates/broker/broker/src/launcher.rs` (spawn) / `crates/broker/broker/src/core/mod.rs`::`LspInstance` |
+| LspSystem | Editor integration root for LSP | MUST construct an LspManager with a broker transport on Unix | `crates/editor/src/lsp/system.rs`::`LspSystem::new` |
+| LspManager | Owns DocumentSync and routes transport events | MUST reply to server-initiated requests inline to preserve request/reply pairing | `crates/lsp/src/session/manager.rs`::`LspManager::spawn_router` |
+| DocumentSync | High-level doc sync coordinator | MUST gate change notifications on client initialization state | `crates/lsp/src/sync/mod.rs`::`DocumentSync::*` |
+| Registry | Maps (language, root_path) to a running client | MUST singleflight transport.start() per key | `crates/lsp/src/registry.rs`::`Registry::get_or_start` |
+| RegistryState | Consolidated registry indices | MUST update servers/server_meta/id_index atomically | `crates/lsp/src/registry.rs`::`Registry::get_or_start`, `Registry::remove_server` |
+| ServerMeta | Per-server metadata for server-initiated requests | MUST be removable by server id | `crates/lsp/src/registry.rs`::`Registry::get_or_start`, `Registry::remove_server` |
+| ClientHandle | RPC handle for a single language server instance | MUST NOT be treated as ready until initialization completes | `crates/lsp/src/client/handle.rs`::`ClientHandle::*` |
+| TransportEvent | Transport → manager event stream | Router MUST process sequentially | `crates/lsp/src/session/manager.rs`::`LspManager::spawn_router` |
+| TransportStatus | Lifecycle signals for server processes | Router MUST remove servers on Stopped/Crashed | `crates/lsp/src/session/manager.rs`::`LspManager::spawn_router` |
+| BrokerTransport | Broker-backed LSP transport | MUST invalidate cached state on send failure | `crates/editor/src/lsp/broker_transport.rs`::`BrokerTransport::mark_disconnected` |
 
 ## Invariants (hard rules)
-1. MUST canonicalize all paths before LSP calls.
-   - Enforced in: `crates/editor/src/lsp/system.rs`::`LspSystem::canonicalize_path`
-   - Tested by: TODO (add regression: test_path_normalization)
-   - Failure symptom: Document identity desync (multiple entries for same file).
-2. MUST NOT process UI events if modal overlay is open.
-   - Enforced in: `crates/editor/src/lsp/events.rs`::`Editor::handle_lsp_ui_event`
-   - Tested by: TODO (add regression: test_modal_gating_lsp_ui)
-   - Failure symptom: Completion menus appearing on top of command palette.
-3. MUST NOT send requests/notifications until client is in Ready.
-   - Enforced in: `crates/lsp/src/client/lifecycle.rs`::`init_handshake`
-   - Tested by: TODO (add regression: test_ready_gate)
-   - Failure symptom: Race condition where server ignores early notifications.
-4. MUST terminate idle servers after lease expiry.
-   - Enforced in: `crates/broker/broker/src/core/mod.rs`::`BrokerCore::check_lease_expiry`
-   - Tested by: `crates/broker/broker/src/core/tests.rs`::`test_lease_expiry_terminates_server`
-   - Failure symptom: LSP processes leak after all editor sessions are closed.
-5. MUST register pending server→client requests before forwarding to prevent race.
-   - Enforced in: `crates/broker/broker/src/lsp.rs`::`LspProxyService::call`
-   - Tested by: `crates/broker/broker/src/core/tests.rs`::`reply_from_leader_completes_pending`
-   - Failure symptom: Server→client replies arrive before broker registers pending, causing "request not found" errors.
-6. MUST cancel pending requests on timeout, leader detach, and server exit.
-   - Enforced in: `crates/broker/broker/src/lsp.rs`::`LspProxyService::call` (timeout), `crates/broker/broker/src/core/mod.rs`::`cancel_client_request` (detach/exit)
-   - Tested by: `crates/broker/broker/src/core/tests.rs`::`disconnect_leader_cancels_pending_requests`
-   - Failure symptom: Memory leaks in pending_client_reqs map, or late replies misdelivered to wrong sessions.
-7. MUST detect and handle server process exit (crash or graceful).
-   - Enforced in: `crates/broker/broker/src/launcher.rs` (spawn monitor), `crates/broker/broker/src/core/mod.rs`::`handle_server_exit`
-   - Tested by: `crates/broker/broker/src/core/tests.rs` (server lifecycle tests)
-   - Failure symptom: Crashed servers remain "Running" indefinitely; new sessions attach to dead processes.
-8. MUST trigger session cleanup on send failure.
-   - Enforced in: `crates/broker/broker/src/core/mod.rs`::`broadcast_to_server`, `send_to_leader`, `set_server_status`
-   - Tested by: Implicit in disconnect tests
-   - Failure symptom: Dead sessions remain registered; leader routing blackholes requests.
-9. MUST deduplicate projects by normalized ProjectKey (no empty cwd).
-   - Enforced in: `crates/broker/broker/src/core/mod.rs`::`ProjectKey::from`
-   - Tested by: `crates/broker/broker/src/core/tests.rs`::`project_dedup_*` tests
-   - Failure symptom: Unrelated projects incorrectly share LSP servers, causing document identity confusion.
+1. The editor MUST use the broker transport on Unix builds.
+   - Enforced in: `crates/editor/src/lsp/system.rs`::`LspSystem::new`
+   - Tested by: TODO (add regression: test_lsp_system_uses_broker_transport_on_unix)
+   - Failure symptom: LSP requests silently do nothing or attempt to use removed LocalTransport code paths.
+2. Registry startup MUST singleflight transport.start() per (language, root_path) key.
+   - Enforced in: `crates/lsp/src/registry.rs`::`Registry::get_or_start`
+   - Tested by: TODO (add regression: test_registry_singleflight_prevents_duplicate_transport_start)
+   - Failure symptom: duplicate broker LspStart calls, leaked server processes until lease expiry, inconsistent server ids across callers.
+3. Registry mutations MUST be atomic across servers, server_meta, and id_index.
+   - Enforced in: `crates/lsp/src/registry.rs`::`Registry::get_or_start`, `Registry::remove_server`
+   - Tested by: TODO (add regression: test_registry_remove_server_scrubs_all_indices)
+   - Failure symptom: stale server metadata persists after removal, status cleanup fails to fully detach, server request handlers read wrong settings/root.
+4. The router MUST process transport events sequentially and MUST reply to server-initiated requests inline.
+   - Enforced in: `crates/lsp/src/session/manager.rs`::`LspManager::spawn_router`
+   - Tested by: `crates/editor/tests/broker_e2e.rs`::`test_broker_e2e_leader_routing_and_reply`
+   - Failure symptom: server request/reply pairing breaks, replies go to the wrong pending request, server-side hangs waiting for a response.
+5. On TransportStatus::Stopped or TransportStatus::Crashed, the router MUST remove the server from Registry and MUST clear per-server progress.
+   - Enforced in: `crates/lsp/src/session/manager.rs`::`LspManager::spawn_router`, `crates/lsp/src/registry.rs`::`Registry::remove_server`
+   - Tested by: TODO (add regression: test_status_stopped_removes_server_and_clears_progress)
+   - Failure symptom: UI shows stuck progress forever, stale ClientHandle remains reachable, subsequent requests wedge on a dead server id.
+6. workspace/configuration handling MUST return an array with one element per requested item, and MUST return an object for missing config.
+   - Enforced in: `crates/lsp/src/session/server_requests.rs`::`handle_workspace_configuration`
+   - Tested by: TODO (add regression: test_server_request_workspace_configuration_section_slicing)
+   - Failure symptom: servers treat configuration as invalid, disable features, or log repeated configuration query errors.
+7. workspace/workspaceFolders handling MUST return percent-encoded file URIs.
+   - Enforced in: `crates/lsp/src/session/server_requests.rs`::`handle_workspace_folders`
+   - Tested by: TODO (add regression: test_server_request_workspace_folders_uri_encoding)
+   - Failure symptom: servers mis-parse the workspace root for paths with spaces or non-ASCII characters and degrade indexing/navigation.
+8. BrokerTransport MUST invalidate cached RPC state and per-server request queues on send failure.
+   - Enforced in: `crates/editor/src/lsp/broker_transport.rs`::`BrokerTransport::mark_disconnected`
+   - Tested by: `crates/editor/tests/broker_e2e.rs`::`test_broker_reconnect_wedge`
+   - Failure symptom: reconnect wedges (stale cached RPC), servers never expire, or pending request queues grow unbounded.
+9. DocumentSync MUST NOT send change notifications before the client has completed initialization.
+   - Enforced in: `crates/lsp/src/sync/mod.rs`::`DocumentSync::notify_change_full_text`, `DocumentSync::notify_change_incremental_no_content`
+   - Tested by: TODO (add regression: test_document_sync_returns_not_ready_before_init)
+   - Failure symptom: edits are dropped by the server or applied out of order, resulting in stale diagnostics and incorrect completions.
 
 ## Data flow
-1. Trigger: User types or triggers manual completion.
-2. Request: `LspSystem` builds request; `BrokerTransport` forwards to broker over Unix socket.
-3. Proxy: Broker routes request to the specific LSP server instance.
-4. Async boundary: LSP server sends JSON-RPC; broker awaits response and routes back to correct session.
-5. Server→Client requests: Broker registers pending request BEFORE forwarding to leader. Reply completes pending; timeout/leader-change/server-exit cancels with REQUEST_CANCELLED error.
-6. Fan-out: Server notifications (diagnostics/status) are broadcast by broker to all attached sessions.
-7. Validation: Result matches current generation and buffer version?
-8. Effect: Apply edits or open menu via `LspUiEvent`.
+1. Editor constructs LspSystem which constructs LspManager with BrokerTransport.
+2. Editor opens a buffer; DocumentSync chooses a language and calls Registry::get_or_start(language, path).
+3. Registry singleflights startup and obtains a ClientHandle for the (language, root_path) key.
+4. DocumentSync registers the document in DocumentStateManager and sends didOpen via ClientHandle.
+5. Subsequent edits call DocumentSync change APIs; DocumentStateManager assigns versions; change notifications are sent and acknowledged.
+6. BrokerTransport forwards JSON-RPC frames to the broker daemon over Unix domain socket IPC.
+7. Transport emits TransportEvent values; LspManager router consumes them:
+   - Diagnostics events update DocumentStateManager diagnostics.
+   - Message events: Requests are handled by handle_server_request and replied via transport.reply. Notifications update progress and may be logged.
+   - Status events remove crashed/stopped servers from Registry and clear progress.
+   - Disconnected events stop the router loop.
 
 ## Lifecycle
-- Starting: Server process spawning and initializing.
-- Ready: Handshake complete; accepting edits/requests.
-- Leased: No sessions attached; server remains warm for reattachment.
-- Dead: Process crashed or lease expired; broker cleans up.
+- Configuration: Editor registers LanguageServerConfig via LspManager::configure_server.
+- Startup: First open/change triggers Registry::get_or_start and transport start. Client initialization runs asynchronously; readiness is tracked by ClientHandle.
+- Running: didOpen/didChange/didSave/didClose flow through DocumentSync. Router updates diagnostics/progress and services server-initiated requests.
+- Stopped/Crashed: Transport emits status; router removes server from Registry and clears progress. Next operation will start a new server instance.
+- Disconnected: BrokerTransport invalidates cached state; router exits on Disconnected. Next operation triggers reconnect and restart as needed.
 
 ## Concurrency & ordering
-- Single-writer Outbox: Only one task writes to the socket.
-- Monotonic Generations: Every completion/signature request has a unique incrementing ID.
-- Leader Election: Server->Client requests are routed only to the first-attached "leader" session.
+- Registry startup ordering: Registry MUST ensure only one transport.start() runs for a given (language, root_path) key at a time. Waiters MUST block on the inflight gate and then re-check the RegistryState.
+- Router ordering: LspManager router MUST process events in the order received from the transport receiver. Server-initiated requests MUST be handled inline; do not spawn per-request tasks that reorder replies.
+- Document versioning: DocumentStateManager versions MUST be monotonic per URI. When barriers are used, DocumentSync MUST only ack_change after the barrier is resolved.
 
 ## Failure modes & recovery
-- Server Crash: Mark client `Dead` and notify all sessions; broker cleans up.
-- Lease Expiry: Server terminated gracefully; next session will spawn a fresh instance.
-- Broker Disconnect: Editor falls back to `Dead` state for all brokered servers.
-- Canonicalization Failure: Skip LSP operations for that buffer to avoid identity aliasing.
+- Duplicate startup attempt: Recovery: singleflight blocks duplicates; waiters reuse the leader's handle.
+- Broker IPC send failure: Recovery: BrokerTransport calls mark_disconnected; subsequent operation reconnects.
+- Server crash or stop: Recovery: router removes server; subsequent operation re-starts server via Registry.
+- Unsupported server-initiated request method: Recovery: handler returns METHOD_NOT_FOUND; add method to allowlist if required by real servers.
+- URI conversion failure for workspaceFolders: Recovery: handler returns empty array; server may operate without workspace folders.
 
 ## Recipes
-### Add a new LSP feature
-Steps:
-- Add typed method to `xeno_lsp::client::api`.
-- Implement prepare/send logic in `LspSystem`.
-- Handle result/notification in `LspEventHandler` or `drain_lsp_ui_events`.
+### Add a new server-initiated request handler
+- Implement a method arm in `crates/lsp/src/session/server_requests.rs`.
+- Return a stable, schema-valid JSON value for the LSP method.
+- Ensure the handler is called inline from LspManager::spawn_router.
+- Add a regression test: TODO (add regression: test_server_request_<method_name>).
+
+### Add a new LSP feature request from the editor
+- Add a typed API method on ClientHandle or a controller in crates/lsp.
+- Call through DocumentSync or a feature controller from editor code.
+- Gate on readiness and buffer identity invariants (URI, version).
+- Plumb results into editor UI through the existing event mechanism.
+
+### Run headless smoke verification with file-based tracing
+- Set XENO_LOG_DIR and RUST_LOG.
+- Run `xeno lsp-smoke <workspace_path>`.
+- Grep for: singleflight leader path (exactly one after transport.start), server-initiated request handling logs, status updates and disconnects.
+
+### Enable broker + editor log correlation
+- Ensure broker spawn passes XENO_LOG_DIR, RUST_LOG, XENO_LOG, RUST_BACKTRACE.
+- Correlate by PID filenames: xeno.<pid>.log and xeno-broker.<pid>.log.
 
 ## Tests
-- `crates/broker/broker/src/core/tests.rs`::`test_lease_expiry_terminates_server`
-- `crates/broker/broker/src/core/tests.rs`::`test_warm_reattach_reuses_server`
-- `crates/editor/tests/broker_e2e.rs`::`test_broker_e2e_dedup_and_fanout`
+- `crates/lsp/src/session/manager.rs`::`tests::test_lsp_manager_creation`
+- `crates/editor/tests/broker_e2e.rs`::`test_broker_reconnect_wedge`
 - `crates/editor/tests/broker_e2e.rs`::`test_broker_e2e_leader_routing_and_reply`
+- `crates/editor/tests/broker_e2e.rs`::`test_broker_e2e_dedup_and_fanout`
+- `crates/editor/tests/broker_e2e.rs`::`test_broker_e2e_persistence_warm_reattach`
+- `crates/editor/tests/broker_e2e.rs`::`test_broker_e2e_persistence_lease_expiry`
+- `crates/editor/tests/broker_e2e.rs`::`test_broker_owner_close_transfer`
+- `crates/editor/tests/broker_e2e.rs`::`test_broker_string_wire_ids`
 - `crates/editor/src/lsp/sync_manager/tests.rs`::`test_doc_open_close`
 - `crates/editor/src/lsp/sync_manager/tests.rs`::`test_contiguity_check_success`
+- TODO (add regression: test_registry_singleflight_prevents_duplicate_transport_start)
+- TODO (add regression: test_status_stopped_removes_server_and_clears_progress)
+- TODO (add regression: test_server_request_workspace_configuration_section_slicing)
+- TODO (add regression: test_server_request_workspace_folders_uri_encoding)
 
 ## Glossary
-- Client: A session's handle to a Language Server (local or brokered).
-- Broker: Daemon managing shared LSP server instances.
-- ProjectKey: Unique identifier for a project root and server configuration.
-- Lease: Configurable time window where an idle server is kept warm.
-- Leader: The session responsible for answering server-initiated requests.
-- Sync: The protocol for keeping the server's view of a document in sync with the editor.
-- Generation: A unique identifier for a specific UI request to prevent applying stale results.
-- Outbox: The bounded queue of outgoing LSP messages.
+- broker transport: The LspTransport implementation in crates/editor/src/lsp/broker_transport.rs that forwards JSON-RPC over IPC to the broker daemon.
+- client handle: A ClientHandle representing one running language server instance for a (language, root_path) key.
+- disconnect invalidation: The act of clearing cached IPC state and pending queues so the next operation forces reconnect.
+- inflight gate: Registry singleflight mechanism that ensures only one startup attempt per (language, root_path) key.
+- registry: The mapping layer from language and file path to a running client instance.
+- server-initiated request: A JSON-RPC request sent from the language server to the client that requires a reply (handled by server_requests.rs).
+- status event: A TransportEvent::Status emitted by the transport to report server lifecycle (Starting/Running/Stopped/Crashed).
+- workspace root: The root directory selected by Registry from root markers and file path; used for server identity and workspaceFolders replies.
