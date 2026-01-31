@@ -6,17 +6,23 @@ use super::*;
 
 struct MockEngine {
 	gate: Mutex<Option<oneshot::Receiver<()>>>,
+	result: Mutex<Option<Result<Syntax, SyntaxError>>>,
 }
 
 impl MockEngine {
 	fn new() -> Self {
 		Self {
 			gate: Mutex::new(None),
+			result: Mutex::new(None),
 		}
 	}
 
 	fn set_gate(&self, rx: oneshot::Receiver<()>) {
 		*self.gate.lock().unwrap() = Some(rx);
+	}
+
+	fn set_result(&self, res: Result<Syntax, SyntaxError>) {
+		*self.result.lock().unwrap() = Some(res);
 	}
 }
 
@@ -33,7 +39,11 @@ impl SyntaxEngine for MockEngine {
 			let _ = rx.blocking_recv();
 		}
 
-		Err(SyntaxError::Timeout)
+		if let Some(res) = self.result.lock().unwrap().take() {
+			res
+		} else {
+			Err(SyntaxError::Timeout)
+		}
 	}
 }
 
@@ -50,10 +60,10 @@ async fn test_inflight_drained_even_if_doc_marked_clean() {
 	mgr.set_policy(policy);
 
 	let doc_id = DocumentId(1);
-	let loader = Arc::new(LanguageLoader::new());
+	let loader = Arc::new(LanguageLoader::from_embedded());
 	let lang_id = loader
 		.language_for_name("rust")
-		.unwrap_or_else(|| LanguageId::new(0u32));
+		.expect("rust should be available in embedded loader");
 	let content = Rope::from("test");
 
 	let mut current = None;
@@ -117,13 +127,13 @@ async fn test_language_switch_discards_old_parse() {
 	mgr.set_policy(policy);
 
 	let doc_id = DocumentId(1);
-	let loader = Arc::new(LanguageLoader::new());
+	let loader = Arc::new(LanguageLoader::from_embedded());
 	let lang_id_old = loader
 		.language_for_name("rust")
-		.unwrap_or_else(|| LanguageId::new(1u32));
+		.expect("rust should be available");
 	let lang_id_new = loader
 		.language_for_name("python")
-		.unwrap_or_else(|| LanguageId::new(2u32));
+		.expect("python should be available");
 	let content = Rope::from("test");
 
 	let mut current = None;
@@ -201,10 +211,10 @@ async fn test_dropwhenhidden_discards_completed_parse() {
 	mgr.set_policy(policy);
 
 	let doc_id = DocumentId(1);
-	let loader = Arc::new(LanguageLoader::new());
+	let loader = Arc::new(LanguageLoader::from_embedded());
 	let lang_id = loader
 		.language_for_name("rust")
-		.unwrap_or_else(|| LanguageId::new(1u32));
+		.expect("rust should be available");
 	let content = Rope::from(" ".repeat(2 * 1024 * 1024));
 
 	let mut current = None;
@@ -281,4 +291,96 @@ fn test_stale_parse_does_not_overwrite_clean_incremental() {
 			"should_install_completed_parse(version_match={version_match}, dirty={dirty}, has_current={has_current}) = {result}, expected {expected}"
 		);
 	}
+}
+
+#[tokio::test]
+async fn test_stale_install_continuity() {
+	let engine = Arc::new(MockEngine::new());
+	let (tx, rx) = oneshot::channel();
+	engine.set_gate(rx);
+
+	let mut mgr = SyntaxManager::new_with_engine(1, engine.clone());
+	let mut policy = TieredSyntaxPolicy::default();
+	policy.s.debounce = Duration::from_millis(0);
+	policy.s.cooldown_on_timeout = Duration::from_millis(0);
+	mgr.set_policy(policy);
+
+	let doc_id = DocumentId(1);
+	let loader = Arc::new(LanguageLoader::from_embedded());
+	let lang_id = loader
+		.language_for_name("rust")
+		.expect("rust should be available in embedded loader");
+	let content = Rope::from("test");
+
+	// Setup a dummy syntax to return
+	let dummy_syntax = Syntax::new(
+		content.slice(..),
+		lang_id,
+		&loader,
+		xeno_runtime_language::SyntaxOptions::default(),
+	)
+	.unwrap();
+	engine.set_result(Ok(dummy_syntax));
+
+	let mut current = None;
+	let mut dirty = true;
+	let mut updated = false;
+
+	// 1. Kick off parse for V1
+	mgr.ensure_syntax(
+		EnsureSyntaxContext {
+			doc_id,
+			doc_version: 1,
+			language_id: Some(lang_id),
+			content: &content,
+			hotness: SyntaxHotness::Visible,
+			loader: &loader,
+		},
+		SyntaxSlot {
+			current: &mut current,
+			dirty: &mut dirty,
+			updated: &mut updated,
+		},
+	);
+
+	// 2. Doc version moves to V2 before V1 completes
+	// 3. Complete V1 parse
+	let _ = tx.send(());
+	tokio::time::sleep(Duration::from_millis(50)).await;
+
+	// 4. Poll with V2. Slot is still dirty, so V1 result SHOULD be installed (continuity).
+	mgr.ensure_syntax(
+		EnsureSyntaxContext {
+			doc_id,
+			doc_version: 2,
+			language_id: Some(lang_id),
+			content: &content,
+			hotness: SyntaxHotness::Visible,
+			loader: &loader,
+		},
+		SyntaxSlot {
+			current: &mut current,
+			dirty: &mut dirty,
+			updated: &mut updated,
+		},
+	);
+
+	assert!(current.is_some());
+	assert!(updated);
+	assert!(dirty); // dirty stays true because version mismatch (V1 != V2)
+}
+
+#[test]
+fn test_note_edit_updates_timestamp() {
+	let mut mgr = SyntaxManager::default();
+	let doc_id = DocumentId(1);
+
+	mgr.note_edit(doc_id);
+	let t1 = mgr.docs.get(&doc_id).unwrap().last_edit_at;
+
+	std::thread::sleep(Duration::from_millis(1));
+	mgr.note_edit(doc_id);
+	let t2 = mgr.docs.get(&doc_id).unwrap().last_edit_at;
+
+	assert!(t2 > t1);
 }

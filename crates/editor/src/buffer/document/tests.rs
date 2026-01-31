@@ -391,3 +391,61 @@ fn reset_content_clears_undo_history() {
 	assert_eq!(doc.undo_len(), 0);
 	assert_eq!(doc.redo_len(), 0);
 }
+
+#[test]
+fn test_undo_redo_bumps_syntax_version() {
+	use xeno_runtime_language::syntax::Syntax;
+
+	let mut doc = Document::new("fn main() {}".into(), None);
+	let loader = language_loader();
+	doc.init_syntax_for_language("rust", &loader);
+
+	// Initial version bump from init_syntax
+	let v0 = doc.syntax_version;
+	assert!(v0 > 0);
+
+	// Install syntax
+	let syntax = Syntax::new(
+		doc.content().slice(..),
+		doc.language_id().unwrap(),
+		&loader,
+		xeno_runtime_language::SyntaxOptions::default(),
+	)
+	.unwrap();
+	doc.set_syntax(Some(syntax));
+	let v1 = doc.syntax_version;
+	assert!(v1 > v0);
+
+	// Edit
+	let tx = Transaction::change(
+		doc.content().slice(..),
+		[Change {
+			start: 11,
+			end: 11,
+			replacement: Some("\n".into()),
+		}],
+	);
+	doc.commit(
+		EditCommit {
+			tx,
+			undo: UndoPolicy::Record,
+			syntax: SyntaxPolicy::IncrementalOrDirty,
+			origin: EditOrigin::Internal("test"),
+			selection_after: None,
+		},
+		&loader,
+	)
+	.unwrap();
+	let v2 = doc.syntax_version;
+	assert!(v2 > v1); // Incremental update bumps version
+
+	// Undo
+	doc.undo(&loader);
+	let v3 = doc.syntax_version;
+	assert!(v3 > v2); // Undo bumps version
+
+	// Redo
+	doc.redo(&loader);
+	let v4 = doc.syntax_version;
+	assert!(v4 > v3); // Redo bumps version
+}

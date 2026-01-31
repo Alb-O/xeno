@@ -70,7 +70,7 @@
    - Failure symptom: reconnect wedges (stale cached RPC), servers never expire, or pending request queues grow unbounded.
 9. DocumentSync MUST NOT send change notifications before the client has completed initialization.
    - Enforced in: `DocumentSync::notify_change_full_text`, `DocumentSync::notify_change_incremental_no_content`
-   - Tested by: TODO (add regression: test_document_sync_returns_not_ready_before_init)
+   - Tested by: `lsp::sync::tests::test_document_sync_returns_not_ready_before_init`
    - Failure symptom: edits are dropped by the server or applied out of order, resulting in stale diagnostics and incorrect completions.
 10. `LspSystem::prepare_position_request` MUST gate on `ClientHandle::is_ready()` before forming any position-based LSP request.
     - Enforced in: `LspSystem::prepare_position_request`
@@ -154,6 +154,7 @@
 - `test_broker_string_wire_ids`
 - `lsp::sync_manager::tests::test_doc_open_close`
 - `lsp::sync_manager::tests::test_contiguity_check_success`
+- `lsp::sync::tests::test_document_sync_returns_not_ready_before_init`
 - TODO (add regression: test_registry_singleflight_prevents_duplicate_transport_start)
 - TODO (add regression: test_status_stopped_removes_server_and_clears_progress)
 - TODO (add regression: test_server_request_workspace_configuration_section_slicing)

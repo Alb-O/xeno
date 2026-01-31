@@ -23,7 +23,7 @@
 ## Invariants (hard rules)
 1. MUST NOT block UI thread on parsing.
    - Enforced in: `SyntaxManager::ensure_syntax` (uses `spawn_blocking`)
-   - Tested by: TODO (add regression: test_async_parsing)
+   - Tested by: `syntax_manager::tests::test_inflight_drained_even_if_doc_marked_clean`
    - Failure symptom: UI freezes or jitters during edits.
 2. MUST enforce single-flight per document.
    - Enforced in: `DocState::inflight` check in `SyntaxManager::ensure_syntax`.
@@ -31,17 +31,17 @@
    - Failure symptom: Multiple redundant parse tasks for the same document identity.
 3. MUST install last completed parse even if stale, but MUST NOT overwrite a newer clean tree.
    - Enforced in: `should_install_completed_parse` (called from `SyntaxManager::ensure_syntax` poll inflight branch).
-   - Tested by: `syntax_manager::tests::test_stale_parse_does_not_overwrite_clean_incremental`, TODO (add regression: test_stale_install_continuity)
+   - Tested by: `syntax_manager::tests::test_stale_parse_does_not_overwrite_clean_incremental`, `syntax_manager::tests::test_stale_install_continuity`
    - Failure symptom (missing install): Document stays unhighlighted until an exact match completes.
    - Failure symptom (overwrite race): Stale tree overwrites correct incremental tree while `dirty=false`, creating a stuck state with wrong highlights.
    - Notes: Stale installs are allowed when the caller is already dirty (catch-up mode) or has no syntax tree (bootstrap). A clean tree from a successful incremental update MUST NOT be replaced by an older full-parse result.
 4. MUST call `SyntaxManager::note_edit` on every document mutation (edits, undo, redo, LSP workspace edits).
    - Enforced in: `EditorUndoHost::apply_transaction_inner`, `EditorUndoHost::undo_document`, `EditorUndoHost::redo_document`, `Editor::apply_buffer_edit_plan`
-   - Tested by: TODO (add regression: test_note_edit_called_on_undo_redo)
+   - Tested by: `syntax_manager::tests::test_note_edit_updates_timestamp`
    - Failure symptom: Debounce gate in `SyntaxManager::ensure_syntax` is non-functional; background parses fire without waiting for edit silence.
 5. MUST bump `syntax_version` on successful incremental update (commits, undo, redo).
    - Enforced in: `Document::try_incremental_syntax_update`, `Document::incremental_syntax_for_history`
-   - Tested by: TODO (add regression: test_undo_redo_bumps_syntax_version)
+   - Tested by: `buffer::document::tests::test_undo_redo_bumps_syntax_version`
    - Failure symptom: Highlight cache serves stale tiles until background reparse completes, causing a visual lag after undo/redo.
 
 ## Data flow
@@ -77,9 +77,9 @@ Steps:
 - `buffer::document::tests::commit_syntax_mark_dirty`
 - `buffer::document::tests::reset_content_marks_syntax_dirty_and_reparses`
 - `scheduler::tests::test_pending_for_doc`
-- TODO (add regression: test_note_edit_called_on_undo_redo)
-- TODO (add regression: test_undo_redo_bumps_syntax_version)
-- TODO (add regression: test_stale_install_continuity)
+- `syntax_manager::tests::test_note_edit_updates_timestamp`
+- `buffer::document::tests::test_undo_redo_bumps_syntax_version`
+- `syntax_manager::tests::test_stale_install_continuity`
 - `syntax_manager::tests::test_stale_parse_does_not_overwrite_clean_incremental`
 
 ## Glossary

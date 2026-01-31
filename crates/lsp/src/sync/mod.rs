@@ -476,3 +476,6 @@ impl DocumentSync {
 		self.documents.clone()
 	}
 }
+
+#[cfg(test)]
+mod tests;
