@@ -68,7 +68,7 @@ pub struct PreparedEdit {
 
 /// Trait for operations needed by [`UndoManager`].
 ///
-/// The Editor implements this trait to provide:
+/// Implemented by [`EditorUndoHost`] to provide:
 /// - Read-only access to guard conditions and document state
 /// - View snapshot collection and restoration
 /// - Document-level undo/redo operations
@@ -76,6 +76,8 @@ pub struct PreparedEdit {
 ///
 /// This abstraction allows UndoManager to operate without direct Editor access,
 /// making the undo logic more testable and the dependencies more explicit.
+///
+/// [`EditorUndoHost`]: crate::impls::undo_host::EditorUndoHost
 pub trait UndoHost {
 	/// Checks if the buffer is readonly and shows notification if so.
 	/// Returns `true` if editing is allowed.

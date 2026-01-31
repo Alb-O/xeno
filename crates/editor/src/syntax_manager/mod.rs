@@ -340,16 +340,23 @@ impl SyntaxManager {
 
 					let lang_ok = done.lang_id == current_lang;
 					let opts_ok = done.opts == current_opts_key;
+					let version_match = done.doc_version == ctx.doc_version;
 					let retain_ok =
 						retention_allows_install(now, st, cfg.retention_hidden, ctx.hotness);
 
-					if lang_ok && retain_ok {
+					// Install the completed parse, but guard against overwriting
+					// a newer incremental tree with a stale full-parse result.
+					// Only install stale results when the caller is already dirty
+					// (catch-up mode) or has no syntax at all (bootstrap).
+					let allow_install = version_match || *slot.dirty || slot.current.is_none();
+
+					if lang_ok && retain_ok && allow_install {
 						*slot.current = Some(syntax);
 						*slot.updated = true;
 					}
 
-					// dirty clears only if this parse matches current version + “shape”
-					if lang_ok && opts_ok && done.doc_version == ctx.doc_version {
+					// dirty clears only if this parse matches current version + "shape"
+					if lang_ok && opts_ok && version_match {
 						*slot.dirty = false;
 						st.cooldown_until = None;
 						return SyntaxPollResult::Ready;

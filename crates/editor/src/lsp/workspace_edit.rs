@@ -191,7 +191,14 @@ impl Editor {
 			}
 			affected_docs.push(doc_id);
 
-			let snapshots = self.collect_view_snapshots(doc_id);
+			let snapshots: std::collections::HashMap<_, _> = self
+				.state
+				.core
+				.buffers
+				.buffers()
+				.filter(|b| b.document_id() == doc_id)
+				.map(|b| (b.id, b.snapshot_view()))
+				.collect();
 			all_view_snapshots.extend(snapshots);
 		}
 
@@ -256,6 +263,7 @@ impl Editor {
 		};
 
 		if result.applied {
+			self.state.syntax_manager.note_edit(doc_id);
 			self.state.lsp.sync_manager_mut().escalate_full(doc_id);
 		}
 

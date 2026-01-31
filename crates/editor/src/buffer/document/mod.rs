@@ -128,6 +128,52 @@ pub struct Document {
 impl Document {
 	const MAX_SYNC_INCREMENTAL_BYTES: usize = 256 * 1024; // Tier S only
 
+	/// Whether a synchronous incremental syntax update is feasible.
+	///
+	/// Requires a syntax tree, a clean base (not dirty), and content within
+	/// the Tier S size limit.
+	fn can_sync_incremental(&self) -> bool {
+		self.syntax.is_some()
+			&& !self.syntax_dirty
+			&& self.content.len_bytes() <= Self::MAX_SYNC_INCREMENTAL_BYTES
+	}
+
+	/// Tries an incremental tree-sitter update; falls back to marking dirty.
+	///
+	/// On success: clears `syntax_dirty`, bumps `syntax_version`, returns `true`.
+	/// On failure or skip: sets `syntax_dirty = true`, returns `false`.
+	/// Logs a warning on incremental failure with the given `op` label.
+	fn try_incremental_syntax_update(
+		&mut self,
+		old_source: Option<Rope>,
+		changeset: &xeno_primitives::ChangeSet,
+		language_loader: &LanguageLoader,
+		op: &'static str,
+	) -> bool {
+		if let Some(old_source) = old_source
+			&& let Some(ref mut syntax) = self.syntax
+		{
+			match syntax.update_from_changeset(
+				old_source.slice(..),
+				self.content.slice(..),
+				changeset,
+				language_loader,
+				xeno_runtime_language::SyntaxOptions::default(),
+			) {
+				Ok(()) => {
+					self.syntax_dirty = false;
+					self.syntax_version = self.syntax_version.wrapping_add(1);
+					return true;
+				}
+				Err(e) => {
+					tracing::warn!(error=%e, op, "Incremental syntax update failed");
+				}
+			}
+		}
+		self.syntax_dirty = true;
+		false
+	}
+
 	/// Creates a new document with the given content and optional file path.
 	pub fn new(content: String, path: Option<PathBuf>) -> Self {
 		Self {
@@ -252,14 +298,7 @@ impl Document {
 			return false;
 		}
 
-		let allow_sync_incremental = self.syntax.is_some()
-			&& !self.syntax_dirty
-			&& self.content.len_bytes() <= Self::MAX_SYNC_INCREMENTAL_BYTES;
-		let old_source_for_syntax = if allow_sync_incremental {
-			Some(self.content.clone())
-		} else {
-			None
-		};
+		let old_source = self.can_sync_incremental().then(|| self.content.clone());
 
 		let tx = self.undo_backend.undo(
 			&mut self.content,
@@ -272,29 +311,7 @@ impl Document {
 			return false;
 		};
 
-		if let Some(old_source) = old_source_for_syntax
-			&& let Some(ref mut syntax) = self.syntax
-		{
-			match syntax.update_from_changeset(
-				old_source.slice(..),
-				self.content.slice(..),
-				tx.changes(),
-				language_loader,
-				xeno_runtime_language::SyntaxOptions::default(),
-			) {
-				Ok(()) => {
-					self.syntax_dirty = false;
-					self.syntax_version = self.syntax_version.wrapping_add(1);
-				}
-				Err(e) => {
-					tracing::warn!(error=%e, "Incremental syntax update failed during undo");
-					self.syntax_dirty = true;
-				}
-			}
-		} else {
-			self.syntax_dirty = true;
-		}
-
+		self.try_incremental_syntax_update(old_source, tx.changes(), language_loader, "undo");
 		true
 	}
 
@@ -313,14 +330,7 @@ impl Document {
 			return false;
 		}
 
-		let allow_sync_incremental = self.syntax.is_some()
-			&& !self.syntax_dirty
-			&& self.content.len_bytes() <= Self::MAX_SYNC_INCREMENTAL_BYTES;
-		let old_source_for_syntax = if allow_sync_incremental {
-			Some(self.content.clone())
-		} else {
-			None
-		};
+		let old_source = self.can_sync_incremental().then(|| self.content.clone());
 
 		let tx = self.undo_backend.redo(
 			&mut self.content,
@@ -333,29 +343,7 @@ impl Document {
 			return false;
 		};
 
-		if let Some(old_source) = old_source_for_syntax
-			&& let Some(ref mut syntax) = self.syntax
-		{
-			match syntax.update_from_changeset(
-				old_source.slice(..),
-				self.content.slice(..),
-				tx.changes(),
-				language_loader,
-				xeno_runtime_language::SyntaxOptions::default(),
-			) {
-				Ok(()) => {
-					self.syntax_dirty = false;
-					self.syntax_version = self.syntax_version.wrapping_add(1);
-				}
-				Err(e) => {
-					tracing::warn!(error=%e, "Incremental syntax update failed during redo");
-					self.syntax_dirty = true;
-				}
-			}
-		} else {
-			self.syntax_dirty = true;
-		}
-
+		self.try_incremental_syntax_update(old_source, tx.changes(), language_loader, "redo");
 		true
 	}
 
@@ -435,13 +423,9 @@ impl Document {
 			None
 		};
 
-		// Capture old source for incremental syntax if needed
-		let allow_sync_incremental = matches!(commit.syntax, SyntaxPolicy::IncrementalOrDirty)
-			&& self.syntax.is_some()
-			&& !self.syntax_dirty
-			&& self.content.len_bytes() <= Self::MAX_SYNC_INCREMENTAL_BYTES;
-
-		let old_source_for_syntax = if allow_sync_incremental {
+		let old_source_for_syntax = if matches!(commit.syntax, SyntaxPolicy::IncrementalOrDirty)
+			&& self.can_sync_incremental()
+		{
 			Some(self.content.clone())
 		} else {
 			None
@@ -465,32 +449,14 @@ impl Document {
 				SyntaxOutcome::MarkedDirty
 			}
 			SyntaxPolicy::IncrementalOrDirty => {
-				if let Some(old_source) = old_source_for_syntax {
-					// Try incremental update, fall back to marking dirty on failure
-					if let Some(ref mut syntax) = self.syntax {
-						match syntax.update_from_changeset(
-							old_source.slice(..),
-							self.content.slice(..),
-							commit.tx.changes(),
-							language_loader,
-							xeno_runtime_language::SyntaxOptions::default(),
-						) {
-							Ok(()) => {
-								self.syntax_dirty = false;
-								self.syntax_version = self.syntax_version.wrapping_add(1);
-								SyntaxOutcome::IncrementalApplied
-							}
-							Err(_) => {
-								self.syntax_dirty = true;
-								SyntaxOutcome::MarkedDirty
-							}
-						}
-					} else {
-						self.syntax_dirty = true;
-						SyntaxOutcome::MarkedDirty
-					}
+				if self.try_incremental_syntax_update(
+					old_source_for_syntax,
+					commit.tx.changes(),
+					language_loader,
+					"commit",
+				) {
+					SyntaxOutcome::IncrementalApplied
 				} else {
-					self.syntax_dirty = true;
 					SyntaxOutcome::MarkedDirty
 				}
 			}
