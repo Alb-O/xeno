@@ -344,11 +344,11 @@ impl SyntaxManager {
 					let retain_ok =
 						retention_allows_install(now, st, cfg.retention_hidden, ctx.hotness);
 
-					// Install the completed parse, but guard against overwriting
-					// a newer incremental tree with a stale full-parse result.
-					// Only install stale results when the caller is already dirty
-					// (catch-up mode) or has no syntax at all (bootstrap).
-					let allow_install = version_match || *slot.dirty || slot.current.is_none();
+					let allow_install = should_install_completed_parse(
+						version_match,
+						*slot.dirty,
+						slot.current.is_some(),
+					);
 
 					if lang_ok && retain_ok && allow_install {
 						*slot.current = Some(syntax);
@@ -454,6 +454,19 @@ impl SyntaxManager {
 
 		SyntaxPollResult::Kicked
 	}
+}
+
+/// Whether a completed background parse should be installed into the syntax slot.
+///
+/// Guards against overwriting a newer incremental tree with a stale full-parse
+/// result. A stale parse (version mismatch) is only installed when the caller is
+/// already dirty (catch-up mode) or has no syntax at all (bootstrap).
+fn should_install_completed_parse(
+	version_match: bool,
+	slot_dirty: bool,
+	has_current: bool,
+) -> bool {
+	version_match || slot_dirty || !has_current
 }
 
 fn retention_allows_install(

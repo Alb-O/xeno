@@ -248,3 +248,37 @@ async fn test_dropwhenhidden_discards_completed_parse() {
 	assert!(current.is_none());
 	assert!(dirty);
 }
+
+/// Exhaustive truth table for the stale-inflight install guard.
+///
+/// The critical regression case is `(version_match=false, dirty=false,
+/// has_current=true)` — a clean incremental tree at V1 must NOT be
+/// overwritten by a stale background parse from V0.
+#[test]
+fn test_stale_parse_does_not_overwrite_clean_incremental() {
+	use super::should_install_completed_parse;
+
+	// (version_match, slot_dirty, has_current) -> expected
+	let cases = [
+		// The regression case: clean tree + stale result → MUST NOT install.
+		(false, false, true, false),
+		// Exact version match → always install.
+		(true, false, true, true),
+		(true, true, true, true),
+		(true, false, false, true),
+		(true, true, false, true),
+		// Dirty slot → install stale for catch-up continuity.
+		(false, true, true, true),
+		(false, true, false, true),
+		// No current syntax → install stale for bootstrap.
+		(false, false, false, true),
+	];
+
+	for (version_match, dirty, has_current, expected) in cases {
+		let result = should_install_completed_parse(version_match, dirty, has_current);
+		assert_eq!(
+			result, expected,
+			"should_install_completed_parse(version_match={version_match}, dirty={dirty}, has_current={has_current}) = {result}, expected {expected}"
+		);
+	}
+}

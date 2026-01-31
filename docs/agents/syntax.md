@@ -30,8 +30,8 @@
    - Tested by: `scheduler::tests::test_pending_for_doc`
    - Failure symptom: Multiple redundant parse tasks for the same document identity.
 3. MUST install last completed parse even if stale, but MUST NOT overwrite a newer clean tree.
-   - Enforced in: `SyntaxManager::ensure_syntax` (poll inflight branch, `allow_install` guard).
-   - Tested by: TODO (add regression: test_stale_install_continuity), TODO (add regression: test_stale_parse_does_not_overwrite_clean_incremental)
+   - Enforced in: `should_install_completed_parse` (called from `SyntaxManager::ensure_syntax` poll inflight branch).
+   - Tested by: `syntax_manager::tests::test_stale_parse_does_not_overwrite_clean_incremental`, TODO (add regression: test_stale_install_continuity)
    - Failure symptom (missing install): Document stays unhighlighted until an exact match completes.
    - Failure symptom (overwrite race): Stale tree overwrites correct incremental tree while `dirty=false`, creating a stuck state with wrong highlights.
    - Notes: Stale installs are allowed when the caller is already dirty (catch-up mode) or has no syntax tree (bootstrap). A clean tree from a successful incremental update MUST NOT be replaced by an older full-parse result.
@@ -80,7 +80,7 @@ Steps:
 - TODO (add regression: test_note_edit_called_on_undo_redo)
 - TODO (add regression: test_undo_redo_bumps_syntax_version)
 - TODO (add regression: test_stale_install_continuity)
-- TODO (add regression: test_stale_parse_does_not_overwrite_clean_incremental)
+- `syntax_manager::tests::test_stale_parse_does_not_overwrite_clean_incremental`
 
 ## Glossary
 - Tier: A set of performance parameters chosen based on document size.
