@@ -54,14 +54,11 @@ use xeno_lsp::client::transport::LspTransport;
 #[cfg(feature = "lsp")]
 impl LspSystem {
 	pub fn new() -> Self {
+		#[cfg(not(unix))]
+		compile_error!("LSP support requires Unix (broker uses Unix domain sockets).");
+
 		let (ui_tx, ui_rx) = tokio::sync::mpsc::unbounded_channel();
-
-		let transport: Arc<dyn LspTransport> = if std::env::var("XENO_USE_BROKER").is_ok() {
-			crate::lsp::broker_transport::BrokerTransport::new()
-		} else {
-			xeno_lsp::LocalTransport::new()
-		};
-
+		let transport: Arc<dyn LspTransport> = crate::lsp::broker_transport::BrokerTransport::new();
 		let manager = LspManager::new(transport);
 		manager.spawn_router();
 

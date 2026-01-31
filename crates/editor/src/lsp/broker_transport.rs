@@ -1,4 +1,8 @@
 //! Broker-based LSP transport implementation.
+//!
+//! This transport is Unix-only due to its use of Unix domain sockets.
+
+#![cfg(unix)]
 
 use std::collections::VecDeque;
 use std::ops::ControlFlow;
@@ -32,7 +36,7 @@ pub struct BrokerTransport {
 	socket_path: std::path::PathBuf,
 	events_tx: mpsc::UnboundedSender<TransportEvent>,
 	events_rx: std::sync::Mutex<Option<mpsc::UnboundedReceiver<TransportEvent>>>,
-	rpc: tokio::sync::Mutex<Option<BrokerRpc>>,
+	rpc: Arc<tokio::sync::Mutex<Option<BrokerRpc>>>,
 
 	/// One FIFO queue per server to track pipelined server-initiated requests.
 	pending_server_requests: Arc<DashMap<ServerId, VecDeque<xeno_lsp::RequestId>>>,
@@ -62,7 +66,7 @@ impl BrokerTransport {
 			socket_path,
 			events_tx: tx,
 			events_rx: std::sync::Mutex::new(Some(rx)),
-			rpc: tokio::sync::Mutex::new(None),
+			rpc: Arc::new(tokio::sync::Mutex::new(None)),
 			pending_server_requests: Arc::new(DashMap::new()),
 		})
 	}
@@ -100,11 +104,23 @@ impl BrokerTransport {
 			id_gen,
 		);
 
+		let rpc_weak = Arc::downgrade(&self.rpc);
+		let pending_weak = Arc::downgrade(&self.pending_server_requests);
 		let events_tx2 = self.events_tx.clone();
+
 		tokio::spawn(async move {
 			if let Err(e) = main_loop.run(reader, w).await {
 				tracing::error!(error = %e, "broker client mainloop failed");
 			}
+
+			// Clear cached state on disconnect (only if transport still alive; don't keep it alive)
+			if let Some(rpc_arc) = rpc_weak.upgrade() {
+				*rpc_arc.lock().await = None;
+			}
+			if let Some(pending_arc) = pending_weak.upgrade() {
+				pending_arc.clear();
+			}
+
 			let _ = events_tx2.send(TransportEvent::Disconnected);
 		});
 
@@ -127,10 +143,35 @@ impl BrokerTransport {
 		Ok(rpc)
 	}
 
-	/// Attempts to connect to the broker, spawning it if it's not currently running.
+	/// Invalidate cached connection state after a send failure.
 	///
-	/// Handles cases where the socket is missing (`NotFound`) or the daemon has crashed
-	/// leaving a stale socket file (`ConnectionRefused`).
+	/// Clears the RPC handle and pending request queues, forcing reconnection
+	/// on the next transport operation.
+	async fn mark_disconnected(&self) {
+		*self.rpc.lock().await = None;
+		self.pending_server_requests.clear();
+		let _ = self.events_tx.send(TransportEvent::Disconnected);
+	}
+
+	/// Handle broker RPC result, marking disconnected on Internal errors.
+	async fn handle_rpc_result(
+		&self,
+		result: std::result::Result<ResponsePayload, ErrorCode>,
+		op: &str,
+	) -> Result<ResponsePayload> {
+		match result {
+			Ok(payload) => Ok(payload),
+			Err(ErrorCode::Internal) => {
+				self.mark_disconnected().await;
+				Err(xeno_lsp::Error::Protocol("broker disconnected".into()))
+			}
+			Err(e) => Err(xeno_lsp::Error::Protocol(format!("{} failed: {:?}", op, e))),
+		}
+	}
+
+	/// Connect to the broker, spawning the daemon if necessary.
+	///
+	/// Automatically handles stale socket files from crashed broker processes.
 	async fn connect_or_spawn(&self, socket_path: &std::path::Path) -> Result<UnixStream> {
 		match UnixStream::connect(socket_path).await {
 			Ok(s) => Ok(s),
@@ -157,16 +198,14 @@ impl BrokerTransport {
 		}
 	}
 
-	/// Synchronizes broker startup across multiple editor instances using a file lock.
+	/// Ensure the broker daemon is running, coordinating startup across multiple processes.
 	///
-	/// If the broker is not running, this method:
-	/// 1. Acquires an exclusive lock on `<socket>.lock`.
-	/// 2. Double-checks connectability to avoid redundant spawns.
-	/// 3. Removes stale socket files.
-	/// 4. Spawns the daemon and waits for it to become ready.
+	/// Uses an exclusive file lock to prevent race conditions. Double-checks connectivity
+	/// under the lock, removes stale socket files, and spawns the daemon if needed.
 	///
 	/// # Errors
-	/// Returns a protocol error if the broker fails to spawn or time out during startup.
+	///
+	/// Returns a protocol error if the broker fails to spawn or become ready within 3 seconds.
 	async fn ensure_broker_running(&self, socket_path: &std::path::Path) -> Result<()> {
 		let lock_path = socket_path.with_extension("lock");
 		let lock_file = std::fs::OpenOptions::new()
@@ -204,10 +243,9 @@ impl BrokerTransport {
 		Err(xeno_lsp::Error::Protocol("broker spawn timeout".into()))
 	}
 
-	/// Spawns the broker daemon process.
+	/// Spawn the broker daemon as a detached background process.
 	///
-	/// The daemon is spawned with its own session and detached from the editor's
-	/// lifecycle. Stdio is suppressed to avoid cluttering the editor's terminal.
+	/// Stdio is suppressed to avoid cluttering the terminal.
 	async fn spawn_broker_daemon(&self, socket_path: &std::path::Path) -> Result<()> {
 		let bin = resolve_broker_bin();
 
@@ -234,12 +272,9 @@ impl BrokerTransport {
 	}
 }
 
-/// Resolves the path to the `xeno-broker` binary.
+/// Resolve the path to the `xeno-broker` binary.
 ///
-/// Prioritizes:
-/// 1. `XENO_BROKER_BIN` environment variable.
-/// 2. Sibling binary to the current executable (useful for development).
-/// 3. Binary name in system `PATH`.
+/// Search order: `XENO_BROKER_BIN` env var, sibling to current executable, system `PATH`.
 fn resolve_broker_bin() -> std::path::PathBuf {
 	if let Ok(val) = std::env::var("XENO_BROKER_BIN") {
 		return std::path::PathBuf::from(val);
@@ -274,7 +309,15 @@ impl BrokerRpc {
 			payload,
 		};
 		let (tx, rx) = oneshot::channel::<Response>();
-		let _ = self.socket.send(MainLoopEvent::OutgoingRequest(req, tx));
+
+		// Check if send succeeded; fail fast on disconnect
+		if self
+			.socket
+			.send(MainLoopEvent::OutgoingRequest(req, tx))
+			.is_err()
+		{
+			return Err(ErrorCode::Internal);
+		}
 
 		let resp = match timeout(timeout_dur, rx).await {
 			Ok(Ok(resp)) => resp,
@@ -308,13 +351,16 @@ impl LspTransport for BrokerTransport {
 			cwd: Some(cfg.root_path.to_string_lossy().to_string()),
 		};
 
-		let resp = rpc
-			.call(
-				RequestPayload::LspStart { config: broker_cfg },
-				Duration::from_secs(30),
+		let resp = self
+			.handle_rpc_result(
+				rpc.call(
+					RequestPayload::LspStart { config: broker_cfg },
+					Duration::from_secs(30),
+				)
+				.await,
+				"LspStart",
 			)
-			.await
-			.map_err(|e| xeno_lsp::Error::Protocol(format!("LspStart failed: {:?}", e)))?;
+			.await?;
 
 		if let ResponsePayload::LspStarted { server_id } = resp {
 			Ok(StartedServer {
@@ -333,17 +379,19 @@ impl LspTransport for BrokerTransport {
 		let json =
 			serde_json::to_string(&msg).map_err(|e| xeno_lsp::Error::Protocol(e.to_string()))?;
 
-		rpc.call(
-			RequestPayload::LspSend {
-				session_id: self.session_id,
-				server_id: ServerId(server.0),
-				message: json,
-			},
-			Duration::from_secs(5),
+		self.handle_rpc_result(
+			rpc.call(
+				RequestPayload::LspSend {
+					session_id: self.session_id,
+					server_id: ServerId(server.0),
+					message: json,
+				},
+				Duration::from_secs(5),
+			)
+			.await,
+			"LspSend",
 		)
-		.await
-		.map_err(|e| xeno_lsp::Error::Protocol(format!("LspSend failed: {:?}", e)))?;
-
+		.await?;
 		Ok(())
 	}
 
@@ -369,18 +417,21 @@ impl LspTransport for BrokerTransport {
 			serde_json::to_string(&req).map_err(|e| xeno_lsp::Error::Protocol(e.to_string()))?;
 
 		let timeout_dur = timeout.unwrap_or(Duration::from_secs(30));
-		let resp = rpc
-			.call(
-				RequestPayload::LspRequest {
-					session_id: self.session_id,
-					server_id: ServerId(server.0),
-					message: json,
-					timeout_ms: Some(timeout_dur.as_millis() as u64),
-				},
-				timeout_dur + Duration::from_secs(1),
+		let resp = self
+			.handle_rpc_result(
+				rpc.call(
+					RequestPayload::LspRequest {
+						session_id: self.session_id,
+						server_id: ServerId(server.0),
+						message: json,
+						timeout_ms: Some(timeout_dur.as_millis() as u64),
+					},
+					timeout_dur + Duration::from_secs(1),
+				)
+				.await,
+				"LspRequest",
 			)
-			.await
-			.map_err(|e| xeno_lsp::Error::Protocol(format!("LspRequest failed: {:?}", e)))?;
+			.await?;
 
 		if let ResponsePayload::LspMessage { message, .. } = resp {
 			let response: AnyResponse = serde_json::from_str(&message)
@@ -414,16 +465,18 @@ impl LspTransport for BrokerTransport {
 		let json = serde_json::to_string(&any_resp)
 			.map_err(|e| xeno_lsp::Error::Protocol(e.to_string()))?;
 
-		rpc.call(
-			RequestPayload::LspReply {
-				server_id,
-				message: json,
-			},
-			Duration::from_secs(5),
+		self.handle_rpc_result(
+			rpc.call(
+				RequestPayload::LspReply {
+					server_id,
+					message: json,
+				},
+				Duration::from_secs(5),
+			)
+			.await,
+			"LspReply",
 		)
-		.await
-		.map_err(|e| xeno_lsp::Error::Protocol(format!("LspReply failed: {:?}", e)))?;
-
+		.await?;
 		Ok(())
 	}
 }

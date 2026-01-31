@@ -15,7 +15,7 @@ use tracing::{info, warn};
 
 use crate::Result;
 use crate::client::transport::LspTransport;
-use crate::client::{ClientHandle, ServerConfig};
+use crate::client::{ClientHandle, LanguageServerId, ServerConfig};
 
 /// Configuration for a language server.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -68,9 +68,24 @@ struct ServerInstance {
 	handle: ClientHandle,
 }
 
+/// Server metadata for handling server-initiated requests.
+///
+/// Captured during server startup and used to answer LSP requests like
+/// `workspace/configuration` and `workspace/workspaceFolders` without
+/// requiring additional context lookups.
+#[derive(Debug, Clone)]
+pub struct ServerMeta {
+	/// Language identifier.
+	pub language: String,
+	/// Workspace root path resolved during server startup.
+	pub root_path: PathBuf,
+	/// Server-specific initialization options from [`LanguageServerConfig::config`].
+	pub settings: Option<Value>,
+}
+
 /// Registry for managing language servers.
 ///
-/// Thread-safe: can be shared across async tasks using `Arc<Registry>`.
+/// Thread-safe; can be shared across async tasks via `Arc<Registry>`.
 pub struct Registry {
 	/// Configurations by language name.
 	configs: RwLock<HashMap<String, LanguageServerConfig>>,
@@ -78,6 +93,8 @@ pub struct Registry {
 	servers: RwLock<HashMap<(String, PathBuf), ServerInstance>>,
 	/// Underlying transport.
 	transport: Arc<dyn LspTransport>,
+	/// Server metadata indexed by server ID for answering server-initiated requests.
+	server_meta: RwLock<HashMap<LanguageServerId, ServerMeta>>,
 }
 
 impl Registry {
@@ -87,6 +104,7 @@ impl Registry {
 			configs: RwLock::new(HashMap::new()),
 			servers: RwLock::new(HashMap::new()),
 			transport,
+			server_meta: RwLock::new(HashMap::new()),
 		}
 	}
 
@@ -135,6 +153,15 @@ impl Registry {
 			.timeout(config.timeout_secs);
 
 		let started = self.transport.start(server_config).await?;
+
+		self.server_meta.write().insert(
+			started.id,
+			ServerMeta {
+				language: language.to_string(),
+				root_path: root_path.clone(),
+				settings: config.config.clone(),
+			},
+		);
 
 		let handle = ClientHandle::new(
 			started.id,
@@ -188,6 +215,7 @@ impl Registry {
 	/// Shutdown all servers.
 	pub async fn shutdown_all(&self) {
 		self.servers.write().clear();
+		self.server_meta.write().clear();
 	}
 
 	/// Get the number of active servers.
@@ -206,6 +234,13 @@ impl Registry {
 			.read()
 			.values()
 			.any(|instance| instance.handle.is_ready())
+	}
+
+	/// Retrieve metadata for a server by its ID.
+	///
+	/// Returns `None` if the server has not been started or has been shut down.
+	pub fn get_server_meta(&self, server_id: LanguageServerId) -> Option<ServerMeta> {
+		self.server_meta.read().get(&server_id).cloned()
 	}
 }
 

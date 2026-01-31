@@ -47,6 +47,7 @@ tempfile = "3"
 tokio-util = { workspace = true, features = ["rt"] }
 tracing-subscriber = "0.3"
 xeno-broker = { path = "../broker/broker" }
+xeno-lsp = { path = "../lsp", features = ["client", "position"] }
 
 [lints]
 workspace = true

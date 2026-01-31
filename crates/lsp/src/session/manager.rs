@@ -28,13 +28,16 @@ impl LspManager {
 
 	/// Spawn the background event router task.
 	///
-	/// This must be called from within a Tokio runtime.
+	/// Routes transport events to document state and handles server-initiated requests.
+	/// Must be called from within a Tokio runtime.
 	pub fn spawn_router(&self) {
 		if tokio::runtime::Handle::try_current().is_err() {
 			return;
 		}
 		let events_rx = self.transport.events();
 		let documents_clone = self.sync.documents_arc();
+		let transport = self.transport.clone();
+		let sync_clone = self.sync.clone();
 
 		tokio::spawn(async move {
 			let mut events_rx = events_rx;
@@ -57,16 +60,43 @@ impl LspManager {
 							);
 						}
 					}
-					TransportEvent::Message { server: _, message } => {
-						// TODO: route server->client requests
-						tracing::debug!(?message, "Received LSP message from transport");
+					TransportEvent::Message { server, message } => {
+						use crate::Message;
+
+						match message {
+							Message::Request(req) => {
+								tracing::debug!(server_id = server.0, method = %req.method, "Handling server request");
+								let result = super::server_requests::handle_server_request(
+									&sync_clone,
+									server,
+									req,
+								)
+								.await;
+								if let Err(e) = transport.reply(server, result).await {
+									tracing::error!(server_id = server.0, error = ?e, "Failed to reply to server request");
+								}
+							}
+							Message::Notification(notif) => {
+								if notif.method == "$/progress" {
+									if let Ok(params) = serde_json::from_value::<
+										lsp_types::ProgressParams,
+									>(notif.params)
+									{
+										documents_clone.update_progress(server, params);
+									}
+								} else if notif.method == "window/logMessage"
+									|| notif.method == "window/showMessage"
+								{
+									tracing::debug!(server_id = server.0, method = %notif.method, "Server notification");
+								}
+							}
+							Message::Response(_) => {}
+						}
 					}
 					TransportEvent::Status {
 						server: _,
 						status: _,
-					} => {
-						// TODO: update UI status
-					}
+					} => {}
 					TransportEvent::Disconnected => break,
 				}
 			}
@@ -133,11 +163,9 @@ impl LspManager {
 	}
 }
 
-impl Default for LspManager {
-	fn default() -> Self {
-		Self::new(crate::client::local_transport::LocalTransport::new())
-	}
-}
+// Default implementation removed: LspManager requires an explicit transport.
+// Broker transport is now the standard, but cannot be constructed here due to
+// crate boundaries. Users must construct LspManager via LspSystem::new().
 
 #[cfg(test)]
 mod tests {

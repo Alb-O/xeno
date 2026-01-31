@@ -56,9 +56,6 @@ mod event_handler;
 // New split modules
 mod api;
 mod handle;
-pub mod local_transport;
-mod outbox;
-mod router_setup;
 mod state;
 pub mod transport;
 
@@ -67,6 +64,5 @@ pub use capabilities::client_capabilities;
 pub use config::{LanguageServerId, OffsetEncoding, ServerConfig};
 pub use event_handler::{LogLevel, LspEventHandler, NoOpEventHandler, SharedEventHandler};
 pub use handle::ClientHandle;
-pub use local_transport::LocalTransport;
 pub use state::ServerState;
 pub use transport::{LspTransport, TransportEvent, TransportStatus};
