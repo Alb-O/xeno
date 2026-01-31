@@ -81,23 +81,22 @@ impl LspSystem {
 		let (buffer_sync_in_tx, buffer_sync_in_rx) =
 			tokio::sync::mpsc::unbounded_channel::<crate::buffer_sync::BufferSyncEvent>();
 
-		// Task A: forward broker transport async events → buffer_sync_in_tx.
-		// When the broker disconnects, the channel closes and we emit Disconnected.
-		if let Some(mut event_rx) = broker.take_buffer_sync_events() {
-			let in_tx_a = buffer_sync_in_tx.clone();
-			tokio::spawn(async move {
-				while let Some(evt) = event_rx.recv().await {
-					if in_tx_a.send(evt).is_err() {
-						break;
+		// Buffer sync tasks require a Tokio runtime; skip in unit tests.
+		if tokio::runtime::Handle::try_current().is_ok() {
+			// Task A: forward broker transport async events → buffer_sync_in_tx.
+			if let Some(mut event_rx) = broker.take_buffer_sync_events() {
+				let in_tx_a = buffer_sync_in_tx.clone();
+				tokio::spawn(async move {
+					while let Some(evt) = event_rx.recv().await {
+						if in_tx_a.send(evt).is_err() {
+							break;
+						}
 					}
-				}
-				// Channel closed — broker disconnected.
-				let _ = in_tx_a.send(crate::buffer_sync::BufferSyncEvent::Disconnected);
-			});
-		}
+					let _ = in_tx_a.send(crate::buffer_sync::BufferSyncEvent::Disconnected);
+				});
+			}
 
-		// Task B: outbound sender — drains editor requests, calls broker, posts results back.
-		{
+			// Task B: outbound sender — drains editor requests, calls broker, posts results back.
 			let broker_b = broker.clone();
 			let in_tx_b = buffer_sync_in_tx;
 			tokio::spawn(async move {

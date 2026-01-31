@@ -182,17 +182,7 @@ impl BrokerTransport {
 		Ok(rpc)
 	}
 
-	/// Invalidate cached connection state after a send failure.
-	///
-	/// Clears the RPC handle and pending request queues, forcing reconnection
-	/// on the next transport operation.
-	async fn mark_disconnected(&self) {
-		*self.rpc.lock().await = None;
-		self.pending_server_requests.clear();
-		let _ = self.events_tx.send(TransportEvent::Disconnected);
-	}
-
-	/// Handle broker RPC result, marking disconnected on Internal errors.
+	/// Converts a broker RPC result into a transport [`Result`].
 	async fn handle_rpc_result(
 		&self,
 		result: std::result::Result<ResponsePayload, ErrorCode>,
@@ -200,11 +190,7 @@ impl BrokerTransport {
 	) -> Result<ResponsePayload> {
 		match result {
 			Ok(payload) => Ok(payload),
-			Err(ErrorCode::Internal) => {
-				self.mark_disconnected().await;
-				Err(xeno_lsp::Error::Protocol("broker disconnected".into()))
-			}
-			Err(e) => Err(xeno_lsp::Error::Protocol(format!("{} failed: {:?}", op, e))),
+			Err(e) => Err(xeno_lsp::Error::Protocol(format!("{op} failed: {e:?}"))),
 		}
 	}
 
