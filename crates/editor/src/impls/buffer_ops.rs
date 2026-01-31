@@ -69,6 +69,17 @@ impl Editor {
 			);
 		}
 
+		#[cfg(feature = "lsp")]
+		if let Some(buffer) = self.state.core.buffers.get_buffer(buffer_id)
+			&& let Some(path) = buffer.path()
+			&& let Some(uri) = sync_uri_for_path(&path)
+		{
+			let doc_id = buffer.document_id();
+			let text = buffer.with_doc(|doc| doc.content().to_string());
+			let payload = self.state.buffer_sync.prepare_open(&uri, &text, doc_id);
+			let _ = self.state.lsp.buffer_sync_out_tx().send(payload);
+		}
+
 		buffer_id
 	}
 
@@ -237,6 +248,30 @@ impl Editor {
 			return;
 		}
 
+		{
+			let sync_specs: Vec<_> = self
+				.state
+				.core
+				.buffers
+				.buffer_ids()
+				.filter_map(|id| {
+					let buffer = self.state.core.buffers.get_buffer(id)?;
+					let path = buffer.path()?;
+					let doc_id = buffer.document_id();
+					if self.state.buffer_sync.uri_for_doc_id(doc_id).is_some() {
+						return None;
+					}
+					let uri = sync_uri_for_path(&path)?;
+					let text = buffer.with_doc(|doc| doc.content().to_string());
+					Some((uri, text, doc_id))
+				})
+				.collect();
+			for (uri, text, doc_id) in sync_specs {
+				let payload = self.state.buffer_sync.prepare_open(&uri, &text, doc_id);
+				let _ = self.state.lsp.buffer_sync_out_tx().send(payload);
+			}
+		}
+
 		tracing::debug!(count = specs.len(), "Kicking background LSP init");
 		let sync = self.state.lsp.sync_clone();
 
@@ -269,8 +304,30 @@ impl Editor {
 				#[cfg(feature = "lsp")]
 				self.state.lsp.sync_manager_mut().on_doc_close(doc_id);
 
+				#[cfg(feature = "lsp")]
+				if let Some(uri) = self.state.buffer_sync.uri_for_doc_id(doc_id) {
+					let uri = uri.to_string();
+					if let Some(payload) = self.state.buffer_sync.prepare_close(&uri) {
+						let _ = self.state.lsp.buffer_sync_out_tx().send(payload);
+					}
+				}
+
 				self.state.render_cache.invalidate_document(doc_id);
 			}
 		}
 	}
+}
+
+/// Computes a stable, URL-escaped file URI for buffer sync document identity.
+///
+/// Uses `url::Url::from_file_path` to handle spaces, unicode, and special
+/// characters consistently across processes.
+#[cfg(feature = "lsp")]
+fn sync_uri_for_path(path: &std::path::Path) -> Option<String> {
+	let canonical = path
+		.canonicalize()
+		.unwrap_or_else(|_| std::env::current_dir().unwrap_or_default().join(path));
+	url::Url::from_file_path(&canonical)
+		.ok()
+		.map(|u| u.to_string())
 }

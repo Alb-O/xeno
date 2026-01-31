@@ -1,6 +1,7 @@
 //! Unit tests for BrokerCore.
 
 mod broadcasting;
+mod buffer_sync;
 mod diagnostics_regression;
 mod error_handling;
 mod helpers;

@@ -18,6 +18,42 @@ pub struct SessionId(pub u64);
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct DocId(pub u64);
 
+/// Monotonic ownership generation for a buffer sync URI.
+///
+/// Increments each time ownership changes hands for a given document.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+pub struct SyncEpoch(pub u64);
+
+/// Monotonic edit sequence number within a single epoch.
+///
+/// Strictly increments per applied delta under the same epoch.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+pub struct SyncSeq(pub u64);
+
+/// A single serializable edit operation for buffer sync.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum WireOp {
+	/// Retain the next `n` characters unchanged.
+	Retain(usize),
+	/// Delete the next `n` characters.
+	Delete(usize),
+	/// Insert the given UTF-8 text.
+	Insert(String),
+}
+
+/// A serializable transaction: an ordered list of [`WireOp`]s.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct WireTx(pub Vec<WireOp>);
+
+/// Role of a session in a buffer sync document.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum BufferSyncRole {
+	/// Session owns the document and may submit deltas.
+	Owner,
+	/// Session is a live follower (read-only).
+	Follower,
+}
+
 /// Unique identifier for LSP servers managed by the broker.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct ServerId(pub u64);
@@ -101,6 +137,41 @@ pub enum RequestPayload {
 		/// The LSP response (JSON-RPC string).
 		message: String,
 	},
+	/// Open (or join) a buffer sync document.
+	BufferSyncOpen {
+		/// Canonical URI for the document.
+		uri: String,
+		/// Full text content when opening.
+		text: String,
+		/// Optional version hint from the local document.
+		version_hint: Option<u32>,
+	},
+	/// Close a buffer sync document.
+	BufferSyncClose {
+		/// Canonical URI for the document.
+		uri: String,
+	},
+	/// Submit an edit delta to a buffer sync document.
+	BufferSyncDelta {
+		/// Canonical URI for the document.
+		uri: String,
+		/// Expected ownership epoch.
+		epoch: SyncEpoch,
+		/// Expected base sequence number.
+		base_seq: SyncSeq,
+		/// The edit transaction.
+		tx: WireTx,
+	},
+	/// Request ownership of a buffer sync document.
+	BufferSyncTakeOwnership {
+		/// Canonical URI for the document.
+		uri: String,
+	},
+	/// Request a full resync snapshot from the broker.
+	BufferSyncResync {
+		/// Canonical URI for the document.
+		uri: String,
+	},
 }
 
 /// Configuration for an LSP server.
@@ -151,6 +222,40 @@ pub enum ResponsePayload {
 		/// Target server.
 		server_id: ServerId,
 	},
+	/// Buffer sync document opened successfully.
+	BufferSyncOpened {
+		/// Role assigned to this session.
+		role: BufferSyncRole,
+		/// Current ownership epoch.
+		epoch: SyncEpoch,
+		/// Current sequence number.
+		seq: SyncSeq,
+		/// Full text snapshot (present when joining as follower).
+		snapshot: Option<String>,
+	},
+	/// Buffer sync document closed successfully.
+	BufferSyncClosed,
+	/// Buffer sync delta acknowledged by broker.
+	BufferSyncDeltaAck {
+		/// New sequence number after applying the delta.
+		seq: SyncSeq,
+	},
+	/// Buffer sync ownership transferred.
+	BufferSyncOwnership {
+		/// New ownership epoch.
+		epoch: SyncEpoch,
+	},
+	/// Buffer sync full snapshot for resync.
+	BufferSyncSnapshot {
+		/// Full text content.
+		text: String,
+		/// Current ownership epoch.
+		epoch: SyncEpoch,
+		/// Current sequence number.
+		seq: SyncSeq,
+		/// Current owner session.
+		owner: SessionId,
+	},
 }
 
 /// Error codes for broker operations.
@@ -183,6 +288,19 @@ pub enum ErrorCode {
 	///
 	/// Returned when an operation requires `textDocument/didOpen` to have been called first.
 	DocNotOpen,
+	/// Buffer sync sequence number mismatch.
+	///
+	/// The submitted delta's `base_seq` does not match the broker's current sequence.
+	/// The client should request a resync.
+	SyncSeqMismatch,
+	/// Buffer sync epoch mismatch.
+	///
+	/// The submitted delta targets a stale ownership epoch.
+	SyncEpochMismatch,
+	/// Buffer sync document not found.
+	///
+	/// The URI has no active sync document entry.
+	SyncDocNotFound,
 }
 
 /// Async event from broker to editor (no response expected).
@@ -229,6 +347,26 @@ pub enum Event {
 		server_id: ServerId,
 		/// The LSP request (JSON-RPC string).
 		message: String,
+	},
+	/// A buffer sync delta broadcast from the broker.
+	BufferSyncDelta {
+		/// Document URI.
+		uri: String,
+		/// Ownership epoch.
+		epoch: SyncEpoch,
+		/// New sequence number after this delta.
+		seq: SyncSeq,
+		/// The edit transaction.
+		tx: WireTx,
+	},
+	/// Buffer sync ownership changed.
+	BufferSyncOwnerChanged {
+		/// Document URI.
+		uri: String,
+		/// New ownership epoch.
+		epoch: SyncEpoch,
+		/// New owner session.
+		owner: SessionId,
 	},
 }
 

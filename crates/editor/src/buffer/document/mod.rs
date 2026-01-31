@@ -527,6 +527,26 @@ impl Document {
 		self.version = 0;
 	}
 
+	/// Replaces the document content from a cross-process sync snapshot.
+	///
+	/// Unlike [`reset_content`], this preserves file document semantics:
+	/// - Version increments monotonically (not reset to 0).
+	/// - Modified flag is set to `true` (content differs from disk).
+	/// - Undo history is cleared (undo across ownership boundaries is unsound).
+	/// - Syntax state is cleared and marked dirty for reparse.
+	///
+	/// Use this for buffer sync follower join and full resync, where the remote
+	/// content replaces local content but the document still represents a file.
+	pub fn install_sync_snapshot(&mut self, content: impl Into<Rope>) {
+		self.content = content.into();
+		self.syntax = None;
+		self.syntax_dirty = true;
+		self.insert_undo_active = false;
+		self.undo_backend = UndoBackend::default();
+		self.modified = true;
+		self.version = self.version.wrapping_add(1);
+	}
+
 	/// Returns whether the document has unsaved changes.
 	pub fn is_modified(&self) -> bool {
 		self.modified

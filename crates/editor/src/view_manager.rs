@@ -188,6 +188,14 @@ impl ViewManager {
 			.and_then(|views| views.first().copied())
 	}
 
+	/// Returns all view IDs associated with the given document.
+	pub fn views_for_doc(&self, doc_id: DocumentId) -> &[ViewId] {
+		self.doc_to_views
+			.get(&doc_id)
+			.map(|v| v.as_slice())
+			.unwrap_or_default()
+	}
+
 	/// Adds a view to the reverse index for a document.
 	fn index_add(&mut self, doc_id: DocumentId, view_id: ViewId) {
 		self.doc_to_views.entry(doc_id).or_default().push(view_id);

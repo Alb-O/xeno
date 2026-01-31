@@ -6,6 +6,7 @@ edition.workspace = true
 license.workspace = true
 
 [dependencies]
+ropey.workspace = true
 serde_json.workspace = true
 tokio = { workspace = true, features = ["rt", "sync", "io-util", "net", "macros", "process"] }
 tokio-util = { workspace = true, features = ["rt"] }
@@ -13,6 +14,7 @@ tower-service.workspace = true
 tracing.workspace = true
 xeno-broker-proto.workspace = true
 xeno-lsp = { workspace = true, features = ["client", "position"] }
+xeno-primitives.workspace = true
 xeno-rpc.workspace = true
 
 [dev-dependencies]

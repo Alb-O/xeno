@@ -304,6 +304,31 @@ impl Buffer {
 		self.with_doc_mut(|doc| doc.commit_unchecked(commit, loader))
 	}
 
+	/// Applies a remote sync transaction, bypassing the buffer-level readonly
+	/// override.
+	///
+	/// Follower buffers have `readonly_override = Some(true)` to block user
+	/// edits, but remote deltas from the owner must still be applied. Only
+	/// checks the document-level readonly flag (underlying file permissions).
+	pub fn apply_remote(
+		&self,
+		tx: &Transaction,
+		policy: ApplyPolicy,
+		loader: &LanguageLoader,
+	) -> CommitResult {
+		let (readonly, version, insert_active) =
+			self.with_doc(|doc| (doc.is_readonly(), doc.version(), doc.insert_undo_active()));
+		if readonly {
+			return CommitResult::blocked(version, insert_active);
+		}
+
+		let commit = EditCommit::new(tx.clone())
+			.with_undo(policy.undo)
+			.with_syntax(policy.syntax);
+
+		self.with_doc_mut(|doc| doc.commit_unchecked(commit, loader))
+	}
+
 	/// Applies a transaction with LSP change tracking.
 	///
 	/// Like [`apply`], but also computes LSP document changes for sync.

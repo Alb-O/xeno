@@ -5,9 +5,11 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
+use ropey::Rope;
 use tokio::sync::oneshot;
 use xeno_broker_proto::types::{
-	DocId, Event, IpcFrame, LspServerConfig, Request, Response, ServerId, SessionId,
+	BufferSyncRole, DocId, Event, IpcFrame, LspServerConfig, Request, Response, ServerId,
+	SessionId, SyncEpoch, SyncSeq, WireTx,
 };
 use xeno_rpc::{MainLoopEvent, PeerSocket};
 
@@ -69,6 +71,26 @@ struct BrokerState {
 	///
 	/// The broker rewrites these IDs to prevent collisions between sessions.
 	pending_c2s: HashMap<(ServerId, xeno_lsp::RequestId), PendingC2sReq>,
+	/// Buffer sync documents keyed by canonical URI.
+	sync_docs: HashMap<String, SyncDocState>,
+}
+
+/// Broker-authoritative state for a single buffer sync document.
+///
+/// Tracks ownership, refcounts, sequence ordering, and the authoritative rope
+/// content for a synchronized document.
+#[derive(Debug)]
+struct SyncDocState {
+	/// Current owner session (single-writer).
+	owner: SessionId,
+	/// Per-session open refcounts.
+	open_refcounts: HashMap<SessionId, u32>,
+	/// Current ownership epoch (monotonically increasing).
+	epoch: SyncEpoch,
+	/// Current edit sequence number within the epoch.
+	seq: SyncSeq,
+	/// Authoritative document content.
+	rope: Rope,
 }
 
 /// Unique key for deduplicating LSP servers by project identity.
@@ -211,6 +233,7 @@ impl BrokerCore {
 			self.cleanup_session_docs_on_server(server_id, session_id);
 		}
 
+		self.cleanup_session_sync_docs(session_id);
 		self.cancel_all_client_requests_for_session(session_id);
 		self.cancel_all_c2s_requests_for_session(session_id);
 	}
@@ -1139,6 +1162,303 @@ pub enum DocGateKind {
 	},
 	/// Document closed.
 	DidClose,
+}
+
+// -- Buffer sync handlers --
+
+use xeno_broker_proto::types::{ErrorCode, ResponsePayload};
+
+impl BrokerCore {
+	/// Handle a `BufferSyncOpen` request.
+	///
+	/// First opener becomes the owner (epoch=1, seq=0). Subsequent openers
+	/// become followers and receive the current snapshot.
+	pub fn on_buffer_sync_open(
+		&self,
+		session_id: SessionId,
+		uri: &str,
+		text: &str,
+		_version_hint: Option<u32>,
+	) -> ResponsePayload {
+		let mut state = self.state.lock().unwrap();
+
+		match state.sync_docs.get_mut(uri) {
+			None => {
+				let mut open_refcounts = HashMap::new();
+				open_refcounts.insert(session_id, 1);
+				state.sync_docs.insert(
+					uri.to_string(),
+					SyncDocState {
+						owner: session_id,
+						open_refcounts,
+						epoch: SyncEpoch(1),
+						seq: SyncSeq(0),
+						rope: Rope::from(text),
+					},
+				);
+				ResponsePayload::BufferSyncOpened {
+					role: BufferSyncRole::Owner,
+					epoch: SyncEpoch(1),
+					seq: SyncSeq(0),
+					snapshot: None,
+				}
+			}
+			Some(doc) => {
+				let count = doc.open_refcounts.entry(session_id).or_insert(0);
+				*count += 1;
+				let snapshot = doc.rope.to_string();
+				ResponsePayload::BufferSyncOpened {
+					role: BufferSyncRole::Follower,
+					epoch: doc.epoch,
+					seq: doc.seq,
+					snapshot: Some(snapshot),
+				}
+			}
+		}
+	}
+
+	/// Handle a `BufferSyncClose` request.
+	///
+	/// Decrements the session's refcount. If the closing session was the owner,
+	/// elects a successor (min session id) and bumps the epoch. If no sessions
+	/// remain, removes the entry entirely.
+	pub fn on_buffer_sync_close(
+		self: &Arc<Self>,
+		session_id: SessionId,
+		uri: &str,
+	) -> Result<ResponsePayload, ErrorCode> {
+		let maybe_broadcast = {
+			let mut state = self.state.lock().unwrap();
+			let doc = state
+				.sync_docs
+				.get_mut(uri)
+				.ok_or(ErrorCode::SyncDocNotFound)?;
+
+			if let Some(count) = doc.open_refcounts.get_mut(&session_id) {
+				if *count > 1 {
+					*count -= 1;
+				} else {
+					doc.open_refcounts.remove(&session_id);
+				}
+			}
+
+			if doc.open_refcounts.is_empty() {
+				state.sync_docs.remove(uri);
+				return Ok(ResponsePayload::BufferSyncClosed);
+			}
+
+			if session_id == doc.owner {
+				let new_owner = *doc.open_refcounts.keys().min().unwrap();
+				doc.owner = new_owner;
+				doc.epoch = SyncEpoch(doc.epoch.0 + 1);
+				doc.seq = SyncSeq(0);
+				let event = Event::BufferSyncOwnerChanged {
+					uri: uri.to_string(),
+					epoch: doc.epoch,
+					owner: new_owner,
+				};
+				let sessions: Vec<SessionId> = doc.open_refcounts.keys().copied().collect();
+				Some((event, sessions))
+			} else {
+				None
+			}
+		};
+
+		if let Some((event, sessions)) = maybe_broadcast {
+			self.broadcast_to_sync_doc_sessions(&sessions, event, None);
+		}
+
+		Ok(ResponsePayload::BufferSyncClosed)
+	}
+
+	/// Handle a `BufferSyncDelta` request from the document owner.
+	///
+	/// Validates ownership and sequence ordering, applies the delta to the
+	/// broker's authoritative rope, increments the sequence, and broadcasts
+	/// the delta to all follower sessions.
+	pub fn on_buffer_sync_delta(
+		self: &Arc<Self>,
+		session_id: SessionId,
+		uri: &str,
+		epoch: SyncEpoch,
+		base_seq: SyncSeq,
+		wire_tx: &WireTx,
+	) -> Result<ResponsePayload, ErrorCode> {
+		let (new_seq, event, sessions) = {
+			let mut state = self.state.lock().unwrap();
+			let doc = state
+				.sync_docs
+				.get_mut(uri)
+				.ok_or(ErrorCode::SyncDocNotFound)?;
+
+			if session_id != doc.owner {
+				return Err(ErrorCode::NotDocOwner);
+			}
+			if epoch != doc.epoch {
+				return Err(ErrorCode::SyncEpochMismatch);
+			}
+			if base_seq != doc.seq {
+				return Err(ErrorCode::SyncSeqMismatch);
+			}
+
+			let tx = crate::wire_convert::wire_to_tx(wire_tx, doc.rope.len_chars());
+			tx.apply(&mut doc.rope);
+			doc.seq = SyncSeq(doc.seq.0 + 1);
+
+			let event = Event::BufferSyncDelta {
+				uri: uri.to_string(),
+				epoch: doc.epoch,
+				seq: doc.seq,
+				tx: wire_tx.clone(),
+			};
+			let sessions: Vec<SessionId> = doc.open_refcounts.keys().copied().collect();
+			(doc.seq, event, sessions)
+		};
+
+		self.broadcast_to_sync_doc_sessions(&sessions, event, Some(session_id));
+
+		Ok(ResponsePayload::BufferSyncDeltaAck { seq: new_seq })
+	}
+
+	/// Handle a `BufferSyncTakeOwnership` request.
+	///
+	/// Transfers ownership to the requesting session, bumps the epoch, resets
+	/// the sequence, and broadcasts the ownership change.
+	pub fn on_buffer_sync_take_ownership(
+		self: &Arc<Self>,
+		session_id: SessionId,
+		uri: &str,
+	) -> Result<ResponsePayload, ErrorCode> {
+		let (new_epoch, event, sessions) = {
+			let mut state = self.state.lock().unwrap();
+			let doc = state
+				.sync_docs
+				.get_mut(uri)
+				.ok_or(ErrorCode::SyncDocNotFound)?;
+
+			if !doc.open_refcounts.contains_key(&session_id) {
+				return Err(ErrorCode::SyncDocNotFound);
+			}
+
+			doc.owner = session_id;
+			doc.epoch = SyncEpoch(doc.epoch.0 + 1);
+			doc.seq = SyncSeq(0);
+
+			let event = Event::BufferSyncOwnerChanged {
+				uri: uri.to_string(),
+				epoch: doc.epoch,
+				owner: session_id,
+			};
+			let sessions: Vec<SessionId> = doc.open_refcounts.keys().copied().collect();
+			(doc.epoch, event, sessions)
+		};
+
+		self.broadcast_to_sync_doc_sessions(&sessions, event, None);
+
+		Ok(ResponsePayload::BufferSyncOwnership { epoch: new_epoch })
+	}
+
+	/// Handle a `BufferSyncResync` request.
+	///
+	/// Returns the full current snapshot of the document.
+	pub fn on_buffer_sync_resync(
+		&self,
+		session_id: SessionId,
+		uri: &str,
+	) -> Result<ResponsePayload, ErrorCode> {
+		let state = self.state.lock().unwrap();
+		let doc = state.sync_docs.get(uri).ok_or(ErrorCode::SyncDocNotFound)?;
+
+		if !doc.open_refcounts.contains_key(&session_id) {
+			return Err(ErrorCode::SyncDocNotFound);
+		}
+
+		Ok(ResponsePayload::BufferSyncSnapshot {
+			text: doc.rope.to_string(),
+			epoch: doc.epoch,
+			seq: doc.seq,
+			owner: doc.owner,
+		})
+	}
+
+	/// Broadcast an event to sessions participating in a sync document.
+	///
+	/// Sends the event to all provided sessions except `exclude_session`.
+	/// Cleans up any sessions where the send fails.
+	fn broadcast_to_sync_doc_sessions(
+		self: &Arc<Self>,
+		sessions: &[SessionId],
+		event: Event,
+		exclude_session: Option<SessionId>,
+	) {
+		let frame = IpcFrame::Event(event);
+		let mut failed_sessions = Vec::new();
+
+		for &sid in sessions {
+			if Some(sid) == exclude_session {
+				continue;
+			}
+			if !self.send_event(sid, frame.clone()) {
+				failed_sessions.push(sid);
+			}
+		}
+
+		if !failed_sessions.is_empty() {
+			let core = self.clone();
+			tokio::spawn(async move {
+				for session_id in failed_sessions {
+					core.handle_session_send_failure(session_id);
+				}
+			});
+		}
+	}
+
+	/// Clean up all buffer sync documents when a session disconnects.
+	///
+	/// Removes the session from all sync doc refcounts. If the session was the
+	/// owner, elects a successor and broadcasts the ownership change. If no
+	/// sessions remain, removes the document entry.
+	pub fn cleanup_session_sync_docs(self: &Arc<Self>, session_id: SessionId) {
+		let mut broadcasts = Vec::new();
+
+		{
+			let mut state = self.state.lock().unwrap();
+			let uris: Vec<String> = state
+				.sync_docs
+				.iter()
+				.filter(|(_, doc)| doc.open_refcounts.contains_key(&session_id))
+				.map(|(uri, _)| uri.clone())
+				.collect();
+
+			for uri in uris {
+				let doc = state.sync_docs.get_mut(&uri).unwrap();
+				doc.open_refcounts.remove(&session_id);
+
+				if doc.open_refcounts.is_empty() {
+					state.sync_docs.remove(&uri);
+					continue;
+				}
+
+				if session_id == doc.owner {
+					let new_owner = *doc.open_refcounts.keys().min().unwrap();
+					doc.owner = new_owner;
+					doc.epoch = SyncEpoch(doc.epoch.0 + 1);
+					doc.seq = SyncSeq(0);
+					let event = Event::BufferSyncOwnerChanged {
+						uri,
+						epoch: doc.epoch,
+						owner: new_owner,
+					};
+					let sessions: Vec<SessionId> = doc.open_refcounts.keys().copied().collect();
+					broadcasts.push((event, sessions));
+				}
+			}
+		}
+
+		for (event, sessions) in broadcasts {
+			self.broadcast_to_sync_doc_sessions(&sessions, event, None);
+		}
+	}
 }
 
 #[cfg(test)]

@@ -3113,6 +3113,7 @@ name = "xeno-broker"
 version = "0.7.2"
 dependencies = [
  "postcard",
+ "ropey",
  "serde_json",
  "tokio",
  "tokio-util",
@@ -3120,6 +3121,7 @@ dependencies = [
  "tracing",
  "xeno-broker-proto",
  "xeno-lsp",
+ "xeno-primitives",
  "xeno-rpc",
 ]
 
@@ -3177,6 +3179,7 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "unicode-width 0.2.2",
+ "url",
  "xeno-broker",
  "xeno-broker-proto",
  "xeno-keymap-core",

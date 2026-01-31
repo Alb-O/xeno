@@ -32,6 +32,7 @@ tokio-util = { workspace = true, optional = true }
 tower-service.workspace = true
 tracing.workspace = true
 unicode-width.workspace = true
+url.workspace = true
 xeno-broker-proto.workspace = true
 xeno-keymap-core.workspace = true
 xeno-lsp = { workspace = true, features = ["position"], optional = true }

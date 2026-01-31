@@ -228,6 +228,35 @@ impl Service<Request> for BrokerService {
 						}
 					}
 				}
+				RequestPayload::BufferSyncOpen {
+					uri,
+					text,
+					version_hint,
+				} => {
+					let session_id = session_id.ok_or(ErrorCode::AuthFailed)?;
+					Ok(core.on_buffer_sync_open(session_id, &uri, &text, version_hint))
+				}
+				RequestPayload::BufferSyncClose { uri } => {
+					let session_id = session_id.ok_or(ErrorCode::AuthFailed)?;
+					core.on_buffer_sync_close(session_id, &uri)
+				}
+				RequestPayload::BufferSyncDelta {
+					uri,
+					epoch,
+					base_seq,
+					tx,
+				} => {
+					let session_id = session_id.ok_or(ErrorCode::AuthFailed)?;
+					core.on_buffer_sync_delta(session_id, &uri, epoch, base_seq, &tx)
+				}
+				RequestPayload::BufferSyncTakeOwnership { uri } => {
+					let session_id = session_id.ok_or(ErrorCode::AuthFailed)?;
+					core.on_buffer_sync_take_ownership(session_id, &uri)
+				}
+				RequestPayload::BufferSyncResync { uri } => {
+					let session_id = session_id.ok_or(ErrorCode::AuthFailed)?;
+					core.on_buffer_sync_resync(session_id, &uri)
+				}
 				RequestPayload::LspReply { server_id, message } => {
 					let session_id = session_id.ok_or(ErrorCode::AuthFailed)?;
 					let resp: xeno_lsp::AnyResponse =

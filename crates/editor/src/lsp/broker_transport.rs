@@ -40,6 +40,12 @@ pub struct BrokerTransport {
 
 	/// One FIFO queue per server to track pipelined server-initiated requests.
 	pending_server_requests: Arc<DashMap<ServerId, VecDeque<xeno_lsp::RequestId>>>,
+
+	/// Sender for buffer sync events routed to the editor main loop.
+	buffer_sync_tx: mpsc::UnboundedSender<crate::buffer_sync::BufferSyncEvent>,
+	/// Receiver for buffer sync events (taken once by the editor).
+	buffer_sync_rx:
+		std::sync::Mutex<Option<mpsc::UnboundedReceiver<crate::buffer_sync::BufferSyncEvent>>>,
 }
 
 struct BrokerRpc {
@@ -61,6 +67,7 @@ impl BrokerTransport {
 		session_id: SessionId,
 	) -> Arc<Self> {
 		let (tx, rx) = mpsc::unbounded_channel();
+		let (bs_tx, bs_rx) = mpsc::unbounded_channel();
 		Arc::new(Self {
 			session_id,
 			socket_path,
@@ -68,7 +75,37 @@ impl BrokerTransport {
 			events_rx: std::sync::Mutex::new(Some(rx)),
 			rpc: Arc::new(tokio::sync::Mutex::new(None)),
 			pending_server_requests: Arc::new(DashMap::new()),
+			buffer_sync_tx: bs_tx,
+			buffer_sync_rx: std::sync::Mutex::new(Some(bs_rx)),
 		})
+	}
+
+	/// Returns the session ID for this transport.
+	pub fn session_id(&self) -> SessionId {
+		self.session_id
+	}
+
+	/// Takes the buffer sync event receiver (can only be called once).
+	///
+	/// The editor main loop should drain this channel alongside the LSP transport
+	/// event channel.
+	pub fn take_buffer_sync_events(
+		&self,
+	) -> Option<mpsc::UnboundedReceiver<crate::buffer_sync::BufferSyncEvent>> {
+		self.buffer_sync_rx.lock().unwrap().take()
+	}
+
+	/// Sends a buffer sync request to the broker and returns the response.
+	pub async fn buffer_sync_request(
+		&self,
+		payload: RequestPayload,
+	) -> xeno_lsp::Result<ResponsePayload> {
+		let rpc = self.ensure_connected(&self.socket_path).await?;
+		self.handle_rpc_result(
+			rpc.call(payload, Duration::from_secs(5)).await,
+			"BufferSync",
+		)
+		.await
 	}
 
 	fn with_socket_path(socket_path: std::path::PathBuf) -> Arc<Self> {
@@ -94,11 +131,13 @@ impl BrokerTransport {
 
 		let events_tx = self.events_tx.clone();
 		let pending = self.pending_server_requests.clone();
+		let buffer_sync_tx = self.buffer_sync_tx.clone();
 
 		let (main_loop, socket) = MainLoop::new(
 			move |_| BrokerClientService {
 				tx: events_tx.clone(),
 				pending: pending.clone(),
+				buffer_sync_tx: buffer_sync_tx.clone(),
 			},
 			protocol,
 			id_gen,
@@ -508,6 +547,7 @@ impl LspTransport for BrokerTransport {
 struct BrokerClientService {
 	tx: mpsc::UnboundedSender<TransportEvent>,
 	pending: Arc<DashMap<ServerId, VecDeque<xeno_lsp::RequestId>>>,
+	buffer_sync_tx: mpsc::UnboundedSender<crate::buffer_sync::BufferSyncEvent>,
 }
 
 impl tower_service::Service<Request> for BrokerClientService {
@@ -589,6 +629,26 @@ impl RpcService<BrokerProtocol> for BrokerClientService {
 						diagnostics: diags,
 					});
 				}
+			}
+			Event::BufferSyncDelta {
+				uri,
+				epoch,
+				seq,
+				tx,
+			} => {
+				let _ =
+					self.buffer_sync_tx
+						.send(crate::buffer_sync::BufferSyncEvent::RemoteDelta {
+							uri,
+							epoch,
+							seq,
+							tx,
+						});
+			}
+			Event::BufferSyncOwnerChanged { uri, epoch, owner } => {
+				let _ = self
+					.buffer_sync_tx
+					.send(crate::buffer_sync::BufferSyncEvent::OwnerChanged { uri, epoch, owner });
 			}
 		}
 		ControlFlow::Continue(())

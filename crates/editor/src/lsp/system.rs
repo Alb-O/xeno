@@ -43,6 +43,13 @@ struct RealLspSystem {
 	signature_cancel: Option<tokio_util::sync::CancellationToken>,
 	ui_tx: tokio::sync::mpsc::UnboundedSender<crate::lsp::LspUiEvent>,
 	ui_rx: tokio::sync::mpsc::UnboundedReceiver<crate::lsp::LspUiEvent>,
+	/// Concrete broker transport handle for buffer sync requests.
+	broker: Arc<crate::lsp::broker_transport::BrokerTransport>,
+	/// Outbound buffer sync requests (fire-and-forget from edit path).
+	buffer_sync_out_tx:
+		tokio::sync::mpsc::UnboundedSender<xeno_broker_proto::types::RequestPayload>,
+	/// Inbound buffer sync events to be drained in editor tick.
+	buffer_sync_in_rx: tokio::sync::mpsc::UnboundedReceiver<crate::buffer_sync::BufferSyncEvent>,
 }
 
 #[cfg(feature = "lsp")]
@@ -58,9 +65,101 @@ impl LspSystem {
 		compile_error!("LSP support requires Unix (broker uses Unix domain sockets).");
 
 		let (ui_tx, ui_rx) = tokio::sync::mpsc::unbounded_channel();
-		let transport: Arc<dyn LspTransport> = crate::lsp::broker_transport::BrokerTransport::new();
+
+		// Keep the concrete BrokerTransport for buffer sync requests,
+		// while passing it as Arc<dyn LspTransport> to the LSP manager.
+		let broker = crate::lsp::broker_transport::BrokerTransport::new();
+		let transport: Arc<dyn LspTransport> = broker.clone();
 		let manager = LspManager::new(transport);
 		manager.spawn_router();
+
+		// Outbound: edit path enqueues sync work here (fire-and-forget).
+		let (buffer_sync_out_tx, mut buffer_sync_out_rx) =
+			tokio::sync::mpsc::unbounded_channel::<xeno_broker_proto::types::RequestPayload>();
+
+		// Inbound: events/results delivered to editor tick for processing.
+		let (buffer_sync_in_tx, buffer_sync_in_rx) =
+			tokio::sync::mpsc::unbounded_channel::<crate::buffer_sync::BufferSyncEvent>();
+
+		// Task A: forward broker transport async events → buffer_sync_in_tx.
+		// When the broker disconnects, the channel closes and we emit Disconnected.
+		if let Some(mut event_rx) = broker.take_buffer_sync_events() {
+			let in_tx_a = buffer_sync_in_tx.clone();
+			tokio::spawn(async move {
+				while let Some(evt) = event_rx.recv().await {
+					if in_tx_a.send(evt).is_err() {
+						break;
+					}
+				}
+				// Channel closed — broker disconnected.
+				let _ = in_tx_a.send(crate::buffer_sync::BufferSyncEvent::Disconnected);
+			});
+		}
+
+		// Task B: outbound sender — drains editor requests, calls broker, posts results back.
+		{
+			let broker_b = broker.clone();
+			let in_tx_b = buffer_sync_in_tx;
+			tokio::spawn(async move {
+				use xeno_broker_proto::types::{RequestPayload, ResponsePayload};
+
+				while let Some(payload) = buffer_sync_out_rx.recv().await {
+					// Extract URI for error reporting.
+					let uri = match &payload {
+						RequestPayload::BufferSyncOpen { uri, .. }
+						| RequestPayload::BufferSyncClose { uri }
+						| RequestPayload::BufferSyncDelta { uri, .. }
+						| RequestPayload::BufferSyncTakeOwnership { uri }
+						| RequestPayload::BufferSyncResync { uri } => uri.clone(),
+						_ => continue,
+					};
+
+					match broker_b.buffer_sync_request(payload).await {
+						Ok(resp) => {
+							// Convert response into an inbound event for the editor.
+							let evt = match resp {
+								ResponsePayload::BufferSyncOpened {
+									role,
+									epoch,
+									seq,
+									snapshot,
+								} => Some(crate::buffer_sync::BufferSyncEvent::Opened {
+									uri,
+									role,
+									epoch,
+									seq,
+									snapshot,
+								}),
+								ResponsePayload::BufferSyncDeltaAck { seq } => {
+									Some(crate::buffer_sync::BufferSyncEvent::DeltaAck { uri, seq })
+								}
+								ResponsePayload::BufferSyncSnapshot {
+									text,
+									epoch,
+									seq,
+									owner,
+								} => Some(crate::buffer_sync::BufferSyncEvent::Snapshot {
+									uri,
+									text,
+									epoch,
+									seq,
+									owner,
+								}),
+								ResponsePayload::BufferSyncClosed
+								| ResponsePayload::BufferSyncOwnership { .. } => None,
+								_ => None,
+							};
+							if let Some(evt) = evt {
+								let _ = in_tx_b.send(evt);
+							}
+						}
+						Err(e) => {
+							tracing::warn!(?uri, error = %e, "buffer sync request failed");
+						}
+					}
+				}
+			});
+		}
 
 		Self {
 			inner: RealLspSystem {
@@ -71,6 +170,9 @@ impl LspSystem {
 				signature_cancel: None,
 				ui_tx,
 				ui_rx,
+				broker,
+				buffer_sync_out_tx,
+				buffer_sync_in_rx,
 			},
 		}
 	}
@@ -447,6 +549,25 @@ impl LspSystem {
 
 	pub(crate) fn try_recv_ui_event(&mut self) -> Option<crate::lsp::LspUiEvent> {
 		self.inner.ui_rx.try_recv().ok()
+	}
+
+	/// Returns a sender for fire-and-forget buffer sync outbound requests.
+	pub(crate) fn buffer_sync_out_tx(
+		&self,
+	) -> &tokio::sync::mpsc::UnboundedSender<xeno_broker_proto::types::RequestPayload> {
+		&self.inner.buffer_sync_out_tx
+	}
+
+	/// Try to receive the next inbound buffer sync event.
+	pub(crate) fn try_recv_buffer_sync_in(
+		&mut self,
+	) -> Option<crate::buffer_sync::BufferSyncEvent> {
+		self.inner.buffer_sync_in_rx.try_recv().ok()
+	}
+
+	/// Returns the broker session ID for this editor.
+	pub(crate) fn broker_session_id(&self) -> xeno_broker_proto::types::SessionId {
+		self.inner.broker.session_id()
 	}
 
 	pub fn get_diagnostic_line_map(&self, buffer: &Buffer) -> DiagnosticLineMap {

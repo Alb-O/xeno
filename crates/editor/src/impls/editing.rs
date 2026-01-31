@@ -52,6 +52,14 @@ impl Editor {
 
 		if res {
 			self.notify_overlay_event(crate::overlay::LayerEvent::BufferEdited(buffer_id));
+
+			#[cfg(feature = "lsp")]
+			if let Some(buffer) = self.state.core.buffers.get_buffer(buffer_id)
+				&& let Some(uri) = self.state.buffer_sync.uri_for_doc_id(buffer.document_id())
+				&& let Some(payload) = self.state.buffer_sync.prepare_delta(uri, tx)
+			{
+				let _ = self.state.lsp.buffer_sync_out_tx().send(payload);
+			}
 		}
 		res
 	}

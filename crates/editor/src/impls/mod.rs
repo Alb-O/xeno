@@ -15,6 +15,9 @@
 
 /// Buffer creation operations.
 mod buffer_ops;
+/// Buffer sync event processing (remote deltas, ownership changes).
+#[cfg(feature = "lsp")]
+mod buffer_sync_events;
 /// Core editing state.
 mod core;
 /// Centralized edit executor.
@@ -188,6 +191,9 @@ pub(crate) struct EditorState {
 	/// Background syntax loading manager.
 	pub(crate) syntax_manager: crate::syntax_manager::SyntaxManager,
 
+	/// Cross-process buffer synchronization state.
+	pub(crate) buffer_sync: crate::buffer_sync::BufferSyncManager,
+
 	/// Runtime for scheduling async hooks during sync emission.
 	pub(crate) hook_runtime: HookRuntime,
 
@@ -328,6 +334,7 @@ impl Editor {
 					.overflow(xeno_tui::widgets::notifications::Overflow::DropOldest),
 				lsp: LspSystem::new(),
 				syntax_manager: crate::syntax_manager::SyntaxManager::new(2),
+				buffer_sync: crate::buffer_sync::BufferSyncManager::new(),
 				hook_runtime,
 				overlay_system: OverlaySystem::default(),
 				metrics: std::sync::Arc::new(crate::metrics::EditorMetrics::new()),

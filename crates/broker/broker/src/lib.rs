@@ -7,6 +7,7 @@ pub mod ipc;
 pub mod launcher;
 pub mod lsp;
 pub mod service;
+pub mod wire_convert;
 
 #[doc(hidden)]
 pub use launcher::test_helpers;
