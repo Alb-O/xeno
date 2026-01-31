@@ -263,7 +263,7 @@ impl LspSystem {
 		let Some(client) = self.sync().registry().get(&language, &abs_path) else {
 			return Ok(None);
 		};
-		if !client.is_initialized() {
+		if !client.is_ready() {
 			return Ok(None);
 		}
 
@@ -355,16 +355,18 @@ impl LspSystem {
 			return OffsetEncoding::Utf16;
 		};
 
+		let abs_path = self.canonicalize_path(&path);
 		self.sync()
 			.registry()
-			.get(&language, &path)
+			.get(&language, &abs_path)
 			.map(|client| client.offset_encoding())
 			.unwrap_or(OffsetEncoding::Utf16)
 	}
 
 	fn incremental_encoding(&self, path: &Path, language: &str) -> Option<OffsetEncoding> {
-		let client = self.sync().registry().get(language, path)?;
-		let caps = client.try_capabilities()?;
+		let abs_path = self.canonicalize_path(path);
+		let client = self.sync().registry().get(language, &abs_path)?;
+		let caps = client.capabilities()?;
 		let supports_incremental = match &caps.text_document_sync {
 			Some(TextDocumentSyncCapability::Kind(kind)) => {
 				*kind == TextDocumentSyncKind::INCREMENTAL

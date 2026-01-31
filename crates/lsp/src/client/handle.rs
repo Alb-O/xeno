@@ -94,88 +94,90 @@ impl ClientHandle {
 	}
 
 	/// Check if the server is ready for requests.
+	///
+	/// Uses `Acquire` ordering so that all writes performed before the
+	/// corresponding `set_ready(true)` (including `capabilities.set()`)
+	/// are visible to the caller.
 	pub fn is_ready(&self) -> bool {
-		self.is_ready.load(Ordering::Relaxed)
+		self.is_ready.load(Ordering::Acquire)
 	}
 
 	/// Set the server's ready state.
+	///
+	/// Uses `Release` ordering to ensure all prior writes (capabilities,
+	/// notify, etc.) are visible to any thread that observes `is_ready() == true`.
 	pub(crate) fn set_ready(&self, ready: bool) {
-		self.is_ready.store(ready, Ordering::Relaxed);
-	}
-
-	/// Get the server's capabilities.
-	///
-	/// # Panics
-	///
-	/// Panics if called before initialization completes.
-	pub fn capabilities(&self) -> &ServerCapabilities {
-		self.capabilities
-			.get()
-			.expect("language server not yet initialized")
+		debug_assert!(
+			!ready || self.is_initialized(),
+			"set_ready(true) called before capabilities were set"
+		);
+		self.is_ready.store(ready, Ordering::Release);
 	}
 
 	/// Get the server's capabilities if initialized.
-	pub fn try_capabilities(&self) -> Option<&ServerCapabilities> {
+	///
+	/// Returns `None` before the initialize handshake completes.
+	pub fn capabilities(&self) -> Option<&ServerCapabilities> {
 		self.capabilities.get()
 	}
 
 	/// Check if the server supports hover.
 	pub fn supports_hover(&self) -> bool {
-		self.try_capabilities()
+		self.capabilities()
 			.is_some_and(|c| c.hover_provider.is_some())
 	}
 
 	/// Check if the server supports completion.
 	pub fn supports_completion(&self) -> bool {
-		self.try_capabilities()
+		self.capabilities()
 			.is_some_and(|c| c.completion_provider.is_some())
 	}
 
 	/// Check if the server supports formatting.
 	pub fn supports_formatting(&self) -> bool {
-		self.try_capabilities()
+		self.capabilities()
 			.is_some_and(|c| c.document_formatting_provider.is_some())
 	}
 
 	/// Check if the server supports go to definition.
 	pub fn supports_definition(&self) -> bool {
-		self.try_capabilities()
+		self.capabilities()
 			.is_some_and(|c| c.definition_provider.is_some())
 	}
 
 	/// Check if the server supports find references.
 	pub fn supports_references(&self) -> bool {
-		self.try_capabilities()
+		self.capabilities()
 			.is_some_and(|c| c.references_provider.is_some())
 	}
 
 	/// Check if the server supports document symbols.
 	pub fn supports_document_symbol(&self) -> bool {
-		self.try_capabilities()
+		self.capabilities()
 			.is_some_and(|c| c.document_symbol_provider.is_some())
 	}
 
 	/// Check if the server supports code actions.
 	pub fn supports_code_action(&self) -> bool {
-		self.try_capabilities()
+		self.capabilities()
 			.is_some_and(|c| c.code_action_provider.is_some())
 	}
 
 	/// Check if the server supports signature help.
 	pub fn supports_signature_help(&self) -> bool {
-		self.try_capabilities()
+		self.capabilities()
 			.is_some_and(|c| c.signature_help_provider.is_some())
 	}
 
 	/// Check if the server supports rename.
 	pub fn supports_rename(&self) -> bool {
-		self.try_capabilities()
+		self.capabilities()
 			.is_some_and(|c| c.rename_provider.is_some())
 	}
 
 	/// Check if the server supports execute command.
 	pub fn supports_execute_command(&self) -> bool {
-		self.try_capabilities()
+		self.capabilities()
 			.is_some_and(|c| c.execute_command_provider.is_some())
 	}
 
@@ -184,7 +186,7 @@ impl ClientHandle {
 	/// Returns the LSP default (UTF-16) if the server has not yet finished
 	/// initialization and capabilities are unavailable.
 	pub fn offset_encoding(&self) -> OffsetEncoding {
-		self.try_capabilities()
+		self.capabilities()
 			.and_then(|c| c.position_encoding.as_ref())
 			.and_then(OffsetEncoding::from_lsp)
 			.unwrap_or_default()

@@ -72,6 +72,22 @@
    - Enforced in: `DocumentSync::notify_change_full_text`, `DocumentSync::notify_change_incremental_no_content`
    - Tested by: TODO (add regression: test_document_sync_returns_not_ready_before_init)
    - Failure symptom: edits are dropped by the server or applied out of order, resulting in stale diagnostics and incorrect completions.
+10. `LspSystem::prepare_position_request` MUST gate on `ClientHandle::is_ready()` before forming any position-based LSP request.
+    - Enforced in: `LspSystem::prepare_position_request`
+    - Tested by: TODO (add regression: test_prepare_position_request_returns_none_before_ready)
+    - Failure symptom: requests sent to uninitialized servers cause panics or silent errors; previously panicked in `ClientHandle::capabilities`.
+11. `ClientHandle::capabilities()` MUST return `Option` (not panic). All capability-dependent public methods MUST use the fallible accessor.
+    - Enforced in: `ClientHandle::capabilities`, `ClientHandle::offset_encoding`, `ClientHandle::supports_*`
+    - Tested by: TODO (add regression: test_client_handle_capabilities_returns_none_before_init)
+    - Failure symptom: panic ("language server not yet initialized") on any code path that reads capabilities before the initialize handshake completes.
+12. `ClientHandle::set_ready(true)` MUST only be called after `capabilities.set()` and MUST use `Release` ordering. `is_ready()` MUST use `Acquire` ordering.
+    - Enforced in: `ClientHandle::set_ready` (debug_assert + Release), `ClientHandle::is_ready` (Acquire)
+    - Tested by: TODO (add regression: test_set_ready_requires_initialized)
+    - Failure symptom: thread observes `is_ready() == true` but `capabilities()` returns `None` due to missing memory ordering edge.
+13. All registry lookups in `LspSystem` MUST use canonicalized paths to match the key representation used at registration time.
+    - Enforced in: `LspSystem::prepare_position_request`, `LspSystem::offset_encoding_for_buffer`, `LspSystem::incremental_encoding`
+    - Tested by: TODO (add regression: test_registry_lookup_uses_canonical_path)
+    - Failure symptom: registry miss on symlinked or relative paths causes silent fallback to wrong default encoding (UTF-16) or drops the request entirely.
 
 ## Data flow
 1. Editor constructs LspSystem which constructs LspManager with BrokerTransport.
