@@ -24,6 +24,7 @@ tracing-subscriber = { workspace = true, features = ["env-filter", "json"] }
 uuid.workspace = true
 which.workspace = true
 xeno-editor = { workspace = true, features = ["lsp"] }
+xeno-lsp = { workspace = true, features = ["client", "position"] }
 xeno-primitives.workspace = true
 xeno-registry.workspace = true
 xeno-runtime-config.workspace = true

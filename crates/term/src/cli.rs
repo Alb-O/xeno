@@ -121,6 +121,11 @@ pub enum Command {
 		#[command(subcommand)]
 		action: GrammarAction,
 	},
+	/// Run headless LSP smoke test
+	LspSmoke {
+		/// Path to workspace directory with Cargo.toml (defaults to current dir)
+		workspace: Option<PathBuf>,
+	},
 }
 
 impl Cli {

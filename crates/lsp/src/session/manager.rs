@@ -93,10 +93,29 @@ impl LspManager {
 							Message::Response(_) => {}
 						}
 					}
-					TransportEvent::Status {
-						server: _,
-						status: _,
-					} => {}
+					TransportEvent::Status { server, status } => {
+						use crate::client::transport::TransportStatus;
+
+						match status {
+							TransportStatus::Stopped | TransportStatus::Crashed => {
+								// Clean up registry state for crashed/stopped servers
+								if let Some(meta) = sync_clone.registry().remove_server(server) {
+									tracing::warn!(
+										server_id = server.0,
+										language = %meta.language,
+										status = ?status,
+										"LSP server stopped, removed from registry"
+									);
+								}
+								// Clear any progress indicators for this server
+								documents_clone.clear_server_progress(server);
+							}
+							TransportStatus::Starting | TransportStatus::Running => {
+								// Status updates - currently just logged
+								tracing::debug!(server_id = server.0, status = ?status, "LSP server status update");
+							}
+						}
+					}
 					TransportEvent::Disconnected => break,
 				}
 			}

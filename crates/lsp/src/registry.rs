@@ -11,6 +11,7 @@ use std::time::Duration;
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use tokio::sync::{Mutex, Notify};
 use tracing::{info, warn};
 
 use crate::Result;
@@ -83,18 +84,44 @@ pub struct ServerMeta {
 	pub settings: Option<Value>,
 }
 
+/// Consolidated server state under a single lock for atomic operations.
+///
+/// All three indices must be updated atomically to maintain consistency across
+/// server lifecycle operations (start, stop, crash recovery).
+struct RegistryState {
+	/// Active server instances keyed by `(language, root_path)`.
+	servers: HashMap<(String, PathBuf), ServerInstance>,
+	/// Server metadata for answering server-initiated requests.
+	server_meta: HashMap<LanguageServerId, ServerMeta>,
+	/// Reverse index for O(1) removal by server ID.
+	id_index: HashMap<LanguageServerId, (String, PathBuf)>,
+}
+
+impl RegistryState {
+	fn new() -> Self {
+		Self {
+			servers: HashMap::new(),
+			server_meta: HashMap::new(),
+			id_index: HashMap::new(),
+		}
+	}
+}
+
 /// Registry for managing language servers.
 ///
-/// Thread-safe; can be shared across async tasks via `Arc<Registry>`.
+/// Thread-safe registry that ensures exactly one server instance per `(language, root_path)` key.
+/// Uses singleflight pattern to prevent duplicate `transport.start()` calls under concurrent access.
+///
+/// # Concurrency
+///
+/// - `configs`: Protected by `RwLock` for read-heavy access to language server configurations
+/// - `state`: Consolidated `RwLock` ensures atomic updates across all three server indices
+/// - `inflight`: Async `Mutex` gate ensures only one transport start per key across all callers
 pub struct Registry {
-	/// Configurations by language name.
 	configs: RwLock<HashMap<String, LanguageServerConfig>>,
-	/// Active server instances by (language, root_path).
-	servers: RwLock<HashMap<(String, PathBuf), ServerInstance>>,
-	/// Underlying transport.
+	state: RwLock<RegistryState>,
 	transport: Arc<dyn LspTransport>,
-	/// Server metadata indexed by server ID for answering server-initiated requests.
-	server_meta: RwLock<HashMap<LanguageServerId, ServerMeta>>,
+	inflight: Mutex<HashMap<(String, PathBuf), Arc<Notify>>>,
 }
 
 impl Registry {
@@ -102,9 +129,9 @@ impl Registry {
 	pub fn new(transport: Arc<dyn LspTransport>) -> Self {
 		Self {
 			configs: RwLock::new(HashMap::new()),
-			servers: RwLock::new(HashMap::new()),
+			state: RwLock::new(RegistryState::new()),
 			transport,
-			server_meta: RwLock::new(HashMap::new()),
+			inflight: Mutex::new(HashMap::new()),
 		}
 	}
 
@@ -130,6 +157,21 @@ impl Registry {
 	}
 
 	/// Get or start a language server for a file path.
+	///
+	/// Returns an existing server handle if one is running for the resolved `(language, root_path)` key,
+	/// otherwise starts a new server using singleflight pattern to prevent duplicate starts.
+	///
+	/// # Singleflight Protocol
+	///
+	/// 1. Fast path: check if server already running (read lock)
+	/// 2. Leader election: first caller becomes leader, others become waiters
+	/// 3. Leader calls `transport.start()`, then notifies waiters
+	/// 4. Waiters retry from step 1 after notification
+	/// 5. Atomic insertion under write lock handles pathological races
+	///
+	/// # Errors
+	///
+	/// Returns error if no configuration exists for the language or if transport start fails.
 	pub async fn get_or_start(&self, language: &str, file_path: &Path) -> Result<ClientHandle> {
 		let config = self.get_config(language).ok_or_else(|| {
 			crate::Error::Protocol(format!("No server configured for {language}"))
@@ -138,67 +180,128 @@ impl Registry {
 		let root_path = find_root_path(file_path, &config.root_markers);
 		let key = (language.to_string(), root_path.clone());
 
-		{
-			let servers = self.servers.read();
-			if let Some(instance) = servers.get(&key) {
+		loop {
+			if let Some(instance) = self.state.read().servers.get(&key) {
 				return Ok(instance.handle.clone());
 			}
-		}
 
-		info!(language = %language, command = %config.command, root = ?root_path, "Starting language server");
-
-		let server_config = ServerConfig::new(&config.command, &root_path)
-			.args(config.args.iter().cloned())
-			.env(config.env.iter().map(|(k, v)| (k.clone(), v.clone())))
-			.timeout(config.timeout_secs);
-
-		let started = self.transport.start(server_config).await?;
-
-		self.server_meta.write().insert(
-			started.id,
-			ServerMeta {
-				language: language.to_string(),
-				root_path: root_path.clone(),
-				settings: config.config.clone(),
-			},
-		);
-
-		let handle = ClientHandle::new(
-			started.id,
-			config.command.clone(),
-			root_path,
-			self.transport.clone(),
-		);
-
-		let init_handle = handle.clone();
-		let enable_snippets = config.enable_snippets;
-		let init_config = config.config.clone();
-
-		tokio::spawn(async move {
-			match tokio::time::timeout(
-				Duration::from_secs(30),
-				init_handle.initialize(enable_snippets, init_config),
-			)
-			.await
-			{
-				Ok(Ok(_)) => {}
-				Ok(Err(e)) => {
-					warn!(error = %e, "LSP initialize failed");
+			let (notify, is_leader) = {
+				let mut inflight = self.inflight.lock().await;
+				if let Some(n) = inflight.get(&key) {
+					(n.clone(), false)
+				} else {
+					let n = Arc::new(Notify::new());
+					inflight.insert(key.clone(), n.clone());
+					(n, true)
 				}
-				Err(_) => {
-					warn!("LSP initialize timed out");
-				}
+			};
+
+			if !is_leader {
+				notify.notified().await;
+				continue;
 			}
-		});
 
-		self.servers.write().insert(
-			key,
-			ServerInstance {
-				handle: handle.clone(),
-			},
-		);
+			info!(language = %language, command = %config.command, root = ?root_path, "Starting language server");
 
-		Ok(handle)
+			let server_config = ServerConfig::new(&config.command, &root_path)
+				.args(config.args.iter().cloned())
+				.env(config.env.iter().map(|(k, v)| (k.clone(), v.clone())))
+				.timeout(config.timeout_secs);
+
+			tracing::trace!(
+				language = %language,
+				root = ?root_path,
+				key = ?key,
+				"Registry: before transport.start (leader)"
+			);
+
+			let started = self.transport.start(server_config).await;
+
+			{
+				let mut inflight = self.inflight.lock().await;
+				inflight.remove(&key);
+				notify.notify_waiters();
+			}
+
+			let started = started?;
+
+			tracing::trace!(
+				language = %language,
+				root = ?root_path,
+				server_id = started.id.0,
+				"Registry: after transport.start (leader)"
+			);
+
+			let handle = {
+				let mut state = self.state.write();
+				if let Some(existing) = state.servers.get(&key) {
+					tracing::trace!(
+						language = %language,
+						root = ?root_path,
+						server_id = existing.handle.id().0,
+						"Registry: lost pathological race, using existing handle"
+					);
+					existing.handle.clone()
+				} else {
+					tracing::trace!(
+						language = %language,
+						root = ?root_path,
+						server_id = started.id.0,
+						"Registry: inserting server and spawning init"
+					);
+
+					let handle = ClientHandle::new(
+						started.id,
+						config.command.clone(),
+						root_path.clone(),
+						self.transport.clone(),
+					);
+
+					state.server_meta.insert(
+						started.id,
+						ServerMeta {
+							language: language.to_string(),
+							root_path: root_path.clone(),
+							settings: config.config.clone(),
+						},
+					);
+					state
+						.id_index
+						.insert(started.id, (language.to_string(), root_path.clone()));
+					state.servers.insert(
+						key.clone(),
+						ServerInstance {
+							handle: handle.clone(),
+						},
+					);
+
+					let init_handle = handle.clone();
+					let enable_snippets = config.enable_snippets;
+					let init_config = config.config.clone();
+
+					tokio::spawn(async move {
+						match tokio::time::timeout(
+							Duration::from_secs(30),
+							init_handle.initialize(enable_snippets, init_config),
+						)
+						.await
+						{
+							Ok(Ok(_)) => {}
+							Ok(Err(e)) => {
+								warn!(error = %e, "LSP initialize failed");
+							}
+							Err(_) => {
+								warn!("LSP initialize timed out");
+							}
+						}
+					});
+
+					handle
+				}
+			};
+
+			return Ok(handle);
+		}
 	}
 
 	/// Get an active client for a language and file path, if one exists and is alive.
@@ -207,20 +310,33 @@ impl Registry {
 		let root_path = find_root_path(file_path, &config.root_markers);
 		let key = (language.to_string(), root_path);
 
-		let servers = self.servers.read();
-		let instance = servers.get(&key)?;
+		let state = self.state.read();
+		let instance = state.servers.get(&key)?;
 		Some(instance.handle.clone())
+	}
+
+	/// Remove a server by its ID.
+	///
+	/// Atomically removes server from all three indices and returns its metadata.
+	/// Typically called when a server crashes or stops to clean up registry state.
+	pub fn remove_server(&self, server_id: LanguageServerId) -> Option<ServerMeta> {
+		let mut state = self.state.write();
+		let key = state.id_index.remove(&server_id)?;
+		state.servers.remove(&key);
+		state.server_meta.remove(&server_id)
 	}
 
 	/// Shutdown all servers.
 	pub async fn shutdown_all(&self) {
-		self.servers.write().clear();
-		self.server_meta.write().clear();
+		let mut state = self.state.write();
+		state.servers.clear();
+		state.server_meta.clear();
+		state.id_index.clear();
 	}
 
 	/// Get the number of active servers.
 	pub fn active_count(&self) -> usize {
-		self.servers.read().len()
+		self.state.read().servers.len()
 	}
 
 	/// Get the underlying transport.
@@ -230,8 +346,9 @@ impl Registry {
 
 	/// Check if any server is ready (initialized and accepting requests).
 	pub fn any_server_ready(&self) -> bool {
-		self.servers
+		self.state
 			.read()
+			.servers
 			.values()
 			.any(|instance| instance.handle.is_ready())
 	}
@@ -240,7 +357,7 @@ impl Registry {
 	///
 	/// Returns `None` if the server has not been started or has been shut down.
 	pub fn get_server_meta(&self, server_id: LanguageServerId) -> Option<ServerMeta> {
-		self.server_meta.read().get(&server_id).cloned()
+		self.state.read().server_meta.get(&server_id).cloned()
 	}
 }
 

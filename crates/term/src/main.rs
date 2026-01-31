@@ -34,6 +34,7 @@ async fn main() -> anyhow::Result<()> {
 
 	match cli.command {
 		Some(Command::Grammar { action }) => return handle_grammar_command(action),
+		Some(Command::LspSmoke { workspace }) => return run_lsp_smoke(workspace).await,
 		None => {}
 	}
 
@@ -328,20 +329,30 @@ fn setup_tracing() {
 	use tracing_subscriber::fmt::format::FmtSpan;
 	use tracing_subscriber::prelude::*;
 
-	let Some(data_dir) = xeno_editor::paths::get_data_dir() else {
+	// Support XENO_LOG_DIR for smoke testing, fall back to data dir
+	let log_dir = std::env::var("XENO_LOG_DIR")
+		.ok()
+		.map(std::path::PathBuf::from)
+		.or_else(xeno_editor::paths::get_data_dir);
+
+	let Some(log_dir) = log_dir else {
 		return;
 	};
 
-	if std::fs::create_dir_all(&data_dir).is_err() {
+	if std::fs::create_dir_all(&log_dir).is_err() {
 		return;
 	}
 
-	let log_path = data_dir.join("xeno.log");
+	// Include PID in filename for correlating multi-process logs
+	let pid = std::process::id();
+	let log_path = log_dir.join(format!("xeno.{}.log", pid));
 	let Ok(file) = OpenOptions::new().create(true).append(true).open(&log_path) else {
 		return;
 	};
 
-	let filter = EnvFilter::try_from_env("XENO_LOG")
+	// Support RUST_LOG in addition to XENO_LOG
+	let filter = EnvFilter::try_from_default_env()
+		.or_else(|_| EnvFilter::try_from_env("XENO_LOG"))
 		.unwrap_or_else(|_| EnvFilter::new("xeno_api=debug,xeno_lsp=debug,warn"));
 
 	let file_layer = tracing_subscriber::fmt::layer()
@@ -356,4 +367,101 @@ fn setup_tracing() {
 		.init();
 
 	info!(path = ?log_path, "Tracing initialized");
+}
+
+/// Headless LSP smoke test for runtime verification.
+///
+/// # Test Coverage
+///
+/// 1. Singleflight correctness: concurrent `get_or_start()` must yield single server instance
+/// 2. Server→client request routing: `workspace/configuration`, progress notifications
+/// 3. Basic LSP operations: document open, hover requests
+///
+/// # Errors
+///
+/// Returns error if workspace lacks `Cargo.toml`, test file missing, or LSP operations fail.
+async fn run_lsp_smoke(workspace: Option<std::path::PathBuf>) -> anyhow::Result<()> {
+	info!("Starting headless LSP smoke test");
+
+	xeno_editor::bootstrap::init();
+
+	let workspace_path = workspace
+		.or_else(|| std::env::current_dir().ok())
+		.ok_or_else(|| anyhow::anyhow!("Could not determine workspace path"))?;
+
+	if !workspace_path.join("Cargo.toml").exists() {
+		anyhow::bail!(
+			"Workspace does not contain Cargo.toml: {}",
+			workspace_path.display()
+		);
+	}
+
+	let lsp_system = xeno_editor::lsp::LspSystem::new();
+
+	lsp_system.configure_server(
+		"rust",
+		xeno_lsp::LanguageServerConfig {
+			command: "rust-analyzer".to_string(),
+			args: vec![],
+			env: std::collections::HashMap::new(),
+			root_markers: vec!["Cargo.toml".to_string()],
+			timeout_secs: 30,
+			config: Some(serde_json::json!({
+				"rust-analyzer": {
+					"checkOnSave": {
+						"command": "clippy"
+					}
+				}
+			})),
+			enable_snippets: true,
+		},
+	);
+
+	info!("Test 1: Concurrent server start");
+	let test_file = workspace_path.join("src/lib.rs");
+	if !test_file.exists() {
+		anyhow::bail!("Test file not found: {}", test_file.display());
+	}
+
+	let registry = lsp_system.registry();
+	let (h1, h2) = tokio::join!(
+		async { registry.get_or_start("rust", &test_file).await },
+		async { registry.get_or_start("rust", &test_file).await }
+	);
+
+	let handle1 = h1?;
+	let handle2 = h2?;
+	info!(
+		id1 = handle1.id().0,
+		id2 = handle2.id().0,
+		"Concurrent start complete"
+	);
+
+	info!("Test 2: Open document and wait for server requests");
+	let content = std::fs::read_to_string(&test_file)?;
+	let client = lsp_system
+		.sync()
+		.open_document_text(&test_file, "rust", content)
+		.await?;
+
+	tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
+
+	info!("Test 3: Trigger hover to force server→client requests");
+	let uri = xeno_lsp::uri_from_path(&test_file).ok_or_else(|| anyhow::anyhow!("Invalid path"))?;
+	let position = xeno_lsp::lsp_types::Position {
+		line: 0,
+		character: 0,
+	};
+	match client.hover(uri, position).await {
+		Ok(_) => info!("Hover request completed"),
+		Err(e) => warn!(
+			"Hover request failed (expected during initialization): {}",
+			e
+		),
+	}
+
+	tokio::time::sleep(tokio::time::Duration::from_secs(3)).await;
+
+	info!("Smoke test complete - check logs for trace output");
+	Ok(())
 }

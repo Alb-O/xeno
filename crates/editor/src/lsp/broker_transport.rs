@@ -246,23 +246,33 @@ impl BrokerTransport {
 	/// Spawn the broker daemon as a detached background process.
 	///
 	/// Stdio is suppressed to avoid cluttering the terminal.
+	/// Spawn the broker daemon as a detached background process.
+	///
+	/// Propagates logging and debugging environment variables to enable file-based tracing
+	/// in smoke tests and production debugging scenarios.
 	async fn spawn_broker_daemon(&self, socket_path: &std::path::Path) -> Result<()> {
 		let bin = resolve_broker_bin();
 
-		let mut child = tokio::process::Command::new(&bin)
-			.arg("--socket")
+		let mut cmd = tokio::process::Command::new(&bin);
+		cmd.arg("--socket")
 			.arg(socket_path)
 			.stdin(std::process::Stdio::null())
 			.stdout(std::process::Stdio::null())
-			.stderr(std::process::Stdio::null())
-			.spawn()
-			.map_err(|e| {
-				xeno_lsp::Error::Protocol(format!(
-					"failed to spawn broker '{}': {} (checked XENO_BROKER_BIN, sibling, then PATH)",
-					bin.display(),
-					e
-				))
-			})?;
+			.stderr(std::process::Stdio::null());
+
+		for k in ["XENO_LOG_DIR", "RUST_LOG", "XENO_LOG", "RUST_BACKTRACE"] {
+			if let Ok(v) = std::env::var(k) {
+				cmd.env(k, v);
+			}
+		}
+
+		let mut child = cmd.spawn().map_err(|e| {
+			xeno_lsp::Error::Protocol(format!(
+				"failed to spawn broker '{}': {} (checked XENO_BROKER_BIN, sibling, then PATH)",
+				bin.display(),
+				e
+			))
+		})?;
 
 		tokio::spawn(async move {
 			let _ = child.wait().await;
@@ -345,11 +355,21 @@ impl LspTransport for BrokerTransport {
 		let rpc = self.ensure_connected(&self.socket_path).await?;
 
 		let broker_cfg = xeno_broker_proto::types::LspServerConfig {
-			command: cfg.command,
-			args: cfg.args,
-			env: cfg.env.into_iter().collect(),
+			command: cfg.command.clone(),
+			args: cfg.args.clone(),
+			env: cfg
+				.env
+				.iter()
+				.map(|(k, v)| (k.clone(), v.clone()))
+				.collect(),
 			cwd: Some(cfg.root_path.to_string_lossy().to_string()),
 		};
+
+		tracing::trace!(
+			command = %broker_cfg.command,
+			cwd = ?broker_cfg.cwd,
+			"BrokerTransport: requesting LspStart"
+		);
 
 		let resp = self
 			.handle_rpc_result(
@@ -363,6 +383,10 @@ impl LspTransport for BrokerTransport {
 			.await?;
 
 		if let ResponsePayload::LspStarted { server_id } = resp {
+			tracing::trace!(
+				server_id = server_id.0,
+				"BrokerTransport: LspStart returned server_id"
+			);
 			Ok(StartedServer {
 				id: LanguageServerId(server_id.0),
 			})
