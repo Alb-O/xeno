@@ -138,6 +138,41 @@ impl Document {
 			&& self.content.len_bytes() <= Self::MAX_SYNC_INCREMENTAL_BYTES
 	}
 
+	/// Incremental syntax update for undo/redo operations.
+	///
+	/// The snapshot undo backend records `undo_tx = tx.invert(&before)` only
+	/// for the first keystroke of a merged insert-mode group. Subsequent
+	/// keystrokes modify the rope without updating the stored inverse, so the
+	/// changeset may not describe the actual edit. Passing an incorrect
+	/// changeset to tree-sitter produces a corrupt syntax tree.
+	///
+	/// When the stored tx correctly transforms `old_source` into the current
+	/// content, uses its changeset directly. Otherwise computes a correct
+	/// [`Transaction`] via [`rope_delta`] and uses that changeset instead,
+	/// keeping the incremental update path even for merged undo groups.
+	///
+	/// [`rope_delta`]: crate::buffer_sync::convert::rope_delta
+	fn incremental_syntax_for_history(
+		&mut self,
+		old_source: Option<Rope>,
+		stored_tx: &Transaction,
+		language_loader: &LanguageLoader,
+		op: &'static str,
+	) {
+		let Some(old) = old_source else {
+			self.syntax_dirty = true;
+			return;
+		};
+		let mut check = old.clone();
+		stored_tx.apply(&mut check);
+		if check == self.content {
+			self.try_incremental_syntax_update(Some(old), stored_tx.changes(), language_loader, op);
+		} else {
+			let corrected = crate::buffer_sync::convert::rope_delta(&old, &self.content);
+			self.try_incremental_syntax_update(Some(old), corrected.changes(), language_loader, op);
+		}
+	}
+
 	/// Tries an incremental tree-sitter update; falls back to marking dirty.
 	///
 	/// On success: clears `syntax_dirty`, bumps `syntax_version`, returns `true`.
@@ -308,7 +343,7 @@ impl Document {
 			|_, _| {},
 		)?;
 
-		self.try_incremental_syntax_update(old_source, tx.changes(), language_loader, "undo");
+		self.incremental_syntax_for_history(old_source, &tx, language_loader, "undo");
 		Some(tx)
 	}
 
@@ -336,7 +371,7 @@ impl Document {
 			|_, _| {},
 		)?;
 
-		self.try_incremental_syntax_update(old_source, tx.changes(), language_loader, "redo");
+		self.incremental_syntax_for_history(old_source, &tx, language_loader, "redo");
 		Some(tx)
 	}
 
