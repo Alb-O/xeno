@@ -14,12 +14,15 @@
 - The broker keeps idle servers alive for an idle lease duration; after lease expiry and with no inflight requests, the server is terminated.
 
 ## Module map
-- `crates/broker/broker/src/core/mod.rs` — BrokerCore state machine: sessions, servers, project deduplication, leader election, pending request maps, leases.
-- `crates/broker/broker/src/lsp.rs` — LspProxyService: proxy between an LSP server stdio connection and BrokerCore event routing.
-- `crates/broker/broker/src/launcher.rs` — Spawns and monitors LSP server child processes and reports exit to core.
-- `crates/broker/broker-bin/src/main.rs` — Broker binary entrypoint and file-based tracing setup (xeno-broker.<pid>.log).
-- `crates/editor/src/lsp/broker_transport.rs` — Broker daemon spawn logic and environment propagation from editor to broker.
-- `crates/broker_proto/*` — IPC frame and event types: IpcFrame, Event, Request, Response, LspServerConfig, ServerId, SessionId.
+- `crates/broker/broker/src/lib.rs`: Public crate exports and module declarations.
+- `crates/broker/broker/src/core/mod.rs`: BrokerCore state machine: sessions, servers, project deduplication, leader election, pending request maps, leases.
+- `crates/broker/broker/src/service.rs`: BrokerService: per-connection IPC request handler that routes editor requests to BrokerCore or LSP servers.
+- `crates/broker/broker/src/ipc.rs`: IPC server (Unix socket listener) and per-connection dispatch to BrokerService.
+- `crates/broker/broker/src/lsp.rs`: LspProxyService: proxy between an LSP server stdio connection and BrokerCore event routing.
+- `crates/broker/broker/src/launcher.rs`: Spawns and monitors LSP server child processes and reports exit to core.
+- `crates/broker/broker-bin/src/main.rs`: Broker binary entrypoint and file-based tracing setup (xeno-broker.<pid>.log).
+- `crates/editor/src/lsp/broker_transport.rs`: Broker daemon spawn logic and environment propagation from editor to broker.
+- `crates/broker_proto/*`: IPC frame and event types: IpcFrame, Event, Request, Response, LspServerConfig, ServerId, SessionId.
 
 ## Key types
 | Type | Meaning | Constraints | Constructed / mutated in |
@@ -42,7 +45,7 @@
    - Failure symptom: unrelated projects share a server, causing incorrect diagnostics and cross-project symbol results.
 2. Leader election MUST be deterministic and MUST be the minimum SessionId of the attached set.
    - Enforced in: `crates/broker/broker/src/core/mod.rs`::`BrokerCore::attach_session`, `BrokerCore::detach_session`
-   - Tested by: `crates/editor/tests/broker_e2e.rs`::`test_broker_e2e_leader_routing_and_reply`
+   - Tested by: `crates/editor/tests/integration/broker_e2e.rs`::`test_broker_e2e_leader_routing_and_reply`
    - Failure symptom: server-initiated requests route to different sessions across runs, breaking request handling and causing hangs.
 3. Server→client requests MUST be registered as pending before being forwarded to the leader session.
    - Enforced in: `crates/broker/broker/src/lsp.rs`::`LspProxyService::call`
@@ -50,11 +53,11 @@
    - Failure symptom: leader reply arrives before pending registration and is rejected as "request not found".
 4. Server→client requests MUST only be completed by the elected responder session.
    - Enforced in: `crates/broker/broker/src/core/mod.rs`::`BrokerCore::complete_client_request`
-   - Tested by: `crates/editor/tests/broker_e2e.rs`::`test_broker_e2e_leader_routing_and_reply`
+   - Tested by: `crates/editor/tests/integration/broker_e2e.rs`::`test_broker_e2e_leader_routing_and_reply`
    - Failure symptom: replies are accepted from non-leader sessions, resulting in nondeterministic behavior and incorrect responses.
 5. Client→server request ids MUST be rewritten to broker-allocated wire ids to prevent cross-session collisions.
    - Enforced in: `crates/broker/broker/src/core/mod.rs`::`BrokerCore::alloc_wire_request_id`
-   - Tested by: `crates/editor/tests/broker_e2e.rs`::`test_broker_string_wire_ids`
+   - Tested by: `crates/editor/tests/integration/broker_edge_cases.rs`::`test_broker_string_wire_ids`
    - Failure symptom: one session's response completes another session's request, causing incorrect editor UI and protocol errors.
 6. Pending requests MUST be cancelled on leader change, session unregister, server exit, and per-request timeout.
    - Enforced in: `crates/broker/broker/src/core/mod.rs`::`BrokerCore::cancel_pending_for_leader_change`, `BrokerCore::unregister_session`, `BrokerCore::check_lease_expiry`; `crates/broker/broker/src/lsp.rs`::`LspProxyService::call`
@@ -62,19 +65,19 @@
    - Failure symptom: pending maps leak, late replies are misdelivered, or server waits forever for a client reply.
 7. IPC send failure to a session MUST trigger authoritative session cleanup.
    - Enforced in: `crates/broker/broker/src/core/mod.rs`::`BrokerCore::broadcast_to_server`, `BrokerCore::send_to_leader`
-   - Tested by: TODO (add regression: test_session_send_failure_unregisters_session)
+   - Tested by: `crates/broker/broker/src/core/tests/error_handling.rs`::`session_send_failure_unregisters_session`
    - Failure symptom: dead sessions remain registered; leader routing blackholes server-initiated requests.
 8. Idle servers MUST be terminated after lease expiry only when no sessions are attached and no inflight requests exist.
    - Enforced in: `crates/broker/broker/src/core/mod.rs`::`BrokerCore::check_lease_expiry`
-   - Tested by: `crates/editor/tests/broker_e2e.rs`::`test_broker_e2e_persistence_lease_expiry`
+   - Tested by: `crates/editor/tests/integration/broker_e2e.rs`::`test_broker_e2e_persistence_lease_expiry`
    - Failure symptom: server processes leak indefinitely or are terminated while a request is still in flight.
 9. On session unregister, broker MUST detach the session from all servers and MUST clean up per-session doc ownership state.
    - Enforced in: `crates/broker/broker/src/core/mod.rs`::`BrokerCore::unregister_session`, `BrokerCore::cleanup_session_docs_on_server`
-   - Tested by: `crates/editor/tests/broker_e2e.rs`::`test_broker_owner_close_transfer`
+   - Tested by: `crates/editor/tests/integration/broker_edge_cases.rs`::`test_broker_owner_close_transfer`
    - Failure symptom: docs remain "owned" by a dead session, blocking updates from remaining sessions and causing stale diagnostics.
 10. Diagnostics forwarding MUST prefer the authoritative version from the LSP payload when present, and MAY fall back to broker doc tracking otherwise.
     - Enforced in: `crates/broker/broker/src/lsp.rs`::`LspProxyService::forward`
-    - Tested by: TODO (add regression: test_publish_diagnostics_version_fallback)
+    - Tested by: `crates/broker/broker/src/core/tests/diagnostics_regression.rs`::`diagnostics_use_lsp_payload_version_not_broker_version`
     - Failure symptom: diagnostics apply to the wrong document version, producing flicker or persistent stale errors.
 
 ## Data flow
@@ -122,19 +125,19 @@
 - Confirm broker spawns one server process and attaches both sessions to the same ServerId.
 
 ## Tests
-- `crates/editor/tests/broker_e2e.rs`::`test_broker_e2e_persistence_lease_expiry`
-- `crates/editor/tests/broker_e2e.rs`::`test_broker_e2e_persistence_warm_reattach`
-- `crates/editor/tests/broker_e2e.rs`::`test_broker_e2e_leader_routing_and_reply`
-- `crates/editor/tests/broker_e2e.rs`::`test_broker_e2e_dedup_and_fanout`
-- `crates/editor/tests/broker_e2e.rs`::`test_broker_reconnect_wedge`
-- `crates/editor/tests/broker_e2e.rs`::`test_broker_owner_close_transfer`
-- `crates/editor/tests/broker_e2e.rs`::`test_broker_string_wire_ids`
-- `crates/broker/broker/src/core/tests.rs`::`test_lease_expiry_terminates_server`
-- `crates/broker/broker/src/core/tests.rs`::`test_warm_reattach_reuses_server`
-- `crates/broker/broker/src/core/tests.rs`::`reply_from_leader_completes_pending`
-- `crates/broker/broker/src/core/tests.rs`::`disconnect_leader_cancels_pending_requests`
-- TODO (add regression: test_session_send_failure_unregisters_session)
-- TODO (add regression: test_publish_diagnostics_version_fallback)
+- `crates/editor/tests/integration/broker_e2e.rs`::`test_broker_e2e_persistence_lease_expiry`
+- `crates/editor/tests/integration/broker_e2e.rs`::`test_broker_e2e_persistence_warm_reattach`
+- `crates/editor/tests/integration/broker_e2e.rs`::`test_broker_e2e_leader_routing_and_reply`
+- `crates/editor/tests/integration/broker_e2e.rs`::`test_broker_e2e_dedup_and_fanout`
+- `crates/editor/tests/integration/broker_edge_cases.rs`::`test_broker_reconnect_wedge`
+- `crates/editor/tests/integration/broker_edge_cases.rs`::`test_broker_owner_close_transfer`
+- `crates/editor/tests/integration/broker_edge_cases.rs`::`test_broker_string_wire_ids`
+- `crates/broker/broker/src/core/tests/lease_management.rs`::`lease_expiry_terminates_server`
+- `crates/broker/broker/src/core/tests/lease_management.rs`::`warm_reattach_reuses_server`
+- `crates/broker/broker/src/core/tests/request_routing.rs`::`reply_from_leader_completes_pending`
+- `crates/broker/broker/src/core/tests/request_routing.rs`::`disconnect_leader_cancels_pending_requests`
+- `crates/broker/broker/src/core/tests/error_handling.rs`::`session_send_failure_unregisters_session`
+- `crates/broker/broker/src/core/tests/diagnostics_regression.rs`::`diagnostics_use_lsp_payload_version_not_broker_version`
 
 ## Glossary
 - attach: The act of associating a SessionId with a ServerId so it receives broadcast events and can send requests.
