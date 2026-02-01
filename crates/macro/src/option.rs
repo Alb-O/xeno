@@ -1,6 +1,9 @@
 //! Option derive macro implementation.
 //!
 //! Provides `#[derive_option]` for registering configuration options.
+//!
+//! Note: the emitted `inventory::submit!(OptionReg(...))` is dead — nothing
+//! iterates `OptionReg`. Registration goes through explicit `register_builtins`.
 
 use proc_macro::TokenStream;
 use quote::{format_ident, quote};

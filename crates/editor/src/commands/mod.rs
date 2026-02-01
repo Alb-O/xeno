@@ -30,6 +30,8 @@ pub use xeno_registry::commands::{CommandError, CommandOutcome, CommandResult};
 use crate::impls::Editor;
 
 /// Registry wrapper for editor-direct command definitions.
+///
+/// Only actively-consumed `inventory` collection in the workspace.
 pub struct EditorCommandReg(pub &'static EditorCommandDef);
 inventory::collect!(EditorCommandReg);
 
@@ -105,7 +107,7 @@ pub fn all_editor_commands() -> impl Iterator<Item = &'static EditorCommandDef> 
 	EDITOR_COMMANDS.iter().copied()
 }
 
-/// Registers an editor-direct command via inventory.
+/// Registers an editor-direct command via `inventory`.
 #[macro_export]
 macro_rules! editor_command {
 	($name:ident, {

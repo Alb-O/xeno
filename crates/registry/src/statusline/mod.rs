@@ -146,6 +146,9 @@ pub use builtins::register_builtins;
 
 use crate::error::RegistryError;
 
+/// Plugin registration callback for the statusline module.
+///
+/// Underutilized: duplicates `builtins::register_all` → `register_builtins`.
 pub fn register_plugin(
 	db: &mut crate::db::builder::RegistryDbBuilder,
 ) -> Result<(), RegistryError> {

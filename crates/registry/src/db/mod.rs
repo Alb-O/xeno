@@ -46,7 +46,7 @@ pub fn get_db() -> &'static RegistryDb {
 			tracing::error!("Builtin registration failed: {}", e);
 		}
 
-		// 2) Run plugins
+		// 2) Run plugins (underutilized — duplicates step 1, see `run_plugins` docs)
 		if let Err(e) = plugin::run_plugins(&mut builder) {
 			tracing::error!("Registry plugins failed: {}", e);
 		}

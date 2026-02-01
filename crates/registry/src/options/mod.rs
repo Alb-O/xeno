@@ -115,6 +115,9 @@ impl<T: FromOptionValue> core::fmt::Debug for TypedOptionKey<T> {
 }
 
 /// Registry wrapper for option definitions.
+///
+/// Dead: submitted by `derive_option` but never iterated. All option
+/// registration goes through explicit `register_builtins` calls.
 pub struct OptionReg(pub &'static OptionDef);
 inventory::collect!(OptionReg);
 
@@ -225,6 +228,9 @@ crate::impl_registry_entry!(OptionDef);
 
 use crate::error::RegistryError;
 
+/// Plugin registration callback for the options module.
+///
+/// Underutilized: duplicates `builtins::register_all` → `register_builtins`.
 pub fn register_plugin(
 	db: &mut crate::db::builder::RegistryDbBuilder,
 ) -> Result<(), RegistryError> {

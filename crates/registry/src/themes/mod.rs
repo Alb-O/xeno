@@ -18,6 +18,9 @@ pub fn register_builtins(builder: &mut crate::db::builder::RegistryDbBuilder) {
 
 use crate::error::RegistryError;
 
+/// Plugin registration callback for the themes module.
+///
+/// Underutilized: duplicates `builtins::register_all` → `register_builtins`.
 pub fn register_plugin(
 	db: &mut crate::db::builder::RegistryDbBuilder,
 ) -> Result<(), RegistryError> {

@@ -8,6 +8,7 @@ pub mod core;
 #[doc(hidden)]
 pub use crate::core as xeno_registry_core;
 
+/// Dead: `Reg` and `RegSlice` are unused.
 pub mod inventory;
 
 // Generate HookEvent, HookEventData, OwnedHookContext, and extractor macros

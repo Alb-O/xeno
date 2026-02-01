@@ -4,6 +4,10 @@ use crate::error::RegistryError;
 use crate::traits::RegistryEntry;
 
 /// A plugin descriptor that registers multiple items into the registry.
+///
+/// Underutilized: all three submitted plugins (themes, statusline, options)
+/// are already registered by `builtins::register_all`, making the
+/// `inventory`-driven `run_plugins` path redundant.
 pub struct PluginDef {
 	/// Metadata for the plugin itself.
 	pub meta: RegistryMeta,
