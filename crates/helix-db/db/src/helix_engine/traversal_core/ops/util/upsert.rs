@@ -81,20 +81,17 @@ impl<'db, 'arena, 'txn, I: Iterator<Item = Result<TraversalValue<'arena>, Engine
 							match postcard::to_stdvec(v) {
 								Ok(v_serialized) => {
 									if let Err(e) = match secondary_index {
-										crate::helix_engine::types::SecondaryIndex::Unique(_) => db
+										crate::helix_engine::types::ActiveSecondaryIndex::Unique(_) => db
 											.put_with_flags(
 												self.txn,
 												PutFlags::NO_OVERWRITE,
 												&v_serialized,
 												&node.id,
 											),
-										crate::helix_engine::types::SecondaryIndex::Index(_) => {
+										crate::helix_engine::types::ActiveSecondaryIndex::Index(_) => {
 											db.put(self.txn, &v_serialized, &node.id)
 										}
-										crate::helix_engine::types::SecondaryIndex::None => {
-											unreachable!()
-										}
-									} {
+										} {
 										result = Err(EngineError::from(e));
 									}
 								}
@@ -143,20 +140,17 @@ impl<'db, 'arena, 'txn, I: Iterator<Item = Result<TraversalValue<'arena>, Engine
 							match postcard::to_stdvec(v) {
 								Ok(v_serialized) => {
 									if let Err(e) = match secondary_index {
-										crate::helix_engine::types::SecondaryIndex::Unique(_) => db
+										crate::helix_engine::types::ActiveSecondaryIndex::Unique(_) => db
 											.put_with_flags(
 												self.txn,
 												PutFlags::NO_OVERWRITE,
 												&v_serialized,
 												&node.id,
 											),
-										crate::helix_engine::types::SecondaryIndex::Index(_) => {
+										crate::helix_engine::types::ActiveSecondaryIndex::Index(_) => {
 											db.put(self.txn, &v_serialized, &node.id)
 										}
-										crate::helix_engine::types::SecondaryIndex::None => {
-											unreachable!()
-										}
-									} {
+										} {
 										result = Err(EngineError::from(e));
 									}
 								}
@@ -179,20 +173,17 @@ impl<'db, 'arena, 'txn, I: Iterator<Item = Result<TraversalValue<'arena>, Engine
 							match postcard::to_stdvec(v) {
 								Ok(v_serialized) => {
 									if let Err(e) = match secondary_index {
-										crate::helix_engine::types::SecondaryIndex::Unique(_) => db
+										crate::helix_engine::types::ActiveSecondaryIndex::Unique(_) => db
 											.put_with_flags(
 												self.txn,
 												PutFlags::NO_OVERWRITE,
 												&v_serialized,
 												&node.id,
 											),
-										crate::helix_engine::types::SecondaryIndex::Index(_) => {
+										crate::helix_engine::types::ActiveSecondaryIndex::Index(_) => {
 											db.put(self.txn, &v_serialized, &node.id)
 										}
-										crate::helix_engine::types::SecondaryIndex::None => {
-											unreachable!()
-										}
-									} {
+										} {
 										result = Err(EngineError::from(e));
 									}
 								}
@@ -292,21 +283,20 @@ impl<'db, 'arena, 'txn, I: Iterator<Item = Result<TraversalValue<'arena>, Engine
 					match postcard::to_stdvec(v) {
 						Ok(v_serialized) => {
 							if let Err(e) = match secondary_index {
-								crate::helix_engine::types::SecondaryIndex::Unique(_) => db
+								crate::helix_engine::types::ActiveSecondaryIndex::Unique(_) => db
 									.put_with_flags(
 										self.txn,
 										PutFlags::NO_OVERWRITE,
 										&v_serialized,
 										&node.id,
 									),
-								crate::helix_engine::types::SecondaryIndex::Index(_) => db
+								crate::helix_engine::types::ActiveSecondaryIndex::Index(_) => db
 									.put_with_flags(
 										self.txn,
 										PutFlags::APPEND_DUP,
 										&v_serialized,
 										&node.id,
 									),
-								crate::helix_engine::types::SecondaryIndex::None => unreachable!(),
 							} {
 								result = Err(EngineError::from(e));
 							}
@@ -520,20 +510,17 @@ impl<'db, 'arena, 'txn, I: Iterator<Item = Result<TraversalValue<'arena>, Engine
 							match postcard::to_stdvec(v) {
 								Ok(v_serialized) => {
 									if let Err(e) = match secondary_index {
-										crate::helix_engine::types::SecondaryIndex::Unique(_) => db
+										crate::helix_engine::types::ActiveSecondaryIndex::Unique(_) => db
 											.put_with_flags(
 												self.txn,
 												PutFlags::NO_OVERWRITE,
 												&v_serialized,
 												&vector.id,
 											),
-										crate::helix_engine::types::SecondaryIndex::Index(_) => {
+										crate::helix_engine::types::ActiveSecondaryIndex::Index(_) => {
 											db.put(self.txn, &v_serialized, &vector.id)
 										}
-										crate::helix_engine::types::SecondaryIndex::None => {
-											unreachable!()
-										}
-									} {
+										} {
 										result = Err(EngineError::from(e));
 									}
 								}
@@ -584,20 +571,17 @@ impl<'db, 'arena, 'txn, I: Iterator<Item = Result<TraversalValue<'arena>, Engine
 							match postcard::to_stdvec(v) {
 								Ok(v_serialized) => {
 									if let Err(e) = match secondary_index {
-										crate::helix_engine::types::SecondaryIndex::Unique(_) => db
+										crate::helix_engine::types::ActiveSecondaryIndex::Unique(_) => db
 											.put_with_flags(
 												self.txn,
 												PutFlags::NO_OVERWRITE,
 												&v_serialized,
 												&vector.id,
 											),
-										crate::helix_engine::types::SecondaryIndex::Index(_) => {
+										crate::helix_engine::types::ActiveSecondaryIndex::Index(_) => {
 											db.put(self.txn, &v_serialized, &vector.id)
 										}
-										crate::helix_engine::types::SecondaryIndex::None => {
-											unreachable!()
-										}
-									} {
+										} {
 										result = Err(EngineError::from(e));
 									}
 								}
@@ -620,20 +604,17 @@ impl<'db, 'arena, 'txn, I: Iterator<Item = Result<TraversalValue<'arena>, Engine
 							match postcard::to_stdvec(v) {
 								Ok(v_serialized) => {
 									if let Err(e) = match secondary_index {
-										crate::helix_engine::types::SecondaryIndex::Unique(_) => db
+										crate::helix_engine::types::ActiveSecondaryIndex::Unique(_) => db
 											.put_with_flags(
 												self.txn,
 												PutFlags::NO_OVERWRITE,
 												&v_serialized,
 												&vector.id,
 											),
-										crate::helix_engine::types::SecondaryIndex::Index(_) => {
+										crate::helix_engine::types::ActiveSecondaryIndex::Index(_) => {
 											db.put(self.txn, &v_serialized, &vector.id)
 										}
-										crate::helix_engine::types::SecondaryIndex::None => {
-											unreachable!()
-										}
-									} {
+										} {
 										result = Err(EngineError::from(e));
 									}
 								}
@@ -719,22 +700,21 @@ impl<'db, 'arena, 'txn, I: Iterator<Item = Result<TraversalValue<'arena>, Engine
 						match postcard::to_stdvec(v) {
 							Ok(v_serialized) => {
 								if let Err(e) = match secondary_index {
-									crate::helix_engine::types::SecondaryIndex::Unique(_) => db
-										.put_with_flags(
+									crate::helix_engine::types::ActiveSecondaryIndex::Unique(_) => {
+										db.put_with_flags(
 											self.txn,
 											PutFlags::NO_OVERWRITE,
 											&v_serialized,
 											&vector.id,
-										),
-									crate::helix_engine::types::SecondaryIndex::Index(_) => db
-										.put_with_flags(
+										)
+									}
+									crate::helix_engine::types::ActiveSecondaryIndex::Index(_) => {
+										db.put_with_flags(
 											self.txn,
 											PutFlags::APPEND_DUP,
 											&v_serialized,
 											&vector.id,
-										),
-									crate::helix_engine::types::SecondaryIndex::None => {
-										unreachable!()
+										)
 									}
 								} {
 									result = Err(EngineError::from(e));
@@ -783,20 +763,17 @@ impl<'db, 'arena, 'txn, I: Iterator<Item = Result<TraversalValue<'arena>, Engine
 							match postcard::to_stdvec(v) {
 								Ok(v_serialized) => {
 									if let Err(e) = match secondary_index {
-										crate::helix_engine::types::SecondaryIndex::Unique(_) => db
+										crate::helix_engine::types::ActiveSecondaryIndex::Unique(_) => db
 											.put_with_flags(
 												self.txn,
 												PutFlags::NO_OVERWRITE,
 												&v_serialized,
 												&vector.id,
 											),
-										crate::helix_engine::types::SecondaryIndex::Index(_) => {
+										crate::helix_engine::types::ActiveSecondaryIndex::Index(_) => {
 											db.put(self.txn, &v_serialized, &vector.id)
 										}
-										crate::helix_engine::types::SecondaryIndex::None => {
-											unreachable!()
-										}
-									} {
+										} {
 										result = Err(EngineError::from(e));
 									}
 								}
@@ -847,20 +824,17 @@ impl<'db, 'arena, 'txn, I: Iterator<Item = Result<TraversalValue<'arena>, Engine
 							match postcard::to_stdvec(v) {
 								Ok(v_serialized) => {
 									if let Err(e) = match secondary_index {
-										crate::helix_engine::types::SecondaryIndex::Unique(_) => db
+										crate::helix_engine::types::ActiveSecondaryIndex::Unique(_) => db
 											.put_with_flags(
 												self.txn,
 												PutFlags::NO_OVERWRITE,
 												&v_serialized,
 												&vector.id,
 											),
-										crate::helix_engine::types::SecondaryIndex::Index(_) => {
+										crate::helix_engine::types::ActiveSecondaryIndex::Index(_) => {
 											db.put(self.txn, &v_serialized, &vector.id)
 										}
-										crate::helix_engine::types::SecondaryIndex::None => {
-											unreachable!()
-										}
-									} {
+										} {
 										result = Err(EngineError::from(e));
 									}
 								}
@@ -883,20 +857,17 @@ impl<'db, 'arena, 'txn, I: Iterator<Item = Result<TraversalValue<'arena>, Engine
 							match postcard::to_stdvec(v) {
 								Ok(v_serialized) => {
 									if let Err(e) = match secondary_index {
-										crate::helix_engine::types::SecondaryIndex::Unique(_) => db
+										crate::helix_engine::types::ActiveSecondaryIndex::Unique(_) => db
 											.put_with_flags(
 												self.txn,
 												PutFlags::NO_OVERWRITE,
 												&v_serialized,
 												&vector.id,
 											),
-										crate::helix_engine::types::SecondaryIndex::Index(_) => {
+										crate::helix_engine::types::ActiveSecondaryIndex::Index(_) => {
 											db.put(self.txn, &v_serialized, &vector.id)
 										}
-										crate::helix_engine::types::SecondaryIndex::None => {
-											unreachable!()
-										}
-									} {
+										} {
 										result = Err(EngineError::from(e));
 									}
 								}

@@ -79,27 +79,25 @@ impl<'db, 'arena, 'txn, 's, I: Iterator<Item = Result<TraversalValue<'arena>, En
 						Ok(serialized) => {
 							// possibly append dup
 
-							if let Err(e) = {
-								match secondary_index {
-									crate::helix_engine::types::SecondaryIndex::Unique(_) => db
+							if let Err(e) =
+								{
+									match secondary_index {
+									crate::helix_engine::types::ActiveSecondaryIndex::Unique(_) => db
 										.put_with_flags(
 											self.txn,
 											PutFlags::NO_OVERWRITE,
 											&serialized,
 											&node.id,
 										),
-									crate::helix_engine::types::SecondaryIndex::Index(_) => db
+									crate::helix_engine::types::ActiveSecondaryIndex::Index(_) => db
 										.put_with_flags(
 											self.txn,
 											PutFlags::APPEND_DUP,
 											&serialized,
 											&node.id,
 										),
-									crate::helix_engine::types::SecondaryIndex::None => {
-										unreachable!()
-									}
 								}
-							} {
+								} {
 								tracing::warn!(?e, index = %index, "error adding node to secondary index");
 								result = Err(EngineError::from(e));
 								break;

@@ -20,7 +20,7 @@
 //!   - Tested by: `TODO (add regression: test_pack_unpack_edge_data_roundtrip)`.
 //!   - Failure symptom: Traversal returns wrong adjacency; edges appear missing or swapped.
 //! - Secondary index semantics (Unique vs Index) are upheld.
-//!   - Enforced in: `SecondaryIndex::insert`, `SecondaryIndex::delete`.
+//!   - Enforced in: `ActiveSecondaryIndex::insert`, `ActiveSecondaryIndex::delete`.
 //!   - Tested by: `TODO (add regression: test_unique_index_rejects_duplicate)`.
 //!   - Failure symptom: Duplicate nodes for "unique" lookups; query correctness violation.
 //! - LMDB transaction discipline is respected.
@@ -73,7 +73,9 @@ use crate::helix_engine::bm25::bm25::HBM25Config;
 use crate::helix_engine::storage_core::storage_methods::{DBMethods, StorageMethods};
 use crate::helix_engine::storage_core::version_info::VersionInfo;
 use crate::helix_engine::traversal_core::config::Config;
-use crate::helix_engine::types::{EngineError, SecondaryIndex, StorageError, TraversalError};
+use crate::helix_engine::types::{
+	ActiveSecondaryIndex, EngineError, SecondaryIndex, StorageError, TraversalError,
+};
 use crate::helix_engine::vector_core::hnsw::HNSW;
 use crate::helix_engine::vector_core::vector_core::{HNSWConfig, VectorCore};
 use crate::utils::items::{Edge, Node};
@@ -102,7 +104,7 @@ pub struct HelixGraphStorage {
 	pub edges_db: Database<U128<BE>, Bytes>,
 	pub out_edges_db: Database<Bytes, Bytes>,
 	pub in_edges_db: Database<Bytes, Bytes>,
-	pub secondary_indices: HashMap<String, (Database<Bytes, U128<BE>>, SecondaryIndex)>,
+	pub secondary_indices: HashMap<String, (Database<Bytes, U128<BE>>, ActiveSecondaryIndex)>,
 	pub vectors: VectorCore,
 	pub bm25: Option<HBM25Config>,
 	pub metadata_db: Database<Bytes, Bytes>,
@@ -188,19 +190,23 @@ impl HelixGraphStorage {
 		let mut secondary_indices = HashMap::new();
 		if let Some(indexes) = config.get_graph_config().secondary_indices {
 			for index in indexes {
-				match index {
-					super::types::SecondaryIndex::Unique(name) => secondary_indices.insert(
+				let active = match index.into_active() {
+					Some(a) => a,
+					None => continue,
+				};
+				match &active {
+					ActiveSecondaryIndex::Unique(name) => secondary_indices.insert(
 						name.clone(),
 						(
 							graph_env
 								.database_options()
 								.types::<Bytes, U128<BE>>()
-								.name(&name)
+								.name(name)
 								.create(&mut wtxn)?,
-							SecondaryIndex::Unique(name),
+							active,
 						),
 					),
-					super::types::SecondaryIndex::Index(name) => secondary_indices.insert(
+					ActiveSecondaryIndex::Index(name) => secondary_indices.insert(
 						name.clone(),
 						(
 							graph_env
@@ -209,12 +215,11 @@ impl HelixGraphStorage {
 								// DUP_SORT used to store all duplicated node keys under a single key.
 								//  Saves on space and requires a single read to get all values.
 								.flags(DatabaseFlags::DUP_SORT)
-								.name(&name)
+								.name(name)
 								.create(&mut wtxn)?,
-							SecondaryIndex::Index(name),
+							active,
 						),
 					),
-					super::types::SecondaryIndex::None => continue,
 				};
 			}
 		}
@@ -353,23 +358,28 @@ impl StorageConfig {
 }
 
 impl DBMethods for HelixGraphStorage {
-	/// Creates a secondary index lmdb db (table) for a given index name
+	/// Creates a secondary index lmdb db (table) for a given index name.
+	///
+	/// Accepts `SecondaryIndex` from the schema layer and converts to
+	/// `ActiveSecondaryIndex` internally, filtering out `None`.
 	fn create_secondary_index(&mut self, index: SecondaryIndex) -> Result<(), EngineError> {
+		let active = index.into_active().ok_or_else(|| {
+			StorageError::Backend(
+				"cannot create a secondary index from SecondaryIndex::None".into(),
+			)
+		})?;
 		let mut wtxn = self.graph_env.write_txn()?;
-		match index {
-			SecondaryIndex::Unique(name) => {
-				let db = self.graph_env.create_database(&mut wtxn, Some(&name))?;
+		match &active {
+			ActiveSecondaryIndex::Unique(name) => {
+				let db = self.graph_env.create_database(&mut wtxn, Some(name))?;
 				wtxn.commit()?;
-				self.secondary_indices
-					.insert(name.clone(), (db, SecondaryIndex::Unique(name)));
+				self.secondary_indices.insert(name.clone(), (db, active));
 			}
-			SecondaryIndex::Index(name) => {
-				let db = self.graph_env.create_database(&mut wtxn, Some(&name))?;
+			ActiveSecondaryIndex::Index(name) => {
+				let db = self.graph_env.create_database(&mut wtxn, Some(name))?;
 				wtxn.commit()?;
-				self.secondary_indices
-					.insert(name.clone(), (db, SecondaryIndex::Index(name)));
+				self.secondary_indices.insert(name.clone(), (db, active));
 			}
-			SecondaryIndex::None => unreachable!(),
 		}
 		Ok(())
 	}

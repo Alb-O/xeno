@@ -110,6 +110,10 @@ impl<'arena, T: Ord> BinaryHeap<'arena, T> {
 		// SAFETY: The caller guarantees that pos < end <= self.len().
 		let mut hole = unsafe { Hole::new(&mut self.data, pos) };
 		let mut child = 2 * hole.pos() + 1;
+		debug_assert!(
+			hole.pos().checked_mul(2).is_some(),
+			"child index overflow in sift_down_range"
+		);
 
 		// Loop invariant: child == 2 * hole.pos() + 1.
 		while child <= end.saturating_sub(2) {
@@ -118,8 +122,6 @@ impl<'arena, T: Ord> BinaryHeap<'arena, T> {
 			//  child + 1 < end <= self.len(), so they're valid indexes.
 			//  child == 2 * hole.pos() + 1 != hole.pos() and
 			//  child + 1 == 2 * hole.pos() + 2 != hole.pos().
-			// FIXME: 2 * hole.pos() + 1 or 2 * hole.pos() + 2 could overflow
-			//  if T is a ZST
 			child += unsafe { hole.get(child) <= hole.get(child + 1) } as usize;
 
 			// if we are already in order, stop.
@@ -132,6 +134,10 @@ impl<'arena, T: Ord> BinaryHeap<'arena, T> {
 			// SAFETY: same as above.
 			unsafe { hole.move_to(child) };
 			child = 2 * hole.pos() + 1;
+			debug_assert!(
+				hole.pos().checked_mul(2).is_some(),
+				"child index overflow in sift_down_range"
+			);
 		}
 
 		// SAFETY: && short circuit, which means that in the
@@ -171,6 +177,10 @@ impl<'arena, T: Ord> BinaryHeap<'arena, T> {
 		// SAFETY: The caller guarantees that pos < self.len().
 		let mut hole = unsafe { Hole::new(&mut self.data, pos) };
 		let mut child = 2 * hole.pos() + 1;
+		debug_assert!(
+			hole.pos().checked_mul(2).is_some(),
+			"child index overflow in sift_down_to_bottom"
+		);
 
 		// Loop invariant: child == 2 * hole.pos() + 1.
 		while child <= end.saturating_sub(2) {
@@ -178,13 +188,15 @@ impl<'arena, T: Ord> BinaryHeap<'arena, T> {
 			//  child + 1 < end <= self.len(), so they're valid indexes.
 			//  child == 2 * hole.pos() + 1 != hole.pos() and
 			//  child + 1 == 2 * hole.pos() + 2 != hole.pos().
-			// FIXME: 2 * hole.pos() + 1 or 2 * hole.pos() + 2 could overflow
-			//  if T is a ZST
 			child += unsafe { hole.get(child) <= hole.get(child + 1) } as usize;
 
 			// SAFETY: Same as above
 			unsafe { hole.move_to(child) };
 			child = 2 * hole.pos() + 1;
+			debug_assert!(
+				hole.pos().checked_mul(2).is_some(),
+				"child index overflow in sift_down_to_bottom"
+			);
 		}
 
 		if child == end - 1 {
@@ -210,6 +222,9 @@ impl<'arena, T: Ord> BinaryHeap<'arena, T> {
 
 		#[inline(always)]
 		fn log2_fast(x: usize) -> usize {
+			if x == 0 {
+				return 0;
+			}
 			(usize::BITS - x.leading_zeros() - 1) as usize
 		}
 
@@ -222,9 +237,9 @@ impl<'arena, T: Ord> BinaryHeap<'arena, T> {
 		let better_to_rebuild = if start < tail_len {
 			true
 		} else if self.len() <= 2048 {
-			2 * self.len() < tail_len * log2_fast(start)
+			2usize.saturating_mul(self.len()) < tail_len.saturating_mul(log2_fast(start))
 		} else {
-			2 * self.len() < tail_len * 11
+			2usize.saturating_mul(self.len()) < tail_len.saturating_mul(11)
 		};
 
 		if better_to_rebuild {
@@ -558,5 +573,80 @@ impl<'arena, T> IntoIterator for BinaryHeap<'arena, T> {
 		IntoIter {
 			iter: self.data.into_iter(),
 		}
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::BinaryHeap;
+
+	#[test]
+	fn test_log2_fast_zero() {
+		// log2_fast is a private inner fn of rebuild_tail, so we exercise it
+		// indirectly through append, which calls rebuild_tail.
+		// This test verifies that appending to an empty heap (start == 0)
+		// doesn't panic from a leading_zeros underflow.
+		let arena = bumpalo::Bump::new();
+		let mut a = BinaryHeap::<i32>::new(&arena);
+		let mut b = BinaryHeap::<i32>::new(&arena);
+		b.push(1);
+		a.append(&mut b);
+		assert_eq!(a.pop(), Some(1));
+	}
+
+	#[test]
+	fn test_empty_heap_operations() {
+		let arena = bumpalo::Bump::new();
+		let mut heap = BinaryHeap::<i32>::new(&arena);
+		assert!(heap.is_empty());
+		assert_eq!(heap.len(), 0);
+		assert_eq!(heap.pop(), None);
+		assert_eq!(heap.peek(), None);
+	}
+
+	#[test]
+	fn test_single_element_heap() {
+		let arena = bumpalo::Bump::new();
+		let mut heap = BinaryHeap::new(&arena);
+		heap.push(42);
+		assert_eq!(heap.len(), 1);
+		assert_eq!(heap.peek(), Some(&42));
+		assert_eq!(heap.pop(), Some(42));
+		assert!(heap.is_empty());
+	}
+
+	#[test]
+	fn test_heap_ordering() {
+		let arena = bumpalo::Bump::new();
+		let mut heap = BinaryHeap::new(&arena);
+		heap.push(3);
+		heap.push(1);
+		heap.push(4);
+		heap.push(1);
+		heap.push(5);
+
+		let mut sorted = Vec::new();
+		while let Some(v) = heap.pop() {
+			sorted.push(v);
+		}
+		assert_eq!(sorted, vec![5, 4, 3, 1, 1]);
+	}
+
+	#[test]
+	fn test_append_rebuilds_correctly() {
+		let arena = bumpalo::Bump::new();
+		let mut a = BinaryHeap::new(&arena);
+		a.push(1);
+		a.push(3);
+
+		let mut b = BinaryHeap::new(&arena);
+		b.push(5);
+		b.push(2);
+		b.push(4);
+
+		a.append(&mut b);
+		assert!(b.is_empty());
+		assert_eq!(a.len(), 5);
+		assert_eq!(a.pop(), Some(5));
 	}
 }

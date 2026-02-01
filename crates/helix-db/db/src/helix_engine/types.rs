@@ -280,7 +280,33 @@ mod tests {
 	use std::error::Error as _;
 	use std::io;
 
-	use super::{EngineError, StorageError, TraversalError};
+	use super::{ActiveSecondaryIndex, EngineError, SecondaryIndex, StorageError, TraversalError};
+
+	#[test]
+	fn test_secondary_index_into_active() {
+		let unique = SecondaryIndex::Unique("email".to_string());
+		let active = unique.into_active();
+		assert!(matches!(active, Some(ActiveSecondaryIndex::Unique(ref n)) if n == "email"));
+
+		let index = SecondaryIndex::Index("age".to_string());
+		let active = index.into_active();
+		assert!(matches!(active, Some(ActiveSecondaryIndex::Index(ref n)) if n == "age"));
+
+		let none = SecondaryIndex::None;
+		assert!(none.into_active().is_none());
+	}
+
+	#[test]
+	fn test_active_secondary_index_display() {
+		let unique = ActiveSecondaryIndex::Unique("email".to_string());
+		assert_eq!(
+			unique.to_string(),
+			"ActiveSecondaryIndex::Unique(\"email\")"
+		);
+
+		let index = ActiveSecondaryIndex::Index("age".to_string());
+		assert_eq!(index.to_string(), "ActiveSecondaryIndex::Index(\"age\")");
+	}
 
 	#[test]
 	fn test_engine_error_roundtrip_display() {
@@ -326,6 +352,41 @@ impl SecondaryIndex {
 		}
 	}
 
+	/// Converts to `ActiveSecondaryIndex`, returning `None` for `SecondaryIndex::None`.
+	pub fn into_active(self) -> Option<ActiveSecondaryIndex> {
+		match self {
+			Self::Unique(name) => Some(ActiveSecondaryIndex::Unique(name)),
+			Self::Index(name) => Some(ActiveSecondaryIndex::Index(name)),
+			Self::None => None,
+		}
+	}
+}
+
+/// A secondary index that is guaranteed to be active (either `Unique` or `Index`).
+///
+/// Unlike `SecondaryIndex`, this enum has no `None` variant, so callers never need
+/// to handle a logically impossible case. Use `SecondaryIndex::into_active()` to
+/// convert from the schema-level enum, which filters out `None` at the boundary.
+#[derive(Debug, Clone)]
+pub enum ActiveSecondaryIndex {
+	Unique(String),
+	Index(String),
+}
+
+impl Display for ActiveSecondaryIndex {
+	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+		match self {
+			Self::Unique(name) => write!(f, "ActiveSecondaryIndex::Unique(\"{name}\")"),
+			Self::Index(name) => write!(f, "ActiveSecondaryIndex::Index(\"{name}\")"),
+		}
+	}
+}
+
+impl ActiveSecondaryIndex {
+	/// Inserts a key→id mapping into the secondary index database.
+	///
+	/// For `Unique` indices, uses `NO_OVERWRITE` and allows idempotent re-insertion
+	/// of the same id. For `Index` indices, performs a plain `put`.
 	pub fn insert(
 		&self,
 		db: &Database<Bytes, U128<BE>>,
@@ -338,7 +399,6 @@ impl SecondaryIndex {
 				if let Err(e) = db.put_with_flags(txn, PutFlags::NO_OVERWRITE, key, id) {
 					match e {
 						HeedError::Mdb(MdbError::KeyExist) => {
-							// Check if it's the same ID (idempotent)
 							if let Some(existing_id) =
 								db.get(txn, key).map_err(StorageError::from)?
 								&& &existing_id == id
@@ -359,10 +419,13 @@ impl SecondaryIndex {
 				db.put(txn, key, id).map_err(StorageError::from)?;
 				Ok(())
 			}
-			Self::None => unreachable!(),
 		}
 	}
 
+	/// Deletes a key→id mapping from the secondary index database.
+	///
+	/// For `Unique` indices, deletes only if the stored id matches. For `Index`
+	/// indices, deletes the specific duplicate entry.
 	pub fn delete(
 		&self,
 		db: &Database<Bytes, U128<BE>>,
@@ -384,7 +447,6 @@ impl SecondaryIndex {
 					.map_err(StorageError::from)?;
 				Ok(())
 			}
-			Self::None => unreachable!(),
 		}
 	}
 }

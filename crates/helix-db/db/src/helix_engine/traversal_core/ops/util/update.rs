@@ -191,9 +191,175 @@ impl<'db, 'arena, 'txn, I: Iterator<Item = Result<TraversalValue<'arena>, Engine
 							.put(self.txn, &edge.id, &serialized_edge)?;
 						Ok(TraversalValue::Edge(edge))
 					}
-					// TODO: Implement update properties for Vectors:
-					// TraversalValue::Vector(hvector) => todo!(),
-					// TraversalValue::VectorNodeWithoutVectorData(vector_without_data) => todo!(),
+					TraversalValue::Vector(mut vector) => {
+						match vector.properties {
+							None => {
+								for (k, v) in props.iter() {
+									if let Some((db, secondary_index)) =
+										self.storage.secondary_indices.get(*k)
+									{
+										let v_serialized = postcard::to_stdvec(v)?;
+										secondary_index.insert(
+											db,
+											self.txn,
+											&v_serialized,
+											&vector.id,
+										)?;
+									}
+								}
+
+								let map = ImmutablePropertiesMap::new(
+									props.len(),
+									props.iter().map(|(k, v)| (*k, v.clone())),
+									self.arena,
+								);
+
+								vector.properties = Some(map);
+							}
+							Some(old) => {
+								for (k, v) in props.iter() {
+									if let Some((db, secondary_index)) =
+										self.storage.secondary_indices.get(*k)
+									{
+										if let Some(old_value) = old.get(k) {
+											let old_serialized = postcard::to_stdvec(old_value)?;
+											secondary_index.delete(
+												db,
+												self.txn,
+												&old_serialized,
+												&vector.id,
+											)?;
+										}
+
+										let v_serialized = postcard::to_stdvec(v)?;
+										secondary_index.insert(
+											db,
+											self.txn,
+											&v_serialized,
+											&vector.id,
+										)?;
+									}
+								}
+
+								let diff = props.iter().filter(|(k, _)| {
+									!old.iter().map(|(old_k, _)| old_k).contains(k)
+								});
+
+								let len_diff = diff.clone().count();
+
+								let merged = old
+									.iter()
+									.map(|(old_k, old_v)| {
+										props
+											.iter()
+											.find_map(|(k, v)| old_k.eq(*k).then_some(v))
+											.map_or_else(
+												|| (old_k, old_v.clone()),
+												|v| (old_k, v.clone()),
+											)
+									})
+									.chain(diff.cloned());
+
+								let new_map = ImmutablePropertiesMap::new(
+									old.len() + len_diff,
+									merged,
+									self.arena,
+								);
+
+								vector.properties = Some(new_map);
+							}
+						}
+
+						self.storage.vectors.put_vector(self.txn, &vector)?;
+						Ok(TraversalValue::Vector(vector))
+					}
+					TraversalValue::VectorNodeWithoutVectorData(mut vwd) => {
+						match vwd.properties {
+							None => {
+								for (k, v) in props.iter() {
+									if let Some((db, secondary_index)) =
+										self.storage.secondary_indices.get(*k)
+									{
+										let v_serialized = postcard::to_stdvec(v)?;
+										secondary_index.insert(
+											db,
+											self.txn,
+											&v_serialized,
+											&vwd.id,
+										)?;
+									}
+								}
+
+								let map = ImmutablePropertiesMap::new(
+									props.len(),
+									props.iter().map(|(k, v)| (*k, v.clone())),
+									self.arena,
+								);
+
+								vwd.properties = Some(map);
+							}
+							Some(old) => {
+								for (k, v) in props.iter() {
+									if let Some((db, secondary_index)) =
+										self.storage.secondary_indices.get(*k)
+									{
+										if let Some(old_value) = old.get(k) {
+											let old_serialized = postcard::to_stdvec(old_value)?;
+											secondary_index.delete(
+												db,
+												self.txn,
+												&old_serialized,
+												&vwd.id,
+											)?;
+										}
+
+										let v_serialized = postcard::to_stdvec(v)?;
+										secondary_index.insert(
+											db,
+											self.txn,
+											&v_serialized,
+											&vwd.id,
+										)?;
+									}
+								}
+
+								let diff = props.iter().filter(|(k, _)| {
+									!old.iter().map(|(old_k, _)| old_k).contains(k)
+								});
+
+								let len_diff = diff.clone().count();
+
+								let merged = old
+									.iter()
+									.map(|(old_k, old_v)| {
+										props
+											.iter()
+											.find_map(|(k, v)| old_k.eq(*k).then_some(v))
+											.map_or_else(
+												|| (old_k, old_v.clone()),
+												|v| (old_k, v.clone()),
+											)
+									})
+									.chain(diff.cloned());
+
+								let new_map = ImmutablePropertiesMap::new(
+									old.len() + len_diff,
+									merged,
+									self.arena,
+								);
+
+								vwd.properties = Some(new_map);
+							}
+						}
+
+						let serialized = postcard::to_stdvec(&vwd)?;
+						self.storage.vectors.vector_properties_db.put(
+							self.txn,
+							&vwd.id,
+							&serialized,
+						)?;
+						Ok(TraversalValue::VectorNodeWithoutVectorData(vwd))
+					}
 					_ => Err(TraversalError::UnsupportedValueType.into()),
 				}
 			})();
