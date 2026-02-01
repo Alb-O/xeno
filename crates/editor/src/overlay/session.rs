@@ -182,9 +182,10 @@ impl OverlaySession {
 	pub fn restore_all(&self, ed: &mut Editor) {
 		for (view, (version, cursor, selection)) in &self.capture.per_view {
 			if let Some(buffer) = ed.state.core.buffers.get_buffer_mut(*view)
-				&& buffer.version() == *version {
-					buffer.set_cursor_and_selection(*cursor, selection.clone());
-				}
+				&& buffer.version() == *version
+			{
+				buffer.set_cursor_and_selection(*cursor, selection.clone());
+			}
 		}
 	}
 

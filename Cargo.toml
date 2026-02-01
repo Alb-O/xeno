@@ -3,6 +3,7 @@ resolver = "3"
 members = [
     "crates/broker/*",
     "crates/editor",
+    "crates/helix-db/*",
     "crates/keymap/*",
     "crates/lsp",
     "crates/macro",
@@ -36,9 +37,12 @@ dirs = "6.0"
 frizbee = "0.6"
 fs2 = "0.4"
 globset = "0.4"
+helix-db = { path = "crates/helix-db/db" }
+helix-macros = { path = "crates/helix-db/macros" }
 include_dir = "0.7"
 insta = "1.46"
 inventory = "0.3"
+itertools = "0.14"
 kdl = "6.5"
 kitty-test-harness = "0.2"
 libc = "0.2"
