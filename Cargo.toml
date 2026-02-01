@@ -15,7 +15,7 @@ members = [
 ]
 
 [workspace.package]
-version = "0.7.3"
+version = "0.7.4"
 edition = "2024"
 license = "MIT"
 repository = "https://github.com/Alb-O/xeno"
@@ -43,7 +43,6 @@ kdl = "6.5"
 kitty-test-harness = "0.2"
 libc = "0.2"
 libloading = "0.9"
-log = { version = "0.4", features = ["kv"] }
 lsp-types = "0.97"
 notify = "8.2"
 once_cell = "1.21"
@@ -89,7 +88,6 @@ urlencoding = "2.1"
 uuid = { version = "1.20", features = ["v4"] }
 vt100 = "0.16"
 waitpid-any = "0.3"
-webbrowser = "1.0"
 which = "8.0"
 xeno-broker = { path = "crates/broker/broker" }
 xeno-broker-proto = { path = "crates/broker/broker-proto" }
