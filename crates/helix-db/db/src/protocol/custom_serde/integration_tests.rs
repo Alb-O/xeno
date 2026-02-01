@@ -304,15 +304,13 @@ mod integration_tests {
 		let props_bytes1 = postcard::to_stdvec(&vector).unwrap();
 		let data_bytes1 = vector.vector_data_to_bytes().unwrap();
 		let arena2 = Bump::new();
-		let vector2 =
-			HVector::from_bytes(&arena2, Some(&props_bytes1), data_bytes1, id).unwrap();
+		let vector2 = HVector::from_bytes(&arena2, Some(&props_bytes1), data_bytes1, id).unwrap();
 
 		// Second roundtrip
 		let props_bytes2 = postcard::to_stdvec(&vector2).unwrap();
 		let data_bytes2 = vector2.vector_data_to_bytes().unwrap();
 		let arena3 = Bump::new();
-		let vector3 =
-			HVector::from_bytes(&arena3, Some(&props_bytes2), data_bytes2, id).unwrap();
+		let vector3 = HVector::from_bytes(&arena3, Some(&props_bytes2), data_bytes2, id).unwrap();
 
 		assert_vectors_semantically_equal(&vector, &vector2);
 		assert_vectors_semantically_equal(&vector2, &vector3);
@@ -344,8 +342,7 @@ mod integration_tests {
 		// Deserialize all
 		let arena2 = Bump::new();
 		for (i, (props_bytes, data_bytes)) in serialized.iter().enumerate() {
-			let result =
-				HVector::from_bytes(&arena2, Some(props_bytes), data_bytes, i as u128);
+			let result = HVector::from_bytes(&arena2, Some(props_bytes), data_bytes, i as u128);
 			assert!(result.is_ok());
 		}
 	}

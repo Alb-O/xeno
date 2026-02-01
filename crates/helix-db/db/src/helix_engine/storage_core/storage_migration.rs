@@ -214,9 +214,9 @@ pub(crate) fn convert_all_vector_properties(
 ) -> Result<(), GraphError> {
 	const BATCH_SIZE: usize = 1024;
 
-	let batch_bounds = {
+	let batch_bounds: Vec<(Bound<u128>, Bound<u128>)> = {
 		let txn = storage.graph_env.read_txn()?;
-		let mut keys = vec![];
+		let mut keys: Vec<u128> = vec![];
 
 		for (i, kv) in storage
 			.vectors
@@ -306,15 +306,15 @@ pub(crate) fn convert_old_vector_properties_to_new_format(
 fn verify_vectors_and_repair(storage: &HelixGraphStorage) -> Result<(), GraphError> {
 	// Verify that all vectors at level > 0 also exist at level 0 and collect ones that need repair
 	println!("\nVerifying vector integrity after migration...");
-	let vectors_to_repair: Vec<(u128, usize)> = {
+	let vectors_to_repair: Vec<(u128, u64)> = {
 		let txn = storage.graph_env.read_txn()?;
 		let mut missing = Vec::new();
 
 		for kv in storage.vectors.vectors_db.iter(&txn)? {
 			let (key, _) = kv?;
-			if key.starts_with(b"v:") && key.len() >= 26 {
+			if key.starts_with(b"v:") && key.len() == 26 {
 				let id = u128::from_be_bytes(key[2..18].try_into().unwrap());
-				let level = usize::from_be_bytes(key[18..26].try_into().unwrap());
+				let level = u64::from_be_bytes(key[18..26].try_into().unwrap());
 
 				if level > 0 {
 					// Check if level 0 exists
@@ -418,7 +418,7 @@ fn remove_orphaned_vector_edges(storage: &HelixGraphStorage) -> Result<(), Graph
 		let source_id = u128::from_be_bytes(key[0..16].try_into().unwrap());
 
 		// Extract level
-		let level = usize::from_be_bytes(key[16..24].try_into().unwrap());
+		let level = u64::from_be_bytes(key[16..24].try_into().unwrap());
 
 		// Extract sink_id
 		let sink_id = u128::from_be_bytes(key[24..40].try_into().unwrap());
@@ -434,7 +434,7 @@ fn remove_orphaned_vector_edges(storage: &HelixGraphStorage) -> Result<(), Graph
 		if !source_exists || !sink_exists {
 			orphaned_edges.push((
 				uuid::Uuid::from_u128(source_id),
-				level,
+				level as usize,
 				uuid::Uuid::from_u128(sink_id),
 			));
 		}
@@ -446,7 +446,7 @@ fn remove_orphaned_vector_edges(storage: &HelixGraphStorage) -> Result<(), Graph
 		for (source_id, level, sink_id) in chunk {
 			let edge_key = vector_core::VectorCore::out_edges_key(
 				source_id.as_u128(),
-				level,
+				level as u64,
 				Some(sink_id.as_u128()),
 			);
 

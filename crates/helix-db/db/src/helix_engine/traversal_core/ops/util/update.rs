@@ -1,4 +1,3 @@
-use heed3::PutFlags;
 use itertools::Itertools;
 
 use crate::helix_engine::traversal_core::traversal_iter::RwTraversalIterator;
@@ -46,49 +45,26 @@ impl<'db, 'arena, 'txn, I: Iterator<Item = Result<TraversalValue<'arena>, GraphE
 		'txn,
 		impl Iterator<Item = Result<TraversalValue<'arena>, GraphError>>,
 	> {
-		// TODO: use a non-contiguous arena vec to avoid copying stuff
-		// around when we run out of capacity
 		let mut results = bumpalo::collections::Vec::new_in(self.arena);
 
 		for item in self.inner {
-			match item {
-				Ok(value) => match value {
+			let res = (|| -> Result<TraversalValue<'arena>, GraphError> {
+				match item? {
 					TraversalValue::Node(mut node) => {
 						match node.properties {
 							None => {
 								// Insert secondary indices
 								for (k, v) in props.iter() {
-									let Some((db, secondary_index)) =
+									if let Some((db, secondary_index)) =
 										self.storage.secondary_indices.get(*k)
-									else {
-										continue;
-									};
-
-									match postcard::to_stdvec(v) {
-										Ok(v_serialized) => {
-											let result = match secondary_index {
-                                                 crate::helix_engine::types::SecondaryIndex::Unique(_) => {
-                                                     db.put_with_flags(
-                                                         self.txn,
-                                                         PutFlags::NO_OVERWRITE,
-                                                         &v_serialized,
-                                                         &node.id,
-                                                     )
-                                                 }
-                                                crate::helix_engine::types::SecondaryIndex::Index(_) => {
-                                                    db.put(
-                                                        self.txn,
-                                                        &v_serialized,
-                                                        &node.id,
-                                                )
-                                                }
-                                                crate::helix_engine::types::SecondaryIndex::None => unreachable!(),
-                                            };
-											if let Err(e) = result {
-												results.push(Err(GraphError::from(e)));
-											}
-										}
-										Err(e) => results.push(Err(GraphError::from(e))),
+									{
+										let v_serialized = postcard::to_stdvec(v)?;
+										secondary_index.insert(
+											db,
+											self.txn,
+											&v_serialized,
+											&node.id,
+										)?;
 									}
 								}
 
@@ -103,43 +79,28 @@ impl<'db, 'arena, 'txn, I: Iterator<Item = Result<TraversalValue<'arena>, GraphE
 							}
 							Some(old) => {
 								for (k, v) in props.iter() {
-									let Some((db, _)) = self.storage.secondary_indices.get(*k)
-									else {
-										continue;
-									};
-
-									// delete secondary indexes for the props changed
-									let Some(old_value) = old.get(k) else {
-										continue;
-									};
-
-									match postcard::to_stdvec(old_value) {
-										Ok(old_serialized) => {
-											if let Err(e) = db.delete_one_duplicate(
+									if let Some((db, secondary_index)) =
+										self.storage.secondary_indices.get(*k)
+									{
+										// delete secondary indexes for the props changed
+										if let Some(old_value) = old.get(k) {
+											let old_serialized = postcard::to_stdvec(old_value)?;
+											secondary_index.delete(
+												db,
 												self.txn,
 												&old_serialized,
 												&node.id,
-											) {
-												results.push(Err(GraphError::from(e)));
-												break;
-											}
+											)?;
 										}
-										Err(e) => {
-											results.push(Err(GraphError::from(e)));
-											break;
-										}
-									}
 
-									// create new secondary indexes for the props changed
-									match postcard::to_stdvec(v) {
-										Ok(v_serialized) => {
-											if let Err(e) =
-												db.put(self.txn, &v_serialized, &node.id)
-											{
-												results.push(Err(GraphError::from(e)));
-											}
-										}
-										Err(e) => results.push(Err(GraphError::from(e))),
+										// create new secondary indexes for the props changed
+										let v_serialized = postcard::to_stdvec(v)?;
+										secondary_index.insert(
+											db,
+											self.txn,
+											&v_serialized,
+											&node.id,
+										)?;
 									}
 								}
 
@@ -174,19 +135,11 @@ impl<'db, 'arena, 'txn, I: Iterator<Item = Result<TraversalValue<'arena>, GraphE
 							}
 						}
 
-						match postcard::to_stdvec(&node) {
-							Ok(serialized_node) => {
-								match self.storage.nodes_db.put(
-									self.txn,
-									&node.id,
-									&serialized_node,
-								) {
-									Ok(_) => results.push(Ok(TraversalValue::Node(node))),
-									Err(e) => results.push(Err(GraphError::from(e))),
-								}
-							}
-							Err(e) => results.push(Err(GraphError::from(e))),
-						}
+						let serialized_node = postcard::to_stdvec(&node)?;
+						self.storage
+							.nodes_db
+							.put(self.txn, &node.id, &serialized_node)?;
+						Ok(TraversalValue::Node(node))
 					}
 					TraversalValue::Edge(mut edge) => {
 						match edge.properties {
@@ -232,26 +185,23 @@ impl<'db, 'arena, 'txn, I: Iterator<Item = Result<TraversalValue<'arena>, GraphE
 							}
 						}
 
-						match postcard::to_stdvec(&edge) {
-							Ok(serialized_edge) => {
-								match self.storage.edges_db.put(
-									self.txn,
-									&edge.id,
-									&serialized_edge,
-								) {
-									Ok(_) => results.push(Ok(TraversalValue::Edge(edge))),
-									Err(e) => results.push(Err(GraphError::from(e))),
-								}
-							}
-							Err(e) => results.push(Err(GraphError::from(e))),
-						}
+						let serialized_edge = postcard::to_stdvec(&edge)?;
+						self.storage
+							.edges_db
+							.put(self.txn, &edge.id, &serialized_edge)?;
+						Ok(TraversalValue::Edge(edge))
 					}
 					// TODO: Implement update properties for Vectors:
 					// TraversalValue::Vector(hvector) => todo!(),
 					// TraversalValue::VectorNodeWithoutVectorData(vector_without_data) => todo!(),
-					_ => results.push(Err(GraphError::New("Unsupported value type".to_string()))),
-				},
-				Err(e) => results.push(Err(e)),
+					_ => Err(GraphError::New("Unsupported value type".to_string())),
+				}
+			})();
+
+			let is_err = res.is_err();
+			results.push(res);
+			if is_err {
+				break;
 			}
 		}
 

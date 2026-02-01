@@ -113,9 +113,7 @@ impl<'db, 'arena, 'txn, 'q> VectorFilter<'db, 'arena, 'txn, 'q>
 						// println!("decoding");
 
 						// println!("decoded: {res:?}");
-						Some(VectorWithoutData::from_bytes(
-							arena, bytes, item.id,
-						)?)
+						Some(VectorWithoutData::from_bytes(arena, bytes, item.id)?)
 					}
 					None => None, // TODO: maybe should be an error?
 				};

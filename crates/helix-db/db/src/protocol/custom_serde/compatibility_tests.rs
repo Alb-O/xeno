@@ -271,8 +271,7 @@ mod compatibility_tests {
 		let data_bytes = create_vector_bytes(&[0.0]);
 
 		let arena = Bump::new();
-		let new_vector =
-			HVector::from_bytes(&arena, Some(&old_bytes), &data_bytes, id).unwrap();
+		let new_vector = HVector::from_bytes(&arena, Some(&old_bytes), &data_bytes, id).unwrap();
 
 		assert!(new_vector.deleted);
 	}
@@ -292,8 +291,7 @@ mod compatibility_tests {
 		let data_bytes = create_vector_bytes(&vec![0.0; 1536]);
 
 		let arena = Bump::new();
-		let new_vector =
-			HVector::from_bytes(&arena, Some(&old_bytes), &data_bytes, id).unwrap();
+		let new_vector = HVector::from_bytes(&arena, Some(&old_bytes), &data_bytes, id).unwrap();
 
 		assert!(new_vector.properties.is_some());
 		let props = new_vector.properties.unwrap();
@@ -363,10 +361,8 @@ mod compatibility_tests {
 		let data_bytes = create_vector_bytes(&data);
 
 		let arena2 = Bump::new();
-		let restored_v1 =
-			HVector::from_bytes(&arena2, Some(&props_v1), &data_bytes, id).unwrap();
-		let restored_v2 =
-			HVector::from_bytes(&arena2, Some(&props_v2), &data_bytes, id).unwrap();
+		let restored_v1 = HVector::from_bytes(&arena2, Some(&props_v1), &data_bytes, id).unwrap();
+		let restored_v2 = HVector::from_bytes(&arena2, Some(&props_v2), &data_bytes, id).unwrap();
 
 		assert_eq!(restored_v1.version, 1);
 		assert_eq!(restored_v2.version, 2);

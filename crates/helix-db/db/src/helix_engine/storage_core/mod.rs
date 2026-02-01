@@ -1,3 +1,55 @@
+//! # Storage Core
+//!
+//! ## Purpose
+//! Persistent graph storage layer backed by LMDB (via heed). Handles raw node/edge CRUD, secondary indexing, and schema migrations.
+//!
+//! ## Mental model
+//! The storage core treats the graph as a set of key-value stores. Nodes and edges are serialized as bytes.
+//! Adjacency is maintained via dedicated index databases (out_edges, in_edges).
+//!
+//! ## Key types
+//! | Type | Description |
+//! | --- | --- |
+//! | `HelixGraphStorage` | Main entry point for storage operations. |
+//! | `NodeId` | 128-bit unique identifier for nodes. |
+//! | `EdgeId` | 128-bit unique identifier for edges. |
+//!
+//! ## Invariants
+//! - Key/value packing formats are stable and length-checked.
+//!   - Enforced in: `HelixGraphStorage::out_edge_key`, `HelixGraphStorage::in_edge_key`, `HelixGraphStorage::pack_edge_data`, `HelixGraphStorage::unpack_adj_edge_data`.
+//!   - Tested by: `TODO (add regression: test_pack_unpack_edge_data_roundtrip)`.
+//!   - Failure symptom: Traversal returns wrong adjacency; edges appear missing or swapped.
+//! - Secondary index semantics (Unique vs Index) are upheld.
+//!   - Enforced in: `SecondaryIndex::insert`, `SecondaryIndex::delete`.
+//!   - Tested by: `TODO (add regression: test_unique_index_rejects_duplicate)`.
+//!   - Failure symptom: Duplicate nodes for "unique" lookups; query correctness violation.
+//! - LMDB transaction discipline is respected.
+//!   - Enforced in: `StorageMethods` implementation.
+//!   - Tested by: `storage_concurrent_tests::*`.
+//!   - Failure symptom: Deadlocks, `MDB_BAD_TXN`, or stalled writers.
+//!
+//! ## Data flow
+//! 1. Request arrives via `StorageMethods`.
+//! 2. Keys are generated using static helpers (e.g., `node_key`).
+//! 3. Data is read/written to LMDB via `heed`.
+//! 4. Secondary indices are updated atomically within the same transaction.
+//!
+//! ## Lifecycle
+//! - `HelixGraphStorage::new` initializes the environment and ensures all databases exist.
+//! - `storage_migration::migrate` runs immediately after opening to align data format with the current version.
+//!
+//! ## Concurrency & ordering
+//! - LMDB provides ACID transactions.
+//! - Only one concurrent writer is allowed; multiple concurrent readers are supported.
+//!
+//! ## Failure modes & recovery
+//! - Corrupt database: Recovery requires restoring from backup or re-indexing from source.
+//! - Migration failure: The system will refuse to open if metadata indicates an unsupported or partially applied migration.
+//!
+//! ## Recipes
+//! - Adding a secondary index: Define it in `SecondaryIndex` and handle it in `HelixGraphStorage::new`.
+//!
+
 pub mod graph_visualization;
 pub mod metadata;
 pub mod storage_methods;

@@ -4,7 +4,9 @@ use std::net::AddrParseError;
 use std::str::Utf8Error;
 use std::string::FromUtf8Error;
 
-use heed3::{Error as HeedError, MdbError};
+use heed3::byteorder::BE;
+use heed3::types::{Bytes, U128};
+use heed3::{Database, Error as HeedError, MdbError, PutFlags, RwTxn};
 use serde::{Deserialize, Serialize};
 use sonic_rs::Error as SonicError;
 
@@ -243,6 +245,63 @@ impl SecondaryIndex {
 			FieldPrefix::Index => Self::Index(field.name.clone()),
 			FieldPrefix::UniqueIndex => Self::Unique(field.name.clone()),
 			FieldPrefix::Optional | FieldPrefix::Empty => Self::None,
+		}
+	}
+
+	pub fn insert(
+		&self,
+		db: &Database<Bytes, U128<BE>>,
+		txn: &mut RwTxn,
+		key: &[u8],
+		id: &u128,
+	) -> Result<(), GraphError> {
+		match self {
+			Self::Unique(name) => {
+				if let Err(e) = db.put_with_flags(txn, PutFlags::NO_OVERWRITE, key, id) {
+					match e {
+						HeedError::Mdb(MdbError::KeyExist) => {
+							// Check if it's the same ID (idempotent)
+							if let Some(existing_id) = db.get(txn, key)? {
+								if &existing_id == id {
+									return Ok(());
+								}
+							}
+							return Err(GraphError::DuplicateKey(format!(
+								"Duplicate key for unique index {name}"
+							)));
+						}
+						_ => return Err(GraphError::from(e)),
+					}
+				}
+				Ok(())
+			}
+			Self::Index(_) => db.put(txn, key, id).map_err(GraphError::from),
+			Self::None => unreachable!(),
+		}
+	}
+
+	pub fn delete(
+		&self,
+		db: &Database<Bytes, U128<BE>>,
+		txn: &mut RwTxn,
+		key: &[u8],
+		id: &u128,
+	) -> Result<(), GraphError> {
+		match self {
+			Self::Unique(_) => {
+				if let Some(existing_id) = db.get(txn, key)? {
+					if &existing_id == id {
+						db.delete(txn, key).map_err(GraphError::from)?;
+					}
+				}
+				Ok(())
+			}
+			Self::Index(_) => {
+				db.delete_one_duplicate(txn, key, id)
+					.map_err(GraphError::from)?;
+				Ok(())
+			}
+			Self::None => unreachable!(),
 		}
 	}
 }

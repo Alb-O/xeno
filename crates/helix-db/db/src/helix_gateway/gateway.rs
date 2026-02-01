@@ -1,3 +1,47 @@
+//! # Helix Gateway
+//!
+//! ## Purpose
+//! The public-facing API server for HelixDB. Handles HTTP requests, manages worker pools, and routes queries to the engine.
+//!
+//! ## Mental model
+//! The gateway acts as a multi-threaded request processor. It binds to a TCP address and uses a worker pool (with core affinity) to process incoming queries efficiently.
+//!
+//! ## Key types
+//! | Type | Description |
+//! | --- | --- |
+//! | `HelixGateway` | The main server instance. |
+//! | `WorkerPool` | Manages a set of worker threads for parallel query execution. |
+//! | `CoreSetter` | Handles core affinity for worker threads. |
+//!
+//! ## Invariants
+//! - Worker pool size must be proportional to available CPU cores.
+//!   - Enforced in: `HelixGateway::run`.
+//!   - Tested by: `worker_pool_tests::*`.
+//!   - Failure symptom: Suboptimal performance or thread starvation.
+//!
+//! ## Data flow
+//! 1. HTTP request received by Axum router.
+//! 2. `post_handler` extracts the query and API key.
+//! 3. Request is dispatched to the `WorkerPool`.
+//! 4. Engine executes the query and returns a result.
+//! 5. Gateway serializes the result to the response body.
+//!
+//! ## Lifecycle
+//! - `HelixGateway::new` configures the server and router.
+//! - `HelixGateway::run` starts the Tokio runtime and begins serving requests.
+//!
+//! ## Concurrency & ordering
+//! - Uses Tokio for asynchronous I/O and graceful shutdown.
+//! - Worker threads are pinned to specific CPU cores using `core_affinity` to minimize context switching.
+//!
+//! ## Failure modes & recovery
+//! - Invalid API key: Returns a 401 Unauthorized response.
+//! - Worker pool saturation: Requests may be queued or rejected depending on pool configuration.
+//!
+//! ## Recipes
+//! - Adding a built-in route: Define the handler in `builtin/` and add it to the Axum router in `HelixGateway::run`.
+//!
+
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use std::sync::atomic::{self, AtomicUsize};

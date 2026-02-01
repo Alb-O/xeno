@@ -5,7 +5,7 @@ use serde::Serialize;
 use serde::ser::SerializeMap;
 
 use crate::helix_engine::types::VectorError;
-use crate::protocol::custom_serde::vector_serde::VectoWithoutDataDeSeed;
+use crate::protocol::custom_serde::vector_serde::VectorWithoutDataDeSeed;
 use crate::protocol::value::Value;
 use crate::utils::id::uuid_str_from_buf;
 use crate::utils::properties::ImmutablePropertiesMap;
@@ -106,7 +106,7 @@ impl<'arena> VectorWithoutData<'arena> {
 		id: u128,
 	) -> Result<Self, VectorError> {
 		let mut de = postcard::Deserializer::from_bytes(properties);
-		serde::de::DeserializeSeed::deserialize(VectoWithoutDataDeSeed { arena, id }, &mut de)
+		serde::de::DeserializeSeed::deserialize(VectorWithoutDataDeSeed { arena, id }, &mut de)
 			.map_err(|e| VectorError::ConversionError(format!("Error deserializing vector: {e}")))
 	}
 

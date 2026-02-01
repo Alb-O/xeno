@@ -123,12 +123,12 @@ impl<'de, 'txn, 'arena> serde::de::DeserializeSeed<'de> for VectorDeSeed<'txn, '
 }
 
 /// DeserializeSeed for Node that allocates label and properties into the arena
-pub struct VectoWithoutDataDeSeed<'arena> {
+pub struct VectorWithoutDataDeSeed<'arena> {
 	pub arena: &'arena bumpalo::Bump,
 	pub id: u128,
 }
 
-impl<'de, 'arena> serde::de::DeserializeSeed<'de> for VectoWithoutDataDeSeed<'arena> {
+impl<'de, 'arena> serde::de::DeserializeSeed<'de> for VectorWithoutDataDeSeed<'arena> {
 	type Value = VectorWithoutData<'arena>;
 
 	fn deserialize<D>(self, deserializer: D) -> Result<Self::Value, D::Error>
@@ -160,6 +160,8 @@ impl<'de, 'arena> serde::de::DeserializeSeed<'de> for VectoWithoutDataDeSeed<'ar
 
 				let deleted: bool = seq.next_element()?.unwrap_or(false);
 
+				let level: usize = seq.next_element()?.unwrap_or(0);
+
 				// Use our custom DeserializeSeed that handles the Option wrapper
 				let properties: Option<ImmutablePropertiesMap<'arena>> = seq
 					.next_element_seed(OptionPropertiesMapDeSeed { arena: self.arena })?
@@ -170,7 +172,7 @@ impl<'de, 'arena> serde::de::DeserializeSeed<'de> for VectoWithoutDataDeSeed<'ar
 					label,
 					version,
 					deleted,
-					level: 0,
+					level,
 					properties,
 				})
 			}
@@ -178,7 +180,7 @@ impl<'de, 'arena> serde::de::DeserializeSeed<'de> for VectoWithoutDataDeSeed<'ar
 
 		deserializer.deserialize_struct(
 			"VectorWithoutData",
-			&["label", "version", "deleted", "properties"],
+			&["label", "version", "deleted", "level", "properties"],
 			VectorVisitor {
 				arena: self.arena,
 				id: self.id,

@@ -27,9 +27,6 @@ ariadne = { version = "0.6", optional = true }
 # external dependencies (workspace)
 async-trait.workspace = true
 axum = { version = "0.8", optional = true }
-
-# external dependencies (crate-level)
-postcard.workspace = true
 bumpalo = { version = "3.19", features = ["collections", "boxed", "serde"] }
 bytemuck = "1.25"
 bytes = "1.11"
@@ -48,6 +45,9 @@ paste.workspace = true
 # compiler dependencies
 pest = { version = "2.8", optional = true }
 pest_derive = { version = "2.8", optional = true }
+
+# external dependencies (crate-level)
+postcard.workspace = true
 rand.workspace = true
 rayon = "1.11"
 

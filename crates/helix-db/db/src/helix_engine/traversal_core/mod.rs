@@ -1,3 +1,45 @@
+//! # Traversal Core
+//!
+//! ## Purpose
+//! High-level graph traversal engine. Implements the core logic for executing queries, filtering results, and performing mutations across the graph.
+//!
+//! ## Mental model
+//! Traversal is modeled as an iterator-based pipeline. Each step in a query (e.g., `in_e`, `to_v`, `filter`) is an adapter that consumes an iterator of `TraversalValue` and produces a new one.
+//!
+//! ## Key types
+//! | Type | Description |
+//! | --- | --- |
+//! | `HelixGraphEngine` | Primary interface for executing queries. |
+//! | `TraversalValue` | Enum representing a Node, Edge, or primitive value during traversal. |
+//! | `RwTraversalIterator` | Specialized iterator for write-enabled traversals. |
+//!
+//! ## Invariants
+//! - Mutation steps must fail-fast on database errors.
+//!   - Enforced in: `UpdateAdapter::update`, `AddEAdapter::add_e`, etc.
+//!   - Tested by: `TODO (add regression: test_atomic_traversal_failure)`.
+//!   - Failure symptom: Partial updates persist in the database, leading to inconsistency.
+//!
+//! ## Data flow
+//! 1. Query initiated via `HelixGraphEngine`.
+//! 2. Source step (e.g., `V()`) fetches initial nodes.
+//! 3. Pipeline adapters process items lazily.
+//! 4. Terminal step (e.g., `toList()`) collects results.
+//!
+//! ## Lifecycle
+//! - `HelixGraphEngine` is typically wrapped in an `Arc` for shared access.
+//! - Iterators are scoped to a specific transaction.
+//!
+//! ## Concurrency & ordering
+//! - Read traversals use `RoTxn` and can run in parallel.
+//! - Write traversals use `RwTxn` and are serialized by LMDB.
+//!
+//! ## Failure modes & recovery
+//! - Query timeout: Long-running traversals may be interrupted (if supported by future async integration).
+//!
+//! ## Recipes
+//! - Adding a traversal step: Implement a new trait/adapter in `ops/` and add it to the relevant iterator type.
+//!
+
 pub mod config;
 pub mod ops;
 pub mod traversal_iter;

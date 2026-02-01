@@ -282,6 +282,7 @@ impl<'arena> HVector<'arena> {
 		self.label = vector.label;
 		self.version = vector.version;
 		self.level = vector.level;
+		self.deleted = vector.deleted;
 		self.properties = vector.properties;
 	}
 }

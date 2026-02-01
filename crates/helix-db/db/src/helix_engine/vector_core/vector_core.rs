@@ -81,14 +81,14 @@ impl VectorCore {
 		})
 	}
 
-	/// Vector key: [v, id, ]
+	/// Vector key: [v, id, level]
 	#[inline(always)]
-	pub fn vector_key(id: u128, level: usize) -> Vec<u8> {
+	pub fn vector_key(id: u128, level: u64) -> Vec<u8> {
 		[VECTOR_PREFIX, &id.to_be_bytes(), &level.to_be_bytes()].concat()
 	}
 
 	#[inline(always)]
-	pub fn out_edges_key(source_id: u128, level: usize, sink_id: Option<u128>) -> Vec<u8> {
+	pub fn out_edges_key(source_id: u128, level: u64, sink_id: Option<u128>) -> Vec<u8> {
 		match sink_id {
 			Some(sink_id) => [
 				source_id.to_be_bytes().as_slice(),
@@ -148,12 +148,22 @@ impl VectorCore {
 		self.vectors_db
 			.put(
 				txn,
-				&Self::vector_key(vector.id, vector.level),
+				&Self::vector_key(vector.id, vector.level as u64),
 				vector.vector_data_to_bytes()?,
 			)
 			.map_err(VectorError::from)?;
+
+		let meta = VectorWithoutData {
+			id: vector.id,
+			label: vector.label,
+			version: vector.version,
+			deleted: vector.deleted,
+			level: vector.level,
+			properties: vector.properties,
+		};
+
 		self.vector_properties_db
-			.put(txn, &vector.id, postcard::to_stdvec(&vector)?.as_ref())?;
+			.put(txn, &vector.id, postcard::to_stdvec(&meta)?.as_ref())?;
 		Ok(())
 	}
 
@@ -170,7 +180,7 @@ impl VectorCore {
 	where
 		F: Fn(&HVector<'arena>, &RoTxn<'db>) -> bool,
 	{
-		let out_key = Self::out_edges_key(id, level, None);
+		let out_key = Self::out_edges_key(id, level as u64, None);
 		let mut neighbors = bumpalo::collections::Vec::with_capacity_in(
 			self.config.m_max_0.min(self.config.min_neighbors),
 			arena,
@@ -217,7 +227,7 @@ impl VectorCore {
 		neighbors: &BinaryHeap<'arena, HVector<'arena>>,
 		level: usize,
 	) -> Result<(), VectorError> {
-		let prefix = Self::out_edges_key(id, level, None);
+		let prefix = Self::out_edges_key(id, level as u64, None);
 
 		let mut keys_to_delete: HashSet<Vec<u8>> = self
 			.edges_db
@@ -233,11 +243,11 @@ impl VectorCore {
 					return Ok(());
 				}
 
-				let out_key = Self::out_edges_key(id, level, Some(neighbor_id));
+				let out_key = Self::out_edges_key(id, level as u64, Some(neighbor_id));
 				keys_to_delete.remove(&out_key);
 				self.edges_db.put(txn, &out_key, &())?;
 
-				let in_key = Self::out_edges_key(neighbor_id, level, Some(id));
+				let in_key = Self::out_edges_key(neighbor_id, level as u64, Some(id));
 				keys_to_delete.remove(&in_key);
 				self.edges_db.put(txn, &in_key, &())?;
 
@@ -415,11 +425,20 @@ impl VectorCore {
 
 		let properties_bytes = self.vector_properties_db.get(txn, &id)?;
 
-		let vector = HVector::from_bytes(arena, properties_bytes, vector_data_bytes, id)?;
-		if vector.deleted {
+		let meta = match properties_bytes {
+			Some(bytes) => VectorWithoutData::from_bytes(arena, bytes, id)?,
+			None => {
+				return Err(VectorError::VectorNotFound(uuid_str(id, arena).to_string()));
+			}
+		};
+
+		let mut v = HVector::from_raw_vector_data(arena, vector_data_bytes, meta.label, id)?;
+		v.expand_from_vector_without_data(meta);
+
+		if v.deleted {
 			return Err(VectorError::VectorDeleted);
 		}
-		Ok(vector)
+		Ok(v)
 	}
 
 	#[inline(always)]
@@ -453,13 +472,19 @@ impl VectorCore {
 			let (key, _) = result?;
 
 			// Extract id from the key: v: (2 bytes) + id (16 bytes) + level (8 bytes)
-			if key.len() < VECTOR_PREFIX.len() + 16 {
+			// Total key length should be 26 bytes
+			if key.len() != 26 {
 				continue; // Skip malformed keys
 			}
 
 			let mut id_bytes = [0u8; 16];
 			id_bytes.copy_from_slice(&key[VECTOR_PREFIX.len()..VECTOR_PREFIX.len() + 16]);
 			let id = u128::from_be_bytes(id_bytes);
+
+			let mut level_bytes = [0u8; 8];
+			level_bytes
+				.copy_from_slice(&key[VECTOR_PREFIX.len() + 16..VECTOR_PREFIX.len() + 16 + 8]);
+			let _vector_level = u64::from_be_bytes(level_bytes);
 
 			// Get the full vector using the existing method
 			match self.get_full_vector(txn, id, arena) {
