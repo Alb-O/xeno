@@ -1247,7 +1247,6 @@ name = "helix-db"
 version = "1.2.7"
 dependencies = [
  "ariadne",
- "async-trait",
  "axum",
  "bumpalo",
  "bytemuck",
@@ -1271,7 +1270,6 @@ dependencies = [
  "postcard",
  "proptest",
  "rand 0.9.2",
- "rayon",
  "reqwest",
  "serde",
  "serial_test",
@@ -1282,7 +1280,6 @@ dependencies = [
  "thiserror 2.0.18",
  "tokio",
  "tokio-test",
- "tokio-util",
  "tracing",
  "twox-hash",
  "url",

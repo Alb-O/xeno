@@ -18,7 +18,16 @@ cosine = []
 api-key = []
 build = ["compiler"]
 vectors = ["cosine", "url", "reqwest"]
-server = ["build", "compiler", "vectors", "axum"]
+server = [
+    "build",
+    "compiler",
+    "vectors",
+    "axum",
+    "core_affinity",
+    "flume",
+    "sha2",
+    "subtle",
+]
 full = ["build", "compiler", "vectors"]
 dev = ["server"]
 dev-instance = []
@@ -29,20 +38,19 @@ production = ["api-key", "server"]
 ariadne = { version = "0.6", optional = true }
 
 # external dependencies (workspace)
-async-trait.workspace = true
 axum = { version = "0.8", optional = true }
 bumpalo = { version = "3.19", features = ["collections", "boxed", "serde"] }
 bytemuck = "1.25"
 bytes = "1.11"
 chrono.workspace = true
-core_affinity = "0.8"
-flume = { version = "0.12", default-features = false, features = ["async", "select"] }
+core_affinity = { version = "0.8", optional = true }
+flume = { version = "0.12", default-features = false, features = ["async", "select"], optional = true }
 heed3 = "0.22"
 # HelixDB dependencies
 helix-macros = { path = "../macros" }
 indexmap = { version = "2.13", features = ["serde"] }
 inventory.workspace = true
-itertools = "0.14"
+itertools.workspace = true
 mimalloc = "0.1"
 paste.workspace = true
 
@@ -53,29 +61,27 @@ pest_derive = { version = "2.8", optional = true }
 # external dependencies (crate-level)
 postcard.workspace = true
 rand.workspace = true
-rayon = "1.11"
 
 # embedding dependencies
 reqwest = { version = "0.13", default-features = false, features = ["json", "blocking", "rustls", "webpki-roots"], optional = true }
 serde.workspace = true
-sha2.workspace = true
+sha2 = { workspace = true, optional = true }
 sonic-rs = "0.5"
-subtle = "2.6"
-tempfile.workspace = true
+subtle = { version = "2.6", optional = true }
 thiserror.workspace = true
 tokio.workspace = true
-tokio-util.workspace = true
 tracing.workspace = true
 twox-hash = "2.1"
 url = { workspace = true, optional = true }
 uuid = { workspace = true, features = ["serde", "v4", "v6", "fast-rng"] }
 
 [dev-dependencies]
-criterion = "0.8"
+criterion.workspace = true
 lazy_static = "1.5"
 loom = "0.7"
 num_cpus = "1.17"
 proptest.workspace = true
 rand.workspace = true
 serial_test.workspace = true
+tempfile.workspace = true
 tokio-test = "0.4"

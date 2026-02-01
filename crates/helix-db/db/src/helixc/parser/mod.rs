@@ -7,14 +7,13 @@
 
 use std::collections::{HashMap, HashSet};
 use std::fmt::Debug;
-use std::io::Write;
 
 use location::HasLoc;
 use pest::Parser as PestParser;
 use pest_derive::Parser;
 
 use crate::helixc::parser::errors::ParserError;
-use crate::helixc::parser::types::{Content, HxFile, Schema, Source};
+use crate::helixc::parser::types::{Content, Schema, Source};
 
 pub mod creation_step_parse_methods;
 pub mod errors;
@@ -202,7 +201,12 @@ impl HelixParser {
 	}
 }
 
+#[cfg(test)]
 pub fn write_to_temp_file(content: Vec<&str>) -> Content {
+	use std::io::Write;
+
+	use crate::helixc::parser::types::HxFile;
+
 	let mut files = Vec::new();
 	for c in content {
 		let mut file = tempfile::NamedTempFile::new().unwrap();
