@@ -1,4 +1,4 @@
-//! Window manager for base and floating windows.
+//! Window manager for base and floating windows. See [`layout::manager`](crate::layout::manager) for full windowing architecture.
 
 use std::collections::HashMap;
 

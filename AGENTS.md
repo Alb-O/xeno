@@ -27,13 +27,13 @@ Always prefer comprehensive techspec docstrings over inline comments:
 
 ## Architecture map (start here)
 
-Agent docs are the ground truth for subsystem behavior and invariants, must read when relevant:
-- Registry: `docs/agents/registry.md`
-- LSP: `docs/agents/lsp.md`
-- Broker: `docs/agents/broker.md`
-- Overlay: `docs/agents/overlay.md`
-- Syntax: `docs/agents/syntax.md`
-- Windowing: `docs/agents/windowing.md`
+Module-level rustdoc is the ground truth for subsystem behavior and invariants, must read when relevant, keep updated:
+- Registry: `crates/registry/src/core/index/runtime.rs`
+- LSP: `crates/lsp/src/session/manager.rs`
+- Broker: `crates/broker/broker/src/core/mod.rs`
+- Overlay: `crates/editor/src/overlay/session.rs`
+- Syntax: `crates/editor/src/syntax_manager/mod.rs`
+- Windowing: `crates/editor/src/layout/manager.rs`
 
 Workspace layout:
 - `crates/term`: main binary (`xeno`)
@@ -45,24 +45,21 @@ Workspace layout:
 - `crates/runtime/config`: KDL config parsing
 - `crates/runtime/data/assets`: embedded runtime assets (queries/themes/language configs)
 
-## Agent documentation policy (docs/agents/*.md)
+## Architecture doc policy (module-level `//!` rustdoc)
 
-All files in `docs/agents/` MUST follow the standard template and remain machine-navigable.
+Subsystem architecture lives as `//!` module-level rustdoc in the anchor files listed above.
 
-### Required section order (every file)
+### Required section order
 
 1. Purpose
 2. Mental model
-3. Module map
-4. Key types (table)
-5. Invariants (hard rules)
-6. Data flow
-7. Lifecycle
-8. Concurrency & ordering
-9. Failure modes & recovery
-10. Recipes
-11. Tests
-12. Glossary
+3. Key types (table)
+4. Invariants (hard rules)
+5. Data flow
+6. Lifecycle
+7. Concurrency & ordering
+8. Failure modes & recovery
+9. Recipes
 
 ### Invariants contract (mandatory triad)
 
@@ -73,12 +70,6 @@ Every invariant MUST include all three fields:
 - Failure symptom: concrete, user-visible or correctness symptom
 
 No invariant block is allowed to omit any of the triad fields.
-
-### Tests section contract
-
-- The Tests section MUST list concrete `test_*` functions (not just modules).
-- If coverage is missing, use the standardized form:
-  - `Tested by: TODO (add regression: test_<descriptive_name>)`
 
 ### Enforcement site formatting
 
@@ -91,22 +82,11 @@ No invariant block is allowed to omit any of the triad fields.
 ### Style rules
 
 - No bold decorations in list items.
-- Use consistent terminology from the Glossary.
 - Keep statements normative and checkable (MUST/SHOULD/MAY), and avoid vague prose.
 
 ### Maintenance rules
 
 When changing core behavior, public API, or invariants in any subsystem:
-1. Update the relevant `docs/agents/<subsystem>.md` in the same change set.
+1. Update the module-level rustdoc in the relevant anchor file in the same change set.
 2. Add or update regression tests for the new invariant.
 3. If a test is not practical immediately, add a `TODO (add regression: test_...)` entry.
-
-## Documentation updates
-
-If you touch these areas, you MUST consult and update the matching agent doc:
-- registry/indexing/override behavior → `docs/agents/registry.md`
-- LSP identity/sync/generation/UI gating → `docs/agents/lsp.md`
-- broker deduplication/routing/leases → `docs/agents/broker.md`
-- overlay session/event wiring/focus rules → `docs/agents/overlay.md`
-- syntax scheduling/hotness/tier policy/stale installs → `docs/agents/syntax.md`
-- windowing/splits/floating windows/layers → `docs/agents/windowing.md`

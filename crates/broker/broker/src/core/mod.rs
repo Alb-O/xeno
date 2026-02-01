@@ -1,4 +1,207 @@
-//! Shared broker core state and session management.
+//! Broker daemon for LSP server deduplication, routing, and buffer synchronization.
+//!
+//! # Purpose
+//!
+//! - Define the broker daemon that deduplicates, shares, and supervises language server processes across editor sessions.
+//! - Describe broker-side routing rules for server-to-client JSON-RPC, including leader election, pending request tracking, and lease-based persistence.
+//! - Define cross-process buffer synchronization: single-writer model where the broker maintains an authoritative rope, the owner session publishes deltas, and the broker validates, applies, and broadcasts to follower sessions.
+//! - Exclude editor-side document sync and UI integration; see `lsp::session::manager` module docs.
+//!
+//! # Mental model
+//!
+//! - The broker is an out-of-process daemon that owns the actual LSP server processes.
+//! - Editor sessions connect to the broker via IPC and register a [`SessionId`].
+//! - Each LSP server instance is keyed by [`ProjectKey`] and shared across sessions that attach to that server.
+//! - Server-to-client requests are routed only to the leader session (deterministic: minimum [`SessionId`]).
+//! - Client-to-server requests are rewritten to broker-allocated wire request ids to avoid collisions between sessions.
+//! - The broker keeps idle servers alive for an idle lease duration; after lease expiry and with no inflight requests, the server is terminated.
+//! - For buffer sync: each document URI has exactly one owner session. The owner sends deltas; the broker validates epoch/sequence, applies to its authoritative rope, and broadcasts to all other sessions (followers). Ownership transfers on disconnect or explicit request, bumping the epoch and resetting the sequence.
+//!
+//! # Key types
+//!
+//! | Type | Meaning | Constraints | Constructed / mutated in |
+//! |---|---|---|---|
+//! | [`BrokerCore`] | Authoritative broker state machine | MUST be the only owner of session/server maps | `BrokerCore::*` |
+//! | [`ProjectKey`] | Dedup key for LSP servers | MUST uniquely represent command/args/cwd (with no-cwd sentinel) | `ProjectKey::from` |
+//! | [`ServerEntry`] | One managed LSP server instance | MUST maintain leader = min(attached) | `BrokerCore::attach_session`, `BrokerCore::detach_session` |
+//! | [`SessionEntry`] | One connected editor session | MUST track attachment set for cleanup | `BrokerCore::register_session`, `BrokerCore::unregister_session` |
+//! | [`PendingS2cReq`] | Pending server-to-client request | MUST be completed only by the elected responder | `BrokerCore::register_client_request`, `BrokerCore::complete_client_request` |
+//! | [`PendingC2sReq`] | Pending client-to-server request | MUST track origin session and original request id | `BrokerCore::*` |
+//! | [`LspProxyService`] | LSP stdio proxy and event forwarder | MUST register pending before forwarding request | `LspProxyService::call`, `LspProxyService::forward` |
+//! | [`DocRegistry`] | URI to (DocId, version) tracking | MUST not report a doc that is not in `by_uri` | `DocRegistry::update`, `BrokerCore::get_doc_by_uri` |
+//! | [`DocOwnerRegistry`] | Single-writer ownership per URI | MUST transfer ownership on detach/unregister | `BrokerCore::cleanup_session_docs_on_server` |
+//! | [`SyncDocState`] | Per-URI broker-authoritative sync state | MUST have exactly one owner; epoch increments on ownership change; seq increments on delta | `BrokerCore::on_buffer_sync_open`, `BrokerCore::on_buffer_sync_delta`, `BrokerCore::on_buffer_sync_close` |
+//! | [`SyncEpoch`] | Monotonic ownership generation | MUST increment on every ownership transfer | `BrokerCore::on_buffer_sync_take_ownership`, `BrokerCore::on_buffer_sync_close` |
+//! | [`SyncSeq`] | Monotonic edit sequence within an epoch | MUST increment on every applied delta; resets to 0 on epoch change | `BrokerCore::on_buffer_sync_delta` |
+//! | [`BufferSyncManager`] | Editor-side per-document sync tracker | MUST clear all state on broker disconnect | `BufferSyncManager::disable_all` |
+//! | [`Event`] | Broker-to-editor event stream | MUST include `server_id` for routing on client side; buffer sync events MUST include URI | `BrokerCore::broadcast_to_server`, `BrokerCore::send_to_leader`, `BrokerCore::broadcast_to_sync_doc_sessions` |
+//!
+//! # Invariants
+//!
+//! 1. Project deduplication MUST use a stable [`ProjectKey`]; configs without cwd MUST not collapse unrelated projects.
+//!    - Enforced in: `ProjectKey::from`
+//!    - Tested by: `core::tests::project_dedup_*`
+//!    - Failure symptom: unrelated projects share a server, causing incorrect diagnostics and cross-project symbol results.
+//!
+//! 2. Leader election MUST be deterministic and MUST be the minimum [`SessionId`] of the attached set.
+//!    - Enforced in: `BrokerCore::attach_session`, `BrokerCore::detach_session`
+//!    - Tested by: `test_broker_e2e_leader_routing_and_reply`
+//!    - Failure symptom: server-initiated requests route to different sessions across runs, breaking request handling and causing hangs.
+//!
+//! 3. Server-to-client requests MUST be registered as pending before being forwarded to the leader session.
+//!    - Enforced in: `LspProxyService::call`
+//!    - Tested by: `core::tests::request_routing::reply_from_leader_completes_pending`
+//!    - Failure symptom: leader reply arrives before pending registration and is rejected as "request not found".
+//!
+//! 4. Server-to-client requests MUST only be completed by the elected responder session.
+//!    - Enforced in: `BrokerCore::complete_client_request`
+//!    - Tested by: `test_broker_e2e_leader_routing_and_reply`
+//!    - Failure symptom: replies are accepted from non-leader sessions, resulting in nondeterministic behavior and incorrect responses.
+//!
+//! 5. Client-to-server request ids MUST be rewritten to broker-allocated wire ids to prevent cross-session collisions.
+//!    - Enforced in: `BrokerCore::alloc_wire_request_id`
+//!    - Tested by: `test_broker_string_wire_ids`
+//!    - Failure symptom: one session's response completes another session's request, causing incorrect editor UI and protocol errors.
+//!
+//! 6. Pending requests MUST be cancelled on leader change, session unregister, server exit, and per-request timeout.
+//!    - Enforced in: `BrokerCore::cancel_pending_for_leader_change`, `BrokerCore::unregister_session`, `BrokerCore::check_lease_expiry`, `LspProxyService::call`
+//!    - Tested by: `core::tests::request_routing::disconnect_leader_cancels_pending_requests`
+//!    - Failure symptom: pending maps leak, late replies are misdelivered, or server waits forever for a client reply.
+//!
+//! 7. IPC send failure to a session MUST trigger authoritative session cleanup.
+//!    - Enforced in: `BrokerCore::broadcast_to_server`, `BrokerCore::send_to_leader`
+//!    - Tested by: `core::tests::error_handling::session_send_failure_unregisters_session`
+//!    - Failure symptom: dead sessions remain registered; leader routing blackholes server-initiated requests.
+//!
+//! 8. Idle servers MUST be terminated after lease expiry only when no sessions are attached and no inflight requests exist.
+//!    - Enforced in: `BrokerCore::check_lease_expiry`
+//!    - Tested by: `test_broker_e2e_persistence_lease_expiry`
+//!    - Failure symptom: server processes leak indefinitely or are terminated while a request is still in flight.
+//!
+//! 9. On session unregister, broker MUST detach the session from all servers and MUST clean up per-session doc ownership state.
+//!    - Enforced in: `BrokerCore::unregister_session`, `BrokerCore::cleanup_session_docs_on_server`
+//!    - Tested by: `test_broker_owner_close_transfer`
+//!    - Failure symptom: docs remain "owned" by a dead session, blocking updates from remaining sessions and causing stale diagnostics.
+//!
+//! 10. Diagnostics forwarding MUST prefer the authoritative version from the LSP payload when present, and MAY fall back to broker doc tracking otherwise.
+//!     - Enforced in: `LspProxyService::forward`
+//!     - Tested by: `core::tests::diagnostics_regression::diagnostics_use_lsp_payload_version_not_broker_version`
+//!     - Failure symptom: diagnostics apply to the wrong document version, producing flicker or persistent stale errors.
+//!
+//! 11. Buffer sync deltas MUST be rejected if the sender is not the owner or epoch/seq do not match.
+//!     - Enforced in: `BrokerCore::on_buffer_sync_delta`
+//!     - Tested by: `core::tests::buffer_sync::test_buffer_sync_rejects_non_owner`, `core::tests::buffer_sync::test_buffer_sync_seq_mismatch_triggers_resync`
+//!     - Failure symptom: follower sessions overwrite the authoritative rope, causing document divergence.
+//!
+//! 12. Buffer sync ownership MUST transfer to the minimum remaining [`SessionId`] when the owner disconnects or closes the document.
+//!     - Enforced in: `BrokerCore::on_buffer_sync_close`, `BrokerCore::cleanup_session_sync_docs`
+//!     - Tested by: `core::tests::buffer_sync::test_buffer_sync_owner_disconnect_elects_successor_epoch_bumps`
+//!     - Failure symptom: no session holds ownership after disconnect, blocking all edits until manual resync.
+//!
+//! 13. Buffer sync epoch MUST increment on every ownership transfer; sequence MUST reset to 0.
+//!     - Enforced in: `BrokerCore::on_buffer_sync_take_ownership`, `BrokerCore::on_buffer_sync_close`
+//!     - Tested by: `core::tests::buffer_sync::test_buffer_sync_take_ownership`
+//!     - Failure symptom: stale-epoch deltas are accepted, applying edits from a previous ownership era.
+//!
+//! 14. Buffer sync broadcast MUST exclude the sender session and MUST include all other sessions with open refcounts for the URI.
+//!     - Enforced in: `BrokerCore::broadcast_to_sync_doc_sessions`
+//!     - Tested by: `core::tests::buffer_sync::test_buffer_sync_delta_ack_and_broadcast`
+//!     - Failure symptom: sender receives its own delta as a remote edit (infinite loop), or some followers miss deltas.
+//!
+//! 15. On broker disconnect, the editor MUST clear all buffer sync state and remove all follower readonly overrides.
+//!     - Enforced in: `Editor::handle_buffer_sync_disconnect`
+//!     - Tested by: TODO (add regression: test_buffer_sync_disconnect_clears_readonly)
+//!     - Failure symptom: buffers remain stuck in readonly mode after broker disconnect, blocking local editing.
+//!
+//! # Data flow
+//!
+//! ## LSP routing
+//!
+//! 1. Session connect: Editor connects to broker IPC socket and registers a [`SessionId`] and [`SessionSink`].
+//! 2. Server start / attach: Editor requests `LspStart` for a project configuration. Broker deduplicates by [`ProjectKey`]; either starts a new server or attaches to an existing one.
+//! 3. Client-to-server messages: Editor sends notifications/requests for `server_id`. Broker rewrites request ids to wire ids and forwards to the LSP server process. Responses are mapped back to the origin session and request id via pending c2s map.
+//! 4. Server-to-client messages: LSP server sends: Notifications are broadcast to all attached sessions. Requests are registered as pending s2c and forwarded only to the leader session. Leader session replies; broker completes pending and returns the response to the LSP server.
+//! 5. Detach and lease: When the last session detaches, broker schedules lease expiry. If no new sessions attach and no inflight remains at expiry, broker terminates the server.
+//!
+//! ## Buffer sync
+//!
+//! 1. Document open: Editor sends `BufferSyncOpen { uri, text }`. First opener becomes Owner with epoch=1, seq=0. Subsequent openers become Followers and receive a snapshot of the current content.
+//! 2. Local edit (owner path): Editor applies transaction locally, then calls `BufferSyncManager::prepare_delta` which serializes to `WireTx` and sends `BufferSyncDelta` to the broker. Outbound sender in `LspSystem` awaits the result and posts `DeltaAck` or `DeltaRejected` back to the editor loop.
+//! 3. Broker delta processing: Broker validates owner/epoch/seq, converts `WireTx` to `Transaction`, applies to authoritative rope, increments seq, broadcasts `Event::BufferSyncDelta` to all followers, and replies with `BufferSyncDeltaAck { seq }`.
+//! 4. Remote delta (follower path): Editor receives `BufferSyncEvent::RemoteDelta`, converts wire tx back to `Transaction`, applies with `UndoPolicy::NoUndo`, and maps selections for all views of the document.
+//! 5. Ownership change: On owner disconnect or explicit `TakeOwnership`, broker bumps epoch, resets seq, broadcasts `Event::BufferSyncOwnerChanged`. New owner becomes writable; old owner (if still connected) becomes follower (readonly).
+//! 6. Document close: Editor sends `BufferSyncClose`. Broker decrements refcount; if owner closed, elects successor (min session ID). Last close removes the entry.
+//! 7. Disconnect recovery: On broker transport disconnect, editor calls `BufferSyncManager::disable_all()` and clears all follower readonly overrides.
+//!
+//! # Lifecycle
+//!
+//! - Startup: Broker binary starts and initializes [`BrokerCore`] and IPC loop.
+//! - Session registration: Each editor session registers with a [`SessionId`] and sink.
+//! - Server registration: Broker starts or reuses an LSP server instance, assigns [`ServerId`], attaches session, elects leader.
+//! - Running: Broker proxies JSON-RPC in both directions and maintains pending request maps. Buffer sync deltas are validated and applied to the authoritative rope.
+//! - Leader change: Detach of the leader triggers re-election to min(attached) and cancels pending s2c for the old leader.
+//! - Buffer sync open: Editor calls `BufferSyncOpen` during buffer lifecycle; broker creates or joins a [`SyncDocState`].
+//! - Buffer sync ownership transfer: On owner disconnect or explicit request, broker bumps epoch, broadcasts `OwnerChanged`, new owner starts publishing deltas.
+//! - Buffer sync close: Editor calls `BufferSyncClose` during buffer removal; broker decrements refcount and elects successor if needed.
+//! - Idle lease: When attached is empty, broker schedules lease expiry; server remains warm until expiry conditions are met.
+//! - Session cleanup: `cleanup_session_sync_docs` removes the disconnected session from all sync docs and transfers ownership as needed.
+//! - Termination: On lease expiry with no inflight, or on explicit termination, broker stops the server and removes indices.
+//! - Shutdown: Broker terminates all servers and clears state.
+//!
+//! # Concurrency and ordering
+//!
+//! - BrokerCore state access: [`BrokerCore`] serializes state mutation behind its state lock. All state-dependent routing decisions (leader selection, attachment membership, pending maps) MUST be made under that lock.
+//! - Pending request ordering: Server-to-client requests are routed to leader and completed by matching request id. Client implementations MUST preserve FIFO request/reply pairing if they use a queue-based strategy.
+//! - Background tasks: Lease expiry runs in a spawned task and MUST re-check generation tokens to avoid stale termination. Server monitor tasks MUST report exits and trigger cleanup.
+//!
+//! # Failure modes and recovery
+//!
+//! - Session IPC disconnect: Broker detects send failure and unregisters session; pending requests for that session are cancelled; buffer sync docs owned by this session transfer ownership.
+//! - Leader disconnect: Broker cancels pending s2c requests for the old leader and elects a new leader if possible.
+//! - Server crash: Broker marks server stopped, cancels inflight, and removes server indices; subsequent start attaches to a fresh server.
+//! - Request timeout (server-to-client): Broker cancels pending and replies with `REQUEST_CANCELLED` error to the server.
+//! - Dedup mismatch: If [`ProjectKey`] construction is wrong, broker shares servers incorrectly; fix `ProjectKey` normalization and add regression tests.
+//! - Buffer sync epoch mismatch: Follower delta rejected with `SyncEpochMismatch`; editor should request resync.
+//! - Buffer sync seq mismatch: Delta rejected with `SyncSeqMismatch`; editor should request resync to recover.
+//! - Broker disconnect (editor side): Editor clears all sync state via `disable_all()` and removes readonly overrides so local editing resumes.
+//!
+//! # Recipes
+//!
+//! ## Add a new broker IPC event
+//!
+//! - Extend `xeno_broker_proto::types::Event`.
+//! - Update broker broadcast/send sites to emit the new event.
+//! - Update the editor transport event mapping to surface it as a `TransportEvent` or UI event.
+//!
+//! ## Debug broker routing issues with file logs
+//!
+//! - Set `XENO_LOG_DIR` and `RUST_LOG` in the editor environment.
+//! - Ensure editor spawns broker with env propagation.
+//! - Inspect `xeno-broker.<pid>.log` for: attach/detach and leader re-election logs, pending map registration/completion/cancellation, lease scheduling and termination decisions.
+//!
+//! ## Verify multi-process dedup
+//!
+//! - Run two editors against the same workspace concurrently.
+//! - Confirm broker spawns one server process and attaches both sessions to the same [`ServerId`].
+//!
+//! ## Verify buffer sync two-terminal
+//!
+//! - Open the same file in two terminal windows.
+//! - Type in one window; confirm the other receives the edit in real-time.
+//! - Close the owner terminal; confirm the follower terminal becomes the new owner and can edit.
+//!
+//! ## Add a new buffer sync event
+//!
+//! - Add the variant to `BufferSyncEvent` in `editor::buffer_sync::mod`.
+//! - Handle it in `BrokerClientService::notify()` in `editor::lsp::broker_transport`.
+//! - Dispatch it in `Editor::handle_buffer_sync_event()` in `editor::impls::buffer_sync_events`.
+
+mod buffer_sync;
+mod events;
+mod routing;
+mod server;
+mod session;
+mod text_sync;
 
 use std::collections::{HashMap, HashSet};
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -6,12 +209,14 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use ropey::Rope;
+// Re-export public types from submodules
+pub use server::{ChildHandle, LspInstance, ServerControl};
+pub use text_sync::{DocGateDecision, DocGateKind, DocGateResult};
 use tokio::sync::oneshot;
 use xeno_broker_proto::types::{
-	BufferSyncRole, DocId, Event, IpcFrame, LspServerConfig, Request, Response, ServerId,
-	SessionId, SyncEpoch, SyncSeq, WireTx,
+	IpcFrame, LspServerConfig, Request, Response, ServerId, SessionId, SyncEpoch, SyncSeq,
 };
-use xeno_rpc::{MainLoopEvent, PeerSocket};
+use xeno_rpc::PeerSocket;
 
 /// Sink for sending events to a connected session.
 pub type SessionSink = PeerSocket<IpcFrame, Request, Response>;
@@ -147,11 +352,11 @@ struct ServerEntry {
 	/// Session responsible for answering server-initiated requests.
 	leader: SessionId,
 	/// Tracked documents and their versions for this server.
-	docs: DocRegistry,
+	docs: text_sync::DocRegistry,
 	/// Generation token used to invalidate stale lease tasks.
 	lease_gen: u64,
 	/// Ownership registry for text sync gating (single-writer per URI).
-	doc_owners: DocOwnerRegistry,
+	doc_owners: text_sync::DocOwnerRegistry,
 	/// Monotonic allocator for broker "wire ids" for requests sent to the LSP server.
 	next_wire_req_id: u64,
 }
@@ -198,317 +403,6 @@ impl BrokerCore {
 		})
 	}
 
-	/// Register an editor session with its outbound event sink.
-	///
-	/// # Arguments
-	/// * `session_id` - Unique identifier for the editor session.
-	/// * `sink` - Communication channel back to the editor.
-	pub fn register_session(&self, session_id: SessionId, sink: SessionSink) {
-		let mut state = self.state.lock().unwrap();
-		state.sessions.insert(
-			session_id,
-			SessionEntry {
-				sink,
-				attached: HashSet::new(),
-			},
-		);
-	}
-
-	/// Unregister an editor session and detach from all servers.
-	///
-	/// Performs authoritative cleanup of the session state. It detaches
-	/// the session from all running servers, potentially triggering idle leases,
-	/// and cancels any pending requests where this session was the responder.
-	pub fn unregister_session(self: &Arc<Self>, session_id: SessionId) {
-		let mut servers_to_detach = Vec::new();
-		{
-			let mut state = self.state.lock().unwrap();
-			if let Some(session) = state.sessions.remove(&session_id) {
-				servers_to_detach.extend(session.attached);
-			}
-		}
-
-		for server_id in servers_to_detach {
-			self.detach_session(server_id, session_id);
-			self.cleanup_session_docs_on_server(server_id, session_id);
-		}
-
-		self.cleanup_session_sync_docs(session_id);
-		self.cancel_all_client_requests_for_session(session_id);
-		self.cancel_all_c2s_requests_for_session(session_id);
-	}
-
-	fn cleanup_session_docs_on_server(&self, server_id: ServerId, session_id: SessionId) {
-		let mut state = self.state.lock().unwrap();
-		let Some(server) = state.servers.get_mut(&server_id) else {
-			return;
-		};
-
-		let mut to_remove = Vec::new();
-		for (uri, owner_state) in server.doc_owners.by_uri.iter_mut() {
-			owner_state.open_refcounts.remove(&session_id);
-
-			if owner_state.owner == session_id {
-				// Re-elect owner or remove doc
-				if let Some(&new_owner) = owner_state.open_refcounts.keys().min() {
-					owner_state.owner = new_owner;
-				} else {
-					to_remove.push(uri.clone());
-				}
-			}
-		}
-
-		for uri in to_remove {
-			server.doc_owners.by_uri.remove(&uri);
-			server.docs.by_uri.remove(&uri);
-		}
-	}
-
-	fn cancel_all_c2s_requests_for_session(&self, session_id: SessionId) {
-		let mut state = self.state.lock().unwrap();
-		state
-			.pending_c2s
-			.retain(|_, req| req.origin_session != session_id);
-	}
-
-	/// Look up an existing server for a project configuration.
-	///
-	/// Returns the [`ServerId`] if a matching server is already running or warm.
-	#[must_use]
-	pub fn find_server_for_project(&self, config: &LspServerConfig) -> Option<ServerId> {
-		let key = ProjectKey::from(config);
-		let state = self.state.lock().unwrap();
-		state.projects.get(&key).cloned()
-	}
-
-	/// Attach an editor session to an existing LSP server.
-	///
-	/// If the session is the first to attach, it is elected as the leader.
-	/// Attaching invalidates any pending idle leases for the server.
-	pub fn attach_session(&self, server_id: ServerId, session_id: SessionId) -> bool {
-		let mut state = self.state.lock().unwrap();
-		let Some(server) = state.servers.get_mut(&server_id) else {
-			return false;
-		};
-
-		server.attached.insert(session_id);
-
-		// Maintain deterministic leader (min session id)
-		let min_id = *server.attached.iter().min().unwrap();
-		server.leader = min_id;
-
-		server.lease_gen += 1;
-
-		if let Some(session) = state.sessions.get_mut(&session_id) {
-			session.attached.insert(server_id);
-		}
-
-		true
-	}
-
-	/// Detach a session from an LSP server.
-	///
-	/// If the detached session was the leader, a new leader is elected.
-	/// If this was the last session, an idle lease is scheduled to eventually
-	/// terminate the server process.
-	pub fn detach_session(self: &Arc<Self>, server_id: ServerId, session_id: SessionId) {
-		let mut maybe_schedule: Option<(u64, tokio::time::Instant)> = None;
-		let mut leader_changed = false;
-		let mut old_leader = session_id;
-
-		{
-			let mut state = self.state.lock().unwrap();
-
-			if let Some(server) = state.servers.get_mut(&server_id) {
-				server.attached.remove(&session_id);
-
-				if server.leader == session_id {
-					old_leader = session_id;
-					if let Some(&new_leader) = server.attached.iter().min() {
-						server.leader = new_leader;
-						leader_changed = true;
-					}
-				}
-
-				if server.attached.is_empty() {
-					server.lease_gen += 1;
-					let generation = server.lease_gen;
-					let deadline = tokio::time::Instant::now() + self.config.idle_lease;
-					maybe_schedule = Some((generation, deadline));
-				}
-			}
-
-			if let Some(session) = state.sessions.get_mut(&session_id) {
-				session.attached.remove(&server_id);
-			}
-		}
-
-		if leader_changed {
-			tracing::info!(?server_id, ?old_leader, "leader re-elected");
-			self.cancel_pending_for_leader_change(server_id, old_leader);
-		}
-
-		if let Some((generation, deadline)) = maybe_schedule {
-			let core = self.clone();
-			tokio::spawn(async move {
-				tokio::time::sleep_until(deadline).await;
-				core.check_lease_expiry(server_id, generation);
-			});
-		}
-	}
-
-	fn cancel_pending_for_leader_change(&self, server_id: ServerId, old_leader: SessionId) {
-		let to_cancel: Vec<xeno_lsp::RequestId> = {
-			let state = self.state.lock().unwrap();
-			state
-				.pending_s2c
-				.iter()
-				.filter(|((sid, _), req)| *sid == server_id && req.responder == old_leader)
-				.map(|((_, rid), _)| rid.clone())
-				.collect()
-		};
-		for request_id in to_cancel {
-			self.cancel_client_request(server_id, request_id);
-		}
-	}
-
-	/// Check if a lease has expired and terminate the server if so.
-	fn check_lease_expiry(self: &Arc<Self>, server_id: ServerId, generation: u64) {
-		let maybe_instance = {
-			let mut state = self.state.lock().unwrap();
-
-			let Some(server) = state.servers.get(&server_id) else {
-				return;
-			};
-
-			if server.lease_gen != generation || !server.attached.is_empty() {
-				return;
-			}
-
-			let has_inflight = state.pending_s2c.keys().any(|(sid, _)| *sid == server_id)
-				|| state.pending_c2s.keys().any(|(sid, _)| *sid == server_id);
-			if has_inflight {
-				return;
-			}
-
-			let server = state.servers.remove(&server_id).unwrap();
-			state.projects.remove(&server.project);
-
-			state.pending_s2c.retain(|(sid, _), _| *sid != server_id);
-			state.pending_c2s.retain(|(sid, _), _| *sid != server_id);
-
-			Some(server.instance)
-		};
-
-		if let Some(instance) = maybe_instance {
-			{
-				let mut current = instance.status.lock().unwrap();
-				*current = xeno_broker_proto::types::LspServerStatus::Stopped;
-			}
-			tokio::spawn(async move {
-				instance.terminate().await;
-			});
-		}
-	}
-
-	/// Register a new running LSP instance.
-	pub fn register_server(
-		&self,
-		server_id: ServerId,
-		instance: LspInstance,
-		config: &LspServerConfig,
-		owner: SessionId,
-	) {
-		let project = ProjectKey::from(config);
-		let mut state = self.state.lock().unwrap();
-
-		state.projects.insert(project.clone(), server_id);
-
-		let mut attached = HashSet::new();
-		attached.insert(owner);
-
-		state.servers.insert(
-			server_id,
-			ServerEntry {
-				instance,
-				project,
-				attached,
-				leader: owner,
-				docs: DocRegistry::default(),
-				lease_gen: 0,
-				doc_owners: DocOwnerRegistry::default(),
-				next_wire_req_id: 1,
-			},
-		);
-
-		if let Some(session) = state.sessions.get_mut(&owner) {
-			session.attached.insert(server_id);
-		}
-	}
-
-	/// Unregister an LSP instance and release its resources.
-	pub fn unregister_server(&self, server_id: ServerId) {
-		let maybe_instance = {
-			let mut state = self.state.lock().unwrap();
-
-			let Some(server) = state.servers.remove(&server_id) else {
-				return;
-			};
-
-			state.projects.remove(&server.project);
-
-			for session_id in &server.attached {
-				if let Some(session) = state.sessions.get_mut(session_id) {
-					session.attached.remove(&server_id);
-				}
-			}
-
-			state.pending_s2c.retain(|(sid, _), _| *sid != server_id);
-
-			Some(server.instance)
-		};
-
-		if let Some(instance) = maybe_instance {
-			{
-				let mut current = instance.status.lock().unwrap();
-				*current = xeno_broker_proto::types::LspServerStatus::Stopped;
-			}
-			tokio::spawn(async move {
-				instance.terminate().await;
-			});
-		}
-	}
-
-	/// Terminate all running LSP servers and clear all attachments.
-	pub fn terminate_all(&self) {
-		let instances = {
-			let mut state = self.state.lock().unwrap();
-			state.projects.clear();
-			state.pending_s2c.clear();
-			state.pending_c2s.clear();
-
-			for session in state.sessions.values_mut() {
-				session.attached.clear();
-			}
-
-			state
-				.servers
-				.drain()
-				.map(|(_, server)| server.instance)
-				.collect::<Vec<_>>()
-		};
-
-		for instance in instances {
-			{
-				let mut current = instance.status.lock().unwrap();
-				*current = xeno_broker_proto::types::LspServerStatus::Stopped;
-			}
-			tokio::spawn(async move {
-				instance.terminate().await;
-			});
-		}
-	}
-
 	/// Retrieves a snapshot of the current broker state for debugging or testing.
 	#[doc(hidden)]
 	pub fn get_state(&self) -> BrokerStateSnapshot {
@@ -532,932 +426,9 @@ impl BrokerCore {
 			.map(|s| s.instance.lsp_tx.clone())
 	}
 
-	/// Send an asynchronous event to a registered session.
-	///
-	/// Returns false if the send failed, indicating the session is dead.
-	pub fn send_event(&self, session_id: SessionId, event: IpcFrame) -> bool {
-		let sink = {
-			let state = self.state.lock().unwrap();
-			state.sessions.get(&session_id).map(|s| s.sink.clone())
-		};
-		if let Some(sink) = sink {
-			sink.send(MainLoopEvent::Outgoing(event)).is_ok()
-		} else {
-			false
-		}
-	}
-
-	/// Broadcast an event to all sessions attached to an LSP server.
-	///
-	/// Authoritatively cleans up any sessions where the IPC send fails.
-	pub fn broadcast_to_server(self: &Arc<Self>, server_id: ServerId, event: Event) {
-		let (session_sinks, frame) = {
-			let state = self.state.lock().unwrap();
-			let Some(server) = state.servers.get(&server_id) else {
-				return;
-			};
-
-			let session_sinks: Vec<(SessionId, SessionSink)> = server
-				.attached
-				.iter()
-				.filter_map(|sid| state.sessions.get(sid).map(|s| (*sid, s.sink.clone())))
-				.collect();
-
-			(session_sinks, IpcFrame::Event(event))
-		};
-
-		let mut failed_sessions = Vec::new();
-		for (session_id, sink) in session_sinks {
-			if sink.send(MainLoopEvent::Outgoing(frame.clone())).is_err() {
-				failed_sessions.push(session_id);
-			}
-		}
-
-		if !failed_sessions.is_empty() {
-			let core = self.clone();
-			tokio::spawn(async move {
-				for session_id in failed_sessions {
-					core.handle_session_send_failure(session_id);
-				}
-			});
-		}
-	}
-
-	/// Send an event to the leader session of an LSP server.
-	///
-	/// Authoritatively cleans up the leader session if the IPC send fails.
-	pub fn send_to_leader(self: &Arc<Self>, server_id: ServerId, event: Event) {
-		let (leader_id, sink, frame) = {
-			let state = self.state.lock().unwrap();
-			let Some(server) = state.servers.get(&server_id) else {
-				return;
-			};
-
-			let leader_id = server.leader;
-			let sink = state.sessions.get(&leader_id).map(|s| s.sink.clone());
-			(leader_id, sink, IpcFrame::Event(event))
-		};
-
-		if let Some(sink) = sink
-			&& sink.send(MainLoopEvent::Outgoing(frame)).is_err()
-		{
-			let core = self.clone();
-			tokio::spawn(async move {
-				core.handle_session_send_failure(leader_id);
-			});
-		}
-	}
-
-	/// Register a pending server-to-editor request.
-	///
-	/// Returns the [`SessionId`] of the leader elected to respond.
-	pub fn register_client_request(
-		&self,
-		server_id: ServerId,
-		request_id: xeno_lsp::RequestId,
-		tx: oneshot::Sender<LspReplyResult>,
-	) -> Option<SessionId> {
-		let mut state = self.state.lock().unwrap();
-		let server = state.servers.get(&server_id)?;
-		if server.attached.is_empty() {
-			return None;
-		}
-		let leader = server.leader;
-
-		state.pending_s2c.insert(
-			(server_id, request_id),
-			PendingS2cReq {
-				responder: leader,
-				tx,
-			},
-		);
-
-		Some(leader)
-	}
-
-	/// Complete a pending server-to-editor request with a reply.
-	///
-	/// Returns true if the request was successfully completed.
-	pub fn complete_client_request(
-		&self,
-		session_id: SessionId,
-		server_id: ServerId,
-		request_id: xeno_lsp::RequestId,
-		result: LspReplyResult,
-	) -> bool {
-		let mut state = self.state.lock().unwrap();
-		let Some(req) = state.pending_s2c.get(&(server_id, request_id.clone())) else {
-			return false;
-		};
-		if req.responder != session_id {
-			return false;
-		}
-
-		if let Some(req) = state.pending_s2c.remove(&(server_id, request_id)) {
-			let _ = req.tx.send(result);
-			true
-		} else {
-			false
-		}
-	}
-
-	/// Cancel a pending server-to-editor request with a standard error response.
-	pub fn cancel_client_request(
-		&self,
-		server_id: ServerId,
-		request_id: xeno_lsp::RequestId,
-	) -> bool {
-		let mut state = self.state.lock().unwrap();
-		if let Some(req) = state.pending_s2c.remove(&(server_id, request_id)) {
-			let _ = req.tx.send(Err(xeno_lsp::ResponseError::new(
-				xeno_lsp::ErrorCode::REQUEST_CANCELLED,
-				"request cancelled by broker",
-			)));
-			true
-		} else {
-			false
-		}
-	}
-
-	/// Cancel all pending server-to-client requests for a given session.
-	pub fn cancel_all_client_requests_for_session(&self, session_id: SessionId) {
-		let to_cancel: Vec<(ServerId, xeno_lsp::RequestId)> = {
-			let state = self.state.lock().unwrap();
-			state
-				.pending_s2c
-				.iter()
-				.filter(|(_, req)| req.responder == session_id)
-				.map(|(key, _)| key.clone())
-				.collect()
-		};
-		for (server_id, request_id) in to_cancel {
-			self.cancel_client_request(server_id, request_id);
-		}
-	}
-
-	/// Cancel all pending server-to-client requests for a given server.
-	pub fn cancel_all_client_requests_for_server(&self, server_id: ServerId) {
-		let to_cancel: Vec<xeno_lsp::RequestId> = {
-			let state = self.state.lock().unwrap();
-			state
-				.pending_s2c
-				.iter()
-				.filter(|((sid, _), _)| *sid == server_id)
-				.map(|((_, rid), _)| rid.clone())
-				.collect()
-		};
-		for request_id in to_cancel {
-			self.cancel_client_request(server_id, request_id);
-		}
-	}
-
-	/// Allocate a unique wire request ID for a server connection.
-	///
-	/// Uses string IDs ("b:{server}:{seq}") to prevent numeric overflow.
-	pub fn alloc_wire_request_id(&self, server_id: ServerId) -> Option<xeno_lsp::RequestId> {
-		let mut state = self.state.lock().unwrap();
-		let server = state.servers.get_mut(&server_id)?;
-		let wire_num = server.next_wire_req_id;
-		server.next_wire_req_id += 1;
-		Some(xeno_lsp::RequestId::String(format!(
-			"b:{}:{}",
-			server_id.0, wire_num
-		)))
-	}
-
-	/// Register a pending client-to-server request mapping.
-	///
-	/// # Arguments
-	/// * `server_id` - Target LSP server.
-	/// * `wire_id` - ID used on the wire to the server.
-	/// * `origin_session` - Editor session that initiated the request.
-	/// * `origin_id` - Original request ID from the editor.
-	pub fn register_c2s_pending(
-		&self,
-		server_id: ServerId,
-		wire_id: xeno_lsp::RequestId,
-		origin_session: SessionId,
-		origin_id: xeno_lsp::RequestId,
-	) {
-		let mut state = self.state.lock().unwrap();
-		state.pending_c2s.insert(
-			(server_id, wire_id),
-			PendingC2sReq {
-				origin_session,
-				origin_id,
-			},
-		);
-	}
-
-	/// Remove and return the pending client-to-server mapping for a server and wire ID.
-	pub fn take_c2s_pending(
-		&self,
-		server_id: ServerId,
-		wire_id: &xeno_lsp::RequestId,
-	) -> Option<PendingC2sReq> {
-		let mut state = self.state.lock().unwrap();
-		state.pending_c2s.remove(&(server_id, wire_id.clone()))
-	}
-
-	/// Cancel a pending client-to-server request and return the origin information.
-	pub fn cancel_c2s_pending(
-		&self,
-		server_id: ServerId,
-		wire_id: &xeno_lsp::RequestId,
-	) -> Option<PendingC2sReq> {
-		self.take_c2s_pending(server_id, wire_id)
-	}
-
-	/// Authoritatively cleans up a session that is determined to be dead.
-	pub fn handle_session_send_failure(self: &Arc<Self>, session_id: SessionId) {
-		tracing::warn!(?session_id, "session send failed, triggering cleanup");
-		self.cancel_all_client_requests_for_session(session_id);
-		self.unregister_session(session_id);
-	}
-
-	/// Authoritatively cleans up a server that has exited or crashed.
-	pub fn handle_server_exit(self: &Arc<Self>, server_id: ServerId, crashed: bool) {
-		tracing::info!(?server_id, crashed, "handling server exit");
-
-		let maybe_instance = {
-			let mut state = self.state.lock().unwrap();
-
-			let Some(server) = state.servers.remove(&server_id) else {
-				return;
-			};
-
-			state.projects.remove(&server.project);
-
-			for session_id in &server.attached {
-				if let Some(session) = state.sessions.get_mut(session_id) {
-					session.attached.remove(&server_id);
-				}
-			}
-
-			let pending_to_cancel: Vec<xeno_lsp::RequestId> = state
-				.pending_s2c
-				.iter()
-				.filter(|((sid, _), _)| *sid == server_id)
-				.map(|((_, rid), _)| rid.clone())
-				.collect();
-
-			state.pending_c2s.retain(|(sid, _), _| *sid != server_id);
-			drop(state);
-
-			for request_id in pending_to_cancel {
-				self.cancel_client_request(server_id, request_id);
-			}
-
-			Some((server.attached, server.instance))
-		};
-
-		if let Some((attached_sessions, instance)) = maybe_instance {
-			let status = if crashed {
-				xeno_broker_proto::types::LspServerStatus::Crashed
-			} else {
-				xeno_broker_proto::types::LspServerStatus::Stopped
-			};
-
-			{
-				let mut current = instance.status.lock().unwrap();
-				*current = status;
-			}
-
-			let event = Event::LspStatus { server_id, status };
-			for session_id in attached_sessions {
-				self.send_event(session_id, IpcFrame::Event(event.clone()));
-			}
-
-			tokio::spawn(async move {
-				instance.terminate().await;
-			});
-		}
-	}
-
-	/// Update server status and notify all attached sessions.
-	pub fn set_server_status(
-		self: &Arc<Self>,
-		server_id: ServerId,
-		status: xeno_broker_proto::types::LspServerStatus,
-	) {
-		let (sessions, changed) = {
-			let state = self.state.lock().unwrap();
-			if let Some(server) = state.servers.get(&server_id) {
-				let mut current = server.instance.status.lock().unwrap();
-				if *current != status {
-					*current = status;
-					(server.attached.clone(), true)
-				} else {
-					(HashSet::new(), false)
-				}
-			} else {
-				(HashSet::new(), false)
-			}
-		};
-
-		if changed {
-			let event = Event::LspStatus { server_id, status };
-			let mut failed_sessions = Vec::new();
-			for sid in sessions {
-				if !self.send_event(sid, IpcFrame::Event(event.clone())) {
-					failed_sessions.push(sid);
-				}
-			}
-			if !failed_sessions.is_empty() {
-				let core = self.clone();
-				tokio::spawn(async move {
-					for session_id in failed_sessions {
-						core.handle_session_send_failure(session_id);
-					}
-				});
-			}
-		}
-	}
-
 	/// Allocate a globally unique server ID.
 	pub fn next_server_id(&self) -> ServerId {
 		ServerId(self.next_server_id.fetch_add(1, Ordering::Relaxed))
-	}
-
-	/// Retrieve the DocId and last known version for a URI.
-	pub fn get_doc_by_uri(&self, server_id: ServerId, uri: &str) -> Option<(DocId, u32)> {
-		let state = self.state.lock().unwrap();
-		let server = state.servers.get(&server_id)?;
-		server.docs.by_uri.get(uri).cloned()
-	}
-
-	/// Observe editor-to-server traffic to update document version tracking.
-	pub fn on_editor_message(&self, server_id: ServerId, msg: &xeno_lsp::Message) {
-		if let xeno_lsp::Message::Notification(notif) = msg {
-			let mut state = self.state.lock().unwrap();
-			if let Some(server) = state.servers.get_mut(&server_id) {
-				match notif.method.as_str() {
-					"textDocument/didOpen" | "textDocument/didChange" => {
-						if let Some(doc) = notif.params.get("textDocument")
-							&& let Some(uri) = doc.get("uri").and_then(|u| u.as_str())
-						{
-							let version =
-								doc.get("version").and_then(|v| v.as_u64()).unwrap_or(0) as u32;
-							server.docs.update(uri.to_string(), version);
-						}
-					}
-					_ => {}
-				}
-			}
-		}
-	}
-}
-
-/// Handle to a child process.
-#[derive(Debug)]
-#[non_exhaustive]
-pub enum ChildHandle {
-	/// Real spawned process.
-	Real(tokio::process::Child),
-}
-
-/// Channels for controlling and monitoring a server instance.
-#[derive(Debug)]
-pub struct ServerControl {
-	/// Channel to request graceful termination.
-	pub term_tx: tokio::sync::oneshot::Sender<()>,
-	/// Channel to await completion of termination.
-	pub done_rx: tokio::sync::oneshot::Receiver<()>,
-}
-
-/// A running LSP server instance and its associated handles.
-#[derive(Debug)]
-pub struct LspInstance {
-	/// Socket for sending requests/notifications to the server's stdio.
-	pub lsp_tx: LspTx,
-	/// Control channels for the server lifecycle monitor.
-	pub control: Option<ServerControl>,
-	/// Synchronized server lifecycle status.
-	pub status: Mutex<xeno_broker_proto::types::LspServerStatus>,
-}
-
-impl LspInstance {
-	/// Create a new LspInstance with control channels.
-	pub fn new(
-		lsp_tx: LspTx,
-		control: ServerControl,
-		status: xeno_broker_proto::types::LspServerStatus,
-	) -> Self {
-		Self {
-			lsp_tx,
-			control: Some(control),
-			status: Mutex::new(status),
-		}
-	}
-
-	/// Create a mock LspInstance for tests.
-	#[doc(hidden)]
-	pub fn mock(lsp_tx: LspTx, status: xeno_broker_proto::types::LspServerStatus) -> Self {
-		Self {
-			lsp_tx,
-			control: None,
-			status: Mutex::new(status),
-		}
-	}
-
-	/// Best-effort graceful shutdown, then kill if needed.
-	pub async fn terminate(mut self) {
-		let Some(control) = self.control.take() else {
-			return;
-		};
-
-		let _ = control.term_tx.send(());
-		let _ = tokio::time::timeout(Duration::from_secs(2), control.done_rx).await;
-	}
-}
-
-#[derive(Debug, Default)]
-struct DocRegistry {
-	/// Map of URI to (DocId, last_version).
-	by_uri: HashMap<String, (DocId, u32)>,
-	next_doc_id: u64,
-}
-
-impl DocRegistry {
-	fn update(&mut self, uri: String, version: u32) {
-		if let Some(info) = self.by_uri.get_mut(&uri) {
-			info.1 = version;
-		} else {
-			let id = DocId(self.next_doc_id);
-			self.next_doc_id += 1;
-			self.by_uri.insert(uri, (id, version));
-		}
-	}
-}
-
-#[derive(Debug, Default)]
-struct DocOwnerRegistry {
-	by_uri: HashMap<String, DocOwnerState>,
-}
-
-#[derive(Debug)]
-struct DocOwnerState {
-	/// Session that owns this document.
-	owner: SessionId,
-	/// Per-session open refcount.
-	open_refcounts: HashMap<SessionId, u32>,
-	/// Last observed version from the owner.
-	last_version: u32,
-}
-
-/// Result of gating a text sync notification.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum DocGateDecision {
-	/// Forward to server: session is owner or first open.
-	Forward,
-	/// Drop silently: session is follower.
-	DropSilently,
-	/// Reject: session is not permitted to sync.
-	RejectNotOwner,
-}
-
-impl BrokerCore {
-	/// Gate a text synchronization notification to enforce single-writer ownership per URI.
-	///
-	/// This ensures only the owner session (first opener or elected successor) can send
-	/// modifications to the server.
-	pub fn gate_text_sync(
-		&self,
-		session_id: SessionId,
-		server_id: ServerId,
-		notif: &xeno_lsp::AnyNotification,
-	) -> DocGateDecision {
-		let mut state = self.state.lock().unwrap();
-		let Some(server) = state.servers.get_mut(&server_id) else {
-			return DocGateDecision::RejectNotOwner;
-		};
-
-		match notif.method.as_str() {
-			"textDocument/didOpen" => {
-				let Some(doc) = notif.params.get("textDocument") else {
-					return DocGateDecision::RejectNotOwner;
-				};
-				let Some(uri) = doc.get("uri").and_then(|u| u.as_str()) else {
-					return DocGateDecision::RejectNotOwner;
-				};
-				let version = doc.get("version").and_then(|v| v.as_u64()).unwrap_or(0) as u32;
-
-				match server.doc_owners.by_uri.get_mut(uri) {
-					None => {
-						let mut refcounts = HashMap::new();
-						refcounts.insert(session_id, 1);
-						server.doc_owners.by_uri.insert(
-							uri.to_string(),
-							DocOwnerState {
-								owner: session_id,
-								open_refcounts: refcounts,
-								last_version: version,
-							},
-						);
-						DocGateDecision::Forward
-					}
-					Some(owner_state) => {
-						let count = owner_state.open_refcounts.entry(session_id).or_insert(0);
-						*count += 1;
-
-						if !server.attached.contains(&owner_state.owner)
-							|| !owner_state.open_refcounts.contains_key(&owner_state.owner)
-						{
-							owner_state.owner = session_id;
-						}
-
-						DocGateDecision::DropSilently
-					}
-				}
-			}
-			"textDocument/didChange" => {
-				let Some(doc) = notif.params.get("textDocument") else {
-					return DocGateDecision::RejectNotOwner;
-				};
-				let Some(uri) = doc.get("uri").and_then(|u| u.as_str()) else {
-					return DocGateDecision::RejectNotOwner;
-				};
-				let version = doc.get("version").and_then(|v| v.as_u64()).unwrap_or(0) as u32;
-
-				match server.doc_owners.by_uri.get_mut(uri) {
-					None => DocGateDecision::RejectNotOwner,
-					Some(owner_state) => {
-						if session_id == owner_state.owner {
-							owner_state.last_version = version;
-							DocGateDecision::Forward
-						} else if !server.attached.contains(&owner_state.owner) {
-							owner_state.owner = session_id;
-							owner_state.last_version = version;
-							DocGateDecision::Forward
-						} else {
-							DocGateDecision::RejectNotOwner
-						}
-					}
-				}
-			}
-			"textDocument/didClose" => {
-				let Some(doc) = notif.params.get("textDocument") else {
-					return DocGateDecision::RejectNotOwner;
-				};
-				let Some(uri) = doc.get("uri").and_then(|u| u.as_str()) else {
-					return DocGateDecision::RejectNotOwner;
-				};
-
-				match server.doc_owners.by_uri.get_mut(uri) {
-					None => DocGateDecision::RejectNotOwner,
-					Some(owner_state) => {
-						if let Some(count) = owner_state.open_refcounts.get_mut(&session_id) {
-							if *count > 0 {
-								*count -= 1;
-							}
-							if *count == 0 {
-								owner_state.open_refcounts.remove(&session_id);
-							}
-						}
-
-						if session_id == owner_state.owner
-							&& !owner_state.open_refcounts.is_empty()
-							&& let Some(&new_owner) = owner_state.open_refcounts.keys().min()
-						{
-							owner_state.owner = new_owner;
-						}
-
-						let global_count: u32 = owner_state.open_refcounts.values().sum();
-						if global_count == 0 {
-							server.doc_owners.by_uri.remove(uri);
-							server.docs.by_uri.remove(uri);
-							DocGateDecision::Forward
-						} else {
-							DocGateDecision::DropSilently
-						}
-					}
-				}
-			}
-			_ => DocGateDecision::Forward,
-		}
-	}
-}
-
-/// Result struct for document gating operations.
-pub struct DocGateResult {
-	/// Decision (allow/reject).
-	pub decision: DocGateDecision,
-	/// URI being gated.
-	pub uri: String,
-	/// Kind of operation.
-	pub kind: DocGateKind,
-}
-
-/// Kind of text sync operation.
-pub enum DocGateKind {
-	/// Document opened.
-	DidOpen {
-		/// New version.
-		version: u32,
-	},
-	/// Document changed.
-	DidChange {
-		/// New version.
-		version: u32,
-	},
-	/// Document closed.
-	DidClose,
-}
-
-// -- Buffer sync handlers --
-
-use xeno_broker_proto::types::{ErrorCode, ResponsePayload};
-
-impl BrokerCore {
-	/// Handle a `BufferSyncOpen` request.
-	///
-	/// First opener becomes the owner (epoch=1, seq=0). Subsequent openers
-	/// become followers and receive the current snapshot.
-	pub fn on_buffer_sync_open(
-		&self,
-		session_id: SessionId,
-		uri: &str,
-		text: &str,
-		_version_hint: Option<u32>,
-	) -> ResponsePayload {
-		let mut state = self.state.lock().unwrap();
-
-		match state.sync_docs.get_mut(uri) {
-			None => {
-				let mut open_refcounts = HashMap::new();
-				open_refcounts.insert(session_id, 1);
-				state.sync_docs.insert(
-					uri.to_string(),
-					SyncDocState {
-						owner: session_id,
-						open_refcounts,
-						epoch: SyncEpoch(1),
-						seq: SyncSeq(0),
-						rope: Rope::from(text),
-					},
-				);
-				ResponsePayload::BufferSyncOpened {
-					role: BufferSyncRole::Owner,
-					epoch: SyncEpoch(1),
-					seq: SyncSeq(0),
-					snapshot: None,
-				}
-			}
-			Some(doc) => {
-				let count = doc.open_refcounts.entry(session_id).or_insert(0);
-				*count += 1;
-				let snapshot = doc.rope.to_string();
-				ResponsePayload::BufferSyncOpened {
-					role: BufferSyncRole::Follower,
-					epoch: doc.epoch,
-					seq: doc.seq,
-					snapshot: Some(snapshot),
-				}
-			}
-		}
-	}
-
-	/// Handle a `BufferSyncClose` request.
-	///
-	/// Decrements the session's refcount. If the closing session was the owner,
-	/// elects a successor (min session id) and bumps the epoch. If no sessions
-	/// remain, removes the entry entirely.
-	pub fn on_buffer_sync_close(
-		self: &Arc<Self>,
-		session_id: SessionId,
-		uri: &str,
-	) -> Result<ResponsePayload, ErrorCode> {
-		let maybe_broadcast = {
-			let mut state = self.state.lock().unwrap();
-			let doc = state
-				.sync_docs
-				.get_mut(uri)
-				.ok_or(ErrorCode::SyncDocNotFound)?;
-
-			if let Some(count) = doc.open_refcounts.get_mut(&session_id) {
-				if *count > 1 {
-					*count -= 1;
-				} else {
-					doc.open_refcounts.remove(&session_id);
-				}
-			}
-
-			if doc.open_refcounts.is_empty() {
-				state.sync_docs.remove(uri);
-				return Ok(ResponsePayload::BufferSyncClosed);
-			}
-
-			if session_id == doc.owner {
-				let new_owner = *doc.open_refcounts.keys().min().unwrap();
-				doc.owner = new_owner;
-				doc.epoch = SyncEpoch(doc.epoch.0 + 1);
-				doc.seq = SyncSeq(0);
-				let event = Event::BufferSyncOwnerChanged {
-					uri: uri.to_string(),
-					epoch: doc.epoch,
-					owner: new_owner,
-				};
-				let sessions: Vec<SessionId> = doc.open_refcounts.keys().copied().collect();
-				Some((event, sessions))
-			} else {
-				None
-			}
-		};
-
-		if let Some((event, sessions)) = maybe_broadcast {
-			self.broadcast_to_sync_doc_sessions(&sessions, event, None);
-		}
-
-		Ok(ResponsePayload::BufferSyncClosed)
-	}
-
-	/// Handle a `BufferSyncDelta` request from the document owner.
-	///
-	/// Validates ownership and sequence ordering, applies the delta to the
-	/// broker's authoritative rope, increments the sequence, and broadcasts
-	/// the delta to all follower sessions.
-	pub fn on_buffer_sync_delta(
-		self: &Arc<Self>,
-		session_id: SessionId,
-		uri: &str,
-		epoch: SyncEpoch,
-		base_seq: SyncSeq,
-		wire_tx: &WireTx,
-	) -> Result<ResponsePayload, ErrorCode> {
-		let (new_seq, event, sessions) = {
-			let mut state = self.state.lock().unwrap();
-			let doc = state
-				.sync_docs
-				.get_mut(uri)
-				.ok_or(ErrorCode::SyncDocNotFound)?;
-
-			if session_id != doc.owner {
-				return Err(ErrorCode::NotDocOwner);
-			}
-			if epoch != doc.epoch {
-				return Err(ErrorCode::SyncEpochMismatch);
-			}
-			if base_seq != doc.seq {
-				return Err(ErrorCode::SyncSeqMismatch);
-			}
-
-			let tx = crate::wire_convert::wire_to_tx(wire_tx, doc.rope.slice(..));
-			tx.apply(&mut doc.rope);
-			doc.seq = SyncSeq(doc.seq.0 + 1);
-
-			let event = Event::BufferSyncDelta {
-				uri: uri.to_string(),
-				epoch: doc.epoch,
-				seq: doc.seq,
-				tx: wire_tx.clone(),
-			};
-			let sessions: Vec<SessionId> = doc.open_refcounts.keys().copied().collect();
-			(doc.seq, event, sessions)
-		};
-
-		self.broadcast_to_sync_doc_sessions(&sessions, event, Some(session_id));
-
-		Ok(ResponsePayload::BufferSyncDeltaAck { seq: new_seq })
-	}
-
-	/// Handle a `BufferSyncTakeOwnership` request.
-	///
-	/// Transfers ownership to the requesting session, bumps the epoch, resets
-	/// the sequence, and broadcasts the ownership change.
-	pub fn on_buffer_sync_take_ownership(
-		self: &Arc<Self>,
-		session_id: SessionId,
-		uri: &str,
-	) -> Result<ResponsePayload, ErrorCode> {
-		let (new_epoch, event, sessions) = {
-			let mut state = self.state.lock().unwrap();
-			let doc = state
-				.sync_docs
-				.get_mut(uri)
-				.ok_or(ErrorCode::SyncDocNotFound)?;
-
-			if !doc.open_refcounts.contains_key(&session_id) {
-				return Err(ErrorCode::SyncDocNotFound);
-			}
-
-			doc.owner = session_id;
-			doc.epoch = SyncEpoch(doc.epoch.0 + 1);
-			doc.seq = SyncSeq(0);
-
-			let event = Event::BufferSyncOwnerChanged {
-				uri: uri.to_string(),
-				epoch: doc.epoch,
-				owner: session_id,
-			};
-			let sessions: Vec<SessionId> = doc.open_refcounts.keys().copied().collect();
-			(doc.epoch, event, sessions)
-		};
-
-		self.broadcast_to_sync_doc_sessions(&sessions, event, None);
-
-		Ok(ResponsePayload::BufferSyncOwnership { epoch: new_epoch })
-	}
-
-	/// Handle a `BufferSyncResync` request.
-	///
-	/// Returns the full current snapshot of the document.
-	pub fn on_buffer_sync_resync(
-		&self,
-		session_id: SessionId,
-		uri: &str,
-	) -> Result<ResponsePayload, ErrorCode> {
-		let state = self.state.lock().unwrap();
-		let doc = state.sync_docs.get(uri).ok_or(ErrorCode::SyncDocNotFound)?;
-
-		if !doc.open_refcounts.contains_key(&session_id) {
-			return Err(ErrorCode::SyncDocNotFound);
-		}
-
-		Ok(ResponsePayload::BufferSyncSnapshot {
-			text: doc.rope.to_string(),
-			epoch: doc.epoch,
-			seq: doc.seq,
-			owner: doc.owner,
-		})
-	}
-
-	/// Broadcast an event to sessions participating in a sync document.
-	///
-	/// Sends the event to all provided sessions except `exclude_session`.
-	/// Cleans up any sessions where the send fails.
-	fn broadcast_to_sync_doc_sessions(
-		self: &Arc<Self>,
-		sessions: &[SessionId],
-		event: Event,
-		exclude_session: Option<SessionId>,
-	) {
-		let frame = IpcFrame::Event(event);
-		let mut failed_sessions = Vec::new();
-
-		for &sid in sessions {
-			if Some(sid) == exclude_session {
-				continue;
-			}
-			if !self.send_event(sid, frame.clone()) {
-				failed_sessions.push(sid);
-			}
-		}
-
-		if !failed_sessions.is_empty() {
-			let core = self.clone();
-			tokio::spawn(async move {
-				for session_id in failed_sessions {
-					core.handle_session_send_failure(session_id);
-				}
-			});
-		}
-	}
-
-	/// Clean up all buffer sync documents when a session disconnects.
-	///
-	/// Removes the session from all sync doc refcounts. If the session was the
-	/// owner, elects a successor and broadcasts the ownership change. If no
-	/// sessions remain, removes the document entry.
-	pub fn cleanup_session_sync_docs(self: &Arc<Self>, session_id: SessionId) {
-		let mut broadcasts = Vec::new();
-
-		{
-			let mut state = self.state.lock().unwrap();
-			let uris: Vec<String> = state
-				.sync_docs
-				.iter()
-				.filter(|(_, doc)| doc.open_refcounts.contains_key(&session_id))
-				.map(|(uri, _)| uri.clone())
-				.collect();
-
-			for uri in uris {
-				let doc = state.sync_docs.get_mut(&uri).unwrap();
-				doc.open_refcounts.remove(&session_id);
-
-				if doc.open_refcounts.is_empty() {
-					state.sync_docs.remove(&uri);
-					continue;
-				}
-
-				if session_id == doc.owner {
-					let new_owner = *doc.open_refcounts.keys().min().unwrap();
-					doc.owner = new_owner;
-					doc.epoch = SyncEpoch(doc.epoch.0 + 1);
-					doc.seq = SyncSeq(0);
-					let event = Event::BufferSyncOwnerChanged {
-						uri,
-						epoch: doc.epoch,
-						owner: new_owner,
-					};
-					let sessions: Vec<SessionId> = doc.open_refcounts.keys().copied().collect();
-					broadcasts.push((event, sessions));
-				}
-			}
-		}
-
-		for (event, sessions) in broadcasts {
-			self.broadcast_to_sync_doc_sessions(&sessions, event, None);
-		}
 	}
 }
 

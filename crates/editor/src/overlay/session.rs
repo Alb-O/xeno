@@ -1,3 +1,81 @@
+//! Overlay system for modal interactions and passive UI layers.
+//!
+//! # Purpose
+//!
+//! - Owns: focus-stealing modal interactions ([`OverlayManager`]), passive contextual UI layers ([`OverlayLayers`]), and shared type-erased state ([`OverlayStore`]).
+//! - Does not own: floating window rendering (owned by window subsystem), LSP request logic.
+//! - Source of truth: [`OverlaySystem`].
+//!
+//! # Mental model
+//!
+//! - Terms: Session (active modal interaction), Controller (behavior logic), Layer (passive UI), Spec (declarative UI layout), Capture (pre-preview state snapshot).
+//! - Lifecycle in one sentence: A controller defines a UI spec, a host allocates resources for a session, and the system restores captured state on close.
+//!
+//! # Key types
+//!
+//! | Type | Meaning | Constraints | Constructed / mutated in |
+//! |---|---|---|---|
+//! | [`OverlayUiSpec`] | Declarative UI configuration | Static geometry resolve | Controller (`ui_spec`) |
+//! | [`OverlaySession`] | Active session resources | MUST be torn down | `OverlayHost::setup_session` |
+//! | [`PreviewCapture`] | Versioned state snapshot | Version-aware restore | `OverlaySession::capture_view` |
+//! | [`LayerEvent`] | Payloaded UI events | Broadcast to all layers | `Editor::notify_overlay_event` |
+//!
+//! # Invariants
+//!
+//! 1. MUST restore state ONLY if buffer version matches capture.
+//!    - Enforced in: `OverlaySession::restore_all`
+//!    - Tested by: TODO (add regression: test_versioned_restore)
+//!    - Failure symptom: User edits clobbered by preview restoration.
+//! 2. MUST NOT allow multiple active modal sessions.
+//!    - Enforced in: `OverlayManager::open`
+//!    - Tested by: TODO (add regression: test_exclusive_modal)
+//!    - Failure symptom: Multiple focus-stealing prompts overlapping and fighting for keys.
+//! 3. MUST clamp all resolved window areas to screen bounds.
+//!    - Enforced in: `RectPolicy::resolve_opt`
+//!    - Tested by: `spec::tests::test_rect_policy_top_center_clamping`
+//!    - Failure symptom: Windows rendering partially off-screen or zero-sized.
+//! 4. MUST clear LSP UI when a modal overlay opens.
+//!    - Enforced in: `OverlayManager::open`
+//!    - Tested by: TODO (add regression: test_modal_overlay_clears_lsp_menu)
+//!    - Failure symptom: Completion menus appearing on top of modal prompts.
+//!
+//! # Data flow
+//!
+//! 1. Trigger: Editor calls `interaction.open(controller)`.
+//! 2. Allocation: [`OverlayHost`] resolves spec, creates scratch buffers/windows, and focuses input.
+//! 3. Events: Editor emits [`LayerEvent`] (CursorMoved, etc.) via `notify_overlay_event`.
+//! 4. Update: Input changes in `session.input` call `controller.on_input_changed`.
+//! 5. Restoration: On cancel/blur, `session.restore_all` reverts previews (version-aware).
+//! 6. Teardown: `session.teardown` closes all windows and removes buffers.
+//!
+//! # Lifecycle
+//!
+//! - Open: `OverlayManager::open` calls `host.setup_session` then `controller.on_open`.
+//! - Update: `OverlayManager::on_buffer_edited` filters for `session.input`.
+//! - Commit: `OverlayManager::commit` runs `controller.on_commit` (async), then teardown.
+//! - Cancel: `OverlayManager::close(Cancel)` runs `session.restore_all`, then teardown.
+//! - Teardown: `OverlaySession::teardown` (idempotent resource cleanup).
+//!
+//! # Concurrency and ordering
+//!
+//! - Single-threaded UI: Most overlay operations run on the main UI thread.
+//! - Async commit: `on_commit` returns a future, allowing async operations (LSP rename) before cleanup.
+//!
+//! # Failure modes and recovery
+//!
+//! - Missing anchor: `RectPolicy::Below` returns `None` if the target role is missing; host skips that window.
+//! - Stale restore: `restore_all` skips buffers with version mismatches to protect user edits.
+//! - Focus loss: `CloseReason::Blur` triggers automatic cancellation if `dismiss_on_blur` is set in spec.
+//!
+//! # Recipes
+//!
+//! ## Add a new modal interaction
+//!
+//! 1. Create a struct implementing [`OverlayController`].
+//! 2. Implement `ui_spec` with [`RectPolicy`].
+//! 3. Wire entry point in `impls::interaction`.
+//! 4. Use `session.preview_select` for safe buffer previews.
+//!
 use std::collections::HashMap;
 
 use xeno_primitives::range::{CharIdx, Range};
@@ -96,17 +174,17 @@ impl OverlaySession {
 
 	/// Restores all captured view states.
 	///
+	/// Only restores a buffer if its version still matches the captured version,
+	/// preventing user edits from being clobbered by stale preview restoration.
+	///
 	/// This is non-destructive; the capture map remains intact until
 	/// [`Self::clear_capture`] is called.
 	pub fn restore_all(&self, ed: &mut Editor) {
 		for (view, (version, cursor, selection)) in &self.capture.per_view {
-			if let Some(buffer) = ed.state.core.buffers.get_buffer_mut(*view) {
-				// Only restore if the buffer hasn't been modified since capture.
-				// This prevents clobbering user edits that happened while the overlay was open.
-				if buffer.version() == *version {
+			if let Some(buffer) = ed.state.core.buffers.get_buffer_mut(*view)
+				&& buffer.version() == *version {
 					buffer.set_cursor_and_selection(*cursor, selection.clone());
 				}
-			}
 		}
 	}
 

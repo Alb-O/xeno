@@ -1,3 +1,5 @@
+//! Editor-side LSP integration root. See `xeno_lsp::session::manager` for full LSP architecture.
+
 #[cfg(feature = "lsp")]
 use std::path::Path;
 
