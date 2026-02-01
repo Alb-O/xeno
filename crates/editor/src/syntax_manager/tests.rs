@@ -429,3 +429,115 @@ fn test_note_edit_updates_timestamp() {
 
 	assert!(t2 > t1);
 }
+
+#[tokio::test]
+async fn test_idle_tick_polls_inflight_parse() {
+	let engine = Arc::new(MockEngine::new());
+	let (tx, rx) = oneshot::channel();
+	engine.set_gate(rx);
+
+	let mut mgr = SyntaxManager::new_with_engine(1, engine.clone());
+	let mut policy = TieredSyntaxPolicy::default();
+	policy.s.debounce = Duration::from_millis(0);
+	mgr.set_policy(policy);
+
+	let doc_id = DocumentId(1);
+	let loader = Arc::new(LanguageLoader::from_embedded());
+	let lang_id = loader.language_for_name("rust").unwrap();
+	let content = Rope::from("test");
+
+	let mut current = None;
+	let mut dirty = true;
+	let mut updated = false;
+
+	// 1. Kick off parse
+	mgr.ensure_syntax(
+		EnsureSyntaxContext {
+			doc_id,
+			doc_version: 1,
+			language_id: Some(lang_id),
+			content: &content,
+			hotness: SyntaxHotness::Visible,
+			loader: &loader,
+		},
+		SyntaxSlot {
+			current: &mut current,
+			dirty: &mut dirty,
+			updated: &mut updated,
+		},
+	);
+
+	assert!(mgr.has_pending(doc_id));
+	assert!(!mgr.any_task_finished());
+
+	// 2. Complete parse
+	let _ = tx.send(());
+	tokio::time::sleep(Duration::from_millis(50)).await;
+
+	// 3. Check any_task_finished (simulating what Editor::tick does)
+	assert!(mgr.any_task_finished());
+}
+
+#[tokio::test]
+async fn test_single_flight_per_doc() {
+	let engine = Arc::new(MockEngine::new());
+	let (_tx, rx) = oneshot::channel();
+	engine.set_gate(rx); // Parse will block
+
+	let mut mgr = SyntaxManager::new_with_engine(2, engine.clone());
+	let mut policy = TieredSyntaxPolicy::default();
+	policy.s.debounce = Duration::from_millis(0);
+	mgr.set_policy(policy);
+
+	let doc_id = DocumentId(1);
+	let loader = Arc::new(LanguageLoader::from_embedded());
+	let lang_id = loader.language_for_name("rust").unwrap();
+	let content = Rope::from("test");
+
+	let mut current = None;
+	let mut dirty = true;
+	let mut updated = false;
+
+	// 1. Kick off first parse
+	let poll1 = mgr.ensure_syntax(
+		EnsureSyntaxContext {
+			doc_id,
+			doc_version: 1,
+			language_id: Some(lang_id),
+			content: &content,
+			hotness: SyntaxHotness::Visible,
+			loader: &loader,
+		},
+		SyntaxSlot {
+			current: &mut current,
+			dirty: &mut dirty,
+			updated: &mut updated,
+		},
+	);
+	assert_eq!(poll1, SyntaxPollResult::Kicked);
+	assert!(mgr.has_pending(doc_id));
+
+	// 2. Try to kick off another parse for same doc while first is running
+	let poll2 = mgr.ensure_syntax(
+		EnsureSyntaxContext {
+			doc_id,
+			doc_version: 2,
+			language_id: Some(lang_id),
+			content: &content,
+			hotness: SyntaxHotness::Visible,
+			loader: &loader,
+		},
+		SyntaxSlot {
+			current: &mut current,
+			dirty: &mut dirty,
+			updated: &mut updated,
+		},
+	);
+
+	assert_eq!(poll2, SyntaxPollResult::Pending);
+	assert_eq!(
+		mgr.pending_count(),
+		1,
+		"Should only have one task for this doc"
+	);
+}

@@ -27,7 +27,7 @@
    - Failure symptom: UI freezes or jitters during edits.
 2. MUST enforce single-flight per document.
    - Enforced in: `DocState::inflight` check in `SyntaxManager::ensure_syntax`.
-   - Tested by: `scheduler::tests::test_pending_for_doc`
+   - Tested by: `syntax_manager::tests::test_single_flight_per_doc`
    - Failure symptom: Multiple redundant parse tasks for the same document identity.
 3. MUST install last completed parse even if stale, but MUST NOT overwrite a newer clean tree.
    - Enforced in: `should_install_completed_parse` (called from `SyntaxManager::ensure_syntax` poll inflight branch).
@@ -45,7 +45,7 @@
    - Failure symptom: Newly opened documents show unhighlighted text until the debounce timeout elapses.
 6. MUST detect completed inflight syntax tasks from `tick()`, not only from `render()`.
    - Enforced in: `Editor::tick` (calls `SyntaxManager::any_task_finished` to trigger redraw)
-   - Tested by: TODO (add regression: test_idle_tick_polls_inflight_parse)
+   - Tested by: `syntax_manager::tests::test_idle_tick_polls_inflight_parse`
    - Failure symptom: Completed background parses are not installed until user input triggers a render; documents stay unhighlighted indefinitely while idle.
 7. MUST bump `syntax_version` on successful incremental update (commits, undo, redo).
    - Enforced in: `Document::try_incremental_syntax_update`, `Document::incremental_syntax_for_history`
