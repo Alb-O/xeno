@@ -9,7 +9,9 @@ use heed3::types::{Bytes, U128};
 use heed3::{Database, Error as HeedError, MdbError, PutFlags, RwTxn};
 use serde::{Deserialize, Serialize};
 use sonic_rs::Error as SonicError;
+use thiserror::Error;
 
+use crate::helix_engine::reranker::errors::RerankerError;
 #[cfg(feature = "server")]
 use crate::helix_gateway::router::router::IoContFn;
 use crate::helixc::parser::errors::ParserError;
@@ -172,6 +174,111 @@ impl From<VectorError> for GraphError {
 	}
 }
 
+#[derive(Debug, Error)]
+pub enum StorageError {
+	#[error("IO error: {0}")]
+	Io(#[from] std::io::Error),
+
+	#[error("Storage connection error: {msg} {source}")]
+	Connection {
+		msg: String,
+		#[source]
+		source: std::io::Error,
+	},
+
+	#[error("Storage error: {0}")]
+	Backend(String),
+
+	#[error("Conversion error: {0}")]
+	Conversion(String),
+
+	#[error("Decode error: {0}")]
+	Decode(String),
+
+	#[error("Duplicate key on unique index: {0}")]
+	DuplicateKey(String),
+
+	#[error("Config file not found")]
+	ConfigFileNotFound,
+
+	#[error("Slice length error")]
+	SliceLengthError,
+}
+
+#[derive(Debug, Error)]
+pub enum TraversalError {
+	#[error("Traversal error: {0}")]
+	Message(String),
+
+	#[error("Edge not found")]
+	EdgeNotFound,
+
+	#[error("Node not found")]
+	NodeNotFound,
+
+	#[error("Label not found")]
+	LabelNotFound,
+
+	#[error("Shortest path not found")]
+	ShortestPathNotFound,
+
+	#[error("Multiple nodes with same id")]
+	MultipleNodesWithSameId,
+
+	#[error("Multiple edges with same id")]
+	MultipleEdgesWithSameId,
+
+	#[error("Invalid node")]
+	InvalidNode,
+
+	#[error("Parameter {0} not found in request")]
+	ParamNotFound(&'static str),
+
+	#[error("Unsupported value type")]
+	UnsupportedValueType,
+}
+
+#[derive(Debug, Error)]
+pub enum EmbeddingError {
+	#[error("Error while embedding text: {0}")]
+	Message(String),
+}
+
+#[derive(Debug, Error)]
+pub enum EngineError {
+	#[error(transparent)]
+	Storage(#[from] StorageError),
+
+	#[error(transparent)]
+	Traversal(#[from] TraversalError),
+
+	#[error(transparent)]
+	Vector(#[from] VectorError),
+
+	#[error(transparent)]
+	Value(#[from] ValueError),
+
+	#[error(transparent)]
+	Reranker(#[from] RerankerError),
+
+	#[error(transparent)]
+	Embedding(#[from] EmbeddingError),
+
+	#[cfg(feature = "server")]
+	#[error("Asyncronous IO is needed to complete the DB operation")]
+	IoNeeded(IoContFn),
+
+	#[error(transparent)]
+	LegacyGraph(#[from] GraphError),
+}
+
+#[cfg(feature = "server")]
+impl From<IoContFn> for EngineError {
+	fn from(func: IoContFn) -> Self {
+		EngineError::IoNeeded(func)
+	}
+}
+
 #[derive(Debug)]
 pub enum VectorError {
 	VectorNotFound(String),
@@ -228,6 +335,31 @@ impl From<SonicError> for VectorError {
 impl From<postcard::Error> for VectorError {
 	fn from(error: postcard::Error) -> Self {
 		VectorError::ConversionError(format!("postcard error: {error}"))
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use std::error::Error as _;
+	use std::io;
+
+	use super::{EngineError, StorageError, TraversalError};
+
+	#[test]
+	fn test_engine_error_roundtrip_display() {
+		let err = EngineError::from(StorageError::Conversion("bad".to_string()));
+		let msg = err.to_string();
+		assert!(msg.contains("Conversion error"));
+	}
+
+	#[test]
+	fn test_engine_error_sources_chain() {
+		let io_err = io::Error::new(io::ErrorKind::Other, "disk");
+		let err = EngineError::from(StorageError::Io(io_err));
+		let source = err.source().expect("expected source");
+		assert!(source.to_string().contains("disk"));
+		let err = EngineError::from(TraversalError::Message("fail".to_string()));
+		assert!(err.source().is_none());
 	}
 }
 
