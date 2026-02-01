@@ -108,4 +108,35 @@ mod tests {
 			assert_eq!(value.kind(), expected);
 		}
 	}
+
+	#[test]
+	fn test_stringify_primitive_contract() {
+		let val = Value::String("hello".to_string());
+		let cow = val.try_stringify_primitive().unwrap();
+		assert!(matches!(cow, std::borrow::Cow::Borrowed(_)));
+
+		let val = Value::I32(42);
+		let cow = val.try_stringify_primitive().unwrap();
+		assert!(matches!(cow, std::borrow::Cow::Owned(_)));
+
+		let val = Value::Boolean(true);
+		let cow = val.try_stringify_primitive().unwrap();
+		assert!(matches!(cow, std::borrow::Cow::Owned(_)));
+
+		let date = Date::new(&Value::I64(0)).expect("valid epoch date");
+		let cow = Value::Date(date).try_stringify_primitive().unwrap();
+		assert!(matches!(cow, std::borrow::Cow::Owned(_)));
+
+		let id = ID::from("00000000-0000-0000-0000-000000000000");
+		let cow = Value::Id(id).try_stringify_primitive().unwrap();
+		assert!(matches!(cow, std::borrow::Cow::Owned(_)));
+
+		assert!(Value::Array(vec![]).try_stringify_primitive().is_err());
+		assert!(
+			Value::Object(Default::default())
+				.try_stringify_primitive()
+				.is_err()
+		);
+		assert!(Value::Empty.try_stringify_primitive().is_err());
+	}
 }

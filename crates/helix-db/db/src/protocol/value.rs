@@ -12,7 +12,7 @@ use crate::debug_println;
 use crate::helix_engine::types::GraphError;
 use crate::helixc::generator::utils::GenRef;
 use crate::protocol::date::Date;
-use crate::protocol::value_error::ValueKind;
+use crate::protocol::value_error::{NumBinaryOp, NumUnaryOp, ValueError, ValueKind};
 use crate::utils::id::ID;
 /// A flexible value type that can represent various property values in nodes and edges.
 /// Handles both JSON and binary serialisation formats via custom implementaions of the Serialize and Deserialize traits.
@@ -97,56 +97,49 @@ impl Value {
 		}
 	}
 
-	pub fn inner_stringify(&self) -> String {
+	pub fn try_as_str(&self) -> Result<&str, ValueError> {
 		match self {
-			Value::String(s) => s.to_string(),
-			Value::F32(f) => f.to_string(),
-			Value::F64(f) => f.to_string(),
-			Value::I8(i) => i.to_string(),
-			Value::I16(i) => i.to_string(),
-			Value::I32(i) => i.to_string(),
-			Value::I64(i) => i.to_string(),
-			Value::U8(u) => u.to_string(),
-			Value::U16(u) => u.to_string(),
-			Value::U32(u) => u.to_string(),
-			Value::U64(u) => u.to_string(),
-			Value::U128(u) => u.to_string(),
-			Value::Date(d) => d.to_string(),
-			Value::Boolean(b) => b.to_string(),
-			Value::Id(id) => id.stringify(),
-			Value::Array(arr) => arr
-				.iter()
-				.map(|v| v.inner_stringify())
-				.collect::<Vec<String>>()
-				.join(" "),
-			Value::Object(obj) => obj
-				.iter()
-				.map(|(k, v)| format!("{k} {}", v.inner_stringify()))
-				.collect::<Vec<String>>()
-				.join(" "),
-			_ => panic!("Not primitive"),
+			Value::String(s) => Ok(s.as_str()),
+			_ => Err(ValueError::NotString { got: self.kind() }),
 		}
 	}
 
-	pub fn inner_str(&self) -> Cow<'_, str> {
+	/// String -> borrowed; primitive numeric/bool/Date/Id -> owned; Object/Array/Empty -> Err.
+	pub fn try_stringify_primitive(&self) -> Result<Cow<'_, str>, ValueError> {
 		match self {
-			Value::String(s) => Cow::Borrowed(s.as_str()),
-			Value::F32(f) => Cow::Owned(f.to_string()),
-			Value::F64(f) => Cow::Owned(f.to_string()),
-			Value::I8(i) => Cow::Owned(i.to_string()),
-			Value::I16(i) => Cow::Owned(i.to_string()),
-			Value::I32(i) => Cow::Owned(i.to_string()),
-			Value::I64(i) => Cow::Owned(i.to_string()),
-			Value::U8(u) => Cow::Owned(u.to_string()),
-			Value::U16(u) => Cow::Owned(u.to_string()),
-			Value::U32(u) => Cow::Owned(u.to_string()),
-			Value::U64(u) => Cow::Owned(u.to_string()),
-			Value::U128(u) => Cow::Owned(u.to_string()),
-			Value::Date(d) => Cow::Owned(d.to_string()),
-			Value::Id(id) => Cow::Owned(id.stringify()),
-			Value::Boolean(b) => Cow::Borrowed(if *b { "true" } else { "false" }),
-			_ => panic!("Not primitive"),
+			Value::String(s) => Ok(Cow::Borrowed(s.as_str())),
+			Value::F32(f) => Ok(Cow::Owned(f.to_string())),
+			Value::F64(f) => Ok(Cow::Owned(f.to_string())),
+			Value::I8(i) => Ok(Cow::Owned(i.to_string())),
+			Value::I16(i) => Ok(Cow::Owned(i.to_string())),
+			Value::I32(i) => Ok(Cow::Owned(i.to_string())),
+			Value::I64(i) => Ok(Cow::Owned(i.to_string())),
+			Value::U8(u) => Ok(Cow::Owned(u.to_string())),
+			Value::U16(u) => Ok(Cow::Owned(u.to_string())),
+			Value::U32(u) => Ok(Cow::Owned(u.to_string())),
+			Value::U64(u) => Ok(Cow::Owned(u.to_string())),
+			Value::U128(u) => Ok(Cow::Owned(u.to_string())),
+			Value::Date(d) => Ok(Cow::Owned(d.to_string())),
+			Value::Boolean(b) => Ok(Cow::Owned(b.to_string())),
+			Value::Id(id) => Ok(Cow::Owned(id.stringify())),
+			_ => Err(ValueError::NotPrimitive { got: self.kind() }),
 		}
+	}
+
+	pub fn try_contains(&self, needle: &str) -> Result<bool, ValueError> {
+		let text = self.try_stringify_primitive()?;
+		Ok(text.contains(needle))
+	}
+
+	pub fn inner_stringify(&self) -> String {
+		self.try_stringify_primitive()
+			.unwrap_or_else(|err| panic!("Value::inner_stringify failed: {err}"))
+			.into_owned()
+	}
+
+	pub fn inner_str(&self) -> Cow<'_, str> {
+		self.try_stringify_primitive()
+			.unwrap_or_else(|err| panic!("Value::inner_str failed: {err}"))
 	}
 
 	pub fn to_variant_string(&self) -> &str {
@@ -173,16 +166,15 @@ impl Value {
 	}
 
 	pub fn as_str(&self) -> &str {
-		match self {
-			Value::String(s) => s.as_str(),
-			_ => panic!("Not a string"),
-		}
+		self.try_as_str()
+			.unwrap_or_else(|err| panic!("Value::as_str failed: {err}"))
 	}
 
 	/// Checks if this value contains the needle value (as strings).
 	/// Converts both values to their string representations and performs substring matching.
 	pub fn contains(&self, needle: &str) -> bool {
-		self.inner_str().contains(needle)
+		self.try_contains(needle)
+			.unwrap_or_else(|err| panic!("Value::contains failed: {err}"))
 	}
 
 	#[inline]
@@ -383,73 +375,52 @@ impl Value {
 			Value::U8(_) | Value::U16(_) | Value::U32(_) | Value::U64(_) | Value::U128(_)
 		)
 	}
-}
 
-impl std::ops::Add for &Value {
-	type Output = Value;
-	fn add(self, other: Self) -> Self::Output {
-		(self.clone()).add(other.clone())
+	/// Check if value is any numeric type.
+	fn is_numeric(&self) -> bool {
+		self.is_float() || self.is_signed_int() || self.is_unsigned_int()
 	}
-}
-impl std::ops::Mul for &Value {
-	type Output = Value;
-	fn mul(self, other: Self) -> Self::Output {
-		(self.clone()).mul(other.clone())
-	}
-}
-impl std::ops::Div for &Value {
-	type Output = Value;
-	fn div(self, other: Self) -> Self::Output {
-		(self.clone()).div(other.clone())
-	}
-}
-impl std::ops::Sub for &Value {
-	type Output = Value;
-	fn sub(self, other: Self) -> Self::Output {
-		(self.clone()).sub(other.clone())
-	}
-}
 
-impl std::ops::Add for Value {
-	type Output = Value;
-	fn add(self, other: Self) -> Self::Output {
-		match (self, other) {
+	fn num_binary_add(lhs: Value, rhs: Value) -> Result<Value, ValueError> {
+		let lhs_kind = lhs.kind();
+		let rhs_kind = rhs.kind();
+		match (lhs, rhs) {
 			// Float + Float cases
-			(Value::F64(a), Value::F64(b)) => Value::F64(a + b),
-			(Value::F32(a), Value::F32(b)) => Value::F32(a + b),
-			(Value::F64(a), Value::F32(b)) => Value::F64(a + (b as f64)),
-			(Value::F32(a), Value::F64(b)) => Value::F64((a as f64) + b),
+			(Value::F64(a), Value::F64(b)) => Ok(Value::F64(a + b)),
+			(Value::F32(a), Value::F32(b)) => Ok(Value::F32(a + b)),
+			(Value::F64(a), Value::F32(b)) => Ok(Value::F64(a + (b as f64))),
+			(Value::F32(a), Value::F64(b)) => Ok(Value::F64((a as f64) + b)),
 
 			// Same-type signed integer additions
-			(Value::I8(a), Value::I8(b)) => Value::I8(a.wrapping_add(b)),
-			(Value::I16(a), Value::I16(b)) => Value::I16(a.wrapping_add(b)),
-			(Value::I32(a), Value::I32(b)) => Value::I32(a.wrapping_add(b)),
-			(Value::I64(a), Value::I64(b)) => Value::I64(a.wrapping_add(b)),
+			(Value::I8(a), Value::I8(b)) => Ok(Value::I8(a.wrapping_add(b))),
+			(Value::I16(a), Value::I16(b)) => Ok(Value::I16(a.wrapping_add(b))),
+			(Value::I32(a), Value::I32(b)) => Ok(Value::I32(a.wrapping_add(b))),
+			(Value::I64(a), Value::I64(b)) => Ok(Value::I64(a.wrapping_add(b))),
 
 			// Same-type unsigned integer additions
-			(Value::U8(a), Value::U8(b)) => Value::U8(a.wrapping_add(b)),
-			(Value::U16(a), Value::U16(b)) => Value::U16(a.wrapping_add(b)),
-			(Value::U32(a), Value::U32(b)) => Value::U32(a.wrapping_add(b)),
-			(Value::U64(a), Value::U64(b)) => Value::U64(a.wrapping_add(b)),
-			(Value::U128(a), Value::U128(b)) => Value::U128(a.wrapping_add(b)),
+			(Value::U8(a), Value::U8(b)) => Ok(Value::U8(a.wrapping_add(b))),
+			(Value::U16(a), Value::U16(b)) => Ok(Value::U16(a.wrapping_add(b))),
+			(Value::U32(a), Value::U32(b)) => Ok(Value::U32(a.wrapping_add(b))),
+			(Value::U64(a), Value::U64(b)) => Ok(Value::U64(a.wrapping_add(b))),
+			(Value::U128(a), Value::U128(b)) => Ok(Value::U128(a.wrapping_add(b))),
 
 			// Int + Float → F64 (any integer with any float promotes to F64)
 			(a, b) if (a.is_signed_int() || a.is_unsigned_int()) && b.is_float() => {
 				let a_f64 = a.to_f64().unwrap();
 				let b_f64 = b.to_f64().unwrap();
-				Value::F64(a_f64 + b_f64)
+				Ok(Value::F64(a_f64 + b_f64))
 			}
 			(a, b) if a.is_float() && (b.is_signed_int() || b.is_unsigned_int()) => {
 				let a_f64 = a.to_f64().unwrap();
 				let b_f64 = b.to_f64().unwrap();
-				Value::F64(a_f64 + b_f64)
+				Ok(Value::F64(a_f64 + b_f64))
 			}
 
 			// Cross-type signed integer additions → I64
 			(a, b) if a.is_signed_int() && b.is_signed_int() => {
 				let a_i64 = a.to_i64().unwrap();
 				let b_i64 = b.to_i64().unwrap();
-				Value::I64(a_i64.wrapping_add(b_i64))
+				Ok(Value::I64(a_i64.wrapping_add(b_i64)))
 			}
 
 			// Cross-type unsigned integer additions → U128 (safest)
@@ -460,9 +431,15 @@ impl std::ops::Add for Value {
 					Value::U32(v) => v as u128,
 					Value::U64(v) => v as u128,
 					Value::U128(v) => v,
-					_ => unreachable!(),
+					_ => {
+						return Err(ValueError::NonNumericBinary {
+							op: NumBinaryOp::Add,
+							lhs: lhs_kind,
+							rhs: rhs_kind,
+						});
+					}
 				};
-				Value::U128((a as u128).wrapping_add(b_val))
+				Ok(Value::U128((a as u128).wrapping_add(b_val)))
 			}
 			(Value::U16(a), b) if b.is_unsigned_int() => {
 				let b_val = match b {
@@ -471,9 +448,15 @@ impl std::ops::Add for Value {
 					Value::U32(v) => v as u128,
 					Value::U64(v) => v as u128,
 					Value::U128(v) => v,
-					_ => unreachable!(),
+					_ => {
+						return Err(ValueError::NonNumericBinary {
+							op: NumBinaryOp::Add,
+							lhs: lhs_kind,
+							rhs: rhs_kind,
+						});
+					}
 				};
-				Value::U128((a as u128).wrapping_add(b_val))
+				Ok(Value::U128((a as u128).wrapping_add(b_val)))
 			}
 			(Value::U32(a), b) if b.is_unsigned_int() => {
 				let b_val = match b {
@@ -482,9 +465,15 @@ impl std::ops::Add for Value {
 					Value::U32(v) => v as u128,
 					Value::U64(v) => v as u128,
 					Value::U128(v) => v,
-					_ => unreachable!(),
+					_ => {
+						return Err(ValueError::NonNumericBinary {
+							op: NumBinaryOp::Add,
+							lhs: lhs_kind,
+							rhs: rhs_kind,
+						});
+					}
 				};
-				Value::U128((a as u128).wrapping_add(b_val))
+				Ok(Value::U128((a as u128).wrapping_add(b_val)))
 			}
 			(Value::U64(a), b) if b.is_unsigned_int() => {
 				let b_val = match b {
@@ -493,9 +482,15 @@ impl std::ops::Add for Value {
 					Value::U32(v) => v as u128,
 					Value::U64(v) => v as u128,
 					Value::U128(v) => v,
-					_ => unreachable!(),
+					_ => {
+						return Err(ValueError::NonNumericBinary {
+							op: NumBinaryOp::Add,
+							lhs: lhs_kind,
+							rhs: rhs_kind,
+						});
+					}
 				};
-				Value::U128((a as u128).wrapping_add(b_val))
+				Ok(Value::U128((a as u128).wrapping_add(b_val)))
 			}
 			(Value::U128(a), b) if b.is_unsigned_int() => {
 				let b_val = match b {
@@ -504,9 +499,15 @@ impl std::ops::Add for Value {
 					Value::U32(v) => v as u128,
 					Value::U64(v) => v as u128,
 					Value::U128(v) => v,
-					_ => unreachable!(),
+					_ => {
+						return Err(ValueError::NonNumericBinary {
+							op: NumBinaryOp::Add,
+							lhs: lhs_kind,
+							rhs: rhs_kind,
+						});
+					}
 				};
-				Value::U128(a.wrapping_add(b_val))
+				Ok(Value::U128(a.wrapping_add(b_val)))
 			}
 
 			// Signed + Unsigned → I64 (safe widening that can represent both)
@@ -516,84 +517,98 @@ impl std::ops::Add for Value {
 					Value::U8(v) => v as i64,
 					Value::U16(v) => v as i64,
 					Value::U32(v) => v as i64,
-					Value::U64(v) => v as i64,  // May overflow for large u64
-					Value::U128(v) => v as i64, // May overflow for large u128
-					_ => unreachable!(),
+					Value::U64(v) => v as i64,
+					Value::U128(v) => v as i64,
+					_ => {
+						return Err(ValueError::NonNumericBinary {
+							op: NumBinaryOp::Add,
+							lhs: lhs_kind,
+							rhs: rhs_kind,
+						});
+					}
 				};
-				Value::I64(a_i64.wrapping_add(b_i64))
+				Ok(Value::I64(a_i64.wrapping_add(b_i64)))
 			}
 			(a, b) if a.is_unsigned_int() && b.is_signed_int() => {
 				let a_i64 = match a {
 					Value::U8(v) => v as i64,
 					Value::U16(v) => v as i64,
 					Value::U32(v) => v as i64,
-					Value::U64(v) => v as i64,  // May overflow for large u64
-					Value::U128(v) => v as i64, // May overflow for large u128
-					_ => unreachable!(),
+					Value::U64(v) => v as i64,
+					Value::U128(v) => v as i64,
+					_ => {
+						return Err(ValueError::NonNumericBinary {
+							op: NumBinaryOp::Add,
+							lhs: lhs_kind,
+							rhs: rhs_kind,
+						});
+					}
 				};
 				let b_i64 = b.to_i64().unwrap();
-				Value::I64(a_i64.wrapping_add(b_i64))
+				Ok(Value::I64(a_i64.wrapping_add(b_i64)))
 			}
 
 			// String concatenation
 			(Value::String(mut a), Value::String(b)) => {
 				a.push_str(b.as_str());
-				Value::String(a)
+				Ok(Value::String(a))
 			}
 
 			// Array concatenation
 			(Value::Array(mut a), Value::Array(b)) => {
 				a.extend(b);
-				Value::Array(a)
+				Ok(Value::Array(a))
 			}
 
 			// Invalid combinations
-			_ => panic!("Mismatched types"),
+			_ => Err(ValueError::NonNumericBinary {
+				op: NumBinaryOp::Add,
+				lhs: lhs_kind,
+				rhs: rhs_kind,
+			}),
 		}
 	}
-}
 
-impl std::ops::Sub for Value {
-	type Output = Value;
-
-	fn sub(self, other: Self) -> Self::Output {
-		match (self, other) {
+	fn num_binary_sub(lhs: Value, rhs: Value) -> Result<Value, ValueError> {
+		let lhs_kind = lhs.kind();
+		let rhs_kind = rhs.kind();
+		match (lhs, rhs) {
 			// Float - Float cases
-			(Value::F64(a), Value::F64(b)) => Value::F64(a - b),
-			(Value::F32(a), Value::F32(b)) => Value::F32(a - b),
-			(Value::F64(a), Value::F32(b)) => Value::F64(a - (b as f64)),
-			(Value::F32(a), Value::F64(b)) => Value::F64((a as f64) - b),
+			(Value::F64(a), Value::F64(b)) => Ok(Value::F64(a - b)),
+			(Value::F32(a), Value::F32(b)) => Ok(Value::F32(a - b)),
+			(Value::F64(a), Value::F32(b)) => Ok(Value::F64(a - (b as f64))),
+			(Value::F32(a), Value::F64(b)) => Ok(Value::F64((a as f64) - b)),
 
 			// Same-type signed integer subtractions
-			(Value::I8(a), Value::I8(b)) => Value::I8(a.wrapping_sub(b)),
-			(Value::I16(a), Value::I16(b)) => Value::I16(a.wrapping_sub(b)),
-			(Value::I32(a), Value::I32(b)) => Value::I32(a.wrapping_sub(b)),
-			(Value::I64(a), Value::I64(b)) => Value::I64(a.wrapping_sub(b)),
+			(Value::I8(a), Value::I8(b)) => Ok(Value::I8(a.wrapping_sub(b))),
+			(Value::I16(a), Value::I16(b)) => Ok(Value::I16(a.wrapping_sub(b))),
+			(Value::I32(a), Value::I32(b)) => Ok(Value::I32(a.wrapping_sub(b))),
+			(Value::I64(a), Value::I64(b)) => Ok(Value::I64(a.wrapping_sub(b))),
 
 			// Same-type unsigned integer subtractions
-			(Value::U8(a), Value::U8(b)) => Value::U8(a.wrapping_sub(b)),
-			(Value::U16(a), Value::U16(b)) => Value::U16(a.wrapping_sub(b)),
-			(Value::U32(a), Value::U32(b)) => Value::U32(a.wrapping_sub(b)),
-			(Value::U64(a), Value::U64(b)) => Value::U64(a.wrapping_sub(b)),
-			(Value::U128(a), Value::U128(b)) => Value::U128(a.wrapping_sub(b)),
+			(Value::U8(a), Value::U8(b)) => Ok(Value::U8(a.wrapping_sub(b))),
+			(Value::U16(a), Value::U16(b)) => Ok(Value::U16(a.wrapping_sub(b))),
+			(Value::U32(a), Value::U32(b)) => Ok(Value::U32(a.wrapping_sub(b))),
+			(Value::U64(a), Value::U64(b)) => Ok(Value::U64(a.wrapping_sub(b))),
+			(Value::U128(a), Value::U128(b)) => Ok(Value::U128(a.wrapping_sub(b))),
 
 			// Int - Float → F64
 			(a, b) if (a.is_signed_int() || a.is_unsigned_int()) && b.is_float() => {
 				let a_f64 = a.to_f64().unwrap();
 				let b_f64 = b.to_f64().unwrap();
-				Value::F64(a_f64 - b_f64)
+				Ok(Value::F64(a_f64 - b_f64))
 			}
 			(a, b) if a.is_float() && (b.is_signed_int() || b.is_unsigned_int()) => {
 				let a_f64 = a.to_f64().unwrap();
 				let b_f64 = b.to_f64().unwrap();
-				Value::F64(a_f64 - b_f64)
+				Ok(Value::F64(a_f64 - b_f64))
 			}
 
 			// Cross-type signed integer subtractions → I64
 			(a, b) if a.is_signed_int() && b.is_signed_int() => {
 				let a_i64 = a.to_i64().unwrap();
 				let b_i64 = b.to_i64().unwrap();
-				Value::I64(a_i64.wrapping_sub(b_i64))
+				Ok(Value::I64(a_i64.wrapping_sub(b_i64)))
 			}
 
 			// Cross-type unsigned integer subtractions → U128
@@ -604,9 +619,15 @@ impl std::ops::Sub for Value {
 					Value::U32(v) => v as u128,
 					Value::U64(v) => v as u128,
 					Value::U128(v) => v,
-					_ => unreachable!(),
+					_ => {
+						return Err(ValueError::NonNumericBinary {
+							op: NumBinaryOp::Sub,
+							lhs: lhs_kind,
+							rhs: rhs_kind,
+						});
+					}
 				};
-				Value::U128((a as u128).wrapping_sub(b_val))
+				Ok(Value::U128((a as u128).wrapping_sub(b_val)))
 			}
 			(Value::U16(a), b) if b.is_unsigned_int() => {
 				let b_val = match b {
@@ -615,9 +636,15 @@ impl std::ops::Sub for Value {
 					Value::U32(v) => v as u128,
 					Value::U64(v) => v as u128,
 					Value::U128(v) => v,
-					_ => unreachable!(),
+					_ => {
+						return Err(ValueError::NonNumericBinary {
+							op: NumBinaryOp::Sub,
+							lhs: lhs_kind,
+							rhs: rhs_kind,
+						});
+					}
 				};
-				Value::U128((a as u128).wrapping_sub(b_val))
+				Ok(Value::U128((a as u128).wrapping_sub(b_val)))
 			}
 			(Value::U32(a), b) if b.is_unsigned_int() => {
 				let b_val = match b {
@@ -626,9 +653,15 @@ impl std::ops::Sub for Value {
 					Value::U32(v) => v as u128,
 					Value::U64(v) => v as u128,
 					Value::U128(v) => v,
-					_ => unreachable!(),
+					_ => {
+						return Err(ValueError::NonNumericBinary {
+							op: NumBinaryOp::Sub,
+							lhs: lhs_kind,
+							rhs: rhs_kind,
+						});
+					}
 				};
-				Value::U128((a as u128).wrapping_sub(b_val))
+				Ok(Value::U128((a as u128).wrapping_sub(b_val)))
 			}
 			(Value::U64(a), b) if b.is_unsigned_int() => {
 				let b_val = match b {
@@ -637,9 +670,15 @@ impl std::ops::Sub for Value {
 					Value::U32(v) => v as u128,
 					Value::U64(v) => v as u128,
 					Value::U128(v) => v,
-					_ => unreachable!(),
+					_ => {
+						return Err(ValueError::NonNumericBinary {
+							op: NumBinaryOp::Sub,
+							lhs: lhs_kind,
+							rhs: rhs_kind,
+						});
+					}
 				};
-				Value::U128((a as u128).wrapping_sub(b_val))
+				Ok(Value::U128((a as u128).wrapping_sub(b_val)))
 			}
 			(Value::U128(a), b) if b.is_unsigned_int() => {
 				let b_val = match b {
@@ -648,9 +687,15 @@ impl std::ops::Sub for Value {
 					Value::U32(v) => v as u128,
 					Value::U64(v) => v as u128,
 					Value::U128(v) => v,
-					_ => unreachable!(),
+					_ => {
+						return Err(ValueError::NonNumericBinary {
+							op: NumBinaryOp::Sub,
+							lhs: lhs_kind,
+							rhs: rhs_kind,
+						});
+					}
 				};
-				Value::U128(a.wrapping_sub(b_val))
+				Ok(Value::U128(a.wrapping_sub(b_val)))
 			}
 
 			// Signed - Unsigned → I64
@@ -662,9 +707,15 @@ impl std::ops::Sub for Value {
 					Value::U32(v) => v as i64,
 					Value::U64(v) => v as i64,
 					Value::U128(v) => v as i64,
-					_ => unreachable!(),
+					_ => {
+						return Err(ValueError::NonNumericBinary {
+							op: NumBinaryOp::Sub,
+							lhs: lhs_kind,
+							rhs: rhs_kind,
+						});
+					}
 				};
-				Value::I64(a_i64.wrapping_sub(b_i64))
+				Ok(Value::I64(a_i64.wrapping_sub(b_i64)))
 			}
 			(a, b) if a.is_unsigned_int() && b.is_signed_int() => {
 				let a_i64 = match a {
@@ -673,59 +724,67 @@ impl std::ops::Sub for Value {
 					Value::U32(v) => v as i64,
 					Value::U64(v) => v as i64,
 					Value::U128(v) => v as i64,
-					_ => unreachable!(),
+					_ => {
+						return Err(ValueError::NonNumericBinary {
+							op: NumBinaryOp::Sub,
+							lhs: lhs_kind,
+							rhs: rhs_kind,
+						});
+					}
 				};
 				let b_i64 = b.to_i64().unwrap();
-				Value::I64(a_i64.wrapping_sub(b_i64))
+				Ok(Value::I64(a_i64.wrapping_sub(b_i64)))
 			}
 
 			// Invalid combinations
-			_ => panic!("Mismatched types"),
+			_ => Err(ValueError::NonNumericBinary {
+				op: NumBinaryOp::Sub,
+				lhs: lhs_kind,
+				rhs: rhs_kind,
+			}),
 		}
 	}
-}
 
-impl std::ops::Mul for Value {
-	type Output = Value;
-
-	fn mul(self, other: Self) -> Self::Output {
-		match (self, other) {
+	fn num_binary_mul(lhs: Value, rhs: Value) -> Result<Value, ValueError> {
+		let lhs_kind = lhs.kind();
+		let rhs_kind = rhs.kind();
+		match (lhs, rhs) {
 			// Float * Float cases
-			(Value::F64(a), Value::F64(b)) => Value::F64(a * b),
-			(Value::F32(a), Value::F32(b)) => Value::F32(a * b),
-			(Value::F64(a), Value::F32(b)) => Value::F64(a * (b as f64)),
-			(Value::F32(a), Value::F64(b)) => Value::F64((a as f64) * b),
+			(Value::F64(a), Value::F64(b)) => Ok(Value::F64(a * b)),
+			(Value::F32(a), Value::F32(b)) => Ok(Value::F32(a * b)),
+			(Value::F64(a), Value::F32(b)) => Ok(Value::F64(a * (b as f64))),
+			(Value::F32(a), Value::F64(b)) => Ok(Value::F64((a as f64) * b)),
 
 			// Same-type signed integer multiplications
-			(Value::I8(a), Value::I8(b)) => Value::I8(a.wrapping_mul(b)),
-			(Value::I16(a), Value::I16(b)) => Value::I16(a.wrapping_mul(b)),
-			(Value::I32(a), Value::I32(b)) => Value::I32(a.wrapping_mul(b)),
-			(Value::I64(a), Value::I64(b)) => Value::I64(a.wrapping_mul(b)),
+			(Value::I8(a), Value::I8(b)) => Ok(Value::I8(a.wrapping_mul(b))),
+			(Value::I16(a), Value::I16(b)) => Ok(Value::I16(a.wrapping_mul(b))),
+			(Value::I32(a), Value::I32(b)) => Ok(Value::I32(a.wrapping_mul(b))),
+			(Value::I64(a), Value::I64(b)) => Ok(Value::I64(a.wrapping_mul(b))),
 
 			// Same-type unsigned integer multiplications
-			(Value::U8(a), Value::U8(b)) => Value::U8(a.wrapping_mul(b)),
-			(Value::U16(a), Value::U16(b)) => Value::U16(a.wrapping_mul(b)),
-			(Value::U32(a), Value::U32(b)) => Value::U32(a.wrapping_mul(b)),
-			(Value::U64(a), Value::U64(b)) => Value::U64(a.wrapping_mul(b)),
-			(Value::U128(a), Value::U128(b)) => Value::U128(a.wrapping_mul(b)),
+			(Value::U8(a), Value::U8(b)) => Ok(Value::U8(a.wrapping_mul(b))),
+			(Value::U16(a), Value::U16(b)) => Ok(Value::U16(a.wrapping_mul(b))),
+			(Value::U32(a), Value::U32(b)) => Ok(Value::U32(a.wrapping_mul(b))),
+			(Value::U64(a), Value::U64(b)) => Ok(Value::U64(a.wrapping_mul(b))),
+			(Value::U128(a), Value::U128(b)) => Ok(Value::U128(a.wrapping_mul(b))),
 
 			// Int * Float → F64
 			(a, b) if (a.is_signed_int() || a.is_unsigned_int()) && b.is_float() => {
 				let a_f64 = a.to_f64().unwrap();
 				let b_f64 = b.to_f64().unwrap();
-				Value::F64(a_f64 * b_f64)
+				Ok(Value::F64(a_f64 * b_f64))
 			}
 			(a, b) if a.is_float() && (b.is_signed_int() || b.is_unsigned_int()) => {
 				let a_f64 = a.to_f64().unwrap();
 				let b_f64 = b.to_f64().unwrap();
-				Value::F64(a_f64 * b_f64)
+				Ok(Value::F64(a_f64 * b_f64))
 			}
 
 			// Cross-type signed integer multiplications → I64
 			(a, b) if a.is_signed_int() && b.is_signed_int() => {
 				let a_i64 = a.to_i64().unwrap();
 				let b_i64 = b.to_i64().unwrap();
-				Value::I64(a_i64.wrapping_mul(b_i64))
+				Ok(Value::I64(a_i64.wrapping_mul(b_i64)))
 			}
 
 			// Cross-type unsigned integer multiplications → U128
@@ -736,9 +795,15 @@ impl std::ops::Mul for Value {
 					Value::U32(v) => v as u128,
 					Value::U64(v) => v as u128,
 					Value::U128(v) => v,
-					_ => unreachable!(),
+					_ => {
+						return Err(ValueError::NonNumericBinary {
+							op: NumBinaryOp::Mul,
+							lhs: lhs_kind,
+							rhs: rhs_kind,
+						});
+					}
 				};
-				Value::U128((a as u128).wrapping_mul(b_val))
+				Ok(Value::U128((a as u128).wrapping_mul(b_val)))
 			}
 			(Value::U16(a), b) if b.is_unsigned_int() => {
 				let b_val = match b {
@@ -747,9 +812,15 @@ impl std::ops::Mul for Value {
 					Value::U32(v) => v as u128,
 					Value::U64(v) => v as u128,
 					Value::U128(v) => v,
-					_ => unreachable!(),
+					_ => {
+						return Err(ValueError::NonNumericBinary {
+							op: NumBinaryOp::Mul,
+							lhs: lhs_kind,
+							rhs: rhs_kind,
+						});
+					}
 				};
-				Value::U128((a as u128).wrapping_mul(b_val))
+				Ok(Value::U128((a as u128).wrapping_mul(b_val)))
 			}
 			(Value::U32(a), b) if b.is_unsigned_int() => {
 				let b_val = match b {
@@ -758,9 +829,15 @@ impl std::ops::Mul for Value {
 					Value::U32(v) => v as u128,
 					Value::U64(v) => v as u128,
 					Value::U128(v) => v,
-					_ => unreachable!(),
+					_ => {
+						return Err(ValueError::NonNumericBinary {
+							op: NumBinaryOp::Mul,
+							lhs: lhs_kind,
+							rhs: rhs_kind,
+						});
+					}
 				};
-				Value::U128((a as u128).wrapping_mul(b_val))
+				Ok(Value::U128((a as u128).wrapping_mul(b_val)))
 			}
 			(Value::U64(a), b) if b.is_unsigned_int() => {
 				let b_val = match b {
@@ -769,9 +846,15 @@ impl std::ops::Mul for Value {
 					Value::U32(v) => v as u128,
 					Value::U64(v) => v as u128,
 					Value::U128(v) => v,
-					_ => unreachable!(),
+					_ => {
+						return Err(ValueError::NonNumericBinary {
+							op: NumBinaryOp::Mul,
+							lhs: lhs_kind,
+							rhs: rhs_kind,
+						});
+					}
 				};
-				Value::U128((a as u128).wrapping_mul(b_val))
+				Ok(Value::U128((a as u128).wrapping_mul(b_val)))
 			}
 			(Value::U128(a), b) if b.is_unsigned_int() => {
 				let b_val = match b {
@@ -780,9 +863,15 @@ impl std::ops::Mul for Value {
 					Value::U32(v) => v as u128,
 					Value::U64(v) => v as u128,
 					Value::U128(v) => v,
-					_ => unreachable!(),
+					_ => {
+						return Err(ValueError::NonNumericBinary {
+							op: NumBinaryOp::Mul,
+							lhs: lhs_kind,
+							rhs: rhs_kind,
+						});
+					}
 				};
-				Value::U128(a.wrapping_mul(b_val))
+				Ok(Value::U128(a.wrapping_mul(b_val)))
 			}
 
 			// Signed * Unsigned → I64
@@ -794,9 +883,15 @@ impl std::ops::Mul for Value {
 					Value::U32(v) => v as i64,
 					Value::U64(v) => v as i64,
 					Value::U128(v) => v as i64,
-					_ => unreachable!(),
+					_ => {
+						return Err(ValueError::NonNumericBinary {
+							op: NumBinaryOp::Mul,
+							lhs: lhs_kind,
+							rhs: rhs_kind,
+						});
+					}
 				};
-				Value::I64(a_i64.wrapping_mul(b_i64))
+				Ok(Value::I64(a_i64.wrapping_mul(b_i64)))
 			}
 			(a, b) if a.is_unsigned_int() && b.is_signed_int() => {
 				let a_i64 = match a {
@@ -805,23 +900,31 @@ impl std::ops::Mul for Value {
 					Value::U32(v) => v as i64,
 					Value::U64(v) => v as i64,
 					Value::U128(v) => v as i64,
-					_ => unreachable!(),
+					_ => {
+						return Err(ValueError::NonNumericBinary {
+							op: NumBinaryOp::Mul,
+							lhs: lhs_kind,
+							rhs: rhs_kind,
+						});
+					}
 				};
 				let b_i64 = b.to_i64().unwrap();
-				Value::I64(a_i64.wrapping_mul(b_i64))
+				Ok(Value::I64(a_i64.wrapping_mul(b_i64)))
 			}
 
 			// Invalid combinations
-			_ => panic!("Mismatched types"),
+			_ => Err(ValueError::NonNumericBinary {
+				op: NumBinaryOp::Mul,
+				lhs: lhs_kind,
+				rhs: rhs_kind,
+			}),
 		}
 	}
-}
 
-impl std::ops::Div for Value {
-	type Output = Value;
+	fn num_binary_div(lhs: Value, rhs: Value) -> Result<Value, ValueError> {
+		let lhs_kind = lhs.kind();
+		let rhs_kind = rhs.kind();
 
-	fn div(self, other: Self) -> Self::Output {
-		// Helper to check if a value is zero
 		let is_zero = |v: &Value| -> bool {
 			match v {
 				Value::I8(n) => *n == 0,
@@ -839,48 +942,47 @@ impl std::ops::Div for Value {
 			}
 		};
 
-		// Check for division by zero first
-		if is_zero(&other) {
-			panic!("Division by zero");
+		if rhs.is_numeric() && is_zero(&rhs) {
+			return Err(ValueError::DivisionByZero);
 		}
 
-		match (self, other) {
+		match (lhs, rhs) {
 			// Float / Float cases
-			(Value::F64(a), Value::F64(b)) => Value::F64(a / b),
-			(Value::F32(a), Value::F32(b)) => Value::F32(a / b),
-			(Value::F64(a), Value::F32(b)) => Value::F64(a / (b as f64)),
-			(Value::F32(a), Value::F64(b)) => Value::F64((a as f64) / b),
+			(Value::F64(a), Value::F64(b)) => Ok(Value::F64(a / b)),
+			(Value::F32(a), Value::F32(b)) => Ok(Value::F32(a / b)),
+			(Value::F64(a), Value::F32(b)) => Ok(Value::F64(a / (b as f64))),
+			(Value::F32(a), Value::F64(b)) => Ok(Value::F64((a as f64) / b)),
 
 			// Same-type signed integer divisions
-			(Value::I8(a), Value::I8(b)) => Value::I8(a.wrapping_div(b)),
-			(Value::I16(a), Value::I16(b)) => Value::I16(a.wrapping_div(b)),
-			(Value::I32(a), Value::I32(b)) => Value::I32(a.wrapping_div(b)),
-			(Value::I64(a), Value::I64(b)) => Value::I64(a.wrapping_div(b)),
+			(Value::I8(a), Value::I8(b)) => Ok(Value::I8(a.wrapping_div(b))),
+			(Value::I16(a), Value::I16(b)) => Ok(Value::I16(a.wrapping_div(b))),
+			(Value::I32(a), Value::I32(b)) => Ok(Value::I32(a.wrapping_div(b))),
+			(Value::I64(a), Value::I64(b)) => Ok(Value::I64(a.wrapping_div(b))),
 
 			// Same-type unsigned integer divisions
-			(Value::U8(a), Value::U8(b)) => Value::U8(a.wrapping_div(b)),
-			(Value::U16(a), Value::U16(b)) => Value::U16(a.wrapping_div(b)),
-			(Value::U32(a), Value::U32(b)) => Value::U32(a.wrapping_div(b)),
-			(Value::U64(a), Value::U64(b)) => Value::U64(a.wrapping_div(b)),
-			(Value::U128(a), Value::U128(b)) => Value::U128(a.wrapping_div(b)),
+			(Value::U8(a), Value::U8(b)) => Ok(Value::U8(a.wrapping_div(b))),
+			(Value::U16(a), Value::U16(b)) => Ok(Value::U16(a.wrapping_div(b))),
+			(Value::U32(a), Value::U32(b)) => Ok(Value::U32(a.wrapping_div(b))),
+			(Value::U64(a), Value::U64(b)) => Ok(Value::U64(a.wrapping_div(b))),
+			(Value::U128(a), Value::U128(b)) => Ok(Value::U128(a.wrapping_div(b))),
 
 			// Int / Float → F64
 			(a, b) if (a.is_signed_int() || a.is_unsigned_int()) && b.is_float() => {
 				let a_f64 = a.to_f64().unwrap();
 				let b_f64 = b.to_f64().unwrap();
-				Value::F64(a_f64 / b_f64)
+				Ok(Value::F64(a_f64 / b_f64))
 			}
 			(a, b) if a.is_float() && (b.is_signed_int() || b.is_unsigned_int()) => {
 				let a_f64 = a.to_f64().unwrap();
 				let b_f64 = b.to_f64().unwrap();
-				Value::F64(a_f64 / b_f64)
+				Ok(Value::F64(a_f64 / b_f64))
 			}
 
 			// Cross-type signed integer divisions → I64
 			(a, b) if a.is_signed_int() && b.is_signed_int() => {
 				let a_i64 = a.to_i64().unwrap();
 				let b_i64 = b.to_i64().unwrap();
-				Value::I64(a_i64.wrapping_div(b_i64))
+				Ok(Value::I64(a_i64.wrapping_div(b_i64)))
 			}
 
 			// Cross-type unsigned integer divisions → U128
@@ -891,9 +993,15 @@ impl std::ops::Div for Value {
 					Value::U32(v) => v as u128,
 					Value::U64(v) => v as u128,
 					Value::U128(v) => v,
-					_ => unreachable!(),
+					_ => {
+						return Err(ValueError::NonNumericBinary {
+							op: NumBinaryOp::Div,
+							lhs: lhs_kind,
+							rhs: rhs_kind,
+						});
+					}
 				};
-				Value::U128((a as u128).wrapping_div(b_val))
+				Ok(Value::U128((a as u128).wrapping_div(b_val)))
 			}
 			(Value::U16(a), b) if b.is_unsigned_int() => {
 				let b_val = match b {
@@ -902,9 +1010,15 @@ impl std::ops::Div for Value {
 					Value::U32(v) => v as u128,
 					Value::U64(v) => v as u128,
 					Value::U128(v) => v,
-					_ => unreachable!(),
+					_ => {
+						return Err(ValueError::NonNumericBinary {
+							op: NumBinaryOp::Div,
+							lhs: lhs_kind,
+							rhs: rhs_kind,
+						});
+					}
 				};
-				Value::U128((a as u128).wrapping_div(b_val))
+				Ok(Value::U128((a as u128).wrapping_div(b_val)))
 			}
 			(Value::U32(a), b) if b.is_unsigned_int() => {
 				let b_val = match b {
@@ -913,9 +1027,15 @@ impl std::ops::Div for Value {
 					Value::U32(v) => v as u128,
 					Value::U64(v) => v as u128,
 					Value::U128(v) => v,
-					_ => unreachable!(),
+					_ => {
+						return Err(ValueError::NonNumericBinary {
+							op: NumBinaryOp::Div,
+							lhs: lhs_kind,
+							rhs: rhs_kind,
+						});
+					}
 				};
-				Value::U128((a as u128).wrapping_div(b_val))
+				Ok(Value::U128((a as u128).wrapping_div(b_val)))
 			}
 			(Value::U64(a), b) if b.is_unsigned_int() => {
 				let b_val = match b {
@@ -924,9 +1044,15 @@ impl std::ops::Div for Value {
 					Value::U32(v) => v as u128,
 					Value::U64(v) => v as u128,
 					Value::U128(v) => v,
-					_ => unreachable!(),
+					_ => {
+						return Err(ValueError::NonNumericBinary {
+							op: NumBinaryOp::Div,
+							lhs: lhs_kind,
+							rhs: rhs_kind,
+						});
+					}
 				};
-				Value::U128((a as u128).wrapping_div(b_val))
+				Ok(Value::U128((a as u128).wrapping_div(b_val)))
 			}
 			(Value::U128(a), b) if b.is_unsigned_int() => {
 				let b_val = match b {
@@ -935,9 +1061,15 @@ impl std::ops::Div for Value {
 					Value::U32(v) => v as u128,
 					Value::U64(v) => v as u128,
 					Value::U128(v) => v,
-					_ => unreachable!(),
+					_ => {
+						return Err(ValueError::NonNumericBinary {
+							op: NumBinaryOp::Div,
+							lhs: lhs_kind,
+							rhs: rhs_kind,
+						});
+					}
 				};
-				Value::U128(a.wrapping_div(b_val))
+				Ok(Value::U128(a.wrapping_div(b_val)))
 			}
 
 			// Signed / Unsigned → I64
@@ -949,9 +1081,15 @@ impl std::ops::Div for Value {
 					Value::U32(v) => v as i64,
 					Value::U64(v) => v as i64,
 					Value::U128(v) => v as i64,
-					_ => unreachable!(),
+					_ => {
+						return Err(ValueError::NonNumericBinary {
+							op: NumBinaryOp::Div,
+							lhs: lhs_kind,
+							rhs: rhs_kind,
+						});
+					}
 				};
-				Value::I64(a_i64.wrapping_div(b_i64))
+				Ok(Value::I64(a_i64.wrapping_div(b_i64)))
 			}
 			(a, b) if a.is_unsigned_int() && b.is_signed_int() => {
 				let a_i64 = match a {
@@ -960,30 +1098,31 @@ impl std::ops::Div for Value {
 					Value::U32(v) => v as i64,
 					Value::U64(v) => v as i64,
 					Value::U128(v) => v as i64,
-					_ => unreachable!(),
+					_ => {
+						return Err(ValueError::NonNumericBinary {
+							op: NumBinaryOp::Div,
+							lhs: lhs_kind,
+							rhs: rhs_kind,
+						});
+					}
 				};
 				let b_i64 = b.to_i64().unwrap();
-				Value::I64(a_i64.wrapping_div(b_i64))
+				Ok(Value::I64(a_i64.wrapping_div(b_i64)))
 			}
 
 			// Invalid combinations
-			_ => panic!("Mismatched types"),
+			_ => Err(ValueError::NonNumericBinary {
+				op: NumBinaryOp::Div,
+				lhs: lhs_kind,
+				rhs: rhs_kind,
+			}),
 		}
 	}
-}
 
-impl std::ops::Rem for &Value {
-	type Output = Value;
-	fn rem(self, other: Self) -> Self::Output {
-		(self.clone()).rem(other.clone())
-	}
-}
+	fn num_binary_rem(lhs: Value, rhs: Value) -> Result<Value, ValueError> {
+		let lhs_kind = lhs.kind();
+		let rhs_kind = rhs.kind();
 
-impl std::ops::Rem for Value {
-	type Output = Value;
-
-	fn rem(self, other: Self) -> Self::Output {
-		// Helper to check if a value is zero
 		let is_zero = |v: &Value| -> bool {
 			match v {
 				Value::I8(n) => *n == 0,
@@ -1001,48 +1140,47 @@ impl std::ops::Rem for Value {
 			}
 		};
 
-		// Check for modulo by zero first
-		if is_zero(&other) {
-			panic!("Modulo by zero");
+		if rhs.is_numeric() && is_zero(&rhs) {
+			return Err(ValueError::DivisionByZero);
 		}
 
-		match (self, other) {
+		match (lhs, rhs) {
 			// Float % Float cases
-			(Value::F64(a), Value::F64(b)) => Value::F64(a % b),
-			(Value::F32(a), Value::F32(b)) => Value::F32(a % b),
-			(Value::F64(a), Value::F32(b)) => Value::F64(a % (b as f64)),
-			(Value::F32(a), Value::F64(b)) => Value::F64((a as f64) % b),
+			(Value::F64(a), Value::F64(b)) => Ok(Value::F64(a % b)),
+			(Value::F32(a), Value::F32(b)) => Ok(Value::F32(a % b)),
+			(Value::F64(a), Value::F32(b)) => Ok(Value::F64(a % (b as f64))),
+			(Value::F32(a), Value::F64(b)) => Ok(Value::F64((a as f64) % b)),
 
 			// Same-type signed integer modulo
-			(Value::I8(a), Value::I8(b)) => Value::I8(a.wrapping_rem(b)),
-			(Value::I16(a), Value::I16(b)) => Value::I16(a.wrapping_rem(b)),
-			(Value::I32(a), Value::I32(b)) => Value::I32(a.wrapping_rem(b)),
-			(Value::I64(a), Value::I64(b)) => Value::I64(a.wrapping_rem(b)),
+			(Value::I8(a), Value::I8(b)) => Ok(Value::I8(a.wrapping_rem(b))),
+			(Value::I16(a), Value::I16(b)) => Ok(Value::I16(a.wrapping_rem(b))),
+			(Value::I32(a), Value::I32(b)) => Ok(Value::I32(a.wrapping_rem(b))),
+			(Value::I64(a), Value::I64(b)) => Ok(Value::I64(a.wrapping_rem(b))),
 
 			// Same-type unsigned integer modulo
-			(Value::U8(a), Value::U8(b)) => Value::U8(a.wrapping_rem(b)),
-			(Value::U16(a), Value::U16(b)) => Value::U16(a.wrapping_rem(b)),
-			(Value::U32(a), Value::U32(b)) => Value::U32(a.wrapping_rem(b)),
-			(Value::U64(a), Value::U64(b)) => Value::U64(a.wrapping_rem(b)),
-			(Value::U128(a), Value::U128(b)) => Value::U128(a.wrapping_rem(b)),
+			(Value::U8(a), Value::U8(b)) => Ok(Value::U8(a.wrapping_rem(b))),
+			(Value::U16(a), Value::U16(b)) => Ok(Value::U16(a.wrapping_rem(b))),
+			(Value::U32(a), Value::U32(b)) => Ok(Value::U32(a.wrapping_rem(b))),
+			(Value::U64(a), Value::U64(b)) => Ok(Value::U64(a.wrapping_rem(b))),
+			(Value::U128(a), Value::U128(b)) => Ok(Value::U128(a.wrapping_rem(b))),
 
 			// Int % Float → F64
 			(a, b) if (a.is_signed_int() || a.is_unsigned_int()) && b.is_float() => {
 				let a_f64 = a.to_f64().unwrap();
 				let b_f64 = b.to_f64().unwrap();
-				Value::F64(a_f64 % b_f64)
+				Ok(Value::F64(a_f64 % b_f64))
 			}
 			(a, b) if a.is_float() && (b.is_signed_int() || b.is_unsigned_int()) => {
 				let a_f64 = a.to_f64().unwrap();
 				let b_f64 = b.to_f64().unwrap();
-				Value::F64(a_f64 % b_f64)
+				Ok(Value::F64(a_f64 % b_f64))
 			}
 
 			// Cross-type signed integer modulo → I64
 			(a, b) if a.is_signed_int() && b.is_signed_int() => {
 				let a_i64 = a.to_i64().unwrap();
 				let b_i64 = b.to_i64().unwrap();
-				Value::I64(a_i64.wrapping_rem(b_i64))
+				Ok(Value::I64(a_i64.wrapping_rem(b_i64)))
 			}
 
 			// Cross-type unsigned integer modulo → U128
@@ -1053,9 +1191,15 @@ impl std::ops::Rem for Value {
 					Value::U32(v) => v as u128,
 					Value::U64(v) => v as u128,
 					Value::U128(v) => v,
-					_ => unreachable!(),
+					_ => {
+						return Err(ValueError::NonNumericBinary {
+							op: NumBinaryOp::Rem,
+							lhs: lhs_kind,
+							rhs: rhs_kind,
+						});
+					}
 				};
-				Value::U128((a as u128).wrapping_rem(b_val))
+				Ok(Value::U128((a as u128).wrapping_rem(b_val)))
 			}
 			(Value::U16(a), b) if b.is_unsigned_int() => {
 				let b_val = match b {
@@ -1064,9 +1208,15 @@ impl std::ops::Rem for Value {
 					Value::U32(v) => v as u128,
 					Value::U64(v) => v as u128,
 					Value::U128(v) => v,
-					_ => unreachable!(),
+					_ => {
+						return Err(ValueError::NonNumericBinary {
+							op: NumBinaryOp::Rem,
+							lhs: lhs_kind,
+							rhs: rhs_kind,
+						});
+					}
 				};
-				Value::U128((a as u128).wrapping_rem(b_val))
+				Ok(Value::U128((a as u128).wrapping_rem(b_val)))
 			}
 			(Value::U32(a), b) if b.is_unsigned_int() => {
 				let b_val = match b {
@@ -1075,9 +1225,15 @@ impl std::ops::Rem for Value {
 					Value::U32(v) => v as u128,
 					Value::U64(v) => v as u128,
 					Value::U128(v) => v,
-					_ => unreachable!(),
+					_ => {
+						return Err(ValueError::NonNumericBinary {
+							op: NumBinaryOp::Rem,
+							lhs: lhs_kind,
+							rhs: rhs_kind,
+						});
+					}
 				};
-				Value::U128((a as u128).wrapping_rem(b_val))
+				Ok(Value::U128((a as u128).wrapping_rem(b_val)))
 			}
 			(Value::U64(a), b) if b.is_unsigned_int() => {
 				let b_val = match b {
@@ -1086,9 +1242,15 @@ impl std::ops::Rem for Value {
 					Value::U32(v) => v as u128,
 					Value::U64(v) => v as u128,
 					Value::U128(v) => v,
-					_ => unreachable!(),
+					_ => {
+						return Err(ValueError::NonNumericBinary {
+							op: NumBinaryOp::Rem,
+							lhs: lhs_kind,
+							rhs: rhs_kind,
+						});
+					}
 				};
-				Value::U128((a as u128).wrapping_rem(b_val))
+				Ok(Value::U128((a as u128).wrapping_rem(b_val)))
 			}
 			(Value::U128(a), b) if b.is_unsigned_int() => {
 				let b_val = match b {
@@ -1097,9 +1259,15 @@ impl std::ops::Rem for Value {
 					Value::U32(v) => v as u128,
 					Value::U64(v) => v as u128,
 					Value::U128(v) => v,
-					_ => unreachable!(),
+					_ => {
+						return Err(ValueError::NonNumericBinary {
+							op: NumBinaryOp::Rem,
+							lhs: lhs_kind,
+							rhs: rhs_kind,
+						});
+					}
 				};
-				Value::U128(a.wrapping_rem(b_val))
+				Ok(Value::U128(a.wrapping_rem(b_val)))
 			}
 
 			// Signed % Unsigned → I64
@@ -1111,9 +1279,15 @@ impl std::ops::Rem for Value {
 					Value::U32(v) => v as i64,
 					Value::U64(v) => v as i64,
 					Value::U128(v) => v as i64,
-					_ => unreachable!(),
+					_ => {
+						return Err(ValueError::NonNumericBinary {
+							op: NumBinaryOp::Rem,
+							lhs: lhs_kind,
+							rhs: rhs_kind,
+						});
+					}
 				};
-				Value::I64(a_i64.wrapping_rem(b_i64))
+				Ok(Value::I64(a_i64.wrapping_rem(b_i64)))
 			}
 			(a, b) if a.is_unsigned_int() && b.is_signed_int() => {
 				let a_i64 = match a {
@@ -1122,99 +1296,326 @@ impl std::ops::Rem for Value {
 					Value::U32(v) => v as i64,
 					Value::U64(v) => v as i64,
 					Value::U128(v) => v as i64,
-					_ => unreachable!(),
+					_ => {
+						return Err(ValueError::NonNumericBinary {
+							op: NumBinaryOp::Rem,
+							lhs: lhs_kind,
+							rhs: rhs_kind,
+						});
+					}
 				};
 				let b_i64 = b.to_i64().unwrap();
-				Value::I64(a_i64.wrapping_rem(b_i64))
+				Ok(Value::I64(a_i64.wrapping_rem(b_i64)))
 			}
 
 			// Invalid combinations
-			_ => panic!("Mismatched types"),
+			_ => Err(ValueError::NonNumericBinary {
+				op: NumBinaryOp::Rem,
+				lhs: lhs_kind,
+				rhs: rhs_kind,
+			}),
 		}
+	}
+
+	fn num_binary_pow(lhs: &Value, rhs: &Value) -> Result<Value, ValueError> {
+		if !lhs.is_numeric() || !rhs.is_numeric() {
+			return Err(ValueError::NonNumericBinary {
+				op: NumBinaryOp::Pow,
+				lhs: lhs.kind(),
+				rhs: rhs.kind(),
+			});
+		}
+		let base = lhs.to_f64().ok_or(ValueError::NonNumericBinary {
+			op: NumBinaryOp::Pow,
+			lhs: lhs.kind(),
+			rhs: rhs.kind(),
+		})?;
+		let exp = rhs.to_f64().ok_or(ValueError::NonNumericBinary {
+			op: NumBinaryOp::Pow,
+			lhs: lhs.kind(),
+			rhs: rhs.kind(),
+		})?;
+		Ok(Value::F64(base.powf(exp)))
+	}
+
+	fn num_binary_min(lhs: &Value, rhs: &Value) -> Result<Value, ValueError> {
+		if !lhs.is_numeric() || !rhs.is_numeric() {
+			return Err(ValueError::NonNumericBinary {
+				op: NumBinaryOp::Min,
+				lhs: lhs.kind(),
+				rhs: rhs.kind(),
+			});
+		}
+
+		match (lhs, rhs) {
+			(Value::I8(a), Value::I8(b)) => Ok(Value::I8(*a.min(b))),
+			(Value::I16(a), Value::I16(b)) => Ok(Value::I16(*a.min(b))),
+			(Value::I32(a), Value::I32(b)) => Ok(Value::I32(*a.min(b))),
+			(Value::I64(a), Value::I64(b)) => Ok(Value::I64(*a.min(b))),
+			(Value::U8(a), Value::U8(b)) => Ok(Value::U8(*a.min(b))),
+			(Value::U16(a), Value::U16(b)) => Ok(Value::U16(*a.min(b))),
+			(Value::U32(a), Value::U32(b)) => Ok(Value::U32(*a.min(b))),
+			(Value::U64(a), Value::U64(b)) => Ok(Value::U64(*a.min(b))),
+			(Value::U128(a), Value::U128(b)) => Ok(Value::U128(*a.min(b))),
+			(Value::F32(a), Value::F32(b)) => Ok(Value::F32(a.min(*b))),
+			(Value::F64(a), Value::F64(b)) => Ok(Value::F64(a.min(*b))),
+			_ => {
+				let a_f64 = lhs.to_f64().ok_or(ValueError::NonNumericBinary {
+					op: NumBinaryOp::Min,
+					lhs: lhs.kind(),
+					rhs: rhs.kind(),
+				})?;
+				let b_f64 = rhs.to_f64().ok_or(ValueError::NonNumericBinary {
+					op: NumBinaryOp::Min,
+					lhs: lhs.kind(),
+					rhs: rhs.kind(),
+				})?;
+				Ok(Value::F64(a_f64.min(b_f64)))
+			}
+		}
+	}
+
+	fn num_binary_max(lhs: &Value, rhs: &Value) -> Result<Value, ValueError> {
+		if !lhs.is_numeric() || !rhs.is_numeric() {
+			return Err(ValueError::NonNumericBinary {
+				op: NumBinaryOp::Max,
+				lhs: lhs.kind(),
+				rhs: rhs.kind(),
+			});
+		}
+
+		match (lhs, rhs) {
+			(Value::I8(a), Value::I8(b)) => Ok(Value::I8(*a.max(b))),
+			(Value::I16(a), Value::I16(b)) => Ok(Value::I16(*a.max(b))),
+			(Value::I32(a), Value::I32(b)) => Ok(Value::I32(*a.max(b))),
+			(Value::I64(a), Value::I64(b)) => Ok(Value::I64(*a.max(b))),
+			(Value::U8(a), Value::U8(b)) => Ok(Value::U8(*a.max(b))),
+			(Value::U16(a), Value::U16(b)) => Ok(Value::U16(*a.max(b))),
+			(Value::U32(a), Value::U32(b)) => Ok(Value::U32(*a.max(b))),
+			(Value::U64(a), Value::U64(b)) => Ok(Value::U64(*a.max(b))),
+			(Value::U128(a), Value::U128(b)) => Ok(Value::U128(*a.max(b))),
+			(Value::F32(a), Value::F32(b)) => Ok(Value::F32(a.max(*b))),
+			(Value::F64(a), Value::F64(b)) => Ok(Value::F64(a.max(*b))),
+			_ => {
+				let a_f64 = lhs.to_f64().ok_or(ValueError::NonNumericBinary {
+					op: NumBinaryOp::Max,
+					lhs: lhs.kind(),
+					rhs: rhs.kind(),
+				})?;
+				let b_f64 = rhs.to_f64().ok_or(ValueError::NonNumericBinary {
+					op: NumBinaryOp::Max,
+					lhs: lhs.kind(),
+					rhs: rhs.kind(),
+				})?;
+				Ok(Value::F64(a_f64.max(b_f64)))
+			}
+		}
+	}
+
+	pub fn try_num_unary(&self, op: NumUnaryOp) -> Result<Value, ValueError> {
+		match op {
+			NumUnaryOp::Abs => match self {
+				Value::I8(v) => Ok(Value::I8(v.wrapping_abs())),
+				Value::I16(v) => Ok(Value::I16(v.wrapping_abs())),
+				Value::I32(v) => Ok(Value::I32(v.wrapping_abs())),
+				Value::I64(v) => Ok(Value::I64(v.wrapping_abs())),
+				Value::U8(v) => Ok(Value::U8(*v)),
+				Value::U16(v) => Ok(Value::U16(*v)),
+				Value::U32(v) => Ok(Value::U32(*v)),
+				Value::U64(v) => Ok(Value::U64(*v)),
+				Value::U128(v) => Ok(Value::U128(*v)),
+				Value::F32(v) => Ok(Value::F32(v.abs())),
+				Value::F64(v) => Ok(Value::F64(v.abs())),
+				_ => Err(ValueError::NonNumericUnary {
+					op,
+					got: self.kind(),
+				}),
+			},
+			NumUnaryOp::Sqrt => {
+				if !self.is_numeric() {
+					return Err(ValueError::NonNumericUnary {
+						op,
+						got: self.kind(),
+					});
+				}
+				match self {
+					Value::I8(v) if *v < 0 => Err(ValueError::Domain { op: "sqrt" }),
+					Value::I16(v) if *v < 0 => Err(ValueError::Domain { op: "sqrt" }),
+					Value::I32(v) if *v < 0 => Err(ValueError::Domain { op: "sqrt" }),
+					Value::I64(v) if *v < 0 => Err(ValueError::Domain { op: "sqrt" }),
+					Value::F32(v) if *v < 0.0 => Err(ValueError::Domain { op: "sqrt" }),
+					Value::F64(v) if *v < 0.0 => Err(ValueError::Domain { op: "sqrt" }),
+					_ => {
+						let val = self.to_f64().ok_or(ValueError::NonNumericUnary {
+							op,
+							got: self.kind(),
+						})?;
+						Ok(Value::F64(val.sqrt()))
+					}
+				}
+			}
+		}
+	}
+
+	pub fn try_num_binary(&self, op: NumBinaryOp, rhs: &Value) -> Result<Value, ValueError> {
+		match op {
+			NumBinaryOp::Add => Self::num_binary_add(self.clone(), rhs.clone()),
+			NumBinaryOp::Sub => Self::num_binary_sub(self.clone(), rhs.clone()),
+			NumBinaryOp::Mul => Self::num_binary_mul(self.clone(), rhs.clone()),
+			NumBinaryOp::Div => Self::num_binary_div(self.clone(), rhs.clone()),
+			NumBinaryOp::Rem => Self::num_binary_rem(self.clone(), rhs.clone()),
+			NumBinaryOp::Pow => Self::num_binary_pow(self, rhs),
+			NumBinaryOp::Min => Self::num_binary_min(self, rhs),
+			NumBinaryOp::Max => Self::num_binary_max(self, rhs),
+		}
+	}
+
+	pub fn try_add(&self, rhs: &Value) -> Result<Value, ValueError> {
+		self.try_num_binary(NumBinaryOp::Add, rhs)
+	}
+
+	pub fn try_sub(&self, rhs: &Value) -> Result<Value, ValueError> {
+		self.try_num_binary(NumBinaryOp::Sub, rhs)
+	}
+
+	pub fn try_mul(&self, rhs: &Value) -> Result<Value, ValueError> {
+		self.try_num_binary(NumBinaryOp::Mul, rhs)
+	}
+
+	pub fn try_div(&self, rhs: &Value) -> Result<Value, ValueError> {
+		self.try_num_binary(NumBinaryOp::Div, rhs)
+	}
+
+	pub fn try_rem(&self, rhs: &Value) -> Result<Value, ValueError> {
+		self.try_num_binary(NumBinaryOp::Rem, rhs)
+	}
+
+	pub fn try_pow(&self, rhs: &Value) -> Result<Value, ValueError> {
+		self.try_num_binary(NumBinaryOp::Pow, rhs)
+	}
+
+	pub fn try_abs(&self) -> Result<Value, ValueError> {
+		self.try_num_unary(NumUnaryOp::Abs)
+	}
+
+	pub fn try_sqrt(&self) -> Result<Value, ValueError> {
+		self.try_num_unary(NumUnaryOp::Sqrt)
+	}
+
+	pub fn try_min(&self, rhs: &Value) -> Result<Value, ValueError> {
+		self.try_num_binary(NumBinaryOp::Min, rhs)
+	}
+
+	pub fn try_max(&self, rhs: &Value) -> Result<Value, ValueError> {
+		self.try_num_binary(NumBinaryOp::Max, rhs)
+	}
+}
+
+impl std::ops::Add for &Value {
+	type Output = Value;
+	fn add(self, other: Self) -> Self::Output {
+		self.try_num_binary(NumBinaryOp::Add, other)
+			.unwrap_or_else(|err| panic!("Value::add failed: {err}"))
+	}
+}
+impl std::ops::Mul for &Value {
+	type Output = Value;
+	fn mul(self, other: Self) -> Self::Output {
+		self.try_num_binary(NumBinaryOp::Mul, other)
+			.unwrap_or_else(|err| panic!("Value::mul failed: {err}"))
+	}
+}
+impl std::ops::Div for &Value {
+	type Output = Value;
+	fn div(self, other: Self) -> Self::Output {
+		self.try_num_binary(NumBinaryOp::Div, other)
+			.unwrap_or_else(|err| panic!("Value::div failed: {err}"))
+	}
+}
+impl std::ops::Sub for &Value {
+	type Output = Value;
+	fn sub(self, other: Self) -> Self::Output {
+		self.try_num_binary(NumBinaryOp::Sub, other)
+			.unwrap_or_else(|err| panic!("Value::sub failed: {err}"))
+	}
+}
+
+impl std::ops::Add for Value {
+	type Output = Value;
+	fn add(self, other: Self) -> Self::Output {
+		Self::num_binary_add(self, other).unwrap_or_else(|err| panic!("Value::add failed: {err}"))
+	}
+}
+
+impl std::ops::Sub for Value {
+	type Output = Value;
+
+	fn sub(self, other: Self) -> Self::Output {
+		Self::num_binary_sub(self, other).unwrap_or_else(|err| panic!("Value::sub failed: {err}"))
+	}
+}
+
+impl std::ops::Mul for Value {
+	type Output = Value;
+
+	fn mul(self, other: Self) -> Self::Output {
+		Self::num_binary_mul(self, other).unwrap_or_else(|err| panic!("Value::mul failed: {err}"))
+	}
+}
+
+impl std::ops::Div for Value {
+	type Output = Value;
+
+	fn div(self, other: Self) -> Self::Output {
+		Self::num_binary_div(self, other).unwrap_or_else(|err| panic!("Value::div failed: {err}"))
+	}
+}
+
+impl std::ops::Rem for &Value {
+	type Output = Value;
+	fn rem(self, other: Self) -> Self::Output {
+		self.try_num_binary(NumBinaryOp::Rem, other)
+			.unwrap_or_else(|err| panic!("Value::rem failed: {err}"))
+	}
+}
+
+impl std::ops::Rem for Value {
+	type Output = Value;
+
+	fn rem(self, other: Self) -> Self::Output {
+		Self::num_binary_rem(self, other).unwrap_or_else(|err| panic!("Value::rem failed: {err}"))
 	}
 }
 
 impl Value {
 	/// Compute power: self^other, returns F64
 	pub fn pow(&self, other: &Value) -> Value {
-		let base = self.to_f64().expect("pow requires numeric value");
-		let exp = other.to_f64().expect("pow requires numeric exponent");
-		Value::F64(base.powf(exp))
+		self.try_pow(other)
+			.unwrap_or_else(|err| panic!("Value::pow failed: {err}"))
 	}
 
 	/// Compute absolute value, preserving type for integers
 	pub fn abs(&self) -> Value {
-		match self {
-			// Signed integers use abs (handle potential overflow for MIN values)
-			Value::I8(v) => Value::I8(v.wrapping_abs()),
-			Value::I16(v) => Value::I16(v.wrapping_abs()),
-			Value::I32(v) => Value::I32(v.wrapping_abs()),
-			Value::I64(v) => Value::I64(v.wrapping_abs()),
-			// Unsigned integers are already non-negative
-			Value::U8(v) => Value::U8(*v),
-			Value::U16(v) => Value::U16(*v),
-			Value::U32(v) => Value::U32(*v),
-			Value::U64(v) => Value::U64(*v),
-			Value::U128(v) => Value::U128(*v),
-			// Floats
-			Value::F32(v) => Value::F32(v.abs()),
-			Value::F64(v) => Value::F64(v.abs()),
-			_ => panic!("abs requires numeric value"),
-		}
+		self.try_abs()
+			.unwrap_or_else(|err| panic!("Value::abs failed: {err}"))
 	}
 
 	/// Compute square root, returns F64
 	pub fn sqrt(&self) -> Value {
-		let val = self.to_f64().expect("sqrt requires numeric value");
-		Value::F64(val.sqrt())
+		self.try_sqrt()
+			.unwrap_or_else(|err| panic!("Value::sqrt failed: {err}"))
 	}
 
 	/// Return the minimum of self and other
 	pub fn min(&self, other: &Value) -> Value {
-		// For same types, compare directly
-		match (self, other) {
-			(Value::I8(a), Value::I8(b)) => Value::I8(*a.min(b)),
-			(Value::I16(a), Value::I16(b)) => Value::I16(*a.min(b)),
-			(Value::I32(a), Value::I32(b)) => Value::I32(*a.min(b)),
-			(Value::I64(a), Value::I64(b)) => Value::I64(*a.min(b)),
-			(Value::U8(a), Value::U8(b)) => Value::U8(*a.min(b)),
-			(Value::U16(a), Value::U16(b)) => Value::U16(*a.min(b)),
-			(Value::U32(a), Value::U32(b)) => Value::U32(*a.min(b)),
-			(Value::U64(a), Value::U64(b)) => Value::U64(*a.min(b)),
-			(Value::U128(a), Value::U128(b)) => Value::U128(*a.min(b)),
-			(Value::F32(a), Value::F32(b)) => Value::F32(a.min(*b)),
-			(Value::F64(a), Value::F64(b)) => Value::F64(a.min(*b)),
-			// Cross-type: promote to f64 and compare
-			_ => {
-				let a_f64 = self.to_f64().expect("min requires numeric value");
-				let b_f64 = other.to_f64().expect("min requires numeric value");
-				Value::F64(a_f64.min(b_f64))
-			}
-		}
+		self.try_min(other)
+			.unwrap_or_else(|err| panic!("Value::min failed: {err}"))
 	}
 
 	/// Return the maximum of self and other
 	pub fn max(&self, other: &Value) -> Value {
-		// For same types, compare directly
-		match (self, other) {
-			(Value::I8(a), Value::I8(b)) => Value::I8(*a.max(b)),
-			(Value::I16(a), Value::I16(b)) => Value::I16(*a.max(b)),
-			(Value::I32(a), Value::I32(b)) => Value::I32(*a.max(b)),
-			(Value::I64(a), Value::I64(b)) => Value::I64(*a.max(b)),
-			(Value::U8(a), Value::U8(b)) => Value::U8(*a.max(b)),
-			(Value::U16(a), Value::U16(b)) => Value::U16(*a.max(b)),
-			(Value::U32(a), Value::U32(b)) => Value::U32(*a.max(b)),
-			(Value::U64(a), Value::U64(b)) => Value::U64(*a.max(b)),
-			(Value::U128(a), Value::U128(b)) => Value::U128(*a.max(b)),
-			(Value::F32(a), Value::F32(b)) => Value::F32(a.max(*b)),
-			(Value::F64(a), Value::F64(b)) => Value::F64(a.max(*b)),
-			// Cross-type: promote to f64 and compare
-			_ => {
-				let a_f64 = self.to_f64().expect("max requires numeric value");
-				let b_f64 = other.to_f64().expect("max requires numeric value");
-				Value::F64(a_f64.max(b_f64))
-			}
-		}
+		self.try_max(other)
+			.unwrap_or_else(|err| panic!("Value::max failed: {err}"))
 	}
 }
 
@@ -2785,29 +3186,24 @@ mod tests {
 	}
 
 	#[test]
-	fn test_inner_stringify_array() {
+	fn test_try_stringify_primitive_array_errors() {
 		let arr = Value::Array(vec![Value::I32(1), Value::I32(2), Value::I32(3)]);
-		let result = arr.inner_stringify();
-		assert_eq!(result, "1 2 3");
+		assert!(arr.try_stringify_primitive().is_err());
 	}
 
 	#[test]
-	fn test_inner_stringify_object() {
+	fn test_try_stringify_primitive_object_errors() {
 		let mut map = HashMap::new();
 		map.insert("key1".to_string(), Value::I32(1));
 		map.insert("key2".to_string(), Value::I32(2));
 
 		let obj = Value::Object(map);
-		let result = obj.inner_stringify();
-		// Order may vary, but should contain both key-value pairs
-		assert!(result.contains("key1") && result.contains("1"));
-		assert!(result.contains("key2") && result.contains("2"));
+		assert!(obj.try_stringify_primitive().is_err());
 	}
 
 	#[test]
-	#[should_panic(expected = "Not primitive")]
-	fn test_inner_stringify_empty_panics() {
-		Value::Empty.inner_stringify();
+	fn test_try_stringify_primitive_empty_errors() {
+		assert!(Value::Empty.try_stringify_primitive().is_err());
 	}
 
 	#[test]
@@ -2831,7 +3227,7 @@ mod tests {
 	}
 
 	#[test]
-	#[should_panic(expected = "Not a string")]
+	#[should_panic(expected = "Value::as_str failed")]
 	fn test_as_str_panics_on_non_string() {
 		Value::I32(42).as_str();
 	}
@@ -3081,10 +3477,10 @@ mod tests {
 	#[test]
 	fn test_value_empty_collections() {
 		let empty_arr = Value::Array(vec![]);
-		assert_eq!(empty_arr.inner_stringify(), "");
+		assert!(empty_arr.try_stringify_primitive().is_err());
 
 		let empty_obj = Value::Object(HashMap::new());
-		assert_eq!(empty_obj.inner_stringify(), "");
+		assert!(empty_obj.try_stringify_primitive().is_err());
 	}
 
 	// ============================================================================
@@ -3137,15 +3533,15 @@ mod tests {
 	}
 
 	#[test]
-	fn test_inner_str_boolean_returns_borrowed() {
+	fn test_inner_str_boolean_returns_owned() {
 		let val_true = Value::Boolean(true);
 		let cow_true = val_true.inner_str();
-		assert!(matches!(cow_true, std::borrow::Cow::Borrowed(_)));
+		assert!(matches!(cow_true, std::borrow::Cow::Owned(_)));
 		assert_eq!(&*cow_true, "true");
 
 		let val_false = Value::Boolean(false);
 		let cow_false = val_false.inner_str();
-		assert!(matches!(cow_false, std::borrow::Cow::Borrowed(_)));
+		assert!(matches!(cow_false, std::borrow::Cow::Owned(_)));
 		assert_eq!(&*cow_false, "false");
 	}
 
@@ -3173,13 +3569,13 @@ mod tests {
 	}
 
 	#[test]
-	#[should_panic(expected = "Not primitive")]
+	#[should_panic(expected = "Value::inner_str failed")]
 	fn test_inner_str_empty_panics() {
 		Value::Empty.inner_str();
 	}
 
 	#[test]
-	#[should_panic(expected = "Not primitive")]
+	#[should_panic(expected = "Value::inner_str failed")]
 	fn test_inner_str_array_panics() {
 		Value::Array(vec![Value::I32(1)]).inner_str();
 	}
@@ -3515,7 +3911,7 @@ mod tests {
 	}
 
 	#[test]
-	#[should_panic(expected = "Mismatched types")]
+	#[should_panic(expected = "Value::add failed")]
 	fn test_add_invalid_combinations() {
 		// String + I32 should error
 		let _ = Value::String("test".to_string()) + Value::I32(42);
@@ -3531,6 +3927,49 @@ mod tests {
 
 		// String + Array should error
 		let _ = Value::String("test".to_string()) + Value::Array(vec![Value::I32(1)]);
+	}
+
+	// ============================================================================
+	// Try API Tests
+	// ============================================================================
+	#[test]
+	fn test_add_i64_i64_matches_old() {
+		let lhs = Value::I64(7);
+		let rhs = Value::I64(5);
+		let via_try = lhs.try_add(&rhs).unwrap();
+		let via_add = Value::I64(7) + Value::I64(5);
+		assert_eq!(via_try, via_add);
+	}
+
+	#[test]
+	fn test_division_by_zero_errors() {
+		let err = Value::I64(1).try_div(&Value::I64(0)).unwrap_err();
+		assert!(matches!(err, ValueError::DivisionByZero));
+
+		let err = Value::U64(10).try_rem(&Value::U64(0)).unwrap_err();
+		assert!(matches!(err, ValueError::DivisionByZero));
+	}
+
+	#[test]
+	fn test_sqrt_negative_domain_error() {
+		let err = Value::I64(-1).try_sqrt().unwrap_err();
+		assert!(matches!(err, ValueError::Domain { op: "sqrt" }));
+	}
+
+	#[test]
+	fn test_min_max_total_ordering_rules() {
+		let nan = Value::F64(f64::NAN);
+		let num = Value::F64(1.0);
+		let min = nan.try_min(&num).unwrap();
+		let max = nan.try_max(&num).unwrap();
+		match min {
+			Value::F64(v) => assert!(v.is_nan()),
+			_ => panic!("Expected F64 NaN from min"),
+		}
+		match max {
+			Value::F64(v) => assert!(v.is_nan()),
+			_ => panic!("Expected F64 NaN from max"),
+		}
 	}
 
 	// ============================================================================
@@ -3642,7 +4081,7 @@ mod tests {
 	}
 
 	#[test]
-	#[should_panic(expected = "Mismatched types")]
+	#[should_panic(expected = "Value::sub failed")]
 	fn test_sub_invalid_combinations() {
 		// String - I32 should error
 		let _ = Value::String("test".to_string()) - Value::I32(42);
@@ -3760,7 +4199,7 @@ mod tests {
 	}
 
 	#[test]
-	#[should_panic(expected = "Mismatched types")]
+	#[should_panic(expected = "Value::mul failed")]
 	fn test_mul_invalid_combinations() {
 		// String * I32 should error
 		let _ = Value::String("test".to_string()) * Value::I32(42);
@@ -3878,14 +4317,14 @@ mod tests {
 	}
 
 	#[test]
-	#[should_panic(expected = "Mismatched types")]
+	#[should_panic(expected = "Value::div failed")]
 	fn test_div_invalid_combinations() {
 		// String / I32 should error
 		let _ = Value::String("test".to_string()) / Value::I32(42);
 	}
 
 	#[test]
-	#[should_panic(expected = "Division by zero")]
+	#[should_panic(expected = "Value::div failed")]
 	fn test_div_by_zero_returns_error() {
 		// Integer division by zero
 		let _ = Value::I32(42) / Value::I32(0);
