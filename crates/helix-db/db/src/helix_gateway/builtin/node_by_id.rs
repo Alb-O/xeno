@@ -70,7 +70,7 @@ pub fn node_details_inner(input: HandlerInput) -> Result<protocol::Response, Eng
 		None
 	};
 
-	let node_id_str = node_id_str.ok_or_else(|| TraversalError::ParamNotFound("id").into())?;
+	let node_id_str = node_id_str.ok_or_else(|| EngineError::from(TraversalError::ParamNotFound("id")))?;
 
 	let node_id = match uuid::Uuid::parse_str(&node_id_str) {
 		Ok(uuid) => uuid.as_u128(),

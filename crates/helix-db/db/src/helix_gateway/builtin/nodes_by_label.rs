@@ -79,7 +79,7 @@ pub fn nodes_by_label_inner(input: HandlerInput) -> Result<protocol::Response, E
 		(None, None)
 	};
 
-	let label = label.ok_or_else(|| TraversalError::ParamNotFound("label").into())?;
+	let label = label.ok_or_else(|| EngineError::from(TraversalError::ParamNotFound("label")))?;
 	const MAX_PREALLOCATE_CAPACITY: usize = 100_000;
 
 	let initial_capacity = match limit {

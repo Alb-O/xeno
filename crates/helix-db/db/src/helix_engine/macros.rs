@@ -132,7 +132,6 @@ pub mod macros {
 	/// time_block!("my label" {
 	///     let x = 1 + 2;
 	/// });
-	#[macro_export]
 	macro_rules! time_block {
         // params: label, code block
         ($label:expr, $($block:tt)*) => {{
