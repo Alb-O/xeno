@@ -574,7 +574,7 @@ fn test_v_from_type_after_migration() {
 			props.insert(k, v);
 		}
 
-		bincode::serialize(&props).unwrap()
+		postcard::to_stdvec(&props).unwrap()
 	}
 
 	// Helper to clear metadata (simulates PreMetadata state)

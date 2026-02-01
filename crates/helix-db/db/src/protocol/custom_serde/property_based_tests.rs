@@ -75,10 +75,10 @@ mod property_based_tests {
 			let arena = Bump::new();
 			let node = create_simple_node(&arena, id, &label);
 
-			let bytes = bincode::serialize(&node).unwrap();
+			let bytes = postcard::to_stdvec(&node).unwrap();
 
 			let arena2 = Bump::new();
-			let deserialized = Node::from_bincode_bytes(id, &bytes, &arena2).unwrap();
+			let deserialized = Node::from_bytes(id, &bytes, &arena2).unwrap();
 
 			prop_assert_eq!(deserialized.label, label.as_str());
 			prop_assert_eq!(deserialized.id, id);
@@ -93,10 +93,10 @@ mod property_based_tests {
 			let arena = Bump::new();
 			let node = create_arena_node(&arena, id, &label, version, vec![]);
 
-			let bytes = bincode::serialize(&node).unwrap();
+			let bytes = postcard::to_stdvec(&node).unwrap();
 
 			let arena2 = Bump::new();
-			let deserialized = Node::from_bincode_bytes(id, &bytes, &arena2).unwrap();
+			let deserialized = Node::from_bytes(id, &bytes, &arena2).unwrap();
 
 			prop_assert_eq!(deserialized.version, version);
 		}
@@ -116,10 +116,10 @@ mod property_based_tests {
 
 			let node = create_arena_node(&arena, id, &label, 0, props_refs);
 
-			let bytes = bincode::serialize(&node).unwrap();
+			let bytes = postcard::to_stdvec(&node).unwrap();
 
 			let arena2 = Bump::new();
-			let deserialized = Node::from_bincode_bytes(id, &bytes, &arena2).unwrap();
+			let deserialized = Node::from_bytes(id, &bytes, &arena2).unwrap();
 
 			prop_assert_eq!(deserialized.label, label.as_str());
 			prop_assert_eq!(deserialized.id, id);
@@ -143,8 +143,8 @@ mod property_based_tests {
 			let node = create_simple_node(&arena, id, &label);
 
 			// Serialize twice
-			let bytes1 = bincode::serialize(&node).unwrap();
-			let bytes2 = bincode::serialize(&node).unwrap();
+			let bytes1 = postcard::to_stdvec(&node).unwrap();
+			let bytes2 = postcard::to_stdvec(&node).unwrap();
 
 			// Should produce identical bytes
 			prop_assert_eq!(bytes1, bytes2);
@@ -159,14 +159,14 @@ mod property_based_tests {
 			let node = create_simple_node(&arena, id, &label);
 
 			// First roundtrip
-			let bytes1 = bincode::serialize(&node).unwrap();
+			let bytes1 = postcard::to_stdvec(&node).unwrap();
 			let arena2 = Bump::new();
-			let node2 = Node::from_bincode_bytes(id, &bytes1, &arena2).unwrap();
+			let node2 = Node::from_bytes(id, &bytes1, &arena2).unwrap();
 
 			// Second roundtrip
-			let bytes2 = bincode::serialize(&node2).unwrap();
+			let bytes2 = postcard::to_stdvec(&node2).unwrap();
 			let arena3 = Bump::new();
-			let node3 = Node::from_bincode_bytes(id, &bytes2, &arena3).unwrap();
+			let node3 = Node::from_bytes(id, &bytes2, &arena3).unwrap();
 
 			// Bytes should be identical
 			prop_assert_eq!(bytes1, bytes2);
@@ -193,10 +193,10 @@ mod property_based_tests {
 			let arena = Bump::new();
 			let edge = create_arena_edge(&arena, id, &label, version, from_node, to_node, vec![]);
 
-			let bytes = bincode::serialize(&edge).unwrap();
+			let bytes = postcard::to_stdvec(&edge).unwrap();
 
 			let arena2 = Bump::new();
-			let deserialized = Edge::from_bincode_bytes(id, &bytes, &arena2).unwrap();
+			let deserialized = Edge::from_bytes(id, &bytes, &arena2).unwrap();
 
 			prop_assert_eq!(deserialized.label, label.as_str());
 			prop_assert_eq!(deserialized.id, id);
@@ -221,10 +221,10 @@ mod property_based_tests {
 
 			let edge = create_arena_edge(&arena, id, &label, 0, from_node, to_node, props_refs);
 
-			let bytes = bincode::serialize(&edge).unwrap();
+			let bytes = postcard::to_stdvec(&edge).unwrap();
 
 			let arena2 = Bump::new();
-			let deserialized = Edge::from_bincode_bytes(id, &bytes, &arena2).unwrap();
+			let deserialized = Edge::from_bytes(id, &bytes, &arena2).unwrap();
 
 			prop_assert_eq!(deserialized.from_node, from_node);
 			prop_assert_eq!(deserialized.to_node, to_node);
@@ -240,8 +240,8 @@ mod property_based_tests {
 			let arena = Bump::new();
 			let edge = create_simple_edge(&arena, id, &label, from_node, to_node);
 
-			let bytes1 = bincode::serialize(&edge).unwrap();
-			let bytes2 = bincode::serialize(&edge).unwrap();
+			let bytes1 = postcard::to_stdvec(&edge).unwrap();
+			let bytes2 = postcard::to_stdvec(&edge).unwrap();
 
 			prop_assert_eq!(bytes1, bytes2);
 		}
@@ -257,10 +257,10 @@ mod property_based_tests {
 			let arena = Bump::new();
 			let edge = create_simple_edge(&arena, id, &label, from_node, to_node);
 
-			let bytes = bincode::serialize(&edge).unwrap();
+			let bytes = postcard::to_stdvec(&edge).unwrap();
 
 			let arena2 = Bump::new();
-			let deserialized = Edge::from_bincode_bytes(id, &bytes, &arena2).unwrap();
+			let deserialized = Edge::from_bytes(id, &bytes, &arena2).unwrap();
 
 			// Relationship invariant
 			prop_assert_eq!(deserialized.from_node, from_node);
@@ -282,11 +282,11 @@ mod property_based_tests {
 			let arena = Bump::new();
 			let vector = create_simple_vector(&arena, id, &label, &data);
 
-			let props_bytes = bincode::serialize(&vector).unwrap();
+			let props_bytes = postcard::to_stdvec(&vector).unwrap();
 			let data_bytes = vector.vector_data_to_bytes().unwrap();
 
 			let arena2 = Bump::new();
-			let deserialized = HVector::from_bincode_bytes(
+			let deserialized = HVector::from_bytes(
 				&arena2,
 				Some(&props_bytes),
 				data_bytes,
@@ -320,11 +320,11 @@ mod property_based_tests {
 
 			let vector = create_arena_vector(&arena, id, &label, 1, deleted, 0, &data, props_refs);
 
-			let props_bytes = bincode::serialize(&vector).unwrap();
+			let props_bytes = postcard::to_stdvec(&vector).unwrap();
 			let data_bytes = vector.vector_data_to_bytes().unwrap();
 
 			let arena2 = Bump::new();
-			let deserialized = HVector::from_bincode_bytes(
+			let deserialized = HVector::from_bytes(
 				&arena2,
 				Some(&props_bytes),
 				data_bytes,
@@ -362,10 +362,10 @@ mod property_based_tests {
 			let arena = Bump::new();
 			let vector = create_simple_vector(&arena, id, &label, &data);
 
-			let props_bytes1 = bincode::serialize(&vector).unwrap();
+			let props_bytes1 = postcard::to_stdvec(&vector).unwrap();
 			let data_bytes1 = vector.vector_data_to_bytes().unwrap();
 
-			let props_bytes2 = bincode::serialize(&vector).unwrap();
+			let props_bytes2 = postcard::to_stdvec(&vector).unwrap();
 			let data_bytes2 = vector.vector_data_to_bytes().unwrap();
 
 			prop_assert_eq!(props_bytes1, props_bytes2);
@@ -382,10 +382,10 @@ mod property_based_tests {
 			let vector = create_simple_vector(&arena, id, &label, &data);
 
 			// First roundtrip
-			let props_bytes1 = bincode::serialize(&vector).unwrap();
+			let props_bytes1 = postcard::to_stdvec(&vector).unwrap();
 			let data_bytes1 = vector.vector_data_to_bytes().unwrap();
 			let arena2 = Bump::new();
-			let vector2 = HVector::from_bincode_bytes(
+			let vector2 = HVector::from_bytes(
 				&arena2,
 				Some(&props_bytes1),
 				data_bytes1,
@@ -393,7 +393,7 @@ mod property_based_tests {
 			).unwrap();
 
 			// Second roundtrip
-			let props_bytes2 = bincode::serialize(&vector2).unwrap();
+			let props_bytes2 = postcard::to_stdvec(&vector2).unwrap();
 			let data_bytes2 = vector2.vector_data_to_bytes().unwrap();
 
 			// Bytes should be identical
@@ -415,26 +415,26 @@ mod property_based_tests {
 			// Node
 			let arena_node = Bump::new();
 			let node = create_simple_node(&arena_node, id, &label);
-			let node_bytes = bincode::serialize(&node).unwrap();
+			let node_bytes = postcard::to_stdvec(&node).unwrap();
 			let arena_node2 = Bump::new();
-			let node_restored = Node::from_bincode_bytes(id, &node_bytes, &arena_node2).unwrap();
+			let node_restored = Node::from_bytes(id, &node_bytes, &arena_node2).unwrap();
 			prop_assert_eq!(node_restored.id, id);
 
 			// Edge
 			let arena_edge = Bump::new();
 			let edge = create_simple_edge(&arena_edge, id, &label, 1, 2);
-			let edge_bytes = bincode::serialize(&edge).unwrap();
+			let edge_bytes = postcard::to_stdvec(&edge).unwrap();
 			let arena_edge2 = Bump::new();
-			let edge_restored = Edge::from_bincode_bytes(id, &edge_bytes, &arena_edge2).unwrap();
+			let edge_restored = Edge::from_bytes(id, &edge_bytes, &arena_edge2).unwrap();
 			prop_assert_eq!(edge_restored.id, id);
 
 			// Vector
 			let arena_vec = Bump::new();
 			let vector = create_simple_vector(&arena_vec, id, &label, &[1.0, 2.0]);
-			let props_bytes = bincode::serialize(&vector).unwrap();
+			let props_bytes = postcard::to_stdvec(&vector).unwrap();
 			let data_bytes = vector.vector_data_to_bytes().unwrap();
 			let arena_vec2 = Bump::new();
-			let vector_restored = HVector::from_bincode_bytes(
+			let vector_restored = HVector::from_bytes(
 				&arena_vec2,
 				Some(&props_bytes),
 				data_bytes,
@@ -451,26 +451,26 @@ mod property_based_tests {
 			// Node
 			let arena_node = Bump::new();
 			let node = create_simple_node(&arena_node, id, &label);
-			let node_bytes = bincode::serialize(&node).unwrap();
+			let node_bytes = postcard::to_stdvec(&node).unwrap();
 			let arena_node2 = Bump::new();
-			let node_restored = Node::from_bincode_bytes(id, &node_bytes, &arena_node2).unwrap();
+			let node_restored = Node::from_bytes(id, &node_bytes, &arena_node2).unwrap();
 			prop_assert_eq!(node_restored.label, label.as_str());
 
 			// Edge
 			let arena_edge = Bump::new();
 			let edge = create_simple_edge(&arena_edge, id, &label, 1, 2);
-			let edge_bytes = bincode::serialize(&edge).unwrap();
+			let edge_bytes = postcard::to_stdvec(&edge).unwrap();
 			let arena_edge2 = Bump::new();
-			let edge_restored = Edge::from_bincode_bytes(id, &edge_bytes, &arena_edge2).unwrap();
+			let edge_restored = Edge::from_bytes(id, &edge_bytes, &arena_edge2).unwrap();
 			prop_assert_eq!(edge_restored.label, label.as_str());
 
 			// Vector
 			let arena_vec = Bump::new();
 			let vector = create_simple_vector(&arena_vec, id, &label, &[1.0]);
-			let props_bytes = bincode::serialize(&vector).unwrap();
+			let props_bytes = postcard::to_stdvec(&vector).unwrap();
 			let data_bytes = vector.vector_data_to_bytes().unwrap();
 			let arena_vec2 = Bump::new();
-			let vector_restored = HVector::from_bincode_bytes(
+			let vector_restored = HVector::from_bytes(
 				&arena_vec2,
 				Some(&props_bytes),
 				data_bytes,

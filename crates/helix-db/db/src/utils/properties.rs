@@ -1,7 +1,6 @@
 use std::convert::Infallible;
 use std::{alloc, fmt, iter, marker, ptr, slice, str};
 
-use bincode::Options;
 use serde::Serialize;
 
 use crate::protocol::value::Value;
@@ -40,14 +39,12 @@ impl<'arena> ImmutablePropertiesMap<'arena> {
 		map
 	}
 
-	pub fn from_bincode_bytes<'txn>(
+	pub fn from_bytes<'txn>(
 		bytes: &'txn [u8],
 		arena: &'arena bumpalo::Bump,
-	) -> bincode::Result<Self> {
-		bincode::options()
-			.with_fixint_encoding()
-			.allow_trailing_bytes()
-			.deserialize_seed(ImmutablePropertiesMapDeSeed { arena }, bytes)
+	) -> Result<Self, postcard::Error> {
+		let mut de = postcard::Deserializer::from_bytes(bytes);
+		serde::de::DeserializeSeed::deserialize(ImmutablePropertiesMapDeSeed { arena }, &mut de)
 	}
 
 	pub fn new_from_try<Error>(

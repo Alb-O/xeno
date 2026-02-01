@@ -68,7 +68,7 @@ impl<
 			.unwrap();
 		let label_as_bytes = label.as_bytes();
 		let res = db
-            .prefix_iter(self.txn, &bincode::serialize(&Value::from(key)).unwrap())
+            .prefix_iter(self.txn, &postcard::to_stdvec(&Value::from(key)).unwrap())
             .unwrap()
             .filter_map(move |item| {
                 if let Ok((_, node_id)) = item &&
@@ -92,7 +92,7 @@ impl<
                         ..LMDB_STRING_HEADER_LENGTH + length_of_label_in_lmdb];
 
                     if label_in_lmdb == label_as_bytes {
-                        match Node::<'arena>::from_bincode_bytes(node_id, value, self.arena) {
+                        match Node::<'arena>::from_bytes(node_id, value, self.arena) {
                             Ok(node) => {
                                 return Some(Ok(TraversalValue::Node(node)));
                             }

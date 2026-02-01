@@ -6,7 +6,6 @@
 
 use std::cmp::Ordering;
 
-use bincode::Options;
 use serde::ser::SerializeMap;
 
 use crate::protocol::custom_serde::edge_serde::EdgeDeSeed;
@@ -37,7 +36,7 @@ pub struct Node<'arena> {
 // Custom Serialize implementation to match old #[derive(Serialize)] behavior
 // Bincode serializes #[derive(Serialize)] structs using serialize_struct internally
 // which produces a compact format without length prefixes
-// For JSON serialization, the id field is included, but for bincode it is skipped
+// For JSON serialization, the id field is included, but for postcard it is skipped
 impl<'arena> serde::Serialize for Node<'arena> {
 	fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
 	where
@@ -62,7 +61,7 @@ impl<'arena> serde::Serialize for Node<'arena> {
 			}
 			state.end()
 		} else {
-			// Skip id for bincode serialization
+			// Skip id for postcard serialization
 			let mut state = serializer.serialize_struct("Node", 3)?;
 			state.serialize_field("label", self.label)?;
 			state.serialize_field("version", &self.version)?;
@@ -81,26 +80,20 @@ impl<'arena> Node<'arena> {
 		self.properties.and_then(|value| value.get(prop))
 	}
 
-	/// Deserializes bytes into a node using a custom deserializer that allocates into the provided arena
-	///
-	/// NOTE: in this method, fixint encoding is used
+	/// Deserializes bytes into a node using a custom deserializer that allocates into the provided arena.
 	#[inline(always)]
-	pub fn from_bincode_bytes<'txn>(
+	pub fn from_bytes<'txn>(
 		id: u128,
 		bytes: &'txn [u8],
 		arena: &'arena bumpalo::Bump,
-	) -> bincode::Result<Self> {
-		// Use fixint encoding to match bincode::serialize() behavior (8-byte lengths)
-		// Allow trailing bytes since we manually control Option reading
-		bincode::DefaultOptions::new()
-			.with_fixint_encoding()
-			.allow_trailing_bytes()
-			.deserialize_seed(NodeDeSeed { arena, id }, bytes)
+	) -> Result<Self, postcard::Error> {
+		let mut de = postcard::Deserializer::from_bytes(bytes);
+		serde::de::DeserializeSeed::deserialize(NodeDeSeed { arena, id }, &mut de)
 	}
 
 	#[inline(always)]
-	pub fn to_bincode_bytes(&self) -> Result<Vec<u8>, bincode::Error> {
-		bincode::serialize(self)
+	pub fn to_bytes(&self) -> Result<Vec<u8>, postcard::Error> {
+		postcard::to_stdvec(self)
 	}
 }
 
@@ -169,7 +162,7 @@ pub struct Edge<'arena> {
 // Custom Serialize implementation to match old #[derive(Serialize)] behavior
 // Bincode serializes #[derive(Serialize)] structs using serialize_struct internally
 // which produces a compact format without length prefixes
-// For JSON serialization, the id field is included, but for bincode it is skipped
+// For JSON serialization, the id field is included, but for postcard it is skipped
 impl<'arena> serde::Serialize for Edge<'arena> {
 	fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
 	where
@@ -196,7 +189,7 @@ impl<'arena> serde::Serialize for Edge<'arena> {
 			}
 			state.end()
 		} else {
-			// Skip id for bincode serialization
+			// Skip id for postcard serialization
 			let mut state = serializer.serialize_struct("Edge", 5)?;
 			state.serialize_field("label", self.label)?;
 			state.serialize_field("version", &self.version)?;
@@ -217,25 +210,20 @@ impl<'arena> Edge<'arena> {
 		self.properties.as_ref().and_then(|value| value.get(prop))
 	}
 
-	/// Deserializes bytes into an edge using a custom deserializer that allocates into the provided arena
-	///
-	/// NOTE: in this method, fixint encoding is used
+	/// Deserializes bytes into an edge using a custom deserializer that allocates into the provided arena.
 	#[inline(always)]
-	pub fn from_bincode_bytes<'txn>(
+	pub fn from_bytes<'txn>(
 		id: u128,
 		bytes: &'txn [u8],
 		arena: &'arena bumpalo::Bump,
-	) -> bincode::Result<Self> {
-		// Use fixint encoding to match bincode::serialize() behavior (8-byte lengths)
-		bincode::DefaultOptions::new()
-			.with_fixint_encoding()
-			.allow_trailing_bytes()
-			.deserialize_seed(EdgeDeSeed { arena, id }, bytes)
+	) -> Result<Self, postcard::Error> {
+		let mut de = postcard::Deserializer::from_bytes(bytes);
+		serde::de::DeserializeSeed::deserialize(EdgeDeSeed { arena, id }, &mut de)
 	}
 
 	#[inline(always)]
-	pub fn to_bincode_bytes(&self) -> Result<Vec<u8>, bincode::Error> {
-		bincode::serialize(self)
+	pub fn to_bytes(&self) -> Result<Vec<u8>, postcard::Error> {
+		postcard::to_stdvec(self)
 	}
 }
 

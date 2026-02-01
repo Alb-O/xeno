@@ -153,7 +153,7 @@ impl VectorCore {
 			)
 			.map_err(VectorError::from)?;
 		self.vector_properties_db
-			.put(txn, &vector.id, bincode::serialize(&vector)?.as_ref())?;
+			.put(txn, &vector.id, postcard::to_stdvec(&vector)?.as_ref())?;
 		Ok(())
 	}
 
@@ -388,7 +388,7 @@ impl VectorCore {
 	) -> Result<Option<VectorWithoutData<'arena>>, VectorError> {
 		let vector: Option<VectorWithoutData<'arena>> =
 			match self.vector_properties_db.get(txn, &id)? {
-				Some(bytes) => Some(VectorWithoutData::from_bincode_bytes(arena, bytes, id)?),
+				Some(bytes) => Some(VectorWithoutData::from_bytes(arena, bytes, id)?),
 				None => None,
 			};
 
@@ -415,7 +415,7 @@ impl VectorCore {
 
 		let properties_bytes = self.vector_properties_db.get(txn, &id)?;
 
-		let vector = HVector::from_bincode_bytes(arena, properties_bytes, vector_data_bytes, id)?;
+		let vector = HVector::from_bytes(arena, properties_bytes, vector_data_bytes, id)?;
 		if vector.deleted {
 			return Err(VectorError::VectorDeleted);
 		}
@@ -647,7 +647,7 @@ impl HNSW for VectorCore {
 				self.vector_properties_db.put(
 					txn,
 					&id,
-					bincode::serialize(&properties)?.as_ref(),
+					postcard::to_stdvec(&properties)?.as_ref(),
 				)?;
 				debug_println!("vector deleted with id {}", &id);
 				Ok(())

@@ -131,9 +131,9 @@ impl From<String> for GraphError {
 	}
 }
 
-impl From<bincode::Error> for GraphError {
-	fn from(error: bincode::Error) -> Self {
-		GraphError::ConversionError(format!("bincode error: {error}"))
+impl From<postcard::Error> for GraphError {
+	fn from(error: postcard::Error) -> Self {
+		GraphError::ConversionError(format!("postcard error: {error}"))
 	}
 }
 
@@ -214,9 +214,9 @@ impl From<SonicError> for VectorError {
 	}
 }
 
-impl From<bincode::Error> for VectorError {
-	fn from(error: bincode::Error) -> Self {
-		VectorError::ConversionError(format!("bincode error: {error}"))
+impl From<postcard::Error> for VectorError {
+	fn from(error: postcard::Error) -> Self {
+		VectorError::ConversionError(format!("postcard error: {error}"))
 	}
 }
 

@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 use std::ops::Bound;
 
-use bincode::Options;
 use itertools::Itertools;
 
 use super::metadata::{NATIVE_VECTOR_ENDIANNESS, StorageMetadata, VectorEndianness};
@@ -275,10 +274,7 @@ pub(crate) fn convert_old_vector_properties_to_new_format(
 	property_bytes: &[u8],
 	arena: &bumpalo::Bump,
 ) -> Result<Vec<u8>, GraphError> {
-	let mut old_properties: HashMap<String, Value> = bincode::DefaultOptions::new()
-		.with_fixint_encoding()
-		.allow_trailing_bytes()
-		.deserialize(property_bytes)?;
+	let mut old_properties: HashMap<String, Value> = postcard::from_bytes(property_bytes)?;
 
 	let label = old_properties
 		.remove("label")
@@ -304,7 +300,7 @@ pub(crate) fn convert_old_vector_properties_to_new_format(
 		properties: Some(new_properties),
 	};
 
-	new_vector.to_bincode_bytes().map_err(GraphError::from)
+	new_vector.to_bytes().map_err(GraphError::from)
 }
 
 fn verify_vectors_and_repair(storage: &HelixGraphStorage) -> Result<(), GraphError> {

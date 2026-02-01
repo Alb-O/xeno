@@ -1362,7 +1362,7 @@ impl PartialOrd<DateTime<Utc>> for Value {
 }
 
 /// Custom serialisation implementation for Value that removes enum variant names in JSON
-/// whilst preserving them for binary formats like bincode.
+/// whilst preserving them for binary formats like postcard.
 impl Serialize for Value {
 	fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
 	where
@@ -1434,7 +1434,7 @@ impl Serialize for Value {
 
 /// Custom deserialisation implementation for Value that handles both JSON and binary formats.
 /// For JSON, parses raw values directly.
-/// For binary formats like bincode, reconstructs the full enum structure.
+/// For binary formats like postcard, reconstructs the full enum structure.
 impl<'de> Deserialize<'de> for Value {
 	fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
 	where
@@ -2865,7 +2865,7 @@ mod tests {
 	}
 
 	#[test]
-	fn test_bincode_serialization_roundtrip() {
+	fn test_postcard_serialization_roundtrip() {
 		let test_values = vec![
 			Value::String("test".to_string()),
 			Value::I32(42),
@@ -2877,8 +2877,8 @@ mod tests {
 		];
 
 		for val in test_values {
-			let encoded = bincode::serialize(&val).unwrap();
-			let decoded: Value = bincode::deserialize(&encoded).unwrap();
+			let encoded = postcard::to_stdvec(&val).unwrap();
+			let decoded: Value = postcard::from_bytes(&encoded).unwrap();
 			assert_eq!(val, decoded);
 		}
 	}

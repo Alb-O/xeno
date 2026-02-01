@@ -73,7 +73,7 @@ impl<'db, 'arena, 'txn, I: Iterator<Item = Result<TraversalValue<'arena>, GraphE
                     }
 
                     if label_in_lmdb == label_bytes {
-                        let vector_without_data = VectorWithoutData::from_bincode_bytes(self.arena, value, id)
+                        let vector_without_data = VectorWithoutData::from_bytes(self.arena, value, id)
                                     .map_err(|e| VectorError::ConversionError(e.to_string()))
                                     .ok()?;
 

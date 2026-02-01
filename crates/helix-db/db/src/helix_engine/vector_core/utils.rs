@@ -113,7 +113,7 @@ impl<'db, 'arena, 'txn, 'q> VectorFilter<'db, 'arena, 'txn, 'q>
 						// println!("decoding");
 
 						// println!("decoded: {res:?}");
-						Some(VectorWithoutData::from_bincode_bytes(
+						Some(VectorWithoutData::from_bytes(
 							arena, bytes, item.id,
 						)?)
 					}

@@ -348,7 +348,7 @@ impl StorageMethods for HelixGraphStorage {
 			Some(data) => data,
 			None => return Err(GraphError::NodeNotFound),
 		};
-		let node: Node = Node::from_bincode_bytes(*id, node, arena)?;
+		let node: Node = Node::from_bytes(*id, node, arena)?;
 		let node = self.version_info.upgrade_to_node_latest(node);
 		Ok(node)
 	}
@@ -364,7 +364,7 @@ impl StorageMethods for HelixGraphStorage {
 			Some(data) => data,
 			None => return Err(GraphError::EdgeNotFound),
 		};
-		let edge: Edge = Edge::from_bincode_bytes(*id, edge, arena)?;
+		let edge: Edge = Edge::from_bytes(*id, edge, arena)?;
 		Ok(self.version_info.upgrade_to_edge_latest(edge))
 	}
 
@@ -444,7 +444,7 @@ impl StorageMethods for HelixGraphStorage {
 		for (index_name, (db, _)) in &self.secondary_indices {
 			// Use get_property like we do when adding, to handle id, label, and regular properties consistently
 			match node.get_property(index_name) {
-				Some(value) => match bincode::serialize(value) {
+				Some(value) => match postcard::to_stdvec(value) {
 					Ok(serialized) => {
 						if let Err(e) = db.delete_one_duplicate(txn, &serialized, &node.id) {
 							return Err(GraphError::from(e));
@@ -472,7 +472,7 @@ impl StorageMethods for HelixGraphStorage {
 			Some(data) => data,
 			None => return Err(GraphError::EdgeNotFound),
 		};
-		let edge: Edge = Edge::from_bincode_bytes(*edge_id, edge_data, &arena)?;
+		let edge: Edge = Edge::from_bytes(*edge_id, edge_data, &arena)?;
 		let label_hash = hash_label(edge.label, None);
 		let out_edge_value = Self::pack_edge_data(edge_id, &edge.to_node);
 		let in_edge_value = Self::pack_edge_data(edge_id, &edge.from_node);

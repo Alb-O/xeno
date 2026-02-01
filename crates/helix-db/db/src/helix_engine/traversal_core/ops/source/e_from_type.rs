@@ -43,7 +43,7 @@ impl<'arena, 'txn, 's> Iterator for EFromType<'arena, 'txn, 's> {
 						..LMDB_STRING_HEADER_LENGTH + length_of_label_in_lmdb];
 
 					if label_in_lmdb == self.label {
-						match Edge::<'arena>::from_bincode_bytes(id, value, self.arena) {
+						match Edge::<'arena>::from_bytes(id, value, self.arena) {
 							Ok(edge) => {
 								return Some(Ok(TraversalValue::Edge(edge)));
 							}

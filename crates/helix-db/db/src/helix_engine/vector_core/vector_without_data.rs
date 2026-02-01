@@ -1,7 +1,6 @@
 use core::fmt;
 use std::fmt::Debug;
 
-use bincode::Options;
 use serde::Serialize;
 use serde::ser::SerializeMap;
 
@@ -33,7 +32,7 @@ pub struct VectorWithoutData<'arena> {
 }
 
 // Custom Serialize implementation to conditionally include id field
-// For JSON serialization, the id field is included, but for bincode it is skipped
+// For JSON serialization, the id field is included, but for postcard it is skipped
 impl<'arena> Serialize for VectorWithoutData<'arena> {
 	fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
 	where
@@ -60,7 +59,7 @@ impl<'arena> Serialize for VectorWithoutData<'arena> {
 			}
 			state.end()
 		} else {
-			// Skip id for bincode serialization
+			// Skip id for postcard serialization
 			let mut state = serializer.serialize_struct("VectorWithoutData", 5)?;
 			state.serialize_field("label", self.label)?;
 			state.serialize_field("version", &self.version)?;
@@ -101,21 +100,19 @@ impl<'arena> VectorWithoutData<'arena> {
 		}
 	}
 
-	pub fn from_bincode_bytes<'txn>(
+	pub fn from_bytes<'txn>(
 		arena: &'arena bumpalo::Bump,
 		properties: &'txn [u8],
 		id: u128,
 	) -> Result<Self, VectorError> {
-		bincode::options()
-			.with_fixint_encoding()
-			.allow_trailing_bytes()
-			.deserialize_seed(VectoWithoutDataDeSeed { arena, id }, properties)
+		let mut de = postcard::Deserializer::from_bytes(properties);
+		serde::de::DeserializeSeed::deserialize(VectoWithoutDataDeSeed { arena, id }, &mut de)
 			.map_err(|e| VectorError::ConversionError(format!("Error deserializing vector: {e}")))
 	}
 
 	#[inline(always)]
-	pub fn to_bincode_bytes(&self) -> Result<Vec<u8>, bincode::Error> {
-		bincode::serialize(self)
+	pub fn to_bytes(&self) -> Result<Vec<u8>, postcard::Error> {
+		postcard::to_stdvec(self)
 	}
 	/// Returns the id of the HVector
 	#[inline(always)]

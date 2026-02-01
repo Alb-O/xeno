@@ -252,7 +252,7 @@ impl HelixGraphStorage {
 				if let Some(prop) = &node_prop {
 					// Get node data
 					if let Some(node_data) = self.nodes_db.get(txn, id)? {
-						let node = Node::from_bincode_bytes(*id, node_data, &arena)?;
+						let node = Node::from_bytes(*id, node_data, &arena)?;
 						if let Some(props) = node.properties
 							&& let Some(prop_value) = props.get(prop)
 						{

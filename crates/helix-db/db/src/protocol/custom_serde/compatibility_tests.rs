@@ -36,11 +36,11 @@ mod compatibility_tests {
 		);
 
 		// Serialize with old format
-		let old_bytes = bincode::serialize(&old_node).unwrap();
+		let old_bytes = postcard::to_stdvec(&old_node).unwrap();
 
 		// Deserialize with new format
 		let arena = Bump::new();
-		let new_node = Node::from_bincode_bytes(id, &old_bytes, &arena);
+		let new_node = Node::from_bytes(id, &old_bytes, &arena);
 
 		assert!(new_node.is_ok(), "Should deserialize old format");
 		let restored = new_node.unwrap();
@@ -62,10 +62,10 @@ mod compatibility_tests {
 
 		let old_node = create_old_node(id, "EmptyProps", 0, vec![]);
 
-		let old_bytes = bincode::serialize(&old_node).unwrap();
+		let old_bytes = postcard::to_stdvec(&old_node).unwrap();
 
 		let arena = Bump::new();
-		let new_node = Node::from_bincode_bytes(id, &old_bytes, &arena).unwrap();
+		let new_node = Node::from_bytes(id, &old_bytes, &arena).unwrap();
 
 		assert_eq!(new_node.label, "EmptyProps");
 		assert!(new_node.properties.is_none());
@@ -77,10 +77,10 @@ mod compatibility_tests {
 
 		let old_node = create_old_node(id, "V0Node", 0, vec![]);
 
-		let old_bytes = bincode::serialize(&old_node).unwrap();
+		let old_bytes = postcard::to_stdvec(&old_node).unwrap();
 
 		let arena = Bump::new();
-		let new_node = Node::from_bincode_bytes(id, &old_bytes, &arena).unwrap();
+		let new_node = Node::from_bytes(id, &old_bytes, &arena).unwrap();
 
 		assert_eq!(new_node.version, 0);
 	}
@@ -100,10 +100,10 @@ mod compatibility_tests {
 		];
 
 		let old_node = create_old_node(id, "AllTypes", 0, props);
-		let old_bytes = bincode::serialize(&old_node).unwrap();
+		let old_bytes = postcard::to_stdvec(&old_node).unwrap();
 
 		let arena = Bump::new();
-		let new_node = Node::from_bincode_bytes(id, &old_bytes, &arena).unwrap();
+		let new_node = Node::from_bytes(id, &old_bytes, &arena).unwrap();
 
 		assert!(new_node.properties.is_some());
 		let new_props = new_node.properties.unwrap();
@@ -124,10 +124,10 @@ mod compatibility_tests {
 			.collect();
 
 		let old_node = create_old_node(id, "ManyProps", 0, props);
-		let old_bytes = bincode::serialize(&old_node).unwrap();
+		let old_bytes = postcard::to_stdvec(&old_node).unwrap();
 
 		let arena = Bump::new();
-		let new_node = Node::from_bincode_bytes(id, &old_bytes, &arena).unwrap();
+		let new_node = Node::from_bytes(id, &old_bytes, &arena).unwrap();
 
 		assert_eq!(new_node.properties.unwrap().len(), 50);
 	}
@@ -152,10 +152,10 @@ mod compatibility_tests {
 			],
 		);
 
-		let old_bytes = bincode::serialize(&old_edge).unwrap();
+		let old_bytes = postcard::to_stdvec(&old_edge).unwrap();
 
 		let arena = Bump::new();
-		let new_edge = Edge::from_bincode_bytes(id, &old_bytes, &arena);
+		let new_edge = Edge::from_bytes(id, &old_bytes, &arena);
 
 		assert!(new_edge.is_ok(), "Should deserialize old edge format");
 		let restored = new_edge.unwrap();
@@ -174,10 +174,10 @@ mod compatibility_tests {
 
 		let old_edge = create_old_edge(id, "SimpleEdge", 0, 1, 2, vec![]);
 
-		let old_bytes = bincode::serialize(&old_edge).unwrap();
+		let old_bytes = postcard::to_stdvec(&old_edge).unwrap();
 
 		let arena = Bump::new();
-		let new_edge = Edge::from_bincode_bytes(id, &old_bytes, &arena).unwrap();
+		let new_edge = Edge::from_bytes(id, &old_bytes, &arena).unwrap();
 
 		assert_eq!(new_edge.from_node, 1);
 		assert_eq!(new_edge.to_node, 2);
@@ -207,10 +207,10 @@ mod compatibility_tests {
 		)];
 
 		let old_edge = create_old_edge(id, "NestedEdge", 0, 10, 20, props);
-		let old_bytes = bincode::serialize(&old_edge).unwrap();
+		let old_bytes = postcard::to_stdvec(&old_edge).unwrap();
 
 		let arena = Bump::new();
-		let new_edge = Edge::from_bincode_bytes(id, &old_bytes, &arena).unwrap();
+		let new_edge = Edge::from_bytes(id, &old_bytes, &arena).unwrap();
 
 		assert!(new_edge.properties.is_some());
 	}
@@ -221,10 +221,10 @@ mod compatibility_tests {
 
 		let old_edge = create_old_edge(id, "VersionedEdge", 5, 1, 2, vec![]);
 
-		let old_bytes = bincode::serialize(&old_edge).unwrap();
+		let old_bytes = postcard::to_stdvec(&old_edge).unwrap();
 
 		let arena = Bump::new();
-		let new_edge = Edge::from_bincode_bytes(id, &old_bytes, &arena).unwrap();
+		let new_edge = Edge::from_bytes(id, &old_bytes, &arena).unwrap();
 
 		assert_eq!(new_edge.version, 5);
 	}
@@ -245,12 +245,12 @@ mod compatibility_tests {
 			vec![("source", Value::String("embedding".to_string()))],
 		);
 
-		let old_bytes = bincode::serialize(&old_vector).unwrap();
+		let old_bytes = postcard::to_stdvec(&old_vector).unwrap();
 		let data = vec![1.0, 2.0, 3.0];
 		let data_bytes = create_vector_bytes(&data);
 
 		let arena = Bump::new();
-		let new_vector = HVector::from_bincode_bytes(&arena, Some(&old_bytes), &data_bytes, id);
+		let new_vector = HVector::from_bytes(&arena, Some(&old_bytes), &data_bytes, id);
 
 		assert!(new_vector.is_ok(), "Should deserialize old vector format");
 		let restored = new_vector.unwrap();
@@ -267,12 +267,12 @@ mod compatibility_tests {
 
 		let old_vector = create_old_vector(id, "DeletedVector", 1, true, vec![]);
 
-		let old_bytes = bincode::serialize(&old_vector).unwrap();
+		let old_bytes = postcard::to_stdvec(&old_vector).unwrap();
 		let data_bytes = create_vector_bytes(&[0.0]);
 
 		let arena = Bump::new();
 		let new_vector =
-			HVector::from_bincode_bytes(&arena, Some(&old_bytes), &data_bytes, id).unwrap();
+			HVector::from_bytes(&arena, Some(&old_bytes), &data_bytes, id).unwrap();
 
 		assert!(new_vector.deleted);
 	}
@@ -288,12 +288,12 @@ mod compatibility_tests {
 
 		let old_vector = create_old_vector(id, "PropsVector", 1, false, props);
 
-		let old_bytes = bincode::serialize(&old_vector).unwrap();
+		let old_bytes = postcard::to_stdvec(&old_vector).unwrap();
 		let data_bytes = create_vector_bytes(&vec![0.0; 1536]);
 
 		let arena = Bump::new();
 		let new_vector =
-			HVector::from_bincode_bytes(&arena, Some(&old_bytes), &data_bytes, id).unwrap();
+			HVector::from_bytes(&arena, Some(&old_bytes), &data_bytes, id).unwrap();
 
 		assert!(new_vector.properties.is_some());
 		let props = new_vector.properties.unwrap();
@@ -312,11 +312,11 @@ mod compatibility_tests {
 
 		// Create v0 node
 		let node_v0 = create_arena_node(&arena1, id, "NodeV0", 0, vec![]);
-		let bytes = bincode::serialize(&node_v0).unwrap();
+		let bytes = postcard::to_stdvec(&node_v0).unwrap();
 
 		// Deserialize (implicitly treats as current version)
 		let arena2 = Bump::new();
-		let restored = Node::from_bincode_bytes(id, &bytes, &arena2).unwrap();
+		let restored = Node::from_bytes(id, &bytes, &arena2).unwrap();
 
 		assert_eq!(restored.version, 0);
 
@@ -334,14 +334,14 @@ mod compatibility_tests {
 		let edge_v1 = create_arena_edge(&arena, id, "E1", 1, 1, 2, vec![]);
 		let edge_v5 = create_arena_edge(&arena, id, "E5", 5, 1, 2, vec![]);
 
-		let bytes_v0 = bincode::serialize(&edge_v0).unwrap();
-		let bytes_v1 = bincode::serialize(&edge_v1).unwrap();
-		let bytes_v5 = bincode::serialize(&edge_v5).unwrap();
+		let bytes_v0 = postcard::to_stdvec(&edge_v0).unwrap();
+		let bytes_v1 = postcard::to_stdvec(&edge_v1).unwrap();
+		let bytes_v5 = postcard::to_stdvec(&edge_v5).unwrap();
 
 		let arena2 = Bump::new();
-		let restored_v0 = Edge::from_bincode_bytes(id, &bytes_v0, &arena2).unwrap();
-		let restored_v1 = Edge::from_bincode_bytes(id, &bytes_v1, &arena2).unwrap();
-		let restored_v5 = Edge::from_bincode_bytes(id, &bytes_v5, &arena2).unwrap();
+		let restored_v0 = Edge::from_bytes(id, &bytes_v0, &arena2).unwrap();
+		let restored_v1 = Edge::from_bytes(id, &bytes_v1, &arena2).unwrap();
+		let restored_v5 = Edge::from_bytes(id, &bytes_v5, &arena2).unwrap();
 
 		assert_eq!(restored_v0.version, 0);
 		assert_eq!(restored_v1.version, 1);
@@ -358,15 +358,15 @@ mod compatibility_tests {
 		let vec_v1 = create_arena_vector(&arena, id, "V1", 1, false, 0, &data, vec![]);
 		let vec_v2 = create_arena_vector(&arena, id, "V2", 2, false, 0, &data, vec![]);
 
-		let props_v1 = bincode::serialize(&vec_v1).unwrap();
-		let props_v2 = bincode::serialize(&vec_v2).unwrap();
+		let props_v1 = postcard::to_stdvec(&vec_v1).unwrap();
+		let props_v2 = postcard::to_stdvec(&vec_v2).unwrap();
 		let data_bytes = create_vector_bytes(&data);
 
 		let arena2 = Bump::new();
 		let restored_v1 =
-			HVector::from_bincode_bytes(&arena2, Some(&props_v1), &data_bytes, id).unwrap();
+			HVector::from_bytes(&arena2, Some(&props_v1), &data_bytes, id).unwrap();
 		let restored_v2 =
-			HVector::from_bincode_bytes(&arena2, Some(&props_v2), &data_bytes, id).unwrap();
+			HVector::from_bytes(&arena2, Some(&props_v2), &data_bytes, id).unwrap();
 
 		assert_eq!(restored_v1.version, 1);
 		assert_eq!(restored_v2.version, 2);
@@ -383,11 +383,11 @@ mod compatibility_tests {
 
 		// Simulate "future" version (e.g., version 100)
 		let future_node = create_arena_node(&arena, id, "FutureNode", 100, vec![]);
-		let bytes = bincode::serialize(&future_node).unwrap();
+		let bytes = postcard::to_stdvec(&future_node).unwrap();
 
 		// Current code should still deserialize it
 		let arena2 = Bump::new();
-		let restored = Node::from_bincode_bytes(id, &bytes, &arena2);
+		let restored = Node::from_bytes(id, &bytes, &arena2);
 
 		assert!(restored.is_ok(), "Should handle future versions gracefully");
 		assert_eq!(restored.unwrap().version, 100);
@@ -409,10 +409,10 @@ mod compatibility_tests {
 			],
 		);
 
-		let old_bytes = bincode::serialize(&old_node).unwrap();
+		let old_bytes = postcard::to_stdvec(&old_node).unwrap();
 
 		let arena = Bump::new();
-		let new_node = Node::from_bincode_bytes(id, &old_bytes, &arena).unwrap();
+		let new_node = Node::from_bytes(id, &old_bytes, &arena).unwrap();
 
 		// Properties should be preserved even if we add new Value variants
 		assert!(new_node.properties.is_some());
@@ -437,13 +437,13 @@ mod compatibility_tests {
 		// Serialize all
 		let serialized: Vec<(u128, u8, Vec<u8>)> = nodes
 			.iter()
-			.map(|(id, ver, node)| (*id, *ver, bincode::serialize(node).unwrap()))
+			.map(|(id, ver, node)| (*id, *ver, postcard::to_stdvec(node).unwrap()))
 			.collect();
 
 		// Deserialize all
 		let arena2 = Bump::new();
 		for (id, expected_ver, bytes) in serialized {
-			let restored = Node::from_bincode_bytes(id, &bytes, &arena2).unwrap();
+			let restored = Node::from_bytes(id, &bytes, &arena2).unwrap();
 			assert_eq!(restored.version, expected_ver);
 		}
 	}
@@ -459,7 +459,7 @@ mod compatibility_tests {
 			0,
 			vec![("data", Value::String("old".to_string()))],
 		);
-		let old_bytes = bincode::serialize(&old_node).unwrap();
+		let old_bytes = postcard::to_stdvec(&old_node).unwrap();
 
 		// New format node
 		let arena_new = Bump::new();
@@ -470,12 +470,12 @@ mod compatibility_tests {
 			1,
 			vec![("data", Value::String("new".to_string()))],
 		);
-		let new_bytes = bincode::serialize(&new_node).unwrap();
+		let new_bytes = postcard::to_stdvec(&new_node).unwrap();
 
 		// Both should deserialize correctly
 		let arena_restore = Bump::new();
-		let restored_old = Node::from_bincode_bytes(1, &old_bytes, &arena_restore).unwrap();
-		let restored_new = Node::from_bincode_bytes(2, &new_bytes, &arena_restore).unwrap();
+		let restored_old = Node::from_bytes(1, &old_bytes, &arena_restore).unwrap();
+		let restored_new = Node::from_bytes(2, &new_bytes, &arena_restore).unwrap();
 
 		assert_eq!(restored_old.label, "OldFormat");
 		assert_eq!(restored_new.label, "NewFormat");
@@ -497,10 +497,10 @@ mod compatibility_tests {
 		];
 
 		let old_node = create_old_node(id, "OrderTest", 0, props);
-		let old_bytes = bincode::serialize(&old_node).unwrap();
+		let old_bytes = postcard::to_stdvec(&old_node).unwrap();
 
 		let arena = Bump::new();
-		let new_node = Node::from_bincode_bytes(id, &old_bytes, &arena).unwrap();
+		let new_node = Node::from_bytes(id, &old_bytes, &arena).unwrap();
 
 		let new_props = new_node.properties.unwrap();
 		assert_eq!(new_props.len(), 3);
@@ -524,10 +524,10 @@ mod compatibility_tests {
 		];
 
 		let old_edge = create_old_edge(id, "TypePreserve", 0, 1, 2, props);
-		let old_bytes = bincode::serialize(&old_edge).unwrap();
+		let old_bytes = postcard::to_stdvec(&old_edge).unwrap();
 
 		let arena = Bump::new();
-		let new_edge = Edge::from_bincode_bytes(id, &old_bytes, &arena).unwrap();
+		let new_edge = Edge::from_bytes(id, &old_bytes, &arena).unwrap();
 
 		let new_props = new_edge.properties.unwrap();
 

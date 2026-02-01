@@ -74,7 +74,7 @@ fn test_concurrent_node_creation() {
 
 					storage
 						.nodes_db
-						.put(&mut wtxn, &node.id, &node.to_bincode_bytes().unwrap())
+						.put(&mut wtxn, &node.id, &node.to_bytes().unwrap())
 						.unwrap();
 					wtxn.commit().unwrap();
 				}
@@ -122,7 +122,7 @@ fn test_concurrent_edge_creation() {
 			};
 			storage
 				.nodes_db
-				.put(&mut wtxn, &node.id, &node.to_bincode_bytes().unwrap())
+				.put(&mut wtxn, &node.id, &node.to_bytes().unwrap())
 				.unwrap();
 		}
 		wtxn.commit().unwrap();
@@ -176,7 +176,7 @@ fn test_concurrent_edge_creation() {
 
 					storage
 						.edges_db
-						.put(&mut wtxn, &edge.id, &edge.to_bincode_bytes().unwrap())
+						.put(&mut wtxn, &edge.id, &edge.to_bytes().unwrap())
 						.unwrap();
 					wtxn.commit().unwrap();
 				}
@@ -225,7 +225,7 @@ fn test_concurrent_node_reads() {
 			};
 			storage
 				.nodes_db
-				.put(&mut wtxn, &node.id, &node.to_bincode_bytes().unwrap())
+				.put(&mut wtxn, &node.id, &node.to_bytes().unwrap())
 				.unwrap();
 		}
 		wtxn.commit().unwrap();
@@ -288,7 +288,7 @@ fn test_concurrent_node_reads() {
 				};
 				storage
 					.nodes_db
-					.put(&mut wtxn, &node.id, &node.to_bincode_bytes().unwrap())
+					.put(&mut wtxn, &node.id, &node.to_bytes().unwrap())
 					.unwrap();
 				wtxn.commit().unwrap();
 
@@ -337,7 +337,7 @@ fn test_transaction_isolation_storage() {
 			};
 			storage
 				.nodes_db
-				.put(&mut wtxn, &node.id, &node.to_bincode_bytes().unwrap())
+				.put(&mut wtxn, &node.id, &node.to_bytes().unwrap())
 				.unwrap();
 		}
 		wtxn.commit().unwrap();
@@ -364,7 +364,7 @@ fn test_transaction_isolation_storage() {
 			};
 			storage_clone
 				.nodes_db
-				.put(&mut wtxn, &node.id, &node.to_bincode_bytes().unwrap())
+				.put(&mut wtxn, &node.id, &node.to_bytes().unwrap())
 				.unwrap();
 			wtxn.commit().unwrap();
 		}
@@ -424,7 +424,7 @@ fn test_write_transaction_serialization() {
 
 					storage
 						.nodes_db
-						.put(&mut wtxn, &node.id, &node.to_bincode_bytes().unwrap())
+						.put(&mut wtxn, &node.id, &node.to_bytes().unwrap())
 						.unwrap();
 
 					// Simulate some work during transaction

@@ -126,7 +126,7 @@ mod tests {
 		let metadata_bytes = bm25.metadata_db.get(&wtxn, METADATA_KEY).unwrap();
 		assert!(metadata_bytes.is_some());
 
-		let metadata: BM25Metadata = bincode::deserialize(metadata_bytes.unwrap()).unwrap();
+		let metadata: BM25Metadata = postcard::from_bytes(metadata_bytes.unwrap()).unwrap();
 		assert_eq!(metadata.total_docs, 1);
 		assert!(metadata.avgdl > 0.0);
 
@@ -151,7 +151,7 @@ mod tests {
 
 		// check metadata
 		let metadata_bytes = bm25.metadata_db.get(&wtxn, METADATA_KEY).unwrap().unwrap();
-		let metadata: BM25Metadata = bincode::deserialize(metadata_bytes).unwrap();
+		let metadata: BM25Metadata = postcard::from_bytes(metadata_bytes).unwrap();
 		assert_eq!(metadata.total_docs, 3);
 
 		wtxn.commit().unwrap();
@@ -1367,7 +1367,7 @@ mod tests {
 
 		// check that metadata was updated
 		let metadata_bytes = bm25.metadata_db.get(&wtxn, METADATA_KEY).unwrap().unwrap();
-		let metadata: BM25Metadata = bincode::deserialize(metadata_bytes).unwrap();
+		let metadata: BM25Metadata = postcard::from_bytes(metadata_bytes).unwrap();
 		assert_eq!(metadata.total_docs, 2); // Should be reduced by 1
 
 		wtxn.commit().unwrap();
@@ -1602,7 +1602,7 @@ mod tests {
 		}
 
 		let metadata_bytes = bm25.metadata_db.get(&wtxn, METADATA_KEY).unwrap().unwrap();
-		let metadata: BM25Metadata = bincode::deserialize(metadata_bytes).unwrap();
+		let metadata: BM25Metadata = postcard::from_bytes(metadata_bytes).unwrap();
 
 		assert_eq!(metadata.total_docs, 3);
 		assert!(metadata.avgdl > 0.0);
@@ -1613,7 +1613,7 @@ mod tests {
 
 		// check updated metadata
 		let metadata_bytes = bm25.metadata_db.get(&wtxn, METADATA_KEY).unwrap().unwrap();
-		let updated_metadata: BM25Metadata = bincode::deserialize(metadata_bytes).unwrap();
+		let updated_metadata: BM25Metadata = postcard::from_bytes(metadata_bytes).unwrap();
 
 		assert_eq!(updated_metadata.total_docs, 2);
 		// average document length should be recalculated
@@ -1745,7 +1745,7 @@ mod tests {
 
 		// Check metadata after deleting last document
 		let metadata_bytes = bm25.metadata_db.get(&wtxn, METADATA_KEY).unwrap().unwrap();
-		let metadata: BM25Metadata = bincode::deserialize(metadata_bytes).unwrap();
+		let metadata: BM25Metadata = postcard::from_bytes(metadata_bytes).unwrap();
 
 		assert_eq!(metadata.total_docs, 0);
 		assert_eq!(metadata.avgdl, 0.0);
@@ -1823,7 +1823,7 @@ mod tests {
 
 		// After inserting, metadata should exist
 		let metadata_bytes = bm25.metadata_db.get(&wtxn, METADATA_KEY).unwrap().unwrap();
-		let metadata: BM25Metadata = bincode::deserialize(metadata_bytes).unwrap();
+		let metadata: BM25Metadata = postcard::from_bytes(metadata_bytes).unwrap();
 
 		assert_eq!(metadata.total_docs, 1);
 		assert!(metadata.avgdl > 0.0);

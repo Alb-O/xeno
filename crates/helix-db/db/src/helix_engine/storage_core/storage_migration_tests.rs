@@ -79,7 +79,7 @@ fn create_old_properties(
 		props.insert(k, v);
 	}
 
-	bincode::serialize(&props).unwrap()
+	postcard::to_stdvec(&props).unwrap()
 }
 
 /// Populate storage with test vectors in a specific endianness
@@ -358,7 +358,7 @@ fn test_convert_old_properties_missing_label() {
 	props.insert("is_deleted".to_string(), Value::Boolean(false));
 	// Missing "label"
 
-	let bytes = bincode::serialize(&props).unwrap();
+	let bytes = postcard::to_stdvec(&props).unwrap();
 	let _ = convert_old_vector_properties_to_new_format(&bytes, &arena);
 }
 
@@ -370,7 +370,7 @@ fn test_convert_old_properties_missing_is_deleted() {
 	props.insert("label".to_string(), Value::String("test".to_string()));
 	// Missing "is_deleted"
 
-	let bytes = bincode::serialize(&props).unwrap();
+	let bytes = postcard::to_stdvec(&props).unwrap();
 	let _ = convert_old_vector_properties_to_new_format(&bytes, &arena);
 }
 
@@ -635,7 +635,7 @@ fn test_migrate_cognee_vector_string_dates_error() {
 
 		// Verify we can deserialize it as old format
 		let old_props: HashMap<String, Value> =
-			bincode::deserialize(stored_bytes.unwrap()).unwrap();
+			postcard::from_bytes(stored_bytes.unwrap()).unwrap();
 		assert_eq!(
 			old_props.get("label").unwrap(),
 			&Value::String("CogneeVector".to_string())
@@ -676,7 +676,7 @@ fn test_migrate_cognee_vector_string_dates_error() {
 			use crate::helix_engine::vector_core::vector_without_data::VectorWithoutData;
 			let arena2 = bumpalo::Bump::new();
 			let deserialize_result =
-				VectorWithoutData::from_bincode_bytes(&arena2, migrated_bytes, 123u128);
+				VectorWithoutData::from_bytes(&arena2, migrated_bytes, 123u128);
 
 			match deserialize_result {
 				Ok(vector) => {
@@ -700,7 +700,7 @@ fn test_migrate_cognee_vector_string_dates_error() {
 					println!();
 					println!("This error occurs in the v_from_type query path:");
 					println!("  1. Migration preserves dates as Value::String");
-					println!("  2. v_from_type calls VectorWithoutData::from_bincode_bytes");
+					println!("  2. v_from_type calls VectorWithoutData::from_bytes");
 					println!("  3. Bincode deserialization expects specific value types");
 					println!("  4. Type mismatch causes ConversionError");
 
@@ -888,7 +888,7 @@ fn test_error_corrupted_property_data() {
 
 #[test]
 #[ignore]
-fn test_date_bincode_serialization() {
+fn test_date_postcard_serialization() {
 	// Test that Date values serialize/deserialize correctly with bincode
 	use crate::protocol::date::Date;
 
@@ -897,13 +897,13 @@ fn test_date_bincode_serialization() {
 	let value = Value::Date(date);
 
 	// Serialize with bincode
-	let serialized = bincode::serialize(&value).unwrap();
+	let serialized = postcard::to_stdvec(&value).unwrap();
 	println!("\nValue::Date serialized to {} bytes", serialized.len());
 	println!("Format: [variant=12] [i64 timestamp]");
 	println!("Bytes: {:?}", serialized);
 
 	// Deserialize
-	let deserialized: Value = bincode::deserialize(&serialized).unwrap();
+	let deserialized: Value = postcard::from_bytes(&serialized).unwrap();
 
 	// Verify it's a Date variant with correct value
 	match deserialized {

@@ -106,8 +106,8 @@ mod node_serialization_tests {
 		};
 
 		// Serialize both
-		let old_bytes = bincode::serialize(&old_node).unwrap();
-		let new_bytes = bincode::serialize(&new_node).unwrap();
+		let old_bytes = postcard::to_stdvec(&old_node).unwrap();
+		let new_bytes = postcard::to_stdvec(&new_node).unwrap();
 
 		println!("\n=== EMPTY PROPERTIES COMPARISON ===");
 		println!("Old bytes ({} total): {:02x?}", old_bytes.len(), old_bytes);
@@ -133,7 +133,7 @@ mod node_serialization_tests {
 		// Test that new format can deserialize its own output
 		println!("\nAttempting to deserialize new_bytes...");
 		let arena2 = Bump::new();
-		let deserialized = Node::from_bincode_bytes(id, &new_bytes, &arena2);
+		let deserialized = Node::from_bytes(id, &new_bytes, &arena2);
 		if let Err(e) = &deserialized {
 			println!("Deserialization error: {:?}", e);
 		}
@@ -146,7 +146,7 @@ mod node_serialization_tests {
 		// Test that new format can deserialize old format
 		println!("Attempting to deserialize old_bytes...");
 		let arena3 = Bump::new();
-		let old_deserialized = Node::from_bincode_bytes(id, &old_bytes, &arena3);
+		let old_deserialized = Node::from_bytes(id, &old_bytes, &arena3);
 		if let Err(e) = &old_deserialized {
 			println!("Deserialization error from old format: {:?}", e);
 		}
@@ -182,8 +182,8 @@ mod node_serialization_tests {
 		let new_node = create_arena_node_with_props(&arena, id, "User", new_props);
 
 		// Serialize both
-		let old_bytes = bincode::serialize(&old_node).unwrap();
-		let new_bytes = bincode::serialize(&new_node).unwrap();
+		let old_bytes = postcard::to_stdvec(&old_node).unwrap();
+		let new_bytes = postcard::to_stdvec(&new_node).unwrap();
 
 		println!("\n=== WITH PROPERTIES COMPARISON ===");
 		println!("Old bytes ({} total): {:02x?}", old_bytes.len(), old_bytes);
@@ -218,7 +218,7 @@ mod node_serialization_tests {
 		// Test deserialization of new format
 		println!("\nAttempting to deserialize new_bytes...");
 		let arena2 = Bump::new();
-		let deserialized = Node::from_bincode_bytes(id, &new_bytes, &arena2);
+		let deserialized = Node::from_bytes(id, &new_bytes, &arena2);
 		if let Err(e) = &deserialized {
 			println!("Deserialization error: {:?}", e);
 		} else {
@@ -237,7 +237,7 @@ mod node_serialization_tests {
 		// Test deserialization of old format
 		println!("\nAttempting to deserialize old_bytes...");
 		let arena3 = Bump::new();
-		let old_deserialized = Node::from_bincode_bytes(id, &old_bytes, &arena3);
+		let old_deserialized = Node::from_bytes(id, &old_bytes, &arena3);
 		if let Err(e) = &old_deserialized {
 			println!("Deserialization error from old format: {:?}", e);
 		} else {
@@ -264,8 +264,8 @@ mod node_serialization_tests {
 		let old_node = create_old_node_with_props(id, "User", props.clone());
 		let new_node = create_arena_node_with_props(&arena, id, "User", props);
 
-		let old_bytes = bincode::serialize(&old_node).unwrap();
-		let new_bytes = bincode::serialize(&new_node).unwrap();
+		let old_bytes = postcard::to_stdvec(&old_node).unwrap();
+		let new_bytes = postcard::to_stdvec(&new_node).unwrap();
 
 		assert_eq!(
 			old_bytes, new_bytes,
@@ -288,11 +288,11 @@ mod node_serialization_tests {
 		let new_node = create_arena_node_with_props(&arena, id, "Player", props);
 
 		// Serialize the new node
-		let new_bytes = bincode::serialize(&new_node).unwrap();
+		let new_bytes = postcard::to_stdvec(&new_node).unwrap();
 
 		// Deserialize it back
 		let arena2 = Bump::new();
-		let deserialized = Node::from_bincode_bytes(id, &new_bytes, &arena2).unwrap();
+		let deserialized = Node::from_bytes(id, &new_bytes, &arena2).unwrap();
 
 		// Verify all fields match
 		assert_eq!(deserialized.id, id);
@@ -331,11 +331,11 @@ mod node_serialization_tests {
 		];
 
 		let new_node = create_arena_node_with_props(&arena, id, "AllTypes", props);
-		let new_bytes = bincode::serialize(&new_node).unwrap();
+		let new_bytes = postcard::to_stdvec(&new_node).unwrap();
 
 		// Deserialize and verify all values
 		let arena2 = Bump::new();
-		let deserialized = Node::from_bincode_bytes(id, &new_bytes, &arena2).unwrap();
+		let deserialized = Node::from_bytes(id, &new_bytes, &arena2).unwrap();
 
 		let props = deserialized.properties.unwrap();
 		assert_eq!(props.len(), 13);
@@ -386,16 +386,16 @@ mod node_serialization_tests {
 		let old_node = create_old_node_with_props(id, "Complex", props.clone());
 		let new_node = create_arena_node_with_props(&arena, id, "Complex", props);
 
-		let old_bytes = bincode::serialize(&old_node).unwrap();
-		let new_bytes = bincode::serialize(&new_node).unwrap();
+		let old_bytes = postcard::to_stdvec(&old_node).unwrap();
+		let new_bytes = postcard::to_stdvec(&new_node).unwrap();
 
 		// Note: Property order may differ between HashMap (old) and ImmutablePropertiesMap (new)
 		// So we check semantic equality by deserializing both and comparing the values
 		let arena2 = Bump::new();
 		let arena3 = Bump::new();
 
-		let deserialized_old = Node::from_bincode_bytes(id, &old_bytes, &arena2).unwrap();
-		let deserialized_new = Node::from_bincode_bytes(id, &new_bytes, &arena3).unwrap();
+		let deserialized_old = Node::from_bytes(id, &old_bytes, &arena2).unwrap();
+		let deserialized_new = Node::from_bytes(id, &new_bytes, &arena3).unwrap();
 
 		assert_eq!(deserialized_old.id, id);
 		assert_eq!(deserialized_old.label, "Complex");
@@ -474,8 +474,8 @@ mod node_serialization_tests {
 			properties: None,
 		};
 
-		let old_bytes = bincode::serialize(&old_node).unwrap();
-		let new_bytes = bincode::serialize(&new_node).unwrap();
+		let old_bytes = postcard::to_stdvec(&old_node).unwrap();
+		let new_bytes = postcard::to_stdvec(&new_node).unwrap();
 
 		assert_eq!(
 			old_bytes, new_bytes,
@@ -495,10 +495,10 @@ mod node_serialization_tests {
 
 		// Create and serialize old node
 		let old_node = create_old_node_with_props(id, "OldFormat", props);
-		let old_bytes = bincode::serialize(&old_node).unwrap();
+		let old_bytes = postcard::to_stdvec(&old_node).unwrap();
 
 		// Deserialize into new node format
-		let deserialized_node = Node::from_bincode_bytes(id, &old_bytes, &arena).unwrap();
+		let deserialized_node = Node::from_bytes(id, &old_bytes, &arena).unwrap();
 
 		// Verify fields
 		assert_eq!(deserialized_node.id, id);
@@ -530,11 +530,11 @@ mod node_serialization_tests {
 		let original_node = create_arena_node_with_props(&arena, id, "Roundtrip", props);
 
 		// Serialize
-		let serialized = bincode::serialize(&original_node).unwrap();
+		let serialized = postcard::to_stdvec(&original_node).unwrap();
 
 		// Deserialize
 		let arena2 = Bump::new();
-		let deserialized_node = Node::from_bincode_bytes(id, &serialized, &arena2).unwrap();
+		let deserialized_node = Node::from_bytes(id, &serialized, &arena2).unwrap();
 
 		// Verify all fields match
 		assert_eq!(deserialized_node.id, original_node.id);
@@ -562,8 +562,8 @@ mod node_serialization_tests {
 		let old_node = create_old_node_with_props(id, "Empty", vec![]);
 		let new_node = create_arena_node_with_props(&arena, id, "Empty", vec![]);
 
-		let old_bytes = bincode::serialize(&old_node).unwrap();
-		let new_bytes = bincode::serialize(&new_node).unwrap();
+		let old_bytes = postcard::to_stdvec(&old_node).unwrap();
+		let new_bytes = postcard::to_stdvec(&new_node).unwrap();
 
 		// Detailed byte comparison
 		assert_eq!(old_bytes.len(), new_bytes.len(), "Byte lengths differ");
@@ -588,11 +588,11 @@ mod node_serialization_tests {
 		];
 
 		let new_node = create_arena_node_with_props(&arena, id, "ByteTest", props);
-		let new_bytes = bincode::serialize(&new_node).unwrap();
+		let new_bytes = postcard::to_stdvec(&new_node).unwrap();
 
 		// Deserialize and verify
 		let arena2 = Bump::new();
-		let deserialized = Node::from_bincode_bytes(id, &new_bytes, &arena2).unwrap();
+		let deserialized = Node::from_bytes(id, &new_bytes, &arena2).unwrap();
 
 		assert_eq!(deserialized.id, id);
 		assert_eq!(deserialized.label, "ByteTest");
@@ -611,8 +611,8 @@ mod node_serialization_tests {
 		let node1_old = create_old_node_with_props(1, "", vec![]);
 		let node1_new = create_arena_node_with_props(&arena, 1, "", vec![]);
 		assert_eq!(
-			bincode::serialize(&node1_old).unwrap(),
-			bincode::serialize(&node1_new).unwrap()
+			postcard::to_stdvec(&node1_old).unwrap(),
+			postcard::to_stdvec(&node1_new).unwrap()
 		);
 
 		// Very long label
@@ -620,16 +620,16 @@ mod node_serialization_tests {
 		let node2_old = create_old_node_with_props(2, &long_label, vec![]);
 		let node2_new = create_arena_node_with_props(&arena, 2, &long_label, vec![]);
 		assert_eq!(
-			bincode::serialize(&node2_old).unwrap(),
-			bincode::serialize(&node2_new).unwrap()
+			postcard::to_stdvec(&node2_old).unwrap(),
+			postcard::to_stdvec(&node2_new).unwrap()
 		);
 
 		// Max u128 ID
 		let node3_old = create_old_node_with_props(u128::MAX, "MaxID", vec![]);
 		let node3_new = create_arena_node_with_props(&arena, u128::MAX, "MaxID", vec![]);
 		assert_eq!(
-			bincode::serialize(&node3_old).unwrap(),
-			bincode::serialize(&node3_new).unwrap()
+			postcard::to_stdvec(&node3_old).unwrap(),
+			postcard::to_stdvec(&node3_new).unwrap()
 		);
 	}
 
@@ -644,8 +644,8 @@ mod node_serialization_tests {
 			let old_node = create_old_node_with_props(id, label, vec![]);
 			let new_node = create_arena_node_with_props(&arena, id, label, vec![]);
 
-			let old_bytes = bincode::serialize(&old_node).unwrap();
-			let new_bytes = bincode::serialize(&new_node).unwrap();
+			let old_bytes = postcard::to_stdvec(&old_node).unwrap();
+			let new_bytes = postcard::to_stdvec(&new_node).unwrap();
 
 			assert_eq!(
 				old_bytes, new_bytes,
@@ -667,11 +667,11 @@ mod node_serialization_tests {
 		];
 
 		let new_node = create_arena_node_with_props(&arena, id, "UTF8Props", props);
-		let new_bytes = bincode::serialize(&new_node).unwrap();
+		let new_bytes = postcard::to_stdvec(&new_node).unwrap();
 
 		// Deserialize and verify UTF-8 handling
 		let arena2 = Bump::new();
-		let deserialized = Node::from_bincode_bytes(id, &new_bytes, &arena2).unwrap();
+		let deserialized = Node::from_bytes(id, &new_bytes, &arena2).unwrap();
 
 		let props = deserialized.properties.unwrap();
 		assert_eq!(props.len(), 3);
@@ -697,11 +697,11 @@ mod node_serialization_tests {
 			.collect();
 
 		let new_node = create_arena_node_with_props(&arena, id, "ManyProps", props);
-		let new_bytes = bincode::serialize(&new_node).unwrap();
+		let new_bytes = postcard::to_stdvec(&new_node).unwrap();
 
 		// Deserialize and verify all 50 properties
 		let arena2 = Bump::new();
-		let deserialized = Node::from_bincode_bytes(id, &new_bytes, &arena2).unwrap();
+		let deserialized = Node::from_bytes(id, &new_bytes, &arena2).unwrap();
 
 		let props = deserialized.properties.unwrap();
 		assert_eq!(props.len(), 50);
@@ -730,11 +730,11 @@ mod node_serialization_tests {
 		];
 
 		let old_node = create_old_node_with_props(id, "Ordered", props);
-		let old_bytes = bincode::serialize(&old_node).unwrap();
+		let old_bytes = postcard::to_stdvec(&old_node).unwrap();
 
 		// Deserialize using new format
 		let arena = Bump::new();
-		let new_node = Node::from_bincode_bytes(id, &old_bytes, &arena).unwrap();
+		let new_node = Node::from_bytes(id, &old_bytes, &arena).unwrap();
 
 		// Verify all properties are present (order may differ)
 		let new_props = new_node.properties.unwrap();
@@ -752,11 +752,11 @@ mod node_serialization_tests {
 		let props = vec![("empty_val", Value::Empty), ("normal_val", Value::I32(42))];
 
 		let new_node = create_arena_node_with_props(&arena, id, "EmptyValue", props);
-		let new_bytes = bincode::serialize(&new_node).unwrap();
+		let new_bytes = postcard::to_stdvec(&new_node).unwrap();
 
 		// Deserialize and verify Empty value is preserved
 		let arena2 = Bump::new();
-		let deserialized = Node::from_bincode_bytes(id, &new_bytes, &arena2).unwrap();
+		let deserialized = Node::from_bytes(id, &new_bytes, &arena2).unwrap();
 
 		let props = deserialized.properties.unwrap();
 		assert_eq!(props.len(), 2);
@@ -914,8 +914,8 @@ mod edge_serialization_tests {
 			properties: None,
 		};
 
-		let old_bytes = bincode::serialize(&old_edge).unwrap();
-		let new_bytes = bincode::serialize(&new_edge).unwrap();
+		let old_bytes = postcard::to_stdvec(&old_edge).unwrap();
+		let new_bytes = postcard::to_stdvec(&new_edge).unwrap();
 
 		// Bytes should be IDENTICAL
 		assert_eq!(
@@ -925,7 +925,7 @@ mod edge_serialization_tests {
 
 		// Test that new format can deserialize its own output
 		let arena2 = Bump::new();
-		let deserialized = Edge::from_bincode_bytes(id, &new_bytes, &arena2).unwrap();
+		let deserialized = Edge::from_bytes(id, &new_bytes, &arena2).unwrap();
 
 		assert_eq!(deserialized.id, id);
 		assert_eq!(deserialized.label, "KNOWS");
@@ -951,15 +951,15 @@ mod edge_serialization_tests {
 		let old_edge = create_old_edge_with_props(id, "KNOWS", from_node, to_node, props.clone());
 		let new_edge = create_arena_edge_with_props(&arena, id, "KNOWS", from_node, to_node, props);
 
-		let old_bytes = bincode::serialize(&old_edge).unwrap();
-		let new_bytes = bincode::serialize(&new_edge).unwrap();
+		let old_bytes = postcard::to_stdvec(&old_edge).unwrap();
+		let new_bytes = postcard::to_stdvec(&new_edge).unwrap();
 
 		// Deserialize both and compare semantically
 		let arena2 = Bump::new();
 		let arena3 = Bump::new();
 
-		let deserialized_old = Edge::from_bincode_bytes(id, &old_bytes, &arena2).unwrap();
-		let deserialized_new = Edge::from_bincode_bytes(id, &new_bytes, &arena3).unwrap();
+		let deserialized_old = Edge::from_bytes(id, &old_bytes, &arena2).unwrap();
+		let deserialized_new = Edge::from_bytes(id, &new_bytes, &arena3).unwrap();
 
 		assert_eq!(deserialized_old.id, id);
 		assert_eq!(deserialized_new.id, id);
@@ -1001,10 +1001,10 @@ mod edge_serialization_tests {
 
 		let original =
 			create_arena_edge_with_props(&arena, id, "RELATED_TO", from_node, to_node, props);
-		let bytes = bincode::serialize(&original).unwrap();
+		let bytes = postcard::to_stdvec(&original).unwrap();
 
 		let arena2 = Bump::new();
-		let deserialized = Edge::from_bincode_bytes(id, &bytes, &arena2).unwrap();
+		let deserialized = Edge::from_bytes(id, &bytes, &arena2).unwrap();
 
 		assert_eq!(deserialized.id, original.id);
 		assert_eq!(deserialized.label, original.label);
@@ -1033,11 +1033,11 @@ mod edge_serialization_tests {
 		];
 
 		let old_edge = create_old_edge_with_props(id, "CONNECTS", from_node, to_node, props);
-		let old_bytes = bincode::serialize(&old_edge).unwrap();
+		let old_bytes = postcard::to_stdvec(&old_edge).unwrap();
 
 		// New format should deserialize old format
 		let arena = Bump::new();
-		let deserialized = Edge::from_bincode_bytes(id, &old_bytes, &arena).unwrap();
+		let deserialized = Edge::from_bytes(id, &old_bytes, &arena).unwrap();
 
 		assert_eq!(deserialized.id, id);
 		assert_eq!(deserialized.label, "CONNECTS");
@@ -1084,15 +1084,15 @@ mod edge_serialization_tests {
 		let new_edge =
 			create_arena_edge_with_props(&arena, id, "HAS_TAG", from_node, to_node, props);
 
-		let old_bytes = bincode::serialize(&old_edge).unwrap();
-		let new_bytes = bincode::serialize(&new_edge).unwrap();
+		let old_bytes = postcard::to_stdvec(&old_edge).unwrap();
+		let new_bytes = postcard::to_stdvec(&new_edge).unwrap();
 
 		// Deserialize and compare semantically
 		let arena2 = Bump::new();
 		let arena3 = Bump::new();
 
-		let deserialized_old = Edge::from_bincode_bytes(id, &old_bytes, &arena2).unwrap();
-		let deserialized_new = Edge::from_bincode_bytes(id, &new_bytes, &arena3).unwrap();
+		let deserialized_old = Edge::from_bytes(id, &old_bytes, &arena2).unwrap();
+		let deserialized_new = Edge::from_bytes(id, &new_bytes, &arena3).unwrap();
 
 		let old_props = deserialized_old.properties.unwrap();
 		let new_props = deserialized_new.properties.unwrap();
@@ -1131,10 +1131,10 @@ mod edge_serialization_tests {
 			.collect();
 
 		let new_edge = create_arena_edge_with_props(&arena, id, "BULK", from_node, to_node, props);
-		let bytes = bincode::serialize(&new_edge).unwrap();
+		let bytes = postcard::to_stdvec(&new_edge).unwrap();
 
 		let arena2 = Bump::new();
-		let deserialized = Edge::from_bincode_bytes(id, &bytes, &arena2).unwrap();
+		let deserialized = Edge::from_bytes(id, &bytes, &arena2).unwrap();
 
 		let props = deserialized.properties.unwrap();
 		assert_eq!(props.len(), 20);
@@ -1176,8 +1176,8 @@ mod edge_serialization_tests {
 			properties: None,
 		};
 
-		let old_bytes = bincode::serialize(&old_edge).unwrap();
-		let new_bytes = bincode::serialize(&new_edge).unwrap();
+		let old_bytes = postcard::to_stdvec(&old_edge).unwrap();
+		let new_bytes = postcard::to_stdvec(&new_edge).unwrap();
 
 		println!("\n=== EDGE EMPTY PROPERTIES COMPARISON ===");
 		println!("Old bytes ({} total): {:02x?}", old_bytes.len(), old_bytes);
@@ -1215,10 +1215,10 @@ mod edge_serialization_tests {
 
 		let new_edge =
 			create_arena_edge_with_props(&arena, id, "繋がり", from_node, to_node, props);
-		let bytes = bincode::serialize(&new_edge).unwrap();
+		let bytes = postcard::to_stdvec(&new_edge).unwrap();
 
 		let arena2 = Bump::new();
-		let deserialized = Edge::from_bincode_bytes(id, &bytes, &arena2).unwrap();
+		let deserialized = Edge::from_bytes(id, &bytes, &arena2).unwrap();
 
 		assert_eq!(deserialized.label, "繋がり");
 		let props = deserialized.properties.unwrap();
@@ -1242,10 +1242,10 @@ mod edge_serialization_tests {
 			properties: None,
 		};
 
-		let bytes = bincode::serialize(&edge).unwrap();
+		let bytes = postcard::to_stdvec(&edge).unwrap();
 
 		let arena2 = Bump::new();
-		let deserialized = Edge::from_bincode_bytes(id, &bytes, &arena2).unwrap();
+		let deserialized = Edge::from_bytes(id, &bytes, &arena2).unwrap();
 
 		assert_eq!(deserialized.version, 42);
 	}

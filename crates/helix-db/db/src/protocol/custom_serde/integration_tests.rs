@@ -2,7 +2,7 @@
 //!
 //! This module tests:
 //! - Full LMDB storage → retrieval roundtrips
-//! - Cross-format compatibility (JSON ↔ bincode)
+//! - Cross-format compatibility (JSON ↔ postcard)
 //! - Key packing/unpacking with serialization
 //! - Arena lifecycle integration
 //! - Mixed type operations
@@ -10,7 +10,6 @@
 
 #[cfg(test)]
 mod integration_tests {
-	use bincode::Options;
 	use bumpalo::Bump;
 
 	use super::super::test_utils::*;
@@ -23,22 +22,22 @@ mod integration_tests {
 	// ========================================================================
 
 	#[test]
-	fn test_node_bincode_roundtrip_simple() {
+	fn test_node_postcard_roundtrip_simple() {
 		let arena = Bump::new();
 		let id = 12345u128;
 
 		let node = create_simple_node(&arena, id, "Person");
-		let bytes = bincode::serialize(&node).unwrap();
+		let bytes = postcard::to_stdvec(&node).unwrap();
 
 		let arena2 = Bump::new();
-		let deserialized = Node::from_bincode_bytes(id, &bytes, &arena2);
+		let deserialized = Node::from_bytes(id, &bytes, &arena2);
 
 		assert!(deserialized.is_ok());
 		assert_nodes_semantically_equal(&node, &deserialized.unwrap());
 	}
 
 	#[test]
-	fn test_node_bincode_roundtrip_with_properties() {
+	fn test_node_postcard_roundtrip_with_properties() {
 		let arena = Bump::new();
 		let id = 99999u128;
 
@@ -49,10 +48,10 @@ mod integration_tests {
 		];
 
 		let node = create_arena_node(&arena, id, "User", 0, props);
-		let bytes = bincode::serialize(&node).unwrap();
+		let bytes = postcard::to_stdvec(&node).unwrap();
 
 		let arena2 = Bump::new();
-		let deserialized = Node::from_bincode_bytes(id, &bytes, &arena2);
+		let deserialized = Node::from_bytes(id, &bytes, &arena2);
 
 		assert!(deserialized.is_ok());
 		assert_nodes_semantically_equal(&node, &deserialized.unwrap());
@@ -81,14 +80,14 @@ mod integration_tests {
 		let node = create_arena_node(&arena, id, "Multi", 0, props);
 
 		// First roundtrip
-		let bytes1 = bincode::serialize(&node).unwrap();
+		let bytes1 = postcard::to_stdvec(&node).unwrap();
 		let arena2 = Bump::new();
-		let node2 = Node::from_bincode_bytes(id, &bytes1, &arena2).unwrap();
+		let node2 = Node::from_bytes(id, &bytes1, &arena2).unwrap();
 
 		// Second roundtrip
-		let bytes2 = bincode::serialize(&node2).unwrap();
+		let bytes2 = postcard::to_stdvec(&node2).unwrap();
 		let arena3 = Bump::new();
-		let node3 = Node::from_bincode_bytes(id, &bytes2, &arena3).unwrap();
+		let node3 = Node::from_bytes(id, &bytes2, &arena3).unwrap();
 
 		// All should be semantically equal
 		assert_nodes_semantically_equal(&node, &node2);
@@ -112,13 +111,13 @@ mod integration_tests {
 		// Serialize all nodes
 		let serialized: Vec<Vec<u8>> = nodes
 			.iter()
-			.map(|n| bincode::serialize(n).unwrap())
+			.map(|n| postcard::to_stdvec(n).unwrap())
 			.collect();
 
 		// Deserialize all nodes
 		let arena2 = Bump::new();
 		for (i, bytes) in serialized.iter().enumerate() {
-			let deserialized = Node::from_bincode_bytes(i as u128, bytes, &arena2);
+			let deserialized = Node::from_bytes(i as u128, bytes, &arena2);
 			assert!(deserialized.is_ok());
 		}
 	}
@@ -128,22 +127,22 @@ mod integration_tests {
 	// ========================================================================
 
 	#[test]
-	fn test_edge_bincode_roundtrip_simple() {
+	fn test_edge_postcard_roundtrip_simple() {
 		let arena = Bump::new();
 		let id = 77777u128;
 
 		let edge = create_simple_edge(&arena, id, "KNOWS", 1, 2);
-		let bytes = bincode::serialize(&edge).unwrap();
+		let bytes = postcard::to_stdvec(&edge).unwrap();
 
 		let arena2 = Bump::new();
-		let deserialized = Edge::from_bincode_bytes(id, &bytes, &arena2);
+		let deserialized = Edge::from_bytes(id, &bytes, &arena2);
 
 		assert!(deserialized.is_ok());
 		assert_edges_semantically_equal(&edge, &deserialized.unwrap());
 	}
 
 	#[test]
-	fn test_edge_bincode_roundtrip_with_properties() {
+	fn test_edge_postcard_roundtrip_with_properties() {
 		let arena = Bump::new();
 		let id = 88888u128;
 
@@ -154,10 +153,10 @@ mod integration_tests {
 		];
 
 		let edge = create_arena_edge(&arena, id, "FRIEND_OF", 0, 100, 200, props);
-		let bytes = bincode::serialize(&edge).unwrap();
+		let bytes = postcard::to_stdvec(&edge).unwrap();
 
 		let arena2 = Bump::new();
-		let deserialized = Edge::from_bincode_bytes(id, &bytes, &arena2);
+		let deserialized = Edge::from_bytes(id, &bytes, &arena2);
 
 		assert!(deserialized.is_ok());
 		assert_edges_semantically_equal(&edge, &deserialized.unwrap());
@@ -185,14 +184,14 @@ mod integration_tests {
 		let edge = create_arena_edge(&arena, id, "CONNECTED", 0, 10, 20, props);
 
 		// First roundtrip
-		let bytes1 = bincode::serialize(&edge).unwrap();
+		let bytes1 = postcard::to_stdvec(&edge).unwrap();
 		let arena2 = Bump::new();
-		let edge2 = Edge::from_bincode_bytes(id, &bytes1, &arena2).unwrap();
+		let edge2 = Edge::from_bytes(id, &bytes1, &arena2).unwrap();
 
 		// Second roundtrip
-		let bytes2 = bincode::serialize(&edge2).unwrap();
+		let bytes2 = postcard::to_stdvec(&edge2).unwrap();
 		let arena3 = Bump::new();
-		let edge3 = Edge::from_bincode_bytes(id, &bytes2, &arena3).unwrap();
+		let edge3 = Edge::from_bytes(id, &bytes2, &arena3).unwrap();
 
 		assert_edges_semantically_equal(&edge, &edge2);
 		assert_edges_semantically_equal(&edge2, &edge3);
@@ -209,12 +208,12 @@ mod integration_tests {
 
 		let serialized: Vec<Vec<u8>> = edges
 			.iter()
-			.map(|e| bincode::serialize(e).unwrap())
+			.map(|e| postcard::to_stdvec(e).unwrap())
 			.collect();
 
 		let arena2 = Bump::new();
 		for (i, bytes) in serialized.iter().enumerate() {
-			let deserialized = Edge::from_bincode_bytes(i as u128, bytes, &arena2);
+			let deserialized = Edge::from_bytes(i as u128, bytes, &arena2);
 			assert!(deserialized.is_ok());
 		}
 	}
@@ -226,10 +225,10 @@ mod integration_tests {
 		let node_id = 999u128;
 
 		let edge = create_simple_edge(&arena, id, "SELF_REF", node_id, node_id);
-		let bytes = bincode::serialize(&edge).unwrap();
+		let bytes = postcard::to_stdvec(&edge).unwrap();
 
 		let arena2 = Bump::new();
-		let deserialized = Edge::from_bincode_bytes(id, &bytes, &arena2).unwrap();
+		let deserialized = Edge::from_bytes(id, &bytes, &arena2).unwrap();
 
 		assert_eq!(deserialized.from_node, node_id);
 		assert_eq!(deserialized.to_node, node_id);
@@ -246,12 +245,12 @@ mod integration_tests {
 		let data = vec![1.0, 2.0, 3.0, 4.0];
 
 		let vector = create_simple_vector(&arena, id, "embedding", &data);
-		let props_bytes = bincode::serialize(&vector).unwrap();
+		let props_bytes = postcard::to_stdvec(&vector).unwrap();
 		let data_bytes = vector.vector_data_to_bytes().unwrap();
 
 		let arena2 = Bump::new();
 		let deserialized =
-			HVector::from_bincode_bytes(&arena2, Some(&props_bytes), data_bytes, id).unwrap();
+			HVector::from_bytes(&arena2, Some(&props_bytes), data_bytes, id).unwrap();
 
 		assert_vectors_semantically_equal(&vector, &deserialized);
 	}
@@ -268,12 +267,12 @@ mod integration_tests {
 		];
 
 		let vector = create_arena_vector(&arena, id, "doc_vector", 1, false, 0, &data, props);
-		let props_bytes = bincode::serialize(&vector).unwrap();
+		let props_bytes = postcard::to_stdvec(&vector).unwrap();
 		let data_bytes = vector.vector_data_to_bytes().unwrap();
 
 		let arena2 = Bump::new();
 		let deserialized =
-			HVector::from_bincode_bytes(&arena2, Some(&props_bytes), data_bytes, id).unwrap();
+			HVector::from_bytes(&arena2, Some(&props_bytes), data_bytes, id).unwrap();
 
 		assert_vectors_semantically_equal(&vector, &deserialized);
 	}
@@ -302,18 +301,18 @@ mod integration_tests {
 		let vector = create_simple_vector(&arena, id, "multi", &data);
 
 		// First roundtrip
-		let props_bytes1 = bincode::serialize(&vector).unwrap();
+		let props_bytes1 = postcard::to_stdvec(&vector).unwrap();
 		let data_bytes1 = vector.vector_data_to_bytes().unwrap();
 		let arena2 = Bump::new();
 		let vector2 =
-			HVector::from_bincode_bytes(&arena2, Some(&props_bytes1), data_bytes1, id).unwrap();
+			HVector::from_bytes(&arena2, Some(&props_bytes1), data_bytes1, id).unwrap();
 
 		// Second roundtrip
-		let props_bytes2 = bincode::serialize(&vector2).unwrap();
+		let props_bytes2 = postcard::to_stdvec(&vector2).unwrap();
 		let data_bytes2 = vector2.vector_data_to_bytes().unwrap();
 		let arena3 = Bump::new();
 		let vector3 =
-			HVector::from_bincode_bytes(&arena3, Some(&props_bytes2), data_bytes2, id).unwrap();
+			HVector::from_bytes(&arena3, Some(&props_bytes2), data_bytes2, id).unwrap();
 
 		assert_vectors_semantically_equal(&vector, &vector2);
 		assert_vectors_semantically_equal(&vector2, &vector3);
@@ -336,7 +335,7 @@ mod integration_tests {
 		let serialized: Vec<(Vec<u8>, Vec<u8>)> = vectors
 			.iter()
 			.map(|v| {
-				let props = bincode::serialize(v).unwrap();
+				let props = postcard::to_stdvec(v).unwrap();
 				let data = v.vector_data_to_bytes().unwrap().to_vec();
 				(props, data)
 			})
@@ -346,7 +345,7 @@ mod integration_tests {
 		let arena2 = Bump::new();
 		for (i, (props_bytes, data_bytes)) in serialized.iter().enumerate() {
 			let result =
-				HVector::from_bincode_bytes(&arena2, Some(props_bytes), data_bytes, i as u128);
+				HVector::from_bytes(&arena2, Some(props_bytes), data_bytes, i as u128);
 			assert!(result.is_ok());
 		}
 	}
@@ -367,15 +366,15 @@ mod integration_tests {
 		let edge = create_simple_edge(&arena, 100, "KNOWS", 1, 2);
 
 		// Serialize
-		let node1_bytes = bincode::serialize(&node1).unwrap();
-		let node2_bytes = bincode::serialize(&node2).unwrap();
-		let edge_bytes = bincode::serialize(&edge).unwrap();
+		let node1_bytes = postcard::to_stdvec(&node1).unwrap();
+		let node2_bytes = postcard::to_stdvec(&node2).unwrap();
+		let edge_bytes = postcard::to_stdvec(&edge).unwrap();
 
 		// Deserialize
 		let arena2 = Bump::new();
-		let node1_restored = Node::from_bincode_bytes(1, &node1_bytes, &arena2).unwrap();
-		let node2_restored = Node::from_bincode_bytes(2, &node2_bytes, &arena2).unwrap();
-		let edge_restored = Edge::from_bincode_bytes(100, &edge_bytes, &arena2).unwrap();
+		let node1_restored = Node::from_bytes(1, &node1_bytes, &arena2).unwrap();
+		let node2_restored = Node::from_bytes(2, &node2_bytes, &arena2).unwrap();
+		let edge_restored = Edge::from_bytes(100, &edge_bytes, &arena2).unwrap();
 
 		assert_eq!(node1_restored.label, "Alice");
 		assert_eq!(node2_restored.label, "Bob");
@@ -393,17 +392,17 @@ mod integration_tests {
 		let vector = create_simple_vector(&arena, 3, "TestVector", &[1.0, 2.0, 3.0]);
 
 		// Serialize
-		let node_bytes = bincode::serialize(&node).unwrap();
-		let edge_bytes = bincode::serialize(&edge).unwrap();
-		let vector_props_bytes = bincode::serialize(&vector).unwrap();
+		let node_bytes = postcard::to_stdvec(&node).unwrap();
+		let edge_bytes = postcard::to_stdvec(&edge).unwrap();
+		let vector_props_bytes = postcard::to_stdvec(&vector).unwrap();
 		let vector_data_bytes = vector.vector_data_to_bytes().unwrap();
 
 		// Deserialize
 		let arena2 = Bump::new();
-		let node_restored = Node::from_bincode_bytes(1, &node_bytes, &arena2);
-		let edge_restored = Edge::from_bincode_bytes(2, &edge_bytes, &arena2);
+		let node_restored = Node::from_bytes(1, &node_bytes, &arena2);
+		let edge_restored = Edge::from_bytes(2, &edge_bytes, &arena2);
 		let vector_restored =
-			HVector::from_bincode_bytes(&arena2, Some(&vector_props_bytes), vector_data_bytes, 3);
+			HVector::from_bytes(&arena2, Some(&vector_props_bytes), vector_data_bytes, 3);
 
 		assert!(node_restored.is_ok());
 		assert!(edge_restored.is_ok());
@@ -423,15 +422,15 @@ mod integration_tests {
 		let node2 = create_simple_node(&arena_serialize, 2, "Node2");
 		let node3 = create_simple_node(&arena_serialize, 3, "Node3");
 
-		let bytes1 = bincode::serialize(&node1).unwrap();
-		let bytes2 = bincode::serialize(&node2).unwrap();
-		let bytes3 = bincode::serialize(&node3).unwrap();
+		let bytes1 = postcard::to_stdvec(&node1).unwrap();
+		let bytes2 = postcard::to_stdvec(&node2).unwrap();
+		let bytes3 = postcard::to_stdvec(&node3).unwrap();
 
 		// Deserialize all into same arena
 		let shared_arena = Bump::new();
-		let restored1 = Node::from_bincode_bytes(1, &bytes1, &shared_arena).unwrap();
-		let restored2 = Node::from_bincode_bytes(2, &bytes2, &shared_arena).unwrap();
-		let restored3 = Node::from_bincode_bytes(3, &bytes3, &shared_arena).unwrap();
+		let restored1 = Node::from_bytes(1, &bytes1, &shared_arena).unwrap();
+		let restored2 = Node::from_bytes(2, &bytes2, &shared_arena).unwrap();
+		let restored3 = Node::from_bytes(3, &bytes3, &shared_arena).unwrap();
 
 		assert_eq!(restored1.label, "Node1");
 		assert_eq!(restored2.label, "Node2");
@@ -450,7 +449,7 @@ mod integration_tests {
 		// Serialize all
 		let serialized: Vec<Vec<u8>> = nodes
 			.iter()
-			.map(|n| bincode::serialize(n).unwrap())
+			.map(|n| postcard::to_stdvec(n).unwrap())
 			.collect();
 
 		// Deserialize all into single arena
@@ -458,7 +457,7 @@ mod integration_tests {
 		let restored: Vec<Node> = serialized
 			.iter()
 			.enumerate()
-			.map(|(i, bytes)| Node::from_bincode_bytes(i as u128, bytes, &shared_arena).unwrap())
+			.map(|(i, bytes)| Node::from_bytes(i as u128, bytes, &shared_arena).unwrap())
 			.collect();
 
 		assert_eq!(restored.len(), 100);
@@ -480,10 +479,10 @@ mod integration_tests {
 			vec![("old_prop", Value::String("old_value".to_string()))],
 		);
 
-		let old_bytes = bincode::serialize(&old_node).unwrap();
+		let old_bytes = postcard::to_stdvec(&old_node).unwrap();
 
 		let arena = Bump::new();
-		let new_node = Node::from_bincode_bytes(id, &old_bytes, &arena);
+		let new_node = Node::from_bytes(id, &old_bytes, &arena);
 
 		assert!(new_node.is_ok());
 		let restored = new_node.unwrap();
@@ -504,10 +503,10 @@ mod integration_tests {
 			vec![("old_weight", Value::F64(0.5))],
 		);
 
-		let old_bytes = bincode::serialize(&old_edge).unwrap();
+		let old_bytes = postcard::to_stdvec(&old_edge).unwrap();
 
 		let arena = Bump::new();
-		let new_edge = Edge::from_bincode_bytes(id, &old_bytes, &arena);
+		let new_edge = Edge::from_bytes(id, &old_bytes, &arena);
 
 		assert!(new_edge.is_ok());
 		let restored = new_edge.unwrap();
@@ -521,54 +520,47 @@ mod integration_tests {
 	// ========================================================================
 
 	#[test]
-	fn test_bincode_fixint_encoding() {
+	fn test_postcard_fixint_encoding() {
 		let arena = Bump::new();
 		let id = 99999u128;
 
 		let node = create_simple_node(&arena, id, "test");
 
-		// Serialize with fixint encoding (like storage layer)
-		let bytes_fixint = bincode::options()
-			.with_fixint_encoding()
-			.serialize(&node)
-			.unwrap();
+		// Serialize with postcard (like storage layer)
+		let bytes_fixint = postcard::to_stdvec(&node).unwrap();
 
 		// Deserialize
 		let arena2 = Bump::new();
-		let result = bincode::options()
-			.with_fixint_encoding()
-			.allow_trailing_bytes()
-			.deserialize_seed(
-				crate::protocol::custom_serde::node_serde::NodeDeSeed { arena: &arena2, id },
-				&bytes_fixint,
-			);
+		let mut de = postcard::Deserializer::from_bytes(&bytes_fixint);
+		let result = serde::de::DeserializeSeed::deserialize(
+			crate::protocol::custom_serde::node_serde::NodeDeSeed { arena: &arena2, id },
+			&mut de,
+		);
 
 		assert!(result.is_ok());
 	}
 
 	#[test]
-	fn test_vector_bincode_options_consistency() {
+	fn test_vector_postcard_options_consistency() {
 		let arena = Bump::new();
 		let id = 777777u128;
 		let data = vec![1.0, 2.0, 3.0];
 
 		let vector = create_simple_vector(&arena, id, "test", &data);
-		let props_bytes = bincode::serialize(&vector).unwrap();
+		let props_bytes = postcard::to_stdvec(&vector).unwrap();
 		let data_bytes = vector.vector_data_to_bytes().unwrap();
 
-		// Use same bincode options as from_bincode_bytes
+		// Use same postcard deserialization as from_bytes
 		let arena2 = Bump::new();
-		let result = bincode::options()
-			.with_fixint_encoding()
-			.allow_trailing_bytes()
-			.deserialize_seed(
-				crate::protocol::custom_serde::vector_serde::VectorDeSeed {
-					arena: &arena2,
-					id,
-					raw_vector_data: data_bytes,
-				},
-				&props_bytes,
-			);
+		let mut de = postcard::Deserializer::from_bytes(&props_bytes);
+		let result = serde::de::DeserializeSeed::deserialize(
+			crate::protocol::custom_serde::vector_serde::VectorDeSeed {
+				arena: &arena2,
+				id,
+				raw_vector_data: data_bytes,
+			},
+			&mut de,
+		);
 
 		assert!(result.is_ok());
 	}
@@ -583,7 +575,7 @@ mod integration_tests {
 		let id = 11111u128;
 
 		let node = create_simple_node(&arena, id, "test");
-		let bytes = bincode::serialize(&node).unwrap();
+		let bytes = postcard::to_stdvec(&node).unwrap();
 
 		// Should be relatively small (label + version + empty props indicator)
 		assert!(
@@ -600,7 +592,7 @@ mod integration_tests {
 
 		// Edge with no props
 		let edge1 = create_simple_edge(&arena, id, "LINK", 1, 2);
-		let bytes1 = bincode::serialize(&edge1).unwrap();
+		let bytes1 = postcard::to_stdvec(&edge1).unwrap();
 
 		// Edge with props
 		let props = vec![
@@ -608,7 +600,7 @@ mod integration_tests {
 			("prop2", Value::String("value2".to_string())),
 		];
 		let edge2 = create_arena_edge(&arena, id, "LINK", 0, 1, 2, props);
-		let bytes2 = bincode::serialize(&edge2).unwrap();
+		let bytes2 = postcard::to_stdvec(&edge2).unwrap();
 
 		// Edge with props should be larger
 		assert!(bytes2.len() > bytes1.len());

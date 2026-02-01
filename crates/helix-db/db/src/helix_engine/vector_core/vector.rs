@@ -3,7 +3,6 @@ use std::cmp::Ordering;
 use std::fmt::Debug;
 use std::{alloc, mem, ptr, slice};
 
-use bincode::Options;
 use serde::ser::SerializeMap;
 use serde::{Serialize, Serializer};
 
@@ -65,7 +64,7 @@ impl<'arena> Serialize for HVector<'arena> {
 			}
 			state.end()
 		} else {
-			// Skip id, level, distance, and data for bincode serialization
+			// Skip id, level, distance, and data for postcard serialization
 			let mut state = serializer.serialize_struct("HVector", 4)?;
 			state.serialize_field("label", &self.label)?;
 			state.serialize_field("version", &self.version)?;
@@ -136,35 +135,32 @@ impl<'arena> HVector<'arena> {
 		})
 	}
 
-	/// Deserializes bytes into an vector using a custom deserializer that allocates into the provided arena
+	/// Deserializes bytes into a vector using a custom deserializer that allocates into the provided arena.
 	///
-	/// Both the properties bytes (if present) and the raw vector data are combined to generate the final vector struct
-	///
-	/// NOTE: in this method, fixint encoding is used
+	/// Both the properties bytes (if present) and the raw vector data are combined to generate the final vector struct.
 	#[inline]
-	pub fn from_bincode_bytes<'txn>(
+	pub fn from_bytes<'txn>(
 		arena: &'arena bumpalo::Bump,
 		properties: Option<&'txn [u8]>,
 		raw_vector_data: &'txn [u8],
 		id: u128,
 	) -> Result<Self, VectorError> {
-		bincode::options()
-			.with_fixint_encoding()
-			.allow_trailing_bytes()
-			.deserialize_seed(
-				VectorDeSeed {
-					arena,
-					id,
-					raw_vector_data,
-				},
-				properties.unwrap_or(&[]),
-			)
-			.map_err(|e| VectorError::ConversionError(format!("Error deserializing vector: {e}")))
+		let bytes = properties.unwrap_or(&[]);
+		let mut de = postcard::Deserializer::from_bytes(bytes);
+		serde::de::DeserializeSeed::deserialize(
+			VectorDeSeed {
+				arena,
+				id,
+				raw_vector_data,
+			},
+			&mut de,
+		)
+		.map_err(|e| VectorError::ConversionError(format!("Error deserializing vector: {e}")))
 	}
 
 	#[inline(always)]
-	pub fn to_bincode_bytes(&self) -> Result<Vec<u8>, bincode::Error> {
-		bincode::serialize(self)
+	pub fn to_bytes(&self) -> Result<Vec<u8>, postcard::Error> {
+		postcard::to_stdvec(self)
 	}
 
 	/// Casts the raw bytes to a f64 slice by copying them once into the arena

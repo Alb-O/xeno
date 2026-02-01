@@ -508,7 +508,7 @@ fn create_test_edge<'a>(
 
 fn insert_node(storage: &HelixGraphStorage, node: &Node) {
 	let mut txn = storage.graph_env.write_txn().unwrap();
-	let bytes = node.to_bincode_bytes().unwrap();
+	let bytes = node.to_bytes().unwrap();
 	storage
 		.nodes_db
 		.put(&mut txn, HelixGraphStorage::node_key(&node.id), &bytes)
@@ -518,7 +518,7 @@ fn insert_node(storage: &HelixGraphStorage, node: &Node) {
 
 fn insert_edge(storage: &HelixGraphStorage, edge: &Edge) {
 	let mut txn = storage.graph_env.write_txn().unwrap();
-	let bytes = edge.to_bincode_bytes().unwrap();
+	let bytes = edge.to_bytes().unwrap();
 	storage
 		.edges_db
 		.put(&mut txn, HelixGraphStorage::edge_key(&edge.id), &bytes)

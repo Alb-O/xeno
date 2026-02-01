@@ -319,7 +319,7 @@ mod tests {
 			let mut nodes = Vec::new();
 			for result in storage.nodes_db.iter(&rtxn).unwrap() {
 				let (id, node_data) = result.unwrap();
-				if let Ok(node) = Node::from_bincode_bytes(id, node_data, &arena)
+				if let Ok(node) = Node::from_bytes(id, node_data, &arena)
 					&& node.label == "person"
 				{
 					nodes.push(node);
@@ -345,7 +345,7 @@ mod tests {
 			let mut nodes = Vec::with_capacity(initial_capacity);
 			for result in storage.nodes_db.iter(&rtxn).unwrap() {
 				let (id, node_data) = result.unwrap();
-				if let Ok(node) = Node::from_bincode_bytes(id, node_data, &arena)
+				if let Ok(node) = Node::from_bytes(id, node_data, &arena)
 					&& node.label == "person"
 				{
 					nodes.push(node);

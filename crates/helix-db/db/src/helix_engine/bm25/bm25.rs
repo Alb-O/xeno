@@ -186,7 +186,7 @@ impl BM25 for HBM25Config {
 				term_frequency: tf,
 			};
 
-			let posting_bytes = bincode::serialize(&posting_entry)?;
+			let posting_bytes = postcard::to_stdvec(&posting_entry)?;
 
 			self.inverted_index_db
 				.put(txn, term_bytes, &posting_bytes)?;
@@ -197,7 +197,7 @@ impl BM25 for HBM25Config {
 		}
 
 		let mut metadata = if let Some(data) = self.metadata_db.get(txn, METADATA_KEY)? {
-			bincode::deserialize::<BM25Metadata>(data)?
+			postcard::from_bytes::<BM25Metadata>(data)?
 		} else {
 			BM25Metadata {
 				total_docs: 0,
@@ -212,7 +212,7 @@ impl BM25 for HBM25Config {
 		metadata.avgdl = (metadata.avgdl * old_total_docs as f64 + doc_length as f64)
 			/ metadata.total_docs as f64;
 
-		let metadata_bytes = bincode::serialize(&metadata)?;
+		let metadata_bytes = postcard::to_stdvec(&metadata)?;
 		self.metadata_db.put(txn, METADATA_KEY, &metadata_bytes)?;
 
 		Ok(())
@@ -224,7 +224,7 @@ impl BM25 for HBM25Config {
 			let mut iter = self.inverted_index_db.iter(txn)?;
 
 			while let Some((term_bytes, posting_bytes)) = iter.next().transpose()? {
-				let posting: PostingListEntry = bincode::deserialize(posting_bytes)?;
+				let posting: PostingListEntry = postcard::from_bytes(posting_bytes)?;
 				if posting.doc_id == doc_id {
 					terms.push(term_bytes.to_vec());
 				}
@@ -240,7 +240,7 @@ impl BM25 for HBM25Config {
 				if let Some(duplicates) = self.inverted_index_db.get_duplicates(txn, &term_bytes)? {
 					for result in duplicates {
 						let (_, posting_bytes) = result?;
-						let posting: PostingListEntry = bincode::deserialize(posting_bytes)?;
+						let posting: PostingListEntry = postcard::from_bytes(posting_bytes)?;
 						if posting.doc_id != doc_id {
 							entries.push(posting_bytes.to_vec());
 						}
@@ -274,7 +274,7 @@ impl BM25 for HBM25Config {
 			.map(|data| data.to_vec());
 
 		if let Some(data) = metadata_data {
-			let mut metadata: BM25Metadata = bincode::deserialize(&data)?;
+			let mut metadata: BM25Metadata = postcard::from_bytes(&data)?;
 			if metadata.total_docs > 0 {
 				// update average document length
 				metadata.avgdl = if metadata.total_docs > 1 {
@@ -285,7 +285,7 @@ impl BM25 for HBM25Config {
 				};
 				metadata.total_docs -= 1;
 
-				let metadata_bytes = bincode::serialize(&metadata)?;
+				let metadata_bytes = postcard::to_stdvec(&metadata)?;
 				self.metadata_db.put(txn, METADATA_KEY, &metadata_bytes)?;
 			}
 		}
@@ -348,7 +348,7 @@ impl BM25 for HBM25Config {
 			.metadata_db
 			.get(txn, METADATA_KEY)?
 			.ok_or(GraphError::New("BM25 metadata not found".to_string()))?;
-		let metadata: BM25Metadata = bincode::deserialize(metadata)?;
+		let metadata: BM25Metadata = postcard::from_bytes(metadata)?;
 
 		// for each query term, calculate scores
 		for term in query_terms {
@@ -363,7 +363,7 @@ impl BM25 for HBM25Config {
 			if let Some(duplicates) = self.inverted_index_db.get_duplicates(txn, term_bytes)? {
 				for result in duplicates {
 					let (_, posting_bytes) = result?;
-					let posting: PostingListEntry = bincode::deserialize(posting_bytes)?;
+					let posting: PostingListEntry = postcard::from_bytes(posting_bytes)?;
 
 					// Get document length
 					let doc_length = self.doc_lengths_db.get(txn, &posting.doc_id)?.unwrap_or(0);

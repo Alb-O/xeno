@@ -93,7 +93,7 @@ pub fn nodes_by_label_inner(input: HandlerInput) -> Result<protocol::Response, G
 
 	for result in db.nodes_db.iter(&txn)? {
 		let (id, node_data) = result?;
-		match Node::from_bincode_bytes(id, node_data, &arena) {
+		match Node::from_bytes(id, node_data, &arena) {
 			Ok(node) => {
 				if node.label == label {
 					let id_str = ID::from(id).stringify();

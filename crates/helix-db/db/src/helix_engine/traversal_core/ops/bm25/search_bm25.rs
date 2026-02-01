@@ -75,7 +75,7 @@ impl<'db, 'arena, 'txn, I: Iterator<Item = Result<TraversalValue<'arena>, GraphE
                 ..LMDB_STRING_HEADER_LENGTH + length_of_label_in_lmdb];
 
             if label_in_lmdb == label_as_bytes {
-                match Node::<'arena>::from_bincode_bytes(id, value, self.arena) {
+                match Node::<'arena>::from_bytes(id, value, self.arena) {
                     Ok(node) => {
                         return Some(Ok(TraversalValue::NodeWithScore { node, score: score as f64 }));
                     }

@@ -75,7 +75,7 @@ impl<'db, 'arena, 'txn, 's, I: Iterator<Item = Result<TraversalValue<'arena>, Gr
 						None => continue,
 					};
 					// look into if there is a way to serialize to a slice
-					match bincode::serialize(&key) {
+					match postcard::to_stdvec(&key) {
 						Ok(serialized) => {
 							// possibly append dup
 
@@ -124,7 +124,7 @@ impl<'db, 'arena, 'txn, 's, I: Iterator<Item = Result<TraversalValue<'arena>, Gr
 			}
 		}
 
-		match bincode::serialize(&node) {
+		match postcard::to_stdvec(&node) {
 			Ok(bytes) => {
 				if let Err(e) = self.storage.nodes_db.put_with_flags(
 					self.txn,

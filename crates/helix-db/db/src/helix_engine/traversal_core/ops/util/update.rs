@@ -64,7 +64,7 @@ impl<'db, 'arena, 'txn, I: Iterator<Item = Result<TraversalValue<'arena>, GraphE
 										continue;
 									};
 
-									match bincode::serialize(v) {
+									match postcard::to_stdvec(v) {
 										Ok(v_serialized) => {
 											let result = match secondary_index {
                                                  crate::helix_engine::types::SecondaryIndex::Unique(_) => {
@@ -113,7 +113,7 @@ impl<'db, 'arena, 'txn, I: Iterator<Item = Result<TraversalValue<'arena>, GraphE
 										continue;
 									};
 
-									match bincode::serialize(old_value) {
+									match postcard::to_stdvec(old_value) {
 										Ok(old_serialized) => {
 											if let Err(e) = db.delete_one_duplicate(
 												self.txn,
@@ -131,7 +131,7 @@ impl<'db, 'arena, 'txn, I: Iterator<Item = Result<TraversalValue<'arena>, GraphE
 									}
 
 									// create new secondary indexes for the props changed
-									match bincode::serialize(v) {
+									match postcard::to_stdvec(v) {
 										Ok(v_serialized) => {
 											if let Err(e) =
 												db.put(self.txn, &v_serialized, &node.id)
@@ -174,7 +174,7 @@ impl<'db, 'arena, 'txn, I: Iterator<Item = Result<TraversalValue<'arena>, GraphE
 							}
 						}
 
-						match bincode::serialize(&node) {
+						match postcard::to_stdvec(&node) {
 							Ok(serialized_node) => {
 								match self.storage.nodes_db.put(
 									self.txn,
@@ -232,7 +232,7 @@ impl<'db, 'arena, 'txn, I: Iterator<Item = Result<TraversalValue<'arena>, GraphE
 							}
 						}
 
-						match bincode::serialize(&edge) {
+						match postcard::to_stdvec(&edge) {
 							Ok(serialized_edge) => {
 								match self.storage.edges_db.put(
 									self.txn,
