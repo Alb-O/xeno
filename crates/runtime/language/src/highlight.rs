@@ -146,7 +146,9 @@ impl<'a> Iterator for Highlighter<'a> {
 					});
 
 					self.current_start = event_start;
-					self.current_highlight = new_highlight;
+					if new_highlight.is_some() {
+						self.current_highlight = new_highlight;
+					}
 					span
 				}
 				HighlightEvent::Refresh => {
