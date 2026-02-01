@@ -18,7 +18,7 @@ members = [
 [workspace.package]
 version = "0.7.4"
 edition = "2024"
-license = "MIT"
+license = "AGPL-3.0-only"
 repository = "https://github.com/Alb-O/xeno"
 rust-version = "1.86.0"
 

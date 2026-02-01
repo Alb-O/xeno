@@ -1,0 +1,61 @@
+This file lists third-party code embedded in this repository and their
+original licenses. All components listed below are licensed under the
+MIT License unless otherwise noted. The full MIT license text for each
+component is preserved in the LICENSE file at the path indicated.
+
+The combined work (Xeno) is distributed under the GNU Affero General
+Public License v3.0 (AGPL-3.0-only). See LICENSE in the repository root.
+
+================================================================================
+
+Component:  HelixDB
+Path:       crates/helix-db/
+License:    AGPL-3.0
+Authors:    HelixDB Team
+Source:     https://github.com/HelixDB/helix-db
+
+================================================================================
+
+Component:  Ratatui (TUI framework)
+Path:       crates/tui/
+License:    MIT
+Copyright:  (c) 2016-2022 Florian Dehau
+            (c) 2023-2025 The Ratatui Developers
+Source:     https://github.com/ratatui/ratatui
+Notice:     crates/tui/LICENSE
+
+================================================================================
+
+Component:  tui-term (terminal widget)
+Path:       crates/tui/src/widgets/terminal/
+License:    MIT
+Copyright:  (c) 2023 a-kenji
+Source:     https://github.com/a-kenji/tui-term
+Notice:     crates/tui/src/widgets/terminal/LICENSE
+
+================================================================================
+
+Component:  Keymap library
+Path:       crates/keymap/
+License:    MIT
+Copyright:  (c) 2023 Marut Khumtong
+Source:     https://github.com/rezigned/keymap-rs
+Notice:     crates/keymap/LICENSE
+
+================================================================================
+
+Component:  LSP framework
+Path:       crates/lsp/
+License:    MIT
+Copyright:  (c) 2025 oxalica
+Source:     https://github.com/oxalica/async-lsp
+Notice:     crates/lsp/LICENSE
+
+================================================================================
+
+Component:  Snakemake tree-sitter queries
+Path:       crates/runtime/data/assets/language/queries/snakemake/
+License:    MIT
+Copyright:  (c) 2016 Max Brunsfeld
+            (c) 2023 Oliver Thomas
+Notice:     crates/runtime/data/assets/language/queries/snakemake/LICENSE
