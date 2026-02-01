@@ -188,7 +188,10 @@ fn execute_tool_step(
 					"[EXECUTE_TOOL_STEP] Connection not found: {}",
 					connection_id
 				);
-				EngineError::from(StorageError::Backend(format!("Connection not found: {}", connection_id)))
+				EngineError::from(StorageError::Backend(format!(
+					"Connection not found: {}",
+					connection_id
+				)))
 			})?;
 
 		tracing::debug!(
@@ -248,7 +251,10 @@ fn execute_tool_step(
 					"[EXECUTE_TOOL_STEP] Connection not found when updating state: {}",
 					connection_id
 				);
-				EngineError::from(StorageError::Backend(format!("Connection not found: {}", connection_id)))
+				EngineError::from(StorageError::Backend(format!(
+					"Connection not found: {}",
+					connection_id
+				)))
 			})?;
 		connection.current_position = if consumed_one { 1 } else { 0 };
 	}
@@ -311,7 +317,10 @@ pub fn next(input: &mut MCPToolInput) -> Result<Response, EngineError> {
 			.get_connection(&data.connection_id)
 			.ok_or_else(|| {
 				tracing::error!("[NEXT] Connection not found: {}", data.connection_id);
-				EngineError::from(StorageError::Backend(format!("Connection not found: {}", data.connection_id)))
+				EngineError::from(StorageError::Backend(format!(
+					"Connection not found: {}",
+					data.connection_id
+				)))
 			})?;
 		(connection.query_chain.clone(), connection.current_position)
 	};
@@ -353,7 +362,10 @@ pub fn next(input: &mut MCPToolInput) -> Result<Response, EngineError> {
 						"[NEXT] Connection not found when updating position: {}",
 						data.connection_id
 					);
-					EngineError::from(StorageError::Backend(format!("Connection not found: {}", data.connection_id)))
+					EngineError::from(StorageError::Backend(format!(
+						"Connection not found: {}",
+						data.connection_id
+					)))
 				})?;
 			connection.current_position += 1;
 			tracing::debug!(
@@ -397,7 +409,10 @@ pub fn collect(input: &mut MCPToolInput) -> Result<Response, EngineError> {
 		let connection = connections
 			.get_connection(&data.connection_id)
 			.ok_or_else(|| {
-				EngineError::from(StorageError::Backend(format!("Connection not found: {}", data.connection_id)))
+				EngineError::from(StorageError::Backend(format!(
+					"Connection not found: {}",
+					data.connection_id
+				)))
 			})?;
 		connection.query_chain.clone()
 	};
@@ -432,7 +447,10 @@ pub fn collect(input: &mut MCPToolInput) -> Result<Response, EngineError> {
 		let connection = connections
 			.get_connection_mut(&data.connection_id)
 			.ok_or_else(|| {
-				EngineError::from(StorageError::Backend(format!("Connection not found: {}", data.connection_id)))
+				EngineError::from(StorageError::Backend(format!(
+					"Connection not found: {}",
+					data.connection_id
+				)))
 			})?;
 
 		if data.drop.unwrap_or(true) {
@@ -463,7 +481,10 @@ pub fn aggregate_by(input: &mut MCPToolInput) -> Result<Response, EngineError> {
 		let connection = connections
 			.get_connection(&data.connection_id)
 			.ok_or_else(|| {
-				EngineError::from(StorageError::Backend(format!("Connection not found: {}", data.connection_id)))
+				EngineError::from(StorageError::Backend(format!(
+					"Connection not found: {}",
+					data.connection_id
+				)))
 			})?;
 		connection.query_chain.clone()
 	};
@@ -485,7 +506,10 @@ pub fn aggregate_by(input: &mut MCPToolInput) -> Result<Response, EngineError> {
 		let connection = connections
 			.get_connection_mut(&data.connection_id)
 			.ok_or_else(|| {
-				EngineError::from(StorageError::Backend(format!("Connection not found: {}", data.connection_id)))
+				EngineError::from(StorageError::Backend(format!(
+					"Connection not found: {}",
+					data.connection_id
+				)))
 			})?;
 
 		if data.drop.unwrap_or(true) {
@@ -509,7 +533,10 @@ pub fn group_by(input: &mut MCPToolInput) -> Result<Response, EngineError> {
 		let connection = connections
 			.get_connection(&data.connection_id)
 			.ok_or_else(|| {
-				EngineError::from(StorageError::Backend(format!("Connection not found: {}", data.connection_id)))
+				EngineError::from(StorageError::Backend(format!(
+					"Connection not found: {}",
+					data.connection_id
+				)))
 			})?;
 		connection.query_chain.clone()
 	};
@@ -531,7 +558,10 @@ pub fn group_by(input: &mut MCPToolInput) -> Result<Response, EngineError> {
 		let connection = connections
 			.get_connection_mut(&data.connection_id)
 			.ok_or_else(|| {
-				EngineError::from(StorageError::Backend(format!("Connection not found: {}", data.connection_id)))
+				EngineError::from(StorageError::Backend(format!(
+					"Connection not found: {}",
+					data.connection_id
+				)))
 			})?;
 
 		if data.drop.unwrap_or(true) {
@@ -558,7 +588,10 @@ pub fn reset(input: &mut MCPToolInput) -> Result<Response, EngineError> {
 	let connection = connections
 		.get_connection_mut(&data.connection_id)
 		.ok_or_else(|| {
-			EngineError::from(StorageError::Backend(format!("Connection not found: {}", data.connection_id)))
+			EngineError::from(StorageError::Backend(format!(
+				"Connection not found: {}",
+				data.connection_id
+			)))
 		})?;
 
 	connection.clear_chain();
@@ -577,7 +610,9 @@ pub fn schema_resource(input: &mut MCPToolInput) -> Result<Response, EngineError
 
 	let connections = input.mcp_connections.lock().unwrap();
 	if !connections.connections.contains_key(&data.connection_id) {
-		return Err(EngineError::from(StorageError::Backend("Connection not found".to_string())));
+		return Err(EngineError::from(StorageError::Backend(
+			"Connection not found".to_string(),
+		)));
 	}
 	drop(connections);
 
@@ -834,7 +869,10 @@ pub fn search_keyword(input: &mut MCPToolInput) -> Result<Response, EngineError>
 		connections
 			.get_connection(&req.connection_id)
 			.ok_or_else(|| {
-				EngineError::from(StorageError::Backend(format!("Connection not found: {}", req.connection_id)))
+				EngineError::from(StorageError::Backend(format!(
+					"Connection not found: {}",
+					req.connection_id
+				)))
 			})?;
 	}
 
@@ -859,7 +897,10 @@ pub fn search_keyword(input: &mut MCPToolInput) -> Result<Response, EngineError>
 		let connection = connections
 			.get_connection_mut(&req.connection_id)
 			.ok_or_else(|| {
-				EngineError::from(StorageError::Backend(format!("Connection not found: {}", req.connection_id)))
+				EngineError::from(StorageError::Backend(format!(
+					"Connection not found: {}",
+					req.connection_id
+				)))
 			})?;
 
 		// Store remaining results for pagination
@@ -921,7 +962,10 @@ pub fn search_vector_text(input: &mut MCPToolInput) -> Result<Response, EngineEr
 					"[VECTOR_SEARCH] Connection not found: {}",
 					req.connection_id
 				);
-				EngineError::from(StorageError::Backend(format!("Connection not found: {}", req.connection_id)))
+				EngineError::from(StorageError::Backend(format!(
+					"Connection not found: {}",
+					req.connection_id
+				)))
 			})?;
 	}
 
@@ -992,7 +1036,10 @@ pub fn search_vector_text(input: &mut MCPToolInput) -> Result<Response, EngineEr
 					"[VECTOR_SEARCH] Connection not found when updating state: {}",
 					req.connection_id
 				);
-				EngineError::from(StorageError::Backend(format!("Connection not found: {}", req.connection_id)))
+				EngineError::from(StorageError::Backend(format!(
+					"Connection not found: {}",
+					req.connection_id
+				)))
 			})?;
 
 		connection.current_position = if consumed_one { 1 } else { 0 };

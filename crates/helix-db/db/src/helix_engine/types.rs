@@ -341,9 +341,10 @@ impl SecondaryIndex {
 							// Check if it's the same ID (idempotent)
 							if let Some(existing_id) =
 								db.get(txn, key).map_err(StorageError::from)?
-								&& &existing_id == id {
-									return Ok(());
-								}
+								&& &existing_id == id
+							{
+								return Ok(());
+							}
 							return Err(StorageError::DuplicateKey(format!(
 								"Duplicate key for unique index {name}"
 							))
@@ -372,9 +373,10 @@ impl SecondaryIndex {
 		match self {
 			Self::Unique(_) => {
 				if let Some(existing_id) = db.get(txn, key).map_err(StorageError::from)?
-					&& &existing_id == id {
-						db.delete(txn, key).map_err(StorageError::from)?;
-					}
+					&& &existing_id == id
+				{
+					db.delete(txn, key).map_err(StorageError::from)?;
+				}
 				Ok(())
 			}
 			Self::Index(_) => {

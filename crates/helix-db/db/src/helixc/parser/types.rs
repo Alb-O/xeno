@@ -616,7 +616,7 @@ pub enum ExpressionType {
 pub enum ReturnType {
 	Array(Vec<ReturnType>),
 	Object(HashMap<String, ReturnType>),
-	Expression(Expression),
+	Expression(Box<Expression>),
 	Empty,
 }
 
@@ -700,7 +700,7 @@ pub enum StartNode {
 		vector_type: String,
 		ids: Option<Vec<IdType>>,
 	},
-	SearchVector(SearchVector),
+	SearchVector(Box<SearchVector>),
 	Identifier(String),
 	Anonymous,
 }
@@ -772,7 +772,7 @@ pub enum StepType {
 	Object(Object),
 	Exclude(Exclude),
 	Closure(Closure),
-	Range((Expression, Expression)),
+	Range(Box<(Expression, Expression)>),
 	OrderBy(OrderBy),
 	Aggregate(Aggregate),
 	GroupBy(GroupBy),
@@ -826,7 +826,7 @@ pub struct FieldValue {
 #[derive(Debug, Clone)]
 pub enum FieldValueType {
 	Traversal(Box<Traversal>),
-	Expression(Expression),
+	Expression(Box<Expression>),
 	Fields(Vec<FieldAddition>),
 	Literal(Value),
 	Identifier(String),
@@ -1080,12 +1080,19 @@ impl ValueType {
 	pub fn new(value: Value, loc: Loc) -> ValueType {
 		ValueType::Literal { value, loc }
 	}
-	pub fn to_string(&self) -> String {
+}
+
+impl std::fmt::Display for ValueType {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
 		match self {
-			ValueType::Literal { value, loc: _ } => value.inner_stringify(),
-			ValueType::Identifier { value, loc: _ } => value.clone(),
+			ValueType::Literal { value, loc: _ } => write!(f, "{}", value.inner_stringify()),
+			ValueType::Identifier { value, loc: _ } => write!(f, "{}", value),
 			ValueType::Object { fields, loc: _ } => {
-				fields.keys().cloned().collect::<Vec<String>>().join(", ")
+				write!(
+					f,
+					"{}",
+					fields.keys().cloned().collect::<Vec<String>>().join(", ")
+				)
 			}
 		}
 	}

@@ -282,7 +282,7 @@ impl HelixParser {
 				Some(p) => match p.as_rule() {
 					Rule::evaluates_to_anything => FieldValue {
 						loc: p.loc(),
-						value: FieldValueType::Expression(self.parse_expression(p)?),
+						value: FieldValueType::Expression(Box::new(self.parse_expression(p)?)),
 					},
 					Rule::anonymous_traversal => FieldValue {
 						loc: p.loc(),
@@ -405,7 +405,7 @@ impl HelixParser {
 			}),
 			Rule::range_step => Ok(Step {
 				loc: step_pair.loc(),
-				step: StepType::Range(self.parse_range(step_pair)?),
+				step: StepType::Range(Box::new(self.parse_range(step_pair)?)),
 			}),
 
 			Rule::bool_operations => Ok(Step {

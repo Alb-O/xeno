@@ -22,7 +22,9 @@ impl HelixParser {
 					return_types.push(ReturnType::Object(self.parse_object_creation(pair)?));
 				}
 				Rule::evaluates_to_anything => {
-					return_types.push(ReturnType::Expression(self.parse_expression(pair)?));
+					return_types.push(ReturnType::Expression(Box::new(
+						self.parse_expression(pair)?,
+					)));
 				}
 				_ => {
 					return Err(ParserError::from(format!(
@@ -44,10 +46,10 @@ impl HelixParser {
 		for p in pairs {
 			match p.as_rule() {
 				Rule::identifier => {
-					objects.push(ReturnType::Expression(Expression {
+					objects.push(ReturnType::Expression(Box::new(Expression {
 						loc: p.loc(),
 						expr: ExpressionType::Identifier(p.as_str().to_string()),
-					}));
+					})));
 				}
 				_ => {
 					objects.push(ReturnType::Object(self.parse_object_creation(p)?));
@@ -86,9 +88,9 @@ impl HelixParser {
 			.ok_or_else(|| ParserError::from("Missing object inner"))?;
 
 		match object_field_inner.as_rule() {
-			Rule::evaluates_to_anything => Ok(ReturnType::Expression(
+			Rule::evaluates_to_anything => Ok(ReturnType::Expression(Box::new(
 				self.parse_expression(object_field_inner)?,
-			)),
+			))),
 			Rule::object_creation => Ok(ReturnType::Object(
 				self.parse_object_creation(object_field_inner)?,
 			)),

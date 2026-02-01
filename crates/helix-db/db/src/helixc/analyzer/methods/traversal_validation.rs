@@ -2560,7 +2560,8 @@ pub(crate) fn validate_traversal<'a>(
 				excluded.clear();
 			}
 
-			StepType::Range((start, end)) => {
+			StepType::Range(range) => {
+				let (start, end) = range.as_ref();
 				let (start, end) = match (&start.expr, &end.expr) {
 					(ExpressionType::Identifier(i), ExpressionType::Identifier(j)) => {
 						is_valid_identifier(ctx, original_query, start.loc.clone(), i.as_str());

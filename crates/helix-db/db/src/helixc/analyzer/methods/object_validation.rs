@@ -408,7 +408,7 @@ fn validate_property_access<'a>(
 									field_addition.key.clone(),
 									ComputedExpressionInfo {
 										field_name: field_addition.key.clone(),
-										expression: Box::new(expr.clone()),
+										expression: expr.clone(),
 									},
 								);
 								gen_traversal.object_fields.push(field_addition.key.clone());

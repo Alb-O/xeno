@@ -203,7 +203,9 @@ impl HelixParser {
 				Ok(StartNode::Edge { edge_type, ids })
 			}
 			Rule::identifier => Ok(StartNode::Identifier(pair.as_str().to_string())),
-			Rule::search_vector => Ok(StartNode::SearchVector(self.parse_search_vector(pair)?)),
+			Rule::search_vector => Ok(StartNode::SearchVector(Box::new(
+				self.parse_search_vector(pair)?,
+			))),
 			Rule::start_vector => {
 				let pairs = pair.into_inner();
 				let mut vector_type = String::new();

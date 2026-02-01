@@ -67,7 +67,7 @@ impl HelixParser {
 		Ok(match value_pair.as_rule() {
 			Rule::evaluates_to_anything => FieldValue {
 				loc: value_pair.loc(),
-				value: FieldValueType::Expression(self.parse_expression(value_pair)?),
+				value: FieldValueType::Expression(Box::new(self.parse_expression(value_pair)?)),
 			},
 			Rule::anonymous_traversal => FieldValue {
 				loc: value_pair.loc(),
@@ -155,7 +155,7 @@ impl HelixParser {
 		let value: FieldValue = match value_pair.as_rule() {
 			Rule::evaluates_to_anything => FieldValue {
 				loc: value_pair.loc(),
-				value: FieldValueType::Expression(self.parse_expression(value_pair)?),
+				value: FieldValueType::Expression(Box::new(self.parse_expression(value_pair)?)),
 			},
 			Rule::anonymous_traversal => FieldValue {
 				loc: value_pair.loc(),
