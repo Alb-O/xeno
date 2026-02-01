@@ -5,6 +5,7 @@ pub mod format;
 pub mod request;
 pub mod response;
 pub mod value;
+pub mod value_error;
 
 pub use error::HelixError;
 pub use format::Format;

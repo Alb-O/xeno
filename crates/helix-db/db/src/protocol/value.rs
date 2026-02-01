@@ -12,6 +12,7 @@ use crate::debug_println;
 use crate::helix_engine::types::GraphError;
 use crate::helixc::generator::utils::GenRef;
 use crate::protocol::date::Date;
+use crate::protocol::value_error::ValueKind;
 use crate::utils::id::ID;
 /// A flexible value type that can represent various property values in nodes and edges.
 /// Handles both JSON and binary serialisation formats via custom implementaions of the Serialize and Deserialize traits.
@@ -73,6 +74,29 @@ pub trait FilterValues {
 }
 
 impl Value {
+	pub fn kind(&self) -> ValueKind {
+		match self {
+			Value::String(_) => ValueKind::String,
+			Value::F32(_) => ValueKind::F32,
+			Value::F64(_) => ValueKind::F64,
+			Value::I8(_) => ValueKind::I8,
+			Value::I16(_) => ValueKind::I16,
+			Value::I32(_) => ValueKind::I32,
+			Value::I64(_) => ValueKind::I64,
+			Value::U8(_) => ValueKind::U8,
+			Value::U16(_) => ValueKind::U16,
+			Value::U32(_) => ValueKind::U32,
+			Value::U64(_) => ValueKind::U64,
+			Value::U128(_) => ValueKind::U128,
+			Value::Date(_) => ValueKind::Date,
+			Value::Boolean(_) => ValueKind::Bool,
+			Value::Id(_) => ValueKind::Id,
+			Value::Array(_) => ValueKind::Array,
+			Value::Object(_) => ValueKind::Object,
+			Value::Empty => ValueKind::Empty,
+		}
+	}
+
 	pub fn inner_stringify(&self) -> String {
 		match self {
 			Value::String(s) => s.to_string(),
