@@ -1,9 +1,9 @@
 use crate::helix_engine::traversal_core::traversal_iter::RoTraversalIterator;
 use crate::helix_engine::traversal_core::traversal_value::TraversalValue;
-use crate::helix_engine::types::GraphError;
+use crate::helix_engine::types::EngineError;
 
 pub trait ToVAdapter<'db, 'arena, 'txn, I>:
-	Iterator<Item = Result<TraversalValue<'arena>, GraphError>>
+	Iterator<Item = Result<TraversalValue<'arena>, EngineError>>
 {
 	fn to_v(
 		self,
@@ -12,11 +12,11 @@ pub trait ToVAdapter<'db, 'arena, 'txn, I>:
 		'db,
 		'arena,
 		'txn,
-		impl Iterator<Item = Result<TraversalValue<'arena>, GraphError>>,
+		impl Iterator<Item = Result<TraversalValue<'arena>, EngineError>>,
 	>;
 }
 
-impl<'db, 'arena, 'txn, I: Iterator<Item = Result<TraversalValue<'arena>, GraphError>>>
+impl<'db, 'arena, 'txn, I: Iterator<Item = Result<TraversalValue<'arena>, EngineError>>>
 	ToVAdapter<'db, 'arena, 'txn, I> for RoTraversalIterator<'db, 'arena, 'txn, I>
 {
 	#[inline(always)]
@@ -27,7 +27,7 @@ impl<'db, 'arena, 'txn, I: Iterator<Item = Result<TraversalValue<'arena>, GraphE
 		'db,
 		'arena,
 		'txn,
-		impl Iterator<Item = Result<TraversalValue<'arena>, GraphError>>,
+		impl Iterator<Item = Result<TraversalValue<'arena>, EngineError>>,
 	> {
 		let iter = self.inner.filter_map(move |item| {
 			if let Ok(TraversalValue::Edge(item)) = item {
@@ -38,7 +38,7 @@ impl<'db, 'arena, 'txn, I: Iterator<Item = Result<TraversalValue<'arena>, GraphE
 						.get_full_vector(self.txn, item.to_node, self.arena)
 					{
 						Ok(vector) => Some(Ok(TraversalValue::Vector(vector))),
-						Err(e) => Some(Err(GraphError::from(e))),
+						Err(e) => Some(Err(EngineError::from(e))),
 					}
 				} else {
 					match self.storage.vectors.get_vector_properties(
@@ -50,7 +50,7 @@ impl<'db, 'arena, 'txn, I: Iterator<Item = Result<TraversalValue<'arena>, GraphE
 							Some(Ok(TraversalValue::VectorNodeWithoutVectorData(vector)))
 						}
 						Ok(None) => None,
-						Err(e) => Some(Err(GraphError::from(e))),
+						Err(e) => Some(Err(EngineError::from(e))),
 					}
 				}
 			} else {

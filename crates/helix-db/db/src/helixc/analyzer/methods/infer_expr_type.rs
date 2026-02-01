@@ -652,7 +652,7 @@ pub(crate) fn infer_expr_type<'a>(
 								if let Some(param) = is_param(original_query, value.as_str()) {
 									GeneratedValue::Parameter(match param.is_optional {
 										true => GenRef::DeRef(format!(
-											"data.{}.as_ref().ok_or_else(|| GraphError::ParamNotFound(\"{}\"))?",
+											"data.{}.as_ref().ok_or_else(|| TraversalError::ParamNotFound(\"{}\").into())?",
 											value, value
 										)),
 										false => GenRef::DeRef(format!("data.{}", value)),
@@ -711,7 +711,7 @@ pub(crate) fn infer_expr_type<'a>(
 								if let Some(param) = is_param(original_query, value.as_str()) {
 									GeneratedValue::Parameter(match param.is_optional {
 										true => GenRef::DeRef(format!(
-											"data.{}.as_ref().ok_or_else(|| GraphError::ParamNotFound(\"{}\"))?",
+											"data.{}.as_ref().ok_or_else(|| TraversalError::ParamNotFound(\"{}\").into())?",
 											value, value
 										)),
 										false => GenRef::DeRef(format!("data.{}", value)),

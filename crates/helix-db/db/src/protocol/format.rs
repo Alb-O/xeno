@@ -7,7 +7,7 @@ use std::str::FromStr;
 use serde::{Deserialize, Serialize};
 use tokio::io::{AsyncWrite, AsyncWriteExt, BufWriter};
 
-use crate::helix_engine::types::GraphError;
+use crate::helix_engine::types::{EngineError, StorageError};
 use crate::protocol::Response;
 
 /// This enum represents the formats that input or output values of HelixDB can be represented as
@@ -64,20 +64,24 @@ impl Format {
 	pub fn deserialize<'a, T: Deserialize<'a>>(
 		self,
 		val: &'a [u8],
-	) -> Result<MaybeOwned<'a, T>, GraphError> {
+	) -> Result<MaybeOwned<'a, T>, EngineError> {
 		match self {
 			Format::Json => Ok(MaybeOwned::Owned(
-				sonic_rs::from_slice::<T>(val)
-					.map_err(|e| GraphError::DecodeError(e.to_string()))?,
+				sonic_rs::from_slice::<T>(val).map_err(|e| StorageError::Decode(e.to_string()))?,
 			)),
 		}
 	}
 
 	/// Deserialize the provided value
-	pub fn deserialize_owned<'a, T: Deserialize<'a>>(self, val: &'a [u8]) -> Result<T, GraphError> {
+	pub fn deserialize_owned<'a, T: Deserialize<'a>>(
+		self,
+		val: &'a [u8],
+	) -> Result<T, EngineError> {
 		match self {
-			Format::Json => Ok(sonic_rs::from_slice::<T>(val)
-				.map_err(|e| GraphError::DecodeError(e.to_string()))?),
+			Format::Json => {
+				Ok(sonic_rs::from_slice::<T>(val)
+					.map_err(|e| StorageError::Decode(e.to_string()))?)
+			}
 		}
 	}
 }
@@ -165,7 +169,7 @@ mod tests {
 		let json = r#"{"name":"test","value":42}"#;
 		let bytes = json.as_bytes();
 
-		let result: Result<MaybeOwned<TestData>, GraphError> = Format::Json.deserialize(bytes);
+		let result: Result<MaybeOwned<TestData>, EngineError> = Format::Json.deserialize(bytes);
 		assert!(result.is_ok());
 
 		let data = result.unwrap();
@@ -191,7 +195,7 @@ mod tests {
 		let json = r#"{"name":"owned","value":99}"#;
 		let bytes = json.as_bytes();
 
-		let result: Result<TestData, GraphError> = Format::Json.deserialize_owned(bytes);
+		let result: Result<TestData, EngineError> = Format::Json.deserialize_owned(bytes);
 		assert!(result.is_ok());
 
 		let data = result.unwrap();
@@ -203,14 +207,14 @@ mod tests {
 	fn test_format_deserialize_invalid_json() {
 		let invalid_json = b"not valid json {";
 
-		let result: Result<MaybeOwned<TestData>, GraphError> =
+		let result: Result<MaybeOwned<TestData>, EngineError> =
 			Format::Json.deserialize(invalid_json);
 		assert!(result.is_err());
 
-		if let Err(GraphError::DecodeError(msg)) = result {
+		if let Err(EngineError::Storage(StorageError::Decode(msg))) = result {
 			assert!(!msg.is_empty());
 		} else {
-			panic!("Expected DecodeError");
+			panic!("Expected StorageError::Decode");
 		}
 	}
 
@@ -218,7 +222,7 @@ mod tests {
 	fn test_format_deserialize_owned_invalid_json() {
 		let invalid_json = b"{ invalid }";
 
-		let result: Result<TestData, GraphError> = Format::Json.deserialize_owned(invalid_json);
+		let result: Result<TestData, EngineError> = Format::Json.deserialize_owned(invalid_json);
 		assert!(result.is_err());
 	}
 

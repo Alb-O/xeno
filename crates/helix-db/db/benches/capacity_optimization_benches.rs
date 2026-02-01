@@ -19,7 +19,7 @@ mod tests {
 	use helix_db::helix_engine::traversal_core::ops::source::add_e::AddEAdapter;
 	use helix_db::helix_engine::traversal_core::ops::source::add_n::AddNAdapter;
 	use helix_db::helix_engine::traversal_core::traversal_value::TraversalValue;
-	use helix_db::helix_engine::types::GraphError;
+	use helix_db::helix_engine::types::EngineError;
 	use helix_db::utils::id::v6_uuid;
 	use tempfile::TempDir;
 
@@ -28,7 +28,7 @@ mod tests {
 		txn: &RoTxn,
 		query: &str,
 		limit: usize,
-	) -> Result<Vec<(u128, f32)>, GraphError> {
+	) -> Result<Vec<(u128, f32)>, EngineError> {
 		let arena = Bump::new();
 		bm25.search(txn, query, limit, &arena)
 	}
@@ -39,7 +39,7 @@ mod tests {
 		query: &str,
 		limit: usize,
 		arena: &Bump,
-	) -> Result<Vec<(u128, f32)>, GraphError> {
+	) -> Result<Vec<(u128, f32)>, EngineError> {
 		bm25.search(txn, query, limit, arena)
 	}
 

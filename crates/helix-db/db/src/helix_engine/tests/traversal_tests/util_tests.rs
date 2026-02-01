@@ -18,7 +18,7 @@ use crate::helix_engine::traversal_core::ops::vectors::insert::InsertVAdapter;
 use crate::helix_engine::traversal_core::ops::vectors::search::SearchVAdapter;
 use crate::helix_engine::traversal_core::traversal_iter::RoTraversalIterator;
 use crate::helix_engine::traversal_core::traversal_value::TraversalValue;
-use crate::helix_engine::types::GraphError;
+use crate::helix_engine::types::EngineError;
 use crate::helix_engine::vector_core::vector::HVector;
 use crate::props;
 use crate::protocol::value::Value;
@@ -50,7 +50,7 @@ fn test_map_value_or_propagates_value_error() {
 	let err = traversal
 		.map_value_or(false, |v| v.try_contains("x"))
 		.unwrap_err();
-	assert!(matches!(err, GraphError::Value(_)));
+	assert!(matches!(err, EngineError::Value(_)));
 }
 
 #[test]

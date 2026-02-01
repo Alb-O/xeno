@@ -4,12 +4,12 @@ use heed3::RoTxn;
 
 use crate::helix_engine::traversal_core::traversal_iter::RoTraversalIterator;
 use crate::helix_engine::traversal_core::traversal_value::TraversalValue;
-use crate::helix_engine::types::{GraphError, VectorError};
+use crate::helix_engine::types::EngineError;
 use crate::helix_engine::vector_core::hnsw::HNSW;
 use crate::helix_engine::vector_core::vector::HVector;
 
 pub trait SearchVAdapter<'db, 'arena, 'txn>:
-	Iterator<Item = Result<TraversalValue<'arena>, GraphError>>
+	Iterator<Item = Result<TraversalValue<'arena>, EngineError>>
 {
 	fn search_v<F, K>(
 		self,
@@ -21,7 +21,7 @@ pub trait SearchVAdapter<'db, 'arena, 'txn>:
 		'db,
 		'arena,
 		'txn,
-		impl Iterator<Item = Result<TraversalValue<'arena>, GraphError>>,
+		impl Iterator<Item = Result<TraversalValue<'arena>, EngineError>>,
 	>
 	where
 		F: Fn(&HVector, &RoTxn) -> bool,
@@ -29,7 +29,7 @@ pub trait SearchVAdapter<'db, 'arena, 'txn>:
 		K::Error: std::fmt::Debug;
 }
 
-impl<'db, 'arena, 'txn, I: Iterator<Item = Result<TraversalValue<'arena>, GraphError>>>
+impl<'db, 'arena, 'txn, I: Iterator<Item = Result<TraversalValue<'arena>, EngineError>>>
 	SearchVAdapter<'db, 'arena, 'txn> for RoTraversalIterator<'db, 'arena, 'txn, I>
 {
 	fn search_v<F, K>(
@@ -42,7 +42,7 @@ impl<'db, 'arena, 'txn, I: Iterator<Item = Result<TraversalValue<'arena>, GraphE
 		'db,
 		'arena,
 		'txn,
-		impl Iterator<Item = Result<TraversalValue<'arena>, GraphError>>,
+		impl Iterator<Item = Result<TraversalValue<'arena>, EngineError>>,
 	>
 	where
 		F: Fn(&HVector, &RoTxn) -> bool,
@@ -62,40 +62,10 @@ impl<'db, 'arena, 'txn, I: Iterator<Item = Result<TraversalValue<'arena>, GraphE
 		let iter = match vectors {
 			Ok(vectors) => vectors
 				.into_iter()
-				.map(|vector| Ok::<TraversalValue, GraphError>(TraversalValue::Vector(vector)))
+				.map(|vector| Ok::<TraversalValue, EngineError>(TraversalValue::Vector(vector)))
 				.collect::<Vec<_>>()
 				.into_iter(),
-			Err(VectorError::VectorNotFound(id)) => {
-				let error = GraphError::VectorError(format!("vector not found for id {id}"));
-				once(Err(error)).collect::<Vec<_>>().into_iter()
-			}
-			Err(VectorError::InvalidVectorData) => {
-				let error = GraphError::VectorError("invalid vector data".to_string());
-				once(Err(error)).collect::<Vec<_>>().into_iter()
-			}
-			Err(VectorError::EntryPointNotFound) => {
-				let error =
-					GraphError::VectorError("no entry point found for hnsw index".to_string());
-				once(Err(error)).collect::<Vec<_>>().into_iter()
-			}
-			Err(VectorError::ConversionError(e)) => {
-				let error = GraphError::VectorError(format!("conversion error: {e}"));
-				once(Err(error)).collect::<Vec<_>>().into_iter()
-			}
-			Err(VectorError::VectorCoreError(e)) => {
-				let error = GraphError::VectorError(format!("vector core error: {e}"));
-				once(Err(error)).collect::<Vec<_>>().into_iter()
-			}
-			Err(VectorError::InvalidVectorLength) => {
-				let error = GraphError::VectorError("invalid vector dimensions!".to_string());
-				once(Err(error)).collect::<Vec<_>>().into_iter()
-			}
-			Err(id) => {
-				let error = GraphError::VectorError(format!("vector already deleted for id {id}"));
-				once(Err(error)).collect::<Vec<_>>().into_iter()
-			}
-			.collect::<Vec<_>>()
-			.into_iter(),
+			Err(err) => once(Err(err.into())).collect::<Vec<_>>().into_iter(),
 		};
 
 		RoTraversalIterator {

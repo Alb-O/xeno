@@ -23,7 +23,7 @@ use crate::helix_engine::traversal_core::ops::util::drop::Drop;
 use crate::helix_engine::traversal_core::ops::util::filter_ref::FilterRefAdapter;
 use crate::helix_engine::traversal_core::ops::vectors::insert::InsertVAdapter;
 use crate::helix_engine::traversal_core::traversal_value::TraversalValue;
-use crate::helix_engine::types::GraphError;
+use crate::helix_engine::types::{EngineError, TraversalError};
 use crate::helix_engine::vector_core::vector::HVector;
 use crate::props;
 
@@ -43,7 +43,7 @@ fn setup_test_db() -> (TempDir, Arc<HelixGraphStorage>) {
 
 fn to_result_iter(
 	values: Vec<TraversalValue>,
-) -> impl Iterator<Item = Result<TraversalValue, GraphError>> {
+) -> impl Iterator<Item = Result<TraversalValue, EngineError>> {
 	values.into_iter().map(Ok)
 }
 
@@ -104,7 +104,10 @@ fn test_drop_edge() {
 	let traversal = G::new(&storage, &txn, &arena)
 		.e_from_id(&edge_id)
 		.collect_to_obj();
-	assert!(matches!(traversal, Err(GraphError::EdgeNotFound)));
+	assert!(matches!(
+		traversal,
+		Err(EngineError::Traversal(TraversalError::EdgeNotFound))
+	));
 
 	let edges = G::new(&storage, &txn, &arena)
 		.n_from_id(&node1_id)
@@ -162,7 +165,10 @@ fn test_drop_node() {
 	let node_val = G::new(&storage, &txn, &arena)
 		.n_from_id(&node1_id)
 		.collect_to_obj();
-	assert!(matches!(node_val, Err(GraphError::NodeNotFound)));
+	assert!(matches!(
+		node_val,
+		Err(EngineError::Traversal(TraversalError::NodeNotFound))
+	));
 
 	let edges = G::new(&storage, &txn, &arena)
 		.n_from_id(&node2_id)
@@ -448,7 +454,7 @@ fn test_vector_deletion_in_existing_graph() {
 				Ok(*vector.id() == target_vector_id)
 			}
 			Ok(_) => Ok(false),
-			Err(err) => Err(GraphError::from(err.to_string())),
+			Err(err) => Err(TraversalError::Message(err.to_string()).into()),
 		})
 		.dedup()
 		.collect::<Result<Vec<_>, _>>()

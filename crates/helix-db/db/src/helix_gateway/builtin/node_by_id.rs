@@ -8,7 +8,7 @@ use sonic_rs::{JsonValueTrait, json};
 use tracing::info;
 
 use crate::helix_engine::storage_core::storage_methods::StorageMethods;
-use crate::helix_engine::types::GraphError;
+use crate::helix_engine::types::{EngineError, StorageError, TraversalError};
 use crate::helix_gateway::gateway::AppState;
 use crate::helix_gateway::router::router::{Handler, HandlerInput, HandlerSubmission};
 use crate::protocol::request::RequestType;
@@ -53,9 +53,9 @@ pub async fn node_details_handler(
 	}
 }
 
-pub fn node_details_inner(input: HandlerInput) -> Result<protocol::Response, GraphError> {
+pub fn node_details_inner(input: HandlerInput) -> Result<protocol::Response, EngineError> {
 	let db = Arc::clone(&input.graph.storage);
-	let txn = db.graph_env.read_txn().map_err(GraphError::from)?;
+	let txn = db.graph_env.read_txn().map_err(EngineError::from)?;
 	let arena = bumpalo::Bump::new();
 
 	let node_id_str = if !input.request.body.is_empty() {
@@ -70,16 +70,17 @@ pub fn node_details_inner(input: HandlerInput) -> Result<protocol::Response, Gra
 		None
 	};
 
-	let node_id_str = node_id_str.ok_or_else(|| GraphError::New("id is required".to_string()))?;
+	let node_id_str = node_id_str.ok_or_else(|| TraversalError::ParamNotFound("id").into())?;
 
 	let node_id = match uuid::Uuid::parse_str(&node_id_str) {
 		Ok(uuid) => uuid.as_u128(),
 		Err(_) => match node_id_str.parse::<u128>() {
 			Ok(id) => id,
 			Err(_) => {
-				return Err(GraphError::New(
+				return Err(TraversalError::Message(
 					"invalid ID format: must be UUID or u128".to_string(),
-				));
+				)
+				.into());
 			}
 		},
 	};
@@ -115,7 +116,7 @@ pub fn node_details_inner(input: HandlerInput) -> Result<protocol::Response, Gra
 	};
 
 	Ok(protocol::Response {
-		body: sonic_rs::to_vec(&result).map_err(|e| GraphError::New(e.to_string()))?,
+		body: sonic_rs::to_vec(&result).map_err(|e| StorageError::Conversion(e.to_string()))?,
 		fmt: Default::default(),
 	})
 }

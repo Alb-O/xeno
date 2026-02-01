@@ -1,6 +1,6 @@
 use crate::helix_engine::traversal_core::traversal_iter::RoTraversalIterator;
 use crate::helix_engine::traversal_core::traversal_value::TraversalValue;
-use crate::helix_engine::types::GraphError;
+use crate::helix_engine::types::EngineError;
 
 pub struct Dedup<'arena, I> {
 	seen: bumpalo::collections::Vec<'arena, u128>,
@@ -9,7 +9,7 @@ pub struct Dedup<'arena, I> {
 
 impl<'arena, I> Iterator for Dedup<'arena, I>
 where
-	I: Iterator<Item = Result<TraversalValue<'arena>, GraphError>>,
+	I: Iterator<Item = Result<TraversalValue<'arena>, EngineError>>,
 {
 	type Item = I::Item;
 
@@ -39,11 +39,11 @@ pub trait DedupAdapter<'db, 'arena, 'txn>: Iterator {
 		'db,
 		'arena,
 		'txn,
-		impl Iterator<Item = Result<TraversalValue<'arena>, GraphError>>,
+		impl Iterator<Item = Result<TraversalValue<'arena>, EngineError>>,
 	>;
 }
 
-impl<'db, 'arena, 'txn, I: Iterator<Item = Result<TraversalValue<'arena>, GraphError>>>
+impl<'db, 'arena, 'txn, I: Iterator<Item = Result<TraversalValue<'arena>, EngineError>>>
 	DedupAdapter<'db, 'arena, 'txn> for RoTraversalIterator<'db, 'arena, 'txn, I>
 {
 	fn dedup(
@@ -52,7 +52,7 @@ impl<'db, 'arena, 'txn, I: Iterator<Item = Result<TraversalValue<'arena>, GraphE
 		'db,
 		'arena,
 		'txn,
-		impl Iterator<Item = Result<TraversalValue<'arena>, GraphError>>,
+		impl Iterator<Item = Result<TraversalValue<'arena>, EngineError>>,
 	> {
 		{
 			RoTraversalIterator {

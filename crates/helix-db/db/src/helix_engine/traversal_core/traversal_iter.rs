@@ -3,7 +3,7 @@ use itertools::Itertools;
 
 use crate::helix_engine::storage_core::HelixGraphStorage;
 use crate::helix_engine::traversal_core::traversal_value::TraversalValue;
-use crate::helix_engine::types::GraphError;
+use crate::helix_engine::types::{EngineError, TraversalError};
 use crate::protocol::value::Value;
 use crate::protocol::value_error::ValueError;
 
@@ -21,16 +21,16 @@ where
 // implementing iterator for TraversalIterator
 impl<'db, 'arena, 'txn, I> Iterator for RoTraversalIterator<'db, 'arena, 'txn, I>
 where
-	I: Iterator<Item = Result<TraversalValue<'arena>, GraphError>>,
+	I: Iterator<Item = Result<TraversalValue<'arena>, EngineError>>,
 {
-	type Item = Result<TraversalValue<'arena>, GraphError>;
+	type Item = Result<TraversalValue<'arena>, EngineError>;
 
 	fn next(&mut self) -> Option<Self::Item> {
 		self.inner.next()
 	}
 }
 
-impl<'db, 'arena, 'txn, I: Iterator<Item = Result<TraversalValue<'arena>, GraphError>>>
+impl<'db, 'arena, 'txn, I: Iterator<Item = Result<TraversalValue<'arena>, EngineError>>>
 	RoTraversalIterator<'db, 'arena, 'txn, I>
 {
 	pub fn take_and_collect_to<B: FromIterator<TraversalValue<'arena>>>(self, n: usize) -> B {
@@ -47,10 +47,10 @@ impl<'db, 'arena, 'txn, I: Iterator<Item = Result<TraversalValue<'arena>, GraphE
 			.collect::<B>()
 	}
 
-	pub fn collect_to_obj(mut self) -> Result<TraversalValue<'arena>, GraphError> {
-		self.inner
-			.next()
-			.unwrap_or(Err(GraphError::New("No value found".to_string())))
+	pub fn collect_to_obj(mut self) -> Result<TraversalValue<'arena>, EngineError> {
+		self.inner.next().unwrap_or(Err(
+			TraversalError::Message("No value found".to_string()).into()
+		))
 	}
 
 	pub fn collect_to_value(self) -> Value {
@@ -64,13 +64,14 @@ impl<'db, 'arena, 'txn, I: Iterator<Item = Result<TraversalValue<'arena>, GraphE
 		mut self,
 		default: bool,
 		f: impl Fn(&Value) -> Result<bool, ValueError>,
-	) -> Result<bool, GraphError> {
-		match &self.inner.next() {
-			Some(Ok(TraversalValue::Value(val))) => f(val).map_err(GraphError::from),
-			Some(Ok(_)) => Err(GraphError::ConversionError(
+	) -> Result<bool, EngineError> {
+		match self.inner.next() {
+			Some(Ok(TraversalValue::Value(val))) => f(&val).map_err(EngineError::from),
+			Some(Ok(_)) => Err(TraversalError::Message(
 				"Expected value, got something else".to_string(),
-			)),
-			Some(Err(err)) => Err(GraphError::from(err.to_string())),
+			)
+			.into()),
+			Some(Err(err)) => Err(err),
 			None => Ok(default),
 		}
 	}
@@ -90,15 +91,15 @@ where
 // implementing iterator for TraversalIterator
 impl<'db, 'arena, 'txn, I> Iterator for RwTraversalIterator<'db, 'arena, 'txn, I>
 where
-	I: Iterator<Item = Result<TraversalValue<'arena>, GraphError>>,
+	I: Iterator<Item = Result<TraversalValue<'arena>, EngineError>>,
 {
-	type Item = Result<TraversalValue<'arena>, GraphError>;
+	type Item = Result<TraversalValue<'arena>, EngineError>;
 
 	fn next(&mut self) -> Option<Self::Item> {
 		self.inner.next()
 	}
 }
-impl<'db, 'arena, 'txn, I: Iterator<Item = Result<TraversalValue<'arena>, GraphError>>>
+impl<'db, 'arena, 'txn, I: Iterator<Item = Result<TraversalValue<'arena>, EngineError>>>
 	RwTraversalIterator<'db, 'arena, 'txn, I>
 {
 	pub fn new(
@@ -129,23 +130,24 @@ impl<'db, 'arena, 'txn, I: Iterator<Item = Result<TraversalValue<'arena>, GraphE
 			.collect::<B>()
 	}
 
-	pub fn collect_to_obj(mut self) -> Result<TraversalValue<'arena>, GraphError> {
-		self.inner
-			.next()
-			.unwrap_or(Err(GraphError::New("No value found".to_string())))
+	pub fn collect_to_obj(mut self) -> Result<TraversalValue<'arena>, EngineError> {
+		self.inner.next().unwrap_or(Err(
+			TraversalError::Message("No value found".to_string()).into()
+		))
 	}
 
 	pub fn map_value_or(
 		mut self,
 		default: bool,
 		f: impl Fn(&Value) -> Result<bool, ValueError>,
-	) -> Result<bool, GraphError> {
-		match &self.inner.next() {
-			Some(Ok(TraversalValue::Value(val))) => f(val).map_err(GraphError::from),
-			Some(Ok(_)) => Err(GraphError::ConversionError(
+	) -> Result<bool, EngineError> {
+		match self.inner.next() {
+			Some(Ok(TraversalValue::Value(val))) => f(&val).map_err(EngineError::from),
+			Some(Ok(_)) => Err(TraversalError::Message(
 				"Expected value, got something else".to_string(),
-			)),
-			Some(Err(err)) => Err(GraphError::from(err.to_string())),
+			)
+			.into()),
+			Some(Err(err)) => Err(err),
 			None => Ok(default),
 		}
 	}

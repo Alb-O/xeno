@@ -9,7 +9,7 @@ use crate::helix_engine::storage_core::HelixGraphStorage;
 use crate::helix_engine::traversal_core::ops::util::aggregate::AggregateAdapter;
 use crate::helix_engine::traversal_core::ops::util::group_by::GroupByAdapter;
 use crate::helix_engine::traversal_core::traversal_value::TraversalValue;
-use crate::helix_engine::types::GraphError;
+use crate::helix_engine::types::{EngineError, StorageError};
 use crate::helix_gateway::mcp::tools::{
 	EdgeType, FilterTraversal, Order, ToolArgs, execute_query_chain,
 };
@@ -115,7 +115,7 @@ impl MCPConnection {
 		&mut self,
 		db: &'db HelixGraphStorage,
 		arena: &'arena Bump,
-	) -> Result<TraversalValue<'arena>, GraphError>
+	) -> Result<TraversalValue<'arena>, EngineError>
 	where
 		'db: 'arena,
 	{
@@ -138,10 +138,10 @@ pub struct MCPToolInput {
 	pub schema: Option<String>,
 }
 
-pub type BasicMCPHandlerFn = for<'a> fn(&'a mut MCPToolInput) -> Result<Response, GraphError>;
+pub type BasicMCPHandlerFn = for<'a> fn(&'a mut MCPToolInput) -> Result<Response, EngineError>;
 
 pub type MCPHandlerFn =
-	Arc<dyn for<'a> Fn(&'a mut MCPToolInput) -> Result<Response, GraphError> + Send + Sync>;
+	Arc<dyn for<'a> Fn(&'a mut MCPToolInput) -> Result<Response, EngineError> + Send + Sync>;
 
 #[derive(Clone, Debug)]
 pub struct MCPHandlerSubmission(pub MCPHandler);
@@ -165,7 +165,7 @@ fn execute_tool_step(
 	input: &mut MCPToolInput,
 	connection_id: &str,
 	tool: ToolArgs,
-) -> Result<Response, GraphError> {
+) -> Result<Response, EngineError> {
 	tracing::debug!(
 		"[EXECUTE_TOOL_STEP] Starting with connection_id: {}",
 		connection_id
@@ -188,7 +188,7 @@ fn execute_tool_step(
 					"[EXECUTE_TOOL_STEP] Connection not found: {}",
 					connection_id
 				);
-				GraphError::StorageError(format!("Connection not found: {}", connection_id))
+				StorageError::Backend(format!("Connection not found: {}", connection_id)).into()
 			})?;
 
 		tracing::debug!(
@@ -248,7 +248,7 @@ fn execute_tool_step(
 					"[EXECUTE_TOOL_STEP] Connection not found when updating state: {}",
 					connection_id
 				);
-				GraphError::StorageError(format!("Connection not found: {}", connection_id))
+				StorageError::Backend(format!("Connection not found: {}", connection_id)).into()
 			})?;
 		connection.current_position = if consumed_one { 1 } else { 0 };
 	}
@@ -264,7 +264,7 @@ pub struct InitRequest {
 }
 
 #[mcp_handler]
-pub fn init(input: &mut MCPToolInput) -> Result<Response, GraphError> {
+pub fn init(input: &mut MCPToolInput) -> Result<Response, EngineError> {
 	let connection_id = uuid::Uuid::from_u128(v6_uuid()).to_string();
 	let mut connections = input.mcp_connections.lock().unwrap();
 	connections.add_connection(MCPConnection::new(connection_id.clone()));
@@ -273,10 +273,10 @@ pub fn init(input: &mut MCPToolInput) -> Result<Response, GraphError> {
 }
 
 #[mcp_handler]
-pub fn tool_call(input: &mut MCPToolInput) -> Result<Response, GraphError> {
+pub fn tool_call(input: &mut MCPToolInput) -> Result<Response, EngineError> {
 	let data: ToolCallRequest = match sonic_rs::from_slice(&input.request.body) {
 		Ok(data) => data,
-		Err(err) => return Err(GraphError::from(err)),
+		Err(err) => return Err(EngineError::from(err)),
 	};
 
 	execute_tool_step(input, &data.connection_id, data.tool)
@@ -288,12 +288,12 @@ pub struct NextRequest {
 }
 
 #[mcp_handler]
-pub fn next(input: &mut MCPToolInput) -> Result<Response, GraphError> {
+pub fn next(input: &mut MCPToolInput) -> Result<Response, EngineError> {
 	let data: NextRequest = match sonic_rs::from_slice(&input.request.body) {
 		Ok(data) => data,
 		Err(err) => {
 			tracing::error!("[NEXT] Failed to parse request: {:?}", err);
-			return Err(GraphError::from(err));
+			return Err(EngineError::from(err));
 		}
 	};
 
@@ -311,7 +311,8 @@ pub fn next(input: &mut MCPToolInput) -> Result<Response, GraphError> {
 			.get_connection(&data.connection_id)
 			.ok_or_else(|| {
 				tracing::error!("[NEXT] Connection not found: {}", data.connection_id);
-				GraphError::StorageError(format!("Connection not found: {}", data.connection_id))
+				StorageError::Backend(format!("Connection not found: {}", data.connection_id))
+					.into()
 			})?;
 		(connection.query_chain.clone(), connection.current_position)
 	};
@@ -353,10 +354,8 @@ pub fn next(input: &mut MCPToolInput) -> Result<Response, GraphError> {
 						"[NEXT] Connection not found when updating position: {}",
 						data.connection_id
 					);
-					GraphError::StorageError(format!(
-						"Connection not found: {}",
-						data.connection_id
-					))
+					StorageError::Backend(format!("Connection not found: {}", data.connection_id))
+						.into()
 				})?;
 			connection.current_position += 1;
 			tracing::debug!(
@@ -388,10 +387,10 @@ pub struct CollectRequest {
 }
 
 #[mcp_handler]
-pub fn collect(input: &mut MCPToolInput) -> Result<Response, GraphError> {
+pub fn collect(input: &mut MCPToolInput) -> Result<Response, EngineError> {
 	let data: CollectRequest = match sonic_rs::from_slice(&input.request.body) {
 		Ok(data) => data,
-		Err(err) => return Err(GraphError::from(err)),
+		Err(err) => return Err(EngineError::from(err)),
 	};
 
 	// Clone necessary data while holding the lock
@@ -400,7 +399,8 @@ pub fn collect(input: &mut MCPToolInput) -> Result<Response, GraphError> {
 		let connection = connections
 			.get_connection(&data.connection_id)
 			.ok_or_else(|| {
-				GraphError::StorageError(format!("Connection not found: {}", data.connection_id))
+				StorageError::Backend(format!("Connection not found: {}", data.connection_id))
+					.into()
 			})?;
 		connection.query_chain.clone()
 	};
@@ -435,7 +435,8 @@ pub fn collect(input: &mut MCPToolInput) -> Result<Response, GraphError> {
 		let connection = connections
 			.get_connection_mut(&data.connection_id)
 			.ok_or_else(|| {
-				GraphError::StorageError(format!("Connection not found: {}", data.connection_id))
+				StorageError::Backend(format!("Connection not found: {}", data.connection_id))
+					.into()
 			})?;
 
 		if data.drop.unwrap_or(true) {
@@ -454,10 +455,10 @@ pub struct AggregateRequest {
 }
 
 #[mcp_handler]
-pub fn aggregate_by(input: &mut MCPToolInput) -> Result<Response, GraphError> {
+pub fn aggregate_by(input: &mut MCPToolInput) -> Result<Response, EngineError> {
 	let data: AggregateRequest = match sonic_rs::from_slice(&input.request.body) {
 		Ok(data) => data,
-		Err(err) => return Err(GraphError::from(err)),
+		Err(err) => return Err(EngineError::from(err)),
 	};
 
 	// Clone necessary data while holding the lock
@@ -466,7 +467,8 @@ pub fn aggregate_by(input: &mut MCPToolInput) -> Result<Response, GraphError> {
 		let connection = connections
 			.get_connection(&data.connection_id)
 			.ok_or_else(|| {
-				GraphError::StorageError(format!("Connection not found: {}", data.connection_id))
+				StorageError::Backend(format!("Connection not found: {}", data.connection_id))
+					.into()
 			})?;
 		connection.query_chain.clone()
 	};
@@ -488,7 +490,8 @@ pub fn aggregate_by(input: &mut MCPToolInput) -> Result<Response, GraphError> {
 		let connection = connections
 			.get_connection_mut(&data.connection_id)
 			.ok_or_else(|| {
-				GraphError::StorageError(format!("Connection not found: {}", data.connection_id))
+				StorageError::Backend(format!("Connection not found: {}", data.connection_id))
+					.into()
 			})?;
 
 		if data.drop.unwrap_or(true) {
@@ -500,10 +503,10 @@ pub fn aggregate_by(input: &mut MCPToolInput) -> Result<Response, GraphError> {
 }
 
 #[mcp_handler]
-pub fn group_by(input: &mut MCPToolInput) -> Result<Response, GraphError> {
+pub fn group_by(input: &mut MCPToolInput) -> Result<Response, EngineError> {
 	let data: AggregateRequest = match sonic_rs::from_slice(&input.request.body) {
 		Ok(data) => data,
-		Err(err) => return Err(GraphError::from(err)),
+		Err(err) => return Err(EngineError::from(err)),
 	};
 
 	// Clone necessary data while holding the lock
@@ -512,7 +515,8 @@ pub fn group_by(input: &mut MCPToolInput) -> Result<Response, GraphError> {
 		let connection = connections
 			.get_connection(&data.connection_id)
 			.ok_or_else(|| {
-				GraphError::StorageError(format!("Connection not found: {}", data.connection_id))
+				StorageError::Backend(format!("Connection not found: {}", data.connection_id))
+					.into()
 			})?;
 		connection.query_chain.clone()
 	};
@@ -534,7 +538,8 @@ pub fn group_by(input: &mut MCPToolInput) -> Result<Response, GraphError> {
 		let connection = connections
 			.get_connection_mut(&data.connection_id)
 			.ok_or_else(|| {
-				GraphError::StorageError(format!("Connection not found: {}", data.connection_id))
+				StorageError::Backend(format!("Connection not found: {}", data.connection_id))
+					.into()
 			})?;
 
 		if data.drop.unwrap_or(true) {
@@ -551,17 +556,17 @@ pub struct ResetRequest {
 }
 
 #[mcp_handler]
-pub fn reset(input: &mut MCPToolInput) -> Result<Response, GraphError> {
+pub fn reset(input: &mut MCPToolInput) -> Result<Response, EngineError> {
 	let data: ResetRequest = match sonic_rs::from_slice(&input.request.body) {
 		Ok(data) => data,
-		Err(err) => return Err(GraphError::from(err)),
+		Err(err) => return Err(EngineError::from(err)),
 	};
 
 	let mut connections = input.mcp_connections.lock().unwrap();
 	let connection = connections
 		.get_connection_mut(&data.connection_id)
 		.ok_or_else(|| {
-			GraphError::StorageError(format!("Connection not found: {}", data.connection_id))
+			StorageError::Backend(format!("Connection not found: {}", data.connection_id)).into()
 		})?;
 
 	connection.clear_chain();
@@ -572,15 +577,15 @@ pub fn reset(input: &mut MCPToolInput) -> Result<Response, GraphError> {
 }
 
 #[mcp_handler]
-pub fn schema_resource(input: &mut MCPToolInput) -> Result<Response, GraphError> {
+pub fn schema_resource(input: &mut MCPToolInput) -> Result<Response, EngineError> {
 	let data: ResourceCallRequest = match sonic_rs::from_slice(&input.request.body) {
 		Ok(data) => data,
-		Err(err) => return Err(GraphError::from(err)),
+		Err(err) => return Err(EngineError::from(err)),
 	};
 
 	let connections = input.mcp_connections.lock().unwrap();
 	if !connections.connections.contains_key(&data.connection_id) {
-		return Err(GraphError::StorageError("Connection not found".to_string()));
+		return Err(StorageError::Backend("Connection not found".to_string()).into());
 	}
 	drop(connections);
 
@@ -607,10 +612,10 @@ pub struct OutStepInput {
 }
 
 #[mcp_handler]
-pub fn out_step(input: &mut MCPToolInput) -> Result<Response, GraphError> {
+pub fn out_step(input: &mut MCPToolInput) -> Result<Response, EngineError> {
 	let req: OutStepInput = match sonic_rs::from_slice(&input.request.body) {
 		Ok(data) => data,
-		Err(err) => return Err(GraphError::from(err)),
+		Err(err) => return Err(EngineError::from(err)),
 	};
 
 	let tool = ToolArgs::OutStep {
@@ -636,10 +641,10 @@ pub struct InStepInput {
 }
 
 #[mcp_handler]
-pub fn in_step(input: &mut MCPToolInput) -> Result<Response, GraphError> {
+pub fn in_step(input: &mut MCPToolInput) -> Result<Response, EngineError> {
 	let req: InStepInput = match sonic_rs::from_slice(&input.request.body) {
 		Ok(data) => data,
-		Err(err) => return Err(GraphError::from(err)),
+		Err(err) => return Err(EngineError::from(err)),
 	};
 
 	let tool = ToolArgs::InStep {
@@ -664,10 +669,10 @@ pub struct OutEStepInput {
 }
 
 #[mcp_handler]
-pub fn out_e_step(input: &mut MCPToolInput) -> Result<Response, GraphError> {
+pub fn out_e_step(input: &mut MCPToolInput) -> Result<Response, EngineError> {
 	let req: OutEStepInput = match sonic_rs::from_slice(&input.request.body) {
 		Ok(data) => data,
-		Err(err) => return Err(GraphError::from(err)),
+		Err(err) => return Err(EngineError::from(err)),
 	};
 
 	let tool = ToolArgs::OutEStep {
@@ -691,10 +696,10 @@ pub struct InEStepInput {
 }
 
 #[mcp_handler]
-pub fn in_e_step(input: &mut MCPToolInput) -> Result<Response, GraphError> {
+pub fn in_e_step(input: &mut MCPToolInput) -> Result<Response, EngineError> {
 	let req: InEStepInput = match sonic_rs::from_slice(&input.request.body) {
 		Ok(data) => data,
-		Err(err) => return Err(GraphError::from(err)),
+		Err(err) => return Err(EngineError::from(err)),
 	};
 
 	let tool = ToolArgs::InEStep {
@@ -717,10 +722,10 @@ pub struct NFromTypeInput {
 }
 
 #[mcp_handler]
-pub fn n_from_type(input: &mut MCPToolInput) -> Result<Response, GraphError> {
+pub fn n_from_type(input: &mut MCPToolInput) -> Result<Response, EngineError> {
 	let req: NFromTypeInput = match sonic_rs::from_slice(&input.request.body) {
 		Ok(data) => data,
-		Err(err) => return Err(GraphError::from(err)),
+		Err(err) => return Err(EngineError::from(err)),
 	};
 
 	let tool = ToolArgs::NFromType {
@@ -742,10 +747,10 @@ pub struct EFromTypeInput {
 }
 
 #[mcp_handler]
-pub fn e_from_type(input: &mut MCPToolInput) -> Result<Response, GraphError> {
+pub fn e_from_type(input: &mut MCPToolInput) -> Result<Response, EngineError> {
 	let req: EFromTypeInput = match sonic_rs::from_slice(&input.request.body) {
 		Ok(data) => data,
-		Err(err) => return Err(GraphError::from(err)),
+		Err(err) => return Err(EngineError::from(err)),
 	};
 
 	let tool = ToolArgs::EFromType {
@@ -768,10 +773,10 @@ pub struct FilterItemsInput {
 }
 
 #[mcp_handler]
-pub fn filter_items(input: &mut MCPToolInput) -> Result<Response, GraphError> {
+pub fn filter_items(input: &mut MCPToolInput) -> Result<Response, EngineError> {
 	let req: FilterItemsInput = match sonic_rs::from_slice(&input.request.body) {
 		Ok(data) => data,
-		Err(err) => return Err(GraphError::from(err)),
+		Err(err) => return Err(EngineError::from(err)),
 	};
 
 	let tool = ToolArgs::FilterItems {
@@ -794,10 +799,10 @@ pub struct OrderByInput {
 }
 
 #[mcp_handler]
-pub fn order_by(input: &mut MCPToolInput) -> Result<Response, GraphError> {
+pub fn order_by(input: &mut MCPToolInput) -> Result<Response, EngineError> {
 	let req: OrderByInput = match sonic_rs::from_slice(&input.request.body) {
 		Ok(data) => data,
-		Err(err) => return Err(GraphError::from(err)),
+		Err(err) => return Err(EngineError::from(err)),
 	};
 
 	let tool = ToolArgs::OrderBy {
@@ -822,13 +827,13 @@ pub struct SearchKeywordInput {
 }
 
 #[mcp_handler]
-pub fn search_keyword(input: &mut MCPToolInput) -> Result<Response, GraphError> {
+pub fn search_keyword(input: &mut MCPToolInput) -> Result<Response, EngineError> {
 	use crate::helix_engine::traversal_core::ops::bm25::search_bm25::SearchBM25Adapter;
 	use crate::helix_engine::traversal_core::ops::g::G;
 
 	let req: SearchKeywordInput = match sonic_rs::from_slice(&input.request.body) {
 		Ok(data) => data,
-		Err(err) => return Err(GraphError::from(err)),
+		Err(err) => return Err(EngineError::from(err)),
 	};
 
 	// Verify connection exists
@@ -837,7 +842,7 @@ pub fn search_keyword(input: &mut MCPToolInput) -> Result<Response, GraphError> 
 		connections
 			.get_connection(&req.connection_id)
 			.ok_or_else(|| {
-				GraphError::StorageError(format!("Connection not found: {}", req.connection_id))
+				StorageError::Backend(format!("Connection not found: {}", req.connection_id)).into()
 			})?;
 	}
 
@@ -862,7 +867,7 @@ pub fn search_keyword(input: &mut MCPToolInput) -> Result<Response, GraphError> 
 		let connection = connections
 			.get_connection_mut(&req.connection_id)
 			.ok_or_else(|| {
-				GraphError::StorageError(format!("Connection not found: {}", req.connection_id))
+				StorageError::Backend(format!("Connection not found: {}", req.connection_id)).into()
 			})?;
 
 		// Store remaining results for pagination
@@ -887,7 +892,7 @@ pub struct SearchVectorTextInput {
 }
 
 #[mcp_handler]
-pub fn search_vector_text(input: &mut MCPToolInput) -> Result<Response, GraphError> {
+pub fn search_vector_text(input: &mut MCPToolInput) -> Result<Response, EngineError> {
 	use crate::helix_engine::traversal_core::ops::g::G;
 	use crate::helix_engine::traversal_core::ops::vectors::search::SearchVAdapter;
 	use crate::utils::embedding_providers::{EmbeddingModel, get_embedding_model};
@@ -896,7 +901,7 @@ pub fn search_vector_text(input: &mut MCPToolInput) -> Result<Response, GraphErr
 		Ok(data) => data,
 		Err(err) => {
 			tracing::error!("[VECTOR_SEARCH] Failed to parse request: {:?}", err);
-			return Err(GraphError::from(err));
+			return Err(EngineError::from(err));
 		}
 	};
 
@@ -924,7 +929,7 @@ pub fn search_vector_text(input: &mut MCPToolInput) -> Result<Response, GraphErr
 					"[VECTOR_SEARCH] Connection not found: {}",
 					req.connection_id
 				);
-				GraphError::StorageError(format!("Connection not found: {}", req.connection_id))
+				StorageError::Backend(format!("Connection not found: {}", req.connection_id)).into()
 			})?;
 	}
 
@@ -995,7 +1000,7 @@ pub fn search_vector_text(input: &mut MCPToolInput) -> Result<Response, GraphErr
 					"[VECTOR_SEARCH] Connection not found when updating state: {}",
 					req.connection_id
 				);
-				GraphError::StorageError(format!("Connection not found: {}", req.connection_id))
+				StorageError::Backend(format!("Connection not found: {}", req.connection_id)).into()
 			})?;
 
 		connection.current_position = if consumed_one { 1 } else { 0 };
@@ -1023,10 +1028,10 @@ pub struct SearchVectorInput {
 }
 
 #[mcp_handler]
-pub fn search_vector(input: &mut MCPToolInput) -> Result<Response, GraphError> {
+pub fn search_vector(input: &mut MCPToolInput) -> Result<Response, EngineError> {
 	let req: SearchVectorInput = match sonic_rs::from_slice(&input.request.body) {
 		Ok(data) => data,
-		Err(err) => return Err(GraphError::from(err)),
+		Err(err) => return Err(EngineError::from(err)),
 	};
 
 	let tool = ToolArgs::SearchVec {

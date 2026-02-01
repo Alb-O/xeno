@@ -3,7 +3,7 @@ use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
 
-use crate::helix_engine::types::{GraphError, SecondaryIndex};
+use crate::helix_engine::types::{EngineError, SecondaryIndex, StorageError};
 use crate::helixc::analyzer::IntrospectionData;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -70,10 +70,10 @@ impl Config {
 		}
 	}
 
-	pub fn from_files(config_path: PathBuf, schema_path: PathBuf) -> Result<Self, GraphError> {
+	pub fn from_files(config_path: PathBuf, schema_path: PathBuf) -> Result<Self, EngineError> {
 		if !config_path.exists() {
 			println!("no config path!");
-			return Err(GraphError::ConfigFileNotFound);
+			return Err(StorageError::ConfigFileNotFound.into());
 		}
 
 		let config = std::fs::read_to_string(config_path)?;
@@ -89,10 +89,10 @@ impl Config {
 		Ok(config)
 	}
 
-	pub fn from_file(config_path: PathBuf) -> Result<Self, GraphError> {
+	pub fn from_file(config_path: PathBuf) -> Result<Self, EngineError> {
 		if !config_path.exists() {
 			println!("no config path!");
-			return Err(GraphError::ConfigFileNotFound);
+			return Err(StorageError::ConfigFileNotFound.into());
 		}
 
 		let config = std::fs::read_to_string(config_path)?;

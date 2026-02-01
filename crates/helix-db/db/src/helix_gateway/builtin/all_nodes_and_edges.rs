@@ -9,7 +9,7 @@ use sonic_rs::{JsonValueTrait, json};
 use tracing::info;
 
 use crate::helix_engine::storage_core::graph_visualization::GraphVisualization;
-use crate::helix_engine::types::GraphError;
+use crate::helix_engine::types::{EngineError, StorageError};
 use crate::helix_gateway::gateway::AppState;
 use crate::helix_gateway::router::router::{Handler, HandlerInput, HandlerSubmission};
 use crate::protocol::request::RequestType;
@@ -66,9 +66,9 @@ pub async fn nodes_edges_handler(
 	}
 }
 
-pub fn nodes_edges_inner(input: HandlerInput) -> Result<protocol::Response, GraphError> {
+pub fn nodes_edges_inner(input: HandlerInput) -> Result<protocol::Response, EngineError> {
 	let db = Arc::clone(&input.graph.storage);
-	let txn = db.graph_env.read_txn().map_err(GraphError::from)?;
+	let txn = db.graph_env.read_txn().map_err(EngineError::from)?;
 	let arena = bumpalo::Bump::new();
 
 	let (limit, node_label) = if !input.request.body.is_empty() {
@@ -131,7 +131,7 @@ fn get_all_nodes_edges_json(
 	txn: &RoTxn,
 	node_label: Option<String>,
 	arena: &bumpalo::Bump,
-) -> Result<String, GraphError> {
+) -> Result<String, EngineError> {
 	use sonic_rs::json;
 
 	let nodes_length = db.nodes_db.len(txn)?;
@@ -180,7 +180,7 @@ fn get_all_nodes_edges_json(
 		"edges": edges
 	});
 
-	sonic_rs::to_string(&result).map_err(|e| GraphError::New(e.to_string()))
+	sonic_rs::to_string(&result).map_err(|e| StorageError::Conversion(e.to_string()).into())
 }
 
 inventory::submit! {

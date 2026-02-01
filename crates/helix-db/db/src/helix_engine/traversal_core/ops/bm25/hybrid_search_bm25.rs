@@ -6,7 +6,7 @@ use crate::helix_engine::{
 	bm25::bm25::{BM25, HybridSearch},
 	graph_core::traversal_iter::RoTraversalIterator,
 	storage_core::{HelixGraphStorage, storage_methods::StorageMethods},
-	types::GraphError,
+	types::EngineError,
 };
 use std::sync::Arc;
 
@@ -19,7 +19,7 @@ pub struct HybridSearchBM25<'scope, 'inner> {
 
 // implementing iterator for HybridSearchBM25
 impl<'scope, 'inner> Iterator for HybridSearchBM25<'scope, 'inner> {
-	type Item = Result<TraversalValue, GraphError>;
+	type Item = Result<TraversalValue, EngineError>;
 
 	fn next(&mut self) -> Option<Self::Item> {
 		let next = self.iter.next()?;
@@ -36,17 +36,17 @@ impl<'scope, 'inner> Iterator for HybridSearchBM25<'scope, 'inner> {
 	}
 }
 
-pub trait HybridSearchBM25Adapter<'a>: Iterator<Item = Result<TraversalValue, GraphError>> {
+pub trait HybridSearchBM25Adapter<'a>: Iterator<Item = Result<TraversalValue, EngineError>> {
 	fn hybrid_search_bm25(
 		self,
 		label: &str,
 		query: &str,
 		query_vector: Vec<f64>,
 		k: usize,
-	) -> RoTraversalIterator<'a, impl Iterator<Item = Result<TraversalValue, GraphError>>>;
+	) -> RoTraversalIterator<'a, impl Iterator<Item = Result<TraversalValue, EngineError>>>;
 }
 
-impl<'a, I: Iterator<Item = Result<TraversalValue, GraphError>>> HybridSearchBM25Adapter<'a>
+impl<'a, I: Iterator<Item = Result<TraversalValue, EngineError>>> HybridSearchBM25Adapter<'a>
 	for RoTraversalIterator<'a, I>
 {
 	fn hybrid_search_bm25(
@@ -55,7 +55,7 @@ impl<'a, I: Iterator<Item = Result<TraversalValue, GraphError>>> HybridSearchBM2
 		query: &str,
 		query_vector: &Vec<f64>,
 		k: usize,
-	) -> RoTraversalIterator<'a, impl Iterator<Item = Result<TraversalValue, GraphError>>> {
+	) -> RoTraversalIterator<'a, impl Iterator<Item = Result<TraversalValue, EngineError>>> {
 		// check bm25 enabled
 
 		let results = self.storage.hybrid_search(

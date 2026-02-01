@@ -2,11 +2,11 @@ use crate::helix_engine::storage_core::HelixGraphStorage;
 use crate::helix_engine::storage_core::storage_methods::StorageMethods;
 use crate::helix_engine::traversal_core::traversal_iter::RoTraversalIterator;
 use crate::helix_engine::traversal_core::traversal_value::TraversalValue;
-use crate::helix_engine::types::GraphError;
+use crate::helix_engine::types::EngineError;
 use crate::utils::label_hash::hash_label;
 
 pub trait OutAdapter<'db, 'arena, 'txn, 's>:
-	Iterator<Item = Result<TraversalValue<'arena>, GraphError>>
+	Iterator<Item = Result<TraversalValue<'arena>, EngineError>>
 {
 	/// Returns an iterator containing the nodes that have an outgoing edge with the given label.
 	///
@@ -22,7 +22,7 @@ pub trait OutAdapter<'db, 'arena, 'txn, 's>:
 		'db,
 		'arena,
 		'txn,
-		impl Iterator<Item = Result<TraversalValue<'arena>, GraphError>>,
+		impl Iterator<Item = Result<TraversalValue<'arena>, EngineError>>,
 	>;
 
 	fn out_node(
@@ -32,11 +32,11 @@ pub trait OutAdapter<'db, 'arena, 'txn, 's>:
 		'db,
 		'arena,
 		'txn,
-		impl Iterator<Item = Result<TraversalValue<'arena>, GraphError>>,
+		impl Iterator<Item = Result<TraversalValue<'arena>, EngineError>>,
 	>;
 }
 
-impl<'db, 'arena, 'txn, 's, I: Iterator<Item = Result<TraversalValue<'arena>, GraphError>>>
+impl<'db, 'arena, 'txn, 's, I: Iterator<Item = Result<TraversalValue<'arena>, EngineError>>>
 	OutAdapter<'db, 'arena, 'txn, 's> for RoTraversalIterator<'db, 'arena, 'txn, I>
 {
 	#[inline]
@@ -48,7 +48,7 @@ impl<'db, 'arena, 'txn, 's, I: Iterator<Item = Result<TraversalValue<'arena>, Gr
 		'db,
 		'arena,
 		'txn,
-		impl Iterator<Item = Result<TraversalValue<'arena>, GraphError>>,
+		impl Iterator<Item = Result<TraversalValue<'arena>, EngineError>>,
 	> {
 		let iter = self
 			.inner
@@ -119,7 +119,7 @@ impl<'db, 'arena, 'txn, 's, I: Iterator<Item = Result<TraversalValue<'arena>, Gr
 		'db,
 		'arena,
 		'txn,
-		impl Iterator<Item = Result<TraversalValue<'arena>, GraphError>>,
+		impl Iterator<Item = Result<TraversalValue<'arena>, EngineError>>,
 	> {
 		let iter = self
 			.inner

@@ -5,7 +5,7 @@ use crate::helix_engine::bm25::bm25::{BM25, BM25Flatten};
 use crate::helix_engine::storage_core::HelixGraphStorage;
 use crate::helix_engine::traversal_core::traversal_iter::RwTraversalIterator;
 use crate::helix_engine::traversal_core::traversal_value::TraversalValue;
-use crate::helix_engine::types::GraphError;
+use crate::helix_engine::types::EngineError;
 use crate::helix_engine::vector_core::hnsw::HNSW;
 use crate::helix_engine::vector_core::vector::HVector;
 use crate::protocol::value::Value;
@@ -23,7 +23,7 @@ pub trait UpsertAdapter<'db, 'arena, 'txn>: Iterator {
 		'db,
 		'arena,
 		'txn,
-		impl Iterator<Item = Result<TraversalValue<'arena>, GraphError>>,
+		impl Iterator<Item = Result<TraversalValue<'arena>, EngineError>>,
 	>;
 
 	fn upsert_e(
@@ -36,7 +36,7 @@ pub trait UpsertAdapter<'db, 'arena, 'txn>: Iterator {
 		'db,
 		'arena,
 		'txn,
-		impl Iterator<Item = Result<TraversalValue<'arena>, GraphError>>,
+		impl Iterator<Item = Result<TraversalValue<'arena>, EngineError>>,
 	>;
 
 	fn upsert_v(
@@ -48,11 +48,11 @@ pub trait UpsertAdapter<'db, 'arena, 'txn>: Iterator {
 		'db,
 		'arena,
 		'txn,
-		impl Iterator<Item = Result<TraversalValue<'arena>, GraphError>>,
+		impl Iterator<Item = Result<TraversalValue<'arena>, EngineError>>,
 	>;
 }
 
-impl<'db, 'arena, 'txn, I: Iterator<Item = Result<TraversalValue<'arena>, GraphError>>>
+impl<'db, 'arena, 'txn, I: Iterator<Item = Result<TraversalValue<'arena>, EngineError>>>
 	UpsertAdapter<'db, 'arena, 'txn> for RwTraversalIterator<'db, 'arena, 'txn, I>
 {
 	fn upsert_n(
@@ -63,9 +63,9 @@ impl<'db, 'arena, 'txn, I: Iterator<Item = Result<TraversalValue<'arena>, GraphE
 		'db,
 		'arena,
 		'txn,
-		impl Iterator<Item = Result<TraversalValue<'arena>, GraphError>>,
+		impl Iterator<Item = Result<TraversalValue<'arena>, EngineError>>,
 	> {
-		let mut result: Result<TraversalValue, GraphError> = Ok(TraversalValue::Empty);
+		let mut result: Result<TraversalValue, EngineError> = Ok(TraversalValue::Empty);
 		match self.inner.next() {
 			Some(Ok(TraversalValue::Node(mut node))) => {
 				match node.properties {
@@ -95,10 +95,10 @@ impl<'db, 'arena, 'txn, I: Iterator<Item = Result<TraversalValue<'arena>, GraphE
 											unreachable!()
 										}
 									} {
-										result = Err(GraphError::from(e));
+										result = Err(EngineError::from(e));
 									}
 								}
-								Err(e) => result = Err(GraphError::from(e)),
+								Err(e) => result = Err(EngineError::from(e)),
 							}
 						}
 
@@ -129,12 +129,12 @@ impl<'db, 'arena, 'txn, I: Iterator<Item = Result<TraversalValue<'arena>, GraphE
 									if let Err(e) =
 										db.delete_one_duplicate(self.txn, &old_serialized, &node.id)
 									{
-										result = Err(GraphError::from(e));
+										result = Err(EngineError::from(e));
 										break;
 									}
 								}
 								Err(e) => {
-									result = Err(GraphError::from(e));
+									result = Err(EngineError::from(e));
 									break;
 								}
 							}
@@ -157,10 +157,10 @@ impl<'db, 'arena, 'txn, I: Iterator<Item = Result<TraversalValue<'arena>, GraphE
 											unreachable!()
 										}
 									} {
-										result = Err(GraphError::from(e));
+										result = Err(EngineError::from(e));
 									}
 								}
-								Err(e) => result = Err(GraphError::from(e)),
+								Err(e) => result = Err(EngineError::from(e)),
 							}
 						}
 
@@ -193,10 +193,10 @@ impl<'db, 'arena, 'txn, I: Iterator<Item = Result<TraversalValue<'arena>, GraphE
 											unreachable!()
 										}
 									} {
-										result = Err(GraphError::from(e));
+										result = Err(EngineError::from(e));
 									}
 								}
-								Err(e) => result = Err(GraphError::from(e)),
+								Err(e) => result = Err(EngineError::from(e)),
 							}
 						}
 
@@ -244,10 +244,10 @@ impl<'db, 'arena, 'txn, I: Iterator<Item = Result<TraversalValue<'arena>, GraphE
 									result = Ok(TraversalValue::Node(node));
 								}
 							}
-							Err(e) => result = Err(GraphError::from(e)),
+							Err(e) => result = Err(EngineError::from(e)),
 						}
 					}
-					Err(e) => result = Err(GraphError::from(e)),
+					Err(e) => result = Err(EngineError::from(e)),
 				}
 			}
 			None => {
@@ -278,10 +278,10 @@ impl<'db, 'arena, 'txn, I: Iterator<Item = Result<TraversalValue<'arena>, GraphE
 							&node.id,
 							&bytes,
 						) {
-							result = Err(GraphError::from(e));
+							result = Err(EngineError::from(e));
 						}
 					}
-					Err(e) => result = Err(GraphError::from(e)),
+					Err(e) => result = Err(EngineError::from(e)),
 				}
 
 				for (k, v) in props.iter() {
@@ -308,10 +308,10 @@ impl<'db, 'arena, 'txn, I: Iterator<Item = Result<TraversalValue<'arena>, GraphE
 									),
 								crate::helix_engine::types::SecondaryIndex::None => unreachable!(),
 							} {
-								result = Err(GraphError::from(e));
+								result = Err(EngineError::from(e));
 							}
 						}
-						Err(e) => result = Err(GraphError::from(e)),
+						Err(e) => result = Err(EngineError::from(e)),
 					}
 				}
 
@@ -356,9 +356,9 @@ impl<'db, 'arena, 'txn, I: Iterator<Item = Result<TraversalValue<'arena>, GraphE
 		'db,
 		'arena,
 		'txn,
-		impl Iterator<Item = Result<TraversalValue<'arena>, GraphError>>,
+		impl Iterator<Item = Result<TraversalValue<'arena>, EngineError>>,
 	> {
-		let mut result: Result<TraversalValue, GraphError> = Ok(TraversalValue::Empty);
+		let mut result: Result<TraversalValue, EngineError> = Ok(TraversalValue::Empty);
 
 		match self.inner.next() {
 			Some(Ok(TraversalValue::Edge(mut edge))) => {
@@ -409,10 +409,10 @@ impl<'db, 'arena, 'txn, I: Iterator<Item = Result<TraversalValue<'arena>, GraphE
 									result = Ok(TraversalValue::Edge(edge));
 								}
 							}
-							Err(e) => result = Err(GraphError::from(e)),
+							Err(e) => result = Err(EngineError::from(e)),
 						}
 					}
-					Err(e) => result = Err(GraphError::from(e)),
+					Err(e) => result = Err(EngineError::from(e)),
 				}
 			}
 			Some(Err(e)) => {
@@ -449,10 +449,10 @@ impl<'db, 'arena, 'txn, I: Iterator<Item = Result<TraversalValue<'arena>, GraphE
 							HelixGraphStorage::edge_key(&edge.id),
 							&bytes,
 						) {
-							result = Err(GraphError::from(e));
+							result = Err(EngineError::from(e));
 						}
 					}
-					Err(e) => result = Err(GraphError::from(e)),
+					Err(e) => result = Err(EngineError::from(e)),
 				}
 
 				// Insert into out_edges_db
@@ -463,7 +463,7 @@ impl<'db, 'arena, 'txn, I: Iterator<Item = Result<TraversalValue<'arena>, GraphE
 					&HelixGraphStorage::out_edge_key(&from_node, &label_hash),
 					&HelixGraphStorage::pack_edge_data(&edge.id, &to_node),
 				) {
-					result = Err(GraphError::from(e));
+					result = Err(EngineError::from(e));
 				}
 
 				// Insert into in_edges_db
@@ -473,7 +473,7 @@ impl<'db, 'arena, 'txn, I: Iterator<Item = Result<TraversalValue<'arena>, GraphE
 					&HelixGraphStorage::in_edge_key(&to_node, &label_hash),
 					&HelixGraphStorage::pack_edge_data(&edge.id, &from_node),
 				) {
-					result = Err(GraphError::from(e));
+					result = Err(EngineError::from(e));
 				}
 
 				if result.is_ok() {
@@ -502,9 +502,9 @@ impl<'db, 'arena, 'txn, I: Iterator<Item = Result<TraversalValue<'arena>, GraphE
 		'db,
 		'arena,
 		'txn,
-		impl Iterator<Item = Result<TraversalValue<'arena>, GraphError>>,
+		impl Iterator<Item = Result<TraversalValue<'arena>, EngineError>>,
 	> {
-		let mut result: Result<TraversalValue, GraphError> = Ok(TraversalValue::Empty);
+		let mut result: Result<TraversalValue, EngineError> = Ok(TraversalValue::Empty);
 		match self.inner.next() {
 			Some(Ok(TraversalValue::Vector(mut vector))) => {
 				match vector.properties {
@@ -534,10 +534,10 @@ impl<'db, 'arena, 'txn, I: Iterator<Item = Result<TraversalValue<'arena>, GraphE
 											unreachable!()
 										}
 									} {
-										result = Err(GraphError::from(e));
+										result = Err(EngineError::from(e));
 									}
 								}
-								Err(e) => result = Err(GraphError::from(e)),
+								Err(e) => result = Err(EngineError::from(e)),
 							}
 						}
 
@@ -570,12 +570,12 @@ impl<'db, 'arena, 'txn, I: Iterator<Item = Result<TraversalValue<'arena>, GraphE
 										&old_serialized,
 										&vector.id,
 									) {
-										result = Err(GraphError::from(e));
+										result = Err(EngineError::from(e));
 										break;
 									}
 								}
 								Err(e) => {
-									result = Err(GraphError::from(e));
+									result = Err(EngineError::from(e));
 									break;
 								}
 							}
@@ -598,10 +598,10 @@ impl<'db, 'arena, 'txn, I: Iterator<Item = Result<TraversalValue<'arena>, GraphE
 											unreachable!()
 										}
 									} {
-										result = Err(GraphError::from(e));
+										result = Err(EngineError::from(e));
 									}
 								}
-								Err(e) => result = Err(GraphError::from(e)),
+								Err(e) => result = Err(EngineError::from(e)),
 							}
 						}
 
@@ -634,10 +634,10 @@ impl<'db, 'arena, 'txn, I: Iterator<Item = Result<TraversalValue<'arena>, GraphE
 											unreachable!()
 										}
 									} {
-										result = Err(GraphError::from(e));
+										result = Err(EngineError::from(e));
 									}
 								}
-								Err(e) => result = Err(GraphError::from(e)),
+								Err(e) => result = Err(EngineError::from(e)),
 							}
 						}
 
@@ -679,7 +679,7 @@ impl<'db, 'arena, 'txn, I: Iterator<Item = Result<TraversalValue<'arena>, GraphE
 							result = Ok(TraversalValue::Vector(vector));
 						}
 					}
-					Err(e) => result = Err(GraphError::from(e)),
+					Err(e) => result = Err(EngineError::from(e)),
 				}
 			}
 			None => {
@@ -704,7 +704,7 @@ impl<'db, 'arena, 'txn, I: Iterator<Item = Result<TraversalValue<'arena>, GraphE
 					Ok(vector) => {
 						result = Ok(TraversalValue::Vector(vector));
 					}
-					Err(e) => result = Err(GraphError::from(e)),
+					Err(e) => result = Err(EngineError::from(e)),
 				}
 
 				if result.is_ok()
@@ -737,12 +737,12 @@ impl<'db, 'arena, 'txn, I: Iterator<Item = Result<TraversalValue<'arena>, GraphE
 										unreachable!()
 									}
 								} {
-									result = Err(GraphError::from(e));
+									result = Err(EngineError::from(e));
 									break;
 								}
 							}
 							Err(e) => {
-								result = Err(GraphError::from(e));
+								result = Err(EngineError::from(e));
 								break;
 							}
 						}
@@ -797,10 +797,10 @@ impl<'db, 'arena, 'txn, I: Iterator<Item = Result<TraversalValue<'arena>, GraphE
 											unreachable!()
 										}
 									} {
-										result = Err(GraphError::from(e));
+										result = Err(EngineError::from(e));
 									}
 								}
-								Err(e) => result = Err(GraphError::from(e)),
+								Err(e) => result = Err(EngineError::from(e)),
 							}
 						}
 
@@ -833,12 +833,12 @@ impl<'db, 'arena, 'txn, I: Iterator<Item = Result<TraversalValue<'arena>, GraphE
 										&old_serialized,
 										&vector.id,
 									) {
-										result = Err(GraphError::from(e));
+										result = Err(EngineError::from(e));
 										break;
 									}
 								}
 								Err(e) => {
-									result = Err(GraphError::from(e));
+									result = Err(EngineError::from(e));
 									break;
 								}
 							}
@@ -861,10 +861,10 @@ impl<'db, 'arena, 'txn, I: Iterator<Item = Result<TraversalValue<'arena>, GraphE
 											unreachable!()
 										}
 									} {
-										result = Err(GraphError::from(e));
+										result = Err(EngineError::from(e));
 									}
 								}
-								Err(e) => result = Err(GraphError::from(e)),
+								Err(e) => result = Err(EngineError::from(e)),
 							}
 						}
 
@@ -897,10 +897,10 @@ impl<'db, 'arena, 'txn, I: Iterator<Item = Result<TraversalValue<'arena>, GraphE
 											unreachable!()
 										}
 									} {
-										result = Err(GraphError::from(e));
+										result = Err(EngineError::from(e));
 									}
 								}
-								Err(e) => result = Err(GraphError::from(e)),
+								Err(e) => result = Err(EngineError::from(e)),
 							}
 						}
 
@@ -942,7 +942,7 @@ impl<'db, 'arena, 'txn, I: Iterator<Item = Result<TraversalValue<'arena>, GraphE
 							result = Ok(TraversalValue::Vector(vector));
 						}
 					}
-					Err(e) => result = Err(GraphError::from(e)),
+					Err(e) => result = Err(EngineError::from(e)),
 				}
 			}
 			Some(Ok(_)) => {

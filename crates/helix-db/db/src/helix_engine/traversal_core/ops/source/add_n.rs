@@ -4,7 +4,7 @@ use crate::helix_engine::bm25::bm25::{BM25, BM25Flatten};
 use crate::helix_engine::storage_core::HelixGraphStorage;
 use crate::helix_engine::traversal_core::traversal_iter::RwTraversalIterator;
 use crate::helix_engine::traversal_core::traversal_value::TraversalValue;
-use crate::helix_engine::types::GraphError;
+use crate::helix_engine::types::{EngineError, StorageError};
 use crate::utils::id::v6_uuid;
 use crate::utils::items::Node;
 use crate::utils::properties::ImmutablePropertiesMap;
@@ -17,11 +17,11 @@ where
 	pub storage: &'db HelixGraphStorage,
 	pub arena: &'arena bumpalo::Bump,
 	pub txn: &'txn RwTxn<'db>,
-	inner: std::iter::Once<Result<TraversalValue<'arena>, GraphError>>,
+	inner: std::iter::Once<Result<TraversalValue<'arena>, EngineError>>,
 }
 
 impl<'db, 'arena, 'txn> Iterator for AddNIterator<'db, 'arena, 'txn> {
-	type Item = Result<TraversalValue<'arena>, GraphError>;
+	type Item = Result<TraversalValue<'arena>, EngineError>;
 
 	fn next(&mut self) -> Option<Self::Item> {
 		self.inner.next()
@@ -29,7 +29,7 @@ impl<'db, 'arena, 'txn> Iterator for AddNIterator<'db, 'arena, 'txn> {
 }
 
 pub trait AddNAdapter<'db, 'arena, 'txn, 's>:
-	Iterator<Item = Result<TraversalValue<'arena>, GraphError>>
+	Iterator<Item = Result<TraversalValue<'arena>, EngineError>>
 {
 	fn add_n(
 		self,
@@ -40,11 +40,11 @@ pub trait AddNAdapter<'db, 'arena, 'txn, 's>:
 		'db,
 		'arena,
 		'txn,
-		impl Iterator<Item = Result<TraversalValue<'arena>, GraphError>>,
+		impl Iterator<Item = Result<TraversalValue<'arena>, EngineError>>,
 	>;
 }
 
-impl<'db, 'arena, 'txn, 's, I: Iterator<Item = Result<TraversalValue<'arena>, GraphError>>>
+impl<'db, 'arena, 'txn, 's, I: Iterator<Item = Result<TraversalValue<'arena>, EngineError>>>
 	AddNAdapter<'db, 'arena, 'txn, 's> for RwTraversalIterator<'db, 'arena, 'txn, I>
 {
 	fn add_n(
@@ -56,7 +56,7 @@ impl<'db, 'arena, 'txn, 's, I: Iterator<Item = Result<TraversalValue<'arena>, Gr
 		'db,
 		'arena,
 		'txn,
-		impl Iterator<Item = Result<TraversalValue<'arena>, GraphError>>,
+		impl Iterator<Item = Result<TraversalValue<'arena>, EngineError>>,
 	> {
 		let node = Node {
 			id: v6_uuid(),
@@ -65,7 +65,7 @@ impl<'db, 'arena, 'txn, 's, I: Iterator<Item = Result<TraversalValue<'arena>, Gr
 			properties,
 		};
 		let secondary_indices = secondary_indices.unwrap_or(&[]).to_vec();
-		let mut result: Result<TraversalValue, GraphError> = Ok(TraversalValue::Empty);
+		let mut result: Result<TraversalValue, EngineError> = Ok(TraversalValue::Empty);
 
 		for index in secondary_indices {
 			match self.storage.secondary_indices.get(index) {
@@ -105,20 +105,21 @@ impl<'db, 'arena, 'txn, 's, I: Iterator<Item = Result<TraversalValue<'arena>, Gr
 									line!(),
 									e
 								);
-								result = Err(GraphError::from(e));
+								result = Err(EngineError::from(e));
 								break;
 							}
 						}
 						Err(e) => {
-							result = Err(GraphError::from(e));
+							result = Err(EngineError::from(e));
 							break;
 						}
 					}
 				}
 				None => {
-					result = Err(GraphError::New(format!(
+					result = Err(StorageError::Backend(format!(
 						"Secondary Index {index} not found"
-					)));
+					))
+					.into());
 					break;
 				}
 			}
@@ -132,10 +133,10 @@ impl<'db, 'arena, 'txn, 's, I: Iterator<Item = Result<TraversalValue<'arena>, Gr
 					&node.id,
 					&bytes,
 				) {
-					result = Err(GraphError::from(e));
+					result = Err(EngineError::from(e));
 				}
 			}
-			Err(e) => result = Err(GraphError::from(e)),
+			Err(e) => result = Err(EngineError::from(e)),
 		}
 
 		if let Some(bm25) = &self.storage.bm25

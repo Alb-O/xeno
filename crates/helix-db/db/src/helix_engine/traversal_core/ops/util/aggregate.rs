@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use crate::helix_engine::traversal_core::traversal_iter::RoTraversalIterator;
 use crate::helix_engine::traversal_core::traversal_value::TraversalValue;
-use crate::helix_engine::types::GraphError;
+use crate::helix_engine::types::EngineError;
 use crate::utils::aggregate::{Aggregate, AggregateItem};
 
 pub trait AggregateAdapter<'arena>: Iterator {
@@ -10,17 +10,17 @@ pub trait AggregateAdapter<'arena>: Iterator {
 		self,
 		properties: &[String],
 		should_count: bool,
-	) -> Result<Aggregate<'arena>, GraphError>;
+	) -> Result<Aggregate<'arena>, EngineError>;
 }
 
-impl<'db, 'arena, 'txn, I: Iterator<Item = Result<TraversalValue<'arena>, GraphError>>>
+impl<'db, 'arena, 'txn, I: Iterator<Item = Result<TraversalValue<'arena>, EngineError>>>
 	AggregateAdapter<'arena> for RoTraversalIterator<'db, 'arena, 'txn, I>
 {
 	fn aggregate_by(
 		self,
 		properties: &[String],
 		should_count: bool,
-	) -> Result<Aggregate<'arena>, GraphError> {
+	) -> Result<Aggregate<'arena>, EngineError> {
 		let mut groups: HashMap<String, AggregateItem> = HashMap::new();
 
 		let properties_len = properties.len();

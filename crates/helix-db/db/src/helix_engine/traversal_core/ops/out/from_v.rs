@@ -1,9 +1,9 @@
 use crate::helix_engine::traversal_core::traversal_iter::RoTraversalIterator;
 use crate::helix_engine::traversal_core::traversal_value::TraversalValue;
-use crate::helix_engine::types::{GraphError, VectorError};
+use crate::helix_engine::types::{EngineError, VectorError};
 
 pub trait FromVAdapter<'db, 'arena, 'txn, I>:
-	Iterator<Item = Result<TraversalValue<'arena>, GraphError>>
+	Iterator<Item = Result<TraversalValue<'arena>, EngineError>>
 where
 	'db: 'arena,
 	'arena: 'txn,
@@ -15,11 +15,11 @@ where
 		'db,
 		'arena,
 		'txn,
-		impl Iterator<Item = Result<TraversalValue<'arena>, GraphError>>,
+		impl Iterator<Item = Result<TraversalValue<'arena>, EngineError>>,
 	>;
 }
 
-impl<'db, 'arena, 'txn, I: Iterator<Item = Result<TraversalValue<'arena>, GraphError>>>
+impl<'db, 'arena, 'txn, I: Iterator<Item = Result<TraversalValue<'arena>, EngineError>>>
 	FromVAdapter<'db, 'arena, 'txn, I> for RoTraversalIterator<'db, 'arena, 'txn, I>
 where
 	'db: 'arena,
@@ -33,7 +33,7 @@ where
 		'db,
 		'arena,
 		'txn,
-		impl Iterator<Item = Result<TraversalValue<'arena>, GraphError>>,
+		impl Iterator<Item = Result<TraversalValue<'arena>, EngineError>>,
 	> {
 		let iter = self.inner.filter_map(move |item| {
 			if let Ok(TraversalValue::Edge(item)) = item {
@@ -44,7 +44,7 @@ where
 						.get_full_vector(self.txn, item.from_node, self.arena)
 					{
 						Ok(vector) => TraversalValue::Vector(vector),
-						Err(e) => return Some(Err(GraphError::from(e))),
+						Err(e) => return Some(Err(EngineError::from(e))),
 					}
 				} else {
 					match self.storage.vectors.get_vector_properties(
@@ -54,11 +54,11 @@ where
 					) {
 						Ok(Some(vector)) => TraversalValue::VectorNodeWithoutVectorData(vector),
 						Ok(None) => {
-							return Some(Err(GraphError::from(VectorError::VectorNotFound(
+							return Some(Err(EngineError::from(VectorError::VectorNotFound(
 								item.from_node.to_string(),
 							))));
 						}
-						Err(e) => return Some(Err(GraphError::from(e))),
+						Err(e) => return Some(Err(EngineError::from(e))),
 					}
 				};
 

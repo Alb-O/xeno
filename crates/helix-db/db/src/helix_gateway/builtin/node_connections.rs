@@ -11,7 +11,7 @@ use tracing::info;
 use crate::helix_engine::storage_core::HelixGraphStorage;
 use crate::helix_engine::storage_core::storage_methods::StorageMethods;
 use crate::helix_engine::traversal_core::traversal_value::TraversalValue;
-use crate::helix_engine::types::GraphError;
+use crate::helix_engine::types::{EngineError, StorageError, TraversalError};
 use crate::helix_gateway::gateway::AppState;
 use crate::helix_gateway::router::router::{Handler, HandlerInput, HandlerSubmission};
 use crate::protocol::request::RequestType;
@@ -56,9 +56,9 @@ pub async fn node_connections_handler(
 	}
 }
 
-pub fn node_connections_inner(input: HandlerInput) -> Result<protocol::Response, GraphError> {
+pub fn node_connections_inner(input: HandlerInput) -> Result<protocol::Response, EngineError> {
 	let db = Arc::clone(&input.graph.storage);
-	let txn = db.graph_env.read_txn().map_err(GraphError::from)?;
+	let txn = db.graph_env.read_txn().map_err(EngineError::from)?;
 	let arena = bumpalo::Bump::new();
 
 	let node_id_str = if !input.request.body.is_empty() {
@@ -73,17 +73,17 @@ pub fn node_connections_inner(input: HandlerInput) -> Result<protocol::Response,
 		None
 	};
 
-	let node_id_str =
-		node_id_str.ok_or_else(|| GraphError::New("node_id is required".to_string()))?;
+	let node_id_str = node_id_str.ok_or_else(|| TraversalError::ParamNotFound("node_id").into())?;
 
 	let node_id = if let Ok(uuid) = uuid::Uuid::parse_str(&node_id_str) {
 		uuid.as_u128()
 	} else if let Ok(num) = node_id_str.parse::<u128>() {
 		num
 	} else {
-		return Err(GraphError::New(
+		return Err(TraversalError::Message(
 			"Invalid node_id format - must be UUID or u128".to_string(),
-		));
+		)
+		.into());
 	};
 
 	let mut connected_node_ids = HashSet::with_capacity(50);
@@ -197,7 +197,7 @@ pub fn node_connections_inner(input: HandlerInput) -> Result<protocol::Response,
 	});
 
 	Ok(protocol::Response {
-		body: sonic_rs::to_vec(&result).map_err(|e| GraphError::New(e.to_string()))?,
+		body: sonic_rs::to_vec(&result).map_err(|e| StorageError::Conversion(e.to_string()))?,
 		fmt: Default::default(),
 	})
 }

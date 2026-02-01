@@ -3,12 +3,12 @@ use serde::Serialize;
 use crate::helix_engine::traversal_core::LMDB_STRING_HEADER_LENGTH;
 use crate::helix_engine::traversal_core::traversal_iter::RoTraversalIterator;
 use crate::helix_engine::traversal_core::traversal_value::TraversalValue;
-use crate::helix_engine::types::GraphError;
+use crate::helix_engine::types::{EngineError, StorageError};
 use crate::protocol::value::Value;
 use crate::utils::items::Node;
 
 pub trait NFromIndexAdapter<'db, 'arena, 'txn, 's, K: Into<Value> + Serialize>:
-	Iterator<Item = Result<TraversalValue<'arena>, GraphError>>
+	Iterator<Item = Result<TraversalValue<'arena>, EngineError>>
 {
 	/// Returns a new iterator that will return the node from the secondary index.
 	///
@@ -28,7 +28,7 @@ pub trait NFromIndexAdapter<'db, 'arena, 'txn, 's, K: Into<Value> + Serialize>:
 		'db,
 		'arena,
 		'txn,
-		impl Iterator<Item = Result<TraversalValue<'arena>, GraphError>>,
+		impl Iterator<Item = Result<TraversalValue<'arena>, EngineError>>,
 	>
 	where
 		K: Into<Value> + Serialize + Clone;
@@ -40,7 +40,7 @@ impl<
 	'txn,
 	's,
 	K: Into<Value> + Serialize,
-	I: Iterator<Item = Result<TraversalValue<'arena>, GraphError>>,
+	I: Iterator<Item = Result<TraversalValue<'arena>, EngineError>>,
 > NFromIndexAdapter<'db, 'arena, 'txn, 's, K> for RoTraversalIterator<'db, 'arena, 'txn, I>
 {
 	#[inline]
@@ -53,7 +53,7 @@ impl<
 		'db,
 		'arena,
 		'txn,
-		impl Iterator<Item = Result<TraversalValue<'arena>, GraphError>>,
+		impl Iterator<Item = Result<TraversalValue<'arena>, EngineError>>,
 	>
 	where
 		K: Into<Value> + Serialize + Clone,
@@ -62,9 +62,7 @@ impl<
 			.storage
 			.secondary_indices
 			.get(index)
-			.ok_or(GraphError::New(format!(
-				"Secondary Index {index} not found"
-			)))
+			.ok_or_else(|| StorageError::Backend(format!("Secondary Index {index} not found")))
 			.unwrap();
 		let label_as_bytes = label.as_bytes();
 		let res = db
@@ -98,7 +96,7 @@ impl<
                             }
                             Err(e) => {
                                 println!("{} Error decoding node: {:?}", line!(), e);
-                                return Some(Err(GraphError::ConversionError(e.to_string())));
+                                return Some(Err(StorageError::Conversion(e.to_string()).into()));
                             }
                         }
                     } else {

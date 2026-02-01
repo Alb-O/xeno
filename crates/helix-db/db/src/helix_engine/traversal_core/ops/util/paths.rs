@@ -7,7 +7,7 @@ use crate::helix_engine::storage_core::HelixGraphStorage;
 use crate::helix_engine::storage_core::storage_methods::StorageMethods;
 use crate::helix_engine::traversal_core::traversal_iter::RoTraversalIterator;
 use crate::helix_engine::traversal_core::traversal_value::TraversalValue;
-use crate::helix_engine::types::GraphError;
+use crate::helix_engine::types::{EngineError, TraversalError};
 use crate::protocol::value::Value;
 use crate::utils::items::{Edge, Node};
 use crate::utils::label_hash::hash_label;
@@ -18,7 +18,7 @@ pub fn default_weight_fn<'arena>(
 	edge: &Edge<'arena>,
 	_src_node: &Node<'arena>,
 	_dst_node: &Node<'arena>,
-) -> Result<f64, GraphError> {
+) -> Result<f64, EngineError> {
 	Ok(edge
 		.properties
 		.as_ref()
@@ -45,7 +45,7 @@ pub fn default_weight_fn<'arena>(
 pub fn property_heuristic<'arena>(
 	node: &Node<'arena>,
 	property_name: &str,
-) -> Result<f64, GraphError> {
+) -> Result<f64, EngineError> {
 	node.properties
 		.as_ref()
 		.and_then(|props| props.get(property_name))
@@ -64,10 +64,11 @@ pub fn property_heuristic<'arena>(
 			_ => None,
 		})
 		.ok_or_else(|| {
-			GraphError::TraversalError(format!(
+			TraversalError::Message(format!(
 				"Heuristic property '{}' not found or is not a numeric value",
 				property_name
 			))
+			.into()
 		})
 }
 
@@ -90,12 +91,12 @@ pub struct ShortestPathIterator<
 	'txn,
 	I,
 	F,
-	H = fn(&Node<'arena>) -> Result<f64, GraphError>,
+	H = fn(&Node<'arena>) -> Result<f64, EngineError>,
 > where
 	'db: 'arena,
 	'arena: 'txn,
-	F: Fn(&Edge<'arena>, &Node<'arena>, &Node<'arena>) -> Result<f64, GraphError>,
-	H: Fn(&Node<'arena>) -> Result<f64, GraphError>,
+	F: Fn(&Edge<'arena>, &Node<'arena>, &Node<'arena>) -> Result<f64, EngineError>,
+	H: Fn(&Node<'arena>) -> Result<f64, EngineError>,
 {
 	pub arena: &'arena bumpalo::Bump,
 	pub iter: I,
@@ -174,12 +175,12 @@ impl<
 	'db: 'arena,
 	'arena: 'txn,
 	'txn,
-	I: Iterator<Item = Result<TraversalValue<'arena>, GraphError>>,
-	F: Fn(&Edge<'arena>, &Node<'arena>, &Node<'arena>) -> Result<f64, GraphError>,
-	H: Fn(&Node<'arena>) -> Result<f64, GraphError>,
+	I: Iterator<Item = Result<TraversalValue<'arena>, EngineError>>,
+	F: Fn(&Edge<'arena>, &Node<'arena>, &Node<'arena>) -> Result<f64, EngineError>,
+	H: Fn(&Node<'arena>) -> Result<f64, EngineError>,
 > Iterator for ShortestPathIterator<'db, 'arena, 'txn, I, F, H>
 {
-	type Item = Result<TraversalValue<'arena>, GraphError>;
+	type Item = Result<TraversalValue<'arena>, EngineError>;
 
 	/// Returns the next outgoing node by decoding the edge id and then getting the edge and node
 	fn next(&mut self) -> Option<Self::Item> {
@@ -204,8 +205,8 @@ impl<
 
 impl<'db, 'arena, 'txn, I, F, H> ShortestPathIterator<'db, 'arena, 'txn, I, F, H>
 where
-	F: Fn(&Edge<'arena>, &Node<'arena>, &Node<'arena>) -> Result<f64, GraphError>,
-	H: Fn(&Node<'arena>) -> Result<f64, GraphError>,
+	F: Fn(&Edge<'arena>, &Node<'arena>, &Node<'arena>) -> Result<f64, EngineError>,
+	H: Fn(&Node<'arena>) -> Result<f64, EngineError>,
 {
 	fn reconstruct_path(
 		&self,
@@ -213,7 +214,7 @@ where
 		start_id: &u128,
 		end_id: &u128,
 		arena: &'arena bumpalo::Bump,
-	) -> Result<TraversalValue<'arena>, GraphError> {
+	) -> Result<TraversalValue<'arena>, EngineError> {
 		let mut nodes = Vec::with_capacity(parent.len());
 		let mut edges = Vec::with_capacity(parent.len().saturating_sub(1));
 
@@ -239,7 +240,7 @@ where
 		&self,
 		from: u128,
 		to: u128,
-	) -> Option<Result<TraversalValue<'arena>, GraphError>> {
+	) -> Option<Result<TraversalValue<'arena>, EngineError>> {
 		let mut queue = VecDeque::with_capacity(32);
 		let mut visited = HashSet::with_capacity(64);
 		let mut parent: HashMap<u128, (u128, u128)> = HashMap::with_capacity(32);
@@ -268,7 +269,7 @@ where
 			for result in iter {
 				let value = match result {
 					Ok((_, value)) => value,
-					Err(e) => return Some(Err(GraphError::from(e))),
+					Err(e) => return Some(Err(EngineError::from(e))),
 				};
 				let (edge_id, to_node) = match HelixGraphStorage::unpack_adj_edge_data(value) {
 					Ok((edge_id, to_node)) => (edge_id, to_node),
@@ -287,14 +288,14 @@ where
 				}
 			}
 		}
-		Some(Err(GraphError::ShortestPathNotFound))
+		Some(Err(TraversalError::ShortestPathNotFound.into()))
 	}
 
 	fn dijkstra_shortest_path(
 		&self,
 		from: u128,
 		to: u128,
-	) -> Option<Result<TraversalValue<'arena>, GraphError>> {
+	) -> Option<Result<TraversalValue<'arena>, EngineError>> {
 		let mut heap = BinaryHeap::new();
 		let mut distances = HashMap::with_capacity(64);
 		let mut parent: HashMap<u128, (u128, u128)> = HashMap::with_capacity(32);
@@ -361,10 +362,11 @@ where
 				};
 
 				if weight < 0.0 {
-					return Some(Err(GraphError::TraversalError(
+					return Some(Err(TraversalError::Message(
 						"Negative edge weights are not supported for Dijkstra's algorithm"
 							.to_string(),
-					)));
+					)
+					.into()));
 				}
 
 				let new_dist = current_dist + weight;
@@ -383,20 +385,21 @@ where
 				}
 			}
 		}
-		Some(Err(GraphError::ShortestPathNotFound))
+		Some(Err(TraversalError::ShortestPathNotFound.into()))
 	}
 
 	fn astar_shortest_path(
 		&self,
 		from: u128,
 		to: u128,
-	) -> Option<Result<TraversalValue<'arena>, GraphError>> {
+	) -> Option<Result<TraversalValue<'arena>, EngineError>> {
 		let heuristic_fn = match &self.heuristic_fn {
 			Some(h) => h,
 			None => {
-				return Some(Err(GraphError::TraversalError(
+				return Some(Err(TraversalError::Message(
 					"A* algorithm requires a heuristic function".to_string(),
-				)));
+				)
+				.into()));
 			}
 		};
 
@@ -479,9 +482,10 @@ where
 				};
 
 				if weight < 0.0 {
-					return Some(Err(GraphError::TraversalError(
+					return Some(Err(TraversalError::Message(
 						"Negative edge weights are not supported for A* algorithm".to_string(),
-					)));
+					)
+					.into()));
 				}
 
 				let tentative_g = current_g + weight;
@@ -509,12 +513,12 @@ where
 				}
 			}
 		}
-		Some(Err(GraphError::ShortestPathNotFound))
+		Some(Err(TraversalError::ShortestPathNotFound.into()))
 	}
 }
 
 pub trait ShortestPathAdapter<'db, 'arena, 'txn, 's, I>:
-	Iterator<Item = Result<TraversalValue<'arena>, GraphError>>
+	Iterator<Item = Result<TraversalValue<'arena>, EngineError>>
 {
 	/// ShortestPath finds the shortest path between two nodes
 	///
@@ -546,7 +550,7 @@ pub trait ShortestPathAdapter<'db, 'arena, 'txn, 's, I>:
 			'arena,
 			'txn,
 			I,
-			fn(&Edge<'arena>, &Node<'arena>, &Node<'arena>) -> Result<f64, GraphError>,
+			fn(&Edge<'arena>, &Node<'arena>, &Node<'arena>) -> Result<f64, EngineError>,
 		>,
 	>;
 
@@ -559,7 +563,7 @@ pub trait ShortestPathAdapter<'db, 'arena, 'txn, 's, I>:
 		weight_fn: F,
 	) -> RoTraversalIterator<'db, 'arena, 'txn, ShortestPathIterator<'db, 'arena, 'txn, I, F>>
 	where
-		F: Fn(&Edge<'arena>, &Node<'arena>, &Node<'arena>) -> Result<f64, GraphError>;
+		F: Fn(&Edge<'arena>, &Node<'arena>, &Node<'arena>) -> Result<f64, EngineError>;
 
 	fn shortest_path_astar<F, H>(
 		self,
@@ -570,11 +574,11 @@ pub trait ShortestPathAdapter<'db, 'arena, 'txn, 's, I>:
 		heuristic_fn: H,
 	) -> RoTraversalIterator<'db, 'arena, 'txn, ShortestPathIterator<'db, 'arena, 'txn, I, F, H>>
 	where
-		F: Fn(&Edge<'arena>, &Node<'arena>, &Node<'arena>) -> Result<f64, GraphError>,
-		H: Fn(&Node<'arena>) -> Result<f64, GraphError>;
+		F: Fn(&Edge<'arena>, &Node<'arena>, &Node<'arena>) -> Result<f64, EngineError>,
+		H: Fn(&Node<'arena>) -> Result<f64, EngineError>;
 }
 
-impl<'db, 'arena, 'txn, 's, I: Iterator<Item = Result<TraversalValue<'arena>, GraphError>>>
+impl<'db, 'arena, 'txn, 's, I: Iterator<Item = Result<TraversalValue<'arena>, EngineError>>>
 	ShortestPathAdapter<'db, 'arena, 'txn, 's, I> for RoTraversalIterator<'db, 'arena, 'txn, I>
 {
 	#[inline]
@@ -592,7 +596,7 @@ impl<'db, 'arena, 'txn, 's, I: Iterator<Item = Result<TraversalValue<'arena>, Gr
 			'arena,
 			'txn,
 			I,
-			fn(&Edge<'arena>, &Node<'arena>, &Node<'arena>) -> Result<f64, GraphError>,
+			fn(&Edge<'arena>, &Node<'arena>, &Node<'arena>) -> Result<f64, EngineError>,
 		>,
 	> {
 		self.shortest_path_with_algorithm(
@@ -614,7 +618,7 @@ impl<'db, 'arena, 'txn, 's, I: Iterator<Item = Result<TraversalValue<'arena>, Gr
 		weight_fn: F,
 	) -> RoTraversalIterator<'db, 'arena, 'txn, ShortestPathIterator<'db, 'arena, 'txn, I, F>>
 	where
-		F: Fn(&Edge<'arena>, &Node<'arena>, &Node<'arena>) -> Result<f64, GraphError>,
+		F: Fn(&Edge<'arena>, &Node<'arena>, &Node<'arena>) -> Result<f64, EngineError>,
 	{
 		RoTraversalIterator {
 			arena: self.arena,
@@ -648,8 +652,8 @@ impl<'db, 'arena, 'txn, 's, I: Iterator<Item = Result<TraversalValue<'arena>, Gr
 		heuristic_fn: H,
 	) -> RoTraversalIterator<'db, 'arena, 'txn, ShortestPathIterator<'db, 'arena, 'txn, I, F, H>>
 	where
-		F: Fn(&Edge<'arena>, &Node<'arena>, &Node<'arena>) -> Result<f64, GraphError>,
-		H: Fn(&Node<'arena>) -> Result<f64, GraphError>,
+		F: Fn(&Edge<'arena>, &Node<'arena>, &Node<'arena>) -> Result<f64, EngineError>,
+		H: Fn(&Node<'arena>) -> Result<f64, EngineError>,
 	{
 		RoTraversalIterator {
 			arena: self.arena,

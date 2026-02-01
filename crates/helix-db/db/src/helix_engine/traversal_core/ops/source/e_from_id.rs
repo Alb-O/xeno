@@ -6,7 +6,7 @@ use crate::helix_engine::storage_core::HelixGraphStorage;
 use crate::helix_engine::storage_core::storage_methods::StorageMethods;
 use crate::helix_engine::traversal_core::traversal_iter::RoTraversalIterator;
 use crate::helix_engine::traversal_core::traversal_value::TraversalValue;
-use crate::helix_engine::types::GraphError;
+use crate::helix_engine::types::EngineError;
 use crate::utils::items::Edge;
 
 pub struct EFromId<'db, 'arena, 'txn>
@@ -17,12 +17,12 @@ where
 	pub storage: &'db HelixGraphStorage,
 	pub arena: &'arena bumpalo::Bump,
 	pub txn: &'txn RoTxn<'db>,
-	pub iter: Once<Result<TraversalValue<'arena>, GraphError>>,
+	pub iter: Once<Result<TraversalValue<'arena>, EngineError>>,
 	pub id: u128,
 }
 
 impl<'db, 'arena, 'txn> Iterator for EFromId<'db, 'arena, 'txn> {
-	type Item = Result<TraversalValue<'arena>, GraphError>;
+	type Item = Result<TraversalValue<'arena>, EngineError>;
 
 	fn next(&mut self) -> Option<Self::Item> {
 		self.iter.next().map(|_| {
@@ -35,9 +35,9 @@ impl<'db, 'arena, 'txn> Iterator for EFromId<'db, 'arena, 'txn> {
 	}
 }
 pub trait EFromIdAdapter<'arena>:
-	Iterator<Item = Result<TraversalValue<'arena>, GraphError>>
+	Iterator<Item = Result<TraversalValue<'arena>, EngineError>>
 {
-	type OutputIter: Iterator<Item = Result<TraversalValue<'arena>, GraphError>>;
+	type OutputIter: Iterator<Item = Result<TraversalValue<'arena>, EngineError>>;
 
 	/// Returns an iterator containing the edge with the given id.
 	///
@@ -45,7 +45,7 @@ pub trait EFromIdAdapter<'arena>:
 	fn e_from_id(self, id: &u128) -> Self::OutputIter;
 }
 
-impl<'db, 'arena, 'txn, I: Iterator<Item = Result<TraversalValue<'arena>, GraphError>>>
+impl<'db, 'arena, 'txn, I: Iterator<Item = Result<TraversalValue<'arena>, EngineError>>>
 	EFromIdAdapter<'arena> for RoTraversalIterator<'db, 'arena, 'txn, I>
 {
 	type OutputIter = RoTraversalIterator<'db, 'arena, 'txn, EFromId<'db, 'arena, 'txn>>;

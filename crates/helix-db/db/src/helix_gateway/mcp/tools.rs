@@ -16,7 +16,7 @@ use crate::helix_engine::traversal_core::ops::util::order::OrderByAdapter;
 use crate::helix_engine::traversal_core::ops::util::range::RangeAdapter;
 use crate::helix_engine::traversal_core::traversal_iter::RoTraversalIterator;
 use crate::helix_engine::traversal_core::traversal_value::TraversalValue;
-use crate::helix_engine::types::GraphError;
+use crate::helix_engine::types::{EngineError, TraversalError};
 use crate::protocol::value::{FilterValues, Operator, Value};
 
 #[derive(Debug, Clone, Copy, Deserialize)]
@@ -103,7 +103,7 @@ pub struct FilterTraversal {
 }
 
 type DynIter<'arena, 'txn> =
-	Box<dyn Iterator<Item = Result<TraversalValue<'arena>, GraphError>> + 'txn>;
+	Box<dyn Iterator<Item = Result<TraversalValue<'arena>, EngineError>> + 'txn>;
 
 pub struct TraversalStream<'db, 'arena, 'txn>
 where
@@ -137,7 +137,7 @@ where
 
 	pub fn from_ro_iterator<I>(iter: RoTraversalIterator<'db, 'arena, 'txn, I>) -> Self
 	where
-		I: Iterator<Item = Result<TraversalValue<'arena>, GraphError>> + 'txn,
+		I: Iterator<Item = Result<TraversalValue<'arena>, EngineError>> + 'txn,
 	{
 		let RoTraversalIterator {
 			storage,
@@ -160,7 +160,7 @@ where
 
 	pub fn map<I, F>(self, f: F) -> TraversalStream<'db, 'arena, 'txn>
 	where
-		I: Iterator<Item = Result<TraversalValue<'arena>, GraphError>> + 'txn,
+		I: Iterator<Item = Result<TraversalValue<'arena>, EngineError>> + 'txn,
 		F: FnOnce(
 			RoTraversalIterator<'db, 'arena, 'txn, DynIter<'arena, 'txn>>,
 		) -> RoTraversalIterator<'db, 'arena, 'txn, I>,
@@ -176,7 +176,7 @@ where
 		self.iter.inner
 	}
 
-	pub fn collect(self) -> Result<Vec<TraversalValue<'arena>>, GraphError> {
+	pub fn collect(self) -> Result<Vec<TraversalValue<'arena>>, EngineError> {
 		let mut values = Vec::new();
 		for item in self.into_inner_iter() {
 			values.push(item?);
@@ -184,7 +184,7 @@ where
 		Ok(values)
 	}
 
-	pub fn nth(self, index: usize) -> Result<Option<TraversalValue<'arena>>, GraphError> {
+	pub fn nth(self, index: usize) -> Result<Option<TraversalValue<'arena>>, EngineError> {
 		let mut iter = self.into_inner_iter();
 		for _ in 0..index {
 			if let Some(res) = iter.next() {
@@ -206,7 +206,7 @@ pub fn execute_query_chain<'db, 'arena, 'txn>(
 	storage: &'db HelixGraphStorage,
 	txn: &'txn RoTxn<'db>,
 	arena: &'arena Bump,
-) -> Result<TraversalStream<'db, 'arena, 'txn>, GraphError>
+) -> Result<TraversalStream<'db, 'arena, 'txn>, EngineError>
 where
 	'db: 'arena,
 	'arena: 'txn,
@@ -221,7 +221,7 @@ pub fn execute_query_chain_from_seed<'db, 'arena, 'txn>(
 	txn: &'txn RoTxn<'db>,
 	arena: &'arena Bump,
 	seed: impl Iterator<Item = TraversalValue<'arena>> + 'txn,
-) -> Result<TraversalStream<'db, 'arena, 'txn>, GraphError>
+) -> Result<TraversalStream<'db, 'arena, 'txn>, EngineError>
 where
 	'db: 'arena,
 	'arena: 'txn,
@@ -236,7 +236,7 @@ pub fn execute_query_chain_with_stream<'db, 'arena, 'txn>(
 	storage: &'db HelixGraphStorage,
 	txn: &'txn RoTxn<'db>,
 	arena: &'arena Bump,
-) -> Result<TraversalStream<'db, 'arena, 'txn>, GraphError>
+) -> Result<TraversalStream<'db, 'arena, 'txn>, EngineError>
 where
 	'db: 'arena,
 	'arena: 'txn,
@@ -252,7 +252,7 @@ fn apply_step<'db, 'arena, 'txn>(
 	storage: &'db HelixGraphStorage,
 	txn: &'txn RoTxn<'db>,
 	arena: &'arena Bump,
-) -> Result<TraversalStream<'db, 'arena, 'txn>, GraphError>
+) -> Result<TraversalStream<'db, 'arena, 'txn>, EngineError>
 where
 	'db: 'arena,
 	'arena: 'txn,
@@ -344,18 +344,20 @@ where
 			// SearchKeyword requires special BM25 indexing and connection state
 			// It should be called via the dedicated search_keyword MCP handler
 			// not through the generic query chain execution
-			Err(GraphError::New(
-                "SearchKeyword is not supported in generic query chains. Use the search_keyword endpoint directly.".to_string()
-            ))
+			Err(TraversalError::Message(
+				"SearchKeyword is not supported in generic query chains. Use the search_keyword endpoint directly.".to_string(),
+			)
+			.into())
 		}
 		ToolArgs::SearchVecText { query, label, k } => {
 			// SearchVecText requires embedding model initialization
 			// It should be called via the dedicated search_vec_text MCP handler
 			// not through the generic query chain execution
-			Err(GraphError::New(format!(
+			Err(TraversalError::Message(format!(
 				"SearchVecText (query: {}, label: {}, k: {}) is not supported in generic query chains. Use the search_vec_text endpoint directly.",
 				query, label, k
-			)))
+			))
+			.into())
 		}
 		ToolArgs::SearchVec {
 			vector,
@@ -407,7 +409,7 @@ where
 fn apply_filter<'db, 'arena, 'txn>(
 	stream: TraversalStream<'db, 'arena, 'txn>,
 	filter: FilterTraversal,
-) -> Result<TraversalStream<'db, 'arena, 'txn>, GraphError>
+) -> Result<TraversalStream<'db, 'arena, 'txn>, EngineError>
 where
 	'db: 'arena,
 	'arena: 'txn,
@@ -448,7 +450,7 @@ fn matches_filter<'db, 'arena, 'txn>(
 	storage: &'db HelixGraphStorage,
 	txn: &'txn RoTxn<'db>,
 	arena: &'arena Bump,
-) -> Result<bool, GraphError>
+) -> Result<bool, EngineError>
 where
 	'db: 'arena,
 	'arena: 'txn,
@@ -492,7 +494,7 @@ fn evaluate_sub_traversal<'db, 'arena, 'txn>(
 	storage: &'db HelixGraphStorage,
 	txn: &'txn RoTxn<'db>,
 	arena: &'arena Bump,
-) -> Result<bool, GraphError>
+) -> Result<bool, EngineError>
 where
 	'db: 'arena,
 	'arena: 'txn,

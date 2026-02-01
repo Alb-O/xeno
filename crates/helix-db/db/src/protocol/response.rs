@@ -77,32 +77,39 @@ mod tests {
 	// IntoResponse Tests
 	// ============================================================================
 
-	#[test]
-	fn test_response_into_response() {
-		let body = b"test response body".to_vec();
-		let response = Response {
-			body: body.clone(),
-			fmt: Format::Json,
-		};
+	#[cfg(feature = "server")]
+	mod server {
+		use reqwest::header::CONTENT_TYPE;
 
-		let axum_response = response.into_response();
+		use super::*;
 
-		// Check that the response has the correct content-type header
-		let content_type = axum_response.headers().get(CONTENT_TYPE);
-		assert!(content_type.is_some());
-		assert_eq!(content_type.unwrap().to_str().unwrap(), "application/json");
-	}
+		#[test]
+		fn test_response_into_response() {
+			let body = b"test response body".to_vec();
+			let response = Response {
+				body: body.clone(),
+				fmt: Format::Json,
+			};
 
-	#[test]
-	fn test_response_into_response_preserves_body() {
-		let body = b"important data".to_vec();
-		let response = Response {
-			body: body.clone(),
-			fmt: Format::Json,
-		};
+			let axum_response = response.into_response();
 
-		let _ = response.into_response();
-		// If this compiles and runs, the body was successfully moved into the response
+			// Check that the response has the correct content-type header
+			let content_type = axum_response.headers().get(CONTENT_TYPE);
+			assert!(content_type.is_some());
+			assert_eq!(content_type.unwrap().to_str().unwrap(), "application/json");
+		}
+
+		#[test]
+		fn test_response_into_response_preserves_body() {
+			let body = b"important data".to_vec();
+			let response = Response {
+				body: body.clone(),
+				fmt: Format::Json,
+			};
+
+			let _ = response.into_response();
+			// If this compiles and runs, the body was successfully moved into the response
+		}
 	}
 
 	// ============================================================================

@@ -1079,14 +1079,14 @@ impl Display for ShortestPathDijkstras {
 			WeightCalculation::Property(prop) => {
 				write!(
 					f,
-					"|edge, _src_node, _dst_node| -> Result<f64, GraphError> {{ Ok(edge.get_property({})?.as_f64()?) }}",
+					"|edge, _src_node, _dst_node| -> Result<f64, EngineError> {{ Ok(edge.get_property({})?.as_f64()?) }}",
 					prop
 				)?;
 			}
 			WeightCalculation::Expression(expr) => {
 				write!(
 					f,
-					"|edge, src_node, dst_node| -> Result<f64, GraphError> {{ Ok({}) }}",
+					"|edge, src_node, dst_node| -> Result<f64, EngineError> {{ Ok({}) }}",
 					expr
 				)?;
 			}
@@ -1141,14 +1141,14 @@ impl Display for ShortestPathAStar {
 			WeightCalculation::Property(prop) => {
 				write!(
 					f,
-					"|edge, _src_node, _dst_node| -> Result<f64, GraphError> {{ Ok(edge.get_property({})?.as_f64()?) }}, ",
+					"|edge, _src_node, _dst_node| -> Result<f64, EngineError> {{ Ok(edge.get_property({})?.as_f64()?) }}, ",
 					prop
 				)?;
 			}
 			WeightCalculation::Expression(expr) => {
 				write!(
 					f,
-					"|edge, src_node, dst_node| -> Result<f64, GraphError> {{ Ok({}) }}, ",
+					"|edge, src_node, dst_node| -> Result<f64, EngineError> {{ Ok({}) }}, ",
 					expr
 				)?;
 			}

@@ -3,7 +3,7 @@ use heed3::{PutFlags, RwTxn};
 use crate::helix_engine::storage_core::HelixGraphStorage;
 use crate::helix_engine::traversal_core::traversal_iter::RwTraversalIterator;
 use crate::helix_engine::traversal_core::traversal_value::TraversalValue;
-use crate::helix_engine::types::GraphError;
+use crate::helix_engine::types::EngineError;
 use crate::utils::id::v6_uuid;
 use crate::utils::items::Edge;
 use crate::utils::label_hash::hash_label;
@@ -17,11 +17,11 @@ where
 	pub storage: &'db HelixGraphStorage,
 	pub arena: &'arena bumpalo::Bump,
 	pub txn: &'txn RwTxn<'db>,
-	inner: std::iter::Once<Result<TraversalValue<'arena>, GraphError>>,
+	inner: std::iter::Once<Result<TraversalValue<'arena>, EngineError>>,
 }
 
 impl<'db, 'arena, 'txn> Iterator for AddE<'db, 'arena, 'txn> {
-	type Item = Result<TraversalValue<'arena>, GraphError>;
+	type Item = Result<TraversalValue<'arena>, EngineError>;
 
 	fn next(&mut self) -> Option<Self::Item> {
 		self.inner.next()
@@ -29,7 +29,7 @@ impl<'db, 'arena, 'txn> Iterator for AddE<'db, 'arena, 'txn> {
 }
 
 pub trait AddEAdapter<'db, 'arena, 'txn, 's>:
-	Iterator<Item = Result<TraversalValue<'arena>, GraphError>>
+	Iterator<Item = Result<TraversalValue<'arena>, EngineError>>
 {
 	fn add_edge(
 		self,
@@ -43,11 +43,11 @@ pub trait AddEAdapter<'db, 'arena, 'txn, 's>:
 		'db,
 		'arena,
 		'txn,
-		impl Iterator<Item = Result<TraversalValue<'arena>, GraphError>>,
+		impl Iterator<Item = Result<TraversalValue<'arena>, EngineError>>,
 	>;
 }
 
-impl<'db, 'arena, 'txn, 's, I: Iterator<Item = Result<TraversalValue<'arena>, GraphError>>>
+impl<'db, 'arena, 'txn, 's, I: Iterator<Item = Result<TraversalValue<'arena>, EngineError>>>
 	AddEAdapter<'db, 'arena, 'txn, 's> for RwTraversalIterator<'db, 'arena, 'txn, I>
 {
 	#[inline(always)]
@@ -64,7 +64,7 @@ impl<'db, 'arena, 'txn, 's, I: Iterator<Item = Result<TraversalValue<'arena>, Gr
 		'db,
 		'arena,
 		'txn,
-		impl Iterator<Item = Result<TraversalValue<'arena>, GraphError>>,
+		impl Iterator<Item = Result<TraversalValue<'arena>, EngineError>>,
 	> {
 		let version = self.storage.version_info.get_latest(label);
 		let edge = Edge {
@@ -76,7 +76,7 @@ impl<'db, 'arena, 'txn, 's, I: Iterator<Item = Result<TraversalValue<'arena>, Gr
 			to_node,
 		};
 
-		let mut result: Result<TraversalValue, GraphError> = Ok(TraversalValue::Empty);
+		let mut result: Result<TraversalValue, EngineError> = Ok(TraversalValue::Empty);
 
 		match edge.to_bytes() {
 			Ok(bytes) => {
@@ -86,10 +86,10 @@ impl<'db, 'arena, 'txn, 's, I: Iterator<Item = Result<TraversalValue<'arena>, Gr
 					HelixGraphStorage::edge_key(&edge.id),
 					&bytes,
 				) {
-					result = Err(GraphError::from(e));
+					result = Err(EngineError::from(e));
 				}
 			}
-			Err(e) => result = Err(GraphError::from(e)),
+			Err(e) => result = Err(EngineError::from(e)),
 		}
 
 		// Skip remaining operations if edge insertion failed
@@ -111,7 +111,7 @@ impl<'db, 'arena, 'txn, 's, I: Iterator<Item = Result<TraversalValue<'arena>, Gr
 					println!(
 						"add_e => error adding out edge between {from_node:?} and {to_node:?}: {e:?}"
 					);
-					result = Err(GraphError::from(e));
+					result = Err(EngineError::from(e));
 				}
 			}
 
@@ -132,7 +132,7 @@ impl<'db, 'arena, 'txn, 's, I: Iterator<Item = Result<TraversalValue<'arena>, Gr
 						println!(
 							"add_e => error adding in edge between {from_node:?} and {to_node:?}: {e:?}"
 						);
-						result = Err(GraphError::from(e));
+						result = Err(EngineError::from(e));
 					}
 				}
 			}

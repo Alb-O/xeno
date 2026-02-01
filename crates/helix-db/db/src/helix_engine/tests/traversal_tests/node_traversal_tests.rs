@@ -17,7 +17,7 @@ use crate::helix_engine::traversal_core::ops::source::n_from_type::NFromTypeAdap
 use crate::helix_engine::traversal_core::ops::util::drop::Drop;
 use crate::helix_engine::traversal_core::ops::util::filter_ref::FilterRefAdapter;
 use crate::helix_engine::traversal_core::traversal_value::TraversalValue;
-use crate::helix_engine::types::GraphError;
+use crate::helix_engine::types::{EngineError, TraversalError};
 use crate::props;
 use crate::protocol::value::Value;
 use crate::utils::id::ID;
@@ -498,7 +498,10 @@ fn test_n_from_id_with_nonexistent_id() {
 		.collect_to_obj();
 
 	// Assert it returns NodeNotFound error
-	assert!(matches!(result, Err(GraphError::NodeNotFound)));
+	assert!(matches!(
+		result,
+		Err(EngineError::Traversal(TraversalError::NodeNotFound))
+	));
 }
 
 #[test]
@@ -527,7 +530,7 @@ fn test_n_from_id_with_deleted_node() {
 
 	let mut txn = storage.graph_env.write_txn().unwrap();
 	Drop::drop_traversal(
-		node_to_delete.into_iter().map(Ok::<_, GraphError>),
+		node_to_delete.into_iter().map(Ok::<_, EngineError>),
 		storage.as_ref(),
 		&mut txn,
 	)
@@ -542,7 +545,10 @@ fn test_n_from_id_with_deleted_node() {
 		.collect_to_obj();
 
 	// Assert it returns NodeNotFound error
-	assert!(matches!(result, Err(GraphError::NodeNotFound)));
+	assert!(matches!(
+		result,
+		Err(EngineError::Traversal(TraversalError::NodeNotFound))
+	));
 }
 
 #[test]
@@ -557,7 +563,10 @@ fn test_n_from_id_with_zero_id() {
 		.collect_to_obj();
 
 	// Assert it returns NodeNotFound error
-	assert!(matches!(result, Err(GraphError::NodeNotFound)));
+	assert!(matches!(
+		result,
+		Err(EngineError::Traversal(TraversalError::NodeNotFound))
+	));
 }
 
 #[test]
@@ -572,5 +581,8 @@ fn test_n_from_id_with_max_id() {
 		.collect_to_obj();
 
 	// Assert it returns NodeNotFound error
-	assert!(matches!(result, Err(GraphError::NodeNotFound)));
+	assert!(matches!(
+		result,
+		Err(EngineError::Traversal(TraversalError::NodeNotFound))
+	));
 }

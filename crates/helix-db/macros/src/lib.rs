@@ -171,13 +171,18 @@ pub fn tool_calls(_attr: TokenStream, input: TokenStream) -> TokenStream {
 				#[allow(non_camel_case_types)]
 				pub fn #fn_name<'a>(
 					input: &'a mut MCPToolInput,
-				) -> Result<Response, GraphError> {
+				) -> Result<Response, crate::helix_engine::types::EngineError> {
 					let data = input.request.in_fmt.deserialize_owned::<#struct_name>(&input.request.body)?;
 
 					let mut connections = input.mcp_connections.lock().unwrap();
 					let mut connection = match connections.remove_connection(&data.connection_id) {
 						Some(conn) => conn,
-						None => return Err(GraphError::Default),
+						None => {
+							return Err(crate::helix_engine::types::TraversalError::Message(
+								"connection not found".to_string(),
+							)
+							.into())
+						}
 					};
 					drop(connections);
 
@@ -273,13 +278,18 @@ pub fn tool_call(args: TokenStream, input: TokenStream) -> TokenStream {
 		#[allow(non_camel_case_types)]
 		pub fn #mcp_function_name<'a>(
 			input: &'a mut MCPToolInput,
-		) -> Result<Response, GraphError> {
+		) -> Result<Response, crate::helix_engine::types::EngineError> {
 			let data = &*input.request.in_fmt.deserialize::<#mcp_struct_name>(&input.request.body)?;
 
 			let mut connections = input.mcp_connections.lock().unwrap();
 			let mut connection = match connections.remove_connection(&data.connection_id) {
 				Some(conn) => conn,
-				None => return Err(GraphError::Default),
+				None => {
+					return Err(crate::helix_engine::types::TraversalError::Message(
+						"connection not found".to_string(),
+					)
+					.into())
+				}
 			};
 			drop(connections);
 

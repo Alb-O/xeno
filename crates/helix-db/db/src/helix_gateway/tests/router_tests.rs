@@ -6,7 +6,7 @@ use tempfile::TempDir;
 
 use crate::helix_engine::traversal_core::config::Config;
 use crate::helix_engine::traversal_core::{HelixGraphEngine, HelixGraphEngineOpts};
-use crate::helix_engine::types::GraphError;
+use crate::helix_engine::types::{EngineError, StorageError};
 use crate::helix_gateway::router::router::{
 	Handler, HandlerFn, HandlerInput, HandlerSubmission, HelixRouter, RouterError,
 };
@@ -24,18 +24,18 @@ fn create_test_graph() -> (Arc<HelixGraphEngine>, TempDir) {
 	(graph, temp_dir)
 }
 
-fn test_handler(_input: HandlerInput) -> Result<Response, GraphError> {
+fn test_handler(_input: HandlerInput) -> Result<Response, EngineError> {
 	Ok(Response {
 		body: b"test response".to_vec(),
 		fmt: Format::Json,
 	})
 }
 
-fn error_handler(_input: HandlerInput) -> Result<Response, GraphError> {
-	Err(GraphError::New("test error".to_string()))
+fn error_handler(_input: HandlerInput) -> Result<Response, EngineError> {
+	Err(StorageError::Backend("test error".to_string()).into())
 }
 
-fn echo_handler(input: HandlerInput) -> Result<Response, GraphError> {
+fn echo_handler(input: HandlerInput) -> Result<Response, EngineError> {
 	Ok(Response {
 		body: input.request.name.as_bytes().to_vec(),
 		fmt: Format::Json,
@@ -273,13 +273,13 @@ fn test_router_error_from_string() {
 #[test]
 fn test_router_error_to_graph_error() {
 	let router_error = RouterError::New("router error".to_string());
-	let graph_error: GraphError = router_error.into();
+	let graph_error: EngineError = router_error.into();
 	assert!(graph_error.to_string().contains("router error"));
 }
 
 #[test]
 fn test_graph_error_to_router_error() {
-	let graph_error = GraphError::New("graph error".to_string());
+	let graph_error = StorageError::Backend("graph error".to_string()).into();
 	let router_error: RouterError = graph_error.into();
 	assert!(router_error.to_string().contains("graph error"));
 }

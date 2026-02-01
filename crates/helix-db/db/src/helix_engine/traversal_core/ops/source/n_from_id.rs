@@ -1,14 +1,14 @@
 use crate::helix_engine::storage_core::storage_methods::StorageMethods;
 use crate::helix_engine::traversal_core::traversal_iter::RoTraversalIterator;
 use crate::helix_engine::traversal_core::traversal_value::TraversalValue;
-use crate::helix_engine::types::GraphError;
+use crate::helix_engine::types::EngineError;
 
 pub trait NFromIdAdapter<
 	'db: 'arena,
 	'arena: 'txn,
 	'txn,
-	I: Iterator<Item = Result<TraversalValue<'arena>, GraphError>>,
->: Iterator<Item = Result<TraversalValue<'arena>, GraphError>>
+	I: Iterator<Item = Result<TraversalValue<'arena>, EngineError>>,
+>: Iterator<Item = Result<TraversalValue<'arena>, EngineError>>
 {
 	/// Returns an iterator containing the node with the given id.
 	///
@@ -20,11 +20,11 @@ pub trait NFromIdAdapter<
 		'db,
 		'arena,
 		'txn,
-		impl Iterator<Item = Result<TraversalValue<'arena>, GraphError>>,
+		impl Iterator<Item = Result<TraversalValue<'arena>, EngineError>>,
 	>;
 }
 
-impl<'db, 'arena, 'txn, I: Iterator<Item = Result<TraversalValue<'arena>, GraphError>>>
+impl<'db, 'arena, 'txn, I: Iterator<Item = Result<TraversalValue<'arena>, EngineError>>>
 	NFromIdAdapter<'db, 'arena, 'txn, I> for RoTraversalIterator<'db, 'arena, 'txn, I>
 {
 	#[inline]
@@ -35,7 +35,7 @@ impl<'db, 'arena, 'txn, I: Iterator<Item = Result<TraversalValue<'arena>, GraphE
 		'db,
 		'arena,
 		'txn,
-		impl Iterator<Item = Result<TraversalValue<'arena>, GraphError>>,
+		impl Iterator<Item = Result<TraversalValue<'arena>, EngineError>>,
 	> {
 		let n_from_id = std::iter::once({
 			match self.storage.get_node(self.txn, id, self.arena) {

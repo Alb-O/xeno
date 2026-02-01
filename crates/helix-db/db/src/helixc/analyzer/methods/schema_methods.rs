@@ -460,7 +460,7 @@ const RESERVED_TYPE_NAMES: &[&str] = &[
 	"HVector",
 	// Protocol and error types
 	"Value",
-	"GraphError",
+	"EngineError",
 	"VectorError",
 	// Other commonly used types
 	"Response",
@@ -1190,10 +1190,10 @@ mod tests {
 	#[test]
 	fn test_reserved_type_name_graph_error() {
 		let source = r#"
-            N::GraphError { message: String }
+            N::EngineError { message: String }
 
             QUERY test() =>
-                e <- N<GraphError>
+                e <- N<EngineError>
                 RETURN e
         "#;
 

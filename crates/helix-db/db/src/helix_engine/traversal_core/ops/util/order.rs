@@ -4,7 +4,7 @@ use itertools::Itertools;
 
 use crate::helix_engine::traversal_core::traversal_iter::RoTraversalIterator;
 use crate::helix_engine::traversal_core::traversal_value::TraversalValue;
-use crate::helix_engine::types::GraphError;
+use crate::helix_engine::types::EngineError;
 use crate::protocol::value::Value;
 
 pub struct OrderByAsc<I> {
@@ -13,7 +13,7 @@ pub struct OrderByAsc<I> {
 
 impl<'arena, I> Iterator for OrderByAsc<I>
 where
-	I: Iterator<Item = Result<TraversalValue<'arena>, GraphError>>,
+	I: Iterator<Item = Result<TraversalValue<'arena>, EngineError>>,
 {
 	type Item = I::Item;
 
@@ -28,7 +28,7 @@ pub struct OrderByDesc<I> {
 
 impl<'arena, I> Iterator for OrderByDesc<I>
 where
-	I: Iterator<Item = Result<TraversalValue<'arena>, GraphError>>,
+	I: Iterator<Item = Result<TraversalValue<'arena>, EngineError>>,
 {
 	type Item = I::Item;
 
@@ -45,7 +45,7 @@ pub trait OrderByAdapter<'db, 'arena, 'txn>: Iterator {
 		'db,
 		'arena,
 		'txn,
-		impl Iterator<Item = Result<TraversalValue<'arena>, GraphError>>,
+		impl Iterator<Item = Result<TraversalValue<'arena>, EngineError>>,
 	>
 	where
 		F: Fn(&TraversalValue<'arena>) -> Value;
@@ -57,13 +57,13 @@ pub trait OrderByAdapter<'db, 'arena, 'txn>: Iterator {
 		'db,
 		'arena,
 		'txn,
-		impl Iterator<Item = Result<TraversalValue<'arena>, GraphError>>,
+		impl Iterator<Item = Result<TraversalValue<'arena>, EngineError>>,
 	>
 	where
 		F: Fn(&TraversalValue<'arena>) -> Value;
 }
 
-impl<'db, 'arena, 'txn, I: Iterator<Item = Result<TraversalValue<'arena>, GraphError>>>
+impl<'db, 'arena, 'txn, I: Iterator<Item = Result<TraversalValue<'arena>, EngineError>>>
 	OrderByAdapter<'db, 'arena, 'txn> for RoTraversalIterator<'db, 'arena, 'txn, I>
 {
 	fn order_by_asc<F>(
@@ -73,7 +73,7 @@ impl<'db, 'arena, 'txn, I: Iterator<Item = Result<TraversalValue<'arena>, GraphE
 		'db,
 		'arena,
 		'txn,
-		impl Iterator<Item = Result<TraversalValue<'arena>, GraphError>>,
+		impl Iterator<Item = Result<TraversalValue<'arena>, EngineError>>,
 	>
 	where
 		F: Fn(&TraversalValue<'arena>) -> Value,
@@ -99,7 +99,7 @@ impl<'db, 'arena, 'txn, I: Iterator<Item = Result<TraversalValue<'arena>, GraphE
 		'db,
 		'arena,
 		'txn,
-		impl Iterator<Item = Result<TraversalValue<'arena>, GraphError>>,
+		impl Iterator<Item = Result<TraversalValue<'arena>, EngineError>>,
 	>
 	where
 		F: Fn(&TraversalValue<'arena>) -> Value,

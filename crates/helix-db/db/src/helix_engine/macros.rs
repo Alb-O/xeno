@@ -95,14 +95,10 @@ pub mod macros {
 					if let helix_db::protocol::value::Value::String(val) = &val {
 						Ok(*val == $value)
 					} else {
-						Err(helix_db::helix_engine::types::GraphError::from(
-							"Invalid node".to_string(),
-						))
+						Err(helix_db::helix_engine::types::TraversalError::InvalidNode.into())
 					}
 				} else {
-					Err(helix_db::helix_engine::types::GraphError::from(
-						"Invalid node".to_string(),
-					))
+					Err(helix_db::helix_engine::types::TraversalError::InvalidNode.into())
 				}
 			}
 		};
@@ -116,14 +112,16 @@ pub mod macros {
 					if let helix_db::protocol::value::Value::String(val) = &val {
 						Ok(*val == $value)
 					} else {
-						Err(helix_db::helix_engine::types::GraphError::from(
+						Err(helix_db::helix_engine::types::TraversalError::Message(
 							"Invalid edge".to_string(),
-						))
+						)
+						.into())
 					}
 				} else {
-					Err(helix_db::helix_engine::types::GraphError::from(
+					Err(helix_db::helix_engine::types::TraversalError::Message(
 						"Invalid edge".to_string(),
-					))
+					)
+					.into())
 				}
 			}
 		};

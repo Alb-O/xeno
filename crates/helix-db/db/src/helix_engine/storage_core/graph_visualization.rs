@@ -8,7 +8,7 @@ use sonic_rs::{JsonValueMutTrait, Value as JsonValue, json};
 
 use crate::debug_println;
 use crate::helix_engine::storage_core::HelixGraphStorage;
-use crate::helix_engine::types::GraphError;
+use crate::helix_engine::types::{EngineError, StorageError, TraversalError};
 use crate::utils::items::Node;
 
 /// Set of functions to access the nodes and edges stored to export to json
@@ -19,10 +19,10 @@ pub trait GraphVisualization {
 		txn: &RoTxn,
 		k: Option<usize>,
 		node_prop: Option<String>,
-	) -> Result<String, GraphError>;
+	) -> Result<String, EngineError>;
 
 	/// Retrieves database statistics in JSON format.
-	fn get_db_stats_json(&self, txn: &RoTxn) -> Result<String, GraphError>;
+	fn get_db_stats_json(&self, txn: &RoTxn) -> Result<String, EngineError>;
 }
 
 impl GraphVisualization for HelixGraphStorage {
@@ -31,25 +31,26 @@ impl GraphVisualization for HelixGraphStorage {
 		txn: &RoTxn,
 		k: Option<usize>,
 		node_prop: Option<String>,
-	) -> Result<String, GraphError> {
+	) -> Result<String, EngineError> {
 		let k = k.unwrap_or(200);
 		if k > 300 {
-			return Err(GraphError::New(
+			return Err(TraversalError::Message(
 				"cannot not visualize more than 300 nodes!".to_string(),
-			));
+			)
+			.into());
 		}
 
 		if self.nodes_db.is_empty(txn)? || self.edges_db.is_empty(txn)? {
-			return Err(GraphError::New("edges or nodes db is empty!".to_string()));
+			return Err(TraversalError::Message("edges or nodes db is empty!".to_string()).into());
 		}
 
 		let top_nodes = self.get_nodes_by_cardinality(txn, k)?;
 
 		let ret_json = self.cards_to_json(txn, k, top_nodes, node_prop)?;
-		sonic_rs::to_string(&ret_json).map_err(|e| GraphError::New(e.to_string()))
+		sonic_rs::to_string(&ret_json).map_err(|e| StorageError::Conversion(e.to_string()).into())
 	}
 
-	fn get_db_stats_json(&self, txn: &RoTxn) -> Result<String, GraphError> {
+	fn get_db_stats_json(&self, txn: &RoTxn) -> Result<String, EngineError> {
 		let result = json!({
 			"num_nodes":   self.nodes_db.len(txn).unwrap_or(0),
 			"num_edges":   self.edges_db.len(txn).unwrap_or(0),
@@ -57,7 +58,7 @@ impl GraphVisualization for HelixGraphStorage {
 		});
 		debug_println!("db stats json: {:?}", result);
 
-		sonic_rs::to_string(&result).map_err(|e| GraphError::New(e.to_string()))
+		sonic_rs::to_string(&result).map_err(|e| StorageError::Conversion(e.to_string()).into())
 	}
 }
 
@@ -70,7 +71,7 @@ impl HelixGraphStorage {
 		&self,
 		txn: &RoTxn,
 		k: usize,
-	) -> Result<Vec<(u128, Vec<(u128, u128, u128)>, Vec<(u128, u128, u128)>)>, GraphError> {
+	) -> Result<Vec<(u128, Vec<(u128, u128, u128)>, Vec<(u128, u128, u128)>)>, EngineError> {
 		let node_count = self.nodes_db.len(txn)?;
 
 		type EdgeID = u128;
@@ -238,7 +239,7 @@ impl HelixGraphStorage {
 		k: usize,
 		top_nodes: Vec<(u128, Vec<(u128, u128, u128)>, Vec<(u128, u128, u128)>)>,
 		node_prop: Option<String>,
-	) -> Result<JsonValue, GraphError> {
+	) -> Result<JsonValue, EngineError> {
 		let mut nodes = Vec::with_capacity(k);
 		let mut edges = Vec::new();
 
@@ -258,7 +259,9 @@ impl HelixGraphStorage {
 						{
 							json_node
 								.as_object_mut()
-								.ok_or_else(|| GraphError::New("invalid JSON object".to_string()))?
+								.ok_or_else(|| {
+									StorageError::Conversion("invalid JSON object".to_string())
+								})?
 								.insert(
 									"label",
 									sonic_rs::to_value(&prop_value.inner_stringify())
@@ -279,7 +282,7 @@ impl HelixGraphStorage {
 						}));
 					});
 
-				Ok::<(), GraphError>(())
+				Ok::<(), EngineError>(())
 			})?;
 
 		let result = json!({

@@ -5,7 +5,7 @@ use tempfile::TempDir;
 
 use crate::helix_engine::traversal_core::config::Config;
 use crate::helix_engine::traversal_core::{HelixGraphEngine, HelixGraphEngineOpts};
-use crate::helix_engine::types::GraphError;
+use crate::helix_engine::types::{EngineError, StorageError};
 use crate::helix_gateway::gateway::CoreSetter;
 use crate::helix_gateway::router::router::{HandlerInput, HelixRouter, IoContFn};
 use crate::helix_gateway::worker_pool::WorkerPool;
@@ -28,15 +28,15 @@ fn create_test_graph() -> (Arc<HelixGraphEngine>, TempDir) {
 	(graph, temp_dir)
 }
 
-fn test_handler(_input: HandlerInput) -> Result<Response, GraphError> {
+fn test_handler(_input: HandlerInput) -> Result<Response, EngineError> {
 	Ok(Response {
 		body: b"test response".to_vec(),
 		fmt: Format::Json,
 	})
 }
 
-fn error_handler(_input: HandlerInput) -> Result<Response, GraphError> {
-	Err(GraphError::New("handler error".to_string()))
+fn error_handler(_input: HandlerInput) -> Result<Response, EngineError> {
+	Err(StorageError::Backend("handler error".to_string()).into())
 }
 
 fn create_test_request(name: &str, req_type: RequestType) -> Request {
@@ -790,7 +790,7 @@ async fn test_high_volume_requests() {
 
 #[tokio::test]
 async fn test_handler_receives_correct_request() {
-	fn check_request_handler(input: HandlerInput) -> Result<Response, GraphError> {
+	fn check_request_handler(input: HandlerInput) -> Result<Response, EngineError> {
 		assert_eq!(input.request.name, "check_name");
 		Ok(Response {
 			body: input.request.name.as_bytes().to_vec(),
@@ -830,7 +830,7 @@ async fn test_handler_receives_correct_request() {
 
 #[tokio::test]
 async fn test_handler_receives_graph_access() {
-	fn graph_access_handler(input: HandlerInput) -> Result<Response, GraphError> {
+	fn graph_access_handler(input: HandlerInput) -> Result<Response, EngineError> {
 		// Verify we have access to the graph
 		let _graph = input.graph;
 		Ok(Response {
@@ -1316,7 +1316,7 @@ fn test_worker_pool_with_single_worker() {
 
 #[tokio::test]
 async fn test_response_with_custom_body() {
-	fn custom_handler(_input: HandlerInput) -> Result<Response, GraphError> {
+	fn custom_handler(_input: HandlerInput) -> Result<Response, EngineError> {
 		Ok(Response {
 			body: b"custom response data".to_vec(),
 			fmt: Format::Json,
@@ -1677,7 +1677,7 @@ async fn test_writer_continuation_priority() {
 	REQUEST_B_START_ORDER.store(0, Ordering::SeqCst);
 
 	// Handler that returns IoNeeded - simulates async operation like embedding fetch
-	fn io_handler_a(_input: HandlerInput) -> Result<Response, GraphError> {
+	fn io_handler_a(_input: HandlerInput) -> Result<Response, EngineError> {
 		Err(IoContFn::create_err(move |cont_tx, ret_chan| {
 			Box::pin(async move {
 				// Very short async delay - continuation will be ready quickly
@@ -1695,7 +1695,8 @@ async fn test_writer_continuation_priority() {
 								body: b"continuation_a".to_vec(),
 								fmt: Format::Json,
 							})
-						}) as Box<dyn FnOnce() -> Result<Response, GraphError> + Send + Sync>,
+						})
+							as Box<dyn FnOnce() -> Result<Response, EngineError> + Send + Sync>,
 					))
 					.await
 					.expect("cont channel should be alive");
@@ -1704,7 +1705,7 @@ async fn test_writer_continuation_priority() {
 	}
 
 	// Handler B - records when it starts processing
-	fn handler_b(_input: HandlerInput) -> Result<Response, GraphError> {
+	fn handler_b(_input: HandlerInput) -> Result<Response, EngineError> {
 		// Record when request B starts
 		let order = ORDER_COUNTER.fetch_add(1, Ordering::SeqCst);
 		REQUEST_B_START_ORDER.store(order, Ordering::SeqCst);
@@ -1807,7 +1808,7 @@ async fn test_writer_continuation_priority() {
 #[tokio::test]
 async fn test_read_continuation_channel_basic() {
 	// Handler that returns IoNeeded - simulates async operation
-	fn io_read_handler(_input: HandlerInput) -> Result<Response, GraphError> {
+	fn io_read_handler(_input: HandlerInput) -> Result<Response, EngineError> {
 		Err(IoContFn::create_err(move |cont_tx, ret_chan| {
 			Box::pin(async move {
 				// Simulate async IO (e.g., fetching embeddings)
@@ -1822,7 +1823,8 @@ async fn test_read_continuation_channel_basic() {
 								body: b"read_continuation_result".to_vec(),
 								fmt: Format::Json,
 							})
-						}) as Box<dyn FnOnce() -> Result<Response, GraphError> + Send + Sync>,
+						})
+							as Box<dyn FnOnce() -> Result<Response, EngineError> + Send + Sync>,
 					))
 					.await
 					.expect("cont channel should be alive");
@@ -1874,7 +1876,7 @@ async fn test_read_continuation_channel_concurrent() {
 
 	static CONTINUATION_COUNT: AtomicUsize = AtomicUsize::new(0);
 
-	fn io_read_handler(_input: HandlerInput) -> Result<Response, GraphError> {
+	fn io_read_handler(_input: HandlerInput) -> Result<Response, EngineError> {
 		Err(IoContFn::create_err(move |cont_tx, ret_chan| {
 			Box::pin(async move {
 				// Variable delay to test concurrent handling
@@ -1890,7 +1892,8 @@ async fn test_read_continuation_channel_concurrent() {
 								body: b"concurrent_read".to_vec(),
 								fmt: Format::Json,
 							})
-						}) as Box<dyn FnOnce() -> Result<Response, GraphError> + Send + Sync>,
+						})
+							as Box<dyn FnOnce() -> Result<Response, EngineError> + Send + Sync>,
 					))
 					.await
 					.expect("cont channel should be alive");
@@ -1975,7 +1978,7 @@ async fn test_parallel_write_requests_no_crash() {
 
 	static WRITE_COUNT: AtomicUsize = AtomicUsize::new(0);
 
-	fn write_handler(_input: HandlerInput) -> Result<Response, GraphError> {
+	fn write_handler(_input: HandlerInput) -> Result<Response, EngineError> {
 		WRITE_COUNT.fetch_add(1, Ordering::SeqCst);
 		// Small delay to simulate write operation
 		std::thread::sleep(std::time::Duration::from_millis(1));
@@ -2062,7 +2065,7 @@ async fn test_parallel_write_requests_with_continuations() {
 
 	static CONTINUATION_COUNT: AtomicUsize = AtomicUsize::new(0);
 
-	fn io_write_handler(_input: HandlerInput) -> Result<Response, GraphError> {
+	fn io_write_handler(_input: HandlerInput) -> Result<Response, EngineError> {
 		Err(IoContFn::create_err(move |cont_tx, ret_chan| {
 			Box::pin(async move {
 				// Simulate async IO
@@ -2077,7 +2080,8 @@ async fn test_parallel_write_requests_with_continuations() {
 								body: b"write_with_cont".to_vec(),
 								fmt: Format::Json,
 							})
-						}) as Box<dyn FnOnce() -> Result<Response, GraphError> + Send + Sync>,
+						})
+							as Box<dyn FnOnce() -> Result<Response, EngineError> + Send + Sync>,
 					))
 					.await
 					.expect("cont channel should be alive");
@@ -2167,7 +2171,7 @@ async fn test_parallel_writes_maintain_order() {
 	static ORDER_COUNTER: AtomicUsize = AtomicUsize::new(0);
 	static EXECUTION_ORDER: Mutex<Vec<usize>> = Mutex::new(Vec::new());
 
-	fn ordering_write_handler(input: HandlerInput) -> Result<Response, GraphError> {
+	fn ordering_write_handler(input: HandlerInput) -> Result<Response, EngineError> {
 		// Parse request ID from body
 		let id: usize = String::from_utf8_lossy(&input.request.body)
 			.parse()
@@ -2262,7 +2266,7 @@ async fn test_write_multiple_continuations_in_sequence() {
 
 	static CONTINUATION_COUNT: AtomicUsize = AtomicUsize::new(0);
 
-	fn multi_cont_handler(_input: HandlerInput) -> Result<Response, GraphError> {
+	fn multi_cont_handler(_input: HandlerInput) -> Result<Response, EngineError> {
 		Err(IoContFn::create_err(move |cont_tx, ret_chan| {
 			Box::pin(async move {
 				// First async operation
@@ -2279,7 +2283,8 @@ async fn test_write_multiple_continuations_in_sequence() {
 								body: b"multi_cont_done".to_vec(),
 								fmt: Format::Json,
 							})
-						}) as Box<dyn FnOnce() -> Result<Response, GraphError> + Send + Sync>,
+						})
+							as Box<dyn FnOnce() -> Result<Response, EngineError> + Send + Sync>,
 					))
 					.await
 					.expect("cont channel should be alive");
@@ -2348,7 +2353,7 @@ async fn test_mixed_read_write_with_continuations() {
 	static READ_CONT_COUNT: AtomicUsize = AtomicUsize::new(0);
 	static WRITE_CONT_COUNT: AtomicUsize = AtomicUsize::new(0);
 
-	fn io_read_handler(_input: HandlerInput) -> Result<Response, GraphError> {
+	fn io_read_handler(_input: HandlerInput) -> Result<Response, EngineError> {
 		Err(IoContFn::create_err(move |cont_tx, ret_chan| {
 			Box::pin(async move {
 				tokio::time::sleep(std::time::Duration::from_millis(10)).await;
@@ -2361,7 +2366,8 @@ async fn test_mixed_read_write_with_continuations() {
 								body: b"read_done".to_vec(),
 								fmt: Format::Json,
 							})
-						}) as Box<dyn FnOnce() -> Result<Response, GraphError> + Send + Sync>,
+						})
+							as Box<dyn FnOnce() -> Result<Response, EngineError> + Send + Sync>,
 					))
 					.await
 					.expect("cont channel should be alive");
@@ -2369,7 +2375,7 @@ async fn test_mixed_read_write_with_continuations() {
 		}))
 	}
 
-	fn io_write_handler(_input: HandlerInput) -> Result<Response, GraphError> {
+	fn io_write_handler(_input: HandlerInput) -> Result<Response, EngineError> {
 		Err(IoContFn::create_err(move |cont_tx, ret_chan| {
 			Box::pin(async move {
 				tokio::time::sleep(std::time::Duration::from_millis(10)).await;
@@ -2382,7 +2388,8 @@ async fn test_mixed_read_write_with_continuations() {
 								body: b"write_done".to_vec(),
 								fmt: Format::Json,
 							})
-						}) as Box<dyn FnOnce() -> Result<Response, GraphError> + Send + Sync>,
+						})
+							as Box<dyn FnOnce() -> Result<Response, EngineError> + Send + Sync>,
 					))
 					.await
 					.expect("cont channel should be alive");
@@ -2491,7 +2498,7 @@ async fn test_stress_parallel_writes_with_continuations() {
 
 	static SUCCESS_COUNT: AtomicUsize = AtomicUsize::new(0);
 
-	fn stress_write_handler(_input: HandlerInput) -> Result<Response, GraphError> {
+	fn stress_write_handler(_input: HandlerInput) -> Result<Response, EngineError> {
 		Err(IoContFn::create_err(move |cont_tx, ret_chan| {
 			Box::pin(async move {
 				// Random delay to stress test timing
@@ -2507,7 +2514,8 @@ async fn test_stress_parallel_writes_with_continuations() {
 								body: b"stress_ok".to_vec(),
 								fmt: Format::Json,
 							})
-						}) as Box<dyn FnOnce() -> Result<Response, GraphError> + Send + Sync>,
+						})
+							as Box<dyn FnOnce() -> Result<Response, EngineError> + Send + Sync>,
 					))
 					.await
 					.expect("cont channel should be alive");

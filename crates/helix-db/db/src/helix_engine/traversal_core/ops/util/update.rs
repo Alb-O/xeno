@@ -2,7 +2,7 @@ use itertools::Itertools;
 
 use crate::helix_engine::traversal_core::traversal_iter::RwTraversalIterator;
 use crate::helix_engine::traversal_core::traversal_value::TraversalValue;
-use crate::helix_engine::types::GraphError;
+use crate::helix_engine::types::{EngineError, TraversalError};
 use crate::protocol::value::Value;
 use crate::utils::properties::ImmutablePropertiesMap;
 
@@ -12,9 +12,9 @@ pub struct Update<I> {
 
 impl<'arena, I> Iterator for Update<I>
 where
-	I: Iterator<Item = Result<TraversalValue<'arena>, GraphError>>,
+	I: Iterator<Item = Result<TraversalValue<'arena>, EngineError>>,
 {
-	type Item = Result<TraversalValue<'arena>, GraphError>;
+	type Item = Result<TraversalValue<'arena>, EngineError>;
 
 	fn next(&mut self) -> Option<Self::Item> {
 		self.iter.next()
@@ -29,11 +29,11 @@ pub trait UpdateAdapter<'db, 'arena, 'txn>: Iterator {
 		'db,
 		'arena,
 		'txn,
-		impl Iterator<Item = Result<TraversalValue<'arena>, GraphError>>,
+		impl Iterator<Item = Result<TraversalValue<'arena>, EngineError>>,
 	>;
 }
 
-impl<'db, 'arena, 'txn, I: Iterator<Item = Result<TraversalValue<'arena>, GraphError>>>
+impl<'db, 'arena, 'txn, I: Iterator<Item = Result<TraversalValue<'arena>, EngineError>>>
 	UpdateAdapter<'db, 'arena, 'txn> for RwTraversalIterator<'db, 'arena, 'txn, I>
 {
 	fn update(
@@ -43,12 +43,12 @@ impl<'db, 'arena, 'txn, I: Iterator<Item = Result<TraversalValue<'arena>, GraphE
 		'db,
 		'arena,
 		'txn,
-		impl Iterator<Item = Result<TraversalValue<'arena>, GraphError>>,
+		impl Iterator<Item = Result<TraversalValue<'arena>, EngineError>>,
 	> {
 		let mut results = bumpalo::collections::Vec::new_in(self.arena);
 
 		for item in self.inner {
-			let res = (|| -> Result<TraversalValue<'arena>, GraphError> {
+			let res = (|| -> Result<TraversalValue<'arena>, EngineError> {
 				match item? {
 					TraversalValue::Node(mut node) => {
 						match node.properties {
@@ -194,7 +194,7 @@ impl<'db, 'arena, 'txn, I: Iterator<Item = Result<TraversalValue<'arena>, GraphE
 					// TODO: Implement update properties for Vectors:
 					// TraversalValue::Vector(hvector) => todo!(),
 					// TraversalValue::VectorNodeWithoutVectorData(vector_without_data) => todo!(),
-					_ => Err(GraphError::New("Unsupported value type".to_string())),
+					_ => Err(TraversalError::UnsupportedValueType.into()),
 				}
 			})();
 

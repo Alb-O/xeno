@@ -7,7 +7,7 @@ use serde::Deserialize;
 use sonic_rs::{JsonValueTrait, json};
 use tracing::info;
 
-use crate::helix_engine::types::GraphError;
+use crate::helix_engine::types::{EngineError, StorageError, TraversalError};
 use crate::helix_gateway::gateway::AppState;
 use crate::helix_gateway::router::router::{Handler, HandlerInput, HandlerSubmission};
 use crate::protocol::request::RequestType;
@@ -55,9 +55,9 @@ pub async fn nodes_by_label_handler(
 	}
 }
 
-pub fn nodes_by_label_inner(input: HandlerInput) -> Result<protocol::Response, GraphError> {
+pub fn nodes_by_label_inner(input: HandlerInput) -> Result<protocol::Response, EngineError> {
 	let db = Arc::clone(&input.graph.storage);
-	let txn = db.graph_env.read_txn().map_err(GraphError::from)?;
+	let txn = db.graph_env.read_txn().map_err(EngineError::from)?;
 	let arena = bumpalo::Bump::new();
 
 	let (label, limit) = if !input.request.body.is_empty() {
@@ -79,7 +79,7 @@ pub fn nodes_by_label_inner(input: HandlerInput) -> Result<protocol::Response, G
 		(None, None)
 	};
 
-	let label = label.ok_or_else(|| GraphError::New("label is required".to_string()))?;
+	let label = label.ok_or_else(|| TraversalError::ParamNotFound("label").into())?;
 	const MAX_PREALLOCATE_CAPACITY: usize = 100_000;
 
 	let initial_capacity = match limit {
@@ -132,7 +132,7 @@ pub fn nodes_by_label_inner(input: HandlerInput) -> Result<protocol::Response, G
 	});
 
 	Ok(protocol::Response {
-		body: sonic_rs::to_vec(&result).map_err(|e| GraphError::New(e.to_string()))?,
+		body: sonic_rs::to_vec(&result).map_err(|e| StorageError::Conversion(e.to_string()))?,
 		fmt: Default::default(),
 	})
 }

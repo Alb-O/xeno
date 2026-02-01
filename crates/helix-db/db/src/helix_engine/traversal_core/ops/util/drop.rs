@@ -4,7 +4,7 @@ use crate::helix_engine::bm25::bm25::BM25;
 use crate::helix_engine::storage_core::HelixGraphStorage;
 use crate::helix_engine::storage_core::storage_methods::StorageMethods;
 use crate::helix_engine::traversal_core::traversal_value::TraversalValue;
-use crate::helix_engine::types::GraphError;
+use crate::helix_engine::types::{EngineError, StorageError};
 
 pub struct Drop<I> {
 	pub iter: I,
@@ -12,15 +12,15 @@ pub struct Drop<I> {
 
 impl<'db, 'arena, 'txn, I> Drop<I>
 where
-	I: Iterator<Item = Result<TraversalValue<'arena>, GraphError>>,
+	I: Iterator<Item = Result<TraversalValue<'arena>, EngineError>>,
 {
 	pub fn drop_traversal(
 		iter: I,
 		storage: &'db HelixGraphStorage,
 		txn: &'txn mut RwTxn<'db>,
-	) -> Result<(), GraphError> {
+	) -> Result<(), EngineError> {
 		iter.into_iter().filter_map(|item| item.ok()).try_for_each(
-			|item| -> Result<(), GraphError> {
+			|item| -> Result<(), EngineError> {
 				match item {
 					TraversalValue::Node(node) => match storage.drop_node(txn, &node.id) {
 						Ok(_) => {
@@ -49,9 +49,7 @@ where
 						}
 					}
 					TraversalValue::Empty => Ok(()),
-					_ => Err(GraphError::ConversionError(format!(
-						"Incorrect Type: {item:?}"
-					))),
+					_ => Err(StorageError::Conversion(format!("Incorrect Type: {item:?}")).into()),
 				}
 			},
 		)

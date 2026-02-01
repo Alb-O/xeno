@@ -12,7 +12,7 @@ use crate::helix_engine::traversal_core::ops::source::n_from_index::NFromIndexAd
 use crate::helix_engine::traversal_core::ops::util::drop::Drop;
 use crate::helix_engine::traversal_core::ops::util::update::UpdateAdapter;
 use crate::helix_engine::traversal_core::traversal_value::TraversalValue;
-use crate::helix_engine::types::{GraphError, SecondaryIndex};
+use crate::helix_engine::types::{EngineError, SecondaryIndex};
 use crate::props;
 use crate::protocol::value::Value;
 
@@ -28,7 +28,7 @@ fn setup_indexed_db() -> (TempDir, Arc<HelixGraphStorage>) {
 
 fn to_result_iter(
 	values: Vec<TraversalValue>,
-) -> impl Iterator<Item = Result<TraversalValue, GraphError>> {
+) -> impl Iterator<Item = Result<TraversalValue, EngineError>> {
 	values.into_iter().map(Ok)
 }
 

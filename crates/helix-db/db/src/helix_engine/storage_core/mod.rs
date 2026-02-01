@@ -73,7 +73,7 @@ use crate::helix_engine::bm25::bm25::HBM25Config;
 use crate::helix_engine::storage_core::storage_methods::{DBMethods, StorageMethods};
 use crate::helix_engine::storage_core::version_info::VersionInfo;
 use crate::helix_engine::traversal_core::config::Config;
-use crate::helix_engine::types::{GraphError, SecondaryIndex};
+use crate::helix_engine::types::{EngineError, SecondaryIndex, StorageError, TraversalError};
 use crate::helix_engine::vector_core::hnsw::HNSW;
 use crate::helix_engine::vector_core::vector_core::{HNSWConfig, VectorCore};
 use crate::utils::items::{Edge, Node};
@@ -116,7 +116,7 @@ impl HelixGraphStorage {
 		path: &str,
 		config: Config,
 		version_info: VersionInfo,
-	) -> Result<HelixGraphStorage, GraphError> {
+	) -> Result<HelixGraphStorage, EngineError> {
 		fs::create_dir_all(path)?;
 
 		let db_size = if config.db_max_size_gb.unwrap_or(100) >= 9999 {
@@ -323,16 +323,16 @@ impl HelixGraphStorage {
 	/// Returns (edge_id, node_id)
 	#[inline(always)]
 	// Uses Type Aliases for clarity
-	pub fn unpack_adj_edge_data(data: &[u8]) -> Result<(EdgeId, NodeId), GraphError> {
+	pub fn unpack_adj_edge_data(data: &[u8]) -> Result<(EdgeId, NodeId), EngineError> {
 		let edge_id = u128::from_be_bytes(
 			data[0..16]
 				.try_into()
-				.map_err(|_| GraphError::SliceLengthError)?,
+				.map_err(|_| StorageError::SliceLengthError)?,
 		);
 		let node_id = u128::from_be_bytes(
 			data[16..32]
 				.try_into()
-				.map_err(|_| GraphError::SliceLengthError)?,
+				.map_err(|_| StorageError::SliceLengthError)?,
 		);
 		Ok((edge_id, node_id))
 	}
@@ -354,7 +354,7 @@ impl StorageConfig {
 
 impl DBMethods for HelixGraphStorage {
 	/// Creates a secondary index lmdb db (table) for a given index name
-	fn create_secondary_index(&mut self, index: SecondaryIndex) -> Result<(), GraphError> {
+	fn create_secondary_index(&mut self, index: SecondaryIndex) -> Result<(), EngineError> {
 		let mut wtxn = self.graph_env.write_txn()?;
 		match index {
 			SecondaryIndex::Unique(name) => {
@@ -375,12 +375,12 @@ impl DBMethods for HelixGraphStorage {
 	}
 
 	/// Drops a secondary index lmdb db (table) for a given index name
-	fn drop_secondary_index(&mut self, name: &str) -> Result<(), GraphError> {
+	fn drop_secondary_index(&mut self, name: &str) -> Result<(), EngineError> {
 		let mut wtxn = self.graph_env.write_txn()?;
 		let (db, _) = self
 			.secondary_indices
 			.get(name)
-			.ok_or(GraphError::New(format!("Secondary Index {name} not found")))?;
+			.ok_or_else(|| StorageError::Backend(format!("Secondary Index {name} not found")))?;
 		db.clear(&mut wtxn)?;
 		wtxn.commit()?;
 		self.secondary_indices.remove(name);
@@ -395,10 +395,10 @@ impl StorageMethods for HelixGraphStorage {
 		txn: &RoTxn,
 		id: &u128,
 		arena: &'arena bumpalo::Bump,
-	) -> Result<Node<'arena>, GraphError> {
+	) -> Result<Node<'arena>, EngineError> {
 		let node = match self.nodes_db.get(txn, Self::node_key(id))? {
 			Some(data) => data,
-			None => return Err(GraphError::NodeNotFound),
+			None => return Err(TraversalError::NodeNotFound.into()),
 		};
 		let node: Node = Node::from_bytes(*id, node, arena)?;
 		let node = self.version_info.upgrade_to_node_latest(node);
@@ -411,16 +411,16 @@ impl StorageMethods for HelixGraphStorage {
 		txn: &RoTxn,
 		id: &u128,
 		arena: &'arena bumpalo::Bump,
-	) -> Result<Edge<'arena>, GraphError> {
+	) -> Result<Edge<'arena>, EngineError> {
 		let edge = match self.edges_db.get(txn, Self::edge_key(id))? {
 			Some(data) => data,
-			None => return Err(GraphError::EdgeNotFound),
+			None => return Err(TraversalError::EdgeNotFound.into()),
 		};
 		let edge: Edge = Edge::from_bytes(*id, edge, arena)?;
 		Ok(self.version_info.upgrade_to_edge_latest(edge))
 	}
 
-	fn drop_node(&self, txn: &mut RwTxn, id: &u128) -> Result<(), GraphError> {
+	fn drop_node(&self, txn: &mut RwTxn, id: &u128) -> Result<(), EngineError> {
 		let arena = bumpalo::Bump::new();
 		// Get node to get its label
 		//let node = self.get_node(txn, id)?;
@@ -499,10 +499,10 @@ impl StorageMethods for HelixGraphStorage {
 				Some(value) => match postcard::to_stdvec(value) {
 					Ok(serialized) => {
 						if let Err(e) = db.delete_one_duplicate(txn, &serialized, &node.id) {
-							return Err(GraphError::from(e));
+							return Err(EngineError::from(e));
 						}
 					}
-					Err(e) => return Err(GraphError::from(e)),
+					Err(e) => return Err(EngineError::from(e)),
 				},
 				None => {
 					// Property not found - this is expected for some indices
@@ -517,12 +517,12 @@ impl StorageMethods for HelixGraphStorage {
 		Ok(())
 	}
 
-	fn drop_edge(&self, txn: &mut RwTxn, edge_id: &u128) -> Result<(), GraphError> {
+	fn drop_edge(&self, txn: &mut RwTxn, edge_id: &u128) -> Result<(), EngineError> {
 		let arena = bumpalo::Bump::new();
 		// Get edge data first
 		let edge_data = match self.edges_db.get(txn, Self::edge_key(edge_id))? {
 			Some(data) => data,
-			None => return Err(GraphError::EdgeNotFound),
+			None => return Err(TraversalError::EdgeNotFound.into()),
 		};
 		let edge: Edge = Edge::from_bytes(*edge_id, edge_data, &arena)?;
 		let label_hash = hash_label(edge.label, None);
@@ -544,7 +544,7 @@ impl StorageMethods for HelixGraphStorage {
 		Ok(())
 	}
 
-	fn drop_vector(&self, txn: &mut RwTxn, id: &u128) -> Result<(), GraphError> {
+	fn drop_vector(&self, txn: &mut RwTxn, id: &u128) -> Result<(), EngineError> {
 		let arena = bumpalo::Bump::new();
 		let mut edges = HashSet::new();
 		let mut out_edges = HashSet::new();

@@ -9,7 +9,7 @@ use tokio::task;
 
 use crate::debug_println;
 use crate::helix_engine::storage_core::HelixGraphStorage;
-use crate::helix_engine::types::GraphError;
+use crate::helix_engine::types::{EngineError, StorageError, TraversalError};
 use crate::helix_engine::vector_core::hnsw::HNSW;
 use crate::helix_engine::vector_core::vector::HVector;
 use crate::utils::properties::ImmutablePropertiesMap;
@@ -38,11 +38,11 @@ pub struct PostingListEntry {
 pub trait BM25 {
 	fn tokenize<const SHOULD_FILTER: bool>(&self, text: &str) -> Vec<String>;
 
-	fn insert_doc(&self, txn: &mut RwTxn, doc_id: u128, doc: &str) -> Result<(), GraphError>;
+	fn insert_doc(&self, txn: &mut RwTxn, doc_id: u128, doc: &str) -> Result<(), EngineError>;
 
-	fn delete_doc(&self, txn: &mut RwTxn, doc_id: u128) -> Result<(), GraphError>;
+	fn delete_doc(&self, txn: &mut RwTxn, doc_id: u128) -> Result<(), EngineError>;
 
-	fn update_doc(&self, txn: &mut RwTxn, doc_id: u128, doc: &str) -> Result<(), GraphError>;
+	fn update_doc(&self, txn: &mut RwTxn, doc_id: u128, doc: &str) -> Result<(), EngineError>;
 
 	/// Calculate the BM25 score for a single term of a query (no sum)
 	fn calculate_bm25_score(
@@ -60,7 +60,7 @@ pub trait BM25 {
 		query: &str,
 		limit: usize,
 		arena: &Bump,
-	) -> Result<Vec<(u128, f32)>, GraphError>;
+	) -> Result<Vec<(u128, f32)>, EngineError>;
 }
 
 pub struct HBM25Config {
@@ -74,7 +74,7 @@ pub struct HBM25Config {
 }
 
 impl HBM25Config {
-	pub fn new(graph_env: &Env, wtxn: &mut RwTxn) -> Result<HBM25Config, GraphError> {
+	pub fn new(graph_env: &Env, wtxn: &mut RwTxn) -> Result<HBM25Config, EngineError> {
 		let inverted_index_db: Database<Bytes, Bytes> = graph_env
 			.database_options()
 			.types::<Bytes, Bytes>()
@@ -116,7 +116,7 @@ impl HBM25Config {
 		graph_env: &Env,
 		wtxn: &mut RwTxn,
 		uuid: &str,
-	) -> Result<HBM25Config, GraphError> {
+	) -> Result<HBM25Config, EngineError> {
 		let inverted_index_db: Database<Bytes, Bytes> = graph_env
 			.database_options()
 			.types::<Bytes, Bytes>()
@@ -167,7 +167,7 @@ impl BM25 for HBM25Config {
 
 	/// Inserts needed information into doc_lengths_db, inverted_index_db, term_frequencies_db, and
 	/// metadata_db
-	fn insert_doc(&self, txn: &mut RwTxn, doc_id: u128, doc: &str) -> Result<(), GraphError> {
+	fn insert_doc(&self, txn: &mut RwTxn, doc_id: u128, doc: &str) -> Result<(), EngineError> {
 		let tokens = self.tokenize::<true>(doc);
 		let doc_length = tokens.len() as u32;
 
@@ -218,7 +218,7 @@ impl BM25 for HBM25Config {
 		Ok(())
 	}
 
-	fn delete_doc(&self, txn: &mut RwTxn, doc_id: u128) -> Result<(), GraphError> {
+	fn delete_doc(&self, txn: &mut RwTxn, doc_id: u128) -> Result<(), EngineError> {
 		let terms_to_update = {
 			let mut terms = Vec::new();
 			let mut iter = self.inverted_index_db.iter(txn)?;
@@ -294,7 +294,7 @@ impl BM25 for HBM25Config {
 	}
 
 	/// Simply delete doc_id and then re-insert new doc with same doc-id
-	fn update_doc(&self, txn: &mut RwTxn, doc_id: u128, doc: &str) -> Result<(), GraphError> {
+	fn update_doc(&self, txn: &mut RwTxn, doc_id: u128, doc: &str) -> Result<(), EngineError> {
 		self.delete_doc(txn, doc_id)?;
 		self.insert_doc(txn, doc_id, doc)
 	}
@@ -333,7 +333,7 @@ impl BM25 for HBM25Config {
 		query: &str,
 		limit: usize,
 		arena: &Bump,
-	) -> Result<Vec<(u128, f32)>, GraphError> {
+	) -> Result<Vec<(u128, f32)>, EngineError> {
 		let query_terms: BVec<BString> = BVec::from_iter_in(
 			self.tokenize::<true>(query)
 				.into_iter()
@@ -347,7 +347,7 @@ impl BM25 for HBM25Config {
 		let metadata = self
 			.metadata_db
 			.get(txn, METADATA_KEY)?
-			.ok_or(GraphError::New("BM25 metadata not found".to_string()))?;
+			.ok_or_else(|| StorageError::Backend("BM25 metadata not found".to_string()))?;
 		let metadata: BM25Metadata = postcard::from_bytes(metadata)?;
 
 		// for each query term, calculate scores
@@ -403,7 +403,7 @@ pub trait HybridSearch {
 		query_vector: &[f64],
 		alpha: f32,
 		limit: usize,
-	) -> impl std::future::Future<Output = Result<Vec<(u128, f32)>, GraphError>> + Send;
+	) -> impl std::future::Future<Output = Result<Vec<(u128, f32)>, EngineError>> + Send;
 }
 
 impl HybridSearch for HelixGraphStorage {
@@ -413,24 +413,24 @@ impl HybridSearch for HelixGraphStorage {
 		query_vector: &[f64],
 		alpha: f32,
 		limit: usize,
-	) -> Result<Vec<(u128, f32)>, GraphError> {
+	) -> Result<Vec<(u128, f32)>, EngineError> {
 		let query_owned = query.to_string();
 		let query_vector_owned = query_vector.to_vec();
 
 		let graph_env_bm25 = self.graph_env.clone();
 		let graph_env_vector = self.graph_env.clone();
 
-		let bm25_handle = task::spawn_blocking(move || -> Result<Vec<(u128, f32)>, GraphError> {
+		let bm25_handle = task::spawn_blocking(move || -> Result<Vec<(u128, f32)>, EngineError> {
 			let txn = graph_env_bm25.read_txn()?;
 			let arena = Bump::new();
 			match self.bm25.as_ref() {
 				Some(s) => s.search(&txn, &query_owned, limit * 2, &arena),
-				None => Err(GraphError::from("BM25 not enabled!")),
+				None => Err(TraversalError::Message("BM25 not enabled!".to_string()).into()),
 			}
 		});
 
 		let vector_handle =
-			task::spawn_blocking(move || -> Result<Option<Vec<(u128, f64)>>, GraphError> {
+			task::spawn_blocking(move || -> Result<Option<Vec<(u128, f64)>>, EngineError> {
 				let txn = graph_env_vector.read_txn()?;
 				let arena = Bump::new(); // MOVE
 				let query_slice = arena.alloc_slice_copy(query_vector_owned.as_slice());
@@ -452,7 +452,7 @@ impl HybridSearch for HelixGraphStorage {
 
 		let (bm25_results, vector_results) = match tokio::try_join!(bm25_handle, vector_handle) {
 			Ok((a, b)) => (a, b),
-			Err(e) => return Err(GraphError::from(e.to_string())),
+			Err(e) => return Err(StorageError::Backend(e.to_string()).into()),
 		};
 
 		let mut combined_scores: HashMap<u128, f32> = HashMap::new();

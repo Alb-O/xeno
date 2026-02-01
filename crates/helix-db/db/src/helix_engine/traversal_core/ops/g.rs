@@ -5,7 +5,7 @@ use crate::helix_engine::traversal_core::traversal_iter::{
 	RoTraversalIterator, RwTraversalIterator,
 };
 use crate::helix_engine::traversal_core::traversal_value::TraversalValue;
-use crate::helix_engine::types::GraphError;
+use crate::helix_engine::types::EngineError;
 
 pub struct G {}
 
@@ -33,7 +33,7 @@ impl G {
 		'db,
 		'arena,
 		'txn,
-		impl Iterator<Item = Result<TraversalValue<'arena>, GraphError>>,
+		impl Iterator<Item = Result<TraversalValue<'arena>, EngineError>>,
 	>
 	where
 		Self: Sized,
@@ -70,7 +70,7 @@ impl G {
 		'db,
 		'arena,
 		'txn,
-		impl Iterator<Item = Result<TraversalValue<'arena>, GraphError>>,
+		impl Iterator<Item = Result<TraversalValue<'arena>, EngineError>>,
 	> {
 		RoTraversalIterator {
 			inner: items.map(Ok),
@@ -103,7 +103,7 @@ impl G {
 		'db,
 		'arena,
 		'txn,
-		impl Iterator<Item = Result<TraversalValue<'arena>, GraphError>>,
+		impl Iterator<Item = Result<TraversalValue<'arena>, EngineError>>,
 	>
 	where
 		Self: Sized,
@@ -125,7 +125,7 @@ impl G {
 		'db,
 		'arena,
 		'txn,
-		impl Iterator<Item = Result<TraversalValue<'arena>, GraphError>>,
+		impl Iterator<Item = Result<TraversalValue<'arena>, EngineError>>,
 	> {
 		RwTraversalIterator {
 			inner: items.map(Ok),
@@ -145,7 +145,7 @@ impl G {
 		'db,
 		'arena,
 		'txn,
-		impl Iterator<Item = Result<TraversalValue<'arena>, GraphError>>,
+		impl Iterator<Item = Result<TraversalValue<'arena>, EngineError>>,
 	> {
 		RwTraversalIterator {
 			inner: std::iter::once(Ok(item)),

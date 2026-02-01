@@ -2,11 +2,11 @@ use crate::helix_engine::bm25::bm25::BM25;
 use crate::helix_engine::traversal_core::LMDB_STRING_HEADER_LENGTH;
 use crate::helix_engine::traversal_core::traversal_iter::RoTraversalIterator;
 use crate::helix_engine::traversal_core::traversal_value::TraversalValue;
-use crate::helix_engine::types::GraphError;
+use crate::helix_engine::types::{EngineError, StorageError, TraversalError};
 use crate::utils::items::Node;
 
 pub trait SearchBM25Adapter<'db, 'arena, 'txn>:
-	Iterator<Item = Result<TraversalValue<'arena>, GraphError>>
+	Iterator<Item = Result<TraversalValue<'arena>, EngineError>>
 {
 	fn search_bm25<K>(
 		self,
@@ -18,16 +18,16 @@ pub trait SearchBM25Adapter<'db, 'arena, 'txn>:
 			'db,
 			'arena,
 			'txn,
-			impl Iterator<Item = Result<TraversalValue<'arena>, GraphError>>,
+			impl Iterator<Item = Result<TraversalValue<'arena>, EngineError>>,
 		>,
-		GraphError,
+		EngineError,
 	>
 	where
 		K: TryInto<usize>,
 		K::Error: std::fmt::Debug;
 }
 
-impl<'db, 'arena, 'txn, I: Iterator<Item = Result<TraversalValue<'arena>, GraphError>>>
+impl<'db, 'arena, 'txn, I: Iterator<Item = Result<TraversalValue<'arena>, EngineError>>>
 	SearchBM25Adapter<'db, 'arena, 'txn> for RoTraversalIterator<'db, 'arena, 'txn, I>
 {
 	fn search_bm25<K>(
@@ -40,9 +40,9 @@ impl<'db, 'arena, 'txn, I: Iterator<Item = Result<TraversalValue<'arena>, GraphE
 			'db,
 			'arena,
 			'txn,
-			impl Iterator<Item = Result<TraversalValue<'arena>, GraphError>>,
+			impl Iterator<Item = Result<TraversalValue<'arena>, EngineError>>,
 		>,
-		GraphError,
+		EngineError,
 	>
 	where
 		K: TryInto<usize>,
@@ -50,7 +50,9 @@ impl<'db, 'arena, 'txn, I: Iterator<Item = Result<TraversalValue<'arena>, GraphE
 	{
 		let results = match self.storage.bm25.as_ref() {
 			Some(s) => s.search(self.txn, query, k.try_into().unwrap(), self.arena)?,
-			None => return Err(GraphError::from("BM25 not enabled!")),
+			None => {
+				return Err(TraversalError::Message("BM25 not enabled!".to_string()).into());
+			}
 		};
 
 		let label_as_bytes = label.as_bytes();
@@ -79,11 +81,11 @@ impl<'db, 'arena, 'txn, I: Iterator<Item = Result<TraversalValue<'arena>, GraphE
                     Ok(node) => {
                         return Some(Ok(TraversalValue::NodeWithScore { node, score: score as f64 }));
                     }
-                    Err(e) => {
-                        println!("{} Error decoding node: {:?}", line!(), e);
-                        return Some(Err(GraphError::ConversionError(e.to_string())));
-                    }
-                }
+					Err(e) => {
+						println!("{} Error decoding node: {:?}", line!(), e);
+						return Some(Err(StorageError::Conversion(e.to_string()).into()));
+					}
+				}
             } else {
                 return None;
             }

@@ -20,7 +20,7 @@ use super::storage_migration::{
 };
 use crate::helix_engine::storage_core::version_info::VersionInfo;
 use crate::helix_engine::traversal_core::config::Config;
-use crate::helix_engine::types::GraphError;
+use crate::helix_engine::types::{EngineError, StorageError};
 use crate::protocol::value::Value;
 
 // ============================================================================
@@ -87,7 +87,7 @@ fn populate_test_vectors(
 	storage: &mut HelixGraphStorage,
 	count: usize,
 	endianness: VectorEndianness,
-) -> Result<(), GraphError> {
+) -> Result<(), EngineError> {
 	let mut txn = storage.graph_env.write_txn()?;
 
 	for i in 0..count {
@@ -109,7 +109,7 @@ fn populate_test_vectors(
 fn populate_old_properties(
 	storage: &mut HelixGraphStorage,
 	count: usize,
-) -> Result<(), GraphError> {
+) -> Result<(), EngineError> {
 	let mut txn = storage.graph_env.write_txn()?;
 
 	for i in 0..count {
@@ -135,7 +135,7 @@ fn populate_old_properties(
 fn set_metadata(
 	storage: &mut HelixGraphStorage,
 	metadata: StorageMetadata,
-) -> Result<(), GraphError> {
+) -> Result<(), EngineError> {
 	let mut txn = storage.graph_env.write_txn()?;
 	metadata.save(&mut txn, &storage.metadata_db)?;
 	txn.commit()?;
@@ -146,7 +146,7 @@ fn set_metadata(
 fn read_all_vectors(
 	storage: &HelixGraphStorage,
 	endianness: VectorEndianness,
-) -> Result<Vec<Vec<f64>>, GraphError> {
+) -> Result<Vec<Vec<f64>>, EngineError> {
 	let txn = storage.graph_env.read_txn()?;
 	let mut all_vectors = Vec::new();
 
@@ -160,7 +160,7 @@ fn read_all_vectors(
 }
 
 /// Clear all metadata from storage (simulates PreMetadata state)
-fn clear_metadata(storage: &mut HelixGraphStorage) -> Result<(), GraphError> {
+fn clear_metadata(storage: &mut HelixGraphStorage) -> Result<(), EngineError> {
 	let mut txn = storage.graph_env.write_txn()?;
 	storage.metadata_db.clear(&mut txn)?;
 	txn.commit()?;
@@ -870,10 +870,10 @@ fn test_error_invalid_vector_data_length() {
 
 	assert!(result.is_err());
 	match result {
-		Err(GraphError::New(msg)) => {
+		Err(EngineError::Storage(StorageError::Conversion(msg))) => {
 			assert!(msg.contains("not a multiple"));
 		}
-		_ => panic!("Expected GraphError::New with length error"),
+		_ => panic!("Expected StorageError::Conversion with length error"),
 	}
 }
 

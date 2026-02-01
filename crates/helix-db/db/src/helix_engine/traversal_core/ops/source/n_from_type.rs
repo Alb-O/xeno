@@ -1,11 +1,11 @@
 use crate::helix_engine::traversal_core::LMDB_STRING_HEADER_LENGTH;
 use crate::helix_engine::traversal_core::traversal_iter::RoTraversalIterator;
 use crate::helix_engine::traversal_core::traversal_value::TraversalValue;
-use crate::helix_engine::types::GraphError;
+use crate::helix_engine::types::{EngineError, StorageError};
 use crate::utils::items::Node;
 
 pub trait NFromTypeAdapter<'db, 'arena, 'txn, 's>:
-	Iterator<Item = Result<TraversalValue<'arena>, GraphError>>
+	Iterator<Item = Result<TraversalValue<'arena>, EngineError>>
 {
 	/// Returns an iterator containing the nodes with the given label.
 	///
@@ -28,10 +28,10 @@ pub trait NFromTypeAdapter<'db, 'arena, 'txn, 's>:
 		'db,
 		'arena,
 		'txn,
-		impl Iterator<Item = Result<TraversalValue<'arena>, GraphError>>,
+		impl Iterator<Item = Result<TraversalValue<'arena>, EngineError>>,
 	>;
 }
-impl<'db, 'arena, 'txn, 's, I: Iterator<Item = Result<TraversalValue<'arena>, GraphError>>>
+impl<'db, 'arena, 'txn, 's, I: Iterator<Item = Result<TraversalValue<'arena>, EngineError>>>
 	NFromTypeAdapter<'db, 'arena, 'txn, 's> for RoTraversalIterator<'db, 'arena, 'txn, I>
 {
 	#[inline]
@@ -42,7 +42,7 @@ impl<'db, 'arena, 'txn, 's, I: Iterator<Item = Result<TraversalValue<'arena>, Gr
 		'db,
 		'arena,
 		'txn,
-		impl Iterator<Item = Result<TraversalValue<'arena>, GraphError>>,
+		impl Iterator<Item = Result<TraversalValue<'arena>, EngineError>>,
 	> {
 		let label_as_bytes = label.as_bytes();
 		let iter = self.storage.nodes_db.iter(self.txn).unwrap().filter_map(move |item| {
@@ -72,7 +72,7 @@ impl<'db, 'arena, 'txn, 's, I: Iterator<Item = Result<TraversalValue<'arena>, Gr
                         }
                         Err(e) => {
                             println!("{} Error decoding node: {:?}", line!(), e);
-                            return Some(Err(GraphError::ConversionError(e.to_string())));
+                            return Some(Err(StorageError::Conversion(e.to_string()).into()));
                         }
                     }
                 } else {

@@ -1,7 +1,7 @@
 use heed3::types::Bytes;
 use heed3::{Database, RoTxn, RwTxn, WithTls};
 
-use crate::helix_engine::types::GraphError;
+use crate::helix_engine::types::{EngineError, StorageError};
 
 pub const STORAGE_VERSION_KEY: &[u8] = b"storage_version";
 pub const VECTOR_ENDIANNESS_KEY: &[u8] = b"vector_endianness";
@@ -43,13 +43,15 @@ impl StorageMetadata {
 	pub fn read(
 		txn: &RoTxn<WithTls>,
 		metadata_db: &Database<Bytes, Bytes>,
-	) -> Result<Self, GraphError> {
+	) -> Result<Self, EngineError> {
 		match metadata_db.get(txn, STORAGE_VERSION_KEY)? {
 			None => Ok(Self::PreMetadata),
 			Some(version_bytes) => {
 				let version_byte_array: [u8; std::mem::size_of::<u64>()] =
 					version_bytes.try_into().map_err(|e| {
-						GraphError::New(format!("storage metadata version tag is not a u64: {e:?}"))
+						StorageError::Conversion(format!(
+							"storage metadata version tag is not a u64: {e:?}"
+						))
 					})?;
 
 				let version = u64::from_le_bytes(version_byte_array);
@@ -63,7 +65,7 @@ impl StorageMetadata {
 		&self,
 		txn: &mut RwTxn,
 		metadata_db: &Database<Bytes, Bytes>,
-	) -> Result<(), GraphError> {
+	) -> Result<(), EngineError> {
 		match self {
 			Self::PreMetadata => {
 				panic!("can't save metadata that represents a version before metadata table")
@@ -85,21 +87,22 @@ impl StorageMetadata {
 		version: u64,
 		txn: &RoTxn<WithTls>,
 		metadata_db: &Database<Bytes, Bytes>,
-	) -> Result<Self, GraphError> {
+	) -> Result<Self, EngineError> {
 		match version {
 			storage_version_tag::VECTOR_NATIVE_ENDIANNESS => {
 				Self::parse_vector_native_endianness(txn, metadata_db)
 			}
-			_ => Err(GraphError::New(format!(
+			_ => Err(StorageError::Backend(format!(
 				"storage metadata version tag unknown: {version}"
-			))),
+			))
+			.into()),
 		}
 	}
 
 	fn parse_vector_native_endianness(
 		txn: &RoTxn<WithTls>,
 		metadata_db: &Database<Bytes, Bytes>,
-	) -> Result<Self, GraphError> {
+	) -> Result<Self, EngineError> {
 		Ok(Self::VectorNativeEndianness {
 			vector_endianness: VectorEndianness::read(txn, metadata_db)?,
 		})
@@ -109,7 +112,7 @@ impl StorageMetadata {
 		version: u64,
 		txn: &mut RwTxn,
 		metadata_db: &Database<Bytes, Bytes>,
-	) -> Result<(), GraphError> {
+	) -> Result<(), EngineError> {
 		metadata_db.put(txn, STORAGE_VERSION_KEY, &version.to_le_bytes())?;
 
 		Ok(())
@@ -120,19 +123,20 @@ impl VectorEndianness {
 	fn read(
 		txn: &RoTxn<WithTls>,
 		metadata_db: &Database<Bytes, Bytes>,
-	) -> Result<Self, GraphError> {
+	) -> Result<Self, EngineError> {
 		let endianness_bytes = metadata_db
 			.get(txn, VECTOR_ENDIANNESS_KEY)?
 			.ok_or_else(|| {
-				GraphError::New("missing vector endianness key in metadata db".into())
+				StorageError::Backend("missing vector endianness key in metadata db".into())
 			})?;
 
 		match endianness_bytes {
 			vector_endianness_value::BIG_ENDIAN => Ok(Self::BigEndian),
 			vector_endianness_value::LITTLE_ENDIAN => Ok(Self::LittleEndian),
-			_ => Err(GraphError::New(
+			_ => Err(StorageError::Backend(
 				"unknown vector endianness value in metadata db".into(),
-			)),
+			)
+			.into()),
 		}
 	}
 
@@ -140,7 +144,7 @@ impl VectorEndianness {
 		&self,
 		txn: &mut RwTxn,
 		metadata_db: &Database<Bytes, Bytes>,
-	) -> Result<(), GraphError> {
+	) -> Result<(), EngineError> {
 		let endianness_bytes = match self {
 			Self::BigEndian => vector_endianness_value::BIG_ENDIAN,
 			Self::LittleEndian => vector_endianness_value::LITTLE_ENDIAN,

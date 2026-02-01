@@ -1,7 +1,7 @@
 use heed3::RwTxn;
 
 use crate::helix_engine::traversal_core::traversal_value::TraversalValue;
-use crate::helix_engine::types::GraphError;
+use crate::helix_engine::types::EngineError;
 
 pub struct FilterMut<'db, 'txn, I, F> {
 	iter: I,
@@ -11,7 +11,7 @@ pub struct FilterMut<'db, 'txn, I, F> {
 
 impl<'db, 'arena, 'txn, I, F> Iterator for FilterMut<'db, 'txn, I, F>
 where
-	I: Iterator<Item = Result<TraversalValue<'arena>, GraphError>>,
+	I: Iterator<Item = Result<TraversalValue<'arena>, EngineError>>,
 	F: FnMut(&mut I::Item, &mut RwTxn) -> bool,
 {
 	type Item = I::Item;

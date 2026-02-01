@@ -19,7 +19,7 @@ use crate::helix_engine::traversal_core::ops::util::drop::Drop;
 use crate::helix_engine::traversal_core::ops::vectors::brute_force_search::BruteForceSearchVAdapter;
 use crate::helix_engine::traversal_core::ops::vectors::insert::InsertVAdapter;
 use crate::helix_engine::traversal_core::ops::vectors::search::SearchVAdapter;
-use crate::helix_engine::types::GraphError;
+use crate::helix_engine::types::EngineError;
 use crate::helix_engine::vector_core::vector::HVector;
 use crate::utils::properties::ImmutablePropertiesMap;
 
@@ -177,7 +177,7 @@ fn test_drop_vector_removes_edges() {
 	Drop::drop_traversal(
 		vectors
 			.into_iter()
-			.map(Ok::<_, crate::helix_engine::types::GraphError>),
+			.map(Ok::<_, crate::helix_engine::types::EngineError>),
 		storage.as_ref(),
 		&mut txn,
 	)
@@ -475,9 +475,9 @@ fn test_v_from_type_deleted_vectors_filtered() {
 	drop(txn);
 
 	let mut txn = storage.graph_env.write_txn().unwrap();
-	use crate::helix_engine::types::GraphError;
+	use crate::helix_engine::types::EngineError;
 	Drop::drop_traversal(
-		vectors_to_delete.into_iter().map(Ok::<_, GraphError>),
+		vectors_to_delete.into_iter().map(Ok::<_, EngineError>),
 		storage.as_ref(),
 		&mut txn,
 	)
@@ -580,7 +580,7 @@ fn test_v_from_type_after_migration() {
 	// Helper to clear metadata (simulates PreMetadata state)
 	fn clear_metadata(
 		storage: &mut crate::helix_engine::storage_core::HelixGraphStorage,
-	) -> Result<(), crate::helix_engine::types::GraphError> {
+	) -> Result<(), crate::helix_engine::types::EngineError> {
 		let mut txn = storage.graph_env.write_txn()?;
 		storage.metadata_db.clear(&mut txn)?;
 		txn.commit()?;
@@ -789,7 +789,7 @@ fn test_v_from_id_with_nonexistent_id_with_data() {
 
 	// Assert it returns VectorError (VectorNotFound)
 	assert!(
-		matches!(result, Err(GraphError::VectorError(_))),
+		matches!(result, Err(EngineError::Vector(_))),
 		"Expected VectorError but got: {:?}",
 		result
 	);
@@ -811,7 +811,7 @@ fn test_v_from_id_with_nonexistent_id_without_data() {
 
 	// Assert it returns VectorError (VectorNotFound)
 	assert!(
-		matches!(result, Err(GraphError::VectorError(_))),
+		matches!(result, Err(EngineError::Vector(_))),
 		"Expected VectorError but got: {:?}",
 		result
 	);
@@ -843,7 +843,7 @@ fn test_v_from_id_with_deleted_vector() {
 
 	let mut txn = storage.graph_env.write_txn().unwrap();
 	Drop::drop_traversal(
-		vector_to_delete.into_iter().map(Ok::<_, GraphError>),
+		vector_to_delete.into_iter().map(Ok::<_, EngineError>),
 		storage.as_ref(),
 		&mut txn,
 	)
@@ -859,7 +859,7 @@ fn test_v_from_id_with_deleted_vector() {
 
 	// Assert it returns VectorError (VectorDeleted or VectorNotFound)
 	assert!(
-		matches!(result, Err(GraphError::VectorError(_))),
+		matches!(result, Err(EngineError::Vector(_))),
 		"Expected VectorError but got: {:?}",
 		result
 	);
@@ -878,7 +878,7 @@ fn test_v_from_id_with_zero_id() {
 
 	// Assert it returns VectorError
 	assert!(
-		matches!(result, Err(GraphError::VectorError(_))),
+		matches!(result, Err(EngineError::Vector(_))),
 		"Expected VectorError but got: {:?}",
 		result
 	);
@@ -897,7 +897,7 @@ fn test_v_from_id_with_max_id() {
 
 	// Assert it returns VectorError
 	assert!(
-		matches!(result, Err(GraphError::VectorError(_))),
+		matches!(result, Err(EngineError::Vector(_))),
 		"Expected VectorError but got: {:?}",
 		result
 	);

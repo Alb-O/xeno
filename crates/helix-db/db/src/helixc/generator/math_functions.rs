@@ -66,28 +66,28 @@ impl Display for PropertyAccess {
 			PropertyContext::Edge => {
 				write!(
 					f,
-					"(edge.get_property({}).ok_or(GraphError::Default)?.as_f64())",
+					"(edge.get_property({}).ok_or_else(|| TraversalError::Message(\"Missing numeric property for math expression\".to_string()).into())?.as_f64())",
 					self.property
 				)
 			}
 			PropertyContext::SourceNode => {
 				write!(
 					f,
-					"(src_node.get_property({}).ok_or(GraphError::Default)?.as_f64())",
+					"(src_node.get_property({}).ok_or_else(|| TraversalError::Message(\"Missing numeric property for math expression\".to_string()).into())?.as_f64())",
 					self.property
 				)
 			}
 			PropertyContext::TargetNode => {
 				write!(
 					f,
-					"(dst_node.get_property({}).ok_or(GraphError::Default)?.as_f64())",
+					"(dst_node.get_property({}).ok_or_else(|| TraversalError::Message(\"Missing numeric property for math expression\".to_string()).into())?.as_f64())",
 					self.property
 				)
 			}
 			PropertyContext::Current => {
 				write!(
 					f,
-					"(v.get_property({}).ok_or(GraphError::Default)?.as_f64())",
+					"(v.get_property({}).ok_or_else(|| TraversalError::Message(\"Missing numeric property for math expression\".to_string()).into())?.as_f64())",
 					self.property
 				)
 			}
@@ -467,7 +467,7 @@ mod tests {
 		};
 		assert_eq!(
 			edge_prop.to_string(),
-			"(edge.get_property(\"distance\").ok_or(GraphError::Default)?.as_f64())"
+			"(edge.get_property(\"distance\").ok_or_else(|| TraversalError::Message(\"Missing numeric property for math expression\".to_string()).into())?.as_f64())"
 		);
 
 		// Test SourceNode context
@@ -477,7 +477,7 @@ mod tests {
 		};
 		assert_eq!(
 			src_prop.to_string(),
-			"(src_node.get_property(\"traffic_factor\").ok_or(GraphError::Default)?.as_f64())"
+			"(src_node.get_property(\"traffic_factor\").ok_or_else(|| TraversalError::Message(\"Missing numeric property for math expression\".to_string()).into())?.as_f64())"
 		);
 
 		// Test TargetNode context
@@ -487,14 +487,14 @@ mod tests {
 		};
 		assert_eq!(
 			dst_prop.to_string(),
-			"(dst_node.get_property(\"popularity\").ok_or(GraphError::Default)?.as_f64())"
+			"(dst_node.get_property(\"popularity\").ok_or_else(|| TraversalError::Message(\"Missing numeric property for math expression\".to_string()).into())?.as_f64())"
 		);
 	}
 
 	#[test]
 	fn test_complex_weight_expression() {
 		// Test: MUL(_::{distance}, POW(0.95, DIV(_::{days}, 30)))
-		// Should generate: ((edge.get_property("distance").ok_or(GraphError::Default)?.as_f64()) * (0.95_f64).powf(((edge.get_property("days").ok_or(GraphError::Default)?.as_f64()) / 30_f64)))
+		// Should generate: ((edge.get_property("distance").ok_or_else(|| TraversalError::Message("Missing numeric property for math expression".to_string()).into())?.as_f64()) * (0.95_f64).powf(((edge.get_property("days").ok_or_else(|| TraversalError::Message("Missing numeric property for math expression".to_string()).into())?.as_f64()) / 30_f64)))
 		let expr = MathFunctionCallGen {
 			function: MathFunction::Mul,
 			args: vec![
@@ -523,14 +523,14 @@ mod tests {
 
 		assert_eq!(
 			expr.to_string(),
-			"((edge.get_property(\"distance\").ok_or(GraphError::Default)?.as_f64()) * (0.95_f64).powf(((edge.get_property(\"days\").ok_or(GraphError::Default)?.as_f64()) / 30_f64)))"
+			"((edge.get_property(\"distance\").ok_or_else(|| TraversalError::Message(\"Missing numeric property for math expression\".to_string()).into())?.as_f64()) * (0.95_f64).powf(((edge.get_property(\"days\").ok_or_else(|| TraversalError::Message(\"Missing numeric property for math expression\".to_string()).into())?.as_f64()) / 30_f64)))"
 		);
 	}
 
 	#[test]
 	fn test_multi_context_expression() {
 		// Test: MUL(_::{distance}, _::From::{traffic_factor})
-		// Should generate: ((edge.get_property("distance").ok_or(GraphError::Default)?.as_f64()) * (src_node.get_property("traffic_factor").ok_or(GraphError::Default)?.as_f64()))
+		// Should generate: ((edge.get_property("distance").ok_or_else(|| TraversalError::Message("Missing numeric property for math expression".to_string()).into())?.as_f64()) * (src_node.get_property("traffic_factor").ok_or_else(|| TraversalError::Message("Missing numeric property for math expression".to_string()).into())?.as_f64()))
 		let expr = MathFunctionCallGen {
 			function: MathFunction::Mul,
 			args: vec![
@@ -547,7 +547,7 @@ mod tests {
 
 		assert_eq!(
 			expr.to_string(),
-			"((edge.get_property(\"distance\").ok_or(GraphError::Default)?.as_f64()) * (src_node.get_property(\"traffic_factor\").ok_or(GraphError::Default)?.as_f64()))"
+			"((edge.get_property(\"distance\").ok_or_else(|| TraversalError::Message(\"Missing numeric property for math expression\".to_string()).into())?.as_f64()) * (src_node.get_property(\"traffic_factor\").ok_or_else(|| TraversalError::Message(\"Missing numeric property for math expression\".to_string()).into())?.as_f64()))"
 		);
 	}
 
@@ -731,7 +731,7 @@ mod tests {
 		};
 		assert_eq!(
 			current_prop.to_string(),
-			"(v.get_property(\"score\").ok_or(GraphError::Default)?.as_f64())"
+			"(v.get_property(\"score\").ok_or_else(|| TraversalError::Message(\"Missing numeric property for math expression\".to_string()).into())?.as_f64())"
 		);
 	}
 

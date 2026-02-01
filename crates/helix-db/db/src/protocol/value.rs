@@ -9,7 +9,7 @@ use serde::{Deserializer, Serializer};
 use sonic_rs::{Deserialize, Serialize};
 
 use crate::debug_println;
-use crate::helix_engine::types::GraphError;
+use crate::helix_engine::types::EngineError;
 use crate::helixc::generator::utils::GenRef;
 use crate::protocol::date::Date;
 use crate::protocol::value_error::{NumBinaryOp, NumUnaryOp, ValueError, ValueKind};
@@ -183,8 +183,8 @@ impl Value {
 		self,
 		default: bool,
 		f: impl Fn(&Value) -> Result<bool, ValueError>,
-	) -> Result<bool, GraphError> {
-		f(&self).map_err(GraphError::from)
+	) -> Result<bool, EngineError> {
+		f(&self).map_err(EngineError::from)
 	}
 
 	#[inline]

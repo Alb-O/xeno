@@ -15,7 +15,7 @@ use std::pin::Pin;
 use std::sync::Arc;
 
 use crate::helix_engine::traversal_core::HelixGraphEngine;
-use crate::helix_engine::types::GraphError;
+use crate::helix_engine::types::{EngineError, StorageError};
 use crate::helix_gateway::mcp::mcp::MCPHandlerFn;
 use crate::protocol::request::RetChan;
 use crate::protocol::{Request, Response};
@@ -27,7 +27,7 @@ pub struct HandlerInput {
 
 pub type ContMsg = (
 	RetChan,
-	Box<dyn FnOnce() -> Result<Response, GraphError> + Send + Sync>,
+	Box<dyn FnOnce() -> Result<Response, EngineError> + Send + Sync>,
 );
 pub type ContChan = flume::Sender<ContMsg>;
 
@@ -36,11 +36,11 @@ pub type ContFut = Pin<Box<dyn Future<Output = ()> + Send + Sync>>;
 pub struct IoContFn(pub Box<dyn FnOnce(ContChan, RetChan) -> ContFut + Send + Sync>);
 
 impl IoContFn {
-	pub fn create_err<F>(func: F) -> GraphError
+	pub fn create_err<F>(func: F) -> EngineError
 	where
 		F: FnOnce(ContChan, RetChan) -> ContFut + Send + Sync + 'static,
 	{
-		GraphError::IoNeeded(Self(Box::new(func)))
+		EngineError::IoNeeded(Self(Box::new(func)))
 	}
 }
 
@@ -51,10 +51,10 @@ impl Debug for IoContFn {
 }
 
 // basic type for function pointer
-pub type BasicHandlerFn = fn(HandlerInput) -> Result<Response, GraphError>;
+pub type BasicHandlerFn = fn(HandlerInput) -> Result<Response, EngineError>;
 
 // thread safe type for multi threaded use
-pub type HandlerFn = Arc<dyn Fn(HandlerInput) -> Result<Response, GraphError> + Send + Sync>;
+pub type HandlerFn = Arc<dyn Fn(HandlerInput) -> Result<Response, EngineError> + Send + Sync>;
 
 #[derive(Clone, Debug)]
 pub struct HandlerSubmission(pub Handler);
@@ -147,15 +147,15 @@ impl From<std::io::Error> for RouterError {
 	}
 }
 
-impl From<GraphError> for RouterError {
-	fn from(error: GraphError) -> Self {
+impl From<EngineError> for RouterError {
+	fn from(error: EngineError) -> Self {
 		RouterError::New(error.to_string())
 	}
 }
 
-impl From<RouterError> for GraphError {
+impl From<RouterError> for EngineError {
 	fn from(error: RouterError) -> Self {
-		GraphError::New(error.to_string())
+		StorageError::Backend(error.to_string()).into()
 	}
 }
 
@@ -167,14 +167,14 @@ mod tests {
 	use crate::protocol::{Format, Response};
 
 	// Helper function for tests
-	fn dummy_handler(_input: HandlerInput) -> Result<Response, GraphError> {
+	fn dummy_handler(_input: HandlerInput) -> Result<Response, EngineError> {
 		Ok(Response {
 			body: b"ok".to_vec(),
 			fmt: Format::Json,
 		})
 	}
 
-	fn another_handler(_input: HandlerInput) -> Result<Response, GraphError> {
+	fn another_handler(_input: HandlerInput) -> Result<Response, EngineError> {
 		Ok(Response {
 			body: b"another".to_vec(),
 			fmt: Format::Json,

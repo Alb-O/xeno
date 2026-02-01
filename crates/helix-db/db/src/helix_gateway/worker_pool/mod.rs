@@ -8,7 +8,7 @@ use tokio::sync::oneshot;
 use tracing::{error, trace};
 
 use crate::helix_engine::traversal_core::HelixGraphEngine;
-use crate::helix_engine::types::GraphError;
+use crate::helix_engine::types::{EngineError, StorageError};
 use crate::helix_gateway::gateway::CoreSetter;
 use crate::helix_gateway::mcp::mcp::MCPToolInput;
 use crate::helix_gateway::router::router::{ContChan, ContMsg, HandlerInput, HelixRouter};
@@ -94,16 +94,17 @@ impl WorkerPool {
 
 		channel.send_async((req, ret_tx)).await.map_err(|_| {
 			error!("WorkerPool channel closed for request '{req_name}'");
-			HelixError::Graph(GraphError::New("Server is shutting down".into()))
+			HelixError::Engine(StorageError::Backend("Server is shutting down".into()).into())
 		})?;
 
 		// Handle the case where the worker might have dropped the sender
 		// (e.g., worker thread panicked or client disconnected)
 		ret_rx.await.unwrap_or_else(|_| {
 			error!("Worker dropped sender without reply for request '{req_name}'");
-			Err(HelixError::Graph(GraphError::New(
-				"Internal server error: worker failed to respond".into(),
-			)))
+			Err(HelixError::Engine(
+				StorageError::Backend("Internal server error: worker failed to respond".into())
+					.into(),
+			))
 		})
 	}
 }
@@ -285,7 +286,7 @@ fn request_mapper(
 				};
 
 				match handler(input) {
-					Err(GraphError::IoNeeded(cont_closure)) => {
+					Err(EngineError::IoNeeded(cont_closure)) => {
 						let fut = cont_closure.0(cont_tx.clone(), ret_chan);
 						io_rt.spawn(fut);
 						return;

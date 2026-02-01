@@ -4,7 +4,7 @@ use heed3::types::{Bytes, U128};
 use crate::helix_engine::traversal_core::LMDB_STRING_HEADER_LENGTH;
 use crate::helix_engine::traversal_core::traversal_iter::RoTraversalIterator;
 use crate::helix_engine::traversal_core::traversal_value::TraversalValue;
-use crate::helix_engine::types::GraphError;
+use crate::helix_engine::types::{EngineError, StorageError};
 use crate::utils::items::Edge;
 
 pub struct EFromType<'arena, 'txn, 's>
@@ -17,7 +17,7 @@ where
 }
 
 impl<'arena, 'txn, 's> Iterator for EFromType<'arena, 'txn, 's> {
-	type Item = Result<TraversalValue<'arena>, GraphError>;
+	type Item = Result<TraversalValue<'arena>, EngineError>;
 
 	fn next(&mut self) -> Option<Self::Item> {
 		for value in self.iter.by_ref() {
@@ -49,21 +49,21 @@ impl<'arena, 'txn, 's> Iterator for EFromType<'arena, 'txn, 's> {
 							}
 							Err(e) => {
 								println!("{} Error decoding edge: {:?}", line!(), e);
-								return Some(Err(GraphError::ConversionError(e.to_string())));
+								return Some(Err(StorageError::Conversion(e.to_string()).into()));
 							}
 						}
 					} else {
 						continue;
 					}
 				}
-				Err(e) => return Some(Err(GraphError::ConversionError(e.to_string()))),
+				Err(e) => return Some(Err(StorageError::Conversion(e.to_string()).into())),
 			}
 		}
 		None
 	}
 }
 pub trait EFromTypeAdapter<'db, 'arena, 'txn, 's>:
-	Iterator<Item = Result<TraversalValue<'arena>, GraphError>>
+	Iterator<Item = Result<TraversalValue<'arena>, EngineError>>
 {
 	fn e_from_type(
 		self,
@@ -72,10 +72,10 @@ pub trait EFromTypeAdapter<'db, 'arena, 'txn, 's>:
 		'db,
 		'arena,
 		'txn,
-		impl Iterator<Item = Result<TraversalValue<'arena>, GraphError>>,
+		impl Iterator<Item = Result<TraversalValue<'arena>, EngineError>>,
 	>;
 }
-impl<'db, 'arena, 'txn, 's, I: Iterator<Item = Result<TraversalValue<'arena>, GraphError>>>
+impl<'db, 'arena, 'txn, 's, I: Iterator<Item = Result<TraversalValue<'arena>, EngineError>>>
 	EFromTypeAdapter<'db, 'arena, 'txn, 's> for RoTraversalIterator<'db, 'arena, 'txn, I>
 {
 	#[inline]
@@ -86,7 +86,7 @@ impl<'db, 'arena, 'txn, 's, I: Iterator<Item = Result<TraversalValue<'arena>, Gr
 		'db,
 		'arena,
 		'txn,
-		impl Iterator<Item = Result<TraversalValue<'arena>, GraphError>>,
+		impl Iterator<Item = Result<TraversalValue<'arena>, EngineError>>,
 	> {
 		let iter = self
 			.storage

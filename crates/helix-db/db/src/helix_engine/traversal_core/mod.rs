@@ -56,7 +56,7 @@ use std::sync::Mutex;
 use crate::helix_engine::storage_core::HelixGraphStorage;
 use crate::helix_engine::storage_core::version_info::VersionInfo;
 use crate::helix_engine::traversal_core::config::Config;
-use crate::helix_engine::types::GraphError;
+use crate::helix_engine::types::EngineError;
 #[cfg(feature = "server")]
 use crate::helix_gateway::mcp::mcp::{McpBackend, McpConnections};
 
@@ -86,7 +86,7 @@ pub struct HelixGraphEngineOpts {
 }
 
 impl HelixGraphEngine {
-	pub fn new(opts: HelixGraphEngineOpts) -> Result<HelixGraphEngine, GraphError> {
+	pub fn new(opts: HelixGraphEngineOpts) -> Result<HelixGraphEngine, EngineError> {
 		let storage = match HelixGraphStorage::new(
 			opts.path.as_str(),
 			opts.config.clone(),

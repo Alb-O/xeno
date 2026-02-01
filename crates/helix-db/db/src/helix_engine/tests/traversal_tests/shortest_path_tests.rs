@@ -269,9 +269,10 @@ fn test_dijkstra_custom_weight_function() {
 				_ => None,
 			})
 			.ok_or_else(|| {
-				crate::helix_engine::types::GraphError::TraversalError(
+				crate::helix_engine::types::TraversalError::Message(
 					"Missing distance property".to_string(),
 				)
+				.into()
 			})
 	};
 
@@ -411,8 +412,10 @@ fn test_dijkstra_multi_context_weight() {
 				_ => None,
 			})
 			.ok_or_else(|| {
-				crate::helix_engine::types::GraphError::TraversalError(
-					"Missing distance".to_string(),
+				crate::helix_engine::types::EngineError::from(
+					crate::helix_engine::types::TraversalError::Message(
+						"Missing distance".to_string(),
+					),
 				)
 			})?;
 
@@ -426,8 +429,10 @@ fn test_dijkstra_multi_context_weight() {
 				_ => None,
 			})
 			.ok_or_else(|| {
-				crate::helix_engine::types::GraphError::TraversalError(
-					"Missing traffic_factor".to_string(),
+				crate::helix_engine::types::EngineError::from(
+					crate::helix_engine::types::TraversalError::Message(
+						"Missing traffic_factor".to_string(),
+					),
 				)
 			})?;
 
@@ -889,15 +894,23 @@ fn test_astar_custom_weight_and_heuristic() {
 	                     _dst: &crate::utils::items::Node| {
 		let distance = edge
 			.get_property("distance")
-			.ok_or(crate::helix_engine::types::GraphError::New(
-				"distance property not found".to_string(),
-			))?
+			.ok_or_else(|| {
+				crate::helix_engine::types::EngineError::from(
+					crate::helix_engine::types::TraversalError::Message(
+						"distance property not found".to_string(),
+					),
+				)
+			})?
 			.as_f64();
 		let traffic = edge
 			.get_property("traffic")
-			.ok_or(crate::helix_engine::types::GraphError::New(
-				"traffic property not found".to_string(),
-			))?
+			.ok_or_else(|| {
+				crate::helix_engine::types::EngineError::from(
+					crate::helix_engine::types::TraversalError::Message(
+						"traffic property not found".to_string(),
+					),
+				)
+			})?
 			.as_f64();
 		Ok(distance * traffic)
 	};

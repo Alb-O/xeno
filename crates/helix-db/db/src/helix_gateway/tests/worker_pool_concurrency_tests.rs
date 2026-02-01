@@ -28,7 +28,7 @@ use crate::helix_engine::traversal_core::HelixGraphEngine;
 /// - No deadlocks or livelocks under high concurrency
 use crate::helix_engine::traversal_core::HelixGraphEngineOpts;
 use crate::helix_engine::traversal_core::config::Config;
-use crate::helix_engine::types::GraphError;
+use crate::helix_engine::types::EngineError;
 use crate::helix_gateway::gateway::CoreSetter;
 use crate::helix_gateway::router::router::{HandlerInput, HelixRouter};
 use crate::helix_gateway::worker_pool::WorkerPool;
@@ -36,7 +36,7 @@ use crate::protocol::request::RequestType;
 use crate::protocol::response::Response;
 use crate::protocol::{Format, Request};
 
-fn test_handler(_input: HandlerInput) -> Result<Response, GraphError> {
+fn test_handler(_input: HandlerInput) -> Result<Response, EngineError> {
 	Ok(Response {
 		body: b"test response".to_vec(),
 		fmt: Format::Json,
@@ -69,7 +69,7 @@ fn create_test_pool(
 	num_cores: usize,
 	threads_per_core: usize,
 	routes: Option<
-		HashMap<String, Arc<dyn Fn(HandlerInput) -> Result<Response, GraphError> + Send + Sync>>,
+		HashMap<String, Arc<dyn Fn(HandlerInput) -> Result<Response, EngineError> + Send + Sync>>,
 	>,
 ) -> (WorkerPool, Arc<HelixGraphEngine>, TempDir) {
 	let (graph, temp_dir) = create_test_graph();

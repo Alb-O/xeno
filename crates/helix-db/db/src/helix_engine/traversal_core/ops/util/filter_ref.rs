@@ -2,7 +2,7 @@ use heed3::RoTxn;
 
 use crate::helix_engine::traversal_core::traversal_iter::RoTraversalIterator;
 use crate::helix_engine::traversal_core::traversal_value::TraversalValue;
-use crate::helix_engine::types::GraphError;
+use crate::helix_engine::types::EngineError;
 
 pub struct FilterRef<'db, 'txn, I, F> {
 	iter: I,
@@ -12,8 +12,8 @@ pub struct FilterRef<'db, 'txn, I, F> {
 
 impl<'db, 'arena, 'txn, I, F> Iterator for FilterRef<'db, 'txn, I, F>
 where
-	I: Iterator<Item = Result<TraversalValue<'arena>, GraphError>>,
-	F: Fn(&I::Item, &RoTxn) -> Result<bool, GraphError>,
+	I: Iterator<Item = Result<TraversalValue<'arena>, EngineError>>,
+	F: Fn(&I::Item, &RoTxn) -> Result<bool, EngineError>,
 {
 	type Item = I::Item;
 	fn next(&mut self) -> Option<Self::Item> {
@@ -43,13 +43,13 @@ pub trait FilterRefAdapter<'db, 'arena, 'txn>: Iterator {
 		'db,
 		'arena,
 		'txn,
-		impl Iterator<Item = Result<TraversalValue<'arena>, GraphError>>,
+		impl Iterator<Item = Result<TraversalValue<'arena>, EngineError>>,
 	>
 	where
-		F: Fn(&Result<TraversalValue<'arena>, GraphError>, &RoTxn) -> Result<bool, GraphError>;
+		F: Fn(&Result<TraversalValue<'arena>, EngineError>, &RoTxn) -> Result<bool, EngineError>;
 }
 
-impl<'db, 'arena, 'txn, I: Iterator<Item = Result<TraversalValue<'arena>, GraphError>>>
+impl<'db, 'arena, 'txn, I: Iterator<Item = Result<TraversalValue<'arena>, EngineError>>>
 	FilterRefAdapter<'db, 'arena, 'txn> for RoTraversalIterator<'db, 'arena, 'txn, I>
 {
 	#[inline]
@@ -60,10 +60,10 @@ impl<'db, 'arena, 'txn, I: Iterator<Item = Result<TraversalValue<'arena>, GraphE
 		'db,
 		'arena,
 		'txn,
-		impl Iterator<Item = Result<TraversalValue<'arena>, GraphError>>,
+		impl Iterator<Item = Result<TraversalValue<'arena>, EngineError>>,
 	>
 	where
-		F: Fn(&Result<TraversalValue<'arena>, GraphError>, &RoTxn) -> Result<bool, GraphError>,
+		F: Fn(&Result<TraversalValue<'arena>, EngineError>, &RoTxn) -> Result<bool, EngineError>,
 	{
 		RoTraversalIterator {
 			storage: self.storage,

@@ -17,17 +17,17 @@ use std::iter::once;
 use crate::helix_engine::reranker::reranker::Reranker;
 use crate::helix_engine::traversal_core::traversal_iter::RoTraversalIterator;
 use crate::helix_engine::traversal_core::traversal_value::TraversalValue;
-use crate::helix_engine::types::GraphError;
+use crate::helix_engine::types::EngineError;
 
 /// Iterator wrapper that performs reranking.
-pub struct RerankIterator<'arena, I: Iterator<Item = Result<TraversalValue<'arena>, GraphError>>> {
+pub struct RerankIterator<'arena, I: Iterator<Item = Result<TraversalValue<'arena>, EngineError>>> {
 	iter: I,
 }
 
-impl<'arena, I: Iterator<Item = Result<TraversalValue<'arena>, GraphError>>> Iterator
+impl<'arena, I: Iterator<Item = Result<TraversalValue<'arena>, EngineError>>> Iterator
 	for RerankIterator<'arena, I>
 {
-	type Item = Result<TraversalValue<'arena>, GraphError>;
+	type Item = Result<TraversalValue<'arena>, EngineError>;
 
 	fn next(&mut self) -> Option<Self::Item> {
 		self.iter.next()
@@ -36,7 +36,7 @@ impl<'arena, I: Iterator<Item = Result<TraversalValue<'arena>, GraphError>>> Ite
 
 /// Trait that adds reranking capability to traversal iterators.
 pub trait RerankAdapter<'arena, 'db, 'txn>:
-	Iterator<Item = Result<TraversalValue<'arena>, GraphError>>
+	Iterator<Item = Result<TraversalValue<'arena>, EngineError>>
 where
 	'db: 'arena,
 	'arena: 'txn,
@@ -67,7 +67,7 @@ where
 		'db,
 		'arena,
 		'txn,
-		impl Iterator<Item = Result<TraversalValue<'arena>, GraphError>>,
+		impl Iterator<Item = Result<TraversalValue<'arena>, EngineError>>,
 	>;
 }
 
@@ -76,7 +76,7 @@ impl<'db, 'arena, 'txn, I> RerankAdapter<'arena, 'db, 'txn>
 where
 	'db: 'arena,
 	'arena: 'txn,
-	I: Iterator<Item = Result<TraversalValue<'arena>, GraphError>> + 'arena,
+	I: Iterator<Item = Result<TraversalValue<'arena>, EngineError>> + 'arena,
 {
 	fn rerank<R: Reranker>(
 		self,
@@ -86,7 +86,7 @@ where
 		'db,
 		'arena,
 		'txn,
-		impl Iterator<Item = Result<TraversalValue<'arena>, GraphError>>,
+		impl Iterator<Item = Result<TraversalValue<'arena>, EngineError>>,
 	> {
 		// Collect all items from the iterator
 		let items = self.inner.filter_map(|item| item.ok());
@@ -95,11 +95,11 @@ where
 		let reranked = match reranker.rerank(items, query) {
 			Ok(results) => results
 				.into_iter()
-				.map(Ok::<TraversalValue<'arena>, GraphError>)
+				.map(Ok::<TraversalValue<'arena>, EngineError>)
 				.collect::<Vec<_>>()
 				.into_iter(),
 			Err(e) => {
-				let error = GraphError::RerankerError(e.to_string());
+				let error: EngineError = e.into();
 				once(Err(error)).collect::<Vec<_>>().into_iter()
 			}
 		};

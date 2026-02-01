@@ -5,13 +5,13 @@ use itertools::Itertools;
 
 use super::metadata::{NATIVE_VECTOR_ENDIANNESS, StorageMetadata, VectorEndianness};
 use crate::helix_engine::storage_core::HelixGraphStorage;
-use crate::helix_engine::types::GraphError;
+use crate::helix_engine::types::{EngineError, StorageError};
 use crate::helix_engine::vector_core::vector::HVector;
 use crate::helix_engine::vector_core::vector_core;
 use crate::protocol::value::Value;
 use crate::utils::properties::ImmutablePropertiesMap;
 
-pub fn migrate(storage: &mut HelixGraphStorage) -> Result<(), GraphError> {
+pub fn migrate(storage: &mut HelixGraphStorage) -> Result<(), EngineError> {
 	let mut metadata = {
 		let txn = storage.graph_env.read_txn()?;
 		StorageMetadata::read(&txn, &storage.metadata_db)?
@@ -42,7 +42,7 @@ pub fn migrate(storage: &mut HelixGraphStorage) -> Result<(), GraphError> {
 
 pub(crate) fn migrate_pre_metadata_to_native_vector_endianness(
 	storage: &mut HelixGraphStorage,
-) -> Result<StorageMetadata, GraphError> {
+) -> Result<StorageMetadata, EngineError> {
 	// In PreMetadata, all vectors are stored as big endian.
 	// If we are on a big endian machine, all we need to do is store the metadata.
 	// Otherwise, we need to convert all the vectors and then store the metadata.
@@ -70,7 +70,7 @@ pub(crate) fn migrate_pre_metadata_to_native_vector_endianness(
 pub(crate) fn convert_vectors_to_native_endianness(
 	currently_stored_vector_endianness: VectorEndianness,
 	storage: &mut HelixGraphStorage,
-) -> Result<StorageMetadata, GraphError> {
+) -> Result<StorageMetadata, EngineError> {
 	// Convert all vectors from currently_stored_vector_endianness to native endianness
 	convert_all_vectors(currently_stored_vector_endianness, storage)?;
 
@@ -89,7 +89,7 @@ pub(crate) fn convert_vectors_to_native_endianness(
 pub(crate) fn convert_all_vectors(
 	source_endianness: VectorEndianness,
 	storage: &mut HelixGraphStorage,
-) -> Result<(), GraphError> {
+) -> Result<(), EngineError> {
 	const BATCH_SIZE: usize = 1024;
 
 	let key_arena = bumpalo::Bump::new();
@@ -141,7 +141,7 @@ pub(crate) fn convert_all_vectors(
 
 			let success = unsafe { cursor.put_current(key, value)? };
 			if !success {
-				return Err(GraphError::New("failed to update value in LMDB".into()));
+				return Err(StorageError::Backend("failed to update value in LMDB".into()).into());
 			}
 		}
 		drop(cursor);
@@ -158,7 +158,7 @@ pub(crate) fn convert_vector_endianness<'arena>(
 	bytes: &[u8],
 	source_endianness: VectorEndianness,
 	arena: &'arena bumpalo::Bump,
-) -> Result<&'arena [u8], GraphError> {
+) -> Result<&'arena [u8], EngineError> {
 	use std::{alloc, mem, ptr, slice};
 
 	if bytes.is_empty() {
@@ -167,16 +167,17 @@ pub(crate) fn convert_vector_endianness<'arena>(
 	}
 
 	if !bytes.len().is_multiple_of(mem::size_of::<f64>()) {
-		return Err(GraphError::New(
+		return Err(StorageError::Conversion(
 			"Vector data length is not a multiple of f64 size".to_string(),
-		));
+		)
+		.into());
 	}
 
 	let num_floats = bytes.len() / mem::size_of::<f64>();
 
 	// Allocate space for the converted f64 array in the arena
 	let layout = alloc::Layout::array::<f64>(num_floats)
-		.map_err(|_| GraphError::New("Failed to create array layout".to_string()))?;
+		.map_err(|_| StorageError::Conversion("Failed to create array layout".to_string()))?;
 
 	let data_ptr: ptr::NonNull<u8> = arena.alloc_layout(layout);
 
@@ -190,7 +191,7 @@ pub(crate) fn convert_vector_endianness<'arena>(
 			let end = start + mem::size_of::<f64>();
 			let float_bytes: [u8; 8] = bytes[start..end]
 				.try_into()
-				.map_err(|_| GraphError::New("Failed to extract f64 bytes".to_string()))?;
+				.map_err(|_| StorageError::Conversion("Failed to extract f64 bytes".to_string()))?;
 
 			let value = match source_endianness {
 				VectorEndianness::BigEndian => f64::from_be_bytes(float_bytes),
@@ -211,7 +212,7 @@ pub(crate) fn convert_vector_endianness<'arena>(
 
 pub(crate) fn convert_all_vector_properties(
 	storage: &mut HelixGraphStorage,
-) -> Result<(), GraphError> {
+) -> Result<(), EngineError> {
 	const BATCH_SIZE: usize = 1024;
 
 	let batch_bounds: Vec<(Bound<u128>, Bound<u128>)> = {
@@ -259,7 +260,7 @@ pub(crate) fn convert_all_vector_properties(
 
 			let success = unsafe { cursor.put_current(&key, &value)? };
 			if !success {
-				return Err(GraphError::New("failed to update value in LMDB".into()));
+				return Err(StorageError::Backend("failed to update value in LMDB".into()).into());
 			}
 		}
 		drop(cursor);
@@ -273,7 +274,7 @@ pub(crate) fn convert_all_vector_properties(
 pub(crate) fn convert_old_vector_properties_to_new_format(
 	property_bytes: &[u8],
 	arena: &bumpalo::Bump,
-) -> Result<Vec<u8>, GraphError> {
+) -> Result<Vec<u8>, EngineError> {
 	let mut old_properties: HashMap<String, Value> = postcard::from_bytes(property_bytes)?;
 
 	let label = old_properties
@@ -300,10 +301,10 @@ pub(crate) fn convert_old_vector_properties_to_new_format(
 		properties: Some(new_properties),
 	};
 
-	new_vector.to_bytes().map_err(GraphError::from)
+	new_vector.to_bytes().map_err(EngineError::from)
 }
 
-fn verify_vectors_and_repair(storage: &HelixGraphStorage) -> Result<(), GraphError> {
+fn verify_vectors_and_repair(storage: &HelixGraphStorage) -> Result<(), EngineError> {
 	// Verify that all vectors at level > 0 also exist at level 0 and collect ones that need repair
 	println!("\nVerifying vector integrity after migration...");
 	let vectors_to_repair: Vec<(u128, u64)> = {
@@ -362,7 +363,7 @@ fn verify_vectors_and_repair(storage: &HelixGraphStorage) -> Result<(), GraphErr
 						.vectors_db
 						.get(&txn, &source_key)?
 						.ok_or_else(|| {
-							GraphError::New(format!(
+							StorageError::Backend(format!(
 								"Could not read vector {} at level {source_level} for repair",
 								uuid::Uuid::from_u128(id)
 							))
@@ -397,7 +398,7 @@ fn verify_vectors_and_repair(storage: &HelixGraphStorage) -> Result<(), GraphErr
 	Ok(())
 }
 
-fn remove_orphaned_vector_edges(storage: &HelixGraphStorage) -> Result<(), GraphError> {
+fn remove_orphaned_vector_edges(storage: &HelixGraphStorage) -> Result<(), EngineError> {
 	let txn = storage.graph_env.read_txn()?;
 	let mut orphaned_edges = Vec::new();
 
@@ -455,7 +456,7 @@ fn remove_orphaned_vector_edges(storage: &HelixGraphStorage) -> Result<(), Graph
 				.edges_db
 				.get(&txn, &edge_key)?
 				.ok_or_else(|| {
-					GraphError::New("edge key doesnt exist when removing orphan".into())
+					StorageError::Backend("edge key doesnt exist when removing orphan".into())
 				})?;
 
 			storage.vectors.edges_db.delete(&mut txn, &edge_key)?;

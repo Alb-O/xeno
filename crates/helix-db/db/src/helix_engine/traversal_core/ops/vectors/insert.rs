@@ -2,13 +2,13 @@ use heed3::RoTxn;
 
 use crate::helix_engine::traversal_core::traversal_iter::RwTraversalIterator;
 use crate::helix_engine::traversal_core::traversal_value::TraversalValue;
-use crate::helix_engine::types::GraphError;
+use crate::helix_engine::types::EngineError;
 use crate::helix_engine::vector_core::hnsw::HNSW;
 use crate::helix_engine::vector_core::vector::HVector;
 use crate::utils::properties::ImmutablePropertiesMap;
 
 pub trait InsertVAdapter<'db, 'arena, 'txn>:
-	Iterator<Item = Result<TraversalValue<'arena>, GraphError>>
+	Iterator<Item = Result<TraversalValue<'arena>, EngineError>>
 {
 	fn insert_v<F>(
 		self,
@@ -19,13 +19,13 @@ pub trait InsertVAdapter<'db, 'arena, 'txn>:
 		'db,
 		'arena,
 		'txn,
-		impl Iterator<Item = Result<TraversalValue<'arena>, GraphError>>,
+		impl Iterator<Item = Result<TraversalValue<'arena>, EngineError>>,
 	>
 	where
 		F: Fn(&HVector<'arena>, &RoTxn<'db>) -> bool;
 }
 
-impl<'db, 'arena, 'txn, I: Iterator<Item = Result<TraversalValue<'arena>, GraphError>>>
+impl<'db, 'arena, 'txn, I: Iterator<Item = Result<TraversalValue<'arena>, EngineError>>>
 	InsertVAdapter<'db, 'arena, 'txn> for RwTraversalIterator<'db, 'arena, 'txn, I>
 {
 	fn insert_v<F>(
@@ -37,7 +37,7 @@ impl<'db, 'arena, 'txn, I: Iterator<Item = Result<TraversalValue<'arena>, GraphE
 		'db,
 		'arena,
 		'txn,
-		impl Iterator<Item = Result<TraversalValue<'arena>, GraphError>>,
+		impl Iterator<Item = Result<TraversalValue<'arena>, EngineError>>,
 	>
 	where
 		F: Fn(&HVector<'arena>, &RoTxn<'db>) -> bool,
@@ -49,7 +49,7 @@ impl<'db, 'arena, 'txn, I: Iterator<Item = Result<TraversalValue<'arena>, GraphE
 
 		let result = match vector {
 			Ok(vector) => Ok(TraversalValue::Vector(vector)),
-			Err(e) => Err(GraphError::from(e)),
+			Err(e) => Err(EngineError::from(e)),
 		};
 
 		RwTraversalIterator {

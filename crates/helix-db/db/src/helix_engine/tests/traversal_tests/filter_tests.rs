@@ -12,7 +12,7 @@ use crate::helix_engine::traversal_core::ops::source::e_from_type::EFromTypeAdap
 use crate::helix_engine::traversal_core::ops::source::n_from_type::NFromTypeAdapter;
 use crate::helix_engine::traversal_core::ops::util::filter_ref::FilterRefAdapter;
 use crate::helix_engine::traversal_core::traversal_value::TraversalValue;
-use crate::helix_engine::types::GraphError;
+use crate::helix_engine::types::EngineError;
 use crate::props;
 use crate::protocol::value::Value;
 
@@ -97,7 +97,7 @@ fn test_filter_macro_single_argument() {
 		.collect::<Result<Vec<_>, _>>()
 		.unwrap();
 
-	fn has_name(val: &Result<TraversalValue, GraphError>) -> Result<bool, GraphError> {
+	fn has_name(val: &Result<TraversalValue, EngineError>) -> Result<bool, EngineError> {
 		if let Ok(TraversalValue::Node(node)) = val {
 			Ok(node.get_property("name").is_some())
 		} else {
@@ -145,9 +145,9 @@ fn test_filter_macro_multiple_arguments() {
 	txn.commit().unwrap();
 
 	fn age_greater_than(
-		val: &Result<TraversalValue, GraphError>,
+		val: &Result<TraversalValue, EngineError>,
 		min_age: i32,
-	) -> Result<bool, GraphError> {
+	) -> Result<bool, EngineError> {
 		if let Ok(TraversalValue::Node(node)) = val {
 			if let Some(value) = node.get_property("age") {
 				match value {
@@ -216,9 +216,9 @@ fn test_filter_edges() {
 	let txn = storage.graph_env.read_txn().unwrap();
 
 	fn recent_edge(
-		val: &Result<TraversalValue, GraphError>,
+		val: &Result<TraversalValue, EngineError>,
 		year: i32,
-	) -> Result<bool, GraphError> {
+	) -> Result<bool, EngineError> {
 		if let Ok(TraversalValue::Edge(edge)) = val {
 			if let Some(value) = edge.get_property("since") {
 				match value {
@@ -309,7 +309,7 @@ fn test_filter_chain() {
 	txn.commit().unwrap();
 	let txn = storage.graph_env.read_txn().unwrap();
 
-	fn has_name(val: &Result<TraversalValue, GraphError>) -> Result<bool, GraphError> {
+	fn has_name(val: &Result<TraversalValue, EngineError>) -> Result<bool, EngineError> {
 		if let Ok(TraversalValue::Node(node)) = val {
 			node.get_property("name").map_or(Ok(false), |_| Ok(true))
 		} else {
@@ -318,9 +318,9 @@ fn test_filter_chain() {
 	}
 
 	fn age_greater_than(
-		val: &Result<TraversalValue, GraphError>,
+		val: &Result<TraversalValue, EngineError>,
 		min_age: i32,
-	) -> Result<bool, GraphError> {
+	) -> Result<bool, EngineError> {
 		if let Ok(TraversalValue::Node(node)) = val {
 			if let Some(value) = node.get_property("age") {
 				match value {

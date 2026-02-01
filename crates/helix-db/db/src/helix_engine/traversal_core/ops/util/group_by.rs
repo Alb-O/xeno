@@ -2,18 +2,18 @@ use std::collections::HashMap;
 
 use crate::helix_engine::traversal_core::traversal_iter::RoTraversalIterator;
 use crate::helix_engine::traversal_core::traversal_value::TraversalValue;
-use crate::helix_engine::types::GraphError;
+use crate::helix_engine::types::EngineError;
 use crate::utils::group_by::{GroupBy, GroupByItem};
 
 pub trait GroupByAdapter: Iterator {
-	fn group_by(self, properties: &[String], should_count: bool) -> Result<GroupBy, GraphError>;
+	fn group_by(self, properties: &[String], should_count: bool) -> Result<GroupBy, EngineError>;
 }
 
-impl<'db, 'arena, 'txn, I: Iterator<Item = Result<TraversalValue<'arena>, GraphError>>>
+impl<'db, 'arena, 'txn, I: Iterator<Item = Result<TraversalValue<'arena>, EngineError>>>
 	GroupByAdapter for RoTraversalIterator<'db, 'arena, 'txn, I>
 {
 	// TODO: optimize this
-	fn group_by(self, properties: &[String], should_count: bool) -> Result<GroupBy, GraphError> {
+	fn group_by(self, properties: &[String], should_count: bool) -> Result<GroupBy, EngineError> {
 		let mut groups: HashMap<String, GroupByItem> = HashMap::new();
 
 		let properties_len = properties.len();

@@ -1,9 +1,9 @@
 use crate::helix_engine::traversal_core::traversal_iter::RoTraversalIterator;
 use crate::helix_engine::traversal_core::traversal_value::TraversalValue;
-use crate::helix_engine::types::{GraphError, VectorError};
+use crate::helix_engine::types::{EngineError, VectorError};
 
 pub trait VFromIdAdapter<'db, 'arena, 'txn>:
-	Iterator<Item = Result<TraversalValue<'arena>, GraphError>>
+	Iterator<Item = Result<TraversalValue<'arena>, EngineError>>
 where
 	'db: 'arena,
 	'arena: 'txn,
@@ -19,11 +19,11 @@ where
 		'db,
 		'arena,
 		'txn,
-		impl Iterator<Item = Result<TraversalValue<'arena>, GraphError>>,
+		impl Iterator<Item = Result<TraversalValue<'arena>, EngineError>>,
 	>;
 }
 
-impl<'db, 'arena, 'txn, I: Iterator<Item = Result<TraversalValue<'arena>, GraphError>>>
+impl<'db, 'arena, 'txn, I: Iterator<Item = Result<TraversalValue<'arena>, EngineError>>>
 	VFromIdAdapter<'db, 'arena, 'txn> for RoTraversalIterator<'db, 'arena, 'txn, I>
 where
 	'db: 'arena,
@@ -38,7 +38,7 @@ where
 		'db,
 		'arena,
 		'txn,
-		impl Iterator<Item = Result<TraversalValue<'arena>, GraphError>>,
+		impl Iterator<Item = Result<TraversalValue<'arena>, EngineError>>,
 	> {
 		let vec = if get_vector_data {
 			match self
@@ -48,12 +48,12 @@ where
 			{
 				Ok(vec) => {
 					if vec.deleted {
-						Err(GraphError::from(VectorError::VectorDeleted))
+						Err(EngineError::from(VectorError::VectorDeleted))
 					} else {
 						Ok(TraversalValue::Vector(vec))
 					}
 				}
-				Err(e) => Err(GraphError::from(e)),
+				Err(e) => Err(EngineError::from(e)),
 			}
 		} else {
 			match self
@@ -63,15 +63,15 @@ where
 			{
 				Ok(Some(vec)) => {
 					if vec.deleted {
-						Err(GraphError::from(VectorError::VectorDeleted))
+						Err(EngineError::from(VectorError::VectorDeleted))
 					} else {
 						Ok(TraversalValue::VectorNodeWithoutVectorData(vec))
 					}
 				}
-				Ok(None) => Err(GraphError::from(VectorError::VectorNotFound(
+				Ok(None) => Err(EngineError::from(VectorError::VectorNotFound(
 					id.to_string(),
 				))),
-				Err(e) => Err(GraphError::from(e)),
+				Err(e) => Err(EngineError::from(e)),
 			}
 		};
 

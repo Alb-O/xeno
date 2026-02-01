@@ -1,11 +1,11 @@
 use crate::helix_engine::traversal_core::LMDB_STRING_HEADER_LENGTH;
 use crate::helix_engine::traversal_core::traversal_iter::RoTraversalIterator;
 use crate::helix_engine::traversal_core::traversal_value::TraversalValue;
-use crate::helix_engine::types::{GraphError, VectorError};
+use crate::helix_engine::types::{EngineError, VectorError};
 use crate::helix_engine::vector_core::vector_without_data::VectorWithoutData;
 
 pub trait VFromTypeAdapter<'db, 'arena, 'txn>:
-	Iterator<Item = Result<TraversalValue<'arena>, GraphError>>
+	Iterator<Item = Result<TraversalValue<'arena>, EngineError>>
 {
 	/// Returns an iterator containing the vector with the given label.
 	///
@@ -18,11 +18,11 @@ pub trait VFromTypeAdapter<'db, 'arena, 'txn>:
 		'db,
 		'arena,
 		'txn,
-		impl Iterator<Item = Result<TraversalValue<'arena>, GraphError>>,
+		impl Iterator<Item = Result<TraversalValue<'arena>, EngineError>>,
 	>;
 }
 
-impl<'db, 'arena, 'txn, I: Iterator<Item = Result<TraversalValue<'arena>, GraphError>>>
+impl<'db, 'arena, 'txn, I: Iterator<Item = Result<TraversalValue<'arena>, EngineError>>>
 	VFromTypeAdapter<'db, 'arena, 'txn> for RoTraversalIterator<'db, 'arena, 'txn, I>
 {
 	#[inline]
@@ -34,7 +34,7 @@ impl<'db, 'arena, 'txn, I: Iterator<Item = Result<TraversalValue<'arena>, GraphE
 		'db,
 		'arena,
 		'txn,
-		impl Iterator<Item = Result<TraversalValue<'arena>, GraphError>>,
+		impl Iterator<Item = Result<TraversalValue<'arena>, EngineError>>,
 	> {
 		let label_bytes = label.as_bytes();
 		let iter = self
@@ -81,7 +81,7 @@ impl<'db, 'arena, 'txn, I: Iterator<Item = Result<TraversalValue<'arena>, GraphE
                             let mut vector = match self.storage.vectors.get_raw_vector_data(self.txn, id, label, self.arena) {
                                 Ok(bytes) => bytes,
                                 Err(VectorError::VectorDeleted) => return None,
-                                Err(e) => return Some(Err(GraphError::from(e))),
+                                Err(e) => return Some(Err(EngineError::from(e))),
                             };
                             vector.expand_from_vector_without_data(vector_without_data);
                             return Some(Ok(TraversalValue::Vector(vector)));

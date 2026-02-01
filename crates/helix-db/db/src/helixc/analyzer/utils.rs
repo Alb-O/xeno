@@ -71,11 +71,11 @@ pub(super) fn gen_identifier_or_param(
 			(true, false) => GenRef::Ref(format!("data.{name}")),
 			// std here because the as_ref returns a reference to the value
 			(true, true) => GenRef::Std(format!(
-				"data.{name}.as_ref().ok_or_else(|| GraphError::ParamNotFound(\"{name}\"))?"
+				"data.{name}.as_ref().ok_or_else(|| TraversalError::ParamNotFound(\"{name}\").into())?"
 			)),
 			(false, false) => GenRef::Std(format!("data.{name}.clone()")),
 			(false, true) => GenRef::Std(format!(
-				"data.{name}.as_ref().ok_or_else(|| GraphError::ParamNotFound(\"{name}\"))?.clone()"
+				"data.{name}.as_ref().ok_or_else(|| TraversalError::ParamNotFound(\"{name}\").into())?.clone()"
 			)),
 		})
 	} else {
@@ -91,7 +91,7 @@ pub(super) fn gen_id_access_or_param(original_query: &Query, name: &str) -> Gene
 	if let Some(param) = is_param(original_query, name) {
 		GeneratedValue::Parameter(match param.is_optional {
 			true => GenRef::DeRef(format!(
-				"data.{name}.as_ref().ok_or_else(|| GraphError::ParamNotFound(\"{name}\"))?"
+				"data.{name}.as_ref().ok_or_else(|| TraversalError::ParamNotFound(\"{name}\").into())?"
 			)),
 			false => GenRef::DeRef(format!("data.{name}")),
 		})

@@ -18,7 +18,7 @@ use crate::helix_engine::traversal_core::ops::source::n_from_id::NFromIdAdapter;
 use crate::helix_engine::traversal_core::ops::util::drop::Drop;
 use crate::helix_engine::traversal_core::ops::vectors::insert::InsertVAdapter;
 use crate::helix_engine::traversal_core::traversal_value::TraversalValue;
-use crate::helix_engine::types::GraphError;
+use crate::helix_engine::types::{EngineError, TraversalError};
 use crate::helix_engine::vector_core::vector::HVector;
 use crate::props;
 use crate::protocol::value::Value;
@@ -324,7 +324,10 @@ fn test_e_from_id_with_nonexistent_id() {
 		.collect_to_obj();
 
 	// Assert it returns EdgeNotFound error
-	assert!(matches!(result, Err(GraphError::EdgeNotFound)));
+	assert!(matches!(
+		result,
+		Err(EngineError::Traversal(TraversalError::EdgeNotFound))
+	));
 }
 
 #[test]
@@ -364,7 +367,7 @@ fn test_e_from_id_with_deleted_edge() {
 
 	let mut txn = storage.graph_env.write_txn().unwrap();
 	Drop::drop_traversal(
-		edge_to_delete.into_iter().map(Ok::<_, GraphError>),
+		edge_to_delete.into_iter().map(Ok::<_, EngineError>),
 		storage.as_ref(),
 		&mut txn,
 	)
@@ -379,7 +382,10 @@ fn test_e_from_id_with_deleted_edge() {
 		.collect_to_obj();
 
 	// Assert it returns EdgeNotFound error
-	assert!(matches!(result, Err(GraphError::EdgeNotFound)));
+	assert!(matches!(
+		result,
+		Err(EngineError::Traversal(TraversalError::EdgeNotFound))
+	));
 }
 
 #[test]
@@ -394,7 +400,10 @@ fn test_e_from_id_with_zero_id() {
 		.collect_to_obj();
 
 	// Assert it returns EdgeNotFound error
-	assert!(matches!(result, Err(GraphError::EdgeNotFound)));
+	assert!(matches!(
+		result,
+		Err(EngineError::Traversal(TraversalError::EdgeNotFound))
+	));
 }
 
 #[test]
@@ -409,5 +418,8 @@ fn test_e_from_id_with_max_id() {
 		.collect_to_obj();
 
 	// Assert it returns EdgeNotFound error
-	assert!(matches!(result, Err(GraphError::EdgeNotFound)));
+	assert!(matches!(
+		result,
+		Err(EngineError::Traversal(TraversalError::EdgeNotFound))
+	));
 }

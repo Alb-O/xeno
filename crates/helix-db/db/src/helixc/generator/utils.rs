@@ -489,7 +489,7 @@ use helix_db::{
             },
             traversal_value::TraversalValue,
         },
-        types::{GraphError, SecondaryIndex},
+        types::{EngineError, SecondaryIndex, StorageError, TraversalError},
         vector_core::vector::HVector,
     },
         utils::embedding_providers::{EmbeddingModel, get_embedding_model},

@@ -100,7 +100,7 @@ impl Query {
 	fn print_txn_commit(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
 		writeln!(
 			f,
-			"txn.commit().map_err(|e| GraphError::New(format!(\"Failed to commit transaction: {{:?}}\", e)))?;"
+			"txn.commit().map_err(|e| StorageError::Backend(format!(\"Failed to commit transaction: {{:?}}\", e)).into())?;"
 		)
 	}
 
@@ -117,7 +117,7 @@ impl Query {
 		self.print_handler(f)?;
 		writeln!(
 			f,
-			"pub fn {} (input: HandlerInput) -> Result<Response, GraphError> {{",
+			"pub fn {} (input: HandlerInput) -> Result<Response, EngineError> {{",
 			self.name
 		)?;
 
@@ -145,11 +145,11 @@ impl Query {
 		match self.is_mut {
 			true => writeln!(
 				f,
-				"let mut txn = db.graph_env.write_txn().map_err(|e| GraphError::New(format!(\"Failed to start write transaction: {{:?}}\", e)))?;"
+				"let mut txn = db.graph_env.write_txn().map_err(|e| StorageError::Backend(format!(\"Failed to start write transaction: {{:?}}\", e)).into())?;"
 			)?,
 			false => writeln!(
 				f,
-				"let txn = db.graph_env.read_txn().map_err(|e| GraphError::New(format!(\"Failed to start read transaction: {{:?}}\", e)))?;"
+				"let txn = db.graph_env.read_txn().map_err(|e| StorageError::Backend(format!(\"Failed to start read transaction: {{:?}}\", e)).into())?;"
 			)?,
 		}
 
@@ -315,7 +315,7 @@ impl Query {
 					if has_fallible {
 						writeln!(
 							f,
-							"    \"{}\": {}.iter().map(|{}| Ok::<_, GraphError>({} {{",
+							"    \"{}\": {}.iter().map(|{}| Ok::<_, EngineError>({} {{",
 							struct_def.source_variable,
 							struct_def.source_variable,
 							singular_var,
@@ -740,7 +740,7 @@ impl Query {
 							)
 					});
 					if has_fallible {
-						write!(f, "    }})).collect::<Result<Vec<_>, GraphError>>()?")
+						write!(f, "    }})).collect::<Result<Vec<_>, EngineError>>()?")
 					} else {
 						write!(f, "    }}).collect::<Vec<_>>()")
 					}?;
@@ -1248,7 +1248,7 @@ impl Query {
 		writeln!(f, "#[mcp_handler]")?;
 		writeln!(
 			f,
-			"pub fn {mcp_function_name}(input: &mut MCPToolInput) -> Result<Response, GraphError> {{"
+			"pub fn {mcp_function_name}(input: &mut MCPToolInput) -> Result<Response, EngineError> {{"
 		)?;
 
 		match self.hoisted_embedding_calls.is_empty() {
@@ -1264,14 +1264,17 @@ impl Query {
 
 		writeln!(
 			f,
-			"let mut connections = input.mcp_connections.lock().map_err(|_| GraphError::Default)?;"
+			"let mut connections = input.mcp_connections.lock().map_err(|_| StorageError::Backend(\"Failed to lock MCP connections\".to_string()).into())?;"
 		)?;
 		writeln!(
 			f,
 			"let mut connection = match connections.remove_connection(&data.connection_id) {{"
 		)?;
 		writeln!(f, "    Some(conn) => conn,")?;
-		writeln!(f, "    None => return Err(GraphError::Default),")?;
+		writeln!(
+			f,
+			"    None => return Err(StorageError::Backend(\"Missing MCP connections\".to_string()).into()),"
+		)?;
 		writeln!(f, "}};")?;
 		writeln!(f, "drop(connections);")?;
 		// print the db boilerplate
@@ -1289,11 +1292,11 @@ impl Query {
 		match self.is_mut {
 			true => writeln!(
 				f,
-				"let mut txn = db.graph_env.write_txn().map_err(|e| GraphError::New(format!(\"Failed to start write transaction: {{:?}}\", e)))?;"
+				"let mut txn = db.graph_env.write_txn().map_err(|e| StorageError::Backend(format!(\"Failed to start write transaction: {{:?}}\", e)).into())?;"
 			)?,
 			false => writeln!(
 				f,
-				"let txn = db.graph_env.read_txn().map_err(|e| GraphError::New(format!(\"Failed to start read transaction: {{:?}}\", e)))?;"
+				"let txn = db.graph_env.read_txn().map_err(|e| StorageError::Backend(format!(\"Failed to start read transaction: {{:?}}\", e)).into())?;"
 			)?,
 		}
 
@@ -1337,7 +1340,7 @@ impl Query {
 					if has_fallible {
 						writeln!(
 							f,
-							"    \"{}\": {}.iter().map(|{}| Ok::<_, GraphError>({} {{",
+							"    \"{}\": {}.iter().map(|{}| Ok::<_, EngineError>({} {{",
 							struct_def.source_variable,
 							struct_def.source_variable,
 							singular_var,
@@ -1674,7 +1677,7 @@ impl Query {
 							)
 					});
 					if has_fallible {
-						write!(f, "    }})).collect::<Result<Vec<_>, GraphError>>()?")
+						write!(f, "    }})).collect::<Result<Vec<_>, EngineError>>()?")
 					} else {
 						write!(f, "    }}).collect::<Vec<_>>()")
 					}?;

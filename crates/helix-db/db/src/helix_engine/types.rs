@@ -18,162 +18,6 @@ use crate::helixc::parser::errors::ParserError;
 use crate::helixc::parser::types::{Field, FieldPrefix};
 use crate::protocol::value_error::ValueError;
 
-#[derive(Debug)]
-pub enum GraphError {
-	Io(std::io::Error),
-	GraphConnectionError(String, std::io::Error),
-	StorageConnectionError(String, std::io::Error),
-	StorageError(String),
-	TraversalError(String),
-	ConversionError(String),
-	DecodeError(String),
-	Value(ValueError),
-	EdgeNotFound,
-	NodeNotFound,
-	LabelNotFound,
-	VectorError(String),
-	Default,
-	New(String),
-	Empty,
-	MultipleNodesWithSameId,
-	MultipleEdgesWithSameId,
-	InvalidNode,
-	ConfigFileNotFound,
-	SliceLengthError,
-	ShortestPathNotFound,
-	EmbeddingError(String),
-	ParamNotFound(&'static str),
-	#[cfg(feature = "server")]
-	IoNeeded(IoContFn),
-	RerankerError(String),
-	DuplicateKey(String),
-}
-
-impl std::error::Error for GraphError {}
-
-impl fmt::Display for GraphError {
-	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-		match self {
-			GraphError::Io(e) => write!(f, "IO error: {e}"),
-			GraphError::StorageConnectionError(msg, e) => {
-				write!(f, "Error: {msg} {e}")
-			}
-			GraphError::GraphConnectionError(msg, e) => {
-				write!(f, "Error: {msg} {e}")
-			}
-			GraphError::TraversalError(msg) => write!(f, "Traversal error: {msg}"),
-			GraphError::StorageError(msg) => write!(f, "Storage error: {msg}"),
-			GraphError::ConversionError(msg) => write!(f, "Conversion error: {msg}"),
-			GraphError::DecodeError(msg) => write!(f, "Decode error: {msg}"),
-			GraphError::Value(err) => write!(f, "Value error: {err}"),
-			GraphError::EdgeNotFound => write!(f, "Edge not found"),
-			GraphError::NodeNotFound => write!(f, "Node not found"),
-			GraphError::LabelNotFound => write!(f, "Label not found"),
-			GraphError::New(msg) => write!(f, "Graph error: {msg}"),
-			GraphError::Default => write!(f, "Graph error"),
-			GraphError::Empty => write!(f, "No Error"),
-			GraphError::MultipleNodesWithSameId => write!(f, "Multiple nodes with same id"),
-			GraphError::MultipleEdgesWithSameId => write!(f, "Multiple edges with same id"),
-			GraphError::InvalidNode => write!(f, "Invalid node"),
-			GraphError::ConfigFileNotFound => write!(f, "Config file not found"),
-			GraphError::SliceLengthError => write!(f, "Slice length error"),
-			GraphError::VectorError(msg) => write!(f, "Vector error: {msg}"),
-			GraphError::ShortestPathNotFound => write!(f, "Shortest path not found"),
-			GraphError::EmbeddingError(msg) => write!(f, "Error while embedding text: {msg}"),
-			GraphError::ParamNotFound(param) => write!(f, "Parameter {param} not found in request"),
-			#[cfg(feature = "server")]
-			GraphError::IoNeeded(_) => {
-				write!(f, "Asyncronous IO is needed to complete the DB operation")
-			}
-			GraphError::RerankerError(msg) => write!(f, "Reranker error: {msg}"),
-			GraphError::DuplicateKey(msg) => {
-				write!(f, "Duplicate key on unique index: {msg}")
-			}
-		}
-	}
-}
-
-impl From<HeedError> for GraphError {
-	fn from(error: HeedError) -> Self {
-		match error {
-			HeedError::Mdb(MdbError::KeyExist) => GraphError::DuplicateKey(error.to_string()),
-			_ => GraphError::StorageError(error.to_string()),
-		}
-	}
-}
-
-impl From<std::io::Error> for GraphError {
-	fn from(error: std::io::Error) -> Self {
-		GraphError::Io(error)
-	}
-}
-
-impl From<AddrParseError> for GraphError {
-	fn from(error: AddrParseError) -> Self {
-		GraphError::ConversionError(format!("AddrParseError: {error}"))
-	}
-}
-
-impl From<SonicError> for GraphError {
-	fn from(error: SonicError) -> Self {
-		GraphError::ConversionError(format!("sonic error: {error}"))
-	}
-}
-
-impl From<FromUtf8Error> for GraphError {
-	fn from(error: FromUtf8Error) -> Self {
-		GraphError::ConversionError(format!("FromUtf8Error: {error}"))
-	}
-}
-
-impl From<&'static str> for GraphError {
-	fn from(error: &'static str) -> Self {
-		GraphError::New(error.to_string())
-	}
-}
-
-impl From<String> for GraphError {
-	fn from(error: String) -> Self {
-		GraphError::New(error.to_string())
-	}
-}
-
-impl From<postcard::Error> for GraphError {
-	fn from(error: postcard::Error) -> Self {
-		GraphError::ConversionError(format!("postcard error: {error}"))
-	}
-}
-
-impl From<ParserError> for GraphError {
-	fn from(error: ParserError) -> Self {
-		GraphError::ConversionError(format!("ParserError: {error}"))
-	}
-}
-
-impl From<Utf8Error> for GraphError {
-	fn from(error: Utf8Error) -> Self {
-		GraphError::ConversionError(format!("Utf8Error: {error}"))
-	}
-}
-
-impl From<uuid::Error> for GraphError {
-	fn from(error: uuid::Error) -> Self {
-		GraphError::ConversionError(format!("uuid error: {error}"))
-	}
-}
-
-impl From<ValueError> for GraphError {
-	fn from(error: ValueError) -> Self {
-		GraphError::Value(error)
-	}
-}
-
-impl From<VectorError> for GraphError {
-	fn from(error: VectorError) -> Self {
-		GraphError::VectorError(format!("VectorError: {error}"))
-	}
-}
-
 #[derive(Debug, Error)]
 pub enum StorageError {
 	#[error("IO error: {0}")]
@@ -203,6 +47,57 @@ pub enum StorageError {
 
 	#[error("Slice length error")]
 	SliceLengthError,
+}
+
+impl From<HeedError> for StorageError {
+	fn from(error: HeedError) -> Self {
+		match error {
+			HeedError::Mdb(MdbError::KeyExist) => StorageError::DuplicateKey(error.to_string()),
+			_ => StorageError::Backend(error.to_string()),
+		}
+	}
+}
+
+impl From<AddrParseError> for StorageError {
+	fn from(error: AddrParseError) -> Self {
+		StorageError::Conversion(format!("AddrParseError: {error}"))
+	}
+}
+
+impl From<SonicError> for StorageError {
+	fn from(error: SonicError) -> Self {
+		StorageError::Conversion(format!("sonic error: {error}"))
+	}
+}
+
+impl From<FromUtf8Error> for StorageError {
+	fn from(error: FromUtf8Error) -> Self {
+		StorageError::Conversion(format!("FromUtf8Error: {error}"))
+	}
+}
+
+impl From<postcard::Error> for StorageError {
+	fn from(error: postcard::Error) -> Self {
+		StorageError::Conversion(format!("postcard error: {error}"))
+	}
+}
+
+impl From<ParserError> for StorageError {
+	fn from(error: ParserError) -> Self {
+		StorageError::Conversion(format!("ParserError: {error}"))
+	}
+}
+
+impl From<Utf8Error> for StorageError {
+	fn from(error: Utf8Error) -> Self {
+		StorageError::Conversion(format!("Utf8Error: {error}"))
+	}
+}
+
+impl From<uuid::Error> for StorageError {
+	fn from(error: uuid::Error) -> Self {
+		StorageError::Conversion(format!("uuid error: {error}"))
+	}
 }
 
 #[derive(Debug, Error)]
@@ -265,11 +160,8 @@ pub enum EngineError {
 	Embedding(#[from] EmbeddingError),
 
 	#[cfg(feature = "server")]
-	#[error("Asyncronous IO is needed to complete the DB operation")]
+	#[error("Asynchronous IO is needed to complete the DB operation")]
 	IoNeeded(IoContFn),
-
-	#[error(transparent)]
-	LegacyGraph(#[from] GraphError),
 }
 
 #[cfg(feature = "server")]
@@ -279,33 +171,78 @@ impl From<IoContFn> for EngineError {
 	}
 }
 
-#[derive(Debug)]
-pub enum VectorError {
-	VectorNotFound(String),
-	VectorDeleted,
-	InvalidVectorLength,
-	InvalidVectorData,
-	EntryPointNotFound,
-	ConversionError(String),
-	VectorCoreError(String),
-	VectorAlreadyDeleted(String),
+impl From<HeedError> for EngineError {
+	fn from(error: HeedError) -> Self {
+		StorageError::from(error).into()
+	}
 }
 
-impl std::error::Error for VectorError {}
-
-impl fmt::Display for VectorError {
-	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-		match self {
-			VectorError::VectorNotFound(id) => write!(f, "Vector not found: {id}"),
-			VectorError::VectorDeleted => write!(f, "Vector deleted"),
-			VectorError::InvalidVectorLength => write!(f, "Invalid vector length"),
-			VectorError::InvalidVectorData => write!(f, "Invalid vector data"),
-			VectorError::EntryPointNotFound => write!(f, "Entry point not found"),
-			VectorError::ConversionError(msg) => write!(f, "Conversion error: {msg}"),
-			VectorError::VectorCoreError(msg) => write!(f, "Vector core error: {msg}"),
-			VectorError::VectorAlreadyDeleted(id) => write!(f, "Vector already deleted: {id}"),
-		}
+impl From<std::io::Error> for EngineError {
+	fn from(error: std::io::Error) -> Self {
+		StorageError::Io(error).into()
 	}
+}
+
+impl From<AddrParseError> for EngineError {
+	fn from(error: AddrParseError) -> Self {
+		StorageError::from(error).into()
+	}
+}
+
+impl From<SonicError> for EngineError {
+	fn from(error: SonicError) -> Self {
+		StorageError::from(error).into()
+	}
+}
+
+impl From<FromUtf8Error> for EngineError {
+	fn from(error: FromUtf8Error) -> Self {
+		StorageError::from(error).into()
+	}
+}
+
+impl From<postcard::Error> for EngineError {
+	fn from(error: postcard::Error) -> Self {
+		StorageError::from(error).into()
+	}
+}
+
+impl From<ParserError> for EngineError {
+	fn from(error: ParserError) -> Self {
+		StorageError::from(error).into()
+	}
+}
+
+impl From<Utf8Error> for EngineError {
+	fn from(error: Utf8Error) -> Self {
+		StorageError::from(error).into()
+	}
+}
+
+impl From<uuid::Error> for EngineError {
+	fn from(error: uuid::Error) -> Self {
+		StorageError::from(error).into()
+	}
+}
+
+#[derive(Debug, Error)]
+pub enum VectorError {
+	#[error("Vector not found: {0}")]
+	VectorNotFound(String),
+	#[error("Vector deleted")]
+	VectorDeleted,
+	#[error("Invalid vector length")]
+	InvalidVectorLength,
+	#[error("Invalid vector data")]
+	InvalidVectorData,
+	#[error("Entry point not found")]
+	EntryPointNotFound,
+	#[error("Conversion error: {0}")]
+	ConversionError(String),
+	#[error("Vector core error: {0}")]
+	VectorCoreError(String),
+	#[error("Vector already deleted: {0}")]
+	VectorAlreadyDeleted(String),
 }
 
 impl From<HeedError> for VectorError {
@@ -395,28 +332,34 @@ impl SecondaryIndex {
 		txn: &mut RwTxn,
 		key: &[u8],
 		id: &u128,
-	) -> Result<(), GraphError> {
+	) -> Result<(), EngineError> {
 		match self {
 			Self::Unique(name) => {
 				if let Err(e) = db.put_with_flags(txn, PutFlags::NO_OVERWRITE, key, id) {
 					match e {
 						HeedError::Mdb(MdbError::KeyExist) => {
 							// Check if it's the same ID (idempotent)
-							if let Some(existing_id) = db.get(txn, key)? {
+							if let Some(existing_id) =
+								db.get(txn, key).map_err(StorageError::from)?
+							{
 								if &existing_id == id {
 									return Ok(());
 								}
 							}
-							return Err(GraphError::DuplicateKey(format!(
+							return Err(StorageError::DuplicateKey(format!(
 								"Duplicate key for unique index {name}"
-							)));
+							))
+							.into());
 						}
-						_ => return Err(GraphError::from(e)),
+						_ => return Err(StorageError::from(e).into()),
 					}
 				}
 				Ok(())
 			}
-			Self::Index(_) => db.put(txn, key, id).map_err(GraphError::from),
+			Self::Index(_) => {
+				db.put(txn, key, id).map_err(StorageError::from)?;
+				Ok(())
+			}
 			Self::None => unreachable!(),
 		}
 	}
@@ -427,19 +370,19 @@ impl SecondaryIndex {
 		txn: &mut RwTxn,
 		key: &[u8],
 		id: &u128,
-	) -> Result<(), GraphError> {
+	) -> Result<(), EngineError> {
 		match self {
 			Self::Unique(_) => {
-				if let Some(existing_id) = db.get(txn, key)? {
+				if let Some(existing_id) = db.get(txn, key).map_err(StorageError::from)? {
 					if &existing_id == id {
-						db.delete(txn, key).map_err(GraphError::from)?;
+						db.delete(txn, key).map_err(StorageError::from)?;
 					}
 				}
 				Ok(())
 			}
 			Self::Index(_) => {
 				db.delete_one_duplicate(txn, key, id)
-					.map_err(GraphError::from)?;
+					.map_err(StorageError::from)?;
 				Ok(())
 			}
 			Self::None => unreachable!(),
