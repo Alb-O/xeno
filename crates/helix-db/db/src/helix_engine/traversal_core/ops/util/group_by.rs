@@ -28,7 +28,7 @@ impl<'db, 'arena, 'txn, I: Iterator<Item = Result<TraversalValue<'arena>, GraphE
 			for property in properties {
 				match item.get_property(property) {
 					Some(val) => {
-						key_parts.push(val.inner_stringify());
+						key_parts.push(val.try_stringify_primitive()?.into_owned());
 						kvs.push((property.to_string(), val.clone()));
 					}
 					None => {

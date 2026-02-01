@@ -765,14 +765,14 @@ impl Display for WhereRef {
 						ReservedProp::Label => "Value::from(val.label())".to_string(),
 					};
 					let bool_expr = match bool_op {
-						BoolOp::Gt(gt) => format!("{} > {}", value_expr, gt.right),
-						BoolOp::Gte(gte) => format!("{} >= {}", value_expr, gte.right),
-						BoolOp::Lt(lt) => format!("{} < {}", value_expr, lt.right),
-						BoolOp::Lte(lte) => format!("{} <= {}", value_expr, lte.right),
-						BoolOp::Eq(eq) => format!("{} == {}", value_expr, eq.right),
-						BoolOp::Neq(neq) => format!("{} != {}", value_expr, neq.right),
+						BoolOp::Gt(gt) => format!("Ok({} > {})", value_expr, gt.right),
+						BoolOp::Gte(gte) => format!("Ok({} >= {})", value_expr, gte.right),
+						BoolOp::Lt(lt) => format!("Ok({} < {})", value_expr, lt.right),
+						BoolOp::Lte(lte) => format!("Ok({} <= {})", value_expr, lte.right),
+						BoolOp::Eq(eq) => format!("Ok({} == {})", value_expr, eq.right),
+						BoolOp::Neq(neq) => format!("Ok({} != {})", value_expr, neq.right),
 						BoolOp::Contains(contains) => format!("{}{}", value_expr, contains),
-						BoolOp::IsIn(is_in) => format!("{}{}", value_expr, is_in),
+						BoolOp::IsIn(is_in) => format!("Ok({}{})", value_expr, is_in),
 						BoolOp::PropertyEq(_) | BoolOp::PropertyNeq(_) => {
 							debug_assert!(
 								false,
@@ -785,7 +785,7 @@ impl Display for WhereRef {
 						f,
 						"filter_ref(|val, txn|{{
                 if let Ok(val) = val {{
-                    Ok({})
+                    Ok({}?)
                 }} else {{
                     Ok(false)
                 }}
@@ -797,16 +797,16 @@ impl Display for WhereRef {
 				// Handle PropertyFetch with BoolOp - use get_property
 				if let (Some(prop), Some(bool_op)) = (prop, bool_op) {
 					let bool_expr = match bool_op {
-						BoolOp::Gt(gt) => format!("{gt}"),
-						BoolOp::Gte(gte) => format!("{gte}"),
-						BoolOp::Lt(lt) => format!("{lt}"),
-						BoolOp::Lte(lte) => format!("{lte}"),
-						BoolOp::Eq(eq) => format!("{eq}"),
-						BoolOp::Neq(neq) => format!("{neq}"),
+						BoolOp::Gt(gt) => format!("Ok({gt})"),
+						BoolOp::Gte(gte) => format!("Ok({gte})"),
+						BoolOp::Lt(lt) => format!("Ok({lt})"),
+						BoolOp::Lte(lte) => format!("Ok({lte})"),
+						BoolOp::Eq(eq) => format!("Ok({eq})"),
+						BoolOp::Neq(neq) => format!("Ok({neq})"),
 						BoolOp::Contains(contains) => format!("v{contains}"),
-						BoolOp::IsIn(is_in) => format!("v{is_in}"),
-						BoolOp::PropertyEq(prop_eq) => format!("{prop_eq}"),
-						BoolOp::PropertyNeq(prop_neq) => format!("{prop_neq}"),
+						BoolOp::IsIn(is_in) => format!("Ok(v{is_in})"),
+						BoolOp::PropertyEq(prop_eq) => format!("Ok({prop_eq})"),
+						BoolOp::PropertyNeq(prop_neq) => format!("Ok({prop_neq})"),
 					};
 					return write!(
 						f,
@@ -814,7 +814,7 @@ impl Display for WhereRef {
                 if let Ok(val) = val {{
                     Ok(val
                     .get_property({})
-                    .map_or(false, |v| {}))
+                    .map_or(Ok(false), |v| {})?)
                 }} else {{
                     Ok(false)
                 }}

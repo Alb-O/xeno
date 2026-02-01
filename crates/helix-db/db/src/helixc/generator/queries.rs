@@ -303,10 +303,16 @@ impl Query {
 						.closure_param_name
 						.as_deref()
 						.unwrap_or_else(|| struct_def.source_variable.trim_end_matches('s'));
-					// Check if any field is a nested traversal (needs Result handling)
-					let has_nested = struct_def.fields.iter().any(|f| f.is_nested_traversal);
+					// Check if any field is fallible (needs Result handling)
+					let has_fallible = struct_def.fields.iter().enumerate().any(|(idx, f)| {
+						f.is_nested_traversal
+							|| matches!(
+								struct_def.field_infos[idx].source,
+								crate::helixc::generator::return_values::ReturnFieldSource::ComputedExpression { .. }
+							)
+					});
 
-					if has_nested {
+					if has_fallible {
 						writeln!(
 							f,
 							"    \"{}\": {}.iter().map(|{}| Ok::<_, GraphError>({} {{",
@@ -726,8 +732,14 @@ impl Query {
 					}
 
 					// Check if any field is a nested traversal (needs Result handling)
-					let has_nested = struct_def.fields.iter().any(|f| f.is_nested_traversal);
-					if has_nested {
+					let has_fallible = struct_def.fields.iter().enumerate().any(|(idx, f)| {
+						f.is_nested_traversal
+							|| matches!(
+								struct_def.field_infos[idx].source,
+								crate::helixc::generator::return_values::ReturnFieldSource::ComputedExpression { .. }
+							)
+					});
+					if has_fallible {
 						write!(f, "    }})).collect::<Result<Vec<_>, GraphError>>()?")
 					} else {
 						write!(f, "    }}).collect::<Vec<_>>()")
@@ -1313,10 +1325,16 @@ impl Query {
 						.closure_param_name
 						.as_deref()
 						.unwrap_or_else(|| struct_def.source_variable.trim_end_matches('s'));
-					// Check if any field is a nested traversal (needs Result handling)
-					let has_nested = struct_def.fields.iter().any(|f| f.is_nested_traversal);
+					// Check if any field is fallible (needs Result handling)
+					let has_fallible = struct_def.fields.iter().enumerate().any(|(idx, f)| {
+						f.is_nested_traversal
+							|| matches!(
+								struct_def.field_infos[idx].source,
+								crate::helixc::generator::return_values::ReturnFieldSource::ComputedExpression { .. }
+							)
+					});
 
-					if has_nested {
+					if has_fallible {
 						writeln!(
 							f,
 							"    \"{}\": {}.iter().map(|{}| Ok::<_, GraphError>({} {{",
@@ -1648,9 +1666,15 @@ impl Query {
 					}
 
 					// Check if any field is a nested traversal (needs Result handling)
-					let has_nested = struct_def.fields.iter().any(|f| f.is_nested_traversal);
-					if has_nested {
-						write!(f, "    }})).collect::<Vec<_>>()")
+					let has_fallible = struct_def.fields.iter().enumerate().any(|(idx, f)| {
+						f.is_nested_traversal
+							|| matches!(
+								struct_def.field_infos[idx].source,
+								crate::helixc::generator::return_values::ReturnFieldSource::ComputedExpression { .. }
+							)
+					});
+					if has_fallible {
+						write!(f, "    }})).collect::<Result<Vec<_>, GraphError>>()?")
 					} else {
 						write!(f, "    }}).collect::<Vec<_>>()")
 					}?;

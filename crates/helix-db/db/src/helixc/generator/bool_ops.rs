@@ -21,16 +21,16 @@ pub enum BoolOp {
 impl Display for BoolOp {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
 		let s = match self {
-			BoolOp::Gt(gt) => format!("{gt}"),
-			BoolOp::Gte(gte) => format!("{gte}"),
-			BoolOp::Lt(lt) => format!("{lt}"),
-			BoolOp::Lte(lte) => format!("{lte}"),
-			BoolOp::Eq(eq) => format!("{eq}"),
-			BoolOp::Neq(neq) => format!("{neq}"),
+			BoolOp::Gt(gt) => format!("Ok({gt})"),
+			BoolOp::Gte(gte) => format!("Ok({gte})"),
+			BoolOp::Lt(lt) => format!("Ok({lt})"),
+			BoolOp::Lte(lte) => format!("Ok({lte})"),
+			BoolOp::Eq(eq) => format!("Ok({eq})"),
+			BoolOp::Neq(neq) => format!("Ok({neq})"),
 			BoolOp::Contains(contains) => format!("v{contains}"),
-			BoolOp::IsIn(is_in) => format!("v{is_in}"),
-			BoolOp::PropertyEq(prop_eq) => format!("{prop_eq}"),
-			BoolOp::PropertyNeq(prop_neq) => format!("{prop_neq}"),
+			BoolOp::IsIn(is_in) => format!("Ok(v{is_in})"),
+			BoolOp::PropertyEq(prop_eq) => format!("Ok({prop_eq})"),
+			BoolOp::PropertyNeq(prop_neq) => format!("Ok({prop_neq})"),
 		};
 		write!(f, "map_value_or(false, |v| {s})?")
 	}
@@ -137,7 +137,7 @@ pub struct Contains {
 }
 impl Display for Contains {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-		write!(f, ".contains({})", self.value)
+		write!(f, ".try_contains({})", self.value)
 	}
 }
 
@@ -264,20 +264,20 @@ impl Display for BoExp {
 					{
 						// Generate optimized code: val.get_property("prop").map_or(false, |v| ...)
 						let bool_expr = match bool_op {
-							BoolOp::Gt(gt) => format!("{gt}"),
-							BoolOp::Gte(gte) => format!("{gte}"),
-							BoolOp::Lt(lt) => format!("{lt}"),
-							BoolOp::Lte(lte) => format!("{lte}"),
-							BoolOp::Eq(eq) => format!("{eq}"),
-							BoolOp::Neq(neq) => format!("{neq}"),
+							BoolOp::Gt(gt) => format!("Ok({gt})"),
+							BoolOp::Gte(gte) => format!("Ok({gte})"),
+							BoolOp::Lt(lt) => format!("Ok({lt})"),
+							BoolOp::Lte(lte) => format!("Ok({lte})"),
+							BoolOp::Eq(eq) => format!("Ok({eq})"),
+							BoolOp::Neq(neq) => format!("Ok({neq})"),
 							BoolOp::Contains(contains) => format!("v{contains}"),
-							BoolOp::IsIn(is_in) => format!("v{is_in}"),
-							BoolOp::PropertyEq(prop_eq) => format!("{prop_eq}"),
-							BoolOp::PropertyNeq(prop_neq) => format!("{prop_neq}"),
+							BoolOp::IsIn(is_in) => format!("Ok(v{is_in})"),
+							BoolOp::PropertyEq(prop_eq) => format!("Ok({prop_eq})"),
+							BoolOp::PropertyNeq(prop_neq) => format!("Ok({prop_neq})"),
 						};
 						return write!(
 							f,
-							"val\n                    .get_property({})\n                    .map_or(false, |v| {})",
+							"val\n                    .get_property({})\n                    .map_or(Ok(false), |v| {})?",
 							prop, bool_expr
 						);
 					}
@@ -358,7 +358,7 @@ mod tests {
 		let contains = Contains {
 			value: GeneratedValue::Literal(GenRef::Literal("substring".to_string())),
 		};
-		assert_eq!(format!("{}", contains), ".contains(\"substring\")");
+		assert_eq!(format!("{}", contains), ".try_contains(\"substring\")");
 	}
 
 	#[test]
@@ -380,7 +380,7 @@ mod tests {
 			right: GeneratedValue::Primitive(GenRef::Std("20".to_string())),
 		});
 		let output = format!("{}", bool_op);
-		assert!(output.contains("map_value_or(false, |v| *v > 20)"));
+		assert!(output.contains("map_value_or(false, |v| Ok(*v > 20))?"));
 	}
 
 	#[test]
@@ -390,7 +390,7 @@ mod tests {
 			right: GeneratedValue::Literal(GenRef::Literal("value".to_string())),
 		});
 		let output = format!("{}", bool_op);
-		assert!(output.contains("map_value_or(false, |v| *v == \"value\")"));
+		assert!(output.contains("map_value_or(false, |v| Ok(*v == \"value\"))?"));
 	}
 
 	#[test]
@@ -399,7 +399,7 @@ mod tests {
 			value: GeneratedValue::Literal(GenRef::Literal("text".to_string())),
 		});
 		let output = format!("{}", bool_op);
-		assert!(output.contains("map_value_or(false, |v| v.contains(\"text\"))"));
+		assert!(output.contains("map_value_or(false, |v| v.try_contains(\"text\"))"));
 	}
 
 	// ============================================================================
