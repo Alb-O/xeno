@@ -46,7 +46,16 @@ impl Editor {
 	}
 
 	/// Runs the main editor tick: dirty buffer hooks, LSP sync, and animations.
+	///
+	/// Also checks for completed background syntax parses via
+	/// [`SyntaxManager::any_task_finished`] and requests a redraw so the render
+	/// loop can install results. Without this, completed parses sit unpolled
+	/// until user input triggers a render.
 	pub fn tick(&mut self) {
+		if self.state.syntax_manager.any_task_finished() {
+			self.state.frame.needs_redraw = true;
+		}
+
 		if self.state.layout.animation_needs_redraw() {
 			self.state.frame.needs_redraw = true;
 		}

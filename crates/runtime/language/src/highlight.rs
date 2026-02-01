@@ -6,7 +6,6 @@
 use std::ops::{Bound, RangeBounds};
 
 use ropey::RopeSlice;
-// Re-export tree-house highlight types for convenience.
 pub use tree_house::highlighter::{Highlight, HighlightEvent};
 use xeno_primitives::Style;
 
@@ -112,73 +111,66 @@ impl<'a> Highlighter<'a> {
 
 	/// Collects all highlight spans into a vector.
 	///
-	/// This is a convenience method; prefer iterating directly for efficiency.
+	/// Convenience wrapper; prefer iterating directly to avoid allocation.
 	pub fn collect_spans(self) -> Vec<HighlightSpan> {
 		self.collect()
 	}
+
+	/// Closes the current span at `event_start` if there is an active highlight
+	/// and the region is non-empty.
+	fn close_span(&self, event_start: u32) -> Option<HighlightSpan> {
+		self.current_highlight.and_then(|h| {
+			(self.current_start < event_start).then_some(HighlightSpan {
+				start: self.current_start,
+				end: event_start,
+				highlight: h,
+			})
+		})
+	}
 }
 
+/// Advances through tree-house [`HighlightEvent`]s, emitting one
+/// [`HighlightSpan`] per contiguous styled region.
+///
+/// Each event marks a boundary where the highlight stack changes. The iterator
+/// closes the previous region (if any) and opens a new one:
+///
+/// - [`HighlightEvent::Push`]: A new scope is entered. Only updates the active
+///   highlight when the push carries a non-empty highlight — an empty push
+///   (e.g. entering an injection layer) preserves the parent scope's style.
+/// - [`HighlightEvent::Refresh`]: The highlight stack was restructured.
+///   Unconditionally replaces the active highlight with the new stack top.
+///
+/// After the inner iterator is exhausted, a final span is emitted covering any
+/// remaining bytes up to `end_byte`.
 impl<'a> Iterator for Highlighter<'a> {
 	type Item = HighlightSpan;
 
 	fn next(&mut self) -> Option<Self::Item> {
-		// Keep advancing until we have a span to emit or we're done
 		while self.inner.next_event_offset() < self.end_byte {
-			// Capture the event boundary position BEFORE advancing
 			let event_start = self.inner.next_event_offset();
 			let (event, mut highlights) = self.inner.advance();
 			let new_highlight = highlights.next_back();
 
-			// Emit a span for the region from current_start to event_start
-			// using the active highlight, if any.
-			let span = match event {
-				HighlightEvent::Push => {
-					let span = self.current_highlight.and_then(|h| {
-						if self.current_start < event_start {
-							Some(HighlightSpan {
-								start: self.current_start,
-								end: event_start,
-								highlight: h,
-							})
-						} else {
-							None
-						}
-					});
+			let span = self.close_span(event_start);
 
-					self.current_start = event_start;
+			self.current_start = event_start;
+			match event {
+				HighlightEvent::Push => {
 					if new_highlight.is_some() {
 						self.current_highlight = new_highlight;
 					}
-					span
 				}
 				HighlightEvent::Refresh => {
-					let span = self.current_highlight.and_then(|h| {
-						if self.current_start < event_start {
-							Some(HighlightSpan {
-								start: self.current_start,
-								end: event_start,
-								highlight: h,
-							})
-						} else {
-							None
-						}
-					});
-
-					self.current_start = event_start;
 					self.current_highlight = new_highlight;
-					span
 				}
-			};
+			}
 
-			// If we emitted a span, return it; otherwise continue to next event
 			if span.is_some() {
 				return span;
 			}
 		}
 
-		// After exhausting the inner iterator, we may still have a pending highlight
-		// span that wasn't closed by a HighlightEnd event. Emit it now covering the
-		// remaining byte range up to the document end.
 		if let Some(h) = self.current_highlight.take() {
 			let offset = self.inner.next_event_offset().min(self.end_byte);
 			if self.current_start < offset {

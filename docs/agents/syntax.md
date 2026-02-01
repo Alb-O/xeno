@@ -43,18 +43,23 @@
    - Enforced in: `SyntaxManager::ensure_syntax` (debounce gate conditioned on `slot.current.is_some()`)
    - Tested by: `syntax_manager::tests::test_bootstrap_parse_skips_debounce`
    - Failure symptom: Newly opened documents show unhighlighted text until the debounce timeout elapses.
-6. MUST bump `syntax_version` on successful incremental update (commits, undo, redo).
+6. MUST detect completed inflight syntax tasks from `tick()`, not only from `render()`.
+   - Enforced in: `Editor::tick` (calls `SyntaxManager::any_task_finished` to trigger redraw)
+   - Tested by: TODO (add regression: test_idle_tick_polls_inflight_parse)
+   - Failure symptom: Completed background parses are not installed until user input triggers a render; documents stay unhighlighted indefinitely while idle.
+7. MUST bump `syntax_version` on successful incremental update (commits, undo, redo).
    - Enforced in: `Document::try_incremental_syntax_update`, `Document::incremental_syntax_for_history`
    - Tested by: `buffer::document::tests::test_undo_redo_bumps_syntax_version`
    - Failure symptom: Highlight cache serves stale tiles until background reparse completes, causing a visual lag after undo/redo.
 
 ## Data flow
 1. Trigger: `SyntaxManager::note_edit` called from edit/undo/redo paths to record debounce timestamp.
-2. Render loop: `ensure_syntax_for_buffers` calls `SyntaxManager::ensure_syntax` for each dirty document.
-3. Gating: Check visibility, size tier, debounce, and cooldown.
-4. Throttling: Acquire global concurrency permit (semaphore).
-5. Async boundary: `spawn_blocking` calls `Syntax::new`.
-6. Install: Polled result is installed; `dirty` flag cleared only if versions match.
+2. Tick loop: `Editor::tick` checks `SyntaxManager::any_task_finished` every iteration and requests a redraw when a background parse completes, ensuring results are installed even when the render loop is idle.
+3. Render loop: `Editor::render` calls `ensure_syntax_for_buffers` to kick new parses and install completed results before drawing.
+4. Gating: Check visibility, size tier, debounce, and cooldown.
+5. Throttling: Acquire global concurrency permit (semaphore).
+6. Async boundary: `spawn_blocking` calls `Syntax::new`.
+7. Install: Polled result is installed; `dirty` flag cleared only if versions match.
 
 ## Lifecycle
 - Idle: Document is clean or cooling down.

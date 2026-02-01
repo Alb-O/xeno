@@ -289,6 +289,17 @@ impl SyntaxManager {
 		self.docs.values().filter(|d| d.inflight.is_some()).count()
 	}
 
+	/// Returns true if any inflight task has finished.
+	///
+	/// Uses `JoinHandle::is_finished()` for a non-consuming, zero-cost check.
+	/// The caller should trigger a redraw so that `ensure_syntax` can poll and
+	/// install the result.
+	pub fn any_task_finished(&self) -> bool {
+		self.docs
+			.values()
+			.any(|d| d.inflight.as_ref().is_some_and(|t| t.task.is_finished()))
+	}
+
 	/// Polls or kicks background syntax parsing.
 	///
 	/// This is the main entry point for the syntax scheduler. It:
