@@ -217,7 +217,7 @@ mod tests {
 		let arena = Bump::new();
 		let results = bm25.search(&rtxn, "fox", 10, &arena).unwrap();
 
-		println!("results: {results:?}");
+		tracing::debug!(results = ?results, "bm25 search results");
 
 		// should return documents 1 and 3 (both contain "fox")
 		assert_eq!(results.len(), 2);
@@ -287,7 +287,7 @@ mod tests {
 		let arena = Bump::new();
 		let results = bm25.search(&rtxn, "machine learning", 10, &arena).unwrap();
 
-		println!("results: {results:?}");
+		tracing::debug!(results = ?results, "bm25 search results");
 
 		// documents 1 and 3 should score highest (contain both terms)
 		assert!(results.len() >= 2);
@@ -1270,7 +1270,7 @@ mod tests {
 			);
 			let data = props_map.flatten_bm25();
 			bm25.insert_doc(&mut wtxn, i as u128, &data).unwrap();
-			println!("{data:?}");
+			tracing::trace!(data = ?data, "bm25 doc data");
 		}
 		wtxn.commit().unwrap();
 
@@ -1278,7 +1278,7 @@ mod tests {
 		let arena = Bump::new();
 		let results = bm25.search(&rtxn, "science", 10, &arena).unwrap();
 
-		println!("results: {results:?}");
+		tracing::debug!(results = ?results, "bm25 search results");
 
 		assert!(results.len() >= 2);
 
@@ -1306,7 +1306,7 @@ mod tests {
 			8.0, // average doc length
 		);
 
-		println!("score {score}");
+		tracing::debug!(score, "bm25 score calculation");
 
 		// Score should be finite and reasonable
 		assert!(score.is_finite());
@@ -1476,7 +1476,7 @@ mod tests {
 
 		match result {
 			Ok(results) => assert!(results.len() <= limit),
-			Err(_) => println!("Vector search not available"),
+			Err(_) => tracing::warn!("vector search not available"),
 		}
 	}
 
@@ -1521,7 +1521,7 @@ mod tests {
 		match results_vector_only {
 			Ok(results) => assert!(results.len() <= 10),
 			Err(_) => {
-				println!("Vector-only search failed")
+				tracing::warn!("vector-only search failed");
 			}
 		}
 	}
@@ -1567,7 +1567,7 @@ mod tests {
 		// all should be valid results or acceptable errors
 		match results_bm25_only {
 			Ok(results) => assert!(results.len() <= 10),
-			Err(_) => println!("BM25-only search failed"),
+			Err(_) => tracing::warn!("bm25-only search failed"),
 		}
 	}
 

@@ -4,7 +4,6 @@ mod tests {
 	use std::collections::HashMap;
 
 	use heed3::{Env, EnvOpenOptions};
-	use helix_db::debug_println;
 	use helix_db::helix_engine::bm25::bm25::{BM25, HBM25Config};
 	use helix_db::utils::id::v6_uuid;
 	use helix_db::utils::tqdm::tqdm;
@@ -144,7 +143,11 @@ mod tests {
 
 			let precision = results.len() as f64 / term_count as f64;
 
-			debug_println!("term count: {}, results len: {}", term_count, results.len());
+			tracing::debug!(
+				term_count,
+				results_len = results.len(),
+				"bm25 precision check"
+			);
 
 			assert!(
 				precision >= 0.9 && precision <= 1.0,

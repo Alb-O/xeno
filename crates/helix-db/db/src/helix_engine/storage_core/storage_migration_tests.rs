@@ -658,7 +658,7 @@ fn test_migrate_cognee_vector_string_dates_error() {
 	// Migration succeeds because it just copies the HashMap to the new format
 	match result {
 		Ok(_) => {
-			println!("✅ Migration succeeded (preserves old data as-is)");
+			tracing::info!("migration succeeded (preserves old data as-is)");
 
 			// The real error occurs when trying to deserialize the migrated data
 			// This simulates what v_from_type does when querying by label
@@ -670,7 +670,7 @@ fn test_migrate_cognee_vector_string_dates_error() {
 				.unwrap()
 				.unwrap();
 
-			println!("Migrated data exists: {} bytes", migrated_bytes.len());
+			tracing::debug!(bytes = migrated_bytes.len(), "migrated data exists");
 
 			// Try to deserialize as VectorWithoutData (what v_from_type does)
 			use crate::helix_engine::vector_core::vector_without_data::VectorWithoutData;
@@ -680,29 +680,30 @@ fn test_migrate_cognee_vector_string_dates_error() {
 
 			match deserialize_result {
 				Ok(vector) => {
-					println!("⚠️  Deserialization succeeded!");
-					println!("Vector label: {}", vector.label);
-					println!("This means bincode preserved the string dates in properties.");
+					tracing::warn!("deserialization succeeded");
+					tracing::debug!(label = %vector.label, "vector label");
+					tracing::debug!("bincode preserved string dates in properties");
 
 					// Check if dates are accessible
 					if let Some(created_at) = vector.get_property("created_at") {
-						println!("created_at type: {:?}", created_at);
 						match created_at {
-							Value::String(s) => println!("  Still a string: {}", s),
-							Value::Date(d) => println!("  Converted to Date: {:?}", d),
-							_ => println!("  Other type: {:?}", created_at),
+							Value::String(s) => {
+								tracing::debug!(value = %s, "created_at still string");
+							}
+							Value::Date(d) => {
+								tracing::debug!(value = ?d, "created_at converted to Date");
+							}
+							_ => {
+								tracing::debug!(value = ?created_at, "created_at other type");
+							}
 						}
 					}
 				}
 				Err(e) => {
-					println!("✅ REPRODUCED THE ERROR during deserialization!");
-					println!("Error: {}", e);
-					println!();
-					println!("This error occurs in the v_from_type query path:");
-					println!("  1. Migration preserves dates as Value::String");
-					println!("  2. v_from_type calls VectorWithoutData::from_bytes");
-					println!("  3. Bincode deserialization expects specific value types");
-					println!("  4. Type mismatch causes ConversionError");
+					tracing::info!(error = %e, "reproduced error during deserialization");
+					tracing::info!(
+						"error occurs in v_from_type query path: 1) migration preserves dates as Value::String; 2) v_from_type calls VectorWithoutData::from_bytes; 3) bincode deserialization expects specific value types; 4) type mismatch causes ConversionError"
+					);
 
 					// Verify it's the expected error type
 					let error_str = e.to_string();
@@ -715,7 +716,7 @@ fn test_migrate_cognee_vector_string_dates_error() {
 			}
 		}
 		Err(e) => {
-			println!("❌ Migration failed unexpectedly: {}", e);
+			tracing::error!(error = %e, "migration failed unexpectedly");
 			panic!("Migration should succeed but preserve old data");
 		}
 	}
@@ -898,9 +899,9 @@ fn test_date_postcard_serialization() {
 
 	// Serialize with bincode
 	let serialized = postcard::to_stdvec(&value).unwrap();
-	println!("\nValue::Date serialized to {} bytes", serialized.len());
-	println!("Format: [variant=12] [i64 timestamp]");
-	println!("Bytes: {:?}", serialized);
+	tracing::debug!(bytes = serialized.len(), "Value::Date serialized");
+	tracing::debug!("format: [variant=12] [i64 timestamp]");
+	tracing::trace!(serialized = ?serialized, "Value::Date serialized bytes");
 
 	// Deserialize
 	let deserialized: Value = postcard::from_bytes(&serialized).unwrap();
@@ -910,8 +911,8 @@ fn test_date_postcard_serialization() {
 		Value::Date(d) => {
 			assert_eq!(d.timestamp(), 1609459200);
 			assert!(d.to_rfc3339().starts_with("2021-01-01"));
-			println!("✅ Bincode serialization works correctly!");
-			println!("   Date: {}", d.to_rfc3339());
+			tracing::info!("bincode serialization works correctly");
+			tracing::info!(date = %d.to_rfc3339(), "date round-trip");
 		}
 		_ => panic!("Expected Value::Date variant"),
 	}
@@ -921,7 +922,7 @@ fn test_date_postcard_serialization() {
 	let from_json: Value = sonic_rs::from_str(&json).unwrap();
 	// JSON deserializes dates as strings, which is expected
 	assert!(matches!(from_json, Value::String(_)));
-	println!("✅ JSON serialization also works (deserializes as Value::String as expected)!");
+	tracing::info!("json serialization works (deserializes as Value::String)");
 }
 
 #[test]
@@ -973,20 +974,20 @@ fn test_performance_large_dataset() {
 	clear_metadata(&mut storage).unwrap();
 
 	// Create 100K vectors
-	println!("Populating 100K vectors...");
+	tracing::info!("populating 100k vectors");
 	let start = Instant::now();
 	populate_test_vectors(&mut storage, 100_000, VectorEndianness::BigEndian).unwrap();
-	println!("Population took: {:?}", start.elapsed());
+	tracing::info!(elapsed = ?start.elapsed(), "population complete");
 
 	// Migrate
-	println!("Running migration...");
+	tracing::info!("running migration");
 	let start = Instant::now();
 	let result = migrate(&mut storage);
 	let duration = start.elapsed();
 
 	assert!(result.is_ok());
-	println!("Migration of 100K vectors took: {:?}", duration);
-	println!("Average: {:?} per vector", duration / 100_000);
+	tracing::info!(elapsed = ?duration, "migration of 100k vectors complete");
+	tracing::info!(avg = ?(duration / 100_000), "average per vector");
 
 	// Verify a sample
 	let vectors = read_all_vectors(&storage, NATIVE_VECTOR_ENDIANNESS).unwrap();
@@ -1005,17 +1006,17 @@ fn test_performance_property_migration() {
 
 	clear_metadata(&mut storage).unwrap();
 
-	println!("Populating 50K properties...");
+	tracing::info!("populating 50k properties");
 	populate_old_properties(&mut storage, 50_000).unwrap();
 
-	println!("Running property migration...");
+	tracing::info!("running property migration");
 	let start = Instant::now();
 	let result = convert_all_vector_properties(&mut storage);
 	let duration = start.elapsed();
 
 	assert!(result.is_ok());
-	println!("Property migration of 50K items took: {:?}", duration);
-	println!("Average: {:?} per property", duration / 50_000);
+	tracing::info!(elapsed = ?duration, "property migration complete");
+	tracing::info!(avg = ?(duration / 50_000), "average per property");
 }
 
 #[test]

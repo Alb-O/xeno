@@ -334,9 +334,8 @@ impl<'arena, T: Ord> BinaryHeap<'arena, T> {
 	///
 	/// assert!(!heap.is_empty());
 	///
-	/// for x in heap.drain() {
-	///     println!("{x}");
-	/// }
+	/// let values: Vec<_> = heap.drain().collect();
+	/// assert_eq!(values.len(), 2);
 	///
 	/// assert!(heap.is_empty());
 	/// ```
@@ -552,11 +551,8 @@ impl<'arena, T> IntoIterator for BinaryHeap<'arena, T> {
 	/// use std::collections::BinaryHeap;
 	/// let heap = BinaryHeap::from([1, 2, 3, 4]);
 	///
-	/// // Print 1, 2, 3, 4 in arbitrary order
-	/// for x in heap.into_iter() {
-	///     // x has type i32, not &i32
-	///     println!("{x}");
-	/// }
+	/// let values: Vec<_> = heap.into_iter().collect();
+	/// assert_eq!(values.len(), 4);
 	/// ```
 	fn into_iter(self) -> IntoIter<'arena, T> {
 		IntoIter {

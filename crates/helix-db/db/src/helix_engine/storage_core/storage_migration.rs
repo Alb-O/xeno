@@ -306,7 +306,7 @@ pub(crate) fn convert_old_vector_properties_to_new_format(
 
 fn verify_vectors_and_repair(storage: &HelixGraphStorage) -> Result<(), EngineError> {
 	// Verify that all vectors at level > 0 also exist at level 0 and collect ones that need repair
-	println!("\nVerifying vector integrity after migration...");
+	tracing::info!("verifying vector integrity after migration");
 	let vectors_to_repair: Vec<(u128, u64)> = {
 		let txn = storage.graph_env.read_txn()?;
 		let mut missing = Vec::new();
@@ -326,10 +326,10 @@ fn verify_vectors_and_repair(storage: &HelixGraphStorage) -> Result<(), EngineEr
 						.get(&txn, &level_0_key)?
 						.is_none()
 					{
-						println!(
-							"ERROR: Vector {} exists at level {} but NOT at level 0!",
-							uuid::Uuid::from_u128(id),
-							level
+						tracing::warn!(
+							vector_id = %uuid::Uuid::from_u128(id),
+							level,
+							"vector exists at level but not at level 0"
 						);
 						missing.push((id, level));
 					}
@@ -340,11 +340,11 @@ fn verify_vectors_and_repair(storage: &HelixGraphStorage) -> Result<(), EngineEr
 	};
 
 	if !vectors_to_repair.is_empty() {
-		println!(
-			"Found {} vectors at level > 0 missing their level 0 counterparts!",
-			vectors_to_repair.len()
+		tracing::warn!(
+			missing_count = vectors_to_repair.len(),
+			"vectors missing level 0 counterparts"
 		);
-		println!("Repairing missing level 0 vectors...");
+		tracing::info!("repairing missing level 0 vectors");
 
 		const REPAIR_BATCH_SIZE: usize = 128;
 
@@ -377,22 +377,22 @@ fn verify_vectors_and_repair(storage: &HelixGraphStorage) -> Result<(), EngineEr
 					.vectors
 					.vectors_db
 					.put(&mut txn, &level_0_key, vector_data)?;
-				println!(
-					"  Repaired: Copied vector {} from level {} to level 0",
-					uuid::Uuid::from_u128(id),
-					source_level
+				tracing::debug!(
+					vector_id = %uuid::Uuid::from_u128(id),
+					source_level,
+					"repaired vector by copying to level 0"
 				);
 			}
 
 			txn.commit()?;
 		}
 
-		println!(
-			"Repair complete! Repaired {} vectors.",
-			vectors_to_repair.len()
+		tracing::info!(
+			repaired_count = vectors_to_repair.len(),
+			"vector repair complete"
 		);
 	} else {
-		println!("All vectors verified successfully!");
+		tracing::info!("all vectors verified successfully");
 	}
 
 	Ok(())
@@ -408,10 +408,7 @@ fn remove_orphaned_vector_edges(storage: &HelixGraphStorage) -> Result<(), Engin
 		// Edge key format: [source_id (16 bytes), level (8 bytes), sink_id (16 bytes)]
 		// Total: 40 bytes
 		if key.len() != 40 {
-			println!(
-				"WARNING: Vector edge key has unexpected length: {} bytes",
-				key.len()
-			);
+			tracing::warn!(key_len = key.len(), "vector edge key has unexpected length");
 			continue;
 		}
 

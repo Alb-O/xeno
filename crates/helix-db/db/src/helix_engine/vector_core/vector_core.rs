@@ -7,7 +7,6 @@ use rand::prelude::Rng;
 use serde::{Deserialize, Serialize};
 
 use super::binary_heap::BinaryHeap;
-use crate::debug_println;
 use crate::helix_engine::types::VectorError;
 use crate::helix_engine::vector_core::hnsw::HNSW;
 use crate::helix_engine::vector_core::utils::{Candidate, HeapOps, VectorFilter};
@@ -510,6 +509,10 @@ impl VectorCore {
 }
 
 impl HNSW for VectorCore {
+	#[tracing::instrument(
+		skip(self, txn, query, arena, filter),
+		fields(label = %label, k, should_trickle)
+	)]
 	fn search<'db, 'arena, 'txn, F>(
 		&self,
 		txn: &'txn RoTxn<'db>,
@@ -526,13 +529,10 @@ impl HNSW for VectorCore {
 		'arena: 'txn,
 	{
 		let query = HVector::from_slice(label, 0, query);
-		// let temp_arena = bumpalo::Bump::new();
-
 		let mut entry_point = self.get_entry_point(txn, label, arena)?;
 
 		let ef = self.config.ef;
 		let curr_level = entry_point.level;
-		// println!("curr_level: {curr_level}");
 		for level in (1..=curr_level).rev() {
 			let mut nearest = self.search_level(
 				txn,
@@ -551,7 +551,6 @@ impl HNSW for VectorCore {
 				entry_point = closest;
 			}
 		}
-		// println!("entry_point: {entry_point:?}");
 		let candidates = self.search_level(
 			txn,
 			label,
@@ -565,7 +564,6 @@ impl HNSW for VectorCore {
 			},
 			arena,
 		)?;
-		// println!("candidates");
 		let results = candidates.to_vec_with_filter::<F, true>(
 			k,
 			filter,
@@ -575,7 +573,7 @@ impl HNSW for VectorCore {
 			arena,
 		)?;
 
-		debug_println!("vector search found {} results", results.len());
+		tracing::debug!(result_count = results.len(), "vector search completed");
 		Ok(results)
 	}
 
@@ -656,14 +654,14 @@ impl HNSW for VectorCore {
 			self.set_entry_point(txn, &query)?;
 		}
 
-		debug_println!("vector inserted with id {}", query.id);
+		tracing::debug!(vector_id = %query.id, "vector inserted");
 		Ok(query)
 	}
 
 	fn delete(&self, txn: &mut RwTxn, id: u128, arena: &bumpalo::Bump) -> Result<(), VectorError> {
 		match self.get_vector_properties(txn, id, arena)? {
 			Some(mut properties) => {
-				debug_println!("properties: {properties:?}");
+				tracing::trace!(properties = ?properties, "vector properties loaded");
 				if properties.deleted {
 					return Err(VectorError::VectorAlreadyDeleted(id.to_string()));
 				}
@@ -674,7 +672,7 @@ impl HNSW for VectorCore {
 					&id,
 					postcard::to_stdvec(&properties)?.as_ref(),
 				)?;
-				debug_println!("vector deleted with id {}", &id);
+				tracing::debug!(vector_id = %id, "vector marked deleted");
 				Ok(())
 			}
 			None => Err(VectorError::VectorNotFound(id.to_string())),

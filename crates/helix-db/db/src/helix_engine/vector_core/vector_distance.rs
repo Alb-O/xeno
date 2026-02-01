@@ -30,7 +30,7 @@ pub fn cosine_similarity(from: &[f64], to: &[f64]) -> Result<f64, VectorError> {
 	let other_len = to.len();
 
 	if len != other_len {
-		println!("mis-match in vector dimensions!\n{len} != {other_len}");
+		tracing::warn!(len, other_len, "vector dimension mismatch");
 		return Err(VectorError::InvalidVectorLength);
 	}
 	//debug_assert_eq!(len, other.data.len(), "Vectors must have the same length");

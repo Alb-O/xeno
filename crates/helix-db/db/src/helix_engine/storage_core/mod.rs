@@ -460,9 +460,6 @@ impl StorageMethods for HelixGraphStorage {
 			other_out_edges.push((from_node_id, label, edge_id));
 		}
 
-		// println!("In edges: {}", in_edges.len());
-
-		// println!("Deleting edges: {}", );
 		// Delete all related data
 		for edge in edges {
 			self.edges_db.delete(txn, Self::edge_key(&edge))?;
@@ -582,9 +579,6 @@ impl StorageMethods for HelixGraphStorage {
 			other_out_edges.push((from_node_id, label, edge_id));
 		}
 
-		// println!("In edges: {}", in_edges.len());
-
-		// println!("Deleting edges: {}", );
 		// Delete all related data
 		for edge in edges {
 			self.edges_db.delete(txn, Self::edge_key(&edge))?;

@@ -72,7 +72,7 @@ impl Config {
 
 	pub fn from_files(config_path: PathBuf, schema_path: PathBuf) -> Result<Self, EngineError> {
 		if !config_path.exists() {
-			println!("no config path!");
+			tracing::warn!(path = %config_path.display(), "config path not found");
 			return Err(StorageError::ConfigFileNotFound.into());
 		}
 
@@ -91,7 +91,7 @@ impl Config {
 
 	pub fn from_file(config_path: PathBuf) -> Result<Self, EngineError> {
 		if !config_path.exists() {
-			println!("no config path!");
+			tracing::warn!(path = %config_path.display(), "config path not found");
 			return Err(StorageError::ConfigFileNotFound.into());
 		}
 

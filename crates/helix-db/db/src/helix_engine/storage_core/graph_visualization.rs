@@ -6,7 +6,6 @@ use heed3::types::*;
 use heed3::{RoIter, RoTxn};
 use sonic_rs::{JsonValueMutTrait, Value as JsonValue, json};
 
-use crate::debug_println;
 use crate::helix_engine::storage_core::HelixGraphStorage;
 use crate::helix_engine::types::{EngineError, StorageError, TraversalError};
 use crate::utils::items::Node;
@@ -56,7 +55,7 @@ impl GraphVisualization for HelixGraphStorage {
 			"num_edges":   self.edges_db.len(txn).unwrap_or(0),
 			"num_vectors": self.vectors.vectors_db.len(txn).unwrap_or(0),
 		});
-		debug_println!("db stats json: {:?}", result);
+		tracing::debug!(stats = ?result, "db stats json");
 
 		sonic_rs::to_string(&result).map_err(|e| StorageError::Conversion(e.to_string()).into())
 	}
@@ -151,8 +150,8 @@ impl HelixGraphStorage {
 					edge_count.edge_count += edges_count;
 					edge_count.out_edges = edges;
 				}
-				Err(_e) => {
-					debug_println!("Error in out_node_key_iter: {:?}", _e);
+				Err(error) => {
+					tracing::debug!(?error, "error in out_node_key_iter");
 				}
 			}
 		}
@@ -176,8 +175,8 @@ impl HelixGraphStorage {
 					edge_count.edge_count += edges_count;
 					edge_count.in_edges = edges;
 				}
-				Err(_e) => {
-					debug_println!("Error in in_node_key_iter: {:?}", _e);
+				Err(error) => {
+					tracing::debug!(?error, "error in in_node_key_iter");
 				}
 			}
 		}

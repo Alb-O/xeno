@@ -285,7 +285,7 @@ mod performance_tests {
 			let elapsed = start.elapsed();
 
 			assert!(result.is_ok(), "Aggregate should succeed");
-			println!("Aggregate {} nodes with 3 properties: {:?}", size, elapsed);
+			tracing::info!(size, elapsed = ?elapsed, "aggregate performance (3 properties)");
 		}
 	}
 
@@ -318,7 +318,7 @@ mod performance_tests {
 			let elapsed = start.elapsed();
 
 			assert_eq!(result.len(), size, "Update should succeed");
-			println!("Update {} nodes: {:?}", size, elapsed);
+			tracing::info!(size, elapsed = ?elapsed, "update performance");
 
 			txn.commit().unwrap();
 		}
@@ -354,7 +354,7 @@ mod performance_tests {
 			let elapsed = start.elapsed();
 
 			assert!(results.is_ok(), "BM25 search should succeed");
-			println!("BM25 search (limit={}): {:?}", limit, elapsed);
+			tracing::info!(limit, elapsed = ?elapsed, "bm25 search performance");
 		}
 	}
 }

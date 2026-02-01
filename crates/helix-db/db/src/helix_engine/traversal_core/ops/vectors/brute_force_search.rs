@@ -65,7 +65,7 @@ impl<'db, 'arena, 'txn, I: Iterator<Item = Result<TraversalValue<'arena>, Engine
 
 					Ok(None) => None, // TODO: maybe should be an error?
 					Err(e) => {
-						println!("error getting vector data: {e:?}");
+						tracing::debug!(?e, "error getting vector data");
 						None
 					}
 				}

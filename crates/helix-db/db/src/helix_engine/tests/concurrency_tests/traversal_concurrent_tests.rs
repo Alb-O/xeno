@@ -829,9 +829,11 @@ fn test_stress_concurrent_mixed_operations() {
 	let total_writes: usize = write_counts.iter().sum();
 	let total_reads: usize = read_counts.iter().sum();
 
-	println!(
-		"Stress test: {} writes, {} reads in {:?}",
-		total_writes, total_reads, duration
+	tracing::info!(
+		total_writes,
+		total_reads,
+		elapsed = ?duration,
+		"stress test results"
 	);
 
 	// Should process many operations

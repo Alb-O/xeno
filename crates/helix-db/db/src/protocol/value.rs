@@ -8,7 +8,6 @@ use serde::de::{DeserializeSeed, VariantAccess, Visitor};
 use serde::{Deserializer, Serializer};
 use sonic_rs::{Deserialize, Serialize};
 
-use crate::debug_println;
 use crate::helix_engine::types::EngineError;
 use crate::helixc::generator::utils::GenRef;
 use crate::protocol::date::Date;
@@ -2412,7 +2411,7 @@ impl From<Value> for GenRef<String> {
 impl FilterValues for Value {
 	#[inline]
 	fn compare(&self, value: &Value, operator: Option<Operator>) -> bool {
-		debug_println!("comparing value1: {:?}, value2: {:?}", self, value);
+		tracing::trace!(value1 = ?self, value2 = ?value, "value comparison");
 		let comparison = match (self, value) {
 			(Value::Array(a1), Value::Array(a2)) => a1
 				.iter()
@@ -2423,7 +2422,7 @@ impl FilterValues for Value {
 				None => value1 == value2,
 			},
 		};
-		debug_println!("comparison: {:?}", comparison);
+		tracing::trace!(comparison, "value comparison result");
 		comparison
 	}
 }

@@ -78,7 +78,7 @@ impl<'db, 'arena, 'txn, 's, I: Iterator<Item = Result<TraversalValue<'arena>, En
 					}
 					Ok(None) => None,
 					Err(e) => {
-						println!("Error getting in edges: {e:?}");
+						tracing::debug!(?e, "error getting in edges");
 						// return Err(e);
 						None
 					}

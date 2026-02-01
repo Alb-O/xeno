@@ -109,12 +109,7 @@ impl<'db, 'arena, 'txn, 'q> VectorFilter<'db, 'arena, 'txn, 'q>
 			// while pop check filters and pop until one passes
 			while let Some(mut item) = self.pop() {
 				let properties = match db.get(txn, &item.id)? {
-					Some(bytes) => {
-						// println!("decoding");
-
-						// println!("decoded: {res:?}");
-						Some(VectorWithoutData::from_bytes(arena, bytes, item.id)?)
-					}
+					Some(bytes) => Some(VectorWithoutData::from_bytes(arena, bytes, item.id)?),
 					None => None, // TODO: maybe should be an error?
 				};
 

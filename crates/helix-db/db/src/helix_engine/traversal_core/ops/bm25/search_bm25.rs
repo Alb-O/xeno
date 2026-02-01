@@ -82,7 +82,7 @@ impl<'db, 'arena, 'txn, I: Iterator<Item = Result<TraversalValue<'arena>, Engine
                         return Some(Ok(TraversalValue::NodeWithScore { node, score: score as f64 }));
                     }
 					Err(e) => {
-						println!("{} Error decoding node: {:?}", line!(), e);
+						tracing::warn!(?e, node_id = %id, "error decoding node");
 						return Some(Err(StorageError::Conversion(e.to_string()).into()));
 					}
 				}

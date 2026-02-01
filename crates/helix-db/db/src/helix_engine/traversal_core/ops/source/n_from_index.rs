@@ -91,14 +91,14 @@ impl<
 
                     if label_in_lmdb == label_as_bytes {
                         match Node::<'arena>::from_bytes(node_id, value, self.arena) {
-                            Ok(node) => {
-                                return Some(Ok(TraversalValue::Node(node)));
-                            }
-                            Err(e) => {
-                                println!("{} Error decoding node: {:?}", line!(), e);
-                                return Some(Err(StorageError::Conversion(e.to_string()).into()));
-                            }
-                        }
+							Ok(node) => {
+								return Some(Ok(TraversalValue::Node(node)));
+							}
+							Err(e) => {
+								tracing::warn!(?e, node_id = %node_id, "error decoding node");
+								return Some(Err(StorageError::Conversion(e.to_string()).into()));
+							}
+						}
                     } else {
                         return None;
                     }

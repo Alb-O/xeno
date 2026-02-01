@@ -128,18 +128,6 @@ pub mod macros {
 	}
 
 	#[macro_export]
-	/// simply just a debug logging function
-	macro_rules! debug_println {
-        ($($arg:tt)*) => {
-            #[cfg(feature = "debug-output")]
-            {
-                let caller = std::any::type_name_of_val(&|| {});
-                let caller = caller.strip_suffix("::{{closure}}").unwrap_or(caller);
-                println!("{}:{} =>\n\t{}", caller, line!(), format_args!($($arg)*));
-            }
-        };
-    }
-
 	/// Time a block of code
 	/// time_block!("my label" {
 	///     let x = 1 + 2;
@@ -152,7 +140,7 @@ pub mod macros {
             let start_time = Instant::now();
             $($block)*
                 let time = start_time.elapsed();
-            println!("{}: time elapsed: {:?}", $label, time);
+            tracing::info!(label = $label, elapsed = ?time, "time block");
             time
         }};
     }
@@ -170,7 +158,7 @@ pub mod macros {
             let start_time = Instant::now();
             let result = { $($block)* };
             let time = start_time.elapsed();
-            println!("{}: time elapsed: {:?}", $label, time);
+            tracing::info!(label = $label, elapsed = ?time, "time block result");
             result
         }};
     }

@@ -175,7 +175,7 @@ fn test_drop_node() {
 		.in_e("knows")
 		.collect::<Result<Vec<_>, _>>()
 		.unwrap();
-	println!("edges: {:?}", edges);
+	tracing::debug!(edges = ?edges, "drop traversal edges");
 	assert!(edges.is_empty());
 }
 

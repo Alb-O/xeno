@@ -108,8 +108,11 @@ impl<'db, 'arena, 'txn, 's, I: Iterator<Item = Result<TraversalValue<'arena>, En
 			) {
 				Ok(_) => {}
 				Err(e) => {
-					println!(
-						"add_e => error adding out edge between {from_node:?} and {to_node:?}: {e:?}"
+					tracing::warn!(
+						?e,
+						from_node = %from_node,
+						to_node = %to_node,
+						"add_e failed to add out edge"
 					);
 					result = Err(EngineError::from(e));
 				}
@@ -129,8 +132,11 @@ impl<'db, 'arena, 'txn, 's, I: Iterator<Item = Result<TraversalValue<'arena>, En
 				) {
 					Ok(_) => {}
 					Err(e) => {
-						println!(
-							"add_e => error adding in edge between {from_node:?} and {to_node:?}: {e:?}"
+						tracing::warn!(
+							?e,
+							from_node = %from_node,
+							to_node = %to_node,
+							"add_e failed to add in edge"
 						);
 						result = Err(EngineError::from(e));
 					}

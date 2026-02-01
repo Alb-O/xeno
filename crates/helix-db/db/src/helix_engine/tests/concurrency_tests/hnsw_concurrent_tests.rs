@@ -196,7 +196,7 @@ fn test_concurrent_searches_during_inserts() {
                         }
                     }
                     Err(e) => {
-                        println!("Reader {} search failed: {:?}", reader_id, e);
+                        tracing::warn!(?e, reader_id, "reader search failed");
                     }
                 }
 
@@ -204,11 +204,12 @@ fn test_concurrent_searches_during_inserts() {
                 thread::sleep(std::time::Duration::from_millis(1));
             }
 
-            println!(
-                "Reader {} completed: {} searches, avg {} results",
+            let avg_results = total_results / total_searches.max(1);
+            tracing::info!(
                 reader_id,
                 total_searches,
-                total_results / total_searches.max(1)
+                avg_results,
+                "reader completed"
             );
         }));
 	}
@@ -305,7 +306,7 @@ fn test_concurrent_inserts_multiple_labels() {
 					wtxn.commit().unwrap();
 
 					if i % 10 == 0 {
-						println!("Label {} inserted {} vectors", label, i);
+						tracing::info!(label = %label, inserted = i, "label insert progress");
 					}
 				}
 			})

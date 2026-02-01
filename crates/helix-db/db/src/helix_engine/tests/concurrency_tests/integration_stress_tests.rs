@@ -128,11 +128,13 @@ fn test_stress_mixed_read_write_operations() {
 	let total_writes = write_ops.load(Ordering::Relaxed);
 	let total_reads = read_ops.load(Ordering::Relaxed);
 
-	println!(
-		"Stress test: {} writes, {} reads in {:?}",
-		total_writes, total_reads, duration
+	tracing::info!(
+		total_writes,
+		total_reads,
+		elapsed = ?duration,
+		"stress test results"
 	);
-	println!("Thread counts: {:?}", counts);
+	tracing::info!(counts = ?counts, "stress test thread counts");
 
 	// Verify significant work was done
 	assert!(total_writes > 100, "Should perform many write operations");
@@ -247,9 +249,11 @@ fn test_stress_rapid_graph_growth() {
 	let total_writes = write_count.load(Ordering::Relaxed);
 	let total_reads = read_count.load(Ordering::Relaxed);
 
-	println!(
-		"Rapid growth: {} writes, {} reads in {:?}",
-		total_writes, total_reads, duration
+	tracing::info!(
+		total_writes,
+		total_reads,
+		elapsed = ?duration,
+		"rapid growth results"
 	);
 
 	// Verify significant work done
@@ -262,9 +266,10 @@ fn test_stress_rapid_graph_growth() {
 	let final_node_count = storage.nodes_db.len(&rtxn).unwrap();
 	let final_edge_count = storage.edges_db.len(&rtxn).unwrap();
 
-	println!(
-		"Final: {} nodes, {} edges",
-		final_node_count, final_edge_count
+	tracing::info!(
+		final_node_count,
+		final_edge_count,
+		"rapid growth final counts"
 	);
 	assert!(
 		final_node_count > 100,
@@ -329,11 +334,12 @@ fn test_stress_transaction_contention() {
 
 	let total_success = success_count.load(Ordering::Relaxed);
 
-	println!(
-		"Transaction contention: {} successful writes in {:?}",
-		total_success, duration
+	tracing::info!(
+		total_success,
+		elapsed = ?duration,
+		"transaction contention results"
 	);
-	println!("Per thread: {:?}", per_thread_counts);
+	tracing::info!(per_thread_counts = ?per_thread_counts, "transaction contention per-thread");
 
 	// Verify all writes succeeded
 	let rtxn = storage.graph_env.read_txn().unwrap();
@@ -430,9 +436,9 @@ fn test_stress_long_running_transactions() {
 
 	let total_writes = write_count.load(Ordering::Relaxed);
 
-	println!(
-		"Long txns: {} writes completed during long-lived read",
-		total_writes
+	tracing::info!(
+		total_writes,
+		"long txns writes completed during long-lived read"
 	);
 
 	// New transaction should see all writes
@@ -499,12 +505,14 @@ fn test_stress_memory_stability() {
 		}
 
 		let ops = op_count.load(Ordering::Relaxed);
-		println!(
-			"Memory stability iteration {}: {} ops in {:?}",
-			iteration, ops, duration
+		tracing::info!(
+			iteration,
+			ops,
+			elapsed = ?duration,
+			"memory stability iteration"
 		);
 	}
 
 	// If we reach here without panic/OOM, memory is stable
-	println!("Memory stability test completed successfully");
+	tracing::info!("memory stability test completed successfully");
 }

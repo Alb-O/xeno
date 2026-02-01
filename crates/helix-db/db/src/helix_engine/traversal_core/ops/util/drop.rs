@@ -27,9 +27,9 @@ where
 							if let Some(bm25) = &storage.bm25
 								&& let Err(e) = bm25.delete_doc(txn, node.id)
 							{
-								println!("failed to delete doc from bm25: {e}");
+								tracing::warn!(?e, node_id = %node.id, "failed to delete bm25 doc");
 							}
-							println!("Dropped node: {:?}", node.id);
+							tracing::debug!(node_id = %node.id, "dropped node");
 							Ok(())
 						}
 						Err(e) => Err(e),

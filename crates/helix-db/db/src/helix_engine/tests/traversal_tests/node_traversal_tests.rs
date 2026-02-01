@@ -48,9 +48,9 @@ fn test_add_n() {
 		)
 		.filter_map(|node| node.ok())
 		.collect::<Vec<_>>();
-	println!("nodes {:?}", nodes);
+	tracing::debug!(nodes = ?nodes, "add_n nodes");
 	let node = &nodes.first().unwrap();
-	println!("node {:?}", node);
+	tracing::debug!(node = ?node, "add_n first node");
 	let node_results: Vec<_> = G::new(&storage, &txn, &arena)
 		.n_from_id(&node.id())
 		.collect();
@@ -60,14 +60,14 @@ fn test_add_n() {
 		.filter_map(|res| res.ok())
 		.collect::<Vec<_>>();
 	assert_eq!(node.first().unwrap().label(), "person");
-	println!("node: {:?}", node.first().unwrap());
+	tracing::debug!(node = ?node.first().unwrap(), "add_n fetched node");
 
 	assert_eq!(node.first().unwrap().id(), nodes.first().unwrap().id());
 	assert_eq!(
 		*node.first().unwrap().get_property("name").unwrap(),
 		Value::String("John".to_string())
 	);
-	println!("node: {:?}", node.first().unwrap());
+	tracing::debug!(node = ?node.first().unwrap(), "add_n node properties");
 
 	// If we haven't dropped txn, ensure no borrows exist before commit
 	txn.commit().unwrap();

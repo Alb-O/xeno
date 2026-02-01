@@ -104,7 +104,12 @@ fn test_count_mixed_steps() {
 		.collect::<Result<Vec<_>, _>>()
 		.unwrap();
 	txn.commit().unwrap();
-	println!("person1: {person1:?},\nperson2: {person2:?},\nperson3: {person3:?}");
+	tracing::debug!(
+		person1 = ?person1,
+		person2 = ?person2,
+		person3 = ?person3,
+		"count mixed steps setup"
+	);
 
 	let txn = storage.graph_env.read_txn().unwrap();
 	let count = G::new(&storage, &txn, &arena)
@@ -172,8 +177,9 @@ fn test_count_filter_ref() {
 					.out_node("Country_to_City")
 					.count_to_val()
 					.map_value_or(false, |v| {
-						println!("v: {v:?}, res: {:?}", *v > 10.clone());
-						Ok(*v > 10.clone())
+						let matches = *v > 10.clone();
+						tracing::trace!(value = ?v, matches, "filter_ref count");
+						Ok(matches)
 					})?)
 			} else {
 				Ok(false)
@@ -182,7 +188,11 @@ fn test_count_filter_ref() {
 		.collect::<Result<Vec<_>, _>>()
 		.unwrap();
 
-	println!("count: {count:?}, num_countries: {num_countries}");
+	tracing::debug!(
+		count = count.len(),
+		num_countries,
+		"filter_ref count results"
+	);
 
 	assert_eq!(count.len(), num_countries);
 }

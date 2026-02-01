@@ -100,11 +100,7 @@ impl<'db, 'arena, 'txn, 's, I: Iterator<Item = Result<TraversalValue<'arena>, En
 									}
 								}
 							} {
-								println!(
-									"{} Error adding node to secondary index: {:?}",
-									line!(),
-									e
-								);
+								tracing::warn!(?e, index = %index, "error adding node to secondary index");
 								result = Err(EngineError::from(e));
 								break;
 							}

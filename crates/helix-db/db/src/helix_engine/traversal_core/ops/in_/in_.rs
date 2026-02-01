@@ -69,7 +69,7 @@ impl<'db, 'arena, 'txn, 's, I: Iterator<Item = Result<TraversalValue<'arena>, En
 							{
 								Ok(data) => data,
 								Err(e) => {
-									println!("Error unpacking edge data: {e:?}");
+									tracing::debug!(?e, "error unpacking edge data");
 									return Some(Err(e));
 								}
 							};
@@ -95,7 +95,7 @@ impl<'db, 'arena, 'txn, 's, I: Iterator<Item = Result<TraversalValue<'arena>, En
 					})),
 					Ok(None) => None,
 					Err(e) => {
-						println!("{} Error getting out edges: {:?}", line!(), e);
+						tracing::debug!(?e, "error getting out edges");
 						// return Err(e);
 						None
 					}
@@ -138,7 +138,7 @@ impl<'db, 'arena, 'txn, 's, I: Iterator<Item = Result<TraversalValue<'arena>, En
 							let (_, item_id) = match HelixGraphStorage::unpack_adj_edge_data(data) {
 								Ok(data) => data,
 								Err(e) => {
-									println!("Error unpacking edge data: {e:?}");
+									tracing::debug!(?e, "error unpacking edge data");
 									return Some(Err(e));
 								}
 							};
@@ -151,7 +151,7 @@ impl<'db, 'arena, 'txn, 's, I: Iterator<Item = Result<TraversalValue<'arena>, En
 					})),
 					Ok(None) => None,
 					Err(e) => {
-						println!("{} Error getting out nodes: {:?}", line!(), e);
+						tracing::debug!(?e, "error getting out nodes");
 						// return Err(e);
 						None
 					}
