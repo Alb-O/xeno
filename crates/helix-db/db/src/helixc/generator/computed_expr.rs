@@ -6,8 +6,8 @@
 //! Handles expressions like `ADD(_::Out<HasRailwayCluster>::COUNT, _::Out<HasObjectCluster>::COUNT)`
 //! in object projections.
 //!
-//! Since `Value` implements standard math ops (`Add`, `Sub`, `Mul`, `Div`), the generated
-//! code can directly use operators on `Value` types without conversion.
+//! Computed expressions are emitted using `Value::try_*` helpers to avoid panic paths
+//! when operand types or numeric domains are invalid.
 
 use crate::helixc::parser::types::{Expression, ExpressionType, MathFunction};
 
@@ -35,28 +35,28 @@ pub fn generate_computed_expression(expression: &Expression, item_var: &str) -> 
 			match &call.function {
 				MathFunction::Add => {
 					if args.len() == 2 {
-						format!("({}) + ({})", args[0], args[1])
+						format!("({}).try_add(&({}))?", args[0], args[1])
 					} else {
 						"Value::Empty".to_string()
 					}
 				}
 				MathFunction::Sub => {
 					if args.len() == 2 {
-						format!("({}) - ({})", args[0], args[1])
+						format!("({}).try_sub(&({}))?", args[0], args[1])
 					} else {
 						"Value::Empty".to_string()
 					}
 				}
 				MathFunction::Mul => {
 					if args.len() == 2 {
-						format!("({}) * ({})", args[0], args[1])
+						format!("({}).try_mul(&({}))?", args[0], args[1])
 					} else {
 						"Value::Empty".to_string()
 					}
 				}
 				MathFunction::Div => {
 					if args.len() == 2 {
-						format!("({}) / ({})", args[0], args[1])
+						format!("({}).try_div(&({}))?", args[0], args[1])
 					} else {
 						"Value::Empty".to_string()
 					}
@@ -64,42 +64,42 @@ pub fn generate_computed_expression(expression: &Expression, item_var: &str) -> 
 				MathFunction::Pow => {
 					// pow is not implemented via traits, need special handling
 					if args.len() == 2 {
-						format!("({}).pow(&({}))", args[0], args[1])
+						format!("({}).try_pow(&({}))?", args[0], args[1])
 					} else {
 						"Value::Empty".to_string()
 					}
 				}
 				MathFunction::Mod => {
 					if args.len() == 2 {
-						format!("({}) % ({})", args[0], args[1])
+						format!("({}).try_rem(&({}))?", args[0], args[1])
 					} else {
 						"Value::Empty".to_string()
 					}
 				}
 				MathFunction::Abs => {
 					if args.len() == 1 {
-						format!("({}).abs()", args[0])
+						format!("({}).try_abs()?", args[0])
 					} else {
 						"Value::Empty".to_string()
 					}
 				}
 				MathFunction::Sqrt => {
 					if args.len() == 1 {
-						format!("({}).sqrt()", args[0])
+						format!("({}).try_sqrt()?", args[0])
 					} else {
 						"Value::Empty".to_string()
 					}
 				}
 				MathFunction::Min => {
 					if args.len() == 2 {
-						format!("({}).min(({}))", args[0], args[1])
+						format!("({}).try_min(&({}))?", args[0], args[1])
 					} else {
 						"Value::Empty".to_string()
 					}
 				}
 				MathFunction::Max => {
 					if args.len() == 2 {
-						format!("({}).max(({}))", args[0], args[1])
+						format!("({}).try_max(&({}))?", args[0], args[1])
 					} else {
 						"Value::Empty".to_string()
 					}

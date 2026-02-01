@@ -14,6 +14,7 @@ use sonic_rs::Error as SonicError;
 use crate::helix_gateway::router::router::IoContFn;
 use crate::helixc::parser::errors::ParserError;
 use crate::helixc::parser::types::{Field, FieldPrefix};
+use crate::protocol::value_error::ValueError;
 
 #[derive(Debug)]
 pub enum GraphError {
@@ -24,6 +25,7 @@ pub enum GraphError {
 	TraversalError(String),
 	ConversionError(String),
 	DecodeError(String),
+	Value(ValueError),
 	EdgeNotFound,
 	NodeNotFound,
 	LabelNotFound,
@@ -61,6 +63,7 @@ impl fmt::Display for GraphError {
 			GraphError::StorageError(msg) => write!(f, "Storage error: {msg}"),
 			GraphError::ConversionError(msg) => write!(f, "Conversion error: {msg}"),
 			GraphError::DecodeError(msg) => write!(f, "Decode error: {msg}"),
+			GraphError::Value(err) => write!(f, "Value error: {err}"),
 			GraphError::EdgeNotFound => write!(f, "Edge not found"),
 			GraphError::NodeNotFound => write!(f, "Node not found"),
 			GraphError::LabelNotFound => write!(f, "Label not found"),
@@ -154,6 +157,12 @@ impl From<Utf8Error> for GraphError {
 impl From<uuid::Error> for GraphError {
 	fn from(error: uuid::Error) -> Self {
 		GraphError::ConversionError(format!("uuid error: {error}"))
+	}
+}
+
+impl From<ValueError> for GraphError {
+	fn from(error: ValueError) -> Self {
+		GraphError::Value(error)
 	}
 }
 

@@ -182,9 +182,9 @@ impl Value {
 	pub fn map_value_or(
 		self,
 		default: bool,
-		f: impl Fn(&Value) -> bool,
+		f: impl Fn(&Value) -> Result<bool, ValueError>,
 	) -> Result<bool, GraphError> {
-		Ok(f(&self))
+		f(&self).map_err(GraphError::from)
 	}
 
 	#[inline]

@@ -16,6 +16,9 @@ use crate::helix_engine::traversal_core::ops::util::dedup::DedupAdapter;
 use crate::helix_engine::traversal_core::ops::util::order::OrderByAdapter;
 use crate::helix_engine::traversal_core::ops::vectors::insert::InsertVAdapter;
 use crate::helix_engine::traversal_core::ops::vectors::search::SearchVAdapter;
+use crate::helix_engine::traversal_core::traversal_iter::RoTraversalIterator;
+use crate::helix_engine::traversal_core::traversal_value::TraversalValue;
+use crate::helix_engine::types::GraphError;
 use crate::helix_engine::vector_core::vector::HVector;
 use crate::props;
 use crate::protocol::value::Value;
@@ -29,6 +32,25 @@ fn setup_test_db() -> (TempDir, Arc<HelixGraphStorage>) {
 	)
 	.unwrap();
 	(temp_dir, Arc::new(storage))
+}
+
+#[test]
+fn test_map_value_or_propagates_value_error() {
+	let (_temp_dir, storage) = setup_test_db();
+	let arena = Bump::new();
+	let txn = storage.graph_env.read_txn().unwrap();
+	let iter = std::iter::once(Ok(TraversalValue::Value(Value::Array(vec![Value::I32(1)]))));
+	let traversal = RoTraversalIterator {
+		storage: storage.as_ref(),
+		arena: &arena,
+		txn: &txn,
+		inner: iter,
+	};
+
+	let err = traversal
+		.map_value_or(false, |v| v.try_contains("x"))
+		.unwrap_err();
+	assert!(matches!(err, GraphError::Value(_)));
 }
 
 #[test]

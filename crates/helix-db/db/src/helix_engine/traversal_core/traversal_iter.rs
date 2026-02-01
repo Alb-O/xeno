@@ -5,6 +5,7 @@ use crate::helix_engine::storage_core::HelixGraphStorage;
 use crate::helix_engine::traversal_core::traversal_value::TraversalValue;
 use crate::helix_engine::types::GraphError;
 use crate::protocol::value::Value;
+use crate::protocol::value_error::ValueError;
 
 pub struct RoTraversalIterator<'db, 'arena, 'txn, I>
 where
@@ -62,10 +63,10 @@ impl<'db, 'arena, 'txn, I: Iterator<Item = Result<TraversalValue<'arena>, GraphE
 	pub fn map_value_or(
 		mut self,
 		default: bool,
-		f: impl Fn(&Value) -> bool,
+		f: impl Fn(&Value) -> Result<bool, ValueError>,
 	) -> Result<bool, GraphError> {
 		match &self.inner.next() {
-			Some(Ok(TraversalValue::Value(val))) => Ok(f(val)),
+			Some(Ok(TraversalValue::Value(val))) => f(val).map_err(GraphError::from),
 			Some(Ok(_)) => Err(GraphError::ConversionError(
 				"Expected value, got something else".to_string(),
 			)),
@@ -137,10 +138,10 @@ impl<'db, 'arena, 'txn, I: Iterator<Item = Result<TraversalValue<'arena>, GraphE
 	pub fn map_value_or(
 		mut self,
 		default: bool,
-		f: impl Fn(&Value) -> bool,
+		f: impl Fn(&Value) -> Result<bool, ValueError>,
 	) -> Result<bool, GraphError> {
 		match &self.inner.next() {
-			Some(Ok(TraversalValue::Value(val))) => Ok(f(val)),
+			Some(Ok(TraversalValue::Value(val))) => f(val).map_err(GraphError::from),
 			Some(Ok(_)) => Err(GraphError::ConversionError(
 				"Expected value, got something else".to_string(),
 			)),

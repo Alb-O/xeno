@@ -173,7 +173,7 @@ fn test_count_filter_ref() {
 					.count_to_val()
 					.map_value_or(false, |v| {
 						println!("v: {v:?}, res: {:?}", *v > 10.clone());
-						*v > 10.clone()
+						Ok(*v > 10.clone())
 					})?)
 			} else {
 				Ok(false)

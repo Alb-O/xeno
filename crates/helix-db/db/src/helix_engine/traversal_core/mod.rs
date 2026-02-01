@@ -18,6 +18,10 @@
 //!   - Enforced in: `UpdateAdapter::update`, `AddEAdapter::add_e`, etc.
 //!   - Tested by: `TODO (add regression: test_atomic_traversal_failure)`.
 //!   - Failure symptom: Partial updates persist in the database, leading to inconsistency.
+//! - Value filters MUST propagate `ValueError` instead of panicking or coercing to `false`.
+//!   - Enforced in: `RoTraversalIterator::map_value_or`, `RwTraversalIterator::map_value_or`.
+//!   - Tested by: `helix_engine::tests::traversal_tests::util_tests::test_map_value_or_propagates_value_error`.
+//!   - Failure symptom: Filters silently drop values or panic on non-primitive inputs.
 //!
 //! ## Data flow
 //! 1. Query initiated via `HelixGraphEngine`.
