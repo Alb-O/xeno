@@ -1,4 +1,4 @@
-use crate::helix_engine::traversal_core::LMDB_STRING_HEADER_LENGTH;
+use crate::helix_engine::traversal_core::decode_postcard_str_prefix;
 use crate::helix_engine::traversal_core::traversal_iter::RoTraversalIterator;
 use crate::helix_engine::traversal_core::traversal_value::TraversalValue;
 use crate::helix_engine::types::{EngineError, VectorError};
@@ -38,65 +38,58 @@ impl<'db, 'arena, 'txn, I: Iterator<Item = Result<TraversalValue<'arena>, Engine
 	> {
 		let label_bytes = label.as_bytes();
 		let iter = self
-            .storage
-            .vectors
-            .vector_properties_db
-            .iter(self.txn)
-            .unwrap()
-            .filter_map(move |item| {
-                if let Ok((id, value)) = item {
+			.storage
+			.vectors
+			.vector_properties_db
+			.iter(self.txn)
+			.unwrap()
+			.filter_map(move |item| {
+				if let Ok((id, value)) = item {
+					// get label via bytes directly
+					let Some((label_in_lmdb, label_end)) = decode_postcard_str_prefix(value) else {
+						return None;
+					};
 
+					// skip single byte for version
+					let version_index = label_end;
 
-                    // get label via bytes directly
-                    assert!(
-                        value.len() >= LMDB_STRING_HEADER_LENGTH,
-                        "value length does not contain header which means the `label` field was missing from the node on insertion"
-                    );
-                    let length_of_label_in_lmdb =
-                        u64::from_le_bytes(value[..LMDB_STRING_HEADER_LENGTH].try_into().unwrap()) as usize;
-                    assert!(
-                        value.len() >= length_of_label_in_lmdb + LMDB_STRING_HEADER_LENGTH,
-                        "value length is not at least the header length plus the label length meaning there has been a corruption on node insertion"
-                    );
-                    let label_in_lmdb = &value[LMDB_STRING_HEADER_LENGTH
-                        ..LMDB_STRING_HEADER_LENGTH + length_of_label_in_lmdb];
+					// get bool for deleted
+					let deleted_index = version_index + 1;
+					let deleted = value[deleted_index] == 1;
 
-                    // skip single byte for version
-                    let version_index = length_of_label_in_lmdb + LMDB_STRING_HEADER_LENGTH;
+					if deleted {
+						return None;
+					}
 
-                    // get bool for deleted
-                    let deleted_index = version_index + 1;
-                    let deleted = value[deleted_index] == 1;
+					if label_in_lmdb == label_bytes {
+						let vector_without_data =
+							VectorWithoutData::from_bytes(self.arena, value, id)
+								.map_err(|e| VectorError::ConversionError(e.to_string()))
+								.ok()?;
 
-                    if deleted {
-                        return None;
-                    }
-
-                    if label_in_lmdb == label_bytes {
-                        let vector_without_data = VectorWithoutData::from_bytes(self.arena, value, id)
-                                    .map_err(|e| VectorError::ConversionError(e.to_string()))
-                                    .ok()?;
-
-                        if get_vector_data {
-                            let mut vector = match self.storage.vectors.get_raw_vector_data(self.txn, id, label, self.arena) {
-                                Ok(bytes) => bytes,
-                                Err(VectorError::VectorDeleted) => return None,
-                                Err(e) => return Some(Err(EngineError::from(e))),
-                            };
-                            vector.expand_from_vector_without_data(vector_without_data);
-                            return Some(Ok(TraversalValue::Vector(vector)));
-                        } else {
-                            return Some(Ok(TraversalValue::VectorNodeWithoutVectorData(
-                                vector_without_data
-                            )));
-                        }
-                    } else {
-                        return None;
-                    }
-
-                }
-                None
-            });
+						if get_vector_data {
+							let mut vector = match self
+								.storage
+								.vectors
+								.get_raw_vector_data(self.txn, id, label, self.arena)
+							{
+								Ok(bytes) => bytes,
+								Err(VectorError::VectorDeleted) => return None,
+								Err(e) => return Some(Err(EngineError::from(e))),
+							};
+							vector.expand_from_vector_without_data(vector_without_data);
+							return Some(Ok(TraversalValue::Vector(vector)));
+						} else {
+							return Some(Ok(TraversalValue::VectorNodeWithoutVectorData(
+								vector_without_data,
+							)));
+						}
+					} else {
+						return None;
+					}
+				}
+				None
+			});
 
 		RoTraversalIterator {
 			storage: self.storage,

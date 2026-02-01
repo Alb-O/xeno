@@ -1,5 +1,5 @@
 use crate::helix_engine::bm25::bm25::BM25;
-use crate::helix_engine::traversal_core::LMDB_STRING_HEADER_LENGTH;
+use crate::helix_engine::traversal_core::decode_postcard_str_prefix;
 use crate::helix_engine::traversal_core::traversal_iter::RoTraversalIterator;
 use crate::helix_engine::traversal_core::traversal_value::TraversalValue;
 use crate::helix_engine::types::{EngineError, StorageError, TraversalError};
@@ -57,41 +57,28 @@ impl<'db, 'arena, 'txn, I: Iterator<Item = Result<TraversalValue<'arena>, Engine
 
 		let label_as_bytes = label.as_bytes();
 		let iter = results.into_iter().filter_map(move |(id, score)| {
-            if let Ok(Some(value)) = self.storage.nodes_db.get(self.txn, &id) {
-            assert!(
-                value.len() >= LMDB_STRING_HEADER_LENGTH,
-                "value length does not contain header which means the `label` field was missing from the node on insertion"
-            );
-            let length_of_label_in_lmdb =
-                u64::from_le_bytes(value[..LMDB_STRING_HEADER_LENGTH].try_into().unwrap()) as usize;
+			if let Ok(Some(value)) = self.storage.nodes_db.get(self.txn, &id) {
+				let (label_in_lmdb, _) = decode_postcard_str_prefix(value)?;
 
-            if length_of_label_in_lmdb != label.len() {
-                return None;
-            }
-
-            assert!(
-                value.len() >= length_of_label_in_lmdb + LMDB_STRING_HEADER_LENGTH,
-                "value length is not at least the header length plus the label length meaning there has been a corruption on node insertion"
-            );
-            let label_in_lmdb = &value[LMDB_STRING_HEADER_LENGTH
-                ..LMDB_STRING_HEADER_LENGTH + length_of_label_in_lmdb];
-
-            if label_in_lmdb == label_as_bytes {
-                match Node::<'arena>::from_bytes(id, value, self.arena) {
-                    Ok(node) => {
-                        return Some(Ok(TraversalValue::NodeWithScore { node, score: score as f64 }));
-                    }
-					Err(e) => {
-						tracing::warn!(?e, node_id = %id, "error decoding node");
-						return Some(Err(StorageError::Conversion(e.to_string()).into()));
+				if label_in_lmdb == label_as_bytes {
+					match Node::<'arena>::from_bytes(id, value, self.arena) {
+						Ok(node) => {
+							return Some(Ok(TraversalValue::NodeWithScore {
+								node,
+								score: score as f64,
+							}));
+						}
+						Err(e) => {
+							tracing::warn!(?e, node_id = %id, "error decoding node");
+							return Some(Err(StorageError::Conversion(e.to_string()).into()));
+						}
 					}
+				} else {
+					return None;
 				}
-            } else {
-                return None;
-            }
-            }
-            None
-        });
+			}
+			None
+		});
 
 		Ok(RoTraversalIterator {
 			storage: self.storage,

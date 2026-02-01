@@ -5,7 +5,7 @@ use heed3::types::{Bytes, U128};
 use heed3::{Database, RoTxn};
 
 use super::binary_heap::BinaryHeap;
-use crate::helix_engine::traversal_core::LMDB_STRING_HEADER_LENGTH;
+use crate::helix_engine::traversal_core::decode_postcard_str_prefix;
 use crate::helix_engine::types::VectorError;
 use crate::helix_engine::vector_core::vector::HVector;
 use crate::helix_engine::vector_core::vector_without_data::VectorWithoutData;
@@ -136,21 +136,15 @@ impl<'db, 'arena, 'txn, 'q> VectorFilter<'db, 'arena, 'txn, 'q>
 }
 
 pub fn check_deleted(data: &[u8]) -> bool {
-	assert!(
-		data.len() >= LMDB_STRING_HEADER_LENGTH,
-		"value length does not contain header which means the `label` field was missing from the node on insertion"
-	);
-	let length_of_label_in_lmdb =
-		u64::from_le_bytes(data[..LMDB_STRING_HEADER_LENGTH].try_into().unwrap()) as usize;
+	let (_, label_end) = decode_postcard_str_prefix(data)
+		.expect("value too short: label field missing from vector on insertion");
 
-	let length_of_version_in_lmdb = 1;
-
-	let deleted_index =
-		LMDB_STRING_HEADER_LENGTH + length_of_label_in_lmdb + length_of_version_in_lmdb;
+	// version is a single byte immediately after the label
+	let deleted_index = label_end + 1;
 
 	assert!(
-		data.len() >= deleted_index,
-		"data length is not at least the deleted index plus the length of the deleted field meaning there has been a corruption on node insertion"
+		data.len() > deleted_index,
+		"data too short to contain deleted flag after label+version"
 	);
 	data[deleted_index] == 1
 }

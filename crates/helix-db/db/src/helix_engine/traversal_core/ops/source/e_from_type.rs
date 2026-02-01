@@ -1,7 +1,7 @@
 use heed3::byteorder::BE;
 use heed3::types::{Bytes, U128};
 
-use crate::helix_engine::traversal_core::LMDB_STRING_HEADER_LENGTH;
+use crate::helix_engine::traversal_core::decode_postcard_str_prefix;
 use crate::helix_engine::traversal_core::traversal_iter::RoTraversalIterator;
 use crate::helix_engine::traversal_core::traversal_value::TraversalValue;
 use crate::helix_engine::types::{EngineError, StorageError};
@@ -25,20 +25,9 @@ impl<'arena, 'txn, 's> Iterator for EFromType<'arena, 'txn, 's> {
 
 			match value.decode() {
 				Ok(value) => {
-					assert!(
-						value.len() >= LMDB_STRING_HEADER_LENGTH,
-						"value length does not contain header which means the `label` field was missing from the node on insertion"
-					);
-					let length_of_label_in_lmdb =
-						u64::from_le_bytes(value[..LMDB_STRING_HEADER_LENGTH].try_into().unwrap())
-							as usize;
-
-					assert!(
-						value.len() >= length_of_label_in_lmdb + LMDB_STRING_HEADER_LENGTH,
-						"value length is not at least the header length plus the label length meaning there has been a corruption on node insertion"
-					);
-					let label_in_lmdb = &value[LMDB_STRING_HEADER_LENGTH
-						..LMDB_STRING_HEADER_LENGTH + length_of_label_in_lmdb];
+					let Some((label_in_lmdb, _)) = decode_postcard_str_prefix(value) else {
+						continue;
+					};
 
 					if label_in_lmdb == self.label {
 						match Edge::<'arena>::from_bytes(id, value, self.arena) {

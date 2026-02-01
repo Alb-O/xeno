@@ -1,6 +1,6 @@
 use serde::Serialize;
 
-use crate::helix_engine::traversal_core::LMDB_STRING_HEADER_LENGTH;
+use crate::helix_engine::traversal_core::decode_postcard_str_prefix;
 use crate::helix_engine::traversal_core::traversal_iter::RoTraversalIterator;
 use crate::helix_engine::traversal_core::traversal_value::TraversalValue;
 use crate::helix_engine::types::{EngineError, StorageError};
@@ -66,31 +66,16 @@ impl<
 			.unwrap();
 		let label_as_bytes = label.as_bytes();
 		let res = db
-            .prefix_iter(self.txn, &postcard::to_stdvec(&Value::from(key)).unwrap())
-            .unwrap()
-            .filter_map(move |item| {
-                if let Ok((_, node_id)) = item &&
-                 let Some(value) = self.storage.nodes_db.get(self.txn, &node_id).ok()? {
-                    assert!(
-                        value.len() >= LMDB_STRING_HEADER_LENGTH,
-                        "value length does not contain header which means the `label` field was missing from the node on insertion"
-                    );
-                    let length_of_label_in_lmdb =
-                        u64::from_le_bytes(value[..LMDB_STRING_HEADER_LENGTH].try_into().unwrap()) as usize;
+			.prefix_iter(self.txn, &postcard::to_stdvec(&Value::from(key)).unwrap())
+			.unwrap()
+			.filter_map(move |item| {
+				if let Ok((_, node_id)) = item
+					&& let Some(value) = self.storage.nodes_db.get(self.txn, &node_id).ok()?
+				{
+					let (label_in_lmdb, _) = decode_postcard_str_prefix(value)?;
 
-                    if length_of_label_in_lmdb != label.len() {
-                        return None;
-                    }
-
-                    assert!(
-                        value.len() >= length_of_label_in_lmdb + LMDB_STRING_HEADER_LENGTH,
-                        "value length is not at least the header length plus the label length meaning there has been a corruption on node insertion"
-                    );
-                    let label_in_lmdb = &value[LMDB_STRING_HEADER_LENGTH
-                        ..LMDB_STRING_HEADER_LENGTH + length_of_label_in_lmdb];
-
-                    if label_in_lmdb == label_as_bytes {
-                        match Node::<'arena>::from_bytes(node_id, value, self.arena) {
+					if label_in_lmdb == label_as_bytes {
+						match Node::<'arena>::from_bytes(node_id, value, self.arena) {
 							Ok(node) => {
 								return Some(Ok(TraversalValue::Node(node)));
 							}
@@ -99,15 +84,12 @@ impl<
 								return Some(Err(StorageError::Conversion(e.to_string()).into()));
 							}
 						}
-                    } else {
-                        return None;
-                    }
-
-                }
-                None
-
-
-            });
+					} else {
+						return None;
+					}
+				}
+				None
+			});
 
 		RoTraversalIterator {
 			storage: self.storage,

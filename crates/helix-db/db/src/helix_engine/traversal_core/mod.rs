@@ -60,7 +60,37 @@ use crate::helix_engine::types::EngineError;
 #[cfg(feature = "server")]
 use crate::helix_gateway::mcp::mcp::{McpBackend, McpConnections};
 
-pub const LMDB_STRING_HEADER_LENGTH: usize = 8;
+/// Decodes a postcard varint-prefixed string from the start of `data`.
+///
+/// Postcard encodes strings as a LEB128 varint length followed by raw UTF-8
+/// bytes. Returns `(string_bytes, total_bytes_consumed)` where
+/// `total_bytes_consumed` includes both the varint header and the string body,
+/// or `None` if the data is too short or the varint overflows.
+pub fn decode_postcard_str_prefix(data: &[u8]) -> Option<(&[u8], usize)> {
+	let mut len: usize = 0;
+	let mut shift: u32 = 0;
+	let mut i = 0;
+	loop {
+		if i >= data.len() {
+			return None;
+		}
+		let byte = data[i];
+		len |= ((byte & 0x7F) as usize) << shift;
+		i += 1;
+		if byte & 0x80 == 0 {
+			break;
+		}
+		shift += 7;
+		if shift >= usize::BITS {
+			return None;
+		}
+	}
+	let end = i.checked_add(len)?;
+	if end > data.len() {
+		return None;
+	}
+	Some((&data[i..end], end))
+}
 
 #[derive(Debug)]
 pub enum QueryInput {

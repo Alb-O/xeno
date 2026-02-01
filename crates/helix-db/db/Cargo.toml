@@ -7,6 +7,11 @@ license = "AGPL-3.0"
 authors = ["HelixDB Team"]
 repository = "https://github.com/HelixDB/helix-db"
 
+[[bin]]
+name = "helix-db-cli"
+path = "src/bin/helix_db_cli.rs"
+required-features = ["full"]
+
 [features]
 compiler = ["pest", "pest_derive", "ariadne"]
 cosine = []
