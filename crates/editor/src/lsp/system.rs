@@ -578,6 +578,11 @@ impl LspSystem {
 		self.inner.broker.session_id()
 	}
 
+	/// Returns a clone of the broker transport handle.
+	pub(crate) fn broker_transport(&self) -> Arc<crate::lsp::broker_transport::BrokerTransport> {
+		self.inner.broker.clone()
+	}
+
 	pub fn get_diagnostic_line_map(&self, buffer: &Buffer) -> DiagnosticLineMap {
 		use crate::lsp::diagnostics::build_diagnostic_line_map;
 		let diagnostics = self.get_diagnostics(buffer);

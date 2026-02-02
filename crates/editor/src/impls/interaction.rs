@@ -43,6 +43,15 @@ impl Editor {
 		result
 	}
 
+	pub fn open_workspace_search(&mut self) -> bool {
+		let ctl = controllers::WorkspaceSearchOverlay::new();
+		let mut interaction: crate::overlay::OverlayManager =
+			std::mem::take(&mut self.state.overlay_system.interaction);
+		let result = interaction.open(self, Box::new(ctl));
+		self.state.overlay_system.interaction = interaction;
+		result
+	}
+
 	pub fn open_rename(&mut self) -> bool {
 		let buffer_id = self.focused_view();
 		let Some(buffer) = self.state.core.buffers.get_buffer(buffer_id) else {
