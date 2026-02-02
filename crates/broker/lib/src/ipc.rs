@@ -99,11 +99,12 @@ pub(crate) async fn handle_connection(stream: UnixStream, runtime: Arc<BrokerRun
 #[cfg(test)]
 mod tests {
 	use std::io::{Error as IoError, ErrorKind};
+	use std::time::Duration;
 
 	use tokio::io::{AsyncReadExt, AsyncWriteExt};
 	use tokio::net::UnixStream;
 	use xeno_broker_proto::types::{
-		Event, IpcFrame, Request, RequestId, RequestPayload, Response, ResponsePayload, SessionId,
+		IpcFrame, Request, RequestId, RequestPayload, Response, ResponsePayload, SessionId,
 	};
 
 	use super::*;

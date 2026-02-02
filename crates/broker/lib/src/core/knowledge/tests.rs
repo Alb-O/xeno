@@ -7,22 +7,32 @@ use helix_db::helix_engine::traversal_core::traversal_value::TraversalValue;
 use helix_db::protocol::value::Value;
 use ropey::Rope;
 use tempfile::TempDir;
-use xeno_broker_proto::types::{SyncEpoch, SyncSeq};
+use tokio::sync::mpsc;
+use xeno_broker_proto::types::{ErrorCode, SyncEpoch, SyncSeq};
 
 use super::indexer::{IndexWorker, chunk_text, index_document};
 use super::{DocSnapshotSource, KnowledgeCore, SCHEMA_CONFIG};
+use crate::services::{buffer_sync, knowledge};
 
 static ENV_LOCK: Mutex<()> = Mutex::new(());
 
 struct NullSource;
 
 impl DocSnapshotSource for NullSource {
-	fn snapshot_sync_doc(&self, _uri: &str) -> Option<(SyncEpoch, SyncSeq, Rope)> {
-		None
+	fn snapshot_sync_doc(
+		&self,
+		_uri: &str,
+	) -> std::pin::Pin<
+		Box<dyn std::future::Future<Output = Option<(SyncEpoch, SyncSeq, Rope)>> + Send>,
+	> {
+		Box::pin(async { None })
 	}
 
-	fn is_sync_doc_open(&self, _uri: &str) -> bool {
-		false
+	fn is_sync_doc_open(
+		&self,
+		_uri: &str,
+	) -> std::pin::Pin<Box<dyn std::future::Future<Output = bool> + Send>> {
+		Box::pin(async { false })
 	}
 }
 
@@ -43,8 +53,8 @@ fn test_schema_config_parses() {
 	assert!(result.is_ok());
 }
 
-#[test]
-fn test_graceful_degradation() {
+#[tokio::test(flavor = "current_thread")]
+async fn test_graceful_degradation() {
 	let _guard = ENV_LOCK.lock().unwrap();
 	let temp = TempDir::new().expect("tempdir");
 	let bad_path = temp.path().join("state-file");
@@ -55,8 +65,12 @@ fn test_graceful_degradation() {
 		std::env::set_var("XDG_STATE_HOME", &bad_path);
 	}
 
-	let core = super::super::BrokerCore::new_with_config(super::super::BrokerConfig::default());
-	assert!(core.knowledge.is_none());
+	let (sync_tx, _sync_rx) = mpsc::channel(1);
+	let sync_handle = buffer_sync::BufferSyncHandle::new(sync_tx);
+	let open_docs = Arc::new(Mutex::new(std::collections::HashSet::new()));
+	let handle = knowledge::KnowledgeService::start(sync_handle, open_docs);
+	let res = handle.search("missing", 3).await;
+	assert_eq!(res.unwrap_err(), ErrorCode::NotImplemented);
 
 	match old_state {
 		Some(value) => unsafe {

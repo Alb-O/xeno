@@ -26,17 +26,17 @@
 //!
 //! - Single Writer: Only the elected owner of a document URI may submit deltas to the broker.
 //!   - Enforced in: `BufferSyncService::handle_delta`
-//!   - Tested by: `TODO (add regression: test_sync_ownership_enforcement)`
+//!   - Tested by: `services::tests::test_sync_ownership_enforcement`
 //!   - Failure symptom: `NotDocOwner` error returned to the editor session.
 //!
 //! - Atomic Request Registration: S2C requests MUST be registered in the pending map before being transmitted to the leader.
 //!   - Enforced in: `RoutingService::handle_begin_s2c`
-//!   - Tested by: `TODO (add regression: test_s2c_registration_order)`
+//!   - Tested by: `services::tests::test_s2c_registration_order`
 //!   - Failure symptom: Responses from the leader may be dropped if they arrive before registration completes.
 //!
 //! - Deterministic Teardown: All pending requests for a server MUST be cancelled with `REQUEST_CANCELLED` when the server exits.
 //!   - Enforced in: `RoutingService::handle_server_exit`
-//!   - Tested by: `TODO (add regression: test_server_exit_cancellation)`
+//!   - Tested by: `services::tests::test_server_exit_cancellation`
 //!   - Failure symptom: Editor sessions or proxy services may hang waiting for a response that will never arrive.
 //!
 //! # Data flow

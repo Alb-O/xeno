@@ -670,8 +670,10 @@ impl RoutingService {
 		let notif: xeno_lsp::AnyNotification =
 			serde_json::from_str(&message).map_err(|_| ErrorCode::InvalidArgs)?;
 
-		if let DocGateDecision::RejectNotOwner = Self::gate_text_sync(sid, server, &notif) {
-			return Err(ErrorCode::NotDocOwner);
+		match Self::gate_text_sync(sid, server, &notif) {
+			DocGateDecision::RejectNotOwner => return Err(ErrorCode::NotDocOwner),
+			DocGateDecision::DropSilently => return Ok(()),
+			DocGateDecision::Forward => {}
 		}
 
 		if matches!(
