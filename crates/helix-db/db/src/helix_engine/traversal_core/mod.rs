@@ -16,7 +16,7 @@
 //! ## Invariants
 //! - Mutation steps must fail-fast on database errors.
 //!   - Enforced in: `UpdateAdapter::update`, `AddEAdapter::add_e`, etc.
-//!   - Tested by: `TODO (add regression: test_atomic_traversal_failure)`.
+//!   - Tested by: `traversal_core::tests::test_atomic_traversal_failure`.
 //!   - Failure symptom: Partial updates persist in the database, leading to inconsistency.
 //! - Value filters MUST propagate `ValueError` instead of panicking or coercing to `false`.
 //!   - Enforced in: `RoTraversalIterator::map_value_or`, `RwTraversalIterator::map_value_or`.
@@ -48,6 +48,9 @@ pub mod config;
 pub mod ops;
 pub mod traversal_iter;
 pub mod traversal_value;
+
+#[cfg(test)]
+mod traversal_core_tests;
 
 use std::sync::Arc;
 #[cfg(feature = "server")]

@@ -1085,8 +1085,9 @@ pub fn search_vector(input: &mut MCPToolInput) -> Result<Response, EngineError> 
 
 #[cfg(test)]
 mod mcp_handler_symbol_collision_regression {
-	use super::*;
 	use helix_macros::mcp_handler;
+
+	use super::*;
 
 	mod a {
 		use super::*;

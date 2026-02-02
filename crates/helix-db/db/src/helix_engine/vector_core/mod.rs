@@ -17,15 +17,15 @@
 //! ## Invariants
 //! - Vector dimension must match index dimension.
 //!   - Enforced in: `VectorCore::insert`, `HNSW::search`.
-//!   - Tested by: `TODO (add regression: test_reject_dimension_mismatch)`.
+//!   - Tested by: `vector_core::tests::test_reject_dimension_mismatch`.
 //!   - Failure symptom: Search returns garbage or panics in distance calculation.
 //! - Vector IDs map 1:1 to nodes.
 //!   - Enforced in: `VectorCore` write paths.
-//!   - Tested by: `TODO (add regression: test_id_not_reused_after_delete)`.
+//!   - Tested by: `vector_core::tests::test_id_not_reused_after_delete`.
 //!   - Failure symptom: Nearest-neighbor returns wrong node IDs.
 //! - Persisted keys use architecture-independent sizes.
 //!   - Enforced in: `VectorCore::vector_key`, `VectorCore::out_edges_key`.
-//!   - Tested by: `TODO (add regression: test_portable_key_lengths)`.
+//!   - Tested by: `vector_core::tests::test_portable_key_lengths`.
 //!   - Failure symptom: Database cannot be opened on different architectures.
 //!
 //! ## Data flow
@@ -55,6 +55,9 @@ pub mod vector;
 pub mod vector_core;
 pub mod vector_distance;
 pub mod vector_without_data;
+
+#[cfg(test)]
+mod vector_core_tests;
 
 #[cfg(test)]
 mod tests;

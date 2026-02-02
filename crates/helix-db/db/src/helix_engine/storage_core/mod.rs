@@ -17,11 +17,11 @@
 //! ## Invariants
 //! - Key/value packing formats are stable and length-checked.
 //!   - Enforced in: `HelixGraphStorage::out_edge_key`, `HelixGraphStorage::in_edge_key`, `HelixGraphStorage::pack_edge_data`, `HelixGraphStorage::unpack_adj_edge_data`.
-//!   - Tested by: `TODO (add regression: test_pack_unpack_edge_data_roundtrip)`.
+//!   - Tested by: `storage_core::tests::test_pack_unpack_edge_data_roundtrip`, `storage_core::tests::test_out_edge_key_layout`, `storage_core::tests::test_in_edge_key_layout`.
 //!   - Failure symptom: Traversal returns wrong adjacency; edges appear missing or swapped.
 //! - Secondary index semantics (Unique vs Index) are upheld.
 //!   - Enforced in: `ActiveSecondaryIndex::insert`, `ActiveSecondaryIndex::delete`.
-//!   - Tested by: `TODO (add regression: test_unique_index_rejects_duplicate)`.
+//!   - Tested by: `storage_core::tests::test_unique_index_rejects_duplicate`.
 //!   - Failure symptom: Duplicate nodes for "unique" lookups; query correctness violation.
 //! - LMDB transaction discipline is respected.
 //!   - Enforced in: `StorageMethods` implementation.
@@ -58,6 +58,8 @@ pub mod version_info;
 
 #[cfg(test)]
 mod storage_concurrent_tests;
+#[cfg(test)]
+mod storage_core_tests;
 #[cfg(test)]
 mod storage_migration_tests;
 

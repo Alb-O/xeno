@@ -289,8 +289,9 @@ mod tests {
 	}
 
 	mod handler_symbol_collision_regression {
-		use super::*;
 		use helix_macros::handler;
+
+		use super::*;
 
 		mod a {
 			use super::*;

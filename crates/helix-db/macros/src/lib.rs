@@ -6,8 +6,8 @@ use proc_macro::TokenStream;
 use quote::{ToTokens, quote};
 use syn::parse::{Parse, ParseStream};
 use syn::{
-	Data, DeriveInput, Expr, Fields, FnArg, Ident, ItemFn, ItemStruct, ItemTrait, LitInt, Pat, Stmt,
-	Token, TraitItem, parse_macro_input,
+	Data, DeriveInput, Expr, Fields, FnArg, Ident, ItemFn, ItemStruct, ItemTrait, LitInt, Pat,
+	Stmt, Token, TraitItem, parse_macro_input,
 };
 
 fn err_spanned<T: ToTokens>(node: T, msg: &str) -> TokenStream {
@@ -373,7 +373,12 @@ pub fn helix_node(_attr: TokenStream, input: TokenStream) -> TokenStream {
 			let id_field: syn::Field = syn::parse_quote! { id: String };
 			fields.named.insert(0, id_field);
 		}
-		_ => return err_spanned(item_struct, "helix_node only supports structs with named fields"),
+		_ => {
+			return err_spanned(
+				item_struct,
+				"helix_node only supports structs with named fields",
+			);
+		}
 	}
 
 	quote! { #item_struct }.into()
