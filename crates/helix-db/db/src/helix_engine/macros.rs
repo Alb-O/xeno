@@ -76,21 +76,35 @@ pub mod macros {
 	/// ```rust
 	/// use helix_db::node_matches;
 	/// use helix_db::protocol::value::Value;
-	/// use helix_db::protocol::items::Node;
-	/// use helix_db::protocol::filterable::Filterable;
+	/// use helix_db::utils::items::Node;
+	/// use helix_db::utils::properties::ImmutablePropertiesMap;
+	/// use bumpalo::Bump;
+	///
+	/// let arena = Bump::new();
+	/// let properties = ImmutablePropertiesMap::new(
+	///     2,
+	///     [
+	///         ("name", Value::String("Will".to_string())),
+	///         ("age", Value::I64(21)),
+	///     ]
+	///     .into_iter(),
+	///     &arena,
+	/// );
 	/// let pred = node_matches!("name", "Will");
 	///
-	/// let node = Node::new("person", vec![
-	///    ("name".to_string(), Value::String("Will".to_string())),
-	///   ("age".to_string(), Value::I64(21)),
-	/// ]);
+	/// let node = Node {
+	///     id: 1,
+	///     label: "person",
+	///     version: 1,
+	///     properties: Some(properties),
+	/// };
 	///
-	///
-	/// assert_eq!(pred(&node).unwrap(), true);
+	/// let result: Result<bool, helix_db::helix_engine::types::EngineError> = pred(&node);
+	/// assert!(result.unwrap());
 	/// ```
 	macro_rules! node_matches {
 		($key:expr, $value:expr) => {
-			|node: &helix_db::protocol::items::Node| {
+			|node: &$crate::utils::items::Node| {
 				if let Some(val) = node.get_property($key) {
 					if let helix_db::protocol::value::Value::String(val) = &val {
 						Ok(*val == $value)
@@ -107,7 +121,7 @@ pub mod macros {
 	#[macro_export]
 	macro_rules! edge_matches {
 		($key:expr, $value:expr) => {
-			|edge: &helix_db::protocol::items::Edge| {
+			|edge: &$crate::utils::items::Edge| {
 				if let Some(val) = edge.get_property($key) {
 					if let helix_db::protocol::value::Value::String(val) = &val {
 						Ok(*val == $value)

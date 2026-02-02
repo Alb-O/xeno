@@ -221,18 +221,9 @@ fn test_heap_ops_get_max_empty() {
 
 #[test]
 fn test_check_deleted_returns_false() {
-	// Construct data with: 8-byte header (label length) + label + 1-byte version + deleted flag
 	let label = "test";
-	let label_len = label.len() as u64;
-	let mut data = Vec::new();
-
-	// 8-byte length header (little-endian)
-	data.extend_from_slice(&label_len.to_le_bytes());
-	// Label bytes
-	data.extend_from_slice(label.as_bytes());
-	// Version byte
+	let mut data = postcard::to_stdvec(&label).unwrap();
 	data.push(0);
-	// Deleted flag (0 = not deleted)
 	data.push(0);
 
 	assert!(!check_deleted(&data));
@@ -240,18 +231,9 @@ fn test_check_deleted_returns_false() {
 
 #[test]
 fn test_check_deleted_returns_true() {
-	// Construct data with deleted flag = 1
 	let label = "test";
-	let label_len = label.len() as u64;
-	let mut data = Vec::new();
-
-	// 8-byte length header (little-endian)
-	data.extend_from_slice(&label_len.to_le_bytes());
-	// Label bytes
-	data.extend_from_slice(label.as_bytes());
-	// Version byte
+	let mut data = postcard::to_stdvec(&label).unwrap();
 	data.push(0);
-	// Deleted flag (1 = deleted)
 	data.push(1);
 
 	assert!(check_deleted(&data));

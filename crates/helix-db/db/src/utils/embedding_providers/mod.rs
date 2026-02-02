@@ -427,26 +427,53 @@ pub fn get_embedding_model(
 /// This must be called on a sync worker, but with a tokio context, and in a place that returns a Result
 ///
 /// ## Example Use
-/// ```rust
+/// ```rust,no_run
 /// use helix_db::embed;
-/// let query = embed!("Hello, world!");
-/// let embedding = embed!("Hello, world!", "text-embedding-ada-002");
-/// let embedding = embed!("Hello, world!", "gemini:gemini-embedding-001:SEMANTIC_SIMILARITY");
-/// let embedding = embed!("Hello, world!", "text-embedding-ada-002", "http://localhost:8699/embed");
+/// use helix_db::helix_engine::storage_core::HelixGraphStorage;
+/// use helix_db::helix_engine::storage_core::version_info::VersionInfo;
+/// use helix_db::helix_engine::traversal_core::config::Config;
+///
+/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+/// # let path = std::env::temp_dir().join("xeno-docs-embed");
+/// # let storage = HelixGraphStorage::new(
+/// #     path.to_str().unwrap(),
+/// #     Config::new(16, 128, 768, 1, false, false, None, None, None),
+/// #     VersionInfo::default(),
+/// # )?;
+/// let query = embed!(&storage, "Hello, world!");
+/// let embedding = embed!(
+///     &storage,
+///     "Hello, world!",
+///     "text-embedding-ada-002",
+///     "http://localhost:8699/embed"
+/// );
+/// # Ok(())
+/// # }
 /// ```
 macro_rules! embed {
 	($db:expr, $query:expr) => {{
-		let embedding_model =
-			get_embedding_model(None, $db.storage_config.embedding_model.as_deref(), None);
-		embedding_model.fetch_embedding($query)?
+		use $crate::utils::embedding_providers::EmbeddingModel;
+		let embedding_model = $crate::utils::embedding_providers::get_embedding_model(
+			None,
+			$db.storage_config.embedding_model.as_deref(),
+			None,
+		)?;
+		embedding_model.fetch_embedding($query)
 	}};
 	($db:expr, $query:expr, $provider:expr) => {{
-		let embedding_model = get_embedding_model(None, Some($provider), None);
-		embedding_model.fetch_embedding($query)?
+		use $crate::utils::embedding_providers::EmbeddingModel;
+		let embedding_model =
+			$crate::utils::embedding_providers::get_embedding_model(None, Some($provider), None)?;
+		embedding_model.fetch_embedding($query)
 	}};
 	($db:expr, $query:expr, $provider:expr, $url:expr) => {{
-		let embedding_model = get_embedding_model(None, Some($provider), Some($url));
-		embedding_model.fetch_embedding($query)?
+		use $crate::utils::embedding_providers::EmbeddingModel;
+		let embedding_model = $crate::utils::embedding_providers::get_embedding_model(
+			None,
+			Some($provider),
+			Some($url),
+		)?;
+		embedding_model.fetch_embedding($query)
 	}};
 }
 
@@ -457,22 +484,33 @@ macro_rules! embed {
 ///
 macro_rules! embed_async {
     (INNER_MODEL: $model:expr, $query:expr) => {
-        match $model {
+        {
+            use $crate::utils::embedding_providers::EmbeddingModel;
+            match $model {
             Ok(m) => m.fetch_embedding_async($query).await,
             Err(e) => Err(e),
+            }
         }
     };
     ($db:expr, $query:expr) => {{
-        let embedding_model =
-            get_embedding_model(None, $db.storage_config.embedding_model.as_deref(), None);
+        let embedding_model = $crate::utils::embedding_providers::get_embedding_model(
+            None,
+            $db.storage_config.embedding_model.as_deref(),
+            None,
+        );
         embed_async!(INNER_MODEL: embedding_model, $query)
     }};
     ($db:expr, $query:expr, $provider:expr) => {{
-        let embedding_model = get_embedding_model(None, Some($provider), None);
+        let embedding_model =
+            $crate::utils::embedding_providers::get_embedding_model(None, Some($provider), None);
         embed_async!(INNER_MODEL: embedding_model, $query)
     }};
     ($db:expr, $query:expr, $provider:expr, $url:expr) => {{
-        let embedding_model = get_embedding_model(None, Some($provider), Some($url));
+        let embedding_model = $crate::utils::embedding_providers::get_embedding_model(
+            None,
+            Some($provider),
+            Some($url),
+        );
         embed_async!(INNER_MODEL: embedding_model, $query)
     }};
 }

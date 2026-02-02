@@ -6,8 +6,8 @@ use itertools::Itertools;
 use super::metadata::{NATIVE_VECTOR_ENDIANNESS, StorageMetadata, VectorEndianness};
 use crate::helix_engine::storage_core::HelixGraphStorage;
 use crate::helix_engine::types::{EngineError, StorageError};
-use crate::helix_engine::vector_core::vector::HVector;
 use crate::helix_engine::vector_core::vector_core;
+use crate::helix_engine::vector_core::vector_without_data::VectorWithoutData;
 use crate::protocol::value::Value;
 use crate::utils::properties::ImmutablePropertiesMap;
 
@@ -290,14 +290,12 @@ pub(crate) fn convert_old_vector_properties_to_new_format(
 		arena,
 	);
 
-	let new_vector = HVector {
+	let new_vector = VectorWithoutData {
 		id: 0u128,
 		label: &label.inner_stringify(),
 		version: 0,
 		deleted: is_deleted == true,
 		level: 0,
-		distance: None,
-		data: &[],
 		properties: Some(new_properties),
 	};
 

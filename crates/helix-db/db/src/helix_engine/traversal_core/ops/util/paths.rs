@@ -530,10 +530,39 @@ pub trait ShortestPathAdapter<'db, 'arena, 'txn, 's, I>:
 	///
 	/// # Example
 	///
-	/// ```rust
-	/// let node1 = Node { id: 1, label: "Person".to_string(), properties: None };
-	/// let node2 = Node { id: 2, label: "Person".to_string(), properties: None };
-	/// let traversal = G::new(storage, &txn).shortest_path(Some("knows"), Some(&node1.id), Some(&node2.id));
+	/// ```rust,no_run
+	/// # use bumpalo::Bump;
+	/// # use helix_db::helix_engine::storage_core::HelixGraphStorage;
+	/// # use helix_db::helix_engine::storage_core::version_info::VersionInfo;
+	/// # use helix_db::helix_engine::traversal_core::config::Config;
+	/// # use helix_db::helix_engine::traversal_core::ops::g::G;
+	/// # use helix_db::helix_engine::traversal_core::ops::util::paths::ShortestPathAdapter;
+	/// # use helix_db::utils::items::Node;
+	/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+	/// # let path = std::env::temp_dir().join("xeno-docs-paths");
+	/// # let storage = HelixGraphStorage::new(
+	/// #     path.to_str().unwrap(),
+	/// #     Config::new(16, 128, 768, 1, false, false, None, None, None),
+	/// #     VersionInfo::default(),
+	/// # )?;
+	/// # let arena = Bump::new();
+	/// # let txn = storage.graph_env.read_txn()?;
+	/// let node1 = Node {
+	///     id: 1,
+	///     label: "Person",
+	///     version: 1,
+	///     properties: None,
+	/// };
+	/// let node2 = Node {
+	///     id: 2,
+	///     label: "Person",
+	///     version: 1,
+	///     properties: None,
+	/// };
+	/// let traversal = G::new(&storage, &txn, &arena)
+	///     .shortest_path(Some("knows"), Some(&node1.id), Some(&node2.id));
+	/// # Ok(())
+	/// # }
 	/// ```
 	#[allow(clippy::type_complexity)]
 	fn shortest_path(

@@ -343,61 +343,6 @@ impl HelixGraphStorage {
 		);
 		Ok((edge_id, node_id))
 	}
-}
-
-impl StorageConfig {
-	pub fn new(
-		schema: Option<String>,
-		graphvis_node_label: Option<String>,
-		embedding_model: Option<String>,
-	) -> StorageConfig {
-		Self {
-			schema,
-			graphvis_node_label,
-			embedding_model,
-		}
-	}
-}
-
-impl DBMethods for HelixGraphStorage {
-	/// Creates a secondary index lmdb db (table) for a given index name.
-	///
-	/// Accepts `SecondaryIndex` from the schema layer and converts to
-	/// `ActiveSecondaryIndex` internally, filtering out `None`.
-	fn create_secondary_index(&mut self, index: SecondaryIndex) -> Result<(), EngineError> {
-		let active = index.into_active().ok_or_else(|| {
-			StorageError::Backend(
-				"cannot create a secondary index from SecondaryIndex::None".into(),
-			)
-		})?;
-		let mut wtxn = self.graph_env.write_txn()?;
-		match &active {
-			ActiveSecondaryIndex::Unique(name) => {
-				let db = self.graph_env.create_database(&mut wtxn, Some(name))?;
-				wtxn.commit()?;
-				self.secondary_indices.insert(name.clone(), (db, active));
-			}
-			ActiveSecondaryIndex::Index(name) => {
-				let db = self.graph_env.create_database(&mut wtxn, Some(name))?;
-				wtxn.commit()?;
-				self.secondary_indices.insert(name.clone(), (db, active));
-			}
-		}
-		Ok(())
-	}
-
-	/// Drops a secondary index lmdb db (table) for a given index name
-	fn drop_secondary_index(&mut self, name: &str) -> Result<(), EngineError> {
-		let mut wtxn = self.graph_env.write_txn()?;
-		let (db, _) = self
-			.secondary_indices
-			.get(name)
-			.ok_or_else(|| StorageError::Backend(format!("Secondary Index {name} not found")))?;
-		db.clear(&mut wtxn)?;
-		wtxn.commit()?;
-		self.secondary_indices.remove(name);
-		Ok(())
-	}
 
 	/// Deletes all incident edges for a node/vector and cleans up adjacency indices.
 	fn drop_incident_edges(&self, txn: &mut RwTxn, id: &u128) -> Result<(), EngineError> {
@@ -459,6 +404,61 @@ impl DBMethods for HelixGraphStorage {
 			)?;
 		}
 
+		Ok(())
+	}
+}
+
+impl StorageConfig {
+	pub fn new(
+		schema: Option<String>,
+		graphvis_node_label: Option<String>,
+		embedding_model: Option<String>,
+	) -> StorageConfig {
+		Self {
+			schema,
+			graphvis_node_label,
+			embedding_model,
+		}
+	}
+}
+
+impl DBMethods for HelixGraphStorage {
+	/// Creates a secondary index lmdb db (table) for a given index name.
+	///
+	/// Accepts `SecondaryIndex` from the schema layer and converts to
+	/// `ActiveSecondaryIndex` internally, filtering out `None`.
+	fn create_secondary_index(&mut self, index: SecondaryIndex) -> Result<(), EngineError> {
+		let active = index.into_active().ok_or_else(|| {
+			StorageError::Backend(
+				"cannot create a secondary index from SecondaryIndex::None".into(),
+			)
+		})?;
+		let mut wtxn = self.graph_env.write_txn()?;
+		match &active {
+			ActiveSecondaryIndex::Unique(name) => {
+				let db = self.graph_env.create_database(&mut wtxn, Some(name))?;
+				wtxn.commit()?;
+				self.secondary_indices.insert(name.clone(), (db, active));
+			}
+			ActiveSecondaryIndex::Index(name) => {
+				let db = self.graph_env.create_database(&mut wtxn, Some(name))?;
+				wtxn.commit()?;
+				self.secondary_indices.insert(name.clone(), (db, active));
+			}
+		}
+		Ok(())
+	}
+
+	/// Drops a secondary index lmdb db (table) for a given index name
+	fn drop_secondary_index(&mut self, name: &str) -> Result<(), EngineError> {
+		let mut wtxn = self.graph_env.write_txn()?;
+		let (db, _) = self
+			.secondary_indices
+			.get(name)
+			.ok_or_else(|| StorageError::Backend(format!("Secondary Index {name} not found")))?;
+		db.clear(&mut wtxn)?;
+		wtxn.commit()?;
+		self.secondary_indices.remove(name);
 		Ok(())
 	}
 }

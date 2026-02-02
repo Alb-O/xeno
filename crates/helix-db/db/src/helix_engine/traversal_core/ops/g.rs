@@ -19,10 +19,24 @@ impl G {
 	///
 	/// # Example
 	///
-	/// ```rust
-	/// let storage = Arc::new(HelixGraphStorage::new());
-	/// let txn = storage.graph_env.read_txn().unwrap();
-	/// let traversal = G::new(storage, &txn);
+	/// ```rust,no_run
+	/// # use bumpalo::Bump;
+	/// # use helix_db::helix_engine::storage_core::HelixGraphStorage;
+	/// # use helix_db::helix_engine::storage_core::version_info::VersionInfo;
+	/// # use helix_db::helix_engine::traversal_core::config::Config;
+	/// # use helix_db::helix_engine::traversal_core::ops::g::G;
+	/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+	/// # let path = std::env::temp_dir().join("xeno-docs-g-new");
+	/// # let storage = HelixGraphStorage::new(
+	/// #     path.to_str().unwrap(),
+	/// #     Config::new(16, 128, 768, 1, false, false, None, None, None),
+	/// #     VersionInfo::default(),
+	/// # )?;
+	/// # let arena = Bump::new();
+	/// # let txn = storage.graph_env.read_txn()?;
+	/// let traversal = G::new(&storage, &txn, &arena);
+	/// # Ok(())
+	/// # }
 	/// ```
 	#[inline]
 	pub fn new<'db: 'arena, 'arena: 'txn, 'txn>(
@@ -56,10 +70,32 @@ impl G {
 	///
 	/// # Example
 	///
-	/// ```rust
-	/// let storage = Arc::new(HelixGraphStorage::new());
-	/// let txn = storage.graph_env.read_txn().unwrap();
-	/// let traversal = G::from_iter(storage, &txn, vec![TraversalValue::Node(Node { id: 1, label: "Person".to_string(), properties: None })]);
+	/// ```rust,no_run
+	/// # use bumpalo::Bump;
+	/// # use helix_db::helix_engine::storage_core::HelixGraphStorage;
+	/// # use helix_db::helix_engine::storage_core::version_info::VersionInfo;
+	/// # use helix_db::helix_engine::traversal_core::config::Config;
+	/// # use helix_db::helix_engine::traversal_core::ops::g::G;
+	/// # use helix_db::helix_engine::traversal_core::traversal_value::TraversalValue;
+	/// # use helix_db::utils::items::Node;
+	/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+	/// # let path = std::env::temp_dir().join("xeno-docs-g-from-iter");
+	/// # let storage = HelixGraphStorage::new(
+	/// #     path.to_str().unwrap(),
+	/// #     Config::new(16, 128, 768, 1, false, false, None, None, None),
+	/// #     VersionInfo::default(),
+	/// # )?;
+	/// # let arena = Bump::new();
+	/// # let txn = storage.graph_env.read_txn()?;
+	/// let items = vec![TraversalValue::Node(Node {
+	///     id: 1,
+	///     label: "Person",
+	///     version: 1,
+	///     properties: None,
+	/// })];
+	/// let traversal = G::from_iter(&storage, &txn, items.into_iter(), &arena);
+	/// # Ok(())
+	/// # }
 	/// ```
 	pub fn from_iter<'db: 'arena, 'arena: 'txn, 'txn>(
 		storage: &'db HelixGraphStorage,
@@ -90,10 +126,24 @@ impl G {
 	///
 	/// # Example
 	///
-	/// ```rust
-	/// let storage = Arc::new(HelixGraphStorage::new());
-	/// let txn = storage.graph_env.write_txn().unwrap();
-	/// let traversal = G::new_mut(storage, &mut txn);
+	/// ```rust,no_run
+	/// # use bumpalo::Bump;
+	/// # use helix_db::helix_engine::storage_core::HelixGraphStorage;
+	/// # use helix_db::helix_engine::storage_core::version_info::VersionInfo;
+	/// # use helix_db::helix_engine::traversal_core::config::Config;
+	/// # use helix_db::helix_engine::traversal_core::ops::g::G;
+	/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+	/// # let path = std::env::temp_dir().join("xeno-docs-g-new-mut");
+	/// # let storage = HelixGraphStorage::new(
+	/// #     path.to_str().unwrap(),
+	/// #     Config::new(16, 128, 768, 1, false, false, None, None, None),
+	/// #     VersionInfo::default(),
+	/// # )?;
+	/// # let arena = Bump::new();
+	/// # let mut txn = storage.graph_env.write_txn()?;
+	/// let traversal = G::new_mut(&storage, &arena, &mut txn);
+	/// # Ok(())
+	/// # }
 	/// ```
 	pub fn new_mut<'db: 'arena, 'arena: 'txn, 'txn>(
 		storage: &'db HelixGraphStorage,
