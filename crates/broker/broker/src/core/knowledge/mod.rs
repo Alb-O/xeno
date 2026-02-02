@@ -17,6 +17,7 @@ use helix_db::utils::properties::ImmutablePropertiesMap;
 
 pub mod error;
 pub mod indexer;
+pub mod search;
 
 pub use error::KnowledgeError;
 

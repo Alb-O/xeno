@@ -258,3 +258,75 @@ async fn test_dirty_mark_is_nonblocking() {
 	worker.mark_dirty("file:///test.rs".to_string());
 	assert!(start.elapsed() < std::time::Duration::from_millis(10));
 }
+
+#[test]
+fn test_search_empty_index() {
+	let (_temp, core) = open_test_core();
+	let hits = core.search("anything", 10).expect("search");
+	assert!(hits.is_empty());
+}
+
+#[test]
+fn test_search_finds_indexed_content() {
+	let (_temp, core) = open_test_core();
+	index_document(core.storage(), "file:///alpha.rs", "alpha beta", 1, 1, "")
+		.expect("index alpha");
+	index_document(
+		core.storage(),
+		"file:///unique.rs",
+		"unique_term present",
+		1,
+		1,
+		"",
+	)
+	.expect("index unique");
+
+	let hits = core.search("unique_term", 10).expect("search");
+	assert!(hits.iter().any(|hit| hit.uri == "file:///unique.rs"));
+}
+
+#[test]
+fn test_search_ranking() {
+	let (_temp, core) = open_test_core();
+	index_document(
+		core.storage(),
+		"file:///dense.rs",
+		"apple apple apple banana",
+		1,
+		1,
+		"",
+	)
+	.expect("index dense");
+	index_document(
+		core.storage(),
+		"file:///sparse.rs",
+		"apple banana",
+		1,
+		1,
+		"",
+	)
+	.expect("index sparse");
+
+	let hits = core.search("apple", 2).expect("search");
+	assert_eq!(
+		hits.first().map(|hit| hit.uri.as_str()),
+		Some("file:///dense.rs")
+	);
+}
+
+#[test]
+fn test_search_returns_only_chunks() {
+	let (_temp, core) = open_test_core();
+	index_document(
+		core.storage(),
+		"file:///lang.rs",
+		"hello world",
+		1,
+		1,
+		"rust",
+	)
+	.expect("index doc");
+
+	let hits = core.search("rust", 10).expect("search");
+	assert!(hits.is_empty());
+}

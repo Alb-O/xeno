@@ -139,6 +139,11 @@
 //!     - Tested by: `knowledge::tests::test_chunk_cleanup_on_reindex`
 //!     - Failure symptom: stale chunks cause duplicate or phantom search results.
 //!
+//! 21. BM25 search MUST filter by label "Chunk" to return content, not metadata.
+//!     - Enforced in: `KnowledgeCore::search`
+//!     - Tested by: `knowledge::tests::test_search_returns_only_chunks`
+//!     - Failure symptom: search returns Doc metadata nodes instead of content.
+//!
 //! # Data flow
 //!
 //! ## LSP routing
@@ -250,7 +255,8 @@ pub use server::{ChildHandle, LspInstance, ServerControl};
 pub use text_sync::{DocGateDecision, DocGateKind, DocGateResult};
 use tokio::sync::oneshot;
 use xeno_broker_proto::types::{
-	IpcFrame, LspServerConfig, Request, Response, ServerId, SessionId, SyncEpoch, SyncSeq,
+	ErrorCode, IpcFrame, LspServerConfig, Request, Response, ResponsePayload, ServerId, SessionId,
+	SyncEpoch, SyncSeq,
 };
 use xeno_rpc::PeerSocket;
 
@@ -477,6 +483,21 @@ impl BrokerCore {
 		let state = self.state.lock().unwrap();
 		let doc = state.sync_docs.get(uri)?;
 		Some((doc.epoch, doc.seq, doc.rope.clone()))
+	}
+
+	/// Executes a knowledge search query against the persistent index.
+	pub fn knowledge_search(&self, query: &str, limit: u32) -> Result<ResponsePayload, ErrorCode> {
+		let Some(knowledge) = &self.knowledge else {
+			return Err(ErrorCode::NotImplemented);
+		};
+
+		match knowledge.search(query, limit) {
+			Ok(hits) => Ok(ResponsePayload::KnowledgeSearchResults { hits }),
+			Err(err) => {
+				tracing::warn!(error = %err, "knowledge search failed");
+				Err(ErrorCode::Internal)
+			}
+		}
 	}
 
 	/// Retrieves the communication handle for a specific LSP server.

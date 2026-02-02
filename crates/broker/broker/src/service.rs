@@ -257,6 +257,9 @@ impl Service<Request> for BrokerService {
 					let session_id = session_id.ok_or(ErrorCode::AuthFailed)?;
 					core.on_buffer_sync_resync(session_id, &uri)
 				}
+				RequestPayload::KnowledgeSearch { query, limit } => {
+					core.knowledge_search(&query, limit)
+				}
 				RequestPayload::LspReply { server_id, message } => {
 					let session_id = session_id.ok_or(ErrorCode::AuthFailed)?;
 					let resp: xeno_lsp::AnyResponse =

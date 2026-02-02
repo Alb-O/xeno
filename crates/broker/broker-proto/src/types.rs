@@ -172,6 +172,13 @@ pub enum RequestPayload {
 		/// Canonical URI for the document.
 		uri: String,
 	},
+	/// Query the broker knowledge index.
+	KnowledgeSearch {
+		/// Full-text search query.
+		query: String,
+		/// Maximum number of hits to return.
+		limit: u32,
+	},
 }
 
 /// Configuration for an LSP server.
@@ -256,6 +263,26 @@ pub enum ResponsePayload {
 		/// Current owner session.
 		owner: SessionId,
 	},
+	/// Knowledge search results.
+	KnowledgeSearchResults {
+		/// Ranked knowledge hits.
+		hits: Vec<KnowledgeHit>,
+	},
+}
+
+/// Search hit for a knowledge query.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct KnowledgeHit {
+	/// Canonical URI for the document.
+	pub uri: String,
+	/// Start offset (character index) of the hit.
+	pub start_char: u64,
+	/// End offset (character index) of the hit.
+	pub end_char: u64,
+	/// BM25 relevance score.
+	pub score: f64,
+	/// Preview text snippet for display.
+	pub preview: String,
 }
 
 /// Error codes for broker operations.
