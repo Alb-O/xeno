@@ -439,7 +439,10 @@ mod tests {
 		));
 
 		let idx = db.index_for_extension("h").expect("h extension");
-		assert_eq!(idx, 0, "shared extension should resolve to first registered");
+		assert_eq!(
+			idx, 0,
+			"shared extension should resolve to first registered"
+		);
 	}
 
 	#[test]

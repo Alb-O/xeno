@@ -4557,9 +4557,13 @@ checksum = "9edde0db4769d2dc68579893f2306b26c6ecfbe0ef499b013d731b7b9247e0b9"
 name = "xeno-broker"
 version = "0.7.4"
 dependencies = [
+ "bumpalo",
+ "dirs",
+ "helix-db",
  "postcard",
  "ropey",
  "serde_json",
+ "tempfile",
  "tokio",
  "tokio-util",
  "tower-service",

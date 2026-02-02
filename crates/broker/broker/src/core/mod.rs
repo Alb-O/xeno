@@ -33,6 +33,7 @@
 //! | [`SyncDocState`] | Per-URI broker-authoritative sync state | MUST have exactly one owner; epoch increments on ownership change; seq increments on delta | `BrokerCore::on_buffer_sync_open`, `BrokerCore::on_buffer_sync_delta`, `BrokerCore::on_buffer_sync_close` |
 //! | [`SyncEpoch`] | Monotonic ownership generation | MUST increment on every ownership transfer | `BrokerCore::on_buffer_sync_take_ownership`, `BrokerCore::on_buffer_sync_close` |
 //! | [`SyncSeq`] | Monotonic edit sequence within an epoch | MUST increment on every applied delta; resets to 0 on epoch change | `BrokerCore::on_buffer_sync_delta` |
+//! | [`KnowledgeCore`] | Persistent workspace search index | MUST own a dedicated helix-db instance | `KnowledgeCore::open` |
 //! | [`BufferSyncManager`] | Editor-side per-document sync tracker | MUST clear all state on broker disconnect | `BufferSyncManager::disable_all` |
 //! | [`Event`] | Broker-to-editor event stream | MUST include `server_id` for routing on client side; buffer sync events MUST include URI | `BrokerCore::broadcast_to_server`, `BrokerCore::send_to_leader`, `BrokerCore::broadcast_to_sync_doc_sessions` |
 //!
@@ -113,6 +114,16 @@
 //!     - Tested by: TODO (add regression: test_buffer_sync_disconnect_clears_readonly)
 //!     - Failure symptom: buffers remain stuck in readonly mode after broker disconnect, blocking local editing.
 //!
+//! 16. KnowledgeCore MUST own its own helix-db instance, separate from the language database.
+//!     - Enforced in: `KnowledgeCore::open`
+//!     - Tested by: `knowledge::tests::test_knowledge_core_open_close`
+//!     - Failure symptom: schema conflicts or data corruption between subsystems.
+//!
+//! 17. KnowledgeCore MUST degrade gracefully to None if initialization fails.
+//!     - Enforced in: `BrokerCore::new_with_config`
+//!     - Tested by: `knowledge::tests::test_graceful_degradation`
+//!     - Failure symptom: broker crashes on startup if the knowledge DB path is not writable.
+//!
 //! # Data flow
 //!
 //! ## LSP routing
@@ -132,6 +143,12 @@
 //! 5. Ownership change: On owner disconnect or explicit `TakeOwnership`, broker bumps epoch, resets seq, broadcasts `Event::BufferSyncOwnerChanged`. New owner becomes writable; old owner (if still connected) becomes follower (readonly).
 //! 6. Document close: Editor sends `BufferSyncClose`. Broker decrements refcount; if owner closed, elects successor (min session ID). Last close removes the entry.
 //! 7. Disconnect recovery: On broker transport disconnect, editor calls `BufferSyncManager::disable_all()` and clears all follower readonly overrides.
+//!
+//! ## Knowledge index
+//!
+//! 1. Startup: Broker initializes [`KnowledgeCore`] on startup; failures are logged and the feature is disabled.
+//! 2. Buffer sync events: Document open and delta paths enqueue indexing work for background processing.
+//! 3. Search: Editor requests return ranked matches from the persistent index.
 //!
 //! # Lifecycle
 //!
@@ -164,6 +181,7 @@
 //! - Buffer sync epoch mismatch: Follower delta rejected with `SyncEpochMismatch`; editor should request resync.
 //! - Buffer sync seq mismatch: Delta rejected with `SyncSeqMismatch`; editor should request resync to recover.
 //! - Broker disconnect (editor side): Editor clears all sync state via `disable_all()` and removes readonly overrides so local editing resumes.
+//! - Knowledge DB unavailable: Broker logs a warning and returns `NotImplemented` for knowledge queries.
 //!
 //! # Recipes
 //!
@@ -198,6 +216,7 @@
 
 mod buffer_sync;
 mod events;
+mod knowledge;
 mod routing;
 mod server;
 mod session;
@@ -251,6 +270,7 @@ pub struct BrokerCore {
 	state: Mutex<BrokerState>,
 	next_server_id: AtomicU64,
 	config: BrokerConfig,
+	knowledge: Option<Arc<knowledge::KnowledgeCore>>,
 }
 
 impl Default for BrokerCore {
@@ -259,6 +279,7 @@ impl Default for BrokerCore {
 			state: Mutex::new(BrokerState::default()),
 			next_server_id: AtomicU64::new(0),
 			config: BrokerConfig::default(),
+			knowledge: None,
 		}
 	}
 }
@@ -396,10 +417,21 @@ impl BrokerCore {
 	/// Create a new broker core instance with custom configuration.
 	#[must_use]
 	pub fn new_with_config(config: BrokerConfig) -> Arc<Self> {
+		let knowledge = match knowledge::default_db_path()
+			.and_then(|path| knowledge::KnowledgeCore::open(path).map(Arc::new))
+		{
+			Ok(core) => Some(core),
+			Err(err) => {
+				tracing::warn!(error = %err, "KnowledgeCore disabled");
+				None
+			}
+		};
+
 		Arc::new(Self {
 			state: Mutex::new(BrokerState::default()),
 			next_server_id: AtomicU64::new(0),
 			config,
+			knowledge,
 		})
 	}
 
