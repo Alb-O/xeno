@@ -45,11 +45,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 	info!(socket = %socket_path.display(), "IPC socket path");
 
-	let core = xeno_broker::core::BrokerCore::new();
 	let shutdown = CancellationToken::new();
 
 	info!("starting IPC server");
-	xeno_broker::ipc::serve(&socket_path, core, shutdown).await?;
+	xeno_broker::ipc::serve(&socket_path, shutdown).await?;
 
 	Ok(())
 }

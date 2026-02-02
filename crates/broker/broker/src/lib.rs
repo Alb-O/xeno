@@ -6,7 +6,11 @@ pub mod core;
 pub mod ipc;
 pub mod launcher;
 pub mod lsp;
+/// Broker runtime orchestration.
+pub mod runtime;
 pub mod service;
+/// Background actor services.
+pub mod services;
 pub mod wire_convert;
 
 #[doc(hidden)]

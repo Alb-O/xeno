@@ -1,3 +1,5 @@
+//! Background indexing worker and text chunking logic.
+
 use std::collections::HashSet;
 use std::sync::{Arc, Mutex, Weak};
 use std::time::Duration;
@@ -23,19 +25,32 @@ const INDEX_CHUNK_URI: &str = "doc_uri";
 const CHUNK_TARGET_CHARS: usize = 2000;
 const INDEX_DEBOUNCE_MS: u64 = 500;
 
+/// Background indexing tasks.
 pub enum IndexTask {
+	/// URI changed in editor.
 	DirtyUri(String),
+	/// Full file contents from crawler.
 	File {
+		/// Canonical URI.
 		uri: String,
+		/// File content.
 		rope: Rope,
+		/// Language identifier.
 		language: String,
+		/// Last modified time.
 		mtime: u64,
 	},
+	/// Point-in-time snapshot of an open document.
 	Snapshot {
+		/// Canonical URI.
 		uri: String,
+		/// Document content.
 		rope: Rope,
+		/// Ownership era.
 		epoch: u64,
+		/// Edit sequence.
 		seq: u64,
+		/// Optional modification time.
 		mtime: Option<u64>,
 	},
 }
@@ -47,6 +62,7 @@ pub struct IndexWorker {
 }
 
 impl IndexWorker {
+	/// Spawns the worker tasks.
 	pub fn spawn(storage: Arc<HelixGraphStorage>, source: Weak<dyn DocSnapshotSource>) -> Self {
 		let (hi_pri_tx, mut hi_pri_rx) = tokio::sync::mpsc::channel::<IndexTask>(128);
 		let (bulk_tx, mut bulk_rx) = tokio::sync::mpsc::channel::<IndexTask>(256);
@@ -77,7 +93,7 @@ impl IndexWorker {
 				};
 
 				for uri in uris {
-					let Some((epoch, seq, rope)) = source.snapshot_sync_doc(&uri) else {
+					let Some((epoch, seq, rope)) = source.snapshot_sync_doc(&uri).await else {
 						continue;
 					};
 
@@ -169,10 +185,12 @@ impl IndexWorker {
 		}
 	}
 
+	/// Signals that a document needs re-indexing.
 	pub fn mark_dirty(&self, uri: String) {
 		let _ = self.hi_pri.try_send(IndexTask::DirtyUri(uri));
 	}
 
+	/// Enqueues a file for bulk indexing.
 	pub async fn enqueue_file(&self, uri: String, rope: Rope, language: String, mtime: u64) {
 		let _ = self
 			.bulk
@@ -199,18 +217,25 @@ fn language_name_for_uri(db: &xeno_runtime_language::LanguageDb, uri: &str) -> O
 		.find_map(|(i, data)| (i == idx).then(|| data.name.clone()))
 }
 
+/// A searchable segment of document text.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TextChunk {
+	/// Relative index within the document.
 	pub chunk_idx: u32,
+	/// Start char offset.
 	pub start_char: u64,
+	/// End char offset.
 	pub end_char: u64,
+	/// Chunk content.
 	pub text: String,
 }
 
+/// Splits text into searchable chunks of approximately `target_size` characters.
 pub fn chunk_text(text: &str, target_size: usize) -> Vec<TextChunk> {
 	chunk_rope(&Rope::from(text), target_size)
 }
 
+/// Splits a rope into searchable chunks of approximately `target_size` characters.
 pub fn chunk_rope(rope: &Rope, target_size: usize) -> Vec<TextChunk> {
 	if rope.len_chars() == 0 {
 		return Vec::new();
@@ -275,6 +300,11 @@ pub fn chunk_rope(rope: &Rope, target_size: usize) -> Vec<TextChunk> {
 	chunks
 }
 
+/// Atomically updates a document and its chunks in the graph database.
+///
+/// # Errors
+///
+/// Returns `KnowledgeError` if the database transaction fails.
 pub fn index_document(
 	storage: &HelixGraphStorage,
 	uri: &str,
@@ -313,20 +343,19 @@ pub fn index_document(
 	}
 
 	if let (Some(current_epoch), Some(current_seq)) = (existing_epoch, existing_seq)
-		&& (current_epoch > epoch || (current_epoch == epoch && current_seq >= seq)) {
-			// Special case: for file indexing (epoch 0, seq 0), we allow update if mtime changed.
-			if epoch == 0 && current_epoch == 0 {
-				if let Some(mtime) = mtime
-					&& let Some(existing_mtime) = existing_mtime
-					&& existing_mtime == mtime
-				{
-					return Ok(());
-				}
-				// Otherwise allow the update (mtime changed or missing)
-			} else {
+		&& (current_epoch > epoch || (current_epoch == epoch && current_seq >= seq))
+	{
+		if epoch == 0 && current_epoch == 0 {
+			if let Some(mtime) = mtime
+				&& let Some(existing_mtime) = existing_mtime
+				&& existing_mtime == mtime
+			{
 				return Ok(());
 			}
+		} else {
+			return Ok(());
 		}
+	}
 
 	let chunk_nodes: Vec<TraversalValue<'_>> = G::new(storage, &write_txn, &arena)
 		.n_from_index(LABEL_CHUNK, INDEX_CHUNK_URI, &uri)
@@ -371,7 +400,7 @@ pub fn index_document(
 	}
 
 	for chunk in chunk_rope(rope, CHUNK_TARGET_CHARS) {
-		let props = super::build_props(
+		let props = crate::core::knowledge::build_props(
 			&arena,
 			vec![
 				("doc_uri", Value::String(uri.to_string())),

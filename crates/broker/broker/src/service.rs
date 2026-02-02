@@ -2,9 +2,7 @@
 
 use std::ops::ControlFlow;
 use std::sync::Arc;
-use std::time::Duration;
 
-use tokio::time::timeout;
 use tower_service::Service;
 use xeno_broker_proto::BrokerProtocol;
 use xeno_broker_proto::types::{
@@ -12,31 +10,25 @@ use xeno_broker_proto::types::{
 };
 use xeno_rpc::{AnyEvent, RpcService};
 
-use crate::core::{BrokerCore, SessionSink};
-use crate::launcher::LspLauncher;
+use crate::core::SessionSink;
+use crate::runtime::BrokerRuntime;
 
 /// Broker service state and request handlers.
-///
-/// Each IPC connection to the broker is handled by an instance of this service.
-/// It routes editor requests to the shared [`BrokerCore`] or specific LSP servers.
 pub struct BrokerService {
-	/// Shared broker core.
-	core: Arc<BrokerCore>,
+	/// Shared broker runtime.
+	runtime: Arc<BrokerRuntime>,
 	/// Event sink for this connection.
 	socket: SessionSink,
 	/// Session ID for this connection (once subscribed).
 	session_id: Option<SessionId>,
-	/// Launcher for spawning LSP server instances.
-	launcher: Arc<dyn LspLauncher>,
 }
 
 impl std::fmt::Debug for BrokerService {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
 		f.debug_struct("BrokerService")
-			.field("core", &self.core)
+			.field("runtime", &"<BrokerRuntime>")
 			.field("socket", &"<SessionSink>")
 			.field("session_id", &self.session_id)
-			.field("launcher", &"<dyn LspLauncher>")
 			.finish()
 	}
 }
@@ -44,12 +36,11 @@ impl std::fmt::Debug for BrokerService {
 impl BrokerService {
 	/// Create a new broker service instance.
 	#[must_use]
-	pub fn new(core: Arc<BrokerCore>, socket: SessionSink, launcher: Arc<dyn LspLauncher>) -> Self {
+	pub fn new(runtime: Arc<BrokerRuntime>, socket: SessionSink) -> Self {
 		Self {
-			core,
+			runtime,
 			socket,
 			session_id: None,
-			launcher,
 		}
 	}
 }
@@ -58,7 +49,12 @@ impl Drop for BrokerService {
 	/// Autoritatively cleans up the session when the IPC connection is dropped.
 	fn drop(&mut self) {
 		if let Some(session_id) = self.session_id {
-			self.core.unregister_session(session_id);
+			let runtime = self.runtime.clone();
+			if let Ok(handle) = tokio::runtime::Handle::try_current() {
+				handle.spawn(async move {
+					runtime.sessions.unregister(session_id).await;
+				});
+			}
 		}
 	}
 }
@@ -77,169 +73,77 @@ impl Service<Request> for BrokerService {
 		std::task::Poll::Ready(Ok(()))
 	}
 
-	/// Handle an incoming IPC request from an editor session.
-	///
-	/// Subscription requests must be sent first to establish session identity.
-	/// Other requests are routed to the core state or specific LSP servers.
 	fn call(&mut self, req: Request) -> Self::Future {
-		let core = self.core.clone();
+		let runtime = self.runtime.clone();
 		let socket = self.socket.clone();
 		let session_id = self.session_id;
-		let launcher = self.launcher.clone();
 
 		if let RequestPayload::Subscribe { session_id } = req.payload {
 			self.session_id = Some(session_id);
-			core.register_session(session_id, socket);
+			let rt = runtime.clone();
+			// Register inline to avoid race
+			return Box::pin(async move {
+				rt.sessions.register(session_id, socket).await;
+				Ok(ResponsePayload::Subscribed)
+			});
 		}
 
 		Box::pin(async move {
+			// Enforce auth
+			let session_id = session_id.ok_or(ErrorCode::AuthFailed)?;
+
 			match req.payload {
 				RequestPayload::Ping => Ok(ResponsePayload::Pong),
 				RequestPayload::Subscribe { .. } => Ok(ResponsePayload::Subscribed),
 				RequestPayload::LspStart { config } => {
-					let session_id = session_id.ok_or(ErrorCode::AuthFailed)?;
-
-					if let Some(server_id) = core.find_server_for_project(&config)
-						&& core.attach_session(server_id, session_id)
-					{
-						return Ok(ResponsePayload::LspStarted { server_id });
-					}
-
-					let server_id = core.next_server_id();
-
-					let instance = launcher
-						.launch(core.clone(), server_id, &config, session_id)
-						.await?;
-
-					core.register_server(server_id, instance, &config, session_id);
-					core.set_server_status(
-						server_id,
-						xeno_broker_proto::types::LspServerStatus::Starting,
-					);
-					core.spawn_project_crawl(&config);
-
+					let server_id = runtime.routing.lsp_start(session_id, config).await?;
 					Ok(ResponsePayload::LspStarted { server_id })
 				}
 				RequestPayload::LspSend {
-					session_id,
+					session_id: claimed,
 					server_id,
 					message,
 				} => {
-					let lsp_tx = core
-						.get_server_tx(server_id)
-						.ok_or(ErrorCode::ServerNotFound)?;
-
-					let lsp_msg: xeno_lsp::Message =
-						serde_json::from_str(&message).map_err(|_| ErrorCode::InvalidArgs)?;
-
-					if matches!(lsp_msg, xeno_lsp::Message::Request(_)) {
-						return Err(ErrorCode::InvalidArgs);
+					if claimed != session_id {
+						return Err(ErrorCode::AuthFailed);
 					}
-
-					if let xeno_lsp::Message::Notification(ref notif) = lsp_msg
-						&& matches!(
-							notif.method.as_str(),
-							"textDocument/didOpen"
-								| "textDocument/didChange"
-								| "textDocument/didClose"
-						) {
-						match core.gate_text_sync(session_id, server_id, notif) {
-							crate::core::DocGateDecision::Forward => {}
-							crate::core::DocGateDecision::DropSilently => {
-								return Ok(ResponsePayload::LspSent { server_id });
-							}
-							crate::core::DocGateDecision::RejectNotOwner => {
-								return Err(ErrorCode::NotDocOwner);
-							}
-						}
-					}
-
-					core.on_editor_message(server_id, &lsp_msg);
-
-					let _ = lsp_tx.send(xeno_rpc::MainLoopEvent::Outgoing(lsp_msg));
-
+					runtime
+						.routing
+						.lsp_send_notif(session_id, server_id, message)
+						.await?;
 					Ok(ResponsePayload::LspSent { server_id })
 				}
 				RequestPayload::LspRequest {
-					session_id,
+					session_id: claimed,
 					server_id,
 					message,
 					timeout_ms,
 				} => {
-					let lsp_tx = core
-						.get_server_tx(server_id)
-						.ok_or(ErrorCode::ServerNotFound)?;
-
-					let mut req: xeno_lsp::AnyRequest =
+					if claimed != session_id {
+						return Err(ErrorCode::AuthFailed);
+					}
+					let req: xeno_lsp::AnyRequest =
 						serde_json::from_str(&message).map_err(|_| ErrorCode::InvalidArgs)?;
+					let dur = std::time::Duration::from_millis(timeout_ms.unwrap_or(10_000));
 
-					let origin_id = req.id.clone();
-					let wire_id = core
-						.alloc_wire_request_id(server_id)
-						.ok_or(ErrorCode::ServerNotFound)?;
+					let resp = runtime
+						.routing
+						.begin_c2s(session_id, server_id, req, dur)
+						.await?;
+					let json = serde_json::to_string(&resp).map_err(|_| ErrorCode::Internal)?;
 
-					core.register_c2s_pending(
+					Ok(ResponsePayload::LspMessage {
 						server_id,
-						wire_id.clone(),
-						session_id,
-						origin_id.clone(),
-					);
-
-					req.id = wire_id.clone();
-
-					let (resp_tx, resp_rx) = tokio::sync::oneshot::channel();
-					if lsp_tx
-						.send(xeno_rpc::MainLoopEvent::OutgoingRequest(req, resp_tx))
-						.is_err()
-					{
-						core.cancel_c2s_pending(server_id, &wire_id);
-						return Err(ErrorCode::ServerNotFound);
-					}
-
-					let dur = Duration::from_millis(timeout_ms.unwrap_or(10_000));
-					match timeout(dur, resp_rx).await {
-						Ok(Ok(mut resp)) => {
-							if let Some(mapping) = core.take_c2s_pending(server_id, &resp.id) {
-								resp.id = mapping.origin_id;
-								let json = serde_json::to_string(&resp)
-									.map_err(|_| ErrorCode::Internal)?;
-								Ok(ResponsePayload::LspMessage {
-									server_id,
-									message: json,
-								})
-							} else {
-								tracing::warn!(?server_id, ?resp.id, "C2S response with unknown wire_id");
-								Err(ErrorCode::Internal)
-							}
-						}
-						Ok(Err(_)) => {
-							core.cancel_c2s_pending(server_id, &wire_id);
-							Err(ErrorCode::Internal)
-						}
-						Err(_) => {
-							core.cancel_c2s_pending(server_id, &wire_id);
-							let cancel_notif = xeno_lsp::AnyNotification::new(
-								"$/cancelRequest",
-								serde_json::json!({ "id": wire_id }),
-							);
-							let _ = lsp_tx.send(xeno_rpc::MainLoopEvent::Outgoing(
-								xeno_lsp::Message::Notification(cancel_notif),
-							));
-							Err(ErrorCode::Timeout)
-						}
-					}
+						message: json,
+					})
 				}
 				RequestPayload::BufferSyncOpen {
 					uri,
 					text,
 					version_hint,
-				} => {
-					let session_id = session_id.ok_or(ErrorCode::AuthFailed)?;
-					core.on_buffer_sync_open(session_id, &uri, &text, version_hint)
-				}
+				} => runtime.sync.open(session_id, uri, text, version_hint).await,
 				RequestPayload::BufferSyncClose { uri } => {
-					let session_id = session_id.ok_or(ErrorCode::AuthFailed)?;
-					core.on_buffer_sync_close(session_id, &uri)
+					runtime.sync.close(session_id, uri).await
 				}
 				RequestPayload::BufferSyncDelta {
 					uri,
@@ -247,46 +151,40 @@ impl Service<Request> for BrokerService {
 					base_seq,
 					tx,
 				} => {
-					let session_id = session_id.ok_or(ErrorCode::AuthFailed)?;
-					core.on_buffer_sync_delta(session_id, &uri, epoch, base_seq, &tx)
+					runtime
+						.sync
+						.delta(session_id, uri, epoch, base_seq, tx)
+						.await
 				}
 				RequestPayload::BufferSyncTakeOwnership { uri } => {
-					let session_id = session_id.ok_or(ErrorCode::AuthFailed)?;
-					core.on_buffer_sync_take_ownership(session_id, &uri)
+					runtime.sync.take_ownership(session_id, uri).await
 				}
 				RequestPayload::BufferSyncResync { uri } => {
-					let session_id = session_id.ok_or(ErrorCode::AuthFailed)?;
-					core.on_buffer_sync_resync(session_id, &uri)
+					runtime.sync.resync(session_id, uri).await
 				}
 				RequestPayload::KnowledgeSearch { query, limit } => {
-					core.knowledge_search(&query, limit)
+					let hits = runtime.knowledge.search(&query, limit).await?;
+					Ok(ResponsePayload::KnowledgeSearchResults { hits })
 				}
 				RequestPayload::LspReply { server_id, message } => {
-					let session_id = session_id.ok_or(ErrorCode::AuthFailed)?;
 					let resp: xeno_lsp::AnyResponse =
 						serde_json::from_str(&message).map_err(|_| ErrorCode::InvalidArgs)?;
 
-					let request_id = resp.id.clone();
+					// We need result type
 					let result = if let Some(error) = resp.error {
 						Err(error)
 					} else {
 						Ok(resp.result.unwrap_or(serde_json::Value::Null))
 					};
+					let request_id = resp.id;
 
-					if core.complete_client_request(
-						session_id,
-						server_id,
-						request_id.clone(),
-						result,
-					) {
+					if runtime
+						.routing
+						.complete_s2c(session_id, server_id, request_id.clone(), result)
+						.await
+					{
 						Ok(ResponsePayload::LspSent { server_id })
 					} else {
-						tracing::warn!(
-							?session_id,
-							?server_id,
-							?request_id,
-							"LspReply failed: request not found or invalid responder"
-						);
 						Err(ErrorCode::RequestNotFound)
 					}
 				}

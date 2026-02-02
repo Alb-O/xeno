@@ -1,16 +1,20 @@
-use std::fmt;
+//! Error types for the knowledge system.
 
 use helix_db::helix_engine::types::EngineError;
 
+/// Errors returned by the knowledge core and indexer.
 #[derive(Debug)]
 pub enum KnowledgeError {
+	/// Generic I/O failure.
 	Io(std::io::Error),
+	/// Database engine failure.
 	Engine(EngineError),
+	/// Could not determine the user state directory for the DB.
 	MissingStateDir,
 }
 
-impl fmt::Display for KnowledgeError {
-	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl std::fmt::Display for KnowledgeError {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
 		match self {
 			Self::Io(err) => write!(f, "{err}"),
 			Self::Engine(err) => write!(f, "{err}"),

@@ -1,15 +1,15 @@
 //! LSP server launcher abstraction for production and testing.
 
 use std::process::Stdio;
-use std::sync::Arc;
 use std::time::Duration;
 
 use tokio::io::BufReader;
 use xeno_broker_proto::types::{ErrorCode, LspServerConfig, LspServerStatus, ServerId, SessionId};
 use xeno_rpc::MainLoopEvent;
 
-use crate::core::{BrokerCore, LspInstance, ServerControl};
+use crate::core::{LspInstance, ServerControl};
 use crate::lsp::LspProxyService;
+use crate::services::routing::RoutingHandle;
 
 /// Trait for launching LSP server instances.
 ///
@@ -23,7 +23,7 @@ pub trait LspLauncher: Send + Sync + 'static {
 	/// server and tracking its lifecycle.
 	fn launch(
 		&self,
-		core: Arc<BrokerCore>,
+		routing: RoutingHandle,
 		server_id: ServerId,
 		config: &LspServerConfig,
 		owner: SessionId,
@@ -55,7 +55,7 @@ impl LspLauncher for ProcessLauncher {
 	/// termination or a graceful shutdown request from the broker.
 	fn launch(
 		&self,
-		core: Arc<BrokerCore>,
+		routing: RoutingHandle,
 		server_id: ServerId,
 		config: &LspServerConfig,
 		_owner: SessionId,
@@ -63,18 +63,21 @@ impl LspLauncher for ProcessLauncher {
 	{
 		let config = config.clone();
 		Box::pin(async move {
-			let mut child = tokio::process::Command::new(&config.command)
-				.args(&config.args)
+			let mut cmd = tokio::process::Command::new(&config.command);
+			cmd.args(&config.args)
 				.envs(config.env.iter().cloned())
-				.current_dir(config.cwd.as_deref().unwrap_or_default())
 				.stdin(Stdio::piped())
 				.stdout(Stdio::piped())
-				.stderr(Stdio::inherit())
-				.spawn()
-				.map_err(|e| {
-					tracing::error!(error = %e, "failed to spawn LSP server");
-					ErrorCode::Internal
-				})?;
+				.stderr(Stdio::inherit());
+
+			if let Some(cwd) = config.cwd.as_deref() {
+				cmd.current_dir(cwd);
+			}
+
+			let mut child = cmd.spawn().map_err(|e| {
+				tracing::error!(error = %e, "failed to spawn LSP server");
+				ErrorCode::Internal
+			})?;
 
 			let stdin = child.stdin.take().ok_or(ErrorCode::Internal)?;
 			let stdout = child.stdout.take().ok_or(ErrorCode::Internal)?;
@@ -82,9 +85,9 @@ impl LspLauncher for ProcessLauncher {
 			let protocol = xeno_lsp::protocol::JsonRpcProtocol::new();
 			let id_gen = xeno_rpc::CounterIdGen::new();
 
-			let core_clone1 = core.clone();
+			let routing_clone = routing.clone();
 			let (lsp_loop, lsp_socket) = xeno_rpc::MainLoop::new(
-				move |_| LspProxyService::new(core_clone1, server_id),
+				move |_| LspProxyService::new(routing_clone, server_id),
 				protocol,
 				id_gen,
 			);
@@ -97,7 +100,7 @@ impl LspLauncher for ProcessLauncher {
 			let control = ServerControl { term_tx, done_rx };
 			let instance = LspInstance::new(lsp_socket, control, LspServerStatus::Starting);
 
-			let core_crash = core.clone();
+			let routing_crash = routing.clone();
 			tokio::spawn(async move {
 				tokio::select! {
 					res = child.wait() => {
@@ -105,11 +108,11 @@ impl LspLauncher for ProcessLauncher {
 							Ok(status) => {
 								let crashed = !status.success();
 								tracing::info!(?server_id, ?status, crashed, "LSP server process exited");
-								core_crash.handle_server_exit(server_id, crashed);
+								routing_crash.server_exited(server_id, crashed).await;
 							}
 							Err(e) => {
 								tracing::error!(?server_id, error = %e, "failed to wait on LSP server process");
-								core_crash.handle_server_exit(server_id, true);
+								routing_crash.server_exited(server_id, true).await;
 							}
 						}
 					}
@@ -138,7 +141,7 @@ impl LspLauncher for ProcessLauncher {
 							let _ = tokio::time::timeout(Duration::from_secs(1), child.wait()).await;
 						}
 
-						core_crash.handle_server_exit(server_id, false);
+						routing_crash.server_exited(server_id, false).await;
 					}
 				}
 
@@ -303,7 +306,7 @@ pub mod test_helpers {
 	impl LspLauncher for TestLauncher {
 		fn launch(
 			&self,
-			core: Arc<BrokerCore>,
+			routing: RoutingHandle,
 			server_id: ServerId,
 			_config: &LspServerConfig,
 			_owner: SessionId,
@@ -319,9 +322,9 @@ pub mod test_helpers {
 				let protocol = JsonRpcProtocol::new();
 				let id_gen = xeno_rpc::CounterIdGen::new();
 
-				let core_clone = core.clone();
+				let routing_clone = routing.clone();
 				let (proxy_loop, lsp_socket) = xeno_rpc::MainLoop::new(
-					move |_| LspProxyService::new(core_clone, server_id),
+					move |_| LspProxyService::new(routing_clone, server_id),
 					protocol,
 					id_gen,
 				);

@@ -17,9 +17,13 @@ use helix_db::utils::properties::ImmutablePropertiesMap;
 use ropey::Rope;
 use xeno_broker_proto::types::{SyncEpoch, SyncSeq};
 
+/// Project crawler for background indexing.
 pub mod crawler;
+/// Error types for the knowledge system.
 pub mod error;
+/// Background indexing worker.
 pub mod indexer;
+/// Full-text search implementation.
 pub mod search;
 
 pub use error::KnowledgeError;
@@ -28,8 +32,18 @@ const SCHEMA_HQL: &str = include_str!("schema.hql");
 
 /// Source of authoritative sync document snapshots.
 pub trait DocSnapshotSource: Send + Sync + 'static {
-	fn snapshot_sync_doc(&self, uri: &str) -> Option<(SyncEpoch, SyncSeq, Rope)>;
-	fn is_sync_doc_open(&self, uri: &str) -> bool;
+	/// Pulls a consistent snapshot of an open document.
+	fn snapshot_sync_doc(
+		&self,
+		uri: &str,
+	) -> std::pin::Pin<
+		Box<dyn std::future::Future<Output = Option<(SyncEpoch, SyncSeq, Rope)>> + Send>,
+	>;
+	/// Checks if a document is currently open in the editor.
+	fn is_sync_doc_open(
+		&self,
+		uri: &str,
+	) -> std::pin::Pin<Box<dyn std::future::Future<Output = bool> + Send>>;
 }
 
 /// Helix-db config derived from `schema.hql` at first access.
@@ -67,6 +81,10 @@ static SCHEMA_CONFIG: LazyLock<Config> = LazyLock::new(|| {
 });
 
 /// Returns the default knowledge DB path under the user state directory.
+///
+/// # Errors
+///
+/// Returns `KnowledgeError::MissingStateDir` if the state directory cannot be found.
 pub fn default_db_path() -> Result<PathBuf, KnowledgeError> {
 	let state_dir = dirs::state_dir()
 		.or_else(|| dirs::home_dir().map(|home| home.join(".local/state")))
@@ -83,6 +101,10 @@ pub struct KnowledgeCore {
 
 impl KnowledgeCore {
 	/// Opens (or creates) the knowledge database at the given path.
+	///
+	/// # Errors
+	///
+	/// Returns `KnowledgeError` if the database cannot be initialized.
 	pub fn open(db_path: PathBuf) -> Result<Self, KnowledgeError> {
 		std::fs::create_dir_all(&db_path)?;
 

@@ -1,119 +1,33 @@
 //! LSP proxy service for forwarding messages between LSP servers and editor sessions.
 
 use std::ops::ControlFlow;
-use std::sync::Arc;
 use std::time::Duration;
 
 use tokio::time::timeout;
 use tower_service::Service;
-use xeno_broker_proto::types::{Event, LspServerStatus, ServerId};
+use xeno_broker_proto::types::ServerId;
 use xeno_lsp::protocol::JsonRpcProtocol;
 use xeno_lsp::{AnyNotification, AnyRequest, ErrorCode, Message, ResponseError};
 use xeno_rpc::{AnyEvent, RpcService};
 
-use crate::core::BrokerCore;
+use crate::services::routing::RoutingHandle;
 
-/// Service that proxies messages from an LSP server to the broker core.
+/// Proxies messages from an LSP server to the broker routing service.
 ///
 /// This service acts as a Language Client on the server's stdio. It receives
-/// responses and notifications from the LSP server, serializes them to JSON,
-/// and forwards them to the attached editor sessions as IPC events.
+/// responses and notifications from the LSP server and forwards them to the
+/// `RoutingService` for dispatch to editor sessions.
 #[derive(Debug)]
 pub struct LspProxyService {
-	/// Shared broker core for event fan-out.
-	core: Arc<BrokerCore>,
-	/// Server ID assigned to this instance.
+	routing: RoutingHandle,
 	server_id: ServerId,
 }
 
 impl LspProxyService {
-	/// Create a new LSP proxy service instance.
+	/// Creates a new LSP proxy service instance.
 	#[must_use]
-	pub fn new(core: Arc<BrokerCore>, server_id: ServerId) -> Self {
-		Self { core, server_id }
-	}
-
-	/// Forward an inbound LSP message to the attached session(s).
-	///
-	/// Transitions server status to [`LspServerStatus::Running`] upon receipt.
-	/// Notifications are broadcast to all sessions, while requests are routed
-	/// only to the currently elected leader.
-	fn forward(&self, msg: Message) {
-		self.core
-			.set_server_status(self.server_id, LspServerStatus::Running);
-
-		let json = match serde_json::to_string(&msg) {
-			Ok(json) => json,
-			Err(e) => {
-				tracing::error!(error = %e, "Failed to serialize LSP message for proxy");
-				return;
-			}
-		};
-
-		match msg {
-			Message::Request(ref req) => {
-				tracing::trace!(?self.server_id, method = %req.method, "Forwarding server request to leader");
-				self.core.send_to_leader(
-					self.server_id,
-					Event::LspRequest {
-						server_id: self.server_id,
-						message: json,
-					},
-				);
-			}
-			Message::Notification(ref notif) => {
-				tracing::trace!(?self.server_id, method = %notif.method, "Broadcasting server notification");
-				self.core.broadcast_to_server(
-					self.server_id,
-					Event::LspMessage {
-						server_id: self.server_id,
-						message: json,
-					},
-				);
-
-				if notif.method == "textDocument/publishDiagnostics"
-					&& let Some(uri) = notif.params.get("uri").and_then(|u| u.as_str())
-				{
-					tracing::debug!(?self.server_id, %uri, "Broadcasting structured diagnostics");
-
-					// Parse version from LSP payload (authoritative) or fall back to broker tracking
-					let version = notif
-						.params
-						.get("version")
-						.and_then(|v| v.as_u64())
-						.map(|v| v as u32)
-						.or_else(|| {
-							self.core
-								.get_doc_by_uri(self.server_id, uri)
-								.map(|(_, v)| v)
-						});
-
-					// Get doc_id if available (optional, only for broker debugging)
-					let doc_id = self
-						.core
-						.get_doc_by_uri(self.server_id, uri)
-						.map(|(id, _)| id);
-
-					let diagnostics = notif
-						.params
-						.get("diagnostics")
-						.map(ToString::to_string)
-						.unwrap_or_else(|| "[]".to_string());
-
-					self.core.broadcast_to_server(
-						self.server_id,
-						Event::LspDiagnostics {
-							server_id: self.server_id,
-							doc_id,
-							uri: uri.to_string(),
-							version,
-							diagnostics,
-						},
-					);
-				}
-			}
-			Message::Response(_) => {}
-		}
+	pub fn new(routing: RoutingHandle, server_id: ServerId) -> Self {
+		Self { routing, server_id }
 	}
 }
 
@@ -131,31 +45,35 @@ impl Service<AnyRequest> for LspProxyService {
 		std::task::Poll::Ready(Ok(()))
 	}
 
+	/// Handles an inbound request from the LSP server.
+	///
+	/// Serializes the request and forwards it to the `RoutingService`. If the
+	/// request times out or the broker shuts down, the pending request is
+	/// cancelled to avoid leaks.
 	fn call(&mut self, req: AnyRequest) -> Self::Future {
-		let core = self.core.clone();
+		let routing = self.routing.clone();
 		let server_id = self.server_id;
 		let request_id = req.id.clone();
 
-		// Register a oneshot FIRST (before forwarding) to avoid race condition
-		// where leader replies before we register the pending request.
-		let (tx, rx) = tokio::sync::oneshot::channel();
-		if core
-			.register_client_request(server_id, request_id.clone(), tx)
-			.is_none()
-		{
-			return Box::pin(async {
-				Err(ResponseError::new(
-					ErrorCode::METHOD_NOT_FOUND,
-					"No leader session available for request",
-				))
-			});
-		}
-
-		// Now forward request to leader as an async event
-		self.forward(Message::Request(req));
+		let json = match serde_json::to_string(&Message::Request(req)) {
+			Ok(j) => j,
+			Err(_) => {
+				return Box::pin(async {
+					Err(ResponseError::new(
+						ErrorCode::PARSE_ERROR,
+						"Failed to serialize request",
+					))
+				});
+			}
+		};
 
 		Box::pin(async move {
-			// Wait for reply from editor (with 30s timeout for client requests)
+			let (tx, rx) = tokio::sync::oneshot::channel();
+
+			routing
+				.begin_s2c(server_id, request_id.clone(), json, tx)
+				.await?;
+
 			match timeout(Duration::from_secs(30), rx).await {
 				Ok(Ok(result)) => result,
 				Ok(Err(_)) => Err(ResponseError::new(
@@ -163,8 +81,7 @@ impl Service<AnyRequest> for LspProxyService {
 					"Broker internal error: reply channel closed",
 				)),
 				Err(_) => {
-					// Timeout: cancel the pending request to prevent memory leak
-					core.cancel_client_request(server_id, request_id);
+					routing.cancel_s2c(server_id, request_id).await;
 					Err(ResponseError::new(
 						ErrorCode::REQUEST_CANCELLED,
 						"Broker timeout waiting for editor reply",
@@ -178,11 +95,26 @@ impl Service<AnyRequest> for LspProxyService {
 impl RpcService<JsonRpcProtocol> for LspProxyService {
 	type LoopError = xeno_lsp::Error;
 
+	/// Handles an inbound notification from the LSP server.
 	fn notify(
 		&mut self,
 		notif: AnyNotification,
 	) -> ControlFlow<std::result::Result<(), Self::LoopError>> {
-		self.forward(Message::Notification(notif));
+		let json = match serde_json::to_string(&Message::Notification(notif)) {
+			Ok(json) => json,
+			Err(e) => {
+				tracing::error!(error = %e, "Failed to serialize LSP message for proxy");
+				return ControlFlow::Continue(());
+			}
+		};
+
+		let routing = self.routing.clone();
+		let server_id = self.server_id;
+
+		tokio::spawn(async move {
+			routing.server_notif(server_id, json).await;
+		});
+
 		ControlFlow::Continue(())
 	}
 

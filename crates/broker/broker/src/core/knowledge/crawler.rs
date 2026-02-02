@@ -1,5 +1,8 @@
+//! Background project crawler for indexing unopened files.
+
+use std::collections::HashSet;
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, Weak};
+use std::sync::{Arc, Mutex};
 use std::time::UNIX_EPOCH;
 
 use bumpalo::Bump;
@@ -11,7 +14,7 @@ use ignore::WalkBuilder;
 use ropey::Rope;
 use xeno_runtime_language::{LanguageDb, language_db};
 
-use super::{DocSnapshotSource, KnowledgeCore, KnowledgeError};
+use super::{KnowledgeCore, KnowledgeError};
 
 const LABEL_DOC: &str = "Doc";
 const INDEX_DOC_URI: &str = "uri";
@@ -20,9 +23,14 @@ const INDEX_DOC_URI: &str = "uri";
 pub struct ProjectCrawler;
 
 impl ProjectCrawler {
+	/// Spawns a background task to crawl the project directory.
+	///
+	/// Skips files that are currently open in the broker (as they are handled
+	/// by the live indexer) and files that haven't been modified since the
+	/// last crawl.
 	pub fn spawn(
 		knowledge: Arc<KnowledgeCore>,
-		source: Weak<dyn DocSnapshotSource>,
+		open_docs: Arc<Mutex<HashSet<String>>>,
 		root: PathBuf,
 	) -> Option<Self> {
 		if tokio::runtime::Handle::try_current().is_err() {
@@ -32,7 +40,7 @@ impl ProjectCrawler {
 		let crawler = Self;
 		tokio::spawn(async move {
 			let _ = tokio::task::spawn_blocking(move || {
-				crawl_project(knowledge, source, root);
+				crawl_project(knowledge, open_docs, root);
 			})
 			.await;
 		});
@@ -43,7 +51,7 @@ impl ProjectCrawler {
 
 fn crawl_project(
 	knowledge: Arc<KnowledgeCore>,
-	source: Weak<dyn DocSnapshotSource>,
+	open_docs: Arc<Mutex<HashSet<String>>>,
 	root: PathBuf,
 ) {
 	let lang_db = language_db();
@@ -85,15 +93,12 @@ fn crawl_project(
 			continue;
 		};
 
-		let uri = match crate::core::BrokerCore::normalize_uri(&uri_raw) {
+		let uri = match crate::core::normalize_uri(&uri_raw) {
 			Ok(u) => u,
 			Err(_) => continue,
 		};
 
-		let Some(source) = source.upgrade() else {
-			break;
-		};
-		if source.is_sync_doc_open(&uri) {
+		if open_docs.lock().unwrap().contains(&uri) {
 			continue;
 		}
 
@@ -173,7 +178,7 @@ fn doc_mtime_matches_in_txn(
 #[cfg(test)]
 mod tests {
 	use std::collections::HashSet;
-	use std::sync::Arc;
+	use std::sync::{Arc, Mutex};
 
 	use bumpalo::Bump;
 	use ropey::Rope;
@@ -184,17 +189,23 @@ mod tests {
 	use crate::core::knowledge::indexer::index_document;
 	use crate::core::knowledge::{DocSnapshotSource, KnowledgeCore, KnowledgeError};
 
-	struct TestSource {
-		open_uris: HashSet<String>,
-	}
+	struct TestSource;
 
 	impl DocSnapshotSource for TestSource {
-		fn snapshot_sync_doc(&self, _uri: &str) -> Option<(SyncEpoch, SyncSeq, Rope)> {
-			None
+		fn snapshot_sync_doc(
+			&self,
+			_uri: &str,
+		) -> std::pin::Pin<
+			Box<dyn std::future::Future<Output = Option<(SyncEpoch, SyncSeq, Rope)>> + Send>,
+		> {
+			Box::pin(async { None })
 		}
 
-		fn is_sync_doc_open(&self, uri: &str) -> bool {
-			self.open_uris.contains(uri)
+		fn is_sync_doc_open(
+			&self,
+			_uri: &str,
+		) -> std::pin::Pin<Box<dyn std::future::Future<Output = bool> + Send>> {
+			Box::pin(async { false })
 		}
 	}
 
@@ -282,12 +293,10 @@ mod tests {
 			.expect("uri");
 		let mtime = file_mtime(&path).expect("mtime");
 
-		let mut open_uris = HashSet::new();
-		open_uris.insert(uri.clone());
-		let source: Arc<dyn DocSnapshotSource> = Arc::new(TestSource { open_uris });
-		let weak = Arc::downgrade(&source);
+		let open_docs = Arc::new(Mutex::new(HashSet::new()));
+		open_docs.lock().unwrap().insert(uri.clone());
 
-		crawl_project(Arc::clone(&knowledge), weak, root);
+		crawl_project(Arc::clone(&knowledge), open_docs, root);
 
 		assert!(!doc_mtime_matches(knowledge.storage(), &uri, mtime).expect("mtime check"));
 	}

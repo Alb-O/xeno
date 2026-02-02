@@ -7,6 +7,7 @@ Key subsystems:
 - Registry-backed definitions (actions/commands/motions/text objects/options/hooks/etc.)
 - Tree-sitter syntax parsing/highlighting with tiered policy and background scheduling
 - LSP client stack (JSON-RPC transport, doc sync, feature controllers)
+- Broker (Actor-based backend for multi-session coordination and LSP management)
 - Unified overlay system for modal interactions + passive UI layers
 
 ## Build, test, format
