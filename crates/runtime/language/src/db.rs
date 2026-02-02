@@ -6,7 +6,7 @@
 //! `Vec<LanguageData>`.
 
 use std::collections::HashMap;
-use std::sync::{Arc, OnceLock};
+use std::sync::{Arc, LazyLock, OnceLock};
 
 use bumpalo::Bump;
 use helix_db::helix_engine::storage_core::HelixGraphStorage;
@@ -16,7 +16,10 @@ use helix_db::helix_engine::traversal_core::ops::g::G;
 use helix_db::helix_engine::traversal_core::ops::source::add_n::AddNAdapter;
 use helix_db::helix_engine::traversal_core::ops::source::n_from_index::NFromIndexAdapter;
 use helix_db::helix_engine::traversal_core::traversal_value::TraversalValue;
-use helix_db::helix_engine::types::SecondaryIndex;
+use helix_db::helixc::analyzer::analyze;
+use helix_db::helixc::analyzer::diagnostic::DiagnosticSeverity;
+use helix_db::helixc::parser::HelixParser;
+use helix_db::helixc::parser::types::{Content, HxFile, Source as ParsedSource};
 use helix_db::protocol::value::Value;
 use helix_db::utils::properties::ImmutablePropertiesMap;
 use tracing::error;
@@ -46,27 +49,47 @@ pub struct LanguageDb {
 	_db_dir: tempfile::TempDir,
 }
 
-fn db_config() -> Config {
+const SCHEMA_HQL: &str = include_str!("../schema.hql");
+
+/// Node label derived from the HQL schema (`N::Language`).
+const LABEL: &str = "Language";
+
+/// Helix-db config derived from `schema.hql` at first access.
+///
+/// Parses the embedded HQL schema, runs the analyzer to extract secondary
+/// index declarations, and builds the storage config.
+static SCHEMA_CONFIG: LazyLock<Config> = LazyLock::new(|| {
+	let content = Content {
+		content: String::new(),
+		source: ParsedSource::default(),
+		files: vec![HxFile {
+			name: "schema.hql".into(),
+			content: SCHEMA_HQL.into(),
+		}],
+	};
+	let parsed = HelixParser::parse_source(&content).expect("schema.hql: parse failed");
+	let (diags, generated) = analyze(&parsed).expect("schema.hql: analysis failed");
+
+	for d in &diags {
+		if matches!(d.severity, DiagnosticSeverity::Error) {
+			panic!("schema.hql: {d:?}");
+		}
+	}
+
 	Config {
-		vector_config: None,
 		graph_config: Some(GraphConfig {
-			secondary_indices: Some(vec![
-				SecondaryIndex::Unique("name".to_string()),
-				SecondaryIndex::Index("extension_idx".to_string()),
-				SecondaryIndex::Index("filename_idx".to_string()),
-				SecondaryIndex::Index("shebang_idx".to_string()),
-			]),
+			secondary_indices: if generated.secondary_indices.is_empty() {
+				None
+			} else {
+				Some(generated.secondary_indices)
+			},
 		}),
 		db_max_size_gb: Some(1),
 		mcp: Some(false),
 		bm25: Some(false),
-		schema: None,
-		embedding_model: None,
-		graphvis_node_label: None,
+		..Config::default()
 	}
-}
-
-const LABEL: &str = "language";
+});
 
 impl LanguageDb {
 	/// Creates an empty database backed by a temporary directory.
@@ -74,7 +97,7 @@ impl LanguageDb {
 		let db_dir = tempfile::tempdir().expect("failed to create tempdir for LanguageDb");
 		let storage = HelixGraphStorage::new(
 			db_dir.path().to_str().unwrap_or("lang_db"),
-			db_config(),
+			SCHEMA_CONFIG.clone(),
 			VersionInfo::default(),
 		)
 		.expect("failed to open helix-db storage");
