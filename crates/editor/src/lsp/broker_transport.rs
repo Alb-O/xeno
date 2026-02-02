@@ -631,10 +631,22 @@ impl RpcService<BrokerProtocol> for BrokerClientService {
 							tx,
 						});
 			}
-			Event::BufferSyncOwnerChanged { uri, epoch, owner } => {
-				let _ = self
-					.buffer_sync_tx
-					.send(crate::buffer_sync::BufferSyncEvent::OwnerChanged { uri, epoch, owner });
+			Event::BufferSyncOwnerChanged {
+				uri,
+				epoch,
+				owner,
+				hash64,
+				len_chars,
+			} => {
+				let _ =
+					self.buffer_sync_tx
+						.send(crate::buffer_sync::BufferSyncEvent::OwnerChanged {
+							uri,
+							epoch,
+							owner,
+							hash64,
+							len_chars,
+						});
 			}
 		}
 		ControlFlow::Continue(())

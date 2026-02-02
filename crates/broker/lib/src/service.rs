@@ -159,6 +159,17 @@ impl Service<Request> for BrokerService {
 				RequestPayload::BufferSyncTakeOwnership { uri } => {
 					runtime.sync.take_ownership(session_id, uri).await
 				}
+				RequestPayload::BufferSyncOwnerConfirm {
+					uri,
+					epoch,
+					len_chars,
+					hash64,
+				} => {
+					runtime
+						.sync
+						.owner_confirm(session_id, uri, epoch, len_chars, hash64)
+						.await
+				}
 				RequestPayload::BufferSyncResync { uri } => {
 					runtime.sync.resync(session_id, uri).await
 				}

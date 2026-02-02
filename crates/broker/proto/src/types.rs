@@ -167,6 +167,17 @@ pub enum RequestPayload {
 		/// Canonical URI for the document.
 		uri: String,
 	},
+	/// Confirm ownership of a buffer sync document.
+	BufferSyncOwnerConfirm {
+		/// Canonical URI for the document.
+		uri: String,
+		/// Expected ownership epoch.
+		epoch: SyncEpoch,
+		/// Length of the document in characters.
+		len_chars: u64,
+		/// 64-bit hash of the document content.
+		hash64: u64,
+	},
 	/// Request a full resync snapshot from the broker.
 	BufferSyncResync {
 		/// Canonical URI for the document.
@@ -249,8 +260,25 @@ pub enum ResponsePayload {
 	},
 	/// Buffer sync ownership transferred.
 	BufferSyncOwnership {
-		/// New ownership epoch.
+		/// Status of the ownership request.
+		status: BufferSyncOwnershipStatus,
+		/// New (or current) ownership epoch.
 		epoch: SyncEpoch,
+		/// Current owner session.
+		owner: SessionId,
+	},
+	/// Result of an ownership confirmation.
+	BufferSyncOwnerConfirmResult {
+		/// Status of the confirmation.
+		status: BufferSyncOwnerConfirmStatus,
+		/// Authoritative ownership epoch.
+		epoch: SyncEpoch,
+		/// Authoritative edit sequence.
+		seq: SyncSeq,
+		/// Authoritative owner session.
+		owner: SessionId,
+		/// Full text snapshot (present when status is NeedSnapshot).
+		snapshot: Option<String>,
 	},
 	/// Buffer sync full snapshot for resync.
 	BufferSyncSnapshot {
@@ -398,7 +426,31 @@ pub enum Event {
 		epoch: SyncEpoch,
 		/// New owner session.
 		owner: SessionId,
+		/// 64-bit hash of the authoritative document content.
+		hash64: u64,
+		/// Length of the authoritative document in characters.
+		len_chars: u64,
 	},
+}
+
+/// Status of a buffer sync ownership request.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum BufferSyncOwnershipStatus {
+	/// Ownership granted.
+	Granted,
+	/// Ownership denied (e.g. another session took it first).
+	Denied,
+	/// Session is already the owner.
+	AlreadyOwner,
+}
+
+/// Status of a buffer sync ownership confirmation.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum BufferSyncOwnerConfirmStatus {
+	/// Local content matches broker; ownership confirmed.
+	Confirmed,
+	/// Local content mismatch; snapshot required.
+	NeedSnapshot,
 }
 
 /// Status of an LSP server.

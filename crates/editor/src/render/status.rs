@@ -34,6 +34,35 @@ impl Editor {
 		let line = self.cursor_line() + 1;
 		let col = self.cursor_col() + 1;
 
+		#[cfg(feature = "lsp")]
+		let (sync_role_str, sync_status_str) = {
+			if let Some(uri) = buffer
+				.path()
+				.as_ref()
+				.and_then(|p| xeno_lsp::uri_from_path(p))
+			{
+				let (role, status) = self.state.buffer_sync.ui_status_for_uri(uri.as_str());
+				let role_s = match role {
+					Some(xeno_broker_proto::types::BufferSyncRole::Owner) => "Owner",
+					Some(xeno_broker_proto::types::BufferSyncRole::Follower) => "Follower",
+					None => "None",
+				};
+				let status_s = match status {
+					crate::buffer_sync::SyncStatus::Off => "Off",
+					crate::buffer_sync::SyncStatus::Owner => "O",
+					crate::buffer_sync::SyncStatus::Follower => "F",
+					crate::buffer_sync::SyncStatus::Acquiring => "Acq",
+					crate::buffer_sync::SyncStatus::Confirming => "Conf",
+					crate::buffer_sync::SyncStatus::NeedsResync => "Sync!",
+				};
+				(Some(role_s), Some(status_s))
+			} else {
+				(None, None)
+			}
+		};
+		#[cfg(not(feature = "lsp"))]
+		let (sync_role_str, sync_status_str) = (None, None);
+
 		let ctx = StatuslineContext {
 			mode_name,
 			path: path_str.as_deref(),
@@ -46,6 +75,8 @@ impl Editor {
 			file_type: file_type_str.as_deref(),
 			buffer_index,
 			buffer_count,
+			sync_role: sync_role_str,
+			sync_status: sync_status_str,
 		};
 
 		let mut spans = Vec::new();

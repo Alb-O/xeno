@@ -3,7 +3,7 @@
 //! Processes inbound [`BufferSyncEvent`]s from the broker during the editor
 //! tick, applying remote deltas to local buffers and updating sync state.
 
-use xeno_broker_proto::types::BufferSyncRole;
+use xeno_broker_proto::types::{BufferSyncRole, RequestPayload};
 use xeno_primitives::{SyntaxPolicy, UndoPolicy};
 
 use super::Editor;
@@ -13,17 +13,56 @@ use crate::buffer_sync::BufferSyncEvent;
 impl Editor {
 	/// Drains all pending buffer sync events from the broker transport.
 	///
-	/// Called once per editor tick after LSP UI events but before dirty buffer
-	/// hooks. After processing events, sends [`RequestPayload::BufferSyncResync`]
-	/// for any documents that detected epoch mismatches or sequence gaps.
+	/// Executed once per editor tick. Coordinates the 4-phase synchronization
+	/// pipeline:
+	/// 1. Drain and apply inbound events (deltas, ownership changes).
+	/// 2. Emit ownership alignment confirmations for new local owners.
+	/// 3. Emit full resync requests for diverged documents.
+	/// 4. Replay edits deferred during ownership transitions.
 	pub(crate) fn drain_buffer_sync_events(&mut self) {
 		while let Some(event) = self.state.lsp.try_recv_buffer_sync_in() {
 			self.handle_buffer_sync_event(event);
 		}
 
+		let needs = self.state.buffer_sync.drain_owner_confirm_requests();
+		for need in needs {
+			if let Some((len_chars, hash64)) = self.compute_doc_fingerprint(need.doc_id) {
+				let payload = RequestPayload::BufferSyncOwnerConfirm {
+					uri: need.uri,
+					epoch: need.epoch,
+					len_chars,
+					hash64,
+				};
+				let _ = self.state.lsp.buffer_sync_out_tx().send(payload);
+			} else {
+				self.state.buffer_sync.handle_request_failed(&need.uri);
+			}
+		}
+
 		for payload in self.state.buffer_sync.drain_resync_requests() {
 			let _ = self.state.lsp.buffer_sync_out_tx().send(payload);
 		}
+
+		let ready = self.state.buffer_sync.drain_replay_edits();
+		for replay in ready {
+			self.apply_edit(
+				self.state
+					.core
+					.buffers
+					.any_buffer_for_doc(replay.doc_id)
+					.unwrap_or_else(|| self.focused_view()),
+				&replay.tx,
+				replay.selection,
+				replay.undo,
+				replay.origin,
+			);
+		}
+	}
+
+	fn compute_doc_fingerprint(&self, doc_id: crate::buffer::DocumentId) -> Option<(u64, u64)> {
+		let view_id = self.state.core.buffers.any_buffer_for_doc(doc_id)?;
+		let buffer = self.state.core.buffers.get_buffer(view_id)?;
+		buffer.with_doc(|doc| Some(xeno_broker_proto::fingerprint_rope(doc.content())))
 	}
 
 	/// Dispatches a single buffer sync event to the appropriate handler.
@@ -36,12 +75,78 @@ impl Editor {
 				tx,
 			} => self.apply_remote_sync_delta(&uri, epoch, seq, &tx),
 
-			BufferSyncEvent::OwnerChanged { uri, epoch, owner } => {
+			BufferSyncEvent::OwnerChanged {
+				uri, epoch, owner, ..
+			} => {
 				let local_session = self.state.lsp.broker_session_id();
 				self.state
 					.buffer_sync
 					.handle_owner_changed(&uri, epoch, owner, local_session);
 
+				let new_role = self.state.buffer_sync.role_for_uri(&uri);
+				self.update_readonly_for_sync_role(&uri, new_role);
+				self.state.frame.needs_redraw = true;
+			}
+
+			BufferSyncEvent::OwnershipResult {
+				uri,
+				status,
+				epoch,
+				owner,
+				..
+			} => {
+				use xeno_registry::notifications::keys;
+				let local_session = self.state.lsp.broker_session_id();
+				self.state.buffer_sync.handle_ownership_result(
+					&uri,
+					status,
+					epoch,
+					owner,
+					local_session,
+				);
+				if status == xeno_broker_proto::types::BufferSyncOwnershipStatus::Denied {
+					self.notify(keys::SYNC_OWNERSHIP_DENIED);
+				}
+				let new_role = self.state.buffer_sync.role_for_uri(&uri);
+				self.update_readonly_for_sync_role(&uri, new_role);
+				self.state.frame.needs_redraw = true;
+			}
+
+			BufferSyncEvent::OwnerConfirmResult {
+				uri,
+				status,
+				epoch,
+				seq,
+				owner,
+				snapshot,
+			} => {
+				use xeno_broker_proto::types::BufferSyncOwnerConfirmStatus;
+				let local_session = self.state.lsp.broker_session_id();
+				match status {
+					BufferSyncOwnerConfirmStatus::Confirmed => {
+						self.state.buffer_sync.handle_owner_confirm_result(
+							&uri,
+							status,
+							epoch,
+							seq,
+							owner,
+							local_session,
+						);
+					}
+					BufferSyncOwnerConfirmStatus::NeedSnapshot => {
+						if let Some(text) = snapshot {
+							self.apply_sync_snapshot(&uri, &text);
+							self.state.buffer_sync.handle_snapshot(
+								&uri,
+								text,
+								epoch,
+								seq,
+								owner,
+								local_session,
+							);
+						}
+					}
+				}
 				let new_role = self.state.buffer_sync.role_for_uri(&uri);
 				self.update_readonly_for_sync_role(&uri, new_role);
 				self.state.frame.needs_redraw = true;
@@ -72,6 +177,12 @@ impl Editor {
 
 			BufferSyncEvent::DeltaRejected { uri } => {
 				self.state.buffer_sync.mark_needs_resync(&uri);
+			}
+
+			BufferSyncEvent::RequestFailed { uri } => {
+				self.state.buffer_sync.handle_request_failed(&uri);
+				let new_role = self.state.buffer_sync.role_for_uri(&uri);
+				self.update_readonly_for_sync_role(&uri, new_role);
 			}
 
 			BufferSyncEvent::Snapshot {
@@ -116,9 +227,10 @@ impl Editor {
 				let buffer = self.state.core.buffers.get_buffer(id)?;
 				let doc_id = buffer.document_id();
 				let uri = self.state.buffer_sync.uri_for_doc_id(doc_id)?;
-				(self.state.buffer_sync.is_follower(uri)
-					|| self.state.buffer_sync.needs_resync(uri))
-				.then_some(doc_id)
+				self.state
+					.buffer_sync
+					.is_edit_blocked(uri)
+					.then_some(doc_id)
 			})
 			.collect();
 
@@ -223,17 +335,16 @@ impl Editor {
 	/// Updates readonly overrides on all views of a synced document.
 	///
 	/// Follower buffers get `readonly_override = Some(true)`. Owner buffers
-	/// clear the override unless they are awaiting resync, in which case they
-	/// remain readonly until a snapshot arrives.
+	/// clear the override unless they are blocked on confirmation or resync.
 	fn update_readonly_for_sync_role(&mut self, uri: &str, role: Option<BufferSyncRole>) {
 		let Some(doc_id) = self.state.buffer_sync.doc_id_for_uri(uri) else {
 			return;
 		};
 
-		let needs_resync = self.state.buffer_sync.needs_resync(uri);
+		let is_blocked = self.state.buffer_sync.is_edit_blocked(uri);
 		let override_val = match role {
 			Some(BufferSyncRole::Follower) => Some(true),
-			Some(BufferSyncRole::Owner) if needs_resync => Some(true),
+			Some(BufferSyncRole::Owner) if is_blocked => Some(true),
 			_ => None,
 		};
 
@@ -243,41 +354,5 @@ impl Editor {
 				buf.set_readonly_override(override_val);
 			}
 		}
-	}
-}
-
-#[cfg(test)]
-mod tests {
-	use xeno_broker_proto::types::{BufferSyncRole, SessionId, SyncEpoch, SyncSeq};
-
-	use super::Editor;
-
-	#[test]
-	fn test_new_owner_remains_readonly_until_snapshot() {
-		let mut editor = Editor::new_scratch();
-		let uri = "file:///test.rs";
-		let doc_id = editor.buffer().document_id();
-
-		editor.state.buffer_sync.prepare_open(uri, "hello", doc_id);
-		editor.state.buffer_sync.handle_opened(
-			uri,
-			BufferSyncRole::Follower,
-			SyncEpoch(1),
-			SyncSeq(0),
-			None,
-		);
-
-		editor.state.buffer_sync.handle_owner_changed(
-			uri,
-			SyncEpoch(2),
-			SessionId(1),
-			SessionId(1),
-		);
-		editor.update_readonly_for_sync_role(uri, Some(BufferSyncRole::Owner));
-		assert!(editor.buffer().is_readonly());
-
-		editor.state.buffer_sync.clear_needs_resync(uri);
-		editor.update_readonly_for_sync_role(uri, Some(BufferSyncRole::Owner));
-		assert!(!editor.buffer().is_readonly());
 	}
 }

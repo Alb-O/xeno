@@ -6,10 +6,18 @@ use std::sync::{Arc, Mutex};
 use ropey::Rope;
 use tokio::sync::{mpsc, oneshot};
 use xeno_broker_proto::types::{
-	BufferSyncRole, ErrorCode, Event, ResponsePayload, SessionId, SyncEpoch, SyncSeq, WireTx,
+	BufferSyncOwnerConfirmStatus, BufferSyncOwnershipStatus, BufferSyncRole, ErrorCode, Event,
+	ResponsePayload, SessionId, SyncEpoch, SyncSeq, WireTx,
 };
 
 use crate::wire_convert;
+
+/// Maximum number of operations allowed in a single wire transaction.
+const MAX_WIRE_TX_OPS: usize = 100_000;
+/// Maximum bytes allowed for string inserts in a single wire transaction.
+const MAX_INSERT_BYTES: usize = 8 * 1024 * 1024;
+/// Maximum bytes allowed for a full document snapshot.
+const MAX_SNAPSHOT_BYTES: usize = 32 * 1024 * 1024;
 
 /// Commands for the buffer sync service actor.
 #[derive(Debug)]
@@ -60,6 +68,21 @@ pub enum BufferSyncCmd {
 		/// Reply channel for the new epoch.
 		reply: oneshot::Sender<Result<ResponsePayload, ErrorCode>>,
 	},
+	/// Confirm ownership of a document.
+	OwnerConfirm {
+		/// The session identity.
+		sid: SessionId,
+		/// Canonical document URI.
+		uri: String,
+		/// Expected ownership epoch.
+		epoch: SyncEpoch,
+		/// Length of the document in characters.
+		len_chars: u64,
+		/// 64-bit hash of the document content.
+		hash64: u64,
+		/// Reply channel for the confirmation result.
+		reply: oneshot::Sender<Result<ResponsePayload, ErrorCode>>,
+	},
 	/// Fetch a full snapshot of the authoritative document.
 	Resync {
 		/// The session identity.
@@ -90,7 +113,7 @@ pub enum BufferSyncCmd {
 	},
 }
 
-/// Handle for communicating with the `BufferSyncService`.
+/// Handle for communicating with the [`BufferSyncService`].
 #[derive(Clone, Debug)]
 pub struct BufferSyncHandle {
 	tx: mpsc::Sender<BufferSyncCmd>,
@@ -172,6 +195,30 @@ impl BufferSyncHandle {
 		rx.await.map_err(|_| ErrorCode::Internal)?
 	}
 
+	/// Confirms ownership alignment.
+	pub async fn owner_confirm(
+		&self,
+		sid: SessionId,
+		uri: String,
+		epoch: SyncEpoch,
+		len_chars: u64,
+		hash64: u64,
+	) -> Result<ResponsePayload, ErrorCode> {
+		let (reply, rx) = oneshot::channel();
+		self.tx
+			.send(BufferSyncCmd::OwnerConfirm {
+				sid,
+				uri,
+				epoch,
+				len_chars,
+				hash64,
+				reply,
+			})
+			.await
+			.map_err(|_| ErrorCode::Internal)?;
+		rx.await.map_err(|_| ErrorCode::Internal)?
+	}
+
 	/// Requests full content snapshot.
 	pub async fn resync(&self, sid: SessionId, uri: String) -> Result<ResponsePayload, ErrorCode> {
 		let (reply, rx) = oneshot::channel();
@@ -224,11 +271,21 @@ struct SyncDocState {
 	seq: SyncSeq,
 	/// The actual text content.
 	rope: Rope,
+	/// Cached 64-bit hash of the document content.
+	hash64: u64,
+	/// Cached length of the document in characters.
+	len_chars: u64,
 	/// Flag indicating the writer must perform a full resync before publishing.
 	owner_needs_resync: bool,
 }
 
 impl SyncDocState {
+	fn update_fingerprint(&mut self) {
+		let (len, hash) = xeno_broker_proto::fingerprint_rope(&self.rope);
+		self.len_chars = len;
+		self.hash64 = hash;
+	}
+
 	fn add_open(&mut self, sid: SessionId) {
 		let count = self.open_refcounts.entry(sid).or_insert(0);
 		if *count == 0
@@ -351,6 +408,17 @@ impl BufferSyncService {
 					let result = self.handle_take_ownership(sid, &uri).await;
 					let _ = reply.send(result);
 				}
+				BufferSyncCmd::OwnerConfirm {
+					sid,
+					uri,
+					epoch,
+					len_chars,
+					hash64,
+					reply,
+				} => {
+					let result = self.handle_owner_confirm(sid, &uri, epoch, len_chars, hash64);
+					let _ = reply.send(result);
+				}
 				BufferSyncCmd::Resync { sid, uri, reply } => {
 					let result = self.handle_resync(sid, &uri).await;
 					let _ = reply.send(result);
@@ -389,8 +457,11 @@ impl BufferSyncService {
 					epoch: SyncEpoch(1),
 					seq: SyncSeq(0),
 					rope: Rope::from(text),
+					hash64: 0,
+					len_chars: 0,
 					owner_needs_resync: false,
 				};
+				doc.update_fingerprint();
 				doc.add_open(sid);
 				self.sync_docs.insert(uri.clone(), doc);
 				self.open_docs_set.lock().unwrap().insert(uri.clone());
@@ -449,6 +520,8 @@ impl BufferSyncService {
 						uri,
 						epoch: doc.epoch,
 						owner: new_owner,
+						hash64: doc.hash64,
+						len_chars: doc.len_chars,
 					};
 					self.sessions
 						.broadcast(
@@ -493,11 +566,27 @@ impl BufferSyncService {
 			return Err(ErrorCode::OwnerNeedsResync);
 		}
 
+		if wire_tx.0.len() > MAX_WIRE_TX_OPS {
+			return Err(ErrorCode::InvalidDelta);
+		}
+		let insert_bytes: usize = wire_tx
+			.0
+			.iter()
+			.filter_map(|op| match op {
+				xeno_broker_proto::types::WireOp::Insert(s) => Some(s.len()),
+				_ => None,
+			})
+			.sum();
+		if insert_bytes > MAX_INSERT_BYTES {
+			return Err(ErrorCode::InvalidDelta);
+		}
+
 		let tx = wire_convert::wire_to_tx(wire_tx, doc.rope.slice(..))
 			.map_err(|_| ErrorCode::InvalidDelta)?;
 
 		tx.apply(&mut doc.rope);
 		doc.seq = SyncSeq(doc.seq.0 + 1);
+		doc.update_fingerprint();
 
 		let event = Event::BufferSyncDelta {
 			uri: uri.clone(),
@@ -536,12 +625,11 @@ impl BufferSyncService {
 			return Err(ErrorCode::SyncDocNotFound);
 		}
 		if sid == doc.owner {
-			return Ok(ResponsePayload::BufferSyncOwnership { epoch: doc.epoch });
-		}
-
-		let preferred_owner = doc.participants[0];
-		if sid != preferred_owner {
-			return Ok(ResponsePayload::BufferSyncOwnership { epoch: doc.epoch });
+			return Ok(ResponsePayload::BufferSyncOwnership {
+				status: BufferSyncOwnershipStatus::AlreadyOwner,
+				epoch: doc.epoch,
+				owner: doc.owner,
+			});
 		}
 
 		doc.owner = sid;
@@ -553,6 +641,8 @@ impl BufferSyncService {
 			uri,
 			epoch: doc.epoch,
 			owner: sid,
+			hash64: doc.hash64,
+			len_chars: doc.len_chars,
 		};
 		self.sessions
 			.broadcast(
@@ -562,7 +652,52 @@ impl BufferSyncService {
 			)
 			.await;
 
-		Ok(ResponsePayload::BufferSyncOwnership { epoch: doc.epoch })
+		Ok(ResponsePayload::BufferSyncOwnership {
+			status: BufferSyncOwnershipStatus::Granted,
+			epoch: doc.epoch,
+			owner: doc.owner,
+		})
+	}
+
+	fn handle_owner_confirm(
+		&mut self,
+		sid: SessionId,
+		uri_in: &str,
+		epoch: SyncEpoch,
+		len_chars: u64,
+		hash64: u64,
+	) -> Result<ResponsePayload, ErrorCode> {
+		let uri = crate::core::normalize_uri(uri_in)?;
+		let doc = self
+			.sync_docs
+			.get_mut(&uri)
+			.ok_or(ErrorCode::SyncDocNotFound)?;
+
+		if sid != doc.owner {
+			return Err(ErrorCode::NotDocOwner);
+		}
+		if epoch != doc.epoch {
+			return Err(ErrorCode::SyncEpochMismatch);
+		}
+
+		if len_chars == doc.len_chars && hash64 == doc.hash64 {
+			doc.owner_needs_resync = false;
+			Ok(ResponsePayload::BufferSyncOwnerConfirmResult {
+				status: BufferSyncOwnerConfirmStatus::Confirmed,
+				epoch: doc.epoch,
+				seq: doc.seq,
+				owner: doc.owner,
+				snapshot: None,
+			})
+		} else {
+			Ok(ResponsePayload::BufferSyncOwnerConfirmResult {
+				status: BufferSyncOwnerConfirmStatus::NeedSnapshot,
+				epoch: doc.epoch,
+				seq: doc.seq,
+				owner: doc.owner,
+				snapshot: Some(doc.rope.to_string()),
+			})
+		}
 	}
 
 	async fn handle_resync(
@@ -618,6 +753,8 @@ impl BufferSyncService {
 						uri,
 						epoch: doc.epoch,
 						owner: new_owner,
+						hash64: doc.hash64,
+						len_chars: doc.len_chars,
 					};
 					self.sessions
 						.broadcast(

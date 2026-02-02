@@ -12,7 +12,7 @@ mod tests {
 
 	#[tokio::test]
 	async fn test_broker_e2e_dedup_and_fanout() {
-		let (sock, core, launcher, shutdown, _tmp): SpawnedBroker = spawn_broker().await;
+		let (sock, runtime, launcher, shutdown, _tmp): SpawnedBroker = spawn_broker().await;
 
 		let t1 = BrokerTransport::with_socket_and_session(sock.clone(), SessionId(1));
 		let t2 = BrokerTransport::with_socket_and_session(sock.clone(), SessionId(2));
@@ -68,7 +68,7 @@ mod tests {
 
 		// Also ensure broker has the doc registered by checking directly
 		let mut attempts = 0;
-		while core.get_doc_by_uri(server_id, "file:///test.rs").is_none() {
+		while !runtime.sync.is_open("file:///test.rs".to_string()).await {
 			tokio::time::sleep(Duration::from_millis(10)).await;
 			attempts += 1;
 			if attempts > 100 {
@@ -115,7 +115,8 @@ mod tests {
 
 	#[tokio::test]
 	async fn test_broker_e2e_leader_routing_and_reply() {
-		let (sock, _core, launcher, shutdown, _tmp): SpawnedBroker = spawn_broker().await;
+		let (sock, _runtime, launcher, shutdown, _tmp): crate::common::SpawnedBroker =
+			spawn_broker().await;
 
 		let t1 = BrokerTransport::with_socket_and_session(sock.clone(), SessionId(1));
 		let t2 = BrokerTransport::with_socket_and_session(sock.clone(), SessionId(2));
@@ -183,7 +184,8 @@ mod tests {
 
 	#[tokio::test(start_paused = true)]
 	async fn test_broker_e2e_persistence_warm_reattach() {
-		let (sock, _core, _launcher, shutdown, _tmp): SpawnedBroker = spawn_broker().await;
+		let (sock, _runtime, _launcher, shutdown, _tmp): crate::common::SpawnedBroker =
+			spawn_broker().await;
 
 		let cfg = test_server_config();
 
@@ -212,7 +214,7 @@ mod tests {
 
 	#[tokio::test(start_paused = true)]
 	async fn test_broker_e2e_persistence_lease_expiry() {
-		let (sock, core, _launcher, shutdown, _tmp): SpawnedBroker = spawn_broker().await;
+		let (sock, _runtime, _launcher, shutdown, _tmp): SpawnedBroker = spawn_broker().await;
 
 		let cfg = test_server_config();
 
@@ -226,25 +228,7 @@ mod tests {
 		drop(t1);
 
 		// Wait for broker to process disconnect
-		let mut attempts = 0;
-		while attempts < 100 {
-			{
-				let (sessions, servers, _projects) = core.get_state();
-				if sessions.is_empty() {
-					// Also check that it's detached from the server
-					if let Some(attached) = servers.get(&ServerId(s1.id.0)) {
-						if attached.is_empty() {
-							break;
-						}
-					} else {
-						// Already gone?
-						break;
-					}
-				}
-			}
-			tokio::time::sleep(Duration::from_millis(10)).await;
-			attempts += 1;
-		}
+		tokio::time::sleep(Duration::from_millis(100)).await;
 
 		// Advance time past default 5 min lease
 		tokio::time::advance(Duration::from_secs(301)).await;

@@ -47,6 +47,11 @@ pub struct StatuslineContext<'a> {
 	pub buffer_index: usize,
 	/// Total number of open buffers.
 	pub buffer_count: usize,
+
+	/// Buffer sync role.
+	pub sync_role: Option<&'a str>,
+	/// Buffer sync status description.
+	pub sync_status: Option<&'a str>,
 }
 
 /// A rendered segment with styling information.

@@ -8,9 +8,11 @@ license.workspace = true
 [dependencies]
 dirs.workspace = true
 postcard = { workspace = true, default-features = false, features = ["use-std"] }
+ropey.workspace = true
 serde.workspace = true
 tokio = { workspace = true, features = ["io-util"] }
 xeno-rpc.workspace = true
+xxhash-rust.workspace = true
 
 [lints]
 workspace = true

@@ -4,15 +4,15 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use tokio_util::sync::CancellationToken;
-use xeno_broker::core::BrokerCore;
 use xeno_broker::ipc;
-use xeno_broker::test_helpers::TestLauncher;
+use xeno_broker::launcher::test_helpers::TestLauncher;
+use xeno_broker::runtime::BrokerRuntime;
 use xeno_lsp::client::ServerConfig;
 
 /// Type alias for the tuple returned by spawn_broker.
 pub type SpawnedBroker = (
 	std::path::PathBuf,
-	Arc<BrokerCore>,
+	Arc<BrokerRuntime>,
 	TestLauncher,
 	CancellationToken,
 	tempfile::TempDir,
@@ -23,19 +23,16 @@ pub async fn spawn_broker() -> SpawnedBroker {
 	let _ = tracing_subscriber::fmt::try_init();
 	let tmp = tempfile::tempdir().expect("failed to create temp dir");
 	let sock = tmp.path().join("broker.sock");
-	let core = BrokerCore::new();
 	let launcher = TestLauncher::new();
+	let runtime = BrokerRuntime::new(Duration::from_secs(300), Arc::new(launcher.clone()));
 	let shutdown = CancellationToken::new();
 
-	let core_clone = core.clone();
-	let launcher_clone = Arc::new(launcher.clone());
+	let runtime_clone = runtime.clone();
 	let sock_clone = sock.clone();
 	let shutdown_clone = shutdown.clone();
 
 	tokio::spawn(async move {
-		if let Err(e) =
-			ipc::serve_with_launcher(sock_clone, core_clone, shutdown_clone, launcher_clone).await
-		{
+		if let Err(e) = ipc::serve_with_runtime(sock_clone, runtime_clone, shutdown_clone).await {
 			tracing::error!(error = %e, "Broker serve failed");
 		}
 	});
@@ -50,7 +47,7 @@ pub async fn spawn_broker() -> SpawnedBroker {
 		attempts += 1;
 	}
 
-	(sock, core, launcher, shutdown, tmp)
+	(sock, runtime, launcher, shutdown, tmp)
 }
 
 /// Creates a standard server configuration for testing.

@@ -113,6 +113,7 @@ impl LspSystem {
 						| RequestPayload::BufferSyncClose { uri }
 						| RequestPayload::BufferSyncDelta { uri, .. }
 						| RequestPayload::BufferSyncTakeOwnership { uri }
+						| RequestPayload::BufferSyncOwnerConfirm { uri, .. }
 						| RequestPayload::BufferSyncResync { uri } => uri.clone(),
 						_ => continue,
 					};
@@ -136,6 +137,30 @@ impl LspSystem {
 								ResponsePayload::BufferSyncDeltaAck { seq } => {
 									Some(crate::buffer_sync::BufferSyncEvent::DeltaAck { uri, seq })
 								}
+								ResponsePayload::BufferSyncOwnership {
+									status,
+									epoch,
+									owner,
+								} => Some(crate::buffer_sync::BufferSyncEvent::OwnershipResult {
+									uri,
+									status,
+									epoch,
+									owner,
+								}),
+								ResponsePayload::BufferSyncOwnerConfirmResult {
+									status,
+									epoch,
+									seq,
+									owner,
+									snapshot,
+								} => Some(crate::buffer_sync::BufferSyncEvent::OwnerConfirmResult {
+									uri,
+									status,
+									epoch,
+									seq,
+									owner,
+									snapshot,
+								}),
 								ResponsePayload::BufferSyncSnapshot {
 									text,
 									epoch,
@@ -148,8 +173,7 @@ impl LspSystem {
 									seq,
 									owner,
 								}),
-								ResponsePayload::BufferSyncClosed
-								| ResponsePayload::BufferSyncOwnership { .. } => None,
+								ResponsePayload::BufferSyncClosed => None,
 								_ => None,
 							};
 							if let Some(evt) = evt {
@@ -161,6 +185,10 @@ impl LspSystem {
 							if is_delta {
 								let _ = in_tx_b.send(
 									crate::buffer_sync::BufferSyncEvent::DeltaRejected { uri },
+								);
+							} else {
+								let _ = in_tx_b.send(
+									crate::buffer_sync::BufferSyncEvent::RequestFailed { uri },
 								);
 							}
 						}

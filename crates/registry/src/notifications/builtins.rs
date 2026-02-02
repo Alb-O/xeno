@@ -121,6 +121,10 @@ notif!(error(msg: impl Into<String>), Error, msg);
 notif!(success(msg: impl Into<String>), Success, msg);
 notif!(debug(msg: impl Into<String>), Debug, msg);
 
+// --- Buffer Sync ---
+notif!(sync_taking_ownership, Info, "Taking ownership...");
+notif!(sync_ownership_denied, Info, "Ownership denied.");
+
 pub fn register_builtins(builder: &mut crate::db::builder::RegistryDbBuilder) {
 	builder.register_notification(&NOTIF_UNKNOWN_ACTION);
 	builder.register_notification(&NOTIF_ACTION_ERROR);
@@ -177,4 +181,6 @@ pub fn register_builtins(builder: &mut crate::db::builder::RegistryDbBuilder) {
 	builder.register_notification(&NOTIF_ERROR);
 	builder.register_notification(&NOTIF_SUCCESS);
 	builder.register_notification(&NOTIF_DEBUG);
+	builder.register_notification(&NOTIF_SYNC_TAKING_OWNERSHIP);
+	builder.register_notification(&NOTIF_SYNC_OWNERSHIP_DENIED);
 }

@@ -11,7 +11,8 @@ mod tests {
 
 	#[tokio::test]
 	async fn test_broker_reconnect_wedge() {
-		let (sock, core, launcher, shutdown, _tmp) = spawn_broker().await;
+		let (sock, runtime, launcher, shutdown, _tmp): crate::common::SpawnedBroker =
+			spawn_broker().await;
 
 		let t1 = BrokerTransport::with_socket_and_session(sock.clone(), SessionId(1));
 		let cfg = test_server_config();
@@ -42,7 +43,7 @@ mod tests {
 		// Wait for broker to register doc
 		assert!(
 			wait_until(Duration::from_secs(1), || async {
-				core.get_doc_by_uri(server_id, "file:///test.rs").is_some()
+				runtime.sync.is_open("file:///test.rs".to_string()).await
 			})
 			.await
 		);
@@ -61,7 +62,7 @@ mod tests {
 		// Doc should be removed from broker because no one else has it open
 		assert!(
 			wait_until(Duration::from_secs(1), || async {
-				core.get_doc_by_uri(server_id, "file:///test.rs").is_none()
+				!runtime.sync.is_open("file:///test.rs".to_string()).await
 			})
 			.await
 		);
@@ -93,7 +94,7 @@ mod tests {
 		// Wait for broker to register doc
 		assert!(
 			wait_until(Duration::from_secs(1), || async {
-				core.get_doc_by_uri(server_id, "file:///test.rs").is_some()
+				runtime.sync.is_open("file:///test.rs".to_string()).await
 			})
 			.await
 		);
@@ -139,7 +140,8 @@ mod tests {
 
 	#[tokio::test]
 	async fn test_broker_owner_close_transfer() {
-		let (sock, _core, launcher, shutdown, _tmp) = spawn_broker().await;
+		let (sock, _runtime, launcher, shutdown, _tmp): crate::common::SpawnedBroker =
+			spawn_broker().await;
 
 		let t1 = BrokerTransport::with_socket_and_session(sock.clone(), SessionId(1));
 		let t2 = BrokerTransport::with_socket_and_session(sock.clone(), SessionId(2));
@@ -242,7 +244,8 @@ mod tests {
 
 	#[tokio::test]
 	async fn test_broker_string_wire_ids() {
-		let (sock, _core, launcher, shutdown, _tmp) = spawn_broker().await;
+		let (sock, _runtime, launcher, shutdown, _tmp): crate::common::SpawnedBroker =
+			spawn_broker().await;
 
 		let t1 = BrokerTransport::with_socket_and_session(sock.clone(), SessionId(1));
 		let cfg = test_server_config();

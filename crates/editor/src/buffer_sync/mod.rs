@@ -5,12 +5,13 @@
 
 pub mod convert;
 
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 
 use xeno_broker_proto::types::{
-	BufferSyncRole, RequestPayload, SessionId, SyncEpoch, SyncSeq, WireTx,
+	BufferSyncOwnerConfirmStatus, BufferSyncOwnershipStatus, BufferSyncRole, RequestPayload,
+	SessionId, SyncEpoch, SyncSeq, WireTx,
 };
-use xeno_primitives::Transaction;
+use xeno_primitives::{EditOrigin, Selection, Transaction, UndoPolicy};
 
 use crate::buffer::DocumentId;
 
@@ -36,6 +37,36 @@ pub enum BufferSyncEvent {
 		epoch: SyncEpoch,
 		/// New owner session.
 		owner: SessionId,
+		/// Authoritative hash.
+		hash64: u64,
+		/// Authoritative length.
+		len_chars: u64,
+	},
+	/// Result of an ownership request.
+	OwnershipResult {
+		/// Document URI.
+		uri: String,
+		/// Status of the request.
+		status: BufferSyncOwnershipStatus,
+		/// Current epoch.
+		epoch: SyncEpoch,
+		/// Current owner.
+		owner: SessionId,
+	},
+	/// Result of an ownership confirmation.
+	OwnerConfirmResult {
+		/// Document URI.
+		uri: String,
+		/// Status of the confirmation.
+		status: BufferSyncOwnerConfirmStatus,
+		/// Current epoch.
+		epoch: SyncEpoch,
+		/// Current sequence.
+		seq: SyncSeq,
+		/// Current owner.
+		owner: SessionId,
+		/// Full text snapshot if mismatch.
+		snapshot: Option<String>,
 	},
 	/// Broker responded to a BufferSyncOpen request.
 	Opened {
@@ -70,13 +101,66 @@ pub enum BufferSyncEvent {
 		/// Current owner session.
 		owner: SessionId,
 	},
-	/// A delta request was rejected by the broker (seq/epoch mismatch or error).
+	/// A delta request was rejected by the broker.
 	DeltaRejected {
+		/// Document URI.
+		uri: String,
+	},
+	/// A request failed with a protocol error.
+	RequestFailed {
 		/// Document URI.
 		uri: String,
 	},
 	/// Broker transport disconnected — disable all sync tracking.
 	Disconnected,
+}
+
+/// An edit deferred because the session is not the document owner.
+pub struct PendingEdit {
+	/// Transaction to apply.
+	pub tx: Transaction,
+	/// Selection to apply after the transaction.
+	pub selection: Option<Selection>,
+	/// Undo policy for the edit.
+	pub undo: UndoPolicy,
+	/// Origin of the edit.
+	pub origin: EditOrigin,
+}
+
+/// Outcome of attempting to apply an edit to a synced document.
+pub enum DeferEditOutcome {
+	/// Edit allowed to proceed.
+	Allowed,
+	/// Edit deferred; ownership request prepared.
+	NeedTakeOwnership(RequestPayload),
+	/// Edit deferred; ownership acquisition already in flight.
+	AlreadyAcquiring,
+	/// Document not tracked by buffer sync.
+	NotTracked,
+}
+
+/// Need for an ownership confirmation.
+pub struct OwnerConfirmNeed {
+	/// Document URI.
+	pub uri: String,
+	/// Expected ownership epoch.
+	pub epoch: SyncEpoch,
+	/// Target document identifier.
+	pub doc_id: DocumentId,
+}
+
+/// An edit ready to be replayed after gaining ownership.
+pub struct ReplayEdit {
+	/// Target document identifier.
+	pub doc_id: DocumentId,
+	/// Transaction to apply.
+	pub tx: Transaction,
+	/// Selection to apply after the transaction.
+	pub selection: Option<Selection>,
+	/// Undo policy for the edit.
+	pub undo: UndoPolicy,
+	/// Origin of the edit.
+	pub origin: EditOrigin,
 }
 
 /// Per-document sync state tracked by the editor.
@@ -85,30 +169,24 @@ struct SyncDocEntry {
 	epoch: SyncEpoch,
 	seq: SyncSeq,
 	role: BufferSyncRole,
-	/// Set when an epoch mismatch or sequence gap is detected, indicating
-	/// the local document may have diverged from the broker's authoritative
-	/// copy. Cleared when a resync snapshot is applied.
+	owner: SessionId,
 	needs_resync: bool,
-	/// Tracks whether a resync request has been sent while waiting on a snapshot.
 	resync_requested: bool,
+	acquire_in_flight: bool,
+	owner_confirm_required: bool,
+	owner_confirm_in_flight: bool,
+	pending_edits: VecDeque<PendingEdit>,
 }
 
 /// Manages buffer sync state for all documents in this editor session.
 ///
-/// Converts between editor transactions and wire format, tracks ownership and
-/// sequencing, and provides helpers for the editor to decide whether local edits
-/// should be forwarded to the broker.
+/// Tracks per-document roles, epochs, and sequences. Handles the state machine
+/// for transitioning between Follower and Owner roles, including deferred edit
+/// queuing and ownership confirmation.
 pub struct BufferSyncManager {
-	/// URI → sync state.
 	docs: HashMap<String, SyncDocEntry>,
-	/// DocumentId → URI reverse lookup.
+	uri_to_doc_id: HashMap<String, DocumentId>,
 	doc_id_to_uri: HashMap<DocumentId, String>,
-}
-
-impl Default for BufferSyncManager {
-	fn default() -> Self {
-		Self::new()
-	}
 }
 
 impl BufferSyncManager {
@@ -116,13 +194,98 @@ impl BufferSyncManager {
 	pub fn new() -> Self {
 		Self {
 			docs: HashMap::new(),
+			uri_to_doc_id: HashMap::new(),
 			doc_id_to_uri: HashMap::new(),
 		}
 	}
 
-	/// Prepares a [`RequestPayload::BufferSyncOpen`] and pre-registers the
-	/// doc-id → URI reverse mapping for later lookup on response.
+	/// Returns true if an edit for the URI is currently blocked.
+	///
+	/// Edits are blocked if the session is a follower, or if an ownership
+	/// transition (acquisition or confirmation) is currently in progress.
+	pub fn is_edit_blocked(&self, uri: &str) -> bool {
+		self.docs.get(uri).is_some_and(Self::entry_is_blocked)
+	}
+
+	fn entry_is_blocked(e: &SyncDocEntry) -> bool {
+		e.role == BufferSyncRole::Follower
+			|| e.needs_resync
+			|| e.acquire_in_flight
+			|| e.owner_confirm_required
+			|| e.owner_confirm_in_flight
+	}
+
+	/// Defer an edit for a blocked document.
+	///
+	/// If the document is currently a follower and no acquisition is in flight,
+	/// prepares a `TakeOwnership` request. Returns `Allowed` if the document is
+	/// not blocked.
+	pub fn defer_edit(&mut self, uri: &str, edit: PendingEdit) -> DeferEditOutcome {
+		let blocked = self.is_edit_blocked(uri);
+		let Some(entry) = self.docs.get_mut(uri) else {
+			return DeferEditOutcome::NotTracked;
+		};
+
+		if !blocked {
+			return DeferEditOutcome::Allowed;
+		}
+
+		entry.pending_edits.push_back(edit);
+
+		if entry.role == BufferSyncRole::Follower && !entry.acquire_in_flight {
+			entry.acquire_in_flight = true;
+			DeferEditOutcome::NeedTakeOwnership(RequestPayload::BufferSyncTakeOwnership {
+				uri: uri.to_string(),
+			})
+		} else {
+			DeferEditOutcome::AlreadyAcquiring
+		}
+	}
+
+	/// Collects and clears ownership confirmation requests.
+	///
+	/// Returns a list of documents where local ownership was granted but not
+	/// yet confirmed via fingerprinting. Marks them as confirmation in-flight.
+	pub fn drain_owner_confirm_requests(&mut self) -> Vec<OwnerConfirmNeed> {
+		let mut needs = Vec::new();
+		for (uri, entry) in &mut self.docs {
+			if entry.owner_confirm_required && !entry.owner_confirm_in_flight {
+				entry.owner_confirm_in_flight = true;
+				needs.push(OwnerConfirmNeed {
+					uri: uri.clone(),
+					epoch: entry.epoch,
+					doc_id: entry.doc_id,
+				});
+			}
+		}
+		needs
+	}
+
+	/// Collects and clears edits ready for replay.
+	///
+	/// Returns deferred edits for documents that have successfully transitioned
+	/// to Owner role and completed confirmation.
+	pub fn drain_replay_edits(&mut self) -> Vec<ReplayEdit> {
+		let mut ready = Vec::new();
+		for entry in self.docs.values_mut() {
+			if !Self::entry_is_blocked(entry) {
+				while let Some(pending) = entry.pending_edits.pop_front() {
+					ready.push(ReplayEdit {
+						doc_id: entry.doc_id,
+						tx: pending.tx,
+						selection: pending.selection,
+						undo: pending.undo,
+						origin: pending.origin,
+					});
+				}
+			}
+		}
+		ready
+	}
+
+	/// Prepares a [`RequestPayload::BufferSyncOpen`] and registers document mappings.
 	pub fn prepare_open(&mut self, uri: &str, text: &str, doc_id: DocumentId) -> RequestPayload {
+		self.uri_to_doc_id.insert(uri.to_string(), doc_id);
 		self.doc_id_to_uri.insert(doc_id, uri.to_string());
 		RequestPayload::BufferSyncOpen {
 			uri: uri.to_string(),
@@ -131,11 +294,7 @@ impl BufferSyncManager {
 		}
 	}
 
-	/// Processes the broker's `BufferSyncOpened` response.
-	///
-	/// Records the sync state. If the role is `Follower` and a snapshot is
-	/// provided, returns the snapshot text so the caller can replace the
-	/// local document content.
+	/// Processes the broker's `BufferSyncOpened` response and initializes sync state.
 	pub fn handle_opened(
 		&mut self,
 		uri: &str,
@@ -144,11 +303,7 @@ impl BufferSyncManager {
 		seq: SyncSeq,
 		snapshot: Option<String>,
 	) -> Option<String> {
-		let doc_id = self
-			.doc_id_to_uri
-			.iter()
-			.find(|(_id, u)| u.as_str() == uri)
-			.map(|(id, _u)| *id)?;
+		let doc_id = self.uri_to_doc_id.get(uri).copied()?;
 
 		self.docs.insert(
 			uri.to_string(),
@@ -157,27 +312,25 @@ impl BufferSyncManager {
 				epoch,
 				seq,
 				role,
+				owner: SessionId(0),
 				needs_resync: false,
 				resync_requested: false,
+				acquire_in_flight: false,
+				owner_confirm_required: false,
+				owner_confirm_in_flight: false,
+				pending_edits: VecDeque::new(),
 			},
 		);
 
-		if role == BufferSyncRole::Follower {
-			snapshot
-		} else {
-			None
-		}
+		(role == BufferSyncRole::Follower)
+			.then_some(snapshot)
+			.flatten()
 	}
 
 	/// Prepares a `BufferSyncDelta` request if this session owns the document.
-	///
-	/// Serializes the transaction to wire format and returns the request payload.
-	/// The local sequence is optimistically incremented so that rapid edits
-	/// produce consecutive `base_seq` values without waiting for broker acks.
-	/// Returns `None` if the document is not tracked or the session is a follower.
 	pub fn prepare_delta(&mut self, uri: &str, tx: &Transaction) -> Option<RequestPayload> {
 		let entry = self.docs.get_mut(uri)?;
-		if entry.role != BufferSyncRole::Owner || entry.needs_resync {
+		if entry.role != BufferSyncRole::Owner || Self::entry_is_blocked(entry) {
 			return None;
 		}
 
@@ -192,11 +345,7 @@ impl BufferSyncManager {
 		})
 	}
 
-	/// Handles a `DeltaAck` from the broker.
-	///
-	/// Only advances the local sequence forward. The local seq may already be
-	/// ahead due to optimistic incrementing in [`prepare_delta`], so stale acks
-	/// that would regress the counter are ignored.
+	/// Handles a `DeltaAck` from the broker, advancing the local sequence.
 	pub fn handle_delta_ack(&mut self, uri: &str, seq: SyncSeq) {
 		if let Some(entry) = self.docs.get_mut(uri)
 			&& seq.0 > entry.seq.0
@@ -206,9 +355,6 @@ impl BufferSyncManager {
 	}
 
 	/// Marks a document as needing resync after a delta rejection.
-	///
-	/// Suppresses further [`prepare_delta`] calls until a resync snapshot
-	/// clears the flag, preventing repeated submissions against stale state.
 	pub fn mark_needs_resync(&mut self, uri: &str) {
 		if let Some(entry) = self.docs.get_mut(uri) {
 			entry.needs_resync = true;
@@ -218,13 +364,8 @@ impl BufferSyncManager {
 
 	/// Validates an incoming remote delta and updates the local sequence.
 	///
-	/// Returns the [`DocumentId`] when epoch matches, sequence is contiguous
-	/// (`entry.seq + 1`), and the local role is follower. The caller converts
-	/// the wire transaction via [`convert::wire_to_tx`] using the actual
-	/// document rope and applies it.
-	///
-	/// On epoch mismatch or sequence gap, sets [`SyncDocEntry::needs_resync`]
-	/// (drained by [`drain_resync_requests`]) and returns `None`.
+	/// Returns the [`DocumentId`] if the delta is contiguous and acceptable.
+	/// If an acquisition is in flight, invalidates pending edits and forces resync.
 	pub fn handle_remote_delta(
 		&mut self,
 		uri: &str,
@@ -237,12 +378,23 @@ impl BufferSyncManager {
 			return None;
 		}
 
+		if Self::entry_is_blocked(entry) || !entry.pending_edits.is_empty() {
+			tracing::info!(
+				uri,
+				"Remote delta received during acquisition, invalidating pending edits"
+			);
+			entry.pending_edits.clear();
+			entry.needs_resync = true;
+			entry.resync_requested = false;
+			return None;
+		}
+
 		if epoch != entry.epoch {
 			tracing::warn!(
 				uri,
-				local_epoch = entry.epoch.0,
-				remote_epoch = epoch.0,
-				"Buffer sync epoch mismatch, requesting resync"
+				local = entry.epoch.0,
+				remote = epoch.0,
+				"Epoch mismatch"
 			);
 			entry.needs_resync = true;
 			entry.resync_requested = false;
@@ -255,7 +407,7 @@ impl BufferSyncManager {
 				uri,
 				expected = expected_seq.0,
 				received = seq.0,
-				"Buffer sync sequence gap, requesting resync"
+				"Sequence gap"
 			);
 			entry.needs_resync = true;
 			entry.resync_requested = false;
@@ -268,9 +420,9 @@ impl BufferSyncManager {
 
 	/// Processes an ownership change event from the broker.
 	///
-	/// Resets the sequence to zero (new epoch starts fresh). If the local
-	/// session becomes owner, marks the document as needing resync before
-	/// edits are allowed.
+	/// Resets the sequence number for the new epoch and clears any pending edits
+	/// if the local session is not the new owner. If local session is the new
+	/// owner, marks confirmation as required.
 	pub fn handle_owner_changed(
 		&mut self,
 		uri: &str,
@@ -281,23 +433,132 @@ impl BufferSyncManager {
 		if let Some(entry) = self.docs.get_mut(uri) {
 			entry.epoch = epoch;
 			entry.seq = SyncSeq(0);
+			entry.owner = owner;
+			entry.acquire_in_flight = false;
+
 			if owner == local_session {
 				entry.role = BufferSyncRole::Owner;
-				entry.needs_resync = true;
-				entry.resync_requested = false;
+				entry.owner_confirm_required = true;
+				entry.owner_confirm_in_flight = false;
+				entry.needs_resync = false;
 			} else {
 				entry.role = BufferSyncRole::Follower;
+				entry.owner_confirm_required = false;
+				entry.owner_confirm_in_flight = false;
 				entry.needs_resync = false;
 				entry.resync_requested = false;
+				entry.pending_edits.clear();
 			}
 		}
 	}
 
-	/// Prepares a `BufferSyncClose` request and removes the document from tracking.
+	/// Handles an ownership request result.
 	///
-	/// Returns `None` if the document is not tracked.
+	/// Clears the acquisition flag and updates ownership state. If denied,
+	/// all pending edits for the document are discarded.
+	pub fn handle_ownership_result(
+		&mut self,
+		uri: &str,
+		status: BufferSyncOwnershipStatus,
+		epoch: SyncEpoch,
+		owner: SessionId,
+		local_session: SessionId,
+	) {
+		self.handle_owner_changed(uri, epoch, owner, local_session);
+
+		if let Some(entry) = self.docs.get_mut(uri) {
+			entry.acquire_in_flight = false;
+			if status == BufferSyncOwnershipStatus::Denied {
+				entry.pending_edits.clear();
+			}
+		}
+	}
+
+	/// Handles an ownership confirmation result.
+	///
+	/// If confirmed, clears the confirmation gate allowing replayed edits to
+	/// proceed. If a snapshot is needed, clears the gate to allow the snapshot
+	/// install to finalize the transition.
+	pub fn handle_owner_confirm_result(
+		&mut self,
+		uri: &str,
+		status: BufferSyncOwnerConfirmStatus,
+		epoch: SyncEpoch,
+		seq: SyncSeq,
+		owner: SessionId,
+		local_session: SessionId,
+	) {
+		if let Some(entry) = self.docs.get_mut(uri) {
+			if entry.epoch != epoch {
+				return;
+			}
+
+			entry.owner_confirm_in_flight = false;
+			entry.owner = owner;
+
+			if owner == local_session {
+				entry.role = BufferSyncRole::Owner;
+				match status {
+					BufferSyncOwnerConfirmStatus::Confirmed => {
+						entry.owner_confirm_required = false;
+						entry.seq = seq;
+					}
+					BufferSyncOwnerConfirmStatus::NeedSnapshot => {
+						entry.owner_confirm_required = false;
+						entry.owner_confirm_in_flight = false;
+						entry.pending_edits.clear();
+					}
+				}
+			} else {
+				entry.role = BufferSyncRole::Follower;
+				entry.owner_confirm_required = false;
+				entry.pending_edits.clear();
+			}
+		}
+	}
+
+	/// Replaces document content from a snapshot and resets sync state.
+	pub fn handle_snapshot(
+		&mut self,
+		uri: &str,
+		text: String,
+		epoch: SyncEpoch,
+		seq: SyncSeq,
+		owner: SessionId,
+		local_session: SessionId,
+	) -> String {
+		if let Some(entry) = self.docs.get_mut(uri) {
+			entry.epoch = epoch;
+			entry.seq = seq;
+			entry.owner = owner;
+			entry.role = if owner == local_session {
+				BufferSyncRole::Owner
+			} else {
+				BufferSyncRole::Follower
+			};
+			entry.needs_resync = false;
+			entry.resync_requested = false;
+			entry.owner_confirm_required = false;
+			entry.owner_confirm_in_flight = false;
+			entry.acquire_in_flight = false;
+			entry.pending_edits.clear();
+		}
+		text
+	}
+
+	/// Handles a failed request by clearing in-flight flags.
+	pub fn handle_request_failed(&mut self, uri: &str) {
+		if let Some(entry) = self.docs.get_mut(uri) {
+			entry.acquire_in_flight = false;
+			entry.owner_confirm_in_flight = false;
+			entry.resync_requested = false;
+		}
+	}
+
+	/// Prepares a `BufferSyncClose` request and removes the document from tracking.
 	pub fn prepare_close(&mut self, uri: &str) -> Option<RequestPayload> {
 		let entry = self.docs.remove(uri)?;
+		self.uri_to_doc_id.remove(uri);
 		self.doc_id_to_uri.remove(&entry.doc_id);
 		Some(RequestPayload::BufferSyncClose {
 			uri: uri.to_string(),
@@ -326,11 +587,28 @@ impl BufferSyncManager {
 		self.docs.get(uri).map(|e| e.role)
 	}
 
+	/// Returns the UI state for a document URI.
+	pub fn ui_status_for_uri(&self, uri: &str) -> (Option<BufferSyncRole>, SyncStatus) {
+		let Some(entry) = self.docs.get(uri) else {
+			return (None, SyncStatus::Off);
+		};
+
+		let status = if entry.needs_resync {
+			SyncStatus::NeedsResync
+		} else if entry.acquire_in_flight {
+			SyncStatus::Acquiring
+		} else if entry.owner_confirm_required || entry.owner_confirm_in_flight {
+			SyncStatus::Confirming
+		} else if entry.role == BufferSyncRole::Owner {
+			SyncStatus::Owner
+		} else {
+			SyncStatus::Follower
+		};
+
+		(Some(entry.role), status)
+	}
+
 	/// Collects URIs of documents that need a full resync from the broker.
-	///
-	/// Returns `BufferSyncResync` request payloads for each desynced document
-	/// and marks their resync as requested. Called once per tick after
-	/// draining inbound events.
 	pub fn drain_resync_requests(&mut self) -> Vec<RequestPayload> {
 		let mut requests = Vec::new();
 		for (uri, entry) in &mut self.docs {
@@ -355,11 +633,34 @@ impl BufferSyncManager {
 		self.docs.get(uri).is_some_and(|entry| entry.needs_resync)
 	}
 
-	/// Disables all sync tracking, clearing all entries so the editor can
-	/// resume local-only editing.
+	/// Disables all sync tracking.
 	pub fn disable_all(&mut self) {
 		self.docs.clear();
+		self.uri_to_doc_id.clear();
 		self.doc_id_to_uri.clear();
+	}
+}
+
+/// UI-facing sync status.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SyncStatus {
+	/// Buffer synchronization is disabled or disconnected.
+	Off,
+	/// Session is the authoritative owner/writer.
+	Owner,
+	/// Session is a read-only live viewer.
+	Follower,
+	/// Session is attempting to acquire ownership.
+	Acquiring,
+	/// Session is confirming alignment with the broker.
+	Confirming,
+	/// Session detected divergence and requires resync.
+	NeedsResync,
+}
+
+impl Default for BufferSyncManager {
+	fn default() -> Self {
+		Self::new()
 	}
 }
 
@@ -383,7 +684,7 @@ mod tests {
 	}
 
 	#[test]
-	fn test_owner_changed_sets_needs_resync_for_local_new_owner() {
+	fn test_owner_changed_sets_owner_confirm_required_for_local_new_owner() {
 		let mut manager = BufferSyncManager::new();
 		let uri = "file:///test.rs";
 		let doc_id = DocumentId::next();
@@ -399,12 +700,15 @@ mod tests {
 
 		manager.handle_owner_changed(uri, SyncEpoch(2), SessionId(1), SessionId(1));
 
-		assert!(manager.needs_resync(uri));
+		assert!(manager.is_edit_blocked(uri));
 		assert!(manager.prepare_delta(uri, &sample_tx()).is_none());
+		let needs = manager.drain_owner_confirm_requests();
+		assert_eq!(needs.len(), 1);
+		assert_eq!(needs[0].uri, uri);
 	}
 
 	#[test]
-	fn test_snapshot_clears_needs_resync_and_allows_delta() {
+	fn test_confirm_clears_required_and_allows_delta() {
 		let mut manager = BufferSyncManager::new();
 		let uri = "file:///test.rs";
 		let doc_id = DocumentId::next();
@@ -419,10 +723,18 @@ mod tests {
 		);
 
 		manager.handle_owner_changed(uri, SyncEpoch(2), SessionId(1), SessionId(1));
-		assert!(manager.needs_resync(uri));
+		manager.drain_owner_confirm_requests();
 
-		manager.clear_needs_resync(uri);
-		assert!(!manager.needs_resync(uri));
+		manager.handle_owner_confirm_result(
+			uri,
+			BufferSyncOwnerConfirmStatus::Confirmed,
+			SyncEpoch(2),
+			SyncSeq(0),
+			SessionId(1),
+			SessionId(1),
+		);
+
+		assert!(!manager.is_edit_blocked(uri));
 		assert!(manager.prepare_delta(uri, &sample_tx()).is_some());
 	}
 }
