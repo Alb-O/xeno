@@ -1,7 +1,13 @@
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex, Weak};
 
+use bumpalo::Bump;
+use helix_db::helix_engine::traversal_core::ops::g::G;
+use helix_db::helix_engine::traversal_core::ops::source::n_from_index::NFromIndexAdapter;
+use helix_db::helix_engine::traversal_core::traversal_value::TraversalValue;
+use helix_db::protocol::value::Value;
 use tempfile::TempDir;
 
+use super::indexer::{IndexWorker, chunk_text, index_document};
 use super::{KnowledgeCore, SCHEMA_CONFIG};
 
 static ENV_LOCK: Mutex<()> = Mutex::new(());
@@ -46,4 +52,209 @@ fn test_graceful_degradation() {
 			std::env::remove_var("XDG_STATE_HOME");
 		},
 	}
+}
+
+fn open_test_core() -> (TempDir, KnowledgeCore) {
+	let temp = TempDir::new().expect("tempdir");
+	let db_path = temp.path().join("knowledge");
+	let core = KnowledgeCore::open(db_path).expect("open knowledge core");
+	(temp, core)
+}
+
+#[derive(Debug)]
+struct DocValues {
+	uri: String,
+	epoch: u64,
+	seq: u64,
+	len_chars: u64,
+	language: String,
+}
+
+fn read_doc_values(
+	storage: &helix_db::helix_engine::storage_core::HelixGraphStorage,
+	uri: &str,
+) -> Option<DocValues> {
+	let arena = Bump::new();
+	let txn = storage
+		.graph_env
+		.read_txn()
+		.map_err(helix_db::helix_engine::types::EngineError::from)
+		.ok()?;
+	let doc = G::new(storage, &txn, &arena)
+		.n_from_index("Doc", "uri", &uri)
+		.filter_map(|entry| entry.ok())
+		.find_map(|tv| match tv {
+			TraversalValue::Node(node) => Some(node),
+			_ => None,
+		})?;
+
+	let uri = match doc.get_property("uri") {
+		Some(Value::String(value)) => value.clone(),
+		_ => return None,
+	};
+	let epoch = match doc.get_property("epoch") {
+		Some(Value::U64(value)) => *value,
+		_ => return None,
+	};
+	let seq = match doc.get_property("seq") {
+		Some(Value::U64(value)) => *value,
+		_ => return None,
+	};
+	let len_chars = match doc.get_property("len_chars") {
+		Some(Value::U64(value)) => *value,
+		_ => return None,
+	};
+	let language = match doc.get_property("language") {
+		Some(Value::String(value)) => value.clone(),
+		_ => String::new(),
+	};
+
+	Some(DocValues {
+		uri,
+		epoch,
+		seq,
+		len_chars,
+		language,
+	})
+}
+
+fn chunk_texts(
+	storage: &helix_db::helix_engine::storage_core::HelixGraphStorage,
+	uri: &str,
+) -> Vec<String> {
+	let arena = Bump::new();
+	let txn = storage
+		.graph_env
+		.read_txn()
+		.map_err(helix_db::helix_engine::types::EngineError::from)
+		.expect("read txn");
+	G::new(storage, &txn, &arena)
+		.n_from_index("Chunk", "doc_uri", &uri)
+		.filter_map(|entry| entry.ok())
+		.filter_map(|tv| match tv {
+			TraversalValue::Node(node) => node.get_property("text").and_then(|v| match v {
+				Value::String(value) => Some(value.clone()),
+				_ => None,
+			}),
+			_ => None,
+		})
+		.collect()
+}
+
+#[test]
+fn test_chunk_text_basic() {
+	let text = "aa\nbb\ncc\n";
+	let chunks = chunk_text(text, 4);
+	assert_eq!(chunks.len(), 3);
+	assert_eq!(chunks[0].text, "aa\n");
+	assert_eq!(chunks[0].start_char, 0);
+	assert_eq!(chunks[0].end_char, 3);
+	assert_eq!(chunks[1].text, "bb\n");
+	assert_eq!(chunks[1].start_char, 3);
+	assert_eq!(chunks[1].end_char, 6);
+	assert_eq!(chunks[2].text, "cc\n");
+	assert_eq!(chunks[2].start_char, 6);
+	assert_eq!(chunks[2].end_char, 9);
+}
+
+#[test]
+fn test_chunk_text_long_line() {
+	let text = "abcdefghij\n";
+	let chunks = chunk_text(text, 5);
+	assert_eq!(chunks.len(), 1);
+	assert_eq!(chunks[0].text, text);
+	assert_eq!(chunks[0].start_char, 0);
+	assert_eq!(chunks[0].end_char, 11);
+}
+
+#[test]
+fn test_index_document() {
+	let (_temp, core) = open_test_core();
+	index_document(
+		core.storage(),
+		"file:///test.rs",
+		"hello\nworld\n",
+		1,
+		2,
+		"rust",
+	)
+	.expect("index document");
+
+	let values = read_doc_values(core.storage(), "file:///test.rs").expect("doc values");
+	assert_eq!(values.uri, "file:///test.rs");
+	assert_eq!(values.epoch, 1);
+	assert_eq!(values.seq, 2);
+	assert_eq!(values.len_chars, 12);
+	assert_eq!(values.language, "rust");
+
+	let chunks = chunk_texts(core.storage(), "file:///test.rs");
+	assert_eq!(chunks.len(), 1);
+}
+
+#[test]
+fn test_chunk_cleanup_on_reindex() {
+	let (_temp, core) = open_test_core();
+	let uri = "file:///cleanup.rs";
+
+	index_document(core.storage(), uri, "a\nb\nc\n", 1, 1, "").expect("index first");
+	let first_count = chunk_texts(core.storage(), uri).len();
+	assert!(first_count > 0);
+
+	index_document(core.storage(), uri, "short\n", 1, 2, "").expect("reindex");
+	let second_count = chunk_texts(core.storage(), uri).len();
+	assert!(second_count <= first_count);
+}
+
+#[test]
+fn test_index_updates_on_edit() {
+	let (_temp, core) = open_test_core();
+	let uri = "file:///edit.rs";
+
+	index_document(core.storage(), uri, "old unique content\n", 1, 1, "").expect("index old");
+	index_document(core.storage(), uri, "new unique content\n", 1, 2, "").expect("index new");
+
+	let chunks = chunk_texts(core.storage(), uri);
+	assert!(
+		chunks
+			.iter()
+			.any(|text| text.contains("new unique content"))
+	);
+	assert!(
+		chunks
+			.iter()
+			.all(|text| !text.contains("old unique content"))
+	);
+}
+
+#[test]
+fn test_stale_index_discarded() {
+	let (_temp, core) = open_test_core();
+	let uri = "file:///stale.rs";
+
+	index_document(core.storage(), uri, "fresh\n", 2, 4, "").expect("index fresh");
+	index_document(core.storage(), uri, "stale\n", 1, 1, "").expect("index stale");
+
+	let values = read_doc_values(core.storage(), uri).expect("doc values");
+	assert_eq!(values.epoch, 2);
+	assert_eq!(values.seq, 4);
+
+	let combined = chunk_texts(core.storage(), uri).concat();
+	assert!(combined.contains("fresh"));
+	assert!(!combined.contains("stale"));
+}
+
+#[tokio::test]
+async fn test_dirty_mark_is_nonblocking() {
+	let temp = TempDir::new().expect("tempdir");
+	let storage = helix_db::helix_engine::storage_core::HelixGraphStorage::new(
+		temp.path().to_str().unwrap(),
+		SCHEMA_CONFIG.clone(),
+		Default::default(),
+	)
+	.expect("storage");
+	let worker = IndexWorker::spawn(Arc::new(storage), Weak::new());
+
+	let start = std::time::Instant::now();
+	worker.mark_dirty("file:///test.rs".to_string());
+	assert!(start.elapsed() < std::time::Duration::from_millis(10));
 }

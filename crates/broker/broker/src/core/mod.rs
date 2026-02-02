@@ -124,6 +124,21 @@
 //!     - Tested by: `knowledge::tests::test_graceful_degradation`
 //!     - Failure symptom: broker crashes on startup if the knowledge DB path is not writable.
 //!
+//! 18. Indexing MUST NOT block buffer sync delta processing.
+//!     - Enforced in: `IndexWorker::mark_dirty`, `IndexWorker::spawn`
+//!     - Tested by: `knowledge::tests::test_dirty_mark_is_nonblocking`
+//!     - Failure symptom: editor input lag during indexing.
+//!
+//! 19. Epoch/seq validation MUST discard stale indexing results.
+//!     - Enforced in: `knowledge::indexer::index_document`
+//!     - Tested by: `knowledge::tests::test_stale_index_discarded`
+//!     - Failure symptom: search results reference offsets that don't match the current document.
+//!
+//! 20. Chunk cleanup MUST delete all prior chunks for a URI before re-indexing.
+//!     - Enforced in: `knowledge::indexer::index_document`
+//!     - Tested by: `knowledge::tests::test_chunk_cleanup_on_reindex`
+//!     - Failure symptom: stale chunks cause duplicate or phantom search results.
+//!
 //! # Data flow
 //!
 //! ## LSP routing
@@ -148,7 +163,8 @@
 //!
 //! 1. Startup: Broker initializes [`KnowledgeCore`] on startup; failures are logged and the feature is disabled.
 //! 2. Buffer sync events: Document open and delta paths enqueue indexing work for background processing.
-//! 3. Search: Editor requests return ranked matches from the persistent index.
+//! 3. Debounce: Background worker coalesces updates, snapshots the rope, and reindexes per URI.
+//! 4. Search: Editor requests return ranked matches from the persistent index.
 //!
 //! # Lifecycle
 //!
@@ -170,6 +186,7 @@
 //! - BrokerCore state access: [`BrokerCore`] serializes state mutation behind its state lock. All state-dependent routing decisions (leader selection, attachment membership, pending maps) MUST be made under that lock.
 //! - Pending request ordering: Server-to-client requests are routed to leader and completed by matching request id. Client implementations MUST preserve FIFO request/reply pairing if they use a queue-based strategy.
 //! - Background tasks: Lease expiry runs in a spawned task and MUST re-check generation tokens to avoid stale termination. Server monitor tasks MUST report exits and trigger cleanup.
+//! - Knowledge indexing: Indexing work runs in a background task and MUST not hold the broker state lock while writing to LMDB.
 //!
 //! # Failure modes and recovery
 //!
@@ -427,12 +444,18 @@ impl BrokerCore {
 			}
 		};
 
-		Arc::new(Self {
+		let core = Arc::new(Self {
 			state: Mutex::new(BrokerState::default()),
 			next_server_id: AtomicU64::new(0),
 			config,
 			knowledge,
-		})
+		});
+
+		if let Some(knowledge) = &core.knowledge {
+			knowledge.start_worker(Arc::downgrade(&core));
+		}
+
+		core
 	}
 
 	/// Retrieves a snapshot of the current broker state for debugging or testing.
@@ -447,6 +470,13 @@ impl BrokerCore {
 			.collect();
 		let projects = state.projects.clone();
 		(sessions, servers, projects)
+	}
+
+	/// Snapshot the current sync document state for background indexing.
+	pub(crate) fn snapshot_sync_doc(&self, uri: &str) -> Option<(SyncEpoch, SyncSeq, Rope)> {
+		let state = self.state.lock().unwrap();
+		let doc = state.sync_docs.get(uri)?;
+		Some((doc.epoch, doc.seq, doc.rope.clone()))
 	}
 
 	/// Retrieves the communication handle for a specific LSP server.

@@ -25,41 +25,49 @@ impl BrokerCore {
 		text: &str,
 		_version_hint: Option<u32>,
 	) -> ResponsePayload {
-		let mut state = self.state.lock().unwrap();
+		let response = {
+			let mut state = self.state.lock().unwrap();
 
-		match state.sync_docs.get_mut(uri) {
-			None => {
-				let mut open_refcounts = HashMap::new();
-				open_refcounts.insert(session_id, 1);
-				state.sync_docs.insert(
-					uri.to_string(),
-					super::SyncDocState {
-						owner: session_id,
-						open_refcounts,
+			match state.sync_docs.get_mut(uri) {
+				None => {
+					let mut open_refcounts = HashMap::new();
+					open_refcounts.insert(session_id, 1);
+					state.sync_docs.insert(
+						uri.to_string(),
+						super::SyncDocState {
+							owner: session_id,
+							open_refcounts,
+							epoch: SyncEpoch(1),
+							seq: SyncSeq(0),
+							rope: Rope::from(text),
+						},
+					);
+					ResponsePayload::BufferSyncOpened {
+						role: BufferSyncRole::Owner,
 						epoch: SyncEpoch(1),
 						seq: SyncSeq(0),
-						rope: Rope::from(text),
-					},
-				);
-				ResponsePayload::BufferSyncOpened {
-					role: BufferSyncRole::Owner,
-					epoch: SyncEpoch(1),
-					seq: SyncSeq(0),
-					snapshot: None,
+						snapshot: None,
+					}
+				}
+				Some(doc) => {
+					let count = doc.open_refcounts.entry(session_id).or_insert(0);
+					*count += 1;
+					let snapshot = doc.rope.to_string();
+					ResponsePayload::BufferSyncOpened {
+						role: BufferSyncRole::Follower,
+						epoch: doc.epoch,
+						seq: doc.seq,
+						snapshot: Some(snapshot),
+					}
 				}
 			}
-			Some(doc) => {
-				let count = doc.open_refcounts.entry(session_id).or_insert(0);
-				*count += 1;
-				let snapshot = doc.rope.to_string();
-				ResponsePayload::BufferSyncOpened {
-					role: BufferSyncRole::Follower,
-					epoch: doc.epoch,
-					seq: doc.seq,
-					snapshot: Some(snapshot),
-				}
-			}
+		};
+
+		if let Some(knowledge) = &self.knowledge {
+			knowledge.mark_dirty(uri.to_string());
 		}
+
+		response
 	}
 
 	/// Handle a `BufferSyncClose` request.
@@ -161,6 +169,10 @@ impl BrokerCore {
 		};
 
 		self.broadcast_to_sync_doc_sessions(&sessions, event, Some(session_id));
+
+		if let Some(knowledge) = &self.knowledge {
+			knowledge.mark_dirty(uri.to_string());
+		}
 
 		Ok(ResponsePayload::BufferSyncDeltaAck { seq: new_seq })
 	}

@@ -7,7 +7,7 @@ schema::1 {
         language: String,
     }
     N::Chunk {
-        INDEX uri: String,
+        INDEX doc_uri: String,
         chunk_idx: U32,
         start_char: U64,
         end_char: U64,

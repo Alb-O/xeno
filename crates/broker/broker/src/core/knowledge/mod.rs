@@ -2,8 +2,9 @@
 
 use std::fmt;
 use std::path::PathBuf;
-use std::sync::{Arc, LazyLock};
+use std::sync::{Arc, LazyLock, OnceLock, Weak};
 
+use bumpalo::Bump;
 use helix_db::helix_engine::storage_core::HelixGraphStorage;
 use helix_db::helix_engine::storage_core::version_info::VersionInfo;
 use helix_db::helix_engine::traversal_core::config::{Config, GraphConfig};
@@ -11,8 +12,11 @@ use helix_db::helixc::analyzer::analyze;
 use helix_db::helixc::analyzer::diagnostic::DiagnosticSeverity;
 use helix_db::helixc::parser::HelixParser;
 use helix_db::helixc::parser::types::{Content, HxFile, Source as ParsedSource};
+use helix_db::protocol::value::Value;
+use helix_db::utils::properties::ImmutablePropertiesMap;
 
 pub mod error;
+pub mod indexer;
 
 pub use error::KnowledgeError;
 
@@ -64,6 +68,7 @@ pub fn default_db_path() -> Result<PathBuf, KnowledgeError> {
 pub struct KnowledgeCore {
 	storage: Arc<HelixGraphStorage>,
 	db_path: PathBuf,
+	worker: OnceLock<indexer::IndexWorker>,
 }
 
 impl KnowledgeCore {
@@ -78,6 +83,7 @@ impl KnowledgeCore {
 		Ok(Self {
 			storage: Arc::new(storage),
 			db_path,
+			worker: OnceLock::new(),
 		})
 	}
 
@@ -86,9 +92,24 @@ impl KnowledgeCore {
 		&self.storage
 	}
 
-	/// Returns the configured database path.
-	pub fn db_path(&self) -> &PathBuf {
-		&self.db_path
+	/// Starts the background indexing worker if a Tokio runtime is available.
+	pub fn start_worker(&self, broker: Weak<super::BrokerCore>) {
+		if self.worker.get().is_some() {
+			return;
+		}
+		if tokio::runtime::Handle::try_current().is_err() {
+			return;
+		}
+
+		let worker = indexer::IndexWorker::spawn(self.storage().clone(), broker);
+		let _ = self.worker.set(worker);
+	}
+
+	/// Marks a URI as dirty for background indexing.
+	pub fn mark_dirty(&self, uri: String) {
+		if let Some(worker) = self.worker.get() {
+			worker.mark_dirty(uri);
+		}
 	}
 }
 
@@ -98,6 +119,22 @@ impl fmt::Debug for KnowledgeCore {
 			.field("db_path", &self.db_path)
 			.finish_non_exhaustive()
 	}
+}
+
+/// Builds an [`ImmutablePropertiesMap`] from key-value entries.
+pub(crate) fn build_props<'arena>(
+	arena: &'arena Bump,
+	entries: Vec<(&'static str, Value)>,
+) -> ImmutablePropertiesMap<'arena> {
+	let prop_count = entries.len();
+	ImmutablePropertiesMap::new(
+		prop_count,
+		entries.into_iter().map(|(k, v)| {
+			let k: &str = arena.alloc_str(k);
+			(k, v)
+		}),
+		arena,
+	)
 }
 
 #[cfg(test)]
