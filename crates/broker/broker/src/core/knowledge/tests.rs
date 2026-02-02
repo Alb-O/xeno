@@ -177,6 +177,7 @@ fn test_index_document() {
 		1,
 		2,
 		"rust",
+		None,
 	)
 	.expect("index document");
 
@@ -196,11 +197,11 @@ fn test_chunk_cleanup_on_reindex() {
 	let (_temp, core) = open_test_core();
 	let uri = "file:///cleanup.rs";
 
-	index_document(core.storage(), uri, "a\nb\nc\n", 1, 1, "").expect("index first");
+	index_document(core.storage(), uri, "a\nb\nc\n", 1, 1, "", None).expect("index first");
 	let first_count = chunk_texts(core.storage(), uri).len();
 	assert!(first_count > 0);
 
-	index_document(core.storage(), uri, "short\n", 1, 2, "").expect("reindex");
+	index_document(core.storage(), uri, "short\n", 1, 2, "", None).expect("reindex");
 	let second_count = chunk_texts(core.storage(), uri).len();
 	assert!(second_count <= first_count);
 }
@@ -210,8 +211,8 @@ fn test_index_updates_on_edit() {
 	let (_temp, core) = open_test_core();
 	let uri = "file:///edit.rs";
 
-	index_document(core.storage(), uri, "old unique content\n", 1, 1, "").expect("index old");
-	index_document(core.storage(), uri, "new unique content\n", 1, 2, "").expect("index new");
+	index_document(core.storage(), uri, "old unique content\n", 1, 1, "", None).expect("index old");
+	index_document(core.storage(), uri, "new unique content\n", 1, 2, "", None).expect("index new");
 
 	let chunks = chunk_texts(core.storage(), uri);
 	assert!(
@@ -231,8 +232,8 @@ fn test_stale_index_discarded() {
 	let (_temp, core) = open_test_core();
 	let uri = "file:///stale.rs";
 
-	index_document(core.storage(), uri, "fresh\n", 2, 4, "").expect("index fresh");
-	index_document(core.storage(), uri, "stale\n", 1, 1, "").expect("index stale");
+	index_document(core.storage(), uri, "fresh\n", 2, 4, "", None).expect("index fresh");
+	index_document(core.storage(), uri, "stale\n", 1, 1, "", None).expect("index stale");
 
 	let values = read_doc_values(core.storage(), uri).expect("doc values");
 	assert_eq!(values.epoch, 2);
@@ -269,8 +270,16 @@ fn test_search_empty_index() {
 #[test]
 fn test_search_finds_indexed_content() {
 	let (_temp, core) = open_test_core();
-	index_document(core.storage(), "file:///alpha.rs", "alpha beta", 1, 1, "")
-		.expect("index alpha");
+	index_document(
+		core.storage(),
+		"file:///alpha.rs",
+		"alpha beta",
+		1,
+		1,
+		"",
+		None,
+	)
+	.expect("index alpha");
 	index_document(
 		core.storage(),
 		"file:///unique.rs",
@@ -278,6 +287,7 @@ fn test_search_finds_indexed_content() {
 		1,
 		1,
 		"",
+		None,
 	)
 	.expect("index unique");
 
@@ -295,6 +305,7 @@ fn test_search_ranking() {
 		1,
 		1,
 		"",
+		None,
 	)
 	.expect("index dense");
 	index_document(
@@ -304,6 +315,7 @@ fn test_search_ranking() {
 		1,
 		1,
 		"",
+		None,
 	)
 	.expect("index sparse");
 
@@ -324,6 +336,7 @@ fn test_search_returns_only_chunks() {
 		1,
 		1,
 		"rust",
+		None,
 	)
 	.expect("index doc");
 

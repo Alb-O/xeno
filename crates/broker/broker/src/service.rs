@@ -116,6 +116,7 @@ impl Service<Request> for BrokerService {
 						server_id,
 						xeno_broker_proto::types::LspServerStatus::Starting,
 					);
+					core.spawn_project_crawl(&config);
 
 					Ok(ResponsePayload::LspStarted { server_id })
 				}

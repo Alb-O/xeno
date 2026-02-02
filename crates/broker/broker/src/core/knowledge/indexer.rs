@@ -59,7 +59,7 @@ impl IndexWorker {
 					};
 
 					if let Err(err) =
-						index_document(&storage, &uri, &rope.to_string(), epoch.0, seq.0, "")
+						index_document(&storage, &uri, &rope.to_string(), epoch.0, seq.0, "", None)
 					{
 						tracing::warn!(error = %err, ?uri, "knowledge index failed");
 						continue;
@@ -163,6 +163,7 @@ pub fn index_document(
 	epoch: u64,
 	seq: u64,
 	language: &str,
+	mtime: Option<u64>,
 ) -> Result<(), KnowledgeError> {
 	let arena = Bump::new();
 
@@ -214,13 +215,15 @@ pub fn index_document(
 	}
 
 	let len_chars = text.chars().count() as u64;
-	let props = vec![
+	let mut props = vec![
 		("uri", Value::String(uri.to_string())),
 		("epoch", Value::U64(epoch)),
 		("seq", Value::U64(seq)),
 		("len_chars", Value::U64(len_chars)),
 		("language", Value::String(language.to_string())),
 	];
+	let mtime = mtime.unwrap_or(0);
+	props.push(("mtime", Value::U64(mtime)));
 
 	if let Some(existing) = existing_doc {
 		G::new_mut_from_iter(storage, &mut write_txn, std::iter::once(existing), &arena)

@@ -5,6 +5,7 @@ schema::1 {
         seq: U64,
         len_chars: U64,
         language: String,
+        mtime: U64,
     }
     N::Chunk {
         INDEX doc_uri: String,

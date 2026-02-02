@@ -34,6 +34,7 @@
 //! | [`SyncEpoch`] | Monotonic ownership generation | MUST increment on every ownership transfer | `BrokerCore::on_buffer_sync_take_ownership`, `BrokerCore::on_buffer_sync_close` |
 //! | [`SyncSeq`] | Monotonic edit sequence within an epoch | MUST increment on every applied delta; resets to 0 on epoch change | `BrokerCore::on_buffer_sync_delta` |
 //! | [`KnowledgeCore`] | Persistent workspace search index | MUST own a dedicated helix-db instance | `KnowledgeCore::open` |
+//! | [`knowledge::crawler::ProjectCrawler`] | Background filesystem indexer for unopened files | MUST skip open sync docs and unchanged mtimes | `ProjectCrawler::spawn` |
 //! | [`BufferSyncManager`] | Editor-side per-document sync tracker | MUST clear all state on broker disconnect | `BufferSyncManager::disable_all` |
 //! | [`Event`] | Broker-to-editor event stream | MUST include `server_id` for routing on client side; buffer sync events MUST include URI | `BrokerCore::broadcast_to_server`, `BrokerCore::send_to_leader`, `BrokerCore::broadcast_to_sync_doc_sessions` |
 //!
@@ -144,6 +145,16 @@
 //!     - Tested by: `knowledge::tests::test_search_returns_only_chunks`
 //!     - Failure symptom: search returns Doc metadata nodes instead of content.
 //!
+//! 22. Project crawl MUST skip files whose stored mtime matches the on-disk mtime.
+//!     - Enforced in: `knowledge::crawler::doc_mtime_matches`, `knowledge::crawler::crawl_project`
+//!     - Tested by: `knowledge::crawler::tests::test_doc_mtime_matches`
+//!     - Failure symptom: every LSP start reindexes the entire workspace, causing IO spikes.
+//!
+//! 23. Project crawl MUST skip documents that are currently open in buffer sync.
+//!     - Enforced in: `knowledge::crawler::crawl_project`
+//!     - Tested by: TODO (add regression: test_crawler_skips_open_sync_docs)
+//!     - Failure symptom: background crawl overwrites live edits with stale on-disk content.
+//!
 //! # Data flow
 //!
 //! ## LSP routing
@@ -169,7 +180,8 @@
 //! 1. Startup: Broker initializes [`KnowledgeCore`] on startup; failures are logged and the feature is disabled.
 //! 2. Buffer sync events: Document open and delta paths enqueue indexing work for background processing.
 //! 3. Debounce: Background worker coalesces updates, snapshots the rope, and reindexes per URI.
-//! 4. Search: Editor requests return ranked matches from the persistent index.
+//! 4. Project crawl: On LSP start, broker walks the workspace and indexes unopened files, skipping unchanged mtimes.
+//! 5. Search: Editor requests return ranked matches from the persistent index.
 //!
 //! # Lifecycle
 //!
@@ -192,6 +204,7 @@
 //! - Pending request ordering: Server-to-client requests are routed to leader and completed by matching request id. Client implementations MUST preserve FIFO request/reply pairing if they use a queue-based strategy.
 //! - Background tasks: Lease expiry runs in a spawned task and MUST re-check generation tokens to avoid stale termination. Server monitor tasks MUST report exits and trigger cleanup.
 //! - Knowledge indexing: Indexing work runs in a background task and MUST not hold the broker state lock while writing to LMDB.
+//! - Knowledge crawling: Project crawl runs in a blocking task and MUST only briefly query broker state to skip open docs.
 //!
 //! # Failure modes and recovery
 //!
@@ -245,6 +258,7 @@ mod session;
 mod text_sync;
 
 use std::collections::{HashMap, HashSet};
+use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -485,6 +499,12 @@ impl BrokerCore {
 		Some((doc.epoch, doc.seq, doc.rope.clone()))
 	}
 
+	/// Returns true if a sync document is currently open for the given URI.
+	pub(crate) fn is_sync_doc_open(&self, uri: &str) -> bool {
+		let state = self.state.lock().unwrap();
+		state.sync_docs.contains_key(uri)
+	}
+
 	/// Executes a knowledge search query against the persistent index.
 	pub fn knowledge_search(&self, query: &str, limit: u32) -> Result<ResponsePayload, ErrorCode> {
 		let Some(knowledge) = &self.knowledge else {
@@ -507,6 +527,19 @@ impl BrokerCore {
 			.servers
 			.get(&server_id)
 			.map(|s| s.instance.lsp_tx.clone())
+	}
+
+	/// Spawns a background project crawl for the server's workspace, if configured.
+	pub fn spawn_project_crawl(self: &Arc<Self>, config: &LspServerConfig) {
+		let Some(knowledge) = self.knowledge.clone() else {
+			return;
+		};
+		let Some(cwd) = config.cwd.as_ref() else {
+			return;
+		};
+
+		let root = PathBuf::from(cwd);
+		let _ = knowledge::crawler::ProjectCrawler::spawn(knowledge, Arc::downgrade(self), root);
 	}
 
 	/// Allocate a globally unique server ID.

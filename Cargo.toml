@@ -41,6 +41,7 @@ globset = "0.4"
 heed3 = "0.22"
 helix-db = { path = "crates/helix-db/db" }
 helix-macros = { path = "crates/helix-db/macros" }
+ignore = "0.4"
 include_dir = "0.7"
 insta = "1.46"
 inventory = "0.3"

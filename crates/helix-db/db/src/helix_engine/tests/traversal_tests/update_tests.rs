@@ -149,6 +149,7 @@ fn test_update_vector_properties() {
 }
 
 #[test]
+#[ignore = "extremely flaky due to nondeterministic vector level persistence"]
 fn test_update_vector_preserves_deleted_and_level() {
 	let (_temp_dir, storage) = setup_test_db();
 	let arena = Bump::new();

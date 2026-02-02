@@ -15,6 +15,7 @@ use helix_db::helixc::parser::types::{Content, HxFile, Source as ParsedSource};
 use helix_db::protocol::value::Value;
 use helix_db::utils::properties::ImmutablePropertiesMap;
 
+pub mod crawler;
 pub mod error;
 pub mod indexer;
 pub mod search;
