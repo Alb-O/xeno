@@ -2,8 +2,9 @@
 //!
 //! The [`LanguageDb`] consolidates all language metadata into a single structure,
 //! parsed once from `languages.kdl`. Lookups are backed by helix-db secondary
-//! indices; runtime data (syntax configs, LSP info) is served from an in-memory
-//! `Vec<LanguageData>`.
+//! indices on separate mapping node types (`LangExtension`, `LangFilename`,
+//! `LangShebang`), each carrying the language's positional index. Runtime data
+//! (syntax configs, LSP info) is served from an in-memory `Vec<LanguageData>`.
 
 use std::collections::HashMap;
 use std::sync::{Arc, LazyLock, OnceLock};
@@ -40,8 +41,11 @@ pub fn language_db() -> &'static Arc<LanguageDb> {
 /// Consolidated language configuration database.
 ///
 /// Holds all registered language metadata with helix-db secondary indices for
-/// fast lookups by name, extension, filename, and shebang. Runtime data
-/// (syntax configs, LSP info) is served from the in-memory `languages` vec.
+/// fast lookups by name, extension, filename, and shebang. Multi-value keys
+/// (extensions, filenames, shebangs) are modeled as separate mapping node types
+/// (`LangExtension`, `LangFilename`, `LangShebang`), each carrying the
+/// language's positional `idx`. Runtime data (syntax configs, LSP info) is
+/// served from the in-memory `languages` vec.
 pub struct LanguageDb {
 	languages: Vec<LanguageData>,
 	globs: Vec<(String, usize)>,
@@ -51,8 +55,11 @@ pub struct LanguageDb {
 
 const SCHEMA_HQL: &str = include_str!("../schema.hql");
 
-/// Node label derived from the HQL schema (`N::Language`).
-const LABEL: &str = "Language";
+/// Node labels derived from the HQL schema.
+const LABEL_LANGUAGE: &str = "Language";
+const LABEL_EXTENSION: &str = "LangExtension";
+const LABEL_FILENAME: &str = "LangFilename";
+const LABEL_SHEBANG: &str = "LangShebang";
 
 /// Helix-db config derived from `schema.hql` at first access.
 ///
@@ -91,6 +98,23 @@ static SCHEMA_CONFIG: LazyLock<Config> = LazyLock::new(|| {
 	}
 });
 
+/// Builds an [`ImmutablePropertiesMap`] from key-value entries, allocating
+/// keys into the provided arena.
+fn build_props<'arena>(
+	arena: &'arena Bump,
+	entries: Vec<(&str, Value)>,
+) -> ImmutablePropertiesMap<'arena> {
+	let prop_count = entries.len();
+	ImmutablePropertiesMap::new(
+		prop_count,
+		entries.into_iter().map(|(k, v)| {
+			let k: &str = arena.alloc_str(k);
+			(k, v)
+		}),
+		arena,
+	)
+}
+
 impl LanguageDb {
 	/// Creates an empty database backed by a temporary directory.
 	pub fn new() -> Self {
@@ -114,92 +138,125 @@ impl LanguageDb {
 	pub fn from_embedded() -> Self {
 		let mut db = Self::new();
 		match load_language_configs() {
-			Ok(langs) => {
-				for lang in langs {
-					db.register(lang);
-				}
-			}
+			Ok(langs) => db.register_all(langs),
 			Err(e) => error!(error = %e, "Failed to load language configs"),
 		}
 		db
 	}
 
-	/// Registers a language and writes it to helix-db indices.
+	/// Registers a language and writes it + mapping nodes to helix-db.
 	///
 	/// Returns the language ID for the registered language.
 	pub fn register(&mut self, data: LanguageData) -> Language {
-		let idx = self.languages.len();
+		let idx = self.languages.len() as u32;
+		self.register_all(vec![data]);
+		Language::new(idx)
+	}
+
+	/// Batch-registers languages in a single transaction.
+	///
+	/// Inserts a `Language` node plus `LangExtension`, `LangFilename`, and
+	/// `LangShebang` mapping nodes for each language. All writes share one
+	/// LMDB write transaction for atomicity and performance.
+	fn register_all(&mut self, languages: Vec<LanguageData>) {
+		let start_idx = self.languages.len();
 		let arena = Bump::new();
-
-		// Build properties for the helix-db node.
-		let entries: Vec<(&str, Value)> = vec![
-			("name", Value::String(data.name.clone())),
-			("idx", Value::U32(idx as u32)),
-		];
-
-		let prop_count = entries.len();
-		let props = ImmutablePropertiesMap::new(
-			prop_count,
-			entries.into_iter().map(|(k, v)| {
-				let k: &str = arena.alloc_str(k);
-				(k, v)
-			}),
-			&arena,
-		);
-
 		let mut txn = self
 			.storage
 			.graph_env
 			.write_txn()
-			.expect("write txn for register");
+			.expect("write txn for register_all");
 
-		let result = G::new_mut(&self.storage, &arena, &mut txn)
-			.add_n(arena.alloc_str(LABEL), Some(props), Some(&["name"]))
-			.next()
-			.unwrap()
-			.expect("add_n failed");
+		for (i, data) in languages.iter().enumerate() {
+			let idx = (start_idx + i) as u32;
 
-		let node_id = result.id();
+			// Language node.
+			let props = build_props(
+				&arena,
+				vec![
+					("name", Value::String(data.name.clone())),
+					("idx", Value::U32(idx)),
+				],
+			);
+			G::new_mut(&self.storage, &arena, &mut txn)
+				.add_n(
+					arena.alloc_str(LABEL_LANGUAGE),
+					Some(props),
+					Some(&["name"]),
+				)
+				.next()
+				.unwrap()
+				.expect("add_n Language failed");
 
-		// Index each extension into the extension_idx secondary index.
-		for ext in &data.extensions {
-			let key = postcard::to_stdvec(&Value::String(ext.clone()))
-				.expect("postcard serialize extension");
-			let (db, active) = self.storage.secondary_indices.get("extension_idx").unwrap();
-			active
-				.insert(db, &mut txn, &key, &node_id)
-				.expect("insert extension_idx");
+			// LangExtension mapping nodes.
+			for ext in &data.extensions {
+				let props = build_props(
+					&arena,
+					vec![
+						("extension", Value::String(ext.clone())),
+						("idx", Value::U32(idx)),
+					],
+				);
+				G::new_mut(&self.storage, &arena, &mut txn)
+					.add_n(
+						arena.alloc_str(LABEL_EXTENSION),
+						Some(props),
+						Some(&["extension"]),
+					)
+					.next()
+					.unwrap()
+					.expect("add_n LangExtension failed");
+			}
+
+			// LangFilename mapping nodes.
+			for fname in &data.filenames {
+				let props = build_props(
+					&arena,
+					vec![
+						("filename", Value::String(fname.clone())),
+						("idx", Value::U32(idx)),
+					],
+				);
+				G::new_mut(&self.storage, &arena, &mut txn)
+					.add_n(
+						arena.alloc_str(LABEL_FILENAME),
+						Some(props),
+						Some(&["filename"]),
+					)
+					.next()
+					.unwrap()
+					.expect("add_n LangFilename failed");
+			}
+
+			// LangShebang mapping nodes.
+			for shebang in &data.shebangs {
+				let props = build_props(
+					&arena,
+					vec![
+						("shebang", Value::String(shebang.clone())),
+						("idx", Value::U32(idx)),
+					],
+				);
+				G::new_mut(&self.storage, &arena, &mut txn)
+					.add_n(
+						arena.alloc_str(LABEL_SHEBANG),
+						Some(props),
+						Some(&["shebang"]),
+					)
+					.next()
+					.unwrap()
+					.expect("add_n LangShebang failed");
+			}
 		}
 
-		// Index each filename into the filename_idx secondary index.
-		for fname in &data.filenames {
-			let key = postcard::to_stdvec(&Value::String(fname.clone()))
-				.expect("postcard serialize filename");
-			let (db, active) = self.storage.secondary_indices.get("filename_idx").unwrap();
-			active
-				.insert(db, &mut txn, &key, &node_id)
-				.expect("insert filename_idx");
+		txn.commit().expect("commit register_all txn");
+
+		for (i, data) in languages.iter().enumerate() {
+			for glob in &data.globs {
+				self.globs.push((glob.clone(), start_idx + i));
+			}
 		}
-
-		// Index each shebang into the shebang_idx secondary index.
-		for shebang in &data.shebangs {
-			let key = postcard::to_stdvec(&Value::String(shebang.clone()))
-				.expect("postcard serialize shebang");
-			let (db, active) = self.storage.secondary_indices.get("shebang_idx").unwrap();
-			active
-				.insert(db, &mut txn, &key, &node_id)
-				.expect("insert shebang_idx");
-		}
-
-		txn.commit().expect("commit register txn");
-
-		// Maintain in-memory collections.
-		for glob in &data.globs {
-			self.globs.push((glob.clone(), idx));
-		}
-		self.languages.push(data);
-
-		Language::new(idx as u32)
+		self.languages.extend(languages);
 	}
 
 	/// Returns language data by index.
@@ -209,22 +266,22 @@ impl LanguageDb {
 
 	/// Returns the index for a language name.
 	pub fn index_for_name(&self, name: &str) -> Option<usize> {
-		self.lookup_idx("name", name)
+		self.lookup_min_idx(LABEL_LANGUAGE, "name", name)
 	}
 
 	/// Returns the index for a file extension.
 	pub fn index_for_extension(&self, ext: &str) -> Option<usize> {
-		self.lookup_idx("extension_idx", ext)
+		self.lookup_min_idx(LABEL_EXTENSION, "extension", ext)
 	}
 
 	/// Returns the index for an exact filename.
 	pub fn index_for_filename(&self, filename: &str) -> Option<usize> {
-		self.lookup_idx("filename_idx", filename)
+		self.lookup_min_idx(LABEL_FILENAME, "filename", filename)
 	}
 
 	/// Returns the index for a shebang interpreter.
 	pub fn index_for_shebang(&self, interpreter: &str) -> Option<usize> {
-		self.lookup_idx("shebang_idx", interpreter)
+		self.lookup_min_idx(LABEL_SHEBANG, "shebang", interpreter)
 	}
 
 	/// Returns glob patterns with their language indices.
@@ -281,24 +338,26 @@ impl LanguageDb {
 			.collect()
 	}
 
-	/// Queries a secondary index and extracts the `idx` property from the first match.
-	fn lookup_idx(&self, index: &str, key: &str) -> Option<usize> {
+	/// Queries a secondary index and returns the minimum `idx` across all
+	/// matching nodes, giving deterministic "first registered wins" semantics.
+	fn lookup_min_idx(&self, label: &str, index: &str, key: &str) -> Option<usize> {
 		let arena = Bump::new();
 		let txn = self.storage.graph_env.read_txn().ok()?;
 
-		let node = G::new(&self.storage, &txn, &arena)
-			.n_from_index(LABEL, index, &key)
+		G::new(&self.storage, &txn, &arena)
+			.n_from_index(label, index, &key)
 			.filter_map(|r| r.ok())
-			.next()?;
-
-		if let TraversalValue::Node(n) = node {
-			match n.get_property("idx") {
-				Some(Value::U32(i)) => Some(*i as usize),
-				_ => None,
-			}
-		} else {
-			None
-		}
+			.filter_map(|tv| {
+				if let TraversalValue::Node(n) = tv {
+					match n.get_property("idx") {
+						Some(Value::U32(i)) => Some(*i as usize),
+						_ => None,
+					}
+				} else {
+					None
+				}
+			})
+			.min()
 	}
 }
 
@@ -347,5 +406,63 @@ mod tests {
 		for info in mapping.values() {
 			assert!(!info.servers.is_empty());
 		}
+	}
+
+	#[test]
+	fn collision_returns_lower_idx() {
+		let mut db = LanguageDb::new();
+		db.register(LanguageData::new(
+			"cpp".to_string(),
+			None,
+			vec!["h".to_string(), "cpp".to_string()],
+			vec![],
+			vec![],
+			vec![],
+			vec![],
+			None,
+			None,
+			vec![],
+			vec![],
+		));
+		db.register(LanguageData::new(
+			"c".to_string(),
+			None,
+			vec!["h".to_string(), "c".to_string()],
+			vec![],
+			vec![],
+			vec![],
+			vec![],
+			None,
+			None,
+			vec![],
+			vec![],
+		));
+
+		let idx = db.index_for_extension("h").expect("h extension");
+		assert_eq!(idx, 0, "shared extension should resolve to first registered");
+	}
+
+	#[test]
+	fn multi_key_indexing() {
+		let mut db = LanguageDb::new();
+		db.register(LanguageData::new(
+			"rust".to_string(),
+			None,
+			vec!["rs".to_string()],
+			vec!["Cargo.toml".to_string()],
+			vec![],
+			vec!["rust-script".to_string(), "cargo".to_string()],
+			vec![],
+			None,
+			None,
+			vec![],
+			vec![],
+		));
+
+		assert!(db.index_for_extension("rs").is_some());
+		assert!(db.index_for_filename("Cargo.toml").is_some());
+		assert!(db.index_for_shebang("rust-script").is_some());
+		assert!(db.index_for_shebang("cargo").is_some());
+		assert!(db.index_for_extension("py").is_none());
 	}
 }
