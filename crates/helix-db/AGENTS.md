@@ -1,0 +1,20 @@
+Use curl or webfetch to read:
+
+- [HelixDB Overview](https://docs.helix-db.com/documentation/getting-started/intro): Introduction to HelixDB, its features, and its use cases.
+- [Installation](https://docs.helix-db.com/documentation/getting-started/installation): Prerequisites, installation steps, and best practices.
+- [HelixDB CLI](https://docs.helix-db.com/documentation/cli-v2): CLI commands, project configurations, common workflows, and troubleshooting.
+- [HelixDB SDKs](https://docs.helix-db.com/documentation/sdks): SDKs for Python, TypeScript, Rust, and Go.
+- [HelixDB Query Language Introduction](https://docs.helix-db.com/documentation/hql/hql): Helix Query Language components, syntax, and types. Schema definition and rules.
+- [CRUD Operations](https://docs.helix-db.com/documentation/hql): HQL for creating, reading, updating, and deleting nodes, edges, and vectors.
+- [Graph Traversals](https://docs.helix-db.com/documentation/hql/traversals): HQL for traversing in and out of nodes, vectors, and edges.
+- [Result Operations](https://docs.helix-db.com/documentation/hql/result_ops): HQL for operating on traversal results.
+- [Properties Operations](https://docs.helix-db.com/documentation/hql/properties): HQL for operating on properties of nodes, edges, and vectors.
+- [Return Values](https://docs.helix-db.com/documentation/hql/output_values): Return values, rules, and formatting for HQL queries.
+- [Conditionals](https://docs.helix-db.com/documentation/hql/conditionals): HQL for filtering traversal results with conditionals.
+- [Vector Operations](https://docs.helix-db.com/documentation/hql/vectors): HQL for vector operations.
+- [Keyword Search](https://docs.helix-db.com/documentation/hql/keyword_search): HQL for keyword/BM25 search operations.
+- [Rerankers](https://docs.helix-db.com/documentation/hql/rerankers): HQL for reranking search results.
+- [Aggregation](https://docs.helix-db.com/documentation/hql/aggregation): HQL for aggregating search results.
+- [Macros](https://docs.helix-db.com/documentation/hql/macros): HQL macros (MCP endpoints) for custom queries.
+- [Shortest Path Algorithms](https://docs.helix-db.com/documentation/hql/traversals/shortest-paths): HQL for shortest path algorithms.
+- [HQL Errors](https://docs.helix-db.com/documentation/hql/errors): HQL error types and handling.
