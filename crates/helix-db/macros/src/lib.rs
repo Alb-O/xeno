@@ -3,12 +3,16 @@ extern crate quote;
 extern crate syn;
 
 use proc_macro::TokenStream;
-use quote::quote;
+use quote::{ToTokens, quote};
 use syn::parse::{Parse, ParseStream};
 use syn::{
-	Data, DeriveInput, Expr, FnArg, Ident, ItemFn, ItemStruct, ItemTrait, LitInt, Pat, Stmt, Token,
-	TraitItem, parse_macro_input,
+	Data, DeriveInput, Expr, Fields, FnArg, Ident, ItemFn, ItemStruct, ItemTrait, LitInt, Pat, Stmt,
+	Token, TraitItem, parse_macro_input,
 };
+
+fn err_spanned<T: ToTokens>(node: T, msg: &str) -> TokenStream {
+	syn::Error::new_spanned(node, msg).to_compile_error().into()
+}
 
 struct HandlerArgs {
 	is_write: bool,
@@ -35,28 +39,19 @@ pub fn handler(args: TokenStream, item: TokenStream) -> TokenStream {
 	let fn_name = &input_fn.sig.ident;
 	let fn_name_str = fn_name.to_string();
 	let is_write = args.is_write;
-	// Create a unique static name for each handler
-	let static_name = quote::format_ident!(
-		"_MAIN_HANDLER_REGISTRATION_{}",
-		fn_name.to_string().to_uppercase()
-	);
 
 	let expanded = quote! {
 		#input_fn
 
-		#[doc(hidden)]
-		#[used]
-		static #static_name: () = {
-			inventory::submit! {
-				::helix_db::helix_gateway::router::router::HandlerSubmission(
-					::helix_db::helix_gateway::router::router::Handler::new(
-						#fn_name_str,
-						#fn_name,
-						#is_write
-					)
+		inventory::submit! {
+			::helix_db::helix_gateway::router::router::HandlerSubmission(
+				::helix_db::helix_gateway::router::router::Handler::new(
+					#fn_name_str,
+					#fn_name,
+					#is_write
 				)
-			}
-		};
+			)
+		}
 	};
 	expanded.into()
 }
@@ -66,27 +61,18 @@ pub fn mcp_handler(_attr: TokenStream, item: TokenStream) -> TokenStream {
 	let input_fn = parse_macro_input!(item as ItemFn);
 	let fn_name = &input_fn.sig.ident;
 	let fn_name_str = fn_name.to_string();
-	// Create a unique static name for each handler
-	let static_name = quote::format_ident!(
-		"_MCP_HANDLER_REGISTRATION_{}",
-		fn_name.to_string().to_uppercase()
-	);
 
 	let expanded = quote! {
 		#input_fn
 
-		#[doc(hidden)]
-		#[used]
-		static #static_name: () = {
-			inventory::submit! {
-				MCPHandlerSubmission(
-					MCPHandler::new(
-						#fn_name_str,
-						#fn_name
-					)
+		inventory::submit! {
+			::helix_db::helix_gateway::mcp::mcp::MCPHandlerSubmission(
+				::helix_db::helix_gateway::mcp::mcp::MCPHandler::new(
+					#fn_name_str,
+					#fn_name
 				)
-			}
-		};
+			)
+		}
 	};
 	expanded.into()
 }
@@ -96,27 +82,19 @@ pub fn get_handler(_attr: TokenStream, item: TokenStream) -> TokenStream {
 	let input_fn = parse_macro_input!(item as ItemFn);
 	let fn_name = &input_fn.sig.ident;
 	let fn_name_str = fn_name.to_string();
-	let static_name = quote::format_ident!(
-		"__GET_HANDLER_REGISTRATION_{}",
-		fn_name.to_string().to_uppercase()
-	);
 
 	let expanded = quote! {
 		#input_fn
 
-		#[doc(hidden)]
-		#[used]
-		static #static_name: () = {
-			inventory::submit! {
-				::helix_db::helix_gateway::router::router::HandlerSubmission(
-					::helix_db::helix_gateway::router::router::Handler::new(
-						#fn_name_str,
-						#fn_name,
-						false
-					)
+		inventory::submit! {
+			::helix_db::helix_gateway::router::router::HandlerSubmission(
+				::helix_db::helix_gateway::router::router::Handler::new(
+					#fn_name_str,
+					#fn_name,
+					false
 				)
-			}
-		};
+			)
+		}
 	};
 	expanded.into()
 }
@@ -132,53 +110,53 @@ pub fn tool_calls(_attr: TokenStream, input: TokenStream) -> TokenStream {
 
 			// Extract method parameters (skip &self and txn)
 			let method_params: Vec<_> = method.sig.inputs.iter().skip(3).collect();
-			let (field_names, struct_fields): (Vec<_>, Vec<_>) = method_params
-				.iter()
-				.filter_map(|param| {
-					if let FnArg::Typed(pat_type) = param {
-						let field_name = if let Pat::Ident(pat_ident) = &*pat_type.pat {
-							&pat_ident.ident
-						} else {
-							return None;
-						};
+			let mut field_names = Vec::new();
+			let mut struct_fields = Vec::new();
 
+			for param in method_params {
+				if let FnArg::Typed(pat_type) = param {
+					if let Pat::Ident(pat_ident) = &*pat_type.pat {
+						let field_name = &pat_ident.ident;
 						let field_type = &pat_type.ty;
-						Some((quote! { #field_name }, quote! { #field_name: #field_type }))
+						field_names.push(quote! { #field_name });
+						struct_fields.push(quote! { #field_name: #field_type });
 					} else {
-						None
+						return err_spanned(pat_type, "expected identifier in pattern");
 					}
-				})
-				.collect();
+				} else {
+					return err_spanned(param, "expected typed argument");
+				}
+			}
 
 			let struct_name = quote::format_ident!("{}Data", fn_name);
 			let mcp_struct_name = quote::format_ident!("{}McpInput", fn_name);
 			let expanded = quote! {
 
-				#[derive(Debug, Deserialize)]
+				#[derive(Debug, ::serde::Deserialize)]
 				#[allow(non_camel_case_types)]
 				pub struct #mcp_struct_name {
 					#(#struct_fields),*
 				}
 
-				#[derive(Debug, Deserialize)]
+				#[derive(Debug, ::serde::Deserialize)]
 				#[allow(non_camel_case_types)]
 				struct #struct_name {
 					connection_id: String,
 					data: #mcp_struct_name,
 				}
 
-				#[mcp_handler]
+				#[::helix_macros::mcp_handler]
 				#[allow(non_camel_case_types)]
 				pub fn #fn_name<'a>(
-					input: &'a mut MCPToolInput,
-				) -> Result<Response, crate::helix_engine::types::EngineError> {
+					input: &'a mut ::helix_db::helix_gateway::mcp::mcp::MCPToolInput,
+				) -> Result<::helix_db::protocol::Response, ::helix_db::helix_engine::types::EngineError> {
 					let data = input.request.in_fmt.deserialize_owned::<#struct_name>(&input.request.body)?;
 
 					let mut connections = input.mcp_connections.lock().unwrap();
 					let mut connection = match connections.remove_connection(&data.connection_id) {
 						Some(conn) => conn,
 						None => {
-							return Err(crate::helix_engine::types::TraversalError::Message(
+							return Err(::helix_db::helix_engine::types::TraversalError::Message(
 								"connection not found".to_string(),
 							)
 							.into())
@@ -190,14 +168,14 @@ pub fn tool_calls(_attr: TokenStream, input: TokenStream) -> TokenStream {
 
 					let result = input.mcp_backend.#fn_name(&txn, &connection, #(data.data.#field_names),*)?;
 
-					let first = result.first().unwrap_or(&TraversalValue::Empty).clone();
+					let first = result.first().unwrap_or(&::helix_db::helix_engine::traversal_core::traversal_value::TraversalValue::Empty).clone();
 
-					connection.iter = result.into_iter();
+					connection.current_position = 1;
 					let mut connections = input.mcp_connections.lock().unwrap();
 					connections.add_connection(connection);
 					drop(connections);
 
-					Ok(crate::protocol::format::Format::Json.create_response(&ReturnValue::from(first)))
+					Ok(::helix_db::protocol::format::Format::Json.create_response(&first))
 				}
 			};
 
@@ -234,11 +212,17 @@ pub fn tool_call(args: TokenStream, input: TokenStream) -> TokenStream {
 	let method = parse_macro_input!(input as ItemFn);
 
 	let name = args.name;
-	let txn_type = match args.txn_type.to_string().as_str() {
-		"with_read" => quote! { let txn = db.graph_env.read_txn().unwrap(); },
-		"with_write" => quote! { let mut txn = db.graph_env.write_txn().unwrap(); },
-		_ => panic!("Invalid transaction type: expected 'with_read' or 'with_write'"),
+	let txn_setup = match args.txn_type.to_string().as_str() {
+		"with_read" => quote! { let txn = db.graph_env.read_txn()?; },
+		"with_write" => quote! { let mut txn = db.graph_env.write_txn()?; },
+		_ => {
+			return err_spanned(
+				args.txn_type,
+				"Invalid transaction type: expected 'with_read' or 'with_write'",
+			);
+		}
 	};
+	let is_write = args.txn_type == "with_write";
 
 	let fn_name = &method.sig.ident;
 	let fn_block = &method.block.stmts;
@@ -249,43 +233,47 @@ pub fn tool_call(args: TokenStream, input: TokenStream) -> TokenStream {
 
 	let query_stmts = match fn_block.first() {
 		Some(Stmt::Expr(Expr::Block(block), _)) => block.block.stmts.clone(),
-		_ => panic!("Query block not found"),
+		_ => return err_spanned(method.block, "Query block not found"),
+	};
+
+	let commit_stmt = if is_write {
+		quote! { txn.commit()?; }
+	} else {
+		quote! {}
 	};
 
 	let mcp_query_block = quote! {
 		{
-
-			let mut remapping_vals = RemappingMap::new();
-			let db = Arc::clone(&input.mcp_backend.db);
-			#txn_type
-			let data: #struct_name = data.data;
+			let db = ::std::sync::Arc::clone(&input.mcp_backend.db);
+			#txn_setup
+			let data: #struct_name = data.data.clone();
 			#(#query_stmts)*
-			txn.commit().unwrap();
+			#commit_stmt
 			#name.into_iter()
 		}
 	};
 
 	let new_method = quote! {
 
-		#[derive(Deserialize)]
+		#[derive(::serde::Deserialize)]
 		#[allow(non_camel_case_types)]
 		struct #mcp_struct_name{
 			connection_id: String,
 			data: #struct_name,
 		}
 
-		#[mcp_handler]
+		#[::helix_macros::mcp_handler]
 		#[allow(non_camel_case_types)]
 		pub fn #mcp_function_name<'a>(
-			input: &'a mut MCPToolInput,
-		) -> Result<Response, crate::helix_engine::types::EngineError> {
+			input: &'a mut ::helix_db::helix_gateway::mcp::mcp::MCPToolInput,
+		) -> Result<::helix_db::protocol::Response, ::helix_db::helix_engine::types::EngineError> {
 			let data = &*input.request.in_fmt.deserialize::<#mcp_struct_name>(&input.request.body)?;
 
 			let mut connections = input.mcp_connections.lock().unwrap();
 			let mut connection = match connections.remove_connection(&data.connection_id) {
 				Some(conn) => conn,
 				None => {
-					return Err(crate::helix_engine::types::TraversalError::Message(
+					return Err(::helix_db::helix_engine::types::TraversalError::Message(
 						"connection not found".to_string(),
 					)
 					.into())
@@ -295,13 +283,13 @@ pub fn tool_call(args: TokenStream, input: TokenStream) -> TokenStream {
 
 			let mut result = #mcp_query_block;
 
-			let first = result.next().unwrap_or(TraversalValue::Empty);
+			let first = result.next().unwrap_or(::helix_db::helix_engine::traversal_core::traversal_value::TraversalValue::Empty);
 
-			connection.iter = result.into_iter();
+			connection.current_position = 1;
 			let mut connections = input.mcp_connections.lock().unwrap();
 			connections.add_connection(connection);
 			drop(connections);
-			Ok(crate::protocol::format::Format::Json.create_response(&ReturnValue::from(first)))
+			Ok(::helix_db::protocol::format::Format::Json.create_response(&first))
 		}
 	};
 
@@ -347,12 +335,6 @@ pub fn migration(args: TokenStream, item: TokenStream) -> TokenStream {
 	let input_fn = parse_macro_input!(item as ItemFn);
 	let fn_name = &input_fn.sig.ident;
 
-	// Create a unique static name for each handler
-	let static_name = quote::format_ident!(
-		"_MAIN_HANDLER_REGISTRATION_{}",
-		fn_name.to_string().to_uppercase()
-	);
-
 	let item = &args.item;
 	let from_version = &args.from_version;
 	let to_version = &args.to_version;
@@ -360,39 +342,41 @@ pub fn migration(args: TokenStream, item: TokenStream) -> TokenStream {
 	let expanded = quote! {
 		#input_fn
 
-
-		#[doc(hidden)]
-		#[used]
-		static #static_name: () = {
-			inventory::submit! {
-				::helix_db::helix_engine::graph_core::ops::version_info::TransitionSubmission(
-					::helix_db::helix_engine::graph_core::ops::version_info::Transition::new(
-						stringify!(#item),
-						#from_version,
-						#to_version,
-						#fn_name
-					)
+		inventory::submit! {
+			::helix_db::helix_engine::storage_core::version_info::TransitionSubmission(
+				::helix_db::helix_engine::storage_core::version_info::Transition::new(
+					stringify!(#item),
+					#from_version,
+					#to_version,
+					#fn_name
 				)
-			}
-		};
+			)
+		}
 	};
 	expanded.into()
 }
 
 #[proc_macro_attribute]
 pub fn helix_node(_attr: TokenStream, input: TokenStream) -> TokenStream {
-	let input = parse_macro_input!(input as ItemStruct);
-	let name = &input.ident;
-	let fields = input.fields.iter();
+	let mut item_struct = parse_macro_input!(input as ItemStruct);
 
-	let expanded = quote! {
-		pub struct #name {
-			id: String,
-			#(#fields),*
+	match &mut item_struct.fields {
+		Fields::Named(fields) => {
+			// Check if 'id' already exists
+			for field in &fields.named {
+				if field.ident.as_ref().map(|i| i == "id").unwrap_or(false) {
+					return err_spanned(field, "struct already has an 'id' field");
+				}
+			}
+
+			// Prepend 'id: String' to the fields
+			let id_field: syn::Field = syn::parse_quote! { id: String };
+			fields.named.insert(0, id_field);
 		}
-	};
+		_ => return err_spanned(item_struct, "helix_node only supports structs with named fields"),
+	}
 
-	TokenStream::from(expanded)
+	quote! { #item_struct }.into()
 }
 
 #[proc_macro_derive(Traversable)]

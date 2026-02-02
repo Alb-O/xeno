@@ -279,7 +279,7 @@ fn test_router_error_to_graph_error() {
 
 #[test]
 fn test_graph_error_to_router_error() {
-	let graph_error = StorageError::Backend("graph error".to_string()).into();
+	let graph_error: EngineError = StorageError::Backend("graph error".to_string()).into();
 	let router_error: RouterError = graph_error.into();
 	assert!(router_error.to_string().contains("graph error"));
 }

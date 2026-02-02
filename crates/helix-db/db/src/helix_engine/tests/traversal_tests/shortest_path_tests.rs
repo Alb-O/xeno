@@ -892,7 +892,7 @@ fn test_astar_custom_weight_and_heuristic() {
 	let custom_weight = |edge: &crate::utils::items::Edge,
 	                     _src: &crate::utils::items::Node,
 	                     _dst: &crate::utils::items::Node| {
-		let distance = edge
+		let distance: f64 = edge
 			.get_property("distance")
 			.ok_or_else(|| {
 				crate::helix_engine::types::EngineError::from(
@@ -901,8 +901,9 @@ fn test_astar_custom_weight_and_heuristic() {
 					),
 				)
 			})?
-			.as_f64();
-		let traffic = edge
+			.clone()
+			.into();
+		let traffic: f64 = edge
 			.get_property("traffic")
 			.ok_or_else(|| {
 				crate::helix_engine::types::EngineError::from(
@@ -911,7 +912,8 @@ fn test_astar_custom_weight_and_heuristic() {
 					),
 				)
 			})?
-			.as_f64();
+			.clone()
+			.into();
 		Ok(distance * traffic)
 	};
 

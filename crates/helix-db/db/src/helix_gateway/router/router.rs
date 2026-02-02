@@ -287,4 +287,31 @@ mod tests {
 			_ => panic!("Expected RouterError::New"),
 		}
 	}
+
+	mod handler_symbol_collision_regression {
+		use super::*;
+		use helix_macros::handler;
+
+		mod a {
+			use super::*;
+			#[handler]
+			pub fn same_name(_input: HandlerInput) -> Result<Response, EngineError> {
+				Ok(Response {
+					body: b"a".to_vec(),
+					fmt: Format::Json,
+				})
+			}
+		}
+
+		mod b {
+			use super::*;
+			#[handler]
+			pub fn same_name(_input: HandlerInput) -> Result<Response, EngineError> {
+				Ok(Response {
+					body: b"b".to_vec(),
+					fmt: Format::Json,
+				})
+			}
+		}
+	}
 }

@@ -17,8 +17,9 @@ mod mcp_tests {
 		MCPConnection, MCPToolInput, McpBackend, McpConnections, collect,
 	};
 	use crate::helix_gateway::mcp::tools::{
-		EdgeType, FilterProperties, FilterTraversal, Operator, ToolArgs,
+		EdgeType, FilterProperties, FilterTraversal, ToolArgs,
 	};
+	use crate::protocol::value::Operator;
 	use crate::protocol::request::RequestType;
 	use crate::protocol::value::Value;
 	use crate::protocol::{Format, Request};

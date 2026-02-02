@@ -1082,3 +1082,25 @@ pub fn search_vector(input: &mut MCPToolInput) -> Result<Response, EngineError> 
 
 	execute_tool_step(input, &req.connection_id, tool)
 }
+
+#[cfg(test)]
+mod mcp_handler_symbol_collision_regression {
+	use super::*;
+	use helix_macros::mcp_handler;
+
+	mod a {
+		use super::*;
+		#[mcp_handler]
+		pub fn same_mcp_name(_input: &mut MCPToolInput) -> Result<Response, EngineError> {
+			Ok(Format::Json.create_response(&"a".to_string()))
+		}
+	}
+
+	mod b {
+		use super::*;
+		#[mcp_handler]
+		pub fn same_mcp_name(_input: &mut MCPToolInput) -> Result<Response, EngineError> {
+			Ok(Format::Json.create_response(&"b".to_string()))
+		}
+	}
+}
