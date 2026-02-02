@@ -27,6 +27,7 @@ anyhow = "1.0"
 arc-swap = "1.8"
 async-trait = "0.1"
 base64 = "0.22"
+bumpalo = { version = "3.19", features = ["collections"] }
 cc = "1.2"
 chrono = { version = "0.4", features = ["serde"] }
 clap = { version = "4.5", features = ["derive"] }
@@ -37,6 +38,7 @@ dirs = "6.0"
 frizbee = "0.6"
 fs2 = "0.4"
 globset = "0.4"
+heed3 = "0.22"
 helix-db = { path = "crates/helix-db/db" }
 helix-macros = { path = "crates/helix-db/macros" }
 include_dir = "0.7"

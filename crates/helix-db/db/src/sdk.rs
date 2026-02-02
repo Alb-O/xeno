@@ -17,14 +17,13 @@
 /// ```
 use std::sync::Arc;
 
-use crate::helix_engine::storage_core::version_info::VersionInfo;
-use crate::helix_engine::storage_core::HelixGraphStorage;
-use crate::helix_engine::traversal_core::config::Config;
-use crate::helix_engine::traversal_core::HelixGraphEngine;
-use crate::helix_engine::traversal_core::HelixGraphEngineOpts;
-use crate::helix_engine::types::EngineError;
-
 pub use helix_macros::helix_node;
+
+use crate::helix_engine::storage_core::HelixGraphStorage;
+use crate::helix_engine::storage_core::version_info::VersionInfo;
+use crate::helix_engine::traversal_core::config::Config;
+use crate::helix_engine::traversal_core::{HelixGraphEngine, HelixGraphEngineOpts};
+use crate::helix_engine::types::EngineError;
 
 /// Client trait for embedded HelixDB access.
 pub trait HelixDBClient {

@@ -1,12 +1,24 @@
 //! Language database: single source of truth for language configuration.
 //!
 //! The [`LanguageDb`] consolidates all language metadata into a single structure,
-//! parsed once from `languages.kdl`. This eliminates duplicate parsing that
-//! previously occurred in separate config and LSP mapping modules.
+//! parsed once from `languages.kdl`. Lookups are backed by helix-db secondary
+//! indices; runtime data (syntax configs, LSP info) is served from an in-memory
+//! `Vec<LanguageData>`.
 
 use std::collections::HashMap;
 use std::sync::{Arc, OnceLock};
 
+use bumpalo::Bump;
+use helix_db::helix_engine::storage_core::HelixGraphStorage;
+use helix_db::helix_engine::storage_core::version_info::VersionInfo;
+use helix_db::helix_engine::traversal_core::config::{Config, GraphConfig};
+use helix_db::helix_engine::traversal_core::ops::g::G;
+use helix_db::helix_engine::traversal_core::ops::source::add_n::AddNAdapter;
+use helix_db::helix_engine::traversal_core::ops::source::n_from_index::NFromIndexAdapter;
+use helix_db::helix_engine::traversal_core::traversal_value::TraversalValue;
+use helix_db::helix_engine::types::SecondaryIndex;
+use helix_db::protocol::value::Value;
+use helix_db::utils::properties::ImmutablePropertiesMap;
 use tracing::error;
 use tree_house::Language;
 
@@ -24,22 +36,55 @@ pub fn language_db() -> &'static Arc<LanguageDb> {
 
 /// Consolidated language configuration database.
 ///
-/// Holds all registered language metadata with lookup indices for fast access.
-/// Parsed once from `languages.kdl` and accessed via [`language_db()`].
-#[derive(Debug, Default)]
+/// Holds all registered language metadata with helix-db secondary indices for
+/// fast lookups by name, extension, filename, and shebang. Runtime data
+/// (syntax configs, LSP info) is served from the in-memory `languages` vec.
 pub struct LanguageDb {
 	languages: Vec<LanguageData>,
-	by_extension: HashMap<String, usize>,
-	by_filename: HashMap<String, usize>,
 	globs: Vec<(String, usize)>,
-	by_shebang: HashMap<String, usize>,
-	by_name: HashMap<String, usize>,
+	storage: Arc<HelixGraphStorage>,
+	_db_dir: tempfile::TempDir,
 }
 
+fn db_config() -> Config {
+	Config {
+		vector_config: None,
+		graph_config: Some(GraphConfig {
+			secondary_indices: Some(vec![
+				SecondaryIndex::Unique("name".to_string()),
+				SecondaryIndex::Index("extension_idx".to_string()),
+				SecondaryIndex::Index("filename_idx".to_string()),
+				SecondaryIndex::Index("shebang_idx".to_string()),
+			]),
+		}),
+		db_max_size_gb: Some(1),
+		mcp: Some(false),
+		bm25: Some(false),
+		schema: None,
+		embedding_model: None,
+		graphvis_node_label: None,
+	}
+}
+
+const LABEL: &str = "language";
+
 impl LanguageDb {
-	/// Creates an empty database.
+	/// Creates an empty database backed by a temporary directory.
 	pub fn new() -> Self {
-		Self::default()
+		let db_dir = tempfile::tempdir().expect("failed to create tempdir for LanguageDb");
+		let storage = HelixGraphStorage::new(
+			db_dir.path().to_str().unwrap_or("lang_db"),
+			db_config(),
+			VersionInfo::default(),
+		)
+		.expect("failed to open helix-db storage");
+
+		Self {
+			languages: Vec::new(),
+			globs: Vec::new(),
+			storage: Arc::new(storage),
+			_db_dir: db_dir,
+		}
 	}
 
 	/// Creates a database populated from the embedded `languages.kdl`.
@@ -56,25 +101,79 @@ impl LanguageDb {
 		db
 	}
 
-	/// Registers a language and builds lookup indices.
+	/// Registers a language and writes it to helix-db indices.
 	///
 	/// Returns the language ID for the registered language.
 	pub fn register(&mut self, data: LanguageData) -> Language {
 		let idx = self.languages.len();
+		let arena = Bump::new();
 
+		// Build properties for the helix-db node.
+		let entries: Vec<(&str, Value)> = vec![
+			("name", Value::String(data.name.clone())),
+			("idx", Value::U32(idx as u32)),
+		];
+
+		let prop_count = entries.len();
+		let props = ImmutablePropertiesMap::new(
+			prop_count,
+			entries.into_iter().map(|(k, v)| {
+				let k: &str = arena.alloc_str(k);
+				(k, v)
+			}),
+			&arena,
+		);
+
+		let mut txn = self
+			.storage
+			.graph_env
+			.write_txn()
+			.expect("write txn for register");
+
+		let result = G::new_mut(&self.storage, &arena, &mut txn)
+			.add_n(arena.alloc_str(LABEL), Some(props), Some(&["name"]))
+			.next()
+			.unwrap()
+			.expect("add_n failed");
+
+		let node_id = result.id();
+
+		// Index each extension into the extension_idx secondary index.
 		for ext in &data.extensions {
-			self.by_extension.insert(ext.clone(), idx);
+			let key = postcard::to_stdvec(&Value::String(ext.clone()))
+				.expect("postcard serialize extension");
+			let (db, active) = self.storage.secondary_indices.get("extension_idx").unwrap();
+			active
+				.insert(db, &mut txn, &key, &node_id)
+				.expect("insert extension_idx");
 		}
+
+		// Index each filename into the filename_idx secondary index.
 		for fname in &data.filenames {
-			self.by_filename.insert(fname.clone(), idx);
+			let key = postcard::to_stdvec(&Value::String(fname.clone()))
+				.expect("postcard serialize filename");
+			let (db, active) = self.storage.secondary_indices.get("filename_idx").unwrap();
+			active
+				.insert(db, &mut txn, &key, &node_id)
+				.expect("insert filename_idx");
 		}
+
+		// Index each shebang into the shebang_idx secondary index.
+		for shebang in &data.shebangs {
+			let key = postcard::to_stdvec(&Value::String(shebang.clone()))
+				.expect("postcard serialize shebang");
+			let (db, active) = self.storage.secondary_indices.get("shebang_idx").unwrap();
+			active
+				.insert(db, &mut txn, &key, &node_id)
+				.expect("insert shebang_idx");
+		}
+
+		txn.commit().expect("commit register txn");
+
+		// Maintain in-memory collections.
 		for glob in &data.globs {
 			self.globs.push((glob.clone(), idx));
 		}
-		for shebang in &data.shebangs {
-			self.by_shebang.insert(shebang.clone(), idx);
-		}
-		self.by_name.insert(data.name.clone(), idx);
 		self.languages.push(data);
 
 		Language::new(idx as u32)
@@ -87,22 +186,22 @@ impl LanguageDb {
 
 	/// Returns the index for a language name.
 	pub fn index_for_name(&self, name: &str) -> Option<usize> {
-		self.by_name.get(name).copied()
+		self.lookup_idx("name", name)
 	}
 
 	/// Returns the index for a file extension.
 	pub fn index_for_extension(&self, ext: &str) -> Option<usize> {
-		self.by_extension.get(ext).copied()
+		self.lookup_idx("extension_idx", ext)
 	}
 
 	/// Returns the index for an exact filename.
 	pub fn index_for_filename(&self, filename: &str) -> Option<usize> {
-		self.by_filename.get(filename).copied()
+		self.lookup_idx("filename_idx", filename)
 	}
 
 	/// Returns the index for a shebang interpreter.
 	pub fn index_for_shebang(&self, interpreter: &str) -> Option<usize> {
-		self.by_shebang.get(interpreter).copied()
+		self.lookup_idx("shebang_idx", interpreter)
 	}
 
 	/// Returns glob patterns with their language indices.
@@ -129,8 +228,8 @@ impl LanguageDb {
 	///
 	/// Returns `None` if the language has no LSP servers configured.
 	pub fn lsp_info(&self, language: &str) -> Option<LanguageLspInfo> {
-		let idx = self.by_name.get(language)?;
-		let lang = &self.languages[*idx];
+		let idx = self.index_for_name(language)?;
+		let lang = &self.languages[idx];
 		if lang.lsp_servers.is_empty() {
 			return None;
 		}
@@ -157,6 +256,41 @@ impl LanguageDb {
 				)
 			})
 			.collect()
+	}
+
+	/// Queries a secondary index and extracts the `idx` property from the first match.
+	fn lookup_idx(&self, index: &str, key: &str) -> Option<usize> {
+		let arena = Bump::new();
+		let txn = self.storage.graph_env.read_txn().ok()?;
+
+		let node = G::new(&self.storage, &txn, &arena)
+			.n_from_index(LABEL, index, &key)
+			.filter_map(|r| r.ok())
+			.next()?;
+
+		if let TraversalValue::Node(n) = node {
+			match n.get_property("idx") {
+				Some(Value::U32(i)) => Some(*i as usize),
+				_ => None,
+			}
+		} else {
+			None
+		}
+	}
+}
+
+impl Default for LanguageDb {
+	fn default() -> Self {
+		Self::new()
+	}
+}
+
+impl std::fmt::Debug for LanguageDb {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		f.debug_struct("LanguageDb")
+			.field("languages", &self.languages.len())
+			.field("globs", &self.globs.len())
+			.finish_non_exhaustive()
 	}
 }
 

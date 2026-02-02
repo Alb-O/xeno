@@ -4773,7 +4773,9 @@ dependencies = [
 name = "xeno-runtime-language"
 version = "0.7.4"
 dependencies = [
+ "bumpalo",
  "cc",
+ "helix-db",
  "kdl",
  "once_cell",
  "postcard",
@@ -4781,6 +4783,7 @@ dependencies = [
  "ropey",
  "serde",
  "serde_json",
+ "tempfile",
  "thiserror 2.0.18",
  "tracing",
  "tree-house",
