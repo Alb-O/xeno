@@ -57,7 +57,4 @@ pub mod vector_distance;
 pub mod vector_without_data;
 
 #[cfg(test)]
-mod vector_core_tests;
-
-#[cfg(test)]
 mod tests;

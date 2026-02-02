@@ -10,7 +10,7 @@ use std::sync::Arc;
 use bumpalo::Bump;
 use tempfile::TempDir;
 
-use crate::helix_engine::bm25::bm25::BM25;
+use crate::helix_engine::bm25::BM25;
 use crate::helix_engine::storage_core::HelixGraphStorage;
 use crate::helix_engine::traversal_core::config::Config;
 use crate::helix_engine::traversal_core::ops::g::G;

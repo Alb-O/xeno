@@ -1,7 +1,7 @@
 use heed3::PutFlags;
 use itertools::Itertools;
 
-use crate::helix_engine::bm25::bm25::{BM25, BM25Flatten};
+use crate::helix_engine::bm25::{BM25, BM25Flatten};
 use crate::helix_engine::storage_core::HelixGraphStorage;
 use crate::helix_engine::traversal_core::traversal_iter::RwTraversalIterator;
 use crate::helix_engine::traversal_core::traversal_value::TraversalValue;

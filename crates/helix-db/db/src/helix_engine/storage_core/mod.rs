@@ -57,11 +57,7 @@ pub mod storage_migration;
 pub mod version_info;
 
 #[cfg(test)]
-mod storage_concurrent_tests;
-#[cfg(test)]
-mod storage_core_tests;
-#[cfg(test)]
-mod storage_migration_tests;
+mod tests;
 
 use std::collections::{HashMap, HashSet};
 use std::fs;
@@ -71,7 +67,7 @@ use heed3::byteorder::BE;
 use heed3::types::*;
 use heed3::{Database, DatabaseFlags, Env, EnvOpenOptions, RoTxn, RwTxn};
 
-use crate::helix_engine::bm25::bm25::HBM25Config;
+use crate::helix_engine::bm25::HBM25Config;
 use crate::helix_engine::storage_core::storage_methods::{DBMethods, StorageMethods};
 use crate::helix_engine::storage_core::version_info::VersionInfo;
 use crate::helix_engine::traversal_core::config::Config;

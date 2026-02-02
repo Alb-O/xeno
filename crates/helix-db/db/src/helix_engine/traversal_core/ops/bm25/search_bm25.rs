@@ -1,4 +1,4 @@
-use crate::helix_engine::bm25::bm25::BM25;
+use crate::helix_engine::bm25::BM25;
 use crate::helix_engine::traversal_core::decode_postcard_str_prefix;
 use crate::helix_engine::traversal_core::traversal_iter::RoTraversalIterator;
 use crate::helix_engine::traversal_core::traversal_value::TraversalValue;

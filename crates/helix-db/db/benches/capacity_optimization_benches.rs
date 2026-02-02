@@ -11,7 +11,7 @@ mod tests {
 
 	use bumpalo::Bump;
 	use heed3::RoTxn;
-	use helix_db::helix_engine::bm25::bm25::{BM25, HBM25Config};
+	use helix_db::helix_engine::bm25::{BM25, HBM25Config};
 	use helix_db::helix_engine::storage_core::HelixGraphStorage;
 	use helix_db::helix_engine::storage_core::storage_methods::StorageMethods;
 	use helix_db::helix_engine::traversal_core::config::Config;

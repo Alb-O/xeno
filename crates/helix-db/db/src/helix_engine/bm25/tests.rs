@@ -7,7 +7,7 @@ mod tests {
 	use rand::Rng;
 	use tempfile::tempdir;
 
-	use crate::helix_engine::bm25::bm25::{
+	use crate::helix_engine::bm25::{
 		BM25, BM25Flatten, BM25Metadata, HBM25Config, HybridSearch, METADATA_KEY,
 	};
 	use crate::helix_engine::storage_core::HelixGraphStorage;

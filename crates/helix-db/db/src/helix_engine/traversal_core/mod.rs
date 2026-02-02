@@ -50,7 +50,7 @@ pub mod traversal_iter;
 pub mod traversal_value;
 
 #[cfg(test)]
-mod traversal_core_tests;
+mod tests;
 
 use std::sync::Arc;
 

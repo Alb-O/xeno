@@ -1,6 +1,6 @@
 use heed3::RwTxn;
 
-use crate::helix_engine::bm25::bm25::BM25;
+use crate::helix_engine::bm25::BM25;
 use crate::helix_engine::storage_core::HelixGraphStorage;
 use crate::helix_engine::storage_core::storage_methods::StorageMethods;
 use crate::helix_engine::traversal_core::traversal_value::TraversalValue;

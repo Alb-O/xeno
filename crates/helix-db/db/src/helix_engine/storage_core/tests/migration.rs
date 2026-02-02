@@ -12,9 +12,11 @@ use std::collections::HashMap;
 
 use tempfile::TempDir;
 
-use super::HelixGraphStorage;
-use super::metadata::{NATIVE_VECTOR_ENDIANNESS, StorageMetadata, VectorEndianness};
-use super::storage_migration::{
+use crate::helix_engine::storage_core::HelixGraphStorage;
+use crate::helix_engine::storage_core::metadata::{
+	NATIVE_VECTOR_ENDIANNESS, StorageMetadata, VectorEndianness,
+};
+use crate::helix_engine::storage_core::storage_migration::{
 	convert_all_vector_properties, convert_old_vector_properties_to_new_format,
 	convert_vector_endianness, migrate,
 };
@@ -206,7 +208,7 @@ fn test_convert_vector_endianness_multiple_f64s() {
 	// Read back values in native endianness
 	let result_values: Vec<f64> = result
 		.chunks_exact(8)
-		.map(|chunk| f64::from_ne_bytes(chunk.try_into().unwrap()))
+		.map(|chunk: &[u8]| f64::from_ne_bytes(chunk.try_into().unwrap()))
 		.collect();
 
 	for (original, converted) in values.iter().zip(result_values.iter()) {
@@ -241,7 +243,7 @@ fn test_convert_vector_endianness_roundtrip() {
 	// Read values back
 	let result_values: Vec<f64> = native_bytes
 		.chunks_exact(8)
-		.map(|chunk| f64::from_ne_bytes(chunk.try_into().unwrap()))
+		.map(|chunk: &[u8]| f64::from_ne_bytes(chunk.try_into().unwrap()))
 		.collect();
 
 	for (original, converted) in values.iter().zip(result_values.iter()) {
@@ -269,12 +271,12 @@ fn test_convert_vector_endianness_special_values() {
 
 	let result_values: Vec<f64> = result
 		.chunks_exact(8)
-		.map(|chunk| f64::from_ne_bytes(chunk.try_into().unwrap()))
+		.map(|chunk: &[u8]| f64::from_ne_bytes(chunk.try_into().unwrap()))
 		.collect();
 
 	for (original, converted) in special_values.iter().zip(result_values.iter()) {
 		// Use bit equality for special values like NaN and -0.0
-		assert_eq!(original.to_bits(), converted.to_bits());
+		assert_eq!((*original).to_bits(), (*converted).to_bits());
 	}
 }
 
@@ -290,7 +292,7 @@ fn test_convert_vector_endianness_from_little_endian() {
 
 	let result_values: Vec<f64> = result
 		.chunks_exact(8)
-		.map(|chunk| f64::from_ne_bytes(chunk.try_into().unwrap()))
+		.map(|chunk: &[u8]| f64::from_ne_bytes(chunk.try_into().unwrap()))
 		.collect();
 
 	for (original, converted) in values.iter().zip(result_values.iter()) {
@@ -804,10 +806,10 @@ proptest! {
 			let result = convert_vector_endianness(&source_bytes, source_endianness, &arena)
 				.expect("conversion should succeed");
 
-			let result_values: Vec<f64> = result
-				.chunks_exact(8)
-				.map(|chunk| f64::from_ne_bytes(chunk.try_into().unwrap()))
-				.collect();
+	let result_values: Vec<f64> = result
+		.chunks_exact(8)
+		.map(|chunk: &[u8]| f64::from_ne_bytes(chunk.try_into().unwrap()))
+		.collect();
 
 			prop_assert_eq!(values.len(), result_values.len());
 

@@ -4,7 +4,7 @@ mod tests {
 	use std::collections::HashMap;
 
 	use heed3::{Env, EnvOpenOptions};
-	use helix_db::helix_engine::bm25::bm25::{BM25, HBM25Config};
+	use helix_db::helix_engine::bm25::{BM25, HBM25Config};
 	use helix_db::utils::id::v6_uuid;
 	use helix_db::utils::tqdm::tqdm;
 	use rand::seq::SliceRandom;
