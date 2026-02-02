@@ -8,9 +8,9 @@ use helix_db::helix_engine::traversal_core::ops::source::n_from_index::NFromInde
 use helix_db::helix_engine::traversal_core::traversal_value::TraversalValue;
 use helix_db::protocol::value::Value;
 use ignore::WalkBuilder;
+use ropey::Rope;
 use xeno_runtime_language::{LanguageDb, language_db};
 
-use super::indexer::index_document;
 use super::{DocSnapshotSource, KnowledgeCore, KnowledgeError};
 
 const LABEL_DOC: &str = "Doc";
@@ -52,6 +52,14 @@ fn crawl_project(
 		.follow_links(false)
 		.build();
 
+	let arena = Bump::new();
+	let storage = knowledge.storage();
+	let read_txn = storage
+		.graph_env
+		.read_txn()
+		.map_err(helix_db::helix_engine::types::EngineError::from)
+		.expect("open crawler read txn");
+
 	for entry in walker {
 		let entry = match entry {
 			Ok(entry) => entry,
@@ -73,8 +81,13 @@ fn crawl_project(
 			continue;
 		}
 
-		let Some(uri) = xeno_lsp::uri_from_path(&path).map(|uri| uri.to_string()) else {
+		let Some(uri_raw) = xeno_lsp::uri_from_path(&path).map(|uri| uri.to_string()) else {
 			continue;
+		};
+
+		let uri = match crate::core::BrokerCore::normalize_uri(&uri_raw) {
+			Ok(u) => u,
+			Err(_) => continue,
 		};
 
 		let Some(source) = source.upgrade() else {
@@ -88,7 +101,7 @@ fn crawl_project(
 			continue;
 		};
 
-		match doc_mtime_matches(knowledge.storage(), &uri, mtime) {
+		match doc_mtime_matches_in_txn(storage, &read_txn, &arena, &uri, mtime) {
 			Ok(true) => continue,
 			Ok(false) => {}
 			Err(err) => {
@@ -106,17 +119,12 @@ fn crawl_project(
 		};
 
 		let language = language_name_for_path(lang_db, &path).unwrap_or_default();
-		if let Err(err) = index_document(
-			knowledge.storage(),
-			&uri,
-			&text,
-			0,
-			0,
-			&language,
-			Some(mtime),
-		) {
-			tracing::warn!(error = %err, ?uri, "crawler index failed");
-		}
+		let knowledge_clone = Arc::clone(&knowledge);
+		tokio::spawn(async move {
+			knowledge_clone
+				.enqueue_file(uri, Rope::from(text), language, mtime)
+				.await;
+		});
 
 		std::thread::yield_now();
 	}
@@ -143,18 +151,14 @@ fn language_name_for_path(db: &LanguageDb, path: &Path) -> Option<String> {
 		.find_map(|(i, data)| (i == idx).then(|| data.name.clone()))
 }
 
-fn doc_mtime_matches(
+fn doc_mtime_matches_in_txn(
 	storage: &helix_db::helix_engine::storage_core::HelixGraphStorage,
+	txn: &heed3::RoTxn<'_>,
+	arena: &Bump,
 	uri: &str,
 	mtime: u64,
 ) -> Result<bool, KnowledgeError> {
-	let arena = Bump::new();
-	let txn = storage
-		.graph_env
-		.read_txn()
-		.map_err(helix_db::helix_engine::types::EngineError::from)?;
-
-	for entry in G::new(storage, &txn, &arena).n_from_index(LABEL_DOC, INDEX_DOC_URI, &uri) {
+	for entry in G::new(storage, txn, arena).n_from_index(LABEL_DOC, INDEX_DOC_URI, &uri) {
 		if let Ok(TraversalValue::Node(node)) = entry {
 			if let Some(Value::U64(value)) = node.get_property("mtime") {
 				return Ok(*value != 0 && *value == mtime);
@@ -171,13 +175,14 @@ mod tests {
 	use std::collections::HashSet;
 	use std::sync::Arc;
 
+	use bumpalo::Bump;
 	use ropey::Rope;
 	use tempfile::TempDir;
 	use xeno_broker_proto::types::{SyncEpoch, SyncSeq};
 
-	use super::{crawl_project, doc_mtime_matches, file_mtime};
+	use super::{crawl_project, file_mtime};
 	use crate::core::knowledge::indexer::index_document;
-	use crate::core::knowledge::{DocSnapshotSource, KnowledgeCore};
+	use crate::core::knowledge::{DocSnapshotSource, KnowledgeCore, KnowledgeError};
 
 	struct TestSource {
 		open_uris: HashSet<String>,
@@ -193,17 +198,40 @@ mod tests {
 		}
 	}
 
+	fn doc_mtime_matches(
+		storage: &helix_db::helix_engine::storage_core::HelixGraphStorage,
+		uri: &str,
+		mtime: u64,
+	) -> Result<bool, KnowledgeError> {
+		let arena = Bump::new();
+		let txn = storage
+			.graph_env
+			.read_txn()
+			.map_err(helix_db::helix_engine::types::EngineError::from)?;
+
+		super::doc_mtime_matches_in_txn(storage, &txn, &arena, uri, mtime)
+	}
+
 	#[test]
 	fn test_doc_mtime_matches() {
 		let temp = TempDir::new().expect("tempdir");
 		let core = KnowledgeCore::open(temp.path().join("knowledge")).expect("open knowledge");
 		let uri = "file:///mtime.rs";
 
-		index_document(core.storage(), uri, "hello", 1, 1, "", Some(10)).expect("index");
+		index_document(
+			core.storage(),
+			uri,
+			&Rope::from("hello"),
+			1,
+			1,
+			"",
+			Some(10),
+		)
+		.expect("index");
 		assert!(doc_mtime_matches(core.storage(), uri, 10).expect("mtime match"));
 		assert!(!doc_mtime_matches(core.storage(), uri, 11).expect("mtime mismatch"));
 
-		index_document(core.storage(), uri, "hello", 1, 2, "", None).expect("reindex");
+		index_document(core.storage(), uri, &Rope::from("hello"), 1, 2, "", None).expect("reindex");
 		assert!(doc_mtime_matches(core.storage(), uri, 10).expect("mtime preserved"));
 	}
 
@@ -213,10 +241,28 @@ mod tests {
 		let core = KnowledgeCore::open(temp.path().join("knowledge")).expect("open knowledge");
 		let uri = "file:///mtime_override.rs";
 
-		index_document(core.storage(), uri, "hello", 1, 1, "", Some(10)).expect("index");
+		index_document(
+			core.storage(),
+			uri,
+			&Rope::from("hello"),
+			1,
+			1,
+			"",
+			Some(10),
+		)
+		.expect("index");
 		assert!(doc_mtime_matches(core.storage(), uri, 10).expect("mtime match"));
 
-		index_document(core.storage(), uri, "hello", 1, 2, "", Some(11)).expect("reindex");
+		index_document(
+			core.storage(),
+			uri,
+			&Rope::from("hello"),
+			1,
+			2,
+			"",
+			Some(11),
+		)
+		.expect("reindex");
 		assert!(doc_mtime_matches(core.storage(), uri, 11).expect("mtime override"));
 	}
 

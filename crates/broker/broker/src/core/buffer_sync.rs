@@ -21,33 +21,31 @@ impl BrokerCore {
 	pub fn on_buffer_sync_open(
 		&self,
 		session_id: SessionId,
-		uri: &str,
+		uri_in: &str,
 		text: &str,
 		_version_hint: Option<u32>,
-	) -> ResponsePayload {
+	) -> Result<ResponsePayload, ErrorCode> {
+		let uri = Self::normalize_uri(uri_in)?;
 		let (role, epoch, seq, snapshot_rope) = {
 			let mut sync = self.sync.lock().unwrap();
 
-			match sync.sync_docs.get_mut(uri) {
+			match sync.sync_docs.get_mut(&uri) {
 				None => {
-					let mut open_refcounts = HashMap::new();
-					open_refcounts.insert(session_id, 1);
-					sync.sync_docs.insert(
-						uri.to_string(),
-						super::SyncDocState {
-							owner: session_id,
-							open_refcounts,
-							epoch: SyncEpoch(1),
-							seq: SyncSeq(0),
-							rope: Rope::from(text),
-							owner_needs_resync: false,
-						},
-					);
+					let mut doc = super::SyncDocState {
+						owner: session_id,
+						open_refcounts: HashMap::new(),
+						participants: Vec::new(),
+						epoch: SyncEpoch(1),
+						seq: SyncSeq(0),
+						rope: Rope::from(text),
+						owner_needs_resync: false,
+					};
+					doc.add_open(session_id);
+					sync.sync_docs.insert(uri.clone(), doc);
 					(BufferSyncRole::Owner, SyncEpoch(1), SyncSeq(0), None)
 				}
 				Some(doc) => {
-					let count = doc.open_refcounts.entry(session_id).or_insert(0);
-					*count += 1;
+					doc.add_open(session_id);
 					(
 						BufferSyncRole::Follower,
 						doc.epoch,
@@ -66,10 +64,10 @@ impl BrokerCore {
 		};
 
 		if let Some(knowledge) = &self.knowledge {
-			knowledge.mark_dirty(uri.to_string());
+			knowledge.mark_dirty(uri);
 		}
 
-		response
+		Ok(response)
 	}
 
 	/// Handle a `BufferSyncClose` request.
@@ -80,43 +78,41 @@ impl BrokerCore {
 	pub fn on_buffer_sync_close(
 		self: &Arc<Self>,
 		session_id: SessionId,
-		uri: &str,
+		uri_in: &str,
 	) -> Result<ResponsePayload, ErrorCode> {
+		let uri = Self::normalize_uri(uri_in)?;
 		let maybe_broadcast = {
 			let mut sync = self.sync.lock().unwrap();
 			let doc = sync
 				.sync_docs
-				.get_mut(uri)
+				.get_mut(&uri)
 				.ok_or(ErrorCode::SyncDocNotFound)?;
 
-			if let Some(count) = doc.open_refcounts.get_mut(&session_id) {
-				if *count > 1 {
-					*count -= 1;
-				} else {
-					doc.open_refcounts.remove(&session_id);
+			match doc.remove_open(session_id) {
+				super::RemoveOpenResult::NotParticipant => return Err(ErrorCode::SyncDocNotFound),
+				super::RemoveOpenResult::Removed => {
+					if doc.participants.is_empty() {
+						sync.sync_docs.remove(&uri);
+						return Ok(ResponsePayload::BufferSyncClosed);
+					}
+					if session_id == doc.owner {
+						let new_owner = doc.participants[0];
+						doc.owner = new_owner;
+						doc.epoch = SyncEpoch(doc.epoch.0 + 1);
+						doc.seq = SyncSeq(0);
+						doc.owner_needs_resync = true;
+						let event = Event::BufferSyncOwnerChanged {
+							uri,
+							epoch: doc.epoch,
+							owner: new_owner,
+						};
+						let sessions = doc.participants.clone();
+						Some((event, sessions))
+					} else {
+						None
+					}
 				}
-			}
-
-			if doc.open_refcounts.is_empty() {
-				sync.sync_docs.remove(uri);
-				return Ok(ResponsePayload::BufferSyncClosed);
-			}
-
-			if session_id == doc.owner {
-				let new_owner = *doc.open_refcounts.keys().min().unwrap();
-				doc.owner = new_owner;
-				doc.epoch = SyncEpoch(doc.epoch.0 + 1);
-				doc.seq = SyncSeq(0);
-				doc.owner_needs_resync = true;
-				let event = Event::BufferSyncOwnerChanged {
-					uri: uri.to_string(),
-					epoch: doc.epoch,
-					owner: new_owner,
-				};
-				let sessions: Vec<SessionId> = doc.open_refcounts.keys().copied().collect();
-				Some((event, sessions))
-			} else {
-				None
+				super::RemoveOpenResult::Decremented => None,
 			}
 		};
 
@@ -135,16 +131,17 @@ impl BrokerCore {
 	pub fn on_buffer_sync_delta(
 		self: &Arc<Self>,
 		session_id: SessionId,
-		uri: &str,
+		uri_in: &str,
 		epoch: SyncEpoch,
 		base_seq: SyncSeq,
 		wire_tx: &WireTx,
 	) -> Result<ResponsePayload, ErrorCode> {
+		let uri = Self::normalize_uri(uri_in)?;
 		let (new_seq, event, sessions) = {
 			let mut sync = self.sync.lock().unwrap();
 			let doc = sync
 				.sync_docs
-				.get_mut(uri)
+				.get_mut(&uri)
 				.ok_or(ErrorCode::SyncDocNotFound)?;
 
 			if session_id != doc.owner {
@@ -154,6 +151,7 @@ impl BrokerCore {
 				return Err(ErrorCode::SyncEpochMismatch);
 			}
 			if base_seq != doc.seq {
+				doc.owner_needs_resync = true;
 				return Err(ErrorCode::SyncSeqMismatch);
 			}
 			if doc.owner_needs_resync {
@@ -166,19 +164,19 @@ impl BrokerCore {
 			doc.seq = SyncSeq(doc.seq.0 + 1);
 
 			let event = Event::BufferSyncDelta {
-				uri: uri.to_string(),
+				uri: uri.clone(),
 				epoch: doc.epoch,
 				seq: doc.seq,
 				tx: wire_tx.clone(),
 			};
-			let sessions: Vec<SessionId> = doc.open_refcounts.keys().copied().collect();
+			let sessions = doc.participants.clone();
 			(doc.seq, event, sessions)
 		};
 
 		self.broadcast_to_sync_doc_sessions(&sessions, event, Some(session_id));
 
 		if let Some(knowledge) = &self.knowledge {
-			knowledge.mark_dirty(uri.to_string());
+			knowledge.mark_dirty(uri);
 		}
 
 		Ok(ResponsePayload::BufferSyncDeltaAck { seq: new_seq })
@@ -186,19 +184,20 @@ impl BrokerCore {
 
 	/// Handle a `BufferSyncTakeOwnership` request.
 	///
-	/// Transfers ownership to the requesting session, bumps the epoch, resets
-	/// the sequence, and broadcasts the ownership change. If the requester is
-	/// already the owner, returns the current epoch without broadcasting.
+	/// Transfers ownership to the requesting session if it is the minimum
+	/// session ID among participants, bumps the epoch, resets the sequence,
+	/// and broadcasts the ownership change.
 	pub fn on_buffer_sync_take_ownership(
 		self: &Arc<Self>,
 		session_id: SessionId,
-		uri: &str,
+		uri_in: &str,
 	) -> Result<ResponsePayload, ErrorCode> {
+		let uri = Self::normalize_uri(uri_in)?;
 		let (new_epoch, broadcast) = {
 			let mut sync = self.sync.lock().unwrap();
 			let doc = sync
 				.sync_docs
-				.get_mut(uri)
+				.get_mut(&uri)
 				.ok_or(ErrorCode::SyncDocNotFound)?;
 
 			if !doc.open_refcounts.contains_key(&session_id) {
@@ -209,17 +208,22 @@ impl BrokerCore {
 				return Ok(ResponsePayload::BufferSyncOwnership { epoch: doc.epoch });
 			}
 
+			let preferred_owner = doc.participants[0];
+			if session_id != preferred_owner {
+				return Ok(ResponsePayload::BufferSyncOwnership { epoch: doc.epoch });
+			}
+
 			doc.owner = session_id;
 			doc.epoch = SyncEpoch(doc.epoch.0 + 1);
 			doc.seq = SyncSeq(0);
 			doc.owner_needs_resync = true;
 
 			let event = Event::BufferSyncOwnerChanged {
-				uri: uri.to_string(),
+				uri,
 				epoch: doc.epoch,
 				owner: session_id,
 			};
-			let sessions: Vec<SessionId> = doc.open_refcounts.keys().copied().collect();
+			let sessions = doc.participants.clone();
 			(doc.epoch, Some((event, sessions)))
 		};
 
@@ -236,13 +240,14 @@ impl BrokerCore {
 	pub fn on_buffer_sync_resync(
 		&self,
 		session_id: SessionId,
-		uri: &str,
+		uri_in: &str,
 	) -> Result<ResponsePayload, ErrorCode> {
+		let uri = Self::normalize_uri(uri_in)?;
 		let (rope, epoch, seq, owner) = {
 			let mut sync = self.sync.lock().unwrap();
 			let doc = sync
 				.sync_docs
-				.get_mut(uri)
+				.get_mut(&uri)
 				.ok_or(ErrorCode::SyncDocNotFound)?;
 
 			if !doc.open_refcounts.contains_key(&session_id) {
@@ -315,15 +320,15 @@ impl BrokerCore {
 
 			for uri in uris {
 				let doc = sync.sync_docs.get_mut(&uri).unwrap();
-				doc.open_refcounts.remove(&session_id);
+				doc.remove_participant_all(session_id);
 
-				if doc.open_refcounts.is_empty() {
+				if doc.participants.is_empty() {
 					sync.sync_docs.remove(&uri);
 					continue;
 				}
 
 				if session_id == doc.owner {
-					let new_owner = *doc.open_refcounts.keys().min().unwrap();
+					let new_owner = doc.participants[0];
 					doc.owner = new_owner;
 					doc.epoch = SyncEpoch(doc.epoch.0 + 1);
 					doc.seq = SyncSeq(0);
@@ -333,7 +338,7 @@ impl BrokerCore {
 						epoch: doc.epoch,
 						owner: new_owner,
 					};
-					let sessions: Vec<SessionId> = doc.open_refcounts.keys().copied().collect();
+					let sessions = doc.participants.clone();
 					broadcasts.push((event, sessions));
 				}
 			}

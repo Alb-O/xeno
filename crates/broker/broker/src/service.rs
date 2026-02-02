@@ -235,7 +235,7 @@ impl Service<Request> for BrokerService {
 					version_hint,
 				} => {
 					let session_id = session_id.ok_or(ErrorCode::AuthFailed)?;
-					Ok(core.on_buffer_sync_open(session_id, &uri, &text, version_hint))
+					core.on_buffer_sync_open(session_id, &uri, &text, version_hint)
 				}
 				RequestPayload::BufferSyncClose { uri } => {
 					let session_id = session_id.ok_or(ErrorCode::AuthFailed)?;

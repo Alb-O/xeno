@@ -187,7 +187,7 @@ fn test_index_document() {
 	index_document(
 		core.storage(),
 		"file:///test.rs",
-		"hello\nworld\n",
+		&Rope::from("hello\nworld\n"),
 		1,
 		2,
 		"rust",
@@ -211,11 +211,20 @@ fn test_chunk_cleanup_on_reindex() {
 	let (_temp, core) = open_test_core();
 	let uri = "file:///cleanup.rs";
 
-	index_document(core.storage(), uri, "a\nb\nc\n", 1, 1, "", None).expect("index first");
+	index_document(
+		core.storage(),
+		uri,
+		&Rope::from("a\nb\nc\n"),
+		1,
+		1,
+		"",
+		None,
+	)
+	.expect("index first");
 	let first_count = chunk_texts(core.storage(), uri).len();
 	assert!(first_count > 0);
 
-	index_document(core.storage(), uri, "short\n", 1, 2, "", None).expect("reindex");
+	index_document(core.storage(), uri, &Rope::from("short\n"), 1, 2, "", None).expect("reindex");
 	let second_count = chunk_texts(core.storage(), uri).len();
 	assert!(second_count <= first_count);
 }
@@ -225,8 +234,26 @@ fn test_index_updates_on_edit() {
 	let (_temp, core) = open_test_core();
 	let uri = "file:///edit.rs";
 
-	index_document(core.storage(), uri, "old unique content\n", 1, 1, "", None).expect("index old");
-	index_document(core.storage(), uri, "new unique content\n", 1, 2, "", None).expect("index new");
+	index_document(
+		core.storage(),
+		uri,
+		&Rope::from("old unique content\n"),
+		1,
+		1,
+		"",
+		None,
+	)
+	.expect("index old");
+	index_document(
+		core.storage(),
+		uri,
+		&Rope::from("new unique content\n"),
+		1,
+		2,
+		"",
+		None,
+	)
+	.expect("index new");
 
 	let chunks = chunk_texts(core.storage(), uri);
 	assert!(
@@ -242,12 +269,61 @@ fn test_index_updates_on_edit() {
 }
 
 #[test]
+fn test_crawler_reindexes_when_mtime_changes_even_if_epoch_seq_same() {
+	let (_temp, core) = open_test_core();
+	let uri = "file:///mtime_reindex.rs";
+
+	// Initial index with mtime=10
+	index_document(
+		core.storage(),
+		uri,
+		&Rope::from("content 1"),
+		0,
+		0,
+		"",
+		Some(10),
+	)
+	.expect("index 1");
+	let chunks = chunk_texts(core.storage(), uri);
+	assert_eq!(chunks[0], "content 1");
+
+	// Reindex with same epoch/seq but different mtime=11
+	index_document(
+		core.storage(),
+		uri,
+		&Rope::from("content 2"),
+		0,
+		0,
+		"",
+		Some(11),
+	)
+	.expect("index 2");
+	let chunks = chunk_texts(core.storage(), uri);
+	assert_eq!(chunks[0], "content 2");
+
+	// Reindex with same mtime should be ignored
+	index_document(
+		core.storage(),
+		uri,
+		&Rope::from("content 3"),
+		0,
+		0,
+		"",
+		Some(11),
+	)
+	.expect("index 3");
+	let chunks = chunk_texts(core.storage(), uri);
+	assert_eq!(chunks[0], "content 2");
+}
+#[test]
 fn test_stale_index_discarded() {
 	let (_temp, core) = open_test_core();
 	let uri = "file:///stale.rs";
 
-	index_document(core.storage(), uri, "fresh\n", 2, 4, "", None).expect("index fresh");
-	index_document(core.storage(), uri, "stale\n", 1, 1, "", None).expect("index stale");
+	index_document(core.storage(), uri, &Rope::from("fresh\n"), 2, 4, "", None)
+		.expect("index fresh");
+	index_document(core.storage(), uri, &Rope::from("stale\n"), 1, 1, "", None)
+		.expect("index stale");
 
 	let values = read_doc_values(core.storage(), uri).expect("doc values");
 	assert_eq!(values.epoch, 2);
@@ -288,7 +364,7 @@ fn test_search_finds_indexed_content() {
 	index_document(
 		core.storage(),
 		"file:///alpha.rs",
-		"alpha beta",
+		&Rope::from("alpha beta"),
 		1,
 		1,
 		"",
@@ -298,7 +374,7 @@ fn test_search_finds_indexed_content() {
 	index_document(
 		core.storage(),
 		"file:///unique.rs",
-		"unique_term present",
+		&Rope::from("unique_term present"),
 		1,
 		1,
 		"",
@@ -316,7 +392,7 @@ fn test_search_ranking() {
 	index_document(
 		core.storage(),
 		"file:///dense.rs",
-		"apple apple apple banana",
+		&Rope::from("apple apple apple banana"),
 		1,
 		1,
 		"",
@@ -326,7 +402,7 @@ fn test_search_ranking() {
 	index_document(
 		core.storage(),
 		"file:///sparse.rs",
-		"apple banana",
+		&Rope::from("apple banana"),
 		1,
 		1,
 		"",
@@ -347,7 +423,7 @@ fn test_search_returns_only_chunks() {
 	index_document(
 		core.storage(),
 		"file:///lang.rs",
-		"hello world",
+		&Rope::from("hello world"),
 		1,
 		1,
 		"rust",

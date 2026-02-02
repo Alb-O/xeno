@@ -30,6 +30,12 @@ pub struct WorkspaceSearchOverlay {
 	list_buffer: Option<ViewId>,
 }
 
+impl Default for WorkspaceSearchOverlay {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl WorkspaceSearchOverlay {
 	pub fn new() -> Self {
 		Self {
@@ -197,7 +203,7 @@ impl OverlayController for WorkspaceSearchOverlay {
 			let should_search = self
 				.last_query
 				.as_deref()
-				.map_or(true, |last| last != query)
+				.is_none_or(|last| last != query)
 				|| self.results.is_empty();
 
 			if should_search {

@@ -4598,6 +4598,7 @@ version = "0.7.4"
 dependencies = [
  "bumpalo",
  "dirs",
+ "heed3",
  "helix-db",
  "ignore",
  "postcard",
@@ -4608,6 +4609,7 @@ dependencies = [
  "tokio-util",
  "tower-service",
  "tracing",
+ "url",
  "xeno-broker-proto",
  "xeno-lsp",
  "xeno-primitives",

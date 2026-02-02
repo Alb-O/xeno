@@ -121,6 +121,13 @@ impl KnowledgeCore {
 			worker.mark_dirty(uri);
 		}
 	}
+
+	/// Enqueues a file for background indexing.
+	pub async fn enqueue_file(&self, uri: String, rope: Rope, language: String, mtime: u64) {
+		if let Some(worker) = self.worker.get() {
+			worker.enqueue_file(uri, rope, language, mtime).await;
+		}
+	}
 }
 
 impl fmt::Debug for KnowledgeCore {

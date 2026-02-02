@@ -183,6 +183,21 @@
 //!     - Tested by: `knowledge::crawler::tests::test_crawler_skips_open_sync_docs`
 //!     - Failure symptom: background crawl overwrites live edits with stale on-disk content.
 //!
+//! 29. URIs MUST be normalized at all ingress points (buffer sync and crawler).
+//!     - Enforced in: `BrokerCore::normalize_uri`, `BrokerCore::on_buffer_sync_*`, `knowledge::crawler::crawl_project`
+//!     - Tested by: `core::tests::buffer_sync::test_uri_normalization_dedups_equivalent`
+//!     - Failure symptom: Multiple state entries for the same file, causing divergence and search misses.
+//!
+//! 30. `SyncDocState::participants` MUST be a strictly sorted view of `open_refcounts` keys.
+//!     - Enforced in: `SyncDocState::add_open`, `SyncDocState::remove_open`, `SyncDocState::remove_participant_all`
+//!     - Tested by: `core::tests::buffer_sync::test_buffer_sync_membership_transitions`
+//!     - Failure symptom: Broadcast misses sessions or owner election becomes inconsistent.
+//!
+//! 31. Owner election MUST always select the session with the minimum [`SessionId`] among current participants.
+//!     - Enforced in: `BrokerCore::on_buffer_sync_close`, `BrokerCore::on_buffer_sync_take_ownership`, `BrokerCore::cleanup_session_sync_docs`
+//!     - Tested by: `core::tests::buffer_sync::test_buffer_sync_take_ownership`
+//!     - Failure symptom: Non-deterministic ownership transfer leads to "ownership wars" and repeated resyncs.
+//!
 //! # Data flow
 //!
 //! ## LSP routing
@@ -298,6 +313,7 @@ use ropey::Rope;
 pub use server::{ChildHandle, LspInstance, ServerControl};
 pub use text_sync::{DocGateDecision, DocGateKind, DocGateResult};
 use tokio::sync::oneshot;
+use url::Url;
 use xeno_broker_proto::types::{
 	ErrorCode, IpcFrame, LspServerConfig, Request, Response, ResponsePayload, ServerId, SessionId,
 	SyncEpoch, SyncSeq,
@@ -384,6 +400,8 @@ struct SyncDocState {
 	owner: SessionId,
 	/// Per-session open refcounts.
 	open_refcounts: HashMap<SessionId, u32>,
+	/// Cached sorted participant list for broadcast.
+	participants: Vec<SessionId>,
 	/// Current ownership epoch (monotonically increasing).
 	epoch: SyncEpoch,
 	/// Current edit sequence number within the epoch.
@@ -392,6 +410,75 @@ struct SyncDocState {
 	rope: Rope,
 	/// Newly elected owners must resync before publishing deltas.
 	owner_needs_resync: bool,
+}
+
+/// Result of a session closing a sync document.
+#[derive(Debug, PartialEq, Eq)]
+pub enum RemoveOpenResult {
+	/// The session's refcount was decremented, but it is still participating.
+	Decremented,
+	/// The session's refcount hit zero and it was removed from the document.
+	Removed,
+	/// The session was not participating in the document.
+	NotParticipant,
+}
+
+impl SyncDocState {
+	fn add_open(&mut self, sid: SessionId) {
+		let count = self.open_refcounts.entry(sid).or_insert(0);
+		if *count == 0
+			&& let Err(idx) = self.participants.binary_search(&sid) {
+				self.participants.insert(idx, sid);
+			}
+		*count += 1;
+		#[cfg(debug_assertions)]
+		self.assert_participants_consistent();
+	}
+
+	fn remove_open(&mut self, sid: SessionId) -> RemoveOpenResult {
+		let Some(count) = self.open_refcounts.get_mut(&sid) else {
+			return RemoveOpenResult::NotParticipant;
+		};
+
+		if *count > 1 {
+			*count -= 1;
+			#[cfg(debug_assertions)]
+			self.assert_participants_consistent();
+			RemoveOpenResult::Decremented
+		} else {
+			self.open_refcounts.remove(&sid);
+			if let Ok(idx) = self.participants.binary_search(&sid) {
+				self.participants.remove(idx);
+			}
+			#[cfg(debug_assertions)]
+			self.assert_participants_consistent();
+			RemoveOpenResult::Removed
+		}
+	}
+
+	fn remove_participant_all(&mut self, sid: SessionId) -> bool {
+		if self.open_refcounts.remove(&sid).is_some() {
+			if let Ok(idx) = self.participants.binary_search(&sid) {
+				self.participants.remove(idx);
+			}
+			#[cfg(debug_assertions)]
+			self.assert_participants_consistent();
+			true
+		} else {
+			false
+		}
+	}
+
+	#[cfg(debug_assertions)]
+	fn assert_participants_consistent(&self) {
+		let mut expected: Vec<_> = self.open_refcounts.keys().copied().collect();
+		expected.sort();
+		assert_eq!(self.participants, expected, "participants cache drift!");
+		assert!(
+			self.participants.windows(2).all(|w| w[0] < w[1]),
+			"participants not sorted!"
+		);
+	}
 }
 
 /// Unique key for deduplicating LSP servers by project identity.
@@ -573,6 +660,42 @@ impl BrokerCore {
 	/// Allocate a globally unique server ID.
 	pub fn next_server_id(&self) -> ServerId {
 		ServerId(self.next_server_id.fetch_add(1, Ordering::Relaxed))
+	}
+
+	/// Normalizes a URI for consistent document tracking.
+	pub fn normalize_uri(uri: &str) -> Result<String, ErrorCode> {
+		let mut u = Url::parse(uri).map_err(|_| ErrorCode::InvalidArgs)?;
+
+		u.set_fragment(None);
+		u.set_query(None);
+
+		if u.scheme() == "file"
+			&& let Ok(path) = u.to_file_path() {
+				// Normalize Windows drive letter to lowercase for consistent keying.
+				#[cfg(windows)]
+				let path = {
+					let mut p = path;
+					if let Some(std::path::Component::Prefix(prefix)) = p.components().next() {
+						if let std::path::Prefix::Disk(drive)
+						| std::path::Prefix::VerbatimDisk(drive) = prefix.kind()
+						{
+							let drive_str =
+								(drive as char).to_lowercase().next().unwrap().to_string();
+							let mut new_path =
+								std::path::PathBuf::from(format!("{}:\\", drive_str));
+							new_path.push(p.components().skip(1).collect::<std::path::PathBuf>());
+							p = new_path;
+						}
+					}
+					p
+				};
+
+				if let Ok(normalized) = Url::from_file_path(path) {
+					u = normalized;
+				}
+			}
+
+		Ok(u.to_string())
 	}
 }
 

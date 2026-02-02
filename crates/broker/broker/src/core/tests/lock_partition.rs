@@ -11,7 +11,7 @@ async fn test_resync_does_not_require_routing_lock() {
 	let session = TestSession::new(1);
 
 	core.register_session(session.session_id, session.sink.clone());
-	core.on_buffer_sync_open(session.session_id, "file:///test.rs", "hello", None);
+	let _ = core.on_buffer_sync_open(session.session_id, "file:///test.rs", "hello", None);
 
 	let _routing_guard = core.lock_routing_for_test();
 	let resp = core.on_buffer_sync_resync(session.session_id, "file:///test.rs");
