@@ -80,8 +80,8 @@ impl BrokerCore {
 	#[must_use]
 	pub fn find_server_for_project(&self, config: &LspServerConfig) -> Option<ServerId> {
 		let key = ProjectKey::from(config);
-		let state = self.state.lock().unwrap();
-		state.projects.get(&key).cloned()
+		let routing = self.routing.lock().unwrap();
+		routing.projects.get(&key).cloned()
 	}
 
 	/// Attach an editor session to an existing LSP server.
@@ -89,8 +89,8 @@ impl BrokerCore {
 	/// If the session is the first to attach, it is elected as the leader.
 	/// Attaching invalidates any pending idle leases for the server.
 	pub fn attach_session(&self, server_id: ServerId, session_id: SessionId) -> bool {
-		let mut state = self.state.lock().unwrap();
-		let Some(server) = state.servers.get_mut(&server_id) else {
+		let mut routing = self.routing.lock().unwrap();
+		let Some(server) = routing.servers.get_mut(&server_id) else {
 			return false;
 		};
 
@@ -102,7 +102,7 @@ impl BrokerCore {
 
 		server.lease_gen += 1;
 
-		if let Some(session) = state.sessions.get_mut(&session_id) {
+		if let Some(session) = routing.sessions.get_mut(&session_id) {
 			session.attached.insert(server_id);
 		}
 
@@ -120,9 +120,9 @@ impl BrokerCore {
 		let mut old_leader = session_id;
 
 		{
-			let mut state = self.state.lock().unwrap();
+			let mut routing = self.routing.lock().unwrap();
 
-			if let Some(server) = state.servers.get_mut(&server_id) {
+			if let Some(server) = routing.servers.get_mut(&server_id) {
 				server.attached.remove(&session_id);
 
 				if server.leader == session_id {
@@ -141,7 +141,7 @@ impl BrokerCore {
 				}
 			}
 
-			if let Some(session) = state.sessions.get_mut(&session_id) {
+			if let Some(session) = routing.sessions.get_mut(&session_id) {
 				session.attached.remove(&server_id);
 			}
 		}
@@ -166,8 +166,8 @@ impl BrokerCore {
 		old_leader: SessionId,
 	) {
 		let to_cancel: Vec<xeno_lsp::RequestId> = {
-			let state = self.state.lock().unwrap();
-			state
+			let routing = self.routing.lock().unwrap();
+			routing
 				.pending_s2c
 				.iter()
 				.filter(|((sid, _), req)| *sid == server_id && req.responder == old_leader)
@@ -182,9 +182,9 @@ impl BrokerCore {
 	/// Check if a lease has expired and terminate the server if so.
 	pub(super) fn check_lease_expiry(self: &Arc<Self>, server_id: ServerId, generation: u64) {
 		let maybe_instance = {
-			let mut state = self.state.lock().unwrap();
+			let mut routing = self.routing.lock().unwrap();
 
-			let Some(server) = state.servers.get(&server_id) else {
+			let Some(server) = routing.servers.get(&server_id) else {
 				return;
 			};
 
@@ -192,17 +192,17 @@ impl BrokerCore {
 				return;
 			}
 
-			let has_inflight = state.pending_s2c.keys().any(|(sid, _)| *sid == server_id)
-				|| state.pending_c2s.keys().any(|(sid, _)| *sid == server_id);
+			let has_inflight = routing.pending_s2c.keys().any(|(sid, _)| *sid == server_id)
+				|| routing.pending_c2s.keys().any(|(sid, _)| *sid == server_id);
 			if has_inflight {
 				return;
 			}
 
-			let server = state.servers.remove(&server_id).unwrap();
-			state.projects.remove(&server.project);
+			let server = routing.servers.remove(&server_id).unwrap();
+			routing.projects.remove(&server.project);
 
-			state.pending_s2c.retain(|(sid, _), _| *sid != server_id);
-			state.pending_c2s.retain(|(sid, _), _| *sid != server_id);
+			routing.pending_s2c.retain(|(sid, _), _| *sid != server_id);
+			routing.pending_c2s.retain(|(sid, _), _| *sid != server_id);
 
 			Some(server.instance)
 		};
@@ -227,14 +227,14 @@ impl BrokerCore {
 		owner: SessionId,
 	) {
 		let project = ProjectKey::from(config);
-		let mut state = self.state.lock().unwrap();
+		let mut routing = self.routing.lock().unwrap();
 
-		state.projects.insert(project.clone(), server_id);
+		routing.projects.insert(project.clone(), server_id);
 
 		let mut attached = HashSet::new();
 		attached.insert(owner);
 
-		state.servers.insert(
+		routing.servers.insert(
 			server_id,
 			ServerEntry {
 				instance,
@@ -248,7 +248,7 @@ impl BrokerCore {
 			},
 		);
 
-		if let Some(session) = state.sessions.get_mut(&owner) {
+		if let Some(session) = routing.sessions.get_mut(&owner) {
 			session.attached.insert(server_id);
 		}
 	}
@@ -256,21 +256,21 @@ impl BrokerCore {
 	/// Unregister an LSP instance and release its resources.
 	pub fn unregister_server(&self, server_id: ServerId) {
 		let maybe_instance = {
-			let mut state = self.state.lock().unwrap();
+			let mut routing = self.routing.lock().unwrap();
 
-			let Some(server) = state.servers.remove(&server_id) else {
+			let Some(server) = routing.servers.remove(&server_id) else {
 				return;
 			};
 
-			state.projects.remove(&server.project);
+			routing.projects.remove(&server.project);
 
 			for session_id in &server.attached {
-				if let Some(session) = state.sessions.get_mut(session_id) {
+				if let Some(session) = routing.sessions.get_mut(session_id) {
 					session.attached.remove(&server_id);
 				}
 			}
 
-			state.pending_s2c.retain(|(sid, _), _| *sid != server_id);
+			routing.pending_s2c.retain(|(sid, _), _| *sid != server_id);
 
 			Some(server.instance)
 		};
@@ -289,16 +289,16 @@ impl BrokerCore {
 	/// Terminate all running LSP servers and clear all attachments.
 	pub fn terminate_all(&self) {
 		let instances = {
-			let mut state = self.state.lock().unwrap();
-			state.projects.clear();
-			state.pending_s2c.clear();
-			state.pending_c2s.clear();
+			let mut routing = self.routing.lock().unwrap();
+			routing.projects.clear();
+			routing.pending_s2c.clear();
+			routing.pending_c2s.clear();
 
-			for session in state.sessions.values_mut() {
+			for session in routing.sessions.values_mut() {
 				session.attached.clear();
 			}
 
-			state
+			routing
 				.servers
 				.drain()
 				.map(|(_, server)| server.instance)
@@ -321,29 +321,29 @@ impl BrokerCore {
 		tracing::info!(?server_id, crashed, "handling server exit");
 
 		let maybe_instance = {
-			let mut state = self.state.lock().unwrap();
+			let mut routing = self.routing.lock().unwrap();
 
-			let Some(server) = state.servers.remove(&server_id) else {
+			let Some(server) = routing.servers.remove(&server_id) else {
 				return;
 			};
 
-			state.projects.remove(&server.project);
+			routing.projects.remove(&server.project);
 
 			for session_id in &server.attached {
-				if let Some(session) = state.sessions.get_mut(session_id) {
+				if let Some(session) = routing.sessions.get_mut(session_id) {
 					session.attached.remove(&server_id);
 				}
 			}
 
-			let pending_to_cancel: Vec<xeno_lsp::RequestId> = state
+			let pending_to_cancel: Vec<xeno_lsp::RequestId> = routing
 				.pending_s2c
 				.iter()
 				.filter(|((sid, _), _)| *sid == server_id)
 				.map(|((_, rid), _)| rid.clone())
 				.collect();
 
-			state.pending_c2s.retain(|(sid, _), _| *sid != server_id);
-			drop(state);
+			routing.pending_c2s.retain(|(sid, _), _| *sid != server_id);
+			drop(routing);
 
 			for request_id in pending_to_cancel {
 				self.cancel_client_request(server_id, request_id);
@@ -382,8 +382,8 @@ impl BrokerCore {
 		status: xeno_broker_proto::types::LspServerStatus,
 	) {
 		let (sessions, changed) = {
-			let state = self.state.lock().unwrap();
-			if let Some(server) = state.servers.get(&server_id) {
+			let routing = self.routing.lock().unwrap();
+			if let Some(server) = routing.servers.get(&server_id) {
 				let mut current = server.instance.status.lock().unwrap();
 				if *current != status {
 					*current = status;
@@ -418,8 +418,8 @@ impl BrokerCore {
 	/// Observe editor-to-server traffic to update document version tracking.
 	pub fn on_editor_message(&self, server_id: ServerId, msg: &xeno_lsp::Message) {
 		if let xeno_lsp::Message::Notification(notif) = msg {
-			let mut state = self.state.lock().unwrap();
-			if let Some(server) = state.servers.get_mut(&server_id) {
+			let mut routing = self.routing.lock().unwrap();
+			if let Some(server) = routing.servers.get_mut(&server_id) {
 				match notif.method.as_str() {
 					"textDocument/didOpen" | "textDocument/didChange" => {
 						if let Some(doc) = notif.params.get("textDocument")

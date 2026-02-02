@@ -307,8 +307,20 @@ async fn test_buffer_sync_take_ownership() {
 		}
 	}
 
-	// New owner can submit deltas
+	// New owner must resync before submitting deltas
 	let wire_tx = WireTx(vec![WireOp::Retain(5), WireOp::Insert("!".into())]);
+	let result = core.on_buffer_sync_delta(
+		session2.session_id,
+		"file:///test.rs",
+		SyncEpoch(2),
+		SyncSeq(0),
+		&wire_tx,
+	);
+	assert_eq!(result.unwrap_err(), ErrorCode::OwnerNeedsResync);
+
+	let _ = core
+		.on_buffer_sync_resync(session2.session_id, "file:///test.rs")
+		.unwrap();
 	let resp = core.on_buffer_sync_delta(
 		session2.session_id,
 		"file:///test.rs",
@@ -328,6 +340,154 @@ async fn test_buffer_sync_take_ownership() {
 		&wire_tx2,
 	);
 	assert_eq!(result.unwrap_err(), ErrorCode::NotDocOwner);
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn test_take_ownership_idempotent_does_not_bump_epoch() {
+	let core = BrokerCore::new();
+	let mut session1 = TestSession::new(1);
+
+	core.register_session(session1.session_id, session1.sink.clone());
+	core.on_buffer_sync_open(session1.session_id, "file:///test.rs", "hello", None);
+
+	while session1.try_recv().is_some() {}
+
+	let resp = core.on_buffer_sync_take_ownership(session1.session_id, "file:///test.rs");
+	match resp.unwrap() {
+		ResponsePayload::BufferSyncOwnership { epoch } => {
+			assert_eq!(epoch, SyncEpoch(1));
+		}
+		other => panic!("expected BufferSyncOwnership, got {:?}", other),
+	}
+
+	assert!(session1.try_recv().is_none());
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn test_owner_transfer_requires_resync_before_delta() {
+	let core = BrokerCore::new();
+	let mut session1 = TestSession::new(1);
+	let mut session2 = TestSession::new(2);
+
+	core.register_session(session1.session_id, session1.sink.clone());
+	core.register_session(session2.session_id, session2.sink.clone());
+
+	core.on_buffer_sync_open(session1.session_id, "file:///test.rs", "hello", None);
+	core.on_buffer_sync_open(session2.session_id, "file:///test.rs", "", None);
+
+	while session1.try_recv().is_some() {}
+	while session2.try_recv().is_some() {}
+
+	core.on_buffer_sync_close(session1.session_id, "file:///test.rs")
+		.unwrap();
+
+	let event = session2.try_recv().and_then(extract_event).unwrap();
+	match event {
+		Event::BufferSyncOwnerChanged { epoch, owner, .. } => {
+			assert_eq!(epoch, SyncEpoch(2));
+			assert_eq!(owner, session2.session_id);
+		}
+		other => panic!("expected OwnerChanged, got {:?}", other),
+	}
+
+	let wire_tx = WireTx(vec![WireOp::Retain(5), WireOp::Insert("!".into())]);
+	let result = core.on_buffer_sync_delta(
+		session2.session_id,
+		"file:///test.rs",
+		SyncEpoch(2),
+		SyncSeq(0),
+		&wire_tx,
+	);
+	assert_eq!(result.unwrap_err(), ErrorCode::OwnerNeedsResync);
+
+	core.on_buffer_sync_resync(session2.session_id, "file:///test.rs")
+		.unwrap();
+	let resp = core.on_buffer_sync_delta(
+		session2.session_id,
+		"file:///test.rs",
+		SyncEpoch(2),
+		SyncSeq(0),
+		&wire_tx,
+	);
+	assert!(resp.is_ok());
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn test_owner_disconnect_requires_resync_before_delta() {
+	let core = BrokerCore::new();
+	let mut session1 = TestSession::new(1);
+	let mut session2 = TestSession::new(2);
+
+	core.register_session(session1.session_id, session1.sink.clone());
+	core.register_session(session2.session_id, session2.sink.clone());
+
+	core.on_buffer_sync_open(session1.session_id, "file:///test.rs", "hello", None);
+	core.on_buffer_sync_open(session2.session_id, "file:///test.rs", "", None);
+
+	while session1.try_recv().is_some() {}
+	while session2.try_recv().is_some() {}
+
+	core.cleanup_session_sync_docs(session1.session_id);
+
+	let event = session2.try_recv().and_then(extract_event).unwrap();
+	match event {
+		Event::BufferSyncOwnerChanged { epoch, owner, .. } => {
+			assert_eq!(epoch, SyncEpoch(2));
+			assert_eq!(owner, session2.session_id);
+		}
+		other => panic!("expected OwnerChanged, got {:?}", other),
+	}
+
+	let wire_tx = WireTx(vec![WireOp::Retain(5), WireOp::Insert("!".into())]);
+	let result = core.on_buffer_sync_delta(
+		session2.session_id,
+		"file:///test.rs",
+		SyncEpoch(2),
+		SyncSeq(0),
+		&wire_tx,
+	);
+	assert_eq!(result.unwrap_err(), ErrorCode::OwnerNeedsResync);
+
+	core.on_buffer_sync_resync(session2.session_id, "file:///test.rs")
+		.unwrap();
+	let resp = core.on_buffer_sync_delta(
+		session2.session_id,
+		"file:///test.rs",
+		SyncEpoch(2),
+		SyncSeq(0),
+		&wire_tx,
+	);
+	assert!(resp.is_ok());
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn test_buffer_sync_delta_invalid_tx_is_non_mutating() {
+	let core = BrokerCore::new();
+	let session1 = TestSession::new(1);
+
+	core.register_session(session1.session_id, session1.sink.clone());
+	core.on_buffer_sync_open(session1.session_id, "file:///test.rs", "hello", None);
+
+	let wire_tx = WireTx(vec![WireOp::Delete(999)]);
+	let result = core.on_buffer_sync_delta(
+		session1.session_id,
+		"file:///test.rs",
+		SyncEpoch(1),
+		SyncSeq(0),
+		&wire_tx,
+	);
+	assert_eq!(result.unwrap_err(), ErrorCode::InvalidDelta);
+
+	let resp = core
+		.on_buffer_sync_resync(session1.session_id, "file:///test.rs")
+		.unwrap();
+	match resp {
+		ResponsePayload::BufferSyncSnapshot { text, seq, .. } => {
+			assert_eq!(text, "hello");
+			assert_eq!(seq, SyncSeq(0));
+		}
+		other => panic!("expected BufferSyncSnapshot, got {:?}", other),
+	}
 }
 
 #[tokio::test(flavor = "current_thread")]

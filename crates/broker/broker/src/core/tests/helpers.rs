@@ -33,6 +33,7 @@ impl TestSession {
 	}
 
 	/// Wait for an event with a timeout.
+	#[allow(dead_code)]
 	pub async fn recv_timeout(&mut self) -> Option<MainLoopEvent<IpcFrame, Request, Response>> {
 		let timeout: tokio::time::Timeout<_> =
 			tokio::time::timeout(Duration::from_millis(100), self.events_rx.recv());

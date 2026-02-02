@@ -82,8 +82,8 @@ pub enum DocGateKind {
 impl BrokerCore {
 	/// Retrieve the DocId and last known version for a URI.
 	pub fn get_doc_by_uri(&self, server_id: ServerId, uri: &str) -> Option<(DocId, u32)> {
-		let state = self.state.lock().unwrap();
-		let server = state.servers.get(&server_id)?;
+		let routing = self.routing.lock().unwrap();
+		let server = routing.servers.get(&server_id)?;
 		server.docs.by_uri.get(uri).cloned()
 	}
 
@@ -97,8 +97,8 @@ impl BrokerCore {
 		server_id: ServerId,
 		notif: &xeno_lsp::AnyNotification,
 	) -> DocGateDecision {
-		let mut state = self.state.lock().unwrap();
-		let Some(server) = state.servers.get_mut(&server_id) else {
+		let mut routing = self.routing.lock().unwrap();
+		let Some(server) = routing.servers.get_mut(&server_id) else {
 			return DocGateDecision::RejectNotOwner;
 		};
 

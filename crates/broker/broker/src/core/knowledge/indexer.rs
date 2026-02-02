@@ -13,7 +13,7 @@ use helix_db::helix_engine::traversal_core::traversal_value::TraversalValue;
 use helix_db::protocol::value::Value;
 use tokio::sync::Notify;
 
-use super::KnowledgeError;
+use super::{DocSnapshotSource, KnowledgeError};
 
 const LABEL_DOC: &str = "Doc";
 const LABEL_CHUNK: &str = "Chunk";
@@ -29,7 +29,7 @@ pub struct IndexWorker {
 }
 
 impl IndexWorker {
-	pub fn spawn(storage: Arc<HelixGraphStorage>, broker: Weak<super::super::BrokerCore>) -> Self {
+	pub fn spawn(storage: Arc<HelixGraphStorage>, source: Weak<dyn DocSnapshotSource>) -> Self {
 		let dirty: Arc<Mutex<HashSet<String>>> = Arc::new(Mutex::new(HashSet::new()));
 		let notify = Arc::new(Notify::new());
 
@@ -49,12 +49,12 @@ impl IndexWorker {
 					set.drain().collect::<Vec<_>>()
 				};
 
-				let Some(core) = broker.upgrade() else {
+				let Some(source) = source.upgrade() else {
 					break;
 				};
 
 				for uri in uris {
-					let Some((epoch, seq, rope)) = core.snapshot_sync_doc(&uri) else {
+					let Some((epoch, seq, rope)) = source.snapshot_sync_doc(&uri) else {
 						continue;
 					};
 
@@ -65,7 +65,7 @@ impl IndexWorker {
 						continue;
 					}
 
-					if let Some((new_epoch, new_seq, _)) = core.snapshot_sync_doc(&uri)
+					if let Some((new_epoch, new_seq, _)) = source.snapshot_sync_doc(&uri)
 						&& (new_epoch != epoch || new_seq != seq)
 					{
 						let mut set = dirty_task.lock().unwrap();
@@ -174,6 +174,7 @@ pub fn index_document(
 	let mut existing_doc: Option<TraversalValue<'_>> = None;
 	let mut existing_epoch = None;
 	let mut existing_seq = None;
+	let mut existing_mtime = None;
 
 	for entry in G::new(storage, &read_txn, &arena).n_from_index(LABEL_DOC, INDEX_DOC_URI, &uri) {
 		if let Ok(TraversalValue::Node(node)) = entry {
@@ -182,6 +183,9 @@ pub fn index_document(
 			}
 			if let Some(Value::U64(value)) = node.get_property("seq") {
 				existing_seq = Some(*value);
+			}
+			if let Some(Value::U64(value)) = node.get_property("mtime") {
+				existing_mtime = Some(*value);
 			}
 			existing_doc = Some(TraversalValue::Node(node));
 			break;
@@ -222,8 +226,11 @@ pub fn index_document(
 		("len_chars", Value::U64(len_chars)),
 		("language", Value::String(language.to_string())),
 	];
-	let mtime = mtime.unwrap_or(0);
-	props.push(("mtime", Value::U64(mtime)));
+	let final_mtime = match mtime {
+		Some(value) => value,
+		None => existing_mtime.unwrap_or(0),
+	};
+	props.push(("mtime", Value::U64(final_mtime)));
 
 	if let Some(existing) = existing_doc {
 		G::new_mut_from_iter(storage, &mut write_txn, std::iter::once(existing), &arena)

@@ -44,7 +44,6 @@ xeno-primitives = { workspace = true, optional = true }
 xeno-rpc.workspace = true
 
 [dev-dependencies]
-tempfile.workspace = true
 tokio = { workspace = true, features = ["io-std", "io-util", "macros", "process", "rt", "time"] }
 tokio-util.workspace = true
 

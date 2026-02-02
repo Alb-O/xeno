@@ -328,6 +328,10 @@ pub enum ErrorCode {
 	///
 	/// The URI has no active sync document entry.
 	SyncDocNotFound,
+	/// Buffer sync delta is malformed or out of bounds.
+	InvalidDelta,
+	/// Owner must resync before publishing deltas.
+	OwnerNeedsResync,
 }
 
 /// Async event from broker to editor (no response expected).

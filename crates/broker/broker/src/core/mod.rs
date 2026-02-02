@@ -15,6 +15,7 @@
 //! - Server-to-client requests are routed only to the leader session (deterministic: minimum [`SessionId`]).
 //! - Client-to-server requests are rewritten to broker-allocated wire request ids to avoid collisions between sessions.
 //! - The broker keeps idle servers alive for an idle lease duration; after lease expiry and with no inflight requests, the server is terminated.
+//! - BrokerCore splits routing and buffer sync state behind independent locks; no code path may hold both at once.
 //! - For buffer sync: each document URI has exactly one owner session. The owner sends deltas; the broker validates epoch/sequence, applies to its authoritative rope, and broadcasts to all other sessions (followers). Ownership transfers on disconnect or explicit request, bumping the epoch and resetting the sequence.
 //!
 //! # Key types
@@ -22,6 +23,8 @@
 //! | Type | Meaning | Constraints | Constructed / mutated in |
 //! |---|---|---|---|
 //! | [`BrokerCore`] | Authoritative broker state machine | MUST be the only owner of session/server maps | `BrokerCore::*` |
+//! | [`RoutingState`] | Routing-only broker state | MUST only be accessed under the routing lock and never across IPC sends | `BrokerCore::*` |
+//! | [`SyncState`] | Buffer sync broker state | MUST only be accessed under the sync lock and never across `rope.to_string()` | `BrokerCore::on_buffer_sync_*` |
 //! | [`ProjectKey`] | Dedup key for LSP servers | MUST uniquely represent command/args/cwd (with no-cwd sentinel) | `ProjectKey::from` |
 //! | [`ServerEntry`] | One managed LSP server instance | MUST maintain leader = min(attached) | `BrokerCore::attach_session`, `BrokerCore::detach_session` |
 //! | [`SessionEntry`] | One connected editor session | MUST track attachment set for cleanup | `BrokerCore::register_session`, `BrokerCore::unregister_session` |
@@ -30,7 +33,7 @@
 //! | [`LspProxyService`] | LSP stdio proxy and event forwarder | MUST register pending before forwarding request | `LspProxyService::call`, `LspProxyService::forward` |
 //! | [`DocRegistry`] | URI to (DocId, version) tracking | MUST not report a doc that is not in `by_uri` | `DocRegistry::update`, `BrokerCore::get_doc_by_uri` |
 //! | [`DocOwnerRegistry`] | Single-writer ownership per URI | MUST transfer ownership on detach/unregister | `BrokerCore::cleanup_session_docs_on_server` |
-//! | [`SyncDocState`] | Per-URI broker-authoritative sync state | MUST have exactly one owner; epoch increments on ownership change; seq increments on delta | `BrokerCore::on_buffer_sync_open`, `BrokerCore::on_buffer_sync_delta`, `BrokerCore::on_buffer_sync_close` |
+//! | [`SyncDocState`] | Per-URI broker-authoritative sync state | MUST have exactly one owner; epoch increments on ownership change; seq increments on delta; owner must resync before publishing after transfer | `BrokerCore::on_buffer_sync_open`, `BrokerCore::on_buffer_sync_delta`, `BrokerCore::on_buffer_sync_close` |
 //! | [`SyncEpoch`] | Monotonic ownership generation | MUST increment on every ownership transfer | `BrokerCore::on_buffer_sync_take_ownership`, `BrokerCore::on_buffer_sync_close` |
 //! | [`SyncSeq`] | Monotonic edit sequence within an epoch | MUST increment on every applied delta; resets to 0 on epoch change | `BrokerCore::on_buffer_sync_delta` |
 //! | [`KnowledgeCore`] | Persistent workspace search index | MUST own a dedicated helix-db instance | `KnowledgeCore::open` |
@@ -80,79 +83,104 @@
 //!    - Tested by: `test_broker_e2e_persistence_lease_expiry`
 //!    - Failure symptom: server processes leak indefinitely or are terminated while a request is still in flight.
 //!
-//! 9. On session unregister, broker MUST detach the session from all servers and MUST clean up per-session doc ownership state.
-//!    - Enforced in: `BrokerCore::unregister_session`, `BrokerCore::cleanup_session_docs_on_server`
-//!    - Tested by: `test_broker_owner_close_transfer`
-//!    - Failure symptom: docs remain "owned" by a dead session, blocking updates from remaining sessions and causing stale diagnostics.
+//! 9. Routing and buffer sync state MUST be protected by independent locks and no path may hold both.
+//!    - Enforced in: `BrokerCore::send_event`, `BrokerCore::on_buffer_sync_resync`, `BrokerCore::unregister_session`
+//!    - Tested by: `core::tests::lock_partition::test_resync_does_not_require_routing_lock`, `core::tests::lock_partition::test_send_event_does_not_require_sync_lock`
+//!    - Failure symptom: routing stalls during resync or deadlocks during session cleanup.
 //!
-//! 10. Diagnostics forwarding MUST prefer the authoritative version from the LSP payload when present, and MAY fall back to broker doc tracking otherwise.
+//! 10. On session unregister, broker MUST detach the session from all servers and MUST clean up per-session doc ownership state.
+//!     - Enforced in: `BrokerCore::unregister_session`, `BrokerCore::cleanup_session_docs_on_server`
+//!     - Tested by: `test_broker_owner_close_transfer`
+//!     - Failure symptom: docs remain "owned" by a dead session, blocking updates from remaining sessions and causing stale diagnostics.
+//!
+//! 11. Diagnostics forwarding MUST prefer the authoritative version from the LSP payload when present, and MAY fall back to broker doc tracking otherwise.
 //!     - Enforced in: `LspProxyService::forward`
 //!     - Tested by: `core::tests::diagnostics_regression::diagnostics_use_lsp_payload_version_not_broker_version`
 //!     - Failure symptom: diagnostics apply to the wrong document version, producing flicker or persistent stale errors.
 //!
-//! 11. Buffer sync deltas MUST be rejected if the sender is not the owner or epoch/seq do not match.
+//! 12. Buffer sync deltas MUST be rejected if the sender is not the owner or epoch/seq do not match.
 //!     - Enforced in: `BrokerCore::on_buffer_sync_delta`
 //!     - Tested by: `core::tests::buffer_sync::test_buffer_sync_rejects_non_owner`, `core::tests::buffer_sync::test_buffer_sync_seq_mismatch_triggers_resync`
 //!     - Failure symptom: follower sessions overwrite the authoritative rope, causing document divergence.
 //!
-//! 12. Buffer sync ownership MUST transfer to the minimum remaining [`SessionId`] when the owner disconnects or closes the document.
+//! 13. Buffer sync deltas MUST validate wire operations and reject malformed edits without mutation.
+//!     - Enforced in: `wire_convert::wire_to_tx`, `BrokerCore::on_buffer_sync_delta`
+//!     - Tested by: `wire_convert::tests::test_wire_to_tx_rejects_retain_past_eof`, `wire_convert::tests::test_wire_to_tx_rejects_delete_past_eof`, `core::tests::buffer_sync::test_buffer_sync_delta_invalid_tx_is_non_mutating`
+//!     - Failure symptom: broker panics or corrupts the authoritative rope/sequence on malformed input.
+//!
+//! 14. Newly elected owners MUST resync before publishing deltas for the new epoch.
+//!     - Enforced in: `BrokerCore::on_buffer_sync_delta`, `BrokerCore::on_buffer_sync_take_ownership`, `BrokerCore::on_buffer_sync_close`, `BrokerCore::cleanup_session_sync_docs`, `BrokerCore::on_buffer_sync_resync`, `BufferSyncManager::handle_owner_changed`, `Editor::update_readonly_for_sync_role`
+//!     - Tested by: `core::tests::buffer_sync::test_owner_transfer_requires_resync_before_delta`, `core::tests::buffer_sync::test_owner_disconnect_requires_resync_before_delta`, `core::tests::buffer_sync::test_buffer_sync_take_ownership`, `buffer_sync::tests::test_owner_changed_sets_needs_resync_for_local_new_owner`, `buffer_sync::tests::test_snapshot_clears_needs_resync_and_allows_delta`, `impls::buffer_sync_events::tests::test_new_owner_remains_readonly_until_snapshot`
+//!     - Failure symptom: new owner edits diverge from broker state and overwrite follower content.
+//!
+//! 15. Buffer sync ownership MUST transfer to the minimum remaining [`SessionId`] when the owner disconnects or closes the document.
 //!     - Enforced in: `BrokerCore::on_buffer_sync_close`, `BrokerCore::cleanup_session_sync_docs`
 //!     - Tested by: `core::tests::buffer_sync::test_buffer_sync_owner_disconnect_elects_successor_epoch_bumps`
 //!     - Failure symptom: no session holds ownership after disconnect, blocking all edits until manual resync.
 //!
-//! 13. Buffer sync epoch MUST increment on every ownership transfer; sequence MUST reset to 0.
+//! 16. Buffer sync epoch MUST increment on every ownership transfer; sequence MUST reset to 0.
 //!     - Enforced in: `BrokerCore::on_buffer_sync_take_ownership`, `BrokerCore::on_buffer_sync_close`
 //!     - Tested by: `core::tests::buffer_sync::test_buffer_sync_take_ownership`
 //!     - Failure symptom: stale-epoch deltas are accepted, applying edits from a previous ownership era.
 //!
-//! 14. Buffer sync broadcast MUST exclude the sender session and MUST include all other sessions with open refcounts for the URI.
+//! 17. Buffer sync broadcast MUST exclude the sender session and MUST include all other sessions with open refcounts for the URI.
 //!     - Enforced in: `BrokerCore::broadcast_to_sync_doc_sessions`
 //!     - Tested by: `core::tests::buffer_sync::test_buffer_sync_delta_ack_and_broadcast`
 //!     - Failure symptom: sender receives its own delta as a remote edit (infinite loop), or some followers miss deltas.
 //!
-//! 15. On broker disconnect, the editor MUST clear all buffer sync state and remove all follower readonly overrides.
+//! 18. On broker disconnect, the editor MUST clear all buffer sync state and remove buffer sync readonly overrides.
 //!     - Enforced in: `Editor::handle_buffer_sync_disconnect`
 //!     - Tested by: TODO (add regression: test_buffer_sync_disconnect_clears_readonly)
 //!     - Failure symptom: buffers remain stuck in readonly mode after broker disconnect, blocking local editing.
 //!
-//! 16. KnowledgeCore MUST own its own helix-db instance, separate from the language database.
+//! 19. KnowledgeCore MUST own its own helix-db instance, separate from the language database.
 //!     - Enforced in: `KnowledgeCore::open`
 //!     - Tested by: `knowledge::tests::test_knowledge_core_open_close`
 //!     - Failure symptom: schema conflicts or data corruption between subsystems.
 //!
-//! 17. KnowledgeCore MUST degrade gracefully to None if initialization fails.
+//! 20. KnowledgeCore MUST degrade gracefully to None if initialization fails.
 //!     - Enforced in: `BrokerCore::new_with_config`
 //!     - Tested by: `knowledge::tests::test_graceful_degradation`
 //!     - Failure symptom: broker crashes on startup if the knowledge DB path is not writable.
 //!
-//! 18. Indexing MUST NOT block buffer sync delta processing.
+//! 21. Knowledge indexing MUST depend on [`knowledge::DocSnapshotSource`] instead of [`BrokerCore`].
+//!     - Enforced in: `knowledge::indexer::IndexWorker::spawn`, `knowledge::crawler::ProjectCrawler::spawn`
+//!     - Tested by: `knowledge::crawler::tests::test_crawler_skips_open_sync_docs`
+//!     - Failure symptom: knowledge indexing cannot be reused or tested without broker coupling.
+//!
+//! 22. Indexing MUST NOT block buffer sync delta processing.
 //!     - Enforced in: `IndexWorker::mark_dirty`, `IndexWorker::spawn`
 //!     - Tested by: `knowledge::tests::test_dirty_mark_is_nonblocking`
 //!     - Failure symptom: editor input lag during indexing.
 //!
-//! 19. Epoch/seq validation MUST discard stale indexing results.
+//! 23. Epoch/seq validation MUST discard stale indexing results.
 //!     - Enforced in: `knowledge::indexer::index_document`
 //!     - Tested by: `knowledge::tests::test_stale_index_discarded`
 //!     - Failure symptom: search results reference offsets that don't match the current document.
 //!
-//! 20. Chunk cleanup MUST delete all prior chunks for a URI before re-indexing.
+//! 24. Chunk cleanup MUST delete all prior chunks for a URI before re-indexing.
 //!     - Enforced in: `knowledge::indexer::index_document`
 //!     - Tested by: `knowledge::tests::test_chunk_cleanup_on_reindex`
 //!     - Failure symptom: stale chunks cause duplicate or phantom search results.
 //!
-//! 21. BM25 search MUST filter by label "Chunk" to return content, not metadata.
+//! 25. BM25 search MUST filter by label "Chunk" to return content, not metadata.
 //!     - Enforced in: `KnowledgeCore::search`
 //!     - Tested by: `knowledge::tests::test_search_returns_only_chunks`
 //!     - Failure symptom: search returns Doc metadata nodes instead of content.
 //!
-//! 22. Project crawl MUST skip files whose stored mtime matches the on-disk mtime.
+//! 26. Open-doc reindex MUST preserve existing crawler mtime when `mtime` is None.
+//!     - Enforced in: `knowledge::indexer::index_document`
+//!     - Tested by: `knowledge::crawler::tests::test_doc_mtime_matches`, `knowledge::crawler::tests::test_index_document_mtime_overridden_when_some`
+//!     - Failure symptom: crawler mtime cache resets, forcing full reindex on every open-doc update.
+//!
+//! 27. Project crawl MUST skip files whose stored mtime matches the on-disk mtime.
 //!     - Enforced in: `knowledge::crawler::doc_mtime_matches`, `knowledge::crawler::crawl_project`
 //!     - Tested by: `knowledge::crawler::tests::test_doc_mtime_matches`
 //!     - Failure symptom: every LSP start reindexes the entire workspace, causing IO spikes.
 //!
-//! 23. Project crawl MUST skip documents that are currently open in buffer sync.
+//! 28. Project crawl MUST skip documents that are currently open in buffer sync.
 //!     - Enforced in: `knowledge::crawler::crawl_project`
-//!     - Tested by: TODO (add regression: test_crawler_skips_open_sync_docs)
+//!     - Tested by: `knowledge::crawler::tests::test_crawler_skips_open_sync_docs`
 //!     - Failure symptom: background crawl overwrites live edits with stale on-disk content.
 //!
 //! # Data flow
@@ -171,9 +199,9 @@
 //! 2. Local edit (owner path): Editor applies transaction locally, then calls `BufferSyncManager::prepare_delta` which serializes to `WireTx` and sends `BufferSyncDelta` to the broker. Outbound sender in `LspSystem` awaits the result and posts `DeltaAck` or `DeltaRejected` back to the editor loop.
 //! 3. Broker delta processing: Broker validates owner/epoch/seq, converts `WireTx` to `Transaction`, applies to authoritative rope, increments seq, broadcasts `Event::BufferSyncDelta` to all followers, and replies with `BufferSyncDeltaAck { seq }`.
 //! 4. Remote delta (follower path): Editor receives `BufferSyncEvent::RemoteDelta`, converts wire tx back to `Transaction`, applies with `UndoPolicy::NoUndo`, and maps selections for all views of the document.
-//! 5. Ownership change: On owner disconnect or explicit `TakeOwnership`, broker bumps epoch, resets seq, broadcasts `Event::BufferSyncOwnerChanged`. New owner becomes writable; old owner (if still connected) becomes follower (readonly).
+//! 5. Ownership change: On owner disconnect or explicit `TakeOwnership`, broker bumps epoch, resets seq, broadcasts `Event::BufferSyncOwnerChanged`. New owner stays readonly until it resyncs and the broker clears the resync gate; old owner (if still connected) becomes follower (readonly).
 //! 6. Document close: Editor sends `BufferSyncClose`. Broker decrements refcount; if owner closed, elects successor (min session ID). Last close removes the entry.
-//! 7. Disconnect recovery: On broker transport disconnect, editor calls `BufferSyncManager::disable_all()` and clears all follower readonly overrides.
+//! 7. Disconnect recovery: On broker transport disconnect, editor calls `BufferSyncManager::disable_all()` and clears buffer sync readonly overrides.
 //!
 //! ## Knowledge index
 //!
@@ -191,7 +219,7 @@
 //! - Running: Broker proxies JSON-RPC in both directions and maintains pending request maps. Buffer sync deltas are validated and applied to the authoritative rope.
 //! - Leader change: Detach of the leader triggers re-election to min(attached) and cancels pending s2c for the old leader.
 //! - Buffer sync open: Editor calls `BufferSyncOpen` during buffer lifecycle; broker creates or joins a [`SyncDocState`].
-//! - Buffer sync ownership transfer: On owner disconnect or explicit request, broker bumps epoch, broadcasts `OwnerChanged`, new owner starts publishing deltas.
+//! - Buffer sync ownership transfer: On owner disconnect or explicit request, broker bumps epoch, broadcasts `OwnerChanged`, and the new owner must resync before publishing deltas.
 //! - Buffer sync close: Editor calls `BufferSyncClose` during buffer removal; broker decrements refcount and elects successor if needed.
 //! - Idle lease: When attached is empty, broker schedules lease expiry; server remains warm until expiry conditions are met.
 //! - Session cleanup: `cleanup_session_sync_docs` removes the disconnected session from all sync docs and transfers ownership as needed.
@@ -200,11 +228,11 @@
 //!
 //! # Concurrency and ordering
 //!
-//! - BrokerCore state access: [`BrokerCore`] serializes state mutation behind its state lock. All state-dependent routing decisions (leader selection, attachment membership, pending maps) MUST be made under that lock.
+//! - BrokerCore state access: routing and sync state are protected by separate locks; code MUST NOT hold both, and MUST release locks before IPC sends or `rope.to_string()`.
 //! - Pending request ordering: Server-to-client requests are routed to leader and completed by matching request id. Client implementations MUST preserve FIFO request/reply pairing if they use a queue-based strategy.
 //! - Background tasks: Lease expiry runs in a spawned task and MUST re-check generation tokens to avoid stale termination. Server monitor tasks MUST report exits and trigger cleanup.
-//! - Knowledge indexing: Indexing work runs in a background task and MUST not hold the broker state lock while writing to LMDB.
-//! - Knowledge crawling: Project crawl runs in a blocking task and MUST only briefly query broker state to skip open docs.
+//! - Knowledge indexing: Indexing work runs in a background task and MUST snapshot under the sync lock, then release before `rope.to_string()` and LMDB writes.
+//! - Knowledge crawling: Project crawl runs in a blocking task and MUST only briefly query `DocSnapshotSource::is_sync_doc_open` to skip open docs.
 //!
 //! # Failure modes and recovery
 //!
@@ -215,6 +243,8 @@
 //! - Dedup mismatch: If [`ProjectKey`] construction is wrong, broker shares servers incorrectly; fix `ProjectKey` normalization and add regression tests.
 //! - Buffer sync epoch mismatch: Follower delta rejected with `SyncEpochMismatch`; editor should request resync.
 //! - Buffer sync seq mismatch: Delta rejected with `SyncSeqMismatch`; editor should request resync to recover.
+//! - Buffer sync invalid delta: Delta rejected with `InvalidDelta`; editor should request resync and retry after snapshot.
+//! - Buffer sync owner resync gate: New owner delta rejected with `OwnerNeedsResync`; editor should resync before sending edits.
 //! - Broker disconnect (editor side): Editor clears all sync state via `disable_all()` and removes readonly overrides so local editing resumes.
 //! - Knowledge DB unavailable: Broker logs a warning and returns `NotImplemented` for knowledge queries.
 //!
@@ -300,11 +330,12 @@ impl Default for BrokerConfig {
 
 /// Shared state for the broker.
 ///
-/// Tracks active editor sessions, running LSP server instances, and
-/// server->client request routing state.
+/// Routing and buffer sync state are protected by independent locks
+/// to avoid contention between IPC routing and document synchronization.
 #[derive(Debug)]
 pub struct BrokerCore {
-	state: Mutex<BrokerState>,
+	routing: Mutex<RoutingState>,
+	sync: Mutex<SyncState>,
 	next_server_id: AtomicU64,
 	config: BrokerConfig,
 	knowledge: Option<Arc<knowledge::KnowledgeCore>>,
@@ -313,7 +344,8 @@ pub struct BrokerCore {
 impl Default for BrokerCore {
 	fn default() -> Self {
 		Self {
-			state: Mutex::new(BrokerState::default()),
+			routing: Mutex::new(RoutingState::default()),
+			sync: Mutex::new(SyncState::default()),
 			next_server_id: AtomicU64::new(0),
 			config: BrokerConfig::default(),
 			knowledge: None,
@@ -322,7 +354,7 @@ impl Default for BrokerCore {
 }
 
 #[derive(Debug, Default)]
-struct BrokerState {
+struct RoutingState {
 	sessions: HashMap<SessionId, SessionEntry>,
 	servers: HashMap<ServerId, ServerEntry>,
 	projects: HashMap<ProjectKey, ServerId>,
@@ -334,14 +366,18 @@ struct BrokerState {
 	///
 	/// The broker rewrites these IDs to prevent collisions between sessions.
 	pending_c2s: HashMap<(ServerId, xeno_lsp::RequestId), PendingC2sReq>,
+}
+
+#[derive(Debug, Default)]
+struct SyncState {
 	/// Buffer sync documents keyed by canonical URI.
 	sync_docs: HashMap<String, SyncDocState>,
 }
 
 /// Broker-authoritative state for a single buffer sync document.
 ///
-/// Tracks ownership, refcounts, sequence ordering, and the authoritative rope
-/// content for a synchronized document.
+/// Tracks ownership, refcounts, sequence ordering, resync gating, and the
+/// authoritative rope content for a synchronized document.
 #[derive(Debug)]
 struct SyncDocState {
 	/// Current owner session (single-writer).
@@ -354,6 +390,8 @@ struct SyncDocState {
 	seq: SyncSeq,
 	/// Authoritative document content.
 	rope: Rope,
+	/// Newly elected owners must resync before publishing deltas.
+	owner_needs_resync: bool,
 }
 
 /// Unique key for deduplicating LSP servers by project identity.
@@ -465,14 +503,16 @@ impl BrokerCore {
 		};
 
 		let core = Arc::new(Self {
-			state: Mutex::new(BrokerState::default()),
+			routing: Mutex::new(RoutingState::default()),
+			sync: Mutex::new(SyncState::default()),
 			next_server_id: AtomicU64::new(0),
 			config,
 			knowledge,
 		});
 
 		if let Some(knowledge) = &core.knowledge {
-			knowledge.start_worker(Arc::downgrade(&core));
+			let source: Arc<dyn knowledge::DocSnapshotSource> = core.clone();
+			knowledge.start_worker(Arc::downgrade(&source));
 		}
 
 		core
@@ -481,28 +521,15 @@ impl BrokerCore {
 	/// Retrieves a snapshot of the current broker state for debugging or testing.
 	#[doc(hidden)]
 	pub fn get_state(&self) -> BrokerStateSnapshot {
-		let state = self.state.lock().unwrap();
-		let sessions = state.sessions.keys().cloned().collect();
-		let servers = state
+		let routing = self.routing.lock().unwrap();
+		let sessions = routing.sessions.keys().cloned().collect();
+		let servers = routing
 			.servers
 			.iter()
 			.map(|(id, s)| (*id, s.attached.iter().cloned().collect()))
 			.collect();
-		let projects = state.projects.clone();
+		let projects = routing.projects.clone();
 		(sessions, servers, projects)
-	}
-
-	/// Snapshot the current sync document state for background indexing.
-	pub(crate) fn snapshot_sync_doc(&self, uri: &str) -> Option<(SyncEpoch, SyncSeq, Rope)> {
-		let state = self.state.lock().unwrap();
-		let doc = state.sync_docs.get(uri)?;
-		Some((doc.epoch, doc.seq, doc.rope.clone()))
-	}
-
-	/// Returns true if a sync document is currently open for the given URI.
-	pub(crate) fn is_sync_doc_open(&self, uri: &str) -> bool {
-		let state = self.state.lock().unwrap();
-		state.sync_docs.contains_key(uri)
 	}
 
 	/// Executes a knowledge search query against the persistent index.
@@ -522,8 +549,8 @@ impl BrokerCore {
 
 	/// Retrieves the communication handle for a specific LSP server.
 	pub fn get_server_tx(&self, server_id: ServerId) -> Option<LspTx> {
-		let state = self.state.lock().unwrap();
-		state
+		let routing = self.routing.lock().unwrap();
+		routing
 			.servers
 			.get(&server_id)
 			.map(|s| s.instance.lsp_tx.clone())
@@ -539,12 +566,37 @@ impl BrokerCore {
 		};
 
 		let root = PathBuf::from(cwd);
-		let _ = knowledge::crawler::ProjectCrawler::spawn(knowledge, Arc::downgrade(self), root);
+		let source: Arc<dyn knowledge::DocSnapshotSource> = self.clone();
+		let _ = knowledge::crawler::ProjectCrawler::spawn(knowledge, Arc::downgrade(&source), root);
 	}
 
 	/// Allocate a globally unique server ID.
 	pub fn next_server_id(&self) -> ServerId {
 		ServerId(self.next_server_id.fetch_add(1, Ordering::Relaxed))
+	}
+}
+
+impl knowledge::DocSnapshotSource for BrokerCore {
+	fn snapshot_sync_doc(&self, uri: &str) -> Option<(SyncEpoch, SyncSeq, Rope)> {
+		let sync = self.sync.lock().unwrap();
+		let doc = sync.sync_docs.get(uri)?;
+		Some((doc.epoch, doc.seq, doc.rope.clone()))
+	}
+
+	fn is_sync_doc_open(&self, uri: &str) -> bool {
+		let sync = self.sync.lock().unwrap();
+		sync.sync_docs.contains_key(uri)
+	}
+}
+
+#[cfg(test)]
+impl BrokerCore {
+	fn lock_routing_for_test(&self) -> std::sync::MutexGuard<'_, RoutingState> {
+		self.routing.lock().unwrap()
+	}
+
+	fn lock_sync_for_test(&self) -> std::sync::MutexGuard<'_, SyncState> {
+		self.sync.lock().unwrap()
 	}
 }
 

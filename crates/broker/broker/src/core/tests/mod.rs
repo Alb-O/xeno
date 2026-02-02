@@ -7,6 +7,7 @@ mod error_handling;
 mod helpers;
 mod leader_election;
 mod lease_management;
+mod lock_partition;
 mod project_dedup;
 mod request_routing;
 mod server_lifecycle;

@@ -18,14 +18,14 @@ impl BrokerCore {
 		request_id: xeno_lsp::RequestId,
 		tx: oneshot::Sender<LspReplyResult>,
 	) -> Option<SessionId> {
-		let mut state = self.state.lock().unwrap();
-		let server = state.servers.get(&server_id)?;
+		let mut routing = self.routing.lock().unwrap();
+		let server = routing.servers.get(&server_id)?;
 		if server.attached.is_empty() {
 			return None;
 		}
 		let leader = server.leader;
 
-		state.pending_s2c.insert(
+		routing.pending_s2c.insert(
 			(server_id, request_id),
 			PendingS2cReq {
 				responder: leader,
@@ -46,15 +46,15 @@ impl BrokerCore {
 		request_id: xeno_lsp::RequestId,
 		result: LspReplyResult,
 	) -> bool {
-		let mut state = self.state.lock().unwrap();
-		let Some(req) = state.pending_s2c.get(&(server_id, request_id.clone())) else {
+		let mut routing = self.routing.lock().unwrap();
+		let Some(req) = routing.pending_s2c.get(&(server_id, request_id.clone())) else {
 			return false;
 		};
 		if req.responder != session_id {
 			return false;
 		}
 
-		if let Some(req) = state.pending_s2c.remove(&(server_id, request_id)) {
+		if let Some(req) = routing.pending_s2c.remove(&(server_id, request_id)) {
 			let _ = req.tx.send(result);
 			true
 		} else {
@@ -68,8 +68,8 @@ impl BrokerCore {
 		server_id: ServerId,
 		request_id: xeno_lsp::RequestId,
 	) -> bool {
-		let mut state = self.state.lock().unwrap();
-		if let Some(req) = state.pending_s2c.remove(&(server_id, request_id)) {
+		let mut routing = self.routing.lock().unwrap();
+		if let Some(req) = routing.pending_s2c.remove(&(server_id, request_id)) {
 			let _ = req.tx.send(Err(xeno_lsp::ResponseError::new(
 				xeno_lsp::ErrorCode::REQUEST_CANCELLED,
 				"request cancelled by broker",
@@ -83,8 +83,8 @@ impl BrokerCore {
 	/// Cancel all pending server-to-client requests for a given session.
 	pub fn cancel_all_client_requests_for_session(&self, session_id: SessionId) {
 		let to_cancel: Vec<(ServerId, xeno_lsp::RequestId)> = {
-			let state = self.state.lock().unwrap();
-			state
+			let routing = self.routing.lock().unwrap();
+			routing
 				.pending_s2c
 				.iter()
 				.filter(|(_, req)| req.responder == session_id)
@@ -99,8 +99,8 @@ impl BrokerCore {
 	/// Cancel all pending server-to-client requests for a given server.
 	pub fn cancel_all_client_requests_for_server(&self, server_id: ServerId) {
 		let to_cancel: Vec<xeno_lsp::RequestId> = {
-			let state = self.state.lock().unwrap();
-			state
+			let routing = self.routing.lock().unwrap();
+			routing
 				.pending_s2c
 				.iter()
 				.filter(|((sid, _), _)| *sid == server_id)
@@ -116,8 +116,8 @@ impl BrokerCore {
 	///
 	/// Uses string IDs ("b:{server}:{seq}") to prevent numeric overflow.
 	pub fn alloc_wire_request_id(&self, server_id: ServerId) -> Option<xeno_lsp::RequestId> {
-		let mut state = self.state.lock().unwrap();
-		let server = state.servers.get_mut(&server_id)?;
+		let mut routing = self.routing.lock().unwrap();
+		let server = routing.servers.get_mut(&server_id)?;
 		let wire_num = server.next_wire_req_id;
 		server.next_wire_req_id += 1;
 		Some(xeno_lsp::RequestId::String(format!(
@@ -140,8 +140,8 @@ impl BrokerCore {
 		origin_session: SessionId,
 		origin_id: xeno_lsp::RequestId,
 	) {
-		let mut state = self.state.lock().unwrap();
-		state.pending_c2s.insert(
+		let mut routing = self.routing.lock().unwrap();
+		routing.pending_c2s.insert(
 			(server_id, wire_id),
 			PendingC2sReq {
 				origin_session,
@@ -156,8 +156,8 @@ impl BrokerCore {
 		server_id: ServerId,
 		wire_id: &xeno_lsp::RequestId,
 	) -> Option<PendingC2sReq> {
-		let mut state = self.state.lock().unwrap();
-		state.pending_c2s.remove(&(server_id, wire_id.clone()))
+		let mut routing = self.routing.lock().unwrap();
+		routing.pending_c2s.remove(&(server_id, wire_id.clone()))
 	}
 
 	/// Cancel a pending client-to-server request and return the origin information.

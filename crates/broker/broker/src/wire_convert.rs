@@ -26,22 +26,69 @@ pub fn tx_to_wire(tx: &Transaction) -> WireTx {
 ///
 /// Reconstructs a transaction by translating the wire operations into a sequence
 /// of [`Change`] items and building the transaction against the given rope slice.
-pub fn wire_to_tx(wire: &WireTx, doc: ropey::RopeSlice<'_>) -> Transaction {
+/// Returns an error if an operation would run past EOF or overflow the cursor.
+/// Validation failures when converting [`WireTx`] to [`Transaction`].
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum WireTxError {
+	/// Retain advanced past EOF.
+	RetainPastEof {
+		/// Cursor position before retain.
+		pos: usize,
+		/// Retain length.
+		n: usize,
+		/// Document length in chars.
+		len: usize,
+	},
+	/// Delete advanced past EOF.
+	DeletePastEof {
+		/// Cursor position before delete.
+		pos: usize,
+		/// Delete length.
+		n: usize,
+		/// Document length in chars.
+		len: usize,
+	},
+	/// Cursor arithmetic overflowed.
+	Overflow {
+		/// Cursor position before overflow.
+		pos: usize,
+		/// Operation length.
+		n: usize,
+	},
+}
+
+/// Converts a [`WireTx`] back into a [`Transaction`] for application to a rope.
+///
+/// Returns an error if any wire operation would advance past EOF or overflow.
+pub fn wire_to_tx(wire: &WireTx, doc: ropey::RopeSlice<'_>) -> Result<Transaction, WireTxError> {
 	let mut changes = Vec::new();
 	let mut pos: usize = 0;
+	let len = doc.len_chars();
 
 	for op in &wire.0 {
 		match op {
 			WireOp::Retain(n) => {
-				pos += n;
+				let Some(next) = pos.checked_add(*n) else {
+					return Err(WireTxError::Overflow { pos, n: *n });
+				};
+				if next > len {
+					return Err(WireTxError::RetainPastEof { pos, n: *n, len });
+				}
+				pos = next;
 			}
 			WireOp::Delete(n) => {
+				let Some(next) = pos.checked_add(*n) else {
+					return Err(WireTxError::Overflow { pos, n: *n });
+				};
+				if next > len {
+					return Err(WireTxError::DeletePastEof { pos, n: *n, len });
+				}
 				changes.push(Change {
 					start: pos,
-					end: pos + n,
+					end: next,
 					replacement: None,
 				});
-				pos += n;
+				pos = next;
 			}
 			WireOp::Insert(text) => {
 				changes.push(Change {
@@ -53,7 +100,7 @@ pub fn wire_to_tx(wire: &WireTx, doc: ropey::RopeSlice<'_>) -> Transaction {
 		}
 	}
 
-	Transaction::change(doc, changes)
+	Ok(Transaction::change(doc, changes))
 }
 
 #[cfg(test)]
@@ -68,7 +115,7 @@ mod tests {
 		let rope = Rope::from("hello");
 		let tx = Transaction::change(rope.slice(..), std::iter::empty::<Change>());
 		let wire = tx_to_wire(&tx);
-		let reconstructed = wire_to_tx(&wire, rope.slice(..));
+		let reconstructed = wire_to_tx(&wire, rope.slice(..)).expect("wire_to_tx");
 
 		let mut r1 = rope.clone();
 		let mut r2 = rope;
@@ -89,7 +136,7 @@ mod tests {
 			}],
 		);
 		let wire = tx_to_wire(&tx);
-		let reconstructed = wire_to_tx(&wire, rope.slice(..));
+		let reconstructed = wire_to_tx(&wire, rope.slice(..)).expect("wire_to_tx");
 
 		let mut r1 = rope.clone();
 		let mut r2 = rope;
@@ -111,7 +158,7 @@ mod tests {
 			}],
 		);
 		let wire = tx_to_wire(&tx);
-		let reconstructed = wire_to_tx(&wire, rope.slice(..));
+		let reconstructed = wire_to_tx(&wire, rope.slice(..)).expect("wire_to_tx");
 
 		let mut r1 = rope.clone();
 		let mut r2 = rope;
@@ -140,7 +187,7 @@ mod tests {
 			],
 		);
 		let wire = tx_to_wire(&tx);
-		let reconstructed = wire_to_tx(&wire, rope.slice(..));
+		let reconstructed = wire_to_tx(&wire, rope.slice(..)).expect("wire_to_tx");
 
 		let mut r1 = rope.clone();
 		let mut r2 = rope;
@@ -162,7 +209,7 @@ mod tests {
 			}],
 		);
 		let wire = tx_to_wire(&tx);
-		let reconstructed = wire_to_tx(&wire, rope.slice(..));
+		let reconstructed = wire_to_tx(&wire, rope.slice(..)).expect("wire_to_tx");
 
 		let mut r1 = rope.clone();
 		let mut r2 = rope;
@@ -193,5 +240,40 @@ mod tests {
 				WireOp::Retain(2),
 			]
 		);
+	}
+
+	#[test]
+	fn test_wire_to_tx_rejects_retain_past_eof() {
+		let rope = Rope::from("hello");
+		let wire = WireTx(vec![WireOp::Retain(6)]);
+		assert_eq!(
+			wire_to_tx(&wire, rope.slice(..)).unwrap_err(),
+			WireTxError::RetainPastEof {
+				pos: 0,
+				n: 6,
+				len: 5
+			}
+		);
+	}
+
+	#[test]
+	fn test_wire_to_tx_rejects_delete_past_eof() {
+		let rope = Rope::from("hello");
+		let wire = WireTx(vec![WireOp::Retain(4), WireOp::Delete(2)]);
+		assert_eq!(
+			wire_to_tx(&wire, rope.slice(..)).unwrap_err(),
+			WireTxError::DeletePastEof {
+				pos: 4,
+				n: 2,
+				len: 5
+			}
+		);
+	}
+
+	#[test]
+	fn test_wire_to_tx_accepts_insert_at_eof() {
+		let rope = Rope::from("hello");
+		let wire = WireTx(vec![WireOp::Retain(5), WireOp::Insert("x".into())]);
+		assert!(wire_to_tx(&wire, rope.slice(..)).is_ok());
 	}
 }

@@ -15,8 +15,8 @@ impl BrokerCore {
 	/// * `session_id` - Unique identifier for the editor session.
 	/// * `sink` - Communication channel back to the editor.
 	pub fn register_session(&self, session_id: SessionId, sink: super::SessionSink) {
-		let mut state = self.state.lock().unwrap();
-		state.sessions.insert(
+		let mut routing = self.routing.lock().unwrap();
+		routing.sessions.insert(
 			session_id,
 			super::SessionEntry {
 				sink,
@@ -31,13 +31,14 @@ impl BrokerCore {
 	/// the session from all running servers, potentially triggering idle leases,
 	/// and cancels any pending requests where this session was the responder.
 	pub fn unregister_session(self: &Arc<Self>, session_id: SessionId) {
-		let mut servers_to_detach = Vec::new();
-		{
-			let mut state = self.state.lock().unwrap();
-			if let Some(session) = state.sessions.remove(&session_id) {
-				servers_to_detach.extend(session.attached);
-			}
-		}
+		let servers_to_detach = {
+			let mut routing = self.routing.lock().unwrap();
+			routing
+				.sessions
+				.remove(&session_id)
+				.map(|session| session.attached.into_iter().collect::<Vec<_>>())
+				.unwrap_or_default()
+		};
 
 		for server_id in servers_to_detach {
 			self.detach_session(server_id, session_id);
@@ -54,8 +55,8 @@ impl BrokerCore {
 		server_id: ServerId,
 		session_id: SessionId,
 	) {
-		let mut state = self.state.lock().unwrap();
-		let Some(server) = state.servers.get_mut(&server_id) else {
+		let mut routing = self.routing.lock().unwrap();
+		let Some(server) = routing.servers.get_mut(&server_id) else {
 			return;
 		};
 
@@ -80,8 +81,8 @@ impl BrokerCore {
 	}
 
 	pub(super) fn cancel_all_c2s_requests_for_session(&self, session_id: SessionId) {
-		let mut state = self.state.lock().unwrap();
-		state
+		let mut routing = self.routing.lock().unwrap();
+		routing
 			.pending_c2s
 			.retain(|_, req| req.origin_session != session_id);
 	}

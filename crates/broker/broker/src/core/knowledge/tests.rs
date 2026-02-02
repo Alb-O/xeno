@@ -1,16 +1,30 @@
-use std::sync::{Arc, Mutex, Weak};
+use std::sync::{Arc, Mutex};
 
 use bumpalo::Bump;
 use helix_db::helix_engine::traversal_core::ops::g::G;
 use helix_db::helix_engine::traversal_core::ops::source::n_from_index::NFromIndexAdapter;
 use helix_db::helix_engine::traversal_core::traversal_value::TraversalValue;
 use helix_db::protocol::value::Value;
+use ropey::Rope;
 use tempfile::TempDir;
+use xeno_broker_proto::types::{SyncEpoch, SyncSeq};
 
 use super::indexer::{IndexWorker, chunk_text, index_document};
-use super::{KnowledgeCore, SCHEMA_CONFIG};
+use super::{DocSnapshotSource, KnowledgeCore, SCHEMA_CONFIG};
 
 static ENV_LOCK: Mutex<()> = Mutex::new(());
+
+struct NullSource;
+
+impl DocSnapshotSource for NullSource {
+	fn snapshot_sync_doc(&self, _uri: &str) -> Option<(SyncEpoch, SyncSeq, Rope)> {
+		None
+	}
+
+	fn is_sync_doc_open(&self, _uri: &str) -> bool {
+		false
+	}
+}
 
 #[test]
 fn test_knowledge_core_open_close() {
@@ -253,7 +267,8 @@ async fn test_dirty_mark_is_nonblocking() {
 		Default::default(),
 	)
 	.expect("storage");
-	let worker = IndexWorker::spawn(Arc::new(storage), Weak::new());
+	let source: Arc<dyn DocSnapshotSource> = Arc::new(NullSource);
+	let worker = IndexWorker::spawn(Arc::new(storage), Arc::downgrade(&source));
 
 	let start = std::time::Instant::now();
 	worker.mark_dirty("file:///test.rs".to_string());

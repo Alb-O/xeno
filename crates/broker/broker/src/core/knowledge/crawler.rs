@@ -11,7 +11,7 @@ use ignore::WalkBuilder;
 use xeno_runtime_language::{LanguageDb, language_db};
 
 use super::indexer::index_document;
-use super::{KnowledgeCore, KnowledgeError};
+use super::{DocSnapshotSource, KnowledgeCore, KnowledgeError};
 
 const LABEL_DOC: &str = "Doc";
 const INDEX_DOC_URI: &str = "uri";
@@ -22,7 +22,7 @@ pub struct ProjectCrawler;
 impl ProjectCrawler {
 	pub fn spawn(
 		knowledge: Arc<KnowledgeCore>,
-		broker: Weak<super::super::BrokerCore>,
+		source: Weak<dyn DocSnapshotSource>,
 		root: PathBuf,
 	) -> Option<Self> {
 		if tokio::runtime::Handle::try_current().is_err() {
@@ -32,7 +32,7 @@ impl ProjectCrawler {
 		let crawler = Self;
 		tokio::spawn(async move {
 			let _ = tokio::task::spawn_blocking(move || {
-				crawl_project(knowledge, broker, root);
+				crawl_project(knowledge, source, root);
 			})
 			.await;
 		});
@@ -43,7 +43,7 @@ impl ProjectCrawler {
 
 fn crawl_project(
 	knowledge: Arc<KnowledgeCore>,
-	broker: Weak<super::super::BrokerCore>,
+	source: Weak<dyn DocSnapshotSource>,
 	root: PathBuf,
 ) {
 	let lang_db = language_db();
@@ -77,10 +77,10 @@ fn crawl_project(
 			continue;
 		};
 
-		let Some(core) = broker.upgrade() else {
+		let Some(source) = source.upgrade() else {
 			break;
 		};
-		if core.is_sync_doc_open(&uri) {
+		if source.is_sync_doc_open(&uri) {
 			continue;
 		}
 
@@ -168,11 +168,30 @@ fn doc_mtime_matches(
 
 #[cfg(test)]
 mod tests {
-	use tempfile::TempDir;
+	use std::collections::HashSet;
+	use std::sync::Arc;
 
-	use super::doc_mtime_matches;
-	use crate::core::knowledge::KnowledgeCore;
+	use ropey::Rope;
+	use tempfile::TempDir;
+	use xeno_broker_proto::types::{SyncEpoch, SyncSeq};
+
+	use super::{crawl_project, doc_mtime_matches, file_mtime};
 	use crate::core::knowledge::indexer::index_document;
+	use crate::core::knowledge::{DocSnapshotSource, KnowledgeCore};
+
+	struct TestSource {
+		open_uris: HashSet<String>,
+	}
+
+	impl DocSnapshotSource for TestSource {
+		fn snapshot_sync_doc(&self, _uri: &str) -> Option<(SyncEpoch, SyncSeq, Rope)> {
+			None
+		}
+
+		fn is_sync_doc_open(&self, uri: &str) -> bool {
+			self.open_uris.contains(uri)
+		}
+	}
 
 	#[test]
 	fn test_doc_mtime_matches() {
@@ -185,6 +204,45 @@ mod tests {
 		assert!(!doc_mtime_matches(core.storage(), uri, 11).expect("mtime mismatch"));
 
 		index_document(core.storage(), uri, "hello", 1, 2, "", None).expect("reindex");
-		assert!(!doc_mtime_matches(core.storage(), uri, 10).expect("mtime reset"));
+		assert!(doc_mtime_matches(core.storage(), uri, 10).expect("mtime preserved"));
+	}
+
+	#[test]
+	fn test_index_document_mtime_overridden_when_some() {
+		let temp = TempDir::new().expect("tempdir");
+		let core = KnowledgeCore::open(temp.path().join("knowledge")).expect("open knowledge");
+		let uri = "file:///mtime_override.rs";
+
+		index_document(core.storage(), uri, "hello", 1, 1, "", Some(10)).expect("index");
+		assert!(doc_mtime_matches(core.storage(), uri, 10).expect("mtime match"));
+
+		index_document(core.storage(), uri, "hello", 1, 2, "", Some(11)).expect("reindex");
+		assert!(doc_mtime_matches(core.storage(), uri, 11).expect("mtime override"));
+	}
+
+	#[test]
+	fn test_crawler_skips_open_sync_docs() {
+		let temp = TempDir::new().expect("tempdir");
+		let root = temp.path().join("workspace");
+		std::fs::create_dir_all(&root).expect("create root");
+
+		let path = root.join("main.rs");
+		std::fs::write(&path, "fn main() {}\n").expect("write file");
+
+		let knowledge =
+			Arc::new(KnowledgeCore::open(temp.path().join("knowledge")).expect("open knowledge"));
+		let uri = xeno_lsp::uri_from_path(&path)
+			.map(|uri| uri.to_string())
+			.expect("uri");
+		let mtime = file_mtime(&path).expect("mtime");
+
+		let mut open_uris = HashSet::new();
+		open_uris.insert(uri.clone());
+		let source: Arc<dyn DocSnapshotSource> = Arc::new(TestSource { open_uris });
+		let weak = Arc::downgrade(&source);
+
+		crawl_project(Arc::clone(&knowledge), weak, root);
+
+		assert!(!doc_mtime_matches(knowledge.storage(), &uri, mtime).expect("mtime check"));
 	}
 }

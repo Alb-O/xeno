@@ -87,8 +87,10 @@ struct SyncDocEntry {
 	role: BufferSyncRole,
 	/// Set when an epoch mismatch or sequence gap is detected, indicating
 	/// the local document may have diverged from the broker's authoritative
-	/// copy. Cleared when a resync request is drained and sent.
+	/// copy. Cleared when a resync snapshot is applied.
 	needs_resync: bool,
+	/// Tracks whether a resync request has been sent while waiting on a snapshot.
+	resync_requested: bool,
 }
 
 /// Manages buffer sync state for all documents in this editor session.
@@ -156,6 +158,7 @@ impl BufferSyncManager {
 				seq,
 				role,
 				needs_resync: false,
+				resync_requested: false,
 			},
 		);
 
@@ -209,6 +212,7 @@ impl BufferSyncManager {
 	pub fn mark_needs_resync(&mut self, uri: &str) {
 		if let Some(entry) = self.docs.get_mut(uri) {
 			entry.needs_resync = true;
+			entry.resync_requested = false;
 		}
 	}
 
@@ -241,6 +245,7 @@ impl BufferSyncManager {
 				"Buffer sync epoch mismatch, requesting resync"
 			);
 			entry.needs_resync = true;
+			entry.resync_requested = false;
 			return None;
 		}
 
@@ -253,6 +258,7 @@ impl BufferSyncManager {
 				"Buffer sync sequence gap, requesting resync"
 			);
 			entry.needs_resync = true;
+			entry.resync_requested = false;
 			return None;
 		}
 
@@ -262,8 +268,9 @@ impl BufferSyncManager {
 
 	/// Processes an ownership change event from the broker.
 	///
-	/// Resets the sequence to zero (new epoch starts fresh) and clears
-	/// any pending resync flag since the new epoch supersedes it.
+	/// Resets the sequence to zero (new epoch starts fresh). If the local
+	/// session becomes owner, marks the document as needing resync before
+	/// edits are allowed.
 	pub fn handle_owner_changed(
 		&mut self,
 		uri: &str,
@@ -274,12 +281,15 @@ impl BufferSyncManager {
 		if let Some(entry) = self.docs.get_mut(uri) {
 			entry.epoch = epoch;
 			entry.seq = SyncSeq(0);
-			entry.role = if owner == local_session {
-				BufferSyncRole::Owner
+			if owner == local_session {
+				entry.role = BufferSyncRole::Owner;
+				entry.needs_resync = true;
+				entry.resync_requested = false;
 			} else {
-				BufferSyncRole::Follower
-			};
-			entry.needs_resync = false;
+				entry.role = BufferSyncRole::Follower;
+				entry.needs_resync = false;
+				entry.resync_requested = false;
+			}
 		}
 	}
 
@@ -319,17 +329,30 @@ impl BufferSyncManager {
 	/// Collects URIs of documents that need a full resync from the broker.
 	///
 	/// Returns `BufferSyncResync` request payloads for each desynced document
-	/// and clears their `needs_resync` flags. Called once per tick after
+	/// and marks their resync as requested. Called once per tick after
 	/// draining inbound events.
 	pub fn drain_resync_requests(&mut self) -> Vec<RequestPayload> {
 		let mut requests = Vec::new();
 		for (uri, entry) in &mut self.docs {
-			if entry.needs_resync {
-				entry.needs_resync = false;
+			if entry.needs_resync && !entry.resync_requested {
+				entry.resync_requested = true;
 				requests.push(RequestPayload::BufferSyncResync { uri: uri.clone() });
 			}
 		}
 		requests
+	}
+
+	/// Clears the resync-required gate after a snapshot is applied.
+	pub fn clear_needs_resync(&mut self, uri: &str) {
+		if let Some(entry) = self.docs.get_mut(uri) {
+			entry.needs_resync = false;
+			entry.resync_requested = false;
+		}
+	}
+
+	/// Returns true if the document is currently blocked on resync.
+	pub fn needs_resync(&self, uri: &str) -> bool {
+		self.docs.get(uri).is_some_and(|entry| entry.needs_resync)
 	}
 
 	/// Disables all sync tracking, clearing all entries so the editor can
@@ -337,5 +360,69 @@ impl BufferSyncManager {
 	pub fn disable_all(&mut self) {
 		self.docs.clear();
 		self.doc_id_to_uri.clear();
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use xeno_primitives::Rope;
+	use xeno_primitives::transaction::{Change, Transaction};
+
+	use super::*;
+
+	fn sample_tx() -> Transaction {
+		let rope = Rope::from("hello");
+		Transaction::change(
+			rope.slice(..),
+			std::iter::once(Change {
+				start: 5,
+				end: 5,
+				replacement: Some("!".into()),
+			}),
+		)
+	}
+
+	#[test]
+	fn test_owner_changed_sets_needs_resync_for_local_new_owner() {
+		let mut manager = BufferSyncManager::new();
+		let uri = "file:///test.rs";
+		let doc_id = DocumentId::next();
+
+		manager.prepare_open(uri, "hello", doc_id);
+		manager.handle_opened(
+			uri,
+			BufferSyncRole::Follower,
+			SyncEpoch(1),
+			SyncSeq(0),
+			None,
+		);
+
+		manager.handle_owner_changed(uri, SyncEpoch(2), SessionId(1), SessionId(1));
+
+		assert!(manager.needs_resync(uri));
+		assert!(manager.prepare_delta(uri, &sample_tx()).is_none());
+	}
+
+	#[test]
+	fn test_snapshot_clears_needs_resync_and_allows_delta() {
+		let mut manager = BufferSyncManager::new();
+		let uri = "file:///test.rs";
+		let doc_id = DocumentId::next();
+
+		manager.prepare_open(uri, "hello", doc_id);
+		manager.handle_opened(
+			uri,
+			BufferSyncRole::Follower,
+			SyncEpoch(1),
+			SyncSeq(0),
+			None,
+		);
+
+		manager.handle_owner_changed(uri, SyncEpoch(2), SessionId(1), SessionId(1));
+		assert!(manager.needs_resync(uri));
+
+		manager.clear_needs_resync(uri);
+		assert!(!manager.needs_resync(uri));
+		assert!(manager.prepare_delta(uri, &sample_tx()).is_some());
 	}
 }

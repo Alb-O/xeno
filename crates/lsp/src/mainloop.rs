@@ -198,7 +198,6 @@ where
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::Error;
 
 	fn _main_loop_future_is_send<S>(
 		f: MainLoop<S>,

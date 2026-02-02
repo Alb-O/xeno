@@ -14,6 +14,8 @@ use helix_db::helixc::parser::HelixParser;
 use helix_db::helixc::parser::types::{Content, HxFile, Source as ParsedSource};
 use helix_db::protocol::value::Value;
 use helix_db::utils::properties::ImmutablePropertiesMap;
+use ropey::Rope;
+use xeno_broker_proto::types::{SyncEpoch, SyncSeq};
 
 pub mod crawler;
 pub mod error;
@@ -23,6 +25,12 @@ pub mod search;
 pub use error::KnowledgeError;
 
 const SCHEMA_HQL: &str = include_str!("schema.hql");
+
+/// Source of authoritative sync document snapshots.
+pub trait DocSnapshotSource: Send + Sync + 'static {
+	fn snapshot_sync_doc(&self, uri: &str) -> Option<(SyncEpoch, SyncSeq, Rope)>;
+	fn is_sync_doc_open(&self, uri: &str) -> bool;
+}
 
 /// Helix-db config derived from `schema.hql` at first access.
 static SCHEMA_CONFIG: LazyLock<Config> = LazyLock::new(|| {
@@ -95,7 +103,7 @@ impl KnowledgeCore {
 	}
 
 	/// Starts the background indexing worker if a Tokio runtime is available.
-	pub fn start_worker(&self, broker: Weak<super::BrokerCore>) {
+	pub fn start_worker(&self, source: Weak<dyn DocSnapshotSource>) {
 		if self.worker.get().is_some() {
 			return;
 		}
@@ -103,7 +111,7 @@ impl KnowledgeCore {
 			return;
 		}
 
-		let worker = indexer::IndexWorker::spawn(self.storage().clone(), broker);
+		let worker = indexer::IndexWorker::spawn(self.storage().clone(), source);
 		let _ = self.worker.set(worker);
 	}
 
