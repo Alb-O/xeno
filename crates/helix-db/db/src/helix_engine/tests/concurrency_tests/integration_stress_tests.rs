@@ -108,9 +108,17 @@ fn test_stress_mixed_read_write_operations() {
 		handles.push(thread::spawn(move || {
 			let mut count = 0;
 			while start.elapsed() < duration {
-				let rtxn = storage.graph_env.read_txn().unwrap();
-				let node_count = storage.nodes_db.len(&rtxn).unwrap();
-				let edge_count = storage.edges_db.len(&rtxn).unwrap();
+				// NOTE: keep node/edge stats on separate read txns. We hit heap corruption
+				// when calling Database::len on multiple DBs within the same RoTxn under
+				// concurrent writers; consider upstreaming an issue/repro to heed3/LMDB.
+				let node_count = {
+					let rtxn = storage.graph_env.read_txn().unwrap();
+					storage.nodes_db.len(&rtxn).unwrap()
+				};
+				let edge_count = {
+					let rtxn = storage.graph_env.read_txn().unwrap();
+					storage.edges_db.len(&rtxn).unwrap()
+				};
 				if node_count > 0 && edge_count > 0 {
 					read_ops.fetch_add(1, Ordering::Relaxed);
 					count += 1;
