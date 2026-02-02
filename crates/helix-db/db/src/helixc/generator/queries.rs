@@ -19,12 +19,8 @@ pub struct Query {
 }
 
 impl Query {
-	fn print_handler(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-		if self.is_mut {
-			writeln!(f, "#[handler(is_write)]")
-		} else {
-			writeln!(f, "#[handler]")
-		}
+	fn print_handler(&self, _f: &mut fmt::Formatter<'_>) -> fmt::Result {
+		Ok(())
 	}
 
 	fn print_parameters(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -117,22 +113,22 @@ impl Query {
 		self.print_handler(f)?;
 		writeln!(
 			f,
-			"pub fn {} (input: HandlerInput) -> Result<Response, EngineError> {{",
+			"pub fn {} (storage: &Arc<HelixGraphStorage>, body: Vec<u8>, in_fmt: Format) -> Result<Response, EngineError> {{",
 			self.name
 		)?;
 
 		// print the db boilerplate
-		writeln!(f, "let db = Arc::clone(&input.graph.storage);")?;
+		writeln!(f, "let db = Arc::clone(storage);")?;
 		if !self.parameters.is_empty() {
 			match self.hoisted_embedding_calls.is_empty() {
 				true => writeln!(
 					f,
-					"let data = input.request.in_fmt.deserialize::<{}Input>(&input.request.body)?;",
+					"let data = in_fmt.deserialize::<{}Input>(&body)?;",
 					self.name
 				)?,
 				false => writeln!(
 					f,
-					"let data = input.request.in_fmt.deserialize::<{}Input>(&input.request.body)?.into_owned();",
+					"let data = in_fmt.deserialize::<{}Input>(&body)?.into_owned();",
 					self.name
 				)?,
 			}

@@ -139,7 +139,7 @@
 - `test_field_type_cast` - Tests field type casting
 - `test_field_addition_from_value` - Tests field addition from values
 
-### **Embedding Provider Tests** (`helix-db/src/helix_gateway/embedding_providers/embedding_providers.rs`)
+### **Embedding Provider Tests** (`helix-db/src/utils/embedding_providers/tests.rs`)
 - `test_openai_embedding_success` - Tests OpenAI embedding success
 - `test_gemini_embedding_success` - Tests Gemini embedding success
 - `test_gemini_embedding_with_task_type` - Tests Gemini embedding with task types

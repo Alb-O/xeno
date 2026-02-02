@@ -508,11 +508,6 @@ use helix_db::{
     },
 };
 
-#[cfg(feature = "server")]
-use helix_db::helix_gateway::{
-    router::router::{HandlerInput, IoContFn},
-    mcp::mcp::{MCPHandlerSubmission, MCPToolInput, MCPHandler}
-};
 use sonic_rs::{Deserialize, Serialize, json};
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;

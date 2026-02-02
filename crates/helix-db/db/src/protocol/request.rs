@@ -1,16 +1,6 @@
-#[cfg(feature = "server")]
-use axum::{body::Bytes, extract::FromRequest};
-#[cfg(not(feature = "server"))]
 use bytes::Bytes;
-#[cfg(feature = "server")]
-use reqwest::{
-	StatusCode,
-	header::{ACCEPT, CONTENT_TYPE},
-};
 use serde::Serialize;
 use tokio::sync::oneshot;
-#[cfg(feature = "server")]
-use tracing::error;
 
 use crate::protocol::{Format, HelixError, Response};
 
@@ -33,84 +23,6 @@ pub struct Request {
 pub enum RequestType {
 	Query,
 	MCP,
-}
-
-#[cfg(feature = "server")]
-impl<S> FromRequest<S> for Request
-where
-	S: Send + Sync,
-{
-	#[doc = " If the extractor fails it\'ll use this \"rejection\" type. A rejection is"]
-	#[doc = " a kind of error that can be converted into a response."]
-	type Rejection = StatusCode;
-
-	#[doc = " Perform the extraction."]
-	async fn from_request(req: axum::extract::Request, state: &S) -> Result<Self, Self::Rejection> {
-		let path = req.uri().path();
-
-		let (name, req_type) = match path.strip_prefix("/mcp/") {
-			Some(n) => (n.to_string(), RequestType::MCP),
-			None => (
-				path.strip_prefix('/')
-					.expect("paths should start with a '/'")
-					.to_string(),
-				RequestType::Query,
-			),
-		};
-
-		if name.contains('/') || name.is_empty() {
-			// TODO: improve errors
-			return Err(StatusCode::BAD_REQUEST);
-		}
-
-		let headers = req.headers();
-		let in_fmt = match headers.get(CONTENT_TYPE) {
-			Some(v) => match v.to_str() {
-				Ok(s) => s.parse().map_err(|_| StatusCode::UNSUPPORTED_MEDIA_TYPE)?,
-				Err(_) => return Err(StatusCode::UNSUPPORTED_MEDIA_TYPE),
-			},
-			None => Format::default(),
-		};
-
-		let api_key = {
-			#[cfg(feature = "api-key")]
-			match headers.get("x-api-key") {
-				Some(v) => match v.to_str() {
-					Ok(s) => Some(s.to_string()),
-					Err(_) => return Err(StatusCode::BAD_REQUEST),
-				},
-				None => return Err(StatusCode::BAD_REQUEST),
-			}
-			#[cfg(not(feature = "api-key"))]
-			None::<String>
-		};
-
-		let out_fmt = match headers.get(ACCEPT) {
-			Some(v) => match v.to_str() {
-				Ok(s) => s.parse().unwrap_or_default(),
-				Err(_) => return Err(StatusCode::BAD_REQUEST),
-			},
-			None => Format::default(),
-		};
-
-		let body = match Bytes::from_request(req, state).await {
-			Ok(b) => b,
-			Err(e) => {
-				error!(?e, "Error getting bytes");
-				return Err(StatusCode::INTERNAL_SERVER_ERROR);
-			}
-		};
-		let out = Request {
-			name,
-			req_type,
-			api_key,
-			body,
-			in_fmt,
-			out_fmt,
-		};
-
-		Ok(out)
-	}
 }
 
 #[cfg(test)]

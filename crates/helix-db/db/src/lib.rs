@@ -1,6 +1,4 @@
 pub mod helix_engine;
-#[cfg(feature = "server")]
-pub mod helix_gateway;
 #[cfg(feature = "compiler")]
 pub mod helixc;
 pub mod protocol;

@@ -1,23 +1,8 @@
-#[cfg(feature = "server")]
-use axum::response::IntoResponse;
-#[cfg(feature = "server")]
-use reqwest::header::CONTENT_TYPE;
-
 use crate::protocol::Format;
 #[derive(Debug)]
 pub struct Response {
 	pub body: Vec<u8>,
 	pub fmt: Format,
-}
-
-#[cfg(feature = "server")]
-impl IntoResponse for Response {
-	fn into_response(self) -> axum::response::Response {
-		axum::response::Response::builder()
-			.header(CONTENT_TYPE, self.fmt.to_string())
-			.body(axum::body::Body::from(self.body))
-			.expect("Should be able to construct response")
-	}
 }
 
 #[cfg(test)]
@@ -71,45 +56,6 @@ mod tests {
 		let debug_str = format!("{:?}", response);
 		assert!(debug_str.contains("Response"));
 		assert!(debug_str.contains("Json"));
-	}
-
-	// ============================================================================
-	// IntoResponse Tests
-	// ============================================================================
-
-	#[cfg(feature = "server")]
-	mod server {
-		use reqwest::header::CONTENT_TYPE;
-
-		use super::*;
-
-		#[test]
-		fn test_response_into_response() {
-			let body = b"test response body".to_vec();
-			let response = Response {
-				body: body.clone(),
-				fmt: Format::Json,
-			};
-
-			let axum_response = response.into_response();
-
-			// Check that the response has the correct content-type header
-			let content_type = axum_response.headers().get(CONTENT_TYPE);
-			assert!(content_type.is_some());
-			assert_eq!(content_type.unwrap().to_str().unwrap(), "application/json");
-		}
-
-		#[test]
-		fn test_response_into_response_preserves_body() {
-			let body = b"important data".to_vec();
-			let response = Response {
-				body: body.clone(),
-				fmt: Format::Json,
-			};
-
-			let _ = response.into_response();
-			// If this compiles and runs, the body was successfully moved into the response
-		}
 	}
 
 	// ============================================================================

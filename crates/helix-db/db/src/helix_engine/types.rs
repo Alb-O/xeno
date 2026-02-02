@@ -12,8 +12,6 @@ use sonic_rs::Error as SonicError;
 use thiserror::Error;
 
 use crate::helix_engine::reranker::errors::RerankerError;
-#[cfg(feature = "server")]
-use crate::helix_gateway::router::router::IoContFn;
 use crate::helixc::parser::errors::ParserError;
 use crate::helixc::parser::types::{Field, FieldPrefix};
 use crate::protocol::value_error::ValueError;
@@ -158,17 +156,6 @@ pub enum EngineError {
 
 	#[error(transparent)]
 	Embedding(#[from] EmbeddingError),
-
-	#[cfg(feature = "server")]
-	#[error("Asynchronous IO is needed to complete the DB operation")]
-	IoNeeded(IoContFn),
-}
-
-#[cfg(feature = "server")]
-impl From<IoContFn> for EngineError {
-	fn from(func: IoContFn) -> Self {
-		EngineError::IoNeeded(func)
-	}
 }
 
 impl From<HeedError> for EngineError {

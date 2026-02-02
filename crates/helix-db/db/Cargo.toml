@@ -18,33 +18,17 @@ cosine = []
 api-key = []
 build = ["compiler"]
 vectors = ["cosine", "url", "reqwest"]
-server = [
-    "build",
-    "compiler",
-    "vectors",
-    "axum",
-    "core_affinity",
-    "flume",
-    "sha2",
-    "subtle",
-]
 full = ["build", "compiler", "vectors"]
-dev = ["server"]
-dev-instance = []
 default = ["full"]
-production = ["api-key", "server"]
 
 [dependencies]
 ariadne = { version = "0.6", optional = true }
 
 # external dependencies (workspace)
-axum = { version = "0.8", optional = true }
 bumpalo = { version = "3.19", features = ["collections", "boxed", "serde"] }
 bytemuck = "1.25"
 bytes = "1.11"
 chrono.workspace = true
-core_affinity = { version = "0.8", optional = true }
-flume = { version = "0.12", default-features = false, features = ["async", "select"], optional = true }
 heed3 = "0.22"
 # HelixDB dependencies
 helix-macros = { path = "../macros" }
@@ -65,9 +49,7 @@ rand.workspace = true
 # embedding dependencies
 reqwest = { version = "0.13", default-features = false, features = ["json", "blocking", "rustls", "webpki-roots"], optional = true }
 serde.workspace = true
-sha2 = { workspace = true, optional = true }
 sonic-rs = "0.5"
-subtle = { version = "2.6", optional = true }
 thiserror.workspace = true
 tokio.workspace = true
 tracing.workspace = true
