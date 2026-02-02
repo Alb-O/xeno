@@ -195,7 +195,7 @@ impl SchemaData {
 #[derive(Serialize)]
 pub struct NodeData {
 	name: String,
-	properties: HashMap<String, String>,
+	properties: IndexMap<String, String>,
 }
 
 impl NodeData {
@@ -217,7 +217,7 @@ pub struct EdgeData {
 	name: String,
 	from: String,
 	to: String,
-	properties: HashMap<String, String>,
+	properties: IndexMap<String, String>,
 }
 
 impl EdgeData {
@@ -241,7 +241,7 @@ impl EdgeData {
 #[derive(Serialize)]
 pub struct QueryData {
 	name: String,
-	parameters: HashMap<String, String>,
+	parameters: IndexMap<String, String>,
 	returns: Vec<String>,
 }
 
