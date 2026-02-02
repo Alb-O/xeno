@@ -393,6 +393,19 @@ fn reset_content_clears_undo_history() {
 }
 
 #[test]
+fn reset_content_bumps_version_and_marks_dirty_without_syntax() {
+	let mut doc = Document::new("hello".into(), None);
+	let v0 = doc.version();
+
+	assert!(!doc.is_syntax_dirty());
+
+	doc.reset_content("reset");
+
+	assert!(doc.is_syntax_dirty());
+	assert_ne!(doc.version(), v0);
+}
+
+#[test]
 fn test_undo_redo_bumps_syntax_version() {
 	use xeno_runtime_language::syntax::Syntax;
 

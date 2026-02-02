@@ -542,17 +542,17 @@ impl Document {
 	///
 	/// For normal editing operations, use `commit()` instead.
 	///
-	/// Note: Existing syntax state is preserved but marked dirty, forcing a
-	/// full reparse the next time syntax is accessed.
+	/// Note: Syntax state is cleared and marked dirty, forcing a full reparse
+	/// the next time syntax is accessed. The document version is bumped to
+	/// invalidate render caches keyed by `doc.version()`.
 	pub fn reset_content(&mut self, content: impl Into<Rope>) {
-		let had_syntax = self.syntax.is_some();
 		self.content = content.into();
 		self.syntax = None;
-		self.syntax_dirty = had_syntax;
+		self.syntax_dirty = true;
 		self.insert_undo_active = false;
 		self.undo_backend = UndoBackend::default();
 		self.modified = false;
-		self.version = 0;
+		self.version = self.version.wrapping_add(1);
 	}
 
 	/// Replaces the document content from a cross-process sync snapshot.
