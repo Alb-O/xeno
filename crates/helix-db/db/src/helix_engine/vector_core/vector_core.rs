@@ -202,6 +202,16 @@ impl VectorCore {
 			if neighbor_id == id {
 				continue;
 			}
+
+			if let Err(err) = self.get_vector_properties(txn, neighbor_id, arena) {
+				match err {
+					VectorError::VectorDeleted => {
+						continue;
+					}
+					_ => return Err(err),
+				}
+			}
+
 			let vector = self.get_raw_vector_data(txn, neighbor_id, label, arena)?;
 
 			let passes_filters = match filter {
