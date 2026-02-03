@@ -5,7 +5,7 @@ use crate::overlay::{CloseReason, controllers};
 impl Editor {
 	pub fn interaction_on_buffer_edited(&mut self) {
 		#[cfg(feature = "lsp")]
-		self.note_buffer_sync_activity();
+		self.note_shared_state_activity();
 
 		let view_id = self.focused_view();
 		let mut interaction: crate::overlay::OverlayManager =
@@ -15,15 +15,15 @@ impl Editor {
 	}
 
 	#[cfg(feature = "lsp")]
-	fn note_buffer_sync_activity(&mut self) {
+	fn note_shared_state_activity(&mut self) {
 		let view_id = self.focused_view();
 		let Some(buffer) = self.state.core.buffers.get_buffer(view_id) else {
 			return;
 		};
 		let doc_id = buffer.document_id();
 
-		if let Some(payload) = self.state.buffer_sync.note_activity(doc_id) {
-			let _ = self.state.lsp.buffer_sync_out_tx().send(payload);
+		if let Some(payload) = self.state.shared_state.note_activity(doc_id) {
+			let _ = self.state.lsp.shared_state_out_tx().send(payload);
 		}
 	}
 

@@ -27,8 +27,8 @@
 /// Theme bootstrap cache for instant first-frame rendering.
 pub mod bootstrap;
 pub mod buffer;
-/// Cross-process buffer synchronization manager.
-pub mod buffer_sync;
+/// Broker-backed shared state manager.
+pub mod shared_state;
 pub mod capabilities;
 /// Command queue for deferred execution.
 pub mod command_queue;

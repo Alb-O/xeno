@@ -2,7 +2,9 @@
 mod tests {
 	use std::time::Duration;
 
-	use xeno_broker_proto::types::{RequestPayload, ServerId, SessionId};
+	use xeno_broker_proto::types::{
+		RequestPayload, ServerId, SessionId, SyncEpoch, SyncSeq, WireOp, WireTx,
+	};
 	use xeno_editor::lsp::broker_transport::BrokerTransport;
 	use xeno_lsp::client::transport::LspTransport;
 	use xeno_lsp::{AnyNotification, Message};
@@ -39,18 +41,19 @@ mod tests {
 		LspTransport::notify(t1.as_ref(), s1.id, did_open_1)
 			.await
 			.expect("t1 notify");
-		t1.buffer_sync_request(RequestPayload::BufferSyncOpen {
+		t1.shared_state_request(RequestPayload::SharedOpen {
 			uri: "file:///test.rs".to_string(),
 			text: "content 1".to_string(),
 			version_hint: Some(1),
 		})
 		.await
-		.expect("buffer sync open");
+		.expect("shared state open");
+
 
 		// Wait for broker to register doc
 		assert!(
 			wait_until(Duration::from_secs(1), || async {
-				runtime.sync.is_open("file:///test.rs".to_string()).await
+				runtime.shared_state.is_open("file:///test.rs".to_string()).await
 			})
 			.await
 		);
@@ -67,12 +70,12 @@ mod tests {
 		drop(t1);
 		runtime.sessions.unregister(SessionId(1)).await;
 		runtime.routing.session_lost(SessionId(1)).await;
-		runtime.sync.session_lost(SessionId(1)).await;
+		runtime.shared_state.session_lost(SessionId(1)).await;
 
 		// Doc should be removed from broker because no one else has it open
 		assert!(
 			wait_until(Duration::from_secs(1), || async {
-				!runtime.sync.is_open("file:///test.rs".to_string()).await
+				!runtime.shared_state.is_open("file:///test.rs".to_string()).await
 			})
 			.await
 		);
@@ -100,36 +103,49 @@ mod tests {
 		LspTransport::notify(t2.as_ref(), s2.id, did_open_2)
 			.await
 			.expect("t2 notify open");
-		t2.buffer_sync_request(RequestPayload::BufferSyncOpen {
+		t2.shared_state_request(RequestPayload::SharedOpen {
 			uri: "file:///test.rs".to_string(),
 			text: "content 2".to_string(),
 			version_hint: Some(10),
 		})
 		.await
-		.expect("buffer sync open");
+		.expect("shared state open");
 
 		// Wait for broker to register doc
 		assert!(
 			wait_until(Duration::from_secs(1), || async {
-				runtime.sync.is_open("file:///test.rs".to_string()).await
+				runtime.shared_state.is_open("file:///test.rs".to_string()).await
 			})
 			.await
 		);
 
-		let did_change: AnyNotification = serde_json::from_value(serde_json::json!({
-			"method": "textDocument/didChange",
-			"params": {
-				"textDocument": {
-					"uri": "file:///test.rs",
-					"version": 11
-				},
-				"contentChanges": [{"text": "content 2 updated"}]
-			}
-		}))
-		.unwrap();
-		LspTransport::notify(t2.as_ref(), s2.id, did_change)
+		// Wait for server to receive the second didOpen before edits.
+		assert!(
+			wait_until(Duration::from_secs(1), || async {
+				let received = handle.received.lock().unwrap();
+				received
+					.iter()
+					.filter(
+						|m| matches!(m, Message::Notification(n) if n.method == "textDocument/didOpen"),
+					)
+					.count()
+					== 2
+			})
 			.await
-			.expect("t2 notify change");
+		);
+
+		let wire_tx = WireTx(vec![
+			WireOp::Delete("content 2".chars().count()),
+			WireOp::Insert("content 2 updated".into()),
+		]);
+		t2.shared_state_request(RequestPayload::SharedEdit {
+			uri: "file:///test.rs".to_string(),
+			epoch: SyncEpoch(1),
+			base_seq: SyncSeq(0),
+			tx: wire_tx,
+		})
+		.await
+		.expect("shared state edit");
 
 		// Verify server received second didOpen and didChange
 		let ok = wait_until(Duration::from_secs(1), || async {
@@ -205,9 +221,23 @@ mod tests {
 		LspTransport::notify(t1.as_ref(), s1.id, did_open.clone())
 			.await
 			.expect("t1 notify");
+		t1.shared_state_request(RequestPayload::SharedOpen {
+			uri: "file:///test.rs".to_string(),
+			text: "content".to_string(),
+			version_hint: Some(1),
+		})
+		.await
+		.expect("shared state open");
 		LspTransport::notify(t2.as_ref(), s2.id, did_open)
 			.await
 			.expect("t2 notify");
+		t2.shared_state_request(RequestPayload::SharedOpen {
+			uri: "file:///test.rs".to_string(),
+			text: "content".to_string(),
+			version_hint: Some(1),
+		})
+		.await
+		.expect("shared state open");
 
 		// Verify only ONE didOpen reached server
 		assert!(
@@ -234,6 +264,11 @@ mod tests {
 		LspTransport::notify(t1.as_ref(), s1.id, did_close)
 			.await
 			.expect("t1 close");
+		t1.shared_state_request(RequestPayload::SharedClose {
+			uri: "file:///test.rs".to_string(),
+		})
+		.await
+		.expect("shared state close");
 
 		// Verify NO didClose reached server (since T2 still has it open)
 		tokio::time::sleep(Duration::from_millis(100)).await;
@@ -245,20 +280,161 @@ mod tests {
 		}
 
 		// 3. Session 2 should now be able to send changes (takeover)
-		let did_change: AnyNotification = serde_json::from_value(serde_json::json!({
-			"method": "textDocument/didChange",
+		let focus_resp = t2
+			.shared_state_request(RequestPayload::SharedFocus {
+				uri: "file:///test.rs".to_string(),
+				focused: true,
+				focus_seq: 1,
+			})
+			.await
+			.expect("shared focus");
+		let epoch = match focus_resp {
+			xeno_broker_proto::types::ResponsePayload::SharedFocusAck { snapshot } => snapshot.epoch,
+			other => panic!("unexpected focus response: {other:?}"),
+		};
+
+		t2.shared_state_request(RequestPayload::SharedResync {
+			uri: "file:///test.rs".to_string(),
+			client_hash64: None,
+			client_len_chars: None,
+		})
+		.await
+		.expect("shared resync");
+
+		let wire_tx = WireTx(vec![
+			WireOp::Delete("content".chars().count()),
+			WireOp::Insert("session 2 update".into()),
+		]);
+		t2.shared_state_request(RequestPayload::SharedEdit {
+			uri: "file:///test.rs".to_string(),
+			epoch,
+			base_seq: SyncSeq(0),
+			tx: wire_tx,
+		})
+		.await
+		.expect("shared state edit");
+
+		assert!(
+			wait_until(Duration::from_secs(1), || async {
+				let received = handle.received.lock().unwrap();
+				received.iter().any(
+					|m| matches!(m, Message::Notification(n) if n.method == "textDocument/didChange"),
+				)
+			})
+			.await
+		);
+
+		shutdown.cancel();
+	}
+
+	#[tokio::test]
+	async fn test_broker_owner_takeover_without_close() {
+		let (sock, _runtime, launcher, shutdown, _tmp): crate::common::SpawnedBroker =
+			spawn_broker().await;
+
+		let t1 = BrokerTransport::with_socket_and_session(sock.clone(), SessionId(1));
+		let t2 = BrokerTransport::with_socket_and_session(sock.clone(), SessionId(2));
+		let cfg = test_server_config();
+
+		let s1 = LspTransport::start(t1.as_ref(), cfg.clone())
+			.await
+			.expect("t1 start");
+		let s2 = LspTransport::start(t2.as_ref(), cfg)
+			.await
+			.expect("t2 start");
+		let server_id = ServerId(s1.id.0);
+
+		let handle = launcher.get_server(server_id).expect("server handle");
+
+		let did_open_1: AnyNotification = serde_json::from_value(serde_json::json!({
+			"method": "textDocument/didOpen",
 			"params": {
 				"textDocument": {
 					"uri": "file:///test.rs",
-					"version": 2
-				},
-				"contentChanges": [{"text": "session 2 update"}]
+					"languageId": "rust",
+					"version": 1,
+					"text": "content 1"
+				}
 			}
 		}))
 		.unwrap();
-		LspTransport::notify(t2.as_ref(), s2.id, did_change)
+		LspTransport::notify(t1.as_ref(), s1.id, did_open_1)
 			.await
-			.expect("t2 notify change");
+			.expect("t1 notify");
+		t1.shared_state_request(RequestPayload::SharedOpen {
+			uri: "file:///test.rs".to_string(),
+			text: "content 1".to_string(),
+			version_hint: Some(1),
+		})
+		.await
+		.expect("shared state open");
+
+		let did_open_2: AnyNotification = serde_json::from_value(serde_json::json!({
+			"method": "textDocument/didOpen",
+			"params": {
+				"textDocument": {
+					"uri": "file:///test.rs",
+					"languageId": "rust",
+					"version": 2,
+					"text": "content 1"
+				}
+			}
+		}))
+		.unwrap();
+		LspTransport::notify(t2.as_ref(), s2.id, did_open_2)
+			.await
+			.expect("t2 notify");
+		t2.shared_state_request(RequestPayload::SharedOpen {
+			uri: "file:///test.rs".to_string(),
+			text: "content 1".to_string(),
+			version_hint: Some(2),
+		})
+		.await
+		.expect("shared state open");
+
+		assert!(
+			wait_until(Duration::from_secs(1), || async {
+				let received = handle.received.lock().unwrap();
+				received.iter().any(
+					|m| matches!(m, Message::Notification(n) if n.method == "textDocument/didOpen"),
+				)
+			})
+			.await
+		);
+
+		let focus_resp = t2
+			.shared_state_request(RequestPayload::SharedFocus {
+				uri: "file:///test.rs".to_string(),
+				focused: true,
+				focus_seq: 1,
+			})
+			.await
+			.expect("shared focus");
+		let epoch = match focus_resp {
+			xeno_broker_proto::types::ResponsePayload::SharedFocusAck { snapshot } => snapshot.epoch,
+			other => panic!("unexpected focus response: {other:?}"),
+		};
+
+		t2.shared_state_request(RequestPayload::SharedResync {
+			uri: "file:///test.rs".to_string(),
+			client_hash64: None,
+			client_len_chars: None,
+		})
+		.await
+		.expect("shared resync");
+
+		let wire_tx = WireTx(vec![
+			WireOp::Delete("content 1".chars().count()),
+			WireOp::Insert("session 2 update".into()),
+		]);
+		t2.shared_state_request(RequestPayload::SharedEdit {
+			uri: "file:///test.rs".to_string(),
+			epoch,
+			base_seq: SyncSeq(0),
+			tx: wire_tx,
+		})
+		.await
+		.expect("shared state edit");
 
 		assert!(
 			wait_until(Duration::from_secs(1), || async {

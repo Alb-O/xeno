@@ -46,11 +46,11 @@ pub struct BrokerTransport {
 	/// FIFO queues for pipelined server-initiated requests (one queue per LSP server).
 	pending_server_requests: Arc<DashMap<ServerId, VecDeque<xeno_lsp::RequestId>>>,
 
-	/// Internal routing for buffer sync events received via the broker IPC.
-	buffer_sync_tx: mpsc::UnboundedSender<crate::buffer_sync::BufferSyncEvent>,
-	/// One-time receiver for buffer sync events, taken by the editor main loop.
-	buffer_sync_rx:
-		std::sync::Mutex<Option<mpsc::UnboundedReceiver<crate::buffer_sync::BufferSyncEvent>>>,
+	/// Internal routing for shared state events received via the broker IPC.
+	shared_state_tx: mpsc::UnboundedSender<crate::shared_state::SharedStateEvent>,
+	/// One-time receiver for shared state events, taken by the editor main loop.
+	shared_state_rx:
+		std::sync::Mutex<Option<mpsc::UnboundedReceiver<crate::shared_state::SharedStateEvent>>>,
 }
 
 struct BrokerRpc {
@@ -79,8 +79,8 @@ impl BrokerTransport {
 			events_rx: std::sync::Mutex::new(Some(rx)),
 			rpc: Arc::new(tokio::sync::Mutex::new(None)),
 			pending_server_requests: Arc::new(DashMap::new()),
-			buffer_sync_tx: bs_tx,
-			buffer_sync_rx: std::sync::Mutex::new(Some(bs_rx)),
+			shared_state_tx: bs_tx,
+			shared_state_rx: std::sync::Mutex::new(Some(bs_rx)),
 		})
 	}
 
@@ -89,32 +89,32 @@ impl BrokerTransport {
 		self.session_id
 	}
 
-	/// Takes the buffer sync event receiver.
+	/// Takes the shared state event receiver.
 	///
 	/// # Panics
 	///
 	/// Panics if called more than once. The receiver must be managed by the
 	/// editor main loop for the lifetime of the session.
-	pub fn take_buffer_sync_events(
+	pub fn take_shared_state_events(
 		&self,
-	) -> Option<mpsc::UnboundedReceiver<crate::buffer_sync::BufferSyncEvent>> {
-		self.buffer_sync_rx.lock().unwrap().take()
+	) -> Option<mpsc::UnboundedReceiver<crate::shared_state::SharedStateEvent>> {
+		self.shared_state_rx.lock().unwrap().take()
 	}
 
-	/// Sends a buffer sync request to the broker and awaits the response.
+	/// Sends a shared state request to the broker and awaits the response.
 	///
 	/// # Errors
 	///
 	/// Returns a protocol error if the broker is unreachable or if the request
 	/// fails at the service layer.
-	pub async fn buffer_sync_request(
+	pub async fn shared_state_request(
 		&self,
 		payload: RequestPayload,
 	) -> xeno_lsp::Result<ResponsePayload> {
 		let rpc = self.ensure_connected(&self.socket_path).await?;
 		self.handle_rpc_result(
 			rpc.call(payload, Duration::from_secs(5)).await,
-			"BufferSync",
+			"SharedState",
 		)
 		.await
 	}
@@ -140,11 +140,11 @@ impl BrokerTransport {
 			{
 				let events_tx = self.events_tx.clone();
 				let pending = self.pending_server_requests.clone();
-				let buffer_sync_tx = self.buffer_sync_tx.clone();
+				let shared_state_tx = self.shared_state_tx.clone();
 				move |_| BrokerClientService {
 					tx: events_tx.clone(),
 					pending: pending.clone(),
-					buffer_sync_tx: buffer_sync_tx.clone(),
+					shared_state_tx: shared_state_tx.clone(),
 				}
 			},
 			BrokerProtocol::new(),
@@ -536,7 +536,7 @@ impl LspTransport for BrokerTransport {
 struct BrokerClientService {
 	tx: mpsc::UnboundedSender<TransportEvent>,
 	pending: Arc<DashMap<ServerId, VecDeque<xeno_lsp::RequestId>>>,
-	buffer_sync_tx: mpsc::UnboundedSender<crate::buffer_sync::BufferSyncEvent>,
+	shared_state_tx: mpsc::UnboundedSender<crate::shared_state::SharedStateEvent>,
 }
 
 #[derive(Debug)]
@@ -622,32 +622,37 @@ impl RpcService<BrokerProtocol> for BrokerClientService {
 					});
 				}
 			}
-			Event::BufferSyncDelta {
+			Event::SharedDelta {
 				uri,
 				epoch,
 				seq,
 				tx,
 			} => {
 				let _ =
-					self.buffer_sync_tx
-						.send(crate::buffer_sync::BufferSyncEvent::RemoteDelta {
+					self.shared_state_tx
+						.send(crate::shared_state::SharedStateEvent::RemoteDelta {
 							uri,
 							epoch,
 							seq,
 							tx,
 						});
 			}
-			Event::BufferSyncOwnerChanged {
+			Event::SharedOwnerChanged {
 				snapshot,
 			} => {
 				let _ = self
-					.buffer_sync_tx
-					.send(crate::buffer_sync::BufferSyncEvent::OwnerChanged { snapshot });
+					.shared_state_tx
+					.send(crate::shared_state::SharedStateEvent::OwnerChanged { snapshot });
 			}
-			Event::BufferSyncUnlocked { snapshot } => {
+			Event::SharedPreferredOwnerChanged { snapshot } => {
 				let _ = self
-					.buffer_sync_tx
-					.send(crate::buffer_sync::BufferSyncEvent::Unlocked { snapshot });
+					.shared_state_tx
+					.send(crate::shared_state::SharedStateEvent::PreferredOwnerChanged { snapshot });
+			}
+			Event::SharedUnlocked { snapshot } => {
+				let _ = self
+					.shared_state_tx
+					.send(crate::shared_state::SharedStateEvent::Unlocked { snapshot });
 			}
 		}
 		ControlFlow::Continue(())

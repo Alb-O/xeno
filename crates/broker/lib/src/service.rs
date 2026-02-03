@@ -140,48 +140,50 @@ impl Service<Request> for BrokerService {
 						message: json,
 					})
 				}
-				RequestPayload::BufferSyncOpen {
+				RequestPayload::SharedOpen {
 					uri,
 					text,
 					version_hint,
-				} => runtime.sync.open(session_id, uri, text, version_hint).await,
-				RequestPayload::BufferSyncClose { uri } => {
-					runtime.sync.close(session_id, uri).await
+				} => runtime
+					.shared_state
+					.open(session_id, uri, text, version_hint)
+					.await,
+				RequestPayload::SharedClose { uri } => {
+					runtime.shared_state.close(session_id, uri).await
 				}
-				RequestPayload::BufferSyncDelta {
+				RequestPayload::SharedEdit {
 					uri,
 					epoch,
 					base_seq,
 					tx,
 				} => {
 					runtime
-						.sync
-						.delta(session_id, uri, epoch, base_seq, tx)
+						.shared_state
+						.edit(session_id, uri, epoch, base_seq, tx)
 						.await
 				}
-				RequestPayload::BufferSyncActivity { uri } => {
-					runtime.sync.activity(session_id, uri).await
+				RequestPayload::SharedActivity { uri } => {
+					runtime.shared_state.activity(session_id, uri).await
 				}
-				RequestPayload::BufferSyncTakeOwnership { uri } => {
-					runtime.sync.take_ownership(session_id, uri).await
-				}
-				RequestPayload::BufferSyncReleaseOwnership { uri } => {
-					runtime.sync.release_ownership(session_id, uri).await
-				}
-				RequestPayload::BufferSyncOwnerConfirm {
+				RequestPayload::SharedFocus {
 					uri,
-					epoch,
-					len_chars,
-					hash64,
-					allow_mismatch,
+					focused,
+					focus_seq,
 				} => {
 					runtime
-						.sync
-						.owner_confirm(session_id, uri, epoch, len_chars, hash64, allow_mismatch)
+						.shared_state
+						.focus(session_id, uri, focused, focus_seq)
 						.await
 				}
-				RequestPayload::BufferSyncResync { uri } => {
-					runtime.sync.resync(session_id, uri).await
+				RequestPayload::SharedResync {
+					uri,
+					client_hash64,
+					client_len_chars,
+				} => {
+					runtime
+						.shared_state
+						.resync(session_id, uri, client_hash64, client_len_chars)
+						.await
 				}
 				RequestPayload::KnowledgeSearch { query, limit } => {
 					let hits = runtime.knowledge.search(&query, limit).await?;

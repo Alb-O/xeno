@@ -119,12 +119,12 @@ impl SessionHandle {
 ///
 /// `SessionService` is the single source of truth for IPC delivery and send-failure
 /// detection. When a send operation fails, this service triggers non-blocking
-/// cleanup fan-out to other services (routing, sync, etc.) to detach the dead session.
+/// cleanup fan-out to other services (routing, shared state, etc.) to detach the dead session.
 pub struct SessionService {
 	rx: mpsc::Receiver<SessionCmd>,
 	sessions: HashMap<SessionId, SessionSink>,
 	routing: Option<super::routing::RoutingHandle>,
-	sync: Option<super::buffer_sync::BufferSyncHandle>,
+	shared_state: Option<super::shared_state::SharedStateHandle>,
 }
 
 impl SessionService {
@@ -135,34 +135,34 @@ impl SessionService {
 	pub fn start() -> (
 		SessionHandle,
 		mpsc::Sender<super::routing::RoutingHandle>,
-		mpsc::Sender<super::buffer_sync::BufferSyncHandle>,
+		mpsc::Sender<super::shared_state::SharedStateHandle>,
 	) {
 		let (tx, rx) = mpsc::channel(256);
 		let (routing_tx, routing_rx) = mpsc::channel(1);
-		let (sync_tx, sync_rx) = mpsc::channel(1);
+		let (shared_tx, shared_rx) = mpsc::channel(1);
 
 		let service = Self {
 			rx,
 			sessions: HashMap::new(),
 			routing: None,
-			sync: None,
+			shared_state: None,
 		};
 
-		tokio::spawn(service.run(routing_rx, sync_rx));
+		tokio::spawn(service.run(routing_rx, shared_rx));
 
-		(SessionHandle::new(tx), routing_tx, sync_tx)
+		(SessionHandle::new(tx), routing_tx, shared_tx)
 	}
 
 	async fn run(
 		mut self,
 		mut routing_rx: mpsc::Receiver<super::routing::RoutingHandle>,
-		mut sync_rx: mpsc::Receiver<super::buffer_sync::BufferSyncHandle>,
+		mut shared_rx: mpsc::Receiver<super::shared_state::SharedStateHandle>,
 	) {
 		if let Some(h) = routing_rx.recv().await {
 			self.routing = Some(h);
 		}
-		if let Some(h) = sync_rx.recv().await {
-			self.sync = Some(h);
+		if let Some(h) = shared_rx.recv().await {
+			self.shared_state = Some(h);
 		}
 
 		while let Some(cmd) = self.rx.recv().await {
@@ -222,9 +222,9 @@ impl SessionService {
 				routing.session_lost(sid).await;
 			});
 		}
-		if let Some(sync) = self.sync.clone() {
+		if let Some(shared_state) = self.shared_state.clone() {
 			tokio::spawn(async move {
-				sync.session_lost(sid).await;
+				shared_state.session_lost(sid).await;
 			});
 		}
 	}

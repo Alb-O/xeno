@@ -208,7 +208,7 @@ impl OverlayController for WorkspaceSearchOverlay {
 				{
 					let broker = ed.state.lsp.broker_transport();
 					match broker
-						.buffer_sync_request(RequestPayload::KnowledgeSearch {
+						.shared_state_request(RequestPayload::KnowledgeSearch {
 							query: query.clone(),
 							limit: SEARCH_LIMIT,
 						})

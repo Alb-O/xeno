@@ -41,20 +41,18 @@ impl Editor {
 				.as_ref()
 				.and_then(|p| xeno_lsp::uri_from_path(p))
 			{
-				let (role, status) = self.state.buffer_sync.ui_status_for_uri(uri.as_str());
+				let (role, status) = self.state.shared_state.ui_status_for_uri(uri.as_str());
 				let role_s = match role {
-					Some(xeno_broker_proto::types::BufferSyncRole::Owner) => "Owner",
-					Some(xeno_broker_proto::types::BufferSyncRole::Follower) => "Follower",
+					Some(crate::shared_state::SharedStateRole::Owner) => "Owner",
+					Some(crate::shared_state::SharedStateRole::Follower) => "Follower",
 					None => "None",
 				};
 				let status_s = match status {
-					crate::buffer_sync::SyncStatus::Off => "Off",
-					crate::buffer_sync::SyncStatus::Owner => "O",
-					crate::buffer_sync::SyncStatus::Follower => "F",
-					crate::buffer_sync::SyncStatus::Acquiring => "Acq",
-					crate::buffer_sync::SyncStatus::Confirming => "Conf",
-					crate::buffer_sync::SyncStatus::Unlocked => "Free",
-					crate::buffer_sync::SyncStatus::NeedsResync => "Sync!",
+					crate::shared_state::SyncStatus::Off => "Off",
+					crate::shared_state::SyncStatus::Owner => "O",
+					crate::shared_state::SyncStatus::Follower => "F",
+					crate::shared_state::SyncStatus::Unlocked => "Free",
+					crate::shared_state::SyncStatus::NeedsResync => "Sync!",
 				};
 				(Some(role_s), Some(status_s))
 			} else {

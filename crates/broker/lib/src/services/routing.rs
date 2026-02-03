@@ -850,9 +850,7 @@ impl RoutingService {
 			}
 
 			for uri in removed_uris {
-				if self.pending_lsp_closes.contains(&uri) {
-					self.handle_lsp_doc_close(uri);
-				}
+				self.handle_lsp_doc_close(uri);
 			}
 
 			// Cancel responder requests
@@ -918,7 +916,7 @@ impl RoutingService {
 			};
 
 			match decision {
-				DocGateDecision::RejectNotOwner => return Err(ErrorCode::NotDocOwner),
+				DocGateDecision::RejectNotOwner => return Err(ErrorCode::NotPreferredOwner),
 				DocGateDecision::DropSilently => return Ok(()),
 				DocGateDecision::Forward => {
 					self.handle_session_text_sync(server_id, &notif);
@@ -952,7 +950,7 @@ impl RoutingService {
 		if !server.attached.contains(&sid) {
 			let _ = reply.send(Err(ErrorCode::ServerNotFound));
 			return;
-		}
+		};
 
 		let origin_id = req.id.clone();
 		let wire_id = RequestId::String(format!("b:{}:{}", server_id.0, server.next_wire_req_id));
@@ -1097,7 +1095,11 @@ impl RoutingService {
 			"textDocument/didChange" => match server.doc_owners.by_uri.get_mut(uri) {
 				None => DocGateDecision::RejectNotOwner,
 				Some(os) => {
-					if session_id == os.owner || !server.attached.contains(&os.owner) {
+					if session_id == os.owner
+						|| !server.attached.contains(&os.owner)
+						|| !os.open_refcounts.contains_key(&os.owner)
+						|| os.open_refcounts.contains_key(&session_id)
+					{
 						os.owner = session_id;
 						os.last_version = version;
 						DocGateDecision::Forward
@@ -1490,7 +1492,6 @@ impl RoutingService {
 				Self::send_did_close(server, &uri);
 			}
 		server.docs.remove(&uri);
-		server.docs.clear_diagnostics(&uri);
 	}
 
 	fn refresh_lsp_docs(server: &mut ServerEntry) {

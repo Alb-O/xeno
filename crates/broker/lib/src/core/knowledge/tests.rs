@@ -12,7 +12,7 @@ use xeno_broker_proto::types::{ErrorCode, SyncEpoch, SyncSeq};
 
 use super::indexer::{IndexWorker, chunk_text, index_document};
 use super::{DocSnapshotSource, KnowledgeCore, SCHEMA_CONFIG};
-use crate::services::{buffer_sync, knowledge};
+use crate::services::{knowledge, shared_state};
 
 static ENV_LOCK: Mutex<()> = Mutex::new(());
 
@@ -66,7 +66,7 @@ async fn test_graceful_degradation() {
 	}
 
 	let (sync_tx, _sync_rx) = mpsc::channel(1);
-	let sync_handle = buffer_sync::BufferSyncHandle::new(sync_tx);
+	let sync_handle = shared_state::SharedStateHandle::new(sync_tx);
 	let open_docs = Arc::new(Mutex::new(std::collections::HashSet::new()));
 	let handle = knowledge::KnowledgeService::start(sync_handle, open_docs);
 	let res = handle.search("missing", 3).await;

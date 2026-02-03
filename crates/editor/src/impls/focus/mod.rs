@@ -171,6 +171,35 @@ impl Editor {
 
 		self.handle_window_focus_change(old_focus, &effective);
 
+		#[cfg(feature = "lsp")]
+		if new_view != old_view {
+			let old_doc = self
+				.state
+				.core
+				.buffers
+				.get_buffer(old_view)
+				.map(|b| b.document_id());
+			let new_doc = self
+				.state
+				.core
+				.buffers
+				.get_buffer(new_view)
+				.map(|b| b.document_id());
+
+			if old_doc != new_doc {
+				if let Some(doc_id) = old_doc
+					&& let Some(payload) = self.state.shared_state.note_focus(doc_id, false)
+				{
+					let _ = self.state.lsp.shared_state_out_tx().send(payload);
+				}
+				if let Some(doc_id) = new_doc
+					&& let Some(payload) = self.state.shared_state.note_focus(doc_id, true)
+				{
+					let _ = self.state.lsp.shared_state_out_tx().send(payload);
+				}
+			}
+		}
+
 		true
 	}
 

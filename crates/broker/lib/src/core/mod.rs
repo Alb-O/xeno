@@ -19,26 +19,31 @@
 //! | [`BrokerRuntime`] | Orchestrator that wires and owns service handles. |
 //! | [`SessionService`] | Owner of IPC sinks; handles delivery and session loss detection. |
 //! | [`RoutingService`] | Manager of LSP processes and server-to-client request routing. |
-//! | [`BufferSyncService`] | Authoritative owner of document text and sync protocol. |
+//! | [`SharedStateService`] | Authoritative owner of document text and shared-state protocol. |
 //! | [`KnowledgeService`] | Provider of workspace search and background indexing. |
 //!
 //! # Invariants
 //!
-//! - Single Writer: Only the elected owner of a document URI may submit deltas to the broker.
-//!   - Enforced in: `BufferSyncService::handle_delta`
-//!   - Tested by: `services::tests::test_sync_ownership_enforcement`
-//!   - Failure symptom: `NotDocOwner` error returned to the editor session.
+//! - Preferred Owner Writes: Only the preferred owner of a document URI may submit deltas to the broker.
+//!   - Enforced in: `SharedStateService::handle_edit`
+//!   - Tested by: `services::tests::test_shared_state_preferred_owner_enforcement`
+//!   - Failure symptom: `NotPreferredOwner` error returned to the editor session.
 //!
-//! - Up-for-Grabs Ownership: `TakeOwnership` MUST be denied when a document already has
-//!   an owner; only unlocked documents may grant a new owner.
-//!   - Enforced in: `BufferSyncService::handle_take_ownership`
-//!   - Tested by: `services::tests::test_buffer_sync_take_ownership_denied_when_owner_active`
-//!   - Failure symptom: Two sessions can both write, causing divergent document state.
+//! - Focus Transfers Ownership: `SharedFocus` MUST set the preferred owner and owner to the
+//!   focused session, bump the ownership epoch, and broadcast ownership changes.
+//!   - Enforced in: `SharedStateService::handle_focus`
+//!   - Tested by: `services::tests::test_shared_state_focus_transfers_ownership`
+//!   - Failure symptom: Focused sessions remain read-only, leaving diagnostics tied to a previous owner.
+//!
+//! - Resync After Transfer: A new owner MUST resync before submitting deltas after a focus transfer.
+//!   - Enforced in: `SharedStateService::handle_edit`
+//!   - Tested by: `services::tests::test_shared_state_transfer_requires_resync_before_edit`
+//!   - Failure symptom: Divergent edits are accepted without alignment, corrupting shared state.
 //!
 //! - Idle Ownership Release: Documents MUST transition to the unlocked state when the owner is
 //!   inactive beyond the idle timeout.
-//!   - Enforced in: `BufferSyncService::handle_idle_tick`
-//!   - Tested by: `services::tests::test_buffer_sync_idle_unlocks_owner`
+//!   - Enforced in: `SharedStateService::handle_idle_tick`
+//!   - Tested by: `services::tests::test_shared_state_idle_unlocks_owner`
 //!   - Failure symptom: An inactive owner blocks other sessions from becoming writable.
 //!
 //! - Diagnostics Replay: The broker MUST cache the latest `publishDiagnostics` payload per
@@ -49,12 +54,18 @@
 //!   - Failure symptom: Newly attached or reconnected editors show no diagnostics until another publish event.
 //!
 //! - Broker-Owned LSP Docs: LSP `didOpen`/`didChange`/`didClose` notifications MUST be emitted
-//!   from broker-owned BufferSync state; session-originated text sync notifications MUST NOT be
+//!   from broker-owned shared state; session-originated text sync notifications MUST NOT be
 //!   forwarded to servers.
-//!   - Enforced in: `RoutingService::handle_session_text_sync`, `BufferSyncService::handle_open`,
-//!     `BufferSyncService::handle_delta`, `BufferSyncService::handle_close`
+//!   - Enforced in: `RoutingService::handle_session_text_sync`, `SharedStateService::handle_open`,
+//!     `SharedStateService::handle_edit`, `SharedStateService::handle_close`
 //!   - Tested by: `services::tests::test_routing_lsp_docs_from_sync`
 //!   - Failure symptom: Diagnostics stall or diverge after the originating session disconnects.
+//!
+//! - Session Loss LSP Close: When a session loss removes the final open reference for a document,
+//!   routing MUST close broker-owned LSP doc state immediately.
+//!   - Enforced in: `RoutingService::handle_session_lost`
+//!   - Tested by: `services::tests::test_routing_session_lost_closes_lsp_docs`
+//!   - Failure symptom: Reconnected sessions never trigger a fresh `didOpen`, leaving diagnostics stale.
 //!
 //! - Atomic Request Registration: S2C requests MUST be registered in the pending map before being transmitted to the leader.
 //!   - Enforced in: `RoutingService::handle_begin_s2c`
@@ -69,8 +80,8 @@
 //! # Data flow
 //!
 //! 1. Editor -> Broker (IPC): Request received by [`BrokerService`], dispatched to relevant service handle.
-//! 2. Service -> Service (MPSC): Services communicate via internal handles (e.g. [`BufferSyncService`] signals [`KnowledgeService`]).
-//! 3. BufferSync -> Routing: Authoritative text updates drive broker-owned LSP `didOpen`/`didChange`/`didClose`.
+//! 2. Service -> Service (MPSC): Services communicate via internal handles (e.g. [`SharedStateService`] signals [`KnowledgeService`]).
+//! 3. SharedState -> Routing: Authoritative text updates drive broker-owned LSP `didOpen`/`didChange`/`didClose`.
 //! 4. Broker -> LSP (Stdio): [`RoutingService`] transmits messages via [`LspProxyService`].
 //! 5. LSP -> Broker (Stdio): Inbound messages received by [`LspProxyService`], routed back to [`RoutingService`].
 //! 6. Broker -> Editor (IPC): [`SessionService`] transmits events or responses back to the connected socket.
@@ -80,8 +91,8 @@
 //! - Startup: `BrokerRuntime::new` starts services in a tiered sequence to resolve cyclic handle dependencies.
 //! - Session: `Subscribe` registers a sink in [`SessionService`]. Drop cleans up via `Unregister`.
 //! - Server: `LspStart` triggers process spawn; idle lease timer manages termination when all sessions detach.
-//! - Sync: `BufferSyncService` releases ownership on idle, explicit release, or disconnect, broadcasting unlocks before new owners confirm.
-//! - LSP Docs: Broker-owned LSP documents open on first BufferSync open and close on final BufferSync close.
+//! - Sync: `SharedStateService` updates preferred owners on focus, releases ownership on idle/blur/disconnect, and broadcasts unlocks before new owners resync.
+//! - LSP Docs: Broker-owned LSP documents open on first SharedState open and close on final SharedState close.
 //! - Shutdown: `BrokerRuntime::shutdown` triggers `TerminateAll` in the routing service, killing all LSP processes.
 //!
 //! # Concurrency & ordering
@@ -99,7 +110,7 @@
 //! # Recipes
 //!
 //! - Adding a new IPC request: Update `broker-proto`, then add handler in [`BrokerService::call`] and the target service.
-//! - Changing sync logic: Modify [`BufferSyncService`] and ensure the single-writer invariant is maintained.
+//! - Changing sync logic: Modify [`SharedStateService`] and ensure the preferred-owner invariant is maintained.
 
 pub mod knowledge;
 pub mod server;

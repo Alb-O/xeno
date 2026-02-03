@@ -58,7 +58,7 @@ impl Editor {
 			#[cfg(feature = "lsp")]
 			lsp: &mut self.state.lsp,
 			#[cfg(feature = "lsp")]
-			buffer_sync: &mut self.state.buffer_sync,
+			shared_state: &mut self.state.shared_state,
 		};
 		core.undo_manager.undo(&mut host);
 	}
@@ -77,7 +77,7 @@ impl Editor {
 			#[cfg(feature = "lsp")]
 			lsp: &mut self.state.lsp,
 			#[cfg(feature = "lsp")]
-			buffer_sync: &mut self.state.buffer_sync,
+			shared_state: &mut self.state.shared_state,
 		};
 		core.undo_manager.redo(&mut host);
 	}

@@ -6,12 +6,12 @@ use std::time::Duration;
 
 use tokio::sync::{mpsc, oneshot};
 use xeno_broker_proto::types::{
-	BufferSyncOwnershipStatus, DocSyncPhase, ErrorCode, Event, IpcFrame, LspServerConfig,
-	Request, Response, ResponsePayload, SessionId, SyncEpoch, SyncSeq, WireOp, WireTx,
+	DocSyncPhase, ErrorCode, Event, IpcFrame, LspServerConfig, Request, Response, ResponsePayload,
+	SessionId, SyncEpoch, SyncSeq, WireOp, WireTx,
 };
 use xeno_rpc::MainLoopEvent;
 
-use super::{buffer_sync, knowledge, routing, sessions};
+use super::{knowledge, routing, sessions, shared_state};
 use crate::core::{SessionSink, normalize_uri};
 use crate::launcher::test_helpers::TestLauncher;
 
@@ -59,7 +59,7 @@ fn test_config(cmd: &str, cwd: &str) -> LspServerConfig {
 
 struct SyncHarness {
 	sessions: sessions::SessionHandle,
-	sync: buffer_sync::BufferSyncHandle,
+	sync: shared_state::SharedStateHandle,
 	open_docs: Arc<Mutex<HashSet<String>>>,
 	_routing_rx: mpsc::Receiver<routing::RoutingCmd>,
 }
@@ -72,7 +72,7 @@ async fn setup_sync_harness() -> SyncHarness {
 	let _ = routing_tx.send(dummy_routing.clone()).await;
 
 	let (sync, open_docs, knowledge_tx, sync_routing_tx) =
-		buffer_sync::BufferSyncService::start(sessions_handle.clone());
+		shared_state::SharedStateService::start(sessions_handle.clone());
 
 	let (knowledge_sender, mut knowledge_rx) = mpsc::channel(8);
 	let knowledge = knowledge::KnowledgeHandle::new(knowledge_sender);
@@ -95,14 +95,14 @@ struct RoutingHarness {
 	sessions: sessions::SessionHandle,
 	routing: routing::RoutingHandle,
 	launcher: TestLauncher,
-	_sync_rx: mpsc::Receiver<buffer_sync::BufferSyncCmd>,
+	_sync_rx: mpsc::Receiver<shared_state::SharedStateCmd>,
 }
 
 async fn setup_routing_harness(idle_lease: Duration) -> RoutingHarness {
 	let (sessions_handle, routing_tx, sync_tx) = sessions::SessionService::start();
 
 	let (sync_cmd_tx, sync_cmd_rx) = mpsc::channel(8);
-	let sync_handle = buffer_sync::BufferSyncHandle::new(sync_cmd_tx);
+	let sync_handle = shared_state::SharedStateHandle::new(sync_cmd_tx);
 	let _ = sync_tx.send(sync_handle).await;
 
 	let (knowledge_sender, mut knowledge_rx) = mpsc::channel(8);
@@ -129,7 +129,7 @@ async fn setup_routing_harness(idle_lease: Duration) -> RoutingHarness {
 }
 
 #[tokio::test(flavor = "current_thread")]
-async fn test_buffer_sync_open_owner_then_follower_gets_snapshot() {
+async fn test_shared_state_open_owner_then_follower_gets_snapshot() {
 	let harness = setup_sync_harness().await;
 	let session1 = TestSession::new(1);
 	let session2 = TestSession::new(2);
@@ -154,10 +154,11 @@ async fn test_buffer_sync_open_owner_then_follower_gets_snapshot() {
 		.await
 		.unwrap();
 	match resp {
-		ResponsePayload::BufferSyncOpened { snapshot, text } => {
+		ResponsePayload::SharedOpened { snapshot, text } => {
 			assert_eq!(snapshot.epoch, SyncEpoch(1));
 			assert_eq!(snapshot.seq, SyncSeq(0));
 			assert_eq!(snapshot.owner, Some(session1.session_id));
+			assert_eq!(snapshot.preferred_owner, Some(session1.session_id));
 			assert_eq!(snapshot.phase, xeno_broker_proto::types::DocSyncPhase::Owned);
 			assert!(text.is_none());
 		}
@@ -175,10 +176,11 @@ async fn test_buffer_sync_open_owner_then_follower_gets_snapshot() {
 		.await
 		.unwrap();
 	match resp {
-		ResponsePayload::BufferSyncOpened { snapshot, text } => {
+		ResponsePayload::SharedOpened { snapshot, text } => {
 			assert_eq!(snapshot.epoch, SyncEpoch(1));
 			assert_eq!(snapshot.seq, SyncSeq(0));
 			assert_eq!(snapshot.owner, Some(session1.session_id));
+			assert_eq!(snapshot.preferred_owner, Some(session1.session_id));
 			assert_eq!(snapshot.phase, xeno_broker_proto::types::DocSyncPhase::Owned);
 			assert_eq!(text.as_deref(), Some("hello world"));
 		}
@@ -187,7 +189,7 @@ async fn test_buffer_sync_open_owner_then_follower_gets_snapshot() {
 }
 
 #[tokio::test(flavor = "current_thread")]
-async fn test_sync_ownership_enforcement() {
+async fn test_shared_state_preferred_owner_enforcement() {
 	let harness = setup_sync_harness().await;
 	let session1 = TestSession::new(1);
 	let session2 = TestSession::new(2);
@@ -223,7 +225,7 @@ async fn test_sync_ownership_enforcement() {
 	let wire_tx = WireTx(vec![WireOp::Retain(5), WireOp::Insert(" world".into())]);
 	let result = harness
 		.sync
-		.delta(
+		.edit(
 			session2.session_id,
 			"file:///test.rs".to_string(),
 			SyncEpoch(1),
@@ -231,73 +233,11 @@ async fn test_sync_ownership_enforcement() {
 			wire_tx,
 		)
 		.await;
-	assert_eq!(result.unwrap_err(), ErrorCode::NotDocOwner);
+	assert_eq!(result.unwrap_err(), ErrorCode::NotPreferredOwner);
 }
 
 #[tokio::test(flavor = "current_thread")]
-async fn test_buffer_sync_take_ownership_denied_when_owner_active() {
-	let harness = setup_sync_harness().await;
-	let session1 = TestSession::new(1);
-	let session2 = TestSession::new(2);
-
-	harness
-		.sessions
-		.register(session1.session_id, session1.sink.clone())
-		.await;
-	harness
-		.sessions
-		.register(session2.session_id, session2.sink.clone())
-		.await;
-
-	let _ = harness
-		.sync
-		.open(
-			session1.session_id,
-			"file:///test.rs".to_string(),
-			"hello".into(),
-			None,
-		)
-		.await;
-	let _ = harness
-		.sync
-		.open(
-			session2.session_id,
-			"file:///test.rs".to_string(),
-			"".into(),
-			None,
-		)
-		.await;
-
-	let resp = harness
-		.sync
-		.take_ownership(session2.session_id, "file:///test.rs".to_string())
-		.await
-		.unwrap();
-	match resp {
-		ResponsePayload::BufferSyncOwnership { status, snapshot } => {
-			assert_eq!(status, BufferSyncOwnershipStatus::Denied);
-			assert_eq!(snapshot.epoch, SyncEpoch(1));
-			assert_eq!(snapshot.owner, Some(session1.session_id));
-		}
-		other => panic!("unexpected response: {other:?}"),
-	}
-
-	let wire_tx = WireTx(vec![WireOp::Retain(5), WireOp::Insert("!".into())]);
-	let result = harness
-		.sync
-		.delta(
-			session1.session_id,
-			"file:///test.rs".to_string(),
-			SyncEpoch(1),
-			SyncSeq(0),
-			wire_tx,
-		)
-		.await;
-	assert!(result.is_ok());
-}
-
-#[tokio::test(flavor = "current_thread")]
-async fn test_buffer_sync_release_ownership_unlocks() {
+async fn test_shared_state_focus_transfers_ownership() {
 	let harness = setup_sync_harness().await;
 	let session1 = TestSession::new(1);
 	let mut session2 = TestSession::new(2);
@@ -334,31 +274,124 @@ async fn test_buffer_sync_release_ownership_unlocks() {
 
 	let resp = harness
 		.sync
-		.release_ownership(session1.session_id, "file:///test.rs".to_string())
+		.focus(session2.session_id, "file:///test.rs".to_string(), true, 1)
 		.await
 		.unwrap();
 	match resp {
-		ResponsePayload::BufferSyncReleased { snapshot } => {
+		ResponsePayload::SharedFocusAck { snapshot } => {
+			assert_eq!(snapshot.epoch, SyncEpoch(2));
+			assert_eq!(snapshot.owner, Some(session2.session_id));
+			assert_eq!(snapshot.preferred_owner, Some(session2.session_id));
+			assert_eq!(snapshot.phase, DocSyncPhase::Diverged);
+		}
+		other => panic!("unexpected response: {other:?}"),
+	}
+
+	let mut saw_preferred = false;
+	let mut saw_owner = false;
+	for _ in 0..2 {
+		let event = session2.recv_event().await.expect("focus events");
+		match event {
+			Event::SharedPreferredOwnerChanged { snapshot } => {
+				assert_eq!(snapshot.preferred_owner, Some(session2.session_id));
+				saw_preferred = true;
+			}
+			Event::SharedOwnerChanged { snapshot } => {
+				assert_eq!(snapshot.owner, Some(session2.session_id));
+				saw_owner = true;
+			}
+			other => panic!("unexpected event: {other:?}"),
+		}
+	}
+	assert!(saw_preferred && saw_owner);
+
+	let wire_tx = WireTx(vec![WireOp::Retain(5), WireOp::Insert("!".into())]);
+	let result = harness
+		.sync
+		.edit(
+			session1.session_id,
+			"file:///test.rs".to_string(),
+			SyncEpoch(1),
+			SyncSeq(0),
+			wire_tx,
+		)
+		.await;
+	assert_eq!(result.unwrap_err(), ErrorCode::NotPreferredOwner);
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn test_shared_state_focus_blur_unlocks() {
+	let harness = setup_sync_harness().await;
+	let session1 = TestSession::new(1);
+	let mut session2 = TestSession::new(2);
+
+	harness
+		.sessions
+		.register(session1.session_id, session1.sink.clone())
+		.await;
+	harness
+		.sessions
+		.register(session2.session_id, session2.sink.clone())
+		.await;
+
+	let _ = harness
+		.sync
+		.open(
+			session1.session_id,
+			"file:///test.rs".to_string(),
+			"hello".into(),
+			None,
+		)
+		.await;
+	let _ = harness
+		.sync
+		.open(
+			session2.session_id,
+			"file:///test.rs".to_string(),
+			"".into(),
+			None,
+		)
+		.await;
+
+	while session2.try_event().is_some() {}
+
+	let resp = harness
+		.sync
+		.focus(session1.session_id, "file:///test.rs".to_string(), false, 1)
+		.await
+		.unwrap();
+	match resp {
+		ResponsePayload::SharedFocusAck { snapshot } => {
 			assert_eq!(snapshot.epoch, SyncEpoch(2));
 			assert_eq!(snapshot.owner, None);
+			assert_eq!(snapshot.preferred_owner, None);
 			assert_eq!(snapshot.phase, DocSyncPhase::Unlocked);
 		}
 		other => panic!("unexpected response: {other:?}"),
 	}
 
-	let event = session2.recv_event().await.expect("unlock");
-	match event {
-		Event::BufferSyncUnlocked { snapshot } => {
-			assert_eq!(snapshot.epoch, SyncEpoch(2));
-			assert_eq!(snapshot.phase, DocSyncPhase::Unlocked);
+	let mut saw_preferred = false;
+	let mut saw_unlocked = false;
+	for _ in 0..2 {
+		let event = session2.recv_event().await.expect("unlock events");
+		match event {
+			Event::SharedPreferredOwnerChanged { snapshot } => {
+				assert!(snapshot.preferred_owner.is_none());
+				saw_preferred = true;
+			}
+			Event::SharedUnlocked { snapshot } => {
+				assert_eq!(snapshot.phase, DocSyncPhase::Unlocked);
+				saw_unlocked = true;
+			}
+			other => panic!("unexpected event: {other:?}"),
 		}
-		other => panic!("unexpected event: {other:?}"),
 	}
+	assert!(saw_preferred && saw_unlocked);
 
 	let wire_tx = WireTx(vec![WireOp::Retain(5), WireOp::Insert("!".into())]);
 	let result = harness
 		.sync
-		.delta(
+		.edit(
 			session1.session_id,
 			"file:///test.rs".to_string(),
 			SyncEpoch(1),
@@ -366,11 +399,11 @@ async fn test_buffer_sync_release_ownership_unlocks() {
 			wire_tx,
 		)
 		.await;
-	assert_eq!(result.unwrap_err(), ErrorCode::NotDocOwner);
+	assert_eq!(result.unwrap_err(), ErrorCode::NotPreferredOwner);
 }
 
 #[tokio::test(flavor = "current_thread")]
-async fn test_buffer_sync_delta_ack_and_broadcast() {
+async fn test_shared_state_edit_ack_and_broadcast() {
 	let harness = setup_sync_harness().await;
 	let session1 = TestSession::new(1);
 	let mut session2 = TestSession::new(2);
@@ -408,7 +441,7 @@ async fn test_buffer_sync_delta_ack_and_broadcast() {
 	let wire_tx = WireTx(vec![WireOp::Retain(5), WireOp::Insert(" world".into())]);
 	let resp = harness
 		.sync
-		.delta(
+		.edit(
 			session1.session_id,
 			"file:///test.rs".to_string(),
 			SyncEpoch(1),
@@ -418,7 +451,7 @@ async fn test_buffer_sync_delta_ack_and_broadcast() {
 		.await
 		.unwrap();
 	match resp {
-		ResponsePayload::BufferSyncDeltaAck { seq } => {
+		ResponsePayload::SharedEditAck { seq, .. } => {
 			assert_eq!(seq, SyncSeq(1));
 		}
 		other => panic!("unexpected response: {other:?}"),
@@ -426,7 +459,7 @@ async fn test_buffer_sync_delta_ack_and_broadcast() {
 
 	let event = session2.recv_event().await.expect("delta event");
 	match event {
-		Event::BufferSyncDelta {
+		Event::SharedDelta {
 			uri,
 			epoch,
 			seq,
@@ -442,7 +475,7 @@ async fn test_buffer_sync_delta_ack_and_broadcast() {
 }
 
 #[tokio::test(flavor = "current_thread")]
-async fn test_owner_transfer_requires_resync_before_delta() {
+async fn test_shared_state_transfer_requires_resync_before_edit() {
 	let harness = setup_sync_harness().await;
 	let mut session1 = TestSession::new(1);
 	let mut session2 = TestSession::new(2);
@@ -478,52 +511,40 @@ async fn test_owner_transfer_requires_resync_before_delta() {
 	while session1.try_event().is_some() {}
 	while session2.try_event().is_some() {}
 
-	harness
-		.sync
-		.close(session1.session_id, "file:///test.rs".to_string())
-		.await
-		.unwrap();
-
-	let event = session2.recv_event().await.expect("unlock");
-	match event {
-		Event::BufferSyncUnlocked { snapshot } => {
-			assert_eq!(snapshot.epoch, SyncEpoch(2));
-		}
-		other => panic!("unexpected event: {other:?}"),
-	}
-
 	let resp = harness
 		.sync
-		.take_ownership(session2.session_id, "file:///test.rs".to_string())
+		.focus(session2.session_id, "file:///test.rs".to_string(), true, 1)
 		.await
 		.unwrap();
-	match resp {
-		ResponsePayload::BufferSyncOwnership { status, snapshot } => {
-			assert_eq!(
-				status,
-				xeno_broker_proto::types::BufferSyncOwnershipStatus::Granted
-			);
-			assert_eq!(snapshot.epoch, SyncEpoch(3));
+	let epoch = match resp {
+		ResponsePayload::SharedFocusAck { snapshot } => {
+			assert_eq!(snapshot.owner, Some(session2.session_id));
+			snapshot.epoch
 		}
 		other => panic!("unexpected response: {other:?}"),
-	}
+	};
 
-	let event = session2.recv_event().await.expect("owner change");
-	match event {
-		Event::BufferSyncOwnerChanged { snapshot } => {
-			assert_eq!(snapshot.epoch, SyncEpoch(3));
-			assert_eq!(snapshot.owner, Some(session2.session_id));
+	let mut saw_owner = false;
+	while let Some(event) = session2.recv_event().await {
+		match event {
+			Event::SharedOwnerChanged { snapshot } => {
+				assert_eq!(snapshot.owner, Some(session2.session_id));
+				saw_owner = true;
+				break;
+			}
+			Event::SharedPreferredOwnerChanged { .. } => {}
+			other => panic!("unexpected event: {other:?}"),
 		}
-		other => panic!("unexpected event: {other:?}"),
 	}
+	assert!(saw_owner);
 
 	let wire_tx = WireTx(vec![WireOp::Retain(5), WireOp::Insert("!".into())]);
 	let result = harness
 		.sync
-		.delta(
+		.edit(
 			session2.session_id,
 			"file:///test.rs".to_string(),
-			SyncEpoch(3),
+			epoch,
 			SyncSeq(0),
 			wire_tx.clone(),
 		)
@@ -532,15 +553,15 @@ async fn test_owner_transfer_requires_resync_before_delta() {
 
 	harness
 		.sync
-		.resync(session2.session_id, "file:///test.rs".to_string())
+		.resync(session2.session_id, "file:///test.rs".to_string(), None, None)
 		.await
 		.unwrap();
 	let resp = harness
 		.sync
-		.delta(
+		.edit(
 			session2.session_id,
 			"file:///test.rs".to_string(),
-			SyncEpoch(3),
+			epoch,
 			SyncSeq(0),
 			wire_tx,
 		)
@@ -549,7 +570,7 @@ async fn test_owner_transfer_requires_resync_before_delta() {
 }
 
 #[tokio::test(flavor = "current_thread", start_paused = true)]
-async fn test_buffer_sync_idle_unlocks_owner() {
+async fn test_shared_state_idle_unlocks_owner() {
 	let harness = setup_sync_harness().await;
 	let session1 = TestSession::new(1);
 	let mut session2 = TestSession::new(2);
@@ -584,12 +605,12 @@ async fn test_buffer_sync_idle_unlocks_owner() {
 
 	while session2.try_event().is_some() {}
 
-	tokio::time::advance(buffer_sync::OWNER_IDLE_TIMEOUT + Duration::from_millis(10)).await;
+	tokio::time::advance(shared_state::OWNER_IDLE_TIMEOUT + Duration::from_millis(10)).await;
 	tokio::task::yield_now().await;
 
 	let event = session2.recv_event().await.expect("unlock");
 	match event {
-		Event::BufferSyncUnlocked { snapshot } => {
+		Event::SharedUnlocked { snapshot } => {
 			assert_eq!(snapshot.epoch, SyncEpoch(2));
 		}
 		other => panic!("unexpected event: {other:?}"),
@@ -598,7 +619,7 @@ async fn test_buffer_sync_idle_unlocks_owner() {
 	let wire_tx = WireTx(vec![WireOp::Retain(5), WireOp::Insert(" world".into())]);
 	let result = harness
 		.sync
-		.delta(
+		.edit(
 			session1.session_id,
 			"file:///test.rs".to_string(),
 			SyncEpoch(1),
@@ -606,11 +627,11 @@ async fn test_buffer_sync_idle_unlocks_owner() {
 			wire_tx,
 		)
 		.await;
-	assert_eq!(result.unwrap_err(), ErrorCode::NotDocOwner);
+	assert_eq!(result.unwrap_err(), ErrorCode::NotPreferredOwner);
 }
 
 #[tokio::test(flavor = "current_thread", start_paused = true)]
-async fn test_buffer_sync_activity_resets_idle_timer() {
+async fn test_shared_state_activity_resets_idle_timer() {
 	let harness = setup_sync_harness().await;
 	let session1 = TestSession::new(1);
 	let mut session2 = TestSession::new(2);
@@ -645,7 +666,7 @@ async fn test_buffer_sync_activity_resets_idle_timer() {
 
 	while session2.try_event().is_some() {}
 
-	tokio::time::advance(buffer_sync::OWNER_IDLE_TIMEOUT - Duration::from_secs(1)).await;
+	tokio::time::advance(shared_state::OWNER_IDLE_TIMEOUT - Duration::from_secs(1)).await;
 	tokio::task::yield_now().await;
 
 	let _ = harness
@@ -654,7 +675,7 @@ async fn test_buffer_sync_activity_resets_idle_timer() {
 		.await
 		.unwrap();
 
-	let guard = buffer_sync::OWNER_IDLE_TIMEOUT
+	let guard = shared_state::OWNER_IDLE_TIMEOUT
 		.checked_sub(Duration::from_millis(100))
 		.unwrap_or(Duration::from_millis(0));
 	tokio::time::advance(guard).await;
@@ -666,11 +687,11 @@ async fn test_buffer_sync_activity_resets_idle_timer() {
 	tokio::task::yield_now().await;
 
 	let event = session2.recv_event().await.expect("unlock after activity");
-	assert!(matches!(event, Event::BufferSyncUnlocked { .. }));
+	assert!(matches!(event, Event::SharedUnlocked { .. }));
 }
 
 #[tokio::test(flavor = "current_thread")]
-async fn test_buffer_sync_invalid_delta_is_non_mutating() {
+async fn test_shared_state_invalid_edit_is_non_mutating() {
 	let harness = setup_sync_harness().await;
 	let session1 = TestSession::new(1);
 
@@ -692,7 +713,7 @@ async fn test_buffer_sync_invalid_delta_is_non_mutating() {
 	let wire_tx = WireTx(vec![WireOp::Delete(999)]);
 	let result = harness
 		.sync
-		.delta(
+		.edit(
 			session1.session_id,
 			"file:///test.rs".to_string(),
 			SyncEpoch(1),
@@ -704,11 +725,11 @@ async fn test_buffer_sync_invalid_delta_is_non_mutating() {
 
 	let resp = harness
 		.sync
-		.resync(session1.session_id, "file:///test.rs".to_string())
+		.resync(session1.session_id, "file:///test.rs".to_string(), None, None)
 		.await
 		.unwrap();
 	match resp {
-		ResponsePayload::BufferSyncSnapshot { text, snapshot } => {
+		ResponsePayload::SharedSnapshot { text, snapshot } => {
 			assert_eq!(text, "hello");
 			assert_eq!(snapshot.seq, SyncSeq(0));
 		}
@@ -717,7 +738,7 @@ async fn test_buffer_sync_invalid_delta_is_non_mutating() {
 }
 
 #[tokio::test(flavor = "current_thread")]
-async fn test_buffer_sync_close_last_session_removes_doc() {
+async fn test_shared_state_close_last_session_removes_doc() {
 	let harness = setup_sync_harness().await;
 	let session1 = TestSession::new(1);
 	let session2 = TestSession::new(2);
@@ -763,13 +784,13 @@ async fn test_buffer_sync_close_last_session_removes_doc() {
 
 	let res = harness
 		.sync
-		.resync(session1.session_id, "file:///test.rs".to_string())
+		.resync(session1.session_id, "file:///test.rs".to_string(), None, None)
 		.await;
 	assert_eq!(res.unwrap_err(), ErrorCode::SyncDocNotFound);
 }
 
 #[tokio::test(flavor = "current_thread")]
-async fn test_buffer_sync_uri_normalization_dedups() {
+async fn test_shared_state_uri_normalization_dedups() {
 	let harness = setup_sync_harness().await;
 	let session1 = TestSession::new(1);
 
@@ -807,7 +828,7 @@ async fn test_buffer_sync_uri_normalization_dedups() {
 }
 
 #[tokio::test(flavor = "current_thread")]
-async fn test_buffer_sync_refcounts_keep_doc_open() {
+async fn test_shared_state_refcounts_keep_doc_open() {
 	let harness = setup_sync_harness().await;
 	let session1 = TestSession::new(1);
 	let session2 = TestSession::new(2);
@@ -843,7 +864,7 @@ async fn test_buffer_sync_refcounts_keep_doc_open() {
 
 	let resp = harness
 		.sync
-		.resync(session2.session_id, uri.to_string())
+		.resync(session2.session_id, uri.to_string(), None, None)
 		.await;
 	assert!(resp.is_ok());
 
@@ -854,7 +875,7 @@ async fn test_buffer_sync_refcounts_keep_doc_open() {
 		.unwrap();
 	let resp = harness
 		.sync
-		.resync(session2.session_id, uri.to_string())
+		.resync(session2.session_id, uri.to_string(), None, None)
 		.await;
 	assert!(resp.is_ok());
 
@@ -865,7 +886,7 @@ async fn test_buffer_sync_refcounts_keep_doc_open() {
 		.unwrap();
 	let resp = harness
 		.sync
-		.resync(session2.session_id, uri.to_string())
+		.resync(session2.session_id, uri.to_string(), None, None)
 		.await;
 	assert_eq!(resp.unwrap_err(), ErrorCode::SyncDocNotFound);
 }
@@ -1179,6 +1200,74 @@ async fn test_routing_lsp_docs_from_sync() {
 }
 
 #[tokio::test(flavor = "current_thread")]
+async fn test_routing_session_lost_closes_lsp_docs() {
+	let harness = setup_routing_harness(Duration::from_secs(300)).await;
+	let session1 = TestSession::new(1);
+
+	harness
+		.sessions
+		.register(session1.session_id, session1.sink.clone())
+		.await;
+
+	let config = test_config("rust-analyzer", "/project1");
+	let server_id = harness
+		.routing
+		.lsp_start(session1.session_id, config)
+		.await
+		.unwrap();
+
+	let did_open = serde_json::json!({
+		"method": "textDocument/didOpen",
+		"params": {
+			"textDocument": {
+				"uri": "file:///test.rs",
+				"languageId": "rust",
+				"version": 1,
+				"text": "let a = 1;"
+			}
+		}
+	})
+	.to_string();
+	harness
+		.routing
+		.lsp_send_notif(session1.session_id, server_id, did_open)
+		.await
+		.unwrap();
+
+	let handle = harness.launcher.get_server(server_id).expect("server handle");
+
+	let wait_for = |method: &'static str| {
+		let handle = handle.clone();
+		async move {
+			tokio::time::timeout(Duration::from_secs(1), async {
+				loop {
+					let found = {
+						let received = handle.received.lock().unwrap();
+						received.iter().any(|msg| match msg {
+							xeno_lsp::Message::Notification(n) => n.method == method,
+							_ => false,
+						})
+					};
+					if found {
+						break;
+					}
+					tokio::time::sleep(Duration::from_millis(10)).await;
+				}
+			})
+			.await
+			.expect("timeout waiting for LSP notification");
+		}
+	};
+
+	wait_for("textDocument/didOpen").await;
+
+	harness.routing.session_lost(session1.session_id).await;
+	tokio::task::yield_now().await;
+
+	wait_for("textDocument/didClose").await;
+}
+
+#[tokio::test(flavor = "current_thread")]
 async fn test_session_lost_cancels_pending_and_reselects_leader() {
 	let harness = setup_routing_harness(Duration::from_secs(300)).await;
 	let session1 = TestSession::new(1);
@@ -1425,7 +1514,7 @@ async fn test_session_send_failure_triggers_cleanup() {
 	let _ = routing_tx.send(routing_handle).await;
 
 	let (sync_cmd_tx, mut sync_cmd_rx) = mpsc::channel(4);
-	let sync_handle = buffer_sync::BufferSyncHandle::new(sync_cmd_tx);
+	let sync_handle = shared_state::SharedStateHandle::new(sync_cmd_tx);
 	let _ = sync_tx.send(sync_handle).await;
 
 	let (tx, rx) = mpsc::unbounded_channel();
@@ -1454,7 +1543,7 @@ async fn test_session_send_failure_triggers_cleanup() {
 		.ok()
 		.flatten();
 	match sync {
-		Some(buffer_sync::BufferSyncCmd::SessionLost { sid: lost }) => assert_eq!(lost, sid),
+		Some(shared_state::SharedStateCmd::SessionLost { sid: lost }) => assert_eq!(lost, sid),
 		other => panic!("unexpected sync cmd: {other:?}"),
 	}
 }

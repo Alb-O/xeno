@@ -50,13 +50,13 @@ mod tests {
 		LspTransport::notify(t1.as_ref(), s1.id, did_open)
 			.await
 			.expect("t1 notify");
-		t1.buffer_sync_request(RequestPayload::BufferSyncOpen {
+		t1.shared_state_request(RequestPayload::SharedOpen {
 			uri: "file:///test.rs".to_string(),
 			text: "test content".to_string(),
 			version_hint: Some(1),
 		})
 		.await
-		.expect("buffer sync open");
+		.expect("shared state open");
 
 		// Get fake server handle and wait for didOpen to arrive
 		let mut attempts = 0;
@@ -75,7 +75,7 @@ mod tests {
 
 		// Also ensure broker has the doc registered by checking directly
 		let mut attempts = 0;
-		while !runtime.sync.is_open("file:///test.rs".to_string()).await {
+		while !runtime.shared_state.is_open("file:///test.rs".to_string()).await {
 			tokio::time::sleep(Duration::from_millis(10)).await;
 			attempts += 1;
 			if attempts > 100 {
@@ -150,13 +150,13 @@ mod tests {
 		LspTransport::notify(t1.as_ref(), s1.id, did_open)
 			.await
 			.expect("t1 notify");
-		t1.buffer_sync_request(RequestPayload::BufferSyncOpen {
+		t1.shared_state_request(RequestPayload::SharedOpen {
 			uri: "file:///test.rs".to_string(),
 			text: "test content".to_string(),
 			version_hint: Some(1),
 		})
 		.await
-		.expect("buffer sync open");
+		.expect("shared state open");
 
 		let mut attempts = 0;
 		let handle = loop {
@@ -172,7 +172,7 @@ mod tests {
 		};
 
 		let mut attempts = 0;
-		while !runtime.sync.is_open("file:///test.rs".to_string()).await {
+		while !runtime.shared_state.is_open("file:///test.rs".to_string()).await {
 			tokio::time::sleep(Duration::from_millis(10)).await;
 			attempts += 1;
 			if attempts > 100 {
@@ -260,13 +260,13 @@ mod tests {
 		LspTransport::notify(t1.as_ref(), s1.id, did_open)
 			.await
 			.expect("t1 notify");
-		t1.buffer_sync_request(RequestPayload::BufferSyncOpen {
+		t1.shared_state_request(RequestPayload::SharedOpen {
 			uri: "file:///test.rs".to_string(),
 			text: "test content".to_string(),
 			version_hint: Some(1),
 		})
 		.await
-		.expect("buffer sync open");
+		.expect("shared state open");
 
 		let mut attempts = 0;
 		let handle = loop {
@@ -311,7 +311,7 @@ mod tests {
 		drop(t1);
 		runtime.sessions.unregister(SessionId(1)).await;
 		runtime.routing.session_lost(SessionId(1)).await;
-		runtime.sync.session_lost(SessionId(1)).await;
+		runtime.shared_state.session_lost(SessionId(1)).await;
 
 		let t2 = BrokerTransport::with_socket_and_session(sock.clone(), SessionId(2));
 		let mut rx2 = t2.events();
@@ -451,7 +451,7 @@ mod tests {
 		drop(t1);
 		runtime.sessions.unregister(SessionId(1)).await;
 		runtime.routing.session_lost(SessionId(1)).await;
-		runtime.sync.session_lost(SessionId(1)).await;
+		runtime.shared_state.session_lost(SessionId(1)).await;
 
 		// Wait for broker to process disconnect
 		tokio::time::sleep(Duration::from_millis(100)).await;

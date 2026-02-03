@@ -151,7 +151,7 @@ impl Document {
 	/// [`Transaction`] via [`rope_delta`] and uses that changeset instead,
 	/// keeping the incremental update path even for merged undo groups.
 	///
-	/// [`rope_delta`]: crate::buffer_sync::convert::rope_delta
+	/// [`rope_delta`]: crate::shared_state::convert::rope_delta
 	fn incremental_syntax_for_history(
 		&mut self,
 		old_source: Option<Rope>,
@@ -168,7 +168,7 @@ impl Document {
 		if check == self.content {
 			self.try_incremental_syntax_update(Some(old), stored_tx.changes(), language_loader, op);
 		} else {
-			let corrected = crate::buffer_sync::convert::rope_delta(&old, &self.content);
+			let corrected = crate::shared_state::convert::rope_delta(&old, &self.content);
 			self.try_incremental_syntax_update(Some(old), corrected.changes(), language_loader, op);
 		}
 	}
@@ -563,7 +563,7 @@ impl Document {
 	/// - Undo history is cleared (undo across ownership boundaries is unsound).
 	/// - Syntax state is cleared and marked dirty for reparse.
 	///
-	/// Use this for buffer sync follower join and full resync, where the remote
+	/// Use this for shared state follower join and full resync, where the remote
 	/// content replaces local content but the document still represents a file.
 	pub fn install_sync_snapshot(&mut self, content: impl Into<Rope>) {
 		self.content = content.into();

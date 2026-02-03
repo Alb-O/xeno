@@ -18,7 +18,7 @@ pub struct SessionId(pub u64);
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct DocId(pub u64);
 
-/// Monotonic ownership generation for a buffer sync URI.
+/// Monotonic ownership generation for a shared document.
 ///
 /// Increments each time ownership changes hands for a given document.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
@@ -30,7 +30,7 @@ pub struct SyncEpoch(pub u64);
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct SyncSeq(pub u64);
 
-/// Phase of a buffer sync document.
+/// Phase of a shared document.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum DocSyncPhase {
 	/// Document is owned and writable by the current owner.
@@ -41,7 +41,7 @@ pub enum DocSyncPhase {
 	Diverged,
 }
 
-/// Canonical snapshot of a buffer sync document state.
+/// Canonical snapshot of a shared document state.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DocStateSnapshot {
 	/// Canonical URI for the document.
@@ -52,6 +52,8 @@ pub struct DocStateSnapshot {
 	pub seq: SyncSeq,
 	/// Current owner session (if any).
 	pub owner: Option<SessionId>,
+	/// Current preferred owner session (if any).
+	pub preferred_owner: Option<SessionId>,
 	/// Current phase of the document.
 	pub phase: DocSyncPhase,
 	/// 64-bit hash of the authoritative document content.
@@ -74,15 +76,6 @@ pub enum WireOp {
 /// A serializable transaction: an ordered list of [`WireOp`]s.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct WireTx(pub Vec<WireOp>);
-
-/// Role of a session in a buffer sync document.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub enum BufferSyncRole {
-	/// Session owns the document and may submit deltas.
-	Owner,
-	/// Session is a live follower (read-only).
-	Follower,
-}
 
 /// Unique identifier for LSP servers managed by the broker.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
@@ -167,8 +160,8 @@ pub enum RequestPayload {
 		/// The LSP response (JSON-RPC string).
 		message: String,
 	},
-	/// Open (or join) a buffer sync document.
-	BufferSyncOpen {
+	/// Open (or join) a shared document.
+	SharedOpen {
 		/// Canonical URI for the document.
 		uri: String,
 		/// Full text content when opening.
@@ -176,13 +169,13 @@ pub enum RequestPayload {
 		/// Optional version hint from the local document.
 		version_hint: Option<u32>,
 	},
-	/// Close a buffer sync document.
-	BufferSyncClose {
+	/// Close a shared document.
+	SharedClose {
 		/// Canonical URI for the document.
 		uri: String,
 	},
-	/// Submit an edit delta to a buffer sync document.
-	BufferSyncDelta {
+	/// Submit an edit delta to a shared document.
+	SharedEdit {
 		/// Canonical URI for the document.
 		uri: String,
 		/// Expected ownership epoch.
@@ -192,38 +185,28 @@ pub enum RequestPayload {
 		/// The edit transaction.
 		tx: WireTx,
 	},
-	/// Notify broker of local activity for a buffer sync document.
-	BufferSyncActivity {
+	/// Notify broker of local activity for a shared document.
+	SharedActivity {
 		/// Canonical URI for the document.
 		uri: String,
 	},
-	/// Request ownership of a buffer sync document.
-	BufferSyncTakeOwnership {
+	/// Update focus status for a shared document.
+	SharedFocus {
 		/// Canonical URI for the document.
 		uri: String,
-	},
-	/// Release ownership of a buffer sync document.
-	BufferSyncReleaseOwnership {
-		/// Canonical URI for the document.
-		uri: String,
-	},
-	/// Confirm ownership of a buffer sync document.
-	BufferSyncOwnerConfirm {
-		/// Canonical URI for the document.
-		uri: String,
-		/// Expected ownership epoch.
-		epoch: SyncEpoch,
-		/// Length of the document in characters.
-		len_chars: u64,
-		/// 64-bit hash of the document content.
-		hash64: u64,
-		/// Allow mismatch when optimistic edits are queued.
-		allow_mismatch: bool,
+		/// Whether this session is focused on the document.
+		focused: bool,
+		/// Monotonic sequence number for focus transitions.
+		focus_seq: u64,
 	},
 	/// Request a full resync snapshot from the broker.
-	BufferSyncResync {
+	SharedResync {
 		/// Canonical URI for the document.
 		uri: String,
+		/// Optional hash of the client's current content.
+		client_hash64: Option<u64>,
+		/// Optional length of the client's current content.
+		client_len_chars: Option<u64>,
 	},
 	/// Query the broker knowledge index.
 	KnowledgeSearch {
@@ -282,50 +265,36 @@ pub enum ResponsePayload {
 		/// Target server.
 		server_id: ServerId,
 	},
-	/// Buffer sync document opened successfully.
-	BufferSyncOpened {
+	/// Shared document opened successfully.
+	SharedOpened {
 		/// Canonical snapshot of the document state.
 		snapshot: DocStateSnapshot,
 		/// Full text snapshot (present when joining as follower).
 		text: Option<String>,
 	},
-	/// Buffer sync document closed successfully.
-	BufferSyncClosed,
-	/// Buffer sync delta acknowledged by broker.
-	BufferSyncDeltaAck {
+	/// Shared document closed successfully.
+	SharedClosed,
+	/// Shared edit acknowledged by broker.
+	SharedEditAck {
+		/// Ownership epoch this edit belongs to.
+		epoch: SyncEpoch,
 		/// New sequence number after applying the delta.
 		seq: SyncSeq,
 	},
-	/// Buffer sync ownership transferred.
-	BufferSyncOwnership {
-		/// Status of the ownership request.
-		status: BufferSyncOwnershipStatus,
+	/// Shared focus update acknowledged.
+	SharedFocusAck {
 		/// Canonical snapshot of the document state.
 		snapshot: DocStateSnapshot,
 	},
-	/// Buffer sync ownership released.
-	BufferSyncReleased {
-		/// Canonical snapshot of the document state.
-		snapshot: DocStateSnapshot,
-	},
-	/// Result of an ownership confirmation.
-	BufferSyncOwnerConfirmResult {
-		/// Status of the confirmation.
-		status: BufferSyncOwnerConfirmStatus,
-		/// Canonical snapshot of the document state.
-		snapshot: DocStateSnapshot,
-		/// Full text snapshot (present when status is NeedSnapshot).
-		text: Option<String>,
-	},
-	/// Buffer sync full snapshot for resync.
-	BufferSyncSnapshot {
+	/// Shared full snapshot for resync.
+	SharedSnapshot {
 		/// Full text content.
 		text: String,
 		/// Canonical snapshot of the document state.
 		snapshot: DocStateSnapshot,
 	},
-	/// Buffer sync activity acknowledged.
-	BufferSyncActivityAck,
+	/// Shared activity acknowledged.
+	SharedActivityAck,
 	/// Knowledge search results.
 	KnowledgeSearchResults {
 		/// Ranked knowledge hits.
@@ -369,29 +338,29 @@ pub enum ErrorCode {
 	Timeout,
 	/// Request not found (e.g., reply to non-existent or already-cancelled request).
 	RequestNotFound,
-	/// Document is not owned by this session.
+	/// Session is not the preferred owner for the document.
 	///
-	/// Returned when a session attempts to send text synchronization notifications
-	/// (didOpen, didChange, didClose) for a document currently owned by another session.
-	NotDocOwner,
+	/// Returned when a session attempts to edit a shared document while another
+	/// session is marked as the preferred owner.
+	NotPreferredOwner,
 	/// Document is not open.
 	///
 	/// Returned when an operation requires `textDocument/didOpen` to have been called first.
 	DocNotOpen,
-	/// Buffer sync sequence number mismatch.
+	/// Shared document sequence number mismatch.
 	///
 	/// The submitted delta's `base_seq` does not match the broker's current sequence.
 	/// The client should request a resync.
 	SyncSeqMismatch,
-	/// Buffer sync epoch mismatch.
+	/// Shared document epoch mismatch.
 	///
 	/// The submitted delta targets a stale ownership epoch.
 	SyncEpochMismatch,
-	/// Buffer sync document not found.
+	/// Shared document not found.
 	///
 	/// The URI has no active sync document entry.
 	SyncDocNotFound,
-	/// Buffer sync delta is malformed or out of bounds.
+	/// Shared edit delta is malformed or out of bounds.
 	InvalidDelta,
 	/// Owner must resync before publishing deltas.
 	OwnerNeedsResync,
@@ -442,8 +411,8 @@ pub enum Event {
 		/// The LSP request (JSON-RPC string).
 		message: String,
 	},
-	/// A buffer sync delta broadcast from the broker.
-	BufferSyncDelta {
+	/// A shared edit delta broadcast from the broker.
+	SharedDelta {
 		/// Document URI.
 		uri: String,
 		/// Ownership epoch.
@@ -453,36 +422,21 @@ pub enum Event {
 		/// The edit transaction.
 		tx: WireTx,
 	},
-	/// Buffer sync ownership changed.
-	BufferSyncOwnerChanged {
+	/// Shared document ownership changed.
+	SharedOwnerChanged {
 		/// Canonical snapshot of the document state.
 		snapshot: DocStateSnapshot,
 	},
-	/// Buffer sync document unlocked ("up-for-grabs" with no current owner).
-	BufferSyncUnlocked {
+	/// Shared document preferred owner changed.
+	SharedPreferredOwnerChanged {
 		/// Canonical snapshot of the document state.
 		snapshot: DocStateSnapshot,
 	},
-}
-
-/// Status of a buffer sync ownership request.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub enum BufferSyncOwnershipStatus {
-	/// Ownership granted.
-	Granted,
-	/// Ownership denied (e.g. another session already owns it).
-	Denied,
-	/// Session is already the owner.
-	AlreadyOwner,
-}
-
-/// Status of a buffer sync ownership confirmation.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub enum BufferSyncOwnerConfirmStatus {
-	/// Local content matches broker; ownership confirmed.
-	Confirmed,
-	/// Local content mismatch; snapshot required.
-	NeedSnapshot,
+	/// Shared document unlocked ("up-for-grabs" with no current owner).
+	SharedUnlocked {
+		/// Canonical snapshot of the document state.
+		snapshot: DocStateSnapshot,
+	},
 }
 
 /// Status of an LSP server.

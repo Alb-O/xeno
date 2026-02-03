@@ -45,13 +45,13 @@ struct RealLspSystem {
 	signature_cancel: Option<tokio_util::sync::CancellationToken>,
 	ui_tx: tokio::sync::mpsc::UnboundedSender<crate::lsp::LspUiEvent>,
 	ui_rx: tokio::sync::mpsc::UnboundedReceiver<crate::lsp::LspUiEvent>,
-	/// Concrete broker transport handle for buffer sync requests.
+	/// Concrete broker transport handle for shared state requests.
 	broker: Arc<crate::lsp::broker_transport::BrokerTransport>,
-	/// Outbound buffer sync requests (fire-and-forget from edit path).
-	buffer_sync_out_tx:
+	/// Outbound shared state requests (fire-and-forget from edit path).
+	shared_state_out_tx:
 		tokio::sync::mpsc::UnboundedSender<xeno_broker_proto::types::RequestPayload>,
-	/// Inbound buffer sync events to be drained in editor tick.
-	buffer_sync_in_rx: tokio::sync::mpsc::UnboundedReceiver<crate::buffer_sync::BufferSyncEvent>,
+	/// Inbound shared state events to be drained in editor tick.
+	shared_state_in_rx: tokio::sync::mpsc::UnboundedReceiver<crate::shared_state::SharedStateEvent>,
 }
 
 #[cfg(feature = "lsp")]
@@ -68,7 +68,7 @@ impl LspSystem {
 
 		let (ui_tx, ui_rx) = tokio::sync::mpsc::unbounded_channel();
 
-		// Keep the concrete BrokerTransport for buffer sync requests,
+		// Keep the concrete BrokerTransport for shared state requests,
 		// while passing it as Arc<dyn LspTransport> to the LSP manager.
 		let broker = crate::lsp::broker_transport::BrokerTransport::new();
 		let transport: Arc<dyn LspTransport> = broker.clone();
@@ -76,87 +76,70 @@ impl LspSystem {
 		manager.spawn_router();
 
 		// Outbound: edit path enqueues sync work here (fire-and-forget).
-		let (buffer_sync_out_tx, mut buffer_sync_out_rx) =
+		let (shared_state_out_tx, mut shared_state_out_rx) =
 			tokio::sync::mpsc::unbounded_channel::<xeno_broker_proto::types::RequestPayload>();
 
 		// Inbound: events/results delivered to editor tick for processing.
-		let (buffer_sync_in_tx, buffer_sync_in_rx) =
-			tokio::sync::mpsc::unbounded_channel::<crate::buffer_sync::BufferSyncEvent>();
+		let (shared_state_in_tx, shared_state_in_rx) =
+			tokio::sync::mpsc::unbounded_channel::<crate::shared_state::SharedStateEvent>();
 
-		// Buffer sync tasks require a Tokio runtime; skip in unit tests.
+		// Shared state tasks require a Tokio runtime; skip in unit tests.
 		if tokio::runtime::Handle::try_current().is_ok() {
-			// Task A: forward broker transport async events → buffer_sync_in_tx.
-			if let Some(mut event_rx) = broker.take_buffer_sync_events() {
-				let in_tx_a = buffer_sync_in_tx.clone();
+			// Task A: forward broker transport async events → shared_state_in_tx.
+			if let Some(mut event_rx) = broker.take_shared_state_events() {
+				let in_tx_a = shared_state_in_tx.clone();
 				tokio::spawn(async move {
 					while let Some(evt) = event_rx.recv().await {
 						if in_tx_a.send(evt).is_err() {
 							break;
 						}
 					}
-					let _ = in_tx_a.send(crate::buffer_sync::BufferSyncEvent::Disconnected);
+					let _ = in_tx_a.send(crate::shared_state::SharedStateEvent::Disconnected);
 				});
 			}
 
 			// Task B: outbound sender — drains editor requests, calls broker, posts results back.
 			let broker_b = broker.clone();
-			let in_tx_b = buffer_sync_in_tx;
+			let in_tx_b = shared_state_in_tx;
 			tokio::spawn(async move {
 				use xeno_broker_proto::types::{RequestPayload, ResponsePayload};
 
-				while let Some(payload) = buffer_sync_out_rx.recv().await {
-					let is_delta = matches!(payload, RequestPayload::BufferSyncDelta { .. });
+				while let Some(payload) = shared_state_out_rx.recv().await {
+					let is_edit = matches!(payload, RequestPayload::SharedEdit { .. });
 
 					// Extract URI for error reporting.
 					let uri = match &payload {
-						RequestPayload::BufferSyncOpen { uri, .. }
-						| RequestPayload::BufferSyncClose { uri }
-						| RequestPayload::BufferSyncDelta { uri, .. }
-						| RequestPayload::BufferSyncActivity { uri }
-						| RequestPayload::BufferSyncTakeOwnership { uri }
-						| RequestPayload::BufferSyncReleaseOwnership { uri }
-						| RequestPayload::BufferSyncOwnerConfirm { uri, .. }
-						| RequestPayload::BufferSyncResync { uri } => uri.clone(),
+						RequestPayload::SharedOpen { uri, .. }
+						| RequestPayload::SharedClose { uri }
+						| RequestPayload::SharedEdit { uri, .. }
+						| RequestPayload::SharedActivity { uri }
+						| RequestPayload::SharedFocus { uri, .. }
+						| RequestPayload::SharedResync { uri, .. } => uri.clone(),
 						_ => continue,
 					};
 
-					match broker_b.buffer_sync_request(payload).await {
+					match broker_b.shared_state_request(payload).await {
 						Ok(resp) => {
 							// Convert response into an inbound event for the editor.
 							let evt = match resp {
-								ResponsePayload::BufferSyncOpened { snapshot, text } => {
-									Some(crate::buffer_sync::BufferSyncEvent::Opened { snapshot, text })
+								ResponsePayload::SharedOpened { snapshot, text } => {
+									Some(crate::shared_state::SharedStateEvent::Opened { snapshot, text })
 								}
-								ResponsePayload::BufferSyncDeltaAck { seq } => {
-									Some(crate::buffer_sync::BufferSyncEvent::DeltaAck { uri, seq })
+								ResponsePayload::SharedEditAck { epoch, seq } => {
+									Some(crate::shared_state::SharedStateEvent::EditAck { uri, epoch, seq })
 								}
-								ResponsePayload::BufferSyncOwnership { status, snapshot } => {
-									Some(crate::buffer_sync::BufferSyncEvent::OwnershipResult {
-										uri,
-										status,
-										snapshot,
-									})
-								}
-								ResponsePayload::BufferSyncOwnerConfirmResult {
-									status,
-									snapshot,
-									text,
-								} => Some(crate::buffer_sync::BufferSyncEvent::OwnerConfirmResult {
-									uri,
-									status,
-									snapshot,
-									text,
-								}),
-								ResponsePayload::BufferSyncSnapshot { text, snapshot } => {
-									Some(crate::buffer_sync::BufferSyncEvent::Snapshot {
+								ResponsePayload::SharedSnapshot { text, snapshot } => {
+									Some(crate::shared_state::SharedStateEvent::Snapshot {
 										uri,
 										text,
 										snapshot,
 									})
 								}
-								ResponsePayload::BufferSyncActivityAck => None,
-								ResponsePayload::BufferSyncClosed => None,
-								ResponsePayload::BufferSyncReleased { .. } => None,
+								ResponsePayload::SharedFocusAck { snapshot } => {
+									Some(crate::shared_state::SharedStateEvent::FocusAck { snapshot })
+								}
+								ResponsePayload::SharedActivityAck => None,
+								ResponsePayload::SharedClosed => None,
 								_ => None,
 							};
 							if let Some(evt) = evt {
@@ -164,14 +147,14 @@ impl LspSystem {
 							}
 						}
 						Err(e) => {
-							tracing::warn!(?uri, error = %e, "buffer sync request failed");
-							if is_delta {
+							tracing::warn!(?uri, error = %e, "shared state request failed");
+							if is_edit {
 								let _ = in_tx_b.send(
-									crate::buffer_sync::BufferSyncEvent::DeltaRejected { uri },
+									crate::shared_state::SharedStateEvent::EditRejected { uri },
 								);
 							} else {
 								let _ = in_tx_b.send(
-									crate::buffer_sync::BufferSyncEvent::RequestFailed { uri },
+									crate::shared_state::SharedStateEvent::RequestFailed { uri },
 								);
 							}
 						}
@@ -190,8 +173,8 @@ impl LspSystem {
 				ui_tx,
 				ui_rx,
 				broker,
-				buffer_sync_out_tx,
-				buffer_sync_in_rx,
+				shared_state_out_tx,
+				shared_state_in_rx,
 			},
 		}
 	}
@@ -570,18 +553,18 @@ impl LspSystem {
 		self.inner.ui_rx.try_recv().ok()
 	}
 
-	/// Returns a sender for fire-and-forget buffer sync outbound requests.
-	pub(crate) fn buffer_sync_out_tx(
+	/// Returns a sender for fire-and-forget shared state outbound requests.
+	pub(crate) fn shared_state_out_tx(
 		&self,
 	) -> &tokio::sync::mpsc::UnboundedSender<xeno_broker_proto::types::RequestPayload> {
-		&self.inner.buffer_sync_out_tx
+		&self.inner.shared_state_out_tx
 	}
 
-	/// Try to receive the next inbound buffer sync event.
-	pub(crate) fn try_recv_buffer_sync_in(
+	/// Try to receive the next inbound shared state event.
+	pub(crate) fn try_recv_shared_state_in(
 		&mut self,
-	) -> Option<crate::buffer_sync::BufferSyncEvent> {
-		self.inner.buffer_sync_in_rx.try_recv().ok()
+	) -> Option<crate::shared_state::SharedStateEvent> {
+		self.inner.shared_state_in_rx.try_recv().ok()
 	}
 
 	/// Returns the broker session ID for this editor.

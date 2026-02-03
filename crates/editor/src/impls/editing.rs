@@ -37,39 +37,18 @@ impl Editor {
 			let doc_id = buffer.document_id();
 			let uri = self
 				.state
-				.buffer_sync
+				.shared_state
 				.uri_for_doc_id(doc_id)
 				.map(str::to_string);
 			if let Some(uri) = uri {
-				if self.state.buffer_sync.is_edit_blocked(&uri) {
-					use crate::buffer_sync::{DeferEditOutcome, PendingEdit};
-
-					let pending = PendingEdit {
-						tx: tx.clone(),
-						selection: new_selection.clone(),
-						undo,
-						origin: origin.clone(),
-					};
-
-					match self.state.buffer_sync.defer_edit(&uri, pending) {
-						DeferEditOutcome::NeedTakeOwnership(payload) => {
-							let _ = self.state.lsp.buffer_sync_out_tx().send(payload);
-							self.notify(keys::SYNC_TAKING_OWNERSHIP);
-						}
-						DeferEditOutcome::AlreadyAcquiring => {
-							// Already waiting
-						}
-						_ => {}
+				if self.state.shared_state.is_edit_blocked(&uri) {
+					if !self.state.shared_state.is_owner(&uri)
+						&& let Some(payload) = self.state.shared_state.note_focus(doc_id, true)
+					{
+						let _ = self.state.lsp.shared_state_out_tx().send(payload);
+						self.notify(keys::SYNC_TAKING_OWNERSHIP);
 					}
 					return false;
-				}
-
-				if self.state.buffer_sync.is_unlocked(&uri)
-					&& !self.state.buffer_sync.is_owner(&uri)
-					&& let Some(payload) = self.state.buffer_sync.note_optimistic_edit(&uri, tx)
-				{
-					let _ = self.state.lsp.buffer_sync_out_tx().send(payload);
-					self.notify(keys::SYNC_TAKING_OWNERSHIP);
 				}
 			}
 		}
@@ -87,7 +66,7 @@ impl Editor {
 			#[cfg(feature = "lsp")]
 			lsp: &mut self.state.lsp,
 			#[cfg(feature = "lsp")]
-			buffer_sync: &mut self.state.buffer_sync,
+			shared_state: &mut self.state.shared_state,
 		};
 
 		let res = undo_manager.with_edit(&mut host, buffer_id, undo, origin, |host| {
@@ -101,12 +80,12 @@ impl Editor {
 			if let Some(buffer) = self.state.core.buffers.get_buffer(buffer_id)
 				&& let Some(uri) = self
 					.state
-					.buffer_sync
+					.shared_state
 					.uri_for_doc_id(buffer.document_id())
 					.map(str::to_string)
-				&& let Some(payload) = self.state.buffer_sync.prepare_delta(&uri, tx)
+				&& let Some(payload) = self.state.shared_state.prepare_edit(&uri, tx)
 			{
-				let _ = self.state.lsp.buffer_sync_out_tx().send(payload);
+				let _ = self.state.lsp.shared_state_out_tx().send(payload);
 			}
 		}
 		res

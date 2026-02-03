@@ -267,12 +267,12 @@ impl Editor {
 
 			if let Some(uri) = self
 				.state
-				.buffer_sync
+				.shared_state
 				.uri_for_doc_id(doc_id)
 				.map(str::to_string)
-				&& let Some(payload) = self.state.buffer_sync.prepare_delta(&uri, &tx)
+				&& let Some(payload) = self.state.shared_state.prepare_edit(&uri, &tx)
 			{
-				let _ = self.state.lsp.buffer_sync_out_tx().send(payload);
+				let _ = self.state.lsp.shared_state_out_tx().send(payload);
 			}
 		}
 

@@ -83,7 +83,7 @@ impl KnowledgeHandle {
 /// Actor service managing the workspace search index.
 ///
 /// Wraps `KnowledgeCore` and manages background workers for crawling the
-/// filesystem and re-indexing open documents. Depends on `BufferSyncHandle`
+/// filesystem and re-indexing open documents. Depends on `SharedStateHandle`
 /// for pulling consistent snapshots of live editor state.
 pub struct KnowledgeService {
 	rx: mpsc::Receiver<KnowledgeCmd>,
@@ -94,7 +94,7 @@ pub struct KnowledgeService {
 impl KnowledgeService {
 	/// Spawns the knowledge service actor.
 	pub fn start(
-		sync_handle: super::buffer_sync::BufferSyncHandle,
+		shared_handle: super::shared_state::SharedStateHandle,
 		open_docs: Arc<Mutex<HashSet<String>>>,
 	) -> KnowledgeHandle {
 		let (tx, rx) = mpsc::channel(256);
@@ -104,7 +104,7 @@ impl KnowledgeService {
 		{
 			Ok(core) => {
 				let source: Arc<dyn knowledge::DocSnapshotSource> = Arc::new(AsyncSnapshotSource {
-					handle: sync_handle.clone(),
+					handle: shared_handle.clone(),
 				});
 				core.start_worker(Arc::downgrade(&source));
 				Some(core)
@@ -160,7 +160,7 @@ impl KnowledgeService {
 }
 
 struct AsyncSnapshotSource {
-	handle: super::buffer_sync::BufferSyncHandle,
+	handle: super::shared_state::SharedStateHandle,
 }
 
 impl knowledge::DocSnapshotSource for AsyncSnapshotSource {

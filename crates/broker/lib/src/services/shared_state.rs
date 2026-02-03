@@ -1,4 +1,4 @@
-//! Document synchronization service with single-writer enforcement and idle unlocks.
+//! Shared document state service with preferred-owner enforcement and idle unlocks.
 
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex};
@@ -7,8 +7,8 @@ use ropey::Rope;
 use tokio::sync::{mpsc, oneshot};
 use tokio::time::{Duration, Instant, interval};
 use xeno_broker_proto::types::{
-	BufferSyncOwnerConfirmStatus, BufferSyncOwnershipStatus, DocStateSnapshot, DocSyncPhase,
-	ErrorCode, Event, ResponsePayload, SessionId, SyncEpoch, SyncSeq, WireTx,
+	DocStateSnapshot, DocSyncPhase, ErrorCode, Event, ResponsePayload, SessionId, SyncEpoch,
+	SyncSeq, WireTx,
 };
 
 use crate::wire_convert;
@@ -22,9 +22,9 @@ const IDLE_POLL_INTERVAL: Duration = Duration::from_secs(1);
 /// Duration after which an owner is considered idle.
 pub(crate) const OWNER_IDLE_TIMEOUT: Duration = Duration::from_secs(2);
 
-/// Commands for the buffer sync service actor.
+/// Commands for the shared state service actor.
 #[derive(Debug)]
-pub enum BufferSyncCmd {
+pub enum SharedStateCmd {
 	/// Open a document or join an existing session.
 	Open {
 		/// The session identity.
@@ -48,7 +48,7 @@ pub enum BufferSyncCmd {
 		reply: oneshot::Sender<Result<ResponsePayload, ErrorCode>>,
 	},
 	/// Apply an edit delta from the document owner.
-	Delta {
+	Edit {
 		/// The session identity (must be owner).
 		sid: SessionId,
 		/// Canonical document URI.
@@ -71,39 +71,17 @@ pub enum BufferSyncCmd {
 		/// Reply channel for acknowledgment.
 		reply: oneshot::Sender<Result<ResponsePayload, ErrorCode>>,
 	},
-	/// Transition the session to the writer role.
-	TakeOwnership {
+	/// Update focus status for a document.
+	Focus {
 		/// The session identity.
 		sid: SessionId,
 		/// Canonical document URI.
 		uri: String,
-		/// Reply channel for the new epoch.
-		reply: oneshot::Sender<Result<ResponsePayload, ErrorCode>>,
-	},
-	/// Release ownership of a document.
-	ReleaseOwnership {
-		/// The session identity.
-		sid: SessionId,
-		/// Canonical document URI.
-		uri: String,
+		/// Whether the session is focused on the document.
+		focused: bool,
+		/// Monotonic sequence number for focus transitions.
+		focus_seq: u64,
 		/// Reply channel for the updated snapshot.
-		reply: oneshot::Sender<Result<ResponsePayload, ErrorCode>>,
-	},
-	/// Prove local content alignment for a new owner.
-	OwnerConfirm {
-		/// The session identity.
-		sid: SessionId,
-		/// Canonical document URI.
-		uri: String,
-		/// Expected ownership epoch.
-		epoch: SyncEpoch,
-		/// Length of the document in characters.
-		len_chars: u64,
-		/// 64-bit hash of the document content.
-		hash64: u64,
-		/// Allow mismatch when optimistic edits are queued.
-		allow_mismatch: bool,
-		/// Reply channel for the confirmation result.
 		reply: oneshot::Sender<Result<ResponsePayload, ErrorCode>>,
 	},
 	/// Fetch a full snapshot of the authoritative document.
@@ -112,6 +90,10 @@ pub enum BufferSyncCmd {
 		sid: SessionId,
 		/// Canonical document URI.
 		uri: String,
+		/// Optional hash of the client's current content.
+		client_hash64: Option<u64>,
+		/// Optional length of the client's current content.
+		client_len_chars: Option<u64>,
 		/// Reply channel for the full snapshot.
 		reply: oneshot::Sender<Result<ResponsePayload, ErrorCode>>,
 	},
@@ -136,15 +118,15 @@ pub enum BufferSyncCmd {
 	},
 }
 
-/// Handle for communicating with the [`BufferSyncService`].
+/// Handle for communicating with the [`SharedStateService`].
 #[derive(Clone, Debug)]
-pub struct BufferSyncHandle {
-	tx: mpsc::Sender<BufferSyncCmd>,
+pub struct SharedStateHandle {
+	tx: mpsc::Sender<SharedStateCmd>,
 }
 
-impl BufferSyncHandle {
+impl SharedStateHandle {
 	/// Wraps a command sender in a typed handle.
-	pub fn new(tx: mpsc::Sender<BufferSyncCmd>) -> Self {
+	pub fn new(tx: mpsc::Sender<SharedStateCmd>) -> Self {
 		Self { tx }
 	}
 
@@ -158,7 +140,7 @@ impl BufferSyncHandle {
 	) -> Result<ResponsePayload, ErrorCode> {
 		let (reply, rx) = oneshot::channel();
 		self.tx
-			.send(BufferSyncCmd::Open {
+			.send(SharedStateCmd::Open {
 				sid,
 				uri,
 				text,
@@ -174,14 +156,14 @@ impl BufferSyncHandle {
 	pub async fn close(&self, sid: SessionId, uri: String) -> Result<ResponsePayload, ErrorCode> {
 		let (reply, rx) = oneshot::channel();
 		self.tx
-			.send(BufferSyncCmd::Close { sid, uri, reply })
+			.send(SharedStateCmd::Close { sid, uri, reply })
 			.await
 			.map_err(|_| ErrorCode::Internal)?;
 		rx.await.map_err(|_| ErrorCode::Internal)?
 	}
 
 	/// Submits an edit delta.
-	pub async fn delta(
+	pub async fn edit(
 		&self,
 		sid: SessionId,
 		uri: String,
@@ -191,7 +173,7 @@ impl BufferSyncHandle {
 	) -> Result<ResponsePayload, ErrorCode> {
 		let (reply, rx) = oneshot::channel();
 		self.tx
-			.send(BufferSyncCmd::Delta {
+			.send(SharedStateCmd::Edit {
 				sid,
 				uri,
 				epoch,
@@ -212,59 +194,27 @@ impl BufferSyncHandle {
 	) -> Result<ResponsePayload, ErrorCode> {
 		let (reply, rx) = oneshot::channel();
 		self.tx
-			.send(BufferSyncCmd::Activity { sid, uri, reply })
+			.send(SharedStateCmd::Activity { sid, uri, reply })
 			.await
 			.map_err(|_| ErrorCode::Internal)?;
 		rx.await.map_err(|_| ErrorCode::Internal)?
 	}
 
-	/// Transitions to owner role.
-	pub async fn take_ownership(
+	/// Updates focus status for a document.
+	pub async fn focus(
 		&self,
 		sid: SessionId,
 		uri: String,
+		focused: bool,
+		focus_seq: u64,
 	) -> Result<ResponsePayload, ErrorCode> {
 		let (reply, rx) = oneshot::channel();
 		self.tx
-			.send(BufferSyncCmd::TakeOwnership { sid, uri, reply })
-			.await
-			.map_err(|_| ErrorCode::Internal)?;
-		rx.await.map_err(|_| ErrorCode::Internal)?
-	}
-
-	/// Releases ownership of a document.
-	pub async fn release_ownership(
-		&self,
-		sid: SessionId,
-		uri: String,
-	) -> Result<ResponsePayload, ErrorCode> {
-		let (reply, rx) = oneshot::channel();
-		self.tx
-			.send(BufferSyncCmd::ReleaseOwnership { sid, uri, reply })
-			.await
-			.map_err(|_| ErrorCode::Internal)?;
-		rx.await.map_err(|_| ErrorCode::Internal)?
-	}
-
-	/// Confirms ownership alignment.
-	pub async fn owner_confirm(
-		&self,
-		sid: SessionId,
-		uri: String,
-		epoch: SyncEpoch,
-		len_chars: u64,
-		hash64: u64,
-		allow_mismatch: bool,
-	) -> Result<ResponsePayload, ErrorCode> {
-		let (reply, rx) = oneshot::channel();
-		self.tx
-			.send(BufferSyncCmd::OwnerConfirm {
+			.send(SharedStateCmd::Focus {
 				sid,
 				uri,
-				epoch,
-				len_chars,
-				hash64,
-				allow_mismatch,
+				focused,
+				focus_seq,
 				reply,
 			})
 			.await
@@ -273,10 +223,22 @@ impl BufferSyncHandle {
 	}
 
 	/// Requests full content snapshot.
-	pub async fn resync(&self, sid: SessionId, uri: String) -> Result<ResponsePayload, ErrorCode> {
+	pub async fn resync(
+		&self,
+		sid: SessionId,
+		uri: String,
+		client_hash64: Option<u64>,
+		client_len_chars: Option<u64>,
+	) -> Result<ResponsePayload, ErrorCode> {
 		let (reply, rx) = oneshot::channel();
 		self.tx
-			.send(BufferSyncCmd::Resync { sid, uri, reply })
+			.send(SharedStateCmd::Resync {
+				sid,
+				uri,
+				client_hash64,
+				client_len_chars,
+				reply,
+			})
 			.await
 			.map_err(|_| ErrorCode::Internal)?;
 		rx.await.map_err(|_| ErrorCode::Internal)?
@@ -284,13 +246,13 @@ impl BufferSyncHandle {
 
 	/// Cleans up a lost session.
 	pub async fn session_lost(&self, sid: SessionId) {
-		let _ = self.tx.send(BufferSyncCmd::SessionLost { sid }).await;
+		let _ = self.tx.send(SharedStateCmd::SessionLost { sid }).await;
 	}
 
 	/// Returns a consistent snapshot of the document rope.
 	pub async fn snapshot(&self, uri: String) -> Option<(SyncEpoch, SyncSeq, Rope)> {
 		let (reply, rx) = oneshot::channel();
-		let _ = self.tx.send(BufferSyncCmd::Snapshot { uri, reply }).await;
+		let _ = self.tx.send(SharedStateCmd::Snapshot { uri, reply }).await;
 		rx.await.ok().flatten()
 	}
 
@@ -299,7 +261,7 @@ impl BufferSyncHandle {
 		let (reply, rx) = oneshot::channel();
 		if self
 			.tx
-			.send(BufferSyncCmd::IsOpen { uri, reply })
+			.send(SharedStateCmd::IsOpen { uri, reply })
 			.await
 			.is_err()
 		{
@@ -314,12 +276,16 @@ impl BufferSyncHandle {
 struct SyncDocState {
 	/// Current owner session permitted to submit deltas.
 	owner: Option<SessionId>,
+	/// Preferred owner session (focused editor).
+	preferred_owner: Option<SessionId>,
 	/// Per-session reference counts.
 	open_refcounts: HashMap<SessionId, u32>,
 	/// Sorted list of all active participants for consistent broadcasting.
 	participants: Vec<SessionId>,
 	/// Last recorded activity timestamp per session.
 	last_active: HashMap<SessionId, Instant>,
+	/// Last recorded focus sequence per session.
+	last_focus_seq: HashMap<SessionId, u64>,
 	/// Authoritative ownership era. Bumps on every writer change.
 	epoch: SyncEpoch,
 	/// Authoritative edit sequence. Bumps on every edit; resets to 0 on epoch change.
@@ -348,6 +314,7 @@ impl SyncDocState {
 			epoch: self.epoch,
 			seq: self.seq,
 			owner: self.owner,
+			preferred_owner: self.preferred_owner,
 			phase,
 			hash64: self.hash64,
 			len_chars: self.len_chars,
@@ -382,6 +349,7 @@ impl SyncDocState {
 		} else {
 			self.open_refcounts.remove(&sid);
 			self.last_active.remove(&sid);
+			self.last_focus_seq.remove(&sid);
 			if let Ok(idx) = self.participants.binary_search(&sid) {
 				self.participants.remove(idx);
 			}
@@ -392,6 +360,7 @@ impl SyncDocState {
 	fn remove_participant_all(&mut self, sid: SessionId) -> bool {
 		if self.open_refcounts.remove(&sid).is_some() {
 			self.last_active.remove(&sid);
+			self.last_focus_seq.remove(&sid);
 			if let Ok(idx) = self.participants.binary_search(&sid) {
 				self.participants.remove(idx);
 			}
@@ -423,15 +392,14 @@ enum RemoveOpenResult {
 	NotParticipant,
 }
 
-/// Actor service managing single-writer document consistency.
+/// Actor service managing shared document consistency.
 ///
-/// Implements a multi-session synchronization protocol where the broker holds
-/// the authoritative copy of the text. One session is elected as the writer (Owner),
-/// and all other sessions receive broadcasted deltas as read-only followers. When
-/// a document is unlocked it is "up-for-grabs": the first editor to claim ownership
-/// becomes the sole writer until it releases or idles out.
-pub struct BufferSyncService {
-	rx: mpsc::Receiver<BufferSyncCmd>,
+/// The broker holds the authoritative copy of the text. One session is elected
+/// as the current owner, and a preferred owner (focused editor) is allowed to
+/// publish deltas. Ownership changes are driven by focus events; new owners must
+/// resync before publishing edits. Unlocks are broadcast on idle, blur, or disconnect.
+pub struct SharedStateService {
+	rx: mpsc::Receiver<SharedStateCmd>,
 	sync_docs: HashMap<String, SyncDocState>,
 	/// Shared set of open URIs exposed to the knowledge crawler.
 	open_docs_set: Arc<Mutex<HashSet<String>>>,
@@ -440,12 +408,12 @@ pub struct BufferSyncService {
 	routing: Option<super::routing::RoutingHandle>,
 }
 
-impl BufferSyncService {
-	/// Spawns the buffer sync service actor.
+impl SharedStateService {
+	/// Spawns the shared state service actor.
 	pub fn start(
 		sessions: super::sessions::SessionHandle,
 	) -> (
-		BufferSyncHandle,
+		SharedStateHandle,
 		Arc<Mutex<HashSet<String>>>,
 		mpsc::Sender<super::knowledge::KnowledgeHandle>,
 		mpsc::Sender<super::routing::RoutingHandle>,
@@ -467,7 +435,7 @@ impl BufferSyncService {
 		tokio::spawn(service.run(knowledge_rx, routing_rx));
 
 		(
-			BufferSyncHandle::new(tx),
+			SharedStateHandle::new(tx),
 			open_docs_set,
 			knowledge_tx,
 			routing_tx,
@@ -495,7 +463,7 @@ impl BufferSyncService {
 						break;
 					};
 					match cmd {
-						BufferSyncCmd::Open {
+						SharedStateCmd::Open {
 							sid,
 							uri,
 							text,
@@ -505,11 +473,11 @@ impl BufferSyncService {
 							let result = self.handle_open(sid, &uri, &text).await;
 							let _ = reply.send(result);
 						}
-						BufferSyncCmd::Close { sid, uri, reply } => {
+						SharedStateCmd::Close { sid, uri, reply } => {
 							let result = self.handle_close(sid, &uri).await;
 							let _ = reply.send(result);
 						}
-						BufferSyncCmd::Delta {
+						SharedStateCmd::Edit {
 							sid,
 							uri,
 							epoch,
@@ -517,55 +485,44 @@ impl BufferSyncService {
 							tx,
 							reply,
 						} => {
-							let result = self.handle_delta(sid, &uri, epoch, base_seq, &tx).await;
+							let result = self.handle_edit(sid, &uri, epoch, base_seq, &tx).await;
 							let _ = reply.send(result);
 						}
-						BufferSyncCmd::Activity { sid, uri, reply } => {
+						SharedStateCmd::Activity { sid, uri, reply } => {
 							let result = self.handle_activity(sid, &uri);
 							let _ = reply.send(result);
 						}
-						BufferSyncCmd::TakeOwnership { sid, uri, reply } => {
-							let result = self.handle_take_ownership(sid, &uri).await;
-							let _ = reply.send(result);
-						}
-						BufferSyncCmd::ReleaseOwnership { sid, uri, reply } => {
-							let result = self.handle_release_ownership(sid, &uri).await;
-							let _ = reply.send(result);
-						}
-						BufferSyncCmd::OwnerConfirm {
+						SharedStateCmd::Focus {
 							sid,
 							uri,
-							epoch,
-							len_chars,
-							hash64,
-							allow_mismatch,
+							focused,
+							focus_seq,
 							reply,
 						} => {
-							let result = self.handle_owner_confirm(
-								sid,
-								&uri,
-								epoch,
-								len_chars,
-								hash64,
-								allow_mismatch,
-							);
+							let result = self.handle_focus(sid, &uri, focused, focus_seq).await;
 							let _ = reply.send(result);
 						}
-						BufferSyncCmd::Resync { sid, uri, reply } => {
-							let result = self.handle_resync(sid, &uri).await;
+						SharedStateCmd::Resync {
+							sid,
+							uri,
+							client_hash64,
+							client_len_chars,
+							reply,
+						} => {
+							let result = self.handle_resync(sid, &uri, client_hash64, client_len_chars).await;
 							let _ = reply.send(result);
 						}
-						BufferSyncCmd::SessionLost { sid } => {
+						SharedStateCmd::SessionLost { sid } => {
 							self.handle_session_cleanup(sid).await;
 						}
-						BufferSyncCmd::Snapshot { uri, reply } => {
+						SharedStateCmd::Snapshot { uri, reply } => {
 							let snapshot = self
 								.sync_docs
 								.get(&uri)
 								.map(|doc| (doc.epoch, doc.seq, doc.rope.clone()));
 							let _ = reply.send(snapshot);
 						}
-						BufferSyncCmd::IsOpen { uri, reply } => {
+						SharedStateCmd::IsOpen { uri, reply } => {
 							let _ = reply.send(self.sync_docs.contains_key(&uri));
 						}
 					}
@@ -590,9 +547,11 @@ impl BufferSyncService {
 			None => {
 				let mut doc = SyncDocState {
 					owner: Some(sid),
+					preferred_owner: Some(sid),
 					open_refcounts: HashMap::new(),
 					participants: Vec::new(),
 					last_active: HashMap::new(),
+					last_focus_seq: HashMap::new(),
 					epoch: SyncEpoch(1),
 					seq: SyncSeq(0),
 					rope: Rope::from(text),
@@ -610,6 +569,9 @@ impl BufferSyncService {
 			}
 			Some(doc) => {
 				doc.add_open(sid);
+				if doc.preferred_owner.is_none() {
+					doc.preferred_owner = Some(sid);
+				}
 				let text = (doc.owner != Some(sid)).then(|| doc.rope.to_string());
 				let snapshot = doc.snapshot(&uri);
 				(snapshot, text)
@@ -623,7 +585,7 @@ impl BufferSyncService {
 			self.notify_lsp_open(uri.clone(), text).await;
 		}
 
-		Ok(ResponsePayload::BufferSyncOpened { snapshot, text })
+		Ok(ResponsePayload::SharedOpened { snapshot, text })
 	}
 
 	async fn handle_close(
@@ -672,10 +634,10 @@ impl BufferSyncService {
 			self.notify_lsp_close(uri).await;
 		}
 
-		Ok(ResponsePayload::BufferSyncClosed)
+		Ok(ResponsePayload::SharedClosed)
 	}
 
-	async fn handle_delta(
+	async fn handle_edit(
 		&mut self,
 		sid: SessionId,
 		uri_in: &str,
@@ -684,14 +646,22 @@ impl BufferSyncService {
 		wire_tx: &WireTx,
 	) -> Result<ResponsePayload, ErrorCode> {
 		let uri = crate::core::normalize_uri(uri_in)?;
-		let (event, lsp_text, participants, seq) = {
+		let (event, lsp_text, participants, seq, final_epoch) = {
 			let doc = self
 				.sync_docs
 				.get_mut(&uri)
 				.ok_or(ErrorCode::SyncDocNotFound)?;
 
+			if !doc.open_refcounts.contains_key(&sid) {
+				return Err(ErrorCode::SyncDocNotFound);
+			}
+			if let Some(preferred) = doc.preferred_owner
+				&& preferred != sid
+			{
+				return Err(ErrorCode::NotPreferredOwner);
+			}
 			if doc.owner != Some(sid) {
-				return Err(ErrorCode::NotDocOwner);
+				return Err(ErrorCode::NotPreferredOwner);
 			}
 			if epoch != doc.epoch {
 				return Err(ErrorCode::SyncEpochMismatch);
@@ -727,7 +697,7 @@ impl BufferSyncService {
 			doc.update_fingerprint();
 			doc.touch(sid);
 
-			let event = Event::BufferSyncDelta {
+			let event = Event::SharedDelta {
 				uri: uri.clone(),
 				epoch: doc.epoch,
 				seq: doc.seq,
@@ -736,7 +706,8 @@ impl BufferSyncService {
 			let lsp_text = doc.rope.to_string();
 			let participants = doc.participants.clone();
 			let seq = doc.seq;
-			(event, lsp_text, participants, seq)
+			let final_epoch = doc.epoch;
+			(event, lsp_text, participants, seq, final_epoch)
 		};
 
 		self.sessions
@@ -753,7 +724,10 @@ impl BufferSyncService {
 			let _ = knowledge.doc_dirty(uri);
 		}
 
-		Ok(ResponsePayload::BufferSyncDeltaAck { seq })
+		Ok(ResponsePayload::SharedEditAck {
+			epoch: final_epoch,
+			seq,
+		})
 	}
 
 	fn handle_activity(
@@ -772,7 +746,7 @@ impl BufferSyncService {
 		}
 
 		doc.touch(sid);
-		Ok(ResponsePayload::BufferSyncActivityAck)
+		Ok(ResponsePayload::SharedActivityAck)
 	}
 
 	async fn handle_idle_tick(&mut self) {
@@ -803,14 +777,16 @@ impl BufferSyncService {
 		doc.owner_needs_resync = true;
 
 		let snapshot = doc.snapshot(uri);
-		let event = Event::BufferSyncUnlocked { snapshot };
+		let event = Event::SharedUnlocked { snapshot };
 		(doc.participants.clone(), event)
 	}
 
-	async fn handle_take_ownership(
+	async fn handle_focus(
 		&mut self,
 		sid: SessionId,
 		uri_in: &str,
+		focused: bool,
+		focus_seq: u64,
 	) -> Result<ResponsePayload, ErrorCode> {
 		let uri = crate::core::normalize_uri(uri_in)?;
 		let doc = self
@@ -821,123 +797,88 @@ impl BufferSyncService {
 		if !doc.open_refcounts.contains_key(&sid) {
 			return Err(ErrorCode::SyncDocNotFound);
 		}
-		if doc.owner == Some(sid) {
-			doc.touch(sid);
-			return Ok(ResponsePayload::BufferSyncOwnership {
-				status: BufferSyncOwnershipStatus::AlreadyOwner,
+
+		// focus_seq ordering guard
+		let last_seq = doc.last_focus_seq.get(&sid).copied().unwrap_or(0);
+		if focus_seq <= last_seq && last_seq != 0 {
+			return Ok(ResponsePayload::SharedFocusAck {
 				snapshot: doc.snapshot(&uri),
 			});
 		}
-		if doc.owner.is_some() {
-			let snapshot = doc.snapshot(&uri);
-			return Ok(ResponsePayload::BufferSyncOwnership {
-				status: BufferSyncOwnershipStatus::Denied,
-				snapshot,
-			});
-		}
+		doc.last_focus_seq.insert(sid, focus_seq);
 
-		doc.owner = Some(sid);
-		doc.epoch = SyncEpoch(doc.epoch.0 + 1);
-		doc.seq = SyncSeq(0);
-		doc.owner_needs_resync = true;
-		doc.touch(sid);
+		let mut preferred_changed = false;
+		let mut owner_changed = None;
 
-		let snapshot = doc.snapshot(&uri);
-		let event = Event::BufferSyncOwnerChanged { snapshot: snapshot.clone() };
-		self.sessions
-			.broadcast(
-				doc.participants.clone(),
-				xeno_broker_proto::types::IpcFrame::Event(event),
-				None,
-			)
-			.await;
-
-		Ok(ResponsePayload::BufferSyncOwnership {
-			status: BufferSyncOwnershipStatus::Granted,
-			snapshot,
-		})
-	}
-
-	async fn handle_release_ownership(
-		&mut self,
-		sid: SessionId,
-		uri_in: &str,
-	) -> Result<ResponsePayload, ErrorCode> {
-		let uri = crate::core::normalize_uri(uri_in)?;
-		let doc = self
-			.sync_docs
-			.get_mut(&uri)
-			.ok_or(ErrorCode::SyncDocNotFound)?;
-
-		if !doc.open_refcounts.contains_key(&sid) {
-			return Err(ErrorCode::SyncDocNotFound);
-		}
-		if doc.owner != Some(sid) {
-			return Err(ErrorCode::NotDocOwner);
-		}
-
-		let (targets, event) = Self::prepare_unlock(&uri, doc);
-		let snapshot = doc.snapshot(&uri);
-		self.sessions
-			.broadcast(
-				targets,
-				xeno_broker_proto::types::IpcFrame::Event(event),
-				None,
-			)
-			.await;
-
-		Ok(ResponsePayload::BufferSyncReleased { snapshot })
-	}
-
-	fn handle_owner_confirm(
-		&mut self,
-		sid: SessionId,
-		uri_in: &str,
-		epoch: SyncEpoch,
-		len_chars: u64,
-		hash64: u64,
-		allow_mismatch: bool,
-	) -> Result<ResponsePayload, ErrorCode> {
-		let uri = crate::core::normalize_uri(uri_in)?;
-		let doc = self
-			.sync_docs
-			.get_mut(&uri)
-			.ok_or(ErrorCode::SyncDocNotFound)?;
-
-		if doc.owner != Some(sid) {
-			return Err(ErrorCode::NotDocOwner);
-		}
-		if epoch != doc.epoch {
-			return Err(ErrorCode::SyncEpochMismatch);
-		}
-
-		doc.touch(sid);
-		let status = if len_chars == doc.len_chars && hash64 == doc.hash64 {
-			doc.owner_needs_resync = false;
-			BufferSyncOwnerConfirmStatus::Confirmed
-		} else if allow_mismatch && doc.owner == Some(sid) && doc.owner_needs_resync {
-			doc.owner_needs_resync = false;
-			BufferSyncOwnerConfirmStatus::Confirmed
+		if focused {
+			if doc.preferred_owner != Some(sid) {
+				doc.preferred_owner = Some(sid);
+				preferred_changed = true;
+			}
+			if doc.owner != Some(sid) {
+				doc.owner = Some(sid);
+				doc.epoch = SyncEpoch(doc.epoch.0 + 1);
+				doc.seq = SyncSeq(0);
+				doc.owner_needs_resync = true;
+				owner_changed = Some(true);
+			}
+			doc.touch(sid);
 		} else {
-			BufferSyncOwnerConfirmStatus::NeedSnapshot
-		};
+			if doc.preferred_owner == Some(sid) {
+				doc.preferred_owner = None;
+				preferred_changed = true;
+			}
+			if doc.owner == Some(sid) && doc.preferred_owner != Some(sid) {
+				doc.owner = None;
+				doc.epoch = SyncEpoch(doc.epoch.0 + 1);
+				doc.seq = SyncSeq(0);
+				doc.owner_needs_resync = true;
+				owner_changed = Some(false);
+			}
+		}
+
 		let snapshot = doc.snapshot(&uri);
-		let text = if status == BufferSyncOwnerConfirmStatus::NeedSnapshot {
-			Some(doc.rope.to_string())
-		} else {
-			None
-		};
-		Ok(ResponsePayload::BufferSyncOwnerConfirmResult {
-			status,
-			snapshot,
-			text,
-		})
+		let participants = doc.participants.clone();
+		if preferred_changed {
+			let event = Event::SharedPreferredOwnerChanged {
+				snapshot: snapshot.clone(),
+			};
+			self.sessions
+				.broadcast(
+					participants.clone(),
+					xeno_broker_proto::types::IpcFrame::Event(event),
+					None,
+				)
+				.await;
+		}
+		if let Some(owner_set) = owner_changed {
+			let event = if owner_set {
+				Event::SharedOwnerChanged {
+					snapshot: snapshot.clone(),
+				}
+			} else {
+				Event::SharedUnlocked {
+					snapshot: snapshot.clone(),
+				}
+			};
+			self.sessions
+				.broadcast(
+					participants,
+					xeno_broker_proto::types::IpcFrame::Event(event),
+					None,
+				)
+				.await;
+		}
+
+		Ok(ResponsePayload::SharedFocusAck { snapshot })
 	}
 
 	async fn handle_resync(
 		&mut self,
 		sid: SessionId,
 		uri_in: &str,
+		client_hash64: Option<u64>,
+		client_len_chars: Option<u64>,
 	) -> Result<ResponsePayload, ErrorCode> {
 		let uri = crate::core::normalize_uri(uri_in)?;
 		let doc = self
@@ -954,7 +895,18 @@ impl BufferSyncService {
 		}
 
 		let snapshot = doc.snapshot(&uri);
-		Ok(ResponsePayload::BufferSyncSnapshot {
+
+		// Conditional resync
+		if let (Some(h), Some(l)) = (client_hash64, client_len_chars) {
+			if h == doc.hash64 && l == doc.len_chars {
+				return Ok(ResponsePayload::SharedSnapshot {
+					text: String::new(),
+					snapshot,
+				});
+			}
+		}
+
+		Ok(ResponsePayload::SharedSnapshot {
 			text: doc.rope.to_string(),
 			snapshot,
 		})
@@ -970,16 +922,32 @@ impl BufferSyncService {
 
 		let mut closed_uris = Vec::new();
 		for uri in uris {
-			let mut unlock = None;
+			let mut events: Vec<(Vec<SessionId>, Event)> = Vec::new();
 			if let Some(doc) = self.sync_docs.get_mut(&uri) {
+				let mut preferred_changed = false;
+				if doc.preferred_owner == Some(sid) {
+					doc.preferred_owner = None;
+					preferred_changed = true;
+				}
+
 				doc.remove_participant_all(sid);
 				if doc.participants.is_empty() {
 					closed_uris.push(uri.clone());
-				} else if doc.owner == Some(sid) {
-					unlock = Some(Self::prepare_unlock(&uri, doc));
+				} else {
+					if preferred_changed {
+						events.push((
+							doc.participants.clone(),
+							Event::SharedPreferredOwnerChanged {
+								snapshot: doc.snapshot(&uri),
+							},
+						));
+					}
+					if doc.owner == Some(sid) {
+						events.push(Self::prepare_unlock(&uri, doc));
+					}
 				}
 			}
-			if let Some((targets, event)) = unlock {
+			for (targets, event) in events {
 				self.sessions
 					.broadcast(
 						targets,

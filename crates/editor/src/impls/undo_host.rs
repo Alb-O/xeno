@@ -19,7 +19,7 @@ pub(super) struct EditorUndoHost<'a> {
 	#[cfg(feature = "lsp")]
 	pub lsp: &'a mut crate::LspSystem,
 	#[cfg(feature = "lsp")]
-	pub buffer_sync: &'a mut crate::buffer_sync::BufferSyncManager,
+	pub shared_state: &'a mut crate::shared_state::SharedStateManager,
 }
 
 impl EditorUndoHost<'_> {
@@ -125,25 +125,25 @@ impl EditorUndoHost<'_> {
 		push_notification(self.config, self.notifications, notification.into());
 	}
 
-	/// Emits a buffer sync delta if the document is owned by this session.
+	/// Emits a shared state delta if the document is owned by this session.
 	#[cfg(feature = "lsp")]
 	fn emit_sync_delta(&mut self, doc_id: DocumentId, tx: &Transaction) {
-		if let Some(uri) = self.buffer_sync.uri_for_doc_id(doc_id).map(str::to_string)
-			&& let Some(payload) = self.buffer_sync.prepare_delta(&uri, tx)
+		if let Some(uri) = self.shared_state.uri_for_doc_id(doc_id).map(str::to_string)
+			&& let Some(payload) = self.shared_state.prepare_edit(&uri, tx)
 		{
-			let _ = self.lsp.buffer_sync_out_tx().send(payload);
+			let _ = self.lsp.shared_state_out_tx().send(payload);
 		}
 	}
 
 	#[cfg(not(feature = "lsp"))]
 	fn emit_sync_delta(&mut self, _doc_id: DocumentId, _tx: &Transaction) {}
 
-	/// Returns `true` if `doc_id` is tracked as a follower in buffer sync.
+	/// Returns `true` if `doc_id` is tracked as a non-owner in shared state.
 	#[cfg(feature = "lsp")]
 	fn is_sync_follower(&self, doc_id: DocumentId) -> bool {
-		self.buffer_sync
+		self.shared_state
 			.uri_for_doc_id(doc_id)
-			.is_some_and(|uri| self.buffer_sync.is_follower(uri))
+			.is_some_and(|uri| self.shared_state.is_edit_blocked(uri))
 	}
 
 	/// Computes the sync delta for an undo/redo mutation.
@@ -153,7 +153,7 @@ impl EditorUndoHost<'_> {
 	/// [`rope_delta`] when it doesn't — the snapshot undo backend returns a
 	/// partial inverse for merged insert-mode groups.
 	///
-	/// [`rope_delta`]: crate::buffer_sync::convert::rope_delta
+	/// [`rope_delta`]: crate::shared_state::convert::rope_delta
 	fn validated_sync_tx(
 		pre: &xeno_primitives::Rope,
 		post: &xeno_primitives::Rope,
@@ -164,7 +164,7 @@ impl EditorUndoHost<'_> {
 		if check == *post {
 			stored_tx
 		} else {
-			crate::buffer_sync::convert::rope_delta(pre, post)
+			crate::shared_state::convert::rope_delta(pre, post)
 		}
 	}
 

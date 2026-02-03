@@ -76,14 +76,14 @@ impl Editor {
 		{
 			let doc_id = buffer.document_id();
 			let text = buffer.with_doc(|doc| doc.content().to_string());
-			let payload = self.state.buffer_sync.prepare_open(&uri, &text, doc_id);
-			let _ = self.state.lsp.buffer_sync_out_tx().send(payload);
+			let payload = self.state.shared_state.prepare_open(&uri, &text, doc_id);
+			let _ = self.state.lsp.shared_state_out_tx().send(payload);
 		}
 
 		buffer_id
 	}
 
-	/// Opens a new buffer synchronously, scheduling async hooks for later.
+	/// Opens a new shared statehronously, scheduling async hooks for later.
 	///
 	/// Use this in sync contexts like split operations. Async hooks are queued
 	/// in the hook runtime and will execute when the main loop drains them.
@@ -292,7 +292,7 @@ impl Editor {
 					return None;
 				}
 
-				if self.state.buffer_sync.uri_for_doc_id(doc_id).is_some() {
+				if self.state.shared_state.uri_for_doc_id(doc_id).is_some() {
 					return None;
 				}
 
@@ -303,8 +303,8 @@ impl Editor {
 			.collect();
 
 		for (uri, text, doc_id) in sync_specs {
-			let payload = self.state.buffer_sync.prepare_open(&uri, &text, doc_id);
-			let _ = self.state.lsp.buffer_sync_out_tx().send(payload);
+			let payload = self.state.shared_state.prepare_open(&uri, &text, doc_id);
+			let _ = self.state.lsp.shared_state_out_tx().send(payload);
 		}
 	}
 
@@ -329,10 +329,10 @@ impl Editor {
 				self.state.lsp.sync_manager_mut().on_doc_close(doc_id);
 
 				#[cfg(feature = "lsp")]
-				if let Some(uri) = self.state.buffer_sync.uri_for_doc_id(doc_id) {
+				if let Some(uri) = self.state.shared_state.uri_for_doc_id(doc_id) {
 					let uri = uri.to_string();
-					if let Some(payload) = self.state.buffer_sync.prepare_close(&uri) {
-						let _ = self.state.lsp.buffer_sync_out_tx().send(payload);
+					if let Some(payload) = self.state.shared_state.prepare_close(&uri) {
+						let _ = self.state.lsp.shared_state_out_tx().send(payload);
 					}
 				}
 
@@ -342,7 +342,7 @@ impl Editor {
 	}
 }
 
-/// Computes a stable, URL-escaped file URI for buffer sync document identity.
+/// Computes a stable, URL-escaped file URI for shared state document identity.
 ///
 /// Uses `url::Url::from_file_path` to handle spaces, unicode, and special
 /// characters consistently across processes.
@@ -383,13 +383,13 @@ mod tests {
 		// Kick init (simulates CatalogReady)
 		editor.kick_lsp_init_for_open_buffers();
 
-		// Verify it was SKIPPED (not tracked by buffer sync yet)
-		assert!(editor.state.buffer_sync.uri_for_doc_id(doc_id).is_none());
+		// Verify it was SKIPPED (not tracked by shared state yet)
+		assert!(editor.state.shared_state.uri_for_doc_id(doc_id).is_none());
 
 		// Now finish the load
 		editor.apply_loaded_file(path, ropey::Rope::from_str("real content"), false);
 
 		// Verify it WAS initialized after load finished
-		assert!(editor.state.buffer_sync.uri_for_doc_id(doc_id).is_some());
+		assert!(editor.state.shared_state.uri_for_doc_id(doc_id).is_some());
 	}
 }
