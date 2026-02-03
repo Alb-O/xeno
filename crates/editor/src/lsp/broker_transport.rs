@@ -651,6 +651,21 @@ impl RpcService<BrokerProtocol> for BrokerClientService {
 							len_chars,
 						});
 			}
+			Event::BufferSyncUnlocked {
+				uri,
+				epoch,
+				hash64,
+				len_chars,
+			} => {
+				let _ = self
+					.buffer_sync_tx
+					.send(crate::buffer_sync::BufferSyncEvent::Unlocked {
+						uri,
+						epoch,
+						hash64,
+						len_chars,
+					});
+			}
 		}
 		ControlFlow::Continue(())
 	}

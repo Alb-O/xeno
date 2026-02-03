@@ -87,6 +87,12 @@ impl Editor {
 				self.update_readonly_for_sync_role(&uri, new_role);
 				self.state.frame.needs_redraw = true;
 			}
+			BufferSyncEvent::Unlocked { uri, epoch, .. } => {
+				self.state.buffer_sync.handle_unlocked(&uri, epoch);
+				let new_role = self.state.buffer_sync.role_for_uri(&uri);
+				self.update_readonly_for_sync_role(&uri, new_role);
+				self.state.frame.needs_redraw = true;
+			}
 
 			BufferSyncEvent::OwnershipResult {
 				uri,
@@ -141,7 +147,7 @@ impl Editor {
 								text,
 								epoch,
 								seq,
-								owner,
+								Some(owner),
 								local_session,
 							);
 						}
@@ -193,13 +199,16 @@ impl Editor {
 				owner,
 			} => {
 				let local_session = self.state.lsp.broker_session_id();
-				self.state
-					.buffer_sync
-					.handle_owner_changed(&uri, epoch, owner, local_session);
-				self.state.buffer_sync.handle_delta_ack(&uri, seq);
+				self.state.buffer_sync.handle_snapshot(
+					&uri,
+					text.clone(),
+					epoch,
+					seq,
+					owner,
+					local_session,
+				);
 
 				self.apply_sync_snapshot(&uri, &text);
-				self.state.buffer_sync.clear_needs_resync(&uri);
 
 				let new_role = self.state.buffer_sync.role_for_uri(&uri);
 				self.update_readonly_for_sync_role(&uri, new_role);
@@ -342,8 +351,9 @@ impl Editor {
 		};
 
 		let is_blocked = self.state.buffer_sync.is_edit_blocked(uri);
+		let unlocked = self.state.buffer_sync.is_unlocked(uri);
 		let override_val = match role {
-			Some(BufferSyncRole::Follower) => Some(true),
+			Some(BufferSyncRole::Follower) if !unlocked => Some(true),
 			Some(BufferSyncRole::Owner) if is_blocked => Some(true),
 			_ => None,
 		};

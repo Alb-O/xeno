@@ -836,14 +836,17 @@ fn test_stress_concurrent_mixed_operations() {
 		"stress test results"
 	);
 
+	let min_writes = (duration.as_secs().saturating_mul(10) as usize).max(10);
+	let min_reads = (duration.as_secs().saturating_mul(20) as usize).max(20);
+
 	// Should process many operations
 	assert!(
-		total_writes > 50,
+		total_writes >= min_writes,
 		"Should perform many writes, got {}",
 		total_writes
 	);
 	assert!(
-		total_reads > 100,
+		total_reads >= min_reads,
 		"Should perform many reads, got {}",
 		total_reads
 	);

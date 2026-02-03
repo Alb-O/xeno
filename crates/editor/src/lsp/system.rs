@@ -112,6 +112,7 @@ impl LspSystem {
 						RequestPayload::BufferSyncOpen { uri, .. }
 						| RequestPayload::BufferSyncClose { uri }
 						| RequestPayload::BufferSyncDelta { uri, .. }
+						| RequestPayload::BufferSyncActivity { uri }
 						| RequestPayload::BufferSyncTakeOwnership { uri }
 						| RequestPayload::BufferSyncOwnerConfirm { uri, .. }
 						| RequestPayload::BufferSyncResync { uri } => uri.clone(),
@@ -173,6 +174,7 @@ impl LspSystem {
 									seq,
 									owner,
 								}),
+								ResponsePayload::BufferSyncActivityAck => None,
 								ResponsePayload::BufferSyncClosed => None,
 								_ => None,
 							};

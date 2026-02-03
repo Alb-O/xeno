@@ -1,11 +1,13 @@
 //! Cross-process buffer synchronization manager.
 //!
 //! Tracks per-open-document sync state (epoch, seq, role) and provides methods
-//! to prepare outgoing broker requests and process incoming broker events.
+//! to prepare outgoing broker requests, emit activity signals, and process
+//! incoming broker events (including "up-for-grabs" unlock transitions).
 
 pub mod convert;
 
 use std::collections::{HashMap, VecDeque};
+use std::time::{Duration, Instant};
 
 use xeno_broker_proto::types::{
 	BufferSyncOwnerConfirmStatus, BufferSyncOwnershipStatus, BufferSyncRole, RequestPayload,
@@ -14,6 +16,8 @@ use xeno_broker_proto::types::{
 use xeno_primitives::{EditOrigin, Selection, Transaction, UndoPolicy};
 
 use crate::buffer::DocumentId;
+
+const ACTIVITY_THROTTLE: Duration = Duration::from_millis(750);
 
 /// Inbound events from the broker transport for buffer sync.
 #[derive(Debug)]
@@ -37,6 +41,17 @@ pub enum BufferSyncEvent {
 		epoch: SyncEpoch,
 		/// New owner session.
 		owner: SessionId,
+		/// Authoritative hash.
+		hash64: u64,
+		/// Authoritative length.
+		len_chars: u64,
+	},
+	/// Document ownership released (up-for-grabs, no current owner).
+	Unlocked {
+		/// Document URI.
+		uri: String,
+		/// New ownership epoch.
+		epoch: SyncEpoch,
 		/// Authoritative hash.
 		hash64: u64,
 		/// Authoritative length.
@@ -98,8 +113,8 @@ pub enum BufferSyncEvent {
 		epoch: SyncEpoch,
 		/// Current sequence.
 		seq: SyncSeq,
-		/// Current owner session.
-		owner: SessionId,
+		/// Current owner session (if any).
+		owner: Option<SessionId>,
 	},
 	/// A delta request was rejected by the broker.
 	DeltaRejected {
@@ -172,13 +187,15 @@ struct SyncDocEntry {
 	epoch: SyncEpoch,
 	seq: SyncSeq,
 	role: BufferSyncRole,
-	owner: SessionId,
+	owner: Option<SessionId>,
+	unlocked: bool,
 	needs_resync: bool,
 	resync_requested: bool,
 	acquire_in_flight: bool,
 	owner_confirm_required: bool,
 	owner_confirm_in_flight: bool,
 	pending_edits: VecDeque<PendingEdit>,
+	last_activity_sent: Option<std::time::Instant>,
 }
 
 impl SyncDocEntry {
@@ -194,8 +211,10 @@ impl SyncDocEntry {
 /// Manages cross-process buffer synchronization for all open documents.
 ///
 /// This manager maintains the state machine for transitioning between `Follower`
-/// (read-only) and `Owner` (read-write) roles. It handles edit deferral,
-/// optimistic sequencing, and convergence via alignment fingerprinting.
+/// (read-only) and `Owner` (read-write) roles, including broker-driven unlocks.
+/// Unlocks are treated as "up-for-grabs": the first attempted edit triggers an
+/// ownership request; no ownership is claimed on focus alone. It handles edit
+/// deferral, optimistic sequencing, and convergence via alignment fingerprinting.
 pub struct BufferSyncManager {
 	docs: HashMap<String, SyncDocEntry>,
 	uri_to_doc_id: HashMap<String, DocumentId>,
@@ -235,14 +254,28 @@ impl BufferSyncManager {
 
 		entry.pending_edits.push_back(edit);
 
-		if entry.role == BufferSyncRole::Follower && !entry.acquire_in_flight {
-			entry.acquire_in_flight = true;
-			DeferEditOutcome::NeedTakeOwnership(RequestPayload::BufferSyncTakeOwnership {
-				uri: uri.to_string(),
-			})
+		if let Some(payload) = self.request_ownership(uri) {
+			DeferEditOutcome::NeedTakeOwnership(payload)
 		} else {
 			DeferEditOutcome::AlreadyAcquiring
 		}
+	}
+
+	/// Prepares a take-ownership request if the document is a follower in the
+	/// up-for-grabs state.
+	pub fn prepare_take_ownership(&mut self, uri: &str) -> Option<RequestPayload> {
+		self.request_ownership(uri)
+	}
+
+	fn request_ownership(&mut self, uri: &str) -> Option<RequestPayload> {
+		let entry = self.docs.get_mut(uri)?;
+		if entry.role != BufferSyncRole::Follower || entry.acquire_in_flight || !entry.unlocked {
+			return None;
+		}
+		entry.acquire_in_flight = true;
+		Some(RequestPayload::BufferSyncTakeOwnership {
+			uri: uri.to_string(),
+		})
 	}
 
 	/// Collects and clears ownership confirmation requests.
@@ -286,6 +319,23 @@ impl BufferSyncManager {
 		ready
 	}
 
+	/// Records user activity for a document, returning a broker request if due.
+	pub fn note_activity(&mut self, doc_id: DocumentId) -> Option<RequestPayload> {
+		let uri = self.doc_id_to_uri.get(&doc_id)?.to_string();
+		let entry = self.docs.get_mut(&uri)?;
+		let now = Instant::now();
+
+		if entry
+			.last_activity_sent
+			.is_some_and(|last| now.duration_since(last) < ACTIVITY_THROTTLE)
+		{
+			return None;
+		}
+
+		entry.last_activity_sent = Some(now);
+		Some(RequestPayload::BufferSyncActivity { uri })
+	}
+
 	/// Prepares a [`RequestPayload::BufferSyncOpen`] and registers document mappings.
 	pub fn prepare_open(&mut self, uri: &str, text: &str, doc_id: DocumentId) -> RequestPayload {
 		self.uri_to_doc_id.insert(uri.to_string(), doc_id);
@@ -315,13 +365,15 @@ impl BufferSyncManager {
 				epoch,
 				seq,
 				role,
-				owner: SessionId(0),
+				owner: None,
+				unlocked: false,
 				needs_resync: false,
 				resync_requested: false,
 				acquire_in_flight: false,
 				owner_confirm_required: false,
 				owner_confirm_in_flight: false,
 				pending_edits: VecDeque::new(),
+				last_activity_sent: None,
 			},
 		);
 
@@ -440,7 +492,8 @@ impl BufferSyncManager {
 		if let Some(entry) = self.docs.get_mut(uri) {
 			entry.epoch = epoch;
 			entry.seq = SyncSeq(0);
-			entry.owner = owner;
+			entry.owner = Some(owner);
+			entry.unlocked = false;
 			entry.acquire_in_flight = false;
 
 			if owner == local_session {
@@ -459,6 +512,22 @@ impl BufferSyncManager {
 		}
 	}
 
+	/// Processes an unlock event from the broker (up-for-grabs).
+	pub fn handle_unlocked(&mut self, uri: &str, epoch: SyncEpoch) {
+		if let Some(entry) = self.docs.get_mut(uri) {
+			entry.epoch = epoch;
+			entry.seq = SyncSeq(0);
+			entry.owner = None;
+			entry.unlocked = true;
+			entry.role = BufferSyncRole::Follower;
+			entry.acquire_in_flight = false;
+			entry.owner_confirm_required = false;
+			entry.owner_confirm_in_flight = false;
+			entry.needs_resync = false;
+			entry.resync_requested = false;
+		}
+	}
+
 	/// Handles an ownership request result.
 	///
 	/// Clears the acquisition flag and updates ownership state. If denied,
@@ -471,12 +540,38 @@ impl BufferSyncManager {
 		owner: SessionId,
 		local_session: SessionId,
 	) {
-		self.handle_owner_changed(uri, epoch, owner, local_session);
+		if status == BufferSyncOwnershipStatus::Granted {
+			self.handle_owner_changed(uri, epoch, owner, local_session);
+			if let Some(entry) = self.docs.get_mut(uri) {
+				entry.acquire_in_flight = false;
+			}
+			return;
+		}
 
 		if let Some(entry) = self.docs.get_mut(uri) {
 			entry.acquire_in_flight = false;
-			if status == BufferSyncOwnershipStatus::Denied {
-				entry.pending_edits.clear();
+			match status {
+				BufferSyncOwnershipStatus::Denied => {
+					if entry.epoch != epoch {
+						entry.epoch = epoch;
+						entry.seq = SyncSeq(0);
+					}
+					entry.owner = Some(owner);
+					entry.unlocked = false;
+					entry.role = BufferSyncRole::Follower;
+					entry.owner_confirm_required = false;
+					entry.owner_confirm_in_flight = false;
+					entry.pending_edits.clear();
+				}
+				BufferSyncOwnershipStatus::AlreadyOwner => {
+					entry.owner = Some(owner);
+					entry.unlocked = false;
+					entry.role = BufferSyncRole::Owner;
+					entry.owner_confirm_required = false;
+					entry.owner_confirm_in_flight = false;
+					entry.needs_resync = false;
+				}
+				BufferSyncOwnershipStatus::Granted => {}
 			}
 		}
 	}
@@ -501,7 +596,8 @@ impl BufferSyncManager {
 			}
 
 			entry.owner_confirm_in_flight = false;
-			entry.owner = owner;
+			entry.owner = Some(owner);
+			entry.unlocked = false;
 
 			if owner == local_session {
 				entry.role = BufferSyncRole::Owner;
@@ -531,14 +627,15 @@ impl BufferSyncManager {
 		text: String,
 		epoch: SyncEpoch,
 		seq: SyncSeq,
-		owner: SessionId,
+		owner: Option<SessionId>,
 		local_session: SessionId,
 	) -> String {
 		if let Some(entry) = self.docs.get_mut(uri) {
 			entry.epoch = epoch;
 			entry.seq = seq;
 			entry.owner = owner;
-			entry.role = if owner == local_session {
+			entry.unlocked = owner.is_none();
+			entry.role = if owner == Some(local_session) {
 				BufferSyncRole::Owner
 			} else {
 				BufferSyncRole::Follower
@@ -606,6 +703,8 @@ impl BufferSyncManager {
 			SyncStatus::Acquiring
 		} else if entry.owner_confirm_required || entry.owner_confirm_in_flight {
 			SyncStatus::Confirming
+		} else if entry.unlocked {
+			SyncStatus::Unlocked
 		} else if entry.role == BufferSyncRole::Owner {
 			SyncStatus::Owner
 		} else {
@@ -640,6 +739,11 @@ impl BufferSyncManager {
 		self.docs.get(uri).is_some_and(|entry| entry.needs_resync)
 	}
 
+	/// Returns true if the document is currently unlocked.
+	pub fn is_unlocked(&self, uri: &str) -> bool {
+		self.docs.get(uri).is_some_and(|entry| entry.unlocked)
+	}
+
 	/// Disables all sync tracking.
 	pub fn disable_all(&mut self) {
 		self.docs.clear();
@@ -661,6 +765,8 @@ pub enum SyncStatus {
 	Acquiring,
 	/// Session is confirming alignment with the broker.
 	Confirming,
+	/// Document is unlocked (up-for-grabs, no owner).
+	Unlocked,
 	/// Session detected divergence and requires resync.
 	NeedsResync,
 }
@@ -743,5 +849,27 @@ mod tests {
 
 		assert!(!manager.is_edit_blocked(uri));
 		assert!(manager.prepare_delta(uri, &sample_tx()).is_some());
+	}
+
+	#[test]
+	fn test_unlock_sets_unlocked_status() {
+		let mut manager = BufferSyncManager::new();
+		let uri = "file:///test.rs";
+		let doc_id = DocumentId::next();
+
+		manager.prepare_open(uri, "hello", doc_id);
+		manager.handle_opened(
+			uri,
+			BufferSyncRole::Follower,
+			SyncEpoch(1),
+			SyncSeq(0),
+			None,
+		);
+
+		manager.handle_unlocked(uri, SyncEpoch(2));
+
+		let (_, status) = manager.ui_status_for_uri(uri);
+		assert_eq!(status, SyncStatus::Unlocked);
+		assert!(manager.is_edit_blocked(uri));
 	}
 }

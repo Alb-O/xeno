@@ -4,11 +4,27 @@ use crate::overlay::{CloseReason, controllers};
 
 impl Editor {
 	pub fn interaction_on_buffer_edited(&mut self) {
+		#[cfg(feature = "lsp")]
+		self.note_buffer_sync_activity();
+
 		let view_id = self.focused_view();
 		let mut interaction: crate::overlay::OverlayManager =
 			std::mem::take(&mut self.state.overlay_system.interaction);
 		interaction.on_buffer_edited(self, view_id);
 		self.state.overlay_system.interaction = interaction;
+	}
+
+	#[cfg(feature = "lsp")]
+	fn note_buffer_sync_activity(&mut self) {
+		let view_id = self.focused_view();
+		let Some(buffer) = self.state.core.buffers.get_buffer(view_id) else {
+			return;
+		};
+		let doc_id = buffer.document_id();
+
+		if let Some(payload) = self.state.buffer_sync.note_activity(doc_id) {
+			let _ = self.state.lsp.buffer_sync_out_tx().send(payload);
+		}
 	}
 
 	pub async fn interaction_commit(&mut self) {

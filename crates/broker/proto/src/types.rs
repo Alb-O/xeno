@@ -162,6 +162,11 @@ pub enum RequestPayload {
 		/// The edit transaction.
 		tx: WireTx,
 	},
+	/// Notify broker of local activity for a buffer sync document.
+	BufferSyncActivity {
+		/// Canonical URI for the document.
+		uri: String,
+	},
 	/// Request ownership of a buffer sync document.
 	BufferSyncTakeOwnership {
 		/// Canonical URI for the document.
@@ -288,9 +293,11 @@ pub enum ResponsePayload {
 		epoch: SyncEpoch,
 		/// Current sequence number.
 		seq: SyncSeq,
-		/// Current owner session.
-		owner: SessionId,
+		/// Current owner session (if any).
+		owner: Option<SessionId>,
 	},
+	/// Buffer sync activity acknowledged.
+	BufferSyncActivityAck,
 	/// Knowledge search results.
 	KnowledgeSearchResults {
 		/// Ranked knowledge hits.
@@ -431,6 +438,17 @@ pub enum Event {
 		/// Length of the authoritative document in characters.
 		len_chars: u64,
 	},
+	/// Buffer sync document unlocked ("up-for-grabs" with no current owner).
+	BufferSyncUnlocked {
+		/// Document URI.
+		uri: String,
+		/// New ownership epoch.
+		epoch: SyncEpoch,
+		/// 64-bit hash of the authoritative document content.
+		hash64: u64,
+		/// Length of the authoritative document in characters.
+		len_chars: u64,
+	},
 }
 
 /// Status of a buffer sync ownership request.
@@ -438,7 +456,7 @@ pub enum Event {
 pub enum BufferSyncOwnershipStatus {
 	/// Ownership granted.
 	Granted,
-	/// Ownership denied (e.g. another session took it first).
+	/// Ownership denied (e.g. another session already owns it).
 	Denied,
 	/// Session is already the owner.
 	AlreadyOwner,

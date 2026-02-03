@@ -87,6 +87,9 @@ impl Service<Request> for BrokerService {
 				Ok(ResponsePayload::Subscribed)
 			});
 		}
+		if let RequestPayload::Ping = req.payload {
+			return Box::pin(async move { Ok(ResponsePayload::Pong) });
+		}
 
 		Box::pin(async move {
 			// Enforce auth
@@ -155,6 +158,9 @@ impl Service<Request> for BrokerService {
 						.sync
 						.delta(session_id, uri, epoch, base_seq, tx)
 						.await
+				}
+				RequestPayload::BufferSyncActivity { uri } => {
+					runtime.sync.activity(session_id, uri).await
 				}
 				RequestPayload::BufferSyncTakeOwnership { uri } => {
 					runtime.sync.take_ownership(session_id, uri).await

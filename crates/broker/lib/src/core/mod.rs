@@ -29,6 +29,18 @@
 //!   - Tested by: `services::tests::test_sync_ownership_enforcement`
 //!   - Failure symptom: `NotDocOwner` error returned to the editor session.
 //!
+//! - Up-for-Grabs Ownership: `TakeOwnership` MUST be denied when a document already has
+//!   an owner; only unlocked documents may grant a new owner.
+//!   - Enforced in: `BufferSyncService::handle_take_ownership`
+//!   - Tested by: `services::tests::test_buffer_sync_take_ownership_denied_when_owner_active`
+//!   - Failure symptom: Two sessions can both write, causing divergent document state.
+//!
+//! - Idle Ownership Release: Documents MUST transition to the unlocked state when the owner is
+//!   inactive beyond the idle timeout.
+//!   - Enforced in: `BufferSyncService::handle_idle_tick`
+//!   - Tested by: `services::tests::test_buffer_sync_idle_unlocks_owner`
+//!   - Failure symptom: An inactive owner blocks other sessions from becoming writable.
+//!
 //! - Atomic Request Registration: S2C requests MUST be registered in the pending map before being transmitted to the leader.
 //!   - Enforced in: `RoutingService::handle_begin_s2c`
 //!   - Tested by: `services::tests::test_s2c_registration_order`
@@ -52,6 +64,7 @@
 //! - Startup: `BrokerRuntime::new` starts services in a tiered sequence to resolve cyclic handle dependencies.
 //! - Session: `Subscribe` registers a sink in [`SessionService`]. Drop cleans up via `Unregister`.
 //! - Server: `LspStart` triggers process spawn; idle lease timer manages termination when all sessions detach.
+//! - Sync: `BufferSyncService` releases ownership on idle or disconnect, broadcasting unlocks before new owners confirm.
 //! - Shutdown: `BrokerRuntime::shutdown` triggers `TerminateAll` in the routing service, killing all LSP processes.
 //!
 //! # Concurrency & ordering

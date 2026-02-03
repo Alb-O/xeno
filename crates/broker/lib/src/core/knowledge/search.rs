@@ -4,6 +4,7 @@ use bumpalo::Bump;
 use helix_db::helix_engine::traversal_core::ops::bm25::search_bm25::SearchBM25Adapter;
 use helix_db::helix_engine::traversal_core::ops::g::G;
 use helix_db::helix_engine::traversal_core::traversal_value::TraversalValue;
+use helix_db::helix_engine::types::{EngineError, StorageError};
 use helix_db::protocol::value::Value;
 use xeno_broker_proto::types::KnowledgeHit;
 
@@ -22,8 +23,15 @@ impl KnowledgeCore {
 			.map_err(helix_db::helix_engine::types::EngineError::from)?;
 
 		let mut hits = Vec::new();
-		let traversal =
-			G::new(self.storage(), &txn, &arena).search_bm25(LABEL_CHUNK, query, limit as usize)?;
+		let traversal = match G::new(self.storage(), &txn, &arena).search_bm25(
+			LABEL_CHUNK,
+			query,
+			limit as usize,
+		) {
+			Ok(traversal) => traversal,
+			Err(err) if is_empty_index_error(&err) => return Ok(hits),
+			Err(err) => return Err(err.into()),
+		};
 
 		for entry in traversal {
 			let (tv, score) = match entry {
@@ -82,4 +90,8 @@ impl KnowledgeCore {
 
 		Ok(hits)
 	}
+}
+
+fn is_empty_index_error(err: &EngineError) -> bool {
+	matches!(err, EngineError::Storage(StorageError::Backend(msg)) if msg.contains("BM25 metadata not found"))
 }

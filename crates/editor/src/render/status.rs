@@ -53,6 +53,7 @@ impl Editor {
 					crate::buffer_sync::SyncStatus::Follower => "F",
 					crate::buffer_sync::SyncStatus::Acquiring => "Acq",
 					crate::buffer_sync::SyncStatus::Confirming => "Conf",
+					crate::buffer_sync::SyncStatus::Unlocked => "Free",
 					crate::buffer_sync::SyncStatus::NeedsResync => "Sync!",
 				};
 				(Some(role_s), Some(status_s))

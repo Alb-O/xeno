@@ -6,8 +6,8 @@ use std::time::Duration;
 
 use tokio::sync::{mpsc, oneshot};
 use xeno_broker_proto::types::{
-	BufferSyncRole, ErrorCode, Event, IpcFrame, LspServerConfig, Request, Response,
-	ResponsePayload, SessionId, SyncEpoch, SyncSeq, WireOp, WireTx,
+	BufferSyncOwnershipStatus, BufferSyncRole, ErrorCode, Event, IpcFrame, LspServerConfig,
+	Request, Response, ResponsePayload, SessionId, SyncEpoch, SyncSeq, WireOp, WireTx,
 };
 use xeno_rpc::MainLoopEvent;
 
@@ -242,6 +242,72 @@ async fn test_sync_ownership_enforcement() {
 }
 
 #[tokio::test(flavor = "current_thread")]
+async fn test_buffer_sync_take_ownership_denied_when_owner_active() {
+	let harness = setup_sync_harness().await;
+	let session1 = TestSession::new(1);
+	let session2 = TestSession::new(2);
+
+	harness
+		.sessions
+		.register(session1.session_id, session1.sink.clone())
+		.await;
+	harness
+		.sessions
+		.register(session2.session_id, session2.sink.clone())
+		.await;
+
+	let _ = harness
+		.sync
+		.open(
+			session1.session_id,
+			"file:///test.rs".to_string(),
+			"hello".into(),
+			None,
+		)
+		.await;
+	let _ = harness
+		.sync
+		.open(
+			session2.session_id,
+			"file:///test.rs".to_string(),
+			"".into(),
+			None,
+		)
+		.await;
+
+	let resp = harness
+		.sync
+		.take_ownership(session2.session_id, "file:///test.rs".to_string())
+		.await
+		.unwrap();
+	match resp {
+		ResponsePayload::BufferSyncOwnership {
+			status,
+			epoch,
+			owner,
+		} => {
+			assert_eq!(status, BufferSyncOwnershipStatus::Denied);
+			assert_eq!(epoch, SyncEpoch(1));
+			assert_eq!(owner, session1.session_id);
+		}
+		other => panic!("unexpected response: {other:?}"),
+	}
+
+	let wire_tx = WireTx(vec![WireOp::Retain(5), WireOp::Insert("!".into())]);
+	let result = harness
+		.sync
+		.delta(
+			session1.session_id,
+			"file:///test.rs".to_string(),
+			SyncEpoch(1),
+			SyncSeq(0),
+			wire_tx,
+		)
+		.await;
+	assert!(result.is_ok());
+}
+
+#[tokio::test(flavor = "current_thread")]
 async fn test_buffer_sync_delta_ack_and_broadcast() {
 	let harness = setup_sync_harness().await;
 	let session1 = TestSession::new(1);
@@ -356,10 +422,34 @@ async fn test_owner_transfer_requires_resync_before_delta() {
 		.await
 		.unwrap();
 
+	let event = session2.recv_event().await.expect("unlock");
+	match event {
+		Event::BufferSyncUnlocked { epoch, .. } => {
+			assert_eq!(epoch, SyncEpoch(2));
+		}
+		other => panic!("unexpected event: {other:?}"),
+	}
+
+	let resp = harness
+		.sync
+		.take_ownership(session2.session_id, "file:///test.rs".to_string())
+		.await
+		.unwrap();
+	match resp {
+		ResponsePayload::BufferSyncOwnership { status, epoch, .. } => {
+			assert_eq!(
+				status,
+				xeno_broker_proto::types::BufferSyncOwnershipStatus::Granted
+			);
+			assert_eq!(epoch, SyncEpoch(3));
+		}
+		other => panic!("unexpected response: {other:?}"),
+	}
+
 	let event = session2.recv_event().await.expect("owner change");
 	match event {
 		Event::BufferSyncOwnerChanged { epoch, owner, .. } => {
-			assert_eq!(epoch, SyncEpoch(2));
+			assert_eq!(epoch, SyncEpoch(3));
 			assert_eq!(owner, session2.session_id);
 		}
 		other => panic!("unexpected event: {other:?}"),
@@ -371,7 +461,7 @@ async fn test_owner_transfer_requires_resync_before_delta() {
 		.delta(
 			session2.session_id,
 			"file:///test.rs".to_string(),
-			SyncEpoch(2),
+			SyncEpoch(3),
 			SyncSeq(0),
 			wire_tx.clone(),
 		)
@@ -388,12 +478,130 @@ async fn test_owner_transfer_requires_resync_before_delta() {
 		.delta(
 			session2.session_id,
 			"file:///test.rs".to_string(),
-			SyncEpoch(2),
+			SyncEpoch(3),
 			SyncSeq(0),
 			wire_tx,
 		)
 		.await;
 	assert!(resp.is_ok());
+}
+
+#[tokio::test(flavor = "current_thread", start_paused = true)]
+async fn test_buffer_sync_idle_unlocks_owner() {
+	let harness = setup_sync_harness().await;
+	let session1 = TestSession::new(1);
+	let mut session2 = TestSession::new(2);
+
+	harness
+		.sessions
+		.register(session1.session_id, session1.sink.clone())
+		.await;
+	harness
+		.sessions
+		.register(session2.session_id, session2.sink.clone())
+		.await;
+
+	let _ = harness
+		.sync
+		.open(
+			session1.session_id,
+			"file:///test.rs".to_string(),
+			"hello".into(),
+			None,
+		)
+		.await;
+	let _ = harness
+		.sync
+		.open(
+			session2.session_id,
+			"file:///test.rs".to_string(),
+			"".into(),
+			None,
+		)
+		.await;
+
+	while session2.try_event().is_some() {}
+
+	tokio::time::advance(buffer_sync::OWNER_IDLE_TIMEOUT + Duration::from_millis(10)).await;
+	tokio::task::yield_now().await;
+
+	let event = session2.recv_event().await.expect("unlock");
+	match event {
+		Event::BufferSyncUnlocked { epoch, .. } => {
+			assert_eq!(epoch, SyncEpoch(2));
+		}
+		other => panic!("unexpected event: {other:?}"),
+	}
+
+	let wire_tx = WireTx(vec![WireOp::Retain(5), WireOp::Insert(" world".into())]);
+	let result = harness
+		.sync
+		.delta(
+			session1.session_id,
+			"file:///test.rs".to_string(),
+			SyncEpoch(1),
+			SyncSeq(0),
+			wire_tx,
+		)
+		.await;
+	assert_eq!(result.unwrap_err(), ErrorCode::NotDocOwner);
+}
+
+#[tokio::test(flavor = "current_thread", start_paused = true)]
+async fn test_buffer_sync_activity_resets_idle_timer() {
+	let harness = setup_sync_harness().await;
+	let session1 = TestSession::new(1);
+	let mut session2 = TestSession::new(2);
+
+	harness
+		.sessions
+		.register(session1.session_id, session1.sink.clone())
+		.await;
+	harness
+		.sessions
+		.register(session2.session_id, session2.sink.clone())
+		.await;
+
+	let _ = harness
+		.sync
+		.open(
+			session1.session_id,
+			"file:///test.rs".to_string(),
+			"hello".into(),
+			None,
+		)
+		.await;
+	let _ = harness
+		.sync
+		.open(
+			session2.session_id,
+			"file:///test.rs".to_string(),
+			"".into(),
+			None,
+		)
+		.await;
+
+	while session2.try_event().is_some() {}
+
+	tokio::time::advance(buffer_sync::OWNER_IDLE_TIMEOUT - Duration::from_secs(1)).await;
+	tokio::task::yield_now().await;
+
+	let _ = harness
+		.sync
+		.activity(session1.session_id, "file:///test.rs".to_string())
+		.await
+		.unwrap();
+
+	tokio::time::advance(Duration::from_secs(2)).await;
+	tokio::task::yield_now().await;
+
+	assert!(session2.try_event().is_none());
+
+	tokio::time::advance(buffer_sync::OWNER_IDLE_TIMEOUT + Duration::from_millis(10)).await;
+	tokio::task::yield_now().await;
+
+	let event = session2.recv_event().await.expect("unlock after activity");
+	assert!(matches!(event, Event::BufferSyncUnlocked { .. }));
 }
 
 #[tokio::test(flavor = "current_thread")]
