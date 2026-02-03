@@ -20,6 +20,14 @@ Common commands:
 - Test: `cargo test --workspace`
 - Lint/check: `cargo check --workspace --all-targets`
 
+## Code style
+
+Use full where clause syntax for readability:
+
+```rust
+// Correctimpl<T> CompletionModel for MyModel<T>where    T: HttpClientExt + Clone + Send + Debug + Default + 'static,{    // ...}// Avoid inline bounds for complex signaturesimpl<T: HttpClientExt + Clone + Send + Debug + Default + 'static> CompletionModel for MyModel<T> {
+```
+
 ## Rustdoc
 
 Always prefer comprehensive techspec docstrings over inline comments:
