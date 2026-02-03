@@ -123,10 +123,17 @@ impl LspSystem {
 							// Convert response into an inbound event for the editor.
 							let evt = match resp {
 								ResponsePayload::SharedOpened { snapshot, text } => {
-									Some(crate::shared_state::SharedStateEvent::Opened { snapshot, text })
+									Some(crate::shared_state::SharedStateEvent::Opened {
+										snapshot,
+										text,
+									})
 								}
 								ResponsePayload::SharedEditAck { epoch, seq } => {
-									Some(crate::shared_state::SharedStateEvent::EditAck { uri, epoch, seq })
+									Some(crate::shared_state::SharedStateEvent::EditAck {
+										uri,
+										epoch,
+										seq,
+									})
 								}
 								ResponsePayload::SharedSnapshot { text, snapshot } => {
 									Some(crate::shared_state::SharedStateEvent::Snapshot {
@@ -136,7 +143,9 @@ impl LspSystem {
 									})
 								}
 								ResponsePayload::SharedFocusAck { snapshot } => {
-									Some(crate::shared_state::SharedStateEvent::FocusAck { snapshot })
+									Some(crate::shared_state::SharedStateEvent::FocusAck {
+										snapshot,
+									})
 								}
 								ResponsePayload::SharedActivityAck => None,
 								ResponsePayload::SharedClosed => None,

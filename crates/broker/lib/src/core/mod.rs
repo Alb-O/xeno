@@ -61,6 +61,18 @@
 //!   - Tested by: `services::tests::test_routing_lsp_docs_from_sync`
 //!   - Failure symptom: Diagnostics stall or diverge after the originating session disconnects.
 //!
+//! - Conditional Resync: When `SharedResync` provides `client_hash64` and `client_len_chars`
+//!   matching broker state, the broker MUST respond with an empty snapshot payload.
+//!   - Enforced in: `SharedStateService::handle_resync`
+//!   - Tested by: `services::tests::test_shared_state_resync_matches_fingerprint_returns_empty`
+//!   - Failure symptom: Editors clear syntax on no-op resyncs, causing highlight flicker after focus changes.
+//!
+//! - No-op Snapshot Apply: Editors MUST skip applying empty snapshot text when the local
+//!   fingerprint matches the snapshot fingerprint.
+//!   - Enforced in: `Editor::handle_shared_state_event`, `shared_state::should_apply_snapshot_text`
+//!   - Tested by: `shared_state::tests::test_snapshot_apply_skips_matching_empty`
+//!   - Failure symptom: Syntax trees are dropped on ownership transfer even when content is unchanged.
+//!
 //! - Session Loss LSP Close: When a session loss removes the final open reference for a document,
 //!   routing MUST close broker-owned LSP doc state immediately.
 //!   - Enforced in: `RoutingService::handle_session_lost`

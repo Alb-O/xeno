@@ -28,8 +28,7 @@ impl BrokerRuntime {
 	/// services (e.g., `SessionService` needs `RoutingHandle`, and vice versa).
 	#[must_use]
 	pub fn new(idle_lease: Duration, launcher: Arc<dyn LspLauncher>) -> Arc<Self> {
-		let (sessions, sessions_routing_tx, sessions_shared_tx) =
-			sessions::SessionService::start();
+		let (sessions, sessions_routing_tx, sessions_shared_tx) = sessions::SessionService::start();
 		let (shared_state, open_docs, shared_knowledge_tx, shared_routing_tx) =
 			shared_state::SharedStateService::start(sessions.clone());
 		let knowledge = knowledge::KnowledgeService::start(shared_state.clone(), open_docs);

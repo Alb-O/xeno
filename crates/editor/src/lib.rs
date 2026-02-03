@@ -27,8 +27,6 @@
 /// Theme bootstrap cache for instant first-frame rendering.
 pub mod bootstrap;
 pub mod buffer;
-/// Broker-backed shared state manager.
-pub mod shared_state;
 pub mod capabilities;
 /// Command queue for deferred execution.
 pub mod command_queue;
@@ -66,6 +64,8 @@ pub mod render;
 pub mod scheduler;
 /// Separator drag and hover state.
 pub mod separator;
+/// Broker-backed shared state manager.
+pub mod shared_state;
 /// Style utilities and conversions.
 pub mod styles;
 /// Background syntax loading manager.

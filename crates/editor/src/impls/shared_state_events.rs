@@ -3,6 +3,7 @@
 //! Processes inbound [`SharedStateEvent`]s from the broker during the editor
 //! tick, applying remote deltas to local buffers and updating sync state.
 
+use xeno_broker_proto::types::RequestPayload;
 use xeno_primitives::{SyntaxPolicy, UndoPolicy};
 
 use super::Editor;
@@ -22,7 +23,24 @@ impl Editor {
 			self.handle_shared_state_event(event);
 		}
 
-		for payload in self.state.shared_state.drain_resync_requests() {
+		for req in self.state.shared_state.drain_resync_requests() {
+			let (client_len, client_hash) = self
+				.state
+				.core
+				.buffers
+				.any_buffer_for_doc(req.doc_id)
+				.and_then(|view_id| self.state.core.buffers.get_buffer(view_id))
+				.map(|buffer| {
+					buffer.with_doc(|doc| xeno_broker_proto::fingerprint_rope(doc.content()))
+				})
+				.map(|(len, hash)| (Some(len), Some(hash)))
+				.unwrap_or((None, None));
+
+			let payload = RequestPayload::SharedResync {
+				uri: req.uri,
+				client_hash64: client_hash,
+				client_len_chars: client_len,
+			};
 			let _ = self.state.lsp.shared_state_out_tx().send(payload);
 		}
 
@@ -66,10 +84,10 @@ impl Editor {
 			SharedStateEvent::Opened { snapshot, text } => {
 				let local_session = self.state.lsp.broker_session_id();
 				let uri = snapshot.uri.clone();
-				let opened_text = self
-					.state
-					.shared_state
-					.handle_opened(snapshot, text, local_session);
+				let opened_text =
+					self.state
+						.shared_state
+						.handle_opened(snapshot, text, local_session);
 				if let Some(text) = opened_text {
 					self.apply_sync_snapshot(&uri, &text);
 				}
@@ -90,10 +108,28 @@ impl Editor {
 				snapshot,
 			} => {
 				let local_session = self.state.lsp.broker_session_id();
+				let local_fingerprint = self
+					.state
+					.shared_state
+					.doc_id_for_uri(&uri)
+					.and_then(|doc_id| self.state.core.buffers.any_buffer_for_doc(doc_id))
+					.and_then(|view_id| self.state.core.buffers.get_buffer(view_id))
+					.map(|buffer| {
+						buffer.with_doc(|doc| xeno_broker_proto::fingerprint_rope(doc.content()))
+					});
+				let (local_len, local_hash) = local_fingerprint
+					.map(|(len, hash)| (Some(len), Some(hash)))
+					.unwrap_or((None, None));
+
 				self.state
 					.shared_state
-					.handle_snapshot(&uri, snapshot, local_session);
-				self.apply_sync_snapshot(&uri, &text);
+					.handle_snapshot(&uri, snapshot.clone(), local_session);
+
+				if crate::shared_state::should_apply_snapshot_text(
+					&text, &snapshot, local_len, local_hash,
+				) {
+					self.apply_sync_snapshot(&uri, &text);
+				}
 				self.update_readonly_for_shared_state(&uri);
 				self.state.frame.needs_redraw = true;
 			}
@@ -127,7 +163,10 @@ impl Editor {
 				let buffer = self.state.core.buffers.get_buffer(id)?;
 				let doc_id = buffer.document_id();
 				let uri = self.state.shared_state.uri_for_doc_id(doc_id)?;
-				self.state.shared_state.is_edit_blocked(uri).then_some(doc_id)
+				self.state
+					.shared_state
+					.is_edit_blocked(uri)
+					.then_some(doc_id)
 			})
 			.collect();
 

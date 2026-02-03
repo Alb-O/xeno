@@ -144,10 +144,12 @@ impl Service<Request> for BrokerService {
 					uri,
 					text,
 					version_hint,
-				} => runtime
-					.shared_state
-					.open(session_id, uri, text, version_hint)
-					.await,
+				} => {
+					runtime
+						.shared_state
+						.open(session_id, uri, text, version_hint)
+						.await
+				}
 				RequestPayload::SharedClose { uri } => {
 					runtime.shared_state.close(session_id, uri).await
 				}

@@ -456,10 +456,7 @@ impl RoutingHandle {
 
 	/// Registers a document update from buffer sync.
 	pub async fn lsp_doc_update(&self, uri: String, text: String) {
-		let _ = self
-			.tx
-			.send(RoutingCmd::LspDocUpdate { uri, text })
-			.await;
+		let _ = self.tx.send(RoutingCmd::LspDocUpdate { uri, text }).await;
 	}
 
 	/// Registers a document close from buffer sync.
@@ -701,14 +698,12 @@ impl RoutingService {
 			.docs
 			.diagnostics_by_uri
 			.iter()
-			.map(|(uri, diag)| {
-				Event::LspDiagnostics {
-					server_id,
-					doc_id: server.docs.by_uri.get(uri).map(|(id, _)| *id),
-					uri: uri.clone(),
-					version: diag.version,
-					diagnostics: diag.diagnostics.clone(),
-				}
+			.map(|(uri, diag)| Event::LspDiagnostics {
+				server_id,
+				doc_id: server.docs.by_uri.get(uri).map(|(id, _)| *id),
+				uri: uri.clone(),
+				version: diag.version,
+				diagnostics: diag.diagnostics.clone(),
 			})
 			.collect::<Vec<_>>();
 		if !cached.is_empty() {
@@ -829,9 +824,10 @@ impl RoutingService {
 						continue;
 					}
 					if (state.owner == sid || !server.attached.contains(&state.owner))
-						&& let Some(&next) = state.open_refcounts.keys().min() {
-							state.owner = next;
-						}
+						&& let Some(&next) = state.open_refcounts.keys().min()
+					{
+						state.owner = next;
+					}
 				}
 				for uri in to_remove {
 					server.doc_owners.by_uri.remove(&uri);
@@ -929,9 +925,12 @@ impl RoutingService {
 			.servers
 			.get_mut(&server_id)
 			.ok_or(ErrorCode::ServerNotFound)?;
-		let _ = server.instance.lsp_tx.send(xeno_rpc::MainLoopEvent::Outgoing(
-			xeno_lsp::Message::Notification(notif),
-		));
+		let _ = server
+			.instance
+			.lsp_tx
+			.send(xeno_rpc::MainLoopEvent::Outgoing(
+				xeno_lsp::Message::Notification(notif),
+			));
 		Ok(())
 	}
 
@@ -1176,12 +1175,15 @@ impl RoutingService {
 				let mut action = None;
 				let mut pending_insert = None;
 				{
-					let entry = server.lsp_docs.entry(uri.to_string()).or_insert(LspDocState {
-						language_id: None,
-						text: String::new(),
-						version: 1,
-						open: false,
-					});
+					let entry = server
+						.lsp_docs
+						.entry(uri.to_string())
+						.or_insert(LspDocState {
+							language_id: None,
+							text: String::new(),
+							version: 1,
+							open: false,
+						});
 					if let Some(lang) = language_id {
 						entry.language_id = Some(lang);
 					}
@@ -1220,17 +1222,18 @@ impl RoutingService {
 							pending_insert = Some(entry.text.clone());
 						}
 					} else if !entry.open
-						&& let Some(language_id) = entry.language_id.clone() {
-							let version = entry.version.max(1);
-							entry.version = version;
-							entry.open = true;
-							action = Some(LspDocAction::Open {
-								uri: uri.to_string(),
-								language_id,
-								version,
-								text: entry.text.clone(),
-							});
-						}
+						&& let Some(language_id) = entry.language_id.clone()
+					{
+						let version = entry.version.max(1);
+						entry.version = version;
+						entry.open = true;
+						action = Some(LspDocAction::Open {
+							uri: uri.to_string(),
+							language_id,
+							version,
+							text: entry.text.clone(),
+						});
+					}
 				}
 				if let Some(action) = action {
 					Self::apply_lsp_doc_action(server, action);
@@ -1250,7 +1253,10 @@ impl RoutingService {
 					.get("version")
 					.and_then(|v| v.as_u64())
 					.map(|v| v as u32);
-				let Some(changes_val) = notif.params.get("contentChanges").and_then(|v| v.as_array())
+				let Some(changes_val) = notif
+					.params
+					.get("contentChanges")
+					.and_then(|v| v.as_array())
 				else {
 					return;
 				};
@@ -1288,12 +1294,15 @@ impl RoutingService {
 				let mut action = None;
 				let mut pending_insert = None;
 				{
-					let entry = server.lsp_docs.entry(uri.to_string()).or_insert(LspDocState {
-						language_id: None,
-						text: String::new(),
-						version: 1,
-						open: false,
-					});
+					let entry = server
+						.lsp_docs
+						.entry(uri.to_string())
+						.or_insert(LspDocState {
+							language_id: None,
+							text: String::new(),
+							version: 1,
+							open: false,
+						});
 
 					let Some(new_text) = apply_content_changes(&entry.text, &changes) else {
 						return;
@@ -1306,7 +1315,8 @@ impl RoutingService {
 
 					if entry.open {
 						if text_changed {
-							let next_version = version.unwrap_or_else(|| entry.version.saturating_add(1));
+							let next_version =
+								version.unwrap_or_else(|| entry.version.saturating_add(1));
 							entry.version = next_version.max(1);
 							action = Some(LspDocAction::Change {
 								uri: uri.to_string(),
@@ -1352,10 +1362,11 @@ impl RoutingService {
 				let mut send_close = false;
 				{
 					if let Some(state) = server.lsp_docs.get_mut(uri)
-						&& state.open {
-							state.open = false;
-							send_close = true;
-						}
+						&& state.open
+					{
+						state.open = false;
+						send_close = true;
+					}
 				}
 				if send_close {
 					Self::send_did_close(server, uri);
@@ -1488,9 +1499,10 @@ impl RoutingService {
 		self.pending_lsp_closes.remove(&uri);
 		self.doc_servers.remove(&uri);
 		if let Some(state) = server.lsp_docs.remove(&uri)
-			&& state.open {
-				Self::send_did_close(server, &uri);
-			}
+			&& state.open
+		{
+			Self::send_did_close(server, &uri);
+		}
 		server.docs.remove(&uri);
 	}
 
@@ -1532,13 +1544,7 @@ impl RoutingService {
 		}
 	}
 
-	fn send_did_open(
-		server: &ServerEntry,
-		uri: &str,
-		language_id: &str,
-		version: u32,
-		text: &str,
-	) {
+	fn send_did_open(server: &ServerEntry, uri: &str, language_id: &str, version: u32, text: &str) {
 		let notif = AnyNotification::new(
 			"textDocument/didOpen",
 			serde_json::json!({

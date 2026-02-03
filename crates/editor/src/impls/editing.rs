@@ -40,8 +40,8 @@ impl Editor {
 				.shared_state
 				.uri_for_doc_id(doc_id)
 				.map(str::to_string);
-			if let Some(uri) = uri {
-				if self.state.shared_state.is_edit_blocked(&uri) {
+			if let Some(uri) = uri
+				&& self.state.shared_state.is_edit_blocked(&uri) {
 					if !self.state.shared_state.is_owner(&uri)
 						&& let Some(payload) = self.state.shared_state.note_focus(doc_id, true)
 					{
@@ -50,7 +50,6 @@ impl Editor {
 					}
 					return false;
 				}
-			}
 		}
 
 		let focused_view = self.focused_view();

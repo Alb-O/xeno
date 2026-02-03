@@ -4,6 +4,7 @@ use std::collections::HashSet;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
+use ropey::Rope;
 use tokio::sync::{mpsc, oneshot};
 use xeno_broker_proto::types::{
 	DocSyncPhase, ErrorCode, Event, IpcFrame, LspServerConfig, Request, Response, ResponsePayload,
@@ -159,7 +160,10 @@ async fn test_shared_state_open_owner_then_follower_gets_snapshot() {
 			assert_eq!(snapshot.seq, SyncSeq(0));
 			assert_eq!(snapshot.owner, Some(session1.session_id));
 			assert_eq!(snapshot.preferred_owner, Some(session1.session_id));
-			assert_eq!(snapshot.phase, xeno_broker_proto::types::DocSyncPhase::Owned);
+			assert_eq!(
+				snapshot.phase,
+				xeno_broker_proto::types::DocSyncPhase::Owned
+			);
 			assert!(text.is_none());
 		}
 		other => panic!("unexpected response: {other:?}"),
@@ -181,7 +185,10 @@ async fn test_shared_state_open_owner_then_follower_gets_snapshot() {
 			assert_eq!(snapshot.seq, SyncSeq(0));
 			assert_eq!(snapshot.owner, Some(session1.session_id));
 			assert_eq!(snapshot.preferred_owner, Some(session1.session_id));
-			assert_eq!(snapshot.phase, xeno_broker_proto::types::DocSyncPhase::Owned);
+			assert_eq!(
+				snapshot.phase,
+				xeno_broker_proto::types::DocSyncPhase::Owned
+			);
 			assert_eq!(text.as_deref(), Some("hello world"));
 		}
 		other => panic!("unexpected response: {other:?}"),
@@ -553,7 +560,12 @@ async fn test_shared_state_transfer_requires_resync_before_edit() {
 
 	harness
 		.sync
-		.resync(session2.session_id, "file:///test.rs".to_string(), None, None)
+		.resync(
+			session2.session_id,
+			"file:///test.rs".to_string(),
+			None,
+			None,
+		)
 		.await
 		.unwrap();
 	let resp = harness
@@ -725,13 +737,60 @@ async fn test_shared_state_invalid_edit_is_non_mutating() {
 
 	let resp = harness
 		.sync
-		.resync(session1.session_id, "file:///test.rs".to_string(), None, None)
+		.resync(
+			session1.session_id,
+			"file:///test.rs".to_string(),
+			None,
+			None,
+		)
 		.await
 		.unwrap();
 	match resp {
 		ResponsePayload::SharedSnapshot { text, snapshot } => {
 			assert_eq!(text, "hello");
 			assert_eq!(snapshot.seq, SyncSeq(0));
+		}
+		other => panic!("unexpected response: {other:?}"),
+	}
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn test_shared_state_resync_matches_fingerprint_returns_empty() {
+	let harness = setup_sync_harness().await;
+	let session1 = TestSession::new(1);
+
+	harness
+		.sessions
+		.register(session1.session_id, session1.sink.clone())
+		.await;
+
+	let _ = harness
+		.sync
+		.open(
+			session1.session_id,
+			"file:///test.rs".to_string(),
+			"hello".into(),
+			None,
+		)
+		.await;
+
+	let (len, hash) = xeno_broker_proto::fingerprint_rope(&Rope::from_str("hello"));
+	let resp = harness
+		.sync
+		.resync(
+			session1.session_id,
+			"file:///test.rs".to_string(),
+			Some(hash),
+			Some(len),
+		)
+		.await
+		.unwrap();
+
+	match resp {
+		ResponsePayload::SharedSnapshot { text, snapshot } => {
+			assert!(text.is_empty());
+			assert_eq!(snapshot.hash64, hash);
+			assert_eq!(snapshot.len_chars, len);
 		}
 		other => panic!("unexpected response: {other:?}"),
 	}
@@ -784,7 +843,12 @@ async fn test_shared_state_close_last_session_removes_doc() {
 
 	let res = harness
 		.sync
-		.resync(session1.session_id, "file:///test.rs".to_string(), None, None)
+		.resync(
+			session1.session_id,
+			"file:///test.rs".to_string(),
+			None,
+			None,
+		)
 		.await;
 	assert_eq!(res.unwrap_err(), ErrorCode::SyncDocNotFound);
 }
@@ -1156,7 +1220,10 @@ async fn test_routing_lsp_docs_from_sync() {
 		.await
 		.unwrap();
 
-	let handle = harness.launcher.get_server(server_id).expect("server handle");
+	let handle = harness
+		.launcher
+		.get_server(server_id)
+		.expect("server handle");
 
 	let wait_for = |method: &'static str| {
 		let handle = handle.clone();
@@ -1234,7 +1301,10 @@ async fn test_routing_session_lost_closes_lsp_docs() {
 		.await
 		.unwrap();
 
-	let handle = harness.launcher.get_server(server_id).expect("server handle");
+	let handle = harness
+		.launcher
+		.get_server(server_id)
+		.expect("server handle");
 
 	let wait_for = |method: &'static str| {
 		let handle = handle.clone();

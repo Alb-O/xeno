@@ -49,11 +49,13 @@ mod tests {
 		.await
 		.expect("shared state open");
 
-
 		// Wait for broker to register doc
 		assert!(
 			wait_until(Duration::from_secs(1), || async {
-				runtime.shared_state.is_open("file:///test.rs".to_string()).await
+				runtime
+					.shared_state
+					.is_open("file:///test.rs".to_string())
+					.await
 			})
 			.await
 		);
@@ -75,7 +77,10 @@ mod tests {
 		// Doc should be removed from broker because no one else has it open
 		assert!(
 			wait_until(Duration::from_secs(1), || async {
-				!runtime.shared_state.is_open("file:///test.rs".to_string()).await
+				!runtime
+					.shared_state
+					.is_open("file:///test.rs".to_string())
+					.await
 			})
 			.await
 		);
@@ -114,7 +119,10 @@ mod tests {
 		// Wait for broker to register doc
 		assert!(
 			wait_until(Duration::from_secs(1), || async {
-				runtime.shared_state.is_open("file:///test.rs".to_string()).await
+				runtime
+					.shared_state
+					.is_open("file:///test.rs".to_string())
+					.await
 			})
 			.await
 		);
@@ -128,8 +136,7 @@ mod tests {
 					.filter(
 						|m| matches!(m, Message::Notification(n) if n.method == "textDocument/didOpen"),
 					)
-					.count()
-					== 2
+					.count() == 2
 			})
 			.await
 		);
@@ -289,7 +296,9 @@ mod tests {
 			.await
 			.expect("shared focus");
 		let epoch = match focus_resp {
-			xeno_broker_proto::types::ResponsePayload::SharedFocusAck { snapshot } => snapshot.epoch,
+			xeno_broker_proto::types::ResponsePayload::SharedFocusAck { snapshot } => {
+				snapshot.epoch
+			}
 			other => panic!("unexpected focus response: {other:?}"),
 		};
 
@@ -411,7 +420,9 @@ mod tests {
 			.await
 			.expect("shared focus");
 		let epoch = match focus_resp {
-			xeno_broker_proto::types::ResponsePayload::SharedFocusAck { snapshot } => snapshot.epoch,
+			xeno_broker_proto::types::ResponsePayload::SharedFocusAck { snapshot } => {
+				snapshot.epoch
+			}
 			other => panic!("unexpected focus response: {other:?}"),
 		};
 

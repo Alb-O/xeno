@@ -75,7 +75,11 @@ mod tests {
 
 		// Also ensure broker has the doc registered by checking directly
 		let mut attempts = 0;
-		while !runtime.shared_state.is_open("file:///test.rs".to_string()).await {
+		while !runtime
+			.shared_state
+			.is_open("file:///test.rs".to_string())
+			.await
+		{
 			tokio::time::sleep(Duration::from_millis(10)).await;
 			attempts += 1;
 			if attempts > 100 {
@@ -172,7 +176,11 @@ mod tests {
 		};
 
 		let mut attempts = 0;
-		while !runtime.shared_state.is_open("file:///test.rs".to_string()).await {
+		while !runtime
+			.shared_state
+			.is_open("file:///test.rs".to_string())
+			.await
+		{
 			tokio::time::sleep(Duration::from_millis(10)).await;
 			attempts += 1;
 			if attempts > 100 {

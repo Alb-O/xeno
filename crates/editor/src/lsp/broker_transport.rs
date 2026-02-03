@@ -637,17 +637,15 @@ impl RpcService<BrokerProtocol> for BrokerClientService {
 							tx,
 						});
 			}
-			Event::SharedOwnerChanged {
-				snapshot,
-			} => {
+			Event::SharedOwnerChanged { snapshot } => {
 				let _ = self
 					.shared_state_tx
 					.send(crate::shared_state::SharedStateEvent::OwnerChanged { snapshot });
 			}
 			Event::SharedPreferredOwnerChanged { snapshot } => {
-				let _ = self
-					.shared_state_tx
-					.send(crate::shared_state::SharedStateEvent::PreferredOwnerChanged { snapshot });
+				let _ = self.shared_state_tx.send(
+					crate::shared_state::SharedStateEvent::PreferredOwnerChanged { snapshot },
+				);
 			}
 			Event::SharedUnlocked { snapshot } => {
 				let _ = self

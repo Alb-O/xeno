@@ -15,9 +15,6 @@
 
 /// Buffer creation operations.
 mod buffer_ops;
-/// Shared state event processing (remote deltas, ownership changes).
-#[cfg(feature = "lsp")]
-mod shared_state_events;
 /// Core editing state.
 mod core;
 /// Centralized edit executor.
@@ -48,6 +45,9 @@ mod navigation;
 mod options;
 /// Search state and operations.
 mod search;
+/// Shared state event processing (remote deltas, ownership changes).
+#[cfg(feature = "lsp")]
+mod shared_state_events;
 /// Split view operations.
 mod splits;
 /// Theme management.

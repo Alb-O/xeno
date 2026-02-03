@@ -897,14 +897,13 @@ impl SharedStateService {
 		let snapshot = doc.snapshot(&uri);
 
 		// Conditional resync
-		if let (Some(h), Some(l)) = (client_hash64, client_len_chars) {
-			if h == doc.hash64 && l == doc.len_chars {
+		if let (Some(h), Some(l)) = (client_hash64, client_len_chars)
+			&& h == doc.hash64 && l == doc.len_chars {
 				return Ok(ResponsePayload::SharedSnapshot {
 					text: String::new(),
 					snapshot,
 				});
 			}
-		}
 
 		Ok(ResponsePayload::SharedSnapshot {
 			text: doc.rope.to_string(),

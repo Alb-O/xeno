@@ -18,6 +18,15 @@ use crate::buffer::DocumentId;
 
 const ACTIVITY_THROTTLE: Duration = Duration::from_millis(750);
 
+/// Request describing a resync for a shared document.
+#[derive(Debug, Clone)]
+pub struct ResyncRequest {
+	/// Canonical document URI.
+	pub uri: String,
+	/// Local document identifier.
+	pub doc_id: DocumentId,
+}
+
 /// Inbound events from the broker transport for shared state.
 #[derive(Debug)]
 pub enum SharedStateEvent {
@@ -248,22 +257,25 @@ impl SharedStateManager {
 		self.uri_to_doc_id.insert(uri.to_string(), doc_id);
 		self.doc_id_to_uri.insert(doc_id, uri.to_string());
 
-		let entry = self.docs.entry(uri.to_string()).or_insert_with(|| SharedDocEntry {
-			doc_id,
-			epoch: SyncEpoch(0),
-			seq: SyncSeq(0),
-			role: SharedStateRole::Follower,
-			owner: None,
-			preferred_owner: None,
-			phase: DocSyncPhase::Unlocked,
-			needs_resync: false,
-			resync_requested: false,
-			open_refcount: 0,
-			pending_deltas: VecDeque::new(),
-			in_flight: None,
-			last_activity_sent: None,
-			focus_seq: 0,
-		});
+		let entry = self
+			.docs
+			.entry(uri.to_string())
+			.or_insert_with(|| SharedDocEntry {
+				doc_id,
+				epoch: SyncEpoch(0),
+				seq: SyncSeq(0),
+				role: SharedStateRole::Follower,
+				owner: None,
+				preferred_owner: None,
+				phase: DocSyncPhase::Unlocked,
+				needs_resync: false,
+				resync_requested: false,
+				open_refcount: 0,
+				pending_deltas: VecDeque::new(),
+				in_flight: None,
+				last_activity_sent: None,
+				focus_seq: 0,
+			});
 		entry.doc_id = doc_id;
 		entry.open_refcount = entry.open_refcount.saturating_add(1);
 
@@ -299,22 +311,25 @@ impl SharedStateManager {
 		local_session: SessionId,
 	) -> Option<String> {
 		let doc_id = self.uri_to_doc_id.get(&snapshot.uri).copied()?;
-		let entry = self.docs.entry(snapshot.uri.clone()).or_insert_with(|| SharedDocEntry {
-			doc_id,
-			epoch: snapshot.epoch,
-			seq: snapshot.seq,
-			role: SharedStateRole::Follower,
-			owner: snapshot.owner,
-			preferred_owner: snapshot.preferred_owner,
-			phase: snapshot.phase,
-			needs_resync: false,
-			resync_requested: false,
-			open_refcount: 1,
-			pending_deltas: VecDeque::new(),
-			in_flight: None,
-			last_activity_sent: None,
-			focus_seq: 0,
-		});
+		let entry = self
+			.docs
+			.entry(snapshot.uri.clone())
+			.or_insert_with(|| SharedDocEntry {
+				doc_id,
+				epoch: snapshot.epoch,
+				seq: snapshot.seq,
+				role: SharedStateRole::Follower,
+				owner: snapshot.owner,
+				preferred_owner: snapshot.preferred_owner,
+				phase: snapshot.phase,
+				needs_resync: false,
+				resync_requested: false,
+				open_refcount: 1,
+				pending_deltas: VecDeque::new(),
+				in_flight: None,
+				last_activity_sent: None,
+				focus_seq: 0,
+			});
 		entry.doc_id = doc_id;
 		Self::apply_snapshot_state(entry, &snapshot, local_session, text.is_some());
 		text
@@ -347,8 +362,8 @@ impl SharedStateManager {
 
 	/// Handles an edit acknowledgment from the broker, advancing the local sequence.
 	pub fn handle_edit_ack(&mut self, uri: &str, epoch: SyncEpoch, seq: SyncSeq) {
-		if let Some(entry) = self.docs.get_mut(uri) {
-			if let Some(in_flight) = entry.in_flight {
+		if let Some(entry) = self.docs.get_mut(uri)
+			&& let Some(in_flight) = entry.in_flight {
 				let expected = in_flight.base_seq.0.wrapping_add(1);
 				if epoch == in_flight.epoch && seq.0 == expected {
 					entry.seq = seq;
@@ -364,7 +379,6 @@ impl SharedStateManager {
 					);
 				}
 			}
-		}
 	}
 
 	/// Collects queued edit requests once the in-flight delta is acknowledged.
@@ -435,11 +449,7 @@ impl SharedStateManager {
 	}
 
 	/// Applies a broker snapshot update for ownership or preferred owner changes.
-	pub fn handle_snapshot_update(
-		&mut self,
-		snapshot: DocStateSnapshot,
-		local_session: SessionId,
-	) {
+	pub fn handle_snapshot_update(&mut self, snapshot: DocStateSnapshot, local_session: SessionId) {
 		if let Some(entry) = self.docs.get_mut(&snapshot.uri) {
 			Self::apply_snapshot_state(entry, &snapshot, local_session, false);
 		}
@@ -458,15 +468,14 @@ impl SharedStateManager {
 	}
 
 	/// Collects and clears resync requests for diverged documents.
-	pub fn drain_resync_requests(&mut self) -> Vec<RequestPayload> {
+	pub fn drain_resync_requests(&mut self) -> Vec<ResyncRequest> {
 		let mut requests = Vec::new();
 		for (uri, entry) in &mut self.docs {
 			if entry.needs_resync && !entry.resync_requested {
 				entry.resync_requested = true;
-				requests.push(RequestPayload::SharedResync {
+				requests.push(ResyncRequest {
 					uri: uri.clone(),
-					client_hash64: None,
-					client_len_chars: None,
+					doc_id: entry.doc_id,
 				});
 			}
 		}
@@ -527,8 +536,109 @@ impl SharedStateManager {
 	}
 }
 
+/// Decides whether a snapshot payload should replace local content.
+pub(crate) fn should_apply_snapshot_text(
+	text: &str,
+	snapshot: &DocStateSnapshot,
+	local_len: Option<u64>,
+	local_hash: Option<u64>,
+) -> bool {
+	if !text.is_empty() {
+		return true;
+	}
+
+	match (local_len, local_hash) {
+		(Some(len), Some(hash)) => !(len == snapshot.len_chars && hash == snapshot.hash64),
+		_ => true,
+	}
+}
+
 impl Default for SharedStateManager {
 	fn default() -> Self {
 		Self::new()
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+
+	#[test]
+	fn test_snapshot_apply_when_text_present() {
+		let snapshot = DocStateSnapshot {
+			uri: "file:///test.rs".to_string(),
+			epoch: SyncEpoch(1),
+			seq: SyncSeq(2),
+			owner: None,
+			preferred_owner: None,
+			phase: DocSyncPhase::Unlocked,
+			hash64: 42,
+			len_chars: 5,
+		};
+
+		assert!(should_apply_snapshot_text(
+			"content",
+			&snapshot,
+			Some(5),
+			Some(42)
+		));
+	}
+
+	#[test]
+	fn test_snapshot_apply_skips_matching_empty() {
+		let snapshot = DocStateSnapshot {
+			uri: "file:///test.rs".to_string(),
+			epoch: SyncEpoch(1),
+			seq: SyncSeq(2),
+			owner: None,
+			preferred_owner: None,
+			phase: DocSyncPhase::Owned,
+			hash64: 99,
+			len_chars: 10,
+		};
+
+		assert!(!should_apply_snapshot_text(
+			"",
+			&snapshot,
+			Some(10),
+			Some(99)
+		));
+	}
+
+	#[test]
+	fn test_snapshot_apply_on_empty_mismatch() {
+		let snapshot = DocStateSnapshot {
+			uri: "file:///test.rs".to_string(),
+			epoch: SyncEpoch(1),
+			seq: SyncSeq(2),
+			owner: None,
+			preferred_owner: None,
+			phase: DocSyncPhase::Owned,
+			hash64: 99,
+			len_chars: 10,
+		};
+
+		assert!(should_apply_snapshot_text(
+			"",
+			&snapshot,
+			Some(10),
+			Some(100)
+		));
+	}
+
+	#[test]
+	fn test_snapshot_apply_on_empty_without_fingerprint() {
+		let snapshot = DocStateSnapshot {
+			uri: "file:///test.rs".to_string(),
+			epoch: SyncEpoch(1),
+			seq: SyncSeq(2),
+			owner: None,
+			preferred_owner: None,
+			phase: DocSyncPhase::Owned,
+			hash64: 99,
+			len_chars: 10,
+		};
+
+		assert!(should_apply_snapshot_text("", &snapshot, None, None));
 	}
 }
