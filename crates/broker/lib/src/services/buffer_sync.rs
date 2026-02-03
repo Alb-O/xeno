@@ -59,7 +59,7 @@ pub enum BufferSyncCmd {
 		/// Reply channel for the new sequence number.
 		reply: oneshot::Sender<Result<ResponsePayload, ErrorCode>>,
 	},
-	/// Request to become the document writer.
+	/// Transition the session to the writer role.
 	TakeOwnership {
 		/// The session identity.
 		sid: SessionId,
@@ -68,7 +68,7 @@ pub enum BufferSyncCmd {
 		/// Reply channel for the new epoch.
 		reply: oneshot::Sender<Result<ResponsePayload, ErrorCode>>,
 	},
-	/// Confirm ownership of a document.
+	/// Prove local content alignment for a new owner.
 	OwnerConfirm {
 		/// The session identity.
 		sid: SessionId,
@@ -92,19 +92,19 @@ pub enum BufferSyncCmd {
 		/// Reply channel for the full snapshot.
 		reply: oneshot::Sender<Result<ResponsePayload, ErrorCode>>,
 	},
-	/// Authoritative signal that a session has disconnected.
+	/// Signal that a session has disconnected unexpectedly.
 	SessionLost {
 		/// The lost session identity.
 		sid: SessionId,
 	},
-	/// Internal request for a document snapshot (e.g. for indexing).
+	/// Internal request for a document snapshot triad (epoch, seq, rope).
 	Snapshot {
 		/// Canonical document URI.
 		uri: String,
-		/// Reply channel for the (epoch, seq, rope) triad.
+		/// Reply channel for the triad.
 		reply: oneshot::Sender<Option<(SyncEpoch, SyncSeq, Rope)>>,
 	},
-	/// Checks if a document is currently active in the broker.
+	/// Verifies if a document is currently active in the broker.
 	IsOpen {
 		/// Canonical document URI.
 		uri: String,

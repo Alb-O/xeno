@@ -36,29 +36,30 @@ impl Editor {
 		if let Some(buffer) = self.state.core.buffers.get_buffer(buffer_id) {
 			let doc_id = buffer.document_id();
 			if let Some(uri) = self.state.buffer_sync.uri_for_doc_id(doc_id)
-				&& self.state.buffer_sync.is_edit_blocked(uri) {
-					use crate::buffer_sync::{DeferEditOutcome, PendingEdit};
+				&& self.state.buffer_sync.is_edit_blocked(uri)
+			{
+				use crate::buffer_sync::{DeferEditOutcome, PendingEdit};
 
-					let uri = uri.to_string();
-					let pending = PendingEdit {
-						tx: tx.clone(),
-						selection: new_selection.clone(),
-						undo,
-						origin: origin.clone(),
-					};
+				let uri = uri.to_string();
+				let pending = PendingEdit {
+					tx: tx.clone(),
+					selection: new_selection.clone(),
+					undo,
+					origin: origin.clone(),
+				};
 
-					match self.state.buffer_sync.defer_edit(&uri, pending) {
-						DeferEditOutcome::NeedTakeOwnership(payload) => {
-							let _ = self.state.lsp.buffer_sync_out_tx().send(payload);
-							self.notify(keys::SYNC_TAKING_OWNERSHIP);
-						}
-						DeferEditOutcome::AlreadyAcquiring => {
-							// Already waiting
-						}
-						_ => {}
+				match self.state.buffer_sync.defer_edit(&uri, pending) {
+					DeferEditOutcome::NeedTakeOwnership(payload) => {
+						let _ = self.state.lsp.buffer_sync_out_tx().send(payload);
+						self.notify(keys::SYNC_TAKING_OWNERSHIP);
 					}
-					return false;
+					DeferEditOutcome::AlreadyAcquiring => {
+						// Already waiting
+					}
+					_ => {}
 				}
+				return false;
+			}
 		}
 
 		let focused_view = self.focused_view();

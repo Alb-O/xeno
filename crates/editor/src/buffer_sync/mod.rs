@@ -129,37 +129,40 @@ pub struct PendingEdit {
 
 /// Outcome of attempting to apply an edit to a synced document.
 pub enum DeferEditOutcome {
-	/// Edit allowed to proceed.
+	/// Edit allowed to proceed immediately (session is owner and unblocked).
 	Allowed,
-	/// Edit deferred; ownership request prepared.
+	/// Edit deferred; an ownership request was prepared and should be sent.
 	NeedTakeOwnership(RequestPayload),
-	/// Edit deferred; ownership acquisition already in flight.
+	/// Edit deferred; an ownership acquisition or confirmation is already in flight.
 	AlreadyAcquiring,
-	/// Document not tracked by buffer sync.
+	/// Document is not currently tracked by the buffer sync manager.
 	NotTracked,
 }
 
 /// Need for an ownership confirmation.
+///
+/// Generated when the broker grants ownership but the local session must prove
+/// it is aligned with the authoritative document state before submitting deltas.
 pub struct OwnerConfirmNeed {
-	/// Document URI.
+	/// Canonical document URI.
 	pub uri: String,
-	/// Expected ownership epoch.
+	/// Expected ownership generation.
 	pub epoch: SyncEpoch,
-	/// Target document identifier.
+	/// Local document identifier.
 	pub doc_id: DocumentId,
 }
 
 /// An edit ready to be replayed after gaining ownership.
 pub struct ReplayEdit {
-	/// Target document identifier.
+	/// Local document identifier.
 	pub doc_id: DocumentId,
 	/// Transaction to apply.
 	pub tx: Transaction,
-	/// Selection to apply after the transaction.
+	/// Final selection after the transaction.
 	pub selection: Option<Selection>,
-	/// Undo policy for the edit.
+	/// Undo recording policy.
 	pub undo: UndoPolicy,
-	/// Origin of the edit.
+	/// Metadata about the source of the edit.
 	pub origin: EditOrigin,
 }
 
@@ -178,11 +181,21 @@ struct SyncDocEntry {
 	pending_edits: VecDeque<PendingEdit>,
 }
 
-/// Manages buffer sync state for all documents in this editor session.
+impl SyncDocEntry {
+	fn is_blocked(&self) -> bool {
+		self.role == BufferSyncRole::Follower
+			|| self.needs_resync
+			|| self.acquire_in_flight
+			|| self.owner_confirm_required
+			|| self.owner_confirm_in_flight
+	}
+}
+
+/// Manages cross-process buffer synchronization for all open documents.
 ///
-/// Tracks per-document roles, epochs, and sequences. Handles the state machine
-/// for transitioning between Follower and Owner roles, including deferred edit
-/// queuing and ownership confirmation.
+/// This manager maintains the state machine for transitioning between `Follower`
+/// (read-only) and `Owner` (read-write) roles. It handles edit deferral,
+/// optimistic sequencing, and convergence via alignment fingerprinting.
 pub struct BufferSyncManager {
 	docs: HashMap<String, SyncDocEntry>,
 	uri_to_doc_id: HashMap<String, DocumentId>,
@@ -190,7 +203,7 @@ pub struct BufferSyncManager {
 }
 
 impl BufferSyncManager {
-	/// Creates a new empty manager.
+	/// Creates a new empty sync manager.
 	pub fn new() -> Self {
 		Self {
 			docs: HashMap::new(),
@@ -199,34 +212,24 @@ impl BufferSyncManager {
 		}
 	}
 
-	/// Returns true if an edit for the URI is currently blocked.
+	/// Returns true if mutations for the URI are currently prohibited.
 	///
-	/// Edits are blocked if the session is a follower, or if an ownership
-	/// transition (acquisition or confirmation) is currently in progress.
+	/// Reasons for blocking include being a follower, awaiting ownership grant,
+	/// or performing alignment confirmation.
 	pub fn is_edit_blocked(&self, uri: &str) -> bool {
-		self.docs.get(uri).is_some_and(Self::entry_is_blocked)
+		self.docs.get(uri).is_some_and(SyncDocEntry::is_blocked)
 	}
 
-	fn entry_is_blocked(e: &SyncDocEntry) -> bool {
-		e.role == BufferSyncRole::Follower
-			|| e.needs_resync
-			|| e.acquire_in_flight
-			|| e.owner_confirm_required
-			|| e.owner_confirm_in_flight
-	}
-
-	/// Defer an edit for a blocked document.
+	/// Attempts to defer an edit for a blocked document.
 	///
-	/// If the document is currently a follower and no acquisition is in flight,
-	/// prepares a `TakeOwnership` request. Returns `Allowed` if the document is
-	/// not blocked.
+	/// If the document is not blocked, returns [`DeferEditOutcome::Allowed`].
+	/// If it is a follower, prepares a `TakeOwnership` request.
 	pub fn defer_edit(&mut self, uri: &str, edit: PendingEdit) -> DeferEditOutcome {
-		let blocked = self.is_edit_blocked(uri);
 		let Some(entry) = self.docs.get_mut(uri) else {
 			return DeferEditOutcome::NotTracked;
 		};
 
-		if !blocked {
+		if !entry.is_blocked() {
 			return DeferEditOutcome::Allowed;
 		}
 
@@ -263,12 +266,12 @@ impl BufferSyncManager {
 
 	/// Collects and clears edits ready for replay.
 	///
-	/// Returns deferred edits for documents that have successfully transitioned
-	/// to Owner role and completed confirmation.
+	/// Edits are returned for documents that are no longer blocked and have
+	/// pending transactions in their queue.
 	pub fn drain_replay_edits(&mut self) -> Vec<ReplayEdit> {
 		let mut ready = Vec::new();
 		for entry in self.docs.values_mut() {
-			if !Self::entry_is_blocked(entry) {
+			if !entry.is_blocked() {
 				while let Some(pending) = entry.pending_edits.pop_front() {
 					ready.push(ReplayEdit {
 						doc_id: entry.doc_id,
@@ -327,10 +330,13 @@ impl BufferSyncManager {
 			.flatten()
 	}
 
-	/// Prepares a `BufferSyncDelta` request if this session owns the document.
+	/// Prepares a [`RequestPayload::BufferSyncDelta`] if the session owns the document.
+	///
+	/// Optimistically increments the local sequence number. Returns `None` if
+	/// the document is blocked or not owned.
 	pub fn prepare_delta(&mut self, uri: &str, tx: &Transaction) -> Option<RequestPayload> {
 		let entry = self.docs.get_mut(uri)?;
-		if entry.role != BufferSyncRole::Owner || Self::entry_is_blocked(entry) {
+		if entry.role != BufferSyncRole::Owner || entry.is_blocked() {
 			return None;
 		}
 
@@ -364,8 +370,9 @@ impl BufferSyncManager {
 
 	/// Validates an incoming remote delta and updates the local sequence.
 	///
-	/// Returns the [`DocumentId`] if the delta is contiguous and acceptable.
-	/// If an acquisition is in flight, invalidates pending edits and forces resync.
+	/// Returns the [`DocumentId`] if the delta is contiguous and applies cleanly.
+	/// If an acquisition is in flight, all pending edits are invalidated and
+	/// a resync is forced to ensure convergence.
 	pub fn handle_remote_delta(
 		&mut self,
 		uri: &str,
@@ -378,7 +385,7 @@ impl BufferSyncManager {
 			return None;
 		}
 
-		if Self::entry_is_blocked(entry) || !entry.pending_edits.is_empty() {
+		if entry.is_blocked() || !entry.pending_edits.is_empty() {
 			tracing::info!(
 				uri,
 				"Remote delta received during acquisition, invalidating pending edits"

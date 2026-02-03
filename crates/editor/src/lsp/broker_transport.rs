@@ -28,9 +28,14 @@ use xeno_rpc::{AnyEvent, MainLoop, MainLoopEvent, PeerSocket, RpcService};
 
 /// Transport that communicates with a Xeno broker over a Unix socket.
 ///
-/// This transport is responsible for connecting to the broker daemon and
-/// managing the lifecycle of the connection. If the broker is not running,
-/// it will attempt to spawn it automatically.
+/// This transport manages the lifecycle of the editor's connection to the broker
+/// daemon. If the broker is not running, it attempts to spawn it automatically
+/// as a detached background process.
+///
+/// # Environment Variables
+///
+/// - `XENO_BROKER_BIN`: Path to the `xeno-broker` binary (overrides resolution).
+/// - `XENO_BROKER_SOCKET`: Custom path for the IPC socket.
 pub struct BrokerTransport {
 	session_id: SessionId,
 	socket_path: std::path::PathBuf,
@@ -38,12 +43,12 @@ pub struct BrokerTransport {
 	events_rx: std::sync::Mutex<Option<mpsc::UnboundedReceiver<TransportEvent>>>,
 	rpc: Arc<tokio::sync::Mutex<Option<BrokerRpc>>>,
 
-	/// One FIFO queue per server to track pipelined server-initiated requests.
+	/// FIFO queues for pipelined server-initiated requests (one queue per LSP server).
 	pending_server_requests: Arc<DashMap<ServerId, VecDeque<xeno_lsp::RequestId>>>,
 
-	/// Sender for buffer sync events routed to the editor main loop.
+	/// Internal routing for buffer sync events received via the broker IPC.
 	buffer_sync_tx: mpsc::UnboundedSender<crate::buffer_sync::BufferSyncEvent>,
-	/// Receiver for buffer sync events (taken once by the editor).
+	/// One-time receiver for buffer sync events, taken by the editor main loop.
 	buffer_sync_rx:
 		std::sync::Mutex<Option<mpsc::UnboundedReceiver<crate::buffer_sync::BufferSyncEvent>>>,
 }
@@ -53,11 +58,10 @@ struct BrokerRpc {
 }
 
 impl BrokerTransport {
-	/// Create a new broker transport with the default socket path.
+	/// Create a new broker transport targeting the default socket path.
 	#[must_use]
 	pub fn new() -> Arc<Self> {
-		let socket_path = xeno_broker_proto::paths::default_socket_path();
-		Self::with_socket_path(socket_path)
+		Self::with_socket_path(xeno_broker_proto::paths::default_socket_path())
 	}
 
 	/// Create a new broker transport with a specific socket path and session ID.
@@ -80,22 +84,29 @@ impl BrokerTransport {
 		})
 	}
 
-	/// Returns the session ID for this transport.
+	/// Returns the unique session ID associated with this transport connection.
 	pub fn session_id(&self) -> SessionId {
 		self.session_id
 	}
 
-	/// Takes the buffer sync event receiver (can only be called once).
+	/// Takes the buffer sync event receiver.
 	///
-	/// The editor main loop should drain this channel alongside the LSP transport
-	/// event channel.
+	/// # Panics
+	///
+	/// Panics if called more than once. The receiver must be managed by the
+	/// editor main loop for the lifetime of the session.
 	pub fn take_buffer_sync_events(
 		&self,
 	) -> Option<mpsc::UnboundedReceiver<crate::buffer_sync::BufferSyncEvent>> {
 		self.buffer_sync_rx.lock().unwrap().take()
 	}
 
-	/// Sends a buffer sync request to the broker and returns the response.
+	/// Sends a buffer sync request to the broker and awaits the response.
+	///
+	/// # Errors
+	///
+	/// Returns a protocol error if the broker is unreachable or if the request
+	/// fails at the service layer.
 	pub async fn buffer_sync_request(
 		&self,
 		payload: RequestPayload,
@@ -109,50 +120,46 @@ impl BrokerTransport {
 	}
 
 	fn with_socket_path(socket_path: std::path::PathBuf) -> Arc<Self> {
-		let session_id = SessionId(u64::from(std::process::id()));
+		// Random session ID prevents collisions if PIDs are reused or if multiple
+		// editors run in a shared environment (e.g. Nix builds, containers).
+		let session_id = SessionId(uuid::Uuid::new_v4().as_u64_pair().0);
 		Self::with_socket_and_session(socket_path, session_id)
 	}
 
-	/// Ensure we are connected to the broker.
+	/// Establishes a connection to the broker, spawning it if necessary.
 	async fn ensure_connected(&self, socket_path: &std::path::Path) -> Result<BrokerRpc> {
 		let mut rpc_lock = self.rpc.lock().await;
 		if let Some(rpc) = &*rpc_lock {
-			return Ok(BrokerRpc {
-				socket: rpc.socket.clone(),
-			});
+			return Ok(rpc.clone());
 		}
 
 		let stream = self.connect_or_spawn(socket_path).await?;
 		let (r, w) = stream.into_split();
-		let reader = tokio::io::BufReader::new(r);
-
-		let protocol = BrokerProtocol::new();
-		let id_gen = xeno_rpc::CounterIdGen::new();
-
-		let events_tx = self.events_tx.clone();
-		let pending = self.pending_server_requests.clone();
-		let buffer_sync_tx = self.buffer_sync_tx.clone();
 
 		let (main_loop, socket) = MainLoop::new(
-			move |_| BrokerClientService {
-				tx: events_tx.clone(),
-				pending: pending.clone(),
-				buffer_sync_tx: buffer_sync_tx.clone(),
+			{
+				let events_tx = self.events_tx.clone();
+				let pending = self.pending_server_requests.clone();
+				let buffer_sync_tx = self.buffer_sync_tx.clone();
+				move |_| BrokerClientService {
+					tx: events_tx.clone(),
+					pending: pending.clone(),
+					buffer_sync_tx: buffer_sync_tx.clone(),
+				}
 			},
-			protocol,
-			id_gen,
+			BrokerProtocol::new(),
+			xeno_rpc::CounterIdGen::new(),
 		);
 
 		let rpc_weak = Arc::downgrade(&self.rpc);
 		let pending_weak = Arc::downgrade(&self.pending_server_requests);
-		let events_tx2 = self.events_tx.clone();
+		let events_tx = self.events_tx.clone();
 
 		tokio::spawn(async move {
-			if let Err(e) = main_loop.run(reader, w).await {
-				tracing::error!(error = %e, "broker client mainloop failed");
+			if let Err(e) = main_loop.run(tokio::io::BufReader::new(r), w).await {
+				tracing::error!(error = %e, "Broker client mainloop failed");
 			}
 
-			// Clear cached state on disconnect (only if transport still alive; don't keep it alive)
 			if let Some(rpc_arc) = rpc_weak.upgrade() {
 				*rpc_arc.lock().await = None;
 			}
@@ -160,12 +167,10 @@ impl BrokerTransport {
 				pending_arc.clear();
 			}
 
-			let _ = events_tx2.send(TransportEvent::Disconnected);
+			let _ = events_tx.send(TransportEvent::Disconnected);
 		});
 
-		let rpc = BrokerRpc {
-			socket: socket.clone(),
-		};
+		let rpc = BrokerRpc { socket };
 
 		rpc.call(
 			RequestPayload::Subscribe {
@@ -174,11 +179,9 @@ impl BrokerTransport {
 			Duration::from_secs(5),
 		)
 		.await
-		.map_err(|e| xeno_lsp::Error::Protocol(format!("subscribe failed: {e:?}")))?;
+		.map_err(|e| xeno_lsp::Error::Protocol(format!("Subscribe failed: {e:?}")))?;
 
-		*rpc_lock = Some(BrokerRpc {
-			socket: socket.clone(),
-		});
+		*rpc_lock = Some(rpc.clone());
 		Ok(rpc)
 	}
 

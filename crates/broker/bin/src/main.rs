@@ -1,11 +1,9 @@
-//! Xeno broker binary.
+//! Xeno broker daemon.
 //!
-//! The broker runs as a daemon process and manages:
-//! - LSP server processes
-//! - AI provider connections
-//! - IPC communication with the editor
+//! The broker coordinates multi-session editing and LSP server lifecycle management.
+//! It acts as the central authority for document state and routing.
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use clap::Parser;
 use tokio_util::sync::CancellationToken;
@@ -16,11 +14,11 @@ use tracing::info;
 #[command(name = "xeno-broker")]
 #[command(about = "Xeno language server and AI provider broker")]
 struct Args {
-	/// Socket path for IPC
+	/// Path to the Unix domain socket for IPC.
 	#[arg(short, long, value_name = "PATH")]
 	socket: Option<PathBuf>,
 
-	/// Verbose logging
+	/// Enable verbose debug logging.
 	#[arg(short, long)]
 	verbose: bool,
 }
@@ -28,29 +26,52 @@ struct Args {
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
 	let args = Args::parse();
-
 	setup_tracing(args.verbose);
 
-	info!("starting xeno-broker");
+	info!("Starting xeno-broker");
 
 	let socket_path = args
 		.socket
 		.unwrap_or_else(xeno_broker_proto::paths::default_socket_path);
 
-	if let Some(parent) = socket_path.parent()
-		&& !parent.exists()
-	{
-		std::fs::create_dir_all(parent)?;
-	}
-
-	info!(socket = %socket_path.display(), "IPC socket path");
+	ensure_parent_dir(&socket_path)?;
 
 	let shutdown = CancellationToken::new();
+	spawn_signal_handler(shutdown.clone());
 
-	info!("starting IPC server");
-	xeno_broker::ipc::serve(&socket_path, shutdown).await?;
+	info!(socket = %socket_path.display(), "Starting IPC server");
+	xeno_broker::ipc::serve(&socket_path, shutdown.clone()).await?;
 
+	cleanup_socket(&socket_path);
 	Ok(())
+}
+
+fn ensure_parent_dir(path: &Path) -> std::io::Result<()> {
+	if let Some(parent) = path.parent() {
+		std::fs::create_dir_all(parent)?;
+	}
+	Ok(())
+}
+
+fn spawn_signal_handler(shutdown: CancellationToken) {
+	tokio::spawn(async move {
+		use tokio::signal::unix::{SignalKind, signal};
+		let mut sigterm =
+			signal(SignalKind::terminate()).expect("failed to install SIGTERM handler");
+		let mut sigint = signal(SignalKind::interrupt()).expect("failed to install SIGINT handler");
+
+		tokio::select! {
+			_ = sigterm.recv() => info!("Received SIGTERM, shutting down"),
+			_ = sigint.recv() => info!("Received SIGINT, shutting down"),
+		}
+		shutdown.cancel();
+	});
+}
+
+fn cleanup_socket(path: &Path) {
+	if path.exists() {
+		let _ = std::fs::remove_file(path);
+	}
 }
 
 fn setup_tracing(verbose: bool) {

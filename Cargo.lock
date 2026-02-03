@@ -4674,6 +4674,7 @@ dependencies = [
  "tracing-subscriber",
  "unicode-width 0.2.2",
  "url",
+ "uuid",
  "xeno-broker",
  "xeno-broker-proto",
  "xeno-keymap-core",
