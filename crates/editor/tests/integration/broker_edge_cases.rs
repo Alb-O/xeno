@@ -132,25 +132,39 @@ mod tests {
 			.expect("t2 notify change");
 
 		// Verify server received second didOpen and didChange
-		assert!(
-			wait_until(Duration::from_secs(1), || async {
-				let received = handle.received.lock().unwrap();
-				let opens = received
-					.iter()
-					.filter(
-						|m| matches!(m, Message::Notification(n) if n.method == "textDocument/didOpen"),
-					)
-					.count();
-				let changes = received
-					.iter()
-					.filter(
-						|m| matches!(m, Message::Notification(n) if n.method == "textDocument/didChange"),
-					)
-					.count();
-				opens == 2 && changes == 1
-			})
-			.await
-		);
+		let ok = wait_until(Duration::from_secs(1), || async {
+			let received = handle.received.lock().unwrap();
+			let opens = received
+				.iter()
+				.filter(
+					|m| matches!(m, Message::Notification(n) if n.method == "textDocument/didOpen"),
+				)
+				.count();
+			let changes = received
+				.iter()
+				.filter(
+					|m| matches!(m, Message::Notification(n) if n.method == "textDocument/didChange"),
+				)
+				.count();
+			opens == 2 && changes == 1
+		})
+		.await;
+		if !ok {
+			let received = handle.received.lock().unwrap();
+			let opens = received
+				.iter()
+				.filter(
+					|m| matches!(m, Message::Notification(n) if n.method == "textDocument/didOpen"),
+				)
+				.count();
+			let changes = received
+				.iter()
+				.filter(
+					|m| matches!(m, Message::Notification(n) if n.method == "textDocument/didChange"),
+				)
+				.count();
+			panic!("expected opens=2 changes=1, got opens={opens} changes={changes}");
+		}
 
 		shutdown.cancel();
 	}

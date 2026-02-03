@@ -437,6 +437,7 @@ pub struct BufferSyncService {
 	open_docs_set: Arc<Mutex<HashSet<String>>>,
 	sessions: super::sessions::SessionHandle,
 	knowledge: Option<super::knowledge::KnowledgeHandle>,
+	routing: Option<super::routing::RoutingHandle>,
 }
 
 impl BufferSyncService {
@@ -447,9 +448,11 @@ impl BufferSyncService {
 		BufferSyncHandle,
 		Arc<Mutex<HashSet<String>>>,
 		mpsc::Sender<super::knowledge::KnowledgeHandle>,
+		mpsc::Sender<super::routing::RoutingHandle>,
 	) {
 		let (tx, rx) = mpsc::channel(256);
 		let (knowledge_tx, knowledge_rx) = mpsc::channel(1);
+		let (routing_tx, routing_rx) = mpsc::channel(1);
 		let open_docs_set = Arc::new(Mutex::new(HashSet::new()));
 
 		let service = Self {
@@ -458,16 +461,29 @@ impl BufferSyncService {
 			open_docs_set: open_docs_set.clone(),
 			sessions,
 			knowledge: None,
+			routing: None,
 		};
 
-		tokio::spawn(service.run(knowledge_rx));
+		tokio::spawn(service.run(knowledge_rx, routing_rx));
 
-		(BufferSyncHandle::new(tx), open_docs_set, knowledge_tx)
+		(
+			BufferSyncHandle::new(tx),
+			open_docs_set,
+			knowledge_tx,
+			routing_tx,
+		)
 	}
 
-	async fn run(mut self, mut knowledge_rx: mpsc::Receiver<super::knowledge::KnowledgeHandle>) {
+	async fn run(
+		mut self,
+		mut knowledge_rx: mpsc::Receiver<super::knowledge::KnowledgeHandle>,
+		mut routing_rx: mpsc::Receiver<super::routing::RoutingHandle>,
+	) {
 		if let Some(h) = knowledge_rx.recv().await {
 			self.knowledge = Some(h);
+		}
+		if let Some(h) = routing_rx.recv().await {
+			self.routing = Some(h);
 		}
 
 		let mut idle_tick = interval(IDLE_POLL_INTERVAL);
@@ -486,7 +502,7 @@ impl BufferSyncService {
 							version_hint: _,
 							reply,
 						} => {
-							let result = self.handle_open(sid, &uri, &text);
+							let result = self.handle_open(sid, &uri, &text).await;
 							let _ = reply.send(result);
 						}
 						BufferSyncCmd::Close { sid, uri, reply } => {
@@ -561,13 +577,14 @@ impl BufferSyncService {
 		}
 	}
 
-	fn handle_open(
+	async fn handle_open(
 		&mut self,
 		sid: SessionId,
 		uri_in: &str,
 		text: &str,
 	) -> Result<ResponsePayload, ErrorCode> {
 		let uri = crate::core::normalize_uri(uri_in)?;
+		let mut routing_open = None;
 
 		let (snapshot, text) = match self.sync_docs.get_mut(&uri) {
 			None => {
@@ -586,6 +603,7 @@ impl BufferSyncService {
 				doc.update_fingerprint();
 				doc.add_open(sid);
 				let snapshot = doc.snapshot(&uri);
+				routing_open = Some(doc.rope.to_string());
 				self.sync_docs.insert(uri.clone(), doc);
 				self.open_docs_set.lock().unwrap().insert(uri.clone());
 				(snapshot, None)
@@ -599,7 +617,10 @@ impl BufferSyncService {
 		};
 
 		if let Some(knowledge) = &self.knowledge {
-			let _ = knowledge.doc_dirty(uri);
+			let _ = knowledge.doc_dirty(uri.clone());
+		}
+		if let Some(text) = routing_open {
+			self.notify_lsp_open(uri.clone(), text).await;
 		}
 
 		Ok(ResponsePayload::BufferSyncOpened { snapshot, text })
@@ -611,25 +632,31 @@ impl BufferSyncService {
 		uri_in: &str,
 	) -> Result<ResponsePayload, ErrorCode> {
 		let uri = crate::core::normalize_uri(uri_in)?;
-		let doc = self
-			.sync_docs
-			.get_mut(&uri)
-			.ok_or(ErrorCode::SyncDocNotFound)?;
 		let mut unlock = None;
+		let mut closed = false;
 
-		match doc.remove_open(sid) {
-			RemoveOpenResult::NotParticipant => return Err(ErrorCode::SyncDocNotFound),
-			RemoveOpenResult::Removed => {
-				if doc.participants.is_empty() {
-					self.sync_docs.remove(&uri);
-					self.open_docs_set.lock().unwrap().remove(&uri);
-					return Ok(ResponsePayload::BufferSyncClosed);
+		{
+			let doc = self
+				.sync_docs
+				.get_mut(&uri)
+				.ok_or(ErrorCode::SyncDocNotFound)?;
+
+			match doc.remove_open(sid) {
+				RemoveOpenResult::NotParticipant => return Err(ErrorCode::SyncDocNotFound),
+				RemoveOpenResult::Removed => {
+					if doc.participants.is_empty() {
+						closed = true;
+					} else if doc.owner == Some(sid) {
+						unlock = Some(Self::prepare_unlock(&uri, doc));
+					}
 				}
-				if doc.owner == Some(sid) {
-					unlock = Some(Self::prepare_unlock(&uri, doc));
-				}
+				RemoveOpenResult::Decremented => {}
 			}
-			RemoveOpenResult::Decremented => {}
+		}
+
+		if closed {
+			self.sync_docs.remove(&uri);
+			self.open_docs_set.lock().unwrap().remove(&uri);
 		}
 
 		if let Some((targets, event)) = unlock {
@@ -640,6 +667,9 @@ impl BufferSyncService {
 					None,
 				)
 				.await;
+		}
+		if closed {
+			self.notify_lsp_close(uri).await;
 		}
 
 		Ok(ResponsePayload::BufferSyncClosed)
@@ -654,68 +684,76 @@ impl BufferSyncService {
 		wire_tx: &WireTx,
 	) -> Result<ResponsePayload, ErrorCode> {
 		let uri = crate::core::normalize_uri(uri_in)?;
-		let doc = self
-			.sync_docs
-			.get_mut(&uri)
-			.ok_or(ErrorCode::SyncDocNotFound)?;
+		let (event, lsp_text, participants, seq) = {
+			let doc = self
+				.sync_docs
+				.get_mut(&uri)
+				.ok_or(ErrorCode::SyncDocNotFound)?;
 
-		if doc.owner != Some(sid) {
-			return Err(ErrorCode::NotDocOwner);
-		}
-		if epoch != doc.epoch {
-			return Err(ErrorCode::SyncEpochMismatch);
-		}
-		if base_seq != doc.seq {
-			doc.owner_needs_resync = true;
-			return Err(ErrorCode::SyncSeqMismatch);
-		}
-		if doc.owner_needs_resync {
-			return Err(ErrorCode::OwnerNeedsResync);
-		}
+			if doc.owner != Some(sid) {
+				return Err(ErrorCode::NotDocOwner);
+			}
+			if epoch != doc.epoch {
+				return Err(ErrorCode::SyncEpochMismatch);
+			}
+			if base_seq != doc.seq {
+				doc.owner_needs_resync = true;
+				return Err(ErrorCode::SyncSeqMismatch);
+			}
+			if doc.owner_needs_resync {
+				return Err(ErrorCode::OwnerNeedsResync);
+			}
 
-		if wire_tx.0.len() > MAX_WIRE_TX_OPS {
-			return Err(ErrorCode::InvalidDelta);
-		}
-		let insert_bytes: usize = wire_tx
-			.0
-			.iter()
-			.filter_map(|op| match op {
-				xeno_broker_proto::types::WireOp::Insert(s) => Some(s.len()),
-				_ => None,
-			})
-			.sum();
-		if insert_bytes > MAX_INSERT_BYTES {
-			return Err(ErrorCode::InvalidDelta);
-		}
+			if wire_tx.0.len() > MAX_WIRE_TX_OPS {
+				return Err(ErrorCode::InvalidDelta);
+			}
+			let insert_bytes: usize = wire_tx
+				.0
+				.iter()
+				.filter_map(|op| match op {
+					xeno_broker_proto::types::WireOp::Insert(s) => Some(s.len()),
+					_ => None,
+				})
+				.sum();
+			if insert_bytes > MAX_INSERT_BYTES {
+				return Err(ErrorCode::InvalidDelta);
+			}
 
-		let tx = wire_convert::wire_to_tx(wire_tx, doc.rope.slice(..))
-			.map_err(|_| ErrorCode::InvalidDelta)?;
+			let tx = wire_convert::wire_to_tx(wire_tx, doc.rope.slice(..))
+				.map_err(|_| ErrorCode::InvalidDelta)?;
 
-		tx.apply(&mut doc.rope);
-		doc.seq = SyncSeq(doc.seq.0 + 1);
-		doc.update_fingerprint();
-		doc.touch(sid);
+			tx.apply(&mut doc.rope);
+			doc.seq = SyncSeq(doc.seq.0 + 1);
+			doc.update_fingerprint();
+			doc.touch(sid);
 
-		let event = Event::BufferSyncDelta {
-			uri: uri.clone(),
-			epoch: doc.epoch,
-			seq: doc.seq,
-			tx: wire_tx.clone(),
+			let event = Event::BufferSyncDelta {
+				uri: uri.clone(),
+				epoch: doc.epoch,
+				seq: doc.seq,
+				tx: wire_tx.clone(),
+			};
+			let lsp_text = doc.rope.to_string();
+			let participants = doc.participants.clone();
+			let seq = doc.seq;
+			(event, lsp_text, participants, seq)
 		};
 
 		self.sessions
 			.broadcast(
-				doc.participants.clone(),
+				participants,
 				xeno_broker_proto::types::IpcFrame::Event(event),
 				Some(sid),
 			)
 			.await;
 
+		self.notify_lsp_update(uri.clone(), lsp_text).await;
+
 		if let Some(knowledge) = &self.knowledge {
 			let _ = knowledge.doc_dirty(uri);
 		}
 
-		Ok(ResponsePayload::BufferSyncDeltaAck { seq: doc.seq })
+		Ok(ResponsePayload::BufferSyncDeltaAck { seq })
 	}
 
 	fn handle_activity(
@@ -930,16 +968,14 @@ impl BufferSyncService {
 			.map(|(uri, _)| uri.clone())
 			.collect();
 
+		let mut closed_uris = Vec::new();
 		for uri in uris {
 			let mut unlock = None;
 			if let Some(doc) = self.sync_docs.get_mut(&uri) {
 				doc.remove_participant_all(sid);
 				if doc.participants.is_empty() {
-					self.sync_docs.remove(&uri);
-					self.open_docs_set.lock().unwrap().remove(&uri);
-					continue;
-				}
-				if doc.owner == Some(sid) {
+					closed_uris.push(uri.clone());
+				} else if doc.owner == Some(sid) {
 					unlock = Some(Self::prepare_unlock(&uri, doc));
 				}
 			}
@@ -953,5 +989,31 @@ impl BufferSyncService {
 					.await;
 			}
 		}
+		for uri in closed_uris {
+			self.sync_docs.remove(&uri);
+			self.open_docs_set.lock().unwrap().remove(&uri);
+			self.notify_lsp_close(uri).await;
+		}
+	}
+
+	async fn notify_lsp_open(&self, uri: String, text: String) {
+		let Some(routing) = self.routing.clone() else {
+			return;
+		};
+		routing.lsp_doc_open(uri, text).await;
+	}
+
+	async fn notify_lsp_update(&self, uri: String, text: String) {
+		let Some(routing) = self.routing.clone() else {
+			return;
+		};
+		routing.lsp_doc_update(uri, text).await;
+	}
+
+	async fn notify_lsp_close(&self, uri: String) {
+		let Some(routing) = self.routing.clone() else {
+			return;
+		};
+		routing.lsp_doc_close(uri).await;
 	}
 }

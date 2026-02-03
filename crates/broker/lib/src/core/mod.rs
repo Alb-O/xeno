@@ -48,6 +48,14 @@
 //!     `services::tests::test_routing_diagnostics_replay_after_session_lost`
 //!   - Failure symptom: Newly attached or reconnected editors show no diagnostics until another publish event.
 //!
+//! - Broker-Owned LSP Docs: LSP `didOpen`/`didChange`/`didClose` notifications MUST be emitted
+//!   from broker-owned BufferSync state; session-originated text sync notifications MUST NOT be
+//!   forwarded to servers.
+//!   - Enforced in: `RoutingService::handle_session_text_sync`, `BufferSyncService::handle_open`,
+//!     `BufferSyncService::handle_delta`, `BufferSyncService::handle_close`
+//!   - Tested by: `services::tests::test_routing_lsp_docs_from_sync`
+//!   - Failure symptom: Diagnostics stall or diverge after the originating session disconnects.
+//!
 //! - Atomic Request Registration: S2C requests MUST be registered in the pending map before being transmitted to the leader.
 //!   - Enforced in: `RoutingService::handle_begin_s2c`
 //!   - Tested by: `services::tests::test_s2c_registration_order`
@@ -62,9 +70,10 @@
 //!
 //! 1. Editor -> Broker (IPC): Request received by [`BrokerService`], dispatched to relevant service handle.
 //! 2. Service -> Service (MPSC): Services communicate via internal handles (e.g. [`BufferSyncService`] signals [`KnowledgeService`]).
-//! 3. Broker -> LSP (Stdio): [`RoutingService`] transmits messages via [`LspProxyService`].
-//! 4. LSP -> Broker (Stdio): Inbound messages received by [`LspProxyService`], routed back to [`RoutingService`].
-//! 5. Broker -> Editor (IPC): [`SessionService`] transmits events or responses back to the connected socket.
+//! 3. BufferSync -> Routing: Authoritative text updates drive broker-owned LSP `didOpen`/`didChange`/`didClose`.
+//! 4. Broker -> LSP (Stdio): [`RoutingService`] transmits messages via [`LspProxyService`].
+//! 5. LSP -> Broker (Stdio): Inbound messages received by [`LspProxyService`], routed back to [`RoutingService`].
+//! 6. Broker -> Editor (IPC): [`SessionService`] transmits events or responses back to the connected socket.
 //!
 //! # Lifecycle
 //!
@@ -72,6 +81,7 @@
 //! - Session: `Subscribe` registers a sink in [`SessionService`]. Drop cleans up via `Unregister`.
 //! - Server: `LspStart` triggers process spawn; idle lease timer manages termination when all sessions detach.
 //! - Sync: `BufferSyncService` releases ownership on idle, explicit release, or disconnect, broadcasting unlocks before new owners confirm.
+//! - LSP Docs: Broker-owned LSP documents open on first BufferSync open and close on final BufferSync close.
 //! - Shutdown: `BrokerRuntime::shutdown` triggers `TerminateAll` in the routing service, killing all LSP processes.
 //!
 //! # Concurrency & ordering

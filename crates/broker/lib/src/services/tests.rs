@@ -69,9 +69,9 @@ async fn setup_sync_harness() -> SyncHarness {
 
 	let (dummy_routing_tx, dummy_routing_rx) = mpsc::channel(8);
 	let dummy_routing = routing::RoutingHandle::new(dummy_routing_tx);
-	let _ = routing_tx.send(dummy_routing).await;
+	let _ = routing_tx.send(dummy_routing.clone()).await;
 
-	let (sync, open_docs, knowledge_tx) =
+	let (sync, open_docs, knowledge_tx, sync_routing_tx) =
 		buffer_sync::BufferSyncService::start(sessions_handle.clone());
 
 	let (knowledge_sender, mut knowledge_rx) = mpsc::channel(8);
@@ -80,6 +80,7 @@ async fn setup_sync_harness() -> SyncHarness {
 	tokio::spawn(async move { while knowledge_rx.recv().await.is_some() {} });
 
 	let _ = sync_tx.send(sync.clone()).await;
+	let _ = sync_routing_tx.send(dummy_routing).await;
 	tokio::task::yield_now().await;
 
 	SyncHarness {
@@ -1097,6 +1098,84 @@ async fn test_routing_diagnostics_replay_after_session_lost() {
 		Event::LspDiagnostics { uri, .. } => assert_eq!(uri, "file:///test.rs"),
 		other => panic!("unexpected event: {other:?}"),
 	}
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn test_routing_lsp_docs_from_sync() {
+	let harness = setup_routing_harness(Duration::from_secs(300)).await;
+	let session1 = TestSession::new(1);
+
+	harness
+		.sessions
+		.register(session1.session_id, session1.sink.clone())
+		.await;
+
+	let config = test_config("rust-analyzer", "/project1");
+	let server_id = harness
+		.routing
+		.lsp_start(session1.session_id, config)
+		.await
+		.unwrap();
+
+	let did_open = serde_json::json!({
+		"method": "textDocument/didOpen",
+		"params": {
+			"textDocument": {
+				"uri": "file:///test.rs",
+				"languageId": "rust",
+				"version": 1,
+				"text": "let a = 1;"
+			}
+		}
+	})
+	.to_string();
+	harness
+		.routing
+		.lsp_send_notif(session1.session_id, server_id, did_open)
+		.await
+		.unwrap();
+
+	let handle = harness.launcher.get_server(server_id).expect("server handle");
+
+	let wait_for = |method: &'static str| {
+		let handle = handle.clone();
+		async move {
+			tokio::time::timeout(Duration::from_secs(1), async {
+				loop {
+					let found = {
+						let received = handle.received.lock().unwrap();
+						received.iter().any(|msg| match msg {
+							xeno_lsp::Message::Notification(n) => n.method == method,
+							_ => false,
+						})
+					};
+					if found {
+						break;
+					}
+					tokio::time::sleep(Duration::from_millis(10)).await;
+				}
+			})
+			.await
+			.expect("timeout waiting for LSP notification");
+		}
+	};
+
+	wait_for("textDocument/didOpen").await;
+
+	harness
+		.routing
+		.lsp_doc_update("file:///test.rs".to_string(), "let a = 2;".to_string())
+		.await;
+	wait_for("textDocument/didChange").await;
+
+	harness.routing.session_lost(session1.session_id).await;
+	tokio::task::yield_now().await;
+
+	harness
+		.routing
+		.lsp_doc_close("file:///test.rs".to_string())
+		.await;
+	wait_for("textDocument/didClose").await;
 }
 
 #[tokio::test(flavor = "current_thread")]

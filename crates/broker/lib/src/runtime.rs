@@ -29,7 +29,7 @@ impl BrokerRuntime {
 	#[must_use]
 	pub fn new(idle_lease: Duration, launcher: Arc<dyn LspLauncher>) -> Arc<Self> {
 		let (sessions, sessions_routing_tx, sessions_sync_tx) = sessions::SessionService::start();
-		let (sync, open_docs, sync_knowledge_tx) =
+		let (sync, open_docs, sync_knowledge_tx, sync_routing_tx) =
 			buffer_sync::BufferSyncService::start(sessions.clone());
 		let knowledge = knowledge::KnowledgeService::start(sync.clone(), open_docs);
 
@@ -44,6 +44,7 @@ impl BrokerRuntime {
 
 		let _ = sessions_routing_tx.send(routing.clone());
 		let _ = sessions_sync_tx.send(sync.clone());
+		let _ = sync_routing_tx.send(routing.clone());
 
 		Arc::new(Self {
 			sessions,
