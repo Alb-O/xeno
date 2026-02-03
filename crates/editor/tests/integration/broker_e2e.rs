@@ -121,6 +121,116 @@ mod tests {
 	}
 
 	#[tokio::test]
+	async fn test_broker_diagnostics_replayed_to_new_session() {
+		let (sock, runtime, launcher, shutdown, _tmp): SpawnedBroker = spawn_broker().await;
+
+		let t1 = BrokerTransport::with_socket_and_session(sock.clone(), SessionId(1));
+		let mut rx1 = t1.events();
+
+		let cfg = test_server_config();
+		let s1: StartedServer = LspTransport::start(t1.as_ref(), cfg.clone())
+			.await
+			.expect("t1 start");
+		let server_id = ServerId(s1.id.0);
+
+		let did_open: AnyNotification = serde_json::from_str(
+			r#"{
+			"method": "textDocument/didOpen",
+			"params": {
+				"textDocument": {
+					"uri": "file:///test.rs",
+					"languageId": "rust",
+					"version": 1,
+					"text": "test content"
+				}
+			}
+		}"#,
+		)
+		.unwrap();
+		LspTransport::notify(t1.as_ref(), s1.id, did_open)
+			.await
+			.expect("t1 notify");
+		t1.buffer_sync_request(RequestPayload::BufferSyncOpen {
+			uri: "file:///test.rs".to_string(),
+			text: "test content".to_string(),
+			version_hint: Some(1),
+		})
+		.await
+		.expect("buffer sync open");
+
+		let mut attempts = 0;
+		let handle = loop {
+			if let Some(h) = launcher.get_server(server_id) {
+				tokio::time::sleep(Duration::from_millis(100)).await;
+				break h;
+			}
+			tokio::time::sleep(Duration::from_millis(10)).await;
+			attempts += 1;
+			if attempts > 50 {
+				panic!("Timeout waiting for server handle");
+			}
+		};
+
+		let mut attempts = 0;
+		while !runtime.sync.is_open("file:///test.rs".to_string()).await {
+			tokio::time::sleep(Duration::from_millis(10)).await;
+			attempts += 1;
+			if attempts > 100 {
+				panic!("Timeout waiting for document registration in broker");
+			}
+		}
+
+		let diags = serde_json::json!({
+			"method": "textDocument/publishDiagnostics",
+			"params": {
+				"uri": "file:///test.rs",
+				"diagnostics": []
+			}
+		});
+		let msg = Message::Notification(serde_json::from_value(diags).unwrap());
+		handle
+			.server_socket
+			.send(MainLoopEvent::Outgoing(msg))
+			.expect("send diags");
+
+		let mut received = false;
+		tokio::time::timeout(Duration::from_secs(2), async {
+			while let Some(event) = rx1.recv().await {
+				if matches!(event, TransportEvent::Diagnostics { uri, .. } if uri == "file:///test.rs")
+				{
+					received = true;
+					break;
+				}
+			}
+		})
+		.await
+		.expect("Timeout waiting for diagnostics");
+		assert!(received, "t1 did not receive diagnostics");
+
+		let t2 = BrokerTransport::with_socket_and_session(sock.clone(), SessionId(2));
+		let mut rx2 = t2.events();
+		let _s2: StartedServer = LspTransport::start(t2.as_ref(), cfg)
+			.await
+			.expect("t2 start");
+
+		let mut replayed = false;
+		tokio::time::timeout(Duration::from_secs(2), async {
+			while let Some(event) = rx2.recv().await {
+				if matches!(event, TransportEvent::Diagnostics { uri, .. } if uri == "file:///test.rs")
+				{
+					replayed = true;
+					break;
+				}
+			}
+		})
+		.await
+		.expect("Timeout waiting for replayed diagnostics");
+		assert!(replayed, "t2 did not receive replayed diagnostics");
+
+		shutdown.cancel();
+	}
+
+	#[tokio::test]
 	async fn test_broker_e2e_leader_routing_and_reply() {
 		let (sock, _runtime, launcher, shutdown, _tmp): crate::common::SpawnedBroker =
 			spawn_broker().await;

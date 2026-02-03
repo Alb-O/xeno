@@ -957,6 +957,76 @@ async fn test_routing_leader_selection_and_delivery() {
 }
 
 #[tokio::test(flavor = "current_thread")]
+async fn test_routing_diagnostics_replay_on_attach() {
+	let harness = setup_routing_harness(Duration::from_secs(300)).await;
+	let mut session1 = TestSession::new(1);
+	let mut session2 = TestSession::new(2);
+
+	harness
+		.sessions
+		.register(session1.session_id, session1.sink.clone())
+		.await;
+
+	let config = test_config("rust-analyzer", "/project1");
+	let server_id = harness
+		.routing
+		.lsp_start(session1.session_id, config.clone())
+		.await
+		.unwrap();
+
+	let did_open = serde_json::json!({
+		"method": "textDocument/didOpen",
+		"params": {
+			"textDocument": {
+				"uri": "file:///test.rs",
+				"languageId": "rust",
+				"version": 1,
+				"text": "test content"
+			}
+		}
+	})
+	.to_string();
+
+	harness
+		.routing
+		.lsp_send_notif(session1.session_id, server_id, did_open)
+		.await
+		.unwrap();
+
+	let diag = xeno_lsp::Message::Notification(xeno_lsp::AnyNotification::new(
+		"textDocument/publishDiagnostics",
+		serde_json::json!({
+			"uri": "file:///test.rs",
+			"diagnostics": []
+		}),
+	));
+	let diag_message = serde_json::to_string(&diag).unwrap();
+	harness.routing.server_notif(server_id, diag_message).await;
+
+	let event = session1.recv_event().await.expect("diag event");
+	match event {
+		Event::LspDiagnostics { uri, .. } => assert_eq!(uri, "file:///test.rs"),
+		other => panic!("unexpected event: {other:?}"),
+	}
+
+	harness
+		.sessions
+		.register(session2.session_id, session2.sink.clone())
+		.await;
+	let _server_id2 = harness
+		.routing
+		.lsp_start(session2.session_id, config)
+		.await
+		.unwrap();
+
+	let event = session2.recv_event().await.expect("replayed diag");
+	match event {
+		Event::LspDiagnostics { uri, .. } => assert_eq!(uri, "file:///test.rs"),
+		other => panic!("unexpected event: {other:?}"),
+	}
+}
+
+#[tokio::test(flavor = "current_thread")]
 async fn test_session_lost_cancels_pending_and_reselects_leader() {
 	let harness = setup_routing_harness(Duration::from_secs(300)).await;
 	let session1 = TestSession::new(1);

@@ -535,6 +535,30 @@ impl RoutingService {
 			server.leader = min_id;
 		}
 		server.lease_gen += 1;
+		let cached = server
+			.docs
+			.diagnostics_by_uri
+			.iter()
+			.map(|(uri, diag)| {
+				Event::LspDiagnostics {
+					server_id,
+					doc_id: server.docs.by_uri.get(uri).map(|(id, _)| *id),
+					uri: uri.clone(),
+					version: diag.version,
+					diagnostics: diag.diagnostics.clone(),
+				}
+			})
+			.collect::<Vec<_>>();
+		if !cached.is_empty() {
+			let sessions = self.sessions.clone();
+			tokio::spawn(async move {
+				for event in cached {
+					sessions
+						.send(session_id, xeno_broker_proto::types::IpcFrame::Event(event))
+						.await;
+				}
+			});
+		}
 		true
 	}
 
@@ -648,7 +672,7 @@ impl RoutingService {
 				}
 				for uri in to_remove {
 					server.doc_owners.by_uri.remove(&uri);
-					server.docs.by_uri.remove(&uri);
+					server.docs.remove(&uri);
 				}
 				if server.attached.is_empty() {
 					server.lease_gen += 1;
@@ -926,7 +950,7 @@ impl RoutingService {
 					}
 					if os.open_refcounts.values().sum::<u32>() == 0 {
 						server.doc_owners.by_uri.remove(uri);
-						server.docs.by_uri.remove(uri);
+						server.docs.remove(uri);
 						DocGateDecision::Forward
 					} else {
 						DocGateDecision::DropSilently
@@ -938,40 +962,46 @@ impl RoutingService {
 	}
 
 	async fn handle_server_notif(&mut self, server_id: ServerId, message: String) {
-		let Some(server) = self.servers.get(&server_id) else {
-			return;
+		let (attached, event) = {
+			let Some(server) = self.servers.get_mut(&server_id) else {
+				return;
+			};
+
+			let attached: Vec<_> = server.attached.iter().cloned().collect();
+			if attached.is_empty() {
+				return;
+			}
+
+			let mut diagnostics_event = None;
+
+			if let Ok(msg) = serde_json::from_str::<xeno_lsp::Message>(&message)
+				&& let xeno_lsp::Message::Notification(notif) = msg
+				&& notif.method == "textDocument/publishDiagnostics"
+				&& let Some(uri) = notif.params.get("uri").and_then(|u| u.as_str())
+				&& let Some(diagnostics) = notif.params.get("diagnostics")
+				&& let Ok(diagnostics) = serde_json::to_string(diagnostics)
+			{
+				let version = notif
+					.params
+					.get("version")
+					.and_then(|v| v.as_u64())
+					.map(|v| v as u32);
+				server
+					.docs
+					.update_diagnostics(uri.to_string(), version, diagnostics.clone());
+				let doc_id = server.docs.by_uri.get(uri).map(|(id, _)| *id);
+				diagnostics_event = Some(Event::LspDiagnostics {
+					server_id,
+					doc_id,
+					uri: uri.to_string(),
+					version,
+					diagnostics,
+				});
+			}
+
+			let event = diagnostics_event.unwrap_or(Event::LspMessage { server_id, message });
+			(attached, event)
 		};
-
-		let attached: Vec<_> = server.attached.iter().cloned().collect();
-		if attached.is_empty() {
-			return;
-		}
-
-		let mut diagnostics_event = None;
-
-		if let Ok(msg) = serde_json::from_str::<xeno_lsp::Message>(&message)
-			&& let xeno_lsp::Message::Notification(notif) = msg
-			&& notif.method == "textDocument/publishDiagnostics"
-			&& let Some(uri) = notif.params.get("uri").and_then(|u| u.as_str())
-			&& let Some(diagnostics) = notif.params.get("diagnostics")
-			&& let Ok(diagnostics) = serde_json::to_string(diagnostics)
-		{
-			let doc_id = server.docs.by_uri.get(uri).map(|(id, _)| *id);
-			let version = notif
-				.params
-				.get("version")
-				.and_then(|v| v.as_u64())
-				.map(|v| v as u32);
-			diagnostics_event = Some(Event::LspDiagnostics {
-				server_id,
-				doc_id,
-				uri: uri.to_string(),
-				version,
-				diagnostics,
-			});
-		}
-
-		let event = diagnostics_event.unwrap_or(Event::LspMessage { server_id, message });
 		self.sessions
 			.broadcast(
 				attached,

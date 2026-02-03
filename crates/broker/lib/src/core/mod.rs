@@ -41,6 +41,12 @@
 //!   - Tested by: `services::tests::test_buffer_sync_idle_unlocks_owner`
 //!   - Failure symptom: An inactive owner blocks other sessions from becoming writable.
 //!
+//! - Diagnostics Replay: The broker MUST cache the latest `publishDiagnostics` payload per
+//!   document and replay it to newly attached sessions.
+//!   - Enforced in: `RoutingService::handle_server_notif`, `RoutingService::attach_session`
+//!   - Tested by: `services::tests::test_routing_diagnostics_replay_on_attach`
+//!   - Failure symptom: Newly attached editors show no diagnostics until another publish event.
+//!
 //! - Atomic Request Registration: S2C requests MUST be registered in the pending map before being transmitted to the leader.
 //!   - Enforced in: `RoutingService::handle_begin_s2c`
 //!   - Tested by: `services::tests::test_s2c_registration_order`

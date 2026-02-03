@@ -6,11 +6,22 @@ use std::collections::HashMap;
 
 use xeno_broker_proto::types::{DocId, SessionId};
 
+/// Cached diagnostics payload for a document.
+#[derive(Debug, Clone)]
+pub struct DocDiagnostics {
+	/// Optional document version from the LSP server.
+	pub version: Option<u32>,
+	/// Diagnostics JSON payload.
+	pub diagnostics: String,
+}
+
 /// Registry of document identities and versions for an LSP server.
 #[derive(Debug, Default)]
 pub struct DocRegistry {
 	/// Map of URI to (DocId, last_version).
 	pub by_uri: HashMap<String, (DocId, u32)>,
+	/// Cached diagnostics keyed by URI.
+	pub diagnostics_by_uri: HashMap<String, DocDiagnostics>,
 	next_doc_id: u64,
 }
 
@@ -24,6 +35,28 @@ impl DocRegistry {
 			self.next_doc_id += 1;
 			self.by_uri.insert(uri, (id, version));
 		}
+	}
+
+	/// Removes all registry state for a document.
+	pub fn remove(&mut self, uri: &str) {
+		self.by_uri.remove(uri);
+		self.diagnostics_by_uri.remove(uri);
+	}
+
+	/// Stores the last diagnostics payload for a document.
+	pub fn update_diagnostics(&mut self, uri: String, version: Option<u32>, diagnostics: String) {
+		self.diagnostics_by_uri.insert(
+			uri,
+			DocDiagnostics {
+				version,
+				diagnostics,
+			},
+		);
+	}
+
+	/// Returns the cached diagnostics payload for a document.
+	pub fn cached_diagnostics(&self, uri: &str) -> Option<&DocDiagnostics> {
+		self.diagnostics_by_uri.get(uri)
 	}
 }
 
