@@ -37,9 +37,13 @@ impl DocRegistry {
 		}
 	}
 
-	/// Removes all registry state for a document.
+	/// Removes document identity state without clearing cached diagnostics.
 	pub fn remove(&mut self, uri: &str) {
 		self.by_uri.remove(uri);
+	}
+
+	/// Clears cached diagnostics for a document.
+	pub fn clear_diagnostics(&mut self, uri: &str) {
 		self.diagnostics_by_uri.remove(uri);
 	}
 

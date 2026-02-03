@@ -968,10 +968,6 @@ impl RoutingService {
 			};
 
 			let attached: Vec<_> = server.attached.iter().cloned().collect();
-			if attached.is_empty() {
-				return;
-			}
-
 			let mut diagnostics_event = None;
 
 			if let Ok(msg) = serde_json::from_str::<xeno_lsp::Message>(&message)
@@ -1002,6 +998,9 @@ impl RoutingService {
 			let event = diagnostics_event.unwrap_or(Event::LspMessage { server_id, message });
 			(attached, event)
 		};
+		if attached.is_empty() {
+			return;
+		}
 		self.sessions
 			.broadcast(
 				attached,
