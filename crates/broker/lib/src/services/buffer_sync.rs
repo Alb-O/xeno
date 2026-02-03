@@ -16,8 +16,6 @@ use crate::wire_convert;
 const MAX_WIRE_TX_OPS: usize = 100_000;
 /// Maximum bytes allowed for string inserts in a single wire transaction.
 const MAX_INSERT_BYTES: usize = 8 * 1024 * 1024;
-/// Maximum bytes allowed for a full document snapshot.
-const MAX_SNAPSHOT_BYTES: usize = 32 * 1024 * 1024;
 
 /// Commands for the buffer sync service actor.
 #[derive(Debug)]

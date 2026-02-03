@@ -12,6 +12,8 @@ use xeno_registry::commands::CommandError;
 use xeno_registry::{HookContext, HookEventData, emit as emit_hook};
 
 use super::Editor;
+#[cfg(feature = "lsp")]
+use super::buffer_ops::sync_uri_for_path;
 
 impl xeno_registry::FileOpsAccess for Editor {
 	fn is_modified(&self) -> bool {
@@ -116,6 +118,55 @@ impl Editor {
 		buffer.set_cursor_and_selection(0, xeno_primitives::Selection::point(0));
 
 		let file_type = buffer.file_type();
+
+		#[cfg(feature = "lsp")]
+		{
+			let doc_id = buffer.document_id();
+			// 1. Initialize Buffer Sync (authoritative content)
+			if self.state.buffer_sync.uri_for_doc_id(doc_id).is_none()
+				&& let Some(uri) = sync_uri_for_path(&path)
+			{
+				let text = rope.to_string();
+				let payload = self.state.buffer_sync.prepare_open(&uri, &text, doc_id);
+				let _ = self.state.lsp.buffer_sync_out_tx().send(payload);
+			}
+
+			// 2. Initialize standard LSP session
+			if let Some(language) = &file_type
+				&& self.state.lsp.registry().get_config(language).is_some()
+			{
+				let abs_path = path
+					.canonicalize()
+					.unwrap_or_else(|_| std::env::current_dir().unwrap_or_default().join(&path));
+
+				let version = buffer.with_doc(|doc| doc.version());
+				let supports_incremental = self
+					.state
+					.lsp
+					.incremental_encoding_for_buffer(buffer)
+					.is_some();
+
+				self.state.lsp.sync_manager_mut().on_doc_open(
+					doc_id,
+					crate::lsp::sync_manager::LspDocumentConfig {
+						path: abs_path.clone(),
+						language: language.clone(),
+						supports_incremental,
+					},
+					version,
+				);
+
+				let sync = self.state.lsp.sync_clone();
+				let content = rope.to_string();
+				let language = language.clone();
+				tokio::spawn(async move {
+					if let Err(e) = sync.open_document_text(&abs_path, &language, content).await {
+						tracing::warn!(path = %abs_path.display(), language, error = %e, "Async LSP init failed");
+					}
+				});
+			}
+		}
+
 		crate::impls::emit_hook_sync_with(
 			&HookContext::new(HookEventData::BufferOpen {
 				path: &path,

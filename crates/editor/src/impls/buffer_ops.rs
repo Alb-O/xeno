@@ -198,10 +198,18 @@ impl Editor {
 	///
 	/// Called after first frame setup to ensure Time-To-First-Paint (TTFP) is
 	/// not blocked by LSP server spawning. Deduplicates by [`DocumentId`].
+	///
+	/// Skips documents currently being loaded in the background to avoid
+	/// initializing the broker with empty content.
 	#[cfg(feature = "lsp")]
 	pub fn kick_lsp_init_for_open_buffers(&mut self) {
 		use std::collections::HashSet;
 		use std::path::PathBuf;
+
+		let loading = self.state.loading_file.as_ref().map(|p| {
+			p.canonicalize()
+				.unwrap_or_else(|_| std::env::current_dir().unwrap_or_default().join(p))
+		});
 
 		let mut seen_docs = HashSet::new();
 		let specs: Vec<(PathBuf, String, String)> = self
@@ -217,11 +225,16 @@ impl Editor {
 				}
 
 				let path = buffer.path()?;
-				let language = buffer.file_type()?;
-				self.state.lsp.registry().get_config(&language)?;
 				let abs_path = path
 					.canonicalize()
 					.unwrap_or_else(|_| std::env::current_dir().unwrap_or_default().join(path));
+
+				if loading.as_ref().is_some_and(|p| p == &abs_path) {
+					return None;
+				}
+
+				let language = buffer.file_type()?;
+				self.state.lsp.registry().get_config(&language)?;
 				let content = buffer.with_doc(|doc| doc.content().to_string());
 
 				let version = buffer.with_doc(|doc| doc.version());
@@ -244,44 +257,55 @@ impl Editor {
 			})
 			.collect();
 
-		if specs.is_empty() {
-			return;
-		}
+		if !specs.is_empty() {
+			tracing::debug!(count = specs.len(), "Kicking background LSP init");
+			let sync = self.state.lsp.sync_clone();
 
-		{
-			let sync_specs: Vec<_> = self
-				.state
-				.core
-				.buffers
-				.buffer_ids()
-				.filter_map(|id| {
-					let buffer = self.state.core.buffers.get_buffer(id)?;
-					let path = buffer.path()?;
-					let doc_id = buffer.document_id();
-					if self.state.buffer_sync.uri_for_doc_id(doc_id).is_some() {
-						return None;
+			tokio::spawn(async move {
+				for (path, language, content) in specs {
+					if let Err(e) = sync.open_document_text(&path, &language, content).await {
+						tracing::warn!(path = %path.display(), language, error = %e, "Background LSP init failed");
 					}
-					let uri = sync_uri_for_path(&path)?;
-					let text = buffer.with_doc(|doc| doc.content().to_string());
-					Some((uri, text, doc_id))
-				})
-				.collect();
-			for (uri, text, doc_id) in sync_specs {
-				let payload = self.state.buffer_sync.prepare_open(&uri, &text, doc_id);
-				let _ = self.state.lsp.buffer_sync_out_tx().send(payload);
-			}
+				}
+			});
 		}
 
-		tracing::debug!(count = specs.len(), "Kicking background LSP init");
-		let sync = self.state.lsp.sync_clone();
+		let mut seen_sync_docs = HashSet::new();
+		let sync_specs: Vec<_> = self
+			.state
+			.core
+			.buffers
+			.buffer_ids()
+			.filter_map(|id| {
+				let buffer = self.state.core.buffers.get_buffer(id)?;
+				let path = buffer.path()?;
+				let abs_path = path
+					.canonicalize()
+					.unwrap_or_else(|_| std::env::current_dir().unwrap_or_default().join(path));
 
-		tokio::spawn(async move {
-			for (path, language, content) in specs {
-				if let Err(e) = sync.open_document_text(&path, &language, content).await {
-					tracing::warn!(path = %path.display(), language, error = %e, "Background LSP init failed");
+				if loading.as_ref().is_some_and(|p| p == &abs_path) {
+					return None;
 				}
-			}
-		});
+
+				let doc_id = buffer.document_id();
+				if !seen_sync_docs.insert(doc_id) {
+					return None;
+				}
+
+				if self.state.buffer_sync.uri_for_doc_id(doc_id).is_some() {
+					return None;
+				}
+
+				let uri = sync_uri_for_path(&abs_path)?;
+				let text = buffer.with_doc(|doc| doc.content().to_string());
+				Some((uri, text, doc_id))
+			})
+			.collect();
+
+		for (uri, text, doc_id) in sync_specs {
+			let payload = self.state.buffer_sync.prepare_open(&uri, &text, doc_id);
+			let _ = self.state.lsp.buffer_sync_out_tx().send(payload);
+		}
 	}
 
 	#[cfg(not(feature = "lsp"))]
@@ -323,11 +347,49 @@ impl Editor {
 /// Uses `url::Url::from_file_path` to handle spaces, unicode, and special
 /// characters consistently across processes.
 #[cfg(feature = "lsp")]
-fn sync_uri_for_path(path: &std::path::Path) -> Option<String> {
+pub(crate) fn sync_uri_for_path(path: &std::path::Path) -> Option<String> {
 	let canonical = path
 		.canonicalize()
 		.unwrap_or_else(|_| std::env::current_dir().unwrap_or_default().join(path));
 	url::Url::from_file_path(&canonical)
 		.ok()
 		.map(|u| u.to_string())
+}
+
+#[cfg(test)]
+mod tests {
+	use std::path::PathBuf;
+
+	use super::*;
+
+	#[test]
+	fn test_kick_lsp_init_skips_loading_files() {
+		let mut editor = Editor::new_scratch();
+		let path = PathBuf::from("/test.rs");
+
+		// Simulate background load starting
+		editor.state.loading_file = Some(path.clone());
+
+		// Create buffer for that path (empty placeholder)
+		let buffer_id = editor.open_buffer_sync(String::new(), Some(path.clone()));
+		let doc_id = editor
+			.state
+			.core
+			.buffers
+			.get_buffer(buffer_id)
+			.unwrap()
+			.document_id();
+
+		// Kick init (simulates CatalogReady)
+		editor.kick_lsp_init_for_open_buffers();
+
+		// Verify it was SKIPPED (not tracked by buffer sync yet)
+		assert!(editor.state.buffer_sync.uri_for_doc_id(doc_id).is_none());
+
+		// Now finish the load
+		editor.apply_loaded_file(path, ropey::Rope::from_str("real content"), false);
+
+		// Verify it WAS initialized after load finished
+		assert!(editor.state.buffer_sync.uri_for_doc_id(doc_id).is_some());
+	}
 }
