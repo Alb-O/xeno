@@ -539,6 +539,9 @@ struct BrokerClientService {
 	buffer_sync_tx: mpsc::UnboundedSender<crate::buffer_sync::BufferSyncEvent>,
 }
 
+#[derive(Debug)]
+struct BrokerTransportShutdown;
+
 impl tower_service::Service<Request> for BrokerClientService {
 	type Response = ResponsePayload;
 	type Error = ErrorCode;
@@ -635,42 +638,25 @@ impl RpcService<BrokerProtocol> for BrokerClientService {
 						});
 			}
 			Event::BufferSyncOwnerChanged {
-				uri,
-				epoch,
-				owner,
-				hash64,
-				len_chars,
-			} => {
-				let _ =
-					self.buffer_sync_tx
-						.send(crate::buffer_sync::BufferSyncEvent::OwnerChanged {
-							uri,
-							epoch,
-							owner,
-							hash64,
-							len_chars,
-						});
-			}
-			Event::BufferSyncUnlocked {
-				uri,
-				epoch,
-				hash64,
-				len_chars,
+				snapshot,
 			} => {
 				let _ = self
 					.buffer_sync_tx
-					.send(crate::buffer_sync::BufferSyncEvent::Unlocked {
-						uri,
-						epoch,
-						hash64,
-						len_chars,
-					});
+					.send(crate::buffer_sync::BufferSyncEvent::OwnerChanged { snapshot });
+			}
+			Event::BufferSyncUnlocked { snapshot } => {
+				let _ = self
+					.buffer_sync_tx
+					.send(crate::buffer_sync::BufferSyncEvent::Unlocked { snapshot });
 			}
 		}
 		ControlFlow::Continue(())
 	}
 
-	fn emit(&mut self, _event: AnyEvent) -> ControlFlow<std::result::Result<(), Self::LoopError>> {
+	fn emit(&mut self, event: AnyEvent) -> ControlFlow<std::result::Result<(), Self::LoopError>> {
+		if event.is::<BrokerTransportShutdown>() {
+			return ControlFlow::Break(Ok(()));
+		}
 		ControlFlow::Continue(())
 	}
 }
@@ -679,6 +665,33 @@ impl Clone for BrokerRpc {
 	fn clone(&self) -> Self {
 		Self {
 			socket: self.socket.clone(),
+		}
+	}
+}
+
+fn send_shutdown(rpc: &mut Option<BrokerRpc>) {
+	if let Some(rpc) = rpc.take() {
+		let _ = rpc.socket.emit(BrokerTransportShutdown);
+	}
+}
+
+impl Drop for BrokerTransport {
+	fn drop(&mut self) {
+		if Arc::strong_count(&self.rpc) != 1 {
+			return;
+		}
+
+		if let Ok(mut rpc_lock) = self.rpc.try_lock() {
+			send_shutdown(&mut rpc_lock);
+			return;
+		}
+
+		if let Ok(handle) = tokio::runtime::Handle::try_current() {
+			let rpc = self.rpc.clone();
+			handle.spawn(async move {
+				let mut rpc_lock = rpc.lock().await;
+				send_shutdown(&mut rpc_lock);
+			});
 		}
 	}
 }

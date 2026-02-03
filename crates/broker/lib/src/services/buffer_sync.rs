@@ -7,8 +7,8 @@ use ropey::Rope;
 use tokio::sync::{mpsc, oneshot};
 use tokio::time::{Duration, Instant, interval};
 use xeno_broker_proto::types::{
-	BufferSyncOwnerConfirmStatus, BufferSyncOwnershipStatus, BufferSyncRole, ErrorCode, Event,
-	ResponsePayload, SessionId, SyncEpoch, SyncSeq, WireTx,
+	BufferSyncOwnerConfirmStatus, BufferSyncOwnershipStatus, DocStateSnapshot, DocSyncPhase,
+	ErrorCode, Event, ResponsePayload, SessionId, SyncEpoch, SyncSeq, WireTx,
 };
 
 use crate::wire_convert;
@@ -80,6 +80,15 @@ pub enum BufferSyncCmd {
 		/// Reply channel for the new epoch.
 		reply: oneshot::Sender<Result<ResponsePayload, ErrorCode>>,
 	},
+	/// Release ownership of a document.
+	ReleaseOwnership {
+		/// The session identity.
+		sid: SessionId,
+		/// Canonical document URI.
+		uri: String,
+		/// Reply channel for the updated snapshot.
+		reply: oneshot::Sender<Result<ResponsePayload, ErrorCode>>,
+	},
 	/// Prove local content alignment for a new owner.
 	OwnerConfirm {
 		/// The session identity.
@@ -92,6 +101,8 @@ pub enum BufferSyncCmd {
 		len_chars: u64,
 		/// 64-bit hash of the document content.
 		hash64: u64,
+		/// Allow mismatch when optimistic edits are queued.
+		allow_mismatch: bool,
 		/// Reply channel for the confirmation result.
 		reply: oneshot::Sender<Result<ResponsePayload, ErrorCode>>,
 	},
@@ -221,6 +232,20 @@ impl BufferSyncHandle {
 		rx.await.map_err(|_| ErrorCode::Internal)?
 	}
 
+	/// Releases ownership of a document.
+	pub async fn release_ownership(
+		&self,
+		sid: SessionId,
+		uri: String,
+	) -> Result<ResponsePayload, ErrorCode> {
+		let (reply, rx) = oneshot::channel();
+		self.tx
+			.send(BufferSyncCmd::ReleaseOwnership { sid, uri, reply })
+			.await
+			.map_err(|_| ErrorCode::Internal)?;
+		rx.await.map_err(|_| ErrorCode::Internal)?
+	}
+
 	/// Confirms ownership alignment.
 	pub async fn owner_confirm(
 		&self,
@@ -229,6 +254,7 @@ impl BufferSyncHandle {
 		epoch: SyncEpoch,
 		len_chars: u64,
 		hash64: u64,
+		allow_mismatch: bool,
 	) -> Result<ResponsePayload, ErrorCode> {
 		let (reply, rx) = oneshot::channel();
 		self.tx
@@ -238,6 +264,7 @@ impl BufferSyncHandle {
 				epoch,
 				len_chars,
 				hash64,
+				allow_mismatch,
 				reply,
 			})
 			.await
@@ -308,6 +335,25 @@ struct SyncDocState {
 }
 
 impl SyncDocState {
+	fn snapshot(&self, uri: &str) -> DocStateSnapshot {
+		let phase = if self.owner.is_none() {
+			DocSyncPhase::Unlocked
+		} else if self.owner_needs_resync {
+			DocSyncPhase::Diverged
+		} else {
+			DocSyncPhase::Owned
+		};
+		DocStateSnapshot {
+			uri: uri.to_string(),
+			epoch: self.epoch,
+			seq: self.seq,
+			owner: self.owner,
+			phase,
+			hash64: self.hash64,
+			len_chars: self.len_chars,
+		}
+	}
+
 	fn update_fingerprint(&mut self) {
 		let (len, hash) = xeno_broker_proto::fingerprint_rope(&self.rope);
 		self.len_chars = len;
@@ -466,15 +512,27 @@ impl BufferSyncService {
 							let result = self.handle_take_ownership(sid, &uri).await;
 							let _ = reply.send(result);
 						}
+						BufferSyncCmd::ReleaseOwnership { sid, uri, reply } => {
+							let result = self.handle_release_ownership(sid, &uri).await;
+							let _ = reply.send(result);
+						}
 						BufferSyncCmd::OwnerConfirm {
 							sid,
 							uri,
 							epoch,
 							len_chars,
 							hash64,
+							allow_mismatch,
 							reply,
 						} => {
-							let result = self.handle_owner_confirm(sid, &uri, epoch, len_chars, hash64);
+							let result = self.handle_owner_confirm(
+								sid,
+								&uri,
+								epoch,
+								len_chars,
+								hash64,
+								allow_mismatch,
+							);
 							let _ = reply.send(result);
 						}
 						BufferSyncCmd::Resync { sid, uri, reply } => {
@@ -511,7 +569,7 @@ impl BufferSyncService {
 	) -> Result<ResponsePayload, ErrorCode> {
 		let uri = crate::core::normalize_uri(uri_in)?;
 
-		let (role, epoch, seq, snapshot_rope) = match self.sync_docs.get_mut(&uri) {
+		let (snapshot, text) = match self.sync_docs.get_mut(&uri) {
 			None => {
 				let mut doc = SyncDocState {
 					owner: Some(sid),
@@ -527,18 +585,16 @@ impl BufferSyncService {
 				};
 				doc.update_fingerprint();
 				doc.add_open(sid);
+				let snapshot = doc.snapshot(&uri);
 				self.sync_docs.insert(uri.clone(), doc);
 				self.open_docs_set.lock().unwrap().insert(uri.clone());
-				(BufferSyncRole::Owner, SyncEpoch(1), SyncSeq(0), None)
+				(snapshot, None)
 			}
 			Some(doc) => {
 				doc.add_open(sid);
-				(
-					BufferSyncRole::Follower,
-					doc.epoch,
-					doc.seq,
-					Some(doc.rope.clone()),
-				)
+				let text = (doc.owner != Some(sid)).then(|| doc.rope.to_string());
+				let snapshot = doc.snapshot(&uri);
+				(snapshot, text)
 			}
 		};
 
@@ -546,12 +602,7 @@ impl BufferSyncService {
 			let _ = knowledge.doc_dirty(uri);
 		}
 
-		Ok(ResponsePayload::BufferSyncOpened {
-			role,
-			epoch,
-			seq,
-			snapshot: snapshot_rope.map(|r| r.to_string()),
-		})
+		Ok(ResponsePayload::BufferSyncOpened { snapshot, text })
 	}
 
 	async fn handle_close(
@@ -713,12 +764,8 @@ impl BufferSyncService {
 		doc.seq = SyncSeq(0);
 		doc.owner_needs_resync = true;
 
-		let event = Event::BufferSyncUnlocked {
-			uri: uri.to_string(),
-			epoch: doc.epoch,
-			hash64: doc.hash64,
-			len_chars: doc.len_chars,
-		};
+		let snapshot = doc.snapshot(uri);
+		let event = Event::BufferSyncUnlocked { snapshot };
 		(doc.participants.clone(), event)
 	}
 
@@ -740,15 +787,14 @@ impl BufferSyncService {
 			doc.touch(sid);
 			return Ok(ResponsePayload::BufferSyncOwnership {
 				status: BufferSyncOwnershipStatus::AlreadyOwner,
-				epoch: doc.epoch,
-				owner: sid,
+				snapshot: doc.snapshot(&uri),
 			});
 		}
-		if let Some(owner) = doc.owner {
+		if doc.owner.is_some() {
+			let snapshot = doc.snapshot(&uri);
 			return Ok(ResponsePayload::BufferSyncOwnership {
 				status: BufferSyncOwnershipStatus::Denied,
-				epoch: doc.epoch,
-				owner,
+				snapshot,
 			});
 		}
 
@@ -758,13 +804,8 @@ impl BufferSyncService {
 		doc.owner_needs_resync = true;
 		doc.touch(sid);
 
-		let event = Event::BufferSyncOwnerChanged {
-			uri,
-			epoch: doc.epoch,
-			owner: sid,
-			hash64: doc.hash64,
-			len_chars: doc.len_chars,
-		};
+		let snapshot = doc.snapshot(&uri);
+		let event = Event::BufferSyncOwnerChanged { snapshot: snapshot.clone() };
 		self.sessions
 			.broadcast(
 				doc.participants.clone(),
@@ -775,9 +816,39 @@ impl BufferSyncService {
 
 		Ok(ResponsePayload::BufferSyncOwnership {
 			status: BufferSyncOwnershipStatus::Granted,
-			epoch: doc.epoch,
-			owner: sid,
+			snapshot,
 		})
+	}
+
+	async fn handle_release_ownership(
+		&mut self,
+		sid: SessionId,
+		uri_in: &str,
+	) -> Result<ResponsePayload, ErrorCode> {
+		let uri = crate::core::normalize_uri(uri_in)?;
+		let doc = self
+			.sync_docs
+			.get_mut(&uri)
+			.ok_or(ErrorCode::SyncDocNotFound)?;
+
+		if !doc.open_refcounts.contains_key(&sid) {
+			return Err(ErrorCode::SyncDocNotFound);
+		}
+		if doc.owner != Some(sid) {
+			return Err(ErrorCode::NotDocOwner);
+		}
+
+		let (targets, event) = Self::prepare_unlock(&uri, doc);
+		let snapshot = doc.snapshot(&uri);
+		self.sessions
+			.broadcast(
+				targets,
+				xeno_broker_proto::types::IpcFrame::Event(event),
+				None,
+			)
+			.await;
+
+		Ok(ResponsePayload::BufferSyncReleased { snapshot })
 	}
 
 	fn handle_owner_confirm(
@@ -787,6 +858,7 @@ impl BufferSyncService {
 		epoch: SyncEpoch,
 		len_chars: u64,
 		hash64: u64,
+		allow_mismatch: bool,
 	) -> Result<ResponsePayload, ErrorCode> {
 		let uri = crate::core::normalize_uri(uri_in)?;
 		let doc = self
@@ -802,25 +874,26 @@ impl BufferSyncService {
 		}
 
 		doc.touch(sid);
-		let owner = doc.owner.unwrap_or(sid);
-		if len_chars == doc.len_chars && hash64 == doc.hash64 {
+		let status = if len_chars == doc.len_chars && hash64 == doc.hash64 {
 			doc.owner_needs_resync = false;
-			Ok(ResponsePayload::BufferSyncOwnerConfirmResult {
-				status: BufferSyncOwnerConfirmStatus::Confirmed,
-				epoch: doc.epoch,
-				seq: doc.seq,
-				owner,
-				snapshot: None,
-			})
+			BufferSyncOwnerConfirmStatus::Confirmed
+		} else if allow_mismatch && doc.owner == Some(sid) && doc.owner_needs_resync {
+			doc.owner_needs_resync = false;
+			BufferSyncOwnerConfirmStatus::Confirmed
 		} else {
-			Ok(ResponsePayload::BufferSyncOwnerConfirmResult {
-				status: BufferSyncOwnerConfirmStatus::NeedSnapshot,
-				epoch: doc.epoch,
-				seq: doc.seq,
-				owner,
-				snapshot: Some(doc.rope.to_string()),
-			})
-		}
+			BufferSyncOwnerConfirmStatus::NeedSnapshot
+		};
+		let snapshot = doc.snapshot(&uri);
+		let text = if status == BufferSyncOwnerConfirmStatus::NeedSnapshot {
+			Some(doc.rope.to_string())
+		} else {
+			None
+		};
+		Ok(ResponsePayload::BufferSyncOwnerConfirmResult {
+			status,
+			snapshot,
+			text,
+		})
 	}
 
 	async fn handle_resync(
@@ -842,11 +915,10 @@ impl BufferSyncService {
 			doc.owner_needs_resync = false;
 		}
 
+		let snapshot = doc.snapshot(&uri);
 		Ok(ResponsePayload::BufferSyncSnapshot {
 			text: doc.rope.to_string(),
-			epoch: doc.epoch,
-			seq: doc.seq,
-			owner: doc.owner,
+			snapshot,
 		})
 	}
 

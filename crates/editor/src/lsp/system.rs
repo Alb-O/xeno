@@ -114,6 +114,7 @@ impl LspSystem {
 						| RequestPayload::BufferSyncDelta { uri, .. }
 						| RequestPayload::BufferSyncActivity { uri }
 						| RequestPayload::BufferSyncTakeOwnership { uri }
+						| RequestPayload::BufferSyncReleaseOwnership { uri }
 						| RequestPayload::BufferSyncOwnerConfirm { uri, .. }
 						| RequestPayload::BufferSyncResync { uri } => uri.clone(),
 						_ => continue,
@@ -123,59 +124,39 @@ impl LspSystem {
 						Ok(resp) => {
 							// Convert response into an inbound event for the editor.
 							let evt = match resp {
-								ResponsePayload::BufferSyncOpened {
-									role,
-									epoch,
-									seq,
-									snapshot,
-								} => Some(crate::buffer_sync::BufferSyncEvent::Opened {
-									uri,
-									role,
-									epoch,
-									seq,
-									snapshot,
-								}),
+								ResponsePayload::BufferSyncOpened { snapshot, text } => {
+									Some(crate::buffer_sync::BufferSyncEvent::Opened { snapshot, text })
+								}
 								ResponsePayload::BufferSyncDeltaAck { seq } => {
 									Some(crate::buffer_sync::BufferSyncEvent::DeltaAck { uri, seq })
 								}
-								ResponsePayload::BufferSyncOwnership {
-									status,
-									epoch,
-									owner,
-								} => Some(crate::buffer_sync::BufferSyncEvent::OwnershipResult {
-									uri,
-									status,
-									epoch,
-									owner,
-								}),
+								ResponsePayload::BufferSyncOwnership { status, snapshot } => {
+									Some(crate::buffer_sync::BufferSyncEvent::OwnershipResult {
+										uri,
+										status,
+										snapshot,
+									})
+								}
 								ResponsePayload::BufferSyncOwnerConfirmResult {
 									status,
-									epoch,
-									seq,
-									owner,
 									snapshot,
+									text,
 								} => Some(crate::buffer_sync::BufferSyncEvent::OwnerConfirmResult {
 									uri,
 									status,
-									epoch,
-									seq,
-									owner,
 									snapshot,
-								}),
-								ResponsePayload::BufferSyncSnapshot {
 									text,
-									epoch,
-									seq,
-									owner,
-								} => Some(crate::buffer_sync::BufferSyncEvent::Snapshot {
-									uri,
-									text,
-									epoch,
-									seq,
-									owner,
 								}),
+								ResponsePayload::BufferSyncSnapshot { text, snapshot } => {
+									Some(crate::buffer_sync::BufferSyncEvent::Snapshot {
+										uri,
+										text,
+										snapshot,
+									})
+								}
 								ResponsePayload::BufferSyncActivityAck => None,
 								ResponsePayload::BufferSyncClosed => None,
+								ResponsePayload::BufferSyncReleased { .. } => None,
 								_ => None,
 							};
 							if let Some(evt) = evt {

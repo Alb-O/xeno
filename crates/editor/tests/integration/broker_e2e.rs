@@ -2,7 +2,7 @@
 mod tests {
 	use std::time::Duration;
 
-	use xeno_broker_proto::types::{ServerId, SessionId};
+	use xeno_broker_proto::types::{RequestPayload, ServerId, SessionId};
 	use xeno_editor::lsp::broker_transport::BrokerTransport;
 	use xeno_lsp::client::transport::{LspTransport, StartedServer, TransportEvent};
 	use xeno_lsp::{AnyNotification, AnyResponse, Message};
@@ -50,6 +50,13 @@ mod tests {
 		LspTransport::notify(t1.as_ref(), s1.id, did_open)
 			.await
 			.expect("t1 notify");
+		t1.buffer_sync_request(RequestPayload::BufferSyncOpen {
+			uri: "file:///test.rs".to_string(),
+			text: "test content".to_string(),
+			version_hint: Some(1),
+		})
+		.await
+		.expect("buffer sync open");
 
 		// Get fake server handle and wait for didOpen to arrive
 		let mut attempts = 0;
@@ -214,7 +221,7 @@ mod tests {
 
 	#[tokio::test(start_paused = true)]
 	async fn test_broker_e2e_persistence_lease_expiry() {
-		let (sock, _runtime, _launcher, shutdown, _tmp): SpawnedBroker = spawn_broker().await;
+		let (sock, runtime, _launcher, shutdown, _tmp): SpawnedBroker = spawn_broker().await;
 
 		let cfg = test_server_config();
 
@@ -226,6 +233,9 @@ mod tests {
 
 		// Drop client 1
 		drop(t1);
+		runtime.sessions.unregister(SessionId(1)).await;
+		runtime.routing.session_lost(SessionId(1)).await;
+		runtime.sync.session_lost(SessionId(1)).await;
 
 		// Wait for broker to process disconnect
 		tokio::time::sleep(Duration::from_millis(100)).await;

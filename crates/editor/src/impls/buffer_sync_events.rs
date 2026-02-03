@@ -32,6 +32,7 @@ impl Editor {
 					epoch: need.epoch,
 					len_chars,
 					hash64,
+					allow_mismatch: need.allow_mismatch,
 				};
 				let _ = self.state.lsp.buffer_sync_out_tx().send(payload);
 			} else {
@@ -40,6 +41,10 @@ impl Editor {
 		}
 
 		for payload in self.state.buffer_sync.drain_resync_requests() {
+			let _ = self.state.lsp.buffer_sync_out_tx().send(payload);
+		}
+
+		for payload in self.state.buffer_sync.drain_pending_delta_requests() {
 			let _ = self.state.lsp.buffer_sync_out_tx().send(payload);
 		}
 
@@ -75,105 +80,92 @@ impl Editor {
 				tx,
 			} => self.apply_remote_sync_delta(&uri, epoch, seq, &tx),
 
-			BufferSyncEvent::OwnerChanged {
-				uri, epoch, owner, ..
-			} => {
+			BufferSyncEvent::OwnerChanged { snapshot } => {
 				let local_session = self.state.lsp.broker_session_id();
+				let uri = snapshot.uri.clone();
 				self.state
 					.buffer_sync
-					.handle_owner_changed(&uri, epoch, owner, local_session);
+					.handle_owner_changed(snapshot, local_session);
 
 				let new_role = self.state.buffer_sync.role_for_uri(&uri);
 				self.update_readonly_for_sync_role(&uri, new_role);
 				self.state.frame.needs_redraw = true;
 			}
-			BufferSyncEvent::Unlocked { uri, epoch, .. } => {
-				self.state.buffer_sync.handle_unlocked(&uri, epoch);
+			BufferSyncEvent::Unlocked { snapshot } => {
+				let local_session = self.state.lsp.broker_session_id();
+				let uri = snapshot.uri.clone();
+				self.state
+					.buffer_sync
+					.handle_unlocked(snapshot, local_session);
 				let new_role = self.state.buffer_sync.role_for_uri(&uri);
 				self.update_readonly_for_sync_role(&uri, new_role);
 				self.state.frame.needs_redraw = true;
 			}
 
 			BufferSyncEvent::OwnershipResult {
-				uri,
+				uri: _,
 				status,
-				epoch,
-				owner,
-				..
+				snapshot,
 			} => {
 				use xeno_registry::notifications::keys;
 				let local_session = self.state.lsp.broker_session_id();
-				self.state.buffer_sync.handle_ownership_result(
-					&uri,
-					status,
-					epoch,
-					owner,
-					local_session,
-				);
+				let canonical_uri = snapshot.uri.clone();
+				self.state
+					.buffer_sync
+					.handle_ownership_result(status, snapshot, local_session);
 				if status == xeno_broker_proto::types::BufferSyncOwnershipStatus::Denied {
 					self.notify(keys::SYNC_OWNERSHIP_DENIED);
 				}
-				let new_role = self.state.buffer_sync.role_for_uri(&uri);
-				self.update_readonly_for_sync_role(&uri, new_role);
+				let new_role = self.state.buffer_sync.role_for_uri(&canonical_uri);
+				self.update_readonly_for_sync_role(&canonical_uri, new_role);
 				self.state.frame.needs_redraw = true;
 			}
 
 			BufferSyncEvent::OwnerConfirmResult {
-				uri,
+				uri: _,
 				status,
-				epoch,
-				seq,
-				owner,
 				snapshot,
+				text,
 			} => {
 				use xeno_broker_proto::types::BufferSyncOwnerConfirmStatus;
 				let local_session = self.state.lsp.broker_session_id();
+				let canonical_uri = snapshot.uri.clone();
 				match status {
 					BufferSyncOwnerConfirmStatus::Confirmed => {
-						self.state.buffer_sync.handle_owner_confirm_result(
-							&uri,
-							status,
-							epoch,
-							seq,
-							owner,
-							local_session,
-						);
+						self.state
+							.buffer_sync
+							.handle_owner_confirm_result(status, snapshot, local_session);
 					}
 					BufferSyncOwnerConfirmStatus::NeedSnapshot => {
-						if let Some(text) = snapshot {
-							self.apply_sync_snapshot(&uri, &text);
+						if let Some(text) = text {
+							self.apply_sync_snapshot(&canonical_uri, &text);
 							self.state.buffer_sync.handle_snapshot(
-								&uri,
+								&canonical_uri,
 								text,
-								epoch,
-								seq,
-								Some(owner),
+								snapshot,
 								local_session,
 							);
 						}
 					}
 				}
-				let new_role = self.state.buffer_sync.role_for_uri(&uri);
-				self.update_readonly_for_sync_role(&uri, new_role);
+				let new_role = self.state.buffer_sync.role_for_uri(&canonical_uri);
+				self.update_readonly_for_sync_role(&canonical_uri, new_role);
 				self.state.frame.needs_redraw = true;
 			}
 
-			BufferSyncEvent::Opened {
-				uri,
-				role,
-				epoch,
-				seq,
-				snapshot,
-			} => {
+			BufferSyncEvent::Opened { snapshot, text } => {
+				let local_session = self.state.lsp.broker_session_id();
+				let uri = snapshot.uri.clone();
 				if let Some(text) = self
 					.state
 					.buffer_sync
-					.handle_opened(&uri, role, epoch, seq, snapshot)
+					.handle_opened(snapshot, text, local_session)
 				{
 					self.apply_sync_snapshot(&uri, &text);
 				}
 
-				self.update_readonly_for_sync_role(&uri, Some(role));
+				let new_role = self.state.buffer_sync.role_for_uri(&uri);
+				self.update_readonly_for_sync_role(&uri, new_role);
 				self.state.frame.needs_redraw = true;
 			}
 
@@ -194,17 +186,13 @@ impl Editor {
 			BufferSyncEvent::Snapshot {
 				uri,
 				text,
-				epoch,
-				seq,
-				owner,
+				snapshot,
 			} => {
 				let local_session = self.state.lsp.broker_session_id();
 				self.state.buffer_sync.handle_snapshot(
 					&uri,
 					text.clone(),
-					epoch,
-					seq,
-					owner,
+					snapshot,
 					local_session,
 				);
 

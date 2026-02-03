@@ -8,7 +8,8 @@ use tokio::sync::{mpsc, oneshot};
 use xeno_broker_proto::types::{
 	ErrorCode, Event, LspServerConfig, LspServerStatus, ServerId, SessionId,
 };
-use xeno_lsp::{AnyRequest, AnyResponse};
+use xeno_lsp::{AnyRequest, AnyResponse, RequestId};
+use xeno_rpc::MainLoopEvent;
 
 use crate::core::text_sync::{DocGateDecision, DocOwnerState};
 use crate::launcher::LspLauncher;
@@ -411,14 +412,39 @@ impl RoutingService {
 				} => {
 					self.handle_cancel_s2c(server_id, request_id);
 				}
-				RoutingCmd::BeginC2s { reply, .. } => {
-					let _ = reply.send(Err(ErrorCode::NotImplemented));
+				RoutingCmd::BeginC2s {
+					sid,
+					server_id,
+					req,
+					timeout,
+					reply,
+				} => {
+					self.handle_begin_c2s(sid, server_id, req, timeout, reply)
+						.await;
 				}
-				RoutingCmd::C2sResp { reply, .. } | RoutingCmd::C2sSendFailed { reply, .. } => {
-					let _ = reply.send(Err(ErrorCode::Internal));
+				RoutingCmd::C2sResp {
+					server_id,
+					resp,
+					reply,
+				} => {
+					let result = self.handle_c2s_resp(server_id, resp);
+					let _ = reply.send(result);
 				}
-				RoutingCmd::C2sTimeout { reply, .. } => {
-					let _ = reply.send(Err(ErrorCode::Timeout));
+				RoutingCmd::C2sTimeout {
+					server_id,
+					wire_id,
+					reply,
+				} => {
+					let result = self.handle_c2s_timeout(server_id, wire_id);
+					let _ = reply.send(result);
+				}
+				RoutingCmd::C2sSendFailed {
+					server_id,
+					wire_id,
+					reply,
+				} => {
+					let result = self.handle_c2s_send_failed(server_id, wire_id);
+					let _ = reply.send(result);
 				}
 				RoutingCmd::SessionLost { sid } => {
 					self.handle_session_lost(sid).await;
@@ -607,6 +633,23 @@ impl RoutingService {
 				{
 					server.leader = new_leader;
 				}
+				let mut to_remove = Vec::new();
+				for (uri, state) in &mut server.doc_owners.by_uri {
+					state.open_refcounts.remove(&sid);
+					if state.open_refcounts.is_empty() {
+						to_remove.push(uri.clone());
+						continue;
+					}
+					if state.owner == sid || !server.attached.contains(&state.owner) {
+						if let Some(&next) = state.open_refcounts.keys().min() {
+							state.owner = next;
+						}
+					}
+				}
+				for uri in to_remove {
+					server.doc_owners.by_uri.remove(&uri);
+					server.docs.by_uri.remove(&uri);
+				}
 				if server.attached.is_empty() {
 					server.lease_gen += 1;
 					schedule_lease = true;
@@ -693,6 +736,115 @@ impl RoutingService {
 				xeno_lsp::Message::Notification(notif),
 			));
 		Ok(())
+	}
+
+	async fn handle_begin_c2s(
+		&mut self,
+		sid: SessionId,
+		server_id: ServerId,
+		mut req: AnyRequest,
+		timeout: Duration,
+		reply: oneshot::Sender<Result<AnyResponse, ErrorCode>>,
+	) {
+		let Some(server) = self.servers.get_mut(&server_id) else {
+			let _ = reply.send(Err(ErrorCode::ServerNotFound));
+			return;
+		};
+		if !server.attached.contains(&sid) {
+			let _ = reply.send(Err(ErrorCode::ServerNotFound));
+			return;
+		}
+
+		let origin_id = req.id.clone();
+		let wire_id = RequestId::String(format!("b:{}:{}", server_id.0, server.next_wire_req_id));
+		server.next_wire_req_id += 1;
+		req.id = wire_id.clone();
+
+		let (tx, rx) = oneshot::channel();
+		if server
+			.instance
+			.lsp_tx
+			.send(MainLoopEvent::OutgoingRequest(req, tx))
+			.is_err()
+		{
+			let _ = reply.send(Err(ErrorCode::Internal));
+			return;
+		}
+
+		self.pending_c2s.insert(
+			(server_id, wire_id.clone()),
+			PendingC2sReq {
+				origin_session: sid,
+				origin_id,
+			},
+		);
+
+		let routing_tx = self.tx.clone();
+		tokio::spawn(async move {
+			match tokio::time::timeout(timeout, rx).await {
+				Ok(Ok(resp)) => {
+					let _ = routing_tx
+						.send(RoutingCmd::C2sResp {
+							server_id,
+							resp,
+							reply,
+						})
+						.await;
+				}
+				Ok(Err(_)) => {
+					let _ = routing_tx
+						.send(RoutingCmd::C2sSendFailed {
+							server_id,
+							wire_id,
+							reply,
+						})
+						.await;
+				}
+				Err(_) => {
+					let _ = routing_tx
+						.send(RoutingCmd::C2sTimeout {
+							server_id,
+							wire_id,
+							reply,
+						})
+						.await;
+				}
+			}
+		});
+	}
+
+	fn handle_c2s_resp(
+		&mut self,
+		server_id: ServerId,
+		mut resp: AnyResponse,
+	) -> Result<AnyResponse, ErrorCode> {
+		let Some(pending) = self.pending_c2s.remove(&(server_id, resp.id.clone())) else {
+			return Err(ErrorCode::RequestNotFound);
+		};
+		resp.id = pending.origin_id;
+		Ok(resp)
+	}
+
+	fn handle_c2s_timeout(
+		&mut self,
+		server_id: ServerId,
+		wire_id: RequestId,
+	) -> Result<AnyResponse, ErrorCode> {
+		if self.pending_c2s.remove(&(server_id, wire_id)).is_none() {
+			return Err(ErrorCode::RequestNotFound);
+		}
+		Err(ErrorCode::Timeout)
+	}
+
+	fn handle_c2s_send_failed(
+		&mut self,
+		server_id: ServerId,
+		wire_id: RequestId,
+	) -> Result<AnyResponse, ErrorCode> {
+		if self.pending_c2s.remove(&(server_id, wire_id)).is_none() {
+			return Err(ErrorCode::RequestNotFound);
+		}
+		Err(ErrorCode::Internal)
 	}
 
 	fn gate_text_sync(
@@ -786,20 +938,47 @@ impl RoutingService {
 	}
 
 	async fn handle_server_notif(&mut self, server_id: ServerId, message: String) {
-		if let Some(attached) = self
-			.servers
-			.get(&server_id)
-			.map(|s| s.attached.iter().cloned().collect::<Vec<_>>())
-		{
-			let event = Event::LspMessage { server_id, message };
-			self.sessions
-				.broadcast(
-					attached,
-					xeno_broker_proto::types::IpcFrame::Event(event),
-					None,
-				)
-				.await;
+		let Some(server) = self.servers.get(&server_id) else {
+			return;
+		};
+
+		let attached: Vec<_> = server.attached.iter().cloned().collect();
+		if attached.is_empty() {
+			return;
 		}
+
+		let mut diagnostics_event = None;
+
+		if let Ok(msg) = serde_json::from_str::<xeno_lsp::Message>(&message)
+			&& let xeno_lsp::Message::Notification(notif) = msg
+			&& notif.method == "textDocument/publishDiagnostics"
+			&& let Some(uri) = notif.params.get("uri").and_then(|u| u.as_str())
+			&& let Some(diagnostics) = notif.params.get("diagnostics")
+			&& let Ok(diagnostics) = serde_json::to_string(diagnostics)
+		{
+			let doc_id = server.docs.by_uri.get(uri).map(|(id, _)| *id);
+			let version = notif
+				.params
+				.get("version")
+				.and_then(|v| v.as_u64())
+				.map(|v| v as u32);
+			diagnostics_event = Some(Event::LspDiagnostics {
+				server_id,
+				doc_id,
+				uri: uri.to_string(),
+				version,
+				diagnostics,
+			});
+		}
+
+		let event = diagnostics_event.unwrap_or(Event::LspMessage { server_id, message });
+		self.sessions
+			.broadcast(
+				attached,
+				xeno_broker_proto::types::IpcFrame::Event(event),
+				None,
+			)
+			.await;
 	}
 
 	async fn handle_terminate_all(&mut self) {

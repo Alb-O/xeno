@@ -30,6 +30,36 @@ pub struct SyncEpoch(pub u64);
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct SyncSeq(pub u64);
 
+/// Phase of a buffer sync document.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum DocSyncPhase {
+	/// Document is owned and writable by the current owner.
+	Owned,
+	/// Document is unlocked and up-for-grabs (no owner).
+	Unlocked,
+	/// Document owner must resync before publishing deltas.
+	Diverged,
+}
+
+/// Canonical snapshot of a buffer sync document state.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DocStateSnapshot {
+	/// Canonical URI for the document.
+	pub uri: String,
+	/// Current ownership epoch.
+	pub epoch: SyncEpoch,
+	/// Current sequence number.
+	pub seq: SyncSeq,
+	/// Current owner session (if any).
+	pub owner: Option<SessionId>,
+	/// Current phase of the document.
+	pub phase: DocSyncPhase,
+	/// 64-bit hash of the authoritative document content.
+	pub hash64: u64,
+	/// Length of the authoritative document in characters.
+	pub len_chars: u64,
+}
+
 /// A single serializable edit operation for buffer sync.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum WireOp {
@@ -172,6 +202,11 @@ pub enum RequestPayload {
 		/// Canonical URI for the document.
 		uri: String,
 	},
+	/// Release ownership of a buffer sync document.
+	BufferSyncReleaseOwnership {
+		/// Canonical URI for the document.
+		uri: String,
+	},
 	/// Confirm ownership of a buffer sync document.
 	BufferSyncOwnerConfirm {
 		/// Canonical URI for the document.
@@ -182,6 +217,8 @@ pub enum RequestPayload {
 		len_chars: u64,
 		/// 64-bit hash of the document content.
 		hash64: u64,
+		/// Allow mismatch when optimistic edits are queued.
+		allow_mismatch: bool,
 	},
 	/// Request a full resync snapshot from the broker.
 	BufferSyncResync {
@@ -247,14 +284,10 @@ pub enum ResponsePayload {
 	},
 	/// Buffer sync document opened successfully.
 	BufferSyncOpened {
-		/// Role assigned to this session.
-		role: BufferSyncRole,
-		/// Current ownership epoch.
-		epoch: SyncEpoch,
-		/// Current sequence number.
-		seq: SyncSeq,
+		/// Canonical snapshot of the document state.
+		snapshot: DocStateSnapshot,
 		/// Full text snapshot (present when joining as follower).
-		snapshot: Option<String>,
+		text: Option<String>,
 	},
 	/// Buffer sync document closed successfully.
 	BufferSyncClosed,
@@ -267,34 +300,29 @@ pub enum ResponsePayload {
 	BufferSyncOwnership {
 		/// Status of the ownership request.
 		status: BufferSyncOwnershipStatus,
-		/// New (or current) ownership epoch.
-		epoch: SyncEpoch,
-		/// Current owner session.
-		owner: SessionId,
+		/// Canonical snapshot of the document state.
+		snapshot: DocStateSnapshot,
+	},
+	/// Buffer sync ownership released.
+	BufferSyncReleased {
+		/// Canonical snapshot of the document state.
+		snapshot: DocStateSnapshot,
 	},
 	/// Result of an ownership confirmation.
 	BufferSyncOwnerConfirmResult {
 		/// Status of the confirmation.
 		status: BufferSyncOwnerConfirmStatus,
-		/// Authoritative ownership epoch.
-		epoch: SyncEpoch,
-		/// Authoritative edit sequence.
-		seq: SyncSeq,
-		/// Authoritative owner session.
-		owner: SessionId,
+		/// Canonical snapshot of the document state.
+		snapshot: DocStateSnapshot,
 		/// Full text snapshot (present when status is NeedSnapshot).
-		snapshot: Option<String>,
+		text: Option<String>,
 	},
 	/// Buffer sync full snapshot for resync.
 	BufferSyncSnapshot {
 		/// Full text content.
 		text: String,
-		/// Current ownership epoch.
-		epoch: SyncEpoch,
-		/// Current sequence number.
-		seq: SyncSeq,
-		/// Current owner session (if any).
-		owner: Option<SessionId>,
+		/// Canonical snapshot of the document state.
+		snapshot: DocStateSnapshot,
 	},
 	/// Buffer sync activity acknowledged.
 	BufferSyncActivityAck,
@@ -427,27 +455,13 @@ pub enum Event {
 	},
 	/// Buffer sync ownership changed.
 	BufferSyncOwnerChanged {
-		/// Document URI.
-		uri: String,
-		/// New ownership epoch.
-		epoch: SyncEpoch,
-		/// New owner session.
-		owner: SessionId,
-		/// 64-bit hash of the authoritative document content.
-		hash64: u64,
-		/// Length of the authoritative document in characters.
-		len_chars: u64,
+		/// Canonical snapshot of the document state.
+		snapshot: DocStateSnapshot,
 	},
 	/// Buffer sync document unlocked ("up-for-grabs" with no current owner).
 	BufferSyncUnlocked {
-		/// Document URI.
-		uri: String,
-		/// New ownership epoch.
-		epoch: SyncEpoch,
-		/// 64-bit hash of the authoritative document content.
-		hash64: u64,
-		/// Length of the authoritative document in characters.
-		len_chars: u64,
+		/// Canonical snapshot of the document state.
+		snapshot: DocStateSnapshot,
 	},
 }
 

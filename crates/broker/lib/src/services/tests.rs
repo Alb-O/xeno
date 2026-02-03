@@ -6,7 +6,7 @@ use std::time::Duration;
 
 use tokio::sync::{mpsc, oneshot};
 use xeno_broker_proto::types::{
-	BufferSyncOwnershipStatus, BufferSyncRole, ErrorCode, Event, IpcFrame, LspServerConfig,
+	BufferSyncOwnershipStatus, DocSyncPhase, ErrorCode, Event, IpcFrame, LspServerConfig,
 	Request, Response, ResponsePayload, SessionId, SyncEpoch, SyncSeq, WireOp, WireTx,
 };
 use xeno_rpc::MainLoopEvent;
@@ -153,16 +153,12 @@ async fn test_buffer_sync_open_owner_then_follower_gets_snapshot() {
 		.await
 		.unwrap();
 	match resp {
-		ResponsePayload::BufferSyncOpened {
-			role,
-			epoch,
-			seq,
-			snapshot,
-		} => {
-			assert_eq!(role, BufferSyncRole::Owner);
-			assert_eq!(epoch, SyncEpoch(1));
-			assert_eq!(seq, SyncSeq(0));
-			assert!(snapshot.is_none());
+		ResponsePayload::BufferSyncOpened { snapshot, text } => {
+			assert_eq!(snapshot.epoch, SyncEpoch(1));
+			assert_eq!(snapshot.seq, SyncSeq(0));
+			assert_eq!(snapshot.owner, Some(session1.session_id));
+			assert_eq!(snapshot.phase, xeno_broker_proto::types::DocSyncPhase::Owned);
+			assert!(text.is_none());
 		}
 		other => panic!("unexpected response: {other:?}"),
 	}
@@ -178,16 +174,12 @@ async fn test_buffer_sync_open_owner_then_follower_gets_snapshot() {
 		.await
 		.unwrap();
 	match resp {
-		ResponsePayload::BufferSyncOpened {
-			role,
-			epoch,
-			seq,
-			snapshot,
-		} => {
-			assert_eq!(role, BufferSyncRole::Follower);
-			assert_eq!(epoch, SyncEpoch(1));
-			assert_eq!(seq, SyncSeq(0));
-			assert_eq!(snapshot.as_deref(), Some("hello world"));
+		ResponsePayload::BufferSyncOpened { snapshot, text } => {
+			assert_eq!(snapshot.epoch, SyncEpoch(1));
+			assert_eq!(snapshot.seq, SyncSeq(0));
+			assert_eq!(snapshot.owner, Some(session1.session_id));
+			assert_eq!(snapshot.phase, xeno_broker_proto::types::DocSyncPhase::Owned);
+			assert_eq!(text.as_deref(), Some("hello world"));
 		}
 		other => panic!("unexpected response: {other:?}"),
 	}
@@ -281,14 +273,10 @@ async fn test_buffer_sync_take_ownership_denied_when_owner_active() {
 		.await
 		.unwrap();
 	match resp {
-		ResponsePayload::BufferSyncOwnership {
-			status,
-			epoch,
-			owner,
-		} => {
+		ResponsePayload::BufferSyncOwnership { status, snapshot } => {
 			assert_eq!(status, BufferSyncOwnershipStatus::Denied);
-			assert_eq!(epoch, SyncEpoch(1));
-			assert_eq!(owner, session1.session_id);
+			assert_eq!(snapshot.epoch, SyncEpoch(1));
+			assert_eq!(snapshot.owner, Some(session1.session_id));
 		}
 		other => panic!("unexpected response: {other:?}"),
 	}
@@ -305,6 +293,79 @@ async fn test_buffer_sync_take_ownership_denied_when_owner_active() {
 		)
 		.await;
 	assert!(result.is_ok());
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn test_buffer_sync_release_ownership_unlocks() {
+	let harness = setup_sync_harness().await;
+	let session1 = TestSession::new(1);
+	let mut session2 = TestSession::new(2);
+
+	harness
+		.sessions
+		.register(session1.session_id, session1.sink.clone())
+		.await;
+	harness
+		.sessions
+		.register(session2.session_id, session2.sink.clone())
+		.await;
+
+	let _ = harness
+		.sync
+		.open(
+			session1.session_id,
+			"file:///test.rs".to_string(),
+			"hello".into(),
+			None,
+		)
+		.await;
+	let _ = harness
+		.sync
+		.open(
+			session2.session_id,
+			"file:///test.rs".to_string(),
+			"".into(),
+			None,
+		)
+		.await;
+
+	while session2.try_event().is_some() {}
+
+	let resp = harness
+		.sync
+		.release_ownership(session1.session_id, "file:///test.rs".to_string())
+		.await
+		.unwrap();
+	match resp {
+		ResponsePayload::BufferSyncReleased { snapshot } => {
+			assert_eq!(snapshot.epoch, SyncEpoch(2));
+			assert_eq!(snapshot.owner, None);
+			assert_eq!(snapshot.phase, DocSyncPhase::Unlocked);
+		}
+		other => panic!("unexpected response: {other:?}"),
+	}
+
+	let event = session2.recv_event().await.expect("unlock");
+	match event {
+		Event::BufferSyncUnlocked { snapshot } => {
+			assert_eq!(snapshot.epoch, SyncEpoch(2));
+			assert_eq!(snapshot.phase, DocSyncPhase::Unlocked);
+		}
+		other => panic!("unexpected event: {other:?}"),
+	}
+
+	let wire_tx = WireTx(vec![WireOp::Retain(5), WireOp::Insert("!".into())]);
+	let result = harness
+		.sync
+		.delta(
+			session1.session_id,
+			"file:///test.rs".to_string(),
+			SyncEpoch(1),
+			SyncSeq(0),
+			wire_tx,
+		)
+		.await;
+	assert_eq!(result.unwrap_err(), ErrorCode::NotDocOwner);
 }
 
 #[tokio::test(flavor = "current_thread")]
@@ -424,8 +485,8 @@ async fn test_owner_transfer_requires_resync_before_delta() {
 
 	let event = session2.recv_event().await.expect("unlock");
 	match event {
-		Event::BufferSyncUnlocked { epoch, .. } => {
-			assert_eq!(epoch, SyncEpoch(2));
+		Event::BufferSyncUnlocked { snapshot } => {
+			assert_eq!(snapshot.epoch, SyncEpoch(2));
 		}
 		other => panic!("unexpected event: {other:?}"),
 	}
@@ -436,21 +497,21 @@ async fn test_owner_transfer_requires_resync_before_delta() {
 		.await
 		.unwrap();
 	match resp {
-		ResponsePayload::BufferSyncOwnership { status, epoch, .. } => {
+		ResponsePayload::BufferSyncOwnership { status, snapshot } => {
 			assert_eq!(
 				status,
 				xeno_broker_proto::types::BufferSyncOwnershipStatus::Granted
 			);
-			assert_eq!(epoch, SyncEpoch(3));
+			assert_eq!(snapshot.epoch, SyncEpoch(3));
 		}
 		other => panic!("unexpected response: {other:?}"),
 	}
 
 	let event = session2.recv_event().await.expect("owner change");
 	match event {
-		Event::BufferSyncOwnerChanged { epoch, owner, .. } => {
-			assert_eq!(epoch, SyncEpoch(3));
-			assert_eq!(owner, session2.session_id);
+		Event::BufferSyncOwnerChanged { snapshot } => {
+			assert_eq!(snapshot.epoch, SyncEpoch(3));
+			assert_eq!(snapshot.owner, Some(session2.session_id));
 		}
 		other => panic!("unexpected event: {other:?}"),
 	}
@@ -527,8 +588,8 @@ async fn test_buffer_sync_idle_unlocks_owner() {
 
 	let event = session2.recv_event().await.expect("unlock");
 	match event {
-		Event::BufferSyncUnlocked { epoch, .. } => {
-			assert_eq!(epoch, SyncEpoch(2));
+		Event::BufferSyncUnlocked { snapshot } => {
+			assert_eq!(snapshot.epoch, SyncEpoch(2));
 		}
 		other => panic!("unexpected event: {other:?}"),
 	}
@@ -592,12 +653,15 @@ async fn test_buffer_sync_activity_resets_idle_timer() {
 		.await
 		.unwrap();
 
-	tokio::time::advance(Duration::from_secs(2)).await;
+	let guard = buffer_sync::OWNER_IDLE_TIMEOUT
+		.checked_sub(Duration::from_millis(100))
+		.unwrap_or(Duration::from_millis(0));
+	tokio::time::advance(guard).await;
 	tokio::task::yield_now().await;
 
 	assert!(session2.try_event().is_none());
 
-	tokio::time::advance(buffer_sync::OWNER_IDLE_TIMEOUT + Duration::from_millis(10)).await;
+	tokio::time::advance(Duration::from_millis(150)).await;
 	tokio::task::yield_now().await;
 
 	let event = session2.recv_event().await.expect("unlock after activity");
@@ -643,9 +707,9 @@ async fn test_buffer_sync_invalid_delta_is_non_mutating() {
 		.await
 		.unwrap();
 	match resp {
-		ResponsePayload::BufferSyncSnapshot { text, seq, .. } => {
+		ResponsePayload::BufferSyncSnapshot { text, snapshot } => {
 			assert_eq!(text, "hello");
-			assert_eq!(seq, SyncSeq(0));
+			assert_eq!(snapshot.seq, SyncSeq(0));
 		}
 		other => panic!("unexpected response: {other:?}"),
 	}

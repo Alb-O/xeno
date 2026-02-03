@@ -2,7 +2,7 @@
 mod tests {
 	use std::time::Duration;
 
-	use xeno_broker_proto::types::{ServerId, SessionId};
+	use xeno_broker_proto::types::{RequestPayload, ServerId, SessionId};
 	use xeno_editor::lsp::broker_transport::BrokerTransport;
 	use xeno_lsp::client::transport::LspTransport;
 	use xeno_lsp::{AnyNotification, Message};
@@ -39,6 +39,13 @@ mod tests {
 		LspTransport::notify(t1.as_ref(), s1.id, did_open_1)
 			.await
 			.expect("t1 notify");
+		t1.buffer_sync_request(RequestPayload::BufferSyncOpen {
+			uri: "file:///test.rs".to_string(),
+			text: "content 1".to_string(),
+			version_hint: Some(1),
+		})
+		.await
+		.expect("buffer sync open");
 
 		// Wait for broker to register doc
 		assert!(
@@ -58,6 +65,9 @@ mod tests {
 
 		// 2. Session 1 "dies" (disconnects)
 		drop(t1);
+		runtime.sessions.unregister(SessionId(1)).await;
+		runtime.routing.session_lost(SessionId(1)).await;
+		runtime.sync.session_lost(SessionId(1)).await;
 
 		// Doc should be removed from broker because no one else has it open
 		assert!(
@@ -90,6 +100,13 @@ mod tests {
 		LspTransport::notify(t2.as_ref(), s2.id, did_open_2)
 			.await
 			.expect("t2 notify open");
+		t2.buffer_sync_request(RequestPayload::BufferSyncOpen {
+			uri: "file:///test.rs".to_string(),
+			text: "content 2".to_string(),
+			version_hint: Some(10),
+		})
+		.await
+		.expect("buffer sync open");
 
 		// Wait for broker to register doc
 		assert!(

@@ -64,7 +64,7 @@
 //! - Startup: `BrokerRuntime::new` starts services in a tiered sequence to resolve cyclic handle dependencies.
 //! - Session: `Subscribe` registers a sink in [`SessionService`]. Drop cleans up via `Unregister`.
 //! - Server: `LspStart` triggers process spawn; idle lease timer manages termination when all sessions detach.
-//! - Sync: `BufferSyncService` releases ownership on idle or disconnect, broadcasting unlocks before new owners confirm.
+//! - Sync: `BufferSyncService` releases ownership on idle, explicit release, or disconnect, broadcasting unlocks before new owners confirm.
 //! - Shutdown: `BrokerRuntime::shutdown` triggers `TerminateAll` in the routing service, killing all LSP processes.
 //!
 //! # Concurrency & ordering

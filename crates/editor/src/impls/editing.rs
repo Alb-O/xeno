@@ -35,30 +35,42 @@ impl Editor {
 		#[cfg(feature = "lsp")]
 		if let Some(buffer) = self.state.core.buffers.get_buffer(buffer_id) {
 			let doc_id = buffer.document_id();
-			if let Some(uri) = self.state.buffer_sync.uri_for_doc_id(doc_id)
-				&& self.state.buffer_sync.is_edit_blocked(uri)
-			{
-				use crate::buffer_sync::{DeferEditOutcome, PendingEdit};
+			let uri = self
+				.state
+				.buffer_sync
+				.uri_for_doc_id(doc_id)
+				.map(str::to_string);
+			if let Some(uri) = uri {
+				if self.state.buffer_sync.is_edit_blocked(&uri) {
+					use crate::buffer_sync::{DeferEditOutcome, PendingEdit};
 
-				let uri = uri.to_string();
-				let pending = PendingEdit {
-					tx: tx.clone(),
-					selection: new_selection.clone(),
-					undo,
-					origin: origin.clone(),
-				};
+					let pending = PendingEdit {
+						tx: tx.clone(),
+						selection: new_selection.clone(),
+						undo,
+						origin: origin.clone(),
+					};
 
-				match self.state.buffer_sync.defer_edit(&uri, pending) {
-					DeferEditOutcome::NeedTakeOwnership(payload) => {
-						let _ = self.state.lsp.buffer_sync_out_tx().send(payload);
-						self.notify(keys::SYNC_TAKING_OWNERSHIP);
+					match self.state.buffer_sync.defer_edit(&uri, pending) {
+						DeferEditOutcome::NeedTakeOwnership(payload) => {
+							let _ = self.state.lsp.buffer_sync_out_tx().send(payload);
+							self.notify(keys::SYNC_TAKING_OWNERSHIP);
+						}
+						DeferEditOutcome::AlreadyAcquiring => {
+							// Already waiting
+						}
+						_ => {}
 					}
-					DeferEditOutcome::AlreadyAcquiring => {
-						// Already waiting
-					}
-					_ => {}
+					return false;
 				}
-				return false;
+
+				if self.state.buffer_sync.is_unlocked(&uri)
+					&& !self.state.buffer_sync.is_owner(&uri)
+					&& let Some(payload) = self.state.buffer_sync.note_optimistic_edit(&uri, tx)
+				{
+					let _ = self.state.lsp.buffer_sync_out_tx().send(payload);
+					self.notify(keys::SYNC_TAKING_OWNERSHIP);
+				}
 			}
 		}
 
