@@ -111,12 +111,23 @@ impl BrokerTransport {
 		&self,
 		payload: RequestPayload,
 	) -> xeno_lsp::Result<ResponsePayload> {
-		let rpc = self.ensure_connected(&self.socket_path).await?;
-		self.handle_rpc_result(
-			rpc.call(payload, Duration::from_secs(5)).await,
-			"SharedState",
-		)
-		.await
+		self.handle_rpc_result(self.shared_state_request_raw(payload).await, "SharedState")
+			.await
+	}
+
+	/// Sends a shared state request and returns broker error codes directly.
+	pub async fn shared_state_request_raw(
+		&self,
+		payload: RequestPayload,
+	) -> std::result::Result<ResponsePayload, ErrorCode> {
+		let rpc = self
+			.ensure_connected(&self.socket_path)
+			.await
+			.map_err(|err| {
+				tracing::warn!(error = %err, "shared state connect failed");
+				ErrorCode::Internal
+			})?;
+		rpc.call(payload, Duration::from_secs(5)).await
 	}
 
 	fn with_socket_path(socket_path: std::path::PathBuf) -> Arc<Self> {

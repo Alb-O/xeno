@@ -2,16 +2,10 @@
 
 use std::fmt;
 use std::path::PathBuf;
-use std::sync::{Arc, LazyLock, OnceLock, Weak};
+use std::sync::{Arc, OnceLock, Weak};
 
 use bumpalo::Bump;
 use helix_db::helix_engine::storage_core::HelixGraphStorage;
-use helix_db::helix_engine::storage_core::version_info::VersionInfo;
-use helix_db::helix_engine::traversal_core::config::{Config, GraphConfig};
-use helix_db::helixc::analyzer::analyze;
-use helix_db::helixc::analyzer::diagnostic::DiagnosticSeverity;
-use helix_db::helixc::parser::HelixParser;
-use helix_db::helixc::parser::types::{Content, HxFile, Source as ParsedSource};
 use helix_db::protocol::value::Value;
 use helix_db::utils::properties::ImmutablePropertiesMap;
 use ropey::Rope;
@@ -27,8 +21,6 @@ pub mod indexer;
 pub mod search;
 
 pub use error::KnowledgeError;
-
-const SCHEMA_HQL: &str = include_str!("schema.hql");
 
 /// Source of authoritative sync document snapshots.
 pub trait DocSnapshotSource: Send + Sync + 'static {
@@ -46,52 +38,6 @@ pub trait DocSnapshotSource: Send + Sync + 'static {
 	) -> std::pin::Pin<Box<dyn std::future::Future<Output = bool> + Send>>;
 }
 
-/// Helix-db config derived from `schema.hql` at first access.
-static SCHEMA_CONFIG: LazyLock<Config> = LazyLock::new(|| {
-	let content = Content {
-		content: String::new(),
-		source: ParsedSource::default(),
-		files: vec![HxFile {
-			name: "schema.hql".into(),
-			content: SCHEMA_HQL.into(),
-		}],
-	};
-	let parsed = HelixParser::parse_source(&content).expect("schema.hql: parse failed");
-	let (diags, generated) = analyze(&parsed).expect("schema.hql: analysis failed");
-
-	for d in &diags {
-		if matches!(d.severity, DiagnosticSeverity::Error) {
-			panic!("schema.hql: {d:?}");
-		}
-	}
-
-	Config {
-		graph_config: Some(GraphConfig {
-			secondary_indices: if generated.secondary_indices.is_empty() {
-				None
-			} else {
-				Some(generated.secondary_indices)
-			},
-		}),
-		db_max_size_gb: Some(2),
-		mcp: Some(false),
-		bm25: Some(true),
-		..Config::default()
-	}
-});
-
-/// Returns the default knowledge DB path under the user state directory.
-///
-/// # Errors
-///
-/// Returns `KnowledgeError::MissingStateDir` if the state directory cannot be found.
-pub fn default_db_path() -> Result<PathBuf, KnowledgeError> {
-	let state_dir = dirs::state_dir()
-		.or_else(|| dirs::home_dir().map(|home| home.join(".local/state")))
-		.ok_or(KnowledgeError::MissingStateDir)?;
-	Ok(state_dir.join("xeno").join("knowledge"))
-}
-
 /// KnowledgeCore wraps helix-db storage for persistent workspace search.
 pub struct KnowledgeCore {
 	storage: Arc<HelixGraphStorage>,
@@ -106,17 +52,17 @@ impl KnowledgeCore {
 	///
 	/// Returns `KnowledgeError` if the database cannot be initialized.
 	pub fn open(db_path: PathBuf) -> Result<Self, KnowledgeError> {
-		std::fs::create_dir_all(&db_path)?;
+		let storage = crate::core::db::BrokerDb::open(db_path.clone())?.storage();
+		Ok(Self::from_storage(storage, db_path))
+	}
 
-		let path_str = db_path.to_str().unwrap_or("knowledge_db");
-		let storage =
-			HelixGraphStorage::new(path_str, SCHEMA_CONFIG.clone(), VersionInfo::default())?;
-
-		Ok(Self {
-			storage: Arc::new(storage),
+	/// Builds a knowledge core from an existing helix-db storage handle.
+	pub fn from_storage(storage: Arc<HelixGraphStorage>, db_path: PathBuf) -> Self {
+		Self {
+			storage,
 			db_path,
 			worker: OnceLock::new(),
-		})
+		}
 	}
 
 	/// Returns the underlying helix-db storage handle.

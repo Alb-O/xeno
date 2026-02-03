@@ -208,6 +208,16 @@ pub enum RequestPayload {
 		/// Optional length of the client's current content.
 		client_len_chars: Option<u64>,
 	},
+	/// Undo the last change for a shared document.
+	SharedUndo {
+		/// Canonical URI for the document.
+		uri: String,
+	},
+	/// Redo the last undone change for a shared document.
+	SharedRedo {
+		/// Canonical URI for the document.
+		uri: String,
+	},
 	/// Query the broker knowledge index.
 	KnowledgeSearch {
 		/// Full-text search query.
@@ -285,6 +295,20 @@ pub enum ResponsePayload {
 	SharedFocusAck {
 		/// Canonical snapshot of the document state.
 		snapshot: DocStateSnapshot,
+	},
+	/// Shared undo acknowledged by broker.
+	SharedUndoAck {
+		/// Ownership epoch this undo belongs to.
+		epoch: SyncEpoch,
+		/// New sequence number after applying the delta.
+		seq: SyncSeq,
+	},
+	/// Shared redo acknowledged by broker.
+	SharedRedoAck {
+		/// Ownership epoch this redo belongs to.
+		epoch: SyncEpoch,
+		/// New sequence number after applying the delta.
+		seq: SyncSeq,
 	},
 	/// Shared full snapshot for resync.
 	SharedSnapshot {
@@ -364,6 +388,10 @@ pub enum ErrorCode {
 	InvalidDelta,
 	/// Owner must resync before publishing deltas.
 	OwnerNeedsResync,
+	/// No undo history available.
+	NothingToUndo,
+	/// No redo history available.
+	NothingToRedo,
 }
 
 /// Async event from broker to editor (no response expected).

@@ -106,6 +106,10 @@ impl LspSystem {
 
 				while let Some(payload) = shared_state_out_rx.recv().await {
 					let is_edit = matches!(payload, RequestPayload::SharedEdit { .. });
+					let is_history = matches!(
+						payload,
+						RequestPayload::SharedUndo { .. } | RequestPayload::SharedRedo { .. }
+					);
 
 					// Extract URI for error reporting.
 					let uri = match &payload {
@@ -114,11 +118,13 @@ impl LspSystem {
 						| RequestPayload::SharedEdit { uri, .. }
 						| RequestPayload::SharedActivity { uri }
 						| RequestPayload::SharedFocus { uri, .. }
-						| RequestPayload::SharedResync { uri, .. } => uri.clone(),
+						| RequestPayload::SharedResync { uri, .. }
+						| RequestPayload::SharedUndo { uri }
+						| RequestPayload::SharedRedo { uri } => uri.clone(),
 						_ => continue,
 					};
 
-					match broker_b.shared_state_request(payload).await {
+					match broker_b.shared_state_request_raw(payload).await {
 						Ok(resp) => {
 							// Convert response into an inbound event for the editor.
 							let evt = match resp {
@@ -142,6 +148,14 @@ impl LspSystem {
 										snapshot,
 									})
 								}
+								ResponsePayload::SharedUndoAck { epoch, seq }
+								| ResponsePayload::SharedRedoAck { epoch, seq } => {
+									Some(crate::shared_state::SharedStateEvent::EditAck {
+										uri,
+										epoch,
+										seq,
+									})
+								}
 								ResponsePayload::SharedFocusAck { snapshot } => {
 									Some(crate::shared_state::SharedStateEvent::FocusAck {
 										snapshot,
@@ -156,11 +170,35 @@ impl LspSystem {
 							}
 						}
 						Err(e) => {
-							tracing::warn!(?uri, error = %e, "shared state request failed");
+							tracing::warn!(?uri, error = ?e, "shared state request failed");
 							if is_edit {
 								let _ = in_tx_b.send(
 									crate::shared_state::SharedStateEvent::EditRejected { uri },
 								);
+							} else if is_history {
+								match e {
+									xeno_broker_proto::types::ErrorCode::NothingToUndo => {
+										let _ = in_tx_b.send(
+											crate::shared_state::SharedStateEvent::NothingToUndo {
+												uri,
+											},
+										);
+									}
+									xeno_broker_proto::types::ErrorCode::NothingToRedo => {
+										let _ = in_tx_b.send(
+											crate::shared_state::SharedStateEvent::NothingToRedo {
+												uri,
+											},
+										);
+									}
+									_ => {
+										let _ = in_tx_b.send(
+											crate::shared_state::SharedStateEvent::RequestFailed {
+												uri,
+											},
+										);
+									}
+								}
 							} else {
 								let _ = in_tx_b.send(
 									crate::shared_state::SharedStateEvent::RequestFailed { uri },

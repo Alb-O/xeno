@@ -11,7 +11,8 @@ use tokio::sync::mpsc;
 use xeno_broker_proto::types::{ErrorCode, SyncEpoch, SyncSeq};
 
 use super::indexer::{IndexWorker, chunk_text, index_document};
-use super::{DocSnapshotSource, KnowledgeCore, SCHEMA_CONFIG};
+use super::{DocSnapshotSource, KnowledgeCore};
+use crate::core::db;
 use crate::services::{knowledge, shared_state};
 
 static ENV_LOCK: Mutex<()> = Mutex::new(());
@@ -48,7 +49,7 @@ fn test_knowledge_core_open_close() {
 #[test]
 fn test_schema_config_parses() {
 	let result = std::panic::catch_unwind(|| {
-		let _ = SCHEMA_CONFIG.clone();
+		let _ = db::schema_config();
 	});
 	assert!(result.is_ok());
 }
@@ -68,7 +69,7 @@ async fn test_graceful_degradation() {
 	let (sync_tx, _sync_rx) = mpsc::channel(1);
 	let sync_handle = shared_state::SharedStateHandle::new(sync_tx);
 	let open_docs = Arc::new(Mutex::new(std::collections::HashSet::new()));
-	let handle = knowledge::KnowledgeService::start(sync_handle, open_docs);
+	let handle = knowledge::KnowledgeService::start(sync_handle, open_docs, None, None);
 	let res = handle.search("missing", 3).await;
 	assert_eq!(res.unwrap_err(), ErrorCode::NotImplemented);
 
@@ -353,7 +354,7 @@ async fn test_dirty_mark_is_nonblocking() {
 	let temp = TempDir::new().expect("tempdir");
 	let storage = helix_db::helix_engine::storage_core::HelixGraphStorage::new(
 		temp.path().to_str().unwrap(),
-		SCHEMA_CONFIG.clone(),
+		db::schema_config().clone(),
 		Default::default(),
 	)
 	.expect("storage");

@@ -96,6 +96,16 @@ pub enum SharedStateEvent {
 		/// Document URI.
 		uri: String,
 	},
+	/// Broker reported no undo history available.
+	NothingToUndo {
+		/// Document URI.
+		uri: String,
+	},
+	/// Broker reported no redo history available.
+	NothingToRedo {
+		/// Document URI.
+		uri: String,
+	},
 	/// Broker transport disconnected — disable all sync tracking.
 	Disconnected,
 }
@@ -137,13 +147,14 @@ struct SharedDocEntry {
 	open_refcount: u32,
 	pending_deltas: VecDeque<WireTx>,
 	in_flight: Option<InFlightEdit>,
+	history_in_flight: bool,
 	last_activity_sent: Option<std::time::Instant>,
 	focus_seq: u64,
 }
 
 impl SharedDocEntry {
 	fn is_blocked(&self) -> bool {
-		self.role != SharedStateRole::Owner || self.needs_resync
+		self.role != SharedStateRole::Owner || self.needs_resync || self.history_in_flight
 	}
 }
 
@@ -190,6 +201,7 @@ impl SharedStateManager {
 				entry.resync_requested = false;
 				entry.pending_deltas.clear();
 				entry.in_flight = None;
+				entry.history_in_flight = false;
 			} else {
 				entry.resync_requested = false;
 			}
@@ -201,12 +213,31 @@ impl SharedStateManager {
 		if entry.role != SharedStateRole::Owner {
 			entry.pending_deltas.clear();
 			entry.in_flight = None;
+			entry.history_in_flight = false;
 		}
 	}
 
 	/// Returns true if mutations for the URI are currently prohibited.
 	pub fn is_edit_blocked(&self, uri: &str) -> bool {
 		self.docs.get(uri).is_some_and(SharedDocEntry::is_blocked)
+	}
+
+	/// Returns true if a broker-owned history operation is in flight.
+	pub fn is_history_in_flight(&self, uri: &str) -> bool {
+		self.docs
+			.get(uri)
+			.is_some_and(|entry| entry.history_in_flight)
+	}
+
+	/// Returns true if a history operation can be issued for the document.
+	pub fn can_prepare_history(&self, uri: &str) -> bool {
+		self.docs.get(uri).is_some_and(|entry| {
+			entry.role == SharedStateRole::Owner
+				&& !entry.needs_resync
+				&& !entry.history_in_flight
+				&& entry.in_flight.is_none()
+				&& entry.pending_deltas.is_empty()
+		})
 	}
 
 	/// Returns true if the local session is the current owner.
@@ -273,6 +304,7 @@ impl SharedStateManager {
 				open_refcount: 0,
 				pending_deltas: VecDeque::new(),
 				in_flight: None,
+				history_in_flight: false,
 				last_activity_sent: None,
 				focus_seq: 0,
 			});
@@ -327,6 +359,7 @@ impl SharedStateManager {
 				open_refcount: 1,
 				pending_deltas: VecDeque::new(),
 				in_flight: None,
+				history_in_flight: false,
 				last_activity_sent: None,
 				focus_seq: 0,
 			});
@@ -338,7 +371,7 @@ impl SharedStateManager {
 	/// Prepares a [`RequestPayload::SharedEdit`] if the session owns the document.
 	pub fn prepare_edit(&mut self, uri: &str, tx: &Transaction) -> Option<RequestPayload> {
 		let entry = self.docs.get_mut(uri)?;
-		if entry.role != SharedStateRole::Owner || entry.needs_resync {
+		if entry.role != SharedStateRole::Owner || entry.needs_resync || entry.history_in_flight {
 			return None;
 		}
 
@@ -360,25 +393,80 @@ impl SharedStateManager {
 		})
 	}
 
+	/// Prepares a [`RequestPayload::SharedUndo`] if the session owns the document.
+	pub fn prepare_undo(&mut self, uri: &str) -> Option<RequestPayload> {
+		self.prepare_history_request(
+			uri,
+			RequestPayload::SharedUndo {
+				uri: uri.to_string(),
+			},
+		)
+	}
+
+	/// Prepares a [`RequestPayload::SharedRedo`] if the session owns the document.
+	pub fn prepare_redo(&mut self, uri: &str) -> Option<RequestPayload> {
+		self.prepare_history_request(
+			uri,
+			RequestPayload::SharedRedo {
+				uri: uri.to_string(),
+			},
+		)
+	}
+
+	fn prepare_history_request(
+		&mut self,
+		uri: &str,
+		payload: RequestPayload,
+	) -> Option<RequestPayload> {
+		let entry = self.docs.get_mut(uri)?;
+		if entry.role != SharedStateRole::Owner
+			|| entry.needs_resync
+			|| entry.history_in_flight
+			|| entry.in_flight.is_some()
+			|| !entry.pending_deltas.is_empty()
+		{
+			return None;
+		}
+
+		entry.history_in_flight = true;
+		entry.in_flight = Some(InFlightEdit {
+			epoch: entry.epoch,
+			base_seq: entry.seq,
+		});
+		Some(payload)
+	}
+
+	/// Cancels a pending history request for a document.
+	pub fn cancel_history_in_flight(&mut self, uri: &str) {
+		if let Some(entry) = self.docs.get_mut(uri) {
+			entry.history_in_flight = false;
+			entry.in_flight = None;
+		}
+	}
+
 	/// Handles an edit acknowledgment from the broker, advancing the local sequence.
 	pub fn handle_edit_ack(&mut self, uri: &str, epoch: SyncEpoch, seq: SyncSeq) {
 		if let Some(entry) = self.docs.get_mut(uri)
-			&& let Some(in_flight) = entry.in_flight {
-				let expected = in_flight.base_seq.0.wrapping_add(1);
-				if epoch == in_flight.epoch && seq.0 == expected {
-					entry.seq = seq;
-					entry.in_flight = None;
-				} else {
-					tracing::warn!(
-						?uri,
-						ack_epoch = ?epoch,
-						ack_seq = ?seq,
-						in_flight_epoch = ?in_flight.epoch,
-						in_flight_base = ?in_flight.base_seq,
-						"stale or mismatched SharedEditAck ignored"
-					);
-				}
+			&& let Some(in_flight) = entry.in_flight
+		{
+			if entry.history_in_flight {
+				return;
 			}
+			let expected = in_flight.base_seq.0.wrapping_add(1);
+			if epoch == in_flight.epoch && seq.0 == expected {
+				entry.seq = seq;
+				entry.in_flight = None;
+			} else {
+				tracing::warn!(
+					?uri,
+					ack_epoch = ?epoch,
+					ack_seq = ?seq,
+					in_flight_epoch = ?in_flight.epoch,
+					in_flight_base = ?in_flight.base_seq,
+					"stale or mismatched SharedEditAck ignored"
+				);
+			}
+		}
 	}
 
 	/// Collects queued edit requests once the in-flight delta is acknowledged.
@@ -389,6 +477,7 @@ impl SharedStateManager {
 				|| entry.pending_deltas.is_empty()
 				|| entry.role != SharedStateRole::Owner
 				|| entry.needs_resync
+				|| entry.history_in_flight
 			{
 				continue;
 			}
@@ -416,6 +505,7 @@ impl SharedStateManager {
 			entry.resync_requested = false;
 			entry.pending_deltas.clear();
 			entry.in_flight = None;
+			entry.history_in_flight = false;
 		}
 	}
 
@@ -427,7 +517,11 @@ impl SharedStateManager {
 		seq: SyncSeq,
 	) -> Option<DocumentId> {
 		let entry = self.docs.get_mut(uri)?;
-		if entry.role == SharedStateRole::Owner || entry.needs_resync {
+		if entry.needs_resync {
+			return None;
+		}
+		let allow_owner = entry.role == SharedStateRole::Owner && entry.history_in_flight;
+		if entry.role == SharedStateRole::Owner && !allow_owner {
 			return None;
 		}
 
@@ -445,6 +539,10 @@ impl SharedStateManager {
 		}
 
 		entry.seq = seq;
+		if allow_owner {
+			entry.history_in_flight = false;
+			entry.in_flight = None;
+		}
 		Some(entry.doc_id)
 	}
 
@@ -489,9 +587,11 @@ impl SharedStateManager {
 		};
 		if entry.needs_resync {
 			entry.resync_requested = false;
+			entry.history_in_flight = false;
 		} else {
 			entry.pending_deltas.clear();
 			entry.in_flight = None;
+			entry.history_in_flight = false;
 		}
 	}
 

@@ -7,6 +7,7 @@ use xeno_broker_proto::types::RequestPayload;
 use xeno_primitives::{SyntaxPolicy, UndoPolicy};
 
 use super::Editor;
+use super::undo_host::EditorUndoHost;
 use crate::buffer::ApplyPolicy;
 use crate::shared_state::SharedStateEvent;
 
@@ -135,13 +136,91 @@ impl Editor {
 			}
 
 			SharedStateEvent::RequestFailed { uri } => {
+				let was_history = self.state.shared_state.is_history_in_flight(&uri);
 				self.state.shared_state.handle_request_failed(&uri);
 				self.update_readonly_for_shared_state(&uri);
+				if was_history {
+					let focused_view = self.focused_view();
+					let core = &mut self.state.core;
+					let mut host = EditorUndoHost {
+						buffers: &mut core.buffers,
+						focused_view,
+						config: &self.state.config,
+						frame: &mut self.state.frame,
+						notifications: &mut self.state.notifications,
+						syntax_manager: &mut self.state.syntax_manager,
+						#[cfg(feature = "lsp")]
+						lsp: &mut self.state.lsp,
+						#[cfg(feature = "lsp")]
+						shared_state: &mut self.state.shared_state,
+					};
+					core.undo_manager.cancel_pending_history_any(&mut host);
+				}
 			}
 
 			SharedStateEvent::EditRejected { uri } => {
+				let was_history = self.state.shared_state.is_history_in_flight(&uri);
 				self.state.shared_state.mark_needs_resync(&uri);
 				self.update_readonly_for_shared_state(&uri);
+				self.state.frame.needs_redraw = true;
+				if was_history {
+					let focused_view = self.focused_view();
+					let core = &mut self.state.core;
+					let mut host = EditorUndoHost {
+						buffers: &mut core.buffers,
+						focused_view,
+						config: &self.state.config,
+						frame: &mut self.state.frame,
+						notifications: &mut self.state.notifications,
+						syntax_manager: &mut self.state.syntax_manager,
+						#[cfg(feature = "lsp")]
+						lsp: &mut self.state.lsp,
+						#[cfg(feature = "lsp")]
+						shared_state: &mut self.state.shared_state,
+					};
+					core.undo_manager.cancel_pending_history_any(&mut host);
+				}
+			}
+			SharedStateEvent::NothingToUndo { uri } => {
+				self.state.shared_state.cancel_history_in_flight(&uri);
+				self.update_readonly_for_shared_state(&uri);
+				let focused_view = self.focused_view();
+				let core = &mut self.state.core;
+				let mut host = EditorUndoHost {
+					buffers: &mut core.buffers,
+					focused_view,
+					config: &self.state.config,
+					frame: &mut self.state.frame,
+					notifications: &mut self.state.notifications,
+					syntax_manager: &mut self.state.syntax_manager,
+					#[cfg(feature = "lsp")]
+					lsp: &mut self.state.lsp,
+					#[cfg(feature = "lsp")]
+					shared_state: &mut self.state.shared_state,
+				};
+				core.undo_manager
+					.cancel_pending_history(&mut host, crate::types::HistoryKind::Undo);
+				self.state.frame.needs_redraw = true;
+			}
+			SharedStateEvent::NothingToRedo { uri } => {
+				self.state.shared_state.cancel_history_in_flight(&uri);
+				self.update_readonly_for_shared_state(&uri);
+				let focused_view = self.focused_view();
+				let core = &mut self.state.core;
+				let mut host = EditorUndoHost {
+					buffers: &mut core.buffers,
+					focused_view,
+					config: &self.state.config,
+					frame: &mut self.state.frame,
+					notifications: &mut self.state.notifications,
+					syntax_manager: &mut self.state.syntax_manager,
+					#[cfg(feature = "lsp")]
+					lsp: &mut self.state.lsp,
+					#[cfg(feature = "lsp")]
+					shared_state: &mut self.state.shared_state,
+				};
+				core.undo_manager
+					.cancel_pending_history(&mut host, crate::types::HistoryKind::Redo);
 				self.state.frame.needs_redraw = true;
 			}
 
@@ -226,6 +305,24 @@ impl Editor {
 		self.state.syntax_manager.note_edit(doc_id);
 		self.state.frame.dirty_buffers.insert(view_id);
 		self.state.frame.needs_redraw = true;
+
+		let focused_view = self.focused_view();
+		let core = &mut self.state.core;
+		let mut host = EditorUndoHost {
+			buffers: &mut core.buffers,
+			focused_view,
+			config: &self.state.config,
+			frame: &mut self.state.frame,
+			notifications: &mut self.state.notifications,
+			syntax_manager: &mut self.state.syntax_manager,
+			#[cfg(feature = "lsp")]
+			lsp: &mut self.state.lsp,
+			#[cfg(feature = "lsp")]
+			shared_state: &mut self.state.shared_state,
+		};
+		core.undo_manager
+			.note_remote_history_delta(&mut host, doc_id);
+		self.update_readonly_for_shared_state(uri);
 	}
 
 	/// Replaces document content from a full sync snapshot.
@@ -253,15 +350,19 @@ impl Editor {
 	}
 
 	/// Updates readonly overrides on all views of a shared document.
-	fn update_readonly_for_shared_state(&mut self, uri: &str) {
+	pub(crate) fn update_readonly_for_shared_state(&mut self, uri: &str) {
 		let Some(doc_id) = self.state.shared_state.doc_id_for_uri(uri) else {
 			return;
 		};
 
 		let (_, status) = self.state.shared_state.ui_status_for_uri(uri);
-		let override_val = match status {
-			crate::shared_state::SyncStatus::NeedsResync => Some(true),
-			_ => None,
+		let override_val = if self.state.shared_state.is_history_in_flight(uri) {
+			Some(true)
+		} else {
+			match status {
+				crate::shared_state::SyncStatus::NeedsResync => Some(true),
+				_ => None,
+			}
 		};
 
 		let view_ids: Vec<_> = self.state.core.buffers.views_for_doc(doc_id).to_vec();

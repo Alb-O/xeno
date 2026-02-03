@@ -187,6 +187,12 @@ impl Service<Request> for BrokerService {
 						.resync(session_id, uri, client_hash64, client_len_chars)
 						.await
 				}
+				RequestPayload::SharedUndo { uri } => {
+					runtime.shared_state.undo(session_id, uri).await
+				}
+				RequestPayload::SharedRedo { uri } => {
+					runtime.shared_state.redo(session_id, uri).await
+				}
 				RequestPayload::KnowledgeSearch { query, limit } => {
 					let hits = runtime.knowledge.search(&query, limit).await?;
 					Ok(ResponsePayload::KnowledgeSearchResults { hits })

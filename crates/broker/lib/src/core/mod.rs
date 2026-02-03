@@ -4,7 +4,8 @@
 //!
 //! The Broker is a background daemon that coordinates multiple editor sessions,
 //! manages LSP server lifecycles, and provides workspace-wide intelligence. It
-//! acts as a central authority for document state and a router for LSP traffic.
+//! acts as a central authority for document state and a router for LSP traffic,
+//! backed by a broker-owned helix-db instance.
 //!
 //! # Mental model
 //!
@@ -17,6 +18,8 @@
 //! | Type | Role |
 //! | --- | --- |
 //! | [`BrokerRuntime`] | Orchestrator that wires and owns service handles. |
+//! | [`db::BrokerDb`] | Owner of the shared helix-db storage handle. |
+//! | [`history::HistoryStore`] | Persists branching undo/redo history in helix-db. |
 //! | [`SessionService`] | Owner of IPC sinks; handles delivery and session loss detection. |
 //! | [`RoutingService`] | Manager of LSP processes and server-to-client request routing. |
 //! | [`SharedStateService`] | Authoritative owner of document text and shared-state protocol. |
@@ -66,6 +69,22 @@
 //!   - Enforced in: `SharedStateService::handle_resync`
 //!   - Tested by: `services::tests::test_shared_state_resync_matches_fingerprint_returns_empty`
 //!   - Failure symptom: Editors clear syntax on no-op resyncs, causing highlight flicker after focus changes.
+//!
+//! - DB Authoritative Open: When a document exists in helix-db, the broker MUST open with
+//!   the stored content and return it to the session regardless of client text.
+//!   - Enforced in: `SharedStateService::handle_open`
+//!   - Tested by: `services::tests::test_shared_state_open_uses_db_history`
+//!   - Failure symptom: Sessions reopen stale content after restarts, diverging from broker history.
+//!
+//! - History Node Per Edit: Every accepted edit MUST append a history node and advance the head.
+//!   - Enforced in: `SharedStateService::handle_edit`
+//!   - Tested by: `services::tests::test_shared_state_undo_redo_roundtrip`
+//!   - Failure symptom: Undo/redo fails to traverse past the most recent edit.
+//!
+//! - Undo/Redo Uses Stored Deltas: Undo/redo MUST apply the stored history deltas and update head metadata.
+//!   - Enforced in: `SharedStateService::handle_undo`, `SharedStateService::handle_redo`
+//!   - Tested by: `services::tests::test_shared_state_undo_redo_roundtrip`
+//!   - Failure symptom: Undo/redo produces incorrect document content or corrupts the history head.
 //!
 //! - No-op Snapshot Apply: Editors MUST skip applying empty snapshot text when the local
 //!   fingerprint matches the snapshot fingerprint.
@@ -124,6 +143,8 @@
 //! - Adding a new IPC request: Update `broker-proto`, then add handler in [`BrokerService::call`] and the target service.
 //! - Changing sync logic: Modify [`SharedStateService`] and ensure the preferred-owner invariant is maintained.
 
+pub mod db;
+pub mod history;
 pub mod knowledge;
 pub mod server;
 pub mod text_sync;

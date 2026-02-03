@@ -13,7 +13,7 @@ use xeno_broker_proto::types::{
 use xeno_rpc::MainLoopEvent;
 
 use super::{knowledge, routing, sessions, shared_state};
-use crate::core::{SessionSink, normalize_uri};
+use crate::core::{SessionSink, db, normalize_uri};
 use crate::launcher::test_helpers::TestLauncher;
 
 struct TestSession {
@@ -63,6 +63,7 @@ struct SyncHarness {
 	sync: shared_state::SharedStateHandle,
 	open_docs: Arc<Mutex<HashSet<String>>>,
 	_routing_rx: mpsc::Receiver<routing::RoutingCmd>,
+	_db_temp: tempfile::TempDir,
 }
 
 async fn setup_sync_harness() -> SyncHarness {
@@ -72,8 +73,11 @@ async fn setup_sync_harness() -> SyncHarness {
 	let dummy_routing = routing::RoutingHandle::new(dummy_routing_tx);
 	let _ = routing_tx.send(dummy_routing.clone()).await;
 
+	let db_temp = tempfile::tempdir().expect("temp db dir");
+	let db = db::BrokerDb::open(db_temp.path().join("broker")).expect("open broker db");
+
 	let (sync, open_docs, knowledge_tx, sync_routing_tx) =
-		shared_state::SharedStateService::start(sessions_handle.clone());
+		shared_state::SharedStateService::start(sessions_handle.clone(), Some(db.storage()));
 
 	let (knowledge_sender, mut knowledge_rx) = mpsc::channel(8);
 	let knowledge = knowledge::KnowledgeHandle::new(knowledge_sender);
@@ -89,6 +93,187 @@ async fn setup_sync_harness() -> SyncHarness {
 		sync,
 		open_docs,
 		_routing_rx: dummy_routing_rx,
+		_db_temp: db_temp,
+	}
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn test_shared_state_undo_redo_roundtrip() {
+	let harness = setup_sync_harness().await;
+	let mut session1 = TestSession::new(1);
+
+	harness
+		.sessions
+		.register(session1.session_id, session1.sink.clone())
+		.await;
+
+	let resp = harness
+		.sync
+		.open(
+			session1.session_id,
+			"file:///test.rs".to_string(),
+			"hello".into(),
+			None,
+		)
+		.await
+		.unwrap();
+	match resp {
+		ResponsePayload::SharedOpened { snapshot, text } => {
+			assert_eq!(snapshot.epoch, SyncEpoch(1));
+			assert_eq!(snapshot.seq, SyncSeq(0));
+			assert!(text.is_none());
+		}
+		other => panic!("unexpected response: {other:?}"),
+	}
+
+	let wire_tx = WireTx(vec![WireOp::Retain(5), WireOp::Insert(" world".into())]);
+	let resp = harness
+		.sync
+		.edit(
+			session1.session_id,
+			"file:///test.rs".to_string(),
+			SyncEpoch(1),
+			SyncSeq(0),
+			wire_tx.clone(),
+		)
+		.await
+		.unwrap();
+	match resp {
+		ResponsePayload::SharedEditAck { seq, .. } => {
+			assert_eq!(seq, SyncSeq(1));
+		}
+		other => panic!("unexpected response: {other:?}"),
+	}
+
+	let resp = harness
+		.sync
+		.undo(session1.session_id, "file:///test.rs".to_string())
+		.await
+		.unwrap();
+	match resp {
+		ResponsePayload::SharedUndoAck { seq, .. } => {
+			assert_eq!(seq, SyncSeq(2));
+		}
+		other => panic!("unexpected response: {other:?}"),
+	}
+
+	let event = session1.recv_event().await.expect("undo delta");
+	match event {
+		Event::SharedDelta { seq, tx, .. } => {
+			assert_eq!(seq, SyncSeq(2));
+			let mut content = Rope::from("hello world");
+			let tx = crate::wire_convert::wire_to_tx(&tx, content.slice(..)).unwrap();
+			tx.apply(&mut content);
+			assert_eq!(content.to_string(), "hello");
+		}
+		other => panic!("unexpected event: {other:?}"),
+	}
+
+	let resp = harness
+		.sync
+		.resync(
+			session1.session_id,
+			"file:///test.rs".to_string(),
+			None,
+			None,
+		)
+		.await
+		.unwrap();
+	match resp {
+		ResponsePayload::SharedSnapshot { text, .. } => {
+			assert_eq!(text, "hello");
+		}
+		other => panic!("unexpected response: {other:?}"),
+	}
+
+	let resp = harness
+		.sync
+		.redo(session1.session_id, "file:///test.rs".to_string())
+		.await
+		.unwrap();
+	match resp {
+		ResponsePayload::SharedRedoAck { seq, .. } => {
+			assert_eq!(seq, SyncSeq(3));
+		}
+		other => panic!("unexpected response: {other:?}"),
+	}
+
+	let resp = harness
+		.sync
+		.resync(
+			session1.session_id,
+			"file:///test.rs".to_string(),
+			None,
+			None,
+		)
+		.await
+		.unwrap();
+	match resp {
+		ResponsePayload::SharedSnapshot { text, .. } => {
+			assert_eq!(text, "hello world");
+		}
+		other => panic!("unexpected response: {other:?}"),
+	}
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn test_shared_state_open_uses_db_history() {
+	let harness = setup_sync_harness().await;
+	let session1 = TestSession::new(1);
+	let session2 = TestSession::new(2);
+
+	harness
+		.sessions
+		.register(session1.session_id, session1.sink.clone())
+		.await;
+	harness
+		.sessions
+		.register(session2.session_id, session2.sink.clone())
+		.await;
+
+	let resp = harness
+		.sync
+		.open(
+			session1.session_id,
+			"file:///test.rs".to_string(),
+			"hello".into(),
+			None,
+		)
+		.await
+		.unwrap();
+	match resp {
+		ResponsePayload::SharedOpened { snapshot, text } => {
+			assert_eq!(snapshot.epoch, SyncEpoch(1));
+			assert_eq!(snapshot.seq, SyncSeq(0));
+			assert!(text.is_none());
+		}
+		other => panic!("unexpected response: {other:?}"),
+	}
+
+	let resp = harness
+		.sync
+		.close(session1.session_id, "file:///test.rs".to_string())
+		.await
+		.unwrap();
+	assert!(matches!(resp, ResponsePayload::SharedClosed));
+
+	let resp = harness
+		.sync
+		.open(
+			session2.session_id,
+			"file:///test.rs".to_string(),
+			"stale".into(),
+			None,
+		)
+		.await
+		.unwrap();
+	match resp {
+		ResponsePayload::SharedOpened { snapshot, text } => {
+			assert_eq!(snapshot.epoch, SyncEpoch(1));
+			assert_eq!(snapshot.seq, SyncSeq(0));
+			assert_eq!(text.as_deref(), Some("hello"));
+		}
+		other => panic!("unexpected response: {other:?}"),
 	}
 }
 

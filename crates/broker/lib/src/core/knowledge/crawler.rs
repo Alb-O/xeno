@@ -183,31 +183,10 @@ mod tests {
 	use bumpalo::Bump;
 	use ropey::Rope;
 	use tempfile::TempDir;
-	use xeno_broker_proto::types::{SyncEpoch, SyncSeq};
 
 	use super::{crawl_project, file_mtime};
 	use crate::core::knowledge::indexer::index_document;
-	use crate::core::knowledge::{DocSnapshotSource, KnowledgeCore, KnowledgeError};
-
-	struct TestSource;
-
-	impl DocSnapshotSource for TestSource {
-		fn snapshot_sync_doc(
-			&self,
-			_uri: &str,
-		) -> std::pin::Pin<
-			Box<dyn std::future::Future<Output = Option<(SyncEpoch, SyncSeq, Rope)>> + Send>,
-		> {
-			Box::pin(async { None })
-		}
-
-		fn is_sync_doc_open(
-			&self,
-			_uri: &str,
-		) -> std::pin::Pin<Box<dyn std::future::Future<Output = bool> + Send>> {
-			Box::pin(async { false })
-		}
-	}
+	use crate::core::knowledge::{KnowledgeCore, KnowledgeError};
 
 	fn doc_mtime_matches(
 		storage: &helix_db::helix_engine::storage_core::HelixGraphStorage,

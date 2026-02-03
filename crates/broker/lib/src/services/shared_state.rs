@@ -3,6 +3,7 @@
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex};
 
+use helix_db::helix_engine::storage_core::HelixGraphStorage;
 use ropey::Rope;
 use tokio::sync::{mpsc, oneshot};
 use tokio::time::{Duration, Instant, interval};
@@ -11,6 +12,7 @@ use xeno_broker_proto::types::{
 	SyncSeq, WireTx,
 };
 
+use crate::core::history::{HistoryMeta, HistoryStore};
 use crate::wire_convert;
 
 /// Maximum number of operations allowed in a single wire transaction.
@@ -21,6 +23,8 @@ const MAX_INSERT_BYTES: usize = 8 * 1024 * 1024;
 const IDLE_POLL_INTERVAL: Duration = Duration::from_secs(1);
 /// Duration after which an owner is considered idle.
 pub(crate) const OWNER_IDLE_TIMEOUT: Duration = Duration::from_secs(2);
+/// Maximum number of history nodes retained per document.
+const MAX_HISTORY_NODES: usize = 100;
 
 /// Commands for the shared state service actor.
 #[derive(Debug)]
@@ -95,6 +99,24 @@ pub enum SharedStateCmd {
 		/// Optional length of the client's current content.
 		client_len_chars: Option<u64>,
 		/// Reply channel for the full snapshot.
+		reply: oneshot::Sender<Result<ResponsePayload, ErrorCode>>,
+	},
+	/// Undo the last change for a document.
+	Undo {
+		/// The session identity (must be owner).
+		sid: SessionId,
+		/// Canonical document URI.
+		uri: String,
+		/// Reply channel for acknowledgment.
+		reply: oneshot::Sender<Result<ResponsePayload, ErrorCode>>,
+	},
+	/// Redo the last undone change for a document.
+	Redo {
+		/// The session identity (must be owner).
+		sid: SessionId,
+		/// Canonical document URI.
+		uri: String,
+		/// Reply channel for acknowledgment.
 		reply: oneshot::Sender<Result<ResponsePayload, ErrorCode>>,
 	},
 	/// Signal that a session has disconnected unexpectedly.
@@ -244,6 +266,26 @@ impl SharedStateHandle {
 		rx.await.map_err(|_| ErrorCode::Internal)?
 	}
 
+	/// Requests undo for a shared document.
+	pub async fn undo(&self, sid: SessionId, uri: String) -> Result<ResponsePayload, ErrorCode> {
+		let (reply, rx) = oneshot::channel();
+		self.tx
+			.send(SharedStateCmd::Undo { sid, uri, reply })
+			.await
+			.map_err(|_| ErrorCode::Internal)?;
+		rx.await.map_err(|_| ErrorCode::Internal)?
+	}
+
+	/// Requests redo for a shared document.
+	pub async fn redo(&self, sid: SessionId, uri: String) -> Result<ResponsePayload, ErrorCode> {
+		let (reply, rx) = oneshot::channel();
+		self.tx
+			.send(SharedStateCmd::Redo { sid, uri, reply })
+			.await
+			.map_err(|_| ErrorCode::Internal)?;
+		rx.await.map_err(|_| ErrorCode::Internal)?
+	}
+
 	/// Cleans up a lost session.
 	pub async fn session_lost(&self, sid: SessionId) {
 		let _ = self.tx.send(SharedStateCmd::SessionLost { sid }).await;
@@ -296,6 +338,8 @@ struct SyncDocState {
 	hash64: u64,
 	/// Cached length of the document in characters.
 	len_chars: u64,
+	/// History metadata for broker-owned undo/redo.
+	history: Option<HistoryMeta>,
 	/// Flag indicating the writer must perform a full resync before publishing.
 	owner_needs_resync: bool,
 }
@@ -401,6 +445,7 @@ enum RemoveOpenResult {
 pub struct SharedStateService {
 	rx: mpsc::Receiver<SharedStateCmd>,
 	sync_docs: HashMap<String, SyncDocState>,
+	history: Option<HistoryStore>,
 	/// Shared set of open URIs exposed to the knowledge crawler.
 	open_docs_set: Arc<Mutex<HashSet<String>>>,
 	sessions: super::sessions::SessionHandle,
@@ -412,6 +457,7 @@ impl SharedStateService {
 	/// Spawns the shared state service actor.
 	pub fn start(
 		sessions: super::sessions::SessionHandle,
+		storage: Option<Arc<HelixGraphStorage>>,
 	) -> (
 		SharedStateHandle,
 		Arc<Mutex<HashSet<String>>>,
@@ -426,6 +472,7 @@ impl SharedStateService {
 		let service = Self {
 			rx,
 			sync_docs: HashMap::new(),
+			history: storage.map(HistoryStore::new),
 			open_docs_set: open_docs_set.clone(),
 			sessions,
 			knowledge: None,
@@ -512,6 +559,14 @@ impl SharedStateService {
 							let result = self.handle_resync(sid, &uri, client_hash64, client_len_chars).await;
 							let _ = reply.send(result);
 						}
+						SharedStateCmd::Undo { sid, uri, reply } => {
+							let result = self.handle_undo(sid, &uri).await;
+							let _ = reply.send(result);
+						}
+						SharedStateCmd::Redo { sid, uri, reply } => {
+							let result = self.handle_redo(sid, &uri).await;
+							let _ = reply.send(result);
+						}
 						SharedStateCmd::SessionLost { sid } => {
 							self.handle_session_cleanup(sid).await;
 						}
@@ -542,7 +597,6 @@ impl SharedStateService {
 	) -> Result<ResponsePayload, ErrorCode> {
 		let uri = crate::core::normalize_uri(uri_in)?;
 		let mut routing_open = None;
-
 		let (snapshot, text) = match self.sync_docs.get_mut(&uri) {
 			None => {
 				let mut doc = SyncDocState {
@@ -554,18 +608,55 @@ impl SharedStateService {
 					last_focus_seq: HashMap::new(),
 					epoch: SyncEpoch(1),
 					seq: SyncSeq(0),
-					rope: Rope::from(text),
+					rope: Rope::new(),
 					hash64: 0,
 					len_chars: 0,
+					history: None,
 					owner_needs_resync: false,
 				};
-				doc.update_fingerprint();
+
+				let mut send_text = None;
+				if let Some(history) = &self.history {
+					match history.load_doc(&uri) {
+						Ok(Some(stored)) => {
+							doc.epoch = stored.epoch;
+							doc.seq = stored.seq;
+							doc.rope = stored.rope;
+							doc.hash64 = stored.hash64;
+							doc.len_chars = stored.len_chars;
+							doc.history = Some(stored.meta);
+							send_text = Some(doc.rope.to_string());
+						}
+						Ok(None) => {
+							let rope = Rope::from(text);
+							let (len, hash) = xeno_broker_proto::fingerprint_rope(&rope);
+							let stored = history
+								.create_doc(&uri, &rope, doc.epoch, doc.seq, hash, len)
+								.map_err(|err| {
+									tracing::warn!(error = %err, ?uri, "history create failed");
+									ErrorCode::Internal
+								})?;
+							doc.rope = stored.rope;
+							doc.hash64 = stored.hash64;
+							doc.len_chars = stored.len_chars;
+							doc.history = Some(stored.meta);
+						}
+						Err(err) => {
+							tracing::warn!(error = %err, ?uri, "history load failed");
+							return Err(ErrorCode::Internal);
+						}
+					}
+				} else {
+					doc.rope = Rope::from(text);
+					doc.update_fingerprint();
+				}
+
 				doc.add_open(sid);
 				let snapshot = doc.snapshot(&uri);
 				routing_open = Some(doc.rope.to_string());
 				self.sync_docs.insert(uri.clone(), doc);
 				self.open_docs_set.lock().unwrap().insert(uri.clone());
-				(snapshot, None)
+				(snapshot, send_text)
 			}
 			Some(doc) => {
 				doc.add_open(sid);
@@ -596,6 +687,7 @@ impl SharedStateService {
 		let uri = crate::core::normalize_uri(uri_in)?;
 		let mut unlock = None;
 		let mut closed = false;
+		let history = self.history.as_ref();
 
 		{
 			let doc = self
@@ -609,7 +701,7 @@ impl SharedStateService {
 					if doc.participants.is_empty() {
 						closed = true;
 					} else if doc.owner == Some(sid) {
-						unlock = Some(Self::prepare_unlock(&uri, doc));
+						unlock = Some(Self::prepare_unlock(history, &uri, doc));
 					}
 				}
 				RemoveOpenResult::Decremented => {}
@@ -689,19 +781,238 @@ impl SharedStateService {
 				return Err(ErrorCode::InvalidDelta);
 			}
 
-			let tx = wire_convert::wire_to_tx(wire_tx, doc.rope.slice(..))
+			let pre_rope = doc.rope.clone();
+			let tx = wire_convert::wire_to_tx(wire_tx, pre_rope.slice(..))
 				.map_err(|_| ErrorCode::InvalidDelta)?;
+			let undo_tx = tx.invert(&pre_rope);
 
 			tx.apply(&mut doc.rope);
 			doc.seq = SyncSeq(doc.seq.0 + 1);
 			doc.update_fingerprint();
 			doc.touch(sid);
 
+			if let Some(history) = &self.history {
+				let Some(meta) = doc.history.as_mut() else {
+					tracing::warn!(?uri, "history metadata missing");
+					return Err(ErrorCode::Internal);
+				};
+				let undo_wire = wire_convert::tx_to_wire(&undo_tx);
+				let redo_wire = wire_tx.clone();
+				history
+					.append_edit(
+						&uri,
+						meta,
+						doc.epoch,
+						doc.seq,
+						doc.hash64,
+						doc.len_chars,
+						redo_wire,
+						undo_wire,
+						MAX_HISTORY_NODES,
+					)
+					.map_err(|err| {
+						tracing::warn!(error = %err, ?uri, "history append failed");
+						ErrorCode::Internal
+					})?;
+			}
+
 			let event = Event::SharedDelta {
 				uri: uri.clone(),
 				epoch: doc.epoch,
 				seq: doc.seq,
 				tx: wire_tx.clone(),
+			};
+			let lsp_text = doc.rope.to_string();
+			let participants = doc.participants.clone();
+			let seq = doc.seq;
+			let final_epoch = doc.epoch;
+			(event, lsp_text, participants, seq, final_epoch)
+		};
+
+		self.sessions
+			.broadcast(
+				participants,
+				xeno_broker_proto::types::IpcFrame::Event(event),
+				None,
+			)
+			.await;
+
+		self.notify_lsp_update(uri.clone(), lsp_text).await;
+
+		if let Some(knowledge) = &self.knowledge {
+			let _ = knowledge.doc_dirty(uri);
+		}
+
+		Ok(ResponsePayload::SharedEditAck {
+			epoch: final_epoch,
+			seq,
+		})
+	}
+
+	async fn handle_undo(
+		&mut self,
+		sid: SessionId,
+		uri_in: &str,
+	) -> Result<ResponsePayload, ErrorCode> {
+		let uri = crate::core::normalize_uri(uri_in)?;
+		let (event, lsp_text, participants, seq, final_epoch) = {
+			let doc = self
+				.sync_docs
+				.get_mut(&uri)
+				.ok_or(ErrorCode::SyncDocNotFound)?;
+
+			if !doc.open_refcounts.contains_key(&sid) {
+				return Err(ErrorCode::SyncDocNotFound);
+			}
+			if let Some(preferred) = doc.preferred_owner
+				&& preferred != sid
+			{
+				return Err(ErrorCode::NotPreferredOwner);
+			}
+			if doc.owner != Some(sid) {
+				return Err(ErrorCode::NotPreferredOwner);
+			}
+			if doc.owner_needs_resync {
+				return Err(ErrorCode::OwnerNeedsResync);
+			}
+
+			let Some(history) = &self.history else {
+				return Err(ErrorCode::Internal);
+			};
+			let Some(meta) = doc.history.as_ref() else {
+				return Err(ErrorCode::Internal);
+			};
+			let head_id = meta.head_id;
+
+			let Some((parent_id, undo_wire)) = history.load_undo(&uri, head_id).map_err(|err| {
+				tracing::warn!(error = %err, ?uri, "history undo load failed");
+				ErrorCode::Internal
+			})?
+			else {
+				return Err(ErrorCode::NothingToUndo);
+			};
+
+			let tx = wire_convert::wire_to_tx(&undo_wire, doc.rope.slice(..))
+				.map_err(|_| ErrorCode::InvalidDelta)?;
+			tx.apply(&mut doc.rope);
+			doc.seq = SyncSeq(doc.seq.0 + 1);
+			doc.update_fingerprint();
+			doc.touch(sid);
+
+			{
+				let Some(meta) = doc.history.as_mut() else {
+					return Err(ErrorCode::Internal);
+				};
+				meta.head_id = parent_id;
+				history
+					.update_doc_state(&uri, meta, doc.epoch, doc.seq, doc.hash64, doc.len_chars)
+					.map_err(|err| {
+						tracing::warn!(error = %err, ?uri, "history undo persist failed");
+						ErrorCode::Internal
+					})?;
+			}
+
+			let event = Event::SharedDelta {
+				uri: uri.clone(),
+				epoch: doc.epoch,
+				seq: doc.seq,
+				tx: undo_wire,
+			};
+			let lsp_text = doc.rope.to_string();
+			let participants = doc.participants.clone();
+			let seq = doc.seq;
+			let final_epoch = doc.epoch;
+			(event, lsp_text, participants, seq, final_epoch)
+		};
+
+		self.sessions
+			.broadcast(
+				participants,
+				xeno_broker_proto::types::IpcFrame::Event(event),
+				None,
+			)
+			.await;
+
+		self.notify_lsp_update(uri.clone(), lsp_text).await;
+
+		if let Some(knowledge) = &self.knowledge {
+			let _ = knowledge.doc_dirty(uri);
+		}
+
+		Ok(ResponsePayload::SharedUndoAck {
+			epoch: final_epoch,
+			seq,
+		})
+	}
+
+	async fn handle_redo(
+		&mut self,
+		sid: SessionId,
+		uri_in: &str,
+	) -> Result<ResponsePayload, ErrorCode> {
+		let uri = crate::core::normalize_uri(uri_in)?;
+		let (event, lsp_text, participants, seq, final_epoch) = {
+			let doc = self
+				.sync_docs
+				.get_mut(&uri)
+				.ok_or(ErrorCode::SyncDocNotFound)?;
+
+			if !doc.open_refcounts.contains_key(&sid) {
+				return Err(ErrorCode::SyncDocNotFound);
+			}
+			if let Some(preferred) = doc.preferred_owner
+				&& preferred != sid
+			{
+				return Err(ErrorCode::NotPreferredOwner);
+			}
+			if doc.owner != Some(sid) {
+				return Err(ErrorCode::NotPreferredOwner);
+			}
+			if doc.owner_needs_resync {
+				return Err(ErrorCode::OwnerNeedsResync);
+			}
+
+			let Some(history) = &self.history else {
+				return Err(ErrorCode::Internal);
+			};
+			let Some(meta) = doc.history.as_ref() else {
+				return Err(ErrorCode::Internal);
+			};
+			let head_id = meta.head_id;
+
+			let Some((child_id, redo_wire)) = history.load_redo(&uri, head_id).map_err(|err| {
+				tracing::warn!(error = %err, ?uri, "history redo load failed");
+				ErrorCode::Internal
+			})?
+			else {
+				return Err(ErrorCode::NothingToRedo);
+			};
+
+			let tx = wire_convert::wire_to_tx(&redo_wire, doc.rope.slice(..))
+				.map_err(|_| ErrorCode::InvalidDelta)?;
+			tx.apply(&mut doc.rope);
+			doc.seq = SyncSeq(doc.seq.0 + 1);
+			doc.update_fingerprint();
+			doc.touch(sid);
+
+			{
+				let Some(meta) = doc.history.as_mut() else {
+					return Err(ErrorCode::Internal);
+				};
+				meta.head_id = child_id;
+				history
+					.update_doc_state(&uri, meta, doc.epoch, doc.seq, doc.hash64, doc.len_chars)
+					.map_err(|err| {
+						tracing::warn!(error = %err, ?uri, "history redo persist failed");
+						ErrorCode::Internal
+					})?;
+			}
+
+			let event = Event::SharedDelta {
+				uri: uri.clone(),
+				epoch: doc.epoch,
+				seq: doc.seq,
+				tx: redo_wire,
 			};
 			let lsp_text = doc.rope.to_string();
 			let participants = doc.participants.clone();
@@ -724,7 +1035,7 @@ impl SharedStateService {
 			let _ = knowledge.doc_dirty(uri);
 		}
 
-		Ok(ResponsePayload::SharedEditAck {
+		Ok(ResponsePayload::SharedRedoAck {
 			epoch: final_epoch,
 			seq,
 		})
@@ -752,10 +1063,11 @@ impl SharedStateService {
 	async fn handle_idle_tick(&mut self) {
 		let now = Instant::now();
 		let mut unlocks = Vec::new();
+		let history = self.history.as_ref();
 
 		for (uri, doc) in &mut self.sync_docs {
 			if doc.owner_idle(now) {
-				unlocks.push(Self::prepare_unlock(uri, doc));
+				unlocks.push(Self::prepare_unlock(history, uri, doc));
 			}
 		}
 
@@ -770,11 +1082,31 @@ impl SharedStateService {
 		}
 	}
 
-	fn prepare_unlock(uri: &str, doc: &mut SyncDocState) -> (Vec<SessionId>, Event) {
+	fn persist_doc_state(history: Option<&HistoryStore>, uri: &str, doc: &SyncDocState) {
+		let Some(history) = history else {
+			return;
+		};
+		let Some(meta) = doc.history.as_ref() else {
+			return;
+		};
+		if let Err(err) =
+			history.update_doc_state(uri, meta, doc.epoch, doc.seq, doc.hash64, doc.len_chars)
+		{
+			tracing::warn!(error = %err, ?uri, "history metadata update failed");
+		}
+	}
+
+	fn prepare_unlock(
+		history: Option<&HistoryStore>,
+		uri: &str,
+		doc: &mut SyncDocState,
+	) -> (Vec<SessionId>, Event) {
 		doc.owner = None;
 		doc.epoch = SyncEpoch(doc.epoch.0 + 1);
 		doc.seq = SyncSeq(0);
 		doc.owner_needs_resync = true;
+
+		Self::persist_doc_state(history, uri, doc);
 
 		let snapshot = doc.snapshot(uri);
 		let event = Event::SharedUnlocked { snapshot };
@@ -789,6 +1121,7 @@ impl SharedStateService {
 		focus_seq: u64,
 	) -> Result<ResponsePayload, ErrorCode> {
 		let uri = crate::core::normalize_uri(uri_in)?;
+		let history = self.history.as_ref();
 		let doc = self
 			.sync_docs
 			.get_mut(&uri)
@@ -835,6 +1168,10 @@ impl SharedStateService {
 				doc.owner_needs_resync = true;
 				owner_changed = Some(false);
 			}
+		}
+
+		if owner_changed.is_some() {
+			Self::persist_doc_state(history, &uri, doc);
 		}
 
 		let snapshot = doc.snapshot(&uri);
@@ -898,12 +1235,14 @@ impl SharedStateService {
 
 		// Conditional resync
 		if let (Some(h), Some(l)) = (client_hash64, client_len_chars)
-			&& h == doc.hash64 && l == doc.len_chars {
-				return Ok(ResponsePayload::SharedSnapshot {
-					text: String::new(),
-					snapshot,
-				});
-			}
+			&& h == doc.hash64
+			&& l == doc.len_chars
+		{
+			return Ok(ResponsePayload::SharedSnapshot {
+				text: String::new(),
+				snapshot,
+			});
+		}
 
 		Ok(ResponsePayload::SharedSnapshot {
 			text: doc.rope.to_string(),
@@ -920,6 +1259,7 @@ impl SharedStateService {
 			.collect();
 
 		let mut closed_uris = Vec::new();
+		let history = self.history.as_ref();
 		for uri in uris {
 			let mut events: Vec<(Vec<SessionId>, Event)> = Vec::new();
 			if let Some(doc) = self.sync_docs.get_mut(&uri) {
@@ -942,7 +1282,7 @@ impl SharedStateService {
 						));
 					}
 					if doc.owner == Some(sid) {
-						events.push(Self::prepare_unlock(&uri, doc));
+						events.push(Self::prepare_unlock(history, &uri, doc));
 					}
 				}
 			}

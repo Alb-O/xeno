@@ -4,6 +4,7 @@ use std::collections::HashSet;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
+use helix_db::helix_engine::storage_core::HelixGraphStorage;
 use tokio::sync::{mpsc, oneshot};
 use xeno_broker_proto::types::{ErrorCode, KnowledgeHit};
 
@@ -96,23 +97,21 @@ impl KnowledgeService {
 	pub fn start(
 		shared_handle: super::shared_state::SharedStateHandle,
 		open_docs: Arc<Mutex<HashSet<String>>>,
+		storage: Option<Arc<HelixGraphStorage>>,
+		db_path: Option<PathBuf>,
 	) -> KnowledgeHandle {
 		let (tx, rx) = mpsc::channel(256);
 
-		let core = match knowledge::default_db_path()
-			.and_then(|path| knowledge::KnowledgeCore::open(path).map(Arc::new))
-		{
-			Ok(core) => {
+		let core = match (storage, db_path) {
+			(Some(storage), Some(path)) => {
+				let core = Arc::new(knowledge::KnowledgeCore::from_storage(storage, path));
 				let source: Arc<dyn knowledge::DocSnapshotSource> = Arc::new(AsyncSnapshotSource {
 					handle: shared_handle.clone(),
 				});
 				core.start_worker(Arc::downgrade(&source));
 				Some(core)
 			}
-			Err(err) => {
-				tracing::warn!(error = %err, "KnowledgeCore disabled");
-				None
-			}
+			_ => None,
 		};
 
 		let service = Self {

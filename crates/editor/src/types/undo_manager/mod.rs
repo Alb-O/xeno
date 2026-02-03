@@ -3,7 +3,8 @@
 //! The [`UndoManager`] centralizes undo/redo stack management and provides
 //! a prepare/finalize pattern for edit operations. The [`UndoHost`] trait
 //! abstracts the Editor operations needed for undo, enabling cleaner
-//! separation of concerns.
+//! separation of concerns. For broker-owned history, the manager can stage
+//! pending undo/redo groups and finalize them once remote deltas arrive.
 //!
 //! # Architecture
 //!
@@ -20,7 +21,7 @@
 //! └──────────────────┘
 //! ```
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use tracing::trace;
 use xeno_primitives::{CommitResult, EditOrigin, UndoPolicy};
@@ -43,6 +44,8 @@ pub struct UndoManager {
 	undo_stack: Vec<EditorUndoGroup>,
 	/// Editor-level redo grouping stack.
 	redo_stack: Vec<EditorUndoGroup>,
+	/// Pending broker-driven undo/redo operation.
+	pending_history: Option<PendingHistoryOp>,
 	#[cfg(test)]
 	pub finalize_calls: usize,
 }
@@ -64,6 +67,21 @@ pub struct PreparedEdit {
 	pub start_new_group: bool,
 	/// Origin of this edit.
 	pub origin: EditOrigin,
+}
+
+/// Kind of remote history operation.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum HistoryKind {
+	Undo,
+	Redo,
+}
+
+#[derive(Debug)]
+struct PendingHistoryOp {
+	kind: HistoryKind,
+	group: EditorUndoGroup,
+	current_snapshots: HashMap<ViewId, ViewSnapshot>,
+	remaining_docs: HashSet<DocumentId>,
 }
 
 /// Trait for operations needed by [`UndoManager`].
@@ -150,6 +168,11 @@ impl UndoManager {
 	/// This is primarily useful for testing and debugging.
 	pub fn last_undo_group(&self) -> Option<&EditorUndoGroup> {
 		self.undo_stack.last()
+	}
+
+	/// Returns a reference to the last redo group, if any.
+	pub fn last_redo_group(&self) -> Option<&EditorUndoGroup> {
+		self.redo_stack.last()
 	}
 
 	/// Pushes an undo group directly and clears the redo stack.
@@ -255,10 +278,150 @@ impl UndoManager {
 		f(self, host);
 	}
 
+	/// Starts a broker-driven undo operation, capturing snapshots for later completion.
+	pub fn start_remote_undo(&mut self, host: &mut impl UndoHost) -> Option<Vec<DocumentId>> {
+		if self.pending_history.is_some() {
+			return None;
+		}
+		if !host.guard_readonly() {
+			return None;
+		}
+
+		let Some(group) = self.undo_stack.pop() else {
+			trace!("undo: nothing to undo");
+			host.notify_nothing_to_undo();
+			return None;
+		};
+
+		let current_snapshots = host.capture_current_view_snapshots(&group.affected_docs);
+		let remaining_docs = group.affected_docs.iter().copied().collect::<HashSet<_>>();
+		let doc_ids = group.affected_docs.clone();
+
+		self.pending_history = Some(PendingHistoryOp {
+			kind: HistoryKind::Undo,
+			group,
+			current_snapshots,
+			remaining_docs,
+		});
+
+		Some(doc_ids)
+	}
+
+	/// Starts a broker-driven redo operation, capturing snapshots for later completion.
+	pub fn start_remote_redo(&mut self, host: &mut impl UndoHost) -> Option<Vec<DocumentId>> {
+		if self.pending_history.is_some() {
+			return None;
+		}
+		if !host.guard_readonly() {
+			return None;
+		}
+
+		let Some(group) = self.redo_stack.pop() else {
+			trace!("redo: nothing to redo");
+			host.notify_nothing_to_redo();
+			return None;
+		};
+
+		let current_snapshots = host.capture_current_view_snapshots(&group.affected_docs);
+		let remaining_docs = group.affected_docs.iter().copied().collect::<HashSet<_>>();
+		let doc_ids = group.affected_docs.clone();
+
+		self.pending_history = Some(PendingHistoryOp {
+			kind: HistoryKind::Redo,
+			group,
+			current_snapshots,
+			remaining_docs,
+		});
+
+		Some(doc_ids)
+	}
+
+	/// Notes that a broker-driven history delta was applied for the document.
+	pub fn note_remote_history_delta(&mut self, host: &mut impl UndoHost, doc_id: DocumentId) {
+		let Some(mut pending) = self.pending_history.take() else {
+			return;
+		};
+
+		if !pending.remaining_docs.remove(&doc_id) {
+			self.pending_history = Some(pending);
+			return;
+		}
+
+		if !pending.remaining_docs.is_empty() {
+			self.pending_history = Some(pending);
+			return;
+		}
+
+		match pending.kind {
+			HistoryKind::Undo => {
+				host.restore_view_snapshots(&pending.group.view_snapshots);
+				self.redo_stack.push(EditorUndoGroup {
+					affected_docs: pending.group.affected_docs,
+					view_snapshots: pending.current_snapshots,
+					origin: pending.group.origin,
+				});
+				host.notify_undo();
+			}
+			HistoryKind::Redo => {
+				host.restore_view_snapshots(&pending.group.view_snapshots);
+				self.undo_stack.push(EditorUndoGroup {
+					affected_docs: pending.group.affected_docs,
+					view_snapshots: pending.current_snapshots,
+					origin: pending.group.origin,
+				});
+				host.notify_redo();
+			}
+		}
+	}
+
+	/// Cancels a pending broker-driven history operation, restoring stacks.
+	pub fn cancel_pending_history(&mut self, host: &mut impl UndoHost, kind: HistoryKind) {
+		let Some(pending) = self.pending_history.take() else {
+			return;
+		};
+
+		if pending.kind != kind {
+			self.pending_history = Some(pending);
+			return;
+		}
+
+		match pending.kind {
+			HistoryKind::Undo => {
+				self.undo_stack.push(pending.group);
+				host.notify_nothing_to_undo();
+			}
+			HistoryKind::Redo => {
+				self.redo_stack.push(pending.group);
+				host.notify_nothing_to_redo();
+			}
+		}
+	}
+
+	/// Cancels any pending broker-driven history operation.
+	pub fn cancel_pending_history_any(&mut self, host: &mut impl UndoHost) {
+		let Some(pending) = self.pending_history.take() else {
+			return;
+		};
+
+		match pending.kind {
+			HistoryKind::Undo => {
+				self.undo_stack.push(pending.group);
+				host.notify_nothing_to_undo();
+			}
+			HistoryKind::Redo => {
+				self.redo_stack.push(pending.group);
+				host.notify_nothing_to_redo();
+			}
+		}
+	}
+
 	/// Undoes the last change, restoring view state for all affected buffers.
 	///
 	/// Returns `true` if undo was performed successfully.
 	pub fn undo(&mut self, host: &mut impl UndoHost) -> bool {
+		if self.pending_history.is_some() {
+			return false;
+		}
 		if !host.guard_readonly() {
 			return false;
 		}
@@ -305,6 +468,9 @@ impl UndoManager {
 	///
 	/// Returns `true` if redo was performed successfully.
 	pub fn redo(&mut self, host: &mut impl UndoHost) -> bool {
+		if self.pending_history.is_some() {
+			return false;
+		}
 		if !host.guard_readonly() {
 			return false;
 		}

@@ -41,15 +41,16 @@ impl Editor {
 				.uri_for_doc_id(doc_id)
 				.map(str::to_string);
 			if let Some(uri) = uri
-				&& self.state.shared_state.is_edit_blocked(&uri) {
-					if !self.state.shared_state.is_owner(&uri)
-						&& let Some(payload) = self.state.shared_state.note_focus(doc_id, true)
-					{
-						let _ = self.state.lsp.shared_state_out_tx().send(payload);
-						self.notify(keys::SYNC_TAKING_OWNERSHIP);
-					}
-					return false;
+				&& self.state.shared_state.is_edit_blocked(&uri)
+			{
+				if !self.state.shared_state.is_owner(&uri)
+					&& let Some(payload) = self.state.shared_state.note_focus(doc_id, true)
+				{
+					let _ = self.state.lsp.shared_state_out_tx().send(payload);
+					self.notify(keys::SYNC_TAKING_OWNERSHIP);
 				}
+				return false;
+			}
 		}
 
 		let focused_view = self.focused_view();

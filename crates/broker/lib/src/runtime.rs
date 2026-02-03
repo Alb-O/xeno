@@ -3,6 +3,7 @@
 use std::sync::Arc;
 use std::time::Duration;
 
+use crate::core::db;
 use crate::launcher::LspLauncher;
 use crate::services::{knowledge, routing, sessions, shared_state};
 
@@ -29,9 +30,20 @@ impl BrokerRuntime {
 	#[must_use]
 	pub fn new(idle_lease: Duration, launcher: Arc<dyn LspLauncher>) -> Arc<Self> {
 		let (sessions, sessions_routing_tx, sessions_shared_tx) = sessions::SessionService::start();
+		let db = match db::default_db_path().and_then(db::BrokerDb::open) {
+			Ok(db) => Some(db),
+			Err(err) => {
+				tracing::warn!(error = %err, "Broker DB disabled");
+				None
+			}
+		};
+		let storage = db.as_ref().map(|db| db.storage());
+		let db_path = db.as_ref().map(|db| db.db_path().clone());
+
 		let (shared_state, open_docs, shared_knowledge_tx, shared_routing_tx) =
-			shared_state::SharedStateService::start(sessions.clone());
-		let knowledge = knowledge::KnowledgeService::start(shared_state.clone(), open_docs);
+			shared_state::SharedStateService::start(sessions.clone(), storage.clone());
+		let knowledge =
+			knowledge::KnowledgeService::start(shared_state.clone(), open_docs, storage, db_path);
 
 		let _ = shared_knowledge_tx.try_send(knowledge.clone());
 
