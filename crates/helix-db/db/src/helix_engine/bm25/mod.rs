@@ -498,3 +498,6 @@ impl BM25Flatten for ImmutablePropertiesMap<'_> {
 			})
 	}
 }
+
+#[cfg(test)]
+mod tests;
