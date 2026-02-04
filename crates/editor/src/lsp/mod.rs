@@ -7,13 +7,24 @@ pub(crate) mod code_action;
 #[cfg(feature = "lsp")]
 pub(crate) mod completion;
 #[cfg(feature = "lsp")]
+mod completion_controller;
+#[cfg(feature = "lsp")]
 pub(crate) mod completion_filter;
 #[cfg(feature = "lsp")]
 pub(crate) mod diagnostics;
 #[cfg(feature = "lsp")]
+mod document_ops;
+#[cfg(feature = "lsp")]
+mod encoding;
+#[cfg(feature = "lsp")]
 pub(crate) mod events;
 #[cfg(feature = "lsp")]
 pub(crate) mod menu;
+mod render;
+#[cfg(feature = "lsp")]
+mod requests;
+#[cfg(feature = "lsp")]
+mod shared_state_bridge;
 #[cfg(feature = "lsp")]
 pub(crate) mod signature_help;
 #[cfg(feature = "lsp")]
