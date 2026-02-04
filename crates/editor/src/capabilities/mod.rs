@@ -9,6 +9,7 @@ use std::pin::Pin;
 use xeno_primitives::direction::{Axis, SeqDirection, SpatialDirection};
 use xeno_primitives::range::{CharIdx, Direction as MoveDir};
 use xeno_primitives::{Mode, Range, Selection};
+use xeno_registry::actions::editor_ctx::{OverlayAccess, OverlayRequest};
 use xeno_registry::commands::{CommandEditorOps, CommandError};
 use xeno_registry::notifications::{Notification, keys};
 use xeno_registry::options::{OptionKey, OptionScope, OptionValue, find_by_kdl, parse};
@@ -21,6 +22,7 @@ use xeno_registry::{
 };
 
 use crate::impls::Editor;
+use crate::overlay::LayerEvent;
 
 /// Parses a string value into an [`OptionValue`] based on the option's declared type.
 ///
@@ -69,7 +71,9 @@ impl CursorAccess for Editor {
 	fn set_cursor(&mut self, pos: CharIdx) {
 		let view = self.focused_view();
 		self.buffer_mut().set_cursor(pos);
-		self.notify_overlay_event(crate::overlay::LayerEvent::CursorMoved { view });
+		self.state
+			.effects
+			.push_layer_event(LayerEvent::CursorMoved { view });
 	}
 }
 
@@ -85,7 +89,9 @@ impl SelectionAccess for Editor {
 	fn set_selection(&mut self, sel: Selection) {
 		let view = self.focused_view();
 		self.buffer_mut().set_selection(sel);
-		self.notify_overlay_event(crate::overlay::LayerEvent::CursorMoved { view });
+		self.state
+			.effects
+			.push_layer_event(LayerEvent::CursorMoved { view });
 	}
 }
 
@@ -107,17 +113,20 @@ impl ModeAccess for Editor {
 		}
 		let view = self.focused_view();
 		self.buffer_mut().input.set_mode(mode.clone());
-		self.notify_overlay_event(crate::overlay::LayerEvent::ModeChanged { view, mode });
+		self.state
+			.effects
+			.push_layer_event(LayerEvent::ModeChanged { view, mode });
 	}
 }
 
 impl NotificationAccess for Editor {
 	fn emit(&mut self, notification: Notification) {
-		self.show_notification(notification);
+		self.state.effects.notify(notification);
 	}
 
 	fn clear_notifications(&mut self) {
 		self.clear_all_notifications();
+		self.state.effects.request_redraw();
 	}
 }
 
@@ -239,11 +248,12 @@ impl ThemeAccess for Editor {
 
 impl CommandEditorOps for Editor {
 	fn emit(&mut self, notification: Notification) {
-		self.show_notification(notification);
+		self.state.effects.notify(notification);
 	}
 
 	fn clear_notifications(&mut self) {
 		self.clear_all_notifications();
+		self.state.effects.request_redraw();
 	}
 
 	fn is_modified(&self) -> bool {
@@ -324,13 +334,17 @@ impl CommandEditorOps for Editor {
 		Ok(())
 	}
 
-	fn open_info_popup(&mut self, content: &str, file_type: Option<&str>) {
-		use crate::info_popup::PopupAnchor;
-		Editor::open_info_popup(self, content.to_string(), file_type, PopupAnchor::Center);
+	fn open_info_popup(&mut self, content: &str, _file_type: Option<&str>) {
+		self.state
+			.effects
+			.overlay_request(OverlayRequest::ShowInfoPopup {
+				title: None,
+				body: content.to_string(),
+			});
 	}
 
 	fn close_all_info_popups(&mut self) {
-		Editor::close_all_info_popups(self);
+		// TODO: Add CloseInfoPopups to OverlayRequest if needed, or use CloseModal
 	}
 
 	fn goto_file(
@@ -419,7 +433,9 @@ impl JumpAccess for Editor {
 				self.focus_buffer(buffer_id);
 			}
 			self.buffer_mut().set_cursor(cursor);
-			self.notify_overlay_event(crate::overlay::LayerEvent::CursorMoved { view: buffer_id });
+			self.state
+				.effects
+				.push_layer_event(crate::overlay::LayerEvent::CursorMoved { view: buffer_id });
 			true
 		} else {
 			false
@@ -442,7 +458,9 @@ impl JumpAccess for Editor {
 				self.focus_buffer(buffer_id);
 			}
 			self.buffer_mut().set_cursor(cursor);
-			self.notify_overlay_event(crate::overlay::LayerEvent::CursorMoved { view: buffer_id });
+			self.state
+				.effects
+				.push_layer_event(crate::overlay::LayerEvent::CursorMoved { view: buffer_id });
 			true
 		} else {
 			false
@@ -480,25 +498,34 @@ impl MacroAccess for Editor {
 
 impl CommandQueueAccess for Editor {
 	fn queue_command(&mut self, name: &'static str, args: Vec<String>) {
-		self.state.core.workspace.command_queue.push(name, args);
+		self.state.effects.queue_command(name, args);
 	}
 }
 
 impl PaletteAccess for Editor {
 	fn open_palette(&mut self) {
-		self.open_command_palette();
+		self.state
+			.effects
+			.overlay_request(OverlayRequest::OpenModal {
+				kind: "command_palette",
+				args: vec![],
+			});
 	}
 
 	fn close_palette(&mut self) {
-		self.interaction_cancel();
+		self.state
+			.effects
+			.overlay_request(OverlayRequest::CloseModal {
+				reason: xeno_registry::actions::editor_ctx::OverlayCloseReason::Cancel,
+			});
 	}
 
 	fn execute_palette(&mut self) {
-		// execute_palette in registry is sync, but interaction_commit is async.
-		// For now we don't have any sync callers that can't be moved to async,
-		// but if we did, we'd need a bridge here.
-		// Since no actions currently emit ExecutePalette, we can leave this
-		// as a no-op or trigger the async version via a message if needed.
+		self.state
+			.effects
+			.overlay_request(OverlayRequest::CloseModal {
+				reason: xeno_registry::actions::editor_ctx::OverlayCloseReason::Commit,
+			});
 	}
 
 	fn palette_is_open(&self) -> bool {
@@ -570,6 +597,10 @@ impl EditorCapabilities for Editor {
 	}
 
 	fn option_ops(&self) -> Option<&dyn OptionAccess> {
+		Some(self)
+	}
+
+	fn overlay(&mut self) -> Option<&mut dyn OverlayAccess> {
 		Some(self)
 	}
 

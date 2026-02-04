@@ -194,6 +194,12 @@ pub(crate) struct EditorState {
 	/// Unified overlay system for modal interactions and passive layers.
 	pub(crate) overlay_system: OverlaySystem,
 
+	/// Unified side-effect routing and sink.
+	pub(crate) effects: crate::effects::sink::EffectSink,
+
+	/// Recursion depth for side-effect flushing.
+	pub(crate) flush_depth: usize,
+
 	/// Runtime metrics for observability.
 	pub(crate) metrics: std::sync::Arc<crate::metrics::EditorMetrics>,
 
@@ -330,6 +336,8 @@ impl Editor {
 				syntax_manager: crate::syntax_manager::SyntaxManager::new(2),
 				hook_runtime,
 				overlay_system: OverlaySystem::default(),
+				effects: crate::effects::sink::EffectSink::default(),
+				flush_depth: 0,
 				metrics: std::sync::Arc::new(crate::metrics::EditorMetrics::new()),
 				msg_tx,
 				msg_rx,

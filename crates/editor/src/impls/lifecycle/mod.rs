@@ -53,16 +53,16 @@ impl Editor {
 	/// until user input triggers a render.
 	pub fn tick(&mut self) {
 		if self.state.syntax_manager.any_task_finished() {
-			self.state.frame.needs_redraw = true;
+			self.state.effects.request_redraw();
 		}
 
 		if self.state.layout.animation_needs_redraw() {
-			self.state.frame.needs_redraw = true;
+			self.state.effects.request_redraw();
 		}
 
 		#[cfg(feature = "lsp")]
 		if !self.state.lsp.poll_diagnostics().is_empty() {
-			self.state.frame.needs_redraw = true;
+			self.state.effects.request_redraw();
 		}
 		#[cfg(feature = "lsp")]
 		self.drain_lsp_ui_events();
@@ -97,6 +97,8 @@ impl Editor {
 			&HookContext::new(HookEventData::EditorTick),
 			&mut self.state.hook_runtime,
 		);
+
+		self.flush_effects();
 	}
 
 	/// Returns true if any UI panel is currently open.
@@ -116,32 +118,35 @@ impl Editor {
 		let mut ui = std::mem::take(&mut self.state.ui);
 		ui.notify_resize(self, width, height);
 		if ui.take_wants_redraw() {
-			self.state.frame.needs_redraw = true;
+			self.state.effects.request_redraw();
 		}
 		self.state.ui = ui;
-		self.state.frame.needs_redraw = true;
+		self.state.effects.request_redraw();
 		emit_hook_sync_with(
 			&HookContext::new(HookEventData::WindowResize { width, height }),
 			&mut self.state.hook_runtime,
 		);
+		self.flush_effects();
 	}
 
 	/// Handles terminal focus gained events, emitting the FocusGained hook.
 	pub fn handle_focus_in(&mut self) {
-		self.state.frame.needs_redraw = true;
+		self.state.effects.request_redraw();
 		emit_hook_sync_with(
 			&HookContext::new(HookEventData::FocusGained),
 			&mut self.state.hook_runtime,
 		);
+		self.flush_effects();
 	}
 
 	/// Handles terminal focus lost events, emitting the FocusLost hook.
 	pub fn handle_focus_out(&mut self) {
-		self.state.frame.needs_redraw = true;
+		self.state.effects.request_redraw();
 		emit_hook_sync_with(
 			&HookContext::new(HookEventData::FocusLost),
 			&mut self.state.hook_runtime,
 		);
+		self.flush_effects();
 	}
 
 	/// Handles paste events, delegating to UI or inserting text directly.
@@ -149,17 +154,19 @@ impl Editor {
 		let mut ui = std::mem::take(&mut self.state.ui);
 		let handled = ui.handle_paste(self, content.clone());
 		if ui.take_wants_redraw() {
-			self.state.frame.needs_redraw = true;
+			self.state.effects.request_redraw();
 		}
 		self.state.ui = ui;
 		self.sync_focus_from_ui();
 
 		if handled {
-			self.state.frame.needs_redraw = true;
+			self.state.effects.request_redraw();
+			self.flush_effects();
 			return;
 		}
 
 		self.insert_text(&content);
+		self.flush_effects();
 	}
 
 	/// Emits current statistics as a tracing event.

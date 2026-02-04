@@ -394,23 +394,24 @@ fn handle_inbound_message(
 
 		// Handle diagnostics specially
 		if method == "textDocument/publishDiagnostics"
-			&& let Some(uri) = params.get("uri").and_then(|u| u.as_str()) {
-				let version = params
-					.get("version")
-					.and_then(|v| v.as_u64())
-					.map(|v| v as u32);
-				let diagnostics = params
-					.get("diagnostics")
-					.cloned()
-					.unwrap_or(JsonValue::Array(vec![]));
-				let _ = event_tx.send(TransportEvent::Diagnostics {
-					server: id,
-					uri: uri.to_string(),
-					version,
-					diagnostics,
-				});
-				return;
-			}
+			&& let Some(uri) = params.get("uri").and_then(|u| u.as_str())
+		{
+			let version = params
+				.get("version")
+				.and_then(|v| v.as_u64())
+				.map(|v| v as u32);
+			let diagnostics = params
+				.get("diagnostics")
+				.cloned()
+				.unwrap_or(JsonValue::Array(vec![]));
+			let _ = event_tx.send(TransportEvent::Diagnostics {
+				server: id,
+				uri: uri.to_string(),
+				version,
+				diagnostics,
+			});
+			return;
+		}
 
 		// Other notifications go through as messages
 		let _ = event_tx.send(TransportEvent::Message {

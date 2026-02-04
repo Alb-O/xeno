@@ -40,6 +40,8 @@ pub mod commands;
 pub mod completion;
 /// Editor context and effect handling.
 pub mod editor_ctx;
+/// Unified side-effect routing and sink.
+pub mod effects;
 /// Execution gate for task ordering.
 pub mod execution_gate;
 /// Async hook execution runtime.

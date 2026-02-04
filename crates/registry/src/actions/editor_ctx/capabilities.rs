@@ -29,6 +29,7 @@
 //! - [`JumpAccess`] - Jump list navigation
 //! - [`MacroAccess`] - Macro recording/playback
 //! - [`OptionAccess`] - Configuration option resolution
+//! - [`OverlayAccess`] - UI overlays and modal interactions
 //!
 //! [`EditorCapabilities`]: super::EditorCapabilities
 
@@ -37,8 +38,8 @@ use xeno_primitives::direction::{Axis, SeqDirection, SpatialDirection};
 use xeno_primitives::range::{CharIdx, Direction};
 use xeno_primitives::selection::Selection;
 
-use crate::actions::Mode;
 use crate::actions::effects::MotionRequest;
+use crate::actions::{CommandError, Mode};
 use crate::core::{FromOptionValue, OptionValue};
 use crate::notifications::Notification;
 use crate::options::{OptionKey, TypedOptionKey};
@@ -414,6 +415,44 @@ pub trait OptionAccess {
 		T::from_option(&self.option_raw(key.untyped()))
 			.or_else(|| T::from_option(&key.def().default.to_value()))
 			.expect("option type mismatch with registered default")
+	}
+}
+
+/// Stable, editor-agnostic overlay requests.
+/// Keep this SMALL; add variants only when you have a real caller.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum OverlayRequest {
+	/// Open a named modal overlay (editor resolves name -> controller).
+	OpenModal {
+		kind: &'static str,
+		args: Vec<String>,
+	},
+
+	/// Close the active modal overlay (if any).
+	CloseModal { reason: OverlayCloseReason },
+
+	/// Show a passive info popup (non-modal). Concrete rendering is editor-owned.
+	ShowInfoPopup { title: Option<String>, body: String },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum OverlayCloseReason {
+	Cancel,
+	Commit,
+	Blur,
+	Forced,
+}
+
+/// Optional capability trait.
+/// Implemented by the real editor; test harnesses can omit it.
+pub trait OverlayAccess {
+	/// Apply an overlay request. Editors MAY treat some requests as no-ops
+	/// if overlays are not enabled in the current mode.
+	fn overlay_request(&mut self, req: OverlayRequest) -> Result<(), CommandError>;
+
+	/// Optional query helper (useful for guards in result handlers).
+	fn overlay_modal_is_open(&self) -> bool {
+		false
 	}
 }
 

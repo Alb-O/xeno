@@ -174,11 +174,14 @@ impl Editor {
 		let result = (action.handler)(&ctx);
 		trace!(result = ?result, "Action completed");
 
-		if self.apply_action_result(action.id(), result, extend) {
+		let outcome = if self.apply_action_result(action.id(), result, extend) {
 			InvocationResult::Quit
 		} else {
 			InvocationResult::Ok
-		}
+		};
+
+		self.flush_effects();
+		outcome
 	}
 
 	async fn run_command_invocation(
@@ -231,7 +234,7 @@ impl Editor {
 			user_data: command_def.user_data,
 		};
 
-		match (command_def.handler)(&mut ctx).await {
+		let outcome = match (command_def.handler)(&mut ctx).await {
 			Ok(CommandOutcome::Ok) => InvocationResult::Ok,
 			Ok(CommandOutcome::Quit) => InvocationResult::Quit,
 			Ok(CommandOutcome::ForceQuit) => InvocationResult::ForceQuit,
@@ -241,7 +244,10 @@ impl Editor {
 				));
 				InvocationResult::CommandError(e.to_string())
 			}
-		}
+		};
+
+		self.flush_effects();
+		outcome
 	}
 
 	/// Executes editor-direct commands with capability gating and policy checks.
@@ -296,7 +302,7 @@ impl Editor {
 			user_data: editor_cmd.user_data,
 		};
 
-		match (editor_cmd.handler)(&mut ctx).await {
+		let outcome = match (editor_cmd.handler)(&mut ctx).await {
 			Ok(CommandOutcome::Ok) => InvocationResult::Ok,
 			Ok(CommandOutcome::Quit) => InvocationResult::Quit,
 			Ok(CommandOutcome::ForceQuit) => InvocationResult::ForceQuit,
@@ -306,7 +312,10 @@ impl Editor {
 				));
 				InvocationResult::CommandError(e.to_string())
 			}
-		}
+		};
+
+		self.flush_effects();
+		outcome
 	}
 
 	/// Dispatches an action result to handlers and emits post-action hook.

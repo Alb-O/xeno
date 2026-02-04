@@ -9,6 +9,7 @@ impl Editor {
 			std::mem::take(&mut self.state.overlay_system.interaction);
 		interaction.on_buffer_edited(self, view_id);
 		self.state.overlay_system.interaction = interaction;
+		self.flush_effects();
 	}
 
 	pub async fn interaction_commit(&mut self) {
@@ -16,6 +17,7 @@ impl Editor {
 			std::mem::take(&mut self.state.overlay_system.interaction);
 		interaction.commit(self).await;
 		self.state.overlay_system.interaction = interaction;
+		self.flush_effects();
 	}
 
 	pub fn interaction_cancel(&mut self) {
@@ -23,6 +25,7 @@ impl Editor {
 			std::mem::take(&mut self.state.overlay_system.interaction);
 		interaction.close(self, CloseReason::Cancel);
 		self.state.overlay_system.interaction = interaction;
+		self.flush_effects();
 	}
 
 	pub fn open_search(&mut self, reverse: bool) -> bool {
@@ -31,6 +34,7 @@ impl Editor {
 			std::mem::take(&mut self.state.overlay_system.interaction);
 		let result = interaction.open(self, Box::new(ctl));
 		self.state.overlay_system.interaction = interaction;
+		self.flush_effects();
 		result
 	}
 
@@ -40,6 +44,7 @@ impl Editor {
 			std::mem::take(&mut self.state.overlay_system.interaction);
 		let result = interaction.open(self, Box::new(ctl));
 		self.state.overlay_system.interaction = interaction;
+		self.flush_effects();
 		result
 	}
 
@@ -49,6 +54,7 @@ impl Editor {
 			std::mem::take(&mut self.state.overlay_system.interaction);
 		let result = interaction.open(self, Box::new(ctl));
 		self.state.overlay_system.interaction = interaction;
+		self.flush_effects();
 		result
 	}
 
@@ -73,6 +79,7 @@ impl Editor {
 			self.notify(xeno_registry::notifications::keys::warn(
 				"Rename not supported for this buffer",
 			));
+			self.flush_effects();
 			return false;
 		}
 
@@ -84,14 +91,14 @@ impl Editor {
 			std::mem::take(&mut self.state.overlay_system.interaction);
 		let result = interaction.open(self, Box::new(ctl));
 		self.state.overlay_system.interaction = interaction;
+		self.flush_effects();
 		result
 	}
 
 	/// Broadcasts an event to all passive overlay layers.
 	pub fn notify_overlay_event(&mut self, event: crate::overlay::LayerEvent) {
-		let mut layers = std::mem::take(&mut self.state.overlay_system.layers);
-		layers.notify_event(self, event);
-		self.state.overlay_system.layers = layers;
+		self.state.effects.push_layer_event(event);
+		self.flush_effects();
 	}
 
 	/// Ensures the cursor is visible in the specified view, scrolling if necessary.
@@ -128,8 +135,9 @@ impl Editor {
 				tab_width,
 				scroll_margin,
 			);
-			self.state.frame.needs_redraw = true;
+			self.state.effects.request_redraw();
 		}
+		self.flush_effects();
 	}
 }
 

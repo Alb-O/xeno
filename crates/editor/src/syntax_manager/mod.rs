@@ -37,7 +37,7 @@
 //!    - Tested by: `syntax_manager::tests::test_stale_parse_does_not_overwrite_clean_incremental`, `syntax_manager::tests::test_stale_install_continuity`
 //!    - Failure symptom (missing install): Document stays unhighlighted until an exact match completes.
 //!    - Failure symptom (overwrite race): Stale tree overwrites correct incremental tree while `dirty=false`, creating a stuck state with wrong highlights.
-//!    - Notes: Stale installs are allowed when the caller is already dirty (catch-up mode) or has no syntax tree (bootstrap). A clean tree from a successful incremental update MUST NOT be replaced by an older full-parse result.
+//!    - Notes: Stale installs are allowed when the caller is already dirty (catch-up mode) or has no syntax at all (bootstrap). A clean tree from a successful incremental update MUST NOT be replaced by an older full-parse result.
 //!
 //! 4. MUST call [`SyntaxManager::note_edit`] on every document mutation (edits, undo, redo, LSP workspace edits).
 //!    - Enforced in: `EditorUndoHost::apply_transaction_inner`, `EditorUndoHost::undo_document`, `EditorUndoHost::redo_document`, `Editor::apply_buffer_edit_plan`
@@ -99,6 +99,7 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use ropey::Rope;
+use rustc_hash::FxHashSet;
 use tokio::sync::{OwnedSemaphorePermit, Semaphore};
 use tokio::task::JoinHandle;
 use xeno_runtime_language::syntax::{InjectionPolicy, Syntax, SyntaxError, SyntaxOptions};
@@ -301,6 +302,7 @@ pub struct SyntaxManager {
 	docs: HashMap<DocumentId, DocState>,
 	syntax: HashMap<DocumentId, SyntaxState>,
 	engine: Arc<dyn SyntaxEngine>,
+	dirty_docs: FxHashSet<DocumentId>,
 }
 
 impl Default for SyntaxManager {
@@ -340,6 +342,7 @@ impl SyntaxManager {
 			docs: HashMap::new(),
 			syntax: HashMap::new(),
 			engine: Arc::new(RealSyntaxEngine),
+			dirty_docs: FxHashSet::default(),
 		}
 	}
 
@@ -351,6 +354,7 @@ impl SyntaxManager {
 			docs: HashMap::new(),
 			syntax: HashMap::new(),
 			engine,
+			dirty_docs: FxHashSet::default(),
 		}
 	}
 
@@ -396,10 +400,12 @@ impl SyntaxManager {
 			mark_updated(state);
 		}
 		state.dirty = true;
+		self.dirty_docs.insert(doc_id);
 	}
 
 	pub fn mark_dirty(&mut self, doc_id: DocumentId) {
 		self.state_mut(doc_id).dirty = true;
+		self.dirty_docs.insert(doc_id);
 	}
 
 	/// Records an edit (for debounce). Do NOT abort inflight tasks (single-flight).
@@ -409,12 +415,18 @@ impl SyntaxManager {
 			.entry(doc_id)
 			.or_insert_with(|| DocState::new(now))
 			.last_edit_at = now;
-		self.state_mut(doc_id).dirty = true;
+		self.mark_dirty(doc_id);
 	}
 
 	/// Cleans up tracking state for a closed document.
 	pub fn on_document_close(&mut self, doc_id: DocumentId) {
+		self.forget_doc(doc_id);
+	}
+
+	/// Removes all tracking state and pending tasks for a document.
+	pub fn forget_doc(&mut self, doc_id: DocumentId) {
 		self.syntax.remove(&doc_id);
+		self.dirty_docs.remove(&doc_id);
 		if let Some(mut st) = self.docs.remove(&doc_id)
 			&& let Some(p) = st.inflight.take()
 		{
@@ -431,6 +443,17 @@ impl SyntaxManager {
 
 	pub fn pending_count(&self) -> usize {
 		self.docs.values().filter(|d| d.inflight.is_some()).count()
+	}
+
+	pub fn pending_docs(&self) -> impl Iterator<Item = DocumentId> + '_ {
+		self.docs
+			.iter()
+			.filter(|(_, d)| d.inflight.is_some())
+			.map(|(id, _)| *id)
+	}
+
+	pub fn dirty_docs(&self) -> impl Iterator<Item = DocumentId> + '_ {
+		self.dirty_docs.iter().copied()
 	}
 
 	/// Returns true if any inflight task has finished.
@@ -470,6 +493,7 @@ impl SyntaxManager {
 				mark_updated(state);
 			}
 			state.dirty = true;
+			self.dirty_docs.insert(ctx.doc_id);
 			state.language_id = ctx.language_id;
 		}
 
@@ -528,6 +552,7 @@ impl SyntaxManager {
 					// dirty clears only if this parse matches current version + "shape"
 					if lang_ok && opts_ok && version_match {
 						state.dirty = false;
+						self.dirty_docs.remove(&ctx.doc_id);
 						st.cooldown_until = None;
 						return SyntaxPollOutcome {
 							result: SyntaxPollResult::Ready,
@@ -570,6 +595,7 @@ impl SyntaxManager {
 			}
 			state.language_id = None;
 			state.dirty = false;
+			self.dirty_docs.remove(&ctx.doc_id);
 			st.cooldown_until = None;
 			return SyntaxPollOutcome {
 				result: SyntaxPollResult::NoLanguage,
@@ -578,7 +604,15 @@ impl SyntaxManager {
 		};
 
 		// 3) Retention AFTER inflight completion (don’t re-install dropped trees)
-		apply_retention(now, st, cfg.retention_hidden, ctx.hotness, state);
+		apply_retention(
+			now,
+			st,
+			cfg.retention_hidden,
+			ctx.hotness,
+			state,
+			ctx.doc_id,
+			&mut self.dirty_docs,
+		);
 
 		// 4) Clean short-circuit (safe now: no inflight exists)
 		if state.current.is_some() && !state.dirty {
@@ -606,12 +640,13 @@ impl SyntaxManager {
 
 		// 7) Cooldown
 		if let Some(until) = st.cooldown_until
-			&& now < until {
-				return SyntaxPollOutcome {
-					result: SyntaxPollResult::CoolingDown,
-					updated: state.updated,
-				};
-			}
+			&& now < until
+		{
+			return SyntaxPollOutcome {
+				result: SyntaxPollResult::CoolingDown,
+				updated: state.updated,
+			};
+		}
 
 		// 8) Global concurrency cap
 		let permit = match self.permits.clone().try_acquire_owned() {
@@ -694,6 +729,8 @@ fn apply_retention(
 	policy: RetentionPolicy,
 	hotness: SyntaxHotness,
 	state: &mut SyntaxState,
+	doc_id: DocumentId,
+	dirty_docs: &mut FxHashSet<DocumentId>,
 ) {
 	if matches!(hotness, SyntaxHotness::Visible | SyntaxHotness::Warm) {
 		return;
@@ -705,6 +742,7 @@ fn apply_retention(
 			if state.current.is_some() {
 				state.current = None;
 				state.dirty = true;
+				dirty_docs.insert(doc_id);
 				mark_updated(state);
 			}
 		}
@@ -712,6 +750,7 @@ fn apply_retention(
 			if state.current.is_some() && now.duration_since(st.last_visible_at) > ttl {
 				state.current = None;
 				state.dirty = true;
+				dirty_docs.insert(doc_id);
 				mark_updated(state);
 			}
 		}
