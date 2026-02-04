@@ -47,7 +47,10 @@ impl Protocol for BrokerProtocol {
 		if len > 16 * 1024 * 1024 {
 			return Err(IoError::new(
 				ErrorKind::InvalidData,
-				format!("message too large: {} bytes", len),
+				format!(
+					"message too large: {} bytes (len_prefix=0x{:02x}{:02x}{:02x}{:02x})",
+					len, len_bytes[3], len_bytes[2], len_bytes[1], len_bytes[0]
+				),
 			));
 		}
 
@@ -72,7 +75,7 @@ impl Protocol for BrokerProtocol {
 		if buf.len() > 16 * 1024 * 1024 {
 			return Err(IoError::new(
 				ErrorKind::InvalidData,
-				format!("message too large: {} bytes", buf.len()),
+				format!("message too large: {} bytes (max=16777216)", buf.len()),
 			));
 		}
 

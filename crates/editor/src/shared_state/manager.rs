@@ -115,6 +115,35 @@ impl SharedStateManager {
 			.map(|e| e.current_undo_group)
 			.unwrap_or(0)
 	}
+
+	/// Returns true if a shared document has an in-flight mutation.
+	pub fn is_in_flight(&self, uri: &str) -> bool {
+		self.docs
+			.get(uri)
+			.is_some_and(|entry| entry.in_flight.is_some())
+	}
+
+	/// Queues a history operation for a shared document.
+	pub fn queue_history(&mut self, uri: &str, kind: xeno_broker_proto::types::SharedApplyKind) {
+		if let Some(entry) = self.docs.get_mut(uri) {
+			entry.pending_history.push_back(kind);
+		}
+	}
+
+	#[cfg(test)]
+	pub(crate) fn pending_history_len(&self, uri: &str) -> usize {
+		self.docs
+			.get(uri)
+			.map(|entry| entry.pending_history.len())
+			.unwrap_or(0)
+	}
+
+	#[cfg(test)]
+	pub(crate) fn has_pending_align(&self, uri: &str) -> bool {
+		self.docs
+			.get(uri)
+			.is_some_and(|entry| entry.pending_align.is_some())
+	}
 }
 
 impl Default for SharedStateManager {

@@ -18,6 +18,8 @@
 //!
 //! [`UndoManager`]: crate::types::UndoManager
 
+use xeno_broker_proto::types::SharedApplyKind;
+
 use super::undo_host::EditorUndoHost;
 use crate::buffer::Buffer;
 use crate::impls::{Editor, ViewSnapshot};
@@ -96,6 +98,44 @@ impl Editor {
 					}
 				}
 
+				let needs_resync = items.iter().any(|u| {
+					matches!(
+						self.state.shared_state.ui_status_for_uri(u).1,
+						crate::shared_state::SyncStatus::NeedsResync
+					)
+				});
+				if needs_resync {
+					let core = &mut self.state.core;
+					core.undo_manager.cancel_pending_history_silent();
+					self.update_readonly_for_shared_state(&uri_s);
+					return;
+				}
+
+				let needs_owner = items.iter().any(|u| !self.state.shared_state.is_owner(u));
+				if needs_owner {
+					for u in &items {
+						self.state
+							.shared_state
+							.queue_history(u, SharedApplyKind::Undo);
+						self.maybe_request_shared_focus(u);
+					}
+					self.update_readonly_for_shared_state(&uri_s);
+					return;
+				}
+
+				let in_flight = items
+					.iter()
+					.any(|u| self.state.shared_state.is_in_flight(u));
+				if in_flight {
+					for u in items {
+						self.state
+							.shared_state
+							.queue_history(&u, SharedApplyKind::Undo);
+					}
+					self.update_readonly_for_shared_state(&uri_s);
+					return;
+				}
+
 				let mut payloads = Vec::new();
 				let mut ok = true;
 				for u in items {
@@ -116,17 +156,7 @@ impl Editor {
 				}
 
 				let core = &mut self.state.core;
-				let mut host = EditorUndoHost {
-					buffers: &mut core.buffers,
-					focused_view,
-					config: &self.state.config,
-					frame: &mut self.state.frame,
-					notifications: &mut self.state.notifications,
-					syntax_manager: &mut self.state.syntax_manager,
-					lsp: &mut self.state.lsp,
-					shared_state: &mut self.state.shared_state,
-				};
-				core.undo_manager.cancel_pending_history_any(&mut host);
+				core.undo_manager.cancel_pending_history_silent();
 				return;
 			}
 		}
@@ -198,6 +228,44 @@ impl Editor {
 					}
 				}
 
+				let needs_resync = items.iter().any(|u| {
+					matches!(
+						self.state.shared_state.ui_status_for_uri(u).1,
+						crate::shared_state::SyncStatus::NeedsResync
+					)
+				});
+				if needs_resync {
+					let core = &mut self.state.core;
+					core.undo_manager.cancel_pending_history_silent();
+					self.update_readonly_for_shared_state(&uri_s);
+					return;
+				}
+
+				let needs_owner = items.iter().any(|u| !self.state.shared_state.is_owner(u));
+				if needs_owner {
+					for u in &items {
+						self.state
+							.shared_state
+							.queue_history(u, SharedApplyKind::Redo);
+						self.maybe_request_shared_focus(u);
+					}
+					self.update_readonly_for_shared_state(&uri_s);
+					return;
+				}
+
+				let in_flight = items
+					.iter()
+					.any(|u| self.state.shared_state.is_in_flight(u));
+				if in_flight {
+					for u in items {
+						self.state
+							.shared_state
+							.queue_history(&u, SharedApplyKind::Redo);
+					}
+					self.update_readonly_for_shared_state(&uri_s);
+					return;
+				}
+
 				let mut payloads = Vec::new();
 				let mut ok = true;
 				for u in items {
@@ -218,17 +286,7 @@ impl Editor {
 				}
 
 				let core = &mut self.state.core;
-				let mut host = EditorUndoHost {
-					buffers: &mut core.buffers,
-					focused_view,
-					config: &self.state.config,
-					frame: &mut self.state.frame,
-					notifications: &mut self.state.notifications,
-					syntax_manager: &mut self.state.syntax_manager,
-					lsp: &mut self.state.lsp,
-					shared_state: &mut self.state.shared_state,
-				};
-				core.undo_manager.cancel_pending_history_any(&mut host);
+				core.undo_manager.cancel_pending_history_silent();
 				return;
 			}
 		}

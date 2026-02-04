@@ -82,6 +82,7 @@ struct PendingHistoryOp {
 	group: EditorUndoGroup,
 	current_snapshots: HashMap<ViewId, ViewSnapshot>,
 	remaining_docs: HashSet<DocumentId>,
+	restore_stack: bool,
 }
 
 /// Trait for operations needed by [`UndoManager`].
@@ -302,6 +303,7 @@ impl UndoManager {
 			group,
 			current_snapshots,
 			remaining_docs,
+			restore_stack: true,
 		});
 
 		Some(doc_ids)
@@ -331,6 +333,7 @@ impl UndoManager {
 			group,
 			current_snapshots,
 			remaining_docs,
+			restore_stack: true,
 		});
 
 		Some(doc_ids)
@@ -362,16 +365,27 @@ impl UndoManager {
 			},
 			current_snapshots,
 			remaining_docs,
+			restore_stack: false,
 		});
 
 		true
 	}
 
 	/// Notes that a broker-driven history delta was applied for the document.
-	pub fn note_remote_history_delta(&mut self, host: &mut impl UndoHost, doc_id: DocumentId) {
+	pub fn note_remote_history_delta(
+		&mut self,
+		host: &mut impl UndoHost,
+		doc_id: DocumentId,
+		kind: HistoryKind,
+	) {
 		let Some(mut pending) = self.pending_history.take() else {
 			return;
 		};
+
+		if pending.kind != kind {
+			self.pending_history = Some(pending);
+			return;
+		}
 
 		if !pending.remaining_docs.remove(&doc_id) {
 			self.pending_history = Some(pending);
@@ -418,11 +432,15 @@ impl UndoManager {
 
 		match pending.kind {
 			HistoryKind::Undo => {
-				self.undo_stack.push(pending.group);
+				if pending.restore_stack {
+					self.undo_stack.push(pending.group);
+				}
 				host.notify_nothing_to_undo();
 			}
 			HistoryKind::Redo => {
-				self.redo_stack.push(pending.group);
+				if pending.restore_stack {
+					self.redo_stack.push(pending.group);
+				}
 				host.notify_nothing_to_redo();
 			}
 		}
@@ -436,12 +454,36 @@ impl UndoManager {
 
 		match pending.kind {
 			HistoryKind::Undo => {
-				self.undo_stack.push(pending.group);
+				if pending.restore_stack {
+					self.undo_stack.push(pending.group);
+				}
 				host.notify_nothing_to_undo();
 			}
 			HistoryKind::Redo => {
-				self.redo_stack.push(pending.group);
+				if pending.restore_stack {
+					self.redo_stack.push(pending.group);
+				}
 				host.notify_nothing_to_redo();
+			}
+		}
+	}
+
+	/// Cancels any pending broker-driven history operation without notifications.
+	pub fn cancel_pending_history_silent(&mut self) {
+		let Some(pending) = self.pending_history.take() else {
+			return;
+		};
+
+		if !pending.restore_stack {
+			return;
+		}
+
+		match pending.kind {
+			HistoryKind::Undo => {
+				self.undo_stack.push(pending.group);
+			}
+			HistoryKind::Redo => {
+				self.redo_stack.push(pending.group);
 			}
 		}
 	}

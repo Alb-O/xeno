@@ -369,7 +369,7 @@ impl Editor {
 			None
 		};
 
-		self.apply_shared_delta_to_buffer(doc_id, wire_tx);
+		self.apply_shared_delta_to_buffer(doc_id, kind, wire_tx);
 
 		if let Some(anchor) = blind_cursor_anchor {
 			self.apply_blind_cursor_heuristic_to_all_views(doc_id, anchor);
@@ -390,7 +390,7 @@ impl Editor {
 			return;
 		};
 
-		self.apply_shared_delta_to_buffer(doc_id, wire_tx);
+		self.apply_shared_delta_to_buffer(doc_id, kind, wire_tx);
 
 		if let Some(gid) = history_group
 			&& let Some(view_state) = self.state.shared_state.get_view_group(uri, gid)
@@ -414,6 +414,7 @@ impl Editor {
 	fn apply_shared_delta_to_buffer(
 		&mut self,
 		doc_id: crate::buffer::DocumentId,
+		kind: xeno_broker_proto::types::SharedApplyKind,
 		wire_tx: &xeno_broker_proto::types::WireTx,
 	) {
 		let Some(view_id) = self.state.core.buffers.any_buffer_for_doc(doc_id) else {
@@ -465,8 +466,19 @@ impl Editor {
 			#[cfg(feature = "lsp")]
 			shared_state: &mut self.state.shared_state,
 		};
-		core.undo_manager
-			.note_remote_history_delta(&mut host, doc_id);
+		let history_kind = match kind {
+			xeno_broker_proto::types::SharedApplyKind::Undo => {
+				Some(crate::types::HistoryKind::Undo)
+			}
+			xeno_broker_proto::types::SharedApplyKind::Redo => {
+				Some(crate::types::HistoryKind::Redo)
+			}
+			xeno_broker_proto::types::SharedApplyKind::Edit => None,
+		};
+		if let Some(history_kind) = history_kind {
+			core.undo_manager
+				.note_remote_history_delta(&mut host, doc_id, history_kind);
+		}
 	}
 
 	/// Replaces document content from a full sync snapshot.
@@ -514,7 +526,7 @@ impl Editor {
 	}
 
 	/// Sends a focus claim for a newly opened document if it is currently focused.
-	fn maybe_request_shared_focus(&mut self, uri: &str) {
+	pub(crate) fn maybe_request_shared_focus(&mut self, uri: &str) {
 		let Some(doc_id) = self.state.shared_state.doc_id_for_uri(uri) else {
 			return;
 		};
