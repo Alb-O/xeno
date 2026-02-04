@@ -23,6 +23,7 @@ xeno-lsp = { workspace = true, features = ["client", "position"] }
 xeno-primitives.workspace = true
 xeno-rpc.workspace = true
 xeno-runtime-language.workspace = true
+xxhash-rust.workspace = true
 
 [dev-dependencies]
 postcard = { workspace = true, default-features = false, features = ["use-std"] }

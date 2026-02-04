@@ -218,6 +218,13 @@ impl SharedStateManager {
 	}
 
 	/// Synchronizes an internal entry with the provided broker snapshot.
+	///
+	/// # Invariants
+	///
+	/// If authoritative text is installed locally (`has_text` is `true`), the edit pipeline
+	/// is unconditionally cleared. This ensures that the owner does not attempt to
+	/// publish deltas built against stale local content after an authoritative repair
+	/// or snapshot.
 	fn apply_snapshot_state(
 		entry: &mut SharedDocEntry,
 		snapshot: &DocStateSnapshot,
@@ -239,20 +246,20 @@ impl SharedStateManager {
 			SharedStateRole::Follower
 		};
 
-		if entry.role == SharedStateRole::Owner {
+		if has_text {
+			entry.pending_deltas.clear();
+			entry.in_flight = None;
+			entry.needs_resync = false;
+			entry.resync_requested = false;
+		} else if entry.role == SharedStateRole::Owner {
 			let diverged = snapshot.phase == DocSyncPhase::Diverged;
-			entry.needs_resync = if has_text { false } else { diverged };
+			entry.needs_resync = diverged;
 
-			if diverged && !has_text {
+			if diverged {
 				entry.resync_requested = false;
 				entry.pending_deltas.clear();
 				entry.in_flight = None;
-			} else if has_text {
-				entry.resync_requested = false;
 			}
-		} else if has_text {
-			entry.needs_resync = false;
-			entry.resync_requested = false;
 		}
 
 		if entry.role != SharedStateRole::Owner {
@@ -325,6 +332,22 @@ impl SharedStateManager {
 			client_hash64,
 			client_len_chars,
 		})
+	}
+
+	/// Returns the appropriate fingerprint to use for a focus claim.
+	///
+	/// If the local session is the current owner and is aligned with the broker,
+	/// returns the authoritative cached fingerprint to prevent redundant repairs.
+	/// Otherwise returns `(None, None)` to signal that the actual local rope
+	/// fingerprint should be computed.
+	pub fn focus_fingerprint_for_uri(&self, uri: &str) -> (Option<u64>, Option<u64>) {
+		if let Some(entry) = self.docs.get(uri)
+			&& entry.role == SharedStateRole::Owner
+			&& !entry.needs_resync
+		{
+			return (Some(entry.auth_len_chars), Some(entry.auth_hash64));
+		}
+		(None, None)
 	}
 
 	/// Prepares a resync request for a diverged document.
@@ -532,14 +555,11 @@ impl SharedStateManager {
 		let mut out = Vec::new();
 
 		for (uri, entry) in &mut self.docs {
-			if entry.role != SharedStateRole::Owner
-				|| entry.needs_resync
-				|| entry.in_flight.is_some()
+			if entry.role == SharedStateRole::Owner
+				&& !entry.needs_resync
+				&& entry.in_flight.is_none()
+				&& let Some(tx) = entry.pending_deltas.pop_front()
 			{
-				continue;
-			}
-
-			if let Some(tx) = entry.pending_deltas.pop_front() {
 				entry.in_flight = Some(InFlightEdit {
 					epoch: entry.epoch,
 					base_seq: entry.seq,
@@ -779,7 +799,7 @@ mod tests {
 		};
 
 		let entry = &mut SharedDocEntry {
-			doc_id: DocumentId::default(),
+			doc_id: DocumentId(1),
 			epoch: SyncEpoch(0),
 			seq: SyncSeq(0),
 			role: SharedStateRole::Follower,
@@ -807,7 +827,7 @@ mod tests {
 	fn test_empty_snapshot_ignored_when_doc_not_empty() {
 		let mut manager = SharedStateManager::new();
 		let uri = "file:///test.rs";
-		manager.prepare_open(uri, "hello", DocumentId::default());
+		manager.prepare_open(uri, "hello", DocumentId(1));
 		let entry = manager.docs.get_mut(uri).unwrap();
 		entry.pending_align = Some(SyncNonce(1));
 
@@ -836,7 +856,7 @@ mod tests {
 	fn test_empty_snapshot_applied_when_doc_empty() {
 		let mut manager = SharedStateManager::new();
 		let uri = "file:///test.rs";
-		manager.prepare_open(uri, "hello", DocumentId::default());
+		manager.prepare_open(uri, "hello", DocumentId(1));
 		let entry = manager.docs.get_mut(uri).unwrap();
 		entry.pending_align = Some(SyncNonce(1));
 
@@ -859,5 +879,44 @@ mod tests {
 			SessionId(1),
 		);
 		assert_eq!(text, Some("".to_string()));
+	}
+
+	#[test]
+	fn test_repair_text_clears_owner_pipeline() {
+		let mut manager = SharedStateManager::new();
+		let uri = "file:///test.rs";
+		let sid = SessionId(1);
+		manager.prepare_open(uri, "hello", DocumentId(1));
+
+		let entry = manager.docs.get_mut(uri).unwrap();
+		entry.role = SharedStateRole::Owner;
+		entry.owner = Some(sid);
+		entry.in_flight = Some(InFlightEdit {
+			epoch: SyncEpoch(1),
+			base_seq: SyncSeq(0),
+		});
+		entry.pending_deltas.push_back(WireTx(Vec::new()));
+		entry.pending_align = Some(SyncNonce(1));
+
+		let snapshot = DocStateSnapshot {
+			uri: uri.to_string(),
+			epoch: SyncEpoch(1),
+			seq: SyncSeq(0),
+			owner: Some(sid),
+			preferred_owner: Some(sid),
+			phase: DocSyncPhase::Owned,
+			hash64: 123,
+			len_chars: 10,
+		};
+
+		let text =
+			manager.handle_focus_ack(snapshot, SyncNonce(1), Some("repaired".to_string()), sid);
+
+		assert_eq!(text, Some("repaired".to_string()));
+
+		let entry = manager.docs.get(uri).unwrap();
+		assert!(entry.in_flight.is_none());
+		assert!(entry.pending_deltas.is_empty());
+		assert!(!entry.needs_resync);
 	}
 }

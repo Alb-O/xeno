@@ -177,7 +177,7 @@ fn test_count_filter_ref() {
 					.out_node("Country_to_City")
 					.count_to_val()
 					.map_value_or(false, |v| {
-						let matches = *v > 10.clone();
+						let matches = *v > 10;
 						tracing::trace!(value = ?v, matches, "filter_ref count");
 						Ok(matches)
 					})?)

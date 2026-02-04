@@ -96,6 +96,11 @@ pub(crate) async fn handle_connection(stream: UnixStream, runtime: Arc<BrokerRun
 	tracing::info!("Broker connection closed");
 }
 
+/// Connect to the broker as a client.
+pub async fn connect(socket_path: impl AsRef<Path>) -> std::io::Result<UnixStream> {
+	UnixStream::connect(socket_path).await
+}
+
 #[cfg(test)]
 mod tests {
 	use std::io::{Error as IoError, ErrorKind};
@@ -201,9 +206,4 @@ mod tests {
 		server_task.await.expect("server task panicked");
 		Ok(())
 	}
-}
-
-/// Connect to the broker as a client.
-pub async fn connect(socket_path: impl AsRef<Path>) -> std::io::Result<UnixStream> {
-	UnixStream::connect(socket_path).await
 }

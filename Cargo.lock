@@ -4615,6 +4615,7 @@ dependencies = [
  "xeno-primitives",
  "xeno-rpc",
  "xeno-runtime-language",
+ "xxhash-rust",
 ]
 
 [[package]]

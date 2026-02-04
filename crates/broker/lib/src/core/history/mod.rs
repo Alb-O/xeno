@@ -3,6 +3,19 @@
 //! Implements a branching history graph backed by `helix-db`. This store manages
 //! the persistence of document states, including snapshots and deltas, enabling
 //! authoritative undo/redo coordination across multiple editor sessions.
+//!
+//! # Mental Model
+//!
+//! The history is modeled as a set of linear chains rooted at checkpoints.
+//! Periodic compaction squashes older deltas into new root snapshots to bound
+//! traversal costs and storage growth.
+//!
+//! # Invariants
+//!
+//! - Linear Ancestry: Every non-root node MUST have exactly one parent.
+//! - Single Root: A document history graph MUST have exactly one node marked as root.
+//! - Authoritative Fingerprint: Every node stores the `hash64` and `len_chars`
+//!   representing the state after applying its transaction.
 
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
@@ -78,28 +91,8 @@ impl HistoryStore {
 			)));
 		}
 
-		let mut chain = Vec::new();
-		let mut current = doc.head_node_id;
-		let mut seen = HashSet::new();
-
-		while current != doc.root_node_id {
-			if !seen.insert(current) {
-				return Err(HistoryError::Corrupt(format!(
-					"cycle in history graph for {uri}"
-				)));
-			}
-			let node = nodes.get(&current).ok_or_else(|| {
-				HistoryError::Corrupt(format!("missing node {current} for {uri}"))
-			})?;
-			chain.push(node.clone());
-			current = node.parent_id;
-		}
-
-		let mut rope = Rope::from(root.root_text.as_str());
-		for node in chain.iter().rev() {
-			let redo = node.redo_tx()?;
-			apply_wire_tx(&mut rope, &redo)?;
-		}
+		let (rope, _) =
+			try_reconstruct_chain(doc.root_node_id, doc.head_node_id, &nodes, &root.root_text)?;
 
 		Ok(Some(StoredDoc {
 			meta,
@@ -155,13 +148,35 @@ impl HistoryStore {
 
 	/// Attempts to reconstruct document metadata from existing history nodes.
 	///
-	/// Analyzes orphaned [`LABEL_HISTORY_NODE`]s to identify the root checkpoint
-	/// and the most recent branch head. If successful, writes a new [`LABEL_SHARED_DOC`]
-	/// to restore graph connectivity.
+	/// This method analyzes orphaned [`LABEL_HISTORY_NODE`]s to identify the root checkpoint
+	/// and the most recent branch head. It implements a "best valid leaf" strategy,
+	/// attempting to reconstruct the linear history chain from every potential leaf node
+	/// and selecting the deepest valid chain.
 	///
 	/// If the document graph is found to be unrecoverably corrupt (e.g. cycle detected),
 	/// this method purges the broken nodes to permit a clean re-initialization.
+	///
+	/// # Errors
+	///
+	/// Returns [`HistoryError`] if storage operations fail. Reconstruction failures
+	/// are handled by purging and returning `Ok(None)`.
 	fn repair_orphaned_doc(
+		&self,
+		uri: &str,
+		epoch: SyncEpoch,
+		seq: SyncSeq,
+	) -> Result<Option<StoredDoc>, HistoryError> {
+		match self.try_repair_orphaned_doc(uri, epoch, seq) {
+			Ok(res) => Ok(res),
+			Err(err) => {
+				tracing::error!(?uri, error = %err, "unrecoverable history corruption; purging doc history");
+				self.purge_doc_history(uri)?;
+				Ok(None)
+			}
+		}
+	}
+
+	fn try_repair_orphaned_doc(
 		&self,
 		uri: &str,
 		epoch: SyncEpoch,
@@ -178,14 +193,10 @@ impl HistoryStore {
 
 		let roots: Vec<_> = nodes.values().filter(|n| n.is_root).collect();
 		if roots.len() != 1 {
-			tracing::warn!(
-				?uri,
-				roots = roots.len(),
-				"graph repair failed: invalid root count; purging nodes"
-			);
-			drop(txn);
-			self.purge_doc_history(uri)?;
-			return Ok(None);
+			return Err(HistoryError::Corrupt(format!(
+				"invalid root count during repair for {uri}: {}",
+				roots.len()
+			)));
 		}
 		let root = roots[0];
 
@@ -199,45 +210,41 @@ impl HistoryStore {
 			}
 		}
 
-		let head_id = {
-			let mut leaves: Vec<_> = nodes
-				.values()
-				.filter(|n| !children_map.contains_key(&n.node_id))
-				.collect();
-			leaves.sort_by_key(|n| n.node_id);
-			leaves.last().map(|n| n.node_id).unwrap_or(root.node_id)
-		};
-		let max_node_id = nodes.keys().copied().max().unwrap_or(head_id);
+		let mut leaves: Vec<_> = nodes
+			.values()
+			.filter(|n| !children_map.contains_key(&n.node_id))
+			.collect();
 
-		let mut chain = Vec::new();
-		let mut current = head_id;
-		let mut seen = HashSet::new();
+		leaves.sort_by_key(|n| std::cmp::Reverse(n.node_id));
 
-		while current != root.node_id {
-			if !seen.insert(current) {
-				tracing::warn!(?uri, "graph repair failed: cycle detected; purging nodes");
-				drop(txn);
-				self.purge_doc_history(uri)?;
-				return Ok(None);
+		let mut best_chain: Option<(u64, Rope, usize)> = None;
+
+		for leaf in leaves {
+			match try_reconstruct_chain(root.node_id, leaf.node_id, &nodes, &root.root_text) {
+				Ok((rope, chain)) => {
+					let chain_len = chain.len();
+					if best_chain.as_ref().is_none_or(|(_, _, bl)| chain_len > *bl) {
+						best_chain = Some((leaf.node_id, rope, chain_len));
+					}
+				}
+				Err(err) => {
+					tracing::debug!(?uri, leaf = leaf.node_id, error = %err, "skipping invalid leaf during repair");
+				}
 			}
-			let node = nodes.get(&current).ok_or_else(|| {
-				HistoryError::Corrupt(format!("missing node {current} for {uri}"))
-			})?;
-			chain.push(node.clone());
-			current = node.parent_id;
 		}
 
-		let mut rope = Rope::from(root.root_text.as_str());
-		for node in chain.iter().rev() {
-			let redo = node.redo_tx()?;
-			apply_wire_tx(&mut rope, &redo)?;
-		}
+		let Some((head_id, rope, _)) = best_chain else {
+			return Err(HistoryError::Corrupt(format!(
+				"no valid history chain found during repair for {uri}"
+			)));
+		};
 
+		let max_node_id = nodes.keys().copied().max().unwrap_or(head_id);
 		let (len_chars, hash64) = xeno_broker_proto::fingerprint_rope(&rope);
 		let meta = HistoryMeta {
 			head_id,
 			root_id: root.node_id,
-			next_id: max_node_id.saturating_add(1),
+			next_id: max_node_id.wrapping_add(1).max(1),
 			history_nodes: nodes.len() as u64,
 		};
 
@@ -380,7 +387,7 @@ impl HistoryStore {
 	/// Performs three operations in a single transaction:
 	/// 1. Inserts the new delta node.
 	/// 2. Prunes inactive redo branches.
-	/// 3. Materializes a new root checkpoint if linear ancestry exceeds [`MAX_HISTORY_NODES`].
+	/// 3. Materializes a new root checkpoint if linear ancestry exceeds `max_nodes`.
 	///
 	/// # Errors
 	///
@@ -421,7 +428,7 @@ impl HistoryStore {
 		)?;
 
 		new_meta.head_id = node_id;
-		new_meta.next_id = new_meta.next_id.saturating_add(1);
+		new_meta.next_id = new_meta.next_id.wrapping_add(1).max(1);
 		new_meta.history_nodes = new_meta.history_nodes.saturating_add(1);
 
 		let removed_branches =
@@ -493,11 +500,7 @@ impl HistoryStore {
 				continue;
 			}
 			let candidate = (node.node_id, node.clone());
-			if let Some((best_id, _)) = &best {
-				if node.node_id > *best_id {
-					best = Some(candidate);
-				}
-			} else {
+			if best.as_ref().is_none_or(|(bid, _)| node.node_id > *bid) {
 				best = Some(candidate);
 			}
 		}
@@ -657,6 +660,7 @@ impl HistoryNodeRecord {
 		Ok(serde_json::from_str(&self.redo_tx_raw)?)
 	}
 
+	#[allow(dead_code)]
 	fn undo_tx(&self) -> Result<WireTx, HistoryError> {
 		Ok(serde_json::from_str(&self.undo_tx_raw)?)
 	}
@@ -670,7 +674,8 @@ fn apply_wire_tx(rope: &mut Rope, wire: &WireTx) -> Result<(), HistoryError> {
 }
 
 fn node_key(uri: &str, node_id: u64) -> String {
-	format!("{uri}#{node_id}")
+	let hash = xxhash_rust::xxh3::xxh3_64(uri.as_bytes());
+	format!("{:016x}#{:016x}", hash, node_id)
 }
 
 fn shared_doc_key(uri: &str) -> String {
@@ -912,15 +917,24 @@ fn prune_cleared_branches<'a>(
 
 	let mut ancestry = HashSet::new();
 	let mut current = meta.head_id;
+	let mut reached_root = false;
+
 	while current != 0 && ancestry.insert(current) {
+		if current == meta.root_id {
+			reached_root = true;
+			break;
+		}
 		let Some(parent) = parent_map.get(&current) else {
 			break;
 		};
-		if *parent == 0 {
-			break;
-		}
 		current = *parent;
 	}
+
+	if !reached_root && meta.head_id != 0 {
+		tracing::warn!(?uri, "ancestry walk failed to reach root; skipping prune");
+		return Ok(0);
+	}
+
 	ancestry.insert(meta.root_id);
 
 	let candidates: Vec<_> = entries
@@ -1023,6 +1037,7 @@ fn checkpoint_compact_linear<'a>(
 	}
 
 	let new_root_text = rope.to_string();
+	let (len, hash) = xeno_broker_proto::fingerprint_rope(&rope);
 
 	upsert_history_node(
 		storage,
@@ -1033,8 +1048,8 @@ fn checkpoint_compact_linear<'a>(
 		0,
 		WireTx(Vec::new()),
 		WireTx(Vec::new()),
-		0,
-		0,
+		hash,
+		len,
 		true,
 		new_root_text,
 	)?;
@@ -1062,6 +1077,38 @@ fn checkpoint_compact_linear<'a>(
 	Ok(removed)
 }
 
+fn try_reconstruct_chain(
+	root_id: u64,
+	head_id: u64,
+	nodes: &HashMap<u64, HistoryNodeRecord>,
+	root_text: &str,
+) -> Result<(Rope, Vec<HistoryNodeRecord>), HistoryError> {
+	let mut chain = Vec::new();
+	let mut current = head_id;
+	let mut seen = HashSet::new();
+
+	while current != root_id {
+		if !seen.insert(current) {
+			return Err(HistoryError::Corrupt(format!(
+				"cycle detected at node {current}"
+			)));
+		}
+		let node = nodes.get(&current).ok_or_else(|| {
+			HistoryError::Corrupt(format!("missing node {current} in history chain"))
+		})?;
+		chain.push(node.clone());
+		current = node.parent_id;
+	}
+
+	let mut rope = Rope::from(root_text);
+	for node in chain.iter().rev() {
+		let redo = node.redo_tx()?;
+		apply_wire_tx(&mut rope, &redo)?;
+	}
+
+	Ok((rope, chain))
+}
+
 fn get_string(node: &Node<'_>, key: &str) -> Option<String> {
 	match node.get_property(key) {
 		Some(Value::String(value)) => Some(value.clone()),
@@ -1081,5 +1128,132 @@ fn get_u64_lossless(node: &Node<'_>, key: &str) -> Option<u64> {
 		Some(Value::U64(value)) => Some(*value),
 		Some(Value::U128(value)) => u64::try_from(*value).ok(),
 		_ => None,
+	}
+}
+
+impl HistoryStore {
+	/// Internal helper for tests to simulate metadata loss.
+	#[cfg(test)]
+	fn purge_doc_metadata_only(&self, uri: &str) -> Result<(), HistoryError> {
+		let arena = Bump::new();
+		let mut txn = self.storage.graph_env.write_txn()?;
+		let key = shared_doc_key(uri);
+		drop_by_index(
+			&self.storage,
+			&mut txn,
+			&arena,
+			LABEL_SHARED_DOC,
+			INDEX_SHARED_URI,
+			&key,
+		)?;
+		txn.commit()?;
+		Ok(())
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use std::sync::Arc;
+
+	use helix_db::helix_engine::storage_core::HelixGraphStorage;
+	use tempfile::tempdir;
+
+	use super::*;
+
+	fn setup_storage() -> (Arc<HelixGraphStorage>, tempfile::TempDir) {
+		let dir = tempdir().unwrap();
+		let mut config = helix_db::helix_engine::traversal_core::config::Config::default();
+		config.graph_config = Some(
+			helix_db::helix_engine::traversal_core::config::GraphConfig {
+				secondary_indices: Some(vec![
+					helix_db::helix_engine::types::SecondaryIndex::Unique("shared_uri".to_string()),
+					helix_db::helix_engine::types::SecondaryIndex::Unique("node_key".to_string()),
+					helix_db::helix_engine::types::SecondaryIndex::Index("history_uri".to_string()),
+				]),
+			},
+		);
+
+		let storage = Arc::new(
+			HelixGraphStorage::new(
+				dir.path().to_str().unwrap(),
+				config,
+				helix_db::helix_engine::storage_core::version_info::VersionInfo::default(),
+			)
+			.unwrap(),
+		);
+		(storage, dir)
+	}
+
+	#[test]
+	fn test_repair_orphaned_doc_success() {
+		let (storage, _dir) = setup_storage();
+		let history = HistoryStore::new(storage);
+		let uri = "file:///test.rs";
+		let rope = Rope::from_str("initial text");
+		let epoch = SyncEpoch(1);
+		let seq = SyncSeq(0);
+		let (len, hash) = xeno_broker_proto::fingerprint_rope(&rope);
+
+		history
+			.create_doc(uri, &rope, epoch, seq, hash, len)
+			.unwrap();
+		history.purge_doc_metadata_only(uri).unwrap();
+
+		let (repaired, created) = history
+			.load_or_create_doc(uri, &rope, epoch, seq, hash, len)
+			.unwrap();
+		assert!(!created);
+		assert_eq!(repaired.rope.to_string(), "initial text");
+		assert_eq!(repaired.meta.head_id, 1);
+		assert_eq!(repaired.meta.root_id, 1);
+	}
+
+	#[test]
+	fn test_repair_orphaned_doc_purges_on_corruption() {
+		let (storage, _dir) = setup_storage();
+		let history = HistoryStore::new(storage.clone());
+		let uri = "file:///test.rs";
+
+		let arena = Bump::new();
+		let mut txn = storage.graph_env.write_txn().unwrap();
+		upsert_history_node(
+			&storage,
+			&mut txn,
+			&arena,
+			uri,
+			2,
+			99, // missing parent
+			WireTx(Vec::new()),
+			WireTx(Vec::new()),
+			0,
+			0,
+			false,
+			String::new(),
+		)
+		.unwrap();
+		upsert_history_node(
+			&storage,
+			&mut txn,
+			&arena,
+			uri,
+			1,
+			0,
+			WireTx(Vec::new()),
+			WireTx(Vec::new()),
+			0,
+			0,
+			true,
+			"root text".to_string(),
+		)
+		.unwrap();
+		txn.commit().unwrap();
+
+		let rope = Rope::from_str("irrelevant");
+		let (stored, created) = history
+			.load_or_create_doc(uri, &rope, SyncEpoch(1), SyncSeq(0), 0, 0)
+			.unwrap();
+
+		assert_eq!(stored.rope.to_string(), "root text");
+		assert!(!created);
 	}
 }

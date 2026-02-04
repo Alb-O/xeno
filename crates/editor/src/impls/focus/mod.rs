@@ -188,18 +188,27 @@ impl Editor {
 
 			if old_doc != new_doc {
 				if let Some(doc_id) = old_doc {
-					let fingerprint = self
-						.state
-						.core
-						.buffers
-						.any_buffer_for_doc(doc_id)
-						.and_then(|v| self.state.core.buffers.get_buffer(v))
-						.map(|b| {
-							b.with_doc(|doc| xeno_broker_proto::fingerprint_rope(doc.content()))
-						});
-					let (len, hash) = fingerprint
-						.map(|(l, h)| (Some(l), Some(h)))
+					let uri = self.state.shared_state.uri_for_doc_id(doc_id);
+					let (auth_len, auth_hash) = uri
+						.map(|u| self.state.shared_state.focus_fingerprint_for_uri(u))
 						.unwrap_or((None, None));
+
+					let (hash, len) = if let (Some(h), Some(l)) = (auth_hash, auth_len) {
+						(Some(h), Some(l))
+					} else {
+						let fingerprint = self
+							.state
+							.core
+							.buffers
+							.any_buffer_for_doc(doc_id)
+							.and_then(|v| self.state.core.buffers.get_buffer(v))
+							.map(|b| {
+								b.with_doc(|doc| xeno_broker_proto::fingerprint_rope(doc.content()))
+							});
+						fingerprint
+							.map(|(l, h)| (Some(h), Some(l)))
+							.unwrap_or((None, None))
+					};
 
 					if let Some(payload) = self
 						.state
@@ -210,18 +219,27 @@ impl Editor {
 					}
 				}
 				if let Some(doc_id) = new_doc {
-					let fingerprint = self
-						.state
-						.core
-						.buffers
-						.any_buffer_for_doc(doc_id)
-						.and_then(|v| self.state.core.buffers.get_buffer(v))
-						.map(|b| {
-							b.with_doc(|doc| xeno_broker_proto::fingerprint_rope(doc.content()))
-						});
-					let (len, hash) = fingerprint
-						.map(|(l, h)| (Some(l), Some(h)))
+					let uri = self.state.shared_state.uri_for_doc_id(doc_id);
+					let (auth_len, auth_hash) = uri
+						.map(|u| self.state.shared_state.focus_fingerprint_for_uri(u))
 						.unwrap_or((None, None));
+
+					let (hash, len) = if let (Some(h), Some(l)) = (auth_hash, auth_len) {
+						(Some(h), Some(l))
+					} else {
+						let fingerprint = self
+							.state
+							.core
+							.buffers
+							.any_buffer_for_doc(doc_id)
+							.and_then(|v| self.state.core.buffers.get_buffer(v))
+							.map(|b| {
+								b.with_doc(|doc| xeno_broker_proto::fingerprint_rope(doc.content()))
+							});
+						fingerprint
+							.map(|(l, h)| (Some(h), Some(l)))
+							.unwrap_or((None, None))
+					};
 
 					if let Some(payload) = self
 						.state

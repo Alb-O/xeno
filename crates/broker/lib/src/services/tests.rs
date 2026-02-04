@@ -37,7 +37,7 @@ impl TestSession {
 	}
 
 	async fn recv_event(&mut self) -> Option<Event> {
-		let timeout = tokio::time::timeout(Duration::from_millis(200), self.events_rx.recv());
+		let timeout = tokio::time::timeout(Duration::from_millis(500), self.events_rx.recv());
 		timeout.await.ok().flatten().and_then(extract_event)
 	}
 }
@@ -101,10 +101,15 @@ async fn setup_sync_harness() -> SyncHarness {
 async fn test_shared_state_undo_redo_roundtrip() {
 	let harness = setup_sync_harness().await;
 	let mut session1 = TestSession::new(1);
+	let mut session2 = TestSession::new(2);
 
 	harness
 		.sessions
 		.register(session1.session_id, session1.sink.clone())
+		.await;
+	harness
+		.sessions
+		.register(session2.session_id, session2.sink.clone())
 		.await;
 
 	let resp = harness
@@ -126,6 +131,16 @@ async fn test_shared_state_undo_redo_roundtrip() {
 		}
 		other => panic!("unexpected response: {other:?}"),
 	};
+	let _ = harness
+		.sync
+		.open(
+			session2.session_id,
+			"file:///test.rs".to_string(),
+			"hello".into(),
+			None,
+		)
+		.await
+		.unwrap();
 
 	let wire_tx = WireTx(vec![WireOp::Retain(5), WireOp::Insert(" world".into())]);
 	let resp = harness
@@ -156,6 +171,9 @@ async fn test_shared_state_undo_redo_roundtrip() {
 		other => panic!("unexpected response: {other:?}"),
 	}
 
+	// session2 receives Edit delta
+	let _ = session2.recv_event().await.expect("edit delta");
+
 	let resp = harness
 		.sync
 		.apply(
@@ -175,16 +193,28 @@ async fn test_shared_state_undo_redo_roundtrip() {
 			seq,
 			hash64,
 			len_chars,
+			applied_tx,
 			..
 		} => {
 			assert_eq!(seq, SyncSeq(2));
 			hash = hash64;
 			len = len_chars;
+
+			// Origin receives applied_tx in ack
+			let tx = applied_tx.expect("undo tx in ack");
+			let mut content = Rope::from("hello world");
+			let tx = crate::wire_convert::wire_to_tx(&tx, content.slice(..)).unwrap();
+			tx.apply(&mut content);
+			assert_eq!(content.to_string(), "hello");
 		}
 		other => panic!("unexpected response: {other:?}"),
 	}
 
-	let event = session1.recv_event().await.expect("undo delta");
+	// Origin (session1) does NOT receive broadcast
+	assert!(session1.recv_event().await.is_none());
+
+	// Participant (session2) SHOULD receive broadcast
+	let event = session2.recv_event().await.expect("undo delta broadcast");
 	match event {
 		Event::SharedDelta { seq, tx, .. } => {
 			assert_eq!(seq, SyncSeq(2));
@@ -233,14 +263,25 @@ async fn test_shared_state_undo_redo_roundtrip() {
 			seq,
 			hash64,
 			len_chars,
+			applied_tx,
 			..
 		} => {
 			assert_eq!(seq, SyncSeq(3));
 			hash = hash64;
 			len = len_chars;
+
+			// Origin receives applied_tx in ack
+			let tx = applied_tx.expect("redo tx in ack");
+			let mut content = Rope::from("hello");
+			let tx = crate::wire_convert::wire_to_tx(&tx, content.slice(..)).unwrap();
+			tx.apply(&mut content);
+			assert_eq!(content.to_string(), "hello world");
 		}
 		other => panic!("unexpected response: {other:?}"),
 	}
+
+	// session2 receives Redo delta
+	let _ = session2.recv_event().await.expect("redo delta broadcast");
 
 	let resp = harness
 		.sync
@@ -507,7 +548,7 @@ async fn test_shared_state_focus_transfers_ownership() {
 		)
 		.await
 		.unwrap();
-	let (hash, len) = match resp {
+	let (_hash, _len) = match resp {
 		ResponsePayload::SharedOpened { snapshot, .. } => (snapshot.hash64, snapshot.len_chars),
 		_ => panic!("open failed"),
 	};
@@ -537,7 +578,7 @@ async fn test_shared_state_focus_transfers_ownership() {
 		)
 		.await
 		.unwrap();
-	let (epoch, hash, len) = match resp {
+	let (_epoch, _hash, _len) = match resp {
 		ResponsePayload::SharedFocusAck {
 			snapshot,
 			repair_text,

@@ -190,11 +190,9 @@ pub enum RequestPayload {
 
 	/// Apply a shared-state mutation (Edit/Undo/Redo) under preconditions.
 	///
-	/// # Preconditions
-	/// - epoch == broker epoch
-	/// - base_seq == broker seq
-	/// - base_hash64/base_len_chars == broker fingerprint
-	/// - caller MUST be current owner and preferred owner
+	/// Preconditions enforce that the caller is the current preferred owner
+	/// and that their local state is aligned with the broker's authoritative
+	/// epoch, sequence, and fingerprint.
 	SharedApply {
 		/// Document URI.
 		uri: String,
@@ -427,6 +425,8 @@ pub enum ErrorCode {
 	NothingToUndo,
 	/// Redo stack is empty.
 	NothingToRedo,
+	/// History is unavailable for this document (e.g. storage disabled).
+	HistoryUnavailable,
 }
 
 /// Asynchronous async event from broker to editor.

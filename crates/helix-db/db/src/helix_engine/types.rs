@@ -304,7 +304,7 @@ mod tests {
 
 	#[test]
 	fn test_engine_error_sources_chain() {
-		let io_err = io::Error::new(io::ErrorKind::Other, "disk");
+		let io_err = io::Error::other("disk");
 		let err = EngineError::from(StorageError::Io(io_err));
 		let source = err.source().expect("expected source");
 		assert!(source.to_string().contains("disk"));

@@ -12,13 +12,12 @@ use crate::buffer::ApplyPolicy;
 use crate::shared_state::SharedStateEvent;
 
 impl Editor {
-	/// Drains all pending shared state events from the broker transport.
+	/// Drains and dispatches pending shared state events from the broker.
 	///
-	/// This method is executed once per editor tick to synchronize local state
-	/// with the broker's authoritative truth. It performs three primary roles:
-	/// 1. Drains and applies inbound async events (deltas, ownership changes).
-	/// 2. Emits full resync requests for documents that have diverged.
-	/// 3. Emits queued edit requests once acknowledgments arrive.
+	/// Executed once per editor tick to:
+	/// 1. Apply async events (deltas, ownership changes) to local state.
+	/// 2. Emit full resync requests for documents flagged as diverged.
+	/// 3. Emit queued edit requests once previous acknowledgments arrive.
 	pub(crate) fn drain_shared_state_events(&mut self) {
 		while let Some(event) = self.state.lsp.try_recv_shared_state_in() {
 			self.handle_shared_state_event(event);
@@ -465,15 +464,19 @@ impl Editor {
 			return;
 		}
 
-		let fingerprint = self
-			.state
-			.core
-			.buffers
-			.get_buffer(focused_view)
-			.map(|b| b.with_doc(|doc| xeno_broker_proto::fingerprint_rope(doc.content())));
-		let (len, hash) = fingerprint
-			.map(|(l, h)| (Some(l), Some(h)))
-			.unwrap_or((None, None));
+		let (auth_len, auth_hash) = self.state.shared_state.focus_fingerprint_for_uri(uri);
+		let (len, hash) =
+			if let (Some(l), Some(h)) = (auth_len, auth_hash) {
+				(Some(l), Some(h))
+			} else {
+				let fingerprint =
+					self.state.core.buffers.get_buffer(focused_view).map(|b| {
+						b.with_doc(|doc| xeno_broker_proto::fingerprint_rope(doc.content()))
+					});
+				fingerprint
+					.map(|(l, h)| (Some(l), Some(h)))
+					.unwrap_or((None, None))
+			};
 
 		if let Some(payload) = self
 			.state

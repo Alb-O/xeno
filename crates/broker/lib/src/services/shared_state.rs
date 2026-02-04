@@ -4,6 +4,19 @@
 //! It coordinates multiple editor sessions using a "Preferred Owner Writes" model,
 //! where the focused editor is granted ownership and exclusive write access.
 //! Ownership is automatically released on idle, blur, or disconnect.
+//!
+//! # Mental Model
+//!
+//! The service acts as the single source of truth for all participants. It
+//! serializes all mutations, enforces ownership era (epoch) and edit sequence
+//! (seq) constraints, and ensures durability via [`HistoryStore`].
+//!
+//! # Invariants
+//!
+//! - Preferred Owner Writes: Only the preferred owner (focused editor) may submit deltas.
+//! - Atomic Transfer: Focus transitions MUST bump the epoch and reset the sequence.
+//! - Authoritative LSP: LSP doc synchronization MUST be driven from this service's
+//!   authoritative rope to ensure diagnostics are aligned with broker state.
 
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex};
@@ -737,9 +750,7 @@ impl SharedStateService {
 			if !doc.open_refcounts.contains_key(&sid) {
 				return Err(ErrorCode::SyncDocNotFound);
 			}
-			if let Some(preferred) = doc.preferred_owner
-				&& preferred != sid
-			{
+			if doc.preferred_owner.is_some_and(|p| p != sid) {
 				return Err(ErrorCode::NotPreferredOwner);
 			}
 			if doc.owner != Some(sid) {
@@ -788,38 +799,34 @@ impl SharedStateService {
 					let undo_tx = tx.invert(&pre_rope);
 
 					tx.apply(&mut doc.rope);
-					doc.seq = SyncSeq(doc.seq.0 + 1);
+					doc.seq = SyncSeq(doc.seq.0.wrapping_add(1));
 					doc.update_fingerprint();
 					doc.touch(sid);
 
-					if let Some(history) = &self.history {
-						let mut disable = false;
-						if let Some(meta) = doc.history.as_mut() {
-							let undo_wire = wire_convert::tx_to_wire(&undo_tx);
-							if let Err(err) = history.append_edit_with_checkpoint(
-								&uri,
-								meta,
-								doc.epoch,
-								doc.seq,
-								doc.hash64,
-								doc.len_chars,
-								wire_tx.clone(),
-								undo_wire,
-								MAX_HISTORY_NODES,
-							) {
-								tracing::warn!(error = %err, ?uri, "history append failed; disabling history for doc");
-								disable = true;
-							}
-						}
-						if disable {
+					if let Some(history) = &self.history
+						&& let Some(meta) = doc.history.as_mut()
+					{
+						let undo_wire = wire_convert::tx_to_wire(&undo_tx);
+						if let Err(err) = history.append_edit_with_checkpoint(
+							&uri,
+							meta,
+							doc.epoch,
+							doc.seq,
+							doc.hash64,
+							doc.len_chars,
+							wire_tx.clone(),
+							undo_wire,
+							MAX_HISTORY_NODES,
+						) {
+							tracing::warn!(error = %err, ?uri, "history append failed; disabling history for doc");
 							doc.history = None;
 						}
 					}
 				}
 
 				SharedApplyKind::Undo => {
-					let history = self.history.as_ref().ok_or(ErrorCode::Internal)?;
-					let meta = doc.history.as_ref().ok_or(ErrorCode::NotImplemented)?;
+					let history = self.history.as_ref().ok_or(ErrorCode::NotImplemented)?;
+					let meta = doc.history.as_ref().ok_or(ErrorCode::HistoryUnavailable)?;
 
 					let (parent_id, undo_wire) = history
 						.load_undo(&uri, meta.head_id)
@@ -833,7 +840,7 @@ impl SharedStateService {
 						.map_err(|_| ErrorCode::InvalidDelta)?;
 					tx.apply(&mut doc.rope);
 
-					doc.seq = SyncSeq(doc.seq.0 + 1);
+					doc.seq = SyncSeq(doc.seq.0.wrapping_add(1));
 					doc.update_fingerprint();
 					doc.touch(sid);
 
@@ -851,12 +858,12 @@ impl SharedStateService {
 						doc.history = None;
 					}
 
-					applied_wire = Some(undo_wire.clone());
+					applied_wire = Some(undo_wire);
 				}
 
 				SharedApplyKind::Redo => {
-					let history = self.history.as_ref().ok_or(ErrorCode::Internal)?;
-					let meta = doc.history.as_ref().ok_or(ErrorCode::NotImplemented)?;
+					let history = self.history.as_ref().ok_or(ErrorCode::NotImplemented)?;
+					let meta = doc.history.as_ref().ok_or(ErrorCode::HistoryUnavailable)?;
 
 					let (child_id, redo_wire) = history
 						.load_redo(&uri, meta.head_id)
@@ -870,7 +877,7 @@ impl SharedStateService {
 						.map_err(|_| ErrorCode::InvalidDelta)?;
 					tx.apply(&mut doc.rope);
 
-					doc.seq = SyncSeq(doc.seq.0 + 1);
+					doc.seq = SyncSeq(doc.seq.0.wrapping_add(1));
 					doc.update_fingerprint();
 					doc.touch(sid);
 
@@ -888,13 +895,13 @@ impl SharedStateService {
 						doc.history = None;
 					}
 
-					applied_wire = Some(redo_wire.clone());
+					applied_wire = Some(redo_wire);
 				}
 			}
 
-			let participants = doc.participants.clone();
 			let tx_for_broadcast = applied_wire
-				.clone()
+				.as_ref()
+				.cloned()
 				.unwrap_or_else(|| wire_tx.unwrap().clone());
 
 			let event = xeno_broker_proto::types::Event::SharedDelta {
@@ -918,7 +925,7 @@ impl SharedStateService {
 				len_chars: doc.len_chars,
 			};
 
-			(event, participants, ack)
+			(event, doc.participants.clone(), ack)
 		};
 
 		self.sessions
@@ -986,9 +993,9 @@ impl SharedStateService {
 		if let (Some(history), Some(meta)) = (history, doc.history.as_ref())
 			&& let Err(err) =
 				history.update_doc_state(uri, meta, doc.epoch, doc.seq, doc.hash64, doc.len_chars)
-			{
-				tracing::warn!(error = %err, ?uri, "history metadata update failed");
-			}
+		{
+			tracing::warn!(error = %err, ?uri, "history metadata update failed");
+		}
 	}
 
 	fn prepare_unlock(

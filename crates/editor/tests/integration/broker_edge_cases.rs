@@ -3,7 +3,8 @@ mod tests {
 	use std::time::Duration;
 
 	use xeno_broker_proto::types::{
-		RequestPayload, ServerId, SessionId, SyncEpoch, SyncSeq, WireOp, WireTx,
+		RequestPayload, ResponsePayload, ServerId, SessionId, SharedApplyKind, SyncEpoch,
+		SyncNonce, SyncSeq, WireOp, WireTx,
 	};
 	use xeno_editor::lsp::broker_transport::BrokerTransport;
 	use xeno_lsp::client::transport::LspTransport;
@@ -145,14 +146,17 @@ mod tests {
 			WireOp::Delete("content 2".chars().count()),
 			WireOp::Insert("content 2 updated".into()),
 		]);
-		t2.shared_state_request(RequestPayload::SharedEdit {
+		t2.shared_state_request(RequestPayload::SharedApply {
 			uri: "file:///test.rs".to_string(),
+			kind: SharedApplyKind::Edit,
 			epoch: SyncEpoch(1),
 			base_seq: SyncSeq(0),
-			tx: wire_tx,
+			base_hash64: 0,
+			base_len_chars: 0,
+			tx: Some(wire_tx),
 		})
 		.await
-		.expect("shared state edit");
+		.expect("shared state apply edit");
 
 		// Verify server received second didOpen and didChange
 		let ok = wait_until(Duration::from_secs(1), || async {
@@ -292,18 +296,20 @@ mod tests {
 				uri: "file:///test.rs".to_string(),
 				focused: true,
 				focus_seq: 1,
+				nonce: SyncNonce(1),
+				client_hash64: None,
+				client_len_chars: None,
 			})
 			.await
 			.expect("shared focus");
 		let epoch = match focus_resp {
-			xeno_broker_proto::types::ResponsePayload::SharedFocusAck { snapshot } => {
-				snapshot.epoch
-			}
+			ResponsePayload::SharedFocusAck { snapshot, .. } => snapshot.epoch,
 			other => panic!("unexpected focus response: {other:?}"),
 		};
 
 		t2.shared_state_request(RequestPayload::SharedResync {
 			uri: "file:///test.rs".to_string(),
+			nonce: SyncNonce(2),
 			client_hash64: None,
 			client_len_chars: None,
 		})
@@ -314,14 +320,17 @@ mod tests {
 			WireOp::Delete("content".chars().count()),
 			WireOp::Insert("session 2 update".into()),
 		]);
-		t2.shared_state_request(RequestPayload::SharedEdit {
+		t2.shared_state_request(RequestPayload::SharedApply {
 			uri: "file:///test.rs".to_string(),
+			kind: SharedApplyKind::Edit,
 			epoch,
 			base_seq: SyncSeq(0),
-			tx: wire_tx,
+			base_hash64: 0,
+			base_len_chars: 0,
+			tx: Some(wire_tx),
 		})
 		.await
-		.expect("shared state edit");
+		.expect("shared state apply edit");
 
 		assert!(
 			wait_until(Duration::from_secs(1), || async {
@@ -416,18 +425,20 @@ mod tests {
 				uri: "file:///test.rs".to_string(),
 				focused: true,
 				focus_seq: 1,
+				nonce: SyncNonce(1),
+				client_hash64: None,
+				client_len_chars: None,
 			})
 			.await
 			.expect("shared focus");
 		let epoch = match focus_resp {
-			xeno_broker_proto::types::ResponsePayload::SharedFocusAck { snapshot } => {
-				snapshot.epoch
-			}
+			ResponsePayload::SharedFocusAck { snapshot, .. } => snapshot.epoch,
 			other => panic!("unexpected focus response: {other:?}"),
 		};
 
 		t2.shared_state_request(RequestPayload::SharedResync {
 			uri: "file:///test.rs".to_string(),
+			nonce: SyncNonce(2),
 			client_hash64: None,
 			client_len_chars: None,
 		})
@@ -438,14 +449,17 @@ mod tests {
 			WireOp::Delete("content 1".chars().count()),
 			WireOp::Insert("session 2 update".into()),
 		]);
-		t2.shared_state_request(RequestPayload::SharedEdit {
+		t2.shared_state_request(RequestPayload::SharedApply {
 			uri: "file:///test.rs".to_string(),
+			kind: SharedApplyKind::Edit,
 			epoch,
 			base_seq: SyncSeq(0),
-			tx: wire_tx,
+			base_hash64: 0,
+			base_len_chars: 0,
+			tx: Some(wire_tx),
 		})
 		.await
-		.expect("shared state edit");
+		.expect("shared state apply edit");
 
 		assert!(
 			wait_until(Duration::from_secs(1), || async {
@@ -495,12 +509,11 @@ mod tests {
 			wait_until(Duration::from_secs(1), || async {
 				let received = handle.received.lock().unwrap();
 				received.iter().any(|m| {
-					if let Message::Request(r) = m {
-						if r.method == "textDocument/hover" {
-							if let xeno_lsp::RequestId::String(s) = &r.id {
-								return s.starts_with(&format!("b:{}:", server_id.0));
-							}
-						}
+					if let Message::Request(r) = m
+						&& r.method == "textDocument/hover"
+						&& let xeno_lsp::RequestId::String(s) = &r.id
+					{
+						return s.starts_with(&format!("b:{}:", server_id.0));
 					}
 					false
 				})

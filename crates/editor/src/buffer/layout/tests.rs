@@ -609,7 +609,7 @@ fn compute_split_areas_extreme_position_clamping() {
 	let (first, _second, _sep) =
 		Layout::compute_split_areas(area, SplitDirection::Horizontal, 1000);
 	assert!(
-		first.width <= area.width - 1,
+		first.width < area.width,
 		"first width should respect area bounds"
 	);
 

@@ -136,9 +136,10 @@ impl EditorUndoHost<'_> {
 	#[cfg(feature = "lsp")]
 	fn emit_sync_delta(&mut self, doc_id: DocumentId, tx: &Transaction) {
 		if let Some(uri) = self.shared_state.uri_for_doc_id(doc_id).map(str::to_string)
-			&& let Some(payload) = self.shared_state.prepare_edit(&uri, tx) {
-				let _ = self.lsp.shared_state_out_tx().send(payload);
-			}
+			&& let Some(payload) = self.shared_state.prepare_edit(&uri, tx)
+		{
+			let _ = self.lsp.shared_state_out_tx().send(payload);
+		}
 	}
 
 	#[cfg(not(feature = "lsp"))]
