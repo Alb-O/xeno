@@ -3,8 +3,7 @@
 //! The [`UndoManager`] centralizes undo/redo stack management and provides
 //! a prepare/finalize pattern for edit operations. The [`UndoHost`] trait
 //! abstracts the Editor operations needed for undo, enabling cleaner
-//! separation of concerns. For broker-owned history, the manager can stage
-//! pending undo/redo groups and finalize them once remote deltas arrive.
+//! separation of concerns.
 //!
 //! # Architecture
 //!
@@ -44,7 +43,7 @@ pub struct UndoManager {
 	undo_stack: Vec<EditorUndoGroup>,
 	/// Editor-level redo grouping stack.
 	redo_stack: Vec<EditorUndoGroup>,
-	/// Pending broker-driven undo/redo operation.
+	/// Pending deferred undo/redo operation.
 	pending_history: Option<PendingHistoryOp>,
 	#[cfg(test)]
 	pub finalize_calls: usize,
@@ -279,7 +278,7 @@ impl UndoManager {
 		f(self, host);
 	}
 
-	/// Starts a broker-driven undo operation, capturing snapshots for later completion.
+	/// Starts a deferred undo operation, capturing snapshots for later completion.
 	pub fn start_remote_undo(&mut self, host: &mut impl UndoHost) -> Option<Vec<DocumentId>> {
 		if self.pending_history.is_some() {
 			return None;
@@ -309,7 +308,7 @@ impl UndoManager {
 		Some(doc_ids)
 	}
 
-	/// Starts a broker-driven redo operation, capturing snapshots for later completion.
+	/// Starts a deferred redo operation, capturing snapshots for later completion.
 	pub fn start_remote_redo(&mut self, host: &mut impl UndoHost) -> Option<Vec<DocumentId>> {
 		if self.pending_history.is_some() {
 			return None;
@@ -339,7 +338,7 @@ impl UndoManager {
 		Some(doc_ids)
 	}
 
-	/// Starts a blind broker-driven history operation for specific documents.
+	/// Starts a blind deferred history operation for specific documents.
 	pub fn start_blind_remote_history(
 		&mut self,
 		host: &mut impl UndoHost,
@@ -371,7 +370,7 @@ impl UndoManager {
 		true
 	}
 
-	/// Notes that a broker-driven history delta was applied for the document.
+	/// Notes that a deferred history delta was applied for the document.
 	pub fn note_remote_history_delta(
 		&mut self,
 		host: &mut impl UndoHost,
@@ -419,7 +418,7 @@ impl UndoManager {
 		}
 	}
 
-	/// Cancels a pending broker-driven history operation, restoring stacks.
+	/// Cancels a pending deferred history operation, restoring stacks.
 	pub fn cancel_pending_history(&mut self, host: &mut impl UndoHost, kind: HistoryKind) {
 		let Some(pending) = self.pending_history.take() else {
 			return;
@@ -446,7 +445,7 @@ impl UndoManager {
 		}
 	}
 
-	/// Cancels any pending broker-driven history operation.
+	/// Cancels any pending deferred history operation.
 	pub fn cancel_pending_history_any(&mut self, host: &mut impl UndoHost) {
 		let Some(pending) = self.pending_history.take() else {
 			return;
@@ -468,7 +467,7 @@ impl UndoManager {
 		}
 	}
 
-	/// Cancels any pending broker-driven history operation without notifications.
+	/// Cancels any pending deferred history operation without notifications.
 	pub fn cancel_pending_history_silent(&mut self) {
 		let Some(pending) = self.pending_history.take() else {
 			return;

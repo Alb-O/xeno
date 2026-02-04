@@ -1,9 +1,7 @@
 [workspace]
 resolver = "3"
 members = [
-    "crates/broker/*",
     "crates/editor",
-    "crates/helix-db/*",
     "crates/keymap/*",
     "crates/lsp",
     "crates/macro",
@@ -39,8 +37,6 @@ frizbee = "0.6"
 fs2 = "0.4"
 globset = "0.4"
 heed3 = "0.22"
-helix-db = { path = "crates/helix-db/db" }
-helix-macros = { path = "crates/helix-db/macros" }
 ignore = "0.4"
 include_dir = "0.7"
 insta = "1.46"
@@ -96,8 +92,6 @@ uuid = { version = "1.20", features = ["v4"] }
 vt100 = "0.16"
 waitpid-any = "0.3"
 which = "8.0"
-xeno-broker = { path = "crates/broker/lib" }
-xeno-broker-proto = { path = "crates/broker/proto" }
 xeno-editor = { path = "crates/editor" }
 xeno-keymap-core = { path = "crates/keymap/core" }
 xeno-keymap-derive = { path = "crates/keymap/derive" }

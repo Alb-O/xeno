@@ -68,9 +68,6 @@ impl Editor {
 		self.drain_lsp_ui_events();
 
 		#[cfg(feature = "lsp")]
-		self.drain_shared_state_events();
-
-		#[cfg(feature = "lsp")]
 		self.queue_lsp_resyncs_from_documents();
 
 		let dirty_ids: Vec<_> = self.state.frame.dirty_buffers.drain().collect();

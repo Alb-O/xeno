@@ -45,9 +45,6 @@ mod navigation;
 mod options;
 /// Search state and operations.
 mod search;
-/// Shared state event processing (remote deltas, ownership changes).
-#[cfg(feature = "lsp")]
-mod shared_state_events;
 /// Split view operations.
 mod splits;
 /// Theme management.
@@ -191,9 +188,6 @@ pub(crate) struct EditorState {
 	/// Background syntax loading manager.
 	pub(crate) syntax_manager: crate::syntax_manager::SyntaxManager,
 
-	/// Broker-backed shared document state.
-	pub(crate) shared_state: crate::shared_state::SharedStateManager,
-
 	/// Runtime for scheduling async hooks during sync emission.
 	pub(crate) hook_runtime: HookRuntime,
 
@@ -334,7 +328,6 @@ impl Editor {
 					.overflow(xeno_tui::widgets::notifications::Overflow::DropOldest),
 				lsp: LspSystem::new(),
 				syntax_manager: crate::syntax_manager::SyntaxManager::new(2),
-				shared_state: crate::shared_state::SharedStateManager::new(),
 				hook_runtime,
 				overlay_system: OverlaySystem::default(),
 				metrics: std::sync::Arc::new(crate::metrics::EditorMetrics::new()),

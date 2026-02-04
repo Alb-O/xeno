@@ -12,8 +12,6 @@ use xeno_registry::commands::CommandError;
 use xeno_registry::{HookContext, HookEventData, emit as emit_hook};
 
 use super::Editor;
-#[cfg(feature = "lsp")]
-use super::buffer_ops::sync_uri_for_path;
 
 impl xeno_registry::FileOpsAccess for Editor {
 	fn is_modified(&self) -> bool {
@@ -122,16 +120,8 @@ impl Editor {
 		#[cfg(feature = "lsp")]
 		{
 			let doc_id = buffer.document_id();
-			// 1. Initialize Buffer Sync (authoritative content)
-			if self.state.shared_state.uri_for_doc_id(doc_id).is_none()
-				&& let Some(uri) = sync_uri_for_path(&path)
-			{
-				let text = rope.to_string();
-				let payload = self.state.shared_state.prepare_open(&uri, &text, doc_id);
-				let _ = self.state.lsp.shared_state_out_tx().send(payload);
-			}
 
-			// 2. Initialize standard LSP session
+			// Initialize standard LSP session
 			if let Some(language) = &file_type
 				&& self.state.lsp.registry().get_config(language).is_some()
 			{

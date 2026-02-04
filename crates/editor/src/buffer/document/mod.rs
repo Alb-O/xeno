@@ -147,11 +147,8 @@ impl Document {
 	/// changeset to tree-sitter produces a corrupt syntax tree.
 	///
 	/// When the stored tx correctly transforms `old_source` into the current
-	/// content, uses its changeset directly. Otherwise computes a correct
-	/// [`Transaction`] via [`rope_delta`] and uses that changeset instead,
-	/// keeping the incremental update path even for merged undo groups.
-	///
-	/// [`rope_delta`]: crate::shared_state::convert::rope_delta
+	/// content, uses its changeset directly. Otherwise marks syntax as dirty
+	/// for a full reparse.
 	fn incremental_syntax_for_history(
 		&mut self,
 		old_source: Option<Rope>,
@@ -168,8 +165,8 @@ impl Document {
 		if check == self.content {
 			self.try_incremental_syntax_update(Some(old), stored_tx.changes(), language_loader, op);
 		} else {
-			let corrected = crate::shared_state::convert::rope_delta(&old, &self.content);
-			self.try_incremental_syntax_update(Some(old), corrected.changes(), language_loader, op);
+			// Stored transaction doesn't match actual content change - mark dirty for reparse.
+			self.syntax_dirty = true;
 		}
 	}
 

@@ -69,17 +69,6 @@ impl Editor {
 			);
 		}
 
-		#[cfg(feature = "lsp")]
-		if let Some(buffer) = self.state.core.buffers.get_buffer(buffer_id)
-			&& let Some(path) = buffer.path()
-			&& let Some(uri) = sync_uri_for_path(&path)
-		{
-			let doc_id = buffer.document_id();
-			let text = buffer.with_doc(|doc| doc.content().to_string());
-			let payload = self.state.shared_state.prepare_open(&uri, &text, doc_id);
-			let _ = self.state.lsp.shared_state_out_tx().send(payload);
-		}
-
 		buffer_id
 	}
 
@@ -200,7 +189,7 @@ impl Editor {
 	/// not blocked by LSP server spawning. Deduplicates by [`DocumentId`].
 	///
 	/// Skips documents currently being loaded in the background to avoid
-	/// initializing the broker with empty content.
+	/// initializing LSP with empty content.
 	#[cfg(feature = "lsp")]
 	pub fn kick_lsp_init_for_open_buffers(&mut self) {
 		use std::collections::HashSet;
@@ -269,43 +258,6 @@ impl Editor {
 				}
 			});
 		}
-
-		let mut seen_sync_docs = HashSet::new();
-		let sync_specs: Vec<_> = self
-			.state
-			.core
-			.buffers
-			.buffer_ids()
-			.filter_map(|id| {
-				let buffer = self.state.core.buffers.get_buffer(id)?;
-				let path = buffer.path()?;
-				let abs_path = path
-					.canonicalize()
-					.unwrap_or_else(|_| std::env::current_dir().unwrap_or_default().join(path));
-
-				if loading.as_ref().is_some_and(|p| p == &abs_path) {
-					return None;
-				}
-
-				let doc_id = buffer.document_id();
-				if !seen_sync_docs.insert(doc_id) {
-					return None;
-				}
-
-				if self.state.shared_state.uri_for_doc_id(doc_id).is_some() {
-					return None;
-				}
-
-				let uri = sync_uri_for_path(&abs_path)?;
-				let text = buffer.with_doc(|doc| doc.content().to_string());
-				Some((uri, text, doc_id))
-			})
-			.collect();
-
-		for (uri, text, doc_id) in sync_specs {
-			let payload = self.state.shared_state.prepare_open(&uri, &text, doc_id);
-			let _ = self.state.lsp.shared_state_out_tx().send(payload);
-		}
 	}
 
 	#[cfg(not(feature = "lsp"))]
@@ -328,68 +280,8 @@ impl Editor {
 				#[cfg(feature = "lsp")]
 				self.state.lsp.sync_manager_mut().on_doc_close(doc_id);
 
-				#[cfg(feature = "lsp")]
-				if let Some(uri) = self.state.shared_state.uri_for_doc_id(doc_id) {
-					let uri = uri.to_string();
-					if let Some(payload) = self.state.shared_state.prepare_close(&uri) {
-						let _ = self.state.lsp.shared_state_out_tx().send(payload);
-					}
-				}
-
 				self.state.render_cache.invalidate_document(doc_id);
 			}
 		}
-	}
-}
-
-/// Computes a stable, URL-escaped file URI for shared state document identity.
-///
-/// Uses `url::Url::from_file_path` to handle spaces, unicode, and special
-/// characters consistently across processes.
-#[cfg(feature = "lsp")]
-pub(crate) fn sync_uri_for_path(path: &std::path::Path) -> Option<String> {
-	let canonical = path
-		.canonicalize()
-		.unwrap_or_else(|_| std::env::current_dir().unwrap_or_default().join(path));
-	url::Url::from_file_path(&canonical)
-		.ok()
-		.map(|u| u.to_string())
-}
-
-#[cfg(test)]
-mod tests {
-	use std::path::PathBuf;
-
-	use super::*;
-
-	#[test]
-	fn test_kick_lsp_init_skips_loading_files() {
-		let mut editor = Editor::new_scratch();
-		let path = PathBuf::from("/test.rs");
-
-		// Simulate background load starting
-		editor.state.loading_file = Some(path.clone());
-
-		// Create buffer for that path (empty placeholder)
-		let buffer_id = editor.open_buffer_sync(String::new(), Some(path.clone()));
-		let doc_id = editor
-			.state
-			.core
-			.buffers
-			.get_buffer(buffer_id)
-			.unwrap()
-			.document_id();
-
-		// Kick init (simulates CatalogReady)
-		editor.kick_lsp_init_for_open_buffers();
-
-		// Verify it was SKIPPED (not tracked by shared state yet)
-		assert!(editor.state.shared_state.uri_for_doc_id(doc_id).is_none());
-
-		// Now finish the load
-		editor.apply_loaded_file(path, ropey::Rope::from_str("real content"), false);
-
-		// Verify it WAS initialized after load finished
-		assert!(editor.state.shared_state.uri_for_doc_id(doc_id).is_some());
 	}
 }

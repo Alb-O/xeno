@@ -25,8 +25,6 @@ pub(super) struct EditorUndoHost<'a> {
 	pub syntax_manager: &'a mut crate::syntax_manager::SyntaxManager,
 	#[cfg(feature = "lsp")]
 	pub lsp: &'a mut crate::LspSystem,
-	#[cfg(feature = "lsp")]
-	pub shared_state: &'a mut crate::shared_state::SharedStateManager,
 }
 
 impl EditorUndoHost<'_> {
@@ -132,42 +130,6 @@ impl EditorUndoHost<'_> {
 		push_notification(self.config, self.notifications, notification.into());
 	}
 
-	/// Emits a shared state delta if the document is owned by this session.
-	#[cfg(feature = "lsp")]
-	fn emit_sync_delta(&mut self, doc_id: DocumentId, tx: &Transaction, new_group: bool) {
-		if let Some(uri) = self.shared_state.uri_for_doc_id(doc_id).map(str::to_string)
-			&& let Some(payload) = self.shared_state.prepare_edit(&uri, tx, new_group)
-		{
-			let _ = self.lsp.shared_state_out_tx().send(payload);
-		}
-	}
-
-	#[cfg(not(feature = "lsp"))]
-	fn emit_sync_delta(&mut self, _doc_id: DocumentId, _tx: &Transaction, _new_group: bool) {}
-
-	/// Returns `true` if `doc_id` is tracked as a non-owner in shared state.
-	#[cfg(feature = "lsp")]
-	fn is_sync_follower(&self, doc_id: DocumentId) -> bool {
-		self.shared_state
-			.uri_for_doc_id(doc_id)
-			.is_some_and(|uri| self.shared_state.is_edit_blocked(uri))
-	}
-
-	/// Computes the sync delta for an undo/redo mutation.
-	fn validated_sync_tx(
-		pre: &xeno_primitives::Rope,
-		post: &xeno_primitives::Rope,
-		stored_tx: Transaction,
-	) -> Transaction {
-		let mut check = pre.clone();
-		stored_tx.apply(&mut check);
-		if check == *post {
-			stored_tx
-		} else {
-			crate::shared_state::convert::rope_delta(pre, post)
-		}
-	}
-
 	fn mark_buffer_dirty_for_full_sync(&mut self, buffer_id: ViewId) {
 		if let Some(buffer) = self.buffers.get_buffer_mut(buffer_id) {
 			#[cfg(feature = "lsp")]
@@ -258,38 +220,17 @@ impl EditorUndoHost<'_> {
 			return false;
 		};
 
-		#[cfg(feature = "lsp")]
-		if self.is_sync_follower(doc_id) {
-			return false;
-		}
-
-		let pre_rope = self
-			.buffers
-			.get_buffer(buffer_id)
-			.expect("buffer exists")
-			.with_doc(|doc| doc.content().clone());
-
-		let tx = self
+		let _tx = self
 			.buffers
 			.get_buffer_mut(buffer_id)
 			.expect("buffer exists")
 			.with_doc_mut(|doc| op(doc, &self.config.language_loader));
 
-		let Some(tx) = tx else {
+		let Some(_tx) = _tx else {
 			return false;
 		};
 
-		let post_rope = self
-			.buffers
-			.get_buffer(buffer_id)
-			.expect("buffer exists")
-			.with_doc(|doc| doc.content().clone());
-
-		let sync_tx = Self::validated_sync_tx(&pre_rope, &post_rope, tx);
-
 		self.syntax_manager.note_edit(doc_id);
-		// Local undo/redo always starts a new group for sync followers/observers.
-		self.emit_sync_delta(doc_id, &sync_tx, true);
 		self.mark_buffer_dirty_for_full_sync(buffer_id);
 		self.normalize_all_views_for_doc(doc_id);
 		true

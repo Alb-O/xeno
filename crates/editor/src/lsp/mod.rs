@@ -1,6 +1,4 @@
 #[cfg(feature = "lsp")]
-pub mod broker_transport;
-#[cfg(feature = "lsp")]
 pub(crate) mod coalesce;
 #[cfg(feature = "lsp")]
 pub(crate) mod code_action;
@@ -23,8 +21,6 @@ pub(crate) mod menu;
 mod render;
 #[cfg(feature = "lsp")]
 mod requests;
-#[cfg(feature = "lsp")]
-mod shared_state_bridge;
 #[cfg(feature = "lsp")]
 pub(crate) mod signature_help;
 #[cfg(feature = "lsp")]

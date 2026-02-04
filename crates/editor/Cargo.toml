@@ -7,15 +7,12 @@ license.workspace = true
 
 [features]
 default = []
-lsp = ["dep:xeno-lsp", "dep:frizbee", "dep:thiserror", "dep:tokio-util", "dep:fs2"]
+lsp = ["dep:xeno-lsp", "dep:frizbee", "dep:thiserror", "dep:tokio-util"]
 [dependencies]
 anyhow.workspace = true
-async-trait.workspace = true
 clap.workspace = true
-dashmap.workspace = true
 dirs.workspace = true
 frizbee = { workspace = true, optional = true }
-fs2 = { workspace = true, optional = true }
 inventory.workspace = true
 parking_lot.workspace = true
 paste.workspace = true
@@ -29,17 +26,12 @@ termina.workspace = true
 thiserror = { workspace = true, optional = true }
 tokio.workspace = true
 tokio-util = { workspace = true, optional = true }
-tower-service.workspace = true
 tracing.workspace = true
 unicode-width.workspace = true
-url.workspace = true
-uuid.workspace = true
-xeno-broker-proto.workspace = true
 xeno-keymap-core.workspace = true
 xeno-lsp = { workspace = true, features = ["position"], optional = true }
 xeno-primitives.workspace = true
 xeno-registry.workspace = true
-xeno-rpc.workspace = true
 xeno-runtime-config.workspace = true
 xeno-runtime-language.workspace = true
 xeno-tui.workspace = true
@@ -49,7 +41,6 @@ tempfile = "3"
 tokio = { workspace = true, features = ["test-util"] }
 tokio-util = { workspace = true, features = ["rt"] }
 tracing-subscriber = "0.3"
-xeno-broker.workspace = true
 xeno-lsp = { workspace = true, features = ["client", "position"] }
 
 [lints]

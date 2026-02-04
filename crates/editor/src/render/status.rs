@@ -34,33 +34,7 @@ impl Editor {
 		let line = self.cursor_line() + 1;
 		let col = self.cursor_col() + 1;
 
-		#[cfg(feature = "lsp")]
-		let (sync_role_str, sync_status_str) = {
-			if let Some(uri) = buffer
-				.path()
-				.as_ref()
-				.and_then(|p| xeno_lsp::uri_from_path(p))
-			{
-				let (role, status) = self.state.shared_state.ui_status_for_uri(uri.as_str());
-				let role_s = match role {
-					Some(crate::shared_state::SharedStateRole::Owner) => "Owner",
-					Some(crate::shared_state::SharedStateRole::Follower) => "Follower",
-					None => "None",
-				};
-				let status_s = match status {
-					crate::shared_state::SyncStatus::Off => "Off",
-					crate::shared_state::SyncStatus::Owner => "O",
-					crate::shared_state::SyncStatus::Follower => "F",
-					crate::shared_state::SyncStatus::Unlocked => "Free",
-					crate::shared_state::SyncStatus::NeedsResync => "Sync!",
-				};
-				(Some(role_s), Some(status_s))
-			} else {
-				(None, None)
-			}
-		};
-		#[cfg(not(feature = "lsp"))]
-		let (sync_role_str, sync_status_str) = (None, None);
+		let (sync_role_str, sync_status_str): (Option<&str>, Option<&str>) = (None, None);
 
 		let ctx = StatuslineContext {
 			mode_name,

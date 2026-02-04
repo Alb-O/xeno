@@ -1,28 +1,12 @@
 //! Language database: single source of truth for language configuration.
 //!
 //! The [`LanguageDb`] consolidates all language metadata into a single structure,
-//! parsed once from `languages.kdl`. Lookups are backed by helix-db secondary
-//! indices on separate mapping node types (`LangExtension`, `LangFilename`,
-//! `LangShebang`), each carrying the language's positional index. Runtime data
-//! (syntax configs, LSP info) is served from an in-memory `Vec<LanguageData>`.
+//! parsed once from `languages.kdl`. Lookups are backed by simple HashMaps for
+//! fast access by name, extension, filename, and shebang.
 
 use std::collections::HashMap;
-use std::sync::{Arc, LazyLock, OnceLock};
+use std::sync::{Arc, OnceLock};
 
-use bumpalo::Bump;
-use helix_db::helix_engine::storage_core::HelixGraphStorage;
-use helix_db::helix_engine::storage_core::version_info::VersionInfo;
-use helix_db::helix_engine::traversal_core::config::{Config, GraphConfig};
-use helix_db::helix_engine::traversal_core::ops::g::G;
-use helix_db::helix_engine::traversal_core::ops::source::add_n::AddNAdapter;
-use helix_db::helix_engine::traversal_core::ops::source::n_from_index::NFromIndexAdapter;
-use helix_db::helix_engine::traversal_core::traversal_value::TraversalValue;
-use helix_db::helixc::analyzer::analyze;
-use helix_db::helixc::analyzer::diagnostic::DiagnosticSeverity;
-use helix_db::helixc::parser::HelixParser;
-use helix_db::helixc::parser::types::{Content, HxFile, Source as ParsedSource};
-use helix_db::protocol::value::Value;
-use helix_db::utils::properties::ImmutablePropertiesMap;
 use tracing::error;
 use tree_house::Language;
 
@@ -40,97 +24,31 @@ pub fn language_db() -> &'static Arc<LanguageDb> {
 
 /// Consolidated language configuration database.
 ///
-/// Holds all registered language metadata with helix-db secondary indices for
-/// fast lookups by name, extension, filename, and shebang. Multi-value keys
-/// (extensions, filenames, shebangs) are modeled as separate mapping node types
-/// (`LangExtension`, `LangFilename`, `LangShebang`), each carrying the
-/// language's positional `idx`. Runtime data (syntax configs, LSP info) is
-/// served from the in-memory `languages` vec.
+/// Holds all registered language metadata with in-memory indices for
+/// fast lookups by name, extension, filename, and shebang.
 pub struct LanguageDb {
 	languages: Vec<LanguageData>,
 	globs: Vec<(String, usize)>,
-	storage: Arc<HelixGraphStorage>,
-	_db_dir: tempfile::TempDir,
-}
-
-const SCHEMA_HQL: &str = include_str!("../schema.hql");
-
-/// Node labels derived from the HQL schema.
-const LABEL_LANGUAGE: &str = "Language";
-const LABEL_EXTENSION: &str = "LangExtension";
-const LABEL_FILENAME: &str = "LangFilename";
-const LABEL_SHEBANG: &str = "LangShebang";
-
-/// Helix-db config derived from `schema.hql` at first access.
-///
-/// Parses the embedded HQL schema, runs the analyzer to extract secondary
-/// index declarations, and builds the storage config.
-static SCHEMA_CONFIG: LazyLock<Config> = LazyLock::new(|| {
-	let content = Content {
-		content: String::new(),
-		source: ParsedSource::default(),
-		files: vec![HxFile {
-			name: "schema.hql".into(),
-			content: SCHEMA_HQL.into(),
-		}],
-	};
-	let parsed = HelixParser::parse_source(&content).expect("schema.hql: parse failed");
-	let (diags, generated) = analyze(&parsed).expect("schema.hql: analysis failed");
-
-	for d in &diags {
-		if matches!(d.severity, DiagnosticSeverity::Error) {
-			panic!("schema.hql: {d:?}");
-		}
-	}
-
-	Config {
-		graph_config: Some(GraphConfig {
-			secondary_indices: if generated.secondary_indices.is_empty() {
-				None
-			} else {
-				Some(generated.secondary_indices)
-			},
-		}),
-		db_max_size_gb: Some(1),
-		mcp: Some(false),
-		bm25: Some(false),
-		..Config::default()
-	}
-});
-
-/// Builds an [`ImmutablePropertiesMap`] from key-value entries, allocating
-/// keys into the provided arena.
-fn build_props<'arena>(
-	arena: &'arena Bump,
-	entries: Vec<(&str, Value)>,
-) -> ImmutablePropertiesMap<'arena> {
-	let prop_count = entries.len();
-	ImmutablePropertiesMap::new(
-		prop_count,
-		entries.into_iter().map(|(k, v)| {
-			let k: &str = arena.alloc_str(k);
-			(k, v)
-		}),
-		arena,
-	)
+	/// Map from language name to index.
+	by_name: HashMap<String, usize>,
+	/// Map from extension to language index (first registered wins).
+	by_extension: HashMap<String, usize>,
+	/// Map from filename to language index.
+	by_filename: HashMap<String, usize>,
+	/// Map from shebang to language index.
+	by_shebang: HashMap<String, usize>,
 }
 
 impl LanguageDb {
-	/// Creates an empty database backed by a temporary directory.
+	/// Creates an empty database.
 	pub fn new() -> Self {
-		let db_dir = tempfile::tempdir().expect("failed to create tempdir for LanguageDb");
-		let storage = HelixGraphStorage::new(
-			db_dir.path().to_str().unwrap_or("lang_db"),
-			SCHEMA_CONFIG.clone(),
-			VersionInfo::default(),
-		)
-		.expect("failed to open helix-db storage");
-
 		Self {
 			languages: Vec::new(),
 			globs: Vec::new(),
-			storage: Arc::new(storage),
-			_db_dir: db_dir,
+			by_name: HashMap::new(),
+			by_extension: HashMap::new(),
+			by_filename: HashMap::new(),
+			by_shebang: HashMap::new(),
 		}
 	}
 
@@ -144,7 +62,7 @@ impl LanguageDb {
 		db
 	}
 
-	/// Registers a language and writes it + mapping nodes to helix-db.
+	/// Registers a language and adds it to all indices.
 	///
 	/// Returns the language ID for the registered language.
 	pub fn register(&mut self, data: LanguageData) -> Language {
@@ -153,109 +71,37 @@ impl LanguageDb {
 		Language::new(idx)
 	}
 
-	/// Batch-registers languages in a single transaction.
-	///
-	/// Inserts a `Language` node plus `LangExtension`, `LangFilename`, and
-	/// `LangShebang` mapping nodes for each language. All writes share one
-	/// LMDB write transaction for atomicity and performance.
+	/// Batch-registers languages.
 	fn register_all(&mut self, languages: Vec<LanguageData>) {
 		let start_idx = self.languages.len();
-		let arena = Bump::new();
-		let mut txn = self
-			.storage
-			.graph_env
-			.write_txn()
-			.expect("write txn for register_all");
 
 		for (i, data) in languages.iter().enumerate() {
-			let idx = (start_idx + i) as u32;
+			let idx = start_idx + i;
 
-			// Language node.
-			let props = build_props(
-				&arena,
-				vec![
-					("name", Value::String(data.name.clone())),
-					("idx", Value::U32(idx)),
-				],
-			);
-			G::new_mut(&self.storage, &arena, &mut txn)
-				.add_n(
-					arena.alloc_str(LABEL_LANGUAGE),
-					Some(props),
-					Some(&["name"]),
-				)
-				.next()
-				.unwrap()
-				.expect("add_n Language failed");
+			// Index by name.
+			self.by_name.entry(data.name.clone()).or_insert(idx);
 
-			// LangExtension mapping nodes.
+			// Index by extension (first registered wins).
 			for ext in &data.extensions {
-				let props = build_props(
-					&arena,
-					vec![
-						("extension", Value::String(ext.clone())),
-						("idx", Value::U32(idx)),
-					],
-				);
-				G::new_mut(&self.storage, &arena, &mut txn)
-					.add_n(
-						arena.alloc_str(LABEL_EXTENSION),
-						Some(props),
-						Some(&["extension"]),
-					)
-					.next()
-					.unwrap()
-					.expect("add_n LangExtension failed");
+				self.by_extension.entry(ext.clone()).or_insert(idx);
 			}
 
-			// LangFilename mapping nodes.
+			// Index by filename.
 			for fname in &data.filenames {
-				let props = build_props(
-					&arena,
-					vec![
-						("filename", Value::String(fname.clone())),
-						("idx", Value::U32(idx)),
-					],
-				);
-				G::new_mut(&self.storage, &arena, &mut txn)
-					.add_n(
-						arena.alloc_str(LABEL_FILENAME),
-						Some(props),
-						Some(&["filename"]),
-					)
-					.next()
-					.unwrap()
-					.expect("add_n LangFilename failed");
+				self.by_filename.entry(fname.clone()).or_insert(idx);
 			}
 
-			// LangShebang mapping nodes.
+			// Index by shebang.
 			for shebang in &data.shebangs {
-				let props = build_props(
-					&arena,
-					vec![
-						("shebang", Value::String(shebang.clone())),
-						("idx", Value::U32(idx)),
-					],
-				);
-				G::new_mut(&self.storage, &arena, &mut txn)
-					.add_n(
-						arena.alloc_str(LABEL_SHEBANG),
-						Some(props),
-						Some(&["shebang"]),
-					)
-					.next()
-					.unwrap()
-					.expect("add_n LangShebang failed");
+				self.by_shebang.entry(shebang.clone()).or_insert(idx);
 			}
-		}
 
-		txn.commit().expect("commit register_all txn");
-
-		for (i, data) in languages.iter().enumerate() {
+			// Collect globs.
 			for glob in &data.globs {
-				self.globs.push((glob.clone(), start_idx + i));
+				self.globs.push((glob.clone(), idx));
 			}
 		}
+
 		self.languages.extend(languages);
 	}
 
@@ -266,22 +112,22 @@ impl LanguageDb {
 
 	/// Returns the index for a language name.
 	pub fn index_for_name(&self, name: &str) -> Option<usize> {
-		self.lookup_min_idx(LABEL_LANGUAGE, "name", name)
+		self.by_name.get(name).copied()
 	}
 
 	/// Returns the index for a file extension.
 	pub fn index_for_extension(&self, ext: &str) -> Option<usize> {
-		self.lookup_min_idx(LABEL_EXTENSION, "extension", ext)
+		self.by_extension.get(ext).copied()
 	}
 
 	/// Returns the index for an exact filename.
 	pub fn index_for_filename(&self, filename: &str) -> Option<usize> {
-		self.lookup_min_idx(LABEL_FILENAME, "filename", filename)
+		self.by_filename.get(filename).copied()
 	}
 
 	/// Returns the index for a shebang interpreter.
 	pub fn index_for_shebang(&self, interpreter: &str) -> Option<usize> {
-		self.lookup_min_idx(LABEL_SHEBANG, "shebang", interpreter)
+		self.by_shebang.get(interpreter).copied()
 	}
 
 	/// Returns glob patterns with their language indices.
@@ -336,28 +182,6 @@ impl LanguageDb {
 				)
 			})
 			.collect()
-	}
-
-	/// Queries a secondary index and returns the minimum `idx` across all
-	/// matching nodes, giving deterministic "first registered wins" semantics.
-	fn lookup_min_idx(&self, label: &str, index: &str, key: &str) -> Option<usize> {
-		let arena = Bump::new();
-		let txn = self.storage.graph_env.read_txn().ok()?;
-
-		G::new(&self.storage, &txn, &arena)
-			.n_from_index(label, index, &key)
-			.filter_map(|r| r.ok())
-			.filter_map(|tv| {
-				if let TraversalValue::Node(n) = tv {
-					match n.get_property("idx") {
-						Some(Value::U32(i)) => Some(*i as usize),
-						_ => None,
-					}
-				} else {
-					None
-				}
-			})
-			.min()
 	}
 }
 

@@ -1,4 +1,4 @@
-//! LSP transport abstraction for pluggable backends (local vs brokered).
+//! LSP transport abstraction for pluggable communication backends.
 
 use std::time::Duration;
 
@@ -65,8 +65,7 @@ pub struct StartedServer {
 
 /// Pluggable transport for LSP communication.
 ///
-/// This trait abstracts over whether the LSP server is running as a local child
-/// process or managed by an external broker.
+/// Abstracts server process management and JSON-RPC message routing.
 #[async_trait]
 pub trait LspTransport: Send + Sync {
 	/// Returns a receiver for asynchronous events from the transport.

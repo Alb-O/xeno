@@ -59,8 +59,8 @@ impl DocumentHandle {
 
 /// A text buffer - combines a view with its document.
 ///
-/// Buffer is now a wrapper that provides convenient access to both view state
-/// (cursor, selection, scroll) and document state (content, undo history, syntax).
+/// Provides access to both view state (cursor, selection, scroll) and
+/// document state (content, undo history, syntax).
 ///
 /// For split views, multiple Buffers can share the same underlying Document.
 pub struct Buffer {

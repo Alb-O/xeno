@@ -2,8 +2,6 @@
 //!
 //! Provides the primary interface for modifying document content, including
 //! atomic transaction application, smart indentation, and clipboard operations.
-//! Coordination with broker-backed shared state is handled transparently during
-//! edit application.
 
 use xeno_primitives::{EditOrigin, Selection, Transaction, UndoPolicy};
 use xeno_registry::notifications::keys;
@@ -22,15 +20,13 @@ impl Editor {
 		true
 	}
 
-	/// Applies a transaction with full undo and synchronization support.
+	/// Applies a transaction with full undo support.
 	///
 	/// This is the authoritative entry point for all local document mutations.
 	/// It coordinates the following pipeline:
-	/// 1. Verifies ownership for shared documents.
-	/// 2. Acquires a focus claim if the session is currently a follower.
-	/// 3. Captures view snapshots (cursor, scroll) via the [`UndoManager`].
-	/// 4. Applies the mutation to the local buffer.
-	/// 5. Notifies overlays and emits sync deltas to the broker.
+	/// 1. Captures view snapshots (cursor, scroll) via the [`UndoManager`].
+	/// 2. Applies the mutation to the local buffer.
+	/// 3. Notifies overlays.
 	pub(crate) fn apply_edit(
 		&mut self,
 		buffer_id: ViewId,
@@ -39,47 +35,6 @@ impl Editor {
 		undo: UndoPolicy,
 		origin: EditOrigin,
 	) -> bool {
-		#[cfg(feature = "lsp")]
-		if let Some(buffer) = self.state.core.buffers.get_buffer(buffer_id) {
-			let doc_id = buffer.document_id();
-			let uri = self
-				.state
-				.shared_state
-				.uri_for_doc_id(doc_id)
-				.map(str::to_string);
-
-			if let Some(uri) = uri
-				&& self.state.shared_state.is_edit_blocked(&uri)
-			{
-				let (auth_len, auth_hash) = self.state.shared_state.focus_fingerprint_for_uri(&uri);
-				let (use_hash, use_len) = if let (Some(h), Some(l)) = (auth_hash, auth_len) {
-					(Some(h), Some(l))
-				} else {
-					let (len, hash) =
-						buffer.with_doc(|doc| xeno_broker_proto::fingerprint_rope(doc.content()));
-					(Some(hash), Some(len))
-				};
-
-				if !self.state.shared_state.is_owner(&uri) {
-					if let Some(payload) = self
-						.state
-						.shared_state
-						.prepare_focus(doc_id, true, use_hash, use_len)
-					{
-						let _ = self.state.lsp.shared_state_out_tx().send(payload);
-						self.notify(keys::SYNC_TAKING_OWNERSHIP);
-					}
-				} else if let Some(payload) = self
-					.state
-					.shared_state
-					.prepare_resync(&uri, use_hash, use_len)
-				{
-					let _ = self.state.lsp.shared_state_out_tx().send(payload);
-				}
-				return false;
-			}
-		}
-
 		let focused_view = self.focused_view();
 		let core = &mut self.state.core;
 		let mut host = EditorUndoHost {
@@ -91,8 +46,6 @@ impl Editor {
 			syntax_manager: &mut self.state.syntax_manager,
 			#[cfg(feature = "lsp")]
 			lsp: &mut self.state.lsp,
-			#[cfg(feature = "lsp")]
-			shared_state: &mut self.state.shared_state,
 		};
 
 		let res = core.undo_manager.with_edit(
@@ -107,17 +60,6 @@ impl Editor {
 
 		if res {
 			self.notify_overlay_event(crate::overlay::LayerEvent::BufferEdited(buffer_id));
-
-			#[cfg(feature = "lsp")]
-			if let Some(buffer) = self.state.core.buffers.get_buffer(buffer_id)
-				&& let Some(uri) = self.state.shared_state.uri_for_doc_id(buffer.document_id())
-			{
-				let uri = uri.to_string();
-				let new_group = matches!(undo, UndoPolicy::Record | UndoPolicy::Boundary);
-				if let Some(payload) = self.state.shared_state.prepare_edit(&uri, tx, new_group) {
-					let _ = self.state.lsp.shared_state_out_tx().send(payload);
-				}
-			}
 		}
 		res
 	}
