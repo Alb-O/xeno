@@ -187,15 +187,49 @@ impl Editor {
 				.map(|b| b.document_id());
 
 			if old_doc != new_doc {
-				if let Some(doc_id) = old_doc
-					&& let Some(payload) = self.state.shared_state.note_focus(doc_id, false)
-				{
-					let _ = self.state.lsp.shared_state_out_tx().send(payload);
+				if let Some(doc_id) = old_doc {
+					let fingerprint = self
+						.state
+						.core
+						.buffers
+						.any_buffer_for_doc(doc_id)
+						.and_then(|v| self.state.core.buffers.get_buffer(v))
+						.map(|b| {
+							b.with_doc(|doc| xeno_broker_proto::fingerprint_rope(doc.content()))
+						});
+					let (len, hash) = fingerprint
+						.map(|(l, h)| (Some(l), Some(h)))
+						.unwrap_or((None, None));
+
+					if let Some(payload) = self
+						.state
+						.shared_state
+						.prepare_focus(doc_id, false, hash, len)
+					{
+						let _ = self.state.lsp.shared_state_out_tx().send(payload);
+					}
 				}
-				if let Some(doc_id) = new_doc
-					&& let Some(payload) = self.state.shared_state.note_focus(doc_id, true)
-				{
-					let _ = self.state.lsp.shared_state_out_tx().send(payload);
+				if let Some(doc_id) = new_doc {
+					let fingerprint = self
+						.state
+						.core
+						.buffers
+						.any_buffer_for_doc(doc_id)
+						.and_then(|v| self.state.core.buffers.get_buffer(v))
+						.map(|b| {
+							b.with_doc(|doc| xeno_broker_proto::fingerprint_rope(doc.content()))
+						});
+					let (len, hash) = fingerprint
+						.map(|(l, h)| (Some(l), Some(h)))
+						.unwrap_or((None, None));
+
+					if let Some(payload) = self
+						.state
+						.shared_state
+						.prepare_focus(doc_id, true, hash, len)
+					{
+						let _ = self.state.lsp.shared_state_out_tx().send(payload);
+					}
 				}
 			}
 		}

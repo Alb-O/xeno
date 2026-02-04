@@ -1,3 +1,9 @@
+//! Undo host adapter for the editor.
+//!
+//! Provides a bridge between the generic [`UndoManager`] and the concrete
+//! [`Editor`] implementation, enabling view state restoration and document
+//! history coordination.
+
 use std::collections::HashMap;
 
 use tracing::warn;
@@ -9,6 +15,7 @@ use crate::impls::messaging::push_notification;
 use crate::types::{Config, FrameState, UndoHost, ViewSnapshot};
 use crate::view_manager::ViewManager;
 
+/// Concrete implementation of [`UndoHost`] for the editor.
 pub(super) struct EditorUndoHost<'a> {
 	pub buffers: &'a mut ViewManager,
 	pub focused_view: ViewId,
@@ -23,6 +30,7 @@ pub(super) struct EditorUndoHost<'a> {
 }
 
 impl EditorUndoHost<'_> {
+	/// Applies a transaction to a specific buffer with full LSP and selection sync.
 	pub(super) fn apply_transaction_inner(
 		&mut self,
 		buffer_id: ViewId,
@@ -60,8 +68,8 @@ impl EditorUndoHost<'_> {
 				if lsp_result.commit.applied {
 					let prev_version = lsp_result.prev_version();
 					let new_version = lsp_result.new_version();
-					match lsp_result.lsp_changes {
-						Some(changes) if !changes.is_empty() => {
+					if let Some(changes) = lsp_result.lsp_changes {
+						if !changes.is_empty() {
 							self.lsp.sync_manager_mut().on_doc_edit(
 								doc_id,
 								prev_version,
@@ -70,15 +78,14 @@ impl EditorUndoHost<'_> {
 								lsp_result.lsp_bytes,
 							);
 						}
-						Some(_) => {}
-						None => self.lsp.sync_manager_mut().escalate_full(doc_id),
+					} else {
+						self.lsp.sync_manager_mut().escalate_full(doc_id);
 					}
 				}
 
 				lsp_result.commit
 			} else {
 				let result = buffer.apply(tx, policy, &self.config.language_loader);
-				// No incremental support - trigger full sync if edit applied
 				if result.applied {
 					self.lsp.sync_manager_mut().escalate_full(doc_id);
 				}
@@ -129,10 +136,9 @@ impl EditorUndoHost<'_> {
 	#[cfg(feature = "lsp")]
 	fn emit_sync_delta(&mut self, doc_id: DocumentId, tx: &Transaction) {
 		if let Some(uri) = self.shared_state.uri_for_doc_id(doc_id).map(str::to_string)
-			&& let Some(payload) = self.shared_state.prepare_edit(&uri, tx)
-		{
-			let _ = self.lsp.shared_state_out_tx().send(payload);
-		}
+			&& let Some(payload) = self.shared_state.prepare_edit(&uri, tx) {
+				let _ = self.lsp.shared_state_out_tx().send(payload);
+			}
 	}
 
 	#[cfg(not(feature = "lsp"))]
@@ -147,13 +153,6 @@ impl EditorUndoHost<'_> {
 	}
 
 	/// Computes the sync delta for an undo/redo mutation.
-	///
-	/// Prefers the stored transaction when it correctly transforms `pre` into
-	/// `post` (preserves granularity for multi-cursor edits). Falls back to
-	/// [`rope_delta`] when it doesn't — the snapshot undo backend returns a
-	/// partial inverse for merged insert-mode groups.
-	///
-	/// [`rope_delta`]: crate::shared_state::convert::rope_delta
 	fn validated_sync_tx(
 		pre: &xeno_primitives::Rope,
 		post: &xeno_primitives::Rope,
@@ -211,8 +210,6 @@ impl EditorUndoHost<'_> {
 	}
 
 	/// Clamps selections and cursors for all views of a document to valid bounds.
-	///
-	/// Call after any document mutation to ensure no view holds stale positions.
 	fn normalize_all_views_for_doc(&mut self, doc_id: DocumentId) {
 		let view_ids: Vec<_> = self
 			.buffers
@@ -241,9 +238,6 @@ impl EditorUndoHost<'_> {
 	}
 
 	/// Shared implementation for [`undo_document`] and [`redo_document`].
-	///
-	/// Blocks mutations on follower documents, captures the rope before and
-	/// after the history operation, and emits a validated sync delta.
 	fn apply_history_op(
 		&mut self,
 		doc_id: DocumentId,
@@ -343,8 +337,6 @@ impl UndoHost for EditorUndoHost<'_> {
 		for buffer in self.buffers.buffers_mut() {
 			if let Some(snapshot) = snapshots.get(&buffer.id) {
 				buffer.restore_view(snapshot);
-			} else {
-				buffer.ensure_valid_selection();
 			}
 		}
 	}

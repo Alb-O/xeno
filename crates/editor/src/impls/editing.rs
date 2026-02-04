@@ -1,6 +1,9 @@
 //! Text editing operations.
 //!
-//! Insert, delete, yank, paste, and transaction application.
+//! Provides the primary interface for modifying document content, including
+//! atomic transaction application, smart indentation, and clipboard operations.
+//! Coordination with broker-backed shared state is handled transparently during
+//! edit application.
 
 use xeno_primitives::{EditOrigin, Selection, Transaction, UndoPolicy};
 use xeno_registry::notifications::keys;
@@ -10,6 +13,7 @@ use super::undo_host::EditorUndoHost;
 use crate::buffer::ViewId;
 
 impl Editor {
+	/// Returns true if the current buffer permits mutations.
 	pub(crate) fn guard_readonly(&mut self) -> bool {
 		if self.buffer().is_readonly() {
 			self.notify(keys::BUFFER_READONLY);
@@ -18,12 +22,15 @@ impl Editor {
 		true
 	}
 
-	/// Applies a transaction with full undo support.
+	/// Applies a transaction with full undo and synchronization support.
 	///
-	/// This is the primary edit method that:
-	/// 1. Prepares the edit via `UndoManager` (captures view snapshots)
-	/// 2. Applies the transaction with the specified undo policy
-	/// 3. Finalizes via `UndoManager` (pushes `EditorUndoGroup` if needed)
+	/// This is the authoritative entry point for all local document mutations.
+	/// It coordinates the following pipeline:
+	/// 1. Verifies ownership for shared documents.
+	/// 2. Acquires a focus claim if the session is currently a follower.
+	/// 3. Captures view snapshots (cursor, scroll) via the [`UndoManager`].
+	/// 4. Applies the mutation to the local buffer.
+	/// 5. Notifies overlays and emits sync deltas to the broker.
 	pub(crate) fn apply_edit(
 		&mut self,
 		buffer_id: ViewId,
@@ -43,11 +50,27 @@ impl Editor {
 			if let Some(uri) = uri
 				&& self.state.shared_state.is_edit_blocked(&uri)
 			{
-				if !self.state.shared_state.is_owner(&uri)
-					&& let Some(payload) = self.state.shared_state.note_focus(doc_id, true)
-				{
-					let _ = self.state.lsp.shared_state_out_tx().send(payload);
-					self.notify(keys::SYNC_TAKING_OWNERSHIP);
+				if !self.state.shared_state.is_owner(&uri) {
+					let (len, hash) =
+						buffer.with_doc(|doc| xeno_broker_proto::fingerprint_rope(doc.content()));
+					if let Some(payload) =
+						self.state
+							.shared_state
+							.prepare_focus(doc_id, true, Some(hash), Some(len))
+					{
+						let _ = self.state.lsp.shared_state_out_tx().send(payload);
+						self.notify(keys::SYNC_TAKING_OWNERSHIP);
+					}
+				} else {
+					let (len, hash) =
+						buffer.with_doc(|doc| xeno_broker_proto::fingerprint_rope(doc.content()));
+					if let Some(payload) =
+						self.state
+							.shared_state
+							.prepare_resync(&uri, Some(hash), Some(len))
+					{
+						let _ = self.state.lsp.shared_state_out_tx().send(payload);
+					}
 				}
 				return false;
 			}
@@ -55,7 +78,6 @@ impl Editor {
 
 		let focused_view = self.focused_view();
 		let core = &mut self.state.core;
-		let undo_manager = &mut core.undo_manager;
 		let mut host = EditorUndoHost {
 			buffers: &mut core.buffers,
 			focused_view,
@@ -69,9 +91,15 @@ impl Editor {
 			shared_state: &mut self.state.shared_state,
 		};
 
-		let res = undo_manager.with_edit(&mut host, buffer_id, undo, origin, |host| {
-			host.apply_transaction_inner(buffer_id, tx, new_selection, undo)
-		});
+		let res = core.undo_manager.with_edit(
+			&mut host,
+			buffer_id,
+			undo,
+			origin,
+			|host: &mut EditorUndoHost| {
+				host.apply_transaction_inner(buffer_id, tx, new_selection, undo)
+			},
+		);
 
 		if res {
 			self.notify_overlay_event(crate::overlay::LayerEvent::BufferEdited(buffer_id));
@@ -83,17 +111,17 @@ impl Editor {
 					.shared_state
 					.uri_for_doc_id(buffer.document_id())
 					.map(str::to_string)
-				&& let Some(payload) = self.state.shared_state.prepare_edit(&uri, tx)
-			{
-				let _ = self.state.lsp.shared_state_out_tx().send(payload);
-			}
+				&& let Some(payload) = self.state.shared_state.prepare_edit(&uri, tx) {
+					let _ = self.state.lsp.shared_state_out_tx().send(payload);
+				}
 		}
 		res
 	}
 
 	/// Inserts a newline with smart indentation.
 	///
-	/// Copies the leading whitespace from the current line to the new line.
+	/// Automatically replicates the leading whitespace from the current line
+	/// to the newly created line.
 	pub fn insert_newline_with_indent(&mut self) {
 		let indent = {
 			let buffer = self.buffer();
@@ -113,6 +141,9 @@ impl Editor {
 	}
 
 	/// Inserts text at the current cursor position(s).
+	///
+	/// If the editor is in Insert mode, the edit is merged with the current
+	/// undo group.
 	pub fn insert_text(&mut self, text: &str) {
 		let buffer_id = self.focused_view();
 
@@ -268,9 +299,6 @@ impl Editor {
 	}
 
 	/// Triggers a full syntax reparse of the focused buffer.
-	///
-	/// Accesses the buffer directly rather than through `self.buffer_mut()` to
-	/// avoid a borrow conflict with `self.state.config.language_loader`.
 	pub fn reparse_syntax(&mut self) {
 		let buffer_id = self.focused_view();
 		let buffer = self

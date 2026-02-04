@@ -3,8 +3,8 @@
 //! Processes inbound [`SharedStateEvent`]s from the broker during the editor
 //! tick, applying remote deltas to local buffers and updating sync state.
 
-use xeno_broker_proto::types::RequestPayload;
 use xeno_primitives::{SyntaxPolicy, UndoPolicy};
+use xeno_registry::notifications::keys;
 
 use super::Editor;
 use super::undo_host::EditorUndoHost;
@@ -14,11 +14,11 @@ use crate::shared_state::SharedStateEvent;
 impl Editor {
 	/// Drains all pending shared state events from the broker transport.
 	///
-	/// Executed once per editor tick. Coordinates the synchronization
-	/// pipeline:
-	/// 1. Drain and apply inbound events (deltas, ownership changes).
-	/// 2. Emit full resync requests for diverged documents.
-	/// 3. Emit queued edit requests once acknowledgments arrive.
+	/// This method is executed once per editor tick to synchronize local state
+	/// with the broker's authoritative truth. It performs three primary roles:
+	/// 1. Drains and applies inbound async events (deltas, ownership changes).
+	/// 2. Emits full resync requests for documents that have diverged.
+	/// 3. Emits queued edit requests once acknowledgments arrive.
 	pub(crate) fn drain_shared_state_events(&mut self) {
 		while let Some(event) = self.state.lsp.try_recv_shared_state_in() {
 			self.handle_shared_state_event(event);
@@ -37,12 +37,13 @@ impl Editor {
 				.map(|(len, hash)| (Some(len), Some(hash)))
 				.unwrap_or((None, None));
 
-			let payload = RequestPayload::SharedResync {
-				uri: req.uri,
-				client_hash64: client_hash,
-				client_len_chars: client_len,
-			};
-			let _ = self.state.lsp.shared_state_out_tx().send(payload);
+			if let Some(payload) =
+				self.state
+					.shared_state
+					.prepare_resync(&req.uri, client_hash, client_len)
+			{
+				let _ = self.state.lsp.shared_state_out_tx().send(payload);
+			}
 		}
 
 		for payload in self.state.shared_state.drain_pending_edit_requests() {
@@ -57,12 +58,14 @@ impl Editor {
 				uri,
 				epoch,
 				seq,
+				kind: _,
 				tx,
-			} => self.apply_remote_shared_delta(&uri, epoch, seq, &tx),
+				hash64,
+				len_chars,
+			} => self.apply_remote_shared_delta(&uri, epoch, seq, &tx, hash64, len_chars),
 
 			SharedStateEvent::OwnerChanged { snapshot }
-			| SharedStateEvent::PreferredOwnerChanged { snapshot }
-			| SharedStateEvent::FocusAck { snapshot } => {
+			| SharedStateEvent::PreferredOwnerChanged { snapshot } => {
 				let local_session = self.state.lsp.broker_session_id();
 				let uri = snapshot.uri.clone();
 				self.state
@@ -71,6 +74,7 @@ impl Editor {
 				self.update_readonly_for_shared_state(&uri);
 				self.state.frame.needs_redraw = true;
 			}
+
 			SharedStateEvent::Unlocked { snapshot } => {
 				let local_session = self.state.lsp.broker_session_id();
 				let uri = snapshot.uri.clone();
@@ -97,38 +101,66 @@ impl Editor {
 				self.state.frame.needs_redraw = true;
 			}
 
-			SharedStateEvent::EditAck { uri, epoch, seq } => {
-				self.state.shared_state.handle_edit_ack(&uri, epoch, seq);
+			SharedStateEvent::ApplyAck {
+				uri,
+				kind,
+				epoch,
+				seq,
+				applied_tx,
+				hash64,
+				len_chars,
+			} => {
+				if let Some(tx) = self
+					.state
+					.shared_state
+					.handle_apply_ack(&uri, kind, epoch, seq, applied_tx, hash64, len_chars)
+				{
+					self.apply_local_shared_delta_from_ack(&uri, &tx);
+				}
+
+				for payload in self.state.shared_state.drain_pending_edit_requests() {
+					let _ = self.state.lsp.shared_state_out_tx().send(payload);
+				}
+
 				self.update_readonly_for_shared_state(&uri);
 				self.state.frame.needs_redraw = true;
 			}
 
 			SharedStateEvent::Snapshot {
 				uri,
+				nonce,
 				text,
 				snapshot,
 			} => {
 				let local_session = self.state.lsp.broker_session_id();
-				let local_fingerprint = self
-					.state
-					.shared_state
-					.doc_id_for_uri(&uri)
-					.and_then(|doc_id| self.state.core.buffers.any_buffer_for_doc(doc_id))
-					.and_then(|view_id| self.state.core.buffers.get_buffer(view_id))
-					.map(|buffer| {
-						buffer.with_doc(|doc| xeno_broker_proto::fingerprint_rope(doc.content()))
-					});
-				let (local_len, local_hash) = local_fingerprint
-					.map(|(len, hash)| (Some(len), Some(hash)))
-					.unwrap_or((None, None));
+				let repair_text = self.state.shared_state.handle_snapshot_response(
+					&uri,
+					snapshot,
+					nonce,
+					text,
+					local_session,
+				);
+				if let Some(text) = repair_text {
+					self.apply_sync_snapshot(&uri, &text);
+				}
+				self.update_readonly_for_shared_state(&uri);
+				self.state.frame.needs_redraw = true;
+			}
 
-				self.state
-					.shared_state
-					.handle_snapshot(&uri, snapshot.clone(), local_session);
-
-				if crate::shared_state::should_apply_snapshot_text(
-					&text, &snapshot, local_len, local_hash,
-				) {
+			SharedStateEvent::FocusAck {
+				nonce,
+				snapshot,
+				repair_text,
+			} => {
+				let local_session = self.state.lsp.broker_session_id();
+				let uri = snapshot.uri.clone();
+				let repair = self.state.shared_state.handle_focus_ack(
+					snapshot,
+					nonce,
+					repair_text,
+					local_session,
+				);
+				if let Some(text) = repair {
 					self.apply_sync_snapshot(&uri, &text);
 				}
 				self.update_readonly_for_shared_state(&uri);
@@ -136,54 +168,51 @@ impl Editor {
 			}
 
 			SharedStateEvent::RequestFailed { uri } => {
-				let was_history = self.state.shared_state.is_history_in_flight(&uri);
 				self.state.shared_state.handle_request_failed(&uri);
 				self.update_readonly_for_shared_state(&uri);
-				if was_history {
-					let focused_view = self.focused_view();
-					let core = &mut self.state.core;
-					let mut host = EditorUndoHost {
-						buffers: &mut core.buffers,
-						focused_view,
-						config: &self.state.config,
-						frame: &mut self.state.frame,
-						notifications: &mut self.state.notifications,
-						syntax_manager: &mut self.state.syntax_manager,
-						#[cfg(feature = "lsp")]
-						lsp: &mut self.state.lsp,
-						#[cfg(feature = "lsp")]
-						shared_state: &mut self.state.shared_state,
-					};
-					core.undo_manager.cancel_pending_history_any(&mut host);
-				}
+
+				let focused_view = self.focused_view();
+				let core = &mut self.state.core;
+				let mut host = EditorUndoHost {
+					buffers: &mut core.buffers,
+					focused_view,
+					config: &self.state.config,
+					frame: &mut self.state.frame,
+					notifications: &mut self.state.notifications,
+					syntax_manager: &mut self.state.syntax_manager,
+					#[cfg(feature = "lsp")]
+					lsp: &mut self.state.lsp,
+					#[cfg(feature = "lsp")]
+					shared_state: &mut self.state.shared_state,
+				};
+				core.undo_manager.cancel_pending_history_any(&mut host);
 			}
 
 			SharedStateEvent::EditRejected { uri } => {
-				let was_history = self.state.shared_state.is_history_in_flight(&uri);
 				self.state.shared_state.mark_needs_resync(&uri);
 				self.update_readonly_for_shared_state(&uri);
 				self.state.frame.needs_redraw = true;
-				if was_history {
-					let focused_view = self.focused_view();
-					let core = &mut self.state.core;
-					let mut host = EditorUndoHost {
-						buffers: &mut core.buffers,
-						focused_view,
-						config: &self.state.config,
-						frame: &mut self.state.frame,
-						notifications: &mut self.state.notifications,
-						syntax_manager: &mut self.state.syntax_manager,
-						#[cfg(feature = "lsp")]
-						lsp: &mut self.state.lsp,
-						#[cfg(feature = "lsp")]
-						shared_state: &mut self.state.shared_state,
-					};
-					core.undo_manager.cancel_pending_history_any(&mut host);
-				}
+
+				let focused_view = self.focused_view();
+				let core = &mut self.state.core;
+				let mut host = EditorUndoHost {
+					buffers: &mut core.buffers,
+					focused_view,
+					config: &self.state.config,
+					frame: &mut self.state.frame,
+					notifications: &mut self.state.notifications,
+					syntax_manager: &mut self.state.syntax_manager,
+					#[cfg(feature = "lsp")]
+					lsp: &mut self.state.lsp,
+					#[cfg(feature = "lsp")]
+					shared_state: &mut self.state.shared_state,
+				};
+				core.undo_manager.cancel_pending_history_any(&mut host);
 			}
+
 			SharedStateEvent::NothingToUndo { uri } => {
-				self.state.shared_state.cancel_history_in_flight(&uri);
 				self.update_readonly_for_shared_state(&uri);
+
 				let focused_view = self.focused_view();
 				let core = &mut self.state.core;
 				let mut host = EditorUndoHost {
@@ -202,9 +231,10 @@ impl Editor {
 					.cancel_pending_history(&mut host, crate::types::HistoryKind::Undo);
 				self.state.frame.needs_redraw = true;
 			}
+
 			SharedStateEvent::NothingToRedo { uri } => {
-				self.state.shared_state.cancel_history_in_flight(&uri);
 				self.update_readonly_for_shared_state(&uri);
+
 				let focused_view = self.focused_view();
 				let core = &mut self.state.core;
 				let mut host = EditorUndoHost {
@@ -224,14 +254,35 @@ impl Editor {
 				self.state.frame.needs_redraw = true;
 			}
 
+			SharedStateEvent::HistoryUnavailable { uri } => {
+				self.update_readonly_for_shared_state(&uri);
+				self.notify(keys::SYNC_HISTORY_UNAVAILABLE);
+
+				let focused_view = self.focused_view();
+				let core = &mut self.state.core;
+				let mut host = EditorUndoHost {
+					buffers: &mut core.buffers,
+					focused_view,
+					config: &self.state.config,
+					frame: &mut self.state.frame,
+					notifications: &mut self.state.notifications,
+					syntax_manager: &mut self.state.syntax_manager,
+					#[cfg(feature = "lsp")]
+					lsp: &mut self.state.lsp,
+					#[cfg(feature = "lsp")]
+					shared_state: &mut self.state.shared_state,
+				};
+				core.undo_manager.cancel_pending_history_any(&mut host);
+				self.state.frame.needs_redraw = true;
+			}
+
 			SharedStateEvent::Disconnected => {
 				self.handle_shared_state_disconnect();
 			}
 		}
 	}
 
-	/// Disables all shared state and clears readonly overrides for tracked docs
-	/// so the editor can resume local-only editing.
+	/// Disables all shared state and clears readonly overrides for tracked docs.
 	fn handle_shared_state_disconnect(&mut self) {
 		let blocked_doc_ids: Vec<_> = self
 			.state
@@ -266,11 +317,40 @@ impl Editor {
 		epoch: xeno_broker_proto::types::SyncEpoch,
 		seq: xeno_broker_proto::types::SyncSeq,
 		wire_tx: &xeno_broker_proto::types::WireTx,
+		hash64: u64,
+		len_chars: u64,
 	) {
-		let Some(doc_id) = self.state.shared_state.handle_remote_delta(uri, epoch, seq) else {
+		let Some(doc_id) = self
+			.state
+			.shared_state
+			.handle_remote_delta(uri, epoch, seq, hash64, len_chars)
+		else {
 			return;
 		};
 
+		self.apply_shared_delta_to_buffer(doc_id, wire_tx);
+		self.update_readonly_for_shared_state(uri);
+	}
+
+	/// Applies a shared state delta received in an ApplyAck (intended for owners).
+	fn apply_local_shared_delta_from_ack(
+		&mut self,
+		uri: &str,
+		wire_tx: &xeno_broker_proto::types::WireTx,
+	) {
+		let Some(doc_id) = self.state.shared_state.doc_id_for_uri(uri) else {
+			return;
+		};
+		self.apply_shared_delta_to_buffer(doc_id, wire_tx);
+		self.update_readonly_for_shared_state(uri);
+	}
+
+	/// Internal helper to convert and apply a delta to all views of a document.
+	fn apply_shared_delta_to_buffer(
+		&mut self,
+		doc_id: crate::buffer::DocumentId,
+		wire_tx: &xeno_broker_proto::types::WireTx,
+	) {
 		let Some(view_id) = self.state.core.buffers.any_buffer_for_doc(doc_id) else {
 			return;
 		};
@@ -322,7 +402,6 @@ impl Editor {
 		};
 		core.undo_manager
 			.note_remote_history_delta(&mut host, doc_id);
-		self.update_readonly_for_shared_state(uri);
 	}
 
 	/// Replaces document content from a full sync snapshot.
@@ -356,13 +435,9 @@ impl Editor {
 		};
 
 		let (_, status) = self.state.shared_state.ui_status_for_uri(uri);
-		let override_val = if self.state.shared_state.is_history_in_flight(uri) {
-			Some(true)
-		} else {
-			match status {
-				crate::shared_state::SyncStatus::NeedsResync => Some(true),
-				_ => None,
-			}
+		let override_val = match status {
+			crate::shared_state::SyncStatus::NeedsResync => Some(true),
+			_ => None,
 		};
 
 		let view_ids: Vec<_> = self.state.core.buffers.views_for_doc(doc_id).to_vec();
@@ -378,16 +453,33 @@ impl Editor {
 		let Some(doc_id) = self.state.shared_state.doc_id_for_uri(uri) else {
 			return;
 		};
+		let focused_view = self.focused_view();
 		let focused_doc = self
 			.state
 			.core
 			.buffers
-			.get_buffer(self.focused_view())
+			.get_buffer(focused_view)
 			.map(|buffer| buffer.document_id());
+
 		if focused_doc != Some(doc_id) || self.state.shared_state.is_owner(uri) {
 			return;
 		}
-		if let Some(payload) = self.state.shared_state.note_focus(doc_id, true) {
+
+		let fingerprint = self
+			.state
+			.core
+			.buffers
+			.get_buffer(focused_view)
+			.map(|b| b.with_doc(|doc| xeno_broker_proto::fingerprint_rope(doc.content())));
+		let (len, hash) = fingerprint
+			.map(|(l, h)| (Some(l), Some(h)))
+			.unwrap_or((None, None));
+
+		if let Some(payload) = self
+			.state
+			.shared_state
+			.prepare_focus(doc_id, true, hash, len)
+		{
 			let _ = self.state.lsp.shared_state_out_tx().send(payload);
 		}
 	}

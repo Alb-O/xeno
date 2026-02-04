@@ -153,15 +153,27 @@ impl Service<Request> for BrokerService {
 				RequestPayload::SharedClose { uri } => {
 					runtime.shared_state.close(session_id, uri).await
 				}
-				RequestPayload::SharedEdit {
+				RequestPayload::SharedApply {
 					uri,
+					kind,
 					epoch,
 					base_seq,
+					base_hash64,
+					base_len_chars,
 					tx,
 				} => {
 					runtime
 						.shared_state
-						.edit(session_id, uri, epoch, base_seq, tx)
+						.apply(
+							session_id,
+							uri,
+							kind,
+							epoch,
+							base_seq,
+							base_hash64,
+							base_len_chars,
+							tx,
+						)
 						.await
 				}
 				RequestPayload::SharedActivity { uri } => {
@@ -171,27 +183,33 @@ impl Service<Request> for BrokerService {
 					uri,
 					focused,
 					focus_seq,
-				} => {
-					runtime
-						.shared_state
-						.focus(session_id, uri, focused, focus_seq)
-						.await
-				}
-				RequestPayload::SharedResync {
-					uri,
+					nonce,
 					client_hash64,
 					client_len_chars,
 				} => {
 					runtime
 						.shared_state
-						.resync(session_id, uri, client_hash64, client_len_chars)
+						.focus(
+							session_id,
+							uri,
+							focused,
+							focus_seq,
+							nonce,
+							client_hash64,
+							client_len_chars,
+						)
 						.await
 				}
-				RequestPayload::SharedUndo { uri } => {
-					runtime.shared_state.undo(session_id, uri).await
-				}
-				RequestPayload::SharedRedo { uri } => {
-					runtime.shared_state.redo(session_id, uri).await
+				RequestPayload::SharedResync {
+					uri,
+					nonce,
+					client_hash64,
+					client_len_chars,
+				} => {
+					runtime
+						.shared_state
+						.resync(session_id, uri, nonce, client_hash64, client_len_chars)
+						.await
 				}
 				RequestPayload::KnowledgeSearch { query, limit } => {
 					let hits = runtime.knowledge.search(&query, limit).await?;

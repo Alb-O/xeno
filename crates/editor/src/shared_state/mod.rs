@@ -1,8 +1,9 @@
 //! Shared document state manager for broker-backed synchronization.
 //!
-//! Tracks per-open-document sync state (epoch, seq, owner) and provides helpers
-//! to prepare outgoing broker requests, emit activity/focus signals, and process
-//! incoming broker events.
+//! The [`SharedStateManager`] tracks the synchronization lifecycle for every
+//! shared document open in the editor. It manages ownership transitions,
+//! edit sequencing, and ensures local state remains aligned with the broker's
+//! authoritative truth using nonces and fingerprints.
 
 pub mod convert;
 
@@ -10,12 +11,14 @@ use std::collections::{HashMap, VecDeque};
 use std::time::{Duration, Instant};
 
 use xeno_broker_proto::types::{
-	DocStateSnapshot, DocSyncPhase, RequestPayload, SessionId, SyncEpoch, SyncSeq, WireTx,
+	DocStateSnapshot, DocSyncPhase, RequestPayload, SessionId, SharedApplyKind, SyncEpoch,
+	SyncNonce, SyncSeq, WireTx,
 };
 use xeno_primitives::Transaction;
 
 use crate::buffer::DocumentId;
 
+/// Minimum interval between sending activity heartbeats to the broker.
 const ACTIVITY_THROTTLE: Duration = Duration::from_millis(750);
 
 /// Request describing a resync for a shared document.
@@ -38,8 +41,14 @@ pub enum SharedStateEvent {
 		epoch: SyncEpoch,
 		/// New sequence number after this delta.
 		seq: SyncSeq,
+		/// Kind of mutation.
+		kind: SharedApplyKind,
 		/// The edit transaction in wire format.
 		tx: WireTx,
+		/// Authority fingerprint after apply.
+		hash64: u64,
+		/// Authority length after apply.
+		len_chars: u64,
 	},
 	/// Ownership of a document changed.
 	OwnerChanged {
@@ -63,19 +72,29 @@ pub enum SharedStateEvent {
 		/// Snapshot text if joining as follower.
 		text: Option<String>,
 	},
-	/// Broker acknowledged an edit.
-	EditAck {
+	/// Broker acknowledged an application (Edit/Undo/Redo).
+	ApplyAck {
 		/// Document URI.
 		uri: String,
+		/// Kind of mutation.
+		kind: SharedApplyKind,
 		/// Ownership epoch.
 		epoch: SyncEpoch,
 		/// New sequence number.
 		seq: SyncSeq,
+		/// Optional transaction to apply locally (Undo/Redo).
+		applied_tx: Option<WireTx>,
+		/// Authority fingerprint after apply.
+		hash64: u64,
+		/// Authority length after apply.
+		len_chars: u64,
 	},
 	/// Full resync snapshot from broker.
 	Snapshot {
 		/// Document URI.
 		uri: String,
+		/// Nonce echoed from request.
+		nonce: SyncNonce,
 		/// Full text content.
 		text: String,
 		/// Canonical snapshot of the document state.
@@ -83,8 +102,12 @@ pub enum SharedStateEvent {
 	},
 	/// Focus request acknowledged with updated snapshot.
 	FocusAck {
+		/// Nonce echoed from request.
+		nonce: SyncNonce,
 		/// Canonical snapshot of the document state.
 		snapshot: DocStateSnapshot,
+		/// Authoritative text if repair is needed.
+		repair_text: Option<String>,
 	},
 	/// A request failed with a protocol error.
 	RequestFailed {
@@ -106,6 +129,11 @@ pub enum SharedStateEvent {
 		/// Document URI.
 		uri: String,
 	},
+	/// Broker reported history is unavailable (e.g. storage disabled or corrupted).
+	HistoryUnavailable {
+		/// Document URI.
+		uri: String,
+	},
 	/// Broker transport disconnected — disable all sync tracking.
 	Disconnected,
 }
@@ -113,17 +141,24 @@ pub enum SharedStateEvent {
 /// Local role for a shared document.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SharedStateRole {
+	/// Local session has write authority.
 	Owner,
+	/// Local session follows authoritative changes.
 	Follower,
 }
 
 /// UI status for a shared document.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SyncStatus {
+	/// Document is not tracked by the broker.
 	Off,
+	/// Local session owns the document.
 	Owner,
+	/// Local session is following the document.
 	Follower,
+	/// Document is open but has no current owner.
 	Unlocked,
+	/// Document state has diverged and requires a resync.
 	NeedsResync,
 }
 
@@ -147,14 +182,21 @@ struct SharedDocEntry {
 	open_refcount: u32,
 	pending_deltas: VecDeque<WireTx>,
 	in_flight: Option<InFlightEdit>,
-	history_in_flight: bool,
-	last_activity_sent: Option<std::time::Instant>,
+	last_activity_sent: Option<Instant>,
 	focus_seq: u64,
+	next_nonce: u64,
+	pending_align: Option<SyncNonce>,
+
+	/// Authoritative fingerprint for current (epoch, seq).
+	auth_hash64: u64,
+	/// Authoritative length for current (epoch, seq).
+	auth_len_chars: u64,
 }
 
 impl SharedDocEntry {
+	/// Returns true if mutations are currently prohibited due to role or divergence.
 	fn is_blocked(&self) -> bool {
-		self.role != SharedStateRole::Owner || self.needs_resync || self.history_in_flight
+		self.role != SharedStateRole::Owner || self.needs_resync
 	}
 }
 
@@ -175,6 +217,7 @@ impl SharedStateManager {
 		}
 	}
 
+	/// Synchronizes an internal entry with the provided broker snapshot.
 	fn apply_snapshot_state(
 		entry: &mut SharedDocEntry,
 		snapshot: &DocStateSnapshot,
@@ -186,6 +229,10 @@ impl SharedStateManager {
 		entry.owner = snapshot.owner;
 		entry.preferred_owner = snapshot.preferred_owner;
 		entry.phase = snapshot.phase;
+
+		entry.auth_hash64 = snapshot.hash64;
+		entry.auth_len_chars = snapshot.len_chars;
+
 		entry.role = if snapshot.owner == Some(local_session) {
 			SharedStateRole::Owner
 		} else {
@@ -194,15 +241,13 @@ impl SharedStateManager {
 
 		if entry.role == SharedStateRole::Owner {
 			let diverged = snapshot.phase == DocSyncPhase::Diverged;
-			entry.needs_resync = diverged;
+			entry.needs_resync = if has_text { false } else { diverged };
 
-			if diverged {
-				// Re-enable drain_resync_requests and cancel local pipeline
+			if diverged && !has_text {
 				entry.resync_requested = false;
 				entry.pending_deltas.clear();
 				entry.in_flight = None;
-				entry.history_in_flight = false;
-			} else {
+			} else if has_text {
 				entry.resync_requested = false;
 			}
 		} else if has_text {
@@ -213,31 +258,12 @@ impl SharedStateManager {
 		if entry.role != SharedStateRole::Owner {
 			entry.pending_deltas.clear();
 			entry.in_flight = None;
-			entry.history_in_flight = false;
 		}
 	}
 
 	/// Returns true if mutations for the URI are currently prohibited.
 	pub fn is_edit_blocked(&self, uri: &str) -> bool {
 		self.docs.get(uri).is_some_and(SharedDocEntry::is_blocked)
-	}
-
-	/// Returns true if a broker-owned history operation is in flight.
-	pub fn is_history_in_flight(&self, uri: &str) -> bool {
-		self.docs
-			.get(uri)
-			.is_some_and(|entry| entry.history_in_flight)
-	}
-
-	/// Returns true if a history operation can be issued for the document.
-	pub fn can_prepare_history(&self, uri: &str) -> bool {
-		self.docs.get(uri).is_some_and(|entry| {
-			entry.role == SharedStateRole::Owner
-				&& !entry.needs_resync
-				&& !entry.history_in_flight
-				&& entry.in_flight.is_none()
-				&& entry.pending_deltas.is_empty()
-		})
 	}
 
 	/// Returns true if the local session is the current owner.
@@ -271,19 +297,56 @@ impl SharedStateManager {
 		Some(RequestPayload::SharedActivity { uri })
 	}
 
-	/// Records focus for a document, returning a broker request if tracked.
-	pub fn note_focus(&mut self, doc_id: DocumentId, focused: bool) -> Option<RequestPayload> {
+	fn fresh_nonce(entry: &mut SharedDocEntry) -> SyncNonce {
+		entry.next_nonce = entry.next_nonce.wrapping_add(1).max(1);
+		SyncNonce(entry.next_nonce)
+	}
+
+	/// Prepares a focus update request for a document.
+	pub fn prepare_focus(
+		&mut self,
+		doc_id: DocumentId,
+		focused: bool,
+		client_hash64: Option<u64>,
+		client_len_chars: Option<u64>,
+	) -> Option<RequestPayload> {
 		let uri = self.doc_id_to_uri.get(&doc_id)?.to_string();
 		let entry = self.docs.get_mut(&uri)?;
 		entry.focus_seq = entry.focus_seq.wrapping_add(1);
+
+		let nonce = Self::fresh_nonce(entry);
+		entry.pending_align = Some(nonce);
+
 		Some(RequestPayload::SharedFocus {
 			uri,
 			focused,
 			focus_seq: entry.focus_seq,
+			nonce,
+			client_hash64,
+			client_len_chars,
 		})
 	}
 
-	/// Prepares a [`RequestPayload::SharedOpen`] and registers document mappings.
+	/// Prepares a resync request for a diverged document.
+	pub fn prepare_resync(
+		&mut self,
+		uri: &str,
+		client_hash64: Option<u64>,
+		client_len_chars: Option<u64>,
+	) -> Option<RequestPayload> {
+		let entry = self.docs.get_mut(uri)?;
+		let nonce = Self::fresh_nonce(entry);
+		entry.pending_align = Some(nonce);
+
+		Some(RequestPayload::SharedResync {
+			uri: uri.to_string(),
+			nonce,
+			client_hash64,
+			client_len_chars,
+		})
+	}
+
+	/// Registers document mappings and prepares an initial open request.
 	pub fn prepare_open(&mut self, uri: &str, text: &str, doc_id: DocumentId) -> RequestPayload {
 		self.uri_to_doc_id.insert(uri.to_string(), doc_id);
 		self.doc_id_to_uri.insert(doc_id, uri.to_string());
@@ -304,9 +367,12 @@ impl SharedStateManager {
 				open_refcount: 0,
 				pending_deltas: VecDeque::new(),
 				in_flight: None,
-				history_in_flight: false,
 				last_activity_sent: None,
 				focus_seq: 0,
+				next_nonce: 1,
+				pending_align: None,
+				auth_hash64: 0,
+				auth_len_chars: 0,
 			});
 		entry.doc_id = doc_id;
 		entry.open_refcount = entry.open_refcount.saturating_add(1);
@@ -318,7 +384,7 @@ impl SharedStateManager {
 		}
 	}
 
-	/// Prepares a `SharedClose` request and removes the document if needed.
+	/// Prepares a close request and removes internal tracking if the refcount reaches zero.
 	pub fn prepare_close(&mut self, uri: &str) -> Option<RequestPayload> {
 		let entry = self.docs.get_mut(uri)?;
 		if entry.open_refcount > 0 {
@@ -335,7 +401,7 @@ impl SharedStateManager {
 		})
 	}
 
-	/// Processes the broker's `SharedOpened` response and initializes sync state.
+	/// Processes a `SharedOpened` response and initializes local sync state.
 	pub fn handle_opened(
 		&mut self,
 		snapshot: DocStateSnapshot,
@@ -359,25 +425,38 @@ impl SharedStateManager {
 				open_refcount: 1,
 				pending_deltas: VecDeque::new(),
 				in_flight: None,
-				history_in_flight: false,
 				last_activity_sent: None,
 				focus_seq: 0,
+				next_nonce: 1,
+				pending_align: None,
+				auth_hash64: snapshot.hash64,
+				auth_len_chars: snapshot.len_chars,
 			});
 		entry.doc_id = doc_id;
 		Self::apply_snapshot_state(entry, &snapshot, local_session, text.is_some());
 		text
 	}
 
-	/// Prepares a [`RequestPayload::SharedEdit`] if the session owns the document.
-	pub fn prepare_edit(&mut self, uri: &str, tx: &Transaction) -> Option<RequestPayload> {
+	/// Prepares an authoritative mutation request.
+	///
+	/// Pipelining: If a request is already in-flight, edits are queued in
+	/// `pending_deltas` to be drained after acknowledgment.
+	fn prepare_apply(
+		&mut self,
+		uri: &str,
+		kind: SharedApplyKind,
+		tx: Option<WireTx>,
+	) -> Option<RequestPayload> {
 		let entry = self.docs.get_mut(uri)?;
-		if entry.role != SharedStateRole::Owner || entry.needs_resync || entry.history_in_flight {
+		if entry.role != SharedStateRole::Owner || entry.needs_resync {
 			return None;
 		}
-
-		let wire = convert::tx_to_wire(tx);
 		if entry.in_flight.is_some() {
-			entry.pending_deltas.push_back(wire);
+			if kind == SharedApplyKind::Edit
+				&& let Some(tx) = tx
+			{
+				entry.pending_deltas.push_back(tx);
+			}
 			return None;
 		}
 
@@ -385,99 +464,77 @@ impl SharedStateManager {
 			epoch: entry.epoch,
 			base_seq: entry.seq,
 		});
-		Some(RequestPayload::SharedEdit {
+
+		Some(RequestPayload::SharedApply {
 			uri: uri.to_string(),
+			kind,
 			epoch: entry.epoch,
 			base_seq: entry.seq,
-			tx: wire,
+			base_hash64: entry.auth_hash64,
+			base_len_chars: entry.auth_len_chars,
+			tx,
 		})
 	}
 
-	/// Prepares a [`RequestPayload::SharedUndo`] if the session owns the document.
+	/// Prepares a [`SharedApplyKind::Edit`] request.
+	pub fn prepare_edit(&mut self, uri: &str, tx: &Transaction) -> Option<RequestPayload> {
+		let wire = convert::tx_to_wire(tx);
+		self.prepare_apply(uri, SharedApplyKind::Edit, Some(wire))
+	}
+
+	/// Prepares a [`SharedApplyKind::Undo`] request.
 	pub fn prepare_undo(&mut self, uri: &str) -> Option<RequestPayload> {
-		self.prepare_history_request(
-			uri,
-			RequestPayload::SharedUndo {
-				uri: uri.to_string(),
-			},
-		)
+		self.prepare_apply(uri, SharedApplyKind::Undo, None)
 	}
 
-	/// Prepares a [`RequestPayload::SharedRedo`] if the session owns the document.
+	/// Prepares a [`SharedApplyKind::Redo`] request.
 	pub fn prepare_redo(&mut self, uri: &str) -> Option<RequestPayload> {
-		self.prepare_history_request(
-			uri,
-			RequestPayload::SharedRedo {
-				uri: uri.to_string(),
-			},
-		)
+		self.prepare_apply(uri, SharedApplyKind::Redo, None)
 	}
 
-	fn prepare_history_request(
+	/// Handles an application acknowledgment from the broker.
+	///
+	/// Clears the in-flight guard and advances the authoritative fingerprint.
+	/// Returns the [`WireTx`] if the broker provided a result the client must apply.
+	pub fn handle_apply_ack(
 		&mut self,
 		uri: &str,
-		payload: RequestPayload,
-	) -> Option<RequestPayload> {
+		_kind: SharedApplyKind,
+		epoch: SyncEpoch,
+		seq: SyncSeq,
+		applied_tx: Option<WireTx>,
+		hash64: u64,
+		len_chars: u64,
+	) -> Option<WireTx> {
 		let entry = self.docs.get_mut(uri)?;
-		if entry.role != SharedStateRole::Owner
-			|| entry.needs_resync
-			|| entry.history_in_flight
-			|| entry.in_flight.is_some()
-			|| !entry.pending_deltas.is_empty()
-		{
-			return None;
-		}
+		let in_flight = entry.in_flight?;
 
-		entry.history_in_flight = true;
-		entry.in_flight = Some(InFlightEdit {
-			epoch: entry.epoch,
-			base_seq: entry.seq,
-		});
-		Some(payload)
-	}
-
-	/// Cancels a pending history request for a document.
-	pub fn cancel_history_in_flight(&mut self, uri: &str) {
-		if let Some(entry) = self.docs.get_mut(uri) {
-			entry.history_in_flight = false;
+		let expected = in_flight.base_seq.0.wrapping_add(1);
+		if epoch == in_flight.epoch && seq.0 == expected {
+			entry.seq = seq;
+			entry.auth_hash64 = hash64;
+			entry.auth_len_chars = len_chars;
 			entry.in_flight = None;
+			return applied_tx;
 		}
-	}
 
-	/// Handles an edit acknowledgment from the broker, advancing the local sequence.
-	pub fn handle_edit_ack(&mut self, uri: &str, epoch: SyncEpoch, seq: SyncSeq) {
-		if let Some(entry) = self.docs.get_mut(uri)
-			&& let Some(in_flight) = entry.in_flight
-		{
-			if entry.history_in_flight {
-				return;
-			}
-			let expected = in_flight.base_seq.0.wrapping_add(1);
-			if epoch == in_flight.epoch && seq.0 == expected {
-				entry.seq = seq;
-				entry.in_flight = None;
-			} else {
-				tracing::warn!(
-					?uri,
-					ack_epoch = ?epoch,
-					ack_seq = ?seq,
-					in_flight_epoch = ?in_flight.epoch,
-					in_flight_base = ?in_flight.base_seq,
-					"stale or mismatched SharedEditAck ignored"
-				);
-			}
-		}
+		tracing::warn!(
+			?uri,
+			"stale or mismatched SharedApplyAck ignored: got={epoch:?}/{seq:?}, expected={:?}/{}",
+			in_flight.epoch,
+			expected
+		);
+		None
 	}
 
 	/// Collects queued edit requests once the in-flight delta is acknowledged.
 	pub fn drain_pending_edit_requests(&mut self) -> Vec<RequestPayload> {
-		let mut requests = Vec::new();
+		let mut out = Vec::new();
+
 		for (uri, entry) in &mut self.docs {
-			if entry.in_flight.is_some()
-				|| entry.pending_deltas.is_empty()
-				|| entry.role != SharedStateRole::Owner
+			if entry.role != SharedStateRole::Owner
 				|| entry.needs_resync
-				|| entry.history_in_flight
+				|| entry.in_flight.is_some()
 			{
 				continue;
 			}
@@ -487,15 +544,20 @@ impl SharedStateManager {
 					epoch: entry.epoch,
 					base_seq: entry.seq,
 				});
-				requests.push(RequestPayload::SharedEdit {
+
+				out.push(RequestPayload::SharedApply {
 					uri: uri.clone(),
+					kind: SharedApplyKind::Edit,
 					epoch: entry.epoch,
 					base_seq: entry.seq,
-					tx,
+					base_hash64: entry.auth_hash64,
+					base_len_chars: entry.auth_len_chars,
+					tx: Some(tx),
 				});
 			}
 		}
-		requests
+
+		out
 	}
 
 	/// Marks a document as needing resync after a delta rejection.
@@ -505,8 +567,12 @@ impl SharedStateManager {
 			entry.resync_requested = false;
 			entry.pending_deltas.clear();
 			entry.in_flight = None;
-			entry.history_in_flight = false;
 		}
+	}
+
+	/// Returns true if the provided snapshot represents a state advanced from local tracking.
+	fn snapshot_is_newer(entry: &SharedDocEntry, snap: &DocStateSnapshot) -> bool {
+		snap.epoch > entry.epoch || (snap.epoch == entry.epoch && snap.seq >= entry.seq)
 	}
 
 	/// Validates an incoming remote delta and updates the local sequence.
@@ -515,57 +581,102 @@ impl SharedStateManager {
 		uri: &str,
 		epoch: SyncEpoch,
 		seq: SyncSeq,
+		hash64: u64,
+		len_chars: u64,
 	) -> Option<DocumentId> {
 		let entry = self.docs.get_mut(uri)?;
 		if entry.needs_resync {
 			return None;
 		}
-		let allow_owner = entry.role == SharedStateRole::Owner && entry.history_in_flight;
-		if entry.role == SharedStateRole::Owner && !allow_owner {
+		if entry.role == SharedStateRole::Owner {
+			entry.needs_resync = true;
+			entry.resync_requested = false;
 			return None;
 		}
-
 		if epoch != entry.epoch {
 			entry.needs_resync = true;
 			entry.resync_requested = false;
 			return None;
 		}
-
-		let expected_seq = SyncSeq(entry.seq.0.wrapping_add(1));
-		if seq != expected_seq {
+		let expected = SyncSeq(entry.seq.0.wrapping_add(1));
+		if seq != expected {
 			entry.needs_resync = true;
 			entry.resync_requested = false;
 			return None;
 		}
-
 		entry.seq = seq;
-		if allow_owner {
-			entry.history_in_flight = false;
-			entry.in_flight = None;
-		}
+		entry.auth_hash64 = hash64;
+		entry.auth_len_chars = len_chars;
+
 		Some(entry.doc_id)
 	}
 
-	/// Applies a broker snapshot update for ownership or preferred owner changes.
+	/// Applies an async snapshot update for document state changes.
 	pub fn handle_snapshot_update(&mut self, snapshot: DocStateSnapshot, local_session: SessionId) {
 		if let Some(entry) = self.docs.get_mut(&snapshot.uri) {
 			Self::apply_snapshot_state(entry, &snapshot, local_session, false);
 		}
 	}
 
-	/// Applies a full resync snapshot from the broker.
-	pub fn handle_snapshot(
+	/// Handles a `FocusAck` response.
+	///
+	/// Returns authoritative `repair_text` if a repair is required and correlated.
+	pub fn handle_focus_ack(
+		&mut self,
+		snapshot: DocStateSnapshot,
+		nonce: SyncNonce,
+		repair_text: Option<String>,
+		local_session: SessionId,
+	) -> Option<String> {
+		let entry = self.docs.get_mut(&snapshot.uri)?;
+		let nonce_match = entry.pending_align == Some(nonce);
+		let newer = Self::snapshot_is_newer(entry, &snapshot);
+
+		if nonce_match || newer {
+			if nonce_match {
+				entry.pending_align = None;
+			}
+			Self::apply_snapshot_state(
+				entry,
+				&snapshot,
+				local_session,
+				repair_text.is_some() && nonce_match,
+			);
+			if nonce_match && let Some(text) = repair_text {
+				let text_included = !text.is_empty() || snapshot.len_chars == 0;
+				return text_included.then_some(text);
+			}
+		}
+		None
+	}
+
+	/// Handles a `SharedSnapshot` response.
+	///
+	/// Returns the authoritative text if the response is correlated or advanced.
+	pub fn handle_snapshot_response(
 		&mut self,
 		uri: &str,
 		snapshot: DocStateSnapshot,
+		nonce: SyncNonce,
+		text: String,
 		local_session: SessionId,
-	) {
-		if let Some(entry) = self.docs.get_mut(uri) {
+	) -> Option<String> {
+		let entry = self.docs.get_mut(uri)?;
+		let nonce_match = entry.pending_align == Some(nonce);
+		let newer = Self::snapshot_is_newer(entry, &snapshot);
+
+		if nonce_match || newer {
+			if nonce_match {
+				entry.pending_align = None;
+			}
 			Self::apply_snapshot_state(entry, &snapshot, local_session, true);
+			let text_included = !text.is_empty() || snapshot.len_chars == 0;
+			return text_included.then_some(text);
 		}
+		None
 	}
 
-	/// Collects and clears resync requests for diverged documents.
+	/// Collects resync requests for diverged documents.
 	pub fn drain_resync_requests(&mut self) -> Vec<ResyncRequest> {
 		let mut requests = Vec::new();
 		for (uri, entry) in &mut self.docs {
@@ -580,19 +691,27 @@ impl SharedStateManager {
 		requests
 	}
 
-	/// Handles protocol errors for a document.
+	/// Handles protocol errors by resetting internal pipeline guards.
 	pub fn handle_request_failed(&mut self, uri: &str) {
 		let Some(entry) = self.docs.get_mut(uri) else {
 			return;
 		};
+
+		if entry.epoch == SyncEpoch(0) {
+			let doc_id = entry.doc_id;
+			self.docs.remove(uri);
+			self.uri_to_doc_id.remove(uri);
+			self.doc_id_to_uri.remove(&doc_id);
+			return;
+		}
+
 		if entry.needs_resync {
 			entry.resync_requested = false;
-			entry.history_in_flight = false;
 		} else {
 			entry.pending_deltas.clear();
 			entry.in_flight = None;
-			entry.history_in_flight = false;
 		}
+		entry.pending_align = None;
 	}
 
 	/// Returns the local role for a document URI.
@@ -600,7 +719,7 @@ impl SharedStateManager {
 		self.docs.get(uri).map(|entry| entry.role)
 	}
 
-	/// Returns the status for UI display.
+	/// Returns the current sync status for UI display.
 	pub fn ui_status_for_uri(&self, uri: &str) -> (Option<SharedStateRole>, SyncStatus) {
 		let Some(entry) = self.docs.get(uri) else {
 			return (None, SyncStatus::Off);
@@ -628,28 +747,11 @@ impl SharedStateManager {
 		self.uri_to_doc_id.get(uri).copied()
 	}
 
-	/// Disables all shared state tracking (e.g., broker disconnect).
+	/// Disables all shared state tracking and clears document mappings.
 	pub fn disable_all(&mut self) {
 		self.docs.clear();
 		self.uri_to_doc_id.clear();
 		self.doc_id_to_uri.clear();
-	}
-}
-
-/// Decides whether a snapshot payload should replace local content.
-pub(crate) fn should_apply_snapshot_text(
-	text: &str,
-	snapshot: &DocStateSnapshot,
-	local_len: Option<u64>,
-	local_hash: Option<u64>,
-) -> bool {
-	if !text.is_empty() {
-		return true;
-	}
-
-	match (local_len, local_hash) {
-		(Some(len), Some(hash)) => !(len == snapshot.len_chars && hash == snapshot.hash64),
-		_ => true,
 	}
 }
 
@@ -676,69 +778,86 @@ mod tests {
 			len_chars: 5,
 		};
 
-		assert!(should_apply_snapshot_text(
-			"content",
-			&snapshot,
-			Some(5),
-			Some(42)
-		));
+		let entry = &mut SharedDocEntry {
+			doc_id: DocumentId::default(),
+			epoch: SyncEpoch(0),
+			seq: SyncSeq(0),
+			role: SharedStateRole::Follower,
+			owner: None,
+			preferred_owner: None,
+			phase: DocSyncPhase::Unlocked,
+			needs_resync: false,
+			resync_requested: false,
+			open_refcount: 1,
+			pending_deltas: VecDeque::new(),
+			in_flight: None,
+			last_activity_sent: None,
+			focus_seq: 0,
+			next_nonce: 1,
+			pending_align: None,
+			auth_hash64: 0,
+			auth_len_chars: 0,
+		};
+
+		SharedStateManager::apply_snapshot_state(entry, &snapshot, SessionId(1), true);
+		assert!(!entry.needs_resync);
 	}
 
 	#[test]
-	fn test_snapshot_apply_skips_matching_empty() {
+	fn test_empty_snapshot_ignored_when_doc_not_empty() {
+		let mut manager = SharedStateManager::new();
+		let uri = "file:///test.rs";
+		manager.prepare_open(uri, "hello", DocumentId::default());
+		let entry = manager.docs.get_mut(uri).unwrap();
+		entry.pending_align = Some(SyncNonce(1));
+
 		let snapshot = DocStateSnapshot {
-			uri: "file:///test.rs".to_string(),
+			uri: uri.to_string(),
 			epoch: SyncEpoch(1),
-			seq: SyncSeq(2),
+			seq: SyncSeq(0),
 			owner: None,
 			preferred_owner: None,
-			phase: DocSyncPhase::Owned,
-			hash64: 99,
-			len_chars: 10,
+			phase: DocSyncPhase::Unlocked,
+			hash64: 999,
+			len_chars: 5,
 		};
 
-		assert!(!should_apply_snapshot_text(
-			"",
-			&snapshot,
-			Some(10),
-			Some(99)
-		));
+		let text = manager.handle_snapshot_response(
+			uri,
+			snapshot,
+			SyncNonce(1),
+			"".to_string(),
+			SessionId(1),
+		);
+		assert!(text.is_none());
 	}
 
 	#[test]
-	fn test_snapshot_apply_on_empty_mismatch() {
+	fn test_empty_snapshot_applied_when_doc_empty() {
+		let mut manager = SharedStateManager::new();
+		let uri = "file:///test.rs";
+		manager.prepare_open(uri, "hello", DocumentId::default());
+		let entry = manager.docs.get_mut(uri).unwrap();
+		entry.pending_align = Some(SyncNonce(1));
+
 		let snapshot = DocStateSnapshot {
-			uri: "file:///test.rs".to_string(),
+			uri: uri.to_string(),
 			epoch: SyncEpoch(1),
-			seq: SyncSeq(2),
+			seq: SyncSeq(0),
 			owner: None,
 			preferred_owner: None,
-			phase: DocSyncPhase::Owned,
-			hash64: 99,
-			len_chars: 10,
+			phase: DocSyncPhase::Unlocked,
+			hash64: 0,
+			len_chars: 0,
 		};
 
-		assert!(should_apply_snapshot_text(
-			"",
-			&snapshot,
-			Some(10),
-			Some(100)
-		));
-	}
-
-	#[test]
-	fn test_snapshot_apply_on_empty_without_fingerprint() {
-		let snapshot = DocStateSnapshot {
-			uri: "file:///test.rs".to_string(),
-			epoch: SyncEpoch(1),
-			seq: SyncSeq(2),
-			owner: None,
-			preferred_owner: None,
-			phase: DocSyncPhase::Owned,
-			hash64: 99,
-			len_chars: 10,
-		};
-
-		assert!(should_apply_snapshot_text("", &snapshot, None, None));
+		let text = manager.handle_snapshot_response(
+			uri,
+			snapshot,
+			SyncNonce(1),
+			"".to_string(),
+			SessionId(1),
+		);
+		assert_eq!(text, Some("".to_string()));
 	}
 }

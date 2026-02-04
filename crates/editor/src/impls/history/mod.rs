@@ -16,11 +16,7 @@
 //! the resulting deltas through shared-state events; local history is used for
 //! view state restoration and grouping only.
 //!
-//! The [`UndoHost`] trait abstracts the Editor operations needed by UndoManager,
-//! enabling cleaner separation of concerns.
-//!
 //! [`UndoManager`]: crate::types::UndoManager
-//! [`UndoHost`]: crate::types::UndoHost
 
 use super::undo_host::EditorUndoHost;
 use crate::buffer::Buffer;
@@ -51,26 +47,23 @@ impl Editor {
 	/// Undoes the last change, restoring view state for all affected buffers.
 	pub fn undo(&mut self) {
 		#[cfg(feature = "lsp")]
-		let broker_uris = self
+		let broker_info = self
 			.state
 			.core
 			.undo_manager
 			.last_undo_group()
 			.and_then(|group| {
-				let mut uris = Vec::new();
+				let mut items = Vec::new();
 				for doc_id in &group.affected_docs {
 					let uri = self.state.shared_state.uri_for_doc_id(*doc_id)?;
-					if !self.state.shared_state.can_prepare_history(uri) {
-						return None;
-					}
-					uris.push(uri.to_string());
+					items.push((uri.to_string(), *doc_id));
 				}
-				Some(uris)
+				if items.is_empty() { None } else { Some(items) }
 			});
 
 		let focused_view = self.focused_view();
 		#[cfg(feature = "lsp")]
-		if let Some(uris) = broker_uris {
+		if let Some(items) = broker_info {
 			let started = {
 				let core = &mut self.state.core;
 				let mut host = EditorUndoHost {
@@ -87,10 +80,11 @@ impl Editor {
 			};
 
 			if started.is_some() {
+				let mut payloads = Vec::new();
 				let mut ok = true;
-				for uri in &uris {
+				for (uri, _doc_id) in &items {
 					if let Some(payload) = self.state.shared_state.prepare_undo(uri) {
-						let _ = self.state.lsp.shared_state_out_tx().send(payload);
+						payloads.push(payload);
 					} else {
 						ok = false;
 						break;
@@ -98,14 +92,17 @@ impl Editor {
 				}
 
 				if ok {
-					for uri in &uris {
+					for payload in payloads {
+						let _ = self.state.lsp.shared_state_out_tx().send(payload);
+					}
+					for (uri, _) in &items {
 						self.update_readonly_for_shared_state(uri);
 					}
 					return;
 				}
 
-				for uri in &uris {
-					self.state.shared_state.cancel_history_in_flight(uri);
+				for (uri, _) in &items {
+					self.state.shared_state.handle_request_failed(uri);
 				}
 
 				let core = &mut self.state.core;
@@ -145,26 +142,23 @@ impl Editor {
 	/// Redoes the last undone change, restoring view state for all affected buffers.
 	pub fn redo(&mut self) {
 		#[cfg(feature = "lsp")]
-		let broker_uris = self
+		let broker_info = self
 			.state
 			.core
 			.undo_manager
 			.last_redo_group()
 			.and_then(|group| {
-				let mut uris = Vec::new();
+				let mut items = Vec::new();
 				for doc_id in &group.affected_docs {
 					let uri = self.state.shared_state.uri_for_doc_id(*doc_id)?;
-					if !self.state.shared_state.can_prepare_history(uri) {
-						return None;
-					}
-					uris.push(uri.to_string());
+					items.push((uri.to_string(), *doc_id));
 				}
-				Some(uris)
+				if items.is_empty() { None } else { Some(items) }
 			});
 
 		let focused_view = self.focused_view();
 		#[cfg(feature = "lsp")]
-		if let Some(uris) = broker_uris {
+		if let Some(items) = broker_info {
 			let started = {
 				let core = &mut self.state.core;
 				let mut host = EditorUndoHost {
@@ -181,10 +175,11 @@ impl Editor {
 			};
 
 			if started.is_some() {
+				let mut payloads = Vec::new();
 				let mut ok = true;
-				for uri in &uris {
+				for (uri, _doc_id) in &items {
 					if let Some(payload) = self.state.shared_state.prepare_redo(uri) {
-						let _ = self.state.lsp.shared_state_out_tx().send(payload);
+						payloads.push(payload);
 					} else {
 						ok = false;
 						break;
@@ -192,14 +187,17 @@ impl Editor {
 				}
 
 				if ok {
-					for uri in &uris {
+					for payload in payloads {
+						let _ = self.state.lsp.shared_state_out_tx().send(payload);
+					}
+					for (uri, _) in &items {
 						self.update_readonly_for_shared_state(uri);
 					}
 					return;
 				}
 
-				for uri in &uris {
-					self.state.shared_state.cancel_history_in_flight(uri);
+				for (uri, _) in &items {
+					self.state.shared_state.handle_request_failed(uri);
 				}
 
 				let core = &mut self.state.core;

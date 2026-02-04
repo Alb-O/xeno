@@ -637,7 +637,11 @@ impl RpcService<BrokerProtocol> for BrokerClientService {
 				uri,
 				epoch,
 				seq,
+				kind,
 				tx,
+				hash64,
+				len_chars,
+				..
 			} => {
 				let _ =
 					self.shared_state_tx
@@ -645,7 +649,10 @@ impl RpcService<BrokerProtocol> for BrokerClientService {
 							uri,
 							epoch,
 							seq,
+							kind,
 							tx,
+							hash64,
+							len_chars,
 						});
 			}
 			Event::SharedOwnerChanged { snapshot } => {

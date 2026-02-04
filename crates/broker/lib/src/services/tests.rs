@@ -8,7 +8,7 @@ use ropey::Rope;
 use tokio::sync::{mpsc, oneshot};
 use xeno_broker_proto::types::{
 	DocSyncPhase, ErrorCode, Event, IpcFrame, LspServerConfig, Request, Response, ResponsePayload,
-	SessionId, SyncEpoch, SyncSeq, WireOp, WireTx,
+	SessionId, SharedApplyKind, SyncEpoch, SyncNonce, SyncSeq, WireOp, WireTx,
 };
 use xeno_rpc::MainLoopEvent;
 
@@ -117,42 +117,69 @@ async fn test_shared_state_undo_redo_roundtrip() {
 		)
 		.await
 		.unwrap();
-	match resp {
+	let (mut hash, mut len) = match resp {
 		ResponsePayload::SharedOpened { snapshot, text } => {
 			assert_eq!(snapshot.epoch, SyncEpoch(1));
 			assert_eq!(snapshot.seq, SyncSeq(0));
 			assert!(text.is_none());
+			(snapshot.hash64, snapshot.len_chars)
 		}
 		other => panic!("unexpected response: {other:?}"),
-	}
+	};
 
 	let wire_tx = WireTx(vec![WireOp::Retain(5), WireOp::Insert(" world".into())]);
 	let resp = harness
 		.sync
-		.edit(
+		.apply(
 			session1.session_id,
 			"file:///test.rs".to_string(),
+			SharedApplyKind::Edit,
 			SyncEpoch(1),
 			SyncSeq(0),
-			wire_tx.clone(),
+			hash,
+			len,
+			Some(wire_tx.clone()),
 		)
 		.await
 		.unwrap();
 	match resp {
-		ResponsePayload::SharedEditAck { seq, .. } => {
+		ResponsePayload::SharedApplyAck {
+			seq,
+			hash64,
+			len_chars,
+			..
+		} => {
 			assert_eq!(seq, SyncSeq(1));
+			hash = hash64;
+			len = len_chars;
 		}
 		other => panic!("unexpected response: {other:?}"),
 	}
 
 	let resp = harness
 		.sync
-		.undo(session1.session_id, "file:///test.rs".to_string())
+		.apply(
+			session1.session_id,
+			"file:///test.rs".to_string(),
+			SharedApplyKind::Undo,
+			SyncEpoch(1),
+			SyncSeq(1),
+			hash,
+			len,
+			None,
+		)
 		.await
 		.unwrap();
 	match resp {
-		ResponsePayload::SharedUndoAck { seq, .. } => {
+		ResponsePayload::SharedApplyAck {
+			seq,
+			hash64,
+			len_chars,
+			..
+		} => {
 			assert_eq!(seq, SyncSeq(2));
+			hash = hash64;
+			len = len_chars;
 		}
 		other => panic!("unexpected response: {other:?}"),
 	}
@@ -174,6 +201,7 @@ async fn test_shared_state_undo_redo_roundtrip() {
 		.resync(
 			session1.session_id,
 			"file:///test.rs".to_string(),
+			SyncNonce(1),
 			None,
 			None,
 		)
@@ -188,12 +216,28 @@ async fn test_shared_state_undo_redo_roundtrip() {
 
 	let resp = harness
 		.sync
-		.redo(session1.session_id, "file:///test.rs".to_string())
+		.apply(
+			session1.session_id,
+			"file:///test.rs".to_string(),
+			SharedApplyKind::Redo,
+			SyncEpoch(1),
+			SyncSeq(2),
+			hash,
+			len,
+			None,
+		)
 		.await
 		.unwrap();
 	match resp {
-		ResponsePayload::SharedRedoAck { seq, .. } => {
+		ResponsePayload::SharedApplyAck {
+			seq,
+			hash64,
+			len_chars,
+			..
+		} => {
 			assert_eq!(seq, SyncSeq(3));
+			hash = hash64;
+			len = len_chars;
 		}
 		other => panic!("unexpected response: {other:?}"),
 	}
@@ -203,6 +247,7 @@ async fn test_shared_state_undo_redo_roundtrip() {
 		.resync(
 			session1.session_id,
 			"file:///test.rs".to_string(),
+			SyncNonce(2),
 			None,
 			None,
 		)
@@ -395,7 +440,7 @@ async fn test_shared_state_preferred_owner_enforcement() {
 		.register(session2.session_id, session2.sink.clone())
 		.await;
 
-	let _ = harness
+	let resp = harness
 		.sync
 		.open(
 			session1.session_id,
@@ -403,7 +448,13 @@ async fn test_shared_state_preferred_owner_enforcement() {
 			"hello".into(),
 			None,
 		)
-		.await;
+		.await
+		.unwrap();
+	let (hash, len) = match resp {
+		ResponsePayload::SharedOpened { snapshot, .. } => (snapshot.hash64, snapshot.len_chars),
+		_ => panic!("open failed"),
+	};
+
 	let _ = harness
 		.sync
 		.open(
@@ -417,12 +468,15 @@ async fn test_shared_state_preferred_owner_enforcement() {
 	let wire_tx = WireTx(vec![WireOp::Retain(5), WireOp::Insert(" world".into())]);
 	let result = harness
 		.sync
-		.edit(
+		.apply(
 			session2.session_id,
 			"file:///test.rs".to_string(),
+			SharedApplyKind::Edit,
 			SyncEpoch(1),
 			SyncSeq(0),
-			wire_tx,
+			hash,
+			len,
+			Some(wire_tx),
 		)
 		.await;
 	assert_eq!(result.unwrap_err(), ErrorCode::NotPreferredOwner);
@@ -443,7 +497,7 @@ async fn test_shared_state_focus_transfers_ownership() {
 		.register(session2.session_id, session2.sink.clone())
 		.await;
 
-	let _ = harness
+	let resp = harness
 		.sync
 		.open(
 			session1.session_id,
@@ -451,7 +505,13 @@ async fn test_shared_state_focus_transfers_ownership() {
 			"hello".into(),
 			None,
 		)
-		.await;
+		.await
+		.unwrap();
+	let (hash, len) = match resp {
+		ResponsePayload::SharedOpened { snapshot, .. } => (snapshot.hash64, snapshot.len_chars),
+		_ => panic!("open failed"),
+	};
+
 	let _ = harness
 		.sync
 		.open(
@@ -466,18 +526,32 @@ async fn test_shared_state_focus_transfers_ownership() {
 
 	let resp = harness
 		.sync
-		.focus(session2.session_id, "file:///test.rs".to_string(), true, 1)
+		.focus(
+			session2.session_id,
+			"file:///test.rs".to_string(),
+			true,
+			1,
+			SyncNonce(1),
+			Some(0),
+			Some(0),
+		)
 		.await
 		.unwrap();
-	match resp {
-		ResponsePayload::SharedFocusAck { snapshot } => {
+	let (epoch, hash, len) = match resp {
+		ResponsePayload::SharedFocusAck {
+			snapshot,
+			repair_text,
+			..
+		} => {
 			assert_eq!(snapshot.epoch, SyncEpoch(2));
 			assert_eq!(snapshot.owner, Some(session2.session_id));
 			assert_eq!(snapshot.preferred_owner, Some(session2.session_id));
-			assert_eq!(snapshot.phase, DocSyncPhase::Diverged);
+			assert_eq!(snapshot.phase, DocSyncPhase::Owned);
+			assert_eq!(repair_text.as_deref(), Some("hello"));
+			(snapshot.epoch, snapshot.hash64, snapshot.len_chars)
 		}
 		other => panic!("unexpected response: {other:?}"),
-	}
+	};
 
 	let mut saw_preferred = false;
 	let mut saw_owner = false;
@@ -500,12 +574,15 @@ async fn test_shared_state_focus_transfers_ownership() {
 	let wire_tx = WireTx(vec![WireOp::Retain(5), WireOp::Insert("!".into())]);
 	let result = harness
 		.sync
-		.edit(
+		.apply(
 			session1.session_id,
 			"file:///test.rs".to_string(),
+			SharedApplyKind::Edit,
 			SyncEpoch(1),
 			SyncSeq(0),
-			wire_tx,
+			0, // stale fingerprint
+			0,
+			Some(wire_tx),
 		)
 		.await;
 	assert_eq!(result.unwrap_err(), ErrorCode::NotPreferredOwner);
@@ -549,11 +626,19 @@ async fn test_shared_state_focus_blur_unlocks() {
 
 	let resp = harness
 		.sync
-		.focus(session1.session_id, "file:///test.rs".to_string(), false, 1)
+		.focus(
+			session1.session_id,
+			"file:///test.rs".to_string(),
+			false,
+			1,
+			SyncNonce(1),
+			None,
+			None,
+		)
 		.await
 		.unwrap();
 	match resp {
-		ResponsePayload::SharedFocusAck { snapshot } => {
+		ResponsePayload::SharedFocusAck { snapshot, .. } => {
 			assert_eq!(snapshot.epoch, SyncEpoch(2));
 			assert_eq!(snapshot.owner, None);
 			assert_eq!(snapshot.preferred_owner, None);
@@ -583,12 +668,15 @@ async fn test_shared_state_focus_blur_unlocks() {
 	let wire_tx = WireTx(vec![WireOp::Retain(5), WireOp::Insert("!".into())]);
 	let result = harness
 		.sync
-		.edit(
+		.apply(
 			session1.session_id,
 			"file:///test.rs".to_string(),
+			SharedApplyKind::Edit,
 			SyncEpoch(1),
 			SyncSeq(0),
-			wire_tx,
+			0,
+			0,
+			Some(wire_tx),
 		)
 		.await;
 	assert_eq!(result.unwrap_err(), ErrorCode::NotPreferredOwner);
@@ -609,7 +697,7 @@ async fn test_shared_state_edit_ack_and_broadcast() {
 		.register(session2.session_id, session2.sink.clone())
 		.await;
 
-	let _ = harness
+	let resp = harness
 		.sync
 		.open(
 			session1.session_id,
@@ -617,7 +705,13 @@ async fn test_shared_state_edit_ack_and_broadcast() {
 			"hello".into(),
 			None,
 		)
-		.await;
+		.await
+		.unwrap();
+	let (hash, len) = match resp {
+		ResponsePayload::SharedOpened { snapshot, .. } => (snapshot.hash64, snapshot.len_chars),
+		_ => panic!("open failed"),
+	};
+
 	let _ = harness
 		.sync
 		.open(
@@ -633,17 +727,20 @@ async fn test_shared_state_edit_ack_and_broadcast() {
 	let wire_tx = WireTx(vec![WireOp::Retain(5), WireOp::Insert(" world".into())]);
 	let resp = harness
 		.sync
-		.edit(
+		.apply(
 			session1.session_id,
 			"file:///test.rs".to_string(),
+			SharedApplyKind::Edit,
 			SyncEpoch(1),
 			SyncSeq(0),
-			wire_tx.clone(),
+			hash,
+			len,
+			Some(wire_tx.clone()),
 		)
 		.await
 		.unwrap();
 	match resp {
-		ResponsePayload::SharedEditAck { seq, .. } => {
+		ResponsePayload::SharedApplyAck { seq, .. } => {
 			assert_eq!(seq, SyncSeq(1));
 		}
 		other => panic!("unexpected response: {other:?}"),
@@ -656,6 +753,7 @@ async fn test_shared_state_edit_ack_and_broadcast() {
 			epoch,
 			seq,
 			tx,
+			..
 		} => {
 			assert_eq!(uri, "file:///test.rs");
 			assert_eq!(epoch, SyncEpoch(1));
@@ -667,10 +765,10 @@ async fn test_shared_state_edit_ack_and_broadcast() {
 }
 
 #[tokio::test(flavor = "current_thread")]
-async fn test_shared_state_transfer_requires_resync_before_edit() {
+async fn test_shared_state_transfer_allows_edit_with_repair() {
 	let harness = setup_sync_harness().await;
-	let mut session1 = TestSession::new(1);
-	let mut session2 = TestSession::new(2);
+	let session1 = TestSession::new(1);
+	let session2 = TestSession::new(2);
 
 	harness
 		.sessions
@@ -700,67 +798,45 @@ async fn test_shared_state_transfer_requires_resync_before_edit() {
 		)
 		.await;
 
-	while session1.try_event().is_some() {}
-	while session2.try_event().is_some() {}
-
 	let resp = harness
 		.sync
-		.focus(session2.session_id, "file:///test.rs".to_string(), true, 1)
+		.focus(
+			session2.session_id,
+			"file:///test.rs".to_string(),
+			true,
+			1,
+			SyncNonce(1),
+			Some(0),
+			Some(0),
+		)
 		.await
 		.unwrap();
-	let epoch = match resp {
-		ResponsePayload::SharedFocusAck { snapshot } => {
+
+	let (epoch, hash, len) = match resp {
+		ResponsePayload::SharedFocusAck {
+			snapshot,
+			repair_text,
+			..
+		} => {
 			assert_eq!(snapshot.owner, Some(session2.session_id));
-			snapshot.epoch
+			assert_eq!(repair_text.as_deref(), Some("hello"));
+			(snapshot.epoch, snapshot.hash64, snapshot.len_chars)
 		}
 		other => panic!("unexpected response: {other:?}"),
 	};
 
-	let mut saw_owner = false;
-	while let Some(event) = session2.recv_event().await {
-		match event {
-			Event::SharedOwnerChanged { snapshot } => {
-				assert_eq!(snapshot.owner, Some(session2.session_id));
-				saw_owner = true;
-				break;
-			}
-			Event::SharedPreferredOwnerChanged { .. } => {}
-			other => panic!("unexpected event: {other:?}"),
-		}
-	}
-	assert!(saw_owner);
-
 	let wire_tx = WireTx(vec![WireOp::Retain(5), WireOp::Insert("!".into())]);
-	let result = harness
-		.sync
-		.edit(
-			session2.session_id,
-			"file:///test.rs".to_string(),
-			epoch,
-			SyncSeq(0),
-			wire_tx.clone(),
-		)
-		.await;
-	assert_eq!(result.unwrap_err(), ErrorCode::OwnerNeedsResync);
-
-	harness
-		.sync
-		.resync(
-			session2.session_id,
-			"file:///test.rs".to_string(),
-			None,
-			None,
-		)
-		.await
-		.unwrap();
 	let resp = harness
 		.sync
-		.edit(
+		.apply(
 			session2.session_id,
 			"file:///test.rs".to_string(),
+			SharedApplyKind::Edit,
 			epoch,
 			SyncSeq(0),
-			wire_tx,
+			hash,
+			len,
+			Some(wire_tx),
 		)
 		.await;
 	assert!(resp.is_ok());
@@ -816,12 +892,15 @@ async fn test_shared_state_idle_unlocks_owner() {
 	let wire_tx = WireTx(vec![WireOp::Retain(5), WireOp::Insert(" world".into())]);
 	let result = harness
 		.sync
-		.edit(
+		.apply(
 			session1.session_id,
 			"file:///test.rs".to_string(),
+			SharedApplyKind::Edit,
 			SyncEpoch(1),
 			SyncSeq(0),
-			wire_tx,
+			0,
+			0,
+			Some(wire_tx),
 		)
 		.await;
 	assert_eq!(result.unwrap_err(), ErrorCode::NotPreferredOwner);
@@ -897,7 +976,7 @@ async fn test_shared_state_invalid_edit_is_non_mutating() {
 		.register(session1.session_id, session1.sink.clone())
 		.await;
 
-	let _ = harness
+	let resp = harness
 		.sync
 		.open(
 			session1.session_id,
@@ -905,17 +984,25 @@ async fn test_shared_state_invalid_edit_is_non_mutating() {
 			"hello".into(),
 			None,
 		)
-		.await;
+		.await
+		.unwrap();
+	let (hash, len) = match resp {
+		ResponsePayload::SharedOpened { snapshot, .. } => (snapshot.hash64, snapshot.len_chars),
+		_ => panic!("open failed"),
+	};
 
 	let wire_tx = WireTx(vec![WireOp::Delete(999)]);
 	let result = harness
 		.sync
-		.edit(
+		.apply(
 			session1.session_id,
 			"file:///test.rs".to_string(),
+			SharedApplyKind::Edit,
 			SyncEpoch(1),
 			SyncSeq(0),
-			wire_tx,
+			hash,
+			len,
+			Some(wire_tx),
 		)
 		.await;
 	assert_eq!(result.unwrap_err(), ErrorCode::InvalidDelta);
@@ -925,13 +1012,14 @@ async fn test_shared_state_invalid_edit_is_non_mutating() {
 		.resync(
 			session1.session_id,
 			"file:///test.rs".to_string(),
+			SyncNonce(1),
 			None,
 			None,
 		)
 		.await
 		.unwrap();
 	match resp {
-		ResponsePayload::SharedSnapshot { text, snapshot } => {
+		ResponsePayload::SharedSnapshot { text, snapshot, .. } => {
 			assert_eq!(text, "hello");
 			assert_eq!(snapshot.seq, SyncSeq(0));
 		}
@@ -965,6 +1053,7 @@ async fn test_shared_state_resync_matches_fingerprint_returns_empty() {
 		.resync(
 			session1.session_id,
 			"file:///test.rs".to_string(),
+			SyncNonce(1),
 			Some(hash),
 			Some(len),
 		)
@@ -972,7 +1061,7 @@ async fn test_shared_state_resync_matches_fingerprint_returns_empty() {
 		.unwrap();
 
 	match resp {
-		ResponsePayload::SharedSnapshot { text, snapshot } => {
+		ResponsePayload::SharedSnapshot { text, snapshot, .. } => {
 			assert!(text.is_empty());
 			assert_eq!(snapshot.hash64, hash);
 			assert_eq!(snapshot.len_chars, len);
@@ -1031,6 +1120,7 @@ async fn test_shared_state_close_last_session_removes_doc() {
 		.resync(
 			session1.session_id,
 			"file:///test.rs".to_string(),
+			SyncNonce(1),
 			None,
 			None,
 		)
@@ -1113,7 +1203,13 @@ async fn test_shared_state_refcounts_keep_doc_open() {
 
 	let resp = harness
 		.sync
-		.resync(session2.session_id, uri.to_string(), None, None)
+		.resync(
+			session2.session_id,
+			uri.to_string(),
+			SyncNonce(1),
+			None,
+			None,
+		)
 		.await;
 	assert!(resp.is_ok());
 
@@ -1124,7 +1220,13 @@ async fn test_shared_state_refcounts_keep_doc_open() {
 		.unwrap();
 	let resp = harness
 		.sync
-		.resync(session2.session_id, uri.to_string(), None, None)
+		.resync(
+			session2.session_id,
+			uri.to_string(),
+			SyncNonce(2),
+			None,
+			None,
+		)
 		.await;
 	assert!(resp.is_ok());
 
@@ -1135,7 +1237,13 @@ async fn test_shared_state_refcounts_keep_doc_open() {
 		.unwrap();
 	let resp = harness
 		.sync
-		.resync(session2.session_id, uri.to_string(), None, None)
+		.resync(
+			session2.session_id,
+			uri.to_string(),
+			SyncNonce(3),
+			None,
+			None,
+		)
 		.await;
 	assert_eq!(resp.unwrap_err(), ErrorCode::SyncDocNotFound);
 }

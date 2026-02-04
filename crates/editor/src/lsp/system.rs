@@ -105,22 +105,16 @@ impl LspSystem {
 				use xeno_broker_proto::types::{RequestPayload, ResponsePayload};
 
 				while let Some(payload) = shared_state_out_rx.recv().await {
-					let is_edit = matches!(payload, RequestPayload::SharedEdit { .. });
-					let is_history = matches!(
-						payload,
-						RequestPayload::SharedUndo { .. } | RequestPayload::SharedRedo { .. }
-					);
+					let is_apply = matches!(payload, RequestPayload::SharedApply { .. });
 
 					// Extract URI for error reporting.
 					let uri = match &payload {
 						RequestPayload::SharedOpen { uri, .. }
 						| RequestPayload::SharedClose { uri }
-						| RequestPayload::SharedEdit { uri, .. }
+						| RequestPayload::SharedApply { uri, .. }
 						| RequestPayload::SharedActivity { uri }
 						| RequestPayload::SharedFocus { uri, .. }
-						| RequestPayload::SharedResync { uri, .. }
-						| RequestPayload::SharedUndo { uri }
-						| RequestPayload::SharedRedo { uri } => uri.clone(),
+						| RequestPayload::SharedResync { uri, .. } => uri.clone(),
 						_ => continue,
 					};
 
@@ -134,33 +128,42 @@ impl LspSystem {
 										text,
 									})
 								}
-								ResponsePayload::SharedEditAck { epoch, seq } => {
-									Some(crate::shared_state::SharedStateEvent::EditAck {
-										uri,
-										epoch,
-										seq,
-									})
-								}
-								ResponsePayload::SharedSnapshot { text, snapshot } => {
-									Some(crate::shared_state::SharedStateEvent::Snapshot {
-										uri,
-										text,
-										snapshot,
-									})
-								}
-								ResponsePayload::SharedUndoAck { epoch, seq }
-								| ResponsePayload::SharedRedoAck { epoch, seq } => {
-									Some(crate::shared_state::SharedStateEvent::EditAck {
-										uri,
-										epoch,
-										seq,
-									})
-								}
-								ResponsePayload::SharedFocusAck { snapshot } => {
-									Some(crate::shared_state::SharedStateEvent::FocusAck {
-										snapshot,
-									})
-								}
+								ResponsePayload::SharedApplyAck {
+									uri,
+									kind,
+									epoch,
+									seq,
+									applied_tx,
+									hash64,
+									len_chars,
+								} => Some(crate::shared_state::SharedStateEvent::ApplyAck {
+									uri,
+									kind,
+									epoch,
+									seq,
+									applied_tx,
+									hash64,
+									len_chars,
+								}),
+								ResponsePayload::SharedSnapshot {
+									nonce,
+									text,
+									snapshot,
+								} => Some(crate::shared_state::SharedStateEvent::Snapshot {
+									uri,
+									nonce,
+									text,
+									snapshot,
+								}),
+								ResponsePayload::SharedFocusAck {
+									nonce,
+									snapshot,
+									repair_text,
+								} => Some(crate::shared_state::SharedStateEvent::FocusAck {
+									nonce,
+									snapshot,
+									repair_text,
+								}),
 								ResponsePayload::SharedActivityAck => None,
 								ResponsePayload::SharedClosed => None,
 								_ => None,
@@ -171,11 +174,7 @@ impl LspSystem {
 						}
 						Err(e) => {
 							tracing::warn!(?uri, error = ?e, "shared state request failed");
-							if is_edit {
-								let _ = in_tx_b.send(
-									crate::shared_state::SharedStateEvent::EditRejected { uri },
-								);
-							} else if is_history {
+							if is_apply {
 								match e {
 									xeno_broker_proto::types::ErrorCode::NothingToUndo => {
 										let _ = in_tx_b.send(
@@ -191,9 +190,16 @@ impl LspSystem {
 											},
 										);
 									}
+									xeno_broker_proto::types::ErrorCode::NotImplemented => {
+										let _ = in_tx_b.send(
+											crate::shared_state::SharedStateEvent::HistoryUnavailable {
+												uri,
+											},
+										);
+									}
 									_ => {
 										let _ = in_tx_b.send(
-											crate::shared_state::SharedStateEvent::RequestFailed {
+											crate::shared_state::SharedStateEvent::EditRejected {
 												uri,
 											},
 										);

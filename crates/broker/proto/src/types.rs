@@ -30,46 +30,53 @@ pub struct SyncEpoch(pub u64);
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct SyncSeq(pub u64);
 
-/// Phase of a shared document.
+/// Nonce used to correlate resync-capable responses with the caller's local state.
+///
+/// Editor MUST ignore FocusAck/Snapshot responses whose nonce != the most recent
+/// in-flight nonce for that URI.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+pub struct SyncNonce(pub u64);
+
+/// Phase of a shared document synchronization.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum DocSyncPhase {
 	/// Document is owned and writable by the current owner.
 	Owned,
 	/// Document is unlocked and up-for-grabs (no owner).
 	Unlocked,
-	/// Document owner must resync before publishing deltas.
+	/// Document owner is blocked: MUST align (Focus/Resync) before publishing.
 	Diverged,
 }
 
 /// Canonical snapshot of a shared document state.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DocStateSnapshot {
-	/// Canonical URI for the document.
+	/// Document URI.
 	pub uri: String,
 	/// Current ownership epoch.
 	pub epoch: SyncEpoch,
-	/// Current sequence number.
+	/// Current sequence number within the epoch.
 	pub seq: SyncSeq,
-	/// Current owner session (if any).
+	/// Current owner session ID, if any.
 	pub owner: Option<SessionId>,
-	/// Current preferred owner session (if any).
+	/// Preferred owner session ID (focused editor).
 	pub preferred_owner: Option<SessionId>,
-	/// Current phase of the document.
+	/// Current synchronization phase.
 	pub phase: DocSyncPhase,
-	/// 64-bit hash of the authoritative document content.
+	/// Authoritative 64-bit hash of the content.
 	pub hash64: u64,
-	/// Length of the authoritative document in characters.
+	/// Authoritative length of the content in characters.
 	pub len_chars: u64,
 }
 
 /// A single serializable edit operation for buffer sync.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum WireOp {
-	/// Retain the next `n` characters unchanged.
+	/// Skip over N characters.
 	Retain(usize),
-	/// Delete the next `n` characters.
+	/// Delete N characters.
 	Delete(usize),
-	/// Insert the given UTF-8 text.
+	/// Insert the given string at the current position.
 	Insert(String),
 }
 
@@ -81,32 +88,39 @@ pub struct WireTx(pub Vec<WireOp>);
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct ServerId(pub u64);
 
+/// Kind of shared-state mutation being applied.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SharedApplyKind {
+	/// Standard text edit.
+	Edit,
+	/// Undo last mutation.
+	Undo,
+	/// Redo previously undone mutation.
+	Redo,
+}
+
 /// Classification of frames transmitted over the IPC socket.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum IpcFrame {
-	/// A request from editor to broker.
+	/// A request initiated by the editor.
 	Request(Request),
-	/// A response from broker to editor.
+	/// A response from the broker.
 	Response(Response),
-	/// An async event from broker to editor.
+	/// An asynchronous event from the broker.
 	Event(Event),
 }
 
 /// A request from the editor to the broker.
-///
-/// The `id` field is automatically managed and overwritten by the RPC mainloop
-/// during transmission. When constructing a new request, use [`Request::new`]
-/// which sets a placeholder value.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Request {
-	/// Unique identifier for this request.
+	/// Unique request identifier for correlation.
 	pub id: RequestId,
 	/// The request payload.
 	pub payload: RequestPayload,
 }
 
 impl Request {
-	/// Create a new request with a placeholder ID.
+	/// Wraps a payload in a new request.
 	#[must_use]
 	pub fn new(payload: RequestPayload) -> Self {
 		Self {
@@ -116,125 +130,143 @@ impl Request {
 	}
 }
 
-/// Request payload variants.
+/// Request payload variants for broker operations.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum RequestPayload {
-	/// Simple ping for connectivity check.
+	/// Connectivity check.
 	Ping,
-	/// Subscribe to async events from the broker.
+	/// Register session ID for event routing.
 	Subscribe {
-		/// Session ID for this connection.
+		/// The session identity.
 		session_id: SessionId,
 	},
-	/// Start an LSP server for a project.
+	/// Start a new LSP server instance.
 	LspStart {
-		/// Configuration for the LSP server.
+		/// Server configuration.
 		config: LspServerConfig,
 	},
-	/// Send a notification or request to an LSP server.
+	/// Send a notification to an LSP server.
 	LspSend {
-		/// Session ID originating this message.
-		///
-		/// Enforces document ownership for text synchronization.
+		/// Originating session.
 		session_id: SessionId,
-		/// Target LSP server.
+		/// Target server.
 		server_id: ServerId,
-		/// The LSP message (JSON-RPC string).
+		/// Raw LSP JSON-RPC message.
 		message: String,
 	},
-	/// Send a request to an LSP server and wait for the response.
+	/// Send a request to an LSP server and await response.
 	LspRequest {
-		/// Session ID originating this request.
+		/// Originating session.
 		session_id: SessionId,
-		/// Target LSP server.
+		/// Target server.
 		server_id: ServerId,
-		/// The LSP request (JSON-RPC string).
+		/// Raw LSP JSON-RPC message.
 		message: String,
-		/// Optional timeout in milliseconds.
+		/// Maximum time to wait for response.
 		timeout_ms: Option<u64>,
 	},
-	/// Reply to a request initiated by an LSP server.
+	/// Send a response to a server-initiated request.
 	LspReply {
-		/// Target LSP server.
+		/// Target server.
 		server_id: ServerId,
-		/// The LSP response (JSON-RPC string).
+		/// Raw LSP JSON-RPC message.
 		message: String,
 	},
+
 	/// Open (or join) a shared document.
 	SharedOpen {
-		/// Canonical URI for the document.
+		/// Document URI.
 		uri: String,
-		/// Full text content when opening.
+		/// Initial text content (if creating).
 		text: String,
-		/// Optional version hint from the local document.
+		/// Optional version hint from the client.
 		version_hint: Option<u32>,
 	},
-	/// Close a shared document.
+	/// Leave document synchronization.
 	SharedClose {
-		/// Canonical URI for the document.
+		/// Document URI.
 		uri: String,
 	},
-	/// Submit an edit delta to a shared document.
-	SharedEdit {
-		/// Canonical URI for the document.
+
+	/// Apply a shared-state mutation (Edit/Undo/Redo) under preconditions.
+	///
+	/// # Preconditions
+	/// - epoch == broker epoch
+	/// - base_seq == broker seq
+	/// - base_hash64/base_len_chars == broker fingerprint
+	/// - caller MUST be current owner and preferred owner
+	SharedApply {
+		/// Document URI.
 		uri: String,
-		/// Expected ownership epoch.
+		/// Kind of mutation.
+		kind: SharedApplyKind,
+		/// Authoritative era this edit targets.
 		epoch: SyncEpoch,
-		/// Expected base sequence number.
+		/// Base sequence number this edit applies to.
 		base_seq: SyncSeq,
-		/// The edit transaction.
-		tx: WireTx,
+		/// Content hash before applying this mutation.
+		base_hash64: u64,
+		/// Content length before applying this mutation.
+		base_len_chars: u64,
+		/// Transaction data (required for Edit, None for Undo/Redo).
+		tx: Option<WireTx>,
 	},
-	/// Notify broker of local activity for a shared document.
+
+	/// Record user activity to reset the idle timer.
 	SharedActivity {
-		/// Canonical URI for the document.
+		/// Document URI.
 		uri: String,
 	},
-	/// Update focus status for a shared document.
+
+	/// Update focus status with atomic ownership acquisition.
+	///
+	/// When `focused` is true, the broker attempts to grant ownership to the caller.
+	/// If the client's fingerprint mismatches authoritative state, a repair text
+	/// is returned in the acknowledgment.
 	SharedFocus {
-		/// Canonical URI for the document.
+		/// Document URI.
 		uri: String,
-		/// Whether this session is focused on the document.
+		/// Whether the session is currently focused.
 		focused: bool,
-		/// Monotonic sequence number for focus transitions.
+		/// Monotonic focus transition sequence.
 		focus_seq: u64,
-	},
-	/// Request a full resync snapshot from the broker.
-	SharedResync {
-		/// Canonical URI for the document.
-		uri: String,
-		/// Optional hash of the client's current content.
+		/// Nonce for correlating the response.
+		nonce: SyncNonce,
+		/// Client's current hash for alignment.
 		client_hash64: Option<u64>,
-		/// Optional length of the client's current content.
+		/// Client's current length for alignment.
 		client_len_chars: Option<u64>,
 	},
-	/// Undo the last change for a shared document.
-	SharedUndo {
-		/// Canonical URI for the document.
+
+	/// Request a full document snapshot from the broker.
+	SharedResync {
+		/// Document URI.
 		uri: String,
+		/// Nonce for correlating the response.
+		nonce: SyncNonce,
+		/// Client's current hash.
+		client_hash64: Option<u64>,
+		/// Client's current length.
+		client_len_chars: Option<u64>,
 	},
-	/// Redo the last undone change for a shared document.
-	SharedRedo {
-		/// Canonical URI for the document.
-		uri: String,
-	},
-	/// Query the broker knowledge index.
+
+	/// Perform a semantic search across indexed documents.
 	KnowledgeSearch {
-		/// Full-text search query.
+		/// Search query string.
 		query: String,
-		/// Maximum number of hits to return.
+		/// Maximum results to return.
 		limit: u32,
 	},
 }
 
-/// Configuration for an LSP server.
+/// Configuration for an LSP server instance.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LspServerConfig {
-	/// The command to execute.
+	/// Path to the server executable.
 	pub command: String,
-	/// Arguments for the command.
+	/// Command-line arguments.
 	pub args: Vec<String>,
-	/// Environment variables to set.
+	/// Environment variables.
 	pub env: Vec<(String, String)>,
 	/// Working directory.
 	pub cwd: Option<String>,
@@ -243,85 +275,94 @@ pub struct LspServerConfig {
 /// A response from the broker to the editor.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Response {
-	/// The request this responds to.
+	/// Corresponding request identifier.
 	pub request_id: RequestId,
-	/// The response payload when successful.
+	/// The response payload.
 	pub payload: Option<ResponsePayload>,
-	/// The error code when the request failed.
+	/// Protocol error code, if the request failed.
 	pub error: Option<ErrorCode>,
 }
 
-/// Response payload variants.
+/// Response payload variants for broker operations.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum ResponsePayload {
-	/// Simple pong response.
+	/// Reply to Ping.
 	Pong,
-	/// Subscription acknowledged.
+	/// Confirmation of subscription.
 	Subscribed,
-	/// LSP server started.
+
+	/// Confirmation that an LSP server was started.
 	LspStarted {
-		/// The server ID assigned.
+		/// Assigned server identifier.
 		server_id: ServerId,
 	},
-	/// LSP message received from server.
+	/// Message received from an LSP server.
 	LspMessage {
 		/// Source server.
 		server_id: ServerId,
-		/// The LSP message (JSON-RPC string).
+		/// Raw LSP JSON-RPC message.
 		message: String,
 	},
-	/// Message sent to LSP server.
+	/// Confirmation that an LSP notification was queued.
 	LspSent {
 		/// Target server.
 		server_id: ServerId,
 	},
-	/// Shared document opened successfully.
+
+	/// Confirmation that a shared document was opened.
 	SharedOpened {
-		/// Canonical snapshot of the document state.
+		/// Current state snapshot.
 		snapshot: DocStateSnapshot,
-		/// Full text snapshot (present when joining as follower).
+		/// Full text if joining an existing session.
 		text: Option<String>,
 	},
-	/// Shared document closed successfully.
+	/// Confirmation that a shared document was closed.
 	SharedClosed,
-	/// Shared edit acknowledged by broker.
-	SharedEditAck {
-		/// Ownership epoch this edit belongs to.
+
+	/// Unified acknowledgment for Edit/Undo/Redo.
+	SharedApplyAck {
+		/// Document URI.
+		uri: String,
+		/// Kind of mutation applied.
+		kind: SharedApplyKind,
+		/// New ownership epoch.
 		epoch: SyncEpoch,
-		/// New sequence number after applying the delta.
+		/// New sequence number.
 		seq: SyncSeq,
+		/// The applied transaction (typically for Undo/Redo).
+		applied_tx: Option<WireTx>,
+		/// Authoritative hash after apply.
+		hash64: u64,
+		/// Authoritative length after apply.
+		len_chars: u64,
 	},
-	/// Shared focus update acknowledged.
+
+	/// Acknowledgment of a focus update.
 	SharedFocusAck {
-		/// Canonical snapshot of the document state.
+		/// Echoed nonce from request.
+		nonce: SyncNonce,
+		/// Updated state snapshot.
 		snapshot: DocStateSnapshot,
+		/// Repair text if the client fingerprint was mismatched.
+		repair_text: Option<String>,
 	},
-	/// Shared undo acknowledged by broker.
-	SharedUndoAck {
-		/// Ownership epoch this undo belongs to.
-		epoch: SyncEpoch,
-		/// New sequence number after applying the delta.
-		seq: SyncSeq,
-	},
-	/// Shared redo acknowledged by broker.
-	SharedRedoAck {
-		/// Ownership epoch this redo belongs to.
-		epoch: SyncEpoch,
-		/// New sequence number after applying the delta.
-		seq: SyncSeq,
-	},
-	/// Shared full snapshot for resync.
+
+	/// Full document snapshot delivered for resync.
 	SharedSnapshot {
-		/// Full text content.
+		/// Echoed nonce from request.
+		nonce: SyncNonce,
+		/// authoritative full text.
 		text: String,
-		/// Canonical snapshot of the document state.
+		/// autoritative state metadata.
 		snapshot: DocStateSnapshot,
 	},
-	/// Shared activity acknowledged.
+
+	/// Confirmation of activity record.
 	SharedActivityAck,
-	/// Knowledge search results.
+
+	/// Result set for a knowledge search query.
 	KnowledgeSearchResults {
-		/// Ranked knowledge hits.
+		/// Matching document chunks.
 		hits: Vec<KnowledgeHit>,
 	},
 }
@@ -329,153 +370,152 @@ pub enum ResponsePayload {
 /// Search hit for a knowledge query.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct KnowledgeHit {
-	/// Canonical URI for the document.
+	/// source document URI.
 	pub uri: String,
-	/// Start offset (character index) of the hit.
+	/// Start offset in characters.
 	pub start_char: u64,
-	/// End offset (character index) of the hit.
+	/// End offset in characters.
 	pub end_char: u64,
-	/// BM25 relevance score.
+	/// Relevance score.
 	pub score: f64,
-	/// Preview text snippet for display.
+	/// Text preview fragment.
 	pub preview: String,
 }
 
-/// Error codes for broker operations.
+/// Error codes for broker protocol operations.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ErrorCode {
-	/// Generic internal error.
+	/// Unspecified internal broker error.
 	Internal,
-	/// Unknown request type.
+	/// Request variant not recognized.
 	UnknownRequest,
-	/// Invalid arguments.
+	/// Payload contains malformed or missing arguments.
 	InvalidArgs,
-	/// Server not found.
+	/// The specified LSP server is not running.
 	ServerNotFound,
-	/// Rate limited.
+	/// Too many requests from this session.
 	RateLimited,
-	/// Authentication failed.
+	/// Authentication failed or session ID mismatch.
 	AuthFailed,
-	/// Feature not implemented.
+	/// Feature not supported in this broker build.
 	NotImplemented,
-	/// Request timed out.
+	/// Operation timed out before completion.
 	Timeout,
-	/// Request not found (e.g., reply to non-existent or already-cancelled request).
+	/// The referenced request ID was not found.
 	RequestNotFound,
-	/// Session is not the preferred owner for the document.
-	///
-	/// Returned when a session attempts to edit a shared document while another
-	/// session is marked as the preferred owner.
+
+	/// Edit rejected: session is not the current writer.
 	NotPreferredOwner,
-	/// Document is not open.
-	///
-	/// Returned when an operation requires `textDocument/didOpen` to have been called first.
+	/// The document URI is not open in this broker.
 	DocNotOpen,
-	/// Shared document sequence number mismatch.
-	///
-	/// The submitted delta's `base_seq` does not match the broker's current sequence.
-	/// The client should request a resync.
+
+	/// Edit rejected: sequence number mismatch (stale base).
 	SyncSeqMismatch,
-	/// Shared document epoch mismatch.
-	///
-	/// The submitted delta targets a stale ownership epoch.
+	/// Edit rejected: ownership epoch mismatch.
 	SyncEpochMismatch,
-	/// Shared document not found.
-	///
-	/// The URI has no active sync document entry.
+
+	/// Edit rejected: content fingerprint mismatch (diverged).
+	SyncFingerprintMismatch,
+
+	/// The document was not found in the sync manager.
 	SyncDocNotFound,
-	/// Shared edit delta is malformed or out of bounds.
+	/// The provided WireTx is malformed or violates constraints.
 	InvalidDelta,
-	/// Owner must resync before publishing deltas.
+	/// Owner is blocked until alignment (Focus/Resync).
 	OwnerNeedsResync,
-	/// No undo history available.
+	/// History stack is empty.
 	NothingToUndo,
-	/// No redo history available.
+	/// Redo stack is empty.
 	NothingToRedo,
 }
 
-/// Async event from broker to editor (no response expected).
+/// Asynchronous async event from broker to editor.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum Event {
-	/// Periodic heartbeat.
+	/// Periodic heartbeat to keep connection alive.
 	Heartbeat,
-	/// LSP diagnostics received.
+
+	/// Diagnostics published by an LSP server.
 	LspDiagnostics {
 		/// Source server.
 		server_id: ServerId,
-		/// Target document ID (if known to broker).
-		///
-		/// Optional because diagnostics may arrive before the document
-		/// is registered via `didOpen`, or after all sessions close it.
+		/// Local document ID, if known.
 		doc_id: Option<DocId>,
 		/// Document URI.
 		uri: String,
-		/// Document version from LSP server's publishDiagnostics payload.
-		///
-		/// Optional because the LSP protocol does not require servers
-		/// to include a version field in diagnostic notifications.
+		/// Document version.
 		version: Option<u32>,
-		/// Diagnostics (serialized JSON).
+		/// Raw LSP diagnostic payload.
 		diagnostics: String,
 	},
-	/// LSP server status changed.
+	/// Status change for an LSP server.
 	LspStatus {
-		/// The LSP server.
+		/// Source server.
 		server_id: ServerId,
 		/// New status.
 		status: LspServerStatus,
 	},
-	/// LSP message received from server (asynchronously).
+	/// Notification from an LSP server.
 	LspMessage {
 		/// Source server.
 		server_id: ServerId,
-		/// The LSP message (JSON-RPC string).
+		/// Raw LSP JSON-RPC message.
 		message: String,
 	},
-	/// LSP request received from server (requires response via LspReply).
+	/// Request from an LSP server.
 	LspRequest {
 		/// Source server.
 		server_id: ServerId,
-		/// The LSP request (JSON-RPC string).
+		/// Raw LSP JSON-RPC message.
 		message: String,
 	},
-	/// A shared edit delta broadcast from the broker.
+
+	/// delta broadcast to followers of a shared document.
 	SharedDelta {
 		/// Document URI.
 		uri: String,
-		/// Ownership epoch.
+		/// Authority era.
 		epoch: SyncEpoch,
-		/// New sequence number after this delta.
+		/// New authoritative sequence.
 		seq: SyncSeq,
-		/// The edit transaction.
+		/// Kind of mutation applied.
+		kind: SharedApplyKind,
+		/// The delta transaction.
 		tx: WireTx,
+		/// Session that originated the edit.
+		origin: SessionId,
+		/// Post-apply content hash.
+		hash64: u64,
+		/// Post-apply content length.
+		len_chars: u64,
 	},
-	/// Shared document ownership changed.
+
+	/// authority has changed for a document.
 	SharedOwnerChanged {
-		/// Canonical snapshot of the document state.
+		/// New authoritative state.
 		snapshot: DocStateSnapshot,
 	},
-	/// Shared document preferred owner changed.
+	/// focus has changed for a document.
 	SharedPreferredOwnerChanged {
-		/// Canonical snapshot of the document state.
+		/// New authoritative state.
 		snapshot: DocStateSnapshot,
 	},
-	/// Shared document unlocked ("up-for-grabs" with no current owner).
+	/// Ownership released for a document.
 	SharedUnlocked {
-		/// Canonical snapshot of the document state.
+		/// New authoritative state.
 		snapshot: DocStateSnapshot,
 	},
 }
 
-/// Status of an LSP server.
+/// Operational status of an LSP server instance.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum LspServerStatus {
-	/// Server is starting up.
+	/// Server is initializing.
 	Starting,
-	/// Server is running and ready.
+	/// Server is active and responding.
 	Running,
-	/// Server has stopped.
+	/// Server exited gracefully.
 	Stopped,
-	/// Server crashed.
+	/// Server terminated unexpectedly.
 	Crashed,
 }

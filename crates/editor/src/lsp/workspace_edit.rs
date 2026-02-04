@@ -1,4 +1,7 @@
 //! LSP workspace edit planning and application.
+//!
+//! Provides utilities for translating complex [`WorkspaceEdit`] payloads into
+//! validated, executable plans that can be applied to local editor buffers.
 
 use std::collections::{HashMap, HashSet};
 use std::ops::Range;
@@ -18,43 +21,65 @@ use crate::impls::{Editor, EditorUndoGroup};
 
 /// A validated, ready-to-apply workspace edit plan.
 pub struct WorkspaceEditPlan {
+	/// List of individual buffer edit plans.
 	pub per_buffer: Vec<BufferEditPlan>,
 }
 
 impl WorkspaceEditPlan {
+	/// Returns all buffer identifiers affected by this plan.
 	pub fn affected_buffer_ids(&self) -> Vec<ViewId> {
 		self.per_buffer.iter().map(|p| p.buffer_id).collect()
 	}
 }
 
+/// Execution plan for a single buffer.
 pub struct BufferEditPlan {
+	/// Target buffer identifier.
 	pub buffer_id: ViewId,
+	/// Set of non-overlapping text edits.
 	pub edits: Vec<PlannedTextEdit>,
+	/// Whether the buffer was opened specifically for this edit.
 	pub opened_temporarily: bool,
 }
 
+/// A single text replacement for a character range.
 pub struct PlannedTextEdit {
+	/// Character range to replace.
 	pub range: Range<CharIdx>,
+	/// New text content.
 	pub replacement: Tendril,
 }
 
+/// Errors occurring during workspace edit planning or application.
 #[derive(Debug, Error)]
 pub enum ApplyError {
+	/// The provided URI could not be normalized to a local path.
 	#[error("invalid uri: {0}")]
 	InvalidUri(String),
+	/// The workspace edit contains an operation variant not supported.
 	#[error("unsupported workspace edit operation")]
 	UnsupportedOperation,
+	/// The target document could not be found or opened.
 	#[error("buffer not found for uri: {0}")]
 	BufferNotFound(String),
+	/// Range coordinates could not be mapped to character offsets.
 	#[error("failed to convert text edit range for {0}")]
 	RangeConversionFailed(String),
+	/// Multiple edits target the same document region.
 	#[error("overlapping edits for {0}")]
 	OverlappingEdits(String),
+	/// The target buffer is read-only or blocked by synchronization.
 	#[error("read-only buffer for {0}")]
 	ReadOnly(String),
 }
 
 impl Editor {
+	/// Atomically applies a workspace edit across multiple buffers.
+	///
+	/// # Errors
+	///
+	/// Returns [`ApplyError`] if any part of the edit plan is invalid or if
+	/// application to a buffer fails.
 	pub async fn apply_workspace_edit(&mut self, edit: WorkspaceEdit) -> Result<(), ApplyError> {
 		let plan = self.plan_workspace_edit(edit).await?;
 		if plan.per_buffer.is_empty() {
@@ -72,11 +97,11 @@ impl Editor {
 		Ok(())
 	}
 
+	/// Validates and converts a [`WorkspaceEdit`] into an executable plan.
 	async fn plan_workspace_edit(
 		&mut self,
 		edit: WorkspaceEdit,
 	) -> Result<WorkspaceEditPlan, ApplyError> {
-		// Use String keys to avoid clippy::mutable_key_type warning for Uri
 		let mut per_uri: HashMap<String, (Uri, Vec<TextEdit>)> = HashMap::new();
 		if let Some(changes) = edit.changes {
 			for (uri, edits) in changes {
@@ -120,6 +145,7 @@ impl Editor {
 				.buffers
 				.get_buffer(buffer_id)
 				.ok_or_else(|| ApplyError::BufferNotFound(uri.to_string()))?;
+
 			let encoding = self.state.lsp.offset_encoding_for_buffer(buffer);
 			let mut planned_edits = Vec::new();
 			for edit in edits {
@@ -128,6 +154,7 @@ impl Editor {
 					.ok_or_else(|| ApplyError::RangeConversionFailed(uri.to_string()))?;
 				planned_edits.push(planned);
 			}
+
 			coalesce_and_validate(&mut planned_edits, &uri)?;
 			per_buffer.push(BufferEditPlan {
 				buffer_id,
@@ -177,7 +204,7 @@ impl Editor {
 	fn begin_workspace_edit_group(&mut self, plan: &WorkspaceEditPlan) {
 		let mut seen_docs = HashSet::new();
 		let mut affected_docs = Vec::new();
-		let mut all_view_snapshots = std::collections::HashMap::new();
+		let mut all_view_snapshots = HashMap::new();
 
 		for buffer_plan in &plan.per_buffer {
 			let Some(buffer) = self.state.core.buffers.get_buffer(buffer_plan.buffer_id) else {
@@ -190,7 +217,7 @@ impl Editor {
 			}
 			affected_docs.push(doc_id);
 
-			let snapshots: std::collections::HashMap<_, _> = self
+			let snapshots: HashMap<_, _> = self
 				.state
 				.core
 				.buffers
@@ -208,6 +235,7 @@ impl Editor {
 		});
 	}
 
+	/// Executes the edit plan for a specific buffer.
 	pub(crate) fn apply_buffer_edit_plan(
 		&mut self,
 		plan: &BufferEditPlan,
@@ -322,6 +350,7 @@ impl Editor {
 	}
 }
 
+/// Converts an LSP [`TextEdit`] into a character-offset based [`PlannedTextEdit`].
 pub(crate) fn convert_text_edit(
 	rope: &xeno_primitives::Rope,
 	encoding: OffsetEncoding,
@@ -334,6 +363,11 @@ pub(crate) fn convert_text_edit(
 	})
 }
 
+/// Sorts, coalesces adjacent, and validates that edits do not overlap.
+///
+/// # Errors
+///
+/// Returns [`ApplyError::OverlappingEdits`] if any edits target intersecting regions.
 pub(crate) fn coalesce_and_validate(
 	edits: &mut Vec<PlannedTextEdit>,
 	uri: &Uri,

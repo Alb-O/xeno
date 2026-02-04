@@ -1,4 +1,8 @@
 //! Broker-owned history store for shared documents.
+//!
+//! Implements a branching history graph backed by `helix-db`. This store manages
+//! the persistence of document states, including snapshots and deltas, enabling
+//! authoritative undo/redo coordination across multiple editor sessions.
 
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
@@ -21,11 +25,14 @@ use crate::wire_convert;
 
 const LABEL_SHARED_DOC: &str = "SharedDoc";
 const LABEL_HISTORY_NODE: &str = "HistoryNode";
-const INDEX_SHARED_URI: &str = "uri";
+const INDEX_SHARED_URI: &str = "shared_uri";
 const INDEX_NODE_KEY: &str = "node_key";
-const INDEX_DOC_URI: &str = "doc_uri";
+const INDEX_DOC_URI: &str = "history_uri";
 
-/// History store backed by helix-db.
+/// How many edits to compact into a new root per checkpoint.
+const CHECKPOINT_STRIDE: usize = 25;
+
+/// Persistent history store utilizing a graph database for document state tracking.
 pub struct HistoryStore {
 	storage: Arc<HelixGraphStorage>,
 }
@@ -37,6 +44,14 @@ impl HistoryStore {
 	}
 
 	/// Loads an existing document from storage, if present.
+	///
+	/// Reconstructs the authoritative [`Rope`] by traversing the history graph
+	/// from the root checkpoint to the current head node.
+	///
+	/// # Errors
+	///
+	/// Returns [`HistoryError::Corrupt`] if the history graph contains cycles,
+	/// missing nodes, or multiple roots.
 	pub fn load_doc(&self, uri: &str) -> Result<Option<StoredDoc>, HistoryError> {
 		let arena = Bump::new();
 		let txn = self.storage.graph_env.read_txn()?;
@@ -56,6 +71,7 @@ impl HistoryStore {
 		let root = nodes
 			.get(&doc.root_node_id)
 			.ok_or_else(|| HistoryError::Corrupt(format!("missing root node for {uri}")))?;
+
 		if !root.is_root {
 			return Err(HistoryError::Corrupt(format!(
 				"root node missing is_root flag for {uri}"
@@ -95,7 +111,211 @@ impl HistoryStore {
 		}))
 	}
 
-	/// Creates a new document entry with an initial root node.
+	/// Loads a document if it exists; otherwise creates it.
+	///
+	/// Returns `(doc, created)` where `created=true` means a fresh history graph was created.
+	/// Automatically attempts to repair orphaned history nodes if the metadata record is
+	/// missing but deltas exist.
+	///
+	/// # Errors
+	///
+	/// Returns [`HistoryError`] if storage operations fail or if the graph is
+	/// unrecoverably corrupt.
+	pub fn load_or_create_doc(
+		&self,
+		uri: &str,
+		rope: &Rope,
+		epoch: SyncEpoch,
+		seq: SyncSeq,
+		hash64: u64,
+		len_chars: u64,
+	) -> Result<(StoredDoc, bool), HistoryError> {
+		if let Some(existing) = self.load_doc(uri)? {
+			return Ok((existing, false));
+		}
+
+		if let Some(repaired) = self.repair_orphaned_doc(uri, epoch, seq)? {
+			return Ok((repaired, false));
+		}
+
+		match self.create_doc(uri, rope, epoch, seq, hash64, len_chars) {
+			Ok(created) => Ok((created, true)),
+			Err(err) if err.is_duplicate_key() => {
+				if let Some(existing) = self.load_doc(uri)? {
+					Ok((existing, false))
+				} else {
+					self.repair_orphaned_doc(uri, epoch, seq)?
+						.map(|r| (r, false))
+						.ok_or(err)
+				}
+			}
+			Err(err) => Err(err),
+		}
+	}
+
+	/// Attempts to reconstruct document metadata from existing history nodes.
+	///
+	/// Analyzes orphaned [`LABEL_HISTORY_NODE`]s to identify the root checkpoint
+	/// and the most recent branch head. If successful, writes a new [`LABEL_SHARED_DOC`]
+	/// to restore graph connectivity.
+	///
+	/// If the document graph is found to be unrecoverably corrupt (e.g. cycle detected),
+	/// this method purges the broken nodes to permit a clean re-initialization.
+	fn repair_orphaned_doc(
+		&self,
+		uri: &str,
+		epoch: SyncEpoch,
+		seq: SyncSeq,
+	) -> Result<Option<StoredDoc>, HistoryError> {
+		let arena = Bump::new();
+		let txn = self.storage.graph_env.read_txn()?;
+		let nodes = load_history_nodes(&self.storage, &txn, &arena, uri)?;
+		if nodes.is_empty() {
+			return Ok(None);
+		}
+
+		tracing::info!(?uri, count = nodes.len(), "attempting history graph repair");
+
+		let roots: Vec<_> = nodes.values().filter(|n| n.is_root).collect();
+		if roots.len() != 1 {
+			tracing::warn!(
+				?uri,
+				roots = roots.len(),
+				"graph repair failed: invalid root count; purging nodes"
+			);
+			drop(txn);
+			self.purge_doc_history(uri)?;
+			return Ok(None);
+		}
+		let root = roots[0];
+
+		let mut children_map: HashMap<u64, Vec<u64>> = HashMap::new();
+		for node in nodes.values() {
+			if !node.is_root {
+				children_map
+					.entry(node.parent_id)
+					.or_default()
+					.push(node.node_id);
+			}
+		}
+
+		let head_id = {
+			let mut leaves: Vec<_> = nodes
+				.values()
+				.filter(|n| !children_map.contains_key(&n.node_id))
+				.collect();
+			leaves.sort_by_key(|n| n.node_id);
+			leaves.last().map(|n| n.node_id).unwrap_or(root.node_id)
+		};
+		let max_node_id = nodes.keys().copied().max().unwrap_or(head_id);
+
+		let mut chain = Vec::new();
+		let mut current = head_id;
+		let mut seen = HashSet::new();
+
+		while current != root.node_id {
+			if !seen.insert(current) {
+				tracing::warn!(?uri, "graph repair failed: cycle detected; purging nodes");
+				drop(txn);
+				self.purge_doc_history(uri)?;
+				return Ok(None);
+			}
+			let node = nodes.get(&current).ok_or_else(|| {
+				HistoryError::Corrupt(format!("missing node {current} for {uri}"))
+			})?;
+			chain.push(node.clone());
+			current = node.parent_id;
+		}
+
+		let mut rope = Rope::from(root.root_text.as_str());
+		for node in chain.iter().rev() {
+			let redo = node.redo_tx()?;
+			apply_wire_tx(&mut rope, &redo)?;
+		}
+
+		let (len_chars, hash64) = xeno_broker_proto::fingerprint_rope(&rope);
+		let meta = HistoryMeta {
+			head_id,
+			root_id: root.node_id,
+			next_id: max_node_id.saturating_add(1),
+			history_nodes: nodes.len() as u64,
+		};
+
+		drop(txn);
+		let mut wtxn = self.storage.graph_env.write_txn()?;
+		upsert_shared_doc(
+			&self.storage,
+			&mut wtxn,
+			&arena,
+			uri,
+			epoch,
+			seq,
+			hash64,
+			len_chars,
+			&meta,
+		)?;
+		wtxn.commit()?;
+
+		tracing::info!(?uri, head = head_id, "history graph repair successful");
+
+		Ok(Some(StoredDoc {
+			meta,
+			epoch,
+			seq,
+			len_chars,
+			hash64,
+			rope,
+		}))
+	}
+
+	/// Deletes all history nodes and document metadata for a URI.
+	///
+	/// # Errors
+	///
+	/// Returns [`HistoryError`] if storage traversal or deletion fails.
+	pub fn purge_doc_history(&self, uri: &str) -> Result<(), HistoryError> {
+		let arena = Bump::new();
+		let mut txn = self.storage.graph_env.write_txn()?;
+		let key_new = shared_doc_key(uri);
+		let key_old = uri.to_string();
+
+		let mut to_drop = Vec::new();
+		for key in [&key_new, &key_old] {
+			for entry in G::new(&self.storage, &txn, &arena).n_from_index(
+				LABEL_SHARED_DOC,
+				INDEX_SHARED_URI,
+				key,
+			) {
+				if let Ok(TraversalValue::Node(node)) = entry {
+					to_drop.push(Ok(TraversalValue::Node(node)));
+				}
+			}
+		}
+
+		for entry in G::new(&self.storage, &txn, &arena).n_from_index(
+			LABEL_HISTORY_NODE,
+			INDEX_DOC_URI,
+			&uri.to_string(),
+		) {
+			if let Ok(TraversalValue::Node(node)) = entry {
+				to_drop.push(Ok(TraversalValue::Node(node)));
+			}
+		}
+
+		if !to_drop.is_empty() {
+			Drop::drop_traversal(to_drop.into_iter(), &self.storage, &mut txn)?;
+		}
+
+		txn.commit()?;
+		Ok(())
+	}
+
+	/// Creates a new document entry with an initial root checkpoint.
+	///
+	/// # Errors
+	///
+	/// Returns [`HistoryError`] if storage already contains a record for this URI
+	/// or if serialization fails.
 	pub fn create_doc(
 		&self,
 		uri: &str,
@@ -155,8 +375,18 @@ impl HistoryStore {
 		})
 	}
 
-	/// Appends a new history node for an edit and updates document metadata.
-	pub fn append_edit(
+	/// Appends a new history node and triggers periodic checkpoint compaction.
+	///
+	/// Performs three operations in a single transaction:
+	/// 1. Inserts the new delta node.
+	/// 2. Prunes inactive redo branches.
+	/// 3. Materializes a new root checkpoint if linear ancestry exceeds [`MAX_HISTORY_NODES`].
+	///
+	/// # Errors
+	///
+	/// Returns [`HistoryError`] if persistence or traversal fails. The in-memory
+	/// metadata is only updated if the transaction successfully commits.
+	pub fn append_edit_with_checkpoint(
 		&self,
 		uri: &str,
 		meta: &mut HistoryMeta,
@@ -171,8 +401,9 @@ impl HistoryStore {
 		let arena = Bump::new();
 		let mut txn = self.storage.graph_env.write_txn()?;
 
-		let node_id = meta.next_id;
-		let parent_id = meta.head_id;
+		let mut new_meta = meta.clone();
+		let node_id = new_meta.next_id;
+		let parent_id = new_meta.head_id;
 
 		upsert_history_node(
 			&self.storage,
@@ -189,15 +420,24 @@ impl HistoryStore {
 			String::new(),
 		)?;
 
-		meta.head_id = node_id;
-		meta.next_id = meta.next_id.saturating_add(1);
-		meta.history_nodes = meta.history_nodes.saturating_add(1);
+		new_meta.head_id = node_id;
+		new_meta.next_id = new_meta.next_id.saturating_add(1);
+		new_meta.history_nodes = new_meta.history_nodes.saturating_add(1);
 
-		if meta.history_nodes as usize > max_nodes {
-			let removed =
-				prune_history_nodes(&self.storage, &mut txn, &arena, uri, meta, max_nodes)?;
-			meta.history_nodes = meta.history_nodes.saturating_sub(removed);
-		}
+		let removed_branches =
+			prune_cleared_branches(&self.storage, &mut txn, &arena, uri, &new_meta)?;
+		new_meta.history_nodes = new_meta.history_nodes.saturating_sub(removed_branches);
+
+		let removed_linear = checkpoint_compact_linear(
+			&self.storage,
+			&mut txn,
+			&arena,
+			uri,
+			&mut new_meta,
+			max_nodes,
+			CHECKPOINT_STRIDE,
+		)?;
+		new_meta.history_nodes = new_meta.history_nodes.saturating_sub(removed_linear);
 
 		upsert_shared_doc(
 			&self.storage,
@@ -208,10 +448,11 @@ impl HistoryStore {
 			seq,
 			hash64,
 			len_chars,
-			meta,
+			&new_meta,
 		)?;
 
 		txn.commit()?;
+		*meta = new_meta;
 		Ok(())
 	}
 
@@ -267,7 +508,7 @@ impl HistoryStore {
 		Ok(Some((node_id, node.redo_tx()?)))
 	}
 
-	/// Persists updated document metadata after undo/redo.
+	/// Persists updated document metadata after an undo/redo transition.
 	pub fn update_doc_state(
 		&self,
 		uri: &str,
@@ -338,6 +579,14 @@ pub enum HistoryError {
 	InvalidDelta,
 	/// History graph is missing required nodes or contains cycles.
 	Corrupt(String),
+}
+
+impl HistoryError {
+	/// Returns true if the underlying storage error is a duplicate-key insert (LMDB MDB_KEYEXIST).
+	pub fn is_duplicate_key(&self) -> bool {
+		let s = self.to_string();
+		s.contains("MDB_KEYEXIST") || s.contains("KEYEXIST") || s.contains("Duplicate key")
+	}
 }
 
 impl std::fmt::Display for HistoryError {
@@ -424,26 +673,66 @@ fn node_key(uri: &str, node_id: u64) -> String {
 	format!("{uri}#{node_id}")
 }
 
+fn shared_doc_key(uri: &str) -> String {
+	format!("shared::{uri}")
+}
+
+/// Drop all nodes for (label,index,key). Safe if empty.
+fn drop_by_index<'a>(
+	storage: &'a HelixGraphStorage,
+	txn: &mut RwTxn<'a>,
+	arena: &Bump,
+	label: &str,
+	index: &str,
+	key: &str,
+) -> Result<(), HistoryError> {
+	let key_s = key.to_string();
+	let mut to_drop: Vec<Result<TraversalValue<'_>, EngineError>> = Vec::new();
+
+	for entry in G::new(storage, txn, arena).n_from_index(label, index, &key_s) {
+		let tv = entry?;
+		if let TraversalValue::Node(node) = tv {
+			to_drop.push(Ok(TraversalValue::Node(node)));
+		}
+	}
+
+	if !to_drop.is_empty() {
+		Drop::drop_traversal(to_drop.into_iter(), storage, txn)?;
+	}
+	Ok(())
+}
+
 fn find_shared_doc(
 	storage: &HelixGraphStorage,
 	txn: &RoTxn,
 	arena: &Bump,
 	uri: &str,
 ) -> Result<Option<SharedDocRecord>, HistoryError> {
-	let key = uri.to_string();
-	for entry in G::new(storage, txn, arena).n_from_index(LABEL_SHARED_DOC, INDEX_SHARED_URI, &key)
-	{
-		if let Ok(TraversalValue::Node(node)) = entry {
-			let epoch = get_u64(&node, "epoch")
+	let key_new = shared_doc_key(uri);
+	let key_old = uri.to_string();
+
+	for key in [&key_new, &key_old] {
+		for entry in
+			G::new(storage, txn, arena).n_from_index(LABEL_SHARED_DOC, INDEX_SHARED_URI, key)
+		{
+			let tv = entry?;
+			let TraversalValue::Node(node) = tv else {
+				continue;
+			};
+
+			let epoch = get_u64_lossless(&node, "epoch")
 				.map(SyncEpoch)
 				.unwrap_or(SyncEpoch(1));
-			let seq = get_u64(&node, "seq").map(SyncSeq).unwrap_or(SyncSeq(0));
-			let len_chars = get_u64(&node, "len_chars").unwrap_or(0);
-			let hash64 = get_u64(&node, "hash64").unwrap_or(0);
-			let head_node_id = get_u64(&node, "head_node_id").unwrap_or(1);
-			let root_node_id = get_u64(&node, "root_node_id").unwrap_or(1);
-			let next_node_id = get_u64(&node, "next_node_id").unwrap_or(2);
-			let history_nodes = get_u64(&node, "history_nodes").unwrap_or(1);
+			let seq = get_u64_lossless(&node, "seq")
+				.map(SyncSeq)
+				.unwrap_or(SyncSeq(0));
+			let len_chars = get_u64_lossless(&node, "len_chars").unwrap_or(0);
+			let hash64 = get_u64_lossless(&node, "hash64").unwrap_or(0);
+			let head_node_id = get_u64_lossless(&node, "head_node_id").unwrap_or(1);
+			let root_node_id = get_u64_lossless(&node, "root_node_id").unwrap_or(1);
+			let next_node_id = get_u64_lossless(&node, "next_node_id").unwrap_or(2);
+			let history_nodes = get_u64_lossless(&node, "history_nodes").unwrap_or(1);
+
 			return Ok(Some(SharedDocRecord {
 				epoch,
 				seq,
@@ -469,9 +758,11 @@ fn find_history_node(
 	let key = node_key(uri, node_id);
 	for entry in G::new(storage, txn, arena).n_from_index(LABEL_HISTORY_NODE, INDEX_NODE_KEY, &key)
 	{
-		if let Ok(TraversalValue::Node(node)) = entry {
-			return Ok(Some(parse_history_node(&node)));
-		}
+		let tv = entry?;
+		let TraversalValue::Node(node) = tv else {
+			continue;
+		};
+		return Ok(Some(parse_history_node(&node)));
 	}
 	Ok(None)
 }
@@ -485,17 +776,19 @@ fn load_history_nodes(
 	let mut nodes = HashMap::new();
 	let key = uri.to_string();
 	for entry in G::new(storage, txn, arena).n_from_index(LABEL_HISTORY_NODE, INDEX_DOC_URI, &key) {
-		if let Ok(TraversalValue::Node(node)) = entry {
-			let record = parse_history_node(&node);
-			nodes.insert(record.node_id, record);
-		}
+		let tv = entry?;
+		let TraversalValue::Node(node) = tv else {
+			continue;
+		};
+		let record = parse_history_node(&node);
+		nodes.insert(record.node_id, record);
 	}
 	Ok(nodes)
 }
 
 fn parse_history_node(node: &Node<'_>) -> HistoryNodeRecord {
-	let node_id = get_u64(node, "node_id").unwrap_or(0);
-	let parent_id = get_u64(node, "parent_id").unwrap_or(0);
+	let node_id = get_u64_lossless(node, "node_id").unwrap_or(0);
+	let parent_id = get_u64_lossless(node, "parent_id").unwrap_or(0);
 	let redo_tx_raw = get_string(node, "redo_tx").unwrap_or_default();
 	let undo_tx_raw = get_string(node, "undo_tx").unwrap_or_default();
 	let is_root = get_bool(node, "is_root").unwrap_or(false);
@@ -521,8 +814,28 @@ fn upsert_shared_doc<'a>(
 	len_chars: u64,
 	meta: &HistoryMeta,
 ) -> Result<(), HistoryError> {
+	let key_new = shared_doc_key(uri);
+	let key_old = uri;
+
+	drop_by_index(
+		storage,
+		txn,
+		arena,
+		LABEL_SHARED_DOC,
+		INDEX_SHARED_URI,
+		&key_new,
+	)?;
+	drop_by_index(
+		storage,
+		txn,
+		arena,
+		LABEL_SHARED_DOC,
+		INDEX_SHARED_URI,
+		key_old,
+	)?;
+
 	let props = vec![
-		("uri", Value::String(uri.to_string())),
+		("shared_uri", Value::String(key_new)),
 		("epoch", Value::U64(epoch.0)),
 		("seq", Value::U64(seq.0)),
 		("len_chars", Value::U64(len_chars)),
@@ -558,7 +871,7 @@ fn upsert_history_node<'a>(
 
 	let props = vec![
 		("node_key", Value::String(node_key(uri, node_id))),
-		("doc_uri", Value::String(uri.to_string())),
+		("history_uri", Value::String(uri.to_string())),
 		("node_id", Value::U64(node_id)),
 		("parent_id", Value::U64(parent_id)),
 		("redo_tx", Value::String(redo_tx_raw)),
@@ -575,20 +888,19 @@ fn upsert_history_node<'a>(
 	Ok(())
 }
 
-fn prune_history_nodes<'a>(
+fn prune_cleared_branches<'a>(
 	storage: &'a HelixGraphStorage,
 	txn: &mut RwTxn<'a>,
 	arena: &Bump,
 	uri: &str,
 	meta: &HistoryMeta,
-	max_nodes: usize,
 ) -> Result<u64, HistoryError> {
 	let mut entries = Vec::new();
 	let key = uri.to_string();
 	for entry in G::new(storage, txn, arena).n_from_index(LABEL_HISTORY_NODE, INDEX_DOC_URI, &key) {
 		if let Ok(TraversalValue::Node(node)) = entry {
-			let node_id = get_u64(&node, "node_id").unwrap_or(0);
-			let parent_id = get_u64(&node, "parent_id").unwrap_or(0);
+			let node_id = get_u64_lossless(&node, "node_id").unwrap_or(0);
+			let parent_id = get_u64_lossless(&node, "parent_id").unwrap_or(0);
 			entries.push((node_id, parent_id, TraversalValue::Node(node)));
 		}
 	}
@@ -611,26 +923,136 @@ fn prune_history_nodes<'a>(
 	}
 	ancestry.insert(meta.root_id);
 
-	let mut candidates: Vec<_> = entries
+	let candidates: Vec<_> = entries
 		.into_iter()
 		.filter(|(node_id, _, _)| !ancestry.contains(node_id))
 		.collect();
-	candidates.sort_by_key(|(node_id, _, _)| *node_id);
 
-	let mut removed = 0_u64;
-	let mut remaining_to_remove = (meta.history_nodes as usize).saturating_sub(max_nodes);
-	if remaining_to_remove == 0 {
+	let removed = candidates.len() as u64;
+	if !candidates.is_empty() {
+		let to_drop = candidates
+			.into_iter()
+			.map(|(_, _, tv)| Ok::<TraversalValue<'_>, EngineError>(tv));
+		Drop::drop_traversal(to_drop, storage, txn)?;
+	}
+
+	Ok(removed)
+}
+
+fn checkpoint_compact_linear<'a>(
+	storage: &'a HelixGraphStorage,
+	txn: &mut RwTxn<'a>,
+	arena: &Bump,
+	uri: &str,
+	meta: &mut HistoryMeta,
+	max_nodes: usize,
+	stride: usize,
+) -> Result<u64, HistoryError> {
+	if max_nodes < 2 {
 		return Ok(0);
 	}
 
-	let mut to_drop = Vec::new();
-	for (_, _, traversal) in candidates {
-		if remaining_to_remove == 0 {
+	let key = uri.to_string();
+	let mut nodes: HashMap<u64, (HistoryNodeRecord, TraversalValue)> = HashMap::new();
+	for entry in G::new(storage, txn, arena).n_from_index(LABEL_HISTORY_NODE, INDEX_DOC_URI, &key) {
+		if let Ok(TraversalValue::Node(node)) = entry {
+			let rec = parse_history_node(&node);
+			nodes.insert(rec.node_id, (rec, TraversalValue::Node(node)));
+		}
+	}
+
+	let root_id = meta.root_id;
+	let head_id = meta.head_id;
+
+	let mut chain_rev: Vec<u64> = Vec::new();
+	let mut cur = head_id;
+	let mut seen = HashSet::new();
+	while cur != 0 && seen.insert(cur) {
+		chain_rev.push(cur);
+		if cur == root_id {
 			break;
 		}
-		to_drop.push(Ok(traversal));
-		remaining_to_remove -= 1;
-		removed += 1;
+		let Some((rec, _)) = nodes.get(&cur) else {
+			break;
+		};
+		cur = rec.parent_id;
+	}
+
+	if chain_rev.last().copied() != Some(root_id) {
+		return Ok(0);
+	}
+
+	let chain_len = chain_rev.len();
+	if chain_len <= max_nodes {
+		return Ok(0);
+	}
+
+	let overflow = chain_len.saturating_sub(max_nodes);
+	let mut compact = overflow.div_ceil(stride) * stride;
+	compact = compact.min(chain_len - 1);
+	if compact == 0 {
+		return Ok(0);
+	}
+
+	let new_root_idx_rev = chain_len - 1 - compact;
+	let new_root_id = chain_rev[new_root_idx_rev];
+
+	let old_root = nodes
+		.get(&root_id)
+		.map(|(r, _)| r.clone())
+		.ok_or_else(|| HistoryError::Corrupt(format!("missing root node for {uri}")))?;
+
+	if !old_root.is_root {
+		return Err(HistoryError::Corrupt(format!(
+			"root node missing is_root flag for {uri}"
+		)));
+	}
+
+	let mut rope = Rope::from(old_root.root_text.as_str());
+
+	for idx in (new_root_idx_rev..chain_len - 1).rev() {
+		let node_id = chain_rev[idx];
+		if node_id == root_id {
+			continue;
+		}
+		let (rec, _) = nodes
+			.get(&node_id)
+			.ok_or_else(|| HistoryError::Corrupt(format!("missing node {node_id} for {uri}")))?;
+		let redo = rec.redo_tx()?;
+		apply_wire_tx(&mut rope, &redo)?;
+	}
+
+	let new_root_text = rope.to_string();
+
+	upsert_history_node(
+		storage,
+		txn,
+		arena,
+		uri,
+		new_root_id,
+		0,
+		WireTx(Vec::new()),
+		WireTx(Vec::new()),
+		0,
+		0,
+		true,
+		new_root_text,
+	)?;
+
+	meta.root_id = new_root_id;
+
+	let mut to_drop: Vec<Result<TraversalValue, EngineError>> = Vec::new();
+	let mut removed = 0_u64;
+
+	for idx in (new_root_idx_rev + 1)..chain_len {
+		let node_id = chain_rev[idx];
+		if node_id == new_root_id {
+			continue;
+		}
+		if let Some((_, tv)) = nodes.get(&node_id) {
+			to_drop.push(Ok(tv.clone()));
+			removed += 1;
+		}
 	}
 
 	if !to_drop.is_empty() {
@@ -638,13 +1060,6 @@ fn prune_history_nodes<'a>(
 	}
 
 	Ok(removed)
-}
-
-fn get_u64(node: &Node<'_>, key: &str) -> Option<u64> {
-	match node.get_property(key) {
-		Some(Value::U64(value)) => Some(*value),
-		_ => None,
-	}
 }
 
 fn get_string(node: &Node<'_>, key: &str) -> Option<String> {
@@ -657,6 +1072,14 @@ fn get_string(node: &Node<'_>, key: &str) -> Option<String> {
 fn get_bool(node: &Node<'_>, key: &str) -> Option<bool> {
 	match node.get_property(key) {
 		Some(Value::Boolean(value)) => Some(*value),
+		_ => None,
+	}
+}
+
+fn get_u64_lossless(node: &Node<'_>, key: &str) -> Option<u64> {
+	match node.get_property(key) {
+		Some(Value::U64(value)) => Some(*value),
+		Some(Value::U128(value)) => u64::try_from(*value).ok(),
 		_ => None,
 	}
 }

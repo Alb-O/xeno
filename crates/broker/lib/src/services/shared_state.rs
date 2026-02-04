@@ -1,4 +1,9 @@
 //! Shared document state service with preferred-owner enforcement and idle unlocks.
+//!
+//! This actor manages the authoritative state of open documents within the broker.
+//! It coordinates multiple editor sessions using a "Preferred Owner Writes" model,
+//! where the focused editor is granted ownership and exclusive write access.
+//! Ownership is automatically released on idle, blur, or disconnect.
 
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex};
@@ -8,8 +13,8 @@ use ropey::Rope;
 use tokio::sync::{mpsc, oneshot};
 use tokio::time::{Duration, Instant, interval};
 use xeno_broker_proto::types::{
-	DocStateSnapshot, DocSyncPhase, ErrorCode, Event, ResponsePayload, SessionId, SyncEpoch,
-	SyncSeq, WireTx,
+	DocStateSnapshot, DocSyncPhase, ErrorCode, Event, ResponsePayload, SessionId, SharedApplyKind,
+	SyncEpoch, SyncNonce, SyncSeq, WireTx,
 };
 
 use crate::core::history::{HistoryMeta, HistoryStore};
@@ -51,22 +56,32 @@ pub enum SharedStateCmd {
 		/// Reply channel for confirmation.
 		reply: oneshot::Sender<Result<ResponsePayload, ErrorCode>>,
 	},
-	/// Apply an edit delta from the document owner.
-	Edit {
+	/// Apply a shared-state mutation (Edit/Undo/Redo) under preconditions.
+	///
+	/// Preconditions enforce that the caller is the current preferred owner
+	/// and that their local state is aligned with the broker's authoritative
+	/// epoch, sequence, and fingerprint.
+	Apply {
 		/// The session identity (must be owner).
 		sid: SessionId,
 		/// Canonical document URI.
 		uri: String,
+		/// Kind of mutation.
+		kind: SharedApplyKind,
 		/// Current ownership era.
 		epoch: SyncEpoch,
 		/// Base sequence number this delta applies to.
 		base_seq: SyncSeq,
-		/// The transaction data.
-		tx: WireTx,
-		/// Reply channel for the new sequence number.
+		/// Base hash precondition.
+		base_hash64: u64,
+		/// Base length precondition.
+		base_len_chars: u64,
+		/// The transaction data (required for Edit, None for Undo/Redo).
+		tx: Option<WireTx>,
+		/// Reply channel for the acknowledgment.
 		reply: oneshot::Sender<Result<ResponsePayload, ErrorCode>>,
 	},
-	/// Update activity timestamp for a document.
+	/// Update activity timestamp for a document to prevent idle unlock.
 	Activity {
 		/// The session identity.
 		sid: SessionId,
@@ -75,7 +90,7 @@ pub enum SharedStateCmd {
 		/// Reply channel for acknowledgment.
 		reply: oneshot::Sender<Result<ResponsePayload, ErrorCode>>,
 	},
-	/// Update focus status for a document.
+	/// Update focus status for a document with atomic ownership acquisition.
 	Focus {
 		/// The session identity.
 		sid: SessionId,
@@ -85,7 +100,13 @@ pub enum SharedStateCmd {
 		focused: bool,
 		/// Monotonic sequence number for focus transitions.
 		focus_seq: u64,
-		/// Reply channel for the updated snapshot.
+		/// Nonce for correlating the response.
+		nonce: SyncNonce,
+		/// Client's current hash for alignment check.
+		client_hash64: Option<u64>,
+		/// Client's current length for alignment check.
+		client_len_chars: Option<u64>,
+		/// Reply channel for the updated snapshot and optional repair text.
 		reply: oneshot::Sender<Result<ResponsePayload, ErrorCode>>,
 	},
 	/// Fetch a full snapshot of the authoritative document.
@@ -94,29 +115,13 @@ pub enum SharedStateCmd {
 		sid: SessionId,
 		/// Canonical document URI.
 		uri: String,
+		/// Nonce for correlating the response.
+		nonce: SyncNonce,
 		/// Optional hash of the client's current content.
 		client_hash64: Option<u64>,
 		/// Optional length of the client's current content.
 		client_len_chars: Option<u64>,
 		/// Reply channel for the full snapshot.
-		reply: oneshot::Sender<Result<ResponsePayload, ErrorCode>>,
-	},
-	/// Undo the last change for a document.
-	Undo {
-		/// The session identity (must be owner).
-		sid: SessionId,
-		/// Canonical document URI.
-		uri: String,
-		/// Reply channel for acknowledgment.
-		reply: oneshot::Sender<Result<ResponsePayload, ErrorCode>>,
-	},
-	/// Redo the last undone change for a document.
-	Redo {
-		/// The session identity (must be owner).
-		sid: SessionId,
-		/// Canonical document URI.
-		uri: String,
-		/// Reply channel for acknowledgment.
 		reply: oneshot::Sender<Result<ResponsePayload, ErrorCode>>,
 	},
 	/// Signal that a session has disconnected unexpectedly.
@@ -140,7 +145,7 @@ pub enum SharedStateCmd {
 	},
 }
 
-/// Handle for communicating with the [`SharedStateService`].
+/// Handle for communicating with the [`SharedStateService`] actor.
 #[derive(Clone, Debug)]
 pub struct SharedStateHandle {
 	tx: mpsc::Sender<SharedStateCmd>,
@@ -184,22 +189,28 @@ impl SharedStateHandle {
 		rx.await.map_err(|_| ErrorCode::Internal)?
 	}
 
-	/// Submits an edit delta.
-	pub async fn edit(
+	/// Submits an application request (Edit/Undo/Redo).
+	pub async fn apply(
 		&self,
 		sid: SessionId,
 		uri: String,
+		kind: SharedApplyKind,
 		epoch: SyncEpoch,
 		base_seq: SyncSeq,
-		tx: WireTx,
+		base_hash64: u64,
+		base_len_chars: u64,
+		tx: Option<WireTx>,
 	) -> Result<ResponsePayload, ErrorCode> {
 		let (reply, rx) = oneshot::channel();
 		self.tx
-			.send(SharedStateCmd::Edit {
+			.send(SharedStateCmd::Apply {
 				sid,
 				uri,
+				kind,
 				epoch,
 				base_seq,
+				base_hash64,
+				base_len_chars,
 				tx,
 				reply,
 			})
@@ -208,7 +219,7 @@ impl SharedStateHandle {
 		rx.await.map_err(|_| ErrorCode::Internal)?
 	}
 
-	/// Records local activity for a document.
+	/// Records local activity for a document to reset the idle timer.
 	pub async fn activity(
 		&self,
 		sid: SessionId,
@@ -229,6 +240,9 @@ impl SharedStateHandle {
 		uri: String,
 		focused: bool,
 		focus_seq: u64,
+		nonce: SyncNonce,
+		client_hash64: Option<u64>,
+		client_len_chars: Option<u64>,
 	) -> Result<ResponsePayload, ErrorCode> {
 		let (reply, rx) = oneshot::channel();
 		self.tx
@@ -237,26 +251,7 @@ impl SharedStateHandle {
 				uri,
 				focused,
 				focus_seq,
-				reply,
-			})
-			.await
-			.map_err(|_| ErrorCode::Internal)?;
-		rx.await.map_err(|_| ErrorCode::Internal)?
-	}
-
-	/// Requests full content snapshot.
-	pub async fn resync(
-		&self,
-		sid: SessionId,
-		uri: String,
-		client_hash64: Option<u64>,
-		client_len_chars: Option<u64>,
-	) -> Result<ResponsePayload, ErrorCode> {
-		let (reply, rx) = oneshot::channel();
-		self.tx
-			.send(SharedStateCmd::Resync {
-				sid,
-				uri,
+				nonce,
 				client_hash64,
 				client_len_chars,
 				reply,
@@ -266,27 +261,31 @@ impl SharedStateHandle {
 		rx.await.map_err(|_| ErrorCode::Internal)?
 	}
 
-	/// Requests undo for a shared document.
-	pub async fn undo(&self, sid: SessionId, uri: String) -> Result<ResponsePayload, ErrorCode> {
+	/// Requests full content snapshot for a diverged buffer.
+	pub async fn resync(
+		&self,
+		sid: SessionId,
+		uri: String,
+		nonce: SyncNonce,
+		client_hash64: Option<u64>,
+		client_len_chars: Option<u64>,
+	) -> Result<ResponsePayload, ErrorCode> {
 		let (reply, rx) = oneshot::channel();
 		self.tx
-			.send(SharedStateCmd::Undo { sid, uri, reply })
+			.send(SharedStateCmd::Resync {
+				sid,
+				uri,
+				nonce,
+				client_hash64,
+				client_len_chars,
+				reply,
+			})
 			.await
 			.map_err(|_| ErrorCode::Internal)?;
 		rx.await.map_err(|_| ErrorCode::Internal)?
 	}
 
-	/// Requests redo for a shared document.
-	pub async fn redo(&self, sid: SessionId, uri: String) -> Result<ResponsePayload, ErrorCode> {
-		let (reply, rx) = oneshot::channel();
-		self.tx
-			.send(SharedStateCmd::Redo { sid, uri, reply })
-			.await
-			.map_err(|_| ErrorCode::Internal)?;
-		rx.await.map_err(|_| ErrorCode::Internal)?
-	}
-
-	/// Cleans up a lost session.
+	/// Cleans up a lost session's state and ownership.
 	pub async fn session_lost(&self, sid: SessionId) {
 		let _ = self.tx.send(SharedStateCmd::SessionLost { sid }).await;
 	}
@@ -298,7 +297,7 @@ impl SharedStateHandle {
 		rx.await.ok().flatten()
 	}
 
-	/// Verifies if a document is tracked.
+	/// Verifies if a document is tracked in the broker.
 	pub async fn is_open(&self, uri: String) -> bool {
 		let (reply, rx) = oneshot::channel();
 		if self
@@ -313,7 +312,7 @@ impl SharedStateHandle {
 	}
 }
 
-/// State for a single synchronized document.
+/// State for a single synchronized document managed by the actor.
 #[derive(Debug)]
 struct SyncDocState {
 	/// Current owner session permitted to submit deltas.
@@ -345,6 +344,7 @@ struct SyncDocState {
 }
 
 impl SyncDocState {
+	/// Captures a static snapshot of the current document state.
 	fn snapshot(&self, uri: &str) -> DocStateSnapshot {
 		let phase = if self.owner.is_none() {
 			DocSyncPhase::Unlocked
@@ -365,12 +365,14 @@ impl SyncDocState {
 		}
 	}
 
+	/// Recalculates the fingerprint (hash and length) from the current rope.
 	fn update_fingerprint(&mut self) {
 		let (len, hash) = xeno_broker_proto::fingerprint_rope(&self.rope);
 		self.len_chars = len;
 		self.hash64 = hash;
 	}
 
+	/// Registers a session as an active participant for this document.
 	fn add_open(&mut self, sid: SessionId) {
 		let count = self.open_refcounts.entry(sid).or_insert(0);
 		if *count == 0
@@ -382,6 +384,7 @@ impl SyncDocState {
 		self.touch(sid);
 	}
 
+	/// Deregisters a session or decrements its reference count.
 	fn remove_open(&mut self, sid: SessionId) -> RemoveOpenResult {
 		let Some(count) = self.open_refcounts.get_mut(&sid) else {
 			return RemoveOpenResult::NotParticipant;
@@ -401,6 +404,7 @@ impl SyncDocState {
 		}
 	}
 
+	/// Forcibly removes a session from all participation tracking.
 	fn remove_participant_all(&mut self, sid: SessionId) -> bool {
 		if self.open_refcounts.remove(&sid).is_some() {
 			self.last_active.remove(&sid);
@@ -414,10 +418,12 @@ impl SyncDocState {
 		}
 	}
 
+	/// Updates the activity timestamp for a session.
 	fn touch(&mut self, sid: SessionId) {
 		self.last_active.insert(sid, Instant::now());
 	}
 
+	/// Returns true if the current owner has exceeded the idle timeout.
 	fn owner_idle(&self, now: Instant) -> bool {
 		let Some(owner) = self.owner else {
 			return false;
@@ -436,12 +442,7 @@ enum RemoveOpenResult {
 	NotParticipant,
 }
 
-/// Actor service managing shared document consistency.
-///
-/// The broker holds the authoritative copy of the text. One session is elected
-/// as the current owner, and a preferred owner (focused editor) is allowed to
-/// publish deltas. Ownership changes are driven by focus events; new owners must
-/// resync before publishing edits. Unlocks are broadcast on idle, blur, or disconnect.
+/// Actor service managing authoritative document consistency and synchronization.
 pub struct SharedStateService {
 	rx: mpsc::Receiver<SharedStateCmd>,
 	sync_docs: HashMap<String, SyncDocState>,
@@ -510,62 +511,23 @@ impl SharedStateService {
 						break;
 					};
 					match cmd {
-						SharedStateCmd::Open {
-							sid,
-							uri,
-							text,
-							version_hint: _,
-							reply,
-						} => {
-							let result = self.handle_open(sid, &uri, &text).await;
-							let _ = reply.send(result);
+						SharedStateCmd::Open { sid, uri, text, version_hint: _, reply } => {
+							let _ = reply.send(self.handle_open(sid, &uri, &text).await);
 						}
 						SharedStateCmd::Close { sid, uri, reply } => {
-							let result = self.handle_close(sid, &uri).await;
-							let _ = reply.send(result);
+							let _ = reply.send(self.handle_close(sid, &uri).await);
 						}
-						SharedStateCmd::Edit {
-							sid,
-							uri,
-							epoch,
-							base_seq,
-							tx,
-							reply,
-						} => {
-							let result = self.handle_edit(sid, &uri, epoch, base_seq, &tx).await;
-							let _ = reply.send(result);
+						SharedStateCmd::Apply { sid, uri, kind, epoch, base_seq, base_hash64, base_len_chars, tx, reply } => {
+							let _ = reply.send(self.handle_apply(sid, &uri, kind, epoch, base_seq, base_hash64, base_len_chars, tx.as_ref()).await);
 						}
 						SharedStateCmd::Activity { sid, uri, reply } => {
-							let result = self.handle_activity(sid, &uri);
-							let _ = reply.send(result);
+							let _ = reply.send(self.handle_activity(sid, &uri));
 						}
-						SharedStateCmd::Focus {
-							sid,
-							uri,
-							focused,
-							focus_seq,
-							reply,
-						} => {
-							let result = self.handle_focus(sid, &uri, focused, focus_seq).await;
-							let _ = reply.send(result);
+						SharedStateCmd::Focus { sid, uri, focused, focus_seq, nonce, client_hash64, client_len_chars, reply } => {
+							let _ = reply.send(self.handle_focus(sid, &uri, focused, focus_seq, nonce, client_hash64, client_len_chars).await);
 						}
-						SharedStateCmd::Resync {
-							sid,
-							uri,
-							client_hash64,
-							client_len_chars,
-							reply,
-						} => {
-							let result = self.handle_resync(sid, &uri, client_hash64, client_len_chars).await;
-							let _ = reply.send(result);
-						}
-						SharedStateCmd::Undo { sid, uri, reply } => {
-							let result = self.handle_undo(sid, &uri).await;
-							let _ = reply.send(result);
-						}
-						SharedStateCmd::Redo { sid, uri, reply } => {
-							let result = self.handle_redo(sid, &uri).await;
-							let _ = reply.send(result);
+						SharedStateCmd::Resync { sid, uri, nonce, client_hash64, client_len_chars, reply } => {
+							let _ = reply.send(self.handle_resync(sid, &uri, nonce, client_hash64, client_len_chars).await);
 						}
 						SharedStateCmd::SessionLost { sid } => {
 							self.handle_session_cleanup(sid).await;
@@ -589,6 +551,10 @@ impl SharedStateService {
 		}
 	}
 
+	/// Handles a request to join document synchronization.
+	///
+	/// If the document is not already open, it is loaded from history or
+	/// created with the provided initial text.
 	async fn handle_open(
 		&mut self,
 		sid: SessionId,
@@ -597,7 +563,8 @@ impl SharedStateService {
 	) -> Result<ResponsePayload, ErrorCode> {
 		let uri = crate::core::normalize_uri(uri_in)?;
 		let mut routing_open = None;
-		let (snapshot, text) = match self.sync_docs.get_mut(&uri) {
+
+		let (snapshot, res_text) = match self.sync_docs.get_mut(&uri) {
 			None => {
 				let mut doc = SyncDocState {
 					owner: Some(sid),
@@ -617,33 +584,48 @@ impl SharedStateService {
 
 				let mut send_text = None;
 				if let Some(history) = &self.history {
-					match history.load_doc(&uri) {
-						Ok(Some(stored)) => {
+					let init_rope = Rope::from(text);
+					let (init_len, init_hash) = xeno_broker_proto::fingerprint_rope(&init_rope);
+
+					match history.load_or_create_doc(
+						&uri, &init_rope, doc.epoch, doc.seq, init_hash, init_len,
+					) {
+						Ok((stored, created)) => {
 							doc.epoch = stored.epoch;
 							doc.seq = stored.seq;
 							doc.rope = stored.rope;
 							doc.hash64 = stored.hash64;
 							doc.len_chars = stored.len_chars;
 							doc.history = Some(stored.meta);
-							send_text = Some(doc.rope.to_string());
-						}
-						Ok(None) => {
-							let rope = Rope::from(text);
-							let (len, hash) = xeno_broker_proto::fingerprint_rope(&rope);
-							let stored = history
-								.create_doc(&uri, &rope, doc.epoch, doc.seq, hash, len)
-								.map_err(|err| {
-									tracing::warn!(error = %err, ?uri, "history create failed");
-									ErrorCode::Internal
-								})?;
-							doc.rope = stored.rope;
-							doc.hash64 = stored.hash64;
-							doc.len_chars = stored.len_chars;
-							doc.history = Some(stored.meta);
+
+							let (calc_len, calc_hash) =
+								xeno_broker_proto::fingerprint_rope(&doc.rope);
+							if doc.len_chars != calc_len || doc.hash64 != calc_hash {
+								tracing::warn!(
+									?uri,
+									"history fingerprint mismatch; repairing metadata"
+								);
+								doc.len_chars = calc_len;
+								doc.hash64 = calc_hash;
+								let _ = history.update_doc_state(
+									&uri,
+									doc.history.as_ref().unwrap(),
+									doc.epoch,
+									doc.seq,
+									doc.hash64,
+									doc.len_chars,
+								);
+							}
+
+							if !created {
+								send_text = Some(doc.rope.to_string());
+							}
 						}
 						Err(err) => {
-							tracing::warn!(error = %err, ?uri, "history load failed");
-							return Err(ErrorCode::Internal);
+							tracing::warn!(error = %err, ?uri, "history load-or-create failed; continuing without history");
+							doc.rope = Rope::from(text);
+							doc.update_fingerprint();
+							doc.history = None;
 						}
 					}
 				} else {
@@ -676,9 +658,13 @@ impl SharedStateService {
 			self.notify_lsp_open(uri.clone(), text).await;
 		}
 
-		Ok(ResponsePayload::SharedOpened { snapshot, text })
+		Ok(ResponsePayload::SharedOpened {
+			snapshot,
+			text: res_text,
+		})
 	}
 
+	/// Handles a request to depart from document synchronization.
 	async fn handle_close(
 		&mut self,
 		sid: SessionId,
@@ -711,9 +697,8 @@ impl SharedStateService {
 		if closed {
 			self.sync_docs.remove(&uri);
 			self.open_docs_set.lock().unwrap().remove(&uri);
-		}
-
-		if let Some((targets, event)) = unlock {
+			self.notify_lsp_close(uri).await;
+		} else if let Some((targets, event)) = unlock {
 			self.sessions
 				.broadcast(
 					targets,
@@ -722,23 +707,28 @@ impl SharedStateService {
 				)
 				.await;
 		}
-		if closed {
-			self.notify_lsp_close(uri).await;
-		}
 
 		Ok(ResponsePayload::SharedClosed)
 	}
 
-	async fn handle_edit(
+	/// Applies an authoritative mutation to the document state.
+	///
+	/// Validates ownership and preconditions before applying the delta.
+	/// Broadcasts the delta to all participants.
+	async fn handle_apply(
 		&mut self,
 		sid: SessionId,
 		uri_in: &str,
+		kind: SharedApplyKind,
 		epoch: SyncEpoch,
 		base_seq: SyncSeq,
-		wire_tx: &WireTx,
+		base_hash64: u64,
+		base_len_chars: u64,
+		wire_tx: Option<&WireTx>,
 	) -> Result<ResponsePayload, ErrorCode> {
 		let uri = crate::core::normalize_uri(uri_in)?;
-		let (event, lsp_text, participants, seq, final_epoch) = {
+
+		let (event, participants, ack) = {
 			let doc = self
 				.sync_docs
 				.get_mut(&uri)
@@ -758,267 +748,177 @@ impl SharedStateService {
 			if epoch != doc.epoch {
 				return Err(ErrorCode::SyncEpochMismatch);
 			}
+			if doc.owner_needs_resync {
+				return Err(ErrorCode::OwnerNeedsResync);
+			}
+
 			if base_seq != doc.seq {
 				doc.owner_needs_resync = true;
 				return Err(ErrorCode::SyncSeqMismatch);
 			}
-			if doc.owner_needs_resync {
-				return Err(ErrorCode::OwnerNeedsResync);
+			if base_hash64 != doc.hash64 || base_len_chars != doc.len_chars {
+				doc.owner_needs_resync = true;
+				return Err(ErrorCode::SyncFingerprintMismatch);
 			}
 
-			if wire_tx.0.len() > MAX_WIRE_TX_OPS {
-				return Err(ErrorCode::InvalidDelta);
-			}
-			let insert_bytes: usize = wire_tx
-				.0
-				.iter()
-				.filter_map(|op| match op {
-					xeno_broker_proto::types::WireOp::Insert(s) => Some(s.len()),
-					_ => None,
-				})
-				.sum();
-			if insert_bytes > MAX_INSERT_BYTES {
-				return Err(ErrorCode::InvalidDelta);
-			}
+			let mut applied_wire: Option<WireTx> = None;
 
-			let pre_rope = doc.rope.clone();
-			let tx = wire_convert::wire_to_tx(wire_tx, pre_rope.slice(..))
-				.map_err(|_| ErrorCode::InvalidDelta)?;
-			let undo_tx = tx.invert(&pre_rope);
+			match kind {
+				SharedApplyKind::Edit => {
+					let wire_tx = wire_tx.ok_or(ErrorCode::InvalidArgs)?;
 
-			tx.apply(&mut doc.rope);
-			doc.seq = SyncSeq(doc.seq.0 + 1);
-			doc.update_fingerprint();
-			doc.touch(sid);
+					if wire_tx.0.len() > MAX_WIRE_TX_OPS {
+						return Err(ErrorCode::InvalidDelta);
+					}
+					let insert_bytes: usize = wire_tx
+						.0
+						.iter()
+						.filter_map(|op| match op {
+							xeno_broker_proto::types::WireOp::Insert(s) => Some(s.len()),
+							_ => None,
+						})
+						.sum();
+					if insert_bytes > MAX_INSERT_BYTES {
+						return Err(ErrorCode::InvalidDelta);
+					}
 
-			if let Some(history) = &self.history {
-				let Some(meta) = doc.history.as_mut() else {
-					tracing::warn!(?uri, "history metadata missing");
-					return Err(ErrorCode::Internal);
-				};
-				let undo_wire = wire_convert::tx_to_wire(&undo_tx);
-				let redo_wire = wire_tx.clone();
-				history
-					.append_edit(
+					let pre_rope = doc.rope.clone();
+					let tx = wire_convert::wire_to_tx(wire_tx, pre_rope.slice(..))
+						.map_err(|_| ErrorCode::InvalidDelta)?;
+					let undo_tx = tx.invert(&pre_rope);
+
+					tx.apply(&mut doc.rope);
+					doc.seq = SyncSeq(doc.seq.0 + 1);
+					doc.update_fingerprint();
+					doc.touch(sid);
+
+					if let Some(history) = &self.history {
+						let mut disable = false;
+						if let Some(meta) = doc.history.as_mut() {
+							let undo_wire = wire_convert::tx_to_wire(&undo_tx);
+							if let Err(err) = history.append_edit_with_checkpoint(
+								&uri,
+								meta,
+								doc.epoch,
+								doc.seq,
+								doc.hash64,
+								doc.len_chars,
+								wire_tx.clone(),
+								undo_wire,
+								MAX_HISTORY_NODES,
+							) {
+								tracing::warn!(error = %err, ?uri, "history append failed; disabling history for doc");
+								disable = true;
+							}
+						}
+						if disable {
+							doc.history = None;
+						}
+					}
+				}
+
+				SharedApplyKind::Undo => {
+					let history = self.history.as_ref().ok_or(ErrorCode::Internal)?;
+					let meta = doc.history.as_ref().ok_or(ErrorCode::NotImplemented)?;
+
+					let (parent_id, undo_wire) = history
+						.load_undo(&uri, meta.head_id)
+						.map_err(|err| {
+							tracing::warn!(error = %err, ?uri, "history undo load failed");
+							ErrorCode::Internal
+						})?
+						.ok_or(ErrorCode::NothingToUndo)?;
+
+					let tx = wire_convert::wire_to_tx(&undo_wire, doc.rope.slice(..))
+						.map_err(|_| ErrorCode::InvalidDelta)?;
+					tx.apply(&mut doc.rope);
+
+					doc.seq = SyncSeq(doc.seq.0 + 1);
+					doc.update_fingerprint();
+					doc.touch(sid);
+
+					let meta_mut = doc.history.as_mut().unwrap();
+					meta_mut.head_id = parent_id;
+					if let Err(err) = history.update_doc_state(
 						&uri,
-						meta,
+						meta_mut,
 						doc.epoch,
 						doc.seq,
 						doc.hash64,
 						doc.len_chars,
-						redo_wire,
-						undo_wire,
-						MAX_HISTORY_NODES,
-					)
-					.map_err(|err| {
-						tracing::warn!(error = %err, ?uri, "history append failed");
-						ErrorCode::Internal
-					})?;
+					) {
+						tracing::warn!(error = %err, ?uri, "history undo persist failed; disabling history for doc");
+						doc.history = None;
+					}
+
+					applied_wire = Some(undo_wire.clone());
+				}
+
+				SharedApplyKind::Redo => {
+					let history = self.history.as_ref().ok_or(ErrorCode::Internal)?;
+					let meta = doc.history.as_ref().ok_or(ErrorCode::NotImplemented)?;
+
+					let (child_id, redo_wire) = history
+						.load_redo(&uri, meta.head_id)
+						.map_err(|err| {
+							tracing::warn!(error = %err, ?uri, "history redo load failed");
+							ErrorCode::Internal
+						})?
+						.ok_or(ErrorCode::NothingToRedo)?;
+
+					let tx = wire_convert::wire_to_tx(&redo_wire, doc.rope.slice(..))
+						.map_err(|_| ErrorCode::InvalidDelta)?;
+					tx.apply(&mut doc.rope);
+
+					doc.seq = SyncSeq(doc.seq.0 + 1);
+					doc.update_fingerprint();
+					doc.touch(sid);
+
+					let meta_mut = doc.history.as_mut().unwrap();
+					meta_mut.head_id = child_id;
+					if let Err(err) = history.update_doc_state(
+						&uri,
+						meta_mut,
+						doc.epoch,
+						doc.seq,
+						doc.hash64,
+						doc.len_chars,
+					) {
+						tracing::warn!(error = %err, ?uri, "history redo persist failed; disabling history for doc");
+						doc.history = None;
+					}
+
+					applied_wire = Some(redo_wire.clone());
+				}
 			}
 
-			let event = Event::SharedDelta {
+			let participants = doc.participants.clone();
+			let tx_for_broadcast = applied_wire
+				.clone()
+				.unwrap_or_else(|| wire_tx.unwrap().clone());
+
+			let event = xeno_broker_proto::types::Event::SharedDelta {
 				uri: uri.clone(),
 				epoch: doc.epoch,
 				seq: doc.seq,
-				tx: wire_tx.clone(),
-			};
-			let lsp_text = doc.rope.to_string();
-			let participants = doc.participants.clone();
-			let seq = doc.seq;
-			let final_epoch = doc.epoch;
-			(event, lsp_text, participants, seq, final_epoch)
-		};
-
-		self.sessions
-			.broadcast(
-				participants,
-				xeno_broker_proto::types::IpcFrame::Event(event),
-				None,
-			)
-			.await;
-
-		self.notify_lsp_update(uri.clone(), lsp_text).await;
-
-		if let Some(knowledge) = &self.knowledge {
-			let _ = knowledge.doc_dirty(uri);
-		}
-
-		Ok(ResponsePayload::SharedEditAck {
-			epoch: final_epoch,
-			seq,
-		})
-	}
-
-	async fn handle_undo(
-		&mut self,
-		sid: SessionId,
-		uri_in: &str,
-	) -> Result<ResponsePayload, ErrorCode> {
-		let uri = crate::core::normalize_uri(uri_in)?;
-		let (event, lsp_text, participants, seq, final_epoch) = {
-			let doc = self
-				.sync_docs
-				.get_mut(&uri)
-				.ok_or(ErrorCode::SyncDocNotFound)?;
-
-			if !doc.open_refcounts.contains_key(&sid) {
-				return Err(ErrorCode::SyncDocNotFound);
-			}
-			if let Some(preferred) = doc.preferred_owner
-				&& preferred != sid
-			{
-				return Err(ErrorCode::NotPreferredOwner);
-			}
-			if doc.owner != Some(sid) {
-				return Err(ErrorCode::NotPreferredOwner);
-			}
-			if doc.owner_needs_resync {
-				return Err(ErrorCode::OwnerNeedsResync);
-			}
-
-			let Some(history) = &self.history else {
-				return Err(ErrorCode::Internal);
-			};
-			let Some(meta) = doc.history.as_ref() else {
-				return Err(ErrorCode::Internal);
-			};
-			let head_id = meta.head_id;
-
-			let Some((parent_id, undo_wire)) = history.load_undo(&uri, head_id).map_err(|err| {
-				tracing::warn!(error = %err, ?uri, "history undo load failed");
-				ErrorCode::Internal
-			})?
-			else {
-				return Err(ErrorCode::NothingToUndo);
+				kind,
+				tx: tx_for_broadcast,
+				origin: sid,
+				hash64: doc.hash64,
+				len_chars: doc.len_chars,
 			};
 
-			let tx = wire_convert::wire_to_tx(&undo_wire, doc.rope.slice(..))
-				.map_err(|_| ErrorCode::InvalidDelta)?;
-			tx.apply(&mut doc.rope);
-			doc.seq = SyncSeq(doc.seq.0 + 1);
-			doc.update_fingerprint();
-			doc.touch(sid);
-
-			{
-				let Some(meta) = doc.history.as_mut() else {
-					return Err(ErrorCode::Internal);
-				};
-				meta.head_id = parent_id;
-				history
-					.update_doc_state(&uri, meta, doc.epoch, doc.seq, doc.hash64, doc.len_chars)
-					.map_err(|err| {
-						tracing::warn!(error = %err, ?uri, "history undo persist failed");
-						ErrorCode::Internal
-					})?;
-			}
-
-			let event = Event::SharedDelta {
+			let ack = ResponsePayload::SharedApplyAck {
 				uri: uri.clone(),
+				kind,
 				epoch: doc.epoch,
 				seq: doc.seq,
-				tx: undo_wire,
-			};
-			let lsp_text = doc.rope.to_string();
-			let participants = doc.participants.clone();
-			let seq = doc.seq;
-			let final_epoch = doc.epoch;
-			(event, lsp_text, participants, seq, final_epoch)
-		};
-
-		self.sessions
-			.broadcast(
-				participants,
-				xeno_broker_proto::types::IpcFrame::Event(event),
-				None,
-			)
-			.await;
-
-		self.notify_lsp_update(uri.clone(), lsp_text).await;
-
-		if let Some(knowledge) = &self.knowledge {
-			let _ = knowledge.doc_dirty(uri);
-		}
-
-		Ok(ResponsePayload::SharedUndoAck {
-			epoch: final_epoch,
-			seq,
-		})
-	}
-
-	async fn handle_redo(
-		&mut self,
-		sid: SessionId,
-		uri_in: &str,
-	) -> Result<ResponsePayload, ErrorCode> {
-		let uri = crate::core::normalize_uri(uri_in)?;
-		let (event, lsp_text, participants, seq, final_epoch) = {
-			let doc = self
-				.sync_docs
-				.get_mut(&uri)
-				.ok_or(ErrorCode::SyncDocNotFound)?;
-
-			if !doc.open_refcounts.contains_key(&sid) {
-				return Err(ErrorCode::SyncDocNotFound);
-			}
-			if let Some(preferred) = doc.preferred_owner
-				&& preferred != sid
-			{
-				return Err(ErrorCode::NotPreferredOwner);
-			}
-			if doc.owner != Some(sid) {
-				return Err(ErrorCode::NotPreferredOwner);
-			}
-			if doc.owner_needs_resync {
-				return Err(ErrorCode::OwnerNeedsResync);
-			}
-
-			let Some(history) = &self.history else {
-				return Err(ErrorCode::Internal);
-			};
-			let Some(meta) = doc.history.as_ref() else {
-				return Err(ErrorCode::Internal);
-			};
-			let head_id = meta.head_id;
-
-			let Some((child_id, redo_wire)) = history.load_redo(&uri, head_id).map_err(|err| {
-				tracing::warn!(error = %err, ?uri, "history redo load failed");
-				ErrorCode::Internal
-			})?
-			else {
-				return Err(ErrorCode::NothingToRedo);
+				applied_tx: applied_wire,
+				hash64: doc.hash64,
+				len_chars: doc.len_chars,
 			};
 
-			let tx = wire_convert::wire_to_tx(&redo_wire, doc.rope.slice(..))
-				.map_err(|_| ErrorCode::InvalidDelta)?;
-			tx.apply(&mut doc.rope);
-			doc.seq = SyncSeq(doc.seq.0 + 1);
-			doc.update_fingerprint();
-			doc.touch(sid);
-
-			{
-				let Some(meta) = doc.history.as_mut() else {
-					return Err(ErrorCode::Internal);
-				};
-				meta.head_id = child_id;
-				history
-					.update_doc_state(&uri, meta, doc.epoch, doc.seq, doc.hash64, doc.len_chars)
-					.map_err(|err| {
-						tracing::warn!(error = %err, ?uri, "history redo persist failed");
-						ErrorCode::Internal
-					})?;
-			}
-
-			let event = Event::SharedDelta {
-				uri: uri.clone(),
-				epoch: doc.epoch,
-				seq: doc.seq,
-				tx: redo_wire,
-			};
-			let lsp_text = doc.rope.to_string();
-			let participants = doc.participants.clone();
-			let seq = doc.seq;
-			let final_epoch = doc.epoch;
-			(event, lsp_text, participants, seq, final_epoch)
+			(event, participants, ack)
 		};
 
 		self.sessions
@@ -1029,16 +929,16 @@ impl SharedStateService {
 			)
 			.await;
 
-		self.notify_lsp_update(uri.clone(), lsp_text).await;
+		if let Some(doc) = self.sync_docs.get(&uri) {
+			self.notify_lsp_update(uri.clone(), doc.rope.to_string())
+				.await;
+		}
 
 		if let Some(knowledge) = &self.knowledge {
 			let _ = knowledge.doc_dirty(uri);
 		}
 
-		Ok(ResponsePayload::SharedRedoAck {
-			epoch: final_epoch,
-			seq,
-		})
+		Ok(ack)
 	}
 
 	fn handle_activity(
@@ -1083,17 +983,12 @@ impl SharedStateService {
 	}
 
 	fn persist_doc_state(history: Option<&HistoryStore>, uri: &str, doc: &SyncDocState) {
-		let Some(history) = history else {
-			return;
-		};
-		let Some(meta) = doc.history.as_ref() else {
-			return;
-		};
-		if let Err(err) =
-			history.update_doc_state(uri, meta, doc.epoch, doc.seq, doc.hash64, doc.len_chars)
-		{
-			tracing::warn!(error = %err, ?uri, "history metadata update failed");
-		}
+		if let (Some(history), Some(meta)) = (history, doc.history.as_ref())
+			&& let Err(err) =
+				history.update_doc_state(uri, meta, doc.epoch, doc.seq, doc.hash64, doc.len_chars)
+			{
+				tracing::warn!(error = %err, ?uri, "history metadata update failed");
+			}
 	}
 
 	fn prepare_unlock(
@@ -1119,6 +1014,9 @@ impl SharedStateService {
 		uri_in: &str,
 		focused: bool,
 		focus_seq: u64,
+		nonce: SyncNonce,
+		client_hash64: Option<u64>,
+		client_len_chars: Option<u64>,
 	) -> Result<ResponsePayload, ErrorCode> {
 		let uri = crate::core::normalize_uri(uri_in)?;
 		let history = self.history.as_ref();
@@ -1131,30 +1029,42 @@ impl SharedStateService {
 			return Err(ErrorCode::SyncDocNotFound);
 		}
 
-		// focus_seq ordering guard
 		let last_seq = doc.last_focus_seq.get(&sid).copied().unwrap_or(0);
 		if focus_seq <= last_seq && last_seq != 0 {
 			return Ok(ResponsePayload::SharedFocusAck {
+				nonce,
 				snapshot: doc.snapshot(&uri),
+				repair_text: None,
 			});
 		}
 		doc.last_focus_seq.insert(sid, focus_seq);
 
 		let mut preferred_changed = false;
 		let mut owner_changed = None;
+		let mut repair_text: Option<String> = None;
 
 		if focused {
 			if doc.preferred_owner != Some(sid) {
 				doc.preferred_owner = Some(sid);
 				preferred_changed = true;
 			}
+
 			if doc.owner != Some(sid) {
 				doc.owner = Some(sid);
 				doc.epoch = SyncEpoch(doc.epoch.0 + 1);
 				doc.seq = SyncSeq(0);
-				doc.owner_needs_resync = true;
 				owner_changed = Some(true);
 			}
+
+			if let (Some(h), Some(l)) = (client_hash64, client_len_chars) {
+				if h != doc.hash64 || l != doc.len_chars {
+					repair_text = Some(doc.rope.to_string());
+				}
+			} else {
+				repair_text = Some(doc.rope.to_string());
+			}
+
+			doc.owner_needs_resync = false;
 			doc.touch(sid);
 		} else {
 			if doc.preferred_owner == Some(sid) {
@@ -1176,6 +1086,7 @@ impl SharedStateService {
 
 		let snapshot = doc.snapshot(&uri);
 		let participants = doc.participants.clone();
+
 		if preferred_changed {
 			let event = Event::SharedPreferredOwnerChanged {
 				snapshot: snapshot.clone(),
@@ -1207,13 +1118,18 @@ impl SharedStateService {
 				.await;
 		}
 
-		Ok(ResponsePayload::SharedFocusAck { snapshot })
+		Ok(ResponsePayload::SharedFocusAck {
+			nonce,
+			snapshot,
+			repair_text,
+		})
 	}
 
 	async fn handle_resync(
 		&mut self,
 		sid: SessionId,
 		uri_in: &str,
+		nonce: SyncNonce,
 		client_hash64: Option<u64>,
 		client_len_chars: Option<u64>,
 	) -> Result<ResponsePayload, ErrorCode> {
@@ -1227,24 +1143,26 @@ impl SharedStateService {
 			return Err(ErrorCode::SyncDocNotFound);
 		}
 		doc.touch(sid);
+
 		if doc.owner == Some(sid) {
 			doc.owner_needs_resync = false;
 		}
 
 		let snapshot = doc.snapshot(&uri);
 
-		// Conditional resync
 		if let (Some(h), Some(l)) = (client_hash64, client_len_chars)
 			&& h == doc.hash64
 			&& l == doc.len_chars
 		{
 			return Ok(ResponsePayload::SharedSnapshot {
+				nonce,
 				text: String::new(),
 				snapshot,
 			});
 		}
 
 		Ok(ResponsePayload::SharedSnapshot {
+			nonce,
 			text: doc.rope.to_string(),
 			snapshot,
 		})
@@ -1304,23 +1222,20 @@ impl SharedStateService {
 	}
 
 	async fn notify_lsp_open(&self, uri: String, text: String) {
-		let Some(routing) = self.routing.clone() else {
-			return;
-		};
-		routing.lsp_doc_open(uri, text).await;
+		if let Some(routing) = &self.routing {
+			routing.lsp_doc_open(uri, text).await;
+		}
 	}
 
 	async fn notify_lsp_update(&self, uri: String, text: String) {
-		let Some(routing) = self.routing.clone() else {
-			return;
-		};
-		routing.lsp_doc_update(uri, text).await;
+		if let Some(routing) = &self.routing {
+			routing.lsp_doc_update(uri, text).await;
+		}
 	}
 
 	async fn notify_lsp_close(&self, uri: String) {
-		let Some(routing) = self.routing.clone() else {
-			return;
-		};
-		routing.lsp_doc_close(uri).await;
+		if let Some(routing) = &self.routing {
+			routing.lsp_doc_close(uri).await;
+		}
 	}
 }
