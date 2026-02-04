@@ -140,7 +140,7 @@ impl Editor {
 				);
 
 				if let Some(tx) = ack_tx {
-					self.apply_local_shared_delta_from_ack(&uri, &tx, history_group);
+					self.apply_local_shared_delta_from_ack(&uri, kind, &tx, history_group);
 				}
 
 				for payload in self.state.shared_state.drain_pending_edit_requests() {
@@ -382,6 +382,7 @@ impl Editor {
 	fn apply_local_shared_delta_from_ack(
 		&mut self,
 		uri: &str,
+		kind: xeno_broker_proto::types::SharedApplyKind,
 		wire_tx: &xeno_broker_proto::types::WireTx,
 		history_group: Option<u64>,
 	) {
@@ -389,13 +390,23 @@ impl Editor {
 			return;
 		};
 
+		self.apply_shared_delta_to_buffer(doc_id, wire_tx);
+
 		if let Some(gid) = history_group
-			&& let Some(_view_state) = self.state.shared_state.get_view_group(uri, gid)
+			&& let Some(view_state) = self.state.shared_state.get_view_group(uri, gid)
 		{
-			// TODO: decide whether to restore pre or post based on Undo vs Redo.
+			let snapshots = match kind {
+				xeno_broker_proto::types::SharedApplyKind::Undo => &view_state.pre,
+				xeno_broker_proto::types::SharedApplyKind::Redo => &view_state.post,
+				xeno_broker_proto::types::SharedApplyKind::Edit => return,
+			};
+			for buffer in self.state.core.buffers.buffers_mut() {
+				if let Some(snapshot) = snapshots.get(&buffer.id) {
+					buffer.restore_view(snapshot);
+				}
+			}
 		}
 
-		self.apply_shared_delta_to_buffer(doc_id, wire_tx);
 		self.update_readonly_for_shared_state(uri);
 	}
 
@@ -601,5 +612,50 @@ mod tests {
 		);
 
 		assert_eq!(editor.buffer().selection, Selection::point(3));
+	}
+
+	#[test]
+	fn apply_ack_should_restore_view_state_for_history_group() {
+		let mut editor = Editor::from_content("abc".to_string(), None);
+		let uri = "file:///test";
+		let doc_id = editor.buffer().document_id();
+		let view_id = editor.focused_view();
+
+		editor.state.shared_state.prepare_open(uri, "abc", doc_id);
+
+		let pre_snapshot = crate::types::ViewSnapshot {
+			cursor: 0,
+			selection: Selection::point(0),
+			scroll_line: 0,
+			scroll_segment: 0,
+		};
+		let post_snapshot = crate::types::ViewSnapshot {
+			cursor: 2,
+			selection: Selection::point(2),
+			scroll_line: 0,
+			scroll_segment: 0,
+		};
+
+		let mut pre = std::collections::HashMap::new();
+		let mut post = std::collections::HashMap::new();
+		pre.insert(view_id, pre_snapshot);
+		post.insert(view_id, post_snapshot);
+
+		editor
+			.state
+			.shared_state
+			.cache_view_group(uri, 1, pre, post);
+
+		editor.buffer_mut().set_selection(Selection::point(2));
+
+		let wire_tx = WireTx(vec![WireOp::Retain(3), WireOp::Insert("x".into())]);
+
+		editor.apply_local_shared_delta_from_ack(uri, SharedApplyKind::Undo, &wire_tx, Some(1));
+
+		assert_eq!(
+			editor.buffer().selection,
+			Selection::point(0),
+			"view state should restore from cached history group"
+		);
 	}
 }

@@ -109,13 +109,19 @@ mod tests {
 		LspTransport::notify(t2.as_ref(), s2.id, did_open_2)
 			.await
 			.expect("t2 notify open");
-		t2.shared_state_request(RequestPayload::SharedOpen {
-			uri: "file:///test.rs".to_string(),
-			text: "content 2".to_string(),
-			version_hint: Some(10),
-		})
-		.await
-		.expect("shared state open");
+		let open_resp = t2
+			.shared_state_request(RequestPayload::SharedOpen {
+				uri: "file:///test.rs".to_string(),
+				text: "content 2".to_string(),
+				version_hint: Some(10),
+			})
+			.await
+			.expect("shared state open");
+
+		let (base_hash64, base_len_chars) = match open_resp {
+			ResponsePayload::SharedOpened { snapshot, .. } => (snapshot.hash64, snapshot.len_chars),
+			other => panic!("unexpected shared open response: {other:?}"),
+		};
 
 		// Wait for broker to register doc
 		assert!(
@@ -151,8 +157,8 @@ mod tests {
 			kind: SharedApplyKind::Edit,
 			epoch: SyncEpoch(1),
 			base_seq: SyncSeq(0),
-			base_hash64: 0,
-			base_len_chars: 0,
+			base_hash64,
+			base_len_chars,
 			tx: Some(wire_tx),
 			undo_group: 1,
 		})
@@ -308,14 +314,22 @@ mod tests {
 			other => panic!("unexpected focus response: {other:?}"),
 		};
 
-		t2.shared_state_request(RequestPayload::SharedResync {
-			uri: "file:///test.rs".to_string(),
-			nonce: SyncNonce(2),
-			client_hash64: None,
-			client_len_chars: None,
-		})
-		.await
-		.expect("shared resync");
+		let resync_resp = t2
+			.shared_state_request(RequestPayload::SharedResync {
+				uri: "file:///test.rs".to_string(),
+				nonce: SyncNonce(2),
+				client_hash64: None,
+				client_len_chars: None,
+			})
+			.await
+			.expect("shared resync");
+
+		let (base_hash64, base_len_chars) = match resync_resp {
+			ResponsePayload::SharedSnapshot { snapshot, .. } => {
+				(snapshot.hash64, snapshot.len_chars)
+			}
+			other => panic!("unexpected resync response: {other:?}"),
+		};
 
 		let wire_tx = WireTx(vec![
 			WireOp::Delete("content".chars().count()),
@@ -326,8 +340,8 @@ mod tests {
 			kind: SharedApplyKind::Edit,
 			epoch,
 			base_seq: SyncSeq(0),
-			base_hash64: 0,
-			base_len_chars: 0,
+			base_hash64,
+			base_len_chars,
 			tx: Some(wire_tx),
 			undo_group: 1,
 		})
@@ -438,14 +452,22 @@ mod tests {
 			other => panic!("unexpected focus response: {other:?}"),
 		};
 
-		t2.shared_state_request(RequestPayload::SharedResync {
-			uri: "file:///test.rs".to_string(),
-			nonce: SyncNonce(2),
-			client_hash64: None,
-			client_len_chars: None,
-		})
-		.await
-		.expect("shared resync");
+		let resync_resp = t2
+			.shared_state_request(RequestPayload::SharedResync {
+				uri: "file:///test.rs".to_string(),
+				nonce: SyncNonce(2),
+				client_hash64: None,
+				client_len_chars: None,
+			})
+			.await
+			.expect("shared resync");
+
+		let (base_hash64, base_len_chars) = match resync_resp {
+			ResponsePayload::SharedSnapshot { snapshot, .. } => {
+				(snapshot.hash64, snapshot.len_chars)
+			}
+			other => panic!("unexpected resync response: {other:?}"),
+		};
 
 		let wire_tx = WireTx(vec![
 			WireOp::Delete("content 1".chars().count()),
@@ -456,8 +478,8 @@ mod tests {
 			kind: SharedApplyKind::Edit,
 			epoch,
 			base_seq: SyncSeq(0),
-			base_hash64: 0,
-			base_len_chars: 0,
+			base_hash64,
+			base_len_chars,
 			tx: Some(wire_tx),
 			undo_group: 1,
 		})

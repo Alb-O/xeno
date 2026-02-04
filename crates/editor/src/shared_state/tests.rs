@@ -3,7 +3,8 @@
 use std::collections::VecDeque;
 
 use xeno_broker_proto::types::{
-	DocStateSnapshot, DocSyncPhase, SessionId, SyncEpoch, SyncNonce, SyncSeq, WireTx,
+	DocStateSnapshot, DocSyncPhase, SessionId, SharedApplyKind, SyncEpoch, SyncNonce, SyncSeq,
+	WireTx,
 };
 
 use super::manager::SharedStateManager;
@@ -38,6 +39,7 @@ fn test_snapshot_apply_when_text_present() {
 		resync_requested: false,
 		open_refcount: 1,
 		pending_deltas: VecDeque::new(),
+		pending_history: VecDeque::new(),
 		in_flight: None,
 		last_activity_sent: None,
 		focus_seq: 0,
@@ -146,4 +148,100 @@ fn test_repair_text_clears_owner_pipeline() {
 	assert!(entry.in_flight.is_none());
 	assert!(entry.pending_deltas.is_empty());
 	assert!(!entry.needs_resync);
+}
+
+#[test]
+fn test_snapshot_history_group_seeds_current_undo_group() {
+	let mut manager = SharedStateManager::new();
+	let uri = "file:///test.rs";
+	manager.prepare_open(uri, "hello", DocumentId(1));
+
+	let snapshot = DocStateSnapshot {
+		uri: uri.to_string(),
+		epoch: SyncEpoch(1),
+		seq: SyncSeq(0),
+		owner: None,
+		preferred_owner: None,
+		phase: DocSyncPhase::Unlocked,
+		hash64: 0,
+		len_chars: 5,
+		history_head_id: Some(10),
+		history_root_id: Some(1),
+		history_head_group: Some(42),
+	};
+
+	let _ = manager.handle_opened(snapshot, None, SessionId(1));
+	let entry = manager.docs.get(uri).expect("entry exists");
+
+	assert_eq!(
+		entry.current_undo_group, 42,
+		"current_undo_group should seed from broker history head group"
+	);
+}
+
+#[test]
+fn test_apply_ack_mismatch_clears_in_flight_and_marks_resync() {
+	let mut manager = SharedStateManager::new();
+	let uri = "file:///test.rs";
+	manager.prepare_open(uri, "hello", DocumentId(1));
+
+	let entry = manager.docs.get_mut(uri).unwrap();
+	entry.role = SharedStateRole::Owner;
+	entry.epoch = SyncEpoch(1);
+	entry.seq = SyncSeq(0);
+	entry.in_flight = Some(InFlightEdit {
+		epoch: SyncEpoch(1),
+		base_seq: SyncSeq(0),
+	});
+	entry.needs_resync = false;
+
+	let _ = manager.handle_apply_ack(
+		uri,
+		SharedApplyKind::Edit,
+		SyncEpoch(1),
+		SyncSeq(5),
+		None,
+		0,
+		0,
+		None,
+		None,
+		None,
+	);
+
+	let entry = manager.docs.get(uri).unwrap();
+	assert!(
+		entry.in_flight.is_none(),
+		"mismatched ack should clear in_flight"
+	);
+	assert!(
+		entry.needs_resync,
+		"mismatched ack should mark needs_resync"
+	);
+}
+
+#[test]
+fn test_prepare_undo_queued_while_in_flight() {
+	let mut manager = SharedStateManager::new();
+	let uri = "file:///test.rs";
+	manager.prepare_open(uri, "hello", DocumentId(1));
+
+	let entry = manager.docs.get_mut(uri).unwrap();
+	entry.role = SharedStateRole::Owner;
+	entry.in_flight = Some(InFlightEdit {
+		epoch: SyncEpoch(1),
+		base_seq: SyncSeq(0),
+	});
+	entry.needs_resync = false;
+
+	let payload = manager.prepare_undo(uri);
+	assert!(
+		payload.is_none(),
+		"undo should be queued, not sent, while in flight"
+	);
+	let entry = manager.docs.get(uri).unwrap();
+	assert_eq!(
+		entry.pending_history.len(),
+		1,
+		"queued undo should be stored for later drain"
+	);
 }

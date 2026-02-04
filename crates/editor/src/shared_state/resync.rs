@@ -31,6 +31,7 @@ impl SharedStateManager {
 			entry.needs_resync = true;
 			entry.resync_requested = false;
 			entry.pending_deltas.clear();
+			entry.pending_history.clear();
 			entry.in_flight = None;
 		}
 	}
@@ -68,6 +69,7 @@ impl SharedStateManager {
 			entry.resync_requested = false;
 		} else {
 			entry.pending_deltas.clear();
+			entry.pending_history.clear();
 			entry.in_flight = None;
 		}
 		entry.pending_align = None;

@@ -3,7 +3,9 @@
 use std::collections::{HashMap, VecDeque};
 use std::time::{Duration, Instant};
 
-use xeno_broker_proto::types::{DocSyncPhase, SessionId, SyncEpoch, SyncNonce, SyncSeq, WireTx};
+use xeno_broker_proto::types::{
+	DocSyncPhase, SessionId, SharedApplyKind, SyncEpoch, SyncNonce, SyncSeq, WireTx,
+};
 
 use crate::buffer::{DocumentId, ViewId};
 use crate::types::ViewSnapshot;
@@ -200,6 +202,7 @@ pub(super) struct SharedDocEntry {
 	pub resync_requested: bool,
 	pub open_refcount: u32,
 	pub pending_deltas: VecDeque<(WireTx, u64)>,
+	pub pending_history: VecDeque<SharedApplyKind>,
 	pub in_flight: Option<InFlightEdit>,
 	pub last_activity_sent: Option<Instant>,
 	pub focus_seq: u64,

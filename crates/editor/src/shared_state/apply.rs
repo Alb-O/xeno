@@ -30,6 +30,8 @@ impl SharedStateManager {
 				&& let Some(tx) = tx
 			{
 				entry.pending_deltas.push_back((tx, group_id));
+			} else {
+				entry.pending_history.push_back(kind);
 			}
 			return None;
 		}
@@ -112,6 +114,12 @@ impl SharedStateManager {
 			in_flight.epoch,
 			expected
 		);
+		entry.needs_resync = true;
+		entry.resync_requested = false;
+		entry.pending_deltas.clear();
+		entry.pending_history.clear();
+		entry.in_flight = None;
+		entry.pending_align = None;
 		None
 	}
 
@@ -123,23 +131,42 @@ impl SharedStateManager {
 			if entry.role == SharedStateRole::Owner
 				&& !entry.needs_resync
 				&& entry.in_flight.is_none()
-				&& let Some((tx, gid)) = entry.pending_deltas.pop_front()
 			{
-				entry.in_flight = Some(InFlightEdit {
-					epoch: entry.epoch,
-					base_seq: entry.seq,
-				});
+				if let Some((tx, gid)) = entry.pending_deltas.pop_front() {
+					entry.in_flight = Some(InFlightEdit {
+						epoch: entry.epoch,
+						base_seq: entry.seq,
+					});
 
-				out.push(RequestPayload::SharedApply {
-					uri: uri.clone(),
-					kind: SharedApplyKind::Edit,
-					epoch: entry.epoch,
-					base_seq: entry.seq,
-					base_hash64: entry.auth_hash64,
-					base_len_chars: entry.auth_len_chars,
-					tx: Some(tx),
-					undo_group: gid,
-				});
+					out.push(RequestPayload::SharedApply {
+						uri: uri.clone(),
+						kind: SharedApplyKind::Edit,
+						epoch: entry.epoch,
+						base_seq: entry.seq,
+						base_hash64: entry.auth_hash64,
+						base_len_chars: entry.auth_len_chars,
+						tx: Some(tx),
+						undo_group: gid,
+					});
+					continue;
+				}
+
+				if let Some(kind) = entry.pending_history.pop_front() {
+					entry.in_flight = Some(InFlightEdit {
+						epoch: entry.epoch,
+						base_seq: entry.seq,
+					});
+					out.push(RequestPayload::SharedApply {
+						uri: uri.clone(),
+						kind,
+						epoch: entry.epoch,
+						base_seq: entry.seq,
+						base_hash64: entry.auth_hash64,
+						base_len_chars: entry.auth_len_chars,
+						tx: None,
+						undo_group: entry.current_undo_group,
+					});
+				}
 			}
 		}
 

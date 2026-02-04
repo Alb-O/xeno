@@ -176,36 +176,8 @@ impl LspSystem {
 						Err(e) => {
 							tracing::warn!(?uri, error = ?e, "shared state request failed");
 							if is_apply {
-								match e {
-									xeno_broker_proto::types::ErrorCode::NothingToUndo => {
-										let _ = in_tx_b.send(
-											crate::shared_state::SharedStateEvent::NothingToUndo {
-												uri,
-											},
-										);
-									}
-									xeno_broker_proto::types::ErrorCode::NothingToRedo => {
-										let _ = in_tx_b.send(
-											crate::shared_state::SharedStateEvent::NothingToRedo {
-												uri,
-											},
-										);
-									}
-									xeno_broker_proto::types::ErrorCode::NotImplemented => {
-										let _ = in_tx_b.send(
-											crate::shared_state::SharedStateEvent::HistoryUnavailable {
-												uri,
-											},
-										);
-									}
-									_ => {
-										let _ = in_tx_b.send(
-											crate::shared_state::SharedStateEvent::EditRejected {
-												uri,
-											},
-										);
-									}
-								}
+								let evt = map_shared_state_apply_error(uri, e);
+								let _ = in_tx_b.send(evt);
 							} else {
 								let _ = in_tx_b.send(
 									crate::shared_state::SharedStateEvent::RequestFailed { uri },
@@ -237,6 +209,41 @@ impl LspSystem {
 		LspHandle {
 			sync: self.inner.manager.sync().clone(),
 		}
+	}
+}
+
+#[cfg(feature = "lsp")]
+fn map_shared_state_apply_error(
+	uri: String,
+	err: xeno_broker_proto::types::ErrorCode,
+) -> crate::shared_state::SharedStateEvent {
+	use xeno_broker_proto::types::ErrorCode;
+
+	match err {
+		ErrorCode::NothingToUndo => crate::shared_state::SharedStateEvent::NothingToUndo { uri },
+		ErrorCode::NothingToRedo => crate::shared_state::SharedStateEvent::NothingToRedo { uri },
+		ErrorCode::HistoryUnavailable | ErrorCode::NotImplemented => {
+			crate::shared_state::SharedStateEvent::HistoryUnavailable { uri }
+		}
+		_ => crate::shared_state::SharedStateEvent::EditRejected { uri },
+	}
+}
+
+#[cfg(all(test, feature = "lsp"))]
+mod tests {
+	use xeno_broker_proto::types::ErrorCode;
+
+	use super::map_shared_state_apply_error;
+	use crate::shared_state::SharedStateEvent;
+
+	#[test]
+	fn history_unavailable_maps_to_history_event() {
+		let evt =
+			map_shared_state_apply_error("file:///test".to_string(), ErrorCode::HistoryUnavailable);
+		assert!(
+			matches!(evt, SharedStateEvent::HistoryUnavailable { .. }),
+			"HistoryUnavailable should map to SharedStateEvent::HistoryUnavailable"
+		);
 	}
 }
 

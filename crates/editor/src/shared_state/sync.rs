@@ -38,8 +38,15 @@ impl SharedStateManager {
 			SharedStateRole::Follower
 		};
 
+		if let Some(group) = snapshot.history_head_group {
+			if group > 0 {
+				entry.current_undo_group = group;
+			}
+		}
+
 		if has_text {
 			entry.pending_deltas.clear();
+			entry.pending_history.clear();
 			entry.in_flight = None;
 			entry.needs_resync = false;
 			entry.resync_requested = false;
@@ -50,12 +57,14 @@ impl SharedStateManager {
 			if diverged {
 				entry.resync_requested = false;
 				entry.pending_deltas.clear();
+				entry.pending_history.clear();
 				entry.in_flight = None;
 			}
 		}
 
 		if entry.role != SharedStateRole::Owner {
 			entry.pending_deltas.clear();
+			entry.pending_history.clear();
 			entry.in_flight = None;
 		}
 	}
