@@ -2,6 +2,7 @@
 resolver = "3"
 members = [
     "crates/editor",
+    "crates/editor-core",
     "crates/keymap/*",
     "crates/lsp",
     "crates/macro",
@@ -93,6 +94,7 @@ vt100 = "0.16"
 waitpid-any = "0.3"
 which = "8.0"
 xeno-editor = { path = "crates/editor" }
+xeno-editor-core = { path = "crates/editor-core" }
 xeno-keymap-core = { path = "crates/keymap/core" }
 xeno-keymap-derive = { path = "crates/keymap/derive" }
 xeno-keymap-parser = { path = "crates/keymap/parser" }

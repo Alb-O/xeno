@@ -12,10 +12,9 @@ use xeno_tui::widgets::BorderType;
 use xeno_tui::widgets::block::Padding;
 
 use crate::buffer::ViewId;
-use crate::impls::Editor;
 use crate::overlay::{
-	CloseReason, OverlayController, OverlaySession, OverlayUiSpec, RectPolicy, WindowRole,
-	WindowSpec,
+	CloseReason, OverlayContext, OverlayController, OverlaySession, OverlayUiSpec, RectPolicy,
+	WindowRole, WindowSpec,
 };
 use crate::window::{FloatingStyle, GutterSelector};
 
@@ -44,13 +43,16 @@ impl WorkspaceSearchOverlay {
 		})
 	}
 
-	fn set_list_content(&self, ed: &mut Editor, session: &OverlaySession, content: String) {
+	fn set_list_content(
+		&self,
+		ctx: &mut dyn OverlayContext,
+		session: &OverlaySession,
+		content: String,
+	) {
 		let Some(buffer_id) = self.list_buffer_id(session) else {
 			return;
 		};
-		if let Some(buffer) = ed.state.core.buffers.get_buffer_mut(buffer_id) {
-			buffer.reset_content(content);
-		}
+		ctx.reset_buffer_content(buffer_id, &content);
 	}
 }
 
@@ -59,7 +61,7 @@ impl OverlayController for WorkspaceSearchOverlay {
 		"WorkspaceSearch"
 	}
 
-	fn ui_spec(&self, _ed: &Editor) -> OverlayUiSpec {
+	fn ui_spec(&self, _ctx: &dyn OverlayContext) -> OverlayUiSpec {
 		let mut buffer_options = std::collections::HashMap::new();
 		buffer_options.insert("cursorline".into(), OptionValue::Bool(false));
 
@@ -92,30 +94,51 @@ impl OverlayController for WorkspaceSearchOverlay {
 		}
 	}
 
-	fn on_open(&mut self, ed: &mut Editor, session: &mut OverlaySession) {
+	fn on_open(&mut self, ctx: &mut dyn OverlayContext, session: &mut OverlaySession) {
 		self.list_buffer = session
 			.buffers
 			.iter()
 			.copied()
 			.find(|id| *id != session.input);
-		self.set_list_content(ed, session, "Workspace search is not available".to_string());
+		self.set_list_content(
+			ctx,
+			session,
+			"Workspace search is not available".to_string(),
+		);
 	}
 
-	fn on_input_changed(&mut self, _ed: &mut Editor, _session: &mut OverlaySession, _text: &str) {}
+	fn on_input_changed(
+		&mut self,
+		_ctx: &mut dyn OverlayContext,
+		_session: &mut OverlaySession,
+		_text: &str,
+	) {
+	}
 
-	fn on_key(&mut self, _ed: &mut Editor, _session: &mut OverlaySession, _key: KeyEvent) -> bool {
+	fn on_key(
+		&mut self,
+		_ctx: &mut dyn OverlayContext,
+		_session: &mut OverlaySession,
+		_key: KeyEvent,
+	) -> bool {
 		false
 	}
 
 	fn on_commit<'a>(
 		&'a mut self,
-		ed: &'a mut Editor,
+		ctx: &'a mut dyn OverlayContext,
 		_session: &'a mut OverlaySession,
 	) -> Pin<Box<dyn Future<Output = ()> + 'a>> {
 		Box::pin(async move {
-			ed.notify(keys::info("Workspace search is not available"));
+			ctx.notify(keys::info("Workspace search is not available"));
 		})
 	}
 
-	fn on_close(&mut self, _ed: &mut Editor, _session: &mut OverlaySession, _reason: CloseReason) {}
+	fn on_close(
+		&mut self,
+		_ctx: &mut dyn OverlayContext,
+		_session: &mut OverlaySession,
+		_reason: CloseReason,
+	) {
+	}
 }

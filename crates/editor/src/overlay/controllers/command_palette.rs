@@ -4,8 +4,9 @@ use std::pin::Pin;
 use xeno_registry::notifications::keys;
 use xeno_registry::options::{OptionValue, keys as opt_keys};
 
-use crate::impls::Editor;
-use crate::overlay::{CloseReason, OverlayController, OverlaySession, OverlayUiSpec, RectPolicy};
+use crate::overlay::{
+	CloseReason, OverlayContext, OverlayController, OverlaySession, OverlayUiSpec, RectPolicy,
+};
 use crate::window::GutterSelector;
 
 pub struct CommandPaletteOverlay;
@@ -27,7 +28,7 @@ impl OverlayController for CommandPaletteOverlay {
 		"CommandPalette"
 	}
 
-	fn ui_spec(&self, _ed: &Editor) -> OverlayUiSpec {
+	fn ui_spec(&self, _ctx: &dyn OverlayContext) -> OverlayUiSpec {
 		OverlayUiSpec {
 			title: None,
 			gutter: GutterSelector::Prompt('>'),
@@ -43,22 +44,28 @@ impl OverlayController for CommandPaletteOverlay {
 		}
 	}
 
-	fn on_open(&mut self, ed: &mut Editor, session: &mut OverlaySession) {
-		if let Some(buffer) = ed.state.core.buffers.get_buffer_mut(session.input) {
+	fn on_open(&mut self, ctx: &mut dyn OverlayContext, session: &mut OverlaySession) {
+		if let Some(buffer) = ctx.buffer_mut(session.input) {
 			buffer
 				.local_options
 				.set(opt_keys::CURSORLINE.untyped(), OptionValue::Bool(false));
 		}
 	}
 
-	fn on_input_changed(&mut self, _ed: &mut Editor, _session: &mut OverlaySession, _text: &str) {}
+	fn on_input_changed(
+		&mut self,
+		_ctx: &mut dyn OverlayContext,
+		_session: &mut OverlaySession,
+		_text: &str,
+	) {
+	}
 
 	fn on_commit<'a>(
 		&'a mut self,
-		ed: &'a mut Editor,
+		ctx: &'a mut dyn OverlayContext,
 		session: &'a mut OverlaySession,
 	) -> Pin<Box<dyn Future<Output = ()> + 'a>> {
-		let input = session.input_text(ed).trim().to_string();
+		let input = session.input_text(ctx).trim().to_string();
 
 		if !input.is_empty() {
 			let mut parts = input.split_whitespace();
@@ -66,11 +73,11 @@ impl OverlayController for CommandPaletteOverlay {
 				let args: Vec<String> = parts.map(String::from).collect();
 
 				if let Some(cmd) = crate::commands::find_editor_command(name) {
-					ed.state.core.workspace.command_queue.push(cmd.name, args);
+					ctx.queue_command(cmd.name, args);
 				} else if let Some(cmd) = xeno_registry::commands::find_command(name) {
-					ed.state.core.workspace.command_queue.push(cmd.name(), args);
+					ctx.queue_command(cmd.name(), args);
 				} else {
-					ed.notify(keys::unknown_command(name));
+					ctx.notify(keys::unknown_command(name));
 				}
 			}
 		}
@@ -78,5 +85,11 @@ impl OverlayController for CommandPaletteOverlay {
 		Box::pin(async {})
 	}
 
-	fn on_close(&mut self, _ed: &mut Editor, _session: &mut OverlaySession, _reason: CloseReason) {}
+	fn on_close(
+		&mut self,
+		_ctx: &mut dyn OverlayContext,
+		_session: &mut OverlaySession,
+		_reason: CloseReason,
+	) {
+	}
 }

@@ -64,17 +64,19 @@ impl<'a> BufferRenderContext<'a> {
 	) -> Vec<(HighlightSpan, Style)> {
 		let start_line = buffer.scroll_line;
 
-		buffer.with_doc(|doc| {
-			let Some(syntax) = doc.syntax() else {
-				return Vec::new();
-			};
+		let doc_id = buffer.document_id();
+		let Some(syntax) = self.syntax_manager.syntax_for_doc(doc_id) else {
+			return Vec::new();
+		};
+		let syntax_version = self.syntax_manager.syntax_version(doc_id);
 
+		buffer.with_doc(|doc| {
 			let total_lines = visible_line_count(doc.content().slice(..));
 			let end_line = (start_line + area.height as usize).min(total_lines);
 
 			cache.highlight.get_spans(HighlightSpanQuery {
 				doc_id: doc.id,
-				syntax_version: doc.syntax_version,
+				syntax_version,
 				language_id: doc.language_id(),
 				rope: doc.content(),
 				syntax,

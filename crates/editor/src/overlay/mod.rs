@@ -4,8 +4,10 @@ use std::future::Future;
 use std::pin::Pin;
 
 use termina::event::{KeyCode, KeyEvent};
+use xeno_registry::notifications::Notification;
 
-use crate::buffer::ViewId;
+use crate::buffer::{Buffer, ViewId};
+use crate::window::WindowId;
 
 pub mod controllers;
 pub mod host;
@@ -169,21 +171,64 @@ pub enum CloseReason {
 	Forced,
 }
 
+/// Capability interface for overlay controllers.
+///
+/// This intentionally exposes a limited surface area relative to the full
+/// editor API, while still allowing overlays to perform their work.
+pub trait OverlayContext {
+	/// Returns a buffer by view ID.
+	fn buffer(&self, id: ViewId) -> Option<&Buffer>;
+	/// Returns a mutable buffer by view ID.
+	fn buffer_mut(&mut self, id: ViewId) -> Option<&mut Buffer>;
+	/// Replaces a buffer's content and resets syntax state.
+	fn reset_buffer_content(&mut self, view: ViewId, content: &str);
+	/// Emits a user-visible notification.
+	fn notify(&mut self, notification: Notification);
+	/// Reveals the cursor for a view.
+	fn reveal_cursor_in_view(&mut self, view: ViewId);
+	/// Requests a redraw for the next frame.
+	fn request_redraw(&mut self);
+	/// Queues a command by name.
+	fn queue_command(&mut self, name: &'static str, args: Vec<String>);
+	/// Closes a floating window.
+	fn close_floating_window(&mut self, window: WindowId);
+	/// Finalizes removal for a buffer.
+	fn finalize_buffer_removal(&mut self, view: ViewId);
+
+	#[cfg(feature = "lsp")]
+	fn lsp_prepare_position_request(
+		&self,
+		buffer: &Buffer,
+	) -> xeno_lsp::Result<
+		Option<(
+			xeno_lsp::ClientHandle,
+			xeno_lsp::lsp_types::Uri,
+			xeno_lsp::lsp_types::Position,
+		)>,
+	>;
+
+	#[cfg(feature = "lsp")]
+	fn apply_workspace_edit<'a>(
+		&'a mut self,
+		edit: xeno_lsp::lsp_types::WorkspaceEdit,
+	) -> Pin<Box<dyn Future<Output = Result<(), crate::lsp::workspace_edit::ApplyError>> + 'a>>;
+}
+
 /// Behavioral logic for a modal interaction session.
 pub trait OverlayController: Send + Sync {
 	/// Stable identifier for the controller kind.
 	fn name(&self) -> &'static str;
 
 	/// Defines the initial UI configuration for the session.
-	fn ui_spec(&self, ed: &crate::impls::Editor) -> OverlayUiSpec;
+	fn ui_spec(&self, ctx: &dyn OverlayContext) -> OverlayUiSpec;
 
 	/// Called immediately after the session resources are allocated.
-	fn on_open(&mut self, ed: &mut crate::impls::Editor, session: &mut OverlaySession);
+	fn on_open(&mut self, ctx: &mut dyn OverlayContext, session: &mut OverlaySession);
 
 	/// Called when the primary input buffer content changes.
 	fn on_input_changed(
 		&mut self,
-		ed: &mut crate::impls::Editor,
+		ctx: &mut dyn OverlayContext,
 		session: &mut OverlaySession,
 		text: &str,
 	);
@@ -191,28 +236,92 @@ pub trait OverlayController: Send + Sync {
 	/// Processes raw key events. Returns `true` if the event was handled.
 	fn on_key(
 		&mut self,
-		ed: &mut crate::impls::Editor,
+		ctx: &mut dyn OverlayContext,
 		session: &mut OverlaySession,
 		key: KeyEvent,
 	) -> bool {
-		let _ = (ed, session, key);
+		let _ = (ctx, session, key);
 		false
 	}
 
 	/// Performs the interaction's final action. Called when the session is committed.
 	fn on_commit<'a>(
 		&'a mut self,
-		ed: &'a mut crate::impls::Editor,
+		ctx: &'a mut dyn OverlayContext,
 		session: &'a mut OverlaySession,
 	) -> Pin<Box<dyn Future<Output = ()> + 'a>>;
 
 	/// Final cleanup hook. Called when the session is closed for any reason.
 	fn on_close(
 		&mut self,
-		ed: &mut crate::impls::Editor,
+		ctx: &mut dyn OverlayContext,
 		session: &mut OverlaySession,
 		reason: CloseReason,
 	);
+}
+
+impl OverlayContext for crate::impls::Editor {
+	fn buffer(&self, id: ViewId) -> Option<&Buffer> {
+		self.state.core.buffers.get_buffer(id)
+	}
+
+	fn buffer_mut(&mut self, id: ViewId) -> Option<&mut Buffer> {
+		self.state.core.buffers.get_buffer_mut(id)
+	}
+
+	fn reset_buffer_content(&mut self, view: ViewId, content: &str) {
+		let Some(buffer) = self.state.core.buffers.get_buffer_mut(view) else {
+			return;
+		};
+		buffer.reset_content(content);
+		self.state.syntax_manager.reset_syntax(buffer.document_id());
+	}
+
+	fn notify(&mut self, notification: Notification) {
+		self.notify(notification);
+	}
+
+	fn reveal_cursor_in_view(&mut self, view: ViewId) {
+		self.reveal_cursor_in_view(view);
+	}
+
+	fn request_redraw(&mut self) {
+		self.state.frame.needs_redraw = true;
+	}
+
+	fn queue_command(&mut self, name: &'static str, args: Vec<String>) {
+		self.state.core.workspace.command_queue.push(name, args);
+	}
+
+	fn close_floating_window(&mut self, window: WindowId) {
+		self.close_floating_window(window);
+	}
+
+	fn finalize_buffer_removal(&mut self, view: ViewId) {
+		self.finalize_buffer_removal(view);
+	}
+
+	#[cfg(feature = "lsp")]
+	fn lsp_prepare_position_request(
+		&self,
+		buffer: &Buffer,
+	) -> xeno_lsp::Result<
+		Option<(
+			xeno_lsp::ClientHandle,
+			xeno_lsp::lsp_types::Uri,
+			xeno_lsp::lsp_types::Position,
+		)>,
+	> {
+		self.state.lsp.prepare_position_request(buffer)
+	}
+
+	#[cfg(feature = "lsp")]
+	fn apply_workspace_edit<'a>(
+		&'a mut self,
+		edit: xeno_lsp::lsp_types::WorkspaceEdit,
+	) -> Pin<Box<dyn Future<Output = Result<(), crate::lsp::workspace_edit::ApplyError>> + 'a>> {
+		Box::pin(self.apply_workspace_edit(edit))
+	}
 }
 
 /// Trait for passive, contextual UI elements.

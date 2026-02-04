@@ -1,9 +1,5 @@
 //! Text editing operations for buffers.
 
-#[cfg(feature = "lsp")]
-use xeno_lsp::{IncrementalResult, OffsetEncoding, compute_lsp_changes};
-#[cfg(feature = "lsp")]
-use xeno_primitives::LspDocumentChange;
 use xeno_primitives::{CommitResult, EditCommit, Range, SyntaxPolicy, Transaction, UndoPolicy};
 use xeno_runtime_language::LanguageLoader;
 
@@ -58,31 +54,6 @@ use crate::movement;
 
 #[cfg(test)]
 mod tests;
-
-/// Result of applying a transaction with LSP change tracking.
-///
-/// Contains both the commit result and incremental changes for LSP sync.
-/// When `lsp_changes` is `None`, a full sync is required.
-#[cfg(feature = "lsp")]
-#[derive(Debug)]
-pub struct LspCommitResult {
-	pub commit: CommitResult,
-	pub lsp_changes: Option<Vec<LspDocumentChange>>,
-	pub lsp_bytes: usize,
-}
-
-#[cfg(feature = "lsp")]
-impl LspCommitResult {
-	/// Version before this commit was applied.
-	pub fn prev_version(&self) -> u64 {
-		self.commit.version_before
-	}
-
-	/// Version after this commit was applied.
-	pub fn new_version(&self) -> u64 {
-		self.commit.version_after
-	}
-}
 
 impl Buffer {
 	/// Inserts text at all cursor positions, returning the [`Transaction`] without applying it.
@@ -327,65 +298,6 @@ impl Buffer {
 			.with_syntax(policy.syntax);
 
 		self.with_doc_mut(|doc| doc.commit_unchecked(commit, loader))
-	}
-
-	/// Applies a transaction with LSP change tracking.
-	///
-	/// Like [`apply`], but also computes LSP document changes for sync.
-	/// The encoding specifies how to compute LSP positions.
-	///
-	/// Returns an [`LspCommitResult`] containing both the commit result and
-	/// the LSP changes for the caller to forward to the sync manager.
-	#[cfg(feature = "lsp")]
-	pub fn apply_with_lsp(
-		&self,
-		tx: &Transaction,
-		policy: ApplyPolicy,
-		loader: &LanguageLoader,
-		encoding: OffsetEncoding,
-	) -> LspCommitResult {
-		if self.readonly_override == Some(true) {
-			let commit =
-				self.with_doc(|doc| CommitResult::blocked(doc.version(), doc.insert_undo_active()));
-			return LspCommitResult {
-				commit,
-				lsp_changes: Some(Vec::new()),
-				lsp_bytes: 0,
-			};
-		}
-		if self.readonly_override.is_none() {
-			let (readonly, version, insert_active) =
-				self.with_doc(|doc| (doc.is_readonly(), doc.version(), doc.insert_undo_active()));
-			if readonly {
-				return LspCommitResult {
-					commit: CommitResult::blocked(version, insert_active),
-					lsp_changes: Some(Vec::new()),
-					lsp_bytes: 0,
-				};
-			}
-		}
-
-		let lsp_result = self.with_doc(|doc| compute_lsp_changes(doc.content(), tx, encoding));
-
-		let edit_commit = EditCommit::new(tx.clone())
-			.with_undo(policy.undo)
-			.with_syntax(policy.syntax);
-
-		let commit = self.with_doc_mut(|doc| doc.commit_unchecked(edit_commit, loader));
-
-		let (lsp_changes, lsp_bytes) = match lsp_result {
-			IncrementalResult::Incremental(changes) => {
-				let bytes: usize = changes.iter().map(|c| c.new_text.len()).sum();
-				(Some(changes), bytes)
-			}
-			IncrementalResult::FallbackToFull => (None, 0),
-		};
-
-		LspCommitResult {
-			commit,
-			lsp_changes,
-			lsp_bytes,
-		}
 	}
 
 	/// Finalizes selection/cursor after a transaction is applied.

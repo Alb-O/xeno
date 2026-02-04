@@ -19,6 +19,7 @@ mod tests {
 		let tab_width = 4;
 		let theme = xeno_registry::themes::get_theme("default").unwrap();
 		let loader = xeno_runtime_language::LanguageLoader::new();
+		let syntax_manager = crate::syntax_manager::SyntaxManager::default();
 
 		let line_idx = 0;
 		let line_slice = LineSlice {
@@ -43,6 +44,7 @@ mod tests {
 		let ctx = BufferRenderContext {
 			theme,
 			language_loader: &loader,
+			syntax_manager: &syntax_manager,
 			diagnostics: None,
 			diagnostic_ranges: None,
 		};
@@ -118,6 +120,7 @@ mod tests {
 		let tab_width = 4;
 		let theme = xeno_registry::themes::get_theme("default").unwrap();
 		let loader = xeno_runtime_language::LanguageLoader::new();
+		let syntax_manager = crate::syntax_manager::SyntaxManager::default();
 
 		let line_idx = 0;
 		let line_slice = LineSlice {
@@ -142,6 +145,7 @@ mod tests {
 		let ctx = BufferRenderContext {
 			theme,
 			language_loader: &loader,
+			syntax_manager: &syntax_manager,
 			diagnostics: None,
 			diagnostic_ranges: None,
 		};
@@ -211,6 +215,7 @@ mod tests {
 		let doc = Rope::from("Long line that wraps");
 		let theme = xeno_registry::themes::get_theme("default").unwrap();
 		let loader = xeno_runtime_language::LanguageLoader::new();
+		let syntax_manager = crate::syntax_manager::SyntaxManager::default();
 
 		let line_idx = 0;
 		let line_slice = LineSlice {
@@ -239,6 +244,7 @@ mod tests {
 		let ctx = BufferRenderContext {
 			theme,
 			language_loader: &loader,
+			syntax_manager: &syntax_manager,
 			diagnostics: None,
 			diagnostic_ranges: None,
 		};

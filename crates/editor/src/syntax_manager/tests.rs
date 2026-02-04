@@ -66,50 +66,36 @@ async fn test_inflight_drained_even_if_doc_marked_clean() {
 		.expect("rust should be available in embedded loader");
 	let content = Rope::from("test");
 
-	let mut current = None;
-	let mut dirty = true;
-	let mut updated = false;
-	let poll = mgr.ensure_syntax(
-		EnsureSyntaxContext {
-			doc_id,
-			doc_version: 1,
-			language_id: Some(lang_id),
-			content: &content,
-			hotness: SyntaxHotness::Visible,
-			loader: &loader,
-		},
-		SyntaxSlot {
-			current: &mut current,
-			dirty: &mut dirty,
-			updated: &mut updated,
-		},
-	);
-	assert_eq!(poll, SyntaxPollResult::Kicked);
+	let poll = mgr.ensure_syntax(EnsureSyntaxContext {
+		doc_id,
+		doc_version: 1,
+		language_id: Some(lang_id),
+		content: &content,
+		hotness: SyntaxHotness::Visible,
+		loader: &loader,
+	});
+	assert_eq!(poll.result, SyntaxPollResult::Kicked);
 	assert!(mgr.has_pending(doc_id));
 
-	dirty = false;
+	if let Some(state) = mgr.syntax.get_mut(&doc_id) {
+		state.dirty = false;
+	}
+
 	let _ = tx.send(());
 	tokio::time::sleep(Duration::from_millis(50)).await;
 
-	let poll = mgr.ensure_syntax(
-		EnsureSyntaxContext {
-			doc_id,
-			doc_version: 1,
-			language_id: Some(lang_id),
-			content: &content,
-			hotness: SyntaxHotness::Visible,
-			loader: &loader,
-		},
-		SyntaxSlot {
-			current: &mut current,
-			dirty: &mut dirty,
-			updated: &mut updated,
-		},
-	);
+	let poll = mgr.ensure_syntax(EnsureSyntaxContext {
+		doc_id,
+		doc_version: 1,
+		language_id: Some(lang_id),
+		content: &content,
+		hotness: SyntaxHotness::Visible,
+		loader: &loader,
+	});
 
 	assert!(!mgr.has_pending(doc_id));
 	assert!(matches!(
-		poll,
+		poll.result,
 		SyntaxPollResult::Ready | SyntaxPollResult::CoolingDown
 	));
 }
@@ -136,65 +122,39 @@ async fn test_language_switch_discards_old_parse() {
 		.expect("python should be available");
 	let content = Rope::from("test");
 
-	let mut current = None;
-	let mut dirty = true;
-	let mut updated = false;
-	mgr.ensure_syntax(
-		EnsureSyntaxContext {
-			doc_id,
-			doc_version: 1,
-			language_id: Some(lang_id_old),
-			content: &content,
-			hotness: SyntaxHotness::Visible,
-			loader: &loader,
-		},
-		SyntaxSlot {
-			current: &mut current,
-			dirty: &mut dirty,
-			updated: &mut updated,
-		},
-	);
+	let dummy_syntax = Syntax::new(
+		content.slice(..),
+		lang_id_old,
+		&loader,
+		xeno_runtime_language::SyntaxOptions::default(),
+	)
+	.unwrap();
+	engine.set_result(Ok(dummy_syntax));
+
+	let poll = mgr.ensure_syntax(EnsureSyntaxContext {
+		doc_id,
+		doc_version: 1,
+		language_id: Some(lang_id_old),
+		content: &content,
+		hotness: SyntaxHotness::Visible,
+		loader: &loader,
+	});
+	assert_eq!(poll.result, SyntaxPollResult::Kicked);
 
 	let _ = tx.send(());
 	tokio::time::sleep(Duration::from_millis(50)).await;
 
-	let poll = mgr.ensure_syntax(
-		EnsureSyntaxContext {
-			doc_id,
-			doc_version: 1,
-			language_id: Some(lang_id_new),
-			content: &content,
-			hotness: SyntaxHotness::Visible,
-			loader: &loader,
-		},
-		SyntaxSlot {
-			current: &mut current,
-			dirty: &mut dirty,
-			updated: &mut updated,
-		},
-	);
+	let poll = mgr.ensure_syntax(EnsureSyntaxContext {
+		doc_id,
+		doc_version: 1,
+		language_id: Some(lang_id_new),
+		content: &content,
+		hotness: SyntaxHotness::Visible,
+		loader: &loader,
+	});
 
-	assert!(current.is_none());
-	let poll = if poll == SyntaxPollResult::CoolingDown {
-		mgr.ensure_syntax(
-			EnsureSyntaxContext {
-				doc_id,
-				doc_version: 1,
-				language_id: Some(lang_id_new),
-				content: &content,
-				hotness: SyntaxHotness::Visible,
-				loader: &loader,
-			},
-			SyntaxSlot {
-				current: &mut current,
-				dirty: &mut dirty,
-				updated: &mut updated,
-			},
-		)
-	} else {
-		poll
-	};
-	assert_eq!(poll, SyntaxPollResult::Kicked);
+	assert!(mgr.syntax_for_doc(doc_id).is_none());
+	assert_eq!(poll.result, SyntaxPollResult::Kicked);
 }
 
 #[tokio::test]
@@ -217,46 +177,39 @@ async fn test_dropwhenhidden_discards_completed_parse() {
 		.expect("rust should be available");
 	let content = Rope::from(" ".repeat(2 * 1024 * 1024));
 
-	let mut current = None;
-	let mut dirty = true;
-	let mut updated = false;
-	mgr.ensure_syntax(
-		EnsureSyntaxContext {
-			doc_id,
-			doc_version: 1,
-			language_id: Some(lang_id),
-			content: &content,
-			hotness: SyntaxHotness::Visible,
-			loader: &loader,
-		},
-		SyntaxSlot {
-			current: &mut current,
-			dirty: &mut dirty,
-			updated: &mut updated,
-		},
-	);
+	let dummy_syntax = Syntax::new(
+		content.slice(..),
+		lang_id,
+		&loader,
+		xeno_runtime_language::SyntaxOptions::default(),
+	)
+	.unwrap();
+	engine.set_result(Ok(dummy_syntax));
+
+	mgr.ensure_syntax(EnsureSyntaxContext {
+		doc_id,
+		doc_version: 1,
+		language_id: Some(lang_id),
+		content: &content,
+		hotness: SyntaxHotness::Visible,
+		loader: &loader,
+	});
 
 	let _ = tx.send(());
 	tokio::time::sleep(Duration::from_millis(50)).await;
 
-	mgr.ensure_syntax(
-		EnsureSyntaxContext {
-			doc_id,
-			doc_version: 1,
-			language_id: Some(lang_id),
-			content: &content,
-			hotness: SyntaxHotness::Cold,
-			loader: &loader,
-		},
-		SyntaxSlot {
-			current: &mut current,
-			dirty: &mut dirty,
-			updated: &mut updated,
-		},
-	);
+	let poll = mgr.ensure_syntax(EnsureSyntaxContext {
+		doc_id,
+		doc_version: 1,
+		language_id: Some(lang_id),
+		content: &content,
+		hotness: SyntaxHotness::Cold,
+		loader: &loader,
+	});
 
-	assert!(current.is_none());
-	assert!(dirty);
+	assert!(mgr.syntax_for_doc(doc_id).is_none());
+	assert!(mgr.is_dirty(doc_id));
+	assert!(poll.updated);
 }
 
 /// Exhaustive truth table for the stale-inflight install guard.
@@ -322,26 +275,15 @@ async fn test_stale_install_continuity() {
 	.unwrap();
 	engine.set_result(Ok(dummy_syntax));
 
-	let mut current = None;
-	let mut dirty = true;
-	let mut updated = false;
-
 	// 1. Kick off parse for V1
-	mgr.ensure_syntax(
-		EnsureSyntaxContext {
-			doc_id,
-			doc_version: 1,
-			language_id: Some(lang_id),
-			content: &content,
-			hotness: SyntaxHotness::Visible,
-			loader: &loader,
-		},
-		SyntaxSlot {
-			current: &mut current,
-			dirty: &mut dirty,
-			updated: &mut updated,
-		},
-	);
+	mgr.ensure_syntax(EnsureSyntaxContext {
+		doc_id,
+		doc_version: 1,
+		language_id: Some(lang_id),
+		content: &content,
+		hotness: SyntaxHotness::Visible,
+		loader: &loader,
+	});
 
 	// 2. Doc version moves to V2 before V1 completes
 	// 3. Complete V1 parse
@@ -349,25 +291,18 @@ async fn test_stale_install_continuity() {
 	tokio::time::sleep(Duration::from_millis(50)).await;
 
 	// 4. Poll with V2. Slot is still dirty, so V1 result SHOULD be installed (continuity).
-	mgr.ensure_syntax(
-		EnsureSyntaxContext {
-			doc_id,
-			doc_version: 2,
-			language_id: Some(lang_id),
-			content: &content,
-			hotness: SyntaxHotness::Visible,
-			loader: &loader,
-		},
-		SyntaxSlot {
-			current: &mut current,
-			dirty: &mut dirty,
-			updated: &mut updated,
-		},
-	);
+	let poll = mgr.ensure_syntax(EnsureSyntaxContext {
+		doc_id,
+		doc_version: 2,
+		language_id: Some(lang_id),
+		content: &content,
+		hotness: SyntaxHotness::Visible,
+		loader: &loader,
+	});
 
-	assert!(current.is_some());
-	assert!(updated);
-	assert!(dirty); // dirty stays true because version mismatch (V1 != V2)
+	assert!(mgr.syntax_for_doc(doc_id).is_some());
+	assert!(poll.updated);
+	assert!(mgr.is_dirty(doc_id)); // dirty stays true because version mismatch (V1 != V2)
 }
 
 /// Bootstrap parse (no existing syntax tree) MUST skip the debounce gate
@@ -387,28 +322,17 @@ async fn test_bootstrap_parse_skips_debounce() {
 		.expect("rust should be available in embedded loader");
 	let content = Rope::from("fn main() {}");
 
-	let mut current = None;
-	let mut dirty = true;
-	let mut updated = false;
-
 	// First call with no existing syntax tree must kick immediately.
-	let poll = mgr.ensure_syntax(
-		EnsureSyntaxContext {
-			doc_id,
-			doc_version: 1,
-			language_id: Some(lang_id),
-			content: &content,
-			hotness: SyntaxHotness::Visible,
-			loader: &loader,
-		},
-		SyntaxSlot {
-			current: &mut current,
-			dirty: &mut dirty,
-			updated: &mut updated,
-		},
-	);
+	let poll = mgr.ensure_syntax(EnsureSyntaxContext {
+		doc_id,
+		doc_version: 1,
+		language_id: Some(lang_id),
+		content: &content,
+		hotness: SyntaxHotness::Visible,
+		loader: &loader,
+	});
 	assert_eq!(
-		poll,
+		poll.result,
 		SyntaxPollResult::Kicked,
 		"bootstrap parse must skip debounce and kick immediately"
 	);
@@ -446,26 +370,15 @@ async fn test_idle_tick_polls_inflight_parse() {
 	let lang_id = loader.language_for_name("rust").unwrap();
 	let content = Rope::from("test");
 
-	let mut current = None;
-	let mut dirty = true;
-	let mut updated = false;
-
 	// 1. Kick off parse
-	mgr.ensure_syntax(
-		EnsureSyntaxContext {
-			doc_id,
-			doc_version: 1,
-			language_id: Some(lang_id),
-			content: &content,
-			hotness: SyntaxHotness::Visible,
-			loader: &loader,
-		},
-		SyntaxSlot {
-			current: &mut current,
-			dirty: &mut dirty,
-			updated: &mut updated,
-		},
-	);
+	mgr.ensure_syntax(EnsureSyntaxContext {
+		doc_id,
+		doc_version: 1,
+		language_id: Some(lang_id),
+		content: &content,
+		hotness: SyntaxHotness::Visible,
+		loader: &loader,
+	});
 
 	assert!(mgr.has_pending(doc_id));
 	assert!(!mgr.any_task_finished());
@@ -494,50 +407,86 @@ async fn test_single_flight_per_doc() {
 	let lang_id = loader.language_for_name("rust").unwrap();
 	let content = Rope::from("test");
 
-	let mut current = None;
-	let mut dirty = true;
-	let mut updated = false;
-
 	// 1. Kick off first parse
-	let poll1 = mgr.ensure_syntax(
-		EnsureSyntaxContext {
-			doc_id,
-			doc_version: 1,
-			language_id: Some(lang_id),
-			content: &content,
-			hotness: SyntaxHotness::Visible,
-			loader: &loader,
-		},
-		SyntaxSlot {
-			current: &mut current,
-			dirty: &mut dirty,
-			updated: &mut updated,
-		},
-	);
-	assert_eq!(poll1, SyntaxPollResult::Kicked);
+	let poll1 = mgr.ensure_syntax(EnsureSyntaxContext {
+		doc_id,
+		doc_version: 1,
+		language_id: Some(lang_id),
+		content: &content,
+		hotness: SyntaxHotness::Visible,
+		loader: &loader,
+	});
+	assert_eq!(poll1.result, SyntaxPollResult::Kicked);
 	assert!(mgr.has_pending(doc_id));
 
 	// 2. Try to kick off another parse for same doc while first is running
-	let poll2 = mgr.ensure_syntax(
-		EnsureSyntaxContext {
-			doc_id,
-			doc_version: 2,
-			language_id: Some(lang_id),
-			content: &content,
-			hotness: SyntaxHotness::Visible,
-			loader: &loader,
-		},
-		SyntaxSlot {
-			current: &mut current,
-			dirty: &mut dirty,
-			updated: &mut updated,
-		},
-	);
+	let poll2 = mgr.ensure_syntax(EnsureSyntaxContext {
+		doc_id,
+		doc_version: 2,
+		language_id: Some(lang_id),
+		content: &content,
+		hotness: SyntaxHotness::Visible,
+		loader: &loader,
+	});
 
-	assert_eq!(poll2, SyntaxPollResult::Pending);
+	assert_eq!(poll2.result, SyntaxPollResult::Pending);
 	assert_eq!(
 		mgr.pending_count(),
 		1,
 		"Should only have one task for this doc"
 	);
+}
+
+#[tokio::test]
+async fn test_syntax_version_bumps_on_install() {
+	let engine = Arc::new(MockEngine::new());
+	let (tx, rx) = oneshot::channel();
+	engine.set_gate(rx);
+
+	let mut mgr = SyntaxManager::new_with_engine(1, engine.clone());
+	let mut policy = TieredSyntaxPolicy::default();
+	policy.s.debounce = Duration::from_millis(0);
+	policy.s.cooldown_on_timeout = Duration::from_millis(0);
+	mgr.set_policy(policy);
+
+	let doc_id = DocumentId(1);
+	let loader = Arc::new(LanguageLoader::from_embedded());
+	let lang_id = loader.language_for_name("rust").unwrap();
+	let content = Rope::from("test");
+
+	let dummy_syntax = Syntax::new(
+		content.slice(..),
+		lang_id,
+		&loader,
+		xeno_runtime_language::SyntaxOptions::default(),
+	)
+	.unwrap();
+	engine.set_result(Ok(dummy_syntax));
+
+	let v0 = mgr.syntax_version(doc_id);
+	let poll = mgr.ensure_syntax(EnsureSyntaxContext {
+		doc_id,
+		doc_version: 1,
+		language_id: Some(lang_id),
+		content: &content,
+		hotness: SyntaxHotness::Visible,
+		loader: &loader,
+	});
+	assert_eq!(poll.result, SyntaxPollResult::Kicked);
+
+	let _ = tx.send(());
+	tokio::time::sleep(Duration::from_millis(50)).await;
+
+	let poll = mgr.ensure_syntax(EnsureSyntaxContext {
+		doc_id,
+		doc_version: 1,
+		language_id: Some(lang_id),
+		content: &content,
+		hotness: SyntaxHotness::Visible,
+		loader: &loader,
+	});
+	assert_eq!(poll.result, SyntaxPollResult::Ready);
+	assert!(poll.updated);
+	let v1 = mgr.syntax_version(doc_id);
+	assert!(v1 > v0);
 }

@@ -184,6 +184,7 @@ impl Editor {
 					doc.init_syntax_for_language(ft, &self.state.config.language_loader)
 				});
 			}
+			self.state.syntax_manager.reset_syntax(buffer.document_id());
 			buffer.set_readonly_override(Some(true));
 		}
 
@@ -268,6 +269,7 @@ impl Editor {
 			}
 		}
 
+		self.state.syntax_manager.reset_syntax(buffer.document_id());
 		buffer.set_readonly_override(Some(true));
 		self.state.frame.needs_redraw = true;
 		true
