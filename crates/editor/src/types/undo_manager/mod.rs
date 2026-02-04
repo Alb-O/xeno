@@ -336,6 +336,37 @@ impl UndoManager {
 		Some(doc_ids)
 	}
 
+	/// Starts a blind broker-driven history operation for specific documents.
+	pub fn start_blind_remote_history(
+		&mut self,
+		host: &mut impl UndoHost,
+		kind: HistoryKind,
+		doc_ids: Vec<DocumentId>,
+	) -> bool {
+		if self.pending_history.is_some() {
+			return false;
+		}
+		if !host.guard_readonly() {
+			return false;
+		}
+
+		let current_snapshots = host.capture_current_view_snapshots(&doc_ids);
+		let remaining_docs = doc_ids.iter().copied().collect::<HashSet<_>>();
+
+		self.pending_history = Some(PendingHistoryOp {
+			kind,
+			group: EditorUndoGroup {
+				affected_docs: doc_ids,
+				view_snapshots: HashMap::new(),
+				origin: xeno_primitives::EditOrigin::Internal("blind-undo"),
+			},
+			current_snapshots,
+			remaining_docs,
+		});
+
+		true
+	}
+
 	/// Notes that a broker-driven history delta was applied for the document.
 	pub fn note_remote_history_delta(&mut self, host: &mut impl UndoHost, doc_id: DocumentId) {
 		let Some(mut pending) = self.pending_history.take() else {

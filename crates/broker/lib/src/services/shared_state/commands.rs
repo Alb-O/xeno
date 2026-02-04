@@ -51,6 +51,8 @@ pub enum SharedStateCmd {
 		base_len_chars: u64,
 		/// The transaction data (required for Edit, None for Undo/Redo).
 		tx: Option<WireTx>,
+		/// Undo group identifier for the mutation.
+		undo_group: u64,
 		/// Reply channel for the acknowledgment.
 		reply: oneshot::Sender<Result<ResponsePayload, ErrorCode>>,
 	},
@@ -64,6 +66,10 @@ pub enum SharedStateCmd {
 		reply: oneshot::Sender<Result<ResponsePayload, ErrorCode>>,
 	},
 	/// Update focus status for a document with atomic ownership acquisition.
+	///
+	/// When `focused` is true, the broker attempts to grant ownership to the caller.
+	/// If the client's fingerprint mismatches authoritative state, a repair text
+	/// is returned in the acknowledgment.
 	Focus {
 		/// The session identity.
 		sid: SessionId,

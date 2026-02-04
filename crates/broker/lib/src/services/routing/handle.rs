@@ -160,10 +160,7 @@ impl RoutingHandle {
 
 	/// Registers a document update from buffer sync.
 	pub async fn lsp_doc_update(&self, uri: String, text: String) {
-		let _ = self
-			.tx
-			.send(RoutingCmd::LspDocUpdate { uri, text })
-			.await;
+		let _ = self.tx.send(RoutingCmd::LspDocUpdate { uri, text }).await;
 	}
 
 	/// Registers a document close from buffer sync.

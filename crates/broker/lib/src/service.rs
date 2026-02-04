@@ -161,6 +161,7 @@ impl Service<Request> for BrokerService {
 					base_hash64,
 					base_len_chars,
 					tx,
+					undo_group,
 				} => {
 					runtime
 						.shared_state
@@ -173,6 +174,7 @@ impl Service<Request> for BrokerService {
 							base_hash64,
 							base_len_chars,
 							tx,
+							undo_group,
 						)
 						.await
 				}

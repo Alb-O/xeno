@@ -29,7 +29,6 @@ where
 							{
 								tracing::warn!(?e, node_id = %node.id, "failed to delete bm25 doc");
 							}
-							tracing::debug!(node_id = %node.id, "dropped node");
 							Ok(())
 						}
 						Err(e) => Err(e),

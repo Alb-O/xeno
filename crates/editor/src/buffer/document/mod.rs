@@ -708,7 +708,7 @@ impl Document {
 	}
 }
 
-fn collect_changed_ranges(tx: &xeno_primitives::Transaction) -> Vec<Range> {
+pub(crate) fn collect_changed_ranges(tx: &xeno_primitives::Transaction) -> Vec<Range> {
 	let mut ranges = Vec::new();
 	let mut pos = 0;
 

@@ -1032,7 +1032,7 @@ impl Value {
 			}
 		}
 	}
-pub fn try_num_binary(&self, op: NumBinaryOp, rhs: &Value) -> Result<Value, ValueError> {
+	pub fn try_num_binary(&self, op: NumBinaryOp, rhs: &Value) -> Result<Value, ValueError> {
 		match op {
 			NumBinaryOp::Add => Self::num_binary_add(self.clone(), rhs.clone()),
 			NumBinaryOp::Sub => Self::num_binary_sub(self.clone(), rhs.clone()),

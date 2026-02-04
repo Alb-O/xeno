@@ -16,7 +16,8 @@ use xeno_broker_proto::types::{
 };
 use xeno_primitives::Transaction;
 
-use crate::buffer::DocumentId;
+use crate::buffer::{DocumentId, ViewId};
+use crate::types::ViewSnapshot;
 
 /// Minimum interval between sending activity heartbeats to the broker.
 const ACTIVITY_THROTTLE: Duration = Duration::from_millis(750);
@@ -49,6 +50,12 @@ pub enum SharedStateEvent {
 		hash64: u64,
 		/// Authority length after apply.
 		len_chars: u64,
+		/// Previous history head node identifier.
+		history_from_id: Option<u64>,
+		/// New history head node identifier.
+		history_to_id: Option<u64>,
+		/// History group identifier affected by this operation.
+		history_group: Option<u64>,
 	},
 	/// Ownership of a document changed.
 	OwnerChanged {
@@ -88,6 +95,12 @@ pub enum SharedStateEvent {
 		hash64: u64,
 		/// Authority length after apply.
 		len_chars: u64,
+		/// Previous history head node identifier.
+		history_from_id: Option<u64>,
+		/// New history head node identifier.
+		history_to_id: Option<u64>,
+		/// History group identifier affected by this operation.
+		history_group: Option<u64>,
 	},
 	/// Full resync snapshot from broker.
 	Snapshot {
@@ -168,6 +181,22 @@ struct InFlightEdit {
 	base_seq: SyncSeq,
 }
 
+/// Per-group view state for exact cursor restoration.
+#[derive(Debug, Clone, Default)]
+pub struct GroupViewState {
+	/// Snapshots before the group's first delta.
+	pub pre: HashMap<ViewId, ViewSnapshot>,
+	/// Snapshots after the group completes.
+	pub post: HashMap<ViewId, ViewSnapshot>,
+}
+
+/// Local cache of view state indexed by broker undo group.
+#[derive(Debug, Clone, Default)]
+pub struct SharedViewHistory {
+	/// Keyed by group_id.
+	pub groups: HashMap<u64, GroupViewState>,
+}
+
 /// Per-document sync state tracked by the editor.
 struct SharedDocEntry {
 	doc_id: DocumentId,
@@ -180,7 +209,7 @@ struct SharedDocEntry {
 	needs_resync: bool,
 	resync_requested: bool,
 	open_refcount: u32,
-	pending_deltas: VecDeque<WireTx>,
+	pending_deltas: VecDeque<(WireTx, u64)>,
 	in_flight: Option<InFlightEdit>,
 	last_activity_sent: Option<Instant>,
 	focus_seq: u64,
@@ -191,6 +220,11 @@ struct SharedDocEntry {
 	auth_hash64: u64,
 	/// Authoritative length for current (epoch, seq).
 	auth_len_chars: u64,
+
+	/// Current local undo group identifier.
+	current_undo_group: u64,
+	/// View history cache for group-level undo/redo.
+	view_history: SharedViewHistory,
 }
 
 impl SharedDocEntry {
@@ -396,6 +430,8 @@ impl SharedStateManager {
 				pending_align: None,
 				auth_hash64: 0,
 				auth_len_chars: 0,
+				current_undo_group: 1,
+				view_history: SharedViewHistory::default(),
 			});
 		entry.doc_id = doc_id;
 		entry.open_refcount = entry.open_refcount.saturating_add(1);
@@ -454,6 +490,8 @@ impl SharedStateManager {
 				pending_align: None,
 				auth_hash64: snapshot.hash64,
 				auth_len_chars: snapshot.len_chars,
+				current_undo_group: 1,
+				view_history: SharedViewHistory::default(),
 			});
 		entry.doc_id = doc_id;
 		Self::apply_snapshot_state(entry, &snapshot, local_session, text.is_some());
@@ -474,11 +512,14 @@ impl SharedStateManager {
 		if entry.role != SharedStateRole::Owner || entry.needs_resync {
 			return None;
 		}
+
+		let group_id = entry.current_undo_group;
+
 		if entry.in_flight.is_some() {
 			if kind == SharedApplyKind::Edit
 				&& let Some(tx) = tx
 			{
-				entry.pending_deltas.push_back(tx);
+				entry.pending_deltas.push_back((tx, group_id));
 			}
 			return None;
 		}
@@ -496,11 +537,22 @@ impl SharedStateManager {
 			base_hash64: entry.auth_hash64,
 			base_len_chars: entry.auth_len_chars,
 			tx,
+			undo_group: group_id,
 		})
 	}
 
 	/// Prepares a [`SharedApplyKind::Edit`] request.
-	pub fn prepare_edit(&mut self, uri: &str, tx: &Transaction) -> Option<RequestPayload> {
+	pub fn prepare_edit(
+		&mut self,
+		uri: &str,
+		tx: &Transaction,
+		new_group: bool,
+	) -> Option<RequestPayload> {
+		let entry = self.docs.get_mut(uri)?;
+		if new_group {
+			entry.current_undo_group = entry.current_undo_group.wrapping_add(1).max(1);
+		}
+
 		let wire = convert::tx_to_wire(tx);
 		self.prepare_apply(uri, SharedApplyKind::Edit, Some(wire))
 	}
@@ -528,6 +580,9 @@ impl SharedStateManager {
 		applied_tx: Option<WireTx>,
 		hash64: u64,
 		len_chars: u64,
+		_history_from: Option<u64>,
+		_history_to: Option<u64>,
+		_history_group: Option<u64>,
 	) -> Option<WireTx> {
 		let entry = self.docs.get_mut(uri)?;
 		let in_flight = entry.in_flight?;
@@ -558,7 +613,7 @@ impl SharedStateManager {
 			if entry.role == SharedStateRole::Owner
 				&& !entry.needs_resync
 				&& entry.in_flight.is_none()
-				&& let Some(tx) = entry.pending_deltas.pop_front()
+				&& let Some((tx, gid)) = entry.pending_deltas.pop_front()
 			{
 				entry.in_flight = Some(InFlightEdit {
 					epoch: entry.epoch,
@@ -573,6 +628,7 @@ impl SharedStateManager {
 					base_hash64: entry.auth_hash64,
 					base_len_chars: entry.auth_len_chars,
 					tx: Some(tx),
+					undo_group: gid,
 				});
 			}
 		}
@@ -773,6 +829,35 @@ impl SharedStateManager {
 		self.uri_to_doc_id.clear();
 		self.doc_id_to_uri.clear();
 	}
+
+	/// Caches view snapshots for a local edit group.
+	pub fn cache_view_group(
+		&mut self,
+		uri: &str,
+		group_id: u64,
+		pre: HashMap<ViewId, ViewSnapshot>,
+		post: HashMap<ViewId, ViewSnapshot>,
+	) {
+		if let Some(entry) = self.docs.get_mut(uri) {
+			entry
+				.view_history
+				.groups
+				.insert(group_id, GroupViewState { pre, post });
+		}
+	}
+
+	/// Retrieves cached view state for a group.
+	pub fn get_view_group(&self, uri: &str, group_id: u64) -> Option<&GroupViewState> {
+		self.docs.get(uri)?.view_history.groups.get(&group_id)
+	}
+
+	/// Returns the current local undo group ID.
+	pub fn current_undo_group(&self, uri: &str) -> u64 {
+		self.docs
+			.get(uri)
+			.map(|e| e.current_undo_group)
+			.unwrap_or(0)
+	}
 }
 
 impl Default for SharedStateManager {
@@ -796,6 +881,9 @@ mod tests {
 			phase: DocSyncPhase::Unlocked,
 			hash64: 42,
 			len_chars: 5,
+			history_head_id: None,
+			history_root_id: None,
+			history_head_group: None,
 		};
 
 		let entry = &mut SharedDocEntry {
@@ -817,6 +905,8 @@ mod tests {
 			pending_align: None,
 			auth_hash64: 0,
 			auth_len_chars: 0,
+			current_undo_group: 1,
+			view_history: SharedViewHistory::default(),
 		};
 
 		SharedStateManager::apply_snapshot_state(entry, &snapshot, SessionId(1), true);
@@ -840,6 +930,9 @@ mod tests {
 			phase: DocSyncPhase::Unlocked,
 			hash64: 999,
 			len_chars: 5,
+			history_head_id: None,
+			history_root_id: None,
+			history_head_group: None,
 		};
 
 		let text = manager.handle_snapshot_response(
@@ -869,6 +962,9 @@ mod tests {
 			phase: DocSyncPhase::Unlocked,
 			hash64: 0,
 			len_chars: 0,
+			history_head_id: None,
+			history_root_id: None,
+			history_head_group: None,
 		};
 
 		let text = manager.handle_snapshot_response(
@@ -895,7 +991,7 @@ mod tests {
 			epoch: SyncEpoch(1),
 			base_seq: SyncSeq(0),
 		});
-		entry.pending_deltas.push_back(WireTx(Vec::new()));
+		entry.pending_deltas.push_back((WireTx(Vec::new()), 1));
 		entry.pending_align = Some(SyncNonce(1));
 
 		let snapshot = DocStateSnapshot {
@@ -907,6 +1003,9 @@ mod tests {
 			phase: DocSyncPhase::Owned,
 			hash64: 123,
 			len_chars: 10,
+			history_head_id: None,
+			history_root_id: None,
+			history_head_group: None,
 		};
 
 		let text =

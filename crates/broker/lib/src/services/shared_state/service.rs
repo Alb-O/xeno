@@ -10,12 +10,11 @@ use xeno_broker_proto::types::{
 	SyncEpoch, SyncNonce, SyncSeq, WireTx,
 };
 
-use crate::services::{knowledge, routing, sessions};
-use crate::core::history::{HistoryMeta, HistoryStore};
-use crate::wire_convert;
-
 use super::commands::SharedStateCmd;
 use super::handle::SharedStateHandle;
+use crate::core::history::{HistoryMeta, HistoryStore};
+use crate::services::{knowledge, routing, sessions};
+use crate::wire_convert;
 
 /// Maximum number of operations allowed in a single wire transaction.
 const MAX_WIRE_TX_OPS: usize = 100_000;
@@ -76,6 +75,9 @@ impl SyncDocState {
 			phase,
 			hash64: self.hash64,
 			len_chars: self.len_chars,
+			history_head_id: self.history.as_ref().map(|h| h.head_id),
+			history_root_id: self.history.as_ref().map(|h| h.root_id),
+			history_head_group: self.history.as_ref().map(|h| h.head_group_id),
 		}
 	}
 
@@ -231,8 +233,8 @@ impl SharedStateService {
 						SharedStateCmd::Close { sid, uri, reply } => {
 							let _ = reply.send(self.handle_close(sid, &uri).await);
 						}
-						SharedStateCmd::Apply { sid, uri, kind, epoch, base_seq, base_hash64, base_len_chars, tx, reply } => {
-							let _ = reply.send(self.handle_apply(sid, &uri, kind, epoch, base_seq, base_hash64, base_len_chars, tx.as_ref()).await);
+						SharedStateCmd::Apply { sid, uri, kind, epoch, base_seq, base_hash64, base_len_chars, tx, undo_group, reply } => {
+							let _ = reply.send(self.handle_apply(sid, &uri, kind, epoch, base_seq, base_hash64, base_len_chars, tx.as_ref(), undo_group).await);
 						}
 						SharedStateCmd::Activity { sid, uri, reply } => {
 							let _ = reply.send(self.handle_activity(sid, &uri));
@@ -429,6 +431,7 @@ impl SharedStateService {
 	///
 	/// Validates ownership and preconditions before applying the delta.
 	/// Broadcasts the delta to all participants.
+	#[allow(clippy::too_many_arguments)]
 	async fn handle_apply(
 		&mut self,
 		sid: SessionId,
@@ -439,6 +442,7 @@ impl SharedStateService {
 		base_hash64: u64,
 		base_len_chars: u64,
 		wire_tx: Option<&WireTx>,
+		undo_group: u64,
 	) -> Result<ResponsePayload, ErrorCode> {
 		let uri = crate::core::normalize_uri(uri_in)?;
 
@@ -474,6 +478,8 @@ impl SharedStateService {
 			}
 
 			let mut applied_wire: Option<WireTx> = None;
+			let history_from_id = doc.history.as_ref().map(|h| h.head_id);
+			let mut history_group = None;
 
 			match kind {
 				SharedApplyKind::Edit => {
@@ -503,6 +509,7 @@ impl SharedStateService {
 					doc.seq = SyncSeq(doc.seq.0.wrapping_add(1));
 					doc.update_fingerprint();
 					doc.touch(sid);
+					history_group = Some(undo_group);
 
 					if let Some(history) = &self.history
 						&& let Some(meta) = doc.history.as_mut()
@@ -515,6 +522,8 @@ impl SharedStateService {
 							doc.seq,
 							doc.hash64,
 							doc.len_chars,
+							undo_group,
+							sid.0,
 							wire_tx.clone(),
 							undo_wire,
 							MAX_HISTORY_NODES,
@@ -529,8 +538,8 @@ impl SharedStateService {
 					let history = self.history.as_ref().ok_or(ErrorCode::NotImplemented)?;
 					let meta = doc.history.as_ref().ok_or(ErrorCode::HistoryUnavailable)?;
 
-					let (parent_id, undo_wire) = history
-						.load_undo(&uri, meta.head_id)
+					let (new_head, new_group, undo_wire) = history
+						.load_undo_group(&uri, meta, &doc.rope)
 						.map_err(|err| {
 							tracing::warn!(error = %err, ?uri, "history undo load failed");
 							ErrorCode::Internal
@@ -544,9 +553,12 @@ impl SharedStateService {
 					doc.seq = SyncSeq(doc.seq.0.wrapping_add(1));
 					doc.update_fingerprint();
 					doc.touch(sid);
+					history_group = Some(doc.history.as_ref().unwrap().head_group_id);
 
 					let meta_mut = doc.history.as_mut().unwrap();
-					meta_mut.head_id = parent_id;
+					meta_mut.head_id = new_head;
+					meta_mut.head_group_id = new_group;
+
 					if let Err(err) = history.update_doc_state(
 						&uri,
 						meta_mut,
@@ -566,8 +578,8 @@ impl SharedStateService {
 					let history = self.history.as_ref().ok_or(ErrorCode::NotImplemented)?;
 					let meta = doc.history.as_ref().ok_or(ErrorCode::HistoryUnavailable)?;
 
-					let (child_id, redo_wire) = history
-						.load_redo(&uri, meta.head_id)
+					let (new_head, new_group, redo_wire) = history
+						.load_redo_group(&uri, meta, &doc.rope)
 						.map_err(|err| {
 							tracing::warn!(error = %err, ?uri, "history redo load failed");
 							ErrorCode::Internal
@@ -581,9 +593,12 @@ impl SharedStateService {
 					doc.seq = SyncSeq(doc.seq.0.wrapping_add(1));
 					doc.update_fingerprint();
 					doc.touch(sid);
+					history_group = Some(new_group);
 
 					let meta_mut = doc.history.as_mut().unwrap();
-					meta_mut.head_id = child_id;
+					meta_mut.head_id = new_head;
+					meta_mut.head_group_id = new_group;
+
 					if let Err(err) = history.update_doc_state(
 						&uri,
 						meta_mut,
@@ -605,6 +620,8 @@ impl SharedStateService {
 				.cloned()
 				.unwrap_or_else(|| wire_tx.unwrap().clone());
 
+			let history_to_id = doc.history.as_ref().map(|h| h.head_id);
+
 			let event = xeno_broker_proto::types::Event::SharedDelta {
 				uri: uri.clone(),
 				epoch: doc.epoch,
@@ -614,6 +631,9 @@ impl SharedStateService {
 				origin: sid,
 				hash64: doc.hash64,
 				len_chars: doc.len_chars,
+				history_from_id,
+				history_to_id,
+				history_group,
 			};
 
 			let ack = ResponsePayload::SharedApplyAck {
@@ -624,6 +644,9 @@ impl SharedStateService {
 				applied_tx: applied_wire,
 				hash64: doc.hash64,
 				len_chars: doc.len_chars,
+				history_from_id,
+				history_to_id,
+				history_group,
 			};
 
 			(event, doc.participants.clone(), ack)

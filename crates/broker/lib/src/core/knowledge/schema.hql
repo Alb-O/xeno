@@ -25,6 +25,7 @@ schema::2 {
         root_node_id: U64,
         next_node_id: U64,
         history_nodes: U64,
+        head_group_id: U64,
     }
     N::HistoryNode {
         UNIQUE INDEX node_key: String,
@@ -32,6 +33,8 @@ schema::2 {
         INDEX history_uri: String,
         node_id: U64,
         parent_id: U64,
+        group_id: U64,
+        author_sid: U64,
         redo_tx: String,
         undo_tx: String,
         len_chars: U64,

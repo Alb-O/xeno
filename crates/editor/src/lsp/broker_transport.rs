@@ -641,6 +641,9 @@ impl RpcService<BrokerProtocol> for BrokerClientService {
 				tx,
 				hash64,
 				len_chars,
+				history_from_id,
+				history_to_id,
+				history_group,
 				..
 			} => {
 				let _ =
@@ -653,6 +656,9 @@ impl RpcService<BrokerProtocol> for BrokerClientService {
 							tx,
 							hash64,
 							len_chars,
+							history_from_id,
+							history_to_id,
+							history_group,
 						});
 			}
 			Event::SharedOwnerChanged { snapshot } => {

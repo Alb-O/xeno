@@ -298,7 +298,7 @@ impl Editor {
 				.shared_state
 				.uri_for_doc_id(doc_id)
 				.map(str::to_string)
-				&& let Some(payload) = self.state.shared_state.prepare_edit(&uri, &tx)
+				&& let Some(payload) = self.state.shared_state.prepare_edit(&uri, &tx, true)
 			{
 				let _ = self.state.lsp.shared_state_out_tx().send(payload);
 			}

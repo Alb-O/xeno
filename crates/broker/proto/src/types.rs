@@ -67,6 +67,12 @@ pub struct DocStateSnapshot {
 	pub hash64: u64,
 	/// Authoritative length of the content in characters.
 	pub len_chars: u64,
+	/// Current history head node identifier.
+	pub history_head_id: Option<u64>,
+	/// History root node identifier.
+	pub history_root_id: Option<u64>,
+	/// Group identifier of the current history head.
+	pub history_head_group: Option<u64>,
 }
 
 /// A single serializable edit operation for buffer sync.
@@ -208,6 +214,8 @@ pub enum RequestPayload {
 		base_len_chars: u64,
 		/// Transaction data (required for Edit, None for Undo/Redo).
 		tx: Option<WireTx>,
+		/// Undo group token for grouping multiple deltas into one user-level undo.
+		undo_group: u64,
 	},
 
 	/// Record user activity to reset the idle timer.
@@ -333,6 +341,12 @@ pub enum ResponsePayload {
 		hash64: u64,
 		/// Authoritative length after apply.
 		len_chars: u64,
+		/// Previous history head node identifier.
+		history_from_id: Option<u64>,
+		/// New history head node identifier.
+		history_to_id: Option<u64>,
+		/// History group identifier affected by this operation.
+		history_group: Option<u64>,
 	},
 
 	/// Acknowledgment of a focus update.
@@ -488,6 +502,12 @@ pub enum Event {
 		hash64: u64,
 		/// Post-apply content length.
 		len_chars: u64,
+		/// Previous history head node identifier.
+		history_from_id: Option<u64>,
+		/// New history head node identifier.
+		history_to_id: Option<u64>,
+		/// History group identifier affected by this operation.
+		history_group: Option<u64>,
 	},
 
 	/// authority has changed for a document.

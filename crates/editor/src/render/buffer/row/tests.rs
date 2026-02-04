@@ -41,7 +41,7 @@ mod tests {
 		let highlight = HighlightIndex::new(vec![]);
 
 		let ctx = BufferRenderContext {
-			theme: theme,
+			theme,
 			language_loader: &loader,
 			diagnostics: None,
 			diagnostic_ranges: None,
@@ -140,7 +140,7 @@ mod tests {
 		let highlight = HighlightIndex::new(vec![]);
 
 		let ctx = BufferRenderContext {
-			theme: theme,
+			theme,
 			language_loader: &loader,
 			diagnostics: None,
 			diagnostic_ranges: None,
@@ -237,7 +237,7 @@ mod tests {
 		let highlight = HighlightIndex::new(vec![]);
 
 		let ctx = BufferRenderContext {
-			theme: theme,
+			theme,
 			language_loader: &loader,
 			diagnostics: None,
 			diagnostic_ranges: None,

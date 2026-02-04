@@ -136,6 +136,9 @@ impl LspSystem {
 									applied_tx,
 									hash64,
 									len_chars,
+									history_from_id,
+									history_to_id,
+									history_group,
 								} => Some(crate::shared_state::SharedStateEvent::ApplyAck {
 									uri,
 									kind,
@@ -144,6 +147,9 @@ impl LspSystem {
 									applied_tx,
 									hash64,
 									len_chars,
+									history_from_id,
+									history_to_id,
+									history_group,
 								}),
 								ResponsePayload::SharedSnapshot {
 									nonce,

@@ -46,6 +46,7 @@ xeno-tui.workspace = true
 [dev-dependencies]
 proptest.workspace = true
 tempfile = "3"
+tokio = { workspace = true, features = ["test-util"] }
 tokio-util = { workspace = true, features = ["rt"] }
 tracing-subscriber = "0.3"
 xeno-broker.workspace = true

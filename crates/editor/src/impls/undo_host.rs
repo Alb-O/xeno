@@ -134,16 +134,16 @@ impl EditorUndoHost<'_> {
 
 	/// Emits a shared state delta if the document is owned by this session.
 	#[cfg(feature = "lsp")]
-	fn emit_sync_delta(&mut self, doc_id: DocumentId, tx: &Transaction) {
+	fn emit_sync_delta(&mut self, doc_id: DocumentId, tx: &Transaction, new_group: bool) {
 		if let Some(uri) = self.shared_state.uri_for_doc_id(doc_id).map(str::to_string)
-			&& let Some(payload) = self.shared_state.prepare_edit(&uri, tx)
+			&& let Some(payload) = self.shared_state.prepare_edit(&uri, tx, new_group)
 		{
 			let _ = self.lsp.shared_state_out_tx().send(payload);
 		}
 	}
 
 	#[cfg(not(feature = "lsp"))]
-	fn emit_sync_delta(&mut self, _doc_id: DocumentId, _tx: &Transaction) {}
+	fn emit_sync_delta(&mut self, _doc_id: DocumentId, _tx: &Transaction, _new_group: bool) {}
 
 	/// Returns `true` if `doc_id` is tracked as a non-owner in shared state.
 	#[cfg(feature = "lsp")]
@@ -288,7 +288,8 @@ impl EditorUndoHost<'_> {
 		let sync_tx = Self::validated_sync_tx(&pre_rope, &post_rope, tx);
 
 		self.syntax_manager.note_edit(doc_id);
-		self.emit_sync_delta(doc_id, &sync_tx);
+		// Local undo/redo always starts a new group for sync followers/observers.
+		self.emit_sync_delta(doc_id, &sync_tx, true);
 		self.mark_buffer_dirty_for_full_sync(buffer_id);
 		self.normalize_all_views_for_doc(doc_id);
 		true

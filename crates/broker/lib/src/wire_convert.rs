@@ -5,6 +5,7 @@
 
 use xeno_broker_proto::types::{WireOp, WireTx};
 use xeno_primitives::transaction::{Change, Operation, Transaction};
+use xeno_primitives::{Rope, RopeSlice};
 
 /// Converts a [`Transaction`] into a [`WireTx`] for serialization over IPC.
 ///
@@ -22,11 +23,6 @@ pub fn tx_to_wire(tx: &Transaction) -> WireTx {
 	WireTx(ops)
 }
 
-/// Converts a [`WireTx`] back into a [`Transaction`] for application to a rope.
-///
-/// Reconstructs a transaction by translating the wire operations into a sequence
-/// of [`Change`] items and building the transaction against the given rope slice.
-/// Returns an error if an operation would run past EOF or overflow the cursor.
 /// Validation failures when converting [`WireTx`] to [`Transaction`].
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum WireTxError {
@@ -60,7 +56,7 @@ pub enum WireTxError {
 /// Converts a [`WireTx`] back into a [`Transaction`] for application to a rope.
 ///
 /// Returns an error if any wire operation would advance past EOF or overflow.
-pub fn wire_to_tx(wire: &WireTx, doc: ropey::RopeSlice<'_>) -> Result<Transaction, WireTxError> {
+pub fn wire_to_tx(wire: &WireTx, doc: RopeSlice<'_>) -> Result<Transaction, WireTxError> {
 	let mut changes = Vec::new();
 	let mut pos: usize = 0;
 	let len = doc.len_chars();
@@ -101,6 +97,49 @@ pub fn wire_to_tx(wire: &WireTx, doc: ropey::RopeSlice<'_>) -> Result<Transactio
 	}
 
 	Ok(Transaction::change(doc, changes))
+}
+
+/// Computes a minimal [`Transaction`] that transforms `old` into `new`.
+pub fn rope_delta(old: &Rope, new: &Rope) -> Transaction {
+	let old_len = old.len_chars();
+	let new_len = new.len_chars();
+
+	let mut prefix = 0;
+	let mut old_chars = old.chars();
+	let mut new_chars = new.chars();
+	loop {
+		match (old_chars.next(), new_chars.next()) {
+			(Some(a), Some(b)) if a == b => prefix += 1,
+			_ => break,
+		}
+	}
+
+	let max_suffix = (old_len - prefix).min(new_len - prefix);
+	let mut suffix = 0;
+	while suffix < max_suffix {
+		if old.char(old_len - 1 - suffix) != new.char(new_len - 1 - suffix) {
+			break;
+		}
+		suffix += 1;
+	}
+
+	let del_end = old_len - suffix;
+	let ins_end = new_len - suffix;
+
+	if prefix == del_end && prefix == ins_end {
+		return Transaction::change(old.slice(..), std::iter::empty::<Change>());
+	}
+
+	let replacement = (prefix < ins_end).then(|| new.slice(prefix..ins_end).to_string());
+
+	Transaction::change(
+		old.slice(..),
+		std::iter::once(Change {
+			start: prefix,
+			end: del_end,
+			replacement,
+		}),
+	)
 }
 
 #[cfg(test)]

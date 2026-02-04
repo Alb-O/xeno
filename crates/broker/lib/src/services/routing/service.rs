@@ -3,14 +3,16 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use tokio::sync::{mpsc, oneshot};
-use xeno_broker_proto::types::{ErrorCode, Event, LspServerConfig, LspServerStatus, ServerId, SessionId};
+use xeno_broker_proto::types::{
+	ErrorCode, Event, LspServerConfig, LspServerStatus, ServerId, SessionId,
+};
 use xeno_lsp::{AnyNotification, AnyRequest, AnyResponse, Message, RequestId};
 use xeno_rpc::MainLoopEvent;
 
 use super::commands::RoutingCmd;
 use super::handle::RoutingHandle;
 use super::lsp_doc::{
-	apply_content_changes, LspContentChange, LspDocAction, LspDocState, LspPosition, LspRange,
+	LspContentChange, LspDocAction, LspDocState, LspPosition, LspRange, apply_content_changes,
 };
 use super::types::{PendingC2sReq, PendingS2cReq, ServerEntry};
 use crate::core::text_sync::{DocGateDecision, DocOwnerState};

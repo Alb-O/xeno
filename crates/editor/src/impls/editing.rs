@@ -113,7 +113,8 @@ impl Editor {
 				&& let Some(uri) = self.state.shared_state.uri_for_doc_id(buffer.document_id())
 			{
 				let uri = uri.to_string();
-				if let Some(payload) = self.state.shared_state.prepare_edit(&uri, tx) {
+				let new_group = matches!(undo, UndoPolicy::Record | UndoPolicy::Boundary);
+				if let Some(payload) = self.state.shared_state.prepare_edit(&uri, tx, new_group) {
 					let _ = self.state.lsp.shared_state_out_tx().send(payload);
 				}
 			}

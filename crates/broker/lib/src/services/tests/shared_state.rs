@@ -1,52 +1,9 @@
-use std::collections::HashSet;
-use std::sync::{Arc, Mutex};
-
 use ropey::Rope;
-use tokio::sync::mpsc;
-use xeno_broker_proto::types::{ResponsePayload, SharedApplyKind, SyncEpoch, SyncSeq, WireOp, WireTx};
+use xeno_broker_proto::types::{
+	ResponsePayload, SharedApplyKind, SyncEpoch, SyncSeq, WireOp, WireTx,
+};
 
-use super::TestSession;
-use crate::core::db;
-use crate::services::{knowledge, routing, sessions, shared_state};
-
-struct SyncHarness {
-	sessions: sessions::SessionHandle,
-	sync: shared_state::SharedStateHandle,
-	open_docs: Arc<Mutex<HashSet<String>>>,
-	_routing_rx: mpsc::Receiver<routing::RoutingCmd>,
-	_db_temp: tempfile::TempDir,
-}
-
-async fn setup_sync_harness() -> SyncHarness {
-	let (sessions_handle, routing_tx, sync_tx) = sessions::SessionService::start();
-
-	let (dummy_routing_tx, dummy_routing_rx) = mpsc::channel(8);
-	let dummy_routing = routing::RoutingHandle::new(dummy_routing_tx);
-	let _ = routing_tx.send(dummy_routing.clone()).await;
-
-	let db_temp = tempfile::tempdir().expect("temp db dir");
-	let db = db::BrokerDb::open(db_temp.path().join("broker")).expect("open broker db");
-
-	let (sync, open_docs, knowledge_tx, sync_routing_tx) =
-		shared_state::SharedStateService::start(sessions_handle.clone(), Some(db.storage()));
-
-	let (knowledge_sender, mut knowledge_rx) = mpsc::channel(8);
-	let knowledge = knowledge::KnowledgeHandle::new(knowledge_sender);
-	let _ = knowledge_tx.send(knowledge.clone()).await;
-	tokio::spawn(async move { while knowledge_rx.recv().await.is_some() {} });
-
-	let _ = sync_tx.send(sync.clone()).await;
-	let _ = sync_routing_tx.send(dummy_routing).await;
-	tokio::task::yield_now().await;
-
-	SyncHarness {
-		sessions: sessions_handle,
-		sync,
-		open_docs,
-		_routing_rx: dummy_routing_rx,
-		_db_temp: db_temp,
-	}
-}
+use super::{TestSession, setup_sync_harness};
 
 #[tokio::test(flavor = "current_thread")]
 async fn test_shared_state_undo_redo_roundtrip() {
@@ -105,6 +62,7 @@ async fn test_shared_state_undo_redo_roundtrip() {
 			hash,
 			len,
 			Some(wire_tx.clone()),
+			1,
 		)
 		.await
 		.unwrap();
@@ -136,6 +94,7 @@ async fn test_shared_state_undo_redo_roundtrip() {
 			hash,
 			len,
 			None,
+			1,
 		)
 		.await
 		.unwrap();
@@ -167,7 +126,7 @@ async fn test_shared_state_undo_redo_roundtrip() {
 	// Participant (session2) SHOULD receive broadcast
 	let event = session2.recv_event().await.expect("undo delta broadcast");
 	match event {
-		Event::SharedDelta { seq, tx, .. } => {
+		xeno_broker_proto::types::Event::SharedDelta { seq, tx, .. } => {
 			assert_eq!(seq, SyncSeq(2));
 			let mut content = Rope::from("hello world");
 			let tx = crate::wire_convert::wire_to_tx(&tx, content.slice(..)).unwrap();
@@ -182,7 +141,7 @@ async fn test_shared_state_undo_redo_roundtrip() {
 		.resync(
 			session1.session_id,
 			"file:///test.rs".to_string(),
-			SyncNonce(1),
+			xeno_broker_proto::types::SyncNonce(1),
 			None,
 			None,
 		)
@@ -206,6 +165,7 @@ async fn test_shared_state_undo_redo_roundtrip() {
 			hash,
 			len,
 			None,
+			1,
 		)
 		.await
 		.unwrap();
@@ -239,7 +199,7 @@ async fn test_shared_state_undo_redo_roundtrip() {
 		.resync(
 			session1.session_id,
 			"file:///test.rs".to_string(),
-			SyncNonce(2),
+			xeno_broker_proto::types::SyncNonce(2),
 			None,
 			None,
 		)

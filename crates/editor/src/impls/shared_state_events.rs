@@ -3,12 +3,12 @@
 //! Processes inbound [`SharedStateEvent`]s from the broker during the editor
 //! tick, applying remote deltas to local buffers and updating sync state.
 
-use xeno_primitives::{SyntaxPolicy, UndoPolicy};
+use xeno_primitives::{Selection, SyntaxPolicy, UndoPolicy};
 use xeno_registry::notifications::keys;
 
 use super::Editor;
 use super::undo_host::EditorUndoHost;
-use crate::buffer::ApplyPolicy;
+use crate::buffer::{ApplyPolicy, DocumentId};
 use crate::shared_state::SharedStateEvent;
 
 impl Editor {
@@ -57,11 +57,25 @@ impl Editor {
 				uri,
 				epoch,
 				seq,
-				kind: _,
+				kind,
 				tx,
 				hash64,
 				len_chars,
-			} => self.apply_remote_shared_delta(&uri, epoch, seq, &tx, hash64, len_chars),
+				history_from_id,
+				history_to_id,
+				history_group,
+			} => self.apply_remote_shared_delta(
+				&uri,
+				epoch,
+				seq,
+				kind,
+				&tx,
+				hash64,
+				len_chars,
+				history_from_id,
+				history_to_id,
+				history_group,
+			),
 
 			SharedStateEvent::OwnerChanged { snapshot }
 			| SharedStateEvent::PreferredOwnerChanged { snapshot } => {
@@ -108,13 +122,25 @@ impl Editor {
 				applied_tx,
 				hash64,
 				len_chars,
+				history_from_id,
+				history_to_id,
+				history_group,
 			} => {
-				if let Some(tx) = self
-					.state
-					.shared_state
-					.handle_apply_ack(&uri, kind, epoch, seq, applied_tx, hash64, len_chars)
-				{
-					self.apply_local_shared_delta_from_ack(&uri, &tx);
+				let ack_tx = self.state.shared_state.handle_apply_ack(
+					&uri,
+					kind,
+					epoch,
+					seq,
+					applied_tx,
+					hash64,
+					len_chars,
+					history_from_id,
+					history_to_id,
+					history_group,
+				);
+
+				if let Some(tx) = ack_tx {
+					self.apply_local_shared_delta_from_ack(&uri, &tx, history_group);
 				}
 
 				for payload in self.state.shared_state.drain_pending_edit_requests() {
@@ -310,14 +336,19 @@ impl Editor {
 	}
 
 	/// Validates, converts, and applies a remote delta to the local buffer.
+	#[allow(clippy::too_many_arguments)]
 	fn apply_remote_shared_delta(
 		&mut self,
 		uri: &str,
 		epoch: xeno_broker_proto::types::SyncEpoch,
 		seq: xeno_broker_proto::types::SyncSeq,
+		kind: xeno_broker_proto::types::SharedApplyKind,
 		wire_tx: &xeno_broker_proto::types::WireTx,
 		hash64: u64,
 		len_chars: u64,
+		_history_from: Option<u64>,
+		_history_to: Option<u64>,
+		history_group: Option<u64>,
 	) {
 		let Some(doc_id) = self
 			.state
@@ -327,7 +358,23 @@ impl Editor {
 			return;
 		};
 
+		let blind_cursor_anchor = if matches!(
+			kind,
+			xeno_broker_proto::types::SharedApplyKind::Undo
+				| xeno_broker_proto::types::SharedApplyKind::Redo
+		) && history_group.is_some()
+		{
+			self.blind_cursor_heuristic_anchor(doc_id, wire_tx)
+		} else {
+			None
+		};
+
 		self.apply_shared_delta_to_buffer(doc_id, wire_tx);
+
+		if let Some(anchor) = blind_cursor_anchor {
+			self.apply_blind_cursor_heuristic_to_all_views(doc_id, anchor);
+		}
+
 		self.update_readonly_for_shared_state(uri);
 	}
 
@@ -336,10 +383,18 @@ impl Editor {
 		&mut self,
 		uri: &str,
 		wire_tx: &xeno_broker_proto::types::WireTx,
+		history_group: Option<u64>,
 	) {
 		let Some(doc_id) = self.state.shared_state.doc_id_for_uri(uri) else {
 			return;
 		};
+
+		if let Some(gid) = history_group
+			&& let Some(_view_state) = self.state.shared_state.get_view_group(uri, gid)
+		{
+			// TODO: decide whether to restore pre or post based on Undo vs Redo.
+		}
+
 		self.apply_shared_delta_to_buffer(doc_id, wire_tx);
 		self.update_readonly_for_shared_state(uri);
 	}
@@ -485,5 +540,66 @@ impl Editor {
 		{
 			let _ = self.state.lsp.shared_state_out_tx().send(payload);
 		}
+	}
+
+	fn apply_blind_cursor_heuristic_to_all_views(&mut self, doc_id: DocumentId, anchor: usize) {
+		let view_ids: Vec<_> = self.state.core.buffers.views_for_doc(doc_id).to_vec();
+		for view_id in view_ids {
+			if let Some(buffer) = self.state.core.buffers.get_buffer_mut(view_id) {
+				buffer.set_selection(Selection::point(anchor));
+			}
+		}
+	}
+
+	fn blind_cursor_heuristic_anchor(
+		&self,
+		doc_id: DocumentId,
+		wire_tx: &xeno_broker_proto::types::WireTx,
+	) -> Option<usize> {
+		let view_id = self.state.core.buffers.any_buffer_for_doc(doc_id)?;
+		let buffer = self.state.core.buffers.get_buffer(view_id)?;
+		let ranges = buffer.with_doc(|doc| {
+			let tx = crate::shared_state::convert::wire_to_tx(wire_tx, doc.content().slice(..));
+			crate::buffer::document::collect_changed_ranges(&tx)
+		});
+		ranges.first().map(|range| range.from())
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use xeno_broker_proto::types::{SharedApplyKind, SyncEpoch, SyncSeq, WireOp, WireTx};
+	use xeno_primitives::Selection;
+
+	use super::Editor;
+
+	#[test]
+	fn undo_cursor_heuristic_uses_pre_apply_doc() {
+		let mut editor = Editor::from_content("abcdef".to_string(), None);
+		let uri = "file:///test";
+		let doc_id = editor.buffer().document_id();
+
+		editor
+			.state
+			.shared_state
+			.prepare_open(uri, "abcdef", doc_id);
+		editor.buffer_mut().set_selection(Selection::point(0));
+
+		let wire_tx = WireTx(vec![WireOp::Retain(3), WireOp::Delete(3)]);
+
+		editor.apply_remote_shared_delta(
+			uri,
+			SyncEpoch(0),
+			SyncSeq(1),
+			SharedApplyKind::Undo,
+			&wire_tx,
+			0,
+			3,
+			None,
+			None,
+			Some(1),
+		);
+
+		assert_eq!(editor.buffer().selection, Selection::point(3));
 	}
 }

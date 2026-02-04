@@ -13,6 +13,8 @@ pub struct HistoryMeta {
 	pub next_id: u64,
 	/// Total number of history nodes tracked.
 	pub history_nodes: u64,
+	/// Group identifier of the current history head.
+	pub head_group_id: u64,
 }
 
 /// Stored document state and history metadata.

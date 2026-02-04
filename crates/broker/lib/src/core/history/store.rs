@@ -11,10 +11,9 @@ use ropey::Rope;
 use xeno_broker_proto::types::{SyncEpoch, SyncSeq, WireTx};
 
 use super::internals::{
-	checkpoint_compact_linear, find_history_node, find_shared_doc, load_history_nodes,
-	prune_cleared_branches, shared_doc_key, try_reconstruct_chain, upsert_history_node,
-	upsert_shared_doc, HistoryNodeRecord, CHECKPOINT_STRIDE, INDEX_DOC_URI, INDEX_SHARED_URI,
-	LABEL_HISTORY_NODE, LABEL_SHARED_DOC,
+	CHECKPOINT_STRIDE, INDEX_DOC_URI, INDEX_SHARED_URI, LABEL_HISTORY_NODE, LABEL_SHARED_DOC,
+	checkpoint_compact_linear, find_shared_doc, load_history_nodes, prune_cleared_branches,
+	shared_doc_key, try_reconstruct_chain, upsert_history_node, upsert_shared_doc,
 };
 use super::types::{HistoryError, HistoryMeta, StoredDoc};
 
@@ -27,6 +26,11 @@ impl HistoryStore {
 	/// Creates a new history store for the given helix-db storage.
 	pub fn new(storage: Arc<HelixGraphStorage>) -> Self {
 		Self { storage }
+	}
+
+	/// Returns the shared helix-db storage handle.
+	pub fn storage(&self) -> Arc<HelixGraphStorage> {
+		self.storage.clone()
 	}
 
 	/// Loads an existing document from storage, if present.
@@ -51,6 +55,7 @@ impl HistoryStore {
 			root_id: doc.root_node_id,
 			next_id: doc.next_node_id,
 			history_nodes: doc.history_nodes,
+			head_group_id: doc.head_group_id,
 		};
 
 		let nodes = load_history_nodes(&self.storage, &txn, &arena, uri)?;
@@ -190,14 +195,17 @@ impl HistoryStore {
 
 		leaves.sort_by_key(|n| std::cmp::Reverse(n.node_id));
 
-		let mut best_chain: Option<(u64, Rope, usize)> = None;
+		let mut best_chain: Option<(u64, u64, Rope, usize)> = None;
 
 		for leaf in leaves {
 			match try_reconstruct_chain(root.node_id, leaf.node_id, &nodes, &root.root_text) {
 				Ok((rope, chain)) => {
 					let chain_len = chain.len();
-					if best_chain.as_ref().is_none_or(|(_, _, bl)| chain_len > *bl) {
-						best_chain = Some((leaf.node_id, rope, chain_len));
+					if best_chain
+						.as_ref()
+						.is_none_or(|(_, _, _, bl)| chain_len > *bl)
+					{
+						best_chain = Some((leaf.node_id, leaf.group_id, rope, chain_len));
 					}
 				}
 				Err(err) => {
@@ -206,7 +214,7 @@ impl HistoryStore {
 			}
 		}
 
-		let Some((head_id, rope, _)) = best_chain else {
+		let Some((head_id, head_group_id, rope, _)) = best_chain else {
 			return Err(HistoryError::Corrupt(format!(
 				"no valid history chain found during repair for {uri}"
 			)));
@@ -219,6 +227,7 @@ impl HistoryStore {
 			root_id: root.node_id,
 			next_id: max_node_id.wrapping_add(1).max(1),
 			history_nodes: nodes.len() as u64,
+			head_group_id,
 		};
 
 		drop(txn);
@@ -314,6 +323,7 @@ impl HistoryStore {
 			root_id,
 			next_id: root_id + 1,
 			history_nodes: 1,
+			head_group_id: 0,
 		};
 
 		upsert_shared_doc(
@@ -334,6 +344,8 @@ impl HistoryStore {
 			&arena,
 			uri,
 			root_id,
+			0,
+			0,
 			0,
 			WireTx(Vec::new()),
 			WireTx(Vec::new()),
@@ -366,6 +378,7 @@ impl HistoryStore {
 	///
 	/// Returns [`HistoryError`] if persistence or traversal fails. The in-memory
 	/// metadata is only updated if the transaction successfully commits.
+	#[allow(clippy::too_many_arguments)]
 	pub fn append_edit_with_checkpoint(
 		&self,
 		uri: &str,
@@ -374,6 +387,8 @@ impl HistoryStore {
 		seq: SyncSeq,
 		hash64: u64,
 		len_chars: u64,
+		group_id: u64,
+		author_sid: u64,
 		redo_tx: WireTx,
 		undo_tx: WireTx,
 		max_nodes: usize,
@@ -392,6 +407,8 @@ impl HistoryStore {
 			uri,
 			node_id,
 			parent_id,
+			group_id,
+			author_sid,
 			redo_tx,
 			undo_tx,
 			hash64,
@@ -401,6 +418,7 @@ impl HistoryStore {
 		)?;
 
 		new_meta.head_id = node_id;
+		new_meta.head_group_id = group_id;
 		new_meta.next_id = new_meta.next_id.wrapping_add(1).max(1);
 		new_meta.history_nodes = new_meta.history_nodes.saturating_add(1);
 
@@ -436,52 +454,120 @@ impl HistoryStore {
 		Ok(())
 	}
 
-	/// Loads the undo transaction for the current head.
-	pub fn load_undo(
+	/// Loads the combined undo transaction for the current head's group.
+	pub fn load_undo_group(
 		&self,
 		uri: &str,
-		head_id: u64,
-	) -> Result<Option<(u64, WireTx)>, HistoryError> {
-		if head_id == 0 {
+		meta: &HistoryMeta,
+		rope: &Rope,
+	) -> Result<Option<(u64, u64, WireTx)>, HistoryError> {
+		if meta.head_id == 0 || meta.head_id == meta.root_id {
 			return Ok(None);
 		}
-		let arena = Bump::new();
-		let txn = self.storage.graph_env.read_txn()?;
-		let node = find_history_node(&self.storage, &txn, &arena, uri, head_id)?;
-		let Some(node) = node else {
-			return Ok(None);
-		};
-		if node.is_root {
-			return Ok(None);
-		}
-		Ok(Some((node.parent_id, node.undo_tx()?)))
-	}
-
-	/// Loads the redo transaction for the most recent child of the head.
-	pub fn load_redo(
-		&self,
-		uri: &str,
-		head_id: u64,
-	) -> Result<Option<(u64, WireTx)>, HistoryError> {
 		let arena = Bump::new();
 		let txn = self.storage.graph_env.read_txn()?;
 		let nodes = load_history_nodes(&self.storage, &txn, &arena, uri)?;
-		let mut best: Option<(u64, HistoryNodeRecord)> = None;
 
-		for node in nodes.values() {
-			if node.parent_id != head_id || node.is_root {
-				continue;
+		let mut current_id = meta.head_id;
+		let Some(head_node) = nodes.get(&current_id) else {
+			return Ok(None);
+		};
+		let gid = head_node.group_id;
+
+		let mut working_rope = rope.clone();
+		let mut last_parent = current_id;
+
+		while current_id != 0 {
+			let Some(node) = nodes.get(&current_id) else {
+				break;
+			};
+			if node.group_id != gid || node.is_root {
+				break;
 			}
-			let candidate = (node.node_id, node.clone());
-			if best.as_ref().is_none_or(|(bid, _)| node.node_id > *bid) {
-				best = Some(candidate);
+
+			let undo_tx = node.undo_tx()?;
+			let tx = crate::wire_convert::wire_to_tx(&undo_tx, working_rope.slice(..))
+				.map_err(|_| HistoryError::InvalidDelta)?;
+			tx.apply(&mut working_rope);
+
+			last_parent = node.parent_id;
+			current_id = node.parent_id;
+		}
+
+		if last_parent == meta.head_id {
+			return Ok(None);
+		}
+
+		let delta = crate::wire_convert::rope_delta(rope, &working_rope);
+		let wire = crate::wire_convert::tx_to_wire(&delta);
+
+		let prev_group = nodes.get(&last_parent).map(|n| n.group_id).unwrap_or(0);
+
+		Ok(Some((last_parent, prev_group, wire)))
+	}
+
+	/// Loads the combined redo transaction for the next child group.
+	pub fn load_redo_group(
+		&self,
+		uri: &str,
+		meta: &HistoryMeta,
+		rope: &Rope,
+	) -> Result<Option<(u64, u64, WireTx)>, HistoryError> {
+		let arena = Bump::new();
+		let txn = self.storage.graph_env.read_txn()?;
+		let nodes = load_history_nodes(&self.storage, &txn, &arena, uri)?;
+
+		// Redo requires finding a child of head_id.
+		// Since there might be multiple branches, we pick the one with highest node_id.
+		let mut next_id = 0;
+		for node in nodes.values() {
+			if node.parent_id == meta.head_id && !node.is_root && node.node_id > next_id {
+				next_id = node.node_id;
 			}
 		}
 
-		let Some((node_id, node)) = best else {
+		if next_id == 0 {
 			return Ok(None);
-		};
-		Ok(Some((node_id, node.redo_tx()?)))
+		}
+
+		let gid = nodes.get(&next_id).unwrap().group_id;
+		let mut current_id = next_id;
+		let mut working_rope = rope.clone();
+		let mut last_id = current_id;
+
+		while current_id != 0 {
+			let Some(node) = nodes.get(&current_id) else {
+				break;
+			};
+			if node.group_id != gid || node.is_root {
+				break;
+			}
+
+			let redo_tx = node.redo_tx()?;
+			let tx = crate::wire_convert::wire_to_tx(&redo_tx, working_rope.slice(..))
+				.map_err(|_| HistoryError::InvalidDelta)?;
+			tx.apply(&mut working_rope);
+
+			last_id = node.node_id;
+
+			// Find next child in same group
+			let mut best_child = 0;
+			for candidate in nodes.values() {
+				if candidate.parent_id == current_id
+					&& candidate.group_id == gid
+					&& !candidate.is_root
+					&& candidate.node_id > best_child
+				{
+					best_child = candidate.node_id;
+				}
+			}
+			current_id = best_child;
+		}
+
+		let delta = crate::wire_convert::rope_delta(rope, &working_rope);
+		let wire = crate::wire_convert::tx_to_wire(&delta);
+
+		Ok(Some((last_id, gid, wire)))
 	}
 
 	/// Persists updated document metadata after an undo/redo transition.
@@ -509,5 +595,134 @@ impl HistoryStore {
 		)?;
 		txn.commit()?;
 		Ok(())
+	}
+
+	/// Internal helper for tests to simulate metadata loss.
+	#[cfg(test)]
+	pub fn purge_doc_metadata_only(&self, uri: &str) -> Result<(), HistoryError> {
+		let arena = Bump::new();
+		let mut txn = self.storage.graph_env.write_txn()?;
+		let key = shared_doc_key(uri);
+		super::internals::drop_by_index(
+			&self.storage,
+			&mut txn,
+			&arena,
+			LABEL_SHARED_DOC,
+			INDEX_SHARED_URI,
+			&key,
+		)?;
+		txn.commit()?;
+		Ok(())
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use std::sync::Arc;
+
+	use helix_db::helix_engine::storage_core::HelixGraphStorage;
+	use tempfile::tempdir;
+
+	use super::*;
+
+	fn setup_storage() -> (Arc<HelixGraphStorage>, tempfile::TempDir) {
+		let dir = tempdir().unwrap();
+		let mut config = helix_db::helix_engine::traversal_core::config::Config::default();
+		config.graph_config = Some(
+			helix_db::helix_engine::traversal_core::config::GraphConfig {
+				secondary_indices: Some(vec![
+					helix_db::helix_engine::types::SecondaryIndex::Unique("shared_uri".to_string()),
+					helix_db::helix_engine::types::SecondaryIndex::Unique("node_key".to_string()),
+					helix_db::helix_engine::types::SecondaryIndex::Index("history_uri".to_string()),
+				]),
+			},
+		);
+
+		let storage = Arc::new(
+			HelixGraphStorage::new(
+				dir.path().to_str().unwrap(),
+				config,
+				helix_db::helix_engine::storage_core::version_info::VersionInfo::default(),
+			)
+			.unwrap(),
+		);
+		(storage, dir)
+	}
+
+	#[test]
+	fn test_repair_orphaned_doc_success() {
+		let (storage, _dir) = setup_storage();
+		let history = HistoryStore::new(storage);
+		let uri = "file:///test.rs";
+		let rope = Rope::from_str("initial text");
+		let epoch = SyncEpoch(1);
+		let seq = SyncSeq(0);
+		let (len, hash) = xeno_broker_proto::fingerprint_rope(&rope);
+
+		history
+			.create_doc(uri, &rope, epoch, seq, hash, len)
+			.unwrap();
+		history.purge_doc_metadata_only(uri).unwrap();
+
+		let (repaired, created) = history
+			.load_or_create_doc(uri, &rope, epoch, seq, hash, len)
+			.unwrap();
+		assert!(!created);
+		assert_eq!(repaired.rope.to_string(), "initial text");
+		assert_eq!(repaired.meta.head_id, 1);
+		assert_eq!(repaired.meta.root_id, 1);
+	}
+
+	#[test]
+	fn test_repair_orphaned_doc_purges_on_corruption() {
+		let (storage, _dir) = setup_storage();
+		let history = HistoryStore::new(storage.clone());
+		let uri = "file:///test.rs";
+
+		let arena = Bump::new();
+		let mut txn = storage.graph_env.write_txn().unwrap();
+		upsert_history_node(
+			&storage,
+			&mut txn,
+			&arena,
+			uri,
+			2,
+			99, // missing parent
+			0,
+			0,
+			WireTx(Vec::new()),
+			WireTx(Vec::new()),
+			0,
+			0,
+			false,
+			String::new(),
+		)
+		.unwrap();
+		upsert_history_node(
+			&storage,
+			&mut txn,
+			&arena,
+			uri,
+			1,
+			0,
+			0,
+			0,
+			WireTx(Vec::new()),
+			WireTx(Vec::new()),
+			0,
+			0,
+			true,
+			"root text".to_string(),
+		)
+		.unwrap();
+		txn.commit().unwrap();
+
+		let rope = Rope::from_str("irrelevant");
+		let (stored, created) = history
+			.load_or_create_doc(uri, &rope, SyncEpoch(1), SyncSeq(0), 0, 0)
+			.unwrap();
+
+		assert_eq!(stored.rope.to_string(), "root text");
+		assert!(!created);
 	}
 }

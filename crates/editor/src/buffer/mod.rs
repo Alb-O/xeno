@@ -6,7 +6,7 @@
 //!
 //! Multiple buffers can share the same document, enabling proper split behavior.
 
-mod document;
+pub mod document;
 mod editing;
 mod history;
 mod layout;

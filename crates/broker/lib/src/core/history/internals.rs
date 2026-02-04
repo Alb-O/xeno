@@ -14,7 +14,6 @@ use helix_db::utils::items::Node;
 use ropey::Rope;
 use xeno_broker_proto::types::{SyncEpoch, SyncSeq, WireTx};
 
-use super::store::HistoryStore;
 use super::types::{HistoryError, HistoryMeta};
 use crate::wire_convert;
 
@@ -36,6 +35,7 @@ pub(super) struct SharedDocRecord {
 	pub(super) root_node_id: u64,
 	pub(super) next_node_id: u64,
 	pub(super) history_nodes: u64,
+	pub(super) head_group_id: u64,
 }
 
 #[derive(Clone)]
@@ -46,6 +46,8 @@ pub(super) struct HistoryNodeRecord {
 	pub(super) undo_tx_raw: String,
 	pub(super) is_root: bool,
 	pub(super) root_text: String,
+	pub(super) group_id: u64,
+	pub(super) author_sid: u64,
 }
 
 impl HistoryNodeRecord {
@@ -76,7 +78,7 @@ pub(super) fn shared_doc_key(uri: &str) -> String {
 }
 
 /// Drop all nodes for (label,index,key). Safe if empty.
-fn drop_by_index<'a>(
+pub(super) fn drop_by_index<'a>(
 	storage: &'a HelixGraphStorage,
 	txn: &mut RwTxn<'a>,
 	arena: &Bump,
@@ -130,6 +132,7 @@ pub(super) fn find_shared_doc(
 			let root_node_id = get_u64_lossless(&node, "root_node_id").unwrap_or(1);
 			let next_node_id = get_u64_lossless(&node, "next_node_id").unwrap_or(2);
 			let history_nodes = get_u64_lossless(&node, "history_nodes").unwrap_or(1);
+			let head_group_id = get_u64_lossless(&node, "head_group_id").unwrap_or(0);
 
 			return Ok(Some(SharedDocRecord {
 				epoch,
@@ -140,6 +143,7 @@ pub(super) fn find_shared_doc(
 				root_node_id,
 				next_node_id,
 				history_nodes,
+				head_group_id,
 			}));
 		}
 	}
@@ -191,6 +195,8 @@ fn parse_history_node(node: &Node<'_>) -> HistoryNodeRecord {
 	let undo_tx_raw = get_string(node, "undo_tx").unwrap_or_default();
 	let is_root = get_bool(node, "is_root").unwrap_or(false);
 	let root_text = get_string(node, "root_text").unwrap_or_default();
+	let group_id = get_u64_lossless(node, "group_id").unwrap_or(0);
+	let author_sid = get_u64_lossless(node, "author_sid").unwrap_or(0);
 	HistoryNodeRecord {
 		node_id,
 		parent_id,
@@ -198,6 +204,8 @@ fn parse_history_node(node: &Node<'_>) -> HistoryNodeRecord {
 		undo_tx_raw,
 		is_root,
 		root_text,
+		group_id,
+		author_sid,
 	}
 }
 
@@ -242,6 +250,7 @@ pub(super) fn upsert_shared_doc<'a>(
 		("root_node_id", Value::U64(meta.root_id)),
 		("next_node_id", Value::U64(meta.next_id)),
 		("history_nodes", Value::U64(meta.history_nodes)),
+		("head_group_id", Value::U64(meta.head_group_id)),
 	];
 
 	G::new_mut_from_iter(storage, txn, std::iter::empty::<TraversalValue>(), arena)
@@ -257,6 +266,8 @@ pub(super) fn upsert_history_node<'a>(
 	uri: &str,
 	node_id: u64,
 	parent_id: u64,
+	group_id: u64,
+	author_sid: u64,
 	redo_tx: WireTx,
 	undo_tx: WireTx,
 	hash64: u64,
@@ -272,6 +283,8 @@ pub(super) fn upsert_history_node<'a>(
 		("history_uri", Value::String(uri.to_string())),
 		("node_id", Value::U64(node_id)),
 		("parent_id", Value::U64(parent_id)),
+		("group_id", Value::U64(group_id)),
+		("author_sid", Value::U64(author_sid)),
 		("redo_tx", Value::String(redo_tx_raw)),
 		("undo_tx", Value::String(undo_tx_raw)),
 		("len_chars", Value::U64(len_chars)),
@@ -432,6 +445,8 @@ pub(super) fn checkpoint_compact_linear<'a>(
 	let new_root_text = rope.to_string();
 	let (len, hash) = xeno_broker_proto::fingerprint_rope(&rope);
 
+	let new_root_rec = nodes.get(&new_root_id).map(|(r, _)| r).unwrap();
+
 	upsert_history_node(
 		storage,
 		txn,
@@ -439,6 +454,8 @@ pub(super) fn checkpoint_compact_linear<'a>(
 		uri,
 		new_root_id,
 		0,
+		new_root_rec.group_id,
+		new_root_rec.author_sid,
 		WireTx(Vec::new()),
 		WireTx(Vec::new()),
 		hash,
@@ -521,132 +538,5 @@ fn get_u64_lossless(node: &Node<'_>, key: &str) -> Option<u64> {
 		Some(Value::U64(value)) => Some(*value),
 		Some(Value::U128(value)) => u64::try_from(*value).ok(),
 		_ => None,
-	}
-}
-
-impl HistoryStore {
-	/// Internal helper for tests to simulate metadata loss.
-	#[cfg(test)]
-	fn purge_doc_metadata_only(&self, uri: &str) -> Result<(), HistoryError> {
-		let arena = Bump::new();
-		let mut txn = self.storage.graph_env.write_txn()?;
-		let key = shared_doc_key(uri);
-		drop_by_index(
-			&self.storage,
-			&mut txn,
-			&arena,
-			LABEL_SHARED_DOC,
-			INDEX_SHARED_URI,
-			&key,
-		)?;
-		txn.commit()?;
-		Ok(())
-	}
-}
-
-#[cfg(test)]
-mod tests {
-	use std::sync::Arc;
-
-	use helix_db::helix_engine::storage_core::HelixGraphStorage;
-	use tempfile::tempdir;
-
-	use super::*;
-
-	fn setup_storage() -> (Arc<HelixGraphStorage>, tempfile::TempDir) {
-		let dir = tempdir().unwrap();
-		let mut config = helix_db::helix_engine::traversal_core::config::Config::default();
-		config.graph_config = Some(
-			helix_db::helix_engine::traversal_core::config::GraphConfig {
-				secondary_indices: Some(vec![
-					helix_db::helix_engine::types::SecondaryIndex::Unique("shared_uri".to_string()),
-					helix_db::helix_engine::types::SecondaryIndex::Unique("node_key".to_string()),
-					helix_db::helix_engine::types::SecondaryIndex::Index("history_uri".to_string()),
-				]),
-			},
-		);
-
-		let storage = Arc::new(
-			HelixGraphStorage::new(
-				dir.path().to_str().unwrap(),
-				config,
-				helix_db::helix_engine::storage_core::version_info::VersionInfo::default(),
-			)
-			.unwrap(),
-		);
-		(storage, dir)
-	}
-
-	#[test]
-	fn test_repair_orphaned_doc_success() {
-		let (storage, _dir) = setup_storage();
-		let history = HistoryStore::new(storage);
-		let uri = "file:///test.rs";
-		let rope = Rope::from_str("initial text");
-		let epoch = SyncEpoch(1);
-		let seq = SyncSeq(0);
-		let (len, hash) = xeno_broker_proto::fingerprint_rope(&rope);
-
-		history
-			.create_doc(uri, &rope, epoch, seq, hash, len)
-			.unwrap();
-		history.purge_doc_metadata_only(uri).unwrap();
-
-		let (repaired, created) = history
-			.load_or_create_doc(uri, &rope, epoch, seq, hash, len)
-			.unwrap();
-		assert!(!created);
-		assert_eq!(repaired.rope.to_string(), "initial text");
-		assert_eq!(repaired.meta.head_id, 1);
-		assert_eq!(repaired.meta.root_id, 1);
-	}
-
-	#[test]
-	fn test_repair_orphaned_doc_purges_on_corruption() {
-		let (storage, _dir) = setup_storage();
-		let history = HistoryStore::new(storage.clone());
-		let uri = "file:///test.rs";
-
-		let arena = Bump::new();
-		let mut txn = storage.graph_env.write_txn().unwrap();
-		upsert_history_node(
-			&storage,
-			&mut txn,
-			&arena,
-			uri,
-			2,
-			99, // missing parent
-			WireTx(Vec::new()),
-			WireTx(Vec::new()),
-			0,
-			0,
-			false,
-			String::new(),
-		)
-		.unwrap();
-		upsert_history_node(
-			&storage,
-			&mut txn,
-			&arena,
-			uri,
-			1,
-			0,
-			WireTx(Vec::new()),
-			WireTx(Vec::new()),
-			0,
-			0,
-			true,
-			"root text".to_string(),
-		)
-		.unwrap();
-		txn.commit().unwrap();
-
-		let rope = Rope::from_str("irrelevant");
-		let (stored, created) = history
-			.load_or_create_doc(uri, &rope, SyncEpoch(1), SyncSeq(0), 0, 0)
-			.unwrap();
-
-		assert_eq!(stored.rope.to_string(), "root text");
-		assert!(!created);
 	}
 }

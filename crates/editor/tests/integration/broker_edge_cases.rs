@@ -154,6 +154,7 @@ mod tests {
 			base_hash64: 0,
 			base_len_chars: 0,
 			tx: Some(wire_tx),
+			undo_group: 1,
 		})
 		.await
 		.expect("shared state apply edit");
@@ -328,6 +329,7 @@ mod tests {
 			base_hash64: 0,
 			base_len_chars: 0,
 			tx: Some(wire_tx),
+			undo_group: 1,
 		})
 		.await
 		.expect("shared state apply edit");
@@ -457,6 +459,7 @@ mod tests {
 			base_hash64: 0,
 			base_len_chars: 0,
 			tx: Some(wire_tx),
+			undo_group: 1,
 		})
 		.await
 		.expect("shared state apply edit");

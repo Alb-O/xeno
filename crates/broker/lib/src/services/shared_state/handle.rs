@@ -41,11 +41,7 @@ impl SharedStateHandle {
 	}
 
 	/// Closes a document for a session.
-	pub async fn close(
-		&self,
-		sid: SessionId,
-		uri: String,
-	) -> Result<ResponsePayload, ErrorCode> {
+	pub async fn close(&self, sid: SessionId, uri: String) -> Result<ResponsePayload, ErrorCode> {
 		let (reply, rx) = oneshot::channel();
 		self.tx
 			.send(SharedStateCmd::Close { sid, uri, reply })
@@ -55,6 +51,7 @@ impl SharedStateHandle {
 	}
 
 	/// Apply a shared mutation (Edit/Undo/Redo).
+	#[allow(clippy::too_many_arguments)]
 	pub async fn apply(
 		&self,
 		sid: SessionId,
@@ -65,6 +62,7 @@ impl SharedStateHandle {
 		base_hash64: u64,
 		base_len_chars: u64,
 		tx: Option<WireTx>,
+		undo_group: u64,
 	) -> Result<ResponsePayload, ErrorCode> {
 		let (reply, rx) = oneshot::channel();
 		self.tx
@@ -77,6 +75,7 @@ impl SharedStateHandle {
 				base_hash64,
 				base_len_chars,
 				tx,
+				undo_group,
 				reply,
 			})
 			.await
