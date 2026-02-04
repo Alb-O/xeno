@@ -275,6 +275,16 @@ impl Editor {
 			buffer.with_doc(|doc| Transaction::change(doc.content().slice(..), changes))
 		};
 
+		let before_rope = {
+			let buffer = self
+				.state
+				.core
+				.buffers
+				.get_buffer(buffer_id)
+				.ok_or_else(|| ApplyError::BufferNotFound(buffer_id.0.to_string()))?;
+			buffer.with_doc(|doc| doc.content().clone())
+		};
+
 		let result = {
 			let buffer = self
 				.state
@@ -290,7 +300,20 @@ impl Editor {
 		};
 
 		if result.applied {
-			self.state.syntax_manager.note_edit(doc_id);
+			let after_rope = self
+				.state
+				.core
+				.buffers
+				.get_buffer(buffer_id)
+				.ok_or_else(|| ApplyError::BufferNotFound(buffer_id.0.to_string()))?
+				.with_doc(|doc| doc.content().clone());
+			self.state.syntax_manager.note_edit_incremental(
+				doc_id,
+				&before_rope,
+				&after_rope,
+				tx.changes(),
+				&self.state.config.language_loader,
+			);
 			self.state.lsp.sync_manager_mut().escalate_full(doc_id);
 		}
 

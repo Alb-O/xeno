@@ -84,7 +84,7 @@ tower-layer = "0.3"
 tower-service = "0.3"
 tracing = "0.1"
 tracing-subscriber = "0.3"
-tree-house = "0.3"
+tree-house = { git = "https://github.com/helix-editor/tree-house", rev = "f05d27cb52b02209962cc0a2f87de303a2bec870" }
 unicode-segmentation = "1.12"
 unicode-width = "0.2"
 url = "2.5"

@@ -39,8 +39,8 @@
 //!    - Failure symptom (overwrite race): Stale tree overwrites correct incremental tree while `dirty=false`, creating a stuck state with wrong highlights.
 //!    - Notes: Stale installs are allowed when the caller is already dirty (catch-up mode) or has no syntax at all (bootstrap). A clean tree from a successful incremental update MUST NOT be replaced by an older full-parse result.
 //!
-//! 4. MUST call [`SyntaxManager::note_edit`] on every document mutation (edits, undo, redo, LSP workspace edits).
-//!    - Enforced in: `EditorUndoHost::apply_transaction_inner`, `EditorUndoHost::undo_document`, `EditorUndoHost::redo_document`, `Editor::apply_buffer_edit_plan`
+//! 4. MUST call [`SyntaxManager::note_edit_incremental`] (or [`SyntaxManager::note_edit`]) on every document mutation (edits, undo, redo, LSP workspace edits).
+//!    - Enforced in: `EditorUndoHost::apply_transaction_inner`, `EditorUndoHost::apply_history_op`, `Editor::apply_buffer_edit_plan`
 //!    - Tested by: `syntax_manager::tests::test_note_edit_updates_timestamp`
 //!    - Failure symptom: Debounce gate in [`SyntaxManager::ensure_syntax`] is non-functional; background parses fire without waiting for edit silence.
 //!
@@ -59,15 +59,43 @@
 //!    - Tested by: `syntax_manager::tests::test_syntax_version_bumps_on_install`
 //!    - Failure symptom: Highlight cache serves stale spans after a reparse or retention drop.
 //!
+//! 8. MUST clear `pending_incremental` on language change, syntax reset, and retention drop.
+//!    - Enforced in: [`SyntaxManager::ensure_syntax`] (language change), [`SyntaxManager::reset_syntax`], `apply_retention`
+//!    - Tested by: `syntax_manager::tests::test_language_switch_discards_old_parse`
+//!    - Failure symptom: Stale changeset applied against a mismatched rope causes incorrect `InputEdit`s and garbled highlights or panics.
+//!
 //! # Data flow
 //!
-//! 1. Trigger: [`SyntaxManager::note_edit`] called from edit/undo/redo paths to record debounce timestamp.
+//! ## Full reparse (bootstrap or no accumulated edits)
+//!
+//! 1. Trigger: [`SyntaxManager::note_edit`] called from edit paths to record debounce timestamp.
 //! 2. Tick loop: `Editor::tick` checks [`SyntaxManager::any_task_finished`] every iteration and requests a redraw when a background parse completes, ensuring results are installed even when the render loop is idle.
 //! 3. Render loop: `Editor::render` calls `ensure_syntax_for_buffers` to kick new parses and install completed results before drawing.
 //! 4. Gating: Check visibility, size tier, debounce, and cooldown.
 //! 5. Throttling: Acquire global concurrency permit (semaphore).
-//! 6. Async boundary: `spawn_blocking` calls `Syntax::new`.
+//! 6. Async boundary: `spawn_blocking` calls [`SyntaxEngine::parse`] (`Syntax::new`).
 //! 7. Install: Polled result is installed; `dirty` flag cleared only if versions match.
+//!
+//! ## Synchronous incremental update (primary path for interactive edits)
+//!
+//! 1. Trigger: [`SyntaxManager::note_edit_incremental`] called with old/new rope, changeset,
+//!    and loader. Changesets are composed via [`ChangeSet::compose`] into
+//!    [`PendingIncrementalEdits`].
+//! 2. The same call applies [`Syntax::update_from_changeset`] in-line with a 10 ms timeout.
+//!    On success the tree is immediately up-to-date, the dirty flag is cleared, and no
+//!    background reparse is needed.
+//! 3. On failure (timeout or error): state is left dirty with accumulated changesets; the
+//!    background path picks up after debounce.
+//!
+//! ## Background incremental reparse (fallback for sync timeout or large edits)
+//!
+//! 1. [`SyntaxManager::ensure_syntax`] detects a dirty doc with [`PendingIncrementalEdits`].
+//! 2-5. Same gating, throttling, and scheduling as full reparse.
+//! 6. Async boundary: `spawn_blocking` clones the existing `Syntax` + composed changeset,
+//!    calls [`SyntaxEngine::update_incremental`] (`Syntax::update_from_changeset`).
+//!    Falls back to full reparse on failure. The original tree stays in `state.current`
+//!    for rendering during the reparse window (no highlight flash).
+//! 7. Install: Same as full reparse.
 //!
 //! # Lifecycle
 //!
@@ -102,6 +130,7 @@ use ropey::Rope;
 use rustc_hash::FxHashSet;
 use tokio::sync::{OwnedSemaphorePermit, Semaphore};
 use tokio::task::JoinHandle;
+use xeno_primitives::ChangeSet;
 use xeno_runtime_language::syntax::{InjectionPolicy, Syntax, SyntaxError, SyntaxOptions};
 use xeno_runtime_language::{LanguageId, LanguageLoader};
 
@@ -280,6 +309,23 @@ pub trait SyntaxEngine: Send + Sync {
 		loader: &LanguageLoader,
 		opts: SyntaxOptions,
 	) -> Result<Syntax, SyntaxError>;
+
+	/// Incrementally updates an existing syntax tree via a composed changeset.
+	///
+	/// The default implementation discards the old tree and falls back to a
+	/// full reparse, allowing mock engines to remain simple.
+	fn update_incremental(
+		&self,
+		_syntax: Syntax,
+		_old_source: ropey::RopeSlice<'_>,
+		new_source: ropey::RopeSlice<'_>,
+		_changeset: &ChangeSet,
+		lang: LanguageId,
+		loader: &LanguageLoader,
+		opts: SyntaxOptions,
+	) -> Result<Syntax, SyntaxError> {
+		self.parse(new_source, lang, loader, opts)
+	}
 }
 
 struct RealSyntaxEngine;
@@ -292,6 +338,25 @@ impl SyntaxEngine for RealSyntaxEngine {
 		opts: SyntaxOptions,
 	) -> Result<Syntax, SyntaxError> {
 		Syntax::new(content, lang, loader, opts)
+	}
+
+	fn update_incremental(
+		&self,
+		mut syntax: Syntax,
+		old_source: ropey::RopeSlice<'_>,
+		new_source: ropey::RopeSlice<'_>,
+		changeset: &ChangeSet,
+		lang: LanguageId,
+		loader: &LanguageLoader,
+		opts: SyntaxOptions,
+	) -> Result<Syntax, SyntaxError> {
+		syntax
+			.update_from_changeset(old_source, new_source, changeset, loader, opts)
+			.map(|()| syntax)
+			.or_else(|e| {
+				tracing::warn!(error = %e, "Incremental parse failed, falling back to full reparse");
+				Syntax::new(new_source, lang, loader, opts)
+			})
 	}
 }
 
@@ -320,6 +385,16 @@ pub struct EnsureSyntaxContext<'a> {
 	pub loader: &'a Arc<LanguageLoader>,
 }
 
+/// Accumulated edits awaiting an incremental reparse.
+///
+/// Between [`SyntaxManager::note_edit_incremental`] calls and the next
+/// background parse, individual changesets are composed into a single
+/// changeset relative to the rope snapshot taken at the first edit.
+struct PendingIncrementalEdits {
+	old_rope: Rope,
+	composed: ChangeSet,
+}
+
 #[derive(Default)]
 pub struct SyntaxState {
 	current: Option<Syntax>,
@@ -327,6 +402,7 @@ pub struct SyntaxState {
 	updated: bool,
 	version: u64,
 	language_id: Option<LanguageId>,
+	pending_incremental: Option<PendingIncrementalEdits>,
 }
 
 pub struct SyntaxPollOutcome {
@@ -400,6 +476,7 @@ impl SyntaxManager {
 			mark_updated(state);
 		}
 		state.dirty = true;
+		state.pending_incremental = None;
 		self.dirty_docs.insert(doc_id);
 	}
 
@@ -408,7 +485,9 @@ impl SyntaxManager {
 		self.dirty_docs.insert(doc_id);
 	}
 
-	/// Records an edit (for debounce). Do NOT abort inflight tasks (single-flight).
+	/// Records an edit for debounce scheduling without changeset data.
+	///
+	/// Inflight tasks are intentionally left running (single-flight discipline).
 	pub fn note_edit(&mut self, doc_id: DocumentId) {
 		let now = Instant::now();
 		self.docs
@@ -416,6 +495,81 @@ impl SyntaxManager {
 			.or_insert_with(|| DocState::new(now))
 			.last_edit_at = now;
 		self.mark_dirty(doc_id);
+	}
+
+	/// Records an edit and applies an incremental tree-sitter update.
+	///
+	/// Combines three steps into one call:
+	///
+	/// 1. Updates debounce timestamp and marks the document dirty (same as
+	///    [`note_edit`](Self::note_edit)).
+	/// 2. Accumulates the changeset into [`PendingIncrementalEdits`] so the
+	///    background path can use [`Syntax::update_from_changeset`] as a
+	///    fallback.
+	/// 3. Attempts a synchronous incremental reparse (10 ms timeout). On
+	///    success the tree is immediately up-to-date and the dirty flag is
+	///    cleared, eliminating the need for a background reparse.
+	///
+	/// If no existing syntax tree is present (bootstrap), the changeset is
+	/// discarded and the method behaves identically to [`note_edit`](Self::note_edit).
+	pub fn note_edit_incremental(
+		&mut self,
+		doc_id: DocumentId,
+		old_rope: &Rope,
+		new_rope: &Rope,
+		changeset: &ChangeSet,
+		loader: &LanguageLoader,
+	) {
+		const SYNC_TIMEOUT: Duration = Duration::from_millis(10);
+
+		let now = Instant::now();
+		self.docs
+			.entry(doc_id)
+			.or_insert_with(|| DocState::new(now))
+			.last_edit_at = now;
+		self.mark_dirty(doc_id);
+
+		let state = self.syntax.entry(doc_id).or_default();
+		if state.current.is_none() {
+			return;
+		}
+
+		match state.pending_incremental.take() {
+			Some(mut pending) => {
+				pending.composed = pending.composed.compose(changeset.clone());
+				state.pending_incremental = Some(pending);
+			}
+			None => {
+				state.pending_incremental = Some(PendingIncrementalEdits {
+					old_rope: old_rope.clone(),
+					composed: changeset.clone(),
+				});
+			}
+		}
+
+		let syntax = state.current.as_mut().expect("checked above");
+		let opts = SyntaxOptions {
+			parse_timeout: SYNC_TIMEOUT,
+			..syntax.opts()
+		};
+
+		match syntax.update_from_changeset(
+			old_rope.slice(..),
+			new_rope.slice(..),
+			changeset,
+			loader,
+			opts,
+		) {
+			Ok(()) => {
+				state.pending_incremental = None;
+				state.dirty = false;
+				self.dirty_docs.remove(&doc_id);
+				mark_updated(state);
+			}
+			Err(e) => {
+				tracing::debug!(error = %e, ?doc_id, "Sync incremental update failed");
+			}
+		}
 	}
 
 	/// Cleans up tracking state for a closed document.
@@ -493,6 +647,7 @@ impl SyntaxManager {
 				mark_updated(state);
 			}
 			state.dirty = true;
+			state.pending_incremental = None;
 			self.dirty_docs.insert(ctx.doc_id);
 			state.language_id = ctx.language_id;
 		}
@@ -669,9 +824,28 @@ impl SyntaxManager {
 			..SyntaxOptions::default()
 		};
 
+		let incremental = state.pending_incremental.take().and_then(|pending| {
+			state
+				.current
+				.as_ref()
+				.map(|syntax| (syntax.clone(), pending))
+		});
+
 		let task = tokio::task::spawn_blocking(move || {
 			let _permit: OwnedSemaphorePermit = permit;
-			engine.parse(content.slice(..), lang_id, &loader, opts)
+			if let Some((syntax, pending)) = incremental {
+				engine.update_incremental(
+					syntax,
+					pending.old_rope.slice(..),
+					content.slice(..),
+					&pending.composed,
+					lang_id,
+					&loader,
+					opts,
+				)
+			} else {
+				engine.parse(content.slice(..), lang_id, &loader, opts)
+			}
 		});
 
 		st.inflight = Some(PendingSyntaxTask {
@@ -742,6 +916,7 @@ fn apply_retention(
 			if state.current.is_some() {
 				state.current = None;
 				state.dirty = true;
+				state.pending_incremental = None;
 				dirty_docs.insert(doc_id);
 				mark_updated(state);
 			}
@@ -750,6 +925,7 @@ fn apply_retention(
 			if state.current.is_some() && now.duration_since(st.last_visible_at) > ttl {
 				state.current = None;
 				state.dirty = true;
+				state.pending_incremental = None;
 				dirty_docs.insert(doc_id);
 				mark_updated(state);
 			}

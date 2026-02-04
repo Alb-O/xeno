@@ -72,7 +72,7 @@ impl From<tree_house::Error> for SyntaxError {
 }
 
 /// Wrapper around tree-house Syntax for Xeno integration.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Syntax {
 	/// The underlying tree-house syntax tree.
 	inner: tree_house::Syntax,
@@ -122,6 +122,11 @@ impl Syntax {
 	) -> Result<(), SyntaxError> {
 		let edits = generate_edits(old_source, changeset);
 		self.update(new_source, &edits, loader, opts)
+	}
+
+	/// Returns the options used for the current parse.
+	pub fn opts(&self) -> SyntaxOptions {
+		self.opts
 	}
 
 	/// Returns the root syntax tree.

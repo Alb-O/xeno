@@ -41,7 +41,6 @@ impl EditorUndoHost<'_> {
 			syntax: SyntaxPolicy::IncrementalOrDirty,
 		};
 
-		#[cfg(feature = "lsp")]
 		let before_rope = {
 			let buffer = self
 				.buffers
@@ -71,16 +70,23 @@ impl EditorUndoHost<'_> {
 				.get_buffer(buffer_id)
 				.expect("buffer must exist");
 			self.lsp
-				.on_local_edit(buffer, Some(before_rope), tx, &result);
+				.on_local_edit(buffer, Some(before_rope.clone()), tx, &result);
 		}
 
 		if result.applied {
-			let doc_id = self
+			let buffer = self
 				.buffers
 				.get_buffer(buffer_id)
-				.expect("buffer must exist")
-				.document_id();
-			self.syntax_manager.note_edit(doc_id);
+				.expect("buffer must exist");
+			let doc_id = buffer.document_id();
+			let after_rope = buffer.with_doc(|doc| doc.content().clone());
+			self.syntax_manager.note_edit_incremental(
+				doc_id,
+				&before_rope,
+				&after_rope,
+				tx.changes(),
+				&self.config.language_loader,
+			);
 			self.sync_sibling_selections(buffer_id, tx);
 			self.frame.dirty_buffers.insert(buffer_id);
 		}
@@ -182,17 +188,34 @@ impl EditorUndoHost<'_> {
 			return false;
 		};
 
-		let _tx = self
+		let before_rope = self
+			.buffers
+			.get_buffer(buffer_id)
+			.expect("buffer exists")
+			.with_doc(|doc| doc.content().clone());
+
+		let tx = self
 			.buffers
 			.get_buffer_mut(buffer_id)
 			.expect("buffer exists")
 			.with_doc_mut(|doc| op(doc, &self.config.language_loader));
 
-		let Some(_tx) = _tx else {
+		let Some(tx) = tx else {
 			return false;
 		};
 
-		self.syntax_manager.note_edit(doc_id);
+		let after_rope = self
+			.buffers
+			.get_buffer(buffer_id)
+			.expect("buffer exists")
+			.with_doc(|doc| doc.content().clone());
+		self.syntax_manager.note_edit_incremental(
+			doc_id,
+			&before_rope,
+			&after_rope,
+			tx.changes(),
+			&self.config.language_loader,
+		);
 		self.mark_buffer_dirty_for_full_sync(buffer_id);
 		self.normalize_all_views_for_doc(doc_id);
 		true
