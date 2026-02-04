@@ -158,36 +158,8 @@ impl HighlightTiles {
 				tile_idx,
 			};
 
-			let spans = if let Some(tile) = self.get_cached_tile(q.doc_id, tile_idx, &key) {
-				&tile.spans
-			} else {
-				let tile_start_line = tile_idx * TILE_SIZE;
-				let tile_end_line = ((tile_idx + 1) * TILE_SIZE).min(q.rope.len_lines());
-
-				let spans = self.build_tile_spans(
-					q.rope,
-					q.syntax,
-					q.language_loader,
-					&q.style_resolver,
-					tile_start_line,
-					tile_end_line,
-				);
-
-				let tile = HighlightTile {
-					key,
-					spans: spans.clone(),
-				};
-
-				self.insert_tile(q.doc_id, tile_idx, tile);
-				&self.tiles[self
-					.index
-					.get(&q.doc_id)
-					.unwrap()
-					.get(&tile_idx)
-					.copied()
-					.unwrap()]
-				.spans
-			};
+			let tile_index = self.get_or_build_tile_index(&q, tile_idx, key);
+			let spans = &self.tiles[tile_index].spans;
 
 			// Clip spans to the requested byte range. This handles cases where tiles
 			// return spans extending beyond the tile boundary or where the caller
@@ -212,12 +184,43 @@ impl HighlightTiles {
 		all_spans
 	}
 
-	fn get_cached_tile(
+	fn get_or_build_tile_index<F>(
+		&mut self,
+		q: &HighlightSpanQuery<'_, F>,
+		tile_idx: usize,
+		key: HighlightKey,
+	) -> usize
+	where
+		F: Fn(&str) -> Style,
+	{
+		if let Some(tile_index) = self.get_cached_tile_index(q.doc_id, tile_idx, &key) {
+			return tile_index;
+		}
+
+		let tile_start_line = tile_idx * TILE_SIZE;
+		let tile_end_line = ((tile_idx + 1) * TILE_SIZE).min(q.rope.len_lines());
+
+		let spans = self.build_tile_spans(
+			q.rope,
+			q.syntax,
+			q.language_loader,
+			&q.style_resolver,
+			tile_start_line,
+			tile_end_line,
+		);
+
+		let tile = HighlightTile { key, spans };
+		self.insert_tile(q.doc_id, tile_idx, tile);
+
+		*self.index.get(&q.doc_id).unwrap().get(&tile_idx).unwrap()
+	}
+
+	fn get_cached_tile_index(
 		&mut self,
 		doc_id: DocumentId,
 		tile_idx: usize,
 		key: &HighlightKey,
-	) -> Option<&HighlightTile> {
+	) -> Option<usize> {
 		let &tile_index = self.index.get(&doc_id)?.get(&tile_idx)?;
 
 		let is_valid = {
@@ -230,7 +233,18 @@ impl HighlightTiles {
 		}
 
 		self.touch(tile_index);
-		self.tiles.get(tile_index)
+		Some(tile_index)
+	}
+
+	#[cfg(test)]
+	fn get_cached_tile(
+		&mut self,
+		doc_id: DocumentId,
+		tile_idx: usize,
+		key: &HighlightKey,
+	) -> Option<&HighlightTile> {
+		let idx = self.get_cached_tile_index(doc_id, tile_idx, key)?;
+		self.tiles.get(idx)
 	}
 
 	/// Inserts a tile into the cache, evicting LRU if necessary.
@@ -311,14 +325,10 @@ impl HighlightTiles {
 	/// Invalidates all cached tiles for a document.
 	///
 	/// Reclaims memory by removing index entries for the specified document.
-	/// The invalidated tiles remain in storage and will be reused as they
-	/// become the least-recently-used.
+	/// Corresponding tile indices are NOT removed from MRU order to preserve
+	/// LRU invariants and prevent panics. They will be evicted normally.
 	pub fn invalidate_document(&mut self, doc_id: DocumentId) {
-		if let Some(removed) = self.index.remove(&doc_id) {
-			for (_tile_idx, _tile_index) in removed {
-				// Slot remains in tiles and mru_order for reuse.
-			}
-		}
+		self.index.remove(&doc_id);
 	}
 
 	/// Clears all cached tiles.
@@ -604,5 +614,30 @@ mod tests {
 		cache.insert_tile(doc_id, 0, HighlightTile { key, spans: vec![] });
 		assert_eq!(cache.tiles.len(), 1);
 		assert_eq!(cache.mru_order.len(), 1);
+	}
+
+	#[test]
+	fn test_invalidate_then_evict_must_not_panic() {
+		let mut cache = HighlightTiles::with_capacity(1);
+		let doc1 = DocumentId(1);
+		let doc2 = DocumentId(2);
+		let key = HighlightKey {
+			syntax_version: 1,
+			theme_epoch: 0,
+			language_id: None,
+			tile_idx: 0,
+		};
+
+		// Fill to capacity
+		cache.insert_tile(doc1, 0, HighlightTile { key, spans: vec![] });
+
+		// Invalidate doc1
+		cache.invalidate_document(doc1);
+
+		// Insert doc2 - should evict doc1's tile normally
+		cache.insert_tile(doc2, 0, HighlightTile { key, spans: vec![] });
+
+		assert!(cache.index.contains_key(&doc2));
+		assert!(!cache.index.contains_key(&doc1));
 	}
 }

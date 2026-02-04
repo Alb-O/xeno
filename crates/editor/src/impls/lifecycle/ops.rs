@@ -22,7 +22,7 @@ impl Editor {
 	/// it has. It also correctly handles the "put-back" workflow to avoid
 	/// unnecessary syntax version bumps.
 	pub fn ensure_syntax_for_buffers(&mut self) {
-		use std::collections::HashMap;
+		use std::collections::HashSet;
 
 		use crate::syntax_manager::{EnsureSyntaxContext, SyntaxHotness};
 
@@ -33,81 +33,69 @@ impl Editor {
 		}
 
 		// 1. Collect unique documents and determine their maximum "hotness" across all views.
-		struct DocWork {
-			doc_id: crate::buffer::DocumentId,
-			version: u64,
-			lang_id: Option<xeno_runtime_language::LanguageId>,
-			content: ropey::Rope,
-			hotness: SyntaxHotness,
-		}
-
-		let mut docs_to_poll: HashMap<crate::buffer::DocumentId, DocWork> = HashMap::new();
+		let mut visible_docs = HashSet::new();
+		let mut doc_hotness = std::collections::HashMap::new();
 
 		for buffer_id in self.state.core.buffers.buffer_ids() {
 			let Some(buffer) = self.state.core.buffers.get_buffer(buffer_id) else {
 				continue;
 			};
 
-			let (doc_id, version, lang_id, content) = buffer.with_doc(|doc| {
-				(
-					doc.id,
-					doc.version(),
-					doc.language_id(),
-					doc.content().clone(),
-				)
-			});
-
-			let has_syntax = self.state.syntax_manager.has_syntax(doc_id);
-			let syntax_dirty = self.state.syntax_manager.is_dirty(doc_id);
-
-			// If it's already clean and no task is inflight, we might skip it.
-			// But we still need to check if SyntaxManager wants to poll an inflight task
-			// even if the doc was marked clean by something else (the "immortal task" fix).
-			if has_syntax && !syntax_dirty && !self.state.syntax_manager.has_pending(doc_id) {
-				continue;
-			}
-
+			let doc_id = buffer.document_id();
 			let hotness = if visible_ids.contains(&buffer_id) {
+				visible_docs.insert(doc_id);
 				SyntaxHotness::Visible
 			} else {
 				SyntaxHotness::Warm
 			};
 
-			let entry = docs_to_poll.entry(doc_id).or_insert(DocWork {
-				doc_id,
-				version,
-				lang_id,
-				content,
-				hotness,
-			});
-
-			// Promote hotness if this view is more visible than others.
-			if hotness == SyntaxHotness::Visible {
-				entry.hotness = SyntaxHotness::Visible;
-			}
+			doc_hotness
+				.entry(doc_id)
+				.and_modify(|h| {
+					if hotness == SyntaxHotness::Visible {
+						*h = SyntaxHotness::Visible;
+					}
+				})
+				.or_insert(hotness);
 		}
 
-		// 2. Process each unique document.
-		for work in docs_to_poll.into_values() {
+		// 2. Identify documents that need polling: (visible ∪ pending ∪ dirty)
+		let mut workset: HashSet<crate::buffer::DocumentId> = HashSet::from_iter(visible_docs);
+		workset.extend(self.state.syntax_manager.pending_docs());
+		workset.extend(self.state.syntax_manager.dirty_docs());
+
+		// 3. Process each document in the workset.
+		for doc_id in workset {
+			// Find a buffer for this document to get content/version
+			let Some(buffer_id) = self.state.core.buffers.any_buffer_for_doc(doc_id) else {
+				continue;
+			};
+			let Some(buffer) = self.state.core.buffers.get_buffer(buffer_id) else {
+				continue;
+			};
+
+			let (version, lang_id, content) =
+				buffer.with_doc(|doc| (doc.version(), doc.language_id(), doc.content().clone()));
+
+			let hotness = doc_hotness
+				.get(&doc_id)
+				.copied()
+				.unwrap_or(SyntaxHotness::Warm);
+
 			let outcome = self
 				.state
 				.syntax_manager
 				.ensure_syntax(EnsureSyntaxContext {
-					doc_id: work.doc_id,
-					doc_version: work.version,
-					language_id: work.lang_id,
-					content: &work.content,
-					hotness: work.hotness,
+					doc_id,
+					doc_version: version,
+					language_id: lang_id,
+					content: &content,
+					hotness,
 					loader: &loader,
 				});
 
-			if outcome.updated
-				|| matches!(
-					outcome.result,
-					crate::syntax_manager::SyntaxPollResult::Ready
-						| crate::syntax_manager::SyntaxPollResult::Kicked
-				) {
-				self.state.frame.needs_redraw = true;
+			if outcome.updated {
+				self.state.effects.request_redraw();
 			}
 		}
 	}

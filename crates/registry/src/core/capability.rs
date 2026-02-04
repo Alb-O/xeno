@@ -19,4 +19,6 @@ pub enum Capability {
 	Undo,
 	/// Access to file system operations.
 	FileOps,
+	/// Access to UI overlays and modal interactions.
+	Overlay,
 }

@@ -3096,6 +3096,7 @@ dependencies = [
  "proptest",
  "regex",
  "ropey",
+ "rustc-hash",
  "serde",
  "serde_json",
  "smallvec",

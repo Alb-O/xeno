@@ -29,8 +29,8 @@ mod handlers;
 pub use capabilities::{
 	CommandQueueAccess, CursorAccess, EditAccess, EditorOps, FileOpsAccess, FocusOps, JumpAccess,
 	MacroAccess, ModeAccess, MotionAccess, MotionDispatchAccess, NotificationAccess, OptionAccess,
-	PaletteAccess, SearchAccess, SelectionAccess, SplitError, SplitOps, TextAccess, ThemeAccess,
-	UndoAccess, ViewportAccess,
+	OverlayAccess, OverlayCloseReason, OverlayRequest, PaletteAccess, SearchAccess,
+	SelectionAccess, SplitError, SplitOps, TextAccess, ThemeAccess, UndoAccess, ViewportAccess,
 };
 pub use handlers::{HandleOutcome, ResultHandler};
 use xeno_primitives::range::CharIdx;
@@ -202,6 +202,18 @@ impl<'a> EditorContext<'a> {
 		self.inner.command_queue()
 	}
 
+	/// Returns overlay access if the capability is available.
+	pub fn overlay(&mut self) -> Option<&mut dyn OverlayAccess> {
+		self.inner.overlay()
+	}
+
+	/// Returns overlay access or an error if not available.
+	pub fn require_overlay(&mut self) -> Result<&mut dyn OverlayAccess, CommandError> {
+		self.inner
+			.overlay()
+			.ok_or(CommandError::MissingCapability(Capability::Overlay))
+	}
+
 	/// Opens the command palette.
 	pub fn open_palette(&mut self) {
 		if let Some(p) = self.inner.palette() {
@@ -255,6 +267,7 @@ impl<'a> EditorContext<'a> {
 			Search => self.inner.search().is_some(),
 			Undo => self.inner.undo().is_some(),
 			FileOps => self.inner.file_ops().is_some(),
+			Overlay => self.inner.overlay().is_some(),
 		}
 	}
 
@@ -364,6 +377,11 @@ pub trait EditorCapabilities:
 
 	/// Access to configuration option resolution (optional).
 	fn option_ops(&self) -> Option<&dyn OptionAccess> {
+		None
+	}
+
+	/// Access to UI overlays (optional).
+	fn overlay(&mut self) -> Option<&mut dyn OverlayAccess> {
 		None
 	}
 

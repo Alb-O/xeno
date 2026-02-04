@@ -7,7 +7,7 @@ use super::index::KeyKind;
 ///
 /// This error type is shared between the command and action registries to avoid
 /// circular dependencies. Actions re-export this type for convenience.
-#[derive(Error, Debug, Clone)]
+#[derive(Error, Debug, Clone, PartialEq, Eq)]
 pub enum CommandError {
 	/// General command failure with message.
 	#[error("{0}")]
