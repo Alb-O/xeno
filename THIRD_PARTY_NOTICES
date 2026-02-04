@@ -8,14 +8,6 @@ Public License v3.0 (AGPL-3.0-only). See LICENSE in the repository root.
 
 ================================================================================
 
-Component:  HelixDB
-Path:       crates/helix-db/
-License:    AGPL-3.0
-Authors:    HelixDB Team
-Source:     https://github.com/HelixDB/helix-db
-
-================================================================================
-
 Component:  Ratatui (TUI framework)
 Path:       crates/tui/
 License:    MIT
