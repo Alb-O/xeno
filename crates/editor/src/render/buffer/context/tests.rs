@@ -16,10 +16,12 @@ mod tests {
 		let buffer = Buffer::new(ViewId::text(1), "Hello world".to_string(), None);
 		let theme = xeno_registry::themes::get_theme("default").unwrap();
 		let loader = xeno_runtime_language::LanguageLoader::from_embedded();
+		let syntax_manager = crate::syntax_manager::SyntaxManager::default();
 
 		let ctx = BufferRenderContext {
 			theme,
 			language_loader: &loader,
+			syntax_manager: &syntax_manager,
 			diagnostics: None,
 			diagnostic_ranges: None,
 		};
@@ -84,10 +86,12 @@ mod tests {
 		let buffer = Buffer::new(ViewId::text(1), "One two three four five".to_string(), None);
 		let theme = xeno_registry::themes::get_theme("default").unwrap();
 		let loader = xeno_runtime_language::LanguageLoader::from_embedded();
+		let syntax_manager = crate::syntax_manager::SyntaxManager::default();
 
 		let ctx = BufferRenderContext {
 			theme,
 			language_loader: &loader,
+			syntax_manager: &syntax_manager,
 			diagnostics: None,
 			diagnostic_ranges: None,
 		};

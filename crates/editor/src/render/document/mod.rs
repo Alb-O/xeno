@@ -241,6 +241,7 @@ impl Editor {
 					let buffer_ctx = BufferRenderContext {
 						theme: &ctx.theme,
 						language_loader,
+						syntax_manager: &self.state.syntax_manager,
 						diagnostics: ctx.lsp.diagnostics_for(*buffer_id),
 						diagnostic_ranges: ctx.lsp.diagnostic_ranges_for(*buffer_id),
 					};
@@ -429,6 +430,7 @@ impl Editor {
 				let buffer_ctx = BufferRenderContext {
 					theme: &ctx.theme,
 					language_loader,
+					syntax_manager: &self.state.syntax_manager,
 					diagnostics: ctx.lsp.diagnostics_for(window.buffer),
 					diagnostic_ranges: ctx.lsp.diagnostic_ranges_for(window.buffer),
 				};

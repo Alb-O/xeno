@@ -280,6 +280,7 @@ impl Editor {
 				#[cfg(feature = "lsp")]
 				self.state.lsp.sync_manager_mut().on_doc_close(doc_id);
 
+				self.state.syntax_manager.on_document_close(doc_id);
 				self.state.render_cache.invalidate_document(doc_id);
 			}
 		}

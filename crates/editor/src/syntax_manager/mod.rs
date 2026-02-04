@@ -45,7 +45,7 @@
 //!    - Failure symptom: Debounce gate in [`SyntaxManager::ensure_syntax`] is non-functional; background parses fire without waiting for edit silence.
 //!
 //! 5. MUST skip debounce for bootstrap parses (no existing syntax tree).
-//!    - Enforced in: [`SyntaxManager::ensure_syntax`] (debounce gate conditioned on `slot.current.is_some()`)
+//!    - Enforced in: [`SyntaxManager::ensure_syntax`] (debounce gate conditioned on `state.current.is_some()`)
 //!    - Tested by: `syntax_manager::tests::test_bootstrap_parse_skips_debounce`
 //!    - Failure symptom: Newly opened documents show unhighlighted text until the debounce timeout elapses.
 //!
@@ -54,10 +54,10 @@
 //!    - Tested by: `syntax_manager::tests::test_idle_tick_polls_inflight_parse`
 //!    - Failure symptom: Completed background parses are not installed until user input triggers a render; documents stay unhighlighted indefinitely while idle.
 //!
-//! 7. MUST bump `syntax_version` on successful incremental update (commits, undo, redo).
-//!    - Enforced in: `Document::try_incremental_syntax_update`, `Document::incremental_syntax_for_history`
-//!    - Tested by: `buffer::document::tests::test_undo_redo_bumps_syntax_version`
-//!    - Failure symptom: Highlight cache serves stale tiles until background reparse completes, causing a visual lag after undo/redo.
+//! 7. MUST bump `syntax_version` whenever the installed tree changes or is dropped.
+//!    - Enforced in: `mark_updated` (called from `SyntaxManager::ensure_syntax`, `apply_retention`)
+//!    - Tested by: `syntax_manager::tests::test_syntax_version_bumps_on_install`
+//!    - Failure symptom: Highlight cache serves stale spans after a reparse or retention drop.
 //!
 //! # Data flow
 //!
@@ -299,6 +299,7 @@ pub struct SyntaxManager {
 	policy: TieredSyntaxPolicy,
 	permits: Arc<Semaphore>,
 	docs: HashMap<DocumentId, DocState>,
+	syntax: HashMap<DocumentId, SyntaxState>,
 	engine: Arc<dyn SyntaxEngine>,
 }
 
@@ -317,10 +318,18 @@ pub struct EnsureSyntaxContext<'a> {
 	pub loader: &'a Arc<LanguageLoader>,
 }
 
-pub struct SyntaxSlot<'a> {
-	pub current: &'a mut Option<Syntax>,
-	pub dirty: &'a mut bool,
-	pub updated: &'a mut bool,
+#[derive(Default)]
+pub struct SyntaxState {
+	current: Option<Syntax>,
+	dirty: bool,
+	updated: bool,
+	version: u64,
+	language_id: Option<LanguageId>,
+}
+
+pub struct SyntaxPollOutcome {
+	pub result: SyntaxPollResult,
+	pub updated: bool,
 }
 
 impl SyntaxManager {
@@ -329,6 +338,7 @@ impl SyntaxManager {
 			policy: TieredSyntaxPolicy::default(),
 			permits: Arc::new(Semaphore::new(max_concurrency.max(1))),
 			docs: HashMap::new(),
+			syntax: HashMap::new(),
 			engine: Arc::new(RealSyntaxEngine),
 		}
 	}
@@ -339,12 +349,57 @@ impl SyntaxManager {
 			policy: TieredSyntaxPolicy::default(),
 			permits: Arc::new(Semaphore::new(max_concurrency.max(1))),
 			docs: HashMap::new(),
+			syntax: HashMap::new(),
 			engine,
 		}
 	}
 
 	pub fn set_policy(&mut self, policy: TieredSyntaxPolicy) {
 		self.policy = policy;
+	}
+
+	fn state_mut(&mut self, doc_id: DocumentId) -> &mut SyntaxState {
+		self.syntax.entry(doc_id).or_default()
+	}
+
+	pub fn has_syntax(&self, doc_id: DocumentId) -> bool {
+		self.syntax
+			.get(&doc_id)
+			.and_then(|state| state.current.as_ref())
+			.is_some()
+	}
+
+	pub fn is_dirty(&self, doc_id: DocumentId) -> bool {
+		self.syntax
+			.get(&doc_id)
+			.map(|state| state.dirty)
+			.unwrap_or(false)
+	}
+
+	pub fn syntax_for_doc(&self, doc_id: DocumentId) -> Option<&Syntax> {
+		self.syntax
+			.get(&doc_id)
+			.and_then(|state| state.current.as_ref())
+	}
+
+	pub fn syntax_version(&self, doc_id: DocumentId) -> u64 {
+		self.syntax
+			.get(&doc_id)
+			.map(|state| state.version)
+			.unwrap_or(0)
+	}
+
+	pub fn reset_syntax(&mut self, doc_id: DocumentId) {
+		let state = self.state_mut(doc_id);
+		if state.current.is_some() {
+			state.current = None;
+			mark_updated(state);
+		}
+		state.dirty = true;
+	}
+
+	pub fn mark_dirty(&mut self, doc_id: DocumentId) {
+		self.state_mut(doc_id).dirty = true;
 	}
 
 	/// Records an edit (for debounce). Do NOT abort inflight tasks (single-flight).
@@ -354,10 +409,12 @@ impl SyntaxManager {
 			.entry(doc_id)
 			.or_insert_with(|| DocState::new(now))
 			.last_edit_at = now;
+		self.state_mut(doc_id).dirty = true;
 	}
 
 	/// Cleans up tracking state for a closed document.
 	pub fn on_document_close(&mut self, doc_id: DocumentId) {
+		self.syntax.remove(&doc_id);
 		if let Some(mut st) = self.docs.remove(&doc_id)
 			&& let Some(p) = st.inflight.take()
 		{
@@ -395,18 +452,26 @@ impl SyntaxManager {
 	/// 3. Respecting retention policy at completion time.
 	/// 4. Handling debounce and backoff (cooldown) timers.
 	/// 5. Spawning new background parse tasks if permits are available.
-	pub fn ensure_syntax(
-		&mut self,
-		ctx: EnsureSyntaxContext<'_>,
-		slot: SyntaxSlot<'_>,
-	) -> SyntaxPollResult {
-		*slot.updated = false;
-
+	pub fn ensure_syntax(&mut self, ctx: EnsureSyntaxContext<'_>) -> SyntaxPollOutcome {
 		let now = Instant::now();
-		let st = self
-			.docs
-			.entry(ctx.doc_id)
-			.or_insert_with(|| DocState::new(now));
+		let docs = &mut self.docs;
+		let syntax = &mut self.syntax;
+
+		let st = docs.entry(ctx.doc_id).or_insert_with(|| DocState::new(now));
+		let state = syntax.entry(ctx.doc_id).or_default();
+		state.updated = false;
+
+		if state.language_id != ctx.language_id {
+			if let Some(pending) = st.inflight.take() {
+				pending.task.abort();
+			}
+			if state.current.is_some() {
+				state.current = None;
+				mark_updated(state);
+			}
+			state.dirty = true;
+			state.language_id = ctx.language_id;
+		}
 
 		if matches!(ctx.hotness, SyntaxHotness::Visible | SyntaxHotness::Warm) {
 			st.last_visible_at = now;
@@ -424,16 +489,22 @@ impl SyntaxManager {
 			let join = xeno_primitives::future::poll_once(&mut p.task);
 			if join.is_none() {
 				// still running; do NOT short-circuit to Ready/Disabled
-				return SyntaxPollResult::Pending;
+				return SyntaxPollOutcome {
+					result: SyntaxPollResult::Pending,
+					updated: state.updated,
+				};
 			}
 
 			let done = st.inflight.take().expect("inflight present");
 			match join.expect("checked ready") {
-				Ok(Ok(syntax)) => {
+				Ok(Ok(syntax_tree)) => {
 					// language gating: only install if language still matches
 					let Some(current_lang) = ctx.language_id else {
 						// language removed mid-flight: discard result
-						return SyntaxPollResult::NoLanguage;
+						return SyntaxPollOutcome {
+							result: SyntaxPollResult::NoLanguage,
+							updated: state.updated,
+						};
 					};
 
 					let lang_ok = done.lang_id == current_lang;
@@ -444,99 +515,125 @@ impl SyntaxManager {
 
 					let allow_install = should_install_completed_parse(
 						version_match,
-						*slot.dirty,
-						slot.current.is_some(),
+						state.dirty,
+						state.current.is_some(),
 					);
 
 					if lang_ok && retain_ok && allow_install {
-						*slot.current = Some(syntax);
-						*slot.updated = true;
+						state.current = Some(syntax_tree);
+						state.language_id = Some(current_lang);
+						mark_updated(state);
 					}
 
 					// dirty clears only if this parse matches current version + "shape"
 					if lang_ok && opts_ok && version_match {
-						*slot.dirty = false;
+						state.dirty = false;
 						st.cooldown_until = None;
-						return SyntaxPollResult::Ready;
+						return SyntaxPollOutcome {
+							result: SyntaxPollResult::Ready,
+							updated: state.updated,
+						};
 					}
 					// else: keep dirty true (caller keeps chasing newest)
 				}
 				Ok(Err(SyntaxError::Timeout)) => {
 					st.cooldown_until = Some(now + cfg.cooldown_on_timeout);
-					return SyntaxPollResult::CoolingDown;
+					return SyntaxPollOutcome {
+						result: SyntaxPollResult::CoolingDown,
+						updated: state.updated,
+					};
 				}
 				Ok(Err(e)) => {
 					tracing::warn!(doc_id=?ctx.doc_id, tier=?tier, error=%e, "Background syntax parse failed");
 					st.cooldown_until = Some(now + cfg.cooldown_on_error);
-					return SyntaxPollResult::CoolingDown;
+					return SyntaxPollOutcome {
+						result: SyntaxPollResult::CoolingDown,
+						updated: state.updated,
+					};
 				}
 				Err(e) => {
 					tracing::warn!(doc_id=?ctx.doc_id, tier=?tier, error=%e, "Background syntax task panicked");
 					st.cooldown_until = Some(now + cfg.cooldown_on_error);
-					return SyntaxPollResult::CoolingDown;
+					return SyntaxPollOutcome {
+						result: SyntaxPollResult::CoolingDown,
+						updated: state.updated,
+					};
 				}
 			}
 		}
 
 		// 2) Handle “no language” AFTER draining inflight to avoid leaks
 		let Some(lang_id) = ctx.language_id else {
-			if slot.current.is_some() {
-				*slot.current = None;
-				*slot.updated = true;
+			if state.current.is_some() {
+				state.current = None;
+				mark_updated(state);
 			}
-			*slot.dirty = false;
+			state.language_id = None;
+			state.dirty = false;
 			st.cooldown_until = None;
-			return SyntaxPollResult::NoLanguage;
+			return SyntaxPollOutcome {
+				result: SyntaxPollResult::NoLanguage,
+				updated: state.updated,
+			};
 		};
 
 		// 3) Retention AFTER inflight completion (don’t re-install dropped trees)
-		apply_retention(
-			now,
-			st,
-			cfg.retention_hidden,
-			ctx.hotness,
-			slot.current,
-			slot.dirty,
-			slot.updated,
-		);
+		apply_retention(now, st, cfg.retention_hidden, ctx.hotness, state);
 
 		// 4) Clean short-circuit (safe now: no inflight exists)
-		if slot.current.is_some() && !*slot.dirty {
-			return SyntaxPollResult::Ready;
+		if state.current.is_some() && !state.dirty {
+			return SyntaxPollOutcome {
+				result: SyntaxPollResult::Ready,
+				updated: state.updated,
+			};
 		}
 
 		// 5) Hidden policy check (safe now: inflight already drained)
 		if !matches!(ctx.hotness, SyntaxHotness::Visible) && !cfg.parse_when_hidden {
-			return SyntaxPollResult::Disabled;
+			return SyntaxPollOutcome {
+				result: SyntaxPollResult::Disabled,
+				updated: state.updated,
+			};
 		}
 
 		// 6) Debounce (skip for bootstrap: no existing tree → parse immediately)
-		if slot.current.is_some() && now.duration_since(st.last_edit_at) < cfg.debounce {
-			return SyntaxPollResult::Pending;
+		if state.current.is_some() && now.duration_since(st.last_edit_at) < cfg.debounce {
+			return SyntaxPollOutcome {
+				result: SyntaxPollResult::Pending,
+				updated: state.updated,
+			};
 		}
 
 		// 7) Cooldown
-		if let Some(until) = st.cooldown_until {
-			if now < until {
-				return SyntaxPollResult::CoolingDown;
+		if let Some(until) = st.cooldown_until
+			&& now < until {
+				return SyntaxPollOutcome {
+					result: SyntaxPollResult::CoolingDown,
+					updated: state.updated,
+				};
 			}
-			st.cooldown_until = None;
-		}
 
-		// 8) Concurrency cap
-		let permit = match Arc::clone(&self.permits).try_acquire_owned() {
+		// 8) Global concurrency cap
+		let permit = match self.permits.clone().try_acquire_owned() {
 			Ok(p) => p,
-			Err(_) => return SyntaxPollResult::Throttled,
+			Err(_) => {
+				return SyntaxPollOutcome {
+					result: SyntaxPollResult::Throttled,
+					updated: state.updated,
+				};
+			}
 		};
 
-		// 9) Spawn
-		let loader = Arc::clone(ctx.loader);
 		let content = ctx.content.clone();
+		let loader = Arc::clone(ctx.loader);
+		let engine = Arc::clone(&self.engine);
+
 		let opts = SyntaxOptions {
 			parse_timeout: cfg.parse_timeout,
 			injections: cfg.injections,
+			..SyntaxOptions::default()
 		};
-		let engine = Arc::clone(&self.engine);
+
 		let task = tokio::task::spawn_blocking(move || {
 			let _permit: OwnedSemaphorePermit = permit;
 			engine.parse(content.slice(..), lang_id, &loader, opts)
@@ -550,7 +647,10 @@ impl SyntaxManager {
 			task,
 		});
 
-		SyntaxPollResult::Kicked
+		SyntaxPollOutcome {
+			result: SyntaxPollResult::Kicked,
+			updated: state.updated,
+		}
 	}
 }
 
@@ -583,14 +683,17 @@ fn retention_allows_install(
 	}
 }
 
+fn mark_updated(state: &mut SyntaxState) {
+	state.updated = true;
+	state.version = state.version.wrapping_add(1);
+}
+
 fn apply_retention(
 	now: Instant,
 	st: &DocState,
 	policy: RetentionPolicy,
 	hotness: SyntaxHotness,
-	current_syntax: &mut Option<Syntax>,
-	syntax_dirty: &mut bool,
-	updated: &mut bool,
+	state: &mut SyntaxState,
 ) {
 	if matches!(hotness, SyntaxHotness::Visible | SyntaxHotness::Warm) {
 		return;
@@ -599,17 +702,17 @@ fn apply_retention(
 	match policy {
 		RetentionPolicy::Keep => {}
 		RetentionPolicy::DropWhenHidden => {
-			if current_syntax.is_some() {
-				*current_syntax = None;
-				*syntax_dirty = true;
-				*updated = true;
+			if state.current.is_some() {
+				state.current = None;
+				state.dirty = true;
+				mark_updated(state);
 			}
 		}
 		RetentionPolicy::DropAfter(ttl) => {
-			if current_syntax.is_some() && now.duration_since(st.last_visible_at) > ttl {
-				*current_syntax = None;
-				*syntax_dirty = true;
-				*updated = true;
+			if state.current.is_some() && now.duration_since(st.last_visible_at) > ttl {
+				state.current = None;
+				state.dirty = true;
+				mark_updated(state);
 			}
 		}
 	}

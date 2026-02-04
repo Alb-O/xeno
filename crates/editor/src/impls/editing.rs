@@ -251,8 +251,8 @@ impl Editor {
 			.state
 			.core
 			.buffers
-			.get_buffer_mut(buffer_id)
+			.get_buffer(buffer_id)
 			.expect("focused buffer must exist");
-		buffer.reparse_syntax(&self.state.config.language_loader);
+		self.state.syntax_manager.reset_syntax(buffer.document_id());
 	}
 }

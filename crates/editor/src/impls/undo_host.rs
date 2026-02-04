@@ -42,62 +42,14 @@ impl EditorUndoHost<'_> {
 		};
 
 		#[cfg(feature = "lsp")]
-		let (encoding, doc_id) = {
+		let before_rope = {
 			let buffer = self
 				.buffers
 				.get_buffer(buffer_id)
 				.expect("buffer must exist");
-			(
-				self.lsp.incremental_encoding_for_buffer(buffer),
-				buffer.document_id(),
-			)
+			buffer.with_doc(|doc| doc.content().clone())
 		};
 
-		#[cfg(feature = "lsp")]
-		let result = {
-			let buffer = self
-				.buffers
-				.get_buffer_mut(buffer_id)
-				.expect("buffer must exist");
-			let result = if let Some(encoding) = encoding {
-				let lsp_result =
-					buffer.apply_with_lsp(tx, policy, &self.config.language_loader, encoding);
-
-				if lsp_result.commit.applied {
-					let prev_version = lsp_result.prev_version();
-					let new_version = lsp_result.new_version();
-					if let Some(changes) = lsp_result.lsp_changes {
-						if !changes.is_empty() {
-							self.lsp.sync_manager_mut().on_doc_edit(
-								doc_id,
-								prev_version,
-								new_version,
-								changes,
-								lsp_result.lsp_bytes,
-							);
-						}
-					} else {
-						self.lsp.sync_manager_mut().escalate_full(doc_id);
-					}
-				}
-
-				lsp_result.commit
-			} else {
-				let result = buffer.apply(tx, policy, &self.config.language_loader);
-				if result.applied {
-					self.lsp.sync_manager_mut().escalate_full(doc_id);
-				}
-				result
-			};
-			if result.applied
-				&& let Some(selection) = new_selection
-			{
-				buffer.finalize_selection(selection);
-			}
-			result
-		};
-
-		#[cfg(not(feature = "lsp"))]
 		let result = {
 			let buffer = self
 				.buffers
@@ -111,6 +63,16 @@ impl EditorUndoHost<'_> {
 			}
 			result
 		};
+
+		#[cfg(feature = "lsp")]
+		{
+			let buffer = self
+				.buffers
+				.get_buffer(buffer_id)
+				.expect("buffer must exist");
+			self.lsp
+				.on_local_edit(buffer, Some(before_rope), tx, &result);
+		}
 
 		if result.applied {
 			let doc_id = self

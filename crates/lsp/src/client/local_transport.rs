@@ -393,8 +393,8 @@ fn handle_inbound_message(
 		let params = msg.get("params").cloned().unwrap_or(JsonValue::Null);
 
 		// Handle diagnostics specially
-		if method == "textDocument/publishDiagnostics" {
-			if let Some(uri) = params.get("uri").and_then(|u| u.as_str()) {
+		if method == "textDocument/publishDiagnostics"
+			&& let Some(uri) = params.get("uri").and_then(|u| u.as_str()) {
 				let version = params
 					.get("version")
 					.and_then(|v| v.as_u64())
@@ -411,7 +411,6 @@ fn handle_inbound_message(
 				});
 				return;
 			}
-		}
 
 		// Other notifications go through as messages
 		let _ = event_tx.send(TransportEvent::Message {

@@ -53,12 +53,13 @@ impl Editor {
 	)> {
 		let buffer = self.buffer();
 		let scroll_line = buffer.scroll_line;
+		let doc_id = buffer.document_id();
+
+		let Some(syntax) = self.state.syntax_manager.syntax_for_doc(doc_id) else {
+			return Vec::new();
+		};
 
 		buffer.with_doc(|doc| {
-			let Some(syntax) = doc.syntax() else {
-				return Vec::new();
-			};
-
 			let start_line = scroll_line;
 			let end_line = (start_line + area.height as usize).min(doc.content().len_lines());
 

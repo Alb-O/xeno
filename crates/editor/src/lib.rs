@@ -6,7 +6,7 @@
 //!
 //! # Main Types
 //!
-//! - [`Editor`] - The main editor/workspace containing buffers and state
+//! - [`EditorApp`] - The main editor/workspace containing buffers and state
 //! - [`Buffer`] - A text buffer with undo history, syntax highlighting, and selections
 //! - [`UiManager`] - UI management for the editor
 //!
@@ -27,10 +27,14 @@
 /// Theme bootstrap cache for instant first-frame rendering.
 pub mod bootstrap;
 pub mod buffer;
+/// Headless core model (documents, undo).
+pub mod core {
+	pub use xeno_editor_core::*;
+}
 pub mod capabilities;
 /// Command queue for deferred execution.
 pub mod command_queue;
-/// Editor-direct commands that need full [`Editor`] access.
+/// Editor-direct commands that need full [`EditorApp`] access.
 pub mod commands;
 /// Completion types and sources for command palette.
 pub mod completion;
@@ -87,7 +91,7 @@ pub use completion::{
 	CompletionContext, CompletionItem, CompletionKind, CompletionSource, CompletionState,
 };
 pub use editor_ctx::{EditorCapabilities, EditorContext, EditorOps, HandleOutcome, apply_effects};
-pub use impls::Editor;
+pub use impls::{Editor, Editor as EditorApp};
 pub use lsp::LspSystem;
 pub use movement::WordType;
 pub use msg::{Dirty, EditorMsg, IoMsg, LspMsg, MsgSender, ThemeMsg};

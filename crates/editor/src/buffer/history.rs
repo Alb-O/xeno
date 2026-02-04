@@ -1,12 +1,3 @@
-//! Undo/redo result types.
+//! Undo/redo result types (re-exported from core).
 
-/// Result of an undo/redo operation.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum HistoryResult {
-	/// The operation completed successfully.
-	Success,
-	/// No undo states available in the history.
-	NothingToUndo,
-	/// No redo states available in the history.
-	NothingToRedo,
-}
+pub use xeno_editor_core::history::*;

@@ -109,6 +109,7 @@ impl Editor {
 		};
 
 		buffer.reset_content(rope.clone());
+		self.state.syntax_manager.reset_syntax(buffer.document_id());
 		if readonly {
 			buffer.set_readonly(true);
 		}

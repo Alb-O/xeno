@@ -8,8 +8,8 @@
 //!
 //! # Mental model
 //!
-//! - Terms: Session (active modal interaction), Controller (behavior logic), Layer (passive UI), Spec (declarative UI layout), Capture (pre-preview state snapshot).
-//! - Lifecycle in one sentence: A controller defines a UI spec, a host allocates resources for a session, and the system restores captured state on close.
+//! - Terms: Session (active modal interaction), Controller (behavior logic), Context (capability surface), Layer (passive UI), Spec (declarative UI layout), Capture (pre-preview state snapshot).
+//! - Lifecycle in one sentence: A controller defines a UI spec, a host allocates resources for a session, and the system restores captured state on close via a capability-limited context.
 //!
 //! # Key types
 //!
@@ -19,6 +19,7 @@
 //! | [`OverlaySession`] | Active session resources | MUST be torn down | `OverlayHost::setup_session` |
 //! | [`PreviewCapture`] | Versioned state snapshot | Version-aware restore | `OverlaySession::capture_view` |
 //! | [`LayerEvent`] | Payloaded UI events | Broadcast to all layers | `Editor::notify_overlay_event` |
+//! | [`OverlayContext`] | Capability interface for overlays | MUST be used instead of direct editor access | `OverlayManager::{open,commit,close}` |
 //!
 //! # Invariants
 //!
@@ -44,8 +45,8 @@
 //! 1. Trigger: Editor calls `interaction.open(controller)`.
 //! 2. Allocation: [`OverlayHost`] resolves spec, creates scratch buffers/windows, and focuses input.
 //! 3. Events: Editor emits [`LayerEvent`] (CursorMoved, etc.) via `notify_overlay_event`.
-//! 4. Update: Input changes in `session.input` call `controller.on_input_changed`.
-//! 5. Restoration: On cancel/blur, `session.restore_all` reverts previews (version-aware).
+//! 4. Update: Input changes in `session.input` call `controller.on_input_changed` with an [`OverlayContext`].
+//! 5. Restoration: On cancel/blur, `session.restore_all` reverts previews (version-aware) via the context.
 //! 6. Teardown: `session.teardown` closes all windows and removes buffers.
 //!
 //! # Lifecycle
@@ -82,7 +83,8 @@ use xeno_primitives::range::{CharIdx, Range};
 use xeno_primitives::{Mode, Selection};
 
 use crate::buffer::ViewId;
-use crate::impls::{Editor, FocusTarget};
+use crate::impls::FocusTarget;
+use crate::overlay::OverlayContext;
 use crate::window::WindowId;
 
 /// State and resources for an active modal interaction session.
@@ -136,11 +138,8 @@ pub enum StatusKind {
 
 impl OverlaySession {
 	/// Returns the current text content of the primary input buffer.
-	pub fn input_text(&self, ed: &Editor) -> String {
-		ed.state
-			.core
-			.buffers
-			.get_buffer(self.input)
+	pub fn input_text(&self, ctx: &dyn OverlayContext) -> String {
+		ctx.buffer(self.input)
 			.map(|b| b.with_doc(|doc| doc.content().to_string()))
 			.unwrap_or_default()
 	}
@@ -149,11 +148,11 @@ impl OverlaySession {
 	///
 	/// Use this before applying preview modifications to a buffer to ensure
 	/// the original state can be restored.
-	pub fn capture_view(&mut self, ed: &Editor, view: ViewId) {
+	pub fn capture_view(&mut self, ctx: &dyn OverlayContext, view: ViewId) {
 		if self.capture.per_view.contains_key(&view) {
 			return;
 		}
-		if let Some(buffer) = ed.state.core.buffers.get_buffer(view) {
+		if let Some(buffer) = ctx.buffer(view) {
 			self.capture.per_view.insert(
 				view,
 				(buffer.version(), buffer.cursor, buffer.selection.clone()),
@@ -162,9 +161,9 @@ impl OverlaySession {
 	}
 
 	/// Selects a range in a view, capturing its state first if necessary.
-	pub fn preview_select(&mut self, ed: &mut Editor, view: ViewId, range: Range) {
-		self.capture_view(ed, view);
-		if let Some(buffer) = ed.state.core.buffers.get_buffer_mut(view) {
+	pub fn preview_select(&mut self, ctx: &mut dyn OverlayContext, view: ViewId, range: Range) {
+		self.capture_view(ctx, view);
+		if let Some(buffer) = ctx.buffer_mut(view) {
 			let start = range.min();
 			let end = range.max();
 			let selection = Selection::single(start, end);
@@ -179,9 +178,9 @@ impl OverlaySession {
 	///
 	/// This is non-destructive; the capture map remains intact until
 	/// [`Self::clear_capture`] is called.
-	pub fn restore_all(&self, ed: &mut Editor) {
+	pub fn restore_all(&self, ctx: &mut dyn OverlayContext) {
 		for (view, (version, cursor, selection)) in &self.capture.per_view {
-			if let Some(buffer) = ed.state.core.buffers.get_buffer_mut(*view)
+			if let Some(buffer) = ctx.buffer_mut(*view)
 				&& buffer.version() == *version
 			{
 				buffer.set_cursor_and_selection(*cursor, selection.clone());
@@ -208,12 +207,12 @@ impl OverlaySession {
 	///
 	/// Closes floating windows first, then removes scratch buffers.
 	/// Safe to call multiple times.
-	pub fn teardown(&mut self, ed: &mut Editor) {
+	pub fn teardown(&mut self, ctx: &mut dyn OverlayContext) {
 		for window_id in self.windows.drain(..) {
-			ed.close_floating_window(window_id);
+			ctx.close_floating_window(window_id);
 		}
 		for buffer_id in self.buffers.drain(..) {
-			ed.finalize_buffer_removal(buffer_id);
+			ctx.finalize_buffer_removal(buffer_id);
 		}
 		self.clear_capture();
 	}

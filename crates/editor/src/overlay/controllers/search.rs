@@ -7,9 +7,10 @@ use xeno_primitives::range::Range;
 use xeno_registry::notifications::keys;
 
 use crate::buffer::ViewId;
-use crate::impls::Editor;
 use crate::movement;
-use crate::overlay::{CloseReason, OverlayController, OverlaySession, OverlayUiSpec, RectPolicy};
+use crate::overlay::{
+	CloseReason, OverlayContext, OverlayController, OverlaySession, OverlayUiSpec, RectPolicy,
+};
 use crate::window::GutterSelector;
 
 pub struct SearchOverlay {
@@ -35,14 +36,14 @@ impl SearchOverlay {
 
 	fn search_preview_find(
 		&self,
-		ed: &Editor,
+		ctx: &dyn OverlayContext,
 		session: &OverlaySession,
 		re: &Regex,
 	) -> Result<Option<Range>, regex::Error> {
 		const PREVIEW_WINDOW_CHARS: usize = 200_000;
 		const FULL_SCAN_PREVIEW_MAX: usize = 500_000;
 
-		let Some(buffer) = ed.state.core.buffers.get_buffer(self.target) else {
+		let Some(buffer) = ctx.buffer(self.target) else {
 			return Ok(None);
 		};
 
@@ -93,7 +94,7 @@ impl OverlayController for SearchOverlay {
 		"Search"
 	}
 
-	fn ui_spec(&self, _ed: &Editor) -> OverlayUiSpec {
+	fn ui_spec(&self, _ctx: &dyn OverlayContext) -> OverlayUiSpec {
 		OverlayUiSpec {
 			title: Some(if self.reverse {
 				"Search (reverse)".into()
@@ -117,11 +118,16 @@ impl OverlayController for SearchOverlay {
 		}
 	}
 
-	fn on_open(&mut self, ed: &mut Editor, session: &mut OverlaySession) {
-		session.capture_view(ed, self.target);
+	fn on_open(&mut self, ctx: &mut dyn OverlayContext, session: &mut OverlaySession) {
+		session.capture_view(ctx, self.target);
 	}
 
-	fn on_input_changed(&mut self, ed: &mut Editor, session: &mut OverlaySession, text: &str) {
+	fn on_input_changed(
+		&mut self,
+		ctx: &mut dyn OverlayContext,
+		session: &mut OverlaySession,
+		text: &str,
+	) {
 		let input = text.trim_end_matches('\n').to_string();
 		if input == self.last_input {
 			return;
@@ -129,11 +135,11 @@ impl OverlayController for SearchOverlay {
 		self.last_input = input.clone();
 
 		if input.trim().is_empty() {
-			session.restore_all(ed);
+			session.restore_all(ctx);
 			self.last_preview = None;
 			self.last_error = None;
 			self.cached = None;
-			ed.state.frame.needs_redraw = true;
+			ctx.request_redraw();
 			return;
 		}
 
@@ -147,40 +153,40 @@ impl OverlayController for SearchOverlay {
 					let msg = e.to_string();
 					if self.last_error.as_deref() != Some(msg.as_str()) {
 						self.last_error = Some(msg.clone());
-						ed.notify(keys::regex_error(&msg));
+						ctx.notify(keys::regex_error(&msg));
 					}
-					session.restore_all(ed);
+					session.restore_all(ctx);
 					self.last_preview = None;
-					ed.state.frame.needs_redraw = true;
+					ctx.request_redraw();
 					return;
 				}
 			}
 		}
 
 		let Some((_, re)) = &self.cached else { return };
-		let found = self.search_preview_find(ed, session, re);
+		let found = self.search_preview_find(ctx, session, re);
 
 		match found {
 			Ok(Some(range)) => {
 				if self.last_preview != Some(range) {
-					session.preview_select(ed, self.target, range);
+					session.preview_select(ctx, self.target, range);
 					self.last_preview = Some(range);
-					ed.reveal_cursor_in_view(self.target);
-					ed.state.frame.needs_redraw = true;
+					ctx.reveal_cursor_in_view(self.target);
+					ctx.request_redraw();
 				}
 			}
 			Ok(None) => {
 				if self.last_preview.is_some() {
-					session.restore_all(ed);
+					session.restore_all(ctx);
 					self.last_preview = None;
-					ed.state.frame.needs_redraw = true;
+					ctx.request_redraw();
 				}
 			}
 			Err(e) => {
 				let msg = e.to_string();
 				if self.last_error.as_deref() != Some(msg.as_str()) {
 					self.last_error = Some(msg.clone());
-					ed.notify(keys::regex_error(&msg));
+					ctx.notify(keys::regex_error(&msg));
 				}
 			}
 		}
@@ -188,11 +194,11 @@ impl OverlayController for SearchOverlay {
 
 	fn on_commit<'a>(
 		&'a mut self,
-		ed: &'a mut Editor,
+		ctx: &'a mut dyn OverlayContext,
 		session: &'a mut OverlaySession,
 	) -> Pin<Box<dyn Future<Output = ()> + 'a>> {
 		let input = session
-			.input_text(ed)
+			.input_text(ctx)
 			.trim_end_matches('\n')
 			.trim()
 			.to_string();
@@ -208,7 +214,7 @@ impl OverlayController for SearchOverlay {
 			.map(|(_, c, _)| *c)
 			.unwrap_or(0);
 
-		let result = ed.state.core.buffers.get_buffer(self.target).map(|b| {
+		let result = ctx.buffer(self.target).map(|b| {
 			b.with_doc(|doc| {
 				let text = doc.content().slice(..);
 				if self.reverse {
@@ -221,23 +227,23 @@ impl OverlayController for SearchOverlay {
 
 		match result {
 			Some(Err(e)) => {
-				ed.notify(keys::regex_error(&e.to_string()));
+				ctx.notify(keys::regex_error(&e.to_string()));
 			}
 			Some(Ok(Some(range))) => {
-				if let Some(buffer) = ed.state.core.buffers.get_buffer_mut(self.target) {
+				if let Some(buffer) = ctx.buffer_mut(self.target) {
 					buffer.input.set_last_search(input.clone(), self.reverse);
 					let start = range.min();
 					let end = range.max();
 					buffer.set_cursor(start);
 					buffer.set_selection(Selection::single(start, end));
 				}
-				ed.reveal_cursor_in_view(self.target);
+				ctx.reveal_cursor_in_view(self.target);
 			}
 			Some(Ok(None)) => {
-				if let Some(buffer) = ed.state.core.buffers.get_buffer_mut(self.target) {
+				if let Some(buffer) = ctx.buffer_mut(self.target) {
 					buffer.input.set_last_search(input.clone(), self.reverse);
 				}
-				ed.notify(keys::PATTERN_NOT_FOUND);
+				ctx.notify(keys::PATTERN_NOT_FOUND.into());
 			}
 			None => {}
 		}
@@ -245,5 +251,11 @@ impl OverlayController for SearchOverlay {
 		Box::pin(async {})
 	}
 
-	fn on_close(&mut self, _ed: &mut Editor, _session: &mut OverlaySession, _reason: CloseReason) {}
+	fn on_close(
+		&mut self,
+		_ctx: &mut dyn OverlayContext,
+		_session: &mut OverlaySession,
+		_reason: CloseReason,
+	) {
+	}
 }

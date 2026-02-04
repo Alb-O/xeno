@@ -65,6 +65,8 @@ pub struct BufferRenderContext<'a> {
 	pub theme: &'a Theme,
 	/// Language loader for syntax highlighting.
 	pub language_loader: &'a LanguageLoader,
+	/// Syntax manager for accessing parsed trees.
+	pub syntax_manager: &'a crate::syntax_manager::SyntaxManager,
 	/// Optional diagnostic line map for gutter signs.
 	pub diagnostics: Option<&'a DiagnosticLineMap>,
 	/// Optional diagnostic range map for underlines.

@@ -24,7 +24,7 @@ impl Editor {
 	pub fn ensure_syntax_for_buffers(&mut self) {
 		use std::collections::HashMap;
 
-		use crate::syntax_manager::{EnsureSyntaxContext, SyntaxHotness, SyntaxSlot};
+		use crate::syntax_manager::{EnsureSyntaxContext, SyntaxHotness};
 
 		let loader = std::sync::Arc::clone(&self.state.config.language_loader);
 		let mut visible_ids = self.state.windows.base_window().layout.views();
@@ -39,7 +39,6 @@ impl Editor {
 			lang_id: Option<xeno_runtime_language::LanguageId>,
 			content: ropey::Rope,
 			hotness: SyntaxHotness,
-			representative_buffer: crate::buffer::ViewId,
 		}
 
 		let mut docs_to_poll: HashMap<crate::buffer::DocumentId, DocWork> = HashMap::new();
@@ -49,17 +48,17 @@ impl Editor {
 				continue;
 			};
 
-			let (doc_id, version, lang_id, content, has_syntax, syntax_dirty) =
-				buffer.with_doc(|doc| {
-					(
-						doc.id,
-						doc.version(),
-						doc.language_id(),
-						doc.content().clone(),
-						doc.syntax().is_some(),
-						doc.is_syntax_dirty(),
-					)
-				});
+			let (doc_id, version, lang_id, content) = buffer.with_doc(|doc| {
+				(
+					doc.id,
+					doc.version(),
+					doc.language_id(),
+					doc.content().clone(),
+				)
+			});
+
+			let has_syntax = self.state.syntax_manager.has_syntax(doc_id);
+			let syntax_dirty = self.state.syntax_manager.is_dirty(doc_id);
 
 			// If it's already clean and no task is inflight, we might skip it.
 			// But we still need to check if SyntaxManager wants to poll an inflight task
@@ -80,7 +79,6 @@ impl Editor {
 				lang_id,
 				content,
 				hotness,
-				representative_buffer: buffer_id,
 			});
 
 			// Promote hotness if this view is more visible than others.
@@ -91,55 +89,21 @@ impl Editor {
 
 		// 2. Process each unique document.
 		for work in docs_to_poll.into_values() {
-			// Pick the representative buffer to move syntax out.
-			let (mut syntax, mut dirty) = self
+			let outcome = self
 				.state
-				.core
-				.buffers
-				.get_buffer(work.representative_buffer)
-				.map(|b| b.with_doc_mut(|doc| (doc.take_syntax(), doc.is_syntax_dirty())))
-				.unwrap_or((None, false));
-
-			let mut updated = false;
-
-			let result = self.state.syntax_manager.ensure_syntax(
-				EnsureSyntaxContext {
+				.syntax_manager
+				.ensure_syntax(EnsureSyntaxContext {
 					doc_id: work.doc_id,
 					doc_version: work.version,
 					language_id: work.lang_id,
 					content: &work.content,
 					hotness: work.hotness,
 					loader: &loader,
-				},
-				SyntaxSlot {
-					current: &mut syntax,
-					dirty: &mut dirty,
-					updated: &mut updated,
-				},
-			);
-
-			// 3. Write back to the shared document.
-			// Since all buffers for this doc share the same Document instance,
-			// we only need to write back once through the representative buffer.
-			if let Some(buffer) = self
-				.state
-				.core
-				.buffers
-				.get_buffer(work.representative_buffer)
-			{
-				buffer.with_doc_mut(|doc| {
-					doc.put_syntax_slot(syntax, updated);
-					if dirty {
-						doc.mark_syntax_dirty();
-					} else {
-						doc.clear_syntax_dirty();
-					}
 				});
-			}
 
-			if updated
+			if outcome.updated
 				|| matches!(
-					result,
+					outcome.result,
 					crate::syntax_manager::SyntaxPollResult::Ready
 						| crate::syntax_manager::SyntaxPollResult::Kicked
 				) {

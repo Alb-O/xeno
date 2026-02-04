@@ -2,6 +2,7 @@
 
 #[cfg(feature = "lsp")]
 use xeno_lsp::LspManager;
+use xeno_primitives::{CommitResult, Rope, Transaction};
 
 use crate::buffer::Buffer;
 
@@ -151,6 +152,48 @@ impl LspSystem {
 
 	pub fn total_warning_count(&self) -> usize {
 		self.inner.manager.sync().total_warning_count()
+	}
+
+	pub fn on_local_edit(
+		&mut self,
+		buffer: &Buffer,
+		before: Option<Rope>,
+		tx: &Transaction,
+		result: &CommitResult,
+	) {
+		if !result.applied {
+			return;
+		}
+
+		let doc_id = buffer.document_id();
+		let Some(encoding) = self.incremental_encoding_for_buffer(buffer) else {
+			self.sync_manager_mut().escalate_full(doc_id);
+			return;
+		};
+
+		let Some(before) = before else {
+			self.sync_manager_mut().escalate_full(doc_id);
+			return;
+		};
+
+		match xeno_lsp::compute_lsp_changes(&before, tx, encoding) {
+			xeno_lsp::IncrementalResult::Incremental(changes) => {
+				if changes.is_empty() {
+					return;
+				}
+				let lsp_bytes: usize = changes.iter().map(|c| c.new_text.len()).sum();
+				self.sync_manager_mut().on_doc_edit(
+					doc_id,
+					result.version_before,
+					result.version_after,
+					changes,
+					lsp_bytes,
+				);
+			}
+			xeno_lsp::IncrementalResult::FallbackToFull => {
+				self.sync_manager_mut().escalate_full(doc_id);
+			}
+		}
 	}
 
 	pub async fn shutdown_all(&self) {

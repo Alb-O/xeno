@@ -277,8 +277,6 @@ fn commit_syntax_mark_dirty() {
 	let mut doc = Document::new("hello".into(), None);
 	let loader = language_loader();
 
-	assert!(!doc.is_syntax_dirty());
-
 	let tx = Transaction::change(
 		doc.content().slice(..),
 		[Change {
@@ -300,7 +298,6 @@ fn commit_syntax_mark_dirty() {
 		)
 		.unwrap();
 
-	assert!(doc.is_syntax_dirty());
 	assert_eq!(result.syntax_outcome, SyntaxOutcome::MarkedDirty);
 }
 
@@ -308,9 +305,6 @@ fn commit_syntax_mark_dirty() {
 fn commit_incremental_or_dirty_without_syntax_marks_dirty() {
 	let mut doc = Document::new("hello".into(), None);
 	let loader = language_loader();
-
-	assert!(!doc.has_syntax());
-	assert!(!doc.is_syntax_dirty());
 
 	let tx = Transaction::change(
 		doc.content().slice(..),
@@ -333,39 +327,7 @@ fn commit_incremental_or_dirty_without_syntax_marks_dirty() {
 		)
 		.unwrap();
 
-	assert!(doc.is_syntax_dirty());
 	assert_eq!(result.syntax_outcome, SyntaxOutcome::MarkedDirty);
-}
-
-#[test]
-fn reset_content_marks_syntax_dirty_and_reparses() {
-	use xeno_runtime_language::syntax::Syntax;
-
-	let mut doc = Document::new("fn main() {}".into(), None);
-	let loader = language_loader();
-
-	// init_syntax_for_language sets language_id (syntax creation is deferred to SyntaxManager)
-	doc.init_syntax_for_language("rust", &loader);
-	assert!(doc.language_id().is_some());
-	assert!(!doc.has_syntax());
-	assert!(!doc.is_syntax_dirty());
-
-	// Create syntax directly (simulating what SyntaxManager would do)
-	let syntax = Syntax::new(
-		doc.content().slice(..),
-		doc.language_id().unwrap(),
-		&loader,
-		xeno_runtime_language::SyntaxOptions::default(),
-	)
-	.ok();
-	doc.set_syntax(syntax);
-	assert!(doc.has_syntax());
-	assert!(!doc.is_syntax_dirty());
-
-	// reset_content marks syntax as dirty and drops it
-	doc.reset_content("let x = 1;");
-	assert!(doc.is_syntax_dirty());
-	assert!(!doc.has_syntax());
 }
 
 #[test]
@@ -390,75 +352,4 @@ fn reset_content_clears_undo_history() {
 	assert!(!doc.can_redo());
 	assert_eq!(doc.undo_len(), 0);
 	assert_eq!(doc.redo_len(), 0);
-}
-
-#[test]
-fn reset_content_bumps_version_and_marks_dirty_without_syntax() {
-	let mut doc = Document::new("hello".into(), None);
-	let v0 = doc.version();
-
-	assert!(!doc.is_syntax_dirty());
-
-	doc.reset_content("reset");
-
-	assert!(doc.is_syntax_dirty());
-	assert_ne!(doc.version(), v0);
-}
-
-#[test]
-fn test_undo_redo_bumps_syntax_version() {
-	use xeno_runtime_language::syntax::Syntax;
-
-	let mut doc = Document::new("fn main() {}".into(), None);
-	let loader = language_loader();
-	doc.init_syntax_for_language("rust", &loader);
-
-	// Initial version bump from init_syntax
-	let v0 = doc.syntax_version;
-	assert!(v0 > 0);
-
-	// Install syntax
-	let syntax = Syntax::new(
-		doc.content().slice(..),
-		doc.language_id().unwrap(),
-		&loader,
-		xeno_runtime_language::SyntaxOptions::default(),
-	)
-	.unwrap();
-	doc.set_syntax(Some(syntax));
-	let v1 = doc.syntax_version;
-	assert!(v1 > v0);
-
-	// Edit
-	let tx = Transaction::change(
-		doc.content().slice(..),
-		[Change {
-			start: 11,
-			end: 11,
-			replacement: Some("\n".into()),
-		}],
-	);
-	doc.commit(
-		EditCommit {
-			tx,
-			undo: UndoPolicy::Record,
-			syntax: SyntaxPolicy::IncrementalOrDirty,
-			origin: EditOrigin::Internal("test"),
-			selection_after: None,
-		},
-		&loader,
-	)
-	.unwrap();
-	let v2 = doc.syntax_version;
-	assert!(v2 > v1); // Incremental update bumps version
-
-	// Undo
-	doc.undo(&loader);
-	let v3 = doc.syntax_version;
-	assert!(v3 > v2); // Undo bumps version
-
-	// Redo
-	doc.redo(&loader);
-	let v4 = doc.syntax_version;
-	assert!(v4 > v3); // Redo bumps version
 }

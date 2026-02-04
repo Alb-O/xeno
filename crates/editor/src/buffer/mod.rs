@@ -18,8 +18,6 @@ use std::sync::Arc;
 
 pub use document::{Document, DocumentId};
 pub use editing::ApplyPolicy;
-#[cfg(feature = "lsp")]
-pub use editing::LspCommitResult;
 pub use history::HistoryResult;
 pub use layout::{Layout, SpatialDirection, SplitDirection, SplitPath};
 use parking_lot::RwLock;
@@ -60,7 +58,7 @@ impl DocumentHandle {
 /// A text buffer - combines a view with its document.
 ///
 /// Provides access to both view state (cursor, selection, scroll) and
-/// document state (content, undo history, syntax).
+/// document state (content, undo history, metadata).
 ///
 /// For split views, multiple Buffers can share the same underlying Document.
 pub struct Buffer {
@@ -299,12 +297,10 @@ impl Buffer {
 		self.with_doc(|doc| doc.file_type.clone())
 	}
 
-	/// Returns whether syntax highlighting is available.
-	pub fn has_syntax(&self) -> bool {
-		self.with_doc(|doc| doc.has_syntax())
-	}
-
-	/// Initializes syntax highlighting for this buffer.
+	/// Initializes language metadata for this buffer.
+	///
+	/// This populates the document's language id and file type; parsing is
+	/// delegated to the syntax manager.
 	pub fn init_syntax(&self, language_loader: &LanguageLoader) {
 		self.with_doc_mut(|doc| doc.init_syntax(language_loader));
 	}
@@ -352,11 +348,6 @@ impl Buffer {
 			};
 			total_width(&ctx)
 		})
-	}
-
-	/// Reparses the entire syntax tree from scratch.
-	pub fn reparse_syntax(&self, language_loader: &LanguageLoader) {
-		self.with_doc_mut(|doc| doc.reparse_syntax(language_loader));
 	}
 
 	/// Returns the undo stack length.

@@ -3107,6 +3107,7 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "unicode-width 0.2.2",
+ "xeno-editor-core",
  "xeno-keymap-core",
  "xeno-lsp",
  "xeno-primitives",
@@ -3114,6 +3115,16 @@ dependencies = [
  "xeno-runtime-config",
  "xeno-runtime-language",
  "xeno-tui",
+]
+
+[[package]]
+name = "xeno-editor-core"
+version = "0.8.0"
+dependencies = [
+ "proptest",
+ "tracing",
+ "xeno-primitives",
+ "xeno-runtime-language",
 ]
 
 [[package]]
