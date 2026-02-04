@@ -15,7 +15,6 @@ use crate::types::{AnyRequest, ErrorCode, ResponseError};
 ///
 /// Must be called synchronously to maintain FIFO ordering with
 /// [`reply()`](crate::client::transport::LspTransport::reply).
-/// Broker transport requires strict request/reply pairing.
 ///
 /// # Supported Methods
 ///

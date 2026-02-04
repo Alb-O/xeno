@@ -64,8 +64,6 @@ pub mod render;
 pub mod scheduler;
 /// Separator drag and hover state.
 pub mod separator;
-/// Broker-backed shared state manager.
-pub mod shared_state;
 /// Style utilities and conversions.
 pub mod styles;
 /// Background syntax loading manager.

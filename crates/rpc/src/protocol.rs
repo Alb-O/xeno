@@ -107,8 +107,8 @@ pub trait Protocol: Send + 'static {
 
 	/// Returns true if the loop should assign a new ID from `id_gen`.
 	///
-	/// Defaults to `true`. Protocols that support pre-assigned IDs (like
-	/// brokered LSP requests) can override this to skip ID generation.
+	/// Defaults to `true`. Protocols that support pre-assigned IDs
+	/// can override this to skip ID generation.
 	fn should_assign_id(req: &Self::Request) -> bool {
 		let _ = req;
 		true

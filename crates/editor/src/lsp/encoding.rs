@@ -9,8 +9,6 @@ use xeno_lsp::OffsetEncoding;
 use xeno_lsp::lsp_types::{TextDocumentSyncCapability, TextDocumentSyncKind};
 
 #[cfg(feature = "lsp")]
-use super::document_ops::*;
-#[cfg(feature = "lsp")]
 use super::system::LspSystem;
 #[cfg(feature = "lsp")]
 use crate::buffer::Buffer;

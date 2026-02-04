@@ -1,8 +1,6 @@
 //! LSP feature request methods (hover, completion, goto, references, format).
 
 #[cfg(feature = "lsp")]
-use super::document_ops::*;
-#[cfg(feature = "lsp")]
 use super::system::LspSystem;
 #[cfg(feature = "lsp")]
 use crate::buffer::Buffer;

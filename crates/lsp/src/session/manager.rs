@@ -3,22 +3,21 @@
 //! # Purpose
 //!
 //! - Define the editor-side LSP client stack: document synchronization, server registry, transport integration, and server-initiated request handling.
-//! - Describe the broker-default transport behavior used by the editor on Unix.
-//! - Exclude broker daemon internals (deduplication, leases, leader routing, pending maps); see `broker::core` module docs.
+//! - Manage language server processes via a pluggable transport abstraction.
 //!
 //! # Mental model
 //!
-//! - [`LspSystem`](editor::lsp::system::LspSystem) is the editor integration root that constructs an [`LspManager`] with a broker-backed transport.
+//! - [`LspSystem`](editor::lsp::system::LspSystem) is the editor integration root that constructs an [`LspManager`] with a transport.
 //! - [`DocumentSync`](crate::DocumentSync) owns didOpen/didChange/didSave/didClose policy and the local [`DocumentStateManager`](crate::DocumentStateManager) (diagnostics, progress).
 //! - [`Registry`](crate::Registry) maps `(language, workspace_root)` to a [`ClientHandle`](crate::ClientHandle) and enforces singleflight for server startup.
 //! - [`LspManager::spawn_router`] is the event pump that applies [`TransportEvent`](crate::client::transport::TransportEvent) streams to [`DocumentStateManager`](crate::DocumentStateManager) and replies to server-initiated requests in-order.
-//! - [`BrokerTransport`] is the only production transport on Unix builds; it carries JSON-RPC frames over an IPC channel to the broker daemon.
+//! - [`LocalTransport`](crate::client::LocalTransport) spawns LSP servers as child processes and manages stdin/stdout communication.
 //!
 //! # Key types
 //!
 //! | Type | Meaning | Constraints | Constructed / mutated in |
 //! |---|---|---|---|
-//! | [`LspSystem`] | Editor integration root for LSP | MUST construct an [`LspManager`] with a broker transport on Unix | `LspSystem::new` |
+//! | [`LspSystem`] | Editor integration root for LSP | MUST construct an [`LspManager`] with a transport | `LspSystem::new` |
 //! | [`LspManager`] | Owns [`DocumentSync`] and routes transport events | MUST reply to server-initiated requests inline to preserve request/reply pairing | [`LspManager::spawn_router`] |
 //! | [`DocumentSync`] | High-level doc sync coordinator | MUST gate change notifications on client initialization state | `DocumentSync::*` |
 //! | [`Registry`] | Maps `(language, root_path)` to a running client | MUST singleflight `transport.start()` per key | `Registry::get_or_start` |
@@ -27,83 +26,73 @@
 //! | [`ClientHandle`] | RPC handle for a single language server instance | MUST NOT be treated as ready until initialization completes | `ClientHandle::*` |
 //! | [`TransportEvent`] | Transport-to-manager event stream | Router MUST process sequentially | [`LspManager::spawn_router`] |
 //! | [`TransportStatus`] | Lifecycle signals for server processes | Router MUST remove servers on `Stopped`/`Crashed` | [`LspManager::spawn_router`] |
-//! | [`BrokerTransport`] | Broker-backed LSP transport | MUST invalidate cached state on send failure | `BrokerTransport::ensure_connected` (cleanup task) |
+//! | [`LocalTransport`] | Local child process transport | Spawns servers directly, communicates via stdin/stdout | `LocalTransport::new` |
 //!
 //! # Invariants
 //!
-//! 1. The editor MUST use the broker transport on Unix builds.
-//!    - Enforced in: `LspSystem::new`
-//!    - Tested by: `TODO (add regression: test_lsp_system_uses_broker_transport_on_unix)`
-//!    - Failure symptom: LSP requests silently do nothing or attempt to use removed `LocalTransport` code paths.
-//!
-//! 2. Registry startup MUST singleflight `transport.start()` per `(language, root_path)` key.
+//! 1. Registry startup MUST singleflight `transport.start()` per `(language, root_path)` key.
 //!    - Enforced in: `Registry::get_or_start`
 //!    - Tested by: `TODO (add regression: test_registry_singleflight_prevents_duplicate_transport_start)`
-//!    - Failure symptom: duplicate broker `LspStart` calls, leaked server processes until lease expiry, inconsistent server ids across callers.
+//!    - Failure symptom: duplicate server starts, leaked server processes, inconsistent server ids across callers.
 //!
-//! 3. Registry mutations MUST be atomic across `servers`, `server_meta`, and `id_index`.
+//! 2. Registry mutations MUST be atomic across `servers`, `server_meta`, and `id_index`.
 //!    - Enforced in: `Registry::get_or_start`, `Registry::remove_server`
 //!    - Tested by: `TODO (add regression: test_registry_remove_server_scrubs_all_indices)`
 //!    - Failure symptom: stale server metadata persists after removal, status cleanup fails to fully detach, server request handlers read wrong settings/root.
 //!
-//! 4. The router MUST process transport events sequentially and MUST reply to server-initiated requests inline.
+//! 3. The router MUST process transport events sequentially and MUST reply to server-initiated requests inline.
 //!    - Enforced in: [`LspManager::spawn_router`]
-//!    - Tested by: `test_broker_e2e_leader_routing_and_reply`
+//!    - Tested by: `TODO (add regression: test_router_event_ordering)`
 //!    - Failure symptom: server request/reply pairing breaks, replies go to the wrong pending request, server-side hangs waiting for a response.
 //!
-//! 5. On `TransportStatus::Stopped` or `TransportStatus::Crashed`, the router MUST remove the server from `Registry` and MUST clear per-server progress.
+//! 4. On `TransportStatus::Stopped` or `TransportStatus::Crashed`, the router MUST remove the server from `Registry` and MUST clear per-server progress.
 //!    - Enforced in: [`LspManager::spawn_router`], `Registry::remove_server`
 //!    - Tested by: `TODO (add regression: test_status_stopped_removes_server_and_clears_progress)`
 //!    - Failure symptom: UI shows stuck progress forever, stale `ClientHandle` remains reachable, subsequent requests wedge on a dead server id.
 //!
-//! 6. `workspace/configuration` handling MUST return an array with one element per requested item, and MUST return an object for missing config.
+//! 5. `workspace/configuration` handling MUST return an array with one element per requested item, and MUST return an object for missing config.
 //!    - Enforced in: `handle_workspace_configuration`
 //!    - Tested by: `TODO (add regression: test_server_request_workspace_configuration_section_slicing)`
 //!    - Failure symptom: servers treat configuration as invalid, disable features, or log repeated configuration query errors.
 //!
-//! 7. `workspace/workspaceFolders` handling MUST return percent-encoded file URIs.
+//! 6. `workspace/workspaceFolders` handling MUST return percent-encoded file URIs.
 //!    - Enforced in: `handle_workspace_folders`
 //!    - Tested by: `TODO (add regression: test_server_request_workspace_folders_uri_encoding)`
 //!    - Failure symptom: servers mis-parse the workspace root for paths with spaces or non-ASCII characters and degrade indexing/navigation.
 //!
-//! 8. `BrokerTransport` MUST invalidate cached RPC state and per-server request queues on send failure.
-//!    - Enforced in: `BrokerTransport::ensure_connected` (spawned cleanup task)
-//!    - Tested by: `test_broker_reconnect_wedge`
-//!    - Failure symptom: reconnect wedges (stale cached RPC), servers never expire, or pending request queues grow unbounded.
-//!
-//! 9. `DocumentSync` MUST NOT send change notifications before the client has completed initialization.
+//! 7. `DocumentSync` MUST NOT send change notifications before the client has completed initialization.
 //!    - Enforced in: `DocumentSync::notify_change_full_text`, `DocumentSync::notify_change_incremental_no_content`
 //!    - Tested by: `lsp::sync::tests::test_document_sync_returns_not_ready_before_init`
 //!    - Failure symptom: edits are dropped by the server or applied out of order, resulting in stale diagnostics and incorrect completions.
 //!
-//! 10. `LspSystem::prepare_position_request` MUST gate on `ClientHandle::is_ready()` before forming any position-based LSP request.
-//!     - Enforced in: `LspSystem::prepare_position_request`
-//!     - Tested by: `TODO (add regression: test_prepare_position_request_returns_none_before_ready)`
-//!     - Failure symptom: requests sent to uninitialized servers cause panics or silent errors; previously panicked in `ClientHandle::capabilities`.
+//! 8. `LspSystem::prepare_position_request` MUST gate on `ClientHandle::is_ready()` before forming any position-based LSP request.
+//!    - Enforced in: `LspSystem::prepare_position_request`
+//!    - Tested by: `TODO (add regression: test_prepare_position_request_returns_none_before_ready)`
+//!    - Failure symptom: requests sent to uninitialized servers cause panics or silent errors.
 //!
-//! 11. `ClientHandle::capabilities()` MUST return `Option` (not panic). All capability-dependent public methods MUST use the fallible accessor.
-//!     - Enforced in: `ClientHandle::capabilities`, `ClientHandle::offset_encoding`, `ClientHandle::supports_*`
-//!     - Tested by: `TODO (add regression: test_client_handle_capabilities_returns_none_before_init)`
-//!     - Failure symptom: panic ("language server not yet initialized") on any code path that reads capabilities before the initialize handshake completes.
+//! 9. `ClientHandle::capabilities()` MUST return `Option` (not panic). All capability-dependent public methods MUST use the fallible accessor.
+//!    - Enforced in: `ClientHandle::capabilities`, `ClientHandle::offset_encoding`, `ClientHandle::supports_*`
+//!    - Tested by: `TODO (add regression: test_client_handle_capabilities_returns_none_before_init)`
+//!    - Failure symptom: panic ("language server not yet initialized") on any code path that reads capabilities before the initialize handshake completes.
 //!
-//! 12. `ClientHandle::set_ready(true)` MUST only be called after `capabilities.set()` and MUST use `Release` ordering. `is_ready()` MUST use `Acquire` ordering.
+//! 10. `ClientHandle::set_ready(true)` MUST only be called after `capabilities.set()` and MUST use `Release` ordering. `is_ready()` MUST use `Acquire` ordering.
 //!     - Enforced in: `ClientHandle::set_ready` (`debug_assert` + `Release`), `ClientHandle::is_ready` (`Acquire`)
 //!     - Tested by: `TODO (add regression: test_set_ready_requires_initialized)`
 //!     - Failure symptom: thread observes `is_ready() == true` but `capabilities()` returns `None` due to missing memory ordering edge.
 //!
-//! 13. All registry lookups in `LspSystem` MUST use canonicalized paths to match the key representation used at registration time.
+//! 11. All registry lookups in `LspSystem` MUST use canonicalized paths to match the key representation used at registration time.
 //!     - Enforced in: `LspSystem::prepare_position_request`, `LspSystem::offset_encoding_for_buffer`, `LspSystem::incremental_encoding`
 //!     - Tested by: `TODO (add regression: test_registry_lookup_uses_canonical_path)`
 //!     - Failure symptom: registry miss on symlinked or relative paths causes silent fallback to wrong default encoding (UTF-16) or drops the request entirely.
 //!
 //! # Data flow
 //!
-//! 1. Editor constructs `LspSystem` which constructs `LspManager` with `BrokerTransport`.
+//! 1. Editor constructs `LspSystem` which constructs `LspManager` with `LocalTransport`.
 //! 2. Editor opens a buffer; `DocumentSync` chooses a language and calls `Registry::get_or_start(language, path)`.
 //! 3. `Registry` singleflights startup and obtains a `ClientHandle` for the `(language, root_path)` key.
 //! 4. `DocumentSync` registers the document in `DocumentStateManager` and sends `didOpen` via `ClientHandle`.
 //! 5. Subsequent edits call `DocumentSync` change APIs; `DocumentStateManager` assigns versions; change notifications are sent and acknowledged.
-//! 6. `BrokerTransport` forwards JSON-RPC frames to the broker daemon over Unix domain socket IPC.
+//! 6. `LocalTransport` spawns the server as a child process and communicates via stdin/stdout JSON-RPC.
 //! 7. Transport emits `TransportEvent` values; `LspManager` router consumes them:
 //!    - Diagnostics events update `DocumentStateManager` diagnostics.
 //!    - Message events: Requests are handled by `handle_server_request` and replied via `transport.reply`. Notifications update progress and may be logged.
@@ -116,7 +105,6 @@
 //! - Startup: First open/change triggers `Registry::get_or_start` and transport start. Client initialization runs asynchronously; readiness is tracked by `ClientHandle`.
 //! - Running: didOpen/didChange/didSave/didClose flow through `DocumentSync`. Router updates diagnostics/progress and services server-initiated requests.
 //! - Stopped/Crashed: Transport emits status; router removes server from `Registry` and clears progress. Next operation will start a new server instance.
-//! - Disconnected: `BrokerTransport` invalidates cached state; router exits on `Disconnected`. Next operation triggers reconnect and restart as needed.
 //!
 //! # Concurrency and ordering
 //!
@@ -127,7 +115,6 @@
 //! # Failure modes and recovery
 //!
 //! - Duplicate startup attempt: Recovery: singleflight blocks duplicates; waiters reuse the leader's handle.
-//! - Broker IPC send failure: Recovery: `BrokerTransport` cleanup task invalidates cached state; subsequent operation reconnects.
 //! - Server crash or stop: Recovery: router removes server; subsequent operation re-starts server via `Registry`.
 //! - Unsupported server-initiated request method: Recovery: handler returns `METHOD_NOT_FOUND`; add method to allowlist if required by real servers.
 //! - URI conversion failure for workspaceFolders: Recovery: handler returns empty array; server may operate without workspace folders.
@@ -147,17 +134,6 @@
 //! - Call through `DocumentSync` or a feature controller from editor code.
 //! - Gate on readiness and buffer identity invariants (URI, version).
 //! - Plumb results into editor UI through the existing event mechanism.
-//!
-//! ## Run headless smoke verification with file-based tracing
-//!
-//! - Set `XENO_LOG_DIR` and `RUST_LOG`.
-//! - Run `xeno lsp-smoke <workspace_path>`.
-//! - Grep for: singleflight leader path (exactly one after `transport.start`), server-initiated request handling logs, status updates and disconnects.
-//!
-//! ## Enable broker + editor log correlation
-//!
-//! - Ensure broker spawn passes `XENO_LOG_DIR`, `RUST_LOG`, `XENO_LOG`, `RUST_BACKTRACE`.
-//! - Correlate by PID filenames: `xeno.<pid>.log` and `xeno-broker.<pid>.log`.
 //!
 use std::sync::Arc;
 
@@ -344,8 +320,8 @@ impl LspManager {
 }
 
 // Default implementation removed: LspManager requires an explicit transport.
-// Broker transport is now the standard, but cannot be constructed here due to
-// crate boundaries. Users must construct LspManager via LspSystem::new().
+// Use LocalTransport::new() to create a transport that spawns servers locally.
+// Users should construct LspManager via LspSystem::new() in editor code.
 
 #[cfg(test)]
 mod tests {

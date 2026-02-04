@@ -91,7 +91,7 @@ impl xeno_rpc::Protocol for JsonRpcProtocol {
 
 	fn should_assign_id(req: &Self::Request) -> bool {
 		// Only assign if it's Number(0) or similar sentinel.
-		// Brokered requests use String IDs which must be preserved.
+		// String IDs from external sources must be preserved.
 		matches!(req.id, RequestId::Number(0))
 	}
 

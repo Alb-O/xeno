@@ -292,16 +292,6 @@ impl Editor {
 		if result.applied {
 			self.state.syntax_manager.note_edit(doc_id);
 			self.state.lsp.sync_manager_mut().escalate_full(doc_id);
-
-			if let Some(uri) = self
-				.state
-				.shared_state
-				.uri_for_doc_id(doc_id)
-				.map(str::to_string)
-				&& let Some(payload) = self.state.shared_state.prepare_edit(&uri, &tx, true)
-			{
-				let _ = self.state.lsp.shared_state_out_tx().send(payload);
-			}
 		}
 
 		if !result.applied {

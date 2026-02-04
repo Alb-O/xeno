@@ -7,7 +7,6 @@ Key subsystems:
 - Registry-backed definitions (actions/commands/motions/text objects/options/hooks/etc.)
 - Tree-sitter syntax parsing/highlighting with tiered policy and background scheduling
 - LSP client stack (JSON-RPC transport, doc sync, feature controllers)
-- Broker (Actor-based backend for multi-session coordination and LSP management)
 - Unified overlay system for modal interactions + passive UI layers
 
 ## Build, test, format
@@ -39,7 +38,6 @@ Always prefer comprehensive techspec docstrings over inline comments:
 Module-level rustdoc is the ground truth for subsystem behavior and invariants, must read when relevant, keep updated:
 - Registry: `crates/registry/src/core/index/runtime.rs`
 - LSP: `crates/lsp/src/session/manager.rs`
-- Broker: `crates/broker/broker/src/core/mod.rs`
 - Overlay: `crates/editor/src/overlay/session.rs`
 - Syntax: `crates/editor/src/syntax_manager/mod.rs`
 - Windowing: `crates/editor/src/layout/manager.rs`

@@ -86,48 +86,6 @@ fn get_scroll(editor: &Editor, buffer_id: ViewId) -> (usize, usize) {
 	(buffer.scroll_line, buffer.scroll_segment)
 }
 
-#[cfg(feature = "lsp")]
-#[test]
-fn undo_queues_history_when_not_owner() {
-	let mut editor = test_editor("shared");
-	let uri = "file:///shared";
-	let doc_id = editor.buffer().document_id();
-
-	editor
-		.state
-		.shared_state
-		.prepare_open(uri, "shared", doc_id);
-	let snapshot = xeno_broker_proto::types::DocStateSnapshot {
-		uri: uri.to_string(),
-		epoch: xeno_broker_proto::types::SyncEpoch(1),
-		seq: xeno_broker_proto::types::SyncSeq(0),
-		owner: Some(xeno_broker_proto::types::SessionId(2)),
-		preferred_owner: Some(xeno_broker_proto::types::SessionId(2)),
-		phase: xeno_broker_proto::types::DocSyncPhase::Owned,
-		hash64: 0,
-		len_chars: "shared".chars().count() as u64,
-		history_head_id: None,
-		history_root_id: None,
-		history_head_group: None,
-	};
-	editor
-		.state
-		.shared_state
-		.handle_snapshot_update(snapshot, xeno_broker_proto::types::SessionId(1));
-
-	editor.undo();
-
-	assert_eq!(
-		editor.state.shared_state.pending_history_len(uri),
-		1,
-		"undo should queue history when ownership is required"
-	);
-	assert!(
-		editor.state.shared_state.has_pending_align(uri),
-		"undo should request focus when ownership is required"
-	);
-}
-
 #[test]
 fn undo_restores_cursor_position() {
 	let mut editor = test_editor("hello world");
