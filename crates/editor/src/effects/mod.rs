@@ -9,14 +9,11 @@ use crate::effects::sink::DrainedEffects;
 impl crate::impls::Editor {
 	/// Flushes all pending effects from the sink and applies them.
 	///
-	/// This is the primary boundary for side-effect application. It handles
-	/// re-entrancy by deferring nested flushes until the outermost flush
-	/// completes.
+	/// Re-entrant calls are deferred: nested flushes signal a redraw and
+	/// return immediately, letting the outermost flush complete first.
 	pub fn flush_effects(&mut self) {
 		if self.state.flush_depth > 0 {
-			// Mark for deferred second pass if we're already flushing.
-			// This prevents re-ordering and double-borrows.
-			self.state.frame.needs_redraw = true; // Minimal signal to retry later
+			self.state.frame.needs_redraw = true;
 			return;
 		}
 
@@ -36,7 +33,6 @@ impl crate::impls::Editor {
 	fn apply_drained_effects(&mut self, eff: DrainedEffects) {
 		let mut needs_redraw = eff.wants_redraw;
 
-		// 1. Overlay requests (topology changes)
 		if !eff.overlay_requests.is_empty() {
 			needs_redraw = true;
 			for req in eff.overlay_requests {
@@ -46,7 +42,6 @@ impl crate::impls::Editor {
 			}
 		}
 
-		// 2. Layer events (notifications to passive layers)
 		if !eff.layer_events.is_empty() {
 			needs_redraw = true;
 			let mut layers = std::mem::take(&mut self.state.overlay_system.layers);
@@ -56,7 +51,6 @@ impl crate::impls::Editor {
 			self.state.overlay_system.layers = layers;
 		}
 
-		// 3. Notifications
 		if !eff.notifications.is_empty() {
 			needs_redraw = true;
 			for n in eff.notifications {
@@ -64,7 +58,6 @@ impl crate::impls::Editor {
 			}
 		}
 
-		// 4. Queued commands
 		for (name, args) in eff.queued_commands {
 			self.state.core.workspace.command_queue.push(name, args);
 		}
@@ -74,6 +67,11 @@ impl crate::impls::Editor {
 		}
 	}
 
+	/// Dispatches a single [`OverlayRequest`] to the overlay system.
+	///
+	/// Commit closes are deferred via [`FrameState::pending_overlay_commit`]
+	/// because [`OverlayController::on_commit`] is async and cannot run inside
+	/// the synchronous effect flush loop.
 	pub(crate) fn handle_overlay_request(
 		&mut self,
 		req: OverlayRequest,
@@ -100,15 +98,23 @@ impl crate::impls::Editor {
 			}
 			CloseModal { reason } => {
 				use crate::overlay::CloseReason;
-				let reason = match reason {
-					OverlayCloseReason::Cancel => CloseReason::Cancel,
-					OverlayCloseReason::Commit => CloseReason::Commit,
-					OverlayCloseReason::Blur => CloseReason::Blur,
-					OverlayCloseReason::Forced => CloseReason::Forced,
-				};
-				let mut interaction = std::mem::take(&mut self.state.overlay_system.interaction);
-				interaction.close(self, reason);
-				self.state.overlay_system.interaction = interaction;
+				match reason {
+					OverlayCloseReason::Commit => {
+						self.state.frame.pending_overlay_commit = true;
+					}
+					reason => {
+						let reason = match reason {
+							OverlayCloseReason::Cancel => CloseReason::Cancel,
+							OverlayCloseReason::Blur => CloseReason::Blur,
+							OverlayCloseReason::Forced => CloseReason::Forced,
+							OverlayCloseReason::Commit => unreachable!(),
+						};
+						let mut interaction =
+							std::mem::take(&mut self.state.overlay_system.interaction);
+						interaction.close(self, reason);
+						self.state.overlay_system.interaction = interaction;
+					}
+				}
 				Ok(())
 			}
 			ShowInfoPopup { title: _, body } => {

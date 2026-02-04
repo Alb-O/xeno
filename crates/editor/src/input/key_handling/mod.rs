@@ -97,6 +97,8 @@ impl Editor {
 			handled = true;
 		}
 
+		self.flush_pending_overlay_commit().await;
+
 		if !handled {
 			match result {
 				KeyResult::Pending { .. } => {

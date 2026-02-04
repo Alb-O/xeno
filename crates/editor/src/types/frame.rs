@@ -13,6 +13,12 @@ pub struct FrameState {
 	pub needs_redraw: bool,
 	/// Whether a command requested the editor to quit.
 	pub pending_quit: bool,
+	/// Deferred overlay commit awaiting an async context.
+	///
+	/// Set when a `CloseModal { Commit }` effect arrives during the
+	/// synchronous flush loop; cleared by
+	/// [`Editor::flush_pending_overlay_commit`].
+	pub pending_overlay_commit: bool,
 	/// Last tick timestamp.
 	pub last_tick: std::time::SystemTime,
 	/// Buffers with pending content changes for `BufferChange` hooks.
@@ -26,6 +32,7 @@ impl Default for FrameState {
 		Self {
 			needs_redraw: false,
 			pending_quit: false,
+			pending_overlay_commit: false,
 			last_tick: std::time::SystemTime::now(),
 			dirty_buffers: HashSet::new(),
 			sticky_views: HashSet::new(),

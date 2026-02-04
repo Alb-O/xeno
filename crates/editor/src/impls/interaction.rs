@@ -20,6 +20,19 @@ impl Editor {
 		self.flush_effects();
 	}
 
+	/// Completes a deferred overlay commit if one is pending.
+	///
+	/// [`OverlayController::on_commit`] is async, so `CloseModal { Commit }`
+	/// effects set [`FrameState::pending_overlay_commit`] instead of running
+	/// the commit inline. This method MUST be called from every async
+	/// continuation that follows a [`flush_effects`](Self::flush_effects) call.
+	pub async fn flush_pending_overlay_commit(&mut self) {
+		if self.state.frame.pending_overlay_commit {
+			self.state.frame.pending_overlay_commit = false;
+			self.interaction_commit().await;
+		}
+	}
+
 	pub fn interaction_cancel(&mut self) {
 		let mut interaction: crate::overlay::OverlayManager =
 			std::mem::take(&mut self.state.overlay_system.interaction);

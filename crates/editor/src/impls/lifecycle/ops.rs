@@ -279,6 +279,8 @@ impl Editor {
 				InvocationResult::Quit | InvocationResult::ForceQuit => return true,
 				_ => {}
 			}
+
+			self.flush_pending_overlay_commit().await;
 		}
 		false
 	}
