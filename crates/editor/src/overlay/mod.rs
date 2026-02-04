@@ -47,12 +47,18 @@ impl OverlayStore {
 	}
 
 	/// Returns a reference to a stored value of type `T`.
-	pub fn get<T: Any + Send + Sync>(&self) -> Option<&T> {
+	pub fn get<T>(&self) -> Option<&T>
+	where
+		T: Any + Send + Sync,
+	{
 		self.inner.get(&TypeId::of::<T>())?.downcast_ref()
 	}
 
 	/// Returns a mutable reference to a stored value of type `T`.
-	pub fn get_mut<T: Any + Send + Sync>(&mut self) -> Option<&mut T> {
+	pub fn get_mut<T>(&mut self) -> Option<&mut T>
+	where
+		T: Any + Send + Sync,
+	{
 		self.inner.get_mut(&TypeId::of::<T>())?.downcast_mut()
 	}
 
@@ -64,7 +70,10 @@ impl OverlayStore {
 	/// Panics if a value of a different type is already stored for `TypeId::of::<T>()`.
 	/// This is an invariant violation indicating that multiple types are attempting
 	/// to use the same `TypeId` slot, which should be impossible in safe Rust.
-	pub fn get_or_default<T: Any + Send + Sync + Default>(&mut self) -> &mut T {
+	pub fn get_or_default<T>(&mut self) -> &mut T
+	where
+		T: Any + Send + Sync + Default,
+	{
 		let type_id = TypeId::of::<T>();
 		let slot = self
 			.inner
@@ -77,7 +86,10 @@ impl OverlayStore {
 	}
 
 	/// Inserts a value of type `T` into the store.
-	pub fn insert<T: Any + Send + Sync>(&mut self, val: T) {
+	pub fn insert<T>(&mut self, val: T)
+	where
+		T: Any + Send + Sync,
+	{
 		self.inner.insert(TypeId::of::<T>(), Box::new(val));
 	}
 }

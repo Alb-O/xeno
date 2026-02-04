@@ -484,10 +484,9 @@ where
 /// - `T: KeyMapConfig<T>` to obtain defaults.
 /// - `T: PartialEq + Eq + Hash` to find and replace default entries by key.
 /// - `T: Deserialize<'de>` for parsing user-supplied keys.
-impl<'de, T: KeyMapConfig<T> + PartialEq + Eq + std::hash::Hash> Deserialize<'de>
-	for DerivedConfig<T>
+impl<'de, T> Deserialize<'de> for DerivedConfig<T>
 where
-	T: Deserialize<'de>,
+	T: KeyMapConfig<T> + PartialEq + Eq + std::hash::Hash + Deserialize<'de>,
 {
 	fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
 	where
