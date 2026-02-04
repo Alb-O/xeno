@@ -1,37 +1,21 @@
-//! Shared document state service with preferred-owner enforcement and idle unlocks.
-//!
-//! This actor manages the authoritative state of open documents within the broker.
-//! It coordinates multiple editor sessions using a "Preferred Owner Writes" model,
-//! where the focused editor is granted ownership and exclusive write access.
-//! Ownership is automatically released on idle, blur, or disconnect.
-//!
-//! # Mental Model
-//!
-//! The service acts as the single source of truth for all participants. It
-//! serializes all mutations, enforces ownership era (epoch) and edit sequence
-//! (seq) constraints, and ensures durability via [`HistoryStore`].
-//!
-//! # Invariants
-//!
-//! - Preferred Owner Writes: Only the preferred owner (focused editor) may submit deltas.
-//! - Atomic Transfer: Focus transitions MUST bump the epoch and reset the sequence.
-//! - Authoritative LSP: LSP doc synchronization MUST be driven from this service's
-//!   authoritative rope to ensure diagnostics are aligned with broker state.
-
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex};
 
 use helix_db::helix_engine::storage_core::HelixGraphStorage;
 use ropey::Rope;
-use tokio::sync::{mpsc, oneshot};
+use tokio::sync::mpsc;
 use tokio::time::{Duration, Instant, interval};
 use xeno_broker_proto::types::{
 	DocStateSnapshot, DocSyncPhase, ErrorCode, Event, ResponsePayload, SessionId, SharedApplyKind,
 	SyncEpoch, SyncNonce, SyncSeq, WireTx,
 };
 
+use crate::services::{knowledge, routing, sessions};
 use crate::core::history::{HistoryMeta, HistoryStore};
 use crate::wire_convert;
+
+use super::commands::SharedStateCmd;
+use super::handle::SharedStateHandle;
 
 /// Maximum number of operations allowed in a single wire transaction.
 const MAX_WIRE_TX_OPS: usize = 100_000;
@@ -44,289 +28,6 @@ pub(crate) const OWNER_IDLE_TIMEOUT: Duration = Duration::from_secs(2);
 /// Maximum number of history nodes retained per document.
 const MAX_HISTORY_NODES: usize = 100;
 
-/// Commands for the shared state service actor.
-#[derive(Debug)]
-pub enum SharedStateCmd {
-	/// Open a document or join an existing session.
-	Open {
-		/// The session identity.
-		sid: SessionId,
-		/// Canonical document URI.
-		uri: String,
-		/// Initial text content (if creating).
-		text: String,
-		/// Optional version hint from the client.
-		version_hint: Option<u32>,
-		/// Reply channel for the opened state.
-		reply: oneshot::Sender<Result<ResponsePayload, ErrorCode>>,
-	},
-	/// Decrement reference count for a session on a document.
-	Close {
-		/// The session identity.
-		sid: SessionId,
-		/// Canonical document URI.
-		uri: String,
-		/// Reply channel for confirmation.
-		reply: oneshot::Sender<Result<ResponsePayload, ErrorCode>>,
-	},
-	/// Apply a shared-state mutation (Edit/Undo/Redo) under preconditions.
-	///
-	/// Preconditions enforce that the caller is the current preferred owner
-	/// and that their local state is aligned with the broker's authoritative
-	/// epoch, sequence, and fingerprint.
-	Apply {
-		/// The session identity (must be owner).
-		sid: SessionId,
-		/// Canonical document URI.
-		uri: String,
-		/// Kind of mutation.
-		kind: SharedApplyKind,
-		/// Current ownership era.
-		epoch: SyncEpoch,
-		/// Base sequence number this delta applies to.
-		base_seq: SyncSeq,
-		/// Base hash precondition.
-		base_hash64: u64,
-		/// Base length precondition.
-		base_len_chars: u64,
-		/// The transaction data (required for Edit, None for Undo/Redo).
-		tx: Option<WireTx>,
-		/// Reply channel for the acknowledgment.
-		reply: oneshot::Sender<Result<ResponsePayload, ErrorCode>>,
-	},
-	/// Update activity timestamp for a document to prevent idle unlock.
-	Activity {
-		/// The session identity.
-		sid: SessionId,
-		/// Canonical document URI.
-		uri: String,
-		/// Reply channel for acknowledgment.
-		reply: oneshot::Sender<Result<ResponsePayload, ErrorCode>>,
-	},
-	/// Update focus status for a document with atomic ownership acquisition.
-	Focus {
-		/// The session identity.
-		sid: SessionId,
-		/// Canonical document URI.
-		uri: String,
-		/// Whether the session is focused on the document.
-		focused: bool,
-		/// Monotonic sequence number for focus transitions.
-		focus_seq: u64,
-		/// Nonce for correlating the response.
-		nonce: SyncNonce,
-		/// Client's current hash for alignment check.
-		client_hash64: Option<u64>,
-		/// Client's current length for alignment check.
-		client_len_chars: Option<u64>,
-		/// Reply channel for the updated snapshot and optional repair text.
-		reply: oneshot::Sender<Result<ResponsePayload, ErrorCode>>,
-	},
-	/// Fetch a full snapshot of the authoritative document.
-	Resync {
-		/// The session identity.
-		sid: SessionId,
-		/// Canonical document URI.
-		uri: String,
-		/// Nonce for correlating the response.
-		nonce: SyncNonce,
-		/// Optional hash of the client's current content.
-		client_hash64: Option<u64>,
-		/// Optional length of the client's current content.
-		client_len_chars: Option<u64>,
-		/// Reply channel for the full snapshot.
-		reply: oneshot::Sender<Result<ResponsePayload, ErrorCode>>,
-	},
-	/// Signal that a session has disconnected unexpectedly.
-	SessionLost {
-		/// The lost session identity.
-		sid: SessionId,
-	},
-	/// Internal request for a document snapshot triad (epoch, seq, rope).
-	Snapshot {
-		/// Canonical document URI.
-		uri: String,
-		/// Reply channel for the triad.
-		reply: oneshot::Sender<Option<(SyncEpoch, SyncSeq, Rope)>>,
-	},
-	/// Verifies if a document is currently active in the broker.
-	IsOpen {
-		/// Canonical document URI.
-		uri: String,
-		/// Reply channel for existence check.
-		reply: oneshot::Sender<bool>,
-	},
-}
-
-/// Handle for communicating with the [`SharedStateService`] actor.
-#[derive(Clone, Debug)]
-pub struct SharedStateHandle {
-	tx: mpsc::Sender<SharedStateCmd>,
-}
-
-impl SharedStateHandle {
-	/// Wraps a command sender in a typed handle.
-	pub fn new(tx: mpsc::Sender<SharedStateCmd>) -> Self {
-		Self { tx }
-	}
-
-	/// Opens a document URI.
-	pub async fn open(
-		&self,
-		sid: SessionId,
-		uri: String,
-		text: String,
-		version_hint: Option<u32>,
-	) -> Result<ResponsePayload, ErrorCode> {
-		let (reply, rx) = oneshot::channel();
-		self.tx
-			.send(SharedStateCmd::Open {
-				sid,
-				uri,
-				text,
-				version_hint,
-				reply,
-			})
-			.await
-			.map_err(|_| ErrorCode::Internal)?;
-		rx.await.map_err(|_| ErrorCode::Internal)?
-	}
-
-	/// Closes a document URI.
-	pub async fn close(&self, sid: SessionId, uri: String) -> Result<ResponsePayload, ErrorCode> {
-		let (reply, rx) = oneshot::channel();
-		self.tx
-			.send(SharedStateCmd::Close { sid, uri, reply })
-			.await
-			.map_err(|_| ErrorCode::Internal)?;
-		rx.await.map_err(|_| ErrorCode::Internal)?
-	}
-
-	/// Submits an application request (Edit/Undo/Redo).
-	pub async fn apply(
-		&self,
-		sid: SessionId,
-		uri: String,
-		kind: SharedApplyKind,
-		epoch: SyncEpoch,
-		base_seq: SyncSeq,
-		base_hash64: u64,
-		base_len_chars: u64,
-		tx: Option<WireTx>,
-	) -> Result<ResponsePayload, ErrorCode> {
-		let (reply, rx) = oneshot::channel();
-		self.tx
-			.send(SharedStateCmd::Apply {
-				sid,
-				uri,
-				kind,
-				epoch,
-				base_seq,
-				base_hash64,
-				base_len_chars,
-				tx,
-				reply,
-			})
-			.await
-			.map_err(|_| ErrorCode::Internal)?;
-		rx.await.map_err(|_| ErrorCode::Internal)?
-	}
-
-	/// Records local activity for a document to reset the idle timer.
-	pub async fn activity(
-		&self,
-		sid: SessionId,
-		uri: String,
-	) -> Result<ResponsePayload, ErrorCode> {
-		let (reply, rx) = oneshot::channel();
-		self.tx
-			.send(SharedStateCmd::Activity { sid, uri, reply })
-			.await
-			.map_err(|_| ErrorCode::Internal)?;
-		rx.await.map_err(|_| ErrorCode::Internal)?
-	}
-
-	/// Updates focus status for a document.
-	pub async fn focus(
-		&self,
-		sid: SessionId,
-		uri: String,
-		focused: bool,
-		focus_seq: u64,
-		nonce: SyncNonce,
-		client_hash64: Option<u64>,
-		client_len_chars: Option<u64>,
-	) -> Result<ResponsePayload, ErrorCode> {
-		let (reply, rx) = oneshot::channel();
-		self.tx
-			.send(SharedStateCmd::Focus {
-				sid,
-				uri,
-				focused,
-				focus_seq,
-				nonce,
-				client_hash64,
-				client_len_chars,
-				reply,
-			})
-			.await
-			.map_err(|_| ErrorCode::Internal)?;
-		rx.await.map_err(|_| ErrorCode::Internal)?
-	}
-
-	/// Requests full content snapshot for a diverged buffer.
-	pub async fn resync(
-		&self,
-		sid: SessionId,
-		uri: String,
-		nonce: SyncNonce,
-		client_hash64: Option<u64>,
-		client_len_chars: Option<u64>,
-	) -> Result<ResponsePayload, ErrorCode> {
-		let (reply, rx) = oneshot::channel();
-		self.tx
-			.send(SharedStateCmd::Resync {
-				sid,
-				uri,
-				nonce,
-				client_hash64,
-				client_len_chars,
-				reply,
-			})
-			.await
-			.map_err(|_| ErrorCode::Internal)?;
-		rx.await.map_err(|_| ErrorCode::Internal)?
-	}
-
-	/// Cleans up a lost session's state and ownership.
-	pub async fn session_lost(&self, sid: SessionId) {
-		let _ = self.tx.send(SharedStateCmd::SessionLost { sid }).await;
-	}
-
-	/// Returns a consistent snapshot of the document rope.
-	pub async fn snapshot(&self, uri: String) -> Option<(SyncEpoch, SyncSeq, Rope)> {
-		let (reply, rx) = oneshot::channel();
-		let _ = self.tx.send(SharedStateCmd::Snapshot { uri, reply }).await;
-		rx.await.ok().flatten()
-	}
-
-	/// Verifies if a document is tracked in the broker.
-	pub async fn is_open(&self, uri: String) -> bool {
-		let (reply, rx) = oneshot::channel();
-		if self
-			.tx
-			.send(SharedStateCmd::IsOpen { uri, reply })
-			.await
-			.is_err()
-		{
-			return false;
-		}
-		rx.await.unwrap_or(false)
-	}
-}
-
-/// State for a single synchronized document managed by the actor.
-#[derive(Debug)]
 struct SyncDocState {
 	/// Current owner session permitted to submit deltas.
 	owner: Option<SessionId>,
@@ -462,21 +163,21 @@ pub struct SharedStateService {
 	history: Option<HistoryStore>,
 	/// Shared set of open URIs exposed to the knowledge crawler.
 	open_docs_set: Arc<Mutex<HashSet<String>>>,
-	sessions: super::sessions::SessionHandle,
-	knowledge: Option<super::knowledge::KnowledgeHandle>,
-	routing: Option<super::routing::RoutingHandle>,
+	sessions: sessions::SessionHandle,
+	knowledge: Option<knowledge::KnowledgeHandle>,
+	routing: Option<routing::RoutingHandle>,
 }
 
 impl SharedStateService {
 	/// Spawns the shared state service actor.
 	pub fn start(
-		sessions: super::sessions::SessionHandle,
+		sessions: sessions::SessionHandle,
 		storage: Option<Arc<HelixGraphStorage>>,
 	) -> (
 		SharedStateHandle,
 		Arc<Mutex<HashSet<String>>>,
-		mpsc::Sender<super::knowledge::KnowledgeHandle>,
-		mpsc::Sender<super::routing::RoutingHandle>,
+		mpsc::Sender<knowledge::KnowledgeHandle>,
+		mpsc::Sender<routing::RoutingHandle>,
 	) {
 		let (tx, rx) = mpsc::channel(256);
 		let (knowledge_tx, knowledge_rx) = mpsc::channel(1);
@@ -505,8 +206,8 @@ impl SharedStateService {
 
 	async fn run(
 		mut self,
-		mut knowledge_rx: mpsc::Receiver<super::knowledge::KnowledgeHandle>,
-		mut routing_rx: mpsc::Receiver<super::routing::RoutingHandle>,
+		mut knowledge_rx: mpsc::Receiver<knowledge::KnowledgeHandle>,
+		mut routing_rx: mpsc::Receiver<routing::RoutingHandle>,
 	) {
 		if let Some(h) = knowledge_rx.recv().await {
 			self.knowledge = Some(h);

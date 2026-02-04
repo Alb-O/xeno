@@ -1,63 +1,8 @@
-use super::Value;
-use crate::protocol::value_error::{NumBinaryOp, NumUnaryOp, ValueError};
+use crate::protocol::value::Value;
+use crate::protocol::value_error::{NumBinaryOp, ValueError};
 
 impl Value {
-	/// Convert any numeric Value to f64 for type promotion
-	fn to_f64(&self) -> Option<f64> {
-		match self {
-			Value::I8(v) => Some(*v as f64),
-			Value::I16(v) => Some(*v as f64),
-			Value::I32(v) => Some(*v as f64),
-			Value::I64(v) => Some(*v as f64),
-			Value::U8(v) => Some(*v as f64),
-			Value::U16(v) => Some(*v as f64),
-			Value::U32(v) => Some(*v as f64),
-			Value::U64(v) => Some(*v as f64),
-			Value::U128(v) => Some(*v as f64),
-			Value::F32(v) => Some(*v as f64),
-			Value::F64(v) => Some(*v),
-			_ => None,
-		}
-	}
-
-	/// Check if value is a float type
-	fn is_float(&self) -> bool {
-		matches!(self, Value::F32(_) | Value::F64(_))
-	}
-
-	/// Convert any signed integer Value to i64
-	fn to_i64(&self) -> Option<i64> {
-		match self {
-			Value::I8(v) => Some(*v as i64),
-			Value::I16(v) => Some(*v as i64),
-			Value::I32(v) => Some(*v as i64),
-			Value::I64(v) => Some(*v),
-			_ => None,
-		}
-	}
-
-	/// Check if value is a signed integer
-	fn is_signed_int(&self) -> bool {
-		matches!(
-			self,
-			Value::I8(_) | Value::I16(_) | Value::I32(_) | Value::I64(_)
-		)
-	}
-
-	/// Check if value is an unsigned integer
-	fn is_unsigned_int(&self) -> bool {
-		matches!(
-			self,
-			Value::U8(_) | Value::U16(_) | Value::U32(_) | Value::U64(_) | Value::U128(_)
-		)
-	}
-
-	/// Check if value is any numeric type.
-	fn is_numeric(&self) -> bool {
-		self.is_float() || self.is_signed_int() || self.is_unsigned_int()
-	}
-
-	fn num_binary_add(lhs: Value, rhs: Value) -> Result<Value, ValueError> {
+	pub(super) fn num_binary_add(lhs: Value, rhs: Value) -> Result<Value, ValueError> {
 		let lhs_kind = lhs.kind();
 		let rhs_kind = rhs.kind();
 		match (lhs, rhs) {
@@ -245,7 +190,7 @@ impl Value {
 		}
 	}
 
-	fn num_binary_sub(lhs: Value, rhs: Value) -> Result<Value, ValueError> {
+	pub(super) fn num_binary_sub(lhs: Value, rhs: Value) -> Result<Value, ValueError> {
 		let lhs_kind = lhs.kind();
 		let rhs_kind = rhs.kind();
 		match (lhs, rhs) {
@@ -421,7 +366,7 @@ impl Value {
 		}
 	}
 
-	fn num_binary_mul(lhs: Value, rhs: Value) -> Result<Value, ValueError> {
+	pub(super) fn num_binary_mul(lhs: Value, rhs: Value) -> Result<Value, ValueError> {
 		let lhs_kind = lhs.kind();
 		let rhs_kind = rhs.kind();
 		match (lhs, rhs) {
@@ -597,7 +542,7 @@ impl Value {
 		}
 	}
 
-	fn num_binary_div(lhs: Value, rhs: Value) -> Result<Value, ValueError> {
+	pub(super) fn num_binary_div(lhs: Value, rhs: Value) -> Result<Value, ValueError> {
 		let lhs_kind = lhs.kind();
 		let rhs_kind = rhs.kind();
 
@@ -795,7 +740,7 @@ impl Value {
 		}
 	}
 
-	fn num_binary_rem(lhs: Value, rhs: Value) -> Result<Value, ValueError> {
+	pub(super) fn num_binary_rem(lhs: Value, rhs: Value) -> Result<Value, ValueError> {
 		let lhs_kind = lhs.kind();
 		let rhs_kind = rhs.kind();
 
@@ -993,7 +938,7 @@ impl Value {
 		}
 	}
 
-	fn num_binary_pow(lhs: &Value, rhs: &Value) -> Result<Value, ValueError> {
+	pub(super) fn num_binary_pow(lhs: &Value, rhs: &Value) -> Result<Value, ValueError> {
 		if !lhs.is_numeric() || !rhs.is_numeric() {
 			return Err(ValueError::NonNumericBinary {
 				op: NumBinaryOp::Pow,
@@ -1014,7 +959,7 @@ impl Value {
 		Ok(Value::F64(base.powf(exp)))
 	}
 
-	fn num_binary_min(lhs: &Value, rhs: &Value) -> Result<Value, ValueError> {
+	pub(super) fn num_binary_min(lhs: &Value, rhs: &Value) -> Result<Value, ValueError> {
 		if !lhs.is_numeric() || !rhs.is_numeric() {
 			return Err(ValueError::NonNumericBinary {
 				op: NumBinaryOp::Min,
@@ -1051,7 +996,7 @@ impl Value {
 		}
 	}
 
-	fn num_binary_max(lhs: &Value, rhs: &Value) -> Result<Value, ValueError> {
+	pub(super) fn num_binary_max(lhs: &Value, rhs: &Value) -> Result<Value, ValueError> {
 		if !lhs.is_numeric() || !rhs.is_numeric() {
 			return Err(ValueError::NonNumericBinary {
 				op: NumBinaryOp::Max,
@@ -1087,53 +1032,7 @@ impl Value {
 			}
 		}
 	}
-
-	pub fn try_num_unary(&self, op: NumUnaryOp) -> Result<Value, ValueError> {
-		match op {
-			NumUnaryOp::Abs => match self {
-				Value::I8(v) => Ok(Value::I8(v.wrapping_abs())),
-				Value::I16(v) => Ok(Value::I16(v.wrapping_abs())),
-				Value::I32(v) => Ok(Value::I32(v.wrapping_abs())),
-				Value::I64(v) => Ok(Value::I64(v.wrapping_abs())),
-				Value::U8(v) => Ok(Value::U8(*v)),
-				Value::U16(v) => Ok(Value::U16(*v)),
-				Value::U32(v) => Ok(Value::U32(*v)),
-				Value::U64(v) => Ok(Value::U64(*v)),
-				Value::U128(v) => Ok(Value::U128(*v)),
-				Value::F32(v) => Ok(Value::F32(v.abs())),
-				Value::F64(v) => Ok(Value::F64(v.abs())),
-				_ => Err(ValueError::NonNumericUnary {
-					op,
-					got: self.kind(),
-				}),
-			},
-			NumUnaryOp::Sqrt => {
-				if !self.is_numeric() {
-					return Err(ValueError::NonNumericUnary {
-						op,
-						got: self.kind(),
-					});
-				}
-				match self {
-					Value::I8(v) if *v < 0 => Err(ValueError::Domain { op: "sqrt" }),
-					Value::I16(v) if *v < 0 => Err(ValueError::Domain { op: "sqrt" }),
-					Value::I32(v) if *v < 0 => Err(ValueError::Domain { op: "sqrt" }),
-					Value::I64(v) if *v < 0 => Err(ValueError::Domain { op: "sqrt" }),
-					Value::F32(v) if *v < 0.0 => Err(ValueError::Domain { op: "sqrt" }),
-					Value::F64(v) if *v < 0.0 => Err(ValueError::Domain { op: "sqrt" }),
-					_ => {
-						let val = self.to_f64().ok_or(ValueError::NonNumericUnary {
-							op,
-							got: self.kind(),
-						})?;
-						Ok(Value::F64(val.sqrt()))
-					}
-				}
-			}
-		}
-	}
-
-	pub fn try_num_binary(&self, op: NumBinaryOp, rhs: &Value) -> Result<Value, ValueError> {
+pub fn try_num_binary(&self, op: NumBinaryOp, rhs: &Value) -> Result<Value, ValueError> {
 		match op {
 			NumBinaryOp::Add => Self::num_binary_add(self.clone(), rhs.clone()),
 			NumBinaryOp::Sub => Self::num_binary_sub(self.clone(), rhs.clone()),
@@ -1169,15 +1068,6 @@ impl Value {
 	pub fn try_pow(&self, rhs: &Value) -> Result<Value, ValueError> {
 		self.try_num_binary(NumBinaryOp::Pow, rhs)
 	}
-
-	pub fn try_abs(&self) -> Result<Value, ValueError> {
-		self.try_num_unary(NumUnaryOp::Abs)
-	}
-
-	pub fn try_sqrt(&self) -> Result<Value, ValueError> {
-		self.try_num_unary(NumUnaryOp::Sqrt)
-	}
-
 	pub fn try_min(&self, rhs: &Value) -> Result<Value, ValueError> {
 		self.try_num_binary(NumBinaryOp::Min, rhs)
 	}
@@ -1192,18 +1082,6 @@ impl Value {
 			.unwrap_or_else(|err| panic!("Value::pow failed: {err}"))
 	}
 
-	/// Compute absolute value, preserving type for integers
-	pub fn abs(&self) -> Value {
-		self.try_abs()
-			.unwrap_or_else(|err| panic!("Value::abs failed: {err}"))
-	}
-
-	/// Compute square root, returns F64
-	pub fn sqrt(&self) -> Value {
-		self.try_sqrt()
-			.unwrap_or_else(|err| panic!("Value::sqrt failed: {err}"))
-	}
-
 	/// Return the minimum of self and other
 	pub fn min(&self, other: &Value) -> Value {
 		self.try_min(other)
@@ -1214,81 +1092,5 @@ impl Value {
 	pub fn max(&self, other: &Value) -> Value {
 		self.try_max(other)
 			.unwrap_or_else(|err| panic!("Value::max failed: {err}"))
-	}
-}
-
-impl std::ops::Add for &Value {
-	type Output = Value;
-	fn add(self, other: Self) -> Self::Output {
-		self.try_num_binary(NumBinaryOp::Add, other)
-			.unwrap_or_else(|err| panic!("Value::add failed: {err}"))
-	}
-}
-impl std::ops::Mul for &Value {
-	type Output = Value;
-	fn mul(self, other: Self) -> Self::Output {
-		self.try_num_binary(NumBinaryOp::Mul, other)
-			.unwrap_or_else(|err| panic!("Value::mul failed: {err}"))
-	}
-}
-impl std::ops::Div for &Value {
-	type Output = Value;
-	fn div(self, other: Self) -> Self::Output {
-		self.try_num_binary(NumBinaryOp::Div, other)
-			.unwrap_or_else(|err| panic!("Value::div failed: {err}"))
-	}
-}
-impl std::ops::Sub for &Value {
-	type Output = Value;
-	fn sub(self, other: Self) -> Self::Output {
-		self.try_num_binary(NumBinaryOp::Sub, other)
-			.unwrap_or_else(|err| panic!("Value::sub failed: {err}"))
-	}
-}
-
-impl std::ops::Add for Value {
-	type Output = Value;
-	fn add(self, other: Self) -> Self::Output {
-		Self::num_binary_add(self, other).unwrap_or_else(|err| panic!("Value::add failed: {err}"))
-	}
-}
-
-impl std::ops::Sub for Value {
-	type Output = Value;
-
-	fn sub(self, other: Self) -> Self::Output {
-		Self::num_binary_sub(self, other).unwrap_or_else(|err| panic!("Value::sub failed: {err}"))
-	}
-}
-
-impl std::ops::Mul for Value {
-	type Output = Value;
-
-	fn mul(self, other: Self) -> Self::Output {
-		Self::num_binary_mul(self, other).unwrap_or_else(|err| panic!("Value::mul failed: {err}"))
-	}
-}
-
-impl std::ops::Div for Value {
-	type Output = Value;
-
-	fn div(self, other: Self) -> Self::Output {
-		Self::num_binary_div(self, other).unwrap_or_else(|err| panic!("Value::div failed: {err}"))
-	}
-}
-
-impl std::ops::Rem for &Value {
-	type Output = Value;
-	fn rem(self, other: Self) -> Self::Output {
-		self.try_num_binary(NumBinaryOp::Rem, other)
-			.unwrap_or_else(|err| panic!("Value::rem failed: {err}"))
-	}
-}
-
-impl std::ops::Rem for Value {
-	type Output = Value;
-
-	fn rem(self, other: Self) -> Self::Output {
-		Self::num_binary_rem(self, other).unwrap_or_else(|err| panic!("Value::rem failed: {err}"))
 	}
 }
