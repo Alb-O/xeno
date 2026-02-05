@@ -1,6 +1,6 @@
 use xeno_primitives::Color;
 
-use super::mod_types::{THEMES, runtime_themes};
+use super::mod_types::THEMES;
 
 /// Blend two colors with the given alpha (0.0 = bg, 1.0 = fg).
 #[inline]
@@ -13,22 +13,6 @@ pub fn suggest_theme(name: &str) -> Option<&'static str> {
 	let name = name.to_lowercase();
 	let mut best_match = None;
 	let mut best_score = 0.0;
-
-	for theme in runtime_themes() {
-		let score = strsim::jaro_winkler(&name, theme.meta.name);
-		if score > best_score {
-			best_score = score;
-			best_match = Some(theme.meta.name);
-		}
-
-		for alias in theme.meta.aliases {
-			let score = strsim::jaro_winkler(&name, alias);
-			if score > best_score {
-				best_score = score;
-				best_match = Some(theme.meta.name);
-			}
-		}
-	}
 
 	for theme in THEMES.iter() {
 		let score = strsim::jaro_winkler(&name, theme.meta.name);

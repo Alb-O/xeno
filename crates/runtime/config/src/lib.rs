@@ -252,18 +252,23 @@ pub fn load_themes_from_directory(dir: impl AsRef<Path>) -> Result<ThemeLoadResu
 	Ok(ThemeLoadResult { themes, errors })
 }
 
-/// Load themes from a directory and register them in the runtime theme registry.
+/// Seed embedded theme KDL files into `dir`.
 ///
-/// Returns errors for any themes that failed to load (to be shown as notifications).
-pub fn load_and_register_themes(dir: impl AsRef<Path>) -> Result<Vec<(String, String)>> {
-	let result = load_themes_from_directory(dir)?;
-	let owned: Vec<_> = result
-		.themes
-		.into_iter()
-		.map(|t| t.into_owned_theme())
-		.collect();
-	xeno_registry::themes::register_runtime_themes(owned);
-	Ok(result.errors)
+/// Creates the directory if absent. Existing files are never overwritten.
+pub fn seed_embedded_themes(dir: impl AsRef<Path>) -> std::io::Result<()> {
+	let dir = dir.as_ref();
+	std::fs::create_dir_all(dir)?;
+
+	for filename in xeno_runtime_data::themes::list() {
+		let target = dir.join(filename);
+		if !target.exists() {
+			if let Some(content) = xeno_runtime_data::themes::get_str(filename) {
+				std::fs::write(&target, content)?;
+			}
+		}
+	}
+
+	Ok(())
 }
 
 /// Result of loading embedded themes.
@@ -290,21 +295,6 @@ pub fn load_embedded_themes() -> EmbeddedThemeLoadResult {
 	}
 
 	EmbeddedThemeLoadResult { themes, errors }
-}
-
-/// Loads embedded themes and registers them in the runtime theme registry.
-///
-/// Returns parse errors as (filename, error message) pairs for notification.
-pub fn load_and_register_embedded_themes() -> Vec<(String, String)> {
-	let result = load_embedded_themes();
-	xeno_registry::themes::register_runtime_themes(
-		result
-			.themes
-			.into_iter()
-			.map(|t| t.into_owned_theme())
-			.collect(),
-	);
-	result.errors
 }
 
 #[cfg(test)]

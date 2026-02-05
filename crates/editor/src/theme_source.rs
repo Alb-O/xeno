@@ -1,6 +1,6 @@
 //! Theme completion source.
 
-use xeno_registry::themes::{THEMES, ThemeVariant, runtime_themes};
+use xeno_registry::themes::{THEMES, ThemeVariant};
 
 use crate::completion::{
 	CompletionContext, CompletionItem, CompletionKind, CompletionResult, CompletionSource,
@@ -29,11 +29,10 @@ impl CompletionSource for ThemeSource {
 		let cmd_name = parts.first().unwrap();
 		let arg_start = cmd_name.len() + 1;
 
-		let registry = THEMES.all();
-		let mut items: Vec<_> = runtime_themes()
+		let mut items: Vec<_> = THEMES
+			.all()
 			.iter()
-			.copied()
-			.chain(registry.iter().map(|t| &**t))
+			.map(|t| &**t)
 			.filter(|t| {
 				t.meta.name.starts_with(prefix)
 					|| t.meta.aliases.iter().any(|a| a.starts_with(prefix))

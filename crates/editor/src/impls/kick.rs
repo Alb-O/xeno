@@ -13,14 +13,17 @@ use crate::msg::{EditorMsg, IoMsg, MsgSender, ThemeMsg};
 impl Editor {
 	/// Spawns a background task to load and register themes.
 	///
-	/// Loads embedded themes and user themes from the config directory.
-	/// Sends [`ThemeMsg::ThemesReady`] when complete.
+	/// Seeds embedded themes into the data directory, then loads from
+	/// embedded, data, and config directories. Later sources override earlier
+	/// by ID: config > data > embedded. Sends [`ThemeMsg::ThemesReady`] when
+	/// complete.
 	pub fn kick_theme_load(&self) {
 		let tx = self.msg_tx();
-		let user_themes_dir = crate::paths::get_config_dir().map(|d| d.join("themes"));
+		let config_themes_dir = crate::paths::get_config_dir().map(|d| d.join("themes"));
+		let data_themes_dir = crate::paths::get_data_dir().map(|d| d.join("themes"));
 
 		tokio::spawn(async move {
-			let errors = load_themes_blocking(user_themes_dir).await;
+			let errors = load_themes_blocking(config_themes_dir, data_themes_dir).await;
 			send(&tx, ThemeMsg::ThemesReady { errors });
 		});
 	}
@@ -106,28 +109,74 @@ impl Editor {
 	pub fn kick_lsp_catalog_load(&self) {}
 }
 
-/// Loads embedded and user themes in a blocking context.
+/// Loads and registers all themes in a single batch.
 ///
-/// Returns parse errors as (filename, error message) pairs.
-async fn load_themes_blocking(user_themes_dir: Option<PathBuf>) -> Vec<(String, String)> {
+/// Override order (later entries shadow earlier by ID):
+/// 1. Embedded themes from the binary
+/// 2. Data-directory themes (`~/.local/share/xeno/themes/`)
+/// 3. Config-directory themes (`~/.config/xeno/themes/`)
+///
+/// Embedded themes are seeded into the data directory before loading so users
+/// can discover and customize them on disk.
+async fn load_themes_blocking(
+	config_themes_dir: Option<PathBuf>,
+	data_themes_dir: Option<PathBuf>,
+) -> Vec<(String, String)> {
 	tokio::task::spawn_blocking(move || {
-		let mut errors = xeno_runtime_config::load_and_register_embedded_themes();
+		let mut errors = Vec::new();
+		let mut all_themes = Vec::new();
 
-		if let Some(dir) = user_themes_dir
-			&& dir.exists()
-		{
-			match xeno_runtime_config::load_and_register_themes(&dir) {
-				Ok(e) => errors.extend(e),
-				Err(e) => {
-					tracing::warn!(error = %e, "failed to read user themes directory");
-				}
+		let embedded = xeno_runtime_config::load_embedded_themes();
+		errors.extend(embedded.errors);
+		all_themes.extend(embedded.themes);
+
+		if let Some(ref dir) = data_themes_dir {
+			if let Err(e) = xeno_runtime_config::seed_embedded_themes(dir) {
+				tracing::warn!(error = %e, "failed to seed embedded themes to data dir");
 			}
+			collect_dir_themes(dir, &mut all_themes, &mut errors);
 		}
+
+		if let Some(ref dir) = config_themes_dir {
+			collect_dir_themes(dir, &mut all_themes, &mut errors);
+		}
+
+		let mut deduped = std::collections::HashMap::new();
+		for theme in all_themes {
+			deduped.insert(theme.name.clone(), theme);
+		}
+
+		xeno_registry::themes::register_runtime_themes(
+			deduped
+				.into_values()
+				.map(|t| t.into_owned_theme())
+				.collect(),
+		);
 
 		errors
 	})
 	.await
 	.unwrap_or_default()
+}
+
+/// Loads themes from `dir` into the accumulator vectors, logging on failure.
+fn collect_dir_themes(
+	dir: &std::path::Path,
+	themes: &mut Vec<xeno_runtime_config::ParsedTheme>,
+	errors: &mut Vec<(String, String)>,
+) {
+	if !dir.exists() {
+		return;
+	}
+	match xeno_runtime_config::load_themes_from_directory(dir) {
+		Ok(result) => {
+			errors.extend(result.errors);
+			themes.extend(result.themes);
+		}
+		Err(e) => {
+			tracing::warn!(dir = %dir.display(), error = %e, "failed to read themes directory");
+		}
+	}
 }
 
 fn send<M: Into<EditorMsg>>(tx: &MsgSender, msg: M) {

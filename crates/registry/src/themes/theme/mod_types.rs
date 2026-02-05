@@ -1,5 +1,3 @@
-use std::sync::OnceLock;
-
 use xeno_primitives::Color;
 
 use super::super::syntax::SyntaxStyles;
@@ -8,18 +6,17 @@ use super::types::{
 	ThemeColors, ThemeDef, ThemeVariant, UiColors,
 };
 
-/// Runtime theme registry for dynamically loaded themes.
-static RUNTIME_THEMES: OnceLock<Vec<&'static ThemeDef>> = OnceLock::new();
-
-/// Register runtime themes. Call once at startup with themes from KDL files.
+/// Register runtime themes into the [`THEMES`] registry.
+///
+/// Leaks each [`OwnedTheme`] to obtain `&'static ThemeDef` references, then
+/// batch-inserts them with override semantics so later calls can shadow
+/// earlier ones by ID. May be called multiple times.
+#[cfg(feature = "db")]
 pub fn register_runtime_themes(themes: Vec<OwnedTheme>) {
 	let leaked: Vec<&'static ThemeDef> = themes.into_iter().map(OwnedTheme::leak).collect();
-	let _ = RUNTIME_THEMES.set(leaked);
-}
-
-/// Get all registered runtime themes.
-pub fn runtime_themes() -> &'static [&'static ThemeDef] {
-	RUNTIME_THEMES.get().map(|v| v.as_slice()).unwrap_or(&[])
+	if let Err(e) = THEMES.try_register_many_override(leaked) {
+		tracing::warn!(error = %e, "failed to register runtime themes");
+	}
 }
 
 /// Default fallback theme (minimal terminal colors).
