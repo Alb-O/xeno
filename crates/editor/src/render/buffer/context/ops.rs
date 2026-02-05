@@ -15,7 +15,8 @@ use super::super::style_layers::LineStyleContext;
 use super::types::{
 	BufferRenderContext, CursorStyles, RenderBufferParams, RenderLayout, RenderResult,
 };
-use crate::buffer::{Buffer, Document, DocumentId};
+use crate::buffer::Buffer;
+use crate::core::document::{Document, DocumentId};
 use crate::render::cache::{HighlightSpanQuery, RenderCache};
 use crate::render::wrap::WrappedSegment;
 use crate::window::GutterSelector;
@@ -85,7 +86,7 @@ impl<'a> BufferRenderContext<'a> {
 
 		cache.highlight.get_spans(HighlightSpanQuery {
 			doc_id,
-			doc_version,
+			_doc_version: doc_version, // reserved
 			syntax_version,
 			language_id,
 			rope: doc_content,
@@ -166,7 +167,8 @@ impl<'a> BufferRenderContext<'a> {
 	///
 	/// Orchestrates the full rendering pipeline for a single buffer viewport.
 	pub fn render_buffer_with_gutter(&self, p: RenderBufferParams<'_>) -> RenderResult {
-		let (doc_id, doc_content, doc_version, total_lines, language_id) =
+		// Snapshot document state. This is the only place we touch the document lock.
+		let (doc_id, doc_content, doc_version, total_lines, language_id, file_type, path) =
 			p.buffer.with_doc(|doc: &Document| {
 				let content = doc.content().clone();
 				let total_lines = content.len_lines();
@@ -176,10 +178,12 @@ impl<'a> BufferRenderContext<'a> {
 					doc.version(),
 					total_lines,
 					doc.language_id(),
+					doc.file_type().map(String::from),
+					doc.path().cloned(),
 				)
 			});
 
-		let is_diff_file = p.buffer.file_type().is_some_and(|ft| ft == "diff");
+		let is_diff_file = file_type.as_deref().is_some_and(|ft| ft == "diff");
 
 		let effective_gutter = if is_diff_file {
 			Self::diff_gutter_selector(p.gutter)
@@ -220,8 +224,9 @@ impl<'a> BufferRenderContext<'a> {
 
 		let mode_color = self.mode_color(p.buffer.mode());
 		let base_bg = self.theme.colors.ui.bg;
-		let cursor_line = p.buffer.cursor_line();
-		let buffer_path = p.buffer.path();
+
+		// Use snapped doc_content for line calculations to avoid re-locking
+		let cursor_line = doc_content.char_to_line(p.buffer.cursor.min(doc_content.len_chars()));
 
 		let overlays = OverlayIndex::new(
 			&p.buffer.selection,
@@ -234,7 +239,7 @@ impl<'a> BufferRenderContext<'a> {
 		let end_line = (start_line + viewport_height + 2).min(total_lines);
 		let wrap_key = (text_width, p.tab_width);
 
-		p.cache.wrap.get_or_build(doc_id, wrap_key);
+		// Reverse order to avoid borrow conflict: build first, then get reference.
 		p.cache.wrap.build_range(
 			doc_id,
 			wrap_key,
@@ -243,7 +248,6 @@ impl<'a> BufferRenderContext<'a> {
 			start_line,
 			end_line,
 		);
-
 		let wrap_bucket = p.cache.wrap.get_or_build(doc_id, wrap_key);
 
 		let plan = ViewportPlan::new_with_wrap(
@@ -321,7 +325,7 @@ impl<'a> BufferRenderContext<'a> {
 				cursor_style_set,
 				line_style,
 				layout: &layout,
-				buffer_path: buffer_path.as_deref(),
+				buffer_path: path.as_deref(),
 				is_focused: p.is_focused,
 				use_block_cursor: p.use_block_cursor,
 				tab_width: p.tab_width,

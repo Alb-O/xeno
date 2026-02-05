@@ -36,9 +36,6 @@ impl DocumentId {
 	pub fn next() -> Self {
 		Self(NEXT_DOCUMENT_ID.fetch_add(1, Ordering::Relaxed))
 	}
-
-	/// The scratch document ID (for unsaved buffers).
-	pub const SCRATCH: DocumentId = DocumentId(0);
 }
 
 /// Outcomes of a metadata change on a document.
@@ -183,14 +180,9 @@ impl Document {
 	/// # Errors
 	///
 	/// Returns [`EditError::ReadOnly`] if the document is flagged as read-only.
-	pub fn commit(
-		&mut self,
-		commit: EditCommit,
-		merge: bool,
-		language_loader: &LanguageLoader,
-	) -> Result<CommitResult, EditError> {
+	pub fn commit(&mut self, commit: EditCommit, merge: bool) -> Result<CommitResult, EditError> {
 		self.ensure_writable()?;
-		Ok(self.commit_unchecked(commit, merge, language_loader))
+		Ok(self.commit_unchecked(commit, merge))
 	}
 
 	/// Applies an edit bypassing the readonly check.
@@ -200,12 +192,7 @@ impl Document {
 	/// Internal use only. Callers MUST ensure that any readonly overrides
 	/// have been validated at the view layer.
 	#[doc(hidden)]
-	pub fn commit_unchecked(
-		&mut self,
-		commit: EditCommit,
-		merge: bool,
-		_language_loader: &LanguageLoader,
-	) -> CommitResult {
+	pub fn commit_unchecked(&mut self, commit: EditCommit, merge: bool) -> CommitResult {
 		let version_before = self.version;
 
 		// Fast-path: if transaction is identity, do nothing.
@@ -304,10 +291,12 @@ impl Document {
 
 	/// Replaces the document content from a synchronization snapshot.
 	///
-	/// Preserves document version monotonicity but clears local undo history.
+	/// Preserves document version monotonicity, clears local undo history,
+	/// and resets the modified flag to clean.
 	pub fn install_sync_snapshot(&mut self, content: impl Into<Rope>) {
 		self.content = content.into();
 		self.undo_backend = UndoBackend::new();
+		self.undo_backend.set_modified(false);
 		self.version = self.version.wrapping_add(1);
 	}
 

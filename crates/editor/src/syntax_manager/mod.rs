@@ -157,7 +157,7 @@ use xeno_primitives::{ChangeSet, Rope};
 use xeno_runtime_language::syntax::{InjectionPolicy, Syntax, SyntaxError, SyntaxOptions};
 use xeno_runtime_language::{LanguageId, LanguageLoader};
 
-use crate::buffer::DocumentId;
+use crate::core::document::DocumentId;
 
 const DEFAULT_MAX_CONCURRENCY: usize = 2;
 
@@ -846,7 +846,7 @@ impl SyntaxManager {
 		}
 		entry.slot.last_opts_key = Some(current_opts_key);
 
-		// 2. Poll inflight
+		// 2. Poll inflight (Internal consistency: don't double-poll if already drained)
 		if let Some(mut p) = entry.sched.inflight.take() {
 			if let Some(join_res) = xeno_primitives::future::poll_once(&mut p.task) {
 				entry.sched.completed = Some(CompletedSyntaxTask {

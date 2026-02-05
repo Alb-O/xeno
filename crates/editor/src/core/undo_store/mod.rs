@@ -153,12 +153,11 @@ impl TxnUndoStore {
 	) -> bool {
 		// Invalidate clean_pos if a new edit branches history.
 		// We check against old head_pos before incrementing.
-		if !self.redo_stack.is_empty() {
-			if let Some(cp) = self.clean_pos {
-				if cp > self.head_pos {
-					self.clean_pos = None;
-				}
-			}
+		if !self.redo_stack.is_empty()
+			&& let Some(cp) = self.clean_pos
+			&& cp > self.head_pos
+		{
+			self.clean_pos = None;
 		}
 
 		let new_step_created = if merge && let Some(step) = self.undo_stack.back_mut() {
@@ -178,6 +177,10 @@ impl TxnUndoStore {
 
 		self.clear_redo();
 		self.enforce_limits();
+
+		#[cfg(debug_assertions)]
+		self.assert_invariants();
+
 		new_step_created
 	}
 
@@ -185,13 +188,27 @@ impl TxnUndoStore {
 	///
 	/// Prioritizes keeping undo history over redo history when memory is tight.
 	fn enforce_limits(&mut self) {
-		// Enforce undo history depth first
-		while self.undo_stack.len() > MAX_UNDO && !self.undo_stack.is_empty() {
-			let oldest = self.undo_stack.pop_front().unwrap();
-			self.undo_bytes = self.undo_bytes.saturating_sub(oldest.bytes);
-			self.undo_tx_count -= oldest.undo.len() as u64;
-		}
+		self.enforce_depth();
+		self.enforce_bytes();
+		self.invalidate_clean_pos_after_eviction();
+	}
 
+	fn enforce_depth(&mut self) {
+		while self.undo_stack.len() > MAX_UNDO {
+			if let Some(oldest) = self.undo_stack.pop_front() {
+				self.undo_bytes = self.undo_bytes.saturating_sub(oldest.bytes);
+				self.undo_tx_count -= oldest.undo.len() as u64;
+			}
+		}
+		while self.redo_stack.len() > MAX_UNDO {
+			if let Some(oldest) = self.redo_stack.pop_front() {
+				self.redo_bytes = self.redo_bytes.saturating_sub(oldest.bytes);
+				self.redo_tx_count -= oldest.redo.len() as u64;
+			}
+		}
+	}
+
+	fn enforce_bytes(&mut self) {
 		// Enforce total memory cap (undo + redo)
 		// Prioritize keeping UNDO over REDO by evicting REDO first.
 		while self.undo_bytes + self.redo_bytes > MAX_UNDO_BYTES {
@@ -205,7 +222,9 @@ impl TxnUndoStore {
 				break;
 			}
 		}
+	}
 
+	fn invalidate_clean_pos_after_eviction(&mut self) {
 		// Invalidate clean_pos if it points to evicted history.
 		if let Some(cp) = self.clean_pos {
 			let min_undo_pos = self.head_pos.saturating_sub(self.undo_tx_count);
@@ -224,6 +243,9 @@ impl TxnUndoStore {
 	pub fn undo(&mut self, content: &mut Rope) -> Option<Vec<Transaction>> {
 		let step = self.undo_stack.pop_back()?;
 		let tx_len = step.undo.len() as u64;
+
+		debug_assert!(self.head_pos >= tx_len, "head_pos underflow during undo");
+
 		self.undo_bytes = self.undo_bytes.saturating_sub(step.bytes);
 		self.undo_tx_count -= tx_len;
 
@@ -238,6 +260,10 @@ impl TxnUndoStore {
 		self.redo_tx_count += tx_len;
 		self.redo_stack.push_back(step);
 		self.enforce_limits();
+
+		#[cfg(debug_assertions)]
+		self.assert_invariants();
+
 		Some(applied)
 	}
 
@@ -260,6 +286,10 @@ impl TxnUndoStore {
 		self.undo_tx_count += tx_len;
 		self.undo_stack.push_back(step);
 		self.enforce_limits();
+
+		#[cfg(debug_assertions)]
+		self.assert_invariants();
+
 		Some(redo_txs)
 	}
 
@@ -273,6 +303,9 @@ impl TxnUndoStore {
 		self.redo_tx_count = 0;
 		self.head_pos = 0;
 		self.clean_pos = None;
+
+		#[cfg(debug_assertions)]
+		self.assert_invariants();
 	}
 
 	/// Returns true if the current state is modified relative to the clean state.
@@ -286,6 +319,41 @@ impl TxnUndoStore {
 			self.clean_pos = None;
 		} else {
 			self.clean_pos = Some(self.head_pos);
+		}
+	}
+
+	#[cfg(debug_assertions)]
+	fn assert_invariants(&self) {
+		let actual_undo_bytes: usize = self.undo_stack.iter().map(|s| s.bytes).sum();
+		let actual_redo_bytes: usize = self.redo_stack.iter().map(|s| s.bytes).sum();
+		let actual_undo_tx_count: u64 = self.undo_stack.iter().map(|s| s.undo.len() as u64).sum();
+		let actual_redo_tx_count: u64 = self.redo_stack.iter().map(|s| s.redo.len() as u64).sum();
+
+		assert_eq!(self.undo_bytes, actual_undo_bytes, "undo_bytes mismatch");
+		assert_eq!(self.redo_bytes, actual_redo_bytes, "redo_bytes mismatch");
+		assert_eq!(
+			self.undo_tx_count, actual_undo_tx_count,
+			"undo_tx_count mismatch"
+		);
+		assert_eq!(
+			self.redo_tx_count, actual_redo_tx_count,
+			"redo_tx_count mismatch"
+		);
+		assert!(
+			self.undo_bytes + self.redo_bytes <= MAX_UNDO_BYTES,
+			"total memory usage exceeds limit"
+		);
+
+		if let Some(cp) = self.clean_pos {
+			let min_undo_pos = self.head_pos.saturating_sub(self.undo_tx_count);
+			let max_redo_pos = self.head_pos + self.redo_tx_count;
+			assert!(
+				cp >= min_undo_pos && cp <= max_redo_pos,
+				"clean_pos {} outside reachable history [{}, {}]",
+				cp,
+				min_undo_pos,
+				max_redo_pos
+			);
 		}
 	}
 }

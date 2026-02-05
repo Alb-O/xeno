@@ -15,7 +15,7 @@ fn readonly_blocks_apply_transaction() {
 	let mut buffer = Buffer::scratch(ViewId::SCRATCH);
 	let (tx, _selection) = buffer.prepare_insert("hi");
 	buffer.set_readonly(true);
-	let result = buffer.apply(&tx, ApplyPolicy::BARE, &LanguageLoader::new());
+	let result = buffer.apply(&tx, ApplyPolicy::INTERNAL, &LanguageLoader::new());
 	assert!(!result.applied);
 	assert_eq!(buffer.with_doc(|doc| doc.content().to_string()), "");
 }
@@ -28,7 +28,7 @@ fn readonly_override_blocks_transaction() {
 	assert!(buffer.is_readonly());
 
 	let (tx, _selection) = buffer.prepare_insert("hi");
-	let result = buffer.apply(&tx, ApplyPolicy::BARE, &LanguageLoader::new());
+	let result = buffer.apply(&tx, ApplyPolicy::INTERNAL, &LanguageLoader::new());
 	assert!(!result.applied);
 	assert_eq!(buffer.with_doc(|doc| doc.content().to_string()), "");
 }
@@ -44,7 +44,7 @@ fn readonly_override_allows_write_on_readonly_doc() {
 	assert!(!buffer.is_readonly());
 
 	let (tx, _selection) = buffer.prepare_insert("hi");
-	let result = buffer.apply(&tx, ApplyPolicy::BARE, &LanguageLoader::new());
+	let result = buffer.apply(&tx, ApplyPolicy::INTERNAL, &LanguageLoader::new());
 	assert!(result.applied);
 	assert_eq!(buffer.with_doc(|doc| doc.content().to_string()), "hi");
 }

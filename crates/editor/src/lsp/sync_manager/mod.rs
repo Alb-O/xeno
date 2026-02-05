@@ -23,7 +23,7 @@ use xeno_lsp::{DocumentSync, Error as LspError};
 use xeno_primitives::LspDocumentChange;
 
 use super::coalesce::coalesce_changes;
-use crate::buffer::DocumentId;
+use crate::core::document::DocumentId;
 use crate::metrics::EditorMetrics;
 
 /// Default debounce duration for LSP notifications.

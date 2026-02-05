@@ -18,12 +18,6 @@ pub struct ApplyPolicy {
 }
 
 impl ApplyPolicy {
-	/// Transaction applied without history recording or syntax updates.
-	pub const BARE: Self = Self {
-		undo: UndoPolicy::NoUndo,
-		syntax: SyntaxPolicy::None,
-	};
-
 	/// Standard edit with history recording and incremental syntax updates.
 	pub const EDIT: Self = Self {
 		undo: UndoPolicy::Record,
@@ -34,6 +28,15 @@ impl ApplyPolicy {
 	pub const INSERT: Self = Self {
 		undo: UndoPolicy::MergeWithCurrentGroup,
 		syntax: SyntaxPolicy::IncrementalOrDirty,
+	};
+
+	/// Transaction applied with history recording but without syntax updates.
+	///
+	/// Useful for internal document operations that shouldn't trigger immediate
+	/// syntax re-parsing.
+	pub const INTERNAL: Self = Self {
+		undo: UndoPolicy::Record,
+		syntax: SyntaxPolicy::None,
 	};
 
 	/// Returns a copy of the policy with the specified [`UndoPolicy`].
@@ -79,12 +82,11 @@ impl Buffer {
 	///
 	/// # Note
 	///
-	/// This does NOT update syntax highlighting. For syntax-aware insertion,
-	/// apply the transaction via [`apply`] with [`ApplyPolicy::EDIT`].
+	/// This updates syntax highlighting according to [`ApplyPolicy::EDIT`].
 	pub fn insert_text(&mut self, text: &str) -> Transaction {
 		let (tx, new_selection) = self.prepare_insert(text);
 		if self
-			.apply(&tx, ApplyPolicy::BARE, &LanguageLoader::new())
+			.apply(&tx, ApplyPolicy::EDIT, &LanguageLoader::new())
 			.applied
 		{
 			self.set_selection(new_selection);
@@ -153,7 +155,7 @@ impl Buffer {
 	/// Pastes text after the cursor positions.
 	pub fn paste_after(&mut self, text: &str) -> Option<Transaction> {
 		let (tx, new_selection) = self.prepare_paste_after(text)?;
-		self.apply(&tx, ApplyPolicy::BARE, &LanguageLoader::new())
+		self.apply(&tx, ApplyPolicy::EDIT, &LanguageLoader::new())
 			.applied
 			.then(|| {
 				self.set_selection(new_selection);
@@ -176,7 +178,7 @@ impl Buffer {
 	/// Pastes text before the cursor positions.
 	pub fn paste_before(&mut self, text: &str) -> Option<Transaction> {
 		let (tx, new_selection) = self.prepare_paste_before(text)?;
-		self.apply(&tx, ApplyPolicy::BARE, &LanguageLoader::new())
+		self.apply(&tx, ApplyPolicy::EDIT, &LanguageLoader::new())
 			.applied
 			.then(|| {
 				self.set_selection(new_selection);
@@ -198,7 +200,7 @@ impl Buffer {
 	/// Deletes the current selection.
 	pub fn delete_selection(&mut self) -> Option<Transaction> {
 		let (tx, new_selection) = self.prepare_delete_selection()?;
-		self.apply(&tx, ApplyPolicy::BARE, &LanguageLoader::new())
+		self.apply(&tx, ApplyPolicy::EDIT, &LanguageLoader::new())
 			.applied
 			.then(|| {
 				self.set_selection(new_selection);
@@ -214,7 +216,7 @@ impl Buffer {
 		&mut self,
 		tx: &Transaction,
 		policy: ApplyPolicy,
-		loader: &LanguageLoader,
+		_loader: &LanguageLoader,
 	) -> CommitResult {
 		if let Some(readonly) = self.readonly_override {
 			if readonly {
@@ -233,7 +235,7 @@ impl Buffer {
 			.with_undo(policy.undo)
 			.with_syntax(policy.syntax);
 
-		let result = self.with_doc_mut(|doc| doc.commit_unchecked(commit, merge, loader));
+		let result = self.with_doc_mut(|doc| doc.commit_unchecked(commit, merge));
 
 		if result.applied {
 			self.insert_undo_active = matches!(policy.undo, UndoPolicy::MergeWithCurrentGroup);
@@ -250,7 +252,7 @@ impl Buffer {
 		&mut self,
 		tx: &Transaction,
 		policy: ApplyPolicy,
-		loader: &LanguageLoader,
+		_loader: &LanguageLoader,
 	) -> CommitResult {
 		if self.with_doc(|doc| doc.is_readonly()) {
 			return CommitResult::blocked(self.version());
@@ -260,7 +262,7 @@ impl Buffer {
 			.with_undo(policy.undo)
 			.with_syntax(policy.syntax);
 
-		let result = self.with_doc_mut(|doc| doc.commit_unchecked(commit, false, loader));
+		let result = self.with_doc_mut(|doc| doc.commit_unchecked(commit, false));
 		self.insert_undo_active = false;
 		result
 	}

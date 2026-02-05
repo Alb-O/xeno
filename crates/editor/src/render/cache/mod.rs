@@ -14,7 +14,7 @@ pub use diagnostics::{DiagnosticsCache, DiagnosticsCacheKey, DiagnosticsEntry};
 pub use highlight::{HighlightKey, HighlightSpanQuery, HighlightTile, HighlightTiles, TILE_SIZE};
 pub use wrap::{WrapBucket, WrapBucketKey, WrapBuckets, WrapEntry};
 
-use crate::buffer::DocumentId;
+use crate::core::document::DocumentId;
 
 /// The main render cache.
 ///

@@ -6,7 +6,7 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use crate::buffer::DocumentId;
+use crate::core::document::DocumentId;
 use crate::render::{DiagnosticLineMap, DiagnosticRangeMap};
 
 /// Cache key for diagnostics entries.

@@ -12,7 +12,7 @@ use xeno_runtime_language::syntax::Syntax;
 use xeno_runtime_language::{LanguageId, LanguageLoader};
 use xeno_tui::style::Style;
 
-use crate::buffer::DocumentId;
+use crate::core::document::DocumentId;
 
 /// Number of lines per tile.
 pub const TILE_SIZE: usize = 128;
@@ -23,15 +23,17 @@ const MAX_TILES: usize = 16;
 /// Key for identifying a highlight tile.
 ///
 /// The key includes all factors that affect highlight output:
-/// - `doc_version`: Changes when the document content changes (ensures cache coherence)
-/// - `syntax_version`: Changes when the syntax tree is updated
+/// - `syntax_version`: Changes when the syntax tree is updated (authoritative)
 /// - `theme_epoch`: Changes when the theme is switched
 /// - `language_id`: The language for syntax highlighting
 /// - `tile_idx`: Which tile (line_idx / TILE_SIZE)
+///
+/// Note: `doc_version` is NOT included here to allow reusing "best effort"
+/// highlighting from a stale tree while interactive edits are in flight.
+/// Correctness is maintained via `syntax_version` which identifies the
+/// specific tree used to generate the spans.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct HighlightKey {
-	/// Document version when this tile was built.
-	pub doc_version: u64,
 	/// Syntax version when this tile was built.
 	pub syntax_version: u64,
 	/// Theme epoch when this tile was built.
@@ -62,7 +64,8 @@ where
 	/// The document ID.
 	pub doc_id: DocumentId,
 	/// The document version (rope version).
-	pub doc_version: u64,
+	/// Intentionally unused in current cache key; reserved for future soft invalidation.
+	pub _doc_version: u64,
 	/// Current syntax version for cache validation.
 	pub syntax_version: u64,
 	/// The language ID for the document.
@@ -108,6 +111,10 @@ impl HighlightTiles {
 
 	/// Creates a new highlight tiles cache with a specific capacity.
 	pub fn with_capacity(max_tiles: usize) -> Self {
+		assert!(
+			max_tiles > 0,
+			"HighlightTiles capacity must be greater than 0"
+		);
 		Self {
 			tiles: Vec::with_capacity(max_tiles),
 			mru_order: VecDeque::with_capacity(max_tiles),
@@ -157,7 +164,6 @@ impl HighlightTiles {
 
 		for tile_idx in start_tile..=end_tile {
 			let key = HighlightKey {
-				doc_version: q.doc_version,
 				syntax_version: q.syntax_version,
 				theme_epoch: self.theme_epoch,
 				language_id: q.language_id,
@@ -216,9 +222,7 @@ impl HighlightTiles {
 		);
 
 		let tile = HighlightTile { key, spans };
-		self.insert_tile(q.doc_id, tile_idx, tile);
-
-		*self.index.get(&q.doc_id).unwrap().get(&tile_idx).unwrap()
+		self.insert_tile(q.doc_id, tile_idx, tile)
 	}
 
 	fn get_cached_tile_index(
@@ -254,13 +258,14 @@ impl HighlightTiles {
 	}
 
 	/// Inserts a tile into the cache, evicting LRU if necessary.
-	fn insert_tile(&mut self, doc_id: DocumentId, tile_idx: usize, tile: HighlightTile) {
+	/// Returns the index of the inserted tile.
+	fn insert_tile(&mut self, doc_id: DocumentId, tile_idx: usize, tile: HighlightTile) -> usize {
 		if let Some(&old_index) = self.index.get(&doc_id).and_then(|m| m.get(&tile_idx))
 			&& let Some(existing) = self.tiles.get_mut(old_index)
 		{
 			*existing = tile;
 			self.touch(old_index);
-			return;
+			return old_index;
 		}
 
 		let tile_index = if self.tiles.len() < self.max_tiles {
@@ -285,6 +290,7 @@ impl HighlightTiles {
 			.insert(tile_idx, tile_index);
 
 		self.mru_order.push_front(tile_index);
+		tile_index
 	}
 
 	fn touch(&mut self, tile_index: usize) {
@@ -306,11 +312,18 @@ impl HighlightTiles {
 	where
 		F: Fn(&str) -> Style,
 	{
-		let start_byte = rope.line_to_byte(start_line.min(rope.len_lines())) as u32;
-		let end_byte = if end_line < rope.len_lines() {
+		// Hard rule: if the tree is out of bounds for the rope, return empty.
+		// This protects against crashes in tree-sitter highlighter.
+		let rope_len_bytes = rope.len_bytes() as u32;
+		if syntax.tree().root_node().end_byte() > rope_len_bytes {
+			return Vec::new();
+		}
+
+		let tile_start_byte = rope.line_to_byte(start_line.min(rope.len_lines())) as u32;
+		let tile_end_byte = if end_line < rope.len_lines() {
 			rope.line_to_byte(end_line) as u32
 		} else {
-			rope.len_bytes() as u32
+			rope_len_bytes
 		};
 
 		let highlight_styles = HighlightStyles::new(
@@ -318,26 +331,17 @@ impl HighlightTiles {
 			style_resolver,
 		);
 
-		// Defense-in-depth: ensure the syntax tree is not out-of-bounds for the current rope.
-		// This protects against crashes if a stale tree is used during rapid edits.
-		// Note: We used to block here, but now we clamp spans individually to allow
-		// "best effort" stale highlighting.
-		if syntax.tree().root_node().end_byte() > rope.len_bytes() as u32 {
-			tracing::warn!(
-				"Syntax tree out-of-bounds for rope (tree_end={} rope_len={}), clamping spans",
-				syntax.tree().root_node().end_byte(),
-				rope.len_bytes()
-			);
-		}
-
-		let highlighter = syntax.highlighter(rope.slice(..), language_loader, start_byte..end_byte);
-		let max_len = rope.len_bytes() as u32;
+		let highlighter = syntax.highlighter(
+			rope.slice(..),
+			language_loader,
+			tile_start_byte..tile_end_byte,
+		);
 
 		highlighter
 			.filter_map(|mut span| {
-				// Clamp spans to rope bounds to ensure safety with stale trees
-				span.start = span.start.min(max_len);
-				span.end = span.end.min(max_len);
+				// Clamp spans to both rope bounds and tile bounds to ensure safety and determinism
+				span.start = span.start.max(tile_start_byte).min(tile_end_byte);
+				span.end = span.end.max(tile_start_byte).min(tile_end_byte);
 
 				if span.start >= span.end {
 					return None;
@@ -391,7 +395,6 @@ mod tests {
 		// Add a dummy tile
 		cache.tiles.push(HighlightTile {
 			key: HighlightKey {
-				doc_version: 0,
 				syntax_version: 1,
 				theme_epoch: 0,
 				language_id: None,
@@ -425,7 +428,6 @@ mod tests {
 			0,
 			HighlightTile {
 				key: HighlightKey {
-					doc_version: 0,
 					syntax_version: 1,
 					theme_epoch: 0,
 					language_id: None,
@@ -441,7 +443,6 @@ mod tests {
 			1,
 			HighlightTile {
 				key: HighlightKey {
-					doc_version: 0,
 					syntax_version: 1,
 					theme_epoch: 0,
 					language_id: None,
@@ -462,7 +463,6 @@ mod tests {
 			2,
 			HighlightTile {
 				key: HighlightKey {
-					doc_version: 0,
 					syntax_version: 1,
 					theme_epoch: 0,
 					language_id: None,
@@ -490,7 +490,6 @@ mod tests {
 			0,
 			HighlightTile {
 				key: HighlightKey {
-					doc_version: 0,
 					syntax_version: 1,
 					theme_epoch: 0,
 					language_id: None,
@@ -504,7 +503,6 @@ mod tests {
 			1,
 			HighlightTile {
 				key: HighlightKey {
-					doc_version: 0,
 					syntax_version: 1,
 					theme_epoch: 0,
 					language_id: None,
@@ -523,7 +521,6 @@ mod tests {
 			2,
 			HighlightTile {
 				key: HighlightKey {
-					doc_version: 0,
 					syntax_version: 1,
 					theme_epoch: 0,
 					language_id: None,
@@ -549,7 +546,6 @@ mod tests {
 			0,
 			HighlightTile {
 				key: HighlightKey {
-					doc_version: 0,
 					syntax_version: 1,
 					theme_epoch: 0,
 					language_id: None,
@@ -563,7 +559,6 @@ mod tests {
 			1,
 			HighlightTile {
 				key: HighlightKey {
-					doc_version: 0,
 					syntax_version: 1,
 					theme_epoch: 0,
 					language_id: None,
@@ -577,7 +572,6 @@ mod tests {
 			0,
 			HighlightTile {
 				key: HighlightKey {
-					doc_version: 0,
 					syntax_version: 1,
 					theme_epoch: 0,
 					language_id: None,
@@ -601,7 +595,6 @@ mod tests {
 		let doc_id = DocumentId(1);
 
 		let old_key = HighlightKey {
-			doc_version: 0,
 			syntax_version: 1,
 			theme_epoch: 0,
 			language_id: None,
@@ -609,7 +602,6 @@ mod tests {
 		};
 
 		let new_key = HighlightKey {
-			doc_version: 0,
 			syntax_version: 2, // Different!
 			theme_epoch: 0,
 			language_id: None,
@@ -638,7 +630,6 @@ mod tests {
 		let mut cache = HighlightTiles::with_capacity(1);
 		let doc_id = DocumentId(1);
 		let key = HighlightKey {
-			doc_version: 0,
 			syntax_version: 1,
 			theme_epoch: 0,
 			language_id: None,
@@ -662,7 +653,6 @@ mod tests {
 		let doc1 = DocumentId(1);
 		let doc2 = DocumentId(2);
 		let key = HighlightKey {
-			doc_version: 0,
 			syntax_version: 1,
 			theme_epoch: 0,
 			language_id: None,
