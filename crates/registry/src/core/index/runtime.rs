@@ -83,7 +83,10 @@ use crate::error::{InsertAction, RegistryError};
 /// Single source of truth for registry lookups.
 ///
 /// Contains a merged view of builtins and runtime extensions.
-pub struct Snapshot<T: RegistryEntry + 'static> {
+pub struct Snapshot<T>
+where
+	T: RegistryEntry + 'static,
+{
 	pub by_id: Map<&'static str, &'static T>,
 	pub by_key: Map<&'static str, &'static T>,
 	pub items_all: Vec<&'static T>,
@@ -91,7 +94,10 @@ pub struct Snapshot<T: RegistryEntry + 'static> {
 	pub collisions: Vec<Collision>,
 }
 
-impl<T: RegistryEntry + 'static> Clone for Snapshot<T> {
+impl<T> Clone for Snapshot<T>
+where
+	T: RegistryEntry + 'static,
+{
 	fn clone(&self) -> Self {
 		Self {
 			by_id: self.by_id.clone(),
@@ -103,7 +109,10 @@ impl<T: RegistryEntry + 'static> Clone for Snapshot<T> {
 	}
 }
 
-impl<T: RegistryEntry + 'static> Snapshot<T> {
+impl<T> Snapshot<T>
+where
+	T: RegistryEntry + 'static,
+{
 	/// Creates a new snapshot from a builtin index.
 	fn from_builtins(b: &RegistryIndex<T>) -> Self {
 		Self {
@@ -132,14 +141,20 @@ impl<T: RegistryEntry + 'static> Snapshot<T> {
 }
 
 /// Registry wrapper for runtime-extensible registries.
-pub struct RuntimeRegistry<T: RegistryEntry + 'static> {
+pub struct RuntimeRegistry<T>
+where
+	T: RegistryEntry + 'static,
+{
 	pub(super) label: &'static str,
 	pub(super) builtins: RegistryIndex<T>,
 	pub(super) snap: ArcSwap<Snapshot<T>>,
 	pub(super) policy: DuplicatePolicy,
 }
 
-impl<T: RegistryEntry + 'static> RuntimeRegistry<T> {
+impl<T> RuntimeRegistry<T>
+where
+	T: RegistryEntry + 'static,
+{
 	/// Creates a new runtime registry with the given builtins.
 	pub fn new(label: &'static str, builtins: RegistryIndex<T>) -> Self {
 		let snap = Snapshot::from_builtins(&builtins);
@@ -433,11 +448,17 @@ impl<T: RegistryEntry + 'static> RuntimeRegistry<T> {
 }
 
 /// KeyStore over Snapshot for shared insertion logic.
-struct SnapshotStore<'a, T: RegistryEntry + 'static> {
+struct SnapshotStore<'a, T>
+where
+	T: RegistryEntry + 'static,
+{
 	snap: &'a mut Snapshot<T>,
 }
 
-impl<T: RegistryEntry + 'static> KeyStore<T> for SnapshotStore<'_, T> {
+impl<T> KeyStore<T> for SnapshotStore<'_, T>
+where
+	T: RegistryEntry + 'static,
+{
 	fn get_id_owner(&self, id: &str) -> Option<&'static T> {
 		self.snap.by_id.get(id).copied()
 	}

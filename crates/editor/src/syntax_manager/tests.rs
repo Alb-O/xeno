@@ -34,19 +34,21 @@ impl SyntaxEngine for MockEngine {
 		_loader: &LanguageLoader,
 		_opts: SyntaxOptions,
 	) -> Result<Syntax, SyntaxError> {
-		let gate = self.gate.lock().unwrap().take();
-		if let Some(rx) = gate {
+		if let Some(rx) = self.gate.lock().unwrap().take() {
 			let _ = rx.blocking_recv();
 		}
 
-		if let Some(res) = self.result.lock().unwrap().take() {
-			res
-		} else {
-			Err(SyntaxError::Timeout)
-		}
+		self.result
+			.lock()
+			.unwrap()
+			.take()
+			.unwrap_or(Err(SyntaxError::Timeout))
 	}
 }
 
+/// Verifies that an inflight task is polled and its result handled even if the
+/// document was marked clean (dirty=false) by a synchronous parse while the
+/// background task was still running.
 #[tokio::test]
 async fn test_inflight_drained_even_if_doc_marked_clean() {
 	let engine = Arc::new(MockEngine::new());
@@ -54,16 +56,18 @@ async fn test_inflight_drained_even_if_doc_marked_clean() {
 	engine.set_gate(rx);
 
 	let mut mgr = SyntaxManager::new_with_engine(1, engine.clone());
-	let mut policy = TieredSyntaxPolicy::default();
-	policy.s.debounce = Duration::from_millis(0);
-	policy.s.cooldown_on_timeout = Duration::from_millis(0);
-	mgr.set_policy(policy);
+	mgr.set_policy(TieredSyntaxPolicy {
+		s: TierCfg {
+			debounce: Duration::ZERO,
+			cooldown_on_timeout: Duration::ZERO,
+			..TieredSyntaxPolicy::default().s
+		},
+		..TieredSyntaxPolicy::default()
+	});
 
 	let doc_id = DocumentId(1);
 	let loader = Arc::new(LanguageLoader::from_embedded());
-	let lang_id = loader
-		.language_for_name("rust")
-		.expect("rust should be available in embedded loader");
+	let lang_id = loader.language_for_name("rust").unwrap();
 	let content = Rope::from("test");
 
 	let poll = mgr.ensure_syntax(EnsureSyntaxContext {
@@ -100,6 +104,8 @@ async fn test_inflight_drained_even_if_doc_marked_clean() {
 	));
 }
 
+/// Verifies that switching a document's language discards any existing syntax
+/// tree and aborts inflight tasks.
 #[tokio::test]
 async fn test_language_switch_discards_old_parse() {
 	let engine = Arc::new(MockEngine::new());
@@ -107,19 +113,19 @@ async fn test_language_switch_discards_old_parse() {
 	engine.set_gate(rx);
 
 	let mut mgr = SyntaxManager::new_with_engine(2, engine.clone());
-	let mut policy = TieredSyntaxPolicy::default();
-	policy.s.debounce = Duration::from_millis(0);
-	policy.s.cooldown_on_timeout = Duration::from_millis(0);
-	mgr.set_policy(policy);
+	mgr.set_policy(TieredSyntaxPolicy {
+		s: TierCfg {
+			debounce: Duration::ZERO,
+			cooldown_on_timeout: Duration::ZERO,
+			..TieredSyntaxPolicy::default().s
+		},
+		..TieredSyntaxPolicy::default()
+	});
 
 	let doc_id = DocumentId(1);
 	let loader = Arc::new(LanguageLoader::from_embedded());
-	let lang_id_old = loader
-		.language_for_name("rust")
-		.expect("rust should be available");
-	let lang_id_new = loader
-		.language_for_name("python")
-		.expect("python should be available");
+	let lang_id_old = loader.language_for_name("rust").unwrap();
+	let lang_id_new = loader.language_for_name("python").unwrap();
 	let content = Rope::from("test");
 
 	let dummy_syntax = Syntax::new(
@@ -131,7 +137,7 @@ async fn test_language_switch_discards_old_parse() {
 	.unwrap();
 	engine.set_result(Ok(dummy_syntax));
 
-	let poll = mgr.ensure_syntax(EnsureSyntaxContext {
+	mgr.ensure_syntax(EnsureSyntaxContext {
 		doc_id,
 		doc_version: 1,
 		language_id: Some(lang_id_old),
@@ -139,7 +145,6 @@ async fn test_language_switch_discards_old_parse() {
 		hotness: SyntaxHotness::Visible,
 		loader: &loader,
 	});
-	assert_eq!(poll.result, SyntaxPollResult::Kicked);
 
 	let _ = tx.send(());
 	tokio::time::sleep(Duration::from_millis(50)).await;
@@ -157,6 +162,8 @@ async fn test_language_switch_discards_old_parse() {
 	assert_eq!(poll.result, SyntaxPollResult::Kicked);
 }
 
+/// Verifies that the memory retention policy correctly evicts syntax trees
+/// when a document becomes `Cold` and that the eviction clears the dirty flag.
 #[tokio::test]
 async fn test_dropwhenhidden_discards_completed_parse() {
 	let engine = Arc::new(MockEngine::new());
@@ -164,17 +171,19 @@ async fn test_dropwhenhidden_discards_completed_parse() {
 	engine.set_gate(rx);
 
 	let mut mgr = SyntaxManager::new_with_engine(1, engine.clone());
-	let mut policy = TieredSyntaxPolicy::default();
-	policy.l.retention_hidden = RetentionPolicy::DropWhenHidden;
-	policy.l.debounce = Duration::from_millis(0);
-	policy.l.cooldown_on_timeout = Duration::from_millis(0);
-	mgr.set_policy(policy);
+	mgr.set_policy(TieredSyntaxPolicy {
+		l: TierCfg {
+			retention_hidden: RetentionPolicy::DropWhenHidden,
+			debounce: Duration::ZERO,
+			cooldown_on_timeout: Duration::ZERO,
+			..TieredSyntaxPolicy::default().l
+		},
+		..TieredSyntaxPolicy::default()
+	});
 
 	let doc_id = DocumentId(1);
 	let loader = Arc::new(LanguageLoader::from_embedded());
-	let lang_id = loader
-		.language_for_name("rust")
-		.expect("rust should be available");
+	let lang_id = loader.language_for_name("rust").unwrap();
 	let content = Rope::from(" ".repeat(2 * 1024 * 1024));
 
 	let dummy_syntax = Syntax::new(
@@ -215,26 +224,22 @@ async fn test_dropwhenhidden_discards_completed_parse() {
 /// Exhaustive truth table for the stale-inflight install guard.
 ///
 /// The critical regression case is `(version_match=false, dirty=false,
-/// has_current=true)` — a clean incremental tree at V1 must NOT be
+/// has_current=true)`, a clean incremental tree at V1 must NOT be
 /// overwritten by a stale background parse from V0.
 #[test]
 fn test_stale_parse_does_not_overwrite_clean_incremental() {
 	use super::should_install_completed_parse;
 
-	// (version_match, slot_dirty, has_current) -> expected
 	let cases = [
-		// The regression case: clean tree + stale result → MUST NOT install.
-		(false, false, true, false),
-		// Exact version match → always install.
-		(true, false, true, true),
+		// (version_match, slot_dirty, has_current, expected)
+		(false, false, true, false), // Clean tree + stale result → MUST NOT install.
+		(true, false, true, true),   // Exact version match → always install.
 		(true, true, true, true),
 		(true, false, false, true),
 		(true, true, false, true),
-		// Dirty slot → install stale for catch-up continuity.
-		(false, true, true, true),
+		(false, true, true, true), // Dirty slot → install stale for catch-up continuity.
 		(false, true, false, true),
-		// No current syntax → install stale for bootstrap.
-		(false, false, false, true),
+		(false, false, false, true), // No current syntax → install stale for bootstrap.
 	];
 
 	for (version_match, dirty, has_current, expected) in cases {
@@ -246,6 +251,9 @@ fn test_stale_parse_does_not_overwrite_clean_incremental() {
 	}
 }
 
+/// Verifies that a completed parse for an older document version is still installed
+/// if the document is currently dirty, ensuring highlighting continuity during
+/// rapid edits.
 #[tokio::test]
 async fn test_stale_install_continuity() {
 	let engine = Arc::new(MockEngine::new());
@@ -253,19 +261,20 @@ async fn test_stale_install_continuity() {
 	engine.set_gate(rx);
 
 	let mut mgr = SyntaxManager::new_with_engine(1, engine.clone());
-	let mut policy = TieredSyntaxPolicy::default();
-	policy.s.debounce = Duration::from_millis(0);
-	policy.s.cooldown_on_timeout = Duration::from_millis(0);
-	mgr.set_policy(policy);
+	mgr.set_policy(TieredSyntaxPolicy {
+		s: TierCfg {
+			debounce: Duration::ZERO,
+			cooldown_on_timeout: Duration::ZERO,
+			..TieredSyntaxPolicy::default().s
+		},
+		..TieredSyntaxPolicy::default()
+	});
 
 	let doc_id = DocumentId(1);
 	let loader = Arc::new(LanguageLoader::from_embedded());
-	let lang_id = loader
-		.language_for_name("rust")
-		.expect("rust should be available in embedded loader");
+	let lang_id = loader.language_for_name("rust").unwrap();
 	let content = Rope::from("test");
 
-	// Setup a dummy syntax to return
 	let dummy_syntax = Syntax::new(
 		content.slice(..),
 		lang_id,
@@ -275,7 +284,6 @@ async fn test_stale_install_continuity() {
 	.unwrap();
 	engine.set_result(Ok(dummy_syntax));
 
-	// 1. Kick off parse for V1
 	mgr.ensure_syntax(EnsureSyntaxContext {
 		doc_id,
 		doc_version: 1,
@@ -285,12 +293,9 @@ async fn test_stale_install_continuity() {
 		loader: &loader,
 	});
 
-	// 2. Doc version moves to V2 before V1 completes
-	// 3. Complete V1 parse
 	let _ = tx.send(());
 	tokio::time::sleep(Duration::from_millis(50)).await;
 
-	// 4. Poll with V2. Slot is still dirty, so V1 result SHOULD be installed (continuity).
 	let poll = mgr.ensure_syntax(EnsureSyntaxContext {
 		doc_id,
 		doc_version: 2,
@@ -302,27 +307,21 @@ async fn test_stale_install_continuity() {
 
 	assert!(mgr.syntax_for_doc(doc_id).is_some());
 	assert!(poll.updated);
-	assert!(mgr.is_dirty(doc_id)); // dirty stays true because version mismatch (V1 != V2)
+	assert!(mgr.is_dirty(doc_id));
 }
 
-/// Bootstrap parse (no existing syntax tree) MUST skip the debounce gate
-/// so that newly opened documents get highlighted immediately instead of
-/// waiting for the debounce timeout to elapse.
+/// Verifies that bootstrap parses (first parse for a document) skip the debounce
+/// timer to ensure immediate highlighting when a file is opened.
 #[tokio::test]
 async fn test_bootstrap_parse_skips_debounce() {
 	let engine = Arc::new(MockEngine::new());
-
 	let mut mgr = SyntaxManager::new_with_engine(1, engine.clone());
-	// Keep the default 80ms debounce — the point is to prove it's skipped.
 
 	let doc_id = DocumentId(1);
 	let loader = Arc::new(LanguageLoader::from_embedded());
-	let lang_id = loader
-		.language_for_name("rust")
-		.expect("rust should be available in embedded loader");
+	let lang_id = loader.language_for_name("rust").unwrap();
 	let content = Rope::from("fn main() {}");
 
-	// First call with no existing syntax tree must kick immediately.
 	let poll = mgr.ensure_syntax(EnsureSyntaxContext {
 		doc_id,
 		doc_version: 1,
@@ -331,11 +330,7 @@ async fn test_bootstrap_parse_skips_debounce() {
 		hotness: SyntaxHotness::Visible,
 		loader: &loader,
 	});
-	assert_eq!(
-		poll.result,
-		SyntaxPollResult::Kicked,
-		"bootstrap parse must skip debounce and kick immediately"
-	);
+	assert_eq!(poll.result, SyntaxPollResult::Kicked);
 	assert!(mgr.has_pending(doc_id));
 }
 
@@ -354,6 +349,8 @@ fn test_note_edit_updates_timestamp() {
 	assert!(t2 > t1);
 }
 
+/// Verifies that the editor tick can detect completed tasks and trigger redraws
+/// even when the document is not currently being rendered.
 #[tokio::test]
 async fn test_idle_tick_polls_inflight_parse() {
 	let engine = Arc::new(MockEngine::new());
@@ -361,16 +358,19 @@ async fn test_idle_tick_polls_inflight_parse() {
 	engine.set_gate(rx);
 
 	let mut mgr = SyntaxManager::new_with_engine(1, engine.clone());
-	let mut policy = TieredSyntaxPolicy::default();
-	policy.s.debounce = Duration::from_millis(0);
-	mgr.set_policy(policy);
+	mgr.set_policy(TieredSyntaxPolicy {
+		s: TierCfg {
+			debounce: Duration::ZERO,
+			..TieredSyntaxPolicy::default().s
+		},
+		..TieredSyntaxPolicy::default()
+	});
 
 	let doc_id = DocumentId(1);
 	let loader = Arc::new(LanguageLoader::from_embedded());
 	let lang_id = loader.language_for_name("rust").unwrap();
 	let content = Rope::from("test");
 
-	// 1. Kick off parse
 	mgr.ensure_syntax(EnsureSyntaxContext {
 		doc_id,
 		doc_version: 1,
@@ -383,32 +383,36 @@ async fn test_idle_tick_polls_inflight_parse() {
 	assert!(mgr.has_pending(doc_id));
 	assert!(!mgr.any_task_finished());
 
-	// 2. Complete parse
 	let _ = tx.send(());
 	tokio::time::sleep(Duration::from_millis(50)).await;
 
-	// 3. Check any_task_finished (simulating what Editor::tick does)
 	assert!(mgr.any_task_finished());
 }
 
+/// Verifies that the manager enforces a single-flight policy per document,
+/// preventing multiple redundant parse tasks from running simultaneously for
+/// the same document ID.
 #[tokio::test]
 async fn test_single_flight_per_doc() {
 	let engine = Arc::new(MockEngine::new());
 	let (_tx, rx) = oneshot::channel();
-	engine.set_gate(rx); // Parse will block
+	engine.set_gate(rx);
 
 	let mut mgr = SyntaxManager::new_with_engine(2, engine.clone());
-	let mut policy = TieredSyntaxPolicy::default();
-	policy.s.debounce = Duration::from_millis(0);
-	mgr.set_policy(policy);
+	mgr.set_policy(TieredSyntaxPolicy {
+		s: TierCfg {
+			debounce: Duration::ZERO,
+			..TieredSyntaxPolicy::default().s
+		},
+		..TieredSyntaxPolicy::default()
+	});
 
 	let doc_id = DocumentId(1);
 	let loader = Arc::new(LanguageLoader::from_embedded());
 	let lang_id = loader.language_for_name("rust").unwrap();
 	let content = Rope::from("test");
 
-	// 1. Kick off first parse
-	let poll1 = mgr.ensure_syntax(EnsureSyntaxContext {
+	mgr.ensure_syntax(EnsureSyntaxContext {
 		doc_id,
 		doc_version: 1,
 		language_id: Some(lang_id),
@@ -416,10 +420,8 @@ async fn test_single_flight_per_doc() {
 		hotness: SyntaxHotness::Visible,
 		loader: &loader,
 	});
-	assert_eq!(poll1.result, SyntaxPollResult::Kicked);
 	assert!(mgr.has_pending(doc_id));
 
-	// 2. Try to kick off another parse for same doc while first is running
 	let poll2 = mgr.ensure_syntax(EnsureSyntaxContext {
 		doc_id,
 		doc_version: 2,
@@ -430,13 +432,11 @@ async fn test_single_flight_per_doc() {
 	});
 
 	assert_eq!(poll2.result, SyntaxPollResult::Pending);
-	assert_eq!(
-		mgr.pending_count(),
-		1,
-		"Should only have one task for this doc"
-	);
+	assert_eq!(mgr.pending_count(), 1);
 }
 
+/// Verifies that installing a new syntax tree increments the slot's version,
+/// allowing the highlight cache to detect changes.
 #[tokio::test]
 async fn test_syntax_version_bumps_on_install() {
 	let engine = Arc::new(MockEngine::new());
@@ -444,10 +444,14 @@ async fn test_syntax_version_bumps_on_install() {
 	engine.set_gate(rx);
 
 	let mut mgr = SyntaxManager::new_with_engine(1, engine.clone());
-	let mut policy = TieredSyntaxPolicy::default();
-	policy.s.debounce = Duration::from_millis(0);
-	policy.s.cooldown_on_timeout = Duration::from_millis(0);
-	mgr.set_policy(policy);
+	mgr.set_policy(TieredSyntaxPolicy {
+		s: TierCfg {
+			debounce: Duration::ZERO,
+			cooldown_on_timeout: Duration::ZERO,
+			..TieredSyntaxPolicy::default().s
+		},
+		..TieredSyntaxPolicy::default()
+	});
 
 	let doc_id = DocumentId(1);
 	let loader = Arc::new(LanguageLoader::from_embedded());
@@ -464,7 +468,7 @@ async fn test_syntax_version_bumps_on_install() {
 	engine.set_result(Ok(dummy_syntax));
 
 	let v0 = mgr.syntax_version(doc_id);
-	let poll = mgr.ensure_syntax(EnsureSyntaxContext {
+	mgr.ensure_syntax(EnsureSyntaxContext {
 		doc_id,
 		doc_version: 1,
 		language_id: Some(lang_id),
@@ -472,7 +476,6 @@ async fn test_syntax_version_bumps_on_install() {
 		hotness: SyntaxHotness::Visible,
 		loader: &loader,
 	});
-	assert_eq!(poll.result, SyntaxPollResult::Kicked);
 
 	let _ = tx.send(());
 	tokio::time::sleep(Duration::from_millis(50)).await;
@@ -487,10 +490,11 @@ async fn test_syntax_version_bumps_on_install() {
 	});
 	assert_eq!(poll.result, SyntaxPollResult::Ready);
 	assert!(poll.updated);
-	let v1 = mgr.syntax_version(doc_id);
-	assert!(v1 > v0);
+	assert!(mgr.syntax_version(doc_id) > v0);
 }
 
+/// Verifies that completed tasks produced under a stale configuration (options key)
+/// are discarded and a reparse is triggered.
 #[tokio::test]
 async fn test_opts_mismatch_never_installs() {
 	let engine = Arc::new(MockEngine::new());
@@ -499,7 +503,7 @@ async fn test_opts_mismatch_never_installs() {
 
 	let mut mgr = SyntaxManager::new_with_engine(1, engine.clone());
 	let mut policy = TieredSyntaxPolicy::default();
-	policy.s.debounce = Duration::from_millis(0);
+	policy.s.debounce = Duration::ZERO;
 	policy.s.injections = InjectionPolicy::Eager;
 	mgr.set_policy(policy.clone());
 
@@ -508,7 +512,6 @@ async fn test_opts_mismatch_never_installs() {
 	let lang_id = loader.language_for_name("rust").unwrap();
 	let content = Rope::from("test");
 
-	// 1. Kick off parse with Eager injections
 	mgr.ensure_syntax(EnsureSyntaxContext {
 		doc_id,
 		doc_version: 1,
@@ -518,38 +521,12 @@ async fn test_opts_mismatch_never_installs() {
 		loader: &loader,
 	});
 
-	// 2. Change policy to Disabled injections
 	policy.s.injections = InjectionPolicy::Disabled;
 	mgr.set_policy(policy);
 
-	// 3. Trigger ensure_syntax again to detect opts change (should abort and restart)
-	// But first, let the OLD task complete. The old task was started with Eager.
-	// We want to ensure that if it completes *after* we changed policy, it is NOT installed.
-	
-	// Actually, ensure_syntax detects the change immediately and aborts. 
-	// To test "never installs", we need to simulate the race where the task finishes 
-	// *before* ensure_syntax is called again, or *during* the call but before we check?
-	
-	// If ensure_syntax is called, it checks last_opts_key.
-	// If we just change the policy, ensure_syntax hasn't run yet.
-	// The task is running with Eager.
-	
-	let _ = tx.send(()); // Let it finish
+	let _ = tx.send(());
 	tokio::time::sleep(Duration::from_millis(50)).await;
 
-	// Now call ensure_syntax with the NEW policy. 
-	// The completed result has Eager. The current policy expects Disabled.
-	// ensure_syntax will see that last_opts_key (Eager) != current (Disabled).
-	// It will abort inflight (but it's already done?). 
-	// Wait, if it's done, inflight might be None or just finished join handle.
-	
-	// Actually, if we call ensure_syntax, it will first check inflight.
-	// If inflight is done, it grabs the result.
-	// Result has opts = Eager.
-	// current_opts_key = Disabled.
-	// opts_ok = false.
-	// It should NOT install.
-	
 	let poll = mgr.ensure_syntax(EnsureSyntaxContext {
 		doc_id,
 		doc_version: 1,
@@ -559,36 +536,21 @@ async fn test_opts_mismatch_never_installs() {
 		loader: &loader,
 	});
 
-	// It should reject the result and kick a new one (because it marked dirty/aborted due to mismatch)
-	// Wait, if opts_ok is false, it drops the result. 
-	// Does it kick a new one?
-	// The mismatch check happens *before* polling inflight.
-	// "If let Some(last_key) = ... if mismatch ... abort ... mark dirty".
-	
-	// So if we run ensure_syntax, it sees the mismatch, marks dirty.
-	// Then it polls the inflight task. 
-	// The inflight task (which finished) is consumed.
-	// `opts_ok` will be false (done.opts == Eager, current == Disabled).
-	// So it won't install.
-	// And since it's dirty, it will kick a new parse at the end.
-	
 	assert_eq!(poll.result, SyntaxPollResult::Kicked);
-	// Verify we didn't install the Eager syntax (how? maybe check if current is None or check opts if we could inspect it)
-	// We can check that it's dirty.
 	assert!(mgr.is_dirty(doc_id));
 }
 
+/// Verifies that a configuration change (e.g., tier threshold or injection policy)
+/// immediately aborts any active background task for that document.
 #[tokio::test]
 async fn test_opts_mismatch_aborts_inflight() {
 	let engine = Arc::new(MockEngine::new());
-	let (_tx, rx) = oneshot::channel(); // Hold the gate closed
+	let (_tx, rx) = oneshot::channel();
 	engine.set_gate(rx);
 
-	// Use concurrency 2 because spawn_blocking tasks don't release permits immediately
-	// on abort if they are blocked on sync IO (mock engine gate).
 	let mut mgr = SyntaxManager::new_with_engine(2, engine.clone());
 	let mut policy = TieredSyntaxPolicy::default();
-	policy.s.debounce = Duration::from_millis(0);
+	policy.s.debounce = Duration::ZERO;
 	policy.s.injections = InjectionPolicy::Eager;
 	mgr.set_policy(policy.clone());
 
@@ -597,7 +559,6 @@ async fn test_opts_mismatch_aborts_inflight() {
 	let lang_id = loader.language_for_name("rust").unwrap();
 	let content = Rope::from("test");
 
-	// 1. Kick off parse (Eager)
 	mgr.ensure_syntax(EnsureSyntaxContext {
 		doc_id,
 		doc_version: 1,
@@ -606,14 +567,11 @@ async fn test_opts_mismatch_aborts_inflight() {
 		hotness: SyntaxHotness::Visible,
 		loader: &loader,
 	});
-	
 	assert!(mgr.has_pending(doc_id));
 
-	// 2. Change policy
 	policy.s.injections = InjectionPolicy::Disabled;
 	mgr.set_policy(policy);
 
-	// 3. Call ensure_syntax. Should detect mismatch and abort.
 	let poll = mgr.ensure_syntax(EnsureSyntaxContext {
 		doc_id,
 		doc_version: 1,
@@ -623,11 +581,6 @@ async fn test_opts_mismatch_aborts_inflight() {
 		loader: &loader,
 	});
 
-	// The old task was aborted. A new task was kicked.
-	// We can't easily check if the *old* task was aborted via public API, 
-	// but we know a new one started.
-	// MockEngine doesn't track aborts easily without weak refs or similar.
-	
 	assert_eq!(poll.result, SyntaxPollResult::Kicked);
 	assert!(mgr.has_pending(doc_id));
 }

@@ -28,7 +28,7 @@
 //!    - Failure symptom: UI freezes or jitters during edits.
 //!
 //! 2. MUST enforce single-flight per document.
-//!    - Enforced in: `DocState::inflight` check in [`SyntaxManager::ensure_syntax`].
+//!    - Enforced in: `DocEntry::sched.inflight` check in [`SyntaxManager::ensure_syntax`].
 //!    - Tested by: `syntax_manager::tests::test_single_flight_per_doc`
 //!    - Failure symptom: Multiple redundant parse tasks for the same document identity.
 //!
@@ -37,7 +37,6 @@
 //!    - Tested by: `syntax_manager::tests::test_stale_parse_does_not_overwrite_clean_incremental`, `syntax_manager::tests::test_stale_install_continuity`
 //!    - Failure symptom (missing install): Document stays unhighlighted until an exact match completes.
 //!    - Failure symptom (overwrite race): Stale tree overwrites correct incremental tree while `dirty=false`, creating a stuck state with wrong highlights.
-//!    - Notes: Stale installs are allowed when the caller is already dirty (catch-up mode) or has no syntax at all (bootstrap). A clean tree from a successful incremental update MUST NOT be replaced by an older full-parse result.
 //!
 //! 4. MUST call [`SyntaxManager::note_edit_incremental`] (or [`SyntaxManager::note_edit`]) on every document mutation (edits, undo, redo, LSP workspace edits).
 //!    - Enforced in: `EditorUndoHost::apply_transaction_inner`, `EditorUndoHost::apply_history_op`, `Editor::apply_buffer_edit_plan`
@@ -138,25 +137,30 @@ use crate::buffer::DocumentId;
 
 const DEFAULT_MAX_CONCURRENCY: usize = 2;
 
-/// Parsing visibility / urgency.
+/// Visibility and urgency of a document for the syntax scheduler.
 ///
-/// The scheduler uses this to decide whether to keep trees around and whether
-/// to run parses at all when the doc isn't currently rendered.
+/// Hotness determines the priority of background parsing tasks and the aggressiveness
+/// of syntax tree retention.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SyntaxHotness {
-	/// Actively displayed (we need highlights now).
+	/// Actively displayed in a window. Parsing is high priority and results are always
+	/// installed.
 	Visible,
-	/// Not visible but likely to become visible soon (e.g. split/tab MRU).
+	/// Not currently visible but likely to become so soon (e.g., recently closed split).
+	/// Parsing is allowed but lower priority.
 	Warm,
-	/// Not visible; safe to drop heavy state.
+	/// Not visible and not in recent use. Safe to drop heavy syntax state to save memory.
 	Cold,
 }
 
-/// File-size tier.
+/// Size-based tier for a file.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SyntaxTier {
+	/// Small file.
 	S,
+	/// Medium file.
 	M,
+	/// Large file.
 	L,
 }
 
@@ -360,7 +364,10 @@ impl SyntaxEngine for RealSyntaxEngine {
 	}
 }
 
-/// Background syntax scheduling + parsing.
+/// Primary state for background syntax scheduling and results storage.
+///
+/// The manager acts as a top-level scheduler, enforcing global concurrency limits
+/// and per-document single-flight parsing.
 pub struct SyntaxManager {
 	policy: TieredSyntaxPolicy,
 	permits: Arc<Semaphore>,
@@ -419,7 +426,6 @@ impl DocEntry {
 	}
 }
 
-
 pub struct SyntaxPollOutcome {
 	pub result: SyntaxPollResult,
 	pub updated: bool,
@@ -452,7 +458,9 @@ impl SyntaxManager {
 	}
 
 	fn entry_mut(&mut self, doc_id: DocumentId) -> &mut DocEntry {
-		self.entries.entry(doc_id).or_insert_with(|| DocEntry::new(Instant::now()))
+		self.entries
+			.entry(doc_id)
+			.or_insert_with(|| DocEntry::new(Instant::now()))
 	}
 
 	pub fn has_syntax(&self, doc_id: DocumentId) -> bool {
@@ -499,8 +507,6 @@ impl SyntaxManager {
 	}
 
 	/// Records an edit for debounce scheduling without changeset data.
-	///
-	/// Inflight tasks are intentionally left running (single-flight discipline).
 	pub fn note_edit(&mut self, doc_id: DocumentId) {
 		let now = Instant::now();
 		let entry = self
@@ -515,18 +521,9 @@ impl SyntaxManager {
 	/// Records an edit and applies an incremental tree-sitter update.
 	///
 	/// Combines three steps into one call:
-	///
-	/// 1. Updates debounce timestamp and marks the document dirty (same as
-	///    [`note_edit`](Self::note_edit)).
-	/// 2. Accumulates the changeset into [`PendingIncrementalEdits`] so the
-	///    background path can use [`Syntax::update_from_changeset`] as a
-	///    fallback.
-	/// 3. Attempts a synchronous incremental reparse (10 ms timeout). On
-	///    success the tree is immediately up-to-date and the dirty flag is
-	///    cleared, eliminating the need for a background reparse.
-	///
-	/// If no existing syntax tree is present (bootstrap), the changeset is
-	/// discarded and the method behaves identically to [`note_edit`](Self::note_edit).
+	/// 1. Updates debounce timestamp and marks the document dirty.
+	/// 2. Accumulates the changeset into [`PendingIncrementalEdits`].
+	/// 3. Attempts a synchronous incremental reparse (10 ms timeout).
 	pub fn note_edit_incremental(
 		&mut self,
 		doc_id: DocumentId,
@@ -628,25 +625,40 @@ impl SyntaxManager {
 		self.dirty_docs.iter().copied()
 	}
 
-	/// Returns true if any inflight task has finished.
+	/// Returns true if any background task has completed its work.
 	///
-	/// Uses `JoinHandle::is_finished()` for a non-consuming, zero-cost check.
-	/// The caller should trigger a redraw so that `ensure_syntax` can poll and
-	/// install the result.
+	/// Uses [`JoinHandle::is_finished`] for a non-consuming check. Callers should
+	/// usually trigger a redraw when this returns true to ensure [`Self::ensure_syntax`]
+	/// installs the result.
 	pub fn any_task_finished(&self) -> bool {
-		self.entries
-			.values()
-			.any(|d| d.sched.inflight.as_ref().is_some_and(|t| t.task.is_finished()))
+		self.entries.values().any(|d| {
+			d.sched
+				.inflight
+				.as_ref()
+				.is_some_and(|t| t.task.is_finished())
+		})
 	}
 
-	/// Polls or kicks background syntax parsing.
+	/// Polls or kicks background syntax parsing for a document.
 	///
-	/// This is the main entry point for the syntax scheduler. It:
-	/// 1. Polling/draining inflight tasks (immortal task prevention).
-	/// 2. Validating results against LanguageId and OptKey.
-	/// 3. Respecting retention policy at completion time.
-	/// 4. Handling debounce and backoff (cooldown) timers.
-	/// 5. Spawning new background parse tasks if permits are available.
+	/// This is the primary entry point for the syntax scheduler. It coordinates:
+	/// 1. Polling and draining inflight tasks.
+	/// 2. Validating results against [`LanguageId`] and [`OptKey`].
+	/// 3. Enforcing retention policy at task completion time.
+	/// 4. Managing debounce and backoff (cooldown) timers.
+	/// 5. Spawning new background tasks if global concurrency permits are available.
+	///
+	/// # Installation Predicate
+	///
+	/// Completed parses are installed only if the language and options key still match.
+	/// A stale parse (version mismatch) is permitted if the slot is currently dirty
+	/// or empty to maintain some level of highlighting while catching up.
+	///
+	/// # Options Change Detection
+	///
+	/// If the parse options (e.g., injection policy) have changed since the last
+	/// call, any inflight task is aborted and the document is marked dirty to
+	/// trigger a reparse under the new policy.
 	pub fn ensure_syntax(&mut self, ctx: EnsureSyntaxContext<'_>) -> SyntaxPollOutcome {
 		let now = Instant::now();
 
@@ -682,24 +694,23 @@ impl SyntaxManager {
 			injections: cfg.injections,
 		};
 
-		// Detect option changes (tier or policy change) and abort inflight if needed
-		if let Some(last_key) = entry.slot.last_opts_key {
-			if last_key != current_opts_key {
-				if let Some(pending) = entry.sched.inflight.take() {
-					pending.task.abort();
-				}
-				entry.slot.dirty = true;
-				entry.slot.pending_incremental = None;
-				self.dirty_docs.insert(ctx.doc_id);
+		if entry
+			.slot
+			.last_opts_key
+			.is_some_and(|k| k != current_opts_key)
+		{
+			if let Some(pending) = entry.sched.inflight.take() {
+				pending.task.abort();
 			}
+			entry.slot.dirty = true;
+			entry.slot.pending_incremental = None;
+			self.dirty_docs.insert(ctx.doc_id);
 		}
 		entry.slot.last_opts_key = Some(current_opts_key);
 
-		// 1) Poll/drain inflight FIRST (fixes “immortal inflight”)
 		if let Some(p) = entry.sched.inflight.as_mut() {
 			let join = xeno_primitives::future::poll_once(&mut p.task);
 			if join.is_none() {
-				// still running; do NOT short-circuit to Ready/Disabled
 				return SyntaxPollOutcome {
 					result: SyntaxPollResult::Pending,
 					updated: entry.slot.updated,
@@ -709,9 +720,7 @@ impl SyntaxManager {
 			let done = entry.sched.inflight.take().expect("inflight present");
 			match join.expect("checked ready") {
 				Ok(Ok(syntax_tree)) => {
-					// language gating: only install if language still matches
 					let Some(current_lang) = ctx.language_id else {
-						// language removed mid-flight: discard result
 						return SyntaxPollOutcome {
 							result: SyntaxPollResult::NoLanguage,
 							updated: entry.slot.updated,
@@ -742,7 +751,6 @@ impl SyntaxManager {
 						installed = true;
 					}
 
-					// if we had a valid parse but retention blocked it, ensure we are dirty + updated
 					if lang_ok && opts_ok && version_match && !retain_ok {
 						entry.slot.current = None;
 						entry.slot.pending_incremental = None;
@@ -751,14 +759,11 @@ impl SyntaxManager {
 						mark_updated(&mut entry.slot);
 					}
 
-					// dirty clears only if this parse matches current version + "shape"
-					// AND it was actually installed (respecting retention)
 					if installed && version_match && opts_ok {
 						entry.slot.dirty = false;
 						self.dirty_docs.remove(&ctx.doc_id);
 						entry.sched.cooldown_until = None;
 					}
-					// fall through to let retention + hidden check run
 				}
 				Ok(Err(SyntaxError::Timeout)) => {
 					entry.sched.cooldown_until = Some(now + cfg.cooldown_on_timeout);
@@ -786,7 +791,6 @@ impl SyntaxManager {
 			}
 		}
 
-		// 2) Handle “no language” AFTER draining inflight to avoid leaks
 		let Some(lang_id) = ctx.language_id else {
 			if entry.slot.current.is_some() {
 				entry.slot.current = None;
@@ -802,7 +806,6 @@ impl SyntaxManager {
 			};
 		};
 
-		// 3) Retention AFTER inflight completion (don’t re-install dropped trees)
 		apply_retention(
 			now,
 			&entry.sched,
@@ -813,7 +816,6 @@ impl SyntaxManager {
 			&mut self.dirty_docs,
 		);
 
-		// 4) Clean short-circuit (safe now: no inflight exists)
 		if entry.slot.current.is_some() && !entry.slot.dirty {
 			return SyntaxPollOutcome {
 				result: SyntaxPollResult::Ready,
@@ -821,7 +823,6 @@ impl SyntaxManager {
 			};
 		}
 
-		// 5) Hidden policy check (safe now: inflight already drained)
 		if !matches!(ctx.hotness, SyntaxHotness::Visible) && !cfg.parse_when_hidden {
 			return SyntaxPollOutcome {
 				result: SyntaxPollResult::Disabled,
@@ -829,7 +830,6 @@ impl SyntaxManager {
 			};
 		}
 
-		// 6) Debounce (skip for bootstrap: no existing tree → parse immediately)
 		if entry.slot.current.is_some()
 			&& now.duration_since(entry.sched.last_edit_at) < cfg.debounce
 		{
@@ -839,7 +839,6 @@ impl SyntaxManager {
 			};
 		}
 
-		// 7) Cooldown
 		if let Some(until) = entry.sched.cooldown_until
 			&& now < until
 		{
@@ -849,7 +848,6 @@ impl SyntaxManager {
 			};
 		}
 
-		// 8) Global concurrency cap
 		let permit = match self.permits.clone().try_acquire_owned() {
 			Ok(p) => p,
 			Err(_) => {
@@ -909,11 +907,16 @@ impl SyntaxManager {
 	}
 }
 
-/// Whether a completed background parse should be installed into the syntax slot.
+/// Checks if a completed background parse should be installed into a slot.
 ///
-/// Guards against overwriting a newer incremental tree with a stale full-parse
-/// result. A stale parse (version mismatch) is only installed when the caller is
-/// already dirty (catch-up mode) or has no syntax at all (bootstrap).
+/// This predicate ensures that a clean incremental tree (produced synchronously
+/// during an edit) is not overwritten by a stale full-parse result from a
+/// previous document version.
+///
+/// Installation is permitted if:
+/// - The document version matches exactly.
+/// - The slot is currently marked dirty (needs catch-up).
+/// - No syntax tree is currently resident (bootstrap).
 fn should_install_completed_parse(
 	version_match: bool,
 	slot_dirty: bool,
@@ -922,6 +925,7 @@ fn should_install_completed_parse(
 	version_match || slot_dirty || !has_current
 }
 
+/// Evaluates if the retention policy allows installing a new syntax tree.
 fn retention_allows_install(
 	now: Instant,
 	st: &DocSched,
@@ -938,11 +942,17 @@ fn retention_allows_install(
 	}
 }
 
+/// Bumps the syntax version after a state change.
 fn mark_updated(state: &mut SyntaxSlot) {
 	state.updated = true;
 	state.version = state.version.wrapping_add(1);
 }
 
+/// Applies memory retention rules to a syntax slot.
+///
+/// If a tree is dropped, the dirty flag is cleared to prevent the document from
+/// being re-polled while hidden. A bootstrap parse will be triggered once the
+/// document becomes visible again.
 fn apply_retention(
 	now: Instant,
 	st: &DocSched,

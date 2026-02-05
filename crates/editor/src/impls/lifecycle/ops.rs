@@ -15,14 +15,26 @@ use crate::metrics::StatsSnapshot;
 use crate::types::{Invocation, InvocationPolicy, InvocationResult};
 
 impl Editor {
-	/// Polls background syntax parsing for all buffers, installing results when ready.
+	/// Orchestrates background syntax parsing for all buffers and installs results.
 	///
-	/// This implementation deduplicates parsing by document, ensuring we only
-	/// call the syntax manager once per document regardless of how many views
-	/// it has. It also correctly handles the "put-back" workflow to avoid
-	/// unnecessary syntax version bumps.
+	/// This implementation deduplicates parsing by document, ensuring that documents
+	/// shared across multiple views are only processed once.
+	///
+	/// # Hotness and Retention
+	///
+	/// The workflow calculates the maximum hotness for each document based on its
+	/// visibility in any split or floating window. Non-visible documents are
+	/// marked as `Cold` to allow the syntax manager to evict their trees when
+	/// memory pressures or TTL thresholds are met.
+	///
+	/// # Polling Set
+	///
+	/// The set of documents to poll includes:
+	/// 1. All currently visible documents.
+	/// 2. Documents with active background tasks (to harvest results).
+	/// 3. Documents marked dirty by recent edits.
 	pub fn ensure_syntax_for_buffers(&mut self) {
-		use std::collections::HashSet;
+		use std::collections::{HashMap, HashSet};
 
 		use crate::syntax_manager::{EnsureSyntaxContext, SyntaxHotness};
 
@@ -32,9 +44,7 @@ impl Editor {
 			visible_ids.push(floating.buffer);
 		}
 
-		// 1. Collect unique documents and determine their maximum "hotness" across all views.
-		let mut visible_docs = HashSet::new();
-		let mut doc_hotness = std::collections::HashMap::new();
+		let mut doc_hotness = HashMap::new();
 
 		for buffer_id in self.state.core.buffers.buffer_ids() {
 			let Some(buffer) = self.state.core.buffers.get_buffer(buffer_id) else {
@@ -43,7 +53,6 @@ impl Editor {
 
 			let doc_id = buffer.document_id();
 			let hotness = if visible_ids.contains(&buffer_id) {
-				visible_docs.insert(doc_id);
 				SyntaxHotness::Visible
 			} else {
 				SyntaxHotness::Cold
@@ -59,14 +68,15 @@ impl Editor {
 				.or_insert(hotness);
 		}
 
-		// 2. Identify documents that need polling: (visible ∪ pending ∪ dirty)
-		let mut workset: HashSet<crate::buffer::DocumentId> = HashSet::from_iter(visible_docs);
-		workset.extend(self.state.syntax_manager.pending_docs());
+		let mut workset: HashSet<_> = self.state.syntax_manager.pending_docs().collect();
 		workset.extend(self.state.syntax_manager.dirty_docs());
+		for (&doc_id, &hotness) in &doc_hotness {
+			if hotness == SyntaxHotness::Visible {
+				workset.insert(doc_id);
+			}
+		}
 
-		// 3. Process each document in the workset.
 		for doc_id in workset {
-			// Find a buffer for this document to get content/version
 			let Some(buffer_id) = self.state.core.buffers.any_buffer_for_doc(doc_id) else {
 				continue;
 			};
