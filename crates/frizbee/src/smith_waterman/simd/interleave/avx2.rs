@@ -3,6 +3,9 @@ use core::simd::num::SimdUint;
 use std::arch::x86_64::*;
 
 #[target_feature(enable = "avx2")]
+/// # Safety
+///
+/// This function requires the `avx2` target feature to be enabled on the CPU.
 pub fn interleave<const W: usize>(strs: [&str; 16]) -> [Simd<u16, 16>; W] {
 	let str_bytes: [&[u8]; 16] = std::array::from_fn(|i| strs[i].as_bytes());
 	let str_lens: [usize; 16] = std::array::from_fn(|i| str_bytes[i].len());

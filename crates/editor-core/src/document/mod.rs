@@ -394,8 +394,8 @@ impl Document {
 	/// - Version increments monotonically (not reset to 0).
 	/// - Modified flag is set to `true` (content differs from disk).
 	/// - Undo history is cleared (undo across ownership boundaries is unsound).
-	/// Use this for shared state follower join and full resync, where the remote
-	/// content replaces local content but the document still represents a file.
+	///   Use this for shared state follower join and full resync, where the remote
+	///   content replaces local content but the document still represents a file.
 	pub fn install_sync_snapshot(&mut self, content: impl Into<Rope>) {
 		self.content = content.into();
 		self.insert_undo_active = false;

@@ -829,7 +829,6 @@ impl SyntaxManager {
 		let opts = SyntaxOptions {
 			parse_timeout: cfg.parse_timeout,
 			injections: cfg.injections,
-			..SyntaxOptions::default()
 		};
 
 		let incremental = state.pending_incremental.take().and_then(|pending| {
