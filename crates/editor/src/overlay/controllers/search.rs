@@ -51,7 +51,7 @@ impl SearchOverlay {
 			.capture
 			.per_view
 			.get(&self.target)
-			.map(|(_, c, _)| *c)
+			.map(|c| c.cursor)
 			.unwrap_or(buffer.cursor);
 
 		buffer.with_doc(|doc| {
@@ -211,7 +211,7 @@ impl OverlayController for SearchOverlay {
 			.capture
 			.per_view
 			.get(&self.target)
-			.map(|(_, c, _)| *c)
+			.map(|c| c.cursor)
 			.unwrap_or(0);
 
 		let result = ctx.buffer(self.target).map(|b| {

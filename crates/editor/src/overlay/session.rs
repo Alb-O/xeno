@@ -118,7 +118,14 @@ pub struct OverlaySession {
 #[derive(Default)]
 pub struct PreviewCapture {
 	/// Mapping of view ID to (version, cursor position, selection).
-	pub per_view: HashMap<ViewId, (u64, CharIdx, Selection)>,
+	pub per_view: HashMap<ViewId, CapturedViewState>,
+}
+
+#[derive(Debug, Clone)]
+pub struct CapturedViewState {
+	pub version: u64,
+	pub cursor: CharIdx,
+	pub selection: Selection,
 }
 
 /// Metadata about the current session status.
@@ -155,7 +162,11 @@ impl OverlaySession {
 		if let Some(buffer) = ctx.buffer(view) {
 			self.capture.per_view.insert(
 				view,
-				(buffer.version(), buffer.cursor, buffer.selection.clone()),
+				CapturedViewState {
+					version: buffer.version(),
+					cursor: buffer.cursor,
+					selection: buffer.selection.clone(),
+				},
 			);
 		}
 	}
@@ -179,11 +190,11 @@ impl OverlaySession {
 	/// This is non-destructive; the capture map remains intact until
 	/// [`Self::clear_capture`] is called.
 	pub fn restore_all(&self, ctx: &mut dyn OverlayContext) {
-		for (view, (version, cursor, selection)) in &self.capture.per_view {
+		for (view, captured) in &self.capture.per_view {
 			if let Some(buffer) = ctx.buffer_mut(*view)
-				&& buffer.version() == *version
+				&& buffer.version() == captured.version
 			{
-				buffer.set_cursor_and_selection(*cursor, selection.clone());
+				buffer.set_cursor_and_selection(captured.cursor, captured.selection.clone());
 			}
 		}
 	}
