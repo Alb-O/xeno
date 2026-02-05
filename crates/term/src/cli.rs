@@ -103,7 +103,8 @@ pub struct Cli {
 	#[arg(long, short = 't')]
 	pub theme: Option<String>,
 
-	/// Launch xeno in a new terminal and show logs in this terminal
+	/// Launch xeno in a new terminal and show logs in this terminal (Unix only)
+	#[cfg(unix)]
 	#[arg(long)]
 	pub log_launch: bool,
 

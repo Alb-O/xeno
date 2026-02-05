@@ -4,6 +4,7 @@
 mod app;
 mod backend;
 mod cli;
+#[cfg(unix)]
 mod log_launcher;
 mod terminal;
 
@@ -18,12 +19,14 @@ use xeno_registry::options::keys;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+	#[cfg(unix)]
 	if let Ok(socket_path) = std::env::var(log_launcher::LOG_SINK_ENV) {
 		return run_with_socket_logging(&socket_path).await;
 	}
 
 	let cli = Cli::parse();
 
+	#[cfg(unix)]
 	if cli.log_launch {
 		return run_log_launcher_mode(&cli);
 	}
@@ -240,6 +243,7 @@ fn report_build_results(
 }
 
 /// Spawns xeno in a new terminal window and runs the log viewer in this terminal.
+#[cfg(unix)]
 fn run_log_launcher_mode(cli: &Cli) -> anyhow::Result<()> {
 	let socket_path = std::env::temp_dir().join(format!("xeno-log-{}.sock", uuid::Uuid::new_v4()));
 	let xeno_path = std::env::current_exe()?;
@@ -264,12 +268,14 @@ fn run_log_launcher_mode(cli: &Cli) -> anyhow::Result<()> {
 }
 
 /// Runs xeno with socket-based logging (child process spawned by `--log-launch`).
+#[cfg(unix)]
 async fn run_with_socket_logging(socket_path: &str) -> anyhow::Result<()> {
 	setup_socket_tracing(socket_path);
 	run_editor_normal().await
 }
 
 /// Configures tracing to send events over a Unix socket to the log viewer.
+#[cfg(unix)]
 fn setup_socket_tracing(socket_path: &str) {
 	use tracing_subscriber::EnvFilter;
 	use tracing_subscriber::prelude::*;

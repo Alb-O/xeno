@@ -23,19 +23,33 @@ fn find_compiler<'a>(candidates: &[&'a str]) -> Option<&'a str> {
 
 /// Resolves C and C++ compilers, preferring environment variables then probing common names.
 ///
+/// On Unix, probes `cc`, `clang`, `gcc`. On Windows, probes `cl`, `clang-cl`, `clang`, `gcc`.
 /// Returns `None` for a compiler if neither the environment variable nor any candidate is found.
 fn resolve_compilers() -> (Option<&'static str>, Option<&'static str>) {
 	static COMPILERS: std::sync::OnceLock<(Option<&'static str>, Option<&'static str>)> =
 		std::sync::OnceLock::new();
 	*COMPILERS.get_or_init(|| {
+		#[cfg(unix)]
+		const CC_CANDIDATES: &[&str] = &["cc", "clang", "gcc"];
+		#[cfg(unix)]
+		const CXX_CANDIDATES: &[&str] = &["c++", "clang++", "g++"];
+		#[cfg(windows)]
+		const CC_CANDIDATES: &[&str] = &["cl", "clang-cl", "clang", "gcc"];
+		#[cfg(windows)]
+		const CXX_CANDIDATES: &[&str] = &["cl", "clang-cl", "clang++", "g++"];
+		#[cfg(not(any(unix, windows)))]
+		const CC_CANDIDATES: &[&str] = &["cc", "clang", "gcc"];
+		#[cfg(not(any(unix, windows)))]
+		const CXX_CANDIDATES: &[&str] = &["c++", "clang++", "g++"];
+
 		let cc = std::env::var("CC")
 			.ok()
 			.map(|s| s.leak() as &str)
-			.or_else(|| find_compiler(&["cc", "clang", "gcc"]));
+			.or_else(|| find_compiler(CC_CANDIDATES));
 		let cxx = std::env::var("CXX")
 			.ok()
 			.map(|s| s.leak() as &str)
-			.or_else(|| find_compiler(&["c++", "clang++", "g++"]));
+			.or_else(|| find_compiler(CXX_CANDIDATES));
 		(cc, cxx)
 	})
 }
@@ -142,8 +156,16 @@ fn compile_objects(
 	compiler: &str,
 	needs_cxx: bool,
 ) -> Result<()> {
-	let target = std::env::var("TARGET")
-		.unwrap_or_else(|_| format!("{}-unknown-linux-gnu", std::env::consts::ARCH));
+	let target = std::env::var("TARGET").unwrap_or_else(|_| {
+		let arch = std::env::consts::ARCH;
+		if cfg!(target_os = "windows") {
+			format!("{arch}-pc-windows-msvc")
+		} else if cfg!(target_os = "macos") {
+			format!("{arch}-apple-darwin")
+		} else {
+			format!("{arch}-unknown-linux-gnu")
+		}
+	});
 
 	let scanner_cc = src_dir.join("scanner.cc");
 	let scanner_c = src_dir.join("scanner.c");
