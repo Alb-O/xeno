@@ -41,7 +41,7 @@ pub enum InsertFatal {
 	/// Two definitions have the same `meta.id`.
 	#[error("duplicate ID: key={key:?} existing={existing_id} new={new_id}")]
 	DuplicateId {
-		key: &'static str,
+		key: String,
 		existing_id: &'static str,
 		new_id: &'static str,
 	},
@@ -49,7 +49,7 @@ pub enum InsertFatal {
 	#[error("{kind} shadows ID: key={key:?} id_owner={id_owner} from={new_id}")]
 	KeyShadowsId {
 		kind: KeyKind,
-		key: &'static str,
+		key: String,
 		id_owner: &'static str,
 		new_id: &'static str,
 	},

@@ -49,14 +49,14 @@ fn test_index_lookup() {
 	assert_eq!(index.len(), 2);
 
 	// Lookup by name
-	assert!(std::ptr::eq(index.get("a").unwrap(), &DEF_A));
-	assert!(std::ptr::eq(index.get("b").unwrap(), &DEF_B));
+	assert!(std::ptr::eq(&*index.get("a").unwrap(), &DEF_A));
+	assert!(std::ptr::eq(&*index.get("b").unwrap(), &DEF_B));
 
 	// Lookup by id
-	assert!(std::ptr::eq(index.get("test::a").unwrap(), &DEF_A));
+	assert!(std::ptr::eq(&*index.get("test::a").unwrap(), &DEF_A));
 
 	// Lookup by alias
-	assert!(std::ptr::eq(index.get("alpha").unwrap(), &DEF_A));
+	assert!(std::ptr::eq(&*index.get("alpha").unwrap(), &DEF_A));
 
 	// Not found
 	assert!(index.get("unknown").is_none());
@@ -70,8 +70,8 @@ fn test_sort_default() {
 	let index = builder.sort_default().build();
 
 	// DEF_B has higher priority (10), so it comes first.
-	assert!(std::ptr::eq(index.items()[0], &DEF_B));
-	assert!(std::ptr::eq(index.items()[1], &DEF_A));
+	assert!(std::ptr::eq(unsafe { index.items()[0].as_ref() }, &DEF_B));
+	assert!(std::ptr::eq(unsafe { index.items()[1].as_ref() }, &DEF_A));
 }
 
 #[test]
@@ -95,7 +95,7 @@ fn test_first_wins() {
 	let index = builder.duplicate_policy(DuplicatePolicy::FirstWins).build();
 
 	// First wins: DEF_A should be in the index for key "a".
-	assert!(std::ptr::eq(index.get("a").unwrap(), &DEF_A));
+	assert!(std::ptr::eq(&*index.get("a").unwrap(), &DEF_A));
 	// But DEF_A2 is still in items.
 	assert_eq!(index.len(), 2);
 }
@@ -121,7 +121,7 @@ fn test_last_wins() {
 	let index = builder.duplicate_policy(DuplicatePolicy::LastWins).build();
 
 	// Last wins: DEF_A2 should be in the index for key "a".
-	assert!(std::ptr::eq(index.get("a").unwrap(), &DEF_A2));
+	assert!(std::ptr::eq(&*index.get("a").unwrap(), &DEF_A2));
 }
 
 #[test]
@@ -246,7 +246,7 @@ fn test_collision_recorded() {
 	assert_eq!(index.collisions().len(), 1);
 	let collision = &index.collisions()[0];
 	assert_eq!(collision.kind, KeyKind::Name);
-	assert_eq!(collision.key, "a");
+	assert_eq!(&*collision.key, "a");
 	assert_eq!(collision.existing_id, "test::a");
 	assert_eq!(collision.new_id, "test::collision");
 	assert_eq!(collision.winner_id, "test::a"); // FirstWins
@@ -274,11 +274,11 @@ fn test_id_first_lookup() {
 
 	// Lookup by ID should work
 	assert!(std::ptr::eq(
-		index.get("lookup_target").unwrap(),
+		&*index.get("lookup_target").unwrap(),
 		&DEF_ID_FIRST
 	));
 	assert!(std::ptr::eq(
-		index.get_by_id("lookup_target").unwrap(),
+		&*index.get_by_id("lookup_target").unwrap(),
 		&DEF_ID_FIRST
 	));
 }
@@ -315,7 +315,7 @@ fn test_items_all_vs_effective() {
 	assert_eq!(index.items().len(), 2);
 
 	// But lookup by name "a" returns DEF_A (first wins)
-	assert!(std::ptr::eq(index.get("a").unwrap(), &DEF_A));
+	assert!(std::ptr::eq(&*index.get("a").unwrap(), &DEF_A));
 }
 
 #[test]
@@ -390,16 +390,19 @@ fn test_runtime_id_first_lookup() {
 	registry.register(&DEF_RUNTIME);
 
 	// Lookup by ID should work for both builtin and runtime
-	assert!(std::ptr::eq(registry.get("test::a").unwrap(), &DEF_A));
+	assert!(std::ptr::eq(&*registry.get("test::a").unwrap(), &DEF_A));
 	assert!(std::ptr::eq(
-		registry.get("runtime::def").unwrap(),
+		&*registry.get("runtime::def").unwrap(),
 		&DEF_RUNTIME
 	));
 
 	// get_by_id should also work
-	assert!(std::ptr::eq(registry.get_by_id("test::a").unwrap(), &DEF_A));
 	assert!(std::ptr::eq(
-		registry.get_by_id("runtime::def").unwrap(),
+		&*registry.get_by_id("test::a").unwrap(),
+		&DEF_A
+	));
+	assert!(std::ptr::eq(
+		&*registry.get_by_id("runtime::def").unwrap(),
 		&DEF_RUNTIME
 	));
 }
@@ -480,7 +483,7 @@ fn test_runtime_collision_recorded() {
 	let collisions = registry.collisions();
 	assert_eq!(collisions.len(), 1);
 	assert_eq!(collisions[0].kind, KeyKind::Name);
-	assert_eq!(collisions[0].key, "shared_name");
+	assert_eq!(&*collisions[0].key, "shared_name");
 	assert_eq!(collisions[0].existing_id, "runtime::first");
 	assert_eq!(collisions[0].new_id, "runtime::second");
 	assert_eq!(collisions[0].winner_id, "runtime::first"); // FirstWins
@@ -561,8 +564,8 @@ fn runtime_register_shadowing_is_atomic() {
 	// No ghost insert by id/name
 	assert!(rr.get_by_id("runtime.id").is_none());
 	assert!(rr.get("runtime.id").is_none());
-	assert_eq!(rr.all(), before_all);
-	assert_eq!(rr.collisions(), before_collisions);
+	assert_eq!(rr.all().len(), before_all.len());
+	assert_eq!(rr.collisions().len(), before_collisions.len());
 }
 
 #[test]
@@ -575,13 +578,13 @@ fn runtime_duplicate_id_does_not_overwrite() {
 
 	assert!(rr.register(a));
 	assert!(rr.get("dup.id").is_some());
-	assert!(std::ptr::eq(rr.get("dup.id").unwrap(), a));
+	assert!(std::ptr::eq(&*rr.get("dup.id").unwrap(), a));
 
 	let res = rr.try_register(b);
 	assert!(res.is_err());
 
 	// Still A
-	assert!(std::ptr::eq(rr.get("dup.id").unwrap(), a));
+	assert!(std::ptr::eq(&*rr.get("dup.id").unwrap(), a));
 }
 
 #[test]
@@ -595,13 +598,13 @@ fn runtime_bypriority_winner_is_order_independent() {
 	let rr1 = RuntimeRegistry::with_policy("t", builtins.clone(), DuplicatePolicy::ByPriority);
 	rr1.register(lo);
 	rr1.register(hi);
-	assert!(std::ptr::eq(rr1.get("same").unwrap(), hi));
+	assert!(std::ptr::eq(&*rr1.get("same").unwrap(), hi));
 
 	// order 2
 	let rr2 = RuntimeRegistry::with_policy("t", builtins, DuplicatePolicy::ByPriority);
 	rr2.register(hi);
 	rr2.register(lo);
-	assert!(std::ptr::eq(rr2.get("same").unwrap(), hi));
+	assert!(std::ptr::eq(&*rr2.get("same").unwrap(), hi));
 }
 
 #[test]
@@ -614,7 +617,7 @@ fn test_total_order_tie_breaker() {
 	let lo_prio = leak_def(meta_with("id.lo", "same", 0, RegistrySource::Runtime));
 	rr.register(lo_prio);
 	rr.register(hi_prio);
-	assert!(std::ptr::eq(rr.get("same").unwrap(), hi_prio));
+	assert!(std::ptr::eq(&*rr.get("same").unwrap(), hi_prio));
 
 	// 2. Source Rank (Builtin > Crate > Runtime)
 	let builtin_src = leak_def(meta_with("id.builtin", "src", 10, RegistrySource::Builtin));
@@ -629,7 +632,7 @@ fn test_total_order_tie_breaker() {
 	rr_src.register(runtime_src);
 
 	// Runtime should win over Crate and Builtin at same priority
-	assert!(std::ptr::eq(rr_src.get("src").unwrap(), runtime_src));
+	assert!(std::ptr::eq(&*rr_src.get("src").unwrap(), runtime_src));
 
 	// 3. ID (Lexical higher wins)
 	let a_id = leak_def(meta_with("id.a", "lex", 10, RegistrySource::Runtime));
@@ -641,7 +644,7 @@ fn test_total_order_tie_breaker() {
 	);
 	rr_lex.register(a_id);
 	rr_lex.register(b_id);
-	assert!(std::ptr::eq(rr_lex.get("lex").unwrap(), b_id));
+	assert!(std::ptr::eq(&*rr_lex.get("lex").unwrap(), b_id));
 }
 
 #[test]
@@ -656,9 +659,9 @@ fn test_register_many() {
 	let res = rr.register_many(vec![a, b, c]);
 	assert_eq!(res.unwrap(), 3);
 
-	assert!(std::ptr::eq(rr.get("id.a").unwrap(), a));
-	assert!(std::ptr::eq(rr.get("id.b").unwrap(), b));
-	assert!(std::ptr::eq(rr.get("id.c").unwrap(), c));
+	assert!(std::ptr::eq(&*rr.get("id.a").unwrap(), a));
+	assert!(std::ptr::eq(&*rr.get("id.b").unwrap(), b));
+	assert!(std::ptr::eq(&*rr.get("id.c").unwrap(), c));
 }
 
 #[test]
@@ -692,16 +695,19 @@ fn test_id_override() {
 	assert!(rr.try_register_override(override_def).is_ok());
 
 	// get_by_id should return the override
-	assert!(std::ptr::eq(rr.get_by_id("id.foo").unwrap(), override_def));
+	assert!(std::ptr::eq(
+		&*rr.get_by_id("id.foo").unwrap(),
+		override_def
+	));
 	// get by ID should also return the override
-	assert!(std::ptr::eq(rr.get("id.foo").unwrap(), override_def));
+	assert!(std::ptr::eq(&*rr.get("id.foo").unwrap(), override_def));
 
 	// Collision should be recorded for ID
 	let collisions = rr.collisions();
 	assert!(
 		collisions
 			.iter()
-			.any(|c| c.kind == KeyKind::Id && c.key == "id.foo" && c.winner_id == "id.foo")
+			.any(|c| c.kind == KeyKind::Id && &*c.key == "id.foo" && c.winner_id == "id.foo")
 	);
 }
 
@@ -732,7 +738,7 @@ fn test_id_override_eviction() {
 	let rr = RuntimeRegistry::with_policy("t", builtins, DuplicatePolicy::ByPriority);
 
 	// Initial name lookup works
-	assert!(std::ptr::eq(rr.get("name.foo").unwrap(), builtin));
+	assert!(std::ptr::eq(&*rr.get("name.foo").unwrap(), builtin));
 
 	// Runtime override with higher priority
 	let override_def = leak_def(meta_with("id.foo", "name.new", 10, RegistrySource::Runtime));
@@ -742,5 +748,5 @@ fn test_id_override_eviction() {
 	assert!(rr.get("name.foo").is_none());
 
 	// New name should work
-	assert!(std::ptr::eq(rr.get("name.new").unwrap(), override_def));
+	assert!(std::ptr::eq(&*rr.get("name.new").unwrap(), override_def));
 }

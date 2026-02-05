@@ -67,7 +67,7 @@ impl Editor {
 	/// every frame. The cache is keyed by (DocumentId, diagnostics_epoch).
 	pub fn render_ctx(&mut self) -> RenderCtx {
 		RenderCtx {
-			theme: *self.state.config.theme,
+			theme: self.state.config.theme,
 			viewport: self.state.viewport,
 			layout: LayoutSnapshot::new(
 				&self.state.layout,

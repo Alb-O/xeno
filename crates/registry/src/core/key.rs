@@ -1,4 +1,5 @@
-use super::traits::RegistryMetadata;
+use super::index::RegistryRef;
+use super::traits::RegistryEntry;
 
 /// The value of an option.
 #[derive(Debug, Clone, PartialEq)]
@@ -185,37 +186,47 @@ impl FromOptionValue for String {
 }
 
 /// Typed handle to a registry definition.
-pub struct Key<T: 'static>(&'static T);
+pub enum Key<T: RegistryEntry + Send + Sync + 'static> {
+	Static(&'static T),
+	Ref(RegistryRef<T>),
+}
 
-impl<T: 'static> Copy for Key<T> {}
-
-impl<T: 'static> Clone for Key<T> {
+impl<T: RegistryEntry + Send + Sync + 'static> Clone for Key<T> {
 	fn clone(&self) -> Self {
-		*self
+		match self {
+			Self::Static(s) => Self::Static(s),
+			Self::Ref(r) => Self::Ref(r.clone()),
+		}
 	}
 }
 
-impl<T> Key<T> {
+impl<T: RegistryEntry + Send + Sync + 'static> Key<T> {
 	/// Creates a new typed handle from a static reference.
 	pub const fn new(def: &'static T) -> Self {
-		Self(def)
+		Self::Static(def)
+	}
+
+	/// Creates a new typed handle from a registry reference.
+	pub fn new_ref(r: RegistryRef<T>) -> Self {
+		Self::Ref(r)
 	}
 
 	/// Returns the underlying definition.
-	pub const fn def(self) -> &'static T {
-		self.0
+	pub fn def(&self) -> &T {
+		match self {
+			Self::Static(s) => s,
+			Self::Ref(r) => r,
+		}
 	}
-}
 
-impl<T: RegistryMetadata> Key<T> {
 	/// Returns the name of the referenced definition.
-	pub fn name(self) -> &'static str {
-		self.0.name()
+	pub fn name(&self) -> &str {
+		self.def().name()
 	}
 }
 
-impl<T: RegistryMetadata> core::fmt::Debug for Key<T> {
+impl<T: RegistryEntry + Send + Sync + 'static> core::fmt::Debug for Key<T> {
 	fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-		f.debug_tuple("Key").field(&self.0.name()).finish()
+		f.debug_tuple("Key").field(&self.name()).finish()
 	}
 }

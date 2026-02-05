@@ -28,7 +28,7 @@ pub struct RegistryDb {
 	pub gutters: RuntimeRegistry<GutterDef>,
 	pub statusline: RuntimeRegistry<StatuslineSegmentDef>,
 	pub hooks: crate::hooks::HooksRegistry,
-	pub(crate) action_id_to_def: Vec<&'static ActionDef>,
+	pub(crate) action_id_to_def: Vec<crate::core::index::DefPtr<ActionDef>>,
 	pub notifications: Vec<&'static crate::notifications::NotificationDef>,
 	pub key_prefixes: Vec<KeyPrefixDef>,
 	#[cfg(feature = "keymap")]
@@ -103,15 +103,19 @@ pub static NOTIFICATIONS: LazyLock<&'static [&'static crate::notifications::Noti
 
 /// Resolves an ActionId to its definition.
 pub fn resolve_action_id_typed(id: ActionId) -> Option<&'static ActionDef> {
-	get_db().action_id_to_def.get(id.0 as usize).copied()
+	get_db()
+		.action_id_to_def
+		.get(id.0 as usize)
+		.copied()
+		.map(|p| unsafe { p.as_ref() })
 }
 
-/// Creates an ActionId from a static ID string by looking it up in the registry.
-pub fn resolve_action_id_from_static(id: &'static str) -> ActionId {
+/// Creates an ActionId from an ID string by looking it up in the registry.
+pub fn resolve_action_id_from_static(id: &str) -> ActionId {
 	let db = get_db();
 	db.action_id_to_def
 		.iter()
-		.position(|&a: &&ActionDef| a.id() == id)
+		.position(|&a| unsafe { a.as_ref() }.id() == id)
 		.map(|pos| ActionId(pos as u32))
 		.unwrap_or(ActionId::INVALID)
 }

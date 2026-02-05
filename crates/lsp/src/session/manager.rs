@@ -179,6 +179,19 @@ impl LspManager {
 		tokio::spawn(async move {
 			let mut events_rx = events_rx;
 			while let Some(event) = events_rx.recv().await {
+				let server_id = match &event {
+					TransportEvent::Diagnostics { server, .. } => Some(*server),
+					TransportEvent::Message { server, .. } => Some(*server),
+					TransportEvent::Status { server, .. } => Some(*server),
+					TransportEvent::Disconnected => None,
+				};
+
+				if let Some(id) = server_id
+					&& !sync_clone.registry().is_current(id) {
+						tracing::debug!(server_id = %id, "Dropping event from stale server instance");
+						continue;
+					}
+
 				match event {
 					TransportEvent::Diagnostics {
 						server: _,
@@ -202,7 +215,7 @@ impl LspManager {
 
 						match message {
 							Message::Request(req) => {
-								tracing::debug!(server_id = server.0, method = %req.method, "Handling server request");
+								tracing::debug!(server_id = %server, method = %req.method, "Handling server request");
 								let result = super::server_requests::handle_server_request(
 									&sync_clone,
 									server,
@@ -210,7 +223,7 @@ impl LspManager {
 								)
 								.await;
 								if let Err(e) = transport.reply(server, result).await {
-									tracing::error!(server_id = server.0, error = ?e, "Failed to reply to server request");
+									tracing::error!(server_id = %server, error = ?e, "Failed to reply to server request");
 								}
 							}
 							Message::Notification(notif) => {
@@ -224,7 +237,7 @@ impl LspManager {
 								} else if notif.method == "window/logMessage"
 									|| notif.method == "window/showMessage"
 								{
-									tracing::debug!(server_id = server.0, method = %notif.method, "Server notification");
+									tracing::debug!(server_id = %server, method = %notif.method, "Server notification");
 								}
 							}
 							Message::Response(_) => {}
@@ -238,7 +251,7 @@ impl LspManager {
 								// Clean up registry state for crashed/stopped servers
 								if let Some(meta) = sync_clone.registry().remove_server(server) {
 									tracing::warn!(
-										server_id = server.0,
+										server_id = %server,
 										language = %meta.language,
 										status = ?status,
 										"LSP server stopped, removed from registry"
@@ -254,7 +267,7 @@ impl LspManager {
 							}
 							TransportStatus::Starting | TransportStatus::Running => {
 								// Status updates - currently just logged
-								tracing::debug!(server_id = server.0, status = ?status, "LSP server status update");
+								tracing::debug!(server_id = %server, status = ?status, "LSP server status update");
 							}
 						}
 					}

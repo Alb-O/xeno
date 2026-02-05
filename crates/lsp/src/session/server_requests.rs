@@ -34,7 +34,7 @@ pub async fn handle_server_request(
 	req: AnyRequest,
 ) -> Result<JsonValue, ResponseError> {
 	tracing::trace!(
-		server_id = server.0,
+		server_id = %server,
 		method = %req.method,
 		params = ?req.params,
 		"Handling server request"
@@ -59,7 +59,7 @@ pub async fn handle_server_request(
 	};
 
 	tracing::trace!(
-		server_id = server.0,
+		server_id = %server,
 		method = %req.method,
 		result = ?result,
 		"Server request result"

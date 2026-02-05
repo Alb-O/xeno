@@ -11,7 +11,7 @@ mod macros;
 pub mod registry;
 
 pub use builtins::register_builtins;
-pub use registry::TextObjectRegistry;
+pub use registry::{TextObjectRef, TextObjectRegistry};
 
 use crate::error::RegistryError;
 
@@ -115,18 +115,20 @@ pub use crate::db::TEXT_OBJECTS;
 
 /// Finds a text object by trigger character.
 #[cfg(feature = "db")]
-pub fn find_by_trigger(trigger: char) -> Option<&'static TextObjectDef> {
+pub fn find_by_trigger(trigger: char) -> Option<TextObjectRef> {
 	TEXT_OBJECTS.by_trigger(trigger)
 }
 
 /// Finds a text object by name or alias.
 #[cfg(feature = "db")]
-pub fn find(name: &str) -> Option<&'static TextObjectDef> {
+pub fn find(name: &str) -> Option<TextObjectRef> {
 	TEXT_OBJECTS.get(name)
 }
 
 /// Returns all registered text objects, sorted by name.
 #[cfg(feature = "db")]
-pub fn all() -> impl Iterator<Item = &'static TextObjectDef> {
-	TEXT_OBJECTS.iter().into_iter()
+pub fn all() -> Vec<TextObjectRef> {
+	let mut items = TEXT_OBJECTS.all();
+	items.sort_by_key(|o| o.name().to_string());
+	items
 }

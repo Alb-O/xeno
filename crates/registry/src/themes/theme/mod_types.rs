@@ -80,11 +80,12 @@ pub static DEFAULT_THEME: ThemeDef = ThemeDef {
 /// Default theme ID to use when no theme is specified.
 pub const DEFAULT_THEME_ID: &str = "gruvbox";
 
+use crate::RegistryEntry;
 #[cfg(feature = "db")]
 pub use crate::db::THEMES;
 
 /// Find a theme by name or alias.
-pub fn get_theme(name: &str) -> Option<&'static ThemeDef> {
+pub fn get_theme(name: &str) -> Option<crate::core::RegistryRef<ThemeDef>> {
 	let normalize = |s: &str| -> String {
 		s.chars()
 			.filter(|c| *c != '-' && *c != '_')
@@ -94,25 +95,18 @@ pub fn get_theme(name: &str) -> Option<&'static ThemeDef> {
 
 	let search = normalize(name);
 
-	if let Some(theme) = runtime_themes().iter().find(|t| {
-		normalize(t.meta.name) == search || t.meta.aliases.iter().any(|a| normalize(a) == search)
-	}) {
-		return Some(theme);
-	}
-
 	#[cfg(feature = "db")]
 	{
 		if let Some(theme) = THEMES.get(name) {
 			return Some(theme);
 		}
 
-		THEMES.iter().find(|t| {
-			normalize(t.meta.name) == search
-				|| t.meta.aliases.iter().any(|a| normalize(a) == search)
-		})
+		if let Some(theme) = THEMES.iter().into_iter().find(|t| {
+			normalize(t.name()) == search || t.aliases().iter().any(|a| normalize(a) == search)
+		}) {
+			return Some(theme);
+		}
 	}
-	#[cfg(not(feature = "db"))]
-	{
-		None
-	}
+
+	None
 }

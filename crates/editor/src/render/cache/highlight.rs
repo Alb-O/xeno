@@ -312,6 +312,17 @@ impl HighlightTiles {
 			style_resolver,
 		);
 
+		// Defense-in-depth: ensure the syntax tree is not out-of-bounds for the current rope.
+		// This protects against crashes if a stale tree is used during rapid edits.
+		if syntax.tree().root_node().end_byte() > rope.len_bytes() as u32 {
+			tracing::warn!(
+				"Syntax tree out-of-bounds for rope (tree_end={} rope_len={}), skipping tile building",
+				syntax.tree().root_node().end_byte(),
+				rope.len_bytes()
+			);
+			return Vec::new();
+		}
+
 		let highlighter = syntax.highlighter(rope.slice(..), language_loader, start_byte..end_byte);
 
 		highlighter

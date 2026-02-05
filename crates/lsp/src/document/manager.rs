@@ -29,7 +29,7 @@ pub struct DocumentStateManager {
 	/// Global version counter for tracking any diagnostic change.
 	diagnostics_version: AtomicU64,
 	/// Active progress operations keyed by (server_id, token).
-	progress: RwLock<HashMap<(u64, String), ProgressItem>>,
+	progress: RwLock<HashMap<(LanguageServerId, String), ProgressItem>>,
 }
 
 impl std::fmt::Debug for DocumentStateManager {
@@ -345,7 +345,7 @@ impl DocumentStateManager {
 			lsp_types::NumberOrString::Number(n) => n.to_string(),
 			lsp_types::NumberOrString::String(s) => s.clone(),
 		};
-		let key = (server_id.0, token_key);
+		let key = (server_id, token_key);
 
 		match params.value {
 			lsp_types::ProgressParamsValue::WorkDone(WorkDoneProgress::Begin(begin)) => {
@@ -358,7 +358,7 @@ impl DocumentStateManager {
 					started_at: Instant::now(),
 				};
 				debug!(
-					server_id = server_id.0,
+					%server_id,
 					title = %item.title,
 					"Progress started"
 				);
@@ -377,7 +377,7 @@ impl DocumentStateManager {
 			lsp_types::ProgressParamsValue::WorkDone(WorkDoneProgress::End(end)) => {
 				if let Some(item) = self.progress.write().remove(&key) {
 					debug!(
-						server_id = server_id.0,
+						%server_id,
 						title = %item.title,
 						message = ?end.message,
 						elapsed_ms = item.started_at.elapsed().as_millis(),
@@ -423,7 +423,7 @@ impl DocumentStateManager {
 	pub fn clear_server_progress(&self, server_id: LanguageServerId) {
 		self.progress
 			.write()
-			.retain(|(sid, _), _| *sid != server_id.0);
+			.retain(|(sid, _), _| *sid != server_id);
 	}
 
 	/// Returns the number of pending changes for a document.

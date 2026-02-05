@@ -6,8 +6,8 @@ pub mod builtins;
 mod macros;
 
 pub use crate::core::{
-	RegistryBuilder, RegistryEntry, RegistryIndex, RegistryMeta, RegistryMetadata, RegistrySource,
-	RuntimeRegistry,
+	RegistryBuilder, RegistryEntry, RegistryIndex, RegistryMeta, RegistryMetadata, RegistryRef,
+	RegistrySource, RuntimeRegistry,
 };
 // Re-export macros
 pub use crate::segment;
@@ -110,23 +110,23 @@ pub use crate::db::STATUSLINE_SEGMENTS;
 
 /// Get all segments for a given position, sorted by priority.
 #[cfg(feature = "db")]
-pub fn segments_for_position(
-	position: SegmentPosition,
-) -> impl Iterator<Item = &'static StatuslineSegmentDef> {
+pub fn segments_for_position(position: SegmentPosition) -> Vec<RegistryRef<StatuslineSegmentDef>> {
 	STATUSLINE_SEGMENTS
 		.iter()
-		.filter(move |s| s.position == position && s.default_enabled)
+		.into_iter()
+		.filter(|s| s.position == position && s.default_enabled)
+		.collect()
 }
 
 /// Render all segments for a position.
 #[cfg(feature = "db")]
 pub fn render_position(position: SegmentPosition, ctx: &StatuslineContext) -> Vec<RenderedSegment> {
-	let mut segments: Vec<_> = segments_for_position(position).collect();
+	let mut segments = segments_for_position(position);
 	segments.sort_by(|a, b| {
-		b.meta
+		b.meta()
 			.priority
-			.cmp(&a.meta.priority)
-			.then_with(|| a.meta.name.cmp(b.meta.name))
+			.cmp(&a.meta().priority)
+			.then_with(|| a.meta().name.cmp(b.meta().name))
 	});
 	segments
 		.into_iter()
@@ -136,14 +136,14 @@ pub fn render_position(position: SegmentPosition, ctx: &StatuslineContext) -> Ve
 
 /// Find a segment by name.
 #[cfg(feature = "db")]
-pub fn find_segment(name: &str) -> Option<&'static StatuslineSegmentDef> {
+pub fn find_segment(name: &str) -> Option<RegistryRef<StatuslineSegmentDef>> {
 	STATUSLINE_SEGMENTS.get(name)
 }
 
 /// Get all registered segments, sorted by priority.
 #[cfg(feature = "db")]
-pub fn all_segments() -> impl Iterator<Item = &'static StatuslineSegmentDef> {
-	STATUSLINE_SEGMENTS.iter()
+pub fn all_segments() -> Vec<RegistryRef<StatuslineSegmentDef>> {
+	STATUSLINE_SEGMENTS.all()
 }
 
 crate::impl_registry_entry!(StatuslineSegmentDef);

@@ -5,7 +5,6 @@
 use std::collections::{HashMap, VecDeque};
 use std::process::Stdio;
 use std::sync::Arc;
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 
 use async_trait::async_trait;
@@ -48,8 +47,6 @@ struct ReplyMsg {
 ///
 /// Manages server processes using stdin/stdout JSON-RPC communication.
 pub struct LocalTransport {
-	/// Counter for generating unique server IDs.
-	next_id: AtomicU64,
 	/// Active server processes.
 	servers: RwLock<HashMap<LanguageServerId, ServerProcess>>,
 	/// Channel for emitting transport events to the manager.
@@ -63,7 +60,6 @@ impl LocalTransport {
 	pub fn new() -> Arc<Self> {
 		let (event_tx, event_rx) = mpsc::unbounded_channel();
 		Arc::new(Self {
-			next_id: AtomicU64::new(1),
 			servers: RwLock::new(HashMap::new()),
 			event_tx,
 			event_rx: RwLock::new(Some(event_rx)),
@@ -126,7 +122,6 @@ impl Default for LocalTransport {
 	fn default() -> Self {
 		let (event_tx, event_rx) = mpsc::unbounded_channel();
 		Self {
-			next_id: AtomicU64::new(1),
 			servers: RwLock::new(HashMap::new()),
 			event_tx,
 			event_rx: RwLock::new(Some(event_rx)),
@@ -144,10 +139,10 @@ impl LspTransport for LocalTransport {
 	}
 
 	async fn start(&self, cfg: ServerConfig) -> Result<StartedServer> {
-		let id = LanguageServerId(self.next_id.fetch_add(1, Ordering::Relaxed));
+		let id = cfg.id;
 
 		tracing::info!(
-			server_id = id.0,
+			server_id = %id,
 			command = %cfg.command,
 			"Starting local LSP server"
 		);
@@ -285,18 +280,18 @@ async fn run_server_io(
 			// Handle outbound notifications
 			Some(notif) = notify_rx.recv() => {
 				if let Err(e) = write_notification(&mut stdin, &protocol, &notif).await {
-					tracing::warn!(server_id = id.0, error = %e, "Failed to send notification");
+					tracing::warn!(server_id = %id, error = %e, "Failed to send notification");
 				}
 			}
 
 			// Handle outbound replies to server requests
 			Some(reply) = reply_rx.recv() => {
 				let Some(req_id) = server_req_ids.pop_front() else {
-					tracing::warn!(server_id = id.0, "reply() called but no pending server request id");
+					tracing::warn!(server_id = %id, "reply() called but no pending server request id");
 					continue;
 				};
 				if let Err(e) = write_response(&mut stdin, req_id, reply.resp).await {
-					tracing::warn!(server_id = id.0, error = %e, "Failed to send server request reply");
+					tracing::warn!(server_id = %id, error = %e, "Failed to send server request reply");
 				}
 			}
 
@@ -308,7 +303,7 @@ async fn run_server_io(
 					}
 					Ok(None) => {
 						// EOF - server stopped
-						tracing::info!(server_id = id.0, "LSP server closed connection");
+						tracing::info!(server_id = %id, "LSP server closed connection");
 						let _ = event_tx.send(TransportEvent::Status {
 							server: id,
 							status: TransportStatus::Stopped,
@@ -316,7 +311,7 @@ async fn run_server_io(
 						break;
 					}
 					Err(e) => {
-						tracing::error!(server_id = id.0, error = %e, "Error reading from LSP server");
+						tracing::error!(server_id = %id, error = %e, "Error reading from LSP server");
 						let _ = event_tx.send(TransportEvent::Status {
 							server: id,
 							status: TransportStatus::Crashed,
@@ -445,7 +440,7 @@ fn handle_inbound_message(
 		let resp: AnyResponse = match serde_json::from_value(msg) {
 			Ok(r) => r,
 			Err(e) => {
-				tracing::warn!(server_id = id.0, error = %e, "Failed to parse response");
+				tracing::warn!(server_id = %id, error = %e, "Failed to parse response");
 				return;
 			}
 		};

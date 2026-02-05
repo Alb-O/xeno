@@ -5,7 +5,7 @@
 
 pub use crate::core::{
 	Capability, CommandError, RegistryBuilder, RegistryEntry, RegistryMeta, RegistryMetadata,
-	RegistrySource, RuntimeRegistry,
+	RegistryRef, RegistrySource, RuntimeRegistry,
 };
 
 pub mod builtins;
@@ -91,14 +91,14 @@ pub fn register_action(def: &'static ActionDef) -> bool {
 
 /// Finds an action by name, alias, or id.
 #[cfg(feature = "db")]
-pub fn find_action(name: &str) -> Option<&'static ActionDef> {
+pub fn find_action(name: &str) -> Option<RegistryRef<ActionDef>> {
 	ACTIONS.get(name)
 }
 
 /// Returns all registered actions (builtins + runtime), sorted by name.
 #[cfg(feature = "db")]
-pub fn all_actions() -> impl Iterator<Item = &'static ActionDef> {
-	ACTIONS.all().into_iter()
+pub fn all_actions() -> Vec<RegistryRef<ActionDef>> {
+	ACTIONS.all()
 }
 
 #[cfg(all(test, feature = "db"))]

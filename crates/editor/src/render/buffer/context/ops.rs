@@ -1,5 +1,7 @@
+use ropey::Rope;
 use xeno_primitives::{Mode, visible_line_count};
 use xeno_registry::gutter::GutterAnnotations;
+use xeno_runtime_language::LanguageId;
 use xeno_runtime_language::highlight::HighlightSpan;
 use xeno_tui::layout::Rect;
 use xeno_tui::style::{Modifier, Style};
@@ -13,7 +15,7 @@ use super::super::style_layers::LineStyleContext;
 use super::types::{
 	BufferRenderContext, CursorStyles, RenderBufferParams, RenderLayout, RenderResult,
 };
-use crate::buffer::{Buffer, Document};
+use crate::buffer::{Buffer, Document, DocumentId};
 use crate::render::cache::{HighlightSpanQuery, RenderCache};
 use crate::render::wrap::WrappedSegment;
 use crate::window::GutterSelector;
@@ -58,33 +60,37 @@ impl<'a> BufferRenderContext<'a> {
 	/// Uses the render cache to avoid recomputing highlights every frame.
 	pub fn collect_highlight_spans(
 		&self,
-		buffer: &Buffer,
-		area: Rect,
+		doc_id: DocumentId,
+		doc_content: &Rope,
+		doc_version: u64,
+		language_id: Option<LanguageId>,
+		scroll_line: usize,
+		viewport_height: usize,
 		cache: &mut RenderCache,
 	) -> Vec<(HighlightSpan, Style)> {
-		let start_line = buffer.scroll_line;
-
-		let doc_id = buffer.document_id();
 		let Some(syntax) = self.syntax_manager.syntax_for_doc(doc_id) else {
 			return Vec::new();
 		};
 		let syntax_version = self.syntax_manager.syntax_version(doc_id);
+		let tree_doc_version = self.syntax_manager.syntax_doc_version(doc_id);
 
-		buffer.with_doc(|doc| {
-			let total_lines = visible_line_count(doc.content().slice(..));
-			let end_line = (start_line + area.height as usize).min(total_lines);
+		if tree_doc_version != Some(doc_version) {
+			return Vec::new();
+		}
 
-			cache.highlight.get_spans(HighlightSpanQuery {
-				doc_id: doc.id,
-				syntax_version,
-				language_id: doc.language_id(),
-				rope: doc.content(),
-				syntax,
-				language_loader: self.language_loader,
-				style_resolver: |scope: &str| self.theme.colors.syntax.resolve(scope),
-				start_line,
-				end_line,
-			})
+		let total_lines = visible_line_count(doc_content.slice(..));
+		let end_line = (scroll_line + viewport_height).min(total_lines);
+
+		cache.highlight.get_spans(HighlightSpanQuery {
+			doc_id,
+			syntax_version,
+			language_id,
+			rope: doc_content,
+			syntax,
+			language_loader: self.language_loader,
+			style_resolver: |scope: &str| self.theme.colors.syntax.resolve(scope),
+			start_line: scroll_line,
+			end_line,
 		})
 	}
 
@@ -157,12 +163,17 @@ impl<'a> BufferRenderContext<'a> {
 	///
 	/// Orchestrates the full rendering pipeline for a single buffer viewport.
 	pub fn render_buffer_with_gutter(&self, p: RenderBufferParams<'_>) -> RenderResult {
-		// Snapshot document state to minimize lock duration and ensure consistency
-		let (doc_id, doc_content, doc_version, total_lines) =
+		let (doc_id, doc_content, doc_version, total_lines, language_id) =
 			p.buffer.with_doc(|doc: &Document| {
 				let content = doc.content().clone();
 				let total_lines = content.len_lines();
-				(doc.id, content, doc.version(), total_lines)
+				(
+					doc.id,
+					content,
+					doc.version(),
+					total_lines,
+					doc.language_id(),
+				)
 			});
 
 		let is_diff_file = p.buffer.file_type().is_some_and(|ft| ft == "diff");
@@ -187,7 +198,15 @@ impl<'a> BufferRenderContext<'a> {
 
 		let styles = self.make_cursor_styles(p.buffer.mode());
 		let cursor_style_set = styles.to_cursor_set();
-		let highlight_spans = self.collect_highlight_spans(p.buffer, p.area, p.cache);
+		let highlight_spans = self.collect_highlight_spans(
+			doc_id,
+			&doc_content,
+			doc_version,
+			language_id,
+			p.buffer.scroll_line,
+			viewport_height,
+			p.cache,
+		);
 		let highlight_index = HighlightIndex::new(highlight_spans);
 
 		let diff_line_numbers = if is_diff_file {

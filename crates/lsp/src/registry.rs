@@ -16,7 +16,7 @@ use tracing::{info, warn};
 
 use crate::Result;
 use crate::client::transport::LspTransport;
-use crate::client::{ClientHandle, LanguageServerId, ServerConfig};
+use crate::client::{ClientHandle, LanguageServerId, LspSlotId, ServerConfig};
 
 /// Configuration for a language server.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -67,7 +67,11 @@ impl Default for LanguageServerConfig {
 struct ServerInstance {
 	/// Handle for communicating with the server.
 	handle: ClientHandle,
+	/// The instance identifier (slot + generation).
+	#[allow(dead_code)]
+	id: LanguageServerId,
 }
+
 
 /// Server metadata for handling server-initiated requests.
 ///
@@ -95,6 +99,12 @@ struct RegistryState {
 	server_meta: HashMap<LanguageServerId, ServerMeta>,
 	/// Reverse index for O(1) removal by server ID.
 	id_index: HashMap<LanguageServerId, (String, PathBuf)>,
+	/// Mapping from slot to a unique ID used in [`LanguageServerId`].
+	slot_ids: HashMap<(String, PathBuf), LspSlotId>,
+	/// Generation counter per slot.
+	slot_gens: HashMap<(String, PathBuf), u32>,
+	/// Next available slot ID.
+	next_slot_id: u32,
 }
 
 impl RegistryState {
@@ -103,7 +113,29 @@ impl RegistryState {
 			servers: HashMap::new(),
 			server_meta: HashMap::new(),
 			id_index: HashMap::new(),
+			slot_ids: HashMap::new(),
+			slot_gens: HashMap::new(),
+			next_slot_id: 0,
 		}
+	}
+
+	/// Returns the slot ID for a given key, creating one if it doesn't exist.
+	fn get_or_create_slot_id(&mut self, key: &(String, PathBuf)) -> LspSlotId {
+		if let Some(&id) = self.slot_ids.get(key) {
+			id
+		} else {
+			let id = LspSlotId(self.next_slot_id);
+			self.next_slot_id += 1;
+			self.slot_ids.insert(key.clone(), id);
+			id
+		}
+	}
+
+	/// Increments and returns the next generation for a slot.
+	fn next_gen(&mut self, key: &(String, PathBuf)) -> u32 {
+		let generation = self.slot_gens.get(key).copied().unwrap_or(0) + 1;
+		self.slot_gens.insert(key.clone(), generation);
+		generation
 	}
 }
 
@@ -245,9 +277,20 @@ impl Registry {
 			return res;
 		}
 
-		info!(language = %language, command = %config.command, root = ?root_path, "Starting language server");
+		let (slot_id, generation) = {
+			let mut state = self.state.write();
+			let slot_id = state.get_or_create_slot_id(&key);
+			let generation = state.next_gen(&key);
+			(slot_id, generation)
+		};
+		let instance_id = LanguageServerId {
+			slot: slot_id,
+			generation,
+		};
 
-		let server_config = ServerConfig::new(&config.command, &root_path)
+		info!(language = %language, command = %config.command, root = ?root_path, %instance_id, "Starting language server");
+
+		let server_config = ServerConfig::new(instance_id, &config.command, &root_path)
 			.args(config.args.iter().cloned())
 			.env(config.env.iter().map(|(k, v)| (k.clone(), v.clone())))
 			.timeout(config.timeout_secs);
@@ -284,6 +327,7 @@ impl Registry {
 							key.clone(),
 							ServerInstance {
 								handle: handle.clone(),
+								id: started.id,
 							},
 						);
 
@@ -356,6 +400,8 @@ impl Registry {
 		state.servers.clear();
 		state.server_meta.clear();
 		state.id_index.clear();
+		state.slot_ids.clear();
+		state.slot_gens.clear();
 		ids
 	}
 
@@ -376,6 +422,11 @@ impl Registry {
 			.servers
 			.values()
 			.any(|instance| instance.handle.is_ready())
+	}
+
+	/// Returns true if the given instance ID is currently active in the registry.
+	pub fn is_current(&self, id: LanguageServerId) -> bool {
+		self.state.read().id_index.contains_key(&id)
 	}
 
 	/// Retrieve metadata for a server by its ID.
@@ -440,13 +491,11 @@ mod tests {
 			rx
 		}
 
-		async fn start(&self, _cfg: ServerConfig) -> Result<StartedServer> {
+		async fn start(&self, cfg: ServerConfig) -> Result<StartedServer> {
 			self.start_count.fetch_add(1, Ordering::SeqCst);
 			self.started_notify.notify_one();
 			self.finish_notify.notified().await;
-			Ok(StartedServer {
-				id: LanguageServerId(1),
-			})
+			Ok(StartedServer { id: cfg.id })
 		}
 
 		async fn notify(&self, _server: LanguageServerId, _notif: AnyNotification) -> Result<()> {

@@ -29,10 +29,11 @@ impl CompletionSource for ThemeSource {
 		let cmd_name = parts.first().unwrap();
 		let arg_start = cmd_name.len() + 1;
 
+		let registry = THEMES.all();
 		let mut items: Vec<_> = runtime_themes()
 			.iter()
 			.copied()
-			.chain(THEMES.iter())
+			.chain(registry.iter().map(|t| &**t))
 			.filter(|t| {
 				t.meta.name.starts_with(prefix)
 					|| t.meta.aliases.iter().any(|a| a.starts_with(prefix))

@@ -28,7 +28,7 @@ pub struct Collision {
 	/// What kind of key collided.
 	pub kind: KeyKind,
 	/// The colliding key string.
-	pub key: &'static str,
+	pub key: Box<str>,
 	/// The ID of the definition that already held this key.
 	pub existing_id: &'static str,
 	/// The ID of the new definition trying to claim this key.
@@ -42,28 +42,31 @@ pub struct Collision {
 }
 
 /// Winner selection function: returns `true` if `new` should replace `existing`.
-pub type ChooseWinner<T> =
-	fn(kind: KeyKind, key: &'static str, existing: &'static T, new: &'static T) -> bool;
+pub type ChooseWinner<T> = fn(kind: KeyKind, key: &str, existing: &T, new: &T) -> bool;
 
 /// Abstraction over key storage for shared insertion logic.
 pub trait KeyStore<T: RegistryEntry + 'static> {
 	/// Returns the definition that owns this string as an ID, if any.
-	fn get_id_owner(&self, id: &str) -> Option<&'static T>;
+	fn get_id_owner(&self, id: &str) -> Option<super::types::DefPtr<T>>;
 
 	/// Returns the current winner in the name/alias namespace.
-	fn get_key_winner(&self, key: &str) -> Option<&'static T>;
+	fn get_key_winner(&self, key: &str) -> Option<super::types::DefPtr<T>>;
 
 	/// Sets the winner in the name/alias namespace.
-	fn set_key_winner(&mut self, key: &'static str, def: &'static T);
+	fn set_key_winner(&mut self, key: &str, def: super::types::DefPtr<T>);
 
 	/// Inserts into the ID table. Returns the previous occupant if any.
-	fn insert_id(&mut self, id: &'static str, def: &'static T) -> Option<&'static T>;
+	fn insert_id(
+		&mut self,
+		id: &str,
+		def: super::types::DefPtr<T>,
+	) -> Option<super::types::DefPtr<T>>;
 
 	/// Sets the owner of an ID, overwriting any previous owner.
-	fn set_id_owner(&mut self, id: &'static str, def: &'static T);
+	fn set_id_owner(&mut self, id: &str, def: super::types::DefPtr<T>);
 
 	/// Evicts all keys (name, alias, etc.) that point to the given definition.
-	fn evict_def(&mut self, def: &'static T);
+	fn evict_def(&mut self, def: super::types::DefPtr<T>);
 
 	/// Records a collision for diagnostics.
 	fn push_collision(&mut self, c: Collision);

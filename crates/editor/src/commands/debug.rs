@@ -250,6 +250,7 @@ fn append_registry_section(
 fn collect_registry_items(kind: RegistryKind) -> Vec<RegistryItem> {
 	match kind {
 		RegistryKind::Actions => all_actions()
+			.into_iter()
 			.map(|def| RegistryItem {
 				id: def.meta.id,
 				name: def.meta.name,
@@ -261,6 +262,7 @@ fn collect_registry_items(kind: RegistryKind) -> Vec<RegistryItem> {
 			})
 			.collect(),
 		RegistryKind::Commands => all_commands()
+			.into_iter()
 			.map(|def| RegistryItem {
 				id: def.meta.id,
 				name: def.meta.name,
@@ -285,6 +287,7 @@ fn collect_registry_items(kind: RegistryKind) -> Vec<RegistryItem> {
 			})
 			.collect(),
 		RegistryKind::Motions => all_motions()
+			.into_iter()
 			.map(|def| RegistryItem {
 				id: def.meta.id,
 				name: def.meta.name,
@@ -296,6 +299,7 @@ fn collect_registry_items(kind: RegistryKind) -> Vec<RegistryItem> {
 			})
 			.collect(),
 		RegistryKind::TextObjects => all_text_objects()
+			.into_iter()
 			.map(|def| RegistryItem {
 				id: def.meta.id,
 				name: def.meta.name,
@@ -307,7 +311,8 @@ fn collect_registry_items(kind: RegistryKind) -> Vec<RegistryItem> {
 			})
 			.collect(),
 		RegistryKind::Gutters => GUTTERS
-			.iter()
+			.all()
+			.into_iter()
 			.map(|def| RegistryItem {
 				id: def.meta.id,
 				name: def.meta.name,
@@ -319,7 +324,7 @@ fn collect_registry_items(kind: RegistryKind) -> Vec<RegistryItem> {
 			})
 			.collect(),
 		RegistryKind::Hooks => HOOKS
-			.iter()
+			.all()
 			.into_iter()
 			.map(|def| RegistryItem {
 				id: def.meta.id,
@@ -345,7 +350,7 @@ fn collect_registry_items(kind: RegistryKind) -> Vec<RegistryItem> {
 			})
 			.collect(),
 		RegistryKind::Options => OPTIONS
-			.iter()
+			.items()
 			.into_iter()
 			.map(|def| RegistryItem {
 				id: def.meta.id,
@@ -358,7 +363,8 @@ fn collect_registry_items(kind: RegistryKind) -> Vec<RegistryItem> {
 			})
 			.collect(),
 		RegistryKind::Statusline => STATUSLINE_SEGMENTS
-			.iter()
+			.all()
+			.into_iter()
 			.map(|def| RegistryItem {
 				id: def.meta.id,
 				name: def.meta.name,
@@ -370,7 +376,8 @@ fn collect_registry_items(kind: RegistryKind) -> Vec<RegistryItem> {
 			})
 			.collect(),
 		RegistryKind::Themes => THEMES
-			.iter()
+			.all()
+			.into_iter()
 			.map(|def| RegistryItem {
 				id: def.meta.id,
 				name: def.meta.name,

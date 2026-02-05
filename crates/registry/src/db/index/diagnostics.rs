@@ -25,13 +25,13 @@ pub struct CollisionReport {
 	/// The key that caused the collision.
 	pub key: String,
 	/// ID of the item that won the collision (higher priority).
-	pub winner_id: &'static str,
+	pub winner_id: String,
 	/// Source of the winning item.
 	pub winner_source: String,
 	/// Priority of the winning item.
 	pub winner_priority: i16,
 	/// ID of the item that was shadowed.
-	pub shadowed_id: &'static str,
+	pub shadowed_id: String,
 	/// Source of the shadowed item.
 	pub shadowed_source: String,
 	/// Priority of the shadowed item.
@@ -41,25 +41,23 @@ pub struct CollisionReport {
 /// Converts a core collision to a collision report by looking up definitions.
 fn core_collision_to_report<T: RegistryEntry + 'static>(
 	collision: &CoreCollision,
-	lookup: impl Fn(&str) -> Option<&'static T>,
-) -> Option<CollisionReport> {
-	let winner = lookup(collision.winner_id)?;
-	let shadowed = lookup(collision.existing_id)?;
-
-	Some(CollisionReport {
+	winner: &T,
+	shadowed: &T,
+) -> CollisionReport {
+	CollisionReport {
 		kind: match collision.kind {
 			KeyKind::Id => CollisionKind::Id,
 			KeyKind::Name => CollisionKind::Name,
 			KeyKind::Alias => CollisionKind::Alias,
 		},
 		key: collision.key.to_string(),
-		winner_id: collision.winner_id,
+		winner_id: collision.winner_id.to_string(),
 		winner_source: winner.source().to_string(),
 		winner_priority: winner.priority(),
-		shadowed_id: collision.existing_id,
+		shadowed_id: collision.existing_id.to_string(),
 		shadowed_source: shadowed.source().to_string(),
 		shadowed_priority: shadowed.priority(),
-	})
+	}
 }
 
 /// Generates a diagnostic report aggregating collisions from all core registries.
@@ -69,10 +67,10 @@ pub fn diagnostics() -> DiagnosticReport {
 	macro_rules! collect {
 		($registry:expr) => {
 			for collision in $registry.collisions() {
-				if let Some(report) =
-					core_collision_to_report(&collision, |id| $registry.get_by_id(id))
+				if let Some(winner) = $registry.get_by_id(&collision.winner_id)
+					&& let Some(shadowed) = $registry.get_by_id(&collision.existing_id)
 				{
-					reports.push(report);
+					reports.push(core_collision_to_report(&collision, &*winner, &*shadowed));
 				}
 			}
 		};

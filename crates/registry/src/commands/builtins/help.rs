@@ -35,8 +35,8 @@ fn cmd_help<'a>(
 			}
 		}
 
-		let mut sorted_commands: Vec<_> = all_commands().collect();
-		sorted_commands.sort_by_key(|c| c.name());
+		let mut sorted_commands = all_commands();
+		sorted_commands.sort_by_key(|c| c.name().to_string());
 
 		let help_text: Vec<String> = sorted_commands
 			.iter()

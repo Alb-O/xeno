@@ -33,8 +33,8 @@ fn select_object_with_trigger(
 		let result = match selection_kind {
 			ObjectSelectionKind::Inner => (obj.inner)(ctx.text, pos),
 			ObjectSelectionKind::Around => (obj.around)(ctx.text, pos),
-			ObjectSelectionKind::ToStart => select_to_boundary(ctx, obj, pos, true),
-			ObjectSelectionKind::ToEnd => select_to_boundary(ctx, obj, pos, false),
+			ObjectSelectionKind::ToStart => select_to_boundary(ctx, &obj, pos, true),
+			ObjectSelectionKind::ToEnd => select_to_boundary(ctx, &obj, pos, false),
 		};
 		if let Some(new_range) = result {
 			*r = new_range;

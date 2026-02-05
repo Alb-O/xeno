@@ -46,6 +46,9 @@ pub struct EditorCore {
 	/// (cursor, selection, scroll) for all affected buffers at the time of
 	/// the edit. Document state is stored separately in each document's history.
 	pub undo_manager: UndoManager,
+
+	/// Recently visible documents for `Warm` hotness state.
+	pub warm_docs: crate::syntax_manager::lru::RecentDocLru,
 }
 
 impl EditorCore {
@@ -55,6 +58,7 @@ impl EditorCore {
 			buffers,
 			workspace,
 			undo_manager,
+			warm_docs: Default::default(),
 		}
 	}
 

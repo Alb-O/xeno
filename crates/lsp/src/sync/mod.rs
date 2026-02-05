@@ -47,7 +47,7 @@ impl LspEventHandler for DocumentSyncEventHandler {
 		version: Option<i32>,
 	) {
 		tracing::debug!(
-			server_id = server_id.0,
+			server_id = %server_id,
 			uri = uri.as_str(),
 			count = diagnostics.len(),
 			version = ?version,

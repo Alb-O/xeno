@@ -88,17 +88,17 @@ impl<'a> OptionResolver<'a> {
 	/// Returns the first found value, or the option's compile-time default.
 	pub fn resolve(&self, key: OptionKey) -> OptionValue {
 		if let Some(store) = self.buffer_local
-			&& let Some(v) = store.get(key)
+			&& let Some(v) = store.get(key.clone())
 		{
 			return v.clone();
 		}
 		if let Some(store) = self.language
-			&& let Some(v) = store.get(key)
+			&& let Some(v) = store.get(key.clone())
 		{
 			return v.clone();
 		}
 		if let Some(store) = self.global
-			&& let Some(v) = store.get(key)
+			&& let Some(v) = store.get(key.clone())
 		{
 			return v.clone();
 		}
@@ -115,7 +115,7 @@ impl<'a> OptionResolver<'a> {
 	/// Panics if the option's default value is not an integer. This invariant
 	/// is enforced at build-time by [`RegistryDbBuilder::register_option`].
 	pub fn resolve_int(&self, key: OptionKey) -> i64 {
-		let resolved = self.resolve(key);
+		let resolved = self.resolve(key.clone());
 		if let Some(v) = resolved.as_int() {
 			return v;
 		}
@@ -146,7 +146,7 @@ impl<'a> OptionResolver<'a> {
 	/// Panics if the option's default value is not a boolean. This invariant
 	/// is enforced at build-time by [`RegistryDbBuilder::register_option`].
 	pub fn resolve_bool(&self, key: OptionKey) -> bool {
-		let resolved = self.resolve(key);
+		let resolved = self.resolve(key.clone());
 		if let Some(v) = resolved.as_bool() {
 			return v;
 		}
@@ -177,7 +177,7 @@ impl<'a> OptionResolver<'a> {
 	/// Panics if the option's default value is not a string. This invariant
 	/// is enforced at build-time by [`RegistryDbBuilder::register_option`].
 	pub fn resolve_string(&self, key: OptionKey) -> String {
-		let resolved = self.resolve(key);
+		let resolved = self.resolve(key.clone());
 		if let Some(v) = resolved.as_str() {
 			return v.to_string();
 		}

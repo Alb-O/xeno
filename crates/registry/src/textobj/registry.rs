@@ -7,18 +7,44 @@ use rustc_hash::FxHashMap as HashMap;
 use crate::RegistryEntry;
 use crate::core::index::insert::{insert_id_key_runtime, insert_typed_key};
 use crate::core::index::{
-	ChooseWinner, Collision, DuplicatePolicy, KeyKind, KeyStore, RegistryIndex,
+	ChooseWinner, Collision, DefPtr, DuplicatePolicy, KeyKind, KeyStore, RegistryIndex,
 };
 use crate::error::{InsertAction, RegistryError};
 use crate::textobj::TextObjectDef;
 
+/// Guard object that keeps a text-object snapshot alive while providing access to a definition.
+pub struct TextObjectRef {
+	snap: Arc<TextObjectSnapshot>,
+	ptr: DefPtr<TextObjectDef>,
+}
+
+impl Clone for TextObjectRef {
+	fn clone(&self) -> Self {
+		Self {
+			snap: self.snap.clone(),
+			ptr: self.ptr,
+		}
+	}
+}
+
+impl std::ops::Deref for TextObjectRef {
+	type Target = TextObjectDef;
+
+	fn deref(&self) -> &TextObjectDef {
+		// Safety: The definition is kept alive by the snapshot Arc held in the guard.
+		unsafe { self.ptr.as_ref() }
+	}
+}
+
 #[derive(Clone)]
 pub struct TextObjectSnapshot {
-	pub by_id: HashMap<&'static str, &'static TextObjectDef>,
-	pub by_key: HashMap<&'static str, &'static TextObjectDef>,
-	pub by_trigger: HashMap<char, &'static TextObjectDef>,
-	pub items_all: Vec<&'static TextObjectDef>,
-	pub items_effective: Vec<&'static TextObjectDef>,
+	pub by_id: HashMap<Box<str>, DefPtr<TextObjectDef>>,
+	pub by_key: HashMap<Box<str>, DefPtr<TextObjectDef>>,
+	pub by_trigger: HashMap<char, DefPtr<TextObjectDef>>,
+	pub items_all: Vec<DefPtr<TextObjectDef>>,
+	pub items_effective: Vec<DefPtr<TextObjectDef>>,
+	/// Owns runtime-registered definitions so their pointers stay valid.
+	pub owned: Vec<Arc<TextObjectDef>>,
 	pub collisions: Vec<Collision>,
 }
 
@@ -28,19 +54,20 @@ impl TextObjectSnapshot {
 			by_id: b.by_id.clone(),
 			by_key: b.by_key.clone(),
 			by_trigger: HashMap::default(),
-			items_all: b.items_all.clone(),
-			items_effective: b.items_effective.clone(),
-			collisions: b.collisions.clone(),
+			items_all: b.items_all.to_vec(),
+			items_effective: b.items_effective.to_vec(),
+			owned: Vec::new(),
+			collisions: b.collisions.to_vec(),
 		};
 
-		for &def in b.items() {
-			insert_trigger(&mut snap.by_trigger, def, policy);
+		for &ptr in b.items() {
+			insert_trigger(&mut snap.by_trigger, ptr, policy);
 		}
 		snap
 	}
 
 	#[inline]
-	pub fn get(&self, key: &str) -> Option<&'static TextObjectDef> {
+	pub fn get_ptr(&self, key: &str) -> Option<DefPtr<TextObjectDef>> {
 		self.by_id
 			.get(key)
 			.copied()
@@ -48,30 +75,34 @@ impl TextObjectSnapshot {
 	}
 
 	#[inline]
-	pub fn by_trigger(&self, ch: char) -> Option<&'static TextObjectDef> {
+	pub fn by_trigger_ptr(&self, ch: char) -> Option<DefPtr<TextObjectDef>> {
 		self.by_trigger.get(&ch).copied()
 	}
 }
 
 fn insert_trigger(
-	map: &mut HashMap<char, &'static TextObjectDef>,
-	def: &'static TextObjectDef,
+	map: &mut HashMap<char, DefPtr<TextObjectDef>>,
+	def: DefPtr<TextObjectDef>,
 	policy: DuplicatePolicy,
 ) {
+	let def_ref = unsafe { def.as_ref() };
 	let mut insert_one = |ch: char| match map.get(&ch).copied() {
 		None => {
 			map.insert(ch, def);
 		}
 		Some(existing) => {
-			if std::ptr::eq(existing, def) {
+			if existing.ptr_eq(def) {
 				return;
 			}
+			let existing_ref = unsafe { existing.as_ref() };
 			let new_wins = match policy {
 				DuplicatePolicy::FirstWins => false,
 				DuplicatePolicy::LastWins => true,
-				DuplicatePolicy::ByPriority => def.total_order_cmp(existing) == Ordering::Greater,
+				DuplicatePolicy::ByPriority => {
+					def_ref.total_order_cmp(existing_ref) == Ordering::Greater
+				}
 				DuplicatePolicy::Panic => {
-					panic!("duplicate text-object trigger {:?} for {}", ch, def.id())
+					panic!("duplicate text-object trigger {:?} for {}", ch, def_ref.id())
 				}
 			};
 			if new_wins {
@@ -80,8 +111,8 @@ fn insert_trigger(
 		}
 	};
 
-	insert_one(def.trigger);
-	for &alt in def.alt_triggers {
+	insert_one(def_ref.trigger);
+	for &alt in def_ref.alt_triggers {
 		insert_one(alt);
 	}
 }
@@ -105,33 +136,57 @@ impl TextObjectRegistry {
 	}
 
 	#[inline]
-	pub fn get(&self, key: &str) -> Option<&'static TextObjectDef> {
-		self.snap.load().get(key)
+	pub fn get(&self, key: &str) -> Option<TextObjectRef> {
+		let snap = self.snap.load_full();
+		let ptr = snap.get_ptr(key)?;
+		Some(TextObjectRef { snap, ptr })
 	}
 
-	pub fn try_register_many<I>(&self, defs: I) -> Result<Vec<InsertAction>, RegistryError>
-	where
-		I: IntoIterator<Item = &'static TextObjectDef>,
-	{
-		self.try_register_many_internal(defs, false)
+	#[inline]
+	pub fn get_by_id(&self, id: &str) -> Option<TextObjectRef> {
+		let snap = self.snap.load_full();
+		let ptr = snap.by_id.get(id).copied()?;
+		Some(TextObjectRef { snap, ptr })
 	}
 
-	pub fn try_register_many_override<I>(&self, defs: I) -> Result<Vec<InsertAction>, RegistryError>
+	#[inline]
+	pub fn by_trigger(&self, ch: char) -> Option<TextObjectRef> {
+		let snap = self.snap.load_full();
+		let ptr = snap.by_trigger_ptr(ch)?;
+		Some(TextObjectRef { snap, ptr })
+	}
+
+	pub fn all(&self) -> Vec<TextObjectRef> {
+		let snap = self.snap.load_full();
+		snap.items_effective
+			.iter()
+			.map(|&ptr| TextObjectRef {
+				snap: snap.clone(),
+				ptr,
+			})
+			.collect()
+	}
+
+	pub fn try_register_many_owned<I>(&self, defs: I) -> Result<Vec<InsertAction>, RegistryError>
 	where
-		I: IntoIterator<Item = &'static TextObjectDef>,
+		I: IntoIterator<Item = TextObjectDef>,
 	{
-		self.try_register_many_internal(defs, true)
+		let owned: Vec<Arc<TextObjectDef>> = defs.into_iter().map(Arc::new).collect();
+		let ptrs: Vec<DefPtr<TextObjectDef>> =
+			owned.iter().map(|a| DefPtr::from_ref(&**a)).collect();
+		self.try_register_many_internal(ptrs, owned, false)
 	}
 
 	fn try_register_many_internal<I>(
 		&self,
 		defs: I,
+		new_owned: Vec<Arc<TextObjectDef>>,
 		allow_overrides: bool,
 	) -> Result<Vec<InsertAction>, RegistryError>
 	where
-		I: IntoIterator<Item = &'static TextObjectDef>,
+		I: IntoIterator<Item = DefPtr<TextObjectDef>>,
 	{
-		let input_defs: Vec<&'static TextObjectDef> = defs.into_iter().collect();
+		let input_defs: Vec<DefPtr<TextObjectDef>> = defs.into_iter().collect();
 		if input_defs.is_empty() {
 			return Ok(Vec::new());
 		}
@@ -140,13 +195,13 @@ impl TextObjectRegistry {
 			let cur = self.snap.load_full();
 			let mut next = (*cur).clone();
 
-			let mut existing_ptrs: rustc_hash::FxHashSet<*const TextObjectDef> =
+			let mut existing_ptrs: rustc_hash::FxHashSet<DefPtr<TextObjectDef>> =
 				rustc_hash::FxHashSet::with_capacity_and_hasher(
 					next.items_all.len(),
 					Default::default(),
 				);
 			for &item in &next.items_all {
-				existing_ptrs.insert(item as *const TextObjectDef);
+				existing_ptrs.insert(item);
 			}
 
 			let mut actions = Vec::with_capacity(input_defs.len());
@@ -156,12 +211,12 @@ impl TextObjectRegistry {
 				let mut store = SnapshotStore { snap: &mut next };
 
 				for &def in &input_defs {
-					if existing_ptrs.contains(&(def as *const TextObjectDef)) {
+					if existing_ptrs.contains(&def) {
 						actions.push(InsertAction::KeptExisting);
 						continue;
 					}
 
-					let meta = def.meta();
+					let meta = unsafe { def.as_ref() }.meta();
 
 					let id_action = if allow_overrides {
 						insert_id_key_runtime(
@@ -213,22 +268,40 @@ impl TextObjectRegistry {
 				}
 			}
 
-			let mut effective_set: rustc_hash::FxHashSet<*const TextObjectDef> =
+			next.owned.extend(new_owned.clone());
+
+			// Prune
+			{
+				let mut referenced = rustc_hash::FxHashSet::default();
+				for &ptr in next.by_id.values() {
+					referenced.insert(ptr);
+				}
+				for &ptr in next.by_key.values() {
+					referenced.insert(ptr);
+				}
+				for &ptr in next.by_trigger.values() {
+					referenced.insert(ptr);
+				}
+				next.owned
+					.retain(|arc| referenced.contains(&DefPtr::from_ref(&**arc)));
+			}
+
+			let mut effective_set: rustc_hash::FxHashSet<DefPtr<TextObjectDef>> =
 				rustc_hash::FxHashSet::with_capacity_and_hasher(
 					next.items_all.len(),
 					Default::default(),
 				);
 			for &def in next.by_id.values() {
-				effective_set.insert(def as *const TextObjectDef);
+				effective_set.insert(def);
 			}
 			for &def in next.by_key.values() {
-				effective_set.insert(def as *const TextObjectDef);
+				effective_set.insert(def);
 			}
 			next.items_effective = next
 				.items_all
 				.iter()
 				.copied()
-				.filter(|&d| effective_set.contains(&(d as *const TextObjectDef)))
+				.filter(|d| effective_set.contains(d))
 				.collect();
 
 			let next_arc = Arc::new(next);
@@ -237,15 +310,16 @@ impl TextObjectRegistry {
 			if Arc::ptr_eq(&prev, &cur) {
 				return Ok(actions);
 			}
+			// CAS failed, retry
 		}
 	}
 
-	pub fn register(&self, def: &'static TextObjectDef) -> bool {
-		self.try_register_many(std::iter::once(def)).is_ok()
+	pub fn register_owned(&self, def: TextObjectDef) -> bool {
+		self.try_register_many_owned(std::iter::once(def)).is_ok()
 	}
 
-	pub fn register_owned(&self, def: TextObjectDef) -> bool {
-		self.register(Box::leak(Box::new(def)))
+	pub fn register(&self, def: &'static TextObjectDef) -> bool {
+		self.try_register_many_internal(std::iter::once(DefPtr::from_ref(def)), Vec::new(), false).is_ok()
 	}
 
 	fn make_choose_winner(&self) -> ChooseWinner<TextObjectDef> {
@@ -267,43 +341,17 @@ impl TextObjectRegistry {
 		}
 	}
 
-	#[inline]
-	pub fn get_by_id(&self, id: &str) -> Option<&'static TextObjectDef> {
-		self.with_snapshot(|snap| snap.by_id.get(id).copied())
-	}
-
-	#[inline]
-	pub fn by_trigger(&self, ch: char) -> Option<&'static TextObjectDef> {
-		self.with_snapshot(|snap| snap.by_trigger.get(&ch).copied())
-	}
-
-	#[inline]
-	pub fn all(&self) -> Vec<&'static TextObjectDef> {
-		self.with_snapshot(|snap| snap.items_effective.clone())
-	}
-
-	#[inline]
-	pub fn collisions(&self) -> Vec<Collision> {
-		self.with_snapshot(|snap| snap.collisions.clone())
-	}
-
-	#[inline]
-	pub fn len(&self) -> usize {
-		self.with_snapshot(|snap| snap.items_effective.len())
-	}
-
-	#[inline]
-	pub fn is_empty(&self) -> bool {
-		self.len() == 0
-	}
-
-	pub fn iter(&self) -> Vec<&'static TextObjectDef> {
-		self.all()
-	}
-
 	pub fn with_snapshot<R>(&self, f: impl FnOnce(&TextObjectSnapshot) -> R) -> R {
 		let snap = self.snap.load();
 		f(&snap)
+	}
+
+	pub fn len(&self) -> usize {
+		self.snap.load().items_effective.len()
+	}
+
+	pub fn collisions(&self) -> Vec<Collision> {
+		self.snap.load().collisions.clone()
 	}
 }
 
@@ -312,24 +360,20 @@ struct SnapshotStore<'a> {
 }
 
 impl KeyStore<TextObjectDef> for SnapshotStore<'_> {
-	fn get_id_owner(&self, id: &str) -> Option<&'static TextObjectDef> {
+	fn get_id_owner(&self, id: &str) -> Option<DefPtr<TextObjectDef>> {
 		self.snap.by_id.get(id).copied()
 	}
 
-	fn get_key_winner(&self, key: &str) -> Option<&'static TextObjectDef> {
+	fn get_key_winner(&self, key: &str) -> Option<DefPtr<TextObjectDef>> {
 		self.snap.by_key.get(key).copied()
 	}
 
-	fn set_key_winner(&mut self, key: &'static str, def: &'static TextObjectDef) {
-		self.snap.by_key.insert(key, def);
+	fn set_key_winner(&mut self, key: &str, def: DefPtr<TextObjectDef>) {
+		self.snap.by_key.insert(Box::from(key), def);
 	}
 
-	fn insert_id(
-		&mut self,
-		id: &'static str,
-		def: &'static TextObjectDef,
-	) -> Option<&'static TextObjectDef> {
-		match self.snap.by_id.entry(id) {
+	fn insert_id(&mut self, id: &str, def: DefPtr<TextObjectDef>) -> Option<DefPtr<TextObjectDef>> {
+		match self.snap.by_id.entry(Box::from(id)) {
 			std::collections::hash_map::Entry::Vacant(v) => {
 				v.insert(def);
 				None
@@ -338,15 +382,13 @@ impl KeyStore<TextObjectDef> for SnapshotStore<'_> {
 		}
 	}
 
-	fn set_id_owner(&mut self, id: &'static str, def: &'static TextObjectDef) {
-		self.snap.by_id.insert(id, def);
+	fn set_id_owner(&mut self, id: &str, def: DefPtr<TextObjectDef>) {
+		self.snap.by_id.insert(Box::from(id), def);
 	}
 
-	fn evict_def(&mut self, def: &'static TextObjectDef) {
-		self.snap.by_key.retain(|_, &mut v| !std::ptr::eq(v, def));
-		self.snap
-			.by_trigger
-			.retain(|_, &mut v| !std::ptr::eq(v, def));
+	fn evict_def(&mut self, def: DefPtr<TextObjectDef>) {
+		self.snap.by_key.retain(|_, &mut v| !v.ptr_eq(def));
+		self.snap.by_trigger.retain(|_, &mut v| !v.ptr_eq(def));
 	}
 
 	fn push_collision(&mut self, c: Collision) {

@@ -39,10 +39,11 @@ impl Editor {
 		use crate::syntax_manager::{EnsureSyntaxContext, SyntaxHotness};
 
 		let loader = std::sync::Arc::clone(&self.state.config.language_loader);
-		let mut visible_ids = self.state.windows.base_window().layout.views();
+		let mut visible_views = self.state.windows.base_window().layout.views();
 		for (_, floating) in self.state.windows.floating_windows() {
-			visible_ids.push(floating.buffer);
+			visible_views.push(floating.buffer);
 		}
+		let visible_ids: HashSet<_> = visible_views.into_iter().collect();
 
 		let mut doc_hotness = HashMap::new();
 
@@ -52,8 +53,13 @@ impl Editor {
 			};
 
 			let doc_id = buffer.document_id();
-			let hotness = if visible_ids.contains(&buffer_id) {
+			let is_visible = visible_ids.contains(&buffer_id);
+
+			let hotness = if is_visible {
+				self.state.core.warm_docs.touch(doc_id);
 				SyntaxHotness::Visible
+			} else if self.state.core.warm_docs.contains(doc_id) {
+				SyntaxHotness::Warm
 			} else {
 				SyntaxHotness::Cold
 			};
@@ -63,6 +69,8 @@ impl Editor {
 				.and_modify(|h| {
 					if hotness == SyntaxHotness::Visible {
 						*h = SyntaxHotness::Visible;
+					} else if hotness == SyntaxHotness::Warm && *h == SyntaxHotness::Cold {
+						*h = SyntaxHotness::Warm;
 					}
 				})
 				.or_insert(hotness);

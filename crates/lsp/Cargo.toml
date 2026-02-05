@@ -17,6 +17,7 @@ client = [
     "tokio/process",
     "tokio/io-util",
     "tokio/sync",
+    "dep:async-trait",
     "dep:parking_lot",
     "dep:tokio-util",
 ]
@@ -24,7 +25,7 @@ client = [
 position = ["dep:ropey", "client", "dep:xeno-primitives"]
 
 [dependencies]
-async-trait.workspace = true
+async-trait = { workspace = true, optional = true }
 lsp-types.workspace = true
 parking_lot = { workspace = true, optional = true }
 pin-project-lite.workspace = true

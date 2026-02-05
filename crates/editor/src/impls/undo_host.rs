@@ -79,9 +79,11 @@ impl EditorUndoHost<'_> {
 				.get_buffer(buffer_id)
 				.expect("buffer must exist");
 			let doc_id = buffer.document_id();
-			let after_rope = buffer.with_doc(|doc| doc.content().clone());
+			let (after_rope, version) =
+				buffer.with_doc(|doc| (doc.content().clone(), doc.version()));
 			self.syntax_manager.note_edit_incremental(
 				doc_id,
+				version,
 				&before_rope,
 				&after_rope,
 				tx.changes(),
@@ -204,13 +206,14 @@ impl EditorUndoHost<'_> {
 			return false;
 		};
 
-		let after_rope = self
+		let (after_rope, version) = self
 			.buffers
 			.get_buffer(buffer_id)
 			.expect("buffer exists")
-			.with_doc(|doc| doc.content().clone());
+			.with_doc(|doc| (doc.content().clone(), doc.version()));
 		self.syntax_manager.note_edit_incremental(
 			doc_id,
+			version,
 			&before_rope,
 			&after_rope,
 			tx.changes(),

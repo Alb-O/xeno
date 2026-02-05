@@ -230,23 +230,28 @@ async fn test_dropwhenhidden_discards_completed_parse() {
 fn test_stale_parse_does_not_overwrite_clean_incremental() {
 	use super::should_install_completed_parse;
 
-	let cases = [
-		// (version_match, slot_dirty, has_current, expected)
-		(false, false, true, false), // Clean tree + stale result → MUST NOT install.
-		(true, false, true, true),   // Exact version match → always install.
-		(true, true, true, true),
-		(true, false, false, true),
-		(true, true, false, true),
-		(false, true, true, true), // Dirty slot → install stale for catch-up continuity.
-		(false, true, false, true),
-		(false, false, false, true), // No current syntax → install stale for bootstrap.
+	// (done_version, current_tree_version, target_version, slot_dirty, expected)
+	let cases: [(u64, Option<u64>, u64, bool, bool); 8] = [
+		(5, Some(3), 10, false, false), // Clean tree + stale result → MUST NOT install.
+		(5, Some(3), 5, false, true),   // Exact version match → always install.
+		(5, Some(3), 5, true, true),
+		(5, None, 5, false, true),
+		(5, None, 5, true, true),
+		(5, Some(3), 10, true, true), // Dirty slot → install stale for catch-up continuity.
+		(5, None, 10, true, true),
+		(5, None, 10, false, true), // No current syntax → install stale for bootstrap.
 	];
 
-	for (version_match, dirty, has_current, expected) in cases {
-		let result = should_install_completed_parse(version_match, dirty, has_current);
+	for (done_version, current_tree_version, target_version, dirty, expected) in cases {
+		let result = should_install_completed_parse(
+			done_version,
+			current_tree_version,
+			target_version,
+			dirty,
+		);
 		assert_eq!(
 			result, expected,
-			"should_install_completed_parse(version_match={version_match}, dirty={dirty}, has_current={has_current}) = {result}, expected {expected}"
+			"should_install_completed_parse(done={done_version}, current={current_tree_version:?}, target={target_version}, dirty={dirty}) = {result}, expected {expected}"
 		);
 	}
 }

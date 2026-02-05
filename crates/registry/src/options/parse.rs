@@ -85,6 +85,7 @@ pub fn suggest_option(key: &str) -> Option<String> {
 	}
 
 	all_sorted()
+		.into_iter()
 		.map(|o| o.kdl_key)
 		.min_by_key(|k| strsim::levenshtein(key, k))
 		.filter(|k| strsim::levenshtein(key, k) <= 3)

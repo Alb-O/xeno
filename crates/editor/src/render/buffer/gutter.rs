@@ -16,7 +16,12 @@ use super::style_layers::LineStyleContext;
 use crate::window::GutterSelector;
 
 enum GutterLayoutKind {
-	Columns(Vec<(u16, &'static xeno_registry::gutter::GutterDef)>),
+	Columns(
+		Vec<(
+			u16,
+			xeno_registry::gutter::RegistryRef<xeno_registry::gutter::GutterDef>,
+		)>,
+	),
 	Prompt {
 		prompt: char,
 	},
@@ -61,10 +66,13 @@ impl GutterLayout {
 			total_lines,
 			viewport_width,
 		};
-		let mut columns: Vec<(u16, &'static xeno_registry::gutter::GutterDef)> = names
+		let mut columns: Vec<(
+			u16,
+			xeno_registry::gutter::RegistryRef<xeno_registry::gutter::GutterDef>,
+		)> = names
 			.iter()
 			.filter_map(|name| find_gutter(name))
-			.map(|def| (column_width(def, &ctx), def))
+			.map(|def| (column_width(&def, &ctx), def))
 			.collect();
 		columns.sort_by_key(|(_, def)| def.meta.priority);
 		let total_width = Self::columns_total_width(&columns);
@@ -119,7 +127,12 @@ impl GutterLayout {
 		if width > 0 { width + 1 } else { 0 }
 	}
 
-	fn columns_total_width(columns: &[(u16, &'static xeno_registry::gutter::GutterDef)]) -> u16 {
+	fn columns_total_width(
+		columns: &[(
+			u16,
+			xeno_registry::gutter::RegistryRef<xeno_registry::gutter::GutterDef>,
+		)],
+	) -> u16 {
 		let width: u16 = columns.iter().map(|(w, _)| *w).sum();
 		if width > 0 { width + 1 } else { 0 }
 	}

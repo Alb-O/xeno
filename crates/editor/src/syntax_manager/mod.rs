@@ -122,6 +122,7 @@
 //! 2. Ensure `max_bytes_inclusive` logic in [`TieredSyntaxPolicy::tier_for_bytes`] matches.
 //!
 use std::collections::HashMap;
+pub mod lru;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -407,10 +408,13 @@ pub struct SyntaxSlot {
 	dirty: bool,
 	updated: bool,
 	version: u64,
+	/// Version of the document that the `current` syntax tree corresponds to.
+	tree_doc_version: Option<u64>,
 	language_id: Option<LanguageId>,
 	pending_incremental: Option<PendingIncrementalEdits>,
 	last_opts_key: Option<OptKey>,
 }
+
 
 struct DocEntry {
 	sched: DocSched,
@@ -490,10 +494,18 @@ impl SyntaxManager {
 			.unwrap_or(0)
 	}
 
+	/// Returns the document version that the installed syntax tree corresponds to.
+	pub fn syntax_doc_version(&self, doc_id: DocumentId) -> Option<u64> {
+		self.entries
+			.get(&doc_id)
+			.and_then(|e| e.slot.tree_doc_version)
+	}
+
 	pub fn reset_syntax(&mut self, doc_id: DocumentId) {
 		let entry = self.entry_mut(doc_id);
 		if entry.slot.current.is_some() {
 			entry.slot.current = None;
+			entry.slot.tree_doc_version = None;
 			mark_updated(&mut entry.slot);
 		}
 		entry.slot.dirty = true;
@@ -527,6 +539,7 @@ impl SyntaxManager {
 	pub fn note_edit_incremental(
 		&mut self,
 		doc_id: DocumentId,
+		doc_version: u64,
 		old_rope: &Rope,
 		new_rope: &Rope,
 		changeset: &ChangeSet,
@@ -576,6 +589,7 @@ impl SyntaxManager {
 			Ok(()) => {
 				entry.slot.pending_incremental = None;
 				entry.slot.dirty = false;
+				entry.slot.tree_doc_version = Some(doc_version);
 				self.dirty_docs.remove(&doc_id);
 				mark_updated(&mut entry.slot);
 			}
@@ -675,6 +689,7 @@ impl SyntaxManager {
 			}
 			if entry.slot.current.is_some() {
 				entry.slot.current = None;
+				entry.slot.tree_doc_version = None;
 				mark_updated(&mut entry.slot);
 			}
 			entry.slot.dirty = true;
@@ -738,15 +753,17 @@ impl SyntaxManager {
 					);
 
 					let allow_install = should_install_completed_parse(
-						version_match,
+						done.doc_version,
+						entry.slot.tree_doc_version,
+						ctx.doc_version,
 						entry.slot.dirty,
-						entry.slot.current.is_some(),
 					);
 
 					let mut installed = false;
 					if lang_ok && opts_ok && retain_ok && allow_install {
 						entry.slot.current = Some(syntax_tree);
 						entry.slot.language_id = Some(current_lang);
+						entry.slot.tree_doc_version = Some(done.doc_version);
 						mark_updated(&mut entry.slot);
 						installed = true;
 					}
@@ -794,6 +811,7 @@ impl SyntaxManager {
 		let Some(lang_id) = ctx.language_id else {
 			if entry.slot.current.is_some() {
 				entry.slot.current = None;
+				entry.slot.tree_doc_version = None;
 				mark_updated(&mut entry.slot);
 			}
 			entry.slot.language_id = None;
@@ -911,17 +929,26 @@ impl SyntaxManager {
 ///
 /// This predicate ensures that a clean incremental tree (produced synchronously
 /// during an edit) is not overwritten by a stale full-parse result from a
-/// previous document version.
+/// previous document version, and that trees are monotonic (never regress to older versions).
 ///
 /// Installation is permitted if:
-/// - The document version matches exactly.
-/// - The slot is currently marked dirty (needs catch-up).
-/// - No syntax tree is currently resident (bootstrap).
+/// - The result is not older than the currently resident tree.
+/// - The document version matches exactly, OR the slot is currently marked dirty (needs catch-up),
+///   OR no syntax tree is currently resident (bootstrap).
 fn should_install_completed_parse(
-	version_match: bool,
+	done_version: u64,
+	current_tree_version: Option<u64>,
+	target_version: u64,
 	slot_dirty: bool,
-	has_current: bool,
 ) -> bool {
+	if let Some(v) = current_tree_version
+		&& done_version < v {
+			return false;
+		}
+
+	let version_match = done_version == target_version;
+	let has_current = current_tree_version.is_some();
+
 	version_match || slot_dirty || !has_current
 }
 
@@ -971,6 +998,7 @@ fn apply_retention(
 		RetentionPolicy::DropWhenHidden => {
 			if state.current.is_some() {
 				state.current = None;
+				state.tree_doc_version = None;
 				state.dirty = false;
 				state.pending_incremental = None;
 				dirty_docs.remove(&doc_id);
@@ -980,6 +1008,7 @@ fn apply_retention(
 		RetentionPolicy::DropAfter(ttl) => {
 			if state.current.is_some() && now.duration_since(st.last_visible_at) > ttl {
 				state.current = None;
+				state.tree_doc_version = None;
 				state.dirty = false;
 				state.pending_incremental = None;
 				dirty_docs.remove(&doc_id);

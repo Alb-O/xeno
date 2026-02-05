@@ -300,15 +300,16 @@ impl Editor {
 		};
 
 		if result.applied {
-			let after_rope = self
+			let (after_rope, version) = self
 				.state
 				.core
 				.buffers
 				.get_buffer(buffer_id)
 				.ok_or_else(|| ApplyError::BufferNotFound(buffer_id.0.to_string()))?
-				.with_doc(|doc| doc.content().clone());
+				.with_doc(|doc| (doc.content().clone(), doc.version()));
 			self.state.syntax_manager.note_edit_incremental(
 				doc_id,
+				version,
 				&before_rope,
 				&after_rope,
 				tx.changes(),

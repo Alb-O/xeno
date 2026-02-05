@@ -11,7 +11,7 @@ use xeno_primitives::Range;
 
 pub use crate::core::{
 	Capability, Key, RegistryBuilder, RegistryEntry, RegistryIndex, RegistryMeta, RegistryMetadata,
-	RegistrySource, RuntimeRegistry,
+	RegistryRef, RegistrySource, RuntimeRegistry,
 };
 
 #[macro_use]
@@ -109,11 +109,13 @@ pub use crate::db::MOTIONS;
 /// Finds a motion by name or alias.
 #[cfg(feature = "db")]
 pub fn find(name: &str) -> Option<MotionKey> {
-	MOTIONS.get(name).map(MotionKey::new)
+	MOTIONS.get(name).map(MotionKey::new_ref)
 }
 
 /// Returns all registered motions, sorted by name.
 #[cfg(feature = "db")]
-pub fn all() -> impl Iterator<Item = &'static MotionDef> {
-	MOTIONS.iter()
+pub fn all() -> Vec<RegistryRef<MotionDef>> {
+	let mut items = MOTIONS.all();
+	items.sort_by_key(|m| m.name().to_string());
+	items
 }

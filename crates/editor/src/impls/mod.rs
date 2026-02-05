@@ -91,7 +91,7 @@ static REGISTRY_SUMMARY_ONCE: Once = Once::new();
 fn log_registry_summary_once() {
 	REGISTRY_SUMMARY_ONCE.call_once(|| {
 		tracing::info!(
-			actions = xeno_registry::all_actions().count(),
+			actions = xeno_registry::all_actions().len(),
 			commands = xeno_registry::COMMANDS.len(),
 			editor_commands = crate::commands::EDITOR_COMMANDS.len(),
 			motions = xeno_registry::MOTIONS.len(),

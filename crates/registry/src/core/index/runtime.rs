@@ -76,27 +76,62 @@ use arc_swap::ArcSwap;
 
 use super::collision::{ChooseWinner, Collision, DuplicatePolicy, KeyKind, KeyStore};
 use super::insert::{insert_id_key_runtime, insert_typed_key};
-use super::types::{Map, RegistryIndex};
+use super::types::{DefPtr, Map, RegistryIndex};
 use crate::RegistryEntry;
 use crate::error::{InsertAction, RegistryError};
+
+/// Guard object that keeps a registry snapshot alive while providing access to a definition.
+pub struct RegistryRef<T>
+where
+	T: RegistryEntry + Send + Sync + 'static,
+{
+	snap: Arc<Snapshot<T>>,
+	ptr: DefPtr<T>,
+}
+
+impl<T> Clone for RegistryRef<T>
+where
+	T: RegistryEntry + Send + Sync + 'static,
+{
+	fn clone(&self) -> Self {
+		Self {
+			snap: self.snap.clone(),
+			ptr: self.ptr,
+		}
+	}
+}
+
+impl<T> std::ops::Deref for RegistryRef<T>
+where
+	T: RegistryEntry + Send + Sync + 'static,
+{
+	type Target = T;
+
+	fn deref(&self) -> &T {
+		// Safety: The definition is kept alive by the snapshot Arc held in the guard.
+		unsafe { self.ptr.as_ref() }
+	}
+}
 
 /// Single source of truth for registry lookups.
 ///
 /// Contains a merged view of builtins and runtime extensions.
 pub struct Snapshot<T>
 where
-	T: RegistryEntry + 'static,
+	T: RegistryEntry + Send + Sync + 'static,
 {
-	pub by_id: Map<&'static str, &'static T>,
-	pub by_key: Map<&'static str, &'static T>,
-	pub items_all: Vec<&'static T>,
-	pub items_effective: Vec<&'static T>,
+	pub by_id: Map<Box<str>, DefPtr<T>>,
+	pub by_key: Map<Box<str>, DefPtr<T>>,
+	pub items_all: Vec<DefPtr<T>>,
+	pub items_effective: Vec<DefPtr<T>>,
+	/// Owns runtime-registered definitions so their pointers stay valid.
+	pub owned: Vec<Arc<T>>,
 	pub collisions: Vec<Collision>,
 }
 
 impl<T> Clone for Snapshot<T>
 where
-	T: RegistryEntry + 'static,
+	T: RegistryEntry + Send + Sync + 'static,
 {
 	fn clone(&self) -> Self {
 		Self {
@@ -104,6 +139,7 @@ where
 			by_key: self.by_key.clone(),
 			items_all: self.items_all.clone(),
 			items_effective: self.items_effective.clone(),
+			owned: self.owned.clone(),
 			collisions: self.collisions.clone(),
 		}
 	}
@@ -111,22 +147,23 @@ where
 
 impl<T> Snapshot<T>
 where
-	T: RegistryEntry + 'static,
+	T: RegistryEntry + Send + Sync + 'static,
 {
 	/// Creates a new snapshot from a builtin index.
 	fn from_builtins(b: &RegistryIndex<T>) -> Self {
 		Self {
 			by_id: b.by_id.clone(),
 			by_key: b.by_key.clone(),
-			items_all: b.items_all.clone(),
-			items_effective: b.items_effective.clone(),
-			collisions: b.collisions.clone(),
+			items_all: b.items_all.to_vec(),
+			items_effective: b.items_effective.to_vec(),
+			owned: Vec::new(),
+			collisions: b.collisions.to_vec(),
 		}
 	}
 
 	/// Looks up a definition by ID, name, or alias.
 	#[inline]
-	pub fn get(&self, key: &str) -> Option<&'static T> {
+	pub fn get_ptr(&self, key: &str) -> Option<DefPtr<T>> {
 		self.by_id
 			.get(key)
 			.copied()
@@ -135,7 +172,7 @@ where
 
 	/// Returns the definition for a given ID, if it exists.
 	#[inline]
-	pub fn get_by_id(&self, id: &str) -> Option<&'static T> {
+	pub fn get_by_id_ptr(&self, id: &str) -> Option<DefPtr<T>> {
 		self.by_id.get(id).copied()
 	}
 }
@@ -143,7 +180,7 @@ where
 /// Registry wrapper for runtime-extensible registries.
 pub struct RuntimeRegistry<T>
 where
-	T: RegistryEntry + 'static,
+	T: RegistryEntry + Send + Sync + 'static,
 {
 	pub(super) label: &'static str,
 	pub(super) builtins: RegistryIndex<T>,
@@ -153,7 +190,7 @@ where
 
 impl<T> RuntimeRegistry<T>
 where
-	T: RegistryEntry + 'static,
+	T: RegistryEntry + Send + Sync + 'static,
 {
 	/// Creates a new runtime registry with the given builtins.
 	pub fn new(label: &'static str, builtins: RegistryIndex<T>) -> Self {
@@ -183,14 +220,18 @@ where
 
 	/// Looks up a definition by ID, name, or alias.
 	#[inline]
-	pub fn get(&self, key: &str) -> Option<&'static T> {
-		self.snap.load().get(key)
+	pub fn get(&self, key: &str) -> Option<RegistryRef<T>> {
+		let snap = self.snap.load_full();
+		let ptr = snap.get_ptr(key)?;
+		Some(RegistryRef { snap, ptr })
 	}
 
 	/// Returns the definition for a given ID, if it exists.
 	#[inline]
-	pub fn get_by_id(&self, id: &str) -> Option<&'static T> {
-		self.snap.load().get_by_id(id)
+	pub fn get_by_id(&self, id: &str) -> Option<RegistryRef<T>> {
+		let snap = self.snap.load_full();
+		let ptr = snap.get_by_id_ptr(id)?;
+		Some(RegistryRef { snap, ptr })
 	}
 
 	/// Registers a definition at runtime.
@@ -198,9 +239,9 @@ where
 		self.try_register(def).is_ok()
 	}
 
-	/// Registers an owned definition by leaking it.
+	/// Registers an owned definition without leaking.
 	pub fn register_owned(&self, def: T) -> bool {
-		self.register(Box::leak(Box::new(def)))
+		self.try_register_owned(def).is_ok()
 	}
 
 	/// Registers many definitions at runtime in a single atomic operation.
@@ -211,13 +252,12 @@ where
 		Ok(self.try_register_many(defs)?.len())
 	}
 
-	/// Registers many owned definitions by leaking them.
+	/// Registers many owned definitions without leaking.
 	pub fn register_many_owned<I>(&self, defs: I) -> Result<usize, RegistryError>
 	where
 		I: IntoIterator<Item = T>,
 	{
-		let leaked: Vec<&'static T> = defs.into_iter().map(|d| &*Box::leak(Box::new(d))).collect();
-		self.register_many(leaked)
+		Ok(self.try_register_many_owned(defs)?.len())
 	}
 
 	/// Attempts to register many definitions at runtime in a single atomic operation.
@@ -225,7 +265,17 @@ where
 	where
 		I: IntoIterator<Item = &'static T>,
 	{
-		self.try_register_many_internal(defs, false)
+		self.try_register_many_internal(defs.into_iter().map(DefPtr::from_ref), Vec::new(), false)
+	}
+
+	/// Attempts to register many owned definitions without leaking.
+	pub fn try_register_many_owned<I>(&self, defs: I) -> Result<Vec<InsertAction>, RegistryError>
+	where
+		I: IntoIterator<Item = T>,
+	{
+		let owned: Vec<Arc<T>> = defs.into_iter().map(Arc::new).collect();
+		let ptrs: Vec<DefPtr<T>> = owned.iter().map(|a| DefPtr::from_ref(&**a)).collect();
+		self.try_register_many_internal(ptrs, owned, false)
 	}
 
 	/// Attempts to register many definitions with ID override support.
@@ -233,18 +283,19 @@ where
 	where
 		I: IntoIterator<Item = &'static T>,
 	{
-		self.try_register_many_internal(defs, true)
+		self.try_register_many_internal(defs.into_iter().map(DefPtr::from_ref), Vec::new(), true)
 	}
 
 	fn try_register_many_internal<I>(
 		&self,
 		defs: I,
+		new_owned: Vec<Arc<T>>,
 		allow_overrides: bool,
 	) -> Result<Vec<InsertAction>, RegistryError>
 	where
-		I: IntoIterator<Item = &'static T>,
+		I: IntoIterator<Item = DefPtr<T>>,
 	{
-		let input_defs: Vec<&'static T> = defs.into_iter().collect();
+		let input_defs: Vec<DefPtr<T>> = defs.into_iter().collect();
 		if input_defs.is_empty() {
 			return Ok(Vec::new());
 		}
@@ -254,18 +305,18 @@ where
 			let mut next = (*cur).clone();
 
 			// Build pointer set of already registered items for efficient dedup
-			let mut existing_ptrs: rustc_hash::FxHashSet<*const T> =
+			let mut existing_ptrs: rustc_hash::FxHashSet<DefPtr<T>> =
 				rustc_hash::FxHashSet::with_capacity_and_hasher(
 					next.items_all.len(),
 					Default::default(),
 				);
 			for &item in &next.items_all {
-				existing_ptrs.insert(item as *const T);
+				existing_ptrs.insert(item);
 			}
 
 			let mut new_defs_indices = Vec::with_capacity(input_defs.len());
 			for (idx, &def) in input_defs.iter().enumerate() {
-				if !existing_ptrs.contains(&(def as *const T)) {
+				if !existing_ptrs.contains(&def) {
 					new_defs_indices.push(idx);
 				}
 			}
@@ -282,7 +333,7 @@ where
 
 				for idx in new_defs_indices {
 					let def = input_defs[idx];
-					let meta = def.meta();
+					let meta = unsafe { def.as_ref() }.meta();
 
 					let id_action = if allow_overrides {
 						insert_id_key_runtime(&mut store, self.label, choose_winner, meta.id, def)?
@@ -328,23 +379,39 @@ where
 				}
 			}
 
+			// Add successfully registered owned items
+			next.owned.extend(new_owned.clone());
+
+			// Prune unreferenced owned definitions
+			{
+				let mut referenced = rustc_hash::FxHashSet::default();
+				for &ptr in next.by_id.values() {
+					referenced.insert(ptr);
+				}
+				for &ptr in next.by_key.values() {
+					referenced.insert(ptr);
+				}
+				next.owned
+					.retain(|arc| referenced.contains(&DefPtr::from_ref(&**arc)));
+			}
+
 			// Update items_effective
-			let mut effective_set: rustc_hash::FxHashSet<*const T> =
+			let mut effective_set: rustc_hash::FxHashSet<DefPtr<T>> =
 				rustc_hash::FxHashSet::with_capacity_and_hasher(
 					next.items_all.len(),
 					Default::default(),
 				);
 			for &def in next.by_id.values() {
-				effective_set.insert(def as *const T);
+				effective_set.insert(def);
 			}
 			for &def in next.by_key.values() {
-				effective_set.insert(def as *const T);
+				effective_set.insert(def);
 			}
 			next.items_effective = next
 				.items_all
 				.iter()
 				.copied()
-				.filter(|&d| effective_set.contains(&(d as *const T)))
+				.filter(|d| effective_set.contains(d))
 				.collect();
 
 			let next_arc = Arc::new(next);
@@ -360,6 +427,11 @@ where
 	/// Attempts to register a definition at runtime, returning detailed error info.
 	pub fn try_register(&self, def: &'static T) -> Result<InsertAction, RegistryError> {
 		Ok(self.try_register_many(std::iter::once(def))?[0])
+	}
+
+	/// Attempts to register an owned definition without leaking.
+	pub fn try_register_owned(&self, def: T) -> Result<InsertAction, RegistryError> {
+		Ok(self.try_register_many_owned(std::iter::once(def))?[0])
 	}
 
 	/// Attempts to register a definition with ID override support.
@@ -397,42 +469,35 @@ where
 	}
 
 	/// Returns all definitions (builtins followed by extras).
-	pub fn all(&self) -> Vec<&'static T> {
-		self.snap.load().items_effective.clone()
-	}
-
-	/// Returns definitions added at runtime.
-	pub fn extras_items(&self) -> Vec<&'static T> {
-		let builtins_set: rustc_hash::FxHashSet<*const T> = rustc_hash::FxHashSet::from_iter(
-			self.builtins.items_all().iter().map(|&b| b as *const T),
-		);
-		self.snap
-			.load()
-			.items_all
+	pub fn all(&self) -> Vec<RegistryRef<T>> {
+		let snap = self.snap.load_full();
+		snap.items_effective
 			.iter()
-			.copied()
-			.filter(|&d| !builtins_set.contains(&(d as *const T)))
+			.map(|&ptr| RegistryRef {
+				snap: snap.clone(),
+				ptr,
+			})
 			.collect()
 	}
 
-	/// Returns the underlying builtins index.
-	pub fn builtins(&self) -> &RegistryIndex<T> {
-		&self.builtins
-	}
-
 	/// Returns an iterator over effective definitions.
-	pub fn iter(&self) -> impl Iterator<Item = &'static T> + '_ {
-		self.all().into_iter()
+	pub fn iter(&self) -> Vec<RegistryRef<T>> {
+		self.all()
 	}
 
-	/// Returns the effective items slice.
-	pub fn items(&self) -> Vec<&'static T> {
+	/// Returns all effective definitions.
+	pub fn items(&self) -> Vec<RegistryRef<T>> {
 		self.all()
 	}
 
 	/// Returns all recorded collisions (builtins + runtime).
 	pub fn collisions(&self) -> Vec<Collision> {
 		self.snap.load().collisions.clone()
+	}
+
+	/// Returns the underlying builtins index.
+	pub fn builtins(&self) -> &RegistryIndex<T> {
+		&self.builtins
 	}
 
 	/// Returns the current snapshot guard so callers can read without allocating.
@@ -450,29 +515,29 @@ where
 /// KeyStore over Snapshot for shared insertion logic.
 struct SnapshotStore<'a, T>
 where
-	T: RegistryEntry + 'static,
+	T: RegistryEntry + Send + Sync + 'static,
 {
 	snap: &'a mut Snapshot<T>,
 }
 
 impl<T> KeyStore<T> for SnapshotStore<'_, T>
 where
-	T: RegistryEntry + 'static,
+	T: RegistryEntry + Send + Sync + 'static,
 {
-	fn get_id_owner(&self, id: &str) -> Option<&'static T> {
+	fn get_id_owner(&self, id: &str) -> Option<DefPtr<T>> {
 		self.snap.by_id.get(id).copied()
 	}
 
-	fn get_key_winner(&self, key: &str) -> Option<&'static T> {
+	fn get_key_winner(&self, key: &str) -> Option<DefPtr<T>> {
 		self.snap.by_key.get(key).copied()
 	}
 
-	fn set_key_winner(&mut self, key: &'static str, def: &'static T) {
-		self.snap.by_key.insert(key, def);
+	fn set_key_winner(&mut self, key: &str, def: DefPtr<T>) {
+		self.snap.by_key.insert(Box::from(key), def);
 	}
 
-	fn insert_id(&mut self, id: &'static str, def: &'static T) -> Option<&'static T> {
-		match self.snap.by_id.entry(id) {
+	fn insert_id(&mut self, id: &str, def: DefPtr<T>) -> Option<DefPtr<T>> {
+		match self.snap.by_id.entry(Box::from(id)) {
 			std::collections::hash_map::Entry::Vacant(v) => {
 				v.insert(def);
 				None
@@ -481,12 +546,12 @@ where
 		}
 	}
 
-	fn set_id_owner(&mut self, id: &'static str, def: &'static T) {
-		self.snap.by_id.insert(id, def);
+	fn set_id_owner(&mut self, id: &str, def: DefPtr<T>) {
+		self.snap.by_id.insert(Box::from(id), def);
 	}
 
-	fn evict_def(&mut self, def: &'static T) {
-		self.snap.by_key.retain(|_, &mut v| !std::ptr::eq(v, def));
+	fn evict_def(&mut self, def: DefPtr<T>) {
+		self.snap.by_key.retain(|_, &mut v| !v.ptr_eq(def));
 	}
 
 	fn push_collision(&mut self, c: Collision) {

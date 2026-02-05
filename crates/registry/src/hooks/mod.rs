@@ -13,7 +13,7 @@ pub mod registry;
 mod types;
 
 pub use builtins::register_builtins;
-pub use registry::HooksRegistry;
+pub use registry::{HooksRef, HooksRegistry};
 
 use crate::error::RegistryError;
 
@@ -48,18 +48,18 @@ pub fn register_hook(def: &'static HookDef) -> bool {
 
 /// Returns all hooks registered for the given `event`, in execution order.
 #[cfg(feature = "db")]
-pub fn hooks_for_event(event: crate::HookEvent) -> Vec<&'static HookDef> {
+pub fn hooks_for_event(event: crate::HookEvent) -> Vec<HooksRef> {
 	HOOKS.for_event(event)
 }
 
 /// Find all hooks registered for a specific event.
 #[cfg(feature = "db")]
-pub fn find_hooks(event: crate::HookEvent) -> impl Iterator<Item = &'static HookDef> {
-	hooks_for_event(event).into_iter()
+pub fn find_hooks(event: crate::HookEvent) -> Vec<HooksRef> {
+	hooks_for_event(event)
 }
 
 /// List all registered hooks (builtins + runtime).
 #[cfg(feature = "db")]
-pub fn all_hooks() -> impl Iterator<Item = &'static HookDef> {
-	HOOKS.all().into_iter()
+pub fn all_hooks() -> Vec<HooksRef> {
+	HOOKS.all()
 }

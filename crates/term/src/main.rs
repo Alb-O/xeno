@@ -436,8 +436,8 @@ async fn run_lsp_smoke(workspace: Option<std::path::PathBuf>) -> anyhow::Result<
 	let handle1 = h1?;
 	let handle2 = h2?;
 	info!(
-		id1 = handle1.id().0,
-		id2 = handle2.id().0,
+		id1 = %handle1.id(),
+		id2 = %handle2.id(),
 		"Concurrent start complete"
 	);
 

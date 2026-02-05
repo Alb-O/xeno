@@ -13,7 +13,7 @@ use xeno_runtime_language::LanguageLoader;
 /// theme, language settings, and user options.
 pub struct Config {
 	/// Current theme.
-	pub theme: &'static Theme,
+	pub theme: Theme,
 	/// Language configuration loader (Arc-wrapped for background task cloning).
 	pub language_loader: Arc<LanguageLoader>,
 	/// Global user configuration options.
@@ -37,7 +37,7 @@ impl Config {
 		let bootstrap_theme =
 			crate::bootstrap::get().unwrap_or(&xeno_registry::themes::DEFAULT_THEME);
 		Self {
-			theme: bootstrap_theme,
+			theme: *bootstrap_theme,
 			language_loader: Arc::new(language_loader),
 			global_options: OptionStore::new(),
 			language_options: HashMap::new(),

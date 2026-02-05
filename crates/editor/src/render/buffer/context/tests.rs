@@ -19,7 +19,7 @@ mod tests {
 		let syntax_manager = crate::syntax_manager::SyntaxManager::default();
 
 		let ctx = BufferRenderContext {
-			theme,
+			theme: &*theme,
 			language_loader: &loader,
 			syntax_manager: &syntax_manager,
 			diagnostics: None,
@@ -89,7 +89,7 @@ mod tests {
 		let syntax_manager = crate::syntax_manager::SyntaxManager::default();
 
 		let ctx = BufferRenderContext {
-			theme,
+			theme: &*theme,
 			language_loader: &loader,
 			syntax_manager: &syntax_manager,
 			diagnostics: None,

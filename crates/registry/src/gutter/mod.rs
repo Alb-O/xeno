@@ -25,8 +25,8 @@ pub fn register_plugin(
 }
 
 pub use crate::core::{
-	RegistryBuilder, RegistryEntry, RegistryIndex, RegistryMeta, RegistryMetadata, RegistrySource,
-	RuntimeRegistry,
+	RegistryBuilder, RegistryEntry, RegistryIndex, RegistryMeta, RegistryMetadata, RegistryRef,
+	RegistrySource, RuntimeRegistry,
 };
 // Re-export macros
 pub use crate::gutter;
@@ -147,19 +147,23 @@ pub use crate::db::GUTTERS;
 
 /// Returns enabled gutters sorted by priority (left to right).
 #[cfg(feature = "db")]
-pub fn enabled_gutters() -> impl Iterator<Item = &'static GutterDef> {
-	GUTTERS.iter().filter(|g| g.default_enabled)
+pub fn enabled_gutters() -> Vec<RegistryRef<GutterDef>> {
+	GUTTERS
+		.iter()
+		.into_iter()
+		.filter(|g| g.default_enabled)
+		.collect()
 }
 
 /// Finds a gutter column by name.
 #[cfg(feature = "db")]
-pub fn find(name: &str) -> Option<&'static GutterDef> {
+pub fn find(name: &str) -> Option<RegistryRef<GutterDef>> {
 	GUTTERS.get(name)
 }
 
 /// Returns all registered gutter columns, sorted by priority.
 #[cfg(feature = "db")]
-pub fn all() -> impl Iterator<Item = &'static GutterDef> {
+pub fn all() -> Vec<RegistryRef<GutterDef>> {
 	GUTTERS.iter()
 }
 
@@ -174,15 +178,16 @@ pub fn column_width(gutter: &GutterDef, ctx: &GutterWidthContext) -> u16 {
 /// Computes total gutter width from enabled columns (includes trailing separator).
 #[cfg(feature = "db")]
 pub fn total_width(ctx: &GutterWidthContext) -> u16 {
-	let width: u16 = enabled_gutters().map(|g| column_width(g, ctx)).sum();
+	let width: u16 = enabled_gutters().iter().map(|g| column_width(g, ctx)).sum();
 	if width > 0 { width + 1 } else { 0 }
 }
 
 /// Computes widths for all enabled columns, returning (width, def) pairs sorted by priority.
 #[cfg(feature = "db")]
-pub fn column_widths(ctx: &GutterWidthContext) -> Vec<(u16, &'static GutterDef)> {
+pub fn column_widths(ctx: &GutterWidthContext) -> Vec<(u16, RegistryRef<GutterDef>)> {
 	enabled_gutters()
-		.map(|g| (column_width(g, ctx), g))
+		.into_iter()
+		.map(|g| (column_width(&g, ctx), g))
 		.collect()
 }
 

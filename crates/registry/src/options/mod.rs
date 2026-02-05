@@ -12,7 +12,7 @@ mod store;
 pub mod validators;
 
 pub use builtins::register_builtins;
-pub use registry::OptionsRegistry;
+pub use registry::{OptionsRef, OptionsRegistry};
 pub use resolver::OptionResolver;
 pub use store::OptionStore;
 
@@ -78,11 +78,12 @@ pub struct TypedOptionKey<T: FromOptionValue> {
 	_marker: PhantomData<T>,
 }
 
-impl<T: FromOptionValue> Copy for TypedOptionKey<T> {}
-
 impl<T: FromOptionValue> Clone for TypedOptionKey<T> {
 	fn clone(&self) -> Self {
-		*self
+		Self {
+			inner: self.inner.clone(),
+			_marker: PhantomData,
+		}
 	}
 }
 
@@ -96,13 +97,13 @@ impl<T: FromOptionValue> TypedOptionKey<T> {
 	}
 
 	/// Returns the underlying option definition.
-	pub const fn def(self) -> &'static OptionDef {
+	pub fn def(&self) -> &OptionDef {
 		self.inner.def()
 	}
 
 	/// Returns the untyped option key.
-	pub const fn untyped(self) -> OptionKey {
-		self.inner
+	pub fn untyped(&self) -> OptionKey {
+		self.inner.clone()
 	}
 }
 
@@ -126,34 +127,34 @@ pub use crate::db::OPTIONS;
 
 /// Finds an option definition by name.
 #[cfg(feature = "db")]
-pub fn find(name: &str) -> Option<&'static OptionDef> {
+pub fn find(name: &str) -> Option<OptionsRef> {
 	OPTIONS.get(name)
 }
 
 /// Finds an option definition by its internal name.
 #[cfg(feature = "db")]
-pub fn find_by_name(name: &str) -> Option<&'static OptionDef> {
+pub fn find_by_name(name: &str) -> Option<OptionsRef> {
 	OPTIONS.get(name)
 }
 
 /// Finds an option definition by its KDL configuration key.
 #[cfg(feature = "db")]
-pub fn find_by_kdl(kdl_key: &str) -> Option<&'static OptionDef> {
+pub fn find_by_kdl(kdl_key: &str) -> Option<OptionsRef> {
 	OPTIONS.by_kdl_key(kdl_key)
 }
 
 /// Returns all registered options.
 #[cfg(feature = "db")]
-pub fn all() -> impl Iterator<Item = &'static OptionDef> {
-	OPTIONS.iter().into_iter()
+pub fn all() -> Vec<OptionsRef> {
+	OPTIONS.items()
 }
 
 /// Returns all options sorted by KDL key.
 #[cfg(feature = "db")]
-pub fn all_sorted() -> impl Iterator<Item = &'static OptionDef> {
-	let mut opts: Vec<_> = OPTIONS.items().to_vec();
+pub fn all_sorted() -> Vec<OptionsRef> {
+	let mut opts = OPTIONS.items();
 	opts.sort_by_key(|o| o.kdl_key);
-	opts.into_iter()
+	opts
 }
 
 /// Error type for option validation.

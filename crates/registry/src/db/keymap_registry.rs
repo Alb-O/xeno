@@ -105,7 +105,7 @@ impl KeymapRegistry {
 			.items_all()
 			.iter()
 			.enumerate()
-			.map(|(idx, def)| (def.id(), ActionId(idx as u32)))
+			.map(|(idx, def)| (unsafe { def.as_ref() }.id(), ActionId(idx as u32)))
 			.collect();
 
 		let mut seen: HashMap<(BindingMode, &'static str), (&'static str, i16)> = HashMap::new();

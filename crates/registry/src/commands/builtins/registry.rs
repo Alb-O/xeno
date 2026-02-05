@@ -41,10 +41,10 @@ impl std::fmt::Display for CollisionKind {
 struct CollisionReport {
 	kind: CollisionKind,
 	key: String,
-	winner_id: &'static str,
+	winner_id: String,
 	winner_source: String,
 	winner_priority: i16,
-	shadowed_id: &'static str,
+	shadowed_id: String,
 	shadowed_source: String,
 	shadowed_priority: i16,
 }
@@ -61,29 +61,40 @@ fn diagnostics() -> DiagnosticReport {
 	DiagnosticReport { collisions }
 }
 
-fn register_command_collision(
+struct EntryMeta {
+	id: String,
+	source: String,
+	priority: i16,
+}
+
+fn register_collision(
 	kind: CollisionKind,
-	key: &'static str,
-	current: &'static crate::commands::CommandDef,
-	map: &mut HashMap<&'static str, &'static crate::commands::CommandDef>,
+	key: String,
+	current: EntryMeta,
+	map: &mut HashMap<String, EntryMeta>,
 	collisions: &mut Vec<CollisionReport>,
 ) {
-	if let Some(existing) = map.get(key).copied() {
-		let (winner, shadowed) = if current.priority() > existing.priority() {
-			map.insert(key, current);
-			(current, existing)
+	if let Some(existing) = map.get(&key) {
+		let current_won = current.priority > existing.priority;
+		let (winner, shadowed) = if current_won {
+			(current, existing.clone())
 		} else {
-			(existing, current)
+			(existing.clone(), current)
 		};
+
+		if current_won {
+			map.insert(key.clone(), winner.clone());
+		}
+
 		collisions.push(CollisionReport {
 			kind,
-			key: key.to_string(),
-			winner_id: winner.id(),
-			winner_source: winner.source().to_string(),
-			winner_priority: winner.priority(),
-			shadowed_id: shadowed.id(),
-			shadowed_source: shadowed.source().to_string(),
-			shadowed_priority: shadowed.priority(),
+			key,
+			winner_id: winner.id,
+			winner_source: winner.source,
+			winner_priority: winner.priority,
+			shadowed_id: shadowed.id,
+			shadowed_source: shadowed.source,
+			shadowed_priority: shadowed.priority,
 		});
 	} else {
 		map.insert(key, current);
@@ -96,46 +107,35 @@ fn collect_command_collisions(collisions: &mut Vec<CollisionReport>) {
 	let mut by_alias = HashMap::new();
 
 	for cmd in COMMANDS.iter() {
-		register_command_collision(CollisionKind::Id, cmd.id(), cmd, &mut by_id, collisions);
-		register_command_collision(
+		let meta = EntryMeta {
+			id: cmd.id().to_string(),
+			source: cmd.source().to_string(),
+			priority: cmd.priority(),
+		};
+
+		register_collision(
+			CollisionKind::Id,
+			cmd.id().to_string(),
+			meta.clone(),
+			&mut by_id,
+			collisions,
+		);
+		register_collision(
 			CollisionKind::Name,
-			cmd.name(),
-			cmd,
+			cmd.name().to_string(),
+			meta.clone(),
 			&mut by_name,
 			collisions,
 		);
-		for &alias in cmd.aliases() {
-			register_command_collision(CollisionKind::Alias, alias, cmd, &mut by_alias, collisions);
+		for alias in cmd.aliases() {
+			register_collision(
+				CollisionKind::Alias,
+				alias.to_string(),
+				meta.clone(),
+				&mut by_alias,
+				collisions,
+			);
 		}
-	}
-}
-
-fn register_motion_collision(
-	kind: CollisionKind,
-	key: &'static str,
-	current: &'static motions::MotionDef,
-	map: &mut HashMap<&'static str, &'static motions::MotionDef>,
-	collisions: &mut Vec<CollisionReport>,
-) {
-	if let Some(existing) = map.get(key).copied() {
-		let (winner, shadowed) = if current.priority() > existing.priority() {
-			map.insert(key, current);
-			(current, existing)
-		} else {
-			(existing, current)
-		};
-		collisions.push(CollisionReport {
-			kind,
-			key: key.to_string(),
-			winner_id: winner.id(),
-			winner_source: winner.source().to_string(),
-			winner_priority: winner.priority(),
-			shadowed_id: shadowed.id(),
-			shadowed_source: shadowed.source().to_string(),
-			shadowed_priority: shadowed.priority(),
-		});
-	} else {
-		map.insert(key, current);
 	}
 }
 
@@ -145,25 +145,31 @@ fn collect_motion_collisions(collisions: &mut Vec<CollisionReport>) {
 	let mut by_alias = HashMap::new();
 
 	for motion in motions::all() {
-		register_motion_collision(
+		let meta = EntryMeta {
+			id: motion.id().to_string(),
+			source: motion.source().to_string(),
+			priority: motion.priority(),
+		};
+
+		register_collision(
 			CollisionKind::Id,
-			motion.id(),
-			motion,
+			motion.id().to_string(),
+			meta.clone(),
 			&mut by_id,
 			collisions,
 		);
-		register_motion_collision(
+		register_collision(
 			CollisionKind::Name,
-			motion.name(),
-			motion,
+			motion.name().to_string(),
+			meta.clone(),
 			&mut by_name,
 			collisions,
 		);
-		for &alias in motion.aliases() {
-			register_motion_collision(
+		for alias in motion.aliases() {
+			register_collision(
 				CollisionKind::Alias,
-				alias,
-				motion,
+				alias.to_string(),
+				meta.clone(),
 				&mut by_alias,
 				collisions,
 			);
@@ -171,54 +177,41 @@ fn collect_motion_collisions(collisions: &mut Vec<CollisionReport>) {
 	}
 }
 
-fn register_text_object_collision(
-	kind: CollisionKind,
-	key: char,
-	current: &'static textobj::TextObjectDef,
-	map: &mut HashMap<char, &'static textobj::TextObjectDef>,
-	collisions: &mut Vec<CollisionReport>,
-) {
-	if let Some(existing) = map.get(&key).copied() {
-		let (winner, shadowed) = if current.priority() > existing.priority() {
-			map.insert(key, current);
-			(current, existing)
-		} else {
-			(existing, current)
-		};
-		collisions.push(CollisionReport {
-			kind,
-			key: key.to_string(),
-			winner_id: winner.id(),
-			winner_source: winner.source().to_string(),
-			winner_priority: winner.priority(),
-			shadowed_id: shadowed.id(),
-			shadowed_source: shadowed.source().to_string(),
-			shadowed_priority: shadowed.priority(),
-		});
-	} else {
-		map.insert(key, current);
-	}
-}
-
 fn collect_text_object_collisions(collisions: &mut Vec<CollisionReport>) {
 	let mut by_trigger = HashMap::new();
 
 	for obj in textobj::all() {
-		register_text_object_collision(
+		let meta = EntryMeta {
+			id: obj.id().to_string(),
+			source: obj.source().to_string(),
+			priority: obj.priority(),
+		};
+
+		register_collision(
 			CollisionKind::Trigger,
-			obj.trigger,
-			obj,
+			obj.trigger.to_string(),
+			meta.clone(),
 			&mut by_trigger,
 			collisions,
 		);
 		for &trigger in obj.alt_triggers {
-			register_text_object_collision(
+			register_collision(
 				CollisionKind::Trigger,
-				trigger,
-				obj,
+				trigger.to_string(),
+				meta.clone(),
 				&mut by_trigger,
 				collisions,
 			);
+		}
+	}
+}
+
+impl Clone for EntryMeta {
+	fn clone(&self) -> Self {
+		Self {
+			id: self.id.clone(),
+			source: self.source.clone(),
+			priority: self.priority,
 		}
 	}
 }

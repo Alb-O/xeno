@@ -6,13 +6,32 @@ use std::path::PathBuf;
 use lsp_types::PositionEncodingKind;
 use serde_json::Value;
 
-/// Unique identifier for a language server instance.
+/// Unique identifier for a language server slot.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct LanguageServerId(pub u64);
+pub struct LspSlotId(pub u32);
+
+/// Unique identifier for a specific language server instance (generation-aware).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct LanguageServerId {
+	/// Slot identifying the logical server (language + root path pair).
+	pub slot: LspSlotId,
+	/// Generation counter, incremented on each restart of the same slot.
+	pub generation: u32,
+}
+
+impl LanguageServerId {
+	/// Creates a new identifier from a raw slot number and generation.
+	pub fn new(slot: u32, generation: u32) -> Self {
+		Self {
+			slot: LspSlotId(slot),
+			generation,
+		}
+	}
+}
 
 impl std::fmt::Display for LanguageServerId {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-		write!(f, "LSP#{}", self.0)
+		write!(f, "LSP#{}.{}", self.slot.0, self.generation)
 	}
 }
 
@@ -45,6 +64,8 @@ impl OffsetEncoding {
 /// Configuration for starting a language server.
 #[derive(Debug, Clone)]
 pub struct ServerConfig {
+	/// Unique identifier for this instance.
+	pub id: LanguageServerId,
 	/// Command to spawn the language server.
 	pub command: String,
 	/// Arguments to pass to the command.
@@ -61,8 +82,13 @@ pub struct ServerConfig {
 
 impl ServerConfig {
 	/// Create a new server configuration.
-	pub fn new(command: impl Into<String>, root_path: impl Into<PathBuf>) -> Self {
+	pub fn new(
+		id: LanguageServerId,
+		command: impl Into<String>,
+		root_path: impl Into<PathBuf>,
+	) -> Self {
 		Self {
+			id,
 			command: command.into(),
 			args: Vec::new(),
 			env: HashMap::new(),
@@ -122,11 +148,13 @@ mod tests {
 
 	#[test]
 	fn test_server_config_builder() {
-		let config = ServerConfig::new("rust-analyzer", "/home/user/project")
+		let id = LanguageServerId::new(0, 1);
+		let config = ServerConfig::new(id, "rust-analyzer", "/home/user/project")
 			.args(["--log-file", "/tmp/ra.log"])
 			.timeout(60)
 			.config(serde_json::json!({"checkOnSave": true}));
 
+		assert_eq!(config.id, id);
 		assert_eq!(config.command, "rust-analyzer");
 		assert_eq!(config.args, vec!["--log-file", "/tmp/ra.log"]);
 		assert_eq!(config.timeout_secs, 60);

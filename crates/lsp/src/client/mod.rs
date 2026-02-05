@@ -62,7 +62,7 @@ pub mod transport;
 
 // Public re-exports (preserve existing API surface)
 pub use capabilities::client_capabilities;
-pub use config::{LanguageServerId, OffsetEncoding, ServerConfig};
+pub use config::{LanguageServerId, LspSlotId, OffsetEncoding, ServerConfig};
 pub use event_handler::{LogLevel, LspEventHandler, NoOpEventHandler, SharedEventHandler};
 pub use handle::ClientHandle;
 pub use local_transport::LocalTransport;

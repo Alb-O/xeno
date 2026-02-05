@@ -29,7 +29,7 @@ pub fn register_plugin(
 pub use crate::command;
 pub use crate::core::{
 	Capability, CommandError, RegistryBuilder, RegistryEntry, RegistryMeta, RegistryMetadata,
-	RegistrySource, RuntimeRegistry,
+	RegistryRef, RegistrySource, RuntimeRegistry,
 };
 
 /// Function signature for async command handlers.
@@ -217,12 +217,12 @@ pub fn register_command(def: &'static CommandDef) -> bool {
 
 /// Finds a command by name or alias.
 #[cfg(feature = "db")]
-pub fn find_command(name: &str) -> Option<&'static CommandDef> {
+pub fn find_command(name: &str) -> Option<RegistryRef<CommandDef>> {
 	COMMANDS.get(name)
 }
 
 /// Returns all registered commands (builtins + runtime), sorted by name.
 #[cfg(feature = "db")]
-pub fn all_commands() -> impl Iterator<Item = &'static CommandDef> {
-	COMMANDS.all().into_iter()
+pub fn all_commands() -> Vec<RegistryRef<CommandDef>> {
+	COMMANDS.all()
 }

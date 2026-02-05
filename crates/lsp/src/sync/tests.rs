@@ -20,7 +20,7 @@ impl crate::client::transport::LspTransport for SimpleStubTransport {
 		_cfg: crate::client::ServerConfig,
 	) -> crate::Result<crate::client::transport::StartedServer> {
 		Ok(crate::client::transport::StartedServer {
-			id: LanguageServerId(1),
+			id: LanguageServerId::new(1, 0),
 		})
 	}
 	async fn notify(
@@ -86,7 +86,7 @@ fn test_diagnostics_event_updates_state() {
 	let uri: Uri = "file:///test.rs".parse().expect("valid uri");
 
 	handler.on_diagnostics(
-		LanguageServerId(1),
+		LanguageServerId::new(1, 0),
 		uri.clone(),
 		vec![Diagnostic {
 			range: Range::default(),
@@ -117,7 +117,7 @@ async fn test_document_sync_returns_not_ready_before_init() {
 			_cfg: crate::client::ServerConfig,
 		) -> crate::Result<crate::client::transport::StartedServer> {
 			Ok(crate::client::transport::StartedServer {
-				id: LanguageServerId(1),
+				id: LanguageServerId::new(1, 0),
 			})
 		}
 		async fn notify(
