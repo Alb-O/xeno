@@ -90,8 +90,11 @@ pub struct ServerMeta {
 
 /// Consolidated server state under a single lock for atomic operations.
 ///
-/// All three indices must be updated atomically to maintain consistency across
-/// server lifecycle operations (start, stop, crash recovery).
+/// The core indices (`servers`, `server_meta`, `id_index`) MUST be updated atomically
+/// to maintain consistency across server lifecycle operations (start, stop, crash recovery).
+/// Slot/generation tracking (`slot_ids`, `slot_gens`, `next_slot_id`) provides stable,
+/// generation-aware [`LanguageServerId`] values so the event router can detect and
+/// discard events from stale server instances.
 struct RegistryState {
 	/// Active server instances keyed by `(language, root_path)`.
 	servers: HashMap<(String, PathBuf), ServerInstance>,

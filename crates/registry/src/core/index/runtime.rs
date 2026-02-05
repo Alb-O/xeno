@@ -8,14 +8,21 @@
 //!
 //! # Mental model
 //!
-//! - Terms: Builtin (compile-time), Snapshot (atomic view), Winner (conflict resolution), Eviction (cleanup after override).
-//! - Lifecycle in one sentence: A build-time index is wrapped in an `ArcSwap` snapshot, allowing atomic, lock-free runtime extension with deterministic collision rules.
+//! - Terms: Builtin (compile-time `&'static T`), Owned (runtime `Arc<T>`), Snapshot (atomic view),
+//!   DefPtr (thin pointer into either), RegistryRef (snapshot-pinned guard), Winner (conflict resolution),
+//!   Eviction (cleanup after override).
+//! - Lifecycle in one sentence: A build-time index is wrapped in an `ArcSwap` snapshot; runtime
+//!   extensions are `Arc`-owned inside the snapshot (no `Box::leak`), and lookups return
+//!   [`RegistryRef<T>`] guards that pin the snapshot alive while the caller holds a reference.
 //!
 //! # Key types
 //!
 //! | Type | Meaning | Constraints | Constructed / mutated in |
 //! |---|---|---|---|
-//! | [`Snapshot<T>`] | Atomic view of registry | Immutable, lock-free read | `RuntimeRegistry` |
+//! | [`DefPtr<T>`] | Thin, `Copy` pointer to a definition | MUST NOT outlive its backing storage (`&'static` or `Arc` in snapshot) | `DefPtr::from_ref` |
+//! | [`RegistryRef<T>`] | Guard that pins a snapshot `Arc` while exposing `&T` via `Deref` | MUST hold `Arc<Snapshot>` for the lifetime of the borrow | `RuntimeRegistry::get`, `RuntimeRegistry::all` |
+//! | [`Snapshot<T>`] | Atomic view of registry; owns runtime `Arc<T>` definitions in `owned` | Immutable after construction, lock-free read | `RuntimeRegistry` CAS loop |
+//! | [`RegistryIndex<T>`] | Build-time index of `DefPtr<T>` (builtins only) | All pointers are `&'static` | `RegistryBuilder::build` |
 //! | [`KeyStore`] | Abstract index mutation | MUST implement `evict_def` | `SnapshotStore` / `BuildStore` |
 //! | [`DuplicatePolicy`] | Conflict resolution rule | MUST be deterministic | `RuntimeRegistry::with_policy` |
 //! | [`InsertAction`] | Outcome of registration | Informs diagnostics | `insert_typed_key` |
@@ -23,37 +30,47 @@
 //!
 //! # Invariants
 //!
-//! 1. MUST keep ID lookup unambiguous (one winner per ID).
-//!    - Enforced in: `insert_typed_key` (build-time), `insert_id_key_runtime` (runtime).
-//!    - Tested by: `core::index::tests::test_id_first_lookup`
-//!    - Failure symptom: Panics during build/startup or stale name lookups after override.
-//! 2. MUST evict old definitions on ID override.
-//!    - Enforced in: `insert_id_key_runtime` (calls `evict_def`).
-//!    - Tested by: `core::index::tests::test_id_override_eviction`
-//!    - Failure symptom: Stale name/alias lookups pointing to a replaced definition.
-//! 3. MUST maintain stable numeric IDs for builtin actions.
-//!    - Enforced in: `RegistryDbBuilder::build`.
-//!    - Tested by: TODO (add regression: test_stable_action_ids)
-//!    - Failure symptom: Inconsistent `ActionId` mappings in optimized input handling.
+//! - MUST keep ID lookup unambiguous (one winner per ID).
+//!   - Enforced in: `insert_typed_key` (build-time), `insert_id_key_runtime` (runtime).
+//!   - Tested by: `core::index::tests::test_id_first_lookup`
+//!   - Failure symptom: Panics during build/startup or stale name lookups after override.
+//! - MUST evict old definitions on ID override.
+//!   - Enforced in: `insert_id_key_runtime` (calls `evict_def`).
+//!   - Tested by: `core::index::tests::test_id_override_eviction`
+//!   - Failure symptom: Stale name/alias lookups pointing to a replaced definition.
+//! - MUST maintain stable numeric IDs for builtin actions.
+//!   - Enforced in: `RegistryDbBuilder::build`.
+//!   - Tested by: TODO (add regression: test_stable_action_ids)
+//!   - Failure symptom: Inconsistent `ActionId` mappings in optimized input handling.
+//! - Owned runtime definitions MUST be kept alive by `Snapshot::owned` for as long as any
+//!   `DefPtr` in the snapshot's index maps references them.
+//!   - Enforced in: `RuntimeRegistry::try_register_many_internal` (extends `owned`, prunes unreferenced).
+//!   - Tested by: TODO (add regression: test_owned_defs_survive_snapshot_clone)
+//!   - Failure symptom: Use-after-free when dereferencing a `RegistryRef` whose backing `Arc` was pruned.
 //!
 //! # Data flow
 //!
-//! 1. Builtins: `inventory` or explicit registration builds base index via `RegistryBuilder`.
-//! 2. Plugins: Sorted by priority, executed to mutate the builder.
-//! 3. Snapshot: `RuntimeRegistry` loads built index into a `Snapshot`.
-//! 4. Mutation: `register` clones snapshot, applies changes via `insert_id_key_runtime`, and CAS (Compare-and-Swap) updates.
-//! 5. Resolution: `get(key)` checks ID table then Key table in O(1).
+//! - Builtins: `inventory` or explicit registration builds base index via `RegistryBuilder`.
+//!   Pointers are `&'static T` wrapped in `DefPtr`.
+//! - Plugins: Sorted by priority, executed to mutate the builder.
+//! - Snapshot: `RuntimeRegistry` loads built index into a `Snapshot` (no owned defs yet).
+//! - Mutation: `register`/`register_owned` clones snapshot, wraps owned defs in `Arc<T>`,
+//!   applies changes via `insert_id_key_runtime`, prunes unreferenced `Arc`s, and CAS-updates.
+//! - Resolution: `get(key)` loads the snapshot `Arc`, looks up `DefPtr`, returns a
+//!   `RegistryRef` that holds the snapshot alive.
 //!
 //! # Lifecycle
 //!
 //! - Build Phase: Builtins registered; plugins run; index finalized.
-//! - Runtime Phase: snapshots loaded; runtime registration allowed; lookups lock-free.
+//! - Runtime Phase: Snapshots loaded; runtime registration allowed; lookups lock-free.
+//!   Callers hold `RegistryRef` guards; the snapshot is dropped when all guards are released.
 //!
 //! # Concurrency and ordering
 //!
-//! - Lock-free reads: `snap.load()` provides a stable pointer without blocking.
+//! - Lock-free reads: `snap.load_full()` returns an `Arc<Snapshot>` without blocking.
 //! - CAS Retry Loop: Writes retry if the snapshot changed during mutation.
 //! - Deterministic Winners: `DuplicatePolicy` ensures the same definition wins regardless of registration order.
+//! - Snapshot Lifetime: `RegistryRef` prevents premature drop of the snapshot (and its owned `Arc<T>` defs).
 //!
 //! # Failure modes and recovery
 //!
@@ -69,6 +86,14 @@
 //! - Call `registry.try_register_override(new_def)`.
 //! - Ensure `new_def.meta().priority` is higher than the existing one if using `ByPriority`.
 //!
+//! ## Register an owned (non-static) definition
+//!
+//! Steps:
+//! - Call `registry.register_owned(def)` or `registry.register_many_owned(defs)`.
+//! - The definition is wrapped in `Arc<T>` and stored in `Snapshot::owned`.
+//! - No `Box::leak`; the `Arc` is dropped when the snapshot is replaced and all
+//!   `RegistryRef` guards have been released.
+//!
 use std::cmp::Ordering;
 use std::sync::Arc;
 
@@ -80,7 +105,14 @@ use super::types::{DefPtr, Map, RegistryIndex};
 use crate::RegistryEntry;
 use crate::error::{InsertAction, RegistryError};
 
-/// Guard object that keeps a registry snapshot alive while providing access to a definition.
+/// Snapshot-pinning guard that provides `&T` access to a registry definition.
+///
+/// Holds an `Arc<Snapshot<T>>` to keep the snapshot (and any `Arc<T>` owned defs
+/// within it) alive for the lifetime of this guard. Dereferences to `&T` via
+/// the internal [`DefPtr`].
+///
+/// Returned by [`RuntimeRegistry::get`] and [`RuntimeRegistry::all`]. Cloning
+/// is cheap (Arc bump + pointer copy).
 pub struct RegistryRef<T>
 where
 	T: RegistryEntry + Send + Sync + 'static,

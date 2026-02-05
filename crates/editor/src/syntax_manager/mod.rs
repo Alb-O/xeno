@@ -19,82 +19,104 @@
 //! | [`SyntaxManager`] | Top-level scheduler | Global concurrency limit | `EditorState` |
 //! | [`SyntaxHotness`] | Visibility / priority | Affects retention/parsing | Render loop / pipeline |
 //! | [`SyntaxTier`] | Size-based config (S/M/L) | Controls timeouts/injections | [`SyntaxManager::ensure_syntax`] |
+//! | [`SyntaxSlot`] | Per-document syntax state | Tracks `tree_doc_version` for monotonic install | `SyntaxManager` entry map |
+//! | [`lru::RecentDocLru`] | Bounded LRU of recently visible documents | Capacity-limited, O(n) touch | `EditorCore::warm_docs` |
 //!
 //! # Invariants
 //!
-//! 1. MUST NOT block UI thread on parsing.
-//!    - Enforced in: [`SyntaxManager::ensure_syntax`] (uses `spawn_blocking`)
-//!    - Tested by: `syntax_manager::tests::test_inflight_drained_even_if_doc_marked_clean`
-//!    - Failure symptom: UI freezes or jitters during edits.
+//! - MUST NOT block UI thread on parsing.
+//!   - Enforced in: [`SyntaxManager::ensure_syntax`] (uses `spawn_blocking`)
+//!   - Tested by: `syntax_manager::tests::test_inflight_drained_even_if_doc_marked_clean`
+//!   - Failure symptom: UI freezes or jitters during edits.
 //!
-//! 2. MUST enforce single-flight per document.
-//!    - Enforced in: `DocEntry::sched.inflight` check in [`SyntaxManager::ensure_syntax`].
-//!    - Tested by: `syntax_manager::tests::test_single_flight_per_doc`
-//!    - Failure symptom: Multiple redundant parse tasks for the same document identity.
+//! - MUST enforce single-flight per document.
+//!   - Enforced in: `DocEntry::sched.inflight` check in [`SyntaxManager::ensure_syntax`].
+//!   - Tested by: `syntax_manager::tests::test_single_flight_per_doc`
+//!   - Failure symptom: Multiple redundant parse tasks for the same document identity.
 //!
-//! 3. MUST install last completed parse even if stale, but MUST NOT overwrite a newer clean tree.
-//!    - Enforced in: [`should_install_completed_parse`] (called from [`SyntaxManager::ensure_syntax`] poll inflight branch).
-//!    - Tested by: `syntax_manager::tests::test_stale_parse_does_not_overwrite_clean_incremental`, `syntax_manager::tests::test_stale_install_continuity`
-//!    - Failure symptom (missing install): Document stays unhighlighted until an exact match completes.
-//!    - Failure symptom (overwrite race): Stale tree overwrites correct incremental tree while `dirty=false`, creating a stuck state with wrong highlights.
+//! - MUST install last completed parse even if stale, but MUST NOT regress to an older tree
+//!   version than the one currently installed. Version comparison is monotonic via
+//!   `tree_doc_version`.
+//!   - Enforced in: [`should_install_completed_parse`] (called from [`SyntaxManager::ensure_syntax`] poll inflight branch).
+//!   - Tested by: `syntax_manager::tests::test_stale_parse_does_not_overwrite_clean_incremental`, `syntax_manager::tests::test_stale_install_continuity`
+//!   - Failure symptom (missing install): Document stays unhighlighted until an exact match completes.
+//!   - Failure symptom (overwrite race): Stale tree overwrites correct incremental tree while `dirty=false`, creating a stuck state with wrong highlights.
 //!
-//! 4. MUST call [`SyntaxManager::note_edit_incremental`] (or [`SyntaxManager::note_edit`]) on every document mutation (edits, undo, redo, LSP workspace edits).
-//!    - Enforced in: `EditorUndoHost::apply_transaction_inner`, `EditorUndoHost::apply_history_op`, `Editor::apply_buffer_edit_plan`
-//!    - Tested by: `syntax_manager::tests::test_note_edit_updates_timestamp`
-//!    - Failure symptom: Debounce gate in [`SyntaxManager::ensure_syntax`] is non-functional; background parses fire without waiting for edit silence.
+//! - MUST call [`SyntaxManager::note_edit_incremental`] (or [`SyntaxManager::note_edit`]) on every document mutation (edits, undo, redo, LSP workspace edits).
+//!   - Enforced in: `EditorUndoHost::apply_transaction_inner`, `EditorUndoHost::apply_history_op`, `Editor::apply_buffer_edit_plan`
+//!   - Tested by: `syntax_manager::tests::test_note_edit_updates_timestamp`
+//!   - Failure symptom: Debounce gate in [`SyntaxManager::ensure_syntax`] is non-functional; background parses fire without waiting for edit silence.
 //!
-//! 5. MUST skip debounce for bootstrap parses (no existing syntax tree).
-//!    - Enforced in: [`SyntaxManager::ensure_syntax`] (debounce gate conditioned on `state.current.is_some()`)
-//!    - Tested by: `syntax_manager::tests::test_bootstrap_parse_skips_debounce`
-//!    - Failure symptom: Newly opened documents show unhighlighted text until the debounce timeout elapses.
+//! - MUST skip debounce for bootstrap parses (no existing syntax tree).
+//!   - Enforced in: [`SyntaxManager::ensure_syntax`] (debounce gate conditioned on `state.current.is_some()`)
+//!   - Tested by: `syntax_manager::tests::test_bootstrap_parse_skips_debounce`
+//!   - Failure symptom: Newly opened documents show unhighlighted text until the debounce timeout elapses.
 //!
-//! 6. MUST detect completed inflight syntax tasks from `tick()`, not only from `render()`.
-//!    - Enforced in: `Editor::tick` (calls [`SyntaxManager::any_task_finished`] to trigger redraw)
-//!    - Tested by: `syntax_manager::tests::test_idle_tick_polls_inflight_parse`
-//!    - Failure symptom: Completed background parses are not installed until user input triggers a render; documents stay unhighlighted indefinitely while idle.
+//! - MUST detect completed inflight syntax tasks from `tick()`, not only from `render()`.
+//!   - Enforced in: `Editor::tick` (calls [`SyntaxManager::any_task_finished`] to trigger redraw)
+//!   - Tested by: `syntax_manager::tests::test_idle_tick_polls_inflight_parse`
+//!   - Failure symptom: Completed background parses are not installed until user input triggers a render; documents stay unhighlighted indefinitely while idle.
 //!
-//! 7. MUST bump `syntax_version` whenever the installed tree changes or is dropped.
-//!    - Enforced in: `mark_updated` (called from `SyntaxManager::ensure_syntax`, `apply_retention`)
-//!    - Tested by: `syntax_manager::tests::test_syntax_version_bumps_on_install`
-//!    - Failure symptom: Highlight cache serves stale spans after a reparse or retention drop.
+//! - MUST bump `syntax_version` whenever the installed tree changes or is dropped.
+//!   - Enforced in: `mark_updated` (called from `SyntaxManager::ensure_syntax`, `apply_retention`)
+//!   - Tested by: `syntax_manager::tests::test_syntax_version_bumps_on_install`
+//!   - Failure symptom: Highlight cache serves stale spans after a reparse or retention drop.
 //!
-//! 8. MUST clear `pending_incremental` on language change, syntax reset, and retention drop.
-//!    - Enforced in: [`SyntaxManager::ensure_syntax`] (language change), [`SyntaxManager::reset_syntax`], `apply_retention`
-//!    - Tested by: `syntax_manager::tests::test_language_switch_discards_old_parse`
-//!    - Failure symptom: Stale changeset applied against a mismatched rope causes incorrect `InputEdit`s and garbled highlights or panics.
+//! - MUST clear `pending_incremental` on language change, syntax reset, and retention drop.
+//!   - Enforced in: [`SyntaxManager::ensure_syntax`] (language change), [`SyntaxManager::reset_syntax`], `apply_retention`
+//!   - Tested by: `syntax_manager::tests::test_language_switch_discards_old_parse`
+//!   - Failure symptom: Stale changeset applied against a mismatched rope causes incorrect `InputEdit`s and garbled highlights or panics.
+//!
+//! - MUST track `tree_doc_version` alongside the installed syntax tree; MUST clear it whenever
+//!   the tree is dropped (reset, retention, language change).
+//!   - Enforced in: `SyntaxManager::note_edit_incremental` (sets on success), `SyntaxManager::ensure_syntax` (sets on install), `SyntaxManager::reset_syntax`, `apply_retention` (clears on drop)
+//!   - Tested by: `syntax_manager::tests::test_stale_parse_does_not_overwrite_clean_incremental`
+//!   - Failure symptom: Highlight rendering uses a tree from a different document version, causing out-of-bounds access or garbled spans.
+//!
+//! - Highlight rendering MUST skip spans when `tree_doc_version` does not match the document
+//!   version being rendered.
+//!   - Enforced in: `BufferRenderContext::collect_highlight_spans` (version gate), `HighlightTiles::build_tiles` (bounds check)
+//!   - Tested by: TODO (add regression: test_highlight_skips_stale_tree_version)
+//!   - Failure symptom: Crash or panic from out-of-bounds tree-sitter node access during rapid edits.
+//!
+//! - Recently visible documents MUST be promoted to `Warm` hotness via [`lru::RecentDocLru`] to
+//!   prevent immediate retention drops when hidden.
+//!   - Enforced in: `Editor::ensure_syntax_for_buffers` (touches LRU on visible, checks LRU for warm), `Editor::on_document_close` (removes from LRU)
+//!   - Tested by: TODO (add regression: test_warm_hotness_prevents_immediate_drop)
+//!   - Failure symptom: Switching away from a buffer for one frame drops its syntax tree, causing a flash of unhighlighted text on return.
 //!
 //! # Data flow
 //!
 //! ## Full reparse (bootstrap or no accumulated edits)
 //!
-//! 1. Trigger: [`SyntaxManager::note_edit`] called from edit paths to record debounce timestamp.
-//! 2. Tick loop: `Editor::tick` checks [`SyntaxManager::any_task_finished`] every iteration and requests a redraw when a background parse completes, ensuring results are installed even when the render loop is idle.
-//! 3. Render loop: `Editor::render` calls `ensure_syntax_for_buffers` to kick new parses and install completed results before drawing.
-//! 4. Gating: Check visibility, size tier, debounce, and cooldown.
-//! 5. Throttling: Acquire global concurrency permit (semaphore).
-//! 6. Async boundary: `spawn_blocking` calls [`SyntaxEngine::parse`] (`Syntax::new`).
-//! 7. Install: Polled result is installed; `dirty` flag cleared only if versions match.
+//! - Trigger: [`SyntaxManager::note_edit`] called from edit paths to record debounce timestamp.
+//! - Tick loop: `Editor::tick` checks [`SyntaxManager::any_task_finished`] every iteration and requests a redraw when a background parse completes, ensuring results are installed even when the render loop is idle.
+//! - Render loop: `Editor::render` calls `ensure_syntax_for_buffers` to kick new parses and install completed results before drawing.
+//! - Gating: Check visibility, size tier, debounce, and cooldown.
+//! - Throttling: Acquire global concurrency permit (semaphore).
+//! - Async boundary: `spawn_blocking` calls [`SyntaxEngine::parse`] (`Syntax::new`).
+//! - Install: Polled result is installed; `dirty` flag cleared only if versions match.
 //!
 //! ## Synchronous incremental update (primary path for interactive edits)
 //!
-//! 1. Trigger: [`SyntaxManager::note_edit_incremental`] called with old/new rope, changeset,
-//!    and loader. Changesets are composed via [`ChangeSet::compose`] into
-//!    [`PendingIncrementalEdits`].
-//! 2. The same call applies [`Syntax::update_from_changeset`] in-line with a 10 ms timeout.
-//!    On success the tree is immediately up-to-date, the dirty flag is cleared, and no
-//!    background reparse is needed.
-//! 3. On failure (timeout or error): state is left dirty with accumulated changesets; the
-//!    background path picks up after debounce.
+//! - Trigger: [`SyntaxManager::note_edit_incremental`] called with old/new rope, changeset,
+//!   document version, and loader. Changesets are composed via [`ChangeSet::compose`] into
+//!   [`PendingIncrementalEdits`].
+//! - The same call applies [`Syntax::update_from_changeset`] in-line with a 10 ms timeout.
+//!   On success the tree is immediately up-to-date, `tree_doc_version` is set to the
+//!   provided version, the dirty flag is cleared, and no background reparse is needed.
+//! - On failure (timeout or error): state is left dirty with accumulated changesets; the
+//!   background path picks up after debounce.
 //!
 //! ## Background incremental reparse (fallback for sync timeout or large edits)
 //!
-//! 1. [`SyntaxManager::ensure_syntax`] detects a dirty doc with [`PendingIncrementalEdits`].
-//! 2-5. Same gating, throttling, and scheduling as full reparse.
-//! 6. Async boundary: `spawn_blocking` clones the existing `Syntax` + composed changeset,
-//!    calls [`SyntaxEngine::update_incremental`] (`Syntax::update_from_changeset`).
-//!    Falls back to full reparse on failure. The original tree stays in `state.current`
-//!    for rendering during the reparse window (no highlight flash).
-//! 7. Install: Same as full reparse.
+//! - [`SyntaxManager::ensure_syntax`] detects a dirty doc with [`PendingIncrementalEdits`].
+//! - Same gating, throttling, and scheduling as full reparse.
+//! - Async boundary: `spawn_blocking` clones the existing `Syntax` + composed changeset,
+//!   calls [`SyntaxEngine::update_incremental`] (`Syntax::update_from_changeset`).
+//!   Falls back to full reparse on failure. The original tree stays in `state.current`
+//!   for rendering during the reparse window (no highlight flash).
+//! - Install: Same as full reparse.
 //!
 //! # Lifecycle
 //!
@@ -118,8 +140,8 @@
 //!
 //! ## Change tier thresholds
 //!
-//! 1. Update [`TieredSyntaxPolicy::default()`].
-//! 2. Ensure `max_bytes_inclusive` logic in [`TieredSyntaxPolicy::tier_for_bytes`] matches.
+//! - Update [`TieredSyntaxPolicy::default()`].
+//! - Ensure `max_bytes_inclusive` logic in [`TieredSyntaxPolicy::tier_for_bytes`] matches.
 //!
 use std::collections::HashMap;
 pub mod lru;
@@ -402,19 +424,29 @@ struct PendingIncrementalEdits {
 	composed: ChangeSet,
 }
 
+/// Per-document syntax state managed by [`SyntaxManager`].
+///
+/// Tracks the installed syntax tree, its document version, parse scheduling flags,
+/// and pending incremental edits. The `tree_doc_version` field enables monotonic
+/// version gating: highlight rendering skips spans when the tree version does not
+/// match the document being drawn, and [`should_install_completed_parse`] rejects
+/// results older than the currently installed tree.
 #[derive(Default)]
 pub struct SyntaxSlot {
 	current: Option<Syntax>,
 	dirty: bool,
 	updated: bool,
 	version: u64,
-	/// Version of the document that the `current` syntax tree corresponds to.
+	/// Document version that the `current` syntax tree corresponds to.
+	///
+	/// Set by `note_edit_incremental` (on sync success) and `ensure_syntax` (on
+	/// background install). Cleared whenever the tree is dropped (reset, retention,
+	/// language change). `None` means no tree is installed or version is unknown.
 	tree_doc_version: Option<u64>,
 	language_id: Option<LanguageId>,
 	pending_incremental: Option<PendingIncrementalEdits>,
 	last_opts_key: Option<OptKey>,
 }
-
 
 struct DocEntry {
 	sched: DocSched,

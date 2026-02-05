@@ -55,7 +55,11 @@ impl<'a> BufferRenderContext<'a> {
 		self.theme.colors.mode.for_mode(&mode).bg
 	}
 
-	/// Collects syntax highlight spans for a buffer's visible viewport.
+	/// Collects styled highlight spans for the visible viewport of a document.
+	///
+	/// Returns an empty vec if no syntax tree is installed, or if the installed tree's
+	/// document version does not match `doc_version` (version gate). This prevents
+	/// using a stale tree against a newer rope, which could cause out-of-bounds access.
 	///
 	/// Uses the render cache to avoid recomputing highlights every frame.
 	pub fn collect_highlight_spans(

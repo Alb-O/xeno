@@ -186,8 +186,14 @@ impl FromOptionValue for String {
 }
 
 /// Typed handle to a registry definition.
+///
+/// Wraps either a `&'static T` (for compile-time builtins) or a [`RegistryRef<T>`]
+/// (for runtime-registered definitions). Provides uniform `&T` access via [`Key::def`]
+/// regardless of backing storage.
 pub enum Key<T: RegistryEntry + Send + Sync + 'static> {
+	/// Builtin definition with `'static` lifetime.
 	Static(&'static T),
+	/// Runtime definition pinned by a snapshot guard.
 	Ref(RegistryRef<T>),
 }
 

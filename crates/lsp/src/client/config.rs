@@ -6,11 +6,21 @@ use std::path::PathBuf;
 use lsp_types::PositionEncodingKind;
 use serde_json::Value;
 
-/// Unique identifier for a language server slot.
+/// Stable identifier for a logical language server slot.
+///
+/// Each unique `(language, root_path)` pair is assigned a monotonically increasing
+/// slot ID on first use. The slot is stable across server restarts; only the
+/// generation counter in [`LanguageServerId`] changes.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct LspSlotId(pub u32);
 
-/// Unique identifier for a specific language server instance (generation-aware).
+/// Unique identifier for a specific language server instance.
+///
+/// Combines a stable [`LspSlotId`] (logical server) with a generation counter that
+/// increments on each restart of the same slot. This allows the event router to
+/// distinguish events from the current server instance vs. a stale (pre-restart) one.
+///
+/// Display format: `LSP#<slot>.<generation>` (e.g. `LSP#0.1`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct LanguageServerId {
 	/// Slot identifying the logical server (language + root path pair).

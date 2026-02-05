@@ -21,7 +21,9 @@
 //! | [`LspManager`] | Owns [`DocumentSync`] and routes transport events | MUST reply to server-initiated requests inline to preserve request/reply pairing | [`LspManager::spawn_router`] |
 //! | [`DocumentSync`] | High-level doc sync coordinator | MUST gate change notifications on client initialization state | `DocumentSync::*` |
 //! | [`Registry`] | Maps `(language, root_path)` to a running client | MUST singleflight `transport.start()` per key | `Registry::get_or_start` |
-//! | [`RegistryState`] | Consolidated registry indices | MUST update `servers`/`server_meta`/`id_index` atomically | `Registry::get_or_start`, `Registry::remove_server` |
+//! | [`RegistryState`] | Consolidated registry indices + slot/generation tracking | MUST update `servers`/`server_meta`/`id_index` atomically | `Registry::get_or_start`, `Registry::remove_server` |
+//! | [`LspSlotId`] | Logical server slot (language + root path pair) | Stable across restarts | `RegistryState::get_or_create_slot_id` |
+//! | [`LanguageServerId`] | Instance identifier: slot + generation counter | Generation increments on each restart of the same slot | `RegistryState::next_gen`, `ServerConfig::id` |
 //! | [`ServerMeta`] | Per-server metadata for server-initiated requests | MUST be removable by server id | `Registry::get_or_start`, `Registry::remove_server` |
 //! | [`ClientHandle`] | RPC handle for a single language server instance | MUST NOT be treated as ready until initialization completes | `ClientHandle::*` |
 //! | [`TransportEvent`] | Transport-to-manager event stream | Router MUST process sequentially | [`LspManager::spawn_router`] |
@@ -30,74 +32,91 @@
 //!
 //! # Invariants
 //!
-//! 1. Registry startup MUST singleflight `transport.start()` per `(language, root_path)` key.
-//!    - Enforced in: `Registry::get_or_start`
-//!    - Tested by: `TODO (add regression: test_registry_singleflight_prevents_duplicate_transport_start)`
-//!    - Failure symptom: duplicate server starts, leaked server processes, inconsistent server ids across callers.
+//! - Registry startup MUST singleflight `transport.start()` per `(language, root_path)` key.
+//!   - Enforced in: `Registry::get_or_start`
+//!   - Tested by: `TODO (add regression: test_registry_singleflight_prevents_duplicate_transport_start)`
+//!   - Failure symptom: duplicate server starts, leaked server processes, inconsistent server ids across callers.
 //!
-//! 2. Registry mutations MUST be atomic across `servers`, `server_meta`, and `id_index`.
-//!    - Enforced in: `Registry::get_or_start`, `Registry::remove_server`
-//!    - Tested by: `TODO (add regression: test_registry_remove_server_scrubs_all_indices)`
-//!    - Failure symptom: stale server metadata persists after removal, status cleanup fails to fully detach, server request handlers read wrong settings/root.
+//! - Registry mutations MUST be atomic across `servers`, `server_meta`, and `id_index`.
+//!   - Enforced in: `Registry::get_or_start`, `Registry::remove_server`
+//!   - Tested by: `TODO (add regression: test_registry_remove_server_scrubs_all_indices)`
+//!   - Failure symptom: stale server metadata persists after removal, status cleanup fails to fully detach, server request handlers read wrong settings/root.
 //!
-//! 3. The router MUST process transport events sequentially and MUST reply to server-initiated requests inline.
-//!    - Enforced in: [`LspManager::spawn_router`]
-//!    - Tested by: `TODO (add regression: test_router_event_ordering)`
-//!    - Failure symptom: server request/reply pairing breaks, replies go to the wrong pending request, server-side hangs waiting for a response.
+//! - The router MUST process transport events sequentially and MUST reply to server-initiated requests inline.
+//!   - Enforced in: [`LspManager::spawn_router`]
+//!   - Tested by: `TODO (add regression: test_router_event_ordering)`
+//!   - Failure symptom: server request/reply pairing breaks, replies go to the wrong pending request, server-side hangs waiting for a response.
 //!
-//! 4. On `TransportStatus::Stopped` or `TransportStatus::Crashed`, the router MUST remove the server from `Registry` and MUST clear per-server progress.
-//!    - Enforced in: [`LspManager::spawn_router`], `Registry::remove_server`
-//!    - Tested by: `TODO (add regression: test_status_stopped_removes_server_and_clears_progress)`
-//!    - Failure symptom: UI shows stuck progress forever, stale `ClientHandle` remains reachable, subsequent requests wedge on a dead server id.
+//! - On `TransportStatus::Stopped` or `TransportStatus::Crashed`, the router MUST remove the server from `Registry` and MUST clear per-server progress.
+//!   - Enforced in: [`LspManager::spawn_router`], `Registry::remove_server`
+//!   - Tested by: `TODO (add regression: test_status_stopped_removes_server_and_clears_progress)`
+//!   - Failure symptom: UI shows stuck progress forever, stale `ClientHandle` remains reachable, subsequent requests wedge on a dead server id.
 //!
-//! 5. `workspace/configuration` handling MUST return an array with one element per requested item, and MUST return an object for missing config.
-//!    - Enforced in: `handle_workspace_configuration`
-//!    - Tested by: `TODO (add regression: test_server_request_workspace_configuration_section_slicing)`
-//!    - Failure symptom: servers treat configuration as invalid, disable features, or log repeated configuration query errors.
+//! - The router MUST discard transport events from stale server generations.
+//!   - Enforced in: [`LspManager::spawn_router`] (checks `Registry::is_current` before dispatching)
+//!   - Tested by: TODO (add regression: test_router_drops_stale_generation_events)
+//!   - Failure symptom: Diagnostics or progress from a previous server generation leak into the current session, causing phantom diagnostics or stuck progress indicators.
 //!
-//! 6. `workspace/workspaceFolders` handling MUST return percent-encoded file URIs.
-//!    - Enforced in: `handle_workspace_folders`
-//!    - Tested by: `TODO (add regression: test_server_request_workspace_folders_uri_encoding)`
-//!    - Failure symptom: servers mis-parse the workspace root for paths with spaces or non-ASCII characters and degrade indexing/navigation.
+//! - `LanguageServerId` MUST be a (slot, generation) pair. The slot is stable for a given `(language, root_path)` key; the generation increments on each restart.
+//!   - Enforced in: `RegistryState::get_or_create_slot_id`, `RegistryState::next_gen`
+//!   - Tested by: TODO (add regression: test_server_id_generation_increments_on_restart)
+//!   - Failure symptom: Events from a restarted server are misattributed to the previous instance, or `is_current` check always passes for stale IDs.
 //!
-//! 7. `DocumentSync` MUST NOT send change notifications before the client has completed initialization.
-//!    - Enforced in: `DocumentSync::notify_change_full_text`, `DocumentSync::notify_change_incremental_no_content`
-//!    - Tested by: `lsp::sync::tests::test_document_sync_returns_not_ready_before_init`
-//!    - Failure symptom: edits are dropped by the server or applied out of order, resulting in stale diagnostics and incorrect completions.
+//! - `ServerConfig` MUST carry the pre-assigned `LanguageServerId`; the transport MUST NOT generate its own IDs.
+//!   - Enforced in: `Registry::get_or_start` (assigns ID before calling `transport.start`), `LocalTransport::start` (uses `cfg.id`)
+//!   - Tested by: `lsp::registry::tests::test_singleflight_start` (asserts `StartedServer { id: cfg.id }`)
+//!   - Failure symptom: Transport-assigned IDs diverge from registry IDs, breaking event routing and `is_current` checks.
 //!
-//! 8. `LspSystem::prepare_position_request` MUST gate on `ClientHandle::is_ready()` before forming any position-based LSP request.
-//!    - Enforced in: `LspSystem::prepare_position_request`
-//!    - Tested by: `TODO (add regression: test_prepare_position_request_returns_none_before_ready)`
-//!    - Failure symptom: requests sent to uninitialized servers cause panics or silent errors.
+//! - `workspace/configuration` handling MUST return an array with one element per requested item, and MUST return an object for missing config.
+//!   - Enforced in: `handle_workspace_configuration`
+//!   - Tested by: `TODO (add regression: test_server_request_workspace_configuration_section_slicing)`
+//!   - Failure symptom: servers treat configuration as invalid, disable features, or log repeated configuration query errors.
 //!
-//! 9. `ClientHandle::capabilities()` MUST return `Option` (not panic). All capability-dependent public methods MUST use the fallible accessor.
-//!    - Enforced in: `ClientHandle::capabilities`, `ClientHandle::offset_encoding`, `ClientHandle::supports_*`
-//!    - Tested by: `TODO (add regression: test_client_handle_capabilities_returns_none_before_init)`
-//!    - Failure symptom: panic ("language server not yet initialized") on any code path that reads capabilities before the initialize handshake completes.
+//! - `workspace/workspaceFolders` handling MUST return percent-encoded file URIs.
+//!   - Enforced in: `handle_workspace_folders`
+//!   - Tested by: `TODO (add regression: test_server_request_workspace_folders_uri_encoding)`
+//!   - Failure symptom: servers mis-parse the workspace root for paths with spaces or non-ASCII characters and degrade indexing/navigation.
 //!
-//! 10. `ClientHandle::set_ready(true)` MUST only be called after `capabilities.set()` and MUST use `Release` ordering. `is_ready()` MUST use `Acquire` ordering.
-//!     - Enforced in: `ClientHandle::set_ready` (`debug_assert` + `Release`), `ClientHandle::is_ready` (`Acquire`)
-//!     - Tested by: `TODO (add regression: test_set_ready_requires_initialized)`
-//!     - Failure symptom: thread observes `is_ready() == true` but `capabilities()` returns `None` due to missing memory ordering edge.
+//! - `DocumentSync` MUST NOT send change notifications before the client has completed initialization.
+//!   - Enforced in: `DocumentSync::notify_change_full_text`, `DocumentSync::notify_change_incremental_no_content`
+//!   - Tested by: `lsp::sync::tests::test_document_sync_returns_not_ready_before_init`
+//!   - Failure symptom: edits are dropped by the server or applied out of order, resulting in stale diagnostics and incorrect completions.
 //!
-//! 11. All registry lookups in `LspSystem` MUST use canonicalized paths to match the key representation used at registration time.
-//!     - Enforced in: `LspSystem::prepare_position_request`, `LspSystem::offset_encoding_for_buffer`, `LspSystem::incremental_encoding`
-//!     - Tested by: `TODO (add regression: test_registry_lookup_uses_canonical_path)`
-//!     - Failure symptom: registry miss on symlinked or relative paths causes silent fallback to wrong default encoding (UTF-16) or drops the request entirely.
+//! - `LspSystem::prepare_position_request` MUST gate on `ClientHandle::is_ready()` before forming any position-based LSP request.
+//!   - Enforced in: `LspSystem::prepare_position_request`
+//!   - Tested by: `TODO (add regression: test_prepare_position_request_returns_none_before_ready)`
+//!   - Failure symptom: requests sent to uninitialized servers cause panics or silent errors.
+//!
+//! - `ClientHandle::capabilities()` MUST return `Option` (not panic). All capability-dependent public methods MUST use the fallible accessor.
+//!   - Enforced in: `ClientHandle::capabilities`, `ClientHandle::offset_encoding`, `ClientHandle::supports_*`
+//!   - Tested by: `TODO (add regression: test_client_handle_capabilities_returns_none_before_init)`
+//!   - Failure symptom: panic ("language server not yet initialized") on any code path that reads capabilities before the initialize handshake completes.
+//!
+//! - `ClientHandle::set_ready(true)` MUST only be called after `capabilities.set()` and MUST use `Release` ordering. `is_ready()` MUST use `Acquire` ordering.
+//!   - Enforced in: `ClientHandle::set_ready` (`debug_assert` + `Release`), `ClientHandle::is_ready` (`Acquire`)
+//!   - Tested by: `TODO (add regression: test_set_ready_requires_initialized)`
+//!   - Failure symptom: thread observes `is_ready() == true` but `capabilities()` returns `None` due to missing memory ordering edge.
+//!
+//! - All registry lookups in `LspSystem` MUST use canonicalized paths to match the key representation used at registration time.
+//!   - Enforced in: `LspSystem::prepare_position_request`, `LspSystem::offset_encoding_for_buffer`, `LspSystem::incremental_encoding`
+//!   - Tested by: `TODO (add regression: test_registry_lookup_uses_canonical_path)`
+//!   - Failure symptom: registry miss on symlinked or relative paths causes silent fallback to wrong default encoding (UTF-16) or drops the request entirely.
 //!
 //! # Data flow
 //!
-//! 1. Editor constructs `LspSystem` which constructs `LspManager` with `LocalTransport`.
-//! 2. Editor opens a buffer; `DocumentSync` chooses a language and calls `Registry::get_or_start(language, path)`.
-//! 3. `Registry` singleflights startup and obtains a `ClientHandle` for the `(language, root_path)` key.
-//! 4. `DocumentSync` registers the document in `DocumentStateManager` and sends `didOpen` via `ClientHandle`.
-//! 5. Subsequent edits call `DocumentSync` change APIs; `DocumentStateManager` assigns versions; change notifications are sent and acknowledged.
-//! 6. `LocalTransport` spawns the server as a child process and communicates via stdin/stdout JSON-RPC.
-//! 7. Transport emits `TransportEvent` values; `LspManager` router consumes them:
-//!    - Diagnostics events update `DocumentStateManager` diagnostics.
-//!    - Message events: Requests are handled by `handle_server_request` and replied via `transport.reply`. Notifications update progress and may be logged.
-//!    - Status events remove crashed/stopped servers from `Registry` and clear progress.
-//!    - Disconnected events stop the router loop.
+//! - Editor constructs `LspSystem` which constructs `LspManager` with `LocalTransport`.
+//! - Editor opens a buffer; `DocumentSync` chooses a language and calls `Registry::get_or_start(language, path)`.
+//! - `Registry` singleflights startup: assigns a `LanguageServerId` (slot + generation) before
+//!   calling `transport.start`, and obtains a `ClientHandle` for the `(language, root_path)` key.
+//! - `DocumentSync` registers the document in `DocumentStateManager` and sends `didOpen` via `ClientHandle`.
+//! - Subsequent edits call `DocumentSync` change APIs; `DocumentStateManager` assigns versions; change notifications are sent and acknowledged.
+//! - `LocalTransport` spawns the server as a child process and communicates via stdin/stdout JSON-RPC.
+//! - Transport emits `TransportEvent` values; `LspManager` router consumes them:
+//!   - Generation filter: Events are checked against `Registry::is_current`; stale-generation events are dropped.
+//!   - Diagnostics events update `DocumentStateManager` diagnostics.
+//!   - Message events: Requests are handled by `handle_server_request` and replied via `transport.reply`. Notifications update progress and may be logged.
+//!   - Status events remove crashed/stopped servers from `Registry` and clear progress.
+//!   - Disconnected events stop the router loop.
 //!
 //! # Lifecycle
 //!
