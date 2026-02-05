@@ -124,11 +124,24 @@ fn commit_sets_modified_flag() {
 }
 
 #[test]
-fn commit_no_undo_policy_skips_recording() {
+fn commit_no_undo_policy_skips_recording_and_clears_history() {
 	let mut doc = Document::new("hello".into(), None);
 	let loader = language_loader();
 
-	let tx = Transaction::change(
+	// First, record some history
+	let tx1 = Transaction::change(
+		doc.content().slice(..),
+		[Change {
+			start: 5,
+			end: 5,
+			replacement: Some("!".into()),
+		}],
+	);
+	doc.commit(make_commit(tx1), false, &loader).unwrap();
+	assert!(doc.can_undo());
+
+	// Now apply a NoUndo edit
+	let tx2 = Transaction::change(
 		doc.content().slice(..),
 		[Change {
 			start: 0,
@@ -137,7 +150,7 @@ fn commit_no_undo_policy_skips_recording() {
 		}],
 	);
 	let commit = EditCommit {
-		tx,
+		tx: tx2,
 		undo: UndoPolicy::NoUndo,
 		syntax: SyntaxPolicy::None,
 		origin: EditOrigin::Internal("test"),
@@ -146,8 +159,11 @@ fn commit_no_undo_policy_skips_recording() {
 
 	let result = doc.commit(commit, false, &loader).unwrap();
 	assert!(!result.undo_recorded);
-	assert!(!doc.can_undo());
-	assert_eq!(doc.content().to_string(), "world");
+	assert!(
+		!doc.can_undo(),
+		"NoUndo should clear existing history to prevent corruption"
+	);
+	assert_eq!(doc.content().to_string(), "world!");
 }
 
 #[test]
@@ -362,4 +378,45 @@ fn reset_content_clears_undo_history() {
 	assert!(!doc.can_redo());
 	assert_eq!(doc.undo_len(), 0);
 	assert_eq!(doc.redo_len(), 0);
+}
+
+#[test]
+fn undo_redo_to_clean_state() {
+	let mut doc = Document::new("hello".into(), None);
+	let loader = language_loader();
+	assert!(!doc.is_modified());
+
+	let tx = Transaction::change(
+		doc.content().slice(..),
+		[Change {
+			start: 5,
+			end: 5,
+			replacement: Some("!".into()),
+		}],
+	);
+	doc.commit(make_commit(tx), false, &loader).unwrap();
+	assert!(doc.is_modified());
+
+	doc.undo();
+	assert!(
+		!doc.is_modified(),
+		"Undo to original state should clear modified flag"
+	);
+
+	doc.redo();
+	assert!(doc.is_modified(), "Redo should set modified flag again");
+}
+
+#[test]
+fn identity_commit_does_not_bump_version_or_modified() {
+	let mut doc = Document::new("hello".into(), None);
+	let version_before = doc.version();
+	let loader = language_loader();
+
+	let tx = Transaction::new(doc.content().slice(..));
+	let result = doc.commit(make_commit(tx), false, &loader).unwrap();
+
+	assert!(!result.applied);
+	assert_eq!(doc.version(), version_before);
+	assert!(!doc.is_modified());
 }

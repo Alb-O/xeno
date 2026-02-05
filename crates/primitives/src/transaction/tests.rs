@@ -107,6 +107,91 @@ fn test_map_selection() {
 	assert_eq!(mapped.primary().head, 14);
 }
 
+#[test]
+fn test_map_selection_1_cell_point_insertion() {
+	let doc = Rope::from("abc");
+	// Point at 'b' (index 1)
+	let sel = Selection::point(1);
+
+	// Insert "X" at boundary 1 (before 'b')
+	let tx = Transaction::change(
+		doc.slice(..),
+		vec![Change {
+			start: 1,
+			end: 1,
+			replacement: Some("X".into()),
+		}],
+	);
+
+	let mapped = tx.map_selection(&sel);
+	// In 1-cell model, point at 1 means selecting 'b'.
+	// After inserting 'X' at 1, 'b' moves to 2.
+	// So mapped point should be at 2.
+	assert_eq!(mapped.primary().anchor, 2);
+	assert_eq!(mapped.primary().head, 2);
+	assert!(mapped.primary().is_point());
+}
+
+#[test]
+fn test_map_selection_1_cell_span_insertion() {
+	let doc = Rope::from("abcde");
+	// Forward selection "bcd" (indices 1, 2, 3)
+	let sel = Selection::single(1, 3);
+
+	// Insert "!" at from() = 1
+	let tx1 = Transaction::change(
+		doc.slice(..),
+		vec![Change {
+			start: 1,
+			end: 1,
+			replacement: Some("!".into()),
+		}],
+	);
+	let mapped1 = tx1.map_selection(&sel);
+	// from: 1 -> 2 (shifts right), to: 4 -> 5 (shifts right).
+	// Result: (2, 4) which is "bcd" shifted.
+	assert_eq!(mapped1.primary().anchor, 2);
+	assert_eq!(mapped1.primary().head, 4);
+
+	// Insert "!" at to() = 4 (boundary after 'd')
+	let tx2 = Transaction::change(
+		doc.slice(..),
+		vec![Change {
+			start: 4,
+			end: 4,
+			replacement: Some("!".into()),
+		}],
+	);
+	let mapped2 = tx2.map_selection(&sel);
+	// from: 1 -> 1 (unchanged), to: 4 -> 4 (Bias::Left doesn't shift).
+	// Result: (1, 3) which is "bcd" unchanged.
+	assert_eq!(mapped2.primary().anchor, 1);
+	assert_eq!(mapped2.primary().head, 3);
+}
+
+#[test]
+fn test_map_selection_delete_covering_cell() {
+	let doc = Rope::from("abcdef");
+	// Point at 'c' (index 2)
+	let sel = Selection::point(2);
+
+	// Delete "bcde" (indices 1 to 4 inclusive) -> boundaries [1, 5)
+	let tx = Transaction::change(
+		doc.slice(..),
+		vec![Change {
+			start: 1,
+			end: 5,
+			replacement: None,
+		}],
+	);
+
+	let mapped = tx.map_selection(&sel);
+	// Cell at 2 is deleted. from: 2 -> 1, to: 3 -> 1.
+	// Collapse to point at 1.
+	assert_eq!(mapped.primary().anchor, 1);
+	assert_eq!(mapped.primary().head, 1);
+}
+
 /// Generates a random ASCII document of variable length.
 fn arb_document() -> impl Strategy<Value = Rope> {
 	"[ -~\n]{0,200}".prop_map(|s| Rope::from(s.as_str()))
@@ -257,20 +342,11 @@ proptest! {
 				test_doc.len_chars()
 			};
 
-			for range in mapped.iter() {
-				prop_assert!(
-					range.anchor <= new_len,
-					"mapped anchor {} exceeds doc len {}",
-					range.anchor,
-					new_len
-				);
-				prop_assert!(
-					range.head <= new_len,
-					"mapped head {} exceeds doc len {}",
-					range.head,
-					new_len
-				);
-			}
+			prop_assert!(
+				mapped.is_in_bounds(new_len),
+				"mapped selection out of bounds for doc len {}",
+				new_len
+			);
 		});
 	}
 

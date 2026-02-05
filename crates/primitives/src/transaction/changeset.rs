@@ -7,6 +7,11 @@ use crate::{Rope, RopeSlice};
 /// ChangeSet uses Operational Transformation (OT) principles to represent document
 /// changes as a sequence of retain, delete, and insert operations. This representation
 /// enables efficient composition, inversion, and position mapping.
+///
+/// # Invariants
+///
+/// - The sum of `retain` and `delete` lengths must equal `len` (input length).
+/// - The sum of `retain` and `insert` lengths must equal `len_after` (output length).
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct ChangeSet {
 	/// Sequence of retain/delete/insert operations.
@@ -31,10 +36,9 @@ impl ChangeSet {
 		cs
 	}
 
-	/// Internal builder constructor.
+	/// Creates an empty builder with zero length.
 	///
-	/// Creates a changeset with zero length and no operations. Use this when
-	/// building a changeset from scratch using `retain`, `delete`, and `insert`.
+	/// Use this when building a changeset from scratch using `retain`, `delete`, and `insert`.
 	pub(crate) fn builder() -> Self {
 		Self {
 			changes: Vec::new(),
@@ -56,6 +60,16 @@ impl ChangeSet {
 	/// Returns true if this changeset contains no operations.
 	pub fn is_empty(&self) -> bool {
 		self.changes.is_empty()
+	}
+
+	/// Returns true if this changeset represents an identity transformation.
+	///
+	/// An identity transformation only contains Retain operations and does
+	/// not change the document content or length.
+	pub fn is_identity(&self) -> bool {
+		self.changes
+			.iter()
+			.all(|op| matches!(op, Operation::Retain(_)))
 	}
 
 	/// Returns a slice of all operations in this changeset.
@@ -97,6 +111,9 @@ impl ChangeSet {
 		}
 		let ins = Insertion::new(text);
 		self.len_after += ins.char_len;
+
+		// Coalesce with adjacent insertions or swap with trailing delete
+		// to maintain canonical form (Insert before Delete).
 		match self.changes.as_mut_slice() {
 			[.., Operation::Insert(prev)] | [.., Operation::Insert(prev), Operation::Delete(_)] => {
 				prev.text.push_str(&ins.text);
@@ -128,6 +145,11 @@ impl ChangeSet {
 	}
 
 	/// Inverts this changeset to create one that undoes its effects.
+	///
+	/// # Arguments
+	///
+	/// * `doc` - The document state *before* this changeset was applied.
+	///           Required to recover deleted text.
 	pub fn invert(&self, doc: &Rope) -> ChangeSet {
 		let mut result = Self::builder();
 		let mut pos = 0;
@@ -154,15 +176,25 @@ impl ChangeSet {
 		result
 	}
 
-	/// Maps a position through this changeset using the specified bias.
+	/// Maps a position through this changeset.
+	///
+	/// # Arguments
+	///
+	/// * `pos` - The position in the pre-change document.
+	/// * `bias` - Determines behavior at insertion boundaries:
+	///   - `Bias::Left`: Stick to the character before the insertion (stay put).
+	///   - `Bias::Right`: Stick to the character after the insertion (move with inserted text).
 	pub fn map_pos(&self, pos: CharIdx, bias: Bias) -> CharIdx {
 		let mut old_pos = 0;
 		let mut new_pos = 0;
 		for op in &self.changes {
-			if old_pos > pos {
-				break;
-			}
 			match op {
+				Operation::Insert(ins) => {
+					if old_pos == pos && bias == Bias::Left {
+						return new_pos;
+					}
+					new_pos += ins.char_len;
+				}
 				Operation::Retain(n) => {
 					if old_pos + n > pos {
 						return new_pos + (pos - old_pos);
@@ -176,20 +208,22 @@ impl ChangeSet {
 					}
 					old_pos += n;
 				}
-				Operation::Insert(ins) => {
-					if old_pos == pos && bias == Bias::Left {
-					} else {
-						new_pos += ins.char_len;
-					}
-				}
 			}
 		}
-		new_pos + (pos - old_pos)
+		new_pos + pos.saturating_sub(old_pos)
 	}
 
 	/// Composes two changesets into a single equivalent changeset.
+	///
+	/// `self` must apply to document A to produce B.
+	/// `other` must apply to document B to produce C.
+	/// Result applies to A to produce C.
+	///
+	/// # Panics
+	///
+	/// Panics if `self.len_after() != other.len()`.
 	pub fn compose(self, other: ChangeSet) -> ChangeSet {
-		debug_assert_eq!(self.len_after, other.len);
+		debug_assert_eq!(self.len_after, other.len, "Composition mismatch");
 		let mut result = Self::builder();
 		let mut a_iter = self.changes.into_iter();
 		let mut b_iter = other.changes.into_iter();

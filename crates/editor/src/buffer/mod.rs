@@ -32,8 +32,8 @@ pub use crate::core::history::HistoryResult;
 pub use crate::core::undo_store::{TxnUndoStore, UndoBackend};
 
 // Thread-local set of document IDs currently locked by the thread.
-// Used in debug builds to detect and prevent re-entrant locking on the same
-// document, which would cause a self-deadlock.
+// Used to detect and prevent re-entrant locking on the same document,
+// which would cause a self-deadlock. Enabled in all builds for reliability.
 thread_local! {
 	static ACTIVE_DOC_LOCKS: RefCell<HashSet<usize>> = RefCell::new(HashSet::new());
 }
@@ -41,7 +41,7 @@ thread_local! {
 /// A handle to a shared [`Document`], managing thread-safe access.
 ///
 /// Wraps an `Arc<RwLock<Document>>` and provides scoped access via closures.
-/// In debug builds, it enforces a strict no-reentrancy policy per document.
+/// It enforces a strict no-reentrancy policy per document.
 #[derive(Clone)]
 pub(crate) struct DocumentHandle {
 	/// Unique identifier (pointer address) of the document, stored for lock-free reentrancy checks.
@@ -62,8 +62,7 @@ impl DocumentHandle {
 	///
 	/// # Panics
 	///
-	/// Panics in debug builds if the current thread already holds a lock on
-	/// this specific document handle.
+	/// Panics if the current thread already holds a lock on this specific document handle.
 	fn with<R>(&self, f: impl FnOnce(&Document) -> R) -> R {
 		let _guard = LockGuard::new(self.ptr);
 		let guard = self.inner.read();
@@ -74,8 +73,7 @@ impl DocumentHandle {
 	///
 	/// # Panics
 	///
-	/// Panics in debug builds if the current thread already holds a lock on
-	/// this specific document handle.
+	/// Panics if the current thread already holds a lock on this specific document handle.
 	fn with_mut<R>(&self, f: impl FnOnce(&mut Document) -> R) -> R {
 		let _guard = LockGuard::new(self.ptr);
 		let mut guard = self.inner.write();
@@ -89,10 +87,8 @@ impl DocumentHandle {
 }
 
 /// RAII guard for tracking active document locks on the current thread.
-#[cfg(debug_assertions)]
 struct LockGuard(usize);
 
-#[cfg(debug_assertions)]
 impl LockGuard {
 	/// Registers a lock on the given document pointer.
 	///
@@ -114,24 +110,11 @@ impl LockGuard {
 	}
 }
 
-#[cfg(debug_assertions)]
 impl Drop for LockGuard {
 	fn drop(&mut self) {
 		ACTIVE_DOC_LOCKS.with(|locks| {
 			locks.borrow_mut().remove(&self.0);
 		});
-	}
-}
-
-/// No-op guard for release builds.
-#[cfg(not(debug_assertions))]
-struct LockGuard;
-
-#[cfg(not(debug_assertions))]
-impl LockGuard {
-	#[inline(always)]
-	fn new(_ptr: usize) -> Self {
-		Self
 	}
 }
 
@@ -251,10 +234,11 @@ impl Buffer {
 	}
 
 	pub fn set_path(
-		&self,
+		&mut self,
 		path: Option<PathBuf>,
 		loader: Option<&LanguageLoader>,
 	) -> DocumentMetaOutcome {
+		self.insert_undo_active = false;
 		self.with_doc_mut(|doc| doc.set_path(path, loader))
 	}
 
@@ -262,7 +246,7 @@ impl Buffer {
 		self.with_doc(|doc| doc.is_modified())
 	}
 
-	pub fn set_modified(&self, modified: bool) -> DocumentMetaOutcome {
+	pub fn set_modified(&mut self, modified: bool) -> DocumentMetaOutcome {
 		self.with_doc_mut(|doc| doc.set_modified(modified))
 	}
 
@@ -288,8 +272,9 @@ impl Buffer {
 		self.readonly_override = readonly;
 	}
 
-	/// Replaces the document content wholesale, clearing undo history.
-	pub fn reset_content(&self, content: impl Into<xeno_primitives::Rope>) {
+	/// Replaces the document content wholesale, clearing history.
+	pub fn reset_content(&mut self, content: impl Into<xeno_primitives::Rope>) {
+		self.insert_undo_active = false;
 		self.with_doc_mut(|doc| doc.reset_content(content));
 	}
 

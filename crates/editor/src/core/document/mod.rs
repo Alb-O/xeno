@@ -70,8 +70,6 @@ pub struct Document {
 	content: Rope,
 	/// Associated file path. `None` for scratch documents.
 	path: Option<PathBuf>,
-	/// Whether the document has unsaved changes.
-	modified: bool,
 	/// Whether the document is read-only (prevents all modifications).
 	readonly: bool,
 	/// Transaction-based grouped undo history.
@@ -104,13 +102,14 @@ pub struct DocumentSnapshot {
 impl Document {
 	/// Creates a new document with the given content and optional file path.
 	pub fn new(content: String, path: Option<PathBuf>) -> Self {
+		let mut undo_backend = UndoBackend::default();
+		undo_backend.set_modified(false);
 		Self {
 			id: DocumentId::next(),
 			content: Rope::from(content.as_str()),
 			path,
-			modified: false,
 			readonly: false,
-			undo_backend: UndoBackend::default(),
+			undo_backend,
 			file_type: None,
 			language_id: None,
 			version: 0,
@@ -208,27 +207,49 @@ impl Document {
 		_language_loader: &LanguageLoader,
 	) -> CommitResult {
 		let version_before = self.version;
+
+		// Fast-path: if transaction is identity, do nothing.
+		if commit.tx.is_identity() {
+			return CommitResult {
+				applied: false,
+				version_before,
+				version_after: self.version,
+				selection_after: commit.selection_after,
+				undo_recorded: false,
+				changed_ranges: smallvec::SmallVec::new(),
+				syntax_outcome: SyntaxOutcome::Unchanged,
+			};
+		}
+
 		let changed_ranges = collect_changed_ranges(&commit.tx);
 
-		let should_record = !matches!(commit.undo, UndoPolicy::NoUndo);
-
-		let content_before = if should_record {
-			Some(self.content.clone())
-		} else {
-			None
+		// Record undo history based on policy.
+		// Note: Boundary policy must record *before* application to properly capture
+		// the state transition for inversion.
+		let undo_recorded = match commit.undo {
+			UndoPolicy::Record | UndoPolicy::MergeWithCurrentGroup => {
+				let recorded = self
+					.undo_backend
+					.record_commit(&commit.tx, &self.content, merge);
+				commit.tx.apply(&mut self.content);
+				recorded
+			}
+			UndoPolicy::NoUndo => {
+				// Content-changing edit with NoUndo must clear history to prevent corruption.
+				commit.tx.apply(&mut self.content);
+				self.undo_backend.clear_all();
+				false
+			}
+			UndoPolicy::Boundary => {
+				let recorded = self
+					.undo_backend
+					.record_commit(&commit.tx, &self.content, false);
+				commit.tx.apply(&mut self.content);
+				recorded
+			}
 		};
 
-		commit.tx.apply(&mut self.content);
-		self.modified = true;
 		self.version = self.version.wrapping_add(1);
-		self.undo_backend.clear_redo();
-
-		let undo_recorded = if let Some(before) = content_before {
-			self.undo_backend.record_commit(&commit.tx, &before, merge);
-			!merge
-		} else {
-			false
-		};
 
 		let syntax_outcome = match commit.syntax {
 			SyntaxPolicy::None => SyntaxOutcome::Unchanged,
@@ -277,8 +298,8 @@ impl Document {
 	pub fn reset_content(&mut self, content: impl Into<Rope>) {
 		self.content = content.into();
 		self.undo_backend = UndoBackend::new();
-		self.modified = false;
 		self.version = self.version.wrapping_add(1);
+		self.undo_backend.set_modified(false);
 	}
 
 	/// Replaces the document content from a synchronization snapshot.
@@ -287,7 +308,6 @@ impl Document {
 	pub fn install_sync_snapshot(&mut self, content: impl Into<Rope>) {
 		self.content = content.into();
 		self.undo_backend = UndoBackend::new();
-		self.modified = true;
 		self.version = self.version.wrapping_add(1);
 	}
 
@@ -331,14 +351,14 @@ impl Document {
 
 	/// Returns whether the document has unsaved changes.
 	pub fn is_modified(&self) -> bool {
-		self.modified
+		self.undo_backend.is_modified()
 	}
 
 	/// Sets the modified flag.
 	pub fn set_modified(&mut self, modified: bool) -> DocumentMetaOutcome {
 		let mut outcome = DocumentMetaOutcome::default();
-		if self.modified != modified {
-			self.modified = modified;
+		if self.is_modified() != modified {
+			self.undo_backend.set_modified(modified);
 			outcome.modified_changed = true;
 		}
 		outcome
@@ -406,32 +426,16 @@ pub(crate) fn collect_changed_ranges(tx: &xeno_primitives::Transaction) -> Vec<R
 				pos += n;
 			}
 			Operation::Delete(n) => {
-				push_range(&mut ranges, pos, pos + n);
+				if *n > 0 {
+					ranges.push(Range::new(pos, pos + *n - 1));
+				}
 				pos += n;
 			}
 			Operation::Insert(_) => {
-				push_range(&mut ranges, pos, pos);
+				ranges.push(Range::point(pos));
 			}
 		}
 	}
 
 	ranges
-}
-
-fn push_range(ranges: &mut Vec<Range>, start: usize, end: usize) {
-	let start = start.min(end);
-	let end = start.max(end);
-
-	if let Some(last) = ranges.last_mut() {
-		let last_start = last.from();
-		let last_end = last.to();
-		if start <= last_end {
-			let merged_start = last_start.min(start);
-			let merged_end = last_end.max(end);
-			*last = Range::new(merged_start, merged_end);
-			return;
-		}
-	}
-
-	ranges.push(Range::new(start, end));
 }

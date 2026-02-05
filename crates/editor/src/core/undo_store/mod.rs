@@ -86,6 +86,14 @@ pub struct TxnUndoStore {
 	redo_stack: VecDeque<UndoStep>,
 	undo_bytes: usize,
 	redo_bytes: usize,
+	/// Cached total number of transactions in the undo stack.
+	undo_tx_count: u64,
+	/// Cached total number of transactions in the redo stack.
+	redo_tx_count: u64,
+	/// Total number of content-changing transactions applied since history reset.
+	head_pos: u64,
+	/// The transaction count that matches the on-disk content.
+	clean_pos: Option<u64>,
 }
 
 impl TxnUndoStore {
@@ -120,6 +128,7 @@ impl TxnUndoStore {
 	pub fn clear_redo(&mut self) {
 		self.redo_stack.clear();
 		self.redo_bytes = 0;
+		self.redo_tx_count = 0;
 	}
 
 	/// Records a transaction for undo.
@@ -127,23 +136,49 @@ impl TxnUndoStore {
 	/// If `merge` is true and a group is already active, appends to it.
 	/// Otherwise starts a new undo step.
 	///
+	/// # Returns
+	///
+	/// `true` if a new undo step was created, `false` if it was merged.
+	///
 	/// # Side Effects
 	///
 	/// - Clears the redo stack.
 	/// - Evicts oldest steps if [`MAX_UNDO`] or [`MAX_UNDO_BYTES`] limits are met.
-	pub fn record_transaction(&mut self, redo_tx: Transaction, undo_tx: Transaction, merge: bool) {
-		if merge && let Some(step) = self.undo_stack.back_mut() {
+	/// - Invalidates `clean_pos` if history branches away from it.
+	pub fn record_transaction(
+		&mut self,
+		redo_tx: Transaction,
+		undo_tx: Transaction,
+		merge: bool,
+	) -> bool {
+		// Invalidate clean_pos if a new edit branches history.
+		// We check against old head_pos before incrementing.
+		if !self.redo_stack.is_empty() {
+			if let Some(cp) = self.clean_pos {
+				if cp > self.head_pos {
+					self.clean_pos = None;
+				}
+			}
+		}
+
+		let new_step_created = if merge && let Some(step) = self.undo_stack.back_mut() {
 			let old_bytes = step.bytes;
 			step.append(redo_tx, undo_tx);
 			self.undo_bytes += step.bytes - old_bytes;
+			false
 		} else {
 			let step = UndoStep::new(redo_tx, undo_tx);
 			self.undo_bytes += step.bytes;
 			self.undo_stack.push_back(step);
-		}
+			true
+		};
+
+		self.head_pos += 1;
+		self.undo_tx_count += 1;
 
 		self.clear_redo();
 		self.enforce_limits();
+		new_step_created
 	}
 
 	/// Evicts oldest steps until memory and depth limits are met.
@@ -154,16 +189,30 @@ impl TxnUndoStore {
 		while self.undo_stack.len() > MAX_UNDO && !self.undo_stack.is_empty() {
 			let oldest = self.undo_stack.pop_front().unwrap();
 			self.undo_bytes = self.undo_bytes.saturating_sub(oldest.bytes);
+			self.undo_tx_count -= oldest.undo.len() as u64;
 		}
 
 		// Enforce total memory cap (undo + redo)
+		// Prioritize keeping UNDO over REDO by evicting REDO first.
 		while self.undo_bytes + self.redo_bytes > MAX_UNDO_BYTES {
-			if let Some(oldest) = self.undo_stack.pop_front() {
-				self.undo_bytes = self.undo_bytes.saturating_sub(oldest.bytes);
-			} else if let Some(oldest) = self.redo_stack.pop_front() {
+			if let Some(oldest) = self.redo_stack.pop_front() {
 				self.redo_bytes = self.redo_bytes.saturating_sub(oldest.bytes);
+				self.redo_tx_count -= oldest.redo.len() as u64;
+			} else if let Some(oldest) = self.undo_stack.pop_front() {
+				self.undo_bytes = self.undo_bytes.saturating_sub(oldest.bytes);
+				self.undo_tx_count -= oldest.undo.len() as u64;
 			} else {
 				break;
+			}
+		}
+
+		// Invalidate clean_pos if it points to evicted history.
+		if let Some(cp) = self.clean_pos {
+			let min_undo_pos = self.head_pos.saturating_sub(self.undo_tx_count);
+			let max_redo_pos = self.head_pos + self.redo_tx_count;
+
+			if cp < min_undo_pos || cp > max_redo_pos {
+				self.clean_pos = None;
 			}
 		}
 	}
@@ -174,7 +223,9 @@ impl TxnUndoStore {
 	/// (reverse of the original edit order).
 	pub fn undo(&mut self, content: &mut Rope) -> Option<Vec<Transaction>> {
 		let step = self.undo_stack.pop_back()?;
+		let tx_len = step.undo.len() as u64;
 		self.undo_bytes = self.undo_bytes.saturating_sub(step.bytes);
+		self.undo_tx_count -= tx_len;
 
 		let mut applied = Vec::with_capacity(step.undo.len());
 		for tx in step.undo.iter().rev() {
@@ -182,7 +233,9 @@ impl TxnUndoStore {
 			applied.push(tx.clone());
 		}
 
+		self.head_pos -= tx_len;
 		self.redo_bytes += step.bytes;
+		self.redo_tx_count += tx_len;
 		self.redo_stack.push_back(step);
 		self.enforce_limits();
 		Some(applied)
@@ -193,17 +246,47 @@ impl TxnUndoStore {
 	/// Returns the applied transactions in forward order.
 	pub fn redo(&mut self, content: &mut Rope) -> Option<Vec<Transaction>> {
 		let step = self.redo_stack.pop_back()?;
+		let tx_len = step.redo.len() as u64;
 		self.redo_bytes = self.redo_bytes.saturating_sub(step.bytes);
+		self.redo_tx_count -= tx_len;
 
 		for tx in &step.redo {
 			tx.apply(content);
 		}
 
+		self.head_pos += tx_len;
 		let redo_txs = step.redo.clone();
 		self.undo_bytes += step.bytes;
+		self.undo_tx_count += tx_len;
 		self.undo_stack.push_back(step);
 		self.enforce_limits();
 		Some(redo_txs)
+	}
+
+	/// Clears all undo and redo history.
+	pub fn clear_all(&mut self) {
+		self.undo_stack.clear();
+		self.redo_stack.clear();
+		self.undo_bytes = 0;
+		self.redo_bytes = 0;
+		self.undo_tx_count = 0;
+		self.redo_tx_count = 0;
+		self.head_pos = 0;
+		self.clean_pos = None;
+	}
+
+	/// Returns true if the current state is modified relative to the clean state.
+	pub fn is_modified(&self) -> bool {
+		self.clean_pos != Some(self.head_pos)
+	}
+
+	/// Marks the current state as clean.
+	pub fn set_modified(&mut self, modified: bool) {
+		if modified {
+			self.clean_pos = None;
+		} else {
+			self.clean_pos = Some(self.head_pos);
+		}
 	}
 }
 
@@ -250,9 +333,10 @@ impl UndoBackend {
 	/// Records a commit for undo.
 	///
 	/// If `merge` is true, appends to the current undo group.
-	pub fn record_commit(&mut self, tx: &Transaction, before: &Rope, merge: bool) {
+	/// Returns true if a new undo step was created.
+	pub fn record_commit(&mut self, tx: &Transaction, before: &Rope, merge: bool) -> bool {
 		let undo_tx = tx.invert(before);
-		self.store.record_transaction(tx.clone(), undo_tx, merge);
+		self.store.record_transaction(tx.clone(), undo_tx, merge)
 	}
 
 	/// Performs undo, updating the document content and version.
@@ -273,5 +357,20 @@ impl UndoBackend {
 		let applied = self.store.redo(content)?;
 		*version = version.wrapping_add(1);
 		Some(applied)
+	}
+
+	/// Clears all undo and redo history.
+	pub fn clear_all(&mut self) {
+		self.store.clear_all();
+	}
+
+	/// Returns true if the current state is modified relative to the clean state.
+	pub fn is_modified(&self) -> bool {
+		self.store.is_modified()
+	}
+
+	/// Sets the modified flag.
+	pub fn set_modified(&mut self, modified: bool) {
+		self.store.set_modified(modified);
 	}
 }

@@ -38,6 +38,8 @@ impl Selection {
 
 	/// Creates a selection from a vector of ranges.
 	///
+	/// # Panics
+	///
 	/// Panics if `ranges` is empty.
 	pub fn from_vec(ranges: Vec<Range>, primary_index: usize) -> Self {
 		assert!(!ranges.is_empty(), "Selection cannot be empty");
@@ -178,10 +180,12 @@ impl Selection {
 	///
 	/// Unlike `normalize()` (which only merges overlapping ranges), this also
 	/// merges ranges that are adjacent (touching but not overlapping).
-	/// For example, `[0, 5)` and `[5, 10)` would be merged into `[0, 10)`.
 	///
-	/// Use this when you want to combine all contiguous selections into
-	/// single ranges (e.g., for visual selection operations).
+	/// # 1-Cell Model Adjacency
+	///
+	/// In the 1-cell inclusive model, ranges `[a, b]` and `[c, d]` are adjacent if
+	/// `b + 1 == c`. This means there is no gap between the last cell of the first range
+	/// and the first cell of the second range.
 	pub fn merge_overlaps_and_adjacent(&mut self) {
 		if self.ranges.len() <= 1 {
 			return;
@@ -195,7 +199,7 @@ impl Selection {
 
 		for range in &self.ranges {
 			if let Some(last) = merged.last_mut()
-				&& (last.overlaps(range) || last.max() == range.min())
+				&& (last.overlaps(range) || last.max() + 1 == range.min())
 			{
 				let old_last = *last;
 				*last = last.merge(range);

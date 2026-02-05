@@ -27,10 +27,8 @@ pub struct Transaction {
 impl Transaction {
 	/// Creates a new empty transaction for the given document.
 	///
-	/// # Parameters
-	/// - `doc`: The document slice
-	///
 	/// # Returns
+	///
 	/// An empty [`Transaction`] with no changes or selection.
 	pub fn new(doc: RopeSlice) -> Self {
 		Self {
@@ -44,12 +42,9 @@ impl Transaction {
 	/// Changes must be non-overlapping and sorted by start position. This function
 	/// converts the high-level change representation into a low-level [`ChangeSet`].
 	///
-	/// # Parameters
-	/// - `doc`: The document slice
-	/// - `changes`: Iterator of non-overlapping, sorted changes
+	/// # Panics
 	///
-	/// # Returns
-	/// A new [`Transaction`] representing the changes.
+	/// Panics if changes are overlapping or out of order.
 	pub fn change<I>(doc: RopeSlice, changes: I) -> Self
 	where
 		I: IntoIterator<Item = Change>,
@@ -96,16 +91,6 @@ impl Transaction {
 	/// In the 1-cell minimum model, this inserts text before each range's
 	/// start position. This enables multi-cursor editing while preserving
 	/// the cell under the cursor.
-	///
-	/// # Parameters
-	///
-	/// - `doc`: The document slice.
-	/// - `selection`: The ranges where text should be inserted.
-	/// - `text`: The text to insert at each range.
-	///
-	/// # Returns
-	///
-	/// A new [`Transaction`] representing the insertions.
 	pub fn insert(doc: RopeSlice, selection: &Selection, text: Tendril) -> Self {
 		Self::change(
 			doc,
@@ -120,15 +105,6 @@ impl Transaction {
 	/// Creates a transaction that deletes each selection range.
 	///
 	/// For each range in the selection, deletes the text in `[from, to)`.
-	///
-	/// # Parameters
-	///
-	/// - `doc`: The document slice.
-	/// - `selection`: The ranges to delete.
-	///
-	/// # Returns
-	///
-	/// A new [`Transaction`] representing the deletions.
 	pub fn delete(doc: RopeSlice, selection: &Selection) -> Self {
 		let len = doc.len_chars();
 		Self::change(
@@ -144,12 +120,6 @@ impl Transaction {
 	/// Attaches a selection to this transaction.
 	///
 	/// The selection will be returned when the transaction is applied.
-	///
-	/// # Parameters
-	/// - `selection`: The selection to attach
-	///
-	/// # Returns
-	/// This transaction with the selection attached.
 	pub fn with_selection(mut self, selection: Selection) -> Self {
 		self.selection = Some(selection);
 		self
@@ -170,12 +140,15 @@ impl Transaction {
 		self.selection.as_ref()
 	}
 
+	/// Returns true if this transaction represents an identity transformation.
+	pub fn is_identity(&self) -> bool {
+		self.changes.is_identity()
+	}
+
 	/// Applies this transaction to a document, modifying it in place.
 	///
-	/// # Parameters
-	/// - `doc`: The document to modify
-	///
 	/// # Returns
+	///
 	/// The attached selection, if any.
 	pub fn apply(&self, doc: &mut Rope) -> Option<Selection> {
 		self.changes.apply(doc);
@@ -184,11 +157,9 @@ impl Transaction {
 
 	/// Creates a transaction that undoes this one.
 	///
-	/// # Parameters
-	/// - `doc`: The original document (before this transaction was applied)
+	/// # Arguments
 	///
-	/// # Returns
-	/// A new [`Transaction`] that undoes this transaction's changes.
+	/// * `doc` - The original document (before this transaction was applied).
 	pub fn invert(&self, doc: &Rope) -> Self {
 		Self {
 			changes: self.changes.invert(doc),
@@ -196,22 +167,37 @@ impl Transaction {
 		}
 	}
 
-	/// Maps a selection through this transaction's changes.
+	/// Maps a selection through this transaction's changes using 1-cell model semantics.
 	///
-	/// Transforms each range in the selection by mapping its anchor and head
-	/// positions through the changeset, preserving the range direction.
+	/// Maps the extent boundaries `[from, to)` with biases that preserve half-open
+	/// interval invariants, then reconstructs the inclusive cell range.
 	///
-	/// # Parameters
-	/// - `selection`: The selection to transform
+	/// # Semantics
 	///
-	/// # Returns
-	/// A new [`Selection`] with ranges mapped through this transaction.
+	/// - `from` maps with `Bias::Right`: cursor follows insertions at the boundary.
+	/// - `to` maps with `Bias::Left`: end boundary doesn't expand on insertion.
 	pub fn map_selection(&self, selection: &Selection) -> Selection {
-		selection.transform(|range| {
-			Range::new(
-				self.changes.map_pos(range.anchor, Bias::Left),
-				self.changes.map_pos(range.head, Bias::Right),
-			)
+		selection.transform(|r| {
+			let dir = r.direction();
+			let from = r.from();
+			let to = r.to();
+
+			// Map boundaries:
+			// - start boundary from maps with Bias::Right (insertions shift it right)
+			// - end boundary to maps with Bias::Left (insertions do not expand it)
+			let from2 = self.changes.map_pos(from, Bias::Right);
+			let to2 = self.changes.map_pos(to, Bias::Left);
+
+			let (lo, hi) = if to2 <= from2 {
+				(from2, from2) // Collapsed to 1-cell point
+			} else {
+				(from2, to2 - 1) // Map back to inclusive cell head
+			};
+
+			match dir {
+				crate::range::Direction::Forward => Range::new(lo, hi),
+				crate::range::Direction::Backward => Range::new(hi, lo),
+			}
 		})
 	}
 }
