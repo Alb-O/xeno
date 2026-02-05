@@ -7,8 +7,7 @@ use crate::{Rope, Selection};
 
 #[test]
 fn test_changeset_retain() {
-	let doc = Rope::from("hello");
-	let mut cs = ChangeSet::new(doc.slice(..));
+	let mut cs = ChangeSet::builder();
 	cs.retain(5);
 	assert_eq!(cs.len(), 5);
 	assert_eq!(cs.len_after(), 5);
@@ -16,8 +15,7 @@ fn test_changeset_retain() {
 
 #[test]
 fn test_changeset_delete() {
-	let doc = Rope::from("hello");
-	let mut cs = ChangeSet::new(doc.slice(..));
+	let mut cs = ChangeSet::builder();
 	cs.delete(2);
 	cs.retain(3);
 	assert_eq!(cs.len(), 5);
@@ -26,8 +24,7 @@ fn test_changeset_delete() {
 
 #[test]
 fn test_changeset_insert() {
-	let doc = Rope::from("hello");
-	let mut cs = ChangeSet::new(doc.slice(..));
+	let mut cs = ChangeSet::builder();
 	cs.insert("world".into());
 	cs.retain(5);
 	assert_eq!(cs.len(), 5);
@@ -37,7 +34,7 @@ fn test_changeset_insert() {
 #[test]
 fn test_changeset_apply() {
 	let mut doc = Rope::from("hello");
-	let mut cs = ChangeSet::new(doc.slice(..));
+	let mut cs = ChangeSet::builder();
 	cs.delete(2);
 	cs.insert("aa".into());
 	cs.retain(3);
@@ -300,4 +297,112 @@ proptest! {
 			);
 		});
 	}
+}
+
+#[test]
+fn test_changeset_identity_length() {
+	let doc = Rope::from("abc");
+	let cs = ChangeSet::new(doc.slice(..));
+	assert_eq!(cs.len(), 3);
+	assert_eq!(cs.len_after(), 3);
+}
+
+#[test]
+fn test_changeset_invert_lengths() {
+	let original = Rope::from("abc");
+	let changes = vec![Change {
+		start: 3,
+		end: 3,
+		replacement: Some("def".into()),
+	}];
+	let tx = Transaction::change(original.slice(..), changes);
+	let inverse = tx.invert(&original);
+
+	// Original: 3 -> 6
+	assert_eq!(tx.changes().len(), 3);
+	assert_eq!(tx.changes().len_after(), 6);
+
+	// Inverse: 6 -> 3
+	assert_eq!(inverse.changes().len(), 6);
+	assert_eq!(inverse.changes().len_after(), 3);
+}
+
+#[test]
+fn test_changeset_compose_lengths() {
+	let doc0 = Rope::from("abc");
+	let tx1 = Transaction::change(
+		doc0.slice(..),
+		vec![Change {
+			start: 3,
+			end: 3,
+			replacement: Some("d".into()),
+		}],
+	);
+	let mut doc1 = doc0.clone();
+	tx1.apply(&mut doc1);
+
+	let tx2 = Transaction::change(
+		doc1.slice(..),
+		vec![Change {
+			start: 4,
+			end: 4,
+			replacement: Some("e".into()),
+		}],
+	);
+
+	let cs1 = tx1.changes().clone();
+	let cs2 = tx2.changes().clone();
+
+	// cs1: 3 -> 4
+	// cs2: 4 -> 5
+	let composed = cs1.compose(cs2);
+	assert_eq!(composed.len(), 3);
+	assert_eq!(composed.len_after(), 5);
+}
+
+#[test]
+fn test_multi_undo_composition_chain() {
+	// Simulate the crash scenario: a sequence of insertions being undone.
+	let mut doc = Rope::from("abc");
+	let original = doc.clone();
+
+	let tx1 = Transaction::change(
+		doc.slice(..),
+		vec![Change {
+			start: 3,
+			end: 3,
+			replacement: Some("d".into()),
+		}],
+	);
+	let u1 = tx1.invert(&doc);
+	tx1.apply(&mut doc);
+
+	let tx2 = Transaction::change(
+		doc.slice(..),
+		vec![Change {
+			start: 4,
+			end: 4,
+			replacement: Some("e".into()),
+		}],
+	);
+	let u2 = tx2.invert(&doc);
+	tx2.apply(&mut doc);
+
+	// Doc is now "abcde" (len 5)
+	// u2: 5 -> 4 (undoes 'e')
+	// u1: 4 -> 3 (undoes 'd')
+
+	assert_eq!(u2.changes().len(), 5);
+	assert_eq!(u2.changes().len_after(), 4);
+	assert_eq!(u1.changes().len(), 4);
+	assert_eq!(u1.changes().len_after(), 3);
+
+	// Chain: u2.compose(u1)
+	let net = u2.changes().clone().compose(u1.changes().clone());
+	assert_eq!(net.len(), 5);
+	assert_eq!(net.len_after(), 3);
+
+	let mut test_doc = doc.clone();
+	net.apply(&mut test_doc);
+	assert_eq!(test_doc.to_string(), original.to_string());
 }

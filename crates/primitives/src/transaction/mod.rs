@@ -54,7 +54,7 @@ impl Transaction {
 	where
 		I: IntoIterator<Item = Change>,
 	{
-		let mut changeset = ChangeSet::new(doc);
+		let mut changeset = ChangeSet::builder();
 		let mut last: CharIdx = 0;
 		let doc_len = doc.len_chars();
 

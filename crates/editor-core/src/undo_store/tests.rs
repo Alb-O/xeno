@@ -36,7 +36,7 @@ fn txn_store_basic_undo() {
 fn txn_store_undo_redo_cycle() {
 	let mut store = TxnUndoStore::new();
 	let original = test_rope();
-	let mut content = original.clone();
+	let mut content;
 
 	let tx = Transaction::change(
 		original.slice(..),
@@ -121,7 +121,7 @@ fn txn_store_grouping_undo() {
 fn backend_undo_redo() {
 	let mut backend = UndoBackend::new();
 	let mut content = test_rope();
-	let mut version = 0u64;
+	let mut version;
 
 	let tx = Transaction::change(
 		content.slice(..),
