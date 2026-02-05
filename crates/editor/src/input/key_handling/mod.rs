@@ -119,7 +119,7 @@ impl Editor {
 						.await;
 					}
 					if leaving_insert {
-						self.buffer_mut().clear_insert_undo_active();
+						self.buffer_mut().clear_undo_group();
 					}
 					#[cfg(feature = "lsp")]
 					{

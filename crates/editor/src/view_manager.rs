@@ -24,7 +24,7 @@ impl ViewManager {
 	/// Creates a manager with an initial buffer (ID 1).
 	pub fn new(content: String, path: Option<PathBuf>, language_loader: &LanguageLoader) -> Self {
 		let buffer_id = ViewId(1);
-		let buffer = Buffer::new(buffer_id, content, path);
+		let mut buffer = Buffer::new(buffer_id, content, path);
 		buffer.init_syntax(language_loader);
 		let doc_id = buffer.document_id();
 

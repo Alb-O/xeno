@@ -155,8 +155,6 @@ pub struct Buffer {
 	readonly_override: Option<bool>,
 	/// Remembered column for vertical navigation (j/k) stability.
 	goal_column: Option<usize>,
-	/// Whether an insert-mode undo grouping session is active for this view.
-	pub insert_undo_active: bool,
 }
 
 impl Buffer {
@@ -178,7 +176,6 @@ impl Buffer {
 			local_options: OptionStore::new(),
 			readonly_override: None,
 			goal_column: None,
-			insert_undo_active: false,
 		}
 	}
 
@@ -207,7 +204,6 @@ impl Buffer {
 			local_options: self.local_options.clone(),
 			readonly_override: None,
 			goal_column: None,
-			insert_undo_active: false,
 		}
 	}
 
@@ -241,7 +237,6 @@ impl Buffer {
 		path: Option<PathBuf>,
 		loader: Option<&LanguageLoader>,
 	) -> DocumentMetaOutcome {
-		self.insert_undo_active = false;
 		self.with_doc_mut(|doc| doc.set_path(path, loader))
 	}
 
@@ -262,7 +257,7 @@ impl Buffer {
 			.unwrap_or_else(|| self.with_doc(|doc| doc.is_readonly()))
 	}
 
-	pub fn set_readonly(&self, readonly: bool) -> DocumentMetaOutcome {
+	pub fn set_readonly(&mut self, readonly: bool) -> DocumentMetaOutcome {
 		self.with_doc_mut(|doc| doc.set_readonly(readonly))
 	}
 
@@ -277,8 +272,12 @@ impl Buffer {
 
 	/// Replaces the document content wholesale, clearing history.
 	pub fn reset_content(&mut self, content: impl Into<xeno_primitives::Rope>) {
-		self.insert_undo_active = false;
 		self.with_doc_mut(|doc| doc.reset_content(content));
+	}
+
+	/// Clears the active undo group owner for the underlying document.
+	pub fn clear_undo_group(&mut self) {
+		self.with_doc_mut(|doc| doc.clear_undo_group());
 	}
 
 	pub fn version(&self) -> u64 {
@@ -290,7 +289,7 @@ impl Buffer {
 	}
 
 	/// Initializes language metadata for this buffer.
-	pub fn init_syntax(&self, language_loader: &LanguageLoader) {
+	pub fn init_syntax(&mut self, language_loader: &LanguageLoader) {
 		self.with_doc_mut(|doc| doc.init_syntax(language_loader));
 	}
 
@@ -341,9 +340,6 @@ impl Buffer {
 	}
 
 	/// Clears the insert undo grouping flag.
-	pub fn clear_insert_undo_active(&mut self) {
-		self.insert_undo_active = false;
-	}
 
 	/// Clamps selection and cursor to valid document bounds.
 	pub fn ensure_valid_selection(&mut self) {

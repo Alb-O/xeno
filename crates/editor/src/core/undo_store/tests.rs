@@ -1,3 +1,4 @@
+use xeno_primitives::UndoPolicy;
 use xeno_primitives::transaction::Change;
 use xeno_primitives::{Rope, Transaction};
 
@@ -132,7 +133,7 @@ fn backend_undo_redo() {
 		}],
 	);
 
-	backend.record_commit(&tx, &content, false);
+	backend.record_commit(&tx, &content, UndoPolicy::Record, None);
 	tx.apply(&mut content);
 	version = 1;
 

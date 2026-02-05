@@ -265,7 +265,7 @@ impl CommandEditorOps for Editor {
 	}
 
 	fn set_readonly(&mut self, readonly: bool) {
-		self.buffer().set_readonly(readonly);
+		self.buffer_mut().set_readonly(readonly);
 	}
 
 	fn save(&mut self) -> Pin<Box<dyn Future<Output = Result<(), CommandError>> + '_>> {
@@ -470,7 +470,7 @@ impl JumpAccess for Editor {
 	fn save_jump(&mut self) {
 		let buffer_id = self.focused_view();
 		let cursor = self.buffer().cursor;
-		self.buffer_mut().clear_insert_undo_active();
+		self.buffer_mut().clear_undo_group();
 		self.state
 			.core
 			.workspace

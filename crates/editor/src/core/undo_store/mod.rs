@@ -14,7 +14,7 @@ mod tests;
 
 use std::collections::VecDeque;
 
-use xeno_primitives::{Rope, Transaction};
+use xeno_primitives::{Rope, Transaction, UndoPolicy, ViewId};
 
 /// Maximum undo history size in steps.
 pub const MAX_UNDO: usize = 100;
@@ -86,6 +86,9 @@ pub struct TxnUndoStore {
 	redo_stack: VecDeque<UndoStep>,
 	undo_bytes: usize,
 	redo_bytes: usize,
+	/// View that owns the current active undo group. Used for cross-view
+	/// grouping resolution.
+	pub(crate) active_group_owner: Option<ViewId>,
 	/// Cached total number of transactions in the undo stack.
 	undo_tx_count: u64,
 	/// Cached total number of transactions in the redo stack.
@@ -158,6 +161,7 @@ impl TxnUndoStore {
 			&& cp > self.head_pos
 		{
 			self.clean_pos = None;
+			self.active_group_owner = None;
 		}
 
 		let new_step_created = if merge && let Some(step) = self.undo_stack.back_mut() {
@@ -232,6 +236,7 @@ impl TxnUndoStore {
 
 			if cp < min_undo_pos || cp > max_redo_pos {
 				self.clean_pos = None;
+				self.active_group_owner = None;
 			}
 		}
 	}
@@ -241,6 +246,7 @@ impl TxnUndoStore {
 	/// Returns the applied transactions in the order they were executed
 	/// (reverse of the original edit order).
 	pub fn undo(&mut self, content: &mut Rope) -> Option<Vec<Transaction>> {
+		self.active_group_owner = None;
 		let step = self.undo_stack.pop_back()?;
 		let tx_len = step.undo.len() as u64;
 
@@ -271,6 +277,7 @@ impl TxnUndoStore {
 	///
 	/// Returns the applied transactions in forward order.
 	pub fn redo(&mut self, content: &mut Rope) -> Option<Vec<Transaction>> {
+		self.active_group_owner = None;
 		let step = self.redo_stack.pop_back()?;
 		let tx_len = step.redo.len() as u64;
 		self.redo_bytes = self.redo_bytes.saturating_sub(step.bytes);
@@ -303,6 +310,7 @@ impl TxnUndoStore {
 		self.redo_tx_count = 0;
 		self.head_pos = 0;
 		self.clean_pos = None;
+		self.active_group_owner = None;
 
 		#[cfg(debug_assertions)]
 		self.assert_invariants();
@@ -400,11 +408,35 @@ impl UndoBackend {
 
 	/// Records a commit for undo.
 	///
-	/// If `merge` is true, appends to the current undo group.
-	/// Returns true if a new undo step was created.
-	pub fn record_commit(&mut self, tx: &Transaction, before: &Rope, merge: bool) -> bool {
+	/// If `undo_policy` allows merging and the origin view matches the current
+	/// group owner, it appends to the current group.
+	pub fn record_commit(
+		&mut self,
+		tx: &Transaction,
+		before: &Rope,
+		undo_policy: UndoPolicy,
+		origin_view: Option<ViewId>,
+	) -> bool {
 		let undo_tx = tx.invert(before);
+		let merge = match undo_policy {
+			UndoPolicy::MergeWithCurrentGroup => {
+				self.store.active_group_owner == origin_view && origin_view.is_some()
+			}
+			_ => false,
+		};
+
+		if matches!(undo_policy, UndoPolicy::MergeWithCurrentGroup | UndoPolicy::Boundary) {
+			self.store.active_group_owner = origin_view;
+		} else {
+			self.store.active_group_owner = None;
+		}
+
 		self.store.record_transaction(tx.clone(), undo_tx, merge)
+	}
+
+	/// Clears the active undo group owner.
+	pub fn clear_active_group_owner(&mut self) {
+		self.store.active_group_owner = None;
 	}
 
 	/// Performs undo, updating the document content and version.

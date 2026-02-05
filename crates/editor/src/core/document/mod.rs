@@ -18,7 +18,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use xeno_primitives::transaction::Operation;
 use xeno_primitives::{
 	CommitResult, EditCommit, EditError, Range, ReadOnlyReason, ReadOnlyScope, Rope, SyntaxOutcome,
-	SyntaxPolicy, Transaction, UndoPolicy,
+	SyntaxPolicy, Transaction, UndoPolicy, ViewId,
 };
 use xeno_runtime_language::LanguageLoader;
 
@@ -180,9 +180,13 @@ impl Document {
 	/// # Errors
 	///
 	/// Returns [`EditError::ReadOnly`] if the document is flagged as read-only.
-	pub fn commit(&mut self, commit: EditCommit, merge: bool) -> Result<CommitResult, EditError> {
+	pub fn commit(
+		&mut self,
+		commit: EditCommit,
+		origin_view: Option<ViewId>,
+	) -> Result<CommitResult, EditError> {
 		self.ensure_writable()?;
-		Ok(self.commit_unchecked(commit, merge))
+		Ok(self.commit_unchecked(commit, origin_view))
 	}
 
 	/// Applies an edit bypassing the readonly check.
@@ -192,7 +196,11 @@ impl Document {
 	/// Internal use only. Callers MUST ensure that any readonly overrides
 	/// have been validated at the view layer.
 	#[doc(hidden)]
-	pub fn commit_unchecked(&mut self, commit: EditCommit, merge: bool) -> CommitResult {
+	pub fn commit_unchecked(
+		&mut self,
+		commit: EditCommit,
+		origin_view: Option<ViewId>,
+	) -> CommitResult {
 		let version_before = self.version;
 
 		// Fast-path: if transaction is identity, do nothing.
@@ -215,9 +223,12 @@ impl Document {
 		// the state transition for inversion.
 		let undo_recorded = match commit.undo {
 			UndoPolicy::Record | UndoPolicy::MergeWithCurrentGroup => {
-				let recorded = self
-					.undo_backend
-					.record_commit(&commit.tx, &self.content, merge);
+				let recorded = self.undo_backend.record_commit(
+					&commit.tx,
+					&self.content,
+					commit.undo,
+					origin_view,
+				);
 				commit.tx.apply(&mut self.content);
 				recorded
 			}
@@ -228,9 +239,12 @@ impl Document {
 				false
 			}
 			UndoPolicy::Boundary => {
-				let recorded = self
-					.undo_backend
-					.record_commit(&commit.tx, &self.content, false);
+				let recorded = self.undo_backend.record_commit(
+					&commit.tx,
+					&self.content,
+					UndoPolicy::Boundary,
+					origin_view,
+				);
 				commit.tx.apply(&mut self.content);
 				recorded
 			}
@@ -285,6 +299,7 @@ impl Document {
 	pub fn reset_content(&mut self, content: impl Into<Rope>) {
 		self.content = content.into();
 		self.undo_backend = UndoBackend::new();
+		self.undo_backend.clear_active_group_owner();
 		self.version = self.version.wrapping_add(1);
 		self.undo_backend.set_modified(false);
 	}
@@ -296,6 +311,7 @@ impl Document {
 	pub fn install_sync_snapshot(&mut self, content: impl Into<Rope>) {
 		self.content = content.into();
 		self.undo_backend = UndoBackend::new();
+		self.undo_backend.clear_active_group_owner();
 		self.undo_backend.set_modified(false);
 		self.version = self.version.wrapping_add(1);
 	}
@@ -366,6 +382,11 @@ impl Document {
 			outcome.readonly_changed = true;
 		}
 		outcome
+	}
+
+	/// Clears the active undo group owner, forcing the next edit to start a new group.
+	pub fn clear_undo_group(&mut self) {
+		self.undo_backend.clear_active_group_owner();
 	}
 
 	/// Returns the document version.

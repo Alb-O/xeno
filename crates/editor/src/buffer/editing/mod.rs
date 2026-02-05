@@ -226,20 +226,11 @@ impl Buffer {
 			return CommitResult::blocked(self.version());
 		}
 
-		let merge = match policy.undo {
-			UndoPolicy::MergeWithCurrentGroup => self.insert_undo_active,
-			_ => false,
-		};
-
 		let commit = EditCommit::new(tx.clone())
 			.with_undo(policy.undo)
 			.with_syntax(policy.syntax);
 
-		let result = self.with_doc_mut(|doc| doc.commit_unchecked(commit, merge));
-
-		if result.applied {
-			self.insert_undo_active = matches!(policy.undo, UndoPolicy::MergeWithCurrentGroup);
-		}
+		let result = self.with_doc_mut(|doc| doc.commit_unchecked(commit, Some(self.id)));
 
 		result
 	}
@@ -262,8 +253,7 @@ impl Buffer {
 			.with_undo(policy.undo)
 			.with_syntax(policy.syntax);
 
-		let result = self.with_doc_mut(|doc| doc.commit_unchecked(commit, false));
-		self.insert_undo_active = false;
+		let result = self.with_doc_mut(|doc| doc.commit_unchecked(commit, None));
 		result
 	}
 

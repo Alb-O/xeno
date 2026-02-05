@@ -256,10 +256,10 @@ impl Editor {
 			Err(e) => return Err(e.into()),
 		};
 
-		let editor = Self::from_content(content, Some(path.clone()));
+		let mut editor = Self::from_content(content, Some(path.clone()));
 
 		if path.exists() && !is_writable(&path) {
-			editor.buffer().set_readonly(true);
+			editor.buffer_mut().set_readonly(true);
 		}
 
 		Ok(editor)

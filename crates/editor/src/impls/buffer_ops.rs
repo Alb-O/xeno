@@ -28,7 +28,7 @@ impl Editor {
 
 		let scratch_path = PathBuf::from("[scratch]");
 		let hook_path = path.as_ref().unwrap_or(&scratch_path);
-		let buffer = self.state.core.buffers.get_buffer(buffer_id).unwrap();
+		let buffer = self.state.core.buffers.get_buffer_mut(buffer_id).unwrap();
 
 		let text_slice = buffer.with_doc(|doc| doc.content().clone());
 		let file_type = buffer.file_type();
@@ -40,14 +40,14 @@ impl Editor {
 		.await;
 
 		#[cfg(feature = "lsp")]
-		if let Some(buffer) = self.state.core.buffers.get_buffer(buffer_id)
+		if let Some(buffer) = self.state.core.buffers.get_buffer_mut(buffer_id)
 			&& let Err(e) = self.state.lsp.on_buffer_open(buffer).await
 		{
 			warn!(error = %e, "LSP buffer open failed");
 		}
 
 		#[cfg(feature = "lsp")]
-		if let Some(buffer) = self.state.core.buffers.get_buffer(buffer_id)
+		if let Some(buffer) = self.state.core.buffers.get_buffer_mut(buffer_id)
 			&& let (Some(path), Some(language)) = (buffer.path(), buffer.file_type())
 		{
 			let doc_id = buffer.document_id();
@@ -86,7 +86,7 @@ impl Editor {
 
 		let scratch_path = PathBuf::from("[scratch]");
 		let hook_path = path.as_ref().unwrap_or(&scratch_path);
-		let buffer = self.state.core.buffers.get_buffer(buffer_id).unwrap();
+		let buffer = self.state.core.buffers.get_buffer_mut(buffer_id).unwrap();
 
 		let text = buffer.with_doc(|doc| doc.content().clone());
 		emit_hook_sync_with(
@@ -115,7 +115,7 @@ impl Editor {
 		let readonly = path.exists() && !is_writable(&path);
 		let buffer_id = self.open_buffer(content, Some(path)).await;
 
-		if readonly && let Some(buffer) = self.state.core.buffers.get_buffer(buffer_id) {
+		if readonly && let Some(buffer) = self.state.core.buffers.get_buffer_mut(buffer_id) {
 			buffer.set_readonly(true);
 		}
 
@@ -144,7 +144,7 @@ impl Editor {
 	pub async fn init_lsp_for_open_buffers(&mut self) -> anyhow::Result<()> {
 		let mut seen_docs = std::collections::HashSet::new();
 		for buffer_id in self.state.core.buffers.buffer_ids().collect::<Vec<_>>() {
-			if let Some(buffer) = self.state.core.buffers.get_buffer(buffer_id)
+			if let Some(buffer) = self.state.core.buffers.get_buffer_mut(buffer_id)
 				&& buffer.path().is_some()
 			{
 				let doc_id = buffer.document_id();

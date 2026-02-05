@@ -4,7 +4,7 @@ use crate::buffer::{ApplyPolicy, Buffer, ViewId};
 
 #[test]
 fn readonly_flag_roundtrip() {
-	let buffer = Buffer::scratch(ViewId::SCRATCH);
+	let mut buffer = Buffer::scratch(ViewId::SCRATCH);
 	assert!(!buffer.is_readonly());
 	buffer.set_readonly(true);
 	assert!(buffer.is_readonly());

@@ -89,7 +89,12 @@ impl EditorUndoHost<'_> {
 				tx.changes(),
 				&self.config.language_loader,
 			);
-			self.sync_sibling_selections(buffer_id, std::slice::from_ref(tx));
+			self.sync_all_view_selections_for_doc(doc_id, std::slice::from_ref(tx), Some(buffer_id));
+			for id in self.buffers.buffer_ids() {
+				if self.buffers.get_buffer(id).is_some_and(|b| b.document_id() == doc_id) {
+					self.frame.dirty_buffers.insert(id);
+				}
+			}
 			self.frame.dirty_buffers.insert(buffer_id);
 		}
 
@@ -112,17 +117,18 @@ impl EditorUndoHost<'_> {
 	}
 
 	/// Synchronizes selections of all sibling buffers viewing the same document.
-	fn sync_sibling_selections(&mut self, source_view_id: ViewId, txs: &[Transaction]) {
-		let doc_id = self
-			.buffers
-			.get_buffer(source_view_id)
-			.expect("buffer must exist")
-			.document_id();
+	/// Synchronizes selections of all views viewing the same document.
+	fn sync_all_view_selections_for_doc(
+		&mut self,
+		doc_id: DocumentId,
+		txs: &[Transaction],
+		exclude_view: Option<ViewId>,
+	) {
 
-		let sibling_ids: Vec<_> = self
+		let view_ids: Vec<_> = self
 			.buffers
 			.buffer_ids()
-			.filter(|&id| id != source_view_id)
+			.filter(|&id| Some(id) != exclude_view)
 			.filter(|&id| {
 				self.buffers
 					.get_buffer(id)
@@ -130,13 +136,13 @@ impl EditorUndoHost<'_> {
 			})
 			.collect();
 
-		for sibling_id in sibling_ids {
-			if let Some(sibling) = self.buffers.get_buffer_mut(sibling_id) {
+		for view_id in view_ids {
+			if let Some(view) = self.buffers.get_buffer_mut(view_id) {
 				for tx in txs {
-					sibling.map_selection_through(tx);
+					view.map_selection_through(tx);
 				}
-				sibling.ensure_valid_selection();
-				sibling.debug_assert_valid_state();
+				view.ensure_valid_selection();
+				view.debug_assert_valid_state();
 			}
 		}
 	}
@@ -228,7 +234,12 @@ impl EditorUndoHost<'_> {
 			);
 		}
 
-		self.sync_sibling_selections(buffer_id, &txs);
+		self.sync_all_view_selections_for_doc(doc_id, &txs, None);
+		for id in self.buffers.buffer_ids() {
+			if self.buffers.get_buffer(id).is_some_and(|b| b.document_id() == doc_id) {
+				self.frame.dirty_buffers.insert(id);
+			}
+		}
 		self.mark_buffer_dirty_for_full_sync(buffer_id);
 		self.normalize_all_views_for_doc(doc_id);
 		true

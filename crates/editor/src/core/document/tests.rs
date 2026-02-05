@@ -1,6 +1,6 @@
 use xeno_primitives::transaction::Change;
 use xeno_primitives::{
-	EditCommit, EditError, EditOrigin, SyntaxOutcome, SyntaxPolicy, Transaction, UndoPolicy,
+	EditCommit, EditError, EditOrigin, SyntaxOutcome, SyntaxPolicy, Transaction, UndoPolicy, ViewId,
 };
 
 use super::Document;
@@ -29,7 +29,7 @@ fn commit_readonly_returns_error() {
 		}],
 	);
 
-	let result = doc.commit(make_commit(tx), false);
+	let result = doc.commit(make_commit(tx), None);
 	assert!(matches!(result, Err(EditError::ReadOnly { .. })));
 	assert_eq!(doc.content().to_string(), "hello");
 }
@@ -48,7 +48,7 @@ fn commit_increments_version_once() {
 		}],
 	);
 
-	let result = doc.commit(make_commit(tx), false).unwrap();
+	let result = doc.commit(make_commit(tx), None).unwrap();
 
 	assert_eq!(result.version_before, version_before);
 	assert_eq!(result.version_after, version_before + 1);
@@ -67,7 +67,7 @@ fn commit_clears_redo_when_undo_recorded() {
 			replacement: Some(" world".into()),
 		}],
 	);
-	doc.commit(make_commit(tx1), false).unwrap();
+	doc.commit(make_commit(tx1), None).unwrap();
 
 	let tx2 = Transaction::change(
 		doc.content().slice(..),
@@ -77,7 +77,7 @@ fn commit_clears_redo_when_undo_recorded() {
 			replacement: Some("!".into()),
 		}],
 	);
-	doc.commit(make_commit(tx2), false).unwrap();
+	doc.commit(make_commit(tx2), None).unwrap();
 	assert!(doc.can_undo());
 
 	doc.undo();
@@ -91,7 +91,7 @@ fn commit_clears_redo_when_undo_recorded() {
 			replacement: Some("Hi ".into()),
 		}],
 	);
-	let result = doc.commit(make_commit(tx3), false).unwrap();
+	let result = doc.commit(make_commit(tx3), None).unwrap();
 	assert!(result.undo_recorded);
 	assert!(!doc.can_redo());
 }
@@ -109,7 +109,7 @@ fn commit_sets_modified_flag() {
 			replacement: Some("X".into()),
 		}],
 	);
-	doc.commit(make_commit(tx), false).unwrap();
+	doc.commit(make_commit(tx), None).unwrap();
 
 	assert!(doc.is_modified());
 }
@@ -127,7 +127,7 @@ fn commit_no_undo_policy_skips_recording_and_clears_history() {
 			replacement: Some("!".into()),
 		}],
 	);
-	doc.commit(make_commit(tx1), false).unwrap();
+	doc.commit(make_commit(tx1), None).unwrap();
 	assert!(doc.can_undo());
 
 	// Now apply a NoUndo edit
@@ -147,7 +147,7 @@ fn commit_no_undo_policy_skips_recording_and_clears_history() {
 		selection_after: None,
 	};
 
-	let result = doc.commit(commit, false).unwrap();
+	let result = doc.commit(commit, None).unwrap();
 	assert!(!result.undo_recorded);
 	assert!(
 		!doc.can_undo(),
@@ -172,12 +172,12 @@ fn commit_merge_policy_groups_inserts() {
 		.commit(
 			EditCommit {
 				tx: tx1,
-				undo: UndoPolicy::Record,
+				undo: UndoPolicy::MergeWithCurrentGroup,
 				syntax: SyntaxPolicy::None,
 				origin: EditOrigin::Internal("test"),
 				selection_after: None,
 			},
-			false, // Not merged
+			Some(ViewId(1)), // Starts group
 		)
 		.unwrap();
 	assert!(result1.undo_recorded);
@@ -194,12 +194,12 @@ fn commit_merge_policy_groups_inserts() {
 		.commit(
 			EditCommit {
 				tx: tx2,
-				undo: UndoPolicy::Record,
+				undo: UndoPolicy::MergeWithCurrentGroup,
 				syntax: SyntaxPolicy::None,
 				origin: EditOrigin::Internal("test"),
 				selection_after: None,
 			},
-			true, // Merged
+			Some(ViewId(1)), // Merged
 		)
 		.unwrap();
 	assert!(!result2.undo_recorded);
@@ -223,12 +223,12 @@ fn commit_boundary_policy_breaks_insert_group() {
 	doc.commit(
 		EditCommit {
 			tx: tx1,
-			undo: UndoPolicy::Record,
+			undo: UndoPolicy::MergeWithCurrentGroup,
 			syntax: SyntaxPolicy::None,
 			origin: EditOrigin::Internal("test"),
 			selection_after: None,
 		},
-		false,
+		Some(ViewId(1)), // Group owner
 	)
 	.unwrap();
 
@@ -244,12 +244,12 @@ fn commit_boundary_policy_breaks_insert_group() {
 		.commit(
 			EditCommit {
 				tx: tx2,
-				undo: UndoPolicy::Record,
+				undo: UndoPolicy::Boundary,
 				syntax: SyntaxPolicy::None,
 				origin: EditOrigin::Internal("test"),
 				selection_after: None,
 			},
-			false, // Explicit boundary (merge=false)
+			Some(ViewId(2)), // Explicit boundary (breaks group)
 		)
 		.unwrap();
 	assert!(result.undo_recorded);
@@ -267,12 +267,12 @@ fn commit_boundary_policy_breaks_insert_group() {
 		.commit(
 			EditCommit {
 				tx: tx3,
-				undo: UndoPolicy::Record,
+				undo: UndoPolicy::MergeWithCurrentGroup,
 				syntax: SyntaxPolicy::None,
 				origin: EditOrigin::Internal("test"),
 				selection_after: None,
 			},
-			true, // Merge again
+			Some(ViewId(2)), // Merge again
 		)
 		.unwrap();
 	assert!(!result3.undo_recorded);
@@ -300,7 +300,7 @@ fn commit_syntax_mark_dirty() {
 				origin: EditOrigin::Internal("test"),
 				selection_after: None,
 			},
-			false,
+			None,
 		)
 		.unwrap();
 
@@ -328,7 +328,7 @@ fn commit_incremental_or_dirty_without_syntax_marks_dirty() {
 				origin: EditOrigin::Internal("test"),
 				selection_after: None,
 			},
-			false,
+			None,
 		)
 		.unwrap();
 
@@ -347,7 +347,7 @@ fn reset_content_clears_undo_history() {
 			replacement: Some("X".into()),
 		}],
 	);
-	doc.commit(make_commit(tx), false).unwrap();
+	doc.commit(make_commit(tx), None).unwrap();
 	assert!(doc.can_undo());
 	assert_eq!(doc.undo_len(), 1);
 
@@ -371,7 +371,7 @@ fn undo_redo_to_clean_state() {
 			replacement: Some("!".into()),
 		}],
 	);
-	doc.commit(make_commit(tx), false).unwrap();
+	doc.commit(make_commit(tx), None).unwrap();
 	assert!(doc.is_modified());
 
 	doc.undo();
@@ -390,7 +390,7 @@ fn identity_commit_does_not_bump_version_or_modified() {
 	let version_before = doc.version();
 
 	let tx = Transaction::new(doc.content().slice(..));
-	let result = doc.commit(make_commit(tx), false).unwrap();
+	let result = doc.commit(make_commit(tx), None).unwrap();
 
 	assert!(!result.applied);
 	assert_eq!(doc.version(), version_before);
