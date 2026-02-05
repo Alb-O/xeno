@@ -63,6 +63,7 @@ impl DocumentHandle {
 	/// # Panics
 	///
 	/// Panics if the current thread already holds a lock on this specific document handle.
+	#[track_caller]
 	fn with<R>(&self, f: impl FnOnce(&Document) -> R) -> R {
 		let _guard = LockGuard::new(self.ptr);
 		let guard = self.inner.read();
@@ -74,6 +75,7 @@ impl DocumentHandle {
 	/// # Panics
 	///
 	/// Panics if the current thread already holds a lock on this specific document handle.
+	#[track_caller]
 	fn with_mut<R>(&self, f: impl FnOnce(&mut Document) -> R) -> R {
 		let _guard = LockGuard::new(self.ptr);
 		let mut guard = self.inner.write();
@@ -95,6 +97,7 @@ impl LockGuard {
 	/// # Panics
 	///
 	/// Panics if the pointer is already present in the thread-local set.
+	#[track_caller]
 	fn new(ptr: usize) -> Self {
 		ACTIVE_DOC_LOCKS.with(|locks| {
 			let mut locks = locks.borrow_mut();

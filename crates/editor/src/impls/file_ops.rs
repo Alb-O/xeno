@@ -31,10 +31,12 @@ impl xeno_registry::FileOpsAccess for Editor {
 				}
 			};
 
-			let text_slice = self.buffer().with_doc(|doc| doc.content().clone());
+			// Snapshot content once to minimize lock hold time and avoid double cloning.
+			let rope = self.buffer().with_doc(|doc| doc.content().clone());
+
 			emit_hook(&HookContext::new(HookEventData::BufferWritePre {
 				path: &path_owned,
-				text: text_slice.slice(..),
+				text: rope.slice(..),
 			}))
 			.await;
 
@@ -43,13 +45,14 @@ impl xeno_registry::FileOpsAccess for Editor {
 				warn!(error = %e, "LSP will_save notification failed");
 			}
 
-			let content = self.buffer().with_doc(|doc| {
-				let mut content = Vec::new();
-				for chunk in doc.content().chunks() {
+			// Encode content without holding the document lock.
+			let content = {
+				let mut content = Vec::with_capacity(rope.len_bytes());
+				for chunk in rope.chunks() {
 					content.extend_from_slice(chunk.as_bytes());
 				}
 				content
-			});
+			};
 
 			if let Some(parent) = path_owned.parent()
 				&& !parent.as_os_str().is_empty()
