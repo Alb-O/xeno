@@ -150,7 +150,8 @@
 //! - Close: layout removal MUST happen before hooks/LSP close.
 //! - Drag: stale detection MUST happen before applying any resize update.
 //!
-//! `layout_revision`: MUST increment on structural changes (split creation, view removal, layer clear); used to invalidate drag state across mid-drag structural edits.
+//! `layout_revision`: MUST increment on structural changes (split creation, view removal, layer clear).
+//! - Enforced in: `increment_revision` calls in `splits.rs` (split apply) and `separators.rs` (resize structural changes).
 //!
 //! # Failure modes and recovery
 //!

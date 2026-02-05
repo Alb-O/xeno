@@ -46,6 +46,7 @@
 //!   - Enforced in: [`LspManager::spawn_router`]
 //!   - Tested by: `TODO (add regression: test_router_event_ordering)`
 //!   - Failure symptom: server request/reply pairing breaks, replies go to the wrong pending request, server-side hangs waiting for a response.
+//!   - Note: Cleanup operations (like `transport.stop` on crash) are spawned as fire-and-forget tasks to prevent blocking.
 //!
 //! - On `TransportStatus::Stopped` or `TransportStatus::Crashed`, the router MUST remove the server from `Registry` and MUST clear per-server progress.
 //!   - Enforced in: [`LspManager::spawn_router`], `Registry::remove_server`

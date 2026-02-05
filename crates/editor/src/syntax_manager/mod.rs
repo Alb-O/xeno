@@ -24,8 +24,10 @@
 //!
 //! # Invariants
 //!
-//! - MUST NOT block UI thread on parsing.
-//!   - Enforced in: [`SyntaxManager::ensure_syntax`] (uses `spawn_blocking`)
+//! - MUST NOT perform unbounded parsing on the UI thread.
+//!   - Synchronous incremental updates are bounded to 10ms.
+//!   - Full parsing and large updates are offloaded to background tasks.
+//!   - Enforced in: [`SyntaxManager::ensure_syntax`] (uses `spawn_blocking`) and [`SyntaxManager::note_edit_incremental`] (bounded timeout).
 //!   - Tested by: `syntax_manager::tests::test_inflight_drained_even_if_doc_marked_clean`
 //!   - Failure symptom: UI freezes or jitters during edits.
 //!
@@ -66,6 +68,7 @@
 //!   - Enforced in: [`SyntaxManager::ensure_syntax`] (language change), [`SyntaxManager::reset_syntax`], `apply_retention`
 //!   - Tested by: `syntax_manager::tests::test_language_switch_discards_old_parse`
 //!   - Failure symptom: Stale changeset applied against a mismatched rope causes incorrect `InputEdit`s and garbled highlights or panics.
+//!   - Note: On options mismatch, the old tree is retained for rendering continuity while the new parse runs.
 //!
 //! - MUST track `tree_doc_version` alongside the installed syntax tree; MUST clear it whenever
 //!   the tree is dropped (reset, retention, language change).

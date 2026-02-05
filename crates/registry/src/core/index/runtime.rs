@@ -53,6 +53,8 @@
 //! - Builtins: `inventory` or explicit registration builds base index via `RegistryBuilder`.
 //!   Pointers are `&'static T` wrapped in `DefPtr`.
 //! - Plugins: Sorted by priority, executed to mutate the builder.
+//! - Dedup: `try_register_many_internal` filters out exact pointer matches (`ptr_eq`) before insertion,
+//!   returning `InsertAction::KeptExisting` without triggering conflict resolution.
 //! - Snapshot: `RuntimeRegistry` loads built index into a `Snapshot` (no owned defs yet).
 //! - Mutation: `register`/`register_owned` clones snapshot, wraps owned defs in `Arc<T>`,
 //!   applies changes via `insert_id_key_runtime`, prunes unreferenced `Arc`s, and CAS-updates.
@@ -69,7 +71,8 @@
 //!
 //! - Lock-free reads: `snap.load_full()` returns an `Arc<Snapshot>` without blocking.
 //! - CAS Retry Loop: Writes retry if the snapshot changed during mutation.
-//! - Deterministic Winners: `DuplicatePolicy` ensures the same definition wins regardless of registration order.
+//! - Deterministic Winners: `DuplicatePolicy` ensures deterministic conflict resolution.
+//!   Note: `ByPriority` breaks ties using first-wins (existing wins) semantics.
 //! - Snapshot Lifetime: `RegistryRef` prevents premature drop of the snapshot (and its owned `Arc<T>` defs).
 //!
 //! # Failure modes and recovery
