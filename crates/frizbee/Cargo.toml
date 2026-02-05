@@ -1,0 +1,20 @@
+[package]
+name = "frizbee"
+description = "Fast fuzzy matching via SIMD smith waterman, similar algorithm to FZF/FZY"
+license = "MIT"
+version = "0.7.0"
+edition = "2024"
+repository = "https://github.com/saghen/frizbee"
+
+[features]
+default = ["parallel_sort"]
+serde = ["dep:serde"]
+parallel_sort = ["dep:rayon"]
+
+[dependencies]
+multiversion = "0.8.0"
+rayon = { version = "1.10.0", optional = true }
+serde = { workspace = true, optional = true }
+
+[lints]
+workspace = true

@@ -34,10 +34,15 @@ win-sync:
     exec 9>"$LOCK"; \
     flock 9; \
     if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then \
-      TMPF="$(mktemp)"; \
+      TMPF="$(mktemp)"; STALE="$(mktemp)"; \
       { git ls-files -z --recurse-submodules; git ls-files -z --others --exclude-standard; } > "$TMPF"; \
-      rsync -a --delete --from0 --files-from="$TMPF" "$PWD"/ "$MIR_WS"/; \
-      rm -f "$TMPF"; \
+      rsync -a --from0 --files-from="$TMPF" "$PWD"/ "$MIR_WS"/; \
+      comm -z -23 \
+        <(cd "$MIR_WS" && find . -type f -not -path './.git/*' -not -path './target/*' -print0 | sort -z) \
+        <(tr '\0' '\n' < "$TMPF" | sed 's|^|./|' | tr '\n' '\0' | sort -z) \
+        > "$STALE"; \
+      if [ -s "$STALE" ]; then (cd "$MIR_WS" && xargs -0 rm -f -- < "$STALE"); fi; \
+      rm -f "$TMPF" "$STALE"; \
     else \
       rsync -a --delete --exclude ".git" --exclude "target" "$PWD"/ "$MIR_WS"/; \
     fi; \

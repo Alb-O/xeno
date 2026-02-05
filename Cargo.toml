@@ -3,6 +3,7 @@ resolver = "3"
 members = [
     "crates/editor",
     "crates/editor-core",
+    "crates/frizbee",
     "crates/keymap/*",
     "crates/lsp",
     "crates/macro",
@@ -34,7 +35,7 @@ criterion = "0.8"
 crossterm = "0.29"
 dashmap = "6.1"
 dirs = "6.0"
-frizbee = "0.6"
+frizbee = { path = "crates/frizbee" }
 fs2 = "0.4"
 globset = "0.4"
 heed3 = "0.22"
