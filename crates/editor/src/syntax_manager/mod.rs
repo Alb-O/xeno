@@ -698,23 +698,31 @@ impl SyntaxManager {
 						state.current.is_some(),
 					);
 
+					let mut installed = false;
 					if lang_ok && retain_ok && allow_install {
 						state.current = Some(syntax_tree);
 						state.language_id = Some(current_lang);
 						mark_updated(state);
+						installed = true;
+					}
+
+					// if we had a valid parse but retention blocked it, ensure we are dirty + updated
+					if lang_ok && opts_ok && version_match && !retain_ok {
+						state.current = None;
+						state.pending_incremental = None;
+						state.dirty = true;
+						self.dirty_docs.insert(ctx.doc_id);
+						mark_updated(state);
 					}
 
 					// dirty clears only if this parse matches current version + "shape"
-					if lang_ok && opts_ok && version_match {
+					// AND it was actually installed (respecting retention)
+					if installed && version_match && opts_ok {
 						state.dirty = false;
 						self.dirty_docs.remove(&ctx.doc_id);
 						st.cooldown_until = None;
-						return SyntaxPollOutcome {
-							result: SyntaxPollResult::Ready,
-							updated: state.updated,
-						};
 					}
-					// else: keep dirty true (caller keeps chasing newest)
+					// fall through to let retention + hidden check run
 				}
 				Ok(Err(SyntaxError::Timeout)) => {
 					st.cooldown_until = Some(now + cfg.cooldown_on_timeout);

@@ -244,6 +244,11 @@ impl LspManager {
 										"LSP server stopped, removed from registry"
 									);
 								}
+								// Explicitly stop the server in transport to clean up processes
+								let transport_clone = transport.clone();
+								tokio::spawn(async move {
+									let _ = transport_clone.stop(server).await;
+								});
 								// Clear any progress indicators for this server
 								documents_clone.clear_server_progress(server);
 							}
@@ -315,7 +320,10 @@ impl LspManager {
 
 	/// Shutdown all language servers.
 	pub async fn shutdown_all(&self) {
-		self.sync.registry().shutdown_all().await;
+		let ids = self.sync.registry().shutdown_all();
+		for id in ids {
+			let _ = self.transport.stop(id).await;
+		}
 	}
 }
 
@@ -382,6 +390,10 @@ mod tests {
 			_server: LanguageServerId,
 			_resp: Result<JsonValue, ResponseError>,
 		) -> crate::Result<()> {
+			Ok(())
+		}
+
+		async fn stop(&self, _server: LanguageServerId) -> crate::Result<()> {
 			Ok(())
 		}
 	}

@@ -99,4 +99,7 @@ pub trait LspTransport: Send + Sync {
 		server: LanguageServerId,
 		resp: Result<JsonValue, ResponseError>,
 	) -> crate::Result<()>;
+
+	/// Stops a language server process.
+	async fn stop(&self, server: LanguageServerId) -> crate::Result<()>;
 }

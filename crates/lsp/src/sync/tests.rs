@@ -54,6 +54,9 @@ impl crate::client::transport::LspTransport for SimpleStubTransport {
 	) -> crate::Result<()> {
 		Ok(())
 	}
+	async fn stop(&self, _server: LanguageServerId) -> crate::Result<()> {
+		Ok(())
+	}
 }
 
 #[test]
@@ -157,6 +160,9 @@ async fn test_document_sync_returns_not_ready_before_init() {
 			_server: LanguageServerId,
 			_resp: std::result::Result<crate::JsonValue, crate::ResponseError>,
 		) -> crate::Result<()> {
+			Ok(())
+		}
+		async fn stop(&self, _server: LanguageServerId) -> crate::Result<()> {
 			Ok(())
 		}
 	}

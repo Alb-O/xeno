@@ -149,7 +149,7 @@ pub use session::{CompletionController, CompletionRequest, CompletionTrigger, Ls
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 /// Possible errors.
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug, Clone, thiserror::Error)]
 #[non_exhaustive]
 pub enum Error {
 	/// The service main loop stopped.
@@ -157,7 +157,7 @@ pub enum Error {
 	ServiceStopped,
 	/// The peer replies undecodable or invalid responses.
 	#[error("deserialization failed: {0}")]
-	Deserialize(#[from] serde_json::Error),
+	Deserialize(String),
 	/// The peer replies an error.
 	#[error("{0}")]
 	Response(#[from] ResponseError),
@@ -169,7 +169,7 @@ pub enum Error {
 	Protocol(String),
 	/// Input/output errors from the underlying channels.
 	#[error("{0}")]
-	Io(#[from] io::Error),
+	Io(String),
 	/// The underlying channel reached EOF (end of file).
 	#[error("the underlying channel reached EOF")]
 	Eof,
@@ -193,6 +193,18 @@ pub enum Error {
 	/// Server not yet initialized. Retry after initialization completes.
 	#[error("server not ready")]
 	NotReady,
+}
+
+impl From<serde_json::Error> for Error {
+	fn from(e: serde_json::Error) -> Self {
+		Self::Deserialize(e.to_string())
+	}
+}
+
+impl From<io::Error> for Error {
+	fn from(e: io::Error) -> Self {
+		Self::Io(e.to_string())
+	}
 }
 
 /// Converts a filesystem path to an LSP URI.

@@ -2,8 +2,10 @@
 
 #[cfg(feature = "lsp")]
 use xeno_lsp::LspManager;
+#[cfg(feature = "lsp")]
 use xeno_primitives::{CommitResult, Rope, Transaction};
 
+#[cfg(feature = "lsp")]
 use crate::buffer::Buffer;
 
 #[cfg(feature = "lsp")]

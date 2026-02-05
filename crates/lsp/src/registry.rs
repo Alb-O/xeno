@@ -11,7 +11,7 @@ use std::time::Duration;
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use tokio::sync::{Mutex, Notify};
+use tokio::sync::{Mutex, watch};
 use tracing::{info, warn};
 
 use crate::Result;
@@ -107,6 +107,12 @@ impl RegistryState {
 	}
 }
 
+/// Tracking state for a server startup in progress.
+struct InFlightStart {
+	tx: watch::Sender<Option<Arc<Result<ClientHandle>>>>,
+	rx: watch::Receiver<Option<Arc<Result<ClientHandle>>>>,
+}
+
 /// Registry for managing language servers.
 ///
 /// Thread-safe registry that ensures exactly one server instance per `(language, root_path)` key.
@@ -121,7 +127,7 @@ pub struct Registry {
 	configs: RwLock<HashMap<String, LanguageServerConfig>>,
 	state: RwLock<RegistryState>,
 	transport: Arc<dyn LspTransport>,
-	inflight: Mutex<HashMap<(String, PathBuf), Arc<Notify>>>,
+	inflight: Mutex<HashMap<(String, PathBuf), Arc<InFlightStart>>>,
 }
 
 impl Registry {
@@ -156,6 +162,12 @@ impl Registry {
 		self.configs.read().keys().cloned().collect()
 	}
 
+	/// Synchronous check for a running server.
+	fn get_running(&self, key: &(String, PathBuf)) -> Option<ClientHandle> {
+		let state = self.state.read();
+		state.servers.get(key).map(|i| i.handle.clone())
+	}
+
 	/// Get or start a language server for a file path.
 	///
 	/// Returns an existing server handle if one is running for the resolved `(language, root_path)` key,
@@ -163,11 +175,14 @@ impl Registry {
 	///
 	/// # Singleflight Protocol
 	///
-	/// 1. Fast path: check if server already running (read lock)
+	/// 1. Fast path: check if server already running
 	/// 2. Leader election: first caller becomes leader, others become waiters
-	/// 3. Leader calls `transport.start()`, then notifies waiters
-	/// 4. Waiters retry from step 1 after notification
-	/// 5. Atomic insertion under write lock handles pathological races
+	/// 3. Leader work:
+	///    - Re-check if server was started by a previous leader
+	///    - Call `transport.start()`, inserts into state
+	///    - Populate shared result via `watch` channel
+	///    - Remove inflight entry and notify waiters
+	/// 4. Waiters wait on `watch` channel and receive result directly
 	///
 	/// # Errors
 	///
@@ -180,128 +195,136 @@ impl Registry {
 		let root_path = find_root_path(file_path, &config.root_markers);
 		let key = (language.to_string(), root_path.clone());
 
-		loop {
-			if let Some(instance) = self.state.read().servers.get(&key) {
-				return Ok(instance.handle.clone());
-			}
-
-			let (notify, is_leader) = {
-				let mut inflight = self.inflight.lock().await;
-				if let Some(n) = inflight.get(&key) {
-					(n.clone(), false)
-				} else {
-					let n = Arc::new(Notify::new());
-					inflight.insert(key.clone(), n.clone());
-					(n, true)
-				}
-			};
-
-			if !is_leader {
-				notify.notified().await;
-				continue;
-			}
-
-			info!(language = %language, command = %config.command, root = ?root_path, "Starting language server");
-
-			let server_config = ServerConfig::new(&config.command, &root_path)
-				.args(config.args.iter().cloned())
-				.env(config.env.iter().map(|(k, v)| (k.clone(), v.clone())))
-				.timeout(config.timeout_secs);
-
-			tracing::trace!(
-				language = %language,
-				root = ?root_path,
-				key = ?key,
-				"Registry: before transport.start (leader)"
-			);
-
-			let started = self.transport.start(server_config).await;
-
-			{
-				let mut inflight = self.inflight.lock().await;
-				inflight.remove(&key);
-				notify.notify_waiters();
-			}
-
-			let started = started?;
-
-			tracing::trace!(
-				language = %language,
-				root = ?root_path,
-				server_id = started.id.0,
-				"Registry: after transport.start (leader)"
-			);
-
-			let handle = {
-				let mut state = self.state.write();
-				if let Some(existing) = state.servers.get(&key) {
-					tracing::trace!(
-						language = %language,
-						root = ?root_path,
-						server_id = existing.handle.id().0,
-						"Registry: lost pathological race, using existing handle"
-					);
-					existing.handle.clone()
-				} else {
-					tracing::trace!(
-						language = %language,
-						root = ?root_path,
-						server_id = started.id.0,
-						"Registry: inserting server and spawning init"
-					);
-
-					let handle = ClientHandle::new(
-						started.id,
-						config.command.clone(),
-						root_path.clone(),
-						self.transport.clone(),
-					);
-
-					state.server_meta.insert(
-						started.id,
-						ServerMeta {
-							language: language.to_string(),
-							root_path: root_path.clone(),
-							settings: config.config.clone(),
-						},
-					);
-					state
-						.id_index
-						.insert(started.id, (language.to_string(), root_path.clone()));
-					state.servers.insert(
-						key.clone(),
-						ServerInstance {
-							handle: handle.clone(),
-						},
-					);
-
-					let init_handle = handle.clone();
-					let enable_snippets = config.enable_snippets;
-					let init_config = config.config.clone();
-
-					tokio::spawn(async move {
-						match tokio::time::timeout(
-							Duration::from_secs(30),
-							init_handle.initialize(enable_snippets, init_config),
-						)
-						.await
-						{
-							Ok(Ok(_)) => {}
-							Ok(Err(e)) => {
-								warn!(error = %e, "LSP initialize failed");
-							}
-							Err(_) => {
-								warn!("LSP initialize timed out");
-							}
-						}
-					});
-
-					handle
-				}
-			};
-
+		// 1. Fast path
+		if let Some(handle) = self.get_running(&key) {
 			return Ok(handle);
 		}
+
+		// 2. Leader election
+		let (inflight, is_leader) = {
+			let mut inflight_map = self.inflight.lock().await;
+			if let Some(f) = inflight_map.get(&key) {
+				(f.clone(), false)
+			} else {
+				let (tx, rx) = watch::channel(None);
+				let f = Arc::new(InFlightStart { tx, rx });
+				inflight_map.insert(key.clone(), f.clone());
+				(f, true)
+			}
+		};
+
+		if !is_leader {
+			// 3a. Wait for leader
+			let mut rx = inflight.rx.clone();
+			loop {
+				let result = {
+					let borrow = rx.borrow();
+					borrow.as_ref().cloned()
+				};
+
+				if let Some(res) = result {
+					return (*res).clone();
+				}
+
+				if rx.changed().await.is_err() {
+					return Err(crate::Error::Protocol(
+						"Leader dropped without result".into(),
+					));
+				}
+			}
+		}
+
+		// 3b. Leader work
+		// Re-check state after lock acquisition to prevent double-start
+		if let Some(handle) = self.get_running(&key) {
+			let res = Ok(handle);
+			inflight.tx.send(Some(Arc::new(res.clone()))).ok();
+
+			let mut inflight_map = self.inflight.lock().await;
+			inflight_map.remove(&key);
+			return res;
+		}
+
+		info!(language = %language, command = %config.command, root = ?root_path, "Starting language server");
+
+		let server_config = ServerConfig::new(&config.command, &root_path)
+			.args(config.args.iter().cloned())
+			.env(config.env.iter().map(|(k, v)| (k.clone(), v.clone())))
+			.timeout(config.timeout_secs);
+
+		let started_res = self.transport.start(server_config).await;
+
+		let final_res = match started_res {
+			Ok(started) => {
+				let handle = {
+					let mut state = self.state.write();
+					// Final pathological race check
+					if let Some(existing) = state.servers.get(&key) {
+						existing.handle.clone()
+					} else {
+						let handle = ClientHandle::new(
+							started.id,
+							config.command.clone(),
+							root_path.clone(),
+							self.transport.clone(),
+						);
+
+						state.server_meta.insert(
+							started.id,
+							ServerMeta {
+								language: language.to_string(),
+								root_path: root_path.clone(),
+								settings: config.config.clone(),
+							},
+						);
+						state
+							.id_index
+							.insert(started.id, (language.to_string(), root_path.clone()));
+						state.servers.insert(
+							key.clone(),
+							ServerInstance {
+								handle: handle.clone(),
+							},
+						);
+
+						let init_handle = handle.clone();
+						let enable_snippets = config.enable_snippets;
+						let init_config = config.config.clone();
+
+						tokio::spawn(async move {
+							match tokio::time::timeout(
+								Duration::from_secs(30),
+								init_handle.initialize(enable_snippets, init_config),
+							)
+							.await
+							{
+								Ok(Ok(_)) => {}
+								Ok(Err(e)) => {
+									warn!(error = %e, "LSP initialize failed");
+								}
+								Err(_) => {
+									warn!("LSP initialize timed out");
+								}
+							}
+						});
+
+						handle
+					}
+				};
+				Ok(handle)
+			}
+			Err(e) => Err(e),
+		};
+
+		// 4. Cleanup and Notify
+		inflight.tx.send(Some(Arc::new(final_res.clone()))).ok();
+
+		{
+			let mut inflight_map = self.inflight.lock().await;
+			inflight_map.remove(&key);
+		}
+
+		final_res
 	}
 
 	/// Get an active client for a language and file path, if one exists and is alive.
@@ -327,11 +350,13 @@ impl Registry {
 	}
 
 	/// Shutdown all servers.
-	pub async fn shutdown_all(&self) {
+	pub fn shutdown_all(&self) -> Vec<LanguageServerId> {
 		let mut state = self.state.write();
+		let ids: Vec<LanguageServerId> = state.id_index.keys().copied().collect();
 		state.servers.clear();
 		state.server_meta.clear();
 		state.id_index.clear();
+		ids
 	}
 
 	/// Get the number of active servers.
@@ -388,4 +413,124 @@ fn find_root_path(file_path: &Path, root_markers: &[String]) -> PathBuf {
 	}
 
 	start_dir
+}
+
+#[cfg(test)]
+mod tests {
+	use std::sync::atomic::{AtomicUsize, Ordering};
+
+	use async_trait::async_trait;
+
+	use super::*;
+	use crate::client::transport::StartedServer;
+	use crate::types::{AnyNotification, AnyRequest, AnyResponse, ResponseError};
+
+	struct MockTransport {
+		start_count: AtomicUsize,
+		started_notify: Arc<tokio::sync::Notify>,
+		finish_notify: Arc<tokio::sync::Notify>,
+	}
+
+	#[async_trait]
+	impl LspTransport for MockTransport {
+		fn events(
+			&self,
+		) -> tokio::sync::mpsc::UnboundedReceiver<crate::client::transport::TransportEvent> {
+			let (_, rx) = tokio::sync::mpsc::unbounded_channel();
+			rx
+		}
+
+		async fn start(&self, _cfg: ServerConfig) -> Result<StartedServer> {
+			self.start_count.fetch_add(1, Ordering::SeqCst);
+			self.started_notify.notify_one();
+			self.finish_notify.notified().await;
+			Ok(StartedServer {
+				id: LanguageServerId(1),
+			})
+		}
+
+		async fn notify(&self, _server: LanguageServerId, _notif: AnyNotification) -> Result<()> {
+			Ok(())
+		}
+
+		async fn notify_with_barrier(
+			&self,
+			_server: LanguageServerId,
+			_notif: AnyNotification,
+		) -> Result<tokio::sync::oneshot::Receiver<()>> {
+			let (tx, rx) = tokio::sync::oneshot::channel();
+			let _ = tx.send(());
+			Ok(rx)
+		}
+
+		async fn request(
+			&self,
+			_server: LanguageServerId,
+			_req: AnyRequest,
+			_timeout: Option<Duration>,
+		) -> Result<AnyResponse> {
+			unimplemented!()
+		}
+
+		async fn reply(
+			&self,
+			_server: LanguageServerId,
+			_resp: std::result::Result<Value, ResponseError>,
+		) -> Result<()> {
+			Ok(())
+		}
+
+		async fn stop(&self, _server: LanguageServerId) -> Result<()> {
+			Ok(())
+		}
+	}
+
+	#[tokio::test]
+	async fn test_get_or_start_singleflight() {
+		let started_notify = Arc::new(tokio::sync::Notify::new());
+		let finish_notify = Arc::new(tokio::sync::Notify::new());
+		let transport = Arc::new(MockTransport {
+			start_count: AtomicUsize::new(0),
+			started_notify: started_notify.clone(),
+			finish_notify: finish_notify.clone(),
+		});
+		let registry = Arc::new(Registry::new(transport.clone()));
+
+		registry.register(
+			"rust",
+			LanguageServerConfig {
+				command: "rust-analyzer".into(),
+				..Default::default()
+			},
+		);
+
+		let path = Path::new("test.rs");
+
+		let r1 = registry.clone();
+		let r2 = registry.clone();
+
+		let h1_fut = tokio::spawn(async move { r1.get_or_start("rust", path).await });
+
+		// Wait for leader to enter transport.start()
+		started_notify.notified().await;
+
+		// Join concurrent caller
+		let h2_fut = tokio::spawn(async move { r2.get_or_start("rust", path).await });
+
+		// Give h2 a moment to surely be waiting on the watch channel
+		tokio::time::sleep(Duration::from_millis(50)).await;
+
+		// Let leader finish
+		finish_notify.notify_one();
+
+		let (h1, h2) = tokio::join!(h1_fut, h2_fut);
+
+		let h1 = h1.unwrap();
+		let h2 = h2.unwrap();
+
+		assert!(h1.is_ok());
+		assert!(h2.is_ok());
+		assert_eq!(transport.start_count.load(Ordering::SeqCst), 1);
+		assert_eq!(h1.unwrap().id(), h2.unwrap().id());
+	}
 }

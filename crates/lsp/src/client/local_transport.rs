@@ -2,7 +2,7 @@
 //!
 //! Manages language server processes directly using stdin/stdout JSON-RPC communication.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::process::Stdio;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -24,18 +24,24 @@ use crate::{Error, Result};
 /// State for a running server process.
 struct ServerProcess {
 	/// The child process handle.
-	#[allow(dead_code)]
 	child: Child,
 	/// Channel for sending requests to the server.
 	request_tx: mpsc::UnboundedSender<PendingRequest>,
 	/// Channel for sending notifications to the server.
 	notify_tx: mpsc::UnboundedSender<AnyNotification>,
+	/// Channel for sending replies to server-initiated requests.
+	reply_tx: mpsc::UnboundedSender<ReplyMsg>,
 }
 
 /// A pending request awaiting a response.
 struct PendingRequest {
 	request: AnyRequest,
 	response_tx: oneshot::Sender<Result<AnyResponse>>,
+}
+
+/// A reply to a server-initiated request.
+struct ReplyMsg {
+	resp: std::result::Result<JsonValue, ResponseError>,
 }
 
 /// Local transport that spawns LSP servers as child processes.
@@ -99,17 +105,19 @@ impl LocalTransport {
 
 		let (request_tx, request_rx) = mpsc::unbounded_channel::<PendingRequest>();
 		let (notify_tx, notify_rx) = mpsc::unbounded_channel::<AnyNotification>();
+		let (reply_tx, reply_rx) = mpsc::unbounded_channel::<ReplyMsg>();
 		let event_tx = self.event_tx.clone();
 
 		// Spawn the I/O task for this server
 		tokio::spawn(run_server_io(
-			id, stdin, stdout, request_rx, notify_rx, event_tx,
+			id, stdin, stdout, request_rx, notify_rx, reply_rx, event_tx,
 		));
 
 		Ok(ServerProcess {
 			child,
 			request_tx,
 			notify_tx,
+			reply_tx,
 		})
 	}
 }
@@ -215,10 +223,33 @@ impl LspTransport for LocalTransport {
 
 	async fn reply(
 		&self,
-		_server: LanguageServerId,
-		_resp: std::result::Result<JsonValue, ResponseError>,
+		server: LanguageServerId,
+		resp: std::result::Result<JsonValue, ResponseError>,
 	) -> Result<()> {
-		// Server-initiated requests are not yet supported in local transport
+		let servers = self.servers.read();
+		let process = servers
+			.get(&server)
+			.ok_or_else(|| Error::Protocol(format!("server {server:?} not found")))?;
+		process
+			.reply_tx
+			.send(ReplyMsg { resp })
+			.map_err(|_| Error::ServiceStopped)
+	}
+
+	async fn stop(&self, server: LanguageServerId) -> Result<()> {
+		let proc = {
+			let mut servers = self.servers.write();
+			servers.remove(&server)
+		};
+
+		let Some(mut proc) = proc else {
+			return Ok(()); // idempotent
+		};
+
+		// Best-effort kill, then wait a bit.
+		let _ = proc.child.start_kill();
+		let _ = tokio::time::timeout(Duration::from_secs(2), proc.child.wait()).await;
+
 		Ok(())
 	}
 }
@@ -230,10 +261,12 @@ async fn run_server_io(
 	stdout: tokio::process::ChildStdout,
 	mut request_rx: mpsc::UnboundedReceiver<PendingRequest>,
 	mut notify_rx: mpsc::UnboundedReceiver<AnyNotification>,
+	mut reply_rx: mpsc::UnboundedReceiver<ReplyMsg>,
 	event_tx: mpsc::UnboundedSender<TransportEvent>,
 ) {
 	let mut reader = BufReader::new(stdout);
 	let mut pending: HashMap<RequestId, oneshot::Sender<Result<AnyResponse>>> = HashMap::new();
+	let mut server_req_ids: VecDeque<RequestId> = VecDeque::new();
 	let protocol = JsonRpcProtocol::new();
 	let mut read_buf = String::new();
 
@@ -256,11 +289,22 @@ async fn run_server_io(
 				}
 			}
 
+			// Handle outbound replies to server requests
+			Some(reply) = reply_rx.recv() => {
+				let Some(req_id) = server_req_ids.pop_front() else {
+					tracing::warn!(server_id = id.0, "reply() called but no pending server request id");
+					continue;
+				};
+				if let Err(e) = write_response(&mut stdin, req_id, reply.resp).await {
+					tracing::warn!(server_id = id.0, error = %e, "Failed to send server request reply");
+				}
+			}
+
 			// Handle inbound messages from server
 			result = read_message(&mut reader, &protocol, &mut read_buf) => {
 				match result {
 					Ok(Some(msg)) => {
-						handle_inbound_message(id, msg, &mut pending, &event_tx);
+						handle_inbound_message(id, msg, &mut pending, &mut server_req_ids, &event_tx);
 					}
 					Ok(None) => {
 						// EOF - server stopped
@@ -288,8 +332,6 @@ async fn run_server_io(
 	for (_, tx) in pending {
 		let _ = tx.send(Err(Error::ServiceStopped));
 	}
-
-	let _ = event_tx.send(TransportEvent::Disconnected);
 }
 
 /// Writes a JSON-RPC request to the server's stdin.
@@ -323,6 +365,32 @@ async fn write_notification(
 		"params": notif.params,
 	}))?;
 
+	let msg = format!("Content-Length: {}\r\n\r\n{}", json.len(), json);
+	stdin.write_all(msg.as_bytes()).await?;
+	stdin.flush().await?;
+	Ok(())
+}
+
+/// Writes a JSON-RPC response to the server's stdin.
+async fn write_response(
+	stdin: &mut tokio::process::ChildStdin,
+	id: RequestId,
+	resp: std::result::Result<JsonValue, ResponseError>,
+) -> Result<()> {
+	let obj = match resp {
+		Ok(result) => serde_json::json!({
+			"jsonrpc": "2.0",
+			"id": id,
+			"result": result,
+		}),
+		Err(err) => serde_json::json!({
+			"jsonrpc": "2.0",
+			"id": id,
+			"error": err,
+		}),
+	};
+
+	let json = serde_json::to_string(&obj)?;
 	let msg = format!("Content-Length: {}\r\n\r\n{}", json.len(), json);
 	stdin.write_all(msg.as_bytes()).await?;
 	stdin.flush().await?;
@@ -369,6 +437,7 @@ fn handle_inbound_message(
 	id: LanguageServerId,
 	msg: JsonValue,
 	pending: &mut HashMap<RequestId, oneshot::Sender<Result<AnyResponse>>>,
+	server_req_ids: &mut VecDeque<RequestId>,
 	event_tx: &mpsc::UnboundedSender<TransportEvent>,
 ) {
 	// Check if it's a response (has "id" but no "method")
@@ -435,6 +504,8 @@ fn handle_inbound_message(
 			JsonValue::String(s) => RequestId::String(s),
 			_ => RequestId::Number(0),
 		};
+
+		server_req_ids.push_back(id_parsed.clone());
 
 		let _ = event_tx.send(TransportEvent::Message {
 			server: id,

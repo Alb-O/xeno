@@ -92,7 +92,7 @@ async fn handle_workspace_configuration(
 
 	let result: Vec<JsonValue> = items
 		.iter()
-		.map(|item| {
+		.map(|item| -> JsonValue {
 			if let Some(section) = item.get("section").and_then(|s| s.as_str()) {
 				if let Some(section_value) = settings.get(section) {
 					section_value.clone()
