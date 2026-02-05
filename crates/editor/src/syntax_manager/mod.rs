@@ -255,14 +255,14 @@ struct OptKey {
 	injections: InjectionPolicy,
 }
 
-struct DocState {
+struct DocSched {
 	last_edit_at: Instant,
 	last_visible_at: Instant,
 	cooldown_until: Option<Instant>,
 	inflight: Option<PendingSyntaxTask>,
 }
 
-impl DocState {
+impl DocSched {
 	fn new(now: Instant) -> Self {
 		Self {
 			last_edit_at: now,
@@ -364,8 +364,7 @@ impl SyntaxEngine for RealSyntaxEngine {
 pub struct SyntaxManager {
 	policy: TieredSyntaxPolicy,
 	permits: Arc<Semaphore>,
-	docs: HashMap<DocumentId, DocState>,
-	syntax: HashMap<DocumentId, SyntaxState>,
+	entries: HashMap<DocumentId, DocEntry>,
 	engine: Arc<dyn SyntaxEngine>,
 	dirty_docs: FxHashSet<DocumentId>,
 }
@@ -396,14 +395,30 @@ struct PendingIncrementalEdits {
 }
 
 #[derive(Default)]
-pub struct SyntaxState {
+pub struct SyntaxSlot {
 	current: Option<Syntax>,
 	dirty: bool,
 	updated: bool,
 	version: u64,
 	language_id: Option<LanguageId>,
 	pending_incremental: Option<PendingIncrementalEdits>,
+	last_opts_key: Option<OptKey>,
 }
+
+struct DocEntry {
+	sched: DocSched,
+	slot: SyntaxSlot,
+}
+
+impl DocEntry {
+	fn new(now: Instant) -> Self {
+		Self {
+			sched: DocSched::new(now),
+			slot: SyntaxSlot::default(),
+		}
+	}
+}
+
 
 pub struct SyntaxPollOutcome {
 	pub result: SyntaxPollResult,
@@ -415,8 +430,7 @@ impl SyntaxManager {
 		Self {
 			policy: TieredSyntaxPolicy::default(),
 			permits: Arc::new(Semaphore::new(max_concurrency.max(1))),
-			docs: HashMap::new(),
-			syntax: HashMap::new(),
+			entries: HashMap::new(),
 			engine: Arc::new(RealSyntaxEngine),
 			dirty_docs: FxHashSet::default(),
 		}
@@ -427,8 +441,7 @@ impl SyntaxManager {
 		Self {
 			policy: TieredSyntaxPolicy::default(),
 			permits: Arc::new(Semaphore::new(max_concurrency.max(1))),
-			docs: HashMap::new(),
-			syntax: HashMap::new(),
+			entries: HashMap::new(),
 			engine,
 			dirty_docs: FxHashSet::default(),
 		}
@@ -438,50 +451,50 @@ impl SyntaxManager {
 		self.policy = policy;
 	}
 
-	fn state_mut(&mut self, doc_id: DocumentId) -> &mut SyntaxState {
-		self.syntax.entry(doc_id).or_default()
+	fn entry_mut(&mut self, doc_id: DocumentId) -> &mut DocEntry {
+		self.entries.entry(doc_id).or_insert_with(|| DocEntry::new(Instant::now()))
 	}
 
 	pub fn has_syntax(&self, doc_id: DocumentId) -> bool {
-		self.syntax
+		self.entries
 			.get(&doc_id)
-			.and_then(|state| state.current.as_ref())
+			.and_then(|e| e.slot.current.as_ref())
 			.is_some()
 	}
 
 	pub fn is_dirty(&self, doc_id: DocumentId) -> bool {
-		self.syntax
+		self.entries
 			.get(&doc_id)
-			.map(|state| state.dirty)
+			.map(|e| e.slot.dirty)
 			.unwrap_or(false)
 	}
 
 	pub fn syntax_for_doc(&self, doc_id: DocumentId) -> Option<&Syntax> {
-		self.syntax
+		self.entries
 			.get(&doc_id)
-			.and_then(|state| state.current.as_ref())
+			.and_then(|e| e.slot.current.as_ref())
 	}
 
 	pub fn syntax_version(&self, doc_id: DocumentId) -> u64 {
-		self.syntax
+		self.entries
 			.get(&doc_id)
-			.map(|state| state.version)
+			.map(|e| e.slot.version)
 			.unwrap_or(0)
 	}
 
 	pub fn reset_syntax(&mut self, doc_id: DocumentId) {
-		let state = self.state_mut(doc_id);
-		if state.current.is_some() {
-			state.current = None;
-			mark_updated(state);
+		let entry = self.entry_mut(doc_id);
+		if entry.slot.current.is_some() {
+			entry.slot.current = None;
+			mark_updated(&mut entry.slot);
 		}
-		state.dirty = true;
-		state.pending_incremental = None;
+		entry.slot.dirty = true;
+		entry.slot.pending_incremental = None;
 		self.dirty_docs.insert(doc_id);
 	}
 
 	pub fn mark_dirty(&mut self, doc_id: DocumentId) {
-		self.state_mut(doc_id).dirty = true;
+		self.entry_mut(doc_id).slot.dirty = true;
 		self.dirty_docs.insert(doc_id);
 	}
 
@@ -490,11 +503,13 @@ impl SyntaxManager {
 	/// Inflight tasks are intentionally left running (single-flight discipline).
 	pub fn note_edit(&mut self, doc_id: DocumentId) {
 		let now = Instant::now();
-		self.docs
+		let entry = self
+			.entries
 			.entry(doc_id)
-			.or_insert_with(|| DocState::new(now))
-			.last_edit_at = now;
-		self.mark_dirty(doc_id);
+			.or_insert_with(|| DocEntry::new(now));
+		entry.sched.last_edit_at = now;
+		entry.slot.dirty = true;
+		self.dirty_docs.insert(doc_id);
 	}
 
 	/// Records an edit and applies an incremental tree-sitter update.
@@ -523,31 +538,32 @@ impl SyntaxManager {
 		const SYNC_TIMEOUT: Duration = Duration::from_millis(10);
 
 		let now = Instant::now();
-		self.docs
+		let entry = self
+			.entries
 			.entry(doc_id)
-			.or_insert_with(|| DocState::new(now))
-			.last_edit_at = now;
-		self.mark_dirty(doc_id);
+			.or_insert_with(|| DocEntry::new(now));
+		entry.sched.last_edit_at = now;
+		entry.slot.dirty = true;
+		self.dirty_docs.insert(doc_id);
 
-		let state = self.syntax.entry(doc_id).or_default();
-		if state.current.is_none() {
+		if entry.slot.current.is_none() {
 			return;
 		}
 
-		match state.pending_incremental.take() {
+		match entry.slot.pending_incremental.take() {
 			Some(mut pending) => {
 				pending.composed = pending.composed.compose(changeset.clone());
-				state.pending_incremental = Some(pending);
+				entry.slot.pending_incremental = Some(pending);
 			}
 			None => {
-				state.pending_incremental = Some(PendingIncrementalEdits {
+				entry.slot.pending_incremental = Some(PendingIncrementalEdits {
 					old_rope: old_rope.clone(),
 					composed: changeset.clone(),
 				});
 			}
 		}
 
-		let syntax = state.current.as_mut().expect("checked above");
+		let syntax = entry.slot.current.as_mut().expect("checked above");
 		let opts = SyntaxOptions {
 			parse_timeout: SYNC_TIMEOUT,
 			..syntax.opts()
@@ -561,10 +577,10 @@ impl SyntaxManager {
 			opts,
 		) {
 			Ok(()) => {
-				state.pending_incremental = None;
-				state.dirty = false;
+				entry.slot.pending_incremental = None;
+				entry.slot.dirty = false;
 				self.dirty_docs.remove(&doc_id);
-				mark_updated(state);
+				mark_updated(&mut entry.slot);
 			}
 			Err(e) => {
 				tracing::debug!(error = %e, ?doc_id, "Sync incremental update failed");
@@ -579,30 +595,32 @@ impl SyntaxManager {
 
 	/// Removes all tracking state and pending tasks for a document.
 	pub fn forget_doc(&mut self, doc_id: DocumentId) {
-		self.syntax.remove(&doc_id);
 		self.dirty_docs.remove(&doc_id);
-		if let Some(mut st) = self.docs.remove(&doc_id)
-			&& let Some(p) = st.inflight.take()
+		if let Some(mut entry) = self.entries.remove(&doc_id)
+			&& let Some(p) = entry.sched.inflight.take()
 		{
 			p.task.abort();
 		}
 	}
 
 	pub fn has_pending(&self, doc_id: DocumentId) -> bool {
-		self.docs
+		self.entries
 			.get(&doc_id)
-			.and_then(|d| d.inflight.as_ref())
+			.and_then(|d| d.sched.inflight.as_ref())
 			.is_some()
 	}
 
 	pub fn pending_count(&self) -> usize {
-		self.docs.values().filter(|d| d.inflight.is_some()).count()
+		self.entries
+			.values()
+			.filter(|d| d.sched.inflight.is_some())
+			.count()
 	}
 
 	pub fn pending_docs(&self) -> impl Iterator<Item = DocumentId> + '_ {
-		self.docs
+		self.entries
 			.iter()
-			.filter(|(_, d)| d.inflight.is_some())
+			.filter(|(_, d)| d.sched.inflight.is_some())
 			.map(|(id, _)| *id)
 	}
 
@@ -616,9 +634,9 @@ impl SyntaxManager {
 	/// The caller should trigger a redraw so that `ensure_syntax` can poll and
 	/// install the result.
 	pub fn any_task_finished(&self) -> bool {
-		self.docs
+		self.entries
 			.values()
-			.any(|d| d.inflight.as_ref().is_some_and(|t| t.task.is_finished()))
+			.any(|d| d.sched.inflight.as_ref().is_some_and(|t| t.task.is_finished()))
 	}
 
 	/// Polls or kicks background syntax parsing.
@@ -631,29 +649,30 @@ impl SyntaxManager {
 	/// 5. Spawning new background parse tasks if permits are available.
 	pub fn ensure_syntax(&mut self, ctx: EnsureSyntaxContext<'_>) -> SyntaxPollOutcome {
 		let now = Instant::now();
-		let docs = &mut self.docs;
-		let syntax = &mut self.syntax;
 
-		let st = docs.entry(ctx.doc_id).or_insert_with(|| DocState::new(now));
-		let state = syntax.entry(ctx.doc_id).or_default();
-		state.updated = false;
+		let entry = self
+			.entries
+			.entry(ctx.doc_id)
+			.or_insert_with(|| DocEntry::new(now));
 
-		if state.language_id != ctx.language_id {
-			if let Some(pending) = st.inflight.take() {
+		entry.slot.updated = false;
+
+		if entry.slot.language_id != ctx.language_id {
+			if let Some(pending) = entry.sched.inflight.take() {
 				pending.task.abort();
 			}
-			if state.current.is_some() {
-				state.current = None;
-				mark_updated(state);
+			if entry.slot.current.is_some() {
+				entry.slot.current = None;
+				mark_updated(&mut entry.slot);
 			}
-			state.dirty = true;
-			state.pending_incremental = None;
+			entry.slot.dirty = true;
+			entry.slot.pending_incremental = None;
 			self.dirty_docs.insert(ctx.doc_id);
-			state.language_id = ctx.language_id;
+			entry.slot.language_id = ctx.language_id;
 		}
 
 		if matches!(ctx.hotness, SyntaxHotness::Visible | SyntaxHotness::Warm) {
-			st.last_visible_at = now;
+			entry.sched.last_visible_at = now;
 		}
 
 		let bytes = ctx.content.len_bytes();
@@ -663,18 +682,31 @@ impl SyntaxManager {
 			injections: cfg.injections,
 		};
 
+		// Detect option changes (tier or policy change) and abort inflight if needed
+		if let Some(last_key) = entry.slot.last_opts_key {
+			if last_key != current_opts_key {
+				if let Some(pending) = entry.sched.inflight.take() {
+					pending.task.abort();
+				}
+				entry.slot.dirty = true;
+				entry.slot.pending_incremental = None;
+				self.dirty_docs.insert(ctx.doc_id);
+			}
+		}
+		entry.slot.last_opts_key = Some(current_opts_key);
+
 		// 1) Poll/drain inflight FIRST (fixes “immortal inflight”)
-		if let Some(p) = st.inflight.as_mut() {
+		if let Some(p) = entry.sched.inflight.as_mut() {
 			let join = xeno_primitives::future::poll_once(&mut p.task);
 			if join.is_none() {
 				// still running; do NOT short-circuit to Ready/Disabled
 				return SyntaxPollOutcome {
 					result: SyntaxPollResult::Pending,
-					updated: state.updated,
+					updated: entry.slot.updated,
 				};
 			}
 
-			let done = st.inflight.take().expect("inflight present");
+			let done = entry.sched.inflight.take().expect("inflight present");
 			match join.expect("checked ready") {
 				Ok(Ok(syntax_tree)) => {
 					// language gating: only install if language still matches
@@ -682,69 +714,73 @@ impl SyntaxManager {
 						// language removed mid-flight: discard result
 						return SyntaxPollOutcome {
 							result: SyntaxPollResult::NoLanguage,
-							updated: state.updated,
+							updated: entry.slot.updated,
 						};
 					};
 
 					let lang_ok = done.lang_id == current_lang;
 					let opts_ok = done.opts == current_opts_key;
 					let version_match = done.doc_version == ctx.doc_version;
-					let retain_ok =
-						retention_allows_install(now, st, cfg.retention_hidden, ctx.hotness);
+					let retain_ok = retention_allows_install(
+						now,
+						&entry.sched,
+						cfg.retention_hidden,
+						ctx.hotness,
+					);
 
 					let allow_install = should_install_completed_parse(
 						version_match,
-						state.dirty,
-						state.current.is_some(),
+						entry.slot.dirty,
+						entry.slot.current.is_some(),
 					);
 
 					let mut installed = false;
-					if lang_ok && retain_ok && allow_install {
-						state.current = Some(syntax_tree);
-						state.language_id = Some(current_lang);
-						mark_updated(state);
+					if lang_ok && opts_ok && retain_ok && allow_install {
+						entry.slot.current = Some(syntax_tree);
+						entry.slot.language_id = Some(current_lang);
+						mark_updated(&mut entry.slot);
 						installed = true;
 					}
 
 					// if we had a valid parse but retention blocked it, ensure we are dirty + updated
 					if lang_ok && opts_ok && version_match && !retain_ok {
-						state.current = None;
-						state.pending_incremental = None;
-						state.dirty = true;
-						self.dirty_docs.insert(ctx.doc_id);
-						mark_updated(state);
+						entry.slot.current = None;
+						entry.slot.pending_incremental = None;
+						entry.slot.dirty = false;
+						self.dirty_docs.remove(&ctx.doc_id);
+						mark_updated(&mut entry.slot);
 					}
 
 					// dirty clears only if this parse matches current version + "shape"
 					// AND it was actually installed (respecting retention)
 					if installed && version_match && opts_ok {
-						state.dirty = false;
+						entry.slot.dirty = false;
 						self.dirty_docs.remove(&ctx.doc_id);
-						st.cooldown_until = None;
+						entry.sched.cooldown_until = None;
 					}
 					// fall through to let retention + hidden check run
 				}
 				Ok(Err(SyntaxError::Timeout)) => {
-					st.cooldown_until = Some(now + cfg.cooldown_on_timeout);
+					entry.sched.cooldown_until = Some(now + cfg.cooldown_on_timeout);
 					return SyntaxPollOutcome {
 						result: SyntaxPollResult::CoolingDown,
-						updated: state.updated,
+						updated: entry.slot.updated,
 					};
 				}
 				Ok(Err(e)) => {
 					tracing::warn!(doc_id=?ctx.doc_id, tier=?tier, error=%e, "Background syntax parse failed");
-					st.cooldown_until = Some(now + cfg.cooldown_on_error);
+					entry.sched.cooldown_until = Some(now + cfg.cooldown_on_error);
 					return SyntaxPollOutcome {
 						result: SyntaxPollResult::CoolingDown,
-						updated: state.updated,
+						updated: entry.slot.updated,
 					};
 				}
 				Err(e) => {
 					tracing::warn!(doc_id=?ctx.doc_id, tier=?tier, error=%e, "Background syntax task panicked");
-					st.cooldown_until = Some(now + cfg.cooldown_on_error);
+					entry.sched.cooldown_until = Some(now + cfg.cooldown_on_error);
 					return SyntaxPollOutcome {
 						result: SyntaxPollResult::CoolingDown,
-						updated: state.updated,
+						updated: entry.slot.updated,
 					};
 				}
 			}
@@ -752,36 +788,36 @@ impl SyntaxManager {
 
 		// 2) Handle “no language” AFTER draining inflight to avoid leaks
 		let Some(lang_id) = ctx.language_id else {
-			if state.current.is_some() {
-				state.current = None;
-				mark_updated(state);
+			if entry.slot.current.is_some() {
+				entry.slot.current = None;
+				mark_updated(&mut entry.slot);
 			}
-			state.language_id = None;
-			state.dirty = false;
+			entry.slot.language_id = None;
+			entry.slot.dirty = false;
 			self.dirty_docs.remove(&ctx.doc_id);
-			st.cooldown_until = None;
+			entry.sched.cooldown_until = None;
 			return SyntaxPollOutcome {
 				result: SyntaxPollResult::NoLanguage,
-				updated: state.updated,
+				updated: entry.slot.updated,
 			};
 		};
 
 		// 3) Retention AFTER inflight completion (don’t re-install dropped trees)
 		apply_retention(
 			now,
-			st,
+			&entry.sched,
 			cfg.retention_hidden,
 			ctx.hotness,
-			state,
+			&mut entry.slot,
 			ctx.doc_id,
 			&mut self.dirty_docs,
 		);
 
 		// 4) Clean short-circuit (safe now: no inflight exists)
-		if state.current.is_some() && !state.dirty {
+		if entry.slot.current.is_some() && !entry.slot.dirty {
 			return SyntaxPollOutcome {
 				result: SyntaxPollResult::Ready,
-				updated: state.updated,
+				updated: entry.slot.updated,
 			};
 		}
 
@@ -789,25 +825,27 @@ impl SyntaxManager {
 		if !matches!(ctx.hotness, SyntaxHotness::Visible) && !cfg.parse_when_hidden {
 			return SyntaxPollOutcome {
 				result: SyntaxPollResult::Disabled,
-				updated: state.updated,
+				updated: entry.slot.updated,
 			};
 		}
 
 		// 6) Debounce (skip for bootstrap: no existing tree → parse immediately)
-		if state.current.is_some() && now.duration_since(st.last_edit_at) < cfg.debounce {
+		if entry.slot.current.is_some()
+			&& now.duration_since(entry.sched.last_edit_at) < cfg.debounce
+		{
 			return SyntaxPollOutcome {
 				result: SyntaxPollResult::Pending,
-				updated: state.updated,
+				updated: entry.slot.updated,
 			};
 		}
 
 		// 7) Cooldown
-		if let Some(until) = st.cooldown_until
+		if let Some(until) = entry.sched.cooldown_until
 			&& now < until
 		{
 			return SyntaxPollOutcome {
 				result: SyntaxPollResult::CoolingDown,
-				updated: state.updated,
+				updated: entry.slot.updated,
 			};
 		}
 
@@ -817,7 +855,7 @@ impl SyntaxManager {
 			Err(_) => {
 				return SyntaxPollOutcome {
 					result: SyntaxPollResult::Throttled,
-					updated: state.updated,
+					updated: entry.slot.updated,
 				};
 			}
 		};
@@ -831,8 +869,9 @@ impl SyntaxManager {
 			injections: cfg.injections,
 		};
 
-		let incremental = state.pending_incremental.take().and_then(|pending| {
-			state
+		let incremental = entry.slot.pending_incremental.take().and_then(|pending| {
+			entry
+				.slot
 				.current
 				.as_ref()
 				.map(|syntax| (syntax.clone(), pending))
@@ -855,7 +894,7 @@ impl SyntaxManager {
 			}
 		});
 
-		st.inflight = Some(PendingSyntaxTask {
+		entry.sched.inflight = Some(PendingSyntaxTask {
 			doc_version: ctx.doc_version,
 			lang_id,
 			opts: current_opts_key,
@@ -865,7 +904,7 @@ impl SyntaxManager {
 
 		SyntaxPollOutcome {
 			result: SyntaxPollResult::Kicked,
-			updated: state.updated,
+			updated: entry.slot.updated,
 		}
 	}
 }
@@ -885,7 +924,7 @@ fn should_install_completed_parse(
 
 fn retention_allows_install(
 	now: Instant,
-	st: &DocState,
+	st: &DocSched,
 	policy: RetentionPolicy,
 	hotness: SyntaxHotness,
 ) -> bool {
@@ -899,17 +938,17 @@ fn retention_allows_install(
 	}
 }
 
-fn mark_updated(state: &mut SyntaxState) {
+fn mark_updated(state: &mut SyntaxSlot) {
 	state.updated = true;
 	state.version = state.version.wrapping_add(1);
 }
 
 fn apply_retention(
 	now: Instant,
-	st: &DocState,
+	st: &DocSched,
 	policy: RetentionPolicy,
 	hotness: SyntaxHotness,
-	state: &mut SyntaxState,
+	state: &mut SyntaxSlot,
 	doc_id: DocumentId,
 	dirty_docs: &mut FxHashSet<DocumentId>,
 ) {
@@ -922,18 +961,18 @@ fn apply_retention(
 		RetentionPolicy::DropWhenHidden => {
 			if state.current.is_some() {
 				state.current = None;
-				state.dirty = true;
+				state.dirty = false;
 				state.pending_incremental = None;
-				dirty_docs.insert(doc_id);
+				dirty_docs.remove(&doc_id);
 				mark_updated(state);
 			}
 		}
 		RetentionPolicy::DropAfter(ttl) => {
 			if state.current.is_some() && now.duration_since(st.last_visible_at) > ttl {
 				state.current = None;
-				state.dirty = true;
+				state.dirty = false;
 				state.pending_incremental = None;
-				dirty_docs.insert(doc_id);
+				dirty_docs.remove(&doc_id);
 				mark_updated(state);
 			}
 		}

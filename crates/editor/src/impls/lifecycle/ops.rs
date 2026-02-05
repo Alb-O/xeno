@@ -46,7 +46,7 @@ impl Editor {
 				visible_docs.insert(doc_id);
 				SyntaxHotness::Visible
 			} else {
-				SyntaxHotness::Warm
+				SyntaxHotness::Cold
 			};
 
 			doc_hotness

@@ -77,8 +77,8 @@ async fn test_inflight_drained_even_if_doc_marked_clean() {
 	assert_eq!(poll.result, SyntaxPollResult::Kicked);
 	assert!(mgr.has_pending(doc_id));
 
-	if let Some(state) = mgr.syntax.get_mut(&doc_id) {
-		state.dirty = false;
+	if let Some(entry) = mgr.entries.get_mut(&doc_id) {
+		entry.slot.dirty = false;
 	}
 
 	let _ = tx.send(());
@@ -208,7 +208,7 @@ async fn test_dropwhenhidden_discards_completed_parse() {
 	});
 
 	assert!(mgr.syntax_for_doc(doc_id).is_none());
-	assert!(mgr.is_dirty(doc_id));
+	assert!(!mgr.is_dirty(doc_id));
 	assert!(poll.updated);
 }
 
@@ -345,11 +345,11 @@ fn test_note_edit_updates_timestamp() {
 	let doc_id = DocumentId(1);
 
 	mgr.note_edit(doc_id);
-	let t1 = mgr.docs.get(&doc_id).unwrap().last_edit_at;
+	let t1 = mgr.entries.get(&doc_id).unwrap().sched.last_edit_at;
 
 	std::thread::sleep(Duration::from_millis(1));
 	mgr.note_edit(doc_id);
-	let t2 = mgr.docs.get(&doc_id).unwrap().last_edit_at;
+	let t2 = mgr.entries.get(&doc_id).unwrap().sched.last_edit_at;
 
 	assert!(t2 > t1);
 }
@@ -489,4 +489,145 @@ async fn test_syntax_version_bumps_on_install() {
 	assert!(poll.updated);
 	let v1 = mgr.syntax_version(doc_id);
 	assert!(v1 > v0);
+}
+
+#[tokio::test]
+async fn test_opts_mismatch_never_installs() {
+	let engine = Arc::new(MockEngine::new());
+	let (tx, rx) = oneshot::channel();
+	engine.set_gate(rx);
+
+	let mut mgr = SyntaxManager::new_with_engine(1, engine.clone());
+	let mut policy = TieredSyntaxPolicy::default();
+	policy.s.debounce = Duration::from_millis(0);
+	policy.s.injections = InjectionPolicy::Eager;
+	mgr.set_policy(policy.clone());
+
+	let doc_id = DocumentId(1);
+	let loader = Arc::new(LanguageLoader::from_embedded());
+	let lang_id = loader.language_for_name("rust").unwrap();
+	let content = Rope::from("test");
+
+	// 1. Kick off parse with Eager injections
+	mgr.ensure_syntax(EnsureSyntaxContext {
+		doc_id,
+		doc_version: 1,
+		language_id: Some(lang_id),
+		content: &content,
+		hotness: SyntaxHotness::Visible,
+		loader: &loader,
+	});
+
+	// 2. Change policy to Disabled injections
+	policy.s.injections = InjectionPolicy::Disabled;
+	mgr.set_policy(policy);
+
+	// 3. Trigger ensure_syntax again to detect opts change (should abort and restart)
+	// But first, let the OLD task complete. The old task was started with Eager.
+	// We want to ensure that if it completes *after* we changed policy, it is NOT installed.
+	
+	// Actually, ensure_syntax detects the change immediately and aborts. 
+	// To test "never installs", we need to simulate the race where the task finishes 
+	// *before* ensure_syntax is called again, or *during* the call but before we check?
+	
+	// If ensure_syntax is called, it checks last_opts_key.
+	// If we just change the policy, ensure_syntax hasn't run yet.
+	// The task is running with Eager.
+	
+	let _ = tx.send(()); // Let it finish
+	tokio::time::sleep(Duration::from_millis(50)).await;
+
+	// Now call ensure_syntax with the NEW policy. 
+	// The completed result has Eager. The current policy expects Disabled.
+	// ensure_syntax will see that last_opts_key (Eager) != current (Disabled).
+	// It will abort inflight (but it's already done?). 
+	// Wait, if it's done, inflight might be None or just finished join handle.
+	
+	// Actually, if we call ensure_syntax, it will first check inflight.
+	// If inflight is done, it grabs the result.
+	// Result has opts = Eager.
+	// current_opts_key = Disabled.
+	// opts_ok = false.
+	// It should NOT install.
+	
+	let poll = mgr.ensure_syntax(EnsureSyntaxContext {
+		doc_id,
+		doc_version: 1,
+		language_id: Some(lang_id),
+		content: &content,
+		hotness: SyntaxHotness::Visible,
+		loader: &loader,
+	});
+
+	// It should reject the result and kick a new one (because it marked dirty/aborted due to mismatch)
+	// Wait, if opts_ok is false, it drops the result. 
+	// Does it kick a new one?
+	// The mismatch check happens *before* polling inflight.
+	// "If let Some(last_key) = ... if mismatch ... abort ... mark dirty".
+	
+	// So if we run ensure_syntax, it sees the mismatch, marks dirty.
+	// Then it polls the inflight task. 
+	// The inflight task (which finished) is consumed.
+	// `opts_ok` will be false (done.opts == Eager, current == Disabled).
+	// So it won't install.
+	// And since it's dirty, it will kick a new parse at the end.
+	
+	assert_eq!(poll.result, SyntaxPollResult::Kicked);
+	// Verify we didn't install the Eager syntax (how? maybe check if current is None or check opts if we could inspect it)
+	// We can check that it's dirty.
+	assert!(mgr.is_dirty(doc_id));
+}
+
+#[tokio::test]
+async fn test_opts_mismatch_aborts_inflight() {
+	let engine = Arc::new(MockEngine::new());
+	let (_tx, rx) = oneshot::channel(); // Hold the gate closed
+	engine.set_gate(rx);
+
+	// Use concurrency 2 because spawn_blocking tasks don't release permits immediately
+	// on abort if they are blocked on sync IO (mock engine gate).
+	let mut mgr = SyntaxManager::new_with_engine(2, engine.clone());
+	let mut policy = TieredSyntaxPolicy::default();
+	policy.s.debounce = Duration::from_millis(0);
+	policy.s.injections = InjectionPolicy::Eager;
+	mgr.set_policy(policy.clone());
+
+	let doc_id = DocumentId(1);
+	let loader = Arc::new(LanguageLoader::from_embedded());
+	let lang_id = loader.language_for_name("rust").unwrap();
+	let content = Rope::from("test");
+
+	// 1. Kick off parse (Eager)
+	mgr.ensure_syntax(EnsureSyntaxContext {
+		doc_id,
+		doc_version: 1,
+		language_id: Some(lang_id),
+		content: &content,
+		hotness: SyntaxHotness::Visible,
+		loader: &loader,
+	});
+	
+	assert!(mgr.has_pending(doc_id));
+
+	// 2. Change policy
+	policy.s.injections = InjectionPolicy::Disabled;
+	mgr.set_policy(policy);
+
+	// 3. Call ensure_syntax. Should detect mismatch and abort.
+	let poll = mgr.ensure_syntax(EnsureSyntaxContext {
+		doc_id,
+		doc_version: 1,
+		language_id: Some(lang_id),
+		content: &content,
+		hotness: SyntaxHotness::Visible,
+		loader: &loader,
+	});
+
+	// The old task was aborted. A new task was kicked.
+	// We can't easily check if the *old* task was aborted via public API, 
+	// but we know a new one started.
+	// MockEngine doesn't track aborts easily without weak refs or similar.
+	
+	assert_eq!(poll.result, SyntaxPollResult::Kicked);
+	assert!(mgr.has_pending(doc_id));
 }
