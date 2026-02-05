@@ -5,11 +5,9 @@ use std::time::Duration;
 
 use crate::notifications::AutoDismiss;
 
-// --- Actions ---
 notif!(unknown_action(name: &str), Error, format!("Unknown action: {}", name));
 notif!(action_error(err: impl core::fmt::Display), Error, err.to_string());
 
-// --- Commands ---
 notif!(
 	unsaved_changes_force_quit,
 	Error,
@@ -43,7 +41,6 @@ notif!(
 	auto_dismiss: AutoDismiss::Never
 );
 
-// --- Runtime ---
 notif!(
 	viewport_unavailable,
 	Error,
@@ -62,7 +59,6 @@ notif!(
 notif!(pending_prompt(prompt: &str), Info, prompt.to_string());
 notif!(count_display(count: usize), Info, count.to_string());
 
-// --- Editor ---
 notif!(buffer_readonly, Warn, "Buffer is read-only");
 notif!(buffer_modified, Warn, "Buffer has unsaved changes");
 notif!(no_buffers, Warn, "No buffers open");
@@ -114,14 +110,12 @@ notif!(buffer_closed(name: &str), Info, format!("Closed {}", name));
 notif!(option_set(key: &str, value: &str), Info, format!("{}={}", key, value));
 notif!(unhandled_result(variant: &str), Warn, format!("Unhandled action result: {}", variant));
 
-// --- Generic ---
 notif!(info(msg: impl Into<String>), Info, msg);
 notif!(warn(msg: impl Into<String>), Warn, msg);
 notif!(error(msg: impl Into<String>), Error, msg);
 notif!(success(msg: impl Into<String>), Success, msg);
 notif!(debug(msg: impl Into<String>), Debug, msg);
 
-// --- Buffer Sync ---
 notif!(sync_taking_ownership, Info, "Taking ownership...");
 notif!(sync_ownership_denied, Info, "Ownership denied.");
 notif!(

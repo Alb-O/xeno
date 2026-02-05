@@ -17,45 +17,33 @@ use crate::types::{Invocation, InvocationPolicy, InvocationResult};
 impl Editor {
 	/// Orchestrates background syntax parsing for all buffers and installs results.
 	///
-	/// This implementation deduplicates parsing by document, ensuring that documents
-	/// shared across multiple views are only processed once.
+	/// Dedupes parsing by document, ensuring shared documents are only processed once.
 	///
 	/// # Hotness and Retention
 	///
-	/// The workflow calculates the maximum hotness for each document based on its
-	/// visibility in any split or floating window. Non-visible documents are
-	/// marked as `Cold` to allow the syntax manager to evict their trees when
-	/// memory pressures or TTL thresholds are met.
-	///
-	/// # Polling Set
-	///
-	/// The set of documents to poll includes:
-	/// 1. All currently visible documents.
-	/// 2. Documents with active background tasks (to harvest results).
-	/// 3. Documents marked dirty by recent edits.
+	/// Non-visible documents are marked as `Cold` to allow eviction when memory
+	/// or TTL thresholds are met.
 	pub fn ensure_syntax_for_buffers(&mut self) {
 		use std::collections::{HashMap, HashSet};
 
 		use crate::syntax_manager::{EnsureSyntaxContext, SyntaxHotness};
 
 		let loader = std::sync::Arc::clone(&self.state.config.language_loader);
-		let mut visible_views = self.state.windows.base_window().layout.views();
-		for (_, floating) in self.state.windows.floating_windows() {
-			visible_views.push(floating.buffer);
-		}
-		let visible_ids: HashSet<_> = visible_views.into_iter().collect();
+		let visible_ids: HashSet<_> = self
+			.state
+			.windows
+			.base_window()
+			.layout
+			.views()
+			.into_iter()
+			.chain(self.state.windows.floating_windows().map(|(_, f)| f.buffer))
+			.collect();
 
 		let mut doc_hotness = HashMap::new();
 
-		for buffer_id in self.state.core.buffers.buffer_ids() {
-			let Some(buffer) = self.state.core.buffers.get_buffer(buffer_id) else {
-				continue;
-			};
-
+		for buffer in self.state.core.buffers.buffers() {
 			let doc_id = buffer.document_id();
-			let is_visible = visible_ids.contains(&buffer_id);
-
-			let hotness = if is_visible {
+			let hotness = if visible_ids.contains(&buffer.id) {
 				self.state.core.warm_docs.touch(doc_id);
 				SyntaxHotness::Visible
 			} else if self.state.core.warm_docs.contains(doc_id) {
@@ -66,18 +54,21 @@ impl Editor {
 
 			doc_hotness
 				.entry(doc_id)
-				.and_modify(|h| {
-					if hotness == SyntaxHotness::Visible {
-						*h = SyntaxHotness::Visible;
-					} else if hotness == SyntaxHotness::Warm && *h == SyntaxHotness::Cold {
-						*h = SyntaxHotness::Warm;
-					}
+				.and_modify(|h| match (hotness, *h) {
+					(SyntaxHotness::Visible, _) => *h = SyntaxHotness::Visible,
+					(SyntaxHotness::Warm, SyntaxHotness::Cold) => *h = SyntaxHotness::Warm,
+					_ => {}
 				})
 				.or_insert(hotness);
 		}
 
-		let mut workset: HashSet<_> = self.state.syntax_manager.pending_docs().collect();
-		workset.extend(self.state.syntax_manager.dirty_docs());
+		let mut workset: HashSet<_> = self
+			.state
+			.syntax_manager
+			.pending_docs()
+			.chain(self.state.syntax_manager.dirty_docs())
+			.collect();
+
 		for (&doc_id, &hotness) in &doc_hotness {
 			if hotness == SyntaxHotness::Visible {
 				workset.insert(doc_id);

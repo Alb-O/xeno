@@ -316,6 +316,10 @@ impl HooksRegistry {
 	pub fn len(&self) -> usize {
 		self.snap.load().items_effective.len()
 	}
+
+	pub fn is_empty(&self) -> bool {
+		self.snap.load().items_effective.is_empty()
+	}
 }
 
 struct SnapshotStore<'a> {

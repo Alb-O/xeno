@@ -47,12 +47,10 @@ impl Editor {
 
 	/// Runs the main editor tick: dirty buffer hooks, LSP sync, and animations.
 	///
-	/// Also checks for completed background syntax parses via
-	/// [`SyntaxManager::any_task_finished`] and requests a redraw so the render
-	/// loop can install results. Without this, completed parses sit unpolled
-	/// until user input triggers a render.
+	/// Also drains completed background syntax parses from the [`SyntaxManager`]
+	/// and requests a redraw if any results were installed.
 	pub fn tick(&mut self) {
-		if self.state.syntax_manager.any_task_finished() {
+		if self.state.syntax_manager.drain_finished_inflight() {
 			self.state.effects.request_redraw();
 		}
 
@@ -70,24 +68,33 @@ impl Editor {
 		#[cfg(feature = "lsp")]
 		self.queue_lsp_resyncs_from_documents();
 
+		// Emit BufferChange hooks for all modified buffers
 		let dirty_ids: Vec<_> = self.state.frame.dirty_buffers.drain().collect();
+		let scratch_path = PathBuf::from("[scratch]");
+
 		for buffer_id in dirty_ids {
-			if let Some(buffer) = self.state.core.buffers.get_buffer(buffer_id) {
-				let scratch_path = PathBuf::from("[scratch]");
-				let path = buffer.path().unwrap_or_else(|| scratch_path.clone());
-				let file_type = buffer.file_type();
-				let version = buffer.version();
-				let content = buffer.with_doc(|doc| doc.content().clone());
-				emit_hook_sync_with(
-					&HookContext::new(HookEventData::BufferChange {
-						path: &path,
-						text: content.slice(..),
-						file_type: file_type.as_deref(),
-						version,
-					}),
-					&mut self.state.hook_runtime,
-				);
-			}
+			let Some(buffer) = self.state.core.buffers.get_buffer(buffer_id) else {
+				continue;
+			};
+
+			let (path, file_type, version, text) = buffer.with_doc(|doc| {
+				(
+					doc.path.clone().unwrap_or_else(|| scratch_path.clone()),
+					doc.file_type.clone(),
+					doc.version(),
+					doc.content().clone(),
+				)
+			});
+
+			emit_hook_sync_with(
+				&HookContext::new(HookEventData::BufferChange {
+					path: &path,
+					text: text.slice(..),
+					file_type: file_type.as_deref(),
+					version,
+				}),
+				&mut self.state.hook_runtime,
+			);
 		}
 
 		#[cfg(feature = "lsp")]

@@ -140,6 +140,6 @@ async fn apply_rename(
 	#[cfg(not(feature = "lsp"))]
 	{
 		let _ = (buffer_id, position, new_name);
-		ctx.notify(keys::warn("LSP not enabled").into());
+		ctx.notify(keys::warn("LSP not enabled"));
 	}
 }

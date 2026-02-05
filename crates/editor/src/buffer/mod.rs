@@ -193,13 +193,12 @@ impl Buffer {
 		self.document.ptr_eq(&other.document)
 	}
 
-	/// Executes a closure with read access to the document.
+	/// Executes a closure with read access to the underlying [`Document`].
 	///
 	/// This is the preferred API for document access as it ensures the lock
-	/// guard cannot escape the scope, preventing potential deadlocks and
-	/// making the locking protocol explicit.
+	/// guard cannot escape the scope, preventing potential deadlocks.
 	///
-	/// # Example
+	/// # Examples
 	///
 	/// ```ignore
 	/// let line_count = buffer.with_doc(|doc| doc.content().len_lines());
@@ -209,13 +208,12 @@ impl Buffer {
 		self.document.with(f)
 	}
 
-	/// Executes a closure with write access to the document.
+	/// Executes a closure with write access to the underlying [`Document`].
 	///
 	/// This is the preferred API for document mutation as it ensures the lock
-	/// guard cannot escape the scope, preventing potential deadlocks and
-	/// making the locking protocol explicit.
+	/// guard cannot escape the scope, preventing potential deadlocks.
 	///
-	/// # Example
+	/// # Examples
 	///
 	/// ```ignore
 	/// buffer.with_doc_mut(|doc| {
@@ -227,7 +225,7 @@ impl Buffer {
 		self.document.with_mut(f)
 	}
 
-	/// Returns the associated file path.
+	/// Returns the associated file path, if any.
 	pub fn path(&self) -> Option<PathBuf> {
 		self.with_doc(|doc| doc.path.clone())
 	}
@@ -318,19 +316,17 @@ impl Buffer {
 	/// Returns the line number containing the cursor.
 	pub fn cursor_line(&self) -> usize {
 		self.with_doc(|doc| {
-			let max_pos = doc.content().len_chars();
-			doc.content().char_to_line(self.cursor.min(max_pos))
+			let text = doc.content();
+			text.char_to_line(self.cursor.min(text.len_chars()))
 		})
 	}
 
 	/// Returns the column of the cursor within its line.
 	pub fn cursor_col(&self) -> usize {
 		self.with_doc(|doc| {
-			let line = doc
-				.content()
-				.char_to_line(self.cursor.min(doc.content().len_chars()));
-			let line_start = doc.content().line_to_char(line);
-			self.cursor.saturating_sub(line_start)
+			let text = doc.content();
+			let line = text.char_to_line(self.cursor.min(text.len_chars()));
+			self.cursor.saturating_sub(text.line_to_char(line))
 		})
 	}
 
@@ -488,20 +484,17 @@ impl Buffer {
 		self.goal_column = None;
 	}
 
-	/// Establishes goal column from current cursor position.
+	/// Establishes the goal column from the current cursor position.
 	///
-	/// Use after explicit horizontal positioning (mouse click) to set the
-	/// goal column for subsequent vertical navigation.
+	/// The goal column is used to maintain vertical position during j/k
+	/// movements through lines of varying lengths.
 	#[inline]
 	pub fn establish_goal_column(&mut self) {
 		let cursor = self.cursor;
-		let col = self.with_doc(|doc| {
-			let line = doc
-				.content()
-				.char_to_line(cursor.min(doc.content().len_chars()));
-			let line_start = doc.content().line_to_char(line);
-			cursor.saturating_sub(line_start)
-		});
-		self.goal_column = Some(col);
+		self.goal_column = Some(self.with_doc(|doc| {
+			let text = doc.content();
+			let line = text.char_to_line(cursor.min(text.len_chars()));
+			cursor.saturating_sub(text.line_to_char(line))
+		}));
 	}
 }

@@ -1,5 +1,5 @@
 #[cfg(test)]
-mod tests {
+mod unit_tests {
 	use xeno_primitives::Rope;
 	use xeno_primitives::range::CharIdx;
 	use xeno_primitives::selection::Selection;

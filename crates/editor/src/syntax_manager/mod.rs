@@ -53,7 +53,7 @@
 //!   - Failure symptom: Newly opened documents show unhighlighted text until the debounce timeout elapses.
 //!
 //! - MUST detect completed inflight syntax tasks from `tick()`, not only from `render()`.
-//!   - Enforced in: `Editor::tick` (calls [`SyntaxManager::any_task_finished`] to trigger redraw)
+//!   - Enforced in: `Editor::tick` (calls [`SyntaxManager::drain_finished_inflight`] to trigger redraw)
 //!   - Tested by: `syntax_manager::tests::test_idle_tick_polls_inflight_parse`
 //!   - Failure symptom: Completed background parses are not installed until user input triggers a render; documents stay unhighlighted indefinitely while idle.
 //!
@@ -141,7 +141,7 @@
 //! ## Change tier thresholds
 //!
 //! - Update [`TieredSyntaxPolicy::default()`].
-//! - Ensure `max_bytes_inclusive` logic in [`TieredSyntaxPolicy::tier_for_bytes`] matches.
+//! - Ensure `s_max_bytes_inclusive <= m_max_bytes_inclusive`.
 //!
 use std::collections::HashMap;
 pub mod lru;
@@ -149,7 +149,6 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use ropey::Rope;
-use rustc_hash::FxHashSet;
 use tokio::sync::{OwnedSemaphorePermit, Semaphore};
 use tokio::task::JoinHandle;
 use xeno_primitives::ChangeSet;
@@ -166,13 +165,17 @@ const DEFAULT_MAX_CONCURRENCY: usize = 2;
 /// of syntax tree retention.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SyntaxHotness {
-	/// Actively displayed in a window. Parsing is high priority and results are always
-	/// installed.
+	/// Actively displayed in a window.
+	///
+	/// Parsing is high priority and results are always installed.
 	Visible,
 	/// Not currently visible but likely to become so soon (e.g., recently closed split).
+	///
 	/// Parsing is allowed but lower priority.
 	Warm,
-	/// Not visible and not in recent use. Safe to drop heavy syntax state to save memory.
+	/// Not visible and not in recent use.
+	///
+	/// Safe to drop heavy syntax state to save memory.
 	Cold,
 }
 
@@ -187,43 +190,57 @@ pub enum SyntaxTier {
 	L,
 }
 
-/// Tier configuration.
+/// Configuration for a specific [`SyntaxTier`].
 #[derive(Debug, Clone, Copy)]
 pub struct TierCfg {
-	pub max_bytes_inclusive: Option<usize>,
+	/// Maximum time allowed for a single parse operation.
 	pub parse_timeout: Duration,
+	/// Time to wait after an edit before triggering a background parse.
 	pub debounce: Duration,
+	/// Backoff duration after a parse timeout.
 	pub cooldown_on_timeout: Duration,
+	/// Backoff duration after a parse error.
 	pub cooldown_on_error: Duration,
+	/// Injection handling policy.
 	pub injections: InjectionPolicy,
+	/// Retention policy for hidden documents.
 	pub retention_hidden: RetentionPolicy,
+	/// Whether to allow background parsing when the document is not visible.
 	pub parse_when_hidden: bool,
 }
 
-/// Syntax tree retention policy (memory control).
+/// Syntax tree retention policy for memory management.
 #[derive(Debug, Clone, Copy)]
 pub enum RetentionPolicy {
-	/// Never drop.
+	/// Never drop the syntax tree.
 	Keep,
-	/// Drop immediately once hidden (or cold).
+	/// Drop the syntax tree immediately once the document is hidden.
 	DropWhenHidden,
-	/// Drop after a TTL since last Visible.
+	/// Drop the syntax tree after a TTL since the document was last visible.
 	DropAfter(Duration),
 }
 
-/// Tiered policy: compute tier from size -> cfg.
+/// Tiered syntax policy that maps file size to specific configurations.
 #[derive(Debug, Clone)]
 pub struct TieredSyntaxPolicy {
-	s: TierCfg,
-	m: TierCfg,
-	l: TierCfg,
+	/// Threshold for the small (S) tier.
+	pub s_max_bytes_inclusive: usize,
+	/// Threshold for the medium (M) tier.
+	pub m_max_bytes_inclusive: usize,
+	/// Configuration for small files.
+	pub s: TierCfg,
+	/// Configuration for medium files.
+	pub m: TierCfg,
+	/// Configuration for large files.
+	pub l: TierCfg,
 }
 
 impl Default for TieredSyntaxPolicy {
 	fn default() -> Self {
 		Self {
+			s_max_bytes_inclusive: 256 * 1024,
+			m_max_bytes_inclusive: 1024 * 1024,
 			s: TierCfg {
-				max_bytes_inclusive: Some(256 * 1024),
 				parse_timeout: Duration::from_millis(500),
 				debounce: Duration::from_millis(80),
 				cooldown_on_timeout: Duration::from_millis(400),
@@ -233,7 +250,6 @@ impl Default for TieredSyntaxPolicy {
 				parse_when_hidden: false,
 			},
 			m: TierCfg {
-				max_bytes_inclusive: Some(1024 * 1024),
 				parse_timeout: Duration::from_millis(1200),
 				debounce: Duration::from_millis(140),
 				cooldown_on_timeout: Duration::from_secs(2),
@@ -243,7 +259,6 @@ impl Default for TieredSyntaxPolicy {
 				parse_when_hidden: false,
 			},
 			l: TierCfg {
-				max_bytes_inclusive: None,
 				parse_timeout: Duration::from_secs(3),
 				debounce: Duration::from_millis(250),
 				cooldown_on_timeout: Duration::from_secs(10),
@@ -258,9 +273,9 @@ impl Default for TieredSyntaxPolicy {
 
 impl TieredSyntaxPolicy {
 	pub fn tier_for_bytes(&self, bytes: usize) -> SyntaxTier {
-		if bytes <= self.s.max_bytes_inclusive.unwrap() {
+		if bytes <= self.s_max_bytes_inclusive {
 			SyntaxTier::S
-		} else if bytes <= self.m.max_bytes_inclusive.unwrap() {
+		} else if bytes <= self.m_max_bytes_inclusive {
 			SyntaxTier::M
 		} else {
 			SyntaxTier::L
@@ -287,6 +302,7 @@ struct DocSched {
 	last_visible_at: Instant,
 	cooldown_until: Option<Instant>,
 	inflight: Option<PendingSyntaxTask>,
+	completed: Option<CompletedSyntaxTask>,
 }
 
 impl DocSched {
@@ -296,6 +312,7 @@ impl DocSched {
 			last_visible_at: now,
 			cooldown_until: None,
 			inflight: None,
+			completed: None,
 		}
 	}
 }
@@ -305,7 +322,15 @@ struct PendingSyntaxTask {
 	lang_id: LanguageId,
 	opts: OptKey,
 	_started_at: Instant,
+	_permit: OwnedSemaphorePermit,
 	task: JoinHandle<Result<Syntax, SyntaxError>>,
+}
+
+struct CompletedSyntaxTask {
+	doc_version: u64,
+	lang_id: LanguageId,
+	opts: OptKey,
+	result: Result<Syntax, SyntaxError>,
 }
 
 /// Result of polling syntax state.
@@ -387,19 +412,21 @@ impl SyntaxEngine for RealSyntaxEngine {
 	}
 }
 
-/// Primary state for background syntax scheduling and results storage.
+/// Top-level scheduler for background syntax parsing and results storage.
 ///
-/// The manager acts as a top-level scheduler, enforcing global concurrency limits
-/// and per-document single-flight parsing.
+/// The [`SyntaxManager`] enforces global concurrency limits via a semaphore and
+/// manages per-document state, including incremental updates and tiered policies.
+/// It integrates with the editor tick and render loops to ensure monotonic tree
+/// installation and prompt permit release.
 pub struct SyntaxManager {
 	policy: TieredSyntaxPolicy,
 	permits: Arc<Semaphore>,
 	entries: HashMap<DocumentId, DocEntry>,
 	engine: Arc<dyn SyntaxEngine>,
-	dirty_docs: FxHashSet<DocumentId>,
 }
 
 impl Default for SyntaxManager {
+	/// Creates a new manager with default concurrency limits.
 	fn default() -> Self {
 		Self::new(DEFAULT_MAX_CONCURRENCY)
 	}
@@ -474,7 +501,6 @@ impl SyntaxManager {
 			permits: Arc::new(Semaphore::new(max_concurrency.max(1))),
 			entries: HashMap::new(),
 			engine: Arc::new(RealSyntaxEngine),
-			dirty_docs: FxHashSet::default(),
 		}
 	}
 
@@ -485,11 +511,16 @@ impl SyntaxManager {
 			permits: Arc::new(Semaphore::new(max_concurrency.max(1))),
 			entries: HashMap::new(),
 			engine,
-			dirty_docs: FxHashSet::default(),
 		}
 	}
 
 	pub fn set_policy(&mut self, policy: TieredSyntaxPolicy) {
+		assert!(
+			policy.s_max_bytes_inclusive <= policy.m_max_bytes_inclusive,
+			"TieredSyntaxPolicy: s_max ({}) must be <= m_max ({})",
+			policy.s_max_bytes_inclusive,
+			policy.m_max_bytes_inclusive
+		);
 		self.policy = policy;
 	}
 
@@ -528,11 +559,10 @@ impl SyntaxManager {
 
 	/// Returns the document version that the installed syntax tree corresponds to.
 	pub fn syntax_doc_version(&self, doc_id: DocumentId) -> Option<u64> {
-		self.entries
-			.get(&doc_id)
-			.and_then(|e| e.slot.tree_doc_version)
+		self.entries.get(&doc_id)?.slot.tree_doc_version
 	}
 
+	/// Resets the syntax state for a document, clearing the current tree and history.
 	pub fn reset_syntax(&mut self, doc_id: DocumentId) {
 		let entry = self.entry_mut(doc_id);
 		if entry.slot.current.is_some() {
@@ -542,32 +572,26 @@ impl SyntaxManager {
 		}
 		entry.slot.dirty = true;
 		entry.slot.pending_incremental = None;
-		self.dirty_docs.insert(doc_id);
 	}
 
+	/// Marks a document as dirty, triggering a reparse on the next poll.
 	pub fn mark_dirty(&mut self, doc_id: DocumentId) {
 		self.entry_mut(doc_id).slot.dirty = true;
-		self.dirty_docs.insert(doc_id);
 	}
 
 	/// Records an edit for debounce scheduling without changeset data.
 	pub fn note_edit(&mut self, doc_id: DocumentId) {
 		let now = Instant::now();
-		let entry = self
-			.entries
-			.entry(doc_id)
-			.or_insert_with(|| DocEntry::new(now));
+		let entry = self.entry_mut(doc_id);
 		entry.sched.last_edit_at = now;
 		entry.slot.dirty = true;
-		self.dirty_docs.insert(doc_id);
 	}
 
 	/// Records an edit and applies an incremental tree-sitter update.
 	///
-	/// Combines three steps into one call:
-	/// 1. Updates debounce timestamp and marks the document dirty.
-	/// 2. Accumulates the changeset into [`PendingIncrementalEdits`].
-	/// 3. Attempts a synchronous incremental reparse (10 ms timeout).
+	/// This is the primary path for interactive edits. It attempts to update
+	/// the resident syntax tree synchronously (with a 10ms timeout) before
+	/// falling back to background parsing.
 	pub fn note_edit_incremental(
 		&mut self,
 		doc_id: DocumentId,
@@ -580,17 +604,13 @@ impl SyntaxManager {
 		const SYNC_TIMEOUT: Duration = Duration::from_millis(10);
 
 		let now = Instant::now();
-		let entry = self
-			.entries
-			.entry(doc_id)
-			.or_insert_with(|| DocEntry::new(now));
+		let entry = self.entry_mut(doc_id);
 		entry.sched.last_edit_at = now;
 		entry.slot.dirty = true;
-		self.dirty_docs.insert(doc_id);
 
-		if entry.slot.current.is_none() {
+		let Some(syntax) = entry.slot.current.as_mut() else {
 			return;
-		}
+		};
 
 		match entry.slot.pending_incremental.take() {
 			Some(mut pending) => {
@@ -605,29 +625,27 @@ impl SyntaxManager {
 			}
 		}
 
-		let syntax = entry.slot.current.as_mut().expect("checked above");
 		let opts = SyntaxOptions {
 			parse_timeout: SYNC_TIMEOUT,
 			..syntax.opts()
 		};
 
-		match syntax.update_from_changeset(
-			old_rope.slice(..),
-			new_rope.slice(..),
-			changeset,
-			loader,
-			opts,
-		) {
-			Ok(()) => {
-				entry.slot.pending_incremental = None;
-				entry.slot.dirty = false;
-				entry.slot.tree_doc_version = Some(doc_version);
-				self.dirty_docs.remove(&doc_id);
-				mark_updated(&mut entry.slot);
-			}
-			Err(e) => {
-				tracing::debug!(error = %e, ?doc_id, "Sync incremental update failed");
-			}
+		if syntax
+			.update_from_changeset(
+				old_rope.slice(..),
+				new_rope.slice(..),
+				changeset,
+				loader,
+				opts,
+			)
+			.is_ok()
+		{
+			entry.slot.pending_incremental = None;
+			entry.slot.dirty = false;
+			entry.slot.tree_doc_version = Some(doc_version);
+			mark_updated(&mut entry.slot);
+		} else {
+			tracing::debug!(?doc_id, "Sync incremental update failed");
 		}
 	}
 
@@ -638,7 +656,6 @@ impl SyntaxManager {
 
 	/// Removes all tracking state and pending tasks for a document.
 	pub fn forget_doc(&mut self, doc_id: DocumentId) {
-		self.dirty_docs.remove(&doc_id);
 		if let Some(mut entry) = self.entries.remove(&doc_id)
 			&& let Some(p) = entry.sched.inflight.take()
 		{
@@ -668,7 +685,10 @@ impl SyntaxManager {
 	}
 
 	pub fn dirty_docs(&self) -> impl Iterator<Item = DocumentId> + '_ {
-		self.dirty_docs.iter().copied()
+		self.entries
+			.iter()
+			.filter(|(_, e)| e.slot.dirty)
+			.map(|(id, _)| *id)
 	}
 
 	/// Returns true if any background task has completed its work.
@@ -685,61 +705,83 @@ impl SyntaxManager {
 		})
 	}
 
+	/// Drains all completed background tasks into the per-document `completed` slots.
+	///
+	/// Releases semaphore permits promptly even if the document is not visible.
+	pub fn drain_finished_inflight(&mut self) -> bool {
+		let mut any_drained = false;
+		for entry in self.entries.values_mut() {
+			let Some(mut inflight) = entry.sched.inflight.take() else {
+				continue;
+			};
+
+			if !inflight.task.is_finished() {
+				entry.sched.inflight = Some(inflight);
+				continue;
+			}
+
+			if let Some(res) = xeno_primitives::future::poll_once(&mut inflight.task) {
+				entry.sched.completed = Some(CompletedSyntaxTask {
+					doc_version: inflight.doc_version,
+					lang_id: inflight.lang_id,
+					opts: inflight.opts,
+					result: res
+						.map_err(|e| SyntaxError::Parse(format!("task join error: {}", e)))
+						.and_then(|r| r),
+				});
+				any_drained = true;
+			} else {
+				entry.sched.inflight = Some(inflight);
+			}
+		}
+		any_drained
+	}
+
 	/// Polls or kicks background syntax parsing for a document.
 	///
-	/// This is the primary entry point for the syntax scheduler. It coordinates:
-	/// 1. Polling and draining inflight tasks.
-	/// 2. Validating results against [`LanguageId`] and [`OptKey`].
-	/// 3. Enforcing retention policy at task completion time.
-	/// 4. Managing debounce and backoff (cooldown) timers.
-	/// 5. Spawning new background tasks if global concurrency permits are available.
+	/// This coordinates polling inflight tasks, enforcing retention and
+	/// monotonicity, and spawning new tasks if concurrency permits are available.
 	///
 	/// # Installation Predicate
 	///
 	/// Completed parses are installed only if the language and options key still match.
-	/// A stale parse (version mismatch) is permitted if the slot is currently dirty
-	/// or empty to maintain some level of highlighting while catching up.
-	///
-	/// # Options Change Detection
-	///
-	/// If the parse options (e.g., injection policy) have changed since the last
-	/// call, any inflight task is aborted and the document is marked dirty to
-	/// trigger a reparse under the new policy.
+	/// Monotonicity is enforced via `tree_doc_version`.
 	pub fn ensure_syntax(&mut self, ctx: EnsureSyntaxContext<'_>) -> SyntaxPollOutcome {
 		let now = Instant::now();
+		let doc_id = ctx.doc_id;
 
-		let entry = self
-			.entries
-			.entry(ctx.doc_id)
-			.or_insert_with(|| DocEntry::new(now));
-
-		entry.slot.updated = false;
-
-		if entry.slot.language_id != ctx.language_id {
-			if let Some(pending) = entry.sched.inflight.take() {
-				pending.task.abort();
-			}
-			if entry.slot.current.is_some() {
-				entry.slot.current = None;
-				entry.slot.tree_doc_version = None;
-				mark_updated(&mut entry.slot);
-			}
-			entry.slot.dirty = true;
-			entry.slot.pending_incremental = None;
-			self.dirty_docs.insert(ctx.doc_id);
-			entry.slot.language_id = ctx.language_id;
-		}
-
-		if matches!(ctx.hotness, SyntaxHotness::Visible | SyntaxHotness::Warm) {
-			entry.sched.last_visible_at = now;
-		}
-
+		// Calculate policy and fetch shared state before borrowing a mutable entry
 		let bytes = ctx.content.len_bytes();
 		let tier = self.policy.tier_for_bytes(bytes);
 		let cfg = self.policy.cfg(tier);
 		let current_opts_key = OptKey {
 			injections: cfg.injections,
 		};
+
+		let permits = Arc::clone(&self.permits);
+		let engine = Arc::clone(&self.engine);
+
+		let entry = self.entry_mut(doc_id);
+		entry.slot.updated = false;
+
+		// 1. Language/Options change detection
+		if entry.slot.language_id != ctx.language_id {
+			if let Some(pending) = entry.sched.inflight.take() {
+				pending.task.abort();
+			}
+			entry.slot.current = None;
+			entry.slot.tree_doc_version = None;
+			entry.sched.completed = None;
+			entry.sched.cooldown_until = None;
+			entry.slot.dirty = true;
+			entry.slot.pending_incremental = None;
+			entry.slot.language_id = ctx.language_id;
+			mark_updated(&mut entry.slot);
+		}
+
+		if matches!(ctx.hotness, SyntaxHotness::Visible | SyntaxHotness::Warm) {
+			entry.sched.last_visible_at = now;
+		}
 
 		if entry
 			.slot
@@ -749,24 +791,33 @@ impl SyntaxManager {
 			if let Some(pending) = entry.sched.inflight.take() {
 				pending.task.abort();
 			}
+			entry.sched.completed = None;
+			entry.sched.cooldown_until = None;
 			entry.slot.dirty = true;
 			entry.slot.pending_incremental = None;
-			self.dirty_docs.insert(ctx.doc_id);
 		}
 		entry.slot.last_opts_key = Some(current_opts_key);
 
-		if let Some(p) = entry.sched.inflight.as_mut() {
-			let join = xeno_primitives::future::poll_once(&mut p.task);
-			if join.is_none() {
-				return SyntaxPollOutcome {
-					result: SyntaxPollResult::Pending,
-					updated: entry.slot.updated,
-				};
+		// 2. Poll inflight
+		if let Some(mut p) = entry.sched.inflight.take() {
+			if let Some(join_res) = xeno_primitives::future::poll_once(&mut p.task) {
+				entry.sched.completed = Some(CompletedSyntaxTask {
+					doc_version: p.doc_version,
+					lang_id: p.lang_id,
+					opts: p.opts,
+					result: join_res
+						.map_err(|e| SyntaxError::Parse(format!("task join error: {}", e)))
+						.and_then(|r| r),
+				});
+			} else {
+				entry.sched.inflight = Some(p);
 			}
+		}
 
-			let done = entry.sched.inflight.take().expect("inflight present");
-			match join.expect("checked ready") {
-				Ok(Ok(syntax_tree)) => {
+		// 3. Install completed
+		if let Some(done) = entry.sched.completed.take() {
+			match done.result {
+				Ok(syntax_tree) => {
 					let Some(current_lang) = ctx.language_id else {
 						return SyntaxPollOutcome {
 							result: SyntaxPollResult::NoLanguage,
@@ -791,46 +842,31 @@ impl SyntaxManager {
 						entry.slot.dirty,
 					);
 
-					let mut installed = false;
 					if lang_ok && opts_ok && retain_ok && allow_install {
 						entry.slot.current = Some(syntax_tree);
 						entry.slot.language_id = Some(current_lang);
 						entry.slot.tree_doc_version = Some(done.doc_version);
 						mark_updated(&mut entry.slot);
-						installed = true;
-					}
-
-					if lang_ok && opts_ok && version_match && !retain_ok {
+						if version_match {
+							entry.slot.dirty = false;
+							entry.sched.cooldown_until = None;
+						}
+					} else if lang_ok && opts_ok && version_match && !retain_ok {
 						entry.slot.current = None;
 						entry.slot.pending_incremental = None;
 						entry.slot.dirty = false;
-						self.dirty_docs.remove(&ctx.doc_id);
 						mark_updated(&mut entry.slot);
 					}
-
-					if installed && version_match && opts_ok {
-						entry.slot.dirty = false;
-						self.dirty_docs.remove(&ctx.doc_id);
-						entry.sched.cooldown_until = None;
-					}
 				}
-				Ok(Err(SyntaxError::Timeout)) => {
+				Err(SyntaxError::Timeout) => {
 					entry.sched.cooldown_until = Some(now + cfg.cooldown_on_timeout);
 					return SyntaxPollOutcome {
 						result: SyntaxPollResult::CoolingDown,
 						updated: entry.slot.updated,
 					};
 				}
-				Ok(Err(e)) => {
-					tracing::warn!(doc_id=?ctx.doc_id, tier=?tier, error=%e, "Background syntax parse failed");
-					entry.sched.cooldown_until = Some(now + cfg.cooldown_on_error);
-					return SyntaxPollOutcome {
-						result: SyntaxPollResult::CoolingDown,
-						updated: entry.slot.updated,
-					};
-				}
 				Err(e) => {
-					tracing::warn!(doc_id=?ctx.doc_id, tier=?tier, error=%e, "Background syntax task panicked");
+					tracing::warn!(?doc_id, ?tier, error=%e, "Background syntax parse failed");
 					entry.sched.cooldown_until = Some(now + cfg.cooldown_on_error);
 					return SyntaxPollOutcome {
 						result: SyntaxPollResult::CoolingDown,
@@ -840,6 +876,14 @@ impl SyntaxManager {
 			}
 		}
 
+		if entry.sched.inflight.is_some() {
+			return SyntaxPollOutcome {
+				result: SyntaxPollResult::Pending,
+				updated: entry.slot.updated,
+			};
+		}
+
+		// 4. Language check
 		let Some(lang_id) = ctx.language_id else {
 			if entry.slot.current.is_some() {
 				entry.slot.current = None;
@@ -848,7 +892,6 @@ impl SyntaxManager {
 			}
 			entry.slot.language_id = None;
 			entry.slot.dirty = false;
-			self.dirty_docs.remove(&ctx.doc_id);
 			entry.sched.cooldown_until = None;
 			return SyntaxPollOutcome {
 				result: SyntaxPollResult::NoLanguage,
@@ -862,8 +905,7 @@ impl SyntaxManager {
 			cfg.retention_hidden,
 			ctx.hotness,
 			&mut entry.slot,
-			ctx.doc_id,
-			&mut self.dirty_docs,
+			doc_id,
 		);
 
 		if entry.slot.current.is_some() && !entry.slot.dirty {
@@ -873,7 +915,8 @@ impl SyntaxManager {
 			};
 		}
 
-		if !matches!(ctx.hotness, SyntaxHotness::Visible) && !cfg.parse_when_hidden {
+		// 5. Gating
+		if matches!(ctx.hotness, SyntaxHotness::Cold) && !cfg.parse_when_hidden {
 			return SyntaxPollOutcome {
 				result: SyntaxPollResult::Disabled,
 				updated: entry.slot.updated,
@@ -898,7 +941,8 @@ impl SyntaxManager {
 			};
 		}
 
-		let permit = match self.permits.clone().try_acquire_owned() {
+		// 6. Schedule new task
+		let permit = match permits.try_acquire_owned() {
 			Ok(p) => p,
 			Err(_) => {
 				return SyntaxPollOutcome {
@@ -910,7 +954,6 @@ impl SyntaxManager {
 
 		let content = ctx.content.clone();
 		let loader = Arc::clone(ctx.loader);
-		let engine = Arc::clone(&self.engine);
 
 		let opts = SyntaxOptions {
 			parse_timeout: cfg.parse_timeout,
@@ -926,7 +969,6 @@ impl SyntaxManager {
 		});
 
 		let task = tokio::task::spawn_blocking(move || {
-			let _permit: OwnedSemaphorePermit = permit;
 			if let Some((syntax, pending)) = incremental {
 				engine.update_incremental(
 					syntax,
@@ -947,6 +989,7 @@ impl SyntaxManager {
 			lang_id,
 			opts: current_opts_key,
 			_started_at: now,
+			_permit: permit,
 			task,
 		});
 
@@ -1019,8 +1062,7 @@ fn apply_retention(
 	policy: RetentionPolicy,
 	hotness: SyntaxHotness,
 	state: &mut SyntaxSlot,
-	doc_id: DocumentId,
-	dirty_docs: &mut FxHashSet<DocumentId>,
+	_doc_id: DocumentId,
 ) {
 	if matches!(hotness, SyntaxHotness::Visible | SyntaxHotness::Warm) {
 		return;
@@ -1034,7 +1076,6 @@ fn apply_retention(
 				state.tree_doc_version = None;
 				state.dirty = false;
 				state.pending_incremental = None;
-				dirty_docs.remove(&doc_id);
 				mark_updated(state);
 			}
 		}
@@ -1044,7 +1085,6 @@ fn apply_retention(
 				state.tree_doc_version = None;
 				state.dirty = false;
 				state.pending_incremental = None;
-				dirty_docs.remove(&doc_id);
 				mark_updated(state);
 			}
 		}

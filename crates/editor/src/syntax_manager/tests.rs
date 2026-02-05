@@ -231,7 +231,7 @@ fn test_stale_parse_does_not_overwrite_clean_incremental() {
 	use super::should_install_completed_parse;
 
 	// (done_version, current_tree_version, target_version, slot_dirty, expected)
-	let cases: [(u64, Option<u64>, u64, bool, bool); 8] = [
+	let cases: [(u64, Option<u64>, u64, bool, bool); 9] = [
 		(5, Some(3), 10, false, false), // Clean tree + stale result → MUST NOT install.
 		(5, Some(3), 5, false, true),   // Exact version match → always install.
 		(5, Some(3), 5, true, true),
@@ -240,6 +240,7 @@ fn test_stale_parse_does_not_overwrite_clean_incremental() {
 		(5, Some(3), 10, true, true), // Dirty slot → install stale for catch-up continuity.
 		(5, None, 10, true, true),
 		(5, None, 10, false, true), // No current syntax → install stale for bootstrap.
+		(0, Some(1), 1, false, false), // Clean incremental (V1) must not be clobbered by stale background (V0)
 	];
 
 	for (done_version, current_tree_version, target_version, dirty, expected) in cases {
@@ -588,4 +589,175 @@ async fn test_opts_mismatch_aborts_inflight() {
 
 	assert_eq!(poll.result, SyntaxPollResult::Kicked);
 	assert!(mgr.has_pending(doc_id));
+}
+
+#[test]
+#[should_panic(expected = "TieredSyntaxPolicy: s_max (20) must be <= m_max (10)")]
+fn test_set_policy_validates_thresholds() {
+	let mut mgr = SyntaxManager::default();
+	let policy = TieredSyntaxPolicy {
+		s_max_bytes_inclusive: 20,
+		m_max_bytes_inclusive: 10,
+		..TieredSyntaxPolicy::default()
+	};
+	mgr.set_policy(policy);
+}
+
+/// Verifies that aborting an inflight task releases its semaphore permit.
+///
+/// This test fills the concurrency limit (1) with a stalled task, then triggers
+/// an abort via language switch. It asserts that a subsequent task can be kicked,
+/// proving the permit was released.
+#[tokio::test]
+async fn test_abort_releases_permit() {
+	let engine = Arc::new(MockEngine::new());
+	let (tx_stall, rx_stall) = oneshot::channel();
+	engine.set_gate(rx_stall);
+
+	// Max concurrency = 1
+	let mut mgr = SyntaxManager::new_with_engine(1, engine.clone());
+	let mut policy = TieredSyntaxPolicy::default();
+	policy.s.debounce = Duration::ZERO;
+	mgr.set_policy(policy);
+
+	let doc_id = DocumentId(1);
+	let loader = Arc::new(LanguageLoader::from_embedded());
+	let lang_id_1 = loader.language_for_name("rust").unwrap();
+	let lang_id_2 = loader.language_for_name("python").unwrap();
+	let content = Rope::from("test");
+
+	// 1. Kick off first task (stalled)
+	let poll1 = mgr.ensure_syntax(EnsureSyntaxContext {
+		doc_id,
+		doc_version: 1,
+		language_id: Some(lang_id_1),
+		content: &content,
+		hotness: SyntaxHotness::Visible,
+		loader: &loader,
+	});
+	assert_eq!(poll1.result, SyntaxPollResult::Kicked);
+
+	// 2. Trigger abort via language switch
+	// This aborts the inflight task. The `tokio::task::spawn_blocking` closure should
+	// be dropped, releasing the `OwnedSemaphorePermit`.
+	let poll2 = mgr.ensure_syntax(EnsureSyntaxContext {
+		doc_id,
+		doc_version: 1,
+		language_id: Some(lang_id_2),
+		content: &content,
+		hotness: SyntaxHotness::Visible,
+		loader: &loader,
+	});
+	// Result should be Kicked again (if permit was released) or Throttled (if leaked)
+	assert_eq!(poll2.result, SyntaxPollResult::Kicked);
+
+	// Clean up the stalled task to avoid leaked task warnings
+	let _ = tx_stall.send(());
+}
+
+/// Verifies that completing a task and calling drain_finished_inflight releases
+/// the permit even if the document is not re-polled via ensure_syntax.
+#[tokio::test]
+async fn test_drain_releases_permit_without_repoll() {
+	let engine = Arc::new(MockEngine::new());
+	let (tx_stall, rx_stall) = oneshot::channel();
+	engine.set_gate(rx_stall);
+
+	let mut mgr = SyntaxManager::new_with_engine(1, engine.clone());
+	let mut policy = TieredSyntaxPolicy::default();
+	policy.s.debounce = Duration::ZERO;
+	mgr.set_policy(policy);
+
+	let doc_id_a = DocumentId(1);
+	let doc_id_b = DocumentId(2);
+	let loader = Arc::new(LanguageLoader::from_embedded());
+	let lang_id = loader.language_for_name("rust").unwrap();
+	let content = Rope::from("test");
+
+	// 1. Kick off task for doc A
+	mgr.ensure_syntax(EnsureSyntaxContext {
+		doc_id: doc_id_a,
+		doc_version: 1,
+		language_id: Some(lang_id),
+		content: &content,
+		hotness: SyntaxHotness::Visible,
+		loader: &loader,
+	});
+	assert!(mgr.has_pending(doc_id_a));
+
+	// 2. Complete task A
+	let _ = tx_stall.send(());
+	tokio::time::sleep(Duration::from_millis(50)).await;
+
+	// 3. Drain A
+	assert!(mgr.drain_finished_inflight());
+	assert!(!mgr.has_pending(doc_id_a));
+
+	// 4. Kick task B. This should succeed if A's permit was released.
+	let poll_b = mgr.ensure_syntax(EnsureSyntaxContext {
+		doc_id: doc_id_b,
+		doc_version: 1,
+		language_id: Some(lang_id),
+		content: &content,
+		hotness: SyntaxHotness::Visible,
+		loader: &loader,
+	});
+	assert_eq!(poll_b.result, SyntaxPollResult::Kicked);
+}
+
+/// Verifies that switching a document's language clears any stale completed error
+/// (like a timeout) and allows an immediate re-parse.
+#[tokio::test]
+async fn test_language_switch_clears_completed_error() {
+	let engine = Arc::new(MockEngine::new());
+	let mut mgr = SyntaxManager::new_with_engine(1, engine.clone());
+	let mut policy = TieredSyntaxPolicy::default();
+	policy.s.debounce = Duration::ZERO;
+	// Set long cooldown to ensure we'd be blocked if not cleared
+	policy.s.cooldown_on_timeout = Duration::from_secs(60);
+	mgr.set_policy(policy);
+
+	let doc_id = DocumentId(1);
+	let loader = Arc::new(LanguageLoader::from_embedded());
+	let lang_id_old = loader.language_for_name("rust").unwrap();
+	let lang_id_new = loader.language_for_name("python").unwrap();
+	let content = Rope::from("test");
+
+	// 1. Arrange a timeout error in 'completed'
+	engine.set_result(Err(SyntaxError::Timeout));
+	mgr.ensure_syntax(EnsureSyntaxContext {
+		doc_id,
+		doc_version: 1,
+		language_id: Some(lang_id_old),
+		content: &content,
+		hotness: SyntaxHotness::Visible,
+		loader: &loader,
+	});
+	// Poll to move result to completed and set cooldown
+	tokio::time::sleep(Duration::from_millis(50)).await;
+	mgr.drain_finished_inflight();
+
+	// Verify it's cooling down
+	let poll = mgr.ensure_syntax(EnsureSyntaxContext {
+		doc_id,
+		doc_version: 1,
+		language_id: Some(lang_id_old),
+		content: &content,
+		hotness: SyntaxHotness::Visible,
+		loader: &loader,
+	});
+	assert_eq!(poll.result, SyntaxPollResult::CoolingDown);
+
+	// 2. Switch language
+	let poll_new = mgr.ensure_syntax(EnsureSyntaxContext {
+		doc_id,
+		doc_version: 1,
+		language_id: Some(lang_id_new),
+		content: &content,
+		hotness: SyntaxHotness::Visible,
+		loader: &loader,
+	});
+
+	// Should be Kicked, not CoolingDown
+	assert_eq!(poll_new.result, SyntaxPollResult::Kicked);
 }

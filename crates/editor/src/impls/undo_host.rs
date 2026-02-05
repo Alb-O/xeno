@@ -101,10 +101,10 @@ impl EditorUndoHost<'_> {
 	}
 
 	fn mark_buffer_dirty_for_full_sync(&mut self, buffer_id: ViewId) {
-		if let Some(buffer) = self.buffers.get_buffer_mut(buffer_id) {
+		if let Some(_buffer) = self.buffers.get_buffer_mut(buffer_id) {
 			#[cfg(feature = "lsp")]
 			{
-				let doc_id = buffer.document_id();
+				let doc_id = _buffer.document_id();
 				self.lsp.sync_manager_mut().escalate_full(doc_id);
 			}
 		}

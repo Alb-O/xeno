@@ -7,42 +7,44 @@ use crate::types::Yank;
 
 /// Policy for applying a transaction to a buffer.
 ///
-/// Combines undo and syntax policies. Use builder methods to configure,
-/// or the predefined constants for common cases.
+/// Combines undo and syntax policies to define how a document modification
+/// should be integrated into the editor state.
 #[derive(Debug, Clone, Copy, Default)]
 pub struct ApplyPolicy {
-	/// How to handle undo recording.
+	/// How to handle undo recording for this transaction.
 	pub undo: UndoPolicy,
-	/// How to handle syntax tree updates.
+	/// How to handle syntax tree updates for this transaction.
 	pub syntax: SyntaxPolicy,
 }
 
 impl ApplyPolicy {
-	/// No undo recording, no syntax update. For internal operations.
+	/// Applies the transaction without recording undo or updating syntax.
+	///
+	/// Useful for internal maintenance or ephemeral content.
 	pub const BARE: Self = Self {
 		undo: UndoPolicy::NoUndo,
 		syntax: SyntaxPolicy::None,
 	};
 
-	/// Record undo, incremental syntax update. Standard edit policy.
+	/// Applies the transaction with standard undo recording and incremental syntax updates.
 	pub const EDIT: Self = Self {
 		undo: UndoPolicy::Record,
 		syntax: SyntaxPolicy::IncrementalOrDirty,
 	};
 
-	/// Merge with current undo group, incremental syntax. For insert-mode.
+	/// Applies the transaction merging with the current undo group (e.g. typing).
 	pub const INSERT: Self = Self {
 		undo: UndoPolicy::MergeWithCurrentGroup,
 		syntax: SyntaxPolicy::IncrementalOrDirty,
 	};
 
-	/// Sets the undo policy.
+	/// Returns a new policy with the specified [`UndoPolicy`].
 	pub const fn with_undo(mut self, undo: UndoPolicy) -> Self {
 		self.undo = undo;
 		self
 	}
 
-	/// Sets the syntax policy.
+	/// Returns a new policy with the specified [`SyntaxPolicy`].
 	pub const fn with_syntax(mut self, syntax: SyntaxPolicy) -> Self {
 		self.syntax = syntax;
 		self

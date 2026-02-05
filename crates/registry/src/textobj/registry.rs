@@ -355,6 +355,10 @@ impl TextObjectRegistry {
 		self.snap.load().items_effective.len()
 	}
 
+	pub fn is_empty(&self) -> bool {
+		self.snap.load().items_effective.is_empty()
+	}
+
 	pub fn collisions(&self) -> Vec<Collision> {
 		self.snap.load().collisions.clone()
 	}
