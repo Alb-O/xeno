@@ -5,46 +5,44 @@ use xeno_runtime_language::LanguageLoader;
 
 use crate::types::Yank;
 
-/// Policy for applying a transaction to a buffer.
+/// Application policy for document transactions.
 ///
-/// Combines undo and syntax policies to define how a document modification
-/// should be integrated into the editor state.
+/// Combines undo and syntax policies to define how a modification should be
+/// integrated into the editor state.
 #[derive(Debug, Clone, Copy, Default)]
 pub struct ApplyPolicy {
-	/// How to handle undo recording for this transaction.
+	/// History recording policy for this transaction.
 	pub undo: UndoPolicy,
-	/// How to handle syntax tree updates for this transaction.
+	/// Syntax update policy for this transaction.
 	pub syntax: SyntaxPolicy,
 }
 
 impl ApplyPolicy {
-	/// Applies the transaction without recording undo or updating syntax.
-	///
-	/// Useful for internal maintenance or ephemeral content.
+	/// Transaction applied without history recording or syntax updates.
 	pub const BARE: Self = Self {
 		undo: UndoPolicy::NoUndo,
 		syntax: SyntaxPolicy::None,
 	};
 
-	/// Applies the transaction with standard undo recording and incremental syntax updates.
+	/// Standard edit with history recording and incremental syntax updates.
 	pub const EDIT: Self = Self {
 		undo: UndoPolicy::Record,
 		syntax: SyntaxPolicy::IncrementalOrDirty,
 	};
 
-	/// Applies the transaction merging with the current undo group (e.g. typing).
+	/// Insert-mode edit that merges with the active undo group.
 	pub const INSERT: Self = Self {
 		undo: UndoPolicy::MergeWithCurrentGroup,
 		syntax: SyntaxPolicy::IncrementalOrDirty,
 	};
 
-	/// Returns a new policy with the specified [`UndoPolicy`].
+	/// Returns a copy of the policy with the specified [`UndoPolicy`].
 	pub const fn with_undo(mut self, undo: UndoPolicy) -> Self {
 		self.undo = undo;
 		self
 	}
 
-	/// Returns a new policy with the specified [`SyntaxPolicy`].
+	/// Returns a copy of the policy with the specified [`SyntaxPolicy`].
 	pub const fn with_syntax(mut self, syntax: SyntaxPolicy) -> Self {
 		self.syntax = syntax;
 		self
@@ -58,9 +56,10 @@ use crate::movement;
 mod tests;
 
 impl Buffer {
-	/// Inserts text at all cursor positions, returning the [`Transaction`] without applying it.
+	/// Prepares an insertion transaction at all cursor positions.
 	///
-	/// The caller is responsible for applying the transaction (with or without syntax update).
+	/// Returns the [`Transaction`] and the resulting [`Selection`] without
+	/// applying them.
 	pub fn prepare_insert(&mut self, text: &str) -> (Transaction, xeno_primitives::Selection) {
 		self.ensure_valid_selection();
 
@@ -75,31 +74,28 @@ impl Buffer {
 		(tx, new_selection)
 	}
 
-	/// Inserts text at all cursor positions, returning the applied [`Transaction`].
+	/// Inserts text at all cursor positions.
 	///
-	/// Note: This does NOT update syntax highlighting. For syntax-aware insertion,
-	/// use [`prepare_insert`] and apply with [`apply`] using `ApplyPolicy::EDIT`.
+	/// # Note
+	///
+	/// This does NOT update syntax highlighting. For syntax-aware insertion,
+	/// apply the transaction via [`apply`] with [`ApplyPolicy::EDIT`].
 	pub fn insert_text(&mut self, text: &str) -> Transaction {
 		let (tx, new_selection) = self.prepare_insert(text);
-		let result = self.apply(&tx, ApplyPolicy::BARE, &LanguageLoader::new());
-		if !result.applied {
-			return tx;
+		if self
+			.apply(&tx, ApplyPolicy::BARE, &LanguageLoader::new())
+			.applied
+		{
+			self.set_selection(new_selection);
+			self.sync_cursor_to_selection();
 		}
-		self.set_selection(new_selection);
-		self.sync_cursor_to_selection();
 		tx
 	}
 
-	/// Yanks the current selections to the yank register.
+	/// Yanks the current selection(s) to a [`Yank`] payload.
 	///
-	/// In the 1-cell minimum model, this preserves each selection fragment as a separate
-	/// entry in the [`Yank`] payload. Point selections (cursors) yank exactly one character
-	/// (the character cell they occupy).
-	///
-	/// # Returns
-	///
-	/// Returns `Some(Yank)` containing the fragments and total count, or `None` if the
-	/// document is empty.
+	/// Preserves each selection fragment as a separate entry. Point selections
+	/// yank exactly one character.
 	pub fn yank_selection(&mut self) -> Option<Yank> {
 		self.ensure_valid_selection();
 
@@ -119,190 +115,156 @@ impl Buffer {
 				}
 			}
 
-			if !parts.is_empty() {
-				Some(Yank { parts, total_chars })
-			} else {
-				None
-			}
+			(!parts.is_empty()).then_some(Yank { parts, total_chars })
 		})
 	}
 
-	/// Prepares paste after cursor, returning transaction and new selection without applying.
-	///
-	/// Returns None if text is empty.
+	/// Prepares a paste operation after each cursor.
 	pub fn prepare_paste_after(
 		&mut self,
 		text: &str,
 	) -> Option<(Transaction, xeno_primitives::Selection)> {
-		if text.is_empty() {
-			return None;
-		}
-		self.ensure_valid_selection();
-
-		// Compute new ranges by moving each cursor forward by 1
-		let new_ranges: Vec<_> = self.with_doc(|doc| {
-			self.selection
-				.ranges()
-				.iter()
-				.map(|r| {
-					movement::move_horizontally(
-						doc.content().slice(..),
-						*r,
-						xeno_primitives::range::Direction::Forward,
-						1,
-						false,
-					)
-				})
-				.collect()
-		});
-		self.set_selection(xeno_primitives::Selection::from_vec(
-			new_ranges,
-			self.selection.primary_index(),
-		));
-		Some(self.prepare_insert(text))
+		(!text.is_empty()).then(|| {
+			self.ensure_valid_selection();
+			let new_ranges: Vec<_> = self.with_doc(|doc| {
+				self.selection
+					.ranges()
+					.iter()
+					.map(|r| {
+						movement::move_horizontally(
+							doc.content().slice(..),
+							*r,
+							xeno_primitives::range::Direction::Forward,
+							1,
+							false,
+						)
+					})
+					.collect()
+			});
+			self.set_selection(xeno_primitives::Selection::from_vec(
+				new_ranges,
+				self.selection.primary_index(),
+			));
+			self.prepare_insert(text)
+		})
 	}
 
-	/// Pastes text after the cursor position, returning the applied [`Transaction`].
-	///
-	/// Note: This does NOT update syntax highlighting. For syntax-aware paste,
-	/// use [`prepare_paste_after`] and apply with [`apply`] using `ApplyPolicy::EDIT`.
+	/// Pastes text after the cursor positions.
 	pub fn paste_after(&mut self, text: &str) -> Option<Transaction> {
 		let (tx, new_selection) = self.prepare_paste_after(text)?;
-		let result = self.apply(&tx, ApplyPolicy::BARE, &LanguageLoader::new());
-		if !result.applied {
-			return None;
-		}
-		self.set_selection(new_selection);
-		self.sync_cursor_to_selection();
-		Some(tx)
+		self.apply(&tx, ApplyPolicy::BARE, &LanguageLoader::new())
+			.applied
+			.then(|| {
+				self.set_selection(new_selection);
+				self.sync_cursor_to_selection();
+				tx
+			})
 	}
 
-	/// Prepares paste before cursor, returning transaction and new selection without applying.
-	///
-	/// Returns None if text is empty.
+	/// Prepares a paste operation before each cursor.
 	pub fn prepare_paste_before(
 		&mut self,
 		text: &str,
 	) -> Option<(Transaction, xeno_primitives::Selection)> {
-		if text.is_empty() {
-			return None;
-		}
-		self.ensure_valid_selection();
-		Some(self.prepare_insert(text))
+		(!text.is_empty()).then(|| {
+			self.ensure_valid_selection();
+			self.prepare_insert(text)
+		})
 	}
 
-	/// Pastes text before the cursor position, returning the applied [`Transaction`].
-	///
-	/// Note: This does NOT update syntax highlighting. For syntax-aware paste,
-	/// use [`prepare_paste_before`] and apply with [`apply`] using `ApplyPolicy::EDIT`.
+	/// Pastes text before the cursor positions.
 	pub fn paste_before(&mut self, text: &str) -> Option<Transaction> {
 		let (tx, new_selection) = self.prepare_paste_before(text)?;
-		let result = self.apply(&tx, ApplyPolicy::BARE, &LanguageLoader::new());
-		if !result.applied {
-			return None;
-		}
-		self.set_selection(new_selection);
-		self.sync_cursor_to_selection();
-		Some(tx)
+		self.apply(&tx, ApplyPolicy::BARE, &LanguageLoader::new())
+			.applied
+			.then(|| {
+				self.set_selection(new_selection);
+				self.sync_cursor_to_selection();
+				tx
+			})
 	}
 
-	/// Prepares deletion of selection, returning transaction and new selection without applying.
-	///
-	/// Returns None if selection is empty.
+	/// Prepares deletion of the current selection.
 	pub fn prepare_delete_selection(
 		&mut self,
 	) -> Option<(Transaction, xeno_primitives::Selection)> {
 		self.ensure_valid_selection();
-
 		let tx = self.with_doc(|doc| Transaction::delete(doc.content().slice(..), &self.selection));
 		let new_selection = tx.map_selection(&self.selection);
 		Some((tx, new_selection))
 	}
 
-	/// Deletes the current selection, returning the applied [`Transaction`] if non-empty.
-	///
-	/// Note: This does NOT update syntax highlighting. For syntax-aware deletion,
-	/// use [`prepare_delete_selection`] and apply with [`apply`] using `ApplyPolicy::EDIT`.
+	/// Deletes the current selection.
 	pub fn delete_selection(&mut self) -> Option<Transaction> {
 		let (tx, new_selection) = self.prepare_delete_selection()?;
-		let result = self.apply(&tx, ApplyPolicy::BARE, &LanguageLoader::new());
-		if !result.applied {
-			return None;
-		}
-		self.set_selection(new_selection);
-		Some(tx)
+		self.apply(&tx, ApplyPolicy::BARE, &LanguageLoader::new())
+			.applied
+			.then(|| {
+				self.set_selection(new_selection);
+				tx
+			})
 	}
 
 	/// Applies a transaction with the specified policy.
 	///
-	/// This is the unified entry point for applying transactions. Use [`ApplyPolicy`]
-	/// constants or builder methods to configure undo and syntax behavior.
-	///
-	/// Returns a [`CommitResult`] with `applied=false` if the buffer is read-only.
-	///
-	/// # Examples
-	///
-	/// ```ignore
-	/// // Standard edit with undo recording
-	/// buffer.apply(&tx, ApplyPolicy::EDIT, &loader);
-	///
-	/// // Insert-mode edit (merges with current undo group)
-	/// buffer.apply(&tx, ApplyPolicy::INSERT, &loader);
-	///
-	/// // Custom policy
-	/// buffer.apply(&tx, ApplyPolicy::BARE.with_undo(UndoPolicy::Record), &loader);
-	/// ```
+	/// This is the unified entry point for all local document modifications.
+	/// It resolves undo grouping and enforces view-level readonly checks.
 	pub fn apply(
-		&self,
+		&mut self,
 		tx: &Transaction,
 		policy: ApplyPolicy,
 		loader: &LanguageLoader,
 	) -> CommitResult {
-		if self.readonly_override == Some(true) {
-			return self
-				.with_doc(|doc| CommitResult::blocked(doc.version(), doc.insert_undo_active()));
-		}
-		if self.readonly_override.is_none() {
-			let (readonly, version, insert_active) =
-				self.with_doc(|doc| (doc.is_readonly(), doc.version(), doc.insert_undo_active()));
+		if let Some(readonly) = self.readonly_override {
 			if readonly {
-				return CommitResult::blocked(version, insert_active);
+				return CommitResult::blocked(self.version());
 			}
+		} else if self.with_doc(|doc| doc.is_readonly()) {
+			return CommitResult::blocked(self.version());
 		}
+
+		let merge = match policy.undo {
+			UndoPolicy::MergeWithCurrentGroup => self.insert_undo_active,
+			_ => false,
+		};
 
 		let commit = EditCommit::new(tx.clone())
 			.with_undo(policy.undo)
 			.with_syntax(policy.syntax);
 
-		self.with_doc_mut(|doc| doc.commit_unchecked(commit, loader))
+		let result = self.with_doc_mut(|doc| doc.commit_unchecked(commit, merge, loader));
+
+		if result.applied {
+			self.insert_undo_active = matches!(policy.undo, UndoPolicy::MergeWithCurrentGroup);
+		}
+
+		result
 	}
 
-	/// Applies a remote sync transaction, bypassing the buffer-level readonly
-	/// override.
+	/// Applies a remote transaction, bypassing view-level readonly overrides.
 	///
-	/// Follower buffers have `readonly_override = Some(true)` to block user
-	/// edits, but remote deltas from the owner must still be applied. Only
-	/// checks the document-level readonly flag (underlying file permissions).
+	/// Remote edits always clear the local insert-undo group to maintain
+	/// history consistency.
 	pub fn apply_remote(
-		&self,
+		&mut self,
 		tx: &Transaction,
 		policy: ApplyPolicy,
 		loader: &LanguageLoader,
 	) -> CommitResult {
-		let (readonly, version, insert_active) =
-			self.with_doc(|doc| (doc.is_readonly(), doc.version(), doc.insert_undo_active()));
-		if readonly {
-			return CommitResult::blocked(version, insert_active);
+		if self.with_doc(|doc| doc.is_readonly()) {
+			return CommitResult::blocked(self.version());
 		}
 
 		let commit = EditCommit::new(tx.clone())
 			.with_undo(policy.undo)
 			.with_syntax(policy.syntax);
 
-		self.with_doc_mut(|doc| doc.commit_unchecked(commit, loader))
+		let result = self.with_doc_mut(|doc| doc.commit_unchecked(commit, false, loader));
+		self.insert_undo_active = false;
+		result
 	}
 
-	/// Finalizes selection/cursor after a transaction is applied.
+	/// Finalizes view state (selection and cursor) after a successful edit.
 	pub fn finalize_selection(&mut self, new_selection: xeno_primitives::Selection) {
 		self.set_selection(new_selection);
 		self.sync_cursor_to_selection();

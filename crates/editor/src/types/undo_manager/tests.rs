@@ -106,7 +106,7 @@ fn with_edit_calls_finalize_on_failure() {
 		buffer_id,
 		UndoPolicy::Record,
 		EditOrigin::Internal("test"),
-		|_host| CommitResult::blocked(0, false),
+		|_host| CommitResult::blocked(0),
 	);
 
 	assert!(!applied);

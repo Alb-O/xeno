@@ -12,6 +12,8 @@
 #[cfg(test)]
 mod tests;
 
+use std::collections::VecDeque;
+
 use xeno_primitives::{Rope, Transaction};
 
 /// Maximum undo history size in steps.
@@ -20,15 +22,16 @@ pub const MAX_UNDO: usize = 100;
 /// Maximum undo memory usage in bytes (10MB).
 pub const MAX_UNDO_BYTES: usize = 10 * 1024 * 1024;
 
-/// A single step in the undo/redo history.
+/// A single logical step in the undo/redo history.
 ///
 /// Bundles multiple transactions that occurred within a single user-perceived
-/// operation (e.g. an insert-mode typing run).
+/// operation (e.g. an insert-mode typing run). This ensures that undoing a
+/// typing run reverts all characters at once.
 #[derive(Debug, Clone)]
 pub struct UndoStep {
-	/// Transactions applied during the forward operation (for redo).
+	/// Forward transactions applied during the operation.
 	pub redo: Vec<Transaction>,
-	/// Inverse transactions (for undo), applied in reverse order.
+	/// Inverse transactions, applied in reverse order to undo the operation.
 	pub undo: Vec<Transaction>,
 	/// Approximate memory usage of this step in bytes.
 	pub bytes: usize,
@@ -55,7 +58,7 @@ impl UndoStep {
 
 /// Estimates the memory usage of a transaction in bytes.
 ///
-/// Only considers the size of inserted text strings and a small overhead.
+/// Only considers the size of inserted text strings and a small struct overhead.
 fn approx_transaction_bytes(tx: &Transaction) -> usize {
 	tx.operations()
 		.iter()
@@ -71,11 +74,18 @@ fn approx_transaction_bytes(tx: &Transaction) -> usize {
 ///
 /// Stores sequences of forward/reverse transactions instead of full snapshots.
 /// More memory-efficient for large documents and correct for grouped edits.
+///
+/// # Invariants
+///
+/// - `undo_bytes` and `redo_bytes` MUST accurately reflect the sum of `bytes` in
+///   their respective stacks.
+/// - The total memory usage (`undo_bytes + redo_bytes`) MUST NOT exceed [`MAX_UNDO_BYTES`].
 #[derive(Default, Debug)]
 pub struct TxnUndoStore {
-	undo_stack: Vec<UndoStep>,
-	redo_stack: Vec<UndoStep>,
+	undo_stack: VecDeque<UndoStep>,
+	redo_stack: VecDeque<UndoStep>,
 	undo_bytes: usize,
+	redo_bytes: usize,
 }
 
 impl TxnUndoStore {
@@ -104,40 +114,57 @@ impl TxnUndoStore {
 		self.redo_stack.len()
 	}
 
-	/// Clears the redo stack.
+	/// Clears the redo stack and resets its memory counter.
 	///
 	/// MUST be called on every new edit to maintain history integrity.
 	pub fn clear_redo(&mut self) {
 		self.redo_stack.clear();
+		self.redo_bytes = 0;
 	}
 
 	/// Records a transaction for undo.
 	///
 	/// If `merge` is true and a group is already active, appends to it.
-	/// Otherwise starts a new undo step. Enforces [`MAX_UNDO`] and
-	/// [`MAX_UNDO_BYTES`] limits by evicting the oldest steps.
+	/// Otherwise starts a new undo step.
+	///
+	/// # Side Effects
+	///
+	/// - Clears the redo stack.
+	/// - Evicts oldest steps if [`MAX_UNDO`] or [`MAX_UNDO_BYTES`] limits are met.
 	pub fn record_transaction(&mut self, redo_tx: Transaction, undo_tx: Transaction, merge: bool) {
-		if merge && let Some(step) = self.undo_stack.last_mut() {
+		if merge && let Some(step) = self.undo_stack.back_mut() {
 			let old_bytes = step.bytes;
 			step.append(redo_tx, undo_tx);
 			self.undo_bytes += step.bytes - old_bytes;
 		} else {
 			let step = UndoStep::new(redo_tx, undo_tx);
 			self.undo_bytes += step.bytes;
-			self.undo_stack.push(step);
+			self.undo_stack.push_back(step);
 		}
 
-		self.enforce_limits();
 		self.clear_redo();
+		self.enforce_limits();
 	}
 
-	/// Evicts oldest steps until limits are met.
+	/// Evicts oldest steps until memory and depth limits are met.
+	///
+	/// Prioritizes keeping undo history over redo history when memory is tight.
 	fn enforce_limits(&mut self) {
-		while (self.undo_stack.len() > MAX_UNDO || self.undo_bytes > MAX_UNDO_BYTES)
-			&& !self.undo_stack.is_empty()
-		{
-			let oldest = self.undo_stack.remove(0);
+		// Enforce undo history depth first
+		while self.undo_stack.len() > MAX_UNDO && !self.undo_stack.is_empty() {
+			let oldest = self.undo_stack.pop_front().unwrap();
 			self.undo_bytes = self.undo_bytes.saturating_sub(oldest.bytes);
+		}
+
+		// Enforce total memory cap (undo + redo)
+		while self.undo_bytes + self.redo_bytes > MAX_UNDO_BYTES {
+			if let Some(oldest) = self.undo_stack.pop_front() {
+				self.undo_bytes = self.undo_bytes.saturating_sub(oldest.bytes);
+			} else if let Some(oldest) = self.redo_stack.pop_front() {
+				self.redo_bytes = self.redo_bytes.saturating_sub(oldest.bytes);
+			} else {
+				break;
+			}
 		}
 	}
 
@@ -146,17 +173,18 @@ impl TxnUndoStore {
 	/// Returns the applied transactions in the order they were executed
 	/// (reverse of the original edit order).
 	pub fn undo(&mut self, content: &mut Rope) -> Option<Vec<Transaction>> {
-		let step = self.undo_stack.pop()?;
+		let step = self.undo_stack.pop_back()?;
 		self.undo_bytes = self.undo_bytes.saturating_sub(step.bytes);
 
 		let mut applied = Vec::with_capacity(step.undo.len());
-
 		for tx in step.undo.iter().rev() {
 			tx.apply(content);
 			applied.push(tx.clone());
 		}
 
-		self.redo_stack.push(step);
+		self.redo_bytes += step.bytes;
+		self.redo_stack.push_back(step);
+		self.enforce_limits();
 		Some(applied)
 	}
 
@@ -164,7 +192,8 @@ impl TxnUndoStore {
 	///
 	/// Returns the applied transactions in forward order.
 	pub fn redo(&mut self, content: &mut Rope) -> Option<Vec<Transaction>> {
-		let step = self.redo_stack.pop()?;
+		let step = self.redo_stack.pop_back()?;
+		self.redo_bytes = self.redo_bytes.saturating_sub(step.bytes);
 
 		for tx in &step.redo {
 			tx.apply(content);
@@ -172,15 +201,16 @@ impl TxnUndoStore {
 
 		let redo_txs = step.redo.clone();
 		self.undo_bytes += step.bytes;
-		self.undo_stack.push(step);
+		self.undo_stack.push_back(step);
 		self.enforce_limits();
 		Some(redo_txs)
 	}
 }
 
-/// Unified undo backend.
+/// Unified undo backend for a single document.
 ///
-/// Standardized on grouped transaction sequences.
+/// Wraps a [`TxnUndoStore`] and provides a high-level API for recording commits
+/// and performing undo/redo operations with document version updates.
 #[derive(Default, Debug)]
 pub struct UndoBackend {
 	store: TxnUndoStore,
@@ -228,7 +258,6 @@ impl UndoBackend {
 	/// Performs undo, updating the document content and version.
 	///
 	/// Restores document state from the undo stack and increments the version.
-	///
 	/// Returns the applied inverse transactions if undo was performed.
 	pub fn undo(&mut self, content: &mut Rope, version: &mut u64) -> Option<Vec<Transaction>> {
 		let applied = self.store.undo(content)?;
@@ -239,7 +268,6 @@ impl UndoBackend {
 	/// Performs redo, updating the document content and version.
 	///
 	/// Restores document state from the redo stack and increments the version.
-	///
 	/// Returns the applied forward transactions if redo was performed.
 	pub fn redo(&mut self, content: &mut Rope, version: &mut u64) -> Option<Vec<Transaction>> {
 		let applied = self.store.redo(content)?;

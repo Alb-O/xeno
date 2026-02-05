@@ -41,63 +41,54 @@ impl DocumentId {
 	pub const SCRATCH: DocumentId = DocumentId(0);
 }
 
-/// A document - the shared, file-backed content.
+/// A text document representing shared, file-backed content.
 ///
-/// Documents hold the actual text content and metadata that's shared across
-/// all views of the same file. When you split a buffer, both views reference
-/// the same document, so edits in one view appear in the other.
+/// Documents hold the authoritative text content and metadata shared across all
+/// views (buffers) of the same file. They enforce a strict separation between
+/// content state and view state (cursors, selection, scroll position).
 ///
-/// # Undo/Redo
+/// # Architecture
 ///
-/// Document-level undo history stores only document state (text content and
-/// version). View state (cursor, selection, scroll) is managed by the
-/// application layer. This clean separation means:
-///
-/// - Document undo affects all views of the same document
-/// - Each view's cursor/selection is restored from the app-level snapshot
-/// - Buffers can be created/destroyed without corrupting undo history
-///
-/// # Field Access
-///
-/// Core fields are private to enforce invariants. Use the provided getter methods
-/// for read access, and the controlled mutation methods (like `commit()` when
-/// available) for modifications.
+/// - Content is stored as a [`Rope`] for efficient editing of large files.
+/// - Edits are applied via [`Transaction`] objects through the [`commit`] method.
+/// - History is managed by an [`UndoBackend`] at the document level, ensuring
+///   undoing an edit affects all views of that document.
 pub struct Document {
 	/// Unique identifier for this document.
 	pub id: DocumentId,
-
 	/// The text content.
 	content: Rope,
-
-	/// Associated file path (None for scratch documents).
+	/// Associated file path. `None` for scratch documents.
 	pub path: Option<PathBuf>,
-
 	/// Whether the document has unsaved changes.
 	modified: bool,
-
-	/// Whether the document is read-only (prevents all text modifications).
+	/// Whether the document is read-only (prevents all modifications).
 	readonly: bool,
-
-	/// Undo backend (standardized on transaction-based).
-	///
-	/// Manages document-level undo history. View state (cursor, selection,
-	/// scroll) is handled by the application layer.
+	/// Transaction-based grouped undo history.
 	undo_backend: UndoBackend,
-
-	/// Detected file type (e.g., "rust", "python").
+	/// Detected file type (e.g., "rust").
 	pub file_type: Option<String>,
-
-	/// Language ID for syntax highlighting (set by init_syntax).
-	/// Actual syntax parsing is deferred to the application layer.
+	/// Language ID used for syntax highlighting.
 	language_id: Option<xeno_runtime_language::LanguageId>,
-
-	/// Flag for grouping insert-mode edits into a single undo.
-	insert_undo_active: bool,
-
-	/// Document version, incremented on every transaction.
-	///
-	/// Used for LSP synchronization and cache invalidation.
+	/// Monotonic document version, incremented on every transaction.
 	version: u64,
+}
+
+/// Static snapshot of a document's core state at a specific version.
+///
+/// Snapshots are cheap to create (using `Rope` cloning) and are designed to be
+/// used outside document locks for background processing like syntax parsing or
+/// LSP synchronization.
+#[derive(Debug, Clone)]
+pub struct DocumentSnapshot {
+	/// Identity of the source document.
+	pub id: DocumentId,
+	/// Version of the document at the time the snapshot was taken.
+	pub version: u64,
+	/// Language identity.
+	pub language_id: Option<xeno_runtime_language::LanguageId>,
+	/// Snapshot of the text content.
+	pub content: Rope,
 }
 
 impl Document {
@@ -112,20 +103,26 @@ impl Document {
 			undo_backend: UndoBackend::default(),
 			file_type: None,
 			language_id: None,
-			insert_undo_active: false,
 			version: 0,
 		}
 	}
 
-	/// Creates a new scratch document (no file path).
+	/// Captures a static snapshot of the document's current state.
+	pub fn snapshot(&self) -> DocumentSnapshot {
+		DocumentSnapshot {
+			id: self.id,
+			version: self.version,
+			language_id: self.language_id,
+			content: self.content.clone(),
+		}
+	}
+
+	/// Creates a new scratch document without an associated file path.
 	pub fn scratch() -> Self {
 		Self::new(String::new(), None)
 	}
 
-	/// Initializes syntax highlighting for this document based on file path.
-	///
-	/// This only sets metadata. Actual syntax loading is deferred to the
-	/// application layer for async background parsing.
+	/// Initializes syntax highlighting metadata based on the file path.
 	pub fn init_syntax(&mut self, language_loader: &LanguageLoader) {
 		if let Some(ref p) = self.path
 			&& let Some(lang_id) = language_loader.language_for_path(p)
@@ -136,7 +133,7 @@ impl Document {
 		}
 	}
 
-	/// Initializes syntax highlighting for this document by language name.
+	/// Initializes syntax highlighting metadata by explicit language name.
 	pub fn init_syntax_for_language(&mut self, name: &str, language_loader: &LanguageLoader) {
 		if let Some(lang_id) = language_loader.language_for_name(name) {
 			let lang_data = language_loader.get(lang_id);
@@ -145,94 +142,59 @@ impl Document {
 		}
 	}
 
-	/// Records the current document state as an undo boundary.
-	///
-	/// Ends any active insert grouping session. Subsequent edits will
-	/// start a new undo step.
-	pub fn record_undo_boundary(&mut self) {
-		self.insert_undo_active = false;
-	}
-
 	/// Undoes the last document change.
-	///
-	/// Restores document content from the undo stack. View state restoration
-	/// is handled by the application layer.
 	///
 	/// # Returns
 	///
-	/// Returns the applied inverse transactions on success, or `None` if
-	/// nothing to undo.
+	/// The applied inverse transactions if undo was performed.
 	pub fn undo(&mut self) -> Option<Vec<Transaction>> {
-		self.insert_undo_active = false;
 		self.undo_backend.undo(&mut self.content, &mut self.version)
 	}
 
 	/// Redoes the last undone document change.
 	///
-	/// Restores document content from the redo stack. View state restoration
-	/// is handled by the application layer.
-	///
 	/// # Returns
 	///
-	/// Returns the applied transactions on success, or `None` if nothing to redo.
+	/// The applied forward transactions if redo was performed.
 	pub fn redo(&mut self) -> Option<Vec<Transaction>> {
-		self.insert_undo_active = false;
 		self.undo_backend.redo(&mut self.content, &mut self.version)
 	}
 
 	/// Applies an edit through the authoritative edit gate.
 	///
-	/// This is the single entry point for document modifications, ensuring:
-	/// - Readonly checks
-	/// - Undo recording (based on policy)
-	/// - Transaction application
-	/// - Version/modified flag updates
-	/// - Redo stack clearing
-	/// - Syntax policy outcome
-	///
-	/// View state capture happens at the editor level before calling this method.
+	/// This is the primary entry point for modifying document text. It handles
+	/// readonly checks, versioning, and history recording.
 	///
 	/// # Errors
 	///
-	/// Returns `EditError::ReadOnly` if the document is readonly.
+	/// Returns [`EditError::ReadOnly`] if the document is flagged as read-only.
 	pub fn commit(
 		&mut self,
 		commit: EditCommit,
+		merge: bool,
 		language_loader: &LanguageLoader,
 	) -> Result<CommitResult, EditError> {
 		self.ensure_writable()?;
-		Ok(self.commit_unchecked(commit, language_loader))
+		Ok(self.commit_unchecked(commit, merge, language_loader))
 	}
 
 	/// Applies an edit bypassing the readonly check.
 	///
-	/// For internal use by [`Buffer`] when the readonly override has already
-	/// been validated. Handles undo recording and syntax policy outcomes.
+	/// # Safety
 	///
-	/// [`Buffer`]: super::Buffer
+	/// Internal use only. Callers MUST ensure that any readonly overrides
+	/// have been validated at the view layer.
 	#[doc(hidden)]
 	pub fn commit_unchecked(
 		&mut self,
 		commit: EditCommit,
+		merge: bool,
 		_language_loader: &LanguageLoader,
 	) -> CommitResult {
 		let version_before = self.version;
 		let changed_ranges = collect_changed_ranges(&commit.tx);
 
-		let (should_record, is_merge) = match commit.undo {
-			UndoPolicy::NoUndo => (false, false),
-			UndoPolicy::Record | UndoPolicy::Boundary => {
-				self.insert_undo_active = false;
-				(true, false)
-			}
-			UndoPolicy::MergeWithCurrentGroup => {
-				let merge = self.insert_undo_active;
-				if !merge {
-					self.insert_undo_active = true;
-				}
-				(true, merge)
-			}
-		};
+		let should_record = !matches!(commit.undo, UndoPolicy::NoUndo);
 
 		let content_before = if should_record {
 			Some(self.content.clone())
@@ -243,14 +205,11 @@ impl Document {
 		commit.tx.apply(&mut self.content);
 		self.modified = true;
 		self.version = self.version.wrapping_add(1);
-
-		// Any new edit invalidates the redo stack.
 		self.undo_backend.clear_redo();
 
 		let undo_recorded = if let Some(before) = content_before {
-			self.undo_backend
-				.record_commit(&commit.tx, &before, is_merge);
-			!is_merge
+			self.undo_backend.record_commit(&commit.tx, &before, merge);
+			!merge
 		} else {
 			false
 		};
@@ -266,13 +225,11 @@ impl Document {
 			version_after: self.version,
 			selection_after: commit.selection_after,
 			undo_recorded,
-			insert_group_active_after: self.insert_undo_active,
 			changed_ranges: changed_ranges.into(),
 			syntax_outcome,
 		}
 	}
 
-	/// Checks if the document is writable, returning an error if readonly.
 	fn ensure_writable(&self) -> Result<(), EditError> {
 		if self.readonly {
 			return Err(EditError::ReadOnly {
@@ -283,37 +240,36 @@ impl Document {
 		Ok(())
 	}
 
-	/// Returns a reference to the document's text content.
+	/// Returns a reference to the text content.
 	pub fn content(&self) -> &Rope {
 		&self.content
 	}
 
-	/// Returns a mutable reference to the document's text content.
+	/// Returns a mutable reference to the text content.
 	///
-	/// **Warning:** This is a low-level escape hatch that bypasses history
-	/// and syntax updates. Prefer `commit()`.
+	/// # Warning
+	///
+	/// Low-level escape hatch. Bypasses history and versioning. Prefer [`commit`].
 	#[allow(dead_code, reason = "escape hatch retained for internal migration")]
 	pub(crate) fn content_mut(&mut self) -> &mut Rope {
 		&mut self.content
 	}
 
-	/// Replaces the document content wholesale, clearing undo history.
+	/// Replaces the entire document content, clearing history.
 	///
 	/// Intended for ephemeral buffers where incremental editing is not used.
 	pub fn reset_content(&mut self, content: impl Into<Rope>) {
 		self.content = content.into();
-		self.insert_undo_active = false;
 		self.undo_backend = UndoBackend::new();
 		self.modified = false;
 		self.version = self.version.wrapping_add(1);
 	}
 
-	/// Replaces the document content from a sync snapshot.
+	/// Replaces the document content from a synchronization snapshot.
 	///
-	/// preserved version monotonicity but clears history.
+	/// Preserves document version monotonicity but clears local undo history.
 	pub fn install_sync_snapshot(&mut self, content: impl Into<Rope>) {
 		self.content = content.into();
-		self.insert_undo_active = false;
 		self.undo_backend = UndoBackend::new();
 		self.modified = true;
 		self.version = self.version.wrapping_add(1);
@@ -344,12 +300,6 @@ impl Document {
 		self.version
 	}
 
-	/// Returns whether an insert undo group is currently active.
-	pub fn insert_undo_active(&self) -> bool {
-		self.insert_undo_active
-	}
-
-	/// Increments the document version.
 	#[doc(hidden)]
 	pub fn increment_version(&mut self) {
 		self.version = self.version.wrapping_add(1);
@@ -378,12 +328,6 @@ impl Document {
 	/// Returns the language ID for this document.
 	pub fn language_id(&self) -> Option<xeno_runtime_language::LanguageId> {
 		self.language_id
-	}
-
-	/// Resets the insert undo grouping flag.
-	#[doc(hidden)]
-	pub fn reset_insert_undo(&mut self) {
-		self.insert_undo_active = false;
 	}
 }
 

@@ -148,10 +148,9 @@ pub mod lru;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use ropey::Rope;
 use tokio::sync::{OwnedSemaphorePermit, Semaphore};
 use tokio::task::JoinHandle;
-use xeno_primitives::ChangeSet;
+use xeno_primitives::{ChangeSet, Rope};
 use xeno_runtime_language::syntax::{InjectionPolicy, Syntax, SyntaxError, SyntaxOptions};
 use xeno_runtime_language::{LanguageId, LanguageLoader};
 
@@ -419,9 +418,13 @@ impl SyntaxEngine for RealSyntaxEngine {
 /// It integrates with the editor tick and render loops to ensure monotonic tree
 /// installation and prompt permit release.
 pub struct SyntaxManager {
+	/// Tiered policy mapping file size to specific configurations.
 	policy: TieredSyntaxPolicy,
+	/// Global semaphore limiting concurrent background parse tasks.
 	permits: Arc<Semaphore>,
+	/// Per-document scheduling and syntax state.
 	entries: HashMap<DocumentId, DocEntry>,
+	/// Pluggable parsing engine (abstracted for tests).
 	engine: Arc<dyn SyntaxEngine>,
 }
 
@@ -432,6 +435,7 @@ impl Default for SyntaxManager {
 	}
 }
 
+/// Context provided to [`SyntaxManager::ensure_syntax`] for scheduling.
 pub struct EnsureSyntaxContext<'a> {
 	pub doc_id: DocumentId,
 	pub doc_version: u64,
@@ -447,31 +451,42 @@ pub struct EnsureSyntaxContext<'a> {
 /// background parse, individual changesets are composed into a single
 /// changeset relative to the rope snapshot taken at the first edit.
 struct PendingIncrementalEdits {
+	/// Document version that `old_rope` corresponds to.
+	///
+	/// Used to verify that the resident tree still matches the pending base
+	/// before attempting an incremental update.
+	base_tree_doc_version: u64,
+	/// Source text at the start of the pending edit window.
 	old_rope: Rope,
+	/// Composed delta from `old_rope` to the current document state.
 	composed: ChangeSet,
 }
 
 /// Per-document syntax state managed by [`SyntaxManager`].
 ///
-/// Tracks the installed syntax tree, its document version, parse scheduling flags,
-/// and pending incremental edits. The `tree_doc_version` field enables monotonic
-/// version gating: highlight rendering skips spans when the tree version does not
-/// match the document being drawn, and [`should_install_completed_parse`] rejects
-/// results older than the currently installed tree.
+/// Tracks the installed syntax tree, its document version, and pending
+/// incremental edits. The `tree_doc_version` field enables monotonic
+/// version gating to prevent stale parse results from overwriting newer trees.
 #[derive(Default)]
 pub struct SyntaxSlot {
+	/// Currently installed syntax tree, if any.
 	current: Option<Syntax>,
+	/// Whether the document has been edited since the last successful parse.
 	dirty: bool,
+	/// Whether the `current` tree was updated in the last poll.
 	updated: bool,
+	/// Local version counter, bumped whenever `current` changes or is dropped.
 	version: u64,
 	/// Document version that the `current` syntax tree corresponds to.
 	///
 	/// Set by `note_edit_incremental` (on sync success) and `ensure_syntax` (on
-	/// background install). Cleared whenever the tree is dropped (reset, retention,
-	/// language change). `None` means no tree is installed or version is unknown.
+	/// background install). `None` means no tree is installed.
 	tree_doc_version: Option<u64>,
+	/// Language identity used for the last parse.
 	language_id: Option<LanguageId>,
+	/// Accumulated incremental edits awaiting background processing.
 	pending_incremental: Option<PendingIncrementalEdits>,
+	/// Configuration options used for the last parse.
 	last_opts_key: Option<OptKey>,
 }
 
@@ -587,11 +602,18 @@ impl SyntaxManager {
 		entry.slot.dirty = true;
 	}
 
-	/// Records an edit and applies an incremental tree-sitter update.
+	/// Records an edit and attempts an immediate incremental update.
 	///
-	/// This is the primary path for interactive edits. It attempts to update
-	/// the resident syntax tree synchronously (with a 10ms timeout) before
-	/// falling back to background parsing.
+	/// This is the primary path for interactive typing. It attempts to update
+	/// the resident syntax tree synchronously (with a 10ms timeout). If the
+	/// update fails or is debounced, it accumulates the changes for a
+	/// background parse.
+	///
+	/// # Invariants
+	///
+	/// - Sync incremental updates are ONLY allowed if the resident tree's version
+	///   matches the version immediately preceding this edit.
+	/// - If alignment is lost, we fallback to a full reparse in the background.
 	pub fn note_edit_incremental(
 		&mut self,
 		doc_id: DocumentId,
@@ -609,22 +631,42 @@ impl SyntaxManager {
 		entry.slot.dirty = true;
 
 		let Some(syntax) = entry.slot.current.as_mut() else {
+			entry.slot.pending_incremental = None;
 			return;
 		};
 
+		let version_before = doc_version.wrapping_sub(1);
+
+		// Manage pending incremental window
 		match entry.slot.pending_incremental.take() {
 			Some(mut pending) => {
-				pending.composed = pending.composed.compose(changeset.clone());
-				entry.slot.pending_incremental = Some(pending);
+				if entry.slot.tree_doc_version != Some(pending.base_tree_doc_version) {
+					// Tree has diverged from pending base; invalid window
+					entry.slot.pending_incremental = None;
+				} else {
+					pending.composed = pending.composed.compose(changeset.clone());
+					entry.slot.pending_incremental = Some(pending);
+				}
 			}
 			None => {
-				entry.slot.pending_incremental = Some(PendingIncrementalEdits {
-					old_rope: old_rope.clone(),
-					composed: changeset.clone(),
-				});
+				// Only start a pending window if the tree matches the version before this edit.
+				if let Some(tree_v) = entry.slot.tree_doc_version
+					&& tree_v == version_before
+				{
+					entry.slot.pending_incremental = Some(PendingIncrementalEdits {
+						base_tree_doc_version: tree_v,
+						old_rope: old_rope.clone(),
+						composed: changeset.clone(),
+					});
+				}
 			}
 		}
 
+		let Some(pending) = entry.slot.pending_incremental.as_ref() else {
+			return;
+		};
+
+		// Attempt sync catch-up from pending base to latest rope
 		let opts = SyntaxOptions {
 			parse_timeout: SYNC_TIMEOUT,
 			..syntax.opts()
@@ -632,9 +674,9 @@ impl SyntaxManager {
 
 		if syntax
 			.update_from_changeset(
-				old_rope.slice(..),
+				pending.old_rope.slice(..),
 				new_rope.slice(..),
-				changeset,
+				&pending.composed,
 				loader,
 				opts,
 			)
@@ -645,7 +687,10 @@ impl SyntaxManager {
 			entry.slot.tree_doc_version = Some(doc_version);
 			mark_updated(&mut entry.slot);
 		} else {
-			tracing::debug!(?doc_id, "Sync incremental update failed");
+			tracing::debug!(
+				?doc_id,
+				"Sync incremental update failed; keeping pending for catch-up"
+			);
 		}
 	}
 
@@ -960,13 +1005,16 @@ impl SyntaxManager {
 			injections: cfg.injections,
 		};
 
-		let incremental = entry.slot.pending_incremental.take().and_then(|pending| {
-			entry
-				.slot
-				.current
-				.as_ref()
-				.map(|syntax| (syntax.clone(), pending))
-		});
+		let incremental = match entry.slot.pending_incremental.take() {
+			Some(pending)
+				if entry.slot.current.is_some()
+					&& entry.slot.tree_doc_version == Some(pending.base_tree_doc_version) =>
+			{
+				Some((entry.slot.current.as_ref().unwrap().clone(), pending))
+			}
+			Some(_) => None, // Invalid base alignment; fall back to full parse
+			None => None,
+		};
 
 		let task = tokio::task::spawn_blocking(move || {
 			if let Some((syntax, pending)) = incremental {

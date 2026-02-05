@@ -13,6 +13,8 @@ mod layout;
 mod navigation;
 mod undo_store;
 
+use std::cell::RefCell;
+use std::collections::HashSet;
 use std::path::PathBuf;
 use std::sync::Arc;
 
@@ -32,102 +34,146 @@ use xeno_runtime_language::LanguageLoader;
 
 use crate::input::InputHandler;
 
+/// Thread-local set of document IDs currently locked by the thread.
+///
+/// Used in debug builds to detect and prevent re-entrant locking on the same
+/// document, which would cause a self-deadlock.
+thread_local! {
+	static ACTIVE_DOC_LOCKS: RefCell<HashSet<u64>> = RefCell::new(HashSet::new());
+}
+
+/// A handle to a shared [`Document`], managing thread-safe access.
+///
+/// Wraps an `Arc<RwLock<Document>>` and provides scoped access via closures.
+/// In debug builds, it enforces a strict no-reentrancy policy per document.
 #[derive(Clone)]
-pub(crate) struct DocumentHandle(Arc<RwLock<Document>>);
+pub(crate) struct DocumentHandle {
+	/// Unique identifier of the document, stored for lock-free reentrancy checks.
+	id: u64,
+	/// Shared pointer to the authoritative document state.
+	inner: Arc<RwLock<Document>>,
+}
 
 impl DocumentHandle {
+	/// Creates a new handle for the given document.
 	fn new(document: Document) -> Self {
-		Self(Arc::new(RwLock::new(document)))
+		let id = document.id.0;
+		Self {
+			id,
+			inner: Arc::new(RwLock::new(document)),
+		}
 	}
 
+	/// Executes a closure with shared (read) access to the document.
+	///
+	/// # Panics
+	///
+	/// Panics in debug builds if the current thread already holds a lock on
+	/// this specific document handle.
 	fn with<R>(&self, f: impl FnOnce(&Document) -> R) -> R {
-		let guard = self.0.read();
+		let _guard = LockGuard::new(self.id);
+		let guard = self.inner.read();
 		f(&guard)
 	}
 
+	/// Executes a closure with exclusive (write) access to the document.
+	///
+	/// # Panics
+	///
+	/// Panics in debug builds if the current thread already holds a lock on
+	/// this specific document handle.
 	fn with_mut<R>(&self, f: impl FnOnce(&mut Document) -> R) -> R {
-		let mut guard = self.0.write();
+		let _guard = LockGuard::new(self.id);
+		let mut guard = self.inner.write();
 		f(&mut guard)
 	}
 
+	/// Checks if two handles point to the same underlying document.
 	fn ptr_eq(&self, other: &Self) -> bool {
-		Arc::ptr_eq(&self.0, &other.0)
+		Arc::ptr_eq(&self.inner, &other.inner)
 	}
 }
 
-/// A text buffer - combines a view with its document.
+/// RAII guard for tracking active document locks on the current thread.
+#[cfg(debug_assertions)]
+struct LockGuard(u64);
+
+#[cfg(debug_assertions)]
+impl LockGuard {
+	/// Registers a lock on the given document ID.
+	///
+	/// # Panics
+	///
+	/// Panics if the ID is already present in the thread-local set.
+	fn new(id: u64) -> Self {
+		ACTIVE_DOC_LOCKS.with(|locks| {
+			let mut locks = locks.borrow_mut();
+			if locks.contains(&id) {
+				panic!("Deadlock detected: Re-entrant lock on document {}", id);
+			}
+			locks.insert(id);
+		});
+		Self(id)
+	}
+}
+
+#[cfg(debug_assertions)]
+impl Drop for LockGuard {
+	fn drop(&mut self) {
+		ACTIVE_DOC_LOCKS.with(|locks| {
+			locks.borrow_mut().remove(&self.0);
+		});
+	}
+}
+
+/// No-op guard for release builds.
+#[cfg(not(debug_assertions))]
+struct LockGuard;
+
+#[cfg(not(debug_assertions))]
+impl LockGuard {
+	#[inline(always)]
+	fn new(_id: u64) -> Self {
+		Self
+	}
+}
+
+/// A text buffer combining a document view with local view state.
 ///
 /// Provides access to both view state (cursor, selection, scroll) and
-/// document state (content, undo history, metadata).
-///
-/// For split views, multiple Buffers can share the same underlying Document.
+/// shared document content. Multiple buffers can share the same underlying
+/// [`Document`], enabling synchronized split views.
 pub struct Buffer {
-	/// Unique identifier for this buffer/view.
+	/// Unique identifier for this view.
 	pub id: ViewId,
-
-	/// The underlying document (shared across split views).
+	/// The underlying document.
 	document: DocumentHandle,
-
 	/// Primary cursor position (char index).
 	pub cursor: CharIdx,
-
 	/// Multi-cursor selection state.
 	pub selection: Selection,
-
-	/// Modal input handler (tracks mode, pending keys, count).
+	/// Modal input handler tracking mode and pending sequences.
 	pub input: InputHandler,
-
-	/// Scroll position: first visible line.
+	/// Scroll position: first visible line index.
 	pub scroll_line: usize,
-
-	/// Scroll position: first visible segment within the line (for wrapped lines).
+	/// Scroll position: horizontal segment index (for wrapped lines).
 	pub scroll_segment: usize,
-
-	/// Text width for wrapping calculations.
+	/// Text width used for wrapping calculations.
 	pub text_width: usize,
-
-	/// Last rendered viewport height (in rows).
+	/// Viewport height observed during the last render pass.
 	pub last_viewport_height: usize,
-
-	/// Cursor position observed during the last render.
+	/// Cursor position observed during the last render pass.
 	pub last_rendered_cursor: CharIdx,
-
-	/// Suppresses automatic viewport adjustment to keep cursor visible.
-	///
-	/// When set, [`ensure_buffer_cursor_visible`] skips viewport adjustment,
-	/// allowing the cursor to be outside the visible area. Used during mouse
-	/// scrolling and split resizing for viewport stability. Cleared on cursor move.
-	///
-	/// [`ensure_buffer_cursor_visible`]: crate::render::buffer::viewport::ensure_buffer_cursor_visible
+	/// If true, suppresses automatic viewport adjustments to keep the cursor visible.
 	pub suppress_auto_scroll: bool,
-
-	/// Buffer-local option overrides (set via `:setlocal`).
-	///
-	/// These take precedence over language-specific and global options when
-	/// resolving option values for this buffer.
+	/// Buffer-local option overrides.
 	pub local_options: OptionStore,
-
-	/// Buffer-level readonly override.
-	///
-	/// When `Some(true)`, this buffer is read-only regardless of the underlying
-	/// document's readonly state. When `Some(false)`, this buffer is writable
-	/// even if the document is marked readonly. When `None`, defers to the
-	/// document's readonly flag.
-	///
-	/// This enables read-only views (e.g., info popups, documentation panels)
-	/// without affecting other buffers sharing the same document.
+	/// Optional read-only override for this specific view.
 	readonly_override: Option<bool>,
-
-	/// Remembered column position for vertical navigation.
-	///
-	/// When moving vertically (j/k, up/down, scroll), the cursor should return
-	/// to this column when reaching lines long enough to accommodate it. This
-	/// prevents the cursor from drifting left when crossing short or empty lines.
-	///
-	/// Set when vertical motion begins from current cursor column. Reset when
-	/// any horizontal or explicit cursor movement occurs (h/l, word motions,
-	/// goto, mouse click, etc.).
+	/// Remembered column for vertical navigation (j/k) stability.
 	goal_column: Option<usize>,
+	/// Whether an insert-mode undo grouping session is active for this view.
+	pub insert_undo_active: bool,
 }
 
 impl Buffer {
@@ -149,21 +195,19 @@ impl Buffer {
 			local_options: OptionStore::new(),
 			readonly_override: None,
 			goal_column: None,
+			insert_undo_active: false,
 		}
 	}
 
-	/// Creates a new scratch buffer.
+	/// Creates a new scratch buffer with no file path.
 	pub fn scratch(id: ViewId) -> Self {
 		Self::new(id, String::new(), None)
 	}
 
 	/// Creates a new buffer that shares the same document (for split views).
 	///
-	/// The new buffer has independent cursor/selection/scroll state but
-	/// edits in either buffer affect both. Local options are cloned so each
-	/// split can have independent option overrides. The readonly override is
-	/// intentionally NOT cloned - splits start with no override (deferring to
-	/// the document's readonly state).
+	/// The new buffer has independent view state (cursor, scroll, options) but
+	/// share the authoritative document content and history.
 	pub fn clone_for_split(&self, new_id: ViewId) -> Self {
 		Self {
 			id: new_id,
@@ -180,10 +224,10 @@ impl Buffer {
 			local_options: self.local_options.clone(),
 			readonly_override: None,
 			goal_column: None,
+			insert_undo_active: false,
 		}
 	}
 
-	/// Returns the document ID.
 	pub fn document_id(&self) -> DocumentId {
 		self.with_doc(|doc| doc.id)
 	}
@@ -194,53 +238,29 @@ impl Buffer {
 	}
 
 	/// Executes a closure with read access to the underlying [`Document`].
-	///
-	/// This is the preferred API for document access as it ensures the lock
-	/// guard cannot escape the scope, preventing potential deadlocks.
-	///
-	/// # Examples
-	///
-	/// ```ignore
-	/// let line_count = buffer.with_doc(|doc| doc.content().len_lines());
-	/// ```
 	#[inline]
 	pub fn with_doc<R>(&self, f: impl FnOnce(&Document) -> R) -> R {
 		self.document.with(f)
 	}
 
 	/// Executes a closure with write access to the underlying [`Document`].
-	///
-	/// This is the preferred API for document mutation as it ensures the lock
-	/// guard cannot escape the scope, preventing potential deadlocks.
-	///
-	/// # Examples
-	///
-	/// ```ignore
-	/// buffer.with_doc_mut(|doc| {
-	///     doc.set_modified(true);
-	/// });
-	/// ```
 	#[inline]
 	pub fn with_doc_mut<R>(&self, f: impl FnOnce(&mut Document) -> R) -> R {
 		self.document.with_mut(f)
 	}
 
-	/// Returns the associated file path, if any.
 	pub fn path(&self) -> Option<PathBuf> {
 		self.with_doc(|doc| doc.path.clone())
 	}
 
-	/// Sets the file path.
 	pub fn set_path(&self, path: Option<PathBuf>) {
 		self.with_doc_mut(|doc| doc.path = path);
 	}
 
-	/// Returns whether the buffer has unsaved changes.
 	pub fn modified(&self) -> bool {
 		self.with_doc(|doc| doc.is_modified())
 	}
 
-	/// Sets the modified flag.
 	pub fn set_modified(&self, modified: bool) {
 		self.with_doc_mut(|doc| doc.set_modified(modified));
 	}
@@ -248,67 +268,47 @@ impl Buffer {
 	/// Returns whether this buffer is read-only.
 	///
 	/// Checks the buffer-level override first, then falls back to the
-	/// document's readonly flag.
+	/// document state.
 	pub fn is_readonly(&self) -> bool {
 		self.readonly_override
 			.unwrap_or_else(|| self.with_doc(|doc| doc.is_readonly()))
 	}
 
-	/// Sets the read-only flag on the underlying document.
-	///
-	/// This affects all buffers sharing this document. For buffer-specific
-	/// readonly behavior, use [`set_readonly_override`](Self::set_readonly_override).
 	pub fn set_readonly(&self, readonly: bool) {
 		self.with_doc_mut(|doc| doc.set_readonly(readonly));
 	}
 
 	/// Sets a buffer-level readonly override.
 	///
-	/// - `Some(true)`: This buffer is read-only regardless of document state
-	/// - `Some(false)`: This buffer is writable regardless of document state
-	/// - `None`: Defer to the document's readonly flag (default)
-	///
-	/// This is useful for creating read-only views (info popups, documentation
-	/// panels) without affecting other buffers sharing the same document.
+	/// - `Some(true)`: Always read-only.
+	/// - `Some(false)`: Always writable (ignoring document state).
+	/// - `None`: Defer to the document's readonly flag.
 	pub fn set_readonly_override(&mut self, readonly: Option<bool>) {
 		self.readonly_override = readonly;
 	}
 
 	/// Replaces the document content wholesale, clearing undo history.
-	///
-	/// This is intended for ephemeral buffers (info popups, prompts) where the
-	/// entire content is replaced rather than edited incrementally. Undo history
-	/// is cleared since it doesn't make sense for these use cases.
-	///
-	/// For normal editing operations, use the transaction-based methods instead.
 	pub fn reset_content(&self, content: impl Into<xeno_primitives::Rope>) {
 		self.with_doc_mut(|doc| doc.reset_content(content));
 	}
 
-	/// Returns the document version.
 	pub fn version(&self) -> u64 {
 		self.with_doc(|doc| doc.version())
 	}
 
-	/// Returns the file type.
 	pub fn file_type(&self) -> Option<String> {
 		self.with_doc(|doc| doc.file_type.clone())
 	}
 
 	/// Initializes language metadata for this buffer.
-	///
-	/// This populates the document's language id and file type; parsing is
-	/// delegated to the syntax manager.
 	pub fn init_syntax(&self, language_loader: &LanguageLoader) {
 		self.with_doc_mut(|doc| doc.init_syntax(language_loader));
 	}
 
-	/// Returns the current editing mode.
 	pub fn mode(&self) -> Mode {
 		self.input.mode()
 	}
 
-	/// Returns a human-readable mode name.
 	pub fn mode_name(&self) -> &'static str {
 		self.input.mode_name()
 	}
@@ -330,10 +330,7 @@ impl Buffer {
 		})
 	}
 
-	/// Computes the gutter width using the registry system.
-	///
-	/// This delegates to [`xeno_registry::gutter::total_width`] which computes
-	/// the combined width of all enabled gutter columns.
+	/// Computes the combined width of all enabled gutter columns.
 	pub fn gutter_width(&self) -> u16 {
 		use xeno_registry::gutter::{GutterWidthContext, total_width};
 
@@ -346,19 +343,17 @@ impl Buffer {
 		})
 	}
 
-	/// Returns the undo stack length.
 	pub fn undo_stack_len(&self) -> usize {
 		self.with_doc(|doc| doc.undo_len())
 	}
 
-	/// Returns the redo stack length.
 	pub fn redo_stack_len(&self) -> usize {
 		self.with_doc(|doc| doc.redo_len())
 	}
 
 	/// Clears the insert undo grouping flag.
-	pub fn clear_insert_undo_active(&self) {
-		self.with_doc_mut(|doc| doc.reset_insert_undo());
+	pub fn clear_insert_undo_active(&mut self) {
+		self.insert_undo_active = false;
 	}
 
 	/// Clamps selection and cursor to valid document bounds.
@@ -369,8 +364,6 @@ impl Buffer {
 	}
 
 	/// Asserts that selection and cursor are within valid document bounds.
-	///
-	/// Only active in debug builds. Use after mutations to catch invalid state early.
 	#[cfg(debug_assertions)]
 	pub fn debug_assert_valid_state(&self) {
 		self.with_doc(|doc| {
@@ -390,50 +383,22 @@ impl Buffer {
 		});
 	}
 
-	/// No-op in release builds.
 	#[cfg(not(debug_assertions))]
 	#[inline]
 	pub fn debug_assert_valid_state(&self) {}
 
-	/// Maps selection and cursor through a [`Transaction`](xeno_base::Transaction).
+	/// Maps selection and cursor through a transaction delta.
 	pub fn map_selection_through(&mut self, tx: &xeno_primitives::Transaction) {
 		self.set_selection(tx.map_selection(&self.selection));
 		self.sync_cursor_to_selection();
 	}
 
 	/// Resolves an option for this buffer using the layered configuration system.
-	///
-	/// Resolution order (highest priority first):
-	/// 1. Buffer-local override (set via `:setlocal`)
-	/// 2. Language-specific config (from `language "rust" { }` block)
-	/// 3. Global config (from `options { }` block)
-	/// 4. Compile-time default (from `#[derive_option]` macro)
-	///
-	/// # Example
-	///
-	/// ```ignore
-	/// use xeno_registry::options::{keys, FromOptionValue};
-	///
-	/// let width = buffer.option_raw(keys::TAB_WIDTH.untyped(), editor);
-	/// let tab_width = i64::from_option(&width).unwrap_or(4);
-	/// ```
 	pub fn option_raw(&self, key: OptionKey, editor: &crate::impls::Editor) -> OptionValue {
 		editor.resolve_option(self.id, key)
 	}
 
 	/// Resolves a typed option for this buffer.
-	///
-	/// This is the preferred method for option access, providing compile-time
-	/// type safety through [`TypedOptionKey<T>`].
-	///
-	/// # Example
-	///
-	/// ```ignore
-	/// use xeno_registry::options::keys;
-	///
-	/// let width: i64 = buffer.option(keys::TAB_WIDTH, editor);
-	/// let theme: String = buffer.option(keys::THEME, editor);
-	/// ```
 	pub fn option<T: FromOptionValue>(
 		&self,
 		key: TypedOptionKey<T>,
@@ -445,9 +410,6 @@ impl Buffer {
 	}
 
 	/// Sets cursor position and resets goal column.
-	///
-	/// Use this for horizontal motion, clicks, jumps, edits - any cursor
-	/// movement that should invalidate the remembered vertical column.
 	#[inline]
 	pub fn set_cursor(&mut self, pos: CharIdx) {
 		self.cursor = pos;
@@ -455,28 +417,19 @@ impl Buffer {
 	}
 
 	/// Sets selection and resets goal column.
-	///
-	/// Use this for horizontal motion, selections, edits - any selection
-	/// change that should invalidate the remembered vertical column.
 	#[inline]
 	pub fn set_selection(&mut self, sel: Selection) {
 		self.selection = sel;
 		self.goal_column = None;
 	}
 
-	/// Syncs cursor to selection head without resetting goal column.
-	///
-	/// Use after selection changes when cursor should track the selection's
-	/// primary head position. Does not affect goal column since the selection
-	/// change already handled that.
+	/// Syncs cursor to the selection head without resetting goal column.
 	#[inline]
 	pub fn sync_cursor_to_selection(&mut self) {
 		self.cursor = self.selection.primary().head;
 	}
 
 	/// Sets both cursor and selection, resetting goal column.
-	///
-	/// Convenience method for the common pattern of updating both at once.
 	#[inline]
 	pub fn set_cursor_and_selection(&mut self, pos: CharIdx, sel: Selection) {
 		self.cursor = pos;
@@ -484,10 +437,7 @@ impl Buffer {
 		self.goal_column = None;
 	}
 
-	/// Establishes the goal column from the current cursor position.
-	///
-	/// The goal column is used to maintain vertical position during j/k
-	/// movements through lines of varying lengths.
+	/// Maintains the horizontal position (goal column) during vertical movement.
 	#[inline]
 	pub fn establish_goal_column(&mut self) {
 		let cursor = self.cursor;

@@ -92,33 +92,34 @@ pub enum SyntaxOutcome {
 	Reparsed,
 }
 
-/// Result returned from a successful commit operation.
+/// Result of a successful document commit.
 ///
-/// Currently a stub that will be filled in as the edit gate is implemented.
+/// Bundles the outcomes of a modification, including version updates,
+/// affected ranges, and syntax handling status.
 #[derive(Debug, Clone)]
 pub struct CommitResult {
-	/// Whether the edit was actually applied.
+	/// Whether the edit was actually applied to the document.
 	pub applied: bool,
-	/// Document version before the edit.
+	/// Document version immediately before the edit.
 	pub version_before: u64,
-	/// Document version after the edit.
+	/// Document version after the edit was applied.
 	pub version_after: u64,
-	/// Selection state after the edit (if changed).
+	/// Selection state override requested by the edit planner.
 	pub selection_after: Option<Selection>,
-	/// Whether a new undo step was created (start of a new group).
+	/// Whether a new logical undo step was created.
+	///
+	/// `false` if the edit was merged into an existing group or not recorded.
 	pub undo_recorded: bool,
-	/// Whether insert undo grouping remains active after this edit.
-	pub insert_group_active_after: bool,
-	/// Ranges affected by this edit (pre-edit coordinates; inserts are zero-width).
+	/// Ranges affected by this edit in pre-edit coordinates.
+	///
+	/// Deletions report the removed range; insertions are zero-width.
 	pub changed_ranges: SmallVec<[Range; 2]>,
-	/// Outcome of syntax handling for this commit.
+	/// Outcome of the syntax update policy for this commit.
 	pub syntax_outcome: SyntaxOutcome,
 }
 
 impl CommitResult {
-	/// Creates a stub result for migration purposes.
-	///
-	/// Used during the transition period before the full edit gate is implemented.
+	/// Creates a stub result for migration or testing.
 	pub fn stub(version: u64) -> Self {
 		Self {
 			applied: true,
@@ -126,21 +127,19 @@ impl CommitResult {
 			version_after: version.wrapping_add(1),
 			selection_after: None,
 			undo_recorded: true,
-			insert_group_active_after: false,
 			changed_ranges: SmallVec::new(),
 			syntax_outcome: SyntaxOutcome::IncrementalApplied,
 		}
 	}
 
-	/// Creates a result for a blocked edit (e.g., readonly).
-	pub fn blocked(version: u64, insert_group_active_after: bool) -> Self {
+	/// Creates a result for an edit blocked by a readonly check.
+	pub fn blocked(version: u64) -> Self {
 		Self {
 			applied: false,
 			version_before: version,
 			version_after: version,
 			selection_after: None,
 			undo_recorded: false,
-			insert_group_active_after,
 			changed_ranges: SmallVec::new(),
 			syntax_outcome: SyntaxOutcome::Unchanged,
 		}
@@ -149,20 +148,19 @@ impl CommitResult {
 
 /// A complete edit commit request.
 ///
-/// This bundles a transaction with policies for undo recording, syntax updates,
-/// and metadata about the edit's origin. The `Document::commit()` method consumes
-/// this to apply the edit through a single authoritative gate.
+/// Bundles a transaction with policies for history recording, syntax updates,
+/// and metadata about the edit's origin.
 #[derive(Debug, Clone)]
 pub struct EditCommit {
-	/// The transaction containing the actual text changes.
+	/// The transaction containing the text changes.
 	pub tx: Transaction,
-	/// Policy for recording undo history.
+	/// Policy for recording history.
 	pub undo: UndoPolicy,
 	/// Policy for updating syntax highlighting.
 	pub syntax: SyntaxPolicy,
-	/// Origin of this edit (for grouping, telemetry, debugging).
+	/// Origin of this edit (for grouping or debugging).
 	pub origin: EditOrigin,
-	/// Optional selection override produced by the edit planner.
+	/// Optional selection override produced by the planner.
 	pub selection_after: Option<Selection>,
 }
 

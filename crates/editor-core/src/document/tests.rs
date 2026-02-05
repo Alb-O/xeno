@@ -34,7 +34,7 @@ fn commit_readonly_returns_error() {
 		}],
 	);
 
-	let result = doc.commit(make_commit(tx), &language_loader());
+	let result = doc.commit(make_commit(tx), false, &language_loader());
 	assert!(matches!(result, Err(EditError::ReadOnly { .. })));
 	assert_eq!(doc.content().to_string(), "hello");
 }
@@ -53,7 +53,9 @@ fn commit_increments_version_once() {
 		}],
 	);
 
-	let result = doc.commit(make_commit(tx), &language_loader()).unwrap();
+	let result = doc
+		.commit(make_commit(tx), false, &language_loader())
+		.unwrap();
 
 	assert_eq!(result.version_before, version_before);
 	assert_eq!(result.version_after, version_before + 1);
@@ -73,7 +75,7 @@ fn commit_clears_redo_when_undo_recorded() {
 			replacement: Some(" world".into()),
 		}],
 	);
-	doc.commit(make_commit(tx1), &loader).unwrap();
+	doc.commit(make_commit(tx1), false, &loader).unwrap();
 
 	let tx2 = Transaction::change(
 		doc.content().slice(..),
@@ -83,7 +85,7 @@ fn commit_clears_redo_when_undo_recorded() {
 			replacement: Some("!".into()),
 		}],
 	);
-	doc.commit(make_commit(tx2), &loader).unwrap();
+	doc.commit(make_commit(tx2), false, &loader).unwrap();
 	assert!(doc.can_undo());
 
 	doc.undo();
@@ -97,7 +99,7 @@ fn commit_clears_redo_when_undo_recorded() {
 			replacement: Some("Hi ".into()),
 		}],
 	);
-	let result = doc.commit(make_commit(tx3), &loader).unwrap();
+	let result = doc.commit(make_commit(tx3), false, &loader).unwrap();
 	assert!(result.undo_recorded);
 	assert!(!doc.can_redo());
 }
@@ -115,7 +117,8 @@ fn commit_sets_modified_flag() {
 			replacement: Some("X".into()),
 		}],
 	);
-	doc.commit(make_commit(tx), &language_loader()).unwrap();
+	doc.commit(make_commit(tx), false, &language_loader())
+		.unwrap();
 
 	assert!(doc.is_modified());
 }
@@ -141,7 +144,7 @@ fn commit_no_undo_policy_skips_recording() {
 		selection_after: None,
 	};
 
-	let result = doc.commit(commit, &loader).unwrap();
+	let result = doc.commit(commit, false, &loader).unwrap();
 	assert!(!result.undo_recorded);
 	assert!(!doc.can_undo());
 	assert_eq!(doc.content().to_string(), "world");
@@ -164,11 +167,12 @@ fn commit_merge_policy_groups_inserts() {
 		.commit(
 			EditCommit {
 				tx: tx1,
-				undo: UndoPolicy::MergeWithCurrentGroup,
+				undo: UndoPolicy::Record,
 				syntax: SyntaxPolicy::None,
 				origin: EditOrigin::Internal("test"),
 				selection_after: None,
 			},
+			false, // Not merged
 			&loader,
 		)
 		.unwrap();
@@ -186,11 +190,12 @@ fn commit_merge_policy_groups_inserts() {
 		.commit(
 			EditCommit {
 				tx: tx2,
-				undo: UndoPolicy::MergeWithCurrentGroup,
+				undo: UndoPolicy::Record,
 				syntax: SyntaxPolicy::None,
 				origin: EditOrigin::Internal("test"),
 				selection_after: None,
 			},
+			true, // Merged
 			&loader,
 		)
 		.unwrap();
@@ -216,11 +221,12 @@ fn commit_boundary_policy_breaks_insert_group() {
 	doc.commit(
 		EditCommit {
 			tx: tx1,
-			undo: UndoPolicy::MergeWithCurrentGroup,
+			undo: UndoPolicy::Record,
 			syntax: SyntaxPolicy::None,
 			origin: EditOrigin::Internal("test"),
 			selection_after: None,
 		},
+		false,
 		&loader,
 	)
 	.unwrap();
@@ -237,11 +243,12 @@ fn commit_boundary_policy_breaks_insert_group() {
 		.commit(
 			EditCommit {
 				tx: tx2,
-				undo: UndoPolicy::Boundary,
+				undo: UndoPolicy::Record,
 				syntax: SyntaxPolicy::None,
 				origin: EditOrigin::Internal("test"),
 				selection_after: None,
 			},
+			false, // Explicit boundary (merge=false)
 			&loader,
 		)
 		.unwrap();
@@ -260,16 +267,17 @@ fn commit_boundary_policy_breaks_insert_group() {
 		.commit(
 			EditCommit {
 				tx: tx3,
-				undo: UndoPolicy::MergeWithCurrentGroup,
+				undo: UndoPolicy::Record,
 				syntax: SyntaxPolicy::None,
 				origin: EditOrigin::Internal("test"),
 				selection_after: None,
 			},
+			true, // Merge again
 			&loader,
 		)
 		.unwrap();
-	assert!(result3.undo_recorded);
-	assert_eq!(doc.undo_len(), 3);
+	assert!(!result3.undo_recorded);
+	assert_eq!(doc.undo_len(), 2); // Still 2 steps because it merged!
 }
 
 #[test]
@@ -294,6 +302,7 @@ fn commit_syntax_mark_dirty() {
 				origin: EditOrigin::Internal("test"),
 				selection_after: None,
 			},
+			false,
 			&loader,
 		)
 		.unwrap();
@@ -323,6 +332,7 @@ fn commit_incremental_or_dirty_without_syntax_marks_dirty() {
 				origin: EditOrigin::Internal("test"),
 				selection_after: None,
 			},
+			false,
 			&loader,
 		)
 		.unwrap();
@@ -343,7 +353,7 @@ fn reset_content_clears_undo_history() {
 			replacement: Some("X".into()),
 		}],
 	);
-	doc.commit(make_commit(tx), &loader).unwrap();
+	doc.commit(make_commit(tx), false, &loader).unwrap();
 	assert!(doc.can_undo());
 	assert_eq!(doc.undo_len(), 1);
 
