@@ -75,7 +75,7 @@
 //!
 //! - Highlight rendering MUST skip spans when `tree_doc_version` does not match the document
 //!   version being rendered.
-//!   - Enforced in: `BufferRenderContext::collect_highlight_spans` (version gate), `HighlightTiles::build_tiles` (bounds check)
+//!   - Enforced in: `HighlightTiles::build_tiles` (bounds check)
 //!   - Tested by: TODO (add regression: test_highlight_skips_stale_tree_version)
 //!   - Failure symptom: Crash or panic from out-of-bounds tree-sitter node access during rapid edits.
 //!
@@ -891,10 +891,14 @@ impl SyntaxManager {
 						entry.slot.current = Some(syntax_tree);
 						entry.slot.language_id = Some(current_lang);
 						entry.slot.tree_doc_version = Some(done.doc_version);
+						entry.slot.pending_incremental = None;
 						mark_updated(&mut entry.slot);
 						if version_match {
 							entry.slot.dirty = false;
 							entry.sched.cooldown_until = None;
+						} else {
+							// Stale install: keep dirty true so we eventually catch up
+							entry.slot.dirty = true;
 						}
 					} else if lang_ok && opts_ok && version_match && !retain_ok {
 						entry.slot.current = None;

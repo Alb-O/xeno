@@ -63,7 +63,7 @@ impl xeno_registry::FileOpsAccess for Editor {
 				.await
 				.map_err(|e| CommandError::Io(e.to_string()))?;
 
-			self.buffer_mut().set_modified(false);
+			let _ = self.buffer_mut().set_modified(false);
 			self.show_notification(xeno_registry::notifications::keys::file_saved(&path_owned));
 
 			#[cfg(feature = "lsp")]
@@ -84,7 +84,8 @@ impl xeno_registry::FileOpsAccess for Editor {
 		&mut self,
 		path: PathBuf,
 	) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), CommandError>> + '_>> {
-		self.buffer_mut().set_path(Some(path));
+		let loader_arc = self.state.config.language_loader.clone();
+		let _ = self.buffer_mut().set_path(Some(path), Some(&loader_arc));
 		self.save()
 	}
 }

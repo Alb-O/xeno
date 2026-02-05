@@ -41,6 +41,16 @@ impl DocumentId {
 	pub const SCRATCH: DocumentId = DocumentId(0);
 }
 
+/// Outcomes of a metadata change on a document.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct DocumentMetaOutcome {
+	pub path_changed: bool,
+	pub language_changed: bool,
+	pub file_type_changed: bool,
+	pub readonly_changed: bool,
+	pub modified_changed: bool,
+}
+
 /// A text document representing shared, file-backed content.
 ///
 /// Documents hold the authoritative text content and metadata shared across all
@@ -59,7 +69,7 @@ pub struct Document {
 	/// The text content.
 	content: Rope,
 	/// Associated file path. `None` for scratch documents.
-	pub path: Option<PathBuf>,
+	path: Option<PathBuf>,
 	/// Whether the document has unsaved changes.
 	modified: bool,
 	/// Whether the document is read-only (prevents all modifications).
@@ -67,7 +77,7 @@ pub struct Document {
 	/// Transaction-based grouped undo history.
 	undo_backend: UndoBackend,
 	/// Detected file type (e.g., "rust").
-	pub file_type: Option<String>,
+	file_type: Option<String>,
 	/// Language ID used for syntax highlighting.
 	language_id: Option<xeno_runtime_language::LanguageId>,
 	/// Monotonic document version, incremented on every transaction.
@@ -124,6 +134,9 @@ impl Document {
 
 	/// Initializes syntax highlighting metadata based on the file path.
 	pub fn init_syntax(&mut self, language_loader: &LanguageLoader) {
+		self.file_type = None;
+		self.language_id = None;
+
 		if let Some(ref p) = self.path
 			&& let Some(lang_id) = language_loader.language_for_path(p)
 		{
@@ -135,6 +148,9 @@ impl Document {
 
 	/// Initializes syntax highlighting metadata by explicit language name.
 	pub fn init_syntax_for_language(&mut self, name: &str, language_loader: &LanguageLoader) {
+		self.file_type = None;
+		self.language_id = None;
+
 		if let Some(lang_id) = language_loader.language_for_name(name) {
 			let lang_data = language_loader.get(lang_id);
 			self.file_type = lang_data.map(|l| l.name.clone());
@@ -275,14 +291,57 @@ impl Document {
 		self.version = self.version.wrapping_add(1);
 	}
 
+	/// Returns the associated file path.
+	pub fn path(&self) -> Option<&PathBuf> {
+		self.path.as_ref()
+	}
+
+	/// Returns the detected file type.
+	pub fn file_type(&self) -> Option<&str> {
+		self.file_type.as_deref()
+	}
+
+	/// Sets the file path and optionally updates syntax detection.
+	pub fn set_path(
+		&mut self,
+		path: Option<PathBuf>,
+		loader: Option<&LanguageLoader>,
+	) -> DocumentMetaOutcome {
+		let mut outcome = DocumentMetaOutcome::default();
+		if self.path != path {
+			self.path = path;
+			outcome.path_changed = true;
+
+			if let Some(loader) = loader {
+				let old_lang = self.language_id;
+				let old_ft = self.file_type.clone();
+
+				self.init_syntax(loader);
+
+				if self.language_id != old_lang {
+					outcome.language_changed = true;
+				}
+				if self.file_type != old_ft {
+					outcome.file_type_changed = true;
+				}
+			}
+		}
+		outcome
+	}
+
 	/// Returns whether the document has unsaved changes.
 	pub fn is_modified(&self) -> bool {
 		self.modified
 	}
 
 	/// Sets the modified flag.
-	pub fn set_modified(&mut self, modified: bool) {
-		self.modified = modified;
+	pub fn set_modified(&mut self, modified: bool) -> DocumentMetaOutcome {
+		let mut outcome = DocumentMetaOutcome::default();
+		if self.modified != modified {
+			self.modified = modified;
+			outcome.modified_changed = true;
+		}
+		outcome
 	}
 
 	/// Returns whether the document is read-only.
@@ -291,8 +350,13 @@ impl Document {
 	}
 
 	/// Sets the read-only flag.
-	pub fn set_readonly(&mut self, readonly: bool) {
-		self.readonly = readonly;
+	pub fn set_readonly(&mut self, readonly: bool) -> DocumentMetaOutcome {
+		let mut outcome = DocumentMetaOutcome::default();
+		if self.readonly != readonly {
+			self.readonly = readonly;
+			outcome.readonly_changed = true;
+		}
+		outcome
 	}
 
 	/// Returns the document version.

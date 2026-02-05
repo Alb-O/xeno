@@ -79,8 +79,8 @@ impl Editor {
 
 			let (path, file_type, version, text) = buffer.with_doc(|doc| {
 				(
-					doc.path.clone().unwrap_or_else(|| scratch_path.clone()),
-					doc.file_type.clone(),
+					doc.path().cloned().unwrap_or_else(|| scratch_path.clone()),
+					doc.file_type().map(String::from),
 					doc.version(),
 					doc.content().clone(),
 				)

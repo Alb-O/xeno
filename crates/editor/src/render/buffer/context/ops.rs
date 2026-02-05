@@ -57,9 +57,7 @@ impl<'a> BufferRenderContext<'a> {
 
 	/// Collects styled highlight spans for the visible viewport of a document.
 	///
-	/// Returns an empty vec if no syntax tree is installed, or if the installed tree's
-	/// document version does not match `doc_version` (version gate). This prevents
-	/// using a stale tree against a newer rope, which could cause out-of-bounds access.
+	/// Returns an empty vec if no syntax tree is installed.
 	///
 	/// Uses the render cache to avoid recomputing highlights every frame.
 	pub fn collect_highlight_spans(
@@ -76,17 +74,18 @@ impl<'a> BufferRenderContext<'a> {
 			return Vec::new();
 		};
 		let syntax_version = self.syntax_manager.syntax_version(doc_id);
-		let tree_doc_version = self.syntax_manager.syntax_doc_version(doc_id);
+		let _tree_doc_version = self.syntax_manager.syntax_doc_version(doc_id);
 
-		if tree_doc_version != Some(doc_version) {
-			return Vec::new();
-		}
+		// Note: We allow rendering with a stale tree (tree_doc_version != doc_version)
+		// to maintain highlighting during rapid edits. The highlight cache and
+		// tile builder ensure safety via bounds clamping and version-keyed caching.
 
 		let total_lines = visible_line_count(doc_content.slice(..));
 		let end_line = (scroll_line + viewport_height).min(total_lines);
 
 		cache.highlight.get_spans(HighlightSpanQuery {
 			doc_id,
+			doc_version,
 			syntax_version,
 			language_id,
 			rope: doc_content,

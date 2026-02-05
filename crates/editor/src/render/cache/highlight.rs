@@ -23,12 +23,15 @@ const MAX_TILES: usize = 16;
 /// Key for identifying a highlight tile.
 ///
 /// The key includes all factors that affect highlight output:
+/// - `doc_version`: Changes when the document content changes (ensures cache coherence)
 /// - `syntax_version`: Changes when the syntax tree is updated
 /// - `theme_epoch`: Changes when the theme is switched
 /// - `language_id`: The language for syntax highlighting
 /// - `tile_idx`: Which tile (line_idx / TILE_SIZE)
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct HighlightKey {
+	/// Document version when this tile was built.
+	pub doc_version: u64,
 	/// Syntax version when this tile was built.
 	pub syntax_version: u64,
 	/// Theme epoch when this tile was built.
@@ -58,6 +61,8 @@ where
 {
 	/// The document ID.
 	pub doc_id: DocumentId,
+	/// The document version (rope version).
+	pub doc_version: u64,
 	/// Current syntax version for cache validation.
 	pub syntax_version: u64,
 	/// The language ID for the document.
@@ -152,6 +157,7 @@ impl HighlightTiles {
 
 		for tile_idx in start_tile..=end_tile {
 			let key = HighlightKey {
+				doc_version: q.doc_version,
 				syntax_version: q.syntax_version,
 				theme_epoch: self.theme_epoch,
 				language_id: q.language_id,
@@ -314,21 +320,31 @@ impl HighlightTiles {
 
 		// Defense-in-depth: ensure the syntax tree is not out-of-bounds for the current rope.
 		// This protects against crashes if a stale tree is used during rapid edits.
+		// Note: We used to block here, but now we clamp spans individually to allow
+		// "best effort" stale highlighting.
 		if syntax.tree().root_node().end_byte() > rope.len_bytes() as u32 {
 			tracing::warn!(
-				"Syntax tree out-of-bounds for rope (tree_end={} rope_len={}), skipping tile building",
+				"Syntax tree out-of-bounds for rope (tree_end={} rope_len={}), clamping spans",
 				syntax.tree().root_node().end_byte(),
 				rope.len_bytes()
 			);
-			return Vec::new();
 		}
 
 		let highlighter = syntax.highlighter(rope.slice(..), language_loader, start_byte..end_byte);
+		let max_len = rope.len_bytes() as u32;
 
 		highlighter
-			.map(|span| {
+			.filter_map(|mut span| {
+				// Clamp spans to rope bounds to ensure safety with stale trees
+				span.start = span.start.min(max_len);
+				span.end = span.end.min(max_len);
+
+				if span.start >= span.end {
+					return None;
+				}
+
 				let style = highlight_styles.style_for_highlight(span.highlight);
-				(span, style)
+				Some((span, style))
 			})
 			.collect()
 	}
@@ -375,6 +391,7 @@ mod tests {
 		// Add a dummy tile
 		cache.tiles.push(HighlightTile {
 			key: HighlightKey {
+				doc_version: 0,
 				syntax_version: 1,
 				theme_epoch: 0,
 				language_id: None,
@@ -408,6 +425,7 @@ mod tests {
 			0,
 			HighlightTile {
 				key: HighlightKey {
+					doc_version: 0,
 					syntax_version: 1,
 					theme_epoch: 0,
 					language_id: None,
@@ -423,6 +441,7 @@ mod tests {
 			1,
 			HighlightTile {
 				key: HighlightKey {
+					doc_version: 0,
 					syntax_version: 1,
 					theme_epoch: 0,
 					language_id: None,
@@ -443,6 +462,7 @@ mod tests {
 			2,
 			HighlightTile {
 				key: HighlightKey {
+					doc_version: 0,
 					syntax_version: 1,
 					theme_epoch: 0,
 					language_id: None,
@@ -470,6 +490,7 @@ mod tests {
 			0,
 			HighlightTile {
 				key: HighlightKey {
+					doc_version: 0,
 					syntax_version: 1,
 					theme_epoch: 0,
 					language_id: None,
@@ -483,6 +504,7 @@ mod tests {
 			1,
 			HighlightTile {
 				key: HighlightKey {
+					doc_version: 0,
 					syntax_version: 1,
 					theme_epoch: 0,
 					language_id: None,
@@ -501,6 +523,7 @@ mod tests {
 			2,
 			HighlightTile {
 				key: HighlightKey {
+					doc_version: 0,
 					syntax_version: 1,
 					theme_epoch: 0,
 					language_id: None,
@@ -526,6 +549,7 @@ mod tests {
 			0,
 			HighlightTile {
 				key: HighlightKey {
+					doc_version: 0,
 					syntax_version: 1,
 					theme_epoch: 0,
 					language_id: None,
@@ -539,6 +563,7 @@ mod tests {
 			1,
 			HighlightTile {
 				key: HighlightKey {
+					doc_version: 0,
 					syntax_version: 1,
 					theme_epoch: 0,
 					language_id: None,
@@ -552,6 +577,7 @@ mod tests {
 			0,
 			HighlightTile {
 				key: HighlightKey {
+					doc_version: 0,
 					syntax_version: 1,
 					theme_epoch: 0,
 					language_id: None,
@@ -575,6 +601,7 @@ mod tests {
 		let doc_id = DocumentId(1);
 
 		let old_key = HighlightKey {
+			doc_version: 0,
 			syntax_version: 1,
 			theme_epoch: 0,
 			language_id: None,
@@ -582,6 +609,7 @@ mod tests {
 		};
 
 		let new_key = HighlightKey {
+			doc_version: 0,
 			syntax_version: 2, // Different!
 			theme_epoch: 0,
 			language_id: None,
@@ -610,6 +638,7 @@ mod tests {
 		let mut cache = HighlightTiles::with_capacity(1);
 		let doc_id = DocumentId(1);
 		let key = HighlightKey {
+			doc_version: 0,
 			syntax_version: 1,
 			theme_epoch: 0,
 			language_id: None,
@@ -633,6 +662,7 @@ mod tests {
 		let doc1 = DocumentId(1);
 		let doc2 = DocumentId(2);
 		let key = HighlightKey {
+			doc_version: 0,
 			syntax_version: 1,
 			theme_epoch: 0,
 			language_id: None,

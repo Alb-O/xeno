@@ -18,7 +18,7 @@ use std::collections::HashSet;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-pub use document::{Document, DocumentId};
+pub use document::{Document, DocumentId, DocumentMetaOutcome};
 pub use editing::ApplyPolicy;
 pub use history::HistoryResult;
 pub use layout::{Layout, SpatialDirection, SplitDirection, SplitPath};
@@ -34,12 +34,11 @@ use xeno_runtime_language::LanguageLoader;
 
 use crate::input::InputHandler;
 
-/// Thread-local set of document IDs currently locked by the thread.
-///
-/// Used in debug builds to detect and prevent re-entrant locking on the same
-/// document, which would cause a self-deadlock.
+// Thread-local set of document IDs currently locked by the thread.
+// Used in debug builds to detect and prevent re-entrant locking on the same
+// document, which would cause a self-deadlock.
 thread_local! {
-	static ACTIVE_DOC_LOCKS: RefCell<HashSet<u64>> = RefCell::new(HashSet::new());
+	static ACTIVE_DOC_LOCKS: RefCell<HashSet<usize>> = RefCell::new(HashSet::new());
 }
 
 /// A handle to a shared [`Document`], managing thread-safe access.
@@ -48,8 +47,8 @@ thread_local! {
 /// In debug builds, it enforces a strict no-reentrancy policy per document.
 #[derive(Clone)]
 pub(crate) struct DocumentHandle {
-	/// Unique identifier of the document, stored for lock-free reentrancy checks.
-	id: u64,
+	/// Unique identifier (pointer address) of the document, stored for lock-free reentrancy checks.
+	ptr: usize,
 	/// Shared pointer to the authoritative document state.
 	inner: Arc<RwLock<Document>>,
 }
@@ -57,11 +56,9 @@ pub(crate) struct DocumentHandle {
 impl DocumentHandle {
 	/// Creates a new handle for the given document.
 	fn new(document: Document) -> Self {
-		let id = document.id.0;
-		Self {
-			id,
-			inner: Arc::new(RwLock::new(document)),
-		}
+		let inner = Arc::new(RwLock::new(document));
+		let ptr = Arc::as_ptr(&inner) as usize;
+		Self { ptr, inner }
 	}
 
 	/// Executes a closure with shared (read) access to the document.
@@ -71,7 +68,7 @@ impl DocumentHandle {
 	/// Panics in debug builds if the current thread already holds a lock on
 	/// this specific document handle.
 	fn with<R>(&self, f: impl FnOnce(&Document) -> R) -> R {
-		let _guard = LockGuard::new(self.id);
+		let _guard = LockGuard::new(self.ptr);
 		let guard = self.inner.read();
 		f(&guard)
 	}
@@ -83,7 +80,7 @@ impl DocumentHandle {
 	/// Panics in debug builds if the current thread already holds a lock on
 	/// this specific document handle.
 	fn with_mut<R>(&self, f: impl FnOnce(&mut Document) -> R) -> R {
-		let _guard = LockGuard::new(self.id);
+		let _guard = LockGuard::new(self.ptr);
 		let mut guard = self.inner.write();
 		f(&mut guard)
 	}
@@ -96,24 +93,27 @@ impl DocumentHandle {
 
 /// RAII guard for tracking active document locks on the current thread.
 #[cfg(debug_assertions)]
-struct LockGuard(u64);
+struct LockGuard(usize);
 
 #[cfg(debug_assertions)]
 impl LockGuard {
-	/// Registers a lock on the given document ID.
+	/// Registers a lock on the given document pointer.
 	///
 	/// # Panics
 	///
-	/// Panics if the ID is already present in the thread-local set.
-	fn new(id: u64) -> Self {
+	/// Panics if the pointer is already present in the thread-local set.
+	fn new(ptr: usize) -> Self {
 		ACTIVE_DOC_LOCKS.with(|locks| {
 			let mut locks = locks.borrow_mut();
-			if locks.contains(&id) {
-				panic!("Deadlock detected: Re-entrant lock on document {}", id);
+			if locks.contains(&ptr) {
+				panic!(
+					"Deadlock detected: Re-entrant lock on document {:p}",
+					ptr as *const ()
+				);
 			}
-			locks.insert(id);
+			locks.insert(ptr);
 		});
-		Self(id)
+		Self(ptr)
 	}
 }
 
@@ -133,7 +133,7 @@ struct LockGuard;
 #[cfg(not(debug_assertions))]
 impl LockGuard {
 	#[inline(always)]
-	fn new(_id: u64) -> Self {
+	fn new(_ptr: usize) -> Self {
 		Self
 	}
 }
@@ -250,19 +250,23 @@ impl Buffer {
 	}
 
 	pub fn path(&self) -> Option<PathBuf> {
-		self.with_doc(|doc| doc.path.clone())
+		self.with_doc(|doc| doc.path().cloned())
 	}
 
-	pub fn set_path(&self, path: Option<PathBuf>) {
-		self.with_doc_mut(|doc| doc.path = path);
+	pub fn set_path(
+		&self,
+		path: Option<PathBuf>,
+		loader: Option<&LanguageLoader>,
+	) -> DocumentMetaOutcome {
+		self.with_doc_mut(|doc| doc.set_path(path, loader))
 	}
 
 	pub fn modified(&self) -> bool {
 		self.with_doc(|doc| doc.is_modified())
 	}
 
-	pub fn set_modified(&self, modified: bool) {
-		self.with_doc_mut(|doc| doc.set_modified(modified));
+	pub fn set_modified(&self, modified: bool) -> DocumentMetaOutcome {
+		self.with_doc_mut(|doc| doc.set_modified(modified))
 	}
 
 	/// Returns whether this buffer is read-only.
@@ -274,8 +278,8 @@ impl Buffer {
 			.unwrap_or_else(|| self.with_doc(|doc| doc.is_readonly()))
 	}
 
-	pub fn set_readonly(&self, readonly: bool) {
-		self.with_doc_mut(|doc| doc.set_readonly(readonly));
+	pub fn set_readonly(&self, readonly: bool) -> DocumentMetaOutcome {
+		self.with_doc_mut(|doc| doc.set_readonly(readonly))
 	}
 
 	/// Sets a buffer-level readonly override.
@@ -297,7 +301,7 @@ impl Buffer {
 	}
 
 	pub fn file_type(&self) -> Option<String> {
-		self.with_doc(|doc| doc.file_type.clone())
+		self.with_doc(|doc| doc.file_type().map(String::from))
 	}
 
 	/// Initializes language metadata for this buffer.
