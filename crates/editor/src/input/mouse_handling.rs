@@ -3,10 +3,10 @@
 //! Processing mouse input for text selection and separator dragging.
 
 use termina::event::MouseEventKind;
+use xeno_input::input::KeyResult;
 use xeno_primitives::{ScrollDirection, Selection};
 
 use crate::impls::{Editor, FocusTarget};
-use crate::input::KeyResult;
 use crate::window::Window;
 
 impl Editor {

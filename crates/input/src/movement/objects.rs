@@ -5,9 +5,10 @@ use xeno_primitives::range::{CharIdx, Range};
 
 use super::{WordType, is_word_char};
 
-/// Select a word object (inner or around).
-/// Inner: just the word characters
-/// Around: word + trailing whitespace (or leading if at end)
+/// Selects a word text object.
+///
+/// `inner` selects only the word characters. `around` extends to include
+/// trailing whitespace, or leading whitespace if no trailing space exists.
 pub fn select_word_object(
 	text: RopeSlice,
 	range: Range,
@@ -28,16 +29,13 @@ pub fn select_word_object(
 
 	let c = text.char(pos);
 
-	// If we're on whitespace, select the whitespace
 	if !is_word(c) {
 		let mut start: CharIdx = pos;
 		let mut end: CharIdx = pos;
 
-		// Extend backward through whitespace
 		while start > 0 && !is_word(text.char(start - 1)) {
 			start -= 1;
 		}
-		// Extend forward through whitespace
 		while end + 1 < len && !is_word(text.char(end + 1)) {
 			end += 1;
 		}
@@ -58,7 +56,6 @@ pub fn select_word_object(
 	if inner {
 		Range::new(start, end)
 	} else {
-		// Around: include trailing whitespace (or leading if at end of line/file)
 		let mut around_end = end;
 		while around_end + 1 < len {
 			let next_c = text.char(around_end + 1);
@@ -72,7 +69,6 @@ pub fn select_word_object(
 		if around_end > end {
 			Range::new(start, around_end)
 		} else {
-			// No trailing space, try leading
 			let mut around_start = start;
 			while around_start > 0 {
 				let prev_c = text.char(around_start - 1);
@@ -87,9 +83,11 @@ pub fn select_word_object(
 	}
 }
 
-/// Select a surround/paired object (parentheses, braces, quotes, etc).
-/// Inner: content between delimiters (exclusive)
-/// Around: content including delimiters (inclusive)
+/// Selects a surround/paired text object (parentheses, braces, quotes, etc).
+///
+/// `inner` selects the content between delimiters (exclusive).
+/// `around` includes the delimiters themselves (inclusive).
+/// Returns `None` if no matching delimiter pair is found around the cursor.
 pub fn select_surround_object(
 	text: RopeSlice,
 	range: Range,
@@ -105,12 +103,10 @@ pub fn select_surround_object(
 	let pos: CharIdx = range.head.min(len.saturating_sub(1));
 	let balanced = open != close;
 
-	// Find opening delimiter (search backward)
 	let mut open_pos: Option<CharIdx> = None;
 	let mut depth = 0i32;
 	let mut search_pos: CharIdx = pos;
 
-	// First check if we're on a delimiter
 	let c = text.char(pos);
 	if c == open {
 		open_pos = Some(pos);
@@ -119,7 +115,6 @@ pub fn select_surround_object(
 	}
 
 	if open_pos.is_none() {
-		// Search backward for opening
 		while search_pos > 0 {
 			search_pos -= 1;
 			let c = text.char(search_pos);
@@ -133,19 +128,15 @@ pub fn select_surround_object(
 					}
 					depth -= 1;
 				}
-			} else {
-				// Quotes: just find the nearest one
-				if c == open {
-					open_pos = Some(search_pos);
-					break;
-				}
+			} else if c == open {
+				open_pos = Some(search_pos);
+				break;
 			}
 		}
 	}
 
 	let open_pos = open_pos?;
 
-	// Find closing delimiter (search forward from opening)
 	let mut close_pos: Option<CharIdx> = None;
 	let mut depth = 0i32;
 	let mut search_pos: CharIdx = open_pos + 1;
@@ -162,12 +153,9 @@ pub fn select_surround_object(
 				}
 				depth -= 1;
 			}
-		} else {
-			// Quotes: just find the next one
-			if c == close {
-				close_pos = Some(search_pos);
-				break;
-			}
+		} else if c == close {
+			close_pos = Some(search_pos);
+			break;
 		}
 		search_pos += 1;
 	}

@@ -5,7 +5,7 @@
 #[macro_export]
 macro_rules! __action_keybindings {
 	($name:ident, bindings: $kdl:literal, action_id: $action_id:expr $(,)?) => {
-		xeno_macro::parse_keybindings!($name, $kdl, $action_id);
+		xeno_macros::parse_keybindings!($name, $kdl, $action_id);
 	};
 	($name:ident, action_id: $action_id:expr $(,)?) => {
 		paste::paste! {

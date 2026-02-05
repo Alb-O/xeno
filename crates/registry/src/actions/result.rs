@@ -6,7 +6,7 @@
 use std::sync::OnceLock;
 
 use parking_lot::Mutex;
-use xeno_macro::DispatchResult;
+use xeno_macros::DispatchResult;
 
 use crate::actions::editor_ctx::ResultHandler;
 use crate::actions::effects::ActionEffects;

@@ -1,5 +1,5 @@
 [package]
-name = "xeno-macro"
+name = "xeno-macros"
 description = "Procedural macros for Xeno editor"
 version.workspace = true
 edition.workspace = true

@@ -1,6 +1,6 @@
 //! Headless core model types for Xeno.
 //!
-//! This crate owns document state, undo backends, and core history primitives.
+//! This module owns document state, undo backends, and core history primitives.
 //! It intentionally excludes UI, LSP, and overlay concerns.
 
 pub mod document;

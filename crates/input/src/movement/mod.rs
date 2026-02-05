@@ -17,24 +17,24 @@ use xeno_primitives::graphemes::{next_grapheme_boundary, prev_grapheme_boundary}
 use xeno_primitives::range::{CharIdx, Direction, Range};
 use xeno_primitives::{max_cursor_pos, visible_line_count};
 
-/// Word type for word movements.
+/// Vim-style word boundary classification.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum WordType {
-	/// A word is alphanumeric characters (and those in extra_word_chars).
+	/// Alphanumeric + underscore boundaries.
 	Word,
-	/// A WORD is any non-whitespace characters.
+	/// Non-whitespace boundaries.
 	WORD,
 }
 
-/// Returns whether a character is a word character (alphanumeric or underscore).
+/// Word character predicate: alphanumeric or underscore.
 pub(crate) fn is_word_char(c: char) -> bool {
 	c.is_alphanumeric() || c == '_'
 }
 
-/// Make a range for cursor movement - anchor stays, only head moves.
+/// Produces a range for a cursor movement.
 ///
-/// If `extend` is false, this performs a "move": the range collapses to a single point at `new_head`.
-/// If `extend` is true, this performs a "selection extension": the anchor remains fixed, and the head moves to `new_head`.
+/// When `extend` is false, collapses to a point at `new_head`.
+/// When `extend` is true, keeps the existing anchor.
 pub(crate) fn make_range(range: Range, new_head: CharIdx, extend: bool) -> Range {
 	if extend {
 		Range::new(range.anchor, new_head)
@@ -43,13 +43,15 @@ pub(crate) fn make_range(range: Range, new_head: CharIdx, extend: bool) -> Range
 	}
 }
 
-/// Make a range for selection-creating motions - creates new selection from old head to new head.
-/// With extend, keeps existing anchor. Without extend, anchor moves to old head position.
+/// Produces a range for a selection-creating motion (e.g., `f`, `w`).
+///
+/// When `extend` is false, anchors at the old head position (creating a new
+/// selection spanning old-head → new-head). When `extend` is true, keeps
+/// the existing anchor.
 pub(crate) fn make_range_select(range: Range, new_head: CharIdx, extend: bool) -> Range {
 	if extend {
 		Range::new(range.anchor, new_head)
 	} else {
-		// Selection-creating motion: anchor at previous head, creates selection to new position
 		Range::new(range.head, new_head)
 	}
 }
@@ -161,12 +163,12 @@ pub fn move_to_first_nonwhitespace(text: RopeSlice, range: Range, extend: bool) 
 	make_range(range, first_non_ws, extend)
 }
 
-/// Move to document start.
+/// Moves the cursor to position 0.
 pub fn move_to_document_start(_text: RopeSlice, range: Range, extend: bool) -> Range {
 	make_range(range, 0 as CharIdx, extend)
 }
 
-/// Move to document end.
+/// Moves the cursor to the last valid cursor position.
 pub fn move_to_document_end(text: RopeSlice, range: Range, extend: bool) -> Range {
 	make_range(range, max_cursor_pos(text), extend)
 }

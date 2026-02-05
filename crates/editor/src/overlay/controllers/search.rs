@@ -2,12 +2,12 @@ use std::future::Future;
 use std::pin::Pin;
 
 use regex::Regex;
+use xeno_input::movement;
 use xeno_primitives::Selection;
 use xeno_primitives::range::Range;
 use xeno_registry::notifications::keys;
 
 use crate::buffer::ViewId;
-use crate::movement;
 use crate::overlay::{
 	CloseReason, OverlayContext, OverlayController, OverlaySession, OverlayUiSpec, RectPolicy,
 };

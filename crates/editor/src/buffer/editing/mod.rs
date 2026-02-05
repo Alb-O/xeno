@@ -49,8 +49,9 @@ impl ApplyPolicy {
 	}
 }
 
+use xeno_input::movement;
+
 use super::Buffer;
-use crate::movement;
 
 #[cfg(test)]
 mod tests;

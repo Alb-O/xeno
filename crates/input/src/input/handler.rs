@@ -8,20 +8,18 @@ use xeno_registry::{BindingMode, KeymapRegistry, LookupResult, get_keymap_regist
 
 use super::types::{KeyResult, Mode};
 
-/// Manages input state and key processing.
+/// Modal input state machine that resolves key sequences against the keymap registry.
+///
+/// Tracks mode, count prefix, register, extend flag, and multi-key sequences.
+/// Stateless with respect to editor — returns [`KeyResult`] values that the
+/// editor layer interprets.
 #[derive(Debug, Clone)]
 pub struct InputHandler {
-	/// Current editor mode (normal, insert, window, pending action).
 	pub(crate) mode: Mode,
-	/// Accumulated count prefix for actions (e.g., `3j` to move down 3 lines).
 	pub(crate) count: u32,
-	/// Selected register for yank/paste operations.
 	pub(crate) register: Option<char>,
-	/// For commands that extend selection.
 	pub(crate) extend: bool,
-	/// Last search pattern for n/N repeat.
 	pub(crate) last_search: Option<(String, bool)>,
-	/// Accumulated key sequence for multi-key bindings (e.g., `g g`).
 	pub(crate) key_sequence: Vec<Node>,
 }
 
@@ -32,7 +30,7 @@ impl Default for InputHandler {
 }
 
 impl InputHandler {
-	/// Creates a new input handler in normal mode with default state.
+	/// Creates a new handler in normal mode.
 	pub fn new() -> Self {
 		Self {
 			mode: Mode::Normal,
@@ -49,7 +47,7 @@ impl InputHandler {
 		self.mode.clone()
 	}
 
-	/// Returns the display name for the current mode.
+	/// Returns a short display label for the current mode.
 	pub fn mode_name(&self) -> &'static str {
 		use xeno_primitives::PendingKind;
 		match &self.mode {
@@ -63,40 +61,54 @@ impl InputHandler {
 		}
 	}
 
-	/// Returns the accumulated count prefix, or 0 if none.
+	/// Returns the raw count prefix (0 means unset).
 	pub fn count(&self) -> u32 {
 		self.count
 	}
 
-	/// Returns the count prefix, defaulting to 1 if not specified.
+	/// Returns the count prefix, treating unset as 1.
 	pub fn effective_count(&self) -> u32 {
-		if self.count == 0 { 1 } else { self.count }
+		self.count.max(1)
 	}
 
-	/// Returns the selected register, if any.
+	/// Returns the selected register.
 	pub fn register(&self) -> Option<char> {
 		self.register
 	}
 
-	/// Sets the editor mode, resetting parameters when entering normal mode.
+	/// Sets the mode, resetting count/register/extend when entering normal.
 	pub fn set_mode(&mut self, mode: Mode) {
-		self.mode = mode.clone();
 		if matches!(mode, Mode::Normal) {
 			self.reset_params();
 		}
+		self.mode = mode;
 	}
 
-	/// Stores the last search pattern and direction for repeat commands.
+	/// Stores the last search pattern and direction for `n`/`N` repeat.
 	pub fn set_last_search(&mut self, pattern: String, reverse: bool) {
 		self.last_search = Some((pattern, reverse));
 	}
 
-	/// Returns the last search pattern and direction, if any.
+	/// Returns the last search `(pattern, reverse)` pair.
 	pub fn last_search(&self) -> Option<(&str, bool)> {
 		self.last_search.as_ref().map(|(p, r)| (p.as_str(), *r))
 	}
 
-	/// Resets count, register, extend, and key sequence to defaults.
+	/// Consumes the current count/extend/register state into an [`ActionById`] result.
+	pub(crate) fn consume_action(&mut self, id: xeno_registry::ActionId) -> KeyResult {
+		let count = self.effective_count() as usize;
+		let extend = self.extend;
+		let register = self.register;
+		self.reset_params();
+		KeyResult::ActionById {
+			id,
+			count,
+			extend,
+			register,
+		}
+	}
+
+	/// Resets transient key-processing state to defaults.
 	pub(crate) fn reset_params(&mut self) {
 		self.count = 0;
 		self.register = None;
@@ -104,12 +116,12 @@ impl InputHandler {
 		self.key_sequence.clear();
 	}
 
-	/// Returns the number of keys in the pending sequence.
+	/// Returns the number of keys accumulated in the pending sequence.
 	pub fn pending_key_count(&self) -> usize {
 		self.key_sequence.len()
 	}
 
-	/// Returns the pending key sequence for display (e.g., which-key HUD).
+	/// Returns the pending key sequence for which-key display.
 	pub fn pending_keys(&self) -> &[Node] {
 		&self.key_sequence
 	}
@@ -119,12 +131,13 @@ impl InputHandler {
 		self.key_sequence.clear();
 	}
 
-	/// Process a key and return the result.
+	/// Dispatches a key through the current mode's handler.
 	pub fn handle_key(&mut self, key: Key) -> KeyResult {
-		let registry = get_keymap_registry();
-
 		match &self.mode {
-			Mode::Normal => self.handle_mode_key(key, BindingMode::Normal, registry),
+			Mode::Normal => {
+				let registry = get_keymap_registry();
+				self.handle_mode_key(key, BindingMode::Normal, registry)
+			}
 			Mode::Insert => self.handle_insert_key(key),
 			Mode::PendingAction(kind) => {
 				let kind = *kind;
@@ -133,7 +146,12 @@ impl InputHandler {
 		}
 	}
 
-	/// Handles a key in a specific binding mode (normal, window, etc.).
+	/// Resolves a key against a binding mode's keymap.
+	///
+	/// Shift+alphabetic keys are canonicalized to uppercase-without-shift
+	/// (Vim semantics: Shift+n looks up "N"). If the uppercase lookup fails,
+	/// the lowercase variant is tried with `extend = true` (Shift extends
+	/// selection). Non-alphabetic Shift keys follow the same extend fallback.
 	fn handle_mode_key(
 		&mut self,
 		key: Key,
@@ -162,7 +180,6 @@ impl InputHandler {
 			return KeyResult::Consumed;
 		}
 
-		// Helper: try lookup with a specific key, mutating key_sequence only if not None
 		let lookup_with = |k: Key, seq: &mut Vec<Node>| -> Option<LookupResult> {
 			let node = k.to_keymap().ok()?;
 			seq.push(node);
@@ -175,20 +192,15 @@ impl InputHandler {
 			}
 		};
 
-		// Build primary key for lookup:
-		// - if shift+alphabetic char, canonicalize to uppercase-char-without-shift (Vim semantics)
-		// - otherwise try raw key as-is (so Shift+Tab etc can be bound)
 		let mut primary = key;
 		let mut extend_fallback: Option<Key> = None;
 
 		if let KeyCode::Char(c) = key.code {
 			if c.is_ascii_alphabetic() && key.modifiers.shift {
-				// Primary: uppercase, no shift (bindable as "N")
 				let mut k = key.drop_shift();
 				k.code = KeyCode::Char(c.to_ascii_uppercase());
 				primary = k;
 
-				// Fallback: lowercase, no shift (bindable as "n") with extend=true
 				let mut fb = key.drop_shift();
 				fb.code = KeyCode::Char(c.to_ascii_lowercase());
 				extend_fallback = Some(fb);
@@ -200,8 +212,8 @@ impl InputHandler {
 		}
 
 		let lookup_result = match lookup_with(primary, &mut self.key_sequence) {
+			Some(res) => res,
 			None => {
-				// If primary failed and shift was held, fallback to extend semantics
 				if let Some(fallback) = extend_fallback {
 					self.extend = true;
 					lookup_with(fallback, &mut self.key_sequence).unwrap_or(LookupResult::None)
@@ -209,31 +221,14 @@ impl InputHandler {
 					LookupResult::None
 				}
 			}
-			Some(res) => res,
 		};
 
 		match lookup_result {
 			LookupResult::Match(entry) => {
-				let count = if self.count > 0 {
-					self.count as usize
-				} else {
-					1
-				};
-				let extend = self.extend;
-				let register = self.register;
-				let action_id = entry.action_id;
-
 				if binding_mode != BindingMode::Normal {
 					self.mode = Mode::Normal;
 				}
-				self.reset_params();
-
-				KeyResult::ActionById {
-					id: action_id,
-					count,
-					extend,
-					register,
-				}
+				self.consume_action(entry.action_id)
 			}
 			LookupResult::Pending { sticky } => {
 				if let Some(entry) = sticky {
@@ -257,6 +252,7 @@ impl InputHandler {
 		}
 	}
 
+	/// Translates a mouse event into a [`KeyResult`].
 	pub fn handle_mouse(&mut self, event: MouseEvent) -> KeyResult {
 		match event {
 			MouseEvent::Press {

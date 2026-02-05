@@ -56,7 +56,9 @@ pub fn find_char_forward(
 	range
 }
 
-/// Find character backward (`F` and `T` commands).
+/// Finds a character backward (`F` and `T` commands).
+///
+/// Mirrors [`find_char_forward`] with reversed search direction.
 pub fn find_char_backward(
 	text: RopeSlice,
 	range: Range,

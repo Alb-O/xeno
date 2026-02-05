@@ -6,24 +6,19 @@
 //!
 //! Multiple buffers can share the same document, enabling proper split behavior.
 
-pub mod document;
 mod editing;
-mod history;
 mod layout;
 mod navigation;
-mod undo_store;
 
 use std::cell::RefCell;
 use std::collections::HashSet;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-pub use document::{Document, DocumentId, DocumentMetaOutcome};
 pub use editing::ApplyPolicy;
-pub use history::HistoryResult;
 pub use layout::{Layout, SpatialDirection, SplitDirection, SplitPath};
 use parking_lot::RwLock;
-pub use undo_store::{TxnUndoStore, UndoBackend};
+use xeno_input::input::InputHandler;
 pub use xeno_primitives::ViewId;
 use xeno_primitives::range::CharIdx;
 use xeno_primitives::{Mode, Selection};
@@ -32,7 +27,9 @@ use xeno_registry::options::{
 };
 use xeno_runtime_language::LanguageLoader;
 
-use crate::input::InputHandler;
+pub use crate::core::document::{Document, DocumentId, DocumentMetaOutcome};
+pub use crate::core::history::HistoryResult;
+pub use crate::core::undo_store::{TxnUndoStore, UndoBackend};
 
 // Thread-local set of document IDs currently locked by the thread.
 // Used in debug builds to detect and prevent re-entrant locking on the same

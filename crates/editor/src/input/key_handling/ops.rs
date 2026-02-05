@@ -1,8 +1,8 @@
+use xeno_input::input::KeyResult;
 use xeno_primitives::Selection;
 
 use super::types::ActionDispatch;
 use crate::impls::Editor;
-use crate::input::KeyResult;
 
 impl Editor {
 	/// Dispatches an action based on the key result.

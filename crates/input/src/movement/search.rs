@@ -6,13 +6,13 @@ use ropey::RopeSlice;
 use xeno_primitives::Range;
 use xeno_primitives::range::CharIdx;
 
-/// Check if text matches a regex pattern.
+/// Returns whether `text` matches `pattern` as a regex.
 pub fn matches_pattern(text: &str, pattern: &str) -> Result<bool, regex::Error> {
 	let re = Regex::new(pattern)?;
 	Ok(re.is_match(text))
 }
 
-/// Find all matches of a pattern in text.
+/// Finds all regex matches of `pattern` in `text`.
 pub fn find_all_matches(text: RopeSlice, pattern: &str) -> Result<Vec<Range>, regex::Error> {
 	let re = Regex::new(pattern)?;
 	let text_str: String = text.chars().collect();
@@ -27,7 +27,7 @@ pub fn find_all_matches(text: RopeSlice, pattern: &str) -> Result<Vec<Range>, re
 	Ok(matches)
 }
 
-/// Find the next match after the given position.
+/// Finds the next regex match of `pattern` after `pos`, with document wraparound.
 pub fn find_next(
 	text: RopeSlice,
 	pattern: &str,
@@ -37,7 +37,7 @@ pub fn find_next(
 	Ok(find_next_re(text, &re, pos))
 }
 
-/// Find the previous match before the given position.
+/// Finds the previous regex match of `pattern` before `pos`, with document wraparound.
 pub fn find_prev(
 	text: RopeSlice,
 	pattern: &str,
@@ -47,9 +47,8 @@ pub fn find_prev(
 	Ok(find_prev_re(text, &re, pos))
 }
 
-/// Find the next match after the given position using a precompiled regex.
-///
-/// Wraps around to the start of the text if no match is found after `pos`.
+/// Finds the next match after `pos` using a precompiled regex, wrapping to
+/// the start of the document if no match is found after `pos`.
 pub fn find_next_re(text: RopeSlice, re: &Regex, pos: CharIdx) -> Option<Range> {
 	let text_str: String = text.chars().collect();
 	let byte_pos = char_to_byte_offset(&text_str, pos);
@@ -62,7 +61,6 @@ pub fn find_next_re(text: RopeSlice, re: &Regex, pos: CharIdx) -> Option<Range> 
 		return Some(Range::new(start, end));
 	}
 
-	// Wrap around: search from start to pos
 	if let Some(m) = re.find(&text_str) {
 		let start = byte_to_char_offset(&text_str, m.start());
 		let end = byte_to_char_offset(&text_str, m.end());
@@ -74,13 +72,11 @@ pub fn find_next_re(text: RopeSlice, re: &Regex, pos: CharIdx) -> Option<Range> 
 	None
 }
 
-/// Find the previous match before the given position using a precompiled regex.
-///
-/// Wraps around to the end of the text if no match is found before `pos`.
+/// Finds the previous match before `pos` using a precompiled regex, wrapping
+/// to the end of the document if no match is found before `pos`.
 pub fn find_prev_re(text: RopeSlice, re: &Regex, pos: CharIdx) -> Option<Range> {
 	let text_str: String = text.chars().collect();
 
-	// Find all matches before pos
 	let mut last_before: Option<Range> = None;
 	for m in re.find_iter(&text_str) {
 		let start = byte_to_char_offset(&text_str, m.start());
@@ -96,7 +92,6 @@ pub fn find_prev_re(text: RopeSlice, re: &Regex, pos: CharIdx) -> Option<Range> 
 		return last_before;
 	}
 
-	// Wrap around: find last match in document
 	let mut last: Option<Range> = None;
 	for m in re.find_iter(&text_str) {
 		let start = byte_to_char_offset(&text_str, m.start());
@@ -107,12 +102,12 @@ pub fn find_prev_re(text: RopeSlice, re: &Regex, pos: CharIdx) -> Option<Range> 
 	last
 }
 
-/// Converts a byte offset to a character offset in a string.
+/// Converts a byte offset to a character offset.
 fn byte_to_char_offset(s: &str, byte_offset: usize) -> CharIdx {
 	s[..byte_offset].chars().count()
 }
 
-/// Converts a character offset to a byte offset in a string.
+/// Converts a character offset to a byte offset.
 fn char_to_byte_offset(s: &str, char_offset: CharIdx) -> usize {
 	s.char_indices()
 		.nth(char_offset)

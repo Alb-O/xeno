@@ -5,10 +5,10 @@ mod types;
 
 use termina::event::KeyCode;
 use types::ActionDispatch;
+use xeno_input::input::KeyResult;
 use xeno_primitives::{Key, Mode};
 
 use crate::impls::{Editor, FocusTarget};
-use crate::input::KeyResult;
 use crate::window::Window;
 
 impl Editor {

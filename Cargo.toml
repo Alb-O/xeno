@@ -2,11 +2,11 @@
 resolver = "3"
 members = [
     "crates/editor",
-    "crates/editor-core",
     "crates/frizbee",
+    "crates/input",
     "crates/keymap/*",
     "crates/lsp",
-    "crates/macro",
+    "crates/macros",
     "crates/primitives",
     "crates/registry",
     "crates/rpc",
@@ -95,11 +95,11 @@ vt100 = "0.16"
 waitpid-any = "0.3"
 which = "8.0"
 xeno-editor = { path = "crates/editor" }
-xeno-editor-core = { path = "crates/editor-core" }
+xeno-input = { path = "crates/input" }
 xeno-keymap-core = { path = "crates/keymap/core" }
 xeno-keymap-parser = { path = "crates/keymap/parser" }
 xeno-lsp = { path = "crates/lsp" }
-xeno-macro = { path = "crates/macro" }
+xeno-macros = { path = "crates/macros" }
 xeno-primitives = { path = "crates/primitives" }
 xeno-registry = { path = "crates/registry" }
 xeno-rpc = { path = "crates/rpc" }

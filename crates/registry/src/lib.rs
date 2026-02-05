@@ -15,7 +15,7 @@ pub mod inventory;
 // from this single source of truth. Adding a new event only requires adding
 // it here - all extraction machinery is auto-generated.
 #[cfg(feature = "hooks")]
-xeno_macro::define_events! {
+xeno_macros::define_events! {
 	/// Editor is starting up (before first render).
 	EditorStart => "editor:start",
 	/// Editor is shutting down.
@@ -256,6 +256,6 @@ pub use statusline::{
 #[cfg(feature = "textobj")]
 pub use textobj::{TextObjectDef, TextObjectHandler};
 #[cfg(feature = "options")]
-pub use xeno_macro::derive_option;
+pub use xeno_macros::derive_option;
 
 pub use crate::core::*;

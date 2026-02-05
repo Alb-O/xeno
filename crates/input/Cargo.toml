@@ -1,0 +1,17 @@
+[package]
+name = "xeno-input"
+description = "Modal input state machine and movement primitives"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+regex.workspace = true
+ropey.workspace = true
+tracing.workspace = true
+xeno-keymap-core.workspace = true
+xeno-primitives.workspace = true
+xeno-registry.workspace = true
+
+[lints]
+workspace = true

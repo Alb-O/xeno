@@ -5,8 +5,10 @@ use xeno_primitives::range::{CharIdx, Range};
 
 use super::{WordType, is_word_char, make_range_select};
 
-/// Move to next word start (`w` command).
-/// Selects the word and following whitespace on the right.
+/// Moves to the start of the next word (`w` command).
+///
+/// Advances past the current word boundary and any following whitespace,
+/// stopping at a newline if encountered.
 pub fn move_to_next_word_start(
 	text: RopeSlice,
 	range: Range,
@@ -45,9 +47,7 @@ pub fn move_to_next_word_start(
 		}
 
 		while pos < len && text.char(pos).is_whitespace() {
-			// For word movement, skip whitespace but also watch for newlines
-			let c = text.char(pos);
-			if c == '\n' {
+			if text.char(pos) == '\n' {
 				pos += 1;
 				break;
 			}
@@ -58,7 +58,7 @@ pub fn move_to_next_word_start(
 	make_range_select(range, pos.min(len), extend)
 }
 
-/// Move to next word end (`e` command).
+/// Moves to the end of the next word (`e` command).
 pub fn move_to_next_word_end(
 	text: RopeSlice,
 	range: Range,
@@ -74,7 +74,6 @@ pub fn move_to_next_word_end(
 	let mut pos: CharIdx = range.head;
 
 	for _ in 0..count {
-		// Move at least one position
 		if pos < len {
 			pos += 1;
 		}
@@ -106,13 +105,12 @@ pub fn move_to_next_word_end(
 		}
 	}
 
-	// End position is one before where we stopped (last char of word)
 	let end_pos = pos.saturating_sub(1).min(len.saturating_sub(1));
 
 	make_range_select(range, end_pos, extend)
 }
 
-/// Move to previous word start (`b` command).
+/// Moves to the start of the previous word (`b` command).
 pub fn move_to_prev_word_start(
 	text: RopeSlice,
 	range: Range,
@@ -128,10 +126,8 @@ pub fn move_to_prev_word_start(
 	let mut pos: CharIdx = range.head;
 
 	for _ in 0..count {
-		// Move at least one position back
 		pos = pos.saturating_sub(1);
 
-		// Skip whitespace going backward
 		while pos > 0 && text.char(pos).is_whitespace() {
 			pos -= 1;
 		}

@@ -27,10 +27,6 @@
 /// Theme bootstrap cache for instant first-frame rendering.
 pub mod bootstrap;
 pub mod buffer;
-/// Headless core model (documents, undo).
-pub mod core {
-	pub use xeno_editor_core::*;
-}
 pub mod capabilities;
 /// Command queue for deferred execution.
 pub mod command_queue;
@@ -38,6 +34,8 @@ pub mod command_queue;
 pub mod commands;
 /// Completion types and sources for command palette.
 pub mod completion;
+/// Headless core model (documents, undo).
+pub mod core;
 /// Editor context and effect handling.
 pub mod editor_ctx;
 /// Unified side-effect routing and sink.
@@ -49,15 +47,13 @@ pub mod hook_runtime;
 pub mod impls;
 /// Info popups for documentation and contextual help.
 pub mod info_popup;
-/// Input handling: key events, modes, and pending actions.
-pub mod input;
+/// Editor key/mouse dispatch (input state machine lives in `xeno-input`).
+mod input;
 /// Split layout management.
 pub mod layout;
 pub mod lsp;
 /// Runtime metrics for observability.
 pub mod metrics;
-/// Cursor movement functions.
-pub mod movement;
 /// Async message bus for background task hydration.
 pub mod msg;
 /// Type-erased UI overlay storage.
@@ -95,7 +91,6 @@ pub use completion::{
 pub use editor_ctx::{EditorCapabilities, EditorContext, EditorOps, HandleOutcome, apply_effects};
 pub use impls::{Editor, Editor as EditorApp};
 pub use lsp::LspSystem;
-pub use movement::WordType;
 pub use msg::{Dirty, EditorMsg, IoMsg, LspMsg, MsgSender, ThemeMsg};
 pub use terminal_config::{TerminalConfig, TerminalSequence};
 pub use theme_source::ThemeSource;

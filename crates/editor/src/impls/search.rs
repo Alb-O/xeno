@@ -1,8 +1,8 @@
+use xeno_input::movement;
 use xeno_primitives::Selection;
 use xeno_registry::notifications::keys;
 
 use super::Editor;
-use crate::movement;
 
 impl Editor {
 	/// Applies a search hit by updating the cursor and selection.

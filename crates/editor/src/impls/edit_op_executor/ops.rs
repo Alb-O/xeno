@@ -1,3 +1,4 @@
+use xeno_input::movement::{self, WordType};
 use xeno_primitives::range::{Direction as MoveDir, Range};
 use xeno_primitives::transaction::Change;
 use xeno_primitives::{Selection, Transaction};
@@ -7,7 +8,6 @@ use xeno_registry::edit_op::{
 };
 
 use super::super::Editor;
-use crate::movement::{self, WordType};
 
 impl Editor {
 	/// Applies a pre-effect before the main transformation.

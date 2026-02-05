@@ -29,8 +29,7 @@ tokio.workspace = true
 tokio-util = { workspace = true, optional = true }
 tracing.workspace = true
 unicode-width.workspace = true
-xeno-editor-core.workspace = true
-xeno-keymap-core.workspace = true
+xeno-input.workspace = true
 xeno-lsp = { workspace = true, features = ["position"], optional = true }
 xeno-primitives.workspace = true
 xeno-registry.workspace = true

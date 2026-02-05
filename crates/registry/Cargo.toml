@@ -32,7 +32,7 @@ keymap = ["db", "actions", "dep:xeno-keymap-core"]
 actions = [
     "dep:ropey",
     "dep:xeno-primitives",
-    "dep:xeno-macro",
+    "dep:xeno-macros",
     "notifications",
     "options",
     "textobj",
@@ -40,11 +40,11 @@ actions = [
 commands = ["motions", "notifications", "textobj"]
 motions = ["dep:regex", "dep:ropey", "dep:xeno-primitives"]
 textobj = ["dep:ropey", "dep:xeno-primitives", "motions"]
-options = ["dep:strsim", "dep:xeno-macro"]
+options = ["dep:strsim", "dep:xeno-macros"]
 themes = ["dep:strsim", "dep:xeno-primitives"]
 statusline = []
 gutter = ["dep:ropey", "themes"]
-hooks = ["dep:tracing", "dep:xeno-macro", "dep:xeno-primitives"]
+hooks = ["dep:tracing", "dep:xeno-macros", "dep:xeno-primitives"]
 notifications = []
 
 # Builtins gates
@@ -74,7 +74,7 @@ strsim = { workspace = true, optional = true }
 thiserror.workspace = true
 tracing = { workspace = true, optional = true }
 xeno-keymap-core = { workspace = true, optional = true }
-xeno-macro = { workspace = true, optional = true }
+xeno-macros = { workspace = true, optional = true }
 xeno-primitives = { workspace = true, optional = true }
 
 [lints]

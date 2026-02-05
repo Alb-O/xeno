@@ -10,6 +10,10 @@ use super::types::{KeyResult, Mode};
 
 impl InputHandler {
 	/// Processes a key press in insert mode.
+	///
+	/// Resolution order: escape → direct actions (backspace/delete) → shift
+	/// canonicalization → insert-mode bindings → normal-mode fallback for
+	/// navigation keys → literal character insertion.
 	pub(crate) fn handle_insert_key(&mut self, key: Key) -> KeyResult {
 		if key.is_escape() {
 			self.mode = Mode::Normal;
@@ -34,8 +38,6 @@ impl InputHandler {
 			};
 		}
 
-		// Char keys: normalize shift to uppercase for typing
-		// Navigation keys: shift means extend selection
 		let key = if let KeyCode::Char(c) = key.code {
 			if key.modifiers.shift {
 				if c.is_ascii_lowercase() {
@@ -55,52 +57,23 @@ impl InputHandler {
 
 		let registry = get_keymap_registry();
 
-		// Try insert-mode keybindings first
 		if let Ok(node) = key.to_keymap() {
 			if let LookupResult::Match(entry) =
 				registry.lookup(BindingMode::Insert, std::slice::from_ref(&node))
 			{
-				let count = if self.count > 0 {
-					self.count as usize
-				} else {
-					1
-				};
-				let extend = self.extend;
-				let register = self.register;
-				self.reset_params();
-				return KeyResult::ActionById {
-					id: entry.action_id,
-					count,
-					extend,
-					register,
-				};
+				return self.consume_action(entry.action_id);
 			}
 
-			// Fall back to normal mode bindings for navigation keys
 			let is_navigation_key =
 				!matches!(key.code, KeyCode::Char(_)) || key.modifiers.ctrl || key.modifiers.alt;
 
 			if is_navigation_key
 				&& let LookupResult::Match(entry) = registry.lookup(BindingMode::Normal, &[node])
 			{
-				let count = if self.count > 0 {
-					self.count as usize
-				} else {
-					1
-				};
-				let extend = self.extend;
-				let register = self.register;
-				self.reset_params();
-				return KeyResult::ActionById {
-					id: entry.action_id,
-					count,
-					extend,
-					register,
-				};
+				return self.consume_action(entry.action_id);
 			}
 		}
 
-		// Regular character insertion
 		match key.code {
 			KeyCode::Char(c) if key.modifiers.is_empty() || key.modifiers == Modifiers::SHIFT => {
 				KeyResult::InsertChar(c)
