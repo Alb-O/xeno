@@ -974,9 +974,10 @@ fn should_install_completed_parse(
 	slot_dirty: bool,
 ) -> bool {
 	if let Some(v) = current_tree_version
-		&& done_version < v {
-			return false;
-		}
+		&& done_version < v
+	{
+		return false;
+	}
 
 	let version_match = done_version == target_version;
 	let has_current = current_tree_version.is_some();

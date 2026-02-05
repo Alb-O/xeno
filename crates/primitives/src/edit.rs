@@ -105,7 +105,7 @@ pub struct CommitResult {
 	pub version_after: u64,
 	/// Selection state after the edit (if changed).
 	pub selection_after: Option<Selection>,
-	/// Whether an undo step was recorded.
+	/// Whether a new undo step was created (start of a new group).
 	pub undo_recorded: bool,
 	/// Whether insert undo grouping remains active after this edit.
 	pub insert_group_active_after: bool,

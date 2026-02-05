@@ -22,7 +22,7 @@ use xeno_primitives::{
 };
 use xeno_runtime_language::LanguageLoader;
 
-use super::undo_store::{DocumentSnapshot, UndoBackend};
+use super::undo_store::UndoBackend;
 
 /// Counter for generating unique document IDs.
 static NEXT_DOCUMENT_ID: AtomicU64 = AtomicU64::new(1);
@@ -78,7 +78,7 @@ pub struct Document {
 	/// Whether the document is read-only (prevents all text modifications).
 	readonly: bool,
 
-	/// Undo backend (snapshot or transaction-based).
+	/// Undo backend (standardized on transaction-based).
 	///
 	/// Manages document-level undo history. View state (cursor, selection,
 	/// scroll) is handled by the application layer.
@@ -122,34 +122,10 @@ impl Document {
 		Self::new(String::new(), None)
 	}
 
-	/// Creates a new document with transaction-based undo.
-	///
-	/// Transaction-based undo stores edit deltas instead of full rope snapshots,
-	/// which can be more efficient for large documents with small edits.
-	pub fn with_transaction_undo(content: String, path: Option<PathBuf>) -> Self {
-		let mut doc = Self::new(content, path);
-		doc.undo_backend = UndoBackend::transaction();
-		doc
-	}
-
-	/// Switches to transaction-based undo backend.
-	///
-	/// Note: This clears any existing undo history.
-	pub fn use_transaction_undo(&mut self) {
-		self.undo_backend = UndoBackend::transaction();
-	}
-
-	/// Switches to snapshot-based undo backend.
-	///
-	/// Note: This clears any existing undo history.
-	pub fn use_snapshot_undo(&mut self) {
-		self.undo_backend = UndoBackend::snapshot();
-	}
-
 	/// Initializes syntax highlighting for this document based on file path.
 	///
-	/// This only sets the `language_id` and `file_type` fields. Actual syntax
-	/// loading is deferred to the application layer for async background parsing.
+	/// This only sets metadata. Actual syntax loading is deferred to the
+	/// application layer for async background parsing.
 	pub fn init_syntax(&mut self, language_loader: &LanguageLoader) {
 		if let Some(ref p) = self.path
 			&& let Some(lang_id) = language_loader.language_for_path(p)
@@ -157,85 +133,51 @@ impl Document {
 			let lang_data = language_loader.get(lang_id);
 			self.file_type = lang_data.map(|l| l.name.clone());
 			self.language_id = Some(lang_id);
-			// Syntax loading deferred to SyntaxManager - do NOT call Syntax::new here
 		}
 	}
 
 	/// Initializes syntax highlighting for this document by language name.
-	///
-	/// This only sets the `language_id` and `file_type` fields. Actual syntax
-	/// loading is deferred to the application layer for async background parsing.
 	pub fn init_syntax_for_language(&mut self, name: &str, language_loader: &LanguageLoader) {
 		if let Some(lang_id) = language_loader.language_for_name(name) {
 			let lang_data = language_loader.get(lang_id);
 			self.file_type = lang_data.map(|l| l.name.clone());
 			self.language_id = Some(lang_id);
-			// Syntax loading deferred to SyntaxManager - do NOT call Syntax::new here
 		}
 	}
 
 	/// Records the current document state as an undo boundary.
 	///
-	/// Creates a new undo step and ends any active insert grouping session.
-	/// Call this before discrete edit operations (delete, change, paste, etc.).
-	///
-	/// View state (cursor, selection, scroll) is captured separately by the
-	/// application layer.
+	/// Ends any active insert grouping session. Subsequent edits will
+	/// start a new undo step.
 	pub fn record_undo_boundary(&mut self) {
 		self.insert_undo_active = false;
-		let before = DocumentSnapshot {
-			rope: self.content.clone(),
-			version: self.version,
-		};
-		let empty_tx = xeno_primitives::Transaction::new(self.content.slice(..));
-		self.undo_backend.record_commit(&empty_tx, &before);
 	}
 
 	/// Undoes the last document change.
 	///
-	/// Restores document content from the undo stack.
-	/// View state restoration is handled by the application layer.
+	/// Restores document content from the undo stack. View state restoration
+	/// is handled by the application layer.
 	///
-	/// Returns the applied inverse transaction on success, or `None` if
+	/// # Returns
+	///
+	/// Returns the applied inverse transactions on success, or `None` if
 	/// nothing to undo.
-	///
-	pub fn undo(&mut self, language_loader: &LanguageLoader) -> Option<Transaction> {
+	pub fn undo(&mut self) -> Option<Vec<Transaction>> {
 		self.insert_undo_active = false;
-
-		if !self.undo_backend.can_undo() {
-			return None;
-		}
-
-		let tx = self.undo_backend.undo(
-			&mut self.content,
-			&mut self.version,
-			language_loader,
-			|_, _| {},
-		)?;
-		Some(tx)
+		self.undo_backend.undo(&mut self.content, &mut self.version)
 	}
 
 	/// Redoes the last undone document change.
 	///
-	/// Restores document content from the redo stack.
-	/// View state restoration is handled by the application layer.
+	/// Restores document content from the redo stack. View state restoration
+	/// is handled by the application layer.
 	///
-	/// Returns the applied transaction on success, or `None` if nothing to redo.
+	/// # Returns
 	///
-	pub fn redo(&mut self, language_loader: &LanguageLoader) -> Option<Transaction> {
+	/// Returns the applied transactions on success, or `None` if nothing to redo.
+	pub fn redo(&mut self) -> Option<Vec<Transaction>> {
 		self.insert_undo_active = false;
-
-		if !self.undo_backend.can_redo() {
-			return None;
-		}
-
-		let tx = self.undo_backend.redo(
-			&mut self.content,
-			&mut self.version,
-			language_loader,
-			|_, _| {},
-		)?;
-		Some(tx)
+		self.undo_backend.redo(&mut self.content, &mut self.version)
 	}
 
 	/// Applies an edit through the authoritative edit gate.
@@ -246,10 +188,9 @@ impl Document {
 	/// - Transaction application
 	/// - Version/modified flag updates
 	/// - Redo stack clearing
-	/// - Syntax policy outcome (no parsing in core)
+	/// - Syntax policy outcome
 	///
-	/// View state (cursor, selection, scroll) capture happens at the editor level
-	/// before calling this method. Document history is purely about document state.
+	/// View state capture happens at the editor level before calling this method.
 	///
 	/// # Errors
 	///
@@ -266,19 +207,9 @@ impl Document {
 	/// Applies an edit bypassing the readonly check.
 	///
 	/// For internal use by [`Buffer`] when the readonly override has already
-	/// been validated at the buffer level. External code should use [`commit`].
-	///
-	/// Handles undo recording based on [`UndoPolicy`]: `NoUndo` skips recording,
-	/// `Record`/`Boundary` creates a new snapshot, and `MergeWithCurrentGroup`
-	/// only creates a snapshot if not already in an insert grouping session.
-	///
-	/// Syntax outcomes are policy-driven:
-	/// - [`SyntaxPolicy::None`]: no syntax action
-	/// - Other policies: report [`SyntaxOutcome::MarkedDirty`] so callers can
-	///   schedule background parsing in the application layer.
+	/// been validated. Handles undo recording and syntax policy outcomes.
 	///
 	/// [`Buffer`]: super::Buffer
-	/// [`commit`]: Self::commit
 	#[doc(hidden)]
 	pub fn commit_unchecked(
 		&mut self,
@@ -288,27 +219,23 @@ impl Document {
 		let version_before = self.version;
 		let changed_ranges = collect_changed_ranges(&commit.tx);
 
-		let should_record = match commit.undo {
-			UndoPolicy::NoUndo => false,
+		let (should_record, is_merge) = match commit.undo {
+			UndoPolicy::NoUndo => (false, false),
 			UndoPolicy::Record | UndoPolicy::Boundary => {
 				self.insert_undo_active = false;
-				true
+				(true, false)
 			}
 			UndoPolicy::MergeWithCurrentGroup => {
-				if !self.insert_undo_active {
+				let merge = self.insert_undo_active;
+				if !merge {
 					self.insert_undo_active = true;
-					true
-				} else {
-					false
 				}
+				(true, merge)
 			}
 		};
 
-		let before = if should_record {
-			Some(DocumentSnapshot {
-				rope: self.content.clone(),
-				version: self.version,
-			})
+		let content_before = if should_record {
+			Some(self.content.clone())
 		} else {
 			None
 		};
@@ -317,18 +244,20 @@ impl Document {
 		self.modified = true;
 		self.version = self.version.wrapping_add(1);
 
-		let undo_recorded = if let Some(before) = before {
-			self.undo_backend.record_commit(&commit.tx, &before);
-			true
+		// Any new edit invalidates the redo stack.
+		self.undo_backend.clear_redo();
+
+		let undo_recorded = if let Some(before) = content_before {
+			self.undo_backend
+				.record_commit(&commit.tx, &before, is_merge);
+			!is_merge
 		} else {
 			false
 		};
 
 		let syntax_outcome = match commit.syntax {
 			SyntaxPolicy::None => SyntaxOutcome::Unchanged,
-			SyntaxPolicy::MarkDirty
-			| SyntaxPolicy::IncrementalOrDirty
-			| SyntaxPolicy::FullReparseNow => SyntaxOutcome::MarkedDirty,
+			_ => SyntaxOutcome::MarkedDirty,
 		};
 
 		CommitResult {
@@ -361,9 +290,8 @@ impl Document {
 
 	/// Returns a mutable reference to the document's text content.
 	///
-	/// **Warning:** This is a low-level escape hatch that bypasses undo recording
-	/// and syntax updates. Prefer using `commit()` for normal edits, or
-	/// `reset_content()` for wholesale content replacement in ephemeral buffers.
+	/// **Warning:** This is a low-level escape hatch that bypasses history
+	/// and syntax updates. Prefer `commit()`.
 	#[allow(dead_code, reason = "escape hatch retained for internal migration")]
 	pub(crate) fn content_mut(&mut self) -> &mut Rope {
 		&mut self.content
@@ -371,35 +299,22 @@ impl Document {
 
 	/// Replaces the document content wholesale, clearing undo history.
 	///
-	/// This is intended for ephemeral buffers (info popups, prompts) where:
-	/// - The entire content is replaced, not edited incrementally
-	/// - Undo history doesn't make sense for the use case
-	/// - The buffer will typically be set to readonly afterwards
-	///
-	/// For normal editing operations, use `commit()` instead.
-	///
-	/// Note: The document version is bumped to invalidate caches keyed by
-	/// `doc.version()`.
+	/// Intended for ephemeral buffers where incremental editing is not used.
 	pub fn reset_content(&mut self, content: impl Into<Rope>) {
 		self.content = content.into();
 		self.insert_undo_active = false;
-		self.undo_backend = UndoBackend::default();
+		self.undo_backend = UndoBackend::new();
 		self.modified = false;
 		self.version = self.version.wrapping_add(1);
 	}
 
-	/// Replaces the document content from a cross-process sync snapshot.
+	/// Replaces the document content from a sync snapshot.
 	///
-	/// Unlike [`reset_content`], this preserves file document semantics:
-	/// - Version increments monotonically (not reset to 0).
-	/// - Modified flag is set to `true` (content differs from disk).
-	/// - Undo history is cleared (undo across ownership boundaries is unsound).
-	///   Use this for shared state follower join and full resync, where the remote
-	///   content replaces local content but the document still represents a file.
+	/// preserved version monotonicity but clears history.
 	pub fn install_sync_snapshot(&mut self, content: impl Into<Rope>) {
 		self.content = content.into();
 		self.insert_undo_active = false;
-		self.undo_backend = UndoBackend::default();
+		self.undo_backend = UndoBackend::new();
 		self.modified = true;
 		self.version = self.version.wrapping_add(1);
 	}
@@ -425,22 +340,16 @@ impl Document {
 	}
 
 	/// Returns the document version.
-	///
-	/// Incremented on every transaction. Used for LSP sync and cache invalidation.
 	pub fn version(&self) -> u64 {
 		self.version
 	}
 
 	/// Returns whether an insert undo group is currently active.
-	///
-	/// When `true`, subsequent edits with [`UndoPolicy::MergeWithCurrentGroup`]
-	/// will be grouped with the current undo step. Used by the application layer
-	/// to determine whether to push a new view-level undo group.
 	pub fn insert_undo_active(&self) -> bool {
 		self.insert_undo_active
 	}
 
-	/// Increments the document version. Called internally during transaction application.
+	/// Increments the document version.
 	#[doc(hidden)]
 	pub fn increment_version(&mut self) {
 		self.version = self.version.wrapping_add(1);
@@ -478,6 +387,7 @@ impl Document {
 	}
 }
 
+/// Collects ranges affected by a transaction in pre-edit coordinates.
 pub(crate) fn collect_changed_ranges(tx: &xeno_primitives::Transaction) -> Vec<Range> {
 	let mut ranges = Vec::new();
 	let mut pos = 0;

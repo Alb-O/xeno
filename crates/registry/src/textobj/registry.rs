@@ -102,7 +102,11 @@ fn insert_trigger(
 					def_ref.total_order_cmp(existing_ref) == Ordering::Greater
 				}
 				DuplicatePolicy::Panic => {
-					panic!("duplicate text-object trigger {:?} for {}", ch, def_ref.id())
+					panic!(
+						"duplicate text-object trigger {:?} for {}",
+						ch,
+						def_ref.id()
+					)
 				}
 			};
 			if new_wins {
@@ -319,7 +323,8 @@ impl TextObjectRegistry {
 	}
 
 	pub fn register(&self, def: &'static TextObjectDef) -> bool {
-		self.try_register_many_internal(std::iter::once(DefPtr::from_ref(def)), Vec::new(), false).is_ok()
+		self.try_register_many_internal(std::iter::once(DefPtr::from_ref(def)), Vec::new(), false)
+			.is_ok()
 	}
 
 	fn make_choose_winner(&self) -> ChooseWinner<TextObjectDef> {

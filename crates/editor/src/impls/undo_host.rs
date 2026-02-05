@@ -89,7 +89,7 @@ impl EditorUndoHost<'_> {
 				tx.changes(),
 				&self.config.language_loader,
 			);
-			self.sync_sibling_selections(buffer_id, tx);
+			self.sync_sibling_selections(buffer_id, std::slice::from_ref(tx));
 			self.frame.dirty_buffers.insert(buffer_id);
 		}
 
@@ -101,31 +101,28 @@ impl EditorUndoHost<'_> {
 	}
 
 	fn mark_buffer_dirty_for_full_sync(&mut self, buffer_id: ViewId) {
-		if let Some(buffer) = self.buffers.get_buffer_mut(buffer_id) {
+		if let Some(_buffer) = self.buffers.get_buffer_mut(buffer_id) {
 			#[cfg(feature = "lsp")]
-			let doc_id = buffer.document_id();
-
-			buffer.with_doc_mut(|doc| {
-				doc.increment_version();
-			});
-
-			#[cfg(feature = "lsp")]
-			self.lsp.sync_manager_mut().escalate_full(doc_id);
+			{
+				let doc_id = _buffer.document_id();
+				self.lsp.sync_manager_mut().escalate_full(doc_id);
+			}
 		}
 		self.frame.dirty_buffers.insert(buffer_id);
 	}
 
-	fn sync_sibling_selections(&mut self, buffer_id: ViewId, tx: &Transaction) {
+	/// Synchronizes selections of all sibling buffers viewing the same document.
+	fn sync_sibling_selections(&mut self, source_view_id: ViewId, txs: &[Transaction]) {
 		let doc_id = self
 			.buffers
-			.get_buffer(buffer_id)
+			.get_buffer(source_view_id)
 			.expect("buffer must exist")
 			.document_id();
 
 		let sibling_ids: Vec<_> = self
 			.buffers
 			.buffer_ids()
-			.filter(|&id| id != buffer_id)
+			.filter(|&id| id != source_view_id)
 			.filter(|&id| {
 				self.buffers
 					.get_buffer(id)
@@ -135,7 +132,9 @@ impl EditorUndoHost<'_> {
 
 		for sibling_id in sibling_ids {
 			if let Some(sibling) = self.buffers.get_buffer_mut(sibling_id) {
-				sibling.map_selection_through(tx);
+				for tx in txs {
+					sibling.map_selection_through(tx);
+				}
 				sibling.ensure_valid_selection();
 				sibling.debug_assert_valid_state();
 			}
@@ -163,21 +162,21 @@ impl EditorUndoHost<'_> {
 	}
 
 	fn undo_document(&mut self, doc_id: DocumentId) -> bool {
-		self.apply_history_op(doc_id, |doc, lang| doc.undo(lang))
+		self.apply_history_op(doc_id, |doc| doc.undo())
 	}
 
 	fn redo_document(&mut self, doc_id: DocumentId) -> bool {
-		self.apply_history_op(doc_id, |doc, lang| doc.redo(lang))
+		self.apply_history_op(doc_id, |doc| doc.redo())
 	}
 
-	/// Shared implementation for [`undo_document`] and [`redo_document`].
+	/// Shared implementation for history operations.
+	///
+	/// Applies the operation to the document and synchronizes all associated views,
+	/// including incremental syntax updates and selection mapping.
 	fn apply_history_op(
 		&mut self,
 		doc_id: DocumentId,
-		op: impl FnOnce(
-			&mut crate::buffer::Document,
-			&xeno_runtime_language::LanguageLoader,
-		) -> Option<Transaction>,
+		op: impl FnOnce(&mut crate::buffer::Document) -> Option<Vec<Transaction>>,
 	) -> bool {
 		let buffer_id = self
 			.buffers
@@ -196,13 +195,13 @@ impl EditorUndoHost<'_> {
 			.expect("buffer exists")
 			.with_doc(|doc| doc.content().clone());
 
-		let tx = self
+		let txs = self
 			.buffers
 			.get_buffer_mut(buffer_id)
 			.expect("buffer exists")
-			.with_doc_mut(|doc| op(doc, &self.config.language_loader));
+			.with_doc_mut(op);
 
-		let Some(tx) = tx else {
+		let Some(txs) = txs else {
 			return false;
 		};
 
@@ -211,14 +210,25 @@ impl EditorUndoHost<'_> {
 			.get_buffer(buffer_id)
 			.expect("buffer exists")
 			.with_doc(|doc| (doc.content().clone(), doc.version()));
-		self.syntax_manager.note_edit_incremental(
-			doc_id,
-			version,
-			&before_rope,
-			&after_rope,
-			tx.changes(),
-			&self.config.language_loader,
-		);
+
+		// Compose changes for incremental syntax update
+		if !txs.is_empty() {
+			let mut net_changes = txs[0].changes().clone();
+			for tx in &txs[1..] {
+				net_changes = net_changes.compose(tx.changes().clone());
+			}
+
+			self.syntax_manager.note_edit_incremental(
+				doc_id,
+				version,
+				&before_rope,
+				&after_rope,
+				&net_changes,
+				&self.config.language_loader,
+			);
+		}
+
+		self.sync_sibling_selections(buffer_id, &txs);
 		self.mark_buffer_dirty_for_full_sync(buffer_id);
 		self.normalize_all_views_for_doc(doc_id);
 		true
@@ -273,19 +283,11 @@ impl UndoHost for EditorUndoHost<'_> {
 	}
 
 	fn undo_documents(&mut self, doc_ids: &[DocumentId]) -> bool {
-		let mut ok = true;
-		for &doc_id in doc_ids {
-			ok &= self.undo_document(doc_id);
-		}
-		ok
+		doc_ids.iter().all(|&id| self.undo_document(id))
 	}
 
 	fn redo_documents(&mut self, doc_ids: &[DocumentId]) -> bool {
-		let mut ok = true;
-		for &doc_id in doc_ids {
-			ok &= self.redo_document(doc_id);
-		}
-		ok
+		doc_ids.iter().all(|&id| self.redo_document(id))
 	}
 
 	fn notify_undo(&mut self) {

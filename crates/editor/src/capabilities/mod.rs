@@ -470,6 +470,7 @@ impl JumpAccess for Editor {
 	fn save_jump(&mut self) {
 		let buffer_id = self.focused_view();
 		let cursor = self.buffer().cursor;
+		self.buffer_mut().clear_insert_undo_active();
 		self.state
 			.core
 			.workspace

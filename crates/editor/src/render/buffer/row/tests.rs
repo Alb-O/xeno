@@ -42,7 +42,7 @@ mod tests {
 		let highlight = HighlightIndex::new(vec![]);
 
 		let ctx = BufferRenderContext {
-			theme: &*theme,
+			theme: &theme,
 			language_loader: &loader,
 			syntax_manager: &syntax_manager,
 			diagnostics: None,
@@ -143,7 +143,7 @@ mod tests {
 		let highlight = HighlightIndex::new(vec![]);
 
 		let ctx = BufferRenderContext {
-			theme: &*theme,
+			theme: &theme,
 			language_loader: &loader,
 			syntax_manager: &syntax_manager,
 			diagnostics: None,
@@ -242,7 +242,7 @@ mod tests {
 		let highlight = HighlightIndex::new(vec![]);
 
 		let ctx = BufferRenderContext {
-			theme: &*theme,
+			theme: &theme,
 			language_loader: &loader,
 			syntax_manager: &syntax_manager,
 			diagnostics: None,

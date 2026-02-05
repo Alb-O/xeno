@@ -49,14 +49,14 @@ fn test_index_lookup() {
 	assert_eq!(index.len(), 2);
 
 	// Lookup by name
-	assert!(std::ptr::eq(&*index.get("a").unwrap(), &DEF_A));
-	assert!(std::ptr::eq(&*index.get("b").unwrap(), &DEF_B));
+	assert!(std::ptr::eq(index.get("a").unwrap(), &DEF_A));
+	assert!(std::ptr::eq(index.get("b").unwrap(), &DEF_B));
 
 	// Lookup by id
-	assert!(std::ptr::eq(&*index.get("test::a").unwrap(), &DEF_A));
+	assert!(std::ptr::eq(index.get("test::a").unwrap(), &DEF_A));
 
 	// Lookup by alias
-	assert!(std::ptr::eq(&*index.get("alpha").unwrap(), &DEF_A));
+	assert!(std::ptr::eq(index.get("alpha").unwrap(), &DEF_A));
 
 	// Not found
 	assert!(index.get("unknown").is_none());
@@ -95,7 +95,7 @@ fn test_first_wins() {
 	let index = builder.duplicate_policy(DuplicatePolicy::FirstWins).build();
 
 	// First wins: DEF_A should be in the index for key "a".
-	assert!(std::ptr::eq(&*index.get("a").unwrap(), &DEF_A));
+	assert!(std::ptr::eq(index.get("a").unwrap(), &DEF_A));
 	// But DEF_A2 is still in items.
 	assert_eq!(index.len(), 2);
 }
@@ -121,7 +121,7 @@ fn test_last_wins() {
 	let index = builder.duplicate_policy(DuplicatePolicy::LastWins).build();
 
 	// Last wins: DEF_A2 should be in the index for key "a".
-	assert!(std::ptr::eq(&*index.get("a").unwrap(), &DEF_A2));
+	assert!(std::ptr::eq(index.get("a").unwrap(), &DEF_A2));
 }
 
 #[test]
@@ -274,11 +274,11 @@ fn test_id_first_lookup() {
 
 	// Lookup by ID should work
 	assert!(std::ptr::eq(
-		&*index.get("lookup_target").unwrap(),
+		index.get("lookup_target").unwrap(),
 		&DEF_ID_FIRST
 	));
 	assert!(std::ptr::eq(
-		&*index.get_by_id("lookup_target").unwrap(),
+		index.get_by_id("lookup_target").unwrap(),
 		&DEF_ID_FIRST
 	));
 }
@@ -315,7 +315,7 @@ fn test_items_all_vs_effective() {
 	assert_eq!(index.items().len(), 2);
 
 	// But lookup by name "a" returns DEF_A (first wins)
-	assert!(std::ptr::eq(&*index.get("a").unwrap(), &DEF_A));
+	assert!(std::ptr::eq(index.get("a").unwrap(), &DEF_A));
 }
 
 #[test]

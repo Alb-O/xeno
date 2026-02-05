@@ -1,89 +1,10 @@
 use xeno_primitives::transaction::Change;
 use xeno_primitives::{Rope, Transaction};
-use xeno_runtime_language::LanguageLoader;
 
-use super::{DocumentSnapshot, MAX_UNDO, SnapshotUndoStore, TxnUndoStore, UndoBackend};
+use super::{MAX_UNDO, TxnUndoStore, UndoBackend};
 
 fn test_rope() -> Rope {
 	Rope::from("hello world")
-}
-
-#[test]
-fn snapshot_store_basic_undo() {
-	let mut store = SnapshotUndoStore::new();
-	let original = test_rope();
-	let tx = Transaction::new(original.slice(..));
-
-	store.record_snapshot(
-		DocumentSnapshot {
-			rope: original.clone(),
-			version: 0,
-		},
-		&tx,
-	);
-
-	let edited = Rope::from("goodbye world");
-
-	let restored = store
-		.undo(DocumentSnapshot {
-			rope: edited,
-			version: 1,
-		})
-		.expect("should have undo");
-
-	assert_eq!(restored.0.rope.to_string(), "hello world");
-}
-
-#[test]
-fn snapshot_store_undo_redo_cycle() {
-	let mut store = SnapshotUndoStore::new();
-	let original = test_rope();
-	let tx = Transaction::new(original.slice(..));
-
-	store.record_snapshot(
-		DocumentSnapshot {
-			rope: original,
-			version: 0,
-		},
-		&tx,
-	);
-
-	let edited = Rope::from("goodbye world");
-
-	let restored = store
-		.undo(DocumentSnapshot {
-			rope: edited.clone(),
-			version: 1,
-		})
-		.expect("should undo");
-	assert_eq!(restored.0.rope.to_string(), "hello world");
-
-	let re_edited = store
-		.redo(DocumentSnapshot {
-			rope: restored.0.rope,
-			version: 2,
-		})
-		.expect("should redo");
-	assert_eq!(re_edited.0.rope.to_string(), "goodbye world");
-}
-
-#[test]
-fn snapshot_store_max_undo_limit() {
-	let mut store = SnapshotUndoStore::new();
-
-	for i in 0..=MAX_UNDO + 10 {
-		let rope = Rope::from(format!("version {}", i));
-		let tx = Transaction::new(rope.slice(..));
-		store.record_snapshot(
-			DocumentSnapshot {
-				rope,
-				version: i as u64,
-			},
-			&tx,
-		);
-	}
-
-	assert_eq!(store.undo_len(), MAX_UNDO);
 }
 
 #[test]
@@ -91,7 +12,6 @@ fn txn_store_basic_undo() {
 	let mut store = TxnUndoStore::new();
 	let original = test_rope();
 	let mut content = original.clone();
-
 	let tx = Transaction::change(
 		original.slice(..),
 		[Change {
@@ -100,21 +20,14 @@ fn txn_store_basic_undo() {
 			replacement: Some("goodbye".into()),
 		}],
 	);
+	let undo_tx = tx.invert(&original);
 
-	store.record_transaction(
-		tx.clone(),
-		&DocumentSnapshot {
-			rope: original,
-			version: 0,
-		},
-	);
+	store.record_transaction(tx.clone(), undo_tx, false);
 
 	tx.apply(&mut content);
 	assert_eq!(content.to_string(), "goodbye world");
 
-	let undo_tx = store.undo().expect("should have undo");
-	undo_tx.apply(&mut content);
-	store.commit_undo();
+	let _ = store.undo(&mut content).expect("should have undo");
 
 	assert_eq!(content.to_string(), "hello world");
 }
@@ -133,87 +46,82 @@ fn txn_store_undo_redo_cycle() {
 			replacement: Some("goodbye".into()),
 		}],
 	);
+	let undo_tx = tx.invert(&original);
 
-	store.record_transaction(
-		tx.clone(),
-		&DocumentSnapshot {
-			rope: original,
-			version: 0,
-		},
-	);
-	tx.apply(&mut content);
+	store.record_transaction(tx, undo_tx, false);
 
-	let undo_tx = store.undo().expect("should undo");
-	undo_tx.apply(&mut content);
-	store.commit_undo();
+	content = Rope::from("goodbye world");
+
+	let _ = store.undo(&mut content).expect("should undo");
 	assert_eq!(content.to_string(), "hello world");
 
-	let redo_tx = store.redo().expect("should redo");
-	redo_tx.apply(&mut content);
-	store.commit_redo();
+	let _ = store.redo(&mut content).expect("should redo");
 	assert_eq!(content.to_string(), "goodbye world");
 }
 
 #[test]
 fn txn_store_max_undo_limit() {
 	let mut store = TxnUndoStore::new();
-	let mut content = Rope::from("start");
 
 	for i in 0..=MAX_UNDO + 10 {
-		let before = DocumentSnapshot {
-			rope: content.clone(),
-			version: i as u64,
-		};
-		let tx = Transaction::change(
-			content.slice(..),
-			[Change {
-				start: 0,
-				end: content.len_chars(),
-				replacement: Some(format!("version {}", i)),
-			}],
-		);
-		store.record_transaction(tx.clone(), &before);
-		tx.apply(&mut content);
+		let rope = Rope::from(format!("version {}", i));
+		let tx = Transaction::new(rope.slice(..));
+		let undo_tx = tx.invert(&rope);
+		store.record_transaction(tx, undo_tx, false);
 	}
 
 	assert_eq!(store.undo_len(), MAX_UNDO);
 }
 
 #[test]
-fn backend_undo_redo_snapshot() {
-	let mut backend = UndoBackend::snapshot();
-	let mut content = test_rope();
-	let mut version = 0u64;
-	let loader = LanguageLoader::from_embedded();
+fn txn_store_grouping_undo() {
+	let mut store = TxnUndoStore::new();
+	let original = test_rope();
+	let mut content = original.clone();
 
-	backend.record_commit(
-		&Transaction::new(content.slice(..)),
-		&DocumentSnapshot {
-			rope: content.clone(),
-			version,
-		},
+	// First edit
+	let tx1 = Transaction::change(
+		content.slice(..),
+		[Change {
+			start: 0,
+			end: 5,
+			replacement: Some("hi".into()),
+		}],
 	);
+	let undo1 = tx1.invert(&content);
+	store.record_transaction(tx1.clone(), undo1, false);
+	tx1.apply(&mut content);
 
-	content = Rope::from("goodbye world");
-	version = 1;
+	// Second edit (merged)
+	let tx2 = Transaction::change(
+		content.slice(..),
+		[Change {
+			start: 2,
+			end: 2,
+			replacement: Some("!".into()),
+		}],
+	);
+	let undo2 = tx2.invert(&content);
+	store.record_transaction(tx2.clone(), undo2, true);
+	tx2.apply(&mut content);
 
-	let undone = backend.undo(&mut content, &mut version, &loader, |_, _| {});
-	assert!(undone.is_some());
+	assert_eq!(content.to_string(), "hi! world");
+	assert_eq!(store.undo_len(), 1);
+
+	// Undo both at once
+	let _ = store.undo(&mut content).expect("should undo group");
 	assert_eq!(content.to_string(), "hello world");
-	assert_eq!(version, 2);
 
-	let redone = backend.redo(&mut content, &mut version, &loader, |_, _| {});
-	assert!(redone.is_some());
-	assert_eq!(content.to_string(), "goodbye world");
-	assert_eq!(version, 3);
+	// Redo both at once
+	let _ = store.redo(&mut content).expect("should redo group");
+	assert_eq!(content.to_string(), "hi! world");
 }
 
 #[test]
-fn backend_undo_redo_transaction() {
-	let mut backend = UndoBackend::transaction();
+fn backend_undo_redo() {
+	let mut backend = UndoBackend::new();
 	let mut content = test_rope();
 	let mut version = 0u64;
-	let loader = LanguageLoader::from_embedded();
 
 	let tx = Transaction::change(
 		content.slice(..),
@@ -224,24 +132,18 @@ fn backend_undo_redo_transaction() {
 		}],
 	);
 
-	backend.record_commit(
-		&tx,
-		&DocumentSnapshot {
-			rope: content.clone(),
-			version,
-		},
-	);
+	backend.record_commit(&tx, &content, false);
 	tx.apply(&mut content);
 	version = 1;
 
 	assert_eq!(content.to_string(), "goodbye world");
 
-	let undone = backend.undo(&mut content, &mut version, &loader, |_, _| {});
+	let undone = backend.undo(&mut content, &mut version);
 	assert!(undone.is_some());
 	assert_eq!(content.to_string(), "hello world");
 	assert_eq!(version, 2);
 
-	let redone = backend.redo(&mut content, &mut version, &loader, |_, _| {});
+	let redone = backend.redo(&mut content, &mut version);
 	assert!(redone.is_some());
 	assert_eq!(content.to_string(), "goodbye world");
 	assert_eq!(version, 3);

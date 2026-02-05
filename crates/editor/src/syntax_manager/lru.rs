@@ -41,9 +41,10 @@ impl RecentDocLru {
 			}
 		} else {
 			if self.order.len() >= self.capacity
-				&& let Some(oldest) = self.order.pop_back() {
-					self.set.remove(&oldest);
-				}
+				&& let Some(oldest) = self.order.pop_back()
+			{
+				self.set.remove(&oldest);
+			}
 			self.set.insert(doc_id);
 		}
 		self.order.push_front(doc_id);
@@ -57,9 +58,10 @@ impl RecentDocLru {
 	/// Explicitly removes `doc_id` (e.g. on document close).
 	pub fn remove(&mut self, doc_id: DocumentId) {
 		if self.set.remove(&doc_id)
-			&& let Some(pos) = self.order.iter().position(|&id| id == doc_id) {
-				self.order.remove(pos);
-			}
+			&& let Some(pos) = self.order.iter().position(|&id| id == doc_id)
+		{
+			self.order.remove(pos);
+		}
 	}
 }
 

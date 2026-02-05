@@ -86,7 +86,7 @@ fn commit_clears_redo_when_undo_recorded() {
 	doc.commit(make_commit(tx2), &loader).unwrap();
 	assert!(doc.can_undo());
 
-	doc.undo(&loader);
+	doc.undo();
 	assert!(doc.can_redo());
 
 	let tx3 = Transaction::change(

@@ -72,7 +72,6 @@ struct ServerInstance {
 	id: LanguageServerId,
 }
 
-
 /// Server metadata for handling server-initiated requests.
 ///
 /// Captured during server startup and used to answer LSP requests like

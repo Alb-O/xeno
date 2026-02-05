@@ -9,4 +9,4 @@ pub mod undo_store;
 
 pub use document::{Document, DocumentId};
 pub use history::HistoryResult;
-pub use undo_store::{DocumentSnapshot, SnapshotUndoStore, TxnUndoStore, UndoBackend};
+pub use undo_store::{TxnUndoStore, UndoBackend};

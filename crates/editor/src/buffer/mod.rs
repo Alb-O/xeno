@@ -21,7 +21,7 @@ pub use editing::ApplyPolicy;
 pub use history::HistoryResult;
 pub use layout::{Layout, SpatialDirection, SplitDirection, SplitPath};
 use parking_lot::RwLock;
-pub use undo_store::{DocumentSnapshot, SnapshotUndoStore, TxnUndoStore, UndoBackend};
+pub use undo_store::{TxnUndoStore, UndoBackend};
 pub use xeno_primitives::ViewId;
 use xeno_primitives::range::CharIdx;
 use xeno_primitives::{Mode, Selection};

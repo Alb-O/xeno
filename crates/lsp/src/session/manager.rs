@@ -206,10 +206,11 @@ impl LspManager {
 				};
 
 				if let Some(id) = server_id
-					&& !sync_clone.registry().is_current(id) {
-						tracing::debug!(server_id = %id, "Dropping event from stale server instance");
-						continue;
-					}
+					&& !sync_clone.registry().is_current(id)
+				{
+					tracing::debug!(server_id = %id, "Dropping event from stale server instance");
+					continue;
+				}
 
 				match event {
 					TransportEvent::Diagnostics {

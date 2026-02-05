@@ -261,10 +261,10 @@ pub fn seed_embedded_themes(dir: impl AsRef<Path>) -> std::io::Result<()> {
 
 	for filename in xeno_runtime_data::themes::list() {
 		let target = dir.join(filename);
-		if !target.exists() {
-			if let Some(content) = xeno_runtime_data::themes::get_str(filename) {
-				std::fs::write(&target, content)?;
-			}
+		if !target.exists()
+			&& let Some(content) = xeno_runtime_data::themes::get_str(filename)
+		{
+			std::fs::write(&target, content)?;
 		}
 	}
 

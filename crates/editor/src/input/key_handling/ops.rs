@@ -137,6 +137,7 @@ impl Editor {
 			}
 			buffer.sync_cursor_to_selection();
 			buffer.establish_goal_column();
+			buffer.clear_insert_undo_active();
 			let view = self.focused_view();
 			self.notify_overlay_event(crate::overlay::LayerEvent::CursorMoved { view });
 		}
