@@ -96,7 +96,6 @@ which = "8.0"
 xeno-editor = { path = "crates/editor" }
 xeno-editor-core = { path = "crates/editor-core" }
 xeno-keymap-core = { path = "crates/keymap/core" }
-xeno-keymap-derive = { path = "crates/keymap/derive" }
 xeno-keymap-parser = { path = "crates/keymap/parser" }
 xeno-lsp = { path = "crates/lsp" }
 xeno-macro = { path = "crates/macro" }

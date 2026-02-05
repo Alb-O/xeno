@@ -3130,22 +3130,8 @@ dependencies = [
 name = "xeno-keymap-core"
 version = "0.8.1"
 dependencies = [
- "kdl",
- "serde",
- "termina",
- "toml",
  "xeno-keymap-parser",
  "xeno-primitives",
-]
-
-[[package]]
-name = "xeno-keymap-derive"
-version = "0.8.1"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn 2.0.114",
- "xeno-keymap-parser",
 ]
 
 [[package]]

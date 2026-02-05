@@ -1,12 +1,7 @@
-//! # `KeyMap` Library
+//! Unified abstraction over key input representations.
 //!
-//! This library provides a unified abstraction over key input representations from multiple backends,
-//! such as [`crossterm`](https://crates.io/crates/crossterm), WebAssembly environments, and more.
-//! It enables parsing, transforming, and serializing key input events to and from a common `KeyMap`
-//! format, which is represented by a node tree from the `keymap_parser` crate.
-//!
-//! The main goal is to decouple application logic from backend-specific input handling, enabling easier
-//! testing, configuration, and cross-platform support.
+//! Provides a backend-agnostic `KeyMap` type (aliased from [`Node`]) and the
+//! [`ToKeyMap`] trait for converting backend-specific key events into it.
 
 use xeno_keymap_parser::Node;
 use xeno_keymap_parser::parser::ParseError;
@@ -17,41 +12,11 @@ use xeno_keymap_parser::parser::ParseError;
 /// from the `keymap_parser` crate.
 pub type KeyMap = Node;
 
-/// A trait for converting a [`KeyMap`] into a backend-specific key event type.
-///
-/// This trait should be implemented by types such as `crossterm::event::KeyEvent` or other
-/// platform-native key event types. It allows translating a backend-agnostic keymap (typically
-/// parsed from user configuration) into a format usable by a specific input backend.
-///
-/// # Errors
-///
-/// Returns [`Error::Parse`] if the `KeyMap` is invalid, or [`Error::UnsupportedKey`] if it
-/// contains keys or structures not supported by the target backend.
-pub trait FromKeyMap: Sized {
-	/// Converts a [`KeyMap`] into this backend-specific type.
-	fn from_keymap(keymap: KeyMap) -> Result<Self, Error>;
-}
-
-/// A trait for converting a backend-specific key event into a [`KeyMap`].
-///
-/// This trait should be implemented by types that represent native input events
-/// from a backend, such as `crossterm`, web (WASM), or others. It provides a way
-/// to unify platform-specific key events into a common `KeyMap` representation.
-///
-/// # Errors
-///
-/// Returns an [`Error`] if the conversion fails due to an unsupported or invalid key.
-pub trait IntoKeyMap {
-	/// Converts this type into a [`KeyMap`].
-	fn into_keymap(self) -> Result<KeyMap, Error>;
-}
-
 /// A trait for converting a backend-specific key type into a [`KeyMap`].
 ///
-/// This is typically implemented by types like `crossterm::event::KeyEvent`,
+/// This is typically implemented by types like `xeno_primitives::key::Key`,
 /// allowing the transformation of native input representations into the
-/// abstract `KeyMap` format. This is useful for tasks such as exporting key
-/// configurations, logging, or interfacing with cross-platform logic.
+/// abstract `KeyMap` format used for keybinding configuration and matching.
 ///
 /// # Errors
 ///

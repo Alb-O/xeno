@@ -7,13 +7,7 @@ use xeno_keymap_parser::{self as parser, Key as ParserKey, Modifier, Node};
 use xeno_primitives::key::{Key, KeyCode, Modifiers};
 
 use crate::Error;
-use crate::keymap::{FromKeyMap, IntoKeyMap, KeyMap, ToKeyMap};
-
-impl IntoKeyMap for Key {
-	fn into_keymap(self) -> Result<KeyMap, Error> {
-		self.to_keymap()
-	}
-}
+use crate::keymap::{KeyMap, ToKeyMap};
 
 impl ToKeyMap for Key {
 	fn to_keymap(&self) -> Result<KeyMap, Error> {
@@ -44,41 +38,6 @@ impl ToKeyMap for Key {
 	}
 }
 
-impl FromKeyMap for Key {
-	fn from_keymap(keymap: KeyMap) -> Result<Self, Error> {
-		let code = match keymap.key {
-			ParserKey::BackTab => KeyCode::BackTab,
-			ParserKey::Backspace => KeyCode::Backspace,
-			ParserKey::Char(c) => KeyCode::Char(c),
-			ParserKey::Delete => KeyCode::Delete,
-			ParserKey::Down => KeyCode::Down,
-			ParserKey::End => KeyCode::End,
-			ParserKey::Enter => KeyCode::Enter,
-			ParserKey::Esc => KeyCode::Esc,
-			ParserKey::F(n) => KeyCode::F(n),
-			ParserKey::Home => KeyCode::Home,
-			ParserKey::Insert => KeyCode::Insert,
-			ParserKey::Left => KeyCode::Left,
-			ParserKey::PageDown => KeyCode::PageDown,
-			ParserKey::PageUp => KeyCode::PageUp,
-			ParserKey::Right => KeyCode::Right,
-			ParserKey::Space => KeyCode::Space,
-			ParserKey::Tab => KeyCode::Tab,
-			ParserKey::Up => KeyCode::Up,
-			ParserKey::Group(group) => {
-				return Err(Error::UnsupportedKey(format!(
-					"Group {group:?} cannot be converted to a concrete Key"
-				)));
-			}
-		};
-
-		Ok(Key {
-			code,
-			modifiers: modifiers_from_parser(keymap.modifiers),
-		})
-	}
-}
-
 /// Converts xeno Modifiers to parser bitflags.
 fn modifiers_to_parser(mods: &Modifiers) -> parser::Modifiers {
 	let mut result: u8 = 0;
@@ -94,15 +53,6 @@ fn modifiers_to_parser(mods: &Modifiers) -> parser::Modifiers {
 	result
 }
 
-/// Converts parser bitflags to xeno Modifiers.
-fn modifiers_from_parser(mods: parser::Modifiers) -> Modifiers {
-	Modifiers {
-		ctrl: mods & (Modifier::Ctrl as u8) != 0,
-		alt: mods & (Modifier::Alt as u8) != 0,
-		shift: mods & (Modifier::Shift as u8) != 0,
-	}
-}
-
 #[cfg(test)]
 mod tests {
 	use super::*;
@@ -113,9 +63,6 @@ mod tests {
 		let node = key.to_keymap().unwrap();
 		assert_eq!(node.key, ParserKey::Char('a'));
 		assert_eq!(node.modifiers, 0);
-
-		let back = Key::from_keymap(node).unwrap();
-		assert_eq!(back, key);
 	}
 
 	#[test]
@@ -124,9 +71,6 @@ mod tests {
 		let node = key.to_keymap().unwrap();
 		assert_eq!(node.key, ParserKey::Char('c'));
 		assert_ne!(node.modifiers & (Modifier::Ctrl as u8), 0);
-
-		let back = Key::from_keymap(node).unwrap();
-		assert_eq!(back, key);
 	}
 
 	#[test]
@@ -140,9 +84,6 @@ mod tests {
 		] {
 			let node = key.to_keymap().unwrap();
 			assert_eq!(node.key, expected);
-
-			let back = Key::from_keymap(node).unwrap();
-			assert_eq!(back, key);
 		}
 	}
 
@@ -154,8 +95,5 @@ mod tests {
 		assert_ne!(node.modifiers & (Modifier::Alt as u8), 0);
 		assert_ne!(node.modifiers & (Modifier::Shift as u8), 0);
 		assert_eq!(node.modifiers & (Modifier::Ctrl as u8), 0);
-
-		let back = Key::from_keymap(node).unwrap();
-		assert_eq!(back, key);
 	}
 }

@@ -10,20 +10,12 @@ repository.workspace = true
 doctest = false
 
 [features]
-default = ["termina", "kdl", "xeno-primitives"]
-termina = ["dep:termina"]
-kdl = ["dep:kdl"]
+default = ["xeno-primitives"]
 xeno-primitives = ["dep:xeno-primitives"]
 
 [dependencies]
-kdl = { workspace = true, optional = true }
-serde = { workspace = true }
-termina = { workspace = true, optional = true }
 xeno-keymap-parser.workspace = true
 xeno-primitives = { workspace = true, optional = true }
-
-[dev-dependencies]
-toml.workspace = true
 
 [lints]
 workspace = true
