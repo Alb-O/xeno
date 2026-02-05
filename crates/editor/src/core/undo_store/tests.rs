@@ -1,6 +1,5 @@
-use xeno_primitives::UndoPolicy;
 use xeno_primitives::transaction::Change;
-use xeno_primitives::{Rope, Transaction};
+use xeno_primitives::{Rope, Transaction, UndoPolicy};
 
 use super::{MAX_UNDO, TxnUndoStore, UndoBackend};
 

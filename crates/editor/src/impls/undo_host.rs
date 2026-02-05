@@ -89,9 +89,17 @@ impl EditorUndoHost<'_> {
 				tx.changes(),
 				&self.config.language_loader,
 			);
-			self.sync_all_view_selections_for_doc(doc_id, std::slice::from_ref(tx), Some(buffer_id));
+			self.sync_all_view_selections_for_doc(
+				doc_id,
+				std::slice::from_ref(tx),
+				Some(buffer_id),
+			);
 			for id in self.buffers.buffer_ids() {
-				if self.buffers.get_buffer(id).is_some_and(|b| b.document_id() == doc_id) {
+				if self
+					.buffers
+					.get_buffer(id)
+					.is_some_and(|b| b.document_id() == doc_id)
+				{
 					self.frame.dirty_buffers.insert(id);
 				}
 			}
@@ -124,7 +132,6 @@ impl EditorUndoHost<'_> {
 		txs: &[Transaction],
 		exclude_view: Option<ViewId>,
 	) {
-
 		let view_ids: Vec<_> = self
 			.buffers
 			.buffer_ids()
@@ -236,7 +243,11 @@ impl EditorUndoHost<'_> {
 
 		self.sync_all_view_selections_for_doc(doc_id, &txs, None);
 		for id in self.buffers.buffer_ids() {
-			if self.buffers.get_buffer(id).is_some_and(|b| b.document_id() == doc_id) {
+			if self
+				.buffers
+				.get_buffer(id)
+				.is_some_and(|b| b.document_id() == doc_id)
+			{
 				self.frame.dirty_buffers.insert(id);
 			}
 		}

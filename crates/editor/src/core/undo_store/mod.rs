@@ -161,7 +161,6 @@ impl TxnUndoStore {
 			&& cp > self.head_pos
 		{
 			self.clean_pos = None;
-			self.active_group_owner = None;
 		}
 
 		let new_step_created = if merge && let Some(step) = self.undo_stack.back_mut() {
@@ -236,7 +235,6 @@ impl TxnUndoStore {
 
 			if cp < min_undo_pos || cp > max_redo_pos {
 				self.clean_pos = None;
-				self.active_group_owner = None;
 			}
 		}
 	}
@@ -425,13 +423,20 @@ impl UndoBackend {
 			_ => false,
 		};
 
-		if matches!(undo_policy, UndoPolicy::MergeWithCurrentGroup | UndoPolicy::Boundary) {
+		let recorded = self.store.record_transaction(tx.clone(), undo_tx, merge);
+
+		// Single-writer rule: only UndoBackend mutates active_group_owner.
+		// Store-level methods (undo/redo/clear_all) reset it, but never set it.
+		if matches!(
+			undo_policy,
+			UndoPolicy::MergeWithCurrentGroup | UndoPolicy::Boundary
+		) {
 			self.store.active_group_owner = origin_view;
 		} else {
 			self.store.active_group_owner = None;
 		}
 
-		self.store.record_transaction(tx.clone(), undo_tx, merge)
+		recorded
 	}
 
 	/// Clears the active undo group owner.

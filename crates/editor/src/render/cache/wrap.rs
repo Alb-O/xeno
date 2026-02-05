@@ -198,39 +198,35 @@ impl WrapBuckets {
 		start_line: usize,
 		end_line: usize,
 	) {
-		let bucket_idx = self.index.get(&doc_id).and_then(|m| m.get(&key)).copied();
+		let bucket = self.get_or_build(doc_id, key);
 
-		if let Some(idx) = bucket_idx {
-			let bucket = &mut self.buckets[idx];
-
-			for line_idx in start_line..end_line.min(rope.len_lines()) {
-				// Skip if already cached with current version
-				if let Some(entry) = bucket.lines.get(line_idx).and_then(|e| e.as_ref())
-					&& entry.doc_version_built_at == doc_version
-				{
-					continue;
-				}
-
-				// Build the wrap entry
-				let line = rope.line(line_idx);
-				let line_len = line.len_chars();
-				let has_newline = line_len > 0 && line.char(line_len - 1) == '\n';
-				let content = if has_newline {
-					line.slice(..line_len - 1)
-				} else {
-					line
-				};
-
-				let segments = wrap_line_ranges_rope(content, key.0, key.1);
-
-				bucket.set_entry(
-					line_idx,
-					WrapEntry {
-						doc_version_built_at: doc_version,
-						segments,
-					},
-				);
+		for line_idx in start_line..end_line.min(rope.len_lines()) {
+			// Skip if already cached with current version
+			if let Some(entry) = bucket.lines.get(line_idx).and_then(|e| e.as_ref())
+				&& entry.doc_version_built_at == doc_version
+			{
+				continue;
 			}
+
+			// Build the wrap entry
+			let line = rope.line(line_idx);
+			let line_len = line.len_chars();
+			let has_newline = line_len > 0 && line.char(line_len - 1) == '\n';
+			let content = if has_newline {
+				line.slice(..line_len - 1)
+			} else {
+				line
+			};
+
+			let segments = wrap_line_ranges_rope(content, key.0, key.1);
+
+			bucket.set_entry(
+				line_idx,
+				WrapEntry {
+					doc_version_built_at: doc_version,
+					segments,
+				},
+			);
 		}
 	}
 }
