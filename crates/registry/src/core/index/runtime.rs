@@ -136,6 +136,12 @@ use super::insert::{insert_id_key_runtime, insert_typed_key};
 use super::types::{DefRef, Map, RegistryIndex};
 use crate::RegistryEntry;
 use crate::error::{InsertAction, RegistryError};
+/// Marker trait for types that can be stored in a runtime registry.
+///
+/// Combines `RegistryEntry` with thread-safety and static lifetime requirements.
+pub trait RuntimeEntry: RegistryEntry + Send + Sync + 'static {}
+
+impl<T> RuntimeEntry for T where T: RegistryEntry + Send + Sync + 'static {}
 
 /// Snapshot-pinning guard that provides `&T` access to a registry definition.
 ///
@@ -147,7 +153,7 @@ use crate::error::{InsertAction, RegistryError};
 /// is cheap (Arc bump + variant copy).
 pub struct RegistryRef<T>
 where
-	T: RegistryEntry + Send + Sync + 'static,
+	T: RuntimeEntry,
 {
 	snap: Arc<Snapshot<T>>,
 	def: DefRef<T>,
@@ -155,7 +161,7 @@ where
 
 impl<T> Clone for RegistryRef<T>
 where
-	T: RegistryEntry + Send + Sync + 'static,
+	T: RuntimeEntry,
 {
 	fn clone(&self) -> Self {
 		Self {
@@ -167,7 +173,7 @@ where
 
 impl<T> std::ops::Deref for RegistryRef<T>
 where
-	T: RegistryEntry + Send + Sync + 'static,
+	T: RuntimeEntry,
 {
 	type Target = T;
 
@@ -181,7 +187,7 @@ where
 /// Contains a merged view of builtins and runtime extensions.
 pub struct Snapshot<T>
 where
-	T: RegistryEntry + Send + Sync + 'static,
+	T: RuntimeEntry,
 {
 	pub by_id: Map<Box<str>, DefRef<T>>,
 	pub by_key: Map<Box<str>, DefRef<T>>,
@@ -192,7 +198,7 @@ where
 
 impl<T> Clone for Snapshot<T>
 where
-	T: RegistryEntry + Send + Sync + 'static,
+	T: RuntimeEntry,
 {
 	fn clone(&self) -> Self {
 		Self {
@@ -206,7 +212,7 @@ where
 
 impl<T> Snapshot<T>
 where
-	T: RegistryEntry + Send + Sync + 'static,
+	T: RuntimeEntry,
 {
 	/// Creates a new snapshot from a builtin index.
 	fn from_builtins(b: &RegistryIndex<T>) -> Self {
@@ -237,7 +243,7 @@ where
 /// Registry wrapper for runtime-extensible registries.
 pub struct RuntimeRegistry<T>
 where
-	T: RegistryEntry + Send + Sync + 'static,
+	T: RuntimeEntry,
 {
 	pub(super) label: &'static str,
 	pub(super) builtins: RegistryIndex<T>,
@@ -247,7 +253,7 @@ where
 
 impl<T> RuntimeRegistry<T>
 where
-	T: RegistryEntry + Send + Sync + 'static,
+	T: RuntimeEntry,
 {
 	/// Creates a new runtime registry with the given builtins.
 	pub fn new(label: &'static str, builtins: RegistryIndex<T>) -> Self {
@@ -366,8 +372,11 @@ where
 			let mut actions = vec![InsertAction::KeptExisting; input_defs.len()];
 			let choose_winner = self.make_choose_winner();
 
-			{
-				let mut store = SnapshotStore { snap: &mut next };
+			let mutated = {
+				let mut store = SnapshotStore {
+					snap: &mut next,
+					mutated: false,
+				};
 
 				for (idx, def) in input_defs.iter().enumerate() {
 					if seen_identities.contains(&def.identity()) {
@@ -401,6 +410,7 @@ where
 
 					if id_action == InsertAction::InsertedNew {
 						store.snap.id_order.push(Box::from(meta.id));
+						store.mutated = true;
 					}
 
 					let action = insert_typed_key(
@@ -426,6 +436,12 @@ where
 					actions[idx] = action;
 					seen_identities.insert(def.identity());
 				}
+
+				store.mutated
+			};
+
+			if !mutated {
+				return Ok(actions);
 			}
 
 			let next_arc = Arc::new(next);
@@ -531,14 +547,15 @@ where
 /// KeyStore over Snapshot for shared insertion logic.
 struct SnapshotStore<'a, T>
 where
-	T: RegistryEntry + Send + Sync + 'static,
+	T: RuntimeEntry,
 {
 	snap: &'a mut Snapshot<T>,
+	mutated: bool,
 }
 
 impl<T> KeyStore<T> for SnapshotStore<'_, T>
 where
-	T: RegistryEntry + Send + Sync + 'static,
+	T: RuntimeEntry,
 {
 	fn get_id_owner(&self, id: &str) -> Option<DefRef<T>> {
 		self.snap.by_id.get(id).cloned()
@@ -550,12 +567,14 @@ where
 
 	fn set_key_winner(&mut self, key: &str, def: DefRef<T>) {
 		self.snap.by_key.insert(Box::from(key), def);
+		self.mutated = true;
 	}
 
 	fn insert_id(&mut self, id: &str, def: DefRef<T>) -> Option<DefRef<T>> {
 		match self.snap.by_id.entry(Box::from(id)) {
 			std::collections::hash_map::Entry::Vacant(v) => {
 				v.insert(def);
+				self.mutated = true;
 				None
 			}
 			std::collections::hash_map::Entry::Occupied(o) => Some(o.get().clone()),
@@ -564,13 +583,19 @@ where
 
 	fn set_id_owner(&mut self, id: &str, def: DefRef<T>) {
 		self.snap.by_id.insert(Box::from(id), def);
+		self.mutated = true;
 	}
 
 	fn evict_def(&mut self, def: DefRef<T>) {
+		let len_before = self.snap.by_key.len();
 		self.snap.by_key.retain(|_, v| !v.ptr_eq(&def));
+		if self.snap.by_key.len() != len_before {
+			self.mutated = true;
+		}
 	}
 
 	fn push_collision(&mut self, c: Collision) {
 		self.snap.collisions.push(c);
+		self.mutated = true;
 	}
 }

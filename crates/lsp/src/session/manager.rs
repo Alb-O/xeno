@@ -156,6 +156,9 @@
 //! - Plumb results into editor UI through the existing event mechanism.
 //!
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
+
+use tokio::task::JoinHandle;
 
 use crate::client::transport::{LspTransport, TransportEvent};
 use crate::{
@@ -163,11 +166,20 @@ use crate::{
 	LanguageServerConfig, Registry,
 };
 
+#[derive(Debug, thiserror::Error)]
+pub enum SpawnRouterError {
+	#[error("router already started")]
+	AlreadyStarted,
+	#[error("no tokio runtime available")]
+	NoRuntime,
+}
+
 /// Central manager for LSP functionality.
 pub struct LspManager {
 	sync: DocumentSync,
 	diagnostics_receiver: Option<DiagnosticsEventReceiver>,
 	transport: Arc<dyn LspTransport>,
+	router_started: AtomicBool,
 }
 
 impl LspManager {
@@ -180,6 +192,7 @@ impl LspManager {
 			sync,
 			diagnostics_receiver: Some(diagnostics_receiver),
 			transport,
+			router_started: AtomicBool::new(false),
 		}
 	}
 
@@ -187,17 +200,23 @@ impl LspManager {
 	///
 	/// Routes transport events to document state and handles server-initiated requests.
 	/// Must be called from within a Tokio runtime.
-	pub fn spawn_router(&self) {
+	pub fn spawn_router(&self) -> Result<JoinHandle<()>, SpawnRouterError> {
+		// Must be called within a Tokio runtime.
 		if tokio::runtime::Handle::try_current().is_err() {
-			return;
+			return Err(SpawnRouterError::NoRuntime);
 		}
-		let events_rx = self.transport.events();
-		let documents_clone = self.sync.documents_arc();
-		let transport = self.transport.clone();
-		let sync_clone = self.sync.clone();
 
-		tokio::spawn(async move {
-			let mut events_rx = events_rx;
+		// Enforce single router instance per LspManager.
+		if self.router_started.swap(true, Ordering::SeqCst) {
+			return Err(SpawnRouterError::AlreadyStarted);
+		}
+
+		let mut events_rx = self.transport.events();
+		let documents = self.sync.documents_arc();
+		let transport = self.transport.clone();
+		let sync = self.sync.clone();
+
+		Ok(tokio::spawn(async move {
 			while let Some(event) = events_rx.recv().await {
 				let server_id = match &event {
 					TransportEvent::Diagnostics { server, .. } => Some(*server),
@@ -206,11 +225,15 @@ impl LspManager {
 					TransportEvent::Disconnected => None,
 				};
 
-				if let Some(id) = server_id
-					&& !sync_clone.registry().is_current(id)
-				{
-					tracing::debug!(server_id = %id, "Dropping event from stale server instance");
-					continue;
+				// Drop events from stale server generations.
+				if let Some(id) = server_id {
+					if !sync.registry().is_current(id) {
+						tracing::debug!(
+							server_id = %id,
+							"Dropping event from stale server instance"
+						);
+						continue;
+					}
 				}
 
 				match event {
@@ -220,57 +243,77 @@ impl LspManager {
 						version,
 						diagnostics,
 					} => {
-						if let Ok(uri) = uri.parse::<lsp_types::Uri>()
-							&& let Ok(diags) =
-								serde_json::from_value::<Vec<lsp_types::Diagnostic>>(diagnostics)
-						{
-							documents_clone.update_diagnostics(
-								&uri,
-								diags,
-								version.map(|v| v as i32),
-							);
-						}
+						let Ok(uri) = uri.parse::<lsp_types::Uri>() else {
+							continue;
+						};
+						let Ok(diags) =
+							serde_json::from_value::<Vec<lsp_types::Diagnostic>>(diagnostics)
+						else {
+							continue;
+						};
+
+						documents.update_diagnostics(
+							&uri,
+							diags,
+							version.and_then(|v| i32::try_from(v).ok()),
+						);
 					}
+
 					TransportEvent::Message { server, message } => {
 						use crate::Message;
 
 						match message {
 							Message::Request(req) => {
-								tracing::debug!(server_id = %server, method = %req.method, "Handling server request");
+								tracing::debug!(
+									server_id = %server,
+									method = %req.method,
+									"Handling server request"
+								);
+
 								let result = super::server_requests::handle_server_request(
-									&sync_clone,
-									server,
-									req,
+									&sync, server, req,
 								)
 								.await;
+
 								if let Err(e) = transport.reply(server, result).await {
-									tracing::error!(server_id = %server, error = ?e, "Failed to reply to server request");
+									tracing::error!(
+										server_id = %server,
+										error = ?e,
+										"Failed to reply to server request"
+									);
 								}
 							}
+
 							Message::Notification(notif) => {
 								if notif.method == "$/progress" {
 									if let Ok(params) = serde_json::from_value::<
 										lsp_types::ProgressParams,
 									>(notif.params)
 									{
-										documents_clone.update_progress(server, params);
+										documents.update_progress(server, params);
 									}
 								} else if notif.method == "window/logMessage"
 									|| notif.method == "window/showMessage"
 								{
-									tracing::debug!(server_id = %server, method = %notif.method, "Server notification");
+									tracing::debug!(
+										server_id = %server,
+										method = %notif.method,
+										"Server notification"
+									);
 								}
 							}
+
 							Message::Response(_) => {}
 						}
 					}
+
 					TransportEvent::Status { server, status } => {
 						use crate::client::transport::TransportStatus;
 
 						match status {
 							TransportStatus::Stopped | TransportStatus::Crashed => {
-								// Clean up registry state for crashed/stopped servers
-								if let Some(meta) = sync_clone.registry().remove_server(server) {
+								// Remove server state from Registry.
+								if let Some(meta) = sync.registry().remove_server(server) {
 									tracing::warn!(
 										server_id = %server,
 										language = %meta.language,
@@ -278,24 +321,31 @@ impl LspManager {
 										"LSP server stopped, removed from registry"
 									);
 								}
-								// Explicitly stop the server in transport to clean up processes
+
+								// Stop transport asynchronously (don’t block router loop).
 								let transport_clone = transport.clone();
 								tokio::spawn(async move {
 									let _ = transport_clone.stop(server).await;
 								});
-								// Clear any progress indicators for this server
-								documents_clone.clear_server_progress(server);
+
+								// Clear per-server progress.
+								documents.clear_server_progress(server);
 							}
+
 							TransportStatus::Starting | TransportStatus::Running => {
-								// Status updates - currently just logged
-								tracing::debug!(server_id = %server, status = ?status, "LSP server status update");
+								tracing::debug!(
+									server_id = %server,
+									status = ?status,
+									"LSP server status update"
+								);
 							}
 						}
 					}
+
 					TransportEvent::Disconnected => break,
 				}
 			}
-		});
+		}))
 	}
 
 	/// Create an LSP manager with existing registry and document state.
@@ -306,6 +356,7 @@ impl LspManager {
 			sync,
 			diagnostics_receiver: None,
 			transport,
+			router_started: AtomicBool::new(false),
 		}
 	}
 
@@ -375,7 +426,6 @@ mod tests {
 	use crate::client::LanguageServerId;
 	use crate::types::{AnyNotification, AnyRequest, AnyResponse, ResponseError};
 
-	/// Minimal stub transport for testing
 	struct StubTransport;
 
 	#[async_trait]
@@ -437,5 +487,32 @@ mod tests {
 		let transport: Arc<dyn LspTransport> = Arc::new(StubTransport);
 		let manager = LspManager::new(transport);
 		assert_eq!(manager.diagnostics_version(), 0);
+	}
+
+	#[test]
+	fn test_router_no_runtime() {
+		let transport: Arc<dyn LspTransport> = Arc::new(StubTransport);
+		let manager = LspManager::new(transport);
+
+		match manager.spawn_router() {
+			Err(SpawnRouterError::NoRuntime) => {}
+			other => panic!("expected NoRuntime, got: {:?}", other),
+		}
+	}
+
+	#[test]
+	fn test_router_single_spawn() {
+		let transport: Arc<dyn LspTransport> = Arc::new(StubTransport);
+		let manager = LspManager::new(transport);
+
+		let rt = tokio::runtime::Runtime::new().unwrap();
+		let _guard = rt.enter();
+
+		assert!(manager.spawn_router().is_ok());
+
+		match manager.spawn_router() {
+			Err(SpawnRouterError::AlreadyStarted) => {}
+			other => panic!("expected AlreadyStarted, got: {:?}", other),
+		}
 	}
 }

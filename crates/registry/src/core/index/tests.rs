@@ -174,4 +174,38 @@ mod tests {
 		assert_eq!(ids, vec!["A", "B"]);
 		assert_eq!(registry.get("A").unwrap().priority(), 20);
 	}
+
+	#[test]
+	fn test_noop_registration_avoids_snapshot_churn() {
+		let mut builder = RegistryBuilder::<TestDef>::new("test");
+		static DEF_A: TestDef = TestDef {
+			meta: RegistryMeta {
+				id: "A",
+				name: "A",
+				aliases: &[],
+				description: "",
+				priority: 10,
+				source: crate::RegistrySource::Builtin,
+				required_caps: &[],
+				flags: 0,
+			},
+			drop_counter: None,
+		};
+		builder.push(&DEF_A);
+		let registry =
+			RuntimeRegistry::with_policy("test", builder.build(), DuplicatePolicy::ByPriority);
+
+		let snap_before = registry.snapshot();
+
+		// Try registering the exact same def again
+		registry.try_register(&DEF_A).unwrap();
+
+		let snap_after = registry.snapshot();
+
+		// Should point to the EXACT SAME Arc allocation (ptr equality)
+		assert!(
+			Arc::ptr_eq(&snap_before, &snap_after),
+			"Snapshot should not change on no-op registration"
+		);
+	}
 }
