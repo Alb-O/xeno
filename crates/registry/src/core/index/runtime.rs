@@ -542,6 +542,28 @@ where
 		let snap = self.snap.load();
 		f(&snap)
 	}
+
+	/// Panics if internal invariants are violated.
+	///
+	/// Checks:
+	/// - `id_order` matches `by_id` keys exactly.
+	pub fn debug_assert_invariants(&self) {
+		let snap = self.snap.load();
+
+		// Invariant: id_order matches by_id keys exactly
+		for id in &snap.id_order {
+			if !snap.by_id.contains_key(id) {
+				panic!("Invariant failed: id_order contains missing ID: {}", id);
+			}
+		}
+		if snap.id_order.len() != snap.by_id.len() {
+			panic!(
+				"Invariant failed: id_order length {} != by_id length {}",
+				snap.id_order.len(),
+				snap.by_id.len()
+			);
+		}
+	}
 }
 
 /// KeyStore over Snapshot for shared insertion logic.

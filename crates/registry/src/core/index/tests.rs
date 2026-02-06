@@ -208,4 +208,36 @@ mod tests {
 			"Snapshot should not change on no-op registration"
 		);
 	}
+
+	#[test]
+	fn test_invariants_hold() {
+		let mut builder = RegistryBuilder::<TestDef>::new("test");
+		let def_a = TestDef {
+			meta: make_meta("A", 10),
+			drop_counter: None,
+		};
+		builder.push(Box::leak(Box::new(def_a)));
+		let registry =
+			RuntimeRegistry::with_policy("test", builder.build(), DuplicatePolicy::ByPriority);
+
+		registry.debug_assert_invariants();
+
+		// Add runtime override
+		static DEF_A_NEW: TestDef = TestDef {
+			meta: RegistryMeta {
+				id: "A",
+				name: "A",
+				aliases: &[],
+				description: "",
+				priority: 20,
+				source: crate::RegistrySource::Builtin,
+				required_caps: &[],
+				flags: 0,
+			},
+			drop_counter: None,
+		};
+		registry.try_register_override(&DEF_A_NEW).unwrap();
+
+		registry.debug_assert_invariants();
+	}
 }

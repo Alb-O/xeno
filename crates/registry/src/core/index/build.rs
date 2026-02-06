@@ -8,7 +8,10 @@ use super::types::{DefRef, RegistryIndex};
 use crate::RegistryEntry;
 
 /// Builder for constructing a [`RegistryIndex`].
-pub struct RegistryBuilder<T: RegistryEntry + Send + Sync + 'static> {
+pub struct RegistryBuilder<T>
+where
+	T: RegistryEntry + Send + Sync + 'static,
+{
 	label: &'static str,
 	defs: Vec<&'static T>,
 	include_id: bool,
@@ -17,7 +20,10 @@ pub struct RegistryBuilder<T: RegistryEntry + Send + Sync + 'static> {
 	policy: DuplicatePolicy,
 }
 
-impl<T: RegistryEntry + Send + Sync + 'static> RegistryBuilder<T> {
+impl<T> RegistryBuilder<T>
+where
+	T: RegistryEntry + Send + Sync + 'static,
+{
 	/// Creates a new builder with the given label for error messages.
 	pub fn new(label: &'static str) -> Self {
 		Self {
@@ -206,13 +212,19 @@ impl<T: RegistryEntry + Send + Sync + 'static> RegistryBuilder<T> {
 }
 
 /// Temporary storage for build-time key insertion.
-struct BuildStore<T: RegistryEntry + Send + Sync + 'static> {
+struct BuildStore<T>
+where
+	T: RegistryEntry + Send + Sync + 'static,
+{
 	by_id: HashMap<Box<str>, DefRef<T>>,
 	by_key: HashMap<Box<str>, DefRef<T>>,
 	collisions: Vec<Collision>,
 }
 
-impl<T: RegistryEntry + Send + Sync + 'static> KeyStore<T> for BuildStore<T> {
+impl<T> KeyStore<T> for BuildStore<T>
+where
+	T: RegistryEntry + Send + Sync + 'static,
+{
 	fn get_id_owner(&self, id: &str) -> Option<DefRef<T>> {
 		self.by_id.get(id).cloned()
 	}

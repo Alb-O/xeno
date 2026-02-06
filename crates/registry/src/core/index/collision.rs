@@ -46,7 +46,10 @@ pub struct Collision {
 pub type ChooseWinner<T> = fn(kind: KeyKind, key: &str, existing: &T, new: &T) -> bool;
 
 /// Abstraction over key storage for shared insertion logic.
-pub trait KeyStore<T: RegistryEntry + Send + Sync + 'static> {
+pub trait KeyStore<T>
+where
+	T: RegistryEntry + Send + Sync + 'static,
+{
 	/// Returns the definition that owns this string as an ID, if any.
 	fn get_id_owner(&self, id: &str) -> Option<DefRef<T>>;
 

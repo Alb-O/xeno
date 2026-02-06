@@ -6,7 +6,10 @@ pub(super) type Map<K, V> = rustc_hash::FxHashMap<K, V>;
 
 /// Reference to a registry definition, either builtin or owned.
 #[derive(Debug)]
-pub enum DefRef<T: RegistryEntry + Send + Sync + 'static> {
+pub enum DefRef<T>
+where
+	T: RegistryEntry + Send + Sync + 'static,
+{
 	/// Compile-time definition.
 	Builtin(&'static T),
 	/// Runtime-registered definition.
@@ -16,7 +19,10 @@ pub enum DefRef<T: RegistryEntry + Send + Sync + 'static> {
 /// Alias for compatibility during refactor.
 pub type DefPtr<T> = DefRef<T>;
 
-impl<T: RegistryEntry + Send + Sync + 'static> Clone for DefRef<T> {
+impl<T> Clone for DefRef<T>
+where
+	T: RegistryEntry + Send + Sync + 'static,
+{
 	fn clone(&self) -> Self {
 		match self {
 			Self::Builtin(v) => Self::Builtin(v),
@@ -25,7 +31,10 @@ impl<T: RegistryEntry + Send + Sync + 'static> Clone for DefRef<T> {
 	}
 }
 
-impl<T: RegistryEntry + Send + Sync + 'static> DefRef<T> {
+impl<T> DefRef<T>
+where
+	T: RegistryEntry + Send + Sync + 'static,
+{
 	/// Returns a reference to the underlying definition.
 	#[inline]
 	pub fn as_entry(&self) -> &T {
@@ -67,22 +76,31 @@ impl<T: RegistryEntry + Send + Sync + 'static> DefRef<T> {
 	}
 }
 
-impl<T: RegistryEntry + Send + Sync + 'static> PartialEq for DefRef<T> {
+impl<T> PartialEq for DefRef<T>
+where
+	T: RegistryEntry + Send + Sync + 'static,
+{
 	fn eq(&self, other: &Self) -> bool {
 		self.ptr_eq(other)
 	}
 }
 
-impl<T: RegistryEntry + Send + Sync + 'static> Eq for DefRef<T> {}
+impl<T> Eq for DefRef<T> where T: RegistryEntry + Send + Sync + 'static {}
 
-impl<T: RegistryEntry + Send + Sync + 'static> std::hash::Hash for DefRef<T> {
+impl<T> std::hash::Hash for DefRef<T>
+where
+	T: RegistryEntry + Send + Sync + 'static,
+{
 	fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
 		self.identity().hash(state);
 	}
 }
 
 /// Indexed collection of registry definitions with O(1) lookup.
-pub struct RegistryIndex<T: RegistryEntry + Send + Sync + 'static> {
+pub struct RegistryIndex<T>
+where
+	T: RegistryEntry + Send + Sync + 'static,
+{
 	pub(crate) by_id: Map<Box<str>, DefRef<T>>,
 	pub(crate) by_key: Map<Box<str>, DefRef<T>>,
 	pub(crate) items_all: Vec<DefRef<T>>,
@@ -91,7 +109,10 @@ pub struct RegistryIndex<T: RegistryEntry + Send + Sync + 'static> {
 	pub(crate) collisions: Vec<Collision>,
 }
 
-impl<T: RegistryEntry + Send + Sync + 'static> Clone for RegistryIndex<T> {
+impl<T> Clone for RegistryIndex<T>
+where
+	T: RegistryEntry + Send + Sync + 'static,
+{
 	fn clone(&self) -> Self {
 		Self {
 			by_id: self.by_id.clone(),
@@ -104,7 +125,10 @@ impl<T: RegistryEntry + Send + Sync + 'static> Clone for RegistryIndex<T> {
 	}
 }
 
-impl<T: RegistryEntry + Send + Sync + 'static> RegistryIndex<T> {
+impl<T> RegistryIndex<T>
+where
+	T: RegistryEntry + Send + Sync + 'static,
+{
 	/// Looks up a definition by ID, name, or alias.
 	#[inline]
 	pub fn get(&self, key: &str) -> Option<&T> {

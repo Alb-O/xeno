@@ -4,19 +4,25 @@ use crate::RegistryEntry;
 use crate::error::{InsertAction, InsertFatal, RegistryError};
 
 #[inline]
-fn r<'a, T: RegistryEntry + Send + Sync + 'static>(p: &'a DefRef<T>) -> &'a T {
+fn r<'a, T>(p: &'a DefRef<T>) -> &'a T
+where
+	T: RegistryEntry + Send + Sync + 'static,
+{
 	p.as_entry()
 }
 
 /// Inserts a key with proper invariant checking.
-pub fn insert_typed_key<T: RegistryEntry + Send + Sync + 'static>(
+pub fn insert_typed_key<T>(
 	store: &mut dyn KeyStore<T>,
 	registry_label: &'static str,
 	choose_winner: ChooseWinner<T>,
 	kind: KeyKind,
 	key: &str,
 	def: DefRef<T>,
-) -> Result<InsertAction, InsertFatal> {
+) -> Result<InsertAction, InsertFatal>
+where
+	T: RegistryEntry + Send + Sync + 'static,
+{
 	match kind {
 		KeyKind::Id => {
 			if let Some(prev) = store.insert_id(key, def.clone()) {
@@ -77,13 +83,16 @@ pub fn insert_typed_key<T: RegistryEntry + Send + Sync + 'static>(
 }
 
 /// Inserts an ID key with runtime override support.
-pub fn insert_id_key_runtime<T: RegistryEntry + Send + Sync + 'static>(
+pub fn insert_id_key_runtime<T>(
 	store: &mut dyn KeyStore<T>,
 	registry_label: &'static str,
 	choose_winner: ChooseWinner<T>,
 	id: &str,
 	def: DefRef<T>,
-) -> Result<InsertAction, RegistryError> {
+) -> Result<InsertAction, RegistryError>
+where
+	T: RegistryEntry + Send + Sync + 'static,
+{
 	let existing = store.get_id_owner(id);
 
 	let Some(existing) = existing else {
