@@ -223,6 +223,8 @@ impl Registry {
 	///
 	/// # Errors
 	///
+	/// Invariant enforcement: Get a running language server instance or start a new one.
+	///
 	/// Returns error if no configuration exists for the language or if transport start fails.
 	pub async fn get_or_start(&self, language: &str, file_path: &Path) -> Result<ClientHandle> {
 		let config = self.get_config(language).ok_or_else(|| {
@@ -395,6 +397,7 @@ impl Registry {
 	///
 	/// Atomically removes server from all three indices and returns its metadata.
 	/// Typically called when a server crashes or stops to clean up registry state.
+	/// Invariant enforcement: Remove a server instance and its associated metadata.
 	pub fn remove_server(&self, server_id: LanguageServerId) -> Option<ServerMeta> {
 		let mut state = self.state.write();
 		let key = state.id_index.remove(&server_id)?;

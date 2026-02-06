@@ -148,7 +148,7 @@ impl ChangeSet {
 	/// # Arguments
 	///
 	/// * `doc` - The document state *before* this changeset was applied.
-	///           Required to recover deleted text.
+	///   Required to recover deleted text.
 	pub fn invert(&self, doc: &Rope) -> ChangeSet {
 		let mut result = Self::builder();
 		let mut pos = 0;

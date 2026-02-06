@@ -39,7 +39,7 @@ fn make_meta(id: &'static str, priority: i16) -> RegistryMeta {
 	}
 }
 
-fn choose_winner_any<'a>(
+fn choose_winner_any(
 	_kind: KeyKind,
 	_key: &str,
 	_existing: &TestDef,
@@ -48,10 +48,9 @@ fn choose_winner_any<'a>(
 	true
 }
 
-/// Invariant: Snapshot/definition liveness across ArcSwap swaps.
-///
-/// Owned runtime definitions MUST remain alive for as long as they are reachable from the snapshot.
-pub(crate) fn inv_snapshot_liveness_across_swap() {
+/// Snapshot-backed owned definitions stay alive across swaps while referenced.
+#[cfg_attr(test, test)]
+pub(crate) fn test_snapshot_liveness_across_swap() {
 	let drop_counter = Arc::new(AtomicUsize::new(0));
 
 	let def_a = TestDef {
@@ -63,17 +62,13 @@ pub(crate) fn inv_snapshot_liveness_across_swap() {
 	let registry =
 		RuntimeRegistry::with_policy("test", builder.build(), DuplicatePolicy::ByPriority);
 
-	// 1. Register owned "A" under ID "X"
 	registry.register_owned(def_a);
 	assert_eq!(registry.len(), 1);
 
-	// Hold a reference to the snapshot and the definition
-	// This simulates a reader holding a ref while a write happens
 	let snap = registry.snapshot();
-	let ref_a = snap.get_def("X").unwrap(); // DefRef<T>
+	let ref_a = snap.get_def("X").unwrap();
 	assert_eq!(ref_a.as_entry().id(), "X");
 
-	// 2. Override with static "B" under ID "X" where "B" wins (priority 20 > 10)
 	static DEF_B: TestDef = TestDef {
 		meta: RegistryMeta {
 			id: "X",
@@ -91,17 +86,13 @@ pub(crate) fn inv_snapshot_liveness_across_swap() {
 		.try_register_many_override(std::iter::once(&DEF_B))
 		.unwrap();
 
-	// 3. Verify registry has new value
 	assert_eq!(registry.get("X").unwrap().priority(), 20);
-
-	// 4. Verify A is NOT dropped yet because we hold `ref_a` (and `snap`)
 	assert_eq!(
 		drop_counter.load(Ordering::SeqCst),
 		0,
 		"Owned def A should be kept alive by snapshot ref"
 	);
 
-	// 5. Drop ref_a and snap, A should be dropped now
 	drop(ref_a);
 	drop(snap);
 
@@ -112,14 +103,9 @@ pub(crate) fn inv_snapshot_liveness_across_swap() {
 	);
 }
 
+/// ID lookup keeps exactly one winner.
 #[cfg_attr(test, test)]
-pub(crate) fn test_snapshot_liveness_across_swap() {
-	inv_snapshot_liveness_across_swap()
-}
-
-/// Invariant: ID lookup MUST be unambiguous (one winner per ID).
-pub(crate) fn inv_unambiguous_id_lookup() {
-	// Mock KeyStore to intercept insertions
+pub(crate) fn test_unambiguous_id_lookup() {
 	struct MockStore {
 		ids: std::collections::HashMap<Box<str>, crate::core::index::types::DefRef<TestDef>>,
 	}
@@ -180,8 +166,6 @@ pub(crate) fn inv_unambiguous_id_lookup() {
 	let ref_a = crate::core::index::types::DefRef::Builtin(&DEF_A);
 	let ref_b = crate::core::index::types::DefRef::Builtin(&DEF_B);
 
-	// 1. Build-time insertion of duplicates should fail or be resolved
-	// insert_typed_key for ID returns duplicate error
 	let res = insert_typed_key(
 		&mut store,
 		"test",
@@ -200,10 +184,8 @@ pub(crate) fn inv_unambiguous_id_lookup() {
 		"X",
 		ref_b.clone(),
 	);
-	// In strict build mode, duplicate IDs are fatal
 	assert!(res.is_err(), "Duplicate ID at build time should be fatal");
 
-	// 2. Runtime insertion allows override
 	let res = insert_id_key_runtime(&mut store, "test", choose_winner, "X", ref_b.clone());
 	assert!(res.is_ok(), "Runtime override should succeed");
 	assert_eq!(
@@ -214,18 +196,13 @@ pub(crate) fn inv_unambiguous_id_lookup() {
 	assert_eq!(store.ids.len(), 1, "Only one winner per ID");
 }
 
+/// ID overrides evict old key winners.
 #[cfg_attr(test, test)]
-pub(crate) fn test_unambiguous_id_lookup() {
-	inv_unambiguous_id_lookup()
-}
-
-/// Invariant: MUST evict old definitions on ID override.
-pub(crate) fn inv_id_override_eviction() {
+pub(crate) fn test_id_override_eviction() {
 	let builder = RegistryBuilder::<TestDef>::new("test");
 	let registry =
 		RuntimeRegistry::with_policy("test", builder.build(), DuplicatePolicy::ByPriority);
 
-	// 1. Register A with name "OLD_NAME" and alias "OLD_ALIAS"
 	static DEF_A: TestDef = TestDef {
 		meta: RegistryMeta {
 			id: "X",
@@ -244,9 +221,6 @@ pub(crate) fn inv_id_override_eviction() {
 	assert_eq!(registry.get("OLD_NAME").unwrap().id(), "X");
 	assert_eq!(registry.get("OLD_ALIAS").unwrap().id(), "X");
 
-	// 2. Override A with B (same ID "X", higher priority)
-	// B has DIFFERENT name and NO aliases.
-	// Eviction should clear OLD_NAME and OLD_ALIAS because they pointed at A.
 	static DEF_B: TestDef = TestDef {
 		meta: RegistryMeta {
 			id: "X",
@@ -262,7 +236,6 @@ pub(crate) fn inv_id_override_eviction() {
 	};
 	registry.try_register_override(&DEF_B).unwrap();
 
-	// 3. Verify eviction
 	assert!(
 		registry.get("OLD_NAME").is_none(),
 		"OLD_NAME should be evicted"
@@ -276,18 +249,13 @@ pub(crate) fn inv_id_override_eviction() {
 	assert_eq!(registry.get("NEW_NAME").unwrap().id(), "X");
 }
 
+/// Losers in ID contests are not admitted through name/alias paths.
 #[cfg_attr(test, test)]
-pub(crate) fn test_id_override_eviction() {
-	inv_id_override_eviction()
-}
-
-/// Invariant: LOSER of ID contest MUST NOT be admitted via name/alias.
-pub(crate) fn inv_id_loser_admission_gate() {
+pub(crate) fn test_id_loser_admission_gate() {
 	let builder = RegistryBuilder::<TestDef>::new("test");
 	let registry =
 		RuntimeRegistry::with_policy("test", builder.build(), DuplicatePolicy::ByPriority);
 
-	// 1. Register A (priority 20)
 	static DEF_A: TestDef = TestDef {
 		meta: RegistryMeta {
 			id: "X",
@@ -303,7 +271,6 @@ pub(crate) fn inv_id_loser_admission_gate() {
 	};
 	registry.try_register(&DEF_A).unwrap();
 
-	// 2. Attempt to register B (same ID "X", priority 10 - LOSER)
 	static DEF_B: TestDef = TestDef {
 		meta: RegistryMeta {
 			id: "X",
@@ -321,7 +288,6 @@ pub(crate) fn inv_id_loser_admission_gate() {
 	let action = registry.try_register_override(&DEF_B).unwrap();
 	assert_eq!(action, crate::error::InsertAction::KeptExisting);
 
-	// 3. Verify B was not admitted
 	assert_eq!(registry.get("X").unwrap().priority(), 20);
 	assert_eq!(registry.get("KEEP").unwrap().id(), "X");
 	assert!(
@@ -334,16 +300,11 @@ pub(crate) fn inv_id_loser_admission_gate() {
 	);
 }
 
+/// Effective iteration remains deterministic across overrides and insertions.
 #[cfg_attr(test, test)]
-pub(crate) fn test_id_loser_admission_gate() {
-	inv_id_loser_admission_gate()
-}
-
-/// Invariant: MUST maintain deterministic iteration order.
-pub(crate) fn inv_deterministic_iteration() {
+pub(crate) fn test_deterministic_iteration() {
 	let mut builder = RegistryBuilder::<TestDef>::new("test");
 
-	// Pre-seed in order A, B
 	let def_a = TestDef {
 		meta: make_meta("A", 10),
 		drop_counter: None,
@@ -358,11 +319,9 @@ pub(crate) fn inv_deterministic_iteration() {
 	let registry =
 		RuntimeRegistry::with_policy("test", builder.build(), DuplicatePolicy::ByPriority);
 
-	// 1. Initial order A, B
 	let ids: Vec<_> = registry.all().iter().map(|r| r.id()).collect();
 	assert_eq!(ids, vec!["A", "B"]);
 
-	// 2. Override A (first item) with higher priority
 	static DEF_A_NEW: TestDef = TestDef {
 		meta: RegistryMeta {
 			id: "A",
@@ -378,12 +337,10 @@ pub(crate) fn inv_deterministic_iteration() {
 	};
 	registry.try_register_override(&DEF_A_NEW).unwrap();
 
-	// 3. Order MUST remain A, B (replacement doesn't move position)
 	let ids: Vec<_> = registry.all().iter().map(|r| r.id()).collect();
 	assert_eq!(ids, vec!["A", "B"]);
 	assert_eq!(registry.get("A").unwrap().priority(), 20);
 
-	// 4. Insert new C
 	static DEF_C: TestDef = TestDef {
 		meta: RegistryMeta {
 			id: "C",
@@ -399,12 +356,6 @@ pub(crate) fn inv_deterministic_iteration() {
 	};
 	registry.try_register(&DEF_C).unwrap();
 
-	// 5. Order MUST be A, B, C (append new)
 	let ids: Vec<_> = registry.all().iter().map(|r| r.id()).collect();
 	assert_eq!(ids, vec!["A", "B", "C"]);
-}
-
-#[cfg_attr(test, test)]
-pub(crate) fn test_deterministic_iteration() {
-	inv_deterministic_iteration()
 }

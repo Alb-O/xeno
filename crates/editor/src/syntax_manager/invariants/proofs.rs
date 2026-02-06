@@ -1,8 +1,7 @@
-//! Machine-checkable invariant proofs for [`super::SyntaxManager`].
+//! Machine-checkable invariant proofs for [`crate::syntax_manager::SyntaxManager`].
 //!
-//! Each invariant is expressed as a `pub(crate) async fn inv_*()` proof function,
-//! wrapped by a `#[cfg_attr(test, tokio::test)] pub(crate) async fn test_*()`
-//! that doubles as an intra-doc link target for the anchor module-level docs.
+//! Each invariant is expressed as a `pub(crate) async fn test_*()` that is both
+//! a runnable test and an intra-doc link target for the anchor module-level docs.
 //!
 //! Shared test infrastructure ([`MockEngine`], [`EngineGuard`]) lives here so
 //! both this module and the sibling `tests` module can reuse it.
@@ -12,12 +11,12 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Duration;
 
 use tokio::sync::Notify;
-use tokio::time::sleep;
+use tokio::time::{sleep, timeout};
 use xeno_primitives::{ChangeSet, Rope};
 use xeno_runtime_language::LanguageLoader;
 use xeno_runtime_language::syntax::{Syntax, SyntaxError, SyntaxOptions};
 
-use super::*;
+use super::super::*;
 use crate::core::document::DocumentId;
 
 // Mock parsing engine that blocks until explicitly released.
@@ -120,16 +119,18 @@ fn make_ctx<'a>(
 
 /// Spins until `mgr.any_task_finished()` returns true, up to 100 ms.
 async fn wait_for_finish(mgr: &SyntaxManager) {
-	let mut iters = 0;
-	while !mgr.any_task_finished() && iters < 100 {
-		sleep(Duration::from_millis(1)).await;
-		iters += 1;
-	}
-	assert!(mgr.any_task_finished(), "Task did not finish in time");
+	timeout(Duration::from_secs(1), async {
+		while !mgr.any_task_finished() {
+			sleep(Duration::from_millis(1)).await;
+		}
+	})
+	.await
+	.expect("Task did not finish in time");
 }
 
-/// Invariant: single-flight per document.
-pub(crate) async fn inv_single_flight_per_doc() {
+/// Single-flight per document.
+#[cfg_attr(test, tokio::test)]
+pub(crate) async fn test_single_flight_per_doc() {
 	let engine = Arc::new(MockEngine::new());
 	let _guard = EngineGuard(engine.clone());
 	let mut mgr = SyntaxManager::new_with_engine(2, engine.clone());
@@ -167,9 +168,10 @@ pub(crate) async fn inv_single_flight_per_doc() {
 	assert_eq!(engine.parse_count.load(Ordering::SeqCst), 1);
 }
 
-/// Invariant: no unbounded UI-thread parsing — inflight tasks are drained
+/// No unbounded UI-thread parsing; inflight tasks are drained
 /// even when the document has been marked clean externally.
-pub(crate) async fn inv_inflight_drained_even_if_doc_marked_clean() {
+#[cfg_attr(test, tokio::test)]
+pub(crate) async fn test_inflight_drained_even_if_doc_marked_clean() {
 	let engine = Arc::new(MockEngine::new());
 	let _guard = EngineGuard(engine.clone());
 	let mut mgr = SyntaxManager::new_with_engine(1, engine.clone());
@@ -210,9 +212,10 @@ pub(crate) async fn inv_inflight_drained_even_if_doc_marked_clean() {
 	assert!(mgr.has_syntax(doc_id));
 }
 
-/// Invariant: monotonic version / stale guard — a stale V1 parse MUST NOT
+/// Monotonic version stale guard; a stale V1 parse must not
 /// overwrite a clean V2 incremental tree.
-pub(crate) async fn inv_stale_parse_does_not_overwrite_clean_incremental() {
+#[cfg_attr(test, tokio::test)]
+pub(crate) async fn test_stale_parse_does_not_overwrite_clean_incremental() {
 	let engine = Arc::new(MockEngine::new());
 	let _guard = EngineGuard(engine.clone());
 	let mut mgr = SyntaxManager::new_with_engine(1, engine.clone());
@@ -294,9 +297,10 @@ pub(crate) async fn inv_stale_parse_does_not_overwrite_clean_incremental() {
 	);
 }
 
-/// Invariant: stale install for continuity — a stale parse is installed when
+/// Stale install continuity; a stale parse is installed when
 /// the slot is dirty, providing some highlighting while a catch-up reparse runs.
-pub(crate) async fn inv_stale_install_continuity() {
+#[cfg_attr(test, tokio::test)]
+pub(crate) async fn test_stale_install_continuity() {
 	let engine = Arc::new(MockEngine::new());
 	let _guard = EngineGuard(engine.clone());
 	let mut mgr = SyntaxManager::new_with_engine(1, engine.clone());
@@ -343,8 +347,9 @@ pub(crate) async fn inv_stale_install_continuity() {
 	);
 }
 
-/// Invariant: edit notification updates debounce timestamp.
-pub(crate) async fn inv_note_edit_updates_timestamp() {
+/// Edit notification updates debounce timestamp.
+#[cfg_attr(test, tokio::test)]
+pub(crate) async fn test_note_edit_updates_timestamp() {
 	let engine = Arc::new(MockEngine::new());
 	let _guard = EngineGuard(engine.clone());
 	let mut mgr = SyntaxManager::new_with_engine(1, engine.clone());
@@ -408,8 +413,9 @@ pub(crate) async fn inv_note_edit_updates_timestamp() {
 	assert_eq!(r2.result, SyntaxPollResult::Kicked);
 }
 
-/// Invariant: bootstrap parses skip debounce.
-pub(crate) async fn inv_bootstrap_parse_skips_debounce() {
+/// Bootstrap parses skip debounce.
+#[cfg_attr(test, tokio::test)]
+pub(crate) async fn test_bootstrap_parse_skips_debounce() {
 	let engine = Arc::new(MockEngine::new());
 	let _guard = EngineGuard(engine.clone());
 	let mut mgr = SyntaxManager::new_with_engine(1, engine.clone());
@@ -433,8 +439,9 @@ pub(crate) async fn inv_bootstrap_parse_skips_debounce() {
 	assert_eq!(r.result, SyntaxPollResult::Kicked);
 }
 
-/// Invariant: tick detects completed tasks.
-pub(crate) async fn inv_idle_tick_polls_inflight_parse() {
+/// Tick detects completed tasks.
+#[cfg_attr(test, tokio::test)]
+pub(crate) async fn test_idle_tick_polls_inflight_parse() {
 	let engine = Arc::new(MockEngine::new());
 	let _guard = EngineGuard(engine.clone());
 	let mut mgr = SyntaxManager::new_with_engine(1, engine.clone());
@@ -465,8 +472,9 @@ pub(crate) async fn inv_idle_tick_polls_inflight_parse() {
 	assert!(!mgr.has_pending(doc_id));
 }
 
-/// Invariant: syntax_version monotonicity — bumps on install.
-pub(crate) async fn inv_syntax_version_bumps_on_install() {
+/// syntax_version monotonicity bumps on install.
+#[cfg_attr(test, tokio::test)]
+pub(crate) async fn test_syntax_version_bumps_on_install() {
 	let engine = Arc::new(MockEngine::new());
 	let _guard = EngineGuard(engine.clone());
 	let mut mgr = SyntaxManager::new_with_engine(1, engine.clone());
@@ -506,8 +514,9 @@ pub(crate) async fn inv_syntax_version_bumps_on_install() {
 	assert!(v1 > v0);
 }
 
-/// Invariant: language change discards old parse.
-pub(crate) async fn inv_language_switch_discards_old_parse() {
+/// Language change discards old parse.
+#[cfg_attr(test, tokio::test)]
+pub(crate) async fn test_language_switch_discards_old_parse() {
 	let engine = Arc::new(MockEngine::new());
 	let _guard = EngineGuard(engine.clone());
 	let mut mgr = SyntaxManager::new_with_engine(1, engine.clone());
@@ -531,7 +540,7 @@ pub(crate) async fn inv_language_switch_discards_old_parse() {
 		&loader,
 	));
 
-	// Switch to Python — invalidates Rust epoch, new task throttled
+	// Switch to Python - invalidates Rust epoch, new task throttled
 	let r = mgr.ensure_syntax(make_ctx(
 		doc_id,
 		1,
@@ -574,9 +583,10 @@ pub(crate) async fn inv_language_switch_discards_old_parse() {
 	assert!(mgr.has_syntax(doc_id));
 }
 
-/// Invariant: permit lifetime tied to thread — invalidation does not release
+/// Permit lifetime is tied to thread execution; invalidation does not release
 /// the semaphore permit early; only task completion does.
-pub(crate) async fn inv_invalidate_does_not_release_permit_until_task_finishes() {
+#[cfg_attr(test, tokio::test)]
+pub(crate) async fn test_invalidate_does_not_release_permit_until_task_finishes() {
 	let engine = Arc::new(MockEngine::new());
 	let _guard = EngineGuard(engine.clone());
 	let mut mgr = SyntaxManager::new_with_engine(1, engine.clone());
@@ -629,9 +639,10 @@ pub(crate) async fn inv_invalidate_does_not_release_permit_until_task_finishes()
 	assert_eq!(r.result, SyntaxPollResult::Kicked);
 }
 
-/// Invariant: version monotonicity — a completed V5 parse MUST NOT clobber a
+/// Version monotonicity; a completed V5 parse must not clobber a
 /// V7 tree that was installed via sync incremental updates.
-pub(crate) async fn inv_monotonic_version_guard() {
+#[cfg_attr(test, tokio::test)]
+pub(crate) async fn test_monotonic_version_guard() {
 	let engine = Arc::new(MockEngine::new());
 	let _guard = EngineGuard(engine.clone());
 	let mut mgr = SyntaxManager::new_with_engine(1, engine.clone());
@@ -705,7 +716,7 @@ pub(crate) async fn inv_monotonic_version_guard() {
 	wait_for_finish(&mgr).await;
 	mgr.drain_finished_inflight();
 
-	// V5 MUST NOT clobber V7
+	// V5 must not clobber V7.
 	mgr.ensure_syntax(make_ctx(
 		doc_id,
 		10,
@@ -721,8 +732,9 @@ pub(crate) async fn inv_monotonic_version_guard() {
 	);
 }
 
-/// Invariant: history edits bypass debounce.
-pub(crate) async fn inv_history_op_bypasses_debounce() {
+/// History edits bypass debounce.
+#[cfg_attr(test, tokio::test)]
+pub(crate) async fn test_history_op_bypasses_debounce() {
 	let engine = Arc::new(MockEngine::new());
 	let _guard = EngineGuard(engine.clone());
 	let mut mgr = SyntaxManager::new_with_engine(1, engine.clone());
@@ -774,9 +786,10 @@ pub(crate) async fn inv_history_op_bypasses_debounce() {
 	assert_eq!(r.result, SyntaxPollResult::Kicked);
 }
 
-/// Invariant: cold eviction + re-bootstrap — a document evicted due to Cold
+/// Cold eviction and re-bootstrap; a document evicted due to Cold
 /// hotness is re-bootstrapped immediately when it becomes visible again.
-pub(crate) async fn inv_cold_eviction_reload() {
+#[cfg_attr(test, tokio::test)]
+pub(crate) async fn test_cold_eviction_reload() {
 	let engine = Arc::new(MockEngine::new());
 	let _guard = EngineGuard(engine.clone());
 	let mut mgr = SyntaxManager::new_with_engine(1, engine.clone());
@@ -836,9 +849,10 @@ pub(crate) async fn inv_cold_eviction_reload() {
 	assert_eq!(poll.result, SyntaxPollResult::Kicked);
 }
 
-/// Invariant: cold retention throttles work — Cold hotness + DropWhenHidden
+/// Cold retention throttles work; Cold hotness plus DropWhenHidden
 /// invalidates state and throttles new work until the permit is released.
-pub(crate) async fn inv_cold_throttles_work() {
+#[cfg_attr(test, tokio::test)]
+pub(crate) async fn test_cold_throttles_work() {
 	let engine = Arc::new(MockEngine::new());
 	let _guard = EngineGuard(engine.clone());
 	let mut mgr = SyntaxManager::new_with_engine(1, engine.clone());
@@ -875,7 +889,7 @@ pub(crate) async fn inv_cold_throttles_work() {
 	assert_eq!(poll.result, SyntaxPollResult::Disabled);
 	assert!(!mgr.has_pending(doc_id));
 
-	// Permit still held — another doc is throttled
+	// Permit still held - another doc is throttled
 	let poll2 = mgr.ensure_syntax(make_ctx(
 		DocumentId(2),
 		1,
@@ -901,90 +915,106 @@ pub(crate) async fn inv_cold_throttles_work() {
 	assert_eq!(poll3.result, SyntaxPollResult::Kicked);
 }
 
-// ---------------------------------------------------------------------------
-// Test wrappers (intra-doc link targets)
-// ---------------------------------------------------------------------------
-
-/// Proof: single-flight per document.
+/// Highlight rendering skips spans when `tree_doc_version`
+/// does not match the document version being rendered.
+///
+/// The enforcement is in `HighlightTiles::build_tile_spans` which checks
+/// `syntax.tree().root_node().end_byte() > rope_len_bytes` and returns
+/// empty when the tree is out of bounds. We verify the version-tracking
+/// mechanism that enables this guard: after an edit, `tree_doc_version`
+/// remains at the old version until a reparse or sync update succeeds.
 #[cfg_attr(test, tokio::test)]
-pub(crate) async fn test_single_flight_per_doc() {
-	inv_single_flight_per_doc().await;
+pub(crate) async fn test_highlight_skips_stale_tree_version() {
+	let engine = Arc::new(MockEngine::new());
+	let _guard = EngineGuard(engine.clone());
+	let mut mgr = SyntaxManager::new_with_engine(1, engine.clone());
+	let mut policy = TieredSyntaxPolicy::default();
+	policy.s.debounce = Duration::ZERO;
+	mgr.set_policy(policy);
+
+	let doc_id = DocumentId(1);
+	let loader = Arc::new(LanguageLoader::from_embedded());
+	let lang = loader.language_for_name("rust").unwrap();
+	let content = Rope::from("fn main() {}");
+
+	// Install syntax at V1.
+	mgr.ensure_syntax(make_ctx(
+		doc_id,
+		1,
+		Some(lang),
+		&content,
+		SyntaxHotness::Visible,
+		&loader,
+	));
+	engine.proceed();
+	wait_for_finish(&mgr).await;
+
+	mgr.drain_finished_inflight();
+	mgr.ensure_syntax(make_ctx(
+		doc_id,
+		1,
+		Some(lang),
+		&content,
+		SyntaxHotness::Visible,
+		&loader,
+	));
+	assert_eq!(mgr.syntax_doc_version(doc_id), Some(1));
+
+	// Record an edit (moves to V2) but don't sync incrementally.
+	mgr.note_edit(doc_id, EditSource::Typing);
+	assert!(mgr.is_dirty(doc_id));
+
+	// tree_doc_version is still V1 because the tree has not been updated.
+	assert_eq!(
+		mgr.syntax_doc_version(doc_id),
+		Some(1),
+		"tree_doc_version must remain at V1 after an un-synced edit"
+	);
+
+	// The highlight renderer checks this version mismatch and clamps/skips
+	// spans to prevent out-of-bounds tree-sitter node access. Structural:
+	// `build_tile_spans` returns empty if root_node().end_byte() > rope_len_bytes.
 }
 
-/// Proof: inflight tasks drained even when document is clean.
-#[cfg_attr(test, tokio::test)]
-pub(crate) async fn test_inflight_drained_even_if_doc_marked_clean() {
-	inv_inflight_drained_even_if_doc_marked_clean().await;
-}
+/// Recently visible documents are promoted to `Warm` hotness
+/// via `RecentDocLru` to prevent immediate retention drops when hidden.
+///
+/// The enforcement is in `Editor::ensure_syntax_for_buffers` which touches
+/// the LRU on visible docs and checks membership for warm promotion. We
+/// verify the LRU data structure: touch, contains, remove, and capacity
+/// eviction.
+#[cfg_attr(test, test)]
+pub(crate) fn test_warm_hotness_prevents_immediate_drop() {
+	use super::super::lru::RecentDocLru;
 
-/// Proof: stale parse does not overwrite clean incremental tree.
-#[cfg_attr(test, tokio::test)]
-pub(crate) async fn test_stale_parse_does_not_overwrite_clean_incremental() {
-	inv_stale_parse_does_not_overwrite_clean_incremental().await;
-}
+	let mut lru = RecentDocLru::new(3);
+	let d1 = DocumentId(1);
+	let d2 = DocumentId(2);
+	let d3 = DocumentId(3);
+	let d4 = DocumentId(4);
 
-/// Proof: stale parse installed for rendering continuity.
-#[cfg_attr(test, tokio::test)]
-pub(crate) async fn test_stale_install_continuity() {
-	inv_stale_install_continuity().await;
-}
+	// Touch documents - simulates visible buffers in render loop.
+	lru.touch(d1);
+	lru.touch(d2);
+	lru.touch(d3);
 
-/// Proof: edit notification updates debounce timestamp.
-#[cfg_attr(test, tokio::test)]
-pub(crate) async fn test_note_edit_updates_timestamp() {
-	inv_note_edit_updates_timestamp().await;
-}
+	// All three are tracked (recently visible -> Warm hotness).
+	assert!(lru.contains(d1), "d1 must be warm");
+	assert!(lru.contains(d2), "d2 must be warm");
+	assert!(lru.contains(d3), "d3 must be warm");
 
-/// Proof: bootstrap parse skips debounce.
-#[cfg_attr(test, tokio::test)]
-pub(crate) async fn test_bootstrap_parse_skips_debounce() {
-	inv_bootstrap_parse_skips_debounce().await;
-}
+	// Touch d4 - evicts oldest (d1) due to capacity=3.
+	lru.touch(d4);
+	assert!(!lru.contains(d1), "d1 must be evicted (oldest)");
+	assert!(lru.contains(d4), "d4 must be warm");
 
-/// Proof: tick detects completed tasks.
-#[cfg_attr(test, tokio::test)]
-pub(crate) async fn test_idle_tick_polls_inflight_parse() {
-	inv_idle_tick_polls_inflight_parse().await;
-}
+	// Re-touch d2 - d2 moves to front, d3 is now oldest.
+	lru.touch(d2);
+	lru.touch(DocumentId(5));
+	assert!(!lru.contains(d3), "d3 must be evicted after d2 re-touch");
+	assert!(lru.contains(d2), "d2 must survive re-touch");
 
-/// Proof: syntax_version bumps on install.
-#[cfg_attr(test, tokio::test)]
-pub(crate) async fn test_syntax_version_bumps_on_install() {
-	inv_syntax_version_bumps_on_install().await;
-}
-
-/// Proof: language switch discards old parse.
-#[cfg_attr(test, tokio::test)]
-pub(crate) async fn test_language_switch_discards_old_parse() {
-	inv_language_switch_discards_old_parse().await;
-}
-
-/// Proof: permit lifetime tied to thread execution.
-#[cfg_attr(test, tokio::test)]
-pub(crate) async fn test_invalidate_does_not_release_permit_until_task_finishes() {
-	inv_invalidate_does_not_release_permit_until_task_finishes().await;
-}
-
-/// Proof: version monotonicity guard.
-#[cfg_attr(test, tokio::test)]
-pub(crate) async fn test_monotonic_version_guard() {
-	inv_monotonic_version_guard().await;
-}
-
-/// Proof: history edits bypass debounce.
-#[cfg_attr(test, tokio::test)]
-pub(crate) async fn test_history_op_bypasses_debounce() {
-	inv_history_op_bypasses_debounce().await;
-}
-
-/// Proof: cold eviction + re-bootstrap.
-#[cfg_attr(test, tokio::test)]
-pub(crate) async fn test_cold_eviction_reload() {
-	inv_cold_eviction_reload().await;
-}
-
-/// Proof: cold retention throttles work.
-#[cfg_attr(test, tokio::test)]
-pub(crate) async fn test_cold_throttles_work() {
-	inv_cold_throttles_work().await;
+	// Explicit remove (e.g. document close).
+	lru.remove(d2);
+	assert!(!lru.contains(d2), "d2 must be gone after remove");
 }

@@ -37,7 +37,7 @@ Always prefer comprehensive techspec docstrings over inline comments:
 
 Module-level rustdoc is the ground truth for subsystem behavior and invariants, must read when relevant, keep updated:
 - Registry: `crates/registry/src/core/index/runtime.rs`
-- LSP: `crates/lsp/src/session/manager.rs`
+- LSP: `crates/lsp/src/session/manager/mod.rs`
 - Overlay: `crates/editor/src/overlay/session.rs`
 - Syntax: `crates/editor/src/syntax_manager/mod.rs`
 - Windowing: `crates/editor/src/layout/manager.rs`
@@ -70,21 +70,13 @@ Subsystem architecture lives as `//!` module-level rustdoc in the anchor files l
 
 ### Invariants contract (mandatory triad)
 
-Every invariant MUST include all three fields:
+Every invariant MUST include all three fields as intra-doc links (see "Invariant Documentation Standard" below for full rules):
 
-- Enforced in: `Symbol::method` (qualified symbol name, no file paths)
-- Tested by: `module::tests::test_*` OR `TODO (add regression: test_...)`
-- Failure symptom: concrete, user-visible or correctness symptom
+- Enforced in: `[crate::module::Type::method]` (absolute path, intra-doc link)
+- Tested by: `[crate::module::invariants::test_*]` (link to proof wrapper)
+- Failure symptom: concrete, user-visible or correctness symptom (plain text)
 
-No invariant block is allowed to omit any of the triad fields.
-
-### Enforcement site formatting
-
-- Use qualified symbol names without file paths (findable via `rg`):
-  - `OverlaySession::restore_all`
-- For inline test references, include module context:
-  - `core::tests::project_dedup_*`
-- If multiple sites enforce the same rule, list all relevant symbols.
+No triad field may be omitted. No `TODO` placeholders are permitted.
 
 ### Style rules
 
@@ -95,8 +87,8 @@ No invariant block is allowed to omit any of the triad fields.
 
 When changing core behavior, public API, or invariants in any subsystem:
 1. Update the module-level rustdoc in the relevant anchor file in the same change set.
-2. Add or update regression tests for the new invariant.
-3. If a test is not practical immediately, add a `TODO (add regression: test_...)` entry.
+2. Add or update the `invariants::test_*` proof wrapper for the new invariant.
+3. Verify with `RUSTDOCFLAGS="--document-private-items -D warnings -D rustdoc::broken_intra_doc_links" cargo doc --workspace --no-deps`.
 
 ## Invariant Documentation Standard
 
@@ -105,23 +97,58 @@ Every architectural invariant MUST use the following format in module-level docu
 
 ```rust
 //! - MUST [invariant description]
-//!   - Enforced in: [`Symbol::method`] (link to the exact choke point)
-//!   - Tested by: [`crate::module::invariants::test_name`] (link to the proof)
+//!   - Enforced in: [`crate::module::Type::method`]
+//!   - Tested by: [`crate::module::invariants::test_name`]
 //!   - Failure symptom: [concrete user-visible symptom]
 ```
 
-### Machine-Checkable Links
-- All "Enforced in" and "Tested by" entries MUST use intra-doc links `[...]`.
-- Run `RUSTDOCFLAGS="-D warnings -D rustdoc::broken_intra_doc_links" cargo doc` to verify.
-- If a link targets a private item, use `#[cfg_attr(test, test)]` wrappers in a dedicated `invariants` module to make it linkable.
+No triad field may be omitted. No `TODO (add regression…)` placeholders are permitted in committed
+invariants; every invariant MUST have an actual `invariants::test_*` link target.
+
+### Machine-Checkable Links (rustdoc-audited)
+- "Tested by" entries MUST be intra-doc links (`[...]`) targeting `invariants::test_*` items.
+  - New/refactored code SHOULD collapse the proof logic directly into the `test_*` item using `#[cfg_attr(test, test)]` (or `tokio::test`) to avoid redundant `inv_*` wrappers.
+- "Enforced in" entries MUST be intra-doc links where the target is linkable (pub/pub(crate) items in pub(crate)+ modules). Use backticks for truly private functions (e.g. private `fn` in a private module) or `#[cfg(test)]` test modules.
+- Verify anchor links with:
+  `RUSTDOCFLAGS="--document-private-items -D rustdoc::broken_intra_doc_links -A rustdoc::private_intra_doc_links -A warnings" cargo doc --workspace --no-deps`
+- The `--document-private-items` flag makes `pub(crate)` items linkable without changing their visibility.
+
+### Absolute Path Rule for `//!` Anchor Docs
+Because `//!` module-level docs resolve names from the parent scope (not the module's own scope),
+**all intra-doc links in `//!` anchors MUST use absolute paths**:
+- Same crate: `[crate::module::Type::method]`
+- Different crate: `[xeno_lsp::module::Type]` (only if the crate is a dependency)
+- Cross-crate enforcement sites in a non-dependent crate: use backticks with `(in xeno-editor)` note
+
+Never use unqualified names, `self::`, or `super::` in anchor `//!` docs.
+
+This rule applies to ALL `[links]` in `//!` docs — invariant triads, Key Types tables, Data Flow, etc.
+
+### Anchor Module Visibility
+Any module that contains an architecture anchor `//!` MUST be declared at least `pub(crate)` in its
+parent `mod.rs` so that `crate::...` paths are resolvable. This is a visibility floor for anchor
+pathability only; internal items remain private unless there is a separate API reason.
 
 ### The `invariants.rs` Pattern
-To make tests stable and linkable by rustdoc:
-1.  Create a `pub(crate) mod invariants` (gated `#[cfg(any(test, doc))]`).
-2.  Define proof functions: `pub(crate) fn inv_my_invariant() { ... }`.
-3.  Define test wrappers: `#[cfg_attr(test, test)] pub(crate) fn test_my_invariant() { inv_my_invariant() }`.
-4.  Link to `invariants::test_my_invariant` in the docs.
+Each anchor module MUST have a sibling `invariants` submodule:
 
-### Link vs Backtick
-- Use links `[...]` for stable, exported types, public modules, and the `invariants` test wrappers.
-- Use backticks only for private fields, macros (unless exported), and unstable internal details.
+1.  In anchor `mod.rs`: `#[cfg(any(test, doc))] pub(crate) mod invariants;`
+2.  Define proof functions: `pub(crate) fn inv_my_invariant() { ... }` (or `async` if needed).
+3.  Define test wrappers as stable rustdoc link targets:
+    - Sync: `#[cfg_attr(test, test)] pub(crate) fn test_my_invariant() { inv_my_invariant() }`
+    - Async: `#[cfg_attr(test, tokio::test)] pub(crate) async fn test_my_invariant() { inv_my_invariant().await }`
+4.  Anchor docs MUST link to the wrapper: `[crate::module::invariants::test_my_invariant]`
+
+Common test harness types (mocks, guards) live in `invariants.rs` so both `invariants.rs` and `tests`
+can reuse them.
+
+### Canonical Path Prefixes (per anchor)
+
+| Anchor | Crate | Prefix |
+|---|---|---|
+| Syntax Manager | `xeno-editor` | `crate::syntax_manager::` |
+| Buffer | `xeno-editor` | `crate::buffer::` |
+| Layout Manager | `xeno-editor` | `crate::layout::manager::` |
+| Overlay Session | `xeno-editor` | `crate::overlay::session::` |
+| LSP Manager | `xeno-lsp` | `crate::session::manager::` |
+| Registry Runtime | `xeno-registry` | `crate::core::index::runtime::` |

@@ -14,6 +14,9 @@ pub mod host;
 pub mod session;
 pub mod spec;
 
+#[cfg(any(test, doc))]
+pub(crate) mod invariants;
+
 pub use host::OverlayHost;
 pub use session::*;
 pub use spec::*;

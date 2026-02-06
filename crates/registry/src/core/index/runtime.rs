@@ -6,8 +6,8 @@
 //!   deterministic iteration order, and winner resolution policy.
 //! - Does not own: command execution, hook emission, or any subsystem behavior beyond selecting which
 //!   definition is visible under a given key.
-//! - Source of truth: [`RegistryIndex`] and its domain-specific [`RuntimeRegistry`] instances, each
-//!   storing an atomic [`Snapshot<T>`].
+//! - Source of truth: [`crate::core::index::types::RegistryIndex`] and its domain-specific [`crate::core::index::runtime::RuntimeRegistry`] instances, each
+//!   storing an atomic [`crate::core::index::runtime::Snapshot`].
 //!
 //! # Mental model
 //!
@@ -16,13 +16,13 @@
 //!
 //! - **Builtin** definitions live for the process (`&'static T`).
 //! - **Owned** definitions are runtime-registered (`Arc<T>`).
-//! - A [`Snapshot<T>`] is an immutable, atomic view used for lock-free reads.
-//! - Definitions inside a snapshot are referenced by [`DefRef<T>`], a safe handle:
+//! - A [`crate::core::index::runtime::Snapshot`] is an immutable, atomic view used for lock-free reads.
+//! - Definitions inside a snapshot are referenced by [`crate::core::index::types::DefRef`], a safe handle:
 //!   `Builtin(&'static T) | Owned(Arc<T>)`.
 //! - Lookup keys are split into:
 //!   - `by_id`: the single winner per stable ID
 //!   - `by_key`: winners for names/aliases (and other non-ID keys)
-//! - [`Snapshot::id_order`] preserves deterministic iteration order of *IDs that exist* in the snapshot.
+//! - [`crate::core::index::runtime::Snapshot::id_order`] preserves deterministic iteration order of *IDs that exist* in the snapshot.
 //!   Iteration is driven by `id_order` and resolved through `by_id`.
 //!
 //! **Shift from `DefPtr` to `DefRef`:**
@@ -36,44 +36,27 @@
 //!
 //! | Type | Meaning | Constraints | Constructed / mutated in |
 //! |---|---|---|---|
-//! | [`DefRef<T>`] | Safe handle to a definition (`Builtin`/`Owned`) | Owned refs keep their allocation alive via `Arc` reachability | `DefRef::Builtin`, `DefRef::Owned` |
-//! | [`RegistryRef<T>`] | Guard that pins an `Arc<Snapshot<T>>` while exposing `&T` via `Deref` | MUST hold the snapshot `Arc` for the lifetime of the borrow | [`RuntimeRegistry::get`], [`RuntimeRegistry::all`] |
-//! | [`Snapshot<T>`] | Atomic view of the registry indices | Immutable after construction; shared via `ArcSwap` | `RuntimeRegistry` CAS loop |
-//! | [`RegistryIndex<T>`] | Build-time index of builtins (seed snapshot) | Builtins are `&'static` | `RegistryBuilder::build` |
-//! | [`KeyStore`] | Abstract mutation surface used by insertion logic | MUST implement `evict_def` for runtime overrides | `SnapshotStore` / build store |
-//! | [`DuplicatePolicy`] | Winner selection rule | MUST be deterministic for reproducible iteration/results | [`RuntimeRegistry::with_policy`] |
-//! | [`InsertAction`] | Outcome classification for insertion | Used for diagnostics and tests | `insert_typed_key`, `insert_id_key_runtime` |
-//! | [`KeyKind`] | Class of key being inserted | `Id`, `Name`, `Alias` | `RegistryMeta` |
+//! | [`crate::core::index::types::DefRef`] | Safe handle to a definition (`Builtin`/`Owned`) | Owned refs keep their allocation alive via `Arc` reachability | `DefRef::Builtin`, `DefRef::Owned` |
+//! | [`crate::core::index::runtime::RegistryRef`] | Guard that pins an `Arc<Snapshot<T>>` while exposing `&T` via `Deref` | Must hold the snapshot `Arc` for the lifetime of the borrow | [`crate::core::index::runtime::RuntimeRegistry::get`], [`crate::core::index::runtime::RuntimeRegistry::all`] |
+//! | [`crate::core::index::runtime::Snapshot`] | Atomic view of the registry indices | Immutable after construction; shared via `ArcSwap` | `RuntimeRegistry` CAS loop |
+//! | [`crate::core::index::types::RegistryIndex`] | Build-time index of builtins (seed snapshot) | Builtins are `&'static` | `RegistryBuilder::build` |
+//! | [`crate::core::index::collision::KeyStore`] | Abstract mutation surface used by insertion logic | Must implement `evict_def` for runtime overrides | `SnapshotStore` / build store |
+//! | [`crate::core::index::collision::DuplicatePolicy`] | Winner selection rule | Must be deterministic for reproducible iteration/results | [`crate::core::index::runtime::RuntimeRegistry::with_policy`] |
+//! | [`crate::core::InsertAction`] | Outcome classification for insertion | Used for diagnostics and tests | `insert_typed_key`, `insert_id_key_runtime` |
+//! | [`crate::core::index::collision::KeyKind`] | Class of key being inserted | `Id`, `Name`, `Alias` | `RegistryMeta` |
 //!
 //! # Invariants
 //!
-//! - MUST keep ID lookup unambiguous (one winner per ID).
-//!   - Enforced in: [`super::insert::insert_typed_key`] (build-time), [`super::insert::insert_id_key_runtime`] (runtime).
-//!   - Tested by: [`super::invariants::test_unambiguous_id_lookup`]
-//!   - Failure symptom: Panics during build/startup or inconsistent `get_by_id` results.
-//!
-//! - MUST evict old definitions on ID override (including name/alias winners pointing to the old def).
-//!   - Enforced in: [`super::insert::insert_id_key_runtime`] (calls `KeyStore::evict_def` before `set_id_owner`).
-//!   - Tested by: [`super::invariants::test_id_override_eviction`]
-//!   - Failure symptom: stale name/alias lookups returning a definition that is no longer the ID owner.
-//!
-//! - MUST maintain deterministic iteration order over effective definitions.
-//!   - Enforced in: [`RuntimeRegistry::try_register_many_internal`] (pushes to `id_order` only on
-//!     [`InsertAction::InsertedNew`]; replacements do not reorder).
-//!   - Tested by: [`super::invariants::test_deterministic_iteration`]
-//!   - Failure symptom: nondeterministic `all()` / `iter()` ordering across runs or after overrides.
-//!
-//! - Owned runtime definitions MUST remain alive for as long as they are reachable from the snapshot.
-//!   - Enforced in: structure (reachability) — [`Snapshot`] stores [`DefRef::Owned`] directly in
-//!     `by_id` / `by_key`, and [`RegistryRef<T>`] pins the snapshot `Arc` while borrowing `&T`.
-//!   - Tested by: [`super::invariants::test_snapshot_liveness_across_swap`]
-//!   - Failure symptom: use-after-free when dereferencing a [`RegistryRef`] after concurrent writes.
+//! - [`crate::core::index::invariants::UNAMBIGUOUS_ID_LOOKUP_HAS_SINGLE_WINNER`]
+//! - [`crate::core::index::invariants::EVICT_OLD_DEFINITION_ON_ID_OVERRIDE`]
+//! - [`crate::core::index::invariants::DETERMINISTIC_EFFECTIVE_ITERATION_ORDER`]
+//! - [`crate::core::index::invariants::OWNED_DEFINITIONS_STAY_ALIVE_WHILE_REACHABLE`]
 //!
 //! # Data flow
 //!
 //! - Builtins:
-//!   - `RegistryBuilder` constructs a [`RegistryIndex<T>`] from `&'static T` definitions.
-//!   - The runtime registry seeds its first [`Snapshot<T>`] from that builtins index.
+//!   - `RegistryBuilder` constructs a [`crate::core::index::types::RegistryIndex`] from `&'static T` definitions.
+//!   - The runtime registry seeds its first [`crate::core::index::runtime::Snapshot`] from that builtins index.
 //! - Runtime registration:
 //!   - `register` / `register_owned` call `try_register_many_internal`.
 //!   - Writes clone the current snapshot, apply insertions via `insert_typed_key` / `insert_id_key_runtime`
@@ -83,26 +66,26 @@
 //!     same batch), avoiding duplicate `id_order` entries and redundant collisions.
 //!   - In override mode, definitions that lose the ID contest are not admitted via name/alias.
 //! - Lookups:
-//!   - `get(key)` loads the snapshot `Arc` and returns a [`RegistryRef<T>`] holding a cloned `DefRef<T>`.
+//!   - `get(key)` loads the snapshot `Arc` and returns a [`crate::core::index::runtime::RegistryRef`] holding a cloned `DefRef<T>`.
 //!   - `all()` iterates `id_order`, resolves each ID via `by_id`, and returns guards in stable order.
 //!
 //! # Lifecycle
 //!
 //! - Build phase:
 //!   - Builtins registered; plugins may mutate the builder; duplicate policy resolves collisions.
-//!   - A finalized [`RegistryIndex<T>`] is produced.
+//!   - A finalized [`crate::core::index::types::RegistryIndex`] is produced.
 //! - Runtime phase:
-//!   - [`RuntimeRegistry<T>`] creates an `ArcSwap<Snapshot<T>>` seeded from builtins.
+//!   - [`crate::core::index::runtime::RuntimeRegistry`] creates an `ArcSwap<Snapshot<T>>` seeded from builtins.
 //!   - Runtime registrations CAS-publish new snapshots; reads stay lock-free.
-//!   - Snapshots are dropped when replaced and when no [`RegistryRef<T>`] guards remain.
+//!   - Snapshots are dropped when replaced and when no [`crate::core::index::runtime::RegistryRef`] guards remain.
 //!
 //! # Concurrency and ordering
 //!
 //! - Lock-free reads: `snap.load_full()` returns an `Arc<Snapshot<T>>` without blocking.
 //! - CAS retry loop: writers retry if a concurrent write published a newer snapshot.
-//! - Deterministic winners: [`DuplicatePolicy`] must be deterministic; `ByPriority` uses a total order
+//! - Deterministic winners: [`crate::core::index::collision::DuplicatePolicy`] must be deterministic; `ByPriority` uses a total order
 //!   comparison and breaks ties using existing-wins semantics.
-//! - Snapshot lifetime: [`RegistryRef<T>`] prevents the snapshot (and any `Arc<T>` held by `DefRef`) from
+//! - Snapshot lifetime: [`crate::core::index::runtime::RegistryRef`] prevents the snapshot (and any `Arc<T>` held by `DefRef`) from
 //!   being dropped while callers hold borrowed references.
 //!
 //! # Failure modes and recovery
@@ -550,7 +533,7 @@ where
 	pub fn debug_assert_invariants(&self) {
 		let snap = self.snap.load();
 
-		// Invariant: id_order matches by_id keys exactly
+		// id_order matches by_id keys exactly.
 		for id in &snap.id_order {
 			if !snap.by_id.contains_key(id) {
 				panic!("Invariant failed: id_order contains missing ID: {}", id);

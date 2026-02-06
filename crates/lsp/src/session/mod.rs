@@ -1,5 +1,5 @@
 mod completion;
-mod manager;
+pub(crate) mod manager;
 pub mod server_requests;
 
 pub use completion::{CompletionController, CompletionRequest, CompletionTrigger};

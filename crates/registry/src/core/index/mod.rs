@@ -3,7 +3,7 @@
 mod build;
 mod collision;
 pub(crate) mod insert;
-mod runtime;
+pub(crate) mod runtime;
 mod types;
 
 pub use build::RegistryBuilder;

@@ -7,135 +7,79 @@
 //!
 //! # Mental model
 //!
-//! - [`LspSystem`](editor::lsp::system::LspSystem) is the editor integration root that constructs an [`LspManager`] with a transport.
-//! - [`DocumentSync`](crate::DocumentSync) owns didOpen/didChange/didSave/didClose policy and the local [`DocumentStateManager`](crate::DocumentStateManager) (diagnostics, progress).
-//! - [`Registry`](crate::Registry) maps `(language, workspace_root)` to a [`ClientHandle`](crate::ClientHandle) and enforces singleflight for server startup.
-//! - [`LspManager::spawn_router`] is the event pump that applies [`TransportEvent`](crate::client::transport::TransportEvent) streams to [`DocumentStateManager`](crate::DocumentStateManager) and replies to server-initiated requests in-order.
-//! - [`LocalTransport`](crate::client::LocalTransport) spawns LSP servers as child processes and manages stdin/stdout communication.
+//! - `LspSystem` (in `xeno-editor`) is the editor integration root that constructs an [`crate::session::manager::LspManager`] with a transport.
+//! - [`crate::sync::DocumentSync`] owns didOpen/didChange/didSave/didClose policy and the local [`crate::document::DocumentStateManager`] (diagnostics, progress).
+//! - [`crate::registry::Registry`] maps `(language, workspace_root)` to a [`crate::client::ClientHandle`] and enforces singleflight for server startup.
+//! - [`crate::session::manager::LspManager::spawn_router`] is the event pump that applies [`crate::client::transport::TransportEvent`] streams to [`crate::document::DocumentStateManager`] and replies to server-initiated requests in-order.
+//! - [`crate::client::LocalTransport`] spawns LSP servers as child processes and manages stdin/stdout communication.
 //!
 //! # Key types
 //!
 //! | Type | Meaning | Constraints | Constructed / mutated in |
 //! |---|---|---|---|
-//! | [`LspSystem`] | Editor integration root for LSP | MUST construct an [`LspManager`] with a transport | `LspSystem::new` |
-//! | [`LspManager`] | Owns [`DocumentSync`] and routes transport events | MUST reply to server-initiated requests inline to preserve request/reply pairing | [`LspManager::spawn_router`] |
-//! | [`DocumentSync`] | High-level doc sync coordinator | MUST gate change notifications on client initialization state | `DocumentSync::*` |
-//! | [`Registry`] | Maps `(language, root_path)` to a running client | MUST singleflight `transport.start()` per key | `Registry::get_or_start` |
-//! | [`RegistryState`] | Consolidated registry indices + slot/generation tracking | MUST update `servers`/`server_meta`/`id_index` atomically | `Registry::get_or_start`, `Registry::remove_server` |
-//! | [`LspSlotId`] | Logical server slot (language + root path pair) | Stable across restarts | `RegistryState::get_or_create_slot_id` |
-//! | [`LanguageServerId`] | Instance identifier: slot + generation counter | Generation increments on each restart of the same slot | `RegistryState::next_gen`, `ServerConfig::id` |
-//! | [`ServerMeta`] | Per-server metadata for server-initiated requests | MUST be removable by server id | `Registry::get_or_start`, `Registry::remove_server` |
-//! | [`ClientHandle`] | RPC handle for a single language server instance | MUST NOT be treated as ready until initialization completes | `ClientHandle::*` |
-//! | [`TransportEvent`] | Transport-to-manager event stream | Router MUST process sequentially | [`LspManager::spawn_router`] |
-//! | [`TransportStatus`] | Lifecycle signals for server processes | Router MUST remove servers on `Stopped`/`Crashed` | [`LspManager::spawn_router`] |
-//! | [`LocalTransport`] | Local child process transport | Spawns servers directly, communicates via stdin/stdout | `LocalTransport::new` |
+//! | `LspSystem` (in `xeno-editor`) | Editor integration root for LSP | Must construct an `LspManager` with a transport | `LspSystem::new` |
+//! | [`crate::session::manager::LspManager`] | Owns [`crate::sync::DocumentSync`] and routes transport events | Must reply to server-initiated requests inline to preserve request/reply pairing | [`crate::session::manager::LspManager::spawn_router`] |
+//! | [`crate::sync::DocumentSync`] | High-level doc sync coordinator | Must gate change notifications on client initialization state | `DocumentSync::*` |
+//! | [`crate::registry::Registry`] | Maps `(language, root_path)` to a running client | Must singleflight `transport.start()` per key | `Registry::get_or_start` |
+//! | `RegistryState` | Consolidated registry indices + slot/generation tracking | Must update `servers`/`server_meta`/`id_index` atomically | `Registry::get_or_start`, `Registry::remove_server` |
+//! | [`crate::client::LspSlotId`] | Logical server slot (language + root path pair) | Stable across restarts | `RegistryState::get_or_create_slot_id` |
+//! | [`crate::client::LanguageServerId`] | Instance identifier: slot + generation counter | Generation increments on each restart of the same slot | `RegistryState::next_gen`, `ServerConfig::id` |
+//! | [`crate::registry::ServerMeta`] | Per-server metadata for server-initiated requests | Must be removable by server id | `Registry::get_or_start`, `Registry::remove_server` |
+//! | [`crate::client::ClientHandle`] | RPC handle for a single language server instance | Must not be treated as ready until initialization completes | `ClientHandle::*` |
+//! | [`crate::client::transport::TransportEvent`] | Transport-to-manager event stream | Router must process sequentially | [`crate::session::manager::LspManager::spawn_router`] |
+//! | [`crate::client::transport::TransportStatus`] | Lifecycle signals for server processes | Router must remove servers on `Stopped`/`Crashed` | [`crate::session::manager::LspManager::spawn_router`] |
+//! | [`crate::client::LocalTransport`] | Local child process transport | Spawns servers directly, communicates via stdin/stdout | `LocalTransport::new` |
 //!
 //! # Invariants
 //!
-//! - Registry startup MUST singleflight `transport.start()` per `(language, root_path)` key.
-//!   - Enforced in: `Registry::get_or_start`
-//!   - Tested by: `TODO (add regression: test_registry_singleflight_prevents_duplicate_transport_start)`
-//!   - Failure symptom: duplicate server starts, leaked server processes, inconsistent server ids across callers.
-//!
-//! - Registry mutations MUST be atomic across `servers`, `server_meta`, and `id_index`.
-//!   - Enforced in: `Registry::get_or_start`, `Registry::remove_server`
-//!   - Tested by: `TODO (add regression: test_registry_remove_server_scrubs_all_indices)`
-//!   - Failure symptom: stale server metadata persists after removal, status cleanup fails to fully detach, server request handlers read wrong settings/root.
-//!
-//! - The router MUST process transport events sequentially and MUST reply to server-initiated requests inline.
-//!   - Enforced in: [`LspManager::spawn_router`]
-//!   - Tested by: `TODO (add regression: test_router_event_ordering)`
-//!   - Failure symptom: server request/reply pairing breaks, replies go to the wrong pending request, server-side hangs waiting for a response.
-//!   - Note: Cleanup operations (like `transport.stop` on crash) are spawned as fire-and-forget tasks to prevent blocking.
-//!
-//! - On `TransportStatus::Stopped` or `TransportStatus::Crashed`, the router MUST remove the server from `Registry` and MUST clear per-server progress.
-//!   - Enforced in: [`LspManager::spawn_router`], `Registry::remove_server`
-//!   - Tested by: `TODO (add regression: test_status_stopped_removes_server_and_clears_progress)`
-//!   - Failure symptom: UI shows stuck progress forever, stale `ClientHandle` remains reachable, subsequent requests wedge on a dead server id.
-//!
-//! - The router MUST discard transport events from stale server generations.
-//!   - Enforced in: [`LspManager::spawn_router`] (checks `Registry::is_current` before dispatching)
-//!   - Tested by: `TODO (add regression: test_router_drops_stale_generation_events)`
-//!   - Failure symptom: Diagnostics or progress from a previous server generation leak into the current session, causing phantom diagnostics or stuck progress indicators.
-//!
-//! - `LanguageServerId` MUST be a (slot, generation) pair. The slot is stable for a given `(language, root_path)` key; the generation increments on each restart.
-//!   - Enforced in: `RegistryState::get_or_create_slot_id`, `RegistryState::next_gen`
-//!   - Tested by: `TODO (add regression: test_server_id_generation_increments_on_restart)`
-//!   - Failure symptom: Events from a restarted server are misattributed to the previous instance, or `is_current` check always passes for stale IDs.
-//!
-//! - `ServerConfig` MUST carry the pre-assigned `LanguageServerId`; the transport MUST NOT generate its own IDs.
-//!   - Enforced in: `Registry::get_or_start` (assigns ID before calling `transport.start`), `LocalTransport::start` (uses `cfg.id`)
-//!   - Tested by: `TODO (add regression: test_singleflight_start)`
-//!   - Failure symptom: Transport-assigned IDs diverge from registry IDs, breaking event routing and `is_current` checks.
-//!
-//! - `workspace/configuration` handling MUST return an array with one element per requested item, and MUST return an object for missing config.
-//!   - Enforced in: `handle_workspace_configuration`
-//!   - Tested by: `TODO (add regression: test_server_request_workspace_configuration_section_slicing)`
-//!   - Failure symptom: servers treat configuration as invalid, disable features, or log repeated configuration query errors.
-//!
-//! - `workspace/workspaceFolders` handling MUST return percent-encoded file URIs.
-//!   - Enforced in: `handle_workspace_folders`
-//!   - Tested by: `TODO (add regression: test_server_request_workspace_folders_uri_encoding)`
-//!   - Failure symptom: servers mis-parse the workspace root for paths with spaces or non-ASCII characters and degrade indexing/navigation.
-//!
-//! - `DocumentSync` MUST NOT send change notifications before the client has completed initialization.
-//!   - Enforced in: `DocumentSync::notify_change_full_text`, `DocumentSync::notify_change_incremental_no_content`
-//!   - Tested by: [crate::sync::tests::test_document_sync_returns_not_ready_before_init]
-//!   - Failure symptom: edits are dropped by the server or applied out of order, resulting in stale diagnostics and incorrect completions.
-//!
-//! - `LspSystem::prepare_position_request` MUST gate on `ClientHandle::is_ready()` before forming any position-based LSP request.
-//!   - Enforced in: `LspSystem::prepare_position_request`
-//!   - Tested by: `TODO (add regression: test_prepare_position_request_returns_none_before_ready)`
-//!   - Failure symptom: requests sent to uninitialized servers cause panics or silent errors.
-//!
-//! - `ClientHandle::capabilities()` MUST return `Option` (not panic). All capability-dependent public methods MUST use the fallible accessor.
-//!   - Enforced in: `ClientHandle::capabilities`, `ClientHandle::offset_encoding`, `ClientHandle::supports_*`
-//!   - Tested by: `TODO (add regression: test_client_handle_capabilities_returns_none_before_init)`
-//!   - Failure symptom: panic ("language server not yet initialized") on any code path that reads capabilities before the initialize handshake completes.
-//!
-//! - `ClientHandle::set_ready(true)` MUST only be called after `capabilities.set()` and MUST use `Release` ordering. `is_ready()` MUST use `Acquire` ordering.
-//!   - Enforced in: `ClientHandle::set_ready` (`debug_assert` + `Release`), `ClientHandle::is_ready` (`Acquire`)
-//!   - Tested by: `TODO (add regression: test_set_ready_requires_initialized)`
-//!   - Failure symptom: thread observes `is_ready() == true` but `capabilities()` returns `None` due to missing memory ordering edge.
-//!
-//! - All registry lookups in `LspSystem` MUST use canonicalized paths to match the key representation used at registration time.
-//!   - Enforced in: `LspSystem::prepare_position_request`, `LspSystem::offset_encoding_for_buffer`, `LspSystem::incremental_encoding`
-//!   - Tested by: `TODO (add regression: test_registry_lookup_uses_canonical_path)`
-//!   - Failure symptom: registry miss on symlinked or relative paths causes silent fallback to wrong default encoding (UTF-16) or drops the request entirely.
+//! - [`crate::session::manager::invariants::SINGLEFLIGHT_START_PER_LANGUAGE_AND_ROOT`]
+//! - [`crate::session::manager::invariants::ATOMIC_REGISTRY_MUTATION_ACROSS_INDICES`]
+//! - [`crate::session::manager::invariants::ROUTER_PROCESSES_EVENTS_SEQUENTIALLY_AND_REPLIES_INLINE`]
+//! - [`crate::session::manager::invariants::STOPPED_OR_CRASHED_SERVER_IS_REMOVED_AND_PROGRESS_CLEARED`]
+//! - [`crate::session::manager::invariants::ROUTER_DROPS_STALE_GENERATION_EVENTS`]
+//! - [`crate::session::manager::invariants::LANGUAGE_SERVER_ID_IS_SLOT_PLUS_GENERATION`]
+//! - [`crate::session::manager::invariants::SERVER_CONFIG_CARRIES_PREASSIGNED_SERVER_ID`]
+//! - [`crate::session::manager::invariants::WORKSPACE_CONFIGURATION_RESPONSE_MATCHES_ITEM_COUNT`]
+//! - [`crate::session::manager::invariants::WORKSPACE_FOLDERS_RESPONSE_USES_PERCENT_ENCODED_URIS`]
+//! - [`crate::session::manager::invariants::DOCUMENT_SYNC_DOES_NOT_NOTIFY_BEFORE_INIT`]
+//! - [`crate::session::manager::invariants::POSITION_REQUESTS_GATE_ON_CLIENT_READINESS`]
+//! - [`crate::session::manager::invariants::CLIENT_CAPABILITIES_ACCESS_IS_FALLIBLE`]
+//! - [`crate::session::manager::invariants::READY_FLAG_REQUIRES_CAPABILITIES_WITH_RELEASE_ACQUIRE_ORDERING`]
+//! - [`crate::session::manager::invariants::LSP_SYSTEM_LOOKUPS_USE_CANONICAL_PATHS`]
 //!
 //! # Data flow
 //!
-//! - Editor constructs `LspSystem` which constructs `LspManager` with `LocalTransport`.
-//! - Editor opens a buffer; `DocumentSync` chooses a language and calls `Registry::get_or_start(language, path)`.
-//! - `Registry` singleflights startup: assigns a `LanguageServerId` (slot + generation) before
-//!   calling `transport.start`, and obtains a `ClientHandle` for the `(language, root_path)` key.
-//! - `DocumentSync` registers the document in `DocumentStateManager` and sends `didOpen` via `ClientHandle`.
-//! - Subsequent edits call `DocumentSync` change APIs; `DocumentStateManager` assigns versions; change notifications are sent and acknowledged.
-//! - `LocalTransport` spawns the server as a child process and communicates via stdin/stdout JSON-RPC.
-//! - Transport emits `TransportEvent` values; `LspManager` router consumes them:
-//!   - Generation filter: Events are checked against `Registry::is_current`; stale-generation events are dropped.
-//!   - Diagnostics events update `DocumentStateManager` diagnostics.
+//! - Editor constructs `LspSystem` which constructs [`crate::session::manager::LspManager`] with [`crate::client::LocalTransport`].
+//! - Editor opens a buffer; [`crate::sync::DocumentSync`] chooses a language and calls [`crate::registry::Registry::get_or_start`].
+//! - [`crate::registry::Registry`] singleflights startup: assigns a [`crate::client::LanguageServerId`] (slot + generation) before
+//!   calling `transport.start`, and obtains a [`crate::client::ClientHandle`] for the `(language, root_path)` key.
+//! - [`crate::sync::DocumentSync`] registers the document in [`crate::document::DocumentStateManager`] and sends `didOpen` via [`crate::client::ClientHandle`].
+//! - Subsequent edits call [`crate::sync::DocumentSync`] change APIs; [`crate::document::DocumentStateManager`] assigns versions; change notifications are sent and acknowledged.
+//! - [`crate::client::LocalTransport`] spawns the server as a child process and communicates via stdin/stdout JSON-RPC.
+//! - Transport emits [`crate::client::transport::TransportEvent`] values; [`crate::session::manager::LspManager`] router consumes them:
+//!   - Generation filter: Events are checked against [`crate::registry::Registry::is_current`]; stale-generation events are dropped.
+//!   - Diagnostics events update [`crate::document::DocumentStateManager`] diagnostics.
 //!   - Message events: Requests are handled by `handle_server_request` and replied via `transport.reply`. Notifications update progress and may be logged.
-//!   - Status events remove crashed/stopped servers from `Registry` and clear progress.
+//!   - Status events remove crashed/stopped servers from [`crate::registry::Registry`] and clear progress.
 //!   - Disconnected events stop the router loop.
 //!
 //! # Lifecycle
 //!
-//! - Configuration: Editor registers `LanguageServerConfig` via `LspManager::configure_server`.
-//! - Startup: First open/change triggers `Registry::get_or_start` and transport start. Client initialization runs asynchronously; readiness is tracked by `ClientHandle`.
-//! - Running: didOpen/didChange/didSave/didClose flow through `DocumentSync`. Router updates diagnostics/progress and services server-initiated requests.
-//! - Stopped/Crashed: Transport emits status; router removes server from `Registry` and clears progress. Next operation will start a new server instance.
+//! - Configuration: Editor registers [`crate::registry::LanguageServerConfig`] via [`crate::session::manager::LspManager::configure_server`].
+//! - Startup: First open/change triggers [`crate::registry::Registry::get_or_start`] and transport start. Client initialization runs asynchronously; readiness is tracked by [`crate::client::ClientHandle`].
+//! - Running: didOpen/didChange/didSave/didClose flow through [`crate::sync::DocumentSync`]. Router updates diagnostics/progress and services server-initiated requests.
+//! - Stopped/Crashed: Transport emits status; router removes server from [`crate::registry::Registry`] and clears progress. Next operation will start a new server instance.
 //!
 //! # Concurrency and ordering
 //!
-//! - Registry startup ordering: `Registry` MUST ensure only one `transport.start()` runs for a given `(language, root_path)` key at a time. Waiters MUST block on the inflight gate and then re-check the `RegistryState`.
-//! - Router ordering: `LspManager` router MUST process events in the order received from the transport receiver. Server-initiated requests MUST be handled inline; do not spawn per-request tasks that reorder replies.
-//! - Document versioning: `DocumentStateManager` versions MUST be monotonic per URI. When barriers are used, `DocumentSync` MUST only ack_change after the barrier is resolved.
+//! - Registry startup ordering: [`crate::registry::Registry`] must ensure only one `transport.start()` runs for a given `(language, root_path)` key at a time. Waiters must block on the inflight gate and then re-check the `RegistryState`.
+//! - Router ordering: [`crate::session::manager::LspManager`] router must process events in the order received from the transport receiver. Server-initiated requests must be handled inline; do not spawn per-request tasks that reorder replies.
+//! - Document versioning: [`crate::document::DocumentStateManager`] versions must be monotonic per URI. When barriers are used, [`crate::sync::DocumentSync`] must only ack_change after the barrier is resolved.
 //!
 //! # Failure modes and recovery
 //!
 //! - Duplicate startup attempt: Recovery: singleflight blocks duplicates; waiters reuse the leader's handle.
-//! - Server crash or stop: Recovery: router removes server; subsequent operation re-starts server via `Registry`.
+//! - Server crash or stop: Recovery: router removes server; subsequent operation re-starts server via [`crate::registry::Registry`].
 //! - Unsupported server-initiated request method: Recovery: handler returns `METHOD_NOT_FOUND`; add method to allowlist if required by real servers.
 //! - URI conversion failure for workspaceFolders: Recovery: handler returns empty array; server may operate without workspace folders.
 //!
@@ -145,8 +89,7 @@
 //!
 //! - Implement a method arm in `session::server_requests`.
 //! - Return a stable, schema-valid JSON value for the LSP method.
-//! - Ensure the handler is called inline from [`LspManager::spawn_router`].
-//! - Add a regression test: `TODO (add regression: test_server_request_<method_name>)`.
+//! - Ensure the handler is called inline from [`crate::session::manager::LspManager::spawn_router`].
 //!
 //! ## Add a new LSP feature request from the editor
 //!
@@ -416,6 +359,9 @@ impl LspManager {
 // Default implementation removed: LspManager requires an explicit transport.
 // Use LocalTransport::new() to create a transport that spawns servers locally.
 // Users should construct LspManager via LspSystem::new() in editor code.
+
+#[cfg(any(test, doc))]
+pub(crate) mod invariants;
 
 #[cfg(test)]
 mod tests;

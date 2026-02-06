@@ -3,8 +3,8 @@
 //! # Purpose
 //!
 //! - Owns: per-view state (cursor, selection, scroll position, local options) and modal input state.
-//! - Does not own: authoritative document content (owned by [`Document`]).
-//! - Source of truth: [`Buffer`].
+//! - Does not own: authoritative document content (owned by [`crate::core::document::Document`]).
+//! - Source of truth: [`crate::buffer::Buffer`].
 //!
 //! # Mental model
 //!
@@ -12,32 +12,32 @@
 //! - Multiple buffers can point to the same document (enabling splits).
 //! - View-local state (like the cursor) is stored in the buffer.
 //! - Shared state (like text and history) is stored in the document.
-//! - Thread-safety for shared documents is managed via [`DocumentHandle`] with re-entrancy protection.
+//! - Thread-safety for shared documents is managed via [`crate::buffer::DocumentHandle`] with re-entrancy protection.
 //!
 //! # Key types
 //!
 //! | Type | Meaning | Constraints | Constructed / mutated in |
 //! |---|---|---|---|
-//! | [`Buffer`] | Primary editing unit | MUST separate view state from content | `Buffer::new`, `Buffer::clone_for_split` |
-//! | [`Document`] | Shared content | Authoritative source of text/history | `Document::new` |
-//! | [`DocumentHandle`] | Thread-safe wrapper | MUST prevent re-entrant locks on same thread | `DocumentHandle::new` |
-//! | [`ApplyPolicy`] | Edit validation rules | Controls readonly/history behavior | `editing::apply` |
+//! | [`crate::buffer::Buffer`] | Primary editing unit | MUST separate view state from content | `Buffer::new`, `Buffer::clone_for_split` |
+//! | [`crate::core::document::Document`] | Shared content | Authoritative source of text/history | `Document::new` |
+//! | [`crate::buffer::DocumentHandle`] | Thread-safe wrapper | MUST prevent re-entrant locks on same thread | `DocumentHandle::new` |
+//! | [`crate::buffer::ApplyPolicy`] | Edit validation rules | Controls readonly/history behavior | `editing::apply` |
 //!
 //! # Invariants
 //!
 //! - MUST NOT allow re-entrant locking of the same document on a single thread.
-//!   - Enforced in: [`LockGuard::new`]
-//!   - Tested by: `TODO (add regression: test_reentrant_lock_panic)`
+//!   - Enforced in: [`crate::buffer::LockGuard::new`]
+//!   - Tested by: [`crate::buffer::invariants::test_reentrant_lock_panic`]
 //!   - Failure symptom: Thread deadlocks waiting for a lock it already holds.
 //!
 //! - MUST keep view state (cursor/selection) within document bounds.
-//!   - Enforced in: [`Buffer::ensure_valid_selection`]
-//!   - Tested by: `TODO (add regression: test_selection_clamping)`
+//!   - Enforced in: [`crate::buffer::Buffer::ensure_valid_selection`]
+//!   - Tested by: [`crate::buffer::invariants::test_selection_clamping`]
 //!   - Failure symptom: Panics or out-of-bounds access during rendering or editing.
 //!
 //! - MUST preserve monotonic document versions across edits.
-//!   - Enforced in: [`Document::apply_commit`]
-//!   - Tested by: `TODO (add regression: test_version_monotonicity)`
+//!   - Enforced in: [`crate::core::document::Document::apply_commit`]
+//!   - Tested by: [`crate::buffer::invariants::test_version_monotonicity`]
 //!   - Failure symptom: Desync between editor, LSP, and syntax subsystems.
 //!
 //! # Data flow
@@ -74,6 +74,9 @@ mod editing;
 
 mod layout;
 mod navigation;
+
+#[cfg(any(test, doc))]
+pub(crate) mod invariants;
 
 use std::cell::RefCell;
 use std::collections::HashSet;

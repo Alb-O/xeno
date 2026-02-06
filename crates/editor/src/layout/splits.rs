@@ -83,7 +83,7 @@ impl LayoutManager {
 	/// # Panics
 	///
 	/// Panics if the view is not found or its area cannot be computed.
-	/// The caller MUST call [`Self::can_split_horizontal`] first.
+	/// The caller must call [`Self::can_split_horizontal`] first.
 	pub fn split_horizontal(
 		&mut self,
 		base_layout: &mut Layout,
@@ -120,7 +120,7 @@ impl LayoutManager {
 	/// # Panics
 	///
 	/// Panics if the view is not found or its area cannot be computed.
-	/// The caller MUST call [`Self::can_split_vertical`] first.
+	/// The caller must call [`Self::can_split_vertical`] first.
 	pub fn split_vertical(
 		&mut self,
 		base_layout: &mut Layout,

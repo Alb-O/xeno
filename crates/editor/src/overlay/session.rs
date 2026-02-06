@@ -2,9 +2,9 @@
 //!
 //! # Purpose
 //!
-//! - Owns: focus-stealing modal interactions ([`OverlayManager`]), passive contextual UI layers ([`OverlayLayers`]), and shared type-erased state ([`OverlayStore`]).
+//! - Owns: focus-stealing modal interactions ([`crate::overlay::OverlayManager`]), passive contextual UI layers ([`crate::overlay::OverlayLayers`]), and shared type-erased state ([`crate::overlay::OverlayStore`]).
 //! - Does not own: floating window rendering (owned by window subsystem), LSP request logic.
-//! - Source of truth: [`OverlaySystem`].
+//! - Source of truth: [`crate::overlay::OverlaySystem`].
 //!
 //! # Mental model
 //!
@@ -15,59 +15,44 @@
 //!
 //! | Type | Meaning | Constraints | Constructed / mutated in |
 //! |---|---|---|---|
-//! | [`OverlayUiSpec`] | Declarative UI configuration | Static geometry resolve | Controller (`ui_spec`) |
-//! | [`OverlaySession`] | Active session resources | MUST be torn down | `OverlayHost::setup_session` |
-//! | [`PreviewCapture`] | Versioned state snapshot | Version-aware restore | `OverlaySession::capture_view` |
-//! | [`LayerEvent`] | Payloaded UI events | Broadcast to all layers | `Editor::notify_overlay_event` |
-//! | [`OverlayContext`] | Capability interface for overlays | MUST be used instead of direct editor access | `OverlayManager::{open,commit,close}` |
+//! | [`crate::overlay::spec::OverlayUiSpec`] | Declarative UI configuration | Static geometry resolve | Controller (`ui_spec`) |
+//! | [`crate::overlay::session::OverlaySession`] | Active session resources | Must be torn down | `OverlayHost::setup_session` |
+//! | [`crate::overlay::session::PreviewCapture`] | Versioned state snapshot | Version-aware restore | `OverlaySession::capture_view` |
+//! | [`crate::overlay::LayerEvent`] | Payloaded UI events | Broadcast to all layers | `Editor::notify_overlay_event` |
+//! | [`crate::overlay::OverlayContext`] | Capability interface for overlays | Must be used instead of direct editor access | `OverlayManager::{open,commit,close}` |
 //!
 //! # Invariants
 //!
-//! - MUST restore state ONLY if buffer version matches capture.
-//!   - Enforced in: [OverlaySession::restore_all]
-//!   - Tested by: `TODO (add regression: test_versioned_restore)`
-//!   - Failure symptom: User edits clobbered by preview restoration.
-//!
-//! - MUST NOT allow multiple active modal sessions.
-//!   - Enforced in: `OverlayManager::open`
-//!   - Tested by: `TODO (add regression: test_exclusive_modal)`
-//!   - Failure symptom: Multiple focus-stealing prompts overlapping and fighting for keys.
-//!
-//! - MUST clamp all resolved window areas to screen bounds.
-//!   - Enforced in: `RectPolicy::resolve_opt`
-//!   - Tested by: `spec::tests::test_rect_policy_top_center_clamping`
-//!   - Failure symptom: Windows rendering partially off-screen or zero-sized.
-//!
-//! - MUST clear LSP UI when a modal overlay opens.
-//!   - Enforced in: `OverlayManager::open`
-//!   - Tested by: `TODO (add regression: test_modal_overlay_clears_lsp_menu)`
-//!   - Failure symptom: Completion menus appearing on top of modal prompts.
+//! - [`crate::overlay::invariants::RESTORE_ONLY_WHEN_CAPTURE_VERSION_MATCHES`]
+//! - [`crate::overlay::invariants::ONLY_ONE_ACTIVE_MODAL_SESSION`]
+//! - [`crate::overlay::invariants::CLAMP_RESOLVED_AREAS_TO_SCREEN_BOUNDS`]
+//! - [`crate::overlay::invariants::CLEAR_LSP_UI_WHEN_MODAL_OPENS`]
 //!
 //! # Data flow
 //!
 //! 1. Trigger: Editor calls `interaction.open(controller)`.
-//! 2. Allocation: [`OverlayHost`] resolves spec, creates scratch buffers/windows, and focuses input.
-//! 3. Events: Editor emits [`LayerEvent`] (CursorMoved, etc.) via `notify_overlay_event`.
-//! 4. Update: Input changes in `session.input` call `controller.on_input_changed` with an [`OverlayContext`].
+//! 2. Allocation: [`crate::overlay::host::OverlayHost`] resolves spec, creates scratch buffers/windows, and focuses input.
+//! 3. Events: Editor emits [`crate::overlay::LayerEvent`] (CursorMoved, etc.) via `notify_overlay_event`.
+//! 4. Update: Input changes in `session.input` call `controller.on_input_changed` with an [`crate::overlay::OverlayContext`].
 //! 5. Restoration: On cancel/blur, `session.restore_all` reverts previews (version-aware) via the context.
 //! 6. Teardown: `session.teardown` closes all windows and removes buffers.
 //!
 //! # Lifecycle
 //!
-//! - Open: `OverlayManager::open` calls `host.setup_session` then `controller.on_open`.
-//! - Update: `OverlayManager::on_buffer_edited` filters for `session.input`.
-//! - Commit: `OverlayManager::commit` runs `controller.on_commit` (async), then teardown.
-//! - Cancel: `OverlayManager::close(Cancel)` runs `session.restore_all`, then teardown.
-//! - Teardown: `OverlaySession::teardown` (idempotent resource cleanup).
+//! - Open: [`crate::overlay::OverlayManager::open`] calls `host.setup_session` then `controller.on_open`.
+//! - Update: [`crate::overlay::OverlayManager::on_buffer_edited`] filters for `session.input`.
+//! - Commit: [`crate::overlay::OverlayManager::commit`] runs [`crate::overlay::OverlayController::on_commit`] (async), then teardown.
+//! - Cancel: [`crate::overlay::OverlayManager::close`] runs `session.restore_all`, then teardown.
+//! - Teardown: [`crate::overlay::session::OverlaySession::teardown`] (idempotent resource cleanup).
 //!
 //! # Concurrency and ordering
 //!
 //! - Single-threaded UI: Most overlay operations run on the main UI thread.
-//! - Async commit: `on_commit` returns a future, allowing async operations (LSP rename) before cleanup.
+//! - Async commit: [`crate::overlay::OverlayController::on_commit`] returns a future, allowing async operations (LSP rename) before cleanup.
 //!
 //! # Failure modes and recovery
 //!
-//! - Missing anchor: `RectPolicy::Below` returns `None` if the target role is missing; host skips that window.
+//! - Missing anchor: [`crate::overlay::spec::RectPolicy::Below`] returns `None` if the target role is missing; host skips that window.
 //! - Stale restore: `restore_all` skips buffers with version mismatches to protect user edits.
 //! - Focus loss: `CloseReason::Blur` triggers automatic cancellation if `dismiss_on_blur` is set in spec.
 //!
@@ -75,8 +60,8 @@
 //!
 //! ## Add a new modal interaction
 //!
-//! 1. Create a struct implementing [`OverlayController`].
-//! 2. Implement `ui_spec` with [`RectPolicy`].
+//! 1. Create a struct implementing [`crate::overlay::OverlayController`].
+//! 2. Implement `ui_spec` with [`crate::overlay::spec::RectPolicy`].
 //! 3. Wire entry point in `impls::interaction`.
 //! 4. Use `session.preview_select` for safe buffer previews.
 //!
@@ -92,7 +77,7 @@ use crate::window::WindowId;
 
 /// State and resources for an active modal interaction session.
 ///
-/// An `OverlaySession` is created by [`OverlayHost`] and managed by [`OverlayManager`].
+/// An `OverlaySession` is created by [`crate::overlay::OverlayHost`] and managed by [`crate::overlay::OverlayManager`].
 /// It tracks all allocated UI resources and provides mechanisms for temporary
 /// state capture and restoration.
 pub struct OverlaySession {
