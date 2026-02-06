@@ -1,3 +1,4 @@
+use super::types::DefRef;
 use crate::RegistryEntry;
 use crate::error::InsertAction;
 
@@ -45,28 +46,24 @@ pub struct Collision {
 pub type ChooseWinner<T> = fn(kind: KeyKind, key: &str, existing: &T, new: &T) -> bool;
 
 /// Abstraction over key storage for shared insertion logic.
-pub trait KeyStore<T: RegistryEntry + 'static> {
+pub trait KeyStore<T: RegistryEntry + Send + Sync + 'static> {
 	/// Returns the definition that owns this string as an ID, if any.
-	fn get_id_owner(&self, id: &str) -> Option<super::types::DefPtr<T>>;
+	fn get_id_owner(&self, id: &str) -> Option<DefRef<T>>;
 
 	/// Returns the current winner in the name/alias namespace.
-	fn get_key_winner(&self, key: &str) -> Option<super::types::DefPtr<T>>;
+	fn get_key_winner(&self, key: &str) -> Option<DefRef<T>>;
 
 	/// Sets the winner in the name/alias namespace.
-	fn set_key_winner(&mut self, key: &str, def: super::types::DefPtr<T>);
+	fn set_key_winner(&mut self, key: &str, def: DefRef<T>);
 
 	/// Inserts into the ID table. Returns the previous occupant if any.
-	fn insert_id(
-		&mut self,
-		id: &str,
-		def: super::types::DefPtr<T>,
-	) -> Option<super::types::DefPtr<T>>;
+	fn insert_id(&mut self, id: &str, def: DefRef<T>) -> Option<DefRef<T>>;
 
 	/// Sets the owner of an ID, overwriting any previous owner.
-	fn set_id_owner(&mut self, id: &str, def: super::types::DefPtr<T>);
+	fn set_id_owner(&mut self, id: &str, def: DefRef<T>);
 
 	/// Evicts all keys (name, alias, etc.) that point to the given definition.
-	fn evict_def(&mut self, def: super::types::DefPtr<T>);
+	fn evict_def(&mut self, def: DefRef<T>);
 
 	/// Records a collision for diagnostics.
 	fn push_collision(&mut self, c: Collision);

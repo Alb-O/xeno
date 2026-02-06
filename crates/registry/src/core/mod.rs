@@ -12,7 +12,7 @@ pub mod traits;
 pub use capability::Capability;
 pub use error::{CommandError, InsertAction, InsertFatal, RegistryError};
 pub use index::{
-	ChooseWinner, Collision, DefPtr, DuplicatePolicy, KeyKind, KeyStore, RegistryBuilder,
+	ChooseWinner, Collision, DefPtr, DefRef, DuplicatePolicy, KeyKind, KeyStore, RegistryBuilder,
 	RegistryIndex, RegistryRef, RuntimeRegistry, insert_id_key_runtime, insert_typed_key,
 };
 pub use key::{FromOptionValue, Key, OptionDefault, OptionType, OptionValue};

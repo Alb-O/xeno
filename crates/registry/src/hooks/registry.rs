@@ -6,7 +6,7 @@ use rustc_hash::FxHashMap as HashMap;
 
 use crate::core::index::insert::{insert_id_key_runtime, insert_typed_key};
 use crate::core::index::{
-	ChooseWinner, Collision, DefPtr, DuplicatePolicy, KeyKind, KeyStore, RegistryIndex,
+	ChooseWinner, Collision, DefRef, DuplicatePolicy, KeyKind, KeyStore, RegistryIndex,
 };
 use crate::error::{InsertAction, RegistryError};
 use crate::hooks::HookDef;
@@ -15,14 +15,14 @@ use crate::{HookEvent, RegistryEntry};
 /// Guard object that keeps a hooks snapshot alive while providing access to a definition.
 pub struct HooksRef {
 	snap: Arc<HooksSnapshot>,
-	ptr: DefPtr<HookDef>,
+	def: DefRef<HookDef>,
 }
 
 impl Clone for HooksRef {
 	fn clone(&self) -> Self {
 		Self {
 			snap: self.snap.clone(),
-			ptr: self.ptr,
+			def: self.def.clone(),
 		}
 	}
 }
@@ -31,20 +31,16 @@ impl std::ops::Deref for HooksRef {
 	type Target = HookDef;
 
 	fn deref(&self) -> &HookDef {
-		// Safety: The definition is kept alive by the snapshot Arc held in the guard.
-		unsafe { self.ptr.as_ref() }
+		self.def.as_entry()
 	}
 }
 
 #[derive(Clone)]
 pub struct HooksSnapshot {
-	pub by_id: HashMap<Box<str>, DefPtr<HookDef>>,
-	pub by_key: HashMap<Box<str>, DefPtr<HookDef>>,
-	pub by_event: HashMap<HookEvent, Vec<DefPtr<HookDef>>>,
-	pub items_all: Vec<DefPtr<HookDef>>,
-	pub items_effective: Vec<DefPtr<HookDef>>,
-	/// Owns runtime-registered definitions so their pointers stay valid.
-	pub owned: Vec<Arc<HookDef>>,
+	pub by_id: HashMap<Box<str>, DefRef<HookDef>>,
+	pub by_key: HashMap<Box<str>, DefRef<HookDef>>,
+	pub by_event: HashMap<HookEvent, Vec<DefRef<HookDef>>>,
+	pub id_order: Vec<Box<str>>,
 	pub collisions: Vec<Collision>,
 }
 
@@ -54,40 +50,39 @@ impl HooksSnapshot {
 			by_id: b.by_id.clone(),
 			by_key: b.by_key.clone(),
 			by_event: HashMap::default(),
-			items_all: b.items_all.to_vec(),
-			items_effective: b.items_effective.to_vec(),
-			owned: Vec::new(),
+			id_order: b.id_order.clone(),
 			collisions: b.collisions.to_vec(),
 		};
 
-		for &ptr in b.items() {
-			insert_hook_by_event(&mut snap.by_event, ptr);
+		for def in b.iter() {
+			// Need to find the DefRef for this def to insert into by_event.
+			// Since RegistryIndex has by_id, we can find it there.
+			if let Some(def_ref) = b.by_id.get(def.id()) {
+				insert_hook_by_event(&mut snap.by_event, def_ref.clone());
+			}
 		}
 		snap
 	}
 
 	#[inline]
-	pub fn get_ptr(&self, key: &str) -> Option<DefPtr<HookDef>> {
+	pub fn get_def(&self, key: &str) -> Option<DefRef<HookDef>> {
 		self.by_id
 			.get(key)
-			.copied()
-			.or_else(|| self.by_key.get(key).copied())
+			.cloned()
+			.or_else(|| self.by_key.get(key).cloned())
 	}
 
 	#[inline]
-	pub fn for_event(&self, event: HookEvent) -> &[DefPtr<HookDef>] {
+	pub fn for_event(&self, event: HookEvent) -> &[DefRef<HookDef>] {
 		self.by_event.get(&event).map(Vec::as_slice).unwrap_or(&[])
 	}
 }
 
-fn insert_hook_by_event(map: &mut HashMap<HookEvent, Vec<DefPtr<HookDef>>>, def: DefPtr<HookDef>) {
-	let def_ref = unsafe { def.as_ref() };
+fn insert_hook_by_event(map: &mut HashMap<HookEvent, Vec<DefRef<HookDef>>>, def: DefRef<HookDef>) {
+	let def_ref = def.as_entry();
 	let v = map.entry(def_ref.event).or_default();
 	let pos = v
-		.binary_search_by(|h| {
-			let h_ref = unsafe { h.as_ref() };
-			h_ref.total_order_cmp(def_ref)
-		})
+		.binary_search_by(|h| h.as_entry().total_order_cmp(def_ref))
 		.unwrap_or_else(|p| p);
 	v.insert(pos, def);
 }
@@ -112,24 +107,27 @@ impl HooksRegistry {
 	#[inline]
 	pub fn get(&self, key: &str) -> Option<HooksRef> {
 		let snap = self.snap.load_full();
-		let ptr = snap.get_ptr(key)?;
-		Some(HooksRef { snap, ptr })
+		let def = snap.get_def(key)?;
+		Some(HooksRef { snap, def })
 	}
 
 	#[inline]
 	pub fn get_by_id(&self, id: &str) -> Option<HooksRef> {
 		let snap = self.snap.load_full();
-		let ptr = snap.by_id.get(id).copied()?;
-		Some(HooksRef { snap, ptr })
+		let def = snap.by_id.get(id)?.clone();
+		Some(HooksRef { snap, def })
 	}
 
 	pub fn all(&self) -> Vec<HooksRef> {
 		let snap = self.snap.load_full();
-		snap.items_effective
+		snap.id_order
 			.iter()
-			.map(|&ptr| HooksRef {
-				snap: snap.clone(),
-				ptr,
+			.filter_map(|id| {
+				let def = snap.by_id.get(id)?.clone();
+				Some(HooksRef {
+					snap: snap.clone(),
+					def,
+				})
 			})
 			.collect()
 	}
@@ -138,9 +136,9 @@ impl HooksRegistry {
 		let snap = self.snap.load_full();
 		snap.for_event(event)
 			.iter()
-			.map(|&ptr| HooksRef {
+			.map(|def| HooksRef {
 				snap: snap.clone(),
-				ptr,
+				def: def.clone(),
 			})
 			.collect()
 	}
@@ -149,21 +147,18 @@ impl HooksRegistry {
 	where
 		I: IntoIterator<Item = HookDef>,
 	{
-		let owned: Vec<Arc<HookDef>> = defs.into_iter().map(Arc::new).collect();
-		let ptrs: Vec<DefPtr<HookDef>> = owned.iter().map(|a| DefPtr::from_ref(&**a)).collect();
-		self.try_register_many_internal(ptrs, owned, false)
+		self.try_register_many_internal(defs.into_iter().map(|d| DefRef::Owned(Arc::new(d))), false)
 	}
 
 	fn try_register_many_internal<I>(
 		&self,
 		defs: I,
-		new_owned: Vec<Arc<HookDef>>,
 		allow_overrides: bool,
 	) -> Result<Vec<InsertAction>, RegistryError>
 	where
-		I: IntoIterator<Item = DefPtr<HookDef>>,
+		I: IntoIterator<Item = DefRef<HookDef>>,
 	{
-		let input_defs: Vec<DefPtr<HookDef>> = defs.into_iter().collect();
+		let input_defs: Vec<DefRef<HookDef>> = defs.into_iter().collect();
 		if input_defs.is_empty() {
 			return Ok(Vec::new());
 		}
@@ -172,13 +167,9 @@ impl HooksRegistry {
 			let cur = self.snap.load_full();
 			let mut next = (*cur).clone();
 
-			let mut existing_ptrs: rustc_hash::FxHashSet<DefPtr<HookDef>> =
-				rustc_hash::FxHashSet::with_capacity_and_hasher(
-					next.items_all.len(),
-					Default::default(),
-				);
-			for &item in &next.items_all {
-				existing_ptrs.insert(item);
+			let mut existing_identities = rustc_hash::FxHashSet::default();
+			for def in cur.by_id.values() {
+				existing_identities.insert(def.identity());
 			}
 
 			let mut actions = Vec::with_capacity(input_defs.len());
@@ -187,16 +178,22 @@ impl HooksRegistry {
 			{
 				let mut store = SnapshotStore { snap: &mut next };
 
-				for &def in &input_defs {
-					if existing_ptrs.contains(&def) {
+				for def in &input_defs {
+					if existing_identities.contains(&def.identity()) {
 						actions.push(InsertAction::KeptExisting);
 						continue;
 					}
 
-					let meta = unsafe { def.as_ref() }.meta();
+					let meta = def.as_entry().meta();
 
 					let id_action = if allow_overrides {
-						insert_id_key_runtime(&mut store, "hooks", choose_winner, meta.id, def)?
+						insert_id_key_runtime(
+							&mut store,
+							"hooks",
+							choose_winner,
+							meta.id,
+							def.clone(),
+						)?
 					} else {
 						insert_typed_key(
 							&mut store,
@@ -204,7 +201,7 @@ impl HooksRegistry {
 							choose_winner,
 							KeyKind::Id,
 							meta.id,
-							def,
+							def.clone(),
 						)?
 					};
 
@@ -213,13 +210,17 @@ impl HooksRegistry {
 						continue;
 					}
 
+					if id_action == InsertAction::InsertedNew {
+						store.snap.id_order.push(Box::from(meta.id));
+					}
+
 					let action = insert_typed_key(
 						&mut store,
 						"hooks",
 						choose_winner,
 						KeyKind::Name,
 						meta.name,
-						def,
+						def.clone(),
 					)?;
 
 					for &alias in meta.aliases {
@@ -229,48 +230,14 @@ impl HooksRegistry {
 							choose_winner,
 							KeyKind::Alias,
 							alias,
-							def,
+							def.clone(),
 						)?;
 					}
 
-					insert_hook_by_event(&mut store.snap.by_event, def);
-					store.snap.items_all.push(def);
+					insert_hook_by_event(&mut store.snap.by_event, def.clone());
 					actions.push(action);
 				}
 			}
-
-			next.owned.extend(new_owned.clone());
-
-			// Prune
-			{
-				let mut referenced = rustc_hash::FxHashSet::default();
-				for &ptr in next.by_id.values() {
-					referenced.insert(ptr);
-				}
-				for &ptr in next.by_key.values() {
-					referenced.insert(ptr);
-				}
-				next.owned
-					.retain(|arc| referenced.contains(&DefPtr::from_ref(&**arc)));
-			}
-
-			let mut effective_set: rustc_hash::FxHashSet<DefPtr<HookDef>> =
-				rustc_hash::FxHashSet::with_capacity_and_hasher(
-					next.items_all.len(),
-					Default::default(),
-				);
-			for &def in next.by_id.values() {
-				effective_set.insert(def);
-			}
-			for &def in next.by_key.values() {
-				effective_set.insert(def);
-			}
-			next.items_effective = next
-				.items_all
-				.iter()
-				.copied()
-				.filter(|d| effective_set.contains(d))
-				.collect();
 
 			let next_arc = Arc::new(next);
 			let prev = self.snap.compare_and_swap(&cur, next_arc);
@@ -285,7 +252,7 @@ impl HooksRegistry {
 	}
 
 	pub fn register(&self, def: &'static HookDef) -> bool {
-		self.try_register_many_internal(std::iter::once(DefPtr::from_ref(def)), Vec::new(), false)
+		self.try_register_many_internal(std::iter::once(DefRef::Builtin(def)), false)
 			.is_ok()
 	}
 
@@ -314,11 +281,11 @@ impl HooksRegistry {
 	}
 
 	pub fn len(&self) -> usize {
-		self.snap.load().items_effective.len()
+		self.snap.load().id_order.len()
 	}
 
 	pub fn is_empty(&self) -> bool {
-		self.snap.load().items_effective.is_empty()
+		self.snap.load().id_order.is_empty()
 	}
 }
 
@@ -327,36 +294,36 @@ struct SnapshotStore<'a> {
 }
 
 impl KeyStore<HookDef> for SnapshotStore<'_> {
-	fn get_id_owner(&self, id: &str) -> Option<DefPtr<HookDef>> {
-		self.snap.by_id.get(id).copied()
+	fn get_id_owner(&self, id: &str) -> Option<DefRef<HookDef>> {
+		self.snap.by_id.get(id).cloned()
 	}
 
-	fn get_key_winner(&self, key: &str) -> Option<DefPtr<HookDef>> {
-		self.snap.by_key.get(key).copied()
+	fn get_key_winner(&self, key: &str) -> Option<DefRef<HookDef>> {
+		self.snap.by_key.get(key).cloned()
 	}
 
-	fn set_key_winner(&mut self, key: &str, def: DefPtr<HookDef>) {
+	fn set_key_winner(&mut self, key: &str, def: DefRef<HookDef>) {
 		self.snap.by_key.insert(Box::from(key), def);
 	}
 
-	fn insert_id(&mut self, id: &str, def: DefPtr<HookDef>) -> Option<DefPtr<HookDef>> {
+	fn insert_id(&mut self, id: &str, def: DefRef<HookDef>) -> Option<DefRef<HookDef>> {
 		match self.snap.by_id.entry(Box::from(id)) {
 			std::collections::hash_map::Entry::Vacant(v) => {
 				v.insert(def);
 				None
 			}
-			std::collections::hash_map::Entry::Occupied(o) => Some(*o.get()),
+			std::collections::hash_map::Entry::Occupied(o) => Some(o.get().clone()),
 		}
 	}
 
-	fn set_id_owner(&mut self, id: &str, def: DefPtr<HookDef>) {
+	fn set_id_owner(&mut self, id: &str, def: DefRef<HookDef>) {
 		self.snap.by_id.insert(Box::from(id), def);
 	}
 
-	fn evict_def(&mut self, def: DefPtr<HookDef>) {
-		self.snap.by_key.retain(|_, &mut v| !v.ptr_eq(def));
+	fn evict_def(&mut self, def: DefRef<HookDef>) {
+		self.snap.by_key.retain(|_, v| !v.ptr_eq(&def));
 		for hooks in self.snap.by_event.values_mut() {
-			hooks.retain(|&v| !v.ptr_eq(def));
+			hooks.retain(|v| !v.ptr_eq(&def));
 		}
 	}
 

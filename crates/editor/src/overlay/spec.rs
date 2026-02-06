@@ -125,8 +125,11 @@ impl RectPolicy {
 				let min_w = u32::from(*min_width);
 				let fixed_h = u32::from(*height);
 
-				let (safe_min, safe_max) =
-					if min_w > max_w { (max_w, min_w) } else { (min_w, max_w) };
+				let (safe_min, safe_max) = if min_w > max_w {
+					(max_w, min_w)
+				} else {
+					(min_w, max_w)
+				};
 
 				let target_w = (sw.saturating_mul(w_pct) / 100).clamp(safe_min, safe_max);
 				let width = target_w.min(sw);
@@ -134,8 +137,7 @@ impl RectPolicy {
 
 				let x = sx + (sw.saturating_sub(width) / 2);
 
-				let y_base =
-					sh.saturating_mul(u32::from(y_frac.0)) / u32::from(y_frac.1);
+				let y_base = sh.saturating_mul(u32::from(y_frac.0)) / u32::from(y_frac.1);
 				let raw_y = sy + y_base;
 
 				// Shift up if hitting bottom
@@ -195,12 +197,7 @@ impl RectPolicy {
 			return None;
 		}
 
-		Some(Rect::new(
-			x as u16,
-			y as u16,
-			width as u16,
-			height as u16,
-		))
+		Some(Rect::new(x as u16, y as u16, width as u16, height as u16))
 	}
 }
 

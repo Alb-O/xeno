@@ -101,11 +101,11 @@ impl KeymapRegistry {
 				.then_with(|| a.action.cmp(b.action))
 		});
 
-		let action_id_lookup: HashMap<&'static str, ActionId> = actions
+		let action_id_lookup: HashMap<&str, ActionId> = actions
 			.items_all()
 			.iter()
 			.enumerate()
-			.map(|(idx, def)| (unsafe { def.as_ref() }.id(), ActionId(idx as u32)))
+			.map(|(idx, def)| (def.as_entry().id(), ActionId(idx as u32)))
 			.collect();
 
 		let mut seen: HashMap<(BindingMode, &'static str), (&'static str, i16)> = HashMap::new();

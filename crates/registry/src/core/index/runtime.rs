@@ -2,100 +2,129 @@
 //!
 //! # Purpose
 //!
-//! - Owns: Subsystem definition indexing, runtime extension registration, and collision/winner resolution.
-//! - Does not own: Command execution, hook emission (owns the definitions only).
-//! - Source of truth: [`RegistryDb`] and its domain-specific [`RuntimeRegistry`] instances (storing [`Snapshot<T>`]).
+//! - Owns: definition indexing (ID/name/alias), runtime extension registration, collision reporting,
+//!   deterministic iteration order, and winner resolution policy.
+//! - Does not own: command execution, hook emission, or any subsystem behavior beyond selecting which
+//!   definition is visible under a given key.
+//! - Source of truth: [`RegistryDb`] and its domain-specific [`RuntimeRegistry`] instances, each
+//!   storing an atomic [`Snapshot<T>`].
 //!
 //! # Mental model
 //!
-//! - Terms: Builtin (compile-time `&'static T`), Owned (runtime `Arc<T>`), Snapshot (atomic view),
-//!   DefPtr (thin pointer into either), RegistryRef (snapshot-pinned guard), Winner (conflict resolution),
-//!   Eviction (cleanup after override).
-//! - Lifecycle in one sentence: A build-time index is wrapped in an `ArcSwap` snapshot; runtime
-//!   extensions are `Arc`-owned inside the snapshot (no `Box::leak`), and lookups return
-//!   [`RegistryRef<T>`] guards that pin the snapshot alive while the caller holds a reference.
+//! Think of a registry as an *append-only stream of candidate definitions* with a *current visible
+//! winner* for each key.
+//!
+//! - **Builtin** definitions live for the process (`&'static T`).
+//! - **Owned** definitions are runtime-registered (`Arc<T>`).
+//! - A [`Snapshot<T>`] is an immutable, atomic view used for lock-free reads.
+//! - Definitions inside a snapshot are referenced by [`DefRef<T>`], a safe handle:
+//!   `Builtin(&'static T) | Owned(Arc<T>)`.
+//! - Lookup keys are split into:
+//!   - `by_id`: the single winner per stable ID
+//!   - `by_key`: winners for names/aliases (and other non-ID keys)
+//! - [`id_order`] preserves deterministic iteration order of *IDs that exist* in the snapshot.
+//!   Iteration is driven by `id_order` and resolved through `by_id`.
+//!
+//! **Shift from `DefPtr` to `DefRef`:**
+//! Earlier implementations stored raw pointers (`DefPtr`) plus a separate `owned` list and a manual
+//! prune pass to keep pointed-to allocations alive. This module now stores `DefRef` handles directly
+//! in the indices. Lifetime is structural: if a `DefRef::Owned(Arc<T>)` is reachable from `by_id` or
+//! `by_key`, the allocation stays alive; eviction naturally drops the last `Arc` when no longer
+//! referenced by the snapshot (and when no guards remain).
 //!
 //! # Key types
 //!
 //! | Type | Meaning | Constraints | Constructed / mutated in |
 //! |---|---|---|---|
-//! | [`DefPtr<T>`] | Thin, `Copy` pointer to a definition | MUST NOT outlive its backing storage (`&'static` or `Arc` in snapshot) | `DefPtr::from_ref` |
-//! | [`RegistryRef<T>`] | Guard that pins a snapshot `Arc` while exposing `&T` via `Deref` | MUST hold `Arc<Snapshot>` for the lifetime of the borrow | `RuntimeRegistry::get`, `RuntimeRegistry::all` |
-//! | [`Snapshot<T>`] | Atomic view of registry; owns runtime `Arc<T>` definitions in `owned` | Immutable after construction, lock-free read | `RuntimeRegistry` CAS loop |
-//! | [`RegistryIndex<T>`] | Build-time index of `DefPtr<T>` (builtins only) | All pointers are `&'static` | `RegistryBuilder::build` |
-//! | [`KeyStore`] | Abstract index mutation | MUST implement `evict_def` | `SnapshotStore` / `BuildStore` |
-//! | [`DuplicatePolicy`] | Conflict resolution rule | MUST be deterministic | `RuntimeRegistry::with_policy` |
-//! | [`InsertAction`] | Outcome of registration | Informs diagnostics | `insert_typed_key` |
-//! | [`KeyKind`] | Type of registration key | Id, Name, or Alias | `RegistryMeta` |
+//! | [`DefRef<T>`] | Safe handle to a definition (`Builtin`/`Owned`) | Owned refs keep their allocation alive via `Arc` reachability | `DefRef::Builtin`, `DefRef::Owned` |
+//! | [`RegistryRef<T>`] | Guard that pins an `Arc<Snapshot<T>>` while exposing `&T` via `Deref` | MUST hold the snapshot `Arc` for the lifetime of the borrow | [`RuntimeRegistry::get`], [`RuntimeRegistry::all`] |
+//! | [`Snapshot<T>`] | Atomic view of the registry indices | Immutable after construction; shared via `ArcSwap` | `RuntimeRegistry` CAS loop |
+//! | [`RegistryIndex<T>`] | Build-time index of builtins (seed snapshot) | Builtins are `&'static` | `RegistryBuilder::build` |
+//! | [`KeyStore`] | Abstract mutation surface used by insertion logic | MUST implement `evict_def` for runtime overrides | `SnapshotStore` / build store |
+//! | [`DuplicatePolicy`] | Winner selection rule | MUST be deterministic for reproducible iteration/results | [`RuntimeRegistry::with_policy`] |
+//! | [`InsertAction`] | Outcome classification for insertion | Used for diagnostics and tests | `insert_typed_key`, `insert_id_key_runtime` |
+//! | [`KeyKind`] | Class of key being inserted | `Id`, `Name`, `Alias` | `RegistryMeta` |
 //!
 //! # Invariants
 //!
 //! - MUST keep ID lookup unambiguous (one winner per ID).
 //!   - Enforced in: `insert_typed_key` (build-time), `insert_id_key_runtime` (runtime).
 //!   - Tested by: `core::index::tests::test_id_first_lookup`
-//!   - Failure symptom: Panics during build/startup or stale name lookups after override.
-//! - MUST evict old definitions on ID override.
-//!   - Enforced in: `insert_id_key_runtime` (calls `evict_def`).
+//!   - Failure symptom: Panics during build/startup or inconsistent `get_by_id` results.
+//!
+//! - MUST evict old definitions on ID override (including name/alias winners pointing to the old def).
+//!   - Enforced in: `insert_id_key_runtime` (calls `KeyStore::evict_def` before `set_id_owner`).
 //!   - Tested by: `core::index::tests::test_id_override_eviction`
-//!   - Failure symptom: Stale name/alias lookups pointing to a replaced definition.
-//! - MUST maintain stable numeric IDs for builtin actions.
-//!   - Enforced in: `RegistryDbBuilder::build`.
-//!   - Tested by: TODO (add regression: test_stable_action_ids)
-//!   - Failure symptom: Inconsistent `ActionId` mappings in optimized input handling.
-//! - Owned runtime definitions MUST be kept alive by `Snapshot::owned` for as long as any
-//!   `DefPtr` in the snapshot's index maps references them.
-//!   - Enforced in: `RuntimeRegistry::try_register_many_internal` (extends `owned`, prunes unreferenced).
-//!   - Tested by: TODO (add regression: test_owned_defs_survive_snapshot_clone)
-//!   - Failure symptom: Use-after-free when dereferencing a `RegistryRef` whose backing `Arc` was pruned.
+//!   - Failure symptom: stale name/alias lookups returning a definition that is no longer the ID owner.
+//!
+//! - MUST maintain deterministic iteration order over effective definitions.
+//!   - Enforced in: `RuntimeRegistry::try_register_many_internal` (pushes to `id_order` only on
+//!     `InsertAction::InsertedNew`; replacements do not reorder).
+//!   - Tested by: `core::index::tests::test_override_preserves_order` and existing ID
+//!     ordering tests that assume stable traversal.
+//!   - Failure symptom: nondeterministic `all()` / `iter()` ordering across runs or after overrides.
+//!
+//! - Owned runtime definitions MUST remain alive for as long as they are reachable from the snapshot.
+//!   - Enforced in: structure (reachability) — `Snapshot` stores `DefRef::Owned(Arc<T>)` directly in
+//!     `by_id` / `by_key`, and [`RegistryRef<T>`] pins the snapshot `Arc` while borrowing `&T`.
+//!   - Tested by: `core::index::tests::test_uaf_trace_elimination`.
+//!   - Failure symptom: use-after-free when dereferencing a `RegistryRef` after concurrent writes.
 //!
 //! # Data flow
 //!
-//! - Builtins: `inventory` or explicit registration builds base index via `RegistryBuilder`.
-//!   Pointers are `&'static T` wrapped in `DefPtr`.
-//! - Plugins: Sorted by priority, executed to mutate the builder.
-//! - Dedup: `try_register_many_internal` filters out exact pointer matches (`ptr_eq`) before insertion,
-//!   returning `InsertAction::KeptExisting` without triggering conflict resolution.
-//! - Snapshot: `RuntimeRegistry` loads built index into a `Snapshot` (no owned defs yet).
-//! - Mutation: `register`/`register_owned` clones snapshot, wraps owned defs in `Arc<T>`,
-//!   applies changes via `insert_id_key_runtime`, prunes unreferenced `Arc`s, and CAS-updates.
-//! - Resolution: `get(key)` loads the snapshot `Arc`, looks up `DefPtr`, returns a
-//!   `RegistryRef` that holds the snapshot alive.
+//! - Builtins:
+//!   - `RegistryBuilder` constructs a [`RegistryIndex<T>`] from `&'static T` definitions.
+//!   - The runtime registry seeds its first [`Snapshot<T>`] from that builtins index.
+//! - Runtime registration:
+//!   - `register` / `register_owned` call `try_register_many_internal`.
+//!   - Writes clone the current snapshot, apply insertions via `insert_typed_key` / `insert_id_key_runtime`
+//!     against a `KeyStore`, then CAS-publish the new snapshot.
+//! - Dedup/admission gating:
+//!   - Registration skips definitions whose identity is already present in the snapshot (and within the
+//!     same batch), avoiding duplicate `id_order` entries and redundant collisions.
+//!   - In override mode, definitions that lose the ID contest are not admitted via name/alias.
+//! - Lookups:
+//!   - `get(key)` loads the snapshot `Arc` and returns a [`RegistryRef<T>`] holding a cloned `DefRef<T>`.
+//!   - `all()` iterates `id_order`, resolves each ID via `by_id`, and returns guards in stable order.
 //!
 //! # Lifecycle
 //!
-//! - Build Phase: Builtins registered; plugins run; index finalized.
-//! - Runtime Phase: Snapshots loaded; runtime registration allowed; lookups lock-free.
-//!   Callers hold `RegistryRef` guards; the snapshot is dropped when all guards are released.
+//! - Build phase:
+//!   - Builtins registered; plugins may mutate the builder; duplicate policy resolves collisions.
+//!   - A finalized [`RegistryIndex<T>`] is produced.
+//! - Runtime phase:
+//!   - [`RuntimeRegistry<T>`] creates an `ArcSwap<Snapshot<T>>` seeded from builtins.
+//!   - Runtime registrations CAS-publish new snapshots; reads stay lock-free.
+//!   - Snapshots are dropped when replaced and when no [`RegistryRef<T>`] guards remain.
 //!
 //! # Concurrency and ordering
 //!
-//! - Lock-free reads: `snap.load_full()` returns an `Arc<Snapshot>` without blocking.
-//! - CAS Retry Loop: Writes retry if the snapshot changed during mutation.
-//! - Deterministic Winners: `DuplicatePolicy` ensures deterministic conflict resolution.
-//!   Note: `ByPriority` breaks ties using first-wins (existing wins) semantics.
-//! - Snapshot Lifetime: `RegistryRef` prevents premature drop of the snapshot (and its owned `Arc<T>` defs).
+//! - Lock-free reads: `snap.load_full()` returns an `Arc<Snapshot<T>>` without blocking.
+//! - CAS retry loop: writers retry if a concurrent write published a newer snapshot.
+//! - Deterministic winners: [`DuplicatePolicy`] must be deterministic; `ByPriority` uses a total order
+//!   comparison and breaks ties using existing-wins semantics.
+//! - Snapshot lifetime: [`RegistryRef<T>`] prevents the snapshot (and any `Arc<T>` held by `DefRef`) from
+//!   being dropped while callers hold borrowed references.
 //!
 //! # Failure modes and recovery
 //!
-//! - Duplicate Build ID: Panic during startup to prevent ambiguous behavior.
-//! - CAS Contention: Writes may take multiple retries under heavy concurrent registration.
-//! - Eviction Failure: If not implemented for a new index kind, stale definitions persist.
+//! - Duplicate build ID: build-time insertion panics to prevent ambiguous behavior.
+//! - CAS contention: writes may retry under heavy concurrent registration.
+//! - Eviction failure: if `evict_def` is not implemented for a `KeyStore`, stale keys can persist.
 //!
 //! # Recipes
 //!
 //! ## Override a builtin definition
 //!
-//! Steps:
 //! - Call `registry.try_register_override(new_def)`.
 //! - Ensure `new_def.meta().priority` is higher than the existing one if using `ByPriority`.
 //!
 //! ## Register an owned (non-static) definition
 //!
-//! Steps:
 //! - Call `registry.register_owned(def)` or `registry.register_many_owned(defs)`.
-//! - The definition is wrapped in `Arc<T>` and stored in `Snapshot::owned`.
-//! - No `Box::leak`; the `Arc` is dropped when the snapshot is replaced and all
-//!   `RegistryRef` guards have been released.
+//! - The definition is wrapped in `Arc<T>` and stored in-index as `DefRef::Owned`.
+//! - The `Arc` is dropped when the definition becomes unreachable from the latest snapshot and all
+//!   snapshot guards have been released.
 //!
 use std::cmp::Ordering;
 use std::sync::Arc;
@@ -104,7 +133,7 @@ use arc_swap::ArcSwap;
 
 use super::collision::{ChooseWinner, Collision, DuplicatePolicy, KeyKind, KeyStore};
 use super::insert::{insert_id_key_runtime, insert_typed_key};
-use super::types::{DefPtr, Map, RegistryIndex};
+use super::types::{DefRef, Map, RegistryIndex};
 use crate::RegistryEntry;
 use crate::error::{InsertAction, RegistryError};
 
@@ -112,16 +141,16 @@ use crate::error::{InsertAction, RegistryError};
 ///
 /// Holds an `Arc<Snapshot<T>>` to keep the snapshot (and any `Arc<T>` owned defs
 /// within it) alive for the lifetime of this guard. Dereferences to `&T` via
-/// the internal [`DefPtr`].
+/// the internal [`DefRef`].
 ///
 /// Returned by [`RuntimeRegistry::get`] and [`RuntimeRegistry::all`]. Cloning
-/// is cheap (Arc bump + pointer copy).
+/// is cheap (Arc bump + variant copy).
 pub struct RegistryRef<T>
 where
 	T: RegistryEntry + Send + Sync + 'static,
 {
 	snap: Arc<Snapshot<T>>,
-	ptr: DefPtr<T>,
+	def: DefRef<T>,
 }
 
 impl<T> Clone for RegistryRef<T>
@@ -131,7 +160,7 @@ where
 	fn clone(&self) -> Self {
 		Self {
 			snap: self.snap.clone(),
-			ptr: self.ptr,
+			def: self.def.clone(),
 		}
 	}
 }
@@ -143,8 +172,7 @@ where
 	type Target = T;
 
 	fn deref(&self) -> &T {
-		// Safety: The definition is kept alive by the snapshot Arc held in the guard.
-		unsafe { self.ptr.as_ref() }
+		self.def.as_entry()
 	}
 }
 
@@ -155,12 +183,10 @@ pub struct Snapshot<T>
 where
 	T: RegistryEntry + Send + Sync + 'static,
 {
-	pub by_id: Map<Box<str>, DefPtr<T>>,
-	pub by_key: Map<Box<str>, DefPtr<T>>,
-	pub items_all: Vec<DefPtr<T>>,
-	pub items_effective: Vec<DefPtr<T>>,
-	/// Owns runtime-registered definitions so their pointers stay valid.
-	pub owned: Vec<Arc<T>>,
+	pub by_id: Map<Box<str>, DefRef<T>>,
+	pub by_key: Map<Box<str>, DefRef<T>>,
+	/// Explicit iteration order for effective definitions.
+	pub id_order: Vec<Box<str>>,
 	pub collisions: Vec<Collision>,
 }
 
@@ -172,9 +198,7 @@ where
 		Self {
 			by_id: self.by_id.clone(),
 			by_key: self.by_key.clone(),
-			items_all: self.items_all.clone(),
-			items_effective: self.items_effective.clone(),
-			owned: self.owned.clone(),
+			id_order: self.id_order.clone(),
 			collisions: self.collisions.clone(),
 		}
 	}
@@ -189,26 +213,24 @@ where
 		Self {
 			by_id: b.by_id.clone(),
 			by_key: b.by_key.clone(),
-			items_all: b.items_all.to_vec(),
-			items_effective: b.items_effective.to_vec(),
-			owned: Vec::new(),
+			id_order: b.id_order.clone(),
 			collisions: b.collisions.to_vec(),
 		}
 	}
 
 	/// Looks up a definition by ID, name, or alias.
 	#[inline]
-	pub fn get_ptr(&self, key: &str) -> Option<DefPtr<T>> {
+	pub fn get_def(&self, key: &str) -> Option<DefRef<T>> {
 		self.by_id
 			.get(key)
-			.copied()
-			.or_else(|| self.by_key.get(key).copied())
+			.cloned()
+			.or_else(|| self.by_key.get(key).cloned())
 	}
 
 	/// Returns the definition for a given ID, if it exists.
 	#[inline]
-	pub fn get_by_id_ptr(&self, id: &str) -> Option<DefPtr<T>> {
-		self.by_id.get(id).copied()
+	pub fn get_by_id_def(&self, id: &str) -> Option<DefRef<T>> {
+		self.by_id.get(id).cloned()
 	}
 }
 
@@ -257,16 +279,16 @@ where
 	#[inline]
 	pub fn get(&self, key: &str) -> Option<RegistryRef<T>> {
 		let snap = self.snap.load_full();
-		let ptr = snap.get_ptr(key)?;
-		Some(RegistryRef { snap, ptr })
+		let def = snap.get_def(key)?;
+		Some(RegistryRef { snap, def })
 	}
 
 	/// Returns the definition for a given ID, if it exists.
 	#[inline]
 	pub fn get_by_id(&self, id: &str) -> Option<RegistryRef<T>> {
 		let snap = self.snap.load_full();
-		let ptr = snap.get_by_id_ptr(id)?;
-		Some(RegistryRef { snap, ptr })
+		let def = snap.get_by_id_def(id)?;
+		Some(RegistryRef { snap, def })
 	}
 
 	/// Registers a definition at runtime.
@@ -300,7 +322,7 @@ where
 	where
 		I: IntoIterator<Item = &'static T>,
 	{
-		self.try_register_many_internal(defs.into_iter().map(DefPtr::from_ref), Vec::new(), false)
+		self.try_register_many_internal(defs.into_iter().map(DefRef::Builtin), false)
 	}
 
 	/// Attempts to register many owned definitions without leaking.
@@ -308,9 +330,7 @@ where
 	where
 		I: IntoIterator<Item = T>,
 	{
-		let owned: Vec<Arc<T>> = defs.into_iter().map(Arc::new).collect();
-		let ptrs: Vec<DefPtr<T>> = owned.iter().map(|a| DefPtr::from_ref(&**a)).collect();
-		self.try_register_many_internal(ptrs, owned, false)
+		self.try_register_many_internal(defs.into_iter().map(|d| DefRef::Owned(Arc::new(d))), false)
 	}
 
 	/// Attempts to register many definitions with ID override support.
@@ -318,19 +338,18 @@ where
 	where
 		I: IntoIterator<Item = &'static T>,
 	{
-		self.try_register_many_internal(defs.into_iter().map(DefPtr::from_ref), Vec::new(), true)
+		self.try_register_many_internal(defs.into_iter().map(DefRef::Builtin), true)
 	}
 
 	fn try_register_many_internal<I>(
 		&self,
 		defs: I,
-		new_owned: Vec<Arc<T>>,
 		allow_overrides: bool,
 	) -> Result<Vec<InsertAction>, RegistryError>
 	where
-		I: IntoIterator<Item = DefPtr<T>>,
+		I: IntoIterator<Item = DefRef<T>>,
 	{
-		let input_defs: Vec<DefPtr<T>> = defs.into_iter().collect();
+		let input_defs: Vec<DefRef<T>> = defs.into_iter().collect();
 		if input_defs.is_empty() {
 			return Ok(Vec::new());
 		}
@@ -339,25 +358,9 @@ where
 			let cur = self.snap.load_full();
 			let mut next = (*cur).clone();
 
-			// Build pointer set of already registered items for efficient dedup
-			let mut existing_ptrs: rustc_hash::FxHashSet<DefPtr<T>> =
-				rustc_hash::FxHashSet::with_capacity_and_hasher(
-					next.items_all.len(),
-					Default::default(),
-				);
-			for &item in &next.items_all {
-				existing_ptrs.insert(item);
-			}
-
-			let mut new_defs_indices = Vec::with_capacity(input_defs.len());
-			for (idx, &def) in input_defs.iter().enumerate() {
-				if !existing_ptrs.contains(&def) {
-					new_defs_indices.push(idx);
-				}
-			}
-
-			if new_defs_indices.is_empty() {
-				return Ok(vec![InsertAction::KeptExisting; input_defs.len()]);
+			let mut seen_identities = rustc_hash::FxHashSet::default();
+			for def in cur.by_id.values() {
+				seen_identities.insert(def.identity());
 			}
 
 			let mut actions = vec![InsertAction::KeptExisting; input_defs.len()];
@@ -366,12 +369,21 @@ where
 			{
 				let mut store = SnapshotStore { snap: &mut next };
 
-				for idx in new_defs_indices {
-					let def = input_defs[idx];
-					let meta = unsafe { def.as_ref() }.meta();
+				for (idx, def) in input_defs.iter().enumerate() {
+					if seen_identities.contains(&def.identity()) {
+						continue;
+					}
+
+					let meta = def.as_entry().meta();
 
 					let id_action = if allow_overrides {
-						insert_id_key_runtime(&mut store, self.label, choose_winner, meta.id, def)?
+						insert_id_key_runtime(
+							&mut store,
+							self.label,
+							choose_winner,
+							meta.id,
+							def.clone(),
+						)?
 					} else {
 						insert_typed_key(
 							&mut store,
@@ -379,14 +391,16 @@ where
 							choose_winner,
 							KeyKind::Id,
 							meta.id,
-							def,
+							def.clone(),
 						)?
 					};
 
-					// If we're overriding and we lost the ID contest, skip this item entirely
-					if allow_overrides && id_action == InsertAction::KeptExisting {
-						actions[idx] = InsertAction::KeptExisting;
+					if id_action == InsertAction::KeptExisting {
 						continue;
+					}
+
+					if id_action == InsertAction::InsertedNew {
+						store.snap.id_order.push(Box::from(meta.id));
 					}
 
 					let action = insert_typed_key(
@@ -395,7 +409,7 @@ where
 						choose_winner,
 						KeyKind::Name,
 						meta.name,
-						def,
+						def.clone(),
 					)?;
 
 					for &alias in meta.aliases {
@@ -405,49 +419,14 @@ where
 							choose_winner,
 							KeyKind::Alias,
 							alias,
-							def,
+							def.clone(),
 						)?;
 					}
 
-					store.snap.items_all.push(def);
 					actions[idx] = action;
+					seen_identities.insert(def.identity());
 				}
 			}
-
-			// Add successfully registered owned items
-			next.owned.extend(new_owned.clone());
-
-			// Prune unreferenced owned definitions
-			{
-				let mut referenced = rustc_hash::FxHashSet::default();
-				for &ptr in next.by_id.values() {
-					referenced.insert(ptr);
-				}
-				for &ptr in next.by_key.values() {
-					referenced.insert(ptr);
-				}
-				next.owned
-					.retain(|arc| referenced.contains(&DefPtr::from_ref(&**arc)));
-			}
-
-			// Update items_effective
-			let mut effective_set: rustc_hash::FxHashSet<DefPtr<T>> =
-				rustc_hash::FxHashSet::with_capacity_and_hasher(
-					next.items_all.len(),
-					Default::default(),
-				);
-			for &def in next.by_id.values() {
-				effective_set.insert(def);
-			}
-			for &def in next.by_key.values() {
-				effective_set.insert(def);
-			}
-			next.items_effective = next
-				.items_all
-				.iter()
-				.copied()
-				.filter(|d| effective_set.contains(d))
-				.collect();
 
 			let next_arc = Arc::new(next);
 			let prev = self.snap.compare_and_swap(&cur, next_arc);
@@ -455,7 +434,6 @@ where
 			if Arc::ptr_eq(&prev, &cur) {
 				return Ok(actions);
 			}
-			// CAS failed, retry
 		}
 	}
 
@@ -493,24 +471,27 @@ where
 		}
 	}
 
-	/// Returns the number of unique definitions (builtins + extras).
+	/// Returns the number of effective definitions.
 	pub fn len(&self) -> usize {
-		self.snap.load().items_effective.len()
+		self.snap.load().id_order.len()
 	}
 
 	/// Returns true if the registry contains no definitions.
 	pub fn is_empty(&self) -> bool {
-		self.snap.load().items_effective.is_empty()
+		self.snap.load().id_order.is_empty()
 	}
 
-	/// Returns all definitions (builtins followed by extras).
+	/// Returns all definitions in stable order.
 	pub fn all(&self) -> Vec<RegistryRef<T>> {
 		let snap = self.snap.load_full();
-		snap.items_effective
+		snap.id_order
 			.iter()
-			.map(|&ptr| RegistryRef {
-				snap: snap.clone(),
-				ptr,
+			.filter_map(|id| {
+				let def = snap.by_id.get(id)?.clone();
+				Some(RegistryRef {
+					snap: snap.clone(),
+					def,
+				})
 			})
 			.collect()
 	}
@@ -559,34 +540,34 @@ impl<T> KeyStore<T> for SnapshotStore<'_, T>
 where
 	T: RegistryEntry + Send + Sync + 'static,
 {
-	fn get_id_owner(&self, id: &str) -> Option<DefPtr<T>> {
-		self.snap.by_id.get(id).copied()
+	fn get_id_owner(&self, id: &str) -> Option<DefRef<T>> {
+		self.snap.by_id.get(id).cloned()
 	}
 
-	fn get_key_winner(&self, key: &str) -> Option<DefPtr<T>> {
-		self.snap.by_key.get(key).copied()
+	fn get_key_winner(&self, key: &str) -> Option<DefRef<T>> {
+		self.snap.by_key.get(key).cloned()
 	}
 
-	fn set_key_winner(&mut self, key: &str, def: DefPtr<T>) {
+	fn set_key_winner(&mut self, key: &str, def: DefRef<T>) {
 		self.snap.by_key.insert(Box::from(key), def);
 	}
 
-	fn insert_id(&mut self, id: &str, def: DefPtr<T>) -> Option<DefPtr<T>> {
+	fn insert_id(&mut self, id: &str, def: DefRef<T>) -> Option<DefRef<T>> {
 		match self.snap.by_id.entry(Box::from(id)) {
 			std::collections::hash_map::Entry::Vacant(v) => {
 				v.insert(def);
 				None
 			}
-			std::collections::hash_map::Entry::Occupied(o) => Some(*o.get()),
+			std::collections::hash_map::Entry::Occupied(o) => Some(o.get().clone()),
 		}
 	}
 
-	fn set_id_owner(&mut self, id: &str, def: DefPtr<T>) {
+	fn set_id_owner(&mut self, id: &str, def: DefRef<T>) {
 		self.snap.by_id.insert(Box::from(id), def);
 	}
 
-	fn evict_def(&mut self, def: DefPtr<T>) {
-		self.snap.by_key.retain(|_, &mut v| !v.ptr_eq(def));
+	fn evict_def(&mut self, def: DefRef<T>) {
+		self.snap.by_key.retain(|_, v| !v.ptr_eq(&def));
 	}
 
 	fn push_collision(&mut self, c: Collision) {

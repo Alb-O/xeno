@@ -1,6 +1,6 @@
 use std::sync::{LazyLock, OnceLock};
 
-pub use crate::core::{ActionId, RegistryIndex, RuntimeRegistry};
+pub use crate::core::{ActionId, DefRef, RegistryIndex, RuntimeRegistry};
 
 pub mod builder;
 pub mod builtins;
@@ -28,7 +28,7 @@ pub struct RegistryDb {
 	pub gutters: RuntimeRegistry<GutterDef>,
 	pub statusline: RuntimeRegistry<StatuslineSegmentDef>,
 	pub hooks: crate::hooks::HooksRegistry,
-	pub(crate) action_id_to_def: Vec<crate::core::index::DefPtr<ActionDef>>,
+	pub(crate) action_id_to_def: Vec<DefRef<ActionDef>>,
 	pub notifications: Vec<&'static crate::notifications::NotificationDef>,
 	pub key_prefixes: Vec<KeyPrefixDef>,
 	#[cfg(feature = "keymap")]
@@ -51,7 +51,7 @@ pub fn get_db() -> &'static RegistryDb {
 			tracing::error!("Registry plugins failed: {}", e);
 		}
 
-		let mut indices = builder.build();
+		let indices = builder.build();
 
 		// Build numeric ID mapping for actions
 		let action_id_to_def = indices.actions.items_all().to_vec();
@@ -59,7 +59,8 @@ pub fn get_db() -> &'static RegistryDb {
 		#[cfg(feature = "keymap")]
 		let keymap = KeymapRegistry::build(&indices.actions, &indices.keybindings);
 
-		indices.notifications.sort_by_key(|d| d.id);
+		let mut notifications = indices.notifications;
+		notifications.sort_by_key(|d| d.id);
 
 		RegistryDb {
 			actions: RuntimeRegistry::new("actions", indices.actions),
@@ -72,7 +73,7 @@ pub fn get_db() -> &'static RegistryDb {
 			statusline: RuntimeRegistry::new("statusline", indices.statusline),
 			hooks: crate::hooks::HooksRegistry::new(indices.hooks),
 			action_id_to_def,
-			notifications: indices.notifications,
+			notifications,
 			key_prefixes: indices.key_prefixes,
 			#[cfg(feature = "keymap")]
 			keymap,
@@ -103,11 +104,11 @@ pub static NOTIFICATIONS: LazyLock<&'static [&'static crate::notifications::Noti
 
 /// Resolves an ActionId to its definition.
 pub fn resolve_action_id_typed(id: ActionId) -> Option<&'static ActionDef> {
-	get_db()
-		.action_id_to_def
-		.get(id.0 as usize)
-		.copied()
-		.map(|p| unsafe { p.as_ref() })
+	let def_ref = get_db().action_id_to_def.get(id.0 as usize)?;
+	match def_ref {
+		DefRef::Builtin(d) => Some(d),
+		_ => None,
+	}
 }
 
 /// Creates an ActionId from an ID string by looking it up in the registry.
@@ -115,7 +116,7 @@ pub fn resolve_action_id_from_static(id: &str) -> ActionId {
 	let db = get_db();
 	db.action_id_to_def
 		.iter()
-		.position(|&a| unsafe { a.as_ref() }.id() == id)
+		.position(|a: &DefRef<ActionDef>| a.as_entry().id() == id)
 		.map(|pos| ActionId(pos as u32))
 		.unwrap_or(ActionId::INVALID)
 }

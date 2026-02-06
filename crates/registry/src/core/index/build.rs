@@ -4,13 +4,13 @@ use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
 
 use super::collision::{ChooseWinner, Collision, DuplicatePolicy, KeyKind, KeyStore};
 use super::insert::insert_typed_key;
-use super::types::{DefPtr, RegistryIndex};
+use super::types::{DefRef, RegistryIndex};
 use crate::RegistryEntry;
 
 /// Builder for constructing a [`RegistryIndex`].
 pub struct RegistryBuilder<T: RegistryEntry + Send + Sync + 'static> {
 	label: &'static str,
-	defs: Vec<DefPtr<T>>,
+	defs: Vec<&'static T>,
 	include_id: bool,
 	include_name: bool,
 	include_aliases: bool,
@@ -66,27 +66,23 @@ impl<T: RegistryEntry + Send + Sync + 'static> RegistryBuilder<T> {
 
 	/// Adds a single definition to the builder.
 	pub fn push(&mut self, def: &'static T) {
-		self.defs.push(DefPtr::from_ref(def));
+		self.defs.push(def);
 	}
 
 	/// Adds multiple definitions to the builder.
 	pub fn extend<I: IntoIterator<Item = &'static T>>(&mut self, defs: I) {
-		self.defs.extend(defs.into_iter().map(DefPtr::from_ref));
+		self.defs.extend(defs);
 	}
 
 	/// Sorts definitions using the provided comparison function.
-	pub fn sort_by<F: FnMut(&DefPtr<T>, &DefPtr<T>) -> Ordering>(mut self, cmp: F) -> Self {
+	pub fn sort_by<F: FnMut(&&'static T, &&'static T) -> Ordering>(mut self, cmp: F) -> Self {
 		self.defs.sort_by(cmp);
 		self
 	}
 
 	/// Sorts definitions using the global total order.
 	pub fn sort_default(mut self) -> Self {
-		self.defs.sort_by(|a, b| {
-			let a_ref = unsafe { a.as_ref() };
-			let b_ref = unsafe { b.as_ref() };
-			b_ref.total_order_cmp(a_ref)
-		});
+		self.defs.sort_by(|a, b| b.total_order_cmp(a));
 		self
 	}
 
@@ -98,10 +94,9 @@ impl<T: RegistryEntry + Send + Sync + 'static> RegistryBuilder<T> {
 		let include_name = self.include_name;
 		let include_aliases = self.include_aliases;
 
-		let mut defs = self.defs; // Move out of self
-		let mut seen: HashSet<DefPtr<T>> =
-			HashSet::with_capacity_and_hasher(defs.len(), Default::default());
-		defs.retain(|d| seen.insert(*d));
+		let mut defs = self.defs;
+		let mut seen = HashSet::with_capacity_and_hasher(defs.len(), Default::default());
+		defs.retain(|d| seen.insert(*d as *const T));
 
 		let mut store = BuildStore::<T> {
 			by_id: HashMap::with_capacity_and_hasher(defs.len(), Default::default()),
@@ -109,25 +104,32 @@ impl<T: RegistryEntry + Send + Sync + 'static> RegistryBuilder<T> {
 			collisions: Vec::new(),
 		};
 
+		let mut id_order = Vec::with_capacity(defs.len());
 		let choose_winner = Self::make_choose_winner(policy);
 
 		if include_id {
 			for &def in &defs {
-				if let Err(e) = insert_typed_key(
+				let id = def.meta().id;
+				match insert_typed_key(
 					&mut store,
 					label,
 					choose_winner,
 					KeyKind::Id,
-					unsafe { def.as_ref() }.meta().id,
-					def,
+					id,
+					DefRef::Builtin(def),
 				) {
-					panic!("registry {}: {}", label, e);
+					Ok(action) => {
+						if action == crate::error::InsertAction::InsertedNew {
+							id_order.push(Box::from(id));
+						}
+					}
+					Err(e) => panic!("registry {}: {}", label, e),
 				}
 			}
 		}
 
 		for &def in &defs {
-			let meta = unsafe { def.as_ref() }.meta();
+			let meta = def.meta();
 
 			if include_name
 				&& let Err(e) = insert_typed_key(
@@ -136,7 +138,7 @@ impl<T: RegistryEntry + Send + Sync + 'static> RegistryBuilder<T> {
 					choose_winner,
 					KeyKind::Name,
 					meta.name,
-					def,
+					DefRef::Builtin(def),
 				) {
 				panic!("registry {}: {}", label, e);
 			}
@@ -149,7 +151,7 @@ impl<T: RegistryEntry + Send + Sync + 'static> RegistryBuilder<T> {
 						choose_winner,
 						KeyKind::Alias,
 						alias,
-						def,
+						DefRef::Builtin(def),
 					) {
 						panic!("registry {}: {}", label, e);
 					}
@@ -157,26 +159,27 @@ impl<T: RegistryEntry + Send + Sync + 'static> RegistryBuilder<T> {
 			}
 		}
 
-		let mut effective_set: HashSet<DefPtr<T>> =
-			HashSet::with_capacity_and_hasher(defs.len(), Default::default());
-		for &def in store.by_id.values() {
-			effective_set.insert(def);
+		let mut effective_set = HashSet::with_capacity_and_hasher(defs.len(), Default::default());
+		for def in store.by_id.values() {
+			effective_set.insert(def.identity());
 		}
-		for &def in store.by_key.values() {
-			effective_set.insert(def);
+		for def in store.by_key.values() {
+			effective_set.insert(def.identity());
 		}
 
-		let items_effective: Vec<DefPtr<T>> = defs
+		let items_all: Vec<DefRef<T>> = defs.iter().map(|&d| DefRef::Builtin(d)).collect();
+		let items_effective: Vec<DefRef<T>> = items_all
 			.iter()
-			.copied()
-			.filter(|d| effective_set.contains(d))
+			.filter(|d| effective_set.contains(&d.identity()))
+			.cloned()
 			.collect();
 
 		RegistryIndex {
 			by_id: store.by_id,
 			by_key: store.by_key,
-			items_all: defs,
+			items_all,
 			items_effective,
+			id_order,
 			collisions: store.collisions,
 		}
 	}
@@ -204,39 +207,39 @@ impl<T: RegistryEntry + Send + Sync + 'static> RegistryBuilder<T> {
 
 /// Temporary storage for build-time key insertion.
 struct BuildStore<T: RegistryEntry + Send + Sync + 'static> {
-	by_id: HashMap<Box<str>, DefPtr<T>>,
-	by_key: HashMap<Box<str>, DefPtr<T>>,
+	by_id: HashMap<Box<str>, DefRef<T>>,
+	by_key: HashMap<Box<str>, DefRef<T>>,
 	collisions: Vec<Collision>,
 }
 
 impl<T: RegistryEntry + Send + Sync + 'static> KeyStore<T> for BuildStore<T> {
-	fn get_id_owner(&self, id: &str) -> Option<DefPtr<T>> {
-		self.by_id.get(id).copied()
+	fn get_id_owner(&self, id: &str) -> Option<DefRef<T>> {
+		self.by_id.get(id).cloned()
 	}
 
-	fn get_key_winner(&self, key: &str) -> Option<DefPtr<T>> {
-		self.by_key.get(key).copied()
+	fn get_key_winner(&self, key: &str) -> Option<DefRef<T>> {
+		self.by_key.get(key).cloned()
 	}
 
-	fn set_key_winner(&mut self, key: &str, def: DefPtr<T>) {
+	fn set_key_winner(&mut self, key: &str, def: DefRef<T>) {
 		self.by_key.insert(Box::from(key), def);
 	}
 
-	fn insert_id(&mut self, id: &str, def: DefPtr<T>) -> Option<DefPtr<T>> {
+	fn insert_id(&mut self, id: &str, def: DefRef<T>) -> Option<DefRef<T>> {
 		match self.by_id.entry(Box::from(id)) {
 			std::collections::hash_map::Entry::Vacant(v) => {
 				v.insert(def);
 				None
 			}
-			std::collections::hash_map::Entry::Occupied(o) => Some(*o.get()),
+			std::collections::hash_map::Entry::Occupied(o) => Some(o.get().clone()),
 		}
 	}
 
-	fn set_id_owner(&mut self, _id: &str, _def: DefPtr<T>) {
+	fn set_id_owner(&mut self, _id: &str, _def: DefRef<T>) {
 		panic!("set_id_owner not supported during build phase");
 	}
 
-	fn evict_def(&mut self, _def: DefPtr<T>) {
+	fn evict_def(&mut self, _def: DefRef<T>) {
 		panic!("evict_def not supported during build phase");
 	}
 
