@@ -43,7 +43,11 @@ impl Selection {
 	/// Panics if `ranges` is empty.
 	pub fn from_vec(ranges: Vec<Range>, primary_index: usize) -> Self {
 		assert!(!ranges.is_empty(), "Selection cannot be empty");
-		debug_assert!(primary_index < ranges.len());
+		assert!(
+			primary_index < ranges.len(),
+			"primary_index ({primary_index}) out of bounds for {} ranges",
+			ranges.len()
+		);
 
 		// We need to preserve which one was primary before normalization
 		let primary = ranges[primary_index];
@@ -85,7 +89,11 @@ impl Selection {
 
 	/// Sets the primary range by index.
 	pub fn set_primary(&mut self, index: usize) {
-		debug_assert!(index < self.ranges.len());
+		assert!(
+			index < self.ranges.len(),
+			"primary index ({index}) out of bounds for {} ranges",
+			self.ranges.len()
+		);
 		self.primary_index = index;
 	}
 

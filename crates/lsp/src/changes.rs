@@ -54,10 +54,10 @@ pub fn compute_lsp_changes(
 				};
 				changes.push(LspDocumentChange {
 					range: LspRange::point(LspPosition::new(lsp_pos.line, lsp_pos.character)),
-					new_text: ins.text.clone(),
+					new_text: ins.text().to_owned(),
 				});
-				scratch.insert(pos, &ins.text);
-				pos += ins.char_len;
+				scratch.insert(pos, ins.text());
+				pos += ins.char_len();
 			}
 		}
 	}

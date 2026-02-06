@@ -36,12 +36,14 @@ pub enum Bias {
 ///
 /// Storing the character count avoids repeated O(n) `.chars().count()` calls
 /// in hot paths like `apply()`, `map_pos()`, and `compose()`.
+///
+/// Fields are private to enforce the invariant that `char_len` always equals
+/// `text.chars().count()`. Construct via [`Insertion::new`] or
+/// [`Insertion::from_chars`].
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Insertion {
-	/// The text to insert.
-	pub text: Tendril,
-	/// Cached character count of `text`.
-	pub char_len: CharLen,
+	text: Tendril,
+	char_len: CharLen,
 }
 
 impl Insertion {
@@ -79,6 +81,58 @@ impl Insertion {
 	#[inline]
 	pub fn is_empty(&self) -> bool {
 		self.char_len == 0
+	}
+
+	/// Returns the inserted text.
+	#[inline]
+	pub fn text(&self) -> &str {
+		&self.text
+	}
+
+	/// Returns the cached character length.
+	#[inline]
+	pub fn char_len(&self) -> CharLen {
+		self.char_len
+	}
+
+	/// Returns the byte length of the inserted text.
+	#[inline]
+	pub fn byte_len(&self) -> usize {
+		self.text.len()
+	}
+
+	/// Appends text from another insertion, updating the cached length.
+	pub(super) fn push_str(&mut self, other: &Insertion) {
+		self.text.push_str(&other.text);
+		self.char_len += other.char_len;
+	}
+
+	/// Consumes this insertion and returns the owned text.
+	pub(super) fn into_text(self) -> Tendril {
+		self.text
+	}
+
+	/// Splits off the first `n` characters, returning them as a new string.
+	///
+	/// The remaining insertion has its char_len reduced accordingly.
+	pub(super) fn take_prefix(&mut self, n: CharLen) -> Tendril {
+		debug_assert!(n <= self.char_len);
+		let text: String = self.text.chars().take(n).collect();
+		let rest: String = self.text.chars().skip(n).collect();
+		self.text = rest;
+		self.char_len -= n;
+		text
+	}
+
+	/// Splits off everything after the first `n` characters, returning a new Insertion.
+	///
+	/// `self` is consumed and the caller gets the suffix.
+	pub(super) fn split_at(self, n: CharLen) -> (Tendril, Insertion) {
+		debug_assert!(n <= self.char_len);
+		let prefix: String = self.text.chars().take(n).collect();
+		let suffix: String = self.text.chars().skip(n).collect();
+		let suffix_ins = Insertion::from_chars(suffix, self.char_len - n);
+		(prefix, suffix_ins)
 	}
 }
 

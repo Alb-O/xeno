@@ -275,7 +275,7 @@ fn generate_edits(old_text: RopeSlice, changeset: &xeno_primitives::ChangeSet) -
 			Operation::Insert(s) => {
 				let start_byte = old_text.char_to_byte(old_pos) as u32;
 				let start_point = point_at_char(old_text, old_pos);
-				let new_end_point = point_after_insert(start_point, &s.text);
+				let new_end_point = point_after_insert(start_point, s.text());
 
 				// Check for subsequent delete (replacement)
 				if let Some(Operation::Delete(del_len)) = iter.peek() {
@@ -287,7 +287,7 @@ fn generate_edits(old_text: RopeSlice, changeset: &xeno_primitives::ChangeSet) -
 					edits.push(InputEdit {
 						start_byte,
 						old_end_byte,
-						new_end_byte: start_byte + s.text.len() as u32,
+						new_end_byte: start_byte + s.byte_len() as u32,
 						start_point,
 						old_end_point,
 						new_end_point,
@@ -296,7 +296,7 @@ fn generate_edits(old_text: RopeSlice, changeset: &xeno_primitives::ChangeSet) -
 					edits.push(InputEdit {
 						start_byte,
 						old_end_byte: start_byte,
-						new_end_byte: start_byte + s.text.len() as u32,
+						new_end_byte: start_byte + s.byte_len() as u32,
 						start_point,
 						old_end_point: start_point,
 						new_end_point,

@@ -329,7 +329,7 @@ proptest! {
 		}
 
 		let changes = arb_changes(doc_len);
-		let selection = (0..doc_len, 0..doc_len).prop_map(|(a, h)| Selection::single(a, h));
+		let selection = (0..=doc_len, 0..=doc_len).prop_map(|(a, h)| Selection::single(a, h));
 
 		proptest!(|(changes in changes, sel in selection)| {
 			let tx = Transaction::change(doc.slice(..), changes.clone());
@@ -481,4 +481,85 @@ fn test_multi_undo_composition_chain() {
 	let mut test_doc = doc.clone();
 	net.apply(&mut test_doc);
 	assert_eq!(test_doc.to_string(), original.to_string());
+}
+
+#[test]
+fn test_map_selection_eof_point_insert() {
+	// Cursor at EOF: inserting at EOF should move cursor after inserted text.
+	let doc = Rope::from("abc");
+	let sel = Selection::point(3); // Point at EOF
+
+	let tx = Transaction::change(
+		doc.slice(..),
+		vec![Change {
+			start: 3,
+			end: 3,
+			replacement: Some("XY".into()),
+		}],
+	);
+
+	let mapped = tx.map_selection(&sel);
+	assert_eq!(mapped.primary().anchor, 5);
+	assert_eq!(mapped.primary().head, 5);
+	assert!(mapped.primary().is_point());
+}
+
+#[test]
+fn test_map_selection_eof_point_insert_before() {
+	// Cursor at EOF: inserting before EOF should push cursor right.
+	let doc = Rope::from("abc");
+	let sel = Selection::point(3); // Point at EOF
+
+	let tx = Transaction::change(
+		doc.slice(..),
+		vec![Change {
+			start: 2,
+			end: 2,
+			replacement: Some("X".into()),
+		}],
+	);
+
+	let mapped = tx.map_selection(&sel);
+	assert_eq!(mapped.primary().anchor, 4);
+	assert_eq!(mapped.primary().head, 4);
+}
+
+#[test]
+fn test_map_selection_eof_delete_before() {
+	// Cursor at EOF: deleting text before EOF should move cursor back.
+	let doc = Rope::from("abc");
+	let sel = Selection::point(3); // Point at EOF
+
+	let tx = Transaction::change(
+		doc.slice(..),
+		vec![Change {
+			start: 1,
+			end: 3,
+			replacement: None,
+		}],
+	);
+
+	let mapped = tx.map_selection(&sel);
+	assert_eq!(mapped.primary().anchor, 1);
+	assert_eq!(mapped.primary().head, 1);
+}
+
+#[test]
+fn test_map_selection_empty_doc_insert() {
+	// Empty document: insert text, cursor at 0 should follow.
+	let doc = Rope::from("");
+	let sel = Selection::point(0);
+
+	let tx = Transaction::change(
+		doc.slice(..),
+		vec![Change {
+			start: 0,
+			end: 0,
+			replacement: Some("hello".into()),
+		}],
+	);
+
+	let mapped = tx.map_selection(&sel);
+	assert_eq!(mapped.primary().anchor, 5);
+	assert_eq!(mapped.primary().head, 5);
 }

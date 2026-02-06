@@ -57,8 +57,18 @@ impl Transaction {
 			let from = change.start;
 			let to = change.end.min(doc_len);
 			let replacement = change.replacement;
-			debug_assert!(from <= to);
-			debug_assert!(from >= last);
+			assert!(
+				from <= doc_len,
+				"change start ({from}) exceeds document length ({doc_len})"
+			);
+			assert!(
+				from <= to,
+				"change start ({from}) exceeds change end ({to})"
+			);
+			assert!(
+				from >= last,
+				"changes overlap or are out of order: start ({from}) < previous end ({last})"
+			);
 
 			if from > last {
 				changeset.retain(from - last);
@@ -75,7 +85,9 @@ impl Transaction {
 			last = to;
 		}
 
-		let remaining = doc.len_chars() - last;
+		let remaining = doc_len
+			.checked_sub(last)
+			.expect("last position exceeds document length");
 		if remaining > 0 {
 			changeset.retain(remaining);
 		}

@@ -110,14 +110,13 @@ impl ChangeSet {
 			return;
 		}
 		let ins = Insertion::new(text);
-		self.len_after += ins.char_len;
+		self.len_after += ins.char_len();
 
 		// Coalesce with adjacent insertions or swap with trailing delete
 		// to maintain canonical form (Insert before Delete).
 		match self.changes.as_mut_slice() {
 			[.., Operation::Insert(prev)] | [.., Operation::Insert(prev), Operation::Delete(_)] => {
-				prev.text.push_str(&ins.text);
-				prev.char_len += ins.char_len;
+				prev.push_str(&ins);
 			}
 			[.., last @ Operation::Delete(_)] => {
 				let del = std::mem::replace(last, Operation::Insert(ins));
@@ -137,8 +136,8 @@ impl ChangeSet {
 				Operation::Retain(n) => pos += n,
 				Operation::Delete(n) => doc.remove(pos..pos + n),
 				Operation::Insert(ins) => {
-					doc.insert(pos, &ins.text);
-					pos += ins.char_len;
+					doc.insert(pos, ins.text());
+					pos += ins.char_len();
 				}
 			}
 		}
@@ -165,7 +164,7 @@ impl ChangeSet {
 					pos += n;
 				}
 				Operation::Insert(ins) => {
-					result.delete(ins.char_len);
+					result.delete(ins.char_len());
 				}
 			}
 		}
@@ -193,7 +192,7 @@ impl ChangeSet {
 					if old_pos == pos && bias == Bias::Left {
 						return new_pos;
 					}
-					new_pos += ins.char_len;
+					new_pos += ins.char_len();
 				}
 				Operation::Retain(n) => {
 					if old_pos + n > pos {
@@ -223,7 +222,12 @@ impl ChangeSet {
 	///
 	/// Panics if `self.len_after() != other.len()`.
 	pub fn compose(self, other: ChangeSet) -> ChangeSet {
-		debug_assert_eq!(self.len_after, other.len, "Composition mismatch");
+		assert_eq!(
+			self.len_after, other.len,
+			"composition mismatch: first changeset output length ({}) != \
+			 second changeset input length ({})",
+			self.len_after, other.len
+		);
 		let mut result = Self::builder();
 		let mut a_iter = self.changes.into_iter();
 		let mut b_iter = other.changes.into_iter();
@@ -238,7 +242,7 @@ impl ChangeSet {
 					b_op = b;
 				}
 				(a, Some(Operation::Insert(ins))) => {
-					result.insert(ins.text);
+					result.insert(ins.into_text());
 					a_op = a;
 				}
 				(Some(Operation::Retain(n)), Some(Operation::Retain(m))) => {
@@ -247,29 +251,22 @@ impl ChangeSet {
 					a_op = (n > len).then(|| Operation::Retain(n - len));
 					b_op = (m > len).then(|| Operation::Retain(m - len));
 				}
-				(Some(Operation::Insert(ins)), Some(Operation::Delete(m))) => {
-					let len = ins.char_len.min(m);
-					if ins.char_len > len {
-						let text: String = ins.text.chars().skip(len).collect();
-						a_op = Some(Operation::Insert(Insertion::from_chars(
-							text,
-							ins.char_len - len,
-						)));
+				(Some(Operation::Insert(mut ins)), Some(Operation::Delete(m))) => {
+					let len = ins.char_len().min(m);
+					if ins.char_len() > len {
+						let _ = ins.take_prefix(len);
+						a_op = Some(Operation::Insert(ins));
 					}
 					if m > len {
 						b_op = Some(Operation::Delete(m - len));
 					}
 				}
 				(Some(Operation::Insert(ins)), Some(Operation::Retain(m))) => {
-					let len = ins.char_len.min(m);
-					let text: String = ins.text.chars().take(len).collect();
-					result.insert(text);
-					if ins.char_len > len {
-						let text: String = ins.text.chars().skip(len).collect();
-						a_op = Some(Operation::Insert(Insertion::from_chars(
-							text,
-							ins.char_len - len,
-						)));
+					let len = ins.char_len().min(m);
+					let (prefix, suffix_ins) = ins.split_at(len);
+					result.insert(prefix);
+					if suffix_ins.char_len() > 0 {
+						a_op = Some(Operation::Insert(suffix_ins));
 					}
 					if m > len {
 						b_op = Some(Operation::Retain(m - len));
@@ -287,7 +284,7 @@ impl ChangeSet {
 				}
 				(None, Some(op)) => {
 					match op {
-						Operation::Insert(ins) => result.insert(ins.text),
+						Operation::Insert(ins) => result.insert(ins.into_text()),
 						_ => unreachable!("invalid composition: extra op in second changeset"),
 					}
 					b_op = b_iter.next();
@@ -327,7 +324,7 @@ impl ChangeSet {
 					out_len += n;
 				}
 				Operation::Delete(n) => in_len += n,
-				Operation::Insert(ins) => out_len += ins.char_len,
+				Operation::Insert(ins) => out_len += ins.char_len(),
 			}
 		}
 		debug_assert_eq!(in_len, self.len, "Input length mismatch");
