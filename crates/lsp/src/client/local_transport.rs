@@ -2,7 +2,7 @@
 //!
 //! Manages language server processes directly using stdin/stdout JSON-RPC communication.
 
-use std::collections::{HashMap, VecDeque};
+use std::collections::HashMap;
 use std::process::Stdio;
 use std::sync::Arc;
 use std::time::Duration;
@@ -40,6 +40,7 @@ struct PendingRequest {
 
 /// A reply to a server-initiated request.
 struct ReplyMsg {
+	id: RequestId,
 	resp: std::result::Result<JsonValue, ResponseError>,
 }
 
@@ -219,6 +220,7 @@ impl LspTransport for LocalTransport {
 	async fn reply(
 		&self,
 		server: LanguageServerId,
+		id: RequestId,
 		resp: std::result::Result<JsonValue, ResponseError>,
 	) -> Result<()> {
 		let servers = self.servers.read();
@@ -227,7 +229,7 @@ impl LspTransport for LocalTransport {
 			.ok_or_else(|| Error::Protocol(format!("server {server:?} not found")))?;
 		process
 			.reply_tx
-			.send(ReplyMsg { resp })
+			.send(ReplyMsg { id, resp })
 			.map_err(|_| Error::ServiceStopped)
 	}
 
@@ -261,7 +263,6 @@ async fn run_server_io(
 ) {
 	let mut reader = BufReader::new(stdout);
 	let mut pending: HashMap<RequestId, oneshot::Sender<Result<AnyResponse>>> = HashMap::new();
-	let mut server_req_ids: VecDeque<RequestId> = VecDeque::new();
 	let protocol = JsonRpcProtocol::new();
 	let mut read_buf = String::new();
 
@@ -286,11 +287,7 @@ async fn run_server_io(
 
 			// Handle outbound replies to server requests
 			Some(reply) = reply_rx.recv() => {
-				let Some(req_id) = server_req_ids.pop_front() else {
-					tracing::warn!(server_id = %id, "reply() called but no pending server request id");
-					continue;
-				};
-				if let Err(e) = write_response(&mut stdin, req_id, reply.resp).await {
+				if let Err(e) = write_response(&mut stdin, reply.id, reply.resp).await {
 					tracing::warn!(server_id = %id, error = %e, "Failed to send server request reply");
 				}
 			}
@@ -299,7 +296,7 @@ async fn run_server_io(
 			result = read_message(&mut reader, &protocol, &mut read_buf) => {
 				match result {
 					Ok(Some(msg)) => {
-						handle_inbound_message(id, msg, &mut pending, &mut server_req_ids, &event_tx);
+						handle_inbound_message(id, msg, &mut pending, &event_tx);
 					}
 					Ok(None) => {
 						// EOF - server stopped
@@ -432,7 +429,6 @@ fn handle_inbound_message(
 	id: LanguageServerId,
 	msg: JsonValue,
 	pending: &mut HashMap<RequestId, oneshot::Sender<Result<AnyResponse>>>,
-	server_req_ids: &mut VecDeque<RequestId>,
 	event_tx: &mpsc::UnboundedSender<TransportEvent>,
 ) {
 	// Check if it's a response (has "id" but no "method")
@@ -499,8 +495,6 @@ fn handle_inbound_message(
 			JsonValue::String(s) => RequestId::String(s),
 			_ => RequestId::Number(0),
 		};
-
-		server_req_ids.push_back(id_parsed.clone());
 
 		let _ = event_tx.send(TransportEvent::Message {
 			server: id,

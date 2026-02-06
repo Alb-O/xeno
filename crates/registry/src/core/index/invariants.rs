@@ -41,6 +41,24 @@ fn make_meta(id: &'static str, priority: i16) -> RegistryMeta {
 	}
 }
 
+fn make_meta_full(
+	id: &'static str,
+	name: &'static str,
+	aliases: &'static [&'static str],
+	priority: i16,
+) -> RegistryMeta {
+	RegistryMeta {
+		id,
+		name,
+		aliases,
+		description: "",
+		priority,
+		source: crate::RegistrySource::Builtin,
+		required_caps: &[],
+		flags: 0,
+	}
+}
+
 fn choose_winner_any<'a, 'b, 'c>(
 	_kind: KeyKind,
 	_key: &str,
@@ -227,12 +245,12 @@ pub(crate) fn inv_id_override_eviction() {
 	let registry =
 		RuntimeRegistry::with_policy("test", builder.build(), DuplicatePolicy::ByPriority);
 
-	// 1. Register A with name "NAME"
+	// 1. Register A with name "OLD_NAME" and alias "OLD_ALIAS"
 	static DEF_A: TestDef = TestDef {
 		meta: RegistryMeta {
-			id: "A",
-			name: "NAME",
-			aliases: &[],
+			id: "X",
+			name: "OLD_NAME",
+			aliases: &["OLD_ALIAS"],
 			description: "",
 			priority: 10,
 			source: crate::RegistrySource::Builtin,
@@ -242,18 +260,17 @@ pub(crate) fn inv_id_override_eviction() {
 		drop_counter: None,
 	};
 	registry.try_register(&DEF_A).unwrap();
-	assert_eq!(registry.get("A").unwrap().id(), "A");
-	assert_eq!(registry.get("NAME").unwrap().id(), "A");
+	assert_eq!(registry.get("X").unwrap().id(), "X");
+	assert_eq!(registry.get("OLD_NAME").unwrap().id(), "X");
+	assert_eq!(registry.get("OLD_ALIAS").unwrap().id(), "X");
 
-	// 2. Override A with B (same ID "A", different priority)
-	// Even though B doesn't claim "NAME" explicitly in this test setup (to isolate eviction logic),
-	// the key store eviction should remove pointers to the OLD definition A.
-	// However, real world: new def usually claims same names.
-	// Here we check that "NAME" no longer points to A.
+	// 2. Override A with B (same ID "X", higher priority)
+	// B has DIFFERENT name and NO aliases.
+	// Eviction should clear OLD_NAME and OLD_ALIAS because they pointed at A.
 	static DEF_B: TestDef = TestDef {
 		meta: RegistryMeta {
-			id: "A",
-			name: "NAME", // Re-claims name
+			id: "X",
+			name: "NEW_NAME",
 			aliases: &[],
 			description: "",
 			priority: 20,
@@ -265,19 +282,81 @@ pub(crate) fn inv_id_override_eviction() {
 	};
 	registry.try_register_override(&DEF_B).unwrap();
 
-	let winner = registry.get("NAME").unwrap();
-	assert_eq!(winner.id(), "A");
-	assert_eq!(winner.priority(), 20, "NAME should resolve to B (prio 20)");
-
-	// Use address identity check on the &TestDef since both are static builtins here
-	let winner_ptr = &*winner as *const TestDef;
-	let def_a_ptr = &DEF_A as *const TestDef;
-	assert_ne!(winner_ptr, def_a_ptr, "NAME should NOT resolve to A");
+	// 3. Verify eviction
+	assert!(
+		registry.get("OLD_NAME").is_none(),
+		"OLD_NAME should be evicted"
+	);
+	assert!(
+		registry.get("OLD_ALIAS").is_none(),
+		"OLD_ALIAS should be evicted"
+	);
+	assert_eq!(registry.get("X").unwrap().id(), "X");
+	assert_eq!(registry.get("X").unwrap().priority(), 20);
+	assert_eq!(registry.get("NEW_NAME").unwrap().id(), "X");
 }
 
 #[cfg_attr(test, test)]
 pub(crate) fn test_id_override_eviction() {
 	inv_id_override_eviction()
+}
+
+/// Invariant: LOSER of ID contest MUST NOT be admitted via name/alias.
+pub(crate) fn inv_id_loser_admission_gate() {
+	let builder = RegistryBuilder::<TestDef>::new("test");
+	let registry =
+		RuntimeRegistry::with_policy("test", builder.build(), DuplicatePolicy::ByPriority);
+
+	// 1. Register A (priority 20)
+	static DEF_A: TestDef = TestDef {
+		meta: RegistryMeta {
+			id: "X",
+			name: "KEEP",
+			aliases: &[],
+			description: "",
+			priority: 20,
+			source: crate::RegistrySource::Builtin,
+			required_caps: &[],
+			flags: 0,
+		},
+		drop_counter: None,
+	};
+	registry.try_register(&DEF_A).unwrap();
+
+	// 2. Attempt to register B (same ID "X", priority 10 - LOSER)
+	static DEF_B: TestDef = TestDef {
+		meta: RegistryMeta {
+			id: "X",
+			name: "LOSER_NAME",
+			aliases: &["LOSER_ALIAS"],
+			description: "",
+			priority: 10,
+			source: crate::RegistrySource::Builtin,
+			required_caps: &[],
+			flags: 0,
+		},
+		drop_counter: None,
+	};
+
+	let action = registry.try_register_override(&DEF_B).unwrap();
+	assert_eq!(action, crate::error::InsertAction::KeptExisting);
+
+	// 3. Verify B was not admitted
+	assert_eq!(registry.get("X").unwrap().priority(), 20);
+	assert_eq!(registry.get("KEEP").unwrap().id(), "X");
+	assert!(
+		registry.get("LOSER_NAME").is_none(),
+		"Loser name should not be admitted"
+	);
+	assert!(
+		registry.get("LOSER_ALIAS").is_none(),
+		"Loser alias should not be admitted"
+	);
+}
+
+#[cfg_attr(test, test)]
+pub(crate) fn test_id_loser_admission_gate() {
+	inv_id_loser_admission_gate()
 }
 
 /// Invariant: MUST maintain deterministic iteration order.

@@ -161,7 +161,7 @@ pub struct Registry {
 	configs: RwLock<HashMap<String, LanguageServerConfig>>,
 	state: RwLock<RegistryState>,
 	transport: Arc<dyn LspTransport>,
-	inflight: Mutex<HashMap<(String, PathBuf), Arc<InFlightStart>>>,
+	inflight: Arc<Mutex<HashMap<(String, PathBuf), Arc<InFlightStart>>>>,
 }
 
 impl Registry {
@@ -171,7 +171,7 @@ impl Registry {
 			configs: RwLock::new(HashMap::new()),
 			state: RwLock::new(RegistryState::new()),
 			transport,
-			inflight: Mutex::new(HashMap::new()),
+			inflight: Arc::new(Mutex::new(HashMap::new())),
 		}
 	}
 
@@ -269,14 +269,16 @@ impl Registry {
 		}
 
 		// 3b. Leader work
+		let mut guard = StartGuard::new(
+			key.clone(),
+			self.inflight.clone(),
+			inflight.clone(),
+			self.transport.clone(),
+		);
+
 		// Re-check state after lock acquisition to prevent double-start
 		if let Some(handle) = self.get_running(&key) {
-			let res = Ok(handle);
-			inflight.tx.send(Some(Arc::new(res.clone()))).ok();
-
-			let mut inflight_map = self.inflight.lock().await;
-			inflight_map.remove(&key);
-			return res;
+			return guard.complete(Ok(handle));
 		}
 
 		let (slot_id, generation) = {
@@ -301,6 +303,7 @@ impl Registry {
 
 		let final_res = match started_res {
 			Ok(started) => {
+				guard.note_started(started.id);
 				let handle = {
 					let mut state = self.state.write();
 					// Final pathological race check
@@ -362,15 +365,7 @@ impl Registry {
 			Err(e) => Err(e),
 		};
 
-		// 4. Cleanup and Notify
-		inflight.tx.send(Some(Arc::new(final_res.clone()))).ok();
-
-		{
-			let mut inflight_map = self.inflight.lock().await;
-			inflight_map.remove(&key);
-		}
-
-		final_res
+		guard.complete(final_res)
 	}
 
 	/// Get an active client for a language and file path, if one exists and is alive.
@@ -436,6 +431,88 @@ impl Registry {
 	/// Returns `None` if the server has not been started or has been shut down.
 	pub fn get_server_meta(&self, server_id: LanguageServerId) -> Option<ServerMeta> {
 		self.state.read().server_meta.get(&server_id).cloned()
+	}
+}
+
+/// Guard that un-wedges the inflight start map on drop if the leader fails or is cancelled.
+struct StartGuard {
+	key: (String, PathBuf),
+	inflight_map: Arc<Mutex<HashMap<(String, PathBuf), Arc<InFlightStart>>>>,
+	inflight: Arc<InFlightStart>,
+	transport: Arc<dyn LspTransport>,
+	started_id: Option<LanguageServerId>,
+	completed: bool,
+}
+
+impl StartGuard {
+	fn new(
+		key: (String, PathBuf),
+		inflight_map: Arc<Mutex<HashMap<(String, PathBuf), Arc<InFlightStart>>>>,
+		inflight: Arc<InFlightStart>,
+		transport: Arc<dyn LspTransport>,
+	) -> Self {
+		Self {
+			key,
+			inflight_map,
+			inflight,
+			transport,
+			started_id: None,
+			completed: false,
+		}
+	}
+
+	fn note_started(&mut self, id: LanguageServerId) {
+		self.started_id = Some(id);
+	}
+
+	fn complete(mut self, res: Result<ClientHandle>) -> Result<ClientHandle> {
+		self.completed = true;
+
+		// 1) publish result to waiters (sync, no await points)
+		let _ = self.inflight.tx.send(Some(Arc::new(res.clone())));
+
+		// 2) remove inflight entry asynchronously (so cancellation after this point can't wedge)
+		let key = self.key.clone();
+		let inflight_map = Arc::clone(&self.inflight_map);
+		tokio::spawn(async move {
+			let mut map = inflight_map.lock().await;
+			map.remove(&key);
+		});
+
+		res
+	}
+}
+
+impl Drop for StartGuard {
+	fn drop(&mut self) {
+		if self.completed {
+			return;
+		}
+
+		// Leader exited early: unblock waiters + un-wedge inflight.
+		let key = self.key.clone();
+		let inflight_map = Arc::clone(&self.inflight_map);
+		let tx = self.inflight.tx.clone();
+		let transport = Arc::clone(&self.transport);
+		let started_id = self.started_id;
+
+		tokio::spawn(async move {
+			// If we already spawned a server but never registered it, try to stop it.
+			if let Some(id) = started_id {
+				let _ = transport.stop(id).await;
+			}
+
+			// Remove inflight entry to allow subsequent retry.
+			{
+				let mut map = inflight_map.lock().await;
+				map.remove(&key);
+			}
+
+			// Publish a deterministic error so waiters don't hang.
+			let _ = tx.send(Some(Arc::new(Err(crate::Error::Protocol(
+				"LSP start aborted (leader cancelled)".into(),
+			)))));
+		});
 	}
 }
 
@@ -526,6 +603,7 @@ mod tests {
 		async fn reply(
 			&self,
 			_server: LanguageServerId,
+			_id: crate::types::RequestId,
 			_resp: std::result::Result<Value, ResponseError>,
 		) -> Result<()> {
 			Ok(())

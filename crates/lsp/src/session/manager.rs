@@ -269,13 +269,14 @@ impl LspManager {
 									method = %req.method,
 									"Handling server request"
 								);
+								let req_id = req.id.clone();
 
 								let result = super::server_requests::handle_server_request(
 									&sync, server, req,
 								)
 								.await;
 
-								if let Err(e) = transport.reply(server, result).await {
+								if let Err(e) = transport.reply(server, req_id, result).await {
 									tracing::error!(
 										server_id = %server,
 										error = ?e,
@@ -472,6 +473,7 @@ mod tests {
 		async fn reply(
 			&self,
 			_server: LanguageServerId,
+			_id: crate::types::RequestId,
 			_resp: Result<JsonValue, ResponseError>,
 		) -> crate::Result<()> {
 			Ok(())

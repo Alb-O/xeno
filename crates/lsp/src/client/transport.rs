@@ -97,6 +97,7 @@ pub trait LspTransport: Send + Sync {
 	async fn reply(
 		&self,
 		server: LanguageServerId,
+		id: crate::types::RequestId,
 		resp: Result<JsonValue, ResponseError>,
 	) -> crate::Result<()>;
 

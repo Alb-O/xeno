@@ -51,7 +51,7 @@ impl LspSystem {
 
 		let transport = xeno_lsp::LocalTransport::new();
 		let manager = LspManager::new(transport);
-		manager.spawn_router();
+		let _ = manager.spawn_router();
 
 		Self {
 			inner: RealLspSystem {

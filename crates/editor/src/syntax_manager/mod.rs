@@ -638,7 +638,10 @@ impl SyntaxManager {
 			return;
 		};
 
-		let version_before = doc_version.wrapping_sub(1);
+		if doc_version == 0 {
+			return;
+		}
+		let version_before = doc_version - 1;
 
 		// Manage pending incremental window
 		match entry.slot.pending_incremental.take() {
@@ -842,6 +845,7 @@ impl SyntaxManager {
 			entry.sched.completed = None;
 			entry.sched.cooldown_until = None;
 			entry.slot.dirty = true;
+			mark_updated(&mut entry.slot);
 			entry.slot.pending_incremental = None;
 		}
 		entry.slot.last_opts_key = Some(current_opts_key);
@@ -929,10 +933,25 @@ impl SyntaxManager {
 		}
 
 		if entry.sched.inflight.is_some() {
-			return SyntaxPollOutcome {
-				result: SyntaxPollResult::Pending,
-				updated: entry.slot.updated,
-			};
+			// Check retention before returning Pending: cold retention must
+			// abort inflight tasks to release their permits promptly.
+			if apply_retention(
+				now,
+				&entry.sched,
+				cfg.retention_hidden,
+				ctx.hotness,
+				&mut entry.slot,
+				doc_id,
+			) {
+				if let Some(pending) = entry.sched.inflight.take() {
+					pending.task.abort();
+				}
+			} else {
+				return SyntaxPollOutcome {
+					result: SyntaxPollResult::Pending,
+					updated: entry.slot.updated,
+				};
+			}
 		}
 
 		// 4. Language check
@@ -951,14 +970,18 @@ impl SyntaxManager {
 			};
 		};
 
-		apply_retention(
+		if apply_retention(
 			now,
 			&entry.sched,
 			cfg.retention_hidden,
 			ctx.hotness,
 			&mut entry.slot,
 			doc_id,
-		);
+		) {
+			if let Some(pending) = entry.sched.inflight.take() {
+				pending.task.abort();
+			}
+		}
 
 		if entry.slot.current.is_some() && !entry.slot.dirty {
 			return SyntaxPollOutcome {
@@ -1071,10 +1094,10 @@ fn should_install_completed_parse(
 	target_version: u64,
 	slot_dirty: bool,
 ) -> bool {
-	if let Some(v) = current_tree_version
-		&& done_version < v
-	{
-		return false;
+	if let Some(v) = current_tree_version {
+		if done_version < v {
+			return false;
+		}
 	}
 
 	let version_match = done_version == target_version;
@@ -1111,6 +1134,8 @@ fn mark_updated(state: &mut SyntaxSlot) {
 /// If a tree is dropped, the dirty flag is cleared to prevent the document from
 /// being re-polled while hidden. A bootstrap parse will be triggered once the
 /// document becomes visible again.
+///
+/// Returns true if heavy state (current tree or dirty flag) was dropped/cleared.
 fn apply_retention(
 	now: Instant,
 	st: &DocSched,
@@ -1118,29 +1143,37 @@ fn apply_retention(
 	hotness: SyntaxHotness,
 	state: &mut SyntaxSlot,
 	_doc_id: DocumentId,
-) {
+) -> bool {
 	if matches!(hotness, SyntaxHotness::Visible | SyntaxHotness::Warm) {
-		return;
+		return false;
 	}
 
 	match policy {
-		RetentionPolicy::Keep => {}
+		RetentionPolicy::Keep => false,
 		RetentionPolicy::DropWhenHidden => {
-			if state.current.is_some() {
+			if state.current.is_some() || state.dirty {
 				state.current = None;
 				state.tree_doc_version = None;
 				state.dirty = false;
 				state.pending_incremental = None;
 				mark_updated(state);
+				true
+			} else {
+				false
 			}
 		}
 		RetentionPolicy::DropAfter(ttl) => {
-			if state.current.is_some() && now.duration_since(st.last_visible_at) > ttl {
+			if (state.current.is_some() || state.dirty)
+				&& now.duration_since(st.last_visible_at) > ttl
+			{
 				state.current = None;
 				state.tree_doc_version = None;
 				state.dirty = false;
 				state.pending_incremental = None;
 				mark_updated(state);
+				true
+			} else {
+				false
 			}
 		}
 	}

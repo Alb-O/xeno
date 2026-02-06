@@ -50,6 +50,7 @@ impl crate::client::transport::LspTransport for SimpleStubTransport {
 	async fn reply(
 		&self,
 		_server: LanguageServerId,
+		_id: crate::types::RequestId,
 		_resp: std::result::Result<crate::JsonValue, crate::ResponseError>,
 	) -> crate::Result<()> {
 		Ok(())
@@ -158,6 +159,7 @@ async fn test_document_sync_returns_not_ready_before_init() {
 		async fn reply(
 			&self,
 			_server: LanguageServerId,
+			_id: crate::types::RequestId,
 			_resp: std::result::Result<crate::JsonValue, crate::ResponseError>,
 		) -> crate::Result<()> {
 			Ok(())

@@ -404,6 +404,7 @@ where
 					};
 
 					if id_action == InsertAction::KeptExisting {
+						seen_identities.insert(def.identity());
 						continue;
 					}
 
@@ -412,7 +413,7 @@ where
 						store.mutated = true;
 					}
 
-					let action = insert_typed_key(
+					let _action = insert_typed_key(
 						&mut store,
 						self.label,
 						choose_winner,
@@ -432,7 +433,7 @@ where
 						)?;
 					}
 
-					actions[idx] = action;
+					actions[idx] = id_action;
 					seen_identities.insert(def.identity());
 				}
 

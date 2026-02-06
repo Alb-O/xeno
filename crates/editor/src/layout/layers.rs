@@ -65,7 +65,7 @@ impl LayoutManager {
 	/// # Errors
 	///
 	/// Returns [`LayerError`] if the ID is invalid, stale, or the layer is empty.
-	pub fn layer_mut<'a>(
+	pub(crate) fn layer_mut<'a>(
 		&'a mut self,
 		base_layout: &'a mut Layout,
 		id: LayerId,
@@ -77,10 +77,30 @@ impl LayoutManager {
 		Ok(self.layers[idx].layout.as_mut().unwrap())
 	}
 
+	/// Executes a closure with a mutable reference to the layout for a given layer ID.
+	///
+	/// Bumps the layout revision after the closure completes to ensure stale
+	/// interactions (like separator drags) are invalidated.
+	///
+	/// # Errors
+	///
+	/// Returns [`LayerError`] if the ID is invalid, stale, or the layer is empty.
+	pub fn with_layer_mut<R>(
+		&mut self,
+		base_layout: &mut Layout,
+		id: LayerId,
+		f: impl FnOnce(&mut Layout) -> R,
+	) -> Result<R, LayerError> {
+		let layout = self.layer_mut(base_layout, id)?;
+		let out = f(layout);
+		self.increment_revision();
+		Ok(out)
+	}
+
 	/// Sets the layout for a layer at the given index.
 	///
 	/// Creates intermediate empty slots if needed. Bumps the slot generation
-	/// to invalidate any stored references.
+	/// to invalidate any stored references and increments the layout revision.
 	///
 	/// Returns the [`LayerId`] for the set layer.
 	///
@@ -94,11 +114,15 @@ impl LayoutManager {
 			self.layers.push(super::types::LayerSlot::empty());
 		}
 
-		let slot = &mut self.layers[index];
-		slot.generation = slot.generation.wrapping_add(1);
-		slot.layout = layout;
+		let (new_gen, idx) = {
+			let slot = &mut self.layers[index];
+			slot.generation = slot.generation.wrapping_add(1);
+			slot.layout = layout;
+			(slot.generation, index as u16)
+		};
 
-		LayerId::new(index as u16, slot.generation)
+		self.increment_revision();
+		LayerId::new(idx, new_gen)
 	}
 
 	/// Returns the topmost non-empty layer identifier.
