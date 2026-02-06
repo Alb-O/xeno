@@ -1229,10 +1229,10 @@ fn should_install_completed_parse(
 	target_version: u64,
 	slot_dirty: bool,
 ) -> bool {
-	if let Some(v) = current_tree_version {
-		if done_version < v {
-			return false;
-		}
+	if let Some(v) = current_tree_version
+		&& done_version < v
+	{
+		return false;
 	}
 
 	let version_match = done_version == target_version;

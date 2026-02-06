@@ -4,7 +4,7 @@ use crate::RegistryEntry;
 use crate::error::{InsertAction, InsertFatal, RegistryError};
 
 #[inline]
-fn r<'a, T>(p: &'a DefRef<T>) -> &'a T
+fn r<T>(p: &DefRef<T>) -> &T
 where
 	T: RegistryEntry + Send + Sync + 'static,
 {

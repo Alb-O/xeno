@@ -59,11 +59,11 @@ fn make_meta_full(
 	}
 }
 
-fn choose_winner_any<'a, 'b, 'c>(
+fn choose_winner_any<'a>(
 	_kind: KeyKind,
 	_key: &str,
-	_existing: &'b TestDef,
-	_candidate: &'c TestDef,
+	_existing: &TestDef,
+	_candidate: &TestDef,
 ) -> bool {
 	true
 }
