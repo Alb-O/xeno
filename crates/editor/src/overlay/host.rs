@@ -21,31 +21,43 @@ impl OverlayHost {
 
 	/// Configures a new interaction session based on a controller's UI specification.
 	///
-	/// This method:
-	/// 1. Captures the current editor state (focus, mode, cursor) for restoration.
-	/// 2. Resolves the primary input window's rectangle.
-	/// 3. Spawns auxiliary windows defined in the specification.
-	/// 4. Sets up buffer-local options for spawned windows.
+	/// # Resource Management
 	///
-	/// Returns `None` if the terminal viewport dimensions are not available.
+	/// This method enforces a "resolve-before-allocate" policy:
+	/// 1. Window rectangles are resolved against the current screen dimensions.
+	/// 2. If resolution fails (e.g., screen too small, missing anchor), the operation aborts
+	///    before any buffers are created.
+	/// 3. Only after valid geometry is confirmed are scratch buffers and windows allocated.
+	///
+	/// This prevents orphaned scratch buffers in cases of layout failure.
+	///
+	/// # Returns
+	///
+	/// Returns `None` if:
+	/// - The terminal viewport dimensions are not available.
+	/// - The primary input window geometry fails to resolve.
 	pub fn setup_session(
 		ed: &mut Editor,
 		controller: &dyn super::OverlayController,
 	) -> Option<OverlaySession> {
 		let spec = controller.ui_spec(ed);
-		let screen = match (ed.state.viewport.width, ed.state.viewport.height) {
-			(Some(w), Some(h)) => Rect::new(0, 0, w, h),
-			_ => return None,
-		};
+		let (w, h) = (ed.state.viewport.width?, ed.state.viewport.height?);
+		let screen = Rect::new(0, 0, w, h);
+
+		let mut roles = std::collections::HashMap::new();
+
+		// 1. Resolve Input Geometry
+		let input_rect = spec.rect.resolve_opt(screen, &roles)?;
+		roles.insert(super::WindowRole::Input, input_rect);
 
 		let origin_focus = ed.state.focus.clone();
 		let origin_view = ed.focused_view();
 		let origin_mode = ed.focused_buffer().input.mode();
 
 		let mut session = OverlaySession {
-			windows: Vec::new(),
-			buffers: Vec::new(),
-			input: ViewId(0), // Placeholder
+			windows: Vec::with_capacity(1 + spec.windows.len()),
+			buffers: Vec::with_capacity(1 + spec.windows.len()),
+			input: ViewId(0), // Placeholder, replaced below
 			origin_focus,
 			origin_mode,
 			origin_view,
@@ -53,14 +65,10 @@ impl OverlayHost {
 			status: Default::default(),
 		};
 
-		// Create primary input
+		// 2. Allocate Primary Input
 		let input_buffer = Self::create_input_buffer(ed);
 		session.input = input_buffer;
 		session.buffers.push(input_buffer);
-
-		let mut roles = std::collections::HashMap::new();
-		let input_rect = spec.rect.resolve_opt(screen, &roles)?;
-		roles.insert(super::WindowRole::Input, input_rect);
 
 		let window_id = ed.create_floating_window(input_buffer, input_rect, spec.style);
 		session.windows.push(window_id);
@@ -71,8 +79,15 @@ impl OverlayHost {
 			float.gutter = spec.gutter;
 		}
 
-		// Create auxiliary windows
+		// 3. Resolve & Allocate Auxiliary Windows
 		for win_spec in spec.windows {
+			// Resolve rect FIRST to avoid wasteful buffer allocation
+			let rect = match win_spec.rect.resolve_opt(screen, &roles) {
+				Some(r) => r,
+				None => continue,
+			};
+			roles.insert(win_spec.role, rect);
+
 			let buffer_id = ed.state.core.buffers.create_scratch();
 			session.buffers.push(buffer_id);
 
@@ -81,12 +96,6 @@ impl OverlayHost {
 					let _ = buffer.local_options.set_by_kdl(&k, v);
 				}
 			}
-
-			let rect = match win_spec.rect.resolve_opt(screen, &roles) {
-				Some(r) => r,
-				None => continue,
-			};
-			roles.insert(win_spec.role, rect);
 
 			let win_id = ed.create_floating_window(buffer_id, rect, win_spec.style);
 			session.windows.push(win_id);
