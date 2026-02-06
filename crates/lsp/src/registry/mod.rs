@@ -18,6 +18,9 @@ use crate::Result;
 use crate::client::transport::LspTransport;
 use crate::client::{ClientHandle, LanguageServerId, LspSlotId, ServerConfig};
 
+/// In-flight server start tracking map, keyed by `(language, root_path)`.
+type InFlightMap = Arc<Mutex<HashMap<(String, PathBuf), Arc<InFlightStart>>>>;
+
 /// Configuration for a language server.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LanguageServerConfig {
@@ -161,7 +164,7 @@ pub struct Registry {
 	configs: RwLock<HashMap<String, LanguageServerConfig>>,
 	state: RwLock<RegistryState>,
 	transport: Arc<dyn LspTransport>,
-	inflight: Arc<Mutex<HashMap<(String, PathBuf), Arc<InFlightStart>>>>,
+	inflight: InFlightMap,
 }
 
 impl Registry {
@@ -446,7 +449,7 @@ impl Registry {
 /// Guard that un-wedges the inflight start map on drop if the leader fails or is cancelled.
 struct StartGuard {
 	key: (String, PathBuf),
-	inflight_map: Arc<Mutex<HashMap<(String, PathBuf), Arc<InFlightStart>>>>,
+	inflight_map: InFlightMap,
 	inflight: Arc<InFlightStart>,
 	transport: Arc<dyn LspTransport>,
 	started_id: Option<LanguageServerId>,
@@ -456,7 +459,7 @@ struct StartGuard {
 impl StartGuard {
 	fn new(
 		key: (String, PathBuf),
-		inflight_map: Arc<Mutex<HashMap<(String, PathBuf), Arc<InFlightStart>>>>,
+		inflight_map: InFlightMap,
 		inflight: Arc<InFlightStart>,
 		transport: Arc<dyn LspTransport>,
 	) -> Self {

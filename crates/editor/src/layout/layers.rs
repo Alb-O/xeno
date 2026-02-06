@@ -182,7 +182,7 @@ impl LayoutManager {
 	///
 	/// Returns 0 if the index is out of bounds.
 	pub(crate) fn layer_slot_generation(&self, index: usize) -> u16 {
-		self.layers.get(index).map(|s| s.generation).unwrap_or(0)
+		self.layers.get(index).map_or(0, |s| s.generation)
 	}
 
 	/// Returns a reference to the layout for an overlay layer.

@@ -37,7 +37,7 @@ impl Editor {
 			return;
 		}
 
-		let key_strs: Vec<String> = pending_keys.iter().map(|k| format!("{k}")).collect();
+		let key_strs: Vec<String> = pending_keys.iter().map(|k| k.to_string()).collect();
 		let (root, ancestors) = if key_strs.len() <= 1 {
 			(key_strs.first().cloned().unwrap_or_default(), vec![])
 		} else {
@@ -47,9 +47,7 @@ impl Editor {
 
 			for key in &key_strs[1..] {
 				prefix_so_far = format!("{prefix_so_far} {key}");
-				let desc = find_prefix(binding_mode, &prefix_so_far)
-					.map(|p| p.description)
-					.unwrap_or("");
+				let desc = find_prefix(binding_mode, &prefix_so_far).map_or("", |p| p.description);
 				ancestors.push(KeyTreeNode::new(key.clone(), desc));
 			}
 			(root, ancestors)
@@ -61,7 +59,7 @@ impl Editor {
 		let children: Vec<KeyTreeNode<'_>> = continuations
 			.iter()
 			.map(|cont| {
-				let key = format!("{}", cont.key);
+				let key = cont.key.to_string();
 				match cont.kind {
 					ContinuationKind::Branch => {
 						let sub_prefix = if prefix_key.is_empty() {
@@ -69,9 +67,8 @@ impl Editor {
 						} else {
 							format!("{prefix_key} {key}")
 						};
-						let desc = find_prefix(binding_mode, &sub_prefix)
-							.map(|p| p.description)
-							.unwrap_or("");
+						let desc =
+							find_prefix(binding_mode, &sub_prefix).map_or("", |p| p.description);
 						KeyTreeNode::with_suffix(key, desc, "...")
 					}
 					ContinuationKind::Leaf => {

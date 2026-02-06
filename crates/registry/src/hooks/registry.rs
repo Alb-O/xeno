@@ -74,7 +74,7 @@ impl HooksSnapshot {
 
 	#[inline]
 	pub fn for_event(&self, event: HookEvent) -> &[DefRef<HookDef>] {
-		self.by_event.get(&event).map(Vec::as_slice).unwrap_or(&[])
+		self.by_event.get(&event).map_or(&[], Vec::as_slice)
 	}
 }
 

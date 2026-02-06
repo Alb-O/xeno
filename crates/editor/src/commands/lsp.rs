@@ -87,21 +87,21 @@ fn cmd_goto_definition<'a>(
 	})
 }
 
+/// Formats a single [`MarkedString`] to markdown.
+fn format_marked_string(ms: &MarkedString) -> String {
+	match ms {
+		MarkedString::String(s) => s.clone(),
+		MarkedString::LanguageString(ls) => format!("```{}\n{}\n```", ls.language, ls.value),
+	}
+}
+
 /// Formats LSP hover contents to markdown.
 fn format_hover_contents(contents: &HoverContents) -> String {
 	match contents {
-		HoverContents::Scalar(MarkedString::String(s)) => s.clone(),
-		HoverContents::Scalar(MarkedString::LanguageString(ls)) => {
-			format!("```{}\n{}\n```", ls.language, ls.value)
-		}
+		HoverContents::Scalar(ms) => format_marked_string(ms),
 		HoverContents::Array(parts) => parts
 			.iter()
-			.map(|p| match p {
-				MarkedString::String(s) => s.clone(),
-				MarkedString::LanguageString(ls) => {
-					format!("```{}\n{}\n```", ls.language, ls.value)
-				}
-			})
+			.map(format_marked_string)
 			.collect::<Vec<_>>()
 			.join("\n\n"),
 		HoverContents::Markup(MarkupContent { value, .. }) => value.clone(),

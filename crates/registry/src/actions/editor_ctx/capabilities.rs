@@ -34,6 +34,7 @@
 //! [`EditorCapabilities`]: super::EditorCapabilities
 
 use ropey::RopeSlice;
+use xeno_primitives::BoxFutureLocal;
 use xeno_primitives::direction::{Axis, SeqDirection, SpatialDirection};
 use xeno_primitives::range::{CharIdx, Direction};
 use xeno_primitives::selection::Selection;
@@ -251,18 +252,12 @@ pub trait FileOpsAccess {
 	/// Returns true if the buffer has unsaved changes.
 	fn is_modified(&self) -> bool;
 	/// Saves the buffer to its current file path.
-	fn save(
-		&mut self,
-	) -> std::pin::Pin<
-		Box<dyn std::future::Future<Output = Result<(), crate::actions::CommandError>> + '_>,
-	>;
+	fn save(&mut self) -> BoxFutureLocal<'_, Result<(), crate::actions::CommandError>>;
 	/// Saves the buffer to a specific file path, updating the buffer's path.
 	fn save_as(
 		&mut self,
 		path: std::path::PathBuf,
-	) -> std::pin::Pin<
-		Box<dyn std::future::Future<Output = Result<(), crate::actions::CommandError>> + '_>,
-	>;
+	) -> BoxFutureLocal<'_, Result<(), crate::actions::CommandError>>;
 }
 
 /// Theme operations (optional).

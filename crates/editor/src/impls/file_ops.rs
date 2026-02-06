@@ -8,6 +8,7 @@ use std::path::{Path, PathBuf};
 use ropey::Rope;
 #[cfg(feature = "lsp")]
 use tracing::warn;
+use xeno_primitives::BoxFutureLocal;
 use xeno_registry::commands::CommandError;
 use xeno_registry::{HookContext, HookEventData, emit as emit_hook};
 
@@ -18,9 +19,7 @@ impl xeno_registry::FileOpsAccess for Editor {
 		self.buffer().modified()
 	}
 
-	fn save(
-		&mut self,
-	) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), CommandError>> + '_>> {
+	fn save(&mut self) -> BoxFutureLocal<'_, Result<(), CommandError>> {
 		Box::pin(async move {
 			let path_owned = match &self.buffer().path() {
 				Some(p) => p.clone(),
@@ -83,10 +82,7 @@ impl xeno_registry::FileOpsAccess for Editor {
 		})
 	}
 
-	fn save_as(
-		&mut self,
-		path: PathBuf,
-	) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), CommandError>> + '_>> {
+	fn save_as(&mut self, path: PathBuf) -> BoxFutureLocal<'_, Result<(), CommandError>> {
 		let loader_arc = self.state.config.language_loader.clone();
 		let _ = self.buffer_mut().set_path(Some(path), Some(&loader_arc));
 		self.save()

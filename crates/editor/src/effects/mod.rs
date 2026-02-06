@@ -86,7 +86,7 @@ impl crate::impls::Editor {
 						self.open_command_palette();
 					}
 					"search" => {
-						let reverse = args.first().map(|s| s == "true").unwrap_or(false);
+						let reverse = args.first().is_some_and(|s| s == "true");
 						self.open_search(reverse);
 					}
 					_ => {

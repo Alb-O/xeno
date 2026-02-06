@@ -5,9 +5,9 @@
 //! For commands needing direct editor access (LSP, debugging), see `xeno-editor/src/commands/`.
 
 use std::any::Any;
-use std::future::Future;
 use std::path::PathBuf;
-use std::pin::Pin;
+
+use xeno_primitives::BoxFutureLocal;
 
 use crate::notifications::Notification;
 
@@ -65,12 +65,9 @@ pub trait CommandEditorOps {
 	/// Sets the read-only flag for the current buffer.
 	fn set_readonly(&mut self, readonly: bool);
 	/// Saves the current buffer to its file path.
-	fn save(&mut self) -> Pin<Box<dyn Future<Output = Result<(), CommandError>> + '_>>;
+	fn save(&mut self) -> BoxFutureLocal<'_, Result<(), CommandError>>;
 	/// Saves the current buffer to a new file path.
-	fn save_as(
-		&mut self,
-		path: PathBuf,
-	) -> Pin<Box<dyn Future<Output = Result<(), CommandError>> + '_>>;
+	fn save_as(&mut self, path: PathBuf) -> BoxFutureLocal<'_, Result<(), CommandError>>;
 	/// Changes the active color theme.
 	fn set_theme(&mut self, name: &str) -> Result<(), CommandError>;
 	/// Sets a global option value by KDL key.
@@ -90,7 +87,7 @@ pub trait CommandEditorOps {
 		path: PathBuf,
 		line: usize,
 		column: usize,
-	) -> Pin<Box<dyn Future<Output = Result<(), CommandError>> + '_>>;
+	) -> BoxFutureLocal<'_, Result<(), CommandError>>;
 }
 
 /// Context provided to command handlers.

@@ -306,7 +306,7 @@ impl DocumentStateManager {
 	pub fn is_opened(&self, uri: &Uri) -> bool {
 		let key = self.uri_key(uri);
 		let docs = self.documents.read();
-		docs.get(&key).map(|s| s.is_opened()).unwrap_or(false)
+		docs.get(&key).is_some_and(|s| s.is_opened())
 	}
 
 	/// Get all documents with errors.

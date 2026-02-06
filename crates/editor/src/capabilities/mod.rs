@@ -2,13 +2,11 @@
 //!
 //! [`EditorCapabilities`]: xeno_registry::EditorCapabilities
 
-use std::future::Future;
 use std::path::PathBuf;
-use std::pin::Pin;
 
 use xeno_primitives::direction::{Axis, SeqDirection, SpatialDirection};
 use xeno_primitives::range::{CharIdx, Direction as MoveDir};
-use xeno_primitives::{Mode, Range, Selection};
+use xeno_primitives::{BoxFutureLocal, Mode, Range, Selection};
 use xeno_registry::actions::editor_ctx::{OverlayAccess, OverlayRequest};
 use xeno_registry::commands::{CommandEditorOps, CommandError};
 use xeno_registry::notifications::{Notification, keys};
@@ -268,14 +266,11 @@ impl CommandEditorOps for Editor {
 		self.buffer_mut().set_readonly(readonly);
 	}
 
-	fn save(&mut self) -> Pin<Box<dyn Future<Output = Result<(), CommandError>> + '_>> {
+	fn save(&mut self) -> BoxFutureLocal<'_, Result<(), CommandError>> {
 		FileOpsAccess::save(self)
 	}
 
-	fn save_as(
-		&mut self,
-		path: PathBuf,
-	) -> Pin<Box<dyn Future<Output = Result<(), CommandError>> + '_>> {
+	fn save_as(&mut self, path: PathBuf) -> BoxFutureLocal<'_, Result<(), CommandError>> {
 		FileOpsAccess::save_as(self, path)
 	}
 
@@ -352,7 +347,7 @@ impl CommandEditorOps for Editor {
 		path: PathBuf,
 		line: usize,
 		column: usize,
-	) -> Pin<Box<dyn Future<Output = Result<(), CommandError>> + '_>> {
+	) -> BoxFutureLocal<'_, Result<(), CommandError>> {
 		Box::pin(async move {
 			use crate::impls::Location;
 			self.goto_location(&Location::new(path, line, column))
@@ -363,20 +358,20 @@ impl CommandEditorOps for Editor {
 	}
 }
 
+impl From<crate::layout::SplitError> for xeno_registry::actions::editor_ctx::SplitError {
+	fn from(e: crate::layout::SplitError) -> Self {
+		match e {
+			crate::layout::SplitError::ViewNotFound => Self::ViewNotFound,
+			crate::layout::SplitError::AreaTooSmall => Self::AreaTooSmall,
+		}
+	}
+}
+
 impl SplitOps for Editor {
 	fn split(&mut self, axis: Axis) -> Result<(), xeno_registry::actions::editor_ctx::SplitError> {
-		use xeno_registry::actions::editor_ctx::SplitError;
 		match axis {
-			Axis::Horizontal => match Editor::split_horizontal_with_clone(self) {
-				Ok(()) => Ok(()),
-				Err(crate::layout::SplitError::ViewNotFound) => Err(SplitError::ViewNotFound),
-				Err(crate::layout::SplitError::AreaTooSmall) => Err(SplitError::AreaTooSmall),
-			},
-			Axis::Vertical => match Editor::split_vertical_with_clone(self) {
-				Ok(()) => Ok(()),
-				Err(crate::layout::SplitError::ViewNotFound) => Err(SplitError::ViewNotFound),
-				Err(crate::layout::SplitError::AreaTooSmall) => Err(SplitError::AreaTooSmall),
-			},
+			Axis::Horizontal => Editor::split_horizontal_with_clone(self).map_err(Into::into),
+			Axis::Vertical => Editor::split_vertical_with_clone(self).map_err(Into::into),
 		}
 	}
 
