@@ -185,21 +185,27 @@ impl Document {
 		origin_view: Option<ViewId>,
 	) -> Result<CommitResult, EditError> {
 		self.ensure_writable()?;
-		Ok(self.commit_unchecked(commit, origin_view))
+		Ok(self.apply_commit(commit, origin_view))
 	}
 
-	/// Applies an edit bypassing the readonly check.
+	/// Applies an edit bypassing the document-level readonly check.
 	///
-	/// Callers MUST ensure that any readonly overrides have been validated
-	/// at the view layer before invoking this method.
+	/// Access is gated by [`CommitBypassToken`], which can only be constructed
+	/// within the `buffer` module. This ensures the caller has already
+	/// performed view-level readonly validation.
 	pub(crate) fn commit_unchecked(
 		&mut self,
 		commit: EditCommit,
 		origin_view: Option<ViewId>,
+		_token: crate::buffer::CommitBypassToken,
 	) -> CommitResult {
+		self.apply_commit(commit, origin_view)
+	}
+
+	/// Core commit implementation shared by checked and unchecked paths.
+	fn apply_commit(&mut self, commit: EditCommit, origin_view: Option<ViewId>) -> CommitResult {
 		let version_before = self.version;
 
-		// Fast-path: if transaction is identity, do nothing.
 		if commit.tx.is_identity() {
 			return CommitResult {
 				applied: false,
@@ -210,11 +216,8 @@ impl Document {
 			};
 		}
 
-		// Record undo history based on policy.
-		// Note: Boundary policy must record *before* application to properly capture
-		// the state transition for inversion.
 		let undo_recorded = match commit.undo {
-			UndoPolicy::Record | UndoPolicy::MergeWithCurrentGroup => {
+			UndoPolicy::Record | UndoPolicy::MergeWithCurrentGroup | UndoPolicy::Boundary => {
 				let recorded = self.undo_backend.record_commit(
 					&commit.tx,
 					&self.content,
@@ -225,25 +228,10 @@ impl Document {
 				recorded
 			}
 			UndoPolicy::NoUndo => {
-				// NoUndo with a non-identity transaction is an invariant violation.
-				// Identity transactions return early above, so reaching this arm
-				// means a content-changing edit attempted to bypass undo recording.
-				// All production callers that compile to NoUndo (None, Undo, Redo
-				// transforms) never produce a transaction, so this is unreachable.
 				panic!(
-					"UndoPolicy::NoUndo reached commit_unchecked with non-identity transaction; \
+					"UndoPolicy::NoUndo reached apply_commit with non-identity transaction; \
 					 this combination is illegal because it would silently destroy undo history"
 				);
-			}
-			UndoPolicy::Boundary => {
-				let recorded = self.undo_backend.record_commit(
-					&commit.tx,
-					&self.content,
-					UndoPolicy::Boundary,
-					origin_view,
-				);
-				commit.tx.apply(&mut self.content);
-				recorded
 			}
 		};
 

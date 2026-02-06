@@ -31,6 +31,19 @@ pub use crate::core::document::{Document, DocumentId, DocumentMetaOutcome};
 pub use crate::core::history::HistoryResult;
 pub use crate::core::undo_store::{TxnUndoStore, UndoBackend};
 
+/// Capability token that gates access to [`Document::commit_unchecked`].
+///
+/// The constructor is private to the `buffer` module tree, so only `Buffer`
+/// code can create one. This prevents other modules from calling the
+/// unchecked commit path even though it is `pub(crate)`.
+pub(crate) struct CommitBypassToken(());
+
+impl CommitBypassToken {
+	fn new() -> Self {
+		Self(())
+	}
+}
+
 // Thread-local set of document IDs currently locked by the thread.
 // Used to detect and prevent re-entrant locking on the same document,
 // which would cause a self-deadlock. Enabled in all builds for reliability.
@@ -250,11 +263,11 @@ impl Buffer {
 
 	/// Returns whether this buffer is read-only.
 	///
-	/// Checks the buffer-level override first, then falls back to the
-	/// document state.
+	/// The override is additive-only: `Some(true)` forces read-only regardless
+	/// of the document flag, but `Some(false)` or `None` both defer to the
+	/// document's readonly state.
 	pub fn is_readonly(&self) -> bool {
-		self.readonly_override
-			.unwrap_or_else(|| self.with_doc(|doc| doc.is_readonly()))
+		self.readonly_override == Some(true) || self.with_doc(|doc| doc.is_readonly())
 	}
 
 	pub fn set_readonly(&mut self, readonly: bool) -> DocumentMetaOutcome {
@@ -263,9 +276,12 @@ impl Buffer {
 
 	/// Sets a buffer-level readonly override.
 	///
-	/// - `Some(true)`: Always read-only.
-	/// - `Some(false)`: Always writable (ignoring document state).
+	/// The override is additive-only:
+	/// - `Some(true)`: Force read-only regardless of document state.
 	/// - `None`: Defer to the document's readonly flag.
+	///
+	/// `Some(false)` is treated identically to `None` (it cannot bypass
+	/// document-level readonly).
 	pub fn set_readonly_override(&mut self, readonly: Option<bool>) {
 		self.readonly_override = readonly;
 	}

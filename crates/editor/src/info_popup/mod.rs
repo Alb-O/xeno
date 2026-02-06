@@ -257,7 +257,7 @@ impl Editor {
 			return false;
 		};
 
-		buffer.set_readonly_override(Some(false));
+		buffer.set_readonly_override(None);
 		buffer.reset_content(content.as_str());
 
 		if let Some(ft) = file_type {

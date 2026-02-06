@@ -2,6 +2,7 @@
 
 use xeno_primitives::{CommitResult, EditCommit, Range, SyntaxPolicy, Transaction, UndoPolicy};
 
+use super::CommitBypassToken;
 use crate::types::Yank;
 
 /// Application policy for document transactions.
@@ -203,11 +204,7 @@ impl Buffer {
 	/// This is the unified entry point for all local document modifications.
 	/// It resolves undo grouping and enforces view-level readonly checks.
 	pub(crate) fn apply(&mut self, tx: &Transaction, policy: ApplyPolicy) -> CommitResult {
-		if let Some(readonly) = self.readonly_override {
-			if readonly {
-				return CommitResult::blocked(self.version());
-			}
-		} else if self.with_doc(|doc| doc.is_readonly()) {
+		if self.is_readonly() {
 			return CommitResult::blocked(self.version());
 		}
 
@@ -215,24 +212,8 @@ impl Buffer {
 			.with_undo(policy.undo)
 			.with_syntax(policy.syntax);
 
-		self.with_doc_mut(|doc| doc.commit_unchecked(commit, Some(self.id)))
-	}
-
-	/// Applies a remote transaction, bypassing view-level readonly overrides.
-	///
-	/// Remote edits always clear the local insert-undo group to maintain
-	/// history consistency.
-	#[allow(dead_code, reason = "reserved for buffer sync feature")]
-	pub(crate) fn apply_remote(&mut self, tx: &Transaction, policy: ApplyPolicy) -> CommitResult {
-		if self.with_doc(|doc| doc.is_readonly()) {
-			return CommitResult::blocked(self.version());
-		}
-
-		let commit = EditCommit::new(tx.clone())
-			.with_undo(policy.undo)
-			.with_syntax(policy.syntax);
-
-		self.with_doc_mut(|doc| doc.commit_unchecked(commit, None))
+		let token = CommitBypassToken::new();
+		self.with_doc_mut(|doc| doc.commit_unchecked(commit, Some(self.id), token))
 	}
 
 	/// Finalizes view state (selection and cursor) after a successful edit.

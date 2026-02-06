@@ -115,7 +115,7 @@ fn commit_sets_modified_flag() {
 }
 
 #[test]
-#[should_panic(expected = "NoUndo reached commit_unchecked with non-identity transaction")]
+#[should_panic(expected = "NoUndo reached apply_commit with non-identity transaction")]
 fn commit_no_undo_with_non_identity_tx_panics() {
 	let mut doc = Document::new("hello".into(), None);
 

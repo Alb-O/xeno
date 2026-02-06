@@ -32,19 +32,19 @@ fn readonly_override_blocks_transaction() {
 }
 
 #[test]
-fn readonly_override_allows_write_on_readonly_doc() {
+fn readonly_override_false_does_not_bypass_doc_readonly() {
 	let mut buffer = Buffer::scratch(ViewId::SCRATCH);
-	// Document is readonly, but buffer override makes it writable
 	buffer.set_readonly(true);
 	assert!(buffer.is_readonly());
 
+	// Some(false) must not bypass document-level readonly.
 	buffer.set_readonly_override(Some(false));
-	assert!(!buffer.is_readonly());
+	assert!(buffer.is_readonly());
 
 	let (tx, _selection) = buffer.prepare_insert("hi");
 	let result = buffer.apply(&tx, ApplyPolicy::INTERNAL);
-	assert!(result.applied);
-	assert_eq!(buffer.with_doc(|doc| doc.content().to_string()), "hi");
+	assert!(!result.applied);
+	assert_eq!(buffer.with_doc(|doc| doc.content().to_string()), "");
 }
 
 #[test]
