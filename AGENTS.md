@@ -97,3 +97,31 @@ When changing core behavior, public API, or invariants in any subsystem:
 1. Update the module-level rustdoc in the relevant anchor file in the same change set.
 2. Add or update regression tests for the new invariant.
 3. If a test is not practical immediately, add a `TODO (add regression: test_...)` entry.
+
+## Invariant Documentation Standard
+
+### The Invariant Triad
+Every architectural invariant MUST use the following format in module-level documentation:
+
+```rust
+//! - MUST [invariant description]
+//!   - Enforced in: [`Symbol::method`] (link to the exact choke point)
+//!   - Tested by: [`crate::module::invariants::test_name`] (link to the proof)
+//!   - Failure symptom: [concrete user-visible symptom]
+```
+
+### Machine-Checkable Links
+- All "Enforced in" and "Tested by" entries MUST use intra-doc links `[...]`.
+- Run `RUSTDOCFLAGS="-D warnings -D rustdoc::broken_intra_doc_links" cargo doc` to verify.
+- If a link targets a private item, use `#[cfg_attr(test, test)]` wrappers in a dedicated `invariants` module to make it linkable.
+
+### The `invariants.rs` Pattern
+To make tests stable and linkable by rustdoc:
+1.  Create a `pub(crate) mod invariants` (gated `#[cfg(any(test, doc))]`).
+2.  Define proof functions: `pub(crate) fn inv_my_invariant() { ... }`.
+3.  Define test wrappers: `#[cfg_attr(test, test)] pub(crate) fn test_my_invariant() { inv_my_invariant() }`.
+4.  Link to `invariants::test_my_invariant` in the docs.
+
+### Link vs Backtick
+- Use links `[...]` for stable, exported types, public modules, and the `invariants` test wrappers.
+- Use backticks only for private fields, macros (unless exported), and unstable internal details.

@@ -1,6 +1,6 @@
 //! Hook registration macros.
 //!
-//! [`hook!`] and [`async_hook!`] for registering event lifecycle observers.
+//! `hook!` and `async_hook!` for registering event lifecycle observers.
 //!
 //! Note: The `__hook_extract!` and `__async_hook_extract!` macros are generated
 //! by `xeno_macros::define_events!` in `lib.rs`.

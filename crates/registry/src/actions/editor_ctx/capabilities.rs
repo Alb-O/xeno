@@ -194,9 +194,9 @@ pub trait MacroAccess {
 ///
 /// Provides text modification capabilities including delete, yank, paste,
 /// and case changes. Edit actions never trigger application quit; use
-/// [`ActionResult::Quit`] for that.
+/// [`AppEffect::Quit`] for that.
 ///
-/// [`ActionResult::Quit`]: crate::actions::ActionResult::Quit
+/// [`AppEffect::Quit`]: crate::actions::effects::AppEffect::Quit
 pub trait EditAccess {
 	/// Executes a data-oriented edit operation.
 	///
@@ -340,10 +340,10 @@ pub trait ViewportAccess {
 /// Command queue operations (optional).
 ///
 /// Allows actions to schedule commands for async execution. When an action
-/// returns [`ActionResult::Command`], the result handler uses this trait
+/// returns [`AppEffect::QueueCommand`], the result handler uses this trait
 /// to queue the command for execution on the next tick.
 ///
-/// [`ActionResult::Command`]: crate::actions::ActionResult::Command
+/// [`AppEffect::QueueCommand`]: crate::actions::effects::AppEffect::QueueCommand
 pub trait CommandQueueAccess {
 	/// Queues a command for async execution.
 	///
@@ -398,7 +398,7 @@ pub trait OptionAccess {
 	/// type safety through [`TypedOptionKey<T>`].
 	///
 	/// Note: This method requires `Self: Sized` for dyn-compatibility. When
-	/// using `&dyn OptionAccess`, use [`option_raw()`] instead.
+	/// using `&dyn OptionAccess`, use [`Self::option_raw`] instead.
 	///
 	/// # Example
 	///

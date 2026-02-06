@@ -143,6 +143,8 @@ pub struct PluginBuildRecord {
 ///
 /// Panics if the types do not match. This is considered a programmer error and
 /// should be caught during build or initialization.
+///
+/// [`OptionType`]: crate::options::OptionType
 fn validate_option_def(def: &'static OptionDef) {
 	if def.default.value_type() != def.value_type {
 		panic!(

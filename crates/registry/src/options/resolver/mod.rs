@@ -114,6 +114,8 @@ impl<'a> OptionResolver<'a> {
 	///
 	/// Panics if the option's default value is not an integer. This invariant
 	/// is enforced at build-time by [`RegistryDbBuilder::register_option`].
+	///
+	/// [`RegistryDbBuilder::register_option`]: crate::db::builder::RegistryDbBuilder::register_option
 	pub fn resolve_int(&self, key: OptionKey) -> i64 {
 		let resolved = self.resolve(key.clone());
 		if let Some(v) = resolved.as_int() {
@@ -145,6 +147,8 @@ impl<'a> OptionResolver<'a> {
 	///
 	/// Panics if the option's default value is not a boolean. This invariant
 	/// is enforced at build-time by [`RegistryDbBuilder::register_option`].
+	///
+	/// [`RegistryDbBuilder::register_option`]: crate::db::builder::RegistryDbBuilder::register_option
 	pub fn resolve_bool(&self, key: OptionKey) -> bool {
 		let resolved = self.resolve(key.clone());
 		if let Some(v) = resolved.as_bool() {
@@ -176,6 +180,8 @@ impl<'a> OptionResolver<'a> {
 	///
 	/// Panics if the option's default value is not a string. This invariant
 	/// is enforced at build-time by [`RegistryDbBuilder::register_option`].
+	///
+	/// [`RegistryDbBuilder::register_option`]: crate::db::builder::RegistryDbBuilder::register_option
 	pub fn resolve_string(&self, key: OptionKey) -> String {
 		let resolved = self.resolve(key.clone());
 		if let Some(v) = resolved.as_str() {

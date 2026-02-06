@@ -6,7 +6,7 @@
 //!   deterministic iteration order, and winner resolution policy.
 //! - Does not own: command execution, hook emission, or any subsystem behavior beyond selecting which
 //!   definition is visible under a given key.
-//! - Source of truth: [`RegistryDb`] and its domain-specific [`RuntimeRegistry`] instances, each
+//! - Source of truth: [`RegistryIndex`] and its domain-specific [`RuntimeRegistry`] instances, each
 //!   storing an atomic [`Snapshot<T>`].
 //!
 //! # Mental model
@@ -22,7 +22,7 @@
 //! - Lookup keys are split into:
 //!   - `by_id`: the single winner per stable ID
 //!   - `by_key`: winners for names/aliases (and other non-ID keys)
-//! - [`id_order`] preserves deterministic iteration order of *IDs that exist* in the snapshot.
+//! - [`Snapshot::id_order`] preserves deterministic iteration order of *IDs that exist* in the snapshot.
 //!   Iteration is driven by `id_order` and resolved through `by_id`.
 //!
 //! **Shift from `DefPtr` to `DefRef`:**
@@ -48,27 +48,26 @@
 //! # Invariants
 //!
 //! - MUST keep ID lookup unambiguous (one winner per ID).
-//!   - Enforced in: `insert_typed_key` (build-time), `insert_id_key_runtime` (runtime).
-//!   - Tested by: `core::index::tests::test_id_first_lookup`
+//!   - Enforced in: [`super::insert::insert_typed_key`] (build-time), [`super::insert::insert_id_key_runtime`] (runtime).
+//!   - Tested by: [`super::invariants::test_unambiguous_id_lookup`]
 //!   - Failure symptom: Panics during build/startup or inconsistent `get_by_id` results.
 //!
 //! - MUST evict old definitions on ID override (including name/alias winners pointing to the old def).
-//!   - Enforced in: `insert_id_key_runtime` (calls `KeyStore::evict_def` before `set_id_owner`).
-//!   - Tested by: `core::index::tests::test_id_override_eviction`
+//!   - Enforced in: [`super::insert::insert_id_key_runtime`] (calls `KeyStore::evict_def` before `set_id_owner`).
+//!   - Tested by: [`super::invariants::test_id_override_eviction`]
 //!   - Failure symptom: stale name/alias lookups returning a definition that is no longer the ID owner.
 //!
 //! - MUST maintain deterministic iteration order over effective definitions.
-//!   - Enforced in: `RuntimeRegistry::try_register_many_internal` (pushes to `id_order` only on
-//!     `InsertAction::InsertedNew`; replacements do not reorder).
-//!   - Tested by: `core::index::tests::test_override_preserves_order` and existing ID
-//!     ordering tests that assume stable traversal.
+//!   - Enforced in: [`RuntimeRegistry::try_register_many_internal`] (pushes to `id_order` only on
+//!     [`InsertAction::InsertedNew`]; replacements do not reorder).
+//!   - Tested by: [`super::invariants::test_deterministic_iteration`]
 //!   - Failure symptom: nondeterministic `all()` / `iter()` ordering across runs or after overrides.
 //!
 //! - Owned runtime definitions MUST remain alive for as long as they are reachable from the snapshot.
-//!   - Enforced in: structure (reachability) — `Snapshot` stores `DefRef::Owned(Arc<T>)` directly in
+//!   - Enforced in: structure (reachability) — [`Snapshot`] stores [`DefRef::Owned`] directly in
 //!     `by_id` / `by_key`, and [`RegistryRef<T>`] pins the snapshot `Arc` while borrowing `&T`.
-//!   - Tested by: `core::index::tests::test_uaf_trace_elimination`.
-//!   - Failure symptom: use-after-free when dereferencing a `RegistryRef` after concurrent writes.
+//!   - Tested by: [`super::invariants::test_snapshot_liveness_across_swap`]
+//!   - Failure symptom: use-after-free when dereferencing a [`RegistryRef`] after concurrent writes.
 //!
 //! # Data flow
 //!

@@ -12,5 +12,7 @@ pub use insert::{insert_id_key_runtime, insert_typed_key};
 pub use runtime::{RegistryRef, RuntimeRegistry};
 pub use types::{DefPtr, DefRef, RegistryIndex};
 
+pub(crate) mod invariants;
+
 #[cfg(test)]
 mod tests;

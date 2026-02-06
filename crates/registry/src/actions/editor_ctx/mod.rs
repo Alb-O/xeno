@@ -1,27 +1,29 @@
+//! Context provided to actions during execution.
 //!
-//! This module provides the bridge between action results and editor state.
-//! When an action returns an [`ActionResult`], the editor uses [`EditorContext`]
-//! to apply the result.
+//! # Purpose
 //!
-//! # Capability System
+//! [`EditorContext`] provides controlled access to the editor's state and capabilities.
+//! This allows actions to be written against a stable interface rather than internal
+//! structures, and enables dependency injection for testing.
 //!
-//! The editor's capabilities are split into fine-grained traits:
+//! # Design
 //!
-//! - **Required**: [`CursorAccess`], [`SelectionAccess`], [`ModeAccess`], [`NotificationAccess`]
-//! - **Optional**: [`SearchAccess`], [`UndoAccess`], [`EditAccess`], [`SplitOps`],
-//!   [`FocusOps`], [`ViewportAccess`], etc.
+//! The context is a thin wrapper around a dyn trait object [`EditorCapabilities`].
+//! This separates the interface (what actions can do) from the implementation
+//! (how the editor does it).
 //!
-//! Note: [`TextAccess`] is intentionally NOT required for result handlers.
-//! Actions receive text through [`ActionContext`] which is built separately
-//! from the buffer before action execution. Result handlers only mutate state;
-//! they don't need to read document content.
+//! # Capabilities
 //!
-//! [`EditorCapabilities`] combines the required traits and provides accessors
-//! for optional capabilities. This allows actions to gracefully degrade when
-//! certain features aren't available.
+//! Capabilities are split into fine-grained traits (e.g., [`CursorAccess`], [`SearchAccess`]).
+//! This allows actions to declare exactly what they need, and enables graceful
+//! degradation when capabilities are missing (e.g., in a headless environment).
 //!
-//! [`ActionResult`]: crate::actions::ActionResult
-//! [`ActionContext`]: crate::actions::ActionContext
+//! See [`crate::actions::editor_ctx`] module for the full list of available traits.
+//!
+//! [`EditorContext`]: EditorContext
+//! [`EditorCapabilities`]: EditorCapabilities
+//! [`CursorAccess`]: capabilities::CursorAccess
+//! [`SearchAccess`]: capabilities::SearchAccess
 
 mod capabilities;
 mod handlers;
@@ -64,9 +66,9 @@ use crate::actions::{Capability, CommandError, Mode};
 /// [`ActionResult`]: crate::actions::ActionResult
 /// [`check_capability`]: Self::check_capability
 pub struct EditorContext<'a> {
-	/// The capability provider (typically [`Editor`] from xeno-api).
+	/// The capability provider (typically `Editor` from xeno-api).
 	///
-	/// [`Editor`]: crate::actions::Editor
+	/// `Editor`: `crate::actions::Editor` (external type, not linkable here)
 	inner: &'a mut dyn EditorCapabilities,
 }
 
