@@ -80,6 +80,7 @@ fn approx_transaction_bytes(tx: &Transaction) -> usize {
 /// - `undo_bytes` and `redo_bytes` MUST accurately reflect the sum of `bytes` in
 ///   their respective stacks.
 /// - The total memory usage (`undo_bytes + redo_bytes`) MUST NOT exceed [`MAX_UNDO_BYTES`].
+/// - Counter arithmetic uses checked operations to prevent silent wrap in release.
 #[derive(Default, Debug)]
 pub struct TxnUndoStore {
 	undo_stack: VecDeque<UndoStep>,
@@ -175,8 +176,14 @@ impl TxnUndoStore {
 			true
 		};
 
-		self.head_pos += 1;
-		self.undo_tx_count += 1;
+		self.head_pos = self
+			.head_pos
+			.checked_add(1)
+			.expect("undo store: head_pos overflow");
+		self.undo_tx_count = self
+			.undo_tx_count
+			.checked_add(1)
+			.expect("undo store: undo_tx_count overflow");
 
 		self.clear_redo();
 		self.enforce_limits();
@@ -200,13 +207,19 @@ impl TxnUndoStore {
 		while self.undo_stack.len() > MAX_UNDO {
 			if let Some(oldest) = self.undo_stack.pop_front() {
 				self.undo_bytes = self.undo_bytes.saturating_sub(oldest.bytes);
-				self.undo_tx_count -= oldest.undo.len() as u64;
+				self.undo_tx_count = self
+					.undo_tx_count
+					.checked_sub(oldest.undo.len() as u64)
+					.expect("undo store: undo_tx_count underflow during depth eviction");
 			}
 		}
 		while self.redo_stack.len() > MAX_UNDO {
 			if let Some(oldest) = self.redo_stack.pop_front() {
 				self.redo_bytes = self.redo_bytes.saturating_sub(oldest.bytes);
-				self.redo_tx_count -= oldest.redo.len() as u64;
+				self.redo_tx_count = self
+					.redo_tx_count
+					.checked_sub(oldest.redo.len() as u64)
+					.expect("undo store: redo_tx_count underflow during depth eviction");
 			}
 		}
 	}
@@ -217,10 +230,16 @@ impl TxnUndoStore {
 		while self.undo_bytes + self.redo_bytes > MAX_UNDO_BYTES {
 			if let Some(oldest) = self.redo_stack.pop_front() {
 				self.redo_bytes = self.redo_bytes.saturating_sub(oldest.bytes);
-				self.redo_tx_count -= oldest.redo.len() as u64;
+				self.redo_tx_count = self
+					.redo_tx_count
+					.checked_sub(oldest.redo.len() as u64)
+					.expect("undo store: redo_tx_count underflow during byte eviction");
 			} else if let Some(oldest) = self.undo_stack.pop_front() {
 				self.undo_bytes = self.undo_bytes.saturating_sub(oldest.bytes);
-				self.undo_tx_count -= oldest.undo.len() as u64;
+				self.undo_tx_count = self
+					.undo_tx_count
+					.checked_sub(oldest.undo.len() as u64)
+					.expect("undo store: undo_tx_count underflow during byte eviction");
 			} else {
 				break;
 			}
@@ -231,7 +250,10 @@ impl TxnUndoStore {
 		// Invalidate clean_pos if it points to evicted history.
 		if let Some(cp) = self.clean_pos {
 			let min_undo_pos = self.head_pos.saturating_sub(self.undo_tx_count);
-			let max_redo_pos = self.head_pos + self.redo_tx_count;
+			let max_redo_pos = self
+				.head_pos
+				.checked_add(self.redo_tx_count)
+				.expect("undo store: max_redo_pos overflow");
 
 			if cp < min_undo_pos || cp > max_redo_pos {
 				self.clean_pos = None;
@@ -248,10 +270,11 @@ impl TxnUndoStore {
 		let step = self.undo_stack.pop_back()?;
 		let tx_len = step.undo.len() as u64;
 
-		debug_assert!(self.head_pos >= tx_len, "head_pos underflow during undo");
-
 		self.undo_bytes = self.undo_bytes.saturating_sub(step.bytes);
-		self.undo_tx_count -= tx_len;
+		self.undo_tx_count = self
+			.undo_tx_count
+			.checked_sub(tx_len)
+			.expect("undo store: undo_tx_count underflow during undo");
 
 		let mut applied = Vec::with_capacity(step.undo.len());
 		for tx in step.undo.iter().rev() {
@@ -259,9 +282,15 @@ impl TxnUndoStore {
 			applied.push(tx.clone());
 		}
 
-		self.head_pos -= tx_len;
+		self.head_pos = self
+			.head_pos
+			.checked_sub(tx_len)
+			.expect("undo store: head_pos underflow during undo");
 		self.redo_bytes += step.bytes;
-		self.redo_tx_count += tx_len;
+		self.redo_tx_count = self
+			.redo_tx_count
+			.checked_add(tx_len)
+			.expect("undo store: redo_tx_count overflow during undo");
 		self.redo_stack.push_back(step);
 		self.enforce_limits();
 
@@ -279,16 +308,25 @@ impl TxnUndoStore {
 		let step = self.redo_stack.pop_back()?;
 		let tx_len = step.redo.len() as u64;
 		self.redo_bytes = self.redo_bytes.saturating_sub(step.bytes);
-		self.redo_tx_count -= tx_len;
+		self.redo_tx_count = self
+			.redo_tx_count
+			.checked_sub(tx_len)
+			.expect("undo store: redo_tx_count underflow during redo");
 
 		for tx in &step.redo {
 			tx.apply(content);
 		}
 
-		self.head_pos += tx_len;
+		self.head_pos = self
+			.head_pos
+			.checked_add(tx_len)
+			.expect("undo store: head_pos overflow during redo");
 		let redo_txs = step.redo.clone();
 		self.undo_bytes += step.bytes;
-		self.undo_tx_count += tx_len;
+		self.undo_tx_count = self
+			.undo_tx_count
+			.checked_add(tx_len)
+			.expect("undo store: undo_tx_count overflow during redo");
 		self.undo_stack.push_back(step);
 		self.enforce_limits();
 
