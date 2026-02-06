@@ -20,16 +20,27 @@ use crate::protocol::JsonRpcProtocol;
 use crate::types::{AnyNotification, AnyRequest, AnyResponse, RequestId, ResponseError};
 use crate::{Error, Result};
 
+/// Outbound message envelope for total ordering and barrier support.
+enum Outbound {
+	Notify {
+		notif: AnyNotification,
+		written: Option<oneshot::Sender<Result<()>>>,
+	},
+	Request {
+		pending: PendingRequest,
+	},
+	Reply {
+		reply: ReplyMsg,
+		written: Option<oneshot::Sender<Result<()>>>,
+	},
+}
+
 /// State for a running server process.
 struct ServerProcess {
 	/// The child process handle.
 	child: Child,
-	/// Channel for sending requests to the server.
-	request_tx: mpsc::UnboundedSender<PendingRequest>,
-	/// Channel for sending notifications to the server.
-	notify_tx: mpsc::UnboundedSender<AnyNotification>,
-	/// Channel for sending replies to server-initiated requests.
-	reply_tx: mpsc::UnboundedSender<ReplyMsg>,
+	/// Channel for sending all outbound messages to the server.
+	outbound_tx: mpsc::UnboundedSender<Outbound>,
 }
 
 /// A pending request awaiting a response.
@@ -100,22 +111,13 @@ impl LocalTransport {
 			reason: "failed to capture stdout".into(),
 		})?;
 
-		let (request_tx, request_rx) = mpsc::unbounded_channel::<PendingRequest>();
-		let (notify_tx, notify_rx) = mpsc::unbounded_channel::<AnyNotification>();
-		let (reply_tx, reply_rx) = mpsc::unbounded_channel::<ReplyMsg>();
+		let (outbound_tx, outbound_rx) = mpsc::unbounded_channel::<Outbound>();
 		let event_tx = self.event_tx.clone();
 
 		// Spawn the I/O task for this server
-		tokio::spawn(run_server_io(
-			id, stdin, stdout, request_rx, notify_rx, reply_rx, event_tx,
-		));
+		tokio::spawn(run_server_io(id, stdin, stdout, outbound_rx, event_tx));
 
-		Ok(ServerProcess {
-			child,
-			request_tx,
-			notify_tx,
-			reply_tx,
-		})
+		Ok(ServerProcess { child, outbound_tx })
 	}
 }
 
@@ -170,8 +172,11 @@ impl LspTransport for LocalTransport {
 			.get(&server)
 			.ok_or_else(|| Error::Protocol(format!("server {server:?} not found")))?;
 		process
-			.notify_tx
-			.send(notif)
+			.outbound_tx
+			.send(Outbound::Notify {
+				notif,
+				written: None,
+			})
 			.map_err(|_| Error::ServiceStopped)
 	}
 
@@ -179,11 +184,19 @@ impl LspTransport for LocalTransport {
 		&self,
 		server: LanguageServerId,
 		notif: AnyNotification,
-	) -> Result<oneshot::Receiver<()>> {
-		// For local transport, notifications are sent immediately
-		self.notify(server, notif).await?;
+	) -> Result<oneshot::Receiver<Result<()>>> {
 		let (tx, rx) = oneshot::channel();
-		let _ = tx.send(());
+		let servers = self.servers.read();
+		let process = servers
+			.get(&server)
+			.ok_or_else(|| Error::Protocol(format!("server {server:?} not found")))?;
+		process
+			.outbound_tx
+			.send(Outbound::Notify {
+				notif,
+				written: Some(tx),
+			})
+			.map_err(|_| Error::ServiceStopped)?;
 		Ok(rx)
 	}
 
@@ -201,10 +214,12 @@ impl LspTransport for LocalTransport {
 				.get(&server)
 				.ok_or_else(|| Error::Protocol(format!("server {server:?} not found")))?;
 			process
-				.request_tx
-				.send(PendingRequest {
-					request: req.clone(),
-					response_tx,
+				.outbound_tx
+				.send(Outbound::Request {
+					pending: PendingRequest {
+						request: req.clone(),
+						response_tx,
+					},
 				})
 				.map_err(|_| Error::ServiceStopped)?;
 		}
@@ -228,8 +243,11 @@ impl LspTransport for LocalTransport {
 			.get(&server)
 			.ok_or_else(|| Error::Protocol(format!("server {server:?} not found")))?;
 		process
-			.reply_tx
-			.send(ReplyMsg { id, resp })
+			.outbound_tx
+			.send(Outbound::Reply {
+				reply: ReplyMsg { id, resp },
+				written: None,
+			})
 			.map_err(|_| Error::ServiceStopped)
 	}
 
@@ -256,9 +274,7 @@ async fn run_server_io(
 	id: LanguageServerId,
 	mut stdin: tokio::process::ChildStdin,
 	stdout: tokio::process::ChildStdout,
-	mut request_rx: mpsc::UnboundedReceiver<PendingRequest>,
-	mut notify_rx: mpsc::UnboundedReceiver<AnyNotification>,
-	mut reply_rx: mpsc::UnboundedReceiver<ReplyMsg>,
+	mut outbound_rx: mpsc::UnboundedReceiver<Outbound>,
 	event_tx: mpsc::UnboundedSender<TransportEvent>,
 ) {
 	let mut reader = BufReader::new(stdout);
@@ -268,27 +284,47 @@ async fn run_server_io(
 
 	loop {
 		tokio::select! {
-			// Handle outbound requests
-			Some(pending_req) = request_rx.recv() => {
-				let req_id = pending_req.request.id.clone();
-				if let Err(e) = write_message(&mut stdin, &protocol, &pending_req.request).await {
-					let _ = pending_req.response_tx.send(Err(e));
-					continue;
-				}
-				pending.insert(req_id, pending_req.response_tx);
-			}
+			// Handle all outbound messages sequentially for total ordering
+			Some(out) = outbound_rx.recv() => {
+				let write_res: Result<()> = match out {
+					Outbound::Notify { notif, written } => {
+						let r = write_notification(&mut stdin, &protocol, &notif).await;
+						if let Some(tx) = written {
+							let _ = tx.send(r.clone());
+						}
+						r
+					}
+					Outbound::Request { pending: pending_req } => {
+						let req_id = pending_req.request.id.clone();
+						let r = write_message(&mut stdin, &protocol, &pending_req.request).await;
+						match r {
+							Ok(()) => {
+								pending.insert(req_id, pending_req.response_tx);
+								Ok(())
+							}
+							Err(e) => {
+								let _ = pending_req.response_tx.send(Err(e.clone()));
+								Err(e)
+							}
+						}
+					}
+					Outbound::Reply { reply, written } => {
+						let r = write_response(&mut stdin, reply.id, reply.resp).await;
+						if let Some(tx) = written {
+							let _ = tx.send(r.clone());
+						}
+						r
+					}
+				};
 
-			// Handle outbound notifications
-			Some(notif) = notify_rx.recv() => {
-				if let Err(e) = write_notification(&mut stdin, &protocol, &notif).await {
-					tracing::warn!(server_id = %id, error = %e, "Failed to send notification");
-				}
-			}
-
-			// Handle outbound replies to server requests
-			Some(reply) = reply_rx.recv() => {
-				if let Err(e) = write_response(&mut stdin, reply.id, reply.resp).await {
-					tracing::warn!(server_id = %id, error = %e, "Failed to send server request reply");
+				if let Err(e) = write_res {
+					// Treat write failure as fatal: terminate IO loop and notify manager
+					tracing::error!(server_id = %id, error = %e, "Outbound write failed; terminating IO loop");
+					let _ = event_tx.send(TransportEvent::Status {
+						server: id,
+						status: TransportStatus::Crashed,
+					});
+					break;
 				}
 			}
 
@@ -323,6 +359,24 @@ async fn run_server_io(
 	// Clean up pending requests
 	for (_, tx) in pending {
 		let _ = tx.send(Err(Error::ServiceStopped));
+	}
+
+	// Clean up pending barriers in the outbound queue
+	while let Ok(out) = outbound_rx.try_recv() {
+		match out {
+			Outbound::Notify {
+				written: Some(tx), ..
+			}
+			| Outbound::Reply {
+				written: Some(tx), ..
+			} => {
+				let _ = tx.send(Err(Error::ServiceStopped));
+			}
+			Outbound::Request { pending: p } => {
+				let _ = p.response_tx.send(Err(Error::ServiceStopped));
+			}
+			_ => {}
+		}
 	}
 }
 

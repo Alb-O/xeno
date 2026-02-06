@@ -34,9 +34,9 @@ impl crate::client::transport::LspTransport for SimpleStubTransport {
 		&self,
 		_server: LanguageServerId,
 		_notif: crate::AnyNotification,
-	) -> crate::Result<oneshot::Receiver<()>> {
+	) -> crate::Result<oneshot::Receiver<crate::Result<()>>> {
 		let (tx, rx) = oneshot::channel();
-		let _ = tx.send(());
+		let _ = tx.send(Ok(()));
 		Ok(rx)
 	}
 	async fn request(
@@ -132,9 +132,9 @@ async fn test_document_sync_returns_not_ready_before_init() {
 			&self,
 			_server: LanguageServerId,
 			_notif: crate::AnyNotification,
-		) -> crate::Result<oneshot::Receiver<()>> {
+		) -> crate::Result<oneshot::Receiver<crate::Result<()>>> {
 			let (tx, rx) = oneshot::channel();
-			let _ = tx.send(());
+			let _ = tx.send(Ok(()));
 			Ok(rx)
 		}
 		async fn request(

@@ -36,9 +36,9 @@ impl LspTransport for MockTransport {
 		&self,
 		_server: LanguageServerId,
 		_notif: AnyNotification,
-	) -> Result<tokio::sync::oneshot::Receiver<()>> {
+	) -> Result<tokio::sync::oneshot::Receiver<crate::Result<()>>> {
 		let (tx, rx) = tokio::sync::oneshot::channel();
-		let _ = tx.send(());
+		let _ = tx.send(Ok(()));
 		Ok(rx)
 	}
 

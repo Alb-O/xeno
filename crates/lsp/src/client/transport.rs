@@ -83,7 +83,7 @@ pub trait LspTransport: Send + Sync {
 		&self,
 		server: LanguageServerId,
 		notif: AnyNotification,
-	) -> crate::Result<oneshot::Receiver<()>>;
+	) -> crate::Result<oneshot::Receiver<crate::Result<()>>>;
 
 	/// Sends a synchronous request to the server and awaits its response.
 	async fn request(

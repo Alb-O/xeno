@@ -304,11 +304,11 @@ impl Registry {
 		let final_res = match started_res {
 			Ok(started) => {
 				guard.note_started(started.id);
-				let handle = {
+				let (handle, stop_id) = {
 					let mut state = self.state.write();
 					// Final pathological race check
 					if let Some(existing) = state.servers.get(&key) {
-						existing.handle.clone()
+						(existing.handle.clone(), Some(started.id))
 					} else {
 						let handle = ClientHandle::new(
 							started.id,
@@ -357,9 +357,18 @@ impl Registry {
 							}
 						});
 
-						handle
+						(handle, None)
 					}
 				};
+
+				if let Some(id) = stop_id {
+					// Stop the redundant server we just started
+					let transport = self.transport.clone();
+					tokio::spawn(async move {
+						let _ = transport.stop(id).await;
+					});
+				}
+
 				Ok(handle)
 			}
 			Err(e) => Err(e),

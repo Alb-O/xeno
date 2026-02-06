@@ -59,8 +59,19 @@ impl ClientHandle {
 			)
 			.await?;
 
-		let _ = barrier_rx.await;
-		self.set_ready(true);
+		// Await the barrier to ensure the 'initialized' notification is written
+		// before we start sending requests.
+		match barrier_rx.await {
+			Ok(Ok(())) => {
+				self.set_ready(true);
+			}
+			Ok(Err(e)) => {
+				return Err(e);
+			}
+			Err(_) => {
+				return Err(crate::Error::Protocol("barrier sender dropped".into()));
+			}
+		}
 
 		Ok(result)
 	}
@@ -130,7 +141,7 @@ impl ClientHandle {
 		uri: Uri,
 		version: i32,
 		text: String,
-	) -> Result<oneshot::Receiver<()>> {
+	) -> Result<oneshot::Receiver<Result<()>>> {
 		let notification = AnyNotification {
 			method: lsp_types::notification::DidChangeTextDocument::METHOD.into(),
 			params: serde_json::to_value(lsp_types::DidChangeTextDocumentParams {
@@ -172,7 +183,7 @@ impl ClientHandle {
 		uri: Uri,
 		version: i32,
 		changes: Vec<lsp_types::TextDocumentContentChangeEvent>,
-	) -> Result<oneshot::Receiver<()>> {
+	) -> Result<oneshot::Receiver<Result<()>>> {
 		let notification = AnyNotification {
 			method: lsp_types::notification::DidChangeTextDocument::METHOD.into(),
 			params: serde_json::to_value(lsp_types::DidChangeTextDocumentParams {

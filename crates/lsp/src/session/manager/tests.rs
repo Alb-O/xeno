@@ -34,9 +34,9 @@ impl LspTransport for StubTransport {
 		&self,
 		_server: LanguageServerId,
 		_notif: AnyNotification,
-	) -> crate::Result<oneshot::Receiver<()>> {
+	) -> crate::Result<oneshot::Receiver<crate::Result<()>>> {
 		let (tx, rx) = oneshot::channel();
-		let _ = tx.send(());
+		let _ = tx.send(Ok(()));
 		Ok(rx)
 	}
 

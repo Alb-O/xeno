@@ -350,13 +350,26 @@ impl DocumentSync {
 		&self,
 		uri: Uri,
 		version: i32,
-		barrier: oneshot::Receiver<()>,
+		barrier: oneshot::Receiver<crate::Result<()>>,
 	) -> oneshot::Receiver<()> {
 		let (tx, rx) = oneshot::channel();
 		let documents = self.documents.clone();
 		tokio::spawn(async move {
-			let _ = barrier.await;
-			documents.ack_change(&uri, version);
+			match barrier.await {
+				Ok(Ok(())) => {
+					if !documents.ack_change(&uri, version) {
+						tracing::warn!(uri = uri.as_str(), version, "LSP barrier ack mismatch");
+					}
+				}
+				Ok(Err(e)) => {
+					tracing::error!(uri = uri.as_str(), version, error = %e, "LSP write barrier failed");
+					documents.mark_force_full_sync(&uri);
+				}
+				Err(_) => {
+					tracing::error!(uri = uri.as_str(), version, "LSP barrier sender dropped");
+					documents.mark_force_full_sync(&uri);
+				}
+			}
 			let _ = tx.send(());
 		});
 		rx

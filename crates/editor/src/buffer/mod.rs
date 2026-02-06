@@ -1,12 +1,75 @@
 //! Buffer - the core text editing unit.
 //!
-//! The buffer system separates document content from view state:
-//! - [`Document`] holds shared content (text, undo history, syntax)
-//! - [`Buffer`] holds per-view state (cursor, selection, scroll position)
+//! # Purpose
 //!
-//! Multiple buffers can share the same document, enabling proper split behavior.
-
+//! - Owns: per-view state (cursor, selection, scroll position, local options) and modal input state.
+//! - Does not own: authoritative document content (owned by [`Document`]).
+//! - Source of truth: [`Buffer`].
+//!
+//! # Mental model
+//!
+//! - A buffer is a view into a document.
+//! - Multiple buffers can point to the same document (enabling splits).
+//! - View-local state (like the cursor) is stored in the buffer.
+//! - Shared state (like text and history) is stored in the document.
+//! - Thread-safety for shared documents is managed via [`DocumentHandle`] with re-entrancy protection.
+//!
+//! # Key types
+//!
+//! | Type | Meaning | Constraints | Constructed / mutated in |
+//! |---|---|---|---|
+//! | [`Buffer`] | Primary editing unit | MUST separate view state from content | `Buffer::new`, `Buffer::clone_for_split` |
+//! | [`Document`] | Shared content | Authoritative source of text/history | `Document::new` |
+//! | [`DocumentHandle`] | Thread-safe wrapper | MUST prevent re-entrant locks on same thread | `DocumentHandle::new` |
+//! | [`ApplyPolicy`] | Edit validation rules | Controls readonly/history behavior | `editing::apply` |
+//!
+//! # Invariants
+//!
+//! 1. MUST NOT allow re-entrant locking of the same document on a single thread.
+//!    - Enforced in: [`LockGuard::new`]
+//!    - Tested by: `core::document::tests::test_reentrant_lock_panic`
+//!    - Failure symptom: Thread deadlocks waiting for a lock it already holds.
+//! 2. MUST keep view state (cursor/selection) within document bounds.
+//!    - Enforced in: [`Buffer::ensure_valid_selection`]
+//!    - Tested by: `buffer::editing::tests::test_selection_clamping`
+//!    - Failure symptom: Panics or out-of-bounds access during rendering or editing.
+//! 3. MUST preserve monotonic document versions across edits.
+//!    - Enforced in: [`Document::apply_commit`]
+//!    - Tested by: `core::document::tests::test_version_monotonicity`
+//!    - Failure symptom: Desync between editor, LSP, and syntax subsystems.
+//!
+//! # Data flow
+//!
+//! 1. Input: User keys flow into [`InputHandler`].
+//! 2. Resolution: Input produces an action which calls `Buffer` methods.
+//! 3. Mutation: `Buffer` calls [`DocumentHandle::with_mut`] to apply edits.
+//! 4. Notification: Document changes trigger version bumps and event emission.
+//!
+//! # Concurrency and ordering
+//!
+//! - Multi-view consistency: Edits to a shared document are immediately visible to all buffers.
+//! - Lock ordering: Always acquire document locks for the shortest possible duration.
+//! - Thread-safety: `Document` is wrapped in `Arc<RwLock<Document>>` inside `DocumentHandle`.
+//!
+//! # Failure modes and recovery
+//!
+//! - Readonly violation: Edits to readonly documents/buffers return `EditError`.
+//! - Deadlock prevention: Re-entrant lock attempts trigger a controlled panic via `LockGuard`.
+//!
+//! # Recipes
+//!
+//! ## Split a view
+//!
+//! - Call `buffer.clone_for_split(new_view_id)`.
+//! - This creates a new buffer sharing the same `DocumentHandle`.
+//!
+//! ## Apply an edit
+//!
+//! - Use `buffer.apply_transaction(tx, policy)`.
+//! - This handles versioning, history, and readonly checks automatically.
+//!
 mod editing;
+
 mod layout;
 mod navigation;
 
@@ -221,7 +284,7 @@ impl Buffer {
 	}
 
 	pub fn document_id(&self) -> DocumentId {
-		self.with_doc(|doc| doc.id)
+		self.document.doc_id
 	}
 
 	/// Checks if this buffer shares a document with another buffer.
@@ -283,7 +346,11 @@ impl Buffer {
 	/// `Some(false)` is treated identically to `None` (it cannot bypass
 	/// document-level readonly).
 	pub fn set_readonly_override(&mut self, readonly: Option<bool>) {
-		self.readonly_override = readonly;
+		self.readonly_override = if readonly == Some(true) {
+			Some(true)
+		} else {
+			None
+		};
 	}
 
 	/// Replaces the document content wholesale, clearing history.
@@ -319,19 +386,25 @@ impl Buffer {
 
 	/// Returns the line number containing the cursor.
 	pub fn cursor_line(&self) -> usize {
-		self.with_doc(|doc| {
-			let text = doc.content();
-			text.char_to_line(self.cursor.min(text.len_chars()))
-		})
+		self.with_doc(|doc| self.cursor_line_with_doc(doc))
+	}
+
+	#[inline]
+	pub(crate) fn cursor_line_with_doc(&self, doc: &Document) -> usize {
+		let text = doc.content();
+		text.char_to_line(self.cursor.min(text.len_chars()))
 	}
 
 	/// Returns the column of the cursor within its line.
 	pub fn cursor_col(&self) -> usize {
-		self.with_doc(|doc| {
-			let text = doc.content();
-			let line = text.char_to_line(self.cursor.min(text.len_chars()));
-			self.cursor.saturating_sub(text.line_to_char(line))
-		})
+		self.with_doc(|doc| self.cursor_col_with_doc(doc))
+	}
+
+	#[inline]
+	pub(crate) fn cursor_col_with_doc(&self, doc: &Document) -> usize {
+		let text = doc.content();
+		let line = text.char_to_line(self.cursor.min(text.len_chars()));
+		self.cursor.saturating_sub(text.line_to_char(line))
 	}
 
 	/// Computes the combined width of all enabled gutter columns.
@@ -345,7 +418,7 @@ impl Buffer {
 
 		let ctx = GutterWidthContext {
 			total_lines: doc.content().len_lines(),
-			viewport_width: self.text_width as u16 + 100, // approximate
+			viewport_width: self.text_width as u16,
 		};
 		total_width(&ctx)
 	}
@@ -357,8 +430,6 @@ impl Buffer {
 	pub fn redo_stack_len(&self) -> usize {
 		self.with_doc(|doc| doc.redo_len())
 	}
-
-	/// Clears the insert undo grouping flag.
 
 	/// Clamps selection and cursor to valid document bounds.
 	pub fn ensure_valid_selection(&mut self) {
