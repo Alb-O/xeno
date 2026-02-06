@@ -55,17 +55,17 @@
 //!
 //! - The router MUST discard transport events from stale server generations.
 //!   - Enforced in: [`LspManager::spawn_router`] (checks `Registry::is_current` before dispatching)
-//!   - Tested by: TODO (add regression: test_router_drops_stale_generation_events)
+//!   - Tested by: `TODO (add regression: test_router_drops_stale_generation_events)`
 //!   - Failure symptom: Diagnostics or progress from a previous server generation leak into the current session, causing phantom diagnostics or stuck progress indicators.
 //!
 //! - `LanguageServerId` MUST be a (slot, generation) pair. The slot is stable for a given `(language, root_path)` key; the generation increments on each restart.
 //!   - Enforced in: `RegistryState::get_or_create_slot_id`, `RegistryState::next_gen`
-//!   - Tested by: TODO (add regression: test_server_id_generation_increments_on_restart)
+//!   - Tested by: `TODO (add regression: test_server_id_generation_increments_on_restart)`
 //!   - Failure symptom: Events from a restarted server are misattributed to the previous instance, or `is_current` check always passes for stale IDs.
 //!
 //! - `ServerConfig` MUST carry the pre-assigned `LanguageServerId`; the transport MUST NOT generate its own IDs.
 //!   - Enforced in: `Registry::get_or_start` (assigns ID before calling `transport.start`), `LocalTransport::start` (uses `cfg.id`)
-//!   - Tested by: `lsp::registry::tests::test_singleflight_start` (asserts `StartedServer { id: cfg.id }`)
+//!   - Tested by: `TODO (add regression: test_singleflight_start)`
 //!   - Failure symptom: Transport-assigned IDs diverge from registry IDs, breaking event routing and `is_current` checks.
 //!
 //! - `workspace/configuration` handling MUST return an array with one element per requested item, and MUST return an object for missing config.
@@ -80,7 +80,7 @@
 //!
 //! - `DocumentSync` MUST NOT send change notifications before the client has completed initialization.
 //!   - Enforced in: `DocumentSync::notify_change_full_text`, `DocumentSync::notify_change_incremental_no_content`
-//!   - Tested by: `lsp::sync::tests::test_document_sync_returns_not_ready_before_init`
+//!   - Tested by: [crate::sync::tests::test_document_sync_returns_not_ready_before_init]
 //!   - Failure symptom: edits are dropped by the server or applied out of order, resulting in stale diagnostics and incorrect completions.
 //!
 //! - `LspSystem::prepare_position_request` MUST gate on `ClientHandle::is_ready()` before forming any position-based LSP request.

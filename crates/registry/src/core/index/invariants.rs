@@ -1,5 +1,3 @@
-#![allow(dead_code)]
-
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -33,24 +31,6 @@ fn make_meta(id: &'static str, priority: i16) -> RegistryMeta {
 		id,
 		name: id,
 		aliases: &[],
-		description: "",
-		priority,
-		source: crate::RegistrySource::Builtin,
-		required_caps: &[],
-		flags: 0,
-	}
-}
-
-fn make_meta_full(
-	id: &'static str,
-	name: &'static str,
-	aliases: &'static [&'static str],
-	priority: i16,
-) -> RegistryMeta {
-	RegistryMeta {
-		id,
-		name,
-		aliases,
 		description: "",
 		priority,
 		source: crate::RegistrySource::Builtin,

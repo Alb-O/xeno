@@ -25,18 +25,20 @@
 //!
 //! # Invariants
 //!
-//! 1. MUST NOT allow re-entrant locking of the same document on a single thread.
-//!    - Enforced in: [`LockGuard::new`]
-//!    - Tested by: `core::document::tests::test_reentrant_lock_panic`
-//!    - Failure symptom: Thread deadlocks waiting for a lock it already holds.
-//! 2. MUST keep view state (cursor/selection) within document bounds.
-//!    - Enforced in: [`Buffer::ensure_valid_selection`]
-//!    - Tested by: `buffer::editing::tests::test_selection_clamping`
-//!    - Failure symptom: Panics or out-of-bounds access during rendering or editing.
-//! 3. MUST preserve monotonic document versions across edits.
-//!    - Enforced in: [`Document::apply_commit`]
-//!    - Tested by: `core::document::tests::test_version_monotonicity`
-//!    - Failure symptom: Desync between editor, LSP, and syntax subsystems.
+//! - MUST NOT allow re-entrant locking of the same document on a single thread.
+//!   - Enforced in: [`LockGuard::new`]
+//!   - Tested by: `TODO (add regression: test_reentrant_lock_panic)`
+//!   - Failure symptom: Thread deadlocks waiting for a lock it already holds.
+//!
+//! - MUST keep view state (cursor/selection) within document bounds.
+//!   - Enforced in: [`Buffer::ensure_valid_selection`]
+//!   - Tested by: `TODO (add regression: test_selection_clamping)`
+//!   - Failure symptom: Panics or out-of-bounds access during rendering or editing.
+//!
+//! - MUST preserve monotonic document versions across edits.
+//!   - Enforced in: [`Document::apply_commit`]
+//!   - Tested by: `TODO (add regression: test_version_monotonicity)`
+//!   - Failure symptom: Desync between editor, LSP, and syntax subsystems.
 //!
 //! # Data flow
 //!

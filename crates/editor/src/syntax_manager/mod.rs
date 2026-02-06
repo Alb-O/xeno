@@ -28,69 +28,69 @@
 //!   - Synchronous incremental updates are bounded to 10ms.
 //!   - Full parsing and large updates are offloaded to background tasks.
 //!   - Enforced in: [`SyntaxManager::ensure_syntax`] (uses `TaskCollector`) and [`SyntaxManager::note_edit_incremental`] (bounded timeout).
-//!   - Tested by: `syntax_manager::tests::test_inflight_drained_even_if_doc_marked_clean`
+//!   - Tested by: [tests::test_inflight_drained_even_if_doc_marked_clean]
 //!   - Failure symptom: UI freezes or jitters during edits.
 //!
 //! - MUST enforce single-flight per document.
 //!   - Enforced in: `DocEntry::sched.active_task` check in [`SyntaxManager::ensure_syntax`].
-//!   - Tested by: `syntax_manager::tests::test_single_flight_per_doc`
+//!   - Tested by: [tests::test_single_flight_per_doc]
 //!   - Failure symptom: Multiple redundant parse tasks for the same document identity.
 //!
 //! - MUST install last completed parse even if stale, but MUST NOT regress to an older tree
 //!   version than the one currently installed. Version comparison is monotonic via
 //!   `tree_doc_version`.
-//!   - Enforced in: [`should_install_completed_parse`] (called from [`SyntaxManager::ensure_syntax`]).
-//!   - Tested by: `syntax_manager::tests::test_stale_parse_does_not_overwrite_clean_incremental`, `syntax_manager::tests::test_stale_install_continuity`
+//!   - Enforced in: [should_install_completed_parse] (called from [`SyntaxManager::ensure_syntax`]).
+//!   - Tested by: [tests::test_stale_parse_does_not_overwrite_clean_incremental], [tests::test_stale_install_continuity]
 //!   - Failure symptom (missing install): Document stays unhighlighted until an exact match completes.
 //!   - Failure symptom (overwrite race): Stale tree overwrites correct incremental tree while `dirty=false`, creating a stuck state with wrong highlights.
 //!
 //! - MUST call [`SyntaxManager::note_edit_incremental`] (or [`SyntaxManager::note_edit`]) on every document mutation (edits, undo, redo, LSP workspace edits).
 //!   - Enforced in: `EditorUndoHost::apply_transaction_inner`, `EditorUndoHost::apply_history_op`, `Editor::apply_buffer_edit_plan`
-//!   - Tested by: `syntax_manager::tests::test_note_edit_updates_timestamp`
+//!   - Tested by: [tests::test_note_edit_updates_timestamp]
 //!   - Failure symptom: Debounce gate in [`SyntaxManager::ensure_syntax`] is non-functional; background parses fire without waiting for edit silence.
 //!
 //! - MUST skip debounce for bootstrap parses (no existing syntax tree).
 //!   - Enforced in: [`SyntaxManager::ensure_syntax`] (debounce gate conditioned on `state.current.is_some()`)
-//!   - Tested by: `syntax_manager::tests::test_bootstrap_parse_skips_debounce`
+//!   - Tested by: [tests::test_bootstrap_parse_skips_debounce]
 //!   - Failure symptom: Newly opened documents show unhighlighted text until the debounce timeout elapses.
 //!
 //! - MUST detect completed inflight syntax tasks from `tick()`, not only from `render()`.
 //!   - Enforced in: `Editor::tick` (calls [`SyntaxManager::drain_finished_inflight`] to trigger redraw)
-//!   - Tested by: `syntax_manager::tests::test_idle_tick_polls_inflight_parse`
+//!   - Tested by: [tests::test_idle_tick_polls_inflight_parse]
 //!   - Failure symptom: Completed background parses are not installed until user input triggers a render; documents stay unhighlighted indefinitely while idle.
 //!
 //! - MUST bump `syntax_version` whenever the installed tree changes or is dropped.
-//!   - Enforced in: `mark_updated` (called from `SyntaxManager::ensure_syntax`, `apply_retention`)
-//!   - Tested by: `syntax_manager::tests::test_syntax_version_bumps_on_install`
+//!   - Enforced in: [mark_updated] (called from [`SyntaxManager::ensure_syntax`], [apply_retention])
+//!   - Tested by: [tests::test_syntax_version_bumps_on_install]
 //!   - Failure symptom: Highlight cache serves stale spans after a reparse or retention drop.
 //!
 //! - MUST clear `pending_incremental` on language change, syntax reset, and retention drop.
-//!   - Enforced in: [`SyntaxManager::ensure_syntax`] (language change), [`SyntaxManager::reset_syntax`], `apply_retention`
-//!   - Tested by: `syntax_manager::tests::test_language_switch_discards_old_parse`
+//!   - Enforced in: [`SyntaxManager::ensure_syntax`] (language change), [`SyntaxManager::reset_syntax`], [apply_retention]
+//!   - Tested by: [tests::test_language_switch_discards_old_parse]
 //!   - Failure symptom: Stale changeset applied against a mismatched rope causes incorrect `InputEdit`s and garbled highlights or panics.
 //!   - Note: On options mismatch, the old tree is retained for rendering continuity while the new parse runs.
 //!
 //! - MUST track `tree_doc_version` alongside the installed syntax tree; MUST clear it whenever
 //!   the tree is dropped (reset, retention, language change).
-//!   - Enforced in: `SyntaxManager::note_edit_incremental` (sets on success), `SyntaxManager::ensure_syntax` (sets on install), `SyntaxManager::reset_syntax`, `apply_retention` (clears on drop)
-//!   - Tested by: `syntax_manager::tests::test_stale_parse_does_not_overwrite_clean_incremental`
+//!   - Enforced in: [`SyntaxManager::note_edit_incremental`] (sets on success), [`SyntaxManager::ensure_syntax`] (sets on install), [`SyntaxManager::reset_syntax`], [apply_retention] (clears on drop)
+//!   - Tested by: [tests::test_stale_parse_does_not_overwrite_clean_incremental]
 //!   - Failure symptom: Highlight rendering uses a tree from a different document version, causing out-of-bounds access or garbled spans.
 //!
 //! - Highlight rendering MUST skip spans when `tree_doc_version` does not match the document
 //!   version being rendered.
 //!   - Enforced in: `HighlightTiles::build_tiles` (bounds check)
-//!   - Tested by: TODO (add regression: test_highlight_skips_stale_tree_version)
+//!   - Tested by: `TODO (add regression: test_highlight_skips_stale_tree_version)`
 //!   - Failure symptom: Crash or panic from out-of-bounds tree-sitter node access during rapid edits.
 //!
 //! - Recently visible documents MUST be promoted to `Warm` hotness via [`lru::RecentDocLru`] to
 //!   prevent immediate retention drops when hidden.
 //!   - Enforced in: `Editor::ensure_syntax_for_buffers` (touches LRU on visible, checks LRU for warm), `Editor::on_document_close` (removes from LRU)
-//!   - Tested by: TODO (add regression: test_warm_hotness_prevents_immediate_drop)
+//!   - Tested by: `TODO (add regression: test_warm_hotness_prevents_immediate_drop)`
 //!   - Failure symptom: Switching away from a buffer for one frame drops its syntax tree, causing a flash of unhighlighted text on return.
 //!
 //! - MUST tie background task permit lifetime to the actual thread execution.
 //!   - Enforced in: [`TaskCollector::spawn`] (permit is moved into `spawn_blocking` closure).
-//!   - Tested by: TODO (add regression: test_permit_released_only_on_task_finish)
+//!   - Tested by: `TODO (add regression: test_permit_released_only_on_task_finish)`
 //!   - Failure symptom: Concurrency cap violated under rapid churn (visibility/options flip) because aborted tasks release permits early while still burning CPU.
 //!
 //! # Data flow

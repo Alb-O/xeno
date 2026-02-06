@@ -44,51 +44,50 @@
 //!
 //! # Invariants
 //!
-//! 1. MUST validate any stored `LayerId` before accessing an overlay layout.
-//!    - Enforced in: `LayoutManager::validate_layer`, `LayoutManager::overlay_layout`, `LayoutManager::overlay_layout_mut`, `LayoutManager::layer`, `LayoutManager::layer_mut`
-//!    - Tested by: TODO (add regression: test_layerid_generation_rejects_stale)
-//!    - Failure symptom: separator drag/resize or focus targets operate on the wrong overlay after a layer is cleared/reused.
+//! - MUST validate any stored `LayerId` before accessing an overlay layout.
+//!   - Enforced in: [`LayoutManager::validate_layer`], `LayoutManager::overlay_layout`, `LayoutManager::overlay_layout_mut`, `LayoutManager::layer`, `LayoutManager::layer_mut`
+//!   - Tested by: `TODO (add regression: test_layerid_generation_rejects_stale)`
+//!   - Failure symptom: separator drag/resize or focus targets operate on the wrong overlay after a layer is cleared/reused.
 //!
-//! 2. MUST preserve `LayerId` generation across split preflight to apply.
-//!    - Enforced in: `LayoutManager::can_split_horizontal`, `LayoutManager::can_split_vertical` and split apply APIs taking `LayerId`
-//!    - Tested by: TODO (add regression: test_split_preflight_apply_generation_preserved)
-//!    - Failure symptom: split applies to the wrong layer if the overlay slot is replaced between check and apply.
+//! - MUST preserve `LayerId` generation across split preflight to apply.
+//!   - Enforced in: `LayoutManager::can_split_horizontal`, `LayoutManager::can_split_vertical` and split apply APIs taking `LayerId`
+//!   - Tested by: `TODO (add regression: test_split_preflight_apply_generation_preserved)`
+//!   - Failure symptom: split applies to the wrong layer if the overlay slot is replaced between check and apply.
 //!
-//! 3. MUST NOT allocate/insert a new `ViewId` for a split if the split cannot be created.
-//!    - Enforced in: `Editor::split_horizontal_with_clone`, `Editor::split_vertical_with_clone`, `Editor::split_horizontal`, `Editor::split_vertical` (preflight before buffer creation) and `SplitError`
-//!    - Tested by: TODO (add regression: test_split_preflight_no_orphan_buffer)
-//!    - Failure symptom: orphan `ViewId` exists in buffer store but not in any layout; focus may jump to a non-rendered view.
+//! - MUST NOT allocate/insert a new `ViewId` for a split if the split cannot be created.
+//!   - Enforced in: `Editor::split_horizontal_with_clone`, `Editor::split_vertical_with_clone`, `Editor::split_horizontal`, `Editor::split_vertical` (preflight before buffer creation) and `SplitError`
+//!   - Tested by: `TODO (add regression: test_split_preflight_no_orphan_buffer)`
+//!   - Failure symptom: orphan `ViewId` exists in buffer store but not in any layout; focus may jump to a non-rendered view.
 //!
-//! 4. MUST emit close hooks only after the view has been removed from layout successfully.
-//!    - Enforced in: `Editor::close_view`
-//!    - Tested by: TODO (add regression: test_close_view_hooks_after_removal)
-//!    - Failure symptom: hooks claim a close occurred when the layout removal was denied
-//!      (e.g. closing the last base view).
+//! - MUST emit close hooks only after the view has been removed from layout successfully.
+//!   - Enforced in: `Editor::close_view`
+//!   - Tested by: `TODO (add regression: test_close_view_hooks_after_removal)`
+//!   - Failure symptom: hooks claim a close occurred when the layout removal was denied (e.g. closing the last base view).
 //!
-//! 5. MUST apply suggested focus from `remove_view()` deterministically when the closed view was focused or current focus becomes invalid.
-//!    - Enforced in: `LayoutManager::remove_view` (suggestion), `Editor::close_view` (applies suggestion)
-//!    - Tested by: TODO (add regression: test_close_view_focus_uses_overlap_suggestion)
-//!    - Failure symptom: focus jumps to an unintuitive view (first leaf) or becomes invalid and relies on later repairs.
+//! - MUST apply suggested focus from `remove_view()` deterministically when the closed view was focused or current focus becomes invalid.
+//!   - Enforced in: `LayoutManager::remove_view` (suggestion), `Editor::close_view` (applies suggestion)
+//!   - Tested by: `TODO (add regression: test_close_view_focus_uses_overlap_suggestion)`
+//!   - Failure symptom: focus jumps to an unintuitive view (first leaf) or becomes invalid and relies on later repairs.
 //!
-//! 6. MUST implement soft-min sizing for split geometry; MUST not produce zero-sized panes when space allows.
-//!    - Enforced in: `Layout::compute_split_areas` (soft-min policy), `Layout::do_resize_at_path` (same policy during drag)
-//!    - Tested by:
-//!      - `buffer::layout::tests::compute_split_areas_invariants_horizontal`
-//!      - `buffer::layout::tests::compute_split_areas_invariants_vertical`
-//!      - `buffer::layout::tests::compute_split_areas_no_zero_sized_panes`
-//!      - `buffer::layout::tests::compute_split_areas_extreme_position_clamping`
-//!      - TODO (add regression: test_compute_split_areas_soft_min_respected)
-//!    - Failure symptom: panes collapse to width/height 0 on small terminals; hit-testing and cursor rendering desync.
+//! - MUST implement soft-min sizing for split geometry; MUST not produce zero-sized panes when space allows.
+//!   - Enforced in: `Layout::compute_split_areas` (soft-min policy), `Layout::do_resize_at_path` (same policy during drag)
+//!   - Tested by:
+//!     - [crate::buffer::layout::tests::compute_split_areas_invariants_horizontal]
+//!     - [crate::buffer::layout::tests::compute_split_areas_invariants_vertical]
+//!     - [crate::buffer::layout::tests::compute_split_areas_no_zero_sized_panes]
+//!     - [crate::buffer::layout::tests::compute_split_areas_extreme_position_clamping]
+//!     - `TODO (add regression: test_compute_split_areas_soft_min_respected)`
+//!   - Failure symptom: panes collapse to width/height 0 on small terminals; hit-testing and cursor rendering desync.
 //!
-//! 7. MUST cancel an active separator drag if the layout changes or the referenced layer is stale.
-//!    - Enforced in: `LayoutManager::is_drag_stale`, `LayoutManager::cancel_if_stale`
-//!    - Tested by: TODO (add regression: test_drag_cancels_on_layer_generation_change)
-//!    - Failure symptom: dragging resizes the wrong separator or panics due to invalid path/layer after structural changes.
+//! - MUST cancel an active separator drag if the layout changes or the referenced layer is stale.
+//!   - Enforced in: `LayoutManager::is_drag_stale`, `LayoutManager::cancel_if_stale`
+//!   - Tested by: `TODO (add regression: test_drag_cancels_on_layer_generation_change)`
+//!   - Failure symptom: dragging resizes the wrong separator or panics due to invalid path/layer after structural changes.
 //!
-//! 8. MUST bump overlay layer generation when an overlay layer becomes empty (identity ended).
-//!    - Enforced in: `LayoutManager::remove_view` (overlay clear path), `LayoutManager::set_layer` (replacement)
-//!    - Tested by: TODO (add regression: test_overlay_generation_bumps_on_clear)
-//!    - Failure symptom: stale `LayerId` continues to validate and can target a different overlay session.
+//! - MUST bump overlay layer generation when an overlay layer becomes empty (identity ended).
+//!   - Enforced in: `LayoutManager::remove_view` (overlay clear path), `LayoutManager::set_layer` (replacement)
+//!   - Tested by: `TODO (add regression: test_overlay_generation_bumps_on_clear)`
+//!   - Failure symptom: stale `LayerId` continues to validate and can target a different overlay session.
 //!
 //! # Data flow
 //!

@@ -23,22 +23,25 @@
 //!
 //! # Invariants
 //!
-//! 1. MUST restore state ONLY if buffer version matches capture.
-//!    - Enforced in: `OverlaySession::restore_all`
-//!    - Tested by: TODO (add regression: test_versioned_restore)
-//!    - Failure symptom: User edits clobbered by preview restoration.
-//! 2. MUST NOT allow multiple active modal sessions.
-//!    - Enforced in: `OverlayManager::open`
-//!    - Tested by: TODO (add regression: test_exclusive_modal)
-//!    - Failure symptom: Multiple focus-stealing prompts overlapping and fighting for keys.
-//! 3. MUST clamp all resolved window areas to screen bounds.
-//!    - Enforced in: `RectPolicy::resolve_opt`
-//!    - Tested by: `spec::tests::test_rect_policy_top_center_clamping`
-//!    - Failure symptom: Windows rendering partially off-screen or zero-sized.
-//! 4. MUST clear LSP UI when a modal overlay opens.
-//!    - Enforced in: `OverlayManager::open`
-//!    - Tested by: TODO (add regression: test_modal_overlay_clears_lsp_menu)
-//!    - Failure symptom: Completion menus appearing on top of modal prompts.
+//! - MUST restore state ONLY if buffer version matches capture.
+//!   - Enforced in: [OverlaySession::restore_all]
+//!   - Tested by: `TODO (add regression: test_versioned_restore)`
+//!   - Failure symptom: User edits clobbered by preview restoration.
+//!
+//! - MUST NOT allow multiple active modal sessions.
+//!   - Enforced in: `OverlayManager::open`
+//!   - Tested by: `TODO (add regression: test_exclusive_modal)`
+//!   - Failure symptom: Multiple focus-stealing prompts overlapping and fighting for keys.
+//!
+//! - MUST clamp all resolved window areas to screen bounds.
+//!   - Enforced in: `RectPolicy::resolve_opt`
+//!   - Tested by: `spec::tests::test_rect_policy_top_center_clamping`
+//!   - Failure symptom: Windows rendering partially off-screen or zero-sized.
+//!
+//! - MUST clear LSP UI when a modal overlay opens.
+//!   - Enforced in: `OverlayManager::open`
+//!   - Tested by: `TODO (add regression: test_modal_overlay_clears_lsp_menu)`
+//!   - Failure symptom: Completion menus appearing on top of modal prompts.
 //!
 //! # Data flow
 //!
