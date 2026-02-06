@@ -35,8 +35,8 @@ pub mod transaction;
 // across multiple crates that parse themes and syntax styles.
 pub use direction::{Axis, SeqDirection, SpatialDirection};
 pub use edit::{
-	CommitResult, EditCommit, EditError, EditOrigin, ReadOnlyReason, ReadOnlyScope, SyntaxOutcome,
-	SyntaxPolicy, UndoPolicy,
+	CommitResult, EditCommit, EditError, EditOrigin, ReadOnlyReason, ReadOnlyScope, SyntaxPolicy,
+	UndoPolicy,
 };
 pub use future::{BoxFutureLocal, BoxFutureSend, BoxFutureStatic};
 pub use ids::{MotionId, ViewId, motion_ids};

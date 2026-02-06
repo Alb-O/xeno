@@ -15,10 +15,9 @@ mod tests;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
 
-use xeno_primitives::transaction::Operation;
 use xeno_primitives::{
-	CommitResult, EditCommit, EditError, Range, ReadOnlyReason, ReadOnlyScope, Rope, SyntaxOutcome,
-	SyntaxPolicy, Transaction, UndoPolicy, ViewId,
+	CommitResult, EditCommit, EditError, ReadOnlyReason, ReadOnlyScope, Rope, Transaction,
+	UndoPolicy, ViewId,
 };
 use xeno_runtime_language::LanguageLoader;
 
@@ -191,12 +190,9 @@ impl Document {
 
 	/// Applies an edit bypassing the readonly check.
 	///
-	/// # Safety
-	///
-	/// Internal use only. Callers MUST ensure that any readonly overrides
-	/// have been validated at the view layer.
-	#[doc(hidden)]
-	pub fn commit_unchecked(
+	/// Callers MUST ensure that any readonly overrides have been validated
+	/// at the view layer before invoking this method.
+	pub(crate) fn commit_unchecked(
 		&mut self,
 		commit: EditCommit,
 		origin_view: Option<ViewId>,
@@ -211,12 +207,8 @@ impl Document {
 				version_after: self.version,
 				selection_after: commit.selection_after,
 				undo_recorded: false,
-				changed_ranges: smallvec::SmallVec::new(),
-				syntax_outcome: SyntaxOutcome::Unchanged,
 			};
 		}
-
-		let changed_ranges = collect_changed_ranges(&commit.tx);
 
 		// Record undo history based on policy.
 		// Note: Boundary policy must record *before* application to properly capture
@@ -233,10 +225,15 @@ impl Document {
 				recorded
 			}
 			UndoPolicy::NoUndo => {
-				// Content-changing edit with NoUndo must clear history to prevent corruption.
-				commit.tx.apply(&mut self.content);
-				self.undo_backend.clear_all();
-				false
+				// NoUndo with a non-identity transaction is an invariant violation.
+				// Identity transactions return early above, so reaching this arm
+				// means a content-changing edit attempted to bypass undo recording.
+				// All production callers that compile to NoUndo (None, Undo, Redo
+				// transforms) never produce a transaction, so this is unreachable.
+				panic!(
+					"UndoPolicy::NoUndo reached commit_unchecked with non-identity transaction; \
+					 this combination is illegal because it would silently destroy undo history"
+				);
 			}
 			UndoPolicy::Boundary => {
 				let recorded = self.undo_backend.record_commit(
@@ -250,12 +247,10 @@ impl Document {
 			}
 		};
 
-		self.version = self.version.wrapping_add(1);
-
-		let syntax_outcome = match commit.syntax {
-			SyntaxPolicy::None => SyntaxOutcome::Unchanged,
-			_ => SyntaxOutcome::MarkedDirty,
-		};
+		self.version = self
+			.version
+			.checked_add(1)
+			.expect("document version overflow");
 
 		CommitResult {
 			applied: true,
@@ -263,8 +258,6 @@ impl Document {
 			version_after: self.version,
 			selection_after: commit.selection_after,
 			undo_recorded,
-			changed_ranges: changed_ranges.into(),
-			syntax_outcome,
 		}
 	}
 
@@ -283,16 +276,6 @@ impl Document {
 		&self.content
 	}
 
-	/// Returns a mutable reference to the text content.
-	///
-	/// # Warning
-	///
-	/// Low-level escape hatch. Bypasses history and versioning. Prefer [`commit`].
-	#[allow(dead_code, reason = "escape hatch retained for internal migration")]
-	pub(crate) fn content_mut(&mut self) -> &mut Rope {
-		&mut self.content
-	}
-
 	/// Replaces the entire document content, clearing history.
 	///
 	/// Intended for ephemeral buffers where incremental editing is not used.
@@ -300,7 +283,10 @@ impl Document {
 		self.content = content.into();
 		self.undo_backend = UndoBackend::new();
 		self.undo_backend.clear_active_group_owner();
-		self.version = self.version.wrapping_add(1);
+		self.version = self
+			.version
+			.checked_add(1)
+			.expect("document version overflow");
 		self.undo_backend.set_modified(false);
 	}
 
@@ -313,7 +299,10 @@ impl Document {
 		self.undo_backend = UndoBackend::new();
 		self.undo_backend.clear_active_group_owner();
 		self.undo_backend.set_modified(false);
-		self.version = self.version.wrapping_add(1);
+		self.version = self
+			.version
+			.checked_add(1)
+			.expect("document version overflow");
 	}
 
 	/// Returns the associated file path.
@@ -394,11 +383,6 @@ impl Document {
 		self.version
 	}
 
-	#[doc(hidden)]
-	pub fn increment_version(&mut self) {
-		self.version = self.version.wrapping_add(1);
-	}
-
 	/// Returns the number of items in the undo stack.
 	pub fn undo_len(&self) -> usize {
 		self.undo_backend.undo_len()
@@ -423,29 +407,4 @@ impl Document {
 	pub fn language_id(&self) -> Option<xeno_runtime_language::LanguageId> {
 		self.language_id
 	}
-}
-
-/// Collects ranges affected by a transaction in pre-edit coordinates.
-pub(crate) fn collect_changed_ranges(tx: &xeno_primitives::Transaction) -> Vec<Range> {
-	let mut ranges = Vec::new();
-	let mut pos = 0;
-
-	for op in tx.operations() {
-		match op {
-			Operation::Retain(n) => {
-				pos += n;
-			}
-			Operation::Delete(n) => {
-				if *n > 0 {
-					ranges.push(Range::new(pos, pos + *n - 1));
-				}
-				pos += n;
-			}
-			Operation::Insert(_) => {
-				ranges.push(Range::point(pos));
-			}
-		}
-	}
-
-	ranges
 }

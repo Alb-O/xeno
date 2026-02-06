@@ -35,17 +35,17 @@ pub use crate::core::undo_store::{TxnUndoStore, UndoBackend};
 // Used to detect and prevent re-entrant locking on the same document,
 // which would cause a self-deadlock. Enabled in all builds for reliability.
 thread_local! {
-	static ACTIVE_DOC_LOCKS: RefCell<HashSet<usize>> = RefCell::new(HashSet::new());
+	static ACTIVE_DOC_LOCKS: RefCell<HashSet<DocumentId>> = RefCell::new(HashSet::new());
 }
 
 /// A handle to a shared [`Document`], managing thread-safe access.
 ///
 /// Wraps an `Arc<RwLock<Document>>` and provides scoped access via closures.
-/// It enforces a strict no-reentrancy policy per document.
+/// It enforces a strict no-reentrancy policy per document, keyed by [`DocumentId`].
 #[derive(Clone)]
 pub(crate) struct DocumentHandle {
-	/// Unique identifier (pointer address) of the document, stored for lock-free reentrancy checks.
-	ptr: usize,
+	/// Stable document identity for lock-free reentrancy checks.
+	doc_id: DocumentId,
 	/// Shared pointer to the authoritative document state.
 	inner: Arc<RwLock<Document>>,
 }
@@ -53,19 +53,19 @@ pub(crate) struct DocumentHandle {
 impl DocumentHandle {
 	/// Creates a new handle for the given document.
 	fn new(document: Document) -> Self {
+		let doc_id = document.id;
 		let inner = Arc::new(RwLock::new(document));
-		let ptr = Arc::as_ptr(&inner) as usize;
-		Self { ptr, inner }
+		Self { doc_id, inner }
 	}
 
 	/// Executes a closure with shared (read) access to the document.
 	///
 	/// # Panics
 	///
-	/// Panics if the current thread already holds a lock on this specific document handle.
+	/// Panics if the current thread already holds a lock on this specific document.
 	#[track_caller]
 	fn with<R>(&self, f: impl FnOnce(&Document) -> R) -> R {
-		let _guard = LockGuard::new(self.ptr);
+		let _guard = LockGuard::new(self.doc_id);
 		let guard = self.inner.read();
 		f(&guard)
 	}
@@ -74,10 +74,10 @@ impl DocumentHandle {
 	///
 	/// # Panics
 	///
-	/// Panics if the current thread already holds a lock on this specific document handle.
+	/// Panics if the current thread already holds a lock on this specific document.
 	#[track_caller]
 	fn with_mut<R>(&self, f: impl FnOnce(&mut Document) -> R) -> R {
-		let _guard = LockGuard::new(self.ptr);
+		let _guard = LockGuard::new(self.doc_id);
 		let mut guard = self.inner.write();
 		f(&mut guard)
 	}
@@ -89,27 +89,27 @@ impl DocumentHandle {
 }
 
 /// RAII guard for tracking active document locks on the current thread.
-struct LockGuard(usize);
+struct LockGuard(DocumentId);
 
 impl LockGuard {
-	/// Registers a lock on the given document pointer.
+	/// Registers a lock on the given document.
 	///
 	/// # Panics
 	///
-	/// Panics if the pointer is already present in the thread-local set.
+	/// Panics if the document is already locked by the current thread.
 	#[track_caller]
-	fn new(ptr: usize) -> Self {
+	fn new(doc_id: DocumentId) -> Self {
 		ACTIVE_DOC_LOCKS.with(|locks| {
 			let mut locks = locks.borrow_mut();
-			if locks.contains(&ptr) {
+			if locks.contains(&doc_id) {
 				panic!(
-					"Deadlock detected: Re-entrant lock on document {:p}",
-					ptr as *const ()
+					"Deadlock detected: re-entrant lock on DocumentId({})",
+					doc_id.0
 				);
 			}
-			locks.insert(ptr);
+			locks.insert(doc_id);
 		});
-		Self(ptr)
+		Self(doc_id)
 	}
 }
 

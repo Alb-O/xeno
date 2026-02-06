@@ -23,7 +23,7 @@
 use std::collections::HashMap;
 
 use tracing::trace;
-use xeno_primitives::{CommitResult, EditOrigin, UndoPolicy};
+use xeno_primitives::{CommitResult, EditOrigin};
 
 use super::{EditorUndoGroup, ViewSnapshot};
 use crate::buffer::{DocumentId, ViewId};
@@ -57,8 +57,6 @@ pub struct PreparedEdit {
 	pub affected_docs: Vec<DocumentId>,
 	/// View snapshots captured before the edit.
 	pub pre_views: HashMap<ViewId, ViewSnapshot>,
-	/// Whether this edit should start a new undo group.
-	pub start_new_group: bool,
 	/// Origin of this edit.
 	pub origin: EditOrigin,
 }
@@ -142,7 +140,19 @@ impl UndoManager {
 	}
 
 	/// Pushes an undo group directly and clears the redo stack.
+	///
+	/// For use by subsystems (e.g., LSP workspace edits) that manage their
+	/// own transaction application outside the prepare/finalize cycle.
 	pub fn push_group(&mut self, group: EditorUndoGroup) {
+		self.redo_stack.clear();
+		self.push_undo_group(group);
+	}
+
+	/// Pushes an undo group without clearing the redo stack.
+	///
+	/// Used internally by [`finalize_edit`] which handles redo clearing
+	/// separately to ensure it happens on all applied edits (even merged ones).
+	fn push_undo_group(&mut self, group: EditorUndoGroup) {
 		trace!(
 			docs = ?group.affected_docs,
 			origin = ?group.origin,
@@ -151,7 +161,6 @@ impl UndoManager {
 			"undo group pushed"
 		);
 		self.undo_stack.push(group);
-		self.redo_stack.clear();
 	}
 
 	/// Prepares an edit operation by capturing pre-edit state.
@@ -161,36 +170,39 @@ impl UndoManager {
 		&self,
 		host: &impl UndoHost,
 		buffer_id: ViewId,
-		undo: UndoPolicy,
 		origin: EditOrigin,
 	) -> PreparedEdit {
 		let doc_id = host.doc_id_for_buffer(buffer_id);
 		let pre_views = host.collect_view_snapshots(doc_id);
-		let start_new_group = !matches!(undo, UndoPolicy::NoUndo);
 
 		PreparedEdit {
 			affected_docs: vec![doc_id],
 			pre_views,
-			start_new_group,
 			origin,
 		}
 	}
 
-	/// Finalizes an edit operation by pushing an undo group if needed.
+	/// Finalizes an edit operation based on the actual commit outcome.
 	///
-	/// Should be called after applying a transaction.
+	/// Clears the editor redo stack on any successful edit (even merged),
+	/// and pushes a new undo group only when a new document-level undo step
+	/// was created.
 	pub fn finalize_edit(&mut self, result: &CommitResult, prep: PreparedEdit) {
 		#[cfg(test)]
 		{
 			self.finalize_calls += 1;
 		}
 
-		if result.applied && prep.start_new_group && result.undo_recorded {
-			self.push_group(EditorUndoGroup {
-				affected_docs: prep.affected_docs,
-				view_snapshots: prep.pre_views,
-				origin: prep.origin,
-			});
+		if result.applied {
+			self.redo_stack.clear();
+
+			if result.undo_recorded {
+				self.push_undo_group(EditorUndoGroup {
+					affected_docs: prep.affected_docs,
+					view_snapshots: prep.pre_views,
+					origin: prep.origin,
+				});
+			}
 		}
 	}
 
@@ -199,7 +211,6 @@ impl UndoManager {
 		&mut self,
 		host: &mut H,
 		buffer_id: ViewId,
-		undo: UndoPolicy,
 		origin: EditOrigin,
 		apply: F,
 	) -> bool
@@ -207,7 +218,7 @@ impl UndoManager {
 		H: UndoHost,
 		F: FnOnce(&mut H) -> CommitResult,
 	{
-		let prep = self.prepare_edit(host, buffer_id, undo, origin);
+		let prep = self.prepare_edit(host, buffer_id, origin);
 		let result = apply(host);
 		let applied = result.applied;
 		self.finalize_edit(&result, prep);

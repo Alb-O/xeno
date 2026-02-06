@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use xeno_primitives::range::CharIdx;
-use xeno_primitives::{EditOrigin, Selection, UndoPolicy};
+use xeno_primitives::{EditOrigin, Selection};
 
 use super::*;
 
@@ -84,7 +84,6 @@ fn with_edit_pushes_group_on_apply() {
 	let applied = manager.with_edit(
 		&mut host,
 		buffer_id,
-		UndoPolicy::Record,
 		EditOrigin::Internal("test"),
 		|_host| CommitResult::stub(0),
 	);
@@ -104,7 +103,6 @@ fn with_edit_calls_finalize_on_failure() {
 	let applied = manager.with_edit(
 		&mut host,
 		buffer_id,
-		UndoPolicy::Record,
 		EditOrigin::Internal("test"),
 		|_host| CommitResult::blocked(0),
 	);

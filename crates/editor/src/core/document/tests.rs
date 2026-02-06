@@ -1,6 +1,6 @@
 use xeno_primitives::transaction::Change;
 use xeno_primitives::{
-	EditCommit, EditError, EditOrigin, SyntaxOutcome, SyntaxPolicy, Transaction, UndoPolicy, ViewId,
+	EditCommit, EditError, EditOrigin, SyntaxPolicy, Transaction, UndoPolicy, ViewId,
 };
 
 use super::Document;
@@ -115,23 +115,11 @@ fn commit_sets_modified_flag() {
 }
 
 #[test]
-fn commit_no_undo_policy_skips_recording_and_clears_history() {
+#[should_panic(expected = "NoUndo reached commit_unchecked with non-identity transaction")]
+fn commit_no_undo_with_non_identity_tx_panics() {
 	let mut doc = Document::new("hello".into(), None);
 
-	// First, record some history
-	let tx1 = Transaction::change(
-		doc.content().slice(..),
-		[Change {
-			start: 5,
-			end: 5,
-			replacement: Some("!".into()),
-		}],
-	);
-	doc.commit(make_commit(tx1), None).unwrap();
-	assert!(doc.can_undo());
-
-	// Now apply a NoUndo edit
-	let tx2 = Transaction::change(
+	let tx = Transaction::change(
 		doc.content().slice(..),
 		[Change {
 			start: 0,
@@ -140,20 +128,15 @@ fn commit_no_undo_policy_skips_recording_and_clears_history() {
 		}],
 	);
 	let commit = EditCommit {
-		tx: tx2,
+		tx,
 		undo: UndoPolicy::NoUndo,
 		syntax: SyntaxPolicy::None,
 		origin: EditOrigin::Internal("test"),
 		selection_after: None,
 	};
 
-	let result = doc.commit(commit, None).unwrap();
-	assert!(!result.undo_recorded);
-	assert!(
-		!doc.can_undo(),
-		"NoUndo should clear existing history to prevent corruption"
-	);
-	assert_eq!(doc.content().to_string(), "world!");
+	// This must panic: NoUndo + non-identity tx is an invariant violation.
+	let _ = doc.commit(commit, None);
 }
 
 #[test]
@@ -277,62 +260,6 @@ fn commit_boundary_policy_breaks_insert_group() {
 		.unwrap();
 	assert!(!result3.undo_recorded);
 	assert_eq!(doc.undo_len(), 2); // Still 2 steps because it merged!
-}
-
-#[test]
-fn commit_syntax_mark_dirty() {
-	let mut doc = Document::new("hello".into(), None);
-
-	let tx = Transaction::change(
-		doc.content().slice(..),
-		[Change {
-			start: 0,
-			end: 0,
-			replacement: Some("X".into()),
-		}],
-	);
-	let result = doc
-		.commit(
-			EditCommit {
-				tx,
-				undo: UndoPolicy::Record,
-				syntax: SyntaxPolicy::MarkDirty,
-				origin: EditOrigin::Internal("test"),
-				selection_after: None,
-			},
-			None,
-		)
-		.unwrap();
-
-	assert_eq!(result.syntax_outcome, SyntaxOutcome::MarkedDirty);
-}
-
-#[test]
-fn commit_incremental_or_dirty_without_syntax_marks_dirty() {
-	let mut doc = Document::new("hello".into(), None);
-
-	let tx = Transaction::change(
-		doc.content().slice(..),
-		[Change {
-			start: 0,
-			end: 0,
-			replacement: Some("X".into()),
-		}],
-	);
-	let result = doc
-		.commit(
-			EditCommit {
-				tx,
-				undo: UndoPolicy::Record,
-				syntax: SyntaxPolicy::IncrementalOrDirty,
-				origin: EditOrigin::Internal("test"),
-				selection_after: None,
-			},
-			None,
-		)
-		.unwrap();
-
-	assert_eq!(result.syntax_outcome, SyntaxOutcome::MarkedDirty);
 }
 
 #[test]

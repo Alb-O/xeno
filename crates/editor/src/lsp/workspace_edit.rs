@@ -296,7 +296,7 @@ impl Editor {
 				undo: UndoPolicy::Record,
 				syntax: SyntaxPolicy::IncrementalOrDirty,
 			};
-			buffer.apply(&tx, policy, &self.state.config.language_loader)
+			buffer.apply(&tx, policy)
 		};
 
 		if result.applied {

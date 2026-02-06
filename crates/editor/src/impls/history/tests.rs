@@ -229,7 +229,7 @@ fn redo_stack_clears_on_new_edit() {
 }
 
 #[test]
-fn redo_stack_clears_only_when_group_pushed() {
+fn merged_edit_clears_redo_stack() {
 	let mut editor = test_editor("hello");
 
 	apply_test_edit(&mut editor, " world", 5);
@@ -261,14 +261,14 @@ fn redo_stack_clears_only_when_group_pushed() {
 		buffer_id,
 		&tx,
 		None,
-		UndoPolicy::NoUndo,
+		UndoPolicy::MergeWithCurrentGroup,
 		EditOrigin::Internal("test"),
 	);
 
 	assert_eq!(
 		editor.state.core.undo_manager.redo_len(),
-		1,
-		"NoUndo edit should not clear redo stack"
+		0,
+		"any applied edit must clear redo stack regardless of undo policy"
 	);
 }
 

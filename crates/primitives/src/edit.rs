@@ -3,9 +3,7 @@
 //! These types form the foundation for a single, authoritative edit gate
 //! that handles undo/redo, readonly checks, and syntax scheduling.
 
-use smallvec::SmallVec;
-
-use crate::{Range, Selection, Transaction};
+use crate::{Selection, Transaction};
 
 /// Error type for edit operations.
 #[derive(Debug, Clone, thiserror::Error)]
@@ -79,19 +77,6 @@ pub enum SyntaxPolicy {
 	FullReparseNow,
 }
 
-/// Result of a syntax update during commit.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum SyntaxOutcome {
-	/// No syntax update was performed.
-	Unchanged,
-	/// Syntax was marked dirty for a full reparse later.
-	MarkedDirty,
-	/// Incremental syntax update succeeded.
-	IncrementalApplied,
-	/// A full reparse completed immediately.
-	Reparsed,
-}
-
 /// Result of a successful document commit.
 ///
 /// Bundles the outcomes of a modification, including version updates,
@@ -110,12 +95,6 @@ pub struct CommitResult {
 	///
 	/// `false` if the edit was merged into an existing group or not recorded.
 	pub undo_recorded: bool,
-	/// Ranges affected by this edit in pre-edit coordinates.
-	///
-	/// Deletions report the removed range; insertions are zero-width.
-	pub changed_ranges: SmallVec<[Range; 2]>,
-	/// Outcome of the syntax update policy for this commit.
-	pub syntax_outcome: SyntaxOutcome,
 }
 
 impl CommitResult {
@@ -124,11 +103,9 @@ impl CommitResult {
 		Self {
 			applied: true,
 			version_before: version,
-			version_after: version.wrapping_add(1),
+			version_after: version.checked_add(1).expect("document version overflow"),
 			selection_after: None,
 			undo_recorded: true,
-			changed_ranges: SmallVec::new(),
-			syntax_outcome: SyntaxOutcome::IncrementalApplied,
 		}
 	}
 
@@ -140,8 +117,6 @@ impl CommitResult {
 			version_after: version,
 			selection_after: None,
 			undo_recorded: false,
-			changed_ranges: SmallVec::new(),
-			syntax_outcome: SyntaxOutcome::Unchanged,
 		}
 	}
 }

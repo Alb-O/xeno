@@ -29,12 +29,4 @@ impl ApplyEditPolicy {
 			origin,
 		}
 	}
-
-	/// Creates a policy that skips undo recording.
-	pub fn no_undo(origin: EditOrigin) -> Self {
-		Self {
-			undo: UndoPolicy::NoUndo,
-			origin,
-		}
-	}
 }

@@ -450,7 +450,7 @@ impl UndoBackend {
 	/// Returns the applied inverse transactions if undo was performed.
 	pub fn undo(&mut self, content: &mut Rope, version: &mut u64) -> Option<Vec<Transaction>> {
 		let applied = self.store.undo(content)?;
-		*version = version.wrapping_add(1);
+		*version = version.checked_add(1).expect("document version overflow");
 		Some(applied)
 	}
 
@@ -460,7 +460,7 @@ impl UndoBackend {
 	/// Returns the applied forward transactions if redo was performed.
 	pub fn redo(&mut self, content: &mut Rope, version: &mut u64) -> Option<Vec<Transaction>> {
 		let applied = self.store.redo(content)?;
-		*version = version.wrapping_add(1);
+		*version = version.checked_add(1).expect("document version overflow");
 		Some(applied)
 	}
 

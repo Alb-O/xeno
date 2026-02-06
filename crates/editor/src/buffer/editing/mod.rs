@@ -1,7 +1,6 @@
 //! Text editing operations for buffers.
 
 use xeno_primitives::{CommitResult, EditCommit, Range, SyntaxPolicy, Transaction, UndoPolicy};
-use xeno_runtime_language::LanguageLoader;
 
 use crate::types::Yank;
 
@@ -85,10 +84,7 @@ impl Buffer {
 	/// This updates syntax highlighting according to [`ApplyPolicy::EDIT`].
 	pub fn insert_text(&mut self, text: &str) -> Transaction {
 		let (tx, new_selection) = self.prepare_insert(text);
-		if self
-			.apply(&tx, ApplyPolicy::EDIT, &LanguageLoader::new())
-			.applied
-		{
+		if self.apply(&tx, ApplyPolicy::EDIT).applied {
 			self.set_selection(new_selection);
 			self.sync_cursor_to_selection();
 		}
@@ -155,13 +151,11 @@ impl Buffer {
 	/// Pastes text after the cursor positions.
 	pub fn paste_after(&mut self, text: &str) -> Option<Transaction> {
 		let (tx, new_selection) = self.prepare_paste_after(text)?;
-		self.apply(&tx, ApplyPolicy::EDIT, &LanguageLoader::new())
-			.applied
-			.then(|| {
-				self.set_selection(new_selection);
-				self.sync_cursor_to_selection();
-				tx
-			})
+		self.apply(&tx, ApplyPolicy::EDIT).applied.then(|| {
+			self.set_selection(new_selection);
+			self.sync_cursor_to_selection();
+			tx
+		})
 	}
 
 	/// Prepares a paste operation before each cursor.
@@ -178,13 +172,11 @@ impl Buffer {
 	/// Pastes text before the cursor positions.
 	pub fn paste_before(&mut self, text: &str) -> Option<Transaction> {
 		let (tx, new_selection) = self.prepare_paste_before(text)?;
-		self.apply(&tx, ApplyPolicy::EDIT, &LanguageLoader::new())
-			.applied
-			.then(|| {
-				self.set_selection(new_selection);
-				self.sync_cursor_to_selection();
-				tx
-			})
+		self.apply(&tx, ApplyPolicy::EDIT).applied.then(|| {
+			self.set_selection(new_selection);
+			self.sync_cursor_to_selection();
+			tx
+		})
 	}
 
 	/// Prepares deletion of the current selection.
@@ -200,24 +192,17 @@ impl Buffer {
 	/// Deletes the current selection.
 	pub fn delete_selection(&mut self) -> Option<Transaction> {
 		let (tx, new_selection) = self.prepare_delete_selection()?;
-		self.apply(&tx, ApplyPolicy::EDIT, &LanguageLoader::new())
-			.applied
-			.then(|| {
-				self.set_selection(new_selection);
-				tx
-			})
+		self.apply(&tx, ApplyPolicy::EDIT).applied.then(|| {
+			self.set_selection(new_selection);
+			tx
+		})
 	}
 
 	/// Applies a transaction with the specified policy.
 	///
 	/// This is the unified entry point for all local document modifications.
 	/// It resolves undo grouping and enforces view-level readonly checks.
-	pub fn apply(
-		&mut self,
-		tx: &Transaction,
-		policy: ApplyPolicy,
-		_loader: &LanguageLoader,
-	) -> CommitResult {
+	pub(crate) fn apply(&mut self, tx: &Transaction, policy: ApplyPolicy) -> CommitResult {
 		if let Some(readonly) = self.readonly_override {
 			if readonly {
 				return CommitResult::blocked(self.version());
@@ -230,21 +215,15 @@ impl Buffer {
 			.with_undo(policy.undo)
 			.with_syntax(policy.syntax);
 
-		let result = self.with_doc_mut(|doc| doc.commit_unchecked(commit, Some(self.id)));
-
-		result
+		self.with_doc_mut(|doc| doc.commit_unchecked(commit, Some(self.id)))
 	}
 
 	/// Applies a remote transaction, bypassing view-level readonly overrides.
 	///
 	/// Remote edits always clear the local insert-undo group to maintain
 	/// history consistency.
-	pub fn apply_remote(
-		&mut self,
-		tx: &Transaction,
-		policy: ApplyPolicy,
-		_loader: &LanguageLoader,
-	) -> CommitResult {
+	#[allow(dead_code, reason = "reserved for buffer sync feature")]
+	pub(crate) fn apply_remote(&mut self, tx: &Transaction, policy: ApplyPolicy) -> CommitResult {
 		if self.with_doc(|doc| doc.is_readonly()) {
 			return CommitResult::blocked(self.version());
 		}
@@ -253,8 +232,7 @@ impl Buffer {
 			.with_undo(policy.undo)
 			.with_syntax(policy.syntax);
 
-		let result = self.with_doc_mut(|doc| doc.commit_unchecked(commit, None));
-		result
+		self.with_doc_mut(|doc| doc.commit_unchecked(commit, None))
 	}
 
 	/// Finalizes view state (selection and cursor) after a successful edit.

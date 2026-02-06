@@ -51,7 +51,6 @@ impl Editor {
 		let res = core.undo_manager.with_edit(
 			&mut host,
 			buffer_id,
-			undo,
 			origin,
 			|host: &mut EditorUndoHost| {
 				host.apply_transaction_inner(buffer_id, tx, new_selection, undo)

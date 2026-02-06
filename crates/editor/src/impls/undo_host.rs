@@ -54,7 +54,7 @@ impl EditorUndoHost<'_> {
 				.buffers
 				.get_buffer_mut(buffer_id)
 				.expect("buffer must exist");
-			let result = buffer.apply(tx, policy, &self.config.language_loader);
+			let result = buffer.apply(tx, policy);
 			if result.applied
 				&& let Some(selection) = new_selection
 			{
