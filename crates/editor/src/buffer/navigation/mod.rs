@@ -402,7 +402,7 @@ impl Buffer {
 
 			let line_start = content.line_to_char(line_idx);
 			let col_in_line = doc_pos.saturating_sub(line_start);
-			let gutter_width = self.gutter_width() as usize;
+			let gutter_width = self.gutter_width_with_doc(doc) as usize;
 
 			let mut visual_row = 0usize;
 			let mut current_line = self.scroll_line;

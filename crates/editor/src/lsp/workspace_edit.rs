@@ -314,6 +314,7 @@ impl Editor {
 				&after_rope,
 				tx.changes(),
 				&self.state.config.language_loader,
+				crate::syntax_manager::EditSource::History,
 			);
 			self.state.lsp.sync_manager_mut().escalate_full(doc_id);
 		}

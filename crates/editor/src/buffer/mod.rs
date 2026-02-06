@@ -336,15 +336,18 @@ impl Buffer {
 
 	/// Computes the combined width of all enabled gutter columns.
 	pub fn gutter_width(&self) -> u16 {
+		self.with_doc(|doc| self.gutter_width_with_doc(doc))
+	}
+
+	#[inline]
+	pub(crate) fn gutter_width_with_doc(&self, doc: &Document) -> u16 {
 		use xeno_registry::gutter::{GutterWidthContext, total_width};
 
-		self.with_doc(|doc| {
-			let ctx = GutterWidthContext {
-				total_lines: doc.content().len_lines(),
-				viewport_width: self.text_width as u16 + 100, // approximate
-			};
-			total_width(&ctx)
-		})
+		let ctx = GutterWidthContext {
+			total_lines: doc.content().len_lines(),
+			viewport_width: self.text_width as u16 + 100, // approximate
+		};
+		total_width(&ctx)
 	}
 
 	pub fn undo_stack_len(&self) -> usize {

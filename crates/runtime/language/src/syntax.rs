@@ -195,52 +195,33 @@ fn generate_edits(old_text: RopeSlice, changeset: &xeno_primitives::ChangeSet) -
 	use tree_house::tree_sitter::Point;
 	use xeno_primitives::transaction::Operation;
 
-	fn point_at_char(text: RopeSlice, char_idx: usize) -> Point {
-		let row = text.char_to_line(char_idx) as u32;
-		let line_start_char = text.line_to_char(row as usize);
-		let in_line_chars = char_idx.saturating_sub(line_start_char);
-		// tree-sitter Point.column is in BYTES, not chars
-		let line = text.line(row as usize);
-		let col_bytes = line.char_to_byte(in_line_chars) as u32;
-		Point {
-			row,
-			col: col_bytes,
+	fn add_delta(start: Point, text: &str) -> Point {
+		let bytes = text.as_bytes();
+		let mut row = start.row;
+		let mut col = start.col;
+		for &b in bytes {
+			if b == b'\n' {
+				row += 1;
+				col = 0;
+			} else {
+				col += 1;
+			}
 		}
+		Point { row, col }
 	}
 
-	fn point_after_insert(start: Point, inserted: &str) -> Point {
-		if inserted.is_empty() {
-			return start;
+	fn add_delta_rope(start: Point, rope: RopeSlice) -> Point {
+		let mut p = start;
+		for chunk in rope.chunks() {
+			p = add_delta(p, chunk);
 		}
-		let bytes = inserted.as_bytes();
-		let mut rows = 0u32;
-		let mut last_line_bytes = 0u32;
-		let mut cur = 0u32;
-		for &b in bytes {
-			cur += 1;
-			if b == b'\n' {
-				rows += 1;
-				last_line_bytes = 0;
-				cur = 0;
-			} else {
-				last_line_bytes = cur;
-			}
-		}
-		if rows == 0 {
-			Point {
-				row: start.row,
-				col: start.col + last_line_bytes,
-			}
-		} else {
-			Point {
-				row: start.row + rows,
-				col: last_line_bytes,
-			}
-		}
+		p
 	}
 
 	let mut edits = Vec::new();
 	let mut old_pos = 0usize;
+	let mut current_byte = 0u32;
+	let mut current_point = Point { row: 0, col: 0 };
 
 	if changeset.is_empty() {
 		return edits;
@@ -249,19 +230,20 @@ fn generate_edits(old_text: RopeSlice, changeset: &xeno_primitives::ChangeSet) -
 	let mut iter = changeset.changes().iter().peekable();
 
 	while let Some(change) = iter.next() {
-		let len = match change {
-			Operation::Delete(i) | Operation::Retain(i) => *i,
-			Operation::Insert(_) => 0,
-		};
-		let mut old_end = old_pos + len;
-
 		match change {
-			Operation::Retain(_) => {}
-			Operation::Delete(_) => {
-				let start_byte = old_text.char_to_byte(old_pos) as u32;
-				let old_end_byte = old_text.char_to_byte(old_end) as u32;
-				let start_point = point_at_char(old_text, old_pos);
-				let old_end_point = point_at_char(old_text, old_end);
+			Operation::Retain(len) => {
+				let segment = old_text.slice(old_pos..old_pos + len);
+				current_byte += segment.len_bytes() as u32;
+				current_point = add_delta_rope(current_point, segment);
+				old_pos += len;
+			}
+			Operation::Delete(len) => {
+				let start_byte = current_byte;
+				let start_point = current_point;
+
+				let segment = old_text.slice(old_pos..old_pos + len);
+				let old_end_byte = start_byte + segment.len_bytes() as u32;
+				let old_end_point = add_delta_rope(start_point, segment);
 
 				edits.push(InputEdit {
 					start_byte,
@@ -271,23 +253,27 @@ fn generate_edits(old_text: RopeSlice, changeset: &xeno_primitives::ChangeSet) -
 					old_end_point,
 					new_end_point: start_point,
 				});
+				old_pos += len;
 			}
 			Operation::Insert(s) => {
-				let start_byte = old_text.char_to_byte(old_pos) as u32;
-				let start_point = point_at_char(old_text, old_pos);
-				let new_end_point = point_after_insert(start_point, s.text());
+				let start_byte = current_byte;
+				let start_point = current_point;
+
+				let insert_len = s.byte_len() as u32;
+				let new_end_point = add_delta(start_point, s.text());
 
 				// Check for subsequent delete (replacement)
 				if let Some(Operation::Delete(del_len)) = iter.peek() {
-					old_end = old_pos + del_len;
-					let old_end_byte = old_text.char_to_byte(old_end) as u32;
-					let old_end_point = point_at_char(old_text, old_end);
+					let del_segment = old_text.slice(old_pos..old_pos + del_len);
+					let old_end_byte = start_byte + del_segment.len_bytes() as u32;
+					let old_end_point = add_delta_rope(start_point, del_segment);
 					iter.next();
+					old_pos += del_len;
 
 					edits.push(InputEdit {
 						start_byte,
 						old_end_byte,
-						new_end_byte: start_byte + s.byte_len() as u32,
+						new_end_byte: start_byte + insert_len,
 						start_point,
 						old_end_point,
 						new_end_point,
@@ -296,15 +282,16 @@ fn generate_edits(old_text: RopeSlice, changeset: &xeno_primitives::ChangeSet) -
 					edits.push(InputEdit {
 						start_byte,
 						old_end_byte: start_byte,
-						new_end_byte: start_byte + s.byte_len() as u32,
+						new_end_byte: start_byte + insert_len,
 						start_point,
 						old_end_point: start_point,
 						new_end_point,
 					});
 				}
+				current_byte += insert_len;
+				current_point = new_end_point;
 			}
 		}
-		old_pos = old_end;
 	}
 
 	edits
@@ -434,5 +421,48 @@ mod tests {
 		assert_eq!(edits[0].start_byte, 6);
 		assert_eq!(edits[0].old_end_byte, 11);
 		assert_eq!(edits[0].new_end_byte, 10);
+	}
+
+	#[test]
+	fn test_generate_edits_multi_insert_requires_coordinate_shift() {
+		use xeno_primitives::transaction::Change;
+
+		// ASCII => bytes == chars for simple assertions.
+		let doc = Rope::from("hello world"); // len_bytes = 11
+
+		// Two inserts in one ChangeSet: at start and at end (in original coordinates).
+		let changes = vec![
+			Change {
+				start: 0,
+				end: 0,
+				replacement: Some("X".into()),
+			},
+			Change {
+				start: 11,
+				end: 11,
+				replacement: Some("Y".into()),
+			},
+		];
+
+		let tx = Transaction::change(doc.slice(..), changes);
+		let edits = generate_edits(doc.slice(..), tx.changes());
+
+		assert_eq!(edits.len(), 2);
+
+		// First insert at 0 is fine.
+		assert_eq!(edits[0].start_byte, 0);
+		assert_eq!(edits[0].old_end_byte, 0);
+		assert_eq!(edits[0].new_end_byte, 1);
+
+		// If InputEdits are applied sequentially (Tree::edit style),
+		// the second insert’s coordinates must be shifted by +1 byte due to the prior insert.
+		assert_eq!(edits[1].start_byte, 12, "start_byte should be shifted");
+		assert_eq!(edits[1].old_end_byte, 12, "old_end_byte should be shifted");
+		assert_eq!(edits[1].new_end_byte, 13, "new_end_byte should be shifted");
+
+		// Bonus: Point.col is also in bytes; should match shifted coordinates on row 0.
+		assert_eq!(edits[1].start_point.row, 0);
+		assert_eq!(edits[1].start_point.col, 12);
+		assert_eq!(edits[1].new_end_point.col, 13);
 	}
 }

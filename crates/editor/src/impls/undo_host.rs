@@ -88,6 +88,7 @@ impl EditorUndoHost<'_> {
 				&after_rope,
 				tx.changes(),
 				&self.config.language_loader,
+				crate::syntax_manager::EditSource::Typing,
 			);
 			self.sync_all_view_selections_for_doc(
 				doc_id,
@@ -238,6 +239,7 @@ impl EditorUndoHost<'_> {
 				&after_rope,
 				&net_changes,
 				&self.config.language_loader,
+				crate::syntax_manager::EditSource::History,
 			);
 		}
 
