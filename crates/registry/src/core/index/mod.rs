@@ -14,4 +14,7 @@ pub use types::RegistryIndex;
 pub(crate) mod invariants;
 
 #[cfg(test)]
+pub(crate) mod test_fixtures;
+
+#[cfg(test)]
 mod tests;

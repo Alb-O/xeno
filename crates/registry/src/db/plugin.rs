@@ -21,9 +21,3 @@ pub fn run_plugins(builder: &mut RegistryDbBuilder) -> Result<(), RegistryError>
 
 	Ok(())
 }
-
-/// Legacy plugin trait — unused.
-pub trait XenoPlugin {
-	const ID: &'static str;
-	fn register(db: &mut RegistryDbBuilder) -> Result<(), RegistryError>;
-}

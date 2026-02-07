@@ -266,11 +266,11 @@ impl RegistryDbBuilder {
 		let before = DomainCounts::snapshot(self);
 		(plugin.register)(self)?;
 		let after = DomainCounts::snapshot(self);
-		let _diff = DomainCounts::diff(after, before);
+		let diff = DomainCounts::diff(after, before);
 
 		self.plugin_records.push(PluginBuildRecord {
 			plugin_id: plugin.meta.id,
-			counts: _diff,
+			counts: diff,
 		});
 
 		Ok(())

@@ -8,9 +8,6 @@ pub mod core;
 #[doc(hidden)]
 pub use crate::core as xeno_registry_core;
 
-/// Dead: `Reg` and `RegSlice` are unused.
-pub mod inventory;
-
 // Generate HookEvent, HookEventData, OwnedHookContext, and extractor macros
 // from this single source of truth. Adding a new event only requires adding
 // it here - all extraction machinery is auto-generated.
@@ -218,8 +215,6 @@ pub use db::index::{
 };
 #[cfg(feature = "keymap")]
 pub use db::keymap_registry::{BindingEntry, KeymapRegistry, LookupResult, get_keymap_registry};
-#[cfg(feature = "db")]
-pub use db::plugin::XenoPlugin;
 #[cfg(feature = "db")]
 pub use db::{
 	ACTIONS, COMMANDS, GUTTERS, HOOKS, MOTIONS, NOTIFICATIONS, OPTIONS, STATUSLINE_SEGMENTS,

@@ -46,7 +46,7 @@ where
 	_marker: std::marker::PhantomData<(Out, Id)>,
 }
 
-struct IngestEntry<In> {
+pub(crate) struct IngestEntry<In> {
 	ordinal: u32,
 	inner: Arc<In>,
 }
@@ -446,7 +446,7 @@ fn compare_out<T: RegistryEntry>(a: &T, b: &T) -> Ordering {
 		.then_with(|| b.source().rank().cmp(&a.source().rank()))
 }
 
-struct IdCollisionRecord {
+pub(crate) struct IdCollisionRecord {
 	id_str: String,
 	winner_ordinal: u32,
 	loser_ordinal: u32,

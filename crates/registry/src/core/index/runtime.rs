@@ -459,12 +459,14 @@ where
 					ordinal: new_table.len() as u32,
 				};
 
-				// Policy check (aligned with build.rs compare_out logic)
+				// Policy check: higher priority wins; at equal priority, higher
+				// source rank wins (Runtime > Crate > Builtin), so runtime
+				// extensions naturally override builtins without needing an
+				// explicit priority bump.
 				let is_better = match self.policy {
 					DuplicatePolicy::FirstWins => false,
 					DuplicatePolicy::LastWins => true,
 					DuplicatePolicy::ByPriority => {
-						// Same logic as compare_out: higher priority wins, then higher source rank
 						let ord =
 							new_party
 								.priority

@@ -1,100 +1,13 @@
-//! Invariant proof tests for the new builder-based registry architecture.
-//!
-//! The previous proofs referenced the old insert/KeyStore/DefRef API which has
-//! been replaced by the RegistryBuilder + RegistryIndex + RuntimeRegistry stack.
-//! These proofs need to be rewritten against the new architecture.
+//! Invariant proof tests for the builder-based registry architecture.
 
 use std::sync::Arc;
 
-use crate::core::index::build::{BuildEntry, RegistryBuilder, RegistryMetaRef};
+use crate::core::index::build::RegistryBuilder;
 use crate::core::index::runtime::RuntimeRegistry;
-use crate::core::{
-	CapabilitySet, FrozenInterner, RegistryEntry, RegistryMeta, RegistryMetaStatic, RegistrySource,
-	Symbol, SymbolList,
-};
-
-/// Minimal test entry type for proofs.
-struct TestEntry {
-	meta: RegistryMeta,
-}
-
-impl RegistryEntry for TestEntry {
-	fn meta(&self) -> &RegistryMeta {
-		&self.meta
-	}
-}
-
-/// Minimal test def type for proofs.
-#[derive(Clone)]
-struct TestDef {
-	meta: RegistryMetaStatic,
-}
-
-impl BuildEntry<TestEntry> for TestDef {
-	fn meta_ref(&self) -> RegistryMetaRef<'_> {
-		RegistryMetaRef {
-			id: self.meta.id,
-			name: self.meta.name,
-			aliases: self.meta.aliases,
-			description: self.meta.description,
-			priority: self.meta.priority,
-			source: self.meta.source,
-			required_caps: self.meta.required_caps,
-			flags: self.meta.flags,
-		}
-	}
-	fn short_desc_str(&self) -> &str {
-		self.meta.name
-	}
-	fn collect_strings<'a>(&'a self, sink: &mut Vec<&'a str>) {
-		sink.push(self.meta.id);
-		sink.push(self.meta.name);
-		sink.push(self.meta.description);
-		for &alias in self.meta.aliases {
-			sink.push(alias);
-		}
-	}
-	fn build(&self, interner: &FrozenInterner, alias_pool: &mut Vec<Symbol>) -> TestEntry {
-		let meta_ref = self.meta_ref();
-		let start = alias_pool.len() as u32;
-		for &alias in meta_ref.aliases {
-			alias_pool.push(interner.get(alias).expect("missing interned alias"));
-		}
-		let len = (alias_pool.len() as u32 - start) as u16;
-
-		TestEntry {
-			meta: RegistryMeta {
-				id: interner.get(meta_ref.id).expect("missing interned id"),
-				name: interner.get(meta_ref.name).expect("missing interned name"),
-				description: interner
-					.get(meta_ref.description)
-					.expect("missing interned description"),
-				aliases: SymbolList { start, len },
-				priority: meta_ref.priority,
-				source: meta_ref.source,
-				required_caps: CapabilitySet::from_iter(meta_ref.required_caps.iter().cloned()),
-				flags: meta_ref.flags,
-			},
-		}
-	}
-}
-
+use crate::core::index::test_fixtures::{TestDef, TestEntry, make_def};
 use crate::core::symbol::ActionId;
-
-fn make_def(id: &'static str, priority: i16) -> TestDef {
-	TestDef {
-		meta: RegistryMetaStatic {
-			id,
-			name: id,
-			aliases: &[],
-			description: "",
-			priority,
-			source: RegistrySource::Builtin,
-			required_caps: &[],
-			flags: 0,
-		},
-	}
-}
+use crate::core::traits::RegistryEntry;
+use crate::core::{RegistryMetaStatic, RegistrySource};
 
 /// Builder produces deterministic index ordering by canonical ID.
 #[cfg_attr(test, test)]
